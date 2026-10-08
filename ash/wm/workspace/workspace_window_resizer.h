@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,7 @@
 #include "ash/wm/window_resizer.h"
 #include "ash/wm/workspace/magnetism_matcher.h"
 #include "base/memory/weak_ptr.h"
-#include "base/timer/timer.h"
 #include "ui/aura/window_tracker.h"
-#include "ui/compositor/presentation_time_recorder.h"
 #include "ui/display/display.h"
 #include "ui/gfx/geometry/point_f.h"
 
@@ -32,7 +30,7 @@ class WindowState;
 class ASH_EXPORT WorkspaceWindowResizer : public WindowResizer {
  public:
   // Possible states the window can end up in after a drag is complete.
-  enum class SnapType { kPrimary, kSecondary, kMaximize, kNone };
+  enum class SnapType { kLeft, kRight, kMaximize, kNone };
 
   // Min height we'll force on screen when dragging the caption.
   // TODO: this should come from a property on the window.
@@ -52,7 +50,6 @@ class ASH_EXPORT WorkspaceWindowResizer : public WindowResizer {
 
  private:
   friend class WorkspaceWindowResizerTest;
-  FRIEND_TEST_ALL_PREFIXES(HapticsUtilTest, HapticFeedbackForNormalWindowSnap);
 
   WorkspaceWindowResizer(WindowState* window_state,
                          const std::vector<aura::Window*>& attached_windows);
@@ -131,15 +128,9 @@ class ASH_EXPORT WorkspaceWindowResizer : public WindowResizer {
   int PrimaryAxisSize(const gfx::Size& size) const;
   int PrimaryAxisCoordinate(int x, int y) const;
 
-  // From a given snap |type| and a current display orientation, returns true
-  // if the snap is snap top or maximize. This function is used to decide if
-  // we need to show the phantom window for top snap or maximize or not.
-  bool IsSnapTopOrMaximize(SnapType type) const;
-
-  // Updates the bounds of the phantom window where the snap bounds are
-  // calculated from GetSnappedWindowBounds() given a |target_snap_type| and
-  // maximize bounds is from full display work area.
-  void UpdateSnapPhantomWindow(const SnapType target_snap_type);
+  // Updates the bounds of the phantom window for window snapping.
+  void UpdateSnapPhantomWindow(const gfx::PointF& location_in_screen,
+                               const gfx::Rect& bounds);
 
   // Restacks the windows z-order position so that one of the windows is at the
   // top of the z-order, and the rest directly underneath it.
@@ -152,9 +143,10 @@ class ASH_EXPORT WorkspaceWindowResizer : public WindowResizer {
   SnapType GetSnapType(const display::Display& display,
                        const gfx::PointF& location_in_screen) const;
 
-  // Returns true if |window| bounds are valid bounds for a snap state and snap
-  // ratio in |window_state_|.
-  bool AreBoundsValidSnappedBounds(aura::Window* window) const;
+  // Returns true if |bounds_in_parent| are valid bounds for snapped state type
+  // |snapped_type|.
+  bool AreBoundsValidSnappedBounds(chromeos::WindowStateType snapped_type,
+                                   const gfx::Rect& bounds_in_parent) const;
 
   // Sets |window|'s state type to |new_state_type|. Called after the drag has
   // been completed for fling/swipe gestures.
@@ -172,20 +164,15 @@ class ASH_EXPORT WorkspaceWindowResizer : public WindowResizer {
   WindowState* window_state() { return window_state_; }
   const WindowState* window_state() const { return window_state_; }
 
+  const std::vector<aura::Window*> attached_windows_;
+
   // Returns the currently used instance for test.
   static WorkspaceWindowResizer* GetInstanceForTest();
-
-  const std::vector<aura::Window*> attached_windows_;
 
   bool did_lock_cursor_ = false;
 
   // Set to true once Drag() is invoked and the bounds of the window change.
   bool did_move_or_resize_ = false;
-
-  // Tracks whether a window can be maximized depending on distance dragged.
-  // Set to true when Drag() has a vertical move more than
-  // kSnapTriggerVerticalMoveThreshold.
-  bool can_snap_to_maximize_ = false;
 
   // True if the window initially had |bounds_changed_by_user_| set in state.
   const bool initial_bounds_changed_by_user_;
@@ -207,13 +194,14 @@ class ASH_EXPORT WorkspaceWindowResizer : public WindowResizer {
   // The edge to which the window should be snapped to at the end of the drag.
   SnapType snap_type_ = SnapType::kNone;
 
-  // Timer for dwell time countdown.
-  base::OneShotTimer dwell_countdown_timer_;
-  // The location for drag maximize in screen.
-  absl::optional<gfx::PointF> dwell_location_in_screen_;
+  // Tracks whether a window can be maximized depending on distance dragged.
+  // This is false when a window's initial drag location is within the drag to
+  // snap region - it will become true once the window has been dragged out
+  // of the snap region once. Used to reduce accidental snaps.
+  bool can_snap_to_maximize_ = false;
 
-  // The location in parent passed to `Drag()`.
-  gfx::PointF last_location_in_parent_;
+  // The mouse location passed to Drag().
+  gfx::PointF last_mouse_location_;
 
   // Window the drag has magnetically attached to.
   aura::Window* magnetism_window_ = nullptr;
@@ -233,7 +221,7 @@ class ASH_EXPORT WorkspaceWindowResizer : public WindowResizer {
   gfx::Rect restore_bounds_for_gesture_;
 
   // Presentation time recorder for tab dragging in clamshell mode.
-  std::unique_ptr<ui::PresentationTimeRecorder> tab_dragging_recorder_;
+  std::unique_ptr<PresentationTimeRecorder> tab_dragging_recorder_;
 
   // Used to determine if this has been deleted during a drag such as when a tab
   // gets dragged into another browser window.

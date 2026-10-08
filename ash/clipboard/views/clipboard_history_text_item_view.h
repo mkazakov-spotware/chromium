@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "ash/clipboard/views/clipboard_history_item_view.h"
 
 namespace views {
+class Label;
 class MenuItemView;
 }  // namespace views
 
@@ -25,21 +26,19 @@ class ClipboardHistoryTextItemView : public ClipboardHistoryItemView {
       delete;
   ~ClipboardHistoryTextItemView() override;
 
- protected:
-  const std::u16string& text() const { return text_; }
-
-  // ClipboardHistoryItemView:
-  std::unique_ptr<ContentsView> CreateContentsView() override;
-
  private:
   class TextContentsView;
 
   // ClipboardHistoryItemView:
-  std::u16string GetAccessibleName() const override;
+  std::unique_ptr<ContentsView> CreateContentsView() override;
+  base::string16 GetAccessibleName() const override;
   const char* GetClassName() const override;
+  void OnThemeChanged() override;
 
   // Text to show.
-  const std::u16string text_;
+  const base::string16 text_;
+
+  views::Label* label_ = nullptr;
 };
 
 }  // namespace ash

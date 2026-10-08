@@ -7,7 +7,7 @@
 <script>
 // Tests that using the different composite modes to fill large rects doesn't crash and works as expected.
 var canvas = document.getElementById("c");
-var ctx = canvas.getContext("2d", {willReadFrequently: true});
+var ctx = canvas.getContext("2d");
 
 function clearContextToGreen() {
     ctx.globalCompositeOperation="source-over";

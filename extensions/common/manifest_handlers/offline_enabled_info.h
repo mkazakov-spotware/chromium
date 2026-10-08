@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/manifest_handler.h"
@@ -29,17 +30,15 @@ struct OfflineEnabledInfo : public Extension::ManifestData {
 class OfflineEnabledHandler : public ManifestHandler {
  public:
   OfflineEnabledHandler();
-
-  OfflineEnabledHandler(const OfflineEnabledHandler&) = delete;
-  OfflineEnabledHandler& operator=(const OfflineEnabledHandler&) = delete;
-
   ~OfflineEnabledHandler() override;
 
-  bool Parse(Extension* extension, std::u16string* error) override;
+  bool Parse(Extension* extension, base::string16* error) override;
   bool AlwaysParseForType(Manifest::Type type) const override;
 
  private:
   base::span<const char* const> Keys() const override;
+
+  DISALLOW_COPY_AND_ASSIGN(OfflineEnabledHandler);
 };
 
 }  // namespace extensions

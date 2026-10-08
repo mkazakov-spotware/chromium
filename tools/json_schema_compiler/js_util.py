@@ -1,4 +1,4 @@
-# Copyright 2015 The Chromium Authors
+# Copyright 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -7,7 +7,7 @@ from model import PropertyType
 
 from datetime import datetime
 
-LICENSE = """// Copyright %s The Chromium Authors
+LICENSE = """// Copyright %s The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 """
@@ -28,7 +28,7 @@ class JsUtil(object):
   def GetInfo(self, tool):
     """Returns text describing how the file was generated.
     """
-    return (INFO % tool.replace('\\', '/'))
+    return (INFO % tool)
 
   def AppendObjectDefinition(self, c, namespace_name, properties,
                                new_line=True):

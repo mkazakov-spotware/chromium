@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 #include <vector>
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/build_config.h"
-#include "ui/base/resource/resource_scale_factor.h"
+#include "ui/base/resource/scale_factor.h"
 #include "ui/gfx/native_widget_types.h"
 
 namespace ui {
@@ -19,44 +19,40 @@ namespace ui {
 // Use ScopedSetSupportedScaleFactors for unit tests as not to affect the
 // state of other tests.
 COMPONENT_EXPORT(UI_BASE)
-void SetSupportedResourceScaleFactors(
-    const std::vector<ResourceScaleFactor>& scale_factors);
+void SetSupportedScaleFactors(const std::vector<ScaleFactor>& scale_factors);
 
 // Returns a vector with the scale factors which are supported by this
 // platform, in ascending order.
 COMPONENT_EXPORT(UI_BASE)
-const std::vector<ResourceScaleFactor>& GetSupportedResourceScaleFactors();
+const std::vector<ScaleFactor>& GetSupportedScaleFactors();
 
-// Returns the supported ResourceScaleFactor which most closely matches |scale|.
-// Converting from float to ResourceScaleFactor is inefficient and should be
-// done as little as possible.
+// Returns the supported ScaleFactor which most closely matches |scale|.
+// Converting from float to ScaleFactor is inefficient and should be done as
+// little as possible.
 COMPONENT_EXPORT(UI_BASE)
-ResourceScaleFactor GetSupportedResourceScaleFactor(float image_scale);
+ScaleFactor GetSupportedScaleFactor(float image_scale);
 
-// Returns the ResourceScaleFactor used by |view|.
+// Returns the ScaleFactor used by |view|.
 COMPONENT_EXPORT(UI_BASE)
 float GetScaleFactorForNativeView(gfx::NativeView view);
 
 // Returns true if the scale passed in is the list of supported scales for
 // the platform.
-// TODO(oshima): Deprecate this.
 COMPONENT_EXPORT(UI_BASE) bool IsSupportedScale(float scale);
 
 namespace test {
-// Class which changes the value of GetSupportedResourceScaleFactors() to
+// Class which changes the value of GetSupportedScaleFactors() to
 // |new_scale_factors| for the duration of its lifetime.
-class COMPONENT_EXPORT(UI_BASE) ScopedSetSupportedResourceScaleFactors {
+class COMPONENT_EXPORT(UI_BASE) ScopedSetSupportedScaleFactors {
  public:
-  explicit ScopedSetSupportedResourceScaleFactors(
-      const std::vector<ResourceScaleFactor>& new_scale_factors);
-  ScopedSetSupportedResourceScaleFactors(
-      const ScopedSetSupportedResourceScaleFactors&) = delete;
-  ScopedSetSupportedResourceScaleFactors& operator=(
-      const ScopedSetSupportedResourceScaleFactors&) = delete;
-  ~ScopedSetSupportedResourceScaleFactors();
+  explicit ScopedSetSupportedScaleFactors(
+      const std::vector<ui::ScaleFactor>& new_scale_factors);
+  ~ScopedSetSupportedScaleFactors();
 
  private:
-  raw_ptr<std::vector<ResourceScaleFactor>> original_scale_factors_;
+  std::vector<ui::ScaleFactor>* original_scale_factors_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedSetSupportedScaleFactors);
 };
 
 }  // namespace test

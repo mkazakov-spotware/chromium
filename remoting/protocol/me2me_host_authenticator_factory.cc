@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,8 @@
 #include "remoting/signaling/signaling_id_util.h"
 #include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 // static
 std::unique_ptr<AuthenticatorFactory>
@@ -78,8 +79,8 @@ Me2MeHostAuthenticatorFactory::CreateAuthenticator(
     LOG(ERROR) << "Rejecting incoming connection from " << remote_jid
                << ": Prefix mismatch.  Expected: "
                << canonical_host_owner_email_;
-    return base::WrapUnique(new RejectingAuthenticator(
-        Authenticator::RejectionReason::INVALID_CREDENTIALS));
+    return base::WrapUnique(
+        new RejectingAuthenticator(Authenticator::INVALID_CREDENTIALS));
   }
 
   // If necessary, verify that the client's jid belongs to the correct domain.
@@ -101,7 +102,7 @@ Me2MeHostAuthenticatorFactory::CreateAuthenticator(
       LOG(ERROR) << "Rejecting incoming connection from " << remote_jid
                  << ": Domain not allowed.";
       return std::make_unique<RejectingAuthenticator>(
-          Authenticator::RejectionReason::INVALID_ACCOUNT_ID);
+          Authenticator::INVALID_ACCOUNT);
     }
   }
 
@@ -120,8 +121,9 @@ Me2MeHostAuthenticatorFactory::CreateAuthenticator(
         pin_hash_, pairing_registry_);
   }
 
-  return base::WrapUnique(new RejectingAuthenticator(
-      Authenticator::RejectionReason::INVALID_CREDENTIALS));
+  return base::WrapUnique(
+      new RejectingAuthenticator(Authenticator::INVALID_CREDENTIALS));
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

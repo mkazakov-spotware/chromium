@@ -1,12 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_EDITING_FINDER_FIND_BUFFER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_EDITING_FINDER_FIND_BUFFER_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/display_lock/display_lock_context.h"
 #include "third_party/blink/renderer/core/editing/finder/find_options.h"
 #include "third_party/blink/renderer/core/editing/iterators/text_searcher_icu.h"
@@ -31,23 +29,18 @@ class CORE_EXPORT FindBuffer {
   static EphemeralRangeInFlatTree FindMatchInRange(
       const EphemeralRangeInFlatTree& range,
       String search_text,
-      const FindOptions,
-      absl::optional<base::TimeDelta> timeout_ms = absl::nullopt);
+      const FindOptions);
 
   // Returns the closest ancestor of |start_node| (including the node itself)
   // that is block level.
-  static const Node& GetFirstBlockLevelAncestorInclusive(
-      const Node& start_node);
-
-  // Returns true if start and end nodes are in the same layout block flow and
-  // there are no nodes in between that can be considered blocks. Otherwise,
-  // returns false.
-  static bool IsInSameUninterruptedBlock(const Node& start_node,
-                                         const Node& end_node);
+  static Node& GetFirstBlockLevelAncestorInclusive(const Node& start_node);
 
   // See |GetVisibleTextNode|.
   static Node* ForwardVisibleTextNode(Node& start_node);
   static Node* BackwardVisibleTextNode(Node& start_node);
+
+  // Returns whether the given node is block level.
+  static bool IsNodeBlockLevel(Node& node);
 
   // A match result, containing the starting position of the match and
   // the length of the match.
@@ -78,26 +71,21 @@ class CORE_EXPORT FindBuffer {
             const String& search_text,
             const blink::FindOptions options);
 
-    class CORE_EXPORT Iterator {
+    class CORE_EXPORT Iterator
+        : public std::iterator<std::forward_iterator_tag, BufferMatchResult> {
       STACK_ALLOCATED();
 
      public:
-      using iterator_category = std::forward_iterator_tag;
-      using value_type = BufferMatchResult;
-      using difference_type = std::ptrdiff_t;
-      using pointer = BufferMatchResult*;
-      using reference = BufferMatchResult&;
-
       Iterator() = default;
       Iterator(const FindBuffer& find_buffer,
                TextSearcherICU* text_searcher,
                const String& search_text);
 
-      bool operator==(const Iterator& other) const {
+      bool operator==(const Iterator& other) {
         return has_match_ == other.has_match_;
       }
 
-      bool operator!=(const Iterator& other) const {
+      bool operator!=(const Iterator& other) {
         return has_match_ != other.has_match_;
       }
 
@@ -155,9 +143,6 @@ class CORE_EXPORT FindBuffer {
   // surpassed. Saves the next starting node after the block (first node in
   // another LayoutBlockFlow or after |end_position|) to |node_after_block_|.
   void CollectTextUntilBlockBoundary(const EphemeralRangeInFlatTree& range);
-
-  // Replaces nodes that should be ignored with appropriate char constants.
-  void ReplaceNodeWithCharConstants(const Node& node);
 
   // Mapping for position in buffer -> actual node where the text came from,
   // along with the offset in the NGOffsetMapping of this find_buffer.

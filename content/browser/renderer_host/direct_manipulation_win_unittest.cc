@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,11 +27,6 @@ class MockDirectManipulationViewport
               IDirectManipulationViewport>> {
  public:
   MockDirectManipulationViewport() {}
-
-  MockDirectManipulationViewport(const MockDirectManipulationViewport&) =
-      delete;
-  MockDirectManipulationViewport& operator=(
-      const MockDirectManipulationViewport&) = delete;
 
   ~MockDirectManipulationViewport() override {}
 
@@ -173,6 +168,8 @@ class MockDirectManipulationViewport
 
  private:
   bool zoom_to_rect_called_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(MockDirectManipulationViewport);
 };
 
 enum class EventGesture {
@@ -204,9 +201,6 @@ struct Event {
 class MockWindowEventTarget : public ui::WindowEventTarget {
  public:
   MockWindowEventTarget() {}
-
-  MockWindowEventTarget(const MockWindowEventTarget&) = delete;
-  MockWindowEventTarget& operator=(const MockWindowEventTarget&) = delete;
 
   ~MockWindowEventTarget() override {}
 
@@ -306,6 +300,8 @@ class MockWindowEventTarget : public ui::WindowEventTarget {
 
  private:
   std::vector<Event> events_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockWindowEventTarget);
 };
 
 }  //  namespace
@@ -319,10 +315,6 @@ class DirectManipulationUnitTest : public testing::Test {
         DirectManipulationHelper::CreateInstanceForTesting(&event_target_,
                                                            viewport_);
   }
-
-  DirectManipulationUnitTest(const DirectManipulationUnitTest&) = delete;
-  DirectManipulationUnitTest& operator=(const DirectManipulationUnitTest&) =
-      delete;
 
   ~DirectManipulationUnitTest() override {}
 
@@ -355,6 +347,8 @@ class DirectManipulationUnitTest : public testing::Test {
   Microsoft::WRL::ComPtr<MockDirectManipulationViewport> viewport_;
   Microsoft::WRL::ComPtr<MockDirectManipulationContent> content_;
   MockWindowEventTarget event_target_;
+
+  DISALLOW_COPY_AND_ASSIGN(DirectManipulationUnitTest);
 };
 
 TEST_F(DirectManipulationUnitTest, HelperShouldCreateForWin10) {

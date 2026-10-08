@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@ import org.chromium.chrome.browser.customtabs.CustomTabActivityLifecycleUmaTrack
 import org.chromium.chrome.browser.customtabs.CustomTabBottomBarDelegate;
 import org.chromium.chrome.browser.customtabs.CustomTabCompositorContentInitializer;
 import org.chromium.chrome.browser.customtabs.CustomTabDelegateFactory;
-import org.chromium.chrome.browser.customtabs.CustomTabDownloadObserver;
 import org.chromium.chrome.browser.customtabs.CustomTabIncognitoManager;
 import org.chromium.chrome.browser.customtabs.CustomTabSessionHandler;
 import org.chromium.chrome.browser.customtabs.CustomTabStatusBarColorProvider;
@@ -26,6 +25,7 @@ import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabContro
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabFactory;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabProvider;
 import org.chromium.chrome.browser.customtabs.content.CustomTabIntentHandler;
+import org.chromium.chrome.browser.customtabs.content.ProfileProvider;
 import org.chromium.chrome.browser.customtabs.content.TabObserverRegistrar;
 import org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbarCoordinator;
 import org.chromium.chrome.browser.dependency_injection.ActivityScope;
@@ -54,13 +54,13 @@ public interface BaseCustomTabActivityComponent extends ChromeActivityComponent 
     CustomTabBottomBarDelegate resolveBottomBarDelegate();
     CustomTabCompositorContentInitializer resolveCompositorContentInitializer();
     CustomTabDelegateFactory resolveTabDelegateFactory();
-    CustomTabDownloadObserver resolveDownloadObserver();
     CustomTabIncognitoManager resolveCustomTabIncognitoManager();
     CustomTabIntentHandler resolveIntentHandler();
     CustomTabSessionHandler resolveSessionHandler();
     CustomTabStatusBarColorProvider resolveCustomTabStatusBarColorProvider();
     CustomTabTaskDescriptionHelper resolveTaskDescriptionHelper();
     CustomTabToolbarCoordinator resolveToolbarCoordinator();
+    ProfileProvider resolveProfileProvider();
     TabObserverRegistrar resolveTabObserverRegistrar();
     TwaFinishHandler resolveTwaFinishHandler();
     Verifier resolveVerifier();

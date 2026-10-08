@@ -45,8 +45,7 @@
 namespace blink {
 
 ImageInputType::ImageInputType(HTMLInputElement& element)
-    : BaseButtonInputType(Type::kImage, element),
-      use_fallback_content_(false) {}
+    : BaseButtonInputType(element), use_fallback_content_(false) {}
 
 void ImageInputType::CountUsage() {
   CountUsageIfVisible(WebFeature::kInputTypeImage);
@@ -64,23 +63,23 @@ void ImageInputType::AppendToFormData(FormData& form_data) const {
   if (!GetElement().IsActivatedSubmit())
     return;
   const AtomicString& name = GetElement().GetName();
-  if (name.empty()) {
-    form_data.AppendFromElement("x", click_location_.x());
-    form_data.AppendFromElement("y", click_location_.y());
+  if (name.IsEmpty()) {
+    form_data.AppendFromElement("x", click_location_.X());
+    form_data.AppendFromElement("y", click_location_.Y());
     return;
   }
 
   DEFINE_STATIC_LOCAL(String, dot_x_string, (".x"));
   DEFINE_STATIC_LOCAL(String, dot_y_string, (".y"));
-  form_data.AppendFromElement(name + dot_x_string, click_location_.x());
-  form_data.AppendFromElement(name + dot_y_string, click_location_.y());
+  form_data.AppendFromElement(name + dot_x_string, click_location_.X());
+  form_data.AppendFromElement(name + dot_y_string, click_location_.Y());
 }
 
 String ImageInputType::ResultForDialogSubmit() const {
   StringBuilder result;
-  result.AppendNumber(click_location_.x());
+  result.AppendNumber(click_location_.X());
   result.Append(',');
-  result.AppendNumber(click_location_.y());
+  result.AppendNumber(click_location_.Y());
   return result.ToString();
 }
 
@@ -88,13 +87,13 @@ bool ImageInputType::SupportsValidation() const {
   return false;
 }
 
-static gfx::Point ExtractClickLocation(const Event& event) {
+static IntPoint ExtractClickLocation(const Event& event) {
   const auto* mouse_event = DynamicTo<MouseEvent>(event.UnderlyingEvent());
   if (!event.UnderlyingEvent() || !mouse_event)
-    return gfx::Point();
+    return IntPoint();
   if (!mouse_event->HasPosition())
-    return gfx::Point();
-  return gfx::Point(mouse_event->offsetX(), mouse_event->offsetY());
+    return IntPoint();
+  return IntPoint(mouse_event->offsetX(), mouse_event->offsetY());
 }
 
 void ImageInputType::HandleDOMActivateEvent(Event& event) {
@@ -106,15 +105,15 @@ void ImageInputType::HandleDOMActivateEvent(Event& event) {
   event.SetDefaultHandled();
 }
 
-ControlPart ImageInputType::AutoAppearance() const {
-  return kNoControlPart;
-}
-
 LayoutObject* ImageInputType::CreateLayoutObject(const ComputedStyle& style,
                                                  LegacyLayout legacy) const {
-  if (use_fallback_content_)
-    return LayoutObject::CreateObject(&GetElement(), style, legacy);
-  LayoutImage* image = MakeGarbageCollected<LayoutImage>(&GetElement());
+  if (use_fallback_content_) {
+    if (style.Display() == EDisplay::kInline)
+      return new LayoutInline(&GetElement());
+
+    return LayoutObjectFactory::CreateBlockFlow(GetElement(), style, legacy);
+  }
+  LayoutImage* image = new LayoutImage(&GetElement());
   image->SetImageResource(MakeGarbageCollected<LayoutImageResource>());
   return image;
 }
@@ -142,6 +141,13 @@ void ImageInputType::ValueAttributeChanged() {
   BaseButtonInputType::ValueAttributeChanged();
 }
 
+void ImageInputType::StartResourceLoading() {
+  BaseButtonInputType::StartResourceLoading();
+
+  HTMLImageLoader& image_loader = GetElement().EnsureImageLoader();
+  image_loader.UpdateFromElement();
+}
+
 void ImageInputType::OnAttachWithLayoutObject() {
   LayoutObject* layout_object = GetElement().GetLayoutObject();
   DCHECK(layout_object);
@@ -149,7 +155,9 @@ void ImageInputType::OnAttachWithLayoutObject() {
     return;
 
   HTMLImageLoader& image_loader = GetElement().EnsureImageLoader();
-  image_loader.UpdateFromElement();
+  LayoutImageResource* image_resource =
+      To<LayoutImage>(layout_object)->ImageResource();
+  image_resource->SetImageResource(image_loader.GetContent());
 }
 
 bool ImageInputType::ShouldRespectAlignAttribute() {
@@ -180,13 +188,13 @@ unsigned ImageInputType::Height() const {
     HTMLImageLoader* image_loader = GetElement().ImageLoader();
     if (image_loader && image_loader->GetContent()) {
       return image_loader->GetContent()
-          ->IntrinsicSize(kRespectImageOrientation)
-          .height();
+          ->IntrinsicSize(LayoutObject::ShouldRespectImageOrientation(nullptr))
+          .Height();
     }
   }
 
-  GetElement().GetDocument().UpdateStyleAndLayoutForNode(
-      &GetElement(), DocumentUpdateReason::kJavaScript);
+  GetElement().GetDocument().UpdateStyleAndLayout(
+      DocumentUpdateReason::kJavaScript);
 
   LayoutBox* box = GetElement().GetLayoutBox();
   return box ? AdjustForAbsoluteZoom::AdjustInt(box->ContentHeight().ToInt(),
@@ -206,13 +214,13 @@ unsigned ImageInputType::Width() const {
     HTMLImageLoader* image_loader = GetElement().ImageLoader();
     if (image_loader && image_loader->GetContent()) {
       return image_loader->GetContent()
-          ->IntrinsicSize(kRespectImageOrientation)
-          .width();
+          ->IntrinsicSize(LayoutObject::ShouldRespectImageOrientation(nullptr))
+          .Width();
     }
   }
 
-  GetElement().GetDocument().UpdateStyleAndLayoutForNode(
-      &GetElement(), DocumentUpdateReason::kJavaScript);
+  GetElement().GetDocument().UpdateStyleAndLayout(
+      DocumentUpdateReason::kJavaScript);
 
   LayoutBox* box = GetElement().GetLayoutBox();
   return box ? AdjustForAbsoluteZoom::AdjustInt(box->ContentWidth().ToInt(),
@@ -276,14 +284,9 @@ void ImageInputType::CreateShadowSubtree() {
   HTMLImageFallbackHelper::CreateAltTextShadowTree(GetElement());
 }
 
-scoped_refptr<ComputedStyle> ImageInputType::CustomStyleForLayoutObject(
-    scoped_refptr<ComputedStyle> original_style) {
-  if (!use_fallback_content_)
-    return original_style;
-
-  ComputedStyleBuilder builder(*original_style);
-  HTMLImageFallbackHelper::CustomStyleForAltText(GetElement(), builder);
-  return builder.TakeStyle();
+void ImageInputType::CustomStyleForLayoutObject(ComputedStyle& style) {
+  if (use_fallback_content_)
+    HTMLImageFallbackHelper::CustomStyleForAltText(GetElement(), style);
 }
 
 }  // namespace blink

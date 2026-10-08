@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,15 @@
 #define CHROME_BROWSER_SPEECH_TTS_CONTROLLER_DELEGATE_IMPL_H_
 
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/memory/singleton.h"
-#include "base/values.h"
 #include "content/public/browser/tts_controller_delegate.h"
 
 class PrefService;
+
+namespace base {
+class DictionaryValue;
+}
 
 // Singleton class that manages Chrome side logic for TTS and TTS engine
 // extension APIs. This is only used on ChromeOS.
@@ -18,10 +22,6 @@ class TtsControllerDelegateImpl : public content::TtsControllerDelegate {
  public:
   // Get the single instance of this class.
   static TtsControllerDelegateImpl* GetInstance();
-
-  TtsControllerDelegateImpl(const TtsControllerDelegateImpl&) = delete;
-  TtsControllerDelegateImpl& operator=(const TtsControllerDelegateImpl&) =
-      delete;
 
   // TtsControllerDelegate overrides.
   std::unique_ptr<content::TtsControllerDelegate::PreferredVoiceIds>
@@ -41,9 +41,12 @@ class TtsControllerDelegateImpl : public content::TtsControllerDelegate {
 
   virtual const PrefService* GetPrefService(content::TtsUtterance* utterance);
 
-  const base::Value::Dict* GetLangToVoicePref(content::TtsUtterance* utterance);
+  const base::DictionaryValue* GetLangToVoicePref(
+      content::TtsUtterance* utterance);
 
   friend struct base::DefaultSingletonTraits<TtsControllerDelegateImpl>;
+
+  DISALLOW_COPY_AND_ASSIGN(TtsControllerDelegateImpl);
 };
 
 #endif  // CHROME_BROWSER_SPEECH_TTS_CONTROLLER_DELEGATE_IMPL_H_

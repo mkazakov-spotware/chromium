@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,28 +10,24 @@ namespace blink {
 FramePolicy::FramePolicy()
     : sandbox_flags(network::mojom::WebSandboxFlags::kNone),
       container_policy({}),
-      required_document_policy({}) {}
+      required_document_policy({}),
+      allowed_to_download(true),
+      disallow_document_access(false) {}
 
 FramePolicy::FramePolicy(
     network::mojom::WebSandboxFlags sandbox_flags,
-    const ParsedPermissionsPolicy& container_policy,
-    const DocumentPolicyFeatureState& required_document_policy)
+    const ParsedFeaturePolicy& container_policy,
+    const DocumentPolicyFeatureState& required_document_policy,
+    bool allowed_to_download,
+    bool disallow_document_access)
     : sandbox_flags(sandbox_flags),
       container_policy(container_policy),
-      required_document_policy(required_document_policy) {}
+      required_document_policy(required_document_policy),
+      allowed_to_download(allowed_to_download),
+      disallow_document_access(disallow_document_access) {}
 
 FramePolicy::FramePolicy(const FramePolicy& lhs) = default;
 
 FramePolicy::~FramePolicy() = default;
-
-bool operator==(const FramePolicy& lhs, const FramePolicy& rhs) {
-  return (lhs.sandbox_flags == rhs.sandbox_flags) &&
-         (lhs.container_policy == rhs.container_policy) &&
-         (lhs.required_document_policy == rhs.required_document_policy);
-}
-
-bool operator!=(const FramePolicy& lhs, const FramePolicy& rhs) {
-  return !(lhs == rhs);
-}
 
 }  // namespace blink

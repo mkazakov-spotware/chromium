@@ -1,12 +1,14 @@
 /*
- * Copyright 2018 The Chromium Authors
+ * Copyright 2018 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
 
+/* global PaymentRequest:false */
+/* eslint-disable valid-jsdoc */
+
 /**
  * Initializes the payment request object.
- * @return {PaymentRequest} - The newly initialized object.
  */
 function buildPaymentRequest() {
   if (!window.PaymentRequest) {
@@ -36,7 +38,7 @@ function buildPaymentRequest() {
 /**
  * Calls PaymentRequest.show() without a promise.
  */
-function buyWithNoPromise() {
+function buyWithNoPromise() { // eslint-disable-line no-unused-vars
   try {
     request = buildPaymentRequest();
     print('The final donation amount is USD $1.00.');
@@ -61,7 +63,7 @@ function buyWithNoPromise() {
 /**
  * Calls PaymentRequest.show() with a promise that resolves.
  */
-function buyWithResolvingPromise() {
+function buyWithResolvingPromise() { // eslint-disable-line no-unused-vars
   try {
     var request = buildPaymentRequest();
     print('The initial donation amount is USD $1.00.');
@@ -97,7 +99,7 @@ function buyWithResolvingPromise() {
 /**
  * Calls PaymentRequest.show() with a promise that rejects.
  */
-function buyWithRejectingPromise() {
+function buyWithRejectingPromise() { // eslint-disable-line no-unused-vars
   try {
     var request = buildPaymentRequest();
     print('The initial donation amount is USD $1.00.');

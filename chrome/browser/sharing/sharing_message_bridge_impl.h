@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,10 +34,10 @@ class SharingMessageBridgeImpl : public SharingMessageBridge,
   // ModelTypeSyncBridge implementation.
   std::unique_ptr<syncer::MetadataChangeList> CreateMetadataChangeList()
       override;
-  absl::optional<syncer::ModelError> MergeSyncData(
+  base::Optional<syncer::ModelError> MergeSyncData(
       std::unique_ptr<syncer::MetadataChangeList> metadata_change_list,
       syncer::EntityChangeList entity_data) override;
-  absl::optional<syncer::ModelError> ApplySyncChanges(
+  base::Optional<syncer::ModelError> ApplySyncChanges(
       std::unique_ptr<syncer::MetadataChangeList> metadata_change_list,
       syncer::EntityChangeList entity_changes) override;
   void GetData(StorageKeyList storage_keys, DataCallback callback) override;
@@ -46,8 +46,7 @@ class SharingMessageBridgeImpl : public SharingMessageBridge,
   std::string GetStorageKey(const syncer::EntityData& entity_data) override;
   void OnCommitAttemptErrors(
       const syncer::FailedCommitResponseDataList& error_response_list) override;
-  CommitAttemptFailedBehavior OnCommitAttemptFailed(
-      syncer::SyncCommitError commit_error) override;
+  void OnCommitAttemptFailed(syncer::SyncCommitError commit_error) override;
   void ApplyStopSyncChanges(std::unique_ptr<syncer::MetadataChangeList>
                                 metadata_change_list) override;
 

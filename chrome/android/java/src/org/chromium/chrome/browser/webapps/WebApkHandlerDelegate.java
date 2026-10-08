@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,8 @@ import android.content.pm.PackageManager;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.chrome.browser.browserservices.intents.WebappInfo;
+import org.chromium.chrome.browser.ShortcutSource;
 import org.chromium.components.webapk.lib.client.WebApkValidator;
-import org.chromium.components.webapps.ShortcutSource;
 
 /**
  * Delegate for retrieving WebApkInfo.
@@ -26,9 +25,9 @@ public class WebApkHandlerDelegate {
     interface Natives {
         void onWebApkInfoRetrieved(long nativeWebApkHandlerDelegate, String name, String shortName,
                 String packageName, String id, int shellApkVersion, int versionCode, String uri,
-                String scope, String manifestUrl, String manifestStartUrl, String manifestId,
-                int displayMode, int orientation, long themeColor, long backgroundColor,
-                long lastUpdateCheckTimeMs, long lastUpdateCompletionTimeMs, boolean relaxUpdates,
+                String scope, String manifestUrl, String manifestStartUrl, int displayMode,
+                int orientation, long themeColor, long backgroundColor, long lastUpdateCheckTimeMs,
+                long lastUpdateCompletionTimeMs, boolean relaxUpdates,
                 String backingBrowserPackageName, boolean isBackingBrowser, String updateStatus);
     }
 
@@ -106,9 +105,9 @@ public class WebApkHandlerDelegate {
                 webApkInfo.shortName(), webApkInfo.webApkPackageName(), webApkInfo.id(),
                 webApkInfo.shellApkVersion(), packageInfo.versionCode, webApkInfo.url(),
                 webApkInfo.scopeUrl(), webApkInfo.manifestUrl(), webApkInfo.manifestStartUrl(),
-                webApkInfo.manifestId(), webApkInfo.displayMode(), webApkInfo.orientation(),
-                webApkInfo.toolbarColor(), webApkInfo.backgroundColor(),
-                lastUpdateCheckTimeMsForStorage, lastUpdateCompletionTimeMsInStorage,
-                relaxUpdatesForStorage, backingBrowserPackageName, isBackingBrowser, updateStatus);
+                webApkInfo.displayMode(), webApkInfo.orientation(), webApkInfo.toolbarColor(),
+                webApkInfo.backgroundColor(), lastUpdateCheckTimeMsForStorage,
+                lastUpdateCompletionTimeMsInStorage, relaxUpdatesForStorage,
+                backingBrowserPackageName, isBackingBrowser, updateStatus);
     }
 }

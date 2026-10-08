@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,14 +14,18 @@
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "build/build_config.h"
+#include "build/chromeos_buildflags.h"
 #include "device/bluetooth/bluetooth_adapter.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "base/mac/mac_util.h"
 #endif
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/windows_version.h"
 #include "device/bluetooth/bluetooth_adapter_win.h"
+#endif
+#if defined(ANDROID)
+#include "base/android/build_info.h"
 #endif
 
 namespace device {
@@ -42,8 +46,8 @@ bool BluetoothAdapterFactory::IsBluetoothSupported() {
   // instance even on platforms that would otherwise not support it.
   if (Get()->adapter_)
     return true;
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || \
-    BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC)
+#if defined(OS_ANDROID) || defined(OS_WIN) || defined(OS_LINUX) || \
+    defined(OS_CHROMEOS) || defined(OS_MAC)
   return true;
 #else
   return false;
@@ -55,14 +59,18 @@ bool BluetoothAdapterFactory::IsLowEnergySupported() {
     return values_for_testing_->GetLESupported();
   }
 
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || \
-    BUILDFLAG(IS_MAC)
-  return true;
-#elif BUILDFLAG(IS_WIN)
+#if defined(OS_ANDROID)
+  return base::android::BuildInfo::GetInstance()->sdk_int() >=
+         base::android::SDK_VERSION_MARSHMALLOW;
+#elif defined(OS_WIN)
   // Windows 8 supports Low Energy GATT operations but it does not support
   // scanning, initiating connections and GATT Server. To keep the API
   // consistent we consider Windows 8 as lacking Low Energy support.
   return base::win::GetVersion() >= base::win::Version::WIN10;
+#elif defined(OS_MAC)
+  return true;
+#elif (defined(OS_LINUX) || defined(OS_CHROMEOS))
+  return true;
 #else
   return false;
 #endif
@@ -90,7 +98,7 @@ void BluetoothAdapterFactory::GetAdapter(AdapterCallback callback) {
 }
 
 void BluetoothAdapterFactory::GetClassicAdapter(AdapterCallback callback) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   DCHECK(IsBluetoothSupported());
 
   if (base::win::GetVersion() < base::win::Version::WIN10) {
@@ -120,10 +128,10 @@ void BluetoothAdapterFactory::GetClassicAdapter(AdapterCallback callback) {
       scoped_refptr<BluetoothAdapter>(classic_adapter_.get()));
 #else
   GetAdapter(std::move(callback));
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 // static
 void BluetoothAdapterFactory::Shutdown() {
   if (Get()->adapter_)
@@ -135,9 +143,7 @@ void BluetoothAdapterFactory::Shutdown() {
 void BluetoothAdapterFactory::SetAdapterForTesting(
     scoped_refptr<BluetoothAdapter> adapter) {
   Get()->adapter_ = adapter->GetWeakPtrForTesting();
-  if (!adapter->IsInitialized())
-    Get()->adapter_under_initialization_ = adapter;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   Get()->classic_adapter_ = adapter->GetWeakPtrForTesting();
 #endif
 }
@@ -147,7 +153,7 @@ bool BluetoothAdapterFactory::HasSharedInstanceForTesting() {
   return Get()->adapter_ != nullptr;
 }
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_ASH)
 // static
 void BluetoothAdapterFactory::SetBleScanParserCallback(
     BleScanParserCallback callback) {
@@ -159,7 +165,7 @@ BluetoothAdapterFactory::BleScanParserCallback
 BluetoothAdapterFactory::GetBleScanParserCallback() {
   return Get()->ble_scan_parser_;
 }
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // BUILDFLAG(IS_ASH)
 
 BluetoothAdapterFactory::GlobalValuesForTesting::GlobalValuesForTesting() =
     default;
@@ -192,7 +198,7 @@ void BluetoothAdapterFactory::AdapterInitialized() {
     std::move(callback).Run(adapter);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void BluetoothAdapterFactory::ClassicAdapterInitialized() {
   DCHECK(classic_adapter_);
   DCHECK(classic_adapter_under_initialization_);
@@ -206,6 +212,6 @@ void BluetoothAdapterFactory::ClassicAdapterInitialized() {
   for (auto& callback : callbacks)
     std::move(callback).Run(adapter);
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace device

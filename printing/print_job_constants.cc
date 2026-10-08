@@ -1,12 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "printing/print_job_constants.h"
 
 #include <limits>
-
-#include "build/build_config.h"
 
 namespace printing {
 
@@ -22,11 +20,8 @@ const char kPreviewUIID[] = "previewUIID";
 // Capabilities option. Contains the capabilities in CDD format.
 const char kSettingCapabilities[] = "capabilities";
 
-#if BUILDFLAG(IS_CHROMEOS)
-// If set, contains OAuth token that must be used during communication with the
-// printer.
-const char kSettingChromeOSAccessOAuthToken[] = "chromeos-access-oauth-token";
-#endif
+// Print using cloud print: true if selected, false if not.
+const char kSettingCloudPrintId[] = "cloudPrintID";
 
 // Print job setting 'collate'.
 const char kSettingCollate[] = "collate";
@@ -98,24 +93,6 @@ const char kSettingMediaSizeHeightMicrons[] = "height_microns";
 // Key that specifies the requested media width in microns.
 const char kSettingMediaSizeWidthMicrons[] = "width_microns";
 
-// Key that specifies the left side of the bounding box for the requested
-// media's printable area.
-const char kSettingsImageableAreaLeftMicrons[] = "imageable_area_left_microns";
-
-// Key that specifies the bottom side of the bounding box for the requested
-// media's printable area.
-const char kSettingsImageableAreaBottomMicrons[] =
-    "imageable_area_bottom_microns";
-
-// Key that specifies the right side of the bounding box for the requested
-// media's printable area.
-const char kSettingsImageableAreaRightMicrons[] =
-    "imageable_area_right_microns";
-
-// Key that specifies the top side of the bounding box for the requested
-// media's printable area.
-const char kSettingsImageableAreaTopMicrons[] = "imageable_area_top_microns";
-
 // Key that specifies the requested media platform specific vendor id.
 const char kSettingMediaSizeVendorId[] = "vendor_id";
 
@@ -166,6 +143,9 @@ const char kSettingPolicies[] = "policies";
 // Whether the source page content is from ARC or not.
 const char kSettingPreviewIsFromArc[] = "previewIsFromArc";
 
+// Whether the source page content is PDF or not.
+const char kSettingPreviewIsPdf[] = "previewIsPdf";
+
 // Whether the source page content is modifiable. True for web content.
 // i.e. Anything from Blink. False for everything else. e.g. PDF/Flash.
 const char kSettingPreviewModifiable[] = "previewModifiable";
@@ -203,9 +183,6 @@ const char kSettingPagesPerSheet[] = "pagesPerSheet";
 // Whether to rasterize the PDF for printing.
 const char kSettingRasterizePdf[] = "rasterizePDF";
 
-// The DPI override to use when rasterize the PDF for printing.
-const char kSettingRasterizePdfDpi[] = "rasterizePdfDpi";
-
 // Ticket option. Contains the ticket in CJT format.
 const char kSettingTicket[] = "ticket";
 
@@ -232,7 +209,7 @@ const int FIRST_PAGE_INDEX = 0;
 const int COMPLETE_PREVIEW_DOCUMENT_INDEX = -1;
 
 // Whether to show PDF in view provided by OS. Implemented for MacOS only.
-const char kSettingOpenPDFInPreview[] = "openPDFInPreview";
+const char kSettingOpenPDFInPreview[] = "OpenPDFInPreview";
 
 const uint32_t kInvalidPageIndex = std::numeric_limits<int>::max();
 const uint32_t kMaxPageCount = std::numeric_limits<int>::max();

@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -23,4 +23,5 @@ def main(config, args=None):
   process_return_code = results_processor.ProcessResults(options)
   if process_return_code != 0:
     return process_return_code
-  return run_return_code
+  else:
+    return run_return_code

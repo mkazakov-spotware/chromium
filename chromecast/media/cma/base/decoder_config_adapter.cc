@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,30 +21,26 @@ namespace {
 // unsupported codec will be converted to chromecast::media::kCodecUnknown.
 AudioCodec ToAudioCodec(const ::media::AudioCodec audio_codec) {
   switch (audio_codec) {
-    case ::media::AudioCodec::kAAC:
+    case ::media::kCodecAAC:
       return kCodecAAC;
-    case ::media::AudioCodec::kMP3:
+    case ::media::kCodecMP3:
       return kCodecMP3;
-    case ::media::AudioCodec::kPCM:
+    case ::media::kCodecPCM:
       return kCodecPCM;
-    case ::media::AudioCodec::kPCM_S16BE:
+    case ::media::kCodecPCM_S16BE:
       return kCodecPCM_S16BE;
-    case ::media::AudioCodec::kVorbis:
+    case ::media::kCodecVorbis:
       return kCodecVorbis;
-    case ::media::AudioCodec::kOpus:
+    case ::media::kCodecOpus:
       return kCodecOpus;
-    case ::media::AudioCodec::kFLAC:
+    case ::media::kCodecFLAC:
       return kCodecFLAC;
-    case ::media::AudioCodec::kEAC3:
+    case ::media::kCodecEAC3:
       return kCodecEAC3;
-    case ::media::AudioCodec::kAC3:
+    case ::media::kCodecAC3:
       return kCodecAC3;
-    case ::media::AudioCodec::kMpegHAudio:
+    case ::media::kCodecMpegHAudio:
       return kCodecMpegHAudio;
-    case ::media::AudioCodec::kDTS:
-      return kCodecDTS;
-    case ::media::AudioCodec::kDTSXP2:
-      return kCodecDTSXP2;
     default:
       LOG(ERROR) << "Unsupported audio codec " << audio_codec;
   }
@@ -56,10 +52,7 @@ SampleFormat ToSampleFormat(const ::media::SampleFormat sample_format) {
     case ::media::kUnknownSampleFormat:
     case ::media::kSampleFormatAc3:
     case ::media::kSampleFormatEac3:
-    case ::media::kSampleFormatDts:
-    case ::media::kSampleFormatDtsxP2:
     case ::media::kSampleFormatMpegHAudio:
-    case ::media::kSampleFormatIECDts:
       return kUnknownSampleFormat;
     case ::media::kSampleFormatU8:
       return kSampleFormatU8;
@@ -71,8 +64,6 @@ SampleFormat ToSampleFormat(const ::media::SampleFormat sample_format) {
       return kSampleFormatS32;
     case ::media::kSampleFormatF32:
       return kSampleFormatF32;
-    case ::media::kSampleFormatPlanarU8:
-      return kSampleFormatPlanarU8;
     case ::media::kSampleFormatPlanarS16:
       return kSampleFormatPlanarS16;
     case ::media::kSampleFormatPlanarF32:
@@ -98,8 +89,6 @@ SampleFormat ToSampleFormat(const ::media::SampleFormat sample_format) {
       return ::media::kSampleFormatS32;
     case kSampleFormatF32:
       return ::media::kSampleFormatF32;
-    case kSampleFormatPlanarU8:
-      return ::media::kSampleFormatPlanarU8;
     case kSampleFormatPlanarS16:
       return ::media::kSampleFormatPlanarS16;
     case kSampleFormatPlanarF32:
@@ -116,33 +105,29 @@ SampleFormat ToSampleFormat(const ::media::SampleFormat sample_format) {
     const chromecast::media::AudioCodec codec) {
   switch (codec) {
     case kAudioCodecUnknown:
-      return ::media::AudioCodec::kUnknown;
+      return ::media::kUnknownAudioCodec;
     case kCodecAAC:
-      return ::media::AudioCodec::kAAC;
+      return ::media::kCodecAAC;
     case kCodecMP3:
-      return ::media::AudioCodec::kMP3;
+      return ::media::kCodecMP3;
     case kCodecPCM:
-      return ::media::AudioCodec::kPCM;
+      return ::media::kCodecPCM;
     case kCodecPCM_S16BE:
-      return ::media::AudioCodec::kPCM_S16BE;
+      return ::media::kCodecPCM_S16BE;
     case kCodecVorbis:
-      return ::media::AudioCodec::kVorbis;
+      return ::media::kCodecVorbis;
     case kCodecOpus:
-      return ::media::AudioCodec::kOpus;
+      return ::media::kCodecOpus;
     case kCodecFLAC:
-      return ::media::AudioCodec::kFLAC;
+      return ::media::kCodecFLAC;
     case kCodecEAC3:
-      return ::media::AudioCodec::kEAC3;
+      return ::media::kCodecEAC3;
     case kCodecAC3:
-      return ::media::AudioCodec::kAC3;
+      return ::media::kCodecAC3;
     case kCodecMpegHAudio:
-      return ::media::AudioCodec::kMpegHAudio;
-    case kCodecDTS:
-      return ::media::AudioCodec::kDTS;
-    case kCodecDTSXP2:
-      return ::media::AudioCodec::kDTSXP2;
+      return ::media::kCodecMpegHAudio;
     default:
-      return ::media::AudioCodec::kUnknown;
+      return ::media::kUnknownAudioCodec;
   }
 }
 
@@ -242,12 +227,12 @@ AudioConfig DecoderConfigAdapter::ToCastAudioConfig(
   audio_config.encryption_scheme =
       ToEncryptionScheme(config.encryption_scheme());
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // On Android, Chromium's mp4 parser adds extra data for AAC, but we don't
   // need this with CMA.
   if (audio_config.codec == kCodecAAC)
     audio_config.extra_data.clear();
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
   return audio_config;
 }
@@ -347,7 +332,7 @@ VideoConfig DecoderConfigAdapter::ToCastVideoConfig(
   video_config.matrix = static_cast<MatrixID>(config.color_space_info().matrix);
   video_config.range = static_cast<RangeID>(config.color_space_info().range);
 
-  absl::optional<::gfx::HDRMetadata> hdr_metadata = config.hdr_metadata();
+  base::Optional<::gfx::HDRMetadata> hdr_metadata = config.hdr_metadata();
   if (hdr_metadata) {
     video_config.have_hdr_metadata = true;
     video_config.hdr_metadata.max_content_light_level =
@@ -355,16 +340,16 @@ VideoConfig DecoderConfigAdapter::ToCastVideoConfig(
     video_config.hdr_metadata.max_frame_average_light_level =
         hdr_metadata->max_frame_average_light_level;
 
-    const auto& mm1 = hdr_metadata->color_volume_metadata;
-    auto& mm2 = video_config.hdr_metadata.color_volume_metadata;
-    mm2.primary_r_chromaticity_x = mm1.primaries.fRX;
-    mm2.primary_r_chromaticity_y = mm1.primaries.fRY;
-    mm2.primary_g_chromaticity_x = mm1.primaries.fGX;
-    mm2.primary_g_chromaticity_y = mm1.primaries.fGY;
-    mm2.primary_b_chromaticity_x = mm1.primaries.fBX;
-    mm2.primary_b_chromaticity_y = mm1.primaries.fBY;
-    mm2.white_point_chromaticity_x = mm1.primaries.fWX;
-    mm2.white_point_chromaticity_y = mm1.primaries.fWY;
+    const auto& mm1 = hdr_metadata->mastering_metadata;
+    auto& mm2 = video_config.hdr_metadata.mastering_metadata;
+    mm2.primary_r_chromaticity_x = mm1.primary_r.x();
+    mm2.primary_r_chromaticity_y = mm1.primary_r.y();
+    mm2.primary_g_chromaticity_x = mm1.primary_g.x();
+    mm2.primary_g_chromaticity_y = mm1.primary_g.y();
+    mm2.primary_b_chromaticity_x = mm1.primary_b.x();
+    mm2.primary_b_chromaticity_y = mm1.primary_b.y();
+    mm2.white_point_chromaticity_x = mm1.white_point.x();
+    mm2.white_point_chromaticity_y = mm1.white_point.y();
     mm2.luminance_max = mm1.luminance_max;
     mm2.luminance_min = mm1.luminance_min;
   }

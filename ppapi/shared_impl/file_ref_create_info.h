@@ -1,9 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef PPAPI_SHARED_IMPL_FILE_REF_CREATE_INFO_H_
-#define PPAPI_SHARED_IMPL_FILE_REF_CREATE_INFO_H_
+#ifndef PPAPI_SHARED_IMPL_FILE_REF_CREATE_INFO_H
+#define PPAPI_SHARED_IMPL_FILE_REF_CREATE_INFO_H
 
 #include <string>
 
@@ -49,4 +49,4 @@ PPAPI_SHARED_EXPORT FileRefCreateInfo
 
 }  // namespace ppapi
 
-#endif  // PPAPI_SHARED_IMPL_FILE_REF_CREATE_INFO_H_
+#endif  // PPAPI_SHARED_IMPL_FILE_REF_CREATE_INFO_H

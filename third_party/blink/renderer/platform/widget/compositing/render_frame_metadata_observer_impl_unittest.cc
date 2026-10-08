@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,17 +38,13 @@ class MockRenderFrameMetadataObserverClient
             this,
             std::move(client_receiver)),
         render_frame_metadata_observer_remote_(std::move(observer)) {}
-  MockRenderFrameMetadataObserverClient(
-      const MockRenderFrameMetadataObserverClient&) = delete;
-  MockRenderFrameMetadataObserverClient& operator=(
-      const MockRenderFrameMetadataObserverClient&) = delete;
 
   MOCK_METHOD2(OnRenderFrameMetadataChanged,
                void(uint32_t frame_token,
                     const cc::RenderFrameMetadata& metadata));
   MOCK_METHOD1(OnFrameSubmissionForTesting, void(uint32_t frame_token));
-#if BUILDFLAG(IS_ANDROID)
-  MOCK_METHOD1(OnRootScrollOffsetChanged, void(const gfx::PointF& offset));
+#if defined(OS_ANDROID)
+  MOCK_METHOD1(OnRootScrollOffsetChanged, void(const gfx::Vector2dF& offset));
 #endif
 
  private:
@@ -56,15 +52,13 @@ class MockRenderFrameMetadataObserverClient
       render_frame_metadata_observer_client_receiver_;
   mojo::Remote<cc::mojom::blink::RenderFrameMetadataObserver>
       render_frame_metadata_observer_remote_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockRenderFrameMetadataObserverClient);
 };
 
 class RenderFrameMetadataObserverImplTest : public testing::Test {
  public:
   RenderFrameMetadataObserverImplTest() = default;
-  RenderFrameMetadataObserverImplTest(
-      const RenderFrameMetadataObserverImplTest&) = delete;
-  RenderFrameMetadataObserverImplTest& operator=(
-      const RenderFrameMetadataObserverImplTest&) = delete;
   ~RenderFrameMetadataObserverImplTest() override = default;
 
   RenderFrameMetadataObserverImpl& observer_impl() { return *observer_impl_; }
@@ -86,7 +80,7 @@ class RenderFrameMetadataObserverImplTest : public testing::Test {
         std::move(observer_remote));
     observer_impl_ = std::make_unique<RenderFrameMetadataObserverImpl>(
         std::move(receiver), std::move(client_remote));
-    observer_impl_->BindToCurrentSequence();
+    observer_impl_->BindToCurrentThread();
   }
 
   void TearDown() override {
@@ -100,6 +94,8 @@ class RenderFrameMetadataObserverImplTest : public testing::Test {
   std::unique_ptr<testing::NiceMock<MockRenderFrameMetadataObserverClient>>
       client_;
   std::unique_ptr<RenderFrameMetadataObserverImpl> observer_impl_;
+
+  DISALLOW_COPY_AND_ASSIGN(RenderFrameMetadataObserverImplTest);
 };
 
 // This test verifies that the RenderFrameMetadataObserverImpl picks up
@@ -130,13 +126,13 @@ TEST_F(RenderFrameMetadataObserverImplTest, ShouldSendFrameToken) {
 
 // This test verifies that a frame token is not requested from viz when
 // the root scroll offset changes on Android.
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 TEST_F(RenderFrameMetadataObserverImplTest, ShouldSendFrameTokenOnAndroid) {
   viz::CompositorFrameMetadata compositor_frame_metadata;
   compositor_frame_metadata.send_frame_token_to_embedder = false;
   compositor_frame_metadata.frame_token = 1337;
   cc::RenderFrameMetadata render_frame_metadata;
-  render_frame_metadata.root_scroll_offset = gfx::PointF(0.f, 1.f);
+  render_frame_metadata.root_scroll_offset = gfx::Vector2dF(0.f, 1.f);
   render_frame_metadata.root_layer_size = gfx::SizeF(100.f, 100.f);
   render_frame_metadata.scrollable_viewport_size = gfx::SizeF(100.f, 50.f);
   observer_impl().OnRenderFrameSubmission(render_frame_metadata,
@@ -154,7 +150,7 @@ TEST_F(RenderFrameMetadataObserverImplTest, ShouldSendFrameTokenOnAndroid) {
   }
 
   // Scroll back to the top.
-  render_frame_metadata.root_scroll_offset = gfx::PointF(0.f, 0.f);
+  render_frame_metadata.root_scroll_offset = gfx::Vector2dF(0.f, 0.f);
 
   observer_impl().OnRenderFrameSubmission(render_frame_metadata,
                                           &compositor_frame_metadata,
@@ -198,7 +194,7 @@ TEST_F(RenderFrameMetadataObserverImplTest, SendRootScrollsForAccessibility) {
   // Submit with a root scroll change and then a scroll offset at top change, we
   // should only get one notification, as the root scroll change will not
   // trigger one,
-  render_frame_metadata.root_scroll_offset = gfx::PointF(0.0f, 100.0f);
+  render_frame_metadata.root_scroll_offset = gfx::Vector2dF(0.0f, 100.0f);
   observer_impl().OnRenderFrameSubmission(render_frame_metadata,
                                           &compositor_frame_metadata,
                                           false /* force_send */);
@@ -227,7 +223,7 @@ TEST_F(RenderFrameMetadataObserverImplTest, SendRootScrollsForAccessibility) {
   }
 
   // Now send a single root scroll change, we should get the notification.
-  render_frame_metadata.root_scroll_offset = gfx::PointF(0.0f, 200.0f);
+  render_frame_metadata.root_scroll_offset = gfx::Vector2dF(0.0f, 200.0f);
   observer_impl().OnRenderFrameSubmission(render_frame_metadata,
                                           &compositor_frame_metadata,
                                           false /* force_send */);

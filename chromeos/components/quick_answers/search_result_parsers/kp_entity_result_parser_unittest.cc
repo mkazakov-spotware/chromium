@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,13 @@
 
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
-#include "chromeos/components/quick_answers/test/test_helpers.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/color/color_id.h"
 
+namespace chromeos {
 namespace quick_answers {
 namespace {
 using base::Value;
-}  // namespace
+}
 
 class KpEntityResultParserTest : public testing::Test {
  public:
@@ -45,11 +44,15 @@ TEST_F(KpEntityResultParserTest, SuccessWithRating) {
 
   EXPECT_TRUE(parser_->Parse(&result, &quick_answer));
   EXPECT_EQ(ResultType::kKnowledgePanelEntityResult, quick_answer.result_type);
+  EXPECT_EQ("4.5 ★ (100 reviews)", quick_answer.primary_answer);
+  EXPECT_TRUE(quick_answer.secondary_answer.empty());
 
   EXPECT_EQ(0u, quick_answer.title.size());
   EXPECT_EQ(1u, quick_answer.first_answer_row.size());
-  EXPECT_EQ("4.5 ★ (100 reviews)",
-            GetQuickAnswerTextForTesting(quick_answer.first_answer_row));
+  EXPECT_EQ(
+      base::UTF8ToUTF16("4.5 ★ (100 reviews)"),
+      static_cast<QuickAnswerText*>(quick_answer.first_answer_row[0].get())
+          ->text);
 }
 
 TEST_F(KpEntityResultParserTest, SuccessWithRatingScoreRound) {
@@ -67,14 +70,15 @@ TEST_F(KpEntityResultParserTest, SuccessWithRatingScoreRound) {
 
   EXPECT_TRUE(parser_->Parse(&result, &quick_answer));
   EXPECT_EQ(ResultType::kKnowledgePanelEntityResult, quick_answer.result_type);
+  EXPECT_EQ("4.5 ★ (100 reviews)", quick_answer.primary_answer);
+  EXPECT_TRUE(quick_answer.secondary_answer.empty());
 
   EXPECT_EQ(0u, quick_answer.title.size());
   EXPECT_EQ(1u, quick_answer.first_answer_row.size());
   auto* answer =
       static_cast<QuickAnswerText*>(quick_answer.first_answer_row[0].get());
-  EXPECT_EQ("4.5 ★ (100 reviews)",
-            GetQuickAnswerTextForTesting(quick_answer.first_answer_row));
-  EXPECT_EQ(ui::kColorLabelForegroundSecondary, answer->color_id);
+  EXPECT_EQ(base::UTF8ToUTF16("4.5 ★ (100 reviews)"), answer->text);
+  EXPECT_EQ(gfx::kGoogleGrey700, answer->color);
 
   result.SetDoublePath(
       "knowledgePanelEntityResult.entity.ratingsAndReviews.google."
@@ -83,14 +87,14 @@ TEST_F(KpEntityResultParserTest, SuccessWithRatingScoreRound) {
 
   QuickAnswer quick_answer2;
   EXPECT_TRUE(parser_->Parse(&result, &quick_answer2));
+  EXPECT_EQ("4.6 ★ (100 reviews)", quick_answer2.primary_answer);
 
   EXPECT_EQ(0u, quick_answer2.title.size());
   EXPECT_EQ(1u, quick_answer2.first_answer_row.size());
   answer =
       static_cast<QuickAnswerText*>(quick_answer2.first_answer_row[0].get());
-  EXPECT_EQ("4.5 ★ (100 reviews)",
-            GetQuickAnswerTextForTesting(quick_answer.first_answer_row));
-  EXPECT_EQ(ui::kColorLabelForegroundSecondary, answer->color_id);
+  EXPECT_EQ(base::UTF8ToUTF16("4.6 ★ (100 reviews)"), answer->text);
+  EXPECT_EQ(gfx::kGoogleGrey700, answer->color);
 }
 
 TEST_F(KpEntityResultParserTest, SuccessWithKnownForReason) {
@@ -103,14 +107,15 @@ TEST_F(KpEntityResultParserTest, SuccessWithKnownForReason) {
 
   EXPECT_TRUE(parser_->Parse(&result, &quick_answer));
   EXPECT_EQ(ResultType::kKnowledgePanelEntityResult, quick_answer.result_type);
+  EXPECT_EQ("44th U.S. President", quick_answer.primary_answer);
+  EXPECT_TRUE(quick_answer.secondary_answer.empty());
 
   EXPECT_EQ(0u, quick_answer.title.size());
   EXPECT_EQ(1u, quick_answer.first_answer_row.size());
   auto* answer =
       static_cast<QuickAnswerText*>(quick_answer.first_answer_row[0].get());
-  EXPECT_EQ("44th U.S. President",
-            GetQuickAnswerTextForTesting(quick_answer.first_answer_row));
-  EXPECT_EQ(ui::kColorLabelForegroundSecondary, answer->color_id);
+  EXPECT_EQ(base::UTF8ToUTF16("44th U.S. President"), answer->text);
+  EXPECT_EQ(gfx::kGoogleGrey700, answer->color);
 }
 
 TEST_F(KpEntityResultParserTest, EmptyValue) {
@@ -136,3 +141,4 @@ TEST_F(KpEntityResultParserTest, IncorrectPath) {
 }
 
 }  // namespace quick_answers
+}  // namespace chromeos

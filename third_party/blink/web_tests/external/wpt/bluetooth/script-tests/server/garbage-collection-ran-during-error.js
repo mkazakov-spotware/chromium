@@ -19,7 +19,7 @@ bluetooth_test(() => getEmptyHealthThermometerDevice()
       // Disconnect called to clear attributeInstanceMap and allow the
       // object to get garbage collected.
       device.gatt.disconnect();
-      return garbageCollect();
+      return runGarbageCollection();
     })
     .then(() => promise),
     test_desc);

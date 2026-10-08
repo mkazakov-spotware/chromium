@@ -1,19 +1,18 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/toolbar/toolbar_actions_bar_bubble_views.h"
 
 #include "base/bind.h"
+#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/grit/locale_settings.h"
 #include "components/vector_icons/vector_icons.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/paint_vector_icon.h"
-#include "ui/views/border.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/button/image_button_factory.h"
 #include "ui/views/controls/button/label_button.h"
@@ -34,8 +33,8 @@ ToolbarActionsBarBubbleViews::ToolbarActionsBarBubbleViews(
                                       views::BubbleBorder::TOP_RIGHT),
       delegate_(std::move(delegate)),
       anchored_to_action_(anchored_to_action) {
-  std::u16string ok_text = delegate_->GetActionButtonText();
-  std::u16string cancel_text = delegate_->GetDismissButtonText();
+  base::string16 ok_text = delegate_->GetActionButtonText();
+  base::string16 cancel_text = delegate_->GetDismissButtonText();
 
   int buttons = ui::DIALOG_BUTTON_NONE;
   if (!ok_text.empty())
@@ -62,11 +61,12 @@ ToolbarActionsBarBubbleViews::ToolbarActionsBarBubbleViews(
 
   DCHECK(anchor_view);
   set_close_on_deactivate(delegate_->ShouldCloseOnDeactivate());
+  chrome::RecordDialogCreation(chrome::DialogIdentifier::TOOLBAR_ACTIONS_BAR);
 }
 
 ToolbarActionsBarBubbleViews::~ToolbarActionsBarBubbleViews() {}
 
-std::string ToolbarActionsBarBubbleViews::GetAnchorActionId() const {
+std::string ToolbarActionsBarBubbleViews::GetAnchorActionId() {
   return delegate_->GetAnchorActionId();
 }
 
@@ -81,12 +81,13 @@ ToolbarActionsBarBubbleViews::CreateExtraInfoView() {
   std::unique_ptr<views::ImageView> icon;
   if (extra_view_info->resource) {
     icon = std::make_unique<views::ImageView>();
-    icon->SetImage(ui::ImageModel::FromVectorIcon(
-        *extra_view_info->resource, ui::kColorIcon, kBubbleExtraIconSize));
+    icon->SetImage(gfx::CreateVectorIcon(*extra_view_info->resource,
+                                         kBubbleExtraIconSize,
+                                         gfx::kChromeIconGrey));
   }
 
   std::unique_ptr<views::View> extra_view;
-  const std::u16string& text = extra_view_info->text;
+  const base::string16& text = extra_view_info->text;
   if (!text.empty()) {
     if (extra_view_info->is_learn_more) {
       auto image_button = views::CreateVectorImageButtonWithNativeTheme(
@@ -131,7 +132,7 @@ void ToolbarActionsBarBubbleViews::NotifyDelegateOfClose(
   delegate_->OnBubbleClosed(action);
 }
 
-std::u16string ToolbarActionsBarBubbleViews::GetWindowTitle() const {
+base::string16 ToolbarActionsBarBubbleViews::GetWindowTitle() const {
   return delegate_->GetHeadingText();
 }
 
@@ -155,8 +156,8 @@ void ToolbarActionsBarBubbleViews::RemovedFromWidget() {
 }
 
 void ToolbarActionsBarBubbleViews::Init() {
-  std::u16string body_text_string = delegate_->GetBodyText(anchored_to_action_);
-  std::u16string item_list = delegate_->GetItemListText();
+  base::string16 body_text_string = delegate_->GetBodyText(anchored_to_action_);
+  base::string16 item_list = delegate_->GetItemListText();
   if (body_text_string.empty() && item_list.empty())
     return;
 
@@ -174,19 +175,19 @@ void ToolbarActionsBarBubbleViews::Init() {
     body_text_->SetMultiLine(true);
     body_text_->SizeToFit(width);
     body_text_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-    AddChildView(body_text_.get());
+    AddChildView(body_text_);
   }
 
   if (!item_list.empty()) {
     item_list_ = new views::Label(item_list);
-    item_list_->SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(
+    item_list_->SetBorder(views::CreateEmptyBorder(
         0,
         provider->GetDistanceMetric(views::DISTANCE_RELATED_CONTROL_HORIZONTAL),
-        0, 0)));
+        0, 0));
     item_list_->SetMultiLine(true);
     item_list_->SizeToFit(width);
     item_list_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-    AddChildView(item_list_.get());
+    AddChildView(item_list_);
   }
 }
 
@@ -208,10 +209,6 @@ void ToolbarActionsBarBubbleViews::OnWidgetVisibilityChanged(
   // ToolbarActionsBarBubbleDelegate. The ToolbarActionsBarBubbleDelegate is
   // an ExtensionMessageBubbleBridge, which owns the
   // ExtensionMessageBubbleController.
-  delegate_->OnBubbleShown(
-      base::BindOnce(&views::Widget::Close, base::Unretained(GetWidget())));
+  delegate_->OnBubbleShown(base::BindRepeating(&views::Widget::Close,
+                                               base::Unretained(GetWidget())));
 }
-
-BEGIN_METADATA(ToolbarActionsBarBubbleViews, views::BubbleDialogDelegateView)
-ADD_READONLY_PROPERTY_METADATA(std::string, AnchorActionId)
-END_METADATA

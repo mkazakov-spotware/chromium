@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,11 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "storage/browser/file_system/quota/open_file_handle.h"
 #include "storage/browser/file_system/quota/quota_reservation.h"
 #include "storage/browser/file_system/quota/quota_reservation_manager.h"
@@ -47,10 +49,6 @@ void SetFileSize(const base::FilePath& path, int64_t size) {
 class FakeBackend : public QuotaReservationManager::QuotaBackend {
  public:
   FakeBackend() = default;
-
-  FakeBackend(const FakeBackend&) = delete;
-  FakeBackend& operator=(const FakeBackend&) = delete;
-
   ~FakeBackend() override = default;
 
   void ReserveQuota(const url::Origin& origin,
@@ -60,7 +58,7 @@ class FakeBackend : public QuotaReservationManager::QuotaBackend {
     EXPECT_EQ(this->origin(), origin);
     EXPECT_EQ(kType, type);
     on_memory_usage_ += delta;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(base::IgnoreResult(std::move(callback)),
                                   base::File::FILE_OK, delta));
   }
@@ -96,6 +94,8 @@ class FakeBackend : public QuotaReservationManager::QuotaBackend {
   const url::Origin origin_ = url::Origin::Create(GURL("http://example.com"));
   int64_t on_memory_usage_ = kInitialFileSize;
   int64_t on_disk_usage_ = kInitialFileSize;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeBackend);
 };
 
 class FakeWriter {
@@ -181,11 +181,6 @@ void RefreshReservation(QuotaReservation* reservation, int64_t size) {
 class QuotaReservationManagerTest : public testing::Test {
  public:
   QuotaReservationManagerTest() = default;
-
-  QuotaReservationManagerTest(const QuotaReservationManagerTest&) = delete;
-  QuotaReservationManagerTest& operator=(const QuotaReservationManagerTest&) =
-      delete;
-
   ~QuotaReservationManagerTest() override = default;
 
   void SetUp() override {
@@ -193,9 +188,9 @@ class QuotaReservationManagerTest : public testing::Test {
     file_path_ = work_dir_.GetPath().Append(FILE_PATH_LITERAL("hoge"));
     SetFileSize(file_path_, kInitialFileSize);
 
-    auto backend = std::make_unique<FakeBackend>();
-    reservation_manager_ =
-        std::make_unique<QuotaReservationManager>(std::move(backend));
+    std::unique_ptr<QuotaReservationManager::QuotaBackend> backend(
+        new FakeBackend);
+    reservation_manager_.reset(new QuotaReservationManager(std::move(backend)));
   }
 
   void TearDown() override { reservation_manager_.reset(); }
@@ -220,6 +215,8 @@ class QuotaReservationManagerTest : public testing::Test {
   base::ScopedTempDir work_dir_;
   base::FilePath file_path_;
   std::unique_ptr<QuotaReservationManager> reservation_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(QuotaReservationManagerTest);
 };
 
 TEST_F(QuotaReservationManagerTest, BasicTest) {

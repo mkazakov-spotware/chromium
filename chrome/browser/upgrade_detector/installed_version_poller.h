@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,10 @@
 #include <memory>
 
 #include "base/callback.h"
+#include "base/files/file_path.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -40,7 +42,7 @@ class InstalledVersionPoller {
   // A type of callback that is run (in the background) to get the currently
   // installed version of the browser.
   using GetInstalledVersionCallback =
-      base::RepeatingCallback<void(InstalledVersionCallback)>;
+      base::RepeatingCallback<InstalledAndCriticalVersion()>;
 
   // A constructor for tests that provide a mock source of time and a mock
   // version getter.
@@ -91,6 +93,9 @@ class InstalledVersionPoller {
   void OnInstalledVersion(PollType poll_type,
                           InstalledAndCriticalVersion installed_version);
 
+  // Record |poll_type| if no PollType has previously been reported.
+  void RecordPollTypeOnce(PollType poll_type);
+
   SEQUENCE_CHECKER(sequence_checker_);
   BuildState* const build_state_;
   const GetInstalledVersionCallback get_installed_version_;
@@ -98,6 +103,8 @@ class InstalledVersionPoller {
 
   // Valid while observing modifications to the installation.
   std::unique_ptr<InstalledVersionMonitor> monitor_;
+
+  bool recorded_poll_type_ = false;
 
   base::WeakPtrFactory<InstalledVersionPoller> weak_ptr_factory_{this};
 };

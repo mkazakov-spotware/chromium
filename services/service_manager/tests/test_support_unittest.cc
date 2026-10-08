@@ -1,12 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/callback_helpers.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/test/task_environment.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -28,30 +28,26 @@ namespace {
 class TestBImpl : public mojom::TestB {
  public:
   TestBImpl() = default;
-
-  TestBImpl(const TestBImpl&) = delete;
-  TestBImpl& operator=(const TestBImpl&) = delete;
-
   ~TestBImpl() override = default;
 
  private:
   // TestB:
   void B(BCallback callback) override { std::move(callback).Run(); }
   void CallC(CallCCallback callback) override { std::move(callback).Run(); }
+
+  DISALLOW_COPY_AND_ASSIGN(TestBImpl);
 };
 
 class TestCImpl : public mojom::TestC {
  public:
   TestCImpl() = default;
-
-  TestCImpl(const TestCImpl&) = delete;
-  TestCImpl& operator=(const TestCImpl&) = delete;
-
   ~TestCImpl() override = default;
 
  private:
   // TestC:
   void C(CCallback callback) override { std::move(callback).Run(); }
+
+  DISALLOW_COPY_AND_ASSIGN(TestCImpl);
 };
 
 void OnTestBReceiver(mojo::PendingReceiver<mojom::TestB> receiver) {
@@ -71,9 +67,6 @@ class TestBServiceImpl : public Service {
     registry_.AddInterface(base::BindRepeating(&OnTestBReceiver));
   }
 
-  TestBServiceImpl(const TestBServiceImpl&) = delete;
-  TestBServiceImpl& operator=(const TestBServiceImpl&) = delete;
-
   ~TestBServiceImpl() override = default;
 
  private:
@@ -86,6 +79,8 @@ class TestBServiceImpl : public Service {
 
   service_manager::ServiceReceiver service_receiver_;
   service_manager::BinderRegistry registry_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestBServiceImpl);
 };
 
 class TestCServiceImpl : public Service {
@@ -94,9 +89,6 @@ class TestCServiceImpl : public Service {
       : service_receiver_(this, std::move(receiver)) {
     registry_.AddInterface(base::BindRepeating(&OnTestCReceiver));
   }
-
-  TestCServiceImpl(const TestCServiceImpl&) = delete;
-  TestCServiceImpl& operator=(const TestCServiceImpl&) = delete;
 
   ~TestCServiceImpl() override = default;
 
@@ -110,6 +102,8 @@ class TestCServiceImpl : public Service {
 
   service_manager::ServiceReceiver service_receiver_;
   service_manager::BinderRegistry registry_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestCServiceImpl);
 };
 
 constexpr char kServiceBName[] = "ServiceB";
@@ -129,13 +123,6 @@ TEST(ServiceManagerTestSupport, TestConnectorFactoryUniqueService) {
   base::RunLoop loop;
   c->C(loop.QuitClosure());
   loop.Run();
-
-  // Give the service a chance to process disconnection and clean up.
-  c.reset();
-  base::RunLoop cleanup_loop;
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, cleanup_loop.QuitClosure());
-  cleanup_loop.Run();
 }
 
 TEST(ServiceManagerTestSupport, TestConnectorFactoryMultipleServices) {
@@ -161,12 +148,6 @@ TEST(ServiceManagerTestSupport, TestConnectorFactoryMultipleServices) {
     c->C(loop.QuitClosure());
     loop.Run();
   }
-
-  // Give the services a chance to process disconnection and clean up.
-  base::RunLoop cleanup_loop;
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, cleanup_loop.QuitClosure());
-  cleanup_loop.Run();
 }
 
 }  // namespace service_manager

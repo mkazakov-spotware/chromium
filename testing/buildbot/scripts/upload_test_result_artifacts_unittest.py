@@ -1,9 +1,7 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Tests for upload_test_result_artifacts."""
-
-from __future__ import print_function
 
 import json
 import mock
@@ -66,7 +64,7 @@ class UploadTestResultArtifactsTest(unittest.TestCase):
 
   def loadTestEndToEndSimple(self):
     test_data = self.makeTestJson(1, 10)
-    print(self._loadTest(test_data, False))
+    print self._loadTest(test_data, False)
 
   def loadTestEndToEndManySmall(self):
     test_data = self.makeTestJson(1000, 10)

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
-#include "chrome/browser/prefetch/prefetch_prefs.h"
+#include "chrome/browser/net/prediction_options.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -15,6 +15,7 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/network_session_configurator/common/network_switches.h"
 #include "components/prefs/pref_service.h"
+#include "components/variations/net/variations_http_headers.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
@@ -25,8 +26,8 @@
 #include "net/test/embedded_test_server/http_request.h"
 #include "net/test/embedded_test_server/http_response.h"
 
+using chrome_browser_net::NetworkPredictionOptions;
 using net::NetworkChangeNotifier;
-using prefetch::PreloadPagesState;
 
 namespace {
 
@@ -39,7 +40,11 @@ const char kPrefetchCachingPeriodUrl[] = "/prefetch_caching_period";
 
 bool HasVariationsHeader(
     const net::test_server::HttpRequest::HeaderMap& headers) {
-  return headers.find("X-Client-Data") != headers.end();
+  for (const auto& pair : headers) {
+    if (variations::IsVariationsHeader(pair.first))
+      return true;
+  }
+  return false;
 }
 
 class MockNetworkChangeNotifierWIFI : public NetworkChangeNotifier {
@@ -73,18 +78,20 @@ class PrefetchBrowserTest : public InProcessBrowserTest {
     command_line->AppendSwitch(switches::kIgnoreCertificateErrors);
   }
 
-  void SetPreference(prefetch::PreloadPagesState value) {
-    prefetch::SetPreloadPagesState(browser()->profile()->GetPrefs(), value);
+  void SetPreference(NetworkPredictionOptions value) {
+    browser()->profile()->GetPrefs()->SetInteger(
+        prefs::kNetworkPredictionOptions, value);
   }
 
   bool RunPrefetchExperiment(bool expect_success, Browser* browser) {
     GURL url = embedded_test_server()->GetURL(kPrefetchPage);
 
-    const std::u16string expected_title =
-        expect_success ? u"link onload" : u"link onerror";
+    const base::string16 expected_title =
+        expect_success ? base::ASCIIToUTF16("link onload")
+                       : base::ASCIIToUTF16("link onerror");
     content::TitleWatcher title_watcher(
         browser->tab_strip_model()->GetActiveWebContents(), expected_title);
-    EXPECT_TRUE(ui_test_utils::NavigateToURL(browser, url));
+    ui_test_utils::NavigateToURL(browser, url);
     return expected_title == title_watcher.WaitAndGetTitle();
   }
 };
@@ -108,8 +115,8 @@ IN_PROC_BROWSER_TEST_F(PrefetchBrowserTest, PreferenceWorks) {
     EXPECT_TRUE(RunPrefetchExperiment(true, browser()));
   }
 
-  // Set preference to no preloading: prefetch should be unaffected.
-  SetPreference(PreloadPagesState::kNoPreloading);
+  // Set preference to NEVER: prefetch should be unaffected.
+  SetPreference(NetworkPredictionOptions::NETWORK_PREDICTION_NEVER);
   {
     std::unique_ptr<NetworkChangeNotifier> mock(
         new MockNetworkChangeNotifierWIFI);
@@ -125,8 +132,7 @@ IN_PROC_BROWSER_TEST_F(PrefetchBrowserTest, PreferenceWorks) {
 // Bug 339909: When in incognito mode the browser crashed due to an
 // uninitialized preference member. Verify that it no longer does.
 IN_PROC_BROWSER_TEST_F(PrefetchBrowserTest, IncognitoTest) {
-  Profile* incognito_profile =
-      browser()->profile()->GetPrimaryOTRProfile(/*create_if_needed=*/true);
+  Profile* incognito_profile = browser()->profile()->GetPrimaryOTRProfile();
   Browser* incognito_browser =
       Browser::Create(Browser::CreateParams(incognito_profile, true));
 
@@ -176,10 +182,10 @@ IN_PROC_BROWSER_TEST_F(PrefetchBrowserTest, RedirectedPrefetch) {
   ASSERT_TRUE(https_server.Start());
 
   GURL url = https_server.GetURL("www.google.com", kRedirectPrefetchPage);
-  const std::u16string expected_title = u"done";
+  const base::string16 expected_title = base::ASCIIToUTF16("done");
   content::TitleWatcher title_watcher(
       browser()->tab_strip_model()->GetActiveWebContents(), expected_title);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
   EXPECT_EQ(expected_title, title_watcher.WaitAndGetTitle());
   ASSERT_EQ(3U, requests.size());
 
@@ -243,10 +249,10 @@ IN_PROC_BROWSER_TEST_F(PrefetchBrowserTest, PrefetchCachingPeriod) {
   ASSERT_TRUE(http_server.Start());
 
   GURL url = http_server.GetURL("localhost", kPrefetchCachingPeriodPage);
-  const std::u16string expected_title = u"done";
+  const base::string16 expected_title = base::ASCIIToUTF16("done");
   content::TitleWatcher title_watcher(
       browser()->tab_strip_model()->GetActiveWebContents(), expected_title);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
   EXPECT_EQ(expected_title, title_watcher.WaitAndGetTitle());
   ASSERT_EQ(2U, requests.size());
 }
@@ -293,10 +299,10 @@ IN_PROC_BROWSER_TEST_F(PrefetchBrowserTest, PrefetchCachingPeriodWithAge) {
   ASSERT_TRUE(http_server.Start());
 
   GURL url = http_server.GetURL("localhost", kPrefetchCachingPeriodPage);
-  const std::u16string expected_title = u"done";
+  const base::string16 expected_title = base::ASCIIToUTF16("done");
   content::TitleWatcher title_watcher(
       browser()->tab_strip_model()->GetActiveWebContents(), expected_title);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
   EXPECT_EQ(expected_title, title_watcher.WaitAndGetTitle());
   ASSERT_EQ(2U, requests.size());
 }

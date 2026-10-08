@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,20 +10,16 @@
 #include "base/compiler_specific.h"
 #include "base/logging.h"
 #include "base/memory/singleton.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/system/sys_info.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/events/devices/x11/device_data_manager_x11.h"
 #include "ui/events/devices/x11/device_list_cache_x11.h"
 #include "ui/events/devices/x11/xinput_util.h"
 #include "ui/events/event_switches.h"
 #include "ui/gfx/x/connection.h"
-#include "ui/gfx/x/future.h"
 
 namespace ui {
 namespace {
@@ -38,7 +34,7 @@ void AddPointerDevicesFromString(
     if (base::StringToInt(dev, &devid))
       devices->push_back({devid, type});
     else
-      DLOG(WARNING) << "Invalid device id: " << dev;
+      DLOG(WARNING) << "Invalid device id: " << dev.as_string();
   }
 }
 
@@ -225,7 +221,7 @@ void TouchFactory::SetupXI2ForXWindow(x11::Window window) {
   // these events.
   SetXinputMask(mask_data, x11::Input::HierarchyEvent::opcode);
   SetXinputMask(mask_data, x11::Input::DeviceChangedEvent::opcode);
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   if (base::SysInfo::IsRunningOnChromeOS()) {
     SetXinputMask(mask_data, x11::Input::DeviceEvent::KeyPress);
     SetXinputMask(mask_data, x11::Input::DeviceEvent::KeyRelease);
@@ -336,8 +332,11 @@ void TouchFactory::CacheTouchscreenIds(x11::Input::DeviceId device_id) {
     return;
   std::vector<TouchscreenDevice> touchscreens =
       DeviceDataManager::GetInstance()->GetTouchscreenDevices();
-  const auto it = base::ranges::find(touchscreens, static_cast<int>(device_id),
-                                     &TouchscreenDevice::id);
+  const auto it =
+      std::find_if(touchscreens.begin(), touchscreens.end(),
+                   [device_id](const TouchscreenDevice& touchscreen) {
+                     return touchscreen.id == static_cast<int>(device_id);
+                   });
   // Internal displays will have a vid and pid of 0. Ignore them.
   if (it != touchscreens.end() && it->vendor_id && it->product_id)
     touchscreen_ids_.emplace(it->vendor_id, it->product_id);

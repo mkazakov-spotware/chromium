@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "crypto/hmac.h"
 
@@ -26,7 +26,7 @@ class NaClValidationQueryContext {
   NaClValidationQuery* CreateQuery();
 
  private:
-  raw_ptr<NaClValidationDB> db_;
+  NaClValidationDB* db_;
 
   // A key used by HMAC that is specific to this installation of Chrome.
   std::string profile_key_;
@@ -43,9 +43,6 @@ class NaClValidationQuery {
   static const size_t kDigestLength = 32;
 
   NaClValidationQuery(NaClValidationDB* db, const std::string& profile_key);
-
-  NaClValidationQuery(const NaClValidationQuery&) = delete;
-  NaClValidationQuery& operator=(const NaClValidationQuery&) = delete;
 
   void AddData(const char* data, size_t length);
   void AddData(const unsigned char* data, size_t length);
@@ -74,7 +71,7 @@ class NaClValidationQuery {
   QueryState state_;
 
   crypto::HMAC hasher_;
-  raw_ptr<NaClValidationDB> db_;
+  NaClValidationDB* db_;
 
   // The size of buffer_ is a somewhat arbitrary choice.  It needs to be at
   // at least kDigestLength * 2, but it can be arbitrarily large.  In practice
@@ -83,6 +80,8 @@ class NaClValidationQuery {
   // compressed as an intermediate step in the expected use cases.
   char buffer_[kDigestLength * 4];
   size_t buffer_length_;
+
+  DISALLOW_COPY_AND_ASSIGN(NaClValidationQuery);
 };
 
 // Create a validation cache interface for use by sel_ldr.

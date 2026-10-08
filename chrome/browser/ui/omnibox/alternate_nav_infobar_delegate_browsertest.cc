@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,7 @@ class AlternateNavInfoBarDelegateTest : public TestInfoBar {
     AutocompleteMatch match;
     match.destination_url = GURL("http://intranetsite/");
     AlternateNavInfoBarDelegate::CreateForOmniboxNavigation(
-        GetWebContents(), std::u16string(), match, GURL("http://example.com/"));
+        GetWebContents(), base::string16(), match, GURL("http://example.com/"));
   }
 };
 

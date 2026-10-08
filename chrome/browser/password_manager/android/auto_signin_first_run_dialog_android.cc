@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,14 @@
 #include "base/android/jni_string.h"
 #include "chrome/android/chrome_jni_headers/AutoSigninFirstRunDialog_jni.h"
 #include "chrome/browser/password_manager/chrome_password_manager_client.h"
-#include "chrome/browser/password_manager/password_manager_settings_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/passwords/ui_utils.h"
+#include "chrome/browser/sync/profile_sync_service_factory.h"
+#include "chrome/browser/ui/passwords/manage_passwords_view_utils.h"
 #include "chrome/grit/chromium_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/password_manager/core/browser/password_bubble_experiment.h"
 #include "components/password_manager/core/browser/password_manager_constants.h"
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
-#include "components/password_manager/core/browser/password_manager_settings_service.h"
 #include "components/strings/grit/components_strings.h"
 #include "ui/android/window_android.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -51,16 +50,16 @@ void AutoSigninFirstRunDialogAndroid::ShowDialog() {
   JNIEnv* env = AttachCurrentThread();
   Profile* profile =
       Profile::FromBrowserContext(web_contents_->GetBrowserContext());
-  std::u16string explanation = l10n_util::GetStringFUTF16(
+  base::string16 explanation = l10n_util::GetStringFUTF16(
       IDS_AUTO_SIGNIN_FIRST_RUN_TEXT,
       l10n_util::GetStringUTF16(IDS_PASSWORD_MANAGER_TITLE_BRAND));
-  std::u16string message = l10n_util::GetStringUTF16(
+  base::string16 message = l10n_util::GetStringUTF16(
       IsSyncingAutosignSetting(profile)
           ? IDS_AUTO_SIGNIN_FIRST_RUN_TITLE_MANY_DEVICES
           : IDS_AUTO_SIGNIN_FIRST_RUN_TITLE_LOCAL_DEVICE);
-  std::u16string ok_button_text =
+  base::string16 ok_button_text =
       l10n_util::GetStringUTF16(IDS_AUTO_SIGNIN_FIRST_RUN_OK);
-  std::u16string turn_off_button_text = l10n_util::GetStringUTF16(IDS_TURN_OFF);
+  base::string16 turn_off_button_text = l10n_util::GetStringUTF16(IDS_TURN_OFF);
 
   base::android::ScopedJavaLocalRef<jobject> java_dialog =
       native_window->GetJavaObject();
@@ -90,12 +89,7 @@ void AutoSigninFirstRunDialogAndroid::OnTurnOffClicked(JNIEnv* env,
       password_manager::metrics_util::AUTO_SIGNIN_TURN_OFF);
   Profile* profile =
       Profile::FromBrowserContext(web_contents_->GetBrowserContext());
-  // This dialog is not and should never be shown in incognito as it offers the
-  // possibility to change user settings.
-  DCHECK(!profile->IsOffTheRecord());
-  PasswordManagerSettingsService* service =
-      PasswordManagerSettingsServiceFactory::GetForProfile(profile);
-  service->TurnOffAutoSignIn();
+  password_bubble_experiment::TurnOffAutoSignin(profile->GetPrefs());
   MarkAutoSignInFirstRunExperienceShown(web_contents_);
 }
 

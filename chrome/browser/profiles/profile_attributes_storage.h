@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,14 +15,12 @@
 #include "base/callback_forward.h"
 #include "base/files/file_path.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
+#include "base/strings/string16.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/profiles/profile_attributes_entry.h"
-#include "chrome/browser/profiles/profile_attributes_init_params.h"
-#include "chrome/browser/profiles/profile_attributes_storage_observer.h"
+#include "chrome/browser/profiles/profile_info_cache_observer.h"
 
 namespace base {
 class SequencedTaskRunner;
@@ -32,67 +30,61 @@ namespace gfx {
 class Image;
 }
 
-namespace signin {
-class PersistentRepeatingTimer;
-}
-
 class AccountId;
 class PrefService;
 class ProfileAttributesEntry;
 class ProfileAvatarDownloader;
-class PrefRegistrySimple;
 
 class ProfileAttributesStorage
     : public base::SupportsWeakPtr<ProfileAttributesStorage> {
  public:
-  using Observer = ProfileAttributesStorageObserver;
+  using Observer = ProfileInfoCacheObserver;
 
-  explicit ProfileAttributesStorage(PrefService* prefs,
-                                    const base::FilePath& user_data_dir);
+  explicit ProfileAttributesStorage(PrefService* prefs);
   ProfileAttributesStorage(const ProfileAttributesStorage&) = delete;
   ProfileAttributesStorage& operator=(const ProfileAttributesStorage&) = delete;
-  ~ProfileAttributesStorage();
+  virtual ~ProfileAttributesStorage();
 
-  // Register cache related preferences in Local State.
-  static void RegisterPrefs(PrefRegistrySimple* registry);
-
-  // Adds a new profile with `params` to the attributes storage.
-  // `params.profile_path` must be a valid path within the user data directory
-  // that hasn't been registered with this `ProfileAttributesStorage` before.
-  void AddProfile(ProfileAttributesInitParams params);
+  // If the |supervised_user_id| is non-empty, the profile will be marked to be
+  // omitted from the avatar-menu list on desktop versions. This is used while a
+  // supervised user is in the process of being registered with the server. Use
+  // ProfileAttributesEntry::SetIsOmitted() to clear the flag when the profile
+  // is ready to be shown in the menu.
+  virtual void AddProfile(const base::FilePath& profile_path,
+                          const base::string16& name,
+                          const std::string& gaia_id,
+                          const base::string16& user_name,
+                          bool is_consented_primary_account,
+                          size_t icon_index,
+                          const std::string& supervised_user_id,
+                          const AccountId& account_id) = 0;
 
   // Removes the profile matching given |account_id| from this storage.
   // Calculates profile path and calls RemoveProfile() on it.
-  void RemoveProfileByAccountId(const AccountId& account_id);
+  virtual void RemoveProfileByAccountId(const AccountId& account_id) = 0;
 
   // Removes the profile at |profile_path| from this storage. Does not delete or
   // affect the actual profile's data.
-  void RemoveProfile(const base::FilePath& profile_path);
+  virtual void RemoveProfile(const base::FilePath& profile_path) = 0;
 
   // Returns a vector containing one attributes entry per known profile. They
   // are not sorted in any particular order.
-  std::vector<ProfileAttributesEntry*> GetAllProfilesAttributes() const;
+  std::vector<ProfileAttributesEntry*> GetAllProfilesAttributes();
+  std::vector<ProfileAttributesEntry*> GetAllProfilesAttributesSortedByName();
 
-  // Returns all non-Guest profile attributes sorted by name.
-  std::vector<ProfileAttributesEntry*> GetAllProfilesAttributesSortedByName()
-      const;
-
-  // Returns all non-Guest profile attributes sorted by local profile name.
-  std::vector<ProfileAttributesEntry*>
-  GetAllProfilesAttributesSortedByLocalProfileName() const;
-
-  // Returns a ProfileAttributesEntry with the data for the profile at |path|
-  // if the operation is successful. Returns |nullptr| otherwise.
-  // Returned value should not be cached because the profile entry may be
-  // deleted at any time, an then using this value would cause use-after-free.
-  ProfileAttributesEntry* GetProfileAttributesWithPath(
-      const base::FilePath& path);
+  // Populates |entry| with the data for the profile at |path| and returns true
+  // if the operation is successful and |entry| can be used. Returns false
+  // otherwise.
+  // |entry| should not be cached as it may not reflect subsequent changes to
+  // the profile's metadata.
+  virtual bool GetProfileAttributesWithPath(
+      const base::FilePath& path, ProfileAttributesEntry** entry) = 0;
 
   // Returns the count of known profiles.
-  size_t GetNumberOfProfiles() const;
+  virtual size_t GetNumberOfProfiles() const = 0;
 
   // Returns a unique name that can be assigned to a newly created profile.
-  std::u16string ChooseNameForNewProfile(size_t icon_index) const;
+  base::string16 ChooseNameForNewProfile(size_t icon_index) const;
 
   // Determines whether |name| is one of the default assigned names.
   // On Desktop, if |include_check_for_legacy_profile_name| is false,
@@ -102,10 +94,10 @@ class ProfileAttributesStorage
   // is one of the legacy profile names (e.g. Saratoga, Default user, ..).
   // For other platforms, so far |include_check_for_legacy_profile_name|
   // is not used.
-  bool IsDefaultProfileName(const std::u16string& name,
+  bool IsDefaultProfileName(const base::string16& name,
                             bool include_check_for_legacy_profile_name) const;
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   // Records statistics about a profile `entry` that is being deleted. If the
   // profile has opened browser window(s) in the moment of deletion, this
   // function must be called before these windows get closed.
@@ -128,21 +120,6 @@ class ProfileAttributesStorage
       const std::string& key,
       const base::FilePath& image_path) const;
 
-  // Returns true if a GAIA picture has been loaded or has failed to load for
-  // profile with `key`.
-  bool IsGAIAPictureLoaded(const std::string& key) const;
-
-  // Saves the GAIA `image` at `image_path`.
-  void SaveGAIAImageAtPath(const base::FilePath& profile_path,
-                           const std::string& key,
-                           gfx::Image image,
-                           const base::FilePath& image_path,
-                           const std::string& image_url_with_size);
-  // Deletes a GAIA picture at `image_path`.
-  void DeleteGAIAImageAtPath(const base::FilePath& profile_path,
-                             const std::string& key,
-                             const base::FilePath& image_path);
-
   // Checks whether the high res avatar at index |icon_index| exists, and if it
   // does not, calls |DownloadHighResAvatar|.
   void DownloadHighResAvatarIfNeeded(size_t icon_index,
@@ -163,34 +140,17 @@ class ProfileAttributesStorage
   // Notifies observers. The following methods are accessed by
   // ProfileAttributesEntry.
   void NotifyOnProfileAvatarChanged(const base::FilePath& profile_path) const;
-  void NotifyIsSigninRequiredChanged(const base::FilePath& profile_path) const;
-  void NotifyProfileAuthInfoChanged(const base::FilePath& profile_path) const;
-  void NotifyIfProfileNamesHaveChanged() const;
-  void NotifyProfileSupervisedUserIdChanged(
-      const base::FilePath& profile_path) const;
-  void NotifyProfileIsOmittedChanged(const base::FilePath& profile_path) const;
-  void NotifyProfileThemeColorsChanged(
-      const base::FilePath& profile_path) const;
-  void NotifyProfileHostedDomainChanged(
-      const base::FilePath& profile_path) const;
-  void NotifyProfileUserManagementAcceptanceChanged(
-      const base::FilePath& profile_path) const;
-
-  // Returns a pref dictionary key of a profile at `profile_path`.
-  std::string StorageKeyFromProfilePath(
-      const base::FilePath& profile_path) const;
 
   // Disables the periodic reporting of profile metrics, as this is causing
   // tests to time out.
-  void DisableProfileMetricsForTesting();
+  virtual void DisableProfileMetricsForTesting() {}
 
- private:
+ protected:
+  FRIEND_TEST_ALL_PREFIXES(ProfileInfoCacheTest, EntriesInAttributesStorage);
   FRIEND_TEST_ALL_PREFIXES(ProfileAttributesStorageTest,
                            DownloadHighResAvatarTest);
   FRIEND_TEST_ALL_PREFIXES(ProfileAttributesStorageTest,
                            NothingToDownloadHighResAvatarTest);
-  FRIEND_TEST_ALL_PREFIXES(ProfileAttributesStorageTest,
-                           MigrateLegacyProfileNamesAndRecomputeIfNeeded);
 
   // Starts downloading the high res avatar at index |icon_index| for profile
   // with path |profile_path|.
@@ -206,62 +166,9 @@ class ProfileAttributesStorage
                              const base::FilePath& image_path,
                              base::OnceClosure callback);
 
-  std::vector<ProfileAttributesEntry*> GetAllProfilesAttributesSorted(
-      bool use_local_profile_name) const;
-
-  // Creates and initializes a ProfileAttributesEntry with `key`. `is_omitted`
-  // indicates whether the profile should be hidden in UI.
-  ProfileAttributesEntry* InitEntryWithKey(const std::string& key,
-                                           bool is_omitted);
-
-  // Download and high-res avatars used by the profiles.
-  void DownloadAvatars();
-
-#if !BUILDFLAG(IS_ANDROID)
-  // Loads GAIA pictures (if any) for all profiles registered in the storage and
-  // puts them in memory cache.
-  void LoadGAIAPictureIfNeeded();
-#endif
-
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
-  // Migrate any legacy profile names ("First user", "Default Profile") to
-  // new style default names ("Person 1"). Rename any duplicates of "Person n"
-  // i.e. Two or more profiles with the profile name "Person 1" would be
-  // recomputed to "Person 1" and "Person 2".
-  void MigrateLegacyProfileNamesAndRecomputeIfNeeded();
-  static void SetLegacyProfileMigrationForTesting(bool value);
-#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
-
-  // Called when the picture given by |key| has been loaded from disk and
-  // decoded into |image|.
-  void OnAvatarPictureLoaded(const base::FilePath& profile_path,
-                             const std::string& key,
-                             gfx::Image image) const;
-
-  // Called when the picture given by |file_name| has been saved to disk. Used
-  // both for the GAIA profile picture and the high res avatar files.
-  void OnAvatarPictureSaved(const std::string& file_name,
-                            const base::FilePath& profile_path,
-                            base::OnceClosure callback,
-                            bool success) const;
-
-  // Called when the GAIA picture given by `image_url_with_size` has been saved
-  // to disk.
-  void OnGAIAPictureSaved(const std::string& image_url_with_size,
-                          const base::FilePath& profile_path);
-
-  // Helper function that calls SaveAvatarImageAtPath without a callback.
-  void SaveAvatarImageAtPathNoCallback(const base::FilePath& profile_path,
-                                       gfx::Image image,
-                                       const std::string& key,
-                                       const base::FilePath& image_path);
-
-  // Notifies observers.
-  void NotifyOnProfileHighResAvatarLoaded(
-      const base::FilePath& profile_path) const;
-
-  const raw_ptr<PrefService> prefs_;
-  mutable std::unordered_map<base::FilePath::StringType, ProfileAttributesEntry>
+  PrefService* const prefs_;
+  mutable std::unordered_map<base::FilePath::StringType,
+                             std::unique_ptr<ProfileAttributesEntry>>
       profile_attributes_entries_;
 
   mutable base::ObserverList<Observer>::Unchecked observer_list_;
@@ -278,7 +185,7 @@ class ProfileAttributesStorage
   // location and the ProfileAvatarDownloader instances downloading them.
   // This prevents a picture from being downloaded multiple times. The
   // ProfileAvatarDownloader instances are deleted when the download completes
-  // or when the ProfileAttributesStorage is destroyed.
+  // or when the ProfileInfoCache is destroyed.
   std::unordered_map<std::string, std::unique_ptr<ProfileAvatarDownloader>>
       avatar_images_downloads_in_progress_;
 
@@ -289,12 +196,29 @@ class ProfileAttributesStorage
   // Task runner used for file operation on avatar images.
   scoped_refptr<base::SequencedTaskRunner> file_task_runner_;
 
-  const base::FilePath user_data_dir_;
+ private:
+  // Called when the picture given by |key| has been loaded from disk and
+  // decoded into |image|.
+  void OnAvatarPictureLoaded(const base::FilePath& profile_path,
+                             const std::string& key,
+                             gfx::Image image) const;
 
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
-  // PersistentRepeatingTimer for periodically logging profile metrics.
-  std::unique_ptr<signin::PersistentRepeatingTimer> repeating_timer_;
-#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
+  // Called when the picture given by |file_name| has been saved to disk. Used
+  // both for the GAIA profile picture and the high res avatar files.
+  void OnAvatarPictureSaved(const std::string& file_name,
+                            const base::FilePath& profile_path,
+                            base::OnceClosure callback,
+                            bool success) const;
+
+  // Helper function that calls SaveAvatarImageAtPath without a callback.
+  void SaveAvatarImageAtPathNoCallback(const base::FilePath& profile_path,
+                                       gfx::Image image,
+                                       const std::string& key,
+                                       const base::FilePath& image_path);
+
+  // Notifies observers.
+  void NotifyOnProfileHighResAvatarLoaded(
+      const base::FilePath& profile_path) const;
 };
 
 #endif  // CHROME_BROWSER_PROFILES_PROFILE_ATTRIBUTES_STORAGE_H_

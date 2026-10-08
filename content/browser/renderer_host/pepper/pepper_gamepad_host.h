@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <stdint.h>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "content/common/content_export.h"
 #include "device/gamepad/gamepad_consumer.h"
@@ -42,9 +43,6 @@ class CONTENT_EXPORT PepperGamepadHost :
                     PP_Instance instance,
                     PP_Resource resource);
 
-  PepperGamepadHost(const PepperGamepadHost&) = delete;
-  PepperGamepadHost& operator=(const PepperGamepadHost&) = delete;
-
   ~PepperGamepadHost() override;
 
   int32_t OnResourceMessageReceived(
@@ -56,17 +54,21 @@ class CONTENT_EXPORT PepperGamepadHost :
                           const device::Gamepad& gamepad) override {}
   void OnGamepadDisconnected(uint32_t index,
                              const device::Gamepad& gamepad) override {}
+  void OnGamepadButtonOrAxisChanged(uint32_t index,
+                                    const device::Gamepad& gamepad) override {}
 
  private:
   int32_t OnRequestMemory(ppapi::host::HostMessageContext* context);
 
   void GotUserGesture(const ppapi::host::ReplyMessageContext& in_context);
 
-  raw_ptr<device::GamepadService> gamepad_service_;
+  device::GamepadService* gamepad_service_;
 
   bool is_started_;
 
   base::WeakPtrFactory<PepperGamepadHost> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PepperGamepadHost);
 };
 
 }  // namespace content

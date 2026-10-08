@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "base/strings/utf_string_conversions.h"
-#include "base/values.h"
 #include "extensions/common/constants.h"
 #include "extensions/common/error_utils.h"
 #include "extensions/common/extension.h"
@@ -58,101 +57,83 @@ ActionInfo::ActionInfo(const ActionInfo& other) = default;
 ActionInfo::~ActionInfo() {}
 
 // static
-std::unique_ptr<ActionInfo> ActionInfo::Load(
-    const Extension* extension,
-    Type type,
-    const base::DictionaryValue* dict,
-    std::vector<InstallWarning>* install_warnings,
-    std::u16string* error) {
+std::unique_ptr<ActionInfo> ActionInfo::Load(const Extension* extension,
+                                             Type type,
+                                             const base::DictionaryValue* dict,
+                                             base::string16* error) {
   auto result = std::make_unique<ActionInfo>(type);
 
   // Read the page action |default_icon| (optional).
   // The |default_icon| value can be either dictionary {icon size -> icon path}
   // or non empty string value.
-  if (const base::Value* default_icon =
-          dict->FindKey(keys::kActionDefaultIcon)) {
-    std::string default_icon_str;
-    if (default_icon->is_string())
-      default_icon_str = default_icon->GetString();
-
-    if (default_icon->is_dict()) {
+  if (dict->HasKey(keys::kActionDefaultIcon)) {
+    const base::DictionaryValue* icons_value = NULL;
+    std::string default_icon;
+    if (dict->GetDictionary(keys::kActionDefaultIcon, &icons_value)) {
       if (!manifest_handler_helpers::LoadIconsFromDictionary(
-              default_icon, &result->default_icon, error)) {
+              icons_value, &result->default_icon, error)) {
         return nullptr;
       }
-    } else if (default_icon->is_string() &&
+    } else if (dict->GetString(keys::kActionDefaultIcon, &default_icon) &&
                manifest_handler_helpers::NormalizeAndValidatePath(
-                   &default_icon_str)) {
+                   &default_icon)) {
       // Choose the most optimistic (highest) icon density regardless of the
       // actual icon resolution, whatever that happens to be. Code elsewhere
       // knows how to scale down to 19.
       result->default_icon.Add(extension_misc::EXTENSION_ICON_GIGANTOR,
-                               default_icon_str);
+                               default_icon);
     } else {
-      *error = errors::kInvalidActionDefaultIcon;
+      *error = base::ASCIIToUTF16(errors::kInvalidActionDefaultIcon);
       return nullptr;
     }
   }
 
   // Read the page action title from |default_title| if present, |name| if not
   // (both optional).
-  if (const base::Value* default_title =
-          dict->FindKey(keys::kActionDefaultTitle)) {
-    if (!default_title->is_string()) {
-      *error = errors::kInvalidActionDefaultTitle;
+  if (dict->HasKey(keys::kActionDefaultTitle)) {
+    if (!dict->GetString(keys::kActionDefaultTitle, &result->default_title)) {
+      *error = base::ASCIIToUTF16(errors::kInvalidActionDefaultTitle);
       return nullptr;
     }
-    result->default_title = default_title->GetString();
   }
 
   // Read the action's default popup (optional).
-  if (const base::Value* default_popup =
-          dict->FindKey(keys::kActionDefaultPopup)) {
-    const std::string* url_str = default_popup->GetIfString();
-    if (!url_str) {
-      *error = errors::kInvalidActionDefaultPopup;
+  if (dict->HasKey(keys::kActionDefaultPopup)) {
+    std::string url_str;
+    if (!dict->GetString(keys::kActionDefaultPopup, &url_str)) {
+      *error = base::ASCIIToUTF16(errors::kInvalidActionDefaultPopup);
       return nullptr;
     }
 
-    if (!url_str->empty()) {
-      GURL popup_url = Extension::GetResourceURL(extension->url(), *url_str);
-
-      if (!popup_url.is_valid()) {
-        *error = errors::kInvalidActionDefaultPopup;
+    if (!url_str.empty()) {
+      // An empty string is treated as having no popup.
+      result->default_popup_url =
+          Extension::GetResourceURL(extension->url(), url_str);
+      if (!result->default_popup_url.is_valid()) {
+        *error = base::ASCIIToUTF16(errors::kInvalidActionDefaultPopup);
         return nullptr;
       }
-
-      // Check popup is only for this extension.
-      if (extension->origin().IsSameOriginWith(popup_url)) {
-        result->default_popup_url = popup_url;
-      } else {
-        install_warnings->push_back(extensions::InstallWarning(
-            extensions::manifest_errors::kInvalidExtensionOriginPopup,
-            GetManifestKeyForActionType(type),
-            extensions::manifest_keys::kActionDefaultPopup));
-      }
     } else {
-      // An empty string is treated as having no popup.
-      DCHECK(result->default_popup_url.is_empty());
+      DCHECK(result->default_popup_url.is_empty())
+          << "Shouldn't be possible for the popup to be set.";
     }
   }
 
-  if (const base::Value* default_state =
-          dict->FindKey(keys::kActionDefaultState)) {
+  if (dict->HasKey(keys::kActionDefaultState)) {
     // The default_state key is only valid for TYPE_ACTION; throw an error for
     // others.
     if (type != TYPE_ACTION) {
-      *error = errors::kDefaultStateShouldNotBeSet;
+      *error = base::ASCIIToUTF16(errors::kDefaultStateShouldNotBeSet);
       return nullptr;
     }
 
-    if (!default_state->is_string() ||
-        !(default_state->GetString() == kEnabled ||
-          default_state->GetString() == kDisabled)) {
-      *error = errors::kInvalidActionDefaultState;
+    std::string default_state;
+    if (!dict->GetString(keys::kActionDefaultState, &default_state) ||
+        !(default_state == kEnabled || default_state == kDisabled)) {
+      *error = base::ASCIIToUTF16(errors::kInvalidActionDefaultState);
       return nullptr;
     }
-    result->default_state = default_state->GetString() == kEnabled
+    result->default_state = default_state == kEnabled
                                 ? ActionInfo::STATE_ENABLED
                                 : ActionInfo::STATE_DISABLED;
   }
@@ -176,24 +157,6 @@ void ActionInfo::SetExtensionActionInfo(Extension* extension,
   // and most callers shouldn't care about the type.
   extension->SetManifestData(keys::kAction,
                              std::make_unique<ActionInfoData>(std::move(info)));
-}
-
-// static
-const char* ActionInfo::GetManifestKeyForActionType(ActionInfo::Type type) {
-  const char* action_key = nullptr;
-  switch (type) {
-    case ActionInfo::TYPE_BROWSER:
-      action_key = manifest_keys::kBrowserAction;
-      break;
-    case ActionInfo::TYPE_PAGE:
-      action_key = manifest_keys::kPageAction;
-      break;
-    case ActionInfo::TYPE_ACTION:
-      action_key = manifest_keys::kAction;
-      break;
-  }
-
-  return action_key;
 }
 
 }  // namespace extensions

@@ -31,7 +31,7 @@
 
             message = String(message).replace(/\n/g, "");
             if (window.testRunner) {
-                console.log(message);
+                alert(message);
             } else {
                 log(message);
             }
@@ -410,15 +410,15 @@
 
             // Using shouldBe for parent and top causes extraneous warnings due to cross-orgin toString'ing.
             if (window.parent === parentOld) {
-                console.log("PASS: window.parent should be parentOld and is.");
+                alert("PASS: window.parent should be parentOld and is.");
             } else {
-                console.log("*** FAIL: window.parent should be parentOld but instead is " + window.parent + ". ***");
+                alert("*** FAIL: window.parent should be parentOld but instead is " + window.parent + ". ***");
             }
 
             if (window.top === topOld) {
-                console.log("PASS: window.top should be topOld and is.");
+                alert("PASS: window.top should be topOld and is.");
             } else {
-                console.log("*** FAIL: window.top should be topOld but instead is " + window.top + ". ***");
+                alert("*** FAIL: window.top should be topOld but instead is " + window.top + ". ***");
             }
 
             // Functions

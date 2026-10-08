@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include <memory>
 
+#include "base/optional.h"
+#include "base/time/time.h"
 #include "chrome/browser/notifications/scheduler/public/notification_params.h"
 #include "chrome/browser/notifications/scheduler/public/notification_schedule_service.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -17,7 +19,7 @@ namespace test {
 class MockNotificationScheduleService : public NotificationScheduleService {
  public:
   MockNotificationScheduleService();
-  ~MockNotificationScheduleService() override;
+  ~MockNotificationScheduleService();
 
   MOCK_METHOD1(Schedule,
                void(std::unique_ptr<NotificationParams> notification_params));

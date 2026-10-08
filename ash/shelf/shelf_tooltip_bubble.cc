@@ -1,14 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/shelf/shelf_tooltip_bubble.h"
 
-#include "ash/constants/ash_features.h"
-#include "ash/style/ash_color_id.h"
+#include "ash/style/ash_color_provider.h"
+#include "ash/system/tray/tray_constants.h"
 #include "ash/wm/collision_detection/collision_detection_utils.h"
 #include "ui/aura/window.h"
-#include "ui/color/color_id.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/fill_layout.h"
 
@@ -26,42 +25,51 @@ constexpr int kTooltipMaxWidth = 250;
 constexpr int kTooltipTopBottomMargin = 4;
 constexpr int kTooltipLeftRightMargin = 8;
 
+// The offset for the tooltip bubble - making sure that the bubble is spaced
+// with a fixed gap. The gap is accounted for by the transparent arrow in the
+// bubble and an additional 1px padding for the shelf item views.
+constexpr int kArrowTopBottomOffset = 1;
+constexpr int kArrowLeftRightOffset = 1;
+
+// Padding used to position the tooltip relative to the shelf.
+constexpr int kTooltipPaddingHorizontalBottom = 6;
+
 }  // namespace
 
 ShelfTooltipBubble::ShelfTooltipBubble(views::View* anchor,
                                        ShelfAlignment alignment,
-                                       const std::u16string& text)
-    : ShelfBubble(anchor, alignment) {
-  set_margins(
-      gfx::Insets::VH(kTooltipTopBottomMargin, kTooltipLeftRightMargin));
+                                       SkColor background_color,
+                                       const base::string16& text)
+    : ShelfBubble(anchor, alignment, background_color) {
+  set_margins(gfx::Insets(kTooltipTopBottomMargin, kTooltipLeftRightMargin));
   set_close_on_deactivate(false);
   SetCanActivate(false);
   set_accept_events(false);
-  set_shadow(views::BubbleBorder::NO_SHADOW);
+  set_shadow(views::BubbleBorder::NO_ASSETS);
   SetLayoutManager(std::make_unique<views::FillLayout>());
-  auto label = std::make_unique<views::Label>(text);
+  views::Label* label = new views::Label(text);
   label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  // TODO (https://crbug.com/1146125) Enable inverted tooltip colors.
+  const SkColor tooltip_background = AshColorProvider::Get()->GetBaseLayerColor(
+      AshColorProvider::BaseLayerType::kTransparent80);
+  const SkColor tooltip_text = AshColorProvider::Get()->GetContentLayerColor(
+      AshColorProvider::ContentLayerType::kTextColorPrimary);
 
-  // Initialize color ids
-  label->SetEnabledColorId(kColorAshShelfTooltipForegroundColor);
-  label->SetBackgroundColorId(kColorAshShelfTooltipBackgroundColor);
-  AddChildView(std::move(label));
+  set_color(tooltip_background);
+  label->SetEnabledColor(tooltip_text);
+  label->SetBackgroundColor(tooltip_background);
+  AddChildView(label);
+
+  gfx::Insets insets(kArrowTopBottomOffset, kArrowLeftRightOffset);
+  // Adjust the anchor location for asymmetrical borders of shelf item.
+  if (anchor->border())
+    insets += anchor->border()->GetInsets();
+  insets += gfx::Insets(-kTooltipPaddingHorizontalBottom);
+  set_anchor_view_insets(insets);
+
   CreateBubble();
-
   CollisionDetectionUtils::IgnoreWindowForCollisionDetection(
       GetWidget()->GetNativeWindow());
-}
-
-void ShelfTooltipBubble::OnThemeChanged() {
-  ShelfBubble::OnThemeChanged();
-
-  const auto* color_provider = GetColorProvider();
-
-  // TODO(crbug.com/1377484): Update this function to use color id instead.
-  set_color(color_provider->GetColor(kColorAshShelfTooltipBackgroundColor));
-
-  // Updates the background color in the bubble frame view.
-  GetBubbleFrameView()->SetBackgroundColor(color());
 }
 
 gfx::Size ShelfTooltipBubble::CalculatePreferredSize() const {

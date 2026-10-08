@@ -1,12 +1,12 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 #include <stdint.h>
 
-#include "third_party/ots/src/include/opentype-sanitiser.h"
-#include "third_party/ots/src/include/ots-memory-stream.h"
+#include "third_party/ots/include/opentype-sanitiser.h"
+#include "third_party/ots/include/ots-memory-stream.h"
 
 static uint8_t buffer[256 * 1024] = { 0 };
 

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "chrome/test/base/testing_profile.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -27,10 +28,6 @@ class Notification;
 class SharedClipboardTestBase : public testing::Test {
  public:
   SharedClipboardTestBase();
-
-  SharedClipboardTestBase(const SharedClipboardTestBase&) = delete;
-  SharedClipboardTestBase& operator=(const SharedClipboardTestBase&) = delete;
-
   ~SharedClipboardTestBase() override;
 
   void SetUp() override;
@@ -44,13 +41,21 @@ class SharedClipboardTestBase : public testing::Test {
   std::string GetClipboardText();
   SkBitmap GetClipboardImage();
 
+  bool HasImageNotification();
+  bool HasProgressNotification();
+
   message_center::Notification GetNotification();
+  message_center::Notification GetProgressNotification();
+  message_center::Notification GetImageNotification();
 
  protected:
   content::BrowserTaskEnvironment task_environment_;
   TestingProfile profile_;
   std::unique_ptr<NotificationDisplayServiceTester> notification_tester_;
   std::unique_ptr<MockSharingService> sharing_service_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SharedClipboardTestBase);
 };
 
 #endif  // CHROME_BROWSER_SHARING_SHARED_CLIPBOARD_SHARED_CLIPBOARD_TEST_BASE_H_

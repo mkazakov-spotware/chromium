@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,7 @@ class EnterpriseDomainObserver {
  public:
   virtual ~EnterpriseDomainObserver() {}
 
-  virtual void OnDeviceEnterpriseInfoChanged() = 0;
-
-  virtual void OnEnterpriseAccountDomainChanged() = 0;
+  virtual void OnEnterpriseDomainChanged() = 0;
 };
 
 }  // namespace ash

@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_WEB_VIEW_INTERNAL_SIGNIN_WEB_VIEW_IDENTITY_MANAGER_FACTORY_H_
 #define IOS_WEB_VIEW_INTERNAL_SIGNIN_WEB_VIEW_IDENTITY_MANAGER_FACTORY_H_
 
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
 
@@ -26,10 +27,6 @@ class WebViewIdentityManagerFactory : public BrowserStateKeyedServiceFactory {
   // Returns an instance of the WebViewIdentityManagerFactory singleton.
   static WebViewIdentityManagerFactory* GetInstance();
 
-  WebViewIdentityManagerFactory(const WebViewIdentityManagerFactory&) = delete;
-  WebViewIdentityManagerFactory& operator=(
-      const WebViewIdentityManagerFactory&) = delete;
-
  private:
   friend class base::NoDestructor<WebViewIdentityManagerFactory>;
 
@@ -41,6 +38,8 @@ class WebViewIdentityManagerFactory : public BrowserStateKeyedServiceFactory {
       web::BrowserState* context) const override;
   void RegisterBrowserStatePrefs(
       user_prefs::PrefRegistrySyncable* registry) override;
+
+  DISALLOW_COPY_AND_ASSIGN(WebViewIdentityManagerFactory);
 };
 
 }  // namespace ios_web_view

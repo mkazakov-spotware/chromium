@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,8 @@
 #include "ash/assistant/ui/main_stage/assistant_ui_element_view.h"
 #include "ash/assistant/ui/main_stage/element_animator.h"
 #include "ash/assistant/util/animation_util.h"
-#include "base/bind.h"
 #include "base/metrics/histogram_functions.h"
 #include "ui/compositor/callback_layer_animation_observer.h"
-#include "ui/compositor/layer.h"
 #include "ui/gfx/animation/tween.h"
 
 namespace ash {
@@ -22,8 +20,10 @@ using assistant::util::CreateOpacityElement;
 using assistant::util::StartLayerAnimationSequence;
 
 // Animation.
-constexpr base::TimeDelta kAnimateInDuration = base::Milliseconds(250);
-constexpr base::TimeDelta kAnimateOutDuration = base::Milliseconds(200);
+constexpr base::TimeDelta kAnimateInDuration =
+    base::TimeDelta::FromMilliseconds(250);
+constexpr base::TimeDelta kAnimateOutDuration =
+    base::TimeDelta::FromMilliseconds(200);
 
 }  // namespace
 
@@ -37,7 +37,8 @@ AssistantUiElementViewAnimator::AssistantUiElementViewAnimator(
 AssistantUiElementViewAnimator::AnimationSmoothnessCallback
 AssistantUiElementViewAnimator::GetAnimationSmoothnessCallback() const {
   return base::BindRepeating<void(const std::string&, int value)>(
-      base::UmaHistogramPercentage, animation_smoothness_histogram_);
+      base::UmaHistogramPercentageObsoleteDoNotUse,
+      animation_smoothness_histogram_);
 }
 
 // ElementAnimator:

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,10 +32,6 @@ bool g_response_validation_enabled =
 class ContextInvalidationData : public base::SupportsUserData::Data {
  public:
   ContextInvalidationData();
-
-  ContextInvalidationData(const ContextInvalidationData&) = delete;
-  ContextInvalidationData& operator=(const ContextInvalidationData&) = delete;
-
   ~ContextInvalidationData() override;
 
   static constexpr char kPerContextDataKey[] = "extension_context_invalidation";
@@ -51,6 +47,8 @@ class ContextInvalidationData : public base::SupportsUserData::Data {
   bool is_context_valid_ = true;
   base::ObserverList<ContextInvalidationListener>::Unchecked
       invalidation_listeners_;
+
+  DISALLOW_COPY_AND_ASSIGN(ContextInvalidationData);
 };
 
 constexpr char ContextInvalidationData::kPerContextDataKey[];
@@ -125,21 +123,14 @@ void InvalidateContext(v8::Local<v8::Context> context) {
 }
 
 std::string GetPlatformString() {
-// TODO(https://crbug.com/1052397): For readability, this should become
-// BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(IS_CHROMEOS_LACROS). The second
-// conditional should be BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(IS_CHROMEOS_ASH).
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  return "lacros";
-#elif BUILDFLAG(IS_CHROMEOS_ASH) && !BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_CHROMEOS_ASH)
   return "chromeos";
-#elif BUILDFLAG(IS_LINUX)
+#elif defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
   return "linux";
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
   return "mac";
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   return "win";
-#elif BUILDFLAG(IS_FUCHSIA)
-  return "fuchsia";
 #else
   NOTREACHED();
   return std::string();

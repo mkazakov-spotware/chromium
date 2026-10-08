@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define THIRD_PARTY_BLINK_PUBLIC_COMMON_WEB_PACKAGE_SIGNED_EXCHANGE_CONSTS_H_
 
 #include <stddef.h>
+#include <string>
 
 #include "third_party/blink/public/common/common_export.h"
 

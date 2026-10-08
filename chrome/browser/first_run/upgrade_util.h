@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,8 @@
 
 #include "base/callback_forward.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_ANDROID) || defined(OS_CHROMEOS)
 #error Not used on Android or ChromeOS
 #endif
 
@@ -25,7 +24,7 @@ namespace upgrade_util {
 // launched, returns false.
 bool RelaunchChromeBrowser(const base::CommandLine& command_line);
 
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
 
 // Sets a command line to be used to relaunch the browser upon exit.
 void SetNewCommandLine(std::unique_ptr<base::CommandLine> new_command_line);
@@ -42,7 +41,7 @@ void RelaunchChromeBrowserWithNewCommandLineIfNeeded();
 //  running instance.
 bool IsUpdatePendingRestart();
 
-#endif  // !BUILDFLAG(IS_MAC)
+#endif  // !defined(OS_MAC)
 
 using RelaunchChromeBrowserCallback =
     base::RepeatingCallback<bool(const base::CommandLine&)>;

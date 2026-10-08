@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "base/memory/ref_counted.h"
+#include "base/strings/string16.h"
 #include "components/printing/common/print.mojom-forward.h"
 #include "printing/image.h"
 #include "printing/mojom/print.mojom.h"
@@ -84,11 +85,11 @@ class MockPrinter {
                      printing::mojom::PrintPagesParams* settings);
   void UpdateSettings(int cookie,
                       printing::mojom::PrintPagesParams* params,
-                      const printing::PageRanges& page_range_array,
+                      const std::vector<uint32_t>& page_range_array,
                       int margins_type,
                       const gfx::Size& page_size,
                       int scale_factor);
-  void PrintPage(printing::mojom::DidPrintDocumentParamsPtr params);
+  void PrintPage(const printing::mojom::DidPrintDocumentParams& params);
 
   // Functions that retrieve the output pages.
   Status GetPrinterStatus() const { return printer_status_; }
@@ -151,8 +152,8 @@ class MockPrinter {
 
   // Used for displaying headers and footers.
   bool display_header_footer_;
-  std::u16string title_;
-  std::u16string url_;
+  base::string16 title_;
+  base::string16 url_;
 
   // Used for generating invalid settings.
   bool use_invalid_settings_;

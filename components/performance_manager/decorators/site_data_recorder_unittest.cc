@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,10 @@
 
 #include <memory>
 
+#include "base/callback_forward.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
+#include "base/task/post_task.h"
 #include "base/test/bind.h"
 #include "base/threading/sequence_bound.h"
 #include "components/performance_manager/graph/page_node_impl.h"
@@ -31,9 +32,9 @@
 namespace performance_manager {
 
 constexpr base::TimeDelta kTitleOrFaviconChangePostLoadGracePeriod =
-    base::Seconds(20);
+    base::TimeDelta::FromSeconds(20);
 constexpr base::TimeDelta kFeatureUsagePostBackgroundGracePeriod =
-    base::Seconds(10);
+    base::TimeDelta::FromSeconds(10);
 
 // A mock implementation of a SiteDataWriter.
 class LenientMockDataWriter : public SiteDataWriter {
@@ -65,10 +66,10 @@ class LenientMockDataWriter : public SiteDataWriter {
     on_destroy_indicator_ = on_destroy_indicator;
   }
 
-  const url::Origin& Origin() const override { return origin_; }
+  const url::Origin& Origin() const { return origin_; }
 
  private:
-  raw_ptr<bool> on_destroy_indicator_ = nullptr;
+  bool* on_destroy_indicator_ = nullptr;
   url::Origin origin_;
 };
 using MockDataWriter = ::testing::StrictMock<LenientMockDataWriter>;
@@ -88,9 +89,8 @@ class MockDataCache : public SiteDataCache {
   }
   std::unique_ptr<SiteDataWriter> GetWriterForOrigin(
       const url::Origin& origin) override {
-    scoped_refptr<internal::SiteDataImpl> fake_impl =
-        base::WrapRefCounted(new internal::SiteDataImpl(
-            origin, delegate_.GetWeakPtr(), &data_store_));
+    scoped_refptr<internal::SiteDataImpl> fake_impl = base::WrapRefCounted(
+        new internal::SiteDataImpl(origin, &delegate_, &data_store_));
 
     return std::make_unique<MockDataWriter>(origin, fake_impl);
   }
@@ -152,19 +152,21 @@ class SiteDataRecorderTest : public PerformanceManagerTestHarness {
 
     SetContents(CreateTestWebContents());
     base::WeakPtr<PageNode> page_node =
-        PerformanceManager::GetPrimaryPageNodeForWebContents(web_contents());
+        PerformanceManager::GetPageNodeForWebContents(web_contents());
     RunTaskOnPMSequence(base::BindLambdaForTesting([&]() {
       auto* page_node_impl = PageNodeImpl::FromNode(page_node.get());
       page_node_impl->SetIsAudible(false);
       page_node_impl->SetIsVisible(false);
-      page_node_impl->SetLoadingState(PageNode::LoadingState::kLoading);
+      page_node_impl->SetIsLoading(true);
     }));
   }
 
   void TearDown() override {
     DeleteContents();
     recorder_ = nullptr;
-    cache_factory_.SynchronouslyResetForTest();
+    base::RunLoop run_loop;
+    cache_factory_.ResetWithCallbackAfterDestruction(run_loop.QuitClosure());
+    run_loop.Run();
     PerformanceManagerTestHarness::TearDown();
   }
 
@@ -172,13 +174,13 @@ class SiteDataRecorderTest : public PerformanceManagerTestHarness {
   const GURL kTestUrl2 = GURL("http://bar.com");
 
  private:
-  raw_ptr<SiteDataRecorder> recorder_ = nullptr;
+  SiteDataRecorder* recorder_ = nullptr;
   base::SequenceBound<SiteDataCacheFactory> cache_factory_;
 };
 
 TEST_F(SiteDataRecorderTest, NavigationEventsBasicTests) {
   base::WeakPtr<PageNode> page_node =
-      PerformanceManager::GetPrimaryPageNodeForWebContents(web_contents());
+      PerformanceManager::GetPageNodeForWebContents(web_contents());
 
   RunTaskOnPMSequence(base::BindLambdaForTesting([&]() {
     EXPECT_TRUE(page_node);
@@ -227,7 +229,7 @@ TEST_F(SiteDataRecorderTest, NavigationEventsBasicTests) {
 // is in background.
 TEST_F(SiteDataRecorderTest, FeatureEventsGetForwardedWhenInBackground) {
   base::WeakPtr<PageNode> page_node =
-      PerformanceManager::GetPrimaryPageNodeForWebContents(web_contents());
+      PerformanceManager::GetPageNodeForWebContents(web_contents());
 
   NavigatePageNodeOnUIThread(web_contents(), kTestUrl1);
 
@@ -240,7 +242,7 @@ TEST_F(SiteDataRecorderTest, FeatureEventsGetForwardedWhenInBackground) {
 
     node_impl = PageNodeImpl::FromNode(page_node.get());
     EXPECT_CALL(*mock_writer, NotifySiteLoaded(TabVisibility::kBackground));
-    node_impl->SetLoadingState(PageNode::LoadingState::kLoadedIdle);
+    node_impl->SetIsLoading(false);
     ::testing::Mock::VerifyAndClear(mock_writer);
 
     EXPECT_CALL(*mock_writer, NotifySiteForegrounded(true));
@@ -319,7 +321,7 @@ TEST_F(SiteDataRecorderTest, FeatureEventsGetForwardedWhenInBackground) {
 
 TEST_F(SiteDataRecorderTest, FeatureEventsIgnoredWhenLoadingInBackground) {
   base::WeakPtr<PageNode> page_node =
-      PerformanceManager::GetPrimaryPageNodeForWebContents(web_contents());
+      PerformanceManager::GetPageNodeForWebContents(web_contents());
   NavigatePageNodeOnUIThread(web_contents(), kTestUrl1);
 
   RunTaskOnPMSequence(base::BindLambdaForTesting([&]() {
@@ -340,7 +342,7 @@ TEST_F(SiteDataRecorderTest, FeatureEventsIgnoredWhenLoadingInBackground) {
 
 TEST_F(SiteDataRecorderTest, VisibilityEvent) {
   base::WeakPtr<PageNode> page_node =
-      PerformanceManager::GetPrimaryPageNodeForWebContents(web_contents());
+      PerformanceManager::GetPageNodeForWebContents(web_contents());
   NavigatePageNodeOnUIThread(web_contents(), kTestUrl1);
 
   RunTaskOnPMSequence(base::BindLambdaForTesting([&]() {
@@ -361,7 +363,7 @@ TEST_F(SiteDataRecorderTest, VisibilityEvent) {
 
 TEST_F(SiteDataRecorderTest, LoadEvent) {
   base::WeakPtr<PageNode> page_node =
-      PerformanceManager::GetPrimaryPageNodeForWebContents(web_contents());
+      PerformanceManager::GetPageNodeForWebContents(web_contents());
   NavigatePageNodeOnUIThread(web_contents(), kTestUrl1);
 
   RunTaskOnPMSequence(base::BindLambdaForTesting([&]() {
@@ -371,11 +373,11 @@ TEST_F(SiteDataRecorderTest, LoadEvent) {
     // Test that the load/unload events get forwarded to the writer.
 
     EXPECT_CALL(*mock_writer, NotifySiteLoaded(TabVisibility::kBackground));
-    node_impl->SetLoadingState(PageNode::LoadingState::kLoadedIdle);
+    node_impl->SetIsLoading(false);
     ::testing::Mock::VerifyAndClear(mock_writer);
 
     EXPECT_CALL(*mock_writer, NotifySiteUnloaded(TabVisibility::kBackground));
-    node_impl->SetLoadingState(PageNode::LoadingState::kLoading);
+    node_impl->SetIsLoading(true);
     ::testing::Mock::VerifyAndClear(mock_writer);
   }));
 }

@@ -1,12 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/wm/desks/desk_animation_impl.h"
 
-#include "ash/root_window_controller.h"
+#include "ash/public/cpp/ash_features.h"
+#include "ash/public/cpp/presentation_time_recorder.h"
 #include "ash/shell.h"
-#include "ash/utility/haptics_util.h"
 #include "ash/wm/desks/desk.h"
 #include "ash/wm/desks/desks_controller.h"
 #include "ash/wm/desks/desks_histogram_enums.h"
@@ -14,21 +14,14 @@
 #include "ash/wm/overview/overview_controller.h"
 #include "ash/wm/splitview/split_view_utils.h"
 #include "ash/wm/window_util.h"
-#include "base/bind.h"
 #include "base/metrics/histogram_macros.h"
-#include "ui/compositor/presentation_time_recorder.h"
-#include "ui/events/devices/haptic_touchpad_effects.h"
 
 namespace ash {
 
 namespace {
 
-constexpr char kDeskActivationLatencyHistogramName[] =
-    "Ash.Desks.AnimationLatency.DeskActivation";
 constexpr char kDeskActivationSmoothnessHistogramName[] =
     "Ash.Desks.AnimationSmoothness.DeskActivation";
-constexpr char kDeskRemovalLatencyHistogramName[] =
-    "Ash.Desks.AnimationLatency.DeskRemoval";
 constexpr char kDeskRemovalSmoothnessHistogramName[] =
     "Ash.Desks.AnimationSmoothness.DeskRemoval";
 
@@ -45,13 +38,9 @@ constexpr char kDeskUpdateGestureMaxLatencyHistogramName[] =
 constexpr char kDeskEndGestureSmoothnessHistogramName[] =
     "Ash.Desks.AnimationSmoothness.DeskEndGesture";
 
-// Swipes which are below this threshold are considered fast, and
-// RootWindowDeskSwitchAnimator will determine a different ending desk for these
-// swipes.
-constexpr base::TimeDelta kFastSwipeThresholdDuration = base::Milliseconds(500);
-
 bool IsForContinuousGestures(DesksSwitchSource source) {
-  return source == DesksSwitchSource::kDeskSwitchTouchpad;
+  return source == DesksSwitchSource::kDeskSwitchTouchpad &&
+         features::IsEnhancedDeskAnimations();
 }
 
 }  // namespace
@@ -69,8 +58,6 @@ DeskActivationAnimation::DeskActivationAnimation(DesksController* controller,
                         IsForContinuousGestures(source)),
       switch_source_(source),
       update_window_activation_(update_window_activation),
-      visible_desk_index_(starting_desk_index),
-      last_start_or_replace_time_(base::TimeTicks::Now()),
       presentation_time_recorder_(CreatePresentationTimeHistogramRecorder(
           desks_util::GetSelectedCompositorForPerformanceMetrics(),
           kDeskUpdateGestureHistogramName,
@@ -101,12 +88,6 @@ bool DeskActivationAnimation::Replace(bool moving_left,
   if (is_continuous_gesture_animation_)
     throughput_tracker_.Cancel();
 
-  // For fast swipes, we skip the implicit animation after ending screenshot in
-  // DeskAnimationBase, unless the swipe has ended and is deemed fast. Since
-  // Replace is called, the animation is refreshed by a new swipe and is no
-  // longer ending, so we rest this back to false.
-  did_continuous_gesture_end_fast_ = false;
-
   // If any of the animators are still taking either screenshot, do not replace
   // the animation.
   for (const auto& animator : desk_switch_animators_) {
@@ -119,13 +100,11 @@ bool DeskActivationAnimation::Replace(bool moving_left,
   const int new_ending_desk_index = ending_desk_index_ + (moving_left ? -1 : 1);
   // Already at the leftmost or rightmost desk, nothing to replace.
   if (new_ending_desk_index < 0 ||
-      new_ending_desk_index >= static_cast<int>(controller_->desks().size())) {
+      new_ending_desk_index >= int{controller_->desks().size()}) {
     return false;
   }
 
   ending_desk_index_ = new_ending_desk_index;
-
-  last_start_or_replace_time_ = base::TimeTicks::Now();
 
   // Similar to on starting, for touchpad, the user can replace the animation
   // without switching visible desks.
@@ -135,6 +114,7 @@ bool DeskActivationAnimation::Replace(bool moving_left,
   // List of animators that need a screenshot. It should be either empty or
   // match the size of |desk_switch_animators_| as all the animations should be
   // in sync.
+  // TODO(sammiequon): Verify all the animations are in sync.
   std::vector<RootWindowDeskSwitchAnimator*> pending_animators;
   for (const auto& animator : desk_switch_animators_) {
     if (animator->ReplaceAnimation(new_ending_desk_index))
@@ -149,7 +129,8 @@ bool DeskActivationAnimation::Replace(bool moving_left,
   }
 
   // Activate the target desk and take a screenshot.
-  DCHECK_EQ(pending_animators.size(), desk_switch_animators_.size());
+  // TODO(crbug.com/1134390): Convert back to DCHECK when the issue is fixed.
+  CHECK_EQ(pending_animators.size(), desk_switch_animators_.size());
   PrepareDeskForScreenshot(new_ending_desk_index);
   for (auto* animator : pending_animators)
     animator->TakeEndingDeskScreenshot();
@@ -162,40 +143,14 @@ bool DeskActivationAnimation::UpdateSwipeAnimation(float scroll_delta_x) {
 
   presentation_time_recorder_->RequestNext();
 
-  auto* first_animator = desk_switch_animators_.front().get();
-  DCHECK(first_animator);
-  const bool old_reached_edge = first_animator->reached_edge();
-
   // If any of the displays need a new screenshot while scrolling, take the
   // ending desk screenshot for all of them to keep them in sync.
-  absl::optional<int> ending_desk_index;
+  base::Optional<int> ending_desk_index;
   for (const auto& animator : desk_switch_animators_) {
     if (!ending_desk_index)
       ending_desk_index = animator->UpdateSwipeAnimation(scroll_delta_x);
     else
       animator->UpdateSwipeAnimation(scroll_delta_x);
-  }
-
-  // See if the animator of the first display has visibly changed desks. If so,
-  // update `visible_desk_changes_` for metrics collection purposes. Also fire a
-  // haptic event if we have reached the edge, or the visible desk has changed.
-  if (first_animator->starting_desk_screenshot_taken() &&
-      first_animator->ending_desk_screenshot_taken()) {
-    const int old_visible_desk_index = visible_desk_index_;
-    visible_desk_index_ = first_animator->GetIndexOfMostVisibleDeskScreenshot();
-    if (visible_desk_index_ != old_visible_desk_index) {
-      ++visible_desk_changes_;
-      haptics_util::PlayHapticTouchpadEffect(
-          ui::HapticTouchpadEffect::kTick,
-          ui::HapticTouchpadEffectStrength::kMedium);
-    }
-
-    const bool reached_edge = first_animator->reached_edge();
-    if (reached_edge && !old_reached_edge) {
-      haptics_util::PlayHapticTouchpadEffect(
-          ui::HapticTouchpadEffect::kKnock,
-          ui::HapticTouchpadEffectStrength::kMedium);
-    }
   }
 
   // No screenshot needed.
@@ -226,27 +181,10 @@ bool DeskActivationAnimation::EndSwipeAnimation() {
 
   // End the animation. The animator will determine which desk to animate to,
   // and update their ending desk index. When the animation is finished we will
-  // activate that desk. Set `did_continuous_gesture_end_fast_` to true if
-  // this is deemed a fast swipe. We will trigger the animation implicity if an
-  // ending screenshot is taken if so.
-  const bool is_fast_swipe =
-      base::TimeTicks::Now() - last_start_or_replace_time_ <
-      kFastSwipeThresholdDuration;
-  did_continuous_gesture_end_fast_ = is_fast_swipe;
+  // activate that desk.
+  for (const auto& animator : desk_switch_animators_)
+    ending_desk_index_ = animator->EndSwipeAnimation();
 
-  // Ending the swipe animation on the animators may delete `this`. Use a local
-  // variable and weak pointer to validate and prevent use after free.
-  int ending_desk_index;
-  base::WeakPtr<DeskActivationAnimation> weak_ptr =
-      weak_ptr_factory_.GetWeakPtr();
-
-  for (const auto& animator : desk_switch_animators_) {
-    ending_desk_index = animator->EndSwipeAnimation(is_fast_swipe);
-    if (!weak_ptr)
-      return true;
-  }
-
-  ending_desk_index_ = ending_desk_index;
   return true;
 }
 
@@ -265,15 +203,8 @@ void DeskActivationAnimation::OnDeskSwitchAnimationFinishedInternal() {
       update_window_activation_);
 }
 
-DeskAnimationBase::LatencyReportCallback
-DeskActivationAnimation::GetLatencyReportCallback() const {
-  return base::BindOnce([](const base::TimeDelta& latency) {
-    UMA_HISTOGRAM_TIMES(kDeskActivationLatencyHistogramName, latency);
-  });
-}
-
-metrics_util::ReportCallback
-DeskActivationAnimation::GetSmoothnessReportCallback() const {
+metrics_util::ReportCallback DeskActivationAnimation::GetReportCallback()
+    const {
   return metrics_util::ForSmoothness(base::BindRepeating([](int smoothness) {
     UMA_HISTOGRAM_PERCENTAGE(kDeskActivationSmoothnessHistogramName,
                              smoothness);
@@ -281,9 +212,6 @@ DeskActivationAnimation::GetSmoothnessReportCallback() const {
 }
 
 void DeskActivationAnimation::PrepareDeskForScreenshot(int index) {
-  for (auto* root_window_controller : Shell::GetAllRootWindowControllers())
-    root_window_controller->HideContextMenuNoAnimation();
-
   // The order here matters. Overview must end before ending tablet split view
   // before switching desks. (If clamshell split view is active on one or more
   // displays, then it simply will end when we end overview.) That's because
@@ -299,7 +227,6 @@ void DeskActivationAnimation::PrepareDeskForScreenshot(int index) {
     // ending desk screenshot. This makes sure that the ending desk
     // screenshot will only show the windows in that desk, not overview stuff.
     Shell::Get()->overview_controller()->EndOverview(
-        OverviewEndAction::kDeskActivation,
         OverviewEnterExitType::kImmediateExit);
   }
   SplitViewController* split_view_controller =
@@ -307,13 +234,9 @@ void DeskActivationAnimation::PrepareDeskForScreenshot(int index) {
   split_view_controller->EndSplitView(
       SplitViewController::EndReason::kDesksChange);
 
-  // Check that ending_desk_index_ is in range.
-  // See crbug.com/1346900.
-  const auto& desks = controller_->desks();
-  CHECK_LT(static_cast<size_t>(ending_desk_index_), desks.size());
-
-  controller_->ActivateDeskInternal(desks[ending_desk_index_].get(),
-                                    update_window_activation_);
+  controller_->ActivateDeskInternal(
+      controller_->desks()[ending_desk_index_].get(),
+      update_window_activation_);
 
   MaybeRestoreSplitView(/*refresh_snapped_windows=*/true);
 }
@@ -324,14 +247,12 @@ void DeskActivationAnimation::PrepareDeskForScreenshot(int index) {
 DeskRemovalAnimation::DeskRemovalAnimation(DesksController* controller,
                                            int desk_to_remove_index,
                                            int desk_to_activate_index,
-                                           DesksCreationRemovalSource source,
-                                           DeskCloseType close_type)
+                                           DesksCreationRemovalSource source)
     : DeskAnimationBase(controller,
                         desk_to_activate_index,
                         /*is_continuous_gesture_animation=*/false),
       desk_to_remove_index_(desk_to_remove_index),
-      request_source_(source),
-      close_type_(close_type) {
+      request_source_(source) {
   DCHECK(!Shell::Get()->overview_controller()->InOverviewSession());
   DCHECK_EQ(controller_->active_desk(),
             controller_->desks()[desk_to_remove_index_].get());
@@ -361,9 +282,6 @@ void DeskRemovalAnimation::OnStartingDeskScreenshotTakenInternal(
   split_view_controller->EndSplitView(
       SplitViewController::EndReason::kDesksChange);
 
-  for (auto* root_window_controller : Shell::GetAllRootWindowControllers())
-    root_window_controller->HideContextMenuNoAnimation();
-
   // At the end of phase (1), we activate the target desk (i.e. the desk that
   // will be activated after the active desk `desk_to_remove_index_` is
   // removed). This means that phase (2) will take a screenshot of that desk
@@ -377,20 +295,12 @@ void DeskRemovalAnimation::OnDeskSwitchAnimationFinishedInternal() {
   // Do the actual desk removal behind the scenes before the screenshot layers
   // are destroyed.
   controller_->RemoveDeskInternal(
-      controller_->desks()[desk_to_remove_index_].get(), request_source_,
-      close_type_);
+      controller_->desks()[desk_to_remove_index_].get(), request_source_);
+
   MaybeRestoreSplitView(/*refresh_snapped_windows=*/true);
 }
 
-DeskAnimationBase::LatencyReportCallback
-DeskRemovalAnimation::GetLatencyReportCallback() const {
-  return base::BindOnce([](const base::TimeDelta& latency) {
-    UMA_HISTOGRAM_TIMES(kDeskRemovalLatencyHistogramName, latency);
-  });
-}
-
-metrics_util::ReportCallback DeskRemovalAnimation::GetSmoothnessReportCallback()
-    const {
+metrics_util::ReportCallback DeskRemovalAnimation::GetReportCallback() const {
   return ash::metrics_util::ForSmoothness(
       base::BindRepeating([](int smoothness) {
         UMA_HISTOGRAM_PERCENTAGE(kDeskRemovalSmoothnessHistogramName,

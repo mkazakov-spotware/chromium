@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Provides a JS storage class implementing the HTML5 Storage
@@ -14,6 +22,10 @@ goog.setTestOnly('goog.testing.MockStorage');
 goog.provide('goog.testing.MockStorage');
 
 
+goog.require('goog.structs.Map');
+
+
+
 /**
  * A JS storage instance, implementing the HTML5 Storage interface.
  * See http://www.w3.org/TR/webstorage/ for details.
@@ -23,13 +35,12 @@ goog.provide('goog.testing.MockStorage');
  * @final
  */
 goog.testing.MockStorage = function() {
-  'use strict';
   /**
    * The underlying storage object.
-   * @type {!Map}
+   * @type {goog.structs.Map}
    * @private
    */
-  this.store_ = new Map();
+  this.store_ = new goog.structs.Map();
 
   /**
    * The number of elements in the storage.
@@ -46,9 +57,8 @@ goog.testing.MockStorage = function() {
  * @override
  */
 goog.testing.MockStorage.prototype.setItem = function(key, value) {
-  'use strict';
   this.store_.set(key, String(value));
-  this.length = this.store_.size;
+  this.length = this.store_.getCount();
 };
 
 
@@ -61,7 +71,6 @@ goog.testing.MockStorage.prototype.setItem = function(key, value) {
  * @override
  */
 goog.testing.MockStorage.prototype.getItem = function(key) {
-  'use strict';
   var val = this.store_.get(key);
   // Enforce that getItem returns string values.
   return (val != null) ? /** @type {string} */ (val) : null;
@@ -74,9 +83,8 @@ goog.testing.MockStorage.prototype.getItem = function(key) {
  * @override
  */
 goog.testing.MockStorage.prototype.removeItem = function(key) {
-  'use strict';
-  this.store_.delete(key);
-  this.length = this.store_.size;
+  this.store_.remove(key);
+  this.length = this.store_.getCount();
 };
 
 
@@ -85,7 +93,6 @@ goog.testing.MockStorage.prototype.removeItem = function(key) {
  * @override
  */
 goog.testing.MockStorage.prototype.clear = function() {
-  'use strict';
   this.store_.clear();
   this.length = 0;
 };
@@ -98,11 +105,5 @@ goog.testing.MockStorage.prototype.clear = function() {
  * @override
  */
 goog.testing.MockStorage.prototype.key = function(index) {
-  'use strict';
-  let i = 0;
-  for (const key of this.store_.keys()) {
-    if (i == index) return key;
-    i++;
-  }
-  return null;
+  return this.store_.getKeys()[index] || null;
 };

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/callback.h"
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/process/process_handle.h"
 #include "base/strings/string_piece.h"
 #include "mojo/public/c/system/invitation.h"
@@ -55,15 +56,9 @@ class MOJO_CPP_SYSTEM_EXPORT OutgoingInvitation {
  public:
   OutgoingInvitation();
   OutgoingInvitation(OutgoingInvitation&& other);
-
-  OutgoingInvitation(const OutgoingInvitation&) = delete;
-  OutgoingInvitation& operator=(const OutgoingInvitation&) = delete;
-
   ~OutgoingInvitation();
 
   OutgoingInvitation& operator=(OutgoingInvitation&& other);
-
-  void set_extra_flags(MojoSendInvitationFlags flags) { extra_flags_ = flags; }
 
   // Creates a new message pipe, attaching one end to this invitation and
   // returning the other end to the caller. The invitee can extract the
@@ -138,8 +133,7 @@ class MOJO_CPP_SYSTEM_EXPORT OutgoingInvitation {
   // connection using the same name will be disconnected.
   static ScopedMessagePipeHandle SendIsolated(
       PlatformChannelEndpoint channel_endpoint,
-      base::StringPiece connection_name = {},
-      base::ProcessHandle target_process = base::kNullProcessHandle);
+      base::StringPiece connection_name = {});
 
   // Similar to above but sends |invitation| via |server_endpoint|, which should
   // correspond to a |PlatformChannelServerEndpoint| taken from a
@@ -149,12 +143,12 @@ class MOJO_CPP_SYSTEM_EXPORT OutgoingInvitation {
   // connection using the same name will be disconnected.
   static ScopedMessagePipeHandle SendIsolated(
       PlatformChannelServerEndpoint server_endpoint,
-      base::StringPiece connection_name = {},
-      base::ProcessHandle target_process = base::kNullProcessHandle);
+      base::StringPiece connection_name = {});
 
  private:
-  MojoSendInvitationFlags extra_flags_ = MOJO_SEND_INVITATION_FLAG_NONE;
   ScopedInvitationHandle handle_;
+
+  DISALLOW_COPY_AND_ASSIGN(OutgoingInvitation);
 };
 
 // An IncomingInvitation can be accepted by an invited process by calling
@@ -165,15 +159,9 @@ class MOJO_CPP_SYSTEM_EXPORT IncomingInvitation {
   IncomingInvitation();
   IncomingInvitation(IncomingInvitation&& other);
   explicit IncomingInvitation(ScopedInvitationHandle handle);
-
-  IncomingInvitation(const IncomingInvitation&) = delete;
-  IncomingInvitation& operator=(const IncomingInvitation&) = delete;
-
   ~IncomingInvitation();
 
   IncomingInvitation& operator=(IncomingInvitation&& other);
-
-  bool is_valid() const { return handle_.is_valid(); }
 
   // Accepts an incoming invitation from |channel_endpoint|. If the invitation
   // was sent using one end of a |PlatformChannel|, |channel_endpoint| should be
@@ -207,6 +195,8 @@ class MOJO_CPP_SYSTEM_EXPORT IncomingInvitation {
 
  private:
   ScopedInvitationHandle handle_;
+
+  DISALLOW_COPY_AND_ASSIGN(IncomingInvitation);
 };
 
 }  // namespace mojo

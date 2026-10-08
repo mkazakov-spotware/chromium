@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,10 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/views/controls/menu/menu_item_view.h"
 #include "ui/views/controls/menu/menu_runner.h"
-#include "ui/views/test/views_test_base.h"
 
 namespace views {
 
-using SubmenuViewTest = ViewsTestBase;
-
-TEST_F(SubmenuViewTest, GetLastItem) {
+TEST(SubmenuViewTest, GetLastItem) {
   MenuItemView* parent = new MenuItemView();
   MenuRunner menu_runner(parent, 0);
 

@@ -1,10 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/network/unified_network_detailed_view_controller.h"
-
-#include <memory>
 
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
@@ -24,18 +22,16 @@ UnifiedNetworkDetailedViewController::UnifiedNetworkDetailedViewController(
 UnifiedNetworkDetailedViewController::~UnifiedNetworkDetailedViewController() =
     default;
 
-std::unique_ptr<views::View>
-UnifiedNetworkDetailedViewController::CreateView() {
+views::View* UnifiedNetworkDetailedViewController::CreateView() {
   DCHECK(!view_);
-  auto view = std::make_unique<NetworkListView>(
+  view_ = new tray::NetworkListView(
       detailed_view_delegate_.get(),
       Shell::Get()->session_controller()->login_status());
-  view_ = view.get();
   view_->Init();
-  return view;
+  return view_;
 }
 
-std::u16string UnifiedNetworkDetailedViewController::GetAccessibleName() const {
+base::string16 UnifiedNetworkDetailedViewController::GetAccessibleName() const {
   return l10n_util::GetStringUTF16(
       IDS_ASH_QUICK_SETTINGS_BUBBLE_NETWORK_SETTINGS_ACCESSIBLE_DESCRIPTION);
 }

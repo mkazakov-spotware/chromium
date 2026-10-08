@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "dbus/object_path.h"
@@ -37,12 +38,6 @@ class DEVICE_BLUETOOTH_EXPORT FakeBluetoothGattServiceClient
   };
 
   FakeBluetoothGattServiceClient();
-
-  FakeBluetoothGattServiceClient(const FakeBluetoothGattServiceClient&) =
-      delete;
-  FakeBluetoothGattServiceClient& operator=(
-      const FakeBluetoothGattServiceClient&) = delete;
-
   ~FakeBluetoothGattServiceClient() override;
 
   // DBusClient override.
@@ -126,6 +121,8 @@ class DEVICE_BLUETOOTH_EXPORT FakeBluetoothGattServiceClient
   // Note: This should remain the last member so it'll be destroyed and
   // invalidate its weak pointers before any other members are destroyed.
   base::WeakPtrFactory<FakeBluetoothGattServiceClient> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FakeBluetoothGattServiceClient);
 };
 
 }  // namespace bluez

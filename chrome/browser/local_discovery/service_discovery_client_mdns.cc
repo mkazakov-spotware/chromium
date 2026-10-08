@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,9 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/observer_list.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
 #include "base/task/thread_pool.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/local_discovery/service_discovery_client_impl.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -40,9 +40,6 @@ class ServiceDiscoveryClientMdns::Proxy {
     DCHECK_CURRENTLY_ON(BrowserThread::UI);
     client_->proxies_.AddObserver(this);
   }
-
-  Proxy(const Proxy&) = delete;
-  Proxy& operator=(const Proxy&) = delete;
 
   virtual ~Proxy() {
     DCHECK_CURRENTLY_ON(BrowserThread::UI);
@@ -113,6 +110,8 @@ class ServiceDiscoveryClientMdns::Proxy {
   // Delayed |mdns_runner_| tasks.
   std::vector<base::OnceClosure> delayed_tasks_;
   base::WeakPtrFactory<Proxy> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(Proxy);
 };
 
 namespace {
@@ -126,9 +125,6 @@ class SocketFactory : public net::MDnsSocketFactory {
  public:
   explicit SocketFactory(const net::InterfaceIndexFamilyList& interfaces)
       : interfaces_(interfaces) {}
-
-  SocketFactory(const SocketFactory&) = delete;
-  SocketFactory& operator=(const SocketFactory&) = delete;
 
   // net::MDnsSocketFactory implementation:
   void CreateSockets(std::vector<std::unique_ptr<net::DatagramServerSocket>>*
@@ -145,6 +141,8 @@ class SocketFactory : public net::MDnsSocketFactory {
 
  private:
   net::InterfaceIndexFamilyList interfaces_;
+
+  DISALLOW_COPY_AND_ASSIGN(SocketFactory);
 };
 
 void InitMdns(MdnsInitCallback on_initialized,
@@ -164,9 +162,6 @@ class ProxyBase : public ServiceDiscoveryClientMdns::Proxy, public T {
   explicit ProxyBase(ServiceDiscoveryClientMdns* client)
       : Proxy(client) {
   }
-
-  ProxyBase(const ProxyBase&) = delete;
-  ProxyBase& operator=(const ProxyBase&) = delete;
 
   ~ProxyBase() override {
     DeleteOnMdnsThread(implementation_.release());
@@ -191,6 +186,8 @@ class ProxyBase : public ServiceDiscoveryClientMdns::Proxy, public T {
 
  private:
   std::unique_ptr<T> implementation_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProxyBase);
 };
 
 class ServiceWatcherProxy : public ProxyBase<ServiceWatcher> {
@@ -207,9 +204,6 @@ class ServiceWatcherProxy : public ProxyBase<ServiceWatcher> {
         service_type, base::BindRepeating(&ServiceWatcherProxy::OnCallback,
                                           GetWeakPtr(), std::move(callback))));
   }
-
-  ServiceWatcherProxy(const ServiceWatcherProxy&) = delete;
-  ServiceWatcherProxy& operator=(const ServiceWatcherProxy&) = delete;
 
   // ServiceWatcher methods.
   void Start() override {
@@ -253,6 +247,8 @@ class ServiceWatcherProxy : public ProxyBase<ServiceWatcher> {
   }
   std::string service_type_;
   ServiceWatcher::UpdatedCallback callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(ServiceWatcherProxy);
 };
 
 class ServiceResolverProxy : public ProxyBase<ServiceResolver> {
@@ -267,9 +263,6 @@ class ServiceResolverProxy : public ProxyBase<ServiceResolver> {
         service_name, base::BindOnce(&ServiceResolverProxy::OnCallback,
                                      GetWeakPtr(), std::move(callback))));
   }
-
-  ServiceResolverProxy(const ServiceResolverProxy&) = delete;
-  ServiceResolverProxy& operator=(const ServiceResolverProxy&) = delete;
 
   // ServiceResolver methods.
   void StartResolving() override {
@@ -292,6 +285,8 @@ class ServiceResolverProxy : public ProxyBase<ServiceResolver> {
   }
 
   std::string service_name_;
+
+  DISALLOW_COPY_AND_ASSIGN(ServiceResolverProxy);
 };
 
 class LocalDomainResolverProxy : public ProxyBase<LocalDomainResolver> {
@@ -308,9 +303,6 @@ class LocalDomainResolverProxy : public ProxyBase<LocalDomainResolver> {
         base::BindOnce(&LocalDomainResolverProxy::OnCallback, GetWeakPtr(),
                        std::move(callback))));
   }
-
-  LocalDomainResolverProxy(const LocalDomainResolverProxy&) = delete;
-  LocalDomainResolverProxy& operator=(const LocalDomainResolverProxy&) = delete;
 
   // LocalDomainResolver methods.
   void Start() override {
@@ -331,6 +323,8 @@ class LocalDomainResolverProxy : public ProxyBase<LocalDomainResolver> {
         base::BindOnce(&Base::RunCallback, proxy,
                        base::BindOnce(std::move(callback), a1, a2, a3)));
   }
+
+  DISALLOW_COPY_AND_ASSIGN(LocalDomainResolverProxy);
 };
 
 }  // namespace
@@ -390,12 +384,12 @@ void ServiceDiscoveryClientMdns::ScheduleStartNewClient() {
   if (restart_attempts_ >= kMaxRestartAttempts)
     return;
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&ServiceDiscoveryClientMdns::StartNewClient,
                      weak_ptr_factory_.GetWeakPtr()),
-      base::Seconds(kRestartDelayOnNetworkChangeSeconds *
-                    (1 << restart_attempts_)));
+      base::TimeDelta::FromSeconds(kRestartDelayOnNetworkChangeSeconds *
+                                   (1 << restart_attempts_)));
 }
 
 void ServiceDiscoveryClientMdns::StartNewClient() {

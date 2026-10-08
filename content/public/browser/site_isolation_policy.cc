@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,64 +8,34 @@
 #include <iterator>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "base/bind.h"
 #include "base/command_line.h"
-#include "base/containers/flat_set.h"
 #include "base/feature_list.h"
 #include "base/metrics/field_trial_params.h"
-#include "base/no_destructor.h"
 #include "base/strings/string_split.h"
 #include "build/build_config.h"
-#include "content/public/browser/browser_thread.h"
 #include "content/public/browser/child_process_security_policy.h"
 #include "content/public/browser/content_browser_client.h"
-#include "content/public/browser/site_isolation_mode.h"
 #include "content/public/common/content_client.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
-#include "third_party/blink/public/common/features.h"
-#include "url/origin.h"
+#include "url/gurl.h"
 
 namespace content {
 
 namespace {
 
-bool g_disable_flag_caching_for_tests = false;
-
-bool IsDisableSiteIsolationFlagPresent() {
-  static const bool site_isolation_disabled =
-      base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kDisableSiteIsolation);
-  if (g_disable_flag_caching_for_tests) {
-    return base::CommandLine::ForCurrentProcess()->HasSwitch(
-        switches::kDisableSiteIsolation);
-  }
-  return site_isolation_disabled;
-}
-
-#if BUILDFLAG(IS_ANDROID)
-bool IsDisableSiteIsolationForPolicyFlagPresent() {
-  static const bool site_isolation_disabled_by_policy =
-      base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kDisableSiteIsolationForPolicy);
-  if (g_disable_flag_caching_for_tests) {
-    return base::CommandLine::ForCurrentProcess()->HasSwitch(
-        switches::kDisableSiteIsolationForPolicy);
-  }
-  return site_isolation_disabled_by_policy;
-}
-#endif
-
-bool IsSiteIsolationDisabled(SiteIsolationMode site_isolation_mode) {
-  if (IsDisableSiteIsolationFlagPresent()) {
+bool IsSiteIsolationDisabled() {
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kDisableSiteIsolation)) {
     return true;
   }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // Desktop platforms no longer support disabling Site Isolation by policy.
-  if (IsDisableSiteIsolationForPolicyFlagPresent()) {
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kDisableSiteIsolationForPolicy)) {
     return true;
   }
 #endif
@@ -73,50 +43,7 @@ bool IsSiteIsolationDisabled(SiteIsolationMode site_isolation_mode) {
   // Check with the embedder.  In particular, chrome/ uses this to disable site
   // isolation when below a memory threshold.
   return GetContentClient() &&
-         GetContentClient()->browser()->ShouldDisableSiteIsolation(
-             site_isolation_mode);
-}
-
-url::Origin RemovePort(const url::Origin& origin) {
-  return url::Origin::CreateFromNormalizedTuple(origin.scheme(), origin.host(),
-                                                /*port=*/0);
-}
-
-base::flat_set<url::Origin> CreateIsolatedAppOriginSet() {
-  std::string cmdline_origins(
-      base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
-          switches::kIsolatedAppOrigins));
-
-  std::vector<std::string> origin_strings = base::SplitString(
-      cmdline_origins, ",", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
-
-  base::flat_set<url::Origin> origin_set;
-  for (const std::string& origin_string : origin_strings) {
-    GURL allowed_url(origin_string);
-    url::Origin allowed_origin = url::Origin::Create(allowed_url);
-    if (!allowed_origin.opaque()) {
-      // Site isolation is currently based on Site URLs, which don't include
-      // ports. Ideally we'd use origin-based isolation for the origins in
-      // kIsolatedAppOrigins, but long term the origins used in the flag will
-      // be equivalent to their Site URL-ified version. Because of this, we
-      // just remove the port here instead of hooking up origin-based isolation
-      // that won't be needed long term.
-      if (allowed_url.has_port()) {
-        LOG(WARNING) << "Ignoring port number for Isolated App origin: "
-                     << allowed_origin;
-      }
-      origin_set.insert(RemovePort(allowed_origin));
-    } else {
-      LOG(ERROR) << "Error parsing Isolated App origin: " << origin_string;
-    }
-  }
-  return origin_set;
-}
-
-const base::flat_set<url::Origin>& GetIsolatedAppOriginSet() {
-  static base::NoDestructor<base::flat_set<url::Origin>> kIsolatedAppOrigins(
-      CreateIsolatedAppOriginSet());
-  return *kIsolatedAppOrigins;
+         GetContentClient()->browser()->ShouldDisableSiteIsolation();
 }
 
 }  // namespace
@@ -128,7 +55,7 @@ bool SiteIsolationPolicy::UseDedicatedProcessesForAllSites() {
     return true;
   }
 
-  if (IsSiteIsolationDisabled(SiteIsolationMode::kStrictSiteIsolation))
+  if (IsSiteIsolationDisabled())
     return false;
 
   // The switches above needs to be checked first, because if the
@@ -137,13 +64,6 @@ bool SiteIsolationPolicy::UseDedicatedProcessesForAllSites() {
   // group - such assignment should be final.
   return GetContentClient() &&
          GetContentClient()->browser()->ShouldEnableStrictSiteIsolation();
-}
-
-// static
-bool SiteIsolationPolicy::AreIsolatedSandboxedIframesEnabled() {
-  return !IsSiteIsolationDisabled(SiteIsolationMode::kPartialSiteIsolation) &&
-         base::FeatureList::IsEnabled(
-             blink::features::kIsolateSandboxedIframes);
 }
 
 // static
@@ -156,7 +76,7 @@ bool SiteIsolationPolicy::AreIsolatedOriginsEnabled() {
     return true;
   }
 
-  if (IsSiteIsolationDisabled(SiteIsolationMode::kPartialSiteIsolation))
+  if (IsSiteIsolationDisabled())
     return false;
 
   // The feature needs to be checked last, because checking the feature
@@ -179,11 +99,7 @@ bool SiteIsolationPolicy::IsStrictOriginIsolationEnabled() {
 
   // TODO(wjmaclean): Figure out what should happen when this feature is
   // combined with --isolate-origins.
-  //
-  // TODO(alexmos): For now, use the same memory threshold for strict origin
-  // isolation and strict site isolation.  In the future, strict origin
-  // isolation may need its own memory threshold.
-  if (IsSiteIsolationDisabled(SiteIsolationMode::kStrictSiteIsolation))
+  if (IsSiteIsolationDisabled())
     return false;
 
   // The feature needs to be checked last, because checking the feature
@@ -199,12 +115,12 @@ bool SiteIsolationPolicy::IsErrorPageIsolationEnabled(bool in_main_frame) {
 
 // static
 bool SiteIsolationPolicy::AreDynamicIsolatedOriginsEnabled() {
-  return !IsSiteIsolationDisabled(SiteIsolationMode::kPartialSiteIsolation);
+  return !IsSiteIsolationDisabled();
 }
 
 // static
 bool SiteIsolationPolicy::ArePreloadedIsolatedOriginsEnabled() {
-  if (IsSiteIsolationDisabled(SiteIsolationMode::kPartialSiteIsolation))
+  if (IsSiteIsolationDisabled())
     return false;
 
   // Currently, preloaded isolated origins are redundant when full site
@@ -217,7 +133,7 @@ bool SiteIsolationPolicy::ArePreloadedIsolatedOriginsEnabled() {
 }
 
 // static
-bool SiteIsolationPolicy::IsProcessIsolationForOriginAgentClusterEnabled() {
+bool SiteIsolationPolicy::IsOptInOriginIsolationEnabled() {
   // If strict site isolation is in use (either by default on desktop or via a
   // user opt-in on Android), unconditionally enable opt-in origin isolation.
   if (UseDedicatedProcessesForAllSites())
@@ -225,57 +141,10 @@ bool SiteIsolationPolicy::IsProcessIsolationForOriginAgentClusterEnabled() {
 
   // Otherwise, if site isolation is disabled (e.g., on Android due to being
   // under a memory threshold), turn off opt-in origin isolation.
-  if (IsSiteIsolationDisabled(SiteIsolationMode::kPartialSiteIsolation))
+  if (IsSiteIsolationDisabled())
     return false;
 
-  return IsOriginAgentClusterEnabled();
-}
-
-// static
-bool SiteIsolationPolicy::IsOriginAgentClusterEnabled() {
-  return base::FeatureList::IsEnabled(features::kOriginIsolationHeader);
-}
-
-// static
-bool SiteIsolationPolicy::IsSiteIsolationForCOOPEnabled() {
-  // If the user has explicitly enabled site isolation for COOP sites from the
-  // command line, honor this regardless of policies that may disable site
-  // isolation.
-  if (base::FeatureList::GetInstance()->IsFeatureOverriddenFromCommandLine(
-          features::kSiteIsolationForCrossOriginOpenerPolicy.name,
-          base::FeatureList::OVERRIDE_ENABLE_FEATURE)) {
-    return true;
-  }
-
-  // Don't apply COOP isolation if site isolation has been disabled (e.g., due
-  // to memory thresholds).
-  if (!SiteIsolationPolicy::AreDynamicIsolatedOriginsEnabled())
-    return false;
-
-  // COOP isolation is only needed on platforms where strict site isolation is
-  // not used.
-  if (UseDedicatedProcessesForAllSites())
-    return false;
-
-  // The feature needs to be checked last, because checking the feature
-  // activates the field trial and assigns the client either to a control or an
-  // experiment group - such assignment should be final.
-  return base::FeatureList::IsEnabled(
-      features::kSiteIsolationForCrossOriginOpenerPolicy);
-}
-
-// static
-bool SiteIsolationPolicy::ShouldPersistIsolatedCOOPSites() {
-  if (!IsSiteIsolationForCOOPEnabled())
-    return false;
-
-  return features::kSiteIsolationForCrossOriginOpenerPolicyShouldPersistParam
-      .Get();
-}
-
-// static
-bool SiteIsolationPolicy::IsSiteIsolationForGuestsEnabled() {
-  return base::FeatureList::IsEnabled(features::kSiteIsolationForGuests);
+  return true;
 }
 
 // static
@@ -292,7 +161,7 @@ std::string SiteIsolationPolicy::GetIsolatedOriginsFromFieldTrial() {
 
   // Check if site isolation modes are turned off (e.g., due to an opt-out
   // flag).
-  if (IsSiteIsolationDisabled(SiteIsolationMode::kPartialSiteIsolation))
+  if (IsSiteIsolationDisabled())
     return origins;
 
   // The feature needs to be checked after the opt-out, because checking the
@@ -312,52 +181,20 @@ void SiteIsolationPolicy::ApplyGlobalIsolatedOrigins() {
       ChildProcessSecurityPolicy::GetInstance();
 
   std::string from_cmdline = GetIsolatedOriginsFromCommandLine();
-  policy->AddFutureIsolatedOrigins(
+  policy->AddIsolatedOrigins(
       from_cmdline,
       ChildProcessSecurityPolicy::IsolatedOriginSource::COMMAND_LINE);
 
   std::string from_trial = GetIsolatedOriginsFromFieldTrial();
-  policy->AddFutureIsolatedOrigins(
+  policy->AddIsolatedOrigins(
       from_trial,
       ChildProcessSecurityPolicy::IsolatedOriginSource::FIELD_TRIAL);
 
   std::vector<url::Origin> from_embedder =
       GetContentClient()->browser()->GetOriginsRequiringDedicatedProcess();
-  policy->AddFutureIsolatedOrigins(
+  policy->AddIsolatedOrigins(
       from_embedder,
       ChildProcessSecurityPolicy::IsolatedOriginSource::BUILT_IN);
-}
-
-// static
-bool SiteIsolationPolicy::ShouldUrlUseApplicationIsolationLevel(
-    BrowserContext* browser_context,
-    const GURL& url) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  url::Origin origin = RemovePort(url::Origin::Create(url));
-  bool origin_matches_flag = g_disable_flag_caching_for_tests
-                                 ? CreateIsolatedAppOriginSet().contains(origin)
-                                 : GetIsolatedAppOriginSet().contains(origin);
-  return GetContentClient()->browser()->ShouldUrlUseApplicationIsolationLevel(
-      browser_context, url, origin_matches_flag);
-}
-
-// static
-void SiteIsolationPolicy::DisableFlagCachingForTesting() {
-  g_disable_flag_caching_for_tests = true;
-}
-
-// static
-bool SiteIsolationPolicy::IsProcessIsolationForFencedFramesEnabled() {
-  // If the user has explicitly enabled process isolation for fenced frames from
-  // the command line, honor this regardless of policies that may disable site
-  // isolation.
-  if (base::FeatureList::GetInstance()->IsFeatureOverriddenFromCommandLine(
-          features::kIsolateFencedFrames.name,
-          base::FeatureList::OVERRIDE_ENABLE_FEATURE)) {
-    return true;
-  }
-  return UseDedicatedProcessesForAllSites() &&
-         base::FeatureList::IsEnabled(features::kIsolateFencedFrames);
 }
 
 }  // namespace content

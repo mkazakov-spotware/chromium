@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,11 @@
 
 namespace ui {
 
-struct AXTreeUpdate;
+struct AXNodeData;
+struct AXTreeData;
+template <typename A, typename B>
+struct AXTreeUpdateBase;
+using AXTreeUpdate = AXTreeUpdateBase<AXNodeData, AXTreeData>;
 
 }  // namespace ui
 

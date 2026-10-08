@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,8 @@ namespace content {
 
 class StubRenderWidgetHostOwnerDelegate : public RenderWidgetHostOwnerDelegate {
  public:
+  void RenderWidgetDidInit() override {}
+  void RenderWidgetDidFirstVisuallyNonEmptyPaint() override {}
   void RenderWidgetGotFocus() override {}
   void RenderWidgetLostFocus() override {}
   void RenderWidgetDidForwardMouseEvent(

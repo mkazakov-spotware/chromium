@@ -1,23 +1,23 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/webui/bluetooth_internals/bluetooth_internals_handler.h"
 
-#include <string>
-
 #include "base/bind.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "build/chromeos_buildflags.h"
+#include "chrome/browser/chromeos/bluetooth/debug_logs_manager.h"
 #include "device/bluetooth/adapter.h"
 #include "device/bluetooth/bluetooth_adapter_factory.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/bluetooth/debug_logs_manager.h"
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/bluetooth/debug_logs_manager.h"
 #endif
 
 BluetoothInternalsHandler::BluetoothInternalsHandler(
@@ -41,8 +41,8 @@ void BluetoothInternalsHandler::GetDebugLogsChangeHandler(
   mojo::PendingRemote<mojom::DebugLogsChangeHandler> handler_remote;
   bool initial_toggle_value = false;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  using ash::bluetooth::DebugLogsManager;
+#if defined(OS_CHROMEOS)
+  using chromeos::bluetooth::DebugLogsManager;
 
   // If no logs manager exists for this user, debug logs are not supported.
   DebugLogsManager::DebugLogsState state =
@@ -55,7 +55,7 @@ void BluetoothInternalsHandler::GetDebugLogsChangeHandler(
       break;
     case DebugLogsManager::DebugLogsState::kSupportedAndEnabled:
       initial_toggle_value = true;
-      [[fallthrough]];
+      FALLTHROUGH;
     case DebugLogsManager::DebugLogsState::kSupportedButDisabled:
       handler_remote = debug_logs_manager_->GenerateRemote();
       break;

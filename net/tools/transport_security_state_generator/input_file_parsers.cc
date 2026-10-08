@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <sstream>
 #include <vector>
 
-#include "base/containers/contains.h"
 #include "base/json/json_reader.h"
 #include "base/logging.h"
 #include "base/strings/strcat.h"
@@ -16,7 +15,6 @@
 #include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
-#include "base/time/time.h"
 #include "base/values.h"
 #include "net/tools/transport_security_state_generator/cert_util.h"
 #include "net/tools/transport_security_state_generator/pinset.h"
@@ -24,7 +22,9 @@
 #include "net/tools/transport_security_state_generator/spki_hash.h"
 #include "third_party/boringssl/src/include/openssl/x509v3.h"
 
-namespace net::transport_security_state {
+namespace net {
+
+namespace transport_security_state {
 
 namespace {
 
@@ -59,7 +59,8 @@ bool MatchCertificateName(base::StringPiece name, base::StringPiece pin_name) {
   std::vector<base::StringPiece> words = base::SplitStringPiece(
       name, " ", base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
   if (words.empty()) {
-    LOG(ERROR) << "No words in certificate name for pin " << pin_name;
+    LOG(ERROR) << "No words in certificate name for pin "
+               << pin_name.as_string();
     return false;
   }
   base::StringPiece first_word = words[0];
@@ -83,7 +84,8 @@ bool MatchCertificateName(base::StringPiece name, base::StringPiece pin_name) {
   }
 
   if (first_word.empty()) {
-    LOG(ERROR) << "First word of certificate name (" << name << ") is empty";
+    LOG(ERROR) << "First word of certificate name (" << name.as_string()
+               << ") is empty";
     return false;
   }
 
@@ -91,37 +93,39 @@ bool MatchCertificateName(base::StringPiece name, base::StringPiece pin_name) {
   first_word = filtered_word;
   if (!base::EqualsCaseInsensitiveASCII(pin_name.substr(0, first_word.size()),
                                         first_word)) {
-    LOG(ERROR) << "The first word of the certificate name (" << first_word
-               << ") isn't a prefix of the variable name (" << pin_name << ")";
+    LOG(ERROR) << "The first word of the certificate name ("
+               << first_word.as_string()
+               << ") isn't a prefix of the variable name ("
+               << pin_name.as_string() << ")";
     return false;
   }
 
   for (size_t i = 0; i < words.size(); ++i) {
-    base::StringPiece word = words[i];
+    const base::StringPiece& word = words[i];
     if (word == "Class" && (i + 1) < words.size()) {
       std::string class_name = base::StrCat({word, words[i + 1]});
 
-      pos = pin_name.find(class_name);
+      size_t pos = pin_name.find(class_name);
       if (pos == std::string::npos) {
         LOG(ERROR)
             << "Certficate class specification doesn't appear in the variable "
                "name ("
-            << pin_name << ")";
+            << pin_name.as_string() << ")";
         return false;
       }
     } else if (word.size() == 1 && word[0] >= '0' && word[0] <= '9') {
-      pos = pin_name.find(word);
+      size_t pos = pin_name.find(word);
       if (pos == std::string::npos) {
         LOG(ERROR) << "Number doesn't appear in the certificate variable name ("
-                   << pin_name << ")";
+                   << pin_name.as_string() << ")";
         return false;
       }
     } else if (IsImportantWordInCertificateName(word)) {
-      pos = pin_name.find(word);
+      size_t pos = pin_name.find(word);
       if (pos == std::string::npos) {
-        LOG(ERROR) << std::string(word) +
+        LOG(ERROR) << word.as_string() +
                           " doesn't appear in the certificate variable name ("
-                   << pin_name << ")";
+                   << pin_name.as_string() << ")";
         return false;
       }
     }
@@ -159,8 +163,7 @@ enum class CertificateParserState {
   PRE_NAME,
   POST_NAME,
   IN_CERTIFICATE,
-  IN_PUBLIC_KEY,
-  PRE_TIMESTAMP,
+  IN_PUBLIC_KEY
 };
 
 // Valid keys for entries in the input JSON. These fields will be included in
@@ -173,7 +176,6 @@ static const char kModeJSONKey[] = "mode";
 static const char kPinsJSONKey[] = "pins";
 static const char kExpectCTJSONKey[] = "expect_ct";
 static const char kExpectCTReportURIJSONKey[] = "expect_ct_report_uri";
-static const char kTimestampName[] = "PinsListTimestamp";
 
 // Additional valid keys for entries in the input JSON that will not be included
 // in the output and contain metadata (e.g., for list maintenance).
@@ -181,17 +183,15 @@ static const char kPolicyJSONKey[] = "policy";
 
 }  // namespace
 
-bool ParseCertificatesFile(base::StringPiece certs_input,
-                           Pinsets* pinsets,
-                           base::Time* timestamp) {
+bool ParseCertificatesFile(base::StringPiece certs_input, Pinsets* pinsets) {
   if (certs_input.find("\r\n") != base::StringPiece::npos) {
     LOG(ERROR) << "CRLF line-endings found in the pins file. All files must "
                   "use LF (unix style) line-endings.";
     return false;
   }
 
+  std::string line;
   CertificateParserState current_state = CertificateParserState::PRE_NAME;
-  bool timestamp_parsed = false;
 
   const base::CompareCase& compare_mode = base::CompareCase::INSENSITIVE_ASCII;
   std::string name;
@@ -200,7 +200,7 @@ bool ParseCertificatesFile(base::StringPiece certs_input,
   bssl::UniquePtr<X509> certificate;
   SPKIHash hash;
 
-  for (base::StringPiece line : SplitStringPiece(
+  for (const base::StringPiece& line : SplitStringPiece(
            certs_input, "\n", base::KEEP_WHITESPACE, base::SPLIT_WANT_ALL)) {
     if (!line.empty() && line[0] == '#') {
       continue;
@@ -212,15 +212,11 @@ bool ParseCertificatesFile(base::StringPiece certs_input,
 
     switch (current_state) {
       case CertificateParserState::PRE_NAME:
-        if (line == kTimestampName) {
-          current_state = CertificateParserState::PRE_TIMESTAMP;
-          break;
-        }
         if (!IsValidName(line)) {
           LOG(ERROR) << "Invalid name in pins file: " << line;
           return false;
         }
-        name = std::string(line);
+        name = line.as_string();
         current_state = CertificateParserState::POST_NAME;
         break;
       case CertificateParserState::POST_NAME:
@@ -233,10 +229,10 @@ bool ParseCertificatesFile(base::StringPiece certs_input,
           pinsets->RegisterSPKIHash(name, hash);
           current_state = CertificateParserState::PRE_NAME;
         } else if (base::StartsWith(line, kStartOfCert, compare_mode)) {
-          buffer = std::string(line) + '\n';
+          buffer = line.as_string() + '\n';
           current_state = CertificateParserState::IN_CERTIFICATE;
         } else if (base::StartsWith(line, kStartOfPublicKey, compare_mode)) {
-          buffer = std::string(line) + '\n';
+          buffer = line.as_string() + '\n';
           current_state = CertificateParserState::IN_PUBLIC_KEY;
         } else {
           LOG(ERROR) << "Invalid value in pins file for " << name;
@@ -244,7 +240,7 @@ bool ParseCertificatesFile(base::StringPiece certs_input,
         }
         break;
       case CertificateParserState::IN_CERTIFICATE:
-        buffer += std::string(line) + '\n';
+        buffer += line.as_string() + '\n';
         if (!base::StartsWith(line, kEndOfCert, compare_mode)) {
           continue;
         }
@@ -276,7 +272,7 @@ bool ParseCertificatesFile(base::StringPiece certs_input,
         current_state = CertificateParserState::PRE_NAME;
         break;
       case CertificateParserState::IN_PUBLIC_KEY:
-        buffer += std::string(line) + '\n';
+        buffer += line.as_string() + '\n';
         if (!base::StartsWith(line, kEndOfPublicKey, compare_mode)) {
           continue;
         }
@@ -289,30 +285,11 @@ bool ParseCertificatesFile(base::StringPiece certs_input,
         pinsets->RegisterSPKIHash(name, hash);
         current_state = CertificateParserState::PRE_NAME;
         break;
-      case CertificateParserState::PRE_TIMESTAMP:
-        uint64_t timestamp_epoch;
-        if (!base::StringToUint64(line, &timestamp_epoch) ||
-            !base::IsValueInRangeForNumericType<time_t>(timestamp_epoch)) {
-          LOG(ERROR) << "Could not parse the timestamp value";
-          return false;
-        }
-        *timestamp = base::Time::FromTimeT(timestamp_epoch);
-        if (timestamp_parsed) {
-          LOG(ERROR) << "File contains multiple timestamps";
-          return false;
-        }
-        timestamp_parsed = true;
-        current_state = CertificateParserState::PRE_NAME;
-        break;
       default:
         DCHECK(false) << "Unknown parser state";
     }
   }
 
-  if (!timestamp_parsed) {
-    LOG(ERROR) << "Timestamp is missing";
-    return false;
-  }
   return true;
 }
 
@@ -335,34 +312,34 @@ bool ParseJSON(base::StringPiece json,
       "bulk-legacy", "bulk-18-weeks", "bulk-1-year", "public-suffix-requested"};
 
   std::unique_ptr<base::Value> value = base::JSONReader::ReadDeprecated(json);
-  if (!value.get() || !value->is_dict()) {
+  base::DictionaryValue* dict_value = nullptr;
+  if (!value.get() || !value->GetAsDictionary(&dict_value)) {
     LOG(ERROR) << "Could not parse the input JSON file";
     return false;
   }
 
-  const base::Value::List* preload_entries_list =
-      value->GetDict().FindList("entries");
-  if (!preload_entries_list) {
+  const base::ListValue* preload_entries = nullptr;
+  if (!dict_value->GetList("entries", &preload_entries)) {
     LOG(ERROR) << "Could not parse the entries in the input JSON";
     return false;
   }
 
-  for (size_t i = 0; i < preload_entries_list->size(); ++i) {
-    const base::Value& parsed = (*preload_entries_list)[i];
-    if (!parsed.is_dict()) {
+  for (size_t i = 0; i < preload_entries->GetSize(); ++i) {
+    const base::DictionaryValue* parsed = nullptr;
+    if (!preload_entries->GetDictionary(i, &parsed)) {
       LOG(ERROR) << "Could not parse entry " << base::NumberToString(i)
                  << " in the input JSON";
       return false;
     }
 
-    auto entry = std::make_unique<TransportSecurityStateEntry>();
-    const std::string* maybe_hostname = parsed.FindStringKey(kNameJSONKey);
-    if (!maybe_hostname) {
+    std::unique_ptr<TransportSecurityStateEntry> entry(
+        new TransportSecurityStateEntry());
+
+    if (!parsed->GetString(kNameJSONKey, &entry->hostname)) {
       LOG(ERROR) << "Could not extract the hostname for entry "
                  << base::NumberToString(i) << " from the input JSON";
       return false;
     }
-    entry->hostname = *maybe_hostname;
 
     if (entry->hostname.empty()) {
       LOG(ERROR) << "The hostname for entry " << base::NumberToString(i)
@@ -370,23 +347,24 @@ bool ParseJSON(base::StringPiece json,
       return false;
     }
 
-    for (auto entry_value : parsed.DictItems()) {
-      if (!base::Contains(valid_keys, entry_value.first)) {
+    for (const auto& entry_value : *parsed) {
+      if (valid_keys.find(entry_value.first) == valid_keys.cend()) {
         LOG(ERROR) << "The entry for " << entry->hostname
                    << " contains an unknown " << entry_value.first << " field";
         return false;
       }
     }
 
-    const std::string* policy = parsed.FindStringKey(kPolicyJSONKey);
-    if (!policy || !base::Contains(valid_policies, *policy)) {
+    std::string policy;
+    parsed->GetString(kPolicyJSONKey, &policy);
+    if (valid_policies.find(policy) == valid_policies.cend()) {
       LOG(ERROR) << "The entry for " << entry->hostname
                  << " does not have a valid policy";
       return false;
     }
 
-    const std::string* maybe_mode = parsed.FindStringKey(kModeJSONKey);
-    std::string mode = maybe_mode ? *maybe_mode : std::string();
+    std::string mode;
+    parsed->GetString(kModeJSONKey, &mode);
     entry->force_https = false;
     if (mode == "force-https") {
       entry->force_https = true;
@@ -395,73 +373,58 @@ bool ParseJSON(base::StringPiece json,
       return false;
     }
 
-    entry->include_subdomains =
-        parsed.FindBoolKey(kIncludeSubdomainsJSONKey).value_or(false);
-    entry->hpkp_include_subdomains =
-        parsed.FindBoolKey(kIncludeSubdomainsForPinningJSONKey).value_or(false);
-    const std::string* maybe_pinset = parsed.FindStringKey(kPinsJSONKey);
-    if (maybe_pinset)
-      entry->pinset = *maybe_pinset;
-    entry->expect_ct = parsed.FindBoolKey(kExpectCTJSONKey).value_or(false);
-    const std::string* maybe_expect_ct_report_uri =
-        parsed.FindStringKey(kExpectCTReportURIJSONKey);
-    if (maybe_expect_ct_report_uri)
-      entry->expect_ct_report_uri = *maybe_expect_ct_report_uri;
+    parsed->GetBoolean(kIncludeSubdomainsJSONKey, &entry->include_subdomains);
+    parsed->GetBoolean(kIncludeSubdomainsForPinningJSONKey,
+                       &entry->hpkp_include_subdomains);
+    parsed->GetString(kPinsJSONKey, &entry->pinset);
+    parsed->GetBoolean(kExpectCTJSONKey, &entry->expect_ct);
+    parsed->GetString(kExpectCTReportURIJSONKey, &entry->expect_ct_report_uri);
 
     entries->push_back(std::move(entry));
   }
 
-  base::Value::List* pinsets_list = value->GetDict().FindList("pinsets");
-  if (!pinsets_list) {
+  const base::ListValue* pinsets_list = nullptr;
+  if (!dict_value->GetList("pinsets", &pinsets_list)) {
     LOG(ERROR) << "Could not parse the pinsets in the input JSON";
     return false;
   }
 
-  for (size_t i = 0; i < pinsets_list->size(); ++i) {
-    const base::Value& parsed = (*pinsets_list)[i];
-    if (!parsed.is_dict()) {
+  for (size_t i = 0; i < pinsets_list->GetSize(); ++i) {
+    const base::DictionaryValue* parsed = nullptr;
+    if (!pinsets_list->GetDictionary(i, &parsed)) {
       LOG(ERROR) << "Could not parse pinset " << base::NumberToString(i)
                  << " in the input JSON";
       return false;
     }
 
-    const std::string* maybe_name = parsed.FindStringKey("name");
-    if (!maybe_name) {
+    std::string name;
+    if (!parsed->GetString("name", &name)) {
       LOG(ERROR) << "Could not extract the name for pinset "
                  << base::NumberToString(i) << " from the input JSON";
       return false;
     }
-    std::string name = *maybe_name;
 
-    const std::string* maybe_report_uri = parsed.FindStringKey("report_uri");
-    std::string report_uri =
-        maybe_report_uri ? *maybe_report_uri : std::string();
+    std::string report_uri;
+    parsed->GetString("report_uri", &report_uri);
 
-    auto pinset = std::make_unique<Pinset>(name, report_uri);
+    std::unique_ptr<Pinset> pinset(new Pinset(name, report_uri));
 
-    const base::Value::List* pinset_static_hashes_list =
-        parsed.GetDict().FindList("static_spki_hashes");
-    if (pinset_static_hashes_list) {
-      for (const auto& hash : *pinset_static_hashes_list) {
-        if (!hash.is_string()) {
-          LOG(ERROR) << "Could not parse static spki hash "
-                     << hash.DebugString() << " in the input JSON";
-          return false;
-        }
-        pinset->AddStaticSPKIHash(hash.GetString());
+    const base::ListValue* pinset_static_hashes_list = nullptr;
+    if (parsed->GetList("static_spki_hashes", &pinset_static_hashes_list)) {
+      for (size_t i = 0; i < pinset_static_hashes_list->GetSize(); ++i) {
+        std::string hash;
+        pinset_static_hashes_list->GetString(i, &hash);
+        pinset->AddStaticSPKIHash(hash);
       }
     }
 
-    const base::Value::List* pinset_bad_static_hashes_list =
-        parsed.GetDict().FindList("bad_static_spki_hashes");
-    if (pinset_bad_static_hashes_list) {
-      for (const auto& hash : *pinset_bad_static_hashes_list) {
-        if (!hash.is_string()) {
-          LOG(ERROR) << "Could not parse bad static spki hash "
-                     << hash.DebugString() << " in the input JSON";
-          return false;
-        }
-        pinset->AddBadStaticSPKIHash(hash.GetString());
+    const base::ListValue* pinset_bad_static_hashes_list = nullptr;
+    if (parsed->GetList("bad_static_spki_hashes",
+                        &pinset_bad_static_hashes_list)) {
+      for (size_t i = 0; i < pinset_bad_static_hashes_list->GetSize(); ++i) {
+        std::string hash;
+        pinset_bad_static_hashes_list->GetString(i, &hash);
+        pinset->AddBadStaticSPKIHash(hash);
       }
     }
 
@@ -471,4 +434,6 @@ bool ParseJSON(base::StringPiece json,
   return true;
 }
 
-}  // namespace net::transport_security_state
+}  // namespace transport_security_state
+
+}  // namespace net

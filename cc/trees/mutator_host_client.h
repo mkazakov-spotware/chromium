@@ -1,20 +1,18 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_TREES_MUTATOR_HOST_CLIENT_H_
 #define CC_TREES_MUTATOR_HOST_CLIENT_H_
 
-#include "cc/base/protected_sequence_synchronizer.h"
 #include "cc/paint/element_id.h"
 #include "cc/paint/paint_worklet_input.h"
 #include "cc/trees/property_animation_state.h"
 #include "cc/trees/target_property.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace gfx {
 class Transform;
-class PointF;
+class ScrollOffset;
 }
 
 namespace cc {
@@ -30,7 +28,7 @@ enum class AnimationWorkletMutationState {
   CANCELED
 };
 
-class MutatorHostClient : public ProtectedSequenceSynchronizer {
+class MutatorHostClient {
  public:
   virtual bool IsElementInPropertyTrees(ElementId element_id,
                                         ElementListType list_type) const = 0;
@@ -54,7 +52,7 @@ class MutatorHostClient : public ProtectedSequenceSynchronizer {
   virtual void SetElementScrollOffsetMutated(
       ElementId element_id,
       ElementListType list_type,
-      const gfx::PointF& scroll_offset) = 0;
+      const gfx::ScrollOffset& scroll_offset) = 0;
 
   // Allows to change IsAnimating value for a set of properties.
   virtual void ElementIsAnimatingChanged(
@@ -63,21 +61,23 @@ class MutatorHostClient : public ProtectedSequenceSynchronizer {
       const PropertyAnimationState& mask,
       const PropertyAnimationState& state) = 0;
 
-  virtual void MaximumScaleChanged(ElementId element_id,
-                                   ElementListType list_type,
-                                   float maximum_scale) = 0;
+  virtual void AnimationScalesChanged(ElementId element_id,
+                                      ElementListType list_type,
+                                      float maximum_scale,
+                                      float starting_scale) = 0;
 
   virtual void ScrollOffsetAnimationFinished() = 0;
+  virtual gfx::ScrollOffset GetScrollOffsetForAnimation(
+      ElementId element_id) const = 0;
 
   virtual void NotifyAnimationWorkletStateChange(
       AnimationWorkletMutationState state,
       ElementListType tree_type) = 0;
 
   virtual void OnCustomPropertyMutated(
-      PaintWorkletInput::PropertyKey property_key,
-      PaintWorkletInput::PropertyValue property_value) = 0;
-
-  virtual bool RunsOnCurrentThread() const = 0;
+      ElementId element_id,
+      const std::string& custom_property_name,
+      PaintWorkletInput::PropertyValue custom_property_value) = 0;
 };
 
 }  // namespace cc

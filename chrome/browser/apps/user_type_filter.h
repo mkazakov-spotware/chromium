@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,13 @@
 #define CHROME_BROWSER_APPS_USER_TYPE_FILTER_H_
 
 #include <string>
-#include "base/values.h"
 
 class Profile;
+
+namespace base {
+class Value;
+class ListValue;
+}  // namespace base
 
 namespace apps {
 
@@ -17,6 +21,7 @@ extern const char kKeyUserType[];
 extern const char kUserTypeChild[];
 extern const char kUserTypeGuest[];
 extern const char kUserTypeManaged[];
+extern const char kUserTypeSupervised[];
 extern const char kUserTypeUnmanaged[];
 
 // Returns user type based on |profile|. Must be called on UI thread. List of
@@ -37,8 +42,8 @@ std::string DetermineUserType(Profile* profile);
 // Safe to call on non-UI thread.
 bool UserTypeMatchesJsonUserType(const std::string& user_type,
                                  const std::string& app_id,
-                                 const base::Value::Dict& json_root,
-                                 const base::Value::List* default_user_types);
+                                 const base::Value* json_root,
+                                 const base::ListValue* default_user_types);
 
 }  // namespace apps
 

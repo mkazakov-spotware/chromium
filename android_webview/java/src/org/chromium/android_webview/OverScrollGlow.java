@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -57,8 +57,7 @@ class OverScrollGlow {
             if (maxX > 0) {
                 final int pulledToX = oldX + mOverScrollDeltaX;
                 if (pulledToX < 0) {
-                    // |mOverScrollDeltaX| will be negative when overscroll to the left.
-                    mEdgeGlowLeft.onPull((float) -mOverScrollDeltaX / mHostView.getWidth());
+                    mEdgeGlowLeft.onPull((float) mOverScrollDeltaX / mHostView.getWidth());
                     if (!mEdgeGlowRight.isFinished()) {
                         mEdgeGlowRight.onRelease();
                     }
@@ -74,8 +73,7 @@ class OverScrollGlow {
             if (maxY > 0 || mHostView.getOverScrollMode() == View.OVER_SCROLL_ALWAYS) {
                 final int pulledToY = oldY + mOverScrollDeltaY;
                 if (pulledToY < 0) {
-                    // |mOverScrollDeltaY| will be negative when overscroll to the top.
-                    mEdgeGlowTop.onPull((float) -mOverScrollDeltaY / mHostView.getHeight());
+                    mEdgeGlowTop.onPull((float) mOverScrollDeltaY / mHostView.getHeight());
                     if (!mEdgeGlowBottom.isFinished()) {
                         mEdgeGlowBottom.onRelease();
                     }

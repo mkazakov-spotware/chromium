@@ -1,32 +1,26 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/device/public/cpp/power_monitor/power_monitor_broadcast_source.h"
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/test/power_monitor_test.h"
+#include "base/test/power_monitor_test_base.h"
 #include "base/test/task_environment.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace device {
 
 class PowerMonitorBroadcastSourceTest : public testing::Test {
- public:
-  PowerMonitorBroadcastSourceTest(const PowerMonitorBroadcastSourceTest&) =
-      delete;
-  PowerMonitorBroadcastSourceTest& operator=(
-      const PowerMonitorBroadcastSourceTest&) = delete;
-
  protected:
   PowerMonitorBroadcastSourceTest() {}
   ~PowerMonitorBroadcastSourceTest() override {}
 
   void SetUp() override {
     auto power_monitor_source = std::make_unique<PowerMonitorBroadcastSource>(
-        base::SequencedTaskRunner::GetCurrentDefault());
+        base::SequencedTaskRunnerHandle::Get());
     power_monitor_source_ptr_ = power_monitor_source.get();
     base::PowerMonitor::Initialize(std::move(power_monitor_source));
     power_monitor_source_ptr_->Init(mojo::NullRemote());
@@ -44,13 +38,14 @@ class PowerMonitorBroadcastSourceTest : public testing::Test {
   base::test::SingleThreadTaskEnvironment task_environment_;
 
  private:
-  raw_ptr<PowerMonitorBroadcastSource> power_monitor_source_ptr_;
+  PowerMonitorBroadcastSource* power_monitor_source_ptr_;
+
+  DISALLOW_COPY_AND_ASSIGN(PowerMonitorBroadcastSourceTest);
 };
 
 TEST_F(PowerMonitorBroadcastSourceTest, PowerMessageReceiveBroadcast) {
-  base::test::PowerMonitorTestObserver observer;
-  base::PowerMonitor::AddPowerSuspendObserver(&observer);
-  base::PowerMonitor::AddPowerStateObserver(&observer);
+  base::PowerMonitorTestObserver observer;
+  base::PowerMonitor::AddObserver(&observer);
 
   // Sending resume when not suspended should have no effect.
   client()->Resume();
@@ -98,9 +93,7 @@ TEST_F(PowerMonitorBroadcastSourceTest, PowerMessageReceiveBroadcast) {
   client()->PowerStateChange(false);
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(observer.power_state_changes(), 2);
-
-  base::PowerMonitor::RemovePowerSuspendObserver(&observer);
-  base::PowerMonitor::RemovePowerStateObserver(&observer);
+  base::PowerMonitor::RemoveObserver(&observer);
 }
 
 }  // namespace device

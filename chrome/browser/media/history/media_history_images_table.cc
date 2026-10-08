@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media/history/media_history_images_table.h"
 
 #include "base/strings/stringprintf.h"
-#include "base/task/updateable_sequenced_task_runner.h"
+#include "base/updateable_sequenced_task_runner.h"
 #include "chrome/browser/media/history/media_history_origin_table.h"
 #include "chrome/browser/media/history/media_history_store.h"
 #include "sql/statement.h"
@@ -65,13 +65,13 @@ sql::InitStatus MediaHistoryImagesTable::CreateTableIfNonExistent() {
   return sql::INIT_OK;
 }
 
-absl::optional<int64_t> MediaHistoryImagesTable::SaveOrGetImage(
+base::Optional<int64_t> MediaHistoryImagesTable::SaveOrGetImage(
     const GURL& url,
     const url::Origin& playback_origin,
-    const std::u16string& mime_type) {
+    const base::string16& mime_type) {
   DCHECK_LT(0, DB()->transaction_nesting());
   if (!CanAccessDatabase())
-    return absl::nullopt;
+    return base::nullopt;
 
   {
     // First we should try and save the image in the database. It will not save
@@ -89,7 +89,7 @@ absl::optional<int64_t> MediaHistoryImagesTable::SaveOrGetImage(
     statement.BindString16(2, mime_type);
 
     if (!statement.Run())
-      return absl::nullopt;
+      return base::nullopt;
   }
 
   // If the insert is successful and we have store an image row then we should
@@ -123,7 +123,7 @@ absl::optional<int64_t> MediaHistoryImagesTable::SaveOrGetImage(
   }
 
   NOTREACHED();
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 }  // namespace media_history

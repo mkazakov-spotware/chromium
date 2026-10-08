@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "net/base/net_errors.h"
 #include "remoting/base/rsa_key_pair.h"
@@ -20,7 +21,8 @@ using testing::_;
 using testing::DeleteArg;
 using testing::SaveArg;
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 
@@ -35,10 +37,6 @@ const char kTestSharedSecretBad[] = "0000-0000-0001";
 class V2AuthenticatorTest : public AuthenticatorTestBase {
  public:
   V2AuthenticatorTest() = default;
-
-  V2AuthenticatorTest(const V2AuthenticatorTest&) = delete;
-  V2AuthenticatorTest& operator=(const V2AuthenticatorTest&) = delete;
-
   ~V2AuthenticatorTest() override = default;
 
  protected:
@@ -50,6 +48,8 @@ class V2AuthenticatorTest : public AuthenticatorTestBase {
     client_ = V2Authenticator::CreateForClient(
         client_secret, Authenticator::MESSAGE_READY);
   }
+
+  DISALLOW_COPY_AND_ASSIGN(V2AuthenticatorTest);
 };
 
 TEST_F(V2AuthenticatorTest, SuccessfulAuth) {
@@ -94,4 +94,5 @@ TEST_F(V2AuthenticatorTest, InvalidSecret) {
   ASSERT_EQ(Authenticator::REJECTED, host_->state());
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

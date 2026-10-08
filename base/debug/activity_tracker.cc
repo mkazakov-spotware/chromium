@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 
 #include "base/atomic_sequence_num.h"
 #include "base/bits.h"
-#include "base/containers/contains.h"
 #include "base/debug/stack_trace.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
@@ -19,20 +18,15 @@
 #include "base/memory/ptr_util.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/notreached.h"
 #include "base/pending_task.h"
 #include "base/pickle.h"
 #include "base/process/process.h"
 #include "base/process/process_handle.h"
-#include "base/strings/string_piece.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/platform_thread.h"
 #include "build/build_config.h"
-
-#if BUILDFLAG(IS_WIN)
-#include <windows.h>
-#endif
 
 namespace base {
 namespace debug {
@@ -62,7 +56,7 @@ AtomicSequenceNumber g_next_id;
 // Gets the next non-zero identifier. It is only unique within a process.
 uint32_t GetNextDataId() {
   uint32_t id;
-  while ((id = static_cast<uint32_t>(g_next_id.GetNext())) == 0) {
+  while ((id = g_next_id.GetNext()) == 0) {
   }
   return id;
 }
@@ -70,7 +64,7 @@ uint32_t GetNextDataId() {
 // Gets the current process-id, either from the GlobalActivityTracker if it
 // exists (where the PID can be defined for testing) or from the system if
 // there isn't such.
-ProcessId GetProcessId() {
+int64_t GetProcessId() {
   GlobalActivityTracker* global = GlobalActivityTracker::Get();
   if (global)
     return global->process_id();
@@ -105,12 +99,12 @@ Time WallTimeFromTickTime(int64_t ticks_start, int64_t ticks, Time time_start) {
 
 union ThreadRef {
   int64_t as_id;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // On Windows, the handle itself is often a pseudo-handle with a common
   // value meaning "this thread" and so the thread-id is used. The former
   // can be converted to a thread-id with a system call.
   PlatformThreadId as_tid;
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
   // On Posix and Fuchsia, the handle is always a unique identifier so no
   // conversion needs to be done. However, its value is officially opaque so
   // there is no one correct way to convert it to a numerical identifier.
@@ -121,30 +115,30 @@ union ThreadRef {
 OwningProcess::OwningProcess() = default;
 OwningProcess::~OwningProcess() = default;
 
-void OwningProcess::Release_Initialize(ProcessId pid) {
+void OwningProcess::Release_Initialize(int64_t pid) {
   uint32_t old_id = data_id.load(std::memory_order_acquire);
   DCHECK_EQ(0U, old_id);
-  process_id = static_cast<int64_t>(pid != 0 ? pid : GetProcessId());
+  process_id = pid != 0 ? pid : GetProcessId();
   create_stamp = Time::Now().ToInternalValue();
   data_id.store(GetNextDataId(), std::memory_order_release);
 }
 
-void OwningProcess::SetOwningProcessIdForTesting(ProcessId pid, int64_t stamp) {
+void OwningProcess::SetOwningProcessIdForTesting(int64_t pid, int64_t stamp) {
   DCHECK_NE(0U, data_id);
-  process_id = static_cast<int64_t>(pid);
+  process_id = pid;
   create_stamp = stamp;
 }
 
 // static
 bool OwningProcess::GetOwningProcessId(const void* memory,
-                                       ProcessId* out_id,
+                                       int64_t* out_id,
                                        int64_t* out_stamp) {
   const OwningProcess* info = reinterpret_cast<const OwningProcess*>(memory);
   uint32_t id = info->data_id.load(std::memory_order_acquire);
   if (id == 0)
     return false;
 
-  *out_id = static_cast<ProcessId>(info->process_id);
+  *out_id = info->process_id;
   *out_stamp = info->create_stamp;
   return id == info->data_id.load(std::memory_order_seq_cst);
 }
@@ -156,9 +150,9 @@ const ActivityData kNullActivityData = {};
 ActivityData ActivityData::ForThread(const PlatformThreadHandle& handle) {
   ThreadRef thread_ref;
   thread_ref.as_id = 0;  // Zero the union in case other is smaller.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   thread_ref.as_tid = ::GetThreadId(handle.platform_handle());
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
   thread_ref.as_handle = handle.platform_handle();
 #endif
   return ForThread(thread_ref.as_id);
@@ -258,7 +252,7 @@ void Activity::FillFrom(Activity* activity,
   activity->activity_type = type;
   activity->data = data;
 
-#if (!BUILDFLAG(IS_NACL) && DCHECK_IS_ON()) || defined(ADDRESS_SANITIZER)
+#if (!defined(OS_NACL) && DCHECK_IS_ON()) || defined(ADDRESS_SANITIZER)
   // Create a stacktrace from the current location and get the addresses for
   // improved debuggability.
   StackTrace stack_trace;
@@ -330,10 +324,9 @@ ActivityUserData::MemoryHeader::~MemoryHeader() = default;
 ActivityUserData::FieldHeader::FieldHeader() = default;
 ActivityUserData::FieldHeader::~FieldHeader() = default;
 
-ActivityUserData::ActivityUserData()
-    : ActivityUserData(nullptr, 0, static_cast<ProcessId>(-1)) {}
+ActivityUserData::ActivityUserData() : ActivityUserData(nullptr, 0, -1) {}
 
-ActivityUserData::ActivityUserData(void* memory, size_t size, ProcessId pid)
+ActivityUserData::ActivityUserData(void* memory, size_t size, int64_t pid)
     : memory_(reinterpret_cast<char*>(memory)),
       available_(bits::AlignDown(size, kMemoryAlignment)),
       header_(reinterpret_cast<MemoryHeader*>(memory)),
@@ -354,8 +347,7 @@ ActivityUserData::ActivityUserData(void* memory, size_t size, ProcessId pid)
   // Make a copy of identifying information for later comparison.
   *const_cast<uint32_t*>(&orig_data_id) =
       header_->owner.data_id.load(std::memory_order_acquire);
-  *const_cast<ProcessId*>(&orig_process_id) =
-      static_cast<ProcessId>(header_->owner.process_id);
+  *const_cast<int64_t*>(&orig_process_id) = header_->owner.process_id;
   *const_cast<int64_t*>(&orig_create_stamp) = header_->owner.create_stamp;
 
   // If there is already data present, load that. This allows the same class
@@ -383,34 +375,34 @@ bool ActivityUserData::CreateSnapshot(Snapshot* output_snapshot) const {
     switch (entry.second.type) {
       case RAW_VALUE:
       case STRING_VALUE:
-        value.long_value_ = std::string(
-            reinterpret_cast<char*>(entry.second.memory.get()), size);
+        value.long_value_ =
+            std::string(reinterpret_cast<char*>(entry.second.memory), size);
         break;
       case RAW_VALUE_REFERENCE:
       case STRING_VALUE_REFERENCE: {
         ReferenceRecord* ref =
-            reinterpret_cast<ReferenceRecord*>(entry.second.memory.get());
+            reinterpret_cast<ReferenceRecord*>(entry.second.memory);
         value.ref_value_ = StringPiece(
             reinterpret_cast<char*>(static_cast<uintptr_t>(ref->address)),
             static_cast<size_t>(ref->size));
       } break;
       case BOOL_VALUE:
       case CHAR_VALUE:
-        value.short_value_ = static_cast<uint64_t>(
-            reinterpret_cast<std::atomic<char>*>(entry.second.memory.get())
-                ->load(std::memory_order_relaxed));
+        value.short_value_ =
+            reinterpret_cast<std::atomic<char>*>(entry.second.memory)
+                ->load(std::memory_order_relaxed);
         break;
       case SIGNED_VALUE:
       case UNSIGNED_VALUE:
         value.short_value_ =
-            reinterpret_cast<std::atomic<uint64_t>*>(entry.second.memory.get())
+            reinterpret_cast<std::atomic<uint64_t>*>(entry.second.memory)
                 ->load(std::memory_order_relaxed);
         break;
       case END_OF_VALUES:  // Included for completeness purposes.
         NOTREACHED();
     }
-    auto inserted = output_snapshot->emplace(std::string(entry.second.name),
-                                             std::move(value));
+    auto inserted = output_snapshot->insert(
+        std::make_pair(entry.second.name.as_string(), std::move(value)));
     DCHECK(inserted.second);  // True if inserted, false if existed.
   }
 
@@ -433,7 +425,7 @@ const void* ActivityUserData::GetBaseAddress() const {
   return header_;
 }
 
-void ActivityUserData::SetOwningProcessIdForTesting(ProcessId pid,
+void ActivityUserData::SetOwningProcessIdForTesting(int64_t pid,
                                                     int64_t stamp) {
   if (!header_)
     return;
@@ -442,7 +434,7 @@ void ActivityUserData::SetOwningProcessIdForTesting(ProcessId pid,
 
 // static
 bool ActivityUserData::GetOwningProcessId(const void* memory,
-                                          ProcessId* out_id,
+                                          int64_t* out_id,
                                           int64_t* out_stamp) {
   const MemoryHeader* header = reinterpret_cast<const MemoryHeader*>(memory);
   return OwningProcess::GetOwningProcessId(&header->owner, out_id, out_stamp);
@@ -452,11 +444,17 @@ void* ActivityUserData::Set(StringPiece name,
                             ValueType type,
                             const void* memory,
                             size_t size) {
-  DCHECK_LT(name.length(), kMaxUserDataNameLength);
+  DCHECK_GE(std::numeric_limits<uint8_t>::max(), name.length());
+  size = std::min(std::numeric_limits<uint16_t>::max() - (kMemoryAlignment - 1),
+                  size);
 
   // It's possible that no user data is being stored.
   if (!memory_)
     return nullptr;
+
+  // The storage of a name is limited so use that limit during lookup.
+  if (name.length() > kMaxUserDataNameLength)
+    name = StringPiece(name.data(), kMaxUserDataNameLength);
 
   ValueInfo* info;
   auto existing = values_.find(name);
@@ -470,9 +468,9 @@ void* ActivityUserData::Set(StringPiece name,
     // following field will be aligned properly.
     size_t name_size = name.length();
     size_t name_extent =
-        bits::AlignUp(sizeof(FieldHeader) + name_size, kMemoryAlignment) -
+        bits::Align(sizeof(FieldHeader) + name_size, kMemoryAlignment) -
         sizeof(FieldHeader);
-    size_t value_extent = bits::AlignUp(size, kMemoryAlignment);
+    size_t value_extent = bits::Align(size, kMemoryAlignment);
 
     // The "base size" is the size of the header and (padded) string key. Stop
     // now if there's not room enough for even this.
@@ -480,18 +478,12 @@ void* ActivityUserData::Set(StringPiece name,
     if (base_size > available_)
       return nullptr;
 
-    // The "full size" is the size for storing the entire value.  This must fit
-    // into a uint16_t.
-    size_t full_size =
-        std::min({base_size + value_extent, available_,
-                  bits::AlignDown(size_t{std::numeric_limits<uint16_t>::max()},
-                                  kMemoryAlignment)});
+    // The "full size" is the size for storing the entire value.
+    size_t full_size = std::min(base_size + value_extent, available_);
 
     // If the value is actually a single byte, see if it can be stuffed at the
     // end of the name extent rather than wasting kMemoryAlignment bytes.
     if (size == 1 && name_extent > name_size) {
-      // This assignment is safe because `base_size` cannot be much larger than
-      // UINT8_MAX.
       full_size = base_size;
       --name_extent;
       --base_size;
@@ -506,7 +498,7 @@ void* ActivityUserData::Set(StringPiece name,
     }
 
     // Allocate a chunk of memory.
-    FieldHeader* header = reinterpret_cast<FieldHeader*>(memory_.get());
+    FieldHeader* header = reinterpret_cast<FieldHeader*>(memory_);
     memory_ += full_size;
     available_ -= full_size;
 
@@ -515,7 +507,7 @@ void* ActivityUserData::Set(StringPiece name,
     DCHECK_EQ(END_OF_VALUES, header->type.load(std::memory_order_relaxed));
     DCHECK_EQ(0, header->value_size.load(std::memory_order_relaxed));
     header->name_size = static_cast<uint8_t>(name_size);
-    header->record_size = static_cast<uint16_t>(full_size);
+    header->record_size = full_size;
     char* name_memory = reinterpret_cast<char*>(header) + sizeof(FieldHeader);
     void* value_memory =
         reinterpret_cast<char*>(header) + sizeof(FieldHeader) + name_extent;
@@ -543,9 +535,7 @@ void* ActivityUserData::Set(StringPiece name,
   size = std::min(size, info->extent);
   info->size_ptr->store(0, std::memory_order_seq_cst);
   memcpy(info->memory, memory, size);
-  // This cast is safe because `size` <= info->extent < `full_size`, and
-  // `full_size` fits in a uint16_t.
-  info->size_ptr->store(static_cast<uint16_t>(size), std::memory_order_release);
+  info->size_ptr->store(size, std::memory_order_release);
 
   // The address of the stored value is returned so it can be re-used by the
   // caller, so long as it's done in an atomic way.
@@ -568,7 +558,7 @@ void ActivityUserData::ImportExistingData() const {
     return;
 
   while (available_ > sizeof(FieldHeader)) {
-    FieldHeader* header = reinterpret_cast<FieldHeader*>(memory_.get());
+    FieldHeader* header = reinterpret_cast<FieldHeader*>(memory_);
     ValueType type =
         static_cast<ValueType>(header->type.load(std::memory_order_acquire));
     if (type == END_OF_VALUES)
@@ -576,8 +566,8 @@ void ActivityUserData::ImportExistingData() const {
     if (header->record_size > available_)
       return;
 
-    size_t value_offset = bits::AlignUp(sizeof(FieldHeader) + header->name_size,
-                                        kMemoryAlignment);
+    size_t value_offset =
+        bits::Align(sizeof(FieldHeader) + header->name_size, kMemoryAlignment);
     if (header->record_size == value_offset &&
         header->value_size.load(std::memory_order_relaxed) == 1) {
       value_offset -= 1;
@@ -601,7 +591,7 @@ void ActivityUserData::ImportExistingData() const {
 
   // Check if memory has been completely reused.
   if (header_->owner.data_id.load(std::memory_order_acquire) != orig_data_id ||
-      static_cast<ProcessId>(header_->owner.process_id) != orig_process_id ||
+      header_->owner.process_id != orig_process_id ||
       header_->owner.create_stamp != orig_create_stamp) {
     memory_ = nullptr;
     values_.clear();
@@ -746,9 +736,9 @@ ThreadActivityTracker::ThreadActivityTracker(void* base, size_t size)
     DCHECK_EQ(0U, stack_[0].call_stack[0]);
     DCHECK_EQ(0U, stack_[0].data.task.sequence_id);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     header_->thread_ref.as_tid = PlatformThread::CurrentId();
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
     header_->thread_ref.as_handle =
         PlatformThread::CurrentHandle().platform_handle();
 #endif
@@ -952,8 +942,7 @@ bool ThreadActivityTracker::CreateSnapshot(Snapshot* output_snapshot) const {
     const uint32_t starting_id =
         header_->owner.data_id.load(std::memory_order_acquire);
     const int64_t starting_create_stamp = header_->owner.create_stamp;
-    const auto starting_process_id =
-        static_cast<ProcessId>(header_->owner.process_id);
+    const int64_t starting_process_id = header_->owner.process_id;
     const int64_t starting_thread_id = header_->thread_ref.as_id;
 
     // Note the current |data_version| so it's possible to detect at the end
@@ -978,7 +967,7 @@ bool ThreadActivityTracker::CreateSnapshot(Snapshot* output_snapshot) const {
     memcpy(&output_snapshot->last_exception, &header_->last_exception,
            sizeof(Activity));
 
-    // Snapshot other things here.
+    // TODO(bcwhite): Snapshot other things here.
 
     // Retry if something changed during the copy. A "cst" operation ensures
     // it must happen after all the above operations.
@@ -993,8 +982,7 @@ bool ThreadActivityTracker::CreateSnapshot(Snapshot* output_snapshot) const {
         std::string(header_->thread_name, sizeof(header_->thread_name) - 1);
     output_snapshot->create_stamp = header_->owner.create_stamp;
     output_snapshot->thread_id = header_->thread_ref.as_id;
-    output_snapshot->process_id =
-        static_cast<ProcessId>(header_->owner.process_id);
+    output_snapshot->process_id = header_->owner.process_id;
 
     // All characters of the thread-name buffer were copied so as to not break
     // if the trailing NUL were missing. Now limit the length if the actual
@@ -1047,14 +1035,14 @@ uint32_t ThreadActivityTracker::GetDataVersionForTesting() {
   return header_->data_version.load(std::memory_order_relaxed);
 }
 
-void ThreadActivityTracker::SetOwningProcessIdForTesting(ProcessId pid,
+void ThreadActivityTracker::SetOwningProcessIdForTesting(int64_t pid,
                                                          int64_t stamp) {
   header_->owner.SetOwningProcessIdForTesting(pid, stamp);
 }
 
 // static
 bool ThreadActivityTracker::GetOwningProcessId(const void* memory,
-                                               ProcessId* out_id,
+                                               int64_t* out_id,
                                                int64_t* out_stamp) {
   const Header* header = reinterpret_cast<const Header*>(memory);
   return OwningProcess::GetOwningProcessId(&header->owner, out_id, out_stamp);
@@ -1098,8 +1086,9 @@ ThreadActivityTracker::CreateUserDataForActivity(
 // but that's best since PersistentMemoryAllocator objects (that underlie
 // GlobalActivityTracker objects) are explicitly forbidden from doing anything
 // essential at exit anyway due to the fact that they depend on data managed
-// elsewhere and which could be destructed first.
-std::atomic<GlobalActivityTracker*> GlobalActivityTracker::g_tracker_{nullptr};
+// elsewhere and which could be destructed first. An AtomicWord is used instead
+// of std::atomic because the latter can create global ctors and dtors.
+subtle::AtomicWord GlobalActivityTracker::g_tracker_ = 0;
 
 GlobalActivityTracker::ModuleInfo::ModuleInfo() = default;
 GlobalActivityTracker::ModuleInfo::ModuleInfo(ModuleInfo&& rhs) = default;
@@ -1168,7 +1157,7 @@ GlobalActivityTracker::ModuleInfoRecord::CreateFrom(
   record->age = info.age;
   memcpy(record->identifier, info.identifier, sizeof(identifier));
   memcpy(record->pickle, pickler.data(), pickler.size());
-  record->pickle_size = checked_cast<uint16_t>(pickler.size());
+  record->pickle_size = pickler.size();
   record->changes.store(0, std::memory_order_relaxed);
 
   // Initialize the owner info.
@@ -1241,7 +1230,7 @@ ActivityUserData& GlobalActivityTracker::ScopedThreadActivity::user_data() {
 
 GlobalActivityTracker::ThreadSafeUserData::ThreadSafeUserData(void* memory,
                                                               size_t size,
-                                                              ProcessId pid)
+                                                              int64_t pid)
     : ActivityUserData(memory, size, pid) {}
 
 GlobalActivityTracker::ThreadSafeUserData::~ThreadSafeUserData() = default;
@@ -1266,14 +1255,14 @@ GlobalActivityTracker::ManagedActivityTracker::~ManagedActivityTracker() {
   // The global |g_tracker_| must point to the owner of this class since all
   // objects of this type must be destructed before |g_tracker_| can be changed
   // (something that only occurs in tests).
-  DCHECK(g_tracker_.load(std::memory_order_relaxed));
+  DCHECK(g_tracker_);
   GlobalActivityTracker::Get()->ReturnTrackerMemory(this);
 }
 
 void GlobalActivityTracker::CreateWithAllocator(
     std::unique_ptr<PersistentMemoryAllocator> allocator,
     int stack_depth,
-    ProcessId process_id) {
+    int64_t process_id) {
   // There's no need to do anything with the result. It is self-managing.
   GlobalActivityTracker* global_tracker =
       new GlobalActivityTracker(std::move(allocator), stack_depth, process_id);
@@ -1281,7 +1270,7 @@ void GlobalActivityTracker::CreateWithAllocator(
   global_tracker->CreateTrackerForCurrentThread();
 }
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
 // static
 bool GlobalActivityTracker::CreateWithFile(const FilePath& file_path,
                                            size_t size,
@@ -1295,7 +1284,7 @@ bool GlobalActivityTracker::CreateWithFile(const FilePath& file_path,
   std::unique_ptr<MemoryMappedFile> mapped_file(new MemoryMappedFile());
   bool success = mapped_file->Initialize(
       File(file_path, File::FLAG_CREATE_ALWAYS | File::FLAG_READ |
-                          File::FLAG_WRITE | File::FLAG_WIN_SHARE_DELETE),
+                          File::FLAG_WRITE | File::FLAG_SHARE_DELETE),
       {0, size}, MemoryMappedFile::READ_WRITE_EXTEND);
   if (!success)
     return false;
@@ -1306,14 +1295,14 @@ bool GlobalActivityTracker::CreateWithFile(const FilePath& file_path,
                       stack_depth, 0);
   return true;
 }
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
 // static
 bool GlobalActivityTracker::CreateWithLocalMemory(size_t size,
                                                   uint64_t id,
                                                   StringPiece name,
                                                   int stack_depth,
-                                                  ProcessId process_id) {
+                                                  int64_t process_id) {
   CreateWithAllocator(
       std::make_unique<LocalPersistentMemoryAllocator>(size, id, name),
       stack_depth, process_id);
@@ -1340,8 +1329,9 @@ bool GlobalActivityTracker::CreateWithSharedMemory(
 // static
 void GlobalActivityTracker::SetForTesting(
     std::unique_ptr<GlobalActivityTracker> tracker) {
-  CHECK(!g_tracker_.load(std::memory_order_relaxed));
-  g_tracker_.store(tracker.release(), std::memory_order_release);
+  CHECK(!subtle::NoBarrier_Load(&g_tracker_));
+  subtle::Release_Store(&g_tracker_,
+                        reinterpret_cast<uintptr_t>(tracker.release()));
 }
 
 // static
@@ -1356,7 +1346,7 @@ GlobalActivityTracker::ReleaseForTesting() {
   tracker->ReleaseTrackerForCurrentThreadForTesting();
   DCHECK_EQ(0, tracker->thread_tracker_count_.load(std::memory_order_relaxed));
 
-  g_tracker_.store(nullptr, std::memory_order_release);
+  subtle::Release_Store(&g_tracker_, 0);
   return WrapUnique(tracker);
 }
 
@@ -1426,22 +1416,24 @@ void GlobalActivityTracker::SetProcessExitCallback(
 void GlobalActivityTracker::RecordProcessLaunch(
     ProcessId process_id,
     const FilePath::StringType& cmd) {
-  DCHECK_NE(GetProcessId(), process_id);
-  DCHECK_NE(ProcessId{0}, process_id);
+  const int64_t pid = process_id;
+  DCHECK_NE(GetProcessId(), pid);
+  DCHECK_NE(0, pid);
 
   base::AutoLock lock(global_tracker_lock_);
-  if (base::Contains(known_processes_, process_id)) {
+  if (base::Contains(known_processes_, pid)) {
+    // TODO(bcwhite): Measure this in UMA.
     NOTREACHED() << "Process #" << process_id
                  << " was previously recorded as \"launched\""
                  << " with no corresponding exit.\n"
-                 << known_processes_[process_id];
-    known_processes_.erase(process_id);
+                 << known_processes_[pid];
+    known_processes_.erase(pid);
   }
 
-#if BUILDFLAG(IS_WIN)
-  known_processes_.insert(std::make_pair(process_id, WideToUTF8(cmd)));
+#if defined(OS_WIN)
+  known_processes_.insert(std::make_pair(pid, WideToUTF8(cmd)));
 #else
-  known_processes_.insert(std::make_pair(process_id, cmd));
+  known_processes_.insert(std::make_pair(pid, cmd));
 #endif
 }
 
@@ -1460,15 +1452,16 @@ void GlobalActivityTracker::RecordProcessLaunch(
 
 void GlobalActivityTracker::RecordProcessExit(ProcessId process_id,
                                               int exit_code) {
-  DCHECK_NE(GetProcessId(), process_id);
-  DCHECK_NE(ProcessId{0}, process_id);
+  const int64_t pid = process_id;
+  DCHECK_NE(GetProcessId(), pid);
+  DCHECK_NE(0, pid);
 
   scoped_refptr<SequencedTaskRunner> task_runner;
   std::string command_line;
   {
     base::AutoLock lock(global_tracker_lock_);
     task_runner = background_task_runner_;
-    auto found = known_processes_.find(process_id);
+    auto found = known_processes_.find(pid);
     if (found != known_processes_.end()) {
       command_line = std::move(found->second);
       known_processes_.erase(found);
@@ -1487,19 +1480,18 @@ void GlobalActivityTracker::RecordProcessExit(ProcessId process_id,
     task_runner->PostTask(
         FROM_HERE,
         BindOnce(&GlobalActivityTracker::CleanupAfterProcess, Unretained(this),
-                 process_id, now_stamp, exit_code, std::move(command_line)));
+                 pid, now_stamp, exit_code, std::move(command_line)));
     return;
   }
 
-  CleanupAfterProcess(process_id, now_stamp, exit_code,
-                      std::move(command_line));
+  CleanupAfterProcess(pid, now_stamp, exit_code, std::move(command_line));
 }
 
 void GlobalActivityTracker::SetProcessPhase(ProcessPhase phase) {
   process_data().SetInt(kProcessPhaseDataKey, phase);
 }
 
-void GlobalActivityTracker::CleanupAfterProcess(ProcessId process_id,
+void GlobalActivityTracker::CleanupAfterProcess(int64_t process_id,
                                                 int64_t exit_stamp,
                                                 int exit_code,
                                                 std::string&& command_line) {
@@ -1525,7 +1517,7 @@ void GlobalActivityTracker::CleanupAfterProcess(ProcessId process_id,
           ref, kTypeIdProcessDataRecord, PersistentMemoryAllocator::kSizeAny);
       if (!memory)
         continue;
-      ProcessId found_id;
+      int64_t found_id;
       int64_t create_stamp;
       if (ActivityUserData::GetOwningProcessId(memory, &found_id,
                                                &create_stamp)) {
@@ -1564,7 +1556,7 @@ void GlobalActivityTracker::CleanupAfterProcess(ProcessId process_id,
             ref, type, PersistentMemoryAllocator::kSizeAny);
         if (!memory)
           continue;
-        ProcessId found_id;
+        int64_t found_id;
         int64_t create_stamp;
 
         // By convention, the OwningProcess structure is always the first
@@ -1634,7 +1626,7 @@ void GlobalActivityTracker::MarkDeleted() {
 GlobalActivityTracker::GlobalActivityTracker(
     std::unique_ptr<PersistentMemoryAllocator> allocator,
     int stack_depth,
-    ProcessId process_id)
+    int64_t process_id)
     : allocator_(std::move(allocator)),
       stack_memory_size_(ThreadActivityTracker::SizeForStackDepth(stack_depth)),
       process_id_(process_id == 0 ? GetCurrentProcId() : process_id),
@@ -1660,11 +1652,11 @@ GlobalActivityTracker::GlobalActivityTracker(
                         kProcessDataSize),
                     kProcessDataSize,
                     process_id_) {
-  DCHECK_NE(ProcessId{0}, process_id_);
+  DCHECK_NE(0, process_id_);
 
   // Ensure that there is no other global object and then make this one such.
-  DCHECK(!g_tracker_.load(std::memory_order_relaxed));
-  g_tracker_.store(this, std::memory_order_release);
+  DCHECK(!g_tracker_);
+  subtle::Release_Store(&g_tracker_, reinterpret_cast<uintptr_t>(this));
 
   // The data records must be iterable in order to be found by an analyzer.
   allocator_->MakeIterable(allocator_->GetAsReference(
@@ -1677,7 +1669,7 @@ GlobalActivityTracker::GlobalActivityTracker(
 GlobalActivityTracker::~GlobalActivityTracker() {
   DCHECK(Get() == nullptr || Get() == this);
   DCHECK_EQ(0, thread_tracker_count_.load(std::memory_order_relaxed));
-  g_tracker_.store(nullptr, std::memory_order_release);
+  subtle::Release_Store(&g_tracker_, 0);
 }
 
 void GlobalActivityTracker::ReturnTrackerMemory(
@@ -1744,13 +1736,14 @@ void ScopedActivity::ChangeActionAndInfo(uint8_t action, int32_t info) {
                     ActivityData::ForGeneric(id_, info));
 }
 
-ScopedTaskRunActivity::ScopedTaskRunActivity(const void* program_counter,
-                                             const base::PendingTask& task)
+ScopedTaskRunActivity::ScopedTaskRunActivity(
+    const void* program_counter,
+    const base::PendingTask& task)
     : GlobalActivityTracker::ScopedThreadActivity(
           program_counter,
           task.posted_from.program_counter(),
           Activity::ACT_TASK_RUN,
-          ActivityData::ForTask(static_cast<uint64_t>(task.sequence_num)),
+          ActivityData::ForTask(task.sequence_num),
           /*lock_allowed=*/true) {}
 
 ScopedLockAcquireActivity::ScopedLockAcquireActivity(
@@ -1783,7 +1776,7 @@ ScopedThreadJoinActivity::ScopedThreadJoinActivity(
           ActivityData::ForThread(*thread),
           /*lock_allowed=*/true) {}
 
-#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_IOS)
+#if !defined(OS_NACL) && !defined(OS_IOS)
 ScopedProcessWaitActivity::ScopedProcessWaitActivity(
     const void* program_counter,
     const base::Process* process)

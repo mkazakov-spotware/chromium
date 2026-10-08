@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,19 +7,12 @@
 
 #include <memory>
 
-#include "base/callback_list.h"
-#include "base/memory/raw_ptr.h"
-#include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/gfx/color_palette.h"
+#include "base/macros.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/views/controls/button/button.h"
+#include "ui/views/controls/focus_ring.h"
 #include "ui/views/views_export.h"
-#include "ui/views/window/caption_button_layout_constants.h"
 #include "ui/views/window/caption_button_types.h"
-
-namespace cc {
-class PaintFlags;
-}  // namespace cc
 
 namespace gfx {
 class SlideAnimation;
@@ -32,14 +25,13 @@ namespace views {
 // close).
 class VIEWS_EXPORT FrameCaptionButton : public views::Button {
  public:
-  METADATA_HEADER(FrameCaptionButton);
-  enum class Animate { kYes, kNo };
+  enum Animate { ANIMATE_YES, ANIMATE_NO };
+
+  static const char kViewClassName[];
 
   FrameCaptionButton(PressedCallback callback,
                      CaptionButtonIcon icon,
                      int hit_test_type);
-  FrameCaptionButton(const FrameCaptionButton&) = delete;
-  FrameCaptionButton& operator=(const FrameCaptionButton&) = delete;
   ~FrameCaptionButton() override;
 
   // Gets the color to use for a frame caption button.
@@ -48,9 +40,9 @@ class VIEWS_EXPORT FrameCaptionButton : public views::Button {
   // Gets the alpha ratio for the colors of inactive frame caption buttons.
   static float GetInactiveButtonColorAlphaRatio();
 
-  // Sets the image to use to paint the button. If |animate| is Animate::kYes,
+  // Sets the image to use to paint the button. If |animate| is ANIMATE_YES,
   // the button crossfades to the new visuals. If the image matches the one
-  // currently used by the button and |animate| is Animate::kNo, the crossfade
+  // currently used by the button and |animate| is ANIMATE_NO, the crossfade
   // animation is progressed to the end.
   void SetImage(CaptionButtonIcon icon,
                 Animate animate,
@@ -61,25 +53,29 @@ class VIEWS_EXPORT FrameCaptionButton : public views::Button {
   bool IsAnimatingImageSwap() const;
 
   // Sets the alpha to use for painting. Used to animate visibility changes.
-  void SetAlpha(SkAlpha alpha);
+  void SetAlpha(int alpha);
 
   // views::Button:
+  const char* GetClassName() const override;
   void OnGestureEvent(ui::GestureEvent* event) override;
   views::PaintInfo::ScaleType GetPaintScaleType() const override;
+  std::unique_ptr<views::InkDrop> CreateInkDrop() override;
+  std::unique_ptr<views::InkDropRipple> CreateInkDropRipple() const override;
 
   void SetBackgroundColor(SkColor background_color);
-  SkColor GetBackgroundColor() const;
 
-  void SetPaintAsActive(bool paint_as_active);
-  bool GetPaintAsActive() const;
+  void set_paint_as_active(bool paint_as_active) {
+    paint_as_active_ = paint_as_active;
+  }
 
-  void SetInkDropCornerRadius(int ink_drop_corner_radius);
-  int GetInkDropCornerRadius() const;
+  bool paint_as_active() const { return paint_as_active_; }
 
-  base::CallbackListSubscription AddBackgroundColorChangedCallback(
-      PropertyChangedCallback callback);
+  void set_ink_drop_corner_radius(int ink_drop_corner_radius) {
+    ink_drop_corner_radius_ = ink_drop_corner_radius;
+  }
+  int ink_drop_corner_radius() const { return ink_drop_corner_radius_; }
 
-  CaptionButtonIcon GetIcon() const { return icon_; }
+  CaptionButtonIcon icon() const { return icon_; }
 
   const gfx::ImageSkia& icon_image() const { return icon_image_; }
 
@@ -91,26 +87,17 @@ class VIEWS_EXPORT FrameCaptionButton : public views::Button {
   // views::Button override:
   void PaintButtonContents(gfx::Canvas* canvas) override;
 
-  virtual void DrawHighlight(gfx::Canvas* canvas, cc::PaintFlags flags);
-  virtual void DrawIconContents(gfx::Canvas* canvas,
-                                gfx::ImageSkia image,
-                                int x,
-                                int y,
-                                cc::PaintFlags flags);
-  // Returns the size of the inkdrop ripple.
-  virtual gfx::Size GetInkDropSize() const;
-
-  // Returns the amount by which the inkdrop ripple and mask should be insetted
-  // from the button size in order to draw the inkdrop with a size returned by
-  // GetInkDropSize().
-  gfx::Insets GetInkdropInsets(const gfx::Size& button_size) const;
-
  private:
   class HighlightPathGenerator;
 
   // Determines what alpha to use for the icon based on animation and
   // active state.
-  SkAlpha GetAlphaForIcon(SkAlpha base_alpha) const;
+  int GetAlphaForIcon(int base_alpha) const;
+
+  // Returns the amount by which the inkdrop ripple and mask should be insetted
+  // from the button size in order to achieve a circular inkdrop with a size
+  // equals to kInkDropHighlightSize.
+  gfx::Insets GetInkdropInsets(const gfx::Size& button_size) const;
 
   void UpdateInkDropBaseColor();
 
@@ -118,20 +105,20 @@ class VIEWS_EXPORT FrameCaptionButton : public views::Button {
   CaptionButtonIcon icon_;
 
   // The current background color.
-  SkColor background_color_ = gfx::kPlaceholderColor;
+  SkColor background_color_;
 
   // Whether the button should be painted as active.
-  bool paint_as_active_ = false;
+  bool paint_as_active_;
 
   // Current alpha to use for painting.
-  SkAlpha alpha_ = SK_AlphaOPAQUE;
+  int alpha_;
 
   // Radius of the ink drop highlight and mask.
-  int ink_drop_corner_radius_ = kCaptionButtonInkDropDefaultCornerRadius;
+  int ink_drop_corner_radius_;
 
   // The image id (kept for the purposes of testing) and image used to paint the
   // button's icon.
-  raw_ptr<const gfx::VectorIcon> icon_definition_ = nullptr;
+  const gfx::VectorIcon* icon_definition_ = nullptr;
   gfx::ImageSkia icon_image_;
 
   // The icon image to crossfade from.
@@ -140,6 +127,8 @@ class VIEWS_EXPORT FrameCaptionButton : public views::Button {
   // Crossfade animation started when the button's images are changed by
   // SetImage().
   std::unique_ptr<gfx::SlideAnimation> swap_images_animation_;
+
+  DISALLOW_COPY_AND_ASSIGN(FrameCaptionButton);
 };
 
 }  // namespace views

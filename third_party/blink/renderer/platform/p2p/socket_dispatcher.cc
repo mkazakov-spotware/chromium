@@ -1,49 +1,26 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/p2p/socket_dispatcher.h"
 
 #include "base/memory/scoped_refptr.h"
-#include "base/threading/thread_task_runner_handle.h"
-#include "base/types/pass_key.h"
 #include "services/network/public/cpp/p2p_param_traits.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/common/thread_safe_browser_interface_broker_proxy.h"
 #include "third_party/blink/public/platform/platform.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/persistent.h"
-#include "third_party/blink/renderer/platform/mojo/mojo_binding_context.h"
 #include "third_party/blink/renderer/platform/p2p/network_list_observer.h"
 #include "third_party/blink/renderer/platform/p2p/socket_client_impl.h"
 #include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
-#include "third_party/blink/renderer/platform/supplementable.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
 
 namespace blink {
 
-using PassKey = base::PassKey<P2PSocketDispatcher>;
-
-const char P2PSocketDispatcher::kSupplementName[] = "P2PSocketDispatcher";
-
-// static
-P2PSocketDispatcher& P2PSocketDispatcher::From(MojoBindingContext& context) {
-  auto* supplement =
-      Supplement<MojoBindingContext>::From<P2PSocketDispatcher>(context);
-  if (!supplement) {
-    supplement = MakeGarbageCollected<P2PSocketDispatcher>(context, PassKey());
-    ProvideTo(context, supplement);
-  }
-  return *supplement;
-}
-
-P2PSocketDispatcher::P2PSocketDispatcher(MojoBindingContext& context, PassKey)
-    : Supplement(context),
-      main_task_runner_(base::ThreadTaskRunnerHandle::Get()),
+P2PSocketDispatcher::P2PSocketDispatcher()
+    : main_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       network_list_observers_(
-          new base::ObserverListThreadSafe<blink::NetworkListObserver>()),
-      network_notification_client_receiver_(this, &context) {}
+          new base::ObserverListThreadSafe<blink::NetworkListObserver>()) {}
 
-P2PSocketDispatcher::~P2PSocketDispatcher() = default;
+P2PSocketDispatcher::~P2PSocketDispatcher() {}
 
 void P2PSocketDispatcher::AddNetworkListObserver(
     blink::NetworkListObserver* network_list_observer) {
@@ -51,7 +28,7 @@ void P2PSocketDispatcher::AddNetworkListObserver(
   PostCrossThreadTask(
       *main_task_runner_.get(), FROM_HERE,
       CrossThreadBindOnce(&P2PSocketDispatcher::RequestNetworkEventsIfNecessary,
-                          WrapCrossThreadWeakPersistent(this)));
+                          scoped_refptr<P2PSocketDispatcher>(this)));
 }
 
 void P2PSocketDispatcher::RemoveNetworkListObserver(
@@ -59,7 +36,7 @@ void P2PSocketDispatcher::RemoveNetworkListObserver(
   network_list_observers_->RemoveObserver(network_list_observer);
 }
 
-mojo::SharedRemote<network::mojom::blink::P2PSocketManager>
+network::mojom::blink::P2PSocketManager*
 P2PSocketDispatcher::GetP2PSocketManager() {
   base::AutoLock lock(p2p_socket_manager_lock_);
   if (!p2p_socket_manager_) {
@@ -71,17 +48,15 @@ P2PSocketDispatcher::GetP2PSocketManager() {
         mojo::SharedRemote<network::mojom::blink::P2PSocketManager>(
             std::move(p2p_socket_manager));
     p2p_socket_manager_.set_disconnect_handler(
-        ConvertToBaseOnceCallback(
-            CrossThreadBindOnce(&P2PSocketDispatcher::OnConnectionError,
-                                WrapCrossThreadWeakPersistent(this))),
+        WTF::Bind(&P2PSocketDispatcher::OnConnectionError,
+                  WTF::Unretained(this)),
         main_task_runner_);
   }
-
   PostCrossThreadTask(
       *main_task_runner_.get(), FROM_HERE,
       CrossThreadBindOnce(&P2PSocketDispatcher::RequestInterfaceIfNecessary,
-                          WrapCrossThreadWeakPersistent(this)));
-  return p2p_socket_manager_;
+                          scoped_refptr<P2PSocketDispatcher>(this)));
+  return p2p_socket_manager_.get();
 }
 
 void P2PSocketDispatcher::NetworkListChanged(
@@ -97,7 +72,7 @@ void P2PSocketDispatcher::NetworkListChanged(
   // gets moved from blink/public to blink/renderer, and operate over
   // WTF::Vector.
   std::vector<net::NetworkInterface> copy(networks.size());
-  for (wtf_size_t i = 0; i < networks.size(); i++)
+  for (size_t i = 0; i < networks.size(); i++)
     copy[i] = networks[i];
 
   network_list_observers_->Notify(
@@ -106,11 +81,10 @@ void P2PSocketDispatcher::NetworkListChanged(
 }
 
 void P2PSocketDispatcher::RequestInterfaceIfNecessary() {
-  DCHECK(main_task_runner_->BelongsToCurrentThread());
   if (!p2p_socket_manager_receiver_.is_valid())
     return;
 
-  GetSupplementable()->GetBrowserInterfaceBroker().GetInterface(
+  blink::Platform::Current()->GetBrowserInterfaceBroker()->GetInterface(
       std::move(p2p_socket_manager_receiver_));
 }
 
@@ -120,7 +94,7 @@ void P2PSocketDispatcher::RequestNetworkEventsIfNecessary() {
     // gets moved from blink/public to blink/renderer, and operate over
     // WTF::Vector.
     std::vector<net::NetworkInterface> copy(networks_.size());
-    for (wtf_size_t i = 0; i < networks_.size(); i++)
+    for (size_t i = 0; i < networks_.size(); i++)
       copy[i] = networks_[i];
 
     network_list_observers_->Notify(
@@ -129,8 +103,7 @@ void P2PSocketDispatcher::RequestNetworkEventsIfNecessary() {
         default_ipv6_local_address_);
   } else {
     GetP2PSocketManager()->StartNetworkNotifications(
-        network_notification_client_receiver_.BindNewPipeAndPassRemote(
-            GetSupplementable()->GetTaskRunner(TaskType::kMiscPlatformAPI)));
+        network_notification_client_receiver_.BindNewPipeAndPassRemote());
   }
 }
 
@@ -142,22 +115,13 @@ void P2PSocketDispatcher::OnConnectionError() {
   PostCrossThreadTask(
       *main_task_runner_.get(), FROM_HERE,
       CrossThreadBindOnce(&P2PSocketDispatcher::ReconnectP2PSocketManager,
-                          WrapCrossThreadWeakPersistent(this)));
+                          scoped_refptr<P2PSocketDispatcher>(this)));
 }
 
 void P2PSocketDispatcher::ReconnectP2PSocketManager() {
   network_notification_client_receiver_.reset();
-  if (GetSupplementable()->IsContextDestroyed())
-    return;
   GetP2PSocketManager()->StartNetworkNotifications(
-      network_notification_client_receiver_.BindNewPipeAndPassRemote(
-          GetSupplementable()->GetTaskRunner(TaskType::kNetworking)));
-}
-
-void P2PSocketDispatcher::Trace(Visitor* visitor) const {
-  Supplement::Trace(visitor);
-  NetworkListManager::Trace(visitor);
-  visitor->Trace(network_notification_client_receiver_);
+      network_notification_client_receiver_.BindNewPipeAndPassRemote());
 }
 
 }  // namespace blink

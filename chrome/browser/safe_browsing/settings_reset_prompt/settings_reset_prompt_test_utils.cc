@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,9 +32,9 @@ MockProfileResetter::~MockProfileResetter() {}
 
 void MockProfileResetter::Reset(
     ProfileResetter::ResettableFlags resettable_flags,
-    std::unique_ptr<BrandcodedDefaultSettings> main_settings,
+    std::unique_ptr<BrandcodedDefaultSettings> master_settings,
     base::OnceClosure callback) {
-  MockReset(resettable_flags, main_settings.get(), base::OnceClosure());
+  MockReset(resettable_flags, master_settings.get(), base::OnceClosure());
   std::move(callback).Run();
 }
 

@@ -1,15 +1,15 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {MetadataItem} from './metadata_item.js';
-import {MetadataProvider} from './metadata_provider.js';
+// #import {MetadataItem} from './metadata_item.m.js';
+// #import {MetadataProvider} from './metadata_provider.m.js';
 
 /**
  * Metadata provider for FileEntry#getMetadata.
  * @final
  */
-export class FileSystemMetadataProvider extends MetadataProvider {
+/* #export */ class FileSystemMetadataProvider extends MetadataProvider {
   constructor() {
     super(FileSystemMetadataProvider.PROPERTY_NAMES);
   }
@@ -36,8 +36,8 @@ export class FileSystemMetadataProvider extends MetadataProvider {
                 // Can't use console.error because some tests hit this line and
                 // console.error causes them to fail because of JSErrorCount.
                 // This error is an acceptable condition.
-                console.warn(`Cannot get metadata for '${
-                    request.entry.toURL()}': ${error}`);
+                console.warn(
+                    'getMetadata failure for: ' + request.entry.toURL(), error);
                 return new MetadataItem();
               });
     }));

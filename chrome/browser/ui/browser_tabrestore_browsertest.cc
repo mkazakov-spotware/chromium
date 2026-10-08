@@ -1,11 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/browser_tabrestore.h"
-
-#include <map>
-#include <string>
 
 #include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
@@ -16,6 +13,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/toolbar/recent_tabs_sub_menu_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
+#include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/sessions/core/tab_restore_service.h"
 #include "content/public/browser/navigation_controller.h"
@@ -85,7 +83,7 @@ IN_PROC_BROWSER_TEST_F(BrowserTabRestoreTest, RecentTabsMenuTabDisposition) {
   content::DOMMessageQueue queue;
   Browser* browser = active_browser_list->get(0);
   RecentTabsSubMenuModel menu(nullptr, browser);
-  menu.ExecuteCommand(menu.GetFirstRecentTabsCommandId(), 0);
+  menu.ExecuteCommand(RecentTabsSubMenuModel::GetFirstRecentTabsCommandId(), 0);
   // There should be 3 restored tabs in the new browser. The active tab should
   // be loading.
   EXPECT_EQ(2u, active_browser_list->size());
@@ -108,7 +106,10 @@ IN_PROC_BROWSER_TEST_F(BrowserTabRestoreTest, RecentTabsMenuTabDisposition) {
     EXPECT_EQ("about:blank", about_blank_contents->GetURL().spec());
     if (about_blank_contents->IsLoading() ||
         about_blank_contents->GetController().NeedsReload()) {
-      content::LoadStopObserver load_stop_observer(about_blank_contents);
+      content::WindowedNotificationObserver load_stop_observer(
+          content::NOTIFICATION_LOAD_STOP,
+          content::Source<content::NavigationController>(
+              &about_blank_contents->GetController()));
       load_stop_observer.Wait();
     }
   }
@@ -133,12 +134,11 @@ IN_PROC_BROWSER_TEST_F(BrowserTabRestoreTest,
 
   content::WebContents* web_contents = chrome::AddRestoredTab(
       browser(), navigations, /* tab_index=*/1, /* selected_navigation=*/0,
-      /* extension_app_id=*/std::string(), /* group=*/absl::nullopt,
-      /* select=*/true, /* pin=*/false,
+      /* extension_app_id=*/std::string(), /* raw_group_id=*/base::nullopt,
+      /* select=*/true, /* pin=*/false, /* from_last_session=*/true,
       /* last_active_time=*/base::TimeTicks::Now(),
       /* storage_namespace=*/nullptr,
       /* user_agent_override=*/sessions::SerializedUserAgentOverride(),
-      /* extra_data*/ std::map<std::string, std::string>(),
       /* from_session_restore=*/true);
 
   EXPECT_TRUE(web_contents->GetController().GetPendingEntry());
@@ -156,12 +156,11 @@ IN_PROC_BROWSER_TEST_F(BrowserTabRestoreTest,
 
   content::WebContents* web_contents = chrome::AddRestoredTab(
       browser(), navigations, /* tab_index=*/1, /* selected_navigation=*/0,
-      /* extension_app_id=*/std::string(), /* group=*/absl::nullopt,
-      /* select=*/false, /* pin=*/false,
+      /* extension_app_id=*/std::string(), /* raw_group_id=*/base::nullopt,
+      /* select=*/false, /* pin=*/false, /* from_last_session=*/true,
       /* last_active_time=*/base::TimeTicks::Now(),
       /* storage_namespace=*/nullptr,
       /* user_agent_override=*/sessions::SerializedUserAgentOverride(),
-      /* extra_data*/ std::map<std::string, std::string>(),
       /* from_session_restore=*/true);
 
   EXPECT_FALSE(web_contents->GetController().GetPendingEntry());
@@ -212,7 +211,10 @@ IN_PROC_BROWSER_TEST_F(BrowserTabRestoreTest, DelegateRestoreTabDisposition) {
     EXPECT_EQ("about:blank", about_blank_contents->GetURL().spec());
     if (about_blank_contents->IsLoading() ||
         about_blank_contents->GetController().NeedsReload()) {
-      content::LoadStopObserver load_stop_observer(about_blank_contents);
+      content::WindowedNotificationObserver load_stop_observer(
+          content::NOTIFICATION_LOAD_STOP,
+          content::Source<content::NavigationController>(
+              &about_blank_contents->GetController()));
       load_stop_observer.Wait();
     }
   }

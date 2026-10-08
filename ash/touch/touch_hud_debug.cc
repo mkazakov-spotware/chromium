@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,15 +14,14 @@
 #include "base/strings/utf_string_conversions.h"
 #include "third_party/skia/include/core/SkPath.h"
 #include "ui/aura/window_event_dispatcher.h"
-#include "ui/compositor/layer.h"
 #include "ui/display/display.h"
 #include "ui/display/manager/display_manager.h"
 #include "ui/events/event.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/geometry/size.h"
-#include "ui/gfx/geometry/transform.h"
 #include "ui/gfx/geometry/vector2d.h"
+#include "ui/gfx/transform.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/widget/widget.h"
@@ -45,7 +44,7 @@ const SkColor kColors[] = {
     SkColorSetRGB(0xFF, 0xDE, 0xAD),
 };
 const int kAlpha = 0x60;
-const int kMaxPaths = std::size(kColors);
+const int kMaxPaths = base::size(kColors);
 const int kReducedScale = 10;
 
 const char* GetTouchEventLabel(ui::EventType type) {
@@ -93,9 +92,6 @@ class TouchTrace {
 
   TouchTrace() = default;
 
-  TouchTrace(const TouchTrace&) = delete;
-  TouchTrace& operator=(const TouchTrace&) = delete;
-
   void AddTouchPoint(const ui::TouchEvent& touch) {
     log_.push_back(TouchPointLog(touch));
   }
@@ -111,15 +107,14 @@ class TouchTrace {
 
  private:
   std::vector<TouchPointLog> log_;
+
+  DISALLOW_COPY_AND_ASSIGN(TouchTrace);
 };
 
 // A TouchLog keeps track of all touch events of all touch points.
 class TouchLog {
  public:
   TouchLog() : next_trace_index_(0) {}
-
-  TouchLog(const TouchLog&) = delete;
-  TouchLog& operator=(const TouchLog&) = delete;
 
   void AddTouchPoint(const ui::TouchEvent& touch) {
     if (touch.type() == ui::ET_TOUCH_PRESSED)
@@ -165,6 +160,8 @@ class TouchLog {
   int next_trace_index_;
 
   std::map<int, int> touch_id_to_trace_index_;
+
+  DISALLOW_COPY_AND_ASSIGN(TouchLog);
 };
 
 // TouchHudCanvas draws touch traces in |FULLSCREEN| and |REDUCED_SCALE| modes.
@@ -177,9 +174,6 @@ class TouchHudCanvas : public views::View {
 
     flags_.setStyle(cc::PaintFlags::kFill_Style);
   }
-
-  TouchHudCanvas(const TouchHudCanvas&) = delete;
-  TouchHudCanvas& operator=(const TouchHudCanvas&) = delete;
 
   ~TouchHudCanvas() override = default;
 
@@ -248,6 +242,8 @@ class TouchHudCanvas : public views::View {
   SkColor colors_[kMaxPaths];
 
   int scale_;
+
+  DISALLOW_COPY_AND_ASSIGN(TouchHudCanvas);
 };
 
 TouchHudDebug::TouchHudDebug(aura::Window* initial_root)
@@ -307,7 +303,7 @@ void TouchHudDebug::Clear() {
   if (widget()->IsVisible()) {
     canvas_->Clear();
     for (int i = 0; i < kMaxTouchPoints; ++i)
-      touch_labels_[i]->SetText(std::u16string());
+      touch_labels_[i]->SetText(base::string16());
     label_container_->SetSize(label_container_->GetPreferredSize());
   }
 }

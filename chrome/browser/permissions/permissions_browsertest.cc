@@ -1,10 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/permissions/permissions_browsertest.h"
-
-#include <memory>
 
 #include "base/command_line.h"
 #include "chrome/browser/ui/browser.h"
@@ -26,13 +24,12 @@ void PermissionsBrowserTest::SetUpOnMainThread() {
   permissions::PermissionRequestManager* manager =
       permissions::PermissionRequestManager::FromWebContents(
           browser()->tab_strip_model()->GetActiveWebContents());
-  prompt_factory_ =
-      std::make_unique<permissions::MockPermissionPromptFactory>(manager);
+  prompt_factory_.reset(new permissions::MockPermissionPromptFactory(manager));
 
   ASSERT_TRUE(embedded_test_server()->Start());
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), embedded_test_server()->GetURL(test_url())));
+  ui_test_utils::NavigateToURL(browser(),
+                               embedded_test_server()->GetURL(test_url()));
 }
 
 void PermissionsBrowserTest::TearDownOnMainThread() {
@@ -42,7 +39,7 @@ void PermissionsBrowserTest::TearDownOnMainThread() {
 bool PermissionsBrowserTest::RunScriptReturnBool(const std::string& script) {
   bool result;
   EXPECT_TRUE(content::ExecuteScriptAndExtractBool(
-      GetWebContents()->GetPrimaryMainFrame(), script, &result));
+      GetWebContents()->GetMainFrame(), script, &result));
   return result;
 }
 

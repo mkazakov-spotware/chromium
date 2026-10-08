@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,8 +18,8 @@
 #include "chrome/browser/nearby_sharing/client/nearby_share_client.h"
 #include "chrome/browser/nearby_sharing/client/nearby_share_client_impl.h"
 #include "chrome/browser/nearby_sharing/client/nearby_share_http_notifier.h"
+#include "chrome/browser/nearby_sharing/client/nearby_share_switches.h"
 #include "chrome/browser/nearby_sharing/common/nearby_share_http_result.h"
-#include "chrome/browser/nearby_sharing/common/nearby_share_switches.h"
 #include "chrome/browser/nearby_sharing/proto/certificate_rpc.pb.h"
 #include "chrome/browser/nearby_sharing/proto/contact_rpc.pb.h"
 #include "chrome/browser/nearby_sharing/proto/device_rpc.pb.h"
@@ -188,8 +188,7 @@ class NearbyShareClientImplTest : public testing::Test,
     base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
         switches::kNearbyShareHTTPHost, kTestGoogleApisUrl);
 
-    identity_test_environment_.MakePrimaryAccountAvailable(
-        kEmail, signin::ConsentLevel::kSignin);
+    identity_test_environment_.MakeUnconsentedPrimaryAccountAvailable(kEmail);
 
     std::unique_ptr<FakeNearbyShareApiCallFlow> api_call_flow =
         std::make_unique<FakeNearbyShareApiCallFlow>();
@@ -311,17 +310,17 @@ class NearbyShareClientImplTest : public testing::Test,
   }
 
  protected:
-  absl::optional<nearbyshare::proto::UpdateDeviceRequest>
+  base::Optional<nearbyshare::proto::UpdateDeviceRequest>
       update_device_request_from_notifier_;
-  absl::optional<nearbyshare::proto::UpdateDeviceResponse>
+  base::Optional<nearbyshare::proto::UpdateDeviceResponse>
       update_device_response_from_notifier_;
-  absl::optional<nearbyshare::proto::ListContactPeopleRequest>
+  base::Optional<nearbyshare::proto::ListContactPeopleRequest>
       list_contact_people_request_from_notifier_;
-  absl::optional<nearbyshare::proto::ListContactPeopleResponse>
+  base::Optional<nearbyshare::proto::ListContactPeopleResponse>
       list_contact_people_response_from_notifier_;
-  absl::optional<nearbyshare::proto::ListPublicCertificatesRequest>
+  base::Optional<nearbyshare::proto::ListPublicCertificatesRequest>
       list_public_certificate_request_from_notifier_;
-  absl::optional<nearbyshare::proto::ListPublicCertificatesResponse>
+  base::Optional<nearbyshare::proto::ListPublicCertificatesResponse>
       list_public_certificate_response_from_notifier_;
   base::test::TaskEnvironment task_environment_;
   signin::IdentityTestEnvironment identity_test_environment_;

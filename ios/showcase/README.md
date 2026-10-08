@@ -184,7 +184,7 @@ See example: `SettingsCoordinator - Main settings screen`
         "//ios/showcase/common",
         # Insert target for ClassForDisplay here.
       ]
-      frameworks = [ "UIKit.framework" ]
+      libs = [ "UIKit.framework" ]
       configs += [ "//build/config/compiler:enable_arc" ]
     }
     ```
@@ -215,7 +215,7 @@ You will need a glue view controller.
       deps = [
         # Insert target for ClassForDisplay here.
       ]
-      frameworks = [ "UIKit.framework" ]
+      libs = [ "UIKit.framework" ]
       configs += [ "//build/config/compiler:enable_arc" ]
     }
     ```

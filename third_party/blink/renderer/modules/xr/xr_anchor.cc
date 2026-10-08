@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -63,21 +63,15 @@ XRSpace* XRAnchor::anchorSpace(ExceptionState& exception_state) const {
   return anchor_space_;
 }
 
-device::mojom::blink::XRNativeOriginInformationPtr XRAnchor::NativeOrigin()
-    const {
-  return device::mojom::blink::XRNativeOriginInformation::NewAnchorId(
-      this->id());
-}
-
-absl::optional<gfx::Transform> XRAnchor::MojoFromObject() const {
+base::Optional<TransformationMatrix> XRAnchor::MojoFromObject() const {
   DVLOG(3) << __func__ << ": id_=" << id_;
 
   if (!mojo_from_anchor_) {
     DVLOG(3) << __func__ << ": id_=" << id_ << ", mojo_from_anchor_ is not set";
-    return absl::nullopt;
+    return base::nullopt;
   }
 
-  return mojo_from_anchor_->ToTransform();
+  return mojo_from_anchor_->ToTransform().matrix();
 }
 
 void XRAnchor::Delete() {
@@ -85,7 +79,7 @@ void XRAnchor::Delete() {
 
   if (!is_deleted_) {
     session_->xr()->xrEnvironmentProviderRemote()->DetachAnchor(id_);
-    mojo_from_anchor_ = absl::nullopt;
+    mojo_from_anchor_ = base::nullopt;
     anchor_space_ = nullptr;
   }
 

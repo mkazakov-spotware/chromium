@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,9 +36,10 @@ import org.chromium.chrome.browser.notifications.channels.SiteChannelsManager;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.searchwidget.SearchWidgetProvider;
+import org.chromium.chrome.browser.settings.SettingsLauncher;
 import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
-import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityPreferencesManager;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.chrome.browser.version.ChromeVersionInfo;
 import org.chromium.components.browser_ui.site_settings.AllSiteSettings;
 import org.chromium.components.browser_ui.site_settings.SingleCategorySettings;
 import org.chromium.components.browser_ui.site_settings.SiteSettingsCategory;
@@ -46,7 +47,6 @@ import org.chromium.components.browser_ui.site_settings.Website;
 import org.chromium.components.browser_ui.site_settings.Website.StoredDataClearedCallback;
 import org.chromium.components.browser_ui.site_settings.WebsitePermissionsFetcher;
 import org.chromium.components.browser_ui.util.ConversionUtils;
-import org.chromium.components.version_info.VersionInfo;
 
 import java.util.Collection;
 
@@ -83,7 +83,6 @@ public class ManageSpaceActivity extends AppCompatActivity implements View.OnCli
     protected void onCreate(Bundle savedInstanceState) {
         ensureActivityNotExported();
 
-        setTheme(R.style.ColorOverlay_ChromiumAndroid);
         setContentView(R.layout.manage_space_activity);
         Resources r = getResources();
         setTitle(String.format(r.getString(R.string.storage_management_activity_label),
@@ -122,8 +121,8 @@ public class ManageSpaceActivity extends AppCompatActivity implements View.OnCli
             }
         };
 
-        String productVersion =
-                AboutChromeSettings.getApplicationVersion(this, VersionInfo.getProductVersion());
+        String productVersion = AboutChromeSettings.getApplicationVersion(
+                this, ChromeVersionInfo.getProductVersion());
         String failedVersion = SharedPreferencesManager.getInstance().readString(
                 ChromePreferenceKeys.SETTINGS_WEBSITE_FAILED_BUILD_VERSION, null);
         if (TextUtils.equals(failedVersion, productVersion)) {
@@ -139,7 +138,7 @@ public class ManageSpaceActivity extends AppCompatActivity implements View.OnCli
                 ChromePreferenceKeys.SETTINGS_WEBSITE_FAILED_BUILD_VERSION, productVersion);
 
         try {
-            ChromeBrowserInitializer.getInstance().handlePreNativeStartupAndLoadLibraries(parts);
+            ChromeBrowserInitializer.getInstance().handlePreNativeStartup(parts);
             ChromeBrowserInitializer.getInstance().handlePostNativeStartup(true, parts);
         } catch (Exception e) {
             // We don't want to exit, as the user should still be able to clear all browsing data.
@@ -251,7 +250,7 @@ public class ManageSpaceActivity extends AppCompatActivity implements View.OnCli
                                 OPTION_CLEAR_APP_DATA, OPTION_MAX);
                     }
 
-                    SearchActivityPreferencesManager.resetCachedValues();
+                    SearchWidgetProvider.reset();
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         SiteChannelsManager.getInstance().deleteAllSiteChannels();
                     }
@@ -266,9 +265,9 @@ public class ManageSpaceActivity extends AppCompatActivity implements View.OnCli
     }
 
     private void onSiteStorageSizeCalculated(long totalSize, long unimportantSize) {
-        RecordHistogram.recordCount1MHistogram("Android.ManageSpace.TotalDiskUsageMB",
+        RecordHistogram.recordCountHistogram("Android.ManageSpace.TotalDiskUsageMB",
                 (int) ConversionUtils.bytesToMegabytes(totalSize));
-        RecordHistogram.recordCount1MHistogram("Android.ManageSpace.UnimportantDiskUsageMB",
+        RecordHistogram.recordCountHistogram("Android.ManageSpace.UnimportantDiskUsageMB",
                 (int) ConversionUtils.bytesToMegabytes(unimportantSize));
         mSiteDataSizeText.setText(Formatter.formatFileSize(this, totalSize));
         mUnimportantSiteDataSizeText.setText(Formatter.formatFileSize(this, unimportantSize));

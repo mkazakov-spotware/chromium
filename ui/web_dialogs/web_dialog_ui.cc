@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "base/callback_helpers.h"
 #include "base/lazy_instance.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/values.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
@@ -34,7 +33,7 @@ class WebDialogDelegateUserData : public base::SupportsUserData::Data {
   WebDialogDelegate* delegate() { return delegate_; }
 
  private:
-  raw_ptr<WebDialogDelegate> delegate_;  // unowned
+  WebDialogDelegate* delegate_;  // unowned
 };
 
 }  // namespace
@@ -59,7 +58,7 @@ WebDialogUIBase::WebDialogUIBase(content::WebUI* web_ui) : web_ui_(web_ui) {}
 // HTML dialogs won't swap WebUIs anyway since they don't navigate.
 WebDialogUIBase::~WebDialogUIBase() = default;
 
-void WebDialogUIBase::CloseDialog(const base::Value::List& args) {
+void WebDialogUIBase::CloseDialog(const base::ListValue* args) {
   OnDialogClosed(args);
 }
 
@@ -89,10 +88,8 @@ void WebDialogUIBase::HandleRenderFrameCreated(
     delegate->GetWebUIMessageHandlers(&handlers);
   }
 
-  if (content::BINDINGS_POLICY_NONE !=
-      (web_ui_->GetBindings() & content::BINDINGS_POLICY_WEB_UI)) {
+  if (0 != (web_ui_->GetBindings() & content::BINDINGS_POLICY_WEB_UI))
     render_frame_host->SetWebUIProperty("dialogArguments", dialog_args);
-  }
   for (WebUIMessageHandler* handler : handlers)
     web_ui_->AddMessageHandler(base::WrapUnique(handler));
 
@@ -100,16 +97,12 @@ void WebDialogUIBase::HandleRenderFrameCreated(
     delegate->OnDialogShown(web_ui_);
 }
 
-void WebDialogUIBase::OnDialogClosed(const base::Value::List& args) {
+void WebDialogUIBase::OnDialogClosed(const base::ListValue* args) {
   WebDialogDelegate* delegate = GetDelegate(web_ui_->GetWebContents());
   if (delegate) {
     std::string json_retval;
-    if (!args.empty()) {
-      if (args[0].is_string())
-        json_retval = args[0].GetString();
-      else
-        NOTREACHED() << "Could not read JSON argument";
-    }
+    if (args && !args->empty() && !args->GetString(0, &json_retval))
+      NOTREACHED() << "Could not read JSON argument";
 
     delegate->OnDialogCloseFromWebUI(json_retval);
   }
@@ -120,7 +113,7 @@ WebDialogUI::WebDialogUI(content::WebUI* web_ui)
 
 WebDialogUI::~WebDialogUI() = default;
 
-void WebDialogUI::WebUIRenderFrameCreated(RenderFrameHost* render_frame_host) {
+void WebDialogUI::RenderFrameCreated(RenderFrameHost* render_frame_host) {
   HandleRenderFrameCreated(render_frame_host);
 }
 
@@ -134,9 +127,9 @@ MojoWebDialogUI::MojoWebDialogUI(content::WebUI* web_ui)
 
 MojoWebDialogUI::~MojoWebDialogUI() = default;
 
-void MojoWebDialogUI::WebUIRenderFrameCreated(
+void MojoWebDialogUI::RenderFrameCreated(
     content::RenderFrameHost* render_frame_host) {
-  content::WebUIController::WebUIRenderFrameCreated(render_frame_host);
+  content::WebUIController::RenderFrameCreated(render_frame_host);
   HandleRenderFrameCreated(render_frame_host);
 }
 

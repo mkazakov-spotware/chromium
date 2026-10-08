@@ -1,24 +1,21 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.password_check;
 
-import android.content.Context;
 import android.view.MenuItem;
 
 import androidx.annotation.VisibleForTesting;
 import androidx.lifecycle.LifecycleObserver;
 
-import org.chromium.chrome.browser.device_reauth.BiometricAuthRequester;
-import org.chromium.chrome.browser.device_reauth.ReauthenticatorBridge;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
 import org.chromium.chrome.browser.password_check.helper.PasswordCheckChangePasswordHelper;
 import org.chromium.chrome.browser.password_check.helper.PasswordCheckIconHelper;
+import org.chromium.chrome.browser.password_check.helper.PasswordCheckReauthenticationHelper;
 import org.chromium.chrome.browser.password_check.internal.R;
-import org.chromium.chrome.browser.password_manager.settings.PasswordAccessReauthenticationHelper;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.chrome.browser.settings.SettingsLauncher;
 import org.chromium.components.favicon.LargeIconBridge;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
@@ -31,8 +28,7 @@ class PasswordCheckCoordinator implements PasswordCheckComponentUi, LifecycleObs
     private HelpAndFeedbackLauncher mHelpAndFeedbackLauncher;
     private final PasswordCheckFragmentView mFragmentView;
     private final SettingsLauncher mSettingsLauncher;
-    private final PasswordAccessReauthenticationHelper mReauthenticationHelper;
-    private final ReauthenticatorBridge mReauthenticatorBridge;
+    private final PasswordCheckReauthenticationHelper mReauthenticationHelper;
     private final PasswordCheckMediator mMediator;
     private PropertyModel mModel;
 
@@ -43,9 +39,8 @@ class PasswordCheckCoordinator implements PasswordCheckComponentUi, LifecycleObs
         /**
          * Edits the given Credential in the password store.
          * @param credential A {@link CompromisedCredential} to be edited.
-         * @param context The context to launch the editing UI from.
          */
-        void onEdit(CompromisedCredential credential, Context context);
+        void onEdit(CompromisedCredential credential);
 
         /**
          * Removes the given Credential from the password store.
@@ -64,6 +59,13 @@ class PasswordCheckCoordinator implements PasswordCheckComponentUi, LifecycleObs
          * @param credential A {@link CompromisedCredential} to be changed.
          */
         void onChangePasswordButtonClick(CompromisedCredential credential);
+
+        /**
+         * Starts a script to change a {@link CompromisedCredential}. Can be called only if {@link
+         * CompromisedCredential#hasScript()}.
+         * @param credential A {@link CompromisedCredential} to be change with a script.
+         */
+        void onChangePasswordWithScriptButtonClick(CompromisedCredential credential);
     }
 
     PasswordCheckCoordinator(PasswordCheckFragmentView fragmentView,
@@ -76,14 +78,12 @@ class PasswordCheckCoordinator implements PasswordCheckComponentUi, LifecycleObs
         // TODO(crbug.com/1101256): If help is part of the view, make mediator the delegate.
         mFragmentView.setComponentDelegate(this);
 
-        // TODO(crbug.com/1178519): Ideally, the following replaces the lifecycle event forwarding.
+        // TODO(crbug.com/1092444): Ideally, the following replaces the lifecycle event forwarding.
         //  Figure out why it isn't working and use the following lifecycle observer once it does:
         // mFragmentView.getLifecycle().addObserver(this);
 
-        mReauthenticationHelper = new PasswordAccessReauthenticationHelper(
+        mReauthenticationHelper = new PasswordCheckReauthenticationHelper(
                 mFragmentView.getActivity(), mFragmentView.getParentFragmentManager());
-        mReauthenticatorBridge =
-                new ReauthenticatorBridge(BiometricAuthRequester.PASSWORD_CHECK_AUTO_PWD_CHANGE);
 
         PasswordCheckChangePasswordHelper changePasswordHelper =
                 new PasswordCheckChangePasswordHelper(mFragmentView.getActivity(),
@@ -92,8 +92,8 @@ class PasswordCheckCoordinator implements PasswordCheckComponentUi, LifecycleObs
                 new LargeIconBridge(Profile.getLastUsedRegularProfile()),
                 mFragmentView.getResources().getDimensionPixelSize(
                         org.chromium.chrome.browser.ui.favicon.R.dimen.default_favicon_size));
-        mMediator = new PasswordCheckMediator(changePasswordHelper, mReauthenticationHelper,
-                mReauthenticatorBridge, mSettingsLauncher, iconHelper);
+        mMediator = new PasswordCheckMediator(
+                changePasswordHelper, mReauthenticationHelper, mSettingsLauncher, iconHelper);
     }
 
     private void launchCheckupInAccount() {

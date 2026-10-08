@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,9 @@
 
 #include <winerror.h>
 
-#include <string>
-
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/win/registry.h"
 #include "build/branding_buildflags.h"
@@ -33,7 +32,7 @@ void SetCurrentVersionCrashKey() {
                         KEY_QUERY_VALUE | KEY_WOW64_32KEY);
 
   // Read from the Clients key.
-  std::wstring version_str;
+  base::string16 version_str;
   if (key.ReadValue(L"pv", &version_str) == ERROR_SUCCESS) {
     version_key.Set(base::WideToUTF8(version_str));
   }
@@ -48,7 +47,7 @@ base::FilePath GetSystemTempFolder() {
       L"SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
       KEY_QUERY_VALUE);
 
-  std::wstring temp_string;
+  base::string16 temp_string;
   if (reg_key.ReadValue(L"TEMP", &temp_string) != ERROR_SUCCESS)
     return base::FilePath();
 

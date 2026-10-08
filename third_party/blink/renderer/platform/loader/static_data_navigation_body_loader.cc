@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,20 +33,23 @@ void StaticDataNavigationBodyLoader::Finish() {
   Continue();
 }
 
-void StaticDataNavigationBodyLoader::SetDefersLoading(LoaderFreezeMode mode) {
-  freeze_mode_ = mode;
+void StaticDataNavigationBodyLoader::SetDefersLoading(
+    WebURLLoader::DeferType defers) {
+  defers_loading_ = defers;
   Continue();
 }
 
 void StaticDataNavigationBodyLoader::StartLoadingBody(
-    WebNavigationBodyLoader::Client* client) {
+    WebNavigationBodyLoader::Client* client,
+    bool use_isolated_code_cache) {
   DCHECK(!is_in_continue_);
   client_ = client;
   Continue();
 }
 
 void StaticDataNavigationBodyLoader::Continue() {
-  if (freeze_mode_ != LoaderFreezeMode::kNone || !client_ || is_in_continue_)
+  if (defers_loading_ != WebURLLoader::DeferType::kNotDeferred || !client_ ||
+      is_in_continue_)
     return;
 
   // We don't want reentrancy in this method -
@@ -71,7 +74,7 @@ void StaticDataNavigationBodyLoader::Continue() {
           return;
       }
 
-      if (freeze_mode_ != LoaderFreezeMode::kNone) {
+      if (defers_loading_ != WebURLLoader::DeferType::kNotDeferred) {
         is_in_continue_ = false;
         return;
       }
@@ -87,7 +90,7 @@ void StaticDataNavigationBodyLoader::Continue() {
     client->BodyLoadingFinished(
         base::TimeTicks::Now(), total_encoded_data_length_,
         total_encoded_data_length_, total_encoded_data_length_, false,
-        absl::nullopt);
+        base::nullopt);
     // |this| can be destroyed from BodyLoadingFinished.
     if (!weak_self)
       return;

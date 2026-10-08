@@ -1,12 +1,12 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/wm/core/capture_controller.h"
 
-#include <memory>
 #include <utility>
 
+#include "base/macros.h"
 #include "ui/aura/client/capture_delegate.h"
 #include "ui/aura/env.h"
 #include "ui/aura/test/aura_test_base.h"
@@ -14,7 +14,6 @@
 #include "ui/aura/test/test_window_delegate.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_event_dispatcher.h"
-#include "ui/aura/window_tracker.h"
 #include "ui/events/event.h"
 #include "ui/events/event_utils.h"
 #include "ui/events/test/event_generator.h"
@@ -29,35 +28,24 @@ namespace {
 // has been acquired.
 class TestCaptureDelegate : public aura::client::CaptureDelegate {
  public:
-  TestCaptureDelegate() = default;
+  TestCaptureDelegate() : has_capture_(false) {}
+  ~TestCaptureDelegate() override {}
 
-  TestCaptureDelegate(const TestCaptureDelegate&) = delete;
-  TestCaptureDelegate& operator=(const TestCaptureDelegate&) = delete;
-
-  ~TestCaptureDelegate() override = default;
-
-  bool HasNativeCapture() const { return has_capture_; }
-  aura::Window* old_capture() { return old_capture_; }
-  aura::Window* new_capture() { return new_capture_; }
-  void SetDestroyOldCapture(bool destroy) { destroy_old_capture_ = destroy; }
+  bool HasNativeCapture() const {
+    return has_capture_;
+  }
 
   // aura::client::CaptureDelegate:
   void UpdateCapture(aura::Window* old_capture,
-                     aura::Window* new_capture) override {
-    old_capture_ = old_capture;
-    new_capture_ = new_capture;
-    if (old_capture && destroy_old_capture_)
-      delete old_capture;
-  }
+                     aura::Window* new_capture) override {}
   void OnOtherRootGotCapture() override {}
   void SetNativeCapture() override { has_capture_ = true; }
   void ReleaseNativeCapture() override { has_capture_ = false; }
 
  private:
-  bool has_capture_ = false;
-  aura::Window* old_capture_ = nullptr;
-  aura::Window* new_capture_ = nullptr;
-  bool destroy_old_capture_ = false;
+  bool has_capture_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestCaptureDelegate);
 };
 
 }  // namespace
@@ -66,31 +54,28 @@ class CaptureControllerTest : public aura::test::AuraTestBase {
  public:
   CaptureControllerTest() {}
 
-  CaptureControllerTest(const CaptureControllerTest&) = delete;
-  CaptureControllerTest& operator=(const CaptureControllerTest&) = delete;
-
   void SetUp() override {
     AuraTestBase::SetUp();
-    capture_client_ = std::make_unique<ScopedCaptureClient>(root_window());
+    capture_controller_ = std::make_unique<ScopedCaptureClient>(root_window());
 
     second_host_ = aura::WindowTreeHost::Create(
         ui::PlatformWindowInitProperties{gfx::Rect(0, 0, 800, 600)});
     second_host_->InitHost();
     second_host_->window()->Show();
     second_host_->SetBoundsInPixels(gfx::Rect(800, 600));
-    second_capture_client_ =
-        std::make_unique<ScopedCaptureClient>(second_host_->window());
+    second_capture_controller_.reset(
+        new ScopedCaptureClient(second_host_->window()));
   }
 
   void TearDown() override {
     RunAllPendingInMessageLoop();
 
-    second_capture_client_.reset();
+    second_capture_controller_.reset();
 
     // Kill any active compositors before we hit the compositor shutdown paths.
     second_host_.reset();
 
-    capture_client_.reset();
+    capture_controller_.reset();
 
     AuraTestBase::TearDown();
   }
@@ -103,7 +88,7 @@ class CaptureControllerTest : public aura::test::AuraTestBase {
         delegate
             ? delegate
             : aura::test::TestWindowDelegate::CreateSelfDestroyingDelegate());
-    window->SetId(id);
+    window->set_id(id);
     window->Init(ui::LAYER_TEXTURED);
     parent->AddChild(window);
     window->SetBounds(bounds);
@@ -115,17 +100,18 @@ class CaptureControllerTest : public aura::test::AuraTestBase {
     return CaptureController::Get()->GetCaptureWindow();
   }
 
-  std::unique_ptr<ScopedCaptureClient> capture_client_;
+  std::unique_ptr<ScopedCaptureClient> capture_controller_;
   std::unique_ptr<aura::WindowTreeHost> second_host_;
-  std::unique_ptr<ScopedCaptureClient> second_capture_client_;
+  std::unique_ptr<ScopedCaptureClient> second_capture_controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(CaptureControllerTest);
 };
 
 // Makes sure that internal details that are set on mouse down (such as
 // mouse_pressed_handler()) are cleared when another root window takes capture.
 TEST_F(CaptureControllerTest, ResetMouseEventHandlerOnCapture) {
   // Create a window inside the WindowEventDispatcher.
-  std::unique_ptr<aura::Window> w1(
-      CreateNormalWindow(1, root_window(), nullptr));
+  std::unique_ptr<aura::Window> w1(CreateNormalWindow(1, root_window(), NULL));
 
   // Make a synthesized mouse down event. Ensure that the WindowEventDispatcher
   // will dispatch further mouse events to |w1|.
@@ -137,12 +123,12 @@ TEST_F(CaptureControllerTest, ResetMouseEventHandlerOnCapture) {
 
   // Build a window in the second WindowEventDispatcher.
   std::unique_ptr<aura::Window> w2(
-      CreateNormalWindow(2, second_host_->window(), nullptr));
+      CreateNormalWindow(2, second_host_->window(), NULL));
 
   // The act of having the second window take capture should clear out mouse
   // pressed handler in the first WindowEventDispatcher.
   w2->SetCapture();
-  EXPECT_EQ(nullptr, host()->dispatcher()->mouse_pressed_handler());
+  EXPECT_EQ(NULL, host()->dispatcher()->mouse_pressed_handler());
 }
 
 // Makes sure that when one window gets capture, it forces the release on the
@@ -150,14 +136,13 @@ TEST_F(CaptureControllerTest, ResetMouseEventHandlerOnCapture) {
 // check on Windows.
 TEST_F(CaptureControllerTest, ResetOtherWindowCaptureOnCapture) {
   // Create a window inside the WindowEventDispatcher.
-  std::unique_ptr<aura::Window> w1(
-      CreateNormalWindow(1, root_window(), nullptr));
+  std::unique_ptr<aura::Window> w1(CreateNormalWindow(1, root_window(), NULL));
   w1->SetCapture();
   EXPECT_EQ(w1.get(), GetCaptureWindow());
 
   // Build a window in the second WindowEventDispatcher and give it capture.
   std::unique_ptr<aura::Window> w2(
-      CreateNormalWindow(2, second_host_->window(), nullptr));
+      CreateNormalWindow(2, second_host_->window(), NULL));
   w2->SetCapture();
   EXPECT_EQ(w2.get(), GetCaptureWindow());
 }
@@ -166,8 +151,7 @@ TEST_F(CaptureControllerTest, ResetOtherWindowCaptureOnCapture) {
 // releasing capture.
 TEST_F(CaptureControllerTest, TouchTargetResetOnCaptureChange) {
   // Create a window inside the WindowEventDispatcher.
-  std::unique_ptr<aura::Window> w1(
-      CreateNormalWindow(1, root_window(), nullptr));
+  std::unique_ptr<aura::Window> w1(CreateNormalWindow(1, root_window(), NULL));
   ui::test::EventGenerator event_generator1(root_window());
   event_generator1.PressTouch();
   w1->SetCapture();
@@ -175,7 +159,7 @@ TEST_F(CaptureControllerTest, TouchTargetResetOnCaptureChange) {
 
   // Build a window in the second WindowEventDispatcher and give it capture.
   std::unique_ptr<aura::Window> w2(
-      CreateNormalWindow(2, second_host_->window(), nullptr));
+      CreateNormalWindow(2, second_host_->window(), NULL));
   w2->SetCapture();
   EXPECT_EQ(w2.get(), GetCaptureWindow());
 
@@ -190,14 +174,13 @@ TEST_F(CaptureControllerTest, TouchTargetResetOnCaptureChange) {
 // is reparented to a different root window while it has capture.
 TEST_F(CaptureControllerTest, ReparentedWhileCaptured) {
   std::unique_ptr<TestCaptureDelegate> delegate(new TestCaptureDelegate);
-  ScopedCaptureClient::TestApi(capture_client_.get())
+  ScopedCaptureClient::TestApi(capture_controller_.get())
       .SetDelegate(delegate.get());
   std::unique_ptr<TestCaptureDelegate> delegate2(new TestCaptureDelegate);
-  ScopedCaptureClient::TestApi(second_capture_client_.get())
+  ScopedCaptureClient::TestApi(second_capture_controller_.get())
       .SetDelegate(delegate2.get());
 
-  std::unique_ptr<aura::Window> w(
-      CreateNormalWindow(1, root_window(), nullptr));
+  std::unique_ptr<aura::Window> w(CreateNormalWindow(1, root_window(), NULL));
   w->SetCapture();
   EXPECT_EQ(w.get(), GetCaptureWindow());
   EXPECT_TRUE(delegate->HasNativeCapture());
@@ -220,11 +203,6 @@ class GestureEventDeleteWindowOnScrollEnd
  public:
   GestureEventDeleteWindowOnScrollEnd() {}
 
-  GestureEventDeleteWindowOnScrollEnd(
-      const GestureEventDeleteWindowOnScrollEnd&) = delete;
-  GestureEventDeleteWindowOnScrollEnd& operator=(
-      const GestureEventDeleteWindowOnScrollEnd&) = delete;
-
   void SetWindow(std::unique_ptr<aura::Window> window) {
     window_ = std::move(window);
   }
@@ -240,6 +218,7 @@ class GestureEventDeleteWindowOnScrollEnd
 
  private:
   std::unique_ptr<aura::Window> window_;
+  DISALLOW_COPY_AND_ASSIGN(GestureEventDeleteWindowOnScrollEnd);
 };
 
 // Tests a scenario when a window gets deleted while a capture is being set on
@@ -282,59 +261,6 @@ TEST_F(CaptureControllerTest, GestureResetWithCapture) {
   ui::MouseEvent mouse_press(ui::ET_MOUSE_PRESSED, gfx::Point(), gfx::Point(),
                              base::TimeTicks(), 0, 0);
   DispatchEventUsingWindowDispatcher(&mouse_press);
-}
-
-TEST_F(CaptureControllerTest, UpdateCaptureDestroysOldCaptureWindow) {
-  TestCaptureDelegate delegate;
-  ScopedCaptureClient::TestApi(capture_client_.get()).SetDelegate(&delegate);
-  TestCaptureDelegate delegate2;
-  ScopedCaptureClient::TestApi(second_capture_client_.get())
-      .SetDelegate(&delegate2);
-
-  // Since delegate iteration order is not deterministic, use this to assert
-  // that the two scenarios below have opposite order.
-  aura::Window* first_old_capture = nullptr;
-
-  {
-    // Create a window inside the WindowEventDispatcher.
-    std::unique_ptr<aura::Window> capture_window(
-        CreateNormalWindow(1, root_window(), nullptr));
-    ui::test::EventGenerator event_generator(root_window());
-    event_generator.PressTouch();
-    capture_window->SetCapture();
-
-    delegate.SetDestroyOldCapture(true);
-    delegate2.SetDestroyOldCapture(false);
-
-    aura::WindowTracker tracker({capture_window.get()});
-    CaptureController::Get()->SetCapture(nullptr);
-    EXPECT_EQ(delegate.old_capture(), capture_window.get());
-    first_old_capture = delegate2.old_capture();
-    EXPECT_FALSE(tracker.Contains(capture_window.get()));
-    if (!tracker.Contains(capture_window.get()))
-      capture_window.release();
-  }
-
-  {
-    // Create a window inside the WindowEventDispatcher.
-    std::unique_ptr<aura::Window> capture_window(
-        CreateNormalWindow(1, root_window(), nullptr));
-    ui::test::EventGenerator event_generator(root_window());
-    event_generator.PressTouch();
-    capture_window->SetCapture();
-
-    // Change order to account for map traversal order.
-    delegate.SetDestroyOldCapture(false);
-    delegate2.SetDestroyOldCapture(true);
-
-    aura::WindowTracker tracker({capture_window.get()});
-    CaptureController::Get()->SetCapture(nullptr);
-    EXPECT_NE(delegate.old_capture(), first_old_capture);
-    EXPECT_EQ(delegate2.old_capture(), capture_window.get());
-    EXPECT_FALSE(tracker.Contains(capture_window.get()));
-    if (!tracker.Contains(capture_window.get()))
-      capture_window.release();
-  }
 }
 
 }  // namespace wm

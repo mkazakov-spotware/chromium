@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,8 +18,7 @@
 #include <mach/mach.h>
 #include <stdint.h>
 
-#include <string>
-
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "snapshot/cpu_context.h"
 #include "snapshot/mac/process_reader_mac.h"
@@ -39,10 +38,6 @@ namespace internal {
 class ThreadSnapshotMac final : public ThreadSnapshot {
  public:
   ThreadSnapshotMac();
-
-  ThreadSnapshotMac(const ThreadSnapshotMac&) = delete;
-  ThreadSnapshotMac& operator=(const ThreadSnapshotMac&) = delete;
-
   ~ThreadSnapshotMac() override;
 
   //! \brief Initializes the object.
@@ -62,7 +57,6 @@ class ThreadSnapshotMac final : public ThreadSnapshot {
   const CPUContext* Context() const override;
   const MemorySnapshot* Stack() const override;
   uint64_t ThreadID() const override;
-  std::string ThreadName() const override;
   int SuspendCount() const override;
   int Priority() const override;
   uint64_t ThreadSpecificDataAddress() const override;
@@ -81,13 +75,14 @@ class ThreadSnapshotMac final : public ThreadSnapshot {
   } context_union_;
   CPUContext context_;
   MemorySnapshotGeneric stack_;
-  std::string thread_name_;
   uint64_t thread_id_;
   uint64_t thread_specific_data_address_;
   thread_t thread_;
   int suspend_count_;
   int priority_;
   InitializationStateDcheck initialized_;
+
+  DISALLOW_COPY_AND_ASSIGN(ThreadSnapshotMac);
 };
 
 }  // namespace internal

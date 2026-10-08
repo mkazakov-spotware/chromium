@@ -26,13 +26,10 @@
 #include "third_party/blink/renderer/core/layout/layout_media.h"
 
 #include "third_party/blink/public/mojom/scroll/scrollbar_mode.mojom-blink.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
-#include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/frame/visual_viewport.h"
 #include "third_party/blink/renderer/core/html/media/html_media_element.h"
 #include "third_party/blink/renderer/core/html/media/media_controls.h"
-#include "third_party/blink/renderer/core/layout/deferred_shaping.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
 #include "third_party/blink/renderer/core/page/page.h"
 
@@ -44,11 +41,6 @@ LayoutMedia::LayoutMedia(HTMLMediaElement* video) : LayoutImage(video) {
 
 LayoutMedia::~LayoutMedia() = default;
 
-void LayoutMedia::Trace(Visitor* visitor) const {
-  visitor->Trace(children_);
-  LayoutImage::Trace(visitor);
-}
-
 HTMLMediaElement* LayoutMedia::MediaElement() const {
   NOT_DESTROYED();
   return To<HTMLMediaElement>(GetNode());
@@ -56,15 +48,9 @@ HTMLMediaElement* LayoutMedia::MediaElement() const {
 
 void LayoutMedia::UpdateLayout() {
   NOT_DESTROYED();
-  DeferredShapingDisallowScope disallow_deferred(*View());
   LayoutSize old_size(ContentWidth(), ContentHeight());
 
   LayoutImage::UpdateLayout();
-
-  // If LayoutMediaNGContainer flag is enabled, |NGReplacedLayoutAlgorithm::
-  // LayoutMediaChildren()| handles children layout.
-  if (RuntimeEnabledFeatures::LayoutMediaNGContainerEnabled())
-    return;
 
   auto new_rect = PhysicalContentBoxRect().ToLayoutRect();
 
@@ -73,7 +59,7 @@ void LayoutMedia::UpdateLayout() {
 // Iterate the children in reverse order so that the media controls are laid
 // out before the text track container. This is to ensure that the text
 // track rendering has an up-to-date position of the media controls for
-// overlap checking, see ComputeControlsRect() in vtt_cue_layout_algorithm.cc.
+// overlap checking, see LayoutVTTCue.
 #if DCHECK_IS_ON()
   bool seen_text_track_container = false;
   bool seen_interstitial = false;
@@ -137,22 +123,13 @@ bool LayoutMedia::IsChildAllowed(LayoutObject* child,
   // of replaced content, which is not supposed to be possible. This
   // check can be removed if ::-webkit-media-controls is made
   // internal.
-  if (child->GetNode()->IsMediaControls()) {
-    // IsInline() and StyleRef() don't work at this timing.
-    if (child->IsFlexibleBoxIncludingNG() &&
-        child->GetNode()->GetComputedStyle()->IsDisplayInlineType()) {
-      UseCounter::Count(GetDocument(), WebFeature::kLayoutMediaInlineChildren);
-    }
+  if (child->GetNode()->IsMediaControls())
     return child->IsFlexibleBoxIncludingNG();
-  }
 
   if (child->GetNode()->IsTextTrackContainer() ||
       child->GetNode()->IsMediaRemotingInterstitial() ||
-      child->GetNode()->IsPictureInPictureInterstitial()) {
-    if (child->GetNode()->GetComputedStyle()->IsDisplayInlineType())
-      UseCounter::Count(GetDocument(), WebFeature::kLayoutMediaInlineChildren);
+      child->GetNode()->IsPictureInPictureInterstitial())
     return true;
-  }
 
   return false;
 }
@@ -204,17 +181,17 @@ LayoutUnit LayoutMedia::ComputePanelWidth(const LayoutRect& media_rect) const {
   // On desktop, this will include scrollbars when they stay visible.
   const LayoutUnit visible_width(page->GetVisualViewport().VisibleWidth());
   // The bottom left corner of the video.
-  const gfx::PointF bottom_left_point(
-      LocalToAbsolutePoint(gfx::PointF(media_rect.X(), media_rect.MaxY()),
-                           kTraverseDocumentBoundaries));
+  const FloatPoint bottom_left_point(
+      LocalToAbsoluteFloatPoint(FloatPoint(media_rect.X(), media_rect.MaxY()),
+                                kTraverseDocumentBoundaries));
   // The bottom right corner of the video.
-  const gfx::PointF bottom_right_point(
-      LocalToAbsolutePoint(gfx::PointF(media_rect.MaxX(), media_rect.MaxY()),
-                           kTraverseDocumentBoundaries));
+  const FloatPoint bottom_right_point(LocalToAbsoluteFloatPoint(
+      FloatPoint(media_rect.MaxX(), media_rect.MaxY()),
+      kTraverseDocumentBoundaries));
 
-  const bool bottom_left_corner_visible = bottom_left_point.x() < visible_width;
+  const bool bottom_left_corner_visible = bottom_left_point.X() < visible_width;
   const bool bottom_right_corner_visible =
-      bottom_right_point.x() < visible_width;
+      bottom_right_point.X() < visible_width;
 
   // If both corners are visible, then we can see the whole panel.
   if (bottom_left_corner_visible && bottom_right_corner_visible)
@@ -239,21 +216,18 @@ LayoutUnit LayoutMedia::ComputePanelWidth(const LayoutRect& media_rect) const {
   // we'll calculate the point where the panel intersects the right edge of the
   // page and then calculate the visible width of the panel from the distance
   // between the visible point and the edge intersection point.
-  const float slope = (bottom_right_point.y() - bottom_left_point.y()) /
-                      (bottom_right_point.x() - bottom_left_point.x());
+  const float slope = (bottom_right_point.Y() - bottom_left_point.Y()) /
+                      (bottom_right_point.X() - bottom_left_point.X());
   const float edge_intersection_y =
-      bottom_left_point.y() + ((visible_width - bottom_left_point.x()) * slope);
+      bottom_left_point.Y() + ((visible_width - bottom_left_point.X()) * slope);
 
-  const gfx::PointF edge_intersection_point(visible_width, edge_intersection_y);
+  const FloatPoint edge_intersection_point(visible_width, edge_intersection_y);
 
   // Calculate difference.
-  return LayoutUnit((edge_intersection_point - bottom_left_point).Length());
-}
+  FloatPoint difference_vector = edge_intersection_point;
+  difference_vector.Move(-bottom_left_point.X(), -bottom_left_point.Y());
 
-RecalcLayoutOverflowResult LayoutMedia::RecalcLayoutOverflow() {
-  if (RuntimeEnabledFeatures::LayoutMediaNGContainerEnabled())
-    return RecalcLayoutOverflowNG();
-  return LayoutImage::RecalcLayoutOverflow();
+  return LayoutUnit(difference_vector.length());
 }
 
 }  // namespace blink

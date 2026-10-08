@@ -1,11 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://os-settings/chromeos/lazy_load.js';
+// clang-format off
+// #import 'chrome://os-settings/chromeos/lazy_load.js';
 
-import {PrinterType} from 'chrome://os-settings/chromeos/lazy_load.js';
-import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+// #import {PrinterType} from 'chrome://os-settings/chromeos/lazy_load.js';
+// #import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+// clang-format on
 
 /**
  * Helper function to verify that printers in |printerListEntries| that contain
@@ -66,52 +68,19 @@ function verifySearchQueryResults(
     printerEntryListTestElement, expectedVisiblePrinters, searchTerm) {
   printerEntryListTestElement.searchTerm = searchTerm;
 
-  flush();
+  Polymer.dom.flush();
 
   verifyVisiblePrinters(printerEntryListTestElement, expectedVisiblePrinters);
   verifyFilteredPrinters(printerEntryListTestElement, searchTerm);
 
   if (expectedVisiblePrinters.length) {
-    assertTrue(printerEntryListTestElement.shadowRoot
-                   .querySelector('#no-search-results')
-                   .hidden);
+    assertTrue(printerEntryListTestElement.$$('#no-search-results').hidden);
   } else {
-    assertFalse(printerEntryListTestElement.shadowRoot
-                    .querySelector('#no-search-results')
-                    .hidden);
+    assertFalse(printerEntryListTestElement.$$('#no-search-results').hidden);
   }
 }
 
-/**
- * Returns a printer entry with the given |printerType|.
- * @param {!PrinterType} printerType
- * @return {!PrinterListEntry}
- */
-function createPrinterEntry(printerType) {
-  return {
-    printerInfo: {
-      ppdManufacturer: '',
-      ppdModel: '',
-      printerAddress: 'test:123',
-      printerDescription: '',
-      printerId: 'id_123',
-      printerMakeAndModel: '',
-      printerName: 'Test name',
-      printerPPDPath: '',
-      printerPpdReference: {
-        userSuppliedPpdUrl: '',
-        effectiveMakeAndModel: '',
-        autoconf: false,
-      },
-      printerProtocol: 'ipp',
-      printerQueue: 'moreinfohere',
-      printerStatus: '',
-    },
-    printerType: printerType,
-  };
-}
-
-suite('CupsPrinterEntry', function() {
+suite('CupsPrintersEntry', function() {
   /** A printer list entry created before each test. */
   let printerEntryTestElement = null;
 
@@ -132,8 +101,29 @@ suite('CupsPrinterEntry', function() {
     const expectedPrinterName = 'Test name';
     const expectedPrinterSubtext = 'Test subtext';
 
-    printerEntryTestElement.printerEntry =
-        createPrinterEntry(PrinterType.SAVED);
+    printerEntryTestElement.printerEntry = {
+      printerInfo: {
+        ppdManufacturer: '',
+        ppdModel: '',
+        printerAddress: 'test:123',
+        printerDescription: '',
+        printerId: 'id_123',
+        printerManufacturer: '',
+        printerModel: '',
+        printerMakeAndModel: '',
+        printerName: expectedPrinterName,
+        printerPPDPath: '',
+        printerPpdReference: {
+          userSuppliedPpdUrl: '',
+          effectiveMakeAndModel: '',
+          autoconf: false,
+        },
+        printerProtocol: 'ipp',
+        printerQueue: 'moreinfohere',
+        printerStatus: '',
+      },
+      printerType: PrinterType.SAVED,
+    };
     assertEquals(
         expectedPrinterName,
         printerEntryTestElement.shadowRoot.querySelector('#printerName')
@@ -156,53 +146,37 @@ suite('CupsPrinterEntry', function() {
   });
 
   test('savedPrinterShowsThreeDotMenu', function() {
-    printerEntryTestElement.printerEntry =
-        createPrinterEntry(PrinterType.SAVED);
+    printerEntryTestElement.printerEntry = {
+      printerInfo: {
+        ppdManufacturer: '',
+        ppdModel: '',
+        printerAddress: 'test:123',
+        printerDescription: '',
+        printerId: 'id_123',
+        printerManufacturer: '',
+        printerModel: '',
+        printerMakeAndModel: '',
+        printerName: 'test1',
+        printerPPDPath: '',
+        printerPpdReference: {
+          userSuppliedPpdUrl: '',
+          effectiveMakeAndModel: '',
+          autoconf: false,
+        },
+        printerProtocol: 'ipp',
+        printerQueue: 'moreinfohere',
+        printerStatus: '',
+      },
+      printerType: PrinterType.SAVED,
+    };
 
     // Assert that three dot menu is not shown before the dom is updated.
-    assertFalse(
-        !!printerEntryTestElement.shadowRoot.querySelector('.icon-more-vert'));
+    assertFalse(!!printerEntryTestElement.$$('.icon-more-vert'));
 
-    flush();
+    Polymer.dom.flush();
 
     // Three dot menu should be visible when |printerType| is set to
     // PrinterType.SAVED.
-    assertTrue(
-        !!printerEntryTestElement.shadowRoot.querySelector('.icon-more-vert'));
-  });
-
-  test('disableButtonWhenSavingPrinterOrDisallowedByPolicy', function() {
-    const printerTypes = [
-      PrinterType.DISCOVERED,
-      PrinterType.AUTOMATIC,
-      PrinterType.PRINTSERVER,
-    ];
-    const printerIds = [
-      '#setupPrinterButton',
-      '#automaticPrinterButton',
-      '#savePrinterButton',
-    ];
-    for (let i = 0; i < printerTypes.length; i++) {
-      printerEntryTestElement.printerEntry =
-          createPrinterEntry(printerTypes[i]);
-      flush();
-      const actionButton =
-          printerEntryTestElement.shadowRoot.querySelector(printerIds[i]);
-      printerEntryTestElement.savingPrinter = true;
-      printerEntryTestElement.userPrintersAllowed = true;
-      assertTrue(actionButton.disabled);
-
-      printerEntryTestElement.savingPrinter = true;
-      printerEntryTestElement.userPrintersAllowed = false;
-      assertTrue(actionButton.disabled);
-
-      printerEntryTestElement.savingPrinter = false;
-      printerEntryTestElement.userPrintersAllowed = true;
-      assertFalse(actionButton.disabled);
-
-      printerEntryTestElement.savingPrinter = false;
-      printerEntryTestElement.userPrintersAllowed = false;
-      assertTrue(actionButton.disabled);
-    }
+    assertTrue(!!printerEntryTestElement.$$('.icon-more-vert'));
   });
 });

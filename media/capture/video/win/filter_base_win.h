@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 #include <stddef.h>
 #include <wrl/client.h>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 
 namespace media {
@@ -21,9 +22,6 @@ namespace media {
 class FilterBase : public IBaseFilter, public base::RefCounted<FilterBase> {
  public:
   FilterBase();
-
-  FilterBase(const FilterBase&) = delete;
-  FilterBase& operator=(const FilterBase&) = delete;
 
   // Number of pins connected to this filter.
   virtual size_t NoOfPins() = 0;
@@ -69,6 +67,8 @@ class FilterBase : public IBaseFilter, public base::RefCounted<FilterBase> {
  private:
   FILTER_STATE state_;
   Microsoft::WRL::ComPtr<IFilterGraph> owning_graph_;
+
+  DISALLOW_COPY_AND_ASSIGN(FilterBase);
 };
 
 }  // namespace media

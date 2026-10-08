@@ -272,10 +272,7 @@ _xdg_mime_magic_parse_header (FILE *magic_file, XdgMimeMagicMatch *match)
 
   buffer = (char *)_xdg_mime_magic_read_to_newline (magic_file, &end_of_file);
   if (end_of_file)
-    {
-      free (buffer);
-      return XDG_MIME_MAGIC_EOF;
-    }
+    return XDG_MIME_MAGIC_EOF;
 
   end_ptr = buffer;
   while (*end_ptr != ']' && *end_ptr != '\000' && *end_ptr != '\n')
@@ -320,7 +317,7 @@ _xdg_mime_magic_parse_magic_line (FILE              *magic_file,
   int c;
   int end_of_file;
   int indent = 0;
-  size_t bytes_read;
+  int bytes_read;
 
   assert (magic_file != NULL);
 
@@ -407,7 +404,7 @@ _xdg_mime_magic_parse_magic_line (FILE              *magic_file,
       return XDG_MIME_MAGIC_ERROR;
     }
   bytes_read = fread (matchlet->value, 1, matchlet->value_length, magic_file);
-  if (bytes_read != (size_t) matchlet->value_length)
+  if (bytes_read != matchlet->value_length)
     {
       _xdg_mime_magic_matchlet_free (matchlet);
       if (feof (magic_file))
@@ -427,7 +424,7 @@ _xdg_mime_magic_parse_magic_line (FILE              *magic_file,
 	  return XDG_MIME_MAGIC_ERROR;
 	}
       bytes_read = fread (matchlet->mask, 1, matchlet->value_length, magic_file);
-      if (bytes_read != (size_t) matchlet->value_length)
+      if (bytes_read != matchlet->value_length)
 	{
 	  _xdg_mime_magic_matchlet_free (matchlet);
 	  if (feof (magic_file))
@@ -465,7 +462,7 @@ _xdg_mime_magic_parse_magic_line (FILE              *magic_file,
 	  _xdg_mime_magic_matchlet_free (matchlet);
 	  return XDG_MIME_MAGIC_EOF;
 	}
-      if (matchlet->range_length == (unsigned int) -1)
+      if (matchlet->range_length == -1)
 	{
 	  _xdg_mime_magic_matchlet_free (matchlet);
 	  return XDG_MIME_MAGIC_ERROR;
@@ -479,7 +476,7 @@ _xdg_mime_magic_parse_magic_line (FILE              *magic_file,
       /* We clean up the matchlet, byte swapping if needed */
       if (matchlet->word_size > 1)
 	{
-	  unsigned int i;
+	  int i;
 	  if (matchlet->value_length % matchlet->word_size != 0)
 	    {
 	      _xdg_mime_magic_matchlet_free (matchlet);
@@ -524,7 +521,7 @@ _xdg_mime_magic_matchlet_compare_to_data (XdgMimeMagicMatchlet *matchlet,
 					  const void           *data,
 					  size_t                len)
 {
-  unsigned int i, j;
+  int i, j;
   for (i = matchlet->offset; i < matchlet->offset + matchlet->range_length; i++)
     {
       int valid_matchlet = TRUE;

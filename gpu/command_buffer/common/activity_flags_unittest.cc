@@ -1,10 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "gpu/command_buffer/common/activity_flags.h"
 
-#include "base/memory/unsafe_shared_memory_region.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace gpu {
@@ -16,7 +15,7 @@ TEST(ActivityFlagsTest, BasicUsage) {
       host_flags.IsFlagSet(ActivityFlagsBase::FLAG_LOADING_PROGRAM_BINARY));
 
   // Create the service activity flags from host memory.
-  GpuProcessActivityFlags service_flags(host_flags.CloneRegion());
+  GpuProcessActivityFlags service_flags(host_flags.CloneHandle());
 
   // Ensure we can set and re-set flags.
   {
@@ -31,7 +30,8 @@ TEST(ActivityFlagsTest, BasicUsage) {
 
 TEST(ActivityFlagsTest, NotInitialized) {
   // Get the service activity flags without providing host memory.
-  GpuProcessActivityFlags service_flags{base::UnsafeSharedMemoryRegion()};
+  auto buffer = mojo::ScopedSharedBufferHandle();
+  GpuProcessActivityFlags service_flags(std::move(buffer));
 
   // Set/Unset should not crash.
   {

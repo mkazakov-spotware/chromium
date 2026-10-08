@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,8 @@ import android.view.View;
 import androidx.annotation.Nullable;
 
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.download.DownloadInfoBarController;
+import org.chromium.chrome.browser.download.DownloadManagerService;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.infobar.IPHInfoBarSupport.PopupState;
 import org.chromium.chrome.browser.infobar.IPHInfoBarSupport.TrackerParameters;
@@ -63,8 +65,11 @@ class IPHBubbleDelegateImpl implements IPHInfoBarSupport.IPHBubbleDelegate {
     private @Nullable TrackerParameters getTrackerParameters(@InfoBarIdentifier int infoBarId) {
         switch (infoBarId) {
             case InfoBarIdentifier.DOWNLOAD_PROGRESS_INFOBAR_ANDROID:
-                return null;
-            case InfoBarIdentifier.PERMISSION_INFOBAR_DELEGATE_ANDROID:
+                DownloadInfoBarController controller =
+                        DownloadManagerService.getDownloadManagerService().getInfoBarController(
+                                mTab.isIncognito());
+                return controller != null ? controller.getTrackerParameters() : null;
+            case InfoBarIdentifier.GROUPED_PERMISSION_INFOBAR_DELEGATE_ANDROID:
                 if (PermissionSettingsBridge.shouldShowNotificationsPromo(mTab.getWebContents())) {
                     PermissionSettingsBridge.didShowNotificationsPromo();
                     return new IPHInfoBarSupport.TrackerParameters(

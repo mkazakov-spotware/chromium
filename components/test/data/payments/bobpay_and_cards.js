@@ -1,8 +1,10 @@
 /*
- * Copyright 2016 The Chromium Authors
+ * Copyright 2016 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
+
+/* global PaymentRequest:false */
 
 var request = null;
 var showPromise = null;
@@ -49,7 +51,7 @@ async function testPaymentMethods(methods, requestShippingContact = false) {
 /**
  * Aborts the PaymentRequest initiated by testPaymentMethods().
  */
-async function abort() {
+async function abort() { // eslint-disable-line no-unused-vars
   await request.abort();
   return await showPromise.catch((e) => {
     return e.name == 'AbortError';
@@ -60,7 +62,7 @@ async function abort() {
  * Launches the PaymentRequest UI with Bob Pay and credit cards as payment
  * methods.
  */
-function buy() {
+function buy() { // eslint-disable-line no-unused-vars
   testPaymentMethods([
       {supportedMethods: 'https://bobpay.com'},
       {
@@ -74,7 +76,7 @@ function buy() {
  * Launches the PaymentRequest UI with kylepay.com and basic-card as payment
  * methods. kylepay.com hosts an installable payment app.
  */
-function testInstallableAppAndCard() {
+function testInstallableAppAndCard() { // eslint-disable-line no-unused-vars
   testPaymentMethods([
       {supportedMethods: 'https://kylepay.com/webpay'},
       {supportedMethods: 'basic-card'},

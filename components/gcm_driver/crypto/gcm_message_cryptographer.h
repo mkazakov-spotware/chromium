@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 
+#include "base/compiler_specific.h"
 #include "base/gtest_prod_util.h"
 #include "base/strings/string_piece.h"
 
@@ -99,14 +100,14 @@ class GCMMessageCryptographer {
   // |plaintext|: The plaintext that is to be encrypted.
   // |*record_size|: Out parameter in which the record size will be written.
   // |*ciphertext|: Out parameter in which the ciphertext will be written.
-  [[nodiscard]] bool Encrypt(const base::StringPiece& recipient_public_key,
-                             const base::StringPiece& sender_public_key,
-                             const base::StringPiece& ecdh_shared_secret,
-                             const base::StringPiece& auth_secret,
-                             const base::StringPiece& salt,
-                             const base::StringPiece& plaintext,
-                             size_t* record_size,
-                             std::string* ciphertext) const;
+  bool Encrypt(const base::StringPiece& recipient_public_key,
+               const base::StringPiece& sender_public_key,
+               const base::StringPiece& ecdh_shared_secret,
+               const base::StringPiece& auth_secret,
+               const base::StringPiece& salt,
+               const base::StringPiece& plaintext,
+               size_t* record_size,
+               std::string* ciphertext) const WARN_UNUSED_RESULT;
 
   // Decrypts the |ciphertext| in accordance with the Web Push Encryption scheme
   // this cryptographer represents, storing the result in |*plaintext|. Returns
@@ -121,14 +122,14 @@ class GCMMessageCryptographer {
   // |record_size|: Size of a single record. Must be larger than or equal to
   //                len(plaintext) plus the ciphertext's overhead (18 bytes).
   // |*plaintext|: Out parameter in which the plaintext will be written.
-  [[nodiscard]] bool Decrypt(const base::StringPiece& recipient_public_key,
-                             const base::StringPiece& sender_public_key,
-                             const base::StringPiece& ecdh_shared_secret,
-                             const base::StringPiece& auth_secret,
-                             const base::StringPiece& salt,
-                             const base::StringPiece& ciphertext,
-                             size_t record_size,
-                             std::string* plaintext) const;
+  bool Decrypt(const base::StringPiece& recipient_public_key,
+               const base::StringPiece& sender_public_key,
+               const base::StringPiece& ecdh_shared_secret,
+               const base::StringPiece& auth_secret,
+               const base::StringPiece& salt,
+               const base::StringPiece& ciphertext,
+               size_t record_size,
+               std::string* plaintext) const WARN_UNUSED_RESULT;
 
  private:
   FRIEND_TEST_ALL_PREFIXES(GCMMessageCryptographerTest, AuthSecretAffectsPRK);

@@ -20,7 +20,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_SVG_SVG_TEXT_CHUNK_BUILDER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_SVG_SVG_TEXT_CHUNK_BUILDER_H_
 
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
@@ -48,11 +47,10 @@ class SVGTextChunkBuilder {
   SVGTextChunkBuilder(const SVGTextChunkBuilder&) = delete;
   SVGTextChunkBuilder& operator=(const SVGTextChunkBuilder&) = delete;
 
-  void ProcessTextChunks(const HeapVector<Member<SVGInlineTextBox>>&);
+  void ProcessTextChunks(const Vector<SVGInlineTextBox*>&);
 
  protected:
-  typedef HeapVector<Member<SVGInlineTextBox>>::const_iterator
-      BoxListConstIterator;
+  typedef Vector<SVGInlineTextBox*>::const_iterator BoxListConstIterator;
 
   virtual void HandleTextChunk(BoxListConstIterator box_start,
                                BoxListConstIterator box_end);
@@ -94,4 +92,4 @@ float CalculateTextAnchorShift(const ComputedStyle&, float length);
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_SVG_SVG_TEXT_CHUNK_BUILDER_H_
+#endif

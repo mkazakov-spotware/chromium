@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,10 @@ namespace blink {
 
 IndexedDBKeyPath::IndexedDBKeyPath() : type_(mojom::IDBKeyPathType::Null) {}
 
-IndexedDBKeyPath::IndexedDBKeyPath(const std::u16string& string)
+IndexedDBKeyPath::IndexedDBKeyPath(const base::string16& string)
     : type_(mojom::IDBKeyPathType::String), string_(string) {}
 
-IndexedDBKeyPath::IndexedDBKeyPath(const std::vector<std::u16string>& array)
+IndexedDBKeyPath::IndexedDBKeyPath(const std::vector<base::string16>& array)
     : type_(mojom::IDBKeyPathType::Array), array_(array) {}
 
 IndexedDBKeyPath::IndexedDBKeyPath(const IndexedDBKeyPath& other) = default;
@@ -26,12 +26,12 @@ IndexedDBKeyPath& IndexedDBKeyPath::operator=(const IndexedDBKeyPath& other) =
 IndexedDBKeyPath& IndexedDBKeyPath::operator=(IndexedDBKeyPath&& other) =
     default;
 
-const std::vector<std::u16string>& IndexedDBKeyPath::array() const {
+const std::vector<base::string16>& IndexedDBKeyPath::array() const {
   DCHECK(type_ == blink::mojom::IDBKeyPathType::Array);
   return array_;
 }
 
-const std::u16string& IndexedDBKeyPath::string() const {
+const base::string16& IndexedDBKeyPath::string() const {
   DCHECK(type_ == blink::mojom::IDBKeyPathType::String);
   return string_;
 }

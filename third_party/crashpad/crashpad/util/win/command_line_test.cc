@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,9 +18,8 @@
 #include <shellapi.h>
 #include <sys/types.h>
 
-#include <iterator>
-
 #include "base/scoped_generic.h"
+#include "base/stl_util.h"
 #include "gtest/gtest.h"
 #include "test/errors.h"
 #include "util/win/scoped_local_alloc.h"
@@ -65,7 +64,7 @@ TEST(CommandLine, AppendCommandLineArgument) {
         L"argument 1",
         L"argument 2",
     };
-    AppendCommandLineArgumentTest(std::size(kArguments), kArguments);
+    AppendCommandLineArgumentTest(base::size(kArguments), kArguments);
   }
 
   {
@@ -77,7 +76,7 @@ TEST(CommandLine, AppendCommandLineArgument) {
         L"argument 2",
         L"\\some\\path with\\spaces",
     };
-    AppendCommandLineArgumentTest(std::size(kArguments), kArguments);
+    AppendCommandLineArgumentTest(base::size(kArguments), kArguments);
   }
 
   {
@@ -89,7 +88,7 @@ TEST(CommandLine, AppendCommandLineArgument) {
         L"she said, \"you had me at hello\"",
         L"\\some\\path with\\spaces",
     };
-    AppendCommandLineArgumentTest(std::size(kArguments), kArguments);
+    AppendCommandLineArgumentTest(base::size(kArguments), kArguments);
   }
 
   {
@@ -102,7 +101,7 @@ TEST(CommandLine, AppendCommandLineArgument) {
         L"argument3",
         L"argument4",
     };
-    AppendCommandLineArgumentTest(std::size(kArguments), kArguments);
+    AppendCommandLineArgumentTest(base::size(kArguments), kArguments);
   }
 
   {
@@ -113,7 +112,7 @@ TEST(CommandLine, AppendCommandLineArgument) {
         L"\\some\\directory with\\spaces\\",
         L"argument2",
     };
-    AppendCommandLineArgumentTest(std::size(kArguments), kArguments);
+    AppendCommandLineArgumentTest(base::size(kArguments), kArguments);
   }
 
   {
@@ -124,7 +123,7 @@ TEST(CommandLine, AppendCommandLineArgument) {
         L"",
         L"argument2",
     };
-    AppendCommandLineArgumentTest(std::size(kArguments), kArguments);
+    AppendCommandLineArgumentTest(base::size(kArguments), kArguments);
   }
 
   {
@@ -159,7 +158,7 @@ TEST(CommandLine, AppendCommandLineArgument) {
         L"\"\"",
         L" \t\n\v\"",
     };
-    AppendCommandLineArgumentTest(std::size(kArguments), kArguments);
+    AppendCommandLineArgumentTest(base::size(kArguments), kArguments);
   }
 }
 

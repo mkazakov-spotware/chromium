@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,11 @@
 #include "base/check.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/time/time.h"
+#include "chrome/browser/engagement/site_engagement_service.h"
 #include "chrome/browser/engagement/site_engagement_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ssl/security_state_tab_helper.h"
 #include "components/security_state/core/security_state.h"
-#include "components/site_engagement/content/site_engagement_service.h"
 #include "content/public/browser/navigation_handle.h"
 #include "services/metrics/public/cpp/metrics_utils.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
@@ -41,11 +41,10 @@ SecurityStatePageLoadMetricsObserver::MaybeCreateForProfile(
   // If the site engagement service is not enabled, this observer will not track
   // site engagement metrics, but will still track the security level and
   // navigation related metrics.
-  if (!site_engagement::SiteEngagementService::IsEnabled())
+  if (!SiteEngagementService::IsEnabled())
     return std::make_unique<SecurityStatePageLoadMetricsObserver>(nullptr);
-  auto* engagement_service =
-      site_engagement::SiteEngagementServiceFactory::GetForProfile(
-          static_cast<Profile*>(profile));
+  auto* engagement_service = SiteEngagementServiceFactory::GetForProfile(
+      static_cast<Profile*>(profile));
   return std::make_unique<SecurityStatePageLoadMetricsObserver>(
       engagement_service);
 }
@@ -83,7 +82,7 @@ std::string SecurityStatePageLoadMetricsObserver::
 }
 
 SecurityStatePageLoadMetricsObserver::SecurityStatePageLoadMetricsObserver(
-    site_engagement::SiteEngagementService* engagement_service)
+    SiteEngagementService* engagement_service)
     : content::WebContentsObserver(), engagement_service_(engagement_service) {}
 
 SecurityStatePageLoadMetricsObserver::~SecurityStatePageLoadMetricsObserver() =
@@ -102,61 +101,41 @@ SecurityStatePageLoadMetricsObserver::OnStart(
 }
 
 page_load_metrics::PageLoadMetricsObserver::ObservePolicy
-SecurityStatePageLoadMetricsObserver::OnFencedFramesStart(
-    content::NavigationHandle* navigation_handle,
-    const GURL& currently_committed_url) {
-  // All data aggregation are done in SiteEngagementService and
-  // SecurityStateTabHelper, and this class just monitors the timings to record
-  // the aggregated data. As the outermost page's OnCommit and OnComplete are
-  // the timing this class is interested in, it just stops observing
-  // FencedFrames.
-  return STOP_OBSERVING;
-}
-
-page_load_metrics::PageLoadMetricsObserver::ObservePolicy
-SecurityStatePageLoadMetricsObserver::OnPrerenderStart(
-    content::NavigationHandle* navigation_handle,
-    const GURL& currently_committed_url) {
-  // Continue observing but keep silence until the page is activated to be the
-  // primary page.
-  return CONTINUE_OBSERVING;
-}
-
-page_load_metrics::PageLoadMetricsObserver::ObservePolicy
 SecurityStatePageLoadMetricsObserver::OnCommit(
-    content::NavigationHandle* navigation_handle) {
-  // Only navigations committed to outermost frames are monitored.
-  DCHECK(navigation_handle->IsInPrimaryMainFrame() ||
-         navigation_handle->IsInPrerenderedMainFrame());
+    content::NavigationHandle* navigation_handle,
+    ukm::SourceId source_id) {
+  // Only navigations committed to the main frame are monitored.
+  DCHECK(navigation_handle->IsInMainFrame());
 
-  if (navigation_handle->IsInPrerenderedMainFrame()) {
-    // Postpone initialization to activation.
-    return CONTINUE_OBSERVING;
-  }
+  source_id_ = source_id;
 
-  RecordSecurityLevelHistogram(navigation_handle);
+  content::WebContents* web_contents = navigation_handle->GetWebContents();
+  DCHECK(web_contents);
+  Observe(web_contents);
+
+  // Gather initial security level after all server redirects have been
+  // resolved.
+  security_state_tab_helper_ =
+      SecurityStateTabHelper::FromWebContents(web_contents);
+  initial_security_level_ = security_state_tab_helper_->GetSecurityLevel();
+  current_security_level_ = initial_security_level_;
+
+  base::UmaHistogramEnumeration(kSecurityLevelOnCommit, initial_security_level_,
+                                security_state::SECURITY_LEVEL_COUNT);
+
+  base::UmaHistogramBoolean(
+      "Security.LegacyTLS.OnCommit",
+      security_state::GetLegacyTLSWarningStatus(
+          *security_state_tab_helper_->GetVisibleSecurityState()));
+
+  source_id_ = source_id;
   return CONTINUE_OBSERVING;
-}
-
-void SecurityStatePageLoadMetricsObserver::DidActivatePrerenderedPage(
-    content::NavigationHandle* navigation_handle) {
-  // Records current security level as the initial commit time security level.
-  // As we don't permit any navigation and cross-origin sub-frames while
-  // prerendering, this would not divert from the original security level.
-  RecordSecurityLevelHistogram(navigation_handle);
 }
 
 void SecurityStatePageLoadMetricsObserver::OnComplete(
     const page_load_metrics::mojom::PageLoadTiming& timing) {
   if (!GetDelegate().DidCommit())
     return;
-
-  // Don't record UKMs while prerendering. Also, we dispose data if the
-  // prerendered page is not used.
-  if (GetDelegate().GetPrerenderingState() ==
-      page_load_metrics::PrerenderingState::kInPrerendering) {
-    return;
-  }
 
   security_state::SafetyTipStatus safety_tip_status =
       security_state_tab_helper_->GetVisibleSecurityState()
@@ -171,7 +150,7 @@ void SecurityStatePageLoadMetricsObserver::OnComplete(
         ukm::GetLinearBucketMin(final_engagement_score, 10);
 
     ukm::UkmRecorder* ukm_recorder = ukm::UkmRecorder::Get();
-    ukm::builders::Security_SiteEngagement(GetDelegate().GetPageUkmSourceId())
+    ukm::builders::Security_SiteEngagement(source_id_)
         .SetInitialSecurityLevel(initial_security_level_)
         .SetFinalSecurityLevel(current_security_level_)
         .SetSafetyTipStatus(static_cast<int64_t>(safety_tip_status))
@@ -211,7 +190,7 @@ void SecurityStatePageLoadMetricsObserver::OnComplete(
       security_state::GetSecurityLevelHistogramName(kTimeOnPagePrefix,
                                                     current_security_level_),
       GetDelegate().GetVisibilityTracker().GetForegroundDuration(),
-      base::Milliseconds(1), base::Hours(1), 100);
+      base::TimeDelta::FromMilliseconds(1), base::TimeDelta::FromHours(1), 100);
   base::UmaHistogramEnumeration(kSecurityLevelOnComplete,
                                 current_security_level_,
                                 security_state::SECURITY_LEVEL_COUNT);
@@ -225,34 +204,25 @@ void SecurityStatePageLoadMetricsObserver::OnComplete(
       security_state::GetSafetyTipHistogramName(kTimeOnPagePrefix,
                                                 safety_tip_status),
       GetDelegate().GetVisibilityTracker().GetForegroundDuration(),
-      base::Milliseconds(1), base::Hours(1), 100);
+      base::TimeDelta::FromMilliseconds(1), base::TimeDelta::FromHours(1), 100);
+
+  // Record Legacy TLS UMA histograms.
+  base::UmaHistogramEnumeration(
+      security_state::GetLegacyTLSHistogramName(
+          kPageEndReasonPrefix,
+          *security_state_tab_helper_->GetVisibleSecurityState()),
+      GetDelegate().GetPageEndReason(),
+      page_load_metrics::PAGE_END_REASON_COUNT);
+  base::UmaHistogramCustomTimes(
+      security_state::GetLegacyTLSHistogramName(
+          kTimeOnPagePrefix,
+          *security_state_tab_helper_->GetVisibleSecurityState()),
+      GetDelegate().GetVisibilityTracker().GetForegroundDuration(),
+      base::TimeDelta::FromMilliseconds(1), base::TimeDelta::FromHours(1), 100);
 }
 
 void SecurityStatePageLoadMetricsObserver::DidChangeVisibleSecurityState() {
-  DCHECK_NE(GetDelegate().GetPrerenderingState(),
-            page_load_metrics::PrerenderingState::kInPrerendering);
   if (!security_state_tab_helper_)
     return;
-
   current_security_level_ = security_state_tab_helper_->GetSecurityLevel();
-}
-
-void SecurityStatePageLoadMetricsObserver::RecordSecurityLevelHistogram(
-    content::NavigationHandle* navigation_handle) {
-  content::WebContents* web_contents = navigation_handle->GetWebContents();
-  DCHECK(web_contents);
-  Observe(web_contents);
-
-  // Gather initial security level after all server redirects have been
-  // resolved.
-  security_state_tab_helper_ =
-      SecurityStateTabHelper::FromWebContents(web_contents);
-
-  DCHECK_EQ(initial_security_level_, security_state::NONE);
-  DCHECK_EQ(current_security_level_, security_state::NONE);
-  initial_security_level_ = security_state_tab_helper_->GetSecurityLevel();
-  current_security_level_ = initial_security_level_;
-
-  base::UmaHistogramEnumeration(kSecurityLevelOnCommit, initial_security_level_,
-                                security_state::SECURITY_LEVEL_COUNT);
 }

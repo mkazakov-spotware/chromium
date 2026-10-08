@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -88,8 +88,7 @@ runTests([
               type: 'script',
               url: getURLScript(),
               frameUrl: getURLHttpWithScript(),
-              initiator: getServerDomain(initiators.WEB_INITIATED),
-              documentId: 1
+              initiator: getServerDomain(initiators.WEB_INITIATED)
             },
             retval: {cancel: true}
           },
@@ -102,7 +101,6 @@ runTests([
               error: 'net::ERR_BLOCKED_BY_CLIENT',
               fromCache: false,
               type: 'script',
-              documentId: 1
             },
           },
         ],

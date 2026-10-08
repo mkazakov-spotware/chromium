@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,7 +42,7 @@ bool IgnoreChildBoundsChecks(NSView* view) {
 
 namespace ui {
 
-absl::optional<ViewTreeProblemDetails> ValidateViewTree(NSView* root) {
+base::Optional<ViewTreeProblemDetails> ValidateViewTree(NSView* root) {
   NSArray* allViews = CollectSubviews(root);
 
   for (NSView* view in allViews) {
@@ -51,7 +51,7 @@ absl::optional<ViewTreeProblemDetails> ValidateViewTree(NSView* root) {
     for (NSView* child in view.subviews) {
       if (!NSContainsRect(view.bounds, child.frame) &&
           !IgnoreChildBoundsChecks(view)) {
-        return absl::optional<ViewTreeProblemDetails>(
+        return base::Optional<ViewTreeProblemDetails>(
             {ViewTreeProblemDetails::VIEW_OUTSIDE_PARENT, child, view});
       }
     }
@@ -70,12 +70,12 @@ absl::optional<ViewTreeProblemDetails> ValidateViewTree(NSView* root) {
         continue;
       if ([view isDescendantOf:other] || [other isDescendantOf:view])
         continue;
-      return absl::optional<ViewTreeProblemDetails>(
+      return base::Optional<ViewTreeProblemDetails>(
           {ViewTreeProblemDetails::VIEWS_OVERLAP, view, other});
     }
   }
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 std::string ViewTreeProblemDetails::ToString() {

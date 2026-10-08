@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,23 +24,23 @@ JSONFileValueSerializer::JSONFileValueSerializer(
 
 JSONFileValueSerializer::~JSONFileValueSerializer() = default;
 
-bool JSONFileValueSerializer::Serialize(base::ValueView root) {
+bool JSONFileValueSerializer::Serialize(const base::Value& root) {
   return SerializeInternal(root, false);
 }
 
 bool JSONFileValueSerializer::SerializeAndOmitBinaryValues(
-    base::ValueView root) {
+    const base::Value& root) {
   return SerializeInternal(root, true);
 }
 
-bool JSONFileValueSerializer::SerializeInternal(base::ValueView root,
+bool JSONFileValueSerializer::SerializeInternal(const base::Value& root,
                                                 bool omit_binary_values) {
   std::string json_string;
   JSONStringValueSerializer serializer(&json_string);
   serializer.set_pretty_print(true);
-  bool result = omit_binary_values
-                    ? serializer.SerializeAndOmitBinaryValues(root)
-                    : serializer.Serialize(root);
+  bool result = omit_binary_values ?
+      serializer.SerializeAndOmitBinaryValues(root) :
+      serializer.Serialize(root);
   if (!result)
     return false;
 
@@ -55,16 +55,15 @@ bool JSONFileValueSerializer::SerializeInternal(base::ValueView root,
 JSONFileValueDeserializer::JSONFileValueDeserializer(
     const base::FilePath& json_file_path,
     int options)
-    : json_file_path_(json_file_path), options_(options) {}
+    : json_file_path_(json_file_path), options_(options), last_read_size_(0U) {}
 
 JSONFileValueDeserializer::~JSONFileValueDeserializer() = default;
 
 int JSONFileValueDeserializer::ReadFileToString(std::string* json_string) {
   DCHECK(json_string);
-  last_read_size_ = 0u;
   if (!base::ReadFileToString(json_file_path_, json_string)) {
-#if BUILDFLAG(IS_WIN)
-    DWORD error = ::GetLastError();
+#if defined(OS_WIN)
+    int error = ::GetLastError();
     if (error == ERROR_SHARING_VIOLATION || error == ERROR_LOCK_VIOLATION) {
       return JSON_FILE_LOCKED;
     } else if (error == ERROR_ACCESS_DENIED) {

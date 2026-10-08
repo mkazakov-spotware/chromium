@@ -1,22 +1,21 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/host/mouse_cursor_monitor_proxy.h"
 
-#include <memory>
-
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
-#include "build/chromeos_buildflags.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_capture_options.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_frame.h"
 #include "third_party/webrtc/modules/desktop_capture/mouse_cursor.h"
 #include "third_party/webrtc/modules/desktop_capture/mouse_cursor_monitor.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "remoting/host/chromeos/mouse_cursor_monitor_aura.h"
 #endif
 
@@ -26,10 +25,6 @@ class MouseCursorMonitorProxy::Core
     : public webrtc::MouseCursorMonitor::Callback {
  public:
   explicit Core(base::WeakPtr<MouseCursorMonitorProxy> proxy);
-
-  Core(const Core&) = delete;
-  Core& operator=(const Core&) = delete;
-
   ~Core() override;
 
   void CreateMouseCursorMonitor(const webrtc::DesktopCaptureOptions& options);
@@ -50,12 +45,13 @@ class MouseCursorMonitorProxy::Core
   base::WeakPtr<MouseCursorMonitorProxy> proxy_;
   scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner_;
   std::unique_ptr<webrtc::MouseCursorMonitor> mouse_cursor_monitor_;
+
+  DISALLOW_COPY_AND_ASSIGN(Core);
 };
 
 MouseCursorMonitorProxy::Core::Core(
     base::WeakPtr<MouseCursorMonitorProxy> proxy)
-    : proxy_(proxy),
-      caller_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {
+    : proxy_(proxy), caller_task_runner_(base::ThreadTaskRunnerHandle::Get()) {
   thread_checker_.DetachFromThread();
 }
 
@@ -67,14 +63,12 @@ void MouseCursorMonitorProxy::Core::CreateMouseCursorMonitor(
     const webrtc::DesktopCaptureOptions& options) {
   DCHECK(thread_checker_.CalledOnValidThread());
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  mouse_cursor_monitor_ = std::make_unique<MouseCursorMonitorAura>();
-#elif defined(REMOTING_USE_WAYLAND)
-  mouse_cursor_monitor_ = webrtc::MouseCursorMonitor::Create(options);
-#else   // BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
+  mouse_cursor_monitor_.reset(new MouseCursorMonitorAura());
+#else   // defined(OS_CHROMEOS)
   mouse_cursor_monitor_.reset(webrtc::MouseCursorMonitor::CreateForScreen(
       options, webrtc::kFullDesktopScreenId));
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
   if (!mouse_cursor_monitor_)
     LOG(ERROR) << "Failed to initialize MouseCursorMonitor.";
 }
@@ -121,7 +115,7 @@ MouseCursorMonitorProxy::MouseCursorMonitorProxy(
     scoped_refptr<base::SingleThreadTaskRunner> capture_task_runner,
     const webrtc::DesktopCaptureOptions& options)
     : capture_task_runner_(capture_task_runner) {
-  core_ = std::make_unique<Core>(weak_factory_.GetWeakPtr());
+  core_.reset(new Core(weak_factory_.GetWeakPtr()));
   capture_task_runner_->PostTask(
       FROM_HERE, base::BindOnce(&Core::CreateMouseCursorMonitor,
                                 base::Unretained(core_.get()), options));

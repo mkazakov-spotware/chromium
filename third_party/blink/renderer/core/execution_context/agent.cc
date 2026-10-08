@@ -1,51 +1,33 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/execution_context/agent.h"
 
-#include "third_party/blink/renderer/bindings/core/v8/rejected_promises.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/mutation_observer.h"
-#include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/platform/scheduler/public/event_loop.h"
 
 namespace blink {
 
 namespace {
 bool is_cross_origin_isolated = false;
-bool is_isolated_context = false;
 
 #if DCHECK_IS_ON()
 bool is_cross_origin_isolated_set = false;
-bool is_isolated_context_set = false;
 #endif
 }  // namespace
 
 Agent::Agent(v8::Isolate* isolate,
              const base::UnguessableToken& cluster_id,
              std::unique_ptr<v8::MicrotaskQueue> microtask_queue)
-    : Agent(isolate, cluster_id, std::move(microtask_queue), false, true) {}
-
-Agent::Agent(v8::Isolate* isolate,
-             const base::UnguessableToken& cluster_id,
-             std::unique_ptr<v8::MicrotaskQueue> microtask_queue,
-             bool is_origin_agent_cluster,
-             bool origin_agent_cluster_left_as_default)
-    : rejected_promises_(RejectedPromises::Create()),
-      event_loop_(base::AdoptRef(
+    : event_loop_(base::AdoptRef(
           new scheduler::EventLoop(isolate, std::move(microtask_queue)))),
-      cluster_id_(cluster_id),
-      origin_keyed_because_of_inheritance_(false),
-      is_origin_agent_cluster_(is_origin_agent_cluster),
-      origin_agent_cluster_left_as_default_(
-          origin_agent_cluster_left_as_default) {}
+      cluster_id_(cluster_id) {}
 
 Agent::~Agent() = default;
 
-void Agent::Trace(Visitor* visitor) const {
-  Supplementable<Agent>::Trace(visitor);
-}
+void Agent::Trace(Visitor* visitor) const {}
 
 void Agent::AttachContext(ExecutionContext* context) {
   event_loop_->AttachScheduler(context->GetScheduler());
@@ -70,52 +52,19 @@ void Agent::SetIsCrossOriginIsolated(bool value) {
   is_cross_origin_isolated = value;
 }
 
-// static
-bool Agent::IsIsolatedContext() {
-  return is_isolated_context;
-}
-
-// static
-void Agent::SetIsIsolatedContext(bool value) {
+bool Agent::IsOriginIsolated() {
 #if DCHECK_IS_ON()
-  if (is_isolated_context_set)
-    DCHECK_EQ(is_isolated_context, value);
-  is_isolated_context_set = true;
+  DCHECK(is_origin_isolated_set_);
 #endif
-  is_isolated_context = value;
+  return is_origin_isolated_;
 }
 
-bool Agent::IsOriginKeyed() const {
-  return IsCrossOriginIsolated() || IsOriginKeyedForInheritance();
-}
-
-bool Agent::IsOriginKeyedForInheritance() const {
-  return is_origin_agent_cluster_ || origin_keyed_because_of_inheritance_;
-}
-
-bool Agent::IsOriginOrSiteKeyedBasedOnDefault() const {
-  return origin_agent_cluster_left_as_default_;
-}
-
-void Agent::ForceOriginKeyedBecauseOfInheritance() {
-  origin_keyed_because_of_inheritance_ = true;
-}
-
-bool Agent::IsWindowAgent() const {
-  return false;
-}
-
-void Agent::PerformMicrotaskCheckpoint() {
-  event_loop_->PerformMicrotaskCheckpoint();
-  rejected_promises_->ProcessQueue();
-}
-
-void Agent::Dispose() {
-  rejected_promises_->Dispose();
-}
-
-RejectedPromises& Agent::GetRejectedPromises() {
-  return *rejected_promises_;
+void Agent::SetIsOriginIsolated(bool value) {
+#if DCHECK_IS_ON()
+  DCHECK(!is_origin_isolated_set_ || value == is_origin_isolated_);
+  is_origin_isolated_set_ = true;
+#endif
+  is_origin_isolated_ = value;
 }
 
 }  // namespace blink

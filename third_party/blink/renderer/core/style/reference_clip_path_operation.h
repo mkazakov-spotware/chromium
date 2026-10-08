@@ -30,6 +30,8 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_STYLE_REFERENCE_CLIP_PATH_OPERATION_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_STYLE_REFERENCE_CLIP_PATH_OPERATION_H_
 
+#include <memory>
+
 #include "third_party/blink/renderer/core/style/clip_path_operation.h"
 #include "third_party/blink/renderer/core/svg/svg_resource.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
@@ -54,7 +56,7 @@ class ReferenceClipPathOperation final : public ClipPathOperation {
 
  private:
   bool operator==(const ClipPathOperation&) const override;
-  OperationType GetType() const override { return kReference; }
+  OperationType GetType() const override { return REFERENCE; }
 
   ReferenceClipPathOperation(const String& url, SVGResource* resource)
       : resource_(resource), url_(url) {}
@@ -66,7 +68,7 @@ class ReferenceClipPathOperation final : public ClipPathOperation {
 template <>
 struct DowncastTraits<ReferenceClipPathOperation> {
   static bool AllowFrom(const ClipPathOperation& op) {
-    return op.GetType() == ClipPathOperation::kReference;
+    return op.GetType() == ClipPathOperation::REFERENCE;
   }
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,20 +8,21 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/singleton.h"
-#include "base/metrics/field_trial_params.h"
+#include "base/task/post_task.h"
+#include "base/task/thread_pool.h"
 #include "base/time/default_clock.h"
-#include "base/trace_event/trace_event.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
+#include "chrome/browser/engagement/site_engagement_service.h"
 #include "chrome/browser/engagement/site_engagement_service_factory.h"
 #include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 #include "components/lookalikes/core/lookalike_url_util.h"
-#include "components/site_engagement/content/site_engagement_score.h"
-#include "components/site_engagement/content/site_engagement_service.h"
 #include "components/url_formatter/spoof_checks/top_domains/top_domain_util.h"
 #include "components/url_formatter/url_formatter.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
@@ -29,9 +30,9 @@
 
 namespace {
 
-constexpr base::TimeDelta kEngagedSiteUpdateInterval = base::Seconds(60);
+constexpr uint32_t kEngagedSiteUpdateIntervalInSeconds = 60;
 
-class LookalikeUrlServiceFactory : public ProfileKeyedServiceFactory {
+class LookalikeUrlServiceFactory : public BrowserContextKeyedServiceFactory {
  public:
   static LookalikeUrlService* GetForProfile(Profile* profile) {
     return static_cast<LookalikeUrlService*>(
@@ -42,19 +43,15 @@ class LookalikeUrlServiceFactory : public ProfileKeyedServiceFactory {
     return base::Singleton<LookalikeUrlServiceFactory>::get();
   }
 
-  LookalikeUrlServiceFactory(const LookalikeUrlServiceFactory&) = delete;
-  LookalikeUrlServiceFactory& operator=(const LookalikeUrlServiceFactory&) =
-      delete;
-
  private:
   friend struct base::DefaultSingletonTraits<LookalikeUrlServiceFactory>;
 
   // LookalikeUrlServiceFactory();
   LookalikeUrlServiceFactory()
-      : ProfileKeyedServiceFactory(
+      : BrowserContextKeyedServiceFactory(
             "LookalikeUrlServiceFactory",
-            ProfileSelections::BuildForRegularAndIncognito()) {
-    DependsOn(site_engagement::SiteEngagementServiceFactory::GetInstance());
+            BrowserContextDependencyManager::GetInstance()) {
+    DependsOn(SiteEngagementServiceFactory::GetInstance());
   }
 
   ~LookalikeUrlServiceFactory() override {}
@@ -64,88 +61,54 @@ class LookalikeUrlServiceFactory : public ProfileKeyedServiceFactory {
       content::BrowserContext* profile) const override {
     return new LookalikeUrlService(static_cast<Profile*>(profile));
   }
-};
 
-// static
-std::vector<DomainInfo> UpdateEngagedSitesOnWorkerThread(
-    base::Time now,
-    scoped_refptr<HostContentSettingsMap> map) {
-  TRACE_EVENT0("navigation",
-               "LookalikeUrlService UpdateEngagedSitesOnWorkerThread");
-  std::vector<DomainInfo> new_engaged_sites;
-
-  auto details =
-      site_engagement::SiteEngagementService::GetAllDetailsInBackground(now,
-                                                                        map);
-  TRACE_EVENT1("navigation", "LookalikeUrlService SiteEngagementService",
-               "site_count", details.size());
-  for (const site_engagement::mojom::SiteEngagementDetails& detail : details) {
-    if (!detail.origin.SchemeIsHTTPOrHTTPS()) {
-      continue;
-    }
-    // Ignore sites with an engagement score below threshold.
-    if (!site_engagement::SiteEngagementService::IsEngagementAtLeast(
-            detail.total_score, blink::mojom::EngagementLevel::MEDIUM)) {
-      continue;
-    }
-    const DomainInfo domain_info = GetDomainInfo(detail.origin);
-    if (domain_info.domain_and_registry.empty()) {
-      continue;
-    }
-    new_engaged_sites.push_back(domain_info);
+  content::BrowserContext* GetBrowserContextToUse(
+      content::BrowserContext* context) const override {
+    return chrome::GetBrowserContextOwnInstanceInIncognito(context);
   }
 
-  return new_engaged_sites;
-}
+  DISALLOW_COPY_AND_ASSIGN(LookalikeUrlServiceFactory);
+};
 
 }  // namespace
 
 LookalikeUrlService::LookalikeUrlService(Profile* profile)
     : profile_(profile), clock_(base::DefaultClock::GetInstance()) {}
 
-LookalikeUrlService::~LookalikeUrlService() = default;
+LookalikeUrlService::~LookalikeUrlService() {}
 
 // static
 LookalikeUrlService* LookalikeUrlService::Get(Profile* profile) {
   return LookalikeUrlServiceFactory::GetForProfile(profile);
 }
 
-bool LookalikeUrlService::EngagedSitesNeedUpdating() const {
-  if (last_engagement_fetch_time_.is_null())
-    return true;
-  const base::TimeDelta elapsed = clock_->Now() - last_engagement_fetch_time_;
-  return elapsed >= kEngagedSiteUpdateInterval;
+bool LookalikeUrlService::EngagedSitesNeedUpdating() {
+  if (!last_engagement_fetch_time_.is_null()) {
+    const base::TimeDelta elapsed = clock_->Now() - last_engagement_fetch_time_;
+    if (elapsed <
+        base::TimeDelta::FromSeconds(kEngagedSiteUpdateIntervalInSeconds)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 void LookalikeUrlService::ForceUpdateEngagedSites(
     EngagedSitesCallback callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  TRACE_EVENT0("navigation", "LookalikeUrlService::ForceUpdateEngagedSites");
-
-  // Queue an update on a worker thread if necessary.
-  if (!update_in_progress_) {
-    update_in_progress_ = true;
-
-    base::ThreadPool::PostTaskAndReplyWithResult(
-        FROM_HERE,
-        {base::TaskPriority::USER_BLOCKING,
-         base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
-        base::BindOnce(
-            &UpdateEngagedSitesOnWorkerThread,
-            clock_->Now(),
-            base::WrapRefCounted(
-                HostContentSettingsMapFactory::GetForProfile(profile_))),
-        base::BindOnce(&LookalikeUrlService::OnUpdateEngagedSitesCompleted,
-                       weak_factory_.GetWeakPtr()));
-  }
-
-  // Postpone the execution of the callback after the update is completed.
-  pending_update_complete_callbacks_.push_back(std::move(callback));
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE,
+      {base::TaskPriority::USER_BLOCKING,
+       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
+      base::BindOnce(
+          &SiteEngagementService::GetAllDetailsInBackground, clock_->Now(),
+          base::WrapRefCounted(
+              HostContentSettingsMapFactory::GetForProfile(profile_))),
+      base::BindOnce(&LookalikeUrlService::OnFetchEngagedSites,
+                     weak_factory_.GetWeakPtr(), std::move(callback)));
 }
 
 const std::vector<DomainInfo> LookalikeUrlService::GetLatestEngagedSites()
     const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   return engaged_sites_;
 }
 
@@ -153,19 +116,26 @@ void LookalikeUrlService::SetClockForTesting(base::Clock* clock) {
   clock_ = clock;
 }
 
-void LookalikeUrlService::OnUpdateEngagedSitesCompleted(
-    std::vector<DomainInfo> new_engaged_sites) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(update_in_progress_);
-  TRACE_EVENT0("navigation",
-               "LookalikeUrlService::OnUpdateEngagedSitesCompleted");
-  engaged_sites_.swap(new_engaged_sites);
+void LookalikeUrlService::OnFetchEngagedSites(
+    EngagedSitesCallback callback,
+    std::vector<mojom::SiteEngagementDetails> details) {
+  SiteEngagementService* service = SiteEngagementService::Get(profile_);
+  engaged_sites_.clear();
+  for (const mojom::SiteEngagementDetails& detail : details) {
+    if (!detail.origin.SchemeIsHTTPOrHTTPS()) {
+      continue;
+    }
+    // Ignore sites with an engagement score below threshold.
+    if (!service->IsEngagementAtLeast(detail.origin,
+                                      blink::mojom::EngagementLevel::MEDIUM)) {
+      continue;
+    }
+    const DomainInfo domain_info = GetDomainInfo(detail.origin);
+    if (domain_info.domain_and_registry.empty()) {
+      continue;
+    }
+    engaged_sites_.push_back(domain_info);
+  }
   last_engagement_fetch_time_ = clock_->Now();
-  update_in_progress_ = false;
-
-  // Call pending callbacks.
-  std::vector<EngagedSitesCallback> callbacks;
-  callbacks.swap(pending_update_complete_callbacks_);
-  for (auto&& callback : callbacks)
-    std::move(callback).Run(engaged_sites_);
+  std::move(callback).Run(engaged_sites_);
 }

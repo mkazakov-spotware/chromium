@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,12 @@
 #include "chrome/browser/renderer_context_menu/render_view_context_menu.h"
 #include "chrome/browser/sharing/click_to_call/click_to_call_metrics.h"
 #include "chrome/browser/sharing/click_to_call/click_to_call_ui_controller.h"
+#include "chrome/browser/sharing/click_to_call/feature.h"
 #include "chrome/browser/sharing/sharing_constants.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/sync_device_info/device_info.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/image_model.h"
-#include "ui/color/color_id.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/paint_vector_icon.h"
 
@@ -66,7 +66,7 @@ void ClickToCallContextMenuObserver::BuildMenu(
     return;
 
   if (devices_.size() == 1) {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     proxy_->AddMenuItem(
         IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_SINGLE_DEVICE,
         l10n_util::GetStringFUTF16(
@@ -79,12 +79,12 @@ void ClickToCallContextMenuObserver::BuildMenu(
             IDS_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_SINGLE_DEVICE,
             base::UTF8ToUTF16(devices_[0]->client_name())),
         ui::ImageModel::FromVectorIcon(controller_->GetVectorIcon(),
-                                       ui::kColorMenuIcon,
+                                       /*color_id=*/-1,
                                        ui::SimpleMenuModel::kDefaultIconSize));
 #endif
   } else {
     BuildSubMenu();
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     proxy_->AddSubMenu(
         IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_MULTIPLE_DEVICES,
         l10n_util::GetStringUTF16(
@@ -96,7 +96,7 @@ void ClickToCallContextMenuObserver::BuildMenu(
         IDS_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_MULTIPLE_DEVICES,
         sub_menu_model_.get(),
         ui::ImageModel::FromVectorIcon(controller_->GetVectorIcon(),
-                                       ui::kColorMenuIcon,
+                                       /*color_id=*/-1,
                                        ui::SimpleMenuModel::kDefaultIconSize));
 #endif
   }
@@ -143,7 +143,7 @@ void ClickToCallContextMenuObserver::ExecuteCommand(int command_id) {
 void ClickToCallContextMenuObserver::SendClickToCallMessage(
     int chosen_device_index) {
   DCHECK(entry_point_);
-  if (static_cast<size_t>(chosen_device_index) >= devices_.size())
+  if (size_t{chosen_device_index} >= devices_.size())
     return;
 
   LogSharingSelectedIndex(controller_->GetFeatureMetricsPrefix(),

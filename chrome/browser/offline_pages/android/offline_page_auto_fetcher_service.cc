@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "base/bind.h"
+#include "base/optional.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
@@ -22,7 +23,6 @@
 #include "components/offline_pages/core/offline_page_item_utils.h"
 #include "components/offline_pages/core/offline_page_model.h"
 #include "components/offline_pages/core/offline_store_utils.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 namespace offline_pages {
@@ -169,7 +169,7 @@ void OfflinePageAutoFetcherService::AutoFetchComplete(
     const OfflinePageItem* page) {
   if (!page)
     return;
-  absl::optional<auto_fetch::ClientIdMetadata> metadata =
+  base::Optional<auto_fetch::ClientIdMetadata> metadata =
       auto_fetch::ExtractMetadata(page->client_id);
   if (!metadata)
     return;

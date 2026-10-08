@@ -1,26 +1,25 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/updater/win/user_info.h"
 
-#include <string>
-
 #include "base/check.h"
-#include "chrome/updater/util/win_util.h"
+#include "base/strings/string16.h"
+#include "chrome/updater/win/util.h"
 
 namespace updater {
 
 namespace {
 
 // Sid of NT AUTHORITY\SYSTEM user.
-constexpr wchar_t kSystemPrincipalSid[] = L"S-1-5-18";
+constexpr base::char16 kSystemPrincipalSid[] = L"S-1-5-18";
 
 }  // namespace
 
-HRESULT GetProcessUser(std::wstring* name,
-                       std::wstring* domain,
-                       std::wstring* sid) {
+HRESULT GetProcessUser(base::string16* name,
+                       base::string16* domain,
+                       base::string16* sid) {
   CSid current_sid;
 
   HRESULT hr = GetProcessUserSid(&current_sid);
@@ -43,7 +42,7 @@ HRESULT GetProcessUserSid(CSid* sid) {
   CAccessToken token;
   if (!token.GetProcessToken(TOKEN_QUERY) || !token.GetUser(sid)) {
     HRESULT hr = HRESULTFromLastError();
-    std::wstring thread_sid;
+    base::string16 thread_sid;
     DCHECK(FAILED(GetThreadUserSid(&thread_sid)));
     return hr;
   }
@@ -52,12 +51,12 @@ HRESULT GetProcessUserSid(CSid* sid) {
 }
 
 bool IsLocalSystemUser() {
-  std::wstring user_sid;
+  base::string16 user_sid;
   HRESULT hr = GetProcessUser(nullptr, nullptr, &user_sid);
   return SUCCEEDED(hr) && user_sid.compare(kSystemPrincipalSid) == 0;
 }
 
-HRESULT GetThreadUserSid(std::wstring* sid) {
+HRESULT GetThreadUserSid(base::string16* sid) {
   DCHECK(sid);
   CAccessToken access_token;
   CSid user_sid;

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,31 +13,34 @@ namespace payments {
 // Tests that serializing a default PaymentDetailsModifier yields the expected
 // result.
 TEST(PaymentRequestTest, EmptyPaymentDetailsModifierDictionary) {
-  base::Value::Dict expected_value;
+  base::DictionaryValue expected_value;
 
-  expected_value.Set("supportedMethods", "");
-  expected_value.Set("data", "");
+  expected_value.SetString("supportedMethods", "");
+  expected_value.SetString("data", "");
 
   PaymentDetailsModifier payment_details_modifier;
-  EXPECT_EQ(expected_value, payment_details_modifier.ToValueDict());
+  EXPECT_TRUE(expected_value.Equals(
+      payment_details_modifier.ToDictionaryValue().get()));
 }
 
 // Tests that serializing a populated PaymentDetailsModifier yields the expected
 // result.
 TEST(PaymentRequestTest, PopulatedDetailsModifierDictionary) {
-  base::Value::Dict expected_value;
+  base::DictionaryValue expected_value;
 
-  expected_value.Set("supportedMethods", "basic-card");
-  expected_value.Set("data",
-                     "{\"supportedNetworks\":[\"visa\",\"mastercard\"]}");
-  base::Value::Dict item_dict;
-  item_dict.Set("label", "Gratuity");
-  base::Value::Dict amount_dict;
-  amount_dict.Set("currency", "USD");
-  amount_dict.Set("value", "139.99");
-  item_dict.Set("amount", std::move(amount_dict));
-  item_dict.Set("pending", false);
-  expected_value.Set("total", std::move(item_dict));
+  expected_value.SetString("supportedMethods", "basic-card");
+  expected_value.SetString("data",
+                           "{\"supportedNetworks\":[\"visa\",\"mastercard\"]}");
+  std::unique_ptr<base::DictionaryValue> item_dict =
+      std::make_unique<base::DictionaryValue>();
+  item_dict->SetString("label", "Gratuity");
+  std::unique_ptr<base::DictionaryValue> amount_dict =
+      std::make_unique<base::DictionaryValue>();
+  amount_dict->SetString("currency", "USD");
+  amount_dict->SetString("value", "139.99");
+  item_dict->SetDictionary("amount", std::move(amount_dict));
+  item_dict->SetBoolean("pending", false);
+  expected_value.SetDictionary("total", std::move(item_dict));
 
   PaymentDetailsModifier payment_details_modifier;
   payment_details_modifier.method_data.supported_method = "basic-card";
@@ -48,7 +51,8 @@ TEST(PaymentRequestTest, PopulatedDetailsModifierDictionary) {
   payment_details_modifier.total->amount->currency = "USD";
   payment_details_modifier.total->amount->value = "139.99";
 
-  EXPECT_EQ(expected_value, payment_details_modifier.ToValueDict());
+  EXPECT_TRUE(expected_value.Equals(
+      payment_details_modifier.ToDictionaryValue().get()));
 }
 
 // Tests that two details modifier objects are not equal if their property

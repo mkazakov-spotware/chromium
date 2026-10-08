@@ -1,16 +1,15 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 package org.chromium.chrome.browser.crash;
 
+import android.annotation.TargetApi;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.os.Build;
 import android.os.PersistableBundle;
 
-import androidx.annotation.RequiresApi;
-
-import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManagerImpl;
+import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManager;
 import org.chromium.components.minidump_uploader.MinidumpUploaderDelegate;
 import org.chromium.components.minidump_uploader.util.CrashReportingPermissionManager;
 import org.chromium.components.minidump_uploader.util.NetworkPermissionUtil;
@@ -20,7 +19,7 @@ import java.io.File;
 /**
  * Chrome-specific implementations for minidump uploading logic.
  */
-@RequiresApi(Build.VERSION_CODES.M)
+@TargetApi(Build.VERSION_CODES.M)
 public class ChromeMinidumpUploaderDelegate implements MinidumpUploaderDelegate {
     // PersistableBundle keys:
     static final String IS_CLIENT_IN_METRICS_SAMPLE = "isClientInMetricsSample";
@@ -73,14 +72,8 @@ public class ChromeMinidumpUploaderDelegate implements MinidumpUploaderDelegate 
             }
 
             @Override
-            public boolean isUsageAndCrashReportingPermittedByPolicy() {
-                return PrivacyPreferencesManagerImpl.getInstance()
-                        .isUsageAndCrashReportingPermittedByPolicy();
-            }
-
-            @Override
             public boolean isUsageAndCrashReportingPermittedByUser() {
-                return PrivacyPreferencesManagerImpl.getInstance()
+                return PrivacyPreferencesManager.getInstance()
                         .isUsageAndCrashReportingPermittedByUser();
             }
 

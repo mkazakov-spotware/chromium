@@ -39,11 +39,6 @@
 #include <memory>
 #include <vector>
 
-#include <google/protobuf/io/coded_stream.h>
-#include <google/protobuf/io/printer.h>
-#include <google/protobuf/wire_format.h>
-#include <google/protobuf/stubs/strutil.h>
-#include <google/protobuf/stubs/substitute.h>
 #include <google/protobuf/compiler/java/java_context.h>
 #include <google/protobuf/compiler/java/java_doc_comment.h>
 #include <google/protobuf/compiler/java/java_enum.h>
@@ -52,6 +47,13 @@
 #include <google/protobuf/compiler/java/java_helpers.h>
 #include <google/protobuf/compiler/java/java_name_resolver.h>
 #include <google/protobuf/descriptor.pb.h>
+#include <google/protobuf/io/coded_stream.h>
+#include <google/protobuf/io/printer.h>
+#include <google/protobuf/wire_format.h>
+#include <google/protobuf/stubs/strutil.h>
+#include <google/protobuf/stubs/substitute.h>
+
+
 
 namespace google {
 namespace protobuf {
@@ -61,7 +63,7 @@ namespace java {
 namespace {
 std::string MapValueImmutableClassdName(const Descriptor* descriptor,
                                         ClassNameResolver* name_resolver) {
-  const FieldDescriptor* value_field = descriptor->map_value();
+  const FieldDescriptor* value_field = descriptor->FindFieldByName("value");
   GOOGLE_CHECK_EQ(FieldDescriptor::TYPE_MESSAGE, value_field->type());
   return name_resolver->GetImmutableClassName(value_field->message_type());
 }
@@ -76,11 +78,6 @@ MessageBuilderGenerator::MessageBuilderGenerator(const Descriptor* descriptor,
   GOOGLE_CHECK(HasDescriptorMethods(descriptor->file(), context->EnforceLite()))
       << "Generator factory error: A non-lite message generator is used to "
          "generate lite messages.";
-  for (int i = 0; i < descriptor_->field_count(); i++) {
-    if (IsRealOneof(descriptor_->field(i))) {
-      oneofs_.insert(descriptor_->field(i)->containing_oneof());
-    }
-  }
 }
 
 MessageBuilderGenerator::~MessageBuilderGenerator() {}
@@ -120,11 +117,13 @@ void MessageBuilderGenerator::Generate(io::Printer* printer) {
 
   // oneof
   std::map<std::string, std::string> vars;
-  for (auto oneof : oneofs_) {
-    vars["oneof_name"] = context_->GetOneofGeneratorInfo(oneof)->name;
+  for (int i = 0; i < descriptor_->oneof_decl_count(); i++) {
+    vars["oneof_name"] =
+        context_->GetOneofGeneratorInfo(descriptor_->oneof_decl(i))->name;
     vars["oneof_capitalized_name"] =
-        context_->GetOneofGeneratorInfo(oneof)->capitalized_name;
-    vars["oneof_index"] = StrCat(oneof->index());
+        context_->GetOneofGeneratorInfo(descriptor_->oneof_decl(i))
+            ->capitalized_name;
+    vars["oneof_index"] = StrCat(descriptor_->oneof_decl(i)->index());
     // oneofCase_ and oneof_
     printer->Print(vars,
                    "private int $oneof_name$Case_ = 0;\n"
@@ -311,7 +310,7 @@ void MessageBuilderGenerator::GenerateCommonBuilderMethods(
   printer->Indent();
   printer->Indent();
   for (int i = 0; i < descriptor_->field_count(); i++) {
-    if (!IsRealOneof(descriptor_->field(i))) {
+    if (!descriptor_->field(i)->containing_oneof()) {
       field_generators_.get(descriptor_->field(i))
           .GenerateFieldBuilderInitializationCode(printer);
     }
@@ -331,17 +330,18 @@ void MessageBuilderGenerator::GenerateCommonBuilderMethods(
   printer->Indent();
 
   for (int i = 0; i < descriptor_->field_count(); i++) {
-    if (!IsRealOneof(descriptor_->field(i))) {
+    if (!descriptor_->field(i)->containing_oneof()) {
       field_generators_.get(descriptor_->field(i))
           .GenerateBuilderClearCode(printer);
     }
   }
 
-  for (auto oneof : oneofs_) {
+  for (int i = 0; i < descriptor_->oneof_decl_count(); i++) {
     printer->Print(
         "$oneof_name$Case_ = 0;\n"
         "$oneof_name$_ = null;\n",
-        "oneof_name", context_->GetOneofGeneratorInfo(oneof)->name);
+        "oneof_name",
+        context_->GetOneofGeneratorInfo(descriptor_->oneof_decl(i))->name);
   }
 
   printer->Outdent();
@@ -425,9 +425,10 @@ void MessageBuilderGenerator::GenerateCommonBuilderMethods(
                    "bit_field_name", GetBitFieldName(i));
   }
 
-  for (auto oneof : oneofs_) {
-    printer->Print("result.$oneof_name$Case_ = $oneof_name$Case_;\n",
-                   "oneof_name", context_->GetOneofGeneratorInfo(oneof)->name);
+  for (int i = 0; i < descriptor_->oneof_decl_count(); i++) {
+    printer->Print(
+        "result.$oneof_name$Case_ = $oneof_name$Case_;\n", "oneof_name",
+        context_->GetOneofGeneratorInfo(descriptor_->oneof_decl(i))->name);
   }
 
   printer->Outdent();
@@ -536,20 +537,21 @@ void MessageBuilderGenerator::GenerateCommonBuilderMethods(
     printer->Indent();
 
     for (int i = 0; i < descriptor_->field_count(); i++) {
-      if (!IsRealOneof(descriptor_->field(i))) {
+      if (!descriptor_->field(i)->containing_oneof()) {
         field_generators_.get(descriptor_->field(i))
             .GenerateMergingCode(printer);
       }
     }
 
     // Merge oneof fields.
-    for (auto oneof : oneofs_) {
+    for (int i = 0; i < descriptor_->oneof_decl_count(); ++i) {
       printer->Print("switch (other.get$oneof_capitalized_name$Case()) {\n",
                      "oneof_capitalized_name",
-                     context_->GetOneofGeneratorInfo(oneof)->capitalized_name);
+                     context_->GetOneofGeneratorInfo(descriptor_->oneof_decl(i))
+                         ->capitalized_name);
       printer->Indent();
-      for (int j = 0; j < oneof->field_count(); j++) {
-        const FieldDescriptor* field = oneof->field(j);
+      for (int j = 0; j < descriptor_->oneof_decl(i)->field_count(); j++) {
+        const FieldDescriptor* field = descriptor_->oneof_decl(i)->field(j);
         printer->Print("case $field_name$: {\n", "field_name",
                        ToUpper(field->name()));
         printer->Indent();
@@ -563,7 +565,9 @@ void MessageBuilderGenerator::GenerateCommonBuilderMethods(
           "  break;\n"
           "}\n",
           "cap_oneof_name",
-          ToUpper(context_->GetOneofGeneratorInfo(oneof)->name));
+          ToUpper(
+              context_->GetOneofGeneratorInfo(descriptor_->oneof_decl(i))
+                  ->name));
       printer->Outdent();
       printer->Print("}\n");
     }
@@ -653,8 +657,19 @@ void MessageBuilderGenerator::GenerateIsInitialized(io::Printer* printer) {
               "name", info->capitalized_name);
           break;
         case FieldDescriptor::LABEL_OPTIONAL:
+          if (!SupportFieldPresence(descriptor_->file()) &&
+              field->containing_oneof() != NULL) {
+            const OneofDescriptor* oneof = field->containing_oneof();
+            const OneofGeneratorInfo* oneof_info =
+                context_->GetOneofGeneratorInfo(oneof);
+            printer->Print("if ($oneof_name$Case_ == $field_number$) {\n",
+                           "oneof_name", oneof_info->name, "field_number",
+                           StrCat(field->number()));
+          } else {
+            printer->Print("if (has$name$()) {\n", "name",
+                           info->capitalized_name);
+          }
           printer->Print(
-              "if (has$name$()) {\n"
               "  if (!get$name$().isInitialized()) {\n"
               "    return false;\n"
               "  }\n"

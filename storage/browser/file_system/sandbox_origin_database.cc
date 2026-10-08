@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -116,7 +116,7 @@ bool SandboxOriginDatabase::Init(InitOption init_option,
       UMA_HISTOGRAM_ENUMERATION(kSandboxOriginDatabaseRepairHistogramLabel,
                                 SandboxOriginRepairResult::DB_REPAIR_FAILED,
                                 SandboxOriginRepairResult::DB_REPAIR_MAX);
-      [[fallthrough]];
+      FALLTHROUGH;
     case DELETE_ON_CORRUPTION:
       if (!base::DeletePathRecursively(file_system_directory_))
         return false;
@@ -194,7 +194,7 @@ void SandboxOriginDatabase::HandleError(const base::Location& from_here,
 void SandboxOriginDatabase::ReportInitStatus(const leveldb::Status& status) {
   base::Time now = base::Time::Now();
   base::TimeDelta minimum_interval =
-      base::Hours(kSandboxOriginMinimumReportIntervalHours);
+      base::TimeDelta::FromHours(kSandboxOriginMinimumReportIntervalHours);
   if (last_reported_time_ + minimum_interval >= now)
     return;
   last_reported_time_ = now;

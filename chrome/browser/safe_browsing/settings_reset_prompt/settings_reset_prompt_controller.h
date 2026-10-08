@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,10 @@
 #define CHROME_BROWSER_SAFE_BROWSING_SETTINGS_RESET_PROMPT_SETTINGS_RESET_PROMPT_CONTROLLER_H_
 
 #include <memory>
-#include <string>
 #include <vector>
 
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "base/time/time.h"
 #include "chrome/browser/profile_resetter/brandcoded_default_settings.h"
 #include "chrome/browser/safe_browsing/settings_reset_prompt/settings_reset_prompt_model.h"
@@ -29,12 +30,8 @@ class SettingsResetPromptController {
       std::unique_ptr<SettingsResetPromptModel> model,
       std::unique_ptr<BrandcodedDefaultSettings> default_settings);
 
-  SettingsResetPromptController(const SettingsResetPromptController&) = delete;
-  SettingsResetPromptController& operator=(
-      const SettingsResetPromptController&) = delete;
-
-  std::u16string GetWindowTitle() const;
-  std::u16string GetMainText() const;
+  base::string16 GetWindowTitle() const;
+  base::string16 GetMainText() const;
   // Returns the offset into the main text string where a URL was inserted. To
   // be used by the dialog to apply an appropriate style to the URL text.
   gfx::Range GetMainTextUrlRange() const;
@@ -63,11 +60,13 @@ class SettingsResetPromptController {
 
   std::unique_ptr<SettingsResetPromptModel> model_;
   std::unique_ptr<BrandcodedDefaultSettings> default_settings_;
-  std::u16string main_text_;
+  base::string16 main_text_;
   gfx::Range main_text_url_range_;
 
   // Used for metrics reporting.
   base::Time time_dialog_shown_;
+
+  DISALLOW_COPY_AND_ASSIGN(SettingsResetPromptController);
 };
 
 }  // namespace safe_browsing

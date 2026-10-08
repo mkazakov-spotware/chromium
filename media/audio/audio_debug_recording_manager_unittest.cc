@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/callback.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "media/audio/audio_debug_recording_helper.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -52,17 +52,17 @@ void CreateWavFile(AudioDebugRecordingStreamType stream_type,
 // Mock class to verify enable and disable calls.
 class MockAudioDebugRecordingHelper : public AudioDebugRecordingHelper {
  public:
-  MockAudioDebugRecordingHelper(const AudioParameters& params,
-                                base::OnceClosure on_destruction_closure)
-      : AudioDebugRecordingHelper(params, base::OnceClosure()),
+  MockAudioDebugRecordingHelper(
+      const AudioParameters& params,
+      scoped_refptr<base::SingleThreadTaskRunner> task_runner,
+      base::OnceClosure on_destruction_closure)
+      : AudioDebugRecordingHelper(params,
+                                  std::move(task_runner),
+                                  base::OnceClosure()),
         on_destruction_closure_in_mock_(std::move(on_destruction_closure)) {
     if (g_expect_enable_after_create_helper)
       EXPECT_CALL(*this, DoEnableDebugRecording(_, _));
   }
-
-  MockAudioDebugRecordingHelper(const MockAudioDebugRecordingHelper&) = delete;
-  MockAudioDebugRecordingHelper& operator=(
-      const MockAudioDebugRecordingHelper&) = delete;
 
   ~MockAudioDebugRecordingHelper() override {
     if (on_destruction_closure_in_mock_)
@@ -84,39 +84,37 @@ class MockAudioDebugRecordingHelper : public AudioDebugRecordingHelper {
   // We let the mock run the destruction closure to not rely on the real
   // implementation.
   base::OnceClosure on_destruction_closure_in_mock_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockAudioDebugRecordingHelper);
 };
 
 // Sub-class of the manager that overrides the CreateAudioDebugRecordingHelper
 // function to create the above mock instead.
 class AudioDebugRecordingManagerUnderTest : public AudioDebugRecordingManager {
  public:
-  AudioDebugRecordingManagerUnderTest() = default;
-
   AudioDebugRecordingManagerUnderTest(
-      const AudioDebugRecordingManagerUnderTest&) = delete;
-  AudioDebugRecordingManagerUnderTest& operator=(
-      const AudioDebugRecordingManagerUnderTest&) = delete;
-
+      scoped_refptr<base::SingleThreadTaskRunner> task_runner)
+      : AudioDebugRecordingManager(std::move(task_runner)) {}
   ~AudioDebugRecordingManagerUnderTest() override = default;
 
  private:
   std::unique_ptr<AudioDebugRecordingHelper> CreateAudioDebugRecordingHelper(
       const AudioParameters& params,
+      scoped_refptr<base::SingleThreadTaskRunner> task_runner,
       base::OnceClosure on_destruction_closure) override {
     return std::make_unique<MockAudioDebugRecordingHelper>(
-        params, std::move(on_destruction_closure));
+        params, std::move(task_runner),
+        std::move(on_destruction_closure));
   }
+
+  DISALLOW_COPY_AND_ASSIGN(AudioDebugRecordingManagerUnderTest);
 };
 
 // The test fixture.
 class AudioDebugRecordingManagerTest : public ::testing::Test {
  public:
-  AudioDebugRecordingManagerTest() = default;
-
-  AudioDebugRecordingManagerTest(const AudioDebugRecordingManagerTest&) =
-      delete;
-  AudioDebugRecordingManagerTest& operator=(
-      const AudioDebugRecordingManagerTest&) = delete;
+  AudioDebugRecordingManagerTest()
+      : manager_(task_environment_.GetMainThreadTaskRunner()) {}
 
   ~AudioDebugRecordingManagerTest() override = default;
 
@@ -137,6 +135,9 @@ class AudioDebugRecordingManagerTest : public ::testing::Test {
   // manager uses a global running id, thus doesn't restart at each
   // instantiation.
   static uint32_t expected_next_source_id_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AudioDebugRecordingManagerTest);
 };
 
 uint32_t AudioDebugRecordingManagerTest::expected_next_source_id_ = 1;

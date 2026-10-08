@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 #include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "content/browser/renderer_host/debug_urls.h"
 #include "content/browser/webui/web_ui_impl.h"
@@ -14,7 +15,6 @@
 #include "content/public/common/content_client.h"
 #include "content/public/common/url_constants.h"
 #include "content/public/common/url_utils.h"
-#include "third_party/blink/public/common/chrome_debug_urls.h"
 #include "url/gurl.h"
 
 namespace content {
@@ -30,6 +30,7 @@ static bool HandleViewSource(GURL* url, BrowserContext* browser_context) {
     static const char* const default_allowed_sub_schemes[] = {
         url::kHttpScheme,
         url::kHttpsScheme,
+        url::kFtpScheme,
         kChromeUIScheme,
         url::kFileScheme,
         url::kFileSystemScheme
@@ -38,7 +39,7 @@ static bool HandleViewSource(GURL* url, BrowserContext* browser_context) {
     // Merge all the schemes for which view-source is allowed by default, with
     // the view-source schemes defined by the ContentBrowserClient.
     std::vector<std::string> all_allowed_sub_schemes;
-    for (size_t i = 0; i < std::size(default_allowed_sub_schemes); ++i)
+    for (size_t i = 0; i < base::size(default_allowed_sub_schemes); ++i)
       all_allowed_sub_schemes.push_back(default_allowed_sub_schemes[i]);
     GetContentClient()->browser()->GetAdditionalViewSourceSchemes(
         &all_allowed_sub_schemes);
@@ -73,7 +74,7 @@ static bool ReverseViewSource(GURL* url, BrowserContext* browser_context) {
 
 static bool DebugURLHandler(GURL* url, BrowserContext* browser_context) {
   // Circumvent processing URLs that the renderer process will handle.
-  return blink::IsRendererDebugURL(*url);
+  return IsRendererDebugURL(*url);
 }
 
 // static

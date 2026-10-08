@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,8 @@ import android.util.AttributeSet;
 import android.widget.ScrollView;
 
 import androidx.annotation.IntDef;
+
+import org.chromium.base.ApiCompatibilityUtils;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -48,7 +50,8 @@ public class FadingEdgeScrollView extends ScrollView {
     public FadingEdgeScrollView(Context context, AttributeSet attrs) {
         super(context, attrs);
 
-        mSeparatorColor = getContext().getColor(R.color.toolbar_shadow_color);
+        mSeparatorColor =
+                ApiCompatibilityUtils.getColor(getResources(), R.color.toolbar_shadow_color);
         mSeparatorHeight = getResources().getDimensionPixelSize(R.dimen.divider_height);
     }
 

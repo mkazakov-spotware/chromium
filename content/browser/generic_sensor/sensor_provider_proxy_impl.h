@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include "base/memory/weak_ptr.h"
 #include "content/common/content_export.h"
-#include "content/public/browser/document_user_data.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
@@ -17,18 +16,16 @@
 
 namespace content {
 
+class PermissionControllerImpl;
 class RenderFrameHost;
 
 // This proxy acts as a gatekeeper to the real sensor provider so that this
 // proxy can intercept sensor requests and allow or deny them based on
 // the permission statuses retrieved from a permission controller.
-class SensorProviderProxyImpl final
-    : public device::mojom::SensorProvider,
-      public DocumentUserData<SensorProviderProxyImpl> {
+class SensorProviderProxyImpl final : public device::mojom::SensorProvider {
  public:
-  SensorProviderProxyImpl(const SensorProviderProxyImpl&) = delete;
-  SensorProviderProxyImpl& operator=(const SensorProviderProxyImpl&) = delete;
-
+  SensorProviderProxyImpl(PermissionControllerImpl* permission_controller,
+                          RenderFrameHost* render_frame_host);
   ~SensorProviderProxyImpl() override;
 
   void Bind(mojo::PendingReceiver<device::mojom::SensorProvider> receiver);
@@ -41,8 +38,6 @@ class SensorProviderProxyImpl final
       SensorProviderBinder binder);
 
  private:
-  explicit SensorProviderProxyImpl(RenderFrameHost* render_frame_host);
-
   // SensorProvider implementation.
   void GetSensor(device::mojom::SensorType type,
                  GetSensorCallback callback) override;
@@ -53,16 +48,14 @@ class SensorProviderProxyImpl final
                                     blink::mojom::PermissionStatus);
   void OnConnectionError();
 
-  // Callbacks from |receiver_set_| are passed to |sensor_provider_| and so
-  // the ReceiverSet should be destroyed first so that the callbacks are
-  // invalidated before being discarded.
-  mojo::Remote<device::mojom::SensorProvider> sensor_provider_;
   mojo::ReceiverSet<device::mojom::SensorProvider> receiver_set_;
+  PermissionControllerImpl* permission_controller_;
+  RenderFrameHost* render_frame_host_;
+  mojo::Remote<device::mojom::SensorProvider> sensor_provider_;
 
   base::WeakPtrFactory<SensorProviderProxyImpl> weak_factory_{this};
 
-  friend DocumentUserData;
-  DOCUMENT_USER_DATA_KEY_DECL();
+  DISALLOW_COPY_AND_ASSIGN(SensorProviderProxyImpl);
 };
 
 }  // namespace content

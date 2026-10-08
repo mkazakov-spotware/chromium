@@ -1,11 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/devtools/protocol/tethering_handler.h"
 
 #include <map>
-#include <memory>
 
 #include "base/bind.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -359,7 +358,7 @@ TetheringHandler::~TetheringHandler() {
 }
 
 void TetheringHandler::Wire(UberDispatcher* dispatcher) {
-  frontend_ = std::make_unique<Tethering::Frontend>(dispatcher->channel());
+  frontend_.reset(new Tethering::Frontend(dispatcher->channel()));
   Tethering::Dispatcher::wire(dispatcher, this);
 }
 

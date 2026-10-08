@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,12 @@
 #include "base/bind.h"
 #include "base/format_macros.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "components/gcm_driver/crypto/gcm_encryption_result.h"
 #include "components/gcm_driver/fake_gcm_client_factory.h"
@@ -26,10 +27,6 @@ class FakeGCMProfileService::CustomFakeGCMDriver
     : public instance_id::FakeGCMDriverForInstanceID {
  public:
   explicit CustomFakeGCMDriver(FakeGCMProfileService* service);
-
-  CustomFakeGCMDriver(const CustomFakeGCMDriver&) = delete;
-  CustomFakeGCMDriver& operator=(const CustomFakeGCMDriver&) = delete;
-
   ~CustomFakeGCMDriver() override;
 
   void OnRegisterFinished(const std::string& app_id,
@@ -66,6 +63,7 @@ class FakeGCMProfileService::CustomFakeGCMDriver
                 const std::string& authorized_entity,
                 const std::string& scope,
                 base::TimeDelta time_to_live,
+                const std::map<std::string, std::string>& options,
                 GetTokenCallback callback) override;
   void DeleteToken(const std::string& app_id,
                    const std::string& authorized_entity,
@@ -80,7 +78,7 @@ class FakeGCMProfileService::CustomFakeGCMDriver
               const std::string& receiver_id,
               const OutgoingMessage& message);
 
-  raw_ptr<FakeGCMProfileService> service_;
+  FakeGCMProfileService* service_;
 
   // Used to give each registration a unique registration id. Does not decrease
   // when unregister is called.
@@ -88,11 +86,15 @@ class FakeGCMProfileService::CustomFakeGCMDriver
 
   base::WeakPtrFactory<CustomFakeGCMDriver> weak_factory_{
       this};  // Must be last.
+
+  DISALLOW_COPY_AND_ASSIGN(CustomFakeGCMDriver);
 };
 
 FakeGCMProfileService::CustomFakeGCMDriver::CustomFakeGCMDriver(
     FakeGCMProfileService* service)
-    : service_(service) {}
+    : instance_id::FakeGCMDriverForInstanceID(
+          base::ThreadTaskRunnerHandle::Get()),
+      service_(service) {}
 
 FakeGCMProfileService::CustomFakeGCMDriver::~CustomFakeGCMDriver() {}
 
@@ -109,7 +111,7 @@ void FakeGCMProfileService::CustomFakeGCMDriver::RegisterImpl(
       "%" PRIuS "-%d", sender_ids.size(), registration_count_);
   ++registration_count_;
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&CustomFakeGCMDriver::DoRegister,
                                 weak_factory_.GetWeakPtr(), app_id, sender_ids,
                                 registration_id));
@@ -136,7 +138,7 @@ void FakeGCMProfileService::CustomFakeGCMDriver::UnregisterImpl(
     result = service_->unregister_responses_.front();
     service_->unregister_responses_.pop_front();
   }
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&CustomFakeGCMDriver::UnregisterFinished,
                                 weak_factory_.GetWeakPtr(), app_id, result));
 }
@@ -154,7 +156,7 @@ void FakeGCMProfileService::CustomFakeGCMDriver::SendImpl(
   if (service_->is_offline_)
     return;  // Drop request.
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&CustomFakeGCMDriver::DoSend, weak_factory_.GetWeakPtr(),
                      app_id, receiver_id, message));
@@ -187,12 +189,14 @@ void FakeGCMProfileService::CustomFakeGCMDriver::GetToken(
     const std::string& authorized_entity,
     const std::string& scope,
     base::TimeDelta time_to_live,
+    const std::map<std::string, std::string>& options,
     GetTokenCallback callback) {
   if (service_->is_offline_)
     return;  // Drop request.
 
   instance_id::FakeGCMDriverForInstanceID::GetToken(
-      app_id, authorized_entity, scope, time_to_live, std::move(callback));
+      app_id, authorized_entity, scope, time_to_live, options,
+      std::move(callback));
 }
 
 void FakeGCMProfileService::CustomFakeGCMDriver::DeleteToken(

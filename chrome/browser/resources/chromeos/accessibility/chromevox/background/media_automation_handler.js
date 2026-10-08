@@ -1,24 +1,28 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
- * @fileoverview Handles media automation events.
+ * @fileoverview Handles media automation events.  Note that to perform any of
+ * the actions below such as ducking, and suspension of media sessions, the
+ * --enable-audio-focus flag must be passed at the command line.
  */
-import {LocalStorage} from '../../common/local_storage.js';
-import {TtsCapturingEventListener} from '../common/tts_interface.js';
 
-import {BaseAutomationHandler} from './base_automation_handler.js';
-import {ChromeVox} from './chromevox.js';
+goog.provide('MediaAutomationHandler');
 
+goog.require('BaseAutomationHandler');
+goog.require('TtsCapturingEventListener');
+
+goog.scope(function() {
 const AutomationEvent = chrome.automation.AutomationEvent;
 const AutomationNode = chrome.automation.AutomationNode;
 const EventType = chrome.automation.EventType;
 const RoleType = chrome.automation.RoleType;
 
-/** @implements {TtsCapturingEventListener} */
-export class MediaAutomationHandler extends BaseAutomationHandler {
-  /** @private */
+/**
+ * @implements {TtsCapturingEventListener}
+ */
+MediaAutomationHandler = class extends BaseAutomationHandler {
   constructor() {
     super(null);
     /** @type {!Set<AutomationNode>} @private */
@@ -29,7 +33,7 @@ export class MediaAutomationHandler extends BaseAutomationHandler {
 
     ChromeVox.tts.addCapturingEventListener(this);
 
-    chrome.automation.getDesktop(node => {
+    chrome.automation.getDesktop((node) => {
       this.node_ = node;
 
       this.addListener_(
@@ -37,13 +41,6 @@ export class MediaAutomationHandler extends BaseAutomationHandler {
       this.addListener_(
           EventType.MEDIA_STOPPED_PLAYING, this.onMediaStoppedPlaying);
     });
-  }
-
-  static init() {
-    if (MediaAutomationHandler.instance) {
-      throw 'Error: trying to create two instances of singleton MediaAutomationHandler';
-    }
-    MediaAutomationHandler.instance = new MediaAutomationHandler();
   }
 
   /** @override */
@@ -75,7 +72,7 @@ export class MediaAutomationHandler extends BaseAutomationHandler {
    */
   onMediaStartedPlaying(evt) {
     this.mediaRoots_.add(evt.target);
-    const audioStrategy = LocalStorage.get('audioStrategy');
+    const audioStrategy = localStorage['audioStrategy'];
     if (ChromeVox.tts.isSpeaking() && audioStrategy === 'audioDuck') {
       this.update_({start: true});
     }
@@ -97,7 +94,7 @@ export class MediaAutomationHandler extends BaseAutomationHandler {
   update_(options) {
     const it = this.mediaRoots_.values();
     let item = it.next();
-    const audioStrategy = LocalStorage.get('audioStrategy');
+    const audioStrategy = localStorage['audioStrategy'];
     while (!item.done) {
       const root = item.value;
       if (options.start) {
@@ -116,10 +113,9 @@ export class MediaAutomationHandler extends BaseAutomationHandler {
       item = it.next();
     }
   }
-}
+};
 
-/** @const {number} */
+/** @type {number} */
 MediaAutomationHandler.MIN_WAITTIME_MS = 1000;
 
-/** @type {MediaAutomationHandler} */
-MediaAutomationHandler.instance;
+});  // goog.scope

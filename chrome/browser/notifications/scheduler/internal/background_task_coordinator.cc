@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,17 +8,15 @@
 #include <utility>
 
 #include "base/command_line.h"
-#include "base/cxx17_backports.h"
-#include "base/memory/raw_ptr.h"
+#include "base/numerics/ranges.h"
+#include "base/optional.h"
 #include "base/time/clock.h"
-#include "base/time/time.h"
 #include "chrome/browser/notifications/scheduler/internal/impression_types.h"
 #include "chrome/browser/notifications/scheduler/internal/notification_entry.h"
 #include "chrome/browser/notifications/scheduler/internal/scheduler_config.h"
 #include "chrome/browser/notifications/scheduler/internal/scheduler_utils.h"
 #include "chrome/browser/notifications/scheduler/public/features.h"
 #include "chrome/browser/notifications/scheduler/public/notification_background_task_scheduler.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace notifications {
 namespace {
@@ -153,13 +151,15 @@ class BackgroundTaskCoordinatorHelper {
 
     base::TimeDelta window_start_time =
         background_task_time_.value() - clock_->Now();
-    window_start_time = base::clamp(window_start_time, base::TimeDelta(),
-                                    base::TimeDelta::Max());
+    window_start_time = base::ClampToRange(window_start_time, base::TimeDelta(),
+                                           base::TimeDelta::Max());
 
     // TODO(xingliu): Remove SchedulerTaskTime.
     if (base::CommandLine::ForCurrentProcess()->HasSwitch(
             switches::kNotificationSchedulerImmediateBackgroundTask)) {
-      background_task_->Schedule(base::Seconds(30), base::Minutes(1));
+      background_task_->Schedule(
+          base::TimeDelta(),
+          base::TimeDelta() + base::TimeDelta::FromMinutes(1));
       return;
     }
 
@@ -168,10 +168,10 @@ class BackgroundTaskCoordinatorHelper {
         window_start_time + config_->background_task_window_duration);
   }
 
-  raw_ptr<NotificationBackgroundTaskScheduler> background_task_;
-  raw_ptr<const SchedulerConfig> config_;
-  raw_ptr<base::Clock> clock_;
-  absl::optional<base::Time> background_task_time_;
+  NotificationBackgroundTaskScheduler* background_task_;
+  const SchedulerConfig* config_;
+  base::Clock* clock_;
+  base::Optional<base::Time> background_task_time_;
 };
 
 }  // namespace
@@ -205,10 +205,10 @@ class BackgroundTaskCoordinatorImpl : public BackgroundTaskCoordinator {
   std::unique_ptr<NotificationBackgroundTaskScheduler> background_task_;
 
   // System configuration.
-  raw_ptr<const SchedulerConfig> config_;
+  const SchedulerConfig* config_;
 
   // Clock to query the current timestamp.
-  raw_ptr<base::Clock> clock_;
+  base::Clock* clock_;
 };
 
 // static

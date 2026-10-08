@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,13 @@
 #include <stdint.h>
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "ui/gfx/gfx_export.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/scoped_java_ref.h"
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
 #include <objc/objc.h>
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include "base/win/windows_types.h"
 #endif
 
@@ -54,10 +53,10 @@ enum class CursorType;
 
 #endif  // defined(USE_AURA)
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 typedef struct HFONT__* HFONT;
 struct IAccessible;
-#elif BUILDFLAG(IS_IOS)
+#elif defined(OS_IOS)
 struct CGContext;
 #ifdef __OBJC__
 @class UIEvent;
@@ -74,7 +73,7 @@ class UIView;
 class UIWindow;
 class UITextField;
 #endif  // __OBJC__
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
 struct CGContext;
 #ifdef __OBJC__
 @class NSCursor;
@@ -95,7 +94,7 @@ class NSTextField;
 #endif  // __OBJC__
 #endif
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 struct ANativeWindow;
 namespace ui {
 class WindowAndroid;
@@ -104,9 +103,7 @@ class ViewAndroid;
 #endif
 class SkBitmap;
 
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
 extern "C" {
 struct _AtkObject;
 typedef struct _AtkObject AtkObject;
@@ -122,14 +119,14 @@ typedef aura::Window* NativeWindow;
 typedef ui::Event* NativeEvent;
 constexpr NativeView kNullNativeView = nullptr;
 constexpr NativeWindow kNullNativeWindow = nullptr;
-#elif BUILDFLAG(IS_IOS)
+#elif defined(OS_IOS)
 typedef void* NativeCursor;
 typedef UIView* NativeView;
 typedef UIWindow* NativeWindow;
 typedef UIEvent* NativeEvent;
 constexpr NativeView kNullNativeView = nullptr;
 constexpr NativeWindow kNullNativeWindow = nullptr;
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
 typedef NSCursor* NativeCursor;
 typedef NSEvent* NativeEvent;
 // NativeViews and NativeWindows on macOS are not necessarily in the same
@@ -187,7 +184,7 @@ class GFX_EXPORT NativeWindow {
 };
 constexpr NativeView kNullNativeView = NativeView(nullptr);
 constexpr NativeWindow kNullNativeWindow = NativeWindow(nullptr);
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
 typedef void* NativeCursor;
 typedef ui::ViewAndroid* NativeView;
 typedef ui::WindowAndroid* NativeWindow;
@@ -198,18 +195,16 @@ constexpr NativeWindow kNullNativeWindow = nullptr;
 #error Unknown build environment.
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 typedef HFONT NativeFont;
 typedef IAccessible* NativeViewAccessible;
-#elif BUILDFLAG(IS_IOS)
+#elif defined(OS_IOS)
 typedef UIFont* NativeFont;
 typedef id NativeViewAccessible;
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
 typedef NSFont* NativeFont;
 typedef id NativeViewAccessible;
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#elif defined(OS_LINUX) && !defined(OS_CHROMEOS)
 // Linux doesn't have a native font type.
 typedef AtkObject* NativeViewAccessible;
 #else
@@ -235,19 +230,19 @@ const gfx::NativeCursor kNullCursor = static_cast<gfx::NativeCursor>(nullptr);
 typedef intptr_t NativeViewId;
 
 // AcceleratedWidget provides a surface to compositors to paint pixels.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 typedef HWND AcceleratedWidget;
 constexpr AcceleratedWidget kNullAcceleratedWidget = nullptr;
-#elif BUILDFLAG(IS_IOS)
+#elif defined(OS_IOS)
 typedef UIView* AcceleratedWidget;
 constexpr AcceleratedWidget kNullAcceleratedWidget = 0;
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
 typedef uint64_t AcceleratedWidget;
 constexpr AcceleratedWidget kNullAcceleratedWidget = 0;
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
 typedef ANativeWindow* AcceleratedWidget;
 constexpr AcceleratedWidget kNullAcceleratedWidget = 0;
-#elif BUILDFLAG(IS_OZONE)
+#elif defined(USE_OZONE) || defined(USE_X11)
 typedef uint32_t AcceleratedWidget;
 constexpr AcceleratedWidget kNullAcceleratedWidget = 0;
 #else

@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -7,11 +7,15 @@ import("//mojo/public/tools/bindings/mojom.gni")
 
 source_set("common") {
   sources = [
+    "android_webview_message_generator.cc",
+    "android_webview_message_generator.h",
     "aw_content_client.cc",
     "aw_content_client.h",
     "aw_descriptors.h",
     "aw_features.cc",
     "aw_features.h",
+    "aw_hit_test_data.cc",
+    "aw_hit_test_data.h",
     "aw_media_drm_bridge_client.cc",
     "aw_media_drm_bridge_client.h",
     "aw_paths.cc",
@@ -22,15 +26,13 @@ source_set("common") {
     "aw_resource_bundle.h",
     "aw_switches.cc",
     "aw_switches.h",
-    "components/aw_apps_package_names_allowlist_component_utils.cc",
-    "components/aw_apps_package_names_allowlist_component_utils.h",
     "crash_reporter/aw_crash_reporter_client.cc",
     "crash_reporter/aw_crash_reporter_client.h",
     "crash_reporter/crash_keys.cc",
     "crash_reporter/crash_keys.h",
     "devtools_instrumentation.h",
-    "metrics/app_package_name_logging_rule.cc",
-    "metrics/app_package_name_logging_rule.h",
+    "render_view_messages.cc",
+    "render_view_messages.h",
     "url_constants.cc",
     "url_constants.h",
   ]
@@ -40,7 +42,6 @@ source_set("common") {
     "//components/cdm/common",
     "//components/crash/core/app",
     "//components/crash/core/common:crash_key",
-    "//components/embedder_support/origin_trials",
     "//components/gwp_asan/common",
     "//components/services/heap_profiling/public/cpp",
     "//components/version_info",
@@ -65,25 +66,11 @@ mojom("mojom") {
 
   sources = [
     "mojom/frame.mojom",
-    "mojom/render_message_filter.mojom",
     "mojom/renderer.mojom",
   ]
 
   public_deps = [
     "//mojo/public/mojom/base",
     "//skia/public/mojom",
-    "//ui/gfx/geometry/mojom",
-    "//url/mojom:url_mojom_gurl",
-  ]
-}
-
-source_set("tests") {
-  testonly = true
-
-  sources = [ "metrics/app_package_name_logging_rule_unittests.cc" ]
-  deps = [
-    ":common",
-    "//base",
-    "//base/test:test_support",
   ]
 }

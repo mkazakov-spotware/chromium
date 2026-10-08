@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 
 #include <list>
 #include <memory>
-#include <tuple>
 #include <utility>
 
 #include "base/bind.h"
@@ -70,7 +69,7 @@ SignalListener* g_signal_listener = nullptr;
 
 void GlobalSignalHandler(int signal) {
   char byte = signal;
-  std::ignore = write(g_write_fd, &byte, 1);
+  ignore_result(write(g_write_fd, &byte, 1));
 }
 
 }  // namespace

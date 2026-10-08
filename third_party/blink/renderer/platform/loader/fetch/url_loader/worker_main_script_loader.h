@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,17 +29,16 @@
 
 namespace blink {
 
-class CachedMetadataHandler;
 class FetchContext;
 class FetchParameters;
 class ResourceLoadInfoNotifierWrapper;
+class SingleCachedMetadataHandler;
 class WorkerMainScriptLoaderClient;
 struct ResourceLoaderOptions;
 
-// For dedicated workers (PlzDedicatedWorker), service workers
-// (PlzServiceWorker), and shared workers, the main script is pre-requested by
-// the browser process. This class is used for receiving the response in the
-// renderer process.
+// For dedicated workers (PlzDedicatedWorker) and shared workers, the main
+// script is pre-requested by the browser process. This class is used for
+// receiving the response in the renderer process.
 class PLATFORM_EXPORT WorkerMainScriptLoader final
     : public GarbageCollected<WorkerMainScriptLoader>,
       public network::mojom::URLLoaderClient {
@@ -48,7 +47,7 @@ class PLATFORM_EXPORT WorkerMainScriptLoader final
   ~WorkerMainScriptLoader() override;
 
   // Starts to load the main script.
-  void Start(const FetchParameters& fetch_params,
+  void Start(FetchParameters& fetch_params,
              std::unique_ptr<WorkerMainScriptLoadParameters>
                  worker_main_script_load_params,
              FetchContext* fetch_context,
@@ -60,18 +59,18 @@ class PLATFORM_EXPORT WorkerMainScriptLoader final
   void Cancel();
 
   // Implements network::mojom::URLLoaderClient.
-  void OnReceiveEarlyHints(network::mojom::EarlyHintsPtr early_hints) override;
   void OnReceiveResponse(
-      network::mojom::URLResponseHeadPtr response_head,
-      mojo::ScopedDataPipeConsumerHandle handle,
-      absl::optional<mojo_base::BigBuffer> cached_metadata) override;
+      network::mojom::URLResponseHeadPtr response_head) override;
   void OnReceiveRedirect(
       const net::RedirectInfo& redirect_info,
       network::mojom::URLResponseHeadPtr response_head) override;
   void OnUploadProgress(int64_t current_position,
                         int64_t total_size,
                         OnUploadProgressCallback callback) override;
+  void OnReceiveCachedMetadata(mojo_base::BigBuffer data) override;
   void OnTransferSizeUpdated(int32_t transfer_size_diff) override;
+  void OnStartLoadingResponseBody(
+      mojo::ScopedDataPipeConsumerHandle handle) override;
   void OnComplete(const network::URLLoaderCompletionStatus& status) override;
 
   const KURL& GetRequestURL() const { return initial_request_url_; }
@@ -79,7 +78,7 @@ class PLATFORM_EXPORT WorkerMainScriptLoader final
   // Gets the raw data of the main script.
   SharedBuffer* Data() const { return data_.get(); }
   WTF::TextEncoding GetScriptEncoding() { return script_encoding_; }
-  CachedMetadataHandler* CreateCachedMetadataHandler();
+  SingleCachedMetadataHandler* CreateCachedMetadataHandler();
 
   virtual void Trace(Visitor*) const;
 
@@ -99,8 +98,7 @@ class PLATFORM_EXPORT WorkerMainScriptLoader final
   Member<WorkerMainScriptLoaderClient> client_;
   Member<ResourceLoadObserver> resource_load_observer_;
 
-  int request_id_;
-  ResourceRequestHead initial_request_;
+  ResourceRequest initial_request_;
   ResourceLoaderOptions resource_loader_options_{nullptr /* world */};
   KURL initial_request_url_;
   KURL last_request_url_;

@@ -119,19 +119,7 @@ int main(int argc, char *argv[])
       for (i=0;i<nb_packets;i++)
       {
          unsigned char ch[4];
-         if (fread(ch, 1, 4, fin)!=4)
-         {
-             if (feof(fin))
-             {
-                eof = 1;
-             } else {
-                fprintf(stderr, "Error reading payload length.\n");
-                fclose(fin);
-                fclose(fout);
-                return EXIT_FAILURE;
-             }
-             break;
-         }
+         err = fread(ch, 1, 4, fin);
          len[i] = char_to_int(ch);
          /*fprintf(stderr, "in len = %d\n", len[i]);*/
          if (len[i]>1500 || len[i]<0)
@@ -147,31 +135,13 @@ int main(int argc, char *argv[])
              }
              break;
          }
-         if (fread(ch, 1, 4, fin)!=4)
-         {
-             if (feof(fin))
-             {
-                eof = 1;
-             } else {
-                fprintf(stderr, "Error reading.\n");
-                fclose(fin);
-                fclose(fout);
-                return EXIT_FAILURE;
-             }
-             break;
-         }
+         err = fread(ch, 1, 4, fin);
          rng[i] = char_to_int(ch);
-         if (fread(packets[i], len[i], 1, fin)!=1) {
-             if (feof(fin))
-             {
-                eof = 1;
-             } else {
-                fprintf(stderr, "Error reading packet of %u bytes.\n", len[i]);
-                fclose(fin);
-                fclose(fout);
-                return EXIT_FAILURE;
-             }
-             break;
+         err = fread(packets[i], 1, len[i], fin);
+         if (feof(fin))
+         {
+            eof = 1;
+            break;
          }
          err = opus_repacketizer_cat(rp, packets[i], len[i]);
          if (err!=OPUS_OK)

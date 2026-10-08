@@ -1,12 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_RESOURCE_COORDINATOR_TEST_LIFECYCLE_UNIT_H_
 #define CHROME_BROWSER_RESOURCE_COORDINATOR_TEST_LIFECYCLE_UNIT_H_
 
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
-#include "base/time/time.h"
 #include "chrome/browser/resource_coordinator/lifecycle_unit_base.h"
 
 namespace resource_coordinator {
@@ -23,10 +23,6 @@ class TestLifecycleUnit : public LifecycleUnitBase {
                     bool can_discard = true);
   TestLifecycleUnit(content::Visibility visibility, UsageClock* usage_clock);
   explicit TestLifecycleUnit(LifecycleUnitSourceBase* source);
-
-  TestLifecycleUnit(const TestLifecycleUnit&) = delete;
-  TestLifecycleUnit& operator=(const TestLifecycleUnit&) = delete;
-
   ~TestLifecycleUnit() override;
 
   void SetLastFocusedTime(base::TimeTicks last_focused_time) {
@@ -35,11 +31,11 @@ class TestLifecycleUnit : public LifecycleUnitBase {
 
   void SetSortKey(LifecycleUnit::SortKey sort_key) { sort_key_ = sort_key; }
 
-  void SetTitle(base::StringPiece16 title) { title_ = std::u16string(title); }
+  void SetTitle(base::StringPiece16 title) { title_ = base::string16(title); }
 
   // LifecycleUnit:
   TabLifecycleUnitExternal* AsTabLifecycleUnitExternal() override;
-  std::u16string GetTitle() const override;
+  base::string16 GetTitle() const override;
   base::TimeTicks GetLastFocusedTime() const override;
   base::ProcessHandle GetProcessHandle() const override;
   SortKey GetSortKey() const override;
@@ -49,16 +45,17 @@ class TestLifecycleUnit : public LifecycleUnitBase {
   int GetEstimatedMemoryFreedOnDiscardKB() const override;
   bool CanDiscard(LifecycleUnitDiscardReason reason,
                   DecisionDetails* decision_details) const override;
-  bool Discard(LifecycleUnitDiscardReason discard_reason,
-               uint64_t resident_set_size_estimate) override;
+  bool Discard(LifecycleUnitDiscardReason discard_reason) override;
   LifecycleUnitDiscardReason GetDiscardReason() const override;
 
  private:
-  std::u16string title_;
+  base::string16 title_;
   base::TimeTicks last_focused_time_;
   base::ProcessHandle process_handle_;
   LifecycleUnit::SortKey sort_key_;
   bool can_discard_ = true;
+
+  DISALLOW_COPY_AND_ASSIGN(TestLifecycleUnit);
 };
 
 // Helper funtions for testing CanDiscard policy.

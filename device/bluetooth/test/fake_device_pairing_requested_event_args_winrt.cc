@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include <utility>
 
-#include "base/strings/string_piece.h"
 #include "base/win/scoped_hstring.h"
 
 namespace device {
@@ -31,10 +30,6 @@ class FakeDeferral
   explicit FakeDeferral(
       ComPtr<FakeDevicePairingRequestedEventArgsWinrt> pairing_requested)
       : pairing_requested_(std::move(pairing_requested)) {}
-
-  FakeDeferral(const FakeDeferral&) = delete;
-  FakeDeferral& operator=(const FakeDeferral&) = delete;
-
   ~FakeDeferral() override = default;
 
   // IDeferral:
@@ -45,6 +40,8 @@ class FakeDeferral
 
  private:
   ComPtr<FakeDevicePairingRequestedEventArgsWinrt> pairing_requested_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeDeferral);
 };
 
 }  // namespace
@@ -64,18 +61,16 @@ HRESULT FakeDevicePairingRequestedEventArgsWinrt::get_DeviceInformation(
 
 HRESULT FakeDevicePairingRequestedEventArgsWinrt::get_PairingKind(
     DevicePairingKinds* value) {
-  *value = custom_pairing_->pairing_kind();
+  *value = DevicePairingKinds_ProvidePin;
   return S_OK;
 }
 
 HRESULT FakeDevicePairingRequestedEventArgsWinrt::get_Pin(HSTRING* value) {
-  *value = base::win::ScopedHString::Create(custom_pairing_->pin()).release();
-  return S_OK;
+  return E_NOTIMPL;
 }
 
 HRESULT FakeDevicePairingRequestedEventArgsWinrt::Accept() {
-  custom_pairing_->SetConfirmed();
-  return S_OK;
+  return E_NOTIMPL;
 }
 
 HRESULT FakeDevicePairingRequestedEventArgsWinrt::AcceptWithPin(HSTRING pin) {

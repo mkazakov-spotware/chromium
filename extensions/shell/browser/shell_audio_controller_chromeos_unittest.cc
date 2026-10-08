@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,48 +8,45 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "chromeos/ash/components/audio/audio_device.h"
-#include "chromeos/ash/components/audio/audio_devices_pref_handler.h"
-#include "chromeos/ash/components/audio/cras_audio_handler.h"
-#include "chromeos/ash/components/dbus/audio/audio_node.h"
-#include "chromeos/ash/components/dbus/audio/fake_cras_audio_client.h"
+#include "chromeos/audio/audio_device.h"
+#include "chromeos/audio/audio_devices_pref_handler.h"
+#include "chromeos/audio/cras_audio_handler.h"
+#include "chromeos/dbus/audio/audio_node.h"
+#include "chromeos/dbus/audio/fake_cras_audio_client.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace extensions {
+using chromeos::AudioDevice;
+using chromeos::AudioNode;
+using chromeos::AudioNodeList;
 
-using ::ash::AudioDevice;
-using ::ash::AudioDeviceType;
-using ::ash::AudioNode;
-using ::ash::AudioNodeList;
-using ::ash::CrasAudioHandler;
+namespace extensions {
 
 class ShellAudioControllerTest : public testing::Test {
  public:
   ShellAudioControllerTest() : next_node_id_(1) {
-    ash::CrasAudioClient::InitializeFake();
+    chromeos::CrasAudioClient::InitializeFake();
     audio_client()->SetAudioNodesForTesting(AudioNodeList());
-    CrasAudioHandler::InitializeForTesting();
+    chromeos::CrasAudioHandler::InitializeForTesting();
 
-    controller_ = std::make_unique<ShellAudioController>();
+    controller_.reset(new ShellAudioController());
   }
-
-  ShellAudioControllerTest(const ShellAudioControllerTest&) = delete;
-  ShellAudioControllerTest& operator=(const ShellAudioControllerTest&) = delete;
 
   ~ShellAudioControllerTest() override {
     controller_.reset();
-    CrasAudioHandler::Shutdown();
-    ash::CrasAudioClient::Shutdown();
+    chromeos::CrasAudioHandler::Shutdown();
+    chromeos::CrasAudioClient::Shutdown();
   }
 
  protected:
   // Fills a AudioNode for use by tests.
-  AudioNode CreateNode(AudioDeviceType type) {
+  AudioNode CreateNode(chromeos::AudioDeviceType type) {
     AudioNode node;
-    node.is_input = type == AudioDeviceType::kMic ||
-                    type == AudioDeviceType::kInternalMic ||
-                    type == AudioDeviceType::kKeyboardMic;
+    node.is_input =
+        type == chromeos::AUDIO_TYPE_MIC ||
+        type == chromeos::AUDIO_TYPE_INTERNAL_MIC ||
+        type == chromeos::AUDIO_TYPE_KEYBOARD_MIC;
     node.id = next_node_id_++;
     node.type = AudioDevice::GetTypeString(type);
     return node;
@@ -67,25 +64,31 @@ class ShellAudioControllerTest : public testing::Test {
     ASSERT_TRUE(false) << "Didn't find ID " << id;
   }
 
-  ash::FakeCrasAudioClient* audio_client() {
-    return ash::FakeCrasAudioClient::Get();
+  chromeos::FakeCrasAudioClient* audio_client() {
+    return chromeos::FakeCrasAudioClient::Get();
   }
 
-  CrasAudioHandler* audio_handler() { return CrasAudioHandler::Get(); }
+  chromeos::CrasAudioHandler* audio_handler() {
+    return chromeos::CrasAudioHandler::Get();
+  }
 
   std::unique_ptr<ShellAudioController> controller_;
 
   // Next audio node ID to be returned by CreateNode().
   uint64_t next_node_id_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ShellAudioControllerTest);
 };
 
 // Tests that higher-priority devices are activated as soon as they're
 // connected.
 TEST_F(ShellAudioControllerTest, SelectBestDevices) {
-  AudioNode internal_speaker = CreateNode(AudioDeviceType::kInternalSpeaker);
-  AudioNode internal_mic = CreateNode(AudioDeviceType::kInternalMic);
-  AudioNode headphone = CreateNode(AudioDeviceType::kHeadphone);
-  AudioNode external_mic = CreateNode(AudioDeviceType::kMic);
+  AudioNode internal_speaker =
+      CreateNode(chromeos::AUDIO_TYPE_INTERNAL_SPEAKER);
+  AudioNode internal_mic = CreateNode(chromeos::AUDIO_TYPE_INTERNAL_MIC);
+  AudioNode headphone = CreateNode(chromeos::AUDIO_TYPE_HEADPHONE);
+  AudioNode external_mic = CreateNode(chromeos::AUDIO_TYPE_MIC);
 
   // AudioDevice gives the headphone jack a higher priority than the internal
   // speaker and an external mic a higher priority than the internal mic, so we
@@ -120,13 +123,14 @@ TEST_F(ShellAudioControllerTest, SelectBestDevices) {
 // Tests that active audio devices are unmuted and have correct initial volume.
 TEST_F(ShellAudioControllerTest, InitialVolume) {
   AudioNodeList nodes;
-  nodes.push_back(CreateNode(AudioDeviceType::kInternalSpeaker));
-  nodes.push_back(CreateNode(AudioDeviceType::kInternalMic));
+  nodes.push_back(CreateNode(chromeos::AUDIO_TYPE_INTERNAL_SPEAKER));
+  nodes.push_back(CreateNode(chromeos::AUDIO_TYPE_INTERNAL_MIC));
   audio_client()->SetAudioNodesAndNotifyObserversForTesting(nodes);
 
   EXPECT_FALSE(audio_handler()->IsOutputMuted());
   EXPECT_FALSE(audio_handler()->IsInputMuted());
-  EXPECT_EQ(ash::AudioDevicesPrefHandler::kDefaultOutputVolumePercent,
+  EXPECT_EQ(static_cast<double>(
+                chromeos::AudioDevicesPrefHandler::kDefaultOutputVolumePercent),
             audio_handler()->GetOutputVolumePercent());
 
   EXPECT_EQ(75.0, audio_handler()->GetInputGainPercent());

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,11 @@
 
 #include "base/bind.h"
 #include "base/check_op.h"
-#include "base/containers/contains.h"
-#include "base/location.h"
 #include "base/memory/memory_pressure_listener.h"
 #include "base/memory/memory_pressure_monitor.h"
+#include "base/stl_util.h"
 #include "base/system/sys_info.h"
 #include "build/build_config.h"
-#include "components/viz/common/features.h"
 
 namespace viz {
 namespace {
@@ -44,7 +42,7 @@ void FrameEvictionManager::AddFrame(FrameEvictionManagerClient* frame,
   if (locked)
     locked_frames_[frame] = 1;
   else
-    RegisterUnlockedFrame(frame);
+    unlocked_frames_.push_front(frame);
   CullUnlockedFrames(GetMaxNumberOfSavedFrames());
 }
 
@@ -52,14 +50,13 @@ void FrameEvictionManager::RemoveFrame(FrameEvictionManagerClient* frame) {
   auto locked_iter = locked_frames_.find(frame);
   if (locked_iter != locked_frames_.end())
     locked_frames_.erase(locked_iter);
-  unlocked_frames_.remove_if([&](const auto& p) { return p.first == frame; });
+  unlocked_frames_.remove(frame);
 }
 
 void FrameEvictionManager::LockFrame(FrameEvictionManagerClient* frame) {
-  if (base::Contains(unlocked_frames_, frame,
-                     [](const auto& p) { return p.first; })) {
+  if (base::Contains(unlocked_frames_, frame)) {
     DCHECK(locked_frames_.find(frame) == locked_frames_.end());
-    unlocked_frames_.remove_if([&](const auto& p) { return p.first == frame; });
+    unlocked_frames_.remove(frame);
     locked_frames_[frame] = 1;
   } else {
     DCHECK(locked_frames_.find(frame) != locked_frames_.end());
@@ -75,23 +72,8 @@ void FrameEvictionManager::UnlockFrame(FrameEvictionManagerClient* frame) {
     locked_frames_[frame]--;
   } else {
     RemoveFrame(frame);
-    RegisterUnlockedFrame(frame);
+    unlocked_frames_.push_front(frame);
     CullUnlockedFrames(GetMaxNumberOfSavedFrames());
-  }
-}
-
-void FrameEvictionManager::RegisterUnlockedFrame(
-    FrameEvictionManagerClient* frame) {
-  unlocked_frames_.emplace_front(frame, clock_->NowTicks());
-  if (base::FeatureList::IsEnabled(features::kAggressiveFrameCulling)) {
-    if (!idle_frames_culling_timer_.IsRunning()) {
-      // Unretained: `idle_frames_culling_timer_` is a member of `this`, doesn't
-      // outlive it, and cancels the task in its destructor.
-      idle_frames_culling_timer_.Start(
-          FROM_HERE, kPeriodicCullingDelay,
-          base::BindRepeating(&FrameEvictionManager::CullOldUnlockedFrames,
-                              base::Unretained(this)));
-    }
   }
 }
 
@@ -125,7 +107,7 @@ FrameEvictionManager::FrameEvictionManager()
           base::BindRepeating(&FrameEvictionManager::OnMemoryPressure,
                               base::Unretained(this)))) {
   max_number_of_saved_frames_ =
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
       // If the amount of memory on the device is >= 3.5 GB, save up to 5
       // frames.
       base::SysInfo::AmountOfPhysicalMemoryMB() < 1024 * 3.5f ? 1 : 5;
@@ -144,40 +126,9 @@ void FrameEvictionManager::CullUnlockedFrames(size_t saved_frame_limit) {
          unlocked_frames_.size() + locked_frames_.size() > saved_frame_limit) {
     size_t old_size = unlocked_frames_.size();
     // Should remove self from list.
-    auto* frame = unlocked_frames_.back().first;
-    frame->EvictCurrentFrame();
-    if (unlocked_frames_.size() == old_size)
-      break;
+    unlocked_frames_.back()->EvictCurrentFrame();
+    DCHECK_EQ(unlocked_frames_.size() + 1, old_size);
   }
-}
-
-void FrameEvictionManager::CullOldUnlockedFrames() {
-  DCHECK(std::is_sorted(
-      unlocked_frames_.begin(), unlocked_frames_.end(),
-      [](const auto& a, const auto& b) { return a.second >= b.second; }));
-
-  // Try again later, since the timer is not cancelled.
-  if (pause_count_)
-    return;
-
-  auto now = clock_->NowTicks();
-  while (!unlocked_frames_.empty() &&
-         now - unlocked_frames_.back().second >= kPeriodicCullingDelay) {
-    size_t old_size = unlocked_frames_.size();
-    auto* frame = unlocked_frames_.back().first;
-    frame->EvictCurrentFrame();
-    // Should remove self from list. If it's not possible, give up and try again
-    // later. This should be a rare case, so don't bother rescheduling earlier
-    // than the next timer tick.
-    //
-    // See https://chromium-review.googlesource.com/c/chromium/src/+/2585790 for
-    // an example where this can happen.
-    if (old_size - 1 != unlocked_frames_.size())
-      break;
-  }
-
-  if (unlocked_frames_.empty())
-    idle_frames_culling_timer_.Stop();
 }
 
 void FrameEvictionManager::OnMemoryPressure(
@@ -187,10 +138,7 @@ void FrameEvictionManager::OnMemoryPressure(
       PurgeMemory(kModeratePressurePercentage);
       break;
     case base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_CRITICAL:
-      if (base::FeatureList::IsEnabled(features::kAggressiveFrameCulling))
-        PurgeAllUnlockedFrames();
-      else
-        PurgeMemory(kCriticalPressurePercentage);
+      PurgeMemory(kCriticalPressurePercentage);
       break;
     case base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_NONE:
       // No need to change anything when there is no pressure.
@@ -200,23 +148,13 @@ void FrameEvictionManager::OnMemoryPressure(
 
 void FrameEvictionManager::PurgeMemory(int percentage) {
   int saved_frame_limit = max_number_of_saved_frames_;
-  int remaining_frames = std::max(1, (saved_frame_limit * percentage) / 100);
-
   if (saved_frame_limit <= 1)
     return;
-
-  CullUnlockedFrames(remaining_frames);
+  CullUnlockedFrames(std::max(1, (saved_frame_limit * percentage) / 100));
 }
 
 void FrameEvictionManager::PurgeAllUnlockedFrames() {
   CullUnlockedFrames(0);
-}
-
-void FrameEvictionManager::SetOverridesForTesting(
-    scoped_refptr<base::SingleThreadTaskRunner> task_runner,
-    const base::TickClock* clock) {
-  idle_frames_culling_timer_.SetTaskRunner(task_runner);
-  clock_ = clock;
 }
 
 void FrameEvictionManager::Pause() {

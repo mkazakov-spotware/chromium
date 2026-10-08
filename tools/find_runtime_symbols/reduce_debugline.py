@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2013 The Chromium Authors
+# Copyright (c) 2013 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Reduces result of 'readelf -wL' to just a list of starting addresses.
@@ -64,7 +64,6 @@ def main():
       print('%016x %s' % (address, filename))
     else:
       print('%08x %s' % (address, filename))
-  return 0
 
 
 if __name__ == '__main__':

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "chrome/browser/ui/tab_contents/chrome_web_contents_menu_helper.h"
 #include "chrome/common/pdf_util.h"
 #include "components/renderer_context_menu/context_menu_delegate.h"
-#include "content/public/browser/web_contents.h"
 
 namespace extensions {
 
@@ -21,28 +20,26 @@ ChromeMimeHandlerViewGuestDelegate::~ChromeMimeHandlerViewGuestDelegate() {
 }
 
 bool ChromeMimeHandlerViewGuestDelegate::HandleContextMenu(
-    content::RenderFrameHost& render_frame_host,
+    content::WebContents* web_contents,
     const content::ContextMenuParams& params) {
-  content::WebContents* web_contents =
-      content::WebContents::FromRenderFrameHost(&render_frame_host);
   ContextMenuDelegate* menu_delegate =
       ContextMenuDelegate::FromWebContents(web_contents);
   DCHECK(menu_delegate);
 
   std::unique_ptr<RenderViewContextMenuBase> menu = menu_delegate->BuildMenu(
-      render_frame_host,
+      web_contents,
       AddContextMenuParamsPropertiesFromPreferences(web_contents, params));
   menu_delegate->ShowMenu(std::move(menu));
   return true;
 }
 
 void ChromeMimeHandlerViewGuestDelegate::RecordLoadMetric(
-    bool is_full_page,
+    bool in_main_frame,
     const std::string& mime_type) {
   if (mime_type != kPDFMimeType)
     return;
 
-  ReportPDFLoadStatus(is_full_page
+  ReportPDFLoadStatus(in_main_frame
                           ? PDFLoadStatus::kLoadedFullPagePdfWithPdfium
                           : PDFLoadStatus::kLoadedEmbeddedPdfWithPdfium);
 }

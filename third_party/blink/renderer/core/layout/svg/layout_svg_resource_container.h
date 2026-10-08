@@ -27,6 +27,8 @@
 
 namespace blink {
 
+class SVGResourcesCycleSolver;
+
 enum LayoutSVGResourceType {
   kMaskerResourceType,
   kMarkerResourceType,
@@ -71,12 +73,12 @@ class LayoutSVGResourceContainer : public LayoutSVGHiddenContainer {
                                        SubtreeLayoutScope* = nullptr);
   void InvalidateCacheAndMarkForLayout(SubtreeLayoutScope* = nullptr);
 
-  bool FindCycle() const;
+  bool FindCycle(SVGResourcesCycleSolver&) const;
 
   static void MarkForLayoutAndParentResourceInvalidation(
       LayoutObject&,
       bool needs_layout = true);
-  static void StyleChanged(LayoutObject&, StyleDifference);
+  static void StyleDidChange(LayoutObject&, StyleDifference);
 
   void ClearInvalidationMask() {
     NOT_DESTROYED();
@@ -84,37 +86,22 @@ class LayoutSVGResourceContainer : public LayoutSVGHiddenContainer {
   }
 
  protected:
-  typedef unsigned InvalidationModeMask;
-
-  // When adding modes, make sure we don't overflow
-  // |completed_invalidation_mask_|.
-  enum InvalidationMode {
-    kLayoutInvalidation = 1 << 0,
-    kBoundariesInvalidation = 1 << 1,
-    kPaintInvalidation = 1 << 2,
-    kPaintPropertiesInvalidation = 1 << 3,
-    kClipCacheInvalidation = 1 << 4,
-    kFilterCacheInvalidation = 1 << 5,
-    kInvalidateAll = kLayoutInvalidation | kBoundariesInvalidation |
-                     kPaintInvalidation | kPaintPropertiesInvalidation |
-                     kClipCacheInvalidation | kFilterCacheInvalidation,
-  };
-
   // Used from RemoveAllClientsFromCache methods.
   void MarkAllClientsForInvalidation(InvalidationModeMask);
 
-  virtual bool FindCycleFromSelf() const;
-  static bool FindCycleInDescendants(const LayoutObject& root);
-  static bool FindCycleInResources(const LayoutObject& object);
-  static bool FindCycleInSubtree(const LayoutObject& root);
+  virtual bool FindCycleFromSelf(SVGResourcesCycleSolver&) const;
+  static bool FindCycleInDescendants(SVGResourcesCycleSolver&,
+                                     const LayoutObject& root);
+  static bool FindCycleInResources(SVGResourcesCycleSolver&,
+                                   const LayoutObject& object);
+  static bool FindCycleInSubtree(SVGResourcesCycleSolver&,
+                                 const LayoutObject& root);
 
   void StyleDidChange(StyleDifference, const ComputedStyle* old_style) override;
   void WillBeDestroyed() override;
 
  private:
-  void InvalidateClientsIfActiveResource();
-
-  // Track global (MarkAllClientsForInvalidation) invalidations to avoid
+  // Track global (markAllClientsForInvalidation) invalidations to avoid
   // redundant crawls.
   unsigned completed_invalidations_mask_ : 8;
 
@@ -129,18 +116,21 @@ struct DowncastTraits<LayoutSVGResourceContainer> {
   }
 };
 
+#define DEFINE_LAYOUT_SVG_RESOURCE_TYPE_CASTS(thisType, typeName)   \
+  DEFINE_TYPE_CASTS(thisType, LayoutSVGResourceContainer, resource, \
+                    resource->ResourceType() == typeName,           \
+                    resource.ResourceType() == typeName)
+
 template <typename ContainerType>
 inline bool IsResourceOfType(const LayoutSVGResourceContainer* container) {
   return container->ResourceType() == ContainerType::kResourceType;
 }
 
 template <typename ContainerType>
-inline ContainerType* GetSVGResourceAsType(SVGResourceClient& client,
-                                           const SVGResource* resource) {
+inline ContainerType* GetSVGResourceAsType(const SVGResource* resource) {
   if (!resource)
     return nullptr;
-  if (LayoutSVGResourceContainer* container =
-          resource->ResourceContainer(client)) {
+  if (LayoutSVGResourceContainer* container = resource->ResourceContainer()) {
     if (IsResourceOfType<ContainerType>(container))
       return static_cast<ContainerType*>(container);
   }
@@ -149,14 +139,12 @@ inline ContainerType* GetSVGResourceAsType(SVGResourceClient& client,
 
 template <typename ContainerType>
 inline ContainerType* GetSVGResourceAsType(
-    SVGResourceClient& client,
     const StyleSVGResource* style_resource) {
   if (!style_resource)
     return nullptr;
-  return GetSVGResourceAsType<ContainerType>(client,
-                                             style_resource->Resource());
+  return GetSVGResourceAsType<ContainerType>(style_resource->Resource());
 }
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_SVG_LAYOUT_SVG_RESOURCE_CONTAINER_H_
+#endif

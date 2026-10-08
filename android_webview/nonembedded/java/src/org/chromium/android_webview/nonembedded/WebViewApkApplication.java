@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,11 @@ import android.app.Application;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.os.Build;
-
-import com.android.webview.chromium.WebViewLibraryPreloader;
 
 import org.chromium.android_webview.AwLocaleConfig;
-import org.chromium.android_webview.ProductConfig;
 import org.chromium.android_webview.common.CommandLineUtil;
-import org.chromium.android_webview.common.PlatformServiceBridge;
-import org.chromium.android_webview.common.SafeModeController;
-import org.chromium.android_webview.nonembedded_util.WebViewPackageHelper;
+import org.chromium.android_webview.devui.util.WebViewPackageHelper;
 import org.chromium.base.ContextUtils;
-import org.chromium.base.Log;
 import org.chromium.base.PathUtils;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
@@ -29,11 +22,7 @@ import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.UmaRecorderHolder;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
-import org.chromium.build.BuildConfig;
-import org.chromium.components.crash.CustomAssertionHandler;
-import org.chromium.components.crash.PureJavaExceptionHandler;
 import org.chromium.components.embedder_support.application.FontPreloadingWorkaround;
-import org.chromium.components.version_info.VersionConstants;
 import org.chromium.ui.base.ResourceBundle;
 
 /**
@@ -46,43 +35,24 @@ import org.chromium.ui.base.ResourceBundle;
  */
 @JNINamespace("android_webview")
 public class WebViewApkApplication extends Application {
-    private static final String TAG = "WebViewApkApp";
-
     // Called by the framework for ALL processes. Runs before ContentProviders are created.
-    //
-    // Logic here is specific for standalone WebView and trichrome but does not run by
-    // Monochrome. Common logic between all WebView flavours should be go into
-    // maybeInitProcessGlobals instead which is called by Monochrome too.
     // Quirk: context.getApplicationContext() returns null during this method.
     @Override
     protected void attachBaseContext(Context context) {
         super.attachBaseContext(context);
-        // Using concatenation rather than %s to allow values to be inlined by R8.
-        Log.i(TAG,
-                "Launched version=" + VersionConstants.PRODUCT_VERSION
-                        + " minSdkVersion=" + BuildConfig.MIN_SDK_VERSION
-                        + " isBundle=" + ProductConfig.IS_BUNDLE + " processName=%s",
-                ContextUtils.getProcessName());
-
         ContextUtils.initApplicationContext(this);
         maybeInitProcessGlobals();
 
         // MonochromeApplication has its own locale configuration already, so call this here
         // rather than in maybeInitProcessGlobals.
-        ResourceBundle.setAvailablePakLocales(AwLocaleConfig.getWebViewSupportedPakLocales());
+        ResourceBundle.setAvailablePakLocales(
+                new String[] {}, AwLocaleConfig.getWebViewSupportedPakLocales());
     }
 
     @Override
     public void onCreate() {
         super.onCreate();
-        checkForAppRecovery();
         FontPreloadingWorkaround.maybeInstallWorkaround(this);
-    }
-
-    public static void checkForAppRecovery() {
-        if (ContextUtils.getProcessName().contains(":webview_service")) {
-            PlatformServiceBridge.getInstance().checkForAppRecovery();
-        }
     }
 
     /**
@@ -96,26 +66,9 @@ public class WebViewApkApplication extends Application {
         if (isWebViewProcess()) {
             PathUtils.setPrivateDataDirectorySuffix("webview", "WebView");
             CommandLineUtil.initCommandLine();
-
-            PureJavaExceptionHandler.installHandler(AwPureJavaExceptionReporter::new);
-            CustomAssertionHandler.installPreNativeHandler(AwPureJavaExceptionReporter::new);
-
-            // TODO(crbug.com/1182693): Do set up a native UMA recorder once we support recording
-            // metrics from native nonembedded code.
-            UmaRecorderHolder.setUpNativeUmaRecorder(false);
-
+            // disable using a native recorder in this process because native lib isn't loaded.
+            UmaRecorderHolder.setAllowNativeUmaRecorder(false);
             UmaRecorderHolder.setNonNativeDelegate(new AwNonembeddedUmaRecorder());
-
-            // Only register nonembedded SafeMode actions for webview_apk or webview_service
-            // processes.
-            SafeModeController controller = SafeModeController.getInstance();
-            controller.registerActions(NonembeddedSafeModeActionsList.sList);
-        }
-
-        // Limit to N+ since external services were added in N.
-        if (!LibraryLoader.getInstance().isLoadedByZygote()
-                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            LibraryLoader.getInstance().setNativeLibraryPreloader(new WebViewLibraryPreloader());
         }
     }
 
@@ -169,28 +122,27 @@ public class WebViewApkApplication extends Application {
      * Performs minimal native library initialization required when running as a stand-alone APK.
      * @return True if the library was loaded, false if running as webview stub.
      */
-    static synchronized boolean ensureNativeInitialized() {
+    static synchronized boolean initializeNative() {
         try {
             if (LibraryLoader.getInstance().isInitialized()) {
                 return true;
             }
             // Should not call LibraryLoader.initialize() since this will reset UmaRecorder
             // delegate.
-            LibraryLoader.getInstance().setLibraryProcessType(
-                    LibraryProcessType.PROCESS_WEBVIEW_NONEMBEDDED);
-            LibraryLoader.getInstance().ensureInitialized();
-            LibraryLoader.getInstance().switchCommandLineForWebView();
-            WebViewApkApplicationJni.get().initializeGlobalsAndResources();
-            return true;
+            LibraryLoader.getInstance().setLibraryProcessType(LibraryProcessType.PROCESS_WEBVIEW);
+            LibraryLoader.getInstance().loadNow();
         } catch (Throwable unused) {
             // Happens for WebView Stub. Throws NoClassDefFoundError because of no
             // NativeLibraries.java being generated.
             return false;
         }
+        LibraryLoader.getInstance().switchCommandLineForWebView();
+        WebViewApkApplicationJni.get().initializePakResources();
+        return true;
     }
 
     @NativeMethods
     interface Natives {
-        void initializeGlobalsAndResources();
+        void initializePakResources();
     }
 }

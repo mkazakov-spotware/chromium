@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/no_destructor.h"
 #include "chrome/browser/extensions/forced_extensions/install_stage_tracker.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 
 namespace extensions {
 
@@ -23,7 +24,9 @@ InstallStageTrackerFactory* InstallStageTrackerFactory::GetInstance() {
 }
 
 InstallStageTrackerFactory::InstallStageTrackerFactory()
-    : ProfileKeyedServiceFactory("InstallStageTracker") {}
+    : BrowserContextKeyedServiceFactory(
+          "InstallStageTracker",
+          BrowserContextDependencyManager::GetInstance()) {}
 
 InstallStageTrackerFactory::~InstallStageTrackerFactory() = default;
 

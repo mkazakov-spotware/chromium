@@ -7,10 +7,10 @@
 <script src="../resources/sxg-util.js"></script>
 <body>
 <script>
-nel_iframe_test(async t => {
+nel_test(async t => {
   const alt_origin = get_host_info().HTTPS_NOTSAMESITE_ORIGIN;
   const test_origin = get_host_info().HTTPS_ORIGIN;
-  await loadResourceWithBasicPolicyInIframe();
+  await fetchResourceWithBasicPolicy();
   const iframe_path =
       alt_origin +
       '/signed-exchange/resources/sxg-subresource-mismatch-iframe.html';
@@ -41,7 +41,7 @@ nel_iframe_test(async t => {
         phase: "application",
         type: "ok",
         status_code: 200,
-        referrer: location.origin + '/',
+        referrer: location.href
       },
       metadata: {
         content_type: "application/reports+json",

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,11 +34,6 @@ class MockTaskScheduler : public TaskScheduler {
 class DownloadSchedulerImplTest : public testing::Test {
  public:
   DownloadSchedulerImplTest() {}
-
-  DownloadSchedulerImplTest(const DownloadSchedulerImplTest&) = delete;
-  DownloadSchedulerImplTest& operator=(const DownloadSchedulerImplTest&) =
-      delete;
-
   ~DownloadSchedulerImplTest() override = default;
 
   void TearDown() override { DestroyScheduler(); }
@@ -99,6 +94,9 @@ class DownloadSchedulerImplTest : public testing::Test {
 
   // Entries owned by the test fixture.
   std::vector<Entry> entries_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DownloadSchedulerImplTest);
 };
 
 // Ensures normal polling logic is correct.
@@ -351,7 +349,7 @@ TEST_F(DownloadSchedulerImplTest, PickOlderDownloadIfSameParameters) {
   entries_[0].create_time = base::Time::Now();
   entries_[1].client = DownloadClient::TEST;
   entries_[1].scheduling_params.priority = SchedulingParams::Priority::LOW;
-  entries_[1].create_time = base::Time::Now() - base::Days(1);
+  entries_[1].create_time = base::Time::Now() - base::TimeDelta::FromDays(1);
   entries_[2].client = DownloadClient::TEST;
   entries_[2].scheduling_params.priority = SchedulingParams::Priority::LOW;
   entries_[2].create_time = base::Time::Now();

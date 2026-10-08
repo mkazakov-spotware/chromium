@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <utility>
 #include <vector>
 
 #include "base/bind.h"
@@ -15,9 +14,10 @@
 #include "base/files/scoped_temp_dir.h"
 #include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
+#include "base/sequenced_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "chrome/browser/safe_browsing/download_protection/download_feedback.h"
 #include "chrome/test/base/testing_profile.h"
@@ -30,7 +30,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 using ::testing::_;
-using ::testing::NiceMock;
 using ::testing::Return;
 using ::testing::ReturnRef;
 using ::testing::SaveArg;
@@ -180,7 +179,7 @@ TEST_F(DownloadFeedbackServiceTest, MaybeStorePingsForDownload) {
     // SAFE will never upload
     EXPECT_FALSE(
         WillStorePings(DownloadCheckResult::SAFE, upload_requested, ok_size));
-    EXPECT_FALSE(WillStorePings(DownloadCheckResult::ALLOWLISTED_BY_POLICY,
+    EXPECT_FALSE(WillStorePings(DownloadCheckResult::WHITELISTED_BY_POLICY,
                                 upload_requested, ok_size));
     // Others will upload if requested.
     EXPECT_EQ(upload_requested, WillStorePings(DownloadCheckResult::UNKNOWN,
@@ -194,9 +193,6 @@ TEST_F(DownloadFeedbackServiceTest, MaybeStorePingsForDownload) {
                              upload_requested, ok_size));
     EXPECT_EQ(upload_requested,
               WillStorePings(DownloadCheckResult::POTENTIALLY_UNWANTED,
-                             upload_requested, ok_size));
-    EXPECT_EQ(upload_requested,
-              WillStorePings(DownloadCheckResult::DANGEROUS_ACCOUNT_COMPROMISE,
                              upload_requested, ok_size));
 
     // Bad sizes never upload
@@ -212,9 +208,6 @@ TEST_F(DownloadFeedbackServiceTest, MaybeStorePingsForDownload) {
                                 upload_requested, bad_size));
     EXPECT_FALSE(WillStorePings(DownloadCheckResult::POTENTIALLY_UNWANTED,
                                 upload_requested, bad_size));
-    EXPECT_FALSE(
-        WillStorePings(DownloadCheckResult::DANGEROUS_ACCOUNT_COMPROMISE,
-                       upload_requested, bad_size));
   }
 }
 
@@ -267,7 +260,7 @@ TEST_F(DownloadFeedbackServiceTest, SingleFeedbackCompleteAndKeepDownload) {
 
   download::DownloadItem::AcquireFileCallback download_discarded_callback;
 
-  NiceMock<download::MockDownloadItem> item;
+  download::MockDownloadItem item;
   EXPECT_CALL(item, IsDangerous()).WillRepeatedly(Return(true));
   EXPECT_CALL(item, GetDangerType())
       .WillRepeatedly(Return(download::DOWNLOAD_DANGER_TYPE_UNCOMMON_CONTENT));
@@ -278,6 +271,9 @@ TEST_F(DownloadFeedbackServiceTest, SingleFeedbackCompleteAndKeepDownload) {
                     bool _, download::DownloadItem::AcquireFileCallback arg) {
         download_discarded_callback = std::move(arg);
       });
+  EXPECT_CALL(item, ValidateDangerousDownload()).Times(1);
+  GURL empty_url;
+  EXPECT_CALL(item, GetURL()).WillOnce(ReturnRef(empty_url));
 
   DownloadFeedbackService service(&fake_download_service_,
                                   file_task_runner_.get());
@@ -377,8 +373,7 @@ TEST_F(DownloadFeedbackServiceTest, MultiplePendingFeedbackComplete) {
   EXPECT_TRUE(base::PathExists(file_path[2]));
 }
 
-// TODO(https://crbug.com/1179266): Deflake this test.
-TEST_F(DownloadFeedbackServiceTest, DISABLED_MultiFeedbackWithIncomplete) {
+TEST_F(DownloadFeedbackServiceTest, MultiFeedbackWithIncomplete) {
   const std::string ping_request = "ping";
   const std::string ping_response = "resp";
   const size_t kNumDownloads = 3;

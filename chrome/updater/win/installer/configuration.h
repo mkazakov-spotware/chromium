@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 #define CHROME_UPDATER_WIN_INSTALLER_CONFIGURATION_H_
 
 #include <windows.h>
-
-#include "base/memory/raw_ptr.h"
 
 namespace updater {
 
@@ -40,7 +38,7 @@ class Configuration {
   void Clear();
   bool ParseCommandLine(const wchar_t* command_line);
 
-  raw_ptr<wchar_t*> args_ = nullptr;
+  wchar_t** args_ = nullptr;
   const wchar_t* command_line_ = nullptr;
   int argument_count_ = 0;
   Operation operation_ = INSTALL_PRODUCT;

@@ -1,38 +1,40 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/storage_monitor/storage_monitor_chromeos.h"
 
-#include <string>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/check_op.h"
-#include "base/containers/contains.h"
 #include "base/files/file_path.h"
+#include "base/sequenced_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
+#include "base/task_runner_util.h"
 #include "base/threading/sequenced_task_runner_handle.h"
-#include "chromeos/ash/components/disks/disk.h"
+#include "chromeos/disks/disk.h"
 #include "components/storage_monitor/media_storage_util.h"
 #include "components/storage_monitor/mtp_manager_client_chromeos.h"
 #include "components/storage_monitor/removable_device_constants.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/device_service.h"
 
+using chromeos::disks::Disk;
+using chromeos::disks::DiskMountManager;
+
 namespace storage_monitor {
 
 namespace {
-
-using ::ash::disks::Disk;
-using ::ash::disks::DiskMountManager;
 
 // Constructs a device id using uuid or manufacturer (vendor and product) id
 // details.
@@ -55,7 +57,7 @@ std::string MakeDeviceUniqueId(const Disk& disk) {
 
 // Returns whether the requested device is valid. On success |info| will contain
 // device information.
-bool GetDeviceInfo(const DiskMountManager::MountPoint& mount_info,
+bool GetDeviceInfo(const DiskMountManager::MountPointInfo& mount_info,
                    bool has_dcim,
                    StorageInfo* info) {
   DCHECK(info);
@@ -63,7 +65,7 @@ bool GetDeviceInfo(const DiskMountManager::MountPoint& mount_info,
 
   const Disk* disk =
       DiskMountManager::GetInstance()->FindDiskBySourcePath(source_path);
-  if (!disk || disk->device_type() == ash::DeviceType::kUnknown)
+  if (!disk || disk->device_type() == chromeos::DEVICE_TYPE_UNKNOWN)
     return false;
 
   std::string unique_id = MakeDeviceUniqueId(*disk);
@@ -130,9 +132,9 @@ void StorageMonitorCros::Init() {
 void StorageMonitorCros::CheckExistingMountPoints() {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
-  for (const auto& disk : DiskMountManager::GetInstance()->disks()) {
-    if (disk->IsStatefulPartition()) {
-      AddFixedStorageDisk(*disk);
+  for (const auto& it : DiskMountManager::GetInstance()->disks()) {
+    if (it.second->IsStatefulPartition()) {
+      AddFixedStorageDisk(*it.second);
       break;
     }
   }
@@ -141,14 +143,13 @@ void StorageMonitorCros::CheckExistingMountPoints() {
       base::ThreadPool::CreateSequencedTaskRunner(
           {base::MayBlock(), base::TaskPriority::BEST_EFFORT});
 
-  for (const auto& mount_point :
-       DiskMountManager::GetInstance()->mount_points()) {
-    blocking_task_runner->PostTaskAndReplyWithResult(
-        FROM_HERE,
+  for (const auto& it : DiskMountManager::GetInstance()->mount_points()) {
+    base::PostTaskAndReplyWithResult(
+        blocking_task_runner.get(), FROM_HERE,
         base::BindOnce(&MediaStorageUtil::HasDcim,
-                       base::FilePath(mount_point.mount_path)),
+                       base::FilePath(it.second.mount_path)),
         base::BindOnce(&StorageMonitorCros::AddMountedPath,
-                       weak_ptr_factory_.GetWeakPtr(), mount_point));
+                       weak_ptr_factory_.GetWeakPtr(), it.second));
   }
 
   // Note: Relies on scheduled tasks on the |blocking_task_runner| being
@@ -194,17 +195,17 @@ void StorageMonitorCros::OnBootDeviceDiskEvent(
 
 void StorageMonitorCros::OnMountEvent(
     DiskMountManager::MountEvent event,
-    ash::MountError error_code,
-    const DiskMountManager::MountPoint& mount_info) {
+    chromeos::MountError error_code,
+    const DiskMountManager::MountPointInfo& mount_info) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   // Ignore mount points that are not devices.
-  if (mount_info.mount_type != ash::MountType::kDevice)
+  if (mount_info.mount_type != chromeos::MOUNT_TYPE_DEVICE)
     return;
   // Ignore errors.
-  if (error_code != ash::MountError::kSuccess)
+  if (error_code != chromeos::MOUNT_ERROR_NONE)
     return;
-  if (mount_info.mount_error != ash::MountError::kSuccess)
+  if (mount_info.mount_condition != chromeos::disks::MOUNT_CONDITION_NONE)
     return;
 
   switch (event) {
@@ -268,8 +269,8 @@ bool StorageMonitorCros::GetStorageInfoForPath(
 // Forwards result to |EjectDevice| caller.
 void NotifyUnmountResult(
     base::OnceCallback<void(StorageMonitor::EjectStatus)> callback,
-    ash::MountError error_code) {
-  if (error_code == ash::MountError::kSuccess)
+    chromeos::MountError error_code) {
+  if (error_code == chromeos::MOUNT_ERROR_NONE)
     std::move(callback).Run(StorageMonitor::EJECT_OK);
   else
     std::move(callback).Run(StorageMonitor::EJECT_FAILURE);
@@ -317,7 +318,7 @@ StorageMonitorCros::media_transfer_protocol_manager() {
 }
 
 void StorageMonitorCros::AddMountedPath(
-    const DiskMountManager::MountPoint& mount_info,
+    const DiskMountManager::MountPointInfo& mount_info,
     bool has_dcim) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 

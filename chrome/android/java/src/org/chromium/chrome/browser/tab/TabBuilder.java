@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@ import androidx.annotation.Nullable;
 
 import org.chromium.base.Callback;
 import org.chromium.chrome.browser.tab.state.CriticalPersistedTabData;
-import org.chromium.chrome.browser.tab.state.SerializedCriticalPersistedTabData;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.WindowAndroid;
@@ -20,7 +19,6 @@ import org.chromium.ui.base.WindowAndroid;
 public class TabBuilder {
     private int mId = Tab.INVALID_TAB_ID;
     private Tab mParent;
-    private TabResolver mTabResolver;
     private boolean mIncognito;
     private WindowAndroid mWindow;
     private Integer mLaunchType;
@@ -32,7 +30,7 @@ public class TabBuilder {
     private TabDelegateFactory mDelegateFactory;
     private boolean mInitiallyHidden;
     private TabState mTabState;
-    private SerializedCriticalPersistedTabData mSerializedCriticalPersistedTabData;
+    private byte[] mSerializedCriticalPersistedTabData;
     private Callback<Tab> mPreInitializeAction;
 
     /**
@@ -52,16 +50,6 @@ public class TabBuilder {
      */
     public TabBuilder setParent(Tab parent) {
         mParent = parent;
-        return this;
-    }
-
-    /**
-     * Sets the tab resolver (tab id -> {@link Tab} mapping)
-     * @param tabResolver the {@link TabResolver}
-     * @return {@link TabBuilder} creating the Tab.
-     */
-    public TabBuilder setTabResolver(TabResolver tabResolver) {
-        mTabResolver = tabResolver;
         return this;
     }
 
@@ -154,7 +142,7 @@ public class TabBuilder {
      * @return {@link TabBuilder} creating the Tab
      */
     public TabBuilder setSerializedCriticalPersistedTabData(
-            @Nullable SerializedCriticalPersistedTabData serializedCriticalPersistedTabData) {
+            @Nullable byte[] serializedCriticalPersistedTabData) {
         mSerializedCriticalPersistedTabData = serializedCriticalPersistedTabData;
         return this;
     }
@@ -172,31 +160,28 @@ public class TabBuilder {
             if (mFromFrozenState) assert mLaunchType == TabLaunchType.FROM_RESTORE;
         }
 
-        TabImpl tab =
-                new TabImpl(mId, mIncognito, mLaunchType, mSerializedCriticalPersistedTabData);
-        Tab parent = null;
-        if (mParent != null) {
-            parent = mParent;
-        } else if (mTabResolver != null) {
-            if (!CriticalPersistedTabData.isEmptySerialization(
-                        mSerializedCriticalPersistedTabData)) {
-                parent = mTabResolver.resolve(CriticalPersistedTabData.from(tab).getParentId());
-            } else if (mTabState != null) {
-                parent = mTabResolver.resolve(mTabState.parentId);
-            }
-        }
+        TabImpl tab = new TabImpl(mId, mParent, mIncognito, mLaunchType);
         tab.updateWindowAndroid(mWindow);
 
-        if (parent != null && mDelegateFactory == null) {
-            mDelegateFactory = ((TabImpl) parent).getDelegateFactory();
+        if (mParent != null && mDelegateFactory == null) {
+            mDelegateFactory = ((TabImpl) mParent).getDelegateFactory();
         }
 
         if (mPreInitializeAction != null) mPreInitializeAction.onResult(tab);
 
         // Initializes Tab. Its user data objects are also initialized through the event
         // |onInitialized| of TabObserver they register.
-        tab.initialize(parent, mCreationType, mLoadUrlParams, mWebContents, mDelegateFactory,
-                mInitiallyHidden, mTabState);
+        tab.initialize(mParent, mCreationType, mLoadUrlParams, mWebContents, mDelegateFactory,
+                mInitiallyHidden, mTabState, mSerializedCriticalPersistedTabData);
+        if (mParent != null) {
+            if (mParent.getAddApi2TransitionToFutureNavigations()) {
+                tab.setAddApi2TransitionToFutureNavigations(true);
+            }
+            if (mParent.getHideFutureNavigations()) {
+                tab.setHideFutureNavigations(true);
+            }
+        }
+
         return tab;
     }
 

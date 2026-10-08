@@ -1,10 +1,11 @@
-// Copyright 2011 The Chromium Authors
+// Copyright 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_VIZ_COMMON_RESOURCES_PLATFORM_COLOR_H_
 #define COMPONENTS_VIZ_COMMON_RESOURCES_PLATFORM_COLOR_H_
 
+#include "base/macros.h"
 #include "base/notreached.h"
 #include "components/viz/common/resources/resource_format.h"
 #include "gpu/command_buffer/common/capabilities.h"
@@ -15,10 +16,6 @@ namespace viz {
 class PlatformColor {
  public:
   enum SourceDataFormat { SOURCE_FORMAT_RGBA8, SOURCE_FORMAT_BGRA8 };
-
-  PlatformColor() = delete;
-  PlatformColor(const PlatformColor&) = delete;
-  PlatformColor& operator=(const PlatformColor&) = delete;
 
   static SourceDataFormat Format() {
     return SK_B32_SHIFT ? SOURCE_FORMAT_RGBA8 : SOURCE_FORMAT_BGRA8;
@@ -51,6 +48,9 @@ class PlatformColor {
     NOTREACHED();
     return RGBA_8888;
   }
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(PlatformColor);
 };
 
 }  // namespace viz

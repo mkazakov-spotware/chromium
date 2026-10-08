@@ -14,38 +14,30 @@ enum EndOfStreamError {
     "decode"
 };
 
-[Exposed=(Window,DedicatedWorker)]
+[Exposed=Window]
 interface MediaSource : EventTarget {
     constructor();
-
-    [ SameObject, Exposed=DedicatedWorker ]
-    readonly              attribute MediaSourceHandle   handle;
-
-    readonly              attribute SourceBufferList    sourceBuffers;
-    readonly              attribute SourceBufferList    activeSourceBuffers;
-    readonly              attribute ReadyState          readyState;
-                          attribute unrestricted double duration;
-                          attribute EventHandler        onsourceopen;
-                          attribute EventHandler        onsourceended;
-                          attribute EventHandler        onsourceclose;
-    static readonly       attribute boolean canConstructInDedicatedWorker;
-    SourceBuffer          addSourceBuffer (DOMString type);
-    undefined             removeSourceBuffer (SourceBuffer sourceBuffer);
-    undefined             endOfStream (optional EndOfStreamError error);
-    undefined             setLiveSeekableRange (double start, double end);
-    undefined             clearLiveSeekableRange ();
-    static boolean        isTypeSupported (DOMString type);
+    readonly        attribute SourceBufferList    sourceBuffers;
+    readonly        attribute SourceBufferList    activeSourceBuffers;
+    readonly        attribute ReadyState          readyState;
+                    attribute unrestricted double duration;
+                    attribute EventHandler        onsourceopen;
+                    attribute EventHandler        onsourceended;
+                    attribute EventHandler        onsourceclose;
+    SourceBuffer   addSourceBuffer (DOMString type);
+    void           removeSourceBuffer (SourceBuffer sourceBuffer);
+    void           endOfStream (optional EndOfStreamError error);
+    void           setLiveSeekableRange (double start, double end);
+    void           clearLiveSeekableRange ();
+    static boolean isTypeSupported (DOMString type);
 };
-
-[Transferable, Exposed=(Window,DedicatedWorker)]
-interface MediaSourceHandle {};
 
 enum AppendMode {
     "segments",
     "sequence"
 };
 
-[Exposed=(Window,DedicatedWorker)]
+[Exposed=Window]
 interface SourceBuffer : EventTarget {
                     attribute AppendMode          mode;
     readonly        attribute boolean             updating;
@@ -61,13 +53,12 @@ interface SourceBuffer : EventTarget {
                     attribute EventHandler        onupdateend;
                     attribute EventHandler        onerror;
                     attribute EventHandler        onabort;
-    undefined appendBuffer (BufferSource data);
-    undefined abort ();
-    undefined changeType (DOMString type);
-    undefined remove (double start, unrestricted double end);
+    void appendBuffer (BufferSource data);
+    void abort ();
+    void remove (double start, unrestricted double end);
 };
 
-[Exposed=(Window,DedicatedWorker)]
+[Exposed=Window]
 interface SourceBufferList : EventTarget {
     readonly        attribute unsigned long length;
                     attribute EventHandler  onaddsourcebuffer;
@@ -75,17 +66,19 @@ interface SourceBufferList : EventTarget {
     getter SourceBuffer (unsigned long index);
 };
 
-[Exposed=(Window,DedicatedWorker)]
+[Exposed=Window]
+partial interface URL {
+    static DOMString createObjectURL (MediaSource mediaSource);
+};
+
 partial interface AudioTrack {
     readonly        attribute SourceBuffer? sourceBuffer;
 };
 
-[Exposed=(Window,DedicatedWorker)]
 partial interface VideoTrack {
     readonly        attribute SourceBuffer? sourceBuffer;
 };
 
-[Exposed=(Window,DedicatedWorker)]
 partial interface TextTrack {
     readonly        attribute SourceBuffer? sourceBuffer;
 };

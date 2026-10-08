@@ -166,7 +166,7 @@ TryDecomposeValue(F&& f, Arg&& arg) {
 }
 
 TEST(DecomposeValue, Decomposable) {
-  auto f = [](const int& x, int&& y) {  // NOLINT
+  auto f = [](const int& x, int&& y) {
     EXPECT_EQ(&x, &y);
     EXPECT_EQ(42, x);
     return 'A';
@@ -200,8 +200,7 @@ TryDecomposePair(F&& f, Args&&... args) {
 }
 
 TEST(DecomposePair, Decomposable) {
-  auto f = [](const int& x,  // NOLINT
-              std::piecewise_construct_t, std::tuple<int&&> k,
+  auto f = [](const int& x, std::piecewise_construct_t, std::tuple<int&&> k,
               std::tuple<double>&& v) {
     EXPECT_EQ(&x, &std::get<0>(k));
     EXPECT_EQ(42, x);

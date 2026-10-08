@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,13 @@
 #include "base/i18n/icu_util.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
 #include "base/task/single_thread_task_executor.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "gin/array_buffer.h"
 #include "gin/modules/console.h"
 #include "gin/object_template_builder.h"
@@ -42,9 +44,7 @@ void Run(base::WeakPtr<Runner> runner, const base::FilePath& path) {
 
 class GinShellRunnerDelegate : public ShellRunnerDelegate {
  public:
-  GinShellRunnerDelegate() = default;
-  GinShellRunnerDelegate(const GinShellRunnerDelegate&) = delete;
-  GinShellRunnerDelegate& operator=(const GinShellRunnerDelegate&) = delete;
+  GinShellRunnerDelegate() {}
 
   v8::Local<v8::ObjectTemplate> GetGlobalTemplate(
       ShellRunner* runner,
@@ -58,6 +58,9 @@ class GinShellRunnerDelegate : public ShellRunnerDelegate {
   void UnhandledException(ShellRunner* runner, TryCatch& try_catch) override {
     LOG(ERROR) << try_catch.GetStackTrace();
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(GinShellRunnerDelegate);
 };
 
 }  // namespace
@@ -71,17 +74,17 @@ int main(int argc, char** argv) {
   gin::V8Initializer::LoadV8Snapshot();
 #endif
 
-  // Initialize the base::FeatureList since IsolateHolder can depend on it.
-  base::FeatureList::SetInstance(base::WrapUnique(new base::FeatureList));
-
   base::SingleThreadTaskExecutor main_thread_task_executor;
   base::ThreadPoolInstance::CreateAndStartWithDefaultParams("gin");
+
+  // Initialize the base::FeatureList since IsolateHolder can depend on it.
+  base::FeatureList::SetInstance(base::WrapUnique(new base::FeatureList));
 
   {
     gin::IsolateHolder::Initialize(gin::IsolateHolder::kStrictMode,
                                    gin::ArrayBufferAllocator::SharedInstance());
     gin::IsolateHolder instance(
-        base::SingleThreadTaskRunner::GetCurrentDefault(),
+        base::ThreadTaskRunnerHandle::Get(),
         gin::IsolateHolder::IsolateType::kBlinkMainThread);
 
     gin::GinShellRunnerDelegate delegate;
@@ -98,7 +101,7 @@ int main(int argc, char** argv) {
         base::CommandLine::ForCurrentProcess()->GetArgs();
     for (base::CommandLine::StringVector::const_iterator it = args.begin();
          it != args.end(); ++it) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE,
           base::BindOnce(gin::Run, runner.GetWeakPtr(), base::FilePath(*it)));
     }

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "media/base/media_drm_storage.h"
 #include "media/mojo/mojom/media_drm_storage.mojom.h"
@@ -18,27 +19,23 @@
 namespace media {
 
 // A MediaDrmStorage that proxies to a Remote<mojom::MediaDrmStorage>.
-class MEDIA_MOJO_EXPORT MojoMediaDrmStorage final : public MediaDrmStorage {
+class MEDIA_MOJO_EXPORT MojoMediaDrmStorage : public MediaDrmStorage {
  public:
   explicit MojoMediaDrmStorage(
       mojo::PendingRemote<mojom::MediaDrmStorage> media_drm_storage);
-
-  MojoMediaDrmStorage(const MojoMediaDrmStorage&) = delete;
-  MojoMediaDrmStorage& operator=(const MojoMediaDrmStorage&) = delete;
-
-  ~MojoMediaDrmStorage() override;
+  ~MojoMediaDrmStorage() final;
 
   // MediaDrmStorage implementation:
-  void Initialize(InitCB init_cb) override;
-  void OnProvisioned(ResultCB result_cb) override;
+  void Initialize(InitCB init_cb) final;
+  void OnProvisioned(ResultCB result_cb) final;
   void SavePersistentSession(const std::string& session_id,
                              const SessionData& session_data,
-                             ResultCB result_cb) override;
+                             ResultCB result_cb) final;
   void LoadPersistentSession(
       const std::string& session_id,
-      LoadPersistentSessionCB load_persistent_session_cb) override;
+      LoadPersistentSessionCB load_persistent_session_cb) final;
   void RemovePersistentSession(const std::string& session_id,
-                               ResultCB result_cb) override;
+                               ResultCB result_cb) final;
 
  private:
   void OnPersistentSessionLoaded(
@@ -47,6 +44,8 @@ class MEDIA_MOJO_EXPORT MojoMediaDrmStorage final : public MediaDrmStorage {
 
   mojo::Remote<mojom::MediaDrmStorage> media_drm_storage_;
   base::WeakPtrFactory<MojoMediaDrmStorage> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MojoMediaDrmStorage);
 };
 
 }  // namespace media

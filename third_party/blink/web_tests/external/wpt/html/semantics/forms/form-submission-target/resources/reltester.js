@@ -1,19 +1,3 @@
-function formUsesTargetBlank(submitter) {
-  if (submitter.formTarget && submitter.formTarget === "_blank") {
-    return true;
-  }
-  if (submitter.form && submitter.form.target === "_blank") {
-    return true;
-  }
-  if (submitter.target && submitter.target === "_blank") {
-    return true;
-  }
-  if (submitter.getRootNode().querySelector("base").target === "_blank") {
-    return true;
-  }
-  return false;
-}
-
 function relTester(submitter, channelInput, title) {
   [
     {
@@ -67,8 +51,7 @@ function relTester(submitter, channelInput, title) {
           } else {
             assert_equals(e.data.referrer, "", "referrer");
           }
-          // When rel is not explicitly given, account for target=_blank defaulting to noopener
-          if (relTest.exposed === "all" && !(relTest.rel === "" && formUsesTargetBlank(submitter))) {
+          if (relTest.exposed === "all") {
             assert_true(e.data.haveOpener, "opener");
           } else {
             assert_false(e.data.haveOpener, "opener");

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,7 @@ base::FilePath PrettifyPath(const base::FilePath& source_path);
 void CalculateAndFormatExtensionDirectorySize(
     const base::FilePath& extension_path,
     int message_id,
-    base::OnceCallback<void(const std::u16string&)> callback);
+    base::OnceCallback<void(const base::string16&)> callback);
 
 // Returns a new FilePath with the '~' resolved to the home directory, if
 // appropriate. Otherwise, returns the original path.

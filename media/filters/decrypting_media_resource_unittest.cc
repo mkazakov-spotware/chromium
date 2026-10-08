@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -69,7 +69,7 @@ class DecryptingMediaResourceTest : public testing::Test {
         task_environment_.GetMainThreadTaskRunner());
   }
 
-  ~DecryptingMediaResourceTest() override {
+  ~DecryptingMediaResourceTest() {
     // Ensure that the DecryptingMediaResource is destructed before other
     // objects that it internally references but does not own.
     decrypting_media_resource_.reset();

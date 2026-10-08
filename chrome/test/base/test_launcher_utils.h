@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/compiler_specific.h"
 #include "base/files/file_path.h"
 
 namespace base {
@@ -35,10 +36,11 @@ void RemoveCommandLineSwitch(const base::CommandLine& in_command_line,
                              base::CommandLine* out_command_line);
 
 // Creates and overrides the current process' user data dir.
-[[nodiscard]] bool CreateUserDataDir(base::ScopedTempDir* temp_dir);
+bool CreateUserDataDir(base::ScopedTempDir* temp_dir) WARN_UNUSED_RESULT;
 
 // Overrides the current process' user data dir.
-[[nodiscard]] bool OverrideUserDataDir(const base::FilePath& user_data_dir);
+bool OverrideUserDataDir(const base::FilePath& user_data_dir)
+    WARN_UNUSED_RESULT;
 
 }  // namespace test_launcher_utils
 

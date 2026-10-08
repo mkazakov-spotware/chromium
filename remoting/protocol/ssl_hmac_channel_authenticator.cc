@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,6 +22,7 @@
 #include "net/cert/cert_verify_result.h"
 #include "net/cert/ct_policy_enforcer.h"
 #include "net/cert/ct_policy_status.h"
+#include "net/cert/do_nothing_ct_verifier.h"
 #include "net/cert/signed_certificate_timestamp_and_status.h"
 #include "net/cert/x509_certificate.h"
 #include "net/http/transport_security_state.h"
@@ -37,7 +38,8 @@
 #include "remoting/protocol/auth_util.h"
 #include "remoting/protocol/p2p_stream_socket.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 
@@ -152,6 +154,13 @@ class NetStreamSocketAdapter : public net::StreamSocket {
     NOTREACHED();
     return false;
   }
+  void GetConnectionAttempts(net::ConnectionAttempts* out) const override {
+    NOTREACHED();
+  }
+  void ClearConnectionAttempts() override { NOTREACHED(); }
+  void AddConnectionAttempts(const net::ConnectionAttempts& attempts) override {
+    NOTREACHED();
+  }
   int64_t GetTotalReceivedBytes() const override {
     NOTIMPLEMENTED();
     return 0;
@@ -243,8 +252,8 @@ void SslHmacChannelAuthenticator::SecureAndAuthenticate(
   int result;
   if (is_ssl_server()) {
     scoped_refptr<net::X509Certificate> cert =
-        net::X509Certificate::CreateFromBytes(
-            base::as_bytes(base::make_span(local_cert_)));
+        net::X509Certificate::CreateFromBytes(local_cert_.data(),
+                                              local_cert_.length());
     if (!cert) {
       LOG(ERROR) << "Failed to parse X509Certificate";
       NotifyError(net::ERR_FAILED);
@@ -268,11 +277,13 @@ void SslHmacChannelAuthenticator::SecureAndAuthenticate(
     socket_context_.transport_security_state =
         std::make_unique<net::TransportSecurityState>();
     socket_context_.cert_verifier = std::make_unique<FailingCertVerifier>();
+    socket_context_.ct_verifier = std::make_unique<net::DoNothingCTVerifier>();
     socket_context_.ct_policy_enforcer =
         std::make_unique<net::DefaultCTPolicyEnforcer>();
     socket_context_.client_context = std::make_unique<net::SSLClientContext>(
         nullptr /* default config */, socket_context_.cert_verifier.get(),
         socket_context_.transport_security_state.get(),
+        socket_context_.ct_verifier.get(),
         socket_context_.ct_policy_enforcer.get(),
         nullptr /* no session caching */, nullptr /* no sct auditing */);
 
@@ -280,8 +291,8 @@ void SslHmacChannelAuthenticator::SecureAndAuthenticate(
     ssl_config.require_ecdhe = true;
 
     scoped_refptr<net::X509Certificate> cert =
-        net::X509Certificate::CreateFromBytes(
-            base::as_bytes(base::make_span(remote_cert_)));
+        net::X509Certificate::CreateFromBytes(remote_cert_.data(),
+                                              remote_cert_.length());
     if (!cert) {
       LOG(ERROR) << "Failed to parse X509Certificate";
       NotifyError(net::ERR_FAILED);
@@ -462,4 +473,5 @@ void SslHmacChannelAuthenticator::NotifyError(int error) {
   std::move(done_callback_).Run(error, nullptr);
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <map>
 #include <utility>
 
-#include "build/build_config.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -24,12 +23,6 @@ class VirtualDeviceEnabledDeviceFactory : public DeviceFactory {
  public:
   explicit VirtualDeviceEnabledDeviceFactory(
       std::unique_ptr<DeviceFactory> factory);
-
-  VirtualDeviceEnabledDeviceFactory(const VirtualDeviceEnabledDeviceFactory&) =
-      delete;
-  VirtualDeviceEnabledDeviceFactory& operator=(
-      const VirtualDeviceEnabledDeviceFactory&) = delete;
-
   ~VirtualDeviceEnabledDeviceFactory() override;
 
   // DeviceFactory implementation.
@@ -37,12 +30,10 @@ class VirtualDeviceEnabledDeviceFactory : public DeviceFactory {
   void CreateDevice(const std::string& device_id,
                     mojo::PendingReceiver<mojom::Device> device_receiver,
                     CreateDeviceCallback callback) override;
-  void CreateDeviceInProcess(const std::string& device_id,
-                             CreateDeviceInProcessCallback callback) override;
-  void StopDeviceInProcess(const std::string device_id) override;
   void AddSharedMemoryVirtualDevice(
       const media::VideoCaptureDeviceInfo& device_info,
       mojo::PendingRemote<mojom::Producer> producer,
+      bool send_buffer_handles_to_producer_as_raw_file_descriptors,
       mojo::PendingReceiver<mojom::SharedMemoryVirtualDevice>
           virtual_device_receiver) override;
   void AddTextureVirtualDevice(
@@ -56,9 +47,6 @@ class VirtualDeviceEnabledDeviceFactory : public DeviceFactory {
   void RegisterVirtualDevicesChangedObserver(
       mojo::PendingRemote<mojom::DevicesChangedObserver> observer,
       bool raise_event_if_virtual_devices_already_present) override;
-#if BUILDFLAG(IS_WIN)
-  void OnGpuInfoUpdate(const CHROME_LUID& luid) override;
-#endif
 
  private:
   class VirtualDeviceEntry;
@@ -81,6 +69,7 @@ class VirtualDeviceEnabledDeviceFactory : public DeviceFactory {
       devices_changed_observers_;
 
   base::WeakPtrFactory<VirtualDeviceEnabledDeviceFactory> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(VirtualDeviceEnabledDeviceFactory);
 };
 
 }  // namespace video_capture

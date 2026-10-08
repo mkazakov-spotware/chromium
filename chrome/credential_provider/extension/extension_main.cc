@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,9 @@
 #include "base/win/process_startup_helper.h"
 #include "base/win/windows_types.h"
 #include "chrome/credential_provider/eventlog/gcp_eventlog_messages.h"
-#include "chrome/credential_provider/extension/app_inventory_manager.h"
 #include "chrome/credential_provider/extension/os_service_manager.h"
 #include "chrome/credential_provider/extension/service.h"
 #include "chrome/credential_provider/extension/task_manager.h"
-#include "chrome/credential_provider/gaiacp/experiments_fetcher.h"
-#include "chrome/credential_provider/gaiacp/experiments_manager.h"
 #include "chrome/credential_provider/gaiacp/gem_device_details_manager.h"
 #include "chrome/credential_provider/gaiacp/logging.h"
 #include "chrome/credential_provider/gaiacp/reg_utils.h"
@@ -27,15 +24,6 @@ using credential_provider::kRegEnableVerboseLogging;
 
 // Register all tasks for ESA with the TaskManager.
 void RegisterAllTasks() {
-  // Task to fetch experiments for all GCPW users. Keeping this as the first
-  // task so that latest version of experiments is available to all of the other
-  // tasks.
-  if (credential_provider::ExperimentsManager::Get()->ExperimentsEnabled()) {
-    credential_provider::extension::TaskManager::Get()->RegisterTask(
-        "FetchExperiments", credential_provider::ExperimentsFetcher::
-                                GetFetchExperimentsTaskCreator());
-  }
-
   // Task to fetch Cloud policies for all GCPW users.
   if (credential_provider::UserPoliciesManager::Get()->CloudPoliciesEnabled()) {
     credential_provider::extension::TaskManager::Get()->RegisterTask(
@@ -49,14 +37,6 @@ void RegisterAllTasks() {
     credential_provider::extension::TaskManager::Get()->RegisterTask(
         "UploadDeviceDetails", credential_provider::GemDeviceDetailsManager::
                                    UploadDeviceDetailsTaskCreator());
-
-    // Task to Upload app data.
-    if (credential_provider::AppInventoryManager::Get()
-            ->UploadAppInventoryFromEsaFeatureEnabled()) {
-      credential_provider::extension::TaskManager::Get()->RegisterTask(
-          "UploadAppInventory", credential_provider::AppInventoryManager::
-                                    UploadAppInventoryTaskCreator());
-    }
   }
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/media_galleries/gallery_watch_manager_observer.h"
 #include "chrome/browser/media_galleries/media_file_system_registry.h"
@@ -66,7 +65,7 @@ class MediaGalleriesEventRouter : public extensions::BrowserContextKeyedAPI,
       const std::string& extension_id,
       extensions::events::HistogramValue histogram_value,
       const std::string& event_name,
-      base::Value::List event_args);
+      std::unique_ptr<base::ListValue> event_args);
 
   explicit MediaGalleriesEventRouter(content::BrowserContext* context);
   ~MediaGalleriesEventRouter() override;
@@ -85,7 +84,7 @@ class MediaGalleriesEventRouter : public extensions::BrowserContextKeyedAPI,
   void OnListenerRemoved(const extensions::EventListenerInfo& details) override;
 
   // Current profile.
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   base::WeakPtrFactory<MediaGalleriesEventRouter> weak_ptr_factory_{this};
 };
@@ -184,9 +183,9 @@ class MediaGalleriesGetMetadataFunction : public ExtensionFunction {
       std::unique_ptr<std::vector<metadata::AttachedImage>> attached_images);
 
   void ConstructNextBlob(
-      base::Value::Dict result_dictionary,
+      std::unique_ptr<base::DictionaryValue> result_dictionary,
       std::unique_ptr<std::vector<metadata::AttachedImage>> attached_images,
-      std::vector<blink::mojom::SerializedBlobPtr> blobs,
+      std::unique_ptr<std::vector<std::string>> blob_uuids,
       std::unique_ptr<content::BlobHandle> current_blob);
 };
 

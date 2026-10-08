@@ -1,37 +1,28 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_BROWSER_API_STORAGE_SETTINGS_OBSERVER_H_
 #define EXTENSIONS_BROWSER_API_STORAGE_SETTINGS_OBSERVER_H_
 
-#include "base/callback.h"
-#include "base/task/bind_post_task.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/types/strong_alias.h"
-#include "base/values.h"
+#include "base/observer_list_threadsafe.h"
+#include "extensions/browser/api/storage/settings_namespace.h"
 
 namespace extensions {
 
-enum class StorageAreaNamespace;
+// Interface for classes that listen to changes to extension settings.
+class SettingsObserver {
+ public:
+  // Called when a list of settings have changed for an extension.
+  virtual void OnSettingsChanged(
+      const std::string& extension_id,
+      settings_namespace::Namespace settings_namespace,
+      const std::string& changes_json) = 0;
 
-using SettingsChangedCallback = base::RepeatingCallback<
-    void(const std::string&, StorageAreaNamespace, base::Value)>;
+  virtual ~SettingsObserver() {}
+};
 
-using SequenceBoundSettingsChangedCallback =
-    base::StrongAlias<class SequenceBoundSettingsChangedCallbackTag,
-                      SettingsChangedCallback>;
-
-// Returns a callback that is guaranteed to run on |task_runner|. This should be
-// used when the callback is invoked from other sequences.
-inline SequenceBoundSettingsChangedCallback
-GetSequenceBoundSettingsChangedCallback(
-    scoped_refptr<base::SequencedTaskRunner> task_runner,
-    SettingsChangedCallback callback,
-    const base::Location& location = FROM_HERE) {
-  return SequenceBoundSettingsChangedCallback(base::BindPostTask(
-      std::move(task_runner), std::move(callback), location));
-}
+typedef base::ObserverListThreadSafe<SettingsObserver> SettingsObserverList;
 
 }  // namespace extensions
 

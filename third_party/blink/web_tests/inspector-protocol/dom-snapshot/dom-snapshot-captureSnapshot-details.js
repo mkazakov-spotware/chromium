@@ -10,7 +10,7 @@
     response.result.strings[response.result.documents[0].frameId] = '';
     testRunner.log(
         response.result, undefined,
-        ['documentURL', 'frameId', 'backendNodeId', 'shadowRootType']);
+        ['documentURL', 'frameId', 'backendNodeId']);
   }
   testRunner.completeTest();
 })

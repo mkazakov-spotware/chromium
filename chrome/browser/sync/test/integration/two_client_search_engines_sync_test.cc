@@ -1,12 +1,13 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
+#include "chrome/browser/sync/test/integration/profile_sync_service_harness.h"
 #include "chrome/browser/sync/test/integration/search_engines_helper.h"
 #include "chrome/browser/sync/test/integration/sync_datatype_helper.h"
-#include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "chrome/browser/sync/test/integration/updated_progress_marker_checker.h"
 #include "chrome/test/base/search_test_utils.h"
@@ -140,7 +141,7 @@ IN_PROC_BROWSER_TEST_F(TwoClientSearchEnginesSyncTestWithVerifier, Duplicates) {
   GetServiceForBrowserContext(0)->Add(builder.Build());
   GetVerifierService()->Add(builder.Build());
 
-  builder.data()->SetKeyword(u"test1");
+  builder.data()->SetKeyword(base::UTF8ToUTF16("test1"));
   builder.data()->sync_guid = "newguid";
   GetServiceForBrowserContext(0)->Add(builder.Build());
   GetVerifierService()->Add(builder.Build());
@@ -162,8 +163,9 @@ IN_PROC_BROWSER_TEST_F(TwoClientSearchEnginesSyncTest,
   // Change the keyword.
   ASSERT_TRUE(SearchEnginesMatchChecker().Wait());
 
-  EditSearchEngine(/*profile_index=*/0, /*keyword=*/"test0", u"test0",
-                   /*new_keyword=*/"newkeyword", "http://www.test0.com/");
+  EditSearchEngine(/*profile_index=*/0, /*keyword=*/"test0",
+                   base::UTF8ToUTF16("test0"), /*new_keyword=*/"newkeyword",
+                   "http://www.test0.com/");
 
   ASSERT_TRUE(SearchEnginesMatchChecker().Wait());
 }
@@ -181,8 +183,9 @@ IN_PROC_BROWSER_TEST_F(TwoClientSearchEnginesSyncTest, E2E_ENABLED(UpdateUrl)) {
   ASSERT_TRUE(SearchEnginesMatchChecker().Wait());
 
   // Change the URL.
-  EditSearchEngine(/*profile_index=*/0, /*keyword=*/"test0", u"test0",
-                   /*new_keyword=*/"test0", "http://www.wikipedia.org/q=%s");
+  EditSearchEngine(/*profile_index=*/0, /*keyword=*/"test0",
+                   base::UTF8ToUTF16("test0"), /*new_keyword=*/"test0",
+                   "http://www.wikipedia.org/q=%s");
 
   ASSERT_TRUE(SearchEnginesMatchChecker().Wait());
 }
@@ -201,8 +204,8 @@ IN_PROC_BROWSER_TEST_F(TwoClientSearchEnginesSyncTest,
   ASSERT_TRUE(SearchEnginesMatchChecker().Wait());
 
   // Change the short name.
-  EditSearchEngine(/*profile_index=*/0, "test0", u"New Name", "test0",
-                   "http://www.test0.com/");
+  EditSearchEngine(/*profile_index=*/0, "test0", base::UTF8ToUTF16("New Name"),
+                   "test0", "http://www.test0.com/");
 
   ASSERT_TRUE(SearchEnginesMatchChecker().Wait());
 }
@@ -219,9 +222,11 @@ IN_PROC_BROWSER_TEST_F(TwoClientSearchEnginesSyncTest, ConflictKeyword) {
   AddSearchEngine(/*profile_index=*/0, "test0");
   AddSearchEngine(/*profile_index=*/1, "test1");
   TemplateURLService* service = GetServiceForBrowserContext(1);
-  TemplateURL* turl = service->GetTemplateURLForKeyword(u"test1");
+  TemplateURL* turl =
+      service->GetTemplateURLForKeyword(base::UTF8ToUTF16("test1"));
   EXPECT_TRUE(turl);
-  service->ResetTemplateURL(turl, turl->short_name(), u"test0", turl->url());
+  service->ResetTemplateURL(turl, turl->short_name(),
+                            base::UTF8ToUTF16("test0"), turl->url());
 
   ASSERT_TRUE(AwaitQuiescence());
   ASSERT_TRUE(AllServicesMatch());
@@ -241,12 +246,12 @@ IN_PROC_BROWSER_TEST_F(TwoClientSearchEnginesSyncTest, MergeMultiple) {
   AddSearchEngine(/*profile_index=*/0, "test2");
 
   // client1: { SE0, SE2, SE3, SE0 + different URL }
-  AddSearchEngine(/*profile_index=*/1, "test0");
-  AddSearchEngine(/*profile_index=*/1, "test2");
-  AddSearchEngine(/*profile_index=*/1, "test3");
+  AddSearchEngine(/*profile_index=*/0, "test0");
+  AddSearchEngine(/*profile_index=*/0, "test2");
+  AddSearchEngine(/*profile_index=*/0, "test3");
 
   TemplateURLBuilder builder("test0");
-  builder.data()->SetKeyword(u"somethingelse.com");
+  builder.data()->SetKeyword(base::UTF8ToUTF16("somethingelse.com"));
   builder.data()->SetURL("http://www.somethingelse.com/");
   builder.data()->sync_guid = "somethingelse";
   GetServiceForBrowserContext(1)->Add(builder.Build());
@@ -295,14 +300,8 @@ IN_PROC_BROWSER_TEST_F(TwoClientSearchEnginesSyncTest,
 
 // Ensure that we can change the search engine and immediately delete it
 // without putting the clients out of sync.
-// TODO(crbug.com/1347009): Flaky on Mac.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_DeleteSyncedDefault DISABLED_DeleteSyncedDefault
-#else
-#define MAYBE_DeleteSyncedDefault DeleteSyncedDefault
-#endif
 IN_PROC_BROWSER_TEST_F(TwoClientSearchEnginesSyncTest,
-                       E2E_ENABLED(MAYBE_DeleteSyncedDefault)) {
+                       E2E_ENABLED(DeleteSyncedDefault)) {
   ResetSyncForPrimaryAccount();
   ASSERT_TRUE(SetupSync()) << "SetupSync() failed.";
   // TODO(crbug.com/953711): Ideally we could immediately assert

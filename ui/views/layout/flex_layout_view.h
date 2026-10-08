@@ -1,12 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_VIEWS_LAYOUT_FLEX_LAYOUT_VIEW_H_
 #define UI_VIEWS_LAYOUT_FLEX_LAYOUT_VIEW_H_
 
-#include "base/memory/raw_ptr.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/layout/flex_layout.h"
 #include "ui/views/layout/flex_layout_types.h"
 #include "ui/views/metadata/view_factory.h"
@@ -17,7 +15,6 @@ namespace views {
 
 class VIEWS_EXPORT FlexLayoutView : public View {
  public:
-  METADATA_HEADER(FlexLayoutView);
   FlexLayoutView();
   FlexLayoutView(const FlexLayoutView&) = delete;
   FlexLayoutView operator=(const FlexLayoutView&) = delete;
@@ -69,7 +66,7 @@ class VIEWS_EXPORT FlexLayoutView : public View {
   }
 
  private:
-  raw_ptr<FlexLayout> layout_;
+  FlexLayout* layout_;
   LayoutOrientation orientation_;
   LayoutAlignment main_axis_alignment_;
   LayoutAlignment cross_axis_alignment_;

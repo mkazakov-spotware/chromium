@@ -1,4 +1,4 @@
-// Copyright 2006-2008 The Chromium Authors
+// Copyright (c) 2006-2008 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,8 @@
 #include "sandbox/win/src/sandbox_nt_util.h"
 
 namespace sandbox {
+
+SANDBOX_INTERCEPT NtExports g_nt;
 
 const char KERNEL32_DLL_NAME[] = "kernel32.dll";
 
@@ -58,16 +60,14 @@ TargetNtMapViewOfSection(NtMapViewOfSectionFunction orig_MapViewOfSection,
         // indicates Application Verifier is enabled and we should wait until
         // the next module is loaded.
         if (ansi_module_name &&
-            (GetNtExports()->_strnicmp(
+            (g_nt._strnicmp(
                  ansi_module_name, base::win::kApplicationVerifierDllName,
-                 GetNtExports()->strlen(
-                     base::win::kApplicationVerifierDllName) +
-                     1) == 0)) {
+                 g_nt.strlen(base::win::kApplicationVerifierDllName) + 1) == 0))
           break;
-        }
+
         if (ansi_module_name &&
-            (GetNtExports()->_strnicmp(ansi_module_name, KERNEL32_DLL_NAME,
-                                       sizeof(KERNEL32_DLL_NAME)) == 0)) {
+            (g_nt._strnicmp(ansi_module_name, KERNEL32_DLL_NAME,
+                            sizeof(KERNEL32_DLL_NAME)) == 0)) {
           s_state = kAfterKernel32;
         }
       } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -96,7 +96,7 @@ TargetNtMapViewOfSection(NtMapViewOfSectionFunction orig_MapViewOfSection,
     if (agent) {
       if (!agent->OnDllLoad(file_name, module_name, *base)) {
         // Interception agent is demanding to un-map the module.
-        GetNtExports()->UnmapViewOfSection(process, *base);
+        g_nt.UnmapViewOfSection(process, *base);
         *base = nullptr;
         ret = STATUS_UNSUCCESSFUL;
       }

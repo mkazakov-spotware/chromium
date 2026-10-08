@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -82,264 +82,154 @@ TEST(CookieDeletionInfoTest, TimeRangeContains) {
 }
 
 TEST(CookieDeletionInfoTest, CookieDeletionInfoMatchSessionControl) {
-  auto persistent_cookie = CanonicalCookie::CreateUnsafeCookieForTesting(
-      "persistent-cookie", "persistent-value", "persistent-domain",
-      "persistent-path",
-      /*creation=*/base::Time::Now(),
-      /*expiration=*/base::Time::Max(),
-      /*last_access=*/base::Time::Now(),
-      /*last_update=*/base::Time::Now(),
-      /*secure=*/true,
-      /*httponly=*/false, CookieSameSite::NO_RESTRICTION,
-      CookiePriority::COOKIE_PRIORITY_DEFAULT,
-      /*same_party=*/false);
+  CanonicalCookie persistent_cookie("persistent-cookie", "persistent-value",
+                                    "persistent-domain", "persistent-path",
+                                    /*creation=*/base::Time::Now(),
+                                    /*expiration=*/base::Time::Max(),
+                                    /*last_access=*/base::Time::Now(),
+                                    /*secure=*/true,
+                                    /*httponly=*/false,
+                                    CookieSameSite::NO_RESTRICTION,
+                                    CookiePriority::COOKIE_PRIORITY_DEFAULT,
+                                    /*sameparty=*/false);
 
-  auto session_cookie = CanonicalCookie::CreateUnsafeCookieForTesting(
+  CanonicalCookie session_cookie(
       "session-cookie", "session-value", "session-domain", "session-path",
       /*creation=*/base::Time::Now(),
       /*expiration=*/base::Time(),
       /*last_access=*/base::Time::Now(),
-      /*last_update=*/base::Time::Now(),
       /*secure=*/true,
       /*httponly=*/false, CookieSameSite::NO_RESTRICTION,
       CookiePriority::COOKIE_PRIORITY_DEFAULT,
-      /*same_party=*/false);
+      /*sameparty=*/false);
 
   CookieDeletionInfo delete_info;
-  EXPECT_TRUE(delete_info.Matches(
-      *persistent_cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_TRUE(delete_info.Matches(
-      *session_cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_TRUE(delete_info.Matches(persistent_cookie));
+  EXPECT_TRUE(delete_info.Matches(session_cookie));
 
   delete_info.session_control =
       CookieDeletionInfo::SessionControl::PERSISTENT_COOKIES;
-  EXPECT_TRUE(delete_info.Matches(
-      *persistent_cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_FALSE(delete_info.Matches(
-      *session_cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_TRUE(delete_info.Matches(persistent_cookie));
+  EXPECT_FALSE(delete_info.Matches(session_cookie));
 
   delete_info.session_control =
       CookieDeletionInfo::SessionControl::SESSION_COOKIES;
-  EXPECT_FALSE(delete_info.Matches(
-      *persistent_cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_TRUE(delete_info.Matches(
-      *session_cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_FALSE(delete_info.Matches(persistent_cookie));
+  EXPECT_TRUE(delete_info.Matches(session_cookie));
 }
 
 TEST(CookieDeletionInfoTest, CookieDeletionInfoMatchHost) {
-  auto domain_cookie = CanonicalCookie::CreateUnsafeCookieForTesting(
-      "domain-cookie", "domain-cookie-value",
-      /*domain=*/".example.com", "/path",
-      /*creation=*/base::Time::Now(),
-      /*expiration=*/base::Time::Max(),
-      /*last_access=*/base::Time::Now(),
-      /*last_update=*/base::Time::Now(),
-      /*secure=*/true,
-      /*httponly=*/false, CookieSameSite::NO_RESTRICTION,
-      CookiePriority::COOKIE_PRIORITY_DEFAULT,
-      /*same_party=*/false);
+  CanonicalCookie domain_cookie("domain-cookie", "domain-cookie-value",
+                                /*domain=*/".example.com", "/path",
+                                /*creation=*/base::Time::Now(),
+                                /*expiration=*/base::Time::Max(),
+                                /*last_access=*/base::Time::Now(),
+                                /*secure=*/true,
+                                /*httponly=*/false,
+                                CookieSameSite::NO_RESTRICTION,
+                                CookiePriority::COOKIE_PRIORITY_DEFAULT,
+                                /*sameparty=*/false);
 
-  auto host_cookie = CanonicalCookie::CreateUnsafeCookieForTesting(
-      "host-cookie", "host-cookie-value",
-      /*domain=*/"thehost.hosting.com", "/path",
-      /*creation=*/base::Time::Now(),
-      /*expiration=*/base::Time::Max(),
-      /*last_access=*/base::Time::Now(),
-      /*last_update=*/base::Time::Now(),
-      /*secure=*/true,
-      /*httponly=*/false, CookieSameSite::NO_RESTRICTION,
-      CookiePriority::COOKIE_PRIORITY_DEFAULT,
-      /*same_party=*/false);
+  CanonicalCookie host_cookie("host-cookie", "host-cookie-value",
+                              /*domain=*/"thehost.hosting.com", "/path",
+                              /*creation=*/base::Time::Now(),
+                              /*expiration=*/base::Time::Max(),
+                              /*last_access=*/base::Time::Now(),
+                              /*secure=*/true,
+                              /*httponly=*/false,
+                              CookieSameSite::NO_RESTRICTION,
+                              CookiePriority::COOKIE_PRIORITY_DEFAULT,
+                              /*sameparty=*/false);
 
-  EXPECT_TRUE(domain_cookie->IsDomainCookie());
-  EXPECT_TRUE(host_cookie->IsHostCookie());
+  EXPECT_TRUE(domain_cookie.IsDomainCookie());
+  EXPECT_TRUE(host_cookie.IsHostCookie());
 
   CookieDeletionInfo delete_info;
-  EXPECT_TRUE(delete_info.Matches(
-      *domain_cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_TRUE(delete_info.Matches(
-      *host_cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_TRUE(delete_info.Matches(domain_cookie));
+  EXPECT_TRUE(delete_info.Matches(host_cookie));
 
   delete_info.host = "thehost.hosting.com";
-  EXPECT_FALSE(delete_info.Matches(
-      *domain_cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_TRUE(delete_info.Matches(
-      *host_cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_FALSE(delete_info.Matches(domain_cookie));
+  EXPECT_TRUE(delete_info.Matches(host_cookie));
 
   delete_info.host = "otherhost.hosting.com";
-  EXPECT_FALSE(delete_info.Matches(
-      *domain_cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_FALSE(delete_info.Matches(
-      *host_cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_FALSE(delete_info.Matches(domain_cookie));
+  EXPECT_FALSE(delete_info.Matches(host_cookie));
 
   delete_info.host = "thehost.otherhosting.com";
-  EXPECT_FALSE(delete_info.Matches(
-      *domain_cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_FALSE(delete_info.Matches(
-      *host_cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_FALSE(delete_info.Matches(domain_cookie));
+  EXPECT_FALSE(delete_info.Matches(host_cookie));
 }
 
 TEST(CookieDeletionInfoTest, CookieDeletionInfoMatchName) {
-  auto cookie1 = CanonicalCookie::CreateUnsafeCookieForTesting(
-      "cookie1-name", "cookie1-value",
-      /*domain=*/".example.com", "/path",
-      /*creation=*/base::Time::Now(),
-      /*expiration=*/base::Time::Max(),
-      /*last_access=*/base::Time::Now(),
-      /*last_update=*/base::Time::Now(),
-      /*secure=*/true,
-      /*httponly=*/false, CookieSameSite::NO_RESTRICTION,
-      CookiePriority::COOKIE_PRIORITY_DEFAULT,
-      /*same_party=*/false);
-  auto cookie2 = CanonicalCookie::CreateUnsafeCookieForTesting(
-      "cookie2-name", "cookie2-value",
-      /*domain=*/".example.com", "/path",
-      /*creation=*/base::Time::Now(),
-      /*expiration=*/base::Time::Max(),
-      /*last_access=*/base::Time::Now(),
-      /*last_update=*/base::Time::Now(),
-      /*secure=*/true,
-      /*httponly=*/false, CookieSameSite::NO_RESTRICTION,
-      CookiePriority::COOKIE_PRIORITY_DEFAULT,
-      /*same_party=*/false);
+  CanonicalCookie cookie1("cookie1-name", "cookie1-value",
+                          /*domain=*/".example.com", "/path",
+                          /*creation=*/base::Time::Now(),
+                          /*expiration=*/base::Time::Max(),
+                          /*last_access=*/base::Time::Now(),
+                          /*secure=*/true,
+                          /*httponly=*/false, CookieSameSite::NO_RESTRICTION,
+                          CookiePriority::COOKIE_PRIORITY_DEFAULT,
+                          /*sameparty=*/false);
+  CanonicalCookie cookie2("cookie2-name", "cookie2-value",
+                          /*domain=*/".example.com", "/path",
+                          /*creation=*/base::Time::Now(),
+                          /*expiration=*/base::Time::Max(),
+                          /*last_access=*/base::Time::Now(),
+                          /*secure=*/true,
+                          /*httponly=*/false, CookieSameSite::NO_RESTRICTION,
+                          CookiePriority::COOKIE_PRIORITY_DEFAULT,
+                          /*sameparty=*/false);
 
   CookieDeletionInfo delete_info;
   delete_info.name = "cookie1-name";
-  EXPECT_TRUE(delete_info.Matches(
-      *cookie1,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_FALSE(delete_info.Matches(
-      *cookie2,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_TRUE(delete_info.Matches(cookie1));
+  EXPECT_FALSE(delete_info.Matches(cookie2));
 }
 
 TEST(CookieDeletionInfoTest, CookieDeletionInfoMatchValue) {
-  auto cookie1 = CanonicalCookie::CreateUnsafeCookieForTesting(
-      "cookie1-name", "cookie1-value",
-      /*domain=*/".example.com", "/path",
-      /*creation=*/base::Time::Now(),
-      /*expiration=*/base::Time::Max(),
-      /*last_access=*/base::Time::Now(),
-      /*last_update=*/base::Time::Now(),
-      /*secure=*/true,
-      /*httponly=*/false, CookieSameSite::NO_RESTRICTION,
-      CookiePriority::COOKIE_PRIORITY_DEFAULT,
-      /*same_party=*/false);
-  auto cookie2 = CanonicalCookie::CreateUnsafeCookieForTesting(
-      "cookie2-name", "cookie2-value",
-      /*domain=*/".example.com", "/path",
-      /*creation=*/base::Time::Now(),
-      /*expiration=*/base::Time::Max(),
-      /*last_access=*/base::Time::Now(),
-      /*last_update=*/base::Time::Now(),
-      /*secure=*/true,
-      /*httponly=*/false, CookieSameSite::NO_RESTRICTION,
-      CookiePriority::COOKIE_PRIORITY_DEFAULT,
-      /*same_party=*/false);
+  CanonicalCookie cookie1("cookie1-name", "cookie1-value",
+                          /*domain=*/".example.com", "/path",
+                          /*creation=*/base::Time::Now(),
+                          /*expiration=*/base::Time::Max(),
+                          /*last_access=*/base::Time::Now(),
+                          /*secure=*/true,
+                          /*httponly=*/false, CookieSameSite::NO_RESTRICTION,
+                          CookiePriority::COOKIE_PRIORITY_DEFAULT,
+                          /*sameparty=*/false);
+  CanonicalCookie cookie2("cookie2-name", "cookie2-value",
+                          /*domain=*/".example.com", "/path",
+                          /*creation=*/base::Time::Now(),
+                          /*expiration=*/base::Time::Max(),
+                          /*last_access=*/base::Time::Now(),
+                          /*secure=*/true,
+                          /*httponly=*/false, CookieSameSite::NO_RESTRICTION,
+                          CookiePriority::COOKIE_PRIORITY_DEFAULT,
+                          /*sameparty=*/false);
 
   CookieDeletionInfo delete_info;
   delete_info.value_for_testing = "cookie2-value";
-  EXPECT_FALSE(delete_info.Matches(
-      *cookie1,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_TRUE(delete_info.Matches(
-      *cookie2,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_FALSE(delete_info.Matches(cookie1));
+  EXPECT_TRUE(delete_info.Matches(cookie2));
 }
 
 TEST(CookieDeletionInfoTest, CookieDeletionInfoMatchUrl) {
-  auto cookie = CanonicalCookie::CreateUnsafeCookieForTesting(
-      "cookie-name", "cookie-value",
-      /*domain=*/"www.example.com", "/path",
-      /*creation=*/base::Time::Now(),
-      /*expiration=*/base::Time::Max(),
-      /*last_access=*/base::Time::Now(),
-      /*last_update=*/base::Time::Now(),
-      /*secure=*/true,
-      /*httponly=*/false, CookieSameSite::NO_RESTRICTION,
-      CookiePriority::COOKIE_PRIORITY_DEFAULT,
-      /*same_party=*/false);
+  CanonicalCookie cookie("cookie-name", "cookie-value",
+                         /*domain=*/"www.example.com", "/path",
+                         /*creation=*/base::Time::Now(),
+                         /*expiration=*/base::Time::Max(),
+                         /*last_access=*/base::Time::Now(),
+                         /*secure=*/true,
+                         /*httponly=*/false, CookieSameSite::NO_RESTRICTION,
+                         CookiePriority::COOKIE_PRIORITY_DEFAULT,
+                         /*sameparty=*/false);
 
   CookieDeletionInfo delete_info;
   delete_info.url = GURL("https://www.example.com/path");
-  EXPECT_TRUE(delete_info.Matches(
-      *cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_TRUE(delete_info.Matches(cookie));
 
   delete_info.url = GURL("https://www.example.com/another/path");
-  EXPECT_FALSE(delete_info.Matches(
-      *cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-
-  delete_info.url = GURL("http://www.example.com/path");
-  // Secure cookie on http:// URL -> no match.
-  EXPECT_FALSE(delete_info.Matches(
-      *cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-
-  // Secure cookie on http:// URL, but delegate says treat is as trustworhy ->
-  // match.
-  EXPECT_TRUE(delete_info.Matches(
-      *cookie,
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/true,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_FALSE(delete_info.Matches(cookie));
 }
 
 TEST(CookieDeletionInfoTest, CookieDeletionInfoDomainMatchesDomain) {
@@ -351,27 +241,23 @@ TEST(CookieDeletionInfoTest, CookieDeletionInfoDomainMatchesDomain) {
   delete_info.creation_range.SetEnd(base::Time::FromDoubleT(kTestMaxEpoch));
 
   auto create_cookie = [kTestMinEpoch](std::string cookie_domain) {
-    return *CanonicalCookie::CreateUnsafeCookieForTesting(
+    CanonicalCookie cookie(
         /*name=*/"test-cookie",
         /*value=*/"cookie-value", cookie_domain,
         /*path=*/"cookie/path",
         /*creation=*/base::Time::FromDoubleT(kTestMinEpoch + 1),
         /*expiration=*/base::Time::Max(),
         /*last_access=*/base::Time::FromDoubleT(kTestMinEpoch + 1),
-        /*last_update=*/base::Time::Now(),
         /*secure=*/true,
         /*httponly=*/false,
         /*same_site=*/CookieSameSite::NO_RESTRICTION,
         /*priority=*/CookiePriority::COOKIE_PRIORITY_DEFAULT,
-        /*same_party=*/false);
+        /*sameparty=*/false);
+    return cookie;
   };
 
   // by default empty domain list and default match action will match.
-  EXPECT_TRUE(delete_info.Matches(
-      create_cookie("example.com"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_TRUE(delete_info.Matches(create_cookie("example.com")));
 
   const char kExtensionHostname[] = "mgndgikekgjfcpckkfioiadnlibdjbkf";
 
@@ -379,101 +265,49 @@ TEST(CookieDeletionInfoTest, CookieDeletionInfoDomainMatchesDomain) {
   // DomainMatchesDomainSet and not CookieDeletionInfo::Matches.
   delete_info.domains_and_ips_to_delete =
       std::set<std::string>({"example.com", "another.com", "192.168.0.1"});
-  EXPECT_TRUE(delete_info.Matches(
-      create_cookie(".example.com"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_TRUE(delete_info.Matches(
-      create_cookie("example.com"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_TRUE(delete_info.Matches(
-      create_cookie(".another.com"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_TRUE(delete_info.Matches(
-      create_cookie("192.168.0.1"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_FALSE(delete_info.Matches(
-      create_cookie(".nomatch.com"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_FALSE(delete_info.Matches(
-      create_cookie("192.168.0.2"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_FALSE(delete_info.Matches(
-      create_cookie(kExtensionHostname),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_TRUE(delete_info.Matches(create_cookie(".example.com")));
+  EXPECT_TRUE(delete_info.Matches(create_cookie("example.com")));
+  EXPECT_TRUE(delete_info.Matches(create_cookie(".another.com")));
+  EXPECT_TRUE(delete_info.Matches(create_cookie("192.168.0.1")));
+  EXPECT_FALSE(delete_info.Matches(create_cookie(".nomatch.com")));
+  EXPECT_FALSE(delete_info.Matches(create_cookie("192.168.0.2")));
+  EXPECT_FALSE(delete_info.Matches(create_cookie(kExtensionHostname)));
 }
 
 TEST(CookieDeletionInfoTest, CookieDeletionInfoMatchesDomainList) {
   CookieDeletionInfo delete_info;
 
   auto create_cookie = [](std::string cookie_domain) {
-    return *CanonicalCookie::CreateUnsafeCookieForTesting(
+    CanonicalCookie cookie(
         /*name=*/"test-cookie",
         /*value=*/"cookie-value", cookie_domain,
         /*path=*/"cookie/path",
         /*creation=*/base::Time::Now(),
         /*expiration=*/base::Time::Max(),
         /*last_access=*/base::Time::Now(),
-        /*last_update=*/base::Time::Now(),
         /*secure=*/false,
         /*httponly=*/false,
         /*same_site=*/CookieSameSite::NO_RESTRICTION,
         /*priority=*/CookiePriority::COOKIE_PRIORITY_DEFAULT,
-        /*same_party=*/false);
+        /*sameparty=*/false);
+    return cookie;
   };
 
   // With two empty lists (default) should match any domain.
-  EXPECT_TRUE(delete_info.Matches(
-      create_cookie("anything.com"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_TRUE(delete_info.Matches(create_cookie("anything.com")));
 
   // With only an "to_delete" list.
   delete_info.domains_and_ips_to_delete =
       std::set<std::string>({"includea.com", "includeb.com"});
-  EXPECT_TRUE(delete_info.Matches(
-      create_cookie("includea.com"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_TRUE(delete_info.Matches(
-      create_cookie("includeb.com"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_FALSE(delete_info.Matches(
-      create_cookie("anything.com"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_TRUE(delete_info.Matches(create_cookie("includea.com")));
+  EXPECT_TRUE(delete_info.Matches(create_cookie("includeb.com")));
+  EXPECT_FALSE(delete_info.Matches(create_cookie("anything.com")));
 
   // With only an "to_ignore" list.
   delete_info.domains_and_ips_to_delete.clear();
   delete_info.domains_and_ips_to_ignore.insert("exclude.com");
-  EXPECT_TRUE(delete_info.Matches(
-      create_cookie("anything.com"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_FALSE(delete_info.Matches(
-      create_cookie("exclude.com"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_TRUE(delete_info.Matches(create_cookie("anything.com")));
+  EXPECT_FALSE(delete_info.Matches(create_cookie("exclude.com")));
 
   // Now with both lists populated.
   //
@@ -492,113 +326,43 @@ TEST(CookieDeletionInfoTest, CookieDeletionInfoMatchesDomainList) {
   delete_info.domains_and_ips_to_ignore =
       std::set<std::string>({"mid.com", "right.com"});
 
-  EXPECT_TRUE(delete_info.Matches(
-      create_cookie("left.com"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_FALSE(delete_info.Matches(
-      create_cookie("mid.com"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_FALSE(delete_info.Matches(
-      create_cookie("right.com"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_FALSE(delete_info.Matches(
-      create_cookie("outside.com"),
-      CookieAccessParams{net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+  EXPECT_TRUE(delete_info.Matches(create_cookie("left.com")));
+  EXPECT_FALSE(delete_info.Matches(create_cookie("mid.com")));
+  EXPECT_FALSE(delete_info.Matches(create_cookie("right.com")));
+  EXPECT_FALSE(delete_info.Matches(create_cookie("outside.com")));
 }
 
 // Test that Matches() works regardless of the cookie access semantics (because
 // the IncludeForRequestURL call uses CookieOptions::MakeAllInclusive).
 TEST(CookieDeletionInfoTest, MatchesWithCookieAccessSemantics) {
   // Cookie with unspecified SameSite.
-  auto cookie = CanonicalCookie::Create(GURL("https://www.example.com"),
-                                        "cookie=1", base::Time::Now(),
-                                        /*server_time=*/absl::nullopt,
-                                        /*cookie_partition_key=*/absl::nullopt);
+  auto cookie =
+      CanonicalCookie::Create(GURL("https://www.example.com"), "cookie=1",
+                              base::Time::Now(), base::nullopt);
 
-  CookieDeletionInfo delete_info;
-  delete_info.url = GURL("https://www.example.com/path");
-  EXPECT_TRUE(delete_info.Matches(
-      *cookie,
-      CookieAccessParams{CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_TRUE(delete_info.Matches(
-      *cookie,
-      CookieAccessParams{CookieAccessSemantics::LEGACY,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-  EXPECT_TRUE(delete_info.Matches(
-      *cookie,
-      CookieAccessParams{CookieAccessSemantics::NONLEGACY,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
-}
+  {
+    // With SameSite features off.
+    base::test::ScopedFeatureList feature_list;
+    feature_list.InitAndDisableFeature(features::kSameSiteByDefaultCookies);
 
-TEST(CookieDeletionInfoTest, MatchesCookiePartitionKeyCollection) {
-  const CookiePartitionKey kPartitionKey =
-      CookiePartitionKey::FromURLForTesting(GURL("https://www.foo.com"));
-  const CookiePartitionKey kOtherPartitionKey =
-      CookiePartitionKey::FromURLForTesting(GURL("https://www.bar.com"));
-  const CookiePartitionKeyCollection kEmptyKeychain;
-  const CookiePartitionKeyCollection kSingletonKeychain(kPartitionKey);
-  const CookiePartitionKeyCollection kMultipleKeysKeychain(
-      {kPartitionKey, kOtherPartitionKey});
-  const CookiePartitionKeyCollection kAllKeysKeychain =
-      CookiePartitionKeyCollection::ContainsAll();
-  const absl::optional<CookiePartitionKey> kPartitionKeyOpt =
-      absl::make_optional(kPartitionKey);
-  const CookiePartitionKeyCollection kOtherKeySingletonKeychain(
-      kOtherPartitionKey);
-
-  struct TestCase {
-    const std::string desc;
-    const CookiePartitionKeyCollection filter_cookie_partition_key_collection;
-    const absl::optional<CookiePartitionKey> cookie_partition_key;
-    bool expects_match;
-  } test_cases[] = {
-      // Unpartitioned cookie always matches
-      {"Unpartitioned empty keychain", kEmptyKeychain, absl::nullopt, true},
-      {"Unpartitioned singleton keychain", kSingletonKeychain, absl::nullopt,
-       true},
-      {"Unpartitioned multiple keys", kMultipleKeysKeychain, absl::nullopt,
-       true},
-      {"Unpartitioned all keys", kAllKeysKeychain, absl::nullopt, true},
-      // Partitioned cookie only matches keychains which contain its partition
-      // key.
-      {"Partitioned empty keychain", kEmptyKeychain, kPartitionKeyOpt, false},
-      {"Partitioned singleton keychain", kSingletonKeychain, kPartitionKeyOpt,
-       true},
-      {"Partitioned multiple keys", kMultipleKeysKeychain, kPartitionKeyOpt,
-       true},
-      {"Partitioned all keys", kAllKeysKeychain, kPartitionKeyOpt, true},
-      {"Partitioned mismatched keys", kOtherKeySingletonKeychain,
-       kPartitionKeyOpt, false},
-  };
-
-  for (const auto& test_case : test_cases) {
-    SCOPED_TRACE(test_case.desc);
-    auto cookie = CanonicalCookie::Create(
-        GURL("https://www.example.com"),
-        "__Host-foo=bar; Secure; Path=/; Partitioned", base::Time::Now(),
-        /*server_time=*/absl::nullopt, test_case.cookie_partition_key);
     CookieDeletionInfo delete_info;
-    delete_info.cookie_partition_key_collection =
-        test_case.filter_cookie_partition_key_collection;
-    EXPECT_EQ(
-        test_case.expects_match,
-        delete_info.Matches(
-            *cookie, CookieAccessParams{
-                         net::CookieAccessSemantics::UNKNOWN,
-                         /*delegate_treats_url_as_trustworthy=*/false,
-                         CookieSamePartyStatus::kNoSamePartyEnforcement}));
+    delete_info.url = GURL("https://www.example.com/path");
+    EXPECT_TRUE(delete_info.Matches(*cookie));  // defaults to UNKNOWN
+    EXPECT_TRUE(delete_info.Matches(*cookie, CookieAccessSemantics::UNKNOWN));
+    EXPECT_TRUE(delete_info.Matches(*cookie, CookieAccessSemantics::LEGACY));
+    EXPECT_TRUE(delete_info.Matches(*cookie, CookieAccessSemantics::NONLEGACY));
+  }
+  {
+    // With SameSite features on.
+    base::test::ScopedFeatureList feature_list;
+    feature_list.InitAndEnableFeature(features::kSameSiteByDefaultCookies);
+
+    CookieDeletionInfo delete_info;
+    delete_info.url = GURL("https://www.example.com/path");
+    EXPECT_TRUE(delete_info.Matches(*cookie));  // defaults to UNKNOWN
+    EXPECT_TRUE(delete_info.Matches(*cookie, CookieAccessSemantics::UNKNOWN));
+    EXPECT_TRUE(delete_info.Matches(*cookie, CookieAccessSemantics::LEGACY));
+    EXPECT_TRUE(delete_info.Matches(*cookie, CookieAccessSemantics::NONLEGACY));
   }
 }
 

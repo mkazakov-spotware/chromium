@@ -1,24 +1,54 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/webaudio/iir_filter_node.h"
 
+#include <memory>
+
 #include "base/metrics/histogram_functions.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_iir_filter_options.h"
-#include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/inspector/console_message.h"
-#include "third_party/blink/renderer/modules/webaudio/audio_graph_tracer.h"
+#include "third_party/blink/renderer/modules/webaudio/audio_node_output.h"
 #include "third_party/blink/renderer/modules/webaudio/base_audio_context.h"
-#include "third_party/blink/renderer/modules/webaudio/iir_filter_handler.h"
-#include "third_party/blink/renderer/modules/webaudio/iir_processor.h"
-#include "third_party/blink/renderer/platform/audio/iir_filter.h"
 #include "third_party/blink/renderer/platform/bindings/exception_messages.h"
-#include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
+#include "third_party/blink/renderer/platform/bindings/exception_state.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
+#include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
+#include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
 
 namespace blink {
 
-namespace {
+IIRFilterHandler::IIRFilterHandler(AudioNode& node,
+                                   float sample_rate,
+                                   const Vector<double>& feedforward_coef,
+                                   const Vector<double>& feedback_coef,
+                                   bool is_filter_stable)
+    : AudioBasicProcessorHandler(
+          kNodeTypeIIRFilter,
+          node,
+          sample_rate,
+          std::make_unique<IIRProcessor>(sample_rate,
+                                         1,
+                                         feedforward_coef,
+                                         feedback_coef,
+                                         is_filter_stable)) {
+  DCHECK(Context());
+  DCHECK(Context()->GetExecutionContext());
+
+  task_runner_ = Context()->GetExecutionContext()->GetTaskRunner(
+      TaskType::kMediaElementEvent);
+}
+
+scoped_refptr<IIRFilterHandler> IIRFilterHandler::Create(
+    AudioNode& node,
+    float sample_rate,
+    const Vector<double>& feedforward_coef,
+    const Vector<double>& feedback_coef,
+    bool is_filter_stable) {
+  return base::AdoptRef(new IIRFilterHandler(
+      node, sample_rate, feedforward_coef, feedback_coef, is_filter_stable));
+}
 
 // Determine if filter is stable based on the feedback coefficients.
 // We compute the reflection coefficients for the filter.  If, at any
@@ -34,16 +64,15 @@ namespace {
 //
 // stopping at A[1](z).  If at any point |k[n]| >= 1, the filter is
 // unstable.
-bool IsFilterStable(const Vector<double>& feedback_coef) {
+static bool IsFilterStable(const Vector<double>& feedback_coef) {
   // Make a copy of the feedback coefficients
   Vector<double> coef(feedback_coef);
   int order = coef.size() - 1;
 
   // If necessary, normalize filter coefficients so that constant term is 1.
   if (coef[0] != 1) {
-    for (int m = 1; m <= order; ++m) {
+    for (int m = 1; m <= order; ++m)
       coef[m] /= coef[0];
-    }
     coef[0] = 1;
   }
 
@@ -52,23 +81,48 @@ bool IsFilterStable(const Vector<double>& feedback_coef) {
   for (int n = order; n >= 1; --n) {
     double k = coef[n];
 
-    if (std::fabs(k) >= 1) {
+    if (std::fabs(k) >= 1)
       return false;
-    }
 
     // Note that A[n](1/z)/z^n is basically the coefficients of A[n]
     // in reverse order.
     double factor = 1 - k * k;
-    for (int m = 0; m <= n; ++m) {
+    for (int m = 0; m <= n; ++m)
       work[m] = (coef[m] - k * coef[n - m]) / factor;
-    }
     coef.swap(work);
   }
 
   return true;
 }
 
-}  // namespace
+void IIRFilterHandler::Process(uint32_t frames_to_process) {
+  AudioBasicProcessorHandler::Process(frames_to_process);
+
+  if (!did_warn_bad_filter_state_) {
+    // Inform the user once if the output has a non-finite value.  This is a
+    // proxy for the filter state containing non-finite values since the output
+    // is also saved as part of the state of the filter.
+    if (HasNonFiniteOutput()) {
+      did_warn_bad_filter_state_ = true;
+
+      PostCrossThreadTask(
+          *task_runner_, FROM_HERE,
+          CrossThreadBindOnce(&IIRFilterHandler::NotifyBadState, AsWeakPtr()));
+    }
+  }
+}
+
+void IIRFilterHandler::NotifyBadState() const {
+  DCHECK(IsMainThread());
+  if (!Context() || !Context()->GetExecutionContext())
+    return;
+
+  Context()->GetExecutionContext()->AddConsoleMessage(
+      MakeGarbageCollected<ConsoleMessage>(
+          mojom::ConsoleMessageSource::kJavaScript,
+          mojom::ConsoleMessageLevel::kWarning,
+          NodeTypeName() + ": state is bad, probably due to unstable filter."));
+}
 
 IIRFilterNode::IIRFilterNode(BaseAudioContext& context,
                              const Vector<double>& feedforward_coef,
@@ -80,8 +134,8 @@ IIRFilterNode::IIRFilterNode(BaseAudioContext& context,
                                       is_filter_stable));
 
   // Histogram of the IIRFilter order.  createIIRFilter ensures that the length
-  // of `feedback_coef` is in the range [1, IIRFilter::kMaxOrder + 1].  The
-  // order is one less than the length of this vector.
+  // of |feedbackCoef| is in the range [1, IIRFilter::kMaxOrder + 1].  The order
+  // is one less than the length of this vector.
   base::UmaHistogramSparse("WebAudio.IIRFilterNode.Order",
                            feedback_coef.size() - 1);
 }
@@ -94,9 +148,8 @@ IIRFilterNode* IIRFilterNode::Create(BaseAudioContext& context,
 
   // TODO(crbug.com/1055983): Remove this when the execution context validity
   // check is not required in the AudioNode factory methods.
-  if (!context.CheckExecutionContextAndThrowIfNecessary(exception_state)) {
+  if (!context.CheckExecutionContextAndThrowIfNecessary(exception_state))
     return nullptr;
-  }
 
   if (feedback_coef.size() == 0 ||
       (feedback_coef.size() > IIRFilter::kMaxOrder + 1)) {
@@ -129,8 +182,8 @@ IIRFilterNode* IIRFilterNode::Create(BaseAudioContext& context,
 
   bool has_non_zero_coef = false;
 
-  for (double k : feedforward_coef) {
-    if (k != 0) {
+  for (wtf_size_t k = 0; k < feedforward_coef.size(); ++k) {
+    if (feedforward_coef[k] != 0) {
       has_non_zero_coef = true;
       break;
     }
@@ -170,9 +223,8 @@ IIRFilterNode* IIRFilterNode::Create(BaseAudioContext* context,
   IIRFilterNode* node = Create(*context, options->feedforward(),
                                options->feedback(), exception_state);
 
-  if (!node) {
+  if (!node)
     return nullptr;
-  }
 
   node->HandleChannelOptions(options, exception_state);
 
@@ -193,25 +245,25 @@ void IIRFilterNode::getFrequencyResponse(
     NotShared<DOMFloat32Array> mag_response,
     NotShared<DOMFloat32Array> phase_response,
     ExceptionState& exception_state) {
-  size_t frequency_hz_length = frequency_hz->length();
+  size_t frequency_hz_length = frequency_hz.View()->length();
 
   // All the arrays must have the same length.  Just verify that all
-  // the arrays have the same length as the `frequency_hz` array.
-  if (mag_response->length() != frequency_hz_length) {
+  // the arrays have the same length as the |frequency_hz| array.
+  if (mag_response.View()->length() != frequency_hz_length) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kInvalidAccessError,
         ExceptionMessages::IndexOutsideRange(
-            "magResponse length", mag_response->length(), frequency_hz_length,
-            ExceptionMessages::kInclusiveBound, frequency_hz_length,
-            ExceptionMessages::kInclusiveBound));
+            "magResponse length", mag_response.View()->length(),
+            frequency_hz_length, ExceptionMessages::kInclusiveBound,
+            frequency_hz_length, ExceptionMessages::kInclusiveBound));
     return;
   }
 
-  if (phase_response->length() != frequency_hz_length) {
+  if (phase_response.View()->length() != frequency_hz_length) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kInvalidAccessError,
         ExceptionMessages::IndexOutsideRange(
-            "phaseResponse length", phase_response->length(),
+            "phaseResponse length", phase_response.View()->length(),
             frequency_hz_length, ExceptionMessages::kInclusiveBound,
             frequency_hz_length, ExceptionMessages::kInclusiveBound));
     return;
@@ -228,8 +280,8 @@ void IIRFilterNode::getFrequencyResponse(
   // Nothing to do if the length is 0.
   if (frequency_hz_length_as_int > 0) {
     GetIIRFilterProcessor()->GetFrequencyResponse(
-        frequency_hz_length_as_int, frequency_hz->Data(), mag_response->Data(),
-        phase_response->Data());
+        frequency_hz_length_as_int, frequency_hz.View()->Data(),
+        mag_response.View()->Data(), phase_response.View()->Data());
   }
 }
 

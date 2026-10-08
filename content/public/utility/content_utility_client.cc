@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,13 @@
 
 namespace content {
 
-bool ContentUtilityClient::HandleServiceRequestDeprecated(
+bool ContentUtilityClient::OnMessageReceived(const IPC::Message& message) {
+  return false;
+}
+
+bool ContentUtilityClient::HandleServiceRequest(
     const std::string& service_name,
-    mojo::ScopedMessagePipeHandle service_pipe) {
+    mojo::PendingReceiver<service_manager::mojom::Service> receiver) {
   return false;
 }
 

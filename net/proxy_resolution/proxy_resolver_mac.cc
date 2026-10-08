@@ -1,12 +1,10 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/proxy_resolution/proxy_resolver_mac.h"
 
 #include <CoreFoundation/CoreFoundation.h>
-
-#include <memory>
 
 #include "base/check.h"
 #include "base/lazy_instance.h"
@@ -16,16 +14,13 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/synchronization/lock.h"
 #include "base/threading/thread_checker.h"
-#include "build/build_config.h"
 #include "net/base/net_errors.h"
 #include "net/base/proxy_server.h"
-#include "net/base/proxy_string_util.h"
 #include "net/proxy_resolution/proxy_info.h"
-#include "net/proxy_resolution/proxy_list.h"
 #include "net/proxy_resolution/proxy_resolver.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 #include <CFNetwork/CFProxySupport.h>
 #else
 #include <CoreServices/CoreServices.h>
@@ -33,7 +28,7 @@
 
 namespace net {
 
-class NetworkAnonymizationKey;
+class NetworkIsolationKey;
 
 namespace {
 
@@ -75,13 +70,13 @@ ProxyServer::Scheme GetProxyServerScheme(CFStringRef proxy_type) {
 // Callback for CFNetworkExecuteProxyAutoConfigurationURL. |client| is a pointer
 // to a CFTypeRef.  This stashes either |error| or |proxies| in that location.
 void ResultCallback(void* client, CFArrayRef proxies, CFErrorRef error) {
-  DCHECK((proxies != nullptr) == (error == nullptr));
+  DCHECK((proxies != NULL) == (error == NULL));
 
   CFTypeRef* result_ptr = reinterpret_cast<CFTypeRef*>(client);
-  DCHECK(result_ptr != nullptr);
-  DCHECK(*result_ptr == nullptr);
+  DCHECK(result_ptr != NULL);
+  DCHECK(*result_ptr == NULL);
 
-  if (error != nullptr) {
+  if (error != NULL) {
     *result_ptr = CFRetain(error);
   } else {
     *result_ptr = CFRetain(proxies);
@@ -102,11 +97,6 @@ class SynchronizedRunLoopObserver final {
   // Creates the instance of an observer that will synchronize the sources
   // using a given |lock|.
   SynchronizedRunLoopObserver(base::Lock& lock);
-
-  SynchronizedRunLoopObserver(const SynchronizedRunLoopObserver&) = delete;
-  SynchronizedRunLoopObserver& operator=(const SynchronizedRunLoopObserver&) =
-      delete;
-
   // Destructor.
   ~SynchronizedRunLoopObserver();
   // Adds the observer to the current run loop for a given run loop mode.
@@ -124,17 +114,17 @@ class SynchronizedRunLoopObserver final {
   base::Lock& lock_;
   // Indicates whether the current observer holds the lock. It is used to
   // avoid double locking and releasing.
-  bool lock_acquired_ = false;
+  bool lock_acquired_;
   // The underlying CFRunLoopObserverRef structure wrapped by this instance.
   base::ScopedCFTypeRef<CFRunLoopObserverRef> observer_;
   // Validates that all methods of this class are executed on the same thread.
   base::ThreadChecker thread_checker_;
+  DISALLOW_COPY_AND_ASSIGN(SynchronizedRunLoopObserver);
 };
 
 SynchronizedRunLoopObserver::SynchronizedRunLoopObserver(base::Lock& lock)
-    : lock_(lock) {
-  CFRunLoopObserverContext observer_context = {0, this, nullptr, nullptr,
-                                               nullptr};
+    : lock_(lock), lock_acquired_(false) {
+  CFRunLoopObserverContext observer_context = {0, this, NULL, NULL, NULL};
   observer_.reset(CFRunLoopObserverCreate(
       kCFAllocatorDefault,
       kCFRunLoopBeforeSources | kCFRunLoopBeforeWaiting | kCFRunLoopExit, true,
@@ -203,7 +193,7 @@ class ProxyResolverMac : public ProxyResolver {
 
   // ProxyResolver methods:
   int GetProxyForURL(const GURL& url,
-                     const NetworkAnonymizationKey& network_anonymization_key,
+                     const NetworkIsolationKey& network_isolation_key,
                      ProxyInfo* results,
                      CompletionOnceCallback callback,
                      std::unique_ptr<Request>* request,
@@ -217,13 +207,13 @@ ProxyResolverMac::ProxyResolverMac(
     const scoped_refptr<PacFileData>& script_data)
     : script_data_(script_data) {}
 
-ProxyResolverMac::~ProxyResolverMac() = default;
+ProxyResolverMac::~ProxyResolverMac() {}
 
 // Gets the proxy information for a query URL from a PAC. Implementation
 // inspired by http://developer.apple.com/samplecode/CFProxySupportTool/
 int ProxyResolverMac::GetProxyForURL(
     const GURL& query_url,
-    const NetworkAnonymizationKey& network_anonymization_key,
+    const NetworkIsolationKey& network_isolation_key,
     ProxyInfo* results,
     CompletionOnceCallback /*callback*/,
     std::unique_ptr<Request>* /*request*/,
@@ -241,7 +231,7 @@ int ProxyResolverMac::GetProxyForURL(
   base::ScopedCFTypeRef<CFStringRef> query_ref(
       base::SysUTF8ToCFStringRef(mutable_query_url.spec()));
   base::ScopedCFTypeRef<CFURLRef> query_url_ref(
-      CFURLCreateWithString(kCFAllocatorDefault, query_ref.get(), nullptr));
+      CFURLCreateWithString(kCFAllocatorDefault, query_ref.get(), NULL));
   if (!query_url_ref.get())
     return ERR_FAILED;
   base::ScopedCFTypeRef<CFStringRef> pac_ref(base::SysUTF8ToCFStringRef(
@@ -249,7 +239,7 @@ int ProxyResolverMac::GetProxyForURL(
           ? std::string()
           : script_data_->url().spec()));
   base::ScopedCFTypeRef<CFURLRef> pac_url_ref(
-      CFURLCreateWithString(kCFAllocatorDefault, pac_ref.get(), nullptr));
+      CFURLCreateWithString(kCFAllocatorDefault, pac_ref.get(), NULL));
   if (!pac_url_ref.get())
     return ERR_FAILED;
 
@@ -258,7 +248,7 @@ int ProxyResolverMac::GetProxyForURL(
   // required by CFNetworkExecuteProxyAutoConfigurationURL.
 
   base::ScopedCFTypeRef<CFDictionaryRef> empty_dictionary(
-      CFDictionaryCreate(nullptr, nullptr, nullptr, 0, nullptr, nullptr));
+      CFDictionaryCreate(NULL, NULL, NULL, 0, NULL, NULL));
   CFArrayRef dummy_result =
       CFNetworkCopyProxiesForURL(query_url_ref.get(), empty_dictionary);
   if (dummy_result)
@@ -269,8 +259,8 @@ int ProxyResolverMac::GetProxyForURL(
   // OK to do. (BTW, CFNetworkExecuteProxyAutoConfigurationURL returns a
   // runloop source we need to release despite its name.)
 
-  CFTypeRef result = nullptr;
-  CFStreamClientContext context = {0, &result, nullptr, nullptr, nullptr};
+  CFTypeRef result = NULL;
+  CFStreamClientContext context = { 0, &result, NULL, NULL, NULL };
   base::ScopedCFTypeRef<CFRunLoopSourceRef> runloop_source(
       CFNetworkExecuteProxyAutoConfigurationURL(
           pac_url_ref.get(), query_url_ref.get(), ResultCallback, &context));
@@ -305,7 +295,7 @@ int ProxyResolverMac::GetProxyForURL(
   }
   observer.RemoveFromCurrentRunLoop(private_runloop_mode);
 
-  DCHECK(result != nullptr);
+  DCHECK(result != NULL);
 
   if (CFGetTypeID(result) == CFErrorGetTypeID()) {
     // TODO(avi): do something better than this
@@ -314,15 +304,19 @@ int ProxyResolverMac::GetProxyForURL(
   }
   base::ScopedCFTypeRef<CFArrayRef> proxy_array_ref(
       base::mac::CFCastStrict<CFArrayRef>(result));
-  DCHECK(proxy_array_ref != nullptr);
+  DCHECK(proxy_array_ref != NULL);
 
-  ProxyList proxy_list;
+  // This string will be an ordered list of <proxy-uri> entries, separated by
+  // semi-colons. It is the format that ProxyInfo::UseNamedProxy() expects.
+  //    proxy-uri = [<proxy-scheme>"://"]<proxy-host>":"<proxy-port>
+  // (This also includes entries for direct connection, as "direct://").
+  std::string proxy_uri_list;
 
   CFIndex proxy_array_count = CFArrayGetCount(proxy_array_ref.get());
   for (CFIndex i = 0; i < proxy_array_count; ++i) {
     CFDictionaryRef proxy_dictionary = base::mac::CFCastStrict<CFDictionaryRef>(
         CFArrayGetValueAtIndex(proxy_array_ref.get(), i));
-    DCHECK(proxy_dictionary != nullptr);
+    DCHECK(proxy_dictionary != NULL);
 
     // The dictionary may have the following keys:
     // - kCFProxyTypeKey : The type of the proxy
@@ -340,17 +334,21 @@ int ProxyResolverMac::GetProxyForURL(
 
     CFStringRef proxy_type = base::mac::GetValueFromDictionary<CFStringRef>(
         proxy_dictionary, kCFProxyTypeKey);
-    ProxyServer proxy_server = ProxyDictionaryToProxyServer(
-        GetProxyServerScheme(proxy_type), proxy_dictionary, kCFProxyHostNameKey,
+    ProxyServer proxy_server = ProxyServer::FromDictionary(
+        GetProxyServerScheme(proxy_type),
+        proxy_dictionary,
+        kCFProxyHostNameKey,
         kCFProxyPortNumberKey);
     if (!proxy_server.is_valid())
       continue;
 
-    proxy_list.AddProxyServer(proxy_server);
+    if (!proxy_uri_list.empty())
+      proxy_uri_list += ";";
+    proxy_uri_list += proxy_server.ToURI();
   }
 
-  if (!proxy_list.IsEmpty())
-    results->UseProxyList(proxy_list);
+  if (!proxy_uri_list.empty())
+    results->UseNamedProxy(proxy_uri_list);
   // Else do nothing (results is already guaranteed to be in the default state).
 
   return OK;
@@ -367,7 +365,7 @@ int ProxyResolverFactoryMac::CreateProxyResolver(
     std::unique_ptr<ProxyResolver>* resolver,
     CompletionOnceCallback callback,
     std::unique_ptr<Request>* request) {
-  *resolver = std::make_unique<ProxyResolverMac>(pac_script);
+  resolver->reset(new ProxyResolverMac(pac_script));
   return OK;
 }
 

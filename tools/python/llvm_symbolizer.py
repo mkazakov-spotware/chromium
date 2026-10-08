@@ -1,9 +1,10 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import logging
 import os
+import re
 import subprocess
 import threading
 
@@ -12,26 +13,25 @@ _LLVM_SYMBOLIZER_PATH = os.path.join(
     _CHROME_SRC, 'third_party', 'llvm-build', 'Release+Asserts', 'bin',
     'llvm-symbolizer')
 
+_BINARY = re.compile(r'0b[0,1]+')
+_HEX = re.compile(r'0x[0-9,a-e]+')
+_OCTAL = re.compile(r'0[0-7]+')
+
 _UNKNOWN = '<UNKNOWN>'
 
-_ELF_MAGIC_HEADER_BYTES = b'\x7f\x45\x4c\x46'
 
-
-def IsValidLLVMSymbolizerTarget(file_path):
-  """ Verify the passed file is a valid target for llvm-symbolization
+def _CheckValidAddr(addr):
+  """
+  Check whether the addr is valid input to llvm symbolizer.
+  Valid addr has to be octal, binary, or hex number.
 
   Args:
-    file_path: Path to a file to be checked
+    addr: addr to be entered to llvm symbolizer.
 
-  Return:
-    True if the file exists and has the correct ELF header, False otherwise
+  Returns:
+    whether the addr is valid input to llvm symbolizer.
   """
-  try:
-    with open(file_path, 'rb') as f:
-      header_bytes = f.read(4)
-      return header_bytes == _ELF_MAGIC_HEADER_BYTES
-  except IOError:
-    return False
+  return _HEX.match(addr) or _OCTAL.match(addr) or _BINARY.match(addr)
 
 
 class LLVMSymbolizer(object):
@@ -42,12 +42,6 @@ class LLVMSymbolizer(object):
     numbers of an address from the symbols library.
     """
     self._llvm_symbolizer_subprocess = None
-    self._llvm_symbolizer_parameters = [
-        '--functions',
-        '--demangle',
-        '--inlines',
-    ]
-
     # Allow only one thread to call GetSymbolInformation at a time.
     self._lock = threading.Lock()
 
@@ -59,10 +53,7 @@ class LLVMSymbolizer(object):
     """
     if os.path.isfile(_LLVM_SYMBOLIZER_PATH):
       self._llvm_symbolizer_subprocess = subprocess.Popen(
-          [_LLVM_SYMBOLIZER_PATH] + self._llvm_symbolizer_parameters,
-          stdout=subprocess.PIPE,
-          stdin=subprocess.PIPE,
-          universal_newlines=True)
+        [_LLVM_SYMBOLIZER_PATH], stdout=subprocess.PIPE, stdin=subprocess.PIPE)
     else:
       logging.error('Cannot find llvm_symbolizer here: %s.' %
                     _LLVM_SYMBOLIZER_PATH)
@@ -95,35 +86,25 @@ class LLVMSymbolizer(object):
       addr: address to look for info.
 
     Returns:
-      A triplet of address, module-name and list of symbols
+      A list of (function name, line numbers) tuple.
     """
-    if (self._llvm_symbolizer_subprocess is None):
-      logging.error('Can\'t run llvm-symbolizer! ' +
-                    'Subprocess for llvm-symbolizer has not been started!')
+    if (self._llvm_symbolizer_subprocess is None or not lib
+        or not _CheckValidAddr(addr) or not os.path.isfile(lib)):
       return [(_UNKNOWN, lib)]
 
-    if not lib:
-      logging.error('Can\'t run llvm-symbolizer! No target is given!')
-      return [(_UNKNOWN, lib)]
-
-    if not IsValidLLVMSymbolizerTarget(lib):
-      logging.error(
-          'Can\'t run llvm-symbolizer! ' +
-          'Given binary is not a valid target. path=%s', lib)
-      return [(_UNKNOWN, lib)]
-
-    proc = self._llvm_symbolizer_subprocess
     with self._lock:
-      proc.stdin.write('%s %s\n' % (lib, hex(addr)))
-      proc.stdin.flush()
+      self._llvm_symbolizer_subprocess.stdin.write('%s %s\n' % (lib, addr))
+      self._llvm_symbolizer_subprocess.stdin.flush()
+
       result = []
-      # Read until an empty line is observed, which indicates the end of the
-      # output. Each line with a function name is always followed by one line
-      # with the corresponding line number.
+      # Read till see new line, which is a symbol of end of output.
+      # One line of function name is always followed by one line of line number.
       while True:
-        line = proc.stdout.readline()
+        line = self._llvm_symbolizer_subprocess.stdout.readline()
         if line != '\n':
-          line_numbers = proc.stdout.readline()
-          result.append((line[:-1], line_numbers[:-1]))
+          line_numbers = self._llvm_symbolizer_subprocess.stdout.readline()
+          result.append(
+            (line[:-1],
+             line_numbers[:-1]))
         else:
           return result

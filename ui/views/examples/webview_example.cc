@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,8 @@
 #include "ui/views/examples/grit/views_examples_resources.h"
 #include "ui/views/layout/fill_layout.h"
 
-namespace views::examples {
+namespace views {
+namespace examples {
 
 WebViewExample::WebViewExample(content::BrowserContext* browser_context)
     : ExampleBase(l10n_util::GetStringUTF8(IDS_WEBVIEW_SELECT_LABEL).c_str()),
@@ -39,4 +40,5 @@ bool WebViewExample::HandleKeyboardEvent(
       event, webview_->GetFocusManager());
 }
 
-}  // namespace views::examples
+}  // namespace examples
+}  // namespace views

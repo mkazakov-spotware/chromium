@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,12 +16,12 @@
 @interface ReadingListAppInterface : NSObject
 
 // Removes all entries in the ReadingListModel.
-+ (NSError*)clearEntries [[nodiscard]];
++ (NSError*)clearEntries WARN_UNUSED_RESULT;
 
 // Adds an entry in the ReadingListModel.
 + (NSError*)addEntryWithURL:(NSURL*)url
                       title:(NSString*)title
-                       read:(BOOL)read [[nodiscard]];
+                       read:(BOOL)read WARN_UNUSED_RESULT;
 
 // The number of read entries in the ReadingListModel.
 + (NSInteger)readEntriesCount;

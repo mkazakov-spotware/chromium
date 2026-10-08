@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 #include "ash/test/ash_test_base.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/window_occlusion_tracker.h"
-#include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/size.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_delegate.h"
 
@@ -24,7 +23,7 @@ TEST_F(WindowMirrorViewTest, LocalWindowOcclusionMadeVisible) {
   aura::Window* widget_window = widget->GetNativeWindow();
   widget_window->TrackOcclusionState();
   EXPECT_EQ(aura::Window::OcclusionState::HIDDEN,
-            widget_window->GetOcclusionState());
+            widget_window->occlusion_state());
 
   auto mirror_widget = CreateTestWidget();
   auto mirror_view = std::make_unique<WindowMirrorView>(
@@ -35,7 +34,7 @@ TEST_F(WindowMirrorViewTest, LocalWindowOcclusionMadeVisible) {
   // Even though the widget is hidden, the occlusion state is considered
   // visible. This is to ensure renderers still produce content.
   EXPECT_EQ(aura::Window::OcclusionState::VISIBLE,
-            widget_window->GetOcclusionState());
+            widget_window->occlusion_state());
 }
 
 // Tests that a mirror view that mirrors a window with an existing transform
@@ -46,7 +45,7 @@ TEST_F(WindowMirrorViewTest, MirrorLayerHasNoTransformWhenNonClientViewShown) {
   // the transform will be copied with it.
   auto widget = CreateTestWidget();
   aura::Window* widget_window = widget->GetNativeWindow();
-  const auto transform = gfx::Transform::MakeTranslation(100.f, 100.f);
+  const gfx::Transform transform(1.f, 0.f, 0.f, 1.f, 100.f, 100.f);
   widget_window->SetTransform(transform);
 
   auto mirror_widget = CreateTestWidget();

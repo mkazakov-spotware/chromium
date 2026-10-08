@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "net/base/net_export.h"
 #include "net/websockets/websocket_extension.h"
@@ -19,10 +21,6 @@ namespace net {
 class NET_EXPORT_PRIVATE WebSocketExtensionParser {
  public:
   WebSocketExtensionParser();
-
-  WebSocketExtensionParser(const WebSocketExtensionParser&) = delete;
-  WebSocketExtensionParser& operator=(const WebSocketExtensionParser&) = delete;
-
   ~WebSocketExtensionParser();
 
   // Parses the given string as a Sec-WebSocket-Extensions header value.
@@ -42,21 +40,23 @@ class NET_EXPORT_PRIVATE WebSocketExtensionParser {
   }
 
  private:
-  [[nodiscard]] bool Consume(char c);
-  [[nodiscard]] bool ConsumeExtension(WebSocketExtension* extension);
-  [[nodiscard]] bool ConsumeExtensionParameter(
+  WARN_UNUSED_RESULT bool Consume(char c);
+  WARN_UNUSED_RESULT bool ConsumeExtension(WebSocketExtension* extension);
+  WARN_UNUSED_RESULT bool ConsumeExtensionParameter(
       WebSocketExtension::Parameter* parameter);
-  [[nodiscard]] bool ConsumeToken(base::StringPiece* token);
-  [[nodiscard]] bool ConsumeQuotedToken(std::string* token);
+  WARN_UNUSED_RESULT bool ConsumeToken(base::StringPiece* token);
+  WARN_UNUSED_RESULT bool ConsumeQuotedToken(std::string* token);
   void ConsumeSpaces();
-  [[nodiscard]] bool Lookahead(char c);
-  [[nodiscard]] bool ConsumeIfMatch(char c);
+  WARN_UNUSED_RESULT bool Lookahead(char c);
+  WARN_UNUSED_RESULT bool ConsumeIfMatch(char c);
 
   // The current position in the input string.
   const char* current_;
   // The pointer of the end of the input string.
   const char* end_;
   std::vector<WebSocketExtension> extensions_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebSocketExtensionParser);
 };
 
 }  // namespace net

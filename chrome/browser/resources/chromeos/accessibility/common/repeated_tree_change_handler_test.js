@@ -1,20 +1,15 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // Include test fixture.
 GEN_INCLUDE([
-  '../select_to_speak/select_to_speak_e2e_test_base.js',
+  '../chromevox/testing/chromevox_next_e2e_test_base.js',
+  'repeated_tree_change_handler.js'
 ]);
 
 /** Test fixture for array_util.js. */
-RepeatedTreeChangeHandlerTest = class extends SelectToSpeakE2ETest {
-  /** @override */
-  async setUpDeferred() {
-    await importModule(
-        'RepeatedTreeChangeHandler', '/common/repeated_tree_change_handler.js');
-  }
-};
+RepeatedTreeChangeHandlerTest = class extends ChromeVoxNextE2ETest {};
 
 TEST_F(
     'RepeatedTreeChangeHandlerTest', 'RepeatedTreeChangeHandledOnce',
@@ -44,7 +39,8 @@ TEST_F('RepeatedTreeChangeHandlerTest', 'Predicate', function() {
     const handler = () => this.handlerCallCount++;
 
     const repeatedHandler = new RepeatedTreeChangeHandler(
-        'allTreeChanges', handler, {predicate: c => c.type === 'nodeRemoved'});
+        'allTreeChanges', handler,
+        {predicate: (c) => c.type === 'nodeRemoved'});
 
     // Simulate events being fired.
     repeatedHandler.onChange_({type: 'nodeAdded'});

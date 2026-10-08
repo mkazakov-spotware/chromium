@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,6 +40,7 @@
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
+using base::TimeDelta;
 
 namespace media {
 namespace mp4 {
@@ -76,7 +77,8 @@ class MP4StreamParserTest : public testing::Test {
  public:
   MP4StreamParserTest()
       : configs_received_(false),
-        lower_bound_(kMaxDecodeTimestamp),
+        lower_bound_(
+            DecodeTimestamp::FromPresentationTime(base::TimeDelta::Max())),
         verifying_keyframeness_sequence_(false) {
     std::set<int> audio_object_types;
     audio_object_types.insert(kISO_14496_3);
@@ -96,36 +98,22 @@ class MP4StreamParserTest : public testing::Test {
   bool verifying_keyframeness_sequence_;
   StrictMock<base::MockRepeatingCallback<void(Keyframeness)>> keyframeness_cb_;
 
-  // Note this is similar to a StreamParserTestBase method, so may benefit from
-  // utility method or inheritance if they don't diverge.
-  bool AppendAllDataThenParseInPieces(const uint8_t* data,
-                                      size_t length,
-                                      size_t piece_size) {
-    EXPECT_TRUE(parser_->AppendToParseBuffer(data, length));
+  bool AppendData(const uint8_t* data, size_t length) {
+    return parser_->Parse(data, length);
+  }
 
-    // Also verify the expected number of pieces is needed to fully parse
-    // `data`.
-    size_t expected_remaining_data = length;
-    bool has_more_data = true;
-
-    while (has_more_data) {
-      StreamParser::ParseStatus parse_result = parser_->Parse(piece_size);
-      if (parse_result == StreamParser::ParseStatus::kFailed) {
+  bool AppendDataInPieces(const uint8_t* data,
+                          size_t length,
+                          size_t piece_size) {
+    const uint8_t* start = data;
+    const uint8_t* end = data + length;
+    while (start < end) {
+      size_t append_size = std::min(piece_size,
+                                    static_cast<size_t>(end - start));
+      if (!AppendData(start, append_size))
         return false;
-      }
-
-      has_more_data =
-          parse_result == StreamParser::ParseStatus::kSuccessHasMoreData;
-
-      EXPECT_EQ(piece_size < expected_remaining_data, has_more_data);
-
-      if (has_more_data) {
-        expected_remaining_data -= piece_size;
-      } else {
-        EXPECT_EQ(parse_result, StreamParser::ParseStatus::kSuccess);
-      }
+      start += append_size;
     }
-
     return true;
   }
 
@@ -145,8 +133,6 @@ class MP4StreamParserTest : public testing::Test {
 
   bool NewConfigF(std::unique_ptr<MediaTracks> tracks,
                   const StreamParser::TextTrackConfigMap& tc) {
-    size_t audio_config_count = 0;
-    size_t video_config_count = 0;
     configs_received_ = true;
     CHECK(tracks.get());
     DVLOG(1) << "NewConfigF: got " << tracks->tracks().size() << " tracks";
@@ -159,7 +145,6 @@ class MP4StreamParserTest : public testing::Test {
                  << (audio_decoder_config_.IsValidConfig()
                          ? audio_decoder_config_.AsHumanReadableString()
                          : "INVALID");
-        audio_config_count++;
       } else if (track->type() == MediaTrack::Video) {
         video_track_id_ = track_id;
         video_decoder_config_ = tracks->getVideoConfig(track_id);
@@ -167,33 +152,30 @@ class MP4StreamParserTest : public testing::Test {
                  << (video_decoder_config_.IsValidConfig()
                          ? video_decoder_config_.AsHumanReadableString()
                          : "INVALID");
-        video_config_count++;
       }
     }
-    EXPECT_EQ(tracks->GetAudioConfigs().size(), audio_config_count);
-    EXPECT_EQ(tracks->GetVideoConfigs().size(), video_config_count);
     media_tracks_ = std::move(tracks);
     return true;
   }
 
   bool NewBuffersF(const StreamParser::BufferQueueMap& buffer_queue_map) {
-    DecodeTimestamp lowest_end_dts = kNoDecodeTimestamp;
-    for (const auto& [track_id, buffer_queue] : buffer_queue_map) {
-      DVLOG(3) << "Buffers for track_id=" << track_id;
-      DCHECK(!buffer_queue.empty());
+    DecodeTimestamp lowest_end_dts = kNoDecodeTimestamp();
+    for (const auto& it : buffer_queue_map) {
+      DVLOG(3) << "Buffers for track_id=" << it.first;
+      DCHECK(!it.second.empty());
 
-      if (lowest_end_dts == kNoDecodeTimestamp ||
-          lowest_end_dts > buffer_queue.back()->GetDecodeTimestamp())
-        lowest_end_dts = buffer_queue.back()->GetDecodeTimestamp();
+      if (lowest_end_dts == kNoDecodeTimestamp() ||
+          lowest_end_dts > it.second.back()->GetDecodeTimestamp())
+        lowest_end_dts = it.second.back()->GetDecodeTimestamp();
 
-      for (const auto& buf : buffer_queue) {
+      for (const auto& buf : it.second) {
         DVLOG(3) << "  track_id=" << buf->track_id()
                  << ", size=" << buf->data_size()
                  << ", pts=" << buf->timestamp().InSecondsF()
                  << ", dts=" << buf->GetDecodeTimestamp().InSecondsF()
                  << ", dur=" << buf->duration().InSecondsF();
         // Ensure that track ids are properly assigned on all emitted buffers.
-        EXPECT_EQ(track_id, buf->track_id());
+        EXPECT_EQ(it.first, buf->track_id());
 
         // Let single-track tests verify the sequence of keyframes/nonkeyframes.
         if (verifying_keyframeness_sequence_) {
@@ -204,9 +186,9 @@ class MP4StreamParserTest : public testing::Test {
       }
     }
 
-    EXPECT_NE(lowest_end_dts, kNoDecodeTimestamp);
+    EXPECT_NE(lowest_end_dts, kNoDecodeTimestamp());
 
-    if (lower_bound_ != kNoDecodeTimestamp && lowest_end_dts < lower_bound_) {
+    if (lower_bound_ != kNoDecodeTimestamp() && lowest_end_dts < lower_bound_) {
       return false;
     }
 
@@ -222,12 +204,13 @@ class MP4StreamParserTest : public testing::Test {
 
   void NewSegmentF() {
     DVLOG(1) << "NewSegmentF";
-    lower_bound_ = kNoDecodeTimestamp;
+    lower_bound_ = kNoDecodeTimestamp();
   }
 
   void EndOfSegmentF() {
     DVLOG(1) << "EndOfSegmentF()";
-    lower_bound_ = kMaxDecodeTimestamp;
+    lower_bound_ =
+        DecodeTimestamp::FromPresentationTime(base::TimeDelta::Max());
   }
 
   void InitializeParserWithInitParametersExpectations(
@@ -252,14 +235,14 @@ class MP4StreamParserTest : public testing::Test {
     // Most unencrypted test mp4 files have zero duration and are treated as
     // live streams.
     StreamParser::InitParameters params(kInfiniteDuration);
-    params.liveness = StreamLiveness::kLive;
+    params.liveness = DemuxerStream::LIVENESS_LIVE;
     params.detected_audio_track_count = 1;
     params.detected_video_track_count = 1;
     params.detected_text_track_count = 0;
     return params;
   }
 
-  void InitializeParserAndExpectLiveness(StreamLiveness liveness) {
+  void InitializeParserAndExpectLiveness(DemuxerStream::Liveness liveness) {
     auto params = GetDefaultInitParametersExpectations();
     params.liveness = liveness;
     InitializeParserWithInitParametersExpectations(params);
@@ -270,23 +253,11 @@ class MP4StreamParserTest : public testing::Test {
         GetDefaultInitParametersExpectations());
   }
 
-  // Note this is also similar to a StreamParserTestBase method.
   bool ParseMP4File(const std::string& filename, int append_bytes) {
-    CHECK_GE(append_bytes, 0);
     scoped_refptr<DecoderBuffer> buffer = ReadTestDataFile(filename);
-
-    const uint8_t* start = buffer->data();
-    const uint8_t* end = start + buffer->data_size();
-    do {
-      size_t chunk_size = std::min(static_cast<size_t>(append_bytes),
-                                   static_cast<size_t>(end - start));
-      // Attempt to incrementally parse each appended chunk to test out the
-      // parser's internal management of input queue and pending data bytes.
-      EXPECT_TRUE(AppendAllDataThenParseInPieces(
-          start, chunk_size, (chunk_size > 7) ? (chunk_size - 7) : chunk_size));
-      start += chunk_size;
-    } while (start < end);
-
+    EXPECT_TRUE(AppendDataInPieces(buffer->data(),
+                                   buffer->data_size(),
+                                   append_bytes));
     return true;
   }
 };
@@ -296,6 +267,35 @@ TEST_F(MP4StreamParserTest, UnalignedAppend) {
   // incremental append system)
   InitializeParser();
   ParseMP4File("bear-1280x720-av_frag.mp4", 512);
+}
+
+constexpr char kShakaPackagerUMA[] = "Media.MSE.DetectedShakaPackagerInMp4";
+
+TEST_F(MP4StreamParserTest, DidNotUseShakaPackager) {
+  // Encrypted files have non-zero duration and are treated as recorded streams.
+  auto params = GetDefaultInitParametersExpectations();
+  params.duration = base::TimeDelta::FromMicroseconds(2736066);
+  params.liveness = DemuxerStream::LIVENESS_RECORDED;
+  params.detected_audio_track_count = 0;
+  InitializeParserWithInitParametersExpectations(params);
+
+  base::HistogramTester tester;
+
+  // Test file has ID32 box, but no shaka player metadata.
+  ParseMP4File("bear-640x360-v_frag-cenc-senc-no-saiz-saio.mp4", 512);
+  tester.ExpectUniqueSample(kShakaPackagerUMA, 0, 1);
+}
+
+TEST_F(MP4StreamParserTest, UsedShakaPackager) {
+  auto params = GetDefaultInitParametersExpectations();
+  params.duration = base::TimeDelta::FromMicroseconds(2736000);
+  params.liveness = DemuxerStream::LIVENESS_RECORDED;
+  params.detected_audio_track_count = 0;
+  InitializeParserWithInitParametersExpectations(params);
+
+  base::HistogramTester tester;
+  ParseMP4File("bear-320x240-v_frag-vp9.mp4", 512);
+  tester.ExpectUniqueSample(kShakaPackagerUMA, 1, 1);
 }
 
 TEST_F(MP4StreamParserTest, BytewiseAppend) {
@@ -317,10 +317,11 @@ TEST_F(MP4StreamParserTest, Flush) {
 
   scoped_refptr<DecoderBuffer> buffer =
       ReadTestDataFile("bear-1280x720-av_frag.mp4");
-  EXPECT_TRUE(AppendAllDataThenParseInPieces(buffer->data(), 65536, 512));
+  EXPECT_TRUE(AppendDataInPieces(buffer->data(), 65536, 512));
   parser_->Flush();
-  EXPECT_TRUE(
-      AppendAllDataThenParseInPieces(buffer->data(), buffer->data_size(), 512));
+  EXPECT_TRUE(AppendDataInPieces(buffer->data(),
+                                 buffer->data_size(),
+                                 512));
 }
 
 TEST_F(MP4StreamParserTest, Reinitialization) {
@@ -328,10 +329,12 @@ TEST_F(MP4StreamParserTest, Reinitialization) {
 
   scoped_refptr<DecoderBuffer> buffer =
       ReadTestDataFile("bear-1280x720-av_frag.mp4");
-  EXPECT_TRUE(
-      AppendAllDataThenParseInPieces(buffer->data(), buffer->data_size(), 512));
-  EXPECT_TRUE(
-      AppendAllDataThenParseInPieces(buffer->data(), buffer->data_size(), 512));
+  EXPECT_TRUE(AppendDataInPieces(buffer->data(),
+                                 buffer->data_size(),
+                                 512));
+  EXPECT_TRUE(AppendDataInPieces(buffer->data(),
+                                 buffer->data_size(),
+                                 512));
 }
 
 TEST_F(MP4StreamParserTest, UnknownDuration_V0_AllBitsSet) {
@@ -438,14 +441,15 @@ TEST_F(MP4StreamParserTest, NoMoovAfterFlush) {
 
   scoped_refptr<DecoderBuffer> buffer =
       ReadTestDataFile("bear-1280x720-av_frag.mp4");
-  EXPECT_TRUE(
-      AppendAllDataThenParseInPieces(buffer->data(), buffer->data_size(), 512));
+  EXPECT_TRUE(AppendDataInPieces(buffer->data(),
+                                 buffer->data_size(),
+                                 512));
   parser_->Flush();
 
   const int kFirstMoofOffset = 1307;
-  EXPECT_TRUE(AppendAllDataThenParseInPieces(
-      buffer->data() + kFirstMoofOffset, buffer->data_size() - kFirstMoofOffset,
-      512));
+  EXPECT_TRUE(AppendDataInPieces(buffer->data() + kFirstMoofOffset,
+                                 buffer->data_size() - kFirstMoofOffset,
+                                 512));
 }
 
 // Test an invalid file where there are encrypted samples, but
@@ -458,16 +462,15 @@ TEST_F(MP4StreamParserTest, MissingSampleEncryptionInfo) {
   // Encrypted test mp4 files have non-zero duration and are treated as
   // recorded streams.
   auto params = GetDefaultInitParametersExpectations();
-  params.duration = base::Microseconds(23219);
-  params.liveness = StreamLiveness::kRecorded;
+  params.duration = base::TimeDelta::FromMicroseconds(23219);
+  params.liveness = DemuxerStream::LIVENESS_RECORDED;
   params.detected_video_track_count = 0;
   InitializeParserWithInitParametersExpectations(params);
 
   scoped_refptr<DecoderBuffer> buffer =
       ReadTestDataFile("bear-1280x720-a_frag-cenc_missing-saiz-saio.mp4");
   EXPECT_MEDIA_LOG(SampleEncryptionInfoUnavailableLog());
-  EXPECT_FALSE(
-      AppendAllDataThenParseInPieces(buffer->data(), buffer->data_size(), 512));
+  EXPECT_FALSE(AppendDataInPieces(buffer->data(), buffer->data_size(), 512));
 }
 
 // Test a file where all video samples start with an Access Unit
@@ -487,16 +490,16 @@ TEST_F(MP4StreamParserTest, HEVC_in_MP4_container) {
   EXPECT_MEDIA_LOG(ErrorLog("Unsupported VisualSampleEntry type hev1"));
 #endif
   auto params = GetDefaultInitParametersExpectations();
-  params.duration = base::Microseconds(1002000);
-  params.liveness = StreamLiveness::kRecorded;
+  params.duration = base::TimeDelta::FromMicroseconds(1002000);
+  params.liveness = DemuxerStream::LIVENESS_RECORDED;
   params.detected_audio_track_count = 0;
   InitializeParserWithInitParametersExpectations(params);
 
   scoped_refptr<DecoderBuffer> buffer = ReadTestDataFile("bear-hevc-frag.mp4");
-  EXPECT_EQ(expect_success, AppendAllDataThenParseInPieces(
-                                buffer->data(), buffer->data_size(), 512));
+  EXPECT_EQ(expect_success,
+            AppendDataInPieces(buffer->data(), buffer->data_size(), 512));
 #if BUILDFLAG(ENABLE_PLATFORM_HEVC)
-  EXPECT_EQ(VideoCodec::kHEVC, video_decoder_config_.codec());
+  EXPECT_EQ(kCodecHEVC, video_decoder_config_.codec());
   EXPECT_EQ(HEVCPROFILE_MAIN, video_decoder_config_.profile());
 #endif
 }
@@ -566,59 +569,55 @@ TEST_F(MP4StreamParserTest, CencWithEncryptionInfoStoredAsAuxDataInMdat) {
   // Encrypted test mp4 files have non-zero duration and are treated as
   // recorded streams.
   auto params = GetDefaultInitParametersExpectations();
-  params.duration = base::Microseconds(2736066);
-  params.liveness = StreamLiveness::kRecorded;
+  params.duration = base::TimeDelta::FromMicroseconds(2736066);
+  params.liveness = DemuxerStream::LIVENESS_RECORDED;
   params.detected_audio_track_count = 0;
   InitializeParserWithInitParametersExpectations(params);
 
   scoped_refptr<DecoderBuffer> buffer =
       ReadTestDataFile("bear-1280x720-v_frag-cenc.mp4");
-  EXPECT_TRUE(
-      AppendAllDataThenParseInPieces(buffer->data(), buffer->data_size(), 512));
+  EXPECT_TRUE(AppendDataInPieces(buffer->data(), buffer->data_size(), 512));
 }
 
 TEST_F(MP4StreamParserTest, CencWithSampleEncryptionBox) {
   // Encrypted test mp4 files have non-zero duration and are treated as
   // recorded streams.
   auto params = GetDefaultInitParametersExpectations();
-  params.duration = base::Microseconds(2736066);
-  params.liveness = StreamLiveness::kRecorded;
+  params.duration = base::TimeDelta::FromMicroseconds(2736066);
+  params.liveness = DemuxerStream::LIVENESS_RECORDED;
   params.detected_audio_track_count = 0;
   InitializeParserWithInitParametersExpectations(params);
 
   scoped_refptr<DecoderBuffer> buffer =
       ReadTestDataFile("bear-640x360-v_frag-cenc-senc.mp4");
-  EXPECT_TRUE(
-      AppendAllDataThenParseInPieces(buffer->data(), buffer->data_size(), 512));
+  EXPECT_TRUE(AppendDataInPieces(buffer->data(), buffer->data_size(), 512));
 }
 
 TEST_F(MP4StreamParserTest, NaturalSizeWithoutPASP) {
   auto params = GetDefaultInitParametersExpectations();
-  params.duration = base::Microseconds(1000966);
-  params.liveness = StreamLiveness::kRecorded;
+  params.duration = base::TimeDelta::FromMicroseconds(1000966);
+  params.liveness = DemuxerStream::LIVENESS_RECORDED;
   params.detected_audio_track_count = 0;
   InitializeParserWithInitParametersExpectations(params);
 
   scoped_refptr<DecoderBuffer> buffer =
       ReadTestDataFile("bear-640x360-non_square_pixel-without_pasp.mp4");
 
-  EXPECT_TRUE(
-      AppendAllDataThenParseInPieces(buffer->data(), buffer->data_size(), 512));
+  EXPECT_TRUE(AppendDataInPieces(buffer->data(), buffer->data_size(), 512));
   EXPECT_EQ(gfx::Size(639, 360), video_decoder_config_.natural_size());
 }
 
 TEST_F(MP4StreamParserTest, NaturalSizeWithPASP) {
   auto params = GetDefaultInitParametersExpectations();
-  params.duration = base::Microseconds(1000966);
-  params.liveness = StreamLiveness::kRecorded;
+  params.duration = base::TimeDelta::FromMicroseconds(1000966);
+  params.liveness = DemuxerStream::LIVENESS_RECORDED;
   params.detected_audio_track_count = 0;
   InitializeParserWithInitParametersExpectations(params);
 
   scoped_refptr<DecoderBuffer> buffer =
       ReadTestDataFile("bear-640x360-non_square_pixel-with_pasp.mp4");
 
-  EXPECT_TRUE(
-      AppendAllDataThenParseInPieces(buffer->data(), buffer->data_size(), 512));
+  EXPECT_TRUE(AppendDataInPieces(buffer->data(), buffer->data_size(), 512));
   EXPECT_EQ(gfx::Size(639, 360), video_decoder_config_.natural_size());
 }
 
@@ -635,15 +634,15 @@ TEST_F(MP4StreamParserTest, DemuxingAC3) {
 #endif
 
   auto params = GetDefaultInitParametersExpectations();
-  params.duration = base::Microseconds(1045000);
-  params.liveness = StreamLiveness::kRecorded;
+  params.duration = base::TimeDelta::FromMicroseconds(1045000);
+  params.liveness = DemuxerStream::LIVENESS_RECORDED;
   params.detected_video_track_count = 0;
   InitializeParserWithInitParametersExpectations(params);
 
   scoped_refptr<DecoderBuffer> buffer =
       ReadTestDataFile("bear-ac3-only-frag.mp4");
-  EXPECT_EQ(expect_success, AppendAllDataThenParseInPieces(
-                                buffer->data(), buffer->data_size(), 512));
+  EXPECT_EQ(expect_success,
+            AppendDataInPieces(buffer->data(), buffer->data_size(), 512));
 }
 
 TEST_F(MP4StreamParserTest, DemuxingEAC3) {
@@ -659,15 +658,15 @@ TEST_F(MP4StreamParserTest, DemuxingEAC3) {
 #endif
 
   auto params = GetDefaultInitParametersExpectations();
-  params.duration = base::Microseconds(1045000);
-  params.liveness = StreamLiveness::kRecorded;
+  params.duration = base::TimeDelta::FromMicroseconds(1045000);
+  params.liveness = DemuxerStream::LIVENESS_RECORDED;
   params.detected_video_track_count = 0;
   InitializeParserWithInitParametersExpectations(params);
 
   scoped_refptr<DecoderBuffer> buffer =
       ReadTestDataFile("bear-eac3-only-frag.mp4");
-  EXPECT_EQ(expect_success, AppendAllDataThenParseInPieces(
-                                buffer->data(), buffer->data_size(), 512));
+  EXPECT_EQ(expect_success,
+            AppendDataInPieces(buffer->data(), buffer->data_size(), 512));
 }
 
 TEST_F(MP4StreamParserTest, Flac) {
@@ -678,8 +677,7 @@ TEST_F(MP4StreamParserTest, Flac) {
   InitializeParserWithInitParametersExpectations(params);
 
   scoped_refptr<DecoderBuffer> buffer = ReadTestDataFile("bear-flac_frag.mp4");
-  EXPECT_TRUE(
-      AppendAllDataThenParseInPieces(buffer->data(), buffer->data_size(), 512));
+  EXPECT_TRUE(AppendDataInPieces(buffer->data(), buffer->data_size(), 512));
 }
 
 TEST_F(MP4StreamParserTest, Flac192kHz) {
@@ -695,8 +693,7 @@ TEST_F(MP4StreamParserTest, Flac192kHz) {
 
   scoped_refptr<DecoderBuffer> buffer =
       ReadTestDataFile("bear-flac-192kHz_frag.mp4");
-  EXPECT_TRUE(
-      AppendAllDataThenParseInPieces(buffer->data(), buffer->data_size(), 512));
+  EXPECT_TRUE(AppendDataInPieces(buffer->data(), buffer->data_size(), 512));
 }
 
 TEST_F(MP4StreamParserTest, Vp9) {
@@ -705,8 +702,7 @@ TEST_F(MP4StreamParserTest, Vp9) {
   InitializeParserWithInitParametersExpectations(params);
 
   auto buffer = ReadTestDataFile("vp9-hdr-init-segment.mp4");
-  EXPECT_TRUE(
-      AppendAllDataThenParseInPieces(buffer->data(), buffer->data_size(), 512));
+  EXPECT_TRUE(AppendDataInPieces(buffer->data(), buffer->data_size(), 512));
 
   EXPECT_EQ(video_decoder_config_.profile(), VP9PROFILE_PROFILE2);
   EXPECT_EQ(video_decoder_config_.level(), 31u);
@@ -722,24 +718,23 @@ TEST_F(MP4StreamParserTest, Vp9) {
   EXPECT_EQ(hdr_metadata.max_content_light_level, 1000u);
   EXPECT_EQ(hdr_metadata.max_frame_average_light_level, 640u);
 
-  const auto& color_volume_metadata = hdr_metadata.color_volume_metadata;
-  const auto& primaries = color_volume_metadata.primaries;
+  const auto& mastering_metadata = hdr_metadata.mastering_metadata;
 
   constexpr float kColorCoordinateUnit = 1 / 16.0f;
-  EXPECT_NEAR(primaries.fRX, 0.68, kColorCoordinateUnit);
-  EXPECT_NEAR(primaries.fRY, 0.31998, kColorCoordinateUnit);
-  EXPECT_NEAR(primaries.fGX, 0.26496, kColorCoordinateUnit);
-  EXPECT_NEAR(primaries.fGY, 0.68998, kColorCoordinateUnit);
-  EXPECT_NEAR(primaries.fBX, 0.15, kColorCoordinateUnit);
-  EXPECT_NEAR(primaries.fBY, 0.05998, kColorCoordinateUnit);
-  EXPECT_NEAR(primaries.fWX, 0.314, kColorCoordinateUnit);
-  EXPECT_NEAR(primaries.fWY, 0.351, kColorCoordinateUnit);
+  EXPECT_NEAR(mastering_metadata.primary_r.x(), 0.68, kColorCoordinateUnit);
+  EXPECT_NEAR(mastering_metadata.primary_r.y(), 0.31998, kColorCoordinateUnit);
+  EXPECT_NEAR(mastering_metadata.primary_g.x(), 0.26496, kColorCoordinateUnit);
+  EXPECT_NEAR(mastering_metadata.primary_g.y(), 0.68998, kColorCoordinateUnit);
+  EXPECT_NEAR(mastering_metadata.primary_b.x(), 0.15, kColorCoordinateUnit);
+  EXPECT_NEAR(mastering_metadata.primary_b.y(), 0.05998, kColorCoordinateUnit);
+  EXPECT_NEAR(mastering_metadata.white_point.x(), 0.314, kColorCoordinateUnit);
+  EXPECT_NEAR(mastering_metadata.white_point.y(), 0.351, kColorCoordinateUnit);
 
   constexpr float kLuminanceMaxUnit = 1 / 8.0f;
-  EXPECT_NEAR(color_volume_metadata.luminance_max, 1000.0f, kLuminanceMaxUnit);
+  EXPECT_NEAR(mastering_metadata.luminance_max, 1000.0f, kLuminanceMaxUnit);
 
   constexpr float kLuminanceMinUnit = 1 / 14.0;
-  EXPECT_NEAR(color_volume_metadata.luminance_min, 0.01f, kLuminanceMinUnit);
+  EXPECT_NEAR(mastering_metadata.luminance_min, 0.01f, kLuminanceMinUnit);
 }
 
 TEST_F(MP4StreamParserTest, FourCCToString) {
@@ -781,14 +776,13 @@ TEST_F(MP4StreamParserTest, TextTrackDetection) {
   scoped_refptr<DecoderBuffer> buffer =
       ReadTestDataFile("bear-1280x720-avt_subt_frag.mp4");
 
-  EXPECT_TRUE(
-      AppendAllDataThenParseInPieces(buffer->data(), buffer->data_size(), 512));
+  EXPECT_TRUE(AppendDataInPieces(buffer->data(), buffer->data_size(), 512));
 }
 
 TEST_F(MP4StreamParserTest, MultiTrackFile) {
   auto params = GetDefaultInitParametersExpectations();
-  params.duration = base::Milliseconds(4248);
-  params.liveness = StreamLiveness::kRecorded;
+  params.duration = base::TimeDelta::FromMilliseconds(4248);
+  params.liveness = DemuxerStream::LIVENESS_RECORDED;
   params.detected_audio_track_count = 2;
   params.detected_video_track_count = 2;
   InitializeParserWithInitParametersExpectations(params);

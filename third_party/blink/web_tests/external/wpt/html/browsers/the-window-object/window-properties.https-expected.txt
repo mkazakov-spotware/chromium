@@ -1,5 +1,5 @@
 This is a testharness.js-based test.
-Found 182 tests; 179 PASS, 3 FAIL, 0 TIMEOUT, 0 NOTRUN.
+Found 174 tests; 173 PASS, 1 FAIL, 0 TIMEOUT, 0 NOTRUN.
 PASS Value Properties of the Global Object
 PASS Value Property: NaN
 PASS Value Property: Infinity
@@ -70,6 +70,7 @@ PASS Window method: scrollBy
 PASS Window readonly attribute: history
 PASS Window readonly attribute: frameElement
 PASS Window readonly attribute: navigator
+FAIL Window readonly attribute: applicationCache assert_true: applicationCache in window expected true got false
 PASS Window readonly attribute: sessionStorage
 PASS Window readonly attribute: localStorage
 PASS Window attribute: name
@@ -173,14 +174,5 @@ PASS Window replaceable attribute: outerWidth
 PASS Window replaceable attribute: outerHeight
 PASS Window replaceable attribute: devicePixelRatio
 PASS constructor
-PASS Window readonly getter: window
-PASS Window readonly getter in iframe: window
-FAIL Window readonly getter in detached iframe: window _eval is not a function
-PASS Window readonly getter: self
-PASS Window readonly getter in iframe: self
-FAIL Window readonly getter in detached iframe: self _eval is not a function
-PASS Window readonly getter: frames
-PASS Window readonly getter in iframe: frames
-FAIL Window readonly getter in detached iframe: frames _eval is not a function
 Harness: the test ran to completion.
 

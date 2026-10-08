@@ -1,4 +1,4 @@
-<style include="print-preview-shared throbber md-select destination-select-style
+<style include="print-preview-shared throbber md-select destination-select
     cr-hidden-style">
 </style>
 <print-preview-settings-section>
@@ -20,6 +20,10 @@
       <option value="[[pdfDestinationKey_]]" hidden$="[[pdfPrinterDisabled]]">
         $i18n{printToPDF}
       </option>
+      <option value="[[driveDestinationKey]]"
+          hidden$="[[!driveDestinationKey]]">
+        $i18n{printToGoogleDrive}
+      </option>
       <option value="noDestinations"
               hidden$="[[!noDestinations]]" selected$="[[noDestinations]]">
         $i18n{noDestinationsMessage}
@@ -28,5 +32,12 @@
         $i18n{seeMore}
       </option>
     </select>
+  </div>
+</print-preview-settings-section>
+<print-preview-settings-section class="destination-additional-info"
+    hidden$="[[!statusText_]]">
+  <div slot="title"></div>
+  <div slot="controls">
+    <div class="destination-status"></div>
   </div>
 </print-preview-settings-section>

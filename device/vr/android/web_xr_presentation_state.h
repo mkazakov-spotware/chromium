@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,31 +11,26 @@
 
 #include "base/callback.h"
 #include "base/containers/queue.h"
-#include "base/memory/raw_ptr.h"
-#include "base/time/time.h"
-#include "components/viz/common/resources/resource_id.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "gpu/command_buffer/common/mailbox_holder.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/size.h"
-#include "ui/gfx/geometry/transform.h"
-#include "ui/gl/scoped_egl_image.h"
+#include "ui/gfx/transform.h"
 
 namespace gl {
 class GLFence;
+class GLImageEGL;
 }  // namespace gl
 
 namespace gpu {
 class GpuMemoryBufferImplAndroidHardwareBuffer;
 }  // namespace gpu
 
-namespace viz {
-struct BeginFrameArgs;
-}  // namespace viz
-
-namespace device {
-// When composited by the browser process, WebXR frames go through a three-stage
-// pipeline: Animating, Processing, and Rendering. There's also an Idle state
-// used as the starting state before Animating and ending state after Rendering.
+namespace vr {
+// WebVR/WebXR frames go through a three-stage pipeline: Animating, Processing,
+// and Rendering. There's also an Idle state used as the starting state before
+// Animating and ending state after Rendering.
 //
 // The stages can overlap, but we enforce that there isn't more than one
 // frame in a given non-Idle state at any one time.
@@ -47,7 +42,7 @@ namespace device {
 //       <- UpdateLayerBounds (optional)
 //       <- GetFrameData
 //       <- SubmitFrame
-//       ProcessOrDefer
+//       ProcessWebVrFrame
 //   Processing
 //       <- OnWebVrFrameAvailable
 //       DrawFrame
@@ -60,8 +55,8 @@ namespace device {
 //   Idle
 //
 // Note that the frame is considered to still be in "Animating" state until
-// ProcessOrDefer is called. If the current processing frame isn't done yet
-// at the time the incoming SubmitFrame arrives, we defer Processing the frame
+// ProcessWebVrFrame is called. If the current processing frame isn't done yet
+// at the time the incoming SubmitFrame arrives, we defer ProcessWebVrFrame
 // until that finishes.
 //
 // The renderer may call SubmitFrameMissing instead of SubmitFrame. In that
@@ -75,18 +70,6 @@ namespace device {
 //       <- GetFrameData
 //       <- SubmitFrameMissing
 //   Idle
-//
-//
-// When compositing is managed by Viz, the frames go through much the same
-// three-stage pipeline, but there are a few noteworthy differences:
-//   * An "Animating" frame cannot be processed until it's BeginFrameArgs have
-//     been set.
-//   * Processing will generally happen synchronously, as most sync points are
-//     passed on to be used in the Viz Compositor.
-//   * More than one frame may be in the "Rendering" state; and Frames should
-//     be transitioned to "Rendering" when they are handed off to the viz
-//     Compositor. When the Compositor is no longer using the resources
-//     associated with the frame, it can then be transitioned back to Idle.
 
 struct WebXrSharedBuffer {
   WebXrSharedBuffer();
@@ -102,24 +85,14 @@ struct WebXrSharedBuffer {
 
   // Resources in the local GL context
   uint32_t local_texture = 0;
-  // This object keeps the image alive while processing a frame. That's
+  // This refptr keeps the image alive while processing a frame. That's
   // required because it owns underlying resources, and must still be
   // alive when the mailbox texture backed by this image is used.
-  ui::ScopedEGLImage local_eglimage;
-
-  // The ResourceId that was used to pass this buffer to the Viz Compositor.
-  // Id should be set to kInvalidResourceId when it is not in use by the viz
-  // compositor (either because the buffer was not passed to it, or because the
-  // compositor has told us it is okay to reclaim the resource).
-  viz::ResourceId id = viz::kInvalidResourceId;
+  scoped_refptr<gl::GLImageEGL> local_glimage;
 };
 
 struct WebXrFrame {
   WebXrFrame();
-
-  WebXrFrame(const WebXrFrame&) = delete;
-  WebXrFrame& operator=(const WebXrFrame&) = delete;
-
   ~WebXrFrame();
 
   bool IsValid() const;
@@ -146,9 +119,6 @@ struct WebXrFrame {
 
   std::unique_ptr<gl::GLFence> render_completion_fence;
 
-  std::unique_ptr<viz::BeginFrameArgs> begin_frame_args;
-
-  std::vector<gpu::SyncToken> reclaimed_sync_tokens;
   // End of elements that need to be reset on Recycle
 
   base::TimeTicks time_pose;
@@ -170,14 +140,12 @@ struct WebXrFrame {
   // That should be updated to use this implementation, at that time a matching
   // bounds_right would need to be added.
   gfx::RectF bounds_left;
+
+  DISALLOW_COPY_AND_ASSIGN(WebXrFrame);
 };
 
 class WebXrPresentationState {
  public:
-  enum class StateMachineType {
-    kBrowserComposited,
-    kVizComposited,
-  };
   // WebXR frames use an arbitrary sequential ID to help catch logic errors
   // involving out-of-order frames. We use an 8-bit unsigned counter, wrapping
   // from 255 back to 0. Elsewhere we use -1 to indicate a non-WebXR frame, so
@@ -190,20 +158,12 @@ class WebXrPresentationState {
   static constexpr int kWebXrFrameCount = 3;
 
   WebXrPresentationState();
-
-  WebXrPresentationState(const WebXrPresentationState&) = delete;
-  WebXrPresentationState& operator=(const WebXrPresentationState&) = delete;
-
   ~WebXrPresentationState();
 
-  void SetStateMachineType(StateMachineType type);
-
   // State transitions for normal flow
-  bool CanStartFrameAnimating();
   FrameIndexType StartFrameAnimating();
   void TransitionFrameAnimatingToProcessing();
   void TransitionFrameProcessingToRendering();
-  void EndFrameRendering(WebXrFrame* frame);
   void EndFrameRendering();
 
   // Shuts down a presentation session. This will recycle any
@@ -262,17 +222,16 @@ class WebXrPresentationState {
   // Index of the next animating WebXR frame.
   FrameIndexType next_frame_index_ = 0;
 
-  StateMachineType state_machine_type_ = StateMachineType::kBrowserComposited;
-
-  raw_ptr<WebXrFrame> animating_frame_ = nullptr;
-  raw_ptr<WebXrFrame> processing_frame_ = nullptr;
-  raw_ptr<WebXrFrame> rendering_frame_ = nullptr;
-  std::vector<WebXrFrame*> rendering_frames_;
+  WebXrFrame* animating_frame_ = nullptr;
+  WebXrFrame* processing_frame_ = nullptr;
+  WebXrFrame* rendering_frame_ = nullptr;
   base::queue<WebXrFrame*> idle_frames_;
 
   bool mailbox_bridge_ready_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(WebXrPresentationState);
 };
 
-}  // namespace device
+}  // namespace vr
 
 #endif  // DEVICE_VR_ANDROID_WEB_XR_PRESENTATION_STATE_H_

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,7 +41,7 @@ class COMPONENT_EXPORT(IPC) Listener {
       const std::string& interface_name,
       mojo::ScopedInterfaceEndpointHandle handle) {}
 
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
   // Called on the server side when a channel that listens for connections
   // denies an attempt to connect.
   virtual void OnChannelDenied() {}
@@ -49,11 +49,7 @@ class COMPONENT_EXPORT(IPC) Listener {
   // Called on the server side when a channel that listens for connections
   // has an error that causes the listening channel to close.
   virtual void OnChannelListenError() {}
-#endif  // BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
-
-  // Debugging helper for identifying what kind of a Listener this is.
-  // TODO(https://crbug.com/1113159): Remove this method once the bug is fixed.
-  virtual std::string ToDebugString();
+#endif  // OS_POSIX || OS_FUCHSIA
 
  protected:
   virtual ~Listener() {}

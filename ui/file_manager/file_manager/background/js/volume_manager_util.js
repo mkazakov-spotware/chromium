@@ -1,12 +1,19 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {str, util} from '../../common/js/util.js';
-import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
-import {VolumeInfo} from '../../externs/volume_info.js';
+/**
+ * @fileoverview
+ * @suppress {uselessCode} Temporary suppress because of the line exporting.
+ */
 
-import {VolumeInfoImpl} from './volume_info_impl.js';
+// clang-format off
+// #import {VolumeInfoImpl} from './volume_info_impl.m.js';
+// #import * as wrappedVolumeManagerCommon from '../../../base/js/volume_manager_types.m.js'; const {VolumeManagerCommon} = wrappedVolumeManagerCommon;
+// #import * as wrappedUtil from '../../common/js/util.m.js'; const {util} = wrappedUtil;
+// #import {str} from '../../common/js/util.m.js';
+// #import {VolumeInfo} from '../../../externs/volume_info.m.js';
+// clang-format on
 
 /**
  * Utilities for volume manager implementation.
@@ -41,7 +48,7 @@ volumeManagerUtil.TIMEOUT_STR_RESOLVE_ISOLATED_ENTRIES =
     'timeout(resolveIsolatedEntries)';
 
 /**
- * Logs a warning message if the given error is not in
+ * Throws an Error when the given error is not in
  * VolumeManagerCommon.VolumeError.
  *
  * @param {string} error Status string usually received from APIs.
@@ -53,7 +60,7 @@ volumeManagerUtil.validateError = error => {
     }
   }
 
-  console.warn(`Invalid mount error: ${error}`);
+  throw new Error('Invalid mount error: ' + error);
 };
 
 /**
@@ -62,7 +69,7 @@ volumeManagerUtil.validateError = error => {
  * instance for the volume.
  * @return {!Promise<!VolumeInfo>} Promise settled with the VolumeInfo instance.
  */
-volumeManagerUtil.createVolumeInfo = async volumeMetadata => {
+volumeManagerUtil.createVolumeInfo = volumeMetadata => {
   let localizedLabel;
   switch (volumeMetadata.volumeType) {
     case VolumeManagerCommon.VolumeType.DOWNLOADS:
@@ -103,44 +110,82 @@ volumeManagerUtil.createVolumeInfo = async volumeMetadata => {
   return util
       .timeoutPromise(
           new Promise((resolve, reject) => {
-            chrome.fileManagerPrivate.getVolumeRoot(
+            chrome.fileSystem.requestFileSystem(
                 {
                   volumeId: volumeMetadata.volumeId,
-                  writable: !volumeMetadata.isReadOnly,
+                  writable: !volumeMetadata.isReadOnly
                 },
-                rootDirectoryEntry => {
+                isolatedFileSystem => {
                   if (chrome.runtime.lastError) {
                     reject(chrome.runtime.lastError.message);
                   } else {
-                    resolve(rootDirectoryEntry);
+                    resolve(isolatedFileSystem);
                   }
                 });
           }),
           volumeManagerUtil.TIMEOUT,
           volumeManagerUtil.TIMEOUT_STR_REQUEST_FILE_SYSTEM + ': ' +
               volumeMetadata.volumeId)
-      .then(rootDirectoryEntry => {
-        console.debug(`Got file system '${volumeMetadata.volumeId}'`);
-        return new VolumeInfoImpl(
-            /** @type {VolumeManagerCommon.VolumeType} */
-            (volumeMetadata.volumeType), volumeMetadata.volumeId,
-            rootDirectoryEntry.filesystem, volumeMetadata.mountCondition,
-            volumeMetadata.deviceType, volumeMetadata.devicePath,
-            volumeMetadata.isReadOnly, volumeMetadata.isReadOnlyRemovableDevice,
-            volumeMetadata.profile, localizedLabel, volumeMetadata.providerId,
-            volumeMetadata.hasMedia, volumeMetadata.configurable,
-            volumeMetadata.watchable,
-            /** @type {VolumeManagerCommon.Source} */
-            (volumeMetadata.source),
-            /** @type {VolumeManagerCommon.FileSystemType} */
-            (volumeMetadata.diskFileSystemType), volumeMetadata.iconSet,
-            volumeMetadata.driveLabel, volumeMetadata.remoteMountPath,
-            volumeMetadata.vmType);
-      })
+      .then(
+          /** @param {!FileSystem} isolatedFileSystem */
+          isolatedFileSystem => {
+            // Since File System API works on isolated entries only, we need to
+            // convert it back to external one.
+            // TODO(mtomasz): Make Files app work on isolated entries.
+            return util.timeoutPromise(
+                new Promise((resolve, reject) => {
+                  chrome.fileManagerPrivate.resolveIsolatedEntries(
+                      [isolatedFileSystem.root], entries => {
+                        if (chrome.runtime.lastError) {
+                          reject(chrome.runtime.lastError.message);
+                        } else if (!entries[0]) {
+                          reject('Resolving for external context failed');
+                        } else {
+                          resolve(entries[0].filesystem);
+                        }
+                      });
+                }),
+                volumeManagerUtil.TIMEOUT_FOR_RESOLVE_ISOLATED_ENTRIES,
+                volumeManagerUtil.TIMEOUT_STR_RESOLVE_ISOLATED_ENTRIES + ': ' +
+                    volumeMetadata.volumeId);
+          })
+      .then(
+          /** @param {!FileSystem} fileSystem */
+          fileSystem => {
+            console.debug(`Got file system '${volumeMetadata.volumeId}'`);
+            if (volumeMetadata.volumeType ===
+                VolumeManagerCommon.VolumeType.DRIVE) {
+              // After file system is mounted, we "read" drive grand root
+              // entry at first. This triggers full feed fetch on background.
+              // Note: we don't need to handle errors here, because even if
+              // it fails, accessing to some path later will just become
+              // a fast-fetch and it re-triggers full-feed fetch.
+              fileSystem.root.createReader().readEntries(
+                  () => {/* do nothing */}, error => {
+                    console.warn(
+                        `Triggering full feed fetch has failed: ${error.name}`);
+                  });
+            }
+            return new VolumeInfoImpl(
+                /** @type {VolumeManagerCommon.VolumeType} */
+                (volumeMetadata.volumeType), volumeMetadata.volumeId,
+                fileSystem, volumeMetadata.mountCondition,
+                volumeMetadata.deviceType, volumeMetadata.devicePath,
+                volumeMetadata.isReadOnly,
+                volumeMetadata.isReadOnlyRemovableDevice,
+                volumeMetadata.profile, localizedLabel,
+                volumeMetadata.providerId, volumeMetadata.hasMedia,
+                volumeMetadata.configurable, volumeMetadata.watchable,
+                /** @type {VolumeManagerCommon.Source} */
+                (volumeMetadata.source),
+                /** @type {VolumeManagerCommon.FileSystemType} */
+                (volumeMetadata.diskFileSystemType), volumeMetadata.iconSet,
+                volumeMetadata.driveLabel, volumeMetadata.remoteMountPath);
+          })
       .catch(
           /** @param {*} error */
           error => {
-            console.warn(`Cannot mount file system '${
+            console.error(`Cannot mount file system '${
                 volumeMetadata.volumeId}': ${error.stack || error}`);
 
             // TODO(crbug/847729): Report a mount error via UMA.
@@ -159,9 +204,9 @@ volumeManagerUtil.createVolumeInfo = async volumeMetadata => {
                 (volumeMetadata.source),
                 /** @type {VolumeManagerCommon.FileSystemType} */
                 (volumeMetadata.diskFileSystemType), volumeMetadata.iconSet,
-                volumeMetadata.driveLabel, volumeMetadata.remoteMountPath,
-                volumeMetadata.vmType);
+                volumeMetadata.driveLabel, volumeMetadata.remoteMountPath);
           });
 };
 
-export {volumeManagerUtil};
+// eslint-disable-next-line semi,no-extra-semi
+/* #export */ {volumeManagerUtil};

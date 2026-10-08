@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,15 @@
 #include <memory>
 
 #include "ash/system/unified/detailed_view_controller.h"
+#include "base/macros.h"
 
 namespace ash {
 
-class DetailedViewDelegate;
+namespace tray {
 class NetworkListView;
+}  // namespace tray
+
+class DetailedViewDelegate;
 class UnifiedSystemTrayController;
 
 // Controller of Network detailed view in UnifiedSystemTray.
@@ -20,22 +24,18 @@ class UnifiedNetworkDetailedViewController : public DetailedViewController {
  public:
   explicit UnifiedNetworkDetailedViewController(
       UnifiedSystemTrayController* tray_controller);
-
-  UnifiedNetworkDetailedViewController(
-      const UnifiedNetworkDetailedViewController&) = delete;
-  UnifiedNetworkDetailedViewController& operator=(
-      const UnifiedNetworkDetailedViewController&) = delete;
-
   ~UnifiedNetworkDetailedViewController() override;
 
-  // DetailedViewController:
-  std::unique_ptr<views::View> CreateView() override;
-  std::u16string GetAccessibleName() const override;
+  // DetailedViewControllerBase:
+  views::View* CreateView() override;
+  base::string16 GetAccessibleName() const override;
 
  private:
   const std::unique_ptr<DetailedViewDelegate> detailed_view_delegate_;
 
-  NetworkListView* view_ = nullptr;
+  tray::NetworkListView* view_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(UnifiedNetworkDetailedViewController);
 };
 
 }  // namespace ash

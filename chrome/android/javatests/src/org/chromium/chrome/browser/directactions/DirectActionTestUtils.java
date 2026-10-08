@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -71,7 +71,7 @@ class DirectActionTestUtils {
     static void allowGoForward(ChromeActivityTestRule<?> rule) throws Exception {
         ChromeActivity activity = rule.getActivity();
         String initialUrl = TestThreadUtils.runOnUiThreadBlocking(
-                () -> activity.getCurrentWebContents().getLastCommittedUrl().getSpec());
+                () -> activity.getCurrentWebContents().getLastCommittedUrl());
 
         // Any built-in page that is not about:blank and is reasonably cheap to render will do,
         // here.

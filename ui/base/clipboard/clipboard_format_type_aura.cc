@@ -1,22 +1,17 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/base/clipboard/clipboard_format_type.h"
 
-#include "base/no_destructor.h"
-#include "base/strings/strcat.h"
-#include "base/strings/string_number_conversions.h"
-#include "base/strings/string_util.h"
-#include "build/build_config.h"
 #include "ui/base/clipboard/clipboard_constants.h"
 
 namespace ui {
 
-// TODO(crbug.com/1123230): Investigate creating a new clipboard_format_type_x11
-// as a wrapper around an X11 ::Atom. This wasn't possible in the past, because
-// unit tests spawned a new X11 server for each test, meaning Atom numeric
-// values didn't persist across tests.
+// TODO(huangdarwin): Investigate creating a new clipboard_format_type_x11 as a
+// wrapper around an X11 ::Atom. This wasn't possible in the past, because unit
+// tests spawned a new X11 server for each test, meaning Atom numeric values
+// didn't persist across tests.
 ClipboardFormatType::ClipboardFormatType() = default;
 
 ClipboardFormatType::~ClipboardFormatType() = default;
@@ -46,31 +41,6 @@ bool ClipboardFormatType::operator==(const ClipboardFormatType& other) const {
   return data_ == other.data_;
 }
 
-// static
-ClipboardFormatType ClipboardFormatType::CustomPlatformType(
-    const std::string& format_string) {
-  DCHECK(base::IsStringASCII(format_string));
-  return ClipboardFormatType::Deserialize(format_string);
-}
-
-// static
-std::string ClipboardFormatType::WebCustomFormatName(int index) {
-  return base::StrCat({"application/web;type=\"custom/format",
-                       base::NumberToString(index), "\""});
-}
-
-// static
-std::string ClipboardFormatType::WebCustomFormatMapName() {
-  return "application/web;type=\"custom/formatmap\"";
-}
-
-// static
-const ClipboardFormatType& ClipboardFormatType::WebCustomFormatMap() {
-  static base::NoDestructor<ClipboardFormatType> type(
-      ClipboardFormatType::WebCustomFormatMapName());
-  return *type;
-}
-
 // Various predefined ClipboardFormatTypes.
 
 // static
@@ -80,72 +50,52 @@ ClipboardFormatType ClipboardFormatType::GetType(
 }
 
 // static
-const ClipboardFormatType& ClipboardFormatType::FilenamesType() {
+const ClipboardFormatType& ClipboardFormatType::GetUrlType() {
   static base::NoDestructor<ClipboardFormatType> type(kMimeTypeURIList);
   return *type;
 }
 
 // static
-const ClipboardFormatType& ClipboardFormatType::UrlType() {
-  static base::NoDestructor<ClipboardFormatType> type(kMimeTypeMozillaURL);
-  return *type;
-}
-
-// static
-const ClipboardFormatType& ClipboardFormatType::PlainTextType() {
+const ClipboardFormatType& ClipboardFormatType::GetPlainTextType() {
   static base::NoDestructor<ClipboardFormatType> type(kMimeTypeText);
   return *type;
 }
 
 // static
-const ClipboardFormatType& ClipboardFormatType::HtmlType() {
+const ClipboardFormatType& ClipboardFormatType::GetHtmlType() {
   static base::NoDestructor<ClipboardFormatType> type(kMimeTypeHTML);
   return *type;
 }
 
 // static
-const ClipboardFormatType& ClipboardFormatType::SvgType() {
+const ClipboardFormatType& ClipboardFormatType::GetSvgType() {
   static base::NoDestructor<ClipboardFormatType> type(kMimeTypeSvg);
   return *type;
 }
 
 // static
-const ClipboardFormatType& ClipboardFormatType::RtfType() {
+const ClipboardFormatType& ClipboardFormatType::GetRtfType() {
   static base::NoDestructor<ClipboardFormatType> type(kMimeTypeRTF);
   return *type;
 }
 
 // static
-const ClipboardFormatType& ClipboardFormatType::PngType() {
+const ClipboardFormatType& ClipboardFormatType::GetBitmapType() {
   static base::NoDestructor<ClipboardFormatType> type(kMimeTypePNG);
   return *type;
 }
 
 // static
-const ClipboardFormatType& ClipboardFormatType::BitmapType() {
-  return ClipboardFormatType::PngType();
-}
-
-// static
-const ClipboardFormatType& ClipboardFormatType::WebKitSmartPasteType() {
+const ClipboardFormatType& ClipboardFormatType::GetWebKitSmartPasteType() {
   static base::NoDestructor<ClipboardFormatType> type(
       kMimeTypeWebkitSmartPaste);
   return *type;
 }
 
 // static
-const ClipboardFormatType& ClipboardFormatType::WebCustomDataType() {
+const ClipboardFormatType& ClipboardFormatType::GetWebCustomDataType() {
   static base::NoDestructor<ClipboardFormatType> type(kMimeTypeWebCustomData);
   return *type;
 }
-
-#if BUILDFLAG(IS_CHROMEOS)
-// static
-const ClipboardFormatType& ClipboardFormatType::DataTransferEndpointDataType() {
-  static base::NoDestructor<ClipboardFormatType> type(
-      kMimeTypeDataTransferEndpoint);
-  return *type;
-}
-#endif  // BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace ui

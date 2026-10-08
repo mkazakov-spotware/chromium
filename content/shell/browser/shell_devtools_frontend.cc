@@ -1,10 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/shell/browser/shell_devtools_frontend.h"
 
-#include "base/command_line.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
@@ -14,19 +13,14 @@
 #include "content/shell/browser/shell_browser_context.h"
 #include "content/shell/browser/shell_devtools_bindings.h"
 #include "content/shell/browser/shell_devtools_manager_delegate.h"
-#include "content/shell/common/shell_switches.h"
 
 namespace content {
 
 namespace {
 static GURL GetFrontendURL() {
   int port = ShellDevToolsManagerDelegate::GetHttpHandlerPort();
-  const char* queryString = base::CommandLine::ForCurrentProcess()->HasSwitch(
-                                switches::kContentShellDevToolsTabTarget)
-                                ? "?targetType=tab"
-                                : "";
   return GURL(base::StringPrintf(
-      "http://127.0.0.1:%d/devtools/devtools_app.html%s", port, queryString));
+      "http://127.0.0.1:%d/devtools/devtools_app.html", port));
 }
 }  // namespace
 
@@ -53,7 +47,7 @@ void ShellDevToolsFrontend::Close() {
   frontend_shell_->Close();
 }
 
-void ShellDevToolsFrontend::PrimaryMainDocumentElementAvailable() {
+void ShellDevToolsFrontend::DocumentAvailableInMainFrame() {
   devtools_bindings_->Attach();
 }
 
@@ -71,9 +65,5 @@ ShellDevToolsFrontend::ShellDevToolsFrontend(Shell* frontend_shell,
                                     this)) {}
 
 ShellDevToolsFrontend::~ShellDevToolsFrontend() {}
-
-base::WeakPtr<ShellDevToolsFrontend> ShellDevToolsFrontend::GetWeakPtr() {
-  return weak_ptr_factory_.GetWeakPtr();
-}
 
 }  // namespace content

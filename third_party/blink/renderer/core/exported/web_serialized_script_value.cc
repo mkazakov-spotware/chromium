@@ -37,6 +37,11 @@
 
 namespace blink {
 
+WebSerializedScriptValue WebSerializedScriptValue::FromString(
+    const WebString& s) {
+  return SerializedScriptValue::Create(s);
+}
+
 WebSerializedScriptValue WebSerializedScriptValue::Serialize(
     v8::Isolate* isolate,
     v8::Local<v8::Value> value) {
@@ -59,6 +64,10 @@ void WebSerializedScriptValue::Reset() {
 
 void WebSerializedScriptValue::Assign(const WebSerializedScriptValue& other) {
   private_ = other.private_;
+}
+
+WebString WebSerializedScriptValue::ToString() const {
+  return private_->ToWireString();
 }
 
 v8::Local<v8::Value> WebSerializedScriptValue::Deserialize(

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,7 @@ ScopedTimedTaskLogger::ScopedTimedTaskLogger(TimerCallback timer_callback)
 ScopedTimedTaskLogger::ScopedTimedTaskLogger(const char* logging_text)
     : ScopedTimedTaskLogger(base::BindOnce(&LogIfExceedThreshold,
                                            logging_text,
-                                           base::Seconds(1))) {}
+                                           base::TimeDelta::FromSeconds(1))) {}
 
 ScopedTimedTaskLogger::~ScopedTimedTaskLogger() {
   std::move(timer_callback_).Run(base::Time::NowFromSystemTime() - start_time_);

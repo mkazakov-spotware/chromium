@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "base/format_macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/no_destructor.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/stringprintf.h"
 #include "base/trace_event/trace_event.h"
@@ -32,7 +31,7 @@ std::unique_ptr<SignedExchangeCertificateChain> ParseCertChain(
     base::span<const uint8_t> message,
     SignedExchangeDevToolsProxy* devtools_proxy) {
   cbor::Reader::DecoderError error;
-  absl::optional<cbor::Value> value = cbor::Reader::Read(message, &error);
+  base::Optional<cbor::Value> value = cbor::Reader::Read(message, &error);
   if (!value.has_value()) {
     signed_exchange_utils::ReportErrorAndTraceEvent(
         devtools_proxy,
@@ -109,7 +108,7 @@ std::unique_ptr<SignedExchangeCertificateChain> ParseCertChain(
             "ocsp is not a bytestring, or not found in the first cert map.");
         return nullptr;
       }
-      ocsp = std::string(ocsp_iter->second.GetBytestringAsString());
+      ocsp = ocsp_iter->second.GetBytestringAsString().as_string();
       if (ocsp.empty()) {
         signed_exchange_utils::ReportErrorAndTraceEvent(
             devtools_proxy, "ocsp must not be empty.");
@@ -138,7 +137,7 @@ std::unique_ptr<SignedExchangeCertificateChain> ParseCertChain(
               devtools_proxy, "sct is not a bytestring.");
           return nullptr;
         }
-        sct = std::string(sct_iter->second.GetBytestringAsString());
+        sct = sct_iter->second.GetBytestringAsString().as_string();
         if (sct.empty()) {
           signed_exchange_utils::ReportErrorAndTraceEvent(
               devtools_proxy, "sct must not be empty.");

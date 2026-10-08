@@ -1,4 +1,4 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Sends notifications after automatic imports from web-platform-tests (WPT).
@@ -15,11 +15,10 @@ import re
 
 from blinkpy.common.net.luci_auth import LuciAuth
 from blinkpy.common.path_finder import PathFinder
-from blinkpy.w3c.common import WPT_GH_URL, WPT_GH_RANGE_URL_TEMPLATE
+from blinkpy.w3c.common import WPT_GH_URL
 from blinkpy.w3c.directory_owners_extractor import DirectoryOwnersExtractor
 from blinkpy.w3c.monorail import MonorailAPI, MonorailIssue
 from blinkpy.w3c.wpt_expectations_updater import WPTExpectationsUpdater
-from blinkpy.web_tests.port.android import ANDROID_WEBLAYER
 
 _log = logging.getLogger(__name__)
 
@@ -37,17 +36,12 @@ class ImportNotifier(object):
         self.finder = PathFinder(host.filesystem)
         self.owners_extractor = DirectoryOwnersExtractor(host)
         self.new_failures_by_directory = defaultdict(list)
-        self.components_for_product = {ANDROID_WEBLAYER: ["Internals>WebLayer"]}
-        self.labels_for_product = {
-            ANDROID_WEBLAYER: ["Project-WebLayer-WebPlatformSupport", "WL-WPT-Compat"]
-        }
 
     def main(self,
              wpt_revision_start,
              wpt_revision_end,
              rebaselined_tests,
              test_expectations,
-             new_override_expectations,
              issue,
              patchset,
              dry_run=True,
@@ -84,14 +78,6 @@ class ImportNotifier(object):
                                                   wpt_revision_end, gerrit_url)
         self.file_bugs(bugs, dry_run, service_account_key_json)
 
-        for product, expectation_lines in new_override_expectations.items():
-            bugs = self.create_bugs_for_product(wpt_revision_start,
-                                                wpt_revision_end,
-                                                gerrit_url,
-                                                product,
-                                                expectation_lines)
-            self.file_bugs(bugs, dry_run, service_account_key_json)
-
     def find_changed_baselines_of_tests(self, rebaselined_tests):
         """Finds the corresponding changed baselines of each test.
 
@@ -125,7 +111,7 @@ class ImportNotifier(object):
                 changed baselines.
             gerrit_url_with_ps: Gerrit URL of this CL with the patchset number.
         """
-        for test_name, changed_baselines in changed_test_baselines.items():
+        for test_name, changed_baselines in changed_test_baselines.iteritems():
             directory = self.find_owned_directory(test_name)
             if not directory:
                 _log.warning('Cannot find OWNERS of %s', test_name)
@@ -152,7 +138,7 @@ class ImportNotifier(object):
         failures - this includes going from FAIL to error or vice-versa.
         """
 
-        diff = self.git.run(['diff', '-U0', 'origin/main', '--', baseline])
+        diff = self.git.run(['diff', '-U0', 'origin/master', '--', baseline])
         delta_failures = 0
         delta_harness_errors = 0
         for line in diff.splitlines():
@@ -173,7 +159,7 @@ class ImportNotifier(object):
             test_expectations: A dictionary mapping names of tests that cannot
                 be rebaselined to a list of new test expectation lines.
         """
-        for test_name, expectation_lines in test_expectations.items():
+        for test_name, expectation_lines in test_expectations.iteritems():
             directory = self.find_owned_directory(test_name)
             if not directory:
                 _log.warning('Cannot find OWNERS of %s', test_name)
@@ -185,53 +171,6 @@ class ImportNotifier(object):
                         TestFailure.NEW_EXPECTATION,
                         test_name,
                         expectation_line=expectation_line))
-
-    def create_bugs_for_product(self, wpt_revision_start, wpt_revision_end,
-                                gerrit_url, product, expectation_lines):
-        """Files bug reports for new failures per product
-
-        Args:
-            wpt_revision_start: The start of the imported WPT revision range
-                (exclusive), i.e. the last imported revision.
-            wpt_revision_end: The end of the imported WPT revision range
-                (inclusive), i.e. the current imported revision.
-            gerrit_url: Gerrit URL of the CL.
-            product: the product for which to file bugs for.
-            expectation_lines: list of new expectations for this product
-
-        Return:
-            A MonorailIssue object that should be filed.
-        """
-        bugs = []
-        summary = '[WPT] New failures introduced by import {}'.format(gerrit_url)
-
-        prologue = ('WPT import {} introduced new failures:\n\n'
-                    'List of new failures:\n'.format(gerrit_url))
-
-        failure_list = ''
-        for _, failure in expectation_lines.items():
-            failure_list += str(failure) + '\n'
-
-        expectations_statement = (
-            '\nExpectations have been automatically added for '
-            'the failing results to keep the bots green. Please '
-            'investigate the new failures and triage as appropriate.\n')
-
-        range_statement = '\nUpstream changes imported:\n'
-        range_statement += WPT_GH_RANGE_URL_TEMPLATE.format(
-            wpt_revision_start, wpt_revision_end) + '\n'
-
-        description = (prologue + failure_list + expectations_statement +
-                       range_statement)
-
-        bug = MonorailIssue.new_chromium_issue(
-            summary,
-            description,
-            cc=[],
-            components=self.components_for_product[product],
-            labels=self.labels_for_product[product])
-        bugs.append(bug)
-        return bugs
 
     def create_bugs_from_new_failures(self, wpt_revision_start,
                                       wpt_revision_end, gerrit_url):
@@ -250,31 +189,21 @@ class ImportNotifier(object):
         imported_commits = self.local_wpt.commits_in_range(
             wpt_revision_start, wpt_revision_end)
         bugs = []
-        for directory, failures in self.new_failures_by_directory.items():
+        for directory, failures in self.new_failures_by_directory.iteritems():
             summary = '[WPT] New failures introduced in {} by import {}'.format(
                 directory, gerrit_url)
 
             full_directory = self.host.filesystem.join(
                 self.finder.web_tests_dir(), directory)
             owners_file = self.host.filesystem.join(full_directory, 'OWNERS')
-            metadata_file = self.host.filesystem.join(full_directory,
-                                                      'DIR_METADATA')
-            is_wpt_notify_enabled = False
-            try:
-                is_wpt_notify_enabled = self.owners_extractor.is_wpt_notify_enabled(
-                    metadata_file)
-            except KeyError:
-                _log.info('KeyError when parsing %s' % metadata_file)
-
-            if not is_wpt_notify_enabled:
-                _log.info("WPT-NOTIFY disabled in %s." % full_directory)
-                continue
+            is_wpt_notify_enabled = self.owners_extractor.is_wpt_notify_enabled(
+                owners_file)
 
             owners = self.owners_extractor.extract_owners(owners_file)
             # owners may be empty but not None.
             cc = owners
 
-            component = self.owners_extractor.extract_component(metadata_file)
+            component = self.owners_extractor.extract_component(owners_file)
             # component could be None.
             components = [component] if component else None
 
@@ -290,9 +219,8 @@ class ImportNotifier(object):
                 'added for the failing results to keep the bots green. Please '
                 'investigate the new failures and triage as appropriate.\n')
 
-            range_statement = '\nUpstream changes imported:\n'
-            range_statement += WPT_GH_RANGE_URL_TEMPLATE.format(
-                wpt_revision_start, wpt_revision_end) + '\n'
+            range_statement = '\nThis import contains upstream changes from {} to {}:\n'.format(
+                wpt_revision_start, wpt_revision_end)
             commit_list = self.format_commit_list(imported_commits,
                                                   full_directory)
 
@@ -306,9 +234,17 @@ class ImportNotifier(object):
                                                    cc,
                                                    components,
                                                    labels=['Test-WebTest'])
-            _log.info(bug)
-            _log.info("WPT-NOTIFY enabled in %s; adding the bug to the pending list." % full_directory)
-            bugs.append(bug)
+            _log.info(unicode(bug))
+
+            if is_wpt_notify_enabled:
+                _log.info(
+                    "WPT-NOTIFY enabled in this directory; adding the bug to the pending list."
+                )
+                bugs.append(bug)
+            else:
+                _log.info(
+                    "WPT-NOTIFY disabled in this directory; discarding the bug."
+                )
         return bugs
 
     def format_commit_list(self, imported_commits, directory):

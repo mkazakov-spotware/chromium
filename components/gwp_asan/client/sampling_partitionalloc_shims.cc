@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "base/allocator/partition_allocator/partition_alloc.h"
+#include "base/partition_alloc_buildflags.h"
 #include "components/crash/core/common/crash_key.h"
 #include "components/gwp_asan/client/export.h"
 #include "components/gwp_asan/client/guarded_page_allocator.h"
@@ -26,14 +27,11 @@ SamplingState<PARTITIONALLOC> sampling_state;
 // for every access.
 GuardedPageAllocator* gpa = nullptr;
 
-bool AllocationHook(void** out,
-                    unsigned int flags,
-                    size_t size,
-                    const char* type_name) {
+bool AllocationHook(void** out, int flags, size_t size, const char* type_name) {
   if (UNLIKELY(sampling_state.Sample())) {
     // Ignore allocation requests with unknown flags.
-    constexpr int kKnownFlags = partition_alloc::AllocFlags::kReturnNull |
-                                partition_alloc::AllocFlags::kZeroFill;
+    constexpr int kKnownFlags =
+        base::PartitionAllocReturnNull | base::PartitionAllocZeroFill;
     if (flags & ~kKnownFlags)
       return false;
 
@@ -83,8 +81,8 @@ void InstallPartitionAllocHooks(
   sampling_state.Init(sampling_frequency);
   // TODO(vtsyrklevich): Allow SetOverrideHooks to be passed in so we can hook
   // PDFium's PartitionAlloc fork.
-  partition_alloc::PartitionAllocHooks::SetOverrideHooks(
-      &AllocationHook, &FreeHook, &ReallocHook);
+  base::PartitionAllocHooks::SetOverrideHooks(&AllocationHook, &FreeHook,
+                                              &ReallocHook);
 }
 
 }  // namespace internal

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,8 +17,7 @@ class WebAudioLatencyHint {
     kCategoryInteractive,
     kCategoryBalanced,
     kCategoryPlayback,
-    kCategoryExact,
-    kLastValue
+    kCategoryExact
   };
 
   explicit WebAudioLatencyHint(const WebString& category) {
@@ -52,4 +51,4 @@ class WebAudioLatencyHint {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_AUDIO_LATENCY_HINT_H_
+#endif

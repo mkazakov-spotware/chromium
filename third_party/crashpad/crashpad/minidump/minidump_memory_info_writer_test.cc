@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -74,11 +74,7 @@ TEST(MinidumpMemoryInfoWriter, Empty) {
   ASSERT_NO_FATAL_FAILURE(
       GetMemoryInfoListStream(string_file.string(), &memory_info_list));
 
-  uint64_t number_of_entries;
-  memcpy(&number_of_entries,
-         &memory_info_list->NumberOfEntries,
-         sizeof(number_of_entries));
-  EXPECT_EQ(number_of_entries, 0u);
+  EXPECT_EQ(memory_info_list->NumberOfEntries, 0u);
 }
 
 TEST(MinidumpMemoryInfoWriter, OneRegion) {
@@ -119,21 +115,16 @@ TEST(MinidumpMemoryInfoWriter, OneRegion) {
   ASSERT_NO_FATAL_FAILURE(
       GetMemoryInfoListStream(string_file.string(), &memory_info_list));
 
-  uint64_t number_of_entries;
-  memcpy(&number_of_entries,
-         &memory_info_list->NumberOfEntries,
-         sizeof(number_of_entries));
-  EXPECT_EQ(number_of_entries, 1u);
-
-  MINIDUMP_MEMORY_INFO memory_info;
-  memcpy(&memory_info, &memory_info_list[1], sizeof(memory_info));
-  EXPECT_EQ(memory_info.BaseAddress, mmi.BaseAddress);
-  EXPECT_EQ(memory_info.AllocationBase, mmi.AllocationBase);
-  EXPECT_EQ(memory_info.AllocationProtect, mmi.AllocationProtect);
-  EXPECT_EQ(memory_info.RegionSize, mmi.RegionSize);
-  EXPECT_EQ(memory_info.State, mmi.State);
-  EXPECT_EQ(memory_info.Protect, mmi.Protect);
-  EXPECT_EQ(memory_info.Type, mmi.Type);
+  EXPECT_EQ(memory_info_list->NumberOfEntries, 1u);
+  const MINIDUMP_MEMORY_INFO* memory_info =
+      reinterpret_cast<const MINIDUMP_MEMORY_INFO*>(&memory_info_list[1]);
+  EXPECT_EQ(memory_info->BaseAddress, mmi.BaseAddress);
+  EXPECT_EQ(memory_info->AllocationBase, mmi.AllocationBase);
+  EXPECT_EQ(memory_info->AllocationProtect, mmi.AllocationProtect);
+  EXPECT_EQ(memory_info->RegionSize, mmi.RegionSize);
+  EXPECT_EQ(memory_info->State, mmi.State);
+  EXPECT_EQ(memory_info->Protect, mmi.Protect);
+  EXPECT_EQ(memory_info->Type, mmi.Type);
 }
 
 }  // namespace

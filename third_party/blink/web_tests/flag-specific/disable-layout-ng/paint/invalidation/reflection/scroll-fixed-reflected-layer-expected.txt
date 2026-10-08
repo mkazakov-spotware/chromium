@@ -1,7 +1,7 @@
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [785, 2016],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF",
@@ -10,14 +10,15 @@
     {
       "name": "LayoutBlockFlow (positioned) DIV class='reflected fixed'",
       "bounds": [100, 100],
-      "contentsOpaqueForText": true,
+      "contentsOpaque": true,
+      "backgroundColor": "#FF0000",
       "invalidations": [
         [0, 0, 100, 100]
       ],
       "transform": 2
     },
     {
-      "name": "VerticalScrollbar",
+      "name": "ContentsLayer for Vertical Scrollbar Layer",
       "position": [785, 0],
       "bounds": [15, 600],
       "contentsOpaque": true

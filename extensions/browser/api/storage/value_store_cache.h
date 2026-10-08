@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,9 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 
-namespace value_store {
 class ValueStore;
-}
 
 namespace extensions {
 
@@ -29,7 +27,7 @@ class Extension;
 // posted to FILE after ShutdownOnUI().
 class ValueStoreCache {
  public:
-  using StorageCallback = base::OnceCallback<void(value_store::ValueStore*)>;
+  typedef base::Callback<void(ValueStore*)> StorageCallback;
 
   // Invoked on FILE.
   virtual ~ValueStoreCache();
@@ -47,7 +45,7 @@ class ValueStoreCache {
   // asynchronously posted as a task to the loop returned by GetMessageLoop(),
   // and this guarantees the Extension is still valid when the method executes.
   virtual void RunWithValueStoreForExtension(
-      StorageCallback callback,
+      const StorageCallback& callback,
       scoped_refptr<const Extension> extension) = 0;
 
   // Requests the cache to delete any storage used by |extension_id|.

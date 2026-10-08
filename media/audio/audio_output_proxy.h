@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define MEDIA_AUDIO_AUDIO_OUTPUT_PROXY_H_
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "media/audio/audio_io.h"
@@ -27,9 +28,6 @@ class MEDIA_EXPORT AudioOutputProxy : public AudioOutputStream {
  public:
   // Caller keeps ownership of |dispatcher|.
   explicit AudioOutputProxy(base::WeakPtr<AudioOutputDispatcher> dispatcher);
-
-  AudioOutputProxy(const AudioOutputProxy&) = delete;
-  AudioOutputProxy& operator=(const AudioOutputProxy&) = delete;
 
   // AudioOutputStream interface.
   bool Open() override;
@@ -64,6 +62,8 @@ class MEDIA_EXPORT AudioOutputProxy : public AudioOutputStream {
   double volume_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(AudioOutputProxy);
 };
 
 }  // namespace media

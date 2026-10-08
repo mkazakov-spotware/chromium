@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,8 @@
 #include "base/memory/ref_counted_memory.h"
 #include "base/pending_task.h"
 #include "base/run_loop.h"
-#include "base/task/common/task_annotator.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread.h"
-#include "base/time/time.h"
 #include "base/trace_event/task_execution_macros.h"
 #include "base/trace_event/trace_event.h"
 #include "base/trace_event/traced_value.h"
@@ -51,7 +49,7 @@ class TraceEventPerfTest : public ::testing::Test {
     base::RunLoop run_loop;
     TraceLog::GetInstance()->SetDisabled();
     TraceLog::GetInstance()->Flush(
-        BindRepeating(&OnTraceDataCollected, run_loop.QuitClosure()));
+        Bind(&OnTraceDataCollected, run_loop.QuitClosure()));
     run_loop.Run();
   }
 
@@ -178,16 +176,13 @@ TEST_F(TraceEventPerfTest, Submit_10000_TRACE_EVENT0_multithreaded) {
   }
 }
 
-// Disabled due to consistent failure crbug.com/1266164.
-TEST_F(TraceEventPerfTest,
-       DISABLED_Submit_10000_TRACE_EVENT0_in_traceable_tasks) {
+TEST_F(TraceEventPerfTest, Submit_10000_TRACE_EVENT0_in_traceable_tasks) {
   BeginTrace();
   IterableStopwatch task_sw(kMetricEventSubmitTimeMs);
-  base::TaskAnnotator task_annotator;
   for (int i = 0; i < 100; i++) {
     base::PendingTask pending_task(FROM_HERE,
                                    BindOnce(&SubmitTraceEvents, 10000));
-    task_annotator.RunTask("TraceEventPerfTest::PendingTask", pending_task);
+    TRACE_TASK_EXECUTION("TraceEventPerfTest::PendingTask", pending_task);
     std::move(pending_task.task).Run();
     task_sw.NextLap();
   }

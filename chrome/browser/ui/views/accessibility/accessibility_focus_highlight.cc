@@ -1,17 +1,16 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/accessibility/accessibility_focus_highlight.h"
 
-#include "base/cxx17_backports.h"
+#include "base/numerics/ranges.h"
 #include "build/build_config.h"
-#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/common/pref_names.h"
-#include "content/public/browser/browser_accessibility_state.h"
 #include "content/public/browser/focused_node_details.h"
-#include "ui/compositor/compositor.h"
+#include "content/public/browser/notification_service.h"
+#include "content/public/browser/notification_types.h"
 #include "ui/compositor/compositor_animation_observer.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/paint_recorder.h"
@@ -50,15 +49,18 @@ constexpr int kTotalLayerPadding =
     kPadding + kStrokeWidth + kGradientWidth + kLayerPadding;
 
 // The amount of time it should take for the highlight to fade in.
-constexpr auto kFadeInTime = base::Milliseconds(100);
+constexpr auto kFadeInTime = base::TimeDelta::FromMilliseconds(100);
 
 // The amount of time the highlight should persist before beginning to fade.
-constexpr auto kHighlightPersistTime = base::Seconds(1);
+constexpr auto kHighlightPersistTime = base::TimeDelta::FromSeconds(1);
 
 // The amount of time it should take for the highlight to fade out.
-constexpr auto kFadeOutTime = base::Milliseconds(600);
+constexpr auto kFadeOutTime = base::TimeDelta::FromMilliseconds(600);
 
 }  // namespace
+
+// static
+SkColor AccessibilityFocusHighlight::default_color_;
 
 // static
 base::TimeDelta AccessibilityFocusHighlight::fade_in_time_;
@@ -99,6 +101,7 @@ AccessibilityFocusHighlight::AccessibilityFocusHighlight(
     fade_in_time_ = kFadeInTime;
     persist_time_ = kHighlightPersistTime;
     fade_out_time_ = kFadeOutTime;
+    default_color_ = SkColorSetRGB(0x10, 0x10, 0x10);  // #101010
   }
 }
 
@@ -128,19 +131,19 @@ ui::Layer* AccessibilityFocusHighlight::GetLayerForTesting() {
 }
 
 SkColor AccessibilityFocusHighlight::GetHighlightColor() {
-  const ui::ColorProvider* color_provider = browser_view_->GetColorProvider();
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
   // Match behaviour with renderer_preferences_util::UpdateFromSystemSettings
   // setting prefs->focus_ring_color
-  return color_provider->GetColor(kColorFocusHighlightDefault);
+  return default_color_;
 #else
-  SkColor theme_color =
-      color_provider->GetColor(ui::kColorFocusableBorderFocused);
+  ui::NativeTheme* native_theme = ui::NativeTheme::GetInstanceForWeb();
+  SkColor theme_color = native_theme->GetSystemColor(
+      ui::NativeTheme::kColorId_FocusedBorderColor);
 
   if (theme_color == SK_ColorTRANSPARENT || use_default_color_for_testing_)
-    return color_provider->GetColor(kColorFocusHighlightDefault);
+    return default_color_;
 
-  return theme_color;
+  return native_theme->FocusRingColorForBaseColor(theme_color);
 #endif
 }
 
@@ -171,7 +174,7 @@ void AccessibilityFocusHighlight::CreateOrUpdateLayer(gfx::Rect node_bounds) {
   // plus the extra padding to ensure the highlight isn't clipped.
   gfx::Rect layer_bounds = node_bounds;
   int padding = kTotalLayerPadding;
-  layer_bounds.Inset(-padding);
+  layer_bounds.Inset(-padding, -padding);
 
   layer_->SetBounds(layer_bounds);
 
@@ -220,33 +223,40 @@ void AccessibilityFocusHighlight::AddOrRemoveObservers() {
   if (prefs->GetBoolean(prefs::kAccessibilityFocusHighlightEnabled)) {
     // Listen for focus changes. Automatically deregisters when destroyed,
     // or when the preference toggles off.
-    // TODO(crbug.com/1194802): This will fire even for focused-element changes
-    // in windows other than browser_view_, which might not be ideal behavior.
-    focus_changed_subscription_ =
-        content::BrowserAccessibilityState::GetInstance()
-            ->RegisterFocusChangedCallback(base::BindRepeating(
-                &AccessibilityFocusHighlight::OnFocusChangedInPage,
-                base::Unretained(this)));
+    notification_registrar_.Add(this,
+                                content::NOTIFICATION_FOCUS_CHANGED_IN_PAGE,
+                                content::NotificationService::AllSources());
 
     tab_strip_model->AddObserver(this);
     return;
   } else {
-    focus_changed_subscription_.reset();
+    if (notification_registrar_.IsRegistered(
+            this, content::NOTIFICATION_FOCUS_CHANGED_IN_PAGE,
+            content::NotificationService::AllSources())) {
+      notification_registrar_.Remove(
+          this, content::NOTIFICATION_FOCUS_CHANGED_IN_PAGE,
+          content::NotificationService::AllSources());
+    }
     tab_strip_model->RemoveObserver(this);
   }
 }
 
-void AccessibilityFocusHighlight::OnFocusChangedInPage(
-    const content::FocusedNodeDetails& details) {
+void AccessibilityFocusHighlight::Observe(
+    int type,
+    const content::NotificationSource& source,
+    const content::NotificationDetails& details) {
+  if (type != content::NOTIFICATION_FOCUS_CHANGED_IN_PAGE)
+    return;
+
   // Unless this is a test, only draw the focus ring if this BrowserView is
   // the active one.
-  // TODO(crbug.com/1194802): Even if this BrowserView is active, it doesn't
-  // necessarily own the node we're about to highlight.
   if (!browser_view_->IsActive() && !skip_activation_check_for_testing_)
     return;
 
   // Get the bounds of the focused node from the web page.
-  gfx::Rect node_bounds = details.node_bounds_in_screen;
+  content::FocusedNodeDetails* node_details =
+      content::Details<content::FocusedNodeDetails>(details).ptr();
+  gfx::Rect node_bounds = node_details->node_bounds_in_screen;
 
   // This happens if e.g. we focus on <body>. Don't show a confusing highlight.
   if (node_bounds.IsEmpty())
@@ -275,12 +285,12 @@ void AccessibilityFocusHighlight::OnPaintLayer(
   gfx::RectF bounds(node_bounds_);
 
   // Apply padding
-  bounds.Inset(-kPadding);
+  bounds.Inset(-kPadding, -kPadding);
 
   // Draw gradient first, so other lines will be drawn over the top.
   gfx::RectF gradient_bounds(bounds);
   int gradient_border_radius = kBorderRadius;
-  gradient_bounds.Inset(-kStrokeWidth);
+  gradient_bounds.Inset(-kStrokeWidth, -kStrokeWidth);
   gradient_border_radius += kStrokeWidth;
   cc::PaintFlags gradient_flags(original_flags);
   gradient_flags.setStrokeWidth(1);
@@ -298,7 +308,7 @@ void AccessibilityFocusHighlight::OnPaintLayer(
     recorder.canvas()->DrawRoundRect(gradient_bounds, gradient_border_radius,
                                      gradient_flags);
 
-    gradient_bounds.Inset(-1);
+    gradient_bounds.Inset(-1, -1);
     gradient_border_radius += 1;
   }
 
@@ -308,7 +318,7 @@ void AccessibilityFocusHighlight::OnPaintLayer(
 
   // Resize bounds and border radius around inner ring
   gfx::RectF white_ring_bounds(bounds);
-  white_ring_bounds.Inset(-(kStrokeWidth / 2));
+  white_ring_bounds.Inset(-(kStrokeWidth / 2), -(kStrokeWidth / 2));
   int white_ring_border_radius = kBorderRadius + (kStrokeWidth / 2);
 
   cc::PaintFlags white_ring_flags(original_flags);
@@ -341,7 +351,7 @@ float AccessibilityFocusHighlight::ComputeOpacity(
     opacity = 1.0f - (time_since_began_fading / fade_out_time_);
   }
 
-  return base::clamp(opacity, 0.0f, 1.0f);
+  return base::ClampToRange(opacity, 0.0f, 1.0f);
 }
 
 void AccessibilityFocusHighlight::OnAnimationStep(base::TimeTicks timestamp) {

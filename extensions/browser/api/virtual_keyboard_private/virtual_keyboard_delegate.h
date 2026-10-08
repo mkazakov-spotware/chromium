@@ -1,19 +1,20 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_BROWSER_API_VIRTUAL_KEYBOARD_PRIVATE_VIRTUAL_KEYBOARD_DELEGATE_H_
 #define EXTENSIONS_BROWSER_API_VIRTUAL_KEYBOARD_PRIVATE_VIRTUAL_KEYBOARD_DELEGATE_H_
 
-#include <set>
+#include <memory>
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "base/values.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/common/api/virtual_keyboard.h"
 #include "extensions/common/api/virtual_keyboard_private.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/gfx/geometry/rect.h"
 
 namespace extensions {
@@ -23,15 +24,9 @@ class VirtualKeyboardDelegate {
   virtual ~VirtualKeyboardDelegate() {}
 
   using OnKeyboardSettingsCallback =
-      base::OnceCallback<void(absl::optional<base::Value::Dict> settings)>;
+      base::Callback<void(std::unique_ptr<base::DictionaryValue> settings)>;
 
   using OnSetModeCallback = base::OnceCallback<void(bool success)>;
-
-  using OnGetClipboardHistoryCallback =
-      base::OnceCallback<void(base::Value history)>;
-
-  using OnRestrictFeaturesCallback = base::OnceCallback<void(
-      api::virtual_keyboard::FeatureRestrictions update)>;
 
   // Fetch information about the preferred configuration of the keyboard. On
   // exit, |settings| is populated with the keyboard configuration if execution
@@ -48,7 +43,7 @@ class VirtualKeyboardDelegate {
   virtual bool HideKeyboard() = 0;
 
   // Insert |text| verbatim into a text area. Returns true if successful.
-  virtual bool InsertText(const std::u16string& text) = 0;
+  virtual bool InsertText(const base::string16& text) = 0;
 
   // Notifiy system that keyboard loading is complete. Used in UMA stats to
   // track loading performance. Returns true if the notification was handled.
@@ -111,27 +106,10 @@ class VirtualKeyboardDelegate {
   // Sets the bounds of the keyboard window in screen coordinates.
   virtual bool SetWindowBoundsInScreen(const gfx::Rect& bounds_in_screen) = 0;
 
-  // Calls the |get_history_callback| function and passes a value containing the
-  // current cipboard history items. Only clipboard items which have an id in
-  // the |item_ids_filter| are included. If the filter is empty then all
-  // clipboard items are included.
-  virtual void GetClipboardHistory(
-      const std::set<std::string>& item_ids_filter,
-      OnGetClipboardHistoryCallback get_history_callback) = 0;
-
-  // Paste a clipboard item from the clipboard history. Returns whether the
-  // paste is successful.
-  virtual bool PasteClipboardItem(const std::string& clipboard_item_id) = 0;
-
-  // Delete a clipboard item from the clipboard history. Returns whether the
-  // deletion is successful.
-  virtual bool DeleteClipboardItem(const std::string& clipboard_item_id) = 0;
-
   // Restricts the virtual keyboard IME features.
-  // callback is called with the values which were updated.
-  virtual void RestrictFeatures(
-      const api::virtual_keyboard::RestrictFeatures::Params& params,
-      OnRestrictFeaturesCallback callback) = 0;
+  // Returns the values which were updated.
+  virtual api::virtual_keyboard::FeatureRestrictions RestrictFeatures(
+      const api::virtual_keyboard::RestrictFeatures::Params& params) = 0;
 };
 
 }  // namespace extensions

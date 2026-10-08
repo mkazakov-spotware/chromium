@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/path_service.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/win/scoped_handle.h"
 #include "chrome/chrome_cleaner/mojom/parser_interface.mojom.h"
@@ -107,19 +108,15 @@ void SandboxedShortcutParser::OnShortcutsParsingDone(
     scoped_refptr<ParseTasksRemainingCounter> counter,
     std::vector<ShortcutInformation>* found_shortcuts,
     mojom::LnkParsingResult parsing_result,
-    const absl::optional<std::wstring>& optional_file_path,
-    const absl::optional<std::wstring>& optional_working_dir,
-    const absl::optional<std::wstring>& optional_command_line_arguments,
-    const absl::optional<std::wstring>& optional_icon_location,
+    const base::Optional<std::wstring>& optional_file_path,
+    const base::Optional<std::wstring>& optional_command_line_arguments,
+    const base::Optional<std::wstring>& optional_icon_location,
     int32_t icon_index) {
   ShortcutInformation parsed_shortcut;
   parsed_shortcut.lnk_path = lnk_path;
   if (parsing_result == mojom::LnkParsingResult::SUCCESS) {
     if (optional_file_path.has_value())
       parsed_shortcut.target_path = optional_file_path.value();
-
-    if (optional_working_dir.has_value())
-      parsed_shortcut.working_dir = optional_working_dir.value();
 
     if (optional_command_line_arguments.has_value()) {
       parsed_shortcut.command_line_arguments =

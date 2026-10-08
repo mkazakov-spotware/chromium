@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,19 +18,24 @@ namespace sync_file_system {
 
 class SyncFileMetadata;
 
-using SyncStatusCallback = base::OnceCallback<void(SyncStatusCode status)>;
+typedef base::Callback<void(SyncStatusCode status)>
+    SyncStatusCallback;
 
-using SyncFileCallback =
-    base::OnceCallback<void(SyncStatusCode status,
-                            const storage::FileSystemURL& url)>;
+typedef base::Callback<
+    void(SyncStatusCode status, const storage::FileSystemURL& url)>
+    SyncFileCallback;
 
-using SyncFileMetadataCallback =
-    base::OnceCallback<void(SyncStatusCode status,
-                            const SyncFileMetadata& metadata)>;
+typedef base::Callback<void(SyncStatusCode status,
+                            const SyncFileMetadata& metadata)>
+    SyncFileMetadataCallback;
 
-using SyncFileStatusCallback =
-    base::OnceCallback<void(SyncStatusCode status,
-                            SyncFileStatus sync_file_status)>;
+typedef base::Callback<
+    void(SyncStatusCode status, const storage::FileSystemURLSet& urls)>
+    SyncFileSetCallback;
+
+typedef base::Callback<void(SyncStatusCode status,
+                            SyncFileStatus sync_file_status)>
+    SyncFileStatusCallback;
 
 }  // namespace sync_file_system
 

@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_MEDIA_ROUTER_DISCOVERY_MDNS_MEDIA_SINK_UTIL_H_
 #define CHROME_BROWSER_MEDIA_ROUTER_DISCOVERY_MDNS_MEDIA_SINK_UTIL_H_
 
+#include <string>
 #include <vector>
 
 #include "components/media_router/common/discovery/media_sink_internal.h"
@@ -15,6 +16,9 @@ struct DnsSdService;
 
 // The DNS-SD service type for Cast devices.
 static constexpr char kCastServiceType[] = "_googlecast._tcp.local";
+
+// Default Cast control port to open Cast Socket.
+static constexpr int kCastControlPort = 8009;
 
 // Returns the icon type to use according to |capabilities|. |capabilities| is
 // a bit set of cast_channel::CastDeviceCapabilities in CastSinkExtraData.
@@ -27,8 +31,6 @@ enum CreateCastMediaSinkResult {
   kMissingFriendlyName,
   kMissingOrInvalidIPAddress,
   kMissingOrInvalidPort,
-  kMissingDeviceCapabilities,
-  kMissingNetworkInfo
 };
 
 // Creates a MediaSinkInternal from |service| and assigns the result to

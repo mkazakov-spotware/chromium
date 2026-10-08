@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2012 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview JSON performance tests.
@@ -32,12 +40,10 @@ function testSerialize() {
   var obj = populateObject({}, 50, 4);
 
   table.run(function() {
-    'use strict';
     var s = JSON.stringify(obj);
   }, 'Stringify using JSON.stringify');
 
   table.run(function() {
-    'use strict';
     var s = goog.json.serialize(obj);
   }, 'Stringify using goog.json.serialize');
 }
@@ -46,13 +52,9 @@ function testParse() {
   var obj = populateObject({}, 50, 4);
   var s = JSON.stringify(obj);
 
-  table.run(function() {
-    'use strict';
-    var o = JSON.parse(s);
-  }, 'Parse using JSON.parse');
+  table.run(function() { var o = JSON.parse(s); }, 'Parse using JSON.parse');
 
   table.run(function() {
-    'use strict';
     var o = goog.json.parse(s);
   }, 'Parse using goog.json.parse');
 }

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,10 +28,10 @@ class DeepScanningModalDialog : public TabModalConfirmDialogDelegate {
 
  private:
   // TabModalConfirmDialogDelegate implementation.
-  std::u16string GetTitle() override;
-  std::u16string GetDialogMessage() override;
-  std::u16string GetAcceptButtonTitle() override;
-  std::u16string GetLinkText() const override;
+  base::string16 GetTitle() override;
+  base::string16 GetDialogMessage() override;
+  base::string16 GetAcceptButtonTitle() override;
+  base::string16 GetLinkText() const override;
   void OnLinkClicked(WindowOpenDisposition disposition) override;
   void OnAccepted() override;
 

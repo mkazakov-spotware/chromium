@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,18 +41,11 @@ public interface MediaRouteManager {
             MediaRouteProvider provider, boolean wasLaunched);
 
     /**
-     * Called when the router failed to create a route.
+     * Called when the router failed to create or join a route.
      * @param errorText the error message to return to the page.
      * @param requestId the id of the route creation request.
      */
-    public void onCreateRouteRequestError(String errorText, int requestId);
-
-    /**
-     * Called when the router failed to join a route.
-     * @param errorText the error message to return to the page.
-     * @param requestId the id of the route creation request.
-     */
-    public void onJoinRouteRequestError(String errorText, int requestId);
+    public void onRouteRequestError(String errorText, int requestId);
 
     /**
      * Called when the route is terminated. This happens when the receiver app has stopped.

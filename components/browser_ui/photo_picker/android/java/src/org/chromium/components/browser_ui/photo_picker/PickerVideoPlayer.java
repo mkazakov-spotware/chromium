@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@ package org.chromium.components.browser_ui.photo_picker;
 import android.animation.Animator;
 import android.content.Context;
 import android.content.res.Configuration;
-import android.graphics.Color;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
@@ -19,8 +18,6 @@ import android.view.GestureDetector;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
-import android.view.Window;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -33,10 +30,9 @@ import androidx.annotation.VisibleForTesting;
 import androidx.core.math.MathUtils;
 import androidx.core.view.GestureDetectorCompat;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.task.PostTask;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
-import org.chromium.ui.UiUtils;
-import org.chromium.ui.base.ViewUtils;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -114,8 +110,8 @@ public class PickerVideoPlayer
     // durations are 1/10th of normal length.
     private static boolean sShortAnimationTimesForTesting;
 
-    // The Window for the dialog the player is shown in.
-    private Window mWindow;
+    // The DecorView for the dialog the player is shown in.
+    private View mDecorView;
 
     // The Context to use.
     private Context mContext;
@@ -182,15 +178,6 @@ public class PickerVideoPlayer
     // The previous options for the System UI visibility.
     private int mPreviousSystemUiVisibilityOptions;
 
-    // Keeps track of the previous navigation bar color when colors switch due to playback.
-    private int mPreviousNavBarColor;
-
-    // Keeps track of the previous navigation bar divider color when colors switch due to playback.
-    private int mPreviousNavBarDividerColor;
-
-    // Keeps track of whether navigation colors have been saved previously.
-    private boolean mPreviousNavBarColorsSaved;
-
     // The object to convert touch events into gestures.
     private GestureDetectorCompat mGestureDetector;
 
@@ -249,22 +236,21 @@ public class PickerVideoPlayer
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
-        // When configuration changes, the video size and controls need to be synced to the new
-        // size. Post a task, so that size adjustments happen after layout of the video controls has
-        // completed (so that the calculations for the view have had time to account for the
-        // existence of the nav bar and status bar -- or lack thereof).
-        getHandler().post(() -> adjustVideoLayoutParamsToOrientation());
-        super.onConfigurationChanged(newConfig);
+        if (mVideoControls.getVisibility() != View.GONE) {
+            // When configuration changes, the video overlay controls need to be synced to the new
+            // video size. Post a task, so that size adjustments happen after layout of the video
+            // controls has completed.
+            ThreadUtils.postOnUiThread(() -> { syncOverlayControlsSize(); });
+        }
     }
 
     /**
      * Start playback of a video in an overlay above the photo picker.
      * @param uri The uri of the video to start playing.
-     * @param window The window for the dialog.
+     * @param decorView The decorView for the dialog.
      */
-    public void startVideoPlaybackAsync(Uri uri, Window window) {
-        mWindow = window;
-        syncNavBarColorToPlaybackStatus(/* playerOpening= */ true);
+    public void startVideoPlaybackAsync(Uri uri, View decorView) {
+        mDecorView = decorView;
 
         // Make the filename (uri) of the video visible at the top and de-emphasize the scheme part.
         SpannableString fileName = new SpannableString(uri.toString());
@@ -284,7 +270,10 @@ public class PickerVideoPlayer
 
             mMediaPlayer.setOnVideoSizeChangedListener(
                     (MediaPlayer player, int width, int height) -> {
-                        adjustVideoLayoutParamsToOrientation();
+                        // Once the size of the video player is known, it is possible to calculate
+                        // the correct size of the overlay container and show it. This way the
+                        // controls won't briefly appear in the wrong position.
+                        syncOverlayControlsSize();
                         mVideoOverlayContainer.setVisibility(View.VISIBLE);
                     });
 
@@ -330,85 +319,7 @@ public class PickerVideoPlayer
         stopVideoPlayback();
         mVideoView.setMediaController(null);
         mMuteButton.setImageResource(R.drawable.ic_volume_on_white_24dp);
-        syncNavBarColorToPlaybackStatus(/* playerOpening= */ false);
         return true;
-    }
-
-    /**
-     * Updates the color of the navigation bar, divider and icons to reflect whether in playback
-     * mode or not. This function does nothing on Android O and older.
-     * @param playerOpening True when the video player is opening (false when closing).
-     */
-    private void syncNavBarColorToPlaybackStatus(boolean playerOpening) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            if (playerOpening) {
-                if (mPreviousNavBarColorsSaved) {
-                    return; // Don't overwrite previously saved colors.
-                }
-                mPreviousNavBarColor = mWindow.getNavigationBarColor();
-                mPreviousNavBarDividerColor = mWindow.getNavigationBarDividerColor();
-            }
-            mWindow.setNavigationBarColor(playerOpening ? Color.BLACK : mPreviousNavBarColor);
-            mWindow.setNavigationBarDividerColor(
-                    playerOpening ? Color.BLACK : mPreviousNavBarDividerColor);
-            UiUtils.setNavigationBarIconColor(mWindow.getDecorView().getRootView(), !playerOpening);
-
-            mPreviousNavBarColorsSaved = playerOpening;
-        }
-    }
-
-    private void adjustVideoLayoutParamsToOrientation() {
-        if (mMediaPlayer == null || mMediaPlayer.getVideoWidth() == 0
-                || mMediaPlayer.getVideoHeight() == 0) {
-            return;
-        }
-        float aspectRatio = (float) mMediaPlayer.getVideoWidth() / mMediaPlayer.getVideoHeight();
-
-        boolean landscapeMode = mContext.getResources().getConfiguration().orientation
-                == Configuration.ORIENTATION_LANDSCAPE;
-        int viewWidth = landscapeMode ? Math.max(getWidth(), getHeight())
-                                      : Math.min(getWidth(), getHeight());
-        int viewHeight = landscapeMode ? Math.min(getWidth(), getHeight())
-                                       : Math.max(getWidth(), getHeight());
-
-        ViewGroup.LayoutParams layoutParams = mVideoView.getLayoutParams();
-        if (landscapeMode) {
-            // Landscape mode. Use full height of the container.
-            layoutParams.width = Math.round(viewHeight * aspectRatio);
-            layoutParams.height = viewHeight;
-
-            // Check if there's enough width to show all the video. If not, use full view width
-            // instead with aspect ratio of the video (black bars appear above and below the video).
-            if (layoutParams.width > viewWidth) {
-                layoutParams.width = viewWidth;
-                layoutParams.height = Math.round(viewWidth / aspectRatio);
-            }
-
-            // In landscape mode, the video will obscure parts or all of these.
-            mBackButton.setVisibility(View.GONE);
-            mFileName.setVisibility(View.GONE);
-        } else {
-            // Portrait mode. Use full width of the container.
-            layoutParams.height = Math.round(viewWidth / aspectRatio);
-            layoutParams.width = viewWidth;
-
-            // Check if there's enough height to show all the video. If not, use full view height
-            // instead with aspect ratio of the video (black bars appear left and right).
-            if (layoutParams.height > viewHeight) {
-                layoutParams.height = viewHeight;
-                layoutParams.width = Math.round(viewHeight * aspectRatio);
-            }
-
-            mBackButton.setVisibility(View.VISIBLE);
-            mFileName.setVisibility(View.VISIBLE);
-        }
-
-        mVideoView.setLayoutParams(layoutParams);
-        ViewUtils.requestLayout(
-                mVideoView, "PickerVideoPlayer.adjustVideoLayoutParamsToOrientation mVideoView");
-        mVideoControls.setLayoutParams(layoutParams);
-        ViewUtils.requestLayout(mVideoControls,
-                "PickerVideoPlayer.adjustVideoLayoutParamsToOrientation mVideoControls");
     }
 
     private boolean onSingleTapVideo() {
@@ -462,7 +373,7 @@ public class PickerVideoPlayer
     @Override
     public void onSystemUiVisibilityChange(int visibility) {
         if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
-            mWindow.getDecorView().setOnSystemUiVisibilityChangeListener(null);
+            mDecorView.setOnSystemUiVisibilityChangeListener(null);
             onExitFullScreenMode();
 
             if (!mFullScreenToggledInApp) {
@@ -470,14 +381,14 @@ public class PickerVideoPlayer
                 // from the top of the screen, the system sends the visibility change event before
                 // the resize has happened, so the new video size isn't known yet. Syncing
                 // immediately would make the overlay controls appear in the wrong location.
-                getHandler().post(() -> adjustVideoLayoutParamsToOrientation());
+                getHandler().post(() -> syncOverlayControlsSize());
                 return;
             }
         } else {
             onEnterFullScreenMode();
         }
 
-        adjustVideoLayoutParamsToOrientation();
+        syncOverlayControlsSize();
         mFullScreenToggledInApp = false;
     }
 
@@ -762,6 +673,12 @@ public class PickerVideoPlayer
                 mContext.getResources().getString(R.string.accessibility_pause_video));
     }
 
+    private void syncOverlayControlsSize() {
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                mVideoView.getMeasuredWidth(), mVideoView.getMeasuredHeight());
+        mVideoControls.setLayoutParams(params);
+    }
+
     private void toggleMute() {
         mAudioOn = !mAudioOn;
         if (mAudioOn) {
@@ -795,16 +712,15 @@ public class PickerVideoPlayer
 
     private void toggleAndroidSystemUiForFullscreen() {
         mFullScreenToggledInApp = true;
-        View decorView = mWindow.getDecorView();
         if (!mFullScreenEnabled) {
-            decorView.setOnSystemUiVisibilityChangeListener(this);
-            mPreviousSystemUiVisibilityOptions = decorView.getSystemUiVisibility();
-            decorView.setSystemUiVisibility(mPreviousSystemUiVisibilityOptions
+            mDecorView.setOnSystemUiVisibilityChangeListener(this);
+            mPreviousSystemUiVisibilityOptions = mDecorView.getSystemUiVisibility();
+            mDecorView.setSystemUiVisibility(mPreviousSystemUiVisibilityOptions
                     | View.SYSTEM_UI_FLAG_IMMERSIVE | View.SYSTEM_UI_FLAG_FULLSCREEN
                     | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                     | View.SYSTEM_UI_FLAG_LOW_PROFILE);
         } else {
-            decorView.setSystemUiVisibility(mPreviousSystemUiVisibilityOptions);
+            mDecorView.setSystemUiVisibility(mPreviousSystemUiVisibilityOptions);
         }
 
         // Calling setSystemUiVisibility will result in Android showing/hiding its system UI to go

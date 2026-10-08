@@ -1,11 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/public/web/web_frame.h"
 
 #include <algorithm>
-#include "third_party/blink/public/mojom/frame/frame_replication_state.mojom.h"
 #include "third_party/blink/public/mojom/frame/tree_scope_type.mojom-blink.h"
 #include "third_party/blink/public/mojom/scroll/scrollbar_mode.mojom-blink.h"
 #include "third_party/blink/public/mojom/security_context/insecure_request_policy.mojom-blink.h"
@@ -24,29 +23,14 @@
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/core/probe/core_probes.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 
 namespace blink {
 
-bool WebFrame::Swap(WebLocalFrame* frame) {
+bool WebFrame::Swap(WebFrame* frame) {
   return ToCoreFrame(*this)->Swap(frame);
-}
-
-bool WebFrame::Swap(
-    WebRemoteFrame* frame,
-    CrossVariantMojoAssociatedRemote<mojom::blink::RemoteFrameHostInterfaceBase>
-        remote_frame_host,
-    CrossVariantMojoAssociatedReceiver<mojom::blink::RemoteFrameInterfaceBase>
-        remote_frame_receiver,
-    blink::mojom::FrameReplicationStatePtr replicated_state) {
-  bool res = ToCoreFrame(*this)->Swap(frame, std::move(remote_frame_host),
-                                      std::move(remote_frame_receiver));
-  if (!res)
-    return false;
-
-  To<WebRemoteFrameImpl>(frame)->SetReplicatedState(
-      std::move(replicated_state));
-  return true;
 }
 
 void WebFrame::Detach() {
@@ -69,7 +53,7 @@ WebVector<unsigned> WebFrame::GetInsecureRequestToUpgrade() const {
 }
 
 WebFrame* WebFrame::Opener() const {
-  return FromCoreFrame(ToCoreFrame(*this)->Opener());
+  return FromFrame(ToCoreFrame(*this)->Opener());
 }
 
 void WebFrame::ClearOpener() {
@@ -79,56 +63,50 @@ void WebFrame::ClearOpener() {
 WebFrame* WebFrame::Parent() const {
   Frame* core_frame = ToCoreFrame(*this);
   CHECK(core_frame);
-  return FromCoreFrame(core_frame->Parent());
+  return FromFrame(core_frame->Parent());
 }
 
 WebFrame* WebFrame::Top() const {
   Frame* core_frame = ToCoreFrame(*this);
   CHECK(core_frame);
-  return FromCoreFrame(core_frame->Top());
+  return FromFrame(core_frame->Top());
 }
 
 WebFrame* WebFrame::FirstChild() const {
   Frame* core_frame = ToCoreFrame(*this);
   CHECK(core_frame);
-  return FromCoreFrame(core_frame->FirstChild());
+  return FromFrame(core_frame->FirstChild());
 }
 
 WebFrame* WebFrame::LastChild() const {
   Frame* core_frame = ToCoreFrame(*this);
   CHECK(core_frame);
-  return FromCoreFrame(core_frame->LastChild());
+  return FromFrame(core_frame->LastChild());
 }
 
 WebFrame* WebFrame::NextSibling() const {
   Frame* core_frame = ToCoreFrame(*this);
   CHECK(core_frame);
-  return FromCoreFrame(core_frame->NextSibling());
+  return FromFrame(core_frame->NextSibling());
 }
 
 WebFrame* WebFrame::PreviousSibling() const {
   Frame* core_frame = ToCoreFrame(*this);
   CHECK(core_frame);
-  return FromCoreFrame(core_frame->PreviousSibling());
+  return FromFrame(core_frame->PreviousSibling());
 }
 
 WebFrame* WebFrame::TraverseNext() const {
   if (Frame* frame = ToCoreFrame(*this))
-    return FromCoreFrame(frame->Tree().TraverseNext());
+    return FromFrame(frame->Tree().TraverseNext());
   return nullptr;
-}
-
-bool WebFrame::IsOutermostMainFrame() const {
-  Frame* core_frame = ToCoreFrame(*this);
-  CHECK(core_frame);
-  return core_frame->IsOutermostMainFrame();
 }
 
 WebFrame* WebFrame::FromFrameOwnerElement(const WebNode& web_node) {
   Node* node = web_node;
 
   if (auto* frame_owner = DynamicTo<HTMLFrameOwnerElement>(node))
-    return FromCoreFrame(frame_owner->ContentFrame());
+    return FromFrame(frame_owner->ContentFrame());
   return nullptr;
 }
 
@@ -138,7 +116,7 @@ bool WebFrame::IsLoading() const {
   return false;
 }
 
-WebFrame* WebFrame::FromCoreFrame(Frame* frame) {
+WebFrame* WebFrame::FromFrame(Frame* frame) {
   if (!frame)
     return nullptr;
 
@@ -148,9 +126,9 @@ WebFrame* WebFrame::FromCoreFrame(Frame* frame) {
 }
 
 WebFrame::WebFrame(mojom::blink::TreeScopeType scope,
-                   const FrameToken& frame_token)
+                   const base::UnguessableToken& frame_token)
     : scope_(scope), frame_token_(frame_token) {
-  DCHECK(frame_token.value());
+  DCHECK(frame_token_);
 }
 
 void WebFrame::Close() {}

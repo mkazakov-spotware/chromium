@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "ash/ash_export.h"
 #include "ash/wm/wm_default_layout_manager.h"
+#include "base/macros.h"
 #include "ui/display/display_observer.h"
 
 namespace aura {
@@ -21,10 +22,6 @@ class ASH_EXPORT OverlayLayoutManager : public WmDefaultLayoutManager,
                                         public display::DisplayObserver {
  public:
   explicit OverlayLayoutManager(aura::Window* overlay_container);
-
-  OverlayLayoutManager(const OverlayLayoutManager&) = delete;
-  OverlayLayoutManager& operator=(const OverlayLayoutManager&) = delete;
-
   ~OverlayLayoutManager() override;
 
   // display::DisplayObserver:
@@ -34,7 +31,7 @@ class ASH_EXPORT OverlayLayoutManager : public WmDefaultLayoutManager,
  private:
   aura::Window* overlay_container_;
 
-  display::ScopedDisplayObserver display_observer_{this};
+  DISALLOW_COPY_AND_ASSIGN(OverlayLayoutManager);
 };
 
 }  // namespace ash

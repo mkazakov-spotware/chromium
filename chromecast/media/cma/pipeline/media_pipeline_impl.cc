@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,8 @@
 #include "base/callback_helpers.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/default_tick_clock.h"
 #include "chromecast/base/metrics/cast_metrics_helper.h"
 #include "chromecast/media/api/cma_backend.h"
@@ -32,16 +33,20 @@ namespace media {
 namespace {
 
 // Buffering parameters when load_type is kLoadTypeUrl.
-constexpr base::TimeDelta kLowBufferThresholdURL(base::Milliseconds(2000));
-constexpr base::TimeDelta kHighBufferThresholdURL(base::Milliseconds(6000));
+constexpr base::TimeDelta kLowBufferThresholdURL(
+    base::TimeDelta::FromMilliseconds(2000));
+constexpr base::TimeDelta kHighBufferThresholdURL(
+    base::TimeDelta::FromMilliseconds(6000));
 
 // Buffering parameters when load_type is kLoadTypeMediaSource.
-constexpr base::TimeDelta kLowBufferThresholdMediaSource(base::Milliseconds(0));
+constexpr base::TimeDelta kLowBufferThresholdMediaSource(
+    base::TimeDelta::FromMilliseconds(0));
 constexpr base::TimeDelta kHighBufferThresholdMediaSource(
-    base::Milliseconds(1000));
+    base::TimeDelta::FromMilliseconds(1000));
 
 // Interval between two updates of the media time.
-constexpr base::TimeDelta kTimeUpdateInterval(base::Milliseconds(250));
+constexpr base::TimeDelta kTimeUpdateInterval(
+    base::TimeDelta::FromMilliseconds(250));
 
 // Interval between two updates of the statistics is equal to:
 // kTimeUpdateInterval * kStatisticsUpdatePeriod.
@@ -111,14 +116,12 @@ MediaPipelineImpl::~MediaPipelineImpl() {
 
 void MediaPipelineImpl::Initialize(
     LoadType load_type,
-    std::unique_ptr<CmaBackend> media_pipeline_backend,
-    bool is_buffering_enabled) {
+    std::unique_ptr<CmaBackend> media_pipeline_backend) {
   LOG(INFO) << __FUNCTION__;
   DCHECK(thread_checker_.CalledOnValidThread());
   media_pipeline_backend_ = std::move(media_pipeline_backend);
 
-  if ((load_type == kLoadTypeURL || load_type == kLoadTypeMediaSource) &&
-      is_buffering_enabled) {
+  if (load_type == kLoadTypeURL || load_type == kLoadTypeMediaSource) {
     base::TimeDelta low_threshold(kLowBufferThresholdURL);
     base::TimeDelta high_threshold(kHighBufferThresholdURL);
     if (load_type == kLoadTypeMediaSource) {
@@ -178,7 +181,7 @@ void MediaPipelineImpl::SetCdm(CastCdmContext* cdm_context) {
   ::media::PipelineStatus status =
       audio_pipeline_->Initialize(config, std::move(frame_provider));
 
-  if (status.is_ok()) {
+  if (status == ::media::PipelineStatus::PIPELINE_OK) {
     // TODO(b/67112414): Do something better than this.
     MediaPipelineObserver::NotifyAudioPipelineInitialized(this, config);
   }
@@ -235,7 +238,7 @@ void MediaPipelineImpl::StartPlayingFrom(base::TimeDelta time) {
   statistics_rolling_counter_ = 0;
   if (!pending_time_update_task_) {
     pending_time_update_task_ = true;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&MediaPipelineImpl::UpdateMediaTime, weak_this_));
   }
@@ -334,8 +337,8 @@ void MediaPipelineImpl::SetVolume(float volume) {
 base::TimeDelta MediaPipelineImpl::GetMediaTime() const {
   DCHECK(thread_checker_.CalledOnValidThread());
 #if BUILDFLAG(CMA_USE_ACCURATE_MEDIA_TIME)
-  base::TimeDelta time =
-      base::Microseconds(media_pipeline_backend_->GetCurrentPts());
+  base::TimeDelta time = base::TimeDelta::FromMicroseconds(
+      media_pipeline_backend_->GetCurrentPts());
 #else
   base::TimeDelta time = last_media_time_;
 #endif
@@ -373,7 +376,7 @@ void MediaPipelineImpl::OnFlushDone(bool is_audio_stream) {
     metrics::CastMetricsHelper::GetInstance()->RecordApplicationEvent(
         "Cast.Platform.Ended");
 
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, std::move(pending_flush_task_->done_cb));
     pending_flush_task_.reset();
   }
@@ -511,13 +514,13 @@ void MediaPipelineImpl::UpdateMediaTime() {
   // Wait until the first available timestamp returned from backend, which means
   // the actual playback starts. Some of the rest of the logic, mainly media
   // time interpolating, expects a valid timestamp as baseline.
-  base::TimeDelta media_time =
-      base::Microseconds(media_pipeline_backend_->GetCurrentPts());
+  base::TimeDelta media_time = base::TimeDelta::FromMicroseconds(
+      media_pipeline_backend_->GetCurrentPts());
   if (media_time == ::media::kNoTimestamp &&
       (last_media_time_ == ::media::kNoTimestamp ||
        !media_time_interpolator_.interpolating())) {
     pending_time_update_task_ = true;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&MediaPipelineImpl::UpdateMediaTime, weak_this_),
         kTimeUpdateInterval);
@@ -564,7 +567,7 @@ void MediaPipelineImpl::UpdateMediaTime() {
     client_.time_update_cb.Run(media_time, max_rendering_time, stc);
 
   pending_time_update_task_ = true;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&MediaPipelineImpl::UpdateMediaTime, weak_this_),
       kTimeUpdateInterval);
@@ -572,17 +575,17 @@ void MediaPipelineImpl::UpdateMediaTime() {
 
 void MediaPipelineImpl::OnError(::media::PipelineStatus error) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  DCHECK(error != ::media::PIPELINE_OK) << "PIPELINE_OK is not an error!";
+  DCHECK_NE(error, ::media::PIPELINE_OK) << "PIPELINE_OK is not an error!";
 
   metrics::CastMetricsHelper::GetInstance()->RecordApplicationEventWithValue(
-      "Cast.Platform.Error", error.code());
+      "Cast.Platform.Error", error);
 
   if (!client_.error_cb.is_null())
     std::move(client_.error_cb).Run(error);
 }
 
 void MediaPipelineImpl::ResetBitrateState() {
-  elapsed_time_delta_ = base::Seconds(0);
+  elapsed_time_delta_ = base::TimeDelta::FromSeconds(0);
   audio_bytes_for_bitrate_estimation_ = 0;
   video_bytes_for_bitrate_estimation_ = 0;
   last_sample_time_ = base::TimeTicks::Now();

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,10 @@
 #include <memory>
 #include <vector>
 
-#include "base/callback_forward.h"
 #include "base/files/file_path.h"
 #include "base/files/file_path_watcher.h"
 #include "base/memory/singleton.h"
 #include "base/observer_list.h"
-#include "base/time/time.h"
 #include "chrome/browser/extensions/api/braille_display_private/braille_controller.h"
 #include "chrome/browser/extensions/api/braille_display_private/brlapi_connection.h"
 #include "library_loaders/libbrlapi.h"
@@ -44,13 +42,13 @@ class BrailleControllerImpl : public BrailleController {
   ~BrailleControllerImpl() override;
   void TryLoadLibBrlApi();
 
-  using CreateBrlapiConnectionFunction =
-      base::OnceCallback<std::unique_ptr<BrlapiConnection>()>;
+  typedef base::Callback<std::unique_ptr<BrlapiConnection>()>
+      CreateBrlapiConnectionFunction;
 
   // For dependency injection in tests.  Sets the function used to create
   // brlapi connections.
   void SetCreateBrlapiConnectionForTesting(
-      CreateBrlapiConnectionFunction callback);
+      const CreateBrlapiConnectionFunction& callback);
 
   // Makes the controller try to reconnect (if disconnected) as if the brlapi
   // socket directory had changed.

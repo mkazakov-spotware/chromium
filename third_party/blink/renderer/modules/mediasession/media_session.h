@@ -1,19 +1,19 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_MEDIASESSION_MEDIA_SESSION_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_MEDIASESSION_MEDIA_SESSION_H_
 
+#include <memory>
 #include "mojo/public/cpp/bindings/remote.h"
 #include "third_party/blink/public/mojom/mediasession/media_session.mojom-blink.h"
+#include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_receiver.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_wrapper_mode.h"
-#include "third_party/blink/renderer/platform/supplementable.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace base {
@@ -22,22 +22,20 @@ class TickClock;
 
 namespace blink {
 
+class ExecutionContext;
 class ExceptionState;
 class MediaMetadata;
 class MediaPositionState;
-class Navigator;
 class V8MediaSessionActionHandler;
 
 class MODULES_EXPORT MediaSession final
     : public ScriptWrappable,
-      public Supplement<Navigator>,
+      public ExecutionContextClient,
       public blink::mojom::blink::MediaSessionClient {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  static const char kSupplementName[];
-  static MediaSession* mediaSession(Navigator&);
-  explicit MediaSession(Navigator&);
+  explicit MediaSession(ExecutionContext*);
 
   void setPlaybackState(const String&);
   String playbackState();
@@ -50,10 +48,6 @@ class MODULES_EXPORT MediaSession final
                         ExceptionState&);
 
   void setPositionState(MediaPositionState*, ExceptionState&);
-
-  void setMicrophoneActive(bool active);
-
-  void setCameraActive(bool active);
 
   // Called by the MediaMetadata owned by |this| when it has updates. Also used
   // internally when a new MediaMetadata object is set.
@@ -80,7 +74,7 @@ class MODULES_EXPORT MediaSession final
   void DidReceiveAction(media_session::mojom::blink::MediaSessionAction,
                         mojom::blink::MediaSessionActionDetailsPtr) override;
 
-  // Returns null if the associated window is detached.
+  // Returns null when the ExecutionContext is not document.
   mojom::blink::MediaSessionService* GetService();
 
   const base::TickClock* clock_ = nullptr;
@@ -91,7 +85,9 @@ class MODULES_EXPORT MediaSession final
   Member<MediaMetadata> metadata_;
   HeapHashMap<String, Member<V8MediaSessionActionHandler>> action_handlers_;
   mojo::Remote<mojom::blink::MediaSessionService> service_;
-  HeapMojoReceiver<blink::mojom::blink::MediaSessionClient, MediaSession>
+  HeapMojoReceiver<blink::mojom::blink::MediaSessionClient,
+                   MediaSession,
+                   HeapMojoWrapperMode::kWithoutContextObserver>
       client_receiver_;
 };
 

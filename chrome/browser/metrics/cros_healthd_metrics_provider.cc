@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,11 @@
 #include "base/callback_helpers.h"
 #include "base/logging.h"
 #include "base/strings/string_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
-#include "chromeos/ash/services/cros_healthd/public/cpp/service_connection.h"
-#include "chromeos/ash/services/cros_healthd/public/mojom/cros_healthd.mojom.h"
-#include "chromeos/ash/services/cros_healthd/public/mojom/cros_healthd_probe.mojom.h"
+#include "chromeos/services/cros_healthd/public/cpp/service_connection.h"
+#include "chromeos/services/cros_healthd/public/mojom/cros_healthd.mojom.h"
+#include "chromeos/services/cros_healthd/public/mojom/cros_healthd_probe.mojom.h"
 #include "components/policy/proto/device_management_backend.pb.h"
 #include "third_party/metrics_proto/system_profile.pb.h"
 
@@ -23,7 +23,8 @@ using metrics::SystemProfileProto;
 
 namespace {
 
-constexpr base::TimeDelta kServiceDiscoveryTimeout = base::Seconds(5);
+constexpr base::TimeDelta kServiceDiscoveryTimeout =
+    base::TimeDelta::FromSeconds(5);
 
 }  // namespace
 
@@ -35,14 +36,14 @@ base::TimeDelta CrosHealthdMetricsProvider::GetTimeout() {
 }
 
 void CrosHealthdMetricsProvider::AsyncInit(base::OnceClosure done_callback) {
-  const std::vector<ash::cros_healthd::mojom::ProbeCategoryEnum>
-      categories_to_probe = {ash::cros_healthd::mojom::ProbeCategoryEnum::
+  const std::vector<chromeos::cros_healthd::mojom::ProbeCategoryEnum>
+      categories_to_probe = {chromeos::cros_healthd::mojom::ProbeCategoryEnum::
                                  kNonRemovableBlockDevices};
   DCHECK(init_callback_.is_null());
   init_callback_ = std::move(done_callback);
   initialized_ = false;
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&CrosHealthdMetricsProvider::OnProbeTimeout,
                      weak_ptr_factory_.GetWeakPtr()),
@@ -69,7 +70,7 @@ void CrosHealthdMetricsProvider::OnProbeTimeout() {
 }
 
 void CrosHealthdMetricsProvider::OnProbeDone(
-    ash::cros_healthd::mojom::TelemetryInfoPtr ptr) {
+    chromeos::cros_healthd::mojom::TelemetryInfoPtr ptr) {
   base::ScopedClosureRunner runner(std::move(init_callback_));
 
   // Invalidate OnProbeTimeout callback.
@@ -90,14 +91,14 @@ void CrosHealthdMetricsProvider::OnProbeDone(
   }
 
   auto tag = block_device_result->which();
-  if (tag ==
-      ash::cros_healthd::mojom::NonRemovableBlockDeviceResult::Tag::kError) {
+  if (tag == chromeos::cros_healthd::mojom::NonRemovableBlockDeviceResult::Tag::
+                 ERROR) {
     DVLOG(1) << "cros_healthd: Error getting block device info: "
              << block_device_result->get_error()->msg;
     return;
   }
-  DCHECK_EQ(tag, ash::cros_healthd::mojom::NonRemovableBlockDeviceResult::Tag::
-                     kBlockDeviceInfo);
+  DCHECK_EQ(tag, chromeos::cros_healthd::mojom::NonRemovableBlockDeviceResult::
+                     Tag::BLOCK_DEVICE_INFO);
 
   for (const auto& storage : block_device_result->get_block_device_info()) {
     SystemProfileProto::Hardware::InternalStorageDevice dev;
@@ -137,15 +138,15 @@ void CrosHealthdMetricsProvider::OnProbeDone(
     }
 
     switch (storage->purpose) {
-      case ash::cros_healthd::mojom::StorageDevicePurpose::kUnknown:
+      case chromeos::cros_healthd::mojom::StorageDevicePurpose::kUnknown:
         dev.set_purpose(SystemProfileProto::Hardware::InternalStorageDevice::
                             PURPOSE_UNKNOWN);
         break;
-      case ash::cros_healthd::mojom::StorageDevicePurpose::kBootDevice:
+      case chromeos::cros_healthd::mojom::StorageDevicePurpose::kBootDevice:
         dev.set_purpose(
             SystemProfileProto::Hardware::InternalStorageDevice::PURPOSE_BOOT);
         break;
-      case ash::cros_healthd::mojom::StorageDevicePurpose::kSwapDevice:
+      case chromeos::cros_healthd::mojom::StorageDevicePurpose::kSwapDevice:
         dev.set_purpose(
             SystemProfileProto::Hardware::InternalStorageDevice::PURPOSE_SWAP);
         break;
@@ -158,10 +159,10 @@ void CrosHealthdMetricsProvider::OnProbeDone(
   }
 }
 
-ash::cros_healthd::mojom::CrosHealthdProbeService*
+chromeos::cros_healthd::mojom::CrosHealthdProbeService*
 CrosHealthdMetricsProvider::GetService() {
   if (!service_ || !service_.is_connected()) {
-    ash::cros_healthd::ServiceConnection::GetInstance()->BindProbeService(
+    chromeos::cros_healthd::ServiceConnection::GetInstance()->GetProbeService(
         service_.BindNewPipeAndPassReceiver());
     service_.set_disconnect_handler(
         base::BindOnce(&CrosHealthdMetricsProvider::OnDisconnect,

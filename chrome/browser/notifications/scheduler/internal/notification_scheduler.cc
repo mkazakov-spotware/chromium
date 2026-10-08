@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,10 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/optional.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/notifications/scheduler/internal/background_task_coordinator.h"
 #include "chrome/browser/notifications/scheduler/internal/display_decider.h"
 #include "chrome/browser/notifications/scheduler/internal/impression_history_tracker.h"
@@ -29,7 +28,6 @@
 #include "chrome/browser/notifications/scheduler/public/notification_scheduler_client.h"
 #include "chrome/browser/notifications/scheduler/public/notification_scheduler_client_registrar.h"
 #include "chrome/browser/notifications/scheduler/public/user_action_handler.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace notifications {
 namespace {
@@ -79,7 +77,7 @@ class InitHelper {
     std::move(callback_).Run(success);
   }
 
-  raw_ptr<NotificationSchedulerContext> context_;
+  NotificationSchedulerContext* context_;
   InitCallback callback_;
 
   base::WeakPtrFactory<InitHelper> weak_ptr_factory_{this};
@@ -125,7 +123,7 @@ class DisplayHelper {
     }
 
     // Inform the client to update notification data.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&DisplayHelper::NotifyClientBeforeDisplay,
                        weak_ptr_factory_.GetWeakPtr(), std::move(entry)));
@@ -188,7 +186,7 @@ class DisplayHelper {
   }
 
   std::set<std::string> guids_;
-  raw_ptr<NotificationSchedulerContext> context_;
+  NotificationSchedulerContext* context_;
   FinishCallback finish_callback_;
   int shown_count_;
   base::WeakPtrFactory<DisplayHelper> weak_ptr_factory_{this};
@@ -265,7 +263,7 @@ class NotificationSchedulerImpl : public NotificationScheduler,
     std::vector<SchedulerClientType> clients;
     context_->client_registrar()->GetRegisteredClients(&clients);
     for (auto type : clients) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE,
           base::BindOnce(&NotificationSchedulerImpl::NotifyClientAfterInit,
                          weak_ptr_factory_.GetWeakPtr(), type, success));
@@ -347,7 +345,7 @@ class NotificationSchedulerImpl : public NotificationScheduler,
   void OnUserAction(const UserActionData& action_data) override {
     context_->impression_tracker()->OnUserAction(action_data);
     ScheduleBackgroundTask();
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&NotificationSchedulerImpl::NotifyClientAfterUserAction,
                        weak_ptr_factory_.GetWeakPtr(), action_data));
@@ -362,8 +360,8 @@ class NotificationSchedulerImpl : public NotificationScheduler,
     auto client_action_data = action_data;
 
     // Attach custom data if the impression is not expired.
-    const auto* impression = context_->impression_tracker()->GetImpression(
-        action_data.client_type, action_data.guid);
+    const auto* impression =
+        context_->impression_tracker()->GetImpression(action_data.guid);
     if (impression) {
       client_action_data.custom_data = impression->custom_data;
     }

@@ -1,18 +1,17 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/app_list/app_service/app_service_app_icon_loader.h"
 
-#include "base/containers/contains.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
-#include "chrome/browser/ash/crostini/crostini_shelf_utils.h"
+#include "chrome/browser/chromeos/crostini/crostini_shelf_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_utils.h"
-#include "chrome/browser/ui/ash/shelf/arc_app_shelf_id.h"
+#include "chrome/browser/ui/ash/launcher/arc_app_shelf_id.h"
+#include "chrome/common/chrome_features.h"
 #include "components/services/app_service/public/cpp/app_registry_cache.h"
-#include "components/services/app_service/public/cpp/app_types.h"
 #include "components/services/app_service/public/cpp/app_update.h"
 #include "components/services/app_service/public/mojom/types.mojom.h"
 
@@ -33,10 +32,20 @@ std::string GetAppId(Profile* profile, const std::string& id) {
 
 }  // namespace
 
-// static
-bool AppServiceAppIconLoader::CanLoadImage(Profile* profile,
-                                           const std::string& id) {
-  const std::string app_id = GetAppId(profile, id);
+AppServiceAppIconLoader::AppServiceAppIconLoader(
+    Profile* profile,
+    int resource_size_in_dip,
+    AppIconLoaderDelegate* delegate)
+    : AppIconLoader(profile, resource_size_in_dip, delegate) {
+  apps::AppServiceProxy* proxy =
+      apps::AppServiceProxyFactory::GetForProfile(profile);
+  Observe(&proxy->AppRegistryCache());
+}
+
+AppServiceAppIconLoader::~AppServiceAppIconLoader() = default;
+
+bool AppServiceAppIconLoader::CanLoadImageForApp(const std::string& id) {
+  const std::string app_id = GetAppId(profile(), id);
 
   // Skip the ARC intent helper, the system Android app that proxies links to
   // Chrome, which should be hidden.
@@ -44,35 +53,18 @@ bool AppServiceAppIconLoader::CanLoadImage(Profile* profile,
     return false;
   }
 
-  if (!apps::AppServiceProxyFactory::IsAppServiceAvailableForProfile(profile)) {
-    return false;
-  }
+  apps::AppServiceProxy* proxy =
+      apps::AppServiceProxyFactory::GetForProfile(profile());
 
   // Support icon loading for apps registered in AppService or Crostini apps
   // with the prefix "crostini:".
-  if (apps::AppServiceProxyFactory::GetForProfile(profile)
-              ->AppRegistryCache()
-              .GetAppType(app_id) != apps::AppType::kUnknown ||
+  if (proxy->AppRegistryCache().GetAppType(app_id) !=
+          apps::mojom::AppType::kUnknown ||
       crostini::IsUnmatchedCrostiniShelfAppId(app_id)) {
     return true;
   }
 
   return false;
-}
-
-AppServiceAppIconLoader::AppServiceAppIconLoader(
-    Profile* profile,
-    int resource_size_in_dip,
-    AppIconLoaderDelegate* delegate)
-    : AppIconLoader(profile, resource_size_in_dip, delegate) {
-  Observe(&apps::AppServiceProxyFactory::GetForProfile(profile)
-               ->AppRegistryCache());
-}
-
-AppServiceAppIconLoader::~AppServiceAppIconLoader() = default;
-
-bool AppServiceAppIconLoader::CanLoadImageForApp(const std::string& id) {
-  return AppServiceAppIconLoader::CanLoadImage(profile(), id);
 }
 
 void AppServiceAppIconLoader::FetchImage(const std::string& id) {
@@ -136,21 +128,25 @@ void AppServiceAppIconLoader::CallLoadIcon(const std::string& app_id,
   apps::AppServiceProxy* proxy =
       apps::AppServiceProxyFactory::GetForProfile(profile());
 
-  auto icon_type = apps::IconType::kStandard;
+  auto icon_type =
+      (base::FeatureList::IsEnabled(features::kAppServiceAdaptiveIcon))
+          ? apps::mojom::IconType::kStandard
+          : apps::mojom::IconType::kUncompressed;
 
   // When Crostini generates shelf id as the app_id, which couldn't match to an
   // app, the default penguin icon should be loaded.
   if (crostini::IsUnmatchedCrostiniShelfAppId(app_id)) {
+    apps::mojom::IconKeyPtr icon_key = apps::mojom::IconKey::New();
     proxy->LoadIconFromIconKey(
-        apps::AppType::kCrostini, app_id, apps::IconKey(), icon_type,
+        apps::mojom::AppType::kCrostini, app_id, std::move(icon_key), icon_type,
         icon_size_in_dip(), allow_placeholder_icon,
         base::BindOnce(&AppServiceAppIconLoader::OnLoadIcon,
                        weak_ptr_factory_.GetWeakPtr(), app_id));
     return;
   }
 
-  auto app_type = proxy->AppRegistryCache().GetAppType(app_id);
-  if (app_type == apps::AppType::kUnknown) {
+  apps::mojom::AppType app_type = proxy->AppRegistryCache().GetAppType(app_id);
+  if (app_type == apps::mojom::AppType::kUnknown) {
     return;
   }
 
@@ -161,8 +157,12 @@ void AppServiceAppIconLoader::CallLoadIcon(const std::string& app_id,
 }
 
 void AppServiceAppIconLoader::OnLoadIcon(const std::string& app_id,
-                                         apps::IconValuePtr icon_value) {
-  if (icon_value->icon_type != apps::IconType::kStandard) {
+                                         apps::mojom::IconValuePtr icon_value) {
+  auto icon_type =
+      (base::FeatureList::IsEnabled(features::kAppServiceAdaptiveIcon))
+          ? apps::mojom::IconType::kStandard
+          : apps::mojom::IconType::kUncompressed;
+  if (icon_value->icon_type != icon_type) {
     return;
   }
 

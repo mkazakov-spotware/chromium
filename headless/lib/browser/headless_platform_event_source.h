@@ -1,10 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef HEADLESS_LIB_BROWSER_HEADLESS_PLATFORM_EVENT_SOURCE_H_
 #define HEADLESS_LIB_BROWSER_HEADLESS_PLATFORM_EVENT_SOURCE_H_
 
+#include "base/macros.h"
 #include "ui/events/platform/platform_event_source.h"
 
 namespace headless {
@@ -14,12 +15,10 @@ namespace headless {
 class HeadlessPlatformEventSource : public ui::PlatformEventSource {
  public:
   HeadlessPlatformEventSource();
-
-  HeadlessPlatformEventSource(const HeadlessPlatformEventSource&) = delete;
-  HeadlessPlatformEventSource& operator=(const HeadlessPlatformEventSource&) =
-      delete;
-
   ~HeadlessPlatformEventSource() override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HeadlessPlatformEventSource);
 };
 
 }  // namespace headless

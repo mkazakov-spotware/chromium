@@ -1,10 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/signin/internal/identity_manager/account_info_fetcher.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/trace_event/trace_event.h"
@@ -46,8 +45,7 @@ void AccountInfoFetcher::OnGetTokenSuccess(
                                this, "OnGetTokenSuccess");
   DCHECK_EQ(request, login_token_request_.get());
 
-  gaia_oauth_client_ =
-      std::make_unique<gaia::GaiaOAuthClient>(url_loader_factory_);
+  gaia_oauth_client_.reset(new gaia::GaiaOAuthClient(url_loader_factory_));
   const int kMaxRetries = 3;
   gaia_oauth_client_->GetUserInfo(token_response.access_token, kMaxRetries,
                                   this);
@@ -65,11 +63,11 @@ void AccountInfoFetcher::OnGetTokenFailure(
 }
 
 void AccountInfoFetcher::OnGetUserInfoResponse(
-    const base::Value::Dict& user_info) {
+    std::unique_ptr<base::DictionaryValue> user_info) {
   TRACE_EVENT_ASYNC_STEP_PAST1("AccountFetcherService", "AccountIdFetcher",
                                this, "OnGetUserInfoResponse", "account_id",
                                account_id_.ToString());
-  service_->OnUserInfoFetchSuccess(account_id_, user_info);
+  service_->OnUserInfoFetchSuccess(account_id_, std::move(user_info));
 }
 
 void AccountInfoFetcher::OnOAuthError() {

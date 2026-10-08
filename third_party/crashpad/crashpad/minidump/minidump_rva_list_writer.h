@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "minidump/minidump_extensions.h"
 #include "minidump/minidump_writable.h"
 
@@ -32,10 +33,6 @@ namespace internal {
 class MinidumpRVAListWriter : public MinidumpWritable {
  protected:
   MinidumpRVAListWriter();
-
-  MinidumpRVAListWriter(const MinidumpRVAListWriter&) = delete;
-  MinidumpRVAListWriter& operator=(const MinidumpRVAListWriter&) = delete;
-
   ~MinidumpRVAListWriter() override;
 
   //! \brief Adds an ::RVA referencing an MinidumpWritable to the
@@ -71,6 +68,8 @@ class MinidumpRVAListWriter : public MinidumpWritable {
   std::unique_ptr<MinidumpRVAList> rva_list_base_;
   std::vector<std::unique_ptr<MinidumpWritable>> children_;
   std::vector<RVA> child_rvas_;
+
+  DISALLOW_COPY_AND_ASSIGN(MinidumpRVAListWriter);
 };
 
 }  // namespace internal

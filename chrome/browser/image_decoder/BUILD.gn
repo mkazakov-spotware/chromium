@@ -1,13 +1,12 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("//chrome/version.gni")
+import("//build/util/version.gni")
 
 source_set("image_decoder") {
   deps = [
     "//base",
-    "//build:chromeos_buildflags",
     "//content/public/browser",
     "//ipc",
     "//services/data_decoder/public/cpp",
@@ -35,7 +34,6 @@ if (!is_android) {
     deps = [
       ":image_decoder",
       "//base",
-      "//build:chromeos_buildflags",
       "//chrome/app:generated_resources",
       "//chrome/test:test_support",
       "//chrome/test:test_support_ui",

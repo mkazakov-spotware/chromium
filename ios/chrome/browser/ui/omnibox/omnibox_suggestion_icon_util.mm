@@ -1,10 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/omnibox/omnibox_suggestion_icon_util.h"
 
-#import "base/notreached.h"
+#include "base/notreached.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -13,35 +13,35 @@
 NSString* GetOmniboxSuggestionIconTypeAssetName(
     OmniboxSuggestionIconType iconType) {
   switch (iconType) {
-    case OmniboxSuggestionIconType::kBookmark:
+    case BOOKMARK:
       return @"omnibox_completion_bookmark";
-    case OmniboxSuggestionIconType::kCalculator:
+    case CALCULATOR:
       return @"answer_calculator";
-    case OmniboxSuggestionIconType::kDefaultFavicon:
+    case DEFAULT_FAVICON:
       return @"favicon_fallback";
-    case OmniboxSuggestionIconType::kHistory:
+    case HISTORY:
       return @"omnibox_completion_history";
-    case OmniboxSuggestionIconType::kSearch:
+    case SEARCH:
       return @"search";
-    case OmniboxSuggestionIconType::kSearchHistory:
-      return @"omnibox_popup_recent_query";
-    case OmniboxSuggestionIconType::kConversation:
+    case CONVERSION:
       return @"answer_conversion";
-    case OmniboxSuggestionIconType::kDictionary:
+    case DICTIONARY:
       return @"answer_dictionary";
-    case OmniboxSuggestionIconType::kStock:
+    case STOCK:
       return @"answer_stock";
-    case OmniboxSuggestionIconType::kSunrise:
+    case SUNRISE:
       return @"answer_sunrise";
-    case OmniboxSuggestionIconType::kLocalTime:
+    case LOCAL_TIME:
       return @"answer_local_time";
-    case OmniboxSuggestionIconType::kWhenIs:
+    case WHEN_IS:
       return @"answer_when_is";
-    case OmniboxSuggestionIconType::kTranslation:
+    case TRANSLATION:
       return @"answer_translation";
-    case OmniboxSuggestionIconType::kFallbackAnswer:
+    case FALLBACK_ANSWER:
       return @"search";
-    case OmniboxSuggestionIconType::kCount:
+    case SEARCH_HISTORY:
+      return @"omnibox_popup_recent_query";
+    case OMNIBOX_SUGGESTION_ICON_TYPE_COUNT:
       NOTREACHED();
       return @"favicon_fallback";
   }

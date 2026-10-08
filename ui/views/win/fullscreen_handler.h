@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,9 @@
 #include <shobjidl.h>
 #include <wrl/client.h>
 
-#include "base/memory/weak_ptr.h"
+#include <map>
+
+#include "base/macros.h"
 
 namespace gfx {
 class Rect;
@@ -19,18 +21,11 @@ namespace views {
 class FullscreenHandler {
  public:
   FullscreenHandler();
-
-  FullscreenHandler(const FullscreenHandler&) = delete;
-  FullscreenHandler& operator=(const FullscreenHandler&) = delete;
-
   ~FullscreenHandler();
 
   void set_hwnd(HWND hwnd) { hwnd_ = hwnd; }
 
-  // Set the fullscreen state. `target_display_id` indicates the display where
-  // the window should be shown fullscreen; display::kInvalidDisplayId indicates
-  // that no display was specified, so the current display may be used.
-  void SetFullscreen(bool fullscreen, int64_t target_display_id);
+  void SetFullscreen(bool fullscreen);
 
   // Informs the taskbar whether the window is a fullscreen window.
   void MarkFullscreen(bool fullscreen);
@@ -45,13 +40,10 @@ class FullscreenHandler {
   struct SavedWindowInfo {
     LONG style;
     LONG ex_style;
-    RECT rect;
-    int dpi;
-    HMONITOR monitor;
-    MONITORINFO monitor_info;
+    RECT window_rect;
   };
 
-  void ProcessFullscreen(bool fullscreen, int64_t target_display_id);
+  void SetFullscreenImpl(bool fullscreen);
 
   HWND hwnd_ = nullptr;
   bool fullscreen_ = false;
@@ -62,7 +54,7 @@ class FullscreenHandler {
   // Used to mark a window as fullscreen.
   Microsoft::WRL::ComPtr<ITaskbarList2> task_bar_list_;
 
-  base::WeakPtrFactory<FullscreenHandler> weak_ptr_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(FullscreenHandler);
 };
 
 }  // namespace views

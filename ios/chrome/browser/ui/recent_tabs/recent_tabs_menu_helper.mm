@@ -1,21 +1,19 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/recent_tabs/recent_tabs_menu_helper.h"
 
-#import "base/ios/ios_util.h"
-#import "base/metrics/histogram_functions.h"
-#import "base/metrics/histogram_macros.h"
-#import "ios/chrome/browser/net/crurl.h"
+#include "base/metrics/histogram_functions.h"
+#include "base/metrics/histogram_macros.h"
 #import "ios/chrome/browser/ui/coordinators/chrome_coordinator.h"
-#import "ios/chrome/browser/ui/menu/browser_action_factory.h"
+#import "ios/chrome/browser/ui/menu/action_factory.h"
 #import "ios/chrome/browser/ui/menu/menu_histograms.h"
-#import "ios/chrome/browser/ui/menu/tab_context_menu_delegate.h"
 #import "ios/chrome/browser/ui/recent_tabs/recent_tabs_menu_provider.h"
 #import "ios/chrome/browser/ui/recent_tabs/recent_tabs_presentation_delegate.h"
-#import "ios/chrome/browser/ui/recent_tabs/synced_sessions.h"
+#include "ios/chrome/browser/ui/recent_tabs/synced_sessions.h"
 #import "ios/chrome/browser/ui/table_view/cells/table_view_url_item.h"
+#import "ios/chrome/browser/ui/util/multi_window_support.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -28,7 +26,8 @@
 @property(nonatomic, weak) id<RecentTabsPresentationDelegate>
     recentTabsPresentationDelegate;
 
-@property(nonatomic, weak) id<TabContextMenuDelegate> contextMenuDelegate;
+@property(nonatomic, weak) id<RecentTabsContextMenuDelegate>
+    recentTabsContextMenuDelegate;
 
 @end
 
@@ -37,13 +36,13 @@
 - (instancetype)initWithBrowser:(Browser*)browser
     recentTabsPresentationDelegate:
         (id<RecentTabsPresentationDelegate>)recentTabsPresentationDelegate
-            tabContextMenuDelegate:
-                (id<TabContextMenuDelegate>)tabContextMenuDelegate {
+     recentTabsContextMenuDelegate:
+         (id<RecentTabsContextMenuDelegate>)recentTabsContextMenuDelegate {
   self = [super init];
   if (self) {
     _browser = browser;
     _recentTabsPresentationDelegate = recentTabsPresentationDelegate;
-    _contextMenuDelegate = tabContextMenuDelegate;
+    _recentTabsContextMenuDelegate = recentTabsContextMenuDelegate;
   }
   return self;
 }
@@ -52,7 +51,8 @@
 
 - (UIContextMenuConfiguration*)contextMenuConfigurationForItem:
                                    (TableViewURLItem*)item
-                                                      fromView:(UIView*)view {
+                                                      fromView:(UIView*)view
+    API_AVAILABLE(ios(13.0)) {
   __weak __typeof(self) weakSelf = self;
 
   UIContextMenuActionProvider actionProvider = ^(
@@ -65,43 +65,43 @@
     RecentTabsContextMenuHelper* strongSelf = weakSelf;
 
     // Record that this context menu was shown to the user.
-    RecordMenuShown(MenuScenarioHistogram::kRecentTabsEntry);
+    RecordMenuShown(MenuScenario::kRecentTabsEntry);
 
-    BrowserActionFactory* actionFactory = [[BrowserActionFactory alloc]
-        initWithBrowser:strongSelf.browser
-               scenario:MenuScenarioHistogram::kRecentTabsEntry];
+    ActionFactory* actionFactory =
+        [[ActionFactory alloc] initWithBrowser:strongSelf.browser
+                                      scenario:MenuScenario::kRecentTabsEntry];
 
     NSMutableArray<UIMenuElement*>* menuElements =
         [[NSMutableArray alloc] init];
 
-    GURL gurl;
-    if (item.URL) {
-      gurl = item.URL.gurl;
-    }
     [menuElements
         addObject:
             [actionFactory
-                actionToOpenInNewTabWithURL:gurl
+                actionToOpenInNewTabWithURL:item.URL
                                  completion:^{
-                                   [weakSelf.recentTabsPresentationDelegate
+                                   [strongSelf.recentTabsPresentationDelegate
                                            showActiveRegularTabFromRecentTabs];
                                  }]];
 
-    if (base::ios::IsMultipleScenesSupported()) {
+    if (IsMultipleScenesSupported()) {
       [menuElements
-          addObject:[actionFactory
-                        actionToOpenInNewWindowWithURL:gurl
-                                        activityOrigin:
-                                            WindowActivityRecentTabsOrigin]];
+          addObject:
+              [actionFactory
+                  actionToOpenInNewWindowWithURL:item.URL
+                                  activityOrigin:WindowActivityRecentTabsOrigin
+                                      completion:^{
+                                        [strongSelf
+                                                .recentTabsPresentationDelegate
+                                                    dismissRecentTabs];
+                                      }]];
     }
 
-    [menuElements addObject:[actionFactory actionToCopyURL:gurl]];
+    [menuElements addObject:[actionFactory actionToCopyURL:item.URL]];
 
     [menuElements addObject:[actionFactory actionToShareWithBlock:^{
-                    [weakSelf.contextMenuDelegate
-                        shareURL:gurl
+                    [strongSelf.recentTabsContextMenuDelegate
+                        shareURL:item.URL
                            title:item.title
-                        scenario:ActivityScenario::RecentTabsEntry
                         fromView:view];
                   }]];
 
@@ -116,7 +116,7 @@
 
 - (UIContextMenuConfiguration*)
     contextMenuConfigurationForHeaderWithSectionIdentifier:
-        (NSInteger)sectionIdentifier {
+        (NSInteger)sectionIdentifier API_AVAILABLE(ios(13.0)) {
   __weak __typeof(self) weakSelf = self;
 
   UIContextMenuActionProvider actionProvider =
@@ -129,17 +129,18 @@
         RecentTabsContextMenuHelper* strongSelf = weakSelf;
 
         // Record that this context menu was shown to the user.
-        RecordMenuShown(MenuScenarioHistogram::kRecentTabsHeader);
+        RecordMenuShown(MenuScenario::kRecentTabsHeader);
 
         ActionFactory* actionFactory = [[ActionFactory alloc]
-            initWithScenario:MenuScenarioHistogram::kRecentTabsHeader];
+            initWithBrowser:strongSelf.browser
+                   scenario:MenuScenario::kRecentTabsHeader];
 
         NSMutableArray<UIMenuElement*>* menuElements =
             [[NSMutableArray alloc] init];
 
         synced_sessions::DistantSession const* session =
-            [weakSelf.contextMenuDelegate
-                sessionForTableSectionWithIdentifier:sectionIdentifier];
+            [weakSelf.recentTabsContextMenuDelegate
+                sessionForSectionIdentifier:sectionIdentifier];
 
         if (!session->tabs.empty()) {
           [menuElements addObject:[actionFactory actionToOpenAllTabsWithBlock:^{
@@ -150,8 +151,8 @@
 
         [menuElements
             addObject:[actionFactory actionToHideWithBlock:^{
-              [strongSelf.contextMenuDelegate
-                  removeSessionAtTableSectionWithIdentifier:sectionIdentifier];
+              [strongSelf.recentTabsContextMenuDelegate
+                  removeSessionAtSessionSectionIdentifier:sectionIdentifier];
             }]];
 
         return [UIMenu menuWithTitle:@"" children:menuElements];

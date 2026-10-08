@@ -1,8 +1,8 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-load("//lib/builders.star", "builder", "cpu", "defaults", "goma", "os", "xcode")
+load("//lib/builders.star", "builder", "cpu", "defaults", "goma", "os")
 
 luci.bucket(
     name = "webrtc",
@@ -17,7 +17,7 @@ luci.bucket(
         ),
         acl.entry(
             roles = acl.BUILDBUCKET_OWNER,
-            groups = "project-chromium-admins",
+            groups = "google/luci-task-force@google.com",
         ),
         acl.entry(
             roles = acl.SCHEDULER_OWNER,
@@ -28,13 +28,14 @@ luci.bucket(
 
 defaults.bucket.set("webrtc")
 defaults.builder_group.set("chromium.webrtc")
-defaults.builderless.set(None)
+defaults.builderless.set(False)
 defaults.build_numbers.set(True)
 defaults.cpu.set(cpu.X86_64)
 defaults.executable.set("recipe:chromium")
 defaults.execution_timeout.set(2 * time.hour)
 defaults.os.set(os.LINUX_DEFAULT)
 defaults.service_account.set("chromium-ci-builder@chops-service-accounts.iam.gserviceaccount.com")
+defaults.swarming_tags.set(["vpython:native-python-wrapper"])
 defaults.triggered_by.set(["chromium-gitiles-trigger"])
 
 defaults.properties.set({
@@ -65,25 +66,37 @@ builder(
 
 builder(
     name = "WebRTC Chromium Mac Builder",
+    cores = 8,
     goma_backend = goma.backend.RBE_PROD,
     os = os.MAC_ANY,
-    xcode = xcode.x14main,
 )
 
 builder(
     name = "WebRTC Chromium Mac Tester",
+    os = os.MAC_ANY,
     triggered_by = ["WebRTC Chromium Mac Builder"],
-    xcode = xcode.x14main,
 )
 
 builder(
     name = "WebRTC Chromium Win Builder",
     goma_backend = goma.backend.RBE_PROD,
-    goma_enable_ats = True,
     os = os.WINDOWS_ANY,
 )
 
 builder(
     name = "WebRTC Chromium Win10 Tester",
+    os = os.WINDOWS_ANY,
+    triggered_by = ["WebRTC Chromium Win Builder"],
+)
+
+builder(
+    name = "WebRTC Chromium Win7 Tester",
+    os = os.WINDOWS_ANY,
+    triggered_by = ["WebRTC Chromium Win Builder"],
+)
+
+builder(
+    name = "WebRTC Chromium Win8 Tester",
+    os = os.WINDOWS_ANY,
     triggered_by = ["WebRTC Chromium Win Builder"],
 )

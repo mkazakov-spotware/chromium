@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,8 +25,7 @@ void BaseBookmarkModelObserver::BookmarkNodeMoved(
 
 void BaseBookmarkModelObserver::BookmarkNodeAdded(BookmarkModel* model,
                                                   const BookmarkNode* parent,
-                                                  size_t index,
-                                                  bool added_by_user) {
+                                                  size_t index) {
   BookmarkModelChanged();
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,15 +24,14 @@
 #include "base/feature_list.h"
 #include "base/files/scoped_file.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/singleton.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/system/sys_info.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
-#include "ppapi/buildflags/buildflags.h"
 #include "sandbox/constants.h"
-#include "sandbox/linux/seccomp-bpf-helpers/sigsys_handlers.h"
 #include "sandbox/linux/services/credentials.h"
 #include "sandbox/linux/services/libc_interceptor.h"
 #include "sandbox/linux/services/namespace_sandbox.h"
@@ -44,10 +43,8 @@
 #include "sandbox/linux/syscall_broker/broker_client.h"
 #include "sandbox/linux/syscall_broker/broker_command.h"
 #include "sandbox/linux/syscall_broker/broker_process.h"
-#include "sandbox/linux/system_headers/linux_stat.h"
 #include "sandbox/policy/linux/bpf_broker_policy_linux.h"
 #include "sandbox/policy/linux/sandbox_seccomp_bpf_linux.h"
-#include "sandbox/policy/mojom/sandbox.mojom.h"
 #include "sandbox/policy/sandbox.h"
 #include "sandbox/policy/sandbox_type.h"
 #include "sandbox/policy/switches.h"
@@ -56,10 +53,6 @@
 #if BUILDFLAG(USING_SANITIZER)
 #include <sanitizer/common_interface_defs.h>
 #endif
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chromeos/ash/components/assistant/buildflags.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 namespace sandbox {
 namespace policy {
@@ -106,7 +99,7 @@ base::ScopedFD OpenProc(int proc_fd) {
 bool UpdateProcessTypeAndEnableSandbox(
     SandboxLinux::PreSandboxHook broker_side_hook,
     SandboxLinux::Options options,
-    const syscall_broker::BrokerSandboxConfig& policy) {
+    syscall_broker::BrokerCommandSet allowed_command_set) {
   base::CommandLine::StringVector exec =
       base::CommandLine::ForCurrentProcess()->GetArgs();
   base::CommandLine::Reset();
@@ -130,7 +123,7 @@ bool UpdateProcessTypeAndEnableSandbox(
     CHECK(std::move(broker_side_hook).Run(options));
 
   return SandboxSeccompBPF::StartSandboxWithExternalPolicy(
-      std::make_unique<BrokerProcessPolicy>(policy.allowed_command_set),
+      std::make_unique<BrokerProcessPolicy>(allowed_command_set),
       base::ScopedFD());
 }
 
@@ -284,7 +277,7 @@ SetuidSandboxClient* SandboxLinux::setuid_sandbox_client() const {
 }
 
 // For seccomp-bpf, we use the SandboxSeccompBPF class.
-bool SandboxLinux::StartSeccompBPF(sandbox::mojom::Sandbox sandbox_type,
+bool SandboxLinux::StartSeccompBPF(SandboxType sandbox_type,
                                    PreSandboxHook hook,
                                    const Options& options) {
   CHECK(!seccomp_bpf_started_);
@@ -323,7 +316,7 @@ bool SandboxLinux::StartSeccompBPF(sandbox::mojom::Sandbox sandbox_type,
 #endif
 }
 
-bool SandboxLinux::InitializeSandbox(sandbox::mojom::Sandbox sandbox_type,
+bool SandboxLinux::InitializeSandbox(SandboxType sandbox_type,
                                      SandboxLinux::PreSandboxHook hook,
                                      const Options& options) {
   DCHECK(!initialize_sandbox_ran_);
@@ -371,18 +364,14 @@ bool SandboxLinux::InitializeSandbox(sandbox::mojom::Sandbox sandbox_type,
       sandbox_failure_fatal = switch_value != "no";
     }
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-    CHECK(process_type != switches::kGpuProcess || sandbox_failure_fatal);
-#endif
-
-    if (sandbox_failure_fatal && !IsUnsandboxedSandboxType(sandbox_type)) {
+    if (sandbox_failure_fatal) {
       error_message += " Try waiting for /proc to be updated.";
       LOG(ERROR) << error_message;
       // This will return if /proc/self eventually reports this process is
       // single-threaded, or crash if it does not after a number of retries.
       ThreadHelpers::AssertSingleThreaded();
     } else {
-      LOG(WARNING) << error_message;
+      LOG(ERROR) << error_message;
       return false;
     }
   }
@@ -409,23 +398,6 @@ bool SandboxLinux::InitializeSandbox(sandbox::mojom::Sandbox sandbox_type,
       << "opened. This breaks the security of the setuid sandbox.";
 
   InitLibcLocaltimeFunctions();
-
-  bool is_libassistant_sandbox = false;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#if BUILDFLAG(ENABLE_CROS_LIBASSISTANT)
-  // TODO(crbug.com/1312224, b/255771022): re-enable this check on kLibassistant
-  // sandbox when getaddrinfo() can sometimes run in the sandboxed process.
-  if (sandbox_type == sandbox::mojom::Sandbox::kLibassistant)
-    is_libassistant_sandbox = true;
-#endif  // BUILDFLAG(ENABLE_CROS_LIBASSISTANT)
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-  if (!IsUnsandboxedSandboxType(sandbox_type) && !is_libassistant_sandbox) {
-    // No sandboxed process should make use of getaddrinfo() as it is impossible
-    // to sandbox (e.g. glibc loads arbitrary third party DNS resolution
-    // libraries).
-    DiscourageGetaddrinfo();
-  }
 
   // Attempt to limit the future size of the address space of the process.
   // Fine to call with multiple threads as we don't use RLIMIT_STACK.
@@ -456,10 +428,10 @@ bool SandboxLinux::seccomp_bpf_with_tsync_supported() const {
   return seccomp_bpf_with_tsync_supported_;
 }
 
-rlim_t GetProcessDataSizeLimit(sandbox::mojom::Sandbox sandbox_type) {
+rlim_t GetProcessDataSizeLimit(SandboxType sandbox_type) {
 #if defined(ARCH_CPU_64_BITS)
-  if (sandbox_type == sandbox::mojom::Sandbox::kGpu ||
-      sandbox_type == sandbox::mojom::Sandbox::kRenderer) {
+  if (sandbox_type == SandboxType::kGpu ||
+      sandbox_type == SandboxType::kRenderer) {
     // Allow the GPU/RENDERER process's sandbox to access more physical memory
     // if it's available on the system.
     //
@@ -467,15 +439,13 @@ rlim_t GetProcessDataSizeLimit(sandbox::mojom::Sandbox sandbox_type) {
     // to 64 GB.
     constexpr rlim_t GB = 1024 * 1024 * 1024;
     const rlim_t physical_memory = base::SysInfo::AmountOfPhysicalMemory();
-    if (sandbox_type == sandbox::mojom::Sandbox::kGpu &&
-        physical_memory > 64 * GB) {
+    if (sandbox_type == SandboxType::kGpu && physical_memory > 64 * GB) {
       return 64 * GB;
-    } else if (sandbox_type == sandbox::mojom::Sandbox::kGpu &&
-               physical_memory > 32 * GB) {
+    } else if (sandbox_type == SandboxType::kGpu && physical_memory > 32 * GB) {
       return 32 * GB;
     } else if (physical_memory > 16 * GB) {
       return 16 * GB;
-    } else {
+    } else if (physical_memory > 8 * GB) {
       return 8 * GB;
     }
   }
@@ -488,9 +458,8 @@ bool SandboxLinux::LimitAddressSpace(int* error) {
 #if !defined(ADDRESS_SANITIZER) && !defined(MEMORY_SANITIZER) && \
     !defined(THREAD_SANITIZER) && !defined(LEAK_SANITIZER)
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  sandbox::mojom::Sandbox sandbox_type =
-      SandboxTypeFromCommandLine(*command_line);
-  if (sandbox_type == sandbox::mojom::Sandbox::kNoSandbox) {
+  SandboxType sandbox_type = SandboxTypeFromCommandLine(*command_line);
+  if (sandbox_type == SandboxType::kNoSandbox) {
     return false;
   }
 
@@ -520,45 +489,26 @@ void SandboxLinux::StartBrokerProcess(
     std::vector<syscall_broker::BrokerFilePermission> permissions,
     PreSandboxHook broker_side_hook,
     const Options& options) {
-  // Use EACCES as the policy's default error number to remain consistent with
-  // other LSMs like AppArmor and Landlock. Some userspace code, such as
-  // glibc's |dlopen|, expect to see EACCES rather than EPERM. See
-  // crbug.com/1233028 for an example.
-  auto policy = absl::make_optional<syscall_broker::BrokerSandboxConfig>(
-      allowed_command_set, std::move(permissions), EACCES);
   // Leaked at shutdown, so use bare |new|.
   broker_process_ = new syscall_broker::BrokerProcess(
-      std::move(policy),
+      BPFBasePolicy::GetFSDeniedErrno(), allowed_command_set, permissions,
       syscall_broker::BrokerProcess::BrokerType::SIGNAL_BASED);
 
   // The initialization callback will perform generic initialization and then
   // call broker_sandboxer_callback.
-  CHECK(broker_process_->Fork(base::BindOnce(&UpdateProcessTypeAndEnableSandbox,
+  CHECK(broker_process_->Init(base::BindOnce(&UpdateProcessTypeAndEnableSandbox,
                                              std::move(broker_side_hook),
-                                             options)));
+                                             options, allowed_command_set)));
 }
 
 bool SandboxLinux::ShouldBrokerHandleSyscall(int sysno) const {
   return broker_process_->IsSyscallAllowed(sysno);
 }
 
-bpf_dsl::ResultExpr SandboxLinux::HandleViaBroker(int sysno) const {
-  const bpf_dsl::ResultExpr handle_via_broker =
-      bpf_dsl::Trap(syscall_broker::BrokerClient::SIGSYS_Handler,
-                    broker_process_->GetBrokerClientSignalBased());
-  if (sysno == __NR_fstatat_default) {
-    // This may be an fstatat(fd, "", stat_buf, AT_EMPTY_PATH), which should be
-    // rewritten as fstat(fd, stat_buf). This should be consistent with how the
-    // baseline policy handles fstatat().
-    // Note that this will cause some legitimate but strange invocations of
-    // fstatat() to fail, see https://crbug.com/1243290#c8 for details.
-    const bpf_dsl::Arg<int> flags(3);
-    return bpf_dsl::If((flags & AT_EMPTY_PATH) == AT_EMPTY_PATH,
-                       RewriteFstatatSIGSYS(BPFBasePolicy::GetFSDeniedErrno()))
-        .Else(handle_via_broker);
-  } else {
-    return handle_via_broker;
-  }
+sandbox::bpf_dsl::ResultExpr SandboxLinux::HandleViaBroker() const {
+  return sandbox::bpf_dsl::Trap(
+      sandbox::syscall_broker::BrokerClient::SIGSYS_Handler,
+      broker_process_->GetBrokerClientSignalBased());
 }
 
 bool SandboxLinux::HasOpenDirectories() const {
@@ -573,13 +523,9 @@ void SandboxLinux::SealSandbox() {
   }
 }
 
-void SandboxLinux::CheckForBrokenPromises(
-    sandbox::mojom::Sandbox sandbox_type) {
-  if (sandbox_type != sandbox::mojom::Sandbox::kRenderer
-#if BUILDFLAG(ENABLE_PPAPI)
-      && sandbox_type != sandbox::mojom::Sandbox::kPpapi
-#endif
-  ) {
+void SandboxLinux::CheckForBrokenPromises(SandboxType sandbox_type) {
+  if (sandbox_type != SandboxType::kRenderer &&
+      sandbox_type != SandboxType::kPpapi) {
     return;
   }
   // Make sure that any promise made with GetStatus() wasn't broken.

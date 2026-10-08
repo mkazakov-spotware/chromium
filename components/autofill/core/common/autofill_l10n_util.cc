@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "base/i18n/string_compare.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
+#include "base/metrics/histogram_macros.h"
 
 namespace autofill {
 namespace l10n {
@@ -37,6 +38,9 @@ std::unique_ptr<icu::Collator> GetCollatorForLocale(const icu::Locale& locale) {
                  << "locale.";
     }
   }
+
+  UMA_HISTOGRAM_BOOLEAN("Autofill.IcuCollatorCreationSuccess",
+                        (!!collator && U_SUCCESS(error_code)));
   return collator;
 }
 
@@ -52,8 +56,8 @@ CaseInsensitiveCompare::CaseInsensitiveCompare(const icu::Locale& locale)
 CaseInsensitiveCompare::~CaseInsensitiveCompare() {
 }
 
-bool CaseInsensitiveCompare::StringsEqual(const std::u16string& lhs,
-                                          const std::u16string& rhs) const {
+bool CaseInsensitiveCompare::StringsEqual(const base::string16& lhs,
+                                          const base::string16& rhs) const {
   if (collator_) {
     return base::i18n::CompareString16WithCollator(*collator_, lhs, rhs) ==
            UCOL_EQUAL;

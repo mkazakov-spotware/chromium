@@ -1,14 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/tracing/public/cpp/stack_sampling/loader_lock_sampler_win.h"
 
-#include <string>
 #include <utility>
 
 #include "base/files/file_path.h"
 #include "base/scoped_native_library.h"
+#include "base/strings/string16.h"
 #include "base/task/thread_pool.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
@@ -24,7 +24,7 @@ namespace {
 
 class TestNamedWaitableEvent : public base::TestWaitableEvent {
  public:
-  TestNamedWaitableEvent(const wchar_t* name)
+  TestNamedWaitableEvent(const base::char16* name)
       : TestWaitableEvent(
             base::win::ScopedHandle(::CreateEvent(nullptr,
                                                   /*bManualReset=*/TRUE,
@@ -35,19 +35,19 @@ class TestNamedWaitableEvent : public base::TestWaitableEvent {
 }  // namespace
 
 TEST(LoaderLockSamplerTest, LockNotHeld) {
-  ProbingLoaderLockSampler sampler;
-  EXPECT_FALSE(sampler.IsLoaderLockHeld());
+  InitializeLoaderLockSampling();
+  EXPECT_FALSE(IsLoaderLockHeld());
 }
 
 TEST(LoaderLockSamplerTest, LockHeldByOtherThread) {
-  ProbingLoaderLockSampler sampler;
+  InitializeLoaderLockSampling();
 
   base::test::TaskEnvironment task_environment{
       base::test::TaskEnvironment::ThreadPoolCOMEnvironment::NONE};
 
   // Creating TaskEnvironment initializes the thread pool, which takes the
   // loader lock while creating background threads. Wait until it's released.
-  while (sampler.IsLoaderLockHeld()) {
+  while (IsLoaderLockHeld()) {
     base::TestWaitableEvent delay_event;
     delay_event.TimedWait(TestTimeouts::tiny_timeout());
   }
@@ -82,7 +82,7 @@ TEST(LoaderLockSamplerTest, LockHeldByOtherThread) {
   ASSERT_TRUE(
       wait_for_loader_lock_event.TimedWait(TestTimeouts::action_timeout()));
 
-  EXPECT_TRUE(sampler.IsLoaderLockHeld());
+  EXPECT_TRUE(IsLoaderLockHeld());
 
   // Tell the DLL to drop the loader lock and exit from DllMain.
   drop_loader_lock_event.Signal();
@@ -94,7 +94,7 @@ TEST(LoaderLockSamplerTest, LockHeldByOtherThread) {
   base::TestWaitableEvent delay_event;
   delay_event.TimedWait(TestTimeouts::tiny_timeout());
 
-  EXPECT_FALSE(sampler.IsLoaderLockHeld());
+  EXPECT_FALSE(IsLoaderLockHeld());
 }
 
 }  // namespace tracing

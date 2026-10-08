@@ -1,31 +1,34 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/wallpaper/wallpaper_base_view.h"
 
-#include "ash/public/cpp/wallpaper/wallpaper_types.h"
-#include "ash/session/session_controller_impl.h"
+#include "ash/public/cpp/login_constants.h"
+#include "ash/public/cpp/wallpaper_types.h"
 #include "ash/shell.h"
-#include "ash/style/ash_color_id.h"
+#include "ash/style/default_color_constants.h"
+#include "ash/style/default_colors.h"
 #include "ash/wallpaper/wallpaper_controller_impl.h"
+#include "ash/wm/overview/overview_controller.h"
+#include "ash/wm/tablet_mode/tablet_mode_controller.h"
 #include "base/numerics/safe_conversions.h"
-#include "cc/paint/paint_flags.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/canvas.h"
+#include "ui/gfx/color_analysis.h"
+#include "ui/gfx/color_utils.h"
+#include "ui/views/metadata/metadata_impl_macros.h"
 
 namespace ash {
 
 namespace {
 
-// Gets the shield color based on the state. This is used for the login, lock,
+// Gets the color filter based on the state. This is used for the login, lock,
 // overview and tablet mode.
-SkColor GetWallpaperShieldColor(const views::Widget* widget) {
-  DCHECK(widget);
-  return widget->GetColorProvider()->GetColor(
-      Shell::Get()->session_controller()->IsUserSessionBlocked()
-          ? kColorAshShieldAndBase80
-          : kColorAshShieldAndBase40);
+SkColor GetWallpaperFilterColor() {
+  return AshColorProvider::Get()->GetShieldLayerColor(
+      Shell::Get()->overview_controller()->InOverviewSession()
+          ? AshColorProvider::ShieldLayerType::kShield40
+          : AshColorProvider::ShieldLayerType::kShield80);
 }
 
 }  // namespace
@@ -47,6 +50,11 @@ void WallpaperBaseView::OnPaint(gfx::Canvas* canvas) {
     return;
 
   cc::PaintFlags flags;
+  if (controller->ShouldApplyColorFilter()) {
+    flags.setColorFilter(
+        SkColorFilters::Blend(GetWallpaperFilterColor(), SkBlendMode::kDarken));
+  }
+
   switch (layout) {
     case WALLPAPER_LAYOUT_CENTER_CROPPED: {
       // The dimension with the smallest ratio must be cropped, the other one
@@ -102,14 +110,6 @@ void WallpaperBaseView::OnPaint(gfx::Canvas* canvas) {
       break;
     }
   }
-
-  if (controller->ShouldApplyShield())
-    canvas->FillRect(GetLocalBounds(), GetWallpaperShieldColor(GetWidget()));
-}
-
-void WallpaperBaseView::OnThemeChanged() {
-  views::View::OnThemeChanged();
-  SchedulePaint();
 }
 
 void WallpaperBaseView::DrawWallpaper(const gfx::ImageSkia& wallpaper,

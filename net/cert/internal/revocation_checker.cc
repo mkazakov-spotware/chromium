@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,12 @@
 #include "base/strings/string_piece.h"
 #include "crypto/sha2.h"
 #include "net/cert/cert_net_fetcher.h"
+#include "net/cert/internal/common_cert_errors.h"
+#include "net/cert/internal/crl.h"
+#include "net/cert/internal/ocsp.h"
+#include "net/cert/internal/parsed_certificate.h"
+#include "net/cert/internal/trust_store.h"
 #include "net/cert/ocsp_verify_result.h"
-#include "net/cert/pki/common_cert_errors.h"
-#include "net/cert/pki/crl.h"
-#include "net/cert/pki/ocsp.h"
-#include "net/cert/pki/parsed_certificate.h"
-#include "net/cert/pki/trust_store.h"
 #include "url/gurl.h"
 
 namespace net {
@@ -52,10 +52,8 @@ bool CheckCertRevocation(const ParsedCertificateList& certs,
   if (!stapled_ocsp_response.empty() && issuer_cert) {
     OCSPVerifyResult::ResponseStatus response_details;
     OCSPRevocationStatus ocsp_status =
-        CheckOCSP(std::string_view(stapled_ocsp_response.data(),
-                                   stapled_ocsp_response.size()),
-                  cert, issuer_cert, base::Time::Now().ToTimeT(),
-                  max_age.InSeconds(), &response_details);
+        CheckOCSP(stapled_ocsp_response, cert, issuer_cert, base::Time::Now(),
+                  max_age, &response_details);
     if (stapled_ocsp_verify_result) {
       stapled_ocsp_verify_result->response_status = response_details;
       stapled_ocsp_verify_result->revocation_status = ocsp_status;
@@ -88,7 +86,7 @@ bool CheckCertRevocation(const ParsedCertificateList& certs,
     for (const auto& ocsp_uri : cert->ocsp_uris()) {
       // Only consider http:// URLs (https:// could create a circular
       // dependency).
-      GURL parsed_ocsp_url(base::StringPiece(ocsp_uri.data(), ocsp_uri.size()));
+      GURL parsed_ocsp_url(ocsp_uri);
       if (!parsed_ocsp_url.is_valid() ||
           !parsed_ocsp_url.SchemeIs(url::kHttpScheme)) {
         continue;
@@ -137,11 +135,10 @@ bool CheckCertRevocation(const ParsedCertificateList& certs,
       OCSPVerifyResult::ResponseStatus response_details;
 
       OCSPRevocationStatus ocsp_status = CheckOCSP(
-          std::string_view(
+          base::StringPiece(
               reinterpret_cast<const char*>(ocsp_response_bytes.data()),
               ocsp_response_bytes.size()),
-          cert, issuer_cert, base::Time::Now().ToTimeT(), max_age.InSeconds(),
-          &response_details);
+          cert, issuer_cert, base::Time::Now(), max_age, &response_details);
 
       switch (ocsp_status) {
         case OCSPRevocationStatus::REVOKED:
@@ -157,40 +154,21 @@ bool CheckCertRevocation(const ParsedCertificateList& certs,
 
   // Check CRLs.
   ParsedExtension crl_dp_extension;
-  if (policy.crl_allowed &&
-      cert->GetExtension(der::Input(kCrlDistributionPointsOid),
-                         &crl_dp_extension)) {
+  if (cert->GetExtension(CrlDistributionPointsOid(), &crl_dp_extension)) {
     std::vector<ParsedDistributionPoint> distribution_points;
     if (ParseCrlDistributionPoints(crl_dp_extension.value,
                                    &distribution_points)) {
       for (const auto& distribution_point : distribution_points) {
-        if (distribution_point.crl_issuer) {
+        if (distribution_point.has_crl_issuer) {
           // Ignore indirect CRLs (CRL where CRLissuer != cert issuer), which
           // are optional according to RFC 5280's profile.
           continue;
         }
 
-        if (distribution_point.reasons) {
-          // Ignore CRLs that only contain some reasons. RFC 5280's profile
-          // requires that conforming CAs "MUST include at least one
-          // DistributionPoint that points to a CRL that covers the certificate
-          // for all reasons".
-          continue;
-        }
-
-        if (!distribution_point.distribution_point_fullname) {
-          // Only distributionPoints with a fullName containing URIs are
-          // supported.
-          continue;
-        }
-
-        for (const auto& crl_uri :
-             distribution_point.distribution_point_fullname
-                 ->uniform_resource_identifiers) {
+        for (const auto& crl_uri : distribution_point.uris) {
           // Only consider http:// URLs (https:// could create a circular
           // dependency).
-          GURL parsed_crl_url(
-              base::StringPiece(crl_uri.data(), crl_uri.size()));
+          GURL parsed_crl_url(crl_uri);
           if (!parsed_crl_url.is_valid() ||
               !parsed_crl_url.SchemeIs(url::kHttpScheme)) {
             continue;
@@ -228,11 +206,11 @@ bool CheckCertRevocation(const ParsedCertificateList& certs,
             continue;
 
           CRLRevocationStatus crl_status = CheckCRL(
-              std::string_view(
+              base::StringPiece(
                   reinterpret_cast<const char*>(crl_response_bytes.data()),
                   crl_response_bytes.size()),
-              certs, target_cert_index, distribution_point,
-              base::Time::Now().ToTimeT(), max_age.InSeconds());
+              certs, target_cert_index, distribution_point, base::Time::Now(),
+              max_age);
 
           switch (crl_status) {
             case CRLRevocationStatus::REVOKED:

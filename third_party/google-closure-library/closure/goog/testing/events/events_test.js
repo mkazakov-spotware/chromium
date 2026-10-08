@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.testing.eventsTest');
 goog.setTestOnly();
@@ -15,6 +23,7 @@ const PropertyReplacer = goog.require('goog.testing.PropertyReplacer');
 const TagName = goog.require('goog.dom.TagName');
 const dom = goog.require('goog.dom');
 const events = goog.require('goog.events');
+const googArray = goog.require('goog.array');
 const googString = goog.require('goog.string');
 const recordFunction = goog.require('goog.testing.recordFunction');
 const style = goog.require('goog.style');
@@ -50,7 +59,7 @@ const DBLCLICK_SEQ =
       'dblclick',
     ]);
 
-const DBLCLICK_SEQ_COORDS = (new Array(DBLCLICK_SEQ.length)).fill(coordinate);
+const DBLCLICK_SEQ_COORDS = googArray.repeat(coordinate, DBLCLICK_SEQ.length);
 
 const CONTEXTMENU_SEQ = userAgent.WINDOWS ?
     ['mousedown', 'mouseup', 'contextmenu'] :
@@ -157,24 +166,17 @@ testSuite({
               dom.createDom(
                   TagName.INPUT, {'id': type, 'type': InputType.CHECKBOX}),
               type, dom.createDom(TagName.BR)));
-      events.listen(
-          testButton, type, /**
-                               @suppress {strictMissingProperties} suppression
-                               added to enable type checking
-                             */
-          (e) => {
-            if (dom.getElement(e.type).checked) {
-              e.preventDefault();
-            }
+      events.listen(testButton, type, (e) => {
+        if (dom.getElement(e.type).checked) {
+          e.preventDefault();
+        }
 
-            log.append(
-                document.createElement('br'),
-                googString.subs('%s (%s, %s)', e.type, e.clientX, e.clientY));
-          });
+        log.innerHTML +=
+            googString.subs('<br />%s (%s, %s)', e.type, e.clientX, e.clientY);
+      });
     }
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testMouseEnter() {
     testingEvents.fireMouseEnterEvent(root, null);
     testingEvents.fireMouseEnterEvent(root, null, coordinate);
@@ -182,7 +184,6 @@ testSuite({
     assertCoordinates([style.getClientPosition(root), coordinate]);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testMouseLeave() {
     testingEvents.fireMouseLeaveEvent(root, null);
     testingEvents.fireMouseLeaveEvent(root, null, coordinate);
@@ -209,7 +210,6 @@ testSuite({
     assertEventTypes(['focus']);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testFocusIn() {
     testingEvents.fireFocusInEvent(root);
     assertEventTypes([EventType.FOCUSIN]);
@@ -227,7 +227,6 @@ testSuite({
     assertCoordinates([rootPosition, rootPosition, rootPosition]);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testClickSequenceWithCoordinate() {
     assertTrue(testingEvents.fireClickSequence(root, null, coordinate));
     assertCoordinates([coordinate, coordinate, coordinate]);
@@ -267,7 +266,6 @@ testSuite({
     assertCoordinates([coordinate, coordinate]);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testClickSequenceWithEventProperty() {
     assertTrue(testingEvents.fireClickSequence(
         root, null, undefined, {shiftKey: true}));
@@ -280,7 +278,6 @@ testSuite({
     assertEventTypes(['mousedown', 'mouseup', 'click']);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testClickSequenceCancellingMousedownWithCoordinate() {
     preventDefaultEventType('mousedown');
     assertFalse(testingEvents.fireClickSequence(root, null, coordinate));
@@ -293,7 +290,6 @@ testSuite({
     assertEventTypes(['mousedown', 'mouseup', 'click']);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testClickSequenceCancellingMouseupWithCoordinate() {
     preventDefaultEventType('mouseup');
     assertFalse(testingEvents.fireClickSequence(root, null, coordinate));
@@ -306,7 +302,6 @@ testSuite({
     assertEventTypes(['mousedown', 'mouseup', 'click']);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testClickSequenceCancellingClickWithCoordinate() {
     preventDefaultEventType('click');
     assertFalse(testingEvents.fireClickSequence(root, null, coordinate));
@@ -396,7 +391,8 @@ testSuite({
 
   testKeySequenceWithEscapeKey() {
     assertTrue(testingEvents.fireKeySequence(root, KeyCodes.ESC));
-    if (userAgent.EDGE || userAgent.GECKO || userAgent.WEBKIT) {
+    if (userAgent.EDGE || userAgent.GECKO ||
+        (userAgent.WEBKIT && userAgent.isVersionOrHigher('525'))) {
       assertEventTypes(['keydown', 'keyup']);
     } else {
       assertEventTypes(['keydown', 'keypress', 'keyup']);
@@ -488,7 +484,7 @@ testSuite({
   testContextMenuSequenceWithCoordinate() {
     assertTrue(testingEvents.fireContextMenuSequence(root, coordinate));
     assertEventTypes(CONTEXTMENU_SEQ);
-    assertCoordinates((new Array(CONTEXTMENU_SEQ.length)).fill(coordinate));
+    assertCoordinates(googArray.repeat(coordinate, CONTEXTMENU_SEQ.length));
   },
 
   testContextMenuSequenceCancellingMousedown() {
@@ -574,10 +570,6 @@ testSuite({
         eventCount);
   },
 
-  /**
-     @suppress {checkTypes,missingProperties,strictMissingProperties}
-     suppression added to enable type checking
-   */
   testMixinListenable() {
     const obj = {};
     obj.doFoo = recordFunction();

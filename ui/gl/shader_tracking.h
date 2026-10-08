@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "base/synchronization/lock.h"
 #include "build/build_config.h"
@@ -17,9 +18,6 @@ namespace gl {
 class GL_EXPORT ShaderTracking {
  public:
   static ShaderTracking* GetInstance();
-
-  ShaderTracking(const ShaderTracking&) = delete;
-  ShaderTracking& operator=(const ShaderTracking&) = delete;
 
   static const size_t kMaxShaderSize = 1024;
 
@@ -35,6 +33,8 @@ class GL_EXPORT ShaderTracking {
 
   mutable base::Lock lock_;
   std::string shaders_[2];
+
+  DISALLOW_COPY_AND_ASSIGN(ShaderTracking);
 };
 
 }  // namespace gl

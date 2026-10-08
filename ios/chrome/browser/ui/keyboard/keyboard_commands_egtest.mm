@@ -1,26 +1,27 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <XCTest/XCTest.h>
 
+#include "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/ui/bookmarks/bookmark_ui_constants.h"
 #import "ios/chrome/browser/ui/popup_menu/popup_menu_constants.h"
 #import "ios/chrome/browser/ui/table_view/table_view_navigation_controller_constants.h"
-#import "ios/chrome/grit/ios_strings.h"
+#include "ios/chrome/grit/ios_strings.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
-#import "net/test/embedded_test_server/embedded_test_server.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
 using chrome_test_util::BookmarksNavigationBarDoneButton;
-using chrome_test_util::RecentTabsDestinationButton;
+using chrome_test_util::RecentTabsMenuButton;
 using chrome_test_util::SettingsDoneButton;
 
 // Test cases to verify that keyboard commands are and are not registered when
@@ -91,19 +92,6 @@ using chrome_test_util::SettingsDoneButton;
   [self verifyKeyboardCommandsAreRegistered];
 }
 
-// Tests that keyboard commands are registered when the BVC is showing in
-// MultiWindow mode.
-- (void)testKeyboardCommandsRegistered_MultiWindow {
-  if (![ChromeEarlGrey areMultipleWindowsSupported])
-    EARL_GREY_TEST_DISABLED(@"Multiple windows can't be opened.");
-
-  [ChromeEarlGrey openNewWindow];
-  [ChromeEarlGrey waitUntilReadyWindowWithNumber:1];
-  [ChromeEarlGrey waitForForegroundWindowCount:2];
-
-  [self verifyKeyboardCommandsAreRegistered];
-}
-
 // Tests that keyboard commands are not registered when Settings are shown.
 - (void)testKeyboardCommandsNotRegistered_SettingsPresented {
   [ChromeEarlGreyUI openSettingsMenu];
@@ -116,8 +104,7 @@ using chrome_test_util::SettingsDoneButton;
 
 // Tests that keyboard commands are not registered when the bookmark UI is
 // shown.
-// TODO(crbug.com/1341363): Disabled due to flakiness. Re-enabled when fixed.
-- (void)DISABLED_testKeyboardCommandsNotRegistered_AddBookmarkPresented {
+- (void)testKeyboardCommandsNotRegistered_AddBookmarkPresented {
   [ChromeEarlGrey waitForBookmarksToFinishLoading];
   [ChromeEarlGrey clearBookmarks];
 
@@ -139,9 +126,7 @@ using chrome_test_util::SettingsDoneButton;
     // Tap on the HUD.
     id<GREYMatcher> edit = chrome_test_util::ButtonWithAccessibilityLabelId(
         IDS_IOS_NAVIGATION_BAR_EDIT_BUTTON);
-    [[EarlGrey
-        selectElementWithMatcher:grey_allOf(edit, grey_sufficientlyVisible(),
-                                            nil)] performAction:grey_tap()];
+    [[EarlGrey selectElementWithMatcher:edit] performAction:grey_tap()];
 
     [self waitForSingleBookmarkEditorToDisplay];
 
@@ -156,8 +141,7 @@ using chrome_test_util::SettingsDoneButton;
 - (void)testKeyboardCommandsNotRegistered_BookmarksPresented {
   // Open Bookmarks
   [ChromeEarlGreyUI openToolsMenu];
-  [ChromeEarlGreyUI
-      tapToolsMenuButton:chrome_test_util::BookmarksDestinationButton()];
+  [ChromeEarlGreyUI tapToolsMenuButton:chrome_test_util::BookmarksMenuButton()];
   [ChromeEarlGreyUI waitForAppToIdle];
 
   [self verifyNoKeyboardCommandsAreRegistered];
@@ -171,7 +155,7 @@ using chrome_test_util::SettingsDoneButton;
 - (void)testKeyboardCommands_RecentTabsPresented {
   // Open Recent Tabs
   [ChromeEarlGreyUI openToolsMenu];
-  [ChromeEarlGreyUI tapToolsMenuButton:RecentTabsDestinationButton()];
+  [ChromeEarlGreyUI tapToolsMenuButton:RecentTabsMenuButton()];
   [ChromeEarlGreyUI waitForAppToIdle];
 
   [self verifyNoKeyboardCommandsAreRegistered];

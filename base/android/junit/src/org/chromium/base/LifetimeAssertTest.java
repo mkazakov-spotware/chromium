@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@ import org.junit.runner.RunWith;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.build.BuildConfig;
 
 /**
  * junit tests for {@link LifetimeAssert}.
@@ -33,7 +32,7 @@ public class LifetimeAssertTest {
 
     @Before
     public void setUp() {
-        if (!BuildConfig.ENABLE_ASSERTS) {
+        if (!BuildConfig.DCHECK_IS_ON) {
             return;
         }
         mTestClass = new TestClass();
@@ -53,14 +52,14 @@ public class LifetimeAssertTest {
 
     @After
     public void tearDown() {
-        if (!BuildConfig.ENABLE_ASSERTS) {
+        if (!BuildConfig.DCHECK_IS_ON) {
             return;
         }
         LifetimeAssert.sTestHook = null;
     }
 
     private void runTest(boolean setSafe) {
-        if (!BuildConfig.ENABLE_ASSERTS) {
+        if (!BuildConfig.DCHECK_IS_ON) {
             return;
         }
 
@@ -98,8 +97,8 @@ public class LifetimeAssertTest {
     }
 
     @Test
-    public void testAssertAllInstancesDestroyedForTesting_notSafeToGc() {
-        if (!BuildConfig.ENABLE_ASSERTS) {
+    public void testAssertAllInstancesDestroyedForTesting() {
+        if (!BuildConfig.DCHECK_IS_ON) {
             return;
         }
         try {
@@ -107,41 +106,9 @@ public class LifetimeAssertTest {
             Assert.fail();
         } catch (LifetimeAssert.LifetimeAssertException e) {
             // Expected.
-        }
-    }
-
-    @Test
-    public void testAssertAllInstancesDestroyedForTesting_safeToGc() {
-        if (!BuildConfig.ENABLE_ASSERTS) {
-            return;
         }
         LifetimeAssert.setSafeToGc(mTestClass.mLifetimeAssert, true);
-        // Should not throw.
-        LifetimeAssert.assertAllInstancesDestroyedForTesting();
-    }
-
-    @Test
-    public void testAssertAllInstancesDestroyedForTesting_resetAfterAssert() {
-        if (!BuildConfig.ENABLE_ASSERTS) {
-            return;
-        }
-        try {
-            LifetimeAssert.assertAllInstancesDestroyedForTesting();
-            Assert.fail();
-        } catch (LifetimeAssert.LifetimeAssertException e) {
-            // Expected.
-        }
         // Should no longer throw.
-        LifetimeAssert.assertAllInstancesDestroyedForTesting();
-    }
-
-    @Test
-    public void testResetForTesting() {
-        if (!BuildConfig.ENABLE_ASSERTS) {
-            return;
-        }
-        LifetimeAssert.resetForTesting();
-        // Should not throw.
         LifetimeAssert.assertAllInstancesDestroyedForTesting();
     }
 }

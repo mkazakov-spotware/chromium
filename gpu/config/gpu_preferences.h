@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,27 +9,26 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "gpu/gpu_export.h"
 #include "media/media_buildflags.h"
 #include "ui/gfx/buffer_types.h"
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
 #include "base/message_loop/message_pump_type.h"
 #endif
 
 namespace gpu {
 
 // The size to set for the program cache for default and low-end device cases.
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 const size_t kDefaultMaxProgramCacheMemoryBytes = 6 * 1024 * 1024;
 #else
 const size_t kDefaultMaxProgramCacheMemoryBytes = 2 * 1024 * 1024;
 const size_t kLowEndMaxProgramCacheMemoryBytes = 128 * 1024;
 #endif
-
-GPU_EXPORT size_t GetDefaultGpuDiskCacheSize();
 
 enum class VulkanImplementationName : uint32_t {
   kNone = 0,
@@ -39,24 +38,12 @@ enum class VulkanImplementationName : uint32_t {
   kLast = kSwiftshader,
 };
 
-enum class WebGPUAdapterName : uint32_t {
-  kDefault = 0,
-  kCompat = 1,
-  kSwiftShader = 2,
-};
-
 enum class GrContextType : uint32_t {
   kGL = 0,
   kVulkan = 1,
   kMetal = 2,
   kDawn = 3,
   kLast = kDawn,
-};
-
-enum class DawnBackendValidationLevel : uint32_t {
-  kDisabled = 0,
-  kPartial = 1,
-  kFull = 2,
 };
 
 // NOTE: if you modify this structure then you must also modify the
@@ -84,7 +71,7 @@ struct GPU_EXPORT GpuPreferences {
   // Disables hardware acceleration of video decode, where available.
   bool disable_accelerated_video_decode = false;
 
-  // Disables hardware acceleration of video encode, where available.
+  // Disables hardware acceleration of video decode, where available.
   bool disable_accelerated_video_encode = false;
 
   // Causes the GPU process to display a dialog on launch.
@@ -172,6 +159,10 @@ struct GPU_EXPORT GpuPreferences {
   // compilation info logs.
   bool gl_shader_interm_output = false;
 
+  // Emulate ESSL lowp and mediump float precisions by mutating the shaders to
+  // round intermediate values in ANGLE.
+  bool emulate_shader_precision = false;
+
   // ===================================
   // Settings from //gpu/config/gpu_switches.h
 
@@ -205,6 +196,13 @@ struct GPU_EXPORT GpuPreferences {
   // Ignores GPU blocklist.
   bool ignore_gpu_blocklist = false;
 
+  // Oop rasterization preferences in the GPU process.  disable wins over
+  // enable, and neither means use defaults from GpuFeatureInfo.
+  bool enable_oop_rasterization = false;
+  bool disable_oop_rasterization = false;
+
+  bool enable_oop_rasterization_ddl = false;
+
   // Start the watchdog suspended, as the app is already backgrounded and won't
   // send a background/suspend signal.
   bool watchdog_starts_backgrounded = false;
@@ -219,6 +217,9 @@ struct GPU_EXPORT GpuPreferences {
 
   // Enable using vulkan protected memory.
   bool enable_vulkan_protected_memory = false;
+
+  // Enforce using vulkan protected memory.
+  bool enforce_vulkan_protected_memory = false;
 
   // Use vulkan VK_KHR_surface for presenting.
   bool disable_vulkan_surface = false;
@@ -248,21 +249,13 @@ struct GPU_EXPORT GpuPreferences {
   // Enable the WebGPU command buffer.
   bool enable_webgpu = false;
 
-  // Enable usage of unsafe WebGPU features.
-  bool enable_unsafe_webgpu = false;
-
   // Enable validation layers in Dawn backends.
-  DawnBackendValidationLevel enable_dawn_backend_validation =
-      DawnBackendValidationLevel::kDisabled;
+  bool enable_dawn_backend_validation = false;
 
-  // The adapter to use for WebGPU content.
-  WebGPUAdapterName use_webgpu_adapter = WebGPUAdapterName::kDefault;
-
-  // The Dawn features(toggles) enabled on the creation of Dawn devices.
-  std::vector<std::string> enabled_dawn_features_list;
-
-  // The Dawn features(toggles) disabled on the creation of Dawn devices.
-  std::vector<std::string> disabled_dawn_features_list;
+  // Enable the toggle Toggle::DisableRobustness when creating Dawn device for
+  // the investigation of the performance issues related to the implementation
+  // of robustness in Dawn.
+  bool disable_dawn_robustness = false;
 
   // Enable measuring blocked time on GPU Main thread
   bool enable_gpu_blocked_time_metric = false;
@@ -271,7 +264,7 @@ struct GPU_EXPORT GpuPreferences {
   // only enabled on Windows platform for the info collection GPU process.
   bool enable_perf_data_collection = false;
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
   // Determines message pump type for the GPU thread.
   base::MessagePumpType message_pump_type = base::MessagePumpType::DEFAULT;
 #endif
@@ -285,9 +278,10 @@ struct GPU_EXPORT GpuPreferences {
   // ===================================
   // Settings from //media/base/media_switches.h
 
-#if BUILDFLAG(IS_CHROMEOS)
-  // Enable the hardware-accelerated direct video decoder on ChromeOS.
-  bool enable_chromeos_direct_video_decoder = false;
+#if BUILDFLAG(IS_ASH)
+  // The direct VideoDecoder is disallowed in this particular SoC/platform. This
+  // flag is a reflection of whatever ChromeOS command line builder says.
+  bool platform_disallows_chromeos_direct_video_decoder = false;
 #endif
 
   // Disables oppr debug crash dumps.

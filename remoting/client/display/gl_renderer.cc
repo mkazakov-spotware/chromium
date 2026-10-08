@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 #include "base/bind.h"
 #include "base/check.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "remoting/client/display/drawable.h"
 #include "remoting/client/display/gl_canvas.h"
 #include "remoting/client/display/gl_math.h"
@@ -145,7 +145,7 @@ void GlRenderer::RequestRender() {
   if (render_scheduled_) {
     return;
   }
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&GlRenderer::OnRender, weak_ptr_));
   render_scheduled_ = true;
 }

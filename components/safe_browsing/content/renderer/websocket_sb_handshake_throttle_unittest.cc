@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,9 @@
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "net/http/http_request_headers.h"
-#include "services/network/public/mojom/fetch_api.mojom.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/blink/public/mojom/loader/resource_load_info.mojom-shared.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_url.h"
 
@@ -33,7 +33,7 @@ class FakeSafeBrowsing : public mojom::SafeBrowsing {
   FakeSafeBrowsing()
       : render_frame_id_(),
         load_flags_(-1),
-        request_destination_(),
+        resource_type_(),
         has_user_gesture_(false),
         originated_from_service_worker_(false) {}
 
@@ -44,7 +44,7 @@ class FakeSafeBrowsing : public mojom::SafeBrowsing {
       const std::string& method,
       const net::HttpRequestHeaders& headers,
       int32_t load_flags,
-      network::mojom::RequestDestination request_destination,
+      blink::mojom::ResourceType resource_type,
       bool has_user_gesture,
       bool originated_from_service_worker,
       CreateCheckerAndCheckCallback callback) override {
@@ -54,7 +54,7 @@ class FakeSafeBrowsing : public mojom::SafeBrowsing {
     method_ = method;
     headers_ = headers;
     load_flags_ = load_flags;
-    request_destination_ = request_destination;
+    resource_type_ = resource_type;
     has_user_gesture_ = has_user_gesture;
     originated_from_service_worker_ = originated_from_service_worker;
     callback_ = std::move(callback);
@@ -73,7 +73,7 @@ class FakeSafeBrowsing : public mojom::SafeBrowsing {
   std::string method_;
   net::HttpRequestHeaders headers_;
   int32_t load_flags_;
-  network::mojom::RequestDestination request_destination_;
+  blink::mojom::ResourceType resource_type_;
   bool has_user_gesture_;
   bool originated_from_service_worker_;
   CreateCheckerAndCheckCallback callback_;
@@ -86,7 +86,7 @@ class FakeCallback {
 
   FakeCallback() : result_(RESULT_NOT_CALLED) {}
 
-  void OnCompletion(const absl::optional<blink::WebString>& message) {
+  void OnCompletion(const base::Optional<blink::WebString>& message) {
     if (message) {
       result_ = RESULT_ERROR;
       message_ = *message;
@@ -135,8 +135,8 @@ TEST_F(WebSocketSBHandshakeThrottleTest, CheckArguments) {
   EXPECT_EQ("GET", safe_browsing_.method_);
   EXPECT_TRUE(safe_browsing_.headers_.GetHeaderVector().empty());
   EXPECT_EQ(0, safe_browsing_.load_flags_);
-  EXPECT_EQ(network::mojom::RequestDestination::kEmpty,
-            safe_browsing_.request_destination_);
+  EXPECT_EQ(blink::mojom::ResourceType::kSubResource,
+            safe_browsing_.resource_type_);
   EXPECT_FALSE(safe_browsing_.has_user_gesture_);
   EXPECT_FALSE(safe_browsing_.originated_from_service_worker_);
   EXPECT_TRUE(safe_browsing_.callback_);
@@ -147,8 +147,7 @@ TEST_F(WebSocketSBHandshakeThrottleTest, Safe) {
       GURL(kTestUrl), base::BindOnce(&FakeCallback::OnCompletion,
                                      base::Unretained(&fake_callback_)));
   safe_browsing_.RunUntilCalled();
-  std::move(safe_browsing_.callback_)
-      .Run(mojo::NullReceiver(), true, false, false, false);
+  std::move(safe_browsing_.callback_).Run(mojo::NullReceiver(), true, false);
   fake_callback_.RunUntilCalled();
   EXPECT_EQ(FakeCallback::RESULT_SUCCESS, fake_callback_.result_);
 }
@@ -158,8 +157,7 @@ TEST_F(WebSocketSBHandshakeThrottleTest, Unsafe) {
       GURL(kTestUrl), base::BindOnce(&FakeCallback::OnCompletion,
                                      base::Unretained(&fake_callback_)));
   safe_browsing_.RunUntilCalled();
-  std::move(safe_browsing_.callback_)
-      .Run(mojo::NullReceiver(), false, false, false, false);
+  std::move(safe_browsing_.callback_).Run(mojo::NullReceiver(), false, false);
   fake_callback_.RunUntilCalled();
   EXPECT_EQ(FakeCallback::RESULT_ERROR, fake_callback_.result_);
   EXPECT_EQ(
@@ -176,12 +174,11 @@ TEST_F(WebSocketSBHandshakeThrottleTest, SlowCheckNotifier) {
 
   mojo::Remote<mojom::UrlCheckNotifier> slow_check_notifier;
   std::move(safe_browsing_.callback_)
-      .Run(slow_check_notifier.BindNewPipeAndPassReceiver(), false, false,
-           false, false);
+      .Run(slow_check_notifier.BindNewPipeAndPassReceiver(), false, false);
   fake_callback_.RunUntilIdle();
   EXPECT_EQ(FakeCallback::RESULT_NOT_CALLED, fake_callback_.result_);
 
-  slow_check_notifier->OnCompleteCheck(true, false, false, false);
+  slow_check_notifier->OnCompleteCheck(true, false);
   fake_callback_.RunUntilCalled();
   EXPECT_EQ(FakeCallback::RESULT_SUCCESS, fake_callback_.result_);
 }

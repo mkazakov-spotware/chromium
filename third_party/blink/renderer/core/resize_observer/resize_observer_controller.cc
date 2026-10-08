@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,7 @@ ResizeObserverController* ResizeObserverController::FromIfExists(
   return Supplement<LocalDOMWindow>::From<ResizeObserverController>(window);
 }
 
-ResizeObserverController::ResizeObserverController() : Supplement(nullptr) {}
+ResizeObserverController::ResizeObserverController() = default;
 
 void ResizeObserverController::AddObserver(ResizeObserver& observer) {
   observers_.insert(&observer);
@@ -56,7 +56,8 @@ bool ResizeObserverController::SkippedObservations() {
 void ResizeObserverController::DeliverObservations() {
   // Copy is needed because m_observers might get modified during
   // deliverObservations.
-  HeapVector<Member<ResizeObserver>> observers(observers_);
+  HeapVector<Member<ResizeObserver>> observers;
+  CopyToVector(observers_, observers);
 
   for (auto& observer : observers) {
     if (observer) {

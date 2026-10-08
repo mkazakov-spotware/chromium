@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "components/keyed_service/core/keyed_service_export.h"
 #include "components/keyed_service/core/keyed_service_factory.h"
 
@@ -64,10 +65,6 @@ class KEYED_SERVICE_EXPORT SimpleKeyedServiceFactory
   // a specific test double into the SKSF system.
   using TestingFactory = base::RepeatingCallback<std::unique_ptr<KeyedService>(
       SimpleFactoryKey* key)>;
-
-  SimpleKeyedServiceFactory(const SimpleKeyedServiceFactory&) = delete;
-  SimpleKeyedServiceFactory& operator=(const SimpleKeyedServiceFactory&) =
-      delete;
 
   // Associates |testing_factory| with |key| so that |testing_factory| is
   // used to create the KeyedService when requested.  |testing_factory| can be
@@ -143,6 +140,8 @@ class KEYED_SERVICE_EXPORT SimpleKeyedServiceFactory
   void SetEmptyTestingFactory(void* context) final;
   bool HasTestingFactory(void* context) final;
   void CreateServiceNow(void* context) final;
+
+  DISALLOW_COPY_AND_ASSIGN(SimpleKeyedServiceFactory);
 };
 
 #endif  // COMPONENTS_KEYED_SERVICE_CORE_SIMPLE_KEYED_SERVICE_FACTORY_H_

@@ -1,25 +1,38 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/chrome_cleaner/ipc/mojo_chrome_prompt_ipc.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/check_op.h"
-#include "base/command_line.h"
 #include "base/location.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "mojo/public/cpp/platform/platform_channel.h"
 #include "mojo/public/cpp/system/invitation.h"
 #include "mojo/public/cpp/system/message_pipe.h"
 
 namespace chrome_cleaner {
+
+namespace {
+
+void OnTryDeleteExtensionsCallback(
+    base::OnceClosure delete_allowed_callback,
+    base::OnceClosure delete_not_allowed_callback,
+    uint32_t version) {
+  if (version >= 3) {
+    std::move(delete_allowed_callback).Run();
+  } else {
+    std::move(delete_not_allowed_callback).Run();
+  }
+}
+
+}  // namespace
 
 MojoChromePromptIPC::MojoChromePromptIPC(
     const std::string& chrome_mojo_pipe_token,
@@ -64,6 +77,27 @@ void MojoChromePromptIPC::PostPromptUserTask(
                      extension_ids, std::move(callback)));
 }
 
+void MojoChromePromptIPC::PostDisableExtensionsTask(
+    const std::vector<std::wstring>& extension_ids,
+    DisableExtensionsCallback callback) {
+  DCHECK(task_runner_);
+  task_runner_->PostTask(
+      FROM_HERE, base::BindOnce(&MojoChromePromptIPC::RunDisableExtensionsTask,
+                                base::Unretained(this), extension_ids,
+                                std::move(callback)));
+}
+
+void MojoChromePromptIPC::TryDeleteExtensions(
+    base::OnceClosure delete_allowed_callback,
+    base::OnceClosure delete_not_allowed_callback) {
+  const auto& version_callback = base::BindRepeating(
+      &chrome_cleaner::OnTryDeleteExtensionsCallback,
+      AdaptCallbackForRepeating(std::move(delete_allowed_callback)),
+      AdaptCallbackForRepeating(std::move(delete_not_allowed_callback)));
+
+  (*chrome_prompt_service_).QueryVersion(std::move(version_callback));
+}
+
 void MojoChromePromptIPC::OnChromeResponseReceived(
     PromptUserCallback callback,
     mojom::PromptAcceptance prompt_acceptance) {
@@ -73,6 +107,15 @@ void MojoChromePromptIPC::OnChromeResponseReceived(
   state_ = State::kDoneInteraction;
   std::move(callback).Run(
       static_cast<PromptUserResponse::PromptAcceptance>(prompt_acceptance));
+}
+
+void MojoChromePromptIPC::OnChromeResponseReceivedExtensions(
+    DisableExtensionsCallback callback,
+    bool extensions_disabled) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_EQ(State::kDoneInteraction, state_);
+
+  std::move(callback).Run(extensions_disabled);
 }
 
 void MojoChromePromptIPC::OnConnectionError() {
@@ -103,14 +146,12 @@ void MojoChromePromptIPC::InitializeChromePromptPtr() {
   mojo::ScopedMessagePipeHandle message_pipe_handle =
       incoming_invitation.ExtractMessagePipe(chrome_mojo_pipe_token_);
 
-  mojo::PendingRemote<chrome_cleaner::mojom::ChromePrompt> pending_remote(
-      std::move(message_pipe_handle), /*version=*/0);
-  chrome_prompt_service_ =
-      std::make_unique<mojo::Remote<chrome_cleaner::mojom::ChromePrompt>>(
-          std::move(pending_remote));
+  chrome_prompt_service_.reset(new chrome_cleaner::mojom::ChromePromptPtr);
+  chrome_prompt_service_->Bind(chrome_cleaner::mojom::ChromePromptPtrInfo(
+      std::move(message_pipe_handle), 0));
   // No need to retain this object, since it will live until the process
   // finishes.
-  chrome_prompt_service_->set_disconnect_handler(base::BindOnce(
+  chrome_prompt_service_->set_connection_error_handler(base::BindOnce(
       &MojoChromePromptIPC::OnConnectionError, base::Unretained(this)));
   state_ = State::kWaitingForScanResults;
 }
@@ -131,7 +172,7 @@ void MojoChromePromptIPC::PromptUserCheckVersion(
     // deleted.
     (*chrome_prompt_service_)
         ->PromptUser(std::move(files_to_delete), std::move(registry_keys),
-                     absl::nullopt, std::move(callback));
+                     base::nullopt, std::move(callback));
   }
 }
 
@@ -159,11 +200,32 @@ void MojoChromePromptIPC::RunPromptUserTask(
       base::BindOnce(&MojoChromePromptIPC::OnChromeResponseReceived,
                      base::Unretained(this), std::move(callback));
 
+  const auto& version_callback = base::BindRepeating(
+      &MojoChromePromptIPC::PromptUserCheckVersion, base::Unretained(this),
+      std::move(files_to_delete), std::move(registry_keys),
+      // Uses the AdaptCallbackForRepeating because we are bound by the mojo API
+      // to use a RepeatingCallback even though this only should be called once.
+      std::move(extension_ids),
+      AdaptCallbackForRepeating(std::move(response_callback)));
+  (*chrome_prompt_service_).QueryVersion(version_callback);
+}
+
+void MojoChromePromptIPC::RunDisableExtensionsTask(
+    const std::vector<std::wstring>& extension_ids,
+    DisableExtensionsCallback callback) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(chrome_prompt_service_);
+  DCHECK(state_ == State::kDoneInteraction);
+
+  // Mojo will invoke this callback when a response is received. The
+  // |extensions_disabled| parameter is unbound and will be filled in by Mojo.
+  mojom::ChromePrompt::DisableExtensionsCallback response_callback =
+      base::BindOnce(&MojoChromePromptIPC::OnChromeResponseReceivedExtensions,
+                     base::Unretained(this), std::move(callback));
+
   (*chrome_prompt_service_)
-      .QueryVersion(base::BindOnce(
-          &MojoChromePromptIPC::PromptUserCheckVersion, base::Unretained(this),
-          std::move(files_to_delete), std::move(registry_keys),
-          std::move(extension_ids), std::move(response_callback)));
+      ->DisableExtensions(std::move(extension_ids),
+                          std::move(response_callback));
 }
 
 }  // namespace chrome_cleaner

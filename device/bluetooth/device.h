@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "device/bluetooth/bluetooth_adapter.h"
 #include "device/bluetooth/bluetooth_device.h"
@@ -31,9 +32,6 @@ namespace bluetooth {
 // instance closes the binding which causes the instance to be deleted.
 class Device : public mojom::Device, public device::BluetoothAdapter::Observer {
  public:
-  Device(const Device&) = delete;
-  Device& operator=(const Device&) = delete;
-
   ~Device() override;
 
   static void Create(
@@ -89,10 +87,12 @@ class Device : public mojom::Device, public device::BluetoothAdapter::Observer {
   mojom::ServiceInfoPtr ConstructServiceInfoStruct(
       const device::BluetoothRemoteGattService& service);
 
-  void OnReadRemoteCharacteristic(
+  void OnReadRemoteCharacteristic(ReadValueForCharacteristicCallback callback,
+                                  const std::vector<uint8_t>& value);
+
+  void OnReadRemoteCharacteristicError(
       ReadValueForCharacteristicCallback callback,
-      absl::optional<device::BluetoothGattService::GattErrorCode> error_code,
-      const std::vector<uint8_t>& value);
+      device::BluetoothGattService::GattErrorCode error_code);
 
   void OnWriteRemoteCharacteristic(
       WriteValueForCharacteristicCallback callback);
@@ -101,10 +101,12 @@ class Device : public mojom::Device, public device::BluetoothAdapter::Observer {
       WriteValueForCharacteristicCallback callback,
       device::BluetoothGattService::GattErrorCode error_code);
 
-  void OnReadRemoteDescriptor(
+  void OnReadRemoteDescriptor(ReadValueForDescriptorCallback callback,
+                              const std::vector<uint8_t>& value);
+
+  void OnReadRemoteDescriptorError(
       ReadValueForDescriptorCallback callback,
-      absl::optional<device::BluetoothGattService::GattErrorCode> error_code,
-      const std::vector<uint8_t>& value);
+      device::BluetoothGattService::GattErrorCode error_code);
 
   void OnWriteRemoteDescriptor(WriteValueForDescriptorCallback callback);
 
@@ -127,6 +129,8 @@ class Device : public mojom::Device, public device::BluetoothAdapter::Observer {
   std::vector<base::OnceClosure> pending_services_requests_;
 
   base::WeakPtrFactory<Device> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(Device);
 };
 
 }  // namespace bluetooth

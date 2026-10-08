@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #endif
 
@@ -45,7 +45,7 @@ bool TimespecToTimeval(const timespec& ts, timeval* tv);
 //! \brief Convert the timeval \a tv to a timespec \a ts.
 void TimevalToTimespec(const timeval& tv, timespec* ts);
 
-#if BUILDFLAG(IS_WIN) || DOXYGEN
+#if defined(OS_WIN) || DOXYGEN
 
 //! \brief Convert a `timespec` to a Windows `FILETIME`, converting from POSIX
 //!     epoch to Windows epoch.
@@ -67,17 +67,15 @@ timeval FiletimeToTimevalInterval(const FILETIME& filetime);
 //!     UTC.
 void GetTimeOfDay(timeval* tv);
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID) || \
-    DOXYGEN
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID) || DOXYGEN
 //! \brief Get the kernel boot time. Subsequent calls to this function may
 //!     return different results due to the system clock being changed or
 //!     imprecision in measuring the boot time.
 //! \return `true` on success. Otherwise, `false` with a message logged.
 bool GetBootTime(timespec* ts);
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) ||
-        // BUILDFLAG(IS_ANDROID) || DOXYGEN
+#endif  // OS_LINUX || OS_CHROMEOS || OS_ANDROID || DOXYGEN
 
 }  // namespace crashpad
 

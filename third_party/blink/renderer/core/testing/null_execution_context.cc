@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "third_party/blink/renderer/core/execution_context/security_context_init.h"
 #include "third_party/blink/renderer/core/frame/csp/content_security_policy.h"
 #include "third_party/blink/renderer/core/frame/dom_timer.h"
-#include "third_party/blink/renderer/core/frame/policy_container.h"
 #include "third_party/blink/renderer/platform/scheduler/public/dummy_schedulers.h"
 #include "third_party/blink/renderer/platform/scheduler/public/frame_scheduler.h"
 #include "third_party/blink/renderer/platform/scheduler/public/thread.h"
@@ -19,30 +18,20 @@
 namespace blink {
 
 NullExecutionContext::NullExecutionContext()
-    : NullExecutionContext(scheduler::CreateDummyFrameScheduler()) {}
-
-NullExecutionContext::NullExecutionContext(
-    std::unique_ptr<FrameScheduler> scheduler)
     : ExecutionContext(
           v8::Isolate::GetCurrent(),
-          MakeGarbageCollected<Agent>(
-              v8::Isolate::GetCurrent(),
-              base::UnguessableToken::Create(),
-              v8::MicrotaskQueue::New(v8::Isolate::GetCurrent(),
-                                      v8::MicrotasksPolicy::kScoped))),
-      scheduler_(std::move(scheduler)) {
-  SetPolicyContainer(PolicyContainer::CreateEmpty());
-}
+          MakeGarbageCollected<Agent>(v8::Isolate::GetCurrent(),
+                                      base::UnguessableToken::Null())),
+      scheduler_(scheduler::CreateDummyFrameScheduler()) {}
 
 NullExecutionContext::~NullExecutionContext() {}
 
 void NullExecutionContext::SetUpSecurityContextForTesting() {
-  SetPolicyContainer(PolicyContainer::CreateEmpty());
   auto* policy = MakeGarbageCollected<ContentSecurityPolicy>();
   GetSecurityContext().SetSecurityOriginForTesting(
       SecurityOrigin::Create(url_));
   policy->BindToDelegate(GetContentSecurityPolicyDelegate());
-  SetContentSecurityPolicy(policy);
+  GetSecurityContext().SetContentSecurityPolicy(policy);
 }
 
 FrameOrWorkerScheduler* NullExecutionContext::GetScheduler() {
@@ -50,12 +39,11 @@ FrameOrWorkerScheduler* NullExecutionContext::GetScheduler() {
 }
 
 scoped_refptr<base::SingleThreadTaskRunner> NullExecutionContext::GetTaskRunner(
-    TaskType task_type) {
-  return scheduler_->GetTaskRunner(task_type);
+    TaskType) {
+  return Thread::Current()->GetTaskRunner();
 }
 
-const BrowserInterfaceBrokerProxy&
-NullExecutionContext::GetBrowserInterfaceBroker() const {
+BrowserInterfaceBrokerProxy& NullExecutionContext::GetBrowserInterfaceBroker() {
   return GetEmptyBrowserInterfaceBroker();
 }
 

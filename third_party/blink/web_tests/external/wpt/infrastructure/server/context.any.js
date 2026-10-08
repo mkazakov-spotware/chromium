@@ -1,4 +1,4 @@
-// META: global=window,dedicatedworker,sharedworker,serviceworker,dedicatedworker-module,sharedworker-module,serviceworker-module
+// META: global=window,dedicatedworker,sharedworker,serviceworker
 test(t => {
   // Test for object that's only exposed in serviceworker
   if (self.clients) {

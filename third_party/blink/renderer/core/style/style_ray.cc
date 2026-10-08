@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,13 +17,15 @@ scoped_refptr<StyleRay> StyleRay::Create(float angle,
 StyleRay::StyleRay(float angle, RaySize size, bool contain)
     : angle_(angle), size_(size), contain_(contain) {}
 
-bool StyleRay::IsEqualAssumingSameType(const BasicShape& o) const {
+bool StyleRay::operator==(const BasicShape& o) const {
+  if (!IsSameType(o))
+    return false;
   const StyleRay& other = To<StyleRay>(o);
   return angle_ == other.angle_ && size_ == other.size_ &&
          contain_ == other.contain_;
 }
 
-void StyleRay::GetPath(Path&, const gfx::RectF&, float) {
+void StyleRay::GetPath(Path&, const FloatRect&, float) {
   // ComputedStyle::ApplyMotionPathTransform cannot call GetPath
   // for rays as they may have infinite length.
   NOTREACHED();

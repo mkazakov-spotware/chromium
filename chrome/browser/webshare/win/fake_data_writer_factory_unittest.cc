@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -92,17 +92,11 @@ TEST(FakeDataWriterFactoryTest, UnstoredBytes) {
       ASSERT_HRESULT_FAILED(data_writer->FlushAsync(&flush_operation)),
       "FlushAsync");
 
-  {
-    ::testing::TestPartResultArray gtest_failures;
-    ::testing::ScopedFakeTestPartResultReporter gtest_reporter(
-        ::testing::ScopedFakeTestPartResultReporter::
-            INTERCEPT_ONLY_CURRENT_THREAD,
-        &gtest_failures);
-    // Expect failures from the destructor from not storing the data and not
-    // flushing the data
-    data_writer.Reset();
-    EXPECT_EQ(gtest_failures.size(), 2) << "pending storage";
-  }
+  // Expect failures from the destructor from not storing the data and not
+  // flushing the data
+  EXPECT_NONFATAL_FAILURE(
+      EXPECT_NONFATAL_FAILURE(data_writer.Reset(), "pending storage"),
+      "FlushAsync");
 
   // Cleanup
   ASSERT_HRESULT_SUCCEEDED(stream->Close());

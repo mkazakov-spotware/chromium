@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,16 +11,19 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/files/file_util.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/task_runner_util.h"
 #include "components/drive/service/drive_service_interface.h"
 #include "google_apis/drive/drive_api_parser.h"
 #include "services/device/public/mojom/wake_lock.mojom.h"
 
-using google_apis::ApiErrorCode;
 using google_apis::CancelCallbackOnce;
-using google_apis::CANCELLED;
+using google_apis::CancelCallbackRepeating;
+using google_apis::DRIVE_CANCELLED;
 using google_apis::DRIVE_NO_SPACE;
+using google_apis::DriveApiErrorCode;
 using google_apis::FileResource;
 using google_apis::HTTP_CONFLICT;
 using google_apis::HTTP_CREATED;
@@ -55,8 +58,8 @@ enum DriveUploadProtocol {
 };
 
 void RecordDriveUploadProtocol(DriveUploadProtocol protocol) {
-  UMA_HISTOGRAM_ENUMERATION("Drive.UploadProtocol", protocol,
-                            UPLOAD_METHOD_MAX_VALUE);
+  UMA_HISTOGRAM_ENUMERATION(
+      "Drive.UploadProtocol", protocol, UPLOAD_METHOD_MAX_VALUE);
 }
 }  // namespace
 
@@ -108,9 +111,6 @@ struct DriveUploader::UploadFileInfo {
     }
   }
 
-  UploadFileInfo(const UploadFileInfo&) = delete;
-  UploadFileInfo& operator=(const UploadFileInfo&) = delete;
-
   ~UploadFileInfo() = default;
 
   // Useful for printf debugging.
@@ -156,7 +156,7 @@ struct DriveUploader::UploadFileInfo {
   // once Cancel() is called. DriveUploader will check this field before after
   // an async task other than HTTP requests and cancels the subsequent requests
   // if this is flagged to true.
-  CancelCallbackOnce cancel_callback;
+  CancelCallbackRepeating cancel_callback;
   bool cancelled;
 
  private:
@@ -168,6 +168,7 @@ struct DriveUploader::UploadFileInfo {
   }
 
   base::WeakPtrFactory<UploadFileInfo> weak_ptr_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(UploadFileInfo);
 };
 
 DriveUploader::DriveUploader(
@@ -264,8 +265,8 @@ CancelCallbackOnce DriveUploader::StartUploadFile(
   DVLOG(1) << "Uploading file: " << upload_file_info->DebugString();
 
   UploadFileInfo* info_ptr = upload_file_info.get();
-  blocking_task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  base::PostTaskAndReplyWithResult(
+      blocking_task_runner_.get(), FROM_HERE,
       base::BindOnce(&base::GetFileSize, info_ptr->file_path,
                      &info_ptr->content_length),
       base::BindOnce(&DriveUploader::StartUploadFileAfterGetFileSize,
@@ -288,7 +289,7 @@ void DriveUploader::StartUploadFileAfterGetFileSize(
   DCHECK_GE(upload_file_info->content_length, 0);
 
   if (upload_file_info->cancelled) {
-    UploadFailed(std::move(upload_file_info), CANCELLED);
+    UploadFailed(std::move(upload_file_info), DRIVE_CANCELLED);
     return;
   }
   std::move(start_initiate_upload_callback).Run(std::move(upload_file_info));
@@ -324,10 +325,9 @@ void DriveUploader::CallUploadServiceAPINewFile(
     RecordDriveUploadProtocol(UPLOAD_METHOD_RESUMABLE);
     info_ptr->cancel_callback = drive_service_->InitiateUploadNewFile(
         info_ptr->content_type, info_ptr->content_length, parent_resource_id,
-        title, options,
-        base::BindOnce(&DriveUploader::OnUploadLocationReceived,
-                       weak_ptr_factory_.GetWeakPtr(),
-                       std::move(upload_file_info)));
+        title, options, base::Bind(&DriveUploader::OnUploadLocationReceived,
+                                   weak_ptr_factory_.GetWeakPtr(),
+                                   base::Passed(&upload_file_info)));
   }
 }
 
@@ -360,20 +360,20 @@ void DriveUploader::CallUploadServiceAPIExistingFile(
     RecordDriveUploadProtocol(UPLOAD_METHOD_RESUMABLE);
     info_ptr->cancel_callback = drive_service_->InitiateUploadExistingFile(
         info_ptr->content_type, info_ptr->content_length, resource_id, options,
-        base::BindOnce(&DriveUploader::OnUploadLocationReceived,
-                       weak_ptr_factory_.GetWeakPtr(),
-                       std::move(upload_file_info)));
+        base::Bind(&DriveUploader::OnUploadLocationReceived,
+                   weak_ptr_factory_.GetWeakPtr(),
+                   base::Passed(&upload_file_info)));
   }
 }
 
 void DriveUploader::OnUploadLocationReceived(
     std::unique_ptr<UploadFileInfo> upload_file_info,
-    ApiErrorCode code,
+    DriveApiErrorCode code,
     const GURL& upload_location) {
   DCHECK(thread_checker_.CalledOnValidThread());
 
-  DVLOG(1) << "Got upload location [" << upload_location.spec() << "] for ["
-           << upload_file_info->file_path.value() << "]";
+  DVLOG(1) << "Got upload location [" << upload_location.spec()
+           << "] for [" << upload_file_info->file_path.value() << "]";
 
   if (code != HTTP_SUCCESS) {
     if (code == HTTP_PRECONDITION)
@@ -409,7 +409,7 @@ void DriveUploader::UploadNextChunk(
             upload_file_info->content_length);
 
   if (upload_file_info->cancelled) {
-    UploadFailed(std::move(upload_file_info), CANCELLED);
+    UploadFailed(std::move(upload_file_info), DRIVE_CANCELLED);
     return;
   }
 
@@ -425,10 +425,9 @@ void DriveUploader::UploadNextChunk(
       base::BindOnce(&DriveUploader::OnUploadRangeResponseReceived,
                      weak_ptr_factory_.GetWeakPtr(),
                      std::move(upload_file_info)),
-      base::BindRepeating(
-          &DriveUploader::OnUploadProgress, weak_ptr_factory_.GetWeakPtr(),
-          info_ptr->progress_callback, info_ptr->next_start_position,
-          info_ptr->content_length));
+      base::Bind(&DriveUploader::OnUploadProgress,
+                 weak_ptr_factory_.GetWeakPtr(), info_ptr->progress_callback,
+                 info_ptr->next_start_position, info_ptr->content_length));
 }
 
 void DriveUploader::OnUploadRangeResponseReceived(
@@ -467,18 +466,19 @@ void DriveUploader::OnUploadRangeResponseReceived(
   // proceed to upload the next chunk.
   if (response.code != HTTP_RESUME_INCOMPLETE ||
       response.start_position_received != 0) {
-    DVLOG(1) << "UploadNextChunk http code=" << response.code
-             << ", start_position_received=" << response.start_position_received
-             << ", end_position_received=" << response.end_position_received;
+    DVLOG(1)
+        << "UploadNextChunk http code=" << response.code
+        << ", start_position_received=" << response.start_position_received
+        << ", end_position_received=" << response.end_position_received;
     UploadFailed(std::move(upload_file_info), response.code == HTTP_FORBIDDEN
                                                   ? DRIVE_NO_SPACE
                                                   : response.code);
     return;
   }
 
-  DVLOG(1) << "Received range " << response.start_position_received << "-"
-           << response.end_position_received << " for ["
-           << upload_file_info->file_path.value() << "]";
+  DVLOG(1) << "Received range " << response.start_position_received
+           << "-" << response.end_position_received
+           << " for [" << upload_file_info->file_path.value() << "]";
 
   upload_file_info->next_start_position = response.end_position_received;
   UploadNextChunk(std::move(upload_file_info));
@@ -495,7 +495,7 @@ void DriveUploader::OnUploadProgress(ProgressCallback callback,
 
 void DriveUploader::UploadFailed(
     std::unique_ptr<UploadFileInfo> upload_file_info,
-    ApiErrorCode error) {
+    DriveApiErrorCode error) {
   DCHECK(thread_checker_.CalledOnValidThread());
 
   DVLOG(1) << "Upload failed " << upload_file_info->DebugString();
@@ -513,7 +513,7 @@ void DriveUploader::UploadFailed(
 
 void DriveUploader::OnMultipartUploadComplete(
     std::unique_ptr<UploadFileInfo> upload_file_info,
-    google_apis::ApiErrorCode error,
+    google_apis::DriveApiErrorCode error,
     std::unique_ptr<FileResource> entry) {
   DCHECK(thread_checker_.CalledOnValidThread());
 

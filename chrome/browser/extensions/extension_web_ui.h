@@ -1,10 +1,14 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_EXTENSIONS_EXTENSION_WEB_UI_H_
 #define CHROME_BROWSER_EXTENSIONS_EXTENSION_WEB_UI_H_
 
+#include <memory>
+#include <string>
+
+#include "base/macros.h"
 #include "chrome/common/extensions/chrome_manifest_url_handlers.h"
 #include "components/favicon_base/favicon_callback.h"
 #include "content/public/browser/web_ui_controller.h"
@@ -81,6 +85,14 @@ class ExtensionWebUI {
   static void GetFaviconForURL(Profile* profile,
                                const GURL& page_url,
                                favicon_base::FaviconResultsCallback callback);
+
+ private:
+  // Unregister the specified override, and if it's the currently active one,
+  // ensure that something takes its place.
+  static void UnregisterAndReplaceOverride(const std::string& page,
+                                           Profile* profile,
+                                           base::ListValue* list,
+                                           const base::Value* override);
 };
 
 #endif  // CHROME_BROWSER_EXTENSIONS_EXTENSION_WEB_UI_H_

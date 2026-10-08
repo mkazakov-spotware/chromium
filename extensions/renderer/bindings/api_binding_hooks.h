@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,19 +8,13 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/weak_ptr.h"
-#include "extensions/renderer/bindings/api_binding_types.h"
+#include "base/macros.h"
 #include "v8/include/v8.h"
-
-namespace gin {
-class Arguments;
-}  // namespace gin
 
 namespace extensions {
 class APIBindingHooksDelegate;
 class APITypeReferenceMap;
 class APISignature;
-class APIRequestHandler;
 
 // A class to register custom hooks for given API calls that need different
 // handling. An instance exists for a single API, but can be used across
@@ -46,26 +40,17 @@ class APIBindingHooks {
 
     explicit RequestResult(ResultCode code);
     RequestResult(ResultCode code, v8::Local<v8::Function> custom_callback);
-    RequestResult(ResultCode code,
-                  v8::Local<v8::Function> custom_callback,
-                  binding::ResultModifierFunction result_modifier);
-    explicit RequestResult(std::string invocation_error);
-    RequestResult(RequestResult&& other);
+    RequestResult(std::string invocation_error);
+    RequestResult(const RequestResult& other);
     ~RequestResult();
 
     ResultCode code;
     v8::Local<v8::Function> custom_callback;
-    binding::ResultModifierFunction result_modifier;
     v8::Local<v8::Value> return_value;  // Only valid if code == HANDLED.
     std::string error;
   };
 
-  APIBindingHooks(const std::string& api_name,
-                  APIRequestHandler* request_handler);
-
-  APIBindingHooks(const APIBindingHooks&) = delete;
-  APIBindingHooks& operator=(const APIBindingHooks&) = delete;
-
+  explicit APIBindingHooks(const std::string& api_name);
   ~APIBindingHooks();
 
   // Looks for any custom hooks associated with the given request, and, if any
@@ -76,14 +61,12 @@ class APIBindingHooks {
                          std::vector<v8::Local<v8::Value>>* arguments,
                          const APITypeReferenceMap& type_refs);
 
-  // Handler function to resolve asynchronous requests associated with handle
-  // request hooks.
-  void CompleteHandleRequest(int request_id,
-                             bool did_succeed,
-                             gin::Arguments* arguments);
-
   // Returns a JS interface that can be used to register hooks.
   v8::Local<v8::Object> GetJSHookInterface(v8::Local<v8::Context> context);
+
+  // Gets the custom-set JS callback for the given method, if one exists.
+  v8::Local<v8::Function> GetCustomJSCallback(const std::string& method_name,
+                                              v8::Local<v8::Context> context);
 
   // Creates a new JS event for the given |event_name|, if a custom event is
   // provided. Returns true if an event was created.
@@ -112,13 +95,9 @@ class APIBindingHooks {
   // The name of the associated API.
   std::string api_name_;
 
-  // The request handler used to resolve asynchronous responses associated with
-  // handle request hooks. Guaranteed to outlive this object.
-  APIRequestHandler* const request_handler_;
-
   std::unique_ptr<APIBindingHooksDelegate> delegate_;
 
-  base::WeakPtrFactory<APIBindingHooks> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(APIBindingHooks);
 };
 
 }  // namespace extensions

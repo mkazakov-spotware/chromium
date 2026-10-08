@@ -37,6 +37,7 @@
 #include "third_party/blink/renderer/core/inspector/console_message.h"
 #include "third_party/blink/renderer/core/xml/document_xslt.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 
 namespace blink {
 
@@ -87,15 +88,12 @@ Document* XSLTProcessor::CreateDocumentFromSource(
   }
 
   if (frame) {
-    auto* previous_document_loader = frame->Loader().GetDocumentLoader();
-    DCHECK(previous_document_loader);
-    std::unique_ptr<WebNavigationParams> params =
-        previous_document_loader->CreateWebNavigationParamsToCloneDocument();
+    auto params = std::make_unique<WebNavigationParams>();
+    params->url = url;
     WebNavigationParams::FillStaticResponse(
         params.get(), mime_type,
-        source_encoding.empty() ? "UTF-8" : source_encoding,
+        source_encoding.IsEmpty() ? "UTF-8" : source_encoding,
         StringUTF8Adaptor(document_source));
-    params->frame_load_type = WebFrameLoadType::kReplaceCurrentItem;
     frame->Loader().CommitNavigation(std::move(params), nullptr,
                                      CommitReason::kXSLT);
     return frame->GetDocument();
@@ -105,10 +103,9 @@ Document* XSLTProcessor::CreateDocumentFromSource(
       DocumentInit::Create()
           .WithURL(url)
           .WithTypeFrom(mime_type)
-          .WithExecutionContext(owner_document->GetExecutionContext())
-          .WithAgent(owner_document->GetAgent());
+          .WithExecutionContext(owner_document->GetExecutionContext());
   Document* document = init.CreateDocument();
-  auto parsed_source_encoding = source_encoding.empty()
+  auto parsed_source_encoding = source_encoding.IsEmpty()
                                     ? UTF8Encoding()
                                     : WTF::TextEncoding(source_encoding);
   if (parsed_source_encoding.IsValid()) {
@@ -165,10 +162,7 @@ String XSLTProcessor::getParameter(const String& /*namespaceURI*/,
                                    const String& local_name) const {
   // FIXME: namespace support?
   // should make a QualifiedName here but we'd have to expose the impl
-  auto it = parameters_.find(local_name);
-  if (it == parameters_.end())
-    return String();
-  return it->value;
+  return parameters_.at(local_name);
 }
 
 void XSLTProcessor::removeParameter(const String& /*namespaceURI*/,

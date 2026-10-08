@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,7 @@ class SimpleCommandSource : public CommandSource {
   SimpleCommandSource& operator=(const SimpleCommandSource& other) = delete;
 
   // Command source overrides
-  CommandSource::CommandResults GetCommands(const std::u16string& input,
+  CommandSource::CommandResults GetCommands(const base::string16& input,
                                             Browser* browser) const override;
 
  private:

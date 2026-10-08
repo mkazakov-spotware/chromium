@@ -1,11 +1,12 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/base/silent_sink_suspender.h"
 
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 
 namespace media {
 
@@ -18,7 +19,7 @@ SilentSinkSuspender::SilentSinkSuspender(
     : callback_(callback),
       params_(params),
       sink_(std::move(sink)),
-      task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+      task_runner_(base::ThreadTaskRunnerHandle::Get()),
       silence_timeout_(silence_timeout),
       fake_sink_(std::move(worker), params_),
       sink_transition_callback_(
@@ -117,10 +118,6 @@ void SilentSinkSuspender::OnRenderError() {
 void SilentSinkSuspender::OnPaused() {
   DCHECK(task_runner_->BelongsToCurrentThread());
 
-  // This is a no-op if the sink isn't running, but must be executed without the
-  // |transition_lock_| being held to avoid possible deadlock.
-  fake_sink_.Stop();
-
   base::AutoLock al(transition_lock_);
 
   // Nothing to do if we haven't touched the sink.
@@ -131,7 +128,12 @@ void SilentSinkSuspender::OnPaused() {
 
   // If we've moved over to the fake sink, we just need to stop it and cancel
   // any pending transitions.
-  is_using_fake_sink_ = false;
+  if (is_using_fake_sink_) {
+    is_using_fake_sink_ = false;
+    fake_sink_.Stop();
+  }
+
+  // Cancel any pending transitions.
   is_transition_pending_ = false;
   first_silence_time_ = base::TimeTicks();
   sink_transition_callback_.Reset(base::BindRepeating(

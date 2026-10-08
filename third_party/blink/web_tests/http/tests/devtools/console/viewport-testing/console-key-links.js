@@ -1,17 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that console links are keyboard navigable.\n`);
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.showPanel('console');
   ConsoleTestRunner.fixConsoleViewportDimensions(600, 200);
   await ConsoleTestRunner.waitUntilConsoleEditorLoaded();
 
   const consoleView = Console.ConsoleView.instance();
-  const viewport = consoleView.viewport;
-  const prompt = consoleView.prompt;
+  const viewport = consoleView._viewport;
+  const prompt = consoleView._prompt;
 
   await TestRunner.evaluateInPagePromise(`
     function fn1() {
@@ -120,7 +120,7 @@
 
   // Utilities.
   async function clearAndLog(expression, expectedCount = 1) {
-    consoleView.consoleCleared();
+    consoleView._consoleCleared();
     TestRunner.addResult(`Evaluating: ${expression}`);
     await TestRunner.evaluateInPagePromise(expression);
     await ConsoleTestRunner.waitForConsoleMessagesPromise(expectedCount);
@@ -138,13 +138,13 @@
   }
 
   function dumpFocus(activeElement, messageIndex = 0, skipObjectCheck) {
-    const firstMessage = consoleView.visibleViewMessages[messageIndex];
+    const firstMessage = consoleView._visibleViewMessages[messageIndex];
     const hasTrace = !!firstMessage.element().querySelector('.console-message-stack-trace-toggle');
     const hasHiddenStackTrace = firstMessage.element().querySelector('.console-message-stack-trace-wrapper > div.hidden');
     const hasCollapsedObject = firstMessage.element().querySelector('.console-view-object-properties-section:not(.expanded)');
     const hasExpandedObject = firstMessage.element().querySelector('.console-view-object-properties-section.expanded');
 
-    TestRunner.addResult(`Viewport virtual selection: ${viewport.virtualSelectedIndex}`);
+    TestRunner.addResult(`Viewport virtual selection: ${viewport._virtualSelectedIndex}`);
 
     if (!skipObjectCheck) {
       if (hasCollapsedObject) {
@@ -164,7 +164,7 @@
 
     if (!activeElement)
       return;
-    var element = Platform.DOMUtilities.deepActiveElement(document);
+    var element = document.deepActiveElement();
     if (!element) {
       TestRunner.addResult('null');
       return;

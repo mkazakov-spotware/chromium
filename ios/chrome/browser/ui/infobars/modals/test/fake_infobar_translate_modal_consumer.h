@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,7 @@
 @property(nonatomic, assign) BOOL shouldDisplayNeverTranslateSiteButton;
 
 // YES if the pref is set to configure the Translate button to trigger
-// -translateWithNewLanguages.
+// translateWithNewLanguages().
 @property(nonatomic, assign) BOOL updateLanguageBeforeTranslate;
 
 // YES if the pref is set to always translate for the source language.
@@ -34,7 +34,7 @@
 // NO if the current pref is set to never translate the source language.
 @property(nonatomic, assign) BOOL isTranslatableLanguage;
 // YES if the pref is set to never translate the current site.
-@property(nonatomic, assign) BOOL isSiteOnNeverPromptList;
+@property(nonatomic, assign) BOOL isSiteBlacklisted;
 @end
 
 #endif  // IOS_CHROME_BROWSER_UI_INFOBARS_MODALS_TEST_FAKE_INFOBAR_TRANSLATE_MODAL_CONSUMER_H_

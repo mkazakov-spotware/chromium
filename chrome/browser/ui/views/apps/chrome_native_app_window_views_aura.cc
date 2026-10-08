@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,11 @@
 #include <utility>
 
 #include "apps/ui/views/app_window_frame_view.h"
+#include "base/macros.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/views/apps/app_window_easy_resize_window_targeter.h"
 #include "chrome/browser/ui/views/apps/shaped_app_window_targeter.h"
-#include "chrome/browser/web_applications/web_app_helpers.h"
+#include "chrome/browser/web_applications/components/web_app_helpers.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_observer.h"
@@ -19,16 +19,17 @@
 #include "ui/gfx/image/image_skia.h"
 #include "ui/views/widget/widget.h"
 
-#if BUILDFLAG(IS_LINUX)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
 #include "chrome/browser/shell_integration_linux.h"
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chrome/browser/lacros/lacros_extensions_util.h"
-#include "chrome/browser/profiles/profile.h"
-#endif
-
 using extensions::AppWindow;
+
+ChromeNativeAppWindowViewsAura::ChromeNativeAppWindowViewsAura() {
+}
+
+ChromeNativeAppWindowViewsAura::~ChromeNativeAppWindowViewsAura() {
+}
 
 ui::WindowShowState
 ChromeNativeAppWindowViewsAura::GetRestorableState(
@@ -55,7 +56,7 @@ void ChromeNativeAppWindowViewsAura::OnBeforeWidgetInit(
     const AppWindow::CreateParams& create_params,
     views::Widget::InitParams* init_params,
     views::Widget* widget) {
-#if BUILDFLAG(IS_LINUX)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
   std::string app_name =
       web_app::GenerateApplicationNameFromAppId(app_window()->extension_id());
   // Set up a custom WM_CLASS for app windows. This allows task switchers in
@@ -65,19 +66,7 @@ void ChromeNativeAppWindowViewsAura::OnBeforeWidgetInit(
   init_params->wm_class_class = shell_integration_linux::GetProgramClassClass();
   const char kX11WindowRoleApp[] = "app";
   init_params->wm_role_name = std::string(kX11WindowRoleApp);
-#endif  // BUILDFLAG(IS_LINUX)
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  init_params->restore_session_id = app_window()->session_id().id();
-  // `MuxId` could return a non-empty string even if extension is null, so don't
-  // save `restore_window_id_source` to avoid that.
-  if (app_window()->GetExtension()) {
-    Profile* profile =
-        Profile::FromBrowserContext(app_window()->browser_context());
-    init_params->restore_window_id_source =
-        lacros_extensions_util::MuxId(profile, app_window()->GetExtension());
-  }
-#endif
+#endif  // defined(OS_LINUX) && !defined(OS_CHROMEOS)
 
   ChromeNativeAppWindowViews::OnBeforeWidgetInit(create_params, init_params,
                                                  widget);
@@ -110,10 +99,9 @@ ui::WindowShowState ChromeNativeAppWindowViewsAura::GetRestoredState() const {
     return ui::SHOW_STATE_FULLSCREEN;
   }
 
-  // Use kRestoreShowStateKey to get the window restore show state in case a
-  // window is minimized/hidden.
+  // Use kPreMinimizedShowStateKey in case a window is minimized/hidden.
   ui::WindowShowState restore_state = widget()->GetNativeWindow()->GetProperty(
-      aura::client::kRestoreShowStateKey);
+      aura::client::kPreMinimizedShowStateKey);
   return GetRestorableState(restore_state);
 }
 

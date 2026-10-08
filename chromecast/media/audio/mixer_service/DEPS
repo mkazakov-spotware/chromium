@@ -1,6 +1,4 @@
 include_rules = [
-  "+chromecast/media/audio/net",
-  "+chromecast/metrics",
   "+chromecast/net",
   "+net",
 ]

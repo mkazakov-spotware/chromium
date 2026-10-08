@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,11 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/threading/platform_thread.h"
 #include "base/threading/simple_thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "ipc/ipc_test_sink.h"
 #include "native_client/src/public/nacl_desc_custom.h"
 #include "native_client/src/trusted/service_runtime/include/sys/fcntl.h"
@@ -35,9 +34,8 @@ class NaClIPCAdapterTest : public testing::Test {
     // Takes ownership of the sink_ pointer. Note we provide the current message
     // loop instead of using a real IO thread. This should work OK since we do
     // not need real IPC for the tests.
-    adapter_ = new NaClIPCAdapter(
-        std::unique_ptr<IPC::Channel>(sink_),
-        base::SingleThreadTaskRunner::GetCurrentDefault().get());
+    adapter_ = new NaClIPCAdapter(std::unique_ptr<IPC::Channel>(sink_),
+                                  base::ThreadTaskRunnerHandle::Get().get());
   }
   void TearDown() override {
     sink_ = nullptr;  // This pointer is actually owned by the IPCAdapter.
@@ -72,7 +70,7 @@ class NaClIPCAdapterTest : public testing::Test {
   //
   // In real life the adapter needs to take ownership so the channel can be
   // destroyed on the right thread.
-  raw_ptr<IPC::TestSink> sink_;
+  IPC::TestSink* sink_;
 };
 
 }  // namespace
@@ -286,7 +284,7 @@ TEST_F(NaClIPCAdapterTest, ReadWithChannelError) {
         : SimpleThread("NaClIPCAdapterThread"),
           adapter_(adapter) {}
     void Run() override {
-      base::PlatformThread::Sleep(base::Seconds(1));
+      base::PlatformThread::Sleep(base::TimeDelta::FromSeconds(1));
       adapter_->OnChannelError();
     }
    private:

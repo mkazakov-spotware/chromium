@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,13 +20,11 @@ namespace ui_devtools {
 
 std::unique_ptr<UiDevToolsServer> CreateUiDevToolsServerForViews(
     network::mojom::NetworkContext* network_context,
-    std::unique_ptr<ConnectorDelegate> connector,
-    const base::FilePath& active_port_output_directory) {
+    std::unique_ptr<ConnectorDelegate> connector) {
   constexpr int kUiDevToolsDefaultPort = 9223;
   int port = UiDevToolsServer::GetUiDevToolsPort(switches::kEnableUiDevTools,
                                                  kUiDevToolsDefaultPort);
-  auto server = UiDevToolsServer::CreateForViews(network_context, port,
-                                                 active_port_output_directory);
+  auto server = UiDevToolsServer::CreateForViews(network_context, port);
   DCHECK(server);
   auto client =
       std::make_unique<UiDevToolsClient>("UiDevToolsClient", server.get());

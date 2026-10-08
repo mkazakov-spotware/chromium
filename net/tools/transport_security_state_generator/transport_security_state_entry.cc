@@ -1,11 +1,13 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/tools/transport_security_state_generator/transport_security_state_entry.h"
 #include "net/tools/huffman_trie/trie/trie_bit_buffer.h"
 
-namespace net::transport_security_state {
+namespace net {
+
+namespace transport_security_state {
 
 namespace {
 
@@ -30,7 +32,7 @@ TransportSecurityStateTrieEntry::TransportSecurityStateTrieEntry(
       pinsets_map_(pinsets_map),
       entry_(entry) {}
 
-TransportSecurityStateTrieEntry::~TransportSecurityStateTrieEntry() = default;
+TransportSecurityStateTrieEntry::~TransportSecurityStateTrieEntry() {}
 
 std::string TransportSecurityStateTrieEntry::name() const {
   return entry_->hostname;
@@ -104,4 +106,6 @@ bool TransportSecurityStateTrieEntry::WriteEntry(
   return true;
 }
 
-}  // namespace net::transport_security_state
+}  // namespace transport_security_state
+
+}  // namespace net

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace invalidation {
+namespace syncer {
 
 namespace {
 
@@ -29,8 +29,6 @@ class TopicInvalidationMapTest : public testing::Test {
     invalidate_all_.Insert(Invalidation::InitUnknownVersion(kTopicOne));
     invalidate_all_.Insert(Invalidation::InitUnknownVersion(kTopicTwo));
   }
-
-  ~TopicInvalidationMapTest() override = default;
 
  protected:
   const Topic kTopicOne;
@@ -82,4 +80,4 @@ TEST_F(TopicInvalidationMapTest, GetSubsetWithTopics) {
 
 }  // namespace
 
-}  // namespace invalidation
+}  // namespace syncer

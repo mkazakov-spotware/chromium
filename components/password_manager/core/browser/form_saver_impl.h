@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,37 +7,34 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/password_manager/core/browser/form_saver.h"
 
 namespace password_manager {
 
-class PasswordStoreInterface;
+class PasswordStore;
 
 // The production code implementation of FormSaver.
 class FormSaverImpl : public FormSaver {
  public:
-  // |store| needs to outlive |this| and will be used for all
-  // PasswordStoreInterface operations.
-  explicit FormSaverImpl(PasswordStoreInterface* store);
-
-  FormSaverImpl(const FormSaverImpl&) = delete;
-  FormSaverImpl& operator=(const FormSaverImpl&) = delete;
+  // |store| needs to outlive |this| and will be used for all PasswordStore
+  // operations.
+  explicit FormSaverImpl(PasswordStore* store);
 
   ~FormSaverImpl() override;
 
   // FormSaver:
-  PasswordForm Blocklist(PasswordFormDigest digest) override;
-  void Unblocklist(const PasswordFormDigest& digest) override;
+  PasswordForm PermanentlyBlacklist(PasswordStore::FormDigest digest) override;
+  void Unblacklist(const PasswordStore::FormDigest& digest) override;
   void Save(PasswordForm pending,
             const std::vector<const PasswordForm*>& matches,
-            const std::u16string& old_password) override;
+            const base::string16& old_password) override;
   void Update(PasswordForm pending,
               const std::vector<const PasswordForm*>& matches,
-              const std::u16string& old_password) override;
+              const base::string16& old_password) override;
   void UpdateReplace(PasswordForm pending,
                      const std::vector<const PasswordForm*>& matches,
-                     const std::u16string& old_password,
+                     const base::string16& old_password,
                      const PasswordForm& old_unique_key) override;
   void Remove(const PasswordForm& form) override;
   std::unique_ptr<FormSaver> Clone() override;
@@ -47,8 +44,10 @@ class FormSaverImpl : public FormSaver {
   // common tasks on the password store. The state should belong to either a
   // form handler or origin handler which could embed FormSaver.
 
-  // Cached pointer to the PasswordStoreInterface.
-  const raw_ptr<PasswordStoreInterface> store_;
+  // Cached pointer to the PasswordStore.
+  PasswordStore* const store_;
+
+  DISALLOW_COPY_AND_ASSIGN(FormSaverImpl);
 };
 
 }  // namespace password_manager

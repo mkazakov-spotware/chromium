@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "device/gamepad/gamepad_export.h"
 #include "device/gamepad/gamepad_provider.h"
 
@@ -40,7 +39,7 @@ class DEVICE_GAMEPAD_EXPORT GamepadDataFetcherManager {
   typedef std::vector<GamepadDataFetcherFactory*> FactoryVector;
   FactoryVector factories_;
 
-  raw_ptr<GamepadProvider> provider_;
+  GamepadProvider* provider_;
 };
 
 }  // namespace device

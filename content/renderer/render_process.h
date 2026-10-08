@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,10 @@
 #define CONTENT_RENDERER_RENDER_PROCESS_H_
 
 #include <memory>
+#include <string>
+#include <vector>
 
+#include "base/macros.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "content/child/child_process.h"
 
@@ -22,12 +25,9 @@ namespace content {
 class RenderProcess : public ChildProcess {
  public:
   RenderProcess() = default;
-  explicit RenderProcess(std::unique_ptr<base::ThreadPoolInstance::InitParams>
-                             thread_pool_init_params);
-
-  RenderProcess(const RenderProcess&) = delete;
-  RenderProcess& operator=(const RenderProcess&) = delete;
-
+  RenderProcess(const std::string& thread_pool_name,
+                std::unique_ptr<base::ThreadPoolInstance::InitParams>
+                    thread_pool_init_params);
   ~RenderProcess() override {}
 
   // Returns a pointer to the RenderProcess singleton instance. Assuming that
@@ -36,6 +36,9 @@ class RenderProcess : public ChildProcess {
   static RenderProcess* current() {
     return static_cast<RenderProcess*>(ChildProcess::current());
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(RenderProcess);
 };
 
 }  // namespace content

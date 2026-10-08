@@ -1,17 +1,14 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/permissions/test/mock_permission_prompt_factory.h"
 
 #include "base/bind.h"
-#include "base/callback.h"
-#include "base/containers/contains.h"
 #include "base/memory/ptr_util.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "components/permissions/permission_request_manager.h"
-#include "components/permissions/request_type.h"
 #include "components/permissions/test/mock_permission_prompt.h"
 #include "content/public/browser/web_contents.h"
 
@@ -23,13 +20,13 @@ MockPermissionPromptFactory::MockPermissionPromptFactory(
       requests_count_(0),
       response_type_(PermissionRequestManager::NONE),
       manager_(manager) {
-  manager->set_view_factory_for_testing(base::BindRepeating(
-      &MockPermissionPromptFactory::Create, base::Unretained(this)));
+  manager->set_view_factory_for_testing(
+      base::Bind(&MockPermissionPromptFactory::Create, base::Unretained(this)));
 }
 
 MockPermissionPromptFactory::~MockPermissionPromptFactory() {
   manager_->set_view_factory_for_testing(
-      base::BindRepeating(&MockPermissionPromptFactory::DoNotCreate));
+      base::Bind(&MockPermissionPromptFactory::DoNotCreate));
   for (auto* prompt : prompts_)
     prompt->factory_ = nullptr;
   prompts_.clear();
@@ -44,8 +41,8 @@ std::unique_ptr<PermissionPrompt> MockPermissionPromptFactory::Create(
   show_count_++;
   requests_count_ = delegate->Requests().size();
   for (const PermissionRequest* request : delegate->Requests()) {
-    request_types_seen_.push_back(request->request_type());
-    request_origins_seen_.push_back(request->requesting_origin());
+    request_types_seen_.push_back(request->GetPermissionRequestType());
+    request_origins_seen_.push_back(request->GetOrigin());
   }
 
   if (!show_bubble_quit_closure_.is_null())
@@ -62,8 +59,8 @@ void MockPermissionPromptFactory::ResetCounts() {
   request_origins_seen_.clear();
 }
 
-void MockPermissionPromptFactory::DocumentOnLoadCompletedInPrimaryMainFrame() {
-  manager_->DocumentOnLoadCompletedInPrimaryMainFrame();
+void MockPermissionPromptFactory::DocumentOnLoadCompletedInMainFrame() {
+  manager_->DocumentOnLoadCompletedInMainFrame();
 }
 
 bool MockPermissionPromptFactory::is_visible() {
@@ -74,7 +71,7 @@ int MockPermissionPromptFactory::TotalRequestCount() {
   return request_types_seen_.size();
 }
 
-bool MockPermissionPromptFactory::RequestTypeSeen(RequestType type) {
+bool MockPermissionPromptFactory::RequestTypeSeen(PermissionRequestType type) {
   return base::Contains(request_types_seen_, type);
 }
 
@@ -89,7 +86,7 @@ void MockPermissionPromptFactory::WaitForPermissionBubble() {
   base::RunLoop loop;
   show_bubble_quit_closure_ = loop.QuitClosure();
   loop.Run();
-  show_bubble_quit_closure_ = base::RepeatingClosure();
+  show_bubble_quit_closure_ = base::Closure();
 }
 
 // static
@@ -101,7 +98,7 @@ std::unique_ptr<PermissionPrompt> MockPermissionPromptFactory::DoNotCreate(
 }
 
 void MockPermissionPromptFactory::HideView(MockPermissionPrompt* prompt) {
-  auto it = base::ranges::find(prompts_, prompt);
+  auto it = std::find(prompts_.begin(), prompts_.end(), prompt);
   if (it != prompts_.end())
     prompts_.erase(it);
 }

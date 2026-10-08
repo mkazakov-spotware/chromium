@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "ash/ash_export.h"
 #include "ash/system/tray/tray_popup_ink_drop_style.h"
+#include "base/macros.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/views/controls/button/button.h"
 
@@ -26,9 +27,6 @@ class ASH_EXPORT ActionableView : public views::Button {
   static const char kViewClassName[];
 
   explicit ActionableView(TrayPopupInkDropStyle ink_drop_style);
-
-  ActionableView(const ActionableView&) = delete;
-  ActionableView& operator=(const ActionableView&) = delete;
 
   ~ActionableView() override;
 
@@ -50,6 +48,10 @@ class ASH_EXPORT ActionableView : public views::Button {
   const char* GetClassName() const override;
   bool OnKeyPressed(const ui::KeyEvent& event) override;
   void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
+  std::unique_ptr<views::InkDrop> CreateInkDrop() override;
+  std::unique_ptr<views::InkDropRipple> CreateInkDropRipple() const override;
+  std::unique_ptr<views::InkDropHighlight> CreateInkDropHighlight()
+      const override;
 
  private:
   void ButtonPressed(const ui::Event& event);
@@ -57,10 +59,12 @@ class ASH_EXPORT ActionableView : public views::Button {
   // Used by ButtonPressed() to determine whether |this| has been destroyed as a
   // result of performing the associated action. This is necessary because in
   // the not-destroyed case ButtonPressed() uses member variables.
-  bool* destroyed_ = nullptr;
+  bool* destroyed_;
 
   // Defines the flavor of ink drop ripple/highlight that should be constructed.
   const TrayPopupInkDropStyle ink_drop_style_;
+
+  DISALLOW_COPY_AND_ASSIGN(ActionableView);
 };
 
 }  // namespace ash

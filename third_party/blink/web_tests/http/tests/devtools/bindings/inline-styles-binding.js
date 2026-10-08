@@ -1,10 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Editing inline styles should play nice with inline scripts.\n`);
-  await TestRunner.loadTestModule('bindings_test_runner');
+  await TestRunner.loadModule('bindings_test_runner');
 
   await TestRunner.navigatePromise('./resources/inline-style.html');
   const uiSourceCode = await TestRunner.waitForUISourceCode('inline-style.html', Workspace.projectTypes.Network);

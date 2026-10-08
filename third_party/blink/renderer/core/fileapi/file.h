@@ -26,19 +26,20 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_FILEAPI_FILE_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_FILEAPI_FILE_H_
 
-#include "base/dcheck_is_on.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/optional.h"
 #include "base/time/time.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "third_party/blink/renderer/bindings/core/v8/array_buffer_or_array_buffer_view_or_blob_or_usv_string.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/fileapi/blob.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
 
 class ExceptionState;
+class ExecutionContext;
 class FilePropertyBag;
 class FileMetadata;
 class FormControlState;
@@ -61,10 +62,11 @@ class CORE_EXPORT File final : public Blob {
   enum UserVisibility { kIsUserVisible, kIsNotUserVisible };
 
   // Constructor in File.idl
-  static File* Create(ExecutionContext*,
-                      const HeapVector<Member<V8BlobPart>>& file_bits,
-                      const String& file_name,
-                      const FilePropertyBag* options);
+  static File* Create(
+      ExecutionContext*,
+      const HeapVector<ArrayBufferOrArrayBufferViewOrBlobOrUSVString>&,
+      const String& file_name,
+      const FilePropertyBag*);
 
   // For deserialization.
   static File* CreateFromSerialization(
@@ -74,7 +76,7 @@ class CORE_EXPORT File final : public Blob {
       UserVisibility user_visibility,
       bool has_snapshot_data,
       uint64_t size,
-      const absl::optional<base::Time>& last_modified,
+      const base::Optional<base::Time>& last_modified,
       scoped_refptr<BlobDataHandle> blob_data_handle) {
     return MakeGarbageCollected<File>(
         path, name, relative_path, user_visibility, has_snapshot_data, size,
@@ -83,7 +85,7 @@ class CORE_EXPORT File final : public Blob {
   static File* CreateFromIndexedSerialization(
       const String& name,
       uint64_t size,
-      const absl::optional<base::Time>& last_modified,
+      const base::Optional<base::Time>& last_modified,
       scoped_refptr<BlobDataHandle> blob_data_handle) {
     return MakeGarbageCollected<File>(
         String(), name, String(), kIsNotUserVisible, true, size, last_modified,
@@ -112,32 +114,15 @@ class CORE_EXPORT File final : public Blob {
     return MakeGarbageCollected<File>(name, metadata, user_visibility);
   }
 
-  // KURL has a String() operator, so if this signature is called and not
-  // deleted it will overload to the signature above
-  // `CreateForFileSystemFile(String, FileMetadata, user_visibility)`.
   static File* CreateForFileSystemFile(const KURL& url,
                                        const FileMetadata& metadata,
-                                       UserVisibility user_visibility) = delete;
-
-  static File* CreateForFileSystemFile(
-      const KURL& url,
-      const FileMetadata& metadata,
-      UserVisibility user_visibility,
-      scoped_refptr<BlobDataHandle> blob_data_handle) {
-    return MakeGarbageCollected<File>(url, metadata, user_visibility,
-                                      std::move(blob_data_handle));
+                                       UserVisibility user_visibility) {
+    return MakeGarbageCollected<File>(url, metadata, user_visibility);
   }
 
-  // Calls RegisterBlob through the relevant FileSystemManager, then constructs
-  // a File with the resulting BlobDataHandle.
-  static File* CreateForFileSystemFile(ExecutionContext& context,
-                                       const KURL& url,
-                                       const FileMetadata& metadata,
-                                       UserVisibility user_visibility);
-
-  explicit File(const String& path,
-                ContentTypeLookupPolicy = kWellKnownContentTypes,
-                UserVisibility = File::kIsUserVisible);
+  File(const String& path,
+       ContentTypeLookupPolicy = kWellKnownContentTypes,
+       UserVisibility = File::kIsUserVisible);
   File(const String& path,
        const String& name,
        ContentTypeLookupPolicy,
@@ -148,17 +133,13 @@ class CORE_EXPORT File final : public Blob {
        UserVisibility,
        bool has_snapshot_data,
        uint64_t size,
-       const absl::optional<base::Time>& last_modified,
+       const base::Optional<base::Time>& last_modified,
        scoped_refptr<BlobDataHandle>);
   File(const String& name,
-       const absl::optional<base::Time>& modification_time,
+       const base::Optional<base::Time>& modification_time,
        scoped_refptr<BlobDataHandle>);
   File(const String& name, const FileMetadata&, UserVisibility);
-  File(const KURL& file_system_url,
-       const FileMetadata& metadata,
-       UserVisibility user_visibility,
-       scoped_refptr<BlobDataHandle> blob_data_handle);
-
+  File(const KURL& file_system_url, const FileMetadata&, UserVisibility);
   File(const File&);
 
   KURL FileSystemURL() const {
@@ -172,7 +153,7 @@ class CORE_EXPORT File final : public Blob {
   // associated DOM properties) that differs from the one provided in the path.
   static File* CreateForUserProvidedFile(const String& path,
                                          const String& display_name) {
-    if (display_name.empty()) {
+    if (display_name.IsEmpty()) {
       return MakeGarbageCollected<File>(path, File::kAllContentTypes,
                                         File::kIsUserVisible);
     }
@@ -184,7 +165,7 @@ class CORE_EXPORT File final : public Blob {
       const String& path,
       const String& name,
       ContentTypeLookupPolicy policy = kWellKnownContentTypes) {
-    if (name.empty())
+    if (name.IsEmpty())
       return MakeGarbageCollected<File>(path, policy, File::kIsNotUserVisible);
     return MakeGarbageCollected<File>(path, name, policy,
                                       File::kIsNotUserVisible);
@@ -223,13 +204,13 @@ class CORE_EXPORT File final : public Blob {
   // If the modification time isn't known, the current time is returned.
   base::Time LastModifiedTime() const;
 
-  // Similar to |LastModifiedTime()|, except this returns absl::nullopt rather
+  // Similar to |LastModifiedTime()|, except this returns base::nullopt rather
   // than the current time if the modified time is unknown.
   // This is used by SerializedScriptValue to serialize the last modified time
   // of a File object.
   // This method calls CaptureSnapshotIfNeeded, and thus can involve synchronous
   // IPC and file operations.
-  absl::optional<base::Time> LastModifiedTimeForSerialization() const;
+  base::Optional<base::Time> LastModifiedTimeForSerialization() const;
 
   UserVisibility GetUserVisibility() const { return user_visibility_; }
 
@@ -259,7 +240,7 @@ class CORE_EXPORT File final : public Blob {
     return !HasBackingFile() || file_system_url_.IsEmpty();
   }
   // Instances not backed by a file must have an empty path set.
-  bool HasValidFilePath() const { return HasBackingFile() || path_.empty(); }
+  bool HasValidFilePath() const { return HasBackingFile() || path_.IsEmpty(); }
 #endif
 
   bool has_backing_file_;
@@ -273,8 +254,8 @@ class CORE_EXPORT File final : public Blob {
   // we retrieve the latest metadata synchronously in size(),
   // LastModifiedTime() and slice().
   // Otherwise, the snapshot metadata are used directly in those methods.
-  mutable absl::optional<uint64_t> snapshot_size_;
-  mutable absl::optional<base::Time> snapshot_modification_time_;
+  mutable base::Optional<uint64_t> snapshot_size_;
+  mutable base::Optional<base::Time> snapshot_modification_time_;
 
   String relative_path_;
 };

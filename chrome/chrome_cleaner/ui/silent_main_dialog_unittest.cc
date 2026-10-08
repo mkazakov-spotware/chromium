@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -85,8 +85,7 @@ class ConfirmCleanupSilentMainDialogTest
   ::testing::NiceMock<MockSettings> mock_settings_;
 };
 
-// Flaky, see: crbug.com/1189076.
-TEST_P(ConfirmCleanupSilentMainDialogTest, DISABLED_ConfirmCleanup) {
+TEST_P(ConfirmCleanupSilentMainDialogTest, ConfirmCleanup) {
   constexpr UwSId kFakePupId = 1024;
   FileTypeToTest file_type_to_test = GetParam();
 

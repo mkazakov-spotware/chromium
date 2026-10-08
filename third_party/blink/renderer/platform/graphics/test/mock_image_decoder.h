@@ -32,7 +32,6 @@
 #include "base/memory/ptr_util.h"
 #include "third_party/blink/renderer/platform/graphics/image_frame_generator.h"
 #include "third_party/blink/renderer/platform/image-decoders/image_decoder.h"
-#include "third_party/skia/include/core/SkColorSpace.h"
 
 namespace blink {
 
@@ -42,11 +41,11 @@ class MockImageDecoderClient {
 
   virtual void DecoderBeingDestroyed() = 0;
   virtual void DecodeRequested() = 0;
-  virtual ImageFrame::Status GetStatus(wtf_size_t index) = 0;
-  virtual wtf_size_t FrameCount() = 0;
+  virtual ImageFrame::Status GetStatus(size_t index) = 0;
+  virtual size_t FrameCount() = 0;
   virtual int RepetitionCount() const = 0;
   virtual base::TimeDelta FrameDuration() const = 0;
-  virtual void ClearCacheExceptFrameRequested(wtf_size_t) {}
+  virtual void ClearCacheExceptFrameRequested(size_t) {}
   virtual void MemoryAllocatorSet() {}
 
   // Clients can control the behavior of MockImageDecoder::decodedSize() by
@@ -54,7 +53,7 @@ class MockImageDecoderClient {
   // MockImageDecoder::decodedSize() to return the same thing as
   // MockImageDecoder::size(). See the precise implementation of
   // MockImageDecoder::decodedSize() below.
-  virtual gfx::Size DecodedSize() const { return gfx::Size(); }
+  virtual IntSize DecodedSize() const { return IntSize(); }
 
   void ForceFirstFrameToBeEmpty() { first_frame_forced_to_be_empty_ = true; }
 
@@ -78,7 +77,7 @@ class MockImageDecoder : public ImageDecoder {
 
   ~MockImageDecoder() override { client_->DecoderBeingDestroyed(); }
 
-  gfx::Size DecodedSize() const override {
+  IntSize DecodedSize() const override {
     return client_->DecodedSize().IsEmpty() ? Size() : client_->DecodedSize();
   }
 
@@ -86,27 +85,27 @@ class MockImageDecoder : public ImageDecoder {
 
   int RepetitionCount() const override { return client_->RepetitionCount(); }
 
-  bool FrameIsReceivedAtIndex(wtf_size_t index) const override {
+  bool FrameIsReceivedAtIndex(size_t index) const override {
     return client_->GetStatus(index) == ImageFrame::kFrameComplete;
   }
 
-  base::TimeDelta FrameDurationAtIndex(wtf_size_t) const override {
+  base::TimeDelta FrameDurationAtIndex(size_t) const override {
     return client_->FrameDuration();
   }
 
-  wtf_size_t ClearCacheExceptFrame(wtf_size_t clear_except_frame) override {
+  size_t ClearCacheExceptFrame(size_t clear_except_frame) override {
     client_->ClearCacheExceptFrameRequested(clear_except_frame);
     return 0;
   }
 
-  wtf_size_t FrameBytesAtIndex(wtf_size_t index) const override {
+  size_t FrameBytesAtIndex(size_t index) const override {
     if (client_->FirstFrameForcedToBeEmpty() && index == 0)
       return 0;
     return ImageDecoder::FrameBytesAtIndex(index);
   }
 
   void SetMemoryAllocator(SkBitmap::Allocator* allocator) override {
-    if (frame_buffer_cache_.empty()) {
+    if (frame_buffer_cache_.IsEmpty()) {
       // Ensure that InitializeNewFrame is called, after parsing if
       // necessary.
       if (!FrameCount())
@@ -120,18 +119,18 @@ class MockImageDecoder : public ImageDecoder {
  private:
   void DecodeSize() override {}
 
-  wtf_size_t DecodeFrameCount() override { return client_->FrameCount(); }
+  size_t DecodeFrameCount() override { return client_->FrameCount(); }
 
-  void Decode(wtf_size_t index) override {
+  void Decode(size_t index) override {
     client_->DecodeRequested();
     frame_buffer_cache_[index].ClearPixelData();
     InitializeNewFrame(index);
     frame_buffer_cache_[index].SetStatus(client_->GetStatus(index));
   }
 
-  void InitializeNewFrame(wtf_size_t index) override {
+  void InitializeNewFrame(size_t index) override {
     if (frame_buffer_cache_[index].AllocatePixelData(
-            Size().width(), Size().height(), ColorSpaceForSkImages()))
+            Size().Width(), Size().Height(), ColorSpaceForSkImages()))
       frame_buffer_cache_[index].ZeroFillPixelData();
     frame_buffer_cache_[index].SetHasAlpha(false);
   }
@@ -145,29 +144,29 @@ class MockImageDecoderFactory : public ImageDecoderFactory {
       MockImageDecoderClient* client,
       const SkISize& decoded_size) {
     return base::WrapUnique(new MockImageDecoderFactory(
-        client, gfx::Size(decoded_size.width(), decoded_size.height())));
+        client, IntSize(decoded_size.width(), decoded_size.height())));
   }
 
   static std::unique_ptr<MockImageDecoderFactory> Create(
       MockImageDecoderClient* client,
-      const gfx::Size& decoded_size) {
+      const IntSize& decoded_size) {
     return base::WrapUnique(new MockImageDecoderFactory(client, decoded_size));
   }
 
   std::unique_ptr<ImageDecoder> Create() override {
     auto decoder = std::make_unique<MockImageDecoder>(client_);
-    decoder->SetSize(static_cast<unsigned>(decoded_size_.width()),
-                     static_cast<unsigned>(decoded_size_.height()));
+    decoder->SetSize(static_cast<unsigned>(decoded_size_.Width()),
+                     static_cast<unsigned>(decoded_size_.Height()));
     return std::move(decoder);
   }
 
  private:
   MockImageDecoderFactory(MockImageDecoderClient* client,
-                          const gfx::Size& decoded_size)
+                          const IntSize& decoded_size)
       : client_(client), decoded_size_(decoded_size) {}
 
   MockImageDecoderClient* client_;
-  gfx::Size decoded_size_;
+  IntSize decoded_size_;
 };
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,9 @@
 #define CHROME_BROWSER_PASSWORD_MANAGER_ANDROID_ALL_PASSWORDS_BOTTOM_SHEET_HELPER_H_
 
 #include "base/callback_forward.h"
-#include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "components/autofill/core/common/mojom/autofill_types.mojom-shared.h"
 #include "components/password_manager/core/browser/password_store_consumer.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 // This class helps to determine the visibility of the "All Passwords Sheet"
 // button by requesting whether there are any passwords stored at all.
@@ -20,7 +19,7 @@ class AllPasswordsBottomSheetHelper
     : public password_manager::PasswordStoreConsumer {
  public:
   explicit AllPasswordsBottomSheetHelper(
-      password_manager::PasswordStoreInterface* store);
+      password_manager::PasswordStore* store);
   AllPasswordsBottomSheetHelper(const AllPasswordsBottomSheetHelper&) = delete;
   AllPasswordsBottomSheetHelper& operator=(
       const AllPasswordsBottomSheetHelper&) = delete;
@@ -28,8 +27,11 @@ class AllPasswordsBottomSheetHelper
 
   // Returns the number of found credentials only if the helper already finished
   // querying the password store.
-  absl::optional<size_t> available_credentials() const {
+  base::Optional<size_t> available_credentials() const {
     return available_credentials_;
+  }
+  autofill::mojom::FocusedFieldType last_focused_field_type() const {
+    return last_focused_field_type_;
   }
 
   void SetLastFocusedFieldType(
@@ -48,14 +50,12 @@ class AllPasswordsBottomSheetHelper
   base::OnceClosure update_callback_;
 
   // Stores whether the store returned credentials the sheet can show.
-  absl::optional<size_t> available_credentials_ = absl::nullopt;
+  base::Optional<size_t> available_credentials_ = base::nullopt;
 
   // Records the last focused field type to infer whether an update should be
   // triggered if the store returns suggestions.
   autofill::mojom::FocusedFieldType last_focused_field_type_ =
       autofill::mojom::FocusedFieldType::kUnknown;
-
-  base::WeakPtrFactory<AllPasswordsBottomSheetHelper> weak_ptr_factory_{this};
 };
 
 #endif  // CHROME_BROWSER_PASSWORD_MANAGER_ANDROID_ALL_PASSWORDS_BOTTOM_SHEET_HELPER_H_

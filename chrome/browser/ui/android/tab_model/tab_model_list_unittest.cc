@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
-#include "chrome/browser/flags/android/chrome_session_state.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "chrome/test/base/testing_profile.h"
 #include "content/public/browser/web_contents.h"
@@ -16,18 +15,13 @@ class TabModelListTest : public ChromeRenderViewHostTestHarness {};
 class TestTabModel : public TabModel {
  public:
   explicit TestTabModel(Profile* profile)
-      : TabModel(profile, chrome::android::ActivityType::kCustomTab),
-        tab_count_(0) {}
+      : TabModel(profile, false), tab_count_(0) {}
 
   int GetTabCount() const override { return tab_count_; }
   int GetActiveIndex() const override { return 0; }
   content::WebContents* GetWebContentsAt(int index) const override {
     return nullptr;
   }
-  base::android::ScopedJavaLocalRef<jobject> GetJavaObject() const override {
-    return nullptr;
-  }
-
   void CreateTab(TabAndroid* parent,
                  content::WebContents* web_contents) override {}
   void HandlePopupNavigation(TabAndroid* parent,

@@ -1,13 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/audio/mic_gain_slider_controller.h"
 
-#include "ash/constants/quick_settings_catalogs.h"
 #include "ash/system/audio/mic_gain_slider_view.h"
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
+
+using chromeos::CrasAudioHandler;
 
 namespace ash {
 
@@ -37,11 +38,7 @@ void MicGainSliderController::SetMapDeviceSliderCallbackForTest(
 }
 
 views::View* MicGainSliderController::CreateView() {
-  return new MicGainSliderView(this);
-}
-
-QsSliderCatalogName MicGainSliderController::GetCatalogName() {
-  return QsSliderCatalogName::kMicGain;
+  return nullptr;
 }
 
 void MicGainSliderController::SliderValueChanged(
@@ -58,21 +55,18 @@ void MicGainSliderController::SliderValueChanged(
         CrasAudioHandler::Get()->GetPrimaryActiveInputNode(), false);
   }
 
-  const int level = value * 100;
-  if (level != CrasAudioHandler::Get()->GetInputGainPercent()) {
-    TrackValueChangeUMA(/*going_up=*/level >
-                        CrasAudioHandler::Get()->GetInputGainPercent());
-  }
+  base::RecordAction(base::UserMetricsAction("StatusArea_Mic_Gain_Changed"));
 
-  CrasAudioHandler::Get()->SetInputGainPercent(level);
+  CrasAudioHandler::Get()->SetInputGainPercent(value * 100);
 }
 
 void MicGainSliderController::SliderButtonPressed() {
   auto* const audio_handler = CrasAudioHandler::Get();
   const bool mute = !audio_handler->IsInputMuted();
-
-  TrackToggleUMA(/*target_toggle_state=*/mute);
-
+  if (mute)
+    base::RecordAction(base::UserMetricsAction("StatusArea_Mic_Muted"));
+  else
+    base::RecordAction(base::UserMetricsAction("StatusArea_Mic_Unmuted"));
   audio_handler->SetMuteForDevice(audio_handler->GetPrimaryActiveInputNode(),
                                   mute);
 }

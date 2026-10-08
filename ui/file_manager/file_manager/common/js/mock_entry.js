@@ -1,8 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {util} from './util.js';
+// #import * as wrappedUtil from './util.m.js'; const {util} = wrappedUtil;
 
 /**
  * Joins paths so that the two paths are connected by only 1 '/'.
@@ -10,7 +10,7 @@ import {util} from './util.js';
  * @param {string} b Path.
  * @return {string} Joined path.
  */
-export function joinPath(a, b) {
+function joinPath(a, b) {
   return a.replace(/\/+$/, '') + '/' + b.replace(/^\/+/, '');
 }
 
@@ -19,7 +19,7 @@ export function joinPath(a, b) {
  *
  * @extends {FileSystem}
  */
-export class MockFileSystem {
+/* #export */ class MockFileSystem {
   /**
    * @param {string} volumeId Volume ID.
    * @param {string=} opt_rootURL URL string of root which is used in
@@ -107,7 +107,7 @@ export class MockFileSystem {
 }
 
 /** @interface */
-export class MockEntryInterface {
+/* #export */ class MockEntryInterface {
   /**
    * Clones the entry with the new fullpath.
    *
@@ -124,7 +124,7 @@ export class MockEntryInterface {
  * @extends {Entry}
  * @implements {MockEntryInterface}
  */
-export class MockEntry {
+/* #export */ class MockEntry {
   /**
    * @param {FileSystem} filesystem File system where the entry is located.
    * @param {string} fullPath Full path of the entry.
@@ -156,8 +156,7 @@ export class MockEntry {
     if (this.filesystem.entries[this.fullPath]) {
       onSuccess(this.metadata);
     } else {
-      onError(
-          /** @type {!FileError} */ ({name: util.FileError.NOT_FOUND_ERR}));
+      onError(/** @type {!FileError} */ ({name: util.FileError.NOT_FOUND_ERR}));
     }
   }
 
@@ -188,8 +187,7 @@ export class MockEntry {
     if (this.filesystem.entries[path]) {
       onSuccess(this.filesystem.entries[path]);
     } else {
-      onError(
-          /** @type {!FileError} */ ({name: util.FileError.NOT_FOUND_ERR}));
+      onError(/** @type {!FileError} */ ({name: util.FileError.NOT_FOUND_ERR}));
     }
   }
 
@@ -200,8 +198,8 @@ export class MockEntry {
    * @param {string=} opt_newName New name.
    * @param {function(!Entry)=} opt_successCallback Callback invoked with the
    *     moved entry.
-   * @param {function(!FileError)=} opt_errorCallback Callback invoked with
-   *     an error object.
+   * @param {function(!FileError)=} opt_errorCallback Callback invoked with an
+   *     error object.
    */
   moveTo(parent, opt_newName, opt_successCallback, opt_errorCallback) {
     Promise.resolve()
@@ -283,11 +281,7 @@ export class MockEntry {
     }
   }
 
-  /**
-   * @param {string} fullpath New fullpath.
-   * @param {FileSystem=} opt_filesystem New file system
-   * @return {Entry} Cloned entry.
-   */
+  /** @override */
   clone(fullpath, opt_filesystem) {
     throw new Error('Not implemented.');
   }
@@ -298,7 +292,7 @@ export class MockEntry {
  *
  * @implements {MockEntryInterface}
  */
-export class MockFileEntry extends MockEntry {
+/* #export */ class MockFileEntry extends MockEntry {
   /**
    * @param {FileSystem} filesystem File system where the entry is located.
    * @param {string} fullPath Full path for the entry.
@@ -373,7 +367,7 @@ export class MockFileEntry extends MockEntry {
  * Mock class for FileWriter.
  * @extends {FileWriter}
  */
-export class MockFileWriter {
+/* #export */ class MockFileWriter {
   /**
    * @param {!MockFileEntry} entry
    */
@@ -398,7 +392,7 @@ export class MockFileWriter {
  *
  * @implements {MockEntryInterface}
  */
-export class MockDirectoryEntry extends MockEntry {
+/* #export */ class MockDirectoryEntry extends MockEntry {
   /**
    * @param {FileSystem} filesystem File system where the entry is located.
    * @param {string} fullPath Full path for the entry.
@@ -526,7 +520,7 @@ export class MockDirectoryEntry extends MockEntry {
  * Mock class for DirectoryReader.
  * @extends {DirectoryReader}
  */
-export class MockDirectoryReader {
+/* #export */ class MockDirectoryReader {
   /**
    * @param {!Array<!Entry>} entries
    */

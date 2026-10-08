@@ -1,12 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/test/launcher/test_result.h"
 
 #include <stddef.h>
-
-#include <ostream>
 
 #include "base/check_op.h"
 #include "base/notreached.h"
@@ -47,6 +45,8 @@ std::string TestResultPart::TypeAsString() const {
       return "fatal_failure";
     case kSkip:
       return "skip";
+    default:
+      NOTREACHED();
   }
   return "unknown";
 }
@@ -101,19 +101,9 @@ std::string TestResult::GetTestCaseName() const {
 }
 
 void TestResult::AddLink(const std::string& name, const std::string& url) {
-  auto [it, inserted] = links.insert({name, url});
-  DCHECK(inserted) << name << " is already used as a link name. Ignoring...";
-}
-
-void TestResult::AddTag(const std::string& name, const std::string& value) {
-  tags.insert({name, value});
-}
-
-void TestResult::AddProperty(const std::string& name,
-                             const std::string& value) {
-  auto [it, inserted] = properties.insert({name, value});
-  DCHECK(inserted) << name
-                   << " is already used as a property name. Ignoring...";
+  DCHECK(links.find(name) == links.end())
+      << name << " is already used as a link name. Ignoring...";
+  links[name] = url;
 }
 
 }  // namespace base

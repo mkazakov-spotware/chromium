@@ -1,33 +1,23 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/public/common/privacy_budget/identifiability_study_settings.h"
 
-#include <initializer_list>
 #include <random>
 
 #include "base/check.h"
 #include "base/compiler_specific.h"
 #include "base/no_destructor.h"
+#include "base/optional.h"
+#include "base/rand_util.h"
 #include "base/synchronization/atomic_flag.h"
 #include "base/threading/sequence_local_storage_slot.h"
-#include "base/trace_event/common/trace_event_common.h"
-#include "base/trace_event/trace_event.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/privacy_budget/identifiability_study_settings_provider.h"
-#include "third_party/blink/public/common/privacy_budget/identifiable_surface.h"
 
 namespace blink {
 
 namespace {
-
-bool IdentifiabilityTracingEnabled() {
-  bool tracing_enabled;
-  TRACE_EVENT_CATEGORY_GROUP_ENABLED(
-      TRACE_DISABLED_BY_DEFAULT("identifiability"), &tracing_enabled);
-  return tracing_enabled;
-}
 
 // IdentifiabilityStudySettings is meant to be used as a global singleton. Its
 // use is subject to the following constraints.
@@ -89,10 +79,46 @@ class ThreadsafeSettingsWrapper {
   }
 
  private:
-  absl::optional<IdentifiabilityStudySettings> initialized_settings_;
+  base::Optional<IdentifiabilityStudySettings> initialized_settings_;
   const IdentifiabilityStudySettings default_settings_;
   base::AtomicFlag initialized_;
 };
+
+// RandGenerator de-biasing implementation stolen from //base/rand_util.h, and
+// adapted to work with passed-in RNGs.
+template <typename G>
+uint64_t RandGenerator(uint64_t range, G& generator) {
+  DCHECK_GT(range, 0u);
+  // We must discard random results above this number, as they would
+  // make the random generator non-uniform (consider e.g. if
+  // MAX_UINT64 was 7 and |range| was 5, then a result of 1 would be twice
+  // as likely as a result of 3 or 4).
+  uint64_t max_acceptable_value =
+      (std::numeric_limits<uint64_t>::max() / range) * range - 1;
+
+  uint64_t value;
+  do {
+    value = generator();
+  } while (value > max_acceptable_value);
+
+  return value % range;
+}
+
+bool DecideSample(int sample_rate) {
+  static base::NoDestructor<base::SequenceLocalStorageSlot<std::mt19937_64>>
+      prng;
+
+  if (sample_rate == 0)
+    return false;
+
+  if (sample_rate == 1)
+    return true;
+
+  if (!prng->GetValuePointer())
+    prng->emplace(base::RandUint64());
+
+  return RandGenerator(sample_rate, **prng) == 0;
+}
 
 }  // namespace
 
@@ -128,15 +154,9 @@ bool IdentifiabilityStudySettings::IsActive() const {
   return is_enabled_;
 }
 
-bool IdentifiabilityStudySettings::ShouldSampleWebFeature(
-    mojom::WebFeature feature) const {
-  return ShouldSampleSurface(IdentifiableSurface::FromTypeAndToken(
-      IdentifiableSurface::Type::kWebFeature, feature));
-}
-
-bool IdentifiabilityStudySettings::ShouldSampleSurface(
+bool IdentifiabilityStudySettings::IsSurfaceAllowed(
     IdentifiableSurface surface) const {
-  if (LIKELY(!ShouldSampleAnything()))
+  if (LIKELY(!is_enabled_))
     return false;
 
   if (LIKELY(!is_any_surface_or_type_blocked_))
@@ -145,9 +165,9 @@ bool IdentifiabilityStudySettings::ShouldSampleSurface(
   return provider_->IsSurfaceAllowed(surface);
 }
 
-bool IdentifiabilityStudySettings::ShouldSampleType(
+bool IdentifiabilityStudySettings::IsTypeAllowed(
     IdentifiableSurface::Type type) const {
-  if (LIKELY(!ShouldSampleAnything()))
+  if (LIKELY(!is_enabled_))
     return false;
 
   if (LIKELY(!is_any_surface_or_type_blocked_))
@@ -156,35 +176,26 @@ bool IdentifiabilityStudySettings::ShouldSampleType(
   return provider_->IsTypeAllowed(type);
 }
 
-bool IdentifiabilityStudySettings::ShouldSampleAnyType(
-    std::initializer_list<IdentifiableSurface::Type> types) const {
-  if (LIKELY(!ShouldSampleAnything()))
+bool IdentifiabilityStudySettings::IsWebFeatureAllowed(
+    mojom::WebFeature feature) const {
+  return IsSurfaceAllowed(IdentifiableSurface::FromTypeAndToken(
+      IdentifiableSurface::Type::kWebFeature, feature));
+}
+
+bool IdentifiabilityStudySettings::ShouldSample(
+    IdentifiableSurface surface) const {
+  if (LIKELY(!is_enabled_))
     return false;
 
-  if (LIKELY(!is_any_surface_or_type_blocked_))
-    return true;
-
-  for (IdentifiableSurface::Type type : types) {
-    if (provider_->IsTypeAllowed(type))
-      return true;
-  }
-
-  return false;
+  return DecideSample(provider_->SampleRate(surface));
 }
 
-bool IdentifiabilityStudySettings::ShouldSampleAnything() const {
-  return IsActive() || IdentifiabilityTracingEnabled();
-}
-
-bool IdentifiabilityStudySettings::ShouldActivelySample() const {
-  if (LIKELY(!IsActive()))
+bool IdentifiabilityStudySettings::ShouldSample(
+    IdentifiableSurface::Type type) const {
+  if (LIKELY(!is_enabled_))
     return false;
-  return provider_->ShouldActivelySample();
-}
 
-std::vector<std::string>
-IdentifiabilityStudySettings::FontFamiliesToActivelySample() const {
-  return provider_->FontFamiliesToActivelySample();
+  return DecideSample(provider_->SampleRate(type));
 }
 
 }  // namespace blink

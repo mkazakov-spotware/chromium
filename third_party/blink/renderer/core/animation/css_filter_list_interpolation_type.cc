@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "third_party/blink/renderer/core/css/css_identifier_value.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/css/css_value_list.h"
-#include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver_state.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
 
@@ -26,7 +25,7 @@ const FilterOperations& GetFilterList(const CSSProperty& property,
   switch (property.PropertyID()) {
     default:
       NOTREACHED();
-      [[fallthrough]];
+      FALLTHROUGH;
     case CSSPropertyID::kBackdropFilter:
       return style.BackdropFilter();
     case CSSPropertyID::kFilter:
@@ -35,14 +34,14 @@ const FilterOperations& GetFilterList(const CSSProperty& property,
 }
 
 void SetFilterList(const CSSProperty& property,
-                   ComputedStyleBuilder& builder,
+                   ComputedStyle& style,
                    const FilterOperations& filter_operations) {
   switch (property.PropertyID()) {
     case CSSPropertyID::kBackdropFilter:
-      builder.SetBackdropFilter(filter_operations);
+      style.SetBackdropFilter(filter_operations);
       break;
     case CSSPropertyID::kFilter:
-      builder.SetFilter(filter_operations);
+      style.SetFilter(filter_operations);
       break;
     default:
       NOTREACHED();
@@ -141,12 +140,10 @@ InterpolationValue CSSFilterListInterpolationType::MaybeConvertNeutral(
 }
 
 InterpolationValue CSSFilterListInterpolationType::MaybeConvertInitial(
-    const StyleResolverState& state,
+    const StyleResolverState&,
     ConversionCheckers& conversion_checkers) const {
   return ConvertFilterList(
-      GetFilterList(CssProperty(),
-                    state.GetDocument().GetStyleResolver().InitialStyle()),
-      1);
+      GetFilterList(CssProperty(), ComputedStyle::InitialStyle()), 1);
 }
 
 InterpolationValue CSSFilterListInterpolationType::MaybeConvertInherit(
@@ -157,7 +154,7 @@ InterpolationValue CSSFilterListInterpolationType::MaybeConvertInherit(
   conversion_checkers.push_back(std::make_unique<InheritedFilterListChecker>(
       CssProperty(), inherited_filter_operations));
   return ConvertFilterList(inherited_filter_operations,
-                           state.StyleBuilder().EffectiveZoom());
+                           state.Style()->EffectiveZoom());
 }
 
 InterpolationValue CSSFilterListInterpolationType::MaybeConvertValue(
@@ -258,14 +255,13 @@ void CSSFilterListInterpolationType::ApplyStandardPropertyValue(
   wtf_size_t length = interpolable_list.length();
 
   FilterOperations filter_operations;
-  filter_operations.Operations().reserve(length);
+  filter_operations.Operations().ReserveCapacity(length);
   for (wtf_size_t i = 0; i < length; i++) {
     filter_operations.Operations().push_back(
         To<InterpolableFilter>(interpolable_list.Get(i))
             ->CreateFilterOperation(state));
   }
-  SetFilterList(CssProperty(), state.StyleBuilder(),
-                std::move(filter_operations));
+  SetFilterList(CssProperty(), *state.Style(), std::move(filter_operations));
 }
 
 InterpolationValue
@@ -275,6 +271,7 @@ CSSFilterListInterpolationType::PreInterpolationCompositeIfNeeded(
     EffectModel::CompositeOperation composite,
     ConversionCheckers& conversion_checkers) const {
   DCHECK(!value.non_interpolable_value);
+  DCHECK(!underlying.non_interpolable_value);
 
   // Due to the post-interpolation composite optimization, the interpolation
   // stack aggressively caches interpolated values. When we are doing
@@ -284,11 +281,6 @@ CSSFilterListInterpolationType::PreInterpolationCompositeIfNeeded(
   // TODO(crbug.com/1009230): Remove this once our interpolation code isn't
   // caching composited values.
   conversion_checkers.push_back(std::make_unique<AlwaysInvalidateChecker>());
-
-  // The non_interpolable_value can be non-null, for example, it contains a
-  // single frame url().
-  if (underlying.non_interpolable_value)
-    return nullptr;
 
   // The underlying value can be nullptr, most commonly if it contains a url().
   // TODO(crbug.com/1009229): Properly handle url() in filter composite.

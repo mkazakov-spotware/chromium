@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,7 +38,7 @@ struct AttributionGroupHash {
   STATIC_ONLY(AttributionGroupHash);
 
   static unsigned GetHash(const AttributionGroup& group) {
-    return static_cast<unsigned>(group.attribution.GetHash());
+    return group.attribution.GetHash();
   }
 
   static bool Equal(const AttributionGroup& a, const AttributionGroup& b) {
@@ -54,8 +54,9 @@ struct AttributionGroupHash {
 namespace WTF {
 
 template <>
-struct DefaultHash<blink::scheduler::AttributionGroup>
-    : blink::scheduler::AttributionGroupHash {};
+struct DefaultHash<blink::scheduler::AttributionGroup> {
+  using Hash = blink::scheduler::AttributionGroupHash;
+};
 
 template <>
 struct HashTraits<blink::scheduler::AttributionGroup>

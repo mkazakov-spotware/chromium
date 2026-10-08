@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,8 +20,8 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/token.h"
-#include "chromeos/ash/services/multidevice_setup/public/cpp/fake_multidevice_setup.h"
-#include "chromeos/ash/services/multidevice_setup/public/mojom/multidevice_setup.mojom.h"
+#include "chromeos/services/multidevice_setup/public/cpp/fake_multidevice_setup.h"
+#include "chromeos/services/multidevice_setup/public/mojom/multidevice_setup.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/message_center/fake_message_center.h"
@@ -33,17 +33,12 @@ namespace {
 
 const char kTestUserEmail[] = "test@example.com";
 const char kTestHostDeviceName[] = "Test Device";
-const char16_t kTestHostDeviceName16[] = u"Test Device";
 // This is the expected return value from GetChromeOSDeviceName() in tests.
-const char16_t kTestDeviceType[] = u"Chrome device";
+const char kTestDeviceType[] = "Chrome device";
 
 class TestMessageCenter : public message_center::FakeMessageCenter {
  public:
   TestMessageCenter() = default;
-
-  TestMessageCenter(const TestMessageCenter&) = delete;
-  TestMessageCenter& operator=(const TestMessageCenter&) = delete;
-
   ~TestMessageCenter() override = default;
 
   // message_center::FakeMessageCenter:
@@ -83,19 +78,13 @@ class TestMessageCenter : public message_center::FakeMessageCenter {
     EXPECT_TRUE(notification_);
     EXPECT_EQ(id, notification_->id());
     for (auto& observer : observer_list())
-      observer.OnNotificationClicked(id, absl::nullopt, absl::nullopt);
-  }
-
-  void ClickOnNotificationButton(const std::string& id,
-                                 int button_index) override {
-    EXPECT_TRUE(notification_);
-    EXPECT_EQ(id, notification_->id());
-    for (auto& observer : observer_list())
-      observer.OnNotificationClicked(id, button_index, absl::nullopt);
+      observer.OnNotificationClicked(id, base::nullopt, base::nullopt);
   }
 
  private:
   std::unique_ptr<message_center::Notification> notification_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestMessageCenter);
 };
 
 }  // namespace
@@ -104,17 +93,12 @@ class MultiDeviceNotificationPresenterTest : public NoSessionAshTestBase {
  public:
   MultiDeviceNotificationPresenterTest() = default;
 
-  MultiDeviceNotificationPresenterTest(
-      const MultiDeviceNotificationPresenterTest&) = delete;
-  MultiDeviceNotificationPresenterTest& operator=(
-      const MultiDeviceNotificationPresenterTest&) = delete;
-
   void SetUp() override {
     fake_multidevice_setup_ =
-        std::make_unique<multidevice_setup::FakeMultiDeviceSetup>();
+        std::make_unique<chromeos::multidevice_setup::FakeMultiDeviceSetup>();
     auto delegate = std::make_unique<TestShellDelegate>();
     delegate->SetMultiDeviceSetupBinder(base::BindRepeating(
-        &multidevice_setup::MultiDeviceSetupBase::BindReceiver,
+        &chromeos::multidevice_setup::MultiDeviceSetupBase::BindReceiver,
         base::Unretained(fake_multidevice_setup_.get())));
     NoSessionAshTestBase::SetUp(std::move(delegate));
 
@@ -172,75 +156,36 @@ class MultiDeviceNotificationPresenterTest : public NoSessionAshTestBase {
     InvokePendingMojoCalls();
   }
 
-  void ShowWifiSyncNotification() {
-    EXPECT_TRUE(fake_multidevice_setup_->delegate().is_bound());
-    fake_multidevice_setup_->delegate()->OnBecameEligibleForWifiSync();
-    InvokePendingMojoCalls();
-  }
-
   void ClickNotification() {
     test_message_center_.ClickOnNotification(
-        MultiDeviceNotificationPresenter::kSetupNotificationId);
-  }
-
-  void ClickWifiSyncNotification() {
-    test_message_center_.ClickOnNotification(
-        MultiDeviceNotificationPresenter::kWifiSyncNotificationId);
-  }
-
-  void ClickWifiSyncNotificationButton(int button_index) {
-    test_message_center_.ClickOnNotificationButton(
-        MultiDeviceNotificationPresenter::kWifiSyncNotificationId,
-        button_index);
-  }
-
-  void DismissWifiSyncNotification(bool by_user) {
-    test_message_center_.RemoveNotification(
-        MultiDeviceNotificationPresenter::kWifiSyncNotificationId, by_user);
+        MultiDeviceNotificationPresenter::kNotificationId);
   }
 
   void DismissNotification(bool by_user) {
     test_message_center_.RemoveNotification(
-        MultiDeviceNotificationPresenter::kSetupNotificationId, by_user);
+        MultiDeviceNotificationPresenter::kNotificationId, by_user);
   }
 
   void VerifyNewUserPotentialHostExistsNotificationIsVisible() {
-    VerifySetupNotificationIsVisible(
+    VerifyNotificationIsVisible(
         MultiDeviceNotificationPresenter::Status::kNewUserNotificationVisible);
   }
 
   void VerifyExistingUserHostSwitchedNotificationIsVisible() {
-    VerifySetupNotificationIsVisible(
+    VerifyNotificationIsVisible(
         MultiDeviceNotificationPresenter::Status::
             kExistingUserHostSwitchedNotificationVisible);
   }
 
   void VerifyExistingUserNewChromebookAddedNotificationIsVisible() {
-    VerifySetupNotificationIsVisible(
+    VerifyNotificationIsVisible(
         MultiDeviceNotificationPresenter::Status::
             kExistingUserNewChromebookNotificationVisible);
   }
 
-  void VerifyWifiSyncNotificationIsVisible() {
-    const message_center::Notification* kVisibleNotification =
-        test_message_center_.FindVisibleNotificationById(
-            MultiDeviceNotificationPresenter::kWifiSyncNotificationId);
-    std::u16string title = l10n_util::GetStringUTF16(
-        IDS_ASH_MULTI_DEVICE_WIFI_SYNC_AVAILABLE_TITLE);
-    std::u16string message = l10n_util::GetStringFUTF16(
-        IDS_ASH_MULTI_DEVICE_WIFI_SYNC_AVAILABLE_MESSAGE, kTestDeviceType);
-    EXPECT_EQ(title, kVisibleNotification->title());
-    EXPECT_EQ(message, kVisibleNotification->message());
-  }
-
   void VerifyNoNotificationIsVisible() {
     EXPECT_FALSE(test_message_center_.FindVisibleNotificationById(
-        MultiDeviceNotificationPresenter::kSetupNotificationId));
-  }
-
-  void VerifyNoWifiSyncNotificationIsVisible() {
-    EXPECT_FALSE(test_message_center_.FindVisibleNotificationById(
-        MultiDeviceNotificationPresenter::kWifiSyncNotificationId));
+        MultiDeviceNotificationPresenter::kNotificationId));
   }
 
   void AssertPotentialHostBucketCount(std::string histogram, int count) {
@@ -250,8 +195,8 @@ class MultiDeviceNotificationPresenterTest : public NoSessionAshTestBase {
     }
     histogram_tester_.ExpectBucketCount(
         histogram,
-        MultiDeviceNotificationPresenter::NotificationType::
-            kNewUserPotentialHostExists,
+        MultiDeviceNotificationPresenter::
+            kNotificationTypeNewUserPotentialHostExists,
         count);
   }
 
@@ -262,8 +207,8 @@ class MultiDeviceNotificationPresenterTest : public NoSessionAshTestBase {
     }
     histogram_tester_.ExpectBucketCount(
         histogram,
-        MultiDeviceNotificationPresenter::NotificationType::
-            kExistingUserHostSwitched,
+        MultiDeviceNotificationPresenter::
+            kNotificationTypeExistingUserHostSwitched,
         count);
   }
 
@@ -274,38 +219,26 @@ class MultiDeviceNotificationPresenterTest : public NoSessionAshTestBase {
     }
     histogram_tester_.ExpectBucketCount(
         histogram,
-        MultiDeviceNotificationPresenter::NotificationType::
-            kExistingUserNewChromebookAdded,
-        count);
-  }
-
-  void AssertWifiSyncBucketCount(std::string histogram, int count) {
-    if (histogram_tester_.GetAllSamples(histogram).empty()) {
-      EXPECT_EQ(count, 0);
-      return;
-    }
-    histogram_tester_.ExpectBucketCount(
-        histogram,
-        MultiDeviceNotificationPresenter::NotificationType::
-            kWifiSyncAnnouncement,
+        MultiDeviceNotificationPresenter::
+            kNotificationTypeExistingUserNewChromebookAdded,
         count);
   }
 
   base::HistogramTester histogram_tester_;
   TestSystemTrayClient* test_system_tray_client_;
   TestMessageCenter test_message_center_;
-  std::unique_ptr<multidevice_setup::FakeMultiDeviceSetup>
+  std::unique_ptr<chromeos::multidevice_setup::FakeMultiDeviceSetup>
       fake_multidevice_setup_;
   std::unique_ptr<MultiDeviceNotificationPresenter> notification_presenter_;
 
  private:
-  void VerifySetupNotificationIsVisible(
+  void VerifyNotificationIsVisible(
       MultiDeviceNotificationPresenter::Status notification_status) {
     const message_center::Notification* kVisibleNotification =
         test_message_center_.FindVisibleNotificationById(
-            MultiDeviceNotificationPresenter::kSetupNotificationId);
-    std::u16string title;
-    std::u16string message;
+            MultiDeviceNotificationPresenter::kNotificationId);
+    base::string16 title;
+    base::string16 message;
     switch (notification_status) {
       case MultiDeviceNotificationPresenter::Status::
           kNewUserNotificationVisible:
@@ -313,25 +246,25 @@ class MultiDeviceNotificationPresenterTest : public NoSessionAshTestBase {
             IDS_ASH_MULTI_DEVICE_SETUP_NEW_USER_POTENTIAL_HOST_EXISTS_TITLE);
         message = l10n_util::GetStringFUTF16(
             IDS_ASH_MULTI_DEVICE_SETUP_NEW_USER_POTENTIAL_HOST_EXISTS_MESSAGE,
-            kTestDeviceType);
+            base::ASCIIToUTF16(kTestDeviceType));
         break;
       case MultiDeviceNotificationPresenter::Status::
           kExistingUserHostSwitchedNotificationVisible:
         title = l10n_util::GetStringFUTF16(
             IDS_ASH_MULTI_DEVICE_SETUP_EXISTING_USER_HOST_SWITCHED_TITLE,
-            kTestHostDeviceName16);
+            base::ASCIIToUTF16(kTestHostDeviceName));
         message = l10n_util::GetStringFUTF16(
             IDS_ASH_MULTI_DEVICE_SETUP_EXISTING_USER_HOST_SWITCHED_MESSAGE,
-            kTestDeviceType);
+            base::ASCIIToUTF16(kTestDeviceType));
         break;
       case MultiDeviceNotificationPresenter::Status::
           kExistingUserNewChromebookNotificationVisible:
         title = l10n_util::GetStringFUTF16(
             IDS_ASH_MULTI_DEVICE_SETUP_EXISTING_USER_NEW_CHROME_DEVICE_ADDED_TITLE,
-            kTestHostDeviceName16);
+            base::ASCIIToUTF16(kTestHostDeviceName));
         message = l10n_util::GetStringFUTF16(
             IDS_ASH_MULTI_DEVICE_SETUP_EXISTING_USER_NEW_CHROME_DEVICE_ADDED_MESSAGE,
-            kTestDeviceType);
+            base::ASCIIToUTF16(kTestDeviceType));
         break;
       case MultiDeviceNotificationPresenter::Status::kNoNotificationVisible:
         NOTREACHED();
@@ -339,6 +272,8 @@ class MultiDeviceNotificationPresenterTest : public NoSessionAshTestBase {
     EXPECT_EQ(title, kVisibleNotification->title());
     EXPECT_EQ(message, kVisibleNotification->message());
   }
+
+  DISALLOW_COPY_AND_ASSIGN(MultiDeviceNotificationPresenterTest);
 };
 
 TEST_F(MultiDeviceNotificationPresenterTest, NotSignedIntoAccount) {
@@ -499,76 +434,6 @@ TEST_F(
             0);
   AssertNewChromebookBucketCount("MultiDeviceSetup_NotificationClicked", 0);
   AssertNewChromebookBucketCount("MultiDeviceSetup_NotificationShown", 1);
-}
-
-TEST_F(MultiDeviceNotificationPresenterTest,
-       TestWifiSyncNotification_TapNotification) {
-  SignIntoAccount();
-
-  ShowWifiSyncNotification();
-  VerifyWifiSyncNotificationIsVisible();
-
-  ClickWifiSyncNotification();
-
-  VerifyNoWifiSyncNotificationIsVisible();
-
-  EXPECT_EQ(test_system_tray_client_->show_wifi_sync_settings_count(), 1);
-
-  AssertWifiSyncBucketCount("MultiDeviceSetup_NotificationClicked", 1);
-  AssertWifiSyncBucketCount("MultiDeviceSetup_NotificationDismissed", 0);
-  AssertWifiSyncBucketCount("MultiDeviceSetup_NotificationShown", 1);
-}
-
-TEST_F(MultiDeviceNotificationPresenterTest,
-       TestWifiSyncNotification_TapTurnOnButton) {
-  SignIntoAccount();
-
-  ShowWifiSyncNotification();
-  VerifyWifiSyncNotificationIsVisible();
-
-  ClickWifiSyncNotificationButton(0);
-
-  VerifyNoWifiSyncNotificationIsVisible();
-
-  EXPECT_EQ(test_system_tray_client_->show_wifi_sync_settings_count(), 1);
-
-  AssertWifiSyncBucketCount("MultiDeviceSetup_NotificationClicked", 1);
-  AssertWifiSyncBucketCount("MultiDeviceSetup_NotificationDismissed", 0);
-  AssertWifiSyncBucketCount("MultiDeviceSetup_NotificationShown", 1);
-}
-
-TEST_F(MultiDeviceNotificationPresenterTest,
-       TestWifiSyncNotification_TapCancelButton) {
-  SignIntoAccount();
-
-  ShowWifiSyncNotification();
-  VerifyWifiSyncNotificationIsVisible();
-
-  ClickWifiSyncNotificationButton(1);
-  VerifyNoWifiSyncNotificationIsVisible();
-
-  EXPECT_EQ(test_system_tray_client_->show_wifi_sync_settings_count(), 0);
-
-  AssertWifiSyncBucketCount("MultiDeviceSetup_NotificationClicked", 0);
-  AssertWifiSyncBucketCount("MultiDeviceSetup_NotificationDismissed", 1);
-  AssertWifiSyncBucketCount("MultiDeviceSetup_NotificationShown", 1);
-}
-
-TEST_F(MultiDeviceNotificationPresenterTest,
-       TestWifiSyncNotification_DismissedNotification) {
-  SignIntoAccount();
-
-  ShowWifiSyncNotification();
-  VerifyWifiSyncNotificationIsVisible();
-
-  DismissWifiSyncNotification(/*by_user=*/true);
-  VerifyNoWifiSyncNotificationIsVisible();
-
-  EXPECT_EQ(test_system_tray_client_->show_wifi_sync_settings_count(), 0);
-
-  AssertWifiSyncBucketCount("MultiDeviceSetup_NotificationClicked", 0);
-  AssertWifiSyncBucketCount("MultiDeviceSetup_NotificationDismissed", 1);
-  AssertWifiSyncBucketCount("MultiDeviceSetup_NotificationShown", 1);
 }
 
 TEST_F(MultiDeviceNotificationPresenterTest,

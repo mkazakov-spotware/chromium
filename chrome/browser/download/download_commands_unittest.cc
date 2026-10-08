@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,9 +30,7 @@ const char kDefaultURL[] = "http://example.com/foo.bar";
 
 class DownloadCommandsTest : public testing::Test {
  public:
-  DownloadCommandsTest()
-      : model_(std::make_unique<DownloadItemModel>(&item_)),
-        commands_(model_->GetWeakPtr()) {}
+  DownloadCommandsTest() : model_(&item_), commands_(&model_) {}
 
   ~DownloadCommandsTest() override {}
 
@@ -75,11 +73,9 @@ class DownloadCommandsTest : public testing::Test {
     return commands_;
   }
 
-  void InvalidModel() { model_.reset(); }
-
  private:
   NiceMock<download::MockDownloadItem> item_;
-  std::unique_ptr<DownloadItemModel> model_;
+  DownloadItemModel model_;
   DownloadCommands commands_;
 };
 
@@ -173,21 +169,4 @@ TEST_F(DownloadCommandsTest,
       "ctx=%d", download::DOWNLOAD_INTERRUPT_REASON_NETWORK_DISCONNECTED);
   EXPECT_LT(0u, learn_more_url.query().find(name_value_pair))
       << learn_more_url.spec();
-}
-
-TEST_F(DownloadCommandsTest, InvalidDownloadWontCrashDownloadCommands) {
-  ON_CALL(item(), GetOpenWhenComplete()).WillByDefault(Return(true));
-  // Only 1 out of 2 commands should be executed.
-  EXPECT_CALL(item(), OpenDownload()).Times(1);
-
-  EXPECT_TRUE(IsCommandEnabled(DownloadCommands::CANCEL));
-  EXPECT_TRUE(IsCommandChecked(DownloadCommands::OPEN_WHEN_COMPLETE));
-  EXPECT_TRUE(commands().IsCommandVisible(DownloadCommands::CANCEL));
-  commands().ExecuteCommand(DownloadCommands::OPEN_WHEN_COMPLETE);
-
-  InvalidModel();
-  EXPECT_FALSE(IsCommandEnabled(DownloadCommands::CANCEL));
-  EXPECT_FALSE(IsCommandChecked(DownloadCommands::OPEN_WHEN_COMPLETE));
-  EXPECT_FALSE(commands().IsCommandVisible(DownloadCommands::CANCEL));
-  commands().ExecuteCommand(DownloadCommands::OPEN_WHEN_COMPLETE);
 }

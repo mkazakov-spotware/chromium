@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <map>
 #include <memory>
+#include <string>
 #include <utility>
 
 #include "base/callback.h"
@@ -59,12 +60,8 @@ class MEDIA_EXPORT AudioDebugRecordingManager {
       uint32_t id,
       base::OnceCallback<void(base::File)> reply_callback)>;
 
-  AudioDebugRecordingManager();
-
-  AudioDebugRecordingManager(const AudioDebugRecordingManager&) = delete;
-  AudioDebugRecordingManager& operator=(const AudioDebugRecordingManager&) =
-      delete;
-
+  AudioDebugRecordingManager(
+      scoped_refptr<base::SingleThreadTaskRunner> task_runner);
   virtual ~AudioDebugRecordingManager();
 
   // Enables and disables debug recording.
@@ -78,10 +75,16 @@ class MEDIA_EXPORT AudioDebugRecordingManager {
       const AudioParameters& params);
 
  protected:
-  // Creates an AudioDebugRecordingHelper. Overridden by test.
+  // Creates a AudioDebugRecordingHelper. Overridden by test.
   virtual std::unique_ptr<AudioDebugRecordingHelper>
-  CreateAudioDebugRecordingHelper(const AudioParameters& params,
-                                  base::OnceClosure on_destruction_closure);
+  CreateAudioDebugRecordingHelper(
+      const AudioParameters& params,
+      scoped_refptr<base::SingleThreadTaskRunner> task_runner,
+      base::OnceClosure on_destruction_closure);
+
+  // The task runner this class lives on. Also handed to
+  // AudioDebugRecordingHelpers.
+  scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 
  private:
   FRIEND_TEST_ALL_PREFIXES(AudioDebugRecordingManagerTest,
@@ -108,9 +111,8 @@ class MEDIA_EXPORT AudioDebugRecordingManager {
   // recording is enabled.
   CreateWavFileCallback create_file_callback_;
 
-  SEQUENCE_CHECKER(sequence_checker_);
-
   base::WeakPtrFactory<AudioDebugRecordingManager> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(AudioDebugRecordingManager);
 };
 
 }  // namespace media

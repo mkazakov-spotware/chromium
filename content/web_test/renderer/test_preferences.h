@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,6 +28,7 @@ struct TestPreferences {
   bool tabs_to_links;
   bool hyperlink_auditing_enabled;
   bool caret_browsing_enabled;
+  bool should_respect_image_orientation;
   bool asynchronous_spell_checking_enabled;
   bool web_security_enabled;
   bool disable_reading_from_canvas;

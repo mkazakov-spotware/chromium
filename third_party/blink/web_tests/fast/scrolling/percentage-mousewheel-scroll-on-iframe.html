@@ -37,6 +37,7 @@ promise_test(async () => {
   await waitForLoad();
 
   const SCROLL_PERCENTAGE = 0.4;
+  const WHEEL_DELTA_CONSTANT = 100;
   await percentScroll(SCROLL_PERCENTAGE, SCROLL_PERCENTAGE, 200, 150,
                      GestureSourceType.MOUSE_INPUT);
 
@@ -54,10 +55,10 @@ promise_test(async () => {
   await conditionHolds(isCorrectXOffset);
   await conditionHolds(isCorrectYOffset);
   assert_equals(iframeElement.contentWindow.wheelEventDeltaY,
-                WHEEL_DELTA,
+                WHEEL_DELTA_CONSTANT,
                 "Wheel event deltaY must be a constant");
   assert_equals(iframeElement.contentWindow.wheelEventDeltaX,
-                WHEEL_DELTA,
+                WHEEL_DELTA_CONSTANT,
                 "Wheel event deltaY must be a constant");
 
   // Scroll back to the top and ensure we scroll back to the origin and have
@@ -76,10 +77,10 @@ promise_test(async () => {
       "Horizontal scrolling must scroll back to origin")
 
   assert_equals(iframeElement.contentWindow.wheelEventDeltaY,
-                -WHEEL_DELTA,
+                -WHEEL_DELTA_CONSTANT,
                 "Wheel event deltaY must be negative constant");
   assert_equals(iframeElement.contentWindow.wheelEventDeltaX,
-                -WHEEL_DELTA,
+                -WHEEL_DELTA_CONSTANT,
                 "Wheel event deltaY must be negative constant");
 }, "Using the mousewheel to scroll by a percentage on an empty iframe.");
 </script>

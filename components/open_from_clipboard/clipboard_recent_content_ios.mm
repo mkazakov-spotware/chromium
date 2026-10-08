@@ -1,19 +1,20 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "components/open_from_clipboard/clipboard_recent_content_ios.h"
 
 #import <CommonCrypto/CommonDigest.h>
-#import <UIKit/UIKit.h>
 #include <stddef.h>
 #include <stdint.h>
+#import <UIKit/UIKit.h>
 
 #include "base/metrics/user_metrics.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/system/sys_info.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #import "components/open_from_clipboard/clipboard_recent_content_impl_ios.h"
 #import "net/base/mac/url_conversions.h"
 #include "url/gurl.h"
@@ -34,7 +35,7 @@ const char* kAuthorizedSchemes[] = {
 NSSet<NSString*>* getAuthorizedSchemeList(
     const std::string& application_scheme) {
   NSMutableSet<NSString*>* schemes = [NSMutableSet set];
-  for (size_t i = 0; i < std::size(kAuthorizedSchemes); ++i) {
+  for (size_t i = 0; i < base::size(kAuthorizedSchemes); ++i) {
     [schemes addObject:base::SysUTF8ToNSString(kAuthorizedSchemes[i])];
   }
   if (!application_scheme.empty()) {
@@ -96,21 +97,21 @@ ClipboardRecentContentIOS::ClipboardRecentContentIOS(
   implementation_ = implementation;
 }
 
-absl::optional<GURL> ClipboardRecentContentIOS::GetRecentURLFromClipboard() {
+base::Optional<GURL> ClipboardRecentContentIOS::GetRecentURLFromClipboard() {
   NSURL* url_from_pasteboard = [implementation_ recentURLFromClipboard];
   GURL converted_url = net::GURLWithNSURL(url_from_pasteboard);
   if (!converted_url.is_valid()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   return converted_url;
 }
 
-absl::optional<std::u16string>
+base::Optional<base::string16>
 ClipboardRecentContentIOS::GetRecentTextFromClipboard() {
   NSString* text_from_pasteboard = [implementation_ recentTextFromClipboard];
   if (!text_from_pasteboard) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   return base::SysNSStringToUTF16(text_from_pasteboard);
@@ -133,7 +134,7 @@ void ClipboardRecentContentIOS::HasRecentContentFromClipboard(
   // techniques, make sure this method calls its callback on the same thread
   // that it was called on.
   scoped_refptr<base::SequencedTaskRunner> task_runner =
-      base::SequencedTaskRunner::GetCurrentDefault();
+      base::SequencedTaskRunnerHandle::Get();
   [implementation_
       hasContentMatchingTypes:ios_types
             completionHandler:^(NSSet<ContentType>* results) {
@@ -149,27 +150,6 @@ void ClipboardRecentContentIOS::HasRecentContentFromClipboard(
             }];
 }
 
-// This value will be nullopt during the brief period
-// when the clipboard is updating its cache, which is triggered by a
-// pasteboardDidChange notification. It may also be nullopt if the app decides
-// it should not return the value of the clipboard, for example if the current
-// clipboard contents are too old.
-absl::optional<std::set<ClipboardContentType>>
-ClipboardRecentContentIOS::GetCachedClipboardContentTypes() {
-  NSSet<ContentType>* current_content_types =
-      [implementation_ cachedClipboardContentTypes];
-  if (!current_content_types) {
-    return absl::nullopt;
-  }
-  std::set<ClipboardContentType> current_content_types_ios;
-
-  for (ContentType type in current_content_types) {
-    current_content_types_ios.insert(ClipboardContentTypeFromContentType(type));
-  }
-
-  return current_content_types_ios;
-}
-
 void ClipboardRecentContentIOS::GetRecentURLFromClipboard(
     GetRecentURLCallback callback) {
   __block GetRecentURLCallback callback_for_block = std::move(callback);
@@ -178,12 +158,12 @@ void ClipboardRecentContentIOS::GetRecentURLFromClipboard(
   // techniques, make sure this method calls its callback on the same thread
   // that it was called on.
   scoped_refptr<base::SequencedTaskRunner> task_runner =
-      base::SequencedTaskRunner::GetCurrentDefault();
+      base::SequencedTaskRunnerHandle::Get();
   [implementation_ recentURLFromClipboardAsync:^(NSURL* url) {
     GURL converted_url = net::GURLWithNSURL(url);
     if (!converted_url.is_valid()) {
       task_runner->PostTask(FROM_HERE, base::BindOnce(^{
-                              std::move(callback_for_block).Run(absl::nullopt);
+                              std::move(callback_for_block).Run(base::nullopt);
                             }));
       return;
     }
@@ -201,11 +181,11 @@ void ClipboardRecentContentIOS::GetRecentTextFromClipboard(
   // techniques, make sure this method calls its callback on the same thread
   // that it was called on.
   scoped_refptr<base::SequencedTaskRunner> task_runner =
-      base::SequencedTaskRunner::GetCurrentDefault();
+      base::SequencedTaskRunnerHandle::Get();
   [implementation_ recentTextFromClipboardAsync:^(NSString* text) {
     if (!text) {
       task_runner->PostTask(FROM_HERE, base::BindOnce(^{
-                              std::move(callback_for_block).Run(absl::nullopt);
+                              std::move(callback_for_block).Run(base::nullopt);
                             }));
       return;
     }
@@ -224,11 +204,11 @@ void ClipboardRecentContentIOS::GetRecentImageFromClipboard(
   // techniques, make sure this method calls its callback on the same thread
   // that it was called on.
   scoped_refptr<base::SequencedTaskRunner> task_runner =
-      base::SequencedTaskRunner::GetCurrentDefault();
+      base::SequencedTaskRunnerHandle::Get();
   [implementation_ recentImageFromClipboardAsync:^(UIImage* image) {
     if (!image) {
       task_runner->PostTask(FROM_HERE, base::BindOnce(^{
-                              std::move(callback_for_block).Run(absl::nullopt);
+                              std::move(callback_for_block).Run(base::nullopt);
                             }));
       return;
     }
@@ -242,7 +222,7 @@ void ClipboardRecentContentIOS::GetRecentImageFromClipboard(
 ClipboardRecentContentIOS::~ClipboardRecentContentIOS() {}
 
 base::TimeDelta ClipboardRecentContentIOS::GetClipboardContentAge() const {
-  return base::Seconds(
+  return base::TimeDelta::FromSeconds(
       static_cast<int64_t>([implementation_ clipboardContentAge]));
 }
 
@@ -255,11 +235,11 @@ void ClipboardRecentContentIOS::ClearClipboardContent() {
   return;
 }
 
-absl::optional<gfx::Image>
+base::Optional<gfx::Image>
 ClipboardRecentContentIOS::GetRecentImageFromClipboardInternal() {
   UIImage* image_from_pasteboard = [implementation_ recentImageFromClipboard];
   if (!image_from_pasteboard) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   return gfx::Image(image_from_pasteboard);

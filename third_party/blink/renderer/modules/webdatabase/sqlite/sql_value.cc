@@ -30,10 +30,16 @@
 
 namespace blink {
 
+SQLValue::SQLValue(const SQLValue& val)
+    : type_(val.type_),
+      number_(val.number_),
+      string_(val.string_.IsolatedCopy()) {}
+
 String SQLValue::GetString() const {
   DCHECK_EQ(type_, kStringValue);
 
-  return string_;
+  // Must return a copy since ref-shared Strings are not thread safe
+  return string_.IsolatedCopy();
 }
 
 double SQLValue::Number() const {

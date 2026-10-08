@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,9 @@
 
 #include "net/base/net_export.h"
 
-namespace disk_cache::simplecache_v5 {
+namespace disk_cache {
+
+namespace simplecache_v5 {
 
 const uint64_t kSimpleInitialMagicNumber = UINT64_C(0xfcfb6d1ba7725c30);
 const uint64_t kSimpleFinalMagicNumber = UINT64_C(0xf4fa6f45970d41d8);
@@ -53,6 +55,8 @@ struct NET_EXPORT_PRIVATE SimpleFileEOF {
   uint32_t stream_size;
 };
 
-}  // namespace disk_cache::simplecache_v5
+}  // namespace simplecache_v5
+
+}  // namespace disk_cache
 
 #endif  // NET_DISK_CACHE_SIMPLE_SIMPLE_ENTRY_FORMAT_HISTORY_H_

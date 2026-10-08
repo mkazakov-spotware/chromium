@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,7 @@ void SmoothScrollSequencer::QueueAnimation(
 }
 
 void SmoothScrollSequencer::RunQueuedAnimations() {
-  if (queue_.empty()) {
+  if (queue_.IsEmpty()) {
     current_scrollable_ = nullptr;
     scroll_type_ = mojom::blink::ScrollType::kProgrammatic;
     return;
@@ -64,10 +64,6 @@ bool SmoothScrollSequencer::FilterNewScrollOrAbortCurrent(
   // Otherwise, abort the current sequenced scroll.
   AbortAnimations();
   return false;
-}
-
-wtf_size_t SmoothScrollSequencer::GetCount() const {
-  return queue_.size();
 }
 
 void SmoothScrollSequencer::DidDisposeScrollableArea(

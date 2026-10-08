@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -87,7 +87,7 @@ bool Aead::Seal(base::StringPiece plaintext,
   return true;
 }
 
-absl::optional<std::vector<uint8_t>> Aead::Open(
+base::Optional<std::vector<uint8_t>> Aead::Open(
     base::span<const uint8_t> ciphertext,
     base::span<const uint8_t> nonce,
     base::span<const uint8_t> additional_data) const {
@@ -98,7 +98,7 @@ absl::optional<std::vector<uint8_t>> Aead::Open(
   size_t output_length;
   if (!Open(ciphertext, nonce, additional_data, ret.data(), &output_length,
             max_output_length)) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   ret.resize(output_length);

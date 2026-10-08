@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,28 +17,21 @@ namespace ash {
 
 class LoginTooltipView : public LoginBaseBubbleView {
  public:
-  LoginTooltipView(const std::u16string& message,
-                   base::WeakPtr<views::View> anchor_view);
-
-  LoginTooltipView(const LoginTooltipView&) = delete;
-  LoginTooltipView& operator=(const LoginTooltipView&) = delete;
-
+  LoginTooltipView(const base::string16& message, views::View* anchor_view);
   ~LoginTooltipView() override;
 
-  void set_text(const std::u16string& message) { label_->SetText(message); }
-
-  void UpdateIcon();
+  void SetText(const base::string16& message);
 
   // LoginBaseBubbleView:
   void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
-  void OnThemeChanged() override;
 
  protected:
   views::Label* label() { return label_; }
 
  private:
   views::Label* label_ = nullptr;
-  views::ImageView* info_icon_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(LoginTooltipView);
 };
 
 }  // namespace ash

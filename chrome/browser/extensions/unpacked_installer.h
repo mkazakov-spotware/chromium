@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,13 +12,13 @@
 
 #include "base/bind.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "extensions/browser/api/declarative_net_request/ruleset_install_pref.h"
 #include "extensions/browser/preload_check.h"
 #include "extensions/common/manifest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class Profile;
 
@@ -39,9 +39,6 @@ class UnpackedInstaller
   using CompletionCallback = base::OnceCallback<void(const Extension* extension,
                                                      const base::FilePath&,
                                                      const std::string&)>;
-
-  UnpackedInstaller(const UnpackedInstaller&) = delete;
-  UnpackedInstaller& operator=(const UnpackedInstaller&) = delete;
 
   static scoped_refptr<UnpackedInstaller> Create(
       ExtensionService* extension_service);
@@ -80,14 +77,6 @@ class UnpackedInstaller
   void set_completion_callback(CompletionCallback callback) {
     callback_ = std::move(callback);
   }
-
-  void set_allow_file_access(bool allow) { allow_file_access_ = allow; }
-
-  void set_allow_incognito_access(bool allow) {
-    allow_incognito_access_ = allow;
-  }
-
-  void set_install_param(const std::string& param) { install_param_ = param; }
 
  private:
   friend class base::RefCountedThreadSafe<UnpackedInstaller>;
@@ -132,7 +121,7 @@ class UnpackedInstaller
   // is allowed. Loads the extension, validates extension locales and persists
   // the ruleset for the Declarative Net Request API, if needed. In case of an
   // error, returns false and populates |error|.
-  bool LoadExtension(mojom::ManifestLocation location,
+  bool LoadExtension(Manifest::Location location,
                      int flags,
                      std::string* error);
 
@@ -148,7 +137,7 @@ class UnpackedInstaller
   base::WeakPtr<ExtensionService> service_weak_;
 
   // The Profile the extension is being installed in.
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   // The pathname of the directory to load from, which is an absolute path
   // after GetAbsolutePath has been called.
@@ -176,14 +165,7 @@ class UnpackedInstaller
 
   CompletionCallback callback_;
 
-  // Override default file access.
-  absl::optional<bool> allow_file_access_;
-
-  // Override default incognito access.
-  absl::optional<bool> allow_incognito_access_;
-
-  // Specify an install param.
-  absl::optional<std::string> install_param_;
+  DISALLOW_COPY_AND_ASSIGN(UnpackedInstaller);
 };
 
 }  // namespace extensions

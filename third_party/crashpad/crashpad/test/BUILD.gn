@@ -1,4 +1,4 @@
-# Copyright 2017 The Crashpad Authors
+# Copyright 2017 The Crashpad Authors. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ static_library("test") {
     "scoped_guarded_page.h",
     "scoped_module_handle.cc",
     "scoped_module_handle.h",
-    "scoped_set_thread_name.h",
     "scoped_temp_dir.cc",
     "scoped_temp_dir.h",
     "test_paths.cc",
@@ -56,14 +55,6 @@ static_library("test") {
         "multiprocess_posix.cc",
       ]
     }
-  }
-
-  # TODO(crbug.com/812974): Remove !crashpad_is_fuchsia when Fuchsia is no
-  # longer treated as a posix platform.
-  if (crashpad_is_posix && !crashpad_is_fuchsia) {
-    sources += [
-      "scoped_set_thread_name_posix.cc",
-    ]
   }
 
   if (crashpad_is_mac || crashpad_is_ios) {
@@ -105,7 +96,6 @@ static_library("test") {
     sources += [
       "multiprocess_exec_win.cc",
       "scoped_guarded_page_win.cc",
-      "scoped_set_thread_name_win.cc",
       "scoped_temp_dir_win.cc",
       "win/child_launcher.cc",
       "win/child_launcher.h",
@@ -119,10 +109,7 @@ static_library("test") {
   }
 
   if (crashpad_is_fuchsia) {
-    sources += [
-      "multiprocess_exec_fuchsia.cc",
-      "scoped_set_thread_name_fuchsia.cc",
-    ]
+    sources += [ "multiprocess_exec_fuchsia.cc" ]
   }
 
   public_configs = [ "..:crashpad_config" ]
@@ -137,7 +124,7 @@ static_library("test") {
   deps = [
     "../compat",
     "../third_party/googletest:googletest",
-    "$mini_chromium_source_parent:base",
+    "../third_party/mini_chromium:base",
     "../util",
   ]
 
@@ -217,15 +204,9 @@ source_set("test_test") {
     "../compat",
     "../third_party/googletest:googlemock",
     "../third_party/googletest:googletest",
-    "$mini_chromium_source_parent:base",
+    "../third_party/mini_chromium:base",
     "../util",
   ]
-
-  if (crashpad_is_in_chromium && !crashpad_is_ios) {
-    # TODO(crbug.com/1153544): Disabling MultiprocessExec.MultiprocessExec if
-    # PartitionAlloc is used for malloc.
-    deps += [ "//base/allocator:buildflags" ]
-  }
 
   data_deps = [ ":crashpad_test_test_multiprocess_exec_test_child" ]
 
@@ -238,7 +219,7 @@ if (!crashpad_is_ios) {
   crashpad_executable("crashpad_test_test_multiprocess_exec_test_child") {
     sources = [ "multiprocess_exec_test_child.cc" ]
 
-    deps = [ "$mini_chromium_source_parent:base" ]
+    deps = [ "../third_party/mini_chromium:base" ]
   }
 }
 
@@ -251,8 +232,8 @@ static_library("googlemock_main") {
     ":test",
     "../third_party/googletest:googlemock",
     "../third_party/googletest:googletest",
-    "$mini_chromium_source_parent:base",
-    "$mini_chromium_source_parent:base_test_support",
+    "../third_party/mini_chromium:base",
+    "../third_party/mini_chromium:base_test_support",
   ]
   if (crashpad_is_android) {
     deps += [ "../util" ]
@@ -270,8 +251,8 @@ static_library("googletest_main") {
   deps = [
     ":test",
     "../third_party/googletest:googletest",
-    "$mini_chromium_source_parent:base",
-    "$mini_chromium_source_parent:base_test_support",
+    "../third_party/mini_chromium:base",
+    "../third_party/mini_chromium:base_test_support",
   ]
   if (crashpad_is_android) {
     deps += [ "../util" ]

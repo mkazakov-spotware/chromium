@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,25 +12,27 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/observer_list.h"
 #include "base/strings/stringprintf.h"
 #include "components/drive/drive_api_util.h"
-#include "google_apis/common/auth_service.h"
-#include "google_apis/common/request_sender.h"
+#include "google_apis/drive/auth_service.h"
+#include "google_apis/drive/base_requests.h"
 #include "google_apis/drive/drive_api_parser.h"
 #include "google_apis/drive/drive_api_requests.h"
-#include "google_apis/drive/drive_base_requests.h"
 #include "google_apis/drive/files_list_request_runner.h"
+#include "google_apis/drive/request_sender.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
 using google_apis::AboutResourceCallback;
-using google_apis::ApiErrorCode;
 using google_apis::AuthStatusCallback;
+using google_apis::CancelCallback;
 using google_apis::CancelCallbackOnce;
 using google_apis::CancelCallbackRepeating;
 using google_apis::ChangeList;
 using google_apis::ChangeListCallback;
 using google_apis::DownloadActionCallback;
+using google_apis::DRIVE_OTHER_ERROR;
+using google_apis::DRIVE_PARSE_ERROR;
+using google_apis::DriveApiErrorCode;
 using google_apis::EntryActionCallback;
 using google_apis::FileList;
 using google_apis::FileListCallback;
@@ -42,8 +44,6 @@ using google_apis::GetContentCallback;
 using google_apis::HTTP_NOT_IMPLEMENTED;
 using google_apis::HTTP_SUCCESS;
 using google_apis::InitiateUploadCallback;
-using google_apis::OTHER_ERROR;
-using google_apis::PARSE_ERROR;
 using google_apis::ProgressCallback;
 using google_apis::RequestSender;
 using google_apis::StartPageTokenCallback;
@@ -132,7 +132,7 @@ const char kTeamDrivesListFields[] =
 
 // Ignores the |entry|, and runs the |callback|.
 void EntryActionCallbackAdapter(EntryActionCallback callback,
-                                ApiErrorCode error,
+                                DriveApiErrorCode error,
                                 std::unique_ptr<FileResource> entry) {
   std::move(callback).Run(error);
 }
@@ -147,11 +147,12 @@ BatchRequestConfigurator::BatchRequestConfigurator(
     const base::WeakPtr<google_apis::drive::BatchUploadRequest>& batch_request,
     base::SequencedTaskRunner* task_runner,
     const google_apis::DriveApiUrlGenerator& url_generator,
-    const google_apis::CancelCallbackRepeating& cancel_callback)
+    const google_apis::CancelCallback& cancel_callback)
     : batch_request_(batch_request),
       task_runner_(task_runner),
       url_generator_(url_generator),
-      cancel_callback_(cancel_callback) {}
+      cancel_callback_(cancel_callback) {
+}
 
 BatchRequestConfigurator::~BatchRequestConfigurator() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -160,7 +161,7 @@ BatchRequestConfigurator::~BatchRequestConfigurator() {
     cancel_callback_.Run();
 }
 
-google_apis::CancelCallbackOnce
+google_apis::CancelCallbackRepeating
 BatchRequestConfigurator::MultipartUploadNewFile(
     const std::string& content_type,
     int64_t content_length,
@@ -184,11 +185,11 @@ BatchRequestConfigurator::MultipartUploadNewFile(
   if (batch_request_)
     batch_request_->AddRequest(delegate.release());
   else
-    delegate->NotifyError(OTHER_ERROR);
+    delegate->NotifyError(DRIVE_OTHER_ERROR);
   return cancel_callback_;
 }
 
-google_apis::CancelCallbackOnce
+google_apis::CancelCallback
 BatchRequestConfigurator::MultipartUploadExistingFile(
     const std::string& content_type,
     int64_t content_length,
@@ -212,7 +213,7 @@ BatchRequestConfigurator::MultipartUploadExistingFile(
   if (batch_request_)
     batch_request_->AddRequest(delegate.release());
   else
-    delegate->NotifyError(OTHER_ERROR);
+    delegate->NotifyError(DRIVE_OTHER_ERROR);
   return cancel_callback_;
 }
 
@@ -343,8 +344,8 @@ CancelCallbackOnce DriveAPIService::GetFileListInDirectory(
       kFileListFields, std::move(callback));
 }
 
-CancelCallbackOnce DriveAPIService::Search(const std::string& search_query,
-                                           FileListCallback callback) {
+CancelCallback DriveAPIService::Search(const std::string& search_query,
+                                       FileListCallback callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(!search_query.empty());
   DCHECK(!callback.is_null());
@@ -388,8 +389,8 @@ CancelCallbackOnce DriveAPIService::SearchByTitle(
   return sender_->StartRequestWithAuthRetry(std::move(request));
 }
 
-CancelCallbackOnce DriveAPIService::GetChangeList(int64_t start_changestamp,
-                                                  ChangeListCallback callback) {
+CancelCallback DriveAPIService::GetChangeList(int64_t start_changestamp,
+                                              ChangeListCallback callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(callback);
 
@@ -402,7 +403,7 @@ CancelCallbackOnce DriveAPIService::GetChangeList(int64_t start_changestamp,
   return sender_->StartRequestWithAuthRetry(std::move(request));
 }
 
-CancelCallbackOnce DriveAPIService::GetChangeListByToken(
+CancelCallback DriveAPIService::GetChangeListByToken(
     const std::string& team_drive_id,
     const std::string& start_page_token,
     ChangeListCallback callback) {
@@ -434,7 +435,7 @@ CancelCallbackOnce DriveAPIService::GetRemainingChangeList(
   return sender_->StartRequestWithAuthRetry(std::move(request));
 }
 
-CancelCallbackOnce DriveAPIService::GetRemainingTeamDriveList(
+CancelCallback DriveAPIService::GetRemainingTeamDriveList(
     const std::string& page_token,
     TeamDriveListCallback callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
@@ -465,9 +466,8 @@ CancelCallbackOnce DriveAPIService::GetRemainingFileList(
   return sender_->StartRequestWithAuthRetry(std::move(request));
 }
 
-CancelCallbackOnce DriveAPIService::GetFileResource(
-    const std::string& resource_id,
-    FileResourceCallback callback) {
+CancelCallback DriveAPIService::GetFileResource(const std::string& resource_id,
+                                                FileResourceCallback callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(!callback.is_null());
 
@@ -478,7 +478,7 @@ CancelCallbackOnce DriveAPIService::GetFileResource(
   return sender_->StartRequestWithAuthRetry(std::move(request));
 }
 
-CancelCallbackOnce DriveAPIService::GetAboutResource(
+CancelCallback DriveAPIService::GetAboutResource(
     AboutResourceCallback callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(callback);
@@ -489,7 +489,7 @@ CancelCallbackOnce DriveAPIService::GetAboutResource(
   return sender_->StartRequestWithAuthRetry(std::move(request));
 }
 
-CancelCallbackOnce DriveAPIService::GetStartPageToken(
+CancelCallback DriveAPIService::GetStartPageToken(
     const std::string& team_drive_id,
     StartPageTokenCallback callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
@@ -505,7 +505,7 @@ CancelCallbackOnce DriveAPIService::GetStartPageToken(
 CancelCallbackOnce DriveAPIService::DownloadFile(
     const base::FilePath& local_cache_path,
     const std::string& resource_id,
-    DownloadActionCallback download_action_callback,
+    const DownloadActionCallback& download_action_callback,
     const GetContentCallback& get_content_callback,
     ProgressCallback progress_callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
@@ -515,14 +515,12 @@ CancelCallbackOnce DriveAPIService::DownloadFile(
   return sender_->StartRequestWithAuthRetry(
       std::make_unique<DownloadFileRequest>(
           sender_.get(), url_generator_, resource_id, local_cache_path,
-          std::move(download_action_callback), get_content_callback,
-          progress_callback));
+          download_action_callback, get_content_callback, progress_callback));
 }
 
-CancelCallbackOnce DriveAPIService::DeleteResource(
-    const std::string& resource_id,
-    const std::string& etag,
-    EntryActionCallback callback) {
+CancelCallback DriveAPIService::DeleteResource(const std::string& resource_id,
+                                               const std::string& etag,
+                                               EntryActionCallback callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(callback);
 
@@ -534,9 +532,8 @@ CancelCallbackOnce DriveAPIService::DeleteResource(
   return sender_->StartRequestWithAuthRetry(std::move(request));
 }
 
-CancelCallbackOnce DriveAPIService::TrashResource(
-    const std::string& resource_id,
-    EntryActionCallback callback) {
+CancelCallback DriveAPIService::TrashResource(const std::string& resource_id,
+                                              EntryActionCallback callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(callback);
 
@@ -571,7 +568,7 @@ CancelCallbackOnce DriveAPIService::AddNewDirectory(
   return sender_->StartRequestWithAuthRetry(std::move(request));
 }
 
-CancelCallbackOnce DriveAPIService::CopyResource(
+CancelCallback DriveAPIService::CopyResource(
     const std::string& resource_id,
     const std::string& parent_resource_id,
     const std::string& new_title,
@@ -591,7 +588,7 @@ CancelCallbackOnce DriveAPIService::CopyResource(
   return sender_->StartRequestWithAuthRetry(std::move(request));
 }
 
-CancelCallbackOnce DriveAPIService::UpdateResource(
+CancelCallback DriveAPIService::UpdateResource(
     const std::string& resource_id,
     const std::string& parent_resource_id,
     const std::string& new_title,
@@ -625,7 +622,7 @@ CancelCallbackOnce DriveAPIService::UpdateResource(
   return sender_->StartRequestWithAuthRetry(std::move(request));
 }
 
-CancelCallbackOnce DriveAPIService::AddResourceToDirectory(
+CancelCallback DriveAPIService::AddResourceToDirectory(
     const std::string& parent_resource_id,
     const std::string& resource_id,
     EntryActionCallback callback) {
@@ -655,39 +652,39 @@ CancelCallbackOnce DriveAPIService::RemoveResourceFromDirectory(
   return sender_->StartRequestWithAuthRetry(std::move(request));
 }
 
-CancelCallbackOnce DriveAPIService::InitiateUploadNewFile(
+CancelCallback DriveAPIService::InitiateUploadNewFile(
     const std::string& content_type,
     int64_t content_length,
     const std::string& parent_resource_id,
     const std::string& title,
     const UploadNewFileOptions& options,
-    InitiateUploadCallback callback) {
+    const InitiateUploadCallback& callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(!callback.is_null());
 
   std::unique_ptr<InitiateUploadNewFileRequest> request =
       std::make_unique<InitiateUploadNewFileRequest>(
           sender_.get(), url_generator_, content_type, content_length,
-          parent_resource_id, title, std::move(callback));
+          parent_resource_id, title, callback);
   request->set_modified_date(options.modified_date);
   request->set_last_viewed_by_me_date(options.last_viewed_by_me_date);
   request->set_properties(options.properties);
   return sender_->StartRequestWithAuthRetry(std::move(request));
 }
 
-CancelCallbackOnce DriveAPIService::InitiateUploadExistingFile(
+CancelCallback DriveAPIService::InitiateUploadExistingFile(
     const std::string& content_type,
     int64_t content_length,
     const std::string& resource_id,
     const UploadExistingFileOptions& options,
-    InitiateUploadCallback callback) {
+    const InitiateUploadCallback& callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(!callback.is_null());
 
   std::unique_ptr<InitiateUploadExistingFileRequest> request =
       std::make_unique<InitiateUploadExistingFileRequest>(
           sender_.get(), url_generator_, content_type, content_length,
-          resource_id, options.etag, std::move(callback));
+          resource_id, options.etag, callback);
   request->set_parent_resource_id(options.parent_resource_id);
   request->set_title(options.title);
   request->set_modified_date(options.modified_date);
@@ -696,7 +693,7 @@ CancelCallbackOnce DriveAPIService::InitiateUploadExistingFile(
   return sender_->StartRequestWithAuthRetry(std::move(request));
 }
 
-CancelCallbackOnce DriveAPIService::ResumeUpload(
+CancelCallback DriveAPIService::ResumeUpload(
     const GURL& upload_url,
     int64_t start_position,
     int64_t end_position,
@@ -715,10 +712,9 @@ CancelCallbackOnce DriveAPIService::ResumeUpload(
           progress_callback));
 }
 
-CancelCallbackOnce DriveAPIService::GetUploadStatus(
-    const GURL& upload_url,
-    int64_t content_length,
-    UploadRangeCallback callback) {
+CancelCallback DriveAPIService::GetUploadStatus(const GURL& upload_url,
+                                                int64_t content_length,
+                                                UploadRangeCallback callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(!callback.is_null());
 
@@ -727,7 +723,7 @@ CancelCallbackOnce DriveAPIService::GetUploadStatus(
           sender_.get(), upload_url, content_length, std::move(callback)));
 }
 
-CancelCallbackOnce DriveAPIService::MultipartUploadNewFile(
+CancelCallbackRepeating DriveAPIService::MultipartUploadNewFile(
     const std::string& content_type,
     int64_t content_length,
     const std::string& parent_resource_id,
@@ -750,7 +746,7 @@ CancelCallbackOnce DriveAPIService::MultipartUploadNewFile(
               progress_callback)));
 }
 
-CancelCallbackOnce DriveAPIService::MultipartUploadExistingFile(
+CancelCallbackRepeating DriveAPIService::MultipartUploadExistingFile(
     const std::string& content_type,
     int64_t content_length,
     const std::string& resource_id,
@@ -773,7 +769,7 @@ CancelCallbackOnce DriveAPIService::MultipartUploadExistingFile(
               std::move(callback), progress_callback)));
 }
 
-google_apis::CancelCallbackOnce DriveAPIService::AddPermission(
+google_apis::CancelCallback DriveAPIService::AddPermission(
     const std::string& resource_id,
     const std::string& email,
     google_apis::drive::PermissionRole role,
@@ -848,7 +844,7 @@ DriveAPIService::StartBatchRequest() {
   // RequestSender before the request is committed because the request has a
   // reference to RequestSender and we should ensure to delete the request when
   // the sender is deleted. Resolve the circulating dependency and fix it.
-  const google_apis::CancelCallbackRepeating callback =
+  const google_apis::CancelCallback callback =
       sender_->StartRequestWithAuthRetry(std::move(request));
   return std::make_unique<BatchRequestConfigurator>(
       weak_ref, sender_->blocking_task_runner(), url_generator_, callback);

@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -95,9 +95,9 @@ class PathManager(object):
 
         if len(components) == 0:
             assert isinstance(idl_definition,
-                              (web_idl.ObservableArray, web_idl.Union))
-            # Compound types of built-in types, e.g. ObservableArray<long> and
-            # (double or DOMString), do not have a component.
+                              (web_idl.Union, web_idl.NewUnion))
+            # Unions of built-in types, e.g. (double or DOMString), do not have
+            # a component.
             self._is_cross_components = False
             default_component = web_idl.Component("core")
             self._api_component = default_component
@@ -110,32 +110,23 @@ class PathManager(object):
         elif len(components) == 2:
             assert components[0] == "core"
             assert components[1] == "modules"
-            # ObservableArray and union types do not support cross-component
-            # code generation because clients of IDL observable array and IDL
-            # union types must be on an upper or same layer to any of element
-            # type and union members.
-            if isinstance(idl_definition,
-                          (web_idl.ObservableArray, web_idl.Union)):
-                self._is_cross_components = False
+            self._is_cross_components = True
+            # Union does not support cross-component code generation because
+            # clients of IDL union must be on an upper or same layer to any of
+            # union members.
+            if isinstance(idl_definition, (web_idl.Union, web_idl.NewUnion)):
                 self._api_component = components[1]
-                self._impl_component = components[1]
             else:
-                self._is_cross_components = True
                 self._api_component = components[0]
-                self._impl_component = components[1]
+            self._impl_component = components[1]
         else:
             assert False
 
         self._api_dir = self._component_reldirs[self._api_component]
         self._impl_dir = self._component_reldirs[self._impl_component]
-        if isinstance(idl_definition, web_idl.ObservableArray):
-            self._api_basename = name_style.file("v8",
-                                                 idl_definition.identifier)
-            self._impl_basename = name_style.file("v8",
-                                                  idl_definition.identifier)
-            self._blink_dir = None
-            self._blink_basename = None
-        elif isinstance(idl_definition, web_idl.Union):
+        self._api_basename = name_style.file("v8", idl_definition.identifier)
+        self._impl_basename = name_style.file("v8", idl_definition.identifier)
+        if isinstance(idl_definition, web_idl.NewUnion):
             # In case of IDL unions, underscore is used as a separator of union
             # members, so we don't want any underscore inside a union member.
             # For example, (Foo or Bar or Baz) and (FooBar or Baz) are defined
@@ -144,17 +135,20 @@ class PathManager(object):
             #
             # Avoid name_style.file not to make "Int32Array" into
             # "int_32_array".
-            filename = "v8_union_{}".format("_".join(
-                idl_definition.member_tokens)).lower()
+            filename = "V8_{}".format(idl_definition.identifier).lower()
             self._api_basename = filename
             self._impl_basename = filename
+        elif isinstance(idl_definition, web_idl.Union):
+            union_class_name = idl_definition.identifier
+            union_filepath = _BACKWARD_COMPATIBLE_UNION_FILEPATHS.get(
+                union_class_name, union_class_name)
+            self._api_basename = name_style.file(union_filepath)
+            self._impl_basename = name_style.file(union_filepath)
+
+        if isinstance(idl_definition, (web_idl.Union, web_idl.NewUnion)):
             self._blink_dir = None
             self._blink_basename = None
         else:
-            self._api_basename = name_style.file("v8",
-                                                 idl_definition.identifier)
-            self._impl_basename = name_style.file("v8",
-                                                  idl_definition.identifier)
             idl_path = idl_definition.debug_info.location.filepath
             self._blink_dir = posixpath.dirname(idl_path)
             self._blink_basename = name_style.file(
@@ -207,3 +201,33 @@ class PathManager(object):
         if ext is not None:
             filename = posixpath.extsep.join([filename, ext])
         return posixpath.join(dirpath, filename)
+
+
+# A hack to make the filepaths to generated IDL unions compatible with the old
+# bindings generator.
+#
+# Copied from |shorten_union_name| defined in
+# //third_party/blink/renderer/bindings/scripts/utilities.py
+_BACKWARD_COMPATIBLE_UNION_FILEPATHS = {
+    # modules/canvas2d/CanvasRenderingContext2D.idl
+    "CSSImageValueOrHTMLImageElementOrSVGImageElementOrHTMLVideoElementOrHTMLCanvasElementOrImageBitmapOrOffscreenCanvas":
+    "CanvasImageSource",
+    # modules/canvas/htmlcanvas/html_canvas_element_module.idl
+    "CanvasRenderingContext2DOrWebGLRenderingContextOrWebGL2RenderingContextOrImageBitmapRenderingContextOrGPUCanvasContext":
+    "RenderingContext",
+    # core/frame/window_or_worker_global_scope.idl
+    "HTMLImageElementOrSVGImageElementOrHTMLVideoElementOrHTMLCanvasElementOrBlobOrImageDataOrImageBitmapOrOffscreenCanvas":
+    "ImageBitmapSource",
+    # bindings/tests/idls/core/TestTypedefs.idl
+    "NodeOrLongSequenceOrEventOrXMLHttpRequestOrStringOrStringByteStringOrNodeListRecord":
+    "NestedUnionType",
+    # modules/canvas/offscreencanvas/offscreen_canvas_module.idl
+    "OffscreenCanvasRenderingContext2DOrWebGLRenderingContextOrWebGL2RenderingContextOrImageBitmapRenderingContext":
+    "OffscreenRenderingContext",
+    # core/xmlhttprequest/xml_http_request.idl
+    "DocumentOrBlobOrArrayBufferOrArrayBufferViewOrFormDataOrURLSearchParamsOrUSVString":
+    "DocumentOrXMLHttpRequestBodyInit",
+    # modules/beacon/navigator_beacon.idl
+    'ReadableStreamOrBlobOrArrayBufferOrArrayBufferViewOrFormDataOrURLSearchParamsOrUSVString':
+    'ReadableStreamOrXMLHttpRequestBodyInit',
+}

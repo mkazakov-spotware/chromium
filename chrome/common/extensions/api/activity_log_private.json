@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -82,17 +82,18 @@
             "name": "filter",
             "$ref": "Filter",
             "description": "Fill out the fields that you want to search for in the database."
+          },
+          {
+            "name": "callback",
+            "type": "function",
+            "parameters": [
+              {
+                "name": "result",
+                "$ref": "ActivityResultSet"
+              }
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "result",
-              "$ref": "ActivityResultSet"
-            }
-          ]
-        }
+        ]
       },
       {
         "name": "deleteActivities",
@@ -104,13 +105,13 @@
             "type": "array",
             "items": { "type": "string" },
             "description": "Erases only the activities which IDs are listed in the array."
+          }, {
+            "type": "function",
+            "name": "callback",
+            "parameters": [],
+            "optional": true
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [],
-          "optional": true
-        }
+        ]
       },
       {
         "name": "deleteActivitiesByExtension",
@@ -121,13 +122,13 @@
             "name": "extensionId",
             "type": "string",
             "description": "The ID of the extension to delete activities for."
+          }, {
+            "type": "function",
+            "name": "callback",
+            "parameters": [],
+            "optional": true
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [],
-          "optional": true
-        }
+        ]
       },
       {
         "name": "deleteDatabase",
@@ -144,7 +145,8 @@
             "name": "urls",
             "type": "array",
             "items": { "type": "string" },
-            "description": "Erases only the URLs listed; if empty, erases all URLs."
+            "description": "Erases only the URLs listed; if empty, erases all URLs.",
+            "optional": true
           }
         ]
       }

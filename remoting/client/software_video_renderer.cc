@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/client/software_video_renderer.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -13,7 +12,8 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/task_runner_util.h"
 #include "remoting/base/util.h"
 #include "remoting/client/client_context.h"
 #include "remoting/codec/video_decoder.h"
@@ -79,7 +79,7 @@ void SoftwareVideoRenderer::OnSessionConfig(
   // Initialize decoder based on the selected codec.
   ChannelConfig::Codec codec = config.video_config().codec;
   if (codec == ChannelConfig::CODEC_VERBATIM) {
-    decoder_ = std::make_unique<VideoDecoderVerbatim>();
+    decoder_.reset(new VideoDecoderVerbatim());
   } else if (codec == ChannelConfig::CODEC_VP8) {
     decoder_ = VideoDecoderVpx::CreateForVP8();
   } else if (codec == ChannelConfig::CODEC_VP9) {
@@ -153,13 +153,13 @@ void SoftwareVideoRenderer::ProcessVideoPacket(
       consumer_->AllocateFrame(source_size_);
   frame->set_dpi(source_dpi_);
 
-  decode_task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  base::PostTaskAndReplyWithResult(
+      decode_task_runner_.get(), FROM_HERE,
       base::BindOnce(&DoDecodeFrame, decoder_.get(), std::move(packet),
                      std::move(frame)),
       base::BindOnce(&SoftwareVideoRenderer::RenderFrame,
                      weak_factory_.GetWeakPtr(), std::move(frame_stats),
-                     done_runner.Release()));
+                     base::AdaptCallbackForRepeating(done_runner.Release())));
 }
 
 void SoftwareVideoRenderer::RenderFrame(

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,17 @@
 
 #include <stddef.h>
 
+#include <algorithm>
+
 #include "base/check.h"
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/lazy_instance.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "content/public/browser/browser_thread.h"
 #include "content/public/common/content_switches.h"
 #include "net/base/mime_util.h"
 #include "url/gurl.h"
@@ -68,18 +68,17 @@ bool SupportsExtension(const WebPluginInfo& plugin,
 
 // static
 PluginList* PluginList::Singleton() {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   return g_singleton.Pointer();
 }
 
 void PluginList::RefreshPlugins() {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  base::AutoLock lock(lock_);
   loading_state_ = LOADING_STATE_NEEDS_REFRESH;
 }
 
 void PluginList::RegisterInternalPlugin(const WebPluginInfo& info,
                                         bool add_at_beginning) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  base::AutoLock lock(lock_);
 
   internal_plugins_.push_back(info);
   if (add_at_beginning) {
@@ -92,8 +91,7 @@ void PluginList::RegisterInternalPlugin(const WebPluginInfo& info,
 }
 
 void PluginList::UnregisterInternalPlugin(const base::FilePath& path) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-
+  base::AutoLock lock(lock_);
   bool found = false;
   for (size_t i = 0; i < internal_plugins_.size(); i++) {
     if (internal_plugins_[i].path == path) {
@@ -103,12 +101,12 @@ void PluginList::UnregisterInternalPlugin(const base::FilePath& path) {
     }
   }
   DCHECK(found);
-  RemoveExtraPluginPath(path);
+  RemoveExtraPluginPathLocked(path);
 }
 
 void PluginList::GetInternalPlugins(
     std::vector<WebPluginInfo>* internal_plugins) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  base::AutoLock lock(lock_);
 
   for (const auto& plugin : internal_plugins_)
     internal_plugins->push_back(plugin);
@@ -116,8 +114,7 @@ void PluginList::GetInternalPlugins(
 
 bool PluginList::ReadPluginInfo(const base::FilePath& filename,
                                 WebPluginInfo* info) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-
+  base::AutoLock lock(lock_);
   for (const auto& plugin : internal_plugins_) {
     if (filename == plugin.path) {
       *info = plugin;
@@ -127,13 +124,10 @@ bool PluginList::ReadPluginInfo(const base::FilePath& filename,
   return false;
 }
 
-PluginList::PluginList() {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-}
+PluginList::PluginList() : loading_state_(LOADING_STATE_NEEDS_REFRESH) {}
 
 bool PluginList::PrepareForPluginLoading() {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-
+  base::AutoLock lock(lock_);
   if (loading_state_ == LOADING_STATE_UP_TO_DATE)
     return false;
 
@@ -142,12 +136,18 @@ bool PluginList::PrepareForPluginLoading() {
 }
 
 void PluginList::LoadPlugins() {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-
   if (!PrepareForPluginLoading())
     return;
 
   std::vector<WebPluginInfo> new_plugins;
+  base::OnceClosure will_load_callback;
+  {
+    base::AutoLock lock(lock_);
+    will_load_callback = will_load_plugins_callback_;
+  }
+  if (will_load_callback)
+    std::move(will_load_callback).Run();
+
   std::vector<base::FilePath> plugin_paths;
   GetPluginPathsToLoad(&plugin_paths);
 
@@ -162,8 +162,6 @@ void PluginList::LoadPlugins() {
 bool PluginList::LoadPluginIntoPluginList(const base::FilePath& path,
                                           std::vector<WebPluginInfo>* plugins,
                                           WebPluginInfo* plugin_info) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-
   if (!ReadPluginInfo(path, plugin_info))
     return false;
 
@@ -181,9 +179,15 @@ bool PluginList::LoadPluginIntoPluginList(const base::FilePath& path,
 
 void PluginList::GetPluginPathsToLoad(
     std::vector<base::FilePath>* plugin_paths) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  // Don't want to hold the lock while loading new plugins, so we don't block
+  // other methods if they're called on other threads.
+  std::vector<base::FilePath> extra_plugin_paths;
+  {
+    base::AutoLock lock(lock_);
+    extra_plugin_paths = extra_plugin_paths_;
+  }
 
-  for (const base::FilePath& path : extra_plugin_paths_) {
+  for (const base::FilePath& path : extra_plugin_paths) {
     if (base::Contains(*plugin_paths, path))
       continue;
     plugin_paths->push_back(path);
@@ -191,7 +195,7 @@ void PluginList::GetPluginPathsToLoad(
 }
 
 void PluginList::SetPlugins(const std::vector<WebPluginInfo>& plugins) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  base::AutoLock lock(lock_);
 
   // If we haven't been invalidated in the mean time, mark the plugin list as
   // up to date.
@@ -201,14 +205,20 @@ void PluginList::SetPlugins(const std::vector<WebPluginInfo>& plugins) {
   plugins_list_ = plugins;
 }
 
+void PluginList::set_will_load_plugins_callback(
+    const base::RepeatingClosure& callback) {
+  base::AutoLock lock(lock_);
+  will_load_plugins_callback_ = callback;
+}
+
 void PluginList::GetPlugins(std::vector<WebPluginInfo>* plugins) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   LoadPlugins();
+  base::AutoLock lock(lock_);
   plugins->insert(plugins->end(), plugins_list_.begin(), plugins_list_.end());
 }
 
 bool PluginList::GetPluginsNoRefresh(std::vector<WebPluginInfo>* plugins) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  base::AutoLock lock(lock_);
   plugins->insert(plugins->end(), plugins_list_.begin(), plugins_list_.end());
 
   return loading_state_ == LOADING_STATE_UP_TO_DATE;
@@ -220,10 +230,10 @@ bool PluginList::GetPluginInfoArray(
     bool allow_wildcard,
     std::vector<WebPluginInfo>* info,
     std::vector<std::string>* actual_mime_types) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(mime_type == base::ToLowerASCII(mime_type));
   DCHECK(info);
 
+  base::AutoLock lock(lock_);
   bool is_stale = loading_state_ != LOADING_STATE_UP_TO_DATE;
   info->clear();
   if (actual_mime_types)
@@ -270,10 +280,11 @@ bool PluginList::GetPluginInfoArray(
   return is_stale;
 }
 
-void PluginList::RemoveExtraPluginPath(const base::FilePath& plugin_path) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  std::vector<base::FilePath>::iterator it =
-      base::ranges::find(extra_plugin_paths_, plugin_path);
+void PluginList::RemoveExtraPluginPathLocked(
+    const base::FilePath& plugin_path) {
+  lock_.AssertAcquired();
+  std::vector<base::FilePath>::iterator it = std::find(
+      extra_plugin_paths_.begin(), extra_plugin_paths_.end(), plugin_path);
   if (it != extra_plugin_paths_.end())
     extra_plugin_paths_.erase(it);
 }

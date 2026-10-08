@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,31 +7,29 @@
 #import <Foundation/Foundation.h>
 #import <PassKit/PassKit.h>
 
-#import <memory>
+#include <memory>
 
-#import "base/strings/sys_string_conversions.h"
+#include "base/strings/sys_string_conversions.h"
 #import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
-#import "ios/chrome/browser/main/test_browser.h"
+#include "ios/chrome/browser/main/test_browser.h"
 #import "ios/chrome/browser/ntp/new_tab_page_tab_helper.h"
 #import "ios/chrome/browser/ntp/new_tab_page_tab_helper_delegate.h"
-#import "ios/chrome/browser/ui/main/scene_state.h"
-#import "ios/chrome/browser/ui/main/scene_state_browser_agent.h"
 #import "ios/chrome/browser/url_loading/scene_url_loading_service.h"
 #import "ios/chrome/browser/url_loading/test_scene_url_loading_service.h"
 #import "ios/chrome/browser/url_loading/url_loading_notifier_browser_agent.h"
 #import "ios/chrome/browser/url_loading/url_loading_params.h"
-#import "ios/chrome/browser/web_state_list/fake_web_state_list_delegate.h"
+#include "ios/chrome/browser/web_state_list/fake_web_state_list_delegate.h"
 #import "ios/chrome/browser/web_state_list/tab_insertion_browser_agent.h"
-#import "ios/chrome/browser/web_state_list/web_state_list.h"
+#include "ios/chrome/browser/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/web_state_list/web_state_opener.h"
 #import "ios/chrome/browser/web_state_list/web_usage_enabler/web_usage_enabler_browser_agent.h"
-#import "ios/chrome/test/block_cleanup_test.h"
-#import "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
+#include "ios/chrome/test/block_cleanup_test.h"
+#include "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
 #import "ios/testing/ocmock_complex_type_helper.h"
-#import "ios/web/public/test/fakes/fake_navigation_manager.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "ios/web/public/test/web_task_environment.h"
-#import "third_party/ocmock/gtest_support.h"
+#import "ios/web/public/test/fakes/test_navigation_manager.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "ios/web/public/test/web_task_environment.h"
+#include "third_party/ocmock/gtest_support.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -44,6 +42,9 @@
 
 #pragma mark - URLLoadingBrowserAgentDelegate
 
+- (void)openURLInNewTabWithCommand:(OpenNewTabCommand*)command {
+}
+
 - (void)animateOpenBackgroundTabFromParams:(const UrlLoadParams&)params
                                 completion:(void (^)())completion {
 }
@@ -55,20 +56,16 @@
 namespace {
 class URLLoadingBrowserAgentTest : public BlockCleanupTest {
  public:
-  URLLoadingBrowserAgentTest() {
-    chrome_browser_state_ = TestChromeBrowserState::Builder().Build();
-    browser_ = std::make_unique<TestBrowser>(chrome_browser_state_.get());
-    otr_browser_state_ =
-        chrome_browser_state_->GetOffTheRecordChromeBrowserState();
-    url_loading_delegate_ = [[URLLoadingTestDelegate alloc] init];
-    scene_loader_ = std::make_unique<TestSceneUrlLoadingService>();
-    otr_browser_ = std::make_unique<TestBrowser>(otr_browser_state_);
-    scene_state_ = [[SceneState alloc] initWithAppState:nil];
-
+  URLLoadingBrowserAgentTest()
+      : browser_(std::make_unique<TestBrowser>()),
+        chrome_browser_state_(browser_->GetBrowserState()),
+        otr_browser_state_(
+            chrome_browser_state_->GetOffTheRecordChromeBrowserState()),
+        url_loading_delegate_([[URLLoadingTestDelegate alloc] init]),
+        scene_loader_(std::make_unique<TestSceneUrlLoadingService>()),
+        otr_browser_(std::make_unique<TestBrowser>(otr_browser_state_)) {
     // Configure app service.
     scene_loader_->current_browser_ = browser_.get();
-    SceneStateBrowserAgent::CreateForBrowser(browser_.get(), scene_state_);
-    SceneStateBrowserAgent::CreateForBrowser(otr_browser_.get(), scene_state_);
 
     // Disable web usage on both browsers
     WebUsageEnablerBrowserAgent::CreateForBrowser(browser_.get());
@@ -111,39 +108,38 @@ class URLLoadingBrowserAgentTest : public BlockCleanupTest {
   }
 
   // Returns a new unique_ptr containing a test webstate.
-  std::unique_ptr<web::FakeWebState> CreateFakeWebState() {
-    auto web_state = std::make_unique<web::FakeWebState>();
-    web_state->SetBrowserState(chrome_browser_state_.get());
+  std::unique_ptr<web::TestWebState> CreateTestWebState() {
+    auto web_state = std::make_unique<web::TestWebState>();
+    web_state->SetBrowserState(chrome_browser_state_);
     web_state->SetNavigationManager(
-        std::make_unique<web::FakeNavigationManager>());
+        std::make_unique<web::TestNavigationManager>());
     return web_state;
   }
 
   web::WebTaskEnvironment task_environment_;
   IOSChromeScopedTestingLocalState local_state_;
-  std::unique_ptr<TestChromeBrowserState> chrome_browser_state_;
-  std::unique_ptr<TestBrowser> browser_;
+  std::unique_ptr<Browser> browser_;
+  ChromeBrowserState* chrome_browser_state_;
   ChromeBrowserState* otr_browser_state_;
   URLLoadingTestDelegate* url_loading_delegate_;
   std::unique_ptr<TestSceneUrlLoadingService> scene_loader_;
   UrlLoadingBrowserAgent* loader_;
   std::unique_ptr<Browser> otr_browser_;
   UrlLoadingBrowserAgent* otr_loader_;
-  SceneState* scene_state_;
 };
 
 TEST_F(URLLoadingBrowserAgentTest, TestSwitchToTab) {
   WebStateList* web_state_list = browser_->GetWebStateList();
   ASSERT_EQ(0, web_state_list->count());
 
-  std::unique_ptr<web::FakeWebState> web_state = CreateFakeWebState();
+  std::unique_ptr<web::TestWebState> web_state = CreateTestWebState();
   web::WebState* web_state_ptr = web_state.get();
   web_state->SetCurrentURL(GURL("http://test/1"));
   web_state_list->InsertWebState(0, std::move(web_state),
                                  WebStateList::INSERT_FORCE_INDEX,
                                  WebStateOpener());
 
-  std::unique_ptr<web::FakeWebState> web_state_2 = CreateFakeWebState();
+  std::unique_ptr<web::TestWebState> web_state_2 = CreateTestWebState();
   web::WebState* web_state_ptr_2 = web_state_2.get();
   GURL url("http://test/2");
   web_state_2->SetCurrentURL(url);
@@ -167,7 +163,7 @@ TEST_F(URLLoadingBrowserAgentTest, TestSwitchToTabFromNTP) {
   WebStateList* web_state_list = browser_->GetWebStateList();
   ASSERT_EQ(0, web_state_list->count());
 
-  std::unique_ptr<web::FakeWebState> web_state = CreateFakeWebState();
+  std::unique_ptr<web::TestWebState> web_state = CreateTestWebState();
   web::WebState* web_state_ptr = web_state.get();
   web_state->SetCurrentURL(GURL("chrome://newtab"));
   web_state_list->InsertWebState(0, std::move(web_state),
@@ -177,7 +173,7 @@ TEST_F(URLLoadingBrowserAgentTest, TestSwitchToTabFromNTP) {
   NewTabPageTabHelper::CreateForWebState(web_state_ptr);
   NewTabPageTabHelper::FromWebState(web_state_ptr)->SetDelegate(mock_delegate);
 
-  std::unique_ptr<web::FakeWebState> web_state_2 = CreateFakeWebState();
+  std::unique_ptr<web::TestWebState> web_state_2 = CreateTestWebState();
   web::WebState* web_state_ptr_2 = web_state_2.get();
   GURL url("http://test/2");
   web_state_2->SetCurrentURL(url);
@@ -202,7 +198,7 @@ TEST_F(URLLoadingBrowserAgentTest, TestSwitchToClosedTab) {
   WebStateList* web_state_list = browser_->GetWebStateList();
   ASSERT_EQ(0, web_state_list->count());
 
-  std::unique_ptr<web::FakeWebState> web_state = CreateFakeWebState();
+  std::unique_ptr<web::TestWebState> web_state = CreateTestWebState();
   web_state->SetCurrentURL(GURL("chrome://newtab"));
   web::WebState* web_state_ptr = web_state.get();
   web_state_list->InsertWebState(0, std::move(web_state),

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,8 +26,7 @@ public class TabStateDirectory {
     private static final String BASE_STATE_FOLDER = "tabs";
 
     /** The name of the directory where the state for tabbed mode is saved. */
-    @VisibleForTesting
-    public static final String TABBED_MODE_DIRECTORY = "0";
+    private static final String TABBED_MODE_DIRECTORY = "0";
 
     /** The name of the directory where the state for custom tabs is saved. */
     public static final String CUSTOM_TABS_DIRECTORY = "custom_tabs";
@@ -108,10 +107,5 @@ public class TabStateDirectory {
     @VisibleForTesting
     public static void setBaseStateDirectoryForTests(File directory) {
         BaseStateDirectoryHolder.sDirectory = directory;
-    }
-
-    @VisibleForTesting
-    public static void resetTabbedModeStateDirectoryForTesting() {
-        sTabbedModeStateDirectory = null;
     }
 }

@@ -29,13 +29,24 @@ function loadScript(path) {
  * @returns {Promise<void>} Resolves when Chromium specific setup is complete.
  */
 async function performChromiumSetup() {
+  const chromiumResources = [
+    '/gen/content/test/data/mojo_web_test_helper_test.mojom.js',
+    '/gen/device/bluetooth/public/mojom/uuid.mojom.js',
+    '/gen/url/mojom/origin.mojom.js',
+    '/gen/device/bluetooth/public/mojom/test/fake_bluetooth.mojom.js',
+    '/gen/content/web_test/common/fake_bluetooth_chooser.mojom.js',
+  ];
   // Determine path prefixes.
   let resPrefix = '/resources';
-  const chromiumResources = ['/resources/chromium/web-bluetooth-test.js'];
+  let extra = ['/resources/chromium/web-bluetooth-test.js'];
   const pathname = window.location.pathname;
-  if (pathname.includes('/wpt_internal/')) {
-    chromiumResources.push(
-        '/wpt_internal/bluetooth/resources/bluetooth-fake-adapter.js');
+  if (pathname.includes('/web_tests/')) {
+    let root = pathname.match(/.*(?:web_tests)/);
+    resPrefix = `${root}/external/wpt/resources`;
+    extra = [
+      `${root}/external/wpt/resources/chromium/web-bluetooth-test.js`,
+      `${root}/resources/bluetooth/bluetooth-fake-adapter.js`,
+    ];
   }
 
   await loadScript(`${resPrefix}/test-only-api.js`);
@@ -43,11 +54,10 @@ async function performChromiumSetup() {
     return;
   }
 
-  for (const path of chromiumResources) {
+  await loadMojoResources(chromiumResources);
+  for (const path of extra) {
     await loadScript(path);
   }
-
-  await initializeChromiumResources();
 
   // Call setBluetoothFakeAdapter() to clean up any fake adapters left over by
   // legacy tests. Legacy tests that use setBluetoothFakeAdapter() sometimes
@@ -68,24 +78,18 @@ async function performChromiumSetup() {
  * @param {function{*}: Promise<*>} test_function The Web Bluetooth test to run.
  * @param {string} name The name or description of the test.
  * @param {object} properties An object containing extra options for the test.
- * @param {Boolean} validate_response_consumed Whether to validate all response
- *     consumed or not.
  * @returns {Promise<void>} Resolves if Web Bluetooth test ran successfully, or
  *     rejects if the test failed.
  */
-function bluetooth_test(
-    test_function, name, properties, validate_response_consumed = true) {
+function bluetooth_test(test_function, name, properties) {
   return promise_test(async (t) => {
     assert_implements(navigator.bluetooth, 'missing navigator.bluetooth');
     // Trigger Chromium-specific setup.
     await performChromiumSetup();
-    assert_implements(
-        navigator.bluetooth.test, 'missing navigator.bluetooth.test');
+    assert_implements(navigator.bluetooth.test, 'missing navigator.bluetooth.test');
     await test_function(t);
-    if (validate_response_consumed) {
-      let consumed = await navigator.bluetooth.test.allResponsesConsumed();
-      assert_true(consumed);
-    }
+    let consumed = await navigator.bluetooth.test.allResponsesConsumed();
+    assert_true(consumed);
   }, name, properties);
 }
 
@@ -176,6 +180,18 @@ function assert_promise_rejects_with_message(promise, expected, description) {
               error.message, expected.message, 'Unexpected Error Message:');
         }
       });
+}
+
+/**
+ * Runs the garbage collection.
+ * @returns {Promise<void>} Resolves when garbage collection has finished.
+ */
+function runGarbageCollection() {
+  // Run gc() as a promise.
+  return new Promise(function(resolve, reject) {
+    GCController.collect();
+    step_timeout(resolve, 0);
+  });
 }
 
 /**

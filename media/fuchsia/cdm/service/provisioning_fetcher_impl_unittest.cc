@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,10 @@
 #include <memory>
 
 #include "base/bind.h"
-#include "base/fuchsia/mem_buffer_util.h"
 #include "base/location.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
+#include "fuchsia/base/mem_buffer_util.h"
 #include "media/fuchsia/cdm/service/mock_provision_fetcher.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -37,7 +37,8 @@ drm::ProvisioningRequest CreateProvisioningRequest(
   drm::ProvisioningRequest request;
   request.default_provisioning_server_url =
       std::move(default_provisioning_server_url);
-  request.message = base::MemBufferFromString(message, "provisioning_request");
+  request.message =
+      cr_fuchsia::MemBufferFromString(message, "provisioning_request");
   return request;
 }
 
@@ -65,14 +66,13 @@ TEST_F(ProvisioningFetcherImplTest, Fetch) {
 
   fetcher.Bind(base::MakeExpectedNotRunClosure(FROM_HERE));
 
-  absl::optional<std::string> response_message;
+  std::string response_message;
   fetcher.Fetch(CreateProvisioningRequest(kTestDefaultUrl, kTestRequest),
                 [&](drm::ProvisioningResponse response) {
-                  response_message =
-                      base::StringFromMemBuffer(response.message);
+                  ASSERT_TRUE(cr_fuchsia::StringFromMemBuffer(
+                      response.message, &response_message));
                 });
-  ASSERT_TRUE(response_message.has_value());
-  EXPECT_EQ(*response_message, kTestResponse);
+  EXPECT_EQ(response_message, kTestResponse);
 }
 
 TEST_F(ProvisioningFetcherImplTest, RetrieveFails) {
@@ -89,14 +89,13 @@ TEST_F(ProvisioningFetcherImplTest, RetrieveFails) {
 
   fetcher.Bind(base::MakeExpectedNotRunClosure(FROM_HERE));
 
-  absl::optional<std::string> response_message;
+  std::string response_message;
   fetcher.Fetch(CreateProvisioningRequest(kTestDefaultUrl, kTestRequest),
                 [&](drm::ProvisioningResponse response) {
-                  response_message =
-                      base::StringFromMemBuffer(response.message);
+                  ASSERT_TRUE(cr_fuchsia::StringFromMemBuffer(
+                      response.message, &response_message));
                 });
-  ASSERT_TRUE(response_message.has_value());
-  EXPECT_TRUE(response_message->empty());
+  EXPECT_TRUE(response_message.empty());
 }
 
 TEST_F(ProvisioningFetcherImplTest, NoDefaultProvisioningUrl) {
@@ -113,7 +112,7 @@ TEST_F(ProvisioningFetcherImplTest, NoDefaultProvisioningUrl) {
 
   fetcher.Bind(base::MakeExpectedRunClosure(FROM_HERE));
 
-  fetcher.Fetch(CreateProvisioningRequest({}, kTestRequest),
+  fetcher.Fetch(CreateProvisioningRequest(fit::nullopt, kTestRequest),
                 [](drm::ProvisioningResponse response) { FAIL(); });
 }
 

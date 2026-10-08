@@ -29,9 +29,8 @@ promise_test(async t => {
       </script>
   `;
 
-  const p = new Promise(r => window.onmessage = e => r(e.data));
   const frame = await with_iframe(`data:text/html;base64,${btoa(frameCode)}`);
-  const result = await p;
+  const result = await new Promise(r => window.onmessage = e => r(e.data));
   assert_equals(result, 'PASS');
 }, 'Create a dedicated worker in a data url frame');
 
@@ -83,9 +82,8 @@ promise_test(async t => {
       </script>
   `;
 
-  const p = new Promise(r => window.onmessage = e => r(e.data));
   const frame = await with_iframe(`data:text/html;base64,${btoa(frameCode)}`);
-  const result = await p;
+  const result = await new Promise(r => window.onmessage = e => r(e.data));
   assert_equals(result, 'PASS');
 }, 'Create a data url dedicated worker in a data url frame');
 

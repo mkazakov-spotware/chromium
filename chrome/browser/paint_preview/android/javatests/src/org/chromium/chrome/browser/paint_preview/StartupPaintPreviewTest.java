@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,9 @@ package org.chromium.chrome.browser.paint_preview;
 import static org.chromium.base.test.util.Batch.PER_CLASS;
 import static org.chromium.chrome.browser.paint_preview.TabbedPaintPreviewTest.assertAttachedAndShown;
 
-import android.os.SystemClock;
-import android.view.MotionEvent;
-import android.view.View;
-import android.view.ViewConfiguration;
+import android.support.test.InstrumentationRegistry;
+import android.support.test.uiautomator.UiDevice;
+import android.support.test.uiautomator.UiObjectNotFoundException;
 import android.view.ViewGroup;
 
 import androidx.test.filters.MediumTest;
@@ -23,7 +22,6 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mock;
 import org.mockito.Mockito;
 
 import org.chromium.base.test.util.Batch;
@@ -49,10 +47,6 @@ public class StartupPaintPreviewTest {
     @ClassRule
     public static ChromeTabbedActivityTestRule sActivityTestRule =
             new ChromeTabbedActivityTestRule();
-    // Tell R8 not to break the ability to mock the class.
-    @Mock
-    private static PaintPreviewTabService sUnused;
-
     @Rule
     public final BlankCTATabInitialStateRule mInitialStateRule =
             new BlankCTATabInitialStateRule(sActivityTestRule, true);
@@ -65,7 +59,7 @@ public class StartupPaintPreviewTest {
         Mockito.doReturn(true).when(mockService).hasCaptureForTab(Mockito.anyInt());
         TabbedPaintPreview.overridePaintPreviewTabServiceForTesting(mockService);
         PlayerManager.overrideCompositorDelegateFactoryForTesting(
-                new TabbedPaintPreviewTest.TestCompositorDelegateFactory());
+                TabbedPaintPreviewTest.TestCompositorDelegate::new);
     }
 
     @AfterClass
@@ -88,7 +82,8 @@ public class StartupPaintPreviewTest {
     public void testDisplayedCorrectly() throws ExecutionException {
         Tab tab = sActivityTestRule.getActivity().getActivityTab();
         StartupPaintPreview startupPaintPreview = TestThreadUtils.runOnUiThreadBlocking(
-                () -> new StartupPaintPreview(tab, null, null, null));
+                () -> new StartupPaintPreview(tab, null, null, null, null));
+        TestThreadUtils.runOnUiThreadBlocking(() -> startupPaintPreview.show(null));
         TabbedPaintPreview tabbedPaintPreview =
                 TestThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
         showAndWaitForInflation(startupPaintPreview, tabbedPaintPreview, null);
@@ -96,10 +91,10 @@ public class StartupPaintPreviewTest {
 
     @Test
     @MediumTest
-    public void testSnackbarShow() throws ExecutionException, InterruptedException {
+    public void testSnackbarShow() throws ExecutionException {
         Tab tab = sActivityTestRule.getActivity().getActivityTab();
         StartupPaintPreview startupPaintPreview = TestThreadUtils.runOnUiThreadBlocking(
-                () -> new StartupPaintPreview(tab, null, null, null));
+                () -> new StartupPaintPreview(tab, null, null, null, null));
         TabbedPaintPreview tabbedPaintPreview =
                 TestThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
         showAndWaitForInflation(startupPaintPreview, tabbedPaintPreview, null);
@@ -108,23 +103,24 @@ public class StartupPaintPreviewTest {
         // or when users longpress.
         SnackbarManager snackbarManager = sActivityTestRule.getActivity().getSnackbarManager();
         assertSnackbarVisibility(snackbarManager, false);
-        View view = tabbedPaintPreview.getViewForTesting();
-
+        UiDevice uiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
+        int centerX = uiDevice.getDisplayWidth() / 2;
+        int centerY = uiDevice.getDisplayHeight() / 2;
         // First tap.
-        simulateTap(view, view.getWidth() / 2f, view.getHeight() / 2f);
+        uiDevice.click(centerX, centerY);
         assertSnackbarVisibility(snackbarManager, false);
         // Second tap.
-        simulateTap(view, view.getWidth() / 2f, view.getHeight() / 2f);
+        uiDevice.click(centerX, centerY);
         assertSnackbarVisibility(snackbarManager, false);
         // Third tap.
-        simulateTap(view, view.getWidth() / 2f, view.getHeight() / 2f);
+        uiDevice.click(centerX, centerY);
         assertSnackbarVisibility(snackbarManager, true);
 
         TestThreadUtils.runOnUiThreadBlocking(snackbarManager::dismissAllSnackbars);
         assertSnackbarVisibility(snackbarManager, false);
 
         // Simulate long press.
-        simulateLongPress(view, view.getWidth() / 2f, view.getHeight() / 2f);
+        uiDevice.swipe(centerX, centerY, centerX, centerY, 400);
         assertSnackbarVisibility(snackbarManager, true);
     }
 
@@ -136,7 +132,7 @@ public class StartupPaintPreviewTest {
     public void testRemoveOnFirstMeaningfulPaint() throws ExecutionException {
         Tab tab = sActivityTestRule.getActivity().getActivityTab();
         StartupPaintPreview startupPaintPreview = TestThreadUtils.runOnUiThreadBlocking(
-                () -> new StartupPaintPreview(tab, null, null, null));
+                () -> new StartupPaintPreview(tab, null, null, null, null));
         TabbedPaintPreview tabbedPaintPreview =
                 TestThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
         CallbackHelper dismissCallback = new CallbackHelper();
@@ -158,7 +154,7 @@ public class StartupPaintPreviewTest {
     public void testRemoveOnOfflinePage() throws ExecutionException {
         Tab tab = sActivityTestRule.getActivity().getActivityTab();
         StartupPaintPreview startupPaintPreview = TestThreadUtils.runOnUiThreadBlocking(
-                () -> new StartupPaintPreview(tab, null, null, null));
+                () -> new StartupPaintPreview(tab, null, null, null, null));
         TabbedPaintPreview tabbedPaintPreview =
                 TestThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
         // Offline page callback always returns true.
@@ -168,9 +164,7 @@ public class StartupPaintPreviewTest {
         showAndWaitForInflation(startupPaintPreview, tabbedPaintPreview, dismissCallback);
         assertAttachedAndShown(tabbedPaintPreview, true, true);
         // Should be removed on PageLoadFinished signal.
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            startupPaintPreview.getTabObserverForTesting().onPageLoadFinished(tab, null);
-        });
+        startupPaintPreview.getTabObserverForTesting().onPageLoadFinished(tab, null);
         assertAttachedAndShown(tabbedPaintPreview, false, false);
         Assert.assertEquals(
                 "Dismiss callback should have been called.", 1, dismissCallback.getCallCount());
@@ -181,19 +175,21 @@ public class StartupPaintPreviewTest {
      */
     @Test
     @MediumTest
-    public void testRemoveOnSnackbarClick() throws ExecutionException, InterruptedException {
+    public void testRemoveOnActionbarClick() throws ExecutionException, UiObjectNotFoundException {
         Tab tab = sActivityTestRule.getActivity().getActivityTab();
         StartupPaintPreview startupPaintPreview = TestThreadUtils.runOnUiThreadBlocking(
-                () -> new StartupPaintPreview(tab, null, null, null));
+                () -> new StartupPaintPreview(tab, null, null, null, null));
         TabbedPaintPreview tabbedPaintPreview =
                 TestThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
         CallbackHelper dismissCallback = new CallbackHelper();
+        UiDevice uiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
 
-        // Should be removed on SnackBar click.
+        // Should be removed on actionbar click.
         showAndWaitForInflation(startupPaintPreview, tabbedPaintPreview, dismissCallback);
         SnackbarManager snackbarManager = sActivityTestRule.getActivity().getSnackbarManager();
-        View view = tabbedPaintPreview.getViewForTesting();
-        simulateLongPress(view, view.getWidth() / 2f, view.getHeight() / 2f);
+        int centerX = uiDevice.getDisplayWidth() / 2;
+        int centerY = uiDevice.getDisplayHeight() / 2;
+        uiDevice.swipe(centerX, centerY, centerX, centerY, 400);
         assertSnackbarVisibility(snackbarManager, true);
         TestThreadUtils.runOnUiThreadBlocking(()->
                 snackbarManager.getCurrentSnackbarForTesting().getController().onAction(null));
@@ -207,10 +203,10 @@ public class StartupPaintPreviewTest {
      */
     @Test
     @MediumTest
-    public void testRemoveOnNavigation() throws ExecutionException {
+    public void testRemoveOnNavigation() throws ExecutionException, UiObjectNotFoundException {
         Tab tab = sActivityTestRule.getActivity().getActivityTab();
         StartupPaintPreview startupPaintPreview = TestThreadUtils.runOnUiThreadBlocking(
-                () -> new StartupPaintPreview(tab, null, null, null));
+                () -> new StartupPaintPreview(tab, null, null, null, null));
         TabbedPaintPreview tabbedPaintPreview =
                 TestThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
         CallbackHelper dismissCallback = new CallbackHelper();
@@ -241,28 +237,5 @@ public class StartupPaintPreviewTest {
                                             -> tabbedPaintPreview.getViewForTesting() != null
                         && ((ViewGroup) tabbedPaintPreview.getViewForTesting()).getChildCount() > 0,
                 "TabbedPaintPreview either doesn't have a view or a view with 0 children.");
-    }
-
-    private void simulateTap(View view, float x, float y)
-            throws ExecutionException, InterruptedException {
-        simulateTapWithDuration(view, x, y, 50);
-    }
-
-    private void simulateLongPress(View view, float x, float y)
-            throws ExecutionException, InterruptedException {
-        Thread.sleep(100);
-        simulateTapWithDuration(view, x, y, ViewConfiguration.getLongPressTimeout() + 200);
-    }
-
-    private void simulateTapWithDuration(View view, float x, float y, long holdDurationMs)
-            throws ExecutionException, InterruptedException {
-        long downTime = SystemClock.uptimeMillis();
-        MotionEvent down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0);
-        TestThreadUtils.runOnUiThreadBlocking(() -> view.dispatchTouchEvent(down));
-
-        Thread.sleep(holdDurationMs);
-        MotionEvent up = MotionEvent.obtain(
-                downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, x, y, 0);
-        TestThreadUtils.runOnUiThreadBlocking(() -> view.dispatchTouchEvent(up));
     }
 }

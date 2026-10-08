@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include "ui/views/accessibility/view_accessibility.h"
 
 std::unique_ptr<views::Label> CreateTitleOriginLabel(
-    const std::u16string& text) {
+    const base::string16& text) {
   auto label =
       std::make_unique<views::Label>(text, views::style::CONTEXT_DIALOG_TITLE);
   label->SetHorizontalAlignment(gfx::ALIGN_LEFT);

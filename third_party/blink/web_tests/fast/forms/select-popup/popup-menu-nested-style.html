@@ -2,8 +2,6 @@
 <html>
 <head>
 <script src="../../../resources/js-test.js"></script>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
 <script src="../resources/common.js"></script>
 <script src="../resources/picker-common.js"></script>
 </head>
@@ -26,13 +24,13 @@ function openPickerErrorCallback() {
     testFailed('picker didn\'t open')
     finishJSTest();
 }
-openPickerDeprecatedJsTest(menu, test1, openPickerErrorCallback);
+openPicker(menu, test1, openPickerErrorCallback);
 function test1() {
     params = internals.pagePopupWindow.global.params;
     shouldBeEqualToString('params.children[1].type', 'optgroup');
     shouldBeUndefined('params.children[1].children[0].type');
-    shouldBeEqualToString('params.children[1].children[0].style.color', 'rgb(0, 0, 0)');
-    shouldBeEqualToString('params.children[1].children[0].style.backgroundColor', 'rgb(255, 255, 255)');
+    shouldBeEqualToString('params.children[1].children[0].style.color', '#000000');
+    shouldBeEqualToString('params.children[1].children[0].style.backgroundColor', '#ffffff');
 
     finishJSTest();
 }

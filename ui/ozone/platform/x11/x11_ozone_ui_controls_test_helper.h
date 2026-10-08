@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,7 +39,6 @@ class X11OzoneUIControlsTestHelper : public OzoneUIControlsTestHelper {
                       const gfx::Point& mouse_root_loc,
                       base::OnceClosure closure) override;
   void RunClosureAfterAllPendingUIEvents(base::OnceClosure closure) override;
-  bool MustUseUiControlsForMoveCursorTo() override;
 
  private:
   X11UIControlsTestHelper x11_ui_controls_test_helper_;

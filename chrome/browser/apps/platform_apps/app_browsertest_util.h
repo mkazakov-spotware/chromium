@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,11 @@
 #include <memory>
 #include <string>
 
-#include "build/chromeos_buildflags.h"
+#include "base/macros.h"
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "extensions/browser/app_window/app_window.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "components/media_router/browser/test/mock_media_router.h"
 #endif
 
@@ -36,8 +36,6 @@ class Extension;
 class PlatformAppBrowserTest : public ExtensionApiTest {
  public:
   PlatformAppBrowserTest();
-  PlatformAppBrowserTest(const PlatformAppBrowserTest&) = delete;
-  PlatformAppBrowserTest& operator=(const PlatformAppBrowserTest&) = delete;
   ~PlatformAppBrowserTest() override;
 
   void SetUpCommandLine(base::CommandLine* command_line) override;
@@ -132,9 +130,11 @@ class PlatformAppBrowserTest : public ExtensionApiTest {
   NativeAppWindow* GetNativeAppWindowForAppWindow(AppWindow* window);
 
  private:
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   std::unique_ptr<media_router::MockMediaRouter> media_router_;
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(PlatformAppBrowserTest);
 };
 
 class ExperimentalPlatformAppBrowserTest : public PlatformAppBrowserTest {

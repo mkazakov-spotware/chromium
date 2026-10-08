@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include "base/mac/scoped_typeref.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_view.h"
-#include "third_party/blink/renderer/platform/wtf/text/unicode.h"
 
 namespace blink {
 
@@ -20,24 +19,10 @@ class HyphenationCF final : public Hyphenation {
 
   wtf_size_t LastHyphenLocation(const StringView& text,
                                 wtf_size_t before_index) const override {
-    if (!ShouldHyphenateWord(text))
-      return 0;
-    DCHECK_GE(text.length(), MinWordLength());
-
-    DCHECK_GT(text.length(), MinSuffixLength());
-    before_index = std::min<wtf_size_t>(before_index,
-                                        text.length() - MinSuffixLength() + 1);
-
-    const CFIndex result = CFStringGetHyphenationLocationBeforeIndex(
+    CFIndex result = CFStringGetHyphenationLocationBeforeIndex(
         text.ToString().Impl()->CreateCFString(), before_index,
         CFRangeMake(0, text.length()), 0, locale_cf_, 0);
-    if (result == kCFNotFound)
-      return 0;
-    DCHECK_GE(result, 0);
-    DCHECK_LT(result, before_index);
-    if (result < MinPrefixLength())
-      return 0;
-    return static_cast<wtf_size_t>(result);
+    return result == kCFNotFound ? 0 : result;
   }
 
   // While Hyphenation::FirstHyphenLocation() works good, it computes all
@@ -46,26 +31,20 @@ class HyphenationCF final : public Hyphenation {
   // LastHyphenLocation() but does not support HyphenLocations().
   wtf_size_t FirstHyphenLocation(const StringView& text,
                                  wtf_size_t after_index) const override {
-    if (!ShouldHyphenateWord(text))
+    after_index = std::max(after_index,
+                           static_cast<wtf_size_t>(kMinimumPrefixLength - 1));
+    wtf_size_t hyphen_location = text.length();
+    if (hyphen_location <= kMinimumSuffixLength)
       return 0;
-    DCHECK_GE(text.length(), MinWordLength());
-
-    DCHECK_GE(MinPrefixLength(), 1u);
-    after_index =
-        std::max(after_index, static_cast<wtf_size_t>(MinPrefixLength() - 1));
-
-    const wtf_size_t word_len = text.length();
-    DCHECK_GE(word_len, MinWordLength());
-    DCHECK_GE(word_len, MinSuffixLength());
-    const wtf_size_t max_hyphen_location = word_len - MinSuffixLength();
-    wtf_size_t hyphen_location = max_hyphen_location + 1;
+    wtf_size_t max_hyphen_location = hyphen_location - kMinimumSuffixLength;
+    hyphen_location = max_hyphen_location;
     for (;;) {
       wtf_size_t previous = LastHyphenLocation(text, hyphen_location);
       if (previous <= after_index)
         break;
       hyphen_location = previous;
     }
-    return hyphen_location > max_hyphen_location ? 0 : hyphen_location;
+    return hyphen_location >= max_hyphen_location ? 0 : hyphen_location;
   }
 
  private:
@@ -80,10 +59,7 @@ scoped_refptr<Hyphenation> Hyphenation::PlatformGetHyphenation(
       CFLocaleCreate(kCFAllocatorDefault, locale_cf_string));
   if (!CFStringIsHyphenationAvailableForLocale(locale_cf))
     return nullptr;
-  scoped_refptr<Hyphenation> hyphenation(
-      base::AdoptRef(new HyphenationCF(locale_cf)));
-  hyphenation->Initialize(locale);
-  return hyphenation;
+  return base::AdoptRef(new HyphenationCF(locale_cf));
 }
 
 }  // namespace blink

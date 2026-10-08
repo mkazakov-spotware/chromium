@@ -12,7 +12,7 @@
          "matrix": "RGB",
          "primaries": "BT709",
          "range": "FULL",
-         "transfer": "SRGB"
+         "transfer": "IEC61966_2_1"
       },
       "damage_rect": {
          "height": 1117,
@@ -2267,7 +2267,14 @@
       "shared_quad_state_list": [ {
          "are_contents_opaque": false,
          "blend_mode": "kSrcOver",
+         "clip_rect": {
+            "height": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+         },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": false,
          "is_fast_rounded_corner": false,
          "opacity": 1.0,
          "quad_layer_rect": {
@@ -2297,6 +2304,7 @@
             "y": 100
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 1.0,
          "quad_layer_rect": {
@@ -2326,6 +2334,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 1.0,
          "quad_layer_rect": {
@@ -2355,6 +2364,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 1.0,
          "quad_layer_rect": {
@@ -2384,6 +2394,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.22896799445152283,
          "quad_layer_rect": {
@@ -2413,6 +2424,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.1456349939107895,
          "quad_layer_rect": {
@@ -2442,6 +2454,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.9789680242538452,
          "quad_layer_rect": {
@@ -2471,6 +2484,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.8956350088119507,
          "quad_layer_rect": {
@@ -2500,6 +2514,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.7289689779281616,
          "quad_layer_rect": {
@@ -2529,6 +2544,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.6456360220909119,
          "quad_layer_rect": {
@@ -2558,6 +2574,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.478969007730484,
          "quad_layer_rect": {
@@ -2587,6 +2604,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.3956359922885895,
          "quad_layer_rect": {
@@ -2616,6 +2634,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.21236200630664825,
          "quad_layer_rect": {
@@ -2645,6 +2664,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.12902900576591492,
          "quad_layer_rect": {
@@ -2674,6 +2694,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.04569600149989128,
          "quad_layer_rect": {
@@ -2703,6 +2724,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.9623619914054871,
          "quad_layer_rect": {
@@ -2732,6 +2754,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.8790289759635925,
          "quad_layer_rect": {
@@ -2761,6 +2784,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.7956960201263428,
          "quad_layer_rect": {
@@ -2790,6 +2814,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.7123630046844482,
          "quad_layer_rect": {
@@ -2819,6 +2844,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.6290299892425537,
          "quad_layer_rect": {
@@ -2848,6 +2874,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.5456960201263428,
          "quad_layer_rect": {
@@ -2877,6 +2904,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.46236300468444824,
          "quad_layer_rect": {
@@ -2906,6 +2934,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.3790299892425537,
          "quad_layer_rect": {
@@ -2935,6 +2964,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 0.2956959903240204,
          "quad_layer_rect": {
@@ -2964,6 +2994,7 @@
             "y": 277
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 1.0,
          "quad_layer_rect": {
@@ -2993,6 +3024,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 1.0,
          "quad_layer_rect": {
@@ -3022,6 +3054,7 @@
             "y": 155
          },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": true,
          "is_fast_rounded_corner": false,
          "opacity": 1.0,
          "quad_layer_rect": {
@@ -3044,7 +3077,14 @@
       }, {
          "are_contents_opaque": false,
          "blend_mode": "kSrcOver",
+         "clip_rect": {
+            "height": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+         },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": false,
          "is_fast_rounded_corner": false,
          "opacity": 1.0,
          "quad_layer_rect": {
@@ -3067,7 +3107,14 @@
       }, {
          "are_contents_opaque": true,
          "blend_mode": "kSrcOver",
+         "clip_rect": {
+            "height": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+         },
          "de_jelly_delta_y": 0.0,
+         "is_clipped": false,
          "is_fast_rounded_corner": false,
          "opacity": 1.0,
          "quad_layer_rect": {

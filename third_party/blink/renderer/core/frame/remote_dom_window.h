@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,12 +24,15 @@ class RemoteDOMWindow final : public DOMWindow {
 
   // DOMWindow overrides:
   void Trace(Visitor*) const override;
+  void blur() override;
 
   void FrameDetached();
 
  protected:
   // Protected DOMWindow overrides:
-  void SchedulePostMessage(PostedMessage*) override;
+  void SchedulePostMessage(MessageEvent*,
+                           scoped_refptr<const SecurityOrigin> target,
+                           LocalDOMWindow* source) override;
 
  private:
   // Intentionally private to prevent redundant checks when the type is
@@ -37,7 +40,9 @@ class RemoteDOMWindow final : public DOMWindow {
   bool IsLocalDOMWindow() const override { return false; }
   bool IsRemoteDOMWindow() const override { return true; }
 
-  void ForwardPostMessage(PostedMessage*);
+  void ForwardPostMessage(MessageEvent*,
+                          scoped_refptr<const SecurityOrigin> target,
+                          LocalDOMWindow* source);
 };
 
 template <>
@@ -49,4 +54,4 @@ struct DowncastTraits<RemoteDOMWindow> {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_REMOTE_DOM_WINDOW_H_
+#endif  // DOMWindow_h

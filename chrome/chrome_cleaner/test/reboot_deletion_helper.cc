@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/win/registry.h"
 #include "chrome/chrome_cleaner/os/file_path_sanitization.h"
@@ -289,7 +290,7 @@ bool SetPendingMoves(const PendingMoveVector& pending_moves) {
 
   // The pending moves format needs a null entry at the end which consists of
   // two MULTISZ empty string.
-  std::wstring last_entry(kDoubleNullEntry, std::size(kDoubleNullEntry) - 1);
+  std::wstring last_entry(kDoubleNullEntry, base::size(kDoubleNullEntry) - 1);
   buffer = buffer + last_entry;
 
   // Write back the serialized values into the registry key.

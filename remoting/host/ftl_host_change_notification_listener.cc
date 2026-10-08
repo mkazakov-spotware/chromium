@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "remoting/proto/ftl/v1/chromoting_message.pb.h"
 #include "remoting/proto/ftl/v1/ftl_messages.pb.h"
 
@@ -47,7 +47,7 @@ bool FtlHostChangeNotificationListener::OnSignalStrategyIncomingMessage(
       // OnHostDeleted() may want delete |signal_strategy_|, but SignalStrategy
       // objects cannot be deleted from a Listener callback, so OnHostDeleted()
       // has to be invoked later.
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE,
           base::BindOnce(&FtlHostChangeNotificationListener::OnHostDeleted,
                          weak_factory_.GetWeakPtr()));

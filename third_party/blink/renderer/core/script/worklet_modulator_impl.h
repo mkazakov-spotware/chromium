@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_SCRIPT_WORKLET_MODULATOR_IMPL_H_
 
 #include "third_party/blink/renderer/core/script/modulator_impl_base.h"
+
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -22,11 +24,12 @@ class WorkletModulatorImpl final : public ModulatorImplBase {
   // Implements ModulatorImplBase.
   ModuleScriptFetcher* CreateModuleScriptFetcher(
       ModuleScriptCustomFetchType,
-      base::PassKey<ModuleScriptLoader>) override;
+      util::PassKey<ModuleScriptLoader>) override;
 
  private:
   // Implements ModulatorImplBase.
   bool IsDynamicImportForbidden(String* reason) override;
+  mojom::blink::V8CacheOptions GetV8CacheOptions() const override;
 };
 
 }  // namespace blink

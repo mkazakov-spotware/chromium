@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -92,8 +92,7 @@ function connect_() {
     } catch (e) {
     }
   };
-  window.postMessage(
-      PORT_SETUP_MSG, '*' /* target origin */, [channel.port2] /* transfer */);
+  window.postMessage(PORT_SETUP_MSG, '*', [channel.port2]);
 }
 
 /**
@@ -206,7 +205,7 @@ cvox.Api.internalEnable = function() {
  * @return {boolean} True if ChromeVox is currently active.
  */
 cvox.Api.isChromeVoxActive = function() {
-  return Boolean(channel);
+  return !!channel;
 };
 
 /**
@@ -227,6 +226,7 @@ cvox.Api.speak = function(textString, queueMode, properties) {
 
 /**
  * This method is kept to keep Docs from throwing an error.
+ *
  */
 cvox.Api.stop = function() {};
 

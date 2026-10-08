@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,15 @@
 
 #include <memory>
 
+#include "ash/app_list/app_list_export.h"
 #include "ash/app_list/views/app_list_page.h"
-#include "ash/ash_export.h"
 #include "ash/assistant/model/assistant_ui_model_observer.h"
 #include "ash/public/cpp/app_list/app_list_types.h"
 #include "ash/public/cpp/assistant/controller/assistant_controller.h"
 #include "ash/public/cpp/assistant/controller/assistant_controller_observer.h"
-#include "ash/public/cpp/tablet_mode_observer.h"
-#include "ash/wm/tablet_mode/tablet_mode_controller.h"
-#include "base/scoped_observation.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "base/macros.h"
+#include "base/optional.h"
+#include "base/scoped_observer.h"
 
 namespace ash {
 
@@ -26,19 +24,15 @@ class AssistantViewDelegate;
 class ViewShadow;
 
 // The Assistant page for the app list.
-class ASH_EXPORT AssistantPageView : public AppListPage,
-                                     public AssistantControllerObserver,
-                                     public AssistantUiModelObserver,
-                                     public TabletModeObserver {
+class APP_LIST_EXPORT AssistantPageView : public AppListPage,
+                                          public AssistantControllerObserver,
+                                          public AssistantUiModelObserver {
  public:
-  METADATA_HEADER(AssistantPageView);
-
   explicit AssistantPageView(AssistantViewDelegate* assistant_view_delegate);
-  AssistantPageView(const AssistantPageView&) = delete;
-  AssistantPageView& operator=(const AssistantPageView&) = delete;
   ~AssistantPageView() override;
 
   // AppListPage:
+  const char* GetClassName() const override;
   gfx::Size GetMinimumSize() const override;
   void OnBoundsChanged(const gfx::Rect& prev_bounds) override;
   void RequestFocus() override;
@@ -50,12 +44,17 @@ class ASH_EXPORT AssistantPageView : public AppListPage,
   void OnAnimationStarted(AppListState from_state,
                           AppListState to_state) override;
   gfx::Size GetPreferredSearchBoxSize() const override;
+  base::Optional<int> GetSearchBoxTop(
+      AppListViewState view_state) const override;
   void UpdatePageOpacityForState(AppListState state,
-                                 float search_box_opacity) override;
+                                 float search_box_opacity,
+                                 bool restore_opacity) override;
   gfx::Rect GetPageBoundsForState(
       AppListState state,
       const gfx::Rect& contents_bounds,
       const gfx::Rect& search_box_bounds) const override;
+  views::View* GetFirstFocusableView() override;
+  views::View* GetLastFocusableView() override;
   void AnimateYPosition(AppListViewState target_view_state,
                         const TransformAnimator& animator,
                         float default_offset) override;
@@ -71,19 +70,11 @@ class ASH_EXPORT AssistantPageView : public AppListPage,
   void OnUiVisibilityChanged(
       AssistantVisibility new_visibility,
       AssistantVisibility old_visibility,
-      absl::optional<AssistantEntryPoint> entry_point,
-      absl::optional<AssistantExitPoint> exit_point) override;
-
-  // TabletModeObserver:
-  void OnTabletModeStarted() override;
-  void OnTabletModeEnded() override;
-
-  // views::View:
-  void OnThemeChanged() override;
+      base::Optional<AssistantEntryPoint> entry_point,
+      base::Optional<AssistantExitPoint> exit_point) override;
 
  private:
   void InitLayout();
-  void UpdateBackground(bool in_tablet_mode);
   void MaybeUpdateAppListState(int child_height);
 
   AssistantViewDelegate* const assistant_view_delegate_;
@@ -95,10 +86,10 @@ class ASH_EXPORT AssistantPageView : public AppListPage,
 
   std::unique_ptr<ViewShadow> view_shadow_;
 
-  base::ScopedObservation<AssistantController, AssistantControllerObserver>
-      assistant_controller_observation_{this};
-  base::ScopedObservation<TabletModeController, TabletModeObserver>
-      tablet_mode_observation_{this};
+  ScopedObserver<AssistantController, AssistantControllerObserver>
+      assistant_controller_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AssistantPageView);
 };
 
 }  // namespace ash

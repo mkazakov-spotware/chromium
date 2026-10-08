@@ -1,12 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/sandbox_host_linux.h"
 
 #include <sys/socket.h>
-
-#include <memory>
 
 #include "base/no_destructor.h"
 #include "base/posix/eintr_wrapper.h"
@@ -50,10 +48,9 @@ void SandboxHostLinux::Init() {
   const int child_lifeline_fd = pipefds[0];
   childs_lifeline_fd_ = pipefds[1];
 
-  ipc_handler_ =
-      std::make_unique<SandboxIPCHandler>(child_lifeline_fd, browser_socket);
-  ipc_thread_ = std::make_unique<base::DelegateSimpleThread>(
-      ipc_handler_.get(), "sandbox_ipc_thread");
+  ipc_handler_.reset(new SandboxIPCHandler(child_lifeline_fd, browser_socket));
+  ipc_thread_.reset(
+      new base::DelegateSimpleThread(ipc_handler_.get(), "sandbox_ipc_thread"));
   ipc_thread_->Start();
 }
 

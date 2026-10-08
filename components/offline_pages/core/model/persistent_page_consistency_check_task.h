@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "components/offline_pages/core/offline_page_archive_publisher.h"
 #include "components/offline_pages/core/offline_store_types.h"
 #include "components/offline_pages/task/task.h"
@@ -45,12 +44,6 @@ class PersistentPageConsistencyCheckTask : public Task {
       ArchiveManager* archive_manager,
       base::Time check_time,
       PersistentPageConsistencyCheckCallback callback);
-
-  PersistentPageConsistencyCheckTask(
-      const PersistentPageConsistencyCheckTask&) = delete;
-  PersistentPageConsistencyCheckTask& operator=(
-      const PersistentPageConsistencyCheckTask&) = delete;
-
   ~PersistentPageConsistencyCheckTask() override;
 
  private:
@@ -60,15 +53,16 @@ class PersistentPageConsistencyCheckTask : public Task {
   void OnPersistentPageConsistencyCheckDone(CheckResult result);
 
   // The store containing the offline pages. Not owned.
-  raw_ptr<OfflinePageMetadataStore> store_;
+  OfflinePageMetadataStore* store_;
   // The archive manager storing archive directories. Not owned.
-  raw_ptr<ArchiveManager> archive_manager_;
+  ArchiveManager* archive_manager_;
   base::Time check_time_;
   // The callback for the task.
   PersistentPageConsistencyCheckCallback callback_;
 
   base::WeakPtrFactory<PersistentPageConsistencyCheckTask> weak_ptr_factory_{
       this};
+  DISALLOW_COPY_AND_ASSIGN(PersistentPageConsistencyCheckTask);
 };
 
 }  // namespace offline_pages

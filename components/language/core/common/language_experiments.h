@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,50 +9,46 @@
 
 namespace language {
 
-// The feature that enables explicitly asking for user preferred
-// Accept-Languages on second run on Android. Replaced by kAppLanguagePrompt.
-BASE_DECLARE_FEATURE(kExplicitLanguageAsk);
-// The feature that enables a second run prompt to select the app UI language on
+// The feature that enables the heuristic model of user language. If disabled,
+// the baseline model is used instead.
+extern const base::Feature kUseHeuristicLanguageModel;
+
+// The feature that enables explicitly asking for user preferences on startup on
 // Android.
-BASE_DECLARE_FEATURE(kAppLanguagePrompt);
-// When enabled does not show the AppLanguagePrompt to users whose base UI
-// language is their top ULP language.
-BASE_DECLARE_FEATURE(kAppLanguagePromptULP);
-// This feature forces the app UI prompt even if it has already been shown.
-BASE_DECLARE_FEATURE(kForceAppLanguagePrompt);
+extern const base::Feature kExplicitLanguageAsk;
 
 // This feature controls the activation of the experiment to trigger Translate
 // in India on English pages independent of the user's UI language. The params
 // associated with the experiment dictate which model is used to determine the
-// target language.
-BASE_DECLARE_FEATURE(kOverrideTranslateTriggerInIndia);
+// target language. This can in turn be overriden by the Heuristic Model
+// experiment.
+extern const base::Feature kOverrideTranslateTriggerInIndia;
 extern const char kOverrideModelKey[];
 extern const char kEnforceRankerKey[];
+extern const char kOverrideModelHeuristicValue[];
 extern const char kOverrideModelGeoValue[];
 extern const char kOverrideModelDefaultValue[];
 extern const char kBackoffThresholdKey[];
-extern const char kContentLanguagesDisableObserversParam[];
 
-// This feature uses the existing UI for the Full Page Translate bubble.
-BASE_DECLARE_FEATURE(kUseButtonTranslateBubbleUi);
+// Notify sync to update data on language determined.
+extern const base::Feature kNotifySyncOnLanguageDetermined;
+
+// This feature uses the existing UI for translate bubble.
+extern const base::Feature kUseButtonTranslateBubbleUi;
 
 // This feature enables setting the application language on Android.
-BASE_DECLARE_FEATURE(kDetailedLanguageSettings);
-
-// This feature enables setting the application language on Desktop.
-BASE_DECLARE_FEATURE(kDesktopDetailedLanguageSettings);
+extern const base::Feature kDetailedLanguageSettings;
 
 // This feature enables providing Translate data to Assistant.
-BASE_DECLARE_FEATURE(kTranslateAssistContent);
+extern const base::Feature kTranslateAssistContent;
 
 // This feature enables an intent that starts translating the foreground tab.
-BASE_DECLARE_FEATURE(kTranslateIntent);
-
-// This feature enables an intent that starts translating the foreground tab.
-BASE_DECLARE_FEATURE(kContentLanguagesInLanguagePicker);
+extern const base::Feature kTranslateIntent;
 
 enum class OverrideLanguageModel {
   DEFAULT,
+  FLUENT,
+  HEURISTIC,
   GEO,
 };
 

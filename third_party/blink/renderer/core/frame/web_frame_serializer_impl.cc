@@ -104,7 +104,7 @@ namespace {
 // Generate the default base tag declaration.
 String GenerateBaseTagDeclaration(const String& base_target) {
   // TODO(yosin) We should call |FrameSerializer::baseTagDeclarationOf()|.
-  if (base_target.empty())
+  if (base_target.IsEmpty())
     return String("<base href=\".\">");
   String base_string = "<base href=\".\" target=\"" + base_target + "\">";
   return base_string;
@@ -171,9 +171,9 @@ String WebFrameSerializerImpl::PreActionBeforeSerializeOpenTag(
       param->have_added_xml_processing_directive = true;
       // Get encoding info.
       String xml_encoding = param->document->xmlEncoding();
-      if (xml_encoding.empty())
+      if (xml_encoding.IsEmpty())
         xml_encoding = param->document->EncodingName();
-      if (xml_encoding.empty())
+      if (xml_encoding.IsEmpty())
         xml_encoding = UTF8Encoding().GetName();
       result.Append("<?xml version=\"");
       result.Append(param->document->xmlVersion());
@@ -320,7 +320,7 @@ void WebFrameSerializerImpl::OpenTagToString(Element* element,
   // Find out if we need to do frame-specific link rewriting.
   WebFrame* frame = nullptr;
   if (auto* frame_owner_element = DynamicTo<HTMLFrameOwnerElement>(element)) {
-    frame = WebFrame::FromCoreFrame(frame_owner_element->ContentFrame());
+    frame = WebFrame::FromFrame(frame_owner_element->ContentFrame());
   }
   WebString rewritten_frame_link;
   bool should_rewrite_frame_src =
@@ -420,19 +420,16 @@ void WebFrameSerializerImpl::EndTagToString(Element* element,
 void WebFrameSerializerImpl::BuildContentForNode(Node* node,
                                                  SerializeDomParam* param) {
   switch (node->getNodeType()) {
-    case Node::kElementNode: {
-      auto* element = To<Element>(node);
+    case Node::kElementNode:
       // Process open tag of element.
-      OpenTagToString(element, param);
+      OpenTagToString(To<Element>(node), param);
       // Walk through the children nodes and process it.
-      for (Node* child = element->firstChild(); child;
-           child = child->nextSibling()) {
+      for (Node* child = node->firstChild(); child;
+           child = child->nextSibling())
         BuildContentForNode(child, param);
-      }
       // Process end tag of element.
-      EndTagToString(element, param);
+      EndTagToString(To<Element>(node), param);
       break;
-    }
     case Node::kTextNode:
       SaveHTMLContentToBuffer(CreateMarkup(node), param);
       break;
@@ -445,7 +442,7 @@ void WebFrameSerializerImpl::BuildContentForNode(Node* node,
     // Document type node can be in DOM?
     case Node::kDocumentTypeNode:
       param->have_seen_doc_type = true;
-      [[fallthrough]];
+      FALLTHROUGH;
     default:
       // For other type node, call default action.
       SaveHTMLContentToBuffer(CreateMarkup(node), param);
@@ -470,7 +467,7 @@ WebFrameSerializerImpl::WebFrameSerializerImpl(
   DCHECK(client);
   DCHECK(delegate);
 
-  DCHECK(data_buffer_.empty());
+  DCHECK(data_buffer_.IsEmpty());
 }
 
 bool WebFrameSerializerImpl::Serialize() {
@@ -505,7 +502,7 @@ bool WebFrameSerializerImpl::Serialize() {
         WebVector<char>(), WebFrameSerializerClient::kCurrentFrameIsFinished);
   }
 
-  DCHECK(data_buffer_.empty());
+  DCHECK(data_buffer_.IsEmpty());
   return did_serialization;
 }
 

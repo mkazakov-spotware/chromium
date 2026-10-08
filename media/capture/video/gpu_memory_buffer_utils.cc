@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -62,7 +62,7 @@ VideoCaptureDevice::Client::ReserveResult AllocateNV12GpuMemoryBuffer(
   *out_gpu_memory_buffer = gmb_support->CreateGpuMemoryBufferImplFromHandle(
       out_capture_buffer->handle_provider->GetGpuMemoryBufferHandle(),
       buffer_size, kOpaqueGfxFormat,
-      gfx::BufferUsage::VEA_READ_CAMERA_AND_CPU_READ_WRITE,
+      gfx::BufferUsage::SCANOUT_VEA_READ_CAMERA_AND_CPU_READ_WRITE,
       base::NullCallback());
   return reserve_result;
 }

@@ -1,10 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/importer/external_process_importer_host.h"
-
-#include <memory>
 
 #include "base/bind.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
@@ -100,7 +98,7 @@ ExternalProcessImporterHost::~ExternalProcessImporterHost() {
 }
 
 void ExternalProcessImporterHost::LaunchImportIfReady() {
-  if (waiting_for_bookmarkbar_model_ || template_service_subscription_ ||
+  if (waiting_for_bookmarkbar_model_ || template_service_subscription_.get() ||
       !is_source_readable_ || cancelled_)
     return;
 
@@ -136,7 +134,7 @@ void ExternalProcessImporterHost::BookmarkModelChanged() {
 }
 
 void ExternalProcessImporterHost::OnTemplateURLServiceLoaded() {
-  template_service_subscription_ = {};
+  template_service_subscription_.reset();
   LaunchImportIfReady();
 }
 
@@ -171,8 +169,7 @@ bool ExternalProcessImporterHost::CheckForFirefoxLock(
     return true;
 
   DCHECK(!firefox_lock_.get());
-  firefox_lock_ =
-      std::make_unique<FirefoxProfileLock>(source_profile.source_path);
+  firefox_lock_.reset(new FirefoxProfileLock(source_profile.source_path));
   if (firefox_lock_->HasAcquired())
     return true;
 
@@ -207,7 +204,7 @@ void ExternalProcessImporterHost::CheckForLoadedModels(uint16_t items) {
       TemplateURLService* model =
           TemplateURLServiceFactory::GetForProfile(profile_);
       template_service_subscription_ =
-          model->RegisterOnLoadedCallback(base::BindOnce(
+          model->RegisterOnLoadedCallback(base::BindRepeating(
               &ExternalProcessImporterHost::OnTemplateURLServiceLoaded,
               weak_ptr_factory_.GetWeakPtr()));
       model->Load();

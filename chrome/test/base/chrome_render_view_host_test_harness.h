@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 #include <utility>
 
-#include "build/chromeos_buildflags.h"
+#include "base/compiler_specific.h"
 #include "chrome/test/base/testing_profile.h"
 #include "content/public/test/test_renderer_host.h"
 
@@ -37,11 +37,7 @@ class ChromeRenderViewHostTestHarness
   virtual TestingProfile::TestingFactories GetTestingFactories() const;
 
   // Creates a TestingProfile to use as the browser context.
-  std::unique_ptr<TestingProfile> CreateTestingProfile(
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-      bool is_main_profile = false
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
-  );
+  std::unique_ptr<TestingProfile> CreateTestingProfile();
 
   // content::RenderViewHostTestHarness.
   std::unique_ptr<content::BrowserContext> CreateBrowserContext() final;

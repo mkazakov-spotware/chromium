@@ -1,8 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.homepage;
+
+import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -18,7 +20,6 @@ import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.user_prefs.UserPrefs;
-import org.chromium.url.GURL;
 
 /**
  * Provides information for the home page related policies.
@@ -41,9 +42,7 @@ public class HomepagePolicyManager implements PrefObserver {
     private static PrefService sPrefServiceForTesting;
 
     private boolean mIsHomepageLocationPolicyEnabled;
-
-    @NonNull
-    private GURL mHomepage;
+    private String mHomepage;
 
     private boolean mIsInitializedWithNative;
     private PrefChangeRegistrar mPrefChangeRegistrar;
@@ -74,7 +73,7 @@ public class HomepagePolicyManager implements PrefObserver {
      * @return The homepage URL from the homepage preference.
      */
     @NonNull
-    public static GURL getHomepageUrl() {
+    public static String getHomepageUrl() {
         return getInstance().getHomepagePreference();
     }
 
@@ -97,6 +96,7 @@ public class HomepagePolicyManager implements PrefObserver {
 
     @VisibleForTesting
     public static void setInstanceForTests(HomepagePolicyManager instance) {
+        assert instance != null;
         sInstance = instance;
     }
 
@@ -107,25 +107,10 @@ public class HomepagePolicyManager implements PrefObserver {
 
         // Update feature flag related setting
         mSharedPreferenceManager = SharedPreferencesManager.getInstance();
+        mHomepage = mSharedPreferenceManager.readString(
+                ChromePreferenceKeys.HOMEPAGE_LOCATION_POLICY, "");
+        mIsHomepageLocationPolicyEnabled = !TextUtils.isEmpty(mHomepage);
 
-        String homepageLocationPolicyGurlSerialized = mSharedPreferenceManager.readString(
-                ChromePreferenceKeys.HOMEPAGE_LOCATION_POLICY_GURL, null);
-        if (homepageLocationPolicyGurlSerialized != null) {
-            mHomepage = GURL.deserialize(homepageLocationPolicyGurlSerialized);
-        } else {
-            String homepageLocationPolicy;
-            homepageLocationPolicy = mSharedPreferenceManager.readString(
-                    ChromePreferenceKeys.DEPRECATED_HOMEPAGE_LOCATION_POLICY, null);
-            if (homepageLocationPolicy != null) {
-                // This url comes from a native gurl that is written into PrefService as a string,
-                // so we shouldn't need to call fixupUrl.
-                mHomepage = new GURL(homepageLocationPolicy);
-            } else {
-                mHomepage = GURL.emptyGURL();
-            }
-        }
-
-        mIsHomepageLocationPolicyEnabled = !mHomepage.isEmpty();
         ChromeBrowserInitializer.getInstance().runNowOrAfterFullBrowserStarted(
                 this::onFinishNativeInitialization);
     }
@@ -175,27 +160,21 @@ public class HomepagePolicyManager implements PrefObserver {
         assert mIsInitializedWithNative;
         PrefService prefService = getPrefService();
         boolean isEnabled = prefService.isManagedPreference(Pref.HOME_PAGE);
-        GURL homepage = GURL.emptyGURL();
+        String homepage = "";
         if (isEnabled) {
-            String homepagePref = prefService.getString(Pref.HOME_PAGE);
-            assert homepagePref != null;
-            // This url comes from a native gurl that is written into PrefService as a string,
-            // so we shouldn't need to call fixupUrl.
-            homepage = new GURL(homepagePref);
+            homepage = prefService.getString(Pref.HOME_PAGE);
+            assert homepage != null;
         }
 
         // Early return when nothing changes
-        if (isEnabled == mIsHomepageLocationPolicyEnabled && homepage != null
-                && homepage.equals(mHomepage)) {
-            return;
-        }
+        if (isEnabled == mIsHomepageLocationPolicyEnabled && homepage.equals(mHomepage)) return;
 
         mIsHomepageLocationPolicyEnabled = isEnabled;
         mHomepage = homepage;
 
         // Update shared preference
         mSharedPreferenceManager.writeString(
-                ChromePreferenceKeys.HOMEPAGE_LOCATION_POLICY_GURL, mHomepage.serialize());
+                ChromePreferenceKeys.HOMEPAGE_LOCATION_POLICY, mHomepage);
 
         // Update the listeners about the status
         for (HomepagePolicyStateListener listener : mListeners) {
@@ -227,7 +206,7 @@ public class HomepagePolicyManager implements PrefObserver {
 
     @VisibleForTesting
     @NonNull
-    public GURL getHomepagePreference() {
+    public String getHomepagePreference() {
         assert mIsHomepageLocationPolicyEnabled;
         return mHomepage;
     }

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 #include "ui/accessibility/platform/ax_platform_node_textprovider_win.h"
 #include "ui/accessibility/platform/ax_platform_node_textrangeprovider_win.h"
 
-#include "base/command_line.h"
-#include "base/strings/escape.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/win/scoped_bstr.h"
 #include "base/win/scoped_safearray.h"
@@ -19,9 +17,9 @@
 #include "content/public/test/content_browser_test.h"
 #include "content/public/test/content_browser_test_utils.h"
 #include "content/shell/browser/shell.h"
+#include "net/base/escape.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "testing/gmock/include/gmock/gmock-matchers.h"
-#include "ui/accessibility/accessibility_switches.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -51,11 +49,6 @@ namespace content {
 
 class AXPlatformNodeTextProviderWinBrowserTest : public ContentBrowserTest {
  protected:
-  void SetUpCommandLine(base::CommandLine* command_line) override {
-    base::CommandLine::ForCurrentProcess()->AppendSwitch(
-        ::switches::kEnableExperimentalUIAutomation);
-  }
-
   void LoadInitialAccessibilityTreeFromUrl(
       const GURL& url,
       ui::AXMode accessibility_mode = ui::kAXModeComplete) {
@@ -63,7 +56,7 @@ class AXPlatformNodeTextProviderWinBrowserTest : public ContentBrowserTest {
                                            accessibility_mode,
                                            ax::mojom::Event::kLoadComplete);
     EXPECT_TRUE(NavigateToURL(shell(), url));
-    ASSERT_TRUE(waiter.WaitForNotification());
+    waiter.WaitForNotification();
   }
 
   void LoadInitialAccessibilityTreeFromHtmlFilePath(
@@ -80,7 +73,7 @@ class AXPlatformNodeTextProviderWinBrowserTest : public ContentBrowserTest {
       const std::string& html,
       ui::AXMode accessibility_mode = ui::kAXModeComplete) {
     LoadInitialAccessibilityTreeFromUrl(
-        GURL("data:text/html," + base::EscapeQueryParamValue(html, false)),
+        GURL("data:text/html," + net::EscapeQueryParamValue(html, false)),
         accessibility_mode);
   }
 
@@ -104,7 +97,7 @@ class AXPlatformNodeTextProviderWinBrowserTest : public ContentBrowserTest {
   BrowserAccessibility* GetRootAndAssertNonNull() {
     auto GetRootAndAssertNonNull = [this](BrowserAccessibility** result) {
       BrowserAccessibility* root_browser_accessibility =
-          GetManagerAndAssertNonNull()->GetBrowserAccessibilityRoot();
+          GetManagerAndAssertNonNull()->GetRoot();
       ASSERT_NE(nullptr, result);
       *result = root_browser_accessibility;
     };
@@ -179,7 +172,7 @@ IN_PROC_BROWSER_TEST_F(AXPlatformNodeTextProviderWinBrowserTest,
   auto* node =
       FindNode(ax::mojom::Role::kStaticText, "AAA BBB\nCCCCCC\nDDDDDD");
   ASSERT_NE(nullptr, node);
-  EXPECT_TRUE(node->IsLeaf());
+  EXPECT_TRUE(node->PlatformIsLeaf());
   EXPECT_EQ(0u, node->PlatformChildCount());
 
   ComPtr<ITextProvider> text_provider;

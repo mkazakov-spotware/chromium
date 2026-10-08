@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,7 @@ void ShowUsbScanDeviceListPermissionDialog(Profile* profile,
 // Shows permission request dialog for targeting device name.
 void ShowUsbAccessPermissionDialog(Profile* profile,
                                    const std::string& app_id,
-                                   const std::u16string& device_name,
+                                   const base::string16& device_name,
                                    ArcUsbConfirmCallback callback);
 
 // Test purpose methods.

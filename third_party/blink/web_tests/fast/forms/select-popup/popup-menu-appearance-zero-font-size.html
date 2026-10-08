@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
+<script>
+testRunner.waitUntilDone();
+</script>
 <script src="../resources/picker-common.js"></script>
-
-<select>
+<select id="menu">
   <optgroup label="Theropods">
       <option>Tyrannosaurus</option>
       <option>Velociraptor</option>
@@ -20,7 +20,6 @@ option, optgroup {
   font-size:0;
 }
 </style>
-
 <script>
-  window.onload = openPickerAppearanceOnly(document.querySelector('select'));
+openPicker(document.getElementById('menu'), () => testRunner.notifyDone(), () => testRunner.notifyDone());
 </script>

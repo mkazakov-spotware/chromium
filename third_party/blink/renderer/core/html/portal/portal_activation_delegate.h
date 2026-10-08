@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,16 +15,16 @@ class String;
 namespace blink {
 
 class ConsoleLogger;
-class ExceptionContext;
+class ExceptionState;
 class ScriptPromiseResolver;
 
 // Handles the result of portal activation, reporting it in a suitable way.
 class PortalActivationDelegate : public GarbageCollectedMixin {
  public:
   // Creates a delegate which reports completion through promise resolution.
-  // Copies the metadata from the supplied ExceptionContext.
+  // Copies the metadata from the supplied ExceptionState.
   static PortalActivationDelegate* ForPromise(ScriptPromiseResolver*,
-                                              const ExceptionContext&);
+                                              const ExceptionState&);
 
   // Creates a delegate which logs errors to the console.
   static PortalActivationDelegate* ForConsole(ConsoleLogger*);

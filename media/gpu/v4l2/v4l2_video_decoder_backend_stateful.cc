@@ -1,47 +1,28 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/gpu/v4l2/v4l2_video_decoder_backend_stateful.h"
-
 #include <cstddef>
+
 #include <memory>
 #include <tuple>
 #include <utility>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
-#include "base/feature_list.h"
+#include "base/callback_forward.h"
 #include "base/logging.h"
-#include "base/metrics/histogram_macros.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner.h"
-#include "media/base/limits.h"
-#include "media/base/media_switches.h"
+#include "base/sequenced_task_runner.h"
 #include "media/base/video_codecs.h"
 #include "media/gpu/chromeos/dmabuf_video_frame_pool.h"
 #include "media/gpu/macros.h"
 #include "media/gpu/v4l2/v4l2_device.h"
-#include "media/gpu/v4l2/v4l2_stateful_workaround.h"
 #include "media/gpu/v4l2/v4l2_vda_helpers.h"
 #include "media/gpu/v4l2/v4l2_video_decoder_backend.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace media {
-
-namespace {
-
-bool IsVp9KSVCStream(VideoCodecProfile profile,
-                     const DecoderBuffer& decoder_buffer) {
-  return VideoCodecProfileToVideoCodec(profile) == VideoCodec::kVP9 &&
-         decoder_buffer.side_data_size() > 0;
-}
-
-bool IsVp9KSVCSupportedDriver(const std::string& driver_name) {
-  const std::string kVP9KSVCSupportedDrivers[] = {"qcom-venus"};
-  return base::Contains(kVP9KSVCSupportedDrivers, driver_name);
-}
-}  // namespace
 
 V4L2StatefulVideoDecoderBackend::DecodeRequest::DecodeRequest(
     scoped_refptr<DecoderBuffer> buf,
@@ -65,12 +46,9 @@ V4L2StatefulVideoDecoderBackend::V4L2StatefulVideoDecoderBackend(
     Client* const client,
     scoped_refptr<V4L2Device> device,
     VideoCodecProfile profile,
-    const VideoColorSpace& color_space,
     scoped_refptr<base::SequencedTaskRunner> task_runner)
     : V4L2VideoDecoderBackend(client, std::move(device)),
-      driver_name_(device_->GetDriverName()),
       profile_(profile),
-      color_space_(color_space),
       task_runner_(task_runner) {
   DVLOGF(3);
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -118,9 +96,6 @@ bool V4L2StatefulVideoDecoderBackend::Initialize() {
     return false;
   }
 
-  framerate_control_ =
-      std::make_unique<V4L2FrameRateControl>(device_, task_runner_);
-
   return true;
 }
 
@@ -145,16 +120,10 @@ void V4L2StatefulVideoDecoderBackend::DoDecodeWork() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DVLOGF(3);
 
-  // Do not decode if a flush or resolution change is in progress.
-  if (!client_->IsDecoding())
+  // Do not decode if a flush is in progress.
+  // This may actually be ok to do if we are changing resolution?
+  if (flush_cb_)
     return;
-
-  if (need_resume_resolution_change_) {
-    need_resume_resolution_change_ = false;
-    ChangeResolution();
-    if (!client_->IsDecoding())
-      return;
-  }
 
   // Get a new decode request if none is in progress.
   if (!current_decode_request_) {
@@ -174,25 +143,6 @@ void V4L2StatefulVideoDecoderBackend::DoDecodeWork() {
     // This is our new decode request.
     current_decode_request_ = std::move(decode_request);
     DCHECK_EQ(current_decode_request_->bytes_used, 0u);
-
-    if (IsVp9KSVCStream(profile_, *current_decode_request_->buffer)) {
-      if (!base::FeatureList::IsEnabled(media::kVp9kSVCHWDecoding)) {
-        DLOG(ERROR) << "Vp9 k-SVC hardware decoding is disabled";
-        client_->OnBackendError();
-        return;
-      }
-      if (!IsVp9KSVCSupportedDriver(driver_name_)) {
-        DLOG(ERROR) << driver_name_ << " doesn't support VP9 k-SVC decoding";
-        client_->OnBackendError();
-        return;
-      }
-
-      if (!AppendVP9SuperFrameIndex(current_decode_request_->buffer)) {
-        LOG(ERROR) << "Failed to append superframe index for VP9 k-SVC frame";
-        client_->OnBackendError();
-        return;
-      }
-    }
   }
 
   // Get a V4L2 buffer to copy the encoded data into.
@@ -211,10 +161,6 @@ void V4L2StatefulVideoDecoderBackend::DoDecodeWork() {
         .tv_usec = timespec.tv_nsec / 1000,
     };
     current_input_buffer_->SetTimeStamp(timestamp);
-
-    const int64_t flat_timespec =
-        base::TimeDelta::FromTimeSpec(timespec).InMilliseconds();
-    encoding_timestamps_[flat_timespec] = base::TimeTicks::Now();
   }
 
   // From here on we have both a decode request and input buffer, so we can
@@ -233,7 +179,7 @@ void V4L2StatefulVideoDecoderBackend::DoDecodeWork() {
   if (!frame_splitter_->AdvanceFrameFragment(data, data_size, &bytes_to_copy)) {
     VLOGF(1) << "Invalid H.264 stream detected.";
     std::move(current_decode_request_->decode_cb)
-        .Run(DecoderStatus::Codes::kFailed);
+        .Run(DecodeStatus::DECODE_ERROR);
     current_decode_request_.reset();
     current_input_buffer_.reset();
     client_->OnBackendError();
@@ -244,7 +190,7 @@ void V4L2StatefulVideoDecoderBackend::DoDecodeWork() {
   if (bytes_used + bytes_to_copy > current_input_buffer_->GetPlaneSize(0)) {
     VLOGF(1) << "V4L2 buffer size is too small to contain a whole frame.";
     std::move(current_decode_request_->decode_cb)
-        .Run(DecoderStatus::Codes::kFailed);
+        .Run(DecodeStatus::DECODE_ERROR);
     current_decode_request_.reset();
     current_input_buffer_.reset();
     client_->OnBackendError();
@@ -260,8 +206,7 @@ void V4L2StatefulVideoDecoderBackend::DoDecodeWork() {
 
   // Release current_input_request_ if we reached its end.
   if (current_decode_request_->IsCompleted()) {
-    std::move(current_decode_request_->decode_cb)
-        .Run(DecoderStatus::Codes::kOk);
+    std::move(current_decode_request_->decode_cb).Run(DecodeStatus::OK);
     current_decode_request_.reset();
   }
 
@@ -293,7 +238,7 @@ void V4L2StatefulVideoDecoderBackend::ScheduleDecodeWork() {
 }
 
 void V4L2StatefulVideoDecoderBackend::ProcessEventQueue() {
-  while (absl::optional<struct v4l2_event> ev = device_->DequeueEvent()) {
+  while (base::Optional<struct v4l2_event> ev = device_->DequeueEvent()) {
     if (ev->type == V4L2_EVENT_SOURCE_CHANGE &&
         (ev->u.src_change.changes & V4L2_EVENT_SRC_CH_RESOLUTION)) {
       ChangeResolution();
@@ -324,7 +269,7 @@ void V4L2StatefulVideoDecoderBackend::EnqueueOutputBuffers() {
     bool ret = false;
     bool no_buffer = false;
 
-    absl::optional<V4L2WritableBufferRef> buffer;
+    base::Optional<V4L2WritableBufferRef> buffer;
     switch (mem_type) {
       case V4L2_MEMORY_MMAP:
         buffer = output_queue_->GetFreeBuffer();
@@ -347,7 +292,6 @@ void V4L2StatefulVideoDecoderBackend::EnqueueOutputBuffers() {
           break;
         }
 
-        framerate_control_->AttachToVideoFrame(video_frame);
         ret = std::move(*buffer).QueueDMABuf(std::move(video_frame));
         break;
       }
@@ -397,7 +341,7 @@ scoped_refptr<VideoFrame> V4L2StatefulVideoDecoderBackend::GetPoolVideoFrame() {
 // static
 void V4L2StatefulVideoDecoderBackend::ReuseOutputBufferThunk(
     scoped_refptr<base::SequencedTaskRunner> task_runner,
-    absl::optional<base::WeakPtr<V4L2StatefulVideoDecoderBackend>> weak_this,
+    base::Optional<base::WeakPtr<V4L2StatefulVideoDecoderBackend>> weak_this,
     V4L2ReadableBufferRef buffer) {
   DVLOGF(3);
   DCHECK(weak_this);
@@ -437,17 +381,7 @@ void V4L2StatefulVideoDecoderBackend::OnOutputBufferDequeued(
         .tv_sec = timeval.tv_sec,
         .tv_nsec = timeval.tv_usec * 1000,
     };
-
-    const int64_t flat_timespec =
-        base::TimeDelta::FromTimeSpec(timespec).InMilliseconds();
-    // TODO(b/190615065) |flat_timespec| might be repeated with H.264
-    // bitstreams, investigate why, and change the if() to DCHECK().
-    if (base::Contains(encoding_timestamps_, flat_timespec)) {
-      UMA_HISTOGRAM_TIMES(
-          "Media.PlatformVideoDecoding.Decode",
-          base::TimeTicks::Now() - encoding_timestamps_[flat_timespec]);
-      encoding_timestamps_.erase(flat_timespec);
-    }
+    const base::TimeDelta timestamp = base::TimeDelta::FromTimeSpec(timespec);
 
     scoped_refptr<VideoFrame> frame;
 
@@ -473,10 +407,7 @@ void V4L2StatefulVideoDecoderBackend::OnOutputBufferDequeued(
         NOTREACHED();
     }
 
-    const base::TimeDelta timestamp = base::TimeDelta::FromTimeSpec(timespec);
-    // TODO(b/214190092): Get color space from the buffer.
-    client_->OutputFrame(std::move(frame), *visible_rect_, color_space_,
-                         timestamp);
+    client_->OutputFrame(std::move(frame), *visible_rect_, timestamp);
   }
 
   // We were waiting for the last buffer before a resolution change
@@ -557,7 +488,7 @@ bool V4L2StatefulVideoDecoderBackend::CompleteFlush() {
   DCHECK(flush_cb_);
 
   // Signal that flush has properly been completed.
-  std::move(flush_cb_).Run(DecoderStatus::Codes::kOk);
+  std::move(flush_cb_).Run(DecodeStatus::OK);
 
   // If CAPTURE queue is streaming, send the START command to the V4L2 device
   // to signal that we are resuming decoding with the same state.
@@ -567,7 +498,7 @@ bool V4L2StatefulVideoDecoderBackend::CompleteFlush() {
     cmd.cmd = V4L2_DEC_CMD_START;
     if (device_->Ioctl(VIDIOC_DECODER_CMD, &cmd) != 0) {
       LOG(ERROR) << "Failed to issue START command";
-      std::move(flush_cb_).Run(DecoderStatus::Codes::kFailed);
+      std::move(flush_cb_).Run(DecodeStatus::DECODE_ERROR);
       client_->OnBackendError();
       return false;
     }
@@ -587,7 +518,7 @@ void V4L2StatefulVideoDecoderBackend::OnStreamStopped(bool stop_input_queue) {
   DVLOGF(3);
 
   // If we are resetting, also reset the splitter.
-  if (frame_splitter_ && stop_input_queue)
+  if (stop_input_queue)
     frame_splitter_->Reset();
 }
 
@@ -616,32 +547,21 @@ void V4L2StatefulVideoDecoderBackend::ChangeResolution() {
     return;
   }
 
-  // Estimate the amount of buffers needed for the CAPTURE queue and for codec
-  // reference requirements. For VP9 and AV1, the maximum number of reference
-  // frames is constant and 8 (for VP8 is 4); for H.264 and other ITU-T codecs,
-  // it depends on the bitstream. Here we query it from the driver anyway.
-  constexpr size_t kDefaultNumReferenceFrames = 8;
-  size_t num_codec_reference_frames = kDefaultNumReferenceFrames;
-  // On QC Venus, this control ranges between 1 and 32 at the time of writing.
   auto ctrl = device_->GetCtrl(V4L2_CID_MIN_BUFFERS_FOR_CAPTURE);
-  if (ctrl) {
-    VLOGF(2) << "V4L2_CID_MIN_BUFFERS_FOR_CAPTURE  = " << ctrl->value;
-    num_codec_reference_frames = std::max(
-        base::checked_cast<size_t>(ctrl->value), num_codec_reference_frames);
-  }
-  // Verify |num_codec_reference_frames| has a reasonable value. Anecdotally 16
-  // is the largest amount of reference frames seen, on an ITU-T H.264 test
-  // vector (CAPCM*1_Sand_E.h264).
-  CHECK_LE(num_codec_reference_frames, 32u);
+  constexpr size_t DEFAULT_NUM_OUTPUT_BUFFERS = 7;
+  const size_t num_output_buffers =
+      ctrl ? ctrl->value : DEFAULT_NUM_OUTPUT_BUFFERS;
+  if (!ctrl)
+    VLOGF(1) << "Using default minimum number of CAPTURE buffers";
 
   // Signal that we are flushing and initiate the resolution change.
   // Our flush will be done when we receive a buffer with the LAST flag on the
   // CAPTURE queue.
   client_->InitiateFlush();
   DCHECK(!resolution_change_cb_);
-  resolution_change_cb_ = base::BindOnce(
-      &V4L2StatefulVideoDecoderBackend::ContinueChangeResolution, weak_this_,
-      pic_size, *visible_rect, num_codec_reference_frames);
+  resolution_change_cb_ =
+      base::BindOnce(&V4L2StatefulVideoDecoderBackend::ContinueChangeResolution,
+                     weak_this_, pic_size, *visible_rect, num_output_buffers);
 
   // ...that is, unless we are not streaming yet, in which case the resolution
   // change can take place immediately.
@@ -652,18 +572,19 @@ void V4L2StatefulVideoDecoderBackend::ChangeResolution() {
 void V4L2StatefulVideoDecoderBackend::ContinueChangeResolution(
     const gfx::Size& pic_size,
     const gfx::Rect& visible_rect,
-    const size_t num_codec_reference_frames) {
+    const size_t num_output_buffers) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DVLOGF(3);
 
   // Flush is done, but stay in flushing state and ask our client to set the new
   // resolution.
-  client_->ChangeResolution(pic_size, visible_rect, num_codec_reference_frames);
+  client_->ChangeResolution(pic_size, visible_rect, num_output_buffers);
 }
 
 bool V4L2StatefulVideoDecoderBackend::ApplyResolution(
     const gfx::Size& pic_size,
-    const gfx::Rect& visible_rect) {
+    const gfx::Rect& visible_rect,
+    const size_t num_output_frames) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DVLOGF(3);
 
@@ -673,16 +594,11 @@ bool V4L2StatefulVideoDecoderBackend::ApplyResolution(
   return true;
 }
 
-void V4L2StatefulVideoDecoderBackend::OnChangeResolutionDone(CroStatus status) {
+void V4L2StatefulVideoDecoderBackend::OnChangeResolutionDone(bool success) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DVLOGF(3) << "status=" << static_cast<int>(status.code());
+  DVLOGF(3);
 
-  if (status == CroStatus::Codes::kResetRequired) {
-    need_resume_resolution_change_ = true;
-    return;
-  }
-
-  if (status != CroStatus::Codes::kOk) {
+  if (!success) {
     client_->OnBackendError();
     return;
   }
@@ -708,12 +624,11 @@ void V4L2StatefulVideoDecoderBackend::OnChangeResolutionDone(CroStatus status) {
 }
 
 void V4L2StatefulVideoDecoderBackend::ClearPendingRequests(
-    DecoderStatus status) {
+    DecodeStatus status) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DVLOGF(3);
 
-  if (resolution_change_cb_)
-    std::move(resolution_change_cb_).Run();
+  resolution_change_cb_.Reset();
 
   if (flush_cb_) {
     std::move(flush_cb_).Run(status);
@@ -747,21 +662,17 @@ bool V4L2StatefulVideoDecoderBackend::IsSupportedProfile(
     };
     scoped_refptr<V4L2Device> device = V4L2Device::Create();
     VideoDecodeAccelerator::SupportedProfiles profiles =
-        device->GetSupportedDecodeProfiles(std::size(kSupportedInputFourccs),
+        device->GetSupportedDecodeProfiles(base::size(kSupportedInputFourccs),
                                            kSupportedInputFourccs);
-    for (const auto& entry : profiles)
-      supported_profiles_.push_back(entry.profile);
+    for (const auto& profile : profiles)
+      supported_profiles_.push_back(profile.profile);
   }
-  return base::Contains(supported_profiles_, profile);
+  return std::find(supported_profiles_.begin(), supported_profiles_.end(),
+                   profile) != supported_profiles_.end();
 }
 
 bool V4L2StatefulVideoDecoderBackend::StopInputQueueOnResChange() const {
   return false;
-}
-
-size_t V4L2StatefulVideoDecoderBackend::GetNumOUTPUTQueueBuffers() const {
-  constexpr size_t kNumInputBuffers = 8;
-  return kNumInputBuffers;
 }
 
 }  // namespace media

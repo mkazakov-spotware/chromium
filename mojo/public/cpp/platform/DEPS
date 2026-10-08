@@ -4,7 +4,6 @@ include_rules = [
   "-mojo",
   "+mojo/public/c/system",
   "+mojo/public/cpp/platform",
-  "+net/base",
 
   # For some syscalls when building in NaCl toolchains.
   "+native_client/src/public",

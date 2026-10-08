@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "base/trace_event/trace_event.h"
 #include "cc/metrics/event_metrics.h"
 #include "third_party/blink/public/common/input/web_input_event_attribution.h"
-#include "third_party/blink/public/mojom/input/input_handler.mojom-blink.h"
 
 namespace blink {
 
@@ -34,7 +33,7 @@ EventWithCallback::EventWithCallback(
       creation_timestamp_(creation_timestamp),
       last_coalesced_timestamp_(last_coalesced_timestamp) {}
 
-EventWithCallback::~EventWithCallback() = default;
+EventWithCallback::~EventWithCallback() {}
 
 bool EventWithCallback::CanCoalesceWith(const EventWithCallback& other) const {
   return event().CanCoalesce(other.event());
@@ -50,17 +49,6 @@ void EventWithCallback::SetScrollbarManipulationHandledOnCompositorThread() {
 void EventWithCallback::CoalesceWith(EventWithCallback* other,
                                      base::TimeTicks timestamp_now) {
   event_->CoalesceWith(*other->event_);
-  auto* metrics = original_events_.empty()
-                      ? nullptr
-                      : original_events_.front().metrics_.get();
-  auto* scroll_update_metrics = metrics ? metrics->AsScrollUpdate() : nullptr;
-  auto* other_metrics = other->original_events_.empty()
-                            ? nullptr
-                            : other->original_events_.front().metrics_.get();
-  auto* other_scroll_update_metrics =
-      other_metrics ? other_metrics->AsScrollUpdate() : nullptr;
-  if (scroll_update_metrics && other_scroll_update_metrics)
-    scroll_update_metrics->CoalesceWith(*other_scroll_update_metrics);
 
   // Move original events.
   original_events_.splice(original_events_.end(), other->original_events_);
@@ -72,7 +60,7 @@ static bool HandledOnCompositorThread(
   return (disposition != InputHandlerProxy::DID_NOT_HANDLE &&
           disposition !=
               InputHandlerProxy::DID_NOT_HANDLE_NON_BLOCKING_DUE_TO_FLING &&
-          disposition != InputHandlerProxy::DID_NOT_HANDLE_NON_BLOCKING);
+          disposition != InputHandlerProxy::DID_HANDLE_NON_BLOCKING);
 }
 
 void EventWithCallback::RunCallbacks(
@@ -80,8 +68,7 @@ void EventWithCallback::RunCallbacks(
     const ui::LatencyInfo& latency,
     std::unique_ptr<InputHandlerProxy::DidOverscrollParams>
         did_overscroll_params,
-    const WebInputEventAttribution& attribution,
-    mojom::blink::ScrollResultDataPtr scroll_result_data) {
+    const WebInputEventAttribution& attribution) {
   // |original_events_| could be empty if this is the scroll event extracted
   // from the matrix multiplication.
   if (original_events_.size() == 0)
@@ -96,8 +83,7 @@ void EventWithCallback::RunCallbacks(
                ? std::make_unique<InputHandlerProxy::DidOverscrollParams>(
                      *did_overscroll_params)
                : nullptr,
-           attribution, std::move(oldest_event.metrics_),
-           scroll_result_data ? scroll_result_data->Clone() : nullptr);
+           attribution, std::move(oldest_event.metrics_));
   original_events_.pop_front();
 
   // If the event was handled on the compositor thread, ack other events with
@@ -127,8 +113,7 @@ void EventWithCallback::RunCallbacks(
                  ? std::make_unique<InputHandlerProxy::DidOverscrollParams>(
                        *did_overscroll_params)
                  : nullptr,
-             attribution, std::move(coalesced_event.metrics_),
-             scroll_result_data ? scroll_result_data->Clone() : nullptr);
+             attribution, std::move(coalesced_event.metrics_));
   }
 }
 
@@ -148,26 +133,6 @@ std::unique_ptr<cc::EventMetrics> EventWithCallback::TakeMetrics() {
 
   // Return metrics for the first original event for reporting purposes.
   return std::move(first->metrics_);
-}
-
-void EventWithCallback::WillStartProcessingForMetrics() {
-  DCHECK(metrics());
-  for (auto& original_event : original_events_) {
-    if (original_event.metrics_) {
-      original_event.metrics_->SetDispatchStageTimestamp(
-          cc::EventMetrics::DispatchStage::kRendererCompositorStarted);
-    }
-  }
-}
-
-void EventWithCallback::DidCompleteProcessingForMetrics() {
-  DCHECK(metrics());
-  for (auto& original_event : original_events_) {
-    if (original_event.metrics_) {
-      original_event.metrics_->SetDispatchStageTimestamp(
-          cc::EventMetrics::DispatchStage::kRendererCompositorFinished);
-    }
-  }
 }
 
 EventWithCallback::OriginalEventWithCallback::OriginalEventWithCallback(

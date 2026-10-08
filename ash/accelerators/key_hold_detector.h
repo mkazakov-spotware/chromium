@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "ash/ash_export.h"
+#include "base/macros.h"
 #include "ui/events/event_handler.h"
 
 namespace ui {
@@ -43,8 +44,6 @@ class ASH_EXPORT KeyHoldDetector : public ui::EventHandler {
   };
 
   explicit KeyHoldDetector(std::unique_ptr<Delegate> delegate);
-  KeyHoldDetector(const KeyHoldDetector&) = delete;
-  KeyHoldDetector& operator=(const KeyHoldDetector&) = delete;
   ~KeyHoldDetector() override;
 
   // ui::EventHandler overrides:
@@ -64,6 +63,8 @@ class ASH_EXPORT KeyHoldDetector : public ui::EventHandler {
 
   State state_;
   std::unique_ptr<Delegate> delegate_;
+
+  DISALLOW_COPY_AND_ASSIGN(KeyHoldDetector);
 };
 
 }  // namespace ash

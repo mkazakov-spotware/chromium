@@ -1,10 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/cbor/writer.h"
 
-#include <ostream>
 #include <string>
 
 #include "base/check_op.h"
@@ -18,19 +17,19 @@ namespace cbor {
 Writer::~Writer() {}
 
 // static
-absl::optional<std::vector<uint8_t>> Writer::Write(const Value& node,
+base::Optional<std::vector<uint8_t>> Writer::Write(const Value& node,
                                                    const Config& config) {
   std::vector<uint8_t> cbor;
   Writer writer(&cbor);
   if (!writer.EncodeCBOR(node, config.max_nesting_level,
                          config.allow_invalid_utf8_for_testing)) {
-    return absl::nullopt;
+    return base::nullopt;
   }
   return cbor;
 }
 
 // static
-absl::optional<std::vector<uint8_t>> Writer::Write(const Value& node,
+base::Optional<std::vector<uint8_t>> Writer::Write(const Value& node,
                                                    size_t max_nesting_level) {
   Config config;
   config.max_nesting_level = base::checked_cast<int>(max_nesting_level);

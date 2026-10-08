@@ -22,27 +22,21 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_EDITING_LAYOUT_SELECTION_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_EDITING_LAYOUT_SELECTION_H_
 
+#include "base/optional.h"
+#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/editing/forward.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
-
-namespace gfx {
-class Rect;
-}
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
-class InlineTextBox;
+class IntRect;
 class LayoutObject;
 class LayoutText;
 class NGInlineCursor;
-class NGInlineCursorPosition;
-struct NGTextOffset;
 class FrameSelection;
 struct LayoutSelectionStatus;
 struct LayoutTextSelectionStatus;
 class SelectionPaintRange;
-enum class SelectionState;
 
 class LayoutSelection final : public GarbageCollected<LayoutSelection> {
  public:
@@ -51,28 +45,11 @@ class LayoutSelection final : public GarbageCollected<LayoutSelection> {
   void SetHasPendingSelection();
   void Commit();
 
-  gfx::Rect AbsoluteSelectionBounds();
+  IntRect AbsoluteSelectionBounds();
   void InvalidatePaintForSelection();
 
   LayoutTextSelectionStatus ComputeSelectionStatus(const LayoutText&) const;
   LayoutSelectionStatus ComputeSelectionStatus(const NGInlineCursor&) const;
-
-  // Compute the layout selection state relative to the current item of the
-  // given NGInlineCursor. E.g. a state of kStart means that the selection
-  // starts within the position (and ends elsewhere), where kStartAndEnd means
-  // the selection both starts and ends within the position. This information is
-  // used at paint time to determine the edges of the layout selection.
-  SelectionState ComputePaintingSelectionStateForCursor(
-      const NGInlineCursorPosition&) const;
-
-  // Compute the layout selection state relative to the InlineTextBox.
-  // E.g. a state of kStart means that the selection starts within the line
-  // (and ends elsewhere), where kStartAndEnd means the selection both starts
-  // and ends within the line. This information is used at paint time to
-  // determine the edges of the layout selection.
-  SelectionState ComputeSelectionStateForInlineTextBox(
-      const InlineTextBox&) const;
-
   static bool IsSelected(const LayoutObject&);
 
   void ContextDestroyed();
@@ -80,12 +57,6 @@ class LayoutSelection final : public GarbageCollected<LayoutSelection> {
   void Trace(Visitor*) const;
 
  private:
-  LayoutSelectionStatus ComputeSelectionStatus(const NGInlineCursor&,
-                                               const NGTextOffset&) const;
-  SelectionState ComputeSelectionStateFromOffsets(SelectionState state,
-                                                  unsigned start_offset,
-                                                  unsigned end_offset) const;
-
   void AssertIsValid() const;
 
   Member<FrameSelection> frame_selection_;
@@ -96,4 +67,4 @@ class LayoutSelection final : public GarbageCollected<LayoutSelection> {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_EDITING_LAYOUT_SELECTION_H_
+#endif

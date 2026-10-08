@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Namespace with crypto related helper functions.
@@ -10,6 +18,7 @@
 
 goog.provide('goog.crypt');
 
+goog.require('goog.array');
 goog.require('goog.asserts');
 
 
@@ -21,7 +30,6 @@ goog.require('goog.asserts');
  *     UCS character codes of each character in str.
  */
 goog.crypt.stringToByteArray = function(str) {
-  'use strict';
   var output = [], p = 0;
   for (var i = 0; i < str.length; i++) {
     var c = str.charCodeAt(i);
@@ -44,7 +52,6 @@ goog.crypt.stringToByteArray = function(str) {
  * @return {string} Stringification of the array.
  */
 goog.crypt.byteArrayToString = function(bytes) {
-  'use strict';
   var CHUNK_SIZE = 8192;
 
   // Special-case the simple case for speed's sake.
@@ -58,7 +65,7 @@ goog.crypt.byteArrayToString = function(bytes) {
 
   var str = '';
   for (var i = 0; i < bytes.length; i += CHUNK_SIZE) {
-    var chunk = Array.prototype.slice.call(bytes, i, i + CHUNK_SIZE);
+    var chunk = goog.array.slice(bytes, i, i + CHUNK_SIZE);
     str += String.fromCharCode.apply(null, chunk);
   }
   return str;
@@ -74,12 +81,10 @@ goog.crypt.byteArrayToString = function(bytes) {
  * @return {string} Hex string.
  */
 goog.crypt.byteArrayToHex = function(array, opt_separator) {
-  'use strict';
-  return Array.prototype.map
-      .call(
+  return goog.array
+      .map(
           array,
           function(numByte) {
-            'use strict';
             var hexByte = numByte.toString(16);
             return hexByte.length > 1 ? hexByte : '0' + hexByte;
           })
@@ -94,7 +99,6 @@ goog.crypt.byteArrayToHex = function(array, opt_separator) {
  * @return {!Array<number>} Array of {0,255} integers for the given string.
  */
 goog.crypt.hexToByteArray = function(hexString) {
-  'use strict';
   goog.asserts.assert(
       hexString.length % 2 == 0, 'Key string length must be multiple of 2');
   var arr = [];
@@ -111,7 +115,6 @@ goog.crypt.hexToByteArray = function(hexString) {
  * @return {!Array<number>} UTF-8 byte array.
  */
 goog.crypt.stringToUtf8ByteArray = function(str) {
-  'use strict';
   // TODO(user): Use native implementations if/when available
   var out = [], p = 0;
   for (var i = 0; i < str.length; i++) {
@@ -146,7 +149,6 @@ goog.crypt.stringToUtf8ByteArray = function(str) {
  * @return {string} 16-bit Unicode string.
  */
 goog.crypt.utf8ByteArrayToString = function(bytes) {
-  'use strict';
   // TODO(user): Use native implementations if/when available
   var out = [], pos = 0, c = 0;
   while (pos < bytes.length) {
@@ -183,7 +185,6 @@ goog.crypt.utf8ByteArrayToString = function(bytes) {
  * @return {!Array<number>} Resulting XOR of the two byte arrays.
  */
 goog.crypt.xorByteArray = function(bytes1, bytes2) {
-  'use strict';
   goog.asserts.assert(
       bytes1.length == bytes2.length, 'XOR array lengths must match');
 

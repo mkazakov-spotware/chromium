@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -58,14 +58,6 @@ TEST_P(ElementInnerTest, OverflowingListItemWithFloatFirstLetter) {
   SetBodyContent("<div id=target>foo</div>");
   Element& target = *GetDocument().getElementById("target");
   EXPECT_EQ("foo", target.innerText());
-}
-
-// https://crbug.com/1164747
-TEST_P(ElementInnerTest, GetInnerTextWithoutUpdate) {
-  SetBodyContent("<div id=target>ab<span>c</span></div>");
-  Element& target = *GetDocument().getElementById("target");
-  EXPECT_EQ("abc", target.innerText());
-  EXPECT_EQ("abc", target.GetInnerTextWithoutUpdate());
 }
 
 }  // namespace blink

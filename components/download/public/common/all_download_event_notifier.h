@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <set>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "components/download/public/common/download_export.h"
 #include "components/download/public/common/download_item.h"
@@ -24,14 +24,10 @@ class COMPONENTS_DOWNLOAD_EXPORT AllDownloadEventNotifier
   // All of the methods take the SimpleDownloadManagerCoordinator so that
   // subclasses can observe multiple managers at once and easily distinguish
   // which manager a given item belongs to.
-  class Observer : public base::CheckedObserver {
+  class Observer {
    public:
     Observer() = default;
-
-    Observer(const Observer&) = delete;
-    Observer& operator=(const Observer&) = delete;
-
-    ~Observer() override = default;
+    virtual ~Observer() = default;
 
     virtual void OnDownloadsInitialized(
         SimpleDownloadManagerCoordinator* coordinator,
@@ -46,13 +42,12 @@ class COMPONENTS_DOWNLOAD_EXPORT AllDownloadEventNotifier
                                   DownloadItem* item) {}
     virtual void OnDownloadRemoved(SimpleDownloadManagerCoordinator* manager,
                                    DownloadItem* item) {}
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Observer);
   };
 
   explicit AllDownloadEventNotifier(SimpleDownloadManagerCoordinator* manager);
-
-  AllDownloadEventNotifier(const AllDownloadEventNotifier&) = delete;
-  AllDownloadEventNotifier& operator=(const AllDownloadEventNotifier&) = delete;
-
   ~AllDownloadEventNotifier() override;
 
   void AddObserver(Observer* observer);
@@ -70,14 +65,15 @@ class COMPONENTS_DOWNLOAD_EXPORT AllDownloadEventNotifier
   void OnDownloadRemoved(DownloadItem* item) override;
   void OnDownloadDestroyed(DownloadItem* item) override;
 
-  raw_ptr<SimpleDownloadManagerCoordinator>
-      simple_download_manager_coordinator_;
+  SimpleDownloadManagerCoordinator* simple_download_manager_coordinator_;
   std::set<DownloadItem*> observing_;
 
   bool download_initialized_;
 
   // Observers that want to be notified of download events.
-  base::ObserverList<Observer> observers_;
+  base::ObserverList<Observer>::Unchecked observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(AllDownloadEventNotifier);
 };
 
 }  // namespace download

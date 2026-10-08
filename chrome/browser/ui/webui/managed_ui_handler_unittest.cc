@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "base/token.h"
 #include "base/values.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/policy/profile_policy_connector.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/test/base/testing_profile.h"
@@ -19,11 +18,10 @@
 #include "content/public/test/test_web_ui_data_source.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
 #include "components/policy/core/browser/browser_policy_connector_base.h"
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !defined(OS_CHROMEOS)
 
 class TestManagedUIHandler : public ManagedUIHandler {
  public:
@@ -62,17 +60,18 @@ class ManagedUIHandlerTest : public testing::Test {
   void InitializeHandler() {
     TestManagedUIHandler::InitializeInternal(
         &web_ui_, source_->GetWebUIDataSource(), profile());
-    web_ui_.HandleReceivedMessage("observeManagedUI", base::Value::List());
+    web_ui_.HandleReceivedMessage("observeManagedUI", /*args=*/nullptr);
   }
 
   bool IsSourceManaged() {
     const auto* local_strings = source_->GetLocalizedStrings();
-    absl::optional<bool> managed = local_strings->FindBool("isManaged");
-    if (!managed.has_value()) {
+    const auto* managed =
+        local_strings->FindKeyOfType("isManaged", base::Value::Type::BOOLEAN);
+    if (managed == nullptr) {
       ADD_FAILURE();
       return false;
     }
-    return managed.value();
+    return managed->GetBool();
   }
 
  private:
@@ -112,10 +111,10 @@ TEST_F(ManagedUIHandlerTest, ManagedUIBecomesEnabledByProfile) {
   EXPECT_TRUE(IsSourceManaged());
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 TEST_F(ManagedUIHandlerTest, ManagedUIDisabledForChildAccount) {
   profile_policy_connector()->OverrideIsManagedForTesting(true);
-  profile()->SetIsSupervisedProfile();
+  profile()->SetSupervisedUserId("supervised");
 
   InitializeHandler();
 

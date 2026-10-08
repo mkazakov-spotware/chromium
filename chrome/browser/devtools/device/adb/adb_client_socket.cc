@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,9 @@
 
 #include <stddef.h>
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/compiler_specific.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/string_number_conversions.h"
@@ -49,47 +47,45 @@ class AdbTransportSocket : public AdbClientSocket {
   AdbTransportSocket(int port,
                      const std::string& serial,
                      const std::string& socket_name,
-                     SocketCallback callback)
-      : AdbClientSocket(port),
-        serial_(serial),
-        socket_name_(socket_name),
-        callback_(std::move(callback)) {
+                     const SocketCallback& callback)
+    : AdbClientSocket(port),
+      serial_(serial),
+      socket_name_(socket_name),
+      callback_(callback) {
     Connect(base::BindOnce(&AdbTransportSocket::OnConnected,
                            base::Unretained(this)));
   }
 
  private:
-  ~AdbTransportSocket() { DCHECK(callback_.is_null()); }
+  ~AdbTransportSocket() {}
 
   void OnConnected(int result) {
     if (!CheckNetResultOrDie(result))
       return;
     SendCommand(base::StringPrintf(kHostTransportCommand, serial_.c_str()),
-                true,
-                base::BindOnce(&AdbTransportSocket::SendLocalAbstract,
-                               base::Unretained(this)));
+        true, base::Bind(&AdbTransportSocket::SendLocalAbstract,
+                         base::Unretained(this)));
   }
 
   void SendLocalAbstract(int result, const std::string& response) {
     if (!CheckNetResultOrDie(result))
       return;
     SendCommand(socket_name_, true,
-                base::BindOnce(&AdbTransportSocket::OnSocketAvailable,
-                               base::Unretained(this)));
+                base::Bind(&AdbTransportSocket::OnSocketAvailable,
+                           base::Unretained(this)));
   }
 
   void OnSocketAvailable(int result, const std::string& response) {
     if (!CheckNetResultOrDie(result))
       return;
-    std::move(callback_).Run(net::OK, std::move(socket_));
+    callback_.Run(net::OK, std::move(socket_));
     delete this;
   }
 
   bool CheckNetResultOrDie(int result) {
     if (result >= 0)
       return true;
-    std::move(callback_).Run(result,
-                             base::WrapUnique<net::StreamSocket>(nullptr));
+    callback_.Run(result, base::WrapUnique<net::StreamSocket>(NULL));
     delete this;
     return false;
   }
@@ -101,10 +97,12 @@ class AdbTransportSocket : public AdbClientSocket {
 
 class AdbQuerySocket : AdbClientSocket {
  public:
-  AdbQuerySocket(int port, const std::string& query, CommandCallback callback)
+  AdbQuerySocket(int port,
+                 const std::string& query,
+                 const CommandCallback& callback)
       : AdbClientSocket(port),
         current_query_(0),
-        callback_(std::move(callback)) {
+        callback_(callback) {
     queries_ = base::SplitString(query, "|", base::KEEP_WHITESPACE,
                                  base::SPLIT_WANT_NONEMPTY);
     if (queries_.empty()) {
@@ -116,7 +114,8 @@ class AdbQuerySocket : AdbClientSocket {
   }
 
  private:
-  ~AdbQuerySocket() { DCHECK(callback_.is_null()); }
+  ~AdbQuerySocket() {
+  }
 
   void SendNextQuery(int result) {
     if (!CheckNetResultOrDie(result))
@@ -127,16 +126,15 @@ class AdbQuerySocket : AdbClientSocket {
       return;
     }
     bool is_void = current_query_ < queries_.size() - 1;
-    SendCommand(
-        query, is_void,
-        base::BindOnce(&AdbQuerySocket::OnResponse, base::Unretained(this)));
+    SendCommand(query, is_void,
+        base::Bind(&AdbQuerySocket::OnResponse, base::Unretained(this)));
   }
 
   void OnResponse(int result, const std::string& response) {
     if (++current_query_ < queries_.size()) {
       SendNextQuery(net::OK);
     } else {
-      std::move(callback_).Run(result, response);
+      callback_.Run(result, response);
       delete this;
     }
   }
@@ -144,7 +142,7 @@ class AdbQuerySocket : AdbClientSocket {
   bool CheckNetResultOrDie(int result) {
     if (result >= 0)
       return true;
-    std::move(callback_).Run(result, std::string());
+    callback_.Run(result, std::string());
     delete this;
     return false;
   }
@@ -159,16 +157,16 @@ class AdbQuerySocket : AdbClientSocket {
 // static
 void AdbClientSocket::AdbQuery(int port,
                                const std::string& query,
-                               CommandCallback callback) {
-  new AdbQuerySocket(port, query, std::move(callback));
+                               const CommandCallback& callback) {
+  new AdbQuerySocket(port, query, callback);
 }
 
 // static
 void AdbClientSocket::TransportQuery(int port,
                                      const std::string& serial,
                                      const std::string& socket_name,
-                                     SocketCallback callback) {
-  new AdbTransportSocket(port, serial, socket_name, std::move(callback));
+                                     const SocketCallback& callback) {
+  new AdbTransportSocket(port, serial, socket_name, callback);
 }
 
 AdbClientSocket::AdbClientSocket(int port)
@@ -191,8 +189,8 @@ void AdbClientSocket::Connect(net::CompletionOnceCallback callback) {
 
   net::AddressList address_list =
       net::AddressList::CreateFromIPAddress(ip_address, port_);
-  socket_ = std::make_unique<net::TCPClientSocket>(
-      address_list, nullptr, nullptr, nullptr, net::NetLogSource());
+  socket_.reset(new net::TCPClientSocket(address_list, nullptr, nullptr,
+                                         nullptr, net::NetLogSource()));
   connect_callback_ = std::move(callback);
   int result = socket_->Connect(base::BindOnce(
       &AdbClientSocket::RunConnectCallback, base::Unretained(this)));
@@ -202,7 +200,7 @@ void AdbClientSocket::Connect(net::CompletionOnceCallback callback) {
 
 void AdbClientSocket::SendCommand(const std::string& command,
                                   bool is_void,
-                                  CommandCallback callback) {
+                                  const CommandCallback& callback) {
   scoped_refptr<net::StringIOBuffer> request_buffer =
       base::MakeRefCounted<net::StringIOBuffer>(EncodeMessage(command));
   net::NetworkTrafficAnnotationTag traffic_annotation =
@@ -228,76 +226,71 @@ void AdbClientSocket::SendCommand(const std::string& command,
             "This is not a network request and is only used for remote "
             "debugging."
         })");
-
-  auto split_callback = base::SplitOnceCallback(
-      base::BindOnce(&AdbClientSocket::ReadResponse, base::Unretained(this),
-                     std::move(callback), is_void));
   int result =
       socket_->Write(request_buffer.get(), request_buffer->size(),
-                     std::move(split_callback.first), traffic_annotation);
-  if (result != net::ERR_IO_PENDING) {
-    std::move(split_callback.second).Run(result);
-  }
+                     base::BindOnce(&AdbClientSocket::ReadResponse,
+                                    base::Unretained(this), callback, is_void),
+                     traffic_annotation);
+  if (result != net::ERR_IO_PENDING)
+    ReadResponse(callback, is_void, result);
 }
 
-void AdbClientSocket::ReadResponse(CommandCallback callback,
+void AdbClientSocket::ReadResponse(const CommandCallback& callback,
                                    bool is_void,
                                    int result) {
   if (result < 0) {
-    std::move(callback).Run(result, "IO error");
+    callback.Run(result, "IO error");
     return;
   }
   scoped_refptr<net::IOBuffer> response_buffer =
       base::MakeRefCounted<net::IOBuffer>(kBufferSize);
-  auto split_callback = base::SplitOnceCallback(
+  result = socket_->Read(
+      response_buffer.get(), kBufferSize,
       base::BindOnce(&AdbClientSocket::OnResponseHeader, base::Unretained(this),
-                     std::move(callback), is_void, response_buffer));
-  result = socket_->Read(response_buffer.get(), kBufferSize,
-                         std::move(split_callback.first));
-  if (result != net::ERR_IO_PENDING) {
-    std::move(split_callback.second).Run(result);
-  }
+                     callback, is_void, response_buffer));
+  if (result != net::ERR_IO_PENDING)
+    OnResponseHeader(callback, is_void, response_buffer, result);
 }
 
 void AdbClientSocket::OnResponseHeader(
-    CommandCallback callback,
+    const CommandCallback& callback,
     bool is_void,
     scoped_refptr<net::IOBuffer> response_buffer,
     int result) {
   if (result <= 0) {
-    std::move(callback).Run(result == 0 ? net::ERR_CONNECTION_CLOSED : result,
-                            "IO error");
+    callback.Run(result == 0 ? net::ERR_CONNECTION_CLOSED : result,
+                 "IO error");
     return;
   }
 
   std::string data = std::string(response_buffer->data(), result);
   if (result < 4) {
-    std::move(callback).Run(net::ERR_FAILED, "Response is too short: " + data);
+    callback.Run(net::ERR_FAILED, "Response is too short: " + data);
     return;
   }
 
   std::string status = data.substr(0, 4);
   if (status != kOkayResponse) {
-    std::move(callback).Run(net::ERR_FAILED, data);
+    callback.Run(net::ERR_FAILED, data);
     return;
   }
 
   // Trim OKAY.
   data = data.substr(4);
   if (!is_void)
-    OnResponseData(std::move(callback), data, response_buffer, -1, 0);
+    OnResponseData(callback, data, response_buffer, -1, 0);
   else
-    std::move(callback).Run(net::OK, data);
+    callback.Run(net::OK, data);
 }
 
 void AdbClientSocket::OnResponseData(
-    CommandCallback callback,
+    const CommandCallback& callback,
     const std::string& response,
     scoped_refptr<net::IOBuffer> response_buffer,
     int bytes_left,
     int result) {
   if (result < 0) {
-    std::move(callback).Run(result, "IO error");
+    callback.Run(result, "IO error");
     return;
   }
 
@@ -317,21 +310,17 @@ void AdbClientSocket::OnResponseData(
   }
 
   if (bytes_left == 0) {
-    std::move(callback).Run(net::OK, new_response);
+    callback.Run(net::OK, new_response);
     return;
   }
 
   // Read tail
-  auto split_callback = base::SplitOnceCallback(std::move(callback));
   result = socket_->Read(
       response_buffer.get(), kBufferSize,
       base::BindOnce(&AdbClientSocket::OnResponseData, base::Unretained(this),
-                     std::move(split_callback.first), new_response,
-                     response_buffer, bytes_left));
-  if (result > 0) {
-    OnResponseData(std::move(split_callback.second), new_response,
-                   response_buffer, bytes_left, result);
-  } else if (result != net::ERR_IO_PENDING) {
-    std::move(split_callback.second).Run(net::OK, new_response);
-  }
+                     callback, new_response, response_buffer, bytes_left));
+  if (result > 0)
+    OnResponseData(callback, new_response, response_buffer, bytes_left, result);
+  else if (result != net::ERR_IO_PENDING)
+    callback.Run(net::OK, new_response);
 }

@@ -1,124 +1,138 @@
-function requestAnimationFramePromise(w) {
-  return new Promise((resolve) => (w || window).requestAnimationFrame(resolve));
+window.jsTestIsAsync = true;
+
+var popupWindow = null;
+
+var popupOpenCallback = null;
+
+function popupOpenCallbackWrapper() {
+    popupWindow.removeEventListener("didOpenPicker", popupOpenCallbackWrapper);
+    // We need some delay.  Without it, testRunner.notifyDone() freezes.
+    // See crbug.com/562311.
+    setTimeout(popupOpenCallback, 20);
 }
 
-function waitUntilOpen(popupWindow) {
-  return new Promise((resolve, reject) => {
-    if (!popupWindow)
-      reject('popupWindow is null');
-    function tick() {
-      // didOpenPicker gets set by pickerCommon.js: https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/html/forms/resources/pickerCommon.js;l=213;drc=f2f1e770d7def6c722b0092d77b2d3395c46a477
-      if (popupWindow.didOpenPicker)
-        resolve();
-      else
-        requestAnimationFrame(tick.bind(this));
+function waitUntilClosing(callback) {
+    setTimeout(callback, 1);
+}
+
+function rootWindow() {
+    var currentWindow = window;
+    while (currentWindow !== currentWindow.parent) {
+        currentWindow = currentWindow.parent;
     }
-    tick();
-  });
+    return currentWindow;
 }
 
-// Returns a promise that resolves when a picker is opened.
-function openPicker(element) {
-  return test_driver.bless("show picker")
-  .then(() => requestAnimationFramePromise())
-  .then(() => {
-    if (element instanceof HTMLSelectElement) {
-      // Select is the only control with a picker that (currently)
-      // doesn't support showPicker().
-      element.focus();
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC')>=0;
-      let activation_key;
-      if (isMac) {
-        activation_key = '\uE00A' + '\uE015'; // Alt-Arrow-Down
-      } else {
-        activation_key = ' '; // Spacebar
-      }
-      return test_driver.send_keys(element, activation_key);
-    } else {
-      return element.showPicker(); // Should work for file, color, and date/time
+// openPicker opens a picker UI for the following types:
+// - menulist SELECT
+// - INPUT color
+// - INPUT date/datetime-local/month/week
+//
+// |callback| is called if we successfully open the picker UI. However it is
+// called only for the following types:
+// - menulist SELECT on Windows, Linux, and CrOS
+// - INPUT color with DATALIST
+// - INPUT date/datetime-local/month/week
+function openPicker(element, callback, errorCallback) {
+    popupWindow = openPickerHelper(element);
+    if (typeof callback === "function" && popupWindow)
+        setPopupOpenCallback(callback);
+    else if (typeof errorCallback === "function" && !popupWindow)
+        errorCallback();
+}
+
+// openPickerAppearanceOnly opens a picker UI for the following types:
+// - menulist SELECT
+// - INPUT color
+// - INPUT date/datetime-local/month/week
+
+// This is intended for use with picker UI tests that are only testing picker
+// appearance. Therefore, it is expected that tests using this API should fail
+// if the picker does not open.
+function openPickerAppearanceOnly(element, callback) {
+    let errorCallback = undefined;
+    if (typeof testFailed === 'function') {
+        errorCallback = () => testFailed('Popup failed to open.');
     }
-  })
-  .then(() => {
-      if (!window.internals)
-        throw 'Internals not available';
-      return waitUntilOpen(window.internals.pagePopupWindow);
-    })
-  .then(() => requestAnimationFramePromise(window.internals.pagePopupWindow))
-  .then(() => requestAnimationFramePromise())
-  .then(() => requestAnimationFramePromise(window.internals.pagePopupWindow))
-  .then(() => requestAnimationFramePromise());
-}
-
-function attemptToClosePicker(element) {
-  element.blur(); // Sometimes works to close the picker
-  internals.endColorChooser(element); // Works for color only
-  return eventSender.keyDown('Escape'); // Hitting esc could close file picker
-}
-
-// Opens the picker on the given element, waits for it to be
-// displayed, and ends the test. This function also enables
-// pixel result output, and will add any errors to the visible
-// output. If runAfterOpening is provided, it will be called
-// after the picker is opened, and before several rAF() calls.
-function openPickerAppearanceOnly(element, runAfterOpening) {
-  function showError(e) {
-    attemptToClosePicker(element);
-    const errorMessage = document.createElement('pre');
-    errorMessage.innerText = 'FAIL: \n' + e + '\n\n';
-    element.parentNode.insertBefore(errorMessage,element);
+    openPicker(element, callback, errorCallback);
   }
-  if (!window.testRunner) {
-    return showError('testRunner is required');
-  }
-  testRunner.waitUntilDone();
-  testRunner.setShouldGeneratePixelResults(true);
 
-  openPicker(element)
-    .then(() => {
-      if (runAfterOpening !== undefined) {
-        return runAfterOpening();
-      }
-    })
-    .then(() => requestAnimationFramePromise())
-    .then(() => requestAnimationFramePromise())
-    .then(() => testRunner.notifyDone())
-    .catch((e) => {
-      showError(e);
-      testRunner.notifyDone();
+// openPickerWithPromise opens a picker UI for the following types:
+// - menulist SELECT
+// - INPUT color
+// - INPUT date/datetime-local/month/week
+//
+// Returns a Promise that resolves when the popup has been opened.
+function openPickerWithPromise(element) {
+    return new Promise(function(resolve, reject) {
+        popupWindow = openPickerHelper(element);
+        if (popupWindow) {
+            popupOpenCallback = resolve;
+            popupWindow.addEventListener("didOpenPicker", popupOpenCallbackWrapper, false);
+        } else {
+            reject();
+        }
     });
 }
 
-// Do NOT use openPickerDeprecatedJsTest for any new tests. See crbug.com/1299212.
-// This is here to support old tests only.
-let waitedForLoad=false;
-function openPickerDeprecatedJsTest(element, successCallback, failureCallback) {
-  if (!waitedForLoad) {
-    waitedForLoad = true;
-    window.jsTestIsAsync = true;
-    window.onload = () => {
-      openPickerDeprecatedJsTest(element, successCallback, failureCallback);
-    };
-    return;
-  }
-  openPicker(element)
-  .then(() => requestAnimationFramePromise())
-  .then(() => requestAnimationFramePromise())
-  .then(() => {
-    successCallback();
-  })
-  .catch((e) => {
-    if (failureCallback !== undefined) {
-      failureCallback(e);
-    } else {
-      testFailed('Error: ' + e);
-      finishJSTest();
+// Helper function for openPicker and openPickerWithPromise.
+// Performs the keystrokes that will cause the picker to open,
+// and returns the popup window, or null.
+function openPickerHelper(element) {
+    element.offsetTop; // Force to lay out
+    element.focus();
+    if (element.tagName === "SELECT") {
+        eventSender.keyDown("ArrowDown", ["altKey"]);
+    } else if (element.tagName === "INPUT") {
+        if (element.type === "color") {
+            eventSender.keyDown(" ");
+        } else {
+            eventSender.keyDown("ArrowDown", ["altKey"]);
+        }
     }
-  });
-}
-function waitUntilClosingDeprecatedJsTest(callback) {
-  setTimeout(callback, 1);
+    return internals.pagePopupWindow;
 }
 
-// Enable lang attribute aware UI for all controls.
-if (window.internals)
-  internals.runtimeFlags.langAttributeAwareFormControlUIEnabled = true;
+// TODO(crbug.com/1047176) - use clickToOpenPickerWithPromise instead
+function clickToOpenPicker(x, y, callback, errorCallback) {
+    eventSender.mouseMoveTo(x, y);
+    eventSender.mouseDown();
+    eventSender.mouseUp();
+    popupWindow = internals.pagePopupWindow;
+    if (typeof callback === "function" && popupWindow)
+        setPopupOpenCallback(callback);
+    else if (typeof errorCallback === "function" && !popupWindow)
+        errorCallback();
+}
+
+// Uses test_driver to open the picker.
+function clickToOpenPickerWithPromise(x, y, callback, errorCallback) {
+    return new Promise((resolve, reject)=>{
+      var actions = new test_driver.Actions();
+      actions
+          .pointerMove(x, y)
+          .pointerDown()
+          .pointerUp()
+          .send();
+      waitUntil(()=>internals.pagePopupWindow).then(()=>{
+        popupWindow = internals.pagePopupWindow;
+        if (typeof callback === "function")
+          setPopupOpenCallback(callback);
+        resolve();
+      }).catch((err)=>{
+          if (typeof errorCallback === "function" && !popupWindow)
+            errorCallback();
+         reject();
+      });
+    });
+}
+
+function setPopupOpenCallback(callback) {
+    console.assert(popupWindow);
+    popupOpenCallback = callback;
+    try {
+        popupWindow.addEventListener("didOpenPicker", popupOpenCallbackWrapper, false);
+    } catch(e) {
+        debug(e.name);
+    }
+}

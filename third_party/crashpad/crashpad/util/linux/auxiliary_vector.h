@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <map>
 
 #include "base/logging.h"
+#include "base/macros.h"
 #include "util/linux/ptrace_connection.h"
 #include "util/misc/reinterpret_bytes.h"
 
@@ -29,10 +30,6 @@ namespace crashpad {
 class AuxiliaryVector {
  public:
   AuxiliaryVector();
-
-  AuxiliaryVector(const AuxiliaryVector&) = delete;
-  AuxiliaryVector& operator=(const AuxiliaryVector&) = delete;
-
   ~AuxiliaryVector();
 
   //! \brief Initializes this object with the auxiliary vector for the process
@@ -68,6 +65,8 @@ class AuxiliaryVector {
  private:
   template <typename ULong>
   bool Read(PtraceConnection* connection);
+
+  DISALLOW_COPY_AND_ASSIGN(AuxiliaryVector);
 };
 
 }  // namespace crashpad

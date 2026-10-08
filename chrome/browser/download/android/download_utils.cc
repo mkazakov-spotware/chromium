@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -71,19 +71,16 @@ void DownloadUtils::OpenDownload(download::DownloadItem* item,
   JNIEnv* env = base::android::AttachCurrentThread();
   content::BrowserContext* browser_context =
       content::DownloadItemUtils::GetBrowserContext(item);
+  bool is_off_the_record =
+      browser_context ? browser_context->IsOffTheRecord() : false;
   std::string original_url = item->GetOriginalUrl().SchemeIs(url::kDataScheme)
                                  ? std::string()
                                  : item->GetOriginalUrl().spec();
-  base::android::ScopedJavaLocalRef<jobject> otr_profile_id;
-  if (browser_context && browser_context->IsOffTheRecord()) {
-    Profile* profile = Profile::FromBrowserContext(browser_context);
-    otr_profile_id = profile->GetOTRProfileID().ConvertToJavaOTRProfileID(env);
-  }
 
   Java_DownloadUtils_openDownload(
       env, ConvertUTF8ToJavaString(env, item->GetTargetFilePath().value()),
       ConvertUTF8ToJavaString(env, item->GetMimeType()),
-      ConvertUTF8ToJavaString(env, item->GetGuid()), otr_profile_id,
+      ConvertUTF8ToJavaString(env, item->GetGuid()), is_off_the_record,
       ConvertUTF8ToJavaString(env, original_url),
       ConvertUTF8ToJavaString(env, item->GetReferrerUrl().spec()),
       static_cast<jint>(open_source));
@@ -121,7 +118,7 @@ void DownloadUtils::ShowDownloadManager(bool show_prefetched_content,
                                         DownloadOpenSource open_source) {
   JNIEnv* env = base::android::AttachCurrentThread();
   Java_DownloadUtils_showDownloadManager(
-      env, nullptr, nullptr, nullptr, static_cast<jint>(open_source),
+      env, nullptr, nullptr, static_cast<jint>(open_source),
       static_cast<jboolean>(show_prefetched_content));
 }
 

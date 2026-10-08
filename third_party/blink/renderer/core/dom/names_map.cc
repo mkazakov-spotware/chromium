@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,10 +30,10 @@ void NamesMap::Set(const AtomicString& source) {
 
 void NamesMap::Add(const AtomicString& key, const AtomicString& value) {
   // AddResult
-  auto add_result = data_.insert(key, absl::optional<SpaceSplitString>());
+  auto add_result = data_.insert(key, base::Optional<SpaceSplitString>());
   if (add_result.is_new_entry) {
     add_result.stored_value->value =
-        absl::make_optional<SpaceSplitString>(SpaceSplitString());
+        base::make_optional<SpaceSplitString>(SpaceSplitString());
   }
   add_result.stored_value->value.value().Add(value);
 }
@@ -214,7 +214,7 @@ void NamesMap::Set(const AtomicString& source,
     case kKey:
       // The string ends with a key.
       key = AtomicString(characters + start, cur - start);
-      [[fallthrough]];
+      FALLTHROUGH;
     case kPostKey:
       // The string ends with a key.
       Add(key, key);
@@ -224,7 +224,7 @@ void NamesMap::Set(const AtomicString& source,
     case kValue:
       // The string ends with a value.
       value = AtomicString(characters + start, cur - start);
-      [[fallthrough]];
+      FALLTHROUGH;
     case kPostValue:
       Add(key, value);
       break;
@@ -233,9 +233,9 @@ void NamesMap::Set(const AtomicString& source,
   }
 }
 
-absl::optional<SpaceSplitString> NamesMap::Get(const AtomicString& key) const {
+base::Optional<SpaceSplitString> NamesMap::Get(const AtomicString& key) const {
   auto it = data_.find(key);
-  return it != data_.end() ? it->value : absl::nullopt;
+  return it != data_.end() ? it->value : base::nullopt;
 }
 
 }  // namespace blink

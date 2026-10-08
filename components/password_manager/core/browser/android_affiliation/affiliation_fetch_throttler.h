@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <memory>
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "net/base/backoff_entry.h"
@@ -60,11 +60,6 @@ class AffiliationFetchThrottler
       const scoped_refptr<base::SequencedTaskRunner>& task_runner,
       network::NetworkConnectionTracker* network_connection_tracker,
       const base::TickClock* tick_clock);
-
-  AffiliationFetchThrottler(const AffiliationFetchThrottler&) = delete;
-  AffiliationFetchThrottler& operator=(const AffiliationFetchThrottler&) =
-      delete;
-
   ~AffiliationFetchThrottler() override;
 
   // Signals to the throttling logic that a network request is needed, and that
@@ -82,7 +77,7 @@ class AffiliationFetchThrottler
   virtual void InformOfNetworkRequestComplete(bool success);
 
  protected:
-  raw_ptr<AffiliationFetchThrottlerDelegate> delegate_;
+  AffiliationFetchThrottlerDelegate* delegate_;
 
  private:
   FRIEND_TEST_ALL_PREFIXES(AffiliationFetchThrottlerTest, FailedRequests);
@@ -124,14 +119,16 @@ class AffiliationFetchThrottler
   void OnConnectionChanged(network::mojom::ConnectionType type) override;
 
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
-  raw_ptr<network::NetworkConnectionTracker> network_connection_tracker_;
-  raw_ptr<const base::TickClock> tick_clock_;
+  network::NetworkConnectionTracker* network_connection_tracker_;
+  const base::TickClock* tick_clock_;
   State state_;
   bool has_network_connectivity_;
   bool is_fetch_scheduled_;
   std::unique_ptr<net::BackoffEntry> exponential_backoff_;
 
   base::WeakPtrFactory<AffiliationFetchThrottler> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AffiliationFetchThrottler);
 };
 
 }  // namespace password_manager

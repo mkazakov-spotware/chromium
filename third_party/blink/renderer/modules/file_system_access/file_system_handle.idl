@@ -1,19 +1,20 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// https://fs.spec.whatwg.org/#enumdef-filesystemhandlekind
+// https://wicg.github.io/native-file-system/#enumdef-filesystemhandlekind
 enum FileSystemHandleKind {
   "file",
   "directory",
 };
 
-// https://fs.spec.whatwg.org/#filesystemhandle
+// https://wicg.github.io/native-file-system/#filesystemhandle
 [
     Exposed=(Window,Worker),
     SecureContext,
     Serializable,
-    RuntimeEnabled=FileSystemAccess
+    RuntimeEnabled=NativeFileSystem,
+    ImplementedAs=NativeFileSystemHandle
 ] interface FileSystemHandle {
     // Brand checking APIs because javascript makes it otherwise really hard to
     // figure out what type an object is when you don't know in which global
@@ -27,29 +28,5 @@ enum FileSystemHandleKind {
     [CallWith=ScriptState] Promise<PermissionState> requestPermission(
         optional FileSystemHandlePermissionDescriptor descriptor = {});
 
-    [
-        CallWith=ScriptState,
-        RuntimeEnabled=FileSystemAccessAPIExperimental
-    ]  Promise<void> move(USVString new_entry_name);
-    [
-        CallWith=ScriptState,
-        RuntimeEnabled=FileSystemAccessAPIExperimental
-    ]  Promise<void> move(FileSystemDirectoryHandle destination_directory);
-    [
-        CallWith=ScriptState,
-        RuntimeEnabled=FileSystemAccessAPIExperimental
-    ]  Promise<void> move(FileSystemDirectoryHandle destination_directory,
-                          USVString new_entry_name);
-    [
-        CallWith=ScriptState,
-        RuntimeEnabled=FileSystemAccessAPIExperimental
-    ] Promise<void> remove(optional FileSystemRemoveOptions options = {});
-
-    [CallWith=ScriptState, Measure]
-    Promise<boolean> isSameEntry(FileSystemHandle other);
-
-    [
-        CallWith=ScriptState,
-        RuntimeEnabled=FileSystemAccessAPIExperimental
-    ] Promise<USVString> getUniqueId();
+    [CallWith=ScriptState, Measure] Promise<boolean> isSameEntry(FileSystemHandle other);
 };

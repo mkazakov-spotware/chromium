@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,7 @@ String RTCEncodedVideoFrame::type() const {
   return delegate_->Type();
 }
 
-uint32_t RTCEncodedVideoFrame::timestamp() const {
+uint64_t RTCEncodedVideoFrame::timestamp() const {
   return delegate_->Timestamp();
 }
 
@@ -40,12 +40,7 @@ DOMArrayBuffer* RTCEncodedVideoFrame::data() const {
 RTCEncodedVideoFrameMetadata* RTCEncodedVideoFrame::getMetadata() const {
   RTCEncodedVideoFrameMetadata* metadata =
       RTCEncodedVideoFrameMetadata::Create();
-  if (delegate_->Ssrc()) {
-    metadata->setSynchronizationSource(*delegate_->Ssrc());
-  }
-  if (delegate_->PayloadType()) {
-    metadata->setPayloadType(*delegate_->PayloadType());
-  }
+  metadata->setSynchronizationSource(delegate_->Ssrc());
   const auto* webrtc_metadata = delegate_->GetMetadata();
   if (!webrtc_metadata)
     return metadata;
@@ -64,6 +59,16 @@ RTCEncodedVideoFrameMetadata* RTCEncodedVideoFrame::getMetadata() const {
   return metadata;
 }
 
+DOMArrayBuffer* RTCEncodedVideoFrame::additionalData() const {
+  if (!additional_data_)
+    additional_data_ = delegate_->CreateAdditionalDataBuffer();
+  return additional_data_;
+}
+
+uint32_t RTCEncodedVideoFrame::synchronizationSource() const {
+  return delegate_->Ssrc();
+}
+
 void RTCEncodedVideoFrame::setData(DOMArrayBuffer* data) {
   frame_data_ = data;
 }
@@ -73,21 +78,14 @@ String RTCEncodedVideoFrame::toString() const {
     return "empty";
 
   StringBuilder sb;
-  sb.Append("RTCEncodedVideoFrame{rtpTimestamp: ");
+  sb.Append("RTCEncodedVideoFrame{timestamp: ");
   sb.AppendNumber(timestamp());
-  sb.Append(", size: ");
+  sb.Append("us, size: ");
   sb.AppendNumber(data()->ByteLength());
   sb.Append(" bytes, type: ");
   sb.Append(type());
   sb.Append("}");
   return sb.ToString();
-}
-
-RTCEncodedVideoFrame* RTCEncodedVideoFrame::clone() const {
-  std::unique_ptr<webrtc::TransformableVideoFrameInterface> new_webrtc_frame =
-      delegate_->CloneWebRtcFrame();
-  return MakeGarbageCollected<RTCEncodedVideoFrame>(
-      std::move(new_webrtc_frame));
 }
 
 void RTCEncodedVideoFrame::SyncDelegate() const {
@@ -109,6 +107,7 @@ RTCEncodedVideoFrame::PassWebRtcFrame() {
 void RTCEncodedVideoFrame::Trace(Visitor* visitor) const {
   ScriptWrappable::Trace(visitor);
   visitor->Trace(frame_data_);
+  visitor->Trace(additional_data_);
 }
 
 }  // namespace blink

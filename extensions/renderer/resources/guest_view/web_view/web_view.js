@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -142,16 +142,18 @@ WebViewImpl.prototype.onFrameNameChanged = function(name) {
 // Updates state upon loadcommit.
 WebViewImpl.prototype.onLoadCommit = function(
     baseUrlForDataUrl, currentEntryIndex, entryCount,
-    processId, visibleUrl) {
+    processId, url, isTopLevel) {
   this.baseUrlForDataUrl = baseUrlForDataUrl;
   this.currentEntryIndex = currentEntryIndex;
   this.entryCount = entryCount;
   this.processId = processId;
-  // Touching the src attribute triggers a navigation. To avoid
-  // triggering a page reload on every guest-initiated navigation,
-  // we do not handle this mutation.
-  this.attributes[
-      WebViewConstants.ATTRIBUTE_SRC].setValueIgnoreMutation(visibleUrl);
+  if (isTopLevel) {
+    // Touching the src attribute triggers a navigation. To avoid
+    // triggering a page reload on every guest-initiated navigation,
+    // we do not handle this mutation.
+    this.attributes[
+        WebViewConstants.ATTRIBUTE_SRC].setValueIgnoreMutation(url);
+  }
 };
 
 WebViewImpl.prototype.onAttach = function(storagePartitionId) {
@@ -176,14 +178,14 @@ WebViewImpl.prototype.attachWindow = function(opt_guestInstanceId) {
   // being attached to this webview, and the current one will get destroyed.
   if (opt_guestInstanceId) {
     if (this.guest.getId() == opt_guestInstanceId) {
-      return;
+      return true;
     }
     this.guest.destroy();
     this.guest = new GuestView('webview', opt_guestInstanceId);
     this.prepareForReattach();
   }
 
-  $Function.call(GuestViewContainer.prototype.attachWindow, this);
+  return $Function.call(GuestViewContainer.prototype.attachWindow, this);
 };
 
 // Shared implementation of executeScript() and insertCSS().
@@ -193,14 +195,8 @@ WebViewImpl.prototype.executeCode = function(func, args) {
     return false;
   }
 
-  // We specify what the embedder sees as the current URL, so that if this
-  // inject call races with navigation in the guest, we don't inject into a
-  // document we're not expecting.
   var webviewSrc = this.attributes[WebViewConstants.ATTRIBUTE_SRC].getValue();
   if (this.baseUrlForDataUrl) {
-    // The virtual URL from the src attribute won't match the guest document's
-    // URL when a base URL is provided for a data URL. The base URL should be
-    // used for the comparison.
     webviewSrc = this.baseUrlForDataUrl;
   }
 

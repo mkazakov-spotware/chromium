@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,11 @@
 #include "chrome/browser/video_tutorials/switches.h"
 
 namespace video_tutorials {
+
+// Default base URL string for the server.
+constexpr char kDefaultBaseURL[] =
+    "https://staging-gsaprototype-pa.sandbox.googleapis.com";
+
 // Default URL string for GetTutorials RPC.
 constexpr char kDefaultGetTutorialsPath[] = "/v1/videotutorials";
 
@@ -37,16 +42,12 @@ const GURL BuildGetTutorialsEndpoint(const GURL& base_url, const char* path) {
 }  // namespace
 
 // static
-GURL Config::GetTutorialsServerURL(const std::string& default_server_url) {
+GURL Config::GetTutorialsServerURL() {
   std::string base_url_from_finch = base::GetFieldTrialParamValueByFeature(
       features::kVideoTutorials, kBaseURLKey);
-  if (!base_url_from_finch.empty())
-    return BuildGetTutorialsEndpoint(GURL(base_url_from_finch),
-                                     kDefaultGetTutorialsPath);
-  return default_server_url.empty()
-             ? GURL()
-             : BuildGetTutorialsEndpoint(GURL(default_server_url),
-                                         kDefaultGetTutorialsPath);
+  GURL server_url = base_url_from_finch.empty() ? GURL(kDefaultBaseURL)
+                                                : GURL(base_url_from_finch);
+  return BuildGetTutorialsEndpoint(server_url, kDefaultGetTutorialsPath);
 }
 
 // static
@@ -63,7 +64,7 @@ base::TimeDelta Config::GetFetchFrequency() {
   int frequency_in_days = base::GetFieldTrialParamByFeatureAsInt(
       features::kVideoTutorials, kFetchFrequencyKey,
       kDefaultFetchFrequencyDays);
-  return base::Days(frequency_in_days);
+  return base::TimeDelta::FromDays(frequency_in_days);
 }
 
 // static

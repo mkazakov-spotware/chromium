@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,20 +6,15 @@
  * @fileoverview This implements a common button control, bound to command.
  */
 
-import {assert} from 'chrome://resources/js/assert.js';
-import {getPropertyDescriptor, PropertyKind} from 'chrome://resources/ash/common/cr_deprecated.js';
-import {decorate} from '../../../common/js/ui.js';
-import {Command} from './command.js';
-
 /**
  * Creates a new button element.
  * @extends {HTMLButtonElement}
  */
-export class CommandButton {
+class CommandButton {
   constructor() {
     /**
      * Associated command.
-     * @private {Command}
+     * @private {cr.ui.Command}
      */
     this.command_ = null;
   }
@@ -56,7 +51,7 @@ export class CommandButton {
 
   /**
    * Returns associated command.
-   * @return {Command} associated command.
+   * @return {cr.ui.Command} associated command.
    */
   getCommand() {
     return this.command_;
@@ -64,7 +59,7 @@ export class CommandButton {
 
   /**
    * Associates command with this button.
-   * @param {string|Command} command Command id, or command object to
+   * @param {string|cr.ui.Command} command Command id, or command object to
    * associate with this button.
    */
   setCommand(command) {
@@ -82,9 +77,9 @@ export class CommandButton {
 
     if (typeof command == 'string') {
       assert(command[0] == '#');
-      command = /** @type {!Command} */
+      command = /** @type {!cr.ui.Command} */
           (this.ownerDocument.body.querySelector(command));
-      decorate(command, Command);
+      cr.ui.decorate(command, cr.ui.Command);
     }
 
     this.command_ = command;
@@ -165,16 +160,16 @@ export class CommandButton {
   }
 }
 
+CommandButton.prototype.__proto__ = HTMLButtonElement.prototype;
+
 /**
  * Whether the button is disabled or not.
  * @type {boolean}
  */
-CommandButton.prototype.disabled;
+cr.defineProperty(CommandButton, 'disabled', cr.PropertyKind.BOOL_ATTR);
 
 /**
  * Whether the button is hidden or not.
  * @type {boolean}
  */
-CommandButton.prototype.hidden;
-
-CommandButton.prototype.__proto__ = HTMLButtonElement.prototype;
+cr.defineProperty(CommandButton, 'hidden', cr.PropertyKind.BOOL_ATTR);

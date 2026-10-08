@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,20 +8,17 @@
 #include <utility>
 #include <vector>
 
-#include "base/task/sequenced_task_runner.h"
-#include "base/time/time.h"
 #include "base/unguessable_token.h"
-#include "chromeos/ash/services/assistant/public/cpp/assistant_service.h"
-#include "mojo/public/cpp/bindings/pending_receiver.h"
+#include "chromeos/services/assistant/public/cpp/assistant_service.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace ash {
 
-using assistant::AssistantInteractionMetadata;
-using assistant::AssistantInteractionResolution;
-using assistant::AssistantInteractionSubscriber;
-using assistant::AssistantInteractionType;
-using assistant::AssistantSuggestion;
+using chromeos::assistant::AssistantInteractionMetadata;
+using chromeos::assistant::AssistantInteractionResolution;
+using chromeos::assistant::AssistantInteractionSubscriber;
+using chromeos::assistant::AssistantInteractionType;
+using chromeos::assistant::AssistantSuggestion;
 
 // Subscriber that will ensure the LibAssistant contract is enforced.
 // More specifically, it will ensure that:
@@ -31,11 +28,6 @@ using assistant::AssistantSuggestion;
 class LibassistantContractChecker : public AssistantInteractionSubscriber {
  public:
   LibassistantContractChecker() = default;
-
-  LibassistantContractChecker(const LibassistantContractChecker&) = delete;
-  LibassistantContractChecker& operator=(const LibassistantContractChecker&) =
-      delete;
-
   ~LibassistantContractChecker() override = default;
 
   // DefaultAssistantInteractionSubscriber implementation:
@@ -62,7 +54,8 @@ class LibassistantContractChecker : public AssistantInteractionSubscriber {
   }
 
   void OnSuggestionsResponse(
-      const std::vector<assistant::AssistantSuggestion>& response) override {
+      const std::vector<chromeos::assistant::AssistantSuggestion>& response)
+      override {
     CheckResponse();
   }
 
@@ -72,8 +65,10 @@ class LibassistantContractChecker : public AssistantInteractionSubscriber {
     CheckResponse();
   }
 
-  void OnOpenAppResponse(const assistant::AndroidAppInfo& app_info) override {
+  bool OnOpenAppResponse(
+      const chromeos::assistant::AndroidAppInfo& app_info) override {
     CheckResponse();
+    return false;
   }
 
  private:
@@ -93,6 +88,8 @@ class LibassistantContractChecker : public AssistantInteractionSubscriber {
   };
 
   ConversationState current_state_ = ConversationState::kNotStarted;
+
+  DISALLOW_COPY_AND_ASSIGN(LibassistantContractChecker);
 };
 
 // Subscriber that tracks the current interaction.
@@ -112,16 +109,16 @@ class CurrentInteractionSubscriber : public AssistantInteractionSubscriber {
 
   void OnInteractionFinished(
       AssistantInteractionResolution resolution) override {
-    current_interaction_ = absl::nullopt;
+    current_interaction_ = base::nullopt;
   }
 
-  absl::optional<AssistantInteractionMetadata> current_interaction() {
+  base::Optional<AssistantInteractionMetadata> current_interaction() {
     return current_interaction_;
   }
 
  private:
-  absl::optional<AssistantInteractionMetadata> current_interaction_ =
-      absl::nullopt;
+  base::Optional<AssistantInteractionMetadata> current_interaction_ =
+      base::nullopt;
 };
 
 class InteractionResponse::Response {
@@ -129,24 +126,24 @@ class InteractionResponse::Response {
   Response() = default;
   virtual ~Response() = default;
 
-  virtual void SendTo(AssistantInteractionSubscriber* receiver) = 0;
+  virtual void SendTo(
+      chromeos::assistant::AssistantInteractionSubscriber* receiver) = 0;
 };
 
 class TextResponse : public InteractionResponse::Response {
  public:
   explicit TextResponse(const std::string& text) : text_(text) {}
-
-  TextResponse(const TextResponse&) = delete;
-  TextResponse& operator=(const TextResponse&) = delete;
-
   ~TextResponse() override = default;
 
-  void SendTo(AssistantInteractionSubscriber* receiver) override {
+  void SendTo(
+      chromeos::assistant::AssistantInteractionSubscriber* receiver) override {
     receiver->OnTextResponse(text_);
   }
 
  private:
   std::string text_;
+
+  DISALLOW_COPY_AND_ASSIGN(TextResponse);
 };
 
 class SuggestionsResponse : public InteractionResponse::Response {
@@ -156,7 +153,8 @@ class SuggestionsResponse : public InteractionResponse::Response {
   SuggestionsResponse& operator=(const SuggestionsResponse&) = delete;
   ~SuggestionsResponse() override = default;
 
-  void SendTo(AssistantInteractionSubscriber* receiver) override {
+  void SendTo(
+      chromeos::assistant::AssistantInteractionSubscriber* receiver) override {
     std::vector<AssistantSuggestion> suggestions;
     suggestions.emplace_back();
     auto& suggestion = suggestions.back();
@@ -175,18 +173,17 @@ class ResolutionResponse : public InteractionResponse::Response {
 
   explicit ResolutionResponse(Resolution resolution)
       : resolution_(resolution) {}
-
-  ResolutionResponse(const ResolutionResponse&) = delete;
-  ResolutionResponse& operator=(const ResolutionResponse&) = delete;
-
   ~ResolutionResponse() override = default;
 
-  void SendTo(AssistantInteractionSubscriber* receiver) override {
+  void SendTo(
+      chromeos::assistant::AssistantInteractionSubscriber* receiver) override {
     receiver->OnInteractionFinished(resolution_);
   }
 
  private:
   Resolution resolution_;
+
+  DISALLOW_COPY_AND_ASSIGN(ResolutionResponse);
 };
 
 TestAssistantService::TestAssistantService()
@@ -205,7 +202,7 @@ void TestAssistantService::SetInteractionResponse(
   interaction_response_ = std::move(response);
 }
 
-absl::optional<AssistantInteractionMetadata>
+base::Optional<AssistantInteractionMetadata>
 TestAssistantService::current_interaction() {
   return current_interaction_subscriber_->current_interaction();
 }
@@ -214,17 +211,22 @@ void TestAssistantService::StartEditReminderInteraction(
     const std::string& client_id) {}
 
 void TestAssistantService::StartScreenContextInteraction(
+    ax::mojom::AssistantStructurePtr assistant_structure,
     const std::vector<uint8_t>& assistant_screenshot) {}
 
 void TestAssistantService::StartTextInteraction(
     const std::string& query,
-    assistant::AssistantQuerySource source,
+    chromeos::assistant::AssistantQuerySource source,
     bool allow_tts) {
   StartInteraction(AssistantInteractionType::kText, source, query);
+  if (interaction_response_)
+    SendInteractionResponse();
 }
 
 void TestAssistantService::StartVoiceInteraction() {
   StartInteraction(AssistantInteractionType::kVoice);
+  if (interaction_response_)
+    SendInteractionResponse();
 }
 
 void TestAssistantService::StopActiveInteraction(bool cancel_conversation) {
@@ -248,27 +250,21 @@ void TestAssistantService::RemoveAssistantInteractionSubscriber(
   interaction_subscribers_.RemoveObserver(subscriber);
 }
 
-mojo::PendingReceiver<libassistant::mojom::NotificationDelegate>
-TestAssistantService::GetPendingNotificationDelegate() {
-  return mojo::PendingReceiver<libassistant::mojom::NotificationDelegate>();
-}
-
 void TestAssistantService::RetrieveNotification(
-    const assistant::AssistantNotification& notification,
+    const chromeos::assistant::AssistantNotification& notification,
     int action_index) {}
 
 void TestAssistantService::DismissNotification(
-    const assistant::AssistantNotification& notification) {}
+    const chromeos::assistant::AssistantNotification& notification) {}
 
 void TestAssistantService::OnAccessibilityStatusChanged(
     bool spoken_feedback_enabled) {}
 
-void TestAssistantService::OnColorModeChanged(bool dark_mode_enabled) {
-  dark_mode_enabled_ = dark_mode_enabled;
-}
-
 void TestAssistantService::SendAssistantFeedback(
-    const assistant::AssistantFeedback& feedback) {}
+    const chromeos::assistant::AssistantFeedback& feedback) {}
+
+void TestAssistantService::NotifyEntryIntoAssistantUi(
+    chromeos::assistant::AssistantEntryPoint entry_point) {}
 
 void TestAssistantService::AddTimeToTimer(const std::string& id,
                                           base::TimeDelta duration) {}
@@ -280,23 +276,8 @@ void TestAssistantService::RemoveAlarmOrTimer(const std::string& id) {}
 void TestAssistantService::ResumeTimer(const std::string& id) {}
 
 void TestAssistantService::StartInteraction(
-    assistant::AssistantInteractionType type,
-    assistant::AssistantQuerySource source,
-    const std::string& query) {
-  if (running_active_interaction_) {
-    StopActiveInteraction(/*cancel_conversation=*/false);
-  }
-
-  // Pretend to respond asynchronously.
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE,
-      base::BindOnce(&TestAssistantService::InteractionStarted,
-                     weak_factory_.GetWeakPtr(), type, source, query));
-}
-
-void TestAssistantService::InteractionStarted(
-    assistant::AssistantInteractionType type,
-    assistant::AssistantQuerySource source,
+    chromeos::assistant::AssistantInteractionType type,
+    chromeos::assistant::AssistantQuerySource source,
     const std::string& query) {
   DCHECK(!running_active_interaction_);
   AssistantInteractionMetadata metadata{type, source, query};
@@ -304,9 +285,6 @@ void TestAssistantService::InteractionStarted(
     subscriber.OnInteractionStarted(metadata);
   }
   running_active_interaction_ = true;
-
-  if (interaction_response_)
-    SendInteractionResponse();
 }
 
 void TestAssistantService::SendInteractionResponse() {
@@ -343,7 +321,8 @@ void InteractionResponse::AddResponse(std::unique_ptr<Response> response) {
   responses_.push_back(std::move(response));
 }
 
-void InteractionResponse::SendTo(AssistantInteractionSubscriber* receiver) {
+void InteractionResponse::SendTo(
+    chromeos::assistant::AssistantInteractionSubscriber* receiver) {
   for (auto& response : responses_)
     response->SendTo(receiver);
 }

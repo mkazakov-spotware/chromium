@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
-#include "ui/base/models/image_model.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "ui/base/models/tree_node_model.h"
 #include "ui/gfx/font_list.h"
 #include "ui/gfx/image/image_skia.h"
@@ -63,10 +63,6 @@ class VIEWS_EXPORT TreeView : public View,
   METADATA_HEADER(TreeView);
 
   TreeView();
-
-  TreeView(const TreeView&) = delete;
-  TreeView& operator=(const TreeView&) = delete;
-
   ~TreeView() override;
 
   // Returns a new ScrollView that contains the given |tree|.
@@ -193,7 +189,7 @@ class VIEWS_EXPORT TreeView : public View,
 
   // TextfieldController overrides:
   void ContentsChanged(Textfield* sender,
-                       const std::u16string& new_contents) override;
+                       const base::string16& new_contents) override;
   bool HandleKeyEvent(Textfield* sender,
                       const ui::KeyEvent& key_event) override;
 
@@ -202,10 +198,10 @@ class VIEWS_EXPORT TreeView : public View,
   void OnDidChangeFocus(View* focused_before, View* focused_now) override;
 
   // PrefixDelegate overrides:
-  size_t GetRowCount() override;
-  absl::optional<size_t> GetSelectedRow() override;
-  void SetSelectedRow(absl::optional<size_t> row) override;
-  std::u16string GetTextForRow(size_t row) override;
+  int GetRowCount() override;
+  int GetSelectedRow() override;
+  void SetSelectedRow(int row) override;
+  base::string16 GetTextForRow(int row) override;
 
  protected:
   // View overrides:
@@ -219,7 +215,7 @@ class VIEWS_EXPORT TreeView : public View,
   friend class TreeViewTest;
 
   // Enumeration of possible changes to tree view state when the UI is updated.
-  enum class SelectionType {
+  enum SelectionType {
     // Active state is being set to a tree item.
     kActive,
 
@@ -241,10 +237,6 @@ class VIEWS_EXPORT TreeView : public View,
   class InternalNode : public ui::TreeNode<InternalNode> {
    public:
     InternalNode();
-
-    InternalNode(const InternalNode&) = delete;
-    InternalNode& operator=(const InternalNode&) = delete;
-
     ~InternalNode() override;
 
     // Resets the state from |node|.
@@ -276,7 +268,7 @@ class VIEWS_EXPORT TreeView : public View,
     int text_width() const { return text_width_; }
 
     // Returns the total number of descendants (including this node).
-    size_t NumExpandedNodes() const;
+    int NumExpandedNodes() const;
 
     // Returns the max width of all descendants (including this node). |indent|
     // is how many pixels each child is indented and |depth| is the depth of
@@ -286,14 +278,14 @@ class VIEWS_EXPORT TreeView : public View,
 
    private:
     // The node from the model.
-    raw_ptr<ui::TreeModelNode, DanglingUntriaged> model_node_ = nullptr;
+    ui::TreeModelNode* model_node_ = nullptr;
 
     // A virtual accessibility view that is used to expose information about
     // this node to assistive software.
     //
     // This is a weak pointer. This class doesn't own its virtual accessibility
     // view but the Views system does.
-    raw_ptr<AXVirtualView, DanglingUntriaged> accessibility_view_ = nullptr;
+    AXVirtualView* accessibility_view_ = nullptr;
 
     // Whether the children have been loaded.
     bool loaded_children_ = false;
@@ -301,6 +293,8 @@ class VIEWS_EXPORT TreeView : public View,
     bool is_expanded_ = false;
 
     int text_width_ = 0;
+
+    DISALLOW_COPY_AND_ASSIGN(InternalNode);
   };
 
   // Used by GetInternalNodeForModelNode.
@@ -313,12 +307,12 @@ class VIEWS_EXPORT TreeView : public View,
   };
 
   // Used by IncrementSelection.
-  enum class IncrementType {
+  enum IncrementType {
     // Selects the next node.
-    kNext,
+    INCREMENT_NEXT,
 
     // Selects the previous node.
-    kPrevious
+    INCREMENT_PREVIOUS
   };
 
   // Row of the root node. This varies depending upon whether the root is
@@ -464,37 +458,37 @@ class VIEWS_EXPORT TreeView : public View,
   void SetHasFocusIndicator(bool);
 
   // The model, may be null.
-  raw_ptr<ui::TreeModel> model_ = nullptr;
+  ui::TreeModel* model_ = nullptr;
 
   // Default icons for closed/open.
-  ui::ImageModel closed_icon_;
-  ui::ImageModel open_icon_;
+  gfx::ImageSkia closed_icon_;
+  gfx::ImageSkia open_icon_;
 
   // Icons from the model.
-  std::vector<ui::ImageModel> icons_;
+  std::vector<gfx::ImageSkia> icons_;
 
   // The root node.
   InternalNode root_;
 
   // The selected node, may be null.
-  raw_ptr<InternalNode, DanglingUntriaged> selected_node_ = nullptr;
+  InternalNode* selected_node_ = nullptr;
 
   // The current active node, may be null.
-  raw_ptr<InternalNode, DanglingUntriaged> active_node_ = nullptr;
+  InternalNode* active_node_ = nullptr;
 
   bool editing_ = false;
 
   // The editor; lazily created and never destroyed (well, until TreeView is
   // destroyed). Hidden when no longer editing. We do this to avoid destruction
   // problems.
-  raw_ptr<Textfield> editor_ = nullptr;
+  Textfield* editor_ = nullptr;
 
   // Preferred size of |editor_| with no content.
   gfx::Size empty_editor_size_;
 
   // If non-NULL we've attached a listener to this focus manager. Used to know
   // when focus is changing to another view so that we can cancel the edit.
-  raw_ptr<FocusManager> focus_manager_ = nullptr;
+  FocusManager* focus_manager_ = nullptr;
 
   // Whether to automatically expand children when a parent node is expanded.
   bool auto_expand_children_ = false;
@@ -503,7 +497,7 @@ class VIEWS_EXPORT TreeView : public View,
   bool editable_ = true;
 
   // The controller.
-  raw_ptr<TreeViewController> controller_ = nullptr;
+  TreeViewController* controller_ = nullptr;
 
   // Whether or not the root is shown in the tree.
   bool root_shown_ = true;
@@ -525,6 +519,8 @@ class VIEWS_EXPORT TreeView : public View,
 
   // The current drawing provider for this TreeView.
   std::unique_ptr<TreeViewDrawingProvider> drawing_provider_;
+
+  DISALLOW_COPY_AND_ASSIGN(TreeView);
 };
 
 }  // namespace views

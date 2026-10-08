@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "services/device/public/cpp/hid/hid_report_descriptor_item.h"
 #include "services/device/public/mojom/hid.mojom.h"
 
@@ -64,12 +63,10 @@ class HidItemStateTable {
   ~HidItemStateTable();
 
   // Set the value of a local or global item.
-  void SetItemValue(HidReportDescriptorItem::Tag tag,
-                    uint32_t value,
-                    size_t payload_size);
+  void SetItemValue(HidReportDescriptorItem::Tag tag, uint32_t value);
 
   // The collection that will be modified when main items are encountered.
-  raw_ptr<HidCollection> collection = nullptr;
+  HidCollection* collection = nullptr;
 
   // The report ID is part of the global item state but is not affected by push
   // or pop items.

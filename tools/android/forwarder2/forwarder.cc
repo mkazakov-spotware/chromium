@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "base/check.h"
+#include "base/macros.h"
 #include "base/posix/eintr_wrapper.h"
 #include "tools/android/forwarder2/socket.h"
 
@@ -76,9 +77,6 @@ class Forwarder::BufferedCopier {
         write_offset_(0),
         peer_(NULL),
         state_(STATE_READING) {}
-
-  BufferedCopier(const BufferedCopier&) = delete;
-  BufferedCopier& operator=(const BufferedCopier&) = delete;
 
   // Sets the 'peer_' field pointing to the other BufferedCopier in a pair.
   void SetPeer(BufferedCopier* peer) {
@@ -221,6 +219,8 @@ class Forwarder::BufferedCopier {
   BufferedCopier* peer_;
   State state_;
   char buffer_[kBufferSize];
+
+  DISALLOW_COPY_AND_ASSIGN(BufferedCopier);
 };
 
 Forwarder::Forwarder(std::unique_ptr<Socket> socket1,

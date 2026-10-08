@@ -1,19 +1,27 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2012 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.dom.vendorTest');
 goog.setTestOnly();
 
 const MockUserAgent = goog.require('goog.testing.MockUserAgent');
 const PropertyReplacer = goog.require('goog.testing.PropertyReplacer');
-const dispose = goog.require('goog.dispose');
 const googArray = goog.require('goog.array');
 const testSuite = goog.require('goog.testing.testSuite');
 const userAgent = goog.require('goog.userAgent');
 const userAgentTestUtil = goog.require('goog.userAgentTestUtil');
+const util = goog.require('goog.labs.userAgent.util');
 const vendor = goog.require('goog.dom.vendor');
 
 let documentMode;
@@ -25,6 +33,7 @@ let getDocumentMode = () => documentMode;
 const UserAgents = {
   GECKO: 'GECKO',
   IE: 'IE',
+  OPERA: 'OPERA',
   WEBKIT: 'WEBKIT'
 };
 
@@ -32,7 +41,6 @@ const UserAgents = {
  * Return whether a given user agent has been detected.
  * @param {number} agent Value in UserAgents.
  * @return {boolean} Whether the user agent has been detected.
- * @suppress {checkTypes} suppression added to enable type checking
  */
 function getUserAgentDetected(agent) {
   switch (agent) {
@@ -40,6 +48,8 @@ function getUserAgentDetected(agent) {
       return userAgent.GECKO;
     case UserAgents.IE:
       return userAgent.IE;
+    case UserAgents.OPERA:
+      return userAgent.OPERA;
     case UserAgents.WEBKIT:
       return userAgent.WEBKIT;
   }
@@ -64,6 +74,8 @@ function assertUserAgent(
   mockUserAgent.setNavigator(mockNavigator);
   mockUserAgent.setUserAgentString(uaString);
 
+  // Force reread of navigator.userAgent;
+  util.setUserAgent(null);
   userAgentTestUtil.reinitializeUserAgent();
   for (let ua in UserAgents) {
     const isExpected = googArray.contains(expectedAgents, UserAgents[ua]);
@@ -93,7 +105,7 @@ testSuite({
   },
 
   tearDown() {
-    dispose(mockUserAgent);
+    goog.dispose(mockUserAgent);
     documentMode = undefined;
     propertyReplacer.reset();
   },
@@ -108,6 +120,12 @@ testSuite({
   testVendorPrefixGecko() {
     assertUserAgent([UserAgents.GECKO], 'Gecko', 'Gecko');
     assertEquals('-moz', vendor.getVendorPrefix());
+  },
+
+  /** Tests for the vendor prefix for Opera. */
+  testVendorPrefixOpera() {
+    assertUserAgent([UserAgents.OPERA], 'Opera');
+    assertEquals('-o', vendor.getVendorPrefix());
   },
 
   /** Tests for the vendor prefix for IE. */
@@ -126,6 +144,12 @@ testSuite({
   testVendorJsPrefixGecko() {
     assertUserAgent([UserAgents.GECKO], 'Gecko', 'Gecko');
     assertEquals('Moz', vendor.getVendorJsPrefix());
+  },
+
+  /** Tests for the vendor Js prefix for Opera. */
+  testVendorJsPrefixOpera() {
+    assertUserAgent([UserAgents.OPERA], 'Opera');
+    assertEquals('O', vendor.getVendorJsPrefix());
   },
 
   /** Tests for the vendor Js prefix for IE. */

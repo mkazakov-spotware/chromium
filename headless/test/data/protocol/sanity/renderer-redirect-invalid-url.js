@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,9 +15,12 @@
       `<!DOCTYPE html><p>Pass</p>`,
       ['HTTP/1.1 302 Found', 'Location: http://']);
 
-  await virtualTimeController.initialize(1000);
-  await frameNavigationHelper.navigate('http://www.example.com/');
-  await virtualTimeController.grantTime(1000);
+  await virtualTimeController.grantInitialTime(1000, 1000,
+    null,
+    async () => {
+      testRunner.completeTest();
+    }
+  );
 
-  testRunner.completeTest();
+  await frameNavigationHelper.navigate('http://www.example.com/');
 })

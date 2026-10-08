@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,13 +10,13 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
+#include "base/strings/string16.h"
 #include "base/threading/thread_checker.h"
 #include "base/timer/timer.h"
 #include "net/base/completion_once_callback.h"
-#include "net/base/net_errors.h"
 #include "net/base/net_export.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "url/gurl.h"
@@ -35,17 +35,10 @@ class URLRequestContext;
 class NET_EXPORT_PRIVATE DhcpPacFileAdapterFetcher
     : public base::SupportsWeakPtr<DhcpPacFileAdapterFetcher> {
  public:
-  DhcpPacFileAdapterFetcher() = delete;
-
   // |url_request_context| must outlive DhcpPacFileAdapterFetcher.
   // |task_runner| will be used to post tasks to a thread.
   DhcpPacFileAdapterFetcher(URLRequestContext* url_request_context,
                             scoped_refptr<base::TaskRunner> task_runner);
-
-  DhcpPacFileAdapterFetcher(const DhcpPacFileAdapterFetcher&) = delete;
-  DhcpPacFileAdapterFetcher& operator=(const DhcpPacFileAdapterFetcher&) =
-      delete;
-
   virtual ~DhcpPacFileAdapterFetcher();
 
   // Starts a fetch.  On completion (but not cancellation), |callback|
@@ -74,7 +67,7 @@ class NET_EXPORT_PRIVATE DhcpPacFileAdapterFetcher
   // Returns the contents of the PAC file retrieved.  Only valid if
   // |IsComplete()| is true.  Returns the empty string if |GetResult()|
   // returns anything other than OK.
-  virtual std::u16string GetPacScript() const;
+  virtual base::string16 GetPacScript() const;
 
   // Returns the PAC URL retrieved from DHCP.  Only guaranteed to be
   // valid if |IsComplete()| is true.  Returns an empty URL if no URL was
@@ -132,9 +125,6 @@ class NET_EXPORT_PRIVATE DhcpPacFileAdapterFetcher
    public:
     DhcpQuery();
 
-    DhcpQuery(const DhcpQuery&) = delete;
-    DhcpQuery& operator=(const DhcpQuery&) = delete;
-
     // This method should run on a worker pool thread, via PostTaskAndReply.
     // After it has run, the |url()| method on this object will return the
     // URL retrieved.
@@ -153,11 +143,13 @@ class NET_EXPORT_PRIVATE DhcpPacFileAdapterFetcher
    private:
     // The URL retrieved for the given adapter.
     std::string url_;
+
+    DISALLOW_COPY_AND_ASSIGN(DhcpQuery);
   };
 
   // Virtual methods introduced to allow unit testing.
   virtual std::unique_ptr<PacFileFetcher> ImplCreateScriptFetcher();
-  virtual scoped_refptr<DhcpQuery> ImplCreateDhcpQuery();
+  virtual DhcpQuery* ImplCreateDhcpQuery();
   virtual base::TimeDelta ImplGetTimeout() const;
 
  private:
@@ -172,13 +164,13 @@ class NET_EXPORT_PRIVATE DhcpPacFileAdapterFetcher
   scoped_refptr<base::TaskRunner> task_runner_;
 
   // Current state of this state machine.
-  State state_ = STATE_START;
+  State state_;
 
   // A network error indicating result of operation.
-  int result_ = ERR_IO_PENDING;
+  int result_;
 
   // Empty string or the PAC script downloaded.
-  std::u16string pac_script_;
+  base::string16 pac_script_;
 
   // Empty URL or the PAC URL configured in DHCP.
   GURL pac_url_;
@@ -193,9 +185,11 @@ class NET_EXPORT_PRIVATE DhcpPacFileAdapterFetcher
   // Implements a timeout on the call to the Win32 DHCP API.
   base::OneShotTimer wait_timer_;
 
-  const raw_ptr<URLRequestContext> url_request_context_;
+  URLRequestContext* const url_request_context_;
 
   THREAD_CHECKER(thread_checker_);
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(DhcpPacFileAdapterFetcher);
 };
 
 }  // namespace net

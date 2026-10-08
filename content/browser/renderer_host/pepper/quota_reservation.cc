@@ -1,11 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/renderer_host/pepper/quota_reservation.h"
 
 #include <memory>
-#include <tuple>
 
 #include "base/bind.h"
 #include "base/callback.h"
@@ -15,7 +14,6 @@
 #include "storage/browser/file_system/quota/open_file_handle.h"
 #include "storage/browser/file_system/quota/quota_reservation.h"
 #include "storage/common/file_system/file_system_util.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 
 namespace content {
 
@@ -35,7 +33,7 @@ QuotaReservation::QuotaReservation(
     : file_system_context_(file_system_context) {
   quota_reservation_ =
       file_system_context->CreateQuotaReservationOnFileTaskRunner(
-          blink::StorageKey(url::Origin::Create(origin_url)), file_system_type);
+          url::Origin::Create(origin_url), file_system_type);
 }
 
 // For unit testing only.
@@ -75,7 +73,7 @@ int64_t QuotaReservation::OpenFile(int32_t id,
       files_.insert(std::make_pair(id, file_handle.get()));
   if (insert_result.second) {
     int64_t max_written_offset = file_handle->GetMaxWrittenOffset();
-    std::ignore = file_handle.release();
+    ignore_result(file_handle.release());
     return max_written_offset;
   }
   NOTREACHED();

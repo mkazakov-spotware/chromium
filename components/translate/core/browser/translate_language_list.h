@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "base/callback_list.h"
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "base/time/time.h"
 
@@ -26,10 +27,6 @@ class TranslateURLFetcher;
 class TranslateLanguageList {
  public:
   TranslateLanguageList();
-
-  TranslateLanguageList(const TranslateLanguageList&) = delete;
-  TranslateLanguageList& operator=(const TranslateLanguageList&) = delete;
-
   virtual ~TranslateLanguageList();
 
   // Returns the last-updated time when the language list is fetched from the
@@ -64,7 +61,7 @@ class TranslateLanguageList {
 
   // Registers a callback for translate events related to the language list,
   // such as updates and download errors.
-  base::CallbackListSubscription RegisterEventCallback(
+  std::unique_ptr<EventCallbackList::Subscription> RegisterEventCallback(
       const EventCallback& callback);
 
   // Helper methods used by specific unit tests.
@@ -116,6 +113,8 @@ class TranslateLanguageList {
 
   // The last-updated time when the language list is sent.
   base::Time last_updated_;
+
+  DISALLOW_COPY_AND_ASSIGN(TranslateLanguageList);
 };
 
 }  // namespace translate

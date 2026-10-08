@@ -1,11 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/no_state_prefetch/renderer/prerender_observer_list.h"
 
-#include "base/memory/ptr_util.h"
-#include "base/observer_list.h"
 #include "components/no_state_prefetch/renderer/prerender_observer.h"
 #include "content/public/renderer/render_frame.h"
 
@@ -66,7 +64,7 @@ void PrerenderObserverList::AddObserver(PrerenderObserver* observer) {
 
 bool PrerenderObserverList::RemoveObserver(PrerenderObserver* observer) {
   prerender_observers_.RemoveObserver(observer);
-  return prerender_observers_.empty();
+  return !prerender_observers_.might_have_observers();
 }
 
 void PrerenderObserverList::SetIsPrerendering(bool is_prerendering) {

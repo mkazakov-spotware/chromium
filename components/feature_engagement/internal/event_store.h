@@ -1,13 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef COMPONENTS_FEATURE_ENGAGEMENT_INTERNAL_EVENT_STORE_H_
-#define COMPONENTS_FEATURE_ENGAGEMENT_INTERNAL_EVENT_STORE_H_
+#ifndef COMPONENTS_FEATURE_ENGAGEMENT_INTERNAL_STORE_H_
+#define COMPONENTS_FEATURE_ENGAGEMENT_INTERNAL_STORE_H_
 
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "components/feature_engagement/internal/proto/feature_event.pb.h"
 
 namespace feature_engagement {
@@ -18,9 +19,6 @@ class EventStore {
   using OnLoadedCallback =
       base::OnceCallback<void(bool success,
                               std::unique_ptr<std::vector<Event>>)>;
-
-  EventStore(const EventStore&) = delete;
-  EventStore& operator=(const EventStore&) = delete;
 
   virtual ~EventStore() = default;
 
@@ -41,8 +39,11 @@ class EventStore {
 
  protected:
   EventStore() = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(EventStore);
 };
 
 }  // namespace feature_engagement
 
-#endif  // COMPONENTS_FEATURE_ENGAGEMENT_INTERNAL_EVENT_STORE_H_
+#endif  // COMPONENTS_FEATURE_ENGAGEMENT_INTERNAL_STORE_H_

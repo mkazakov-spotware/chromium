@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,11 @@
 #include "base/callback.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
 #include "media/base/audio_buffer.h"
 #include "media/base/audio_decoder.h"
-#include "media/base/decoder_status.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "media/base/decode_status.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
@@ -40,15 +40,15 @@ class MediaAudioTaskWrapper;
 class CrossThreadAudioDecoderClient {
  public:
   struct DecoderDetails {
-    media::AudioDecoderType decoder_type;
+    std::string display_name;
     bool is_platform_decoder;
     bool needs_bitstream_conversion;
   };
 
-  virtual void OnInitialize(media::DecoderStatus status,
-                            absl::optional<DecoderDetails> details) = 0;
+  virtual void OnInitialize(media::Status status,
+                            base::Optional<DecoderDetails> details) = 0;
 
-  virtual void OnDecodeDone(int cb_id, media::DecoderStatus status) = 0;
+  virtual void OnDecodeDone(int cb_id, media::Status status) = 0;
 
   virtual void OnDecodeOutput(scoped_refptr<media::AudioBuffer> buffer) = 0;
 
@@ -68,6 +68,8 @@ class CrossThreadAudioDecoderClient {
 class MODULES_EXPORT AudioDecoderBroker : public media::AudioDecoder,
                                           public CrossThreadAudioDecoderClient {
  public:
+  static constexpr char kDefaultDisplayName[] = "EmptyWebCodecsAudioDecoder";
+
   explicit AudioDecoderBroker(media::MediaLog* media_log,
                               ExecutionContext& execution_context);
   ~AudioDecoderBroker() override;
@@ -77,7 +79,7 @@ class MODULES_EXPORT AudioDecoderBroker : public media::AudioDecoder,
   AudioDecoderBroker& operator=(const AudioDecoderBroker&) = delete;
 
   // AudioDecoder implementation.
-  media::AudioDecoderType GetDecoderType() const override;
+  std::string GetDisplayName() const override;
   bool IsPlatformDecoder() const override;
   void Initialize(const media::AudioDecoderConfig& config,
                   media::CdmContext* cdm_context,
@@ -96,9 +98,9 @@ class MODULES_EXPORT AudioDecoderBroker : public media::AudioDecoder,
   int CreateCallbackId();
 
   // MediaAudioTaskWrapper::CrossThreadAudioDecoderClient
-  void OnInitialize(media::DecoderStatus status,
-                    absl::optional<DecoderDetails> details) override;
-  void OnDecodeDone(int cb_id, media::DecoderStatus status) override;
+  void OnInitialize(media::Status status,
+                    base::Optional<DecoderDetails> details) override;
+  void OnDecodeDone(int cb_id, media::Status status) override;
   void OnDecodeOutput(scoped_refptr<media::AudioBuffer> buffer) override;
   void OnReset(int cb_id) override;
 
@@ -118,8 +120,8 @@ class MODULES_EXPORT AudioDecoderBroker : public media::AudioDecoder,
   // Owner of state and methods to be used on media_task_runner_;
   std::unique_ptr<MediaAudioTaskWrapper> media_tasks_;
 
-  // Wrapper state for DecoderType(), IsPlatformDecoder() and others.
-  absl::optional<DecoderDetails> decoder_details_;
+  // Wrapper state for GetDisplayName(), IsPlatformDecoder() and others.
+  base::Optional<DecoderDetails> decoder_details_;
 
   // Pending InitCB saved from the last call to Initialize();
   InitCB init_cb_;

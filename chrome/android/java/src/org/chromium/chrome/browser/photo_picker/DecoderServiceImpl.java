@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,10 @@ import android.os.IBinder;
 import org.chromium.base.CommandLine;
 import org.chromium.base.Log;
 import org.chromium.base.PathUtils;
+import org.chromium.base.annotations.MainDex;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.task.PostTask;
-import org.chromium.build.annotations.MainDex;
-import org.chromium.chrome.browser.base.SplitCompatApplication;
+import org.chromium.chrome.browser.ChromeApplication;
 import org.chromium.components.browser_ui.photo_picker.ImageDecoder;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
 
@@ -39,7 +39,7 @@ public class DecoderServiceImpl extends DecoderService.Impl {
         // The decoder service relies on PathUtils.
         PostTask.runSynchronously(UiThreadTaskTraits.DEFAULT, () -> {
             PathUtils.setPrivateDataDirectorySuffix(
-                    SplitCompatApplication.PRIVATE_DATA_DIRECTORY_SUFFIX);
+                    ChromeApplication.PRIVATE_DATA_DIRECTORY_SUFFIX);
         });
 
         LibraryLoader.getInstance().ensureInitialized();

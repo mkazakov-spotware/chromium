@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (C) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -435,20 +435,18 @@ class ColorPicker extends HTMLElement {
 
     this.visualColorPicker_ = new VisualColorPicker(initialColor);
     this.manualColorPicker_ = new ManualColorPicker(initialColor);
-    this.systemColorPicker_ = new SystemColorPicker();
     this.colorValueAXAnnouncer_ = new ColorValueAXAnnouncer();
     this.append(
         this.visualColorPicker_, this.manualColorPicker_,
-        this.systemColorPicker_, this.colorValueAXAnnouncer_);
+        this.colorValueAXAnnouncer_);
 
     this.visualColorPicker_.addEventListener(
-        'visual-color-picker-initialized',
-        this.onVisualColorPickerInitialized_);
+        'visual-color-picker-initialized', this.initializeListeners_);
 
     window.addEventListener('resize', this.onWindowResize_, {once: true});
   }
 
-  onVisualColorPickerInitialized_ = () => {
+  initializeListeners_ = () => {
     this.manualColorPicker_
         .addEventListener('manual-color-change', this.onManualColorChange_);
 
@@ -461,11 +459,7 @@ class ColorPicker extends HTMLElement {
     window.addEventListener('message', this.onMessageReceived_);
 
     document.documentElement.addEventListener('keydown', this.onKeyDown_);
-
-    // Announce color now as any fired visual-color-change event would not have
-    // been caught by the listener as it was just added in this method.
-    this.colorValueAXAnnouncer_.announceColor(this.selectedColor);
-  };
+  }
 
   get selectedColor() {
     return this.selectedColor_;
@@ -721,7 +715,7 @@ class VisualColorPicker extends HTMLElement {
    * @param {!Event} event
    */
   onMouseMove_ = (event) => {
-    const point = new Point(event.clientX, event.clientY);
+    var point = new Point(event.clientX, event.clientY);
     this.colorWell_.pointerMove(point);
     this.hueSlider_.pointerMove(point);
   }
@@ -760,7 +754,7 @@ class VisualColorPicker extends HTMLElement {
    * @param {!Event} event
    */
   onTouchMove_ = (event) => {
-    const point = new Point(Math.round(event.touches[0].clientX), Math.round(event.touches[0].clientY));
+    var point = new Point(Math.round(event.touches[0].clientX), Math.round(event.touches[0].clientY));
     this.colorWell_.pointerMove(point);
     this.hueSlider_.pointerMove(point);
   }
@@ -1795,7 +1789,6 @@ class ChannelValueContainer extends HTMLInputElement {
 
     this.addEventListener('input', this.onValueChange_);
     this.addEventListener('blur', this.onBlur_);
-    this.addEventListener('focus', this.onFocus_);
   }
 
   get channelValue() {
@@ -1858,12 +1851,13 @@ class ChannelValueContainer extends HTMLInputElement {
     if (value) {
       switch (this.colorChannel_) {
         case ColorChannel.HEX:
-          if (value.startsWith('#'))
+          if (value.startsWith('#')) {
             value = value.substr(1).toLowerCase();
-          if (value.match(/^[0-9a-f]+$/)) {
-            // Ex. 'ffffff' => this.channelValue_ == 'ffffff'
-            // Ex. 'ff' => this.channelValue_ == '0000ff'
-            this.channelValue_ = ('000000' + value).slice(-6);
+            if (value.match(/^[0-9a-f]+$/)) {
+              // Ex. 'ffffff' => this.channelValue_ == 'ffffff'
+              // Ex. 'ff' => this.channelValue_ == '0000ff'
+              this.channelValue_ = ('000000' + value).slice(-6);
+            }
           }
           break;
         case ColorChannel.R:
@@ -1880,10 +1874,11 @@ class ChannelValueContainer extends HTMLInputElement {
           break;
         case ColorChannel.S:
         case ColorChannel.L:
-          if (value.endsWith('%'))
+          if (value.endsWith('%')) {
             value = value.substring(0, value.length - 1);
-          if (value.match(/^\d+$/) && (0 <= value) && (value <= 100)) {
-            this.channelValue_ = Number(value);
+            if (value.match(/^\d+$/) && (0 <= value) && (value <= 100)) {
+              this.channelValue_ = Number(value);
+            }
           }
           break;
       }
@@ -1913,10 +1908,6 @@ class ChannelValueContainer extends HTMLInputElement {
         }
         break;
     }
-  }
-
-  onFocus_ = () => {
-    this.select();
   }
 }
 window.customElements.define(
@@ -2189,40 +2180,3 @@ class ColorValueAXAnnouncer extends HTMLElement {
   static announcementDelayMS = 500;
 }
 window.customElements.define('color-value-ax-announcer', ColorValueAXAnnouncer);
-
-class SystemColorPicker extends HTMLElement {
-  constructor() {
-    super();
-    if (!global.params.isSystemColorChooserEnabled) {
-      this.classList.add('hidden');
-      return;
-    }
-    this.setAttribute('tabIndex', 0);
-    this.setAttribute('role', 'button');
-    this.textContent = global.params.systemColorChooserLabel;
-    this.setAttribute('aria-label', global.params.systemColorChooserLabel);
-    this.addEventListener('click', this.onClick_);
-    this.addEventListener('keydown', this.onKeyDown_);
-  }
-
-  onClick_ = () => {
-    this.classList.add('selected');
-    window.pagePopupController.openSystemColorChooser();
-  };
-
-  /**
-   * @param {!Event} event
-   */
-  onKeyDown_ = (event) => {
-    switch (event.key) {
-      case 'Enter':
-        this.onClick_();
-        break;
-    }
-  };
-
-  finished = () => {
-    this.classList.remove('selected');
-  }
-}
-window.customElements.define('system-color-picker', SystemColorPicker);

@@ -26,7 +26,6 @@
 #include "third_party/blink/renderer/modules/webgl/webgl_draw_instanced_base_vertex_base_instance.h"
 
 #include "gpu/command_buffer/client/gles2_interface.h"
-#include "third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h"
 
 namespace blink {
 
@@ -66,13 +65,8 @@ void WebGLDrawInstancedBaseVertexBaseInstance::
   WebGLExtensionScopedContext scoped(this);
   if (scoped.IsLost())
     return;
-
-  scoped.Context()->DrawWrapper(
-      "drawArraysInstancedBaseInstanceWEBGL",
-      CanvasPerformanceMonitor::DrawType::kDrawArrays, [&]() {
-        scoped.Context()->ContextGL()->DrawArraysInstancedBaseInstanceANGLE(
-            mode, first, count, instance_count, baseinstance);
-      });
+  scoped.Context()->ContextGL()->DrawArraysInstancedBaseInstanceANGLE(
+      mode, first, count, instance_count, baseinstance);
 }
 
 void WebGLDrawInstancedBaseVertexBaseInstance::
@@ -86,16 +80,11 @@ void WebGLDrawInstancedBaseVertexBaseInstance::
   WebGLExtensionScopedContext scoped(this);
   if (scoped.IsLost())
     return;
-
-  scoped.Context()->DrawWrapper(
-      "drawElementsInstancedBaseVertexBaseInstanceWEBGL",
-      CanvasPerformanceMonitor::DrawType::kDrawElements, [&]() {
-        scoped.Context()
-            ->ContextGL()
-            ->DrawElementsInstancedBaseVertexBaseInstanceANGLE(
-                mode, count, type, reinterpret_cast<void*>(offset),
-                instance_count, basevertex, baseinstance);
-      });
+  scoped.Context()
+      ->ContextGL()
+      ->DrawElementsInstancedBaseVertexBaseInstanceANGLE(
+          mode, count, type, reinterpret_cast<void*>(offset), instance_count,
+          basevertex, baseinstance);
 }
 
 }  // namespace blink

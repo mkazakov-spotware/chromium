@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,18 +25,11 @@ namespace {
 const char kText[] = "clipboard text";
 const char kEmptyDeviceName[] = "";
 const char kDeviceNameInDeviceInfo[] = "DeviceNameInDeviceInfo";
-const char16_t kDeviceNameInDeviceInfo16[] = u"DeviceNameInDeviceInfo";
 const char kDeviceNameInMessage[] = "DeviceNameInMessage";
-const char16_t kDeviceNameInMessage16[] = u"DeviceNameInMessage";
 
 class SharedClipboardMessageHandlerTest : public SharedClipboardTestBase {
  public:
   SharedClipboardMessageHandlerTest() = default;
-
-  SharedClipboardMessageHandlerTest(const SharedClipboardMessageHandlerTest&) =
-      delete;
-  SharedClipboardMessageHandlerTest& operator=(
-      const SharedClipboardMessageHandlerTest&) = delete;
 
   ~SharedClipboardMessageHandlerTest() override = default;
 
@@ -59,6 +52,8 @@ class SharedClipboardMessageHandlerTest : public SharedClipboardTestBase {
  protected:
   std::unique_ptr<SharedClipboardMessageHandlerDesktop> message_handler_;
   MockSharingDeviceSource device_source_;
+
+  DISALLOW_COPY_AND_ASSIGN(SharedClipboardMessageHandlerTest);
 };
 
 }  // namespace
@@ -101,7 +96,7 @@ TEST_F(SharedClipboardMessageHandlerTest,
   EXPECT_EQ(GetClipboardText(), kText);
   EXPECT_EQ(l10n_util::GetStringFUTF16(
                 IDS_CONTENT_CONTEXT_SHARING_SHARED_CLIPBOARD_NOTIFICATION_TITLE,
-                kDeviceNameInDeviceInfo16),
+                base::ASCIIToUTF16(kDeviceNameInDeviceInfo)),
             GetNotification().title());
 }
 
@@ -122,6 +117,6 @@ TEST_F(SharedClipboardMessageHandlerTest,
   EXPECT_EQ(GetClipboardText(), kText);
   EXPECT_EQ(l10n_util::GetStringFUTF16(
                 IDS_CONTENT_CONTEXT_SHARING_SHARED_CLIPBOARD_NOTIFICATION_TITLE,
-                kDeviceNameInMessage16),
+                base::ASCIIToUTF16(kDeviceNameInMessage)),
             GetNotification().title());
 }

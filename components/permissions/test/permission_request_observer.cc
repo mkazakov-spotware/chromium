@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,27 +17,9 @@ void PermissionRequestObserver::Wait() {
   loop_.Run();
 }
 
-void PermissionRequestObserver::OnPromptAdded() {
+void PermissionRequestObserver::OnBubbleAdded() {
   request_shown_ = true;
   loop_.Quit();
-}
-
-void PermissionRequestObserver::OnRequestsFinalized() {
-  loop_.Quit();
-}
-
-void PermissionRequestObserver::OnPromptRecreateViewFailed() {
-  is_view_recreate_failed_ = true;
-  loop_.Quit();
-}
-
-void PermissionRequestObserver::OnPromptCreationFailedHiddenTab() {
-  is_prompt_show_failed_hidden_tab_ = true;
-  loop_.Quit();
-}
-
-void PermissionRequestObserver::OnPermissionRequestManagerDestructed() {
-  observation_.Reset();
 }
 
 }  // namespace permissions

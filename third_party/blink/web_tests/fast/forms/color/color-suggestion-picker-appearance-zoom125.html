@@ -1,10 +1,13 @@
 <!DOCTYPE html>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
-<script src="../resources/picker-common.js"></script>
-
+<html>
+<head>
+<script>
+testRunner.waitUntilDone();
+</script>
+<script src='../../../fast/forms/resources/picker-common.js'></script>
+</head>
 <body style='zoom: 1.25;'>
-<input type='color' value='#ff0000' list='gray'>
+<input type='color' id='color' value='#ff0000' list='gray'>
 <datalist id='gray'>
     <option>#ffffff</option>
     <option>#eeeeee</option>
@@ -25,7 +28,8 @@
     <option>#F00</option> <!--invalid-->
     <option>red</option> <!--invalid-->
 </datalist>
-  
 <script>
-  window.onload = openPickerAppearanceOnly(document.querySelector('input'));
+openPickerAppearanceOnly(document.getElementById('color'), () => testRunner.notifyDone());
 </script>
+</body>
+</html>

@@ -1,14 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.base.test;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.Application;
 import android.app.Instrumentation;
-import android.app.job.JobScheduler;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.SharedPreferences;
@@ -27,6 +27,7 @@ import android.support.test.internal.runner.TestLoader;
 import android.support.test.internal.runner.TestRequest;
 import android.support.test.internal.runner.TestRequestBuilder;
 import android.support.test.runner.AndroidJUnitRunner;
+import android.support.test.runner.MonitoringInstrumentation.ActivityFinisher;
 import android.text.TextUtils;
 
 import androidx.core.content.ContextCompat;
@@ -34,20 +35,19 @@ import androidx.core.content.ContextCompat;
 import dalvik.system.DexFile;
 
 import org.chromium.base.ActivityState;
+import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.ApplicationStatus;
+import org.chromium.base.BuildConfig;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.FileUtils;
 import org.chromium.base.LifetimeAssert;
 import org.chromium.base.Log;
-import org.chromium.base.library_loader.LibraryLoader;
-import org.chromium.base.metrics.UmaRecorderHolder;
+import org.chromium.base.annotations.MainDex;
 import org.chromium.base.multidex.ChromiumMultiDexInstaller;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.InMemorySharedPreferences;
 import org.chromium.base.test.util.InMemorySharedPreferencesContext;
 import org.chromium.base.test.util.ScalableTimeout;
-import org.chromium.build.BuildConfig;
-import org.chromium.build.annotations.MainDex;
 
 import java.io.File;
 import java.io.IOException;
@@ -75,8 +75,6 @@ public class BaseChromiumAndroidJUnitRunner extends AndroidJUnitRunner {
             "org.chromium.base.test.BaseChromiumAndroidJUnitRunner.TestList";
     private static final String LIST_TESTS_PACKAGE_FLAG =
             "org.chromium.base.test.BaseChromiumAndroidJUnitRunner.TestListPackage";
-    private static final String IS_UNIT_TEST_FLAG =
-            "org.chromium.base.test.BaseChromiumAndroidJUnitRunner.IsUnitTest";
     /**
      * This flag is supported by AndroidJUnitRunner.
      *
@@ -106,9 +104,9 @@ public class BaseChromiumAndroidJUnitRunner extends AndroidJUnitRunner {
     // crashed.
     private static final String BUNDLE_STACK_ID = "stack";
 
-    private static final long WAIT_FOR_IDLE_TIMEOUT_MS = 10000L;
+    private static final long WAIT_FOR_IDLE_TIMEOUT_MS = ScalableTimeout.scaleTimeout(10000L);
 
-    private static final long FINISH_APP_TASKS_TIMEOUT_MS = 3000L;
+    private static final long FINISH_APP_TASKS_TIMEOUT_MS = ScalableTimeout.scaleTimeout(3000L);
     private static final long FINISH_APP_TASKS_POLL_INTERVAL_MS = 100;
 
     static InMemorySharedPreferencesContext sInMemorySharedPreferencesContext;
@@ -173,10 +171,6 @@ public class BaseChromiumAndroidJUnitRunner extends AndroidJUnitRunner {
     @Override
     public void onStart() {
         Bundle arguments = InstrumentationRegistry.getArguments();
-        if (arguments.getString(IS_UNIT_TEST_FLAG) != null) {
-            LibraryLoader.setBrowserProcessStartupBlockedForTesting();
-        }
-
         if (shouldListTests()) {
             Log.w(TAG,
                     String.format("Runner will list out tests info in JSON without running tests. "
@@ -191,11 +185,11 @@ public class BaseChromiumAndroidJUnitRunner extends AndroidJUnitRunner {
                                         + " crbug.com/754015. Arguments: %s",
                                 arguments.toString()));
             }
-            finishAllAppTasks(getTargetContext());
-            getTargetContext().getSystemService(JobScheduler.class).cancelAll();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                finishAllAppTasks(getTargetContext());
+            }
             checkOrDeleteOnDiskSharedPreferences(false);
             clearDataDirectory(sInMemorySharedPreferencesContext);
-            InstrumentationRegistry.getInstrumentation().setInTouchMode(true);
             super.onStart();
         }
     }
@@ -498,9 +492,7 @@ public class BaseChromiumAndroidJUnitRunner extends AndroidJUnitRunner {
         }
 
         try {
-            getTargetContext().getSystemService(JobScheduler.class).cancelAll();
             checkOrDeleteOnDiskSharedPreferences(true);
-            UmaRecorderHolder.resetForTesting();
 
             // There is a bug on L and below that DestroyActivitiesRule does not cause onStop and
             // onDestroy. On other versions, DestroyActivitiesRule may still fail flakily. Ignore
@@ -508,8 +500,6 @@ public class BaseChromiumAndroidJUnitRunner extends AndroidJUnitRunner {
             if (!ApplicationStatus.isInitialized()
                     || ApplicationStatus.isEveryActivityDestroyed()) {
                 LifetimeAssert.assertAllInstancesDestroyedForTesting();
-            } else {
-                LifetimeAssert.resetForTesting();
             }
         } catch (Exception e) {
             // It's not possible (as far as I know) to update already reported test results, so we
@@ -547,6 +537,7 @@ public class BaseChromiumAndroidJUnitRunner extends AndroidJUnitRunner {
     }
 
     /** Finishes all tasks Chrome has listed in Android's Overview. */
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     private void finishAllAppTasks(final Context context) {
         // Close all of the tasks one by one.
         ActivityManager activityManager =
@@ -554,8 +545,7 @@ public class BaseChromiumAndroidJUnitRunner extends AndroidJUnitRunner {
         for (ActivityManager.AppTask task : activityManager.getAppTasks()) {
             task.finishAndRemoveTask();
         }
-        long endTime = SystemClock.uptimeMillis()
-                + ScalableTimeout.scaleTimeout(FINISH_APP_TASKS_TIMEOUT_MS);
+        long endTime = SystemClock.uptimeMillis() + FINISH_APP_TASKS_TIMEOUT_MS;
         while (activityManager.getAppTasks().size() != 0 && SystemClock.uptimeMillis() < endTime) {
             try {
                 Thread.sleep(FINISH_APP_TASKS_POLL_INTERVAL_MS);
@@ -575,7 +565,6 @@ public class BaseChromiumAndroidJUnitRunner extends AndroidJUnitRunner {
             super.waitForActivitiesToComplete();
             return;
         }
-        Handler mainHandler = new Handler(Looper.getMainLooper());
         CallbackHelper allDestroyedCalledback = new CallbackHelper();
         ApplicationStatus.ActivityStateListener activityStateListener =
                 new ApplicationStatus.ActivityStateListener() {
@@ -584,9 +573,7 @@ public class BaseChromiumAndroidJUnitRunner extends AndroidJUnitRunner {
                         switch (newState) {
                             case ActivityState.DESTROYED:
                                 if (ApplicationStatus.isEveryActivityDestroyed()) {
-                                    // Allow onDestroy to finish running before we notify.
-                                    mainHandler.post(
-                                            () -> { allDestroyedCalledback.notifyCalled(); });
+                                    allDestroyedCalledback.notifyCalled();
                                     ApplicationStatus.unregisterActivityStateListener(this);
                                 }
                                 break;
@@ -594,21 +581,21 @@ public class BaseChromiumAndroidJUnitRunner extends AndroidJUnitRunner {
                                 if (!activity.isFinishing()) {
                                     // This is required to ensure we finish any activities created
                                     // after doing the bulk finish operation below.
-                                    activity.finishAndRemoveTask();
+                                    ApiCompatibilityUtils.finishAndRemoveTask(activity);
                                 }
                                 break;
                         }
                     }
                 };
 
-        mainHandler.post(() -> {
+        new Handler(Looper.getMainLooper()).post(() -> {
             if (ApplicationStatus.isEveryActivityDestroyed()) {
                 allDestroyedCalledback.notifyCalled();
             } else {
                 ApplicationStatus.registerStateListenerForAllActivities(activityStateListener);
             }
             for (Activity a : ApplicationStatus.getRunningActivities()) {
-                if (!a.isFinishing()) a.finishAndRemoveTask();
+                if (!a.isFinishing()) ApiCompatibilityUtils.finishAndRemoveTask(a);
             }
         });
         try {
@@ -625,9 +612,6 @@ public class BaseChromiumAndroidJUnitRunner extends AndroidJUnitRunner {
         }
     }
 
-    // This method clears the data directory for the test apk, but device_utils.py clears the data
-    // for the apk under test via `pm clear`. Fake module smoke tests in particular requires some
-    // data to be kept for the apk under test: /sdcard/Android/data/package/files/local_testing
     private static void clearDataDirectory(Context targetContext) {
         File dataDir = ContextCompat.getDataDir(targetContext);
         File[] files = dataDir.listFiles();
@@ -635,9 +619,6 @@ public class BaseChromiumAndroidJUnitRunner extends AndroidJUnitRunner {
         for (File file : files) {
             // Symlink to app's native libraries.
             if (file.getName().equals("lib")) {
-                continue;
-            }
-            if (file.getName().equals("chromium_tests_root")) {
                 continue;
             }
             if (file.getName().equals("incremental-install-files")) {

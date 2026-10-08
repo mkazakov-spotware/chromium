@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,22 +8,30 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
-#include "chrome/browser/apps/app_service/app_service_proxy_forward.h"
 #include "chrome/browser/ui/app_list/search/chrome_search_result.h"
 #include "chrome/browser/ui/app_list/search/search_provider.h"
-#include "chrome/browser/ui/webui/settings/ash/search/search.mojom.h"
+#include "chrome/browser/ui/webui/settings/chromeos/search/search.mojom.h"
 #include "components/services/app_service/public/cpp/app_registry_cache.h"
-#include "components/services/app_service/public/cpp/icon_types.h"
+#include "components/services/app_service/public/mojom/types.mojom.h"
 #include "mojo/public/cpp/bindings/receiver.h"
+#include "mojo/public/cpp/bindings/remote.h"
 
 class Profile;
 
-namespace ash::settings {
+namespace apps {
+class AppServiceProxy;
+}  // namespace apps
+
+namespace chromeos {
+namespace settings {
 class Hierarchy;
+class OsSettingsManager;
 class SearchHandler;
-}  // namespace ash::settings
+}
+}  // namespace chromeos
 
 namespace gfx {
 class ImageSkia;
@@ -35,10 +43,9 @@ namespace app_list {
 class OsSettingsResult : public ChromeSearchResult {
  public:
   OsSettingsResult(Profile* profile,
-                   const ash::settings::mojom::SearchResultPtr& result,
-                   double relevance_score,
-                   const gfx::ImageSkia& icon,
-                   const std::u16string& query);
+                   const chromeos::settings::mojom::SearchResultPtr& result,
+                   float relevance_score,
+                   const gfx::ImageSkia& icon);
   ~OsSettingsResult() override;
 
   OsSettingsResult(const OsSettingsResult&) = delete;
@@ -54,23 +61,21 @@ class OsSettingsResult : public ChromeSearchResult {
 
 // Provider results for OS settings based on a search query. No results are
 // provided for zero-state.
-class OsSettingsProvider : public SearchProvider,
-                           public apps::AppRegistryCache::Observer,
-                           public ash::settings::mojom::SearchResultsObserver {
+class OsSettingsProvider
+    : public SearchProvider,
+      public apps::AppRegistryCache::Observer,
+      public chromeos::settings::mojom::SearchResultsObserver {
  public:
-  OsSettingsProvider(Profile* profile,
-                     ash::settings::SearchHandler* search_handler,
-                     const ash::settings::Hierarchy* hierarchy,
-                     apps::AppServiceProxy* app_service_proxy);
+  explicit OsSettingsProvider(Profile* profile);
   ~OsSettingsProvider() override;
 
   OsSettingsProvider(const OsSettingsProvider&) = delete;
   OsSettingsProvider& operator=(const OsSettingsProvider&) = delete;
 
   // SearchProvider:
-  void Start(const std::u16string& query) override;
-  void StopQuery() override;
-  ash::AppListSearchResultType ResultType() const override;
+  void Start(const base::string16& query) override;
+  void ViewClosing() override;
+  ash::AppListSearchResultType ResultType() override;
 
   // apps::AppRegistryCache::Observer:
   void OnAppUpdate(const apps::AppUpdate& update) override;
@@ -78,13 +83,13 @@ class OsSettingsProvider : public SearchProvider,
       apps::AppRegistryCache* cache) override;
 
   // mojom::SearchResultsObserver:
-  void OnSearchResultsChanged() override;
+  void OnSearchResultAvailabilityChanged() override;
 
  private:
   void OnSearchReturned(
-      const std::u16string& query,
+      const base::string16& query,
       const base::TimeTicks& start_time,
-      std::vector<ash::settings::mojom::SearchResultPtr> results);
+      std::vector<chromeos::settings::mojom::SearchResultPtr> results);
 
   // Given a vector of results from the SearchHandler, filters them down to a
   // display-ready vector. It:
@@ -103,14 +108,14 @@ class OsSettingsProvider : public SearchProvider,
   //
   // So simply iterating down the vector while being careful about duplicates
   // and checking for alternate matches is enough.
-  std::vector<ash::settings::mojom::SearchResultPtr> FilterResults(
-      const std::u16string& query,
-      const std::vector<ash::settings::mojom::SearchResultPtr>& results,
-      const ash::settings::Hierarchy* hierarchy);
+  std::vector<chromeos::settings::mojom::SearchResultPtr> FilterResults(
+      const base::string16& query,
+      const std::vector<chromeos::settings::mojom::SearchResultPtr>& results,
+      const chromeos::settings::Hierarchy* hierarchy);
 
-  void OnLoadIcon(apps::IconValuePtr icon_value);
+  void OnLoadIcon(apps::mojom::IconValuePtr icon_value);
 
-  // Scoring and filtering parameters.
+  // Scoring and filtering parameters controlled from Finch.
   bool accept_alternate_matches_ = false;
   size_t min_query_length_ = 4u;
   size_t min_query_length_for_alternates_ = 4u;
@@ -118,14 +123,18 @@ class OsSettingsProvider : public SearchProvider,
   float min_score_for_alternates_ = 0.4f;
 
   Profile* const profile_;
-  ash::settings::SearchHandler* search_handler_;
-  const ash::settings::Hierarchy* hierarchy_;
+  chromeos::settings::OsSettingsManager* const settings_manager_;
+  chromeos::settings::SearchHandler* search_handler_;
+  const chromeos::settings::Hierarchy* hierarchy_;
   apps::AppServiceProxy* app_service_proxy_;
   gfx::ImageSkia icon_;
 
+  // Whether the app service has signalled the settings app as ready.
+  bool settings_app_ready_ = false;
+
   // Last query. It is reset when view is closed.
-  std::u16string last_query_;
-  mojo::Receiver<ash::settings::mojom::SearchResultsObserver>
+  base::string16 last_query_;
+  mojo::Receiver<chromeos::settings::mojom::SearchResultsObserver>
       search_results_observer_receiver_{this};
 
   base::WeakPtrFactory<OsSettingsProvider> weak_factory_{this};

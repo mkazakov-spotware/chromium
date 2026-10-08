@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,11 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "chrome/browser/engagement/site_engagement_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/dev_ui_browser_resources.h"
-#include "components/site_engagement/content/site_engagement_service.h"
 #include "components/site_engagement/core/mojom/site_engagement_details.mojom.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_controller.h"
@@ -26,42 +26,32 @@
 
 namespace {
 
-// Implementation of site_engagement::mojom::SiteEngagementDetailsProvider that
-// gets information from the site_engagement::SiteEngagementService to provide
-// data for the WebUI.
+// Implementation of mojom::SiteEngagementDetailsProvider that gets information
+// from the SiteEngagementService to provide data for the WebUI.
 class SiteEngagementDetailsProviderImpl
-    : public site_engagement::mojom::SiteEngagementDetailsProvider {
+    : public mojom::SiteEngagementDetailsProvider {
  public:
   // Instance is deleted when the supplied pipe is destroyed.
   SiteEngagementDetailsProviderImpl(
       Profile* profile,
-      mojo::PendingReceiver<
-          site_engagement::mojom::SiteEngagementDetailsProvider> receiver)
+      mojo::PendingReceiver<mojom::SiteEngagementDetailsProvider> receiver)
       : profile_(profile), receiver_(this, std::move(receiver)) {
     DCHECK(profile_);
   }
 
-  SiteEngagementDetailsProviderImpl(const SiteEngagementDetailsProviderImpl&) =
-      delete;
-  SiteEngagementDetailsProviderImpl& operator=(
-      const SiteEngagementDetailsProviderImpl&) = delete;
-
   ~SiteEngagementDetailsProviderImpl() override {}
 
-  // site_engagement::mojom::SiteEngagementDetailsProvider overrides:
+  // mojom::SiteEngagementDetailsProvider overrides:
   void GetSiteEngagementDetails(
       GetSiteEngagementDetailsCallback callback) override {
-    site_engagement::SiteEngagementService* service =
-        site_engagement::SiteEngagementService::Get(profile_);
-    std::vector<site_engagement::mojom::SiteEngagementDetails> scores =
-        service->GetAllDetails();
+    SiteEngagementService* service = SiteEngagementService::Get(profile_);
+    std::vector<mojom::SiteEngagementDetails> scores = service->GetAllDetails();
 
-    std::vector<site_engagement::mojom::SiteEngagementDetailsPtr>
-        engagement_info;
+    std::vector<mojom::SiteEngagementDetailsPtr> engagement_info;
     engagement_info.reserve(scores.size());
     for (const auto& info : scores) {
-      site_engagement::mojom::SiteEngagementDetailsPtr origin_info(
-          site_engagement::mojom::SiteEngagementDetails::New());
+      mojom::SiteEngagementDetailsPtr origin_info(
+          mojom::SiteEngagementDetails::New());
       *origin_info = std::move(info);
       engagement_info.push_back(std::move(origin_info));
     }
@@ -72,22 +62,21 @@ class SiteEngagementDetailsProviderImpl
   void SetSiteEngagementBaseScoreForUrl(const GURL& origin,
                                         double score) override {
     if (!origin.is_valid() || score < 0 ||
-        score > site_engagement::SiteEngagementService::GetMaxPoints() ||
-        std::isnan(score)) {
+        score > SiteEngagementService::GetMaxPoints() || std::isnan(score)) {
       return;
     }
 
-    site_engagement::SiteEngagementService* service =
-        site_engagement::SiteEngagementService::Get(profile_);
+    SiteEngagementService* service = SiteEngagementService::Get(profile_);
     service->ResetBaseScoreForURL(origin, score);
   }
 
  private:
   // The Profile* handed to us in our constructor.
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
-  mojo::Receiver<site_engagement::mojom::SiteEngagementDetailsProvider>
-      receiver_;
+  mojo::Receiver<mojom::SiteEngagementDetailsProvider> receiver_;
+
+  DISALLOW_COPY_AND_ASSIGN(SiteEngagementDetailsProviderImpl);
 };
 
 }  // namespace
@@ -99,7 +88,7 @@ SiteEngagementUI::SiteEngagementUI(content::WebUI* web_ui)
       content::WebUIDataSource::Create(chrome::kChromeUISiteEngagementHost));
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::ScriptSrc,
-      "script-src chrome://resources chrome://webui-test 'self';");
+      "script-src chrome://resources chrome://test 'self';");
   source->AddResourcePath("site_engagement.js", IDR_SITE_ENGAGEMENT_JS);
   source->AddResourcePath("site_engagement_details.mojom-webui.js",
                           IDR_SITE_ENGAGEMENT_DETAILS_MOJOM_WEBUI_JS);
@@ -112,8 +101,7 @@ WEB_UI_CONTROLLER_TYPE_IMPL(SiteEngagementUI)
 SiteEngagementUI::~SiteEngagementUI() {}
 
 void SiteEngagementUI::BindInterface(
-    mojo::PendingReceiver<site_engagement::mojom::SiteEngagementDetailsProvider>
-        receiver) {
+    mojo::PendingReceiver<mojom::SiteEngagementDetailsProvider> receiver) {
   ui_handler_ = std::make_unique<SiteEngagementDetailsProviderImpl>(
       Profile::FromWebUI(web_ui()), std::move(receiver));
 }

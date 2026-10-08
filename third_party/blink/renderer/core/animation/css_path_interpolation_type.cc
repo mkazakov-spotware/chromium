@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,7 @@ const StylePath* GetPath(const CSSProperty& property,
                          const ComputedStyle& style) {
   switch (property.PropertyID()) {
     case CSSPropertyID::kD:
-      return style.D();
+      return style.SvgStyle().D();
     case CSSPropertyID::kOffsetPath:
       return DynamicTo<StylePath>(style.OffsetPath());
     case CSSPropertyID::kClipPath: {
@@ -41,17 +41,17 @@ const StylePath* GetPath(const CSSProperty& property,
 
 // Set the property to the given path() value.
 void SetPath(const CSSProperty& property,
-             ComputedStyleBuilder& builder,
+             ComputedStyle& style,
              scoped_refptr<blink::StylePath> path) {
   switch (property.PropertyID()) {
     case CSSPropertyID::kD:
-      builder.SetD(std::move(path));
+      style.SetD(std::move(path));
       return;
     case CSSPropertyID::kOffsetPath:
-      builder.SetOffsetPath(std::move(path));
+      style.SetOffsetPath(std::move(path));
       return;
     case CSSPropertyID::kClipPath:
-      builder.SetClipPath(ShapeClipPathOperation::Create(std::move(path)));
+      style.SetClipPath(ShapeClipPathOperation::Create(std::move(path)));
       return;
     default:
       NOTREACHED();
@@ -65,7 +65,7 @@ void CSSPathInterpolationType::ApplyStandardPropertyValue(
     const InterpolableValue& interpolable_value,
     const NonInterpolableValue* non_interpolable_value,
     StyleResolverState& state) const {
-  SetPath(CssProperty(), state.StyleBuilder(),
+  SetPath(CssProperty(), *state.Style(),
           PathInterpolationFunctions::AppliedValue(interpolable_value,
                                                    non_interpolable_value));
 }
@@ -90,7 +90,7 @@ InterpolationValue CSSPathInterpolationType::MaybeConvertInitial(
     const StyleResolverState&,
     ConversionCheckers&) const {
   return PathInterpolationFunctions::ConvertValue(
-      nullptr, PathInterpolationFunctions::kForceAbsolute);
+      nullptr, PathInterpolationFunctions::ForceAbsolute);
 }
 
 class InheritedPathChecker : public CSSInterpolationType::CSSConversionChecker {
@@ -119,7 +119,7 @@ InterpolationValue CSSPathInterpolationType::MaybeConvertInherit(
       CssProperty(), GetPath(CssProperty(), *state.ParentStyle())));
   return PathInterpolationFunctions::ConvertValue(
       GetPath(CssProperty(), *state.ParentStyle()),
-      PathInterpolationFunctions::kForceAbsolute);
+      PathInterpolationFunctions::ForceAbsolute);
 }
 
 InterpolationValue CSSPathInterpolationType::MaybeConvertValue(
@@ -131,15 +131,14 @@ InterpolationValue CSSPathInterpolationType::MaybeConvertValue(
     return nullptr;
 
   return PathInterpolationFunctions::ConvertValue(
-      path_value->GetStylePath(), PathInterpolationFunctions::kForceAbsolute);
+      path_value->GetStylePath(), PathInterpolationFunctions::ForceAbsolute);
 }
 
 InterpolationValue
 CSSPathInterpolationType::MaybeConvertStandardPropertyUnderlyingValue(
     const ComputedStyle& style) const {
   return PathInterpolationFunctions::ConvertValue(
-      GetPath(CssProperty(), style),
-      PathInterpolationFunctions::kForceAbsolute);
+      GetPath(CssProperty(), style), PathInterpolationFunctions::ForceAbsolute);
 }
 
 PairwiseInterpolationValue CSSPathInterpolationType::MaybeMergeSingles(

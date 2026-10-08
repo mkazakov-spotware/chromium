@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,14 +12,8 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/strings/string_piece.h"
+#include "base/macros.h"
 #include "device/bluetooth/test/fake_device_information_pairing_winrt.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-
-namespace base {
-class SequencedTaskRunner;
-}
 
 namespace device {
 
@@ -32,21 +26,6 @@ class FakeDeviceInformationCustomPairingWinrt
   FakeDeviceInformationCustomPairingWinrt(
       Microsoft::WRL::ComPtr<FakeDeviceInformationPairingWinrt> pairing,
       std::string pin);
-
-  FakeDeviceInformationCustomPairingWinrt(
-      Microsoft::WRL::ComPtr<FakeDeviceInformationPairingWinrt> pairing,
-      ABI::Windows::Devices::Enumeration::DevicePairingKinds pairing_kind);
-
-  FakeDeviceInformationCustomPairingWinrt(
-      Microsoft::WRL::ComPtr<FakeDeviceInformationPairingWinrt> pairing,
-      ABI::Windows::Devices::Enumeration::DevicePairingKinds pairing_kind,
-      base::StringPiece display_pin);
-
-  FakeDeviceInformationCustomPairingWinrt(
-      const FakeDeviceInformationCustomPairingWinrt&) = delete;
-  FakeDeviceInformationCustomPairingWinrt& operator=(
-      const FakeDeviceInformationCustomPairingWinrt&) = delete;
-
   ~FakeDeviceInformationCustomPairingWinrt() override;
 
   // IDeviceInformationCustomPairing:
@@ -85,24 +64,10 @@ class FakeDeviceInformationCustomPairingWinrt
   void AcceptWithPin(std::string pin);
   void Complete();
 
-  ABI::Windows::Devices::Enumeration::DevicePairingKinds pairing_kind() const {
-    return pairing_kind_;
-  }
-
-  const std::string& pin() const { return display_pin_; }
-
-  void SetConfirmed() { confirmed_ = true; }
-
  private:
   Microsoft::WRL::ComPtr<FakeDeviceInformationPairingWinrt> pairing_;
-  const absl::optional<std::string> pin_;
+  std::string pin_;
   std::string accepted_pin_;
-  bool confirmed_ = false;
-
-  ABI::Windows::Devices::Enumeration::DevicePairingKinds pairing_kind_ =
-      ABI::Windows::Devices::Enumeration::DevicePairingKinds_ProvidePin;
-
-  std::string display_pin_;
 
   base::OnceCallback<void(
       Microsoft::WRL::ComPtr<
@@ -114,7 +79,7 @@ class FakeDeviceInformationCustomPairingWinrt
       ABI::Windows::Devices::Enumeration::DevicePairingRequestedEventArgs*>>
       pairing_requested_handler_;
 
-  scoped_refptr<base::SequencedTaskRunner> pair_task_runner_;
+  DISALLOW_COPY_AND_ASSIGN(FakeDeviceInformationCustomPairingWinrt);
 };
 
 }  // namespace device

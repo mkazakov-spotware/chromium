@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,8 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
+#include "base/optional.h"
 #include "base/scoped_observation.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "base/time/time.h"
@@ -28,7 +28,6 @@
 #include "components/ntp_snippets/remote/remote_suggestions_scheduler.h"
 #include "components/ntp_snippets/user_classifier.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class PrefService;
 class PrefRegistrySimple;
@@ -108,9 +107,6 @@ class ContentSuggestionsService : public KeyedService,
       std::unique_ptr<UserClassifier> user_classifier,
       std::unique_ptr<RemoteSuggestionsScheduler>
           remote_suggestions_scheduler);  // Can be nullptr in unittests.
-  ContentSuggestionsService(const ContentSuggestionsService&) = delete;
-  ContentSuggestionsService& operator=(const ContentSuggestionsService&) =
-      delete;
   ~ContentSuggestionsService() override;
 
   // Inherited from KeyedService.
@@ -129,7 +125,7 @@ class ContentSuggestionsService : public KeyedService,
   CategoryStatus GetCategoryStatus(Category category) const;
 
   // Gets the meta information of a category.
-  absl::optional<CategoryInfo> GetCategoryInfo(Category category) const;
+  base::Optional<CategoryInfo> GetCategoryInfo(Category category) const;
 
   // Gets the available suggestions for a category. The result is empty if the
   // category is available and empty, but also if the category is unavailable
@@ -285,8 +281,8 @@ class ContentSuggestionsService : public KeyedService,
       const ContentSuggestion::ID& suggestion_id) override;
 
   // signin::IdentityManager::Observer implementation.
-  void OnPrimaryAccountChanged(
-      const signin::PrimaryAccountChangeEvent& event_details) override;
+  void OnPrimaryAccountSet(const CoreAccountInfo& account_info) override;
+  void OnPrimaryAccountCleared(const CoreAccountInfo& account_info) override;
 
   // history::HistoryServiceObserver implementation.
   void OnURLsDeleted(history::HistoryService* history_service,
@@ -401,11 +397,11 @@ class ContentSuggestionsService : public KeyedService,
   // Keep a direct reference to this special provider to redirect debugging
   // calls to it. If the RemoteSuggestionsProvider is loaded, it is also present
   // in |providers_|, otherwise this is a nullptr.
-  raw_ptr<RemoteSuggestionsProvider> remote_suggestions_provider_;
+  RemoteSuggestionsProvider* remote_suggestions_provider_;
 
-  raw_ptr<favicon::LargeIconService> large_icon_service_;
+  favicon::LargeIconService* large_icon_service_;
 
-  raw_ptr<PrefService> pref_service_;
+  PrefService* pref_service_;
 
   // Interface for informing about external events that have influence on
   // scheduling remote fetches.
@@ -416,6 +412,8 @@ class ContentSuggestionsService : public KeyedService,
 
   // Provides order for categories.
   std::unique_ptr<CategoryRanker> category_ranker_;
+
+  DISALLOW_COPY_AND_ASSIGN(ContentSuggestionsService);
 };
 
 }  // namespace ntp_snippets

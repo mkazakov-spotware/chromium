@@ -1,11 +1,7 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {ENTRIES, RootPath, sendTestMessage, TestEntryInfo} from '../test_util.js';
-import {testcase} from '../testcase.js';
-
-import {isSinglePartitionFormat, navigateWithDirectoryTree, remoteCall, setupAndWaitUntilReady} from './background.js';
+'use strict';
 
 /**
  * Lanuches file manager and stubs out the formatVolume private api.
@@ -104,8 +100,7 @@ testcase.formatDialog = async () => {
 
   // Check the correct size is displayed.
   const warning = await remoteCall.waitForElement(appId, [
-    'files-format-dialog',
-    '#warning-container:not([hidden]) #warning-message',
+    'files-format-dialog', '#warning-container:not([hidden]) #warning-message'
   ]);
   chrome.test.assertEq(
       '51 bytes of files will be deleted', warning.text.trim());
@@ -117,30 +112,6 @@ testcase.formatDialog = async () => {
   // Check the dialog is closed.
   await remoteCall.waitForElement(
       appId, ['files-format-dialog', 'cr-dialog:not([open])']);
-};
-
-/**
- * Tests the format dialog is a modal dialog.
- */
-testcase.formatDialogIsModal = async () => {
-  await sendTestMessage({name: 'mountFakeUsb'});
-  const appId = await setupFormatDialogTest();
-
-  // Open the format dialog on fake-usb.
-  await openFormatDialog(appId, 'fake-usb');
-
-  // Focus the <cr-input> inner <input> element.
-  const driveNameQuery = ['files-format-dialog', 'cr-input#label', 'input'];
-  await remoteCall.simulateUiClick(appId, driveNameQuery);
-
-  // Send a select-all keyboard event to the <input> element.
-  const ctrlA = [driveNameQuery, 'a', true, false, false];
-  await remoteCall.callRemoteTestUtil('fakeKeyDown', appId, ctrlA);
-
-  // Check: the file-list should have nothing selected.
-  const selectedRows = await remoteCall.callRemoteTestUtil(
-      'deepQueryAllElements', appId, ['#file-list li[selected]']);
-  chrome.test.assertEq(0, selectedRows.length);
 };
 
 /**
@@ -198,11 +169,13 @@ testcase.formatDialogCancel = async () => {
 async function checkError(appId, label, format, errorMessage) {
   // Enter in a label.
   const driveNameQuery = ['files-format-dialog', 'cr-input#label'];
-  await remoteCall.inputText(appId, driveNameQuery, label);
+  await remoteCall.callRemoteTestUtil(
+      'inputText', appId, [driveNameQuery, label]);
 
   // Select a format.
   const driveFormatQuery = ['files-format-dialog', '#disk-format select'];
-  await remoteCall.inputText(appId, driveFormatQuery, format);
+  await remoteCall.callRemoteTestUtil(
+      'inputText', appId, [driveFormatQuery, format]);
 
   // Check error message is not there.
   let driveNameElement = await remoteCall.waitForElement(
@@ -232,11 +205,13 @@ async function checkError(appId, label, format, errorMessage) {
 async function checkSuccess(appId, label, format) {
   // Enter in a label.
   const driveNameQuery = ['files-format-dialog', 'cr-input#label'];
-  await remoteCall.inputText(appId, driveNameQuery, label);
+  await remoteCall.callRemoteTestUtil(
+      'inputText', appId, [driveNameQuery, label]);
 
   // Select a format.
   const driveFormatQuery = ['files-format-dialog', '#disk-format select'];
-  await remoteCall.inputText(appId, driveFormatQuery, format);
+  await remoteCall.callRemoteTestUtil(
+      'inputText', appId, [driveFormatQuery, format]);
 
   // Check error message is not there.
   const driveNameElement = await remoteCall.waitForElement(
@@ -360,7 +335,8 @@ testcase.formatDialogGearMenu = async () => {
   await remoteCall.callRemoteTestUtil('focus', appId, ['#file-list']);
 
   // Click an item in the list.
-  await remoteCall.waitUntilSelected(appId, ENTRIES.hello.nameText);
+  chrome.test.assertTrue(await remoteCall.callRemoteTestUtil(
+      'selectFile', appId, [ENTRIES.hello.nameText]));
 
   // Click on the gear menu button.
   await remoteCall.waitAndClickElement(appId, '#gear-button:not([hidden])');

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 
 #include "ash/ash_export.h"
 #include "ash/public/cpp/event_rewriter_controller.h"
+#include "base/macros.h"
 #include "ui/aura/env_observer.h"
-#include "ui/chromeos/events/event_rewriter_chromeos.h"
 
 namespace ui {
 class EventRewriter;
@@ -28,11 +28,6 @@ class ASH_EXPORT EventRewriterControllerImpl : public EventRewriterController,
                                                public aura::EnvObserver {
  public:
   EventRewriterControllerImpl();
-
-  EventRewriterControllerImpl(const EventRewriterControllerImpl&) = delete;
-  EventRewriterControllerImpl& operator=(const EventRewriterControllerImpl&) =
-      delete;
-
   ~EventRewriterControllerImpl() override;
 
   // EventRewriterController:
@@ -45,18 +40,10 @@ class ASH_EXPORT EventRewriterControllerImpl : public EventRewriterController,
   void OnUnhandledSpokenFeedbackEvent(
       std::unique_ptr<ui::Event> event) override;
   void CaptureAllKeysForSpokenFeedback(bool capture) override;
-  void SetSendMouseEvents(bool value) override;
+  void SetSendMouseEventsToDelegate(bool value) override;
 
   // aura::EnvObserver:
   void OnHostInitialized(aura::WindowTreeHost* host) override;
-
-  // Enable/disable the combination of alt + other key or mouse event
-  // mapping in EventRewriterChromeOS.
-  void SetAltDownRemappingEnabled(bool enabled);
-
-  ui::EventRewriterChromeOS::Delegate* event_rewriter_chromeos_delegate() {
-    return event_rewriter_chromeos_delegate_;
-  }
 
  private:
   // The |EventRewriter|s managed by this controller.
@@ -65,9 +52,8 @@ class ASH_EXPORT EventRewriterControllerImpl : public EventRewriterController,
   // Owned by |rewriters_|.
   AccessibilityEventRewriter* accessibility_event_rewriter_ = nullptr;
   KeyboardDrivenEventRewriter* keyboard_driven_event_rewriter_ = nullptr;
-  ui::EventRewriterChromeOS* event_rewriter_chromeos_ = nullptr;
-  ui::EventRewriterChromeOS::Delegate* event_rewriter_chromeos_delegate_ =
-      nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(EventRewriterControllerImpl);
 };
 
 }  // namespace ash

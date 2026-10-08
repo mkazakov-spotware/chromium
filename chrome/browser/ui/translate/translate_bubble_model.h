@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,12 @@
 
 #include <string>
 
-#include "chrome/browser/ui/translate/translate_language_list_model.h"
-#include "components/translate/core/browser/translate_metrics_logger_impl.h"
+#include "base/strings/string16.h"
 #include "components/translate/core/common/translate_errors.h"
 
-// The model for the Full Page Translate bubble UX. This manages the user's
-// manipulation of the bubble and offers the data to show on the bubble.
-class TranslateBubbleModel : public TranslateLanguageListModel {
+// The model for the Translate bubble UX. This manages the user's manipulation
+// of the bubble and offers the data to show on the bubble.
+class TranslateBubbleModel {
  public:
   enum ViewState {
     // The view state before translating.
@@ -30,16 +29,15 @@ class TranslateBubbleModel : public TranslateLanguageListModel {
 
     // The view state for when the source language combobox is shown. This view
     // appears when the user selects "Page is not in {source language}" under
-    // the options menu.
+    // option menu.
     VIEW_STATE_SOURCE_LANGUAGE,
 
-    // The view state for when the target language combobox is shown. This view
-    // appears when the user selects "Choose another language..." under the
-    // options menu.
+    // The view state for when the source language combobox is shown. This view
+    // appears when the user selects "More options..." under option menu.
     VIEW_STATE_TARGET_LANGUAGE
   };
 
-  ~TranslateBubbleModel() override = default;
+  virtual ~TranslateBubbleModel() {}
 
   // Returns the current view state.
   virtual ViewState GetViewState() const = 0;
@@ -48,25 +46,33 @@ class TranslateBubbleModel : public TranslateLanguageListModel {
   virtual void SetViewState(ViewState view_state) = 0;
 
   // Shows an error.
-  virtual void ShowError(translate::TranslateErrors error_type) = 0;
+  virtual void ShowError(translate::TranslateErrors::Type error_type) = 0;
 
-  // TranslateLanguageListModel:
-  int GetNumberOfSourceLanguages() const override = 0;
-  int GetNumberOfTargetLanguages() const override = 0;
-  std::u16string GetSourceLanguageNameAt(int index) const override = 0;
-  std::u16string GetTargetLanguageNameAt(int index) const override = 0;
-  int GetSourceLanguageIndex() const override = 0;
-  void UpdateSourceLanguageIndex(int index) override = 0;
-  int GetTargetLanguageIndex() const override = 0;
-  void UpdateTargetLanguageIndex(int index) override = 0;
+  // Goes back from the 'Advanced' view state.
+  virtual void GoBackFromAdvanced() = 0;
 
-  // Returns the source language code.
-  virtual std::string GetSourceLanguageCode() const = 0;
+  // Returns the number of languages supported.
+  virtual int GetNumberOfLanguages() const = 0;
+
+  // Returns the displayable name for the language at |index|.
+  virtual base::string16 GetLanguageNameAt(int index) const = 0;
+
+  // Returns the original language index.
+  virtual int GetOriginalLanguageIndex() const = 0;
+
+  // Updates the original language index.
+  virtual void UpdateOriginalLanguageIndex(int index) = 0;
+
+  // Returns the target language index.
+  virtual int GetTargetLanguageIndex() const = 0;
+
+  // Updates the target language index.
+  virtual void UpdateTargetLanguageIndex(int index) = 0;
 
   // Invoked when the user actively declines to translate the page - e.g.
   // selects 'nope', 'never translate this language', etc.
-  // Should not be invoked on a passive decline - i.e. if the bubble is closed
-  // due to focus loss.
+  // Should not be invoked on a passive decline - i.e. if the translate bubble
+  // is closed due to focus loss.
   virtual void DeclineTranslation() = 0;
 
   // Returns if the user doesn't want to have the page translated in the
@@ -85,7 +91,7 @@ class TranslateBubbleModel : public TranslateLanguageListModel {
   // current page's domain.
   virtual void SetNeverTranslateSite(bool value) = 0;
 
-  // Returns true if the webpage in the current source language should be
+  // Returns true if the webpage in the current original language should be
   // translated into the current target language automatically.
   virtual bool ShouldAlwaysTranslate() const = 0;
 
@@ -97,7 +103,7 @@ class TranslateBubbleModel : public TranslateLanguageListModel {
   // functionality.
   virtual bool ShouldShowAlwaysTranslateShortcut() const = 0;
 
-  // Sets the value if the webpage in the current source language should be
+  // Sets the value if the webpage in the current original language should be
   // translated into the current target language automatically.
   virtual void SetAlwaysTranslate(bool value) = 0;
 
@@ -107,8 +113,8 @@ class TranslateBubbleModel : public TranslateLanguageListModel {
   // Reverts translation.
   virtual void RevertTranslation() = 0;
 
-  // Called when the bubble is closed. Allows final cleanup
-  // and notification of delegates.
+  // Called when the translate bubble is closed. Allows final cleanup and
+  // notification of delegates.
   virtual void OnBubbleClosing() = 0;
 
   // Returns true if the page is translated in the currently selected source
@@ -116,15 +122,7 @@ class TranslateBubbleModel : public TranslateLanguageListModel {
   virtual bool IsPageTranslatedInCurrentLanguages() const = 0;
 
   // True if the site of the current page can be blocklisted.
-  virtual bool CanAddSiteToNeverPromptList() = 0;
-
-  // Reports a high level UI interaction to the centralzied
-  // TranslateMetricsLogger.
-  virtual void ReportUIInteraction(translate::UIInteraction ui_interaction) = 0;
-
-  // Updates TranslateMetricsLogger state of whether Translate UI is currently
-  // shown.
-  virtual void ReportUIChange(bool is_ui_shown) = 0;
+  virtual bool CanBlocklistSite() = 0;
 };
 
 #endif  // CHROME_BROWSER_UI_TRANSLATE_TRANSLATE_BUBBLE_MODEL_H_

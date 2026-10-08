@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "base/files/file_path.h"
 #include "base/logging.h"
 #include "chrome/browser/apps/app_shim/app_shim_host_bootstrap_mac.h"
+#include "chrome/browser/apps/app_shim/app_shim_host_mac.h"
 #include "chrome/common/chrome_features.h"
 #include "components/remote_cocoa/browser/application_host.h"
 #include "components/remote_cocoa/common/application.mojom.h"
@@ -22,6 +23,7 @@ AppShimHost::AppShimHost(AppShimHost::Client* client,
                          bool uses_remote_views)
     : client_(client),
       app_shim_receiver_(app_shim_.BindNewPipeAndPassReceiver()),
+      launch_shim_has_been_called_(false),
       app_id_(app_id),
       profile_path_(profile_path),
       uses_remote_views_(uses_remote_views),
@@ -109,10 +111,6 @@ void AppShimHost::OnShimProcessTerminated(bool recreate_shims_requested) {
 ////////////////////////////////////////////////////////////////////////////////
 // AppShimHost, chrome::mojom::AppShimHost
 
-void AppShimHost::SetOnShimConnectedForTesting(base::OnceClosure closure) {
-  on_shim_connected_for_testing_ = std::move(closure);
-}
-
 bool AppShimHost::HasBootstrapConnected() const {
   return bootstrap_ != nullptr;
 }
@@ -131,9 +129,6 @@ void AppShimHost::OnBootstrapConnected(
   host_receiver_.Bind(bootstrap_->GetAppShimHostReceiver());
   host_receiver_.set_disconnect_with_reason_handler(
       base::BindOnce(&AppShimHost::ChannelError, base::Unretained(this)));
-
-  if (on_shim_connected_for_testing_)
-    std::move(on_shim_connected_for_testing_).Run();
 }
 
 void AppShimHost::LaunchShim() {
@@ -164,14 +159,6 @@ void AppShimHost::FilesOpened(const std::vector<base::FilePath>& files) {
 
 void AppShimHost::ProfileSelectedFromMenu(const base::FilePath& profile_path) {
   client_->OnShimSelectedProfile(this, profile_path);
-}
-
-void AppShimHost::UrlsOpened(const std::vector<GURL>& urls) {
-  client_->OnShimOpenedUrls(this, urls);
-}
-
-void AppShimHost::OpenAppWithOverrideUrl(const GURL& override_url) {
-  client_->OnShimOpenAppWithOverrideUrl(this, override_url);
 }
 
 base::FilePath AppShimHost::GetProfilePath() const {

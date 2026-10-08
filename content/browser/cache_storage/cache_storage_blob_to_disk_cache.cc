@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,10 @@
 
 #include "base/bind.h"
 #include "base/check_op.h"
-#include "base/task/sequenced_task_runner.h"
 #include "net/base/io_buffer.h"
 #include "storage/browser/quota/quota_manager_proxy.h"
 #include "third_party/blink/public/common/blob/blob_utils.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
+#include "url/origin.h"
 
 namespace content {
 
@@ -21,12 +20,12 @@ const int CacheStorageBlobToDiskCache::kBufferSize = 1024 * 512;
 
 CacheStorageBlobToDiskCache::CacheStorageBlobToDiskCache(
     scoped_refptr<storage::QuotaManagerProxy> quota_manager_proxy,
-    const blink::StorageKey& storage_key)
+    const url::Origin& origin)
     : handle_watcher_(FROM_HERE,
                       mojo::SimpleWatcher::ArmingPolicy::MANUAL,
-                      base::SequencedTaskRunner::GetCurrentDefault()),
+                      base::SequencedTaskRunnerHandle::Get()),
       quota_manager_proxy_(std::move(quota_manager_proxy)),
-      storage_key_(storage_key) {}
+      origin_(origin) {}
 
 CacheStorageBlobToDiskCache::~CacheStorageBlobToDiskCache() = default;
 
@@ -50,7 +49,7 @@ void CacheStorageBlobToDiskCache::StreamBlobToCache(
 
   mojo::ScopedDataPipeProducerHandle producer_handle;
   MojoResult rv =
-      mojo::CreateDataPipe(&options, producer_handle, consumer_handle_);
+      mojo::CreateDataPipe(&options, &producer_handle, &consumer_handle_);
   if (rv != MOJO_RESULT_OK) {
     std::move(callback).Run(std::move(entry), false /* success */);
     return;
@@ -95,7 +94,7 @@ void CacheStorageBlobToDiskCache::ReadFromBlob() {
 void CacheStorageBlobToDiskCache::DidWriteDataToEntry(int expected_bytes,
                                                       int rv) {
   if (rv != expected_bytes) {
-    quota_manager_proxy_->NotifyWriteFailed(storage_key_);
+    quota_manager_proxy_->NotifyWriteFailed(origin_);
     RunCallback(false /* success */);
     return;
   }

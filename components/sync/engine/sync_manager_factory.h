@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 
 namespace network {
 class NetworkConnectionTracker;
@@ -21,19 +21,17 @@ class SyncManager;
 // Helper class to allow dependency injection of the SyncManager in tests.
 class SyncManagerFactory {
  public:
-  explicit SyncManagerFactory(
+  SyncManagerFactory(
       network::NetworkConnectionTracker* network_connection_tracker);
-
-  SyncManagerFactory(const SyncManagerFactory&) = delete;
-  SyncManagerFactory& operator=(const SyncManagerFactory&) = delete;
-
   virtual ~SyncManagerFactory();
 
   virtual std::unique_ptr<SyncManager> CreateSyncManager(
       const std::string& name);
 
  private:
-  raw_ptr<network::NetworkConnectionTracker> network_connection_tracker_;
+  network::NetworkConnectionTracker* network_connection_tracker_;
+
+  DISALLOW_COPY_AND_ASSIGN(SyncManagerFactory);
 };
 
 }  // namespace syncer

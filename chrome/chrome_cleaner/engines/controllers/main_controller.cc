@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,15 +12,13 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/command_line.h"
 #include "base/logging.h"
 #include "base/process/process_handle.h"
 #include "base/process/process_metrics.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/threading/simple_thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "chrome/chrome_cleaner/components/component_manager.h"
 #include "chrome/chrome_cleaner/constants/chrome_cleaner_switches.h"
@@ -45,8 +43,9 @@
 namespace chrome_cleaner {
 
 namespace {
-const base::TimeDelta kUserResponseWatchdogTimeout = base::Hours(2);
-const base::TimeDelta kCleanerWatchdogTimeout = base::Hours(2);
+const base::TimeDelta kUserResponseWatchdogTimeout =
+    base::TimeDelta::FromHours(2);
+const base::TimeDelta kCleanerWatchdogTimeout = base::TimeDelta::FromHours(2);
 
 // Log memory usage, CPU usage and various IO counters.
 void LogSystemResourceUsage() {
@@ -139,12 +138,10 @@ MainController::MainController(RebooterAPI* rebooter,
     // invalidated on object destruction, so it's not accessed once this
     // main controller object no longer exists.
     chrome_prompt_ipc->Initialize(new ChromePromptConnectionErrorHandler(
-        weak_factory_.GetWeakPtr(),
-        base::SingleThreadTaskRunner::GetCurrentDefault()));
-    main_dialog_ =
-        std::make_unique<ChromeProxyMainDialog>(this, chrome_prompt_ipc);
+        weak_factory_.GetWeakPtr(), base::ThreadTaskRunnerHandle::Get()));
+    main_dialog_.reset(new ChromeProxyMainDialog(this, chrome_prompt_ipc));
   } else if (execution_mode == ExecutionMode::kCleanup) {
-    main_dialog_ = std::make_unique<SilentMainDialog>(this);
+    main_dialog_.reset(new SilentMainDialog(this));
   } else {
     NOTREACHED();
   }
@@ -162,7 +159,7 @@ MainController::GetSandboxConnectionErrorCallback() {
   // Returns a callback bound with the current task runner and the weak pointer
   // of main controller.
   return base::BindRepeating(MainController::CallSandboxConnectionClosed,
-                             base::SequencedTaskRunner::GetCurrentDefault(),
+                             base::SequencedTaskRunnerHandle::Get(),
                              weak_factory_.GetWeakPtr());
 }
 
@@ -585,6 +582,7 @@ void MainController::UploadLogs(const std::wstring& tag, bool quit_when_done) {
   logging_service->MaybeSaveLogsToFile(tag);
 
   if (Settings::GetInstance()->logs_upload_allowed()) {
+    LoggingServiceAPI* logging_service = LoggingServiceAPI::GetInstance();
     logging_service->SendLogsToSafeBrowsing(
         base::BindRepeating(&MainController::LogsUploadComplete,
                             base::Unretained(this), tag),

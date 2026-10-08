@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,9 @@
 #define EXTENSIONS_BROWSER_MOJO_KEEP_ALIVE_IMPL_H_
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
 #include "extensions/browser/process_manager.h"
@@ -31,9 +32,6 @@ class KeepAliveImpl : public KeepAlive,
                       public ExtensionRegistryObserver,
                       public ProcessManagerObserver {
  public:
-  KeepAliveImpl(const KeepAliveImpl&) = delete;
-  KeepAliveImpl& operator=(const KeepAliveImpl&) = delete;
-
   // Create a keep alive for |extension| running in |context| and connect it to
   // |receiver|. When the receiver closes its pipe, the keep alive ends.
   static void Create(content::BrowserContext* browser_context,
@@ -59,13 +57,15 @@ class KeepAliveImpl : public KeepAlive,
   // Invoked when the mojo connection is disconnected.
   void OnDisconnected();
 
-  raw_ptr<content::BrowserContext> context_;
-  raw_ptr<const Extension> extension_;
-  base::ScopedObservation<ExtensionRegistry, ExtensionRegistryObserver>
-      extension_registry_observation_{this};
+  content::BrowserContext* context_;
+  const Extension* extension_;
+  ScopedObserver<ExtensionRegistry, ExtensionRegistryObserver>
+      extension_registry_observer_{this};
   base::ScopedObservation<ProcessManager, ProcessManagerObserver>
       process_manager_observation_{this};
   mojo::Receiver<KeepAlive> receiver_;
+
+  DISALLOW_COPY_AND_ASSIGN(KeepAliveImpl);
 };
 
 }  // namespace extensions

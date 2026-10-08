@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,7 +33,9 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/platform_thread.h"
 #include "base/time/time.h"
+#include "base/values.h"
 #include "build/build_config.h"
+#include "build/chromeos_buildflags.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/chrome_result_codes.h"
 #include "chrome/common/chrome_version.h"
@@ -60,15 +62,13 @@
 #include "third_party/zlib/google/zip.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include "chrome/test/chromedriver/keycode_text_conversion.h"
-
-#include <windows.h>
 #endif
 
 namespace {
@@ -76,7 +76,6 @@ namespace {
 const char* const kCommonSwitches[] = {
     embedder_support::kDisablePopupBlocking,
     "enable-automation",
-    "allow-pre-commit-input",
 };
 
 const char* const kDesktopSwitches[] = {
@@ -99,7 +98,7 @@ const char* const kDesktopSwitches[] = {
     "no-service-autorun",
 };
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 const char* const kWindowsDesktopSwitches[] = {
     "disable-backgrounding-occluded-windows",
@@ -117,7 +116,7 @@ const base::FilePath::CharType kDevToolsActivePort[] =
 
 enum ChromeType { Remote, Desktop, Android, Replay };
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 // The values for kReadFD and kWriteFD come from
 // content/browser/devtools/devtools_pipe_handler.cc
 const int kReadFD = 3;
@@ -150,7 +149,7 @@ Status PrepareDesktopCommandLine(const Capabilities& capabilities,
     switches.SetUnparsedSwitch(common_switch);
   for (auto* desktop_switch : kDesktopSwitches)
     switches.SetUnparsedSwitch(desktop_switch);
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   for (auto* win_desktop_switch : kWindowsDesktopSwitches)
     switches.SetUnparsedSwitch(win_desktop_switch);
 #endif
@@ -190,17 +189,17 @@ Status PrepareDesktopCommandLine(const Capabilities& capabilities,
     LOG(WARNING) << "excluding remote-debugging-port switch is not supported";
   }
   if (switches.HasSwitch("user-data-dir")) {
-    base::FilePath::StringType user_data_dir_value =
-        switches.GetSwitchValueNative("user-data-dir");
-    if (user_data_dir_value.empty())
+    base::FilePath::StringType userDataDir =
+      switches.GetSwitchValueNative("user-data-dir");
+    if (userDataDir.empty())
       return Status(kInvalidArgument, "user data dir can not be empty");
-    *user_data_dir = base::FilePath(user_data_dir_value);
+    *user_data_dir = base::FilePath(userDataDir);
   } else {
     command.AppendArg("data:,");
     if (!user_data_dir_temp_dir->CreateUniqueTempDir())
       return Status(kUnknownError, "cannot create temp dir for user data dir");
     switches.SetSwitch("user-data-dir",
-                       user_data_dir_temp_dir->GetPath().AsUTF8Unsafe());
+                       user_data_dir_temp_dir->GetPath().value());
     *user_data_dir = user_data_dir_temp_dir->GetPath();
   }
 
@@ -233,18 +232,23 @@ Status PrepareDesktopCommandLine(const Capabilities& capabilities,
 Status WaitForDevToolsAndCheckVersion(
     const DevToolsEndpoint& endpoint,
     network::mojom::URLLoaderFactory* factory,
+    const SyncWebSocketFactory& socket_factory,
     const Capabilities* capabilities,
     int wait_time,
     std::unique_ptr<DevToolsHttpClient>* user_client,
     bool* retry,
     ChromeType ct,
     std::string fp = "") {
+  std::unique_ptr<DeviceMetrics> device_metrics;
+  if (capabilities && capabilities->device_metrics)
+    device_metrics.reset(new DeviceMetrics(*capabilities->device_metrics));
+
   std::unique_ptr<std::set<WebViewInfo::Type>> window_types;
   if (capabilities && !capabilities->window_types.empty()) {
-    window_types = std::make_unique<std::set<WebViewInfo::Type>>(
-        capabilities->window_types);
+    window_types.reset(
+        new std::set<WebViewInfo::Type>(capabilities->window_types));
   } else {
-    window_types = std::make_unique<std::set<WebViewInfo::Type>>();
+    window_types.reset(new std::set<WebViewInfo::Type>());
   }
 
   std::unique_ptr<DevToolsHttpClient> client;
@@ -253,15 +257,19 @@ Status WaitForDevToolsAndCheckVersion(
     base::CommandLine::StringType log_path =
         cmd_line->GetSwitchValueNative("devtools-replay");
     base::FilePath log_file_path(log_path);
-    client = std::make_unique<ReplayHttpClient>(
-        endpoint, factory, std::move(window_types), log_file_path);
+    client.reset(
+        new ReplayHttpClient(endpoint, factory, socket_factory,
+                             std::move(device_metrics), std::move(window_types),
+                             capabilities->page_load_strategy, log_file_path));
   } else {
-    client = std::make_unique<DevToolsHttpClient>(endpoint, factory,
-                                                  std::move(window_types));
+    client.reset(new DevToolsHttpClient(
+        endpoint, factory, socket_factory, std::move(device_metrics),
+        std::move(window_types), capabilities->page_load_strategy));
   }
 
   const base::TimeTicks initial = base::TimeTicks::Now();
-  const base::TimeTicks deadline = initial + base::Seconds(wait_time);
+  const base::TimeTicks deadline =
+      initial + base::TimeDelta::FromSeconds(wait_time);
   Status status = client->Init(deadline - initial);
   if (status.IsError())
     return status;
@@ -323,7 +331,7 @@ Status WaitForDevToolsAndCheckVersion(
         return Status(kOk);
       }
     }
-    base::PlatformThread::Sleep(base::Milliseconds(50));
+    base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(50));
   } while (base::TimeTicks::Now() < deadline);
 
   return Status(kUnknownError, "unable to discover open pages");
@@ -341,9 +349,8 @@ Status CreateBrowserwideDevToolsClientAndConnect(
   if (url.length() == 0) {
     url = endpoint.GetBrowserDebuggerUrl();
   }
-  std::unique_ptr<DevToolsClient> client(
-      new DevToolsClientImpl(DevToolsClientImpl::kBrowserwideDevToolsClientId,
-                             "", url, socket_factory));
+  std::unique_ptr<DevToolsClient> client(new DevToolsClientImpl(
+      socket_factory, url, DevToolsClientImpl::kBrowserwideDevToolsClientId));
   for (const auto& listener : devtools_event_listeners) {
     // Only add listeners that subscribe to the browser-wide |DevToolsClient|.
     // Otherwise, listeners will think this client is associated with a webview,
@@ -376,8 +383,8 @@ Status LaunchRemoteChromeSession(
   std::unique_ptr<DevToolsHttpClient> devtools_http_client;
   bool retry = true;
   status = WaitForDevToolsAndCheckVersion(
-      DevToolsEndpoint(capabilities.debugger_address), factory, &capabilities,
-      60, &devtools_http_client, &retry, ChromeType::Remote);
+      DevToolsEndpoint(capabilities.debugger_address), factory, socket_factory,
+      &capabilities, 60, &devtools_http_client, &retry, ChromeType::Remote);
   if (status.IsError()) {
     return Status(
         kUnknownError,
@@ -398,20 +405,13 @@ Status LaunchRemoteChromeSession(
                  << status.message();
   }
 
-  std::unique_ptr<DeviceMetrics> device_metrics;
-  if (capabilities.device_metrics) {
-    device_metrics =
-        std::make_unique<DeviceMetrics>(*capabilities.device_metrics);
-  }
-
-  *chrome = std::make_unique<ChromeRemoteImpl>(
+  chrome->reset(new ChromeRemoteImpl(
       std::move(devtools_http_client), std::move(devtools_websocket_client),
-      std::move(devtools_event_listeners), std::move(device_metrics),
-      socket_factory, capabilities.page_load_strategy);
+      std::move(devtools_event_listeners), capabilities.page_load_strategy));
   return Status(kOk);
 }
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 Status PipeSetUp(base::LaunchOptions* options, int* write_fd, int* read_fd) {
   int chrome_to_driver_pipe_fds[2];
   int driver_to_chrome_pipe_fds[2];
@@ -477,13 +477,13 @@ Status LaunchDesktopChrome(network::mojom::URLLoaderFactory* factory,
 
   base::LaunchOptions options;
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_WIN) || defined(OS_POSIX) || defined(OS_FUCHSIA)
   // If minidump path is set in the capability, enable minidump for crashes.
   if (!capabilities.minidump_path.empty()) {
     VLOG(0) << "Minidump generation specified. Will save dumps to: "
             << capabilities.minidump_path;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     // EnvironmentMap uses wide string
     options.environment[L"CHROME_HEADLESS"] = L"1";
     options.environment[L"BREAKPAD_DUMP_LOCATION"] =
@@ -497,26 +497,28 @@ Status LaunchDesktopChrome(network::mojom::URLLoaderFactory* factory,
       command.AppendSwitch(kEnableCrashReport);
   }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   // We need to allow new privileges so that chrome's setuid sandbox can run.
   options.allow_new_privs = true;
 #endif
-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#endif  // OS_WIN || OS_POSIX || OS_FUCHSIA
 
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
   if (!capabilities.log_path.empty())
     options.environment["CHROME_LOG_FILE"] = capabilities.log_path;
   if (capabilities.detach)
     options.new_process_group = true;
 #endif
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 
+  bool uses_pipe = false;
   int write_fd;
   int read_fd;
 
   if (capabilities.switches.HasSwitch("remote-debugging-pipe")) {
-    PipeSetUp(&options, &write_fd, &read_fd);
+    uses_pipe = true;
+    Status status = PipeSetUp(&options, &write_fd, &read_fd);
   }
 
   base::ScopedFD devnull;
@@ -531,7 +533,7 @@ Status LaunchDesktopChrome(network::mojom::URLLoaderFactory* factory,
     options.fds_to_remap.push_back(
         std::make_pair(devnull.get(), STDERR_FILENO));
   }
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   if (enable_chrome_logs) {
     // On Windows, we must inherit the stdout/stderr handles, or the output from
     // the browser will not be part of our output and thus not capturable by
@@ -548,14 +550,7 @@ Status LaunchDesktopChrome(network::mojom::URLLoaderFactory* factory,
         "interpreted incorrectly";
 #endif
 
-#if BUILDFLAG(IS_MAC)
-  // Chrome is a third party process with respect to ChromeDriver. This allows
-  // Chrome to get its own permissions attributed on Mac instead of relying on
-  // ChromeDriver.
-  options.disclaim_responsibility = true;
-#endif  // BUILDFLAG(IS_MAC)
-
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   std::string command_string = base::WideToUTF8(command.GetCommandLineString());
 #else
   std::string command_string = command.GetCommandLineString();
@@ -574,7 +569,8 @@ Status LaunchDesktopChrome(network::mojom::URLLoaderFactory* factory,
   int exit_code;
   base::TerminationStatus chrome_status =
       base::TERMINATION_STATUS_STILL_RUNNING;
-  base::TimeTicks deadline = base::TimeTicks::Now() + base::Seconds(60);
+  base::TimeTicks deadline =
+      base::TimeTicks::Now() + base::TimeDelta::FromSeconds(60);
   while (base::TimeTicks::Now() < deadline) {
     if (!devtools_port) {
       status =
@@ -588,8 +584,9 @@ Status LaunchDesktopChrome(network::mojom::URLLoaderFactory* factory,
       std::ostringstream oss;
       oss << command.GetProgram();
       status = WaitForDevToolsAndCheckVersion(
-          DevToolsEndpoint(devtools_port), factory, &capabilities, 1,
-          &devtools_http_client, &retry, ChromeType::Desktop, oss.str());
+          DevToolsEndpoint(devtools_port), factory, socket_factory,
+          &capabilities, 1, &devtools_http_client, &retry, ChromeType::Desktop,
+          oss.str());
       if (!retry) {
         break;
       }
@@ -600,7 +597,7 @@ Status LaunchDesktopChrome(network::mojom::URLLoaderFactory* factory,
     // Check to see if Chrome has crashed.
     chrome_status = base::GetTerminationStatus(process.Handle(), &exit_code);
     if (chrome_status != base::TERMINATION_STATUS_STILL_RUNNING) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
       if (exit_code == chrome::RESULT_CODE_NORMAL_EXIT_PROCESS_NOTIFIED)
 #else
       if (WEXITSTATUS(exit_code) ==
@@ -636,13 +633,14 @@ Status LaunchDesktopChrome(network::mojom::URLLoaderFactory* factory,
           kChromeDriverProductShortName, kBrowserShortName));
       return failure_status;
     }
-    base::PlatformThread::Sleep(base::Milliseconds(50));
+    base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(50));
   }
 
   if (status.IsError()) {
     VLOG(0) << "Failed to connect to " << kBrowserShortName
             << ". Attempting to kill it.";
     if (!process.Terminate(0, true)) {
+      int exit_code;
       if (base::GetTerminationStatus(process.Handle(), &exit_code) ==
           base::TERMINATION_STATUS_STILL_RUNNING)
         return Status(kUnknownError,
@@ -663,25 +661,18 @@ Status LaunchDesktopChrome(network::mojom::URLLoaderFactory* factory,
                  << status.message();
   }
 
-  std::unique_ptr<DeviceMetrics> device_metrics;
-  if (capabilities.device_metrics) {
-    device_metrics =
-        std::make_unique<DeviceMetrics>(*capabilities.device_metrics);
-  }
-
   std::unique_ptr<ChromeDesktopImpl> chrome_desktop =
       std::make_unique<ChromeDesktopImpl>(
           std::move(devtools_http_client), std::move(devtools_websocket_client),
-          std::move(devtools_event_listeners), std::move(device_metrics),
-          socket_factory, capabilities.page_load_strategy, std::move(process),
-          command, &user_data_dir_temp_dir, &extension_dir,
+          std::move(devtools_event_listeners), capabilities.page_load_strategy,
+          std::move(process), command, &user_data_dir_temp_dir, &extension_dir,
           capabilities.network_emulation_enabled);
   if (!capabilities.extension_load_timeout.is_zero()) {
     for (size_t i = 0; i < extension_bg_pages.size(); ++i) {
       VLOG(0) << "Waiting for extension bg page load: "
               << extension_bg_pages[i];
       std::unique_ptr<WebView> web_view;
-      status = chrome_desktop->WaitForPageToLoad(
+      Status status = chrome_desktop->WaitForPageToLoad(
           extension_bg_pages[i], capabilities.extension_load_timeout, &web_view,
           w3c_compliant);
       if (status.IsError()) {
@@ -729,8 +720,7 @@ Status LaunchAndroidChrome(network::mojom::URLLoaderFactory* factory,
       capabilities.android_package, capabilities.android_activity,
       capabilities.android_process, capabilities.android_device_socket,
       capabilities.android_exec_name, switches.ToString(),
-      capabilities.android_use_running_app,
-      capabilities.android_keep_app_data_dir, &devtools_port);
+      capabilities.android_use_running_app, &devtools_port);
   if (status.IsError()) {
     device->TearDown();
     return status;
@@ -739,8 +729,8 @@ Status LaunchAndroidChrome(network::mojom::URLLoaderFactory* factory,
   std::unique_ptr<DevToolsHttpClient> devtools_http_client;
   bool retry = true;
   status = WaitForDevToolsAndCheckVersion(
-      DevToolsEndpoint(devtools_port), factory, &capabilities, 60,
-      &devtools_http_client, &retry, ChromeType::Android);
+      DevToolsEndpoint(devtools_port), factory, socket_factory, &capabilities,
+      60, &devtools_http_client, &retry, ChromeType::Android);
   if (status.IsError()) {
     device->TearDown();
     return status;
@@ -757,16 +747,10 @@ Status LaunchAndroidChrome(network::mojom::URLLoaderFactory* factory,
                  << status.message();
   }
 
-  std::unique_ptr<DeviceMetrics> device_metrics;
-  if (capabilities.device_metrics) {
-    device_metrics =
-        std::make_unique<DeviceMetrics>(*capabilities.device_metrics);
-  }
-
-  *chrome = std::make_unique<ChromeAndroidImpl>(
+  chrome->reset(new ChromeAndroidImpl(
       std::move(devtools_http_client), std::move(devtools_websocket_client),
-      std::move(devtools_event_listeners), std::move(device_metrics),
-      socket_factory, capabilities.page_load_strategy, std::move(device));
+      std::move(devtools_event_listeners), capabilities.page_load_strategy,
+      std::move(device)));
   return Status(kOk);
 }
 
@@ -791,7 +775,7 @@ Status LaunchReplayChrome(network::mojom::URLLoaderFactory* factory,
     }
   }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   if (!SwitchToUSKeyboardLayout())
     VLOG(0) << "Cannot switch to US keyboard layout - some keys may be "
                "interpreted incorrectly";
@@ -800,8 +784,8 @@ Status LaunchReplayChrome(network::mojom::URLLoaderFactory* factory,
   std::unique_ptr<DevToolsHttpClient> devtools_http_client;
   bool retry = true;
   status = WaitForDevToolsAndCheckVersion(
-      DevToolsEndpoint(0), factory, &capabilities, 1, &devtools_http_client,
-      &retry, ChromeType::Replay);
+      DevToolsEndpoint(0), factory, socket_factory, &capabilities, 1,
+      &devtools_http_client, &retry, ChromeType::Replay);
   if (status.IsError())
     return status;
   std::unique_ptr<DevToolsClient> devtools_websocket_client;
@@ -814,19 +798,11 @@ Status LaunchReplayChrome(network::mojom::URLLoaderFactory* factory,
     LOG(WARNING) << "Browser-wide DevTools client failed to connect: "
                  << status.message();
   }
-
-  std::unique_ptr<DeviceMetrics> device_metrics;
-  if (capabilities.device_metrics) {
-    device_metrics =
-        std::make_unique<DeviceMetrics>(*capabilities.device_metrics);
-  }
-
   base::Process dummy_process;
   std::unique_ptr<ChromeDesktopImpl> chrome_impl =
       std::make_unique<ChromeReplayImpl>(
           std::move(devtools_http_client), std::move(devtools_websocket_client),
-          std::move(devtools_event_listeners), std::move(device_metrics),
-          socket_factory, capabilities.page_load_strategy,
+          std::move(devtools_event_listeners), capabilities.page_load_strategy,
           std::move(dummy_process), command, &user_data_dir_temp_dir,
           &extension_dir, capabilities.network_emulation_enabled);
 
@@ -835,7 +811,7 @@ Status LaunchReplayChrome(network::mojom::URLLoaderFactory* factory,
       VLOG(0) << "Waiting for extension bg page load: "
               << extension_bg_pages[i];
       std::unique_ptr<WebView> web_view;
-      status = chrome_impl->WaitForPageToLoad(
+      Status status = chrome_impl->WaitForPageToLoad(
           extension_bg_pages[i], capabilities.extension_load_timeout, &web_view,
           w3c_compliant);
       if (status.IsError()) {
@@ -888,9 +864,9 @@ namespace internal {
 void ConvertHexadecimalToIDAlphabet(std::string* id) {
   for (size_t i = 0; i < id->size(); ++i) {
     int val;
-    if (base::HexStringToInt(
-            base::MakeStringPiece(id->begin() + i, id->begin() + i + 1),
-            &val)) {
+    if (base::HexStringToInt(base::StringPiece(id->begin() + i,
+                                               id->begin() + i + 1),
+                             &val)) {
       (*id)[i] = val + 'a';
     } else {
       (*id)[i] = 'a';
@@ -906,20 +882,20 @@ std::string GenerateExtensionId(const std::string& input) {
   return output;
 }
 
-Status GetExtensionBackgroundPage(const base::Value::Dict* manifest,
+Status GetExtensionBackgroundPage(const base::DictionaryValue* manifest,
                                   const std::string& id,
                                   std::string* bg_page) {
   std::string bg_page_name;
-  bool persistent =
-      manifest->FindBoolByDottedPath("background.persistent").value_or(true);
-  if (manifest->FindByDottedPath("background.scripts"))
+  bool persistent = true;
+  manifest->GetBoolean("background.persistent", &persistent);
+  const base::Value* unused_value;
+  if (manifest->Get("background.scripts", &unused_value))
     bg_page_name = "_generated_background_page.html";
-  if (const std::string* name_str = manifest->FindString("background.page"))
-    bg_page_name = *name_str;
+  manifest->GetString("background.page", &bg_page_name);
   if (bg_page_name.empty() || !persistent)
     return Status(kOk);
-  GURL base_url("chrome-extension://" + id + "/");
-  *bg_page = base_url.Resolve(bg_page_name).spec();
+  GURL baseUrl("chrome-extension://" + id + "/");
+  *bg_page = baseUrl.Resolve(bg_page_name).spec();
   return Status(kOk);
 }
 
@@ -957,10 +933,10 @@ Status ProcessExtension(const std::string& extension,
   std::string id;
 
   if (is_crx_file) {
-    crx_file::VerifierResult result = crx_file::Verify(
-        extension_crx, crx_file::VerifierFormat::CRX3,
-        {} /** required_key_hashes */, {} /** required_file_hash */,
-        &public_key_base64, &id, /*compressed_verified_contents=*/nullptr);
+    crx_file::VerifierResult result =
+        crx_file::Verify(extension_crx, crx_file::VerifierFormat::CRX3,
+                         {} /** required_key_hashes */,
+                         {} /** required_file_hash */, &public_key_base64, &id);
     if (result == crx_file::VerifierResult::ERROR_HEADER_INVALID) {
       return Status(kUnknownError,
                     "CRX verification failed to parse extension header. Chrome "
@@ -998,34 +974,33 @@ Status ProcessExtension(const std::string& extension,
     return Status(kUnknownError, "cannot read manifest");
   std::unique_ptr<base::Value> manifest_value =
       base::JSONReader::ReadDeprecated(manifest_data);
-  base::Value::Dict* manifest =
-      manifest_value ? manifest_value->GetIfDict() : nullptr;
-  if (!manifest)
+  base::DictionaryValue* manifest;
+  if (!manifest_value || !manifest_value->GetAsDictionary(&manifest))
     return Status(kUnknownError, "invalid manifest");
 
-  const std::string* manifest_key_base64 = manifest->FindString("key");
-  if (manifest_key_base64) {
+  std::string manifest_key_base64;
+  if (manifest->GetString("key", &manifest_key_base64)) {
     // If there is a key in both the header and the manifest, use the key in the
     // manifest. This allows chromedriver users users who generate dummy crxs
     // to set the manifest key and have a consistent ID.
     std::string manifest_key;
-    if (!base::Base64Decode(*manifest_key_base64, &manifest_key))
+    if (!base::Base64Decode(manifest_key_base64, &manifest_key))
       return Status(kUnknownError, "'key' in manifest is not base64 encoded");
     std::string manifest_id = GenerateExtensionId(manifest_key);
     if (id != manifest_id) {
       if (is_crx_file) {
         LOG(WARNING)
             << "Public key in crx header is different from key in manifest"
-            << std::endl
-            << "key from header:   " << public_key_base64 << std::endl
-            << "key from manifest: " << *manifest_key_base64 << std::endl
-            << "generated extension id from header key:   " << id << std::endl
-            << "generated extension id from manifest key: " << manifest_id;
+            << std::endl << "key from header:   " << public_key_base64
+            << std::endl << "key from manifest: " << manifest_key_base64
+            << std::endl << "generated extension id from header key:   " << id
+            << std::endl << "generated extension id from manifest key: "
+            << manifest_id;
       }
       id = manifest_id;
     }
   } else {
-    manifest->Set("key", public_key_base64);
+    manifest->SetString("key", public_key_base64);
     base::JSONWriter::Write(*manifest, &manifest_data);
     if (base::WriteFile(
             manifest_path, manifest_data.c_str(), manifest_data.size()) !=
@@ -1048,10 +1023,10 @@ Status ProcessExtension(const std::string& extension,
 
 void UpdateExtensionSwitch(Switches* switches,
                            const char name[],
-                           const std::string& extension) {
-  std::string value = switches->GetSwitchValue(name);
+                           const base::FilePath::StringType& extension) {
+  base::FilePath::StringType value = switches->GetSwitchValueNative(name);
   if (value.length())
-    value += ",";
+    value += FILE_PATH_LITERAL(",");
   value += extension;
   switches->SetSwitch(name, value);
 }
@@ -1061,7 +1036,7 @@ Status ProcessExtensions(const std::vector<std::string>& extensions,
                          Switches* switches,
                          std::vector<std::string>* bg_pages) {
   std::vector<std::string> bg_pages_tmp;
-  std::vector<std::string> extension_paths;
+  std::vector<base::FilePath::StringType> extension_paths;
   for (size_t i = 0; i < extensions.size(); ++i) {
     base::FilePath path;
     std::string bg_page;
@@ -1072,43 +1047,43 @@ Status ProcessExtensions(const std::vector<std::string>& extensions,
           base::StringPrintf("cannot process extension #%" PRIuS, i + 1),
           status);
     }
-    extension_paths.push_back(path.AsUTF8Unsafe());
+    extension_paths.push_back(path.value());
     if (bg_page.length())
       bg_pages_tmp.push_back(bg_page);
   }
 
   if (extension_paths.size()) {
-    std::string extension_paths_value = base::JoinString(extension_paths, ",");
+    base::FilePath::StringType extension_paths_value = base::JoinString(
+        extension_paths, base::FilePath::StringType(1, ','));
     UpdateExtensionSwitch(switches, "load-extension", extension_paths_value);
   }
   bg_pages->swap(bg_pages_tmp);
   return Status(kOk);
 }
 
-Status WritePrefsFile(const std::string& template_string,
-                      const base::Value::Dict* custom_prefs,
-                      const base::FilePath& path) {
-  auto parsed_json =
+Status WritePrefsFile(
+    const std::string& template_string,
+    const base::DictionaryValue* custom_prefs,
+    const base::FilePath& path) {
+  base::JSONReader::ValueWithError parsed_json =
       base::JSONReader::ReadAndReturnValueWithError(template_string);
-  if (!parsed_json.has_value()) {
+  base::DictionaryValue* prefs;
+  if (!parsed_json.value || !parsed_json.value->GetAsDictionary(&prefs)) {
     return Status(kUnknownError, "cannot parse internal JSON template: " +
-                                     parsed_json.error().message);
+                                     parsed_json.error_message);
   }
 
-  base::Value::Dict* prefs = parsed_json->GetIfDict();
-  if (!prefs)
-    return Status(kUnknownError, "malformed prefs dictionary");
-
   if (custom_prefs) {
-    for (const auto item : *custom_prefs) {
-      prefs->SetByDottedPath(item.first, item.second.Clone());
+    for (base::DictionaryValue::Iterator it(*custom_prefs); !it.IsAtEnd();
+         it.Advance()) {
+      prefs->Set(it.key(), std::make_unique<base::Value>(it.value().Clone()));
     }
   }
 
   std::string prefs_str;
   base::JSONWriter::Write(*prefs, &prefs_str);
   VLOG(0) << "Populating " << path.BaseName().value()
-          << " file: " << PrettyPrintValue(base::Value(prefs->Clone()));
+          << " file: " << PrettyPrintValue(*prefs);
   if (static_cast<int>(prefs_str.length()) != base::WriteFile(
           path, prefs_str.c_str(), prefs_str.length())) {
     return Status(kUnknownError, "failed to write prefs file");
@@ -1116,9 +1091,10 @@ Status WritePrefsFile(const std::string& template_string,
   return Status(kOk);
 }
 
-Status PrepareUserDataDir(const base::FilePath& user_data_dir,
-                          const base::Value::Dict* custom_prefs,
-                          const base::Value::Dict* custom_local_state) {
+Status PrepareUserDataDir(
+    const base::FilePath& user_data_dir,
+    const base::DictionaryValue* custom_prefs,
+    const base::DictionaryValue* custom_local_state) {
   base::FilePath default_dir =
       user_data_dir.AppendASCII(chrome::kInitialProfile);
   if (!base::CreateDirectory(default_dir))
@@ -1213,12 +1189,12 @@ std::string GetTerminationReason(base::TerminationStatus status) {
     case base::TERMINATION_STATUS_ABNORMAL_TERMINATION:
       return "exited abnormally";
     case base::TERMINATION_STATUS_PROCESS_WAS_KILLED:
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS) || BUILDFLAG(IS_LACROS)
     case base::TERMINATION_STATUS_PROCESS_WAS_KILLED_BY_OOM:
 #endif
     case base::TERMINATION_STATUS_OOM:
       return "was killed";
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
     case base::TERMINATION_STATUS_OOM_PROTECTED:
       return "protected from oom";
 #endif
@@ -1226,7 +1202,7 @@ std::string GetTerminationReason(base::TerminationStatus status) {
       return "crashed";
     case base::TERMINATION_STATUS_LAUNCH_FAILED:
       return "failed to launch";
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     case base::TERMINATION_STATUS_INTEGRITY_FAILURE:
       return "integrity failure";
 #endif

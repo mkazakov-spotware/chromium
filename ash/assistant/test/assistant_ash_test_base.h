@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,8 @@
 #include "ash/assistant/model/assistant_ui_model.h"
 #include "ash/assistant/test/mocked_assistant_interaction.h"
 #include "ash/test/ash_test_base.h"
-#include "chromeos/ash/services/assistant/public/cpp/assistant_prefs.h"
+#include "base/macros.h"
+#include "chromeos/services/assistant/public/cpp/assistant_prefs.h"
 
 namespace aura {
 class Window;
@@ -25,32 +26,27 @@ class Widget;
 }  // namespace views
 
 namespace ash {
-namespace assistant {
-class ScopedAssistantBrowserDelegate;
-}
 
 class AppListView;
 class AssistantOnboardingSuggestionView;
 class AssistantTestApi;
 class SuggestionChipView;
+class TestAssistantClient;
 class TestAssistantService;
 class TestAssistantSetup;
-class TestAshWebViewFactory;
+class TestAssistantWebViewFactory;
 
 // Helper class to make testing the Assistant Ash UI easier.
 class AssistantAshTestBase : public AshTestBase {
  public:
-  using AssistantEntryPoint = assistant::AssistantEntryPoint;
-  using AssistantExitPoint = assistant::AssistantExitPoint;
-  using AssistantOnboardingMode = assistant::prefs::AssistantOnboardingMode;
-  using ConsentStatus = assistant::prefs::ConsentStatus;
+  using AssistantEntryPoint = chromeos::assistant::AssistantEntryPoint;
+  using AssistantExitPoint = chromeos::assistant::AssistantExitPoint;
+  using AssistantOnboardingMode =
+      chromeos::assistant::prefs::AssistantOnboardingMode;
+  using ConsentStatus = chromeos::assistant::prefs::ConsentStatus;
 
   AssistantAshTestBase();
   explicit AssistantAshTestBase(base::test::TaskEnvironment::TimeSource time);
-
-  AssistantAshTestBase(const AssistantAshTestBase&) = delete;
-  AssistantAshTestBase& operator=(const AssistantAshTestBase&) = delete;
-
   ~AssistantAshTestBase() override;
 
   // AshTestBase:
@@ -99,14 +95,16 @@ class AssistantAshTestBase : public AshTestBase {
   // Return true if the Assistant UI is visible.
   bool IsVisible();
 
+  // Return the actual displayed Assistant main view.
+  // Can only be used after |ShowAssistantUi| has been called.
+  views::View* main_view();
+
   // This is the top-level Assistant specific view.
   // Can only be used after |ShowAssistantUi| has been called.
-  // Exists for both bubble launcher and fullscreen launcher.
   views::View* page_view();
 
   // Return the app list view hosting the Assistant page view.
   // Can only be used after |ShowAssistantUi| has been called.
-  // Only exists for fullscreen launcher.
   AppListView* app_list_view();
 
   // Return the root view hosting the Assistant page view.
@@ -141,9 +139,9 @@ class AssistantAshTestBase : public AshTestBase {
   void ClickOnAndWait(const views::View* view,
                       bool check_if_view_can_process_events = true);
 
-  // Return the current interaction. Returns |absl::nullopt| if no interaction
+  // Return the current interaction. Returns |base::nullopt| if no interaction
   // is in progress.
-  absl::optional<ash::assistant::AssistantInteractionMetadata>
+  base::Optional<chromeos::assistant::AssistantInteractionMetadata>
   current_interaction();
 
   // Create a new App window, and activate it.
@@ -209,12 +207,14 @@ class AssistantAshTestBase : public AshTestBase {
 
   std::unique_ptr<AssistantTestApi> test_api_;
   std::unique_ptr<TestAssistantSetup> test_setup_;
-  std::unique_ptr<TestAshWebViewFactory> test_web_view_factory_;
+  std::unique_ptr<TestAssistantWebViewFactory> test_web_view_factory_;
 
   std::vector<std::unique_ptr<aura::Window>> windows_;
   std::vector<std::unique_ptr<views::Widget>> widgets_;
 
-  std::unique_ptr<assistant::ScopedAssistantBrowserDelegate> delegate_;
+  std::unique_ptr<TestAssistantClient> assistant_client_;
+
+  DISALLOW_COPY_AND_ASSIGN(AssistantAshTestBase);
 };
 
 }  // namespace ash

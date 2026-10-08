@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.app.video_tutorials;
 
 import android.content.Context;
 import android.content.Intent;
+import android.os.Handler;
 import android.view.ViewStub;
 
 import androidx.annotation.VisibleForTesting;
@@ -13,6 +14,9 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.base.Callback;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.image_fetcher.ImageFetcher;
+import org.chromium.chrome.browser.image_fetcher.ImageFetcherConfig;
+import org.chromium.chrome.browser.image_fetcher.ImageFetcherFactory;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.video_tutorials.FeatureType;
 import org.chromium.chrome.browser.video_tutorials.Tutorial;
@@ -20,13 +24,8 @@ import org.chromium.chrome.browser.video_tutorials.VideoTutorialService;
 import org.chromium.chrome.browser.video_tutorials.VideoTutorialServiceFactory;
 import org.chromium.chrome.browser.video_tutorials.iph.VideoIPHCoordinator;
 import org.chromium.chrome.browser.video_tutorials.iph.VideoTutorialIPHUtils;
-import org.chromium.chrome.browser.video_tutorials.metrics.VideoTutorialMetrics;
-import org.chromium.chrome.browser.video_tutorials.metrics.VideoTutorialMetrics.UserAction;
 import org.chromium.components.browser_ui.util.GlobalDiscardableReferencePool;
 import org.chromium.components.feature_engagement.Tracker;
-import org.chromium.components.image_fetcher.ImageFetcher;
-import org.chromium.components.image_fetcher.ImageFetcherConfig;
-import org.chromium.components.image_fetcher.ImageFetcherFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +37,13 @@ import java.util.List;
  * dismissed.
  */
 public class NewTabPageVideoIPHManager {
+    /**
+     * Delay between user tapping a card and card being dismissed, so that the card doesn't dismiss
+     * before the video player activity launches.
+     */
+    private static final int CARD_HIDE_ANIMATION_DURATION_MS = 500;
+
+    private final Handler mHandler = new Handler();
     private Context mContext;
     private Tracker mTracker;
     private VideoIPHCoordinator mVideoIPHCoordinator;
@@ -79,8 +85,6 @@ public class NewTabPageVideoIPHManager {
             String featureName = VideoTutorialIPHUtils.getFeatureNameForNTP(tutorial.featureType);
             if (featureName == null) continue;
             if (mTracker.shouldTriggerHelpUI(featureName)) {
-                VideoTutorialMetrics.recordUserAction(
-                        tutorial.featureType, UserAction.IPH_NTP_SHOWN);
                 mVideoIPHCoordinator.showVideoIPH(tutorial);
                 mTracker.dismissed(featureName);
                 break;
@@ -91,19 +95,19 @@ public class NewTabPageVideoIPHManager {
     private void onClickIPH(Tutorial tutorial) {
         // TODO(shaktisahu): Maybe collect this event when video has been halfway watched.
         mTracker.notifyEvent(VideoTutorialIPHUtils.getClickEvent(tutorial.featureType));
-        VideoTutorialMetrics.recordUserAction(tutorial.featureType, UserAction.IPH_NTP_CLICKED);
 
         // Bring up the player and start playing the video.
         if (tutorial.featureType == FeatureType.SUMMARY) {
             launchTutorialListActivity();
         } else {
             launchVideoPlayer(tutorial);
+            mHandler.postDelayed(
+                    mVideoIPHCoordinator::hideVideoIPH, CARD_HIDE_ANIMATION_DURATION_MS);
         }
     }
 
     private void onDismissIPH(Tutorial tutorial) {
         mTracker.notifyEvent(VideoTutorialIPHUtils.getDismissEvent(tutorial.featureType));
-        VideoTutorialMetrics.recordUserAction(tutorial.featureType, UserAction.IPH_NTP_DISMISSED);
 
         // TODO(shaktisahu): Animate this. Maybe add a delay.
         mVideoTutorialService.getTutorials(this::onFetchTutorials);
@@ -124,7 +128,7 @@ public class NewTabPageVideoIPHManager {
     @VisibleForTesting
     protected ImageFetcher createImageFetcher(Profile profile) {
         return ImageFetcherFactory.createImageFetcher(ImageFetcherConfig.IN_MEMORY_WITH_DISK_CACHE,
-                profile.getProfileKey(), GlobalDiscardableReferencePool.getReferencePool());
+                profile, GlobalDiscardableReferencePool.getReferencePool());
     }
 
     @VisibleForTesting

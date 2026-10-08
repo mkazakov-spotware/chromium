@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include <vector>
 
-#include "ash/app_list/app_list_controller_impl.h"
+#include "ash/home_screen/home_screen_controller.h"
 #include "ash/public/cpp/window_backdrop.h"
 #include "ash/public/cpp/window_properties.h"
 #include "ash/root_window_controller.h"
@@ -55,7 +55,7 @@ TabletModeBrowserWindowDragSessionWindowsHider::
   }
 
   // Hide the home launcher if it's enabled during dragging.
-  Shell::Get()->app_list_controller()->OnWindowDragStarted();
+  Shell::Get()->home_screen_controller()->OnWindowDragStarted();
 
   // Blurs the wallpaper background.
   RootWindowController::ForWindow(root_window_)
@@ -81,7 +81,7 @@ TabletModeBrowserWindowDragSessionWindowsHider::
   DCHECK(!Shell::Get()->overview_controller()->InOverviewSession());
 
   // May reshow the home launcher after dragging.
-  Shell::Get()->app_list_controller()->OnWindowDragEnded(
+  Shell::Get()->home_screen_controller()->OnWindowDragEnded(
       /*animate=*/false);
 
   // Clears the background wallpaper blur.
@@ -103,9 +103,7 @@ void TabletModeBrowserWindowDragSessionWindowsHider::OnWindowDestroying(
 void TabletModeBrowserWindowDragSessionWindowsHider::OnWindowVisibilityChanged(
     aura::Window* window,
     bool visible) {
-  // The window object is not necessarily the one that is being observed.
-  // So we only take action if the window is currently being observed.
-  if (window_visibility_map_.count(window) == 0)
+  if (window == source_window_)
     return;
 
   if (visible) {
@@ -117,11 +115,6 @@ void TabletModeBrowserWindowDragSessionWindowsHider::OnWindowVisibilityChanged(
   }
   // else do nothing. It must come from Hide() function above thus should be
   // ignored.
-}
-
-int TabletModeBrowserWindowDragSessionWindowsHider::
-    GetWindowVisibilityMapSizeForTesting() const {
-  return window_visibility_map_.size();
 }
 
 }  // namespace ash

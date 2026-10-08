@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,14 +23,18 @@ const int kMaxCrashDumps = 10;
 
 uint32_t LockFlags(gfx::BufferUsage usage) {
   switch (usage) {
+    case gfx::BufferUsage::GPU_READ_CPU_READ_WRITE:
+    case gfx::BufferUsage::SCANOUT_VEA_READ_CAMERA_AND_CPU_READ_WRITE:
+      // The AvoidSync call has the property that it will not preserve the
+      // previous contents of the buffer if those contents were written by a
+      // GPU.
+      return kIOSurfaceLockAvoidSync;
     case gfx::BufferUsage::SCANOUT_VEA_CPU_READ:
       // This constant is used for buffers used by video capture. On macOS,
       // these buffers are only ever written to in the capture process,
       // directly as IOSurfaces.
       // Once they are sent to other processes, no CPU writes are performed.
       return kIOSurfaceLockReadOnly;
-    case gfx::BufferUsage::GPU_READ_CPU_READ_WRITE:
-    case gfx::BufferUsage::VEA_READ_CAMERA_AND_CPU_READ_WRITE:
     case gfx::BufferUsage::GPU_READ:
     case gfx::BufferUsage::SCANOUT:
     case gfx::BufferUsage::SCANOUT_CAMERA_READ_WRITE:
@@ -38,7 +42,6 @@ uint32_t LockFlags(gfx::BufferUsage usage) {
     case gfx::BufferUsage::SCANOUT_CPU_READ_WRITE:
     case gfx::BufferUsage::SCANOUT_VDA_WRITE:
     case gfx::BufferUsage::PROTECTED_SCANOUT_VDA_WRITE:
-    case gfx::BufferUsage::SCANOUT_FRONT_RENDERING:
       return 0;
   }
   NOTREACHED();
@@ -110,27 +113,23 @@ base::OnceClosure GpuMemoryBufferImplIOSurface::AllocateForTesting(
 }
 
 bool GpuMemoryBufferImplIOSurface::Map() {
-  base::AutoLock auto_lock(map_lock_);
-  if (map_count_++)
-    return true;
-
+  DCHECK(!mapped_);
   IOReturn status = IOSurfaceLock(io_surface_, lock_flags_, nullptr);
-  DCHECK_NE(status, kIOReturnCannotLock) << " lock_flags_: " << lock_flags_;
+  DCHECK_NE(status, kIOReturnCannotLock);
+  mapped_ = true;
   return true;
 }
 
 void* GpuMemoryBufferImplIOSurface::memory(size_t plane) {
-  AssertMapped();
+  DCHECK(mapped_);
   DCHECK_LT(plane, gfx::NumberOfPlanesForLinearBufferFormat(format_));
   return IOSurfaceGetBaseAddressOfPlane(io_surface_, plane);
 }
 
 void GpuMemoryBufferImplIOSurface::Unmap() {
-  base::AutoLock auto_lock(map_lock_);
-  DCHECK_GT(map_count_, 0u);
-  if (--map_count_)
-    return;
+  DCHECK(mapped_);
   IOSurfaceUnlock(io_surface_, lock_flags_, nullptr);
+  mapped_ = false;
 }
 
 int GpuMemoryBufferImplIOSurface::stride(size_t plane) const {

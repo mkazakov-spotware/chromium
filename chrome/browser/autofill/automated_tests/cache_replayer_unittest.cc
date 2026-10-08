@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,6 @@
 #include "base/strings/string_util.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "components/autofill/core/browser/proto/api_v1.pb.h"
 #include "components/autofill/core/browser/proto/server.pb.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/zlib/google/compression_utils.h"
@@ -29,7 +28,7 @@ namespace {
 
 // Only run these tests on Linux because there are issues with other platforms.
 // Testing on one platform gives enough confidence.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 
 using base::JSONWriter;
 using base::Value;
@@ -79,6 +78,7 @@ RequestResponsePair MakeQueryRequestResponsePair(
       query_form->add_fields()->set_signature(field.signature);
       auto* response_field = response_form->add_field_suggestions();
       response_field->set_field_signature(field.signature);
+      response_field->set_primary_type_prediction(field.prediction);
       response_field->add_predictions()->set_type(field.prediction);
     }
   }
@@ -87,7 +87,7 @@ RequestResponsePair MakeQueryRequestResponsePair(
 
 // Returns a query request URL. If |query| is not empty, the corresponding
 // query is encoded into the URL.
-bool MakeQueryRequestURL(const absl::optional<AutofillPageQueryRequest>& query,
+bool MakeQueryRequestURL(const base::Optional<AutofillPageQueryRequest>& query,
                          std::string* request_url) {
   if (!query.has_value()) {
     *request_url = CreateQueryUrl("");
@@ -117,19 +117,12 @@ bool MakeSerializedRequest(const AutofillPageQueryRequest& query,
                            std::string* request_url) {
   // Make body and query content for URL depending on the |type|.
   std::string body;
-  absl::optional<AutofillPageQueryRequest> query_for_url;
+  base::Optional<AutofillPageQueryRequest> query_for_url;
   if (type == RequestType::kQueryProtoGET) {
     query_for_url = std::move(query);
   } else {
-    std::string serialized_query;
-    std::string encoded_query;
-    query.SerializeToString(&serialized_query);
-    base::Base64Encode(serialized_query, &encoded_query);
-    // Wrap query payload in a request proto to interface with API Query method.
-    AutofillPageResourceQueryRequest request;
-    request.set_serialized_request(encoded_query);
-    request.SerializeToString(&body);
-    query_for_url = absl::nullopt;
+    query.SerializeToString(&body);
+    query_for_url = base::nullopt;
   }
 
   // Make header according to query content for URL.
@@ -191,7 +184,7 @@ bool WriteJSON(const base::FilePath& file_path,
                const std::vector<RequestResponsePair>& request_response_pairs,
                RequestType request_type = RequestType::kQueryProtoPOST) {
   // Make json list node that contains all query requests.
-  base::Value::Dict urls_dict;
+  base::Value::DictStorage urls_dict;
   for (const auto& request_response_pair : request_response_pairs) {
     std::string serialized_request;
     std::string url;
@@ -200,34 +193,32 @@ bool WriteJSON(const base::FilePath& file_path,
       return false;
     }
 
-    Value::Dict request_response_node;
-    request_response_node.Set("SerializedRequest",
-                              std::move(serialized_request));
-    request_response_node.Set(
+    Value::DictStorage request_response_node;
+    request_response_node.emplace("SerializedRequest",
+                                  std::move(serialized_request));
+    request_response_node.emplace(
         "SerializedResponse",
         MakeSerializedResponse(request_response_pair.second));
     // Populate json dict node that contains Autofill Server requests per URL.
     // This will construct an empty list for `url` if it didn't exist already.
-    if (!urls_dict.contains(url))
-      urls_dict.Set(url, base::Value::List());
-    urls_dict.FindList(url)->Append(std::move(request_response_node));
+    auto& url_list = urls_dict.emplace(url, Value::Type::LIST).first->second;
+    url_list.Append(Value(std::move(request_response_node)));
   }
 
   // Make json dict node that contains requests per domain.
-  base::Value::Dict domains_dict;
-  domains_dict.Set(kHostname, base::Value(std::move(urls_dict)));
+  base::Value::DictStorage domains_dict;
+  domains_dict.emplace(kHostname, std::move(urls_dict));
 
   // Make json root dict.
-  base::Value::Dict root_dict;
-  root_dict.Set("Requests", std::move(domains_dict));
+  base::Value::DictStorage root_dict;
+  root_dict.emplace("Requests", std::move(domains_dict));
 
   // Write content to JSON file.
   return WriteJSONNode(file_path, Value(std::move(root_dict)));
 }
 
-// TODO(https://crbug.com/1212151): The test flakily times out.
 TEST(AutofillCacheReplayerDeathTest,
-     DISABLED_ServerCacheReplayerConstructor_CrashesWhenNoDomainNode) {
+     ServerCacheReplayerConstructor_CrashesWhenNoDomainNode) {
   // Make death test threadsafe.
   testing::FLAGS_gtest_death_test_style = "threadsafe";
 
@@ -298,31 +289,31 @@ TEST_P(
   // Make JSON content.
 
   // Make json list node that contains the problematic query request.
-  Value::Dict request_response_node;
+  Value::DictStorage request_response_node;
   // Put some textual content for HTTP request. Content does not matter because
   // the Query content will be parsed from the URL that corresponds to the
   // dictionary key.
-  request_response_node.Set(
+  request_response_node.emplace(
       "SerializedRequest", base::StrCat({"GET ", CreateQueryUrl("1234").c_str(),
                                          " HTTP/1.1\r\n\r\n"}));
-  request_response_node.Set("SerializedResponse",
-                            MakeSerializedResponse(AutofillQueryResponse()));
+  request_response_node.emplace(
+      "SerializedResponse", MakeSerializedResponse(AutofillQueryResponse()));
 
-  base::Value::List url_list;
-  url_list.Append(std::move(request_response_node));
+  base::Value::ListStorage url_list;
+  url_list.emplace_back(std::move(request_response_node));
 
   // Populate json dict node that contains Autofill Server requests per URL.
-  base::Value::Dict urls_dict;
+  base::Value::DictStorage urls_dict;
   // The query parameter in the URL cannot be parsed to a proto because
   // parameter value is in invalid format.
-  urls_dict.Set(CreateQueryUrl(GetParam()), std::move(url_list));
+  urls_dict.emplace(CreateQueryUrl(GetParam()), std::move(url_list));
 
   // Make json dict node that contains requests per domain.
-  base::Value::Dict domains_dict;
-  domains_dict.Set(kHostname, std::move(urls_dict));
+  base::Value::DictStorage domains_dict;
+  domains_dict.emplace(kHostname, std::move(urls_dict));
   // Make json root dict.
-  base::Value::Dict root_dict;
-  root_dict.Set("Requests", std::move(domains_dict));
+  base::Value::DictStorage root_dict;
+  root_dict.emplace("Requests", std::move(domains_dict));
   // Write content to JSON file.
   ASSERT_TRUE(WriteJSONNode(file_path, Value(std::move(root_dict))));
 
@@ -477,18 +468,21 @@ TEST(AutofillCacheReplayerTest, ProtobufConversion) {
     auto* form1 = api_response.add_form_suggestions();
     auto* field101 = form1->add_field_suggestions();
     field101->set_field_signature(101);
+    field101->set_primary_type_prediction(101);
     field101->add_predictions()->set_type(101);
     field101->add_predictions()->set_type(1010);
     field101->set_may_use_prefilled_placeholder(true);
     // Todo: Password requirements
     auto* field102 = form1->add_field_suggestions();
     field102->set_field_signature(102);
+    field102->set_primary_type_prediction(102);
     field102->add_predictions()->set_type(102);
     field102->set_may_use_prefilled_placeholder(false);
 
     auto* form2 = api_response.add_form_suggestions();
     auto* field201 = form2->add_field_suggestions();
     field201->set_field_signature(201);
+    field201->set_primary_type_prediction(201);
     field201->add_predictions()->set_type(201);
   }
 
@@ -663,11 +657,12 @@ std::vector<bool> DoFormsMatch(const AutofillQueryResponse& response,
       }
       if (expected_field.prediction !=
           static_cast<unsigned int>(
-              response_form.field_suggestions(j).predictions(0).type())) {
-        LOG(ERROR) << "Expected field " << j << " of form " << i
-                   << " to have primary type prediction "
-                   << expected_field.prediction << " but got "
-                   << response_form.field_suggestions(j).predictions(0).type();
+              response_form.field_suggestions(j).primary_type_prediction())) {
+        LOG(ERROR)
+            << "Expected field " << j << " of form " << i
+            << " to have primary type prediction " << expected_field.prediction
+            << " but got "
+            << response_form.field_suggestions(j).primary_type_prediction();
         found_all_fields = false;
       }
     }
@@ -778,7 +773,7 @@ TEST(AutofillCacheReplayerTest, CrossEnvironmentIntegrationTest) {
   EXPECT_EQ(std::vector<bool>(),
             CheckFormsInCache(form_split_cache_replayer, {form5}));
 }
-#endif  // if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // if defined(OS_LINUX) || defined(OS_CHROMEOS)
 }  // namespace
 }  // namespace test
 }  // namespace autofill

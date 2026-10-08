@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "gles2_impl_export.h"
 #include "gpu/command_buffer/common/gles2_cmd_format.h"
 
@@ -84,17 +84,13 @@ class GLES2_IMPL_EXPORT BufferTracker {
     unsigned int size_;
     int32_t shm_id_;
     uint32_t shm_offset_;
-    raw_ptr<void> address_;
+    void* address_;
     bool mapped_;
     int32_t last_usage_token_;
     GLuint last_async_upload_token_;
   };
 
   BufferTracker(MappedMemoryManager* manager);
-
-  BufferTracker(const BufferTracker&) = delete;
-  BufferTracker& operator=(const BufferTracker&) = delete;
-
   ~BufferTracker();
 
   Buffer* CreateBuffer(GLuint id, GLsizeiptr size);
@@ -110,8 +106,10 @@ class GLES2_IMPL_EXPORT BufferTracker {
  private:
   typedef std::unordered_map<GLuint, Buffer*> BufferMap;
 
-  raw_ptr<MappedMemoryManager> mapped_memory_;
+  MappedMemoryManager* mapped_memory_;
   BufferMap buffers_;
+
+  DISALLOW_COPY_AND_ASSIGN(BufferTracker);
 };
 
 }  // namespace gles2

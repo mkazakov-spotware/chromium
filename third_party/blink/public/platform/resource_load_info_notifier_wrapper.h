@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "net/base/request_priority.h"
 #include "services/network/public/mojom/fetch_api.mojom-shared.h"
 #include "services/network/public/mojom/url_response_head.mojom-forward.h"
+#include "third_party/blink/public/common/loader/previews_state.h"
 #include "third_party/blink/public/mojom/loader/resource_load_info.mojom.h"
 #include "third_party/blink/public/platform/web_common.h"
 
@@ -41,7 +42,7 @@ class BLINK_PLATFORM_EXPORT ResourceLoadInfoNotifierWrapper {
       scoped_refptr<base::SingleThreadTaskRunner> task_runner);
   ~ResourceLoadInfoNotifierWrapper();
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   void NotifyUpdateUserGestureCarryoverInfo();
 #endif
   void NotifyResourceLoadInitiated(
@@ -55,7 +56,8 @@ class BLINK_PLATFORM_EXPORT ResourceLoadInfoNotifierWrapper {
       const net::RedirectInfo& redirect_info,
       network::mojom::URLResponseHeadPtr redirect_response);
   void NotifyResourceResponseReceived(
-      network::mojom::URLResponseHeadPtr response_head);
+      network::mojom::URLResponseHeadPtr response_head,
+      PreviewsState previews_state);
   void NotifyResourceTransferSizeUpdated(int32_t transfer_size_diff);
   void NotifyResourceLoadCompleted(
       const network::URLLoaderCompletionStatus& status);

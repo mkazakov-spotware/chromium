@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,7 @@ std::unique_ptr<content::WebContents>
 DeclarativeContentConditionTrackerTest::MakeTab() {
   std::unique_ptr<content::WebContents> tab(
       content::WebContentsTester::CreateTestWebContents(profile(), nullptr));
-  content::RenderFrameHostTester::For(tab->GetPrimaryMainFrame())
+  content::RenderFrameHostTester::For(tab->GetMainFrame())
       ->InitializeRenderFrameIfNeeded();
   return tab;
 }
@@ -37,19 +37,11 @@ content::MockRenderProcessHost*
 DeclarativeContentConditionTrackerTest::GetMockRenderProcessHost(
     content::WebContents* contents) {
   return static_cast<content::MockRenderProcessHost*>(
-      contents->GetPrimaryMainFrame()->GetProcess());
-}
-
-TestingProfile::TestingFactories
-DeclarativeContentConditionTrackerTest::GetTestingFactories() const {
-  return {};
+      contents->GetMainFrame()->GetProcess());
 }
 
 TestingProfile* DeclarativeContentConditionTrackerTest::profile() {
   if (!profile_) {
-    for (auto& pair : GetTestingFactories())
-      profile_builder_.AddTestingFactory(pair.first, pair.second);
-
     profile_ = profile_builder_.Build();
   }
   return profile_.get();

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,6 @@
 
 using GLXFBConfig = struct __GLXFBConfigRec*;
 
-namespace gfx {
-class NativePixmapDmaBuf;
-enum class BufferFormat;
-}  // namespace gfx
-
 namespace gl {
 
 GL_EXPORT GLXFBConfig GetFbConfigForWindow(x11::Connection* connection,
@@ -24,10 +19,6 @@ GL_EXPORT GLXFBConfig GetFbConfigForWindow(x11::Connection* connection,
 GL_EXPORT GLXFBConfig
 GetGlxFbConfigForXProtoFbConfig(x11::Connection* connection,
                                 x11::Glx::FbConfig xproto_config);
-
-GL_EXPORT x11::Pixmap XPixmapFromNativePixmap(
-    const gfx::NativePixmapDmaBuf& native_pixmap,
-    gfx::BufferFormat buffer_format);
 
 }  // namespace gl
 

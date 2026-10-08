@@ -2,8 +2,9 @@ import pytest
 
 from tests.support.asserts import assert_success
 from tests.support.image import png_dimensions
+from tests.support.inline import iframe, inline
 
-from . import viewport_dimensions
+from . import element_dimensions, viewport_dimensions
 
 DEFAULT_CONTENT = "<div id='content'>Lorem ipsum dolor sit amet.</div>"
 
@@ -62,7 +63,7 @@ def take_screenshot(session):
         "GET", "session/{session_id}/screenshot".format(**vars(session)))
 
 
-def test_always_captures_top_browsing_context(session, inline, iframe):
+def test_always_captures_top_browsing_context(session):
     iframe_content = "{0}{1}".format(INNER_IFRAME_STYLE, DEFAULT_CONTENT)
     session.url = inline("""{0}{1}""".format(OUTER_IFRAME_STYLE, iframe(iframe_content)))
 
@@ -81,7 +82,7 @@ def test_always_captures_top_browsing_context(session, inline, iframe):
 
 
 @pytest.mark.parametrize("domain", ["", "alt"], ids=["same_origin", "cross_origin"])
-def test_source_origin(session, inline, iframe, domain):
+def test_source_origin(session, domain):
     session.url = inline("{0}{1}".format(REFERENCE_STYLE, REFERENCE_CONTENT))
 
     response = take_screenshot(session)

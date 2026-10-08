@@ -1,17 +1,17 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/test/chromedriver/chrome/device_manager.h"
 
+#include <algorithm>
 #include <vector>
 
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/callback_helpers.h"
 #include "base/check.h"
-#include "base/containers/contains.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
@@ -33,7 +33,9 @@ Device::~Device() {
 
 // Only allow completely alpha exec names.
 bool IsValidExecName(const std::string& exec_name) {
-  return base::ranges::all_of(exec_name, &base::IsAsciiAlpha<char>);
+  return std::find_if_not(exec_name.begin(), exec_name.end(), [](char ch) {
+           return base::IsAsciiAlpha(ch);
+         }) == exec_name.end();
 }
 
 Status Device::SetUp(const std::string& package,
@@ -43,7 +45,6 @@ Status Device::SetUp(const std::string& package,
                      const std::string& exec_name,
                      const std::string& args,
                      bool use_running_app,
-                     bool keep_app_data_dir,
                      int* devtools_port) {
   if (!active_package_.empty())
     return Status(kUnknownError,
@@ -112,11 +113,9 @@ Status Device::SetUp(const std::string& package,
         return status;
     }
 
-    if (!keep_app_data_dir) {
-      status = adb_->ClearAppData(serial_, package);
-      if (status.IsError())
-        return status;
-    }
+    status = adb_->ClearAppData(serial_, package);
+    if (status.IsError())
+      return status;
 
     if (!known_activity.empty()) {
       if (!activity.empty() ||

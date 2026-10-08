@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html>
 <body>
-<select id="select">
+<select>
   <option selected>Apple</option>
   <option>Orange</option>
   <option>Banana</option>
 </select>
-<p>The above select element should have Apple focused.
+<script>
+document.querySelector('select').focus();
+</script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 
 namespace chromeos {
@@ -78,8 +79,8 @@ void ReadTemperaturesFromDirectory(const base::FilePath& hwmon_path,
        !temperature_path.empty(); temperature_path = enumerator.Next()) {
     CPUTemperatureInfo info;
     if (!ReadTemperatureFromPath(temperature_path, &info.temp_celsius)) {
-      DLOG(WARNING) << "Unable to read CPU temperature from "
-                    << temperature_path.value();
+      LOG(WARNING) << "Unable to read CPU temperature from "
+                   << temperature_path.value();
       continue;
     }
     // Get appropriate temp*_label file.

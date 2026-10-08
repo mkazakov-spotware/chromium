@@ -1,1 +1,3 @@
-mixins: "//components/arc/COMMON_METADATA"
+monorail {
+  component: "Platform>Apps>ARC"
+}

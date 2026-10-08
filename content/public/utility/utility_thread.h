@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define CONTENT_PUBLIC_UTILITY_UTILITY_THREAD_H_
 
 #include "build/build_config.h"
-#include "content/common/content_export.h"
 #include "content/public/child/child_thread.h"
 
 namespace content {
@@ -26,7 +25,7 @@ class CONTENT_EXPORT UtilityThread : virtual public ChildThread {
   // Initializes blink if it hasn't already been initialized.
   virtual void EnsureBlinkInitialized() = 0;
 
-#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID)
+#if defined(OS_POSIX) && !defined(OS_ANDROID)
   // Initializes blink with web sandbox support.
   virtual void EnsureBlinkInitializedWithSandboxSupport() = 0;
 #endif

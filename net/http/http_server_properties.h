@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,10 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/containers/lru_cache.h"
-#include "base/memory/raw_ptr.h"
+#include "base/containers/mru_cache.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -26,20 +27,20 @@
 #include "net/base/host_port_pair.h"
 #include "net/base/ip_address.h"
 #include "net/base/net_export.h"
-#include "net/base/network_anonymization_key.h"
+#include "net/base/network_isolation_key.h"
 #include "net/http/alternative_service.h"
 #include "net/http/broken_alternative_services.h"
-#include "net/third_party/quiche/src/quiche/quic/core/quic_bandwidth.h"
-#include "net/third_party/quiche/src/quiche/quic/core/quic_server_id.h"
-#include "net/third_party/quiche/src/quiche/quic/core/quic_versions.h"
-#include "net/third_party/quiche/src/quiche/spdy/core/spdy_framer.h"  // TODO(willchan): Reconsider this.
-#include "net/third_party/quiche/src/quiche/spdy/core/spdy_protocol.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "net/third_party/quiche/src/quic/core/quic_bandwidth.h"
+#include "net/third_party/quiche/src/quic/core/quic_server_id.h"
+#include "net/third_party/quiche/src/quic/core/quic_versions.h"
+#include "net/third_party/quiche/src/spdy/core/spdy_framer.h"  // TODO(willchan): Reconsider this.
+#include "net/third_party/quiche/src/spdy/core/spdy_protocol.h"
 #include "url/scheme_host_port.h"
 
 namespace base {
 class Clock;
 class TickClock;
+class Value;
 }
 
 namespace net {
@@ -110,12 +111,12 @@ class NET_EXPORT HttpServerProperties
 
     // Returns the branch of the preferences system for the server properties.
     // Returns nullptr if the pref system has no data for the server properties.
-    virtual const base::Value::Dict& GetServerProperties() const = 0;
+    virtual const base::Value* GetServerProperties() const = 0;
 
     // Sets the server properties to the given value. If |callback| is
     // non-empty, flushes data to persistent storage and invokes |callback|
     // asynchronously when complete.
-    virtual void SetServerProperties(base::Value::Dict dict,
+    virtual void SetServerProperties(const base::Value& value,
                                      base::OnceClosure callback) = 0;
 
     // Starts listening for prefs to be loaded. If prefs are already loaded,
@@ -150,24 +151,24 @@ class NET_EXPORT HttpServerProperties
     // indicates unknown. The difference between false and not set only matters
     // when loading from disk, when an initialized false value will take
     // priority over a not set value.
-    absl::optional<bool> supports_spdy;
+    base::Optional<bool> supports_spdy;
 
     // True if the server has previously indicated it required HTTP/1.1. Unlike
     // other fields, not persisted to disk.
-    absl::optional<bool> requires_http11;
+    base::Optional<bool> requires_http11;
 
-    absl::optional<AlternativeServiceInfoVector> alternative_services;
-    absl::optional<ServerNetworkStats> server_network_stats;
+    base::Optional<AlternativeServiceInfoVector> alternative_services;
+    base::Optional<ServerNetworkStats> server_network_stats;
   };
 
   struct NET_EXPORT ServerInfoMapKey {
-    // If |use_network_anonymization_key| is false, an empty
-    // NetworkAnonymizationKey is used instead of |network_anonymization_key|.
-    // Note that |server| can be passed in via std::move(), since most callsites
-    // can pass a recently created SchemeHostPort.
+    // If |use_network_isolation_key| is false, an empty NetworkIsolationKey is
+    // used instead of |network_isolation_key|. Note that |server| can be passed
+    // in via std::move(), since most callsites can pass a recently created
+    // SchemeHostPort.
     ServerInfoMapKey(url::SchemeHostPort server,
-                     const NetworkAnonymizationKey& network_anonymization_key,
-                     bool use_network_anonymization_key);
+                     const NetworkIsolationKey& network_isolation_key,
+                     bool use_network_isolation_key);
     ~ServerInfoMapKey();
 
     bool operator<(const ServerInfoMapKey& other) const;
@@ -177,16 +178,13 @@ class NET_EXPORT HttpServerProperties
     // with values passed into to HttpServerProperties methods.
     url::SchemeHostPort server;
 
-    NetworkAnonymizationKey network_anonymization_key;
+    NetworkIsolationKey network_isolation_key;
   };
 
   class NET_EXPORT ServerInfoMap
-      : public base::LRUCache<ServerInfoMapKey, ServerInfo> {
+      : public base::MRUCache<ServerInfoMapKey, ServerInfo> {
    public:
     ServerInfoMap();
-
-    ServerInfoMap(const ServerInfoMap&) = delete;
-    ServerInfoMap& operator=(const ServerInfoMap&) = delete;
 
     // If there's an entry corresponding to |key|, brings that entry to the
     // front and returns an iterator to it. Otherwise, inserts an empty
@@ -197,15 +195,17 @@ class NET_EXPORT HttpServerProperties
     // data. The iterator must point to an entry in the map. Regardless of
     // whether the entry is removed or not, returns iterator for the next entry.
     iterator EraseIfEmpty(iterator server_info_it);
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(ServerInfoMap);
   };
 
   struct NET_EXPORT QuicServerInfoMapKey {
-    // If |use_network_anonymization_key| is false, an empty
-    // NetworkAnonymizationKey is used instead of |network_anonymization_key|.
-    QuicServerInfoMapKey(
-        const quic::QuicServerId& server_id,
-        const NetworkAnonymizationKey& network_anonymization_key,
-        bool use_network_anonymization_key);
+    // If |use_network_isolation_key| is false, an empty NetworkIsolationKey is
+    // used instead of |network_isolation_key|.
+    QuicServerInfoMapKey(const quic::QuicServerId& server_id,
+                         const NetworkIsolationKey& network_isolation_key,
+                         bool use_network_isolation_key);
     ~QuicServerInfoMapKey();
 
     bool operator<(const QuicServerInfoMapKey& other) const;
@@ -214,16 +214,16 @@ class NET_EXPORT HttpServerProperties
     bool operator==(const QuicServerInfoMapKey& other) const;
 
     quic::QuicServerId server_id;
-    NetworkAnonymizationKey network_anonymization_key;
+    NetworkIsolationKey network_isolation_key;
   };
 
   // Max number of quic servers to store is not hardcoded and can be set.
-  // Because of this, QuicServerInfoMap will not be a subclass of LRUCache.
+  // Because of this, QuicServerInfoMap will not be a subclass of MRUCache.
   // Separate from ServerInfoMap because the key includes privacy mode (Since
   // this is analogous to the SSL session cache, which has separate caches for
   // privacy mode), and each entry can be quite large, so it has its own size
   // limit, which is much smaller than the ServerInfoMap's limit.
-  typedef base::LRUCache<QuicServerInfoMapKey, std::string> QuicServerInfoMap;
+  typedef base::MRUCache<QuicServerInfoMapKey, std::string> QuicServerInfoMap;
 
   // If a |pref_delegate| is specified, it will be used to read/write the
   // properties to a pref file. Writes are rate limited to improve performance.
@@ -234,14 +234,10 @@ class NET_EXPORT HttpServerProperties
   //
   // |clock| is used for converting base::TimeTicks to base::Time for
   // wherever base::Time is preferable.
-  explicit HttpServerProperties(
-      std::unique_ptr<PrefDelegate> pref_delegate = nullptr,
-      NetLog* net_log = nullptr,
-      const base::TickClock* tick_clock = nullptr,
-      base::Clock* clock = nullptr);
-
-  HttpServerProperties(const HttpServerProperties&) = delete;
-  HttpServerProperties& operator=(const HttpServerProperties&) = delete;
+  HttpServerProperties(std::unique_ptr<PrefDelegate> pref_delegate = nullptr,
+                       NetLog* net_log = nullptr,
+                       const base::TickClock* tick_clock = nullptr,
+                       base::Clock* clock = nullptr);
 
   ~HttpServerProperties() override;
 
@@ -250,8 +246,8 @@ class NET_EXPORT HttpServerProperties
   // disk.
   void Clear(base::OnceClosure callback);
 
-  // Returns true if |server|, in the context of |network_anonymization_key|,
-  // has previously supported a network protocol which honors request
+  // Returns true if |server|, in the context of |network_isolation_key|, has
+  // previously supported a network protocol which honors request
   // prioritization.
   //
   // Note that this also implies that the server supports request
@@ -259,52 +255,47 @@ class NET_EXPORT HttpServerProperties
   // multiple requests.
   bool SupportsRequestPriority(
       const url::SchemeHostPort& server,
-      const net::NetworkAnonymizationKey& network_anonymization_key);
+      const net::NetworkIsolationKey& network_isolation_key);
 
   // Returns the value set by SetSupportsSpdy(). If not set, returns false.
-  bool GetSupportsSpdy(
-      const url::SchemeHostPort& server,
-      const net::NetworkAnonymizationKey& network_anonymization_key);
+  bool GetSupportsSpdy(const url::SchemeHostPort& server,
+                       const net::NetworkIsolationKey& network_isolation_key);
 
   // Records whether |server| supports H2 or not. Information is restricted to
-  // the context of |network_anonymization_key|, to prevent cross-site
-  // information leakage.
-  void SetSupportsSpdy(
-      const url::SchemeHostPort& server,
-      const net::NetworkAnonymizationKey& network_anonymization_key,
-      bool supports_spdy);
+  // the context of |network_isolation_key|, to prevent cross-site information
+  // leakage.
+  void SetSupportsSpdy(const url::SchemeHostPort& server,
+                       const net::NetworkIsolationKey& network_isolation_key,
+                       bool supports_spdy);
 
   // Returns true if |server| has required HTTP/1.1 via HTTP/2 error code, in
-  // the context of |network_anonymization_key|.
-  bool RequiresHTTP11(
-      const url::SchemeHostPort& server,
-      const net::NetworkAnonymizationKey& network_anonymization_key);
+  // the context of |network_isolation_key|.
+  bool RequiresHTTP11(const url::SchemeHostPort& server,
+                      const net::NetworkIsolationKey& network_isolation_key);
 
   // Require HTTP/1.1 on subsequent connections, in the context of
-  // |network_anonymization_key|.  Not persisted.
-  void SetHTTP11Required(
-      const url::SchemeHostPort& server,
-      const net::NetworkAnonymizationKey& network_anonymization_key);
+  // |network_isolation_key|.  Not persisted.
+  void SetHTTP11Required(const url::SchemeHostPort& server,
+                         const net::NetworkIsolationKey& network_isolation_key);
 
   // Modify SSLConfig to force HTTP/1.1 if necessary.
-  void MaybeForceHTTP11(
-      const url::SchemeHostPort& server,
-      const net::NetworkAnonymizationKey& network_anonymization_key,
-      SSLConfig* ssl_config);
+  void MaybeForceHTTP11(const url::SchemeHostPort& server,
+                        const net::NetworkIsolationKey& network_isolation_key,
+                        SSLConfig* ssl_config);
 
   // Return all alternative services for |origin|, learned in the context of
-  // |network_anonymization_key|, including broken ones. Returned alternative
+  // |network_isolation_key|, including broken ones. Returned alternative
   // services never have empty hostnames.
   AlternativeServiceInfoVector GetAlternativeServiceInfos(
       const url::SchemeHostPort& origin,
-      const net::NetworkAnonymizationKey& network_anonymization_key);
+      const net::NetworkIsolationKey& network_isolation_key);
 
   // Set a single HTTP/2 alternative service for |origin|.  Previous
   // alternative services for |origin| are discarded.
   // |alternative_service.host| may be empty.
   void SetHttp2AlternativeService(
       const url::SchemeHostPort& origin,
-      const NetworkAnonymizationKey& network_anonymization_key,
+      const NetworkIsolationKey& network_isolation_key,
       const AlternativeService& alternative_service,
       base::Time expiration);
 
@@ -313,58 +304,56 @@ class NET_EXPORT HttpServerProperties
   // |alternative_service.host| may be empty.
   void SetQuicAlternativeService(
       const url::SchemeHostPort& origin,
-      const NetworkAnonymizationKey& network_anonymization_key,
+      const NetworkIsolationKey& network_isolation_key,
       const AlternativeService& alternative_service,
       base::Time expiration,
       const quic::ParsedQuicVersionVector& advertised_versions);
 
   // Set alternative services for |origin|, learned in the context of
-  // |network_anonymization_key|.  Previous alternative services for |origin|
-  // are discarded. Hostnames in |alternative_service_info_vector| may be empty.
+  // |network_isolation_key|.  Previous alternative services for |origin| are
+  // discarded. Hostnames in |alternative_service_info_vector| may be empty.
   // |alternative_service_info_vector| may be empty.
   void SetAlternativeServices(
       const url::SchemeHostPort& origin,
-      const net::NetworkAnonymizationKey& network_anonymization_key,
+      const net::NetworkIsolationKey& network_isolation_key,
       const AlternativeServiceInfoVector& alternative_service_info_vector);
 
   // Marks |alternative_service| as broken in the context of
-  // |network_anonymization_key|. |alternative_service.host| must not be empty.
+  // |network_isolation_key|. |alternative_service.host| must not be empty.
   void MarkAlternativeServiceBroken(
       const AlternativeService& alternative_service,
-      const net::NetworkAnonymizationKey& network_anonymization_key);
+      const net::NetworkIsolationKey& network_isolation_key);
 
   // Marks |alternative_service| as broken in the context of
-  // |network_anonymization_key| until the default network changes.
+  // |network_isolation_key| until the default network changes.
   // |alternative_service.host| must not be empty.
   void MarkAlternativeServiceBrokenUntilDefaultNetworkChanges(
       const AlternativeService& alternative_service,
-      const net::NetworkAnonymizationKey& network_anonymization_key);
+      const net::NetworkIsolationKey& network_isolation_key);
 
   // Marks |alternative_service| as recently broken in the context of
-  // |network_anonymization_key|. |alternative_service.host| must not be empty.
+  // |network_isolation_key|. |alternative_service.host| must not be empty.
   void MarkAlternativeServiceRecentlyBroken(
       const AlternativeService& alternative_service,
-      const net::NetworkAnonymizationKey& network_anonymization_key);
+      const net::NetworkIsolationKey& network_isolation_key);
 
   // Returns true iff |alternative_service| is currently broken in the context
-  // of |network_anonymization_key|. |alternative_service.host| must not be
-  // empty.
+  // of |network_isolation_key|. |alternative_service.host| must not be empty.
   bool IsAlternativeServiceBroken(
       const AlternativeService& alternative_service,
-      const net::NetworkAnonymizationKey& network_anonymization_key) const;
+      const net::NetworkIsolationKey& network_isolation_key) const;
 
   // Returns true iff |alternative_service| was recently broken in the context
-  // of |network_anonymization_key|. |alternative_service.host| must not be
-  // empty.
+  // of |network_isolation_key|. |alternative_service.host| must not be empty.
   bool WasAlternativeServiceRecentlyBroken(
       const AlternativeService& alternative_service,
-      const net::NetworkAnonymizationKey& network_anonymization_key);
+      const net::NetworkIsolationKey& network_isolation_key);
 
   // Confirms that |alternative_service| is working in the context of
-  // |network_anonymization_key|. |alternative_service.host| must not be empty.
+  // |network_isolation_key|. |alternative_service.host| must not be empty.
   void ConfirmAlternativeService(
       const AlternativeService& alternative_service,
-      const net::NetworkAnonymizationKey& network_anonymization_key);
+      const net::NetworkIsolationKey& network_isolation_key);
 
   // Called when the default network changes.
   // Clears all the alternative services that were marked broken until the
@@ -385,33 +374,31 @@ class NET_EXPORT HttpServerProperties
   void ClearLastLocalAddressWhenQuicWorked();
 
   // Sets |stats| for |server|.
-  void SetServerNetworkStats(
-      const url::SchemeHostPort& server,
-      const NetworkAnonymizationKey& network_anonymization_key,
-      ServerNetworkStats stats);
+  void SetServerNetworkStats(const url::SchemeHostPort& server,
+                             const NetworkIsolationKey& network_isolation_key,
+                             ServerNetworkStats stats);
 
   // Clears any stats for |server|.
   void ClearServerNetworkStats(
       const url::SchemeHostPort& server,
-      const NetworkAnonymizationKey& network_anonymization_key);
+      const NetworkIsolationKey& network_isolation_key);
 
   // Returns any stats for |server| or nullptr if there are none.
   const ServerNetworkStats* GetServerNetworkStats(
       const url::SchemeHostPort& server,
-      const NetworkAnonymizationKey& network_anonymization_key);
+      const NetworkIsolationKey& network_isolation_key);
 
   // Save QuicServerInfo (in std::string form) for the given |server_id|, in the
-  // context of |network_anonymization_key|.
-  void SetQuicServerInfo(
-      const quic::QuicServerId& server_id,
-      const NetworkAnonymizationKey& network_anonymization_key,
-      const std::string& server_info);
+  // context of |network_isolation_key|.
+  void SetQuicServerInfo(const quic::QuicServerId& server_id,
+                         const NetworkIsolationKey& network_isolation_key,
+                         const std::string& server_info);
 
   // Get QuicServerInfo (in std::string form) for the given |server_id|, in the
-  // context of |network_anonymization_key|.
+  // context of |network_isolation_key|.
   const std::string* GetQuicServerInfo(
       const quic::QuicServerId& server_id,
-      const NetworkAnonymizationKey& network_anonymization_key);
+      const NetworkIsolationKey& network_isolation_key);
 
   // Returns all persistent QuicServerInfo objects.
   const QuicServerInfoMap& quic_server_info_map() const;
@@ -423,20 +410,13 @@ class NET_EXPORT HttpServerProperties
   void SetMaxServerConfigsStoredInProperties(
       size_t max_server_configs_stored_in_properties);
 
-  // If values are present, sets initial_delay and
-  // exponential_backoff_on_initial_delay which are used to calculate delay of
-  // broken alternative services.
-  void SetBrokenAlternativeServicesDelayParams(
-      absl::optional<base::TimeDelta> initial_delay,
-      absl::optional<bool> exponential_backoff_on_initial_delay);
-
   // Returns whether HttpServerProperties is initialized.
   bool IsInitialized() const;
 
   // BrokenAlternativeServices::Delegate method.
   void OnExpireBrokenAlternativeService(
       const AlternativeService& expired_alternative_service,
-      const NetworkAnonymizationKey& network_anonymization_key) override;
+      const NetworkIsolationKey& network_isolation_key) override;
 
   static base::TimeDelta GetUpdatePrefsDelayForTesting();
 
@@ -474,15 +454,6 @@ class NET_EXPORT HttpServerProperties
     return server_info_map_;
   }
 
-  const BrokenAlternativeServices& broken_alternative_services_for_testing()
-      const {
-    return broken_alternative_services_;
-  }
-
-  const QuicServerInfoMap& quic_server_info_map_for_testing() const {
-    return quic_server_info_map_;
-  }
-
   // TODO(mmenke): Look into removing this.
   HttpServerPropertiesManager* properties_manager_for_testing() {
     return properties_manager_.get();
@@ -507,60 +478,60 @@ class NET_EXPORT HttpServerProperties
   // with the incorrect scheme would still be available.
   bool GetSupportsSpdyInternal(
       url::SchemeHostPort server,
-      const net::NetworkAnonymizationKey& network_anonymization_key);
+      const net::NetworkIsolationKey& network_isolation_key);
   void SetSupportsSpdyInternal(
       url::SchemeHostPort server,
-      const net::NetworkAnonymizationKey& network_anonymization_key,
+      const net::NetworkIsolationKey& network_isolation_key,
       bool supports_spdy);
   bool RequiresHTTP11Internal(
       url::SchemeHostPort server,
-      const net::NetworkAnonymizationKey& network_anonymization_key);
+      const net::NetworkIsolationKey& network_isolation_key);
   void SetHTTP11RequiredInternal(
       url::SchemeHostPort server,
-      const net::NetworkAnonymizationKey& network_anonymization_key);
+      const net::NetworkIsolationKey& network_isolation_key);
   void MaybeForceHTTP11Internal(
       url::SchemeHostPort server,
-      const net::NetworkAnonymizationKey& network_anonymization_key,
+      const net::NetworkIsolationKey& network_isolation_key,
       SSLConfig* ssl_config);
   AlternativeServiceInfoVector GetAlternativeServiceInfosInternal(
       const url::SchemeHostPort& origin,
-      const net::NetworkAnonymizationKey& network_anonymization_key);
+      const net::NetworkIsolationKey& network_isolation_key);
   void SetAlternativeServicesInternal(
       const url::SchemeHostPort& origin,
-      const net::NetworkAnonymizationKey& network_anonymization_key,
+      const net::NetworkIsolationKey& network_isolation_key,
       const AlternativeServiceInfoVector& alternative_service_info_vector);
   void SetServerNetworkStatsInternal(
       url::SchemeHostPort server,
-      const NetworkAnonymizationKey& network_anonymization_key,
+      const NetworkIsolationKey& network_isolation_key,
       ServerNetworkStats stats);
   void ClearServerNetworkStatsInternal(
       url::SchemeHostPort server,
-      const NetworkAnonymizationKey& network_anonymization_key);
+      const NetworkIsolationKey& network_isolation_key);
   const ServerNetworkStats* GetServerNetworkStatsInternal(
       url::SchemeHostPort server,
-      const NetworkAnonymizationKey& network_anonymization_key);
+      const NetworkIsolationKey& network_isolation_key);
 
   // Helper functions to use the passed in parameters and
-  // |use_network_anonymization_key_| to create a [Quic]ServerInfoMapKey.
+  // |use_network_isolation_key_| to create a [Quic]ServerInfoMapKey.
   ServerInfoMapKey CreateServerInfoKey(
       const url::SchemeHostPort& server,
-      const NetworkAnonymizationKey& network_anonymization_key) const;
+      const NetworkIsolationKey& network_isolation_key) const;
   QuicServerInfoMapKey CreateQuicServerInfoKey(
       const quic::QuicServerId& server_id,
-      const NetworkAnonymizationKey& network_anonymization_key) const;
+      const NetworkIsolationKey& network_isolation_key) const;
 
-  // Return the iterator for |server| in the context of
-  // |network_anonymization_key|, or for its canonical host, or end. Skips over
-  // ServerInfos without |alternative_service_info| populated.
+  // Return the iterator for |server| in the context of |network_isolation_key|,
+  // or for its canonical host, or end. Skips over ServerInfos without
+  // |alternative_service_info| populated.
   ServerInfoMap::const_iterator GetIteratorWithAlternativeServiceInfo(
       const url::SchemeHostPort& server,
-      const net::NetworkAnonymizationKey& network_anonymization_key);
+      const net::NetworkIsolationKey& network_isolation_key);
 
   // Return the canonical host for |server|  in the context of
-  // |network_anonymization_key|, or end if none exists.
+  // |network_isolation_key|, or end if none exists.
   CanonicalMap::const_iterator GetCanonicalAltSvcHost(
       const url::SchemeHostPort& server,
-      const net::NetworkAnonymizationKey& network_anonymization_key) const;
+      const net::NetworkIsolationKey& network_isolation_key) const;
 
   // Return the canonical host with the same canonical suffix as |server|.
   // The returned canonical host can be used to search for server info in
@@ -569,10 +540,10 @@ class NET_EXPORT HttpServerProperties
       const QuicServerInfoMapKey& key) const;
 
   // Remove the canonical alt-svc host for |server| with
-  // |network_anonymization_key|.
+  // |network_isolation_key|.
   void RemoveAltSvcCanonicalHost(
       const url::SchemeHostPort& server,
-      const NetworkAnonymizationKey& network_anonymization_key);
+      const NetworkIsolationKey& network_isolation_key);
 
   // Update |canonical_server_info_map_| with the new canonical host.
   // The |key| should have the corresponding server info associated with it
@@ -615,12 +586,12 @@ class NET_EXPORT HttpServerProperties
   // Invokes |callback| on completion, if non-null.
   void WriteProperties(base::OnceClosure callback) const;
 
-  raw_ptr<const base::TickClock> tick_clock_;  // Unowned
-  raw_ptr<base::Clock> clock_;                 // Unowned
+  const base::TickClock* tick_clock_;  // Unowned
+  base::Clock* clock_;                 // Unowned
 
   // Cached value of kPartitionHttpServerPropertiesByNetworkIsolationKey
   // feature. Cached to improve performance.
-  const bool use_network_anonymization_key_;
+  const bool use_network_isolation_key_;
 
   // Set to true once initial properties have been retrieved from disk by
   // |properties_manager_|. Always true if |properties_manager_| is nullptr.
@@ -629,7 +600,7 @@ class NET_EXPORT HttpServerProperties
   // Queue a write when resources finish loading. Set to true when
   // MaybeQueueWriteProperties() is invoked while still waiting on
   // initialization to complete.
-  bool queue_write_on_load_ = false;
+  bool queue_write_on_load_;
 
   // Used to load/save properties from/to preferences. May be nullptr.
   std::unique_ptr<HttpServerPropertiesManager> properties_manager_;
@@ -666,6 +637,8 @@ class NET_EXPORT HttpServerProperties
   base::OneShotTimer prefs_update_timer_;
 
   THREAD_CHECKER(thread_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(HttpServerProperties);
 };
 
 }  // namespace net

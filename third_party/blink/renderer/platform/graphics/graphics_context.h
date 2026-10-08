@@ -30,8 +30,8 @@
 
 #include <memory>
 
-#include "base/dcheck_is_on.h"
-#include "cc/paint/paint_flags.h"
+#include "base/macros.h"
+#include "third_party/blink/public/mojom/frame/color_scheme.mojom-blink-forward.h"
 #include "third_party/blink/renderer/platform/fonts/font.h"
 #include "third_party/blink/renderer/platform/graphics/dark_mode_filter.h"
 #include "third_party/blink/renderer/platform/graphics/dark_mode_settings.h"
@@ -49,9 +49,6 @@
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/skia/include/core/SkClipOp.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
-#include "ui/gfx/geometry/rect_f.h"
-#include "ui/gfx/geometry/skia_conversions.h"
-#include "ui/gfx/geometry/vector2d_f.h"
 
 class SkPath;
 class SkRRect;
@@ -63,126 +60,22 @@ class PaintPreviewTracker;
 
 namespace blink {
 
+class FloatRect;
 class FloatRoundedRect;
 class KURL;
 class PaintController;
 class Path;
 struct TextRunPaintInfo;
 
-// Tiling parameters for the DrawImageTiled() method.
-struct ImageTilingInfo {
-  // The part of the Image (the |image| argument to the method) to tile. It's in
-  // the space of the image.
-  gfx::RectF image_rect;
-
-  // Scale factor from image space to destination space. Will include
-  // image-resolution information.
-  gfx::Vector2dF scale{1.0f, 1.0f};
-
-  // Origin of the full image in destination space.
-  gfx::PointF phase;
-
-  // Additional spacing between tiles in destination space.
-  gfx::SizeF spacing;
-};
-
-struct ImageDrawOptions {
-  ImageDrawOptions() = default;
-  explicit ImageDrawOptions(DarkModeFilter* dark_mode_filter,
-                            SkSamplingOptions& sampling_options,
-                            RespectImageOrientationEnum respect_orientation,
-                            Image::ImageClampingMode clamping_mode,
-                            Image::ImageDecodingMode decode_mode,
-                            bool apply_dark_mode,
-                            bool may_be_lcp_candidate)
-      : dark_mode_filter(dark_mode_filter),
-        sampling_options(sampling_options),
-        respect_orientation(respect_orientation),
-        clamping_mode(clamping_mode),
-        decode_mode(decode_mode),
-        apply_dark_mode(apply_dark_mode),
-        may_be_lcp_candidate(may_be_lcp_candidate) {}
-  DarkModeFilter* dark_mode_filter = nullptr;
-  SkSamplingOptions sampling_options;
-  RespectImageOrientationEnum respect_orientation = kRespectImageOrientation;
-  Image::ImageClampingMode clamping_mode = Image::kClampImageToSourceRect;
-  Image::ImageDecodingMode decode_mode = Image::kSyncDecode;
-  bool apply_dark_mode = false;
-  bool may_be_lcp_candidate = false;
-};
-
-struct AutoDarkMode {
-  AutoDarkMode(DarkModeFilter::ElementRole role, bool enabled)
-      : role(role), enabled(enabled) {}
-
-  AutoDarkMode(DarkModeFilter::ElementRole role,
-               bool enabled,
-               SkColor contrast_color)
-      : role(role), enabled(enabled), contrast_color(contrast_color) {}
-
-  explicit AutoDarkMode(const ImageDrawOptions& draw_options)
-      : role(DarkModeFilter::ElementRole::kBackground),
-        enabled(draw_options.apply_dark_mode) {}
-
-  static AutoDarkMode Disabled(DarkModeFilter::ElementRole role =
-                                   DarkModeFilter::ElementRole::kBackground) {
-    return AutoDarkMode(role, false);
-  }
-
-  DarkModeFilter::ElementRole role;
-  bool enabled;
-  SkColor contrast_color = 0;
-};
-
-struct ImageAutoDarkMode : AutoDarkMode {
-  ImageAutoDarkMode(DarkModeFilter::ElementRole role,
-                    bool enabled,
-                    DarkModeFilter::ImageType image_type)
-      : AutoDarkMode(role, enabled), image_type(image_type) {}
-
-  static ImageAutoDarkMode Disabled(
-      DarkModeFilter::ElementRole role =
-          DarkModeFilter::ElementRole::kBackground) {
-    return ImageAutoDarkMode(role, false, DarkModeFilter::ImageType::kNone);
-  }
-
-  DarkModeFilter::ImageType image_type;
-};
-
-struct ImagePaintTimingInfo {
-  explicit ImagePaintTimingInfo(bool image_may_be_lcp_candidate)
-      : image_may_be_lcp_candidate(image_may_be_lcp_candidate) {}
-  ImagePaintTimingInfo(bool image_may_be_lcp_candidate,
-                       bool report_paint_timing)
-      : image_may_be_lcp_candidate(image_may_be_lcp_candidate),
-        report_paint_timing(report_paint_timing) {}
-  ImagePaintTimingInfo() = default;
-  bool image_may_be_lcp_candidate = false;
-  // Whether |PaintController::SetImagePainted| should be called if the image
-  // is painted.
-  bool report_paint_timing = true;
-};
-
 class PLATFORM_EXPORT GraphicsContext {
   USING_FAST_MALLOC(GraphicsContext);
 
  public:
-  explicit GraphicsContext(PaintController&);
-  GraphicsContext(const GraphicsContext&) = delete;
-  GraphicsContext& operator=(const GraphicsContext&) = delete;
+  explicit GraphicsContext(PaintController&,
+                           printing::MetafileSkia* = nullptr,
+                           paint_preview::PaintPreviewTracker* = nullptr);
+
   ~GraphicsContext();
-
-  // Copy configs such as printing, dark mode, device scale factor etc. from
-  // another GraphicsContext.
-  void CopyConfigFrom(GraphicsContext&);
-
-  void SetPrintingMetafile(printing::MetafileSkia* metafile) {
-    printing_metafile_ = metafile;
-  }
-
-  void SetPaintPreviewTracker(paint_preview::PaintPreviewTracker* tracker) {
-    paint_preview_tracker_ = tracker;
-  }
 
   cc::PaintCanvas* Canvas() { return canvas_; }
   const cc::PaintCanvas* Canvas() const { return canvas_; }
@@ -192,9 +85,10 @@ class PLATFORM_EXPORT GraphicsContext {
     return paint_controller_;
   }
 
+  bool IsDarkModeEnabled() const { return is_dark_mode_enabled_; }
+  void SetDarkModeEnabled(bool enabled) { is_dark_mode_enabled_ = enabled; }
+
   DarkModeFilter* GetDarkModeFilter();
-  DarkModeFilter* GetDarkModeFilterForImage(
-      const ImageAutoDarkMode& auto_dark_mode);
 
   void UpdateDarkModeSettingsForTest(const DarkModeSettings&);
 
@@ -254,21 +148,29 @@ class PLATFORM_EXPORT GraphicsContext {
     return ImmutableState()->GetInterpolationQuality();
   }
 
-  SkSamplingOptions ImageSamplingOptions() const {
-    return cc::PaintFlags::FilterQualityToSkSamplingOptions(
-        static_cast<cc::PaintFlags::FilterQuality>(
-            ImageInterpolationQuality()));
-  }
-
   // Specify the device scale factor which may change the way document markers
   // and fonts are rendered.
   void SetDeviceScaleFactor(float factor) { device_scale_factor_ = factor; }
   float DeviceScaleFactor() const { return device_scale_factor_; }
 
-  // Set to true if context is for printing. Bitmaps won't be resampled when
-  // printing to keep the best possible quality. When printing text will be
-  // provided along with glyphs.
+  // Returns if the context is a printing context instead of a display
+  // context. Bitmap shouldn't be resampled when printing to keep the best
+  // possible quality.
+  bool Printing() const { return printing_; }
   void SetPrinting(bool printing) { printing_ = printing; }
+
+  // Returns if the context is saving a paint preview instead of displaying.
+  // In such cases, clipping should not occur.
+  bool IsPaintingPreview() const { return is_painting_preview_; }
+  void SetIsPaintingPreview(bool is_painting_preview) {
+    is_painting_preview_ = is_painting_preview;
+  }
+
+  // Returns if the context is printing or painting a preview. Many of the
+  // behaviors required for printing and paint previews are shared.
+  bool IsPrintingOrPaintingPreview() const {
+    return Printing() || IsPaintingPreview();
+  }
 
   SkColorFilter* GetColorFilter() const;
   void SetColorFilter(ColorFilter);
@@ -276,18 +178,17 @@ class PLATFORM_EXPORT GraphicsContext {
 
   // DrawRect() fills and always strokes using a 1-pixel stroke inset from
   // the rect borders (of the pre-set stroke color).
-  void DrawRect(const gfx::Rect&, const AutoDarkMode& auto_dark_mode);
+  void DrawRect(const IntRect&);
 
   // DrawLine() only operates on horizontal or vertical lines and uses the
-  // current stroke settings. For dotted or dashed stroke, the line need to be
-  // top-to-down or left-to-right to get correct interval of dots/dashes.
-  void DrawLine(const gfx::Point&,
-                const gfx::Point&,
-                const AutoDarkMode& auto_dark_mode,
-                bool is_text_line = false,
-                const cc::PaintFlags* flags = nullptr);
+  // current stroke settings.
+  void DrawLine(const IntPoint&,
+                const IntPoint&,
+                const DarkModeFilter::ElementRole role =
+                    DarkModeFilter::ElementRole::kBackground,
+                bool is_text_line = false);
 
-  void FillPath(const Path&, const AutoDarkMode& auto_dark_mode);
+  void FillPath(const Path&);
 
   // The length parameter is only used when the path has a dashed or dotted
   // stroke style, with the default dash/dot path effect. If a non-zero length
@@ -297,98 +198,88 @@ class PLATFORM_EXPORT GraphicsContext {
   // where the stroke thickness has been set for corner miters but we want the
   // dash length set from the border width.
   void StrokePath(const Path&,
-                  const AutoDarkMode& auto_dark_mode,
                   const int length = 0,
                   const int dash_thickness = 0);
 
-  void FillEllipse(const gfx::RectF&, const AutoDarkMode& auto_dark_mode);
-  void StrokeEllipse(const gfx::RectF&, const AutoDarkMode& auto_dark_mode);
+  void FillEllipse(const FloatRect&);
+  void StrokeEllipse(const FloatRect&);
 
-  void FillRect(const gfx::Rect&, const AutoDarkMode& auto_dark_mode);
-  void FillRect(const gfx::Rect&,
+  void FillRect(const IntRect&);
+  void FillRect(const IntRect&,
                 const Color&,
-                const AutoDarkMode& auto_dark_mode,
                 SkBlendMode = SkBlendMode::kSrcOver);
-  void FillRect(const gfx::RectF&, const AutoDarkMode& auto_dark_mode);
-  void FillRect(const gfx::RectF&,
-                const Color&,
-                const AutoDarkMode& auto_dark_mode,
-                SkBlendMode = SkBlendMode::kSrcOver);
-  void FillRoundedRect(const FloatRoundedRect&,
-                       const Color&,
-                       const AutoDarkMode& auto_dark_mode);
+  void FillRect(const IntRect& rect,
+                const Color& color,
+                DarkModeFilter::ElementRole role);
+  void FillRect(const FloatRect&);
+  void FillRect(
+      const FloatRect&,
+      const Color&,
+      SkBlendMode = SkBlendMode::kSrcOver,
+      DarkModeFilter::ElementRole = DarkModeFilter::ElementRole::kBackground);
+  void FillRoundedRect(const FloatRoundedRect&, const Color&);
   void FillDRRect(const FloatRoundedRect&,
                   const FloatRoundedRect&,
-                  const Color&,
-                  const AutoDarkMode& auto_dark_mode);
-  void FillRectWithRoundedHole(const gfx::RectF&,
-                               const FloatRoundedRect& rounded_hole_rect,
-                               const Color&,
-                               const AutoDarkMode& auto_dark_mode);
+                  const Color&);
 
-  void StrokeRect(const gfx::RectF&,
-                  float line_width,
-                  const AutoDarkMode& auto_dark_mode);
+  void StrokeRect(const FloatRect&, float line_width);
 
   void DrawRecord(sk_sp<const PaintRecord>);
   void CompositeRecord(sk_sp<PaintRecord>,
-                       const gfx::RectF& dest,
-                       const gfx::RectF& src,
+                       const FloatRect& dest,
+                       const FloatRect& src,
                        SkBlendMode);
-  void DrawImage(Image&,
+
+  void DrawImage(Image*,
                  Image::ImageDecodingMode,
-                 const ImageAutoDarkMode& auto_dark_mode,
-                 const ImagePaintTimingInfo& paint_timing_info,
-                 const gfx::RectF& dest_rect,
-                 const gfx::RectF* src_rect = nullptr,
+                 const FloatRect& dest_rect,
+                 const FloatRect* src_rect = nullptr,
+                 bool has_filter_property = false,
                  SkBlendMode = SkBlendMode::kSrcOver,
-                 RespectImageOrientationEnum = kRespectImageOrientation,
-                 Image::ImageClampingMode clamping_mode =
-                     Image::ImageClampingMode::kClampImageToSourceRect);
-  void DrawImageRRect(Image&,
+                 RespectImageOrientationEnum = kRespectImageOrientation);
+  void DrawImageRRect(Image*,
                       Image::ImageDecodingMode,
-                      const ImageAutoDarkMode& auto_dark_mode,
-                      const ImagePaintTimingInfo& paint_timing_info,
                       const FloatRoundedRect& dest,
-                      const gfx::RectF& src_rect,
-                      SkBlendMode = SkBlendMode::kSrcOver,
-                      RespectImageOrientationEnum = kRespectImageOrientation,
-                      Image::ImageClampingMode clamping_mode =
-                          Image::ImageClampingMode::kClampImageToSourceRect);
-  void DrawImageTiled(Image& image,
-                      const gfx::RectF& dest_rect,
-                      const ImageTilingInfo& tiling_info,
-                      const ImageAutoDarkMode& auto_dark_mode,
-                      const ImagePaintTimingInfo& paint_timing_info,
+                      const FloatRect& src_rect,
+                      bool has_filter_property = false,
                       SkBlendMode = SkBlendMode::kSrcOver,
                       RespectImageOrientationEnum = kRespectImageOrientation);
-  void SetImagePainted(bool report_paint_timing);
+  void DrawImageTiled(Image* image,
+                      const FloatRect& dest_rect,
+                      const FloatRect& src_rect,
+                      const FloatSize& scale_src_to_dest,
+                      const FloatPoint& phase,
+                      const FloatSize& repeat_spacing,
+                      SkBlendMode = SkBlendMode::kSrcOver,
+                      RespectImageOrientationEnum = kRespectImageOrientation);
+
   // These methods write to the canvas.
-  // Also drawLine(const gfx::Point& point1, const gfx::Point& point2) and
+  // Also drawLine(const IntPoint& point1, const IntPoint& point2) and
   // fillRoundedRect().
   void DrawOval(const SkRect&,
-                const cc::PaintFlags&,
-                const AutoDarkMode& auto_dark_mode);
+                const PaintFlags&,
+                const DarkModeFilter::ElementRole role =
+                    DarkModeFilter::ElementRole::kBackground);
   void DrawPath(const SkPath&,
-                const cc::PaintFlags&,
-                const AutoDarkMode& auto_dark_mode);
+                const PaintFlags&,
+                const DarkModeFilter::ElementRole role =
+                    DarkModeFilter::ElementRole::kBackground);
   void DrawRect(const SkRect&,
-                const cc::PaintFlags&,
-                const AutoDarkMode& auto_dark_mode);
-  void DrawRRect(const SkRRect&,
-                 const cc::PaintFlags&,
-                 const AutoDarkMode& auto_dark_mode);
+                const PaintFlags&,
+                const DarkModeFilter::ElementRole role =
+                    DarkModeFilter::ElementRole::kBackground);
+  void DrawRRect(const SkRRect&, const PaintFlags&);
 
-  void Clip(const gfx::Rect& rect) { ClipRect(gfx::RectToSkRect(rect)); }
-  void Clip(const gfx::RectF& rect) { ClipRect(gfx::RectFToSkRect(rect)); }
+  void Clip(const IntRect& rect) { ClipRect(rect); }
+  void Clip(const FloatRect& rect) { ClipRect(rect); }
   void ClipRoundedRect(const FloatRoundedRect&,
                        SkClipOp = SkClipOp::kIntersect,
                        AntiAliasingMode = kAntiAliased);
-  void ClipOut(const gfx::Rect& rect) {
-    ClipRect(gfx::RectToSkRect(rect), kNotAntiAliased, SkClipOp::kDifference);
+  void ClipOut(const IntRect& rect) {
+    ClipRect(rect, kNotAntiAliased, SkClipOp::kDifference);
   }
-  void ClipOut(const gfx::RectF& rect) {
-    ClipRect(gfx::RectFToSkRect(rect), kNotAntiAliased, SkClipOp::kDifference);
+  void ClipOut(const FloatRect& rect) {
+    ClipRect(rect, kNotAntiAliased, SkClipOp::kDifference);
   }
   void ClipOut(const Path&);
   void ClipOutRoundedRect(const FloatRoundedRect&);
@@ -401,105 +292,107 @@ class PLATFORM_EXPORT GraphicsContext {
 
   void DrawText(const Font&,
                 const TextRunPaintInfo&,
-                const gfx::PointF&,
-                DOMNodeId,
-                const AutoDarkMode& auto_dark_mode);
+                const FloatPoint&,
+                DOMNodeId);
   void DrawText(const Font&,
                 const NGTextFragmentPaintInfo&,
-                const gfx::PointF&,
-                DOMNodeId,
-                const AutoDarkMode& auto_dark_mode);
+                const FloatPoint&,
+                DOMNodeId);
 
   // TODO(layout-dev): This method is only used by SVGInlineTextBoxPainter, see
   // if we can change that to use the four parameter version above.
   void DrawText(const Font&,
                 const TextRunPaintInfo&,
-                const gfx::PointF&,
-                const cc::PaintFlags&,
-                DOMNodeId,
-                const AutoDarkMode& auto_dark_mode);
-
-  // TODO(layout-dev): This method is only used by NGTextPainter, see if the
-  // four parameter overload can be removed or if it can wrap this method.
-  void DrawText(const Font&,
-                const NGTextFragmentPaintInfo&,
-                const gfx::PointF&,
-                const cc::PaintFlags&,
-                DOMNodeId,
-                const AutoDarkMode& auto_dark_mode);
+                const FloatPoint&,
+                const PaintFlags&,
+                DOMNodeId);
 
   void DrawEmphasisMarks(const Font&,
                          const TextRunPaintInfo&,
                          const AtomicString& mark,
-                         const gfx::PointF&,
-                         const AutoDarkMode& auto_dark_mode);
+                         const FloatPoint&);
   void DrawEmphasisMarks(const Font&,
                          const NGTextFragmentPaintInfo&,
                          const AtomicString& mark,
-                         const gfx::PointF&,
-                         const AutoDarkMode& auto_dark_mode);
+                         const FloatPoint&);
 
   void DrawBidiText(
       const Font&,
       const TextRunPaintInfo&,
-      const gfx::PointF&,
-      const AutoDarkMode& auto_dark_mode,
+      const FloatPoint&,
       Font::CustomFontNotReadyAction = Font::kDoNotPaintIfFontNotReady);
   void DrawHighlightForText(const Font&,
                             const TextRun&,
-                            const gfx::PointF&,
+                            const FloatPoint&,
                             int h,
                             const Color& background_color,
-                            const AutoDarkMode& auto_dark_mode,
                             int from = 0,
                             int to = -1);
 
-  void DrawLineForText(const gfx::PointF&,
-                       float width,
-                       const AutoDarkMode& auto_dark_mode,
-                       const cc::PaintFlags* flags = nullptr);
+  void DrawLineForText(const FloatPoint&, float width);
 
   // beginLayer()/endLayer() behave like save()/restore() for CTM and clip
   // states. Apply SkBlendMode when the layer is composited on the backdrop
   // (i.e. endLayer()).
   void BeginLayer(float opacity = 1.0f,
                   SkBlendMode = SkBlendMode::kSrcOver,
-                  const gfx::RectF* = nullptr,
+                  const FloatRect* = nullptr,
                   ColorFilter = kColorFilterNone,
                   sk_sp<PaintFilter> = nullptr);
   void EndLayer();
 
   // Instead of being dispatched to the active canvas, draw commands following
   // beginRecording() are stored in a display list that can be replayed at a
-  // later time.
-  void BeginRecording();
+  // later time. Pass in the bounding rectangle for the content in the list.
+  void BeginRecording(const FloatRect&);
 
   // Returns a record with any recorded draw commands since the prerequisite
   // call to beginRecording().  The record is guaranteed to be non-null (but
   // not necessarily non-empty), even when the context is disabled.
   sk_sp<PaintRecord> EndRecording();
 
+  void SetShadow(const FloatSize& offset,
+                 float blur,
+                 const Color&,
+                 DrawLooperBuilder::ShadowTransformMode =
+                     DrawLooperBuilder::kShadowRespectsTransforms,
+                 DrawLooperBuilder::ShadowAlphaMode =
+                     DrawLooperBuilder::kShadowRespectsAlpha,
+                 ShadowMode = kDrawShadowAndForeground);
+
   void SetDrawLooper(sk_sp<SkDrawLooper>);
 
-  void DrawFocusRingPath(const SkPath&,
-                         const Color&,
-                         float width,
-                         float corner_radius,
-                         const AutoDarkMode& auto_dark_mode);
-  void DrawFocusRingRect(const SkRRect&,
-                         const Color&,
-                         float width,
-                         const AutoDarkMode& auto_dark_mode);
+  void DrawFocusRing(const Vector<IntRect>&,
+                     float width,
+                     int offset,
+                     float border_radius,
+                     float min_border_width,
+                     const Color&,
+                     mojom::blink::ColorScheme color_scheme);
+  void DrawFocusRing(const Path&, float width, int offset, const Color&);
 
-  const cc::PaintFlags& FillFlags() const {
-    return ImmutableState()->FillFlags();
-  }
+  enum Edge {
+    kNoEdge = 0,
+    kTopEdge = 1 << 1,
+    kRightEdge = 1 << 2,
+    kBottomEdge = 1 << 3,
+    kLeftEdge = 1 << 4
+  };
+  typedef unsigned Edges;
+  void DrawInnerShadow(const FloatRoundedRect&,
+                       const Color& shadow_color,
+                       const FloatSize& shadow_offset,
+                       float shadow_blur,
+                       float shadow_spread,
+                       Edges clipped_edges = kNoEdge);
+
+  const PaintFlags& FillFlags() const { return ImmutableState()->FillFlags(); }
   // If the length of the path to be stroked is known, pass it in for correct
   // dash or dot placement. Border painting uses a stroke thickness determined
   // by the corner miters. Set the dash_thickness to a non-zero number for
   // cases where dashes should be based on a different thickness.
-  const cc::PaintFlags& StrokeFlags(const int length = 0,
-                                    const int dash_thickness = 0) const {
+  const PaintFlags& StrokeFlags(const int length = 0,
+                                const int dash_thickness = 0) const {
     return ImmutableState()->StrokeFlags(length, dash_thickness);
   }
 
@@ -511,39 +404,33 @@ class PLATFORM_EXPORT GraphicsContext {
   void Translate(float x, float y);
   // ---------- End transformation methods -----------------
 
-  cc::PaintFlags::FilterQuality ComputeFilterQuality(
-      Image&,
-      const gfx::RectF& dest,
-      const gfx::RectF& src) const;
-
-  SkSamplingOptions ComputeSamplingOptions(Image& image,
-                                           const gfx::RectF& dest,
-                                           const gfx::RectF& src) const {
-    return cc::PaintFlags::FilterQualityToSkSamplingOptions(
-        ComputeFilterQuality(image, dest, src));
-  }
+  SkFilterQuality ComputeFilterQuality(Image*,
+                                       const FloatRect& dest,
+                                       const FloatRect& src) const;
 
   // Sets target URL of a clickable area.
-  void SetURLForRect(const KURL&, const gfx::Rect&);
+  void SetURLForRect(const KURL&, const IntRect&);
 
   // Sets the destination of a clickable area of a URL fragment (in a URL
   // pointing to the same web page). When the area is clicked, the page should
   // be scrolled to the location set by setURLDestinationLocation() for the
   // destination whose name is |name|.
-  void SetURLFragmentForRect(const String& name, const gfx::Rect&);
+  void SetURLFragmentForRect(const String& name, const IntRect&);
 
   // Sets location of a URL destination (a.k.a. anchor) in the page.
-  void SetURLDestinationLocation(const String& name, const gfx::Point&);
+  void SetURLDestinationLocation(const String& name, const IntPoint&);
 
-  static void AdjustLineToPixelBoundaries(gfx::PointF& p1,
-                                          gfx::PointF& p2,
+  static void AdjustLineToPixelBoundaries(FloatPoint& p1,
+                                          FloatPoint& p2,
                                           float stroke_width);
 
-  static Path GetPathForTextLine(const gfx::PointF&,
+  static Path GetPathForTextLine(const FloatPoint&,
                                  float width,
                                  float stroke_thickness,
                                  StrokeStyle);
   static bool ShouldUseStrokeForTextLine(StrokeStyle);
+
+  static int FocusRingOutsetExtent(int offset, int width);
 
   void SetInDrawingRecorder(bool);
   bool InDrawingRecorder() const { return in_drawing_recorder_; }
@@ -553,11 +440,12 @@ class PLATFORM_EXPORT GraphicsContext {
   // creating a tagged PDF. Callers are responsible for restoring it.
   void SetDOMNodeId(DOMNodeId);
   DOMNodeId GetDOMNodeId() const;
-  bool NeedsDOMNodeId() const { return printing_; }
 
   static sk_sp<SkColorFilter> WebCoreColorFilterToSkiaColorFilter(ColorFilter);
 
  private:
+  friend class ScopedDarkModeElementRoleOverride;
+
   const GraphicsContextState* ImmutableState() const { return paint_state_; }
 
   GraphicsContextState* MutableState() {
@@ -568,22 +456,36 @@ class PLATFORM_EXPORT GraphicsContext {
   template <typename TextPaintInfo>
   void DrawTextInternal(const Font&,
                         const TextPaintInfo&,
-                        const gfx::PointF&,
-                        DOMNodeId,
-                        const AutoDarkMode& auto_dark_mode);
+                        const FloatPoint&,
+                        DOMNodeId);
 
   template <typename TextPaintInfo>
   void DrawEmphasisMarksInternal(const Font&,
                                  const TextPaintInfo&,
                                  const AtomicString& mark,
-                                 const gfx::PointF&,
-                                 const AutoDarkMode& auto_dark_mode);
+                                 const FloatPoint&);
 
   template <typename DrawTextFunc>
-  void DrawTextPasses(const AutoDarkMode& auto_dark_mode, const DrawTextFunc&);
+  void DrawTextPasses(const DrawTextFunc&);
 
-  void SaveLayer(const SkRect* bounds, const cc::PaintFlags*);
+  void SaveLayer(const SkRect* bounds, const PaintFlags*);
   void RestoreLayer();
+
+  // Helpers for drawing a focus ring (drawFocusRing)
+  void DrawFocusRingPath(const SkPath&,
+                         const Color&,
+                         float width,
+                         float border_radius);
+  void DrawFocusRingRect(const SkRect&,
+                         const Color&,
+                         float width,
+                         float border_radius);
+
+  void DrawFocusRingInternal(const Vector<IntRect>&,
+                             float width,
+                             int offset,
+                             float border_radius,
+                             const Color&);
 
   // SkCanvas wrappers.
   void ClipRRect(const SkRRect&,
@@ -608,12 +510,16 @@ class PLATFORM_EXPORT GraphicsContext {
     }
   }
 
+  void FillRectWithRoundedHole(const FloatRect&,
+                               const FloatRoundedRect& rounded_hole_rect,
+                               const Color&);
+
   class DarkModeFlags;
 
   // This is owned by paint_recorder_. Never delete this object.
   // Drawing operations are allowed only after the first BeginRecording() which
   // initializes this to not null.
-  cc::PaintCanvas* canvas_ = nullptr;
+  cc::PaintCanvas* canvas_;
 
   PaintController& paint_controller_;
 
@@ -623,30 +529,34 @@ class PLATFORM_EXPORT GraphicsContext {
   Vector<std::unique_ptr<GraphicsContextState>> paint_state_stack_;
 
   // Current index on the stack. May not be the last thing on the stack.
-  wtf_size_t paint_state_index_ = 0;
+  unsigned paint_state_index_;
 
   // Raw pointer to the current state.
-  GraphicsContextState* paint_state_ = nullptr;
+  GraphicsContextState* paint_state_;
 
   PaintRecorder paint_recorder_;
 
-  printing::MetafileSkia* printing_metafile_ = nullptr;
-  paint_preview::PaintPreviewTracker* paint_preview_tracker_ = nullptr;
+  printing::MetafileSkia* metafile_;
+  paint_preview::PaintPreviewTracker* tracker_;
 
 #if DCHECK_IS_ON()
-  int layer_count_ = 0;
-  bool disable_destruction_checks_ = false;
+  int layer_count_;
+  bool disable_destruction_checks_;
 #endif
 
-  float device_scale_factor_ = 1.0f;
+  float device_scale_factor_;
 
   std::unique_ptr<DarkModeFilter> dark_mode_filter_;
 
-  bool printing_ = false;
-  bool in_drawing_recorder_ = false;
+  unsigned printing_ : 1;
+  unsigned is_painting_preview_ : 1;
+  unsigned in_drawing_recorder_ : 1;
+  unsigned is_dark_mode_enabled_ : 1;
 
   // The current node ID, which is used for marked content in a tagged PDF.
   DOMNodeId dom_node_id_ = kInvalidDOMNodeId;
+
+  DISALLOW_COPY_AND_ASSIGN(GraphicsContext);
 };
 
 }  // namespace blink

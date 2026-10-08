@@ -1,20 +1,21 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that inspect request works for nested OOPIF elements.\n`);
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
   await TestRunner.showPanel('elements');
 
   // Save time on style updates.
-  ElementsTestRunner.ignoreSidebarUpdates();
+  Elements.StylesSidebarPane.prototype.update = function() {};
+  Elements.MetricsSidebarPane.prototype.update = function() {};
 
   TestRunner.navigatePromise('resources/page-inspect.html');
 
   SDK.targetManager.observeTargets({
     targetAdded: async function(target) {
-      if (target === SDK.targetManager.mainTarget() || target === SDK.targetManager.mainFrameTarget())
+      if (target.name() === 'Main')
         return;
       let complete = false;
       target.pageAgent().setLifecycleEventsEnabled(true);

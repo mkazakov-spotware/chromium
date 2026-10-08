@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,13 +37,10 @@ public class TabState {
     public @Nullable @TabLaunchType Integer tabLaunchTypeAtCreation;
 
     /** Whether this TabState was created from a file containing info about an incognito Tab. */
-    public boolean isIncognito;
-
-    /** Tab level Request Desktop Site setting. */
-    public @TabUserAgent int userAgent;
+    protected boolean mIsIncognito;
 
     public boolean isIncognito() {
-        return isIncognito;
+        return mIsIncognito;
     }
 
     /** @return The theme color of the tab or {@link #UNSPECIFIED_THEME_COLOR} if not set. */
@@ -53,7 +50,6 @@ public class TabState {
 
     /** @return True if the tab has a theme color set. */
     public boolean hasThemeColor() {
-        return themeColor != UNSPECIFIED_THEME_COLOR
-                && !ColorUtils.isThemeColorTooBright(themeColor);
+        return themeColor != UNSPECIFIED_THEME_COLOR && ColorUtils.isValidThemeColor(themeColor);
     }
 }

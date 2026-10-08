@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "components/viz/common/resources/resource_format.h"
 #include "components/viz/test/test_gpu_memory_buffer_manager.h"
@@ -33,6 +32,8 @@ class RasterInProcessCommandBufferTest : public ::testing::Test {
     auto* gpu_feature_info = gpu_thread_holder_.GetGpuFeatureInfo();
     gpu_feature_info->status_values[gpu::GPU_FEATURE_TYPE_GPU_RASTERIZATION] =
         gpu::kGpuFeatureStatusEnabled;
+    gpu_feature_info->status_values[gpu::GPU_FEATURE_TYPE_OOP_RASTERIZATION] =
+        gpu::kGpuFeatureStatusEnabled;
   }
 
   std::unique_ptr<RasterInProcessContext> CreateRasterInProcessContext() {
@@ -48,8 +49,9 @@ class RasterInProcessCommandBufferTest : public ::testing::Test {
     auto context = std::make_unique<RasterInProcessContext>();
     auto result = context->Initialize(
         gpu_thread_holder_.GetTaskExecutor(), attributes, SharedMemoryLimits(),
+        gpu_memory_buffer_manager_.get(),
         gpu_memory_buffer_factory_->AsImageFactory(),
-        /*gr_shader_cache=*/nullptr, /*activity_flags=*/nullptr);
+        /*gpu_channel_manager_delegate=*/nullptr, nullptr, nullptr);
     DCHECK_EQ(result, ContextResult::kSuccess);
     return context;
   }
@@ -59,6 +61,8 @@ class RasterInProcessCommandBufferTest : public ::testing::Test {
       return;
     gpu_memory_buffer_factory_ =
         GpuMemoryBufferFactory::CreateNativeType(nullptr);
+    gpu_memory_buffer_manager_ =
+        std::make_unique<viz::TestGpuMemoryBufferManager>();
     gpu_thread_holder_.GetGpuPreferences()->texture_target_exception_list =
         CreateBufferUsageAndFormatExceptionList();
     context_ = CreateRasterInProcessContext();
@@ -67,13 +71,15 @@ class RasterInProcessCommandBufferTest : public ::testing::Test {
 
   void TearDown() override {
     context_.reset();
+    gpu_memory_buffer_manager_.reset();
     gpu_memory_buffer_factory_.reset();
   }
 
  protected:
   InProcessGpuThreadHolder gpu_thread_holder_;
-  raw_ptr<raster::RasterInterface> ri_;  // not owned
+  raster::RasterInterface* ri_;  // not owned
   std::unique_ptr<GpuMemoryBufferFactory> gpu_memory_buffer_factory_;
+  std::unique_ptr<GpuMemoryBufferManager> gpu_memory_buffer_manager_;
   std::unique_ptr<RasterInProcessContext> context_;
 };
 
@@ -99,10 +105,9 @@ TEST_F(RasterInProcessCommandBufferTest, AllowedBetweenBeginEndRasterCHROMIUM) {
   ri_->WaitSyncTokenCHROMIUM(sii->GenUnverifiedSyncToken().GetConstData());
 
   // Call BeginRasterCHROMIUM.
-  ri_->BeginRasterCHROMIUM(
-      /*sk_color_4f=*/{0, 0, 0, 0}, /*needs_clear=*/true,
-      /*msaa_sample_count=*/0, gpu::raster::kNoMSAA,
-      /*can_use_lcd_text=*/false, /*visible=*/true, color_space, mailbox.name);
+  ri_->BeginRasterCHROMIUM(/*sk_color=*/0, /*msaa_sample_count=*/0,
+                           /*can_use_lcd_text=*/false, color_space,
+                           mailbox.name);
   EXPECT_EQ(static_cast<GLenum>(GL_NO_ERROR), ri_->GetError());
 
   // Should flag an error this command is not allowed between a Begin and

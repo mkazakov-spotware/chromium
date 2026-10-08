@@ -1,12 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/renderer/bindings/listener_tracker.h"
 
-#include "base/check.h"
 #include "base/values.h"
-#include "extensions/common/mojom/event_dispatcher.mojom.h"
 #include "extensions/common/value_counter.h"
 
 namespace extensions {
@@ -61,8 +59,7 @@ ListenerTracker::RemoveFilteredListener(const std::string& context_owner_id,
   EventMatcher* matcher = event_filter_.GetEventMatcher(filter_id);
   DCHECK(matcher);
   std::unique_ptr<base::DictionaryValue> filter_copy =
-      base::DictionaryValue::From(
-          base::Value::ToUniquePtrValue(matcher->value()->Clone()));
+      matcher->value()->CreateDeepCopy();
 
   FilteredEventListenerKey key(context_owner_id, event_name);
   FilteredListeners::const_iterator counts = filtered_listeners_.find(key);
@@ -83,10 +80,9 @@ ListenerTracker::RemoveFilteredListener(const std::string& context_owner_id,
 
 std::set<int> ListenerTracker::GetMatchingFilteredListeners(
     const std::string& event_name,
-    mojom::EventFilteringInfoPtr filter,
+    const EventFilteringInfo& filter,
     int routing_id) {
-  DCHECK(!filter.is_null());
-  return event_filter_.MatchEvent(event_name, *filter, routing_id);
+  return event_filter_.MatchEvent(event_name, filter, routing_id);
 }
 
 }  // namespace extensions

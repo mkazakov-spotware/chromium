@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <assert.h>
 #include <windows.h>
 
-#include "chrome/chrome_elf/chrome_elf_security.h"
 #include "chrome/chrome_elf/crash/crash_helper.h"
 #include "chrome/chrome_elf/third_party_dlls/beacon.h"
 #include "chrome/chrome_elf/third_party_dlls/main.h"
@@ -63,11 +62,8 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
     install_static::InitializeProductDetailsForPrimaryModule();
     install_static::InitializeProcessType();
 
-    if (install_static::IsBrowserProcess()) {
+    if (!install_static::IsNonBrowserProcess()) {
       __try {
-        // Disable third party extension points.
-        elf_security::EarlyBrowserSecurity();
-
         // Initialize the blocking of third-party DLLs if the initialization of
         // the safety beacon succeeds.
         if (third_party_dlls::LeaveSetupBeacon())
@@ -93,12 +89,4 @@ void DumpProcessWithoutCrash() {
 
 void SetMetricsClientId(const char* client_id) {
   elf_crash::SetMetricsClientIdImpl(client_id);
-}
-
-bool IsBrowserProcess() {
-  return install_static::IsBrowserProcess();
-}
-
-bool IsExtensionPointDisableSet() {
-  return elf_security::IsExtensionPointDisableSet();
 }

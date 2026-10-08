@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,36 +17,31 @@ WebStatePolicyDeciderBridge::WebStatePolicyDeciderBridge(
 
 WebStatePolicyDeciderBridge::~WebStatePolicyDeciderBridge() = default;
 
-void WebStatePolicyDeciderBridge::ShouldAllowRequest(
+WebStatePolicyDecider::PolicyDecision
+WebStatePolicyDeciderBridge::ShouldAllowRequest(
     NSURLRequest* request,
-    RequestInfo request_info,
-    PolicyDecisionCallback callback) {
-  if ([decider_ respondsToSelector:@selector
-                (shouldAllowRequest:requestInfo:decisionHandler:)]) {
-    __block PolicyDecisionCallback block_callback = std::move(callback);
-    [decider_ shouldAllowRequest:request
-                     requestInfo:request_info
-                 decisionHandler:^(PolicyDecision result) {
-                   std::move(block_callback).Run(result);
-                 }];
-    return;
+    const WebStatePolicyDecider::RequestInfo& request_info) {
+  if ([decider_
+          respondsToSelector:@selector(shouldAllowRequest:requestInfo:)]) {
+    return [decider_ shouldAllowRequest:request requestInfo:request_info];
   }
-  std::move(callback).Run(PolicyDecision::Allow());
+  return WebStatePolicyDecider::PolicyDecision::Allow();
 }
 
 void WebStatePolicyDeciderBridge::ShouldAllowResponse(
     NSURLResponse* response,
-    ResponseInfo response_info,
-    PolicyDecisionCallback callback) {
+    bool for_main_frame,
+    base::OnceCallback<void(PolicyDecision)> callback) {
   if ([decider_ respondsToSelector:@selector
                 (decidePolicyForNavigationResponse:
-                                      responseInfo:decisionHandler:)]) {
-    __block PolicyDecisionCallback block_callback = std::move(callback);
+                                      forMainFrame:completionHandler:)]) {
+    __block base::OnceCallback<void(PolicyDecision)> block_callback =
+        std::move(callback);
     [decider_ decidePolicyForNavigationResponse:response
-                                   responseInfo:response_info
-                                decisionHandler:^(PolicyDecision result) {
-                                  std::move(block_callback).Run(result);
-                                }];
+                                   forMainFrame:for_main_frame
+                              completionHandler:^(PolicyDecision result) {
+                                std::move(block_callback).Run(result);
+                              }];
     return;
   }
   std::move(callback).Run(PolicyDecision::Allow());

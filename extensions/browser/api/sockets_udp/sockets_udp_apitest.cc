@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,21 +38,21 @@ IN_PROC_BROWSER_TEST_F(SocketsUdpApiTest, SocketsUdpCreateGood) {
   socket_create_function->set_extension(empty_extension.get());
   socket_create_function->set_has_callback(true);
 
-  absl::optional<base::Value> result(
+  std::unique_ptr<base::Value> result(
       api_test_utils::RunFunctionAndReturnSingleResult(
           socket_create_function.get(), "[]", browser_context()));
 
-  ASSERT_TRUE(result);
-  ASSERT_TRUE(result->is_dict());
-  absl::optional<int> socket_id = result->GetDict().FindInt("socketId");
-  ASSERT_TRUE(socket_id);
-  ASSERT_GT(*socket_id, 0);
+  base::DictionaryValue* value = NULL;
+  ASSERT_TRUE(result->GetAsDictionary(&value));
+  int socketId = -1;
+  EXPECT_TRUE(value->GetInteger("socketId", &socketId));
+  ASSERT_TRUE(socketId > 0);
 }
 
 // Disable SocketsUdpExtension on Mac due to time out.
 // See https://crbug.com/844402.
 // Disable on Linux for flakiness. See https://crbug.com/875920.
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_MAC) || defined(OS_LINUX) || defined(OS_CHROMEOS)
 #define MAYBE_SocketsUdpExtension DISABLED_SocketsUdpExtension
 #else
 #define MAYBE_SocketsUdpExtension SocketsUdpExtension
@@ -72,8 +72,7 @@ IN_PROC_BROWSER_TEST_F(SocketsUdpApiTest, MAYBE_SocketsUdpExtension) {
   ResultCatcher catcher;
   catcher.RestrictToBrowserContext(browser_context());
 
-  ExtensionTestMessageListener listener("info_please",
-                                        ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("info_please", true);
 
   ASSERT_TRUE(LoadApp("sockets_udp/api"));
   EXPECT_TRUE(listener.WaitUntilSatisfied());
@@ -87,8 +86,7 @@ IN_PROC_BROWSER_TEST_F(SocketsUdpApiTest, MAYBE_SocketsUdpExtension) {
 IN_PROC_BROWSER_TEST_F(SocketsUdpApiTest, DISABLED_SocketsUdpMulticast) {
   ResultCatcher catcher;
   catcher.RestrictToBrowserContext(browser_context());
-  ExtensionTestMessageListener listener("info_please",
-                                        ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("info_please", true);
   ASSERT_TRUE(LoadApp("sockets_udp/api"));
   EXPECT_TRUE(listener.WaitUntilSatisfied());
   listener.Reply(base::StringPrintf("multicast:%s:%d", kHostname, kPort));

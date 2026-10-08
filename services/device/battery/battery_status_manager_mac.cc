@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,8 @@
 
 #include "base/mac/foundation_util.h"
 #include "base/mac/scoped_cftyperef.h"
+#include "base/macros.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/time/time.h"
 
 namespace device {
@@ -52,6 +54,11 @@ bool CFStringsAreEqual(CFStringRef string1, CFStringRef string2) {
   return CFStringCompare(string1, string2, 0) == kCFCompareEqualTo;
 }
 
+void UpdateNumberBatteriesHistogram(int count) {
+  UMA_HISTOGRAM_CUSTOM_COUNTS("BatteryStatus.NumberBatteriesMac", count, 1, 5,
+                              6);
+}
+
 void FetchBatteryStatus(CFDictionaryRef description,
                         mojom::BatteryStatus* status) {
   CFStringRef current_state = base::mac::GetValueFromDictionary<CFStringRef>(
@@ -84,9 +91,10 @@ void FetchBatteryStatus(CFDictionaryRef description,
 
     // Battery is charging: set the charging time if it's available, otherwise
     // set to +infinity.
-    status->charging_time = charging_time != -1
-                                ? base::Minutes(charging_time).InSeconds()
-                                : std::numeric_limits<double>::infinity();
+    status->charging_time =
+        charging_time != -1
+            ? base::TimeDelta::FromMinutes(charging_time).InSeconds()
+            : std::numeric_limits<double>::infinity();
   } else {
     // Battery is not charging.
     // Set chargingTime to +infinity if the battery is not charged. Otherwise
@@ -100,7 +108,8 @@ void FetchBatteryStatus(CFDictionaryRef description,
       SInt64 discharging_time =
           GetValueAsSInt64(description, CFSTR(kIOPSTimeToEmptyKey), -1);
       if (discharging_time != -1) {
-        status->discharging_time = base::Minutes(discharging_time).InSeconds();
+        status->discharging_time =
+            base::TimeDelta::FromMinutes(discharging_time).InSeconds();
       }
     }
   }
@@ -159,9 +168,6 @@ class BatteryStatusObserver {
   explicit BatteryStatusObserver(const BatteryCallback& callback)
       : callback_(callback) {}
 
-  BatteryStatusObserver(const BatteryStatusObserver&) = delete;
-  BatteryStatusObserver& operator=(const BatteryStatusObserver&) = delete;
-
   ~BatteryStatusObserver() { DCHECK(!notifier_run_loop_source_); }
 
   void Start() {
@@ -180,6 +186,7 @@ class BatteryStatusObserver {
     CallOnBatteryStatusChanged(static_cast<void*>(&callback_));
     CFRunLoopAddSource(CFRunLoopGetCurrent(), notifier_run_loop_source_,
                        kCFRunLoopDefaultMode);
+    UpdateNumberBatteriesHistogram(GetInternalBatteriesStates().size());
   }
 
   void Stop() {
@@ -198,15 +205,14 @@ class BatteryStatusObserver {
 
   BatteryCallback callback_;
   base::ScopedCFTypeRef<CFRunLoopSourceRef> notifier_run_loop_source_;
+
+  DISALLOW_COPY_AND_ASSIGN(BatteryStatusObserver);
 };
 
 class BatteryStatusManagerMac : public BatteryStatusManager {
  public:
   explicit BatteryStatusManagerMac(const BatteryCallback& callback)
       : notifier_(std::make_unique<BatteryStatusObserver>(callback)) {}
-
-  BatteryStatusManagerMac(const BatteryStatusManagerMac&) = delete;
-  BatteryStatusManagerMac& operator=(const BatteryStatusManagerMac&) = delete;
 
   ~BatteryStatusManagerMac() override { notifier_->Stop(); }
 
@@ -220,6 +226,8 @@ class BatteryStatusManagerMac : public BatteryStatusManager {
 
  private:
   std::unique_ptr<BatteryStatusObserver> notifier_;
+
+  DISALLOW_COPY_AND_ASSIGN(BatteryStatusManagerMac);
 };
 
 }  // namespace

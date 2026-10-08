@@ -1,29 +1,31 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "sandbox/win/src/job.h"
 
-#include <windows.h>
-
 #include <stddef.h>
 #include <utility>
 
+#include "base/win/windows_version.h"
 #include "sandbox/win/src/restricted_token.h"
 
 namespace sandbox {
 
-Job::Job() = default;
-Job::~Job() = default;
+Job::Job() : job_handle_(nullptr) {}
+
+Job::~Job() {}
 
 DWORD Job::Init(JobLevel security_level,
+                const wchar_t* job_name,
                 DWORD ui_exceptions,
                 size_t memory_limit) {
-  if (job_handle_.is_valid())
+  if (job_handle_.IsValid())
     return ERROR_ALREADY_INITIALIZED;
 
-  job_handle_.Set(::CreateJobObject(nullptr, nullptr));
-  if (!job_handle_.is_valid())
+  job_handle_.Set(::CreateJobObject(nullptr,  // No security attribute
+                                    job_name));
+  if (!job_handle_.IsValid())
     return ::GetLastError();
 
   JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli = {};
@@ -32,28 +34,31 @@ DWORD Job::Init(JobLevel security_level,
   // Set the settings for the different security levels. Note: The higher levels
   // inherit from the lower levels.
   switch (security_level) {
-    case JobLevel::kLockdown: {
+    case JOB_LOCKDOWN: {
       jeli.BasicLimitInformation.LimitFlags |=
           JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION;
+      FALLTHROUGH;
+    }
+    case JOB_RESTRICTED: {
       jbur.UIRestrictionsClass |= JOB_OBJECT_UILIMIT_WRITECLIPBOARD;
       jbur.UIRestrictionsClass |= JOB_OBJECT_UILIMIT_READCLIPBOARD;
       jbur.UIRestrictionsClass |= JOB_OBJECT_UILIMIT_HANDLES;
       jbur.UIRestrictionsClass |= JOB_OBJECT_UILIMIT_GLOBALATOMS;
-      [[fallthrough]];
+      FALLTHROUGH;
     }
-    case JobLevel::kLimitedUser: {
+    case JOB_LIMITED_USER: {
       jbur.UIRestrictionsClass |= JOB_OBJECT_UILIMIT_DISPLAYSETTINGS;
       jeli.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
       jeli.BasicLimitInformation.ActiveProcessLimit = 1;
-      [[fallthrough]];
+      FALLTHROUGH;
     }
-    case JobLevel::kInteractive: {
+    case JOB_INTERACTIVE: {
       jbur.UIRestrictionsClass |= JOB_OBJECT_UILIMIT_SYSTEMPARAMETERS;
       jbur.UIRestrictionsClass |= JOB_OBJECT_UILIMIT_DESKTOP;
       jbur.UIRestrictionsClass |= JOB_OBJECT_UILIMIT_EXITWINDOWS;
-      [[fallthrough]];
+      FALLTHROUGH;
     }
-    case JobLevel::kUnprotected: {
+    case JOB_UNPROTECTED: {
       if (memory_limit) {
         jeli.BasicLimitInformation.LimitFlags |=
             JOB_OBJECT_LIMIT_PROCESS_MEMORY;
@@ -64,9 +69,7 @@ DWORD Job::Init(JobLevel security_level,
           JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
       break;
     }
-    case JobLevel::kNone: {
-      return ERROR_BAD_ARGUMENTS;
-    }
+    default: { return ERROR_BAD_ARGUMENTS; }
   }
 
   if (!::SetInformationJobObject(job_handle_.Get(),
@@ -85,33 +88,49 @@ DWORD Job::Init(JobLevel security_level,
   return ERROR_SUCCESS;
 }
 
-bool Job::IsValid() {
-  return job_handle_.is_valid();
-}
-
-HANDLE Job::GetHandle() {
-  return job_handle_.get();
-}
-
-DWORD Job::SetActiveProcessLimit(DWORD processes) {
-  JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli = {};
-
-  if (!job_handle_.is_valid())
+DWORD Job::UserHandleGrantAccess(HANDLE handle) {
+  if (!job_handle_.IsValid())
     return ERROR_NO_DATA;
 
-  if (!::QueryInformationJobObject(job_handle_.get(),
-                                   JobObjectExtendedLimitInformation, &jeli,
-                                   sizeof(jeli), nullptr)) {
+  if (!::UserHandleGrantAccess(handle, job_handle_.Get(),
+                               true)) {  // Access allowed.
     return ::GetLastError();
   }
+
+  return ERROR_SUCCESS;
+}
+
+base::win::ScopedHandle Job::Take() {
+  return std::move(job_handle_);
+}
+
+DWORD Job::AssignProcessToJob(HANDLE process_handle) {
+  if (!job_handle_.IsValid())
+    return ERROR_NO_DATA;
+
+  if (!::AssignProcessToJobObject(job_handle_.Get(), process_handle))
+    return ::GetLastError();
+
+  return ERROR_SUCCESS;
+}
+
+// static
+DWORD Job::SetActiveProcessLimit(base::win::ScopedHandle* job_handle,
+                                 DWORD processes) {
+  JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli = {};
+
+  if (!::QueryInformationJobObject(job_handle->Get(),
+                                   JobObjectExtendedLimitInformation, &jeli,
+                                   sizeof(jeli), nullptr))
+    return ::GetLastError();
+
   jeli.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
   jeli.BasicLimitInformation.ActiveProcessLimit = processes;
 
-  if (!::SetInformationJobObject(job_handle_.get(),
+  if (!::SetInformationJobObject(job_handle->Get(),
                                  JobObjectExtendedLimitInformation, &jeli,
-                                 sizeof(jeli))) {
+                                 sizeof(jeli)))
     return ::GetLastError();
-  }
 
   return ERROR_SUCCESS;
 }

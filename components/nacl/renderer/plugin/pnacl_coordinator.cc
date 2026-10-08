@@ -1,16 +1,15 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/nacl/renderer/plugin/pnacl_coordinator.h"
 
 #include <algorithm>
-#include <memory>
 #include <sstream>
 #include <utility>
 
 #include "base/check.h"
-#include "base/cxx17_backports.h"
+#include "base/numerics/ranges.h"
 #include "components/nacl/renderer/plugin/plugin.h"
 #include "components/nacl/renderer/plugin/plugin_error.h"
 #include "components/nacl/renderer/plugin/pnacl_translate_thread.h"
@@ -67,7 +66,7 @@ PnaclCoordinator* PnaclCoordinator::BitcodeToNative(
 
   nacl::PPBNaClPrivate::SetPNaClStartTime(plugin->pp_instance());
   int cpus = nacl::PPBNaClPrivate::GetNumberOfProcessors();
-  coordinator->num_threads_ = base::clamp(cpus, 1, 4);
+  coordinator->num_threads_ = base::ClampToRange(cpus, 1, 4);
   if (pnacl_options.use_subzero) {
     coordinator->split_module_count_ = 1;
   } else {
@@ -205,7 +204,7 @@ void PnaclCoordinator::OpenBitcodeStream() {
   // thread object immediately. This ensures that any pieces of the file
   // that get downloaded before the compilation thread is accepting
   // SRPCs won't get dropped.
-  translate_thread_ = std::make_unique<PnaclTranslateThread>();
+  translate_thread_.reset(new PnaclTranslateThread());
   if (translate_thread_ == NULL) {
     ReportNonPpapiError(
         PP_NACL_ERROR_PNACL_THREAD_CREATE,
@@ -239,8 +238,8 @@ void PnaclCoordinator::BitcodeStreamCacheMiss(int64_t expected_pexe_size,
   // The component updater's resource throttles + OnDemand update/install
   // should block the URL request until the compiler is present. Now we
   // can load the resources (e.g. llc and ld nexes).
-  resources_ = std::make_unique<PnaclResources>(
-      plugin_, PP_ToBool(pnacl_options_.use_subzero));
+  resources_.reset(new PnaclResources(plugin_,
+                                      PP_ToBool(pnacl_options_.use_subzero)));
   CHECK(resources_ != NULL);
 
   // The first step of loading resources: read the resource info file.

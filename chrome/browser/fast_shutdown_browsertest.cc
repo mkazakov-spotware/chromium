@@ -1,12 +1,12 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -25,10 +25,6 @@
 using content::BrowserThread;
 
 class FastShutdown : public InProcessBrowserTest {
- public:
-  FastShutdown(const FastShutdown&) = delete;
-  FastShutdown& operator=(const FastShutdown&) = delete;
-
  protected:
   FastShutdown() {
   }
@@ -36,13 +32,15 @@ class FastShutdown : public InProcessBrowserTest {
   void SetUpCommandLine(base::CommandLine* command_line) override {
     command_line->AppendSwitch(embedder_support::kDisablePopupBlocking);
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FastShutdown);
 };
 
 // This tests for a previous error where uninstalling an onbeforeunload handler
 // would enable fast shutdown even if an onunload handler still existed.
 // Flaky on all platforms, http://crbug.com/89173
-#if !BUILDFLAG( \
-    IS_CHROMEOS_ASH)  // ChromeOS opens tabs instead of windows for popups.
+#if !defined(OS_CHROMEOS)  // ChromeOS opens tabs instead of windows for popups.
 IN_PROC_BROWSER_TEST_F(FastShutdown, DISABLED_SlowTermination) {
   // Need to run these tests on http:// since we only allow cookies on that (and
   // https obviously).

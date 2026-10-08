@@ -1,11 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/media/media_controller_impl.h"
 
-#include "ash/constants/ash_features.h"
-#include "ash/constants/ash_pref_names.h"
+#include "ash/public/cpp/ash_features.h"
+#include "ash/public/cpp/ash_pref_names.h"
 #include "ash/public/cpp/media_client.h"
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
@@ -25,7 +25,7 @@ namespace ash {
 namespace {
 
 constexpr base::TimeDelta kDefaultSeekTime =
-    base::Seconds(media_session::mojom::kDefaultSeekTimeSeconds);
+    base::TimeDelta::FromSeconds(media_session::mojom::kDefaultSeekTimeSeconds);
 
 bool IsMediaSessionActionEligibleForKeyControl(
     media_session::mojom::MediaSessionAction action) {
@@ -92,11 +92,10 @@ void MediaControllerImpl::NotifyCaptureState(
     observer.OnMediaCaptureChanged(capture_states);
 }
 
-void MediaControllerImpl::NotifyVmMediaNotificationState(bool camera,
-                                                         bool mic,
-                                                         bool camera_and_mic) {
+void MediaControllerImpl::NotifyVmCaptureState(
+    MediaCaptureState capture_state) {
   for (auto& observer : observers_)
-    observer.OnVmMediaNotificationChanged(camera, mic, camera_and_mic);
+    observer.OnVmMediaCaptureChanged(capture_state);
 }
 
 void MediaControllerImpl::HandleMediaPlayPause() {

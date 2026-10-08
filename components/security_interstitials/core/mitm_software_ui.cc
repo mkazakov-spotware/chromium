@@ -1,17 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/security_interstitials/core/mitm_software_ui.h"
 
 #include "base/i18n/time_formatting.h"
-#include "base/strings/escape.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "components/security_interstitials/core/common_string_util.h"
 #include "components/security_interstitials/core/metrics_helper.h"
 #include "components/ssl_errors/error_info.h"
 #include "components/strings/grit/components_strings.h"
+#include "net/base/escape.h"
 #include "ui/base/l10n/l10n_util.h"
 
 namespace security_interstitials {
@@ -36,24 +36,28 @@ MITMSoftwareUI::~MITMSoftwareUI() {
   controller_->metrics_helper()->RecordShutdownMetrics();
 }
 
-void MITMSoftwareUI::PopulateStringsForHTML(base::Value::Dict& load_time_data) {
+void MITMSoftwareUI::PopulateStringsForHTML(
+    base::DictionaryValue* load_time_data) {
+  CHECK(load_time_data);
+
   // Shared with other SSL errors.
   common_string_util::PopulateSSLLayoutStrings(cert_error_, load_time_data);
   common_string_util::PopulateSSLDebuggingStrings(
       ssl_info_, base::Time::NowFromSystemTime(), load_time_data);
 
   // Set display booleans.
-  load_time_data.Set("overridable", false);
-  load_time_data.Set("hide_primary_button", true);
-  load_time_data.Set("bad_clock", false);
+  load_time_data->SetBoolean("overridable", false);
+  load_time_data->SetBoolean("hide_primary_button", true);
+  load_time_data->SetBoolean("bad_clock", false);
 
   // Set strings that are shared between enterprise and non-enterprise
   // interstitials.
-  load_time_data.Set("tabTitle", l10n_util::GetStringUTF16(IDS_SSL_V2_TITLE));
-  load_time_data.Set("heading",
-                     l10n_util::GetStringUTF16(IDS_MITM_SOFTWARE_HEADING));
-  load_time_data.Set("primaryButtonText", "");
-  load_time_data.Set("finalParagraph", "");
+  load_time_data->SetString("tabTitle",
+                            l10n_util::GetStringUTF16(IDS_SSL_V2_TITLE));
+  load_time_data->SetString(
+      "heading", l10n_util::GetStringUTF16(IDS_MITM_SOFTWARE_HEADING));
+  load_time_data->SetString("primaryButtonText", std::string());
+  load_time_data->SetString("finalParagraph", std::string());
 
   if (is_enterprise_managed_) {
     MITMSoftwareUI::PopulateEnterpriseUserStringsForHTML(load_time_data);
@@ -106,32 +110,32 @@ void MITMSoftwareUI::HandleCommand(SecurityInterstitialCommand command) {
 }
 
 void MITMSoftwareUI::PopulateEnterpriseUserStringsForHTML(
-    base::Value::Dict& load_time_data) {
-  load_time_data.Set(
+    base::DictionaryValue* load_time_data) {
+  load_time_data->SetString(
       "primaryParagraph",
       l10n_util::GetStringFUTF16(
           IDS_MITM_SOFTWARE_PRIMARY_PARAGRAPH_ENTERPRISE,
-          base::EscapeForHTML(base::UTF8ToUTF16(mitm_software_name_))));
-  load_time_data.Set(
+          net::EscapeForHTML(base::UTF8ToUTF16(mitm_software_name_))));
+  load_time_data->SetString(
       "explanationParagraph",
       l10n_util::GetStringFUTF16(
           IDS_MITM_SOFTWARE_EXPLANATION_ENTERPRISE,
-          base::EscapeForHTML(base::UTF8ToUTF16(mitm_software_name_)),
+          net::EscapeForHTML(base::UTF8ToUTF16(mitm_software_name_)),
           l10n_util::GetStringUTF16(IDS_MITM_SOFTWARE_EXPLANATION)));
 }
 
 void MITMSoftwareUI::PopulateAtHomeUserStringsForHTML(
-    base::Value::Dict& load_time_data) {
-  load_time_data.Set(
+    base::DictionaryValue* load_time_data) {
+  load_time_data->SetString(
       "primaryParagraph",
       l10n_util::GetStringFUTF16(
           IDS_MITM_SOFTWARE_PRIMARY_PARAGRAPH_NONENTERPRISE,
-          base::EscapeForHTML(base::UTF8ToUTF16(mitm_software_name_))));
-  load_time_data.Set(
+          net::EscapeForHTML(base::UTF8ToUTF16(mitm_software_name_))));
+  load_time_data->SetString(
       "explanationParagraph",
       l10n_util::GetStringFUTF16(
           IDS_MITM_SOFTWARE_EXPLANATION_NONENTERPRISE,
-          base::EscapeForHTML(base::UTF8ToUTF16(mitm_software_name_)),
+          net::EscapeForHTML(base::UTF8ToUTF16(mitm_software_name_)),
           l10n_util::GetStringUTF16(IDS_MITM_SOFTWARE_EXPLANATION)));
 }
 

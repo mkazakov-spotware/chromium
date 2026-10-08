@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,10 @@
 #include <memory>
 
 #include "base/memory/ptr_util.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "third_party/blink/renderer/core/animation/number_property_functions.h"
 #include "third_party/blink/renderer/core/css/css_numeric_literal_value.h"
 #include "third_party/blink/renderer/core/css/resolver/style_builder.h"
-#include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver_state.h"
 #include "third_party/blink/renderer/core/css/scoped_css_value.h"
 
@@ -21,19 +20,19 @@ class InheritedNumberChecker
     : public CSSInterpolationType::CSSConversionChecker {
  public:
   InheritedNumberChecker(const CSSProperty& property,
-                         absl::optional<double> number)
+                         base::Optional<double> number)
       : property_(property), number_(number) {}
 
  private:
   bool IsValid(const StyleResolverState& state,
                const InterpolationValue& underlying) const final {
-    absl::optional<double> parent_number =
+    base::Optional<double> parent_number =
         NumberPropertyFunctions::GetNumber(property_, *state.ParentStyle());
     return number_ == parent_number;
   }
 
   const CSSProperty& property_;
-  const absl::optional<double> number_;
+  const base::Optional<double> number_;
 };
 
 const CSSValue* CSSNumberInterpolationType::CreateCSSValue(
@@ -42,7 +41,8 @@ const CSSValue* CSSNumberInterpolationType::CreateCSSValue(
     const StyleResolverState&) const {
   double number = To<InterpolableNumber>(value).Value();
   return CSSNumericLiteralValue::Create(
-      round_to_integer_ ? round(number) : number, UnitType());
+      round_to_integer_ ? round(number) : number,
+      CSSPrimitiveValue::UnitType::kNumber);
 }
 
 InterpolationValue CSSNumberInterpolationType::CreateNumberValue(
@@ -57,11 +57,10 @@ InterpolationValue CSSNumberInterpolationType::MaybeConvertNeutral(
 }
 
 InterpolationValue CSSNumberInterpolationType::MaybeConvertInitial(
-    const StyleResolverState& state,
+    const StyleResolverState&,
     ConversionCheckers& conversion_checkers) const {
-  absl::optional<double> initial_number =
-      NumberPropertyFunctions::GetInitialNumber(
-          CssProperty(), state.GetDocument().GetStyleResolver().InitialStyle());
+  base::Optional<double> initial_number =
+      NumberPropertyFunctions::GetInitialNumber(CssProperty());
   if (!initial_number)
     return nullptr;
   return CreateNumberValue(*initial_number);
@@ -72,7 +71,7 @@ InterpolationValue CSSNumberInterpolationType::MaybeConvertInherit(
     ConversionCheckers& conversion_checkers) const {
   if (!state.ParentStyle())
     return nullptr;
-  absl::optional<double> inherited =
+  base::Optional<double> inherited =
       NumberPropertyFunctions::GetNumber(CssProperty(), *state.ParentStyle());
   conversion_checkers.push_back(
       std::make_unique<InheritedNumberChecker>(CssProperty(), inherited));
@@ -95,7 +94,7 @@ InterpolationValue CSSNumberInterpolationType::MaybeConvertValue(
 InterpolationValue
 CSSNumberInterpolationType::MaybeConvertStandardPropertyUnderlyingValue(
     const ComputedStyle& style) const {
-  absl::optional<double> underlying_number =
+  base::Optional<double> underlying_number =
       NumberPropertyFunctions::GetNumber(CssProperty(), style);
   if (!underlying_number)
     return nullptr;
@@ -108,12 +107,14 @@ void CSSNumberInterpolationType::ApplyStandardPropertyValue(
     StyleResolverState& state) const {
   double clamped_number = NumberPropertyFunctions::ClampNumber(
       CssProperty(), To<InterpolableNumber>(interpolable_value).Value());
-  if (!NumberPropertyFunctions::SetNumber(CssProperty(), state.StyleBuilder(),
+  if (!NumberPropertyFunctions::SetNumber(CssProperty(), *state.Style(),
                                           clamped_number)) {
-    StyleBuilder::ApplyProperty(GetProperty().GetCSSProperty(), state,
-                                ScopedCSSValue(*CSSNumericLiteralValue::Create(
-                                                   clamped_number, UnitType()),
-                                               nullptr));
+    StyleBuilder::ApplyProperty(
+        GetProperty().GetCSSProperty(), state,
+        ScopedCSSValue(
+            *CSSNumericLiteralValue::Create(
+                clamped_number, CSSPrimitiveValue::UnitType::kNumber),
+            nullptr));
   }
 }
 

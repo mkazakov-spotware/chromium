@@ -1,23 +1,22 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_BASE_MODELS_TABLE_MODEL_H_
 #define UI_BASE_MODELS_TABLE_MODEL_H_
 
-#include <string>
+#include <vector>
 
 #include "base/component_export.h"
-#include "third_party/icu/source/common/unicode/uversion.h"
+#include "base/strings/string16.h"
+#include "third_party/icu/source/i18n/unicode/coll.h"
 
-// third_party/icu/source/common/unicode/uversion.h will set namespace icu.
-namespace U_ICU_NAMESPACE {
-class Collator;
+namespace gfx {
+class ImageSkia;
 }
 
 namespace ui {
 
-class ImageModel;
 class TableModelObserver;
 
 // The model driving the TableView.
@@ -27,21 +26,21 @@ class COMPONENT_EXPORT(UI_BASE) TableModel {
   static constexpr int kIconSize = 16;
 
   // Number of rows in the model.
-  virtual size_t RowCount() = 0;
+  virtual int RowCount() = 0;
 
   // Returns the value at a particular location in text.
-  virtual std::u16string GetText(size_t row, int column_id) = 0;
+  virtual base::string16 GetText(int row, int column_id) = 0;
 
   // Returns the small icon (|kIconSize| x |kIconSize|) that should be displayed
   // in the first column before the text. This is only used when the TableView
-  // was created with the ICON_AND_TEXT table type. An empty ImageModel if there
-  // is no image.
-  virtual ui::ImageModel GetIcon(size_t row);
+  // was created with the ICON_AND_TEXT table type. Returns an isNull() image if
+  // there is no image.
+  virtual gfx::ImageSkia GetIcon(int row);
 
   // Returns the tooltip, if any, to show for a particular row.  If there are
   // multiple columns in the row, this will only be shown when hovering over
   // column zero.
-  virtual std::u16string GetTooltip(size_t row);
+  virtual base::string16 GetTooltip(int row);
 
   // Sets the observer for the model. The TableView should NOT take ownership
   // of the observer.
@@ -53,13 +52,13 @@ class COMPONENT_EXPORT(UI_BASE) TableModel {
   //
   // This implementation does a case insensitive locale specific string
   // comparison.
-  virtual int CompareValues(size_t row1, size_t row2, int column_id);
+  virtual int CompareValues(int row1, int row2, int column_id);
 
   // Reset the collator.
   void ClearCollator();
 
  protected:
-  virtual ~TableModel();
+  virtual ~TableModel() {}
 
   // Returns the collator used by CompareValues.
   icu::Collator* GetCollator();
@@ -74,13 +73,12 @@ struct COMPONENT_EXPORT(UI_BASE) TableColumn {
   TableColumn();
   TableColumn(int id, Alignment alignment, int width, float percent);
   TableColumn(const TableColumn& other);
-  TableColumn& operator=(const TableColumn& other);
 
   // A unique identifier for the column.
   int id;
 
   // The title for the column.
-  std::u16string title;
+  base::string16 title;
 
   // Alignment for the content.
   Alignment alignment;

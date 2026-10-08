@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,13 +15,17 @@
 
 namespace ui {
 
+void JNI_ClipboardAndroidTestSupport_Cleanup(JNIEnv* env) {
+  Clipboard::DestroyClipboardForCurrentThread();
+}
+
 jboolean JNI_ClipboardAndroidTestSupport_NativeWriteHtml(
     JNIEnv* env,
     const base::android::JavaParamRef<jstring>& j_html_text) {
   {
     // Simulate something writing HTML to the clipboard in native.
     // Android requires both a plaintext and HTML version.
-    std::u16string html_text;
+    base::string16 html_text;
     base::android::ConvertJavaStringToUTF16(env, j_html_text, &html_text);
     std::string url;
     ScopedClipboardWriter clipboard_writer(ClipboardBuffer::kCopyPaste);
@@ -29,10 +33,10 @@ jboolean JNI_ClipboardAndroidTestSupport_NativeWriteHtml(
     clipboard_writer.WriteText(html_text);
   }
   auto* clipboard = Clipboard::GetForCurrentThread();
-  return clipboard->IsFormatAvailable(ClipboardFormatType::HtmlType(),
+  return clipboard->IsFormatAvailable(ClipboardFormatType::GetHtmlType(),
                                       ClipboardBuffer::kCopyPaste,
                                       /* data_dst = */ nullptr) &&
-         clipboard->IsFormatAvailable(ClipboardFormatType::PlainTextType(),
+         clipboard->IsFormatAvailable(ClipboardFormatType::GetPlainTextType(),
                                       ClipboardBuffer::kCopyPaste,
                                       /* data_dst = */ nullptr);
 }
@@ -44,14 +48,14 @@ jboolean JNI_ClipboardAndroidTestSupport_NativeClipboardContains(
   // ClipboardManager. This should update the native side of the clipboard as
   // well as the Android side.
   auto* clipboard = Clipboard::GetForCurrentThread();
-  if (clipboard->IsFormatAvailable(ClipboardFormatType::HtmlType(),
+  if (clipboard->IsFormatAvailable(ClipboardFormatType::GetHtmlType(),
                                    ClipboardBuffer::kCopyPaste,
                                    /* data_dst = */ nullptr)) {
     LOG(ERROR) << "HTML still in clipboard.";
     return false;
   }
 
-  if (!clipboard->IsFormatAvailable(ClipboardFormatType::PlainTextType(),
+  if (!clipboard->IsFormatAvailable(ClipboardFormatType::GetPlainTextType(),
                                     ClipboardBuffer::kCopyPaste,
                                     /* data_dst = */ nullptr)) {
     LOG(ERROR) << "Plain text not in clipboard.";

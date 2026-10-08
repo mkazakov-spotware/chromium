@@ -38,8 +38,6 @@
 
 #include <stdlib.h>
 
-#include <ostream>
-
 #include "base/check_op.h"
 #include "url/url_parse_internal.h"
 #include "url/url_util.h"
@@ -50,7 +48,7 @@ namespace url {
 namespace {
 
 // Returns true if the given character is a valid digit to use in a port.
-inline bool IsPortDigit(char16_t ch) {
+inline bool IsPortDigit(base::char16 ch) {
   return ch >= '0' && ch <= '9';
 }
 
@@ -217,7 +215,7 @@ void ParsePath(const CHAR* spec,
     ref->reset();
     return;
   }
-  DCHECK(path.is_nonempty()) << "We should never have 0 length paths";
+  DCHECK(path.len > 0) << "We should never have 0 length paths";
 
   // Search for first occurrence of either ? or #.
   int query_separator = -1;  // Index of the '?'
@@ -584,7 +582,7 @@ template<typename CHAR>
 int DoParsePort(const CHAR* spec, const Component& component) {
   // Easy success case when there is no port.
   const int kMaxDigits = 5;
-  if (component.is_empty())
+  if (!component.is_nonempty())
     return PORT_UNSPECIFIED;
 
   // Skip over any leading 0s.
@@ -628,7 +626,7 @@ void DoExtractFileName(const CHAR* spec,
                        const Component& path,
                        Component* file_name) {
   // Handle empty paths: they have no file names.
-  if (path.is_empty()) {
+  if (!path.is_nonempty()) {
     file_name->reset();
     return;
   }
@@ -691,11 +689,6 @@ bool DoExtractQueryKeyValue(const CHAR* spec,
 }
 
 }  // namespace
-
-COMPONENT_EXPORT(URL)
-std::ostream& operator<<(std::ostream& os, const Component& component) {
-  return os << '{' << component.begin << ", " << component.len << "}";
-}
 
 Parsed::Parsed() : potentially_dangling_markup(false), inner_parsed_(NULL) {}
 
@@ -819,13 +812,13 @@ bool ExtractScheme(const char* url, int url_len, Component* scheme) {
   return DoExtractScheme(url, url_len, scheme);
 }
 
-bool ExtractScheme(const char16_t* url, int url_len, Component* scheme) {
+bool ExtractScheme(const base::char16* url, int url_len, Component* scheme) {
   return DoExtractScheme(url, url_len, scheme);
 }
 
 // This handles everything that may be an authority terminator, including
 // backslash. For special backslash handling see DoParseAfterScheme.
-bool IsAuthorityTerminator(char16_t ch) {
+bool IsAuthorityTerminator(base::char16 ch) {
   return IsURLSlash(ch) || ch == '?' || ch == '#';
 }
 
@@ -835,7 +828,7 @@ void ExtractFileName(const char* url,
   DoExtractFileName(url, path, file_name);
 }
 
-void ExtractFileName(const char16_t* url,
+void ExtractFileName(const base::char16* url,
                      const Component& path,
                      Component* file_name) {
   DoExtractFileName(url, path, file_name);
@@ -848,7 +841,7 @@ bool ExtractQueryKeyValue(const char* url,
   return DoExtractQueryKeyValue(url, query, key, value);
 }
 
-bool ExtractQueryKeyValue(const char16_t* url,
+bool ExtractQueryKeyValue(const base::char16* url,
                           Component* query,
                           Component* key,
                           Component* value) {
@@ -864,7 +857,7 @@ void ParseAuthority(const char* spec,
   DoParseAuthority(spec, auth, username, password, hostname, port_num);
 }
 
-void ParseAuthority(const char16_t* spec,
+void ParseAuthority(const base::char16* spec,
                     const Component& auth,
                     Component* username,
                     Component* password,
@@ -877,7 +870,7 @@ int ParsePort(const char* url, const Component& port) {
   return DoParsePort(url, port);
 }
 
-int ParsePort(const char16_t* url, const Component& port) {
+int ParsePort(const base::char16* url, const Component& port) {
   return DoParsePort(url, port);
 }
 
@@ -885,7 +878,7 @@ void ParseStandardURL(const char* url, int url_len, Parsed* parsed) {
   DoParseStandardURL(url, url_len, parsed);
 }
 
-void ParseStandardURL(const char16_t* url, int url_len, Parsed* parsed) {
+void ParseStandardURL(const base::char16* url, int url_len, Parsed* parsed) {
   DoParseStandardURL(url, url_len, parsed);
 }
 
@@ -896,7 +889,7 @@ void ParsePathURL(const char* url,
   DoParsePathURL(url, url_len, trim_path_end, parsed);
 }
 
-void ParsePathURL(const char16_t* url,
+void ParsePathURL(const base::char16* url,
                   int url_len,
                   bool trim_path_end,
                   Parsed* parsed) {
@@ -907,7 +900,7 @@ void ParseFileSystemURL(const char* url, int url_len, Parsed* parsed) {
   DoParseFileSystemURL(url, url_len, parsed);
 }
 
-void ParseFileSystemURL(const char16_t* url, int url_len, Parsed* parsed) {
+void ParseFileSystemURL(const base::char16* url, int url_len, Parsed* parsed) {
   DoParseFileSystemURL(url, url_len, parsed);
 }
 
@@ -915,7 +908,7 @@ void ParseMailtoURL(const char* url, int url_len, Parsed* parsed) {
   DoParseMailtoURL(url, url_len, parsed);
 }
 
-void ParseMailtoURL(const char16_t* url, int url_len, Parsed* parsed) {
+void ParseMailtoURL(const base::char16* url, int url_len, Parsed* parsed) {
   DoParseMailtoURL(url, url_len, parsed);
 }
 
@@ -927,7 +920,7 @@ void ParsePathInternal(const char* spec,
   ParsePath(spec, path, filepath, query, ref);
 }
 
-void ParsePathInternal(const char16_t* spec,
+void ParsePathInternal(const base::char16* spec,
                        const Component& path,
                        Component* filepath,
                        Component* query,
@@ -942,7 +935,7 @@ void ParseAfterScheme(const char* spec,
   DoParseAfterScheme(spec, spec_len, after_scheme, parsed);
 }
 
-void ParseAfterScheme(const char16_t* spec,
+void ParseAfterScheme(const base::char16* spec,
                       int spec_len,
                       int after_scheme,
                       Parsed* parsed) {

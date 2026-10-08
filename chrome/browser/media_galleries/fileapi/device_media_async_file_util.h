@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "base/files/file.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "storage/browser/blob/shareable_file_reference.h"
@@ -33,9 +34,6 @@ enum MediaFileValidationType {
 
 class DeviceMediaAsyncFileUtil : public storage::AsyncFileUtil {
  public:
-  DeviceMediaAsyncFileUtil(const DeviceMediaAsyncFileUtil&) = delete;
-  DeviceMediaAsyncFileUtil& operator=(const DeviceMediaAsyncFileUtil&) = delete;
-
   ~DeviceMediaAsyncFileUtil() override;
 
   // Returns an instance of DeviceMediaAsyncFileUtil.
@@ -49,7 +47,7 @@ class DeviceMediaAsyncFileUtil : public storage::AsyncFileUtil {
   void CreateOrOpen(
       std::unique_ptr<storage::FileSystemOperationContext> context,
       const storage::FileSystemURL& url,
-      uint32_t file_flags,
+      int file_flags,
       CreateOrOpenCallback callback) override;
   void EnsureFileExists(
       std::unique_ptr<storage::FileSystemOperationContext> context,
@@ -82,14 +80,14 @@ class DeviceMediaAsyncFileUtil : public storage::AsyncFileUtil {
       std::unique_ptr<storage::FileSystemOperationContext> context,
       const storage::FileSystemURL& src_url,
       const storage::FileSystemURL& dest_url,
-      CopyOrMoveOptionSet options,
+      CopyOrMoveOption option,
       CopyFileProgressCallback progress_callback,
       StatusCallback callback) override;
   void MoveFileLocal(
       std::unique_ptr<storage::FileSystemOperationContext> context,
       const storage::FileSystemURL& src_url,
       const storage::FileSystemURL& dest_url,
-      CopyOrMoveOptionSet options,
+      CopyOrMoveOption option,
       StatusCallback callback) override;
   void CopyInForeignFile(
       std::unique_ptr<storage::FileSystemOperationContext> context,
@@ -199,6 +197,8 @@ class DeviceMediaAsyncFileUtil : public storage::AsyncFileUtil {
 
   // For callbacks that may run after destruction.
   base::WeakPtrFactory<DeviceMediaAsyncFileUtil> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DeviceMediaAsyncFileUtil);
 };
 
 #endif  // CHROME_BROWSER_MEDIA_GALLERIES_FILEAPI_DEVICE_MEDIA_ASYNC_FILE_UTIL_H_

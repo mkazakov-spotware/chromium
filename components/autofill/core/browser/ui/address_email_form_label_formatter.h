@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "base/strings/string16.h"
 #include "components/autofill/core/browser/data_model/autofill_profile.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/ui/label_formatter.h"
@@ -27,7 +28,7 @@ class AddressEmailFormLabelFormatter : public LabelFormatter {
 
   ~AddressEmailFormLabelFormatter() override;
 
-  std::u16string GetLabelForProfile(
+  base::string16 GetLabelForProfile(
       const AutofillProfile& profile,
       FieldTypeGroup focused_group) const override;
 
@@ -36,7 +37,7 @@ class AddressEmailFormLabelFormatter : public LabelFormatter {
   // other than a non-street-address field type. For example,
   // |focused_field_type_| could be last name, home street address, or email
   // address.
-  std::u16string GetLabelForProfileOnFocusedNameEmailOrStreetAddress(
+  base::string16 GetLabelForProfileOnFocusedNameEmailOrStreetAddress(
       const AutofillProfile& profile,
       FieldTypeGroup focused_group) const;
 

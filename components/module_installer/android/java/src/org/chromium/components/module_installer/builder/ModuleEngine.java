@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,7 +41,8 @@ class ModuleEngine implements InstallEngine {
     @Override
     public boolean isInstalled(String moduleName) {
         // If the module is in an installed isolated split, it is installed.
-        if (BundleUtils.isIsolatedSplitInstalled(moduleName)) {
+        if (BundleUtils.isIsolatedSplitInstalled(
+                    ContextUtils.getApplicationContext(), moduleName)) {
             return true;
         }
 

@@ -1,14 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {AutoScanManager} from './auto_scan_manager.js';
-import {SAConstants} from './switch_access_constants.js';
 
 /**
  * Class to manage user preferences.
  */
-export class PreferenceManager {
+class PreferenceManager {
   /** @private */
   constructor() {
     /**
@@ -62,28 +59,12 @@ export class PreferenceManager {
     return null;
   }
 
-  /**
-   * Get the preference value for the given name, or |null| if the value is not
-   * a dictionary or does not exist.
-   *
-   * @param {SAConstants.Preference} name
-   * @return {Object|null}
-   * @private
-   */
-  getDict_(name) {
-    const pref = this.preferences_.get(name);
-    if (pref && pref.type === chrome.settingsPrivate.PrefType.DICTIONARY) {
-      return /** @type {Object} */ (pref.value);
-    }
-    return null;
-  }
-
   /** @private */
   init_() {
     chrome.settingsPrivate.onPrefsChanged.addListener(
-        prefs => this.updateFromSettings_(prefs));
+        this.updateFromSettings_.bind(this));
     chrome.settingsPrivate.getAllPrefs(
-        prefs => this.updateFromSettings_(prefs, true /* isFirstLoad */));
+        (prefs) => this.updateFromSettings_(prefs, true /* isFirstLoad */));
   }
 
   /**
@@ -93,28 +74,19 @@ export class PreferenceManager {
    * @private
    */
   settingsAreConfigured_() {
-    const selectPref =
-        this.getDict_(SAConstants.Preference.SELECT_DEVICE_KEY_CODES);
-    const selectSet = selectPref ? Object.keys(selectPref).length : false;
-
-    const nextPref =
-        this.getDict_(SAConstants.Preference.NEXT_DEVICE_KEY_CODES);
-    const nextSet = nextPref ? Object.keys(nextPref).length : false;
-
-    const previousPref =
-        this.getDict_(SAConstants.Preference.PREVIOUS_DEVICE_KEY_CODES);
-    const previousSet = previousPref ? Object.keys(previousPref).length : false;
-
+    const selectSetting =
+        this.getNumber_(SAConstants.Preference.SELECT_SETTING);
+    const nextSetting = this.getNumber_(SAConstants.Preference.NEXT_SETTING);
+    const previousSetting =
+        this.getNumber_(SAConstants.Preference.PREVIOUS_SETTING);
     const autoScanEnabled =
-        // getBoolean_() returns null if a value is not found, so we force the
-        // value to be a boolean (defaulting to false).
-        Boolean(this.getBoolean_(SAConstants.Preference.AUTO_SCAN_ENABLED));
+        !!this.getBoolean_(SAConstants.Preference.AUTO_SCAN_ENABLED);
 
-    if (!selectSet) {
+    if (!selectSetting) {
       return false;
     }
 
-    if (nextSet || previousSet) {
+    if (nextSetting || previousSetting) {
       return true;
     }
 

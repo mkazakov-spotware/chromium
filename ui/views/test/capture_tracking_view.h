@@ -1,22 +1,21 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_VIEWS_TEST_CAPTURE_TRACKING_VIEW_H_
 #define UI_VIEWS_TEST_CAPTURE_TRACKING_VIEW_H_
 
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "ui/views/view.h"
 
-namespace views::test {
+namespace views {
+namespace test {
 
 // Used to track OnMousePressed() and OnMouseCaptureLost().
 class CaptureTrackingView : public views::View {
  public:
   CaptureTrackingView();
-
-  CaptureTrackingView(const CaptureTrackingView&) = delete;
-  CaptureTrackingView& operator=(const CaptureTrackingView&) = delete;
-
   ~CaptureTrackingView() override;
 
   // Returns true if OnMousePressed() has been invoked.
@@ -35,8 +34,11 @@ class CaptureTrackingView : public views::View {
   // See description above getters.
   bool got_press_ = false;
   bool got_capture_lost_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(CaptureTrackingView);
 };
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views
 
 #endif  // UI_VIEWS_TEST_CAPTURE_TRACKING_VIEW_H_

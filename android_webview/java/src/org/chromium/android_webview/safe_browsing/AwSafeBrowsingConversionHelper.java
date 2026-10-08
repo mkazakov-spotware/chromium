@@ -1,13 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.android_webview.safe_browsing;
 
-import android.os.Build;
 import android.webkit.WebViewClient;
 
-import org.chromium.base.ContextUtils;
+import org.chromium.base.BuildInfo;
 import org.chromium.components.safe_browsing.SBThreatType;
 
 /**
@@ -54,10 +53,8 @@ public final class AwSafeBrowsingConversionHelper {
             case SBThreatType.URL_UNWANTED:
                 return SAFE_BROWSING_THREAT_UNWANTED_SOFTWARE;
             case SBThreatType.BILLING:
-                return ContextUtils.getApplicationContext().getApplicationInfo().targetSdkVersion
-                                >= Build.VERSION_CODES.Q
-                        ? SAFE_BROWSING_THREAT_BILLING
-                        : SAFE_BROWSING_THREAT_UNKNOWN;
+                return BuildInfo.targetsAtLeastQ() ? SAFE_BROWSING_THREAT_BILLING
+                                                   : SAFE_BROWSING_THREAT_UNKNOWN;
             default:
                 return SAFE_BROWSING_THREAT_UNKNOWN;
         }

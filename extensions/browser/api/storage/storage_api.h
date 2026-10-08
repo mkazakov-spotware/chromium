@@ -1,17 +1,18 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_BROWSER_API_STORAGE_STORAGE_API_H_
 #define EXTENSIONS_BROWSER_API_STORAGE_STORAGE_API_H_
 
+#include <string>
+
 #include "base/compiler_specific.h"
-#include "components/value_store/value_store.h"
-#include "extensions/browser/api/storage/session_storage_manager.h"
+#include "base/memory/ref_counted.h"
 #include "extensions/browser/api/storage/settings_namespace.h"
 #include "extensions/browser/api/storage/settings_observer.h"
-#include "extensions/browser/api/storage/storage_area_namespace.h"
 #include "extensions/browser/extension_function.h"
+#include "extensions/browser/value_store/value_store.h"
 
 namespace extensions {
 
@@ -27,46 +28,30 @@ class SettingsFunction : public ExtensionFunction {
 
   // Extension settings function implementations should do their work here.
   // The StorageFrontend makes sure this is posted to the appropriate thread.
-  virtual ResponseValue RunWithStorage(value_store::ValueStore* storage) = 0;
-
-  // Extension settings function implementations in `session` namespace should
-  // do their work here.
-  virtual ResponseValue RunInSession() = 0;
+  virtual ResponseValue RunWithStorage(ValueStore* storage) = 0;
 
   // Convert the |result| of a read function to the appropriate response value.
   // - If the |result| succeeded this will return a response object argument.
   // - If the |result| failed will return an error object.
-  ResponseValue UseReadResult(value_store::ValueStore::ReadResult result);
+  ResponseValue UseReadResult(ValueStore::ReadResult result);
 
   // Handles the |result| of a write function.
   // - If the |result| succeeded this will send out change notification(s), if
   //   appropriate, and return no arguments.
   // - If the |result| failed will return an error object.
-  ResponseValue UseWriteResult(value_store::ValueStore::WriteResult result);
-
-  // Notifies the given `changes`, if non empty, to the observer.
-  void OnSessionSettingsChanged(
-      std::vector<SessionStorageManager::ValueChange> changes);
-
-  // Returns whether the caller's context has access to the storage or not.
-  bool IsAccessToStorageAllowed();
+  ResponseValue UseWriteResult(ValueStore::WriteResult result);
 
  private:
   // Called via PostTask from Run. Calls RunWithStorage and then
   // SendResponse with its success value.
-  void AsyncRunWithStorage(value_store::ValueStore* storage);
+  void AsyncRunWithStorage(ValueStore* storage);
 
-  // The Storage Area the call was for. For example: kLocal if the API call was
-  // chrome.storage.local, kSync if the API call was chrome.storage.sync, etc.
-  StorageAreaNamespace storage_area_ = StorageAreaNamespace::kInvalid;
-
-  // The settings namespace the call was for. Only includes
-  // StorageAreaNamespace's that use ValueStore.
-  settings_namespace::Namespace settings_namespace_ =
-      settings_namespace::INVALID;
+  // The settings namespace the call was for.  For example, SYNC if the API
+  // call was chrome.settings.experimental.sync..., LOCAL if .local, etc.
+  settings_namespace::Namespace settings_namespace_;
 
   // Observers, cached so that it's only grabbed from the UI thread.
-  SequenceBoundSettingsChangedCallback observer_;
+  scoped_refptr<SettingsObserverList> observers_;
 };
 
 class StorageStorageAreaGetFunction : public SettingsFunction {
@@ -77,8 +62,7 @@ class StorageStorageAreaGetFunction : public SettingsFunction {
   ~StorageStorageAreaGetFunction() override {}
 
   // SettingsFunction:
-  ResponseValue RunWithStorage(value_store::ValueStore* storage) override;
-  ResponseValue RunInSession() override;
+  ResponseValue RunWithStorage(ValueStore* storage) override;
 };
 
 class StorageStorageAreaSetFunction : public SettingsFunction {
@@ -89,8 +73,7 @@ class StorageStorageAreaSetFunction : public SettingsFunction {
   ~StorageStorageAreaSetFunction() override {}
 
   // SettingsFunction:
-  ResponseValue RunWithStorage(value_store::ValueStore* storage) override;
-  ResponseValue RunInSession() override;
+  ResponseValue RunWithStorage(ValueStore* storage) override;
 
   // ExtensionFunction:
   void GetQuotaLimitHeuristics(QuotaLimitHeuristics* heuristics) const override;
@@ -104,8 +87,7 @@ class StorageStorageAreaRemoveFunction : public SettingsFunction {
   ~StorageStorageAreaRemoveFunction() override {}
 
   // SettingsFunction:
-  ResponseValue RunWithStorage(value_store::ValueStore* storage) override;
-  ResponseValue RunInSession() override;
+  ResponseValue RunWithStorage(ValueStore* storage) override;
 
   // ExtensionFunction:
   void GetQuotaLimitHeuristics(QuotaLimitHeuristics* heuristics) const override;
@@ -119,8 +101,7 @@ class StorageStorageAreaClearFunction : public SettingsFunction {
   ~StorageStorageAreaClearFunction() override {}
 
   // SettingsFunction:
-  ResponseValue RunWithStorage(value_store::ValueStore* storage) override;
-  ResponseValue RunInSession() override;
+  ResponseValue RunWithStorage(ValueStore* storage) override;
 
   // ExtensionFunction:
   void GetQuotaLimitHeuristics(QuotaLimitHeuristics* heuristics) const override;
@@ -134,25 +115,7 @@ class StorageStorageAreaGetBytesInUseFunction : public SettingsFunction {
   ~StorageStorageAreaGetBytesInUseFunction() override {}
 
   // SettingsFunction:
-  ResponseValue RunWithStorage(value_store::ValueStore* storage) override;
-  ResponseValue RunInSession() override;
-};
-
-class StorageStorageAreaSetAccessLevelFunction : public SettingsFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("storage.setAccessLevel", STORAGE_SETACCESSLEVEL)
-  StorageStorageAreaSetAccessLevelFunction() = default;
-  StorageStorageAreaSetAccessLevelFunction(
-      const StorageStorageAreaSetAccessLevelFunction&) = delete;
-  StorageStorageAreaSetAccessLevelFunction& operator=(
-      const StorageStorageAreaSetAccessLevelFunction&) = delete;
-
- protected:
-  ~StorageStorageAreaSetAccessLevelFunction() override = default;
-
-  // SettingsFunction:
-  ResponseValue RunWithStorage(value_store::ValueStore* storage) override;
-  ResponseValue RunInSession() override;
+  ResponseValue RunWithStorage(ValueStore* storage) override;
 };
 
 }  // namespace extensions

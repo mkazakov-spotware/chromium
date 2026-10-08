@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "ui/accessibility/ax_tree_id.h"
 #include "ui/accessibility/ax_tree_source.h"
 #include "ui/views/views_export.h"
@@ -30,7 +29,8 @@ class AXAuraObjWrapper;
 // (for example to create the "desktop" node for the extension API call
 // chrome.automation.getDesktop()).
 class VIEWS_EXPORT AXTreeSourceViews
-    : public ui::AXTreeSource<AXAuraObjWrapper*> {
+    : public ui::
+          AXTreeSource<AXAuraObjWrapper*, ui::AXNodeData, ui::AXTreeData> {
  public:
   AXTreeSourceViews(AXAuraObjWrapper* root,
                     const ui::AXTreeID& tree_id,
@@ -61,16 +61,16 @@ class VIEWS_EXPORT AXTreeSourceViews
   // Useful for debugging.
   std::string ToString(views::AXAuraObjWrapper* root, std::string prefix);
 
-  const ui::AXTreeID tree_id() const { return tree_id_; }
+  const ui::AXTreeID tree_id_for_test() const { return tree_id_; }
 
  private:
   // The top-level object to use for the AX tree. See class comment.
-  const raw_ptr<AXAuraObjWrapper, DanglingUntriaged> root_ = nullptr;
+  AXAuraObjWrapper* const root_ = nullptr;
 
   // ID to use for the AX tree.
   const ui::AXTreeID tree_id_;
 
-  raw_ptr<views::AXAuraObjCache, DanglingUntriaged> cache_;
+  views::AXAuraObjCache* cache_;
 };
 
 }  // namespace views

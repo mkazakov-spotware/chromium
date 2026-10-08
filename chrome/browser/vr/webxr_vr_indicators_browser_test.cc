@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -94,7 +94,7 @@ void TestIndicatorOnAccessForContentType(
   auto utils = UiUtils::Create();
   // Check if the location indicator shows.
   utils->PerformActionAndWaitForVisibilityStatus(element_name, true,
-                                                 base::DoNothing());
+                                                 base::DoNothing::Once());
 
   t->EndSessionOrFail();
 }
@@ -111,9 +111,9 @@ void TestForInitialIndicatorForContentType(
 
   auto utils = UiUtils::Create();
   // Check if the location indicator shows.
-  for (const TestIndicatorSetting& setting : test_indicator_settings)
+  for (const TestIndicatorSetting& t : test_indicator_settings)
     utils->PerformActionAndWaitForVisibilityStatus(
-        setting.element_name, setting.element_visibility, base::DoNothing());
+        t.element_name, t.element_visibility, base::DoNothing::Once());
 
   t->EndSessionOrFail();
 }

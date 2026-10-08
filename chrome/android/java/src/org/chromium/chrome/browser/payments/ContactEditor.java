@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,9 +17,9 @@ import org.chromium.chrome.browser.autofill.PersonalDataManager;
 import org.chromium.chrome.browser.autofill.PersonalDataManager.AutofillProfile;
 import org.chromium.chrome.browser.autofill.PhoneNumberUtil;
 import org.chromium.chrome.browser.autofill.prefeditor.EditorBase;
+import org.chromium.chrome.browser.autofill.prefeditor.EditorFieldModel;
+import org.chromium.chrome.browser.autofill.prefeditor.EditorFieldModel.EditorFieldValidator;
 import org.chromium.chrome.browser.autofill.prefeditor.EditorModel;
-import org.chromium.components.autofill.prefeditor.EditorFieldModel;
-import org.chromium.components.autofill.prefeditor.EditorFieldModel.EditorFieldValidator;
 import org.chromium.payments.mojom.PayerErrors;
 
 import java.util.HashSet;
@@ -31,7 +31,9 @@ import java.util.UUID;
  */
 public class ContactEditor extends EditorBase<AutofillContact> {
     // Bit field values are identical to ProfileFields in payments_profile_comparator.h.
-    // Please also modify payments_profile_comparator.h after changing these bits.
+    // Please also modify payments_profile_comparator.h after changing these bits since
+    // missing fields on both Android and Desktop are recorded in the same UMA metric:
+    // PaymentRequest.MissingContactFields.
     public @interface CompletionStatus {}
     /** Can be sent to the merchant as-is without editing first. */
     public static final int COMPLETE = 0;
@@ -181,33 +183,33 @@ public class ContactEditor extends EditorBase<AutofillContact> {
 
         final EditorFieldModel nameField = mRequestPayerName
                 ? EditorFieldModel.createTextInput(EditorFieldModel.INPUT_TYPE_HINT_PERSON_NAME,
-                        mContext.getString(R.string.payments_name_field_in_contact_details),
-                        mPayerNames, null /* suggestions */, null /* formatter */,
-                        null /* validator */,
-                        mContext.getString(
-                                R.string.pref_edit_dialog_field_required_validation_message),
-                        null, EditorFieldModel.LENGTH_COUNTER_LIMIT_NONE, contact.getPayerName())
+                          mContext.getString(R.string.payments_name_field_in_contact_details),
+                          mPayerNames, null /* suggestions */, null /* formatter */,
+                          null /* validator */,
+                          mContext.getString(
+                                  R.string.pref_edit_dialog_field_required_validation_message),
+                          null, contact.getPayerName())
                 : null;
 
         final EditorFieldModel phoneField = mRequestPayerPhone
                 ? EditorFieldModel.createTextInput(EditorFieldModel.INPUT_TYPE_HINT_PHONE,
-                        mContext.getString(R.string.autofill_profile_editor_phone_number),
-                        mPhoneNumbers, new PhoneNumberUtil.CountryAwareFormatTextWatcher(),
-                        getPhoneValidator(), null,
-                        mContext.getString(
-                                R.string.pref_edit_dialog_field_required_validation_message),
-                        mContext.getString(R.string.payments_phone_invalid_validation_message),
-                        EditorFieldModel.LENGTH_COUNTER_LIMIT_NONE, contact.getPayerPhone())
+                          mContext.getString(R.string.autofill_profile_editor_phone_number),
+                          mPhoneNumbers, new PhoneNumberUtil.CountryAwareFormatTextWatcher(),
+                          getPhoneValidator(), null,
+                          mContext.getString(
+                                  R.string.pref_edit_dialog_field_required_validation_message),
+                          mContext.getString(R.string.payments_phone_invalid_validation_message),
+                          contact.getPayerPhone())
                 : null;
 
         final EditorFieldModel emailField = mRequestPayerEmail
                 ? EditorFieldModel.createTextInput(EditorFieldModel.INPUT_TYPE_HINT_EMAIL,
-                        mContext.getString(R.string.autofill_profile_editor_email_address),
-                        mEmailAddresses, null, getEmailValidator(), null,
-                        mContext.getString(
-                                R.string.pref_edit_dialog_field_required_validation_message),
-                        mContext.getString(R.string.payments_email_invalid_validation_message),
-                        EditorFieldModel.LENGTH_COUNTER_LIMIT_NONE, contact.getPayerEmail())
+                          mContext.getString(R.string.autofill_profile_editor_email_address),
+                          mEmailAddresses, null, getEmailValidator(), null,
+                          mContext.getString(
+                                  R.string.pref_edit_dialog_field_required_validation_message),
+                          mContext.getString(R.string.payments_email_invalid_validation_message),
+                          contact.getPayerEmail())
                 : null;
 
         EditorModel editor = new EditorModel(toEdit == null

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -51,8 +51,7 @@ CSSAnimationWorklet& CSSAnimationWorklet::From(LocalDOMWindow& window) {
 }
 
 CSSAnimationWorklet::CSSAnimationWorklet(LocalDOMWindow& window)
-    : Supplement(window),
-      ExecutionContextLifecycleObserver(&window),
+    : ExecutionContextLifecycleObserver(&window),
       animation_worklet_(MakeGarbageCollected<AnimationWorklet>(window)) {
   DCHECK(GetExecutionContext());
 }

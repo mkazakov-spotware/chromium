@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,20 +6,17 @@
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_PAINT_EFFECT_PAINT_PROPERTY_NODE_H_
 
 #include <algorithm>
-
-#include "components/viz/common/view_transition_element_resource_id.h"
 #include "third_party/blink/renderer/platform/graphics/compositor_element_id.h"
 #include "third_party/blink/renderer/platform/graphics/compositor_filter_operations.h"
+#include "third_party/blink/renderer/platform/graphics/graphics_types.h"
+#include "third_party/blink/renderer/platform/graphics/paint/clip_paint_property_node.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_property_node.h"
 #include "third_party/blink/renderer/platform/graphics/paint/transform_paint_property_node.h"
-#include "third_party/blink/renderer/platform/graphics/view_transition_shared_element_id.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
-#include "ui/gfx/geometry/rect_f.h"
-#include "ui/gfx/geometry/rrect_f.h"
+#include "ui/gfx/rrect_f.h"
 
 namespace blink {
 
-class ClipPaintPropertyNodeOrAlias;
 class PropertyTreeState;
 
 // Effect nodes are abstraction of isolated groups, along with optional effects
@@ -46,8 +43,6 @@ class PLATFORM_EXPORT EffectPaintPropertyNodeOrAlias
       PaintPropertyChangeType change,
       const PropertyTreeState& relative_to_state,
       const TransformPaintPropertyNodeOrAlias* transform_not_to_check) const;
-
-  void ClearChangedToRoot(int sequence_number) const;
 
  protected:
   using PaintPropertyNode::PaintPropertyNode;
@@ -80,25 +75,11 @@ class PLATFORM_EXPORT EffectPaintPropertyNode
     bool is_running_opacity_animation_on_compositor = false;
     bool is_running_filter_animation_on_compositor = false;
     bool is_running_backdrop_filter_animation_on_compositor = false;
-    STACK_ALLOCATED();
-  };
-
-  struct BackdropFilterInfo {
-    CompositorFilterOperations operations;
-    gfx::RRectF bounds;
-    // The compositor element id for any masks that are applied to elements that
-    // also have backdrop-filters applied.
-    CompositorElementId mask_element_id;
-
-    USING_FAST_MALLOC(BackdropFilterInfo);
   };
 
   // To make it less verbose and more readable to construct and update a node,
   // a struct with default values is used to represent the state.
-  struct PLATFORM_EXPORT State {
-    DISALLOW_NEW();
-
-   public:
+  struct State {
     // The local transform space serves two purposes:
     // 1. Assign a depth mapping for 3D depth sorting against other paint chunks
     //    and effects under the same parent.
@@ -112,42 +93,69 @@ class PLATFORM_EXPORT EffectPaintPropertyNode
     // Optionally a number of effects can be applied to the composited output.
     // The chain of effects will be applied in the following order:
     // === Begin of effects ===
+    ColorFilter color_filter = kColorFilterNone;
     CompositorFilterOperations filter;
-    std::unique_ptr<BackdropFilterInfo> backdrop_filter_info;
     float opacity = 1;
+    CompositorFilterOperations backdrop_filter;
+    base::Optional<gfx::RRectF> backdrop_filter_bounds;
     SkBlendMode blend_mode = SkBlendMode::kSrcOver;
     // === End of effects ===
     CompositingReasons direct_compositing_reasons = CompositingReason::kNone;
     CompositorElementId compositor_element_id;
-
-    // An identifier for a view transition shared element. `id.valid()`
-    // returns true if this has been set, and false otherwise.
-    ViewTransitionElementId view_transition_shared_element_id;
-
-    // An identifier to tag shared element resources generated and cached in the
-    // Viz process. This generated resource can be used as content for other
-    // elements.
-    viz::ViewTransitionElementResourceId view_transition_element_resource_id;
+    // The compositor element id for any masks that are applied to elements that
+    // also have backdrop-filters applied.
+    CompositorElementId backdrop_mask_element_id;
+    // TODO(crbug.com/900241): Use direct_compositing_reasons to check for
+    // active animations when we can track animations for each property type.
+    bool has_active_opacity_animation = false;
+    bool has_active_filter_animation = false;
+    bool has_active_backdrop_filter_animation = false;
 
     PaintPropertyChangeType ComputeChange(
         const State& other,
-        const AnimationState& animation_state) const;
+        const AnimationState& animation_state) {
+      if (local_transform_space != other.local_transform_space ||
+          output_clip != other.output_clip ||
+          color_filter != other.color_filter ||
+          backdrop_filter_bounds != other.backdrop_filter_bounds ||
+          blend_mode != other.blend_mode) {
+        return PaintPropertyChangeType::kChangedOnlyValues;
+      }
+      bool opacity_changed = opacity != other.opacity;
+      bool opacity_change_is_simple =
+          opacity_changed && opacity != 1.f && other.opacity != 1.f;
+      if (opacity_changed && !opacity_change_is_simple &&
+          !animation_state.is_running_opacity_animation_on_compositor) {
+        return PaintPropertyChangeType::kChangedOnlyValues;
+      }
+      bool filter_changed = filter != other.filter;
+      if (filter_changed &&
+          !animation_state.is_running_filter_animation_on_compositor) {
+        return PaintPropertyChangeType::kChangedOnlyValues;
+      }
+      bool backdrop_filter_changed = backdrop_filter != other.backdrop_filter;
+      if (backdrop_filter_changed &&
+          !animation_state.is_running_backdrop_filter_animation_on_compositor) {
+        return PaintPropertyChangeType::kChangedOnlyValues;
+      }
+      bool non_reraster_values_changed =
+          direct_compositing_reasons != other.direct_compositing_reasons ||
+          compositor_element_id != other.compositor_element_id;
+      bool simple_values_changed =
+          opacity_change_is_simple &&
+          !animation_state.is_running_opacity_animation_on_compositor;
+      if (non_reraster_values_changed && simple_values_changed)
+        return PaintPropertyChangeType::kChangedOnlyValues;
+      if (non_reraster_values_changed)
+        return PaintPropertyChangeType::kChangedOnlyNonRerasterValues;
+      if (simple_values_changed)
+        return PaintPropertyChangeType::kChangedOnlySimpleValues;
 
-    PaintPropertyChangeType ComputeOpacityChange(
-        float opacity,
-        const AnimationState& animation_state) const;
-
-    // Opacity change is simple if
-    // - opacity doesn't change from or to 1, or
-    // - there was and is active opacity animation, or
-    // TODO(crbug.com/1285498): Optimize for will-change: opacity.
-    // The rule is because whether opacity is 1 affects whether the effect
-    // should create a render surface if there is no active opacity animation.
-    static bool IsOpacityChangeSimple(
-        float opacity,
-        float new_opacity,
-        CompositingReasons direct_compositing_reasons,
-        CompositingReasons new_direct_compositing_reasons);
+      if (opacity_changed || filter_changed || backdrop_filter_changed) {
+        return PaintPropertyChangeType::kChangedOnlyCompositedValues;
+      }
+      return PaintPropertyChangeType::kUnchanged;
+    }
   };
 
   // This node is really a sentinel, and does not represent a real effect.
@@ -173,10 +181,6 @@ class PLATFORM_EXPORT EffectPaintPropertyNode
     return std::max(parent_changed, state_changed);
   }
 
-  PaintPropertyChangeType DirectlyUpdateOpacity(
-      float opacity,
-      const AnimationState& animation_state);
-
   const EffectPaintPropertyNode& Unalias() const = delete;
   bool IsParentAlias() const = delete;
 
@@ -196,22 +200,20 @@ class PLATFORM_EXPORT EffectPaintPropertyNode
   const CompositorFilterOperations& Filter() const {
     return state_.filter;
   }
-
-  const CompositorFilterOperations* BackdropFilter() const {
-    if (!state_.backdrop_filter_info)
-      return nullptr;
-    DCHECK(!state_.backdrop_filter_info->operations.IsEmpty());
-    return &state_.backdrop_filter_info->operations;
+  ColorFilter GetColorFilter() const {
+    return state_.color_filter;
   }
 
-  const gfx::RRectF& BackdropFilterBounds() const {
-    DCHECK(state_.backdrop_filter_info);
-    return state_.backdrop_filter_info->bounds;
+  const CompositorFilterOperations& BackdropFilter() const {
+    return state_.backdrop_filter;
   }
 
-  CompositorElementId BackdropMaskElementId() const {
-    DCHECK(state_.backdrop_filter_info);
-    return state_.backdrop_filter_info->mask_element_id;
+  const base::Optional<gfx::RRectF>& BackdropFilterBounds() const {
+    return state_.backdrop_filter_bounds;
+  }
+
+  const CompositorElementId& BackdropMaskElementId() const {
+    return state_.backdrop_mask_element_id;
   }
 
   bool HasFilterThatMovesPixels() const {
@@ -219,18 +221,20 @@ class PLATFORM_EXPORT EffectPaintPropertyNode
   }
 
   bool HasRealEffects() const {
-    return Opacity() != 1.0f || BlendMode() != SkBlendMode::kSrcOver ||
-           !Filter().IsEmpty() || BackdropFilter();
+    return Opacity() != 1.0f || GetColorFilter() != kColorFilterNone ||
+           BlendMode() != SkBlendMode::kSrcOver || !Filter().IsEmpty() ||
+           !BackdropFilter().IsEmpty();
   }
 
   bool IsOpacityOnly() const {
-    return BlendMode() == SkBlendMode::kSrcOver && Filter().IsEmpty() &&
-           !BackdropFilter();
+    return GetColorFilter() == kColorFilterNone &&
+           BlendMode() == SkBlendMode::kSrcOver && Filter().IsEmpty() &&
+           BackdropFilter().IsEmpty();
   }
 
   // Returns a rect covering the pixels that can be affected by pixels in
   // |inputRect|. The rects are in the space of localTransformSpace.
-  gfx::RectF MapRect(const gfx::RectF& input_rect) const;
+  FloatRect MapRect(const FloatRect& input_rect) const;
 
   bool HasDirectCompositingReasons() const {
     return state_.direct_compositing_reasons != CompositingReason::kNone;
@@ -240,67 +244,39 @@ class PLATFORM_EXPORT EffectPaintPropertyNode
            CompositingReason::kBackdropFilterMask;
   }
 
-  bool FlattensAtLeafOf3DScene() const {
+  // TODO(crbug.com/900241): Use HaveActiveXXXAnimation() instead of this
+  // function when we can track animations for each property type.
+  bool RequiresCompositingForAnimation() const {
     return state_.direct_compositing_reasons &
-           CompositingReason::kTransform3DSceneLeaf;
+           CompositingReason::kComboActiveAnimation;
   }
-
   bool HasActiveOpacityAnimation() const {
-    return state_.direct_compositing_reasons &
-           CompositingReason::kActiveOpacityAnimation;
+    return state_.has_active_opacity_animation;
+    // TODO(crbug.com/900241): Use the following code when we can track
+    // animations for each property type.
+    // return DirectCompositingReasons() &
+    //        CompositingReason::kActiveOpacityAnimation;
   }
   bool HasActiveFilterAnimation() const {
-    return state_.direct_compositing_reasons &
-           CompositingReason::kActiveFilterAnimation;
+    return state_.has_active_filter_animation;
+    // TODO(crbug.com/900241): Use the following code when we can track
+    // animations for each property type.
+    // return DirectCompositingReasons() &
+    //        CompositingReason::kActiveFilterAnimation;
   }
   bool HasActiveBackdropFilterAnimation() const {
-    return state_.direct_compositing_reasons &
-           CompositingReason::kActiveBackdropFilterAnimation;
-  }
-
-  bool RequiresCompositingForWillChangeOpacity() const {
-    return state_.direct_compositing_reasons &
-           CompositingReason::kWillChangeOpacity;
-  }
-  bool RequiresCompositingForWillChangeFilter() const {
-    return state_.direct_compositing_reasons &
-           CompositingReason::kWillChangeFilter;
-  }
-  bool RequiresCompositingForWillChangeBackdropFilter() const {
-    return state_.direct_compositing_reasons &
-           CompositingReason::kWillChangeBackdropFilter;
-  }
-
-  // True if opacity is not 1.0, or could become non-1.0 without a compositing
-  // update via a compositor animation or direct update.
-  bool MayHaveOpacity() const {
-    return Opacity() != 1.0f || HasActiveOpacityAnimation() ||
-           RequiresCompositingForWillChangeOpacity();
-  }
-  // True if the filter is not empty, or could become non-empty without a
-  // compositing update via a compositor animation or direct update.
-  bool MayHaveFilter() const {
-    return !Filter().IsEmpty() || HasActiveFilterAnimation() ||
-           RequiresCompositingForWillChangeFilter();
-  }
-  // True if the backdrop filter is not empty, or could become non-empty
-  // without a compositing update via a compositor animation or direct update.
-  bool MayHaveBackdropFilter() const {
-    return BackdropFilter() || HasActiveBackdropFilterAnimation() ||
-           RequiresCompositingForWillChangeBackdropFilter();
+    return state_.has_active_backdrop_filter_animation;
+    // TODO(crbug.com/900241): Use the following code when we can track
+    // animations for each property type.
+    // return DirectCompositingReasons() &
+    //        CompositingReason::kActiveBackdropFilterAnimation;
   }
 
   // Whether the effect node uses the backdrop as an input. This includes
   // exotic blending modes and backdrop filters.
-  bool MayHaveBackdropEffect() const {
-    return BlendMode() != SkBlendMode::kSrcOver || MayHaveBackdropFilter();
-  }
-
-  // True if this effect can produce drawable content on its own. For example,
-  // a drop-shadow filter will draw a drop shadow even if the filtered content
-  // is entirely empty.
-  bool DrawsContent() const {
-    return MayHaveFilter() || MayHaveBackdropEffect();
+  bool HasBackdropEffect() const {
+    return BlendMode() != SkBlendMode::kSrcOver ||
+           !BackdropFilter().IsEmpty() || HasActiveBackdropFilterAnimation();
   }
 
   CompositingReasons DirectCompositingReasonsForDebugging() const {
@@ -309,15 +285,6 @@ class PLATFORM_EXPORT EffectPaintPropertyNode
 
   const CompositorElementId& GetCompositorElementId() const {
     return state_.compositor_element_id;
-  }
-
-  const blink::ViewTransitionElementId& ViewTransitionElementId() const {
-    return state_.view_transition_shared_element_id;
-  }
-
-  const viz::ViewTransitionElementResourceId& ViewTransitionElementResourceId()
-      const {
-    return state_.view_transition_element_resource_id;
   }
 
   std::unique_ptr<JSONObject> ToJSON() const;

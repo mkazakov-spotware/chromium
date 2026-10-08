@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <tuple>
 #include <utility>
 
+#include "base/macros.h"
 #include "content/browser/renderer_host/pepper/browser_ppapi_host_test.h"
 #include "content/browser/renderer_host/pepper/pepper_print_settings_manager.h"
 #include "ppapi/c/pp_errors.h"
@@ -26,12 +27,6 @@ namespace {
 class MockPepperPrintSettingsManager : public PepperPrintSettingsManager {
  public:
   MockPepperPrintSettingsManager(const PP_PrintSettings_Dev& settings);
-
-  MockPepperPrintSettingsManager(const MockPepperPrintSettingsManager&) =
-      delete;
-  MockPepperPrintSettingsManager& operator=(
-      const MockPepperPrintSettingsManager&) = delete;
-
   ~MockPepperPrintSettingsManager() override {}
 
   // PepperPrintSettingsManager implementation.
@@ -40,6 +35,8 @@ class MockPepperPrintSettingsManager : public PepperPrintSettingsManager {
 
  private:
   PP_PrintSettings_Dev settings_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockPepperPrintSettingsManager);
 };
 
 MockPepperPrintSettingsManager::MockPepperPrintSettingsManager(
@@ -56,10 +53,9 @@ class PepperPrintingHostTest : public testing::Test,
  public:
   PepperPrintingHostTest() {}
 
-  PepperPrintingHostTest(const PepperPrintingHostTest&) = delete;
-  PepperPrintingHostTest& operator=(const PepperPrintingHostTest&) = delete;
-
   ~PepperPrintingHostTest() override {}
+
+  DISALLOW_COPY_AND_ASSIGN(PepperPrintingHostTest);
 };
 
 bool PP_SizeEqual(const PP_Size& lhs, const PP_Size& rhs) {

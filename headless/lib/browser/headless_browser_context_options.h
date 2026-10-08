@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,10 @@
 
 #include "base/callback.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
+#include "base/time/time.h"
 #include "headless/public/headless_browser.h"
 #include "headless/public/headless_browser_context.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace headless {
 
@@ -22,11 +22,6 @@ namespace headless {
 class HeadlessBrowserContextOptions {
  public:
   HeadlessBrowserContextOptions(HeadlessBrowserContextOptions&& options);
-
-  HeadlessBrowserContextOptions(const HeadlessBrowserContextOptions&) = delete;
-  HeadlessBrowserContextOptions& operator=(
-      const HeadlessBrowserContextOptions&) = delete;
-
   ~HeadlessBrowserContextOptions();
 
   HeadlessBrowserContextOptions& operator=(
@@ -63,22 +58,24 @@ class HeadlessBrowserContextOptions {
 
   explicit HeadlessBrowserContextOptions(HeadlessBrowser::Options*);
 
-  raw_ptr<HeadlessBrowser::Options> browser_options_;
+  HeadlessBrowser::Options* browser_options_;
 
-  absl::optional<std::string> product_name_and_version_;
-  absl::optional<std::string> accept_language_;
-  absl::optional<std::string> user_agent_;
+  base::Optional<std::string> product_name_and_version_;
+  base::Optional<std::string> accept_language_;
+  base::Optional<std::string> user_agent_;
   std::unique_ptr<net::ProxyConfig> proxy_config_;
-  absl::optional<std::string> host_resolver_rules_;
-  absl::optional<gfx::Size> window_size_;
-  absl::optional<base::FilePath> user_data_dir_;
-  absl::optional<bool> incognito_mode_;
-  absl::optional<bool> block_new_web_contents_;
-  absl::optional<
+  base::Optional<std::string> host_resolver_rules_;
+  base::Optional<gfx::Size> window_size_;
+  base::Optional<base::FilePath> user_data_dir_;
+  base::Optional<bool> incognito_mode_;
+  base::Optional<bool> block_new_web_contents_;
+  base::Optional<
       base::RepeatingCallback<void(blink::web_pref::WebPreferences*)>>
       override_web_preferences_callback_;
 
-  absl::optional<gfx::FontRenderParams::Hinting> font_render_hinting_;
+  base::Optional<gfx::FontRenderParams::Hinting> font_render_hinting_;
+
+  DISALLOW_COPY_AND_ASSIGN(HeadlessBrowserContextOptions);
 };
 
 }  // namespace headless

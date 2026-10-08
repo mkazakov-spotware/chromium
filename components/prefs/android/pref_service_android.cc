@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,13 +35,6 @@ ScopedJavaLocalRef<jobject> PrefServiceAndroid::GetJavaObject() {
 void PrefServiceAndroid::ClearPref(JNIEnv* env,
                                    const JavaParamRef<jstring>& j_preference) {
   pref_service_->ClearPref(
-      base::android::ConvertJavaStringToUTF8(env, j_preference));
-}
-
-jboolean PrefServiceAndroid::HasPrefPath(
-    JNIEnv* env,
-    const base::android::JavaParamRef<jstring>& j_preference) {
-  return pref_service_->HasPrefPath(
       base::android::ConvertJavaStringToUTF8(env, j_preference));
 }
 
@@ -94,12 +87,4 @@ jboolean PrefServiceAndroid::IsManagedPreference(
     const JavaParamRef<jstring>& j_preference) {
   return pref_service_->IsManagedPreference(
       base::android::ConvertJavaStringToUTF8(env, j_preference));
-}
-
-jboolean PrefServiceAndroid::IsDefaultValuePreference(
-    JNIEnv* env,
-    const base::android::JavaParamRef<jstring>& j_preference) {
-  const PrefService::Preference* pref = pref_service_->FindPreference(
-      base::android::ConvertJavaStringToUTF8(env, j_preference));
-  return pref && pref->IsDefaultValue();
 }

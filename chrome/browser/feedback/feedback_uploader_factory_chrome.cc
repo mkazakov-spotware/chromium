@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include "base/memory/singleton.h"
 #include "chrome/browser/feedback/feedback_uploader_chrome.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_selections.h"
 #include "content/public/browser/browser_context.h"
 
 namespace feedback {
@@ -31,8 +30,7 @@ FeedbackUploaderFactoryChrome::~FeedbackUploaderFactoryChrome() = default;
 
 content::BrowserContext* FeedbackUploaderFactoryChrome::GetBrowserContextToUse(
     content::BrowserContext* context) const {
-  return ProfileSelections::BuildRedirectedInIncognito().ApplyProfileSelection(
-      Profile::FromBrowserContext(context));
+  return Profile::FromBrowserContext(context)->GetOriginalProfile();
 }
 
 bool FeedbackUploaderFactoryChrome::ServiceIsCreatedWithBrowserContext() const {
@@ -47,7 +45,7 @@ bool FeedbackUploaderFactoryChrome::ServiceIsNULLWhileTesting() const {
 
 KeyedService* FeedbackUploaderFactoryChrome::BuildServiceInstanceFor(
     content::BrowserContext* context) const {
-  return new FeedbackUploaderChrome(context);
+  return new FeedbackUploaderChrome(context, task_runner_);
 }
 
 }  // namespace feedback

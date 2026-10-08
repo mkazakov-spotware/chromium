@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -117,7 +117,7 @@ HRESULT CopyFileImpersonated(const base::FilePath from,
   HRESULT hr =
       OpenFileImpersonated(from,
                            base::File::FLAG_READ | base::File::FLAG_OPEN |
-                               base::File::FLAG_WIN_SEQUENTIAL_SCAN,
+                               base::File::FLAG_SEQUENTIAL_SCAN,
                            &from_file);
   if (FAILED(hr))
     return hr;
@@ -125,7 +125,7 @@ HRESULT CopyFileImpersonated(const base::FilePath from,
   base::File to_file;
   to_file.Initialize(to, base::File::FLAG_WRITE |
                              base::File::FLAG_CREATE_ALWAYS |
-                             base::File::FLAG_WIN_SEQUENTIAL_SCAN);
+                             base::File::FLAG_SEQUENTIAL_SCAN);
   if (!to_file.IsValid())
     return HRESULTFromLastError();
 
@@ -179,8 +179,7 @@ HRESULT ValidateAndUnpackCRX(const base::FilePath& from_crx_path,
 
   std::string public_key;
   if (crx_file::Verify(to_crx_path, crx_format, {crx_hash}, {}, &public_key,
-                       nullptr, /*compressed_verified_contents=*/nullptr) !=
-      crx_file::VerifierResult::OK_FULL) {
+                       nullptr) != crx_file::VerifierResult::OK_FULL) {
     return CRYPT_E_NO_MATCH;
   }
 
@@ -227,9 +226,9 @@ HRESULT LaunchCmd(const base::CommandLine& command_line,
   return S_OK;
 }
 
-HRESULT ValidateCRXArgs(const std::wstring& browser_appid,
-                        const std::wstring& browser_version,
-                        const std::wstring& session_id) {
+HRESULT ValidateCRXArgs(const base::string16& browser_appid,
+                        const base::string16& browser_version,
+                        const base::string16& session_id) {
   if (!browser_appid.empty()) {
     GUID guid = {};
     HRESULT hr = ::IIDFromString(browser_appid.c_str(), &guid);
@@ -237,7 +236,7 @@ HRESULT ValidateCRXArgs(const std::wstring& browser_appid,
       return hr;
   }
 
-  const base::Version version(base::WideToASCII(browser_version));
+  const base::Version version(base::UTF16ToASCII(browser_version));
   if (!version.IsValid())
     return E_INVALIDARG;
 
@@ -307,9 +306,9 @@ HRESULT CleanupChromeRecoveryDirectory() {
 }
 
 HRESULT RunChromeRecoveryCRX(const base::FilePath& crx_path,
-                             const std::wstring& browser_appid,
-                             const std::wstring& browser_version,
-                             const std::wstring& session_id,
+                             const base::string16& browser_appid,
+                             const base::string16& browser_version,
+                             const base::string16& session_id,
                              uint32_t caller_proc_id,
                              base::win::ScopedHandle* proc_handle) {
   if (crx_path.empty() || !caller_proc_id || !proc_handle)

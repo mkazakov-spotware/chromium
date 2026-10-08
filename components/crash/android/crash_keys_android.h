@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,6 @@ enum class CrashKeyIndex {
   EMULATED_MODULES,
   DYNAMIC_MODULE_DEX_NAME,
   PARTNER_CUSTOMIZATION_CONFIG,
-  FIRST_RUN,
   NUM_ENTRIES
 };
 

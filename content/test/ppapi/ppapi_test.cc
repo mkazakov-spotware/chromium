@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "base/strings/stringprintf.h"
 #include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/test/ppapi_test_utils.h"
@@ -20,11 +19,10 @@
 #include "media/base/media_switches.h"
 #include "net/base/filename_util.h"
 #include "ppapi/shared_impl/ppapi_switches.h"
-#include "third_party/blink/public/common/switches.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chromeos/ash/components/audio/cras_audio_handler.h"
-#include "chromeos/ash/components/dbus/audio/cras_audio_client.h"
+#if defined(OS_CHROMEOS)
+#include "chromeos/audio/cras_audio_handler.h"
+#include "chromeos/dbus/audio/cras_audio_client.h"
 #endif
 
 namespace content {
@@ -58,8 +56,7 @@ void PPAPITestBase::SetUpCommandLine(base::CommandLine* command_line) {
   command_line->AppendSwitch(switches::kDisableSmoothScrolling);
 
   // Allow manual garbage collection.
-  command_line->AppendSwitchASCII(blink::switches::kJavaScriptFlags,
-                                  "--expose_gc");
+  command_line->AppendSwitchASCII(switches::kJavaScriptFlags, "--expose_gc");
 
   command_line->AppendSwitch(switches::kUseFakeUIForMediaStream);
 
@@ -71,10 +68,6 @@ void PPAPITestBase::SetUpCommandLine(base::CommandLine* command_line) {
   // TestMessageHandler::TestExceptions, fileSystem-related tests) and given
   // PPAPI deprecation it doesn't seem worth fixing the tests now.
   command_line->AppendSwitch(switches::kAllowFileAccessFromFiles);
-
-  // TODO(https://crbug.com/1172495): Remove once NaCl code can be deleted.
-  command_line->AppendSwitchASCII(blink::switches::kBlinkSettings,
-                                  "allowNonEmptyNavigatorPlugins=true");
 }
 
 GURL PPAPITestBase::GetTestFileUrl(const std::string& test_case) {
@@ -95,7 +88,7 @@ GURL PPAPITestBase::GetTestFileUrl(const std::string& test_case) {
 
   GURL::Replacements replacements;
   std::string query = BuildQuery(std::string(), test_case);
-  replacements.SetQueryStr(query);
+  replacements.SetQuery(query.c_str(), url::Component(0, query.size()));
   return test_url.ReplaceComponents(replacements);
 }
 
@@ -120,7 +113,6 @@ void PPAPITestBase::RunTestURL(const GURL& test_url) {
   PPAPITestMessageHandler handler;
   JavascriptTestObserver observer(shell()->web_contents(), &handler);
   shell()->LoadURL(test_url);
-  shell()->web_contents()->Focus();
 
   ASSERT_TRUE(observer.Run()) << handler.error_message();
   EXPECT_STREQ("PASS", handler.message().c_str());
@@ -147,18 +139,18 @@ OutOfProcessPPAPITest::OutOfProcessPPAPITest() {
 }
 
 void OutOfProcessPPAPITest::SetUp() {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  ash::CrasAudioClient::InitializeFake();
-  ash::CrasAudioHandler::InitializeForTesting();
+#if defined(OS_CHROMEOS)
+  chromeos::CrasAudioClient::InitializeFake();
+  chromeos::CrasAudioHandler::InitializeForTesting();
 #endif
   ContentBrowserTest::SetUp();
 }
 
 void OutOfProcessPPAPITest::TearDown() {
   ContentBrowserTest::TearDown();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  ash::CrasAudioHandler::Shutdown();
-  ash::CrasAudioClient::Shutdown();
+#if defined(OS_CHROMEOS)
+  chromeos::CrasAudioHandler::Shutdown();
+  chromeos::CrasAudioClient::Shutdown();
 #endif
 }
 

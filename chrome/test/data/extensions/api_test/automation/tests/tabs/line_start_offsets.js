@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,7 @@ var allTests = [
     assertTrue(!!input);
     assertTrue('lineStartOffsets' in input);
     var lineStarts = input.lineStartOffsets;
-    assertEq(1, lineStarts.length);
-    assertEq(0, lineStarts[0]);
+    assertEq(0, lineStarts.length);
     chrome.test.succeed();
   },
 
@@ -22,10 +21,9 @@ var allTests = [
     assertTrue(!!textarea);
     assertTrue('lineStartOffsets' in textarea);
     var lineStarts = textarea.lineStartOffsets;
-    assertEq(3, lineStarts.length);
-    assertEq(0, lineStarts[0]);
-    assertEq(10, lineStarts[1]);
-    assertEq(20, lineStarts[2]);
+    assertEq(2, lineStarts.length);
+    assertEq(10, lineStarts[0]);
+    assertEq(20, lineStarts[1]);
     chrome.test.succeed();
   }
 ];

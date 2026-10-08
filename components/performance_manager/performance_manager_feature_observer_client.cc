@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@ namespace performance_manager {
 
 namespace {
 
-void OnChangeNodeUsing(content::GlobalRenderFrameHostId id,
+void OnChangeNodeUsing(content::GlobalFrameRoutingId id,
                        blink::mojom::ObservedFeatureType feature_type,
                        bool is_using,
                        GraphImpl* graph) {
@@ -46,7 +46,7 @@ PerformanceManagerFeatureObserverClient::
     ~PerformanceManagerFeatureObserverClient() = default;
 
 void PerformanceManagerFeatureObserverClient::OnStartUsing(
-    content::GlobalRenderFrameHostId id,
+    content::GlobalFrameRoutingId id,
     blink::mojom::ObservedFeatureType feature_type) {
   bool is_using = true;
   PerformanceManagerImpl::CallOnGraphImpl(
@@ -55,7 +55,7 @@ void PerformanceManagerFeatureObserverClient::OnStartUsing(
 }
 
 void PerformanceManagerFeatureObserverClient::OnStopUsing(
-    content::GlobalRenderFrameHostId id,
+    content::GlobalFrameRoutingId id,
     blink::mojom::ObservedFeatureType feature_type) {
   bool is_using = false;
   PerformanceManagerImpl::CallOnGraphImpl(

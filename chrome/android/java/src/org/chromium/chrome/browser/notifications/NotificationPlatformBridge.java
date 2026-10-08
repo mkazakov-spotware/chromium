@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,6 @@ import android.text.style.StyleSpan;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
-import androidx.core.app.NotificationManagerCompat;
 import androidx.preference.PreferenceFragmentCompat;
 
 import org.chromium.base.Callback;
@@ -35,11 +34,12 @@ import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.chrome.browser.ChromeApplication;
 import org.chromium.chrome.browser.browserservices.TrustedWebActivityClient;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.notifications.channels.SiteChannelsManager;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.settings.SettingsLauncher;
 import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
 import org.chromium.chrome.browser.usage_stats.NotificationSuspender;
 import org.chromium.chrome.browser.webapps.ChromeWebApkHost;
@@ -49,7 +49,6 @@ import org.chromium.components.browser_ui.notifications.NotificationManagerProxy
 import org.chromium.components.browser_ui.notifications.NotificationMetadata;
 import org.chromium.components.browser_ui.notifications.NotificationWrapper;
 import org.chromium.components.browser_ui.notifications.PendingIntentProvider;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
 import org.chromium.components.browser_ui.site_settings.SingleCategorySettings;
 import org.chromium.components.browser_ui.site_settings.SingleWebsiteSettings;
 import org.chromium.components.browser_ui.site_settings.SiteSettingsCategory;
@@ -321,13 +320,11 @@ public class NotificationPlatformBridge {
      * @param webApkPackage The package of the WebAPK associated with the notification. Empty if
      *        the notification is not associated with a WebAPK.
      * @param actionIndex The zero-based index of the action button, or -1 if not applicable.
-     * @param mutable Whether the pending intent is mutable, see {@link
-     *         PendingIntent#FLAG_IMMUTABLE}.
      */
     private PendingIntentProvider makePendingIntent(Context context, String action,
             String notificationId, @NotificationType int notificationType, String origin,
             String scopeUrl, String profileId, boolean incognito, String webApkPackage,
-            int actionIndex, boolean mutable) {
+            int actionIndex) {
         Uri intentData = makeIntentData(notificationId, origin, actionIndex);
         Intent intent = new Intent(action, intentData);
         intent.setClass(context, NotificationServiceImpl.Receiver.class);
@@ -351,8 +348,8 @@ public class NotificationPlatformBridge {
             intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
         }
 
-        return PendingIntentProvider.getBroadcast(context, PENDING_INTENT_REQUEST_CODE, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT, mutable);
+        return PendingIntentProvider.getBroadcast(
+                context, PENDING_INTENT_REQUEST_CODE, intent, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     /**
@@ -541,7 +538,7 @@ public class NotificationPlatformBridge {
         // Delegate notification to WebAPK.
         if (!webApkPackage.isEmpty()) {
             WebApkServiceClient.getInstance().notifyNotification(
-                    origin, webApkPackage, notificationBuilder, notificationId, PLATFORM_ID);
+                    webApkPackage, notificationBuilder, notificationId, PLATFORM_ID);
             return;
         }
 
@@ -555,10 +552,10 @@ public class NotificationPlatformBridge {
         NotificationWrapper notification = buildNotificationWrapper(
                 notificationBuilder, notificationType, notificationId, origin, actions, image);
 
-        Callback<Boolean> suspendedCallback = (suspended) -> {
-            // We will call displayNotification() again after the suspension is over.
+        // Store notification if its origin is suspended.
+        // TODO(knollr): By-pass the NotificationSuspender for non-site notifications.
+        NotificationSuspender.maybeSuspendNotification(notification).then((suspended) -> {
             if (suspended) return;
-
             // Display notification as Chrome.
             // Android may throw an exception on INotificationManager.enqueueNotificationWithTag,
             // see crbug.com/1077027.
@@ -569,25 +566,10 @@ public class NotificationPlatformBridge {
                         notification.getNotification());
             } catch (RuntimeException e) {
                 Log.e(TAG, "Failed to send notification, the IPC message might be corrupted.");
+                NotificationUmaTracker.getInstance().onFailedToNotify(
+                        NotificationUmaTracker.SystemNotificationType.SITES);
             }
-        };
-
-        // Temporarily suspend web notifications if the origin is suspended.
-        if (notificationType == NotificationType.WEB_PERSISTENT) {
-            NotificationSuspender.maybeSuspendNotification(notification).then(suspendedCallback);
-        } else {
-            suspendedCallback.onResult(false /* suspended */);
-        }
-
-        // If Chrome has no app-level notifications permission, check if an origin-level permission
-        // should be revoked.
-        // Notifications permission is not allowed for incognito profile.
-        if (!origin.isEmpty() && !incognito) {
-            NotificationManagerCompat manager =
-                    NotificationManagerCompat.from(ContextUtils.getApplicationContext());
-            PushMessagingServiceBridge.getInstance().verify(
-                    origin, profileId, manager.areNotificationsEnabled());
-        }
+        });
     }
 
     private NotificationBuilderBase prepareNotificationBuilder(String notificationId,
@@ -599,10 +581,10 @@ public class NotificationPlatformBridge {
 
         PendingIntentProvider clickIntent = makePendingIntent(context,
                 NotificationConstants.ACTION_CLICK_NOTIFICATION, notificationId, notificationType,
-                origin, scopeUrl, profileId, incognito, webApkPackage, -1 /* actionIndex */, false);
+                origin, scopeUrl, profileId, incognito, webApkPackage, -1 /* actionIndex */);
         PendingIntentProvider closeIntent = makePendingIntent(context,
                 NotificationConstants.ACTION_CLOSE_NOTIFICATION, notificationId, notificationType,
-                origin, scopeUrl, profileId, incognito, webApkPackage, -1 /* actionIndex */, false);
+                origin, scopeUrl, profileId, incognito, webApkPackage, -1 /* actionIndex */);
 
         boolean hasImage = image != null;
         boolean forWebApk = !webApkPackage.isEmpty();
@@ -631,20 +613,20 @@ public class NotificationPlatformBridge {
         }
 
         for (int actionIndex = 0; actionIndex < actions.length; actionIndex++) {
-            ActionInfo action = actions[actionIndex];
-            boolean mutable = (action.type == NotificationActionType.TEXT);
             PendingIntentProvider intent =
                     makePendingIntent(context, NotificationConstants.ACTION_CLICK_NOTIFICATION,
                             notificationId, notificationType, origin, scopeUrl, profileId,
-                            incognito, webApkPackage, actionIndex, mutable);
+                            incognito, webApkPackage, actionIndex);
+            ActionInfo action = actions[actionIndex];
             // Don't show action button icons when there's an image, as then action buttons go on
             // the same row as the Site Settings button, so icons wouldn't leave room for text.
             Bitmap actionIcon = hasImage ? null : action.icon;
             if (action.type == NotificationActionType.TEXT) {
                 notificationBuilder.addTextAction(
-                        actionIcon, action.title, intent, action.placeholder);
+                        actionIcon, action.title, intent.getPendingIntent(), action.placeholder);
             } else {
-                notificationBuilder.addButtonAction(actionIcon, action.title, intent);
+                notificationBuilder.addButtonAction(
+                        actionIcon, action.title, intent.getPendingIntent());
             }
         }
 
@@ -657,7 +639,6 @@ public class NotificationPlatformBridge {
         notificationBuilder.setDefaults(
                 makeDefaults(vibrationPattern.length, silent, vibrateEnabled));
         notificationBuilder.setVibrate(makeVibrationPattern(vibrationPattern));
-        notificationBuilder.setSilent(silent);
 
         return notificationBuilder;
     }
@@ -668,7 +649,7 @@ public class NotificationPlatformBridge {
         Context context = ContextUtils.getApplicationContext();
         Resources res = context.getResources();
 
-        // TODO(peter): Generalize the NotificationPlatformBridge sufficiently to not need
+        // TODO(knollr): Generalize the NotificationPlatformBridge sufficiently to not need
         // to care about the individual notification types.
         // Set up a pending intent for going to the settings screen for |origin|.
         SettingsLauncher settingsLauncher = new SettingsLauncherImpl();
@@ -676,7 +657,7 @@ public class NotificationPlatformBridge {
                 SingleWebsiteSettings.class.getName(),
                 SingleWebsiteSettings.createFragmentArgsForSite(origin));
         settingsIntent.setData(makeIntentData(notificationId, origin, -1 /* actionIndex */));
-        PendingIntentProvider settingsIntentProvider = PendingIntentProvider.getActivity(context,
+        PendingIntent pendingSettingsIntent = PendingIntent.getActivity(context,
                 PENDING_INTENT_REQUEST_CODE, settingsIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
         // If action buttons are displayed, there isn't room for the full Site Settings button
@@ -691,8 +672,7 @@ public class NotificationPlatformBridge {
                 : res.getString(R.string.page_info_site_settings_button);
         // If the settings button is displayed together with the other buttons it has to be the
         // last one, so add it after the other actions.
-        notificationBuilder.addSettingsAction(
-                settingsIconId, settingsTitle, settingsIntentProvider);
+        notificationBuilder.addSettingsAction(settingsIconId, settingsTitle, pendingSettingsIntent);
 
         return notificationBuilder.build(
                 new NotificationMetadata(NotificationUmaTracker.SystemNotificationType.SITES,
@@ -772,8 +752,6 @@ public class NotificationPlatformBridge {
     @CalledByNative
     private void closeNotification(final String notificationId, String scopeUrl,
             boolean hasQueriedWebApkPackage, String webApkPackage) {
-        WebPlatformNotificationMetrics.getInstance().onNotificationClosed();
-
         if (!hasQueriedWebApkPackage) {
             final String webApkPackageFound = WebApkValidator.queryFirstWebApkPackage(
                     ContextUtils.getApplicationContext(), scopeUrl);
@@ -861,7 +839,7 @@ public class NotificationPlatformBridge {
 
     private TrustedWebActivityClient getTwaClient() {
         if (mTwaClient == null) {
-            mTwaClient = ChromeApplicationImpl.getComponent().resolveTrustedWebActivityClient();
+            mTwaClient = ChromeApplication.getComponent().resolveTrustedWebActivityClient();
         }
         return mTwaClient;
     }

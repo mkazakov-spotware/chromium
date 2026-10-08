@@ -1,67 +1,41 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/paint/paint_op_buffer.h"
 
-#include <algorithm>
 #include <memory>
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/memory/raw_ptr.h"
-#include "base/notreached.h"
-#include "base/types/optional_util.h"
+#include "build/build_config.h"
 #include "cc/paint/decoded_draw_image.h"
 #include "cc/paint/display_item_list.h"
 #include "cc/paint/image_provider.h"
-#include "cc/paint/paint_flags.h"
 #include "cc/paint/paint_image_builder.h"
 #include "cc/paint/paint_op_reader.h"
 #include "cc/paint/paint_op_writer.h"
 #include "cc/paint/paint_record.h"
 #include "cc/paint/scoped_raster_flags.h"
-#include "cc/paint/skottie_serialization_history.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "third_party/skia/include/core/SkAnnotation.h"
 #include "third_party/skia/include/core/SkCanvas.h"
-#include "third_party/skia/include/core/SkColorSpace.h"
-#include "third_party/skia/include/core/SkImage.h"
 #include "third_party/skia/include/core/SkRegion.h"
 #include "third_party/skia/include/core/SkSerialProcs.h"
-#include "third_party/skia/include/core/SkTextBlob.h"
 #include "third_party/skia/include/docs/SkPDFDocument.h"
 #include "third_party/skia/include/gpu/GrRecordingContext.h"
-#include "third_party/skia/include/private/chromium/GrSlug.h"
-#include "ui/gfx/geometry/skia_conversions.h"
+#include "ui/gfx/skia_util.h"
 
 namespace cc {
 namespace {
-// In a future CL, convert DrawImage to explicitly take sampling instead of
-// quality
-PaintFlags::FilterQuality sampling_to_quality(
-    const SkSamplingOptions& sampling) {
-  if (sampling.useCubic) {
-    return PaintFlags::FilterQuality::kHigh;
-  }
-  if (sampling.mipmap != SkMipmapMode::kNone) {
-    return PaintFlags::FilterQuality::kMedium;
-  }
-  return sampling.filter == SkFilterMode::kLinear
-             ? PaintFlags::FilterQuality::kLow
-             : PaintFlags::FilterQuality::kNone;
-}
-
 DrawImage CreateDrawImage(const PaintImage& image,
                           const PaintFlags* flags,
-                          const SkSamplingOptions& sampling,
-                          const SkM44& matrix) {
+                          const SkMatrix& matrix) {
   if (!image)
     return DrawImage();
   return DrawImage(image, flags->useDarkModeForImage(),
                    SkIRect::MakeWH(image.width(), image.height()),
-                   sampling_to_quality(sampling), matrix);
+                   flags ? flags->getFilterQuality() : kLow_SkFilterQuality,
+                   matrix);
 }
 
 bool IsScaleAdjustmentIdentity(const SkSize& scale_adjustment) {
@@ -85,42 +59,6 @@ SkRect MapRect(const SkMatrix& matrix, const SkRect& src) {
   matrix.mapRect(&dst, src);
   return dst;
 }
-
-void DrawImageRect(SkCanvas* canvas,
-                   const SkImage* image,
-                   const SkRect& src,
-                   const SkRect& dst,
-                   const SkSamplingOptions& options,
-                   const SkPaint* paint,
-                   SkCanvas::SrcRectConstraint constraint) {
-  if (!image)
-    return;
-  if (constraint == SkCanvas::kStrict_SrcRectConstraint &&
-      options.mipmap != SkMipmapMode::kNone &&
-      src.contains(SkRect::Make(image->dimensions()))) {
-    SkMatrix m;
-    m.setRectToRect(src, dst, SkMatrix::ScaleToFit::kFill_ScaleToFit);
-    canvas->save();
-    canvas->concat(m);
-    canvas->drawImage(image, 0, 0, options, paint);
-    canvas->restore();
-    return;
-  }
-  canvas->drawImageRect(image, src, dst, options, paint, constraint);
-}
-
-bool GrSlugAreEqual(sk_sp<GrSlug> left, sk_sp<GrSlug> right) {
-  if (!left && !right) {
-    return true;
-  }
-  if (left && right) {
-    auto left_data = left->serialize();
-    auto right_data = right->serialize();
-    return left_data->equals(right_data.get());
-  }
-  return false;
-}
-
 }  // namespace
 
 #define TYPES(M)      \
@@ -239,11 +177,7 @@ static const RasterWithFlagsFunction
 using SerializeFunction = size_t (*)(const PaintOp* op,
                                      void* memory,
                                      size_t size,
-                                     const PaintOp::SerializeOptions& options,
-                                     const PaintFlags* flags_to_serialize,
-                                     const SkM44& current_ctm,
-                                     const SkM44& original_ctm);
-
+                                     const PaintOp::SerializeOptions& options);
 #define M(T) &T::Serialize,
 static const SerializeFunction g_serialize_functions[kNumOpTypes] = {TYPES(M)};
 #undef M
@@ -378,10 +312,10 @@ std::ostream& operator<<(std::ostream& os, PaintOpType type) {
 }
 
 PlaybackParams::PlaybackParams(ImageProvider* image_provider)
-    : PlaybackParams(image_provider, SkM44()) {}
+    : PlaybackParams(image_provider, SkMatrix::I()) {}
 
 PlaybackParams::PlaybackParams(ImageProvider* image_provider,
-                               const SkM44& original_ctm,
+                               const SkMatrix& original_ctm,
                                CustomDataRasterCallback custom_callback,
                                DidDrawOpCallback did_draw_op_callback)
     : image_provider(image_provider),
@@ -389,7 +323,7 @@ PlaybackParams::PlaybackParams(ImageProvider* image_provider,
       custom_callback(custom_callback),
       did_draw_op_callback(did_draw_op_callback) {}
 
-PlaybackParams::~PlaybackParams() = default;
+PlaybackParams::~PlaybackParams() {}
 
 PlaybackParams::PlaybackParams(const PlaybackParams& other) = default;
 PlaybackParams& PlaybackParams::operator=(const PlaybackParams& other) =
@@ -399,24 +333,25 @@ PaintOp::SerializeOptions::SerializeOptions(
     ImageProvider* image_provider,
     TransferCacheSerializeHelper* transfer_cache,
     ClientPaintCache* paint_cache,
+    SkCanvas* canvas,
     SkStrikeServer* strike_server,
     sk_sp<SkColorSpace> color_space,
-    SkottieSerializationHistory* skottie_serialization_history,
     bool can_use_lcd_text,
     bool context_supports_distance_field_text,
-    int max_texture_size)
+    int max_texture_size,
+    const SkMatrix& original_ctm)
     : image_provider(image_provider),
       transfer_cache(transfer_cache),
       paint_cache(paint_cache),
+      canvas(canvas),
       strike_server(strike_server),
       color_space(std::move(color_space)),
-      skottie_serialization_history(skottie_serialization_history),
       can_use_lcd_text(can_use_lcd_text),
       context_supports_distance_field_text(
           context_supports_distance_field_text),
-      max_texture_size(max_texture_size) {}
+      max_texture_size(max_texture_size),
+      original_ctm(original_ctm) {}
 
-PaintOp::SerializeOptions::SerializeOptions() = default;
 PaintOp::SerializeOptions::SerializeOptions(const SerializeOptions&) = default;
 PaintOp::SerializeOptions& PaintOp::SerializeOptions::operator=(
     const SerializeOptions&) = default;
@@ -441,10 +376,7 @@ PaintOp::DeserializeOptions::DeserializeOptions(
 size_t AnnotateOp::Serialize(const PaintOp* base_op,
                              void* memory,
                              size_t size,
-                             const SerializeOptions& options,
-                             const PaintFlags* flags_to_serialize,
-                             const SkM44& current_ctm,
-                             const SkM44& original_ctm) {
+                             const SerializeOptions& options) {
   auto* op = static_cast<const AnnotateOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
   helper.Write(op->annotation_type);
@@ -456,13 +388,10 @@ size_t AnnotateOp::Serialize(const PaintOp* base_op,
 size_t ClipPathOp::Serialize(const PaintOp* base_op,
                              void* memory,
                              size_t size,
-                             const SerializeOptions& options,
-                             const PaintFlags* flags_to_serialize,
-                             const SkM44& current_ctm,
-                             const SkM44& original_ctm) {
+                             const SerializeOptions& options) {
   auto* op = static_cast<const ClipPathOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
-  helper.Write(op->path, op->use_cache);
+  helper.Write(op->path);
   helper.Write(op->op);
   helper.Write(op->antialias);
   return helper.size();
@@ -471,10 +400,7 @@ size_t ClipPathOp::Serialize(const PaintOp* base_op,
 size_t ClipRectOp::Serialize(const PaintOp* base_op,
                              void* memory,
                              size_t size,
-                             const SerializeOptions& options,
-                             const PaintFlags* flags_to_serialize,
-                             const SkM44& current_ctm,
-                             const SkM44& original_ctm) {
+                             const SerializeOptions& options) {
   auto* op = static_cast<const ClipRectOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
   helper.Write(op->rect);
@@ -486,10 +412,7 @@ size_t ClipRectOp::Serialize(const PaintOp* base_op,
 size_t ClipRRectOp::Serialize(const PaintOp* base_op,
                               void* memory,
                               size_t size,
-                              const SerializeOptions& options,
-                              const PaintFlags* flags_to_serialize,
-                              const SkM44& current_ctm,
-                              const SkM44& original_ctm) {
+                              const SerializeOptions& options) {
   auto* op = static_cast<const ClipRRectOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
   helper.Write(op->rrect);
@@ -501,10 +424,7 @@ size_t ClipRRectOp::Serialize(const PaintOp* base_op,
 size_t ConcatOp::Serialize(const PaintOp* base_op,
                            void* memory,
                            size_t size,
-                           const SerializeOptions& options,
-                           const PaintFlags* flags_to_serialize,
-                           const SkM44& current_ctm,
-                           const SkM44& original_ctm) {
+                           const SerializeOptions& options) {
   auto* op = static_cast<const ConcatOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
   helper.Write(op->matrix);
@@ -514,10 +434,7 @@ size_t ConcatOp::Serialize(const PaintOp* base_op,
 size_t CustomDataOp::Serialize(const PaintOp* base_op,
                                void* memory,
                                size_t size,
-                               const SerializeOptions& options,
-                               const PaintFlags* flags_to_serialize,
-                               const SkM44& current_ctm,
-                               const SkM44& original_ctm) {
+                               const SerializeOptions& options) {
   auto* op = static_cast<const CustomDataOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
   helper.Write(op->id);
@@ -527,10 +444,7 @@ size_t CustomDataOp::Serialize(const PaintOp* base_op,
 size_t DrawColorOp::Serialize(const PaintOp* base_op,
                               void* memory,
                               size_t size,
-                              const SerializeOptions& options,
-                              const PaintFlags* flags_to_serialize,
-                              const SkM44& current_ctm,
-                              const SkM44& original_ctm) {
+                              const SerializeOptions& options) {
   auto* op = static_cast<const DrawColorOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
   helper.Write(op->color);
@@ -541,15 +455,13 @@ size_t DrawColorOp::Serialize(const PaintOp* base_op,
 size_t DrawDRRectOp::Serialize(const PaintOp* base_op,
                                void* memory,
                                size_t size,
-                               const SerializeOptions& options,
-                               const PaintFlags* flags_to_serialize,
-                               const SkM44& current_ctm,
-                               const SkM44& original_ctm) {
+                               const SerializeOptions& options) {
   auto* op = static_cast<const DrawDRRectOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
-  if (!flags_to_serialize)
-    flags_to_serialize = &op->flags;
-  helper.Write(*flags_to_serialize, current_ctm);
+  const auto* serialized_flags = options.flags_to_serialize;
+  if (!serialized_flags)
+    serialized_flags = &op->flags;
+  helper.Write(*serialized_flags);
   helper.Write(op->outer);
   helper.Write(op->inner);
   return helper.size();
@@ -558,58 +470,53 @@ size_t DrawDRRectOp::Serialize(const PaintOp* base_op,
 size_t DrawImageOp::Serialize(const PaintOp* base_op,
                               void* memory,
                               size_t size,
-                              const SerializeOptions& options,
-                              const PaintFlags* flags_to_serialize,
-                              const SkM44& current_ctm,
-                              const SkM44& original_ctm) {
+                              const SerializeOptions& options) {
   auto* op = static_cast<const DrawImageOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
-  if (!flags_to_serialize)
-    flags_to_serialize = &op->flags;
-  helper.Write(*flags_to_serialize, current_ctm);
+  const auto* serialized_flags = options.flags_to_serialize;
+  if (!serialized_flags)
+    serialized_flags = &op->flags;
+  helper.Write(*serialized_flags);
 
   SkSize scale_adjustment = SkSize::Make(1.f, 1.f);
-  helper.Write(
-      CreateDrawImage(op->image, flags_to_serialize, op->sampling, current_ctm),
-      &scale_adjustment);
-  helper.AssertAlignment(alignof(SkScalar));
+  helper.Write(CreateDrawImage(op->image, serialized_flags,
+                               options.canvas->getTotalMatrix()),
+               &scale_adjustment);
+  helper.AlignMemory(alignof(SkScalar));
   helper.Write(scale_adjustment.width());
   helper.Write(scale_adjustment.height());
 
   helper.Write(op->left);
   helper.Write(op->top);
-  helper.Write(op->sampling);
   return helper.size();
 }
 
 size_t DrawImageRectOp::Serialize(const PaintOp* base_op,
                                   void* memory,
                                   size_t size,
-                                  const SerializeOptions& options,
-                                  const PaintFlags* flags_to_serialize,
-                                  const SkM44& current_ctm,
-                                  const SkM44& original_ctm) {
+                                  const SerializeOptions& options) {
   auto* op = static_cast<const DrawImageRectOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
-  if (!flags_to_serialize)
-    flags_to_serialize = &op->flags;
-  helper.Write(*flags_to_serialize, current_ctm);
+  const auto* serialized_flags = options.flags_to_serialize;
+  if (!serialized_flags)
+    serialized_flags = &op->flags;
+  helper.Write(*serialized_flags);
 
   // This adjustment mirrors DiscardableImageMap::GatherDiscardableImage logic.
-  SkM44 matrix = current_ctm * SkM44(SkMatrix::RectToRect(op->src, op->dst));
+  SkMatrix matrix = options.canvas->getTotalMatrix();
+  matrix.postConcat(
+      SkMatrix::MakeRectToRect(op->src, op->dst, SkMatrix::kFill_ScaleToFit));
   // Note that we don't request subsets here since the GpuImageCache has no
   // optimizations for using subsets.
   SkSize scale_adjustment = SkSize::Make(1.f, 1.f);
-  helper.Write(
-      CreateDrawImage(op->image, flags_to_serialize, op->sampling, matrix),
-      &scale_adjustment);
-  helper.AssertAlignment(alignof(SkScalar));
+  helper.Write(CreateDrawImage(op->image, serialized_flags, matrix),
+               &scale_adjustment);
+  helper.AlignMemory(alignof(SkScalar));
   helper.Write(scale_adjustment.width());
   helper.Write(scale_adjustment.height());
 
   helper.Write(op->src);
   helper.Write(op->dst);
-  helper.Write(op->sampling);
   helper.Write(op->constraint);
   return helper.size();
 }
@@ -617,15 +524,13 @@ size_t DrawImageRectOp::Serialize(const PaintOp* base_op,
 size_t DrawIRectOp::Serialize(const PaintOp* base_op,
                               void* memory,
                               size_t size,
-                              const SerializeOptions& options,
-                              const PaintFlags* flags_to_serialize,
-                              const SkM44& current_ctm,
-                              const SkM44& original_ctm) {
+                              const SerializeOptions& options) {
   auto* op = static_cast<const DrawIRectOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
-  if (!flags_to_serialize)
-    flags_to_serialize = &op->flags;
-  helper.Write(*flags_to_serialize, current_ctm);
+  const auto* serialized_flags = options.flags_to_serialize;
+  if (!serialized_flags)
+    serialized_flags = &op->flags;
+  helper.Write(*serialized_flags);
   helper.Write(op->rect);
   return helper.size();
 }
@@ -633,16 +538,14 @@ size_t DrawIRectOp::Serialize(const PaintOp* base_op,
 size_t DrawLineOp::Serialize(const PaintOp* base_op,
                              void* memory,
                              size_t size,
-                             const SerializeOptions& options,
-                             const PaintFlags* flags_to_serialize,
-                             const SkM44& current_ctm,
-                             const SkM44& original_ctm) {
+                             const SerializeOptions& options) {
   auto* op = static_cast<const DrawLineOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
-  if (!flags_to_serialize)
-    flags_to_serialize = &op->flags;
-  helper.Write(*flags_to_serialize, current_ctm);
-  helper.AssertAlignment(alignof(SkScalar));
+  const auto* serialized_flags = options.flags_to_serialize;
+  if (!serialized_flags)
+    serialized_flags = &op->flags;
+  helper.Write(*serialized_flags);
+  helper.AlignMemory(alignof(SkScalar));
   helper.Write(op->x0);
   helper.Write(op->y0);
   helper.Write(op->x1);
@@ -653,15 +556,13 @@ size_t DrawLineOp::Serialize(const PaintOp* base_op,
 size_t DrawOvalOp::Serialize(const PaintOp* base_op,
                              void* memory,
                              size_t size,
-                             const SerializeOptions& options,
-                             const PaintFlags* flags_to_serialize,
-                             const SkM44& current_ctm,
-                             const SkM44& original_ctm) {
+                             const SerializeOptions& options) {
   auto* op = static_cast<const DrawOvalOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
-  if (!flags_to_serialize)
-    flags_to_serialize = &op->flags;
-  helper.Write(*flags_to_serialize, current_ctm);
+  const auto* serialized_flags = options.flags_to_serialize;
+  if (!serialized_flags)
+    serialized_flags = &op->flags;
+  helper.Write(*serialized_flags);
   helper.Write(op->oval);
   return helper.size();
 }
@@ -669,27 +570,21 @@ size_t DrawOvalOp::Serialize(const PaintOp* base_op,
 size_t DrawPathOp::Serialize(const PaintOp* base_op,
                              void* memory,
                              size_t size,
-                             const SerializeOptions& options,
-                             const PaintFlags* flags_to_serialize,
-                             const SkM44& current_ctm,
-                             const SkM44& original_ctm) {
+                             const SerializeOptions& options) {
   auto* op = static_cast<const DrawPathOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
-  if (!flags_to_serialize)
-    flags_to_serialize = &op->flags;
-  helper.Write(*flags_to_serialize, current_ctm);
-  helper.Write(op->path, op->use_cache);
-  helper.Write(op->sk_path_fill_type);
+  const auto* serialized_flags = options.flags_to_serialize;
+  if (!serialized_flags)
+    serialized_flags = &op->flags;
+  helper.Write(*serialized_flags);
+  helper.Write(op->path);
   return helper.size();
 }
 
 size_t DrawRecordOp::Serialize(const PaintOp* op,
                                void* memory,
                                size_t size,
-                               const SerializeOptions& options,
-                               const PaintFlags* flags_to_serialize,
-                               const SkM44& current_ctm,
-                               const SkM44& original_ctm) {
+                               const SerializeOptions& options) {
   // TODO(enne): these must be flattened.  Serializing this will not do
   // anything.
   NOTREACHED();
@@ -699,15 +594,13 @@ size_t DrawRecordOp::Serialize(const PaintOp* op,
 size_t DrawRectOp::Serialize(const PaintOp* base_op,
                              void* memory,
                              size_t size,
-                             const SerializeOptions& options,
-                             const PaintFlags* flags_to_serialize,
-                             const SkM44& current_ctm,
-                             const SkM44& original_ctm) {
+                             const SerializeOptions& options) {
   auto* op = static_cast<const DrawRectOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
-  if (!flags_to_serialize)
-    flags_to_serialize = &op->flags;
-  helper.Write(*flags_to_serialize, current_ctm);
+  const auto* serialized_flags = options.flags_to_serialize;
+  if (!serialized_flags)
+    serialized_flags = &op->flags;
+  helper.Write(*serialized_flags);
   helper.Write(op->rect);
   return helper.size();
 }
@@ -715,127 +608,57 @@ size_t DrawRectOp::Serialize(const PaintOp* base_op,
 size_t DrawRRectOp::Serialize(const PaintOp* base_op,
                               void* memory,
                               size_t size,
-                              const SerializeOptions& options,
-                              const PaintFlags* flags_to_serialize,
-                              const SkM44& current_ctm,
-                              const SkM44& original_ctm) {
+                              const SerializeOptions& options) {
   auto* op = static_cast<const DrawRRectOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
-  if (!flags_to_serialize)
-    flags_to_serialize = &op->flags;
-  helper.Write(*flags_to_serialize, current_ctm);
+  const auto* serialized_flags = options.flags_to_serialize;
+  if (!serialized_flags)
+    serialized_flags = &op->flags;
+  helper.Write(*serialized_flags);
   helper.Write(op->rrect);
   return helper.size();
 }
 
-namespace {
-
-template <typename T>
-void SerializeSkottieMap(
-    const base::flat_map<SkottieResourceIdHash, T>& map,
-    PaintOpWriter& helper,
-    const base::RepeatingCallback<void(const T&, PaintOpWriter&)>&
-        value_serializer) {
-  // Write the size of the map first so that we know how many entries to read
-  // from the buffer during deserialization.
-  helper.WriteSize(map.size());
-  for (const auto& [resource_id, val] : map) {
-    helper.WriteSize(resource_id.GetUnsafeValue());
-    value_serializer.Run(val, helper);
-  }
-}
-
-void SerializeSkottieFrameData(const SkM44& current_ctm,
-                               const SkottieFrameData& frame_data,
-                               PaintOpWriter& helper) {
-  // |scale_adjustment| is not ultimately used; Skottie handles image
-  // scale adjustment internally when rastering.
-  SkSize scale_adjustment = SkSize::MakeEmpty();
-  DrawImage draw_image;
-  if (frame_data.image) {
-    draw_image = DrawImage(
-        frame_data.image, /*use_dark_mode=*/false,
-        SkIRect::MakeWH(frame_data.image.width(), frame_data.image.height()),
-        frame_data.quality, current_ctm);
-  }
-  helper.Write(draw_image, &scale_adjustment);
-  helper.Write(frame_data.quality);
-}
-
-}  // namespace
-
 size_t DrawSkottieOp::Serialize(const PaintOp* base_op,
                                 void* memory,
                                 size_t size,
-                                const SerializeOptions& options,
-                                const PaintFlags* flags_to_serialize,
-                                const SkM44& current_ctm,
-                                const SkM44& original_ctm) {
+                                const SerializeOptions& options) {
+#if defined(OS_ANDROID)
+  // Skottie is not used in android, so to keep apk size small it is excluded
+  // from the build.
+  NOTREACHED();
+  return 0u;
+#else
   auto* op = static_cast<const DrawSkottieOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
   helper.Write(op->dst);
   helper.Write(SkFloatToScalar(op->t));
   helper.Write(op->skottie);
-
-  SkottieFrameDataMap images_to_serialize = op->images;
-  SkottieTextPropertyValueMap text_map_to_serialize = op->text_map;
-  if (options.skottie_serialization_history) {
-    options.skottie_serialization_history->FilterNewSkottieFrameState(
-        *op->skottie, images_to_serialize, text_map_to_serialize);
-  }
-
-  SerializeSkottieMap(
-      images_to_serialize, helper,
-      base::BindRepeating(&SerializeSkottieFrameData, std::cref(current_ctm)));
-  SerializeSkottieMap(
-      op->color_map, helper,
-      base::BindRepeating([](const SkColor& color, PaintOpWriter& helper) {
-        helper.Write(color);
-      }));
-  SerializeSkottieMap(
-      text_map_to_serialize, helper,
-      base::BindRepeating([](const SkottieTextPropertyValue& text_property_val,
-                             PaintOpWriter& helper) {
-        helper.WriteSize(text_property_val.text().size());
-        // If there is not enough space in the underlying buffer, WriteData()
-        // will mark the |helper| as invalid and the buffer will keep growing
-        // until a max size is reached (currently 64MB which should be ample for
-        // text).
-        helper.WriteData(text_property_val.text().size(),
-                         text_property_val.text().c_str());
-        helper.Write(gfx::RectFToSkRect(text_property_val.box()));
-      }));
   return helper.size();
+#endif  // OS_ANDROID
 }
 
 size_t DrawTextBlobOp::Serialize(const PaintOp* base_op,
                                  void* memory,
                                  size_t size,
-                                 const SerializeOptions& options,
-                                 const PaintFlags* flags_to_serialize,
-                                 const SkM44& current_ctm,
-                                 const SkM44& original_ctm) {
+                                 const SerializeOptions& options) {
   auto* op = static_cast<const DrawTextBlobOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
-  if (!flags_to_serialize)
-    flags_to_serialize = &op->flags;
-  helper.Write(*flags_to_serialize, current_ctm);
-  unsigned int count = op->extra_slugs.size() + 1;
-  helper.Write(count);
-  helper.Write(op->slug);
-  for (const auto& slug : op->extra_slugs) {
-    helper.Write(slug);
-  }
+  const auto* serialized_flags = options.flags_to_serialize;
+  if (!serialized_flags)
+    serialized_flags = &op->flags;
+  helper.Write(*serialized_flags);
+  helper.AlignMemory(alignof(SkScalar));
+  helper.Write(op->x);
+  helper.Write(op->y);
+  helper.Write(op->blob);
   return helper.size();
 }
 
 size_t NoopOp::Serialize(const PaintOp* base_op,
                          void* memory,
                          size_t size,
-                         const SerializeOptions& options,
-                         const PaintFlags* flags_to_serialize,
-                         const SkM44& current_ctm,
-                         const SkM44& original_ctm) {
+                         const SerializeOptions& options) {
   PaintOpWriter helper(memory, size, options);
   return helper.size();
 }
@@ -843,10 +666,7 @@ size_t NoopOp::Serialize(const PaintOp* base_op,
 size_t RestoreOp::Serialize(const PaintOp* base_op,
                             void* memory,
                             size_t size,
-                            const SerializeOptions& options,
-                            const PaintFlags* flags_to_serialize,
-                            const SkM44& current_ctm,
-                            const SkM44& original_ctm) {
+                            const SerializeOptions& options) {
   PaintOpWriter helper(memory, size, options);
   return helper.size();
 }
@@ -854,10 +674,7 @@ size_t RestoreOp::Serialize(const PaintOp* base_op,
 size_t RotateOp::Serialize(const PaintOp* base_op,
                            void* memory,
                            size_t size,
-                           const SerializeOptions& options,
-                           const PaintFlags* flags_to_serialize,
-                           const SkM44& current_ctm,
-                           const SkM44& original_ctm) {
+                           const SerializeOptions& options) {
   auto* op = static_cast<const RotateOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
   helper.Write(op->degrees);
@@ -867,10 +684,7 @@ size_t RotateOp::Serialize(const PaintOp* base_op,
 size_t SaveOp::Serialize(const PaintOp* base_op,
                          void* memory,
                          size_t size,
-                         const SerializeOptions& options,
-                         const PaintFlags* flags_to_serialize,
-                         const SkM44& current_ctm,
-                         const SkM44& original_ctm) {
+                         const SerializeOptions& options) {
   PaintOpWriter helper(memory, size, options);
   return helper.size();
 }
@@ -878,15 +692,13 @@ size_t SaveOp::Serialize(const PaintOp* base_op,
 size_t SaveLayerOp::Serialize(const PaintOp* base_op,
                               void* memory,
                               size_t size,
-                              const SerializeOptions& options,
-                              const PaintFlags* flags_to_serialize,
-                              const SkM44& current_ctm,
-                              const SkM44& original_ctm) {
+                              const SerializeOptions& options) {
   auto* op = static_cast<const SaveLayerOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
-  if (!flags_to_serialize)
-    flags_to_serialize = &op->flags;
-  helper.Write(*flags_to_serialize, current_ctm);
+  const auto* serialized_flags = options.flags_to_serialize;
+  if (!serialized_flags)
+    serialized_flags = &op->flags;
+  helper.Write(*serialized_flags);
   helper.Write(op->bounds);
   return helper.size();
 }
@@ -894,10 +706,7 @@ size_t SaveLayerOp::Serialize(const PaintOp* base_op,
 size_t SaveLayerAlphaOp::Serialize(const PaintOp* base_op,
                                    void* memory,
                                    size_t size,
-                                   const SerializeOptions& options,
-                                   const PaintFlags* flags_to_serialize,
-                                   const SkM44& current_ctm,
-                                   const SkM44& original_ctm) {
+                                   const SerializeOptions& options) {
   auto* op = static_cast<const SaveLayerAlphaOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
   helper.Write(op->bounds);
@@ -908,10 +717,7 @@ size_t SaveLayerAlphaOp::Serialize(const PaintOp* base_op,
 size_t ScaleOp::Serialize(const PaintOp* base_op,
                           void* memory,
                           size_t size,
-                          const SerializeOptions& options,
-                          const PaintFlags* flags_to_serialize,
-                          const SkM44& current_ctm,
-                          const SkM44& original_ctm) {
+                          const SerializeOptions& options) {
   auto* op = static_cast<const ScaleOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
   helper.Write(op->sx);
@@ -922,24 +728,24 @@ size_t ScaleOp::Serialize(const PaintOp* base_op,
 size_t SetMatrixOp::Serialize(const PaintOp* base_op,
                               void* memory,
                               size_t size,
-                              const SerializeOptions& options,
-                              const PaintFlags* flags_to_serialize,
-                              const SkM44& current_ctm,
-                              const SkM44& original_ctm) {
+                              const SerializeOptions& options) {
   auto* op = static_cast<const SetMatrixOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
-  // Use original_ctm here because SetMatrixOp replaces current_ctm
-  helper.Write(original_ctm * op->matrix);
+
+  if (options.original_ctm.isIdentity()) {
+    helper.Write(op->matrix);
+  } else {
+    SkMatrix transformed = op->matrix;
+    transformed.postConcat(options.original_ctm);
+    helper.Write(transformed);
+  }
   return helper.size();
 }
 
 size_t SetNodeIdOp::Serialize(const PaintOp* base_op,
                               void* memory,
                               size_t size,
-                              const SerializeOptions& options,
-                              const PaintFlags* flags_to_serialize,
-                              const SkM44& current_ctm,
-                              const SkM44& original_ctm) {
+                              const SerializeOptions& options) {
   auto* op = static_cast<const SetNodeIdOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
   helper.Write(op->node_id);
@@ -949,10 +755,7 @@ size_t SetNodeIdOp::Serialize(const PaintOp* base_op,
 size_t TranslateOp::Serialize(const PaintOp* base_op,
                               void* memory,
                               size_t size,
-                              const SerializeOptions& options,
-                              const PaintFlags* flags_to_serialize,
-                              const SkM44& current_ctm,
-                              const SkM44& original_ctm) {
+                              const SerializeOptions& options) {
   auto* op = static_cast<const TranslateOp*>(base_op);
   PaintOpWriter helper(memory, size, options);
   helper.Write(op->dx);
@@ -966,78 +769,25 @@ void UpdateTypeAndSkip(T* op) {
   op->skip = PaintOpBuffer::ComputeOpSkip(sizeof(T));
 }
 
-template <typename T>
-class PaintOpDeserializer {
- public:
-  static_assert(std::is_base_of<PaintOp, T>::value, "T not a PaintOp.");
-
-  explicit PaintOpDeserializer(const volatile void* input,
-                               size_t input_size,
-                               const PaintOp::DeserializeOptions& options,
-                               T* op)
-      : reader_(input, input_size, options), op_(op) {
-    DCHECK(op_);
-  }
-  PaintOpDeserializer(const PaintOpDeserializer&) = delete;
-  PaintOpDeserializer& operator=(const PaintOpDeserializer&) = delete;
-
-  ~PaintOpDeserializer() {
-    DCHECK(!op_)
-        << "FinalizeOp must be called before PaintOpDeserializer is destroyed. "
-           "type="
-        << T::kType;
-  }
-
-  PaintOp* FinalizeOp(bool force_invalid = false) {
-    DCHECK(op_) << "PaintOp has already been finalized. type=" << T::kType;
-
-    if (force_invalid || !reader_.valid() || !op_->IsValid()) {
-      op_->~T();
-      op_ = nullptr;
-      return nullptr;
-    }
-
-    UpdateTypeAndSkip(op_.get());
-    T* op_snapshot = op_;
-    op_ = nullptr;
-    return op_snapshot;
-  }
-
-  PaintOp* InvalidateAndFinalizeOp() {
-    return FinalizeOp(/*force_invalid=*/true);
-  }
-
-  T* operator->() { return op_; }
-
-  template <typename... Args>
-  void Read(Args&&... args) {
-    reader_.Read(std::forward<Args>(args)...);
-  }
-
-  void ReadData(size_t bytes, void* data) { reader_.ReadData(bytes, data); }
-
-  void ReadSize(size_t* size) { reader_.ReadSize(size); }
-
-  void AssertAlignment(size_t alignment) { reader_.AssertAlignment(alignment); }
-
- private:
-  PaintOpReader reader_;
-  raw_ptr<T> op_;
-};
-
 PaintOp* AnnotateOp::Deserialize(const volatile void* input,
                                  size_t input_size,
                                  void* output,
                                  size_t output_size,
                                  const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(AnnotateOp));
-  PaintOpDeserializer<AnnotateOp> deserializer(input, input_size, options,
-                                               new (output) AnnotateOp);
+  AnnotateOp* op = new (output) AnnotateOp;
 
-  deserializer.Read(&deserializer->annotation_type);
-  deserializer.Read(&deserializer->rect);
-  deserializer.Read(&deserializer->data);
-  return deserializer.FinalizeOp();
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->annotation_type);
+  helper.Read(&op->rect);
+  helper.Read(&op->data);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~AnnotateOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* ClipPathOp::Deserialize(const volatile void* input,
@@ -1046,13 +796,19 @@ PaintOp* ClipPathOp::Deserialize(const volatile void* input,
                                  size_t output_size,
                                  const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(ClipPathOp));
-  PaintOpDeserializer<ClipPathOp> deserializer(input, input_size, options,
-                                               new (output) ClipPathOp);
+  ClipPathOp* op = new (output) ClipPathOp;
 
-  deserializer.Read(&deserializer->path);
-  deserializer.Read(&deserializer->op);
-  deserializer.Read(&deserializer->antialias);
-  return deserializer.FinalizeOp();
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->path);
+  helper.Read(&op->op);
+  helper.Read(&op->antialias);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~ClipPathOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* ClipRectOp::Deserialize(const volatile void* input,
@@ -1061,12 +817,19 @@ PaintOp* ClipRectOp::Deserialize(const volatile void* input,
                                  size_t output_size,
                                  const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(ClipRectOp));
-  PaintOpDeserializer<ClipRectOp> deserializer(input, input_size, options,
-                                               new (output) ClipRectOp);
-  deserializer.Read(&deserializer->rect);
-  deserializer.Read(&deserializer->op);
-  deserializer.Read(&deserializer->antialias);
-  return deserializer.FinalizeOp();
+  ClipRectOp* op = new (output) ClipRectOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->rect);
+  helper.Read(&op->op);
+  helper.Read(&op->antialias);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~ClipRectOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* ClipRRectOp::Deserialize(const volatile void* input,
@@ -1075,12 +838,19 @@ PaintOp* ClipRRectOp::Deserialize(const volatile void* input,
                                   size_t output_size,
                                   const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(ClipRRectOp));
-  PaintOpDeserializer<ClipRRectOp> deserializer(input, input_size, options,
-                                                new (output) ClipRRectOp);
-  deserializer.Read(&deserializer->rrect);
-  deserializer.Read(&deserializer->op);
-  deserializer.Read(&deserializer->antialias);
-  return deserializer.FinalizeOp();
+  ClipRRectOp* op = new (output) ClipRRectOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->rrect);
+  helper.Read(&op->op);
+  helper.Read(&op->antialias);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~ClipRRectOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* ConcatOp::Deserialize(const volatile void* input,
@@ -1089,10 +859,18 @@ PaintOp* ConcatOp::Deserialize(const volatile void* input,
                                size_t output_size,
                                const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(ConcatOp));
-  PaintOpDeserializer<ConcatOp> deserializer(input, input_size, options,
-                                             new (output) ConcatOp);
-  deserializer.Read(&deserializer->matrix);
-  return deserializer.FinalizeOp();
+  ConcatOp* op = new (output) ConcatOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->matrix);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~ConcatOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  PaintOpReader::FixupMatrixPostSerialization(&op->matrix);
+  return op;
 }
 
 PaintOp* CustomDataOp::Deserialize(const volatile void* input,
@@ -1101,10 +879,17 @@ PaintOp* CustomDataOp::Deserialize(const volatile void* input,
                                    size_t output_size,
                                    const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(CustomDataOp));
-  PaintOpDeserializer<CustomDataOp> deserializer(input, input_size, options,
-                                                 new (output) CustomDataOp);
-  deserializer.Read(&deserializer->id);
-  return deserializer.FinalizeOp();
+  CustomDataOp* op = new (output) CustomDataOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->id);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~CustomDataOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* DrawColorOp::Deserialize(const volatile void* input,
@@ -1113,11 +898,18 @@ PaintOp* DrawColorOp::Deserialize(const volatile void* input,
                                   size_t output_size,
                                   const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(DrawColorOp));
-  PaintOpDeserializer<DrawColorOp> deserializer(input, input_size, options,
-                                                new (output) DrawColorOp);
-  deserializer.Read(&deserializer->color);
-  deserializer.Read(&deserializer->mode);
-  return deserializer.FinalizeOp();
+  DrawColorOp* op = new (output) DrawColorOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->color);
+  helper.Read(&op->mode);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~DrawColorOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* DrawDRRectOp::Deserialize(const volatile void* input,
@@ -1126,12 +918,18 @@ PaintOp* DrawDRRectOp::Deserialize(const volatile void* input,
                                    size_t output_size,
                                    const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(DrawDRRectOp));
-  PaintOpDeserializer<DrawDRRectOp> deserializer(input, input_size, options,
-                                                 new (output) DrawDRRectOp);
-  deserializer.Read(&deserializer->flags);
-  deserializer.Read(&deserializer->outer);
-  deserializer.Read(&deserializer->inner);
-  return deserializer.FinalizeOp();
+  DrawDRRectOp* op = new (output) DrawDRRectOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->flags);
+  helper.Read(&op->outer);
+  helper.Read(&op->inner);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~DrawDRRectOp();
+    return nullptr;
+  }
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* DrawImageOp::Deserialize(const volatile void* input,
@@ -1140,19 +938,24 @@ PaintOp* DrawImageOp::Deserialize(const volatile void* input,
                                   size_t output_size,
                                   const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(DrawImageOp));
-  PaintOpDeserializer<DrawImageOp> deserializer(input, input_size, options,
-                                                new (output) DrawImageOp);
-  deserializer.Read(&deserializer->flags);
+  DrawImageOp* op = new (output) DrawImageOp;
 
-  deserializer.Read(&deserializer->image);
-  deserializer.AssertAlignment(alignof(SkScalar));
-  deserializer.Read(&deserializer->scale_adjustment.fWidth);
-  deserializer.Read(&deserializer->scale_adjustment.fHeight);
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->flags);
 
-  deserializer.Read(&deserializer->left);
-  deserializer.Read(&deserializer->top);
-  deserializer.Read(&deserializer->sampling);
-  return deserializer.FinalizeOp();
+  helper.Read(&op->image);
+  helper.AlignMemory(alignof(SkScalar));
+  helper.Read(&op->scale_adjustment.fWidth);
+  helper.Read(&op->scale_adjustment.fHeight);
+
+  helper.Read(&op->left);
+  helper.Read(&op->top);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~DrawImageOp();
+    return nullptr;
+  }
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* DrawImageRectOp::Deserialize(const volatile void* input,
@@ -1161,20 +964,25 @@ PaintOp* DrawImageRectOp::Deserialize(const volatile void* input,
                                       size_t output_size,
                                       const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(DrawImageRectOp));
-  PaintOpDeserializer<DrawImageRectOp> deserializer(
-      input, input_size, options, new (output) DrawImageRectOp);
-  deserializer.Read(&deserializer->flags);
+  DrawImageRectOp* op = new (output) DrawImageRectOp;
 
-  deserializer.Read(&deserializer->image);
-  deserializer.AssertAlignment(alignof(SkScalar));
-  deserializer.Read(&deserializer->scale_adjustment.fWidth);
-  deserializer.Read(&deserializer->scale_adjustment.fHeight);
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->flags);
 
-  deserializer.Read(&deserializer->src);
-  deserializer.Read(&deserializer->dst);
-  deserializer.Read(&deserializer->sampling);
-  deserializer.Read(&deserializer->constraint);
-  return deserializer.FinalizeOp();
+  helper.Read(&op->image);
+  helper.AlignMemory(alignof(SkScalar));
+  helper.Read(&op->scale_adjustment.fWidth);
+  helper.Read(&op->scale_adjustment.fHeight);
+
+  helper.Read(&op->src);
+  helper.Read(&op->dst);
+  helper.Read(&op->constraint);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~DrawImageRectOp();
+    return nullptr;
+  }
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* DrawIRectOp::Deserialize(const volatile void* input,
@@ -1183,11 +991,17 @@ PaintOp* DrawIRectOp::Deserialize(const volatile void* input,
                                   size_t output_size,
                                   const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(DrawIRectOp));
-  PaintOpDeserializer<DrawIRectOp> deserializer(input, input_size, options,
-                                                new (output) DrawIRectOp);
-  deserializer.Read(&deserializer->flags);
-  deserializer.Read(&deserializer->rect);
-  return deserializer.FinalizeOp();
+  DrawIRectOp* op = new (output) DrawIRectOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->flags);
+  helper.Read(&op->rect);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~DrawIRectOp();
+    return nullptr;
+  }
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* DrawLineOp::Deserialize(const volatile void* input,
@@ -1196,15 +1010,21 @@ PaintOp* DrawLineOp::Deserialize(const volatile void* input,
                                  size_t output_size,
                                  const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(DrawLineOp));
-  PaintOpDeserializer<DrawLineOp> deserializer(input, input_size, options,
-                                               new (output) DrawLineOp);
-  deserializer.Read(&deserializer->flags);
-  deserializer.AssertAlignment(alignof(SkScalar));
-  deserializer.Read(&deserializer->x0);
-  deserializer.Read(&deserializer->y0);
-  deserializer.Read(&deserializer->x1);
-  deserializer.Read(&deserializer->y1);
-  return deserializer.FinalizeOp();
+  DrawLineOp* op = new (output) DrawLineOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->flags);
+  helper.AlignMemory(alignof(SkScalar));
+  helper.Read(&op->x0);
+  helper.Read(&op->y0);
+  helper.Read(&op->x1);
+  helper.Read(&op->y1);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~DrawLineOp();
+    return nullptr;
+  }
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* DrawOvalOp::Deserialize(const volatile void* input,
@@ -1213,11 +1033,17 @@ PaintOp* DrawOvalOp::Deserialize(const volatile void* input,
                                  size_t output_size,
                                  const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(DrawOvalOp));
-  PaintOpDeserializer<DrawOvalOp> deserializer(input, input_size, options,
-                                               new (output) DrawOvalOp);
-  deserializer.Read(&deserializer->flags);
-  deserializer.Read(&deserializer->oval);
-  return deserializer.FinalizeOp();
+  DrawOvalOp* op = new (output) DrawOvalOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->flags);
+  helper.Read(&op->oval);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~DrawOvalOp();
+    return nullptr;
+  }
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* DrawPathOp::Deserialize(const volatile void* input,
@@ -1226,14 +1052,17 @@ PaintOp* DrawPathOp::Deserialize(const volatile void* input,
                                  size_t output_size,
                                  const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(DrawPathOp));
-  PaintOpDeserializer<DrawPathOp> deserializer(input, input_size, options,
-                                               new (output) DrawPathOp);
-  deserializer.Read(&deserializer->flags);
-  deserializer.Read(&deserializer->path);
-  deserializer.Read(&deserializer->sk_path_fill_type);
-  deserializer->path.setFillType(
-      static_cast<SkPathFillType>(deserializer->sk_path_fill_type));
-  return deserializer.FinalizeOp();
+  DrawPathOp* op = new (output) DrawPathOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->flags);
+  helper.Read(&op->path);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~DrawPathOp();
+    return nullptr;
+  }
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* DrawRecordOp::Deserialize(const volatile void* input,
@@ -1252,11 +1081,17 @@ PaintOp* DrawRectOp::Deserialize(const volatile void* input,
                                  size_t output_size,
                                  const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(DrawRectOp));
-  PaintOpDeserializer<DrawRectOp> deserializer(input, input_size, options,
-                                               new (output) DrawRectOp);
-  deserializer.Read(&deserializer->flags);
-  deserializer.Read(&deserializer->rect);
-  return deserializer.FinalizeOp();
+  DrawRectOp* op = new (output) DrawRectOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->flags);
+  helper.Read(&op->rect);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~DrawRectOp();
+    return nullptr;
+  }
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* DrawRRectOp::Deserialize(const volatile void* input,
@@ -1265,116 +1100,48 @@ PaintOp* DrawRRectOp::Deserialize(const volatile void* input,
                                   size_t output_size,
                                   const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(DrawRRectOp));
-  PaintOpDeserializer<DrawRRectOp> deserializer(input, input_size, options,
-                                                new (output) DrawRRectOp);
-  deserializer.Read(&deserializer->flags);
-  deserializer.Read(&deserializer->rrect);
-  return deserializer.FinalizeOp();
-}
+  DrawRRectOp* op = new (output) DrawRRectOp;
 
-namespace {
-
-// |max_map_size| is purely a safety mechanism to prevent disastrous behavior
-// (trying to allocate an enormous map, looping for long periods of time, etc)
-// in case the serialization buffer is corrupted somehow.
-template <typename T>
-bool DeserializeSkottieMap(
-    base::flat_map<SkottieResourceIdHash, T>& map,
-    absl::optional<size_t> max_map_size,
-    PaintOpDeserializer<DrawSkottieOp>& deserializer,
-    const base::RepeatingCallback<absl::optional<T>(
-        PaintOpDeserializer<DrawSkottieOp>&)>& value_deserializer) {
-  size_t map_size = 0;
-  deserializer.ReadSize(&map_size);
-  if (max_map_size && map_size > *max_map_size)
-    return false;
-
-  for (size_t i = 0; i < map_size; ++i) {
-    size_t resource_id_hash_raw = 0;
-    deserializer.ReadSize(&resource_id_hash_raw);
-    SkottieResourceIdHash resource_id_hash =
-        SkottieResourceIdHash::FromUnsafeValue(resource_id_hash_raw);
-    if (!resource_id_hash)
-      return false;
-
-    absl::optional<T> value = value_deserializer.Run(deserializer);
-    if (!value)
-      return false;
-
-    // Duplicate keys should not happen by design, but defend against it
-    // gracefully in case the underlying buffer is corrupted.
-    bool is_new_entry = map.emplace(resource_id_hash, std::move(*value)).second;
-    if (!is_new_entry)
-      return false;
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->flags);
+  helper.Read(&op->rrect);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~DrawRRectOp();
+    return nullptr;
   }
-  return true;
+  UpdateTypeAndSkip(op);
+  return op;
 }
-
-absl::optional<SkottieFrameData> DeserializeSkottieFrameData(
-    PaintOpDeserializer<DrawSkottieOp>& deserializer) {
-  SkottieFrameData frame_data;
-  deserializer.Read(&frame_data.image);
-  deserializer.Read(&frame_data.quality);
-  return frame_data;
-}
-
-absl::optional<SkColor> DeserializeSkottieColor(
-    PaintOpDeserializer<DrawSkottieOp>& deserializer) {
-  SkColor color = SK_ColorTRANSPARENT;
-  deserializer.Read(&color);
-  return color;
-}
-
-absl::optional<SkottieTextPropertyValue> DeserializeSkottieTextPropertyValue(
-    PaintOpDeserializer<DrawSkottieOp>& deserializer) {
-  size_t text_size = 0u;
-  deserializer.ReadSize(&text_size);
-  std::string text(text_size, char());
-  deserializer.ReadData(text_size, const_cast<char*>(text.c_str()));
-  SkRect box;
-  deserializer.Read(&box);
-  return SkottieTextPropertyValue(std::move(text), gfx::SkRectToRectF(box));
-}
-
-}  // namespace
 
 PaintOp* DrawSkottieOp::Deserialize(const volatile void* input,
                                     size_t input_size,
                                     void* output,
                                     size_t output_size,
                                     const DeserializeOptions& options) {
+#if defined(OS_ANDROID)
+  // Skottie is not used on Android. To keep apk size small the skottie library
+  // is excluded from the binary.
+  return nullptr;
+#else
   DCHECK_GE(output_size, sizeof(DrawSkottieOp));
-  PaintOpDeserializer<DrawSkottieOp> deserializer(input, input_size, options,
-                                                  new (output) DrawSkottieOp);
-  deserializer.Read(&deserializer->dst);
+  DrawSkottieOp* op = new (output) DrawSkottieOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->dst);
 
   SkScalar t;
-  deserializer.Read(&t);
-  deserializer->t = SkScalarToFloat(t);
+  helper.Read(&t);
+  op->t = SkScalarToFloat(t);
 
-  deserializer.Read(&deserializer->skottie);
-  // The |skottie| object gets used below, so no point in continuing if it's
-  // invalid. That can lead to crashing or unexpected behavior.
-  if (!deserializer->skottie || !deserializer->skottie->is_valid())
-    return deserializer.InvalidateAndFinalizeOp();
+  helper.Read(&op->skottie);
 
-  size_t num_assets_in_animation =
-      deserializer->skottie->GetImageAssetMetadata().asset_storage().size();
-  size_t num_text_nodes_in_animation =
-      deserializer->skottie->GetTextNodeNames().size();
-  bool deserialized_all_maps =
-      DeserializeSkottieMap(
-          deserializer->images, /*max_map_size=*/num_assets_in_animation,
-          deserializer, base::BindRepeating(&DeserializeSkottieFrameData)) &&
-      DeserializeSkottieMap(deserializer->color_map,
-                            /*max_map_size=*/absl::nullopt, deserializer,
-                            base::BindRepeating(&DeserializeSkottieColor)) &&
-      DeserializeSkottieMap(
-          deserializer->text_map, /*max_map_size=*/num_text_nodes_in_animation,
-          deserializer,
-          base::BindRepeating(&DeserializeSkottieTextPropertyValue));
-  return deserialized_all_maps ? deserializer.FinalizeOp()
-                               : deserializer.InvalidateAndFinalizeOp();
+  if (!helper.valid() || !op->IsValid()) {
+    op->~DrawSkottieOp();
+    return nullptr;
+  }
+  UpdateTypeAndSkip(op);
+  return op;
+#endif  // OS_ANDROID
 }
 
 PaintOp* DrawTextBlobOp::Deserialize(const volatile void* input,
@@ -1382,18 +1149,21 @@ PaintOp* DrawTextBlobOp::Deserialize(const volatile void* input,
                                      void* output,
                                      size_t output_size,
                                      const DeserializeOptions& options) {
-  DCHECK_GE(output_size, sizeof(DrawTextBlobOp));
-  PaintOpDeserializer<DrawTextBlobOp> deserializer(input, input_size, options,
-                                                   new (output) DrawTextBlobOp);
-  deserializer.Read(&deserializer->flags);
-  unsigned int count = 0;
-  deserializer.Read(&count);
-  deserializer.Read(&deserializer->slug);
-  deserializer->extra_slugs.resize(count - 1);
-  for (auto& slug : deserializer->extra_slugs) {
-    deserializer.Read(&slug);
+  DCHECK_GE(output_size, sizeof(DrawTextBlobOp) - sizeof(NodeId));
+  DrawTextBlobOp* op = new (output) DrawTextBlobOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->flags);
+  helper.AlignMemory(alignof(SkScalar));
+  helper.Read(&op->x);
+  helper.Read(&op->y);
+  helper.Read(&op->blob);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~DrawTextBlobOp();
+    return nullptr;
   }
-  return deserializer.FinalizeOp();
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* NoopOp::Deserialize(const volatile void* input,
@@ -1402,9 +1172,16 @@ PaintOp* NoopOp::Deserialize(const volatile void* input,
                              size_t output_size,
                              const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(NoopOp));
-  PaintOpDeserializer<NoopOp> deserializer(input, input_size, options,
-                                           new (output) NoopOp);
-  return deserializer.FinalizeOp();
+  NoopOp* op = new (output) NoopOp;
+
+  PaintOpReader helper(input, input_size, options);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~NoopOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* RestoreOp::Deserialize(const volatile void* input,
@@ -1413,9 +1190,16 @@ PaintOp* RestoreOp::Deserialize(const volatile void* input,
                                 size_t output_size,
                                 const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(RestoreOp));
-  PaintOpDeserializer<RestoreOp> deserializer(input, input_size, options,
-                                              new (output) RestoreOp);
-  return deserializer.FinalizeOp();
+  RestoreOp* op = new (output) RestoreOp;
+
+  PaintOpReader helper(input, input_size, options);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~RestoreOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* RotateOp::Deserialize(const volatile void* input,
@@ -1424,10 +1208,17 @@ PaintOp* RotateOp::Deserialize(const volatile void* input,
                                size_t output_size,
                                const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(RotateOp));
-  PaintOpDeserializer<RotateOp> deserializer(input, input_size, options,
-                                             new (output) RotateOp);
-  deserializer.Read(&deserializer->degrees);
-  return deserializer.FinalizeOp();
+  RotateOp* op = new (output) RotateOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->degrees);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~RotateOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* SaveOp::Deserialize(const volatile void* input,
@@ -1436,9 +1227,16 @@ PaintOp* SaveOp::Deserialize(const volatile void* input,
                              size_t output_size,
                              const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(SaveOp));
-  PaintOpDeserializer<SaveOp> deserializer(input, input_size, options,
-                                           new (output) SaveOp);
-  return deserializer.FinalizeOp();
+  SaveOp* op = new (output) SaveOp;
+
+  PaintOpReader helper(input, input_size, options);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~SaveOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* SaveLayerOp::Deserialize(const volatile void* input,
@@ -1447,11 +1245,17 @@ PaintOp* SaveLayerOp::Deserialize(const volatile void* input,
                                   size_t output_size,
                                   const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(SaveLayerOp));
-  PaintOpDeserializer<SaveLayerOp> deserializer(input, input_size, options,
-                                                new (output) SaveLayerOp);
-  deserializer.Read(&deserializer->flags);
-  deserializer.Read(&deserializer->bounds);
-  return deserializer.FinalizeOp();
+  SaveLayerOp* op = new (output) SaveLayerOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->flags);
+  helper.Read(&op->bounds);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~SaveLayerOp();
+    return nullptr;
+  }
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* SaveLayerAlphaOp::Deserialize(const volatile void* input,
@@ -1460,11 +1264,18 @@ PaintOp* SaveLayerAlphaOp::Deserialize(const volatile void* input,
                                        size_t output_size,
                                        const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(SaveLayerAlphaOp));
-  PaintOpDeserializer<SaveLayerAlphaOp> deserializer(
-      input, input_size, options, new (output) SaveLayerAlphaOp);
-  deserializer.Read(&deserializer->bounds);
-  deserializer.Read(&deserializer->alpha);
-  return deserializer.FinalizeOp();
+  SaveLayerAlphaOp* op = new (output) SaveLayerAlphaOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->bounds);
+  helper.Read(&op->alpha);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~SaveLayerAlphaOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* ScaleOp::Deserialize(const volatile void* input,
@@ -1473,11 +1284,18 @@ PaintOp* ScaleOp::Deserialize(const volatile void* input,
                               size_t output_size,
                               const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(ScaleOp));
-  PaintOpDeserializer<ScaleOp> deserializer(input, input_size, options,
-                                            new (output) ScaleOp);
-  deserializer.Read(&deserializer->sx);
-  deserializer.Read(&deserializer->sy);
-  return deserializer.FinalizeOp();
+  ScaleOp* op = new (output) ScaleOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->sx);
+  helper.Read(&op->sy);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~ScaleOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* SetMatrixOp::Deserialize(const volatile void* input,
@@ -1486,10 +1304,18 @@ PaintOp* SetMatrixOp::Deserialize(const volatile void* input,
                                   size_t output_size,
                                   const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(SetMatrixOp));
-  PaintOpDeserializer<SetMatrixOp> deserializer(input, input_size, options,
-                                                new (output) SetMatrixOp);
-  deserializer.Read(&deserializer->matrix);
-  return deserializer.FinalizeOp();
+  SetMatrixOp* op = new (output) SetMatrixOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->matrix);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~SetMatrixOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  PaintOpReader::FixupMatrixPostSerialization(&op->matrix);
+  return op;
 }
 
 PaintOp* SetNodeIdOp::Deserialize(const volatile void* input,
@@ -1498,10 +1324,17 @@ PaintOp* SetNodeIdOp::Deserialize(const volatile void* input,
                                   size_t output_size,
                                   const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(SetNodeIdOp));
-  PaintOpDeserializer<SetNodeIdOp> deserializer(input, input_size, options,
-                                                new (output) SetNodeIdOp);
-  deserializer.Read(&deserializer->node_id);
-  return deserializer.FinalizeOp();
+  SetNodeIdOp* op = new (output) SetNodeIdOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->node_id);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~SetNodeIdOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 PaintOp* TranslateOp::Deserialize(const volatile void* input,
@@ -1510,11 +1343,18 @@ PaintOp* TranslateOp::Deserialize(const volatile void* input,
                                   size_t output_size,
                                   const DeserializeOptions& options) {
   DCHECK_GE(output_size, sizeof(TranslateOp));
-  PaintOpDeserializer<TranslateOp> deserializer(input, input_size, options,
-                                                new (output) TranslateOp);
-  deserializer.Read(&deserializer->dx);
-  deserializer.Read(&deserializer->dy);
-  return deserializer.FinalizeOp();
+  TranslateOp* op = new (output) TranslateOp;
+
+  PaintOpReader helper(input, input_size, options);
+  helper.Read(&op->dx);
+  helper.Read(&op->dy);
+  if (!helper.valid() || !op->IsValid()) {
+    op->~TranslateOp();
+    return nullptr;
+  }
+
+  UpdateTypeAndSkip(op);
+  return op;
 }
 
 void AnnotateOp::Raster(const AnnotateOp* op,
@@ -1554,8 +1394,8 @@ void ClipRRectOp::Raster(const ClipRRectOp* op,
 }
 
 void ConcatOp::Raster(const ConcatOp* op,
-                        SkCanvas* canvas,
-                        const PlaybackParams& params) {
+                      SkCanvas* canvas,
+                      const PlaybackParams& params) {
   canvas->concat(op->matrix);
 }
 
@@ -1595,22 +1435,18 @@ void DrawImageOp::RasterWithFlags(const DrawImageOp* op,
       canvas->scale(1.f / op->scale_adjustment.width(),
                     1.f / op->scale_adjustment.height());
     }
-    sk_sp<SkImage> sk_image;
-    if (op->image.IsTextureBacked()) {
-      sk_image = op->image.GetAcceleratedSkImage();
-      DCHECK(sk_image || !canvas->recordingContext());
-    }
-    if (!sk_image)
-      sk_image = op->image.GetSwSkImage();
-
-    canvas->drawImage(sk_image.get(), op->left, op->top, op->sampling, &paint);
+    auto sk_image = op->image.IsTextureBacked()
+                        ? op->image.GetAcceleratedSkImage()
+                        : op->image.GetSwSkImage();
+    canvas->drawImage(sk_image.get(), op->left, op->top, &paint);
     return;
   }
 
   // Dark mode is applied only for OOP raster during serialization.
   DrawImage draw_image(
       op->image, false, SkIRect::MakeWH(op->image.width(), op->image.height()),
-      sampling_to_quality(op->sampling), canvas->getLocalToDevice());
+      flags ? flags->getFilterQuality() : kNone_SkFilterQuality,
+      canvas->getTotalMatrix());
   auto scoped_result = params.image_provider->GetRasterContent(draw_image);
   if (!scoped_result)
     return;
@@ -1630,10 +1466,8 @@ void DrawImageOp::RasterWithFlags(const DrawImageOp* op,
     canvas->scale(1.f / scale_adjustment.width(),
                   1.f / scale_adjustment.height());
   }
-  canvas->drawImage(decoded_image.image().get(), op->left, op->top,
-                    PaintFlags::FilterQualityToSkSamplingOptions(
-                        decoded_image.filter_quality()),
-                    &paint);
+  paint.setFilterQuality(decoded_image.filter_quality());
+  canvas->drawImage(decoded_image.image().get(), op->left, op->top, &paint);
 }
 
 void DrawImageRectOp::RasterWithFlags(const DrawImageRectOp* op,
@@ -1648,6 +1482,13 @@ void DrawImageRectOp::RasterWithFlags(const DrawImageRectOp* op,
     // we should draw nothing.
     if (!params.image_provider)
       return;
+    // TODO(crbug.com/1157152): We shouldn't need this check, QuickRejectDraw
+    // should have done the job.
+    const SkRect& clip_rect = SkRect::Make(canvas->getDeviceClipBounds());
+    const SkMatrix& ctm = canvas->getTotalMatrix();
+    gfx::Rect local_op_rect = PaintOp::ComputePaintRect(op, clip_rect, ctm);
+    if (local_op_rect.IsEmpty())
+      return;
     ImageProvider::ScopedResult result =
         params.image_provider->GetRasterContent(DrawImage(op->image));
 
@@ -1658,7 +1499,8 @@ void DrawImageRectOp::RasterWithFlags(const DrawImageRectOp* op,
 
     DCHECK(IsScaleAdjustmentIdentity(op->scale_adjustment));
     SkAutoCanvasRestore save_restore(canvas, true);
-    canvas->concat(SkMatrix::RectToRect(op->src, op->dst));
+    canvas->concat(
+        SkMatrix::MakeRectToRect(op->src, op->dst, SkMatrix::kFill_ScaleToFit));
     canvas->clipRect(op->src);
     canvas->saveLayer(&op->src, &paint);
     // Compositor thread animations can cause PaintWorklet jobs to be dispatched
@@ -1674,28 +1516,26 @@ void DrawImageRectOp::RasterWithFlags(const DrawImageRectOp* op,
   if (!params.image_provider) {
     SkRect adjusted_src = AdjustSrcRectForScale(op->src, op->scale_adjustment);
     flags->DrawToSk(canvas, [op, adjusted_src](SkCanvas* c, const SkPaint& p) {
-      sk_sp<SkImage> sk_image;
-      if (op->image.IsTextureBacked()) {
-        sk_image = op->image.GetAcceleratedSkImage();
-        DCHECK(sk_image || !c->recordingContext());
-      }
-      if (!sk_image)
-        sk_image = op->image.GetSwSkImage();
-      DrawImageRect(c, sk_image.get(), adjusted_src, op->dst, op->sampling, &p,
-                    op->constraint);
+      auto sk_image = op->image.IsTextureBacked()
+                          ? op->image.GetAcceleratedSkImage()
+                          : op->image.GetSwSkImage();
+      c->drawImageRect(sk_image.get(), adjusted_src, op->dst, &p,
+                       op->constraint);
     });
     return;
   }
 
-  SkM44 matrix = canvas->getLocalToDevice() *
-                 SkM44(SkMatrix::RectToRect(op->src, op->dst));
+  SkMatrix matrix;
+  matrix.setRectToRect(op->src, op->dst, SkMatrix::kFill_ScaleToFit);
+  matrix.postConcat(canvas->getTotalMatrix());
 
   SkIRect int_src_rect;
   op->src.roundOut(&int_src_rect);
 
   // Dark mode is applied only for OOP raster during serialization.
-  DrawImage draw_image(op->image, false, int_src_rect,
-                       sampling_to_quality(op->sampling), matrix);
+  DrawImage draw_image(
+      op->image, false, int_src_rect,
+      flags ? flags->getFilterQuality() : kNone_SkFilterQuality, matrix);
   auto scoped_result = params.image_provider->GetRasterContent(draw_image);
   if (!scoped_result)
     return;
@@ -1713,10 +1553,10 @@ void DrawImageRectOp::RasterWithFlags(const DrawImageRectOp* op,
   adjusted_src = AdjustSrcRectForScale(adjusted_src, scale_adjustment);
   flags->DrawToSk(canvas, [op, &decoded_image, adjusted_src](SkCanvas* c,
                                                              const SkPaint& p) {
-    SkSamplingOptions options = PaintFlags::FilterQualityToSkSamplingOptions(
-        decoded_image.filter_quality());
-    DrawImageRect(c, decoded_image.image().get(), adjusted_src, op->dst,
-                  options, &p, op->constraint);
+    SkPaint paint_with_filter_quality(p);
+    paint_with_filter_quality.setFilterQuality(decoded_image.filter_quality());
+    c->drawImageRect(decoded_image.image().get(), adjusted_src, op->dst,
+                     &paint_with_filter_quality, op->constraint);
   });
 }
 
@@ -1787,52 +1627,7 @@ void DrawRRectOp::RasterWithFlags(const DrawRRectOp* op,
 void DrawSkottieOp::Raster(const DrawSkottieOp* op,
                            SkCanvas* canvas,
                            const PlaybackParams& params) {
-  // Binding unretained references in the callback is safe because Draw()'s API
-  // guarantees that the callback is invoked synchronously.
-  op->skottie->Draw(
-      canvas, op->t, op->dst,
-      base::BindRepeating(&DrawSkottieOp::GetImageAssetForRaster,
-                          base::Unretained(op), canvas, std::cref(params)),
-      op->color_map, op->text_map);
-}
-
-SkottieWrapper::FrameDataFetchResult DrawSkottieOp::GetImageAssetForRaster(
-    SkCanvas* canvas,
-    const PlaybackParams& params,
-    SkottieResourceIdHash asset_id,
-    float t_frame,
-    sk_sp<SkImage>& sk_image,
-    SkSamplingOptions& sampling_out) const {
-  auto images_iter = images.find(asset_id);
-  if (images_iter == images.end())
-    return SkottieWrapper::FrameDataFetchResult::NO_UPDATE;
-
-  const SkottieFrameData& frame_data = images_iter->second;
-  if (!frame_data.image) {
-    sk_image = nullptr;
-  } else if (params.image_provider) {
-    // There is no use case for applying dark mode filters to skottie images
-    // currently.
-    DrawImage draw_image(
-        frame_data.image, /*use_dark_mode=*/false,
-        SkIRect::MakeWH(frame_data.image.width(), frame_data.image.height()),
-        frame_data.quality, canvas->getLocalToDevice());
-    auto scoped_result = params.image_provider->GetRasterContent(draw_image);
-    if (scoped_result) {
-      sk_image = scoped_result.decoded_image().image();
-      DCHECK(sk_image);
-    }
-  } else {
-    if (frame_data.image.IsTextureBacked()) {
-      sk_image = frame_data.image.GetAcceleratedSkImage();
-      DCHECK(sk_image || !canvas->recordingContext());
-    }
-    if (!sk_image)
-      sk_image = frame_data.image.GetSwSkImage();
-  }
-  sampling_out =
-      PaintFlags::FilterQualityToSkSamplingOptions(frame_data.quality);
-  return SkottieWrapper::FrameDataFetchResult::NEW_DATA_AVAILABLE;
+  op->skottie->Draw(canvas, op->t, op->dst);
 }
 
 void DrawTextBlobOp::RasterWithFlags(const DrawTextBlobOp* op,
@@ -1841,38 +1636,9 @@ void DrawTextBlobOp::RasterWithFlags(const DrawTextBlobOp* op,
                                      const PlaybackParams& params) {
   if (op->node_id)
     SkPDF::SetNodeId(canvas, op->node_id);
-
-  // The PaintOpBuffer could be rasterized with different global matrix. It is
-  // used for over scall on Android. So we cannot reuse slugs, they have to be
-  // recreated.
-  if (params.is_analyzing) {
-    const_cast<DrawTextBlobOp*>(op)->slug.reset();
-    const_cast<DrawTextBlobOp*>(op)->extra_slugs.clear();
-  }
-
-  // flags may contain SkDrawLooper for shadow effect, so we need to convert
-  // SkTextBlob to slug for each run.
-  size_t i = 0;
-  flags->DrawToSk(canvas, [op, &params, &i](SkCanvas* c, const SkPaint& p) {
-    if (op->blob) {
-      c->drawTextBlob(op->blob.get(), op->x, op->y, p);
-      if (params.is_analyzing) {
-        auto s = GrSlug::ConvertBlob(c, *op->blob, {op->x, op->y}, p);
-        if (i == 0) {
-          const_cast<DrawTextBlobOp*>(op)->slug = std::move(s);
-        } else {
-          const_cast<DrawTextBlobOp*>(op)->extra_slugs.push_back(std::move(s));
-        }
-      }
-    } else if (i < 1 + op->extra_slugs.size()) {
-      DCHECK(!params.is_analyzing);
-      const auto& draw_slug = i == 0 ? op->slug : op->extra_slugs[i - 1];
-      if (draw_slug)
-        draw_slug->draw(c);
-    }
-    ++i;
+  flags->DrawToSk(canvas, [op](SkCanvas* c, const SkPaint& p) {
+    c->drawTextBlob(op->blob.get(), op->x, op->y, p);
   });
-
   if (op->node_id)
     SkPDF::SetNodeId(canvas, 0);
 }
@@ -1910,13 +1676,13 @@ void SaveLayerAlphaOp::Raster(const SaveLayerAlphaOp* op,
                               const PlaybackParams& params) {
   // See PaintOp::kUnsetRect
   bool unset = op->bounds.left() == SK_ScalarInfinity;
-  absl::optional<SkPaint> paint;
-  if (op->alpha != 1.0f) {
+  base::Optional<SkPaint> paint;
+  if (op->alpha != 0xFF) {
     paint.emplace();
-    paint->setAlpha(op->alpha * 255.0f);
+    paint->setAlpha(op->alpha);
   }
   SkCanvas::SaveLayerRec rec(unset ? nullptr : &op->bounds,
-                             base::OptionalToPtr(paint));
+                             base::OptionalOrNullptr(paint));
   if (params.save_layer_alpha_should_preserve_lcd_text.has_value() &&
       *params.save_layer_alpha_should_preserve_lcd_text) {
     rec.fSaveLayerFlags = SkCanvas::kPreserveLCDText_SaveLayerFlag |
@@ -1932,9 +1698,9 @@ void ScaleOp::Raster(const ScaleOp* op,
 }
 
 void SetMatrixOp::Raster(const SetMatrixOp* op,
-                           SkCanvas* canvas,
-                           const PlaybackParams& params) {
-  canvas->setMatrix(params.original_ctm * op->matrix);
+                         SkCanvas* canvas,
+                         const PlaybackParams& params) {
+  canvas->setMatrix(SkMatrix::Concat(params.original_ctm, op->matrix));
 }
 
 void SetNodeIdOp::Raster(const SetNodeIdOp* op,
@@ -2009,18 +1775,6 @@ bool PaintOp::AreSkMatricesEqual(const SkMatrix& left, const SkMatrix& right) {
 
   if (left.getType() != right.getType())
     return false;
-
-  return true;
-}
-
-// static
-bool PaintOp::AreSkM44sEqual(const SkM44& left, const SkM44& right) {
-  for (int r = 0; r < 4; ++r) {
-    for (int c = 0; c < 4; ++c) {
-      if (!AreEqualEvenIfNaN(left.rc(r, c), right.rc(r, c)))
-        return false;
-    }
-  }
 
   return true;
 }
@@ -2109,7 +1863,7 @@ bool ConcatOp::AreEqual(const PaintOp* base_left, const PaintOp* base_right) {
   auto* right = static_cast<const ConcatOp*>(base_right);
   DCHECK(left->IsValid());
   DCHECK(right->IsValid());
-  return AreSkM44sEqual(left->matrix, right->matrix);
+  return AreSkMatricesEqual(left->matrix, right->matrix);
 }
 
 bool CustomDataOp::AreEqual(const PaintOp* base_left,
@@ -2288,31 +2042,6 @@ bool DrawSkottieOp::AreEqual(const PaintOp* base_left,
     return false;
   if (!AreSkRectsEqual(left->dst, right->dst))
     return false;
-  if (left->images.size() != right->images.size())
-    return false;
-
-  auto left_iter = left->images.begin();
-  auto right_iter = right->images.begin();
-  for (; left_iter != left->images.end(); ++left_iter, ++right_iter) {
-    if (left_iter->first != right_iter->first ||
-        // PaintImage's comparison operator compares the underlying SkImage's
-        // pointer address. This does not necessarily hold in cases where the
-        // image's content may be the same, but it got realloacted to a
-        // different spot somewhere in memory via the transfer cache. The next
-        // best thing is to just compare the dimensions of the PaintImage.
-        left_iter->second.image.width() != right_iter->second.image.width() ||
-        left_iter->second.image.height() != right_iter->second.image.height() ||
-        left_iter->second.quality != right_iter->second.quality) {
-      return false;
-    }
-  }
-
-  if (left->color_map != right->color_map)
-    return false;
-
-  if (left->text_map != right->text_map)
-    return false;
-
   return true;
 }
 
@@ -2330,7 +2059,10 @@ bool DrawTextBlobOp::AreEqual(const PaintOp* base_left,
     return false;
   if (left->node_id != right->node_id)
     return false;
-  return GrSlugAreEqual(left->slug, right->slug);
+
+  SkSerialProcs default_procs;
+  return left->blob->serialize(default_procs)
+      ->equals(right->blob->serialize(default_procs).get());
 }
 
 bool NoopOp::AreEqual(const PaintOp* base_left, const PaintOp* base_right) {
@@ -2399,7 +2131,7 @@ bool SetMatrixOp::AreEqual(const PaintOp* base_left,
   auto* right = static_cast<const SetMatrixOp*>(base_right);
   DCHECK(left->IsValid());
   DCHECK(right->IsValid());
-  if (!AreSkM44sEqual(left->matrix, right->matrix))
+  if (!AreSkMatricesEqual(left->matrix, right->matrix))
     return false;
   return true;
 }
@@ -2452,10 +2184,9 @@ void PaintOp::Raster(SkCanvas* canvas, const PlaybackParams& params) const {
 
 size_t PaintOp::Serialize(void* memory,
                           size_t size,
-                          const SerializeOptions& options,
-                          const PaintFlags* flags_to_serialize,
-                          const SkM44& current_ctm,
-                          const SkM44& original_ctm) const {
+                          const SerializeOptions& options) const {
+  DCHECK(options.canvas);
+
   // Need at least enough room for a skip/type header.
   if (size < 4)
     return 0u;
@@ -2463,9 +2194,7 @@ size_t PaintOp::Serialize(void* memory,
   DCHECK_EQ(0u,
             reinterpret_cast<uintptr_t>(memory) % PaintOpBuffer::PaintOpAlign);
 
-  size_t written = g_serialize_functions[type](this, memory, size, options,
-                                               flags_to_serialize, current_ctm,
-                                               original_ctm);
+  size_t written = g_serialize_functions[type](this, memory, size, options);
   DCHECK_LE(written, size);
   if (written < 4)
     return 0u;
@@ -2502,78 +2231,79 @@ PaintOp* PaintOp::Deserialize(const volatile void* input,
 }
 
 // static
-bool PaintOp::GetBounds(const PaintOp& op, SkRect* rect) {
-  DCHECK(op.IsDrawOp());
+bool PaintOp::GetBounds(const PaintOp* op, SkRect* rect) {
+  DCHECK(op->IsDrawOp());
 
-  switch (op.GetType()) {
+  switch (op->GetType()) {
     case PaintOpType::DrawColor:
       return false;
     case PaintOpType::DrawDRRect: {
-      const auto& rect_op = static_cast<const DrawDRRectOp&>(op);
-      *rect = rect_op.outer.getBounds();
+      auto* rect_op = static_cast<const DrawDRRectOp*>(op);
+      *rect = rect_op->outer.getBounds();
       rect->sort();
       return true;
     }
     case PaintOpType::DrawImage: {
-      const auto& image_op = static_cast<const DrawImageOp&>(op);
-      *rect = SkRect::MakeXYWH(image_op.left, image_op.top,
-                               image_op.image.width(), image_op.image.height());
+      auto* image_op = static_cast<const DrawImageOp*>(op);
+      *rect =
+          SkRect::MakeXYWH(image_op->left, image_op->top,
+                           image_op->image.width(), image_op->image.height());
       rect->sort();
       return true;
     }
     case PaintOpType::DrawImageRect: {
-      const auto& image_rect_op = static_cast<const DrawImageRectOp&>(op);
-      *rect = image_rect_op.dst;
+      auto* image_rect_op = static_cast<const DrawImageRectOp*>(op);
+      *rect = image_rect_op->dst;
       rect->sort();
       return true;
     }
     case PaintOpType::DrawIRect: {
-      const auto& rect_op = static_cast<const DrawIRectOp&>(op);
-      *rect = SkRect::Make(rect_op.rect);
+      auto* rect_op = static_cast<const DrawIRectOp*>(op);
+      *rect = SkRect::Make(rect_op->rect);
       rect->sort();
       return true;
     }
     case PaintOpType::DrawLine: {
-      const auto& line_op = static_cast<const DrawLineOp&>(op);
-      rect->setLTRB(line_op.x0, line_op.y0, line_op.x1, line_op.y1);
+      auto* line_op = static_cast<const DrawLineOp*>(op);
+      rect->setLTRB(line_op->x0, line_op->y0, line_op->x1, line_op->y1);
       rect->sort();
       return true;
     }
     case PaintOpType::DrawOval: {
-      const auto& oval_op = static_cast<const DrawOvalOp&>(op);
-      *rect = oval_op.oval;
+      auto* oval_op = static_cast<const DrawOvalOp*>(op);
+      *rect = oval_op->oval;
       rect->sort();
       return true;
     }
     case PaintOpType::DrawPath: {
-      const auto& path_op = static_cast<const DrawPathOp&>(op);
-      *rect = path_op.path.getBounds();
+      auto* path_op = static_cast<const DrawPathOp*>(op);
+      *rect = path_op->path.getBounds();
       rect->sort();
       return true;
     }
     case PaintOpType::DrawRect: {
-      const auto& rect_op = static_cast<const DrawRectOp&>(op);
-      *rect = rect_op.rect;
+      auto* rect_op = static_cast<const DrawRectOp*>(op);
+      *rect = rect_op->rect;
       rect->sort();
       return true;
     }
     case PaintOpType::DrawRRect: {
-      const auto& rect_op = static_cast<const DrawRRectOp&>(op);
-      *rect = rect_op.rrect.rect();
+      auto* rect_op = static_cast<const DrawRRectOp*>(op);
+      *rect = rect_op->rrect.rect();
       rect->sort();
       return true;
     }
     case PaintOpType::DrawRecord:
       return false;
     case PaintOpType::DrawSkottie: {
-      const auto& skottie_op = static_cast<const DrawSkottieOp&>(op);
-      *rect = skottie_op.dst;
+      auto* skottie_op = static_cast<const DrawSkottieOp*>(op);
+      *rect = skottie_op->dst;
       rect->sort();
       return true;
     }
     case PaintOpType::DrawTextBlob: {
-      const auto& text_op = static_cast<const DrawTextBlobOp&>(op);
-      *rect = text_op.blob->bounds().makeOffset(text_op.x, text_op.y);
+      auto* text_op = static_cast<const DrawTextBlobOp*>(op);
+      *rect = text_op->blob->bounds().makeOffset(text_op->x, text_op->y);
       rect->sort();
       return true;
     }
@@ -2584,20 +2314,20 @@ bool PaintOp::GetBounds(const PaintOp& op, SkRect* rect) {
 }
 
 // static
-gfx::Rect PaintOp::ComputePaintRect(const PaintOp& op,
+gfx::Rect PaintOp::ComputePaintRect(const PaintOp* op,
                                     const SkRect& clip_rect,
                                     const SkMatrix& ctm) {
   gfx::Rect transformed_rect;
   SkRect op_rect;
-  if (!op.IsDrawOp() || !PaintOp::GetBounds(op, &op_rect)) {
+  if (!op->IsDrawOp() || !PaintOp::GetBounds(op, &op_rect)) {
     // If we can't provide a conservative bounding rect for the op, assume it
     // covers the complete current clip.
     // TODO(khushalsagar): See if we can do something better for non-draw ops.
     transformed_rect = gfx::ToEnclosingRect(gfx::SkRectToRectF(clip_rect));
   } else {
     const PaintFlags* flags =
-        op.IsPaintOpWithFlags()
-            ? &(static_cast<const PaintOpWithFlags&>(op).flags)
+        op->IsPaintOpWithFlags()
+            ? &static_cast<const PaintOpWithFlags*>(op)->flags
             : nullptr;
     SkRect paint_rect = MapRect(ctm, op_rect);
     if (flags) {
@@ -2623,34 +2353,23 @@ gfx::Rect PaintOp::ComputePaintRect(const PaintOp& op,
   // raster time, since we might be sending a larger-than-one-item display
   // item to skia, which means that skia will internally determine whether to
   // raster the picture (using device clip bounds that are outset).
-  transformed_rect.Inset(-1);
+  transformed_rect.Inset(-1, -1);
   return transformed_rect;
 }
 
 // static
-bool PaintOp::QuickRejectDraw(const PaintOp& op, const SkCanvas* canvas) {
-  if (!op.IsDrawOp())
+bool PaintOp::QuickRejectDraw(const PaintOp* op, const SkCanvas* canvas) {
+  if (!op->IsDrawOp())
     return false;
 
   SkRect rect;
   if (!PaintOp::GetBounds(op, &rect))
     return false;
-  if (!rect.isFinite())
-    return true;
 
-  if (op.IsPaintOpWithFlags()) {
-    SkPaint paint = static_cast<const PaintOpWithFlags&>(op).flags.ToSkPaint();
+  if (op->IsPaintOpWithFlags()) {
+    SkPaint paint = static_cast<const PaintOpWithFlags*>(op)->flags.ToSkPaint();
     if (!paint.canComputeFastBounds())
       return false;
-    // canvas->quickReject tried to be very fast, and sometimes give a false
-    // but conservative result. That's why we need the additional check for
-    // |local_op_rect| because it could quickReject could return false even if
-    // |local_op_rect| is empty.
-    const SkRect& clip_rect = SkRect::Make(canvas->getDeviceClipBounds());
-    const SkMatrix& ctm = canvas->getTotalMatrix();
-    gfx::Rect local_op_rect = PaintOp::ComputePaintRect(op, clip_rect, ctm);
-    if (local_op_rect.IsEmpty())
-      return true;
     paint.computeFastBounds(rect, &rect);
   }
 
@@ -2658,23 +2377,20 @@ bool PaintOp::QuickRejectDraw(const PaintOp& op, const SkCanvas* canvas) {
 }
 
 // static
-bool PaintOp::OpHasDiscardableImages(const PaintOp& op) {
-  if (op.IsPaintOpWithFlags() && static_cast<const PaintOpWithFlags&>(op)
-                                     .HasDiscardableImagesFromFlags()) {
+bool PaintOp::OpHasDiscardableImages(const PaintOp* op) {
+  if (op->IsPaintOpWithFlags() && static_cast<const PaintOpWithFlags*>(op)
+                                      ->HasDiscardableImagesFromFlags()) {
     return true;
   }
 
-  if (op.GetType() == PaintOpType::DrawImage &&
-      static_cast<const DrawImageOp&>(op).HasDiscardableImages()) {
+  if (op->GetType() == PaintOpType::DrawImage &&
+      static_cast<const DrawImageOp*>(op)->HasDiscardableImages()) {
     return true;
-  } else if (op.GetType() == PaintOpType::DrawImageRect &&
-             static_cast<const DrawImageRectOp&>(op).HasDiscardableImages()) {
+  } else if (op->GetType() == PaintOpType::DrawImageRect &&
+             static_cast<const DrawImageRectOp*>(op)->HasDiscardableImages()) {
     return true;
-  } else if (op.GetType() == PaintOpType::DrawRecord &&
-             static_cast<const DrawRecordOp&>(op).HasDiscardableImages()) {
-    return true;
-  } else if (op.GetType() == PaintOpType::DrawSkottie &&
-             static_cast<const DrawSkottieOp&>(op).HasDiscardableImages()) {
+  } else if (op->GetType() == PaintOpType::DrawRecord &&
+             static_cast<const DrawRecordOp*>(op)->HasDiscardableImages()) {
     return true;
   }
 
@@ -2737,7 +2453,7 @@ int DrawPathOp::CountSlowPaths() const {
 }
 
 int DrawRecordOp::CountSlowPaths() const {
-  return record->num_slow_paths_up_to_min_for_MSAA();
+  return record->numSlowPaths();
 }
 
 bool DrawRecordOp::HasNonAAPaint() const {
@@ -2746,10 +2462,6 @@ bool DrawRecordOp::HasNonAAPaint() const {
 
 bool DrawRecordOp::HasDrawTextOps() const {
   return record->has_draw_text_ops();
-}
-
-bool DrawRecordOp::HasSaveLayerOps() const {
-  return record->has_save_layer_ops();
 }
 
 bool DrawRecordOp::HasSaveLayerAlphaOps() const {
@@ -2771,27 +2483,17 @@ AnnotateOp::AnnotateOp(PaintCanvas::AnnotationType annotation_type,
       data(std::move(data)) {}
 
 AnnotateOp::~AnnotateOp() = default;
-AnnotateOp::AnnotateOp(const AnnotateOp&) = default;
-AnnotateOp& AnnotateOp::operator=(const AnnotateOp&) = default;
 
 DrawImageOp::DrawImageOp() : PaintOpWithFlags(kType) {}
-
-DrawImageOp::DrawImageOp(const PaintImage& image, SkScalar left, SkScalar top)
-    : PaintOpWithFlags(kType, PaintFlags()),
-      image(image),
-      left(left),
-      top(top) {}
 
 DrawImageOp::DrawImageOp(const PaintImage& image,
                          SkScalar left,
                          SkScalar top,
-                         const SkSamplingOptions& sampling,
                          const PaintFlags* flags)
     : PaintOpWithFlags(kType, flags ? *flags : PaintFlags()),
       image(image),
       left(left),
-      top(top),
-      sampling(sampling) {}
+      top(top) {}
 
 bool DrawImageOp::HasDiscardableImages() const {
   return image && !image.IsTextureBacked();
@@ -2804,24 +2506,12 @@ DrawImageRectOp::DrawImageRectOp() : PaintOpWithFlags(kType) {}
 DrawImageRectOp::DrawImageRectOp(const PaintImage& image,
                                  const SkRect& src,
                                  const SkRect& dst,
-                                 SkCanvas::SrcRectConstraint constraint)
-    : PaintOpWithFlags(kType, PaintFlags()),
-      image(image),
-      src(src),
-      dst(dst),
-      constraint(constraint) {}
-
-DrawImageRectOp::DrawImageRectOp(const PaintImage& image,
-                                 const SkRect& src,
-                                 const SkRect& dst,
-                                 const SkSamplingOptions& sampling,
                                  const PaintFlags* flags,
                                  SkCanvas::SrcRectConstraint constraint)
     : PaintOpWithFlags(kType, flags ? *flags : PaintFlags()),
       image(image),
       src(src),
       dst(dst),
-      sampling(sampling),
       constraint(constraint) {}
 
 bool DrawImageRectOp::HasDiscardableImages() const {
@@ -2834,8 +2524,6 @@ DrawRecordOp::DrawRecordOp(sk_sp<const PaintRecord> record)
     : PaintOp(kType), record(std::move(record)) {}
 
 DrawRecordOp::~DrawRecordOp() = default;
-DrawRecordOp::DrawRecordOp(const DrawRecordOp&) = default;
-DrawRecordOp& DrawRecordOp::operator=(const DrawRecordOp&) = default;
 
 size_t DrawRecordOp::AdditionalBytesUsed() const {
   return record->bytes_used();
@@ -2847,27 +2535,12 @@ size_t DrawRecordOp::AdditionalOpCount() const {
 
 DrawSkottieOp::DrawSkottieOp(scoped_refptr<SkottieWrapper> skottie,
                              SkRect dst,
-                             float t,
-                             SkottieFrameDataMap images,
-                             const SkottieColorMap& color_map,
-                             SkottieTextPropertyValueMap text_map)
-    : PaintOp(kType),
-      skottie(std::move(skottie)),
-      dst(dst),
-      t(t),
-      images(std::move(images)),
-      color_map(color_map),
-      text_map(std::move(text_map)) {}
+                             float t)
+    : PaintOp(kType), skottie(std::move(skottie)), dst(dst), t(t) {}
 
 DrawSkottieOp::DrawSkottieOp() : PaintOp(kType) {}
 
 DrawSkottieOp::~DrawSkottieOp() = default;
-DrawSkottieOp::DrawSkottieOp(const DrawSkottieOp&) = default;
-DrawSkottieOp& DrawSkottieOp::operator=(const DrawSkottieOp&) = default;
-
-bool DrawSkottieOp::HasDiscardableImages() const {
-  return !images.empty();
-}
 
 bool DrawRecordOp::HasDiscardableImages() const {
   return record->HasDiscardableImages();
@@ -2893,20 +2566,15 @@ DrawTextBlobOp::DrawTextBlobOp(sk_sp<SkTextBlob> blob,
       node_id(node_id) {}
 
 DrawTextBlobOp::~DrawTextBlobOp() = default;
-DrawTextBlobOp::DrawTextBlobOp(const DrawTextBlobOp&) = default;
-DrawTextBlobOp& DrawTextBlobOp::operator=(const DrawTextBlobOp&) = default;
 
 PaintOpBuffer::CompositeIterator::CompositeIterator(
     const PaintOpBuffer* buffer,
     const std::vector<size_t>* offsets)
-    : iter_(offsets == nullptr ? absl::variant<Iterator, OffsetIterator>(
-                                     absl::in_place_type<Iterator>,
-                                     buffer)
-                               : absl::variant<Iterator, OffsetIterator>(
-                                     absl::in_place_type<OffsetIterator>,
-                                     buffer,
-                                     offsets)) {
-  DCHECK(!buffer->are_ops_destroyed());
+    : using_offsets_(!!offsets) {
+  if (using_offsets_)
+    offset_iter_.emplace(buffer, offsets);
+  else
+    iter_.emplace(buffer);
 }
 
 PaintOpBuffer::CompositeIterator::CompositeIterator(
@@ -2919,10 +2587,8 @@ PaintOpBuffer::PaintOpBuffer()
       has_discardable_images_(false),
       has_draw_ops_(false),
       has_draw_text_ops_(false),
-      has_save_layer_ops_(false),
       has_save_layer_alpha_ops_(false),
-      has_effects_preventing_lcd_text_for_save_layer_alpha_(false),
-      are_ops_destroyed_(false) {}
+      has_effects_preventing_lcd_text_for_save_layer_alpha_(false) {}
 
 PaintOpBuffer::PaintOpBuffer(PaintOpBuffer&& other) {
   *this = std::move(other);
@@ -2937,18 +2603,16 @@ PaintOpBuffer& PaintOpBuffer::operator=(PaintOpBuffer&& other) {
   used_ = other.used_;
   reserved_ = other.reserved_;
   op_count_ = other.op_count_;
-  num_slow_paths_up_to_min_for_MSAA_ = other.num_slow_paths_up_to_min_for_MSAA_;
+  num_slow_paths_ = other.num_slow_paths_;
   subrecord_bytes_used_ = other.subrecord_bytes_used_;
   subrecord_op_count_ = other.subrecord_op_count_;
   has_non_aa_paint_ = other.has_non_aa_paint_;
   has_discardable_images_ = other.has_discardable_images_;
   has_draw_ops_ = other.has_draw_ops_;
   has_draw_text_ops_ = other.has_draw_text_ops_;
-  has_save_layer_ops_ = other.has_save_layer_ops_;
   has_save_layer_alpha_ops_ = other.has_save_layer_alpha_ops_;
   has_effects_preventing_lcd_text_for_save_layer_alpha_ =
       other.has_effects_preventing_lcd_text_for_save_layer_alpha_;
-  are_ops_destroyed_ = other.are_ops_destroyed_;
 
   // Make sure the other pob can destruct safely.
   other.used_ = 0;
@@ -2958,27 +2622,22 @@ PaintOpBuffer& PaintOpBuffer::operator=(PaintOpBuffer&& other) {
 }
 
 void PaintOpBuffer::Reset() {
-  if (!are_ops_destroyed_) {
-    for (PaintOp& op : Iterator(this)) {
-      op.DestroyThis();
-    }
-  }
+  for (auto* op : Iterator(this))
+    op->DestroyThis();
 
   // Leave data_ allocated, reserved_ unchanged. ShrinkToFit will take care of
   // that if called.
   used_ = 0;
   op_count_ = 0;
-  num_slow_paths_up_to_min_for_MSAA_ = 0;
+  num_slow_paths_ = 0;
   has_non_aa_paint_ = false;
   subrecord_bytes_used_ = 0;
   subrecord_op_count_ = 0;
   has_discardable_images_ = false;
   has_draw_ops_ = false;
   has_draw_text_ops_ = false;
-  has_save_layer_ops_ = false;
   has_save_layer_alpha_ops_ = false;
   has_effects_preventing_lcd_text_for_save_layer_alpha_ = false;
-  are_ops_destroyed_ = false;
 }
 
 // When |op| is a nested PaintOpBuffer, this returns the PaintOp inside
@@ -2998,7 +2657,7 @@ static const PaintOp* GetNestedSingleDrawingOp(const PaintOp* op) {
 
     // Recurse into the single-op DrawRecordOp and make sure it's a
     // drawing op.
-    op = &draw_record_op->record->GetFirstOp();
+    op = draw_record_op->record->GetFirstOp();
     if (!op->IsDrawOp())
       return nullptr;
   }
@@ -3019,15 +2678,14 @@ PaintOpBuffer::PlaybackFoldingIterator::PlaybackFoldingIterator(
     const PaintOpBuffer* buffer,
     const std::vector<size_t>* offsets)
     : iter_(buffer, offsets),
-      folded_draw_color_(SkColors::kTransparent, SkBlendMode::kSrcOver) {
-  DCHECK(!buffer->are_ops_destroyed());
+      folded_draw_color_(SK_ColorTRANSPARENT, SkBlendMode::kSrcOver) {
   FindNextOp();
 }
 
 PaintOpBuffer::PlaybackFoldingIterator::~PlaybackFoldingIterator() = default;
 
 void PaintOpBuffer::PlaybackFoldingIterator::FindNextOp() {
-  current_alpha_ = 1.0f;
+  current_alpha_ = 255u;
   for (current_op_ = NextUnfoldedOp(); current_op_;
        current_op_ = NextUnfoldedOp()) {
     if (current_op_->GetType() != PaintOpType::SaveLayerAlpha)
@@ -3066,9 +2724,10 @@ void PaintOpBuffer::PlaybackFoldingIterator::FindNextOp() {
                    static_cast<const DrawColorOp*>(draw_op)->mode ==
                        SkBlendMode::kSrcOver) {
           auto* draw_color_op = static_cast<const DrawColorOp*>(draw_op);
-          SkColor4f color = draw_color_op->color;
-          folded_draw_color_.color = {color.fR, color.fG, color.fB,
-                                      save_op->alpha * color.fA};
+          SkColor color = draw_color_op->color;
+          folded_draw_color_.color = SkColorSetARGB(
+              SkMulDiv255Round(save_op->alpha, SkColorGetA(color)),
+              SkColorGetR(color), SkColorGetG(color), SkColorGetB(color));
           current_op_ = &folded_draw_color_;
           break;
         }
@@ -3093,27 +2752,9 @@ const PaintOp* PaintOpBuffer::PlaybackFoldingIterator::NextUnfoldedOp() {
   }
   if (!iter_)
     return nullptr;
-  const PaintOp& op = *iter_;
+  const PaintOp* op = *iter_;
   ++iter_;
-  return &op;
-}
-
-sk_sp<PaintRecord> PaintOpBuffer::MoveRetainingBufferIfPossible() {
-  if (!data_ || used_ == reserved_)
-    return sk_make_sp<PaintOpBuffer>(std::move(*this));
-
-  const size_t old_reserved = reserved_;
-  BufferDataPtr old;
-  if (!used_) {
-    old = std::move(data_);
-    reserved_ = 0;
-  } else {
-    old = ReallocBuffer(used_);
-  }
-  sk_sp<PaintRecord> copy = sk_make_sp<PaintOpBuffer>(std::move(*this));
-  data_ = std::move(old);
-  reserved_ = old_reserved;
-  return copy;
+  return op;
 }
 
 void PaintOpBuffer::Playback(SkCanvas* canvas,
@@ -3144,14 +2785,13 @@ void PaintOpBuffer::Playback(SkCanvas* canvas,
   // translate(x, y), then draw a paint record with a SetMatrix(identity),
   // the translation should be preserved instead of clobbering the top level
   // transform.  This could probably be done more efficiently.
-  PlaybackParams new_params(params.image_provider, canvas->getLocalToDevice(),
+  PlaybackParams new_params(params.image_provider, canvas->getTotalMatrix(),
                             params.custom_callback,
                             params.did_draw_op_callback);
   new_params.save_layer_alpha_should_preserve_lcd_text =
       save_layer_alpha_should_preserve_lcd_text;
-  new_params.is_analyzing = params.is_analyzing;
   for (PlaybackFoldingIterator iter(this, offsets); iter; ++iter) {
-    const PaintOp& op = *iter;
+    const PaintOp* op = *iter;
 
     // This is an optimization to replicate the behaviour in SkCanvas
     // which rejects ops that draw outside the current clip. In the
@@ -3164,17 +2804,17 @@ void PaintOpBuffer::Playback(SkCanvas* canvas,
     if (skip_op)
       continue;
 
-    if (op.IsPaintOpWithFlags()) {
-      const auto& flags_op = static_cast<const PaintOpWithFlags&>(op);
+    if (op->IsPaintOpWithFlags()) {
+      const auto* flags_op = static_cast<const PaintOpWithFlags*>(op);
       auto* context = canvas->recordingContext();
       const ScopedRasterFlags scoped_flags(
-          &flags_op.flags, new_params.image_provider, canvas->getTotalMatrix(),
-          context ? context->maxTextureSize() : 0, iter.alpha() / 255.0f);
+          &flags_op->flags, new_params.image_provider, canvas->getTotalMatrix(),
+          context ? context->maxTextureSize() : 0, iter.alpha());
       if (const auto* raster_flags = scoped_flags.flags())
-        flags_op.RasterWithFlags(canvas, raster_flags, new_params);
+        flags_op->RasterWithFlags(canvas, raster_flags, new_params);
     } else {
       DCHECK_EQ(iter.alpha(), 255);
-      op.Raster(canvas, new_params);
+      op->Raster(canvas, new_params);
     }
 
     if (!new_params.did_draw_op_callback.is_null())
@@ -3185,6 +2825,7 @@ void PaintOpBuffer::Playback(SkCanvas* canvas,
 bool PaintOpBuffer::Deserialize(const volatile void* input,
                                 size_t input_size,
                                 const PaintOp::DeserializeOptions& options) {
+  Reset();
   size_t total_bytes_read = 0u;
   while (total_bytes_read < input_size) {
     const volatile void* next_op =
@@ -3230,55 +2871,14 @@ sk_sp<PaintOpBuffer> PaintOpBuffer::MakeFromMemory(
   return buffer;
 }
 
-// static
-SkRect PaintOpBuffer::GetFixedScaleBounds(const SkMatrix& ctm,
-                                          const SkRect& bounds,
-                                          int max_texture_size) {
-  SkSize scale;
-  if (!ctm.decomposeScale(&scale)) {
-    // Decomposition failed, use an approximation.
-    scale.set(SkScalarSqrt(ctm.getScaleX() * ctm.getScaleX() +
-                           ctm.getSkewX() * ctm.getSkewX()),
-              SkScalarSqrt(ctm.getScaleY() * ctm.getScaleY() +
-                           ctm.getSkewY() * ctm.getSkewY()));
-  }
-
-  SkScalar raster_width = bounds.width() * scale.width();
-  SkScalar raster_height = bounds.height() * scale.height();
-  SkScalar tile_area = raster_width * raster_height;
-  // Clamp the tile area to about 4M pixels, and per-dimension max texture size
-  // if it's provided.
-  static const SkScalar kMaxTileArea = 2048 * 2048;
-  SkScalar down_scale = 1.f;
-  if (tile_area > kMaxTileArea) {
-    down_scale = SkScalarSqrt(kMaxTileArea / tile_area);
-  }
-  if (max_texture_size > 0) {
-    // This only updates down_scale if the tile is larger than the texture size
-    // after ensuring its area is less than kMaxTileArea
-    down_scale = std::min(
-        down_scale, max_texture_size / std::max(raster_width, raster_height));
-  }
-
-  if (down_scale < 1.f) {
-    scale.set(down_scale * scale.width(), down_scale * scale.height());
-  }
-  return SkRect::MakeXYWH(
-      bounds.fLeft * scale.width(), bounds.fTop * scale.height(),
-      SkScalarCeilToInt(SkScalarAbs(scale.width() * bounds.width())),
-      SkScalarCeilToInt(SkScalarAbs(scale.height() * bounds.height())));
-}
-
-PaintOpBuffer::BufferDataPtr PaintOpBuffer::ReallocBuffer(size_t new_size) {
+void PaintOpBuffer::ReallocBuffer(size_t new_size) {
   DCHECK_GE(new_size, used_);
   std::unique_ptr<char, base::AlignedFreeDeleter> new_data(
       static_cast<char*>(base::AlignedAlloc(new_size, PaintOpAlign)));
   if (data_)
     memcpy(new_data.get(), data_.get(), used_);
-  BufferDataPtr old_data = std::move(data_);
   data_ = std::move(new_data);
   reserved_ = new_size;
-  return old_data;
 }
 
 void* PaintOpBuffer::AllocatePaintOp(size_t skip) {
@@ -3313,8 +2913,7 @@ void PaintOpBuffer::ShrinkToFit() {
 bool PaintOpBuffer::operator==(const PaintOpBuffer& other) const {
   if (op_count_ != other.op_count_)
     return false;
-  if (num_slow_paths_up_to_min_for_MSAA_ !=
-      other.num_slow_paths_up_to_min_for_MSAA_)
+  if (num_slow_paths_ != other.num_slow_paths_)
     return false;
   if (subrecord_bytes_used_ != other.subrecord_bytes_used_)
     return false;
@@ -3325,11 +2924,11 @@ bool PaintOpBuffer::operator==(const PaintOpBuffer& other) const {
   if (has_discardable_images_ != other.has_discardable_images_)
     return false;
 
-  Iterator left_iter(this);
-  Iterator right_iter(&other);
+  auto left_iter = Iterator(this);
+  auto right_iter = Iterator(&other);
 
   for (; left_iter != left_iter.end(); ++left_iter, ++right_iter) {
-    if (*left_iter != *right_iter)
+    if (**left_iter != **right_iter)
       return false;
   }
 

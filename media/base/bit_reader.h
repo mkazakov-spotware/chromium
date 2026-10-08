@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "media/base/bit_reader_core.h"
 #include "media/base/media_export.h"
 
@@ -19,10 +20,6 @@ class MEDIA_EXPORT BitReader : private BitReaderCore::ByteStreamProvider {
   // Initialize the reader to start reading at |data|, |size| being size
   // of |data| in bytes.
   BitReader(const uint8_t* data, int size);
-
-  BitReader(const BitReader&) = delete;
-  BitReader& operator=(const BitReader&) = delete;
-
   ~BitReader() override;
 
   template<typename T> bool ReadBits(int num_bits, T* out) {
@@ -64,6 +61,8 @@ class MEDIA_EXPORT BitReader : private BitReaderCore::ByteStreamProvider {
   int bytes_left_;
 
   BitReaderCore bit_reader_core_;
+
+  DISALLOW_COPY_AND_ASSIGN(BitReader);
 };
 
 }  // namespace media

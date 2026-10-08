@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -68,7 +68,7 @@ public class PlayerFrameGestureDetectorDelegate {
      * @param y Y coordinate of the point clicked.
      */
     void onTap(int x, int y) {
-        mViewDelegate.onTap(x, y, false);
+        mViewDelegate.onTap(x, y);
     }
 
     /**

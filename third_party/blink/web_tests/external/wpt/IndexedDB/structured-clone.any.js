@@ -1,6 +1,6 @@
 // META: title=Indexed DB and Structured Serializing/Deserializing
 // META: timeout=long
-// META: script=resources/support-promises.js
+// META: script=support-promises.js
 // META: script=/common/subset-tests.js
 // META: variant=?1-20
 // META: variant=?21-40
@@ -15,7 +15,7 @@
 function describe(value) {
   let type, str;
   if (typeof value === 'object' && value) {
-    type = Object.getPrototypeOf(value).constructor.name;
+    type = value.__proto__.constructor.name;
     // Handle Number(-0), etc.
     str = Object.is(value.valueOf(), -0) ? '-0' : String(value);
   } else {
@@ -40,7 +40,7 @@ function cloneTest(value, verifyFunc) {
         indexedDB.deleteDatabase(db.name);
       }
     });
-    const tx = db.transaction('store', 'readwrite', {durability: 'relaxed'});
+    const tx = db.transaction('store', 'readwrite');
     const store = tx.objectStore('store');
     await promiseForRequest(t, store.put(value, 'key'));
     const result = await promiseForRequest(t, store.get('key'));
@@ -54,7 +54,7 @@ function cloneObjectTest(value, verifyFunc) {
   cloneTest(value, async (orig, clone) => {
     assert_not_equals(orig, clone);
     assert_equals(typeof clone, 'object');
-    assert_equals(Object.getPrototypeOf(orig), Object.getPrototypeOf(clone));
+    assert_equals(orig.__proto__, clone.__proto__);
     await verifyFunc(orig, clone);
   });
 }
@@ -70,7 +70,7 @@ function cloneFailureTest(value) {
         indexedDB.deleteDatabase(db.name);
       }
     });
-    const tx = db.transaction('store', 'readwrite', {durability: 'relaxed'});
+    const tx = db.transaction('store', 'readwrite');
     const store = tx.objectStore('store');
     assert_throws_dom('DataCloneError', () => store.put(value, 'key'));
   }, 'Not serializable: ' + describe(value));
@@ -120,7 +120,7 @@ const strings = [
   }));
 
 // "Primitive" Objects (Boolean, Number, BigInt, String)
-[].concat(booleans, numbers, bigints, strings)
+[].concat(booleans, numbers, strings)
   .forEach(value => cloneObjectTest(Object(value), (orig, clone) => {
     assert_equals(orig.valueOf(), clone.valueOf());
   }));
@@ -141,7 +141,7 @@ const strings = [
 ].forEach(value => cloneTest(value, (orig, clone) => {
     assert_not_equals(orig, clone);
     assert_equals(typeof clone, 'object');
-    assert_equals(Object.getPrototypeOf(orig), Object.getPrototypeOf(clone));
+    assert_equals(orig.__proto__, clone.__proto__);
     assert_equals(orig.valueOf(), clone.valueOf());
   }));
 
@@ -261,7 +261,7 @@ cloneObjectTest({foo: true, bar: false}, (orig, clone) => {
   new DOMRect,
   new DOMRectReadOnly(),
 ].forEach(value => cloneObjectTest(value, (orig, clone) => {
-  Object.keys(Object.getPrototypeOf(orig)).forEach(key => {
+  Object.keys(orig.__proto__).forEach(key => {
     assert_equals(orig[key], clone[key], `Property ${key}`);
   });
 }));

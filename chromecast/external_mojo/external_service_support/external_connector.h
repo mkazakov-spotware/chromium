@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,14 +11,11 @@
 #include <vector>
 
 #include "base/callback_list.h"
+#include "base/compiler_specific.h"
 #include "chromecast/external_mojo/public/mojom/connector.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/system/message_pipe.h"
-
-namespace service_manager {
-class Connector;
-}  // namespace service_manager
 
 namespace chromecast {
 namespace external_service_support {
@@ -39,23 +36,17 @@ class ExternalConnector {
   static std::unique_ptr<ExternalConnector> Create(
       const std::string& broker_path);
 
-  static std::unique_ptr<ExternalConnector> Create(
-      mojo::PendingRemote<external_mojo::mojom::ExternalConnector> remote);
-
-  // Acquires a connector from the BrokerService via the Chromium service
-  // manager.
-  static std::unique_ptr<ExternalConnector> Create(
-      ::service_manager::Connector* connector);
-
   virtual ~ExternalConnector() = default;
 
   // Adds a callback that will be called if this class loses its connection to
-  // the Mojo broker. The calling class must retain the returned subscription
-  // until it intends to unregister. By the time |callback| is executed, a new
-  // attempt at connecting will be started, and this object is valid. Note that
-  // some prior messages may be lost.
-  [[nodiscard]] virtual base::CallbackListSubscription
-  AddConnectionErrorCallback(base::RepeatingClosure callback) = 0;
+  // the Mojo broker. The calling class must retain the returned Subscription
+  // until it intends to unregister.
+  // By the time |callback| is executed, a new attempt at connecting will be
+  // started, and this object is valid. Note that some prior messages may be
+  // lost.
+  virtual std::unique_ptr<base::CallbackList<void()>::Subscription>
+  AddConnectionErrorCallback(base::RepeatingClosure callback)
+      WARN_UNUSED_RESULT = 0;
 
   // Registers a service that other Mojo processes/services can bind to. Others
   // can call BindInterface(|service_name|, interface_name) to bind to this
@@ -102,11 +93,6 @@ class ExternalConnector {
   // methods are called, at which point it becomes bound to the calling
   // sequence.
   virtual std::unique_ptr<ExternalConnector> Clone() = 0;
-
-  // Requests a PendingRemote for an ExternalConnector which can be passed to a
-  // different process.
-  virtual mojo::PendingRemote<external_mojo::mojom::ExternalConnector>
-  RequestConnector() = 0;
 
   // Sends a request for a Chromium ServiceManager connector.
   virtual void SendChromiumConnectorRequest(

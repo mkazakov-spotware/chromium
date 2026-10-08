@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,11 @@ void* PartitionAllocator::AllocateBacking(size_t size, const char* type_name) {
   return Partitions::BufferMalloc(size, type_name);
 }
 
-void PartitionAllocator::FreeBacking(void* address) {
+void PartitionAllocator::FreeVectorBacking(void* address) {
+  Partitions::BufferFree(address);
+}
+
+void PartitionAllocator::FreeHashTableBacking(void* address) {
   Partitions::BufferFree(address);
 }
 

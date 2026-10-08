@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "ash/ash_export.h"
 #include "ash/public/cpp/assistant/assistant_state.h"
 #include "ash/public/cpp/session/session_observer.h"
+#include "base/macros.h"
 
 namespace ash {
 
@@ -16,10 +17,6 @@ class ASH_EXPORT AssistantStateController : public AssistantState,
                                             public SessionObserver {
  public:
   AssistantStateController();
-
-  AssistantStateController(const AssistantStateController&) = delete;
-  AssistantStateController& operator=(const AssistantStateController&) = delete;
-
   ~AssistantStateController() override;
 
  private:
@@ -27,6 +24,8 @@ class ASH_EXPORT AssistantStateController : public AssistantState,
   void OnActiveUserPrefServiceChanged(PrefService* pref_service) override;
 
   ScopedSessionObserver session_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(AssistantStateController);
 };
 
 }  // namespace ash

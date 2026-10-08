@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,14 +14,14 @@ FakeRendererCompositorFrameSink::FakeRendererCompositorFrameSink(
 FakeRendererCompositorFrameSink::~FakeRendererCompositorFrameSink() = default;
 
 void FakeRendererCompositorFrameSink::DidReceiveCompositorFrameAck(
-    std::vector<viz::ReturnedResource> resources) {
-  ReclaimResources(std::move(resources));
+    const std::vector<viz::ReturnedResource>& resources) {
+  ReclaimResources(resources);
   did_receive_ack_ = true;
 }
 
 void FakeRendererCompositorFrameSink::ReclaimResources(
-    std::vector<viz::ReturnedResource> resources) {
-  last_reclaimed_resources_ = std::move(resources);
+    const std::vector<viz::ReturnedResource>& resources) {
+  last_reclaimed_resources_ = resources;
 }
 
 void FakeRendererCompositorFrameSink::Reset() {

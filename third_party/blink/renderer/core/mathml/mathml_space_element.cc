@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,11 @@ MathMLSpaceElement::MathMLSpaceElement(Document& doc)
     : MathMLElement(mathml_names::kMspaceTag, doc) {}
 
 void MathMLSpaceElement::AddMathBaselineIfNeeded(
-    ComputedStyleBuilder& builder,
+    ComputedStyle& style,
     const CSSToLengthConversionData& conversion_data) {
   if (auto length_or_percentage_value = AddMathLengthToComputedStyle(
           conversion_data, mathml_names::kHeightAttr))
-    builder.SetMathBaseline(std::move(*length_or_percentage_value));
+    style.SetMathBaseline(std::move(*length_or_percentage_value));
 }
 
 bool MathMLSpaceElement::IsPresentationAttribute(
@@ -40,7 +40,7 @@ void MathMLSpaceElement::CollectStyleForPresentationAttribute(
     // width/height.
     String height = FastGetAttribute(mathml_names::kHeightAttr);
     String depth = FastGetAttribute(mathml_names::kDepthAttr);
-    if (!height.empty() && !depth.empty()) {
+    if (!height.IsEmpty() && !depth.IsEmpty()) {
       AddPropertyToPresentationAttributeStyle(
           style, CSSPropertyID::kHeight,
           "calc(" + height + " + " + depth + ")");

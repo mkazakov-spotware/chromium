@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,7 @@ TEST(SpeechRecognitionServiceFactoryTest, IncognitoProfile) {
 
   const speech::SpeechRecognitionService* const service =
       SpeechRecognitionServiceFactory::GetForProfile(
-          profile.GetPrimaryOTRProfile(/*create_if_needed=*/true));
+          profile.GetPrimaryOTRProfile());
   EXPECT_THAT(service, Not(IsNull()));
 }
 

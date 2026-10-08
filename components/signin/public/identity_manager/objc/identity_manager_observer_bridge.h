@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define COMPONENTS_SIGNIN_PUBLIC_IDENTITY_MANAGER_OBJC_IDENTITY_MANAGER_OBSERVER_BRIDGE_H_
 
 #import <Foundation/Foundation.h>
+#include <vector>
 
 #include "components/signin/public/identity_manager/identity_manager.h"
 
@@ -21,7 +22,9 @@
 // IdentityManager::Observer in identity_manager.h for the specification of
 // these semantics.
 
-- (void)onPrimaryAccountChanged:(const signin::PrimaryAccountChangeEvent&)event;
+- (void)onPrimaryAccountSet:(const CoreAccountInfo&)primaryAccountInfo;
+- (void)onPrimaryAccountCleared:
+    (const CoreAccountInfo&)previousPrimaryAccountInfo;
 - (void)onRefreshTokenUpdatedForAccount:(const CoreAccountInfo&)accountInfo;
 - (void)onRefreshTokenRemovedForAccount:(const CoreAccountId&)accountId;
 - (void)onRefreshTokensLoaded;
@@ -41,16 +44,13 @@ class IdentityManagerObserverBridge : public IdentityManager::Observer {
   IdentityManagerObserverBridge(
       IdentityManager* identity_manager,
       id<IdentityManagerObserverBridgeDelegate> delegate);
-
-  IdentityManagerObserverBridge(const IdentityManagerObserverBridge&) = delete;
-  IdentityManagerObserverBridge& operator=(
-      const IdentityManagerObserverBridge&) = delete;
-
   ~IdentityManagerObserverBridge() override;
 
   // IdentityManager::Observer.
-  void OnPrimaryAccountChanged(
-      const signin::PrimaryAccountChangeEvent& event) override;
+  void OnPrimaryAccountSet(
+      const CoreAccountInfo& primary_account_info) override;
+  void OnPrimaryAccountCleared(
+      const CoreAccountInfo& previous_primary_account_info) override;
   void OnRefreshTokenUpdatedForAccount(
       const CoreAccountInfo& account_info) override;
   void OnRefreshTokenRemovedForAccount(
@@ -66,6 +66,8 @@ class IdentityManagerObserverBridge : public IdentityManager::Observer {
   IdentityManager* identity_manager_;
   // Delegate to call.
   __weak id<IdentityManagerObserverBridgeDelegate> delegate_;
+
+  DISALLOW_COPY_AND_ASSIGN(IdentityManagerObserverBridge);
 };
 
 }  // namespace signin

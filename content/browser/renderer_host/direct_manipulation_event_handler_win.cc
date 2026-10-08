@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,6 +56,14 @@ void DirectManipulationEventHandler::TransitionToState(
     GestureState new_gesture_state) {
   if (gesture_state_ == new_gesture_state)
     return;
+
+  if (LoggingEnabled()) {
+    std::string s = "TransitionToState " +
+                    base::NumberToString(static_cast<int>(gesture_state_)) +
+                    " -> " +
+                    base::NumberToString(static_cast<int>(new_gesture_state));
+    DebugLogging(s, S_OK);
+  }
 
   GestureState previous_gesture_state = gesture_state_;
   gesture_state_ = new_gesture_state;
@@ -127,6 +135,12 @@ HRESULT DirectManipulationEventHandler::OnViewportStatusChanged(
   // testing.
   DCHECK(viewport);
 
+  if (LoggingEnabled()) {
+    std::string s = "ViewportStatusChanged " + base::NumberToString(previous) +
+                    " -> " + base::NumberToString(current);
+    DebugLogging(s, S_OK);
+  }
+
   // The state of our viewport has changed! We'l be in one of three states:
   // - ENABLED: initial state
   // - READY: the previous gesture has been completed
@@ -174,6 +188,7 @@ HRESULT DirectManipulationEventHandler::OnViewportStatusChanged(
         static_cast<float>(viewport_size_in_pixels_.width()),
         static_cast<float>(viewport_size_in_pixels_.height()), FALSE);
     if (!SUCCEEDED(hr)) {
+      DebugLogging("Viewport zoom to rect failed.", hr);
       return hr;
     }
   }
@@ -189,6 +204,8 @@ HRESULT DirectManipulationEventHandler::OnViewportStatusChanged(
 
 HRESULT DirectManipulationEventHandler::OnViewportUpdated(
     IDirectManipulationViewport* viewport) {
+  if (LoggingEnabled())
+    DebugLogging("OnViewportUpdated", S_OK);
   // Nothing to do here.
   return S_OK;
 }
@@ -201,15 +218,22 @@ HRESULT DirectManipulationEventHandler::OnContentUpdated(
   DCHECK(viewport);
   DCHECK(content);
 
+  if (LoggingEnabled())
+    DebugLogging("OnContentUpdated", S_OK);
+
   // Windows should not call this when event_target_ is null since we do not
   // pass the DM_POINTERHITTEST to DirectManipulation.
-  if (!event_target_)
+  if (!event_target_) {
+    DebugLogging("OnContentUpdated event_target_ is null.", S_OK);
     return S_OK;
+  }
 
   float xform[6];
   HRESULT hr = content->GetContentTransform(xform, ARRAYSIZE(xform));
-  if (!SUCCEEDED(hr))
+  if (!SUCCEEDED(hr)) {
+    DebugLogging("DirectManipulationContent get transform failed.", hr);
     return hr;
+  }
 
   float scale = xform[0];
   int x_offset = xform[4] / device_scale_factor_;
@@ -229,6 +253,16 @@ HRESULT DirectManipulationEventHandler::OnContentUpdated(
   // second x_offset is 1 but x_offset - last_x_offset_ is 0.9 ignored.
   if (FloatEquals(scale, last_scale_) && x_offset == last_x_offset_ &&
       y_offset == last_y_offset_) {
+    if (LoggingEnabled()) {
+      std::string s =
+          "OnContentUpdated ignored. scale=" + base::NumberToString(scale) +
+          ", last_scale=" + base::NumberToString(last_scale_) +
+          ", x_offset=" + base::NumberToString(x_offset) +
+          ", last_x_offset=" + base::NumberToString(last_x_offset_) +
+          ", y_offset=" + base::NumberToString(y_offset) +
+          ", last_y_offset=" + base::NumberToString(last_y_offset_);
+      DebugLogging(s, S_OK);
+    }
     return hr;
   }
 
@@ -278,10 +312,13 @@ HRESULT DirectManipulationEventHandler::OnInteraction(
   if (!helper_)
     return S_OK;
 
-  if (interaction == DIRECTMANIPULATION_INTERACTION_BEGIN)
+  if (interaction == DIRECTMANIPULATION_INTERACTION_BEGIN) {
+    DebugLogging("OnInteraction BEGIN.", S_OK);
     helper_->AddAnimationObserver();
-  else if (interaction == DIRECTMANIPULATION_INTERACTION_END)
+  } else if (interaction == DIRECTMANIPULATION_INTERACTION_END) {
+    DebugLogging("OnInteraction END.", S_OK);
     helper_->RemoveAnimationObserver();
+  }
 
   return S_OK;
 }

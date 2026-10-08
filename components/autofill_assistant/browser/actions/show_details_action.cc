@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/logging.h"
 #include "components/autofill_assistant/browser/actions/action_delegate.h"
 #include "components/autofill_assistant/browser/details.h"
 #include "components/strings/grit/components_strings.h"
@@ -26,7 +26,7 @@ ShowDetailsAction::ShowDetailsAction(ActionDelegate* delegate,
 ShowDetailsAction::~ShowDetailsAction() {}
 
 void ShowDetailsAction::InternalProcessAction(ProcessActionCallback callback) {
-  std::unique_ptr<Details> details;
+  std::unique_ptr<Details> details = nullptr;
   bool details_valid = true;
 
   switch (proto_.show_details().data_to_show_case()) {
@@ -60,13 +60,7 @@ void ShowDetailsAction::InternalProcessAction(ProcessActionCallback callback) {
     VLOG(1) << "Failed to fill the details";
     UpdateProcessedAction(INVALID_ACTION);
   } else {
-    base::TimeDelta delay =
-        base::Milliseconds(proto_.show_details().delay_ms());
-    if (proto_.show_details().append()) {
-      delegate_->AppendDetails(std::move(details), delay);
-    } else {
-      delegate_->SetDetails(std::move(details), delay);
-    }
+    delegate_->SetDetails(std::move(details));
     UpdateProcessedAction(ACTION_APPLIED);
   }
 

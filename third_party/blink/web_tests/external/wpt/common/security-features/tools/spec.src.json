@@ -94,24 +94,16 @@
       "delivery_value": "*",
       "redirection": "*",
       "subresource": [
-        "a-tag",
         "area-tag",
-        "audio-tag",
-        "beacon",
+        "a-tag",
         "fetch",
         "iframe-tag",
         "img-tag",
-        "link-css-tag",
-        "link-prefetch-tag",
-        "object-tag",
-        "picture-tag",
         "script-tag",
-        "script-tag-dynamic-import",
         "sharedworker-classic",
         "sharedworker-import",
         "sharedworker-import-data",
         "sharedworker-module",
-        "video-tag",
         "worker-classic",
         "worker-import",
         "worker-import-data",
@@ -134,27 +126,6 @@
         "cross-ws",
         "cross-ws-downgrade"
       ],
-      "expectation": "*"
-    },
-    {
-      // Worklets are HTTPS contexts only
-      "expansion": "*",
-      "source_scheme": "http",
-      "source_context_list": "*",
-      "delivery_type": "*",
-      "delivery_value": "*",
-      "redirection": "*",
-      "subresource": [
-        "worklet-animation",
-        "worklet-animation-import-data",
-        "worklet-audio",
-        "worklet-audio-import-data",
-        "worklet-layout",
-        "worklet-layout-import-data",
-        "worklet-paint",
-        "worklet-paint-import-data"
-      ],
-      "origin": "*",
       "expectation": "*"
     }
   ],
@@ -328,6 +299,26 @@
       ],
       "subresourcePolicyDeliveries": []
     },
+    "worker-classic-inherit": {
+      // This is applicable to upgrade-insecure-requests and mixed-content tests.
+      // Use "worker-classic" for referrer-policy.
+      "description": "dedicated workers should inherit its parent's policy.",
+      "sourceContextList": [
+        {
+          "sourceContextType": "top",
+          "policyDeliveries": [
+            "policy"
+          ]
+        },
+        {
+          "sourceContextType": "worker-classic",
+          "policyDeliveries": [
+            "anotherPolicy"
+          ]
+        }
+      ],
+      "subresourcePolicyDeliveries": []
+    },
     "worker-classic-data": {
       "description": "data: dedicated workers should inherit its parent's policy.",
       "sourceContextList": [
@@ -346,6 +337,7 @@
     },
     "worker-module": {
       // This is applicable to referrer-policy tests.
+      // Use "worker-module-inherit" for CSP (mixed-content, etc.).
       "description": "dedicated workers shouldn't inherit its parent's policy.",
       "sourceContextList": [
         {
@@ -358,6 +350,26 @@
           "sourceContextType": "worker-module",
           "policyDeliveries": [
             "policy"
+          ]
+        }
+      ],
+      "subresourcePolicyDeliveries": []
+    },
+    "worker-module-inherit": {
+      // This is applicable to upgrade-insecure-requests and mixed-content tests.
+      // Use "worker-module" for referrer-policy.
+      "description": "dedicated workers should inherit its parent's policy.",
+      "sourceContextList": [
+        {
+          "sourceContextType": "top",
+          "policyDeliveries": [
+            "policy"
+          ]
+        },
+        {
+          "sourceContextType": "worker-module",
+          "policyDeliveries": [
+            "anotherPolicy"
           ]
         }
       ],
@@ -465,8 +477,10 @@
       "iframe",
       "iframe-blank-inherit",
       "worker-classic",
+      "worker-classic-inherit",
       "worker-classic-data",
       "worker-module",
+      "worker-module-inherit",
       "worker-module-data",
       "sharedworker-classic",
       "sharedworker-classic-data",
@@ -508,7 +522,6 @@
       "object-tag",
       "picture-tag",
       "script-tag",
-      "script-tag-dynamic-import",
       "sharedworker-classic",
       "sharedworker-import",
       "sharedworker-import-data",

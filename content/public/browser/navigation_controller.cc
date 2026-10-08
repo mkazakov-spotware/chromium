@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,21 +8,16 @@
 #include "build/build_config.h"
 #include "content/public/browser/page_navigator.h"
 #include "content/public/browser/render_frame_host.h"
-#include "services/network/public/cpp/shared_url_loader_factory.h"
-#include "third_party/blink/public/mojom/navigation/was_activated_option.mojom.h"
+#include "content/public/common/was_activated_option.mojom.h"
 
 namespace content {
 
 NavigationController::LoadURLParams::LoadURLParams(const GURL& url)
     : url(url), is_renderer_initiated(false) {}
 
-NavigationController::LoadURLParams::LoadURLParams(
-    NavigationController::LoadURLParams&&) = default;
-
 NavigationController::LoadURLParams::LoadURLParams(const OpenURLParams& input)
     : url(input.url),
-      initiator_frame_token(input.initiator_frame_token),
-      initiator_process_id(input.initiator_process_id),
+      initiator_routing_id(input.initiator_routing_id),
       initiator_origin(input.initiator_origin),
       source_site_instance(input.source_site_instance),
       load_type(input.post_data ? LOAD_TYPE_HTTP_POST : LOAD_TYPE_DEFAULT),
@@ -39,8 +34,7 @@ NavigationController::LoadURLParams::LoadURLParams(const OpenURLParams& input)
       blob_url_loader_factory(input.blob_url_loader_factory),
       href_translate(input.href_translate),
       reload_type(input.reload_type),
-      impression(input.impression),
-      is_pdf(input.is_pdf) {
+      impression(input.impression) {
 #if DCHECK_IS_ON()
   DCHECK(input.Valid());
 #endif
@@ -66,7 +60,6 @@ NavigationController::LoadURLParams::LoadURLParams(const OpenURLParams& input)
   //     override_user_agent
   //     should_clear_history_list
   //     was_activated
-  //     is_prerendering
   //
   //   The following OpenURLParams don't have an equivalent in LoadURLParams:
   //     disposition
@@ -78,9 +71,5 @@ NavigationController::LoadURLParams::LoadURLParams(const OpenURLParams& input)
 
 NavigationController::LoadURLParams::~LoadURLParams() {
 }
-
-NavigationController::LoadURLParams&
-NavigationController::LoadURLParams::operator=(
-    NavigationController::LoadURLParams&&) = default;
 
 }  // namespace content

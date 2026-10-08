@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,13 @@
 #include <utility>
 #include <vector>
 
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_piece.h"
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/autocomplete_match_type.h"
 #include "components/omnibox/browser/autocomplete_provider.h"
 #include "components/omnibox/browser/suggestion_answer.h"
-#include "components/omnibox/browser/suggestion_group_util.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/metrics_proto/chrome_searchbox_stats.pb.h"
-#include "third_party/omnibox_proto/types.pb.h"
 #include "url/gurl.h"
 
 class AutocompleteInput;
@@ -32,15 +30,15 @@ namespace network {
 class SimpleURLLoader;
 }
 
-// Returns the omnibox::SuggestSubtype enum object corresponding to `value`.
-omnibox::SuggestSubtype SuggestSubtypeForNumber(int value);
-
 class SearchSuggestionParser {
  public:
   // Disallow implicit constructors.
   SearchSuggestionParser() = delete;
   SearchSuggestionParser(const SearchSuggestionParser&) = delete;
   SearchSuggestionParser& operator=(const SearchSuggestionParser&) = delete;
+
+  // Indicates a missing suggestion group Id.
+  static const int kNoSuggestionGroupId;
 
   // The Result classes are intermediate representations of AutocompleteMatches,
   // simply containing relevance-ranked search and navigation suggestions.
@@ -62,7 +60,7 @@ class SearchSuggestionParser {
 
     bool from_keyword() const { return from_keyword_; }
 
-    const std::u16string& match_contents() const { return match_contents_; }
+    const base::string16& match_contents() const { return match_contents_; }
     const ACMatchClassifications& match_contents_class() const {
       return match_contents_class_;
     }
@@ -95,7 +93,7 @@ class SearchSuggestionParser {
 
    protected:
     // The contents to be displayed and its style info.
-    std::u16string match_contents_;
+    base::string16 match_contents_;
     ACMatchClassifications match_contents_class_;
 
     // True if the result came from a keyword suggestion.
@@ -130,21 +128,20 @@ class SearchSuggestionParser {
 
   class SuggestResult : public Result {
    public:
-    SuggestResult(const std::u16string& suggestion,
+    SuggestResult(const base::string16& suggestion,
                   AutocompleteMatchType::Type type,
                   std::vector<int> subtypes,
                   bool from_keyword,
                   int relevance,
                   bool relevance_from_server,
-                  const std::u16string& input_text);
-    SuggestResult(const std::u16string& suggestion,
+                  const base::string16& input_text);
+    SuggestResult(const base::string16& suggestion,
                   AutocompleteMatchType::Type type,
                   std::vector<int> subtypes,
-                  const std::u16string& match_contents,
-                  const std::u16string& match_contents_prefix,
-                  const std::u16string& annotation,
+                  const base::string16& match_contents,
+                  const base::string16& match_contents_prefix,
+                  const base::string16& annotation,
                   const std::string& additional_query_params,
-                  const std::string& entity_id,
                   const std::string& deletion_url,
                   const std::string& image_dominant_color,
                   const std::string& image_url,
@@ -152,33 +149,30 @@ class SearchSuggestionParser {
                   int relevance,
                   bool relevance_from_server,
                   bool should_prefetch,
-                  bool should_prerender,
-                  const std::u16string& input_text);
+                  const base::string16& input_text);
     SuggestResult(const SuggestResult& result);
     ~SuggestResult() override;
 
     SuggestResult& operator=(const SuggestResult& rhs);
 
-    const std::u16string& suggestion() const { return suggestion_; }
-    const std::u16string& match_contents_prefix() const {
+    const base::string16& suggestion() const { return suggestion_; }
+    const base::string16& match_contents_prefix() const {
       return match_contents_prefix_;
     }
-    const std::u16string& annotation() const { return annotation_; }
+    const base::string16& annotation() const { return annotation_; }
     const std::string& additional_query_params() const {
       return additional_query_params_;
     }
-    const std::string& entity_id() const { return entity_id_; }
 
-    void set_suggestion_group_id(
-        absl::optional<omnibox::GroupId> suggestion_group_id) {
+    void set_suggestion_group_id(int suggestion_group_id) {
       suggestion_group_id_ = suggestion_group_id;
     }
-    absl::optional<omnibox::GroupId> suggestion_group_id() const {
+    base::Optional<int> suggestion_group_id() const {
       return suggestion_group_id_;
     }
 
     void SetAnswer(const SuggestionAnswer& answer);
-    const absl::optional<SuggestionAnswer>& answer() const { return answer_; }
+    const base::Optional<SuggestionAnswer>& answer() const { return answer_; }
 
     const std::string& image_dominant_color() const {
       return image_dominant_color_;
@@ -186,14 +180,13 @@ class SearchSuggestionParser {
     const GURL& image_url() const { return image_url_; }
 
     bool should_prefetch() const { return should_prefetch_; }
-    bool should_prerender() const { return should_prerender_; }
 
     // Fills in |match_contents_class_| to reflect how |match_contents_| should
     // be displayed and bolded against the current |input_text|.  If
     // |allow_bolding_all| is false and |match_contents_class_| would have all
     // of |match_contents_| bolded, do nothing.
     void ClassifyMatchContents(const bool allow_bolding_all,
-                               const std::u16string& input_text);
+                               const base::string16& input_text);
 
     // Result:
     int CalculateRelevance(const AutocompleteInput& input,
@@ -201,32 +194,32 @@ class SearchSuggestionParser {
 
    private:
     // The search terms to be used for this suggestion.
-    std::u16string suggestion_;
+    base::string16 suggestion_;
 
     // The contents to be displayed as prefix of match contents.
     // Used for tail suggestions to display a leading ellipsis (or some
     // equivalent character) to indicate omitted text.
     // Only used to pass this information to about:omnibox's "Additional Info".
-    std::u16string match_contents_prefix_;
+    base::string16 match_contents_prefix_;
 
     // Optional annotation for the |match_contents_| for disambiguation.
     // This may be displayed in the autocomplete match contents, but is defined
     // separately to facilitate different formatting.
-    std::u16string annotation_;
+    base::string16 annotation_;
 
     // Optional additional parameters to be added to the search URL.
     std::string additional_query_params_;
 
-    // Optional entity id for entity suggestions. Empty string means no entity
-    // ID.
-    std::string entity_id_;
-
-    // The optional suggestion group ID used to look up the suggestion group
-    // config for the group this suggestion belongs to from the server response.
-    absl::optional<omnibox::GroupId> suggestion_group_id_;
+    // The suggestion group Id based on the SuggestionGroupIds enum in
+    // suggestion_config.proto
+    // Used to look up the header this suggestion must appear under from the
+    // server supplied map of suggestion group Ids to headers.
+    // Note: Use kNoSuggestionGroupId in place of a missing suggestion group Id
+    // when this is to be converted to a primitive type.
+    base::Optional<int> suggestion_group_id_;
 
     // Optional short answer to the input that produced this suggestion.
-    absl::optional<SuggestionAnswer> answer_;
+    base::Optional<SuggestionAnswer> answer_;
 
     // Optional image information. Used for entity suggestions. The dominant
     // color can be used to paint the image placeholder while fetching the
@@ -236,10 +229,6 @@ class SearchSuggestionParser {
 
     // Should this result be prefetched?
     bool should_prefetch_;
-
-    // Should this result trigger Prerender2? See
-    // content/browser/preloading/prerender/README.md for more information.
-    bool should_prerender_;
   };
 
   class NavigationResult : public Result {
@@ -248,52 +237,52 @@ class SearchSuggestionParser {
                      const GURL& url,
                      AutocompleteMatchType::Type type,
                      std::vector<int> subtypes,
-                     const std::u16string& description,
+                     const base::string16& description,
                      const std::string& deletion_url,
                      bool from_keyword,
                      int relevance,
                      bool relevance_from_server,
-                     const std::u16string& input_text);
+                     const base::string16& input_text);
     NavigationResult(const NavigationResult& other);
     ~NavigationResult() override;
 
     const GURL& url() const { return url_; }
-    const std::u16string& description() const { return description_; }
+    const base::string16& description() const { return description_; }
     const ACMatchClassifications& description_class() const {
       return description_class_;
     }
-    const std::u16string& formatted_url() const { return formatted_url_; }
+    const base::string16& formatted_url() const { return formatted_url_; }
 
     // Fills in |match_contents_| and |match_contents_class_| to reflect how
     // the URL should be displayed and bolded against the current |input_text|.
     // If |allow_bolding_nothing| is false and |match_contents_class_| would
     // result in an entirely unbolded |match_contents_|, do nothing.
     void CalculateAndClassifyMatchContents(const bool allow_bolding_nothing,
-                                           const std::u16string& input_text);
+                                           const base::string16& input_text);
 
     // Result:
     int CalculateRelevance(const AutocompleteInput& input,
                            bool keyword_provider_requested) const override;
 
    private:
-    void ClassifyDescription(const std::u16string& input_text);
+    void ClassifyDescription(const base::string16& input_text);
 
     // The suggested url for navigation.
     GURL url_;
 
     // The properly formatted ("fixed up") URL string with equivalent meaning
     // to the one in |url_|.
-    std::u16string formatted_url_;
+    base::string16 formatted_url_;
 
     // The suggested navigational result description; generally the site name.
-    std::u16string description_;
+    base::string16 description_;
     ACMatchClassifications description_class_;
   };
 
+  typedef std::map<int, base::string16> HeadersMap;
   typedef std::vector<SuggestResult> SuggestResults;
   typedef std::vector<NavigationResult> NavigationResults;
-  typedef std::vector<metrics::ChromeSearchboxStats::ExperimentStatsV2>
-      ExperimentStatsV2s;
+  typedef std::vector<base::Value> ExperimentStats;
 
   // A simple structure bundling most of the information (including
   // both SuggestResults and NavigationResults) returned by a call to
@@ -336,15 +325,18 @@ class SearchSuggestionParser {
     // If the active suggest field trial (if any) has triggered.
     bool field_trial_triggered;
 
-    // The ExperimentStatsV2 containing GWS experiment details, if any. To be
-    // logged to SearchboxStats.
-    ExperimentStatsV2s experiment_stats_v2s;
+    // The list of experiment stats which needs to be logged to SearchboxStats
+    // as part of a GWS experiment, if any.
+    ExperimentStats experiment_stats;
 
     // If the relevance values of the results are from the server.
     bool relevances_from_server;
 
-    // The map of suggestion group IDs to suggestion group information.
-    omnibox::GroupConfigMap suggestion_groups_map;
+    // The server supplied map of suggestion group IDs to header labels.
+    HeadersMap headers_map;
+
+    // The server supplied list of group IDs that should be hidden-by-default.
+    std::vector<int> hidden_group_ids;
   };
 
   // Converts JSON loaded by a SimpleURLLoader into UTF-8 and returns the

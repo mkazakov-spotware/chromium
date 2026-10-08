@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <string.h>
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -23,7 +22,6 @@
 #include "media/base/bitstream_buffer.h"
 #include "media/base/decoder_buffer.h"
 #include "media/base/media_log.h"
-#include "media/base/video_aspect_ratio.h"
 #include "media/base/video_codecs.h"
 #include "media/base/video_types.h"
 #include "media/base/video_util.h"
@@ -57,25 +55,14 @@ scoped_refptr<CommandBufferHelper> CreateCommandBufferHelper(
   return CommandBufferHelper::Create(stub);
 }
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-bool BindDecoderManagedImage(
-    scoped_refptr<CommandBufferHelper> command_buffer_helper,
-    uint32_t client_texture_id,
-    uint32_t texture_target,
-    const scoped_refptr<gl::GLImage>& image) {
-  return command_buffer_helper->BindDecoderManagedImage(client_texture_id,
-                                                        image.get());
+bool BindImage(scoped_refptr<CommandBufferHelper> command_buffer_helper,
+               uint32_t client_texture_id,
+               uint32_t texture_target,
+               const scoped_refptr<gl::GLImage>& image,
+               bool can_bind_to_sampler) {
+  return command_buffer_helper->BindImage(client_texture_id, image.get(),
+                                          can_bind_to_sampler);
 }
-#else
-bool BindClientManagedImage(
-    scoped_refptr<CommandBufferHelper> command_buffer_helper,
-    uint32_t client_texture_id,
-    uint32_t texture_target,
-    const scoped_refptr<gl::GLImage>& image) {
-  return command_buffer_helper->BindClientManagedImage(client_texture_id,
-                                                       image.get());
-}
-#endif
 
 std::unique_ptr<VideoDecodeAccelerator> CreateAndInitializeVda(
     const gpu::GpuPreferences& gpu_preferences,
@@ -85,27 +72,14 @@ std::unique_ptr<VideoDecodeAccelerator> CreateAndInitializeVda(
     MediaLog* media_log,
     const VideoDecodeAccelerator::Config& config) {
   GpuVideoDecodeGLClient gl_client;
-  // |command_buffer_helper| is nullptr in IMPORT mode in which case, we
-  // shouldn't need to do any GL calls.
-  if (command_buffer_helper) {
-    gl_client.get_context = base::BindRepeating(
-        &CommandBufferHelper::GetGLContext, command_buffer_helper);
-    gl_client.make_context_current = base::BindRepeating(
-        &CommandBufferHelper::MakeContextCurrent, command_buffer_helper);
-    // The semantics of |bind_image| vary per-platform: On Windows and Mac it
-    // must mark the image as needing binding by the decoder, while on other
-    // platforms it must mark the image as *not* needing binding by the decoder.
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-    gl_client.bind_image =
-        base::BindRepeating(&BindDecoderManagedImage, command_buffer_helper);
-#else
-    gl_client.bind_image =
-        base::BindRepeating(&BindClientManagedImage, command_buffer_helper);
-#endif
-    gl_client.is_passthrough = command_buffer_helper->IsPassthrough();
-    gl_client.supports_arb_texture_rectangle =
-        command_buffer_helper->SupportsTextureRectangle();
-  }
+  gl_client.get_context = base::BindRepeating(
+      &CommandBufferHelper::GetGLContext, command_buffer_helper);
+  gl_client.make_context_current = base::BindRepeating(
+      &CommandBufferHelper::MakeContextCurrent, command_buffer_helper);
+  gl_client.bind_image = base::BindRepeating(&BindImage, command_buffer_helper);
+  gl_client.is_passthrough = command_buffer_helper->IsPassthrough();
+  gl_client.supports_arb_texture_rectangle =
+      command_buffer_helper->SupportsTextureRectangle();
 
   std::unique_ptr<GpuVideoDecodeAcceleratorFactory> factory =
       GpuVideoDecodeAcceleratorFactory::Create(gl_client);
@@ -143,23 +117,17 @@ std::unique_ptr<VideoDecoder> VdaVideoDecoder::Create(
     const gfx::ColorSpace& target_color_space,
     const gpu::GpuPreferences& gpu_preferences,
     const gpu::GpuDriverBugWorkarounds& gpu_workarounds,
-    GetStubCB get_stub_cb,
-    VideoDecodeAccelerator::Config::OutputMode output_mode) {
+    GetStubCB get_stub_cb) {
   auto* decoder = new VdaVideoDecoder(
       std::move(parent_task_runner), std::move(gpu_task_runner),
       std::move(media_log), target_color_space,
-      base::BindOnce(&PictureBufferManager::Create,
-                     /*allocate_gpu_memory_buffers=*/output_mode ==
-                         VideoDecodeAccelerator::Config::OutputMode::IMPORT),
-      output_mode == VideoDecodeAccelerator::Config::OutputMode::ALLOCATE
-          ? base::BindOnce(&CreateCommandBufferHelper, std::move(get_stub_cb))
-          : base::NullCallback(),
+      base::BindOnce(&PictureBufferManager::Create),
+      base::BindOnce(&CreateCommandBufferHelper, std::move(get_stub_cb)),
       base::BindRepeating(&CreateAndInitializeVda, gpu_preferences,
                           gpu_workarounds),
       GpuVideoAcceleratorUtil::ConvertGpuToMediaDecodeCapabilities(
           GpuVideoDecodeAcceleratorFactory::GetDecoderCapabilities(
-              gpu_preferences, gpu_workarounds)),
-      output_mode);
+              gpu_preferences, gpu_workarounds)));
 
   return std::make_unique<AsyncDestroyVideoDecoder<VdaVideoDecoder>>(
       base::WrapUnique(decoder));
@@ -173,8 +141,7 @@ VdaVideoDecoder::VdaVideoDecoder(
     CreatePictureBufferManagerCB create_picture_buffer_manager_cb,
     CreateCommandBufferHelperCB create_command_buffer_helper_cb,
     CreateAndInitializeVdaCB create_and_initialize_vda_cb,
-    const VideoDecodeAccelerator::Capabilities& vda_capabilities,
-    VideoDecodeAccelerator::Config::OutputMode output_mode)
+    const VideoDecodeAccelerator::Capabilities& vda_capabilities)
     : parent_task_runner_(std::move(parent_task_runner)),
       gpu_task_runner_(std::move(gpu_task_runner)),
       media_log_(std::move(media_log)),
@@ -183,7 +150,6 @@ VdaVideoDecoder::VdaVideoDecoder(
           std::move(create_command_buffer_helper_cb)),
       create_and_initialize_vda_cb_(std::move(create_and_initialize_vda_cb)),
       vda_capabilities_(vda_capabilities),
-      output_mode_(output_mode),
       timestamps_(128) {
   DVLOG(1) << __func__;
   DCHECK(parent_task_runner_->BelongsToCurrentThread());
@@ -241,12 +207,11 @@ VdaVideoDecoder::~VdaVideoDecoder() {
   DCHECK(!gpu_weak_vda_);
 }
 
-VideoDecoderType VdaVideoDecoder::GetDecoderType() const {
+std::string VdaVideoDecoder::GetDisplayName() const {
   DVLOG(3) << __func__;
   DCHECK(parent_task_runner_->BelongsToCurrentThread());
-  // TODO(tmathmeyer) query the accelerator for it's implementation type and
-  // return that instead.
-  return VideoDecoderType::kVda;
+
+  return "VdaVideoDecoder";
 }
 
 void VdaVideoDecoder::Initialize(const VideoDecoderConfig& config,
@@ -264,9 +229,10 @@ void VdaVideoDecoder::Initialize(const VideoDecoderConfig& config,
   DCHECK(decode_cbs_.empty());
 
   if (has_error_) {
+    // TODO(tmathmeyer) generic error, please remove.
     parent_task_runner_->PostTask(
-        FROM_HERE,
-        base::BindOnce(std::move(init_cb), DecoderStatus::Codes::kFailed));
+        FROM_HERE, base::BindOnce(std::move(init_cb),
+                                  StatusCode::kGenericErrorPleaseRemove));
     return;
   }
 
@@ -294,10 +260,7 @@ void VdaVideoDecoder::Initialize(const VideoDecoderConfig& config,
   // TODO(sandersd): Change this to a capability if any VDA starts supporting
   // alpha channels. This is believed to be impossible right now because VPx
   // alpha channel data is passed in side data, which isn't sent to VDAs.
-  // HEVC is the codec that only has platform hardware decoder support, and
-  // macOS currently support HEVC with alpha, so don't block HEVC here.
-  if (config.alpha_mode() != VideoDecoderConfig::AlphaMode::kIsOpaque &&
-      config.codec() != VideoCodec::kHEVC) {
+  if (config.alpha_mode() != VideoDecoderConfig::AlphaMode::kIsOpaque) {
     MEDIA_LOG(INFO, media_log_) << "Alpha formats are not supported";
     EnterErrorState();
     return;
@@ -316,7 +279,7 @@ void VdaVideoDecoder::Initialize(const VideoDecoderConfig& config,
   // (https://crbug.com/929565). We should support reinitialization for profile
   // changes. We limit this support as small as possible for safety.
   const bool is_profile_change =
-#if BUILDFLAG(IS_CHROMEOS_ASH) && BUILDFLAG(USE_VAAPI)
+#if BUILDFLAG(IS_ASH) && BUILDFLAG(USE_VAAPI)
       config_.profile() != config.profile();
 #else
       false;
@@ -340,9 +303,8 @@ void VdaVideoDecoder::Initialize(const VideoDecoderConfig& config,
                                     gpu_weak_this_));
     } else {
       parent_task_runner_->PostTask(
-          FROM_HERE,
-          base::BindOnce(&VdaVideoDecoder::InitializeDone, parent_weak_this_,
-                         DecoderStatus::Codes::kOk));
+          FROM_HERE, base::BindOnce(&VdaVideoDecoder::InitializeDone,
+                                    parent_weak_this_, OkStatus()));
     }
     return;
   }
@@ -374,16 +336,13 @@ void VdaVideoDecoder::InitializeOnGpuThread() {
 
   // Set up |command_buffer_helper_|.
   if (!reinitializing_) {
-    if (output_mode_ == VideoDecodeAccelerator::Config::OutputMode::ALLOCATE) {
-      command_buffer_helper_ =
-          std::move(create_command_buffer_helper_cb_).Run();
-      if (!command_buffer_helper_) {
-        parent_task_runner_->PostTask(
-            FROM_HERE,
-            base::BindOnce(&VdaVideoDecoder::InitializeDone, parent_weak_this_,
-                           DecoderStatus::Codes::kFailed));
-        return;
-      }
+    command_buffer_helper_ = std::move(create_command_buffer_helper_cb_).Run();
+    if (!command_buffer_helper_) {
+      parent_task_runner_->PostTask(
+          FROM_HERE,
+          base::BindOnce(&VdaVideoDecoder::InitializeDone, parent_weak_this_,
+                         StatusCode::kDecoderInitializeNeverCompleted));
+      return;
     }
 
     picture_buffer_manager_->Initialize(gpu_task_runner_,
@@ -403,7 +362,7 @@ void VdaVideoDecoder::InitializeOnGpuThread() {
   vda_config.hdr_metadata = config_.hdr_metadata();
   // vda_config.sps = [Only used by AVDA]
   // vda_config.pps = [Only used by AVDA]
-  vda_config.output_mode = output_mode_;
+  // vda_config.output_mode = [Only used by ARC]
   // vda_config.supported_output_formats = [Only used by PPAPI]
 
   // Create and initialize the VDA.
@@ -413,27 +372,25 @@ void VdaVideoDecoder::InitializeOnGpuThread() {
     parent_task_runner_->PostTask(
         FROM_HERE,
         base::BindOnce(&VdaVideoDecoder::InitializeDone, parent_weak_this_,
-                       DecoderStatus::Codes::kFailedToCreateDecoder));
+                       StatusCode::kDecoderInitializeNeverCompleted));
     return;
   }
 
-  gpu_weak_vda_factory_ =
-      std::make_unique<base::WeakPtrFactory<VideoDecodeAccelerator>>(
-          vda_.get());
+  gpu_weak_vda_factory_.reset(
+      new base::WeakPtrFactory<VideoDecodeAccelerator>(vda_.get()));
   gpu_weak_vda_ = gpu_weak_vda_factory_->GetWeakPtr();
 
   vda_initialized_ = true;
   decode_on_parent_thread_ = vda_->TryToSetupDecodeOnSeparateThread(
       parent_weak_this_, parent_task_runner_);
 
-  parent_task_runner_->PostTask(
-      FROM_HERE, base::BindOnce(&VdaVideoDecoder::InitializeDone,
-                                parent_weak_this_, DecoderStatus::Codes::kOk));
+  parent_task_runner_->PostTask(FROM_HERE,
+                                base::BindOnce(&VdaVideoDecoder::InitializeDone,
+                                               parent_weak_this_, OkStatus()));
 }
 
-void VdaVideoDecoder::InitializeDone(DecoderStatus status) {
-  DVLOG(1) << __func__ << " success = (" << static_cast<int>(status.code())
-           << ")";
+void VdaVideoDecoder::InitializeDone(Status status) {
+  DVLOG(1) << __func__ << " success = (" << status.code() << ")";
   DCHECK(parent_task_runner_->BelongsToCurrentThread());
 
   if (has_error_)
@@ -461,7 +418,7 @@ void VdaVideoDecoder::Decode(scoped_refptr<DecoderBuffer> buffer,
   if (has_error_) {
     parent_task_runner_->PostTask(
         FROM_HERE,
-        base::BindOnce(std::move(decode_cb), DecoderStatus::Codes::kFailed));
+        base::BindOnce(std::move(decode_cb), DecodeStatus::DECODE_ERROR));
     return;
   }
 
@@ -525,8 +482,7 @@ bool VdaVideoDecoder::NeedsBitstreamConversion() const {
 
   // TODO(sandersd): Can we move bitstream conversion into VdaVideoDecoder and
   // always return false?
-  return config_.codec() == VideoCodec::kH264 ||
-         config_.codec() == VideoCodec::kHEVC;
+  return config_.codec() == kCodecH264 || config_.codec() == kCodecHEVC;
 }
 
 bool VdaVideoDecoder::CanReadWithoutStalling() const {
@@ -543,15 +499,8 @@ int VdaVideoDecoder::GetMaxDecodeRequests() const {
   return 4;
 }
 
-bool VdaVideoDecoder::FramesHoldExternalResources() const {
-  DVLOG(3) << __func__;
-  DCHECK(parent_task_runner_->BelongsToCurrentThread());
-
-  return output_mode_ == VideoDecodeAccelerator::Config::OutputMode::IMPORT;
-}
-
-void VdaVideoDecoder::NotifyInitializationComplete(DecoderStatus status) {
-  DVLOG(2) << __func__ << "(" << static_cast<int>(status.code()) << ")";
+void VdaVideoDecoder::NotifyInitializationComplete(Status status) {
+  DVLOG(2) << __func__ << "(" << status.code() << ")";
   DCHECK(gpu_task_runner_->BelongsToCurrentThread());
   DCHECK(vda_initialized_);
 
@@ -576,27 +525,6 @@ void VdaVideoDecoder::ProvidePictureBuffers(uint32_t requested_num_of_buffers,
                      textures_per_buffer, dimensions, texture_target));
 }
 
-void VdaVideoDecoder::ProvidePictureBuffersWithVisibleRect(
-    uint32_t requested_num_of_buffers,
-    VideoPixelFormat format,
-    uint32_t textures_per_buffer,
-    const gfx::Size& dimensions,
-    const gfx::Rect& visible_rect,
-    uint32_t texture_target) {
-  if (output_mode_ == VideoDecodeAccelerator::Config::OutputMode::IMPORT) {
-    // In IMPORT mode, we (as the client of the underlying VDA) are responsible
-    // for buffer allocation with no textures (i.e., |texture_target| is
-    // irrelevant). Therefore, the logic in the base version of
-    // ProvidePictureBuffersWithVisibleRect() is not applicable.
-    ProvidePictureBuffers(requested_num_of_buffers, format, textures_per_buffer,
-                          dimensions, texture_target);
-    return;
-  }
-  VideoDecodeAccelerator::Client::ProvidePictureBuffersWithVisibleRect(
-      requested_num_of_buffers, format, textures_per_buffer, dimensions,
-      visible_rect, texture_target);
-}
-
 void VdaVideoDecoder::ProvidePictureBuffersAsync(uint32_t count,
                                                  VideoPixelFormat pixel_format,
                                                  uint32_t planes,
@@ -613,14 +541,11 @@ void VdaVideoDecoder::ProvidePictureBuffersAsync(uint32_t count,
   if (pixel_format == PIXEL_FORMAT_UNKNOWN)
     pixel_format = PIXEL_FORMAT_XRGB;
 
-  std::vector<std::pair<PictureBuffer, gfx::GpuMemoryBufferHandle>>
-      picture_buffers_and_gmbs = picture_buffer_manager_->CreatePictureBuffers(
+  std::vector<PictureBuffer> picture_buffers =
+      picture_buffer_manager_->CreatePictureBuffers(
           count, pixel_format, planes, texture_size, texture_target,
-          output_mode_ == VideoDecodeAccelerator::Config::OutputMode::IMPORT
-              ? VideoDecodeAccelerator::TextureAllocationMode::
-                    kDoNotAllocateGLTextures
-              : vda_->GetSharedImageTextureAllocationMode());
-  if (picture_buffers_and_gmbs.empty()) {
+          vda_->SupportsSharedImagePictureBuffers());
+  if (picture_buffers.empty()) {
     parent_task_runner_->PostTask(
         FROM_HERE,
         base::BindOnce(&VdaVideoDecoder::EnterErrorState, parent_weak_this_));
@@ -628,19 +553,7 @@ void VdaVideoDecoder::ProvidePictureBuffersAsync(uint32_t count,
   }
 
   DCHECK(gpu_weak_vda_);
-  std::vector<PictureBuffer> picture_buffers;
-  for (const auto& picture_buffer_and_gmb : picture_buffers_and_gmbs) {
-    picture_buffers.push_back(picture_buffer_and_gmb.first);
-  }
   vda_->AssignPictureBuffers(std::move(picture_buffers));
-
-  if (output_mode_ == VideoDecodeAccelerator::Config::OutputMode::IMPORT) {
-    for (auto& picture_buffer_and_gmb : picture_buffers_and_gmbs) {
-      vda_->ImportBufferForPicture(picture_buffer_and_gmb.first.id(),
-                                   pixel_format,
-                                   std::move(picture_buffer_and_gmb.second));
-    }
-  }
 }
 
 void VdaVideoDecoder::DismissPictureBuffer(int32_t picture_buffer_id) {
@@ -719,13 +632,12 @@ void VdaVideoDecoder::PictureReadyOnParentThread(Picture picture) {
   // Create a VideoFrame for the picture.
   scoped_refptr<VideoFrame> frame = picture_buffer_manager_->CreateVideoFrame(
       picture, timestamp, visible_rect,
-      config_.aspect_ratio().GetNaturalSize(visible_rect));
+      GetNaturalSize(visible_rect, config_.GetPixelAspectRatio()));
   if (!frame) {
     EnterErrorState();
     return;
   }
-  frame->set_hdr_metadata(picture.hdr_metadata() ? picture.hdr_metadata()
-                                                 : config_.hdr_metadata());
+  frame->set_hdr_metadata(config_.hdr_metadata());
 
   output_cb_.Run(std::move(frame));
 }
@@ -769,7 +681,7 @@ void VdaVideoDecoder::NotifyEndOfBitstreamBufferOnParentThread(
   // Run a local copy in case the decode callback modifies |decode_cbs_|.
   DecodeCB decode_cb = std::move(decode_cb_it->second);
   decode_cbs_.erase(decode_cb_it);
-  std::move(decode_cb).Run(DecoderStatus::Codes::kOk);
+  std::move(decode_cb).Run(DecodeStatus::OK);
 }
 
 void VdaVideoDecoder::NotifyFlushDone() {
@@ -794,7 +706,7 @@ void VdaVideoDecoder::NotifyFlushDoneOnParentThread() {
     return;
 
   DCHECK(decode_cbs_.empty());
-  std::move(flush_cb_).Run(DecoderStatus::Codes::kOk);
+  std::move(flush_cb_).Run(DecodeStatus::OK);
 }
 
 void VdaVideoDecoder::NotifyResetDone() {
@@ -827,13 +739,13 @@ void VdaVideoDecoder::NotifyResetDoneOnParentThread() {
   std::map<int32_t, DecodeCB> local_decode_cbs = std::move(decode_cbs_);
   decode_cbs_.clear();
   for (auto& it : local_decode_cbs) {
-    std::move(it.second).Run(DecoderStatus::Codes::kAborted);
+    std::move(it.second).Run(DecodeStatus::ABORTED);
     if (!weak_this)
       return;
   }
 
   if (weak_this && flush_cb_)
-    std::move(flush_cb_).Run(DecoderStatus::Codes::kAborted);
+    std::move(flush_cb_).Run(DecodeStatus::ABORTED);
 
   if (weak_this)
     std::move(reset_cb_).Run();
@@ -853,13 +765,7 @@ void VdaVideoDecoder::NotifyError(VideoDecodeAccelerator::Error error) {
 }
 
 gpu::SharedImageStub* VdaVideoDecoder::GetSharedImageStub() const {
-  DCHECK_EQ(output_mode_, VideoDecodeAccelerator::Config::OutputMode::ALLOCATE);
   return command_buffer_helper_->GetSharedImageStub();
-}
-
-CommandBufferHelper* VdaVideoDecoder::GetCommandBufferHelper() const {
-  DCHECK_EQ(output_mode_, VideoDecodeAccelerator::Config::OutputMode::ALLOCATE);
-  return command_buffer_helper_.get();
 }
 
 void VdaVideoDecoder::NotifyErrorOnParentThread(
@@ -913,13 +819,13 @@ void VdaVideoDecoder::DestroyCallbacks() {
   std::map<int32_t, DecodeCB> local_decode_cbs = std::move(decode_cbs_);
   decode_cbs_.clear();
   for (auto& it : local_decode_cbs) {
-    std::move(it.second).Run(DecoderStatus::Codes::kFailed);
+    std::move(it.second).Run(DecodeStatus::DECODE_ERROR);
     if (!weak_this)
       return;
   }
 
   if (weak_this && flush_cb_)
-    std::move(flush_cb_).Run(DecoderStatus::Codes::kFailed);
+    std::move(flush_cb_).Run(DecodeStatus::DECODE_ERROR);
 
   // Note: |reset_cb_| cannot return failure, so the client won't actually find
   // out about the error until another operation is attempted.
@@ -927,7 +833,7 @@ void VdaVideoDecoder::DestroyCallbacks() {
     std::move(reset_cb_).Run();
 
   if (weak_this && init_cb_)
-    std::move(init_cb_).Run(DecoderStatus::Codes::kFailed);
+    std::move(init_cb_).Run(StatusCode::kDecoderInitializeNeverCompleted);
 }
 
 }  // namespace media

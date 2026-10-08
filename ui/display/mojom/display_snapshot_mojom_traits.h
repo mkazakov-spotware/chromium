@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_DISPLAY_MOJOM_DISPLAY_SNAPSHOT_MOJOM_TRAITS_H_
 #define UI_DISPLAY_MOJOM_DISPLAY_SNAPSHOT_MOJOM_TRAITS_H_
 
+#include "ipc/ipc_message_utils.h"
 #include "ui/display/mojom/display_constants_mojom_traits.h"
 #include "ui/display/mojom/display_mode_mojom_traits.h"
 #include "ui/display/mojom/display_snapshot.mojom.h"
@@ -23,21 +24,6 @@ struct StructTraits<display::mojom::DisplaySnapshotDataView,
     return snapshot->display_id();
   }
 
-  static int64_t port_display_id(
-      const std::unique_ptr<display::DisplaySnapshot>& snapshot) {
-    return snapshot->port_display_id();
-  }
-
-  static int64_t edid_display_id(
-      const std::unique_ptr<display::DisplaySnapshot>& snapshot) {
-    return snapshot->edid_display_id();
-  }
-
-  static uint16_t connector_index(
-      const std::unique_ptr<display::DisplaySnapshot>& snapshot) {
-    return snapshot->connector_index();
-  }
-
   static const gfx::Point& origin(
       const std::unique_ptr<display::DisplaySnapshot>& snapshot) {
     return snapshot->origin();
@@ -51,16 +37,6 @@ struct StructTraits<display::mojom::DisplaySnapshotDataView,
   static display::DisplayConnectionType type(
       const std::unique_ptr<display::DisplaySnapshot>& snapshot) {
     return snapshot->type();
-  }
-
-  static uint64_t base_connector_id(
-      const std::unique_ptr<display::DisplaySnapshot>& snapshot) {
-    return snapshot->base_connector_id();
-  }
-
-  static const std::vector<uint64_t>& path_topology(
-      const std::unique_ptr<display::DisplaySnapshot>& snapshot) {
-    return snapshot->path_topology();
   }
 
   static display::PanelOrientation panel_orientation(
@@ -101,11 +77,6 @@ struct StructTraits<display::mojom::DisplaySnapshotDataView,
   static uint32_t bits_per_channel(
       const std::unique_ptr<display::DisplaySnapshot>& snapshot) {
     return snapshot->bits_per_channel();
-  }
-
-  static const absl::optional<gfx::HDRStaticMetadata>& hdr_static_metadata(
-      const std::unique_ptr<display::DisplaySnapshot>& snapshot) {
-    return snapshot->hdr_static_metadata();
   }
 
   static std::string display_name(
@@ -155,16 +126,6 @@ struct StructTraits<display::mojom::DisplaySnapshotDataView,
   static const gfx::Size& maximum_cursor_size(
       const std::unique_ptr<display::DisplaySnapshot>& snapshot) {
     return snapshot->maximum_cursor_size();
-  }
-
-  static display::VariableRefreshRateState variable_refresh_rate_state(
-      const std::unique_ptr<display::DisplaySnapshot>& snapshot) {
-    return snapshot->variable_refresh_rate_state();
-  }
-
-  static const absl::optional<gfx::Range>& vertical_display_range_limits(
-      const std::unique_ptr<display::DisplaySnapshot>& snapshot) {
-    return snapshot->vertical_display_range_limits();
   }
 
   static bool Read(display::mojom::DisplaySnapshotDataView data,

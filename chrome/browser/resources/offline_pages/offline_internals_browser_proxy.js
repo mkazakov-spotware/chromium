@@ -1,8 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {sendWithPromise} from 'chrome://resources/js/cr.m.js';
+import {addSingletonGetter, sendWithPromise} from 'chrome://resources/js/cr.m.js';
 
 /**
  * @typedef {{
@@ -163,6 +163,13 @@ export class OfflineInternalsBrowserProxy {
   cancelNwake() {}
 
   /**
+   * Shows the prefetching notification with an example origin.
+   * @return {!Promise<string>} A promise firing when the notification has
+   *   been shown.
+   */
+  showPrefetchNotification() {}
+
+  /**
    * Sends and processes a request to generate page bundle.
    * @param {string} urls A list of comma-separated URLs.
    * @return {!Promise<string>} A string describing the result.
@@ -271,6 +278,11 @@ export class OfflineInternalsBrowserProxyImpl {
   }
 
   /** @override */
+  showPrefetchNotification() {
+    return sendWithPromise('showPrefetchNotification');
+  }
+
+  /** @override */
   generatePageBundle(urls) {
     return sendWithPromise('generatePageBundle', urls);
   }
@@ -284,12 +296,6 @@ export class OfflineInternalsBrowserProxyImpl {
   downloadArchive(name) {
     chrome.send('downloadArchive', [name]);
   }
-
-  /** @return {!OfflineInternalsBrowserProxy} */
-  static getInstance() {
-    return instance || (instance = new OfflineInternalsBrowserProxyImpl());
-  }
 }
 
-/** @type {?OfflineInternalsBrowserProxy} */
-let instance = null;
+addSingletonGetter(OfflineInternalsBrowserProxyImpl);

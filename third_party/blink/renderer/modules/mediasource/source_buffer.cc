@@ -33,30 +33,16 @@
 #include <limits>
 #include <memory>
 #include <sstream>
-#include <tuple>
 #include <utility>
 
-#include "base/allocator/partition_allocator/partition_alloc.h"
-#include "base/numerics/checked_math.h"
 #include "media/base/logging_override_if_enabled.h"
-#include "media/base/stream_parser_buffer.h"
 #include "third_party/blink/public/platform/task_type.h"
 #include "third_party/blink/public/platform/web_source_buffer.h"
-#include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_throw_dom_exception.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_audio_decoder_config.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_encoded_audio_chunk.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_encoded_video_chunk.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_source_buffer_config.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_union_encodedaudiochunk_encodedaudiochunkorencodedvideochunksequence_encodedvideochunk.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_union_encodedaudiochunk_encodedvideochunk.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_video_decoder_config.h"
 #include "third_party/blink/renderer/core/dom/document.h"
-#include "third_party/blink/renderer/core/dom/dom_exception.h"
 #include "third_party/blink/renderer/core/dom/events/event.h"
 #include "third_party/blink/renderer/core/dom/events/event_queue.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
-#include "third_party/blink/renderer/core/frame/deprecation/deprecation.h"
+#include "third_party/blink/renderer/core/frame/deprecation.h"
 #include "third_party/blink/renderer/core/html/media/html_media_element.h"
 #include "third_party/blink/renderer/core/html/time_ranges.h"
 #include "third_party/blink/renderer/core/html/track/audio_track.h"
@@ -67,20 +53,15 @@
 #include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer_view.h"
 #include "third_party/blink/renderer/modules/mediasource/media_source.h"
 #include "third_party/blink/renderer/modules/mediasource/source_buffer_track_base_supplement.h"
-#include "third_party/blink/renderer/modules/webcodecs/encoded_audio_chunk.h"
-#include "third_party/blink/renderer/modules/webcodecs/encoded_video_chunk.h"
 #include "third_party/blink/renderer/platform/bindings/exception_messages.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/network/mime/content_type.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
-#include "third_party/blink/renderer/platform/wtf/allocator/partition_allocator.h"
-#include "third_party/blink/renderer/platform/wtf/allocator/partitions.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
-#include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 using blink::WebSourceBuffer;
 
@@ -122,79 +103,6 @@ WTF::String WebTimeRangesToString(const WebTimeRanges& ranges) {
   return string_builder.ToString();
 }
 
-// These track IDs are used as to differentiate tracks within a SourceBuffer.
-// They can be duplicated across SourceBuffers, since these are not the
-// TrackList identifiers exposed to the web app; these are instead equivalents
-// of bytestream format's in-band track identifiers.
-// TODO(crbug.com/1144908): Consider standardizing these especially if
-// TrackDefaults makes a return to MSE spec, so that apps can provide
-// name/label/kind/etc metadata for tracks originating from appended WebCodecs
-// chunks.
-// TODO(crbug.com/1144908): Since these must be identical to those generated
-// in the underlying WebCodecsEncodedChunkStreamParser, consider moving these
-// to possibly stream_parser.h. Meanwhile, must be kept in sync with similar
-// constexpr in that parser manually.
-constexpr media::StreamParser::TrackId kWebCodecsAudioTrackId = 1;
-constexpr media::StreamParser::TrackId kWebCodecsVideoTrackId = 2;
-
-// TODO(crbug.com/1144908): Move these converters into a WebCodecs decoder
-// helper abstraction. Beyond reuse (instead of copying the various
-// MakeDecoderBuffer methods), that will also help enable buffering h264 where
-// bitstream conversion might be necessary during conversion.
-// Note, caller updates results further as necessary (e.g. duration, DTS, etc).
-scoped_refptr<media::StreamParserBuffer> MakeAudioStreamParserBuffer(
-    const EncodedAudioChunk& audio_chunk) {
-  // TODO(crbug.com/1144908): DecoderBuffer takes size_t size, but
-  // StreamParserBuffer takes int. Fix this. For now, checked_cast is used.
-  // TODO(crbug.com/1144908): Add a way for StreamParserBuffer to share the
-  // same underlying DecoderBuffer.
-  auto stream_parser_buffer = media::StreamParserBuffer::CopyFrom(
-      audio_chunk.buffer()->data(),
-      base::checked_cast<int>(audio_chunk.buffer()->data_size()),
-      audio_chunk.buffer()->is_key_frame(), media::DemuxerStream::AUDIO,
-      kWebCodecsAudioTrackId);
-
-  // Currently, we do not populate any side_data in these converters.
-  DCHECK_EQ(0U, stream_parser_buffer->side_data_size());
-  DCHECK_EQ(nullptr, stream_parser_buffer->side_data());
-
-  stream_parser_buffer->set_timestamp(audio_chunk.buffer()->timestamp());
-  // TODO(crbug.com/1144908): Get EncodedAudioChunk to have an optional duration
-  // attribute, and require it to be populated for use by MSE-for-WebCodecs,
-  // here. For initial prototype, hard-coded 22ms is used as estimated duration.
-  stream_parser_buffer->set_duration(base::Milliseconds(22));
-  stream_parser_buffer->set_is_duration_estimated(true);
-  return stream_parser_buffer;
-}
-
-// Caller must verify that video_chunk.duration().has_value().
-scoped_refptr<media::StreamParserBuffer> MakeVideoStreamParserBuffer(
-    const EncodedVideoChunk& video_chunk) {
-  // TODO(crbug.com/1144908): DecoderBuffer takes size_t size, but
-  // StreamParserBuffer takes int. Fix this. For now, checked_cast is used.
-  // TODO(crbug.com/1144908): Add a way for StreamParserBuffer to share the
-  // same underlying DecoderBuffer.
-  auto stream_parser_buffer = media::StreamParserBuffer::CopyFrom(
-      video_chunk.buffer()->data(),
-      base::checked_cast<int>(video_chunk.buffer()->data_size()),
-      video_chunk.buffer()->is_key_frame(), media::DemuxerStream::VIDEO,
-      kWebCodecsVideoTrackId);
-
-  // Currently, we do not populate any side_data in these converters.
-  DCHECK_EQ(0U, stream_parser_buffer->side_data_size());
-  DCHECK_EQ(nullptr, stream_parser_buffer->side_data());
-
-  stream_parser_buffer->set_timestamp(video_chunk.buffer()->timestamp());
-  // TODO(crbug.com/1144908): Get EncodedVideoChunk to have an optional decode
-  // timestamp attribute. If it is populated, use it for the DTS of the
-  // StreamParserBuffer, here. For initial prototype, only in-order PTS==DTS
-  // chunks are supported. Out-of-order chunks may result in buffered range gaps
-  // or decode errors.
-  DCHECK(video_chunk.duration().has_value());
-  stream_parser_buffer->set_duration(video_chunk.buffer()->duration());
-  return stream_parser_buffer;
-}
-
 }  // namespace
 
 SourceBuffer::SourceBuffer(std::unique_ptr<WebSourceBuffer> web_source_buffer,
@@ -211,6 +119,7 @@ SourceBuffer::SourceBuffer(std::unique_ptr<WebSourceBuffer> web_source_buffer,
       append_window_start_(0),
       append_window_end_(std::numeric_limits<double>::infinity()),
       first_initialization_segment_received_(false),
+      pending_append_data_offset_(0),
       pending_remove_start_(-1),
       pending_remove_end_(-1) {
   DVLOG(1) << __func__ << " this=" << this;
@@ -218,7 +127,9 @@ SourceBuffer::SourceBuffer(std::unique_ptr<WebSourceBuffer> web_source_buffer,
   DCHECK(web_source_buffer_);
   DCHECK(source_);
 
-  auto [attachment, tracer] = source_->AttachmentAndTracer();
+  scoped_refptr<MediaSourceAttachmentSupplement> attachment;
+  MediaSourceTracer* tracer;
+  std::tie(attachment, tracer) = source_->AttachmentAndTracer();
   DCHECK(attachment);
 
   if (GetExecutionContext()->IsWindow()) {
@@ -233,8 +144,7 @@ SourceBuffer::SourceBuffer(std::unique_ptr<WebSourceBuffer> web_source_buffer,
     video_tracks_ = attachment->CreateVideoTrackList(tracer);
     DCHECK(video_tracks_);
   } else {
-    DCHECK(RuntimeEnabledFeatures::MediaSourceInWorkersEnabled(
-               GetExecutionContext()) &&
+    DCHECK(RuntimeEnabledFeatures::MediaSourceInWorkersEnabled() &&
            GetExecutionContext()->IsDedicatedWorkerGlobalScope());
     DCHECK(!IsMainThread());
 
@@ -290,8 +200,8 @@ void SourceBuffer::setMode(const AtomicString& new_mode,
   // case). Note, we must have |source_| and |source_| must have an attachment
   // because !IsRemoved().
   if (!source_->RunUnlessElementGoneOrClosingUs(
-          WTF::BindOnce(&SourceBuffer::SetMode_Locked, WrapPersistent(this),
-                        new_mode, WTF::Unretained(&exception_state)))) {
+          WTF::Bind(&SourceBuffer::SetMode_Locked, WrapPersistent(this),
+                    new_mode, WTF::Unretained(&exception_state)))) {
     // TODO(https://crbug.com/878133): Determine in specification what the
     // specific, app-visible, exception should be for this case.
     MediaSource::LogAndThrowDOMException(
@@ -364,8 +274,8 @@ TimeRanges* SourceBuffer::buffered(ExceptionState& exception_state) const {
   // an attachment because !IsRemoved().
   WebTimeRanges ranges;
   if (!source_->RunUnlessElementGoneOrClosingUs(
-          WTF::BindOnce(&SourceBuffer::GetBuffered_Locked, WrapPersistent(this),
-                        WTF::Unretained(&ranges)))) {
+          WTF::Bind(&SourceBuffer::GetBuffered_Locked, WrapPersistent(this),
+                    WTF::Unretained(&ranges)))) {
     // TODO(https://crbug.com/878133): Determine in specification what the
     // specific, app-visible, exception should be for this case.
     MediaSource::LogAndThrowDOMException(
@@ -406,15 +316,14 @@ void SourceBuffer::setTimestampOffset(double offset,
   // 3. If the updating attribute equals true, then throw an InvalidStateError
   //    exception and abort these steps.
   if (ThrowExceptionIfRemovedOrUpdating(IsRemoved(), updating_,
-                                        exception_state)) {
+                                        exception_state))
     return;
-  }
 
   // Do the remainder of steps only if attachment is usable and underlying
   // demuxer is protected from destruction (applicable especially for
   // MSE-in-Worker case). Note, we must have |source_| and |source_| must have
   // an attachment because !IsRemoved().
-  if (!source_->RunUnlessElementGoneOrClosingUs(WTF::BindOnce(
+  if (!source_->RunUnlessElementGoneOrClosingUs(WTF::Bind(
           &SourceBuffer::SetTimestampOffset_Locked, WrapPersistent(this),
           offset, WTF::Unretained(&exception_state)))) {
     // TODO(https://crbug.com/878133): Determine in specification what the
@@ -457,6 +366,8 @@ void SourceBuffer::SetTimestampOffset_Locked(
 }
 
 AudioTrackList& SourceBuffer::audioTracks() {
+  DCHECK(HTMLMediaElement::MediaTracksEnabledInternally());
+
   // TODO(https://crbug.com/878133): Complete the AudioVideoTracks function
   // necessary to enable successful experimental usage of it when MSE is in
   // worker. Note that if this is consulted as part of parent |source_|'s
@@ -467,6 +378,8 @@ AudioTrackList& SourceBuffer::audioTracks() {
 }
 
 VideoTrackList& SourceBuffer::videoTracks() {
+  DCHECK(HTMLMediaElement::MediaTracksEnabledInternally());
+
   // TODO(https://crbug.com/878133): Complete the AudioVideoTracks function
   // necessary to enable successful experimental usage of it when MSE is in
   // worker. Note that if this is consulted as part of parent |source_|'s
@@ -491,9 +404,8 @@ void SourceBuffer::setAppendWindowStart(double start,
   // 2. If the updating attribute equals true, then throw an InvalidStateError
   //    exception and abort these steps.
   if (ThrowExceptionIfRemovedOrUpdating(IsRemoved(), updating_,
-                                        exception_state)) {
+                                        exception_state))
     return;
-  }
 
   // 3. If the new value is less than 0 or greater than or equal to
   //    appendWindowEnd then throw a TypeError exception and abort these steps.
@@ -511,8 +423,8 @@ void SourceBuffer::setAppendWindowStart(double start,
   // case). Note, we must have |source_| and |source_| must have an attachment
   // because !IsRemoved().
   if (!source_->RunUnlessElementGoneOrClosingUs(
-          WTF::BindOnce(&SourceBuffer::SetAppendWindowStart_Locked,
-                        WrapPersistent(this), start))) {
+          WTF::Bind(&SourceBuffer::SetAppendWindowStart_Locked,
+                    WrapPersistent(this), start))) {
     // TODO(https://crbug.com/878133): Determine in specification what the
     // specific, app-visible, exception should be for this case.
     MediaSource::LogAndThrowDOMException(
@@ -548,9 +460,8 @@ void SourceBuffer::setAppendWindowEnd(double end,
   // 2. If the updating attribute equals true, then throw an InvalidStateError
   //    exception and abort these steps.
   if (ThrowExceptionIfRemovedOrUpdating(IsRemoved(), updating_,
-                                        exception_state)) {
+                                        exception_state))
     return;
-  }
 
   // 3. If the new value equals NaN, then throw a TypeError and abort these
   //    steps.
@@ -573,8 +484,8 @@ void SourceBuffer::setAppendWindowEnd(double end,
   // case). Note, we must have |source_| and |source_| must have an attachment
   // because !IsRemoved().
   if (!source_->RunUnlessElementGoneOrClosingUs(
-          WTF::BindOnce(&SourceBuffer::SetAppendWindowEnd_Locked,
-                        WrapPersistent(this), end))) {
+          WTF::Bind(&SourceBuffer::SetAppendWindowEnd_Locked,
+                    WrapPersistent(this), end))) {
     // TODO(https://crbug.com/878133): Determine in specification what the
     // specific, app-visible, exception should be for this case.
     MediaSource::LogAndThrowDOMException(
@@ -606,172 +517,13 @@ void SourceBuffer::appendBuffer(DOMArrayBuffer* data,
 
 void SourceBuffer::appendBuffer(NotShared<DOMArrayBufferView> data,
                                 ExceptionState& exception_state) {
-  DVLOG(3) << __func__ << " this=" << this << " size=" << data->byteLength();
+  DVLOG(3) << __func__ << " this=" << this
+           << " size=" << data.View()->byteLength();
   // Section 3.2 appendBuffer()
   // https://dvcs.w3.org/hg/html-media/raw-file/default/media-source/media-source.html#widl-SourceBuffer-appendBuffer-void-ArrayBufferView-data
-  AppendBufferInternal(static_cast<const unsigned char*>(data->BaseAddress()),
-                       data->byteLength(), exception_state);
-}
-
-// Note that |chunks| may be a sequence of mixed audio and video encoded chunks
-// (which should cause underlying buffering validation to emit error akin to
-// appending video to an audio track or vice-versa). It was impossible to get
-// the bindings generator to disambiguate sequence<audio> vs sequence<video>,
-// hence we could not use simple overloading in the IDL for these two. Neither
-// could the IDL union attempt similar. We must enforce that semantic in
-// implementation. Further note, |chunks| may instead be a single audio or a
-// single video chunk as a helpful additional overload for one-chunk-at-a-time
-// append use-cases.
-ScriptPromise SourceBuffer::appendEncodedChunks(
-    ScriptState* script_state,
-    const V8EncodedChunks* chunks,
-    ExceptionState& exception_state) {
-  DVLOG(2) << __func__ << " this=" << this;
-
-  UseCounter::Count(ExecutionContext::From(script_state),
-                    WebFeature::kMediaSourceExtensionsForWebCodecs);
-
-  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0(
-      "media", "SourceBuffer::appendEncodedChunks", TRACE_ID_LOCAL(this));
-
-  if (ThrowExceptionIfRemovedOrUpdating(IsRemoved(), updating_,
-                                        exception_state)) {
-    TRACE_EVENT_NESTABLE_ASYNC_END0(
-        "media", "SourceBuffer::appendEncodedChunks", TRACE_ID_LOCAL(this));
-    return ScriptPromise();
-  }
-
-  // Convert |chunks| to a StreamParser::BufferQueue.
-  // TODO(crbug.com/1144908): Support out-of-order DTS vs PTS sequences. For
-  // now, PTS is assumed to be DTS (as is common in some formats like WebM).
-  // TODO(crbug.com/1144908): Add optional EncodedAudioChunk duration attribute
-  // and require it to be populated for use with MSE. For now, all audio chunks
-  // are estimated.
-  DCHECK(!pending_chunks_to_buffer_);
-  auto buffer_queue = std::make_unique<media::StreamParser::BufferQueue>();
-  size_t size = 0;
-
-  switch (chunks->GetContentType()) {
-    case V8EncodedChunks::ContentType::kEncodedAudioChunk:
-      buffer_queue->emplace_back(
-          MakeAudioStreamParserBuffer(*(chunks->GetAsEncodedAudioChunk())));
-      size += buffer_queue->back()->data_size() +
-              buffer_queue->back()->side_data_size();
-      break;
-    case V8EncodedChunks::ContentType::kEncodedVideoChunk: {
-      const auto& video_chunk = *(chunks->GetAsEncodedVideoChunk());
-      if (!video_chunk.duration().has_value()) {
-        MediaSource::LogAndThrowTypeError(
-            exception_state,
-            "EncodedVideoChunk is missing duration, required for use with "
-            "SourceBuffer.");
-        return ScriptPromise();
-      }
-      buffer_queue->emplace_back(MakeVideoStreamParserBuffer(video_chunk));
-      size += buffer_queue->back()->data_size() +
-              buffer_queue->back()->side_data_size();
-      break;
-    }
-    case V8EncodedChunks::ContentType::
-        kEncodedAudioChunkOrEncodedVideoChunkSequence:
-      for (const auto& av_chunk :
-           chunks->GetAsEncodedAudioChunkOrEncodedVideoChunkSequence()) {
-        DCHECK(av_chunk);
-        switch (av_chunk->GetContentType()) {
-          case V8UnionEncodedAudioChunkOrEncodedVideoChunk::ContentType::
-              kEncodedAudioChunk:
-            buffer_queue->emplace_back(MakeAudioStreamParserBuffer(
-                *(av_chunk->GetAsEncodedAudioChunk())));
-            size += buffer_queue->back()->data_size() +
-                    buffer_queue->back()->side_data_size();
-            break;
-          case V8UnionEncodedAudioChunkOrEncodedVideoChunk::ContentType::
-              kEncodedVideoChunk: {
-            const auto& video_chunk = *(av_chunk->GetAsEncodedVideoChunk());
-            if (!video_chunk.duration().has_value()) {
-              MediaSource::LogAndThrowTypeError(
-                  exception_state,
-                  "EncodedVideoChunk is missing duration, required for use "
-                  "with SourceBuffer.");
-              return ScriptPromise();
-            }
-            buffer_queue->emplace_back(
-                MakeVideoStreamParserBuffer(video_chunk));
-            size += buffer_queue->back()->data_size() +
-                    buffer_queue->back()->side_data_size();
-            break;
-          }
-        }
-      }
-      break;
-  }
-
-  DCHECK(!append_encoded_chunks_resolver_);
-  append_encoded_chunks_resolver_ =
-      MakeGarbageCollected<ScriptPromiseResolver>(script_state);
-  auto promise = append_encoded_chunks_resolver_->Promise();
-
-  // Do remainder of steps of analogue of prepare append algorithm and sending
-  // the |buffer_queue| to be buffered by |web_source_buffer_| asynchronously
-  // only if attachment is usable and underlying demuxer is protected from
-  // destruction (applicable especially for MSE-in-Worker case). Note, we must
-  // have |source_| and |source_| must have an attachment because !IsRemoved().
-  if (!source_->RunUnlessElementGoneOrClosingUs(WTF::BindOnce(
-          &SourceBuffer::AppendEncodedChunks_Locked, WrapPersistent(this),
-          std::move(buffer_queue), size, WTF::Unretained(&exception_state)))) {
-    // TODO(crbug.com/878133): Determine in specification what the specific,
-    // app-visible, exception should be for this case.
-    MediaSource::LogAndThrowDOMException(
-        exception_state, DOMExceptionCode::kInvalidStateError,
-        "Worker MediaSource attachment is closing");
-    append_encoded_chunks_resolver_ = nullptr;
-    return ScriptPromise();
-  }
-
-  return promise;
-}
-
-void SourceBuffer::AppendEncodedChunks_Locked(
-    std::unique_ptr<media::StreamParser::BufferQueue> buffer_queue,
-    size_t size,
-    ExceptionState* exception_state,
-    MediaSourceAttachmentSupplement::ExclusiveKey /* passkey */) {
-  DVLOG(2) << __func__ << " this=" << this << ", size=" << size;
-
-  DCHECK(source_);
-  DCHECK(!updating_);
-  source_->AssertAttachmentsMutexHeldIfCrossThreadForDebugging();
-  DCHECK(append_encoded_chunks_resolver_);
-  DCHECK(buffer_queue);
-  DCHECK(!pending_chunks_to_buffer_);
-
-  double media_time = GetMediaTime();
-  if (!PrepareAppend(media_time, size, *exception_state)) {
-    TRACE_EVENT_NESTABLE_ASYNC_END0(
-        "media", "SourceBuffer::appendEncodedChunks", TRACE_ID_LOCAL(this));
-    append_encoded_chunks_resolver_ = nullptr;
-    return;
-  }
-
-  pending_chunks_to_buffer_ = std::move(buffer_queue);
-  updating_ = true;
-
-  // Note, this promisified API does not queue for dispatch events like
-  // 'updatestart', 'update', 'error', 'abort', nor 'updateend' during the scope
-  // of synchronous and asynchronous operation, because the promise's resolution
-  // or rejection indicates the same information and lets us not wait until
-  // those events are dispatched before resolving them. See verbose reasons in
-  // AbortIfUpdating().
-
-  // Asynchronously run the analogue of the buffer append algorithm.
-  append_encoded_chunks_async_task_handle_ = PostCancellableTask(
-      *GetExecutionContext()->GetTaskRunner(TaskType::kMediaElementEvent),
-      FROM_HERE,
-      WTF::BindOnce(&SourceBuffer::AppendEncodedChunksAsyncPart,
-                    WrapPersistent(this)));
-
-  TRACE_EVENT_NESTABLE_ASYNC_BEGIN1("media", "delay", TRACE_ID_LOCAL(this),
-                                    "type", "initialDelay");
+  AppendBufferInternal(
+      static_cast<const unsigned char*>(data.View()->BaseAddress()),
+      data.View()->byteLength(), exception_state);
 }
 
 void SourceBuffer::abort(ExceptionState& exception_state) {
@@ -824,7 +576,7 @@ void SourceBuffer::abort(ExceptionState& exception_state) {
   // case). Note, we must have |source_| and |source_| must have an attachment
   // because !IsRemoved().
   if (!source_->RunUnlessElementGoneOrClosingUs(
-          WTF::BindOnce(&SourceBuffer::Abort_Locked, WrapPersistent(this)))) {
+          WTF::Bind(&SourceBuffer::Abort_Locked, WrapPersistent(this)))) {
     // TODO(https://crbug.com/878133): Determine in specification what the
     // specific, app-visible, exception should be for this case.
     MediaSource::LogAndThrowDOMException(
@@ -868,17 +620,16 @@ void SourceBuffer::remove(double start,
   // 2. If the updating attribute equals true, then throw an InvalidStateError
   //    exception and abort these steps.
   if (ThrowExceptionIfRemovedOrUpdating(IsRemoved(), updating_,
-                                        exception_state)) {
+                                        exception_state))
     return;
-  }
 
   // Do remainder of steps only if attachment is usable and underlying demuxer
   // is protected from destruction (applicable especially for MSE-in-Worker
   // case). Note, we must have |source_| and |source_| must have an attachment
   // because !IsRemoved().
   if (!source_->RunUnlessElementGoneOrClosingUs(
-          WTF::BindOnce(&SourceBuffer::Remove_Locked, WrapPersistent(this),
-                        start, end, WTF::Unretained(&exception_state)))) {
+          WTF::Bind(&SourceBuffer::Remove_Locked, WrapPersistent(this), start,
+                    end, WTF::Unretained(&exception_state)))) {
     // TODO(https://crbug.com/878133): Determine in specification what the
     // specific, app-visible, exception should be for this case.
     MediaSource::LogAndThrowDOMException(
@@ -891,7 +642,7 @@ void SourceBuffer::Remove_Locked(
     double start,
     double end,
     ExceptionState* exception_state,
-    MediaSourceAttachmentSupplement::ExclusiveKey pass_key) {
+    MediaSourceAttachmentSupplement::ExclusiveKey /* passkey */) {
   DCHECK(source_);
   DCHECK(!updating_);
   source_->AssertAttachmentsMutexHeldIfCrossThreadForDebugging();
@@ -900,7 +651,7 @@ void SourceBuffer::Remove_Locked(
   //    steps.
   // 4. If start is negative or greater than duration, then throw a TypeError
   //    exception and abort these steps.
-  double duration = source_->GetDuration_Locked(pass_key);
+  double duration = source_->duration();
   if (start < 0 || std::isnan(duration) || start > duration) {
     MediaSource::LogAndThrowTypeError(
         *exception_state,
@@ -948,7 +699,7 @@ void SourceBuffer::Remove_Locked(
   remove_async_task_handle_ = PostCancellableTask(
       *GetExecutionContext()->GetTaskRunner(TaskType::kMediaElementEvent),
       FROM_HERE,
-      WTF::BindOnce(&SourceBuffer::RemoveAsyncPart, WrapPersistent(this)));
+      WTF::Bind(&SourceBuffer::RemoveAsyncPart, WrapPersistent(this)));
 }
 
 void SourceBuffer::changeType(const String& type,
@@ -959,7 +710,7 @@ void SourceBuffer::changeType(const String& type,
   // https://rawgit.com/WICG/media-source/3b3742ea788999bb7ae4a4553ac7d574b0547dbe/index.html#dom-sourcebuffer-changetype
   // 1. If type is an empty string then throw a TypeError exception and abort
   //    these steps.
-  if (type.empty()) {
+  if (type.IsEmpty()) {
     MediaSource::LogAndThrowTypeError(exception_state,
                                       "The type provided is empty");
     return;
@@ -971,60 +722,22 @@ void SourceBuffer::changeType(const String& type,
   // 3. If the updating attribute equals true, then throw an InvalidStateError
   //    exception and abort these steps.
   if (ThrowExceptionIfRemovedOrUpdating(IsRemoved(), updating_,
-                                        exception_state)) {
+                                        exception_state))
     return;
-  }
 
   // Do remainder of steps only if attachment is usable and underlying demuxer
   // is protected from destruction (applicable especially for MSE-in-Worker
   // case). Note, we must have |source_| and |source_| must have an attachment
   // because !IsRemoved().
   if (!source_->RunUnlessElementGoneOrClosingUs(
-          WTF::BindOnce(&SourceBuffer::ChangeType_Locked, WrapPersistent(this),
-                        type, WTF::Unretained(&exception_state)))) {
+          WTF::Bind(&SourceBuffer::ChangeType_Locked, WrapPersistent(this),
+                    type, WTF::Unretained(&exception_state)))) {
     // TODO(https://crbug.com/878133): Determine in specification what the
     // specific, app-visible, exception should be for this case.
     MediaSource::LogAndThrowDOMException(
         exception_state, DOMExceptionCode::kInvalidStateError,
         "Worker MediaSource attachment is closing");
   }
-}
-
-void SourceBuffer::ChangeTypeUsingConfig(ExecutionContext* execution_context,
-                                         const SourceBufferConfig* config,
-                                         ExceptionState& exception_state) {
-  DVLOG(2) << __func__ << " this=" << this;
-
-  UseCounter::Count(execution_context,
-                    WebFeature::kMediaSourceExtensionsForWebCodecs);
-
-  // If this object has been removed from the sourceBuffers attribute of the
-  //    parent media source, then throw an InvalidStateError exception and abort
-  //    these steps.
-  // If the updating attribute equals true, then throw an InvalidStateError
-  //    exception and abort these steps.
-  if (ThrowExceptionIfRemovedOrUpdating(IsRemoved(), updating_,
-                                        exception_state)) {
-    return;
-  }
-
-  // Before this IDL overload was added, changeType(null) yielded a
-  // kNotSupportedError, so preserve that behavior if the bindings resolve us
-  // instead of the original changeType(DOMString) when given a null parameter.
-  // Fortunately, a null or empty SourceBufferConfig here similarly should yield
-  // a kNotSupportedError.
-  if (!config || (!config->hasAudioConfig() && !config->hasVideoConfig())) {
-    MediaSource::LogAndThrowDOMException(
-        exception_state, DOMExceptionCode::kNotSupportedError,
-        "Changing to the type provided ('null' config) is not supported.");
-    return;
-  }
-
-  // TODO(crbug.com/1144908): Further validate allowed in current state (and
-  // take lock at appropriate point), unwrap the config, validate it, update
-  // internals to new config, etc.
-  exception_state.ThrowTypeError(
-      "unimplemented - see https://crbug.com/1144908");
 }
 
 void SourceBuffer::ChangeType_Locked(
@@ -1046,9 +759,7 @@ void SourceBuffer::ChangeType_Locked(
   // here. As part of that, CanChangeType in Chromium should inherit relaxation
   // of impl's StreamParserFactory (since it returns true iff a stream parser
   // can be constructed with |type|). See https://crbug.com/535738.
-  if (!MediaSource::IsTypeSupportedInternal(
-          GetExecutionContext(), type,
-          false /* allow underspecified codecs in |type| */) ||
+  if (!MediaSource::isTypeSupported(GetExecutionContext(), type) ||
       !web_source_buffer_->CanChangeType(content_type.GetType(), codecs)) {
     MediaSource::LogAndThrowDOMException(
         *exception_state, DOMExceptionCode::kNotSupportedError,
@@ -1095,9 +806,8 @@ void SourceBuffer::setTrackDefaults(TrackDefaultList* track_defaults,
   // 2. If the updating attribute equals true, then throw an InvalidStateError
   //    exception and abort these steps.
   if (ThrowExceptionIfRemovedOrUpdating(IsRemoved(), updating_,
-                                        exception_state)) {
+                                        exception_state))
     return;
-  }
 
   // 3. Update the attribute to the new value.
   track_defaults_ = track_defaults;
@@ -1129,41 +839,17 @@ void SourceBuffer::AbortIfUpdating() {
 
   DCHECK_EQ(pending_remove_start_, -1);
 
+  const char* trace_event_name = "SourceBuffer::appendBuffer";
+
   // 4.1. Abort the buffer append and stream append loop algorithms if they are
   //      running.
+  append_buffer_async_task_handle_.Cancel();
+  pending_append_data_.clear();
+  pending_append_data_offset_ = 0;
+
   // 4.2. Set the updating attribute to false.
   updating_ = false;
 
-  if (pending_chunks_to_buffer_) {
-    append_encoded_chunks_async_task_handle_.Cancel();
-    pending_chunks_to_buffer_.reset();
-
-    // For async Promise resolution/rejection, we do not use events to notify
-    // the app, since event dispatch could occur after the promise callback
-    // microtask dispatch and violate the design principle, "Events should fire
-    // before Promises resolve", unless we introduced unnecessary further
-    // latency to enqueue a task to resolve/reject the promise. In this case,
-    // the elision of the "abort" and "updateend" events is synonymous with
-    // rejection with an AbortError DOMException, enabling faster abort
-    // notification. See
-    // https://w3ctag.github.io/design-principles/#promises-and-events
-    // TODO(crbug.com/1144908): Consider moving this verbosity to eventual
-    // specification.
-    DCHECK(append_encoded_chunks_resolver_);
-    append_encoded_chunks_resolver_->Reject(V8ThrowDOMException::CreateOrDie(
-        append_encoded_chunks_resolver_->GetScriptState()->GetIsolate(),
-        DOMExceptionCode::kAbortError, "Aborted by explicit abort()"));
-    append_encoded_chunks_resolver_ = nullptr;
-    TRACE_EVENT_NESTABLE_ASYNC_END0(
-        "media", "SourceBuffer::appendEncodedChunks", TRACE_ID_LOCAL(this));
-    return;
-  }
-
-  DCHECK(!append_encoded_chunks_resolver_);
-  append_buffer_async_task_handle_.Cancel();
-
-  // For the regular, non-promisified appendBuffer abort, use events to notify
-  // result.
   // 4.3. Queue a task to fire a simple event named abort at this SourceBuffer
   //      object.
   ScheduleEvent(event_type_names::kAbort);
@@ -1172,7 +858,7 @@ void SourceBuffer::AbortIfUpdating() {
   //      SourceBuffer object.
   ScheduleEvent(event_type_names::kUpdateend);
 
-  TRACE_EVENT_NESTABLE_ASYNC_END0("media", "SourceBuffer::appendBuffer",
+  TRACE_EVENT_NESTABLE_ASYNC_END0("media", trace_event_name,
                                   TRACE_ID_LOCAL(this));
 }
 
@@ -1189,19 +875,12 @@ void SourceBuffer::RemovedFromMediaSource() {
     AbortIfUpdating();
   }
 
-  DCHECK(source_);
-  RemoveMediaTracks();
-
-  // Update the underlying demuxer except in the cross-thread attachment case
-  // where detachment or element context destruction may have already begun.
-  scoped_refptr<MediaSourceAttachmentSupplement> attachment;
-  std::tie(attachment, std::ignore) = source_->AttachmentAndTracer();
-  DCHECK(attachment);
-  if (attachment->FullyAttachedOrSameThread(
-          MediaSourceAttachmentSupplement::SourceBufferPassKey())) {
-    web_source_buffer_->RemovedFromMediaSource();
+  if (HTMLMediaElement::MediaTracksEnabledInternally()) {
+    DCHECK(source_);
+    RemoveMediaTracks();
   }
 
+  web_source_buffer_->RemovedFromMediaSource();
   web_source_buffer_.reset();
   source_ = nullptr;
   async_event_queue_ = nullptr;
@@ -1219,9 +898,12 @@ double SourceBuffer::HighestPresentationTimestamp() {
 void SourceBuffer::RemoveMediaTracks() {
   // Spec:
   // http://w3c.github.io/media-source/#widl-MediaSource-removeSourceBuffer-void-SourceBuffer-sourceBuffer
+  DCHECK(HTMLMediaElement::MediaTracksEnabledInternally());
   DCHECK(source_);
 
-  auto [attachment, tracer] = source_->AttachmentAndTracer();
+  scoped_refptr<MediaSourceAttachmentSupplement> attachment;
+  MediaSourceTracer* tracer;
+  std::tie(attachment, tracer) = source_->AttachmentAndTracer();
   DCHECK(attachment);
 
   // One path leading to here is from |source_|'s ContextDestroyed(), so we
@@ -1277,7 +959,7 @@ void SourceBuffer::RemoveMediaTracks() {
   //     list.
   // Here, we perform batch removal of audio tracks, compiled in step 4.3.4,
   // above, along with conditional enqueueing of change event.
-  if (!audio_track_removal_ids.empty()) {
+  if (!audio_track_removal_ids.IsEmpty()) {
     attachment->RemoveAudioTracksFromMediaElement(
         tracer, audio_track_removal_ids,
         removed_enabled_audio_track /* enqueue_change_event */);
@@ -1322,7 +1004,7 @@ void SourceBuffer::RemoveMediaTracks() {
   //     list.
   // Here, we perform batch removal of video tracks, compiled in step 6.3.4,
   // above, along with conditional enqueueing of change event.
-  if (!video_track_removal_ids.empty()) {
+  if (!video_track_removal_ids.IsEmpty()) {
     attachment->RemoveVideoTracksFromMediaElement(
         tracer, video_track_removal_ids,
         removed_selected_video_track /* enqueue_change_event */);
@@ -1333,9 +1015,11 @@ void SourceBuffer::RemoveMediaTracks() {
 
 double SourceBuffer::GetMediaTime() {
   DCHECK(source_);
-  auto [attachment, tracer] = source_->AttachmentAndTracer();
+  scoped_refptr<MediaSourceAttachmentSupplement> attachment;
+  MediaSourceTracer* tracer;
+  std::tie(attachment, tracer) = source_->AttachmentAndTracer();
   DCHECK(attachment);
-  return attachment->GetRecentMediaTime(tracer).InSecondsF();
+  return attachment->GetRecentMediaTime(tracer);
 }
 
 template <class T>
@@ -1414,6 +1098,7 @@ void SourceBuffer::AddPlaceholderCrossThreadTracks(
   // to tell the media element to populate appropriately identified tracks so
   // that the BackgroundVideoOptimization feature functions for MSE-in-Workers
   // playbacks.
+  DCHECK(RuntimeEnabledFeatures::MediaSourceInWorkersEnabled());
   DCHECK(!IsMainThread());
   DCHECK(!first_initialization_segment_received_);
   DCHECK(source_);
@@ -1425,8 +1110,8 @@ void SourceBuffer::AddPlaceholderCrossThreadTracks(
   // SourceBufferState::OnNewConfigs()).
   bool enable_next_audio_track = true;
   bool select_next_video_track = true;
-  DCHECK(audio_track_ids_for_crossthread_removal_.empty());
-  DCHECK(video_track_ids_for_crossthread_removal_.empty());
+  DCHECK(audio_track_ids_for_crossthread_removal_.IsEmpty());
+  DCHECK(video_track_ids_for_crossthread_removal_.IsEmpty());
   for (const MediaTrackInfo& track_info : new_tracks) {
     if (track_info.track_type == WebMediaPlayer::kAudioTrack) {
       WebString label = track_info.label;
@@ -1480,6 +1165,7 @@ void SourceBuffer::RemovePlaceholderCrossThreadTracks(
     MediaSourceTracer* tracer) {
   // TODO(https://crbug.com/878133): Remove this special-casing once worker
   // thread track creation and tracklist modifications are supported.
+  DCHECK(RuntimeEnabledFeatures::MediaSourceInWorkersEnabled());
   DCHECK(!IsMainThread());
   DCHECK(!tracer);  // Cross-thread attachments don't use a tracer.
 
@@ -1488,13 +1174,13 @@ void SourceBuffer::RemovePlaceholderCrossThreadTracks(
   // lists on the media element. The event(s) may be extra, but likely unseen by
   // application unless it is attempting experimental AudioVideoTracks usage,
   // too.
-  if (!audio_track_ids_for_crossthread_removal_.empty()) {
+  if (!audio_track_ids_for_crossthread_removal_.IsEmpty()) {
     attachment->RemoveAudioTracksFromMediaElement(
         tracer, std::move(audio_track_ids_for_crossthread_removal_),
         true /* enqueue_change_event */);
   }
 
-  if (!video_track_ids_for_crossthread_removal_.empty()) {
+  if (!video_track_ids_for_crossthread_removal_.IsEmpty()) {
     attachment->RemoveVideoTracksFromMediaElement(
         tracer, std::move(video_track_ids_for_crossthread_removal_),
         true /* enqueue_change_event */);
@@ -1507,7 +1193,9 @@ bool SourceBuffer::InitializationSegmentReceived(
   DCHECK(source_);
   source_->AssertAttachmentsMutexHeldIfCrossThreadForDebugging();
 
-  auto [attachment, tracer] = source_->AttachmentAndTracer();
+  scoped_refptr<MediaSourceAttachmentSupplement> attachment;
+  MediaSourceTracer* tracer;
+  std::tie(attachment, tracer) = source_->AttachmentAndTracer();
   DCHECK(attachment);
   DCHECK_EQ(!tracer, !IsMainThread());
 
@@ -1515,10 +1203,21 @@ bool SourceBuffer::InitializationSegmentReceived(
 
   // Feature and execution-context conditioning may disable full population of
   // tracks in SourceBuffer (and maybe even in media element).
-  if (GetExecutionContext()->IsDedicatedWorkerGlobalScope()) {
+  bool finish_early = false;
+
+  if (!HTMLMediaElement::MediaTracksEnabledInternally()) {
+    // Don't populate SourceBuffer tracks. Let the media element figure out
+    // internally any tracks it wants to populate (it may do placeholders).
+    finish_early = true;
+  } else if (GetExecutionContext()->IsDedicatedWorkerGlobalScope()) {
+    finish_early = true;
     if (!first_initialization_segment_received_) {
       AddPlaceholderCrossThreadTracks(new_tracks, attachment);
+    }
+  }
 
+  if (finish_early) {
+    if (!first_initialization_segment_received_) {
       source_->SetSourceBufferActive(this, true);
       first_initialization_segment_received_ = true;
     }
@@ -1799,6 +1498,8 @@ void SourceBuffer::NotifyParseWarning(const ParseWarning warning) {
   switch (warning) {
     case WebSourceBufferClient::kKeyframeTimeGreaterThanDependant:
       // Report this problematic GOP structure to help inform follow-up work.
+      // Media engine also records RAPPOR for these, up to once per track, at
+      // Media.OriginUrl.MSE.KeyframeTimeGreaterThanDependant.
       // TODO(wolenetz): Use the data to scope additional work. See
       // https://crbug.com/739931.
       UseCounter::Count(
@@ -1807,6 +1508,8 @@ void SourceBuffer::NotifyParseWarning(const ParseWarning warning) {
       break;
     case WebSourceBufferClient::kMuxedSequenceMode:
       // Report this problematic API usage to help inform follow-up work.
+      // Media engine also records RAPPOR for these, up to once per
+      // SourceBuffer, at Media.OriginUrl.MSE.MuxedSequenceModeSourceBuffer.
       // TODO(wolenetz): Use the data to scope additional work. See
       // https://crbug.com/737757.
       UseCounter::Count(GetExecutionContext(),
@@ -1827,17 +1530,14 @@ void SourceBuffer::NotifyParseWarning(const ParseWarning warning) {
 
 bool SourceBuffer::HasPendingActivity() const {
   return updating_ || append_buffer_async_task_handle_.IsActive() ||
-         append_encoded_chunks_async_task_handle_.IsActive() ||
          remove_async_task_handle_.IsActive() ||
          (async_event_queue_ && async_event_queue_->HasPendingEvents());
 }
 
 void SourceBuffer::ContextDestroyed() {
   append_buffer_async_task_handle_.Cancel();
-
-  append_encoded_chunks_async_task_handle_.Cancel();
-  pending_chunks_to_buffer_.reset();
-  append_encoded_chunks_resolver_ = nullptr;
+  pending_append_data_.clear();
+  pending_append_data_offset_ = 0;
 
   remove_async_task_handle_.Cancel();
   pending_remove_start_ = -1;
@@ -1879,7 +1579,9 @@ bool SourceBuffer::PrepareAppend(double media_time,
   // 3. If the HTMLMediaElement.error attribute is not null, then throw an
   //    InvalidStateError exception and abort these steps.
   DCHECK(source_);
-  auto [attachment, tracer] = source_->AttachmentAndTracer();
+  scoped_refptr<MediaSourceAttachmentSupplement> attachment;
+  MediaSourceTracer* tracer;
+  std::tie(attachment, tracer) = source_->AttachmentAndTracer();
   DCHECK(attachment);
   DCHECK_EQ(!tracer, !IsMainThread());
   if (attachment->GetElementError(tracer)) {
@@ -1971,7 +1673,7 @@ void SourceBuffer::AppendBufferInternal(const unsigned char* data,
   // attachment is usable and underlying demuxer is protected from destruction
   // (applicable especially for MSE-in-Worker case). Note, we must have
   // |source_| and |source_| must have an attachment because !IsRemoved().
-  if (!source_->RunUnlessElementGoneOrClosingUs(WTF::BindOnce(
+  if (!source_->RunUnlessElementGoneOrClosingUs(WTF::Bind(
           &SourceBuffer::AppendBufferInternal_Locked, WrapPersistent(this),
           WTF::Unretained(data), size, WTF::Unretained(&exception_state)))) {
     // TODO(https://crbug.com/878133): Determine in specification what the
@@ -2001,23 +1703,11 @@ void SourceBuffer::AppendBufferInternal_Locked(
   TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("media", "prepareAsyncAppend",
                                     TRACE_ID_LOCAL(this));
 
-  // `data` can be nullptr iff `size` is 0. For example,
-  // sourceBuffer.appendBuffer(new ArrayBuffer()) results in this situation.
+  // 2. Add data to the end of the input buffer.
   DCHECK(data || size == 0);
-
-  // 2. Add data to the end of the input buffer. Zero-length appends result in
-  // just a single async segment parser loop run later, with nothing added to
-  // the parser's input buffer here synchronously.
-  if (data) {
-    if (!web_source_buffer_->AppendToParseBuffer(data, size)) {
-      MediaSource::LogAndThrowDOMException(
-          *exception_state, DOMExceptionCode::kQuotaExceededError,
-          "Unable to allocate space required to buffer appended media.");
-      TRACE_EVENT_NESTABLE_ASYNC_END0(
-          "media", "SourceBuffer::prepareAsyncAppend", TRACE_ID_LOCAL(this));
-      return;
-    }
-  }
+  if (data)
+    pending_append_data_.Append(data, base::checked_cast<wtf_size_t>(size));
+  pending_append_data_offset_ = 0;
 
   // 3. Set the updating attribute to true.
   updating_ = true;
@@ -2030,8 +1720,7 @@ void SourceBuffer::AppendBufferInternal_Locked(
   append_buffer_async_task_handle_ = PostCancellableTask(
       *GetExecutionContext()->GetTaskRunner(TaskType::kMediaElementEvent),
       FROM_HERE,
-      WTF::BindOnce(&SourceBuffer::AppendBufferAsyncPart,
-                    WrapPersistent(this)));
+      WTF::Bind(&SourceBuffer::AppendBufferAsyncPart, WrapPersistent(this)));
 
   TRACE_EVENT_NESTABLE_ASYNC_END0("media", "prepareAsyncAppend",
                                   TRACE_ID_LOCAL(this));
@@ -2039,29 +1728,12 @@ void SourceBuffer::AppendBufferInternal_Locked(
                                     "type", "initialDelay");
 }
 
-void SourceBuffer::AppendEncodedChunksAsyncPart() {
-  // Do the async append operation only if attachment is usable and underlying
-  // demuxer is protected from destruction (applicable especially for
-  // MSE-in-Worker case).
-  DCHECK(!IsRemoved());  // So must have |source_| and it must have attachment.
-  if (!source_->RunUnlessElementGoneOrClosingUs(
-          WTF::BindOnce(&SourceBuffer::AppendEncodedChunksAsyncPart_Locked,
-                        WrapPersistent(this)))) {
-    // TODO(crbug.com/878133): Determine in specification what the specific,
-    // app-visible, behavior should be for this case. In this implementation,
-    // the safest thing to do is nothing here now. See more verbose reason in
-    // similar AppendBufferAsyncPart() implementation.
-    DVLOG(1) << __func__ << " this=" << this
-             << ": Worker MediaSource attachment is closing";
-  }
-}
-
 void SourceBuffer::AppendBufferAsyncPart() {
   // Do the async append operation only if attachment is usable and underlying
   // demuxer is protected from destruction (applicable especially for
   // MSE-in-Worker case).
   DCHECK(!IsRemoved());  // So must have |source_| and it must have attachment.
-  if (!source_->RunUnlessElementGoneOrClosingUs(WTF::BindOnce(
+  if (!source_->RunUnlessElementGoneOrClosingUs(WTF::Bind(
           &SourceBuffer::AppendBufferAsyncPart_Locked, WrapPersistent(this)))) {
     // TODO(https://crbug.com/878133): Determine in specification what the
     // specific, app-visible, behavior should be for this case. In this
@@ -2078,57 +1750,6 @@ void SourceBuffer::AppendBufferAsyncPart() {
   }
 }
 
-void SourceBuffer::AppendEncodedChunksAsyncPart_Locked(
-    MediaSourceAttachmentSupplement::ExclusiveKey pass_key) {
-  DCHECK(source_);
-  source_->AssertAttachmentsMutexHeldIfCrossThreadForDebugging();
-  DCHECK(updating_);
-  DCHECK(append_encoded_chunks_resolver_);
-  DCHECK(pending_chunks_to_buffer_);
-
-  // Run the analogue to the segment parser loop.
-  // TODO(crbug.com/1144908): Consider buffering |pending_chunks_to_buffer_| in
-  // multiple async iterations if it contains many buffers. It is unclear if
-  // this is necessary when buffering encoded chunks.
-  TRACE_EVENT_NESTABLE_ASYNC_END0("media", "delay", TRACE_ID_LOCAL(this));
-  TRACE_EVENT_NESTABLE_ASYNC_BEGIN1("media", "appending", TRACE_ID_LOCAL(this),
-                                    "chunkCount",
-                                    pending_chunks_to_buffer_->size());
-
-  bool append_success = web_source_buffer_->AppendChunks(
-      std::move(pending_chunks_to_buffer_), &timestamp_offset_);
-
-  if (!append_success) {
-    // Note that AppendError() calls NotifyDurationChanged, so a cross-thread
-    // attachment will send updated buffered and seekable information to the
-    // main thread here, too.
-    AppendError(pass_key);
-    append_encoded_chunks_resolver_->Reject(V8ThrowDOMException::CreateOrDie(
-        append_encoded_chunks_resolver_->GetScriptState()->GetIsolate(),
-        DOMExceptionCode::kSyntaxError,
-        "Parsing or frame processing error while buffering encoded chunks."));
-    append_encoded_chunks_resolver_ = nullptr;
-  } else {
-    updating_ = false;
-
-    source_->SendUpdatedInfoToMainThreadCache();
-
-    // Don't schedule 'update' or 'updateend' for this promisified async
-    // method's completion. Promise resolution/rejection will signal same,
-    // faster.
-    append_encoded_chunks_resolver_->Resolve();
-    append_encoded_chunks_resolver_ = nullptr;
-  }
-
-  TRACE_EVENT_NESTABLE_ASYNC_END0("media", "appending", TRACE_ID_LOCAL(this));
-  TRACE_EVENT_NESTABLE_ASYNC_END0("media", "SourceBuffer::appendEncodedChunks",
-                                  TRACE_ID_LOCAL(this));
-
-  DVLOG(3) << __func__ << " done. this=" << this
-           << " media_time=" << GetMediaTime() << " buffered="
-           << WebTimeRangesToString(web_source_buffer_->Buffered());
-}
-
 void SourceBuffer::AppendBufferAsyncPart_Locked(
     MediaSourceAttachmentSupplement::ExclusiveKey pass_key) {
   DCHECK(source_);
@@ -2140,50 +1761,69 @@ void SourceBuffer::AppendBufferAsyncPart_Locked(
 
   // 1. Run the segment parser loop algorithm.
   // Step 2 doesn't apply since we run Step 1 synchronously here.
+  DCHECK_GE(pending_append_data_.size(), pending_append_data_offset_);
+  wtf_size_t append_size =
+      pending_append_data_.size() - pending_append_data_offset_;
+
+  // Impose an arbitrary max size for a single append() call so that an append
+  // doesn't block the renderer event loop very long. This value was selected
+  // by looking at YouTube SourceBuffer usage across a variety of bitrates.
+  // This value allows relatively large appends while keeping append() call
+  // duration in the  ~5-15ms range. Note that even in MSE-in-Worker case, we
+  // retain this behavior because some synchronous operations done by the main
+  // thread media element on our attachment block until we are finished and have
+  // exited the attachment's RunExclusively() callback scope.
+  const wtf_size_t kMaxAppendSize = 128 * 1024;
+  if (append_size > kMaxAppendSize)
+    append_size = kMaxAppendSize;
 
   TRACE_EVENT_NESTABLE_ASYNC_END0("media", "delay", TRACE_ID_LOCAL(this));
-  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("media", "appending", TRACE_ID_LOCAL(this));
-  // The segment parser loop may not consume all of the pending appended data,
-  // and lets us know via a distinct ParseStatus result. We parse incrementally
-  // to avoid blocking the renderer event loop for too long. Note that even in
-  // MSE-in-Worker case, we retain this behavior because some synchronous
-  // operations done by the main thread media element on our attachment block
-  // until we are finished and have exited the attachment's RunExclusively()
-  // callback scope.
-  media::StreamParser::ParseStatus parse_result =
-      web_source_buffer_->RunSegmentParserLoop(&timestamp_offset_);
-  switch (parse_result) {
-    case media::StreamParser::ParseStatus::kFailed:
-      // Note that AppendError() calls NotifyDurationChanged, so a cross-thread
-      // attachment will send updated buffered and seekable information to the
-      // main thread here, too.
-      AppendError(pass_key);
-      break;
-    case media::StreamParser::ParseStatus::kSuccessHasMoreData:
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN1("media", "appending", TRACE_ID_LOCAL(this),
+                                    "appendSize", append_size);
+
+  // |zero| is used for 0 byte appends so we always have a valid pointer.
+  // We need to convey all appends, even 0 byte ones to |m_webSourceBuffer|
+  // so that it can clear its end of stream state if necessary.
+  unsigned char zero = 0;
+  unsigned char* append_data = &zero;
+  if (append_size)
+    append_data = pending_append_data_.data() + pending_append_data_offset_;
+
+  bool append_success =
+      web_source_buffer_->Append(append_data, append_size, &timestamp_offset_);
+
+  if (!append_success) {
+    pending_append_data_.clear();
+    pending_append_data_offset_ = 0;
+    AppendError(pass_key);
+  } else {
+    pending_append_data_offset_ += append_size;
+
+    if (pending_append_data_offset_ < pending_append_data_.size()) {
       append_buffer_async_task_handle_ = PostCancellableTask(
           *GetExecutionContext()->GetTaskRunner(TaskType::kMediaElementEvent),
           FROM_HERE,
-          WTF::BindOnce(&SourceBuffer::AppendBufferAsyncPart,
-                        WrapPersistent(this)));
+          WTF::Bind(&SourceBuffer::AppendBufferAsyncPart,
+                    WrapPersistent(this)));
       TRACE_EVENT_NESTABLE_ASYNC_END0("media", "appending",
                                       TRACE_ID_LOCAL(this));
       TRACE_EVENT_NESTABLE_ASYNC_BEGIN1("media", "delay", TRACE_ID_LOCAL(this),
                                         "type", "nextPieceDelay");
       return;
-    case media::StreamParser::ParseStatus::kSuccess:
-      // 3. Set the updating attribute to false.
-      updating_ = false;
+    }
 
-      source_->SendUpdatedInfoToMainThreadCache();
+    // 3. Set the updating attribute to false.
+    updating_ = false;
+    pending_append_data_.clear();
+    pending_append_data_offset_ = 0;
 
-      // 4. Queue a task to fire a simple event named update at this
-      //    SourceBuffer object.
-      ScheduleEvent(event_type_names::kUpdate);
+    // 4. Queue a task to fire a simple event named update at this SourceBuffer
+    //    object.
+    ScheduleEvent(event_type_names::kUpdate);
 
-      // 5. Queue a task to fire a simple event named updateend at this
-      //    SourceBuffer object.
-      ScheduleEvent(event_type_names::kUpdateend);
-      break;
+    // 5. Queue a task to fire a simple event named updateend at this
+    //    SourceBuffer object.
+    ScheduleEvent(event_type_names::kUpdateend);
   }
 
   TRACE_EVENT_NESTABLE_ASYNC_END0("media", "appending", TRACE_ID_LOCAL(this));
@@ -2201,7 +1841,7 @@ void SourceBuffer::RemoveAsyncPart() {
   // demuxer is protected from destruction (applicable especially for
   // MSE-in-Worker case).
   DCHECK(!IsRemoved());  // So must have |source_| and it must have attachment.
-  if (!source_->RunUnlessElementGoneOrClosingUs(WTF::BindOnce(
+  if (!source_->RunUnlessElementGoneOrClosingUs(WTF::Bind(
           &SourceBuffer::RemoveAsyncPart_Locked, WrapPersistent(this)))) {
     // TODO(https://crbug.com/878133): Determine in specification what the
     // specific, app-visible, behavior should be for this case. This
@@ -2232,8 +1872,6 @@ void SourceBuffer::RemoveAsyncPart_Locked(
   pending_remove_start_ = -1;
   pending_remove_end_ = -1;
 
-  source_->SendUpdatedInfoToMainThreadCache();
-
   // 11. Queue a task to fire a simple event named update at this SourceBuffer
   //     object.
   ScheduleEvent(event_type_names::kUpdate);
@@ -2258,18 +1896,13 @@ void SourceBuffer::AppendError(
   // 2. Set the updating attribute to false.
   updating_ = false;
 
-  // Only schedule 'error' and 'updateend' here for the non-promisified regular
-  // appendBuffer asynchronous operation error. The promisified
-  // appendEncodedChunks rejection will be handled by caller.
-  if (!append_encoded_chunks_resolver_) {
-    // 3. Queue a task to fire a simple event named error at this SourceBuffer
-    //    object.
-    ScheduleEvent(event_type_names::kError);
+  // 3. Queue a task to fire a simple event named error at this SourceBuffer
+  //    object.
+  ScheduleEvent(event_type_names::kError);
 
-    // 4. Queue a task to fire a simple event named updateend at this
-    //    SourceBuffer object.
-    ScheduleEvent(event_type_names::kUpdateend);
-  }
+  // 4. Queue a task to fire a simple event named updateend at this SourceBuffer
+  //    object.
+  ScheduleEvent(event_type_names::kUpdateend);
 
   // 5. If decode error is true, then run the end of stream algorithm with the
   // error parameter set to "decode".
@@ -2281,7 +1914,6 @@ void SourceBuffer::Trace(Visitor* visitor) const {
   visitor->Trace(source_);
   visitor->Trace(track_defaults_);
   visitor->Trace(async_event_queue_);
-  visitor->Trace(append_encoded_chunks_resolver_);
   visitor->Trace(audio_tracks_);
   visitor->Trace(video_tracks_);
   EventTargetWithInlineData::Trace(visitor);

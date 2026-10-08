@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,32 +6,27 @@ package org.chromium.chrome.browser.keyboard_accessory.bar_component;
 
 import static org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryIPHUtils.hasShownAnyAutofillIphBefore;
 import static org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryIPHUtils.showHelpBubble;
-import static org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryProperties.HAS_SUGGESTIONS;
 import static org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryProperties.KEYBOARD_TOGGLE_VISIBLE;
 import static org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryProperties.OBFUSCATED_CHILD_AT_CALLBACK;
 import static org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryProperties.SHEET_TITLE;
 import static org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryProperties.SHOW_KEYBOARD_CALLBACK;
 import static org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryProperties.SHOW_SWIPING_IPH;
 
-import android.content.res.Resources;
-import android.graphics.Bitmap;
-import android.graphics.drawable.BitmapDrawable;
 import android.view.View;
 import android.view.ViewGroup;
 
-import org.chromium.base.TraceEvent;
-import org.chromium.chrome.browser.autofill.AutofillUiUtils;
-import org.chromium.chrome.browser.autofill.PersonalDataManager;
+import com.google.android.material.tabs.TabLayout;
+
 import org.chromium.chrome.browser.keyboard_accessory.R;
 import org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryProperties.AutofillBarItem;
 import org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryProperties.BarItem;
-import org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryProperties.SheetOpenerBarItem;
+import org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryProperties.TabLayoutBarItem;
 import org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryViewBinder.BarItemViewHolder;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData;
-import org.chromium.components.browser_ui.widget.chips.ChipView;
 import org.chromium.components.feature_engagement.FeatureConstants;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
+import org.chromium.ui.widget.ChipView;
 import org.chromium.ui.widget.RectProvider;
 
 /**
@@ -44,7 +39,7 @@ class KeyboardAccessoryModernViewBinder {
             case BarItem.Type.SUGGESTION:
                 return new BarItemChipViewHolder(parent);
             case BarItem.Type.TAB_LAYOUT:
-                return new SheetOpenerViewHolder(parent);
+                return new TabItemViewHolder(parent);
             case BarItem.Type.ACTION_BUTTON:
                 return new KeyboardAccessoryViewBinder.BarItemTextViewHolder(
                         parent, R.layout.keyboard_accessory_action_modern);
@@ -62,88 +57,42 @@ class KeyboardAccessoryModernViewBinder {
 
         @Override
         protected void bind(AutofillBarItem item, ChipView chipView) {
-            TraceEvent.begin("BarItemChipViewHolder#bind");
-            int iconId = item.getSuggestion().getIconId();
             if (item.getFeatureForIPH() != null) {
-                if (item.getFeatureForIPH().equals(
-                            FeatureConstants.KEYBOARD_ACCESSORY_PAYMENT_OFFER_FEATURE)) {
-                    if (iconId != 0) {
-                        showHelpBubble(item.getFeatureForIPH(), chipView.getStartIconViewRect(),
-                                mRootViewForIPH, item.getSuggestion().getItemTag());
-                    } else {
-                        showHelpBubble(item.getFeatureForIPH(), chipView, mRootViewForIPH,
-                                item.getSuggestion().getItemTag());
-                    }
-                } else {
-                    showHelpBubble(item.getFeatureForIPH(), chipView, mRootViewForIPH, null);
-                }
+                showHelpBubble(item.getFeatureForIPH(), chipView, mRootViewForIPH);
             }
             chipView.getPrimaryTextView().setText(item.getSuggestion().getLabel());
-            if (item.getSuggestion().getItemTag() != null
-                    && !item.getSuggestion().getItemTag().isEmpty()) {
-                chipView.getPrimaryTextView().setContentDescription(
-                        item.getSuggestion().getLabel() + " " + item.getSuggestion().getItemTag());
-            } else {
-                chipView.getPrimaryTextView().setContentDescription(
-                        item.getSuggestion().getLabel());
-            }
             chipView.getSecondaryTextView().setText(item.getSuggestion().getSublabel());
             chipView.getSecondaryTextView().setVisibility(
                     item.getSuggestion().getSublabel().isEmpty() ? View.GONE : View.VISIBLE);
+            int iconId = item.getSuggestion().getIconId();
+            chipView.setIcon(iconId != 0 ? iconId : ChipView.INVALID_ICON_ID, false);
             KeyboardAccessoryData.Action action = item.getAction();
             assert action != null : "Tried to bind item without action. Chose a wrong ViewHolder?";
             chipView.setOnClickListener(view -> {
                 item.maybeEmitEventForIPH();
                 action.getCallback().onResult(action);
             });
-            if (action.getLongPressCallback() != null) {
-                chipView.setOnLongClickListener(view -> {
-                    action.getLongPressCallback().onResult(action);
-                    return true; // Click event consumed!
-                });
-            }
-            // If the custom icon url is present, fetch the bitmap from the PersonalDataManager. In
-            // the event that the bitmap is not present in the PersonalDataManager, fall back to the
-            // default `iconId`.
-            Bitmap customIconBitmap = null;
-            Resources res = chipView.getContext().getResources();
-            if (item.getSuggestion().getCustomIconUrl() != null
-                    && item.getSuggestion().getCustomIconUrl().isValid()) {
-                customIconBitmap =
-                        PersonalDataManager.getInstance().getCustomImageForAutofillSuggestionIfAvailable(
-                                AutofillUiUtils.getCCIconURLWithParams(
-                                        item.getSuggestion().getCustomIconUrl(),
-                                        res.getDimensionPixelSize(
-                                                R.dimen.keyboard_accessory_bar_item_cc_icon_width),
-                                        res.getDimensionPixelSize(R.dimen.chip_icon_size)));
-            }
-            if (customIconBitmap != null) {
-                chipView.setIcon(new BitmapDrawable(res, customIconBitmap), false);
-            } else {
-                chipView.setIcon(iconId != 0 ? iconId : ChipView.INVALID_ICON_ID, false);
-            }
-            TraceEvent.end("BarItemChipViewHolder#bind");
         }
     }
 
-    static class SheetOpenerViewHolder extends BarItemViewHolder<SheetOpenerBarItem, View> {
-        private SheetOpenerBarItem mSheetOpenerItem;
-        private View mView;
+    static class TabItemViewHolder extends BarItemViewHolder<TabLayoutBarItem, TabLayout> {
+        private TabLayoutBarItem mTabItem;
+        private TabLayout mTabLayout;
 
-        SheetOpenerViewHolder(ViewGroup parent) {
-            super(parent, R.layout.keyboard_accessory_buttons);
+        TabItemViewHolder(ViewGroup parent) {
+            super(parent, R.layout.keyboard_accessory_tabs);
         }
 
         @Override
-        protected void bind(SheetOpenerBarItem sheetOpenerItem, View view) {
-            mSheetOpenerItem = sheetOpenerItem;
-            mView = view;
-            sheetOpenerItem.notifyAboutViewCreation(view);
+        protected void bind(TabLayoutBarItem tabItem, TabLayout tabLayout) {
+            mTabItem = tabItem;
+            mTabLayout = tabLayout;
+            tabItem.notifyAboutViewCreation(tabLayout);
         }
 
         @Override
         protected void recycle() {
-            mSheetOpenerItem.notifyAboutViewDestruction(mView);
+            mTabItem.notifyAboutViewDestruction(mTabLayout);
         }
     }
 
@@ -166,8 +115,6 @@ class KeyboardAccessoryModernViewBinder {
                 showHelpBubble(FeatureConstants.KEYBOARD_ACCESSORY_BAR_SWIPING_FEATURE,
                         swipingIphRectProvider, modernView.mBarItemsView);
             }
-        } else if (propertyKey == HAS_SUGGESTIONS) {
-            modernView.setAccessibilityMessage(model.get(HAS_SUGGESTIONS));
         } else {
             assert wasBound : "Every possible property update needs to be handled!";
         }

@@ -1,17 +1,16 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/protocol/video_frame_pump.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "remoting/base/auto_thread.h"
 #include "remoting/base/auto_thread_task_runner.h"
@@ -19,7 +18,6 @@
 #include "remoting/codec/video_encoder_verbatim.h"
 #include "remoting/proto/control.pb.h"
 #include "remoting/proto/video.pb.h"
-#include "remoting/protocol/desktop_capturer.h"
 #include "remoting/protocol/fake_desktop_capturer.h"
 #include "remoting/protocol/protocol_mock_objects.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -33,7 +31,8 @@ using ::testing::Expectation;
 using ::testing::InvokeWithoutArgs;
 using ::testing::Return;
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 
@@ -79,10 +78,6 @@ class ThreadCheckVideoEncoder : public VideoEncoderVerbatim {
       scoped_refptr<base::SingleThreadTaskRunner> task_runner)
       : task_runner_(task_runner) {
   }
-
-  ThreadCheckVideoEncoder(const ThreadCheckVideoEncoder&) = delete;
-  ThreadCheckVideoEncoder& operator=(const ThreadCheckVideoEncoder&) = delete;
-
   ~ThreadCheckVideoEncoder() override {
     EXPECT_TRUE(task_runner_->BelongsToCurrentThread());
   }
@@ -94,18 +89,15 @@ class ThreadCheckVideoEncoder : public VideoEncoderVerbatim {
 
  private:
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(ThreadCheckVideoEncoder);
 };
 
-class ThreadCheckDesktopCapturer : public DesktopCapturer {
+class ThreadCheckDesktopCapturer : public webrtc::DesktopCapturer {
  public:
   ThreadCheckDesktopCapturer(
       scoped_refptr<base::SingleThreadTaskRunner> task_runner)
       : task_runner_(task_runner), callback_(nullptr) {}
-
-  ThreadCheckDesktopCapturer(const ThreadCheckDesktopCapturer&) = delete;
-  ThreadCheckDesktopCapturer& operator=(const ThreadCheckDesktopCapturer&) =
-      delete;
-
   ~ThreadCheckDesktopCapturer() override {
     EXPECT_TRUE(task_runner_->BelongsToCurrentThread());
   }
@@ -141,7 +133,9 @@ class ThreadCheckDesktopCapturer : public DesktopCapturer {
 
  private:
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
-  raw_ptr<webrtc::DesktopCapturer::Callback> callback_;
+  webrtc::DesktopCapturer::Callback* callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(ThreadCheckDesktopCapturer);
 };
 
 class VideoFramePumpTest : public testing::Test {
@@ -196,9 +190,8 @@ TEST_F(VideoFramePumpTest, StartAndStop) {
       .RetiresOnSaturation();
 
   // Start video frame capture.
-  pump_ =
-      std::make_unique<VideoFramePump>(encode_task_runner_, std::move(capturer),
-                                       std::move(encoder), &video_stub_);
+  pump_.reset(new VideoFramePump(encode_task_runner_, std::move(capturer),
+                                 std::move(encoder), &video_stub_));
 
   // Run MessageLoop until the first frame is received.
   run_loop.Run();
@@ -224,9 +217,8 @@ TEST_F(VideoFramePumpTest, NullFrame) {
       .RetiresOnSaturation();
 
   // Start video frame capture.
-  pump_ =
-      std::make_unique<VideoFramePump>(encode_task_runner_, std::move(capturer),
-                                       std::move(encoder), &video_stub_);
+  pump_.reset(new VideoFramePump(encode_task_runner_, std::move(capturer),
+                                 std::move(encoder), &video_stub_));
 
   // Run MessageLoop until the first frame is received..
   run_loop.Run();
@@ -253,12 +245,12 @@ TEST_F(VideoFramePumpTest, UnchangedFrame) {
       .RetiresOnSaturation();
 
   // Start video frame capture.
-  pump_ =
-      std::make_unique<VideoFramePump>(encode_task_runner_, std::move(capturer),
-                                       std::move(encoder), &video_stub_);
+  pump_.reset(new VideoFramePump(encode_task_runner_, std::move(capturer),
+                                 std::move(encoder), &video_stub_));
 
   // Run MessageLoop until the first frame is received.
   run_loop.Run();
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

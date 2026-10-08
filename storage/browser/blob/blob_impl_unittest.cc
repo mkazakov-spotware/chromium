@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
+#include "base/task/post_task.h"
 #include "base/test/task_environment.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -39,7 +39,7 @@ class DataPipeReader : public mojo::DataPipeDrainer::Client {
   void OnDataComplete() override { std::move(done_callback_).Run(); }
 
  private:
-  raw_ptr<std::string> data_out_;
+  std::string* data_out_;
   base::OnceClosure done_callback_;
 };
 
@@ -160,14 +160,10 @@ TEST_F(BlobImplTest, ReadAll) {
   MockBlobReaderClient client;
   mojo::Receiver<blink::mojom::BlobReaderClient> client_receiver(&client);
 
-  mojo::ScopedDataPipeProducerHandle producer_handle;
-  mojo::ScopedDataPipeConsumerHandle consumer_handle;
-  ASSERT_EQ(mojo::CreateDataPipe(nullptr, producer_handle, consumer_handle),
-            MOJO_RESULT_OK);
-
-  remote->ReadAll(std::move(producer_handle),
+  mojo::DataPipe pipe;
+  remote->ReadAll(std::move(pipe.producer_handle),
                   client_receiver.BindNewPipeAndPassRemote());
-  std::string received = ReadDataPipe(std::move(consumer_handle));
+  std::string received = ReadDataPipe(std::move(pipe.consumer_handle));
   EXPECT_EQ(kContents, received);
 
   client_receiver.FlushForTesting();
@@ -188,12 +184,9 @@ TEST_F(BlobImplTest, ReadAll_WithoutClient) {
   mojo::Remote<blink::mojom::Blob> remote;
   BlobImpl::Create(std::move(handle), remote.BindNewPipeAndPassReceiver());
 
-  mojo::ScopedDataPipeProducerHandle producer_handle;
-  mojo::ScopedDataPipeConsumerHandle consumer_handle;
-  ASSERT_EQ(mojo::CreateDataPipe(nullptr, producer_handle, consumer_handle),
-            MOJO_RESULT_OK);
-  remote->ReadAll(std::move(producer_handle), mojo::NullRemote());
-  std::string received = ReadDataPipe(std::move(consumer_handle));
+  mojo::DataPipe pipe;
+  remote->ReadAll(std::move(pipe.producer_handle), mojo::NullRemote());
+  std::string received = ReadDataPipe(std::move(pipe.consumer_handle));
   EXPECT_EQ(kContents, received);
 }
 
@@ -208,14 +201,11 @@ TEST_F(BlobImplTest, ReadAll_BrokenBlob) {
   MockBlobReaderClient client;
   mojo::Receiver<blink::mojom::BlobReaderClient> client_receiver(&client);
 
-  mojo::ScopedDataPipeProducerHandle producer_handle;
-  mojo::ScopedDataPipeConsumerHandle consumer_handle;
-  ASSERT_EQ(mojo::CreateDataPipe(nullptr, producer_handle, consumer_handle),
-            MOJO_RESULT_OK);
-  remote->ReadAll(std::move(producer_handle),
+  mojo::DataPipe pipe;
+  remote->ReadAll(std::move(pipe.producer_handle),
                   client_receiver.BindNewPipeAndPassRemote());
 
-  std::string received = ReadDataPipe(std::move(consumer_handle));
+  std::string received = ReadDataPipe(std::move(pipe.consumer_handle));
   EXPECT_EQ("", received);
 
   client_receiver.FlushForTesting();
@@ -236,14 +226,11 @@ TEST_F(BlobImplTest, ReadRange) {
   MockBlobReaderClient client;
   mojo::Receiver<blink::mojom::BlobReaderClient> client_receiver(&client);
 
-  mojo::ScopedDataPipeProducerHandle producer_handle;
-  mojo::ScopedDataPipeConsumerHandle consumer_handle;
-  ASSERT_EQ(mojo::CreateDataPipe(nullptr, producer_handle, consumer_handle),
-            MOJO_RESULT_OK);
-  remote->ReadRange(2, 5, std::move(producer_handle),
+  mojo::DataPipe pipe;
+  remote->ReadRange(2, 5, std::move(pipe.producer_handle),
                     client_receiver.BindNewPipeAndPassRemote());
 
-  std::string received = ReadDataPipe(std::move(consumer_handle));
+  std::string received = ReadDataPipe(std::move(pipe.consumer_handle));
   EXPECT_EQ(kContents.substr(2, 5), received);
 
   client_receiver.FlushForTesting();
@@ -264,13 +251,10 @@ TEST_F(BlobImplTest, ReadRange_WithoutClient) {
   mojo::Remote<blink::mojom::Blob> remote;
   BlobImpl::Create(std::move(handle), remote.BindNewPipeAndPassReceiver());
 
-  mojo::ScopedDataPipeProducerHandle producer_handle;
-  mojo::ScopedDataPipeConsumerHandle consumer_handle;
-  ASSERT_EQ(mojo::CreateDataPipe(nullptr, producer_handle, consumer_handle),
-            MOJO_RESULT_OK);
-  remote->ReadRange(2, 5, std::move(producer_handle), mojo::NullRemote());
+  mojo::DataPipe pipe;
+  remote->ReadRange(2, 5, std::move(pipe.producer_handle), mojo::NullRemote());
 
-  std::string received = ReadDataPipe(std::move(consumer_handle));
+  std::string received = ReadDataPipe(std::move(pipe.consumer_handle));
   EXPECT_EQ(kContents.substr(2, 5), received);
 }
 
@@ -285,14 +269,11 @@ TEST_F(BlobImplTest, ReadRange_TooLargeLength) {
   MockBlobReaderClient client;
   mojo::Receiver<blink::mojom::BlobReaderClient> client_receiver(&client);
 
-  mojo::ScopedDataPipeProducerHandle producer_handle;
-  mojo::ScopedDataPipeConsumerHandle consumer_handle;
-  ASSERT_EQ(mojo::CreateDataPipe(nullptr, producer_handle, consumer_handle),
-            MOJO_RESULT_OK);
-  remote->ReadRange(2, 15, std::move(producer_handle),
+  mojo::DataPipe pipe;
+  remote->ReadRange(2, 15, std::move(pipe.producer_handle),
                     client_receiver.BindNewPipeAndPassRemote());
 
-  std::string received = ReadDataPipe(std::move(consumer_handle));
+  std::string received = ReadDataPipe(std::move(pipe.consumer_handle));
   EXPECT_EQ(kContents.substr(2, 15), received);
 
   client_receiver.FlushForTesting();
@@ -316,15 +297,12 @@ TEST_F(BlobImplTest, ReadRange_UnboundedLength) {
   MockBlobReaderClient client;
   mojo::Receiver<blink::mojom::BlobReaderClient> client_receiver(&client);
 
-  mojo::ScopedDataPipeProducerHandle producer_handle;
-  mojo::ScopedDataPipeConsumerHandle consumer_handle;
-  ASSERT_EQ(mojo::CreateDataPipe(nullptr, producer_handle, consumer_handle),
-            MOJO_RESULT_OK);
+  mojo::DataPipe pipe;
   remote->ReadRange(2, std::numeric_limits<uint64_t>::max(),
-                    std::move(producer_handle),
+                    std::move(pipe.producer_handle),
                     client_receiver.BindNewPipeAndPassRemote());
 
-  std::string received = ReadDataPipe(std::move(consumer_handle));
+  std::string received = ReadDataPipe(std::move(pipe.consumer_handle));
   EXPECT_EQ(kContents.substr(2, kContents.size()), received);
 
   client_receiver.FlushForTesting();
@@ -348,14 +326,11 @@ TEST_F(BlobImplTest, ReadRange_BrokenBlob) {
   MockBlobReaderClient client;
   mojo::Receiver<blink::mojom::BlobReaderClient> client_receiver(&client);
 
-  mojo::ScopedDataPipeProducerHandle producer_handle;
-  mojo::ScopedDataPipeConsumerHandle consumer_handle;
-  ASSERT_EQ(mojo::CreateDataPipe(nullptr, producer_handle, consumer_handle),
-            MOJO_RESULT_OK);
-  remote->ReadRange(2, 5, std::move(producer_handle),
+  mojo::DataPipe pipe;
+  remote->ReadRange(2, 5, std::move(pipe.producer_handle),
                     client_receiver.BindNewPipeAndPassRemote());
 
-  std::string received = ReadDataPipe(std::move(consumer_handle));
+  std::string received = ReadDataPipe(std::move(pipe.consumer_handle));
   EXPECT_EQ("", received);
 
   client_receiver.FlushForTesting();
@@ -377,14 +352,11 @@ TEST_F(BlobImplTest, ReadRange_InvalidRange) {
   mojo::Receiver<blink::mojom::BlobReaderClient> client_receiver(&client);
 
   base::RunLoop loop;
-  mojo::ScopedDataPipeProducerHandle producer_handle;
-  mojo::ScopedDataPipeConsumerHandle consumer_handle;
-  ASSERT_EQ(mojo::CreateDataPipe(nullptr, producer_handle, consumer_handle),
-            MOJO_RESULT_OK);
-  remote->ReadRange(15, 4, std::move(producer_handle),
+  mojo::DataPipe pipe;
+  remote->ReadRange(15, 4, std::move(pipe.producer_handle),
                     client_receiver.BindNewPipeAndPassRemote());
 
-  std::string received = ReadDataPipe(std::move(consumer_handle));
+  std::string received = ReadDataPipe(std::move(pipe.consumer_handle));
   EXPECT_EQ("", received);
 
   client_receiver.FlushForTesting();

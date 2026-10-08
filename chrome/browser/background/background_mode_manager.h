@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,10 @@
 
 #include "base/callback_forward.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/scoped_observer.h"
+#include "base/sequenced_task_runner.h"
 #include "chrome/browser/background/background_application_list_model.h"
 #include "chrome/browser/extensions/forced_extensions/force_installed_tracker.h"
 #include "chrome/browser/profiles/profile.h"
@@ -27,13 +27,14 @@
 #include "components/keep_alive_registry/scoped_keep_alive.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/prefs/pref_change_registrar.h"
+#include "content/public/browser/notification_observer.h"
+#include "content/public/browser/notification_registrar.h"
 #include "extensions/common/extension_id.h"
 
 class BackgroundModeOptimizer;
 class Browser;
 class PrefRegistrySimple;
 class Profile;
-class ScopedProfileKeepAlive;
 class StatusIcon;
 class StatusTray;
 
@@ -61,28 +62,19 @@ using CommandIdHandlerVector = std::vector<base::RepeatingClosure>;
 // Additionally, when in background mode, Chrome will launch on OS login with
 // no open windows to allow apps with the "background" permission to run in the
 // background.
-class BackgroundModeManager : public BrowserListObserver,
+class BackgroundModeManager : public content::NotificationObserver,
+                              public BrowserListObserver,
                               public BackgroundApplicationListModel::Observer,
                               public ProfileAttributesStorage::Observer,
                               public StatusIconMenuModel::Delegate {
  public:
   BackgroundModeManager(const base::CommandLine& command_line,
                         ProfileAttributesStorage* profile_storage);
-
-  BackgroundModeManager(const BackgroundModeManager&) = delete;
-  BackgroundModeManager& operator=(const BackgroundModeManager&) = delete;
-
   ~BackgroundModeManager() override;
 
   static void RegisterPrefs(PrefRegistrySimple* registry);
 
-  // Adds an entry for |profile| to |background_mode_data_|, and starts tracking
-  // events for this profile.
-  void RegisterProfile(Profile* profile);
-
-  // Removes the entry for |profile| from |background_mode_data_|, if present.
-  // Returns true if a removal was performed.
-  bool UnregisterProfile(Profile* profile);
+  virtual void RegisterProfile(Profile* profile);
 
   static void LaunchBackgroundApplication(
       Profile* profile,
@@ -207,11 +199,11 @@ class BackgroundModeManager : public BrowserListObserver,
 
     // Set the name associated with this background mode data for displaying in
     // the status tray.
-    void SetName(const std::u16string& new_profile_name);
+    void SetName(const base::string16& new_profile_name);
 
     // The name associated with this background mode data. This should match
     // the name in the ProfileAttributesStorage for this profile.
-    std::u16string name();
+    base::string16 name();
 
     // Used for sorting BackgroundModeData*s.
     static bool BackgroundModeDataCompare(const BackgroundModeData* bmd1,
@@ -221,41 +213,29 @@ class BackgroundModeManager : public BrowserListObserver,
     // the last call to GetNewBackgroundApps()).
     std::set<const extensions::Extension*> GetNewBackgroundApps();
 
-    // Acquires or releases a strong ref to the Profile, preventing/allowing it
-    // to be deleted.
-    //
-    // Acquires the ref if background mode is active, and this profile has
-    // persistent background apps. Releases it otherwise.
-    void UpdateProfileKeepAlive();
-
     // ProfileObserver overrides:
     void OnProfileWillBeDestroyed(Profile* profile) override;
 
    private:
-    const raw_ptr<BackgroundModeManager> manager_;
+    BackgroundModeManager* const manager_;
 
-    base::ScopedObservation<Profile, ProfileObserver> profile_observation_{
-        this};
-    base::ScopedObservation<extensions::ForceInstalledTracker,
-                            extensions::ForceInstalledTracker::Observer>
-        force_installed_tracker_observation_{this};
+    ScopedObserver<Profile, ProfileObserver> profile_observer_{this};
+    ScopedObserver<extensions::ForceInstalledTracker,
+                   extensions::ForceInstalledTracker::Observer>
+        force_installed_tracker_observer_{this};
 
     // The cached list of BackgroundApplications.
     std::unique_ptr<BackgroundApplicationListModel> applications_;
 
     // Name associated with this profile which is used to label its submenu.
-    std::u16string name_;
+    base::string16 name_;
 
     // The profile associated with this background app data.
-    raw_ptr<Profile> profile_;
-
-    // Prevents |profile_| from being deleted. Created or reset by
-    // UpdateProfileKeepAlive().
-    std::unique_ptr<ScopedProfileKeepAlive> profile_keep_alive_;
+    Profile* const profile_;
 
     // Weak ref vector owned by BackgroundModeManager where the indices
     // correspond to Command IDs and values correspond to their handlers.
-    const raw_ptr<CommandIdHandlerVector> command_id_handler_vector_;
+    CommandIdHandlerVector* const command_id_handler_vector_;
 
     // The list of notified extensions for this profile. We track this to ensure
     // that we never notify the user about the same extension twice in a single
@@ -268,7 +248,10 @@ class BackgroundModeManager : public BrowserListObserver,
   using BackgroundModeInfoMap =
       std::map<const Profile*, std::unique_ptr<BackgroundModeData>>;
 
-  void OnAppTerminating();
+  // content::NotificationObserver implementation.
+  void Observe(int type,
+               const content::NotificationSource& source,
+               const content::NotificationDetails& details) override;
 
   // Called when ExtensionSystem is ready.
   void OnExtensionsReady(Profile* profile);
@@ -284,7 +267,7 @@ class BackgroundModeManager : public BrowserListObserver,
   void OnProfileAdded(const base::FilePath& profile_path) override;
   void OnProfileWillBeRemoved(const base::FilePath& profile_path) override;
   void OnProfileNameChanged(const base::FilePath& profile_path,
-                            const std::u16string& old_profile_name) override;
+                            const base::string16& old_profile_name) override;
 
   // Overrides from StatusIconMenuModel::Delegate implementation.
   void ExecuteCommand(int command_id, int event_flags) override;
@@ -297,11 +280,11 @@ class BackgroundModeManager : public BrowserListObserver,
   // the ProfileAttributesStorage if needed. If |new_client_names| is not empty
   // the user will be notified about the added client(s).
   void OnClientsChanged(const Profile* profile,
-                        const std::vector<std::u16string>& new_client_names);
+                        const std::vector<base::string16>& new_client_names);
 
   // Invoked when a background client is installed so we can ensure that
   // launch-on-startup is enabled if appropriate.
-  void OnBackgroundClientInstalled(const std::u16string& name);
+  void OnBackgroundClientInstalled(const base::string16& name);
 
   // Update whether Chrome should be launched on startup, depending on whether
   // |this| has any persistent background clients.
@@ -313,7 +296,7 @@ class BackgroundModeManager : public BrowserListObserver,
 
   // Invoked when a client is installed so we can display a platform-specific
   // notification.
-  virtual void DisplayClientInstalledNotification(const std::u16string& name);
+  virtual void DisplayClientInstalledNotification(const base::string16& name);
 
   // Invoked to put Chrome in KeepAlive mode - chrome runs in the background
   // and has a status bar icon.
@@ -366,7 +349,7 @@ class BackgroundModeManager : public BrowserListObserver,
   // This should not be used to iterate over the background mode data. It is
   // used to efficiently delete an item from the background mode data map.
   BackgroundModeInfoMap::iterator GetBackgroundModeIterator(
-      const std::u16string& profile_name);
+      const base::string16& profile_name);
 
   // Returns true if the "Let chrome run in the background" pref is checked.
   // (virtual to allow overriding in tests).
@@ -412,10 +395,10 @@ class BackgroundModeManager : public BrowserListObserver,
 
   // Reference to the ProfileAttributesStorage. It is used to update the
   // background app status of profiles when they open/close background apps.
-  raw_ptr<ProfileAttributesStorage, DanglingUntriaged> profile_storage_;
+  ProfileAttributesStorage* profile_storage_;
 
   // Registrars for managing our change observers.
-  base::CallbackListSubscription on_app_terminating_subscription_;
+  content::NotificationRegistrar registrar_;
   PrefChangeRegistrar pref_registrar_;
 
   // The profile-keyed data for this background mode manager. Keyed on profile.
@@ -429,14 +412,14 @@ class BackgroundModeManager : public BrowserListObserver,
 
   // Reference to our status tray. If null, the platform doesn't support status
   // icons.
-  raw_ptr<StatusTray, DanglingUntriaged> status_tray_ = nullptr;
+  StatusTray* status_tray_ = nullptr;
 
   // Reference to our status icon (if any) - owned by the StatusTray.
-  raw_ptr<StatusIcon, DanglingUntriaged> status_icon_ = nullptr;
+  StatusIcon* status_icon_ = nullptr;
 
   // Reference to our status icon's context menu (if any) - owned by the
   // status_icon_.
-  raw_ptr<StatusIconMenuModel, DanglingUntriaged> context_menu_ = nullptr;
+  StatusIconMenuModel* context_menu_ = nullptr;
 
   // Set to true when we are running in background mode. Allows us to track our
   // current background state so we can take the appropriate action when the
@@ -473,13 +456,15 @@ class BackgroundModeManager : public BrowserListObserver,
   // Set to true when background mode is suspended.
   bool background_mode_suspended_ = false;
 
-  absl::optional<bool> launch_on_startup_enabled_;
+  base::Optional<bool> launch_on_startup_enabled_;
 
   // Task runner for making startup/login configuration changes that may
   // require file system or registry access.
   const scoped_refptr<base::SequencedTaskRunner> task_runner_;
 
   base::WeakPtrFactory<BackgroundModeManager> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(BackgroundModeManager);
 };
 
 #endif  // CHROME_BROWSER_BACKGROUND_BACKGROUND_MODE_MANAGER_H_

@@ -2,33 +2,29 @@
 
 rolldeps() {
   STEP="roll-deps" &&
-  REVIEWERS=$(grep -E -v "^$|#|(per-file)" third_party/freetype/OWNERS | paste -s -d, -) &&
+  REVIEWERS=$(paste -s -d, third_party/freetype/OWNERS) &&
   roll-dep -r "${REVIEWERS}" "$@" src/third_party/freetype/src/
 }
 
 addtrybots() {
   STEP="add trybots" &&
-  (git show -s --format=%B HEAD \
-    | git interpret-trailers --trailer "Cq-Include-Trybots:luci.chromium.try:linux_chromium_msan_rel_ng" \
-    | git commit --amend -F -)
+  OLD_MSG=$(git show -s --format=%B HEAD) &&
+  git commit --amend -m"$OLD_MSG" -m"Cq-Include-Trybots: luci.chromium.try:linux_chromium_msan_rel_ng"
 }
 
 addotherprojectbugs() {
   STEP="add pdfium bug" &&
-  (git show -s --format=%B HEAD \
-    | git interpret-trailers --trailer "PDFium-Issue:pdfium:" \
-    | git commit --amend -F -)
+  OLD_MSG=$(git show -s --format=%B HEAD) &&
+  git commit --amend -m"$OLD_MSG" -m"
+PDFium-Issue: pdfium:"
 }
 
 updatereadme() {
   STEP="update README.chromium" &&
-  FT_VERSION=$(git -C third_party/freetype/src/ describe --long) &&
-  FT_COMMIT=$(git -C third_party/freetype/src/ rev-parse HEAD) &&
-  FT_CPE_VERSION=$(echo ${FT_VERSION} | sed -r -e's/^VER-([0-9]+)-([0-9]+)-([0-9]+)-[0-9]+-g[0-9a-f]+$/\1.\2.\3/') &&
-  [ ${FT_VERSION} != ${FT_CPE_VERSION} ] &&
-  sed -i'' -e "s/^Version: .*\$/Version: ${FT_VERSION%-*}/" third_party/freetype/README.chromium &&
-  sed -i'' -e "s/^Revision: .*\$/Revision: ${FT_COMMIT}/" third_party/freetype/README.chromium &&
-  sed -i'' -e "s@^CPEPrefix: cpe:/a:freetype:freetype:.*\$@CPEPrefix: cpe:/a:freetype:freetype:${FT_CPE_VERSION}@" third_party/freetype/README.chromium &&
+  FTVERSION=$(git -C third_party/freetype/src/ describe --long) &&
+  FTCOMMIT=$(git -C third_party/freetype/src/ rev-parse HEAD) &&
+  sed -i'' -e "s/^Version: .*\$/Version: ${FTVERSION%-*}/" third_party/freetype/README.chromium &&
+  sed -i'' -e "s/^Revision: .*\$/Revision: ${FTCOMMIT}/" third_party/freetype/README.chromium &&
   git add third_party/freetype/README.chromium
 }
 

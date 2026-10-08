@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -106,15 +106,6 @@ void TestCursorClient::RemoveObserver(
 bool TestCursorClient::ShouldHideCursorOnKeyEvent(
     const ui::KeyEvent& event) const {
   return should_hide_cursor_on_key_event_;
-}
-
-bool TestCursorClient::ShouldHideCursorOnTouchEvent(
-    const ui::TouchEvent& event) const {
-  return true;
-}
-
-gfx::Size TestCursorClient::GetSystemCursorSize() const {
-  return gfx::Size(25, 25);
 }
 
 }  // namespace test

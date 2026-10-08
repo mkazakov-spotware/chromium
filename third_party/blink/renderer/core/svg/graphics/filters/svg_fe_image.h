@@ -37,7 +37,6 @@ class FEImage final : public FilterEffect {
  public:
   FEImage(Filter*, scoped_refptr<Image>, const SVGPreserveAspectRatio*);
   FEImage(Filter*, const SVGElement*, const SVGPreserveAspectRatio*);
-  ~FEImage() override = default;
 
   // feImage does not perform color interpolation of any kind, so doesn't
   // depend on the value of color-interpolation-filters.
@@ -49,13 +48,14 @@ class FEImage final : public FilterEffect {
   void Trace(Visitor*) const override;
 
  private:
+  ~FEImage() override = default;
   const LayoutObject* ReferencedLayoutObject() const;
 
   FilterEffectType GetFilterEffectType() const override {
     return kFilterEffectTypeImage;
   }
 
-  gfx::RectF MapInputs(const gfx::RectF&) const override;
+  FloatRect MapInputs(const FloatRect&) const override;
 
   sk_sp<PaintFilter> CreateImageFilter() override;
   sk_sp<PaintFilter> CreateImageFilterForLayoutObject(const LayoutObject&);

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,7 @@
 #include "chrome/browser/signin/force_signin_verifier.h"
 
 #include "base/bind.h"
-#include "base/callback_helpers.h"
-#include "base/files/file_path.h"
 #include "base/metrics/histogram_macros.h"
-#include "chrome/browser/browser_process.h"
-#include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_attributes_entry.h"
-#include "chrome/browser/profiles/profile_attributes_storage.h"
-#include "chrome/browser/profiles/profile_manager.h"
-#include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/profile_picker.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "components/signin/public/base/signin_metrics.h"
 #include "components/signin/public/identity_manager/access_token_info.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
@@ -42,12 +32,10 @@ const net::BackoffEntry::Policy kForceSigninVerifierBackoffPolicy = {
 }  // namespace
 
 ForceSigninVerifier::ForceSigninVerifier(
-    Profile* profile,
     signin::IdentityManager* identity_manager)
     : has_token_verified_(false),
       backoff_entry_(&kForceSigninVerifierBackoffPolicy),
       creation_time_(base::TimeTicks::Now()),
-      profile_(profile),
       identity_manager_(identity_manager) {
   content::GetNetworkConnectionTracker()->AddNetworkConnectionObserver(this);
   // Most of time (~94%), sign-in token can be verified with server.
@@ -76,7 +64,7 @@ void ForceSigninVerifier::OnAccessTokenFetchComplete(
       backoff_request_timer_.Start(
           FROM_HERE, backoff_entry_.GetTimeUntilRelease(),
           base::BindOnce(&ForceSigninVerifier::SendRequest,
-                         weak_factory_.GetWeakPtr()));
+                         base::Unretained(this)));
       access_token_fetcher_.reset();
     }
     return;
@@ -117,7 +105,7 @@ void ForceSigninVerifier::SendRequest() {
   if (content::GetNetworkConnectionTracker()->GetConnectionType(
           &type,
           base::BindOnce(&ForceSigninVerifier::SendRequestIfNetworkAvailable,
-                         weak_factory_.GetWeakPtr()))) {
+                         base::Unretained(this)))) {
     SendRequestIfNetworkAvailable(type);
   }
 }
@@ -131,43 +119,31 @@ void ForceSigninVerifier::SendRequestIfNetworkAvailable(
 
   signin::ScopeSet oauth2_scopes;
   oauth2_scopes.insert(GaiaConstants::kChromeSyncOAuth2Scope);
+  // It is safe to use Unretained(this) here given that the callback
+  // will not be invoked if this object is deleted.
   access_token_fetcher_ =
       std::make_unique<signin::PrimaryAccountAccessTokenFetcher>(
           "force_signin_verifier", identity_manager_, oauth2_scopes,
           base::BindOnce(&ForceSigninVerifier::OnAccessTokenFetchComplete,
-                         weak_factory_.GetWeakPtr()),
+                         base::Unretained(this)),
           signin::PrimaryAccountAccessTokenFetcher::Mode::kImmediate);
 }
 
 bool ForceSigninVerifier::ShouldSendRequest() {
   return !has_token_verified_ && access_token_fetcher_.get() == nullptr &&
-         identity_manager_->HasPrimaryAccount(signin::ConsentLevel::kSync);
+         identity_manager_->HasPrimaryAccount();
 }
 
 void ForceSigninVerifier::CloseAllBrowserWindows() {
-  // Do not sign the user out to allow them to reauthenticate from the profile
-  // picker.
-  BrowserList::CloseAllBrowsersWithProfile(
-      profile_,
-      base::BindRepeating(&ForceSigninVerifier::OnCloseBrowsersSuccess,
-                          weak_factory_.GetWeakPtr()),
-      /*on_close_aborted=*/base::DoNothing(),
-      /*skip_beforeunload=*/true);
-}
-
-void ForceSigninVerifier::OnCloseBrowsersSuccess(
-    const base::FilePath& profile_path) {
-  Cancel();
-
-  ProfileAttributesEntry* entry =
-      g_browser_process->profile_manager()
-          ->GetProfileAttributesStorage()
-          .GetProfileAttributesWithPath(profile_path);
-  if (!entry)
+  // Do not close window if there is ongoing reauth. If it fails later, the
+  // signin process should take care of the signout.
+  auto* primary_account_mutator = identity_manager_->GetPrimaryAccountMutator();
+  if (!primary_account_mutator)
     return;
-  entry->LockForceSigninProfile(true);
-  ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
-      ProfilePicker::EntryPoint::kProfileLocked));
+  primary_account_mutator->ClearPrimaryAccount(
+      signin::PrimaryAccountMutator::ClearAccountsAction::kRemoveAll,
+      signin_metrics::AUTHENTICATION_FAILED_WITH_FORCE_SIGNIN,
+      signin_metrics::SignoutDelete::IGNORE_METRIC);
 }
 
 signin::PrimaryAccountAccessTokenFetcher*

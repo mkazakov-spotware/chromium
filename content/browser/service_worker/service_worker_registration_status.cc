@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,6 +29,7 @@ void GetServiceWorkerErrorTypeForRegistration(
       NOTREACHED() << "Calling this when status == OK is not allowed";
       return;
 
+    case blink::ServiceWorkerStatusCode::kErrorStartWorkerFailed:
     case blink::ServiceWorkerStatusCode::kErrorInstallWorkerFailed:
     case blink::ServiceWorkerStatusCode::kErrorProcessNotFound:
     case blink::ServiceWorkerStatusCode::kErrorRedundant:
@@ -41,23 +42,16 @@ void GetServiceWorkerErrorTypeForRegistration(
       *out_error = blink::mojom::ServiceWorkerErrorType::kNotFound;
       return;
 
-      // kErrorStartWorkerFailed, kErrorNetwork, and kErrorSecurity are the
-      // failures during starting a worker. kErrorStartWorkerFailed and
-      // kErrorNetwork should result in TypeError per spec.
-    case blink::ServiceWorkerStatusCode::kErrorStartWorkerFailed:
-      *out_error = blink::mojom::ServiceWorkerErrorType::kType;
-      return;
-
     case blink::ServiceWorkerStatusCode::kErrorNetwork:
       *out_error = blink::mojom::ServiceWorkerErrorType::kNetwork;
       return;
 
-    case blink::ServiceWorkerStatusCode::kErrorSecurity:
-      *out_error = blink::mojom::ServiceWorkerErrorType::kSecurity;
-      return;
-
     case blink::ServiceWorkerStatusCode::kErrorScriptEvaluateFailed:
       *out_error = blink::mojom::ServiceWorkerErrorType::kScriptEvaluateFailed;
+      return;
+
+    case blink::ServiceWorkerStatusCode::kErrorSecurity:
+      *out_error = blink::mojom::ServiceWorkerErrorType::kSecurity;
       return;
 
     case blink::ServiceWorkerStatusCode::kErrorTimeout:

@@ -1,10 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/web_test/renderer/fake_subresource_filter.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "base/strings/string_util.h"
 #include "third_party/blink/public/platform/web_url.h"
 #include "url/gurl.h"
@@ -32,23 +33,18 @@ FakeSubresourceFilter::GetLoadPolicyForWebSocketConnect(
 }
 
 blink::WebDocumentSubresourceFilter::LoadPolicy
-FakeSubresourceFilter::GetLoadPolicyForWebTransportConnect(
-    const blink::WebURL& url) {
-  return GetLoadPolicyImpl(url);
-}
-
-blink::WebDocumentSubresourceFilter::LoadPolicy
 FakeSubresourceFilter::GetLoadPolicyImpl(const blink::WebURL& url) {
   GURL gurl(url);
   base::StringPiece path(gurl.path_piece());
 
+  auto it = std::find_if(
+      disallowed_path_suffixes_.begin(), disallowed_path_suffixes_.end(),
+      [&path](const std::string& suffix) {
+        return base::EndsWith(path, suffix, base::CompareCase::SENSITIVE);
+      });
   // Allows things not listed in |disallowed_path_suffixes_|.
-  if (base::ranges::none_of(
-          disallowed_path_suffixes_, [&path](const std::string& suffix) {
-            return base::EndsWith(path, suffix, base::CompareCase::SENSITIVE);
-          })) {
+  if (it == disallowed_path_suffixes_.end())
     return kAllow;
-  }
   // Disallows everything in |disallowed_path_suffixes_| only if
   // |block_subresources| is true.
   if (block_subresources_)

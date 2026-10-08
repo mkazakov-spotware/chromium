@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,11 @@
 
 #include <memory>
 
+#include "base/values.h"
 #include "base/containers/flat_map.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "content/public/browser/devtools_manager_delegate.h"
+#include "headless/lib/browser/protocol/forward.h"
 #include "headless/lib/browser/protocol/protocol.h"
 
 namespace headless {
@@ -25,10 +26,6 @@ class HeadlessDevToolsSession : public FrontendChannel {
  public:
   HeadlessDevToolsSession(base::WeakPtr<HeadlessBrowserImpl> browser,
                           content::DevToolsAgentHostClientChannel* channel);
-
-  HeadlessDevToolsSession(const HeadlessDevToolsSession&) = delete;
-  HeadlessDevToolsSession& operator=(const HeadlessDevToolsSession&) = delete;
-
   ~HeadlessDevToolsSession() override;
 
   void HandleCommand(
@@ -52,7 +49,8 @@ class HeadlessDevToolsSession : public FrontendChannel {
   std::vector<std::unique_ptr<DomainHandler>> handlers_;
   base::flat_map<int, content::DevToolsManagerDelegate::NotHandledCallback>
       pending_commands_;
-  raw_ptr<content::DevToolsAgentHostClientChannel> client_channel_;
+  content::DevToolsAgentHostClientChannel* client_channel_;
+  DISALLOW_COPY_AND_ASSIGN(HeadlessDevToolsSession);
 };
 
 }  // namespace protocol

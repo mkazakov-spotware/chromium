@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,18 +14,17 @@
 #include "base/callback.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #endif
 
 namespace image_writer {
 
 class ImageWriterHandler;
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 class DiskUnmounterMac;
 #endif
 
@@ -83,16 +82,16 @@ class ImageWriter : public base::SupportsWeakPtr<ImageWriter> {
   int64_t bytes_processed_;
   bool running_;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   std::vector<HANDLE> volume_handles_;
 #endif
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   friend class DiskUnmounterMac;
   std::unique_ptr<DiskUnmounterMac> unmounter_;
 #endif
 
-  raw_ptr<ImageWriterHandler> handler_;
+  ImageWriterHandler* handler_;
 };
 
 }  // namespace image_writer

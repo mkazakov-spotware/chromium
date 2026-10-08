@@ -41,9 +41,9 @@
 #include "third_party/blink/renderer/core/layout/layout_embedded_content.h"
 #include "third_party/blink/renderer/core/layout/layout_object.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
-#include "ui/gfx/geometry/point.h"
-#include "ui/gfx/geometry/point_f.h"
-#include "ui/gfx/geometry/quad_f.h"
+#include "third_party/blink/renderer/platform/geometry/float_point.h"
+#include "third_party/blink/renderer/platform/geometry/float_quad.h"
+#include "third_party/blink/renderer/platform/geometry/int_point.h"
 
 namespace blink {
 
@@ -59,14 +59,14 @@ static const LayoutBlock* EnclosingScrollableAncestor(
   return container;
 }
 
-static gfx::RectF ToNormalizedRect(const gfx::RectF& absolute_rect,
-                                   const LayoutObject* layout_object,
-                                   const LayoutBlock* container) {
+static FloatRect ToNormalizedRect(const FloatRect& absolute_rect,
+                                  const LayoutObject* layout_object,
+                                  const LayoutBlock* container) {
   DCHECK(layout_object);
 
   DCHECK(container || IsA<LayoutView>(layout_object));
   if (!container)
-    return gfx::RectF();
+    return FloatRect();
 
   // We want to normalize by the max layout overflow size instead of only the
   // visible bounding box.  Quads and their enclosing bounding boxes need to be
@@ -77,34 +77,34 @@ static gfx::RectF ToNormalizedRect(const gfx::RectF& absolute_rect,
   // For scrolling we need to get where the actual origin is independently of
   // the scroll.
   if (container->IsScrollContainer())
-    overflow_rect.Move(-container->ScrolledContentOffset());
+    overflow_rect.Move(-PhysicalOffset(container->ScrolledContentOffset()));
 
-  gfx::RectF container_rect(container->LocalToAbsoluteRect(overflow_rect));
+  FloatRect container_rect(container->LocalToAbsoluteRect(overflow_rect));
 
   if (container_rect.IsEmpty())
-    return gfx::RectF();
+    return FloatRect();
 
   // Make the coordinates relative to the container enclosing bounding box.
   // Since we work with rects enclosing quad unions this is still
   // transform-friendly.
-  gfx::RectF normalized_rect = absolute_rect;
-  normalized_rect.Offset(-container_rect.OffsetFromOrigin());
+  FloatRect normalized_rect = absolute_rect;
+  normalized_rect.MoveBy(-container_rect.Location());
 
-  normalized_rect.Scale(1 / container_rect.width(),
-                        1 / container_rect.height());
+  normalized_rect.Scale(1 / container_rect.Width(),
+                        1 / container_rect.Height());
   return normalized_rect;
 }
 
-gfx::RectF FindInPageRectFromAbsoluteRect(
-    const gfx::RectF& input_rect,
+FloatRect FindInPageRectFromAbsoluteRect(
+    const FloatRect& input_rect,
     const LayoutObject* base_layout_object) {
   if (!base_layout_object || input_rect.IsEmpty())
-    return gfx::RectF();
+    return FloatRect();
 
   // Normalize the input rect to its container block.
   const LayoutBlock* base_container =
       EnclosingScrollableAncestor(base_layout_object);
-  gfx::RectF normalized_rect =
+  FloatRect normalized_rect =
       ToNormalizedRect(input_rect, base_layout_object, base_container);
 
   // Go up across frames.
@@ -115,12 +115,12 @@ gfx::RectF FindInPageRectFromAbsoluteRect(
       const LayoutBlock* container = EnclosingScrollableAncestor(layout_object);
 
       // Compose the normalized rects.
-      gfx::RectF normalized_box_rect =
-          ToNormalizedRect(gfx::RectF(layout_object->AbsoluteBoundingBoxRect()),
+      FloatRect normalized_box_rect =
+          ToNormalizedRect(FloatRect(layout_object->AbsoluteBoundingBoxRect()),
                            layout_object, container);
-      normalized_rect.Scale(normalized_box_rect.width(),
-                            normalized_box_rect.height());
-      normalized_rect.Offset(normalized_box_rect.OffsetFromOrigin());
+      normalized_rect.Scale(normalized_box_rect.Width(),
+                            normalized_box_rect.Height());
+      normalized_rect.MoveBy(normalized_box_rect.Location());
 
       layout_object = container;
     }
@@ -136,16 +136,16 @@ gfx::RectF FindInPageRectFromAbsoluteRect(
   return normalized_rect;
 }
 
-gfx::RectF FindInPageRectFromRange(const EphemeralRange& range) {
+FloatRect FindInPageRectFromRange(const EphemeralRange& range) {
   if (range.IsNull() || !range.StartPosition().NodeAsRangeFirstNode())
-    return gfx::RectF();
+    return FloatRect();
 
   const LayoutObject* const baseLayoutObject =
       range.StartPosition().NodeAsRangeFirstNode()->GetLayoutObject();
   if (!baseLayoutObject)
-    return gfx::RectF();
+    return FloatRect();
 
-  return FindInPageRectFromAbsoluteRect(ComputeTextRectF(range),
+  return FindInPageRectFromAbsoluteRect(ComputeTextFloatRect(range),
                                         baseLayoutObject);
 }
 

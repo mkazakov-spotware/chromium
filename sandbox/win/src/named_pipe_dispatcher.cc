@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,13 +52,14 @@ bool NamedPipeDispatcher::CreateNamedPipe(IPCInfo* ipc,
   ipc->return_info.win32_result = ERROR_ACCESS_DENIED;
   ipc->return_info.handle = INVALID_HANDLE_VALUE;
 
-  base::StringPiece16 dotdot(u"..");
+  base::StringPiece16 dotdot(STRING16_LITERAL(".."));
 
-  for (const base::StringPiece16& path :
-       base::SplitStringPiece(base::AsStringPiece16(*name), u"/",
-                              base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL)) {
-    for (const base::StringPiece16& inner : base::SplitStringPiece(
-             path, u"\\", base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL)) {
+  for (const base::StringPiece16& path : base::SplitStringPiece(
+           base::AsStringPiece16(*name), STRING16_LITERAL("/"),
+           base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL)) {
+    for (const base::StringPiece16& inner :
+         base::SplitStringPiece(path, STRING16_LITERAL("\\"),
+                                base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL)) {
       if (inner == dotdot)
         return true;
     }

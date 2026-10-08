@@ -1,9 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/browser/ssl_error_controller_client.h"
 
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "build/build_config.h"
 #include "components/security_interstitials/content/settings_page_helper.h"
@@ -49,8 +50,7 @@ void SSLErrorControllerClient::GoBack() {
 
 void SSLErrorControllerClient::Proceed() {
   web_contents_->GetBrowserContext()->GetSSLHostStateDelegate()->AllowCert(
-      request_url_.host(), *ssl_info_.cert.get(), cert_error_,
-      web_contents_->GetPrimaryMainFrame()->GetStoragePartition());
+      request_url_.host(), *ssl_info_.cert.get(), cert_error_, web_contents_);
   Reload();
 }
 

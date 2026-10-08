@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <map>
 
+#include "base/macros.h"
 #include "base/memory/singleton.h"
 #include "base/time/time.h"
 
@@ -18,10 +19,6 @@ class MacStartupProfiler {
   static MacStartupProfiler* GetInstance();
 
   MacStartupProfiler();
-
-  MacStartupProfiler(const MacStartupProfiler&) = delete;
-  MacStartupProfiler& operator=(const MacStartupProfiler&) = delete;
-
   ~MacStartupProfiler();
 
   // These locations correspond to major phases of Chrome startup.
@@ -59,6 +56,8 @@ class MacStartupProfiler {
 
   // Whether UMA metrics have been recorded. Only record UMA metrics once.
   bool recorded_metrics_;
+
+  DISALLOW_COPY_AND_ASSIGN(MacStartupProfiler);
 };
 
 #endif  // CHROME_BROWSER_MAC_MAC_STARTUP_PROFILER_H_

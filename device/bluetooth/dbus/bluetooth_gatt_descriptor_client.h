@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,11 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "dbus/object_path.h"
 #include "dbus/property.h"
 #include "device/bluetooth/bluetooth_export.h"
-#include "device/bluetooth/bluetooth_gatt_service.h"
 #include "device/bluetooth/dbus/bluez_dbus_client.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace bluez {
 
@@ -69,13 +68,8 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothGattDescriptorClient
   using ErrorCallback =
       base::OnceCallback<void(const std::string& error_name,
                               const std::string& error_message)>;
-  using ValueCallback = base::OnceCallback<void(
-      absl::optional<device::BluetoothGattService::GattErrorCode> error_code,
-      const std::vector<uint8_t>& value)>;
-
-  BluetoothGattDescriptorClient(const BluetoothGattDescriptorClient&) = delete;
-  BluetoothGattDescriptorClient& operator=(
-      const BluetoothGattDescriptorClient&) = delete;
+  using ValueCallback =
+      base::OnceCallback<void(const std::vector<uint8_t>& value)>;
 
   ~BluetoothGattDescriptorClient() override;
 
@@ -116,6 +110,9 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothGattDescriptorClient
 
  protected:
   BluetoothGattDescriptorClient();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BluetoothGattDescriptorClient);
 };
 
 }  // namespace bluez

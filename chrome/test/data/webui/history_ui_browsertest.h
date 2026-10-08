@@ -1,11 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_TEST_DATA_WEBUI_HISTORY_UI_BROWSERTEST_H_
 #define CHROME_TEST_DATA_WEBUI_HISTORY_UI_BROWSERTEST_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/test/base/web_ui_browser_test.h"
 
 namespace history {
@@ -15,10 +15,6 @@ class HistoryService;
 class HistoryUIBrowserTest : public WebUIBrowserTest {
  public:
   HistoryUIBrowserTest();
-
-  HistoryUIBrowserTest(const HistoryUIBrowserTest&) = delete;
-  HistoryUIBrowserTest& operator=(const HistoryUIBrowserTest&) = delete;
-
   ~HistoryUIBrowserTest() override;
 
   void SetUpOnMainThread() override;
@@ -29,7 +25,9 @@ class HistoryUIBrowserTest : public WebUIBrowserTest {
 
  private:
   // The HistoryService is owned by the profile.
-  raw_ptr<history::HistoryService, DanglingUntriaged> history_;
+  history::HistoryService* history_;
+
+  DISALLOW_COPY_AND_ASSIGN(HistoryUIBrowserTest);
 };
 
 #endif  // CHROME_TEST_DATA_WEBUI_HISTORY_UI_BROWSERTEST_H_

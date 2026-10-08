@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,77 +7,70 @@
 
 #include <string>
 
-#include "base/gtest_prod_util.h"
 #include "components/component_updater/component_installer.h"
 #include "components/prefs/pref_service.h"
-#include "components/soda/constants.h"
 #include "components/update_client/update_client.h"
 
 namespace component_updater {
 
 // Success callback to be run after the component is downloaded.
-using OnSodaComponentInstalledCallback =
+using OnSODAComponentReadyCallback =
     base::RepeatingCallback<void(const base::FilePath&)>;
 
-using OnSodaComponentReadyCallback = base::OnceClosure;
-using OnSodaLanguagePackComponentReadyCallback =
-    base::OnceCallback<void(speech::LanguageCode)>;
-
-class SodaComponentInstallerPolicy : public ComponentInstallerPolicy {
+class SODAComponentInstallerPolicy : public ComponentInstallerPolicy {
  public:
-  explicit SodaComponentInstallerPolicy(
-      OnSodaComponentInstalledCallback on_installed_callback,
-      OnSodaComponentReadyCallback on_ready_callback);
-  ~SodaComponentInstallerPolicy() override;
+  explicit SODAComponentInstallerPolicy(OnSODAComponentReadyCallback callback);
+  ~SODAComponentInstallerPolicy() override;
 
-  SodaComponentInstallerPolicy(const SodaComponentInstallerPolicy&) = delete;
-  SodaComponentInstallerPolicy& operator=(const SodaComponentInstallerPolicy&) =
+  SODAComponentInstallerPolicy(const SODAComponentInstallerPolicy&) = delete;
+  SODAComponentInstallerPolicy& operator=(const SODAComponentInstallerPolicy&) =
       delete;
 
   static const std::string GetExtensionId();
-  static void UpdateSodaComponentOnDemand();
+  static void UpdateSODAComponentOnDemand();
 
   static update_client::CrxInstaller::Result SetComponentDirectoryPermission(
       const base::FilePath& install_dir);
 
  private:
-  FRIEND_TEST_ALL_PREFIXES(SodaComponentInstallerTest,
+  FRIEND_TEST_ALL_PREFIXES(SODAComponentInstallerTest,
                            ComponentReady_CallsLambda);
 
   // The following methods override ComponentInstallerPolicy.
   bool SupportsGroupPolicyEnabledComponentUpdates() const override;
   bool RequiresNetworkEncryption() const override;
   update_client::CrxInstaller::Result OnCustomInstall(
-      const base::Value& manifest,
+      const base::DictionaryValue& manifest,
       const base::FilePath& install_dir) override;
   void OnCustomUninstall() override;
-  bool VerifyInstallation(const base::Value& manifest,
+  bool VerifyInstallation(const base::DictionaryValue& manifest,
                           const base::FilePath& install_dir) const override;
   void ComponentReady(const base::Version& version,
                       const base::FilePath& install_dir,
-                      base::Value manifest) override;
+                      std::unique_ptr<base::DictionaryValue> manifest) override;
   base::FilePath GetRelativeInstallDir() const override;
   void GetHash(std::vector<uint8_t>* hash) const override;
   std::string GetName() const override;
   update_client::InstallerAttributes GetInstallerAttributes() const override;
+  std::vector<std::string> GetMimeTypes() const override;
 
-  OnSodaComponentInstalledCallback on_installed_callback_;
-  OnSodaComponentReadyCallback on_ready_callback_;
+  OnSODAComponentReadyCallback on_component_ready_callback_;
 };
 
-// Call once during startup to make the component update service aware of
-// the File Type Policies component. Should only be called by SodaInstaller.
-void RegisterSodaComponent(ComponentUpdateService* cus,
-                           PrefService* global_prefs,
-                           base::OnceClosure on_ready_callback,
-                           base::OnceClosure on_registered_callback);
+// Registers user preferences related to the Speech On-Device API (SODA)
+// component.
+void RegisterPrefsForSodaComponent(PrefRegistrySimple* registry);
 
-// Should only be called by SodaInstaller.
-void RegisterSodaLanguageComponent(
-    ComponentUpdateService* cus,
-    const std::string& language,
-    PrefService* global_prefs,
-    OnSodaLanguagePackComponentReadyCallback on_ready_callback);
+// Call once during startup to make the component update service aware of
+// the File Type Policies component.
+void RegisterSodaComponent(ComponentUpdateService* cus,
+                           PrefService* profile_prefs,
+                           PrefService* global_prefs,
+                           base::OnceClosure callback);
+
+void RegisterSodaLanguageComponent(ComponentUpdateService* cus,
+                                   PrefService* profile_prefs,
+                                   PrefService* global_prefs);
 
 }  // namespace component_updater
 

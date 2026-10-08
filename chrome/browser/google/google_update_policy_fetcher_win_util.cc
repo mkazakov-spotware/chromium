@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,19 +8,12 @@
 
 #include "base/check.h"
 #include "base/strings/string_piece.h"
-#include "base/strings/string_util.h"
 #include "base/values.h"
 #include "base/win/scoped_bstr.h"
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/core/common/policy_types.h"
 
 namespace {
-
-// Returns a string Value from `scoped_bstr`.
-base::Value ValueFromScopedBStr(const base::win::ScopedBstr& scoped_bstr) {
-  return base::Value(base::AsStringPiece16(
-      base::WStringPiece(scoped_bstr.Get(), scoped_bstr.Length())));
-}
 
 policy::PolicySource GetPolicySource(BSTR source_bstr) {
   constexpr base::WStringPiece kCloudSource = L"Device Management";
@@ -55,7 +48,7 @@ std::unique_ptr<policy::PolicyMap::Entry> ConvertPolicyStatusValueToPolicyEntry(
       policy::POLICY_LEVEL_MANDATORY, policy::POLICY_SCOPE_MACHINE,
       GetPolicySource(source.Get()),
       value_override_function ? value_override_function.Run(value.Get())
-                              : ValueFromScopedBStr(value),
+                              : base::Value(value.Get()),
       nullptr);
   VARIANT_BOOL has_conflict = VARIANT_FALSE;
   base::win::ScopedBstr conflict_value;
@@ -69,7 +62,7 @@ std::unique_ptr<policy::PolicyMap::Entry> ConvertPolicyStatusValueToPolicyEntry(
         GetPolicySource(conflict_source.Get()),
         value_override_function
             ? value_override_function.Run(conflict_value.Get())
-            : base::Value(base::AsStringPiece16(conflict_value.Get())),
+            : base::Value(conflict_value.Get()),
         nullptr));
   }
   if (entry->source == policy::POLICY_SOURCE_ENTERPRISE_DEFAULT)

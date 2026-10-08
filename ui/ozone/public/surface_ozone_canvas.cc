@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,11 @@
 
 #include "base/notreached.h"
 
-#include <ostream>
-
 namespace ui {
 
 SurfaceOzoneCanvas::~SurfaceOzoneCanvas() = default;
 
 bool SurfaceOzoneCanvas::SupportsAsyncBufferSwap() const {
-  return false;
-}
-
-bool SurfaceOzoneCanvas::SupportsOverridePlatformSize() const {
   return false;
 }
 

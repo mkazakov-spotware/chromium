@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,15 +34,10 @@ void CardExpirationDateFixFlowViewAndroid::OnUserAccept(
                           base::android::ConvertJavaStringToUTF16(env, year));
 }
 
-void CardExpirationDateFixFlowViewAndroid::OnUserDismiss(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& obj) {
-  controller_->OnDismissed();
-}
-
 void CardExpirationDateFixFlowViewAndroid::PromptDismissed(
     JNIEnv* env,
     const JavaParamRef<jobject>& obj) {
+  controller_->OnDismissed();
   delete this;
 }
 

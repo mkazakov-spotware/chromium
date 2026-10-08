@@ -1,12 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/mediacapturefromelement/html_media_element_capture.h"
 
 #include "base/memory/ptr_util.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
-#include "third_party/blink/public/mojom/mediastream/media_devices.mojom-blink.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/platform/task_type.h"
 #include "third_party/blink/public/web/modules/mediastream/media_stream_video_source.h"
@@ -26,8 +24,7 @@
 #include "third_party/blink/renderer/modules/mediastream/media_stream_video_capturer_source.h"
 #include "third_party/blink/renderer/modules/mediastream/media_stream_video_track.h"
 #include "third_party/blink/renderer/platform/mediastream/media_stream_audio_source.h"
-#include "third_party/blink/renderer/platform/mediastream/media_stream_audio_track.h"
-#include "third_party/blink/renderer/platform/mediastream/media_stream_component_impl.h"
+#include "third_party/blink/renderer/platform/mediastream/media_stream_component.h"
 #include "third_party/blink/renderer/platform/mediastream/media_stream_descriptor.h"
 #include "third_party/blink/renderer/platform/mediastream/media_stream_source.h"
 #include "third_party/blink/renderer/platform/wtf/uuid.h"
@@ -45,7 +42,7 @@ namespace {
 // MediaTrackConstraints.
 bool AddVideoTrackToMediaStream(
     LocalFrame* frame,
-    std::unique_ptr<VideoCapturerSource> video_source,
+    std::unique_ptr<media::VideoCapturerSource> video_source,
     bool is_remote,
     MediaStreamDescriptor* descriptor) {
   DCHECK(video_source.get());
@@ -58,16 +55,16 @@ bool AddVideoTrackToMediaStream(
       video_source->GetPreferredFormats();
   auto media_stream_video_source =
       std::make_unique<MediaStreamVideoCapturerSource>(
-          frame->GetTaskRunner(TaskType::kInternalMediaRealTime), frame,
-          WebPlatformMediaStreamSource::SourceStoppedCallback(),
+          frame, WebPlatformMediaStreamSource::SourceStoppedCallback(),
           std::move(video_source));
   auto* media_stream_video_source_ptr = media_stream_video_source.get();
   const String track_id(WTF::CreateCanonicalUUIDString());
   auto* media_stream_source = MakeGarbageCollected<MediaStreamSource>(
-      track_id, MediaStreamSource::kTypeVideo, track_id, is_remote,
-      std::move(media_stream_video_source));
+      track_id, MediaStreamSource::kTypeVideo, track_id, is_remote);
+  media_stream_source->SetPlatformSource(std::move(media_stream_video_source));
   media_stream_source->SetCapabilities(ComputeCapabilitiesForVideoSource(
-      track_id, preferred_formats, mojom::blink::FacingMode::NONE,
+      track_id, preferred_formats,
+      media::VideoFacingMode::MEDIA_VIDEO_FACING_NONE,
       false /* is_device_capture */));
   descriptor->AddRemoteTrack(MediaStreamVideoTrack::CreateVideoTrack(
       media_stream_video_source_ptr,
@@ -105,17 +102,19 @@ void CreateHTMLAudioElementCapturer(
 
   const String track_id = WTF::CreateCanonicalUUIDString();
 
+  auto* media_stream_source = MakeGarbageCollected<MediaStreamSource>(
+      track_id, MediaStreamSource::StreamType::kTypeAudio, track_id,
+      false /* is_remote */);
+  auto* media_stream_component =
+      MakeGarbageCollected<MediaStreamComponent>(media_stream_source);
+
   MediaStreamAudioSource* const media_stream_audio_source =
       HtmlAudioElementCapturerSource::CreateFromWebMediaPlayerImpl(
           web_media_player, std::move(task_runner));
 
   // |media_stream_source| takes ownership of |media_stream_audio_source|.
-  auto* media_stream_source = MakeGarbageCollected<MediaStreamSource>(
-      track_id, MediaStreamSource::StreamType::kTypeAudio, track_id,
-      false /* is_remote */, base::WrapUnique(media_stream_audio_source));
-  auto* media_stream_component = MakeGarbageCollected<MediaStreamComponentImpl>(
-      media_stream_source,
-      std::make_unique<MediaStreamAudioTrack>(/*is_local_track=*/true));
+  media_stream_source->SetPlatformSource(
+      base::WrapUnique(media_stream_audio_source));
 
   MediaStreamSource::Capabilities capabilities;
   capabilities.device_id = track_id;
@@ -128,7 +127,7 @@ void CreateHTMLAudioElementCapturer(
   };
   media_stream_source->SetCapabilities(capabilities);
 
-  media_stream_audio_source->ConnectToInitializedTrack(media_stream_component);
+  media_stream_audio_source->ConnectToTrack(media_stream_component);
   descriptor->AddRemoteTrack(media_stream_component);
 }
 
@@ -185,11 +184,7 @@ void MediaElementEventListener::Invoke(ExecutionContext* context,
           track->Component(),
           MediaStreamDescriptorClient::DispatchEventTiming::kScheduled);
     }
-    auto variant = media_element_->GetSrcObjectVariant();
-    // The load type check above, should prevent this from failing:
-    DCHECK(absl::holds_alternative<MediaStreamDescriptor*>(variant));
-    MediaStreamDescriptor* const descriptor =
-        absl::get<MediaStreamDescriptor*>(variant);
+    MediaStreamDescriptor* const descriptor = media_element_->GetSrcObject();
     DCHECK(descriptor);
     for (unsigned i = 0; i < descriptor->NumberOfAudioComponents(); i++) {
       media_stream_->AddTrackByComponentAndFireEvents(
@@ -319,13 +314,9 @@ MediaStream* HTMLMediaElementCapture::captureStream(
 
   // If |element| is actually playing a MediaStream, just clone it.
   if (element.GetLoadType() == WebMediaPlayer::kLoadTypeMediaStream) {
-    auto variant = element.GetSrcObjectVariant();
-    // The load type check above, should prevent this from failing:
-    DCHECK(absl::holds_alternative<MediaStreamDescriptor*>(variant));
-    MediaStreamDescriptor* const element_descriptor =
-        absl::get<MediaStreamDescriptor*>(variant);
-    DCHECK(element_descriptor);
-    return MediaStream::Create(context, element_descriptor);
+    MediaStreamDescriptor* const descriptor = element.GetSrcObject();
+    DCHECK(descriptor);
+    return MediaStream::Create(context, descriptor);
   }
 
   LocalFrame* frame = ToLocalFrameIfNotDetached(script_state->GetContext());

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_EVENTS_POINTER_EVENT_H_
 
 #include "third_party/blink/public/common/input/pointer_id.h"
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/events/mouse_event.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
 
@@ -14,14 +13,14 @@ namespace blink {
 
 class PointerEventInit;
 
-class CORE_EXPORT PointerEvent : public MouseEvent {
+class CORE_EXPORT PointerEvent final : public MouseEvent {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
   static PointerEvent* Create(
       const AtomicString& type,
       const PointerEventInit* initializer,
-      base::TimeTicks platform_time_stamp = base::TimeTicks::Now(),
+      base::TimeTicks platform_time_stamp,
       MouseEvent::SyntheticEventType synthetic_event_type =
           kRealOrIndistinguishable,
       WebMenuSourceType menu_source_type = kMenuSourceNone) {
@@ -29,15 +28,18 @@ class CORE_EXPORT PointerEvent : public MouseEvent {
         type, initializer, platform_time_stamp, synthetic_event_type,
         menu_source_type);
   }
+  static PointerEvent* Create(const AtomicString& type,
+                              const PointerEventInit* initializer) {
+    return PointerEvent::Create(type, initializer, base::TimeTicks::Now());
+  }
 
   PointerEvent(const AtomicString&,
                const PointerEventInit*,
                base::TimeTicks platform_time_stamp,
                MouseEvent::SyntheticEventType synthetic_event_type,
-               WebMenuSourceType menu_source_type = kMenuSourceNone);
+               WebMenuSourceType menu_source_type);
 
   PointerId pointerId() const { return pointer_id_; }
-  PointerId pointerIdForBindings() const;
   double width() const { return width_; }
   double height() const { return height_; }
   float pressure() const { return pressure_; }
@@ -54,36 +56,12 @@ class CORE_EXPORT PointerEvent : public MouseEvent {
   bool IsMouseEvent() const override;
   bool IsPointerEvent() const override;
 
-  double screenX() const override {
-    if (ShouldHaveIntegerCoordinates())
-      return MouseEvent::screenX();
-    return screen_x_;
-  }
-  double screenY() const override {
-    if (ShouldHaveIntegerCoordinates())
-      return MouseEvent::screenY();
-    return screen_y_;
-  }
-  double clientX() const override {
-    if (ShouldHaveIntegerCoordinates())
-      return MouseEvent::clientX();
-    return client_x_;
-  }
-  double clientY() const override {
-    if (ShouldHaveIntegerCoordinates())
-      return MouseEvent::clientY();
-    return client_y_;
-  }
-  double pageX() const override {
-    if (ShouldHaveIntegerCoordinates())
-      return MouseEvent::pageX();
-    return page_x_;
-  }
-  double pageY() const override {
-    if (ShouldHaveIntegerCoordinates())
-      return MouseEvent::pageY();
-    return page_y_;
-  }
+  double screenX() const override { return screen_location_.X(); }
+  double screenY() const override { return screen_location_.Y(); }
+  double clientX() const override { return client_location_.X(); }
+  double clientY() const override { return client_location_.Y(); }
+  double pageX() const override { return page_location_.X(); }
+  double pageY() const override { return page_location_.Y(); }
 
   double offsetX() const override;
   double offsetY() const override;
@@ -101,13 +79,9 @@ class CORE_EXPORT PointerEvent : public MouseEvent {
 
   DispatchEventResult DispatchEvent(EventDispatcher&) override;
 
-  Document* GetDocument() const;
-
   void Trace(Visitor*) const override;
 
  private:
-  bool ShouldHaveIntegerCoordinates() const;
-
   PointerId pointer_id_;
   double width_;
   double height_;

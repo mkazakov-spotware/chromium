@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,15 +19,12 @@ import android.content.pm.Signature;
 import android.os.StrictMode;
 import android.text.TextUtils;
 
-import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 
 import org.chromium.base.Log;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.security.KeyFactory;
@@ -54,27 +51,15 @@ public class WebApkValidator {
     private static PublicKey sCommentSignedPublicKey;
     private static boolean sOverrideValidationForTesting;
 
-    @IntDef({ValidationResult.FAILURE, ValidationResult.V1_WEB_APK, ValidationResult.MAPS_LITE,
-            ValidationResult.COMMENT_SIGNED})
-    @Retention(RetentionPolicy.SOURCE)
-    private @interface ValidationResult {
-        int FAILURE = 0;
-        int V1_WEB_APK = 1;
-        int MAPS_LITE = 2;
-        int COMMENT_SIGNED = 3;
-    }
-
     /**
-     * Queries the PackageManager to determine whether one or more WebAPKs can handle
-     * the URL. Ignores whether the user has selected a default handler for the URL and
-     * whether the default handler is a WebAPK.
+     * Queries the PackageManager to determine whether one or more WebAPKs can handle the URL.
+     * Ignores whether the user has selected a default handler for the URL and whether the default
+     * handler is a WebAPK.
      *
      * @param context The application context.
      * @param url The url to check.
-     * @return Package name for one of the WebAPKs which can handle the URL. If there
-     *         are several
-     * matching WebAPKs an arbitrary one is returned. Null if there is no matching
-     * WebAPK.
+     * @return Package name for one of the WebAPKs which can handle the URL. If there are several
+     * matching WebAPKs an arbitrary one is returned. Null if there is no matching WebAPK.
      */
     public static @Nullable String queryFirstWebApkPackage(Context context, String url) {
         return findFirstWebApkPackage(context, resolveInfosForUrl(context, url));
@@ -82,8 +67,8 @@ public class WebApkValidator {
 
     /**
      * Queries the PackageManager to determine whether one or more WebAPKs can handle the URL.
-     * Ignores whether the user has selected a default handler for the URL and whether the
-     * default handler is a WebAPK.
+     * Ignores whether the user has selected a default handler for the URL and whether the default
+     * handler is a WebAPK.
      *
      * @param context The application context.
      * @param url The url to check.
@@ -95,25 +80,8 @@ public class WebApkValidator {
     }
 
     /**
-     * Queries the PackageManager to determine whether one or more WebAPKs can handle the URL.
-     * Ignores whether the user has selected a default handler for the URL and whether the
-     * default handler is a WebAPK.
-     *
-     * @param context The application context.
-     * @param url The url to check.
-     * @param packageName The optional package name.
-     * @return ResolveInfo for one of the WebAPKs which can handle the URL. If there are several
-     * matching ResolveInfos an arbitrary one is returned. Null if there is no matching WebAPK.
-     */
-    public static @Nullable ResolveInfo queryFirstWebApkResolveInfo(
-            Context context, String url, @Nullable String packageName) {
-        return findFirstWebApkResolveInfo(
-                context, resolveInfosForUrlAndOptionalPackage(context, url, packageName));
-    }
-
-    /**
-     * Searches {@link infos} and returns the package name of the first {@link ResolveInfo}
-     * which corresponds to a WebAPK.
+     * Searches {@link infos} and returns the package name of the first {@link ResolveInfo} which
+     * corresponds to a WebAPK.
      * @param context The context to use to check whether WebAPK is valid.
      * @param infos The {@link ResolveInfo}s to search.
      * @return WebAPK package name of the match. Null if there are no matches.
@@ -174,8 +142,8 @@ public class WebApkValidator {
             return context.getPackageManager().queryIntentActivities(
                     intent, PackageManager.GET_RESOLVED_FILTER);
         } catch (Exception e) {
-            // We used to catch only java.util.MissingResourceException, but we need to catch
-            // more exceptions to handle "Package manager has died" exception.
+            // We used to catch only java.util.MissingResourceException, but we need to catch more
+            // exceptions to handle "Package manager has died" exception.
             // http://crbug.com/794363
             return new LinkedList<>();
         } finally {
@@ -207,32 +175,19 @@ public class WebApkValidator {
      * @param webappPackageName The package name to check
      * @return true iff the WebAPK is installed and passes security checks
      */
+    @SuppressLint("PackageManagerGetSignatures")
     public static boolean isValidWebApk(Context context, String webappPackageName) {
-        return isValidWebApkInternal(context, webappPackageName) != ValidationResult.FAILURE;
-    }
-
-    /**
-     * Returns whether the provided WebAPK is installed and is valid V1 WebAPK.
-     * This is similar to |isValidWebApk| but only checks V1 WebApks, does not checks MapsLite
-     * and comment signed WebAPK.
-     *
-     * @param context A context
-     * @param webappPackageName The package name to check
-     * @return true iff the WebAPK is installed and passes security checks for V1 WebAPK.
-     */
-    @SuppressLint("PackageManagerGetSignatures")
-    public static boolean isValidV1WebApk(Context context, String webappPackageName) {
-        return isValidWebApkInternal(context, webappPackageName) == ValidationResult.V1_WEB_APK;
-    }
-
-    @SuppressLint("PackageManagerGetSignatures")
-    private static @ValidationResult int isValidWebApkInternal(
-            Context context, String webappPackageName) {
+        if (sOverrideValidationForTesting) {
+            if (DEBUG) {
+                Log.d(TAG, "WebApk validation is disabled for testing.");
+            }
+            return true;
+        }
         if (sExpectedSignature == null || sCommentSignedPublicKeyBytes == null) {
             Log.wtf(TAG,
                     "WebApk validation failure - expected signature not set - "
                             + "missing call to WebApkValidator.init");
-            return ValidationResult.FAILURE;
+            return false;
         }
         PackageInfo packageInfo;
         try {
@@ -243,39 +198,29 @@ public class WebApkValidator {
                 e.printStackTrace();
                 Log.d(TAG, "WebApk not found");
             }
-            return ValidationResult.FAILURE;
+            return false;
         }
         if (isNotWebApkQuick(packageInfo)) {
-            return ValidationResult.FAILURE;
-        }
-        if (sOverrideValidationForTesting) {
-            if (DEBUG) {
-                Log.d(TAG, "WebApk validation is disabled for testing.");
-            }
-            // Always return V1_WEB_APK in this case, because we only care if it's V1 WebAPK.
-            return ValidationResult.V1_WEB_APK;
+            return false;
         }
         if (verifyV1WebApk(packageInfo, webappPackageName)) {
-            return ValidationResult.V1_WEB_APK;
+            return true;
         }
         if (verifyMapsLite(packageInfo, webappPackageName)) {
             if (DEBUG) {
                 Log.d(TAG, "Matches Maps Lite");
             }
-            return ValidationResult.MAPS_LITE;
+            return true;
         }
-        if (verifyCommentSignedWebApk(packageInfo)) {
-            return ValidationResult.COMMENT_SIGNED;
-        }
-        return ValidationResult.FAILURE;
+        return verifyCommentSignedWebApk(packageInfo);
     }
 
     /**
      * @param url A Url that might launch a WebApk.
      * @param applicationPackage The package of the WebApk to restrict the launch to.
-     * @return An intent that could launch a WebApk for the provided URL (and package), if such
-     *         a WebApk exists. If package isn't specified, the intent may create a
-     *         disambiguation dialog when started.
+     * @return An intent that could launch a WebApk for the provided URL (and package), if such a
+     *         WebApk exists. If package isn't specified, the intent may create a disambiguation
+     *         dialog when started.
      */
     public static Intent createWebApkIntentForUrlAndOptionalPackage(
             String url, @Nullable String applicationPackage) {
@@ -463,16 +408,15 @@ public class WebApkValidator {
     }
 
     /**
-     * Sets whether validation performed by this class should be disabled. This is meant only
-     * for development with unsigned WebApks and should never be enabled in a real build.
+     * Sets whether validation performed by this class should be disabled. This is meant only for
+     * development with unsigned WebApks and should never be enabled in a real build.
      */
     public static void setDisableValidationForTesting(boolean disable) {
         sOverrideValidationForTesting = disable;
     }
 
     /**
-     * Lazy evaluate the creation of the Public Key as the KeyFactories may not yet be
-     * initialized.
+     * Lazy evaluate the creation of the Public Key as the KeyFactories may not yet be initialized.
      * @return The decoded PublicKey or null
      */
     private static PublicKey getCommentSignedPublicKey() throws Exception {

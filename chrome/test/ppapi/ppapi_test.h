@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@
 
 #include <string>
 
-#include "base/scoped_observation.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/infobars/core/infobar_manager.h"
@@ -16,16 +18,11 @@
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 
-namespace infobars {
-class ContentInfoBarManager;
-}
+class InfoBarService;
 
 class PPAPITestMessageHandler : public content::TestMessageHandler {
  public:
   PPAPITestMessageHandler();
-
-  PPAPITestMessageHandler(const PPAPITestMessageHandler&) = delete;
-  PPAPITestMessageHandler& operator=(const PPAPITestMessageHandler&) = delete;
 
   MessageResponse HandleMessage(const std::string& json) override;
   void Reset() override;
@@ -36,6 +33,8 @@ class PPAPITestMessageHandler : public content::TestMessageHandler {
 
  private:
   std::string message_;
+
+  DISALLOW_COPY_AND_ASSIGN(PPAPITestMessageHandler);
 };
 
 class PPAPITestBase : public InProcessBrowserTest {
@@ -46,6 +45,8 @@ class PPAPITestBase : public InProcessBrowserTest {
   void SetUp() override;
   void SetUpCommandLine(base::CommandLine* command_line) override;
   void SetUpOnMainThread() override;
+
+  virtual void SetUpPPAPIBroker();
 
   virtual std::string BuildQuery(const std::string& base,
                                  const std::string& test_case) = 0;
@@ -73,7 +74,7 @@ class PPAPITestBase : public InProcessBrowserTest {
     void OnInfoBarAdded(infobars::InfoBar* infobar) override;
     void OnManagerShuttingDown(infobars::InfoBarManager* manager) override;
 
-    infobars::ContentInfoBarManager* GetInfoBarManager();
+    InfoBarService* GetInfoBarService();
 
     void VerifyInfoBarState();
 
@@ -81,9 +82,8 @@ class PPAPITestBase : public InProcessBrowserTest {
     bool expecting_infobar_;
     bool should_accept_;
 
-    base::ScopedObservation<infobars::InfoBarManager,
-                            infobars::InfoBarManager::Observer>
-        infobar_observation_{this};
+    ScopedObserver<infobars::InfoBarManager, infobars::InfoBarManager::Observer>
+        infobar_observer_;
   };
 
   // Runs the test for a tab given the tab that's already navigated to the
@@ -125,7 +125,6 @@ class OutOfProcessPPAPITest : public PPAPITest {
   OutOfProcessPPAPITest();
 
   void SetUpCommandLine(base::CommandLine* command_line) override;
-  void RunTest(const std::string& test_case) override;
   void RunTouchEventTest(const std::string& test_case);
 };
 
@@ -139,6 +138,7 @@ class PPAPINaClTest : public PPAPITestBase {
  public:
   void SetUpCommandLine(base::CommandLine* command_line) override;
   // PPAPITestBase overrides.
+  void SetUpPPAPIBroker() override;
   void RunTest(const std::string& test_case) override;
   void RunTestViaHTTP(const std::string& test_case) override;
   void RunTestWithSSLServer(const std::string& test_case) override;
@@ -184,6 +184,21 @@ class PPAPIPrivateNaClPNaClTest : public PPAPINaClPNaClTest {
   void SetUpCommandLine(base::CommandLine* command_line) override;
 };
 
+// Test Non-SFI Mode, using PNaCl toolchain to produce nexes.
+class PPAPINaClPNaClNonSfiTest : public PPAPINaClTest {
+ public:
+  void SetUpCommandLine(base::CommandLine* command_line) override;
+
+  std::string BuildQuery(const std::string& base,
+                         const std::string& test_case) override;
+};
+
+class PPAPIPrivateNaClPNaClNonSfiTest : public PPAPINaClPNaClNonSfiTest {
+ protected:
+  void SetUpCommandLine(base::CommandLine* command_line) override;
+};
+
+
 class PPAPINaClTestDisallowedSockets : public PPAPITestBase {
  public:
   void SetUpCommandLine(base::CommandLine* command_line) override;
@@ -192,6 +207,10 @@ class PPAPINaClTestDisallowedSockets : public PPAPITestBase {
                          const std::string& test_case) override;
 };
 
-class PPAPIBrokerInfoBarTest : public OutOfProcessPPAPITest {};
+class PPAPIBrokerInfoBarTest : public OutOfProcessPPAPITest {
+ public:
+  // PPAPITestBase override:
+  void SetUpPPAPIBroker() override;
+};
 
 #endif  // CHROME_TEST_PPAPI_PPAPI_TEST_H_

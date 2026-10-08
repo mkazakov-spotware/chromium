@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,21 +6,19 @@
 
 #include <memory>
 
-#include "ash/constants/notifier_catalogs.h"
 #include "ash/public/cpp/notification_utils.h"
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/system/tray/tray_constants.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/values.h"
-#include "chromeos/ash/components/network/network_event_log.h"
-#include "chromeos/ash/components/network/network_handler.h"
+#include "chromeos/network/network_event_log.h"
+#include "chromeos/network/network_handler.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/message_center/message_center.h"
 
-namespace ash {
+using chromeos::NetworkHandler;
 
-const char SmsObserver::kNotificationPrefix[] = "chrome://network/sms";
+namespace ash {
 
 namespace {
 
@@ -37,18 +35,19 @@ void ShowNotification(const base::Value* message,
   if (!message_center)
     return;
 
+  const char kNotificationId[] = "chrome://network/sms";
   std::unique_ptr<message_center::Notification> notification;
 
   // TODO(estade): should SMS notifications really be shown to all users?
   notification = ash::CreateSystemNotification(
       message_center::NOTIFICATION_TYPE_SIMPLE,
-      SmsObserver::kNotificationPrefix + std::to_string(message_id),
+      kNotificationId + std::to_string(message_id),
       base::ASCIIToUTF16(message_number),
       base::CollapseWhitespace(base::UTF8ToUTF16(message_text),
                                false /* trim_sequences_with_line_breaks */),
-      std::u16string(), GURL(),
+      base::string16(), GURL(),
       message_center::NotifierId(message_center::NotifierType::SYSTEM_COMPONENT,
-                                 kNotifierSms, NotificationCatalogName::kSMS),
+                                 kNotifierSms),
       message_center::RichNotificationData(), nullptr, kNotificationSmsSyncIcon,
       message_center::SystemNotificationWarningLevel::NORMAL);
   message_center->AddNotification(std::move(notification));
@@ -72,7 +71,7 @@ SmsObserver::~SmsObserver() {
 
 void SmsObserver::MessageReceived(const base::Value& message) {
   const std::string* message_text =
-      message.FindStringKey(NetworkSmsHandler::kTextKey);
+      message.FindStringKey(chromeos::NetworkSmsHandler::kTextKey);
   if (!message_text) {
     NET_LOG(ERROR) << "SMS message contains no content.";
     return;
@@ -85,7 +84,7 @@ void SmsObserver::MessageReceived(const base::Value& message) {
     return;
   }
   const std::string* message_number =
-      message.FindStringKey(NetworkSmsHandler::kNumberKey);
+      message.FindStringKey(chromeos::NetworkSmsHandler::kNumberKey);
   if (!message_number) {
     NET_LOG(DEBUG) << "SMS contains no number. Ignoring.";
     return;

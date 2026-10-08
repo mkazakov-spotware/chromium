@@ -1,28 +1,27 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/components/webui/sync_internals/sync_internals_message_handler.h"
+#include "ios/components/webui/sync_internals/sync_internals_message_handler.h"
 
-#import <utility>
-#import <vector>
+#include <utility>
+#include <vector>
 
-#import "base/bind.h"
-#import "base/command_line.h"
-#import "base/logging.h"
-#import "base/values.h"
-#import "components/sync/base/command_line_switches.h"
-#import "components/sync/base/weak_handle.h"
-#import "components/sync/driver/sync_internals_util.h"
-#import "components/sync/driver/sync_service.h"
-#import "components/sync/driver/sync_user_settings.h"
-#import "components/sync/engine/events/protocol_event.h"
-#import "components/sync/invalidations/sync_invalidations_service.h"
-#import "components/sync/model/type_entities_count.h"
-#import "components/sync/protocol/sync_invalidations_payload.pb.h"
-#import "ios/components/webui/web_ui_provider.h"
-#import "ios/web/public/thread/web_thread.h"
-#import "ios/web/public/webui/web_ui_ios.h"
+#include "base/bind.h"
+#include "base/command_line.h"
+#include "base/logging.h"
+#include "base/values.h"
+#include "components/sync/base/weak_handle.h"
+#include "components/sync/driver/sync_driver_switches.h"
+#include "components/sync/driver/sync_internals_util.h"
+#include "components/sync/driver/sync_service.h"
+#include "components/sync/driver/sync_user_settings.h"
+#include "components/sync/engine/events/protocol_event.h"
+#include "components/sync/js/js_event_details.h"
+#include "components/sync/model/type_entities_count.h"
+#include "ios/components/webui/web_ui_provider.h"
+#include "ios/web/public/thread/web_thread.h"
+#include "ios/web/public/webui/web_ui_ios.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -34,7 +33,7 @@ namespace {
 // or not the corresponding command-line switch is set.
 bool GetIncludeSpecificsInitialState() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      syncer::kSyncIncludeSpecificsInProtocolLog);
+      switches::kSyncIncludeSpecificsInProtocolLog);
 }
 
 }  // namespace
@@ -44,18 +43,14 @@ SyncInternalsMessageHandler::SyncInternalsMessageHandler()
       weak_ptr_factory_(this) {}
 
 SyncInternalsMessageHandler::~SyncInternalsMessageHandler() {
+  if (js_controller_) {
+    js_controller_->RemoveJsEventHandler(this);
+  }
+
   syncer::SyncService* service = GetSyncService();
   if (service && service->HasObserver(this)) {
     service->RemoveObserver(this);
     service->RemoveProtocolEventObserver(this);
-  }
-
-  if (is_registered_) {
-    syncer::SyncInvalidationsService* invalidations_service =
-        GetSyncInvalidationsService();
-    if (invalidations_service) {
-      invalidations_service->RemoveListener(this);
-    }
   }
 }
 
@@ -115,8 +110,8 @@ void SyncInternalsMessageHandler::RegisterMessages() {
 }
 
 void SyncInternalsMessageHandler::HandleRequestDataAndRegisterForUpdates(
-    const base::Value::List& args) {
-  DCHECK(args.empty());
+    const base::ListValue* args) {
+  DCHECK(args->empty());
 
   // is_registered_ flag protects us from double-registering.  This could
   // happen on a page refresh, where the JavaScript gets re-run but the
@@ -125,11 +120,8 @@ void SyncInternalsMessageHandler::HandleRequestDataAndRegisterForUpdates(
   if (service && !is_registered_) {
     service->AddObserver(this);
     service->AddProtocolEventObserver(this);
-    syncer::SyncInvalidationsService* invalidations_service =
-        GetSyncInvalidationsService();
-    if (invalidations_service) {
-      invalidations_service->AddListener(this);
-    }
+    js_controller_ = service->GetJsController();
+    js_controller_->AddJsEventHandler(this);
     is_registered_ = true;
   }
 
@@ -137,53 +129,54 @@ void SyncInternalsMessageHandler::HandleRequestDataAndRegisterForUpdates(
 }
 
 void SyncInternalsMessageHandler::HandleRequestListOfTypes(
-    const base::Value::List& args) {
-  DCHECK(args.empty());
-  base::Value::Dict event_details;
-  base::Value::List type_list;
+    const base::ListValue* args) {
+  DCHECK(args->empty());
+  base::DictionaryValue event_details;
+  auto type_list = std::make_unique<base::ListValue>();
   syncer::ModelTypeSet protocol_types = syncer::ProtocolTypes();
   for (syncer::ModelType type : protocol_types) {
-    type_list.Append(ModelTypeToDebugString(type));
+    type_list->AppendString(ModelTypeToString(type));
   }
   event_details.Set(syncer::sync_ui_util::kTypes, std::move(type_list));
   DispatchEvent(syncer::sync_ui_util::kOnReceivedListOfTypes, event_details);
 }
 
 void SyncInternalsMessageHandler::HandleRequestIncludeSpecificsInitialState(
-    const base::Value::List& args) {
-  DCHECK(args.empty());
+    const base::ListValue* args) {
+  DCHECK(args->empty());
 
-  base::Value::Dict value;
-  value.Set(syncer::sync_ui_util::kIncludeSpecifics,
-            GetIncludeSpecificsInitialState());
+  base::DictionaryValue value;
+  value.SetBoolean(syncer::sync_ui_util::kIncludeSpecifics,
+                   GetIncludeSpecificsInitialState());
 
   DispatchEvent(syncer::sync_ui_util::kOnReceivedIncludeSpecificsInitialState,
                 value);
 }
 
 void SyncInternalsMessageHandler::HandleGetAllNodes(
-    const base::Value::List& args) {
-  DCHECK_EQ(1U, args.size());
-  DCHECK(args[0].is_string());
-  std::string callback_id = args[0].GetString();
+    const base::ListValue* args) {
+  DCHECK_EQ(1U, args->GetSize());
+  int request_id = 0;
+  bool success = ExtractIntegerValue(args, &request_id);
+  DCHECK(success);
 
   syncer::SyncService* service = GetSyncService();
   if (service) {
     service->GetAllNodesForDebugging(
         base::BindOnce(&SyncInternalsMessageHandler::OnReceivedAllNodes,
-                       weak_ptr_factory_.GetWeakPtr(), callback_id));
+                       weak_ptr_factory_.GetWeakPtr(), request_id));
   }
 }
 
 void SyncInternalsMessageHandler::HandleSetIncludeSpecifics(
-    const base::Value::List& args) {
-  DCHECK_EQ(1U, args.size());
-  include_specifics_ = args[0].GetBool();
+    const base::ListValue* args) {
+  DCHECK_EQ(1U, args->GetSize());
+  include_specifics_ = args->GetList()[0].GetBool();
 }
 
 void SyncInternalsMessageHandler::HandleRequestStart(
-    const base::Value::List& args) {
-  DCHECK_EQ(0U, args.size());
+    const base::ListValue* args) {
+  DCHECK_EQ(0U, args->GetSize());
 
   syncer::SyncService* service = GetSyncService();
   if (!service) {
@@ -199,8 +192,8 @@ void SyncInternalsMessageHandler::HandleRequestStart(
 }
 
 void SyncInternalsMessageHandler::HandleRequestStopKeepData(
-    const base::Value::List& args) {
-  DCHECK_EQ(0U, args.size());
+    const base::ListValue* args) {
+  DCHECK_EQ(0U, args->GetSize());
 
   syncer::SyncService* service = GetSyncService();
   if (!service) {
@@ -211,8 +204,8 @@ void SyncInternalsMessageHandler::HandleRequestStopKeepData(
 }
 
 void SyncInternalsMessageHandler::HandleRequestStopClearData(
-    const base::Value::List& args) {
-  DCHECK_EQ(0U, args.size());
+    const base::ListValue* args) {
+  DCHECK_EQ(0U, args->GetSize());
 
   syncer::SyncService* service = GetSyncService();
   if (!service) {
@@ -223,23 +216,27 @@ void SyncInternalsMessageHandler::HandleRequestStopClearData(
 }
 
 void SyncInternalsMessageHandler::HandleTriggerRefresh(
-    const base::Value::List& args) {
+    const base::ListValue* args) {
   syncer::SyncService* service = GetSyncService();
   if (!service) {
     return;
   }
 
-  service->TriggerRefresh(syncer::ModelTypeSet::All());
+  // Only allowed to trigger refresh/schedule nudges for protocol types, things
+  // like PROXY_TABS are not allowed.
+  service->TriggerRefresh(syncer::Intersection(service->GetActiveDataTypes(),
+                                               syncer::ProtocolTypes()));
 }
 
 void SyncInternalsMessageHandler::OnReceivedAllNodes(
-    const std::string& callback_id,
-    base::Value::List nodes) {
-  base::Value id(callback_id);
-  base::Value success(true);
+    int request_id,
+    std::unique_ptr<base::ListValue> nodes) {
+  base::Value id(request_id);
+  base::Value nodes_clone = nodes->Clone();
 
-  base::ValueView args[] = {id, success, nodes};
-  web_ui()->CallJavascriptFunction("cr.webUIResponse", args);
+  std::vector<const base::Value*> args{&id, &nodes_clone};
+  web_ui()->CallJavascriptFunction(syncer::sync_ui_util::kGetAllNodesCallback,
+                                   args);
 }
 
 void SyncInternalsMessageHandler::OnStateChanged(syncer::SyncService* sync) {
@@ -248,38 +245,27 @@ void SyncInternalsMessageHandler::OnStateChanged(syncer::SyncService* sync) {
 
 void SyncInternalsMessageHandler::OnProtocolEvent(
     const syncer::ProtocolEvent& event) {
-  DispatchEvent(syncer::sync_ui_util::kOnProtocolEvent,
-                event.ToValue(include_specifics_));
+  std::unique_ptr<base::DictionaryValue> value(
+      event.ToValue(include_specifics_));
+  DispatchEvent(syncer::sync_ui_util::kOnProtocolEvent, *value);
 }
 
-void SyncInternalsMessageHandler::OnInvalidationReceived(
-    const std::string& payload) {
-  sync_pb::SyncInvalidationsPayload payload_message;
-  if (!payload_message.ParseFromString(payload)) {
-    return;
-  }
-
-  base::Value::List data_types_list;
-  for (const auto& data_type_invalidation :
-       payload_message.data_type_invalidations()) {
-    const int field_number = data_type_invalidation.data_type_id();
-    syncer::ModelType type =
-        syncer::GetModelTypeFromSpecificsFieldNumber(field_number);
-    if (IsRealDataType(type)) {
-      data_types_list.Append(syncer::ModelTypeToDebugString(type));
-    }
-  }
-
-  DispatchEvent(syncer::sync_ui_util::kOnInvalidationReceived, data_types_list);
+void SyncInternalsMessageHandler::HandleJsEvent(
+    const std::string& name,
+    const syncer::JsEventDetails& details) {
+  DVLOG(1) << "Handling event: " << name << " with details "
+           << details.ToString();
+  DispatchEvent(name, details.Get());
 }
 
 void SyncInternalsMessageHandler::SendAboutInfoAndEntityCounts() {
   // This class serves to display debug information to the user, so it's fine to
   // include sensitive data in ConstructAboutInformation().
-  base::Value::Dict value = syncer::sync_ui_util::ConstructAboutInformation(
-      syncer::sync_ui_util::IncludeSensitiveData(true), GetSyncService(),
-      web_ui::GetChannelString());
-  DispatchEvent(syncer::sync_ui_util::kOnAboutInfoUpdated, value);
+  std::unique_ptr<base::DictionaryValue> value =
+      syncer::sync_ui_util::ConstructAboutInformation(
+          syncer::sync_ui_util::IncludeSensitiveData(true), GetSyncService(),
+          web_ui::GetChannel());
+  DispatchEvent(syncer::sync_ui_util::kOnAboutInfoUpdated, *value);
 
   if (syncer::SyncService* service = GetSyncService()) {
     service->GetEntityCountsForDebugging(
@@ -292,20 +278,23 @@ void SyncInternalsMessageHandler::SendAboutInfoAndEntityCounts() {
 
 void SyncInternalsMessageHandler::OnGotEntityCounts(
     const std::vector<syncer::TypeEntitiesCount>& entity_counts) {
-  base::Value::List count_list;
+  base::ListValue count_list;
   for (const syncer::TypeEntitiesCount& count : entity_counts) {
-    base::Value::Dict count_dictionary;
-    count_dictionary.Set(syncer::sync_ui_util::kModelType,
-                         ModelTypeToDebugString(count.type));
-    count_dictionary.Set(syncer::sync_ui_util::kEntities, count.entities);
-    count_dictionary.Set(syncer::sync_ui_util::kNonTombstoneEntities,
-                         count.non_tombstone_entities);
+    base::DictionaryValue count_dictionary;
+    count_dictionary.SetStringPath(syncer::sync_ui_util::kModelType,
+                                   ModelTypeToString(count.type));
+    count_dictionary.SetIntPath(syncer::sync_ui_util::kEntities,
+                                count.entities);
+    count_dictionary.SetIntPath(syncer::sync_ui_util::kNonTombstoneEntities,
+                                count.non_tombstone_entities);
     count_list.Append(std::move(count_dictionary));
   }
 
-  base::Value::Dict event_details;
-  event_details.Set(syncer::sync_ui_util::kEntityCounts, std::move(count_list));
-  DispatchEvent(syncer::sync_ui_util::kOnEntityCountsUpdated, event_details);
+  base::DictionaryValue event_details;
+  event_details.SetPath(syncer::sync_ui_util::kEntityCounts,
+                        std::move(count_list));
+  DispatchEvent(syncer::sync_ui_util::kOnEntityCountsUpdated,
+                std::move(event_details));
 }
 
 // Gets the SyncService of the underlying original profile. May return null.
@@ -313,15 +302,12 @@ syncer::SyncService* SyncInternalsMessageHandler::GetSyncService() {
   return web_ui::GetSyncServiceForWebUI(web_ui());
 }
 
-syncer::SyncInvalidationsService*
-SyncInternalsMessageHandler::GetSyncInvalidationsService() {
-  return web_ui::GetSyncInvalidationsServiceForWebUI(web_ui());
-}
-
 void SyncInternalsMessageHandler::DispatchEvent(
     const std::string& name,
-    const base::ValueView details_value) {
+    const base::Value& details_value) {
   base::Value event_name = base::Value(name);
-  base::ValueView args[] = {event_name, details_value};
-  web_ui()->CallJavascriptFunction("cr.webUIListenerCallback", args);
+
+  std::vector<const base::Value*> args{&event_name, &details_value};
+
+  web_ui()->CallJavascriptFunction(syncer::sync_ui_util::kDispatchEvent, args);
 }

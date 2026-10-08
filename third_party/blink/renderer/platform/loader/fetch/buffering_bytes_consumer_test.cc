@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,8 +32,8 @@ class BufferingBytesConsumerTest : public testing::Test {
     mojo::ScopedDataPipeConsumerHandle consumer_handle;
     mojo::ScopedDataPipeProducerHandle producer_handle;
     CHECK_EQ(MOJO_RESULT_OK,
-             mojo::CreateDataPipe(&data_pipe_options, producer_handle,
-                                  consumer_handle));
+             mojo::CreateDataPipe(&data_pipe_options, &producer_handle,
+                                  &consumer_handle));
     return consumer_handle;
   }
 
@@ -165,7 +165,7 @@ TEST_F(BufferingBytesConsumerTest, BufferingWithDelay) {
   EXPECT_EQ(PublicState::kReadableOrWaiting,
             replaying_bytes_consumer->GetPublicState());
 
-  task_environment_.FastForwardBy(base::Milliseconds(51));
+  task_environment_.FastForwardBy(base::TimeDelta::FromMilliseconds(51));
   task_runner->RunUntilIdle();
 
   // After the delay expires the underlying consumer should be completely read.
@@ -258,7 +258,7 @@ TEST_F(BufferingBytesConsumerTest, DrainAsDataPipeFailsWithExpiredDelay) {
   auto* bytes_consumer = BufferingBytesConsumer::CreateWithDelay(
       data_pipe_consumer, scheduler::GetSingleThreadTaskRunnerForTesting());
 
-  task_environment_.FastForwardBy(base::Milliseconds(51));
+  task_environment_.FastForwardBy(base::TimeDelta::FromMilliseconds(51));
 
   EXPECT_EQ(PublicState::kReadableOrWaiting, bytes_consumer->GetPublicState());
   auto drained_consumer_handle = bytes_consumer->DrainAsDataPipe();

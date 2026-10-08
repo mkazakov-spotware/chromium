@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,9 +52,6 @@ extern NSString* const AccessoryCreditCardAccessibilityIdentifier;
 // Changing this property hides and shows the password button.
 @property(nonatomic, assign, getter=isPasswordButtonHidden)
     BOOL passwordButtonHidden;
-
-// Readonly property that returns if all manual fill buttons are hidden.
-@property(nonatomic, readonly) BOOL allButtonsHidden;
 
 // Instances an object with the desired delegate.
 //

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 
 #include "base/time/time.h"
 #include "net/base/net_export.h"
-#include "url/gurl.h"
 
 namespace net {
 
@@ -31,31 +30,13 @@ enum CookiePriority {
 // information about same site cookie restrictions.
 // These values are allowed for the SameSite field of a cookie. They mostly
 // correspond to CookieEffectiveSameSite values.
-// Note: Don't renumber, as these values are persisted to a database and
-// recorded to histograms.
+// Note: Don't renumber, as these values are persisted to a database.
 enum class CookieSameSite {
   UNSPECIFIED = -1,
   NO_RESTRICTION = 0,
   LAX_MODE = 1,
   STRICT_MODE = 2,
   // Reserved 3 (was EXTENDED_MODE), next number is 4.
-
-  // Keep last, used for histograms.
-  kMaxValue = STRICT_MODE
-};
-
-// The same as CookieSameSite except that the enums start at 0 to support
-// standard (non-sparse) enum histograms. Standard enum histograms do not
-// support negative numbers and while sparse histograms do they have
-// performance penalties that we want to avoid.
-enum class CookieSameSiteForMetrics {
-  UNSPECIFIED = 0,
-  NO_RESTRICTION = 1,
-  LAX_MODE = 2,
-  STRICT_MODE = 3,
-
-  // Keep last, used for histograms.
-  kMaxValue = STRICT_MODE
 };
 
 // These are the enforcement modes that may be applied to a cookie when deciding
@@ -92,22 +73,8 @@ enum class CookieSameSiteString {
   kMaxValue = kExtended
 };
 
-// What SameSite rules to apply when determining whether access to a particular
-// cookie is allowed.
-//
-// At present, NONLEGACY semantics enforces the following:
-//  1) SameSite=Lax by default: A cookie that does not specify a SameSite
-//     attribute will be treated as if it were Lax (except allowing unsafe
-//     top-level requests for 2 minutes after its creation; see
-//     "lax-allowing-unsafe" or "Lax+POST").
-//  2) SameSite=None requires Secure: A cookie specifying SameSite=None must
-//     also specify Secure.
-//  3) Schemeful Same-Site: When determining what requests are considered
-//     same-site or cross-site, a "site" is considered to be a registrable
-//     domain with a scheme (as opposed to just a registrable domain).
-//
-// When the semantics is LEGACY, these three behaviors are disabled. When the
-// semantics is UNKNOWN, the behavior may or may not depend on base::Features.
+// What rules to apply when determining whether access to a particular cookie is
+// allowed.
 enum class CookieAccessSemantics {
   // Has not been checked yet or there is no way to check.
   UNKNOWN = -1,
@@ -116,16 +83,6 @@ enum class CookieAccessSemantics {
   NONLEGACY = 0,
   // Has been checked and the cookie should be subject to legacy access rules.
   LEGACY,
-};
-
-enum class CookieSamePartyStatus {
-  // Used when there should be no SameParty enforcement (either because the
-  // cookie is not marked SameParty, or the enforcement is irrelevant).
-  kNoSamePartyEnforcement = 0,
-  // Used when SameParty enforcement says to exclude the cookie.
-  kEnforceSamePartyExclude = 1,
-  // Used when SameParty enforcement says to include the cookie.
-  kEnforceSamePartyInclude = 2,
 };
 
 // What scheme was used in the setting of a cookie.
@@ -254,56 +211,7 @@ enum class CookiePort {
 
   // Keep as last value.
   kMaxValue = k9095
-};
 
-// Scheme or trustworthiness used to access or set a cookie.
-// "potentially trustworthy" here refers to the notion from
-// https://www.w3.org/TR/powerful-features/#is-origin-trustworthy
-enum class CookieAccessScheme {
-  // Scheme was non-cryptographic. The non-cryptographic source origin was
-  // either not potentially trustworthy, or its potential
-  // trustworthiness wasn't checked.
-  kNonCryptographic = 0,
-  // Scheme was cryptographic (https or wss). This implies potentially
-  // trustworthy.
-  kCryptographic = 1,
-  // Source was non-cryptographic, but URL was otherwise potentially
-  // trustworthy.
-  kTrustworthy = 2,
-
-  kMaxValue = kTrustworthy  // Keep as the last value.
-};
-
-// Used to populate a histogram that measures which schemes are used to set
-// cookies and how frequently. Many of these probably won't/can't be used,
-// but we know about them and there's no harm in including them.
-//
-// Do not reorder or renumber. Used for metrics.
-enum class CookieSourceSchemeName {
-  kOther = 0,  // Catch all for any other schemes that may be used.
-  kAboutBlankURL = 1,
-  kAboutSrcdocURL = 2,
-  kAboutBlankPath = 3,
-  kAboutSrcdocPath = 4,
-  kAboutScheme = 5,
-  kBlobScheme = 6,
-  kContentScheme = 7,
-  kContentIDScheme = 8,
-  kDataScheme = 9,
-  kFileScheme = 10,
-  kFileSystemScheme = 11,
-  kFtpScheme = 12,
-  kHttpScheme = 13,
-  kHttpsScheme = 14,
-  kJavaScriptScheme = 15,
-  kMailToScheme = 16,
-  kQuicTransportScheme = 17,
-  kTelScheme = 18,
-  kUrnScheme = 19,
-  kWsScheme = 20,
-  kWssScheme = 21,
-  kChromeExtensionScheme = 22,
-  kMaxValue = kChromeExtensionScheme
 };
 
 // Returns the Set-Cookie header priority token corresponding to |priority|.
@@ -327,39 +235,13 @@ StringToCookieSameSite(const std::string& same_site,
                        CookieSameSiteString* samesite_string = nullptr);
 
 NET_EXPORT void RecordCookieSameSiteAttributeValueHistogram(
-    CookieSameSiteString value);
+    CookieSameSiteString value,
+    bool is_cookie_same_party = false);
 
 // This function reduces the 65535 available TCP port values down to a <100
 // potentially interesting values that cookies could be set by or sent to. This
 // is because UMA cannot handle the full range.
 NET_EXPORT CookiePort ReducePortRangeForCookieHistogram(const int port);
-
-// Returns the appropriate enum value for the scheme of the given GURL.
-CookieSourceSchemeName GetSchemeNameEnum(const GURL& url);
-
-// This string is used to as a placeholder for the partition_key column in
-// the SQLite database. All cookies except those set with Partitioned will
-// have this value in their column.
-//
-// Empty string was chosen because it is the smallest, non-null value.
-NET_EXPORT extern const char kEmptyCookiePartitionKey[];
-
-// Used for a histogram that measures which character caused the cookie
-// string to be truncated.
-//
-// Do not reorder or renumber. Used for metrics.
-enum class TruncatingCharacterInCookieStringType {
-  // No truncating character in the cookie line.
-  kTruncatingCharNone = 0,
-  // Cookie line truncated because of \x0.
-  kTruncatingCharNull = 1,
-  // Cookie line truncated because of \xD.
-  kTruncatingCharNewline = 2,
-  // Cookie line truncated because of \xA.
-  kTruncatingCharLineFeed = 3,
-
-  kMaxValue = kTruncatingCharLineFeed,  // Keep as the last value.
-};
 
 }  // namespace net
 

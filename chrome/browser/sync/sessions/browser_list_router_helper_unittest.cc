@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <memory>
 #include <vector>
 
-#include "base/containers/contains.h"
+#include "base/stl_util.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/resource_coordinator/tab_manager.h"
 #include "chrome/browser/sync/sessions/sync_sessions_web_contents_router.h"
@@ -41,7 +41,7 @@ class MockLocalSessionEventHandler : public LocalSessionEventHandler {
 
 class BrowserListRouterHelperTest : public BrowserWithTestWindowTest {
  protected:
-  ~BrowserListRouterHelperTest() override = default;
+  ~BrowserListRouterHelperTest() override {}
 
   MockLocalSessionEventHandler handler_1;
   MockLocalSessionEventHandler handler_2;

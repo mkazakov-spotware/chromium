@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,7 @@
 
 @implementation FakeHistoryMenuController
 
-- (instancetype)initTest {
+- (id)initTest {
   if ((self = [super init])) {
     _opened[1] = NO;
     _opened[2] = NO;
@@ -50,24 +50,19 @@ class HistoryMenuCocoaControllerTest : public BrowserWithTestWindowTest {
     [controller() initTest];
   }
 
-  void TearDown() override { bridge_.reset(); }
-
   void CreateItems(NSMenu* menu) {
-    auto item = std::make_unique<HistoryMenuBridge::HistoryItem>();
+    HistoryMenuBridge::HistoryItem* item = new HistoryMenuBridge::HistoryItem();
     item->url = GURL("http://google.com");
     item->session_id = SessionID::FromSerializedValue(1);
-    bridge_->AddItemToMenu(std::move(item), menu, HistoryMenuBridge::kVisited,
-                           0);
+    bridge_->AddItemToMenu(item, menu, HistoryMenuBridge::kVisited, 0);
 
-    item = std::make_unique<HistoryMenuBridge::HistoryItem>();
+    item = new HistoryMenuBridge::HistoryItem();
     item->url = GURL("http://apple.com");
     item->session_id = SessionID::FromSerializedValue(2);
-    bridge_->AddItemToMenu(std::move(item), menu, HistoryMenuBridge::kVisited,
-                           1);
+    bridge_->AddItemToMenu(item, menu, HistoryMenuBridge::kVisited, 1);
   }
 
-  std::map<NSMenuItem*, std::unique_ptr<HistoryMenuBridge::HistoryItem>>&
-  menu_item_map() {
+  std::map<NSMenuItem*, HistoryMenuBridge::HistoryItem*>& menu_item_map() {
     return bridge_->menu_item_map_;
   }
 
@@ -84,12 +79,15 @@ TEST_F(HistoryMenuCocoaControllerTest, OpenURLForItem) {
   base::scoped_nsobject<NSMenu> menu([[NSMenu alloc] initWithTitle:@"History"]);
   CreateItems(menu.get());
 
-  std::map<NSMenuItem*, std::unique_ptr<HistoryMenuBridge::HistoryItem>>&
-      items = menu_item_map();
-  for (const auto& pair : items) {
-    HistoryMenuBridge::HistoryItem* item = pair.second.get();
+  std::map<NSMenuItem*, HistoryMenuBridge::HistoryItem*>& items =
+      menu_item_map();
+  std::map<NSMenuItem*, HistoryMenuBridge::HistoryItem*>::iterator it =
+      items.begin();
+
+  for ( ; it != items.end(); ++it) {
+    HistoryMenuBridge::HistoryItem* item = it->second;
     EXPECT_FALSE(controller()->_opened[item->session_id.id()]);
-    [controller() openHistoryMenuItem:pair.first];
+    [controller() openHistoryMenuItem:it->first];
     EXPECT_TRUE(controller()->_opened[item->session_id.id()]);
   }
 }

@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(
       `Tests that InspectorCSSAgent formats the CSS style text based on the CSS model modifications.\n`);
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
   await TestRunner.showPanel('elements');
   await TestRunner.loadHTML(`
       <style>
@@ -53,7 +53,7 @@
       }
 
       function nodeCallback(node) {
-        TestRunner.cssModel.getMatchedStyles(node.id).then(callback);
+        TestRunner.cssModel.matchedStylesPromise(node.id).then(callback);
       }
       ElementsTestRunner.selectNodeWithId('formatted', nodeCallback);
     },
@@ -146,7 +146,7 @@
       }
 
       function nodeCallback(node) {
-        TestRunner.cssModel.getMatchedStyles(node.id).then(callback);
+        TestRunner.cssModel.matchedStylesPromise(node.id).then(callback);
       }
       ElementsTestRunner.selectNodeWithId('unformatted', nodeCallback);
     },

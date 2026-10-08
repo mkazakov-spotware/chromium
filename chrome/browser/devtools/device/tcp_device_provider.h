@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,14 +22,14 @@ class TCPDeviceProvider : public AndroidDeviceManager::DeviceProvider {
   using HostPortSet = std::set<net::HostPortPair>;
   explicit TCPDeviceProvider(const HostPortSet& targets);
 
-  void QueryDevices(SerialsCallback callback) override;
+  void QueryDevices(const SerialsCallback& callback) override;
 
   void QueryDeviceInfo(const std::string& serial,
-                       DeviceInfoCallback callback) override;
+                       const DeviceInfoCallback& callback) override;
 
   void OpenSocket(const std::string& serial,
                   const std::string& socket_name,
-                  SocketCallback callback) override;
+                  const SocketCallback& callback) override;
 
   void ReleaseDevice(const std::string& serial) override;
 

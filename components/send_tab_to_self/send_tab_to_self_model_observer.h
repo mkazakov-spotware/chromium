@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,11 +17,6 @@ class SendTabToSelfEntry;
 class SendTabToSelfModelObserver {
  public:
   SendTabToSelfModelObserver() {}
-
-  SendTabToSelfModelObserver(const SendTabToSelfModelObserver&) = delete;
-  SendTabToSelfModelObserver& operator=(const SendTabToSelfModelObserver&) =
-      delete;
-
   virtual ~SendTabToSelfModelObserver() {}
 
   // Invoked when the model has finished loading. Until this method is called it
@@ -44,6 +39,9 @@ class SendTabToSelfModelObserver {
   // that have been marked as opened.
   virtual void EntriesOpenedRemotely(
       const std::vector<const SendTabToSelfEntry*>& opened_entries) {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SendTabToSelfModelObserver);
 };
 
 }  // namespace send_tab_to_self

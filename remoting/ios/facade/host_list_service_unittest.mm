@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,6 @@
 #include "testing/platform_test.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
-#include "ui/display/screen.h"
 
 #define EXPECT_HOST_LIST_STATE(expected) \
   EXPECT_EQ(expected, host_list_service_.state())
@@ -82,9 +81,10 @@ class HostListServiceTest : public PlatformTest {
   id remoting_service_mock_;
 
  private:
-  base::CallbackListSubscription host_list_state_subscription_;
-  base::CallbackListSubscription fetch_failure_subscription_;
-  display::ScopedNativeScreen screen_;
+  std::unique_ptr<HostListService::CallbackSubscription>
+      host_list_state_subscription_;
+  std::unique_ptr<HostListService::CallbackSubscription>
+      fetch_failure_subscription_;
 };
 
 HostListServiceTest::HostListServiceTest()

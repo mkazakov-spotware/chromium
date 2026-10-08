@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,6 @@ import androidx.core.view.ViewCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.chromium.base.Callback;
-import org.chromium.base.TraceEvent;
 import org.chromium.chrome.browser.keyboard_accessory.R;
 import org.chromium.ui.widget.ViewRectProvider;
 
@@ -36,14 +35,13 @@ class KeyboardAccessoryModernView extends KeyboardAccessoryView {
     private ImageView mKeyboardToggle;
     private TextView mSheetTitle;
     private Callback<Integer> mObfuscatedLastChildAt;
-    private ObjectAnimator mAnimator;
-    private float mLastBarItemsViewPosition;
 
     // Records the first time a user scrolled to suppress an IPH explaining how scrolling works.
     private final RecyclerView.OnScrollListener mScrollingIphCallback =
             new RecyclerView.OnScrollListener() {
                 @Override
                 public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
+                    super.onScrollStateChanged(recyclerView, newState);
                     if (newState != RecyclerView.SCROLL_STATE_IDLE) {
                         mBarItemsView.removeOnScrollListener(mScrollingIphCallback);
                         KeyboardAccessoryIPHUtils.emitScrollingEvent();
@@ -151,14 +149,12 @@ class KeyboardAccessoryModernView extends KeyboardAccessoryView {
 
     @Override
     void setVisible(boolean visible) {
-        TraceEvent.begin("KeyboardAccessoryModernView#setVisible");
         super.setVisible(visible);
         if (visible) {
             mBarItemsView.post(mBarItemsView::invalidateItemDecorations);
             // Animate the suggestions only if the bar wasn't visible already.
             if (getVisibility() != View.VISIBLE) animateSuggestionArrival();
         }
-        TraceEvent.end("KeyboardAccessoryModernView#setVisible");
     }
 
     @Override
@@ -200,12 +196,10 @@ class KeyboardAccessoryModernView extends KeyboardAccessoryView {
     }
 
     void setKeyboardToggleVisibility(boolean hasActiveTab) {
-        TraceEvent.begin("KeyboardAccessoryModernView#setKeyboardToggleVisibility");
         mKeyboardToggle.setVisibility(hasActiveTab ? VISIBLE : GONE);
         mSheetTitle.setVisibility(hasActiveTab ? VISIBLE : GONE);
         mBarItemsView.setVisibility(hasActiveTab ? GONE : VISIBLE);
         if (!hasActiveTab) mBarItemsView.post(mBarItemsView::invalidateItemDecorations);
-        TraceEvent.end("KeyboardAccessoryModernView#setKeyboardToggleVisibility");
     }
 
     void setSheetTitle(String title) {
@@ -221,29 +215,18 @@ class KeyboardAccessoryModernView extends KeyboardAccessoryView {
         mObfuscatedLastChildAt = obfuscatedLastChildAt;
     }
 
-    void setAccessibilityMessage(boolean hasSuggestions) {
-        setContentDescription(getContext().getString(hasSuggestions
-                        ? R.string.autofill_keyboard_accessory_modern_content_description
-                        : R.string.autofill_keyboard_accessory_modern_content_fallback_description));
-    }
-
     private void animateSuggestionArrival() {
         if (areAnimationsDisabled()) return;
         int bounceDirection = getLayoutDirection() == LAYOUT_DIRECTION_RTL ? 1 : -1;
-        if (mAnimator != null && mAnimator.isRunning()) {
-            mAnimator.cancel();
-        } else {
-            mLastBarItemsViewPosition = mBarItemsView.getX();
-        }
-
-        float start = mLastBarItemsViewPosition
+        float basePosition = mBarItemsView.getX();
+        float start = basePosition
                 - bounceDirection * ARRIVAL_ANIMATION_BOUNCE_LENGTH_DIP
                         * getContext().getResources().getDisplayMetrics().density;
         mBarItemsView.setTranslationX(start);
-        mAnimator = ObjectAnimator.ofFloat(
-                mBarItemsView, "translationX", start, mLastBarItemsViewPosition);
-        mAnimator.setDuration(ARRIVAL_ANIMATION_DURATION_MS);
-        mAnimator.setInterpolator(new OvershootInterpolator(ARRIVAL_ANIMATION_TENSION));
-        mAnimator.start();
+        ObjectAnimator animator =
+                ObjectAnimator.ofFloat(mBarItemsView, "translationX", start, basePosition);
+        animator.setDuration(ARRIVAL_ANIMATION_DURATION_MS);
+        animator.setInterpolator(new OvershootInterpolator(ARRIVAL_ANIMATION_TENSION));
+        animator.start();
     }
 }

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <stdint.h>
 #include <algorithm>
 #include <string>
-#include <tuple>
 #include <utility>
 
 #include "base/bind.h"
@@ -23,16 +22,14 @@
 #include "base/strings/stringprintf.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "components/database_utils/upper_bound_string.h"
 #include "components/database_utils/url_converter.h"
 #include "sql/recovery.h"
 #include "sql/statement.h"
 #include "sql/transaction.h"
 #include "third_party/sqlite/sqlite3.h"
-#include "url/origin.h"
 
-#if BUILDFLAG(IS_APPLE)
-#include "base/mac/backup_util.h"
+#if defined(OS_MAC)
+#include "base/mac/mac_util.h"
 #endif
 
 namespace favicon {
@@ -106,8 +103,8 @@ const int kCurrentVersionNumber = 8;
 const int kCompatibleVersionNumber = 8;
 const int kDeprecatedVersionNumber = 6;  // and earlier.
 
-void FillIconMapping(const GURL& page_url,
-                     sql::Statement& statement,
+void FillIconMapping(const sql::Statement& statement,
+                     const GURL& page_url,
                      IconMapping* icon_mapping) {
   icon_mapping->mapping_id = statement.ColumnInt64(0);
   icon_mapping->icon_id = statement.ColumnInt64(1);
@@ -225,7 +222,7 @@ void DatabaseErrorCallback(sql::Database* db,
     // or hardware issues, not coding errors at the client level, so displaying
     // the error would probably lead to confusion.  The ignored call signals the
     // test-expectation framework that the error was handled.
-    std::ignore = sql::Database::IsExpectedSqliteError(extended_error);
+    ignore_result(sql::Database::IsExpectedSqliteError(extended_error));
     return;
   }
 
@@ -244,19 +241,11 @@ bool FaviconDatabase::IconMappingEnumerator::GetNextIconMapping(
     IconMapping* icon_mapping) {
   if (!statement_.Step())
     return false;
-  FillIconMapping(GURL(statement_.ColumnString(4)), statement_, icon_mapping);
+  FillIconMapping(statement_, GURL(statement_.ColumnString(4)), icon_mapping);
   return true;
 }
 
-FaviconDatabase::FaviconDatabase()
-    : db_({// Run the database in exclusive mode. Nobody else should be
-           // accessing the database while we're running, and this will give
-           // somewhat improved perf.
-           .exclusive_locking = true,
-           // Favicons db only stores favicons, so we don't need that big a page
-           // size or cache.
-           .page_size = 2048,
-           .cache_size = 32}) {}
+FaviconDatabase::FaviconDatabase() = default;
 
 FaviconDatabase::~FaviconDatabase() {
   // The DBCloseScoper will delete the DB and the cache.
@@ -370,7 +359,7 @@ void FaviconDatabase::RollbackTransaction() {
 void FaviconDatabase::Vacuum() {
   DCHECK(db_.transaction_nesting() == 0)
       << "Can not have a transaction when vacuuming.";
-  std::ignore = db_.Execute("VACUUM");
+  ignore_result(db_.Execute("VACUUM"));
 }
 
 void FaviconDatabase::TrimMemory() {
@@ -389,7 +378,7 @@ FaviconDatabase::GetOldOnDemandFavicons(base::Time threshold) {
       "JOIN icon_mapping ON (icon_mapping.icon_id = favicon_bitmaps.icon_id) "
       "WHERE (favicon_bitmaps.last_requested > 0 AND "
       "       favicon_bitmaps.last_requested < ?)"));
-  old_icons.BindTime(0, threshold);
+  old_icons.BindInt64(0, threshold.ToDeltaSinceWindowsEpoch().InMicroseconds());
 
   std::map<favicon_base::FaviconID, IconMappingsForExpiry> icon_mappings;
 
@@ -445,16 +434,17 @@ bool FaviconDatabase::GetFaviconBitmaps(
     FaviconBitmap favicon_bitmap;
     favicon_bitmap.bitmap_id = statement.ColumnInt64(0);
     favicon_bitmap.icon_id = icon_id;
-    favicon_bitmap.last_updated = statement.ColumnTime(1);
-    std::vector<uint8_t> bitmap_data_blob;
-    statement.ColumnBlobAsVector(2, &bitmap_data_blob);
-    if (!bitmap_data_blob.empty()) {
-      favicon_bitmap.bitmap_data =
-          base::RefCountedBytes::TakeVector(&bitmap_data_blob);
+    favicon_bitmap.last_updated = base::Time::FromDeltaSinceWindowsEpoch(
+        base::TimeDelta::FromMicroseconds(statement.ColumnInt64(1)));
+    if (statement.ColumnByteLength(2) > 0) {
+      scoped_refptr<base::RefCountedBytes> data(new base::RefCountedBytes());
+      statement.ColumnBlobAsVector(2, &data->data());
+      favicon_bitmap.bitmap_data = data;
     }
     favicon_bitmap.pixel_size =
         gfx::Size(statement.ColumnInt(3), statement.ColumnInt(4));
-    favicon_bitmap.last_requested = statement.ColumnTime(5);
+    favicon_bitmap.last_requested = base::Time::FromDeltaSinceWindowsEpoch(
+        base::TimeDelta::FromMicroseconds(statement.ColumnInt64(5)));
     favicon_bitmaps->push_back(favicon_bitmap);
   }
   return result;
@@ -477,14 +467,14 @@ bool FaviconDatabase::GetFaviconBitmap(
     return false;
 
   if (last_updated) {
-    *last_updated = statement.ColumnTime(0);
+    *last_updated = base::Time::FromDeltaSinceWindowsEpoch(
+        base::TimeDelta::FromMicroseconds(statement.ColumnInt64(0)));
   }
 
-  if (png_icon_data) {
-    std::vector<uint8_t> png_data_blob;
-    statement.ColumnBlobAsVector(1, &png_data_blob);
-    if (!png_data_blob.empty())
-      *png_icon_data = base::RefCountedBytes::TakeVector(&png_data_blob);
+  if (png_icon_data && statement.ColumnByteLength(1) > 0) {
+    scoped_refptr<base::RefCountedBytes> data(new base::RefCountedBytes());
+    statement.ColumnBlobAsVector(1, &data->data());
+    *png_icon_data = data;
   }
 
   if (pixel_size) {
@@ -492,7 +482,8 @@ bool FaviconDatabase::GetFaviconBitmap(
   }
 
   if (last_requested) {
-    *last_requested = statement.ColumnTime(4);
+    *last_requested = base::Time::FromDeltaSinceWindowsEpoch(
+        base::TimeDelta::FromMicroseconds(statement.ColumnInt64(4)));
   }
 
   return true;
@@ -513,7 +504,8 @@ FaviconBitmapID FaviconDatabase::AddFaviconBitmap(
 
   statement.BindInt64(0, icon_id);
   if (icon_data.get() && icon_data->size()) {
-    statement.BindBlob(1, *icon_data);
+    statement.BindBlob(1, icon_data->front(),
+                       static_cast<int>(icon_data->size()));
   } else {
     statement.BindNull(1);
   }
@@ -521,12 +513,16 @@ FaviconBitmapID FaviconDatabase::AddFaviconBitmap(
   // On-visit bitmaps:
   //  - keep track of last_updated: last write time is used for expiration;
   //  - always have last_requested==0: no need to keep track of last read time.
-  type == ON_VISIT ? statement.BindTime(2, time) : statement.BindInt64(2, 0);
+  statement.BindInt64(2, type == ON_VISIT
+                             ? time.ToDeltaSinceWindowsEpoch().InMicroseconds()
+                             : 0);
   // On-demand bitmaps:
   //  - always have last_updated==0: last write time is not stored as they are
   //    always expired and thus ready to be replaced by ON_VISIT icons;
   //  - keep track of last_requested: last read time is used for cache eviction.
-  type == ON_DEMAND ? statement.BindTime(3, time) : statement.BindInt64(3, 0);
+  statement.BindInt64(3, type == ON_DEMAND
+                             ? time.ToDeltaSinceWindowsEpoch().InMicroseconds()
+                             : 0);
 
   statement.BindInt(4, pixel_size.width());
   statement.BindInt(5, pixel_size.height());
@@ -549,11 +545,12 @@ bool FaviconDatabase::SetFaviconBitmap(
                              "UPDATE favicon_bitmaps SET image_data=?, "
                              "last_updated=?, last_requested=? WHERE id=?"));
   if (bitmap_data.get() && bitmap_data->size()) {
-    statement.BindBlob(0, *bitmap_data);
+    statement.BindBlob(0, bitmap_data->front(),
+                       static_cast<int>(bitmap_data->size()));
   } else {
     statement.BindNull(0);
   }
-  statement.BindTime(1, time);
+  statement.BindInt64(1, time.ToDeltaSinceWindowsEpoch().InMicroseconds());
   statement.BindInt64(2, 0);
   statement.BindInt64(3, bitmap_id);
 
@@ -570,22 +567,9 @@ bool FaviconDatabase::SetFaviconBitmapLastUpdateTime(FaviconBitmapID bitmap_id,
       db_.GetCachedStatement(SQL_FROM_HERE,
                              "UPDATE favicon_bitmaps SET last_updated=?, "
                              "last_requested=? WHERE id=?"));
-  statement.BindTime(0, time);
+  statement.BindInt64(0, time.ToDeltaSinceWindowsEpoch().InMicroseconds());
   statement.BindInt64(1, 0);
   statement.BindInt64(2, bitmap_id);
-  return statement.Run();
-}
-
-bool FaviconDatabase::SetFaviconsOutOfDateBetween(base::Time begin,
-                                                  base::Time end) {
-  if (end.is_null())
-    end = base::Time::Max();
-  sql::Statement statement(
-      db_.GetCachedStatement(SQL_FROM_HERE,
-                             "UPDATE favicon_bitmaps SET last_updated=0 "
-                             "WHERE last_updated>=? AND last_updated<?"));
-  statement.BindTime(0, begin);
-  statement.BindTime(1, end);
   return statement.Run();
 }
 
@@ -596,7 +580,8 @@ bool FaviconDatabase::TouchOnDemandFavicon(const GURL& icon_url,
       SQL_FROM_HERE, "SELECT id FROM favicons WHERE url=?"));
   id_statement.BindString(0, database_utils::GurlToDatabaseUrl(icon_url));
 
-  base::Time max_time = time - base::Days(kFaviconUpdateLastRequestedAfterDays);
+  base::Time max_time =
+      time - base::TimeDelta::FromDays(kFaviconUpdateLastRequestedAfterDays);
 
   while (id_statement.Step()) {
     favicon_base::FaviconID icon_id = id_statement.ColumnInt64(0);
@@ -609,9 +594,10 @@ bool FaviconDatabase::TouchOnDemandFavicon(const GURL& icon_url,
         SQL_FROM_HERE,
         "UPDATE favicon_bitmaps SET last_requested=? WHERE icon_id=? AND "
         "last_requested>0 AND last_requested<=?"));
-    statement.BindTime(0, time);
+    statement.BindInt64(0, time.ToDeltaSinceWindowsEpoch().InMicroseconds());
     statement.BindInt64(1, icon_id);
-    statement.BindTime(2, max_time);
+    statement.BindInt64(2,
+                        max_time.ToDeltaSinceWindowsEpoch().InMicroseconds());
     if (!statement.Run())
       return false;
   }
@@ -650,35 +636,10 @@ bool FaviconDatabase::GetFaviconLastUpdatedTime(favicon_base::FaviconID icon_id,
     return false;
 
   if (last_updated) {
-    *last_updated = statement.ColumnTime(0);
+    *last_updated = base::Time::FromDeltaSinceWindowsEpoch(
+        base::TimeDelta::FromMicroseconds(statement.ColumnInt64(0)));
   }
   return true;
-}
-
-favicon_base::FaviconID FaviconDatabase::GetFaviconIDForFaviconURL(
-    const GURL& icon_url,
-    favicon_base::IconType icon_type,
-    const url::Origin& page_origin) {
-  // Look to see if there even is any relevant cached entry.
-  auto const icon_id = GetFaviconIDForFaviconURL(icon_url, icon_type);
-  if (!icon_id) {
-    return icon_id;
-  }
-
-  // Check existing mappings to see if any are for the same origin.
-  sql::Statement statement(db_.GetCachedStatement(
-      SQL_FROM_HERE, "SELECT page_url FROM icon_mapping WHERE icon_id=?"));
-  statement.BindInt64(0, icon_id);
-  while (statement.Step()) {
-    const auto candidate_origin =
-        url::Origin::Create(GURL(statement.ColumnString(0)));
-    if (candidate_origin == page_origin) {
-      return icon_id;
-    }
-  }
-
-  // Act as if there is no entry in the cache if no mapping exists.
-  return 0;
 }
 
 favicon_base::FaviconID FaviconDatabase::GetFaviconIDForFaviconURL(
@@ -798,17 +759,17 @@ bool FaviconDatabase::GetIconMappingsForPageURL(
       return result;
 
     IconMapping icon_mapping;
-    FillIconMapping(page_url, statement, &icon_mapping);
+    FillIconMapping(statement, page_url, &icon_mapping);
     mapping_data->push_back(icon_mapping);
   }
   return result;
 }
 
-absl::optional<GURL> FaviconDatabase::FindFirstPageURLForHost(
+base::Optional<GURL> FaviconDatabase::FindFirstPageURLForHost(
     const GURL& url,
     const favicon_base::IconTypeSet& required_icon_types) {
   if (url.host().empty())
-    return absl::nullopt;
+    return base::nullopt;
 
   sql::Statement statement(
       db_.GetCachedStatement(SQL_FROM_HERE,
@@ -816,30 +777,21 @@ absl::optional<GURL> FaviconDatabase::FindFirstPageURLForHost(
                              "FROM icon_mapping "
                              "INNER JOIN favicons "
                              "ON icon_mapping.icon_id = favicons.id "
-                             "WHERE (page_url >= ? AND page_url < ?) "
-                             "OR (page_url >= ? AND page_url < ?) "
+                             "WHERE icon_mapping.page_url LIKE ? "
                              "ORDER BY favicons.icon_type DESC"));
 
-  // This is an optimization to avoid using the LIKE operator which can be
-  // expensive. This statement finds all rows where page_url starts from either
-  // "http://<host>/" or "https://<host>/".
-  std::string http_prefix =
-      base::StringPrintf("http://%s/", url.host().c_str());
-  statement.BindString(0, http_prefix);
-  statement.BindString(1, database_utils::UpperBoundString(http_prefix));
-  std::string https_prefix =
-      base::StringPrintf("https://%s/", url.host().c_str());
-  statement.BindString(2, https_prefix);
-  statement.BindString(3, database_utils::UpperBoundString(https_prefix));
+  // Bind the host with a prefix of "://" and suffix of "/" to ensure the entire
+  // host name is matched.
+  statement.BindString(0, base::StringPrintf("%%://%s/%%", url.host().c_str()));
 
   while (statement.Step()) {
     favicon_base::IconType icon_type =
         FaviconDatabase::FromPersistedIconType(statement.ColumnInt(1));
 
     if (required_icon_types.count(icon_type) != 0)
-      return absl::make_optional(GURL(statement.ColumnString(0)));
+      return base::make_optional(GURL(statement.ColumnString(0)));
   }
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 IconMappingID FaviconDatabase::AddIconMapping(const GURL& page_url,
@@ -899,7 +851,7 @@ FaviconDatabase::GetFaviconsLastUpdatedBefore(base::Time time, int max_count) {
                                                   "WHERE last_updated < ? "
                                                   "ORDER BY last_updated ASC "
                                                   "LIMIT ?"));
-  statement.BindTime(0, time);
+  statement.BindInt64(0, time.ToDeltaSinceWindowsEpoch().InMicroseconds());
   statement.BindInt64(
       1, max_count == 0 ? std::numeric_limits<int64_t>::max() : max_count);
   std::vector<favicon_base::FaviconID> ids;
@@ -1076,6 +1028,15 @@ sql::InitStatus FaviconDatabase::OpenDatabase(sql::Database* db,
   db->set_error_callback(
       base::BindRepeating(&DatabaseErrorCallback, db, db_name));
 
+  // Favicons db only stores favicons, so we don't need that big a page size or
+  // cache.
+  db->set_page_size(2048);
+  db->set_cache_size(32);
+
+  // Run the database in exclusive mode. Nobody else should be accessing the
+  // database while we're running, and this will give somewhat improved perf.
+  db->set_exclusive_locking();
+
   if (!db->Open(db_name))
     return sql::INIT_FAILURE;
   db->Preload();
@@ -1090,9 +1051,7 @@ sql::InitStatus FaviconDatabase::InitImpl(const base::FilePath& db_name) {
 
   // Clear databases which are too old to process.
   DCHECK_LT(kDeprecatedVersionNumber, kCurrentVersionNumber);
-  sql::MetaTable::RazeIfIncompatible(
-      &db_, /*lowest_supported_version=*/kDeprecatedVersionNumber + 1,
-      kCurrentVersionNumber);
+  sql::MetaTable::RazeIfDeprecated(&db_, kDeprecatedVersionNumber);
 
   // TODO(shess): Sqlite.Version.Thumbnail shows versions 22, 23, and
   // 25.  Future versions are not destroyed because that could lead to
@@ -1107,13 +1066,13 @@ sql::InitStatus FaviconDatabase::InitImpl(const base::FilePath& db_name) {
     // TODO(shess): Failing Begin() implies that something serious is
     // wrong with the database.  Raze() may be in order.
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_MAC)
   // Exclude the favicons file from backups.
-  base::mac::SetBackupExclusion(db_name);
+  base::mac::SetFileBackupExclusion(db_name);
 #endif
 
   // thumbnails table has been obsolete for a long time, remove any detritus.
-  std::ignore = db_.Execute("DROP TABLE IF EXISTS thumbnails");
+  ignore_result(db_.Execute("DROP TABLE IF EXISTS thumbnails"));
 
   // At some point, operations involving temporary tables weren't done
   // atomically and users have been stranded.  Drop those tables and
@@ -1121,9 +1080,9 @@ sql::InitStatus FaviconDatabase::InitImpl(const base::FilePath& db_name) {
   // TODO(shess): Prove it?  Audit all cases and see if it's possible
   // that this implies non-atomic update, and should thus be handled
   // via the corruption handler.
-  std::ignore = db_.Execute("DROP TABLE IF EXISTS temp_favicons");
-  std::ignore = db_.Execute("DROP TABLE IF EXISTS temp_favicon_bitmaps");
-  std::ignore = db_.Execute("DROP TABLE IF EXISTS temp_icon_mapping");
+  ignore_result(db_.Execute("DROP TABLE IF EXISTS temp_favicons"));
+  ignore_result(db_.Execute("DROP TABLE IF EXISTS temp_favicon_bitmaps"));
+  ignore_result(db_.Execute("DROP TABLE IF EXISTS temp_icon_mapping"));
 
   // Create the tables.
   if (!meta_table_.Init(&db_, kCurrentVersionNumber,

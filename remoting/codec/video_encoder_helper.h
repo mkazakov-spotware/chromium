@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_geometry.h"
 
 namespace webrtc {
@@ -21,9 +22,6 @@ class VideoPacket;
 class VideoEncoderHelper {
  public:
   VideoEncoderHelper();
-
-  VideoEncoderHelper(const VideoEncoderHelper&) = delete;
-  VideoEncoderHelper& operator=(const VideoEncoderHelper&) = delete;
 
   // Returns a new VideoPacket with common fields (e.g. capture_time_ms, rects
   // list, frame shape if any) initialized based on the supplied |frame|.
@@ -43,6 +41,8 @@ class VideoEncoderHelper {
  private:
   // The most recent screen size. Used to detect screen size changes.
   webrtc::DesktopSize screen_size_;
+
+  DISALLOW_COPY_AND_ASSIGN(VideoEncoderHelper);
 };
 
 }  // namespace remoting

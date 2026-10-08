@@ -1,34 +1,23 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/style/style_initial_data.h"
-#include "third_party/blink/renderer/core/css/resolver/style_builder_converter.h"
 
 #include "third_party/blink/renderer/core/css/property_registry.h"
+#include "third_party/blink/renderer/core/style/data_equivalency.h"
 
 namespace blink {
 
-StyleInitialData::StyleInitialData(Document& document,
-                                   const PropertyRegistry& registry) {
+StyleInitialData::StyleInitialData(const PropertyRegistry& registry) {
   for (const auto& entry : registry) {
-    const CSSValue* specified_initial_value = entry.value->Initial();
-    if (!specified_initial_value)
+    CSSVariableData* data = entry.value->InitialVariableData();
+    if (!data)
       continue;
-
-    const CSSValue* computed_initial_value =
-        &StyleBuilderConverter::ConvertRegisteredPropertyInitialValue(
-            document, *specified_initial_value);
-    scoped_refptr<CSSVariableData> computed_initial_data =
-        StyleBuilderConverter::ConvertRegisteredPropertyVariableData(
-            *computed_initial_value, false /* is_animation_tainted */);
-
-    variables_.SetData(entry.key, std::move(computed_initial_data));
-    variables_.SetValue(entry.key, computed_initial_value);
+    variables_.SetData(entry.key, data);
+    if (const CSSValue* initial = entry.value->Initial())
+      variables_.SetValue(entry.key, initial);
   }
-
-  viewport_unit_flags_ = registry.GetViewportUnitFlags();
-  document.AddViewportUnitFlags(viewport_unit_flags_);
 }
 
 bool StyleInitialData::operator==(const StyleInitialData& other) const {

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,14 +24,11 @@ class FakeTestCertVerifierParamsFactory
   FakeTestCertVerifierParamsFactory();
   ~FakeTestCertVerifierParamsFactory() override;
 
-  static mojom::CertVerifierServiceRemoteParamsPtr GetCertVerifierParams();
+  static mojom::CertVerifierParamsPtr GetCertVerifierParams();
 
  private:
   // cert_verifier::mojom::CertVerifierService implementation:
   void Verify(const net::CertVerifier::RequestParams& params,
-              uint32_t netlog_source_type,
-              uint32_t netlog_source_id,
-              base::TimeTicks netlog_source_start_time,
               mojo::PendingRemote<cert_verifier::mojom::CertVerifierRequest>
                   cert_verifier_request) override;
   void SetConfig(const net::CertVerifier::Config& config) override {}

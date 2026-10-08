@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,10 @@ namespace device {
 
 FakeBluetoothSocket::FakeBluetoothSocket() = default;
 FakeBluetoothSocket::~FakeBluetoothSocket() = default;
+
+void FakeBluetoothSocket::Close() {
+  called_close_ = true;
+}
 
 void FakeBluetoothSocket::Disconnect(base::OnceClosure success_callback) {
   called_disconnect_ = true;

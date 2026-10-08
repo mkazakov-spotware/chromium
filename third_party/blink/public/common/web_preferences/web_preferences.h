@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#include "base/strings/string16.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
 #include "net/nqe/effective_connection_type.h"
 #include "third_party/blink/public/common/common_export.h"
@@ -16,8 +18,8 @@
 #include "third_party/blink/public/mojom/css/preferred_contrast.mojom-shared.h"
 #include "third_party/blink/public/mojom/v8_cache_options.mojom-forward.h"
 #include "third_party/blink/public/mojom/webpreferences/web_preferences.mojom-shared.h"
+#include "ui/base/pointer/pointer_device.h"
 #include "url/gurl.h"
-#include "url/origin.h"
 
 namespace blink {
 
@@ -25,11 +27,9 @@ class WebView;
 
 namespace web_pref {
 
-using blink::mojom::EffectiveConnectionType;
-
 // Map of ISO 15924 four-letter script code to font family.  For example,
 // "Arab" to "My Arabic Font".
-typedef std::map<std::string, std::u16string> ScriptFontFamilyMap;
+typedef std::map<std::string, base::string16> ScriptFontFamilyMap;
 
 // The ISO 15924 script code for undetermined script aka Common. It's the
 // default used on WebKit's side to get/set a font setting when no script is
@@ -49,7 +49,7 @@ struct BLINK_COMMON_EXPORT WebPreferences {
   ScriptFontFamilyMap sans_serif_font_family_map;
   ScriptFontFamilyMap cursive_font_family_map;
   ScriptFontFamilyMap fantasy_font_family_map;
-  ScriptFontFamilyMap math_font_family_map;
+  ScriptFontFamilyMap pictograph_font_family_map;
   int default_font_size;
   int default_fixed_font_size;
   int minimum_font_size;
@@ -67,6 +67,7 @@ struct BLINK_COMMON_EXPORT WebPreferences {
   bool allow_scripts_to_close_windows;
   bool remote_fonts_enabled;
   bool javascript_can_access_clipboard;
+  bool xslt_enabled;
   // We don't use dns_prefetching_enabled to disable DNS prefetching.  Instead,
   // we disable the feature at a lower layer so that we catch non-WebKit uses
   // of DNS prefetch as well.
@@ -74,8 +75,13 @@ struct BLINK_COMMON_EXPORT WebPreferences {
   // Preference to save data. When enabled, requests will contain the header
   // 'Save-Data: on'.
   bool data_saver_enabled;
+  // Whether data saver holdback for Web APIs is enabled. If enabled, data saver
+  // appears as disabled to the web consumers even if it has been actually
+  // enabled by the user.
+  bool data_saver_holdback_web_api_enabled;
   bool local_storage_enabled;
   bool databases_enabled;
+  bool application_cache_enabled;
   bool tabs_to_links;
   bool disable_ipc_flooding_protection;
   bool hyperlink_auditing_enabled;
@@ -84,13 +90,14 @@ struct BLINK_COMMON_EXPORT WebPreferences {
   bool webgl1_enabled;
   bool webgl2_enabled;
   bool pepper_3d_enabled;
+  bool flash_3d_enabled;
+  bool flash_stage3d_enabled;
+  bool flash_stage3d_baseline_enabled;
   bool privileged_webgl_extensions_enabled;
   bool webgl_errors_to_console_enabled;
   bool hide_scrollbars;
-  // If false, ignore ::-webkit-scrollbar-* CSS pseudo-elements in stylesheets.
-  bool enable_webkit_scrollbar_styling = true;
   bool accelerated_2d_canvas_enabled;
-  bool canvas_2d_layers_enabled = false;
+  bool new_canvas_2d_api_enabled;
   bool antialiased_2d_canvas_disabled;
   bool antialiased_clips_2d_canvas_enabled;
   bool accelerated_filters_enabled;
@@ -121,22 +128,19 @@ struct BLINK_COMMON_EXPORT WebPreferences {
   bool touch_event_feature_detection_enabled;
   int pointer_events_max_touch_points;
   int available_pointer_types;
-  blink::mojom::PointerType primary_pointer_type;
+  ui::PointerType primary_pointer_type;
   int available_hover_types;
-  blink::mojom::HoverType primary_hover_type;
+  ui::HoverType primary_hover_type;
   bool dont_send_key_events_to_javascript;
   bool barrel_button_for_drag_enabled = false;
   bool sync_xhr_in_documents_enabled;
   // TODO(https://crbug.com/1163644): Remove once Chrome Apps are deprecated.
   bool target_blank_implies_no_opener_enabled_will_be_removed = true;
-  // TODO(https://crbug.com/1172495): Remove once Chrome Apps are deprecated.
-  bool allow_non_empty_navigator_plugins = false;
   int number_of_cpu_cores;
   blink::mojom::EditingBehavior editing_behavior;
   bool supports_multiple_windows;
   bool viewport_enabled;
   bool viewport_meta_enabled;
-  bool auto_zoom_focused_editable_to_legible_scale;
 
   // If true - Blink will clamp the minimum scale factor to the content width,
   // preventing zoom beyond the visible content. This is really only needed if
@@ -151,13 +155,8 @@ struct BLINK_COMMON_EXPORT WebPreferences {
   bool smart_insert_delete_enabled;
   bool spatial_navigation_enabled;
   bool navigate_on_drag_drop;
-  bool fake_no_alloc_direct_call_for_testing_enabled;
   blink::mojom::V8CacheOptions v8_cache_options;
   bool record_whole_document;
-
-  // If true, stylus handwriting recognition to text input will be available in
-  // editable input fields which are non-password type.
-  bool stylus_handwriting_enabled;
 
   // This flags corresponds to a Page's Settings' setCookieEnabled state. It
   // only controls whether or not the "document.cookie" field is properly
@@ -196,6 +195,8 @@ struct BLINK_COMMON_EXPORT WebPreferences {
   // around WebVTT text tracks.
   // Window color can be any legal CSS color descriptor.
   std::string text_track_window_color;
+  // Window padding is in em.
+  std::string text_track_window_padding;
   // Window radius is in pixels.
   std::string text_track_window_radius;
 
@@ -215,7 +216,7 @@ struct BLINK_COMMON_EXPORT WebPreferences {
   // Representation of the Web App Manifest scope if any.
   GURL web_app_scope;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   float font_scale_factor;
   float device_scale_adjustment;
   bool force_enable_zoom;
@@ -250,18 +251,13 @@ struct BLINK_COMMON_EXPORT WebPreferences {
   // WebView sets this to false to retain old documentElement behaviour
   // (http://crbug.com/761016).
   bool scroll_top_left_interop_enabled;
-
+  // Disable features such as offscreen canvas that depend on the viz
+  // architecture of surface embedding. Android WebView does not support this
+  // architecture yet.
+  bool disable_features_depending_on_viz;
   // Don't accelerate small canvases to avoid crashes TODO(crbug.com/1004304)
   bool disable_accelerated_small_canvases;
-#endif  // BUILDFLAG(IS_ANDROID)
-
-// TODO(crbug.com/1284805): Remove IS_ANDROID once WebView supports WebAuthn.
-// TODO(crbug.com/1382970): Remove IS_FUCHSIA and merge with the block above
-// once all Content embedders on Fuchsia support WebAuthn.
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
-  // Disable the Web Authentication API.
-  bool disable_webauthn = false;
-#endif  // BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_ANDROID)
 
   // Enable forcibly modifying content rendering to result in a light on dark
   // color scheme.
@@ -305,7 +301,7 @@ struct BLINK_COMMON_EXPORT WebPreferences {
 
   // Network quality threshold below which resources from iframes are assigned
   // either kVeryLow or kVeryLow Blink priority.
-  EffectiveConnectionType low_priority_iframes_threshold;
+  net::EffectiveConnectionType low_priority_iframes_threshold;
 
   // Whether Picture-in-Picture is enabled.
   bool picture_in_picture_enabled;
@@ -315,13 +311,12 @@ struct BLINK_COMMON_EXPORT WebPreferences {
   // See https://github.com/dtapuska/html-translate
   bool translate_service_available;
 
-  // A value other than
-  // mojom::EffectiveConnectionType::kEffectiveConnectionUnknownType implies
-  // that the network quality estimate related Web APIs are in the holdback
-  // mode. When the holdback is enabled, the related Web APIs return network
-  // quality estimate corresponding to |network_quality_estimator_web_holdback|
+  // A value other than net::EFFECTIVE_CONNECTION_TYPE_UNKNOWN implies that the
+  // network quality estimate related Web APIs are in the holdback mode. When
+  // the holdback is enabled, the related Web APIs return network quality
+  // estimate corresponding to |network_quality_estimator_web_holdback|
   // regardless of the actual quality.
-  EffectiveConnectionType network_quality_estimator_web_holdback;
+  net::EffectiveConnectionType network_quality_estimator_web_holdback;
 
   // Whether lazy loading of frames and images is enabled.
   bool lazy_load_enabled = true;
@@ -330,11 +325,11 @@ struct BLINK_COMMON_EXPORT WebPreferences {
   // viewport before it should start being loaded in, depending on the effective
   // connection type of the current network. Blink will use the default distance
   // threshold for effective connection types that aren't specified here.
-  std::map<EffectiveConnectionType, int>
+  std::map<net::EffectiveConnectionType, int>
       lazy_frame_loading_distance_thresholds_px;
-  std::map<EffectiveConnectionType, int>
+  std::map<net::EffectiveConnectionType, int>
       lazy_image_loading_distance_thresholds_px;
-  std::map<EffectiveConnectionType, int> lazy_image_first_k_fully_load;
+  std::map<net::EffectiveConnectionType, int> lazy_image_first_k_fully_load;
 
   // Setting to false disables upgrades to HTTPS for HTTP resources in HTTPS
   // sites.
@@ -352,23 +347,6 @@ struct BLINK_COMMON_EXPORT WebPreferences {
   // context-menu (depends on how the event is handled).  Currently touch-drags
   // cannot show context menus, see crbug.com/1096189.
   bool touch_dragend_context_menu = false;
-
-  // By default, WebXR's immersive-ar session creation is allowed, but this can
-  // change depending on the enterprise policy if the platform supports it.
-  bool webxr_immersive_ar_allowed = true;
-
-  // Whether lookup of frames in the associated WebView (e.g. lookup via
-  // window.open or via <a target=...>) should be renderer-wide (i.e. going
-  // beyond the usual opener-relationship-based BrowsingInstance boundaries).
-  bool renderer_wide_named_frame_lookup = false;
-
-  // Whether MIME type checking for worker scripts is strict (true) or lax
-  // (false). Used by StrictMimetypeCheckForWorkerScriptsEnabled policy.
-  bool strict_mime_type_check_for_worker_scripts_enabled = true;
-
-  // Whether modal context menu is used. A modal context menu meaning it is
-  // blocking user's access to the background web content.
-  bool modal_context_menu = true;
 
   // We try to keep the default values the same as the default values in
   // chrome, except for the cases where it would require lots of extra work for

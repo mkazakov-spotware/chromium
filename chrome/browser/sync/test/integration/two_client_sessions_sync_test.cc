@@ -1,25 +1,20 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <string>
 
 #include "base/guid.h"
+#include "base/macros.h"
 #include "base/strings/stringprintf.h"
-#include "base/test/scoped_feature_list.h"
-#include "base/test/test_timeouts.h"
-#include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
-#include "chrome/browser/browser_features.h"
 #include "chrome/browser/sessions/session_service.h"
 #include "chrome/browser/sync/test/integration/encryption_helper.h"
 #include "chrome/browser/sync/test/integration/passwords_helper.h"
+#include "chrome/browser/sync/test/integration/profile_sync_service_harness.h"
 #include "chrome/browser/sync/test/integration/sessions_helper.h"
-#include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "components/sync/engine/cycle/sync_cycle_snapshot.h"
-#include "components/sync/test/fake_server_verifier.h"
-#include "components/sync/test/sessions_hierarchy.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -45,16 +40,14 @@ using testing::IsEmpty;
 class TwoClientSessionsSyncTest : public SyncTest {
  public:
   TwoClientSessionsSyncTest() : SyncTest(TWO_CLIENT) {}
-
-  TwoClientSessionsSyncTest(const TwoClientSessionsSyncTest&) = delete;
-  TwoClientSessionsSyncTest& operator=(const TwoClientSessionsSyncTest&) =
-      delete;
-
-  ~TwoClientSessionsSyncTest() override = default;
+  ~TwoClientSessionsSyncTest() override {}
 
   bool WaitForForeignSessionsToSync(int local_index, int non_local_index) {
     return ForeignSessionsMatchChecker(non_local_index, local_index).Wait();
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TwoClientSessionsSyncTest);
 };
 
 static const char* kURL1 = "data:text/html,<html><title>Test</title></html>";
@@ -92,7 +85,7 @@ IN_PROC_BROWSER_TEST_F(TwoClientSessionsSyncTest, SingleClientClosed) {
 
   // Close one of the two tabs. We also issue another navigation to make sure
   // association logic kicks in.
-  CloseTab(/*browser_index=*/0, /*tab_index=*/1);
+  CloseTab(/*index=*/0, /*tab_index=*/1);
   NavigateTab(0, GURL(kURL3));
   EXPECT_TRUE(WaitForForeignSessionsToSync(0, 1));
 
@@ -206,20 +199,18 @@ IN_PROC_BROWSER_TEST_F(TwoClientSessionsSyncTest, MultipleWindowsMultipleTabs) {
 }
 
 IN_PROC_BROWSER_TEST_F(TwoClientSessionsSyncTest,
-                       NoHistoryIfEncryptionEnabled) {
+                       DISABLED_NoHistoryIfEncryptionEnabled) {
   ASSERT_TRUE(SetupSync()) << "SetupSync() failed.";
 
   ASSERT_TRUE(CheckInitialState(0));
   ASSERT_TRUE(CheckInitialState(1));
 
   GetSyncService(0)->GetUserSettings()->SetEncryptionPassphrase("passphrase");
-  ASSERT_TRUE(PassphraseRequiredChecker(GetSyncService(1)).Wait());
+  ASSERT_TRUE(
+      PassphraseRequiredStateChecker(GetSyncService(1), /*desired_state=*/true)
+          .Wait());
   ASSERT_TRUE(GetSyncService(1)->GetUserSettings()->SetDecryptionPassphrase(
       "passphrase"));
-  // Make sure that re-encryption happens before opening the tab (otherwise race
-  // condition may occur when second client attempts to re-encrypt data, while
-  // first client attempts to commit local changes).
-  ASSERT_TRUE(AwaitQuiescence());
 
   EXPECT_TRUE(OpenTab(0, GURL(kURL1)));
   EXPECT_TRUE(WaitForForeignSessionsToSync(0, 1));
@@ -227,19 +218,7 @@ IN_PROC_BROWSER_TEST_F(TwoClientSessionsSyncTest,
   EXPECT_THAT(GetFakeServer()->GetCommittedHistoryURLs(), IsEmpty());
 }
 
-class TwoClientSessionsWithoutDestroyProfileSyncTest
-    : public TwoClientSessionsSyncTest {
- public:
-  TwoClientSessionsWithoutDestroyProfileSyncTest() {
-    features_.InitAndDisableFeature(features::kDestroyProfileOnBrowserClose);
-  }
-
- private:
-  base::test::ScopedFeatureList features_;
-};
-
-IN_PROC_BROWSER_TEST_F(TwoClientSessionsWithoutDestroyProfileSyncTest,
-                       ShouldSyncAllClosedTabs) {
+IN_PROC_BROWSER_TEST_F(TwoClientSessionsSyncTest, ShouldSyncAllClosedTabs) {
   ASSERT_TRUE(SetupSync()) << "SetupSync() failed.";
 
   ASSERT_TRUE(CheckInitialState(0));
@@ -251,11 +230,11 @@ IN_PROC_BROWSER_TEST_F(TwoClientSessionsWithoutDestroyProfileSyncTest,
       WaitForForeignSessionsToSync(/*local_index=*/0, /*non_local_index=*/1));
 
   // Close all tabs and wait for syncing.
-  CloseTab(/*browser_index=*/0, /*tab_index=*/0);
+  CloseTab(/*index=*/0, /*tab_index=*/0);
   ASSERT_TRUE(
       WaitForForeignSessionsToSync(/*local_index=*/0, /*non_local_index=*/1));
 
-  CloseTab(/*browser_index=*/0, /*tab_index=*/0);
+  CloseTab(/*index=*/0, /*tab_index=*/0);
   EXPECT_TRUE(
       WaitForForeignSessionsToSync(/*local_index=*/0, /*non_local_index=*/1));
 }

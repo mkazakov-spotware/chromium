@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@
 #include <memory>
 #include <utility>
 
-#include "base/metrics/histogram_functions.h"
-#include "third_party/blink/public/common/permissions/permission_utils.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
@@ -16,12 +14,13 @@
 #include "third_party/blink/renderer/bindings/modules/v8/v8_permission_descriptor.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
-#include "third_party/blink/renderer/core/execution_context/navigator_base.h"
 #include "third_party/blink/renderer/core/frame/frame.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
+#include "third_party/blink/renderer/core/origin_trials/origin_trials.h"
 #include "third_party/blink/renderer/modules/permissions/permission_status.h"
 #include "third_party/blink/renderer/modules/permissions/permission_utils.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 #include "third_party/blink/renderer/platform/wtf/wtf_size_t.h"
@@ -32,24 +31,8 @@ using mojom::blink::PermissionDescriptorPtr;
 using mojom::blink::PermissionName;
 using mojom::blink::PermissionService;
 
-// static
-const char Permissions::kSupplementName[] = "Permissions";
-
-// static
-Permissions* Permissions::permissions(NavigatorBase& navigator) {
-  Permissions* supplement =
-      Supplement<NavigatorBase>::From<Permissions>(navigator);
-  if (!supplement) {
-    supplement = MakeGarbageCollected<Permissions>(navigator);
-    ProvideTo(navigator, supplement);
-  }
-  return supplement;
-}
-
-Permissions::Permissions(NavigatorBase& navigator)
-    : Supplement<NavigatorBase>(navigator),
-      ExecutionContextLifecycleObserver(navigator.GetExecutionContext()),
-      service_(navigator.GetExecutionContext()) {}
+Permissions::Permissions(ExecutionContext* execution_context)
+    : service_(execution_context) {}
 
 ScriptPromise Permissions::query(ScriptState* script_state,
                                  const ScriptValue& raw_permission,
@@ -68,10 +51,10 @@ ScriptPromise Permissions::query(ScriptState* script_state,
   // likely be "prompt".
   PermissionDescriptorPtr descriptor_copy = descriptor->Clone();
   GetService(ExecutionContext::From(script_state))
-      ->HasPermission(
-          std::move(descriptor),
-          WTF::BindOnce(&Permissions::TaskComplete, WrapPersistent(this),
-                        WrapPersistent(resolver), std::move(descriptor_copy)));
+      ->HasPermission(std::move(descriptor),
+                      WTF::Bind(&Permissions::TaskComplete,
+                                WrapPersistent(this), WrapPersistent(resolver),
+                                WTF::Passed(std::move(descriptor_copy))));
   return promise;
 }
 
@@ -91,12 +74,11 @@ ScriptPromise Permissions::request(ScriptState* script_state,
   PermissionDescriptorPtr descriptor_copy = descriptor->Clone();
   LocalDOMWindow* window = DynamicTo<LocalDOMWindow>(context);
   LocalFrame* frame = window ? window->GetFrame() : nullptr;
-
   GetService(context)->RequestPermission(
       std::move(descriptor), LocalFrame::HasTransientUserActivation(frame),
-      WTF::BindOnce(&Permissions::VerifyPermissionAndReturnStatus,
-                    WrapPersistent(this), WrapPersistent(resolver),
-                    std::move(descriptor_copy)));
+      WTF::Bind(&Permissions::TaskComplete, WrapPersistent(this),
+                WrapPersistent(resolver),
+                WTF::Passed(std::move(descriptor_copy))));
   return promise;
 }
 
@@ -115,8 +97,9 @@ ScriptPromise Permissions::revoke(ScriptState* script_state,
   GetService(ExecutionContext::From(script_state))
       ->RevokePermission(
           std::move(descriptor),
-          WTF::BindOnce(&Permissions::TaskComplete, WrapPersistent(this),
-                        WrapPersistent(resolver), std::move(descriptor_copy)));
+          WTF::Bind(&Permissions::TaskComplete, WrapPersistent(this),
+                    WrapPersistent(resolver),
+                    WTF::Passed(std::move(descriptor_copy))));
   return promise;
 }
 
@@ -157,35 +140,25 @@ ScriptPromise Permissions::requestAll(
   ScriptPromise promise = resolver->Promise();
 
   Vector<PermissionDescriptorPtr> internal_permissions_copy;
-  internal_permissions_copy.reserve(internal_permissions.size());
+  internal_permissions_copy.ReserveCapacity(internal_permissions.size());
   for (const auto& descriptor : internal_permissions)
     internal_permissions_copy.push_back(descriptor->Clone());
 
   LocalDOMWindow* window = DynamicTo<LocalDOMWindow>(context);
   LocalFrame* frame = window ? window->GetFrame() : nullptr;
-
   GetService(context)->RequestPermissions(
       std::move(internal_permissions),
       LocalFrame::HasTransientUserActivation(frame),
-      WTF::BindOnce(
-          &Permissions::VerifyPermissionsAndReturnStatus, WrapPersistent(this),
-          WrapPersistent(resolver), std::move(internal_permissions_copy),
-          std::move(caller_index_to_internal_index),
-          -1 /* last_verified_permission_index */, true /* is_bulk_request */));
+      WTF::Bind(&Permissions::BatchTaskComplete, WrapPersistent(this),
+                WrapPersistent(resolver),
+                WTF::Passed(std::move(internal_permissions_copy)),
+                WTF::Passed(std::move(caller_index_to_internal_index))));
   return promise;
-}
-
-void Permissions::ContextDestroyed() {
-  base::UmaHistogramCounts1000("Permissions.API.CreatedPermissionStatusObjects",
-                               created_permission_status_objects_);
 }
 
 void Permissions::Trace(Visitor* visitor) const {
   visitor->Trace(service_);
-  visitor->Trace(listeners_);
   ScriptWrappable::Trace(visitor);
-  Supplement<NavigatorBase>::Trace(visitor);
-  ExecutionContextLifecycleObserver::Trace(visitor);
 }
 
 PermissionService* Permissions::GetService(
@@ -195,7 +168,7 @@ PermissionService* Permissions::GetService(
         execution_context,
         service_.BindNewPipeAndPassReceiver(
             execution_context->GetTaskRunner(TaskType::kPermission)));
-    service_.set_disconnect_handler(WTF::BindOnce(
+    service_.set_disconnect_handler(WTF::Bind(
         &Permissions::ServiceConnectionError, WrapWeakPersistent(this)));
   }
   return service_.get();
@@ -211,41 +184,15 @@ void Permissions::TaskComplete(ScriptPromiseResolver* resolver,
   if (!resolver->GetExecutionContext() ||
       resolver->GetExecutionContext()->IsContextDestroyed())
     return;
-
-  PermissionStatusListener* listener =
-      GetOrCreatePermissionStatusListener(result, std::move(descriptor));
-  if (listener)
-    resolver->Resolve(PermissionStatus::Take(listener, resolver));
+  resolver->Resolve(
+      PermissionStatus::Take(resolver, result, std::move(descriptor)));
 }
 
-void Permissions::VerifyPermissionAndReturnStatus(
-    ScriptPromiseResolver* resolver,
-    mojom::blink::PermissionDescriptorPtr descriptor,
-    mojom::blink::PermissionStatus result) {
-  Vector<int> caller_index_to_internal_index;
-  caller_index_to_internal_index.push_back(0);
-  Vector<mojom::blink::PermissionStatus> results;
-  results.push_back(std::move(result));
-  Vector<mojom::blink::PermissionDescriptorPtr> descriptors;
-  descriptors.push_back(std::move(descriptor));
-
-  VerifyPermissionsAndReturnStatus(resolver, std::move(descriptors),
-                                   std::move(caller_index_to_internal_index),
-                                   -1 /* last_verified_permission_index */,
-                                   false /* is_bulk_request */,
-                                   std::move(results));
-}
-
-void Permissions::VerifyPermissionsAndReturnStatus(
+void Permissions::BatchTaskComplete(
     ScriptPromiseResolver* resolver,
     Vector<mojom::blink::PermissionDescriptorPtr> descriptors,
     Vector<int> caller_index_to_internal_index,
-    int last_verified_permission_index,
-    bool is_bulk_request,
     const Vector<mojom::blink::PermissionStatus>& results) {
-  DCHECK(caller_index_to_internal_index.size() == 1u || is_bulk_request);
-  DCHECK_EQ(descriptors.size(), caller_index_to_internal_index.size());
-
   if (!resolver->GetExecutionContext() ||
       resolver->GetExecutionContext()->IsContextDestroyed())
     return;
@@ -256,104 +203,11 @@ void Permissions::VerifyPermissionsAndReturnStatus(
   HeapVector<Member<PermissionStatus>> result;
   result.ReserveInitialCapacity(caller_index_to_internal_index.size());
   for (int internal_index : caller_index_to_internal_index) {
-    // If there is a chance that this permission result came from a different
-    // permission type (e.g. a PTZ request could be replaced with a camera
-    // request internally), then re-check the actual permission type to ensure
-    // that it it indeed that permission type. If it's not, replace the
-    // descriptor with the verification descriptor.
-    auto verification_descriptor = CreatePermissionVerificationDescriptor(
-        *GetPermissionType(*descriptors[internal_index]));
-    if (last_verified_permission_index == -1 && verification_descriptor) {
-      auto descriptor_copy = descriptors[internal_index]->Clone();
-      service_->HasPermission(
-          std::move(descriptor_copy),
-          WTF::BindOnce(&Permissions::PermissionVerificationComplete,
-                        WrapPersistent(this), WrapPersistent(resolver),
-                        std::move(descriptors),
-                        std::move(caller_index_to_internal_index),
-                        std::move(results), std::move(verification_descriptor),
-                        internal_index, is_bulk_request));
-      return;
-    }
-
-    // This is the last permission that was verified.
-    if (internal_index == last_verified_permission_index)
-      last_verified_permission_index = -1;
-
-    PermissionStatusListener* listener = GetOrCreatePermissionStatusListener(
-        results[internal_index], descriptors[internal_index]->Clone());
-    if (listener) {
-      // If it's not a bulk request, return the first (and only) result.
-      if (!is_bulk_request) {
-        resolver->Resolve(PermissionStatus::Take(listener, resolver));
-        return;
-      }
-      result.push_back(PermissionStatus::Take(listener, resolver));
-    }
+    result.push_back(PermissionStatus::CreateAndListen(
+        resolver->GetExecutionContext(), results[internal_index],
+        descriptors[internal_index]->Clone()));
   }
   resolver->Resolve(result);
-}
-
-void Permissions::PermissionVerificationComplete(
-    ScriptPromiseResolver* resolver,
-    Vector<mojom::blink::PermissionDescriptorPtr> descriptors,
-    Vector<int> caller_index_to_internal_index,
-    const Vector<mojom::blink::PermissionStatus>& results,
-    mojom::blink::PermissionDescriptorPtr verification_descriptor,
-    int internal_index_to_verify,
-    bool is_bulk_request,
-    mojom::blink::PermissionStatus verification_result) {
-  if (verification_result != results[internal_index_to_verify]) {
-    // The permission actually came from the verification descriptor, so use
-    // that descriptor when returning the permission status.
-    descriptors[internal_index_to_verify] = std::move(verification_descriptor);
-  }
-
-  VerifyPermissionsAndReturnStatus(resolver, std::move(descriptors),
-                                   std::move(caller_index_to_internal_index),
-                                   internal_index_to_verify, is_bulk_request,
-                                   std::move(results));
-}
-
-PermissionStatusListener* Permissions::GetOrCreatePermissionStatusListener(
-    mojom::blink::PermissionStatus status,
-    mojom::blink::PermissionDescriptorPtr descriptor) {
-  auto type = GetPermissionType(*descriptor);
-  if (!type)
-    return nullptr;
-
-  if (!listeners_.Contains(*type)) {
-    listeners_.insert(
-        *type, PermissionStatusListener::Create(*this, GetExecutionContext(),
-                                                status, std::move(descriptor)));
-  } else {
-    listeners_.at(*type)->SetStatus(status);
-  }
-
-  return listeners_.at(*type);
-}
-
-absl::optional<PermissionType> Permissions::GetPermissionType(
-    const mojom::blink::PermissionDescriptor& descriptor) {
-  return PermissionDescriptorInfoToPermissionType(
-      descriptor.name,
-      descriptor.extension && descriptor.extension->is_midi() &&
-          descriptor.extension->get_midi()->sysex,
-      descriptor.extension && descriptor.extension->is_camera_device() &&
-          descriptor.extension->get_camera_device()->panTiltZoom,
-      descriptor.extension && descriptor.extension->is_clipboard() &&
-          descriptor.extension->get_clipboard()->will_be_sanitized,
-      descriptor.extension && descriptor.extension->is_clipboard() &&
-          descriptor.extension->get_clipboard()->has_user_gesture);
-}
-
-mojom::blink::PermissionDescriptorPtr
-Permissions::CreatePermissionVerificationDescriptor(
-    PermissionType descriptor_type) {
-  if (descriptor_type == PermissionType::CAMERA_PAN_TILT_ZOOM) {
-    return CreateVideoCapturePermissionDescriptor(false /* pan_tilt_zoom */);
-  }
-  return nullptr;
 }
 
 }  // namespace blink

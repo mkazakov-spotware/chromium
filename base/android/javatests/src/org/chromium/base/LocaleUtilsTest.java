@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -266,28 +266,12 @@ public class LocaleUtilsTest {
     @Test
     @SmallTest
     public void testToLanguage() {
-        Assert.assertEquals("en", LocaleUtils.toBaseLanguage("en-US"));
-        Assert.assertEquals("en", LocaleUtils.toBaseLanguage("en"));
-        Assert.assertEquals("", LocaleUtils.toBaseLanguage("-"));
-        Assert.assertEquals("", LocaleUtils.toBaseLanguage("-US"));
-        Assert.assertEquals("", LocaleUtils.toBaseLanguage(""));
-        Assert.assertEquals("fil", LocaleUtils.toBaseLanguage("fil"));
-    }
-
-    // Test for isBaseLanguageEqual
-    @Test
-    @SmallTest
-    public void testIsBaseLanguageEqual() {
-        Assert.assertTrue(LocaleUtils.isBaseLanguageEqual("pt-PT", "pt-PT"));
-        Assert.assertTrue(LocaleUtils.isBaseLanguageEqual("pt-PT", "pt"));
-        Assert.assertTrue(LocaleUtils.isBaseLanguageEqual("pt", "pt-PT-xx"));
-        Assert.assertTrue(LocaleUtils.isBaseLanguageEqual("zh-Hans-CN", "zh-HK"));
-        Assert.assertTrue(LocaleUtils.isBaseLanguageEqual("", ""));
-
-        Assert.assertFalse(LocaleUtils.isBaseLanguageEqual("en-US", "es-US"));
-        Assert.assertFalse(LocaleUtils.isBaseLanguageEqual("af", "zu"));
-        Assert.assertFalse(LocaleUtils.isBaseLanguageEqual("af", ""));
-        Assert.assertFalse(LocaleUtils.isBaseLanguageEqual("", "zu"));
+        Assert.assertEquals("en", LocaleUtils.toLanguage("en-US"));
+        Assert.assertEquals("en", LocaleUtils.toLanguage("en"));
+        Assert.assertEquals("", LocaleUtils.toLanguage("-"));
+        Assert.assertEquals("", LocaleUtils.toLanguage("-US"));
+        Assert.assertEquals("", LocaleUtils.toLanguage(""));
+        Assert.assertEquals("fil", LocaleUtils.toLanguage("fil"));
     }
 
     // Test for getConfigurationLocale < N

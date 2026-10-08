@@ -1,9 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/bookmarks/bookmark_menu_controller_views.h"
 
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/bookmarks/bookmark_stats.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
@@ -12,7 +13,6 @@
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/page_navigator.h"
-#include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
 #include "ui/base/dragdrop/os_exchange_data.h"
 #include "ui/views/controls/button/menu_button.h"
 #include "ui/views/controls/menu/menu_item_view.h"
@@ -25,18 +25,19 @@ using content::PageNavigator;
 using views::MenuItemView;
 
 BookmarkMenuController::BookmarkMenuController(Browser* browser,
+                                               PageNavigator* page_navigator,
                                                views::Widget* parent,
                                                const BookmarkNode* node,
                                                size_t start_child_index,
                                                bool for_drop)
-    : menu_delegate_(new BookmarkMenuDelegate(browser, parent)),
+    : menu_delegate_(new BookmarkMenuDelegate(browser, page_navigator, parent)),
       node_(node),
       observer_(nullptr),
       for_drop_(for_drop),
       bookmark_bar_(nullptr) {
   menu_delegate_->Init(this, nullptr, node, start_child_index,
                        BookmarkMenuDelegate::HIDE_PERMANENT_FOLDERS,
-                       BookmarkLaunchLocation::kSubfolder);
+                       BOOKMARK_LAUNCH_LOCATION_BAR_SUBFOLDER);
   int run_type = 0;
   if (for_drop)
     run_type |= views::MenuRunner::FOR_DROP;
@@ -74,9 +75,12 @@ MenuItemView* BookmarkMenuController::context_menu() const {
   return menu_delegate_->context_menu();
 }
 
-std::u16string BookmarkMenuController::GetTooltipText(
-    int id,
-    const gfx::Point& p) const {
+void BookmarkMenuController::SetPageNavigator(PageNavigator* navigator) {
+  menu_delegate_->SetPageNavigator(navigator);
+}
+
+base::string16 BookmarkMenuController::GetTooltipText(int id,
+                                                const gfx::Point& p) const {
   return menu_delegate_->GetTooltipText(id, p);
 }
 
@@ -110,21 +114,20 @@ bool BookmarkMenuController::CanDrop(MenuItemView* menu,
   return menu_delegate_->CanDrop(menu, data);
 }
 
-ui::mojom::DragOperation BookmarkMenuController::GetDropOperation(
+int BookmarkMenuController::GetDropOperation(
     MenuItemView* item,
     const ui::DropTargetEvent& event,
     DropPosition* position) {
   return menu_delegate_->GetDropOperation(item, event, position);
 }
 
-views::View::DropCallback BookmarkMenuController::GetDropCallback(
-    views::MenuItemView* menu,
-    DropPosition position,
-    const ui::DropTargetEvent& event) {
-  auto drop_cb = menu_delegate_->GetDropCallback(menu, position, event);
+int BookmarkMenuController::OnPerformDrop(MenuItemView* menu,
+                                          DropPosition position,
+                                          const ui::DropTargetEvent& event) {
+  int result = menu_delegate_->OnPerformDrop(menu, position, event);
   if (for_drop_)
     delete this;
-  return drop_cb;
+  return result;
 }
 
 bool BookmarkMenuController::ShowContextMenu(MenuItemView* source,

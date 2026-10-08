@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.View.OnLongClickListener;
 import android.view.View.OnTouchListener;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Checkable;
 
 import androidx.annotation.Nullable;
@@ -111,19 +110,6 @@ public abstract class SelectableItemViewBase<E> extends ViewLookupCachingFrameLa
         setOnTouchListener(this);
         setOnClickListener(this);
         setOnLongClickListener(this);
-        setAccessibilityDelegate(new AccessibilityDelegate() {
-            @Override
-            public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-
-                // Announce checked state if selection mode is on. The actual read out from talkback
-                // is "checked/unchecked, {content description of this view.}"
-                boolean checkable = mSelectionDelegate != null
-                        && mSelectionDelegate.isSelectionEnabled() && mItem != null;
-                info.setCheckable(checkable);
-                info.setChecked(isChecked());
-            }
-        });
     }
 
     @Override

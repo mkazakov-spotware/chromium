@@ -1,12 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/update_client/net/url_loader_post_interceptor.h"
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/files/file_util.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/bind.h"
@@ -120,7 +120,7 @@ void URLLoaderPostInterceptor::Pause() {
 
 void URLLoaderPostInterceptor::Resume() {
   is_paused_ = false;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindLambdaForTesting([&]() {
         if (!pending_expectations_.size())
           return;
@@ -165,7 +165,10 @@ void URLLoaderPostInterceptor::InitializeWithInterceptor() {
           replacements.ClearQuery();
           url = url.ReplaceComponents(replacements);
         }
-        if (!base::Contains(filtered_urls_, url))
+        auto it = std::find_if(
+            filtered_urls_.begin(), filtered_urls_.end(),
+            [url](const GURL& filtered_url) { return filtered_url == url; });
+        if (it == filtered_urls_.end())
           return;
 
         std::string request_body = network::GetUploadData(request);
@@ -179,7 +182,7 @@ void URLLoaderPostInterceptor::InitializeWithInterceptor() {
           const std::string response_body(expectation.second.response_body);
 
           if (url_job_request_ready_callback_) {
-            base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+            base::ThreadTaskRunnerHandle::Get()->PostTask(
                 FROM_HERE, std::move(url_job_request_ready_callback_));
           }
 
@@ -215,13 +218,16 @@ URLLoaderPostInterceptor::RequestHandler(
     replacements.ClearQuery();
     url = url.ReplaceComponents(replacements);
   }
-  if (!base::Contains(filtered_urls_, url))
+  auto it = std::find_if(
+      filtered_urls_.begin(), filtered_urls_.end(),
+      [url](const GURL& filtered_url) { return filtered_url == url; });
+  if (it == filtered_urls_.end())
     return nullptr;
 
   std::string request_body = request.content;
   net::HttpRequestHeaders headers;
-  for (auto pair : request.headers)
-    headers.SetHeader(pair.first, pair.second);
+  for (auto it : request.headers)
+    headers.SetHeader(it.first, it.second);
   requests_.push_back({request_body, headers, url});
   if (expectations_.empty())
     return nullptr;

@@ -1,10 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/public/cpp/ambient/ambient_ui_model.h"
-
-#include "base/check_op.h"
 
 namespace ash {
 
@@ -104,9 +102,6 @@ std::ostream& operator<<(std::ostream& out, AmbientUiVisibility visibility) {
   switch (visibility) {
     case AmbientUiVisibility::kShown:
       out << "kShown";
-      break;
-    case AmbientUiVisibility::kPreview:
-      out << "kPreview";
       break;
     case AmbientUiVisibility::kHidden:
       out << "kHidden";

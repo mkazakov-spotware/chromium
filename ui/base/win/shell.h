@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 
 #include <windows.h>
 
-#include <string>
-
 #include "base/component_export.h"
+#include "base/strings/string16.h"
 
 namespace base {
 class FilePath;
@@ -46,18 +45,18 @@ COMPONENT_EXPORT(UI_BASE) bool PreventWindowFromPinning(HWND hwnd);
 // for the given window. |app_icon_index| should be set to 0 if the app icon
 // file only has a single icon.
 COMPONENT_EXPORT(UI_BASE)
-void SetAppDetailsForWindow(const std::wstring& app_id,
+void SetAppDetailsForWindow(const base::string16& app_id,
                             const base::FilePath& app_icon_path,
                             int app_icon_index,
-                            const std::wstring& relaunch_command,
-                            const std::wstring& relaunch_display_name,
+                            const base::string16& relaunch_command,
+                            const base::string16& relaunch_display_name,
                             HWND hwnd);
 
 // Sets the application id given as the Application Model ID for the window
 // specified.  This method is used to insure that different web applications
 // do not group together on the Win7 task bar.
 COMPONENT_EXPORT(UI_BASE)
-void SetAppIdForWindow(const std::wstring& app_id, HWND hwnd);
+void SetAppIdForWindow(const base::string16& app_id, HWND hwnd);
 
 // Sets the application icon for the window specified.
 COMPONENT_EXPORT(UI_BASE)
@@ -69,8 +68,8 @@ void SetAppIconForWindow(const base::FilePath& app_icon_path,
 // Windows will use this information for grouping on the taskbar, and to create
 // a shortcut if the window is pinned to the taskbar.
 COMPONENT_EXPORT(UI_BASE)
-void SetRelaunchDetailsForWindow(const std::wstring& relaunch_command,
-                                 const std::wstring& display_name,
+void SetRelaunchDetailsForWindow(const base::string16& relaunch_command,
+                                 const base::string16& display_name,
                                  HWND hwnd);
 
 // Clears the Window Property Store on an HWND.

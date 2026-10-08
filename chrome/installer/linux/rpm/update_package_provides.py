@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -41,10 +41,12 @@ LIBRARY_FILTER = set([
     "libgbm.so.1",
     "libgcc_s.so",
     "libgdk-3.so",
+    "libgdk_pixbuf-2.0.so",
     "libgio-2.0.so",
     "libglib-2.0.so",
     "libgmodule-2.0.so",
     "libgobject-2.0.so",
+    "libgtk-3.so",
     "libm.so",
     "libnspr4.so",
     "libnss3.so",
@@ -56,15 +58,14 @@ LIBRARY_FILTER = set([
     "libsmime3.so",
     "libstdc++.so",
     "libuuid.so",
+    "libxkbcommon.so.0",
     "libxcb.so",
     "libxcb-dri3.so.0",
-    "libxkbcommon.so.0",
-    "libxshmfence.so.1",
     "rtld(GNU_HASH)",
 ])
 
-SUPPORTED_FEDORA_RELEASES = ['32', '33', '34']
-SUPPORTED_OPENSUSE_LEAP_RELEASES = ['15.2', '15.3']
+SUPPORTED_FEDORA_RELEASES = ['30', '31']
+SUPPORTED_OPENSUSE_LEAP_RELEASES = ['15.1', '15.2']
 
 COMMON_NS = "http://linux.duke.edu/metadata/common"
 RPM_NS = "http://linux.duke.edu/metadata/rpm"

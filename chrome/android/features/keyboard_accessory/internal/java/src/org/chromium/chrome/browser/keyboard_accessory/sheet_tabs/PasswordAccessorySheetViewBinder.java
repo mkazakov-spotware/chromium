@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -147,7 +147,7 @@ class PasswordAccessorySheetViewBinder {
             bindTextView(password, info.getFields().get(1));
 
             // Set the default icon for username, then try to get a better one.
-            FaviconHelper faviconHelper = FaviconHelper.create(username.getContext());
+            FaviconHelper faviconHelper = new FaviconHelper(username.getContext());
             setIconForBitmap(username, faviconHelper.getDefaultIcon(info.getOrigin()));
             faviconHelper.fetchFavicon(info.getOrigin(), icon -> setIconForBitmap(username, icon));
 

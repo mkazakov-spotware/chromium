@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,11 @@
 
 #include "base/bind.h"
 #include "base/files/file_util.h"
+#include "base/macros.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/thread_restrictions.h"
 #include "net/base/filename_util.h"
@@ -36,10 +38,6 @@ class MockJobInterceptor : public URLRequestInterceptor {
                      bool map_all_requests_to_base_path)
       : base_path_(base_path),
         map_all_requests_to_base_path_(map_all_requests_to_base_path) {}
-
-  MockJobInterceptor(const MockJobInterceptor&) = delete;
-  MockJobInterceptor& operator=(const MockJobInterceptor&) = delete;
-
   ~MockJobInterceptor() override = default;
 
   // URLRequestJobFactory::ProtocolHandler implementation
@@ -65,6 +63,8 @@ class MockJobInterceptor : public URLRequestInterceptor {
 
   const base::FilePath base_path_;
   const bool map_all_requests_to_base_path_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockJobInterceptor);
 };
 
 std::string DoFileIO(const base::FilePath& file_path) {
@@ -112,14 +112,16 @@ GURL URLRequestMockHTTPJob::GetMockHttpsUrl(const std::string& path) {
 // static
 std::unique_ptr<URLRequestInterceptor> URLRequestMockHTTPJob::CreateInterceptor(
     const base::FilePath& base_path) {
-  return std::make_unique<MockJobInterceptor>(base_path, false);
+  return std::unique_ptr<URLRequestInterceptor>(
+      new MockJobInterceptor(base_path, false));
 }
 
 // static
 std::unique_ptr<URLRequestInterceptor>
 URLRequestMockHTTPJob::CreateInterceptorForSingleFile(
     const base::FilePath& file) {
-  return std::make_unique<MockJobInterceptor>(file, true);
+  return std::unique_ptr<URLRequestInterceptor>(
+      new MockJobInterceptor(file, true));
 }
 
 URLRequestMockHTTPJob::URLRequestMockHTTPJob(URLRequest* request,
@@ -173,7 +175,7 @@ void URLRequestMockHTTPJob::SetHeadersAndStart(const std::string& raw_headers) {
 
 // Private const version.
 void URLRequestMockHTTPJob::GetResponseInfoConst(HttpResponseInfo* info) const {
-  info->headers = base::MakeRefCounted<HttpResponseHeaders>(raw_headers_);
+  info->headers = new HttpResponseHeaders(raw_headers_);
 }
 
 int64_t URLRequestMockHTTPJob::GetTotalReceivedBytes() const {

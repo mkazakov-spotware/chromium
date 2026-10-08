@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@
 
 #import <Foundation/Foundation.h>
 
-#import "ios/chrome/browser/ui/tab_switcher/tab_grid/tab_grid_paging.h"
-
 class Browser;
 @class TabGridCoordinator;
 
@@ -16,20 +14,14 @@ class Browser;
 // when the presentation and dismmiss animations finishes.
 @protocol TabGridCoordinatorDelegate
 
-// Informs the delegate the tab switcher that the given browser should be set to
-// active. If `dismissTabGrid` is YES, the tab grid itself should also be
-// dismissed. This should always be the case except when using the thumb strip,
-// where the tab grid is never dismissed
+// Informs the delegate the tab switcher should be dismissed with the given
+// active browser.
 - (void)tabGrid:(TabGridCoordinator*)tabGrid
-    shouldActivateBrowser:(Browser*)browser
-           dismissTabGrid:(BOOL)dismissTabGrid
-             focusOmnibox:(BOOL)focusOmnibox;
+    shouldFinishWithBrowser:(Browser*)browser
+               focusOmnibox:(BOOL)focusOmnibox;
 
 // Informs the delegate that the tab switcher is done and should be dismissed.
 - (void)tabGridDismissTransitionDidEnd:(TabGridCoordinator*)tabGrid;
-
-// Asks the delegate for the page that should currently be active.
-- (TabGridPage)activePageForTabGrid:(TabGridCoordinator*)tabGrid;
 
 @end
 

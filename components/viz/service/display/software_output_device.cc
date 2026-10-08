@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 #include "base/bind.h"
 #include "base/check.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "skia/ext/legacy_display_globals.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "ui/gfx/vsync_provider.h"
@@ -16,7 +16,7 @@
 namespace viz {
 
 SoftwareOutputDevice::SoftwareOutputDevice()
-    : SoftwareOutputDevice(base::SequencedTaskRunner::GetCurrentDefault()) {}
+    : SoftwareOutputDevice(base::SequencedTaskRunnerHandle::Get()) {}
 
 SoftwareOutputDevice::SoftwareOutputDevice(
     scoped_refptr<base::SequencedTaskRunner> task_runner)
@@ -62,10 +62,6 @@ void SoftwareOutputDevice::OnSwapBuffers(
 
 int SoftwareOutputDevice::MaxFramesPending() const {
   return 1;
-}
-
-bool SoftwareOutputDevice::SupportsOverridePlatformSize() const {
-  return false;
 }
 
 }  // namespace viz

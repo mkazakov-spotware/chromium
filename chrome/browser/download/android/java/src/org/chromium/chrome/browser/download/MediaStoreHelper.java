@@ -1,15 +1,15 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.download;
 
-import android.os.Build;
 import android.provider.MediaStore;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
 
+import org.chromium.base.BuildInfo;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.task.AsyncTask;
@@ -37,7 +37,7 @@ public class MediaStoreHelper {
     public static void addImageToGalleryOnSDCard(String filePath, String mimeType) {
         // TODO(xingliu): Support Android Q when we have available device with SD card slot.
         if (TextUtils.isEmpty(filePath) || mimeType == null || !mimeType.startsWith("image/")
-                || Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                || BuildInfo.isAtLeastQ()) {
             return;
         }
 

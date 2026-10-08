@@ -1,19 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media/router/discovery/dial/dial_media_sink_service_impl.h"
 
 #include <algorithm>
-#include <memory>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
+#include "base/stl_util.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "chrome/browser/media/router/discovery/dial/dial_device_data.h"
-#include "components/media_router/common/mojom/media_router.mojom.h"
 
 namespace media_router {
 
@@ -25,23 +23,6 @@ constexpr char kLoggerComponent[] = "DialMediaSinkServiceImpl";
 
 static constexpr const char* kDiscoveryOnlyModelNames[3] = {
     "eureka dongle", "chromecast audio", "chromecast ultra"};
-
-std::string EnumToString(DialRegistry::DialErrorCode code) {
-  switch (code) {
-    case DialRegistry::DialErrorCode::DIAL_NO_LISTENERS:
-      return "DIAL_NO_LISTENERS";
-    case DialRegistry::DialErrorCode::DIAL_NO_INTERFACES:
-      return "DIAL_NO_INTERFACES";
-    case DialRegistry::DialErrorCode::DIAL_NETWORK_DISCONNECTED:
-      return "DIAL_NETWORK_DISCONNECTED";
-    case DialRegistry::DialErrorCode::DIAL_CELLULAR_NETWORK:
-      return "DIAL_CELLULAR_NETWORK";
-    case DialRegistry::DialErrorCode::DIAL_SOCKET_ERROR:
-      return "DIAL_SOCKET_ERROR";
-    case DialRegistry::DialErrorCode::DIAL_UNKNOWN:
-      return "DIAL_UNKNOWN";
-  }
-}
 
 // Returns true if DIAL (SSDP) was only used to discover this sink, and it is
 // not expected to support other DIAL features (app discovery, activity
@@ -55,7 +36,7 @@ bool IsDiscoveryOnly(const std::string& model_name) {
 SinkAppStatus GetSinkAppStatusFromResponse(const DialAppInfoResult& result) {
   if (!result.app_info) {
     if (result.result_code == DialAppInfoResultCode::kParsingError ||
-        result.result_code == DialAppInfoResultCode::kHttpError) {
+        result.result_code == DialAppInfoResultCode::kNotFound) {
       return SinkAppStatus::kUnavailable;
     } else {
       return SinkAppStatus::kUnknown;
@@ -79,6 +60,11 @@ DialMediaSinkServiceImpl::DialMediaSinkServiceImpl(
 
 DialMediaSinkServiceImpl::~DialMediaSinkServiceImpl() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  if (dial_registry_) {
+    dial_registry_->OnListenerRemoved();
+    dial_registry_->UnregisterObserver(this);
+    dial_registry_ = nullptr;
+  }
 }
 
 void DialMediaSinkServiceImpl::Start() {
@@ -97,12 +83,10 @@ void DialMediaSinkServiceImpl::Start() {
 
   StartTimer();
 
-  dial_registry_ = std::make_unique<DialRegistry>(*this, task_runner_);
-  dial_registry_->Start();
-
-  LoggerList::GetInstance()->Log(
-      LoggerImpl::Severity::kInfo, mojom::LogCategory::kDiscovery,
-      kLoggerComponent, "DialMediaSinkService has started.", "", "", "");
+  dial_registry_ =
+      test_dial_registry_ ? test_dial_registry_ : DialRegistry::GetInstance();
+  dial_registry_->RegisterObserver(this);
+  dial_registry_->OnListenerAdded();
 }
 
 void DialMediaSinkServiceImpl::OnUserGesture() {
@@ -116,7 +100,7 @@ DialAppDiscoveryService* DialMediaSinkServiceImpl::app_discovery_service() {
   return app_discovery_service_.get();
 }
 
-base::CallbackListSubscription
+DialMediaSinkServiceImpl::SinkQueryByAppSubscription
 DialMediaSinkServiceImpl::StartMonitoringAvailableSinksForApp(
     const std::string& app_name,
     const SinkQueryByAppCallback& callback) {
@@ -135,6 +119,12 @@ DialMediaSinkServiceImpl::StartMonitoringAvailableSinksForApp(
   }
 
   return callback_list->Add(callback);
+}
+
+void DialMediaSinkServiceImpl::SetDialRegistryForTest(
+    DialRegistry* dial_registry) {
+  DCHECK(!test_dial_registry_);
+  test_dial_registry_ = dial_registry;
 }
 
 void DialMediaSinkServiceImpl::SetDescriptionServiceForTest(
@@ -177,7 +167,7 @@ void DialMediaSinkServiceImpl::OnDiscoveryComplete() {
   MediaSinkServiceBase::OnDiscoveryComplete();
 }
 
-void DialMediaSinkServiceImpl::OnDialDeviceList(
+void DialMediaSinkServiceImpl::OnDialDeviceEvent(
     const DialRegistry::DeviceList& devices) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   current_devices_ = devices;
@@ -191,10 +181,12 @@ void DialMediaSinkServiceImpl::OnDialDeviceList(
 
 void DialMediaSinkServiceImpl::OnDialError(DialRegistry::DialErrorCode type) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  LoggerList::GetInstance()->Log(
-      LoggerImpl::Severity::kError, mojom::LogCategory::kDiscovery,
-      kLoggerComponent, base::StrCat({"Dial Error: ", EnumToString(type)}), "",
-      "", "");
+  if (logger_.is_bound()) {
+    logger_->LogError(
+        mojom::LogCategory::kDiscovery, kLoggerComponent,
+        base::StringPrintf("DialErrorCode: %d", static_cast<int>(type)), "", "",
+        "");
+  }
 }
 
 void DialMediaSinkServiceImpl::OnDeviceDescriptionAvailable(
@@ -207,13 +199,17 @@ void DialMediaSinkServiceImpl::OnDeviceDescriptionAvailable(
 
   std::string processed_uuid =
       MediaSinkInternal::ProcessDeviceUUID(description_data.unique_id);
-  MediaSink::Id sink_id = base::StringPrintf("dial:%s", processed_uuid.c_str());
+  MediaSink::Id sink_id =
+      base::StringPrintf("dial:<%s>", processed_uuid.c_str());
   MediaSink sink(sink_id, description_data.friendly_name, SinkIconType::GENERIC,
-                 mojom::MediaRouteProviderId::DIAL);
+                 MediaRouteProviderId::DIAL);
   DialSinkExtraData extra_data;
   extra_data.app_url = description_data.app_url;
   extra_data.model_name = description_data.model_name;
-  extra_data.ip_address = device_data.ip_address();
+  std::string ip_address = device_data.device_description_url().host();
+  if (!extra_data.ip_address.AssignFromIPLiteral(ip_address)) {
+    return;
+  }
 
   MediaSinkInternal dial_sink(sink, extra_data);
   latest_sinks_.insert_or_assign(sink_id, dial_sink);
@@ -230,12 +226,12 @@ void DialMediaSinkServiceImpl::OnDeviceDescriptionError(
     const DialDeviceData& device,
     const std::string& error_message) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  LoggerList::GetInstance()->Log(
-      LoggerImpl::Severity::kError, mojom::LogCategory::kDiscovery,
-      kLoggerComponent,
-      base::StrCat({"Device description error. Device id: ", device.device_id(),
-                    ", error message: ", error_message}),
-      "", "", "");
+  if (logger_.is_bound()) {
+    logger_->LogError(mojom::LogCategory::kDiscovery, kLoggerComponent,
+                      base::StrCat({"Device id: ", device.device_id(),
+                                    ", error message: ", error_message}),
+                      "", "", "");
+  }
 }
 
 void DialMediaSinkServiceImpl::OnAppInfoParseCompleted(
@@ -254,16 +250,6 @@ void DialMediaSinkServiceImpl::OnAppInfoParseCompleted(
 
   if (old_status == app_status)
     return;
-
-  if (!result.app_info) {
-    LoggerList::GetInstance()->Log(
-        LoggerImpl::Severity::kError, mojom::LogCategory::kDiscovery,
-        kLoggerComponent,
-        base::StringPrintf(
-            "App info parsing error. DialAppInfoResultCode: %d. app name: %s",
-            static_cast<int>(result.result_code), app_name.c_str()),
-        sink_id, "", "");
-  }
 
   // The sink might've been removed before the parse was complete. In that case
   // the callbacks won't be notified, but the app status will be saved for later
@@ -348,6 +334,12 @@ std::vector<MediaSinkInternal> DialMediaSinkServiceImpl::GetAvailableSinks(
       sinks.push_back(sink.second);
   }
   return sinks;
+}
+
+void DialMediaSinkServiceImpl::BindLogger(
+    mojo::PendingRemote<mojom::Logger> pending_remote) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  logger_.Bind(std::move(pending_remote));
 }
 
 }  // namespace media_router

@@ -32,7 +32,6 @@
 #define THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_CONSOLE_MESSAGE_H_
 
 #include "third_party/blink/public/mojom/devtools/console_message.mojom-shared.h"
-#include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/web/web_node.h"
 
@@ -44,7 +43,7 @@ class Local;
 
 namespace blink {
 
-struct BLINK_EXPORT WebConsoleMessage {
+struct WebConsoleMessage {
   mojom::ConsoleMessageLevel level = mojom::ConsoleMessageLevel::kInfo;
   WebString text;
   WebVector<blink::WebNode> nodes;
@@ -71,10 +70,11 @@ struct BLINK_EXPORT WebConsoleMessage {
         column_number(column_number) {}
 
   // Logs the console message for the given v8::Context.
-  static void LogWebConsoleMessage(v8::Local<v8::Context> context,
-                                   const WebConsoleMessage& message);
+  BLINK_EXPORT static void LogWebConsoleMessage(
+      v8::Local<v8::Context> context,
+      const WebConsoleMessage& message);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_CONSOLE_MESSAGE_H_
+#endif

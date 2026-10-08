@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,12 @@
 
 #include <memory>
 
-#include "ios/web/public/download/download_task.h"
+#include "base/macros.h"
 
 namespace web {
 
 class DownloadController;
+class DownloadTask;
 class WebState;
 
 // DownloadController delegate. All methods are called on UI thread.
@@ -40,12 +41,10 @@ class DownloadControllerDelegate {
       DownloadController* download_controller) {}
 
   DownloadControllerDelegate() = default;
-
-  DownloadControllerDelegate(const DownloadControllerDelegate&) = delete;
-  DownloadControllerDelegate& operator=(const DownloadControllerDelegate&) =
-      delete;
-
   virtual ~DownloadControllerDelegate() = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DownloadControllerDelegate);
 };
 
 }  // namespace web

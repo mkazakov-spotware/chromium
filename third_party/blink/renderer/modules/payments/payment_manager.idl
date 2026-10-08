@@ -1,8 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// https://w3c.github.io/payment-handler/#dom-paymentmanager
+// https://w3c.github.io/webpayments-payment-apps-api/#idl-def-paymentappmanager
 
 enum PaymentDelegation {
     "shippingAddress",
@@ -13,9 +13,10 @@ enum PaymentDelegation {
 
 [
     Exposed=Window,
-    RuntimeEnabled=PaymentApp
+    RuntimeEnabled=PaymentApp,
+    ConstructorCallWith=ExecutionContext
 ] interface PaymentManager {
-    [SameObject, DeprecateAs=PaymentInstruments, RuntimeEnabled=PaymentInstruments] readonly attribute PaymentInstruments instruments;
+    [SameObject] readonly attribute PaymentInstruments instruments;
     attribute DOMString userHint;
-    [CallWith=ScriptState, RaisesException] Promise<void> enableDelegations(sequence<PaymentDelegation> delegations);
+    [CallWith=ScriptState, RaisesException, RuntimeEnabled=PaymentHandlerHandlesShippingAndContact] Promise<void> enableDelegations(FrozenArray<PaymentDelegation> delegations);
 };

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,15 +22,12 @@ import org.mockito.MockitoAnnotations;
 
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Batch;
+import org.chromium.chrome.browser.payments.PaymentManifestVerifier.ManifestVerifyCallback;
+import org.chromium.chrome.browser.payments.PaymentManifestWebDataService.PaymentManifestWebDataServiceCallback;
 import org.chromium.chrome.test.ChromeBrowserTestRule;
-import org.chromium.components.payments.CSPChecker;
 import org.chromium.components.payments.PackageManagerDelegate;
 import org.chromium.components.payments.PaymentManifestDownloader;
 import org.chromium.components.payments.PaymentManifestParser;
-import org.chromium.components.payments.PaymentManifestVerifier;
-import org.chromium.components.payments.PaymentManifestVerifier.ManifestVerifyCallback;
-import org.chromium.components.payments.PaymentManifestWebDataService;
-import org.chromium.components.payments.PaymentManifestWebDataService.PaymentManifestWebDataServiceCallback;
 import org.chromium.components.payments.WebAppManifestSection;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.test.NativeLibraryTestUtils;
@@ -96,7 +93,7 @@ public class PaymentManifestVerifierTest {
 
         mDownloader = new PaymentManifestDownloader() {
             @Override
-            public void initialize(WebContents webContents, CSPChecker cspChecker) {}
+            public void initialize(WebContents webContents) {}
 
             @Override
             public void downloadPaymentMethodManifest(
@@ -159,7 +156,7 @@ public class PaymentManifestVerifierTest {
                 mMatchingApps, null /* supportedOrigins */,
                 mWebDataService, new PaymentManifestDownloader() {
                     @Override
-                    public void initialize(WebContents webContents, CSPChecker cspChecker) {}
+                    public void initialize(WebContents webContents) {}
 
                     @Override
                     public void downloadPaymentMethodManifest(
@@ -184,7 +181,7 @@ public class PaymentManifestVerifierTest {
                 mMatchingApps, null /* supportedOrigins */,
                 mWebDataService, new PaymentManifestDownloader() {
                     @Override
-                    public void initialize(WebContents webContents, CSPChecker cspChecker) {}
+                    public void initialize(WebContents webContents) {}
 
                     @Override
                     public void downloadPaymentMethodManifest(

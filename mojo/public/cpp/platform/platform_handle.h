@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,19 @@
 #include "base/check_op.h"
 #include "base/component_export.h"
 #include "base/files/platform_file.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "mojo/public/c/system/platform_handle.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/scoped_handle.h"
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
 #include <lib/zx/handle.h>
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_MAC)
 #include "base/mac/scoped_mach_port.h"
 #endif
 
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
 #include "base/files/scoped_file.h"
 #endif
 
@@ -43,13 +44,13 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) PlatformHandle {
  public:
   enum class Type {
     kNone,
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_WIN) || defined(OS_FUCHSIA)
     kHandle,
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_MAC)
     kMachSend,
     kMachReceive,
 #endif
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
     kFd,
 #endif
   };
@@ -57,21 +58,18 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) PlatformHandle {
   PlatformHandle();
   PlatformHandle(PlatformHandle&& other);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   explicit PlatformHandle(base::win::ScopedHandle handle);
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   explicit PlatformHandle(zx::handle handle);
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_MAC)
   explicit PlatformHandle(base::mac::ScopedMachSendRight mach_port);
   explicit PlatformHandle(base::mac::ScopedMachReceiveRight mach_port);
 #endif
 
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
   explicit PlatformHandle(base::ScopedFD fd);
 #endif
-
-  PlatformHandle(const PlatformHandle&) = delete;
-  PlatformHandle& operator=(const PlatformHandle&) = delete;
 
   ~PlatformHandle();
 
@@ -102,7 +100,7 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) PlatformHandle {
   // which owns it.
   PlatformHandle Clone() const;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   bool is_valid() const { return is_valid_handle(); }
   bool is_valid_handle() const { return handle_.IsValid(); }
   bool is_handle() const { return type_ == Type::kHandle; }
@@ -112,12 +110,12 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) PlatformHandle {
     type_ = Type::kNone;
     return std::move(handle_);
   }
-  [[nodiscard]] HANDLE ReleaseHandle() {
+  HANDLE ReleaseHandle() WARN_UNUSED_RESULT {
     DCHECK_EQ(type_, Type::kHandle);
     type_ = Type::kNone;
     return handle_.Take();
   }
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   bool is_valid() const { return is_valid_fd() || is_valid_handle(); }
   bool is_valid_handle() const { return handle_.is_valid(); }
   bool is_handle() const { return type_ == Type::kHandle; }
@@ -127,12 +125,12 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) PlatformHandle {
       type_ = Type::kNone;
     return std::move(handle_);
   }
-  [[nodiscard]] zx_handle_t ReleaseHandle() {
+  zx_handle_t ReleaseHandle() WARN_UNUSED_RESULT {
     if (type_ == Type::kHandle)
       type_ = Type::kNone;
     return handle_.release();
   }
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_MAC)
   bool is_valid() const { return is_valid_fd() || is_valid_mach_port(); }
   bool is_valid_mach_port() const {
     return is_valid_mach_send() || is_valid_mach_receive();
@@ -148,7 +146,7 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) PlatformHandle {
       type_ = Type::kNone;
     return std::move(mach_send_);
   }
-  [[nodiscard]] mach_port_t ReleaseMachSendRight() {
+  mach_port_t ReleaseMachSendRight() WARN_UNUSED_RESULT {
     return TakeMachSendRight().release();
   }
 
@@ -162,16 +160,16 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) PlatformHandle {
       type_ = Type::kNone;
     return std::move(mach_receive_);
   }
-  [[nodiscard]] mach_port_t ReleaseMachReceiveRight() {
+  mach_port_t ReleaseMachReceiveRight() WARN_UNUSED_RESULT {
     return TakeMachReceiveRight().release();
   }
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
   bool is_valid() const { return is_valid_fd(); }
 #else
 #error "Unsupported platform."
 #endif
 
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
   bool is_valid_fd() const { return fd_.is_valid(); }
   bool is_fd() const { return type_ == Type::kFd; }
   const base::ScopedFD& GetFD() const { return fd_; }
@@ -180,7 +178,7 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) PlatformHandle {
       type_ = Type::kNone;
     return std::move(fd_);
   }
-  [[nodiscard]] int ReleaseFD() {
+  int ReleaseFD() WARN_UNUSED_RESULT {
     if (type_ == Type::kFd)
       type_ = Type::kNone;
     return fd_.release();
@@ -188,27 +186,27 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) PlatformHandle {
 #endif
 
   bool is_valid_platform_file() const {
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
     return is_valid_fd();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
     return is_valid_handle();
 #else
 #error "Unsupported platform"
 #endif
   }
   base::ScopedPlatformFile TakePlatformFile() {
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
     return TakeFD();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
     return TakeHandle();
 #else
 #error "Unsupported platform"
 #endif
   }
-  [[nodiscard]] base::PlatformFile ReleasePlatformFile() {
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+  base::PlatformFile ReleasePlatformFile() WARN_UNUSED_RESULT {
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
     return ReleaseFD();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
     return ReleaseHandle();
 #else
 #error "Unsupported platform"
@@ -218,18 +216,20 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) PlatformHandle {
  private:
   Type type_ = Type::kNone;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   base::win::ScopedHandle handle_;
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   zx::handle handle_;
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_MAC)
   base::mac::ScopedMachSendRight mach_send_;
   base::mac::ScopedMachReceiveRight mach_receive_;
 #endif
 
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
   base::ScopedFD fd_;
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(PlatformHandle);
 };
 
 }  // namespace mojo

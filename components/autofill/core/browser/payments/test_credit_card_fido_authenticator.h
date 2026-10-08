@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,13 @@
 #include <string>
 #include <vector>
 
+#include "base/strings/string16.h"
 #include "components/autofill/core/browser/autofill_client.h"
 #include "components/autofill/core/browser/autofill_driver.h"
 #include "components/autofill/core/browser/data_model/credit_card.h"
 #include "components/autofill/core/browser/payments/credit_card_fido_authenticator.h"
 #include "components/autofill/core/browser/payments/payments_client.h"
+#include "third_party/blink/public/mojom/webauthn/authenticator.mojom.h"
 
 namespace autofill {
 
@@ -22,25 +24,13 @@ class TestCreditCardFIDOAuthenticator : public CreditCardFIDOAuthenticator {
  public:
   explicit TestCreditCardFIDOAuthenticator(AutofillDriver* driver,
                                            AutofillClient* client);
-
-  TestCreditCardFIDOAuthenticator(const TestCreditCardFIDOAuthenticator&) =
-      delete;
-  TestCreditCardFIDOAuthenticator& operator=(
-      const TestCreditCardFIDOAuthenticator&) = delete;
-
   ~TestCreditCardFIDOAuthenticator() override;
 
   // CreditCardFIDOAuthenticator:
-  void Authenticate(const CreditCard* card,
-                    base::WeakPtr<Requester> requester,
-                    base::Value request_options,
-                    absl::optional<std::string> context_token) override;
-  void IsUserVerifiable(base::OnceCallback<void(bool)> callback) override;
-  bool IsUserOptedIn() override;
-  void GetAssertion(blink::mojom::PublicKeyCredentialRequestOptionsPtr
-                        request_options) override;
-  void MakeCredential(blink::mojom::PublicKeyCredentialCreationOptionsPtr
-                          creation_options) override;
+  void GetAssertion(
+      PublicKeyCredentialRequestOptionsPtr request_options) override;
+  void MakeCredential(
+      PublicKeyCredentialCreationOptionsPtr creation_options) override;
   void OptOut() override;
 
   // Invokes fido_authenticator->OnDidGetAssertion().
@@ -60,30 +50,21 @@ class TestCreditCardFIDOAuthenticator : public CreditCardFIDOAuthenticator {
     is_user_verifiable_ = is_user_verifiable;
   }
 
-  void set_is_user_opted_in(bool is_user_opted_in) {
-    is_user_opted_in_ = is_user_opted_in;
-  }
+  // CreditCardFIDOAuthenticator:
+  void IsUserVerifiable(base::OnceCallback<void(bool)> callback) override;
 
   bool IsOptOutCalled() { return opt_out_called_; }
-  bool authenticate_invoked() { return authenticate_invoked_; }
-  const CreditCard& card() { return card_; }
-  const absl::optional<std::string>& context_token() { return context_token_; }
-
-  // Resets all the testing related states.
-  void Reset();
 
  private:
-  friend class BrowserAutofillManagerTest;
+  friend class AutofillManagerTest;
   friend class CreditCardAccessManagerTest;
 
-  blink::mojom::PublicKeyCredentialRequestOptionsPtr request_options_;
-  blink::mojom::PublicKeyCredentialCreationOptionsPtr creation_options_;
+  PublicKeyCredentialRequestOptionsPtr request_options_;
+  PublicKeyCredentialCreationOptionsPtr creation_options_;
   bool is_user_verifiable_ = false;
-  absl::optional<bool> is_user_opted_in_;
   bool opt_out_called_ = false;
-  bool authenticate_invoked_ = false;
-  CreditCard card_;
-  absl::optional<std::string> context_token_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestCreditCardFIDOAuthenticator);
 };
 
 }  // namespace autofill

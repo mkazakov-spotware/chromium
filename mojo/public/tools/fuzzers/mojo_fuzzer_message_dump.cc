@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -74,15 +74,19 @@ class MessageDumper : public mojo::MessageFilter {
 
 /* Returns a FuzzUnion with fuzz_bool initialized. */
 auto GetBoolFuzzUnion() {
-  return fuzz::mojom::FuzzUnion::NewFuzzBool(true);
+  fuzz::mojom::FuzzUnionPtr union_bool = fuzz::mojom::FuzzUnion::New();
+  union_bool->set_fuzz_bool(true);
+  return union_bool;
 }
 
 /* Returns a FuzzUnion with fuzz_struct_map initialized. Takes in a
  * FuzzDummyStructPtr to use within the fuzz_struct_map value. */
 auto GetStructMapFuzzUnion(fuzz::mojom::FuzzDummyStructPtr in) {
+  fuzz::mojom::FuzzUnionPtr union_struct_map = fuzz::mojom::FuzzUnion::New();
   base::flat_map<std::string, fuzz::mojom::FuzzDummyStructPtr> struct_map;
   struct_map["fuzz"] = std::move(in);
-  return fuzz::mojom::FuzzUnion::NewFuzzStructMap(std::move(struct_map));
+  union_struct_map->set_fuzz_struct_map(std::move(struct_map));
+  return union_struct_map;
 }
 
 /* Returns a FuzzUnion with fuzz_complex initialized. Takes in a FuzzUnionPtr
@@ -101,7 +105,9 @@ auto GetComplexFuzzUnion(fuzz::mojom::FuzzUnionPtr in) {
   complex_map.emplace();
   complex_map.value().push_back(std::move(outer));
 
-  return fuzz::mojom::FuzzUnion::NewFuzzComplex(std::move(complex_map));
+  fuzz::mojom::FuzzUnionPtr union_complex = fuzz::mojom::FuzzUnion::New();
+  union_complex->set_fuzz_complex(std::move(complex_map));
+  return union_complex;
 }
 
 /* Returns a populated value for FuzzStruct->fuzz_primitive_array. */

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include "ash/ash_export.h"
 #include "ash/system/power/power_status.h"
 #include "ash/system/tray/tri_view.h"
-#include "base/gtest_prod_util.h"
-#include "chromeos/ash/components/phonehub/phone_model.h"
+#include "ash/system/unified/top_shortcut_button.h"
+#include "chromeos/components/phonehub/phone_model.h"
 
 namespace views {
 class ImageView;
@@ -19,12 +19,11 @@ class Separator;
 
 namespace ash {
 
-class IconButton;
-
 // The header row at the top of the Phone Hub panel, showing phone title and
 // status (wifi, volime, etc.).
-class ASH_EXPORT PhoneStatusView : public TriView,
-                                   public phonehub::PhoneModel::Observer {
+class ASH_EXPORT PhoneStatusView
+    : public TriView,
+      public chromeos::phonehub::PhoneModel::Observer {
  public:
   class Delegate {
    public:
@@ -32,15 +31,13 @@ class ASH_EXPORT PhoneStatusView : public TriView,
     virtual void OpenConnectedDevicesSettings() = 0;
   };
 
-  PhoneStatusView(phonehub::PhoneModel* phone_model, Delegate* delegate);
+  PhoneStatusView(chromeos::phonehub::PhoneModel* phone_model,
+                  Delegate* delegate);
   ~PhoneStatusView() override;
   PhoneStatusView(PhoneStatusView&) = delete;
   PhoneStatusView operator=(PhoneStatusView&) = delete;
 
-  // TriView:
-  void OnThemeChanged() override;
-
-  // phonehub::PhoneHubModel::Observer:
+  // chromeos::phonehub::PhoneHubModel::Observer:
   void OnModelChanged() override;
 
  private:
@@ -61,7 +58,7 @@ class ASH_EXPORT PhoneStatusView : public TriView,
 
   void ConfigureTriViewContainer(TriView::Container container);
 
-  phonehub::PhoneModel* phone_model_ = nullptr;
+  chromeos::phonehub::PhoneModel* phone_model_ = nullptr;
   Delegate* delegate_ = nullptr;
 
   // Owned by views hierarchy.
@@ -70,7 +67,7 @@ class ASH_EXPORT PhoneStatusView : public TriView,
   views::ImageView* battery_icon_ = nullptr;
   views::Label* battery_label_ = nullptr;
   views::Separator* separator_ = nullptr;
-  IconButton* settings_button_ = nullptr;
+  TopShortcutButton* settings_button_ = nullptr;
 };
 
 }  // namespace ash

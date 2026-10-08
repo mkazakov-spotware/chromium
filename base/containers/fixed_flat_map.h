@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -89,24 +89,18 @@ using fixed_flat_map = base::
     flat_map<Key, Mapped, Compare, std::array<std::pair<const Key, Mapped>, N>>;
 
 // Utility function to simplify constructing a fixed_flat_map from a fixed list
-// of keys and values. Requires that the passed in `data` contains unique keys.
+// of keys and values. Requires that the passed in `data` is sorted and unique.
 //
-// Example usage:
+// Example usages:
 //   constexpr auto kMap = base::MakeFixedFlatMap<base::StringPiece, int>(
-//       {{"foo", 1}, {"bar", 2}, {"baz", 3}});
+//       {{"bar", 1}, {"baz", 2}, {"foo", 3}});
 template <class Key, class Mapped, size_t N, class Compare = std::less<>>
 constexpr fixed_flat_map<Key, Mapped, N, Compare> MakeFixedFlatMap(
-    std::pair<Key, Mapped>(&&data)[N],
+    const std::pair<const Key, Mapped> (&data)[N],
     const Compare& comp = Compare()) {
-  using FixedFlatMap = fixed_flat_map<Key, Mapped, N, Compare>;
-  typename FixedFlatMap::value_compare value_comp{comp};
-  internal::InsertionSort(data, data + N, value_comp);
-  CHECK(internal::is_sorted_and_unique(data, value_comp));
-  // Specify the value_type explicitly to ensure that the returned array has
-  // immutable keys.
-  return FixedFlatMap(
-      sorted_unique, internal::ToArray<typename FixedFlatMap::value_type>(data),
-      comp);
+  CHECK(internal::is_sorted_and_unique(data, comp));
+  return fixed_flat_map<Key, Mapped, N, Compare>(sorted_unique,
+                                                 internal::ToArray(data), comp);
 }
 
 }  // namespace base

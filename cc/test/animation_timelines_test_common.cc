@@ -1,10 +1,8 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/test/animation_timelines_test_common.h"
-
-#include <utility>
 
 #include "base/memory/ptr_util.h"
 #include "cc/animation/animation.h"
@@ -16,7 +14,7 @@
 #include "cc/paint/filter_operation.h"
 #include "cc/paint/filter_operations.h"
 #include "cc/trees/property_tree.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
 namespace cc {
 
@@ -35,7 +33,7 @@ void TestLayer::ClearMutatedProperties() {
   opacity_ = 0;
   filters_ = FilterOperations();
   backdrop_filters_ = FilterOperations();
-  scroll_offset_ = gfx::PointF();
+  scroll_offset_ = gfx::ScrollOffset();
 
   has_potential_animation_.reset();
   is_currently_animating_.reset();
@@ -76,9 +74,9 @@ float TestLayer::invert() const {
 
 TestHostClient::TestHostClient(ThreadInstance thread_instance)
     : host_(AnimationHost::CreateForTesting(thread_instance)),
-      mutators_need_commit_(false),
-      property_trees_(*this) {
+      mutators_need_commit_(false) {
   host_->SetMutatorHostClient(this);
+  host_->SetSupportsScrollAnimations(true);
 }
 
 TestHostClient::~TestHostClient() {
@@ -91,14 +89,6 @@ void TestHostClient::ClearMutatedProperties() {
   for (auto& kv : layers_in_active_tree_)
     kv.second->ClearMutatedProperties();
 }
-
-bool TestHostClient::IsOwnerThread() const {
-  return true;
-}
-bool TestHostClient::InProtectedSequence() const {
-  return false;
-}
-void TestHostClient::WaitForProtectedSequenceCompletion() const {}
 
 bool TestHostClient::IsElementInPropertyTrees(ElementId element_id,
                                               ElementListType list_type) const {
@@ -150,7 +140,7 @@ void TestHostClient::SetElementTransformMutated(
 void TestHostClient::SetElementScrollOffsetMutated(
     ElementId element_id,
     ElementListType list_type,
-    const gfx::PointF& scroll_offset) {
+    const gfx::ScrollOffset& scroll_offset) {
   TestLayer* layer = FindTestLayer(element_id, list_type);
   if (layer)
     layer->set_scroll_offset(scroll_offset);
@@ -177,18 +167,19 @@ void TestHostClient::ElementIsAnimatingChanged(
   }
 }
 
-void TestHostClient::MaximumScaleChanged(ElementId element_id,
-                                         ElementListType list_type,
-                                         float maximum_scale) {
-  if (TestLayer* layer = FindTestLayer(element_id, list_type))
-    layer->set_maximum_animation_scale(maximum_scale);
-}
+void TestHostClient::AnimationScalesChanged(ElementId element_id,
+                                            ElementListType list_type,
+                                            float maximum_scale,
+                                            float starting_scale) {}
 
 void TestHostClient::SetScrollOffsetForAnimation(
-    const gfx::PointF& scroll_offset,
-    ElementId element_id) {
-  property_trees_.scroll_tree_mutable().SetScrollOffset(element_id,
-                                                        scroll_offset);
+    const gfx::ScrollOffset& scroll_offset) {
+  scroll_offset_ = scroll_offset;
+}
+
+gfx::ScrollOffset TestHostClient::GetScrollOffsetForAnimation(
+    ElementId element_id) const {
+  return scroll_offset_;
 }
 
 void TestHostClient::RegisterElementId(ElementId element_id,
@@ -198,10 +189,16 @@ void TestHostClient::RegisterElementId(ElementId element_id,
                                              : layers_in_pending_tree_;
   DCHECK(layers_in_tree.find(element_id) == layers_in_tree.end());
   layers_in_tree[element_id] = TestLayer::Create();
+
+  DCHECK(host_);
+  host_->RegisterElementId(element_id, list_type);
 }
 
 void TestHostClient::UnregisterElementId(ElementId element_id,
                                          ElementListType list_type) {
+  DCHECK(host_);
+  host_->UnregisterElementId(element_id, list_type);
+
   ElementIdToTestLayer& layers_in_tree = list_type == ElementListType::ACTIVE
                                              ? layers_in_active_tree_
                                              : layers_in_pending_tree_;
@@ -247,8 +244,9 @@ gfx::Transform TestHostClient::GetTransform(ElementId element_id,
   return layer->transform();
 }
 
-gfx::PointF TestHostClient::GetScrollOffset(ElementId element_id,
-                                            ElementListType list_type) const {
+gfx::ScrollOffset TestHostClient::GetScrollOffset(
+    ElementId element_id,
+    ElementListType list_type) const {
   TestLayer* layer = FindTestLayer(element_id, list_type);
   EXPECT_TRUE(layer);
   return layer->scroll_offset();
@@ -357,10 +355,6 @@ void TestHostClient::ExpectTransformPropertyMutated(ElementId element_id,
   EXPECT_EQ(transform_y, layer->transform_y());
 }
 
-bool TestHostClient::RunsOnCurrentThread() const {
-  return true;
-}
-
 TestLayer* TestHostClient::FindTestLayer(ElementId element_id,
                                          ElementListType list_type) const {
   const ElementIdToTestLayer& layers_in_tree =
@@ -407,12 +401,12 @@ void TestAnimationDelegate::NotifyAnimationTakeover(
     base::TimeTicks monotonic_time,
     int target_property,
     base::TimeTicks animation_start_time,
-    std::unique_ptr<gfx::AnimationCurve> curve) {
+    std::unique_ptr<AnimationCurve> curve) {
   takeover_ = true;
 }
 
 void TestAnimationDelegate::NotifyLocalTimeUpdated(
-    absl::optional<base::TimeDelta> local_time) {}
+    base::Optional<base::TimeDelta> local_time) {}
 
 AnimationTimelinesTest::AnimationTimelinesTest()
     : client_(ThreadInstance::MAIN),
@@ -421,9 +415,11 @@ AnimationTimelinesTest::AnimationTimelinesTest()
       host_impl_(nullptr),
       timeline_id_(AnimationIdProvider::NextTimelineId()),
       animation_id_(AnimationIdProvider::NextAnimationId()),
-      element_id_(1) {
+      next_test_layer_id_(0) {
   host_ = client_.host();
   host_impl_ = client_impl_.host();
+
+  element_id_ = ElementId(NextTestLayerId());
 }
 
 AnimationTimelinesTest::~AnimationTimelinesTest() = default;
@@ -471,7 +467,7 @@ void AnimationTimelinesTest::AttachTimelineAnimationLayer() {
 }
 
 void AnimationTimelinesTest::CreateImplTimelineAndAnimation() {
-  host_->PushPropertiesTo(host_impl_, client_.GetPropertyTrees());
+  host_->PushPropertiesTo(host_impl_);
   GetImplTimelineAndAnimationByID();
 }
 
@@ -511,8 +507,8 @@ void AnimationTimelinesTest::TickAnimationsTransferEvents(
 
 KeyframeEffect* AnimationTimelinesTest::GetKeyframeEffectForElementId(
     ElementId element_id) {
-  const scoped_refptr<const ElementAnimations> element_animations =
-      host_->GetElementAnimationsForElementIdForTesting(element_id);
+  const scoped_refptr<ElementAnimations> element_animations =
+      host_->GetElementAnimationsForElementId(element_id);
   return element_animations
              ? element_animations->FirstKeyframeEffectForTesting()
              : nullptr;
@@ -520,11 +516,16 @@ KeyframeEffect* AnimationTimelinesTest::GetKeyframeEffectForElementId(
 
 KeyframeEffect* AnimationTimelinesTest::GetImplKeyframeEffectForLayerId(
     ElementId element_id) {
-  const scoped_refptr<const ElementAnimations> element_animations =
-      host_impl_->GetElementAnimationsForElementIdForTesting(element_id);
+  const scoped_refptr<ElementAnimations> element_animations =
+      host_impl_->GetElementAnimationsForElementId(element_id);
   return element_animations
              ? element_animations->FirstKeyframeEffectForTesting()
              : nullptr;
+}
+
+int AnimationTimelinesTest::NextTestLayerId() {
+  next_test_layer_id_++;
+  return next_test_layer_id_;
 }
 
 bool AnimationTimelinesTest::CheckKeyframeEffectTimelineNeedsPushProperties(
@@ -550,7 +551,7 @@ bool AnimationTimelinesTest::CheckKeyframeEffectTimelineNeedsPushProperties(
 }
 
 void AnimationTimelinesTest::PushProperties() {
-  host_->PushPropertiesTo(host_impl_, client_.GetPropertyTrees());
+  host_->PushPropertiesTo(host_impl_);
 }
 
 }  // namespace cc

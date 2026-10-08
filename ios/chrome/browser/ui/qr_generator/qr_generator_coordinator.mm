@@ -1,13 +1,14 @@
-// Copyright 2020 The Chromium Authors
+
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/qr_generator/qr_generator_coordinator.h"
 
-#import "base/metrics/user_metrics.h"
-#import "base/metrics/user_metrics_action.h"
-#import "base/strings/sys_string_conversions.h"
-#import "ios/chrome/browser/main/browser.h"
+#include "base/metrics/user_metrics.h"
+#include "base/metrics/user_metrics_action.h"
+#include "base/strings/sys_string_conversions.h"
+#include "ios/chrome/browser/main/browser.h"
 #import "ios/chrome/browser/ui/activity_services/activity_params.h"
 #import "ios/chrome/browser/ui/activity_services/activity_scenario.h"
 #import "ios/chrome/browser/ui/activity_services/activity_service_coordinator.h"
@@ -18,9 +19,9 @@
 #import "ios/chrome/browser/ui/qr_generator/qr_generator_view_controller.h"
 #import "ios/chrome/common/ui/confirmation_alert/confirmation_alert_action_handler.h"
 #import "ios/chrome/common/ui/elements/popover_label_view_controller.h"
-#import "ios/chrome/grit/ios_strings.h"
+#include "ios/chrome/grit/ios_strings.h"
 #import "net/base/mac/url_conversions.h"
-#import "ui/base/l10n/l10n_util_mac.h"
+#include "ui/base/l10n/l10n_util_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -72,11 +73,11 @@
 #pragma mark - Chrome Coordinator
 
 - (void)start {
-  self.viewController = [[QRGeneratorViewController alloc]
-      initWithTitle:self.title
-            pageURL:net::NSURLWithGURL(_URL)];
+  self.viewController = [[QRGeneratorViewController alloc] init];
 
   [self.viewController setModalPresentationStyle:UIModalPresentationFormSheet];
+  [self.viewController setPageURL:net::NSURLWithGURL(_URL)];
+  [self.viewController setTitleString:self.title];
   [self.viewController setActionHandler:self];
 
   [self.baseViewController presentViewController:self.viewController
@@ -123,6 +124,10 @@
   self.activityServiceCoordinator.presentationProvider = self;
 
   [self.activityServiceCoordinator start];
+}
+
+- (void)confirmationAlertSecondaryAction {
+  // No-op.
 }
 
 - (void)confirmationAlertLearnMoreAction {

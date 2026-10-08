@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "chromecast/media/audio/mixer_service/mixer_socket.h"
 #include "chromecast/public/media/decoder_config.h"
@@ -29,10 +30,6 @@ class MixerLoopbackConnection : public mixer_service::MixerSocket::Delegate {
  public:
   explicit MixerLoopbackConnection(
       std::unique_ptr<mixer_service::MixerSocket> socket);
-
-  MixerLoopbackConnection(const MixerLoopbackConnection&) = delete;
-  MixerLoopbackConnection& operator=(const MixerLoopbackConnection&) = delete;
-
   ~MixerLoopbackConnection() override;
 
   void SetErrorCallback(base::OnceClosure callback);
@@ -58,8 +55,9 @@ class MixerLoopbackConnection : public mixer_service::MixerSocket::Delegate {
 
   base::OnceClosure error_callback_;
 
-  bool pending_error_ = false;
   bool sent_stream_config_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(MixerLoopbackConnection);
 };
 
 }  // namespace media

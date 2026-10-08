@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "media/base/media_export.h"
 
 namespace media {
@@ -21,10 +22,6 @@ class BitReader;
 class MEDIA_EXPORT Vp9RawBitsReader {
  public:
   Vp9RawBitsReader();
-
-  Vp9RawBitsReader(const Vp9RawBitsReader&) = delete;
-  Vp9RawBitsReader& operator=(const Vp9RawBitsReader&) = delete;
-
   ~Vp9RawBitsReader();
 
   // |data| is the input buffer with |size| bytes.
@@ -61,6 +58,8 @@ class MEDIA_EXPORT Vp9RawBitsReader {
   // Indicates if none of the reads since the last Initialize() call has gone
   // beyond the end of available data.
   bool valid_;
+
+  DISALLOW_COPY_AND_ASSIGN(Vp9RawBitsReader);
 };
 
 }  // namespace media

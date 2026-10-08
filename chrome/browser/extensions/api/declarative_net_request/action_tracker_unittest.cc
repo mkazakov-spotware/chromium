@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,10 +38,6 @@ class ActionTrackerTest : public DNRTestBase {
   void SetUp() override {
     DNRTestBase::SetUp();
     action_tracker_ = std::make_unique<ActionTracker>(browser_context());
-
-    // Do not check whether tab IDs correspond to valid tabs in this test as
-    // this is a unit test and no actual tabs will be created.
-    action_tracker_->SetCheckTabIdOnRuleMatchForTest(false);
   }
 
  protected:
@@ -197,8 +193,8 @@ TEST_P(ActionTrackerTest, GetMatchedRulesLifespan) {
 
   // Half life of a matched rule associated with a non-active tab, with 50ms
   // added.
-  base::TimeDelta half_life =
-      (ActionTracker::kNonActiveTabRuleLifespan / 2) + base::Milliseconds(50);
+  base::TimeDelta half_life = (ActionTracker::kNonActiveTabRuleLifespan / 2) +
+                              base::TimeDelta::FromMilliseconds(50);
 
   // Advance the clock by half of the lifespan of a matched rule for the unknown
   // tab ID.
@@ -287,7 +283,8 @@ TEST_P(ActionTrackerTest, RulesClearedOnTimer) {
   // Advance the clock by more than the lifespan of a rule through
   // |mock_time_task_runner|.
   mock_time_task_runner->FastForwardBy(
-      ActionTracker::kNonActiveTabRuleLifespan + base::Seconds(1));
+      ActionTracker::kNonActiveTabRuleLifespan +
+      base::TimeDelta::FromSeconds(1));
 
   // Verify that the rule has been cleared by the recurring task.
   EXPECT_EQ(0, action_tracker()->GetMatchedRuleCountForTest(

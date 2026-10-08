@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,34 +10,33 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "chrome/browser/devtools/device/devtools_android_bridge.h"
 
 namespace base {
-class Value;
+class ListValue;
+class DictionaryValue;
 }
 
 class Profile;
 
 class DevToolsTargetsUIHandler {
  public:
-  using Callback =
-      base::RepeatingCallback<void(const std::string&, const base::Value&)>;
+  typedef base::Callback<void(const std::string&,
+                              const base::ListValue&)> Callback;
 
-  DevToolsTargetsUIHandler(const std::string& source_id, Callback callback);
-
-  DevToolsTargetsUIHandler(const DevToolsTargetsUIHandler&) = delete;
-  DevToolsTargetsUIHandler& operator=(const DevToolsTargetsUIHandler&) = delete;
-
+  DevToolsTargetsUIHandler(const std::string& source_id,
+                           const Callback& callback);
   virtual ~DevToolsTargetsUIHandler();
 
   std::string source_id() const { return source_id_; }
 
   static std::unique_ptr<DevToolsTargetsUIHandler> CreateForLocal(
-      Callback callback,
+      const Callback& callback,
       Profile* profile);
 
   static std::unique_ptr<DevToolsTargetsUIHandler> CreateForAdb(
-      Callback callback,
+      const Callback& callback,
       Profile* profile);
 
   scoped_refptr<content::DevToolsAgentHost> GetTarget(
@@ -51,8 +50,9 @@ class DevToolsTargetsUIHandler {
   virtual void ForceUpdate();
 
  protected:
-  base::Value Serialize(content::DevToolsAgentHost* host);
-  void SendSerializedTargets(const base::Value& list);
+  std::unique_ptr<base::DictionaryValue> Serialize(
+      content::DevToolsAgentHost* host);
+  void SendSerializedTargets(const base::ListValue& list);
 
   using TargetMap =
       std::map<std::string, scoped_refptr<content::DevToolsAgentHost>>;
@@ -61,12 +61,14 @@ class DevToolsTargetsUIHandler {
  private:
   const std::string source_id_;
   Callback callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(DevToolsTargetsUIHandler);
 };
 
 class PortForwardingStatusSerializer
     : private DevToolsAndroidBridge::PortForwardingListener {
  public:
-  using Callback = base::RepeatingCallback<void(base::Value)>;
+  typedef base::Callback<void(base::Value)> Callback;
 
   PortForwardingStatusSerializer(const Callback& callback, Profile* profile);
   ~PortForwardingStatusSerializer() override;

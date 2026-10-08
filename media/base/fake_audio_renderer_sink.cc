@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,14 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 
 namespace media {
 
 FakeAudioRendererSink::FakeAudioRendererSink()
     : FakeAudioRendererSink(
           AudioParameters(AudioParameters::AUDIO_FAKE,
-                          ChannelLayoutConfig::Stereo(),
+                          CHANNEL_LAYOUT_STEREO,
                           AudioParameters::kTelephoneSampleRate,
                           1)) {}
 
@@ -62,6 +62,7 @@ void FakeAudioRendererSink::Pause() {
 
 void FakeAudioRendererSink::Play() {
   DCHECK(state_ == kStarted || state_ == kPaused) << "state_ " << state_;
+  DCHECK_EQ(state_, kPaused);
   ChangeState(kPlaying);
 }
 
@@ -75,7 +76,7 @@ OutputDeviceInfo FakeAudioRendererSink::GetOutputDeviceInfo() {
 
 void FakeAudioRendererSink::GetOutputDeviceInfoAsync(
     OutputDeviceInfoCB info_cb) {
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(info_cb), output_device_info_));
 }
 

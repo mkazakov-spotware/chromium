@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -110,7 +111,7 @@ class SafeTemplateURLParser {
       const SearchTermsData* search_terms_data,
       const TemplateURLParser::ParameterFilter& parameter_filter,
       TemplateURLParser::ParseCallback callback)
-      : search_terms_data_(SearchTermsData::MakeSnapshot(search_terms_data)),
+      : search_terms_data_(search_terms_data),
         parameter_filter_(parameter_filter),
         callback_(std::move(callback)) {}
 
@@ -157,29 +158,26 @@ class SafeTemplateURLParser {
   // at least one element, if only the empty string.
   std::vector<std::string> namespaces_;
 
-  // We have to own our own snapshot, because the parse request may outlive the
-  // originally provided SearchTermsData lifetime.
-  std::unique_ptr<SearchTermsData> search_terms_data_;
-
+  const SearchTermsData* search_terms_data_;
   TemplateURLParser::ParameterFilter parameter_filter_;
   TemplateURLParser::ParseCallback callback_;
 };
 
 void SafeTemplateURLParser::OnXmlParseComplete(
     data_decoder::DataDecoder::ValueOrError value_or_error) {
-  if (!value_or_error.has_value()) {
-    DLOG(ERROR) << "Failed to parse XML: " << value_or_error.error();
+  if (value_or_error.error) {
+    DLOG(ERROR) << "Failed to parse XML: " << *value_or_error.error;
     std::move(callback_).Run(nullptr);
     return;
   }
 
-  const base::Value& root = *value_or_error;
+  const base::Value& root = *value_or_error.value;
 
   // Get the namespaces used in the XML document, which will be used
   // to access nodes by tag name in GetChildElementsByTag().
   if (const base::Value* namespaces =
           root.FindDictKey(data_decoder::mojom::XmlParser::kNamespacesKey)) {
-    for (auto item : namespaces->DictItems()) {
+    for (const auto& item : namespaces->DictItems()) {
       namespaces_.push_back(item.first);
     }
   }
@@ -227,13 +225,13 @@ void SafeTemplateURLParser::OnXmlParseComplete(
 
 void SafeTemplateURLParser::ParseURLs(
     const std::vector<const base::Value*>& urls) {
-  for (auto* url_value : urls) {
+  for (auto* url : urls) {
     std::string template_url =
-        data_decoder::GetXmlElementAttribute(*url_value, kURLTemplateAttribute);
+        data_decoder::GetXmlElementAttribute(*url, kURLTemplateAttribute);
     std::string type =
-        data_decoder::GetXmlElementAttribute(*url_value, kURLTypeAttribute);
-    bool is_post = base::EqualsCaseInsensitiveASCII(
-        data_decoder::GetXmlElementAttribute(*url_value, kParamMethodAttribute),
+        data_decoder::GetXmlElementAttribute(*url, kURLTypeAttribute);
+    bool is_post = base::LowerCaseEqualsASCII(
+        data_decoder::GetXmlElementAttribute(*url, kParamMethodAttribute),
         "post");
     bool is_html_url = (type == kHTMLType);
     bool is_suggest_url = (type == kSuggestionType);
@@ -252,7 +250,7 @@ void SafeTemplateURLParser::ParseURLs(
     std::vector<Param> extra_params;
 
     std::vector<const base::Value*> params;
-    GetChildElementsByTag(*url_value, kParamElement, &params);
+    GetChildElementsByTag(*url, kParamElement, &params);
     for (auto* param : params) {
       std::string key =
           data_decoder::GetXmlElementAttribute(*param, kParamNameAttribute);
@@ -434,9 +432,8 @@ void TemplateURLParser::Parse(const SearchTermsData* search_terms_data,
   auto safe_parser = std::make_unique<SafeTemplateURLParser>(
       search_terms_data, parameter_filter, std::move(completion_callback));
   data_decoder::DataDecoder::ParseXmlIsolated(
-      data, data_decoder::mojom::XmlParser::WhitespaceBehavior::kIgnore,
-      base::BindOnce(&SafeTemplateURLParser::OnXmlParseComplete,
-                     std::move(safe_parser)));
+      data, base::BindOnce(&SafeTemplateURLParser::OnXmlParseComplete,
+                           std::move(safe_parser)));
 }
 
 // static
@@ -449,7 +446,6 @@ void TemplateURLParser::ParseWithDataDecoder(
   auto safe_parser = std::make_unique<SafeTemplateURLParser>(
       search_terms_data, parameter_filter, std::move(completion_callback));
   data_decoder->ParseXml(
-      data, data_decoder::mojom::XmlParser::WhitespaceBehavior::kIgnore,
-      base::BindOnce(&SafeTemplateURLParser::OnXmlParseComplete,
-                     std::move(safe_parser)));
+      data, base::BindOnce(&SafeTemplateURLParser::OnXmlParseComplete,
+                           std::move(safe_parser)));
 }

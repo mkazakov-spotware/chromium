@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,8 +25,9 @@ void TestRuntimeAPIDelegate::RemoveUpdateObserver(UpdateObserver* observer) {
 void TestRuntimeAPIDelegate::ReloadExtension(const std::string& extension_id) {
 }
 
-bool TestRuntimeAPIDelegate::CheckForUpdates(const std::string& extension_id,
-                                             UpdateCheckCallback callback) {
+bool TestRuntimeAPIDelegate::CheckForUpdates(
+    const std::string& extension_id,
+    const UpdateCheckCallback& callback) {
   return false;
 }
 

@@ -36,22 +36,22 @@
 
 namespace blink {
 
-bool SpotLightSource::SetPosition(const gfx::Point3F& position) {
+bool SpotLightSource::SetPosition(const FloatPoint3D& position) {
   if (position_ == position)
     return false;
   position_ = position;
   return true;
 }
 
-bool SpotLightSource::SetPointsAt(const gfx::Point3F& points_at) {
-  if (points_at_ == points_at)
+bool SpotLightSource::SetPointsAt(const FloatPoint3D& direction) {
+  if (direction_ == direction)
     return false;
-  points_at_ = points_at;
+  direction_ = direction;
   return true;
 }
 
 bool SpotLightSource::SetSpecularExponent(float specular_exponent) {
-  specular_exponent = ClampTo(specular_exponent, 1.0f, 128.0f);
+  specular_exponent = clampTo(specular_exponent, 1.0f, 128.0f);
   if (specular_exponent_ == specular_exponent)
     return false;
   specular_exponent_ = specular_exponent;
@@ -68,8 +68,8 @@ bool SpotLightSource::SetLimitingConeAngle(float limiting_cone_angle) {
 WTF::TextStream& SpotLightSource::ExternalRepresentation(
     WTF::TextStream& ts) const {
   ts << "[type=SPOT-LIGHT] ";
-  ts << "[position=\"" << GetPosition().ToString() << "\"]";
-  ts << "[pointsAt=\"" << PointsAt().ToString() << "\"]";
+  ts << "[position=\"" << GetPosition() << "\"]";
+  ts << "[direction=\"" << Direction() << "\"]";
   ts << "[specularExponent=\"" << SpecularExponent() << "\"]";
   ts << "[limitingConeAngle=\"" << LimitingConeAngle() << "\"]";
   return ts;

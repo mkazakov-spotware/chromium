@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,8 @@
 #include <vector>
 
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
 #include "chrome/browser/android/usage_stats/usage_stats_database.h"
-#include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/history_service_observer.h"
 
 namespace history {
@@ -41,10 +38,6 @@ class UsageStatsBridge : public history::HistoryServiceObserver {
       std::unique_ptr<UsageStatsDatabase> usage_stats_database,
       Profile* profile,
       const JavaRef<jobject>& j_this);
-
-  UsageStatsBridge(const UsageStatsBridge&) = delete;
-  UsageStatsBridge& operator=(const UsageStatsBridge&) = delete;
-
   ~UsageStatsBridge() override;
 
   void Destroy(JNIEnv* j_env, const JavaRef<jobject>& j_this);
@@ -101,8 +94,6 @@ class UsageStatsBridge : public history::HistoryServiceObserver {
   // Overridden from history::HistoryServiceObserver.
   void OnURLsDeleted(history::HistoryService* history_service,
                      const history::DeletionInfo& deletion_info) override;
-  void HistoryServiceBeingDeleted(
-      history::HistoryService* history_service) override;
 
   static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 
@@ -124,15 +115,13 @@ class UsageStatsBridge : public history::HistoryServiceObserver {
 
   std::unique_ptr<UsageStatsDatabase> usage_stats_database_;
 
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   base::android::ScopedJavaGlobalRef<jobject> j_this_;
 
-  base::ScopedObservation<history::HistoryService,
-                          history::HistoryServiceObserver>
-      scoped_history_service_observer_{this};
-
   base::WeakPtrFactory<UsageStatsBridge> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(UsageStatsBridge);
 };
 
 }  // namespace usage_stats

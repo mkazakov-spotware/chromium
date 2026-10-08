@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,9 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/trace_event/trace_event.h"
 #include "device/gamepad/gamepad_blocklist.h"
@@ -35,11 +37,11 @@ GamepadPlatformDataFetcherLinux::Factory::CreateDataFetcher() {
 }
 
 GamepadSource GamepadPlatformDataFetcherLinux::Factory::source() {
-  return GamepadSource::kLinuxUdev;
+  return GAMEPAD_SOURCE_LINUX_UDEV;
 }
 
 GamepadSource GamepadPlatformDataFetcherLinux::Factory::static_source() {
-  return GamepadSource::kLinuxUdev;
+  return GAMEPAD_SOURCE_LINUX_UDEV;
 }
 
 GamepadPlatformDataFetcherLinux::GamepadPlatformDataFetcherLinux(

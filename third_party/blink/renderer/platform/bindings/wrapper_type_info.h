@@ -31,12 +31,11 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_BINDINGS_WRAPPER_TYPE_INFO_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_BINDINGS_WRAPPER_TYPE_INFO_H_
 
-#include "base/check_op.h"
 #include "gin/public/wrapper_info.h"
 #include "third_party/blink/renderer/platform/bindings/v8_interface_bridge_base.h"
-#include "third_party/blink/renderer/platform/heap/visitor.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "v8/include/v8.h"
 
 namespace blink {
@@ -44,6 +43,7 @@ namespace blink {
 class CustomWrappable;
 class DOMWrapperWorld;
 class ScriptWrappable;
+class Visitor;
 
 static const int kV8DOMWrapperTypeIndex =
     static_cast<int>(gin::kWrapperInfoIndex);
@@ -68,11 +68,7 @@ struct PLATFORM_EXPORT WrapperTypeInfo final {
   };
 
   enum WrapperClassId {
-    // kNoInternalFieldClassId is used for the pseudo wrapper objects which do
-    // not have any internal field pointing to a Blink object.
-    kNoInternalFieldClassId = 0,
-    // NodeClassId must be smaller than ObjectClassId, also must be non-zero.
-    kNodeClassId = 1,
+    kNodeClassId = 1,  // NodeClassId must be smaller than ObjectClassId.
     kObjectClassId,
     kCustomWrappableId,
   };
@@ -86,8 +82,6 @@ struct PLATFORM_EXPORT WrapperTypeInfo final {
     kIdlInterface,
     kIdlNamespace,
     kIdlCallbackInterface,
-    kIdlBufferSourceType,
-    kIdlObservableArray,
     kCustomWrappableKind,
   };
 
@@ -109,8 +103,7 @@ struct PLATFORM_EXPORT WrapperTypeInfo final {
   }
 
   void ConfigureWrapper(v8::TracedReference<v8::Object>* wrapper) const {
-    if (wrapper_class_id != kNoInternalFieldClassId)
-      wrapper->SetWrapperClassId(wrapper_class_id);
+    wrapper->SetWrapperClassId(wrapper_class_id);
   }
 
   // Returns a v8::Template of interface object, namespace object, or the
@@ -145,6 +138,10 @@ struct PLATFORM_EXPORT WrapperTypeInfo final {
            kInheritFromActiveScriptWrappable;
   }
 
+  // Garbage collection support for when the type depends the WrapperTypeInfo
+  // object.
+  void Trace(Visitor*, const void*) const;
+
   // This field must be the first member of the struct WrapperTypeInfo.
   // See also static_assert() in .cpp file.
   const gin::GinEmbedder gin_embedder;
@@ -159,7 +156,7 @@ struct PLATFORM_EXPORT WrapperTypeInfo final {
   unsigned wrapper_class_id : 2;        // WrapperClassId
   unsigned                              // ActiveScriptWrappableInheritance
       active_script_wrappable_inheritance : 1;
-  unsigned idl_definition_kind : 3;  // IdlDefinitionKind
+  unsigned idl_definition_kind : 2;  // IdlDefinitionKind
 };
 
 template <typename T, int offset>

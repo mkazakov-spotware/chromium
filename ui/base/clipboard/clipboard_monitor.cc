@@ -1,12 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/base/clipboard/clipboard_monitor.h"
 
-#include "base/no_destructor.h"
-#include "base/observer_list.h"
-#include "build/chromeos_buildflags.h"
+#include "ui/base/clipboard/clipboard.h"
 #include "ui/base/clipboard/clipboard_observer.h"
 
 namespace ui {
@@ -29,7 +27,7 @@ void ClipboardMonitor::NotifyClipboardDataChanged() {
     observer.OnClipboardDataChanged();
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 void ClipboardMonitor::NotifyClipboardDataRead() {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   for (ClipboardObserver& observer : observers_)

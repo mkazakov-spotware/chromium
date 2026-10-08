@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,22 +23,24 @@ class ProxyNonThreadSafeThreadTraits {
    public:
     RefCount() : ref_(0) {}
 
-    ~RefCount() { DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_); }
+    ~RefCount() {
+      DCHECK(sequence_checker_.CalledOnValidSequence());
+    }
 
     int32_t AddRef() {
-      DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+      DCHECK(sequence_checker_.CalledOnValidSequence());
       return ++ref_;
     }
 
     int32_t Release() {
-      DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+      DCHECK(sequence_checker_.CalledOnValidSequence());
       DCHECK(ref_ > 0);
       return --ref_;
     }
 
    private:
     int32_t ref_;
-    SEQUENCE_CHECKER(sequence_checker_);
+    base::SequenceChecker sequence_checker_;
   };
 
   // No-op lock class.

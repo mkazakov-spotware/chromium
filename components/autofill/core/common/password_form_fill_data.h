@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "components/autofill/core/common/form_data.h"
-#include "components/autofill/core/common/unique_ids.h"
+#include "components/autofill/core/common/renderer_id.h"
 
 namespace autofill {
 
@@ -29,8 +29,8 @@ struct PasswordAndMetadata {
   PasswordAndMetadata& operator=(PasswordAndMetadata&&);
   ~PasswordAndMetadata();
 
-  std::u16string username;
-  std::u16string password;
+  base::string16 username;
+  base::string16 password;
   std::string realm;
   bool uses_account_store = false;
 };
@@ -56,13 +56,13 @@ struct PasswordFormFillData {
   FormRendererId form_renderer_id;
 
   // The name of the form.
-  std::u16string name;
+  base::string16 name;
 
   // An URL consisting of the scheme, host, port and path; the rest is stripped.
   GURL url;
 
-  // The action target of the form; like |url|, consists of the scheme, host,
-  // port and path; the rest is stripped.
+  // The action target of the form; like |url| URL consists of the scheme,
+  // host, port and path; the rest is stripped.
   GURL action;
 
   // Username and password input fields in the form.

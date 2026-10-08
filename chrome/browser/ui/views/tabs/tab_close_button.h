@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 #define CHROME_BROWSER_UI_VIEWS_TABS_TAB_CLOSE_BUTTON_H_
 
 #include "base/callback_forward.h"
-#include "chrome/browser/ui/views/tabs/tab_style_views.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/gfx/color_palette.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/masked_targeter_delegate.h"
 
@@ -18,10 +17,8 @@
 class TabCloseButton : public views::ImageButton,
                        public views::MaskedTargeterDelegate {
  public:
-  METADATA_HEADER(TabCloseButton);
-
   using MouseEventCallback =
-      base::RepeatingCallback<void(views::View*, const ui::MouseEvent&)>;
+      base::Callback<void(views::View*, const ui::MouseEvent&)>;
 
   // The mouse_event callback will be called for every mouse event to allow
   // middle clicks to be handled by the parent.
@@ -36,12 +33,11 @@ class TabCloseButton : public views::ImageButton,
   // Returns the width/height of the tab close button, sans insets/padding.
   static int GetGlyphSize();
 
-  TabStyle::TabColors GetColors() const;
   // This function must be called before the tab is painted so it knows what
   // colors to use. It must also be called when the background color of the tab
   // changes (this class does not track tab activation state), and when the
   // theme changes.
-  void SetColors(TabStyle::TabColors colors);
+  void SetIconColors(SkColor foreground_color, SkColor background_color);
 
   // Sets the desired padding around the icon. Only the icon is a target for
   // mouse clicks, but the entire button is a target for touch events, since the
@@ -51,6 +47,7 @@ class TabCloseButton : public views::ImageButton,
   void SetButtonPadding(const gfx::Insets& padding);
 
   // views::ImageButton:
+  const char* GetClassName() const override;
   View* GetTooltipHandlerForPoint(const gfx::Point& point) override;
   bool OnMousePressed(const ui::MouseEvent& event) override;
   void OnMouseReleased(const ui::MouseEvent& event) override;
@@ -70,7 +67,7 @@ class TabCloseButton : public views::ImageButton,
 
   MouseEventCallback mouse_event_callback_;
 
-  TabStyle::TabColors colors_;
+  SkColor icon_color_ = gfx::kPlaceholderColor;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_TABS_TAB_CLOSE_BUTTON_H_

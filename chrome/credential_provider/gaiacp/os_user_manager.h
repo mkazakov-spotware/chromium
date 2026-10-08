@@ -1,12 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_CREDENTIAL_PROVIDER_GAIACP_OS_USER_MANAGER_H_
 #define CHROME_CREDENTIAL_PROVIDER_GAIACP_OS_USER_MANAGER_H_
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "base/win/scoped_handle.h"
 #include "base/win/windows_types.h"
 
@@ -68,10 +67,9 @@ class [[clang::lto_visibility_public]] OSUserManager {
   // should free it with a call to LocalFree().
   virtual HRESULT GetUserSID(const wchar_t* domain, const wchar_t* username,
                              PSID* sid);
-
   // Gets the SID in string format of the given OS user.
   HRESULT GetUserSID(const wchar_t* domain, const wchar_t* username,
-                     std::wstring* sid_string);
+                     base::string16* sid_string);
 
   // Finds a user created from a gaia account by its SID.  Returns S_OK if a
   // user with the given SID exists, HRESULT_FROM_WIN32(ERROR_NONE_MAPPED)
@@ -83,23 +81,15 @@ class [[clang::lto_visibility_public]] OSUserManager {
                                 DWORD username_size, wchar_t* domain,
                                 DWORD domain_size);
 
-  // Finds the username and domain for the provided user sid. Provided that a
-  // SID mapping exists in the registry, function uses the user properties
-  // registries as a fallback if the user can't be found via a network lookup
-  // call.
-  virtual HRESULT FindUserBySidWithFallback(
-      const wchar_t* sid, wchar_t* username, DWORD username_size,
-      wchar_t* domain, DWORD domain_size);
-
   // Verify if a user with provided sid is domain joined.
-  virtual bool IsUserDomainJoined(const std::wstring& sid);
+  virtual bool IsUserDomainJoined(const base::string16& sid);
 
   // Removes the user from the machine.
   virtual HRESULT RemoveUser(const wchar_t* username, const wchar_t* password);
 
   // Gets the full name of the user from their user info.
   virtual HRESULT GetUserFullname(
-      const wchar_t* domain, const wchar_t* username, std::wstring* fullname);
+      const wchar_t* domain, const wchar_t* username, base::string16* fullname);
 
   // Sets restrictive password change policies for the end user account.
   virtual HRESULT SetDefaultPasswordChangePolicies(const wchar_t* domain,
@@ -111,7 +101,7 @@ class [[clang::lto_visibility_public]] OSUserManager {
   // user is allowed to sign on at any time of day.
   virtual HRESULT ModifyUserAccessWithLogonHours(
       const wchar_t* domain, const wchar_t* username, bool allow);
-  static std::wstring GetLocalDomain();
+  static base::string16 GetLocalDomain();
 
   // This method is called from dllmain.cc when setting fakes from one modul
   // to another.

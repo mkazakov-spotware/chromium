@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,9 +22,6 @@ class SimpleLock {
     pthread_mutex_init(&lock_, NULL);
   }
 
-  SimpleLock(const SimpleLock&) = delete;
-  SimpleLock& operator=(const SimpleLock&) = delete;
-
   ~SimpleLock() {
     pthread_mutex_destroy(&lock_);
   }
@@ -36,6 +33,8 @@ class SimpleLock {
 
  private:
   mutable pthread_mutex_t lock_;
+
+  DISALLOW_COPY_AND_ASSIGN(SimpleLock);
 };
 
 }  // namespace sdk_util

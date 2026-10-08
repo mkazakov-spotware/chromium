@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,11 @@
 
 #include "base/files/file.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "build/build_config.h"
 #include "components/spellcheck/browser/spellcheck_dictionary.h"
 #include "components/spellcheck/spellcheck_buildflags.h"
@@ -56,11 +56,6 @@ class SpellcheckHunspellDictionary
                                const std::string& platform_spellcheck_language,
                                content::BrowserContext* browser_context,
                                SpellcheckService* spellcheck_service);
-
-  SpellcheckHunspellDictionary(const SpellcheckHunspellDictionary&) = delete;
-  SpellcheckHunspellDictionary& operator=(const SpellcheckHunspellDictionary&) =
-      delete;
-
   ~SpellcheckHunspellDictionary() override;
 
   // SpellcheckDictionary implementation:
@@ -106,10 +101,6 @@ class SpellcheckHunspellDictionary
   struct DictionaryFile {
    public:
     explicit DictionaryFile(base::TaskRunner* task_runner);
-
-    DictionaryFile(const DictionaryFile&) = delete;
-    DictionaryFile& operator=(const DictionaryFile&) = delete;
-
     ~DictionaryFile();
 
     DictionaryFile(DictionaryFile&& other);
@@ -124,6 +115,8 @@ class SpellcheckHunspellDictionary
    private:
     // Task runner where the file is created.
     scoped_refptr<base::TaskRunner> task_runner_;
+
+    DISALLOW_COPY_AND_ASSIGN(DictionaryFile);
   };
 
   void OnSimpleLoaderComplete(std::unique_ptr<std::string> response_body);
@@ -134,7 +127,7 @@ class SpellcheckHunspellDictionary
   // Attempt to download the dictionary.
   void DownloadDictionary(GURL url);
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   // Figures out the location for the dictionary, verifies its contents, and
   // opens it.
   static DictionaryFile OpenDictionaryFile(base::TaskRunner* task_runner,
@@ -183,12 +176,12 @@ class SpellcheckHunspellDictionary
 
   // Used for downloading the dictionary file. SpellcheckHunspellDictionary does
   // not hold a reference, and it is only valid to use it on the UI thread.
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
 
   // Used for downloading the dictionary file.
   std::unique_ptr<network::SimpleURLLoader> simple_loader_;
 
-  const raw_ptr<SpellcheckService> spellcheck_service_;
+  SpellcheckService* const spellcheck_service_;
 
   // Observers of Hunspell dictionary events.
   base::ObserverList<Observer>::Unchecked observers_;
@@ -200,6 +193,8 @@ class SpellcheckHunspellDictionary
   DictionaryFile dictionary_file_;
 
   base::WeakPtrFactory<SpellcheckHunspellDictionary> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SpellcheckHunspellDictionary);
 };
 
 #endif  // CHROME_BROWSER_SPELLCHECKER_SPELLCHECK_HUNSPELL_DICTIONARY_H_

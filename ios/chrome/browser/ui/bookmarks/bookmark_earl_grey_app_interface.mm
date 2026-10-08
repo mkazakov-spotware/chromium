@@ -1,27 +1,26 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/bookmarks/bookmark_earl_grey_app_interface.h"
 
-#import "base/format_macros.h"
-#import "base/strings/sys_string_conversions.h"
+#include "base/strings/sys_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "components/bookmarks/browser/bookmark_model.h"
-#import "components/bookmarks/browser/titled_url_match.h"
-#import "components/prefs/pref_service.h"
-#import "components/query_parser/query_parser.h"
-#import "ios/chrome/browser/bookmarks/bookmark_model_factory.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/prefs/pref_names.h"
-#import "ios/chrome/browser/signin/fake_system_identity.h"
+#include "components/bookmarks/browser/bookmark_model.h"
+#include "components/bookmarks/browser/titled_url_match.h"
+#include "components/prefs/pref_service.h"
+#include "components/query_parser/query_parser.h"
+#include "ios/chrome/browser/bookmarks/bookmark_model_factory.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/pref_names.h"
 #import "ios/chrome/browser/ui/bookmarks/bookmark_path_cache.h"
 #import "ios/chrome/browser/ui/bookmarks/bookmark_utils_ios.h"
 #import "ios/chrome/test/app/chrome_test_util.h"
+#import "ios/public/provider/chrome/browser/signin/fake_chrome_identity.h"
 #import "ios/public/provider/chrome/browser/signin/fake_chrome_identity_service.h"
 #import "ios/testing/nserror_util.h"
-#import "ui/base/models/tree_node_iterator.h"
-#import "url/gurl.h"
+#include "ui/base/models/tree_node_iterator.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -138,7 +137,7 @@
       [BookmarkEarlGreyAppInterface bookmarkModel];
 
   // Verify the correct number of bookmarks exist.
-  std::u16string matchString = base::SysNSStringToUTF16(title);
+  base::string16 matchString = base::SysNSStringToUTF16(title);
   int const kMaxCountOfBookmarks = 50;
   std::vector<bookmarks::TitledUrlMatch> matches =
       bookmarkModel->GetBookmarksMatching(
@@ -159,14 +158,14 @@
   GURL bookmarkURL = GURL(base::SysNSStringToUTF8(url));
   bookmarks::BookmarkModel* bookmark_model =
       [BookmarkEarlGreyAppInterface bookmarkModel];
-  bookmark_model->AddNewURL(bookmark_model->mobile_node(), 0,
-                            base::SysNSStringToUTF16(title), bookmarkURL);
+  bookmark_model->AddURL(bookmark_model->mobile_node(), 0,
+                         base::SysNSStringToUTF16(title), bookmarkURL);
 
   return nil;
 }
 
 + (NSError*)removeBookmarkWithTitle:(NSString*)title {
-  std::u16string name16(base::SysNSStringToUTF16(title));
+  base::string16 name16(base::SysNSStringToUTF16(title));
   bookmarks::BookmarkModel* bookmarkModel =
       [BookmarkEarlGreyAppInterface bookmarkModel];
   ui::TreeNodeIterator<const bookmarks::BookmarkNode> iterator(
@@ -184,7 +183,7 @@
 
 + (NSError*)moveBookmarkWithTitle:(NSString*)bookmarkTitle
                 toFolderWithTitle:(NSString*)newFolder {
-  std::u16string name16(base::SysNSStringToUTF16(bookmarkTitle));
+  base::string16 name16(base::SysNSStringToUTF16(bookmarkTitle));
   bookmarks::BookmarkModel* bookmarkModel =
       [BookmarkEarlGreyAppInterface bookmarkModel];
   ui::TreeNodeIterator<const bookmarks::BookmarkNode> iterator(
@@ -197,7 +196,7 @@
     bookmark = iterator.Next();
   }
 
-  std::u16string folderName16(base::SysNSStringToUTF16(newFolder));
+  base::string16 folderName16(base::SysNSStringToUTF16(newFolder));
   ui::TreeNodeIterator<const bookmarks::BookmarkNode> iteratorFolder(
       bookmarkModel->root_node());
   const bookmarks::BookmarkNode* folder = iteratorFolder.Next();
@@ -219,7 +218,7 @@
 }
 
 + (NSError*)verifyChildCount:(size_t)count inFolderWithName:(NSString*)name {
-  std::u16string name16(base::SysNSStringToUTF16(name));
+  base::string16 name16(base::SysNSStringToUTF16(name));
   bookmarks::BookmarkModel* bookmarkModel =
       [BookmarkEarlGreyAppInterface bookmarkModel];
 
@@ -253,8 +252,7 @@
   const bookmarks::BookmarkNode* bookmark =
       [self bookmarkModel] -> GetMostRecentlyAddedUserNodeForURL(
                                GURL(base::SysNSStringToUTF16(URL)));
-  if (!bookmark ||
-      bookmark->GetTitle().compare(base::SysNSStringToUTF16(name)) != 0) {
+  if (bookmark->GetTitle().compare(base::SysNSStringToUTF16(name)) != 0) {
     return testing::NSErrorWithLocalizedDescription(
         [NSString stringWithFormat:@"Could not find bookmark named %@ for %@",
                                    name, URL]);
@@ -276,7 +274,7 @@
 }
 
 + (NSError*)verifyExistenceOfFolderWithTitle:(NSString*)title {
-  std::u16string folderTitle16(base::SysNSStringToUTF16(title));
+  base::string16 folderTitle16(base::SysNSStringToUTF16(title));
 
   ui::TreeNodeIterator<const bookmarks::BookmarkNode> iterator(
       [self bookmarkModel] -> root_node());

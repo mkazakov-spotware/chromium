@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,16 +16,16 @@ JSONStringValueSerializer::JSONStringValueSerializer(std::string* json_string)
 
 JSONStringValueSerializer::~JSONStringValueSerializer() = default;
 
-bool JSONStringValueSerializer::Serialize(base::ValueView root) {
+bool JSONStringValueSerializer::Serialize(const Value& root) {
   return SerializeInternal(root, false);
 }
 
 bool JSONStringValueSerializer::SerializeAndOmitBinaryValues(
-    base::ValueView root) {
+    const Value& root) {
   return SerializeInternal(root, true);
 }
 
-bool JSONStringValueSerializer::SerializeInternal(base::ValueView root,
+bool JSONStringValueSerializer::SerializeInternal(const Value& root,
                                                   bool omit_binary_values) {
   if (!json_string_)
     return false;
@@ -49,14 +49,14 @@ JSONStringValueDeserializer::~JSONStringValueDeserializer() = default;
 std::unique_ptr<Value> JSONStringValueDeserializer::Deserialize(
     int* error_code,
     std::string* error_str) {
-  auto ret =
+  base::JSONReader::ValueWithError ret =
       base::JSONReader::ReadAndReturnValueWithError(json_string_, options_);
-  if (ret.has_value())
-    return base::Value::ToUniquePtrValue(std::move(*ret));
+  if (ret.value)
+    return base::Value::ToUniquePtrValue(std::move(*ret.value));
 
   if (error_code)
     *error_code = base::ValueDeserializer::kErrorCodeInvalidFormat;
   if (error_str)
-    *error_str = std::move(ret.error().message);
+    *error_str = std::move(ret.error_message);
   return nullptr;
 }

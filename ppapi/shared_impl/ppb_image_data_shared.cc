@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,23 +6,21 @@
 
 #include "base/notreached.h"
 #include "build/build_config.h"
-#include "components/nacl/common/buildflags.h"
 
-#if !BUILDFLAG(IS_NACL) && !defined(NACL_WIN64) && \
-    !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
-#include "third_party/skia/include/core/SkTypes.h"  //nogncheck
+#if !defined(OS_NACL) && !defined(NACL_WIN64)
+#include "third_party/skia/include/core/SkTypes.h"
 #endif
 
 namespace ppapi {
 
 // static
 PP_ImageDataFormat PPB_ImageData_Shared::GetNativeImageDataFormat() {
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL)
   // In NaCl, just default to something. If we're wrong, it will be converted
   // later.
   // TODO(dmichael): Really proxy this.
   return PP_IMAGEDATAFORMAT_BGRA_PREMUL;
-#elif defined(NACL_WIN64) || BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
+#elif defined(NACL_WIN64)
   // In the NaCl Win64 helper, this shouldn't be called. If we start building
   // Chrome on Windows 64 for realz, we should really implement this.
   NOTIMPLEMENTED();

@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2006 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Utilities for window manipulation.
@@ -20,7 +28,6 @@ goog.require('goog.labs.userAgent.platform');
 goog.require('goog.string');
 goog.require('goog.string.Const');
 goog.require('goog.userAgent');
-goog.requireType('goog.string.TypedString');
 
 
 /**
@@ -50,7 +57,6 @@ goog.window.DEFAULT_POPUP_TARGET = 'google_popup';
  * @private
  */
 goog.window.createFakeWindow_ = function() {
-  'use strict';
   return /** @type {!Window} */ ({});
 };
 
@@ -94,7 +100,6 @@ goog.window.createFakeWindow_ = function() {
  *                  a cross-origin window has been opened.
  */
 goog.window.open = function(linkRef, opt_options, opt_parentWin) {
-  'use strict';
   if (!opt_options) {
     opt_options = {};
   }
@@ -188,7 +193,11 @@ goog.window.open = function(linkRef, opt_options, opt_parentWin) {
     // Detecting user agent and then using a different strategy per browser
     // would allow the referrer to leak in case of an incorrect/missing user
     // agent.
-    newWin = goog.dom.safe.openInWindow('', parentWin, target, optionString);
+    //
+    // Also note that we can't use goog.dom.safe.openInWindow here, as it
+    // requires a goog.string.Const 'name' parameter, while we're using plain
+    // strings here for target.
+    newWin = parentWin.open('', target, optionString);
 
     var sanitizedLinkRef = goog.html.SafeUrl.unwrap(safeLinkRef);
     if (newWin) {
@@ -231,14 +240,14 @@ goog.window.open = function(linkRef, opt_options, opt_parentWin) {
       // During window loading `newWin.document` may be unset in some browsers.
       // Storing and checking a reference to the document prevents NPEs.
       var newDoc = newWin.document;
-      if (newDoc && newDoc.write) {
+      if (newDoc) {
         goog.dom.safe.documentWrite(newDoc, safeHtml);
         newDoc.close();
       }
     }
   } else {
-    newWin = goog.dom.safe.openInWindow(
-        safeLinkRef, parentWin, target, optionString);
+    newWin = parentWin.open(
+        goog.html.SafeUrl.unwrap(safeLinkRef), target, optionString);
     // Passing in 'noopener' into the 'windowFeatures' param of window.open(...)
     // will yield a feature-deprived browser. This is an known issue, tracked
     // here: https://github.com/whatwg/html/issues/1902
@@ -277,7 +286,6 @@ goog.window.open = function(linkRef, opt_options, opt_parentWin) {
  *                  opened.
  */
 goog.window.openBlank = function(opt_message, opt_options, opt_parentWin) {
-  'use strict';
   // Open up a window with the loading message and nothing else.
   // This will be interpreted as HTML content type with a missing doctype
   // and html/body tags, but is otherwise acceptable.
@@ -330,7 +338,6 @@ goog.window.openBlank = function(opt_message, opt_options, opt_parentWin) {
  * @return {boolean} true if the window was not popped up, false if it was.
  */
 goog.window.popup = function(linkRef, opt_options) {
-  'use strict';
   if (!opt_options) {
     opt_options = {};
   }

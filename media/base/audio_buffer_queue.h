@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define MEDIA_BASE_AUDIO_BUFFER_QUEUE_H_
 
 #include "base/containers/circular_deque.h"
+#include "base/macros.h"
 #include "media/base/audio_buffer.h"
 #include "media/base/media_export.h"
 
@@ -22,10 +23,6 @@ class AudioBus;
 class MEDIA_EXPORT AudioBufferQueue {
  public:
   AudioBufferQueue();
-
-  AudioBufferQueue(const AudioBufferQueue&) = delete;
-  AudioBufferQueue& operator=(const AudioBufferQueue&) = delete;
-
   ~AudioBufferQueue();
 
   // Clears the buffer queue.
@@ -80,6 +77,8 @@ class MEDIA_EXPORT AudioBufferQueue {
 
   // Number of frames available to be read in the buffer.
   int frames_;
+
+  DISALLOW_COPY_AND_ASSIGN(AudioBufferQueue);
 };
 
 }  // namespace media

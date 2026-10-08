@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@ namespace media {
 
 // Implement IEnumPins.
 class TypeEnumerator final : public IEnumMediaTypes,
-                             public base::RefCountedThreadSafe<TypeEnumerator> {
+                             public base::RefCounted<TypeEnumerator> {
  public:
   explicit TypeEnumerator(PinBase* pin) : pin_(pin), index_(0) {}
 
@@ -26,12 +26,12 @@ class TypeEnumerator final : public IEnumMediaTypes,
   }
 
   IFACEMETHODIMP_(ULONG) AddRef() override {
-    base::RefCountedThreadSafe<TypeEnumerator>::AddRef();
+    base::RefCounted<TypeEnumerator>::AddRef();
     return 1;
   }
 
   IFACEMETHODIMP_(ULONG) Release() override {
-    base::RefCountedThreadSafe<TypeEnumerator>::Release();
+    base::RefCounted<TypeEnumerator>::Release();
     return 1;
   }
 
@@ -96,7 +96,7 @@ class TypeEnumerator final : public IEnumMediaTypes,
   }
 
  private:
-  friend class base::RefCountedThreadSafe<TypeEnumerator>;
+  friend class base::RefCounted<TypeEnumerator>;
   ~TypeEnumerator() {}
 
   void FreeAllocatedMediaTypes(ULONG allocated, AM_MEDIA_TYPE** types) {
@@ -270,12 +270,12 @@ HRESULT PinBase::QueryInterface(REFIID id, void** object_ptr) {
 }
 
 ULONG PinBase::AddRef() {
-  base::RefCountedThreadSafe<PinBase>::AddRef();
+  base::RefCounted<PinBase>::AddRef();
   return 1;
 }
 
 ULONG PinBase::Release() {
-  base::RefCountedThreadSafe<PinBase>::Release();
+  base::RefCounted<PinBase>::Release();
   return 1;
 }
 

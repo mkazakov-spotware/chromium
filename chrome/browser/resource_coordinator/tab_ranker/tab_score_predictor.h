@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,9 @@
 #include <map>
 #include <memory>
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/optional.h"
 
 namespace assist_ranker {
 class ExamplePreprocessorConfig;
@@ -49,16 +51,13 @@ class TabScorePredictor {
     kMaxValue = kFrecencyScorer
   };
   TabScorePredictor();
-
-  TabScorePredictor(const TabScorePredictor&) = delete;
-  TabScorePredictor& operator=(const TabScorePredictor&) = delete;
-
   ~TabScorePredictor();
 
   // Scores the tab using the tab reactivation model. A higher score indicates
   // the tab is more likely to be reactivated than a lower score. A lower score
   // indicates the tab is more likely to be closed.
-  [[nodiscard]] TabRankerResult ScoreTab(const TabFeatures& tab, float* score);
+  TabRankerResult ScoreTab(const TabFeatures& tab,
+                           float* score) WARN_UNUSED_RESULT;
 
   // Scores multiple tabs.
   // Input is a map from an id (lifecycle_unit id) to the TabFeatures of that
@@ -67,7 +66,7 @@ class TabScorePredictor {
   // If the scoring fails at any step, it will set
   // std::numeric_limits<float>::max() as the reactivation score for that tab.
   std::map<int32_t, float> ScoreTabs(
-      const std::map<int32_t, absl::optional<TabFeatures>>& tabs);
+      const std::map<int32_t, base::Optional<TabFeatures>>& tabs);
 
  private:
   friend class ScoreTabsWithPairwiseScorerTest;
@@ -90,7 +89,7 @@ class TabScorePredictor {
                                  const TabFeatures& tab2,
                                  float* score);
   std::map<int32_t, float> ScoreTabsWithPairwiseScorer(
-      const std::map<int32_t, absl::optional<TabFeatures>>& tabs);
+      const std::map<int32_t, base::Optional<TabFeatures>>& tabs);
   TabRankerResult ScoreTabWithFrecencyScorer(const TabFeatures& tab,
                                              float* score);
 
@@ -105,6 +104,8 @@ class TabScorePredictor {
   const float discard_count_penalty_ = 0.0f;
   const float mru_scorer_penalty_ = 1.0f;
   const ScorerType type_ = kMLScorer;
+
+  DISALLOW_COPY_AND_ASSIGN(TabScorePredictor);
 };
 
 }  // namespace tab_ranker

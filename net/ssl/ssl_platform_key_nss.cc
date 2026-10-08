@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 #include <utility>
 
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/strings/stringprintf.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "crypto/nss_crypto_module_delegate.h"
@@ -55,10 +56,6 @@ class SSLPlatformKeyNSS : public ThreadedSSLPrivateKey::Delegate {
         password_delegate_(std::move(password_delegate)),
         key_(std::move(key)),
         supports_pss_(PK11_DoesMechanism(key_->pkcs11Slot, CKM_RSA_PKCS_PSS)) {}
-
-  SSLPlatformKeyNSS(const SSLPlatformKeyNSS&) = delete;
-  SSLPlatformKeyNSS& operator=(const SSLPlatformKeyNSS&) = delete;
-
   ~SSLPlatformKeyNSS() override = default;
 
   std::string GetProviderName() override {
@@ -130,25 +127,23 @@ class SSLPlatformKeyNSS : public ThreadedSSLPrivateKey::Delegate {
         free_digest_info.reset(digest_item.data);
     }
 
-    {
-      const int len = PK11_SignatureLen(key_.get());
-      if (len <= 0) {
-        LogPRError("PK11_SignatureLen failed");
-        return ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED;
-      }
-      signature->resize(len);
-      SECItem signature_item;
-      signature_item.data = signature->data();
-      signature_item.len = signature->size();
-
-      SECStatus rv = PK11_SignWithMechanism(key_.get(), mechanism, &param,
-                                            &signature_item, &digest_item);
-      if (rv != SECSuccess) {
-        LogPRError("PK11_SignWithMechanism failed");
-        return ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED;
-      }
-      signature->resize(signature_item.len);
+    int len = PK11_SignatureLen(key_.get());
+    if (len <= 0) {
+      LogPRError("PK11_SignatureLen failed");
+      return ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED;
     }
+    signature->resize(len);
+    SECItem signature_item;
+    signature_item.data = signature->data();
+    signature_item.len = signature->size();
+
+    SECStatus rv = PK11_SignWithMechanism(key_.get(), mechanism, &param,
+                                          &signature_item, &digest_item);
+    if (rv != SECSuccess) {
+      LogPRError("PK11_SignWithMechanism failed");
+      return ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED;
+    }
+    signature->resize(signature_item.len);
 
     // NSS emits raw ECDSA signatures, but BoringSSL expects a DER-encoded
     // ECDSA-Sig-Value.
@@ -166,20 +161,15 @@ class SSLPlatformKeyNSS : public ThreadedSSLPrivateKey::Delegate {
         return ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED;
       }
 
-      {
-        const int len = i2d_ECDSA_SIG(sig.get(), nullptr);
-        if (len <= 0)
-          return ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED;
-        signature->resize(len);
-      }
-
-      {
-        uint8_t* ptr = signature->data();
-        const int len = i2d_ECDSA_SIG(sig.get(), &ptr);
-        if (len <= 0)
-          return ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED;
-        signature->resize(len);
-      }
+      int len = i2d_ECDSA_SIG(sig.get(), nullptr);
+      if (len <= 0)
+        return ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED;
+      signature->resize(len);
+      uint8_t* ptr = signature->data();
+      len = i2d_ECDSA_SIG(sig.get(), &ptr);
+      if (len <= 0)
+        return ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED;
+      signature->resize(len);
     }
 
     return OK;
@@ -193,6 +183,8 @@ class SSLPlatformKeyNSS : public ThreadedSSLPrivateKey::Delegate {
       password_delegate_;
   crypto::ScopedSECKEYPrivateKey key_;
   bool supports_pss_;
+
+  DISALLOW_COPY_AND_ASSIGN(SSLPlatformKeyNSS);
 };
 
 }  // namespace

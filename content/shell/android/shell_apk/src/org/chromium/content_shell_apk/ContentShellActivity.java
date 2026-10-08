@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,6 @@ import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_shell.Shell;
 import org.chromium.content_shell.ShellManager;
 import org.chromium.ui.base.ActivityWindowAndroid;
-import org.chromium.ui.base.IntentRequestTracker;
 
 /**
  * Activity for managing the Content Shell.
@@ -41,7 +40,6 @@ public class ContentShellActivity extends Activity {
     private ActivityWindowAndroid mWindowAndroid;
     private Intent mLastSentIntent;
     private String mStartupUrl;
-    private IntentRequestTracker mIntentRequestTracker;
 
     @Override
     protected void onCreate(final Bundle savedInstanceState) {
@@ -63,10 +61,8 @@ public class ContentShellActivity extends Activity {
         setContentView(R.layout.content_shell_activity);
         mShellManager = findViewById(R.id.shell_container);
         final boolean listenToActivityState = true;
-        mIntentRequestTracker = IntentRequestTracker.createFromActivity(this);
-        mWindowAndroid =
-                new ActivityWindowAndroid(this, listenToActivityState, mIntentRequestTracker);
-        mIntentRequestTracker.restoreInstanceState(savedInstanceState);
+        mWindowAndroid = new ActivityWindowAndroid(this, listenToActivityState);
+        mWindowAndroid.restoreInstanceState(savedInstanceState);
         mShellManager.setWindow(mWindowAndroid);
         // Set up the animation placeholder to be the SurfaceView. This disables the
         // SurfaceView's 'hole' clipping during animations that are notified to the window.
@@ -80,7 +76,7 @@ public class ContentShellActivity extends Activity {
 
         if (CommandLine.getInstance().hasSwitch(RUN_WEB_TESTS_SWITCH)) {
             BrowserStartupController.getInstance().startBrowserProcessesSync(
-                    LibraryProcessType.PROCESS_BROWSER, false, false);
+                    LibraryProcessType.PROCESS_BROWSER, false);
         } else {
             BrowserStartupController.getInstance().startBrowserProcessesAsync(
                     LibraryProcessType.PROCESS_BROWSER, true, false,
@@ -126,11 +122,10 @@ public class ContentShellActivity extends Activity {
         super.onSaveInstanceState(outState);
         WebContents webContents = getActiveWebContents();
         if (webContents != null) {
-            // TODO(yfriedman): crbug/783819 - This should use GURL serialize/deserialize.
-            outState.putString(ACTIVE_SHELL_URL_KEY, webContents.getLastCommittedUrl().getSpec());
+            outState.putString(ACTIVE_SHELL_URL_KEY, webContents.getLastCommittedUrl());
         }
 
-        mIntentRequestTracker.saveInstanceState(outState);
+        mWindowAndroid.saveInstanceState(outState);
     }
 
     @Override
@@ -174,7 +169,7 @@ public class ContentShellActivity extends Activity {
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        mIntentRequestTracker.onActivityResult(requestCode, resultCode, data);
+        mWindowAndroid.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override

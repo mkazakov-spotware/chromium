@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,8 +8,7 @@ import time
 from absl import app, flags
 from selenium.webdriver.chrome.options import Options
 
-from test_util import create_chrome_webdriver
-from test_util import shutdown_chrome
+import test_util
 
 FLAGS = flags.FLAGS
 
@@ -28,7 +27,7 @@ flags.DEFINE_string('user_data_dir', None,
 def _create_driver():
   chrome_options = Options()
   chrome_options.add_argument(r'user-data-dir=%s' % FLAGS.user_data_dir)
-  return create_chrome_webdriver(chrome_options=chrome_options)
+  return test_util.create_chrome_webdriver(chrome_options=chrome_options)
 
 
 def _get_urls(driver):
@@ -55,7 +54,7 @@ def open_urls():
   time.sleep(2)
 
   print(json.dumps(_get_urls(driver)))
-  shutdown_chrome()
+  test_util.shutdown_chrome()
 
 
 def start_chrome():
@@ -70,7 +69,7 @@ def start_chrome():
   time.sleep(10)
 
   print(json.dumps(_get_urls(driver)))
-  shutdown_chrome()
+  test_util.shutdown_chrome()
 
 
 def main(argv):

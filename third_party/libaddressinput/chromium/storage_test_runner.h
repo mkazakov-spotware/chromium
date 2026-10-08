@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,8 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
+
 namespace autofill {
 
 // A test sutie for ::i18n::addressinput::Storage.
@@ -17,10 +19,6 @@ class StorageTestRunner {
  public:
   // Does not take ownership of |storage|.
   explicit StorageTestRunner(::i18n::addressinput::Storage* storage);
-
-  StorageTestRunner(const StorageTestRunner&) = delete;
-  StorageTestRunner& operator=(const StorageTestRunner&) = delete;
-
   ~StorageTestRunner();
 
   // Runs all the tests from the standard test suite.
@@ -40,6 +38,8 @@ class StorageTestRunner {
   bool success_;
   std::string key_;
   std::string data_;
+
+  DISALLOW_COPY_AND_ASSIGN(StorageTestRunner);
 };
 
 }  // namespace autofill

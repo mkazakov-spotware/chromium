@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Test that causes are correctly generated for various types of events.\n`);
-  await TestRunner.loadLegacyModule('timeline'); await TestRunner.loadTestModule('performance_test_runner');
-  await TestRunner.loadLegacyModule('components');
+  await TestRunner.loadModule('performance_test_runner');
   await TestRunner.showPanel('timeline');
   await TestRunner.loadHTML(`
       <div id="testElement"></div>
@@ -34,7 +33,7 @@
       TestRunner.check(event, 'Should receive a TimerFire event.');
       var contentHelper = new Timeline.TimelineDetailsContentHelper(
           PerformanceTestRunner.timelineModel().targetByEvent(event), linkifier, true);
-      Timeline.TimelineUIUtils.generateCauses(
+      Timeline.TimelineUIUtils._generateCauses(
           event, PerformanceTestRunner.timelineModel().targetByEvent(event), null, contentHelper);
       await TestRunner.waitForPendingLiveLocationUpdates();
       var causes = contentHelper.element.deepTextContent();
@@ -58,7 +57,7 @@
       TestRunner.check(event, 'Should receive a FireAnimationFrame event.');
       var contentHelper = new Timeline.TimelineDetailsContentHelper(
           PerformanceTestRunner.timelineModel().targetByEvent(event), linkifier, true);
-      Timeline.TimelineUIUtils.generateCauses(
+      Timeline.TimelineUIUtils._generateCauses(
           event, PerformanceTestRunner.timelineModel().targetByEvent(event), null, contentHelper);
       await TestRunner.waitForPendingLiveLocationUpdates();
       var causes = contentHelper.element.deepTextContent();
@@ -84,7 +83,7 @@
       TestRunner.check(event, 'Should receive a UpdateLayoutTree event.');
       var contentHelper = new Timeline.TimelineDetailsContentHelper(
           PerformanceTestRunner.timelineModel().targetByEvent(event), linkifier, true);
-      Timeline.TimelineUIUtils.generateCauses(
+      Timeline.TimelineUIUtils._generateCauses(
           event, PerformanceTestRunner.timelineModel().targetByEvent(event), null, contentHelper);
       await TestRunner.waitForPendingLiveLocationUpdates();
       var causes = contentHelper.element.deepTextContent();
@@ -110,7 +109,7 @@
       TestRunner.check(event, 'Should receive a Layout event.');
       var contentHelper = new Timeline.TimelineDetailsContentHelper(
           PerformanceTestRunner.timelineModel().targetByEvent(event), linkifier, true);
-      Timeline.TimelineUIUtils.generateCauses(
+      Timeline.TimelineUIUtils._generateCauses(
           event, PerformanceTestRunner.timelineModel().targetByEvent(event), null, contentHelper);
       await TestRunner.waitForPendingLiveLocationUpdates();
       var causes = contentHelper.element.deepTextContent();

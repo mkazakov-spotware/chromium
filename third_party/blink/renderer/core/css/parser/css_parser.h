@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,18 +11,15 @@
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/css/css_property_value_set.h"
 #include "third_party/blink/renderer/core/css/parser/css_parser_context.h"
-#include "third_party/blink/renderer/core/css/parser/css_tokenizer.h"
 
 namespace blink {
 
 class Color;
 class CSSParserObserver;
-class CSSSelector;
 class CSSSelectorList;
 class Element;
 class ExecutionContext;
 class ImmutableCSSPropertyValueSet;
-class StyleRule;
 class StyleRuleBase;
 class StyleRuleKeyframe;
 class StyleSheetContents;
@@ -47,18 +44,13 @@ class CORE_EXPORT CSSParser {
       const String&,
       CSSDeferPropertyParsing defer_property_parsing =
           CSSDeferPropertyParsing::kNo,
-      bool allow_import_rules = true,
-      std::unique_ptr<CachedCSSTokenizer> tokenizer = nullptr);
-  // See CSSSelectorParser for lifetime of the returned value.
-  static base::span<CSSSelector> ParseSelector(
-      const CSSParserContext*,
-      StyleRule* parent_rule_for_nesting,
-      StyleSheetContents*,
-      const String&,
-      HeapVector<CSSSelector>& arena);
-  static CSSSelectorList* ParsePageSelector(const CSSParserContext&,
-                                            StyleSheetContents*,
-                                            const String&);
+      bool allow_import_rules = true);
+  static CSSSelectorList ParseSelector(const CSSParserContext*,
+                                       StyleSheetContents*,
+                                       const String&);
+  static CSSSelectorList ParsePageSelector(const CSSParserContext&,
+                                           StyleSheetContents*,
+                                           const String&);
   static bool ParseDeclarationList(const CSSParserContext*,
                                    MutableCSSPropertyValueSet*,
                                    const String&);

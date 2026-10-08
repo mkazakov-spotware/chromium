@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,6 +29,7 @@ PdfThumbnailer::PdfThumbnailer() = default;
 
 PdfThumbnailer::~PdfThumbnailer() = default;
 
+#if defined(OS_CHROMEOS)
 void PdfThumbnailer::GetThumbnail(printing::mojom::ThumbParamsPtr params,
                                   base::ReadOnlySharedMemoryRegion pdf_region,
                                   GetThumbnailCallback callback) {
@@ -81,5 +82,6 @@ void PdfThumbnailer::GetThumbnail(printing::mojom::ThumbParamsPtr params,
   DCHECK_EQ(height_px, result.height());
   std::move(callback).Run(result);
 }
+#endif  // defined(OS_CHROMEOS)
 
 }  // namespace printing

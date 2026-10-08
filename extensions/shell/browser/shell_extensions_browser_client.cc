@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/shell/browser/shell_extensions_browser_client.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -17,8 +16,8 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/common/user_agent.h"
-#include "extensions/browser/api/core_extensions_browser_api_provider.h"
 #include "extensions/browser/api/extensions_api_client.h"
+#include "extensions/browser/core_extensions_browser_api_provider.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extensions_browser_interface_binders.h"
 #include "extensions/browser/null_app_sorting.h"
@@ -31,11 +30,12 @@
 #include "extensions/shell/browser/shell_extension_system_factory.h"
 #include "extensions/shell/browser/shell_extension_web_contents_observer.h"
 #include "extensions/shell/browser/shell_extensions_api_client.h"
+#include "extensions/shell/browser/shell_extensions_browser_api_provider.h"
 #include "extensions/shell/browser/shell_navigation_ui_data.h"
 #include "services/network/public/mojom/url_loader.mojom.h"
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chromeos/ash/components/login/login_state/login_state.h"
+#include "chromeos/login/login_state/login_state.h"
 #endif
 
 using content::BrowserContext;
@@ -51,6 +51,7 @@ ShellExtensionsBrowserClient::ShellExtensionsBrowserClient()
   SetCurrentChannel(version_info::Channel::UNKNOWN);
 
   AddAPIProvider(std::make_unique<CoreExtensionsBrowserAPIProvider>());
+  AddAPIProvider(std::make_unique<ShellExtensionsBrowserAPIProvider>());
 }
 
 ShellExtensionsBrowserClient::~ShellExtensionsBrowserClient() {
@@ -84,34 +85,11 @@ bool ShellExtensionsBrowserClient::HasOffTheRecordContext(
 BrowserContext* ShellExtensionsBrowserClient::GetOffTheRecordContext(
     BrowserContext* context) {
   // app_shell only supports a single context.
-  return nullptr;
+  return NULL;
 }
 
 BrowserContext* ShellExtensionsBrowserClient::GetOriginalContext(
     BrowserContext* context) {
-  return context;
-}
-
-content::BrowserContext*
-ShellExtensionsBrowserClient::GetRedirectedContextInIncognito(
-    content::BrowserContext* context,
-    bool force_guest_profile,
-    bool force_system_profile) {
-  return context;
-}
-
-content::BrowserContext*
-ShellExtensionsBrowserClient::GetContextForRegularAndIncognito(
-    content::BrowserContext* context,
-    bool force_guest_profile,
-    bool force_system_profile) {
-  return context;
-}
-
-content::BrowserContext* ShellExtensionsBrowserClient::GetRegularProfile(
-    content::BrowserContext* context,
-    bool force_guest_profile,
-    bool force_system_profile) {
   return context;
 }
 
@@ -121,14 +99,6 @@ std::string ShellExtensionsBrowserClient::GetUserIdHashFromContext(
   if (!chromeos::LoginState::IsInitialized())
     return "";
   return chromeos::LoginState::Get()->primary_user_hash();
-}
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-bool ShellExtensionsBrowserClient::IsFromMainProfile(
-    content::BrowserContext* context) {
-  // AppShell only supports single context.
-  return true;
 }
 #endif
 
@@ -162,14 +132,15 @@ void ShellExtensionsBrowserClient::LoadResourceFromResourceBundle(
     mojo::PendingReceiver<network::mojom::URLLoader> loader,
     const base::FilePath& resource_relative_path,
     int resource_id,
-    scoped_refptr<net::HttpResponseHeaders> headers,
-    mojo::PendingRemote<network::mojom::URLLoaderClient> client) {
+    const std::string& content_security_policy,
+    mojo::PendingRemote<network::mojom::URLLoaderClient> client,
+    bool send_cors_header) {
   NOTREACHED() << "Load resources from bundles not supported.";
 }
 
 bool ShellExtensionsBrowserClient::AllowCrossRendererResourceLoad(
-    const network::ResourceRequest& request,
-    network::mojom::RequestDestination destination,
+    const GURL& url,
+    blink::mojom::ResourceType resource_type,
     ui::PageTransition page_transition,
     int child_id,
     bool is_incognito,
@@ -178,7 +149,7 @@ bool ShellExtensionsBrowserClient::AllowCrossRendererResourceLoad(
     const ProcessMap& process_map) {
   bool allowed = false;
   if (url_request_util::AllowCrossRendererResourceLoad(
-          request, destination, page_transition, child_id, is_incognito,
+          url, resource_type, page_transition, child_id, is_incognito,
           extension, extensions, process_map, &allowed)) {
     return allowed;
   }
@@ -199,7 +170,7 @@ void ShellExtensionsBrowserClient::GetEarlyExtensionPrefsObservers(
 
 ProcessManagerDelegate*
 ShellExtensionsBrowserClient::GetProcessManagerDelegate() const {
-  return nullptr;
+  return NULL;
 }
 
 std::unique_ptr<ExtensionHostDelegate>
@@ -257,13 +228,13 @@ ShellExtensionsBrowserClient::CreateRuntimeAPIDelegate(
 
 const ComponentExtensionResourceManager*
 ShellExtensionsBrowserClient::GetComponentExtensionResourceManager() {
-  return nullptr;
+  return NULL;
 }
 
 void ShellExtensionsBrowserClient::BroadcastEventToRenderers(
     events::HistogramValue histogram_value,
     const std::string& event_name,
-    base::Value::List args,
+    std::unique_ptr<base::ListValue> args,
     bool dispatch_to_off_the_record_profiles) {
   if (!BrowserThread::CurrentlyOn(BrowserThread::UI)) {
     content::GetUIThreadTaskRunner({})->PostTask(
@@ -274,8 +245,8 @@ void ShellExtensionsBrowserClient::BroadcastEventToRenderers(
     return;
   }
 
-  auto event =
-      std::make_unique<Event>(histogram_value, event_name, std::move(args));
+  std::unique_ptr<Event> event(
+      new Event(histogram_value, event_name, std::move(args)));
   EventRouter::Get(browser_context_)->BroadcastEvent(std::move(event));
 }
 
@@ -305,7 +276,7 @@ ShellExtensionsBrowserClient::GetExtensionWebContentsObserver(
 
 KioskDelegate* ShellExtensionsBrowserClient::GetKioskDelegate() {
   if (!kiosk_delegate_)
-    kiosk_delegate_ = std::make_unique<ShellKioskDelegate>();
+    kiosk_delegate_.reset(new ShellKioskDelegate());
   return kiosk_delegate_.get();
 }
 

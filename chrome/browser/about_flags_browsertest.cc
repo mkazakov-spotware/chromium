@@ -1,8 +1,6 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "chrome/browser/about_flags.h"
 
 #include "base/command_line.h"
 #include "base/strings/stringprintf.h"
@@ -10,7 +8,7 @@
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
+#include "chrome/browser/about_flags.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/unexpire_flags.h"
@@ -128,29 +126,10 @@ void WaitForExperimentalFeatures(content::WebContents* contents) {
   bool unused;
   ASSERT_TRUE(content::ExecuteScriptAndExtractBool(
       contents,
-      "experimentalFeaturesReadyForTest.then(() => {"
+      "experimentalFeaturesReady.then(() => {"
       "  window.domAutomationController.send(true);"
       "});",
       &unused));
-}
-
-const std::vector<flags_ui::FeatureEntry> GetFeatureEntries(
-    const std::string& unexpire_name) {
-  std::vector<flags_ui::FeatureEntry> entries = {
-      {kFlagName, "name-1", "description-1", static_cast<unsigned short>(-1),
-       ORIGIN_LIST_VALUE_TYPE(kSwitchName, "")},
-      {kExpiredFlagName, "name-2", "description-2",
-       static_cast<unsigned short>(-1),
-       SINGLE_VALUE_TYPE(kExpiredFlagSwitchName)},
-      {kFlagWithOptionSelectorName, "name-3", "description-3",
-       static_cast<unsigned short>(-1),
-       SINGLE_VALUE_TYPE(kFlagWithOptionSelectorSwitchName)}};
-  flags_ui::FeatureEntry expiry_entry = {
-      unexpire_name.c_str(), "unexpire name", "unexpire desc",
-      static_cast<unsigned short>(-1),
-      SINGLE_VALUE_TYPE("unexpire-dummy-switch")};
-  entries.push_back(expiry_entry);
-  return entries;
 }
 
 // In these tests, valid origins in the existing command line flag will be
@@ -160,10 +139,22 @@ const std::vector<flags_ui::FeatureEntry> GetFeatureEntries(
 class AboutFlagsBrowserTest : public InProcessBrowserTest,
                               public testing::WithParamInterface<bool> {
  public:
-  AboutFlagsBrowserTest()
-      : unexpire_name_(base::StringPrintf("temporary-unexpire-flags-m%d",
-                                          CHROME_VERSION_MAJOR - 1)),
-        scoped_feature_entries_(GetFeatureEntries(unexpire_name_)) {
+  AboutFlagsBrowserTest() {
+    std::vector<flags_ui::FeatureEntry> entries = {
+        {kFlagName, "name-1", "description-1", -1,
+         ORIGIN_LIST_VALUE_TYPE(kSwitchName, "")},
+        {kExpiredFlagName, "name-2", "description-2", -1,
+         SINGLE_VALUE_TYPE(kExpiredFlagSwitchName)},
+        {kFlagWithOptionSelectorName, "name-3", "description-3", -1,
+         SINGLE_VALUE_TYPE(kFlagWithOptionSelectorSwitchName)}};
+    unexpire_name_ = base::StringPrintf("temporary-unexpire-flags-m%d",
+                                        CHROME_VERSION_MAJOR - 1);
+    flags_ui::FeatureEntry expiry_entry = {
+        unexpire_name_.c_str(), "unexpire name", "unexpire desc", -1,
+        SINGLE_VALUE_TYPE("unexpire-dummy-switch")};
+    entries.push_back(expiry_entry);
+    about_flags::testing::SetFeatureEntries(entries);
+
     flags::testing::SetFlagExpiration(kExpiredFlagName,
                                       CHROME_VERSION_MAJOR - 1);
   }
@@ -189,8 +180,7 @@ class AboutFlagsBrowserTest : public InProcessBrowserTest,
   }
 
   void NavigateToFlagsPage() {
-    ASSERT_TRUE(
-        ui_test_utils::NavigateToURL(browser(), GURL("chrome://flags")));
+    ui_test_utils::NavigateToURL(browser(), GURL("chrome://flags"));
     WaitForExperimentalFeatures(
         browser()->tab_strip_model()->GetActiveWebContents());
   }
@@ -198,7 +188,6 @@ class AboutFlagsBrowserTest : public InProcessBrowserTest,
   bool expiration_enabled_ = true;
   std::string unexpire_name_;
 
-  about_flags::testing::ScopedFeatureEntries scoped_feature_entries_;
   base::test::ScopedFeatureList feature_list_;
 };
 
@@ -272,7 +261,7 @@ IN_PROC_BROWSER_TEST_P(AboutFlagsBrowserTest, PRE_OriginFlagEnabled) {
   // non-ChromeOS.
   ToggleEnableDropdown(contents, kFlagName, true);
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
   // On non-ChromeOS, the command line is not modified until restart.
   EXPECT_EQ(kInitialSwitches,
             base::CommandLine::ForCurrentProcess()->GetSwitches());
@@ -293,7 +282,7 @@ IN_PROC_BROWSER_TEST_P(AboutFlagsBrowserTest, PRE_OriginFlagEnabled) {
 
 // Flaky. http://crbug.com/1010678
 IN_PROC_BROWSER_TEST_P(AboutFlagsBrowserTest, DISABLED_OriginFlagEnabled) {
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
   // On non-ChromeOS, the command line is modified after restart.
   EXPECT_EQ(
       GetSanitizedInputAndCommandLine(),
@@ -312,7 +301,7 @@ IN_PROC_BROWSER_TEST_P(AboutFlagsBrowserTest, DISABLED_OriginFlagEnabled) {
   EXPECT_EQ(GetSanitizedInputAndCommandLine(),
             GetOriginListText(contents, kFlagName));
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // ChromeOS doesn't read chrome://flags values on startup so we explicitly
   // need to disable and re-enable the flag here.
   ToggleEnableDropdown(contents, kFlagName, true);
@@ -337,7 +326,7 @@ INSTANTIATE_TEST_SUITE_P(All,
                          ::testing::Values(true));
 
 // Crashes on Win.  http://crbug.com/1108357
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_ExpiryHidesFlag DISABLED_ExpiryHidesFlag
 #else
 #define MAYBE_ExpiryHidesFlag ExpiryHidesFlag
@@ -358,7 +347,7 @@ IN_PROC_BROWSER_TEST_P(AboutFlagsUnexpiredBrowserTest, MAYBE_ExpiryHidesFlag) {
   EXPECT_TRUE(IsFlagPresent(contents, kExpiredFlagName));
 }
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
 IN_PROC_BROWSER_TEST_P(AboutFlagsBrowserTest, PRE_ExpiredFlagDoesntApply) {
   NavigateToFlagsPage();
   content::WebContents* contents =

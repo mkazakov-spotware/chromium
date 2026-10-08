@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,8 @@
 #include <memory>
 
 #include "base/callback.h"
+#include "base/macros.h"
+#include "base/memory/weak_ptr.h"
 #include "components/download/public/common/download_create_info.h"
 #include "components/download/public/common/download_export.h"
 #include "components/download/public/common/download_job.h"
@@ -26,9 +28,6 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadJobFactory {
   using WakeLockProviderBinder = base::RepeatingCallback<void(
       mojo::PendingReceiver<device::mojom::WakeLockProvider>)>;
 
-  DownloadJobFactory(const DownloadJobFactory&) = delete;
-  DownloadJobFactory& operator=(const DownloadJobFactory&) = delete;
-
   static std::unique_ptr<DownloadJob> CreateJob(
       DownloadItem* download_item,
       DownloadJob::CancelRequestCallback cancel_request_callback,
@@ -37,6 +36,9 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadJobFactory {
       URLLoaderFactoryProvider::URLLoaderFactoryProviderPtr
           url_loader_factory_provider,
       WakeLockProviderBinder wake_lock_provider_binder);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DownloadJobFactory);
 };
 
 }  // namespace download

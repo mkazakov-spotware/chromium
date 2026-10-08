@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "media/base/media_export.h"
 
@@ -37,12 +38,7 @@ class MEDIA_EXPORT AudioTimestampHelper {
   // sample rate (in samples per second).
   static int64_t TimeToFrames(base::TimeDelta time, int samples_per_second);
 
-  AudioTimestampHelper() = delete;
-
   explicit AudioTimestampHelper(int samples_per_second);
-
-  AudioTimestampHelper(const AudioTimestampHelper&) = delete;
-  AudioTimestampHelper& operator=(const AudioTimestampHelper&) = delete;
 
   // Sets the base timestamp to |base_timestamp| and the sets count to 0.
   void SetBaseTimestamp(base::TimeDelta base_timestamp);
@@ -59,9 +55,10 @@ class MEDIA_EXPORT AudioTimestampHelper {
   // and the number of sample frames that have been added so far.
   base::TimeDelta GetTimestamp() const;
 
-  // Gets the duration of |frame_count| frames by calculating the difference
-  // between the current timestamp and what the timestamp would be if
-  // |frame_count| frames were added.
+  // Gets the duration if |frame_count| frames were added to the current
+  // timestamp reported by GetTimestamp(). This method ensures that
+  // (GetTimestamp() + GetFrameDuration(n)) will equal the timestamp that
+  // GetTimestamp() will return if AddFrames(n) is called.
   base::TimeDelta GetFrameDuration(int frame_count) const;
 
   // Returns the number of frames needed to reach the target timestamp.
@@ -77,6 +74,8 @@ class MEDIA_EXPORT AudioTimestampHelper {
 
   // Number of frames accumulated by AddFrames() calls.
   int64_t frame_count_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(AudioTimestampHelper);
 };
 
 }  // namespace media

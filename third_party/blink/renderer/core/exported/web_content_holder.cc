@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "third_party/blink/renderer/core/content_capture/content_holder.h"
 #include "third_party/blink/renderer/core/dom/node.h"
+#include "third_party/blink/renderer/core/layout/layout_object.h"
 
 namespace blink {
 
@@ -26,8 +27,8 @@ WebString WebContentHolder::GetValue() const {
   return private_->node()->nodeValue();
 }
 
-gfx::Rect WebContentHolder::GetBoundingBox() const {
-  return private_->rect();
+WebRect WebContentHolder::GetBoundingBox() const {
+  return WebRect(private_->rect());
 }
 
 uint64_t WebContentHolder::GetId() const {

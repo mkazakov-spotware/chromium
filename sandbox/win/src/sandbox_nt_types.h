@@ -1,39 +1,27 @@
-// Copyright 2006-2008 The Chromium Authors
+// Copyright (c) 2006-2008 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef SANDBOX_WIN_SRC_SANDBOX_NT_TYPES_H_
-#define SANDBOX_WIN_SRC_SANDBOX_NT_TYPES_H_
+#ifndef SANDBOX_SRC_SANDBOX_NT_TYPES_H__
+#define SANDBOX_SRC_SANDBOX_NT_TYPES_H__
 
 #include "sandbox/win/src/nt_internals.h"
 
 namespace sandbox {
 
 struct NtExports {
-  bool                                   Initialized;
   NtAllocateVirtualMemoryFunction        AllocateVirtualMemory;
-  NtCreateFileFunction                   CreateFile;
-  NtCreateSectionFunction                CreateSection;
   NtCloseFunction                        Close;
   NtDuplicateObjectFunction              DuplicateObject;
   NtFreeVirtualMemoryFunction            FreeVirtualMemory;
   NtMapViewOfSectionFunction             MapViewOfSection;
-  NtOpenFileFunction                     OpenFile;
-  NtOpenThreadFunction                   OpenThread;
-  NtOpenProcessFunction                  OpenProcess;
-  NtOpenProcessTokenFunction             OpenProcessToken;
-  NtOpenProcessTokenExFunction           OpenProcessTokenEx;
   NtProtectVirtualMemoryFunction         ProtectVirtualMemory;
-  NtQueryAttributesFileFunction          QueryAttributesFile;
-  NtQueryFullAttributesFileFunction      QueryFullAttributesFile;
   NtQueryInformationProcessFunction      QueryInformationProcess;
   NtQueryObjectFunction                  QueryObject;
   NtQuerySectionFunction                 QuerySection;
   NtQueryVirtualMemoryFunction           QueryVirtualMemory;
-  NtSetInformationFileFunction           SetInformationFile;
-  NtSetInformationProcessFunction        SetInformationProcess;
-  NtSignalAndWaitForSingleObjectFunction SignalAndWaitForSingleObject;
   NtUnmapViewOfSectionFunction           UnmapViewOfSection;
+  NtSignalAndWaitForSingleObjectFunction SignalAndWaitForSingleObject;
   NtWaitForSingleObjectFunction          WaitForSingleObject;
   RtlAllocateHeapFunction                RtlAllocateHeap;
   RtlAnsiStringToUnicodeStringFunction   RtlAnsiStringToUnicodeString;
@@ -42,7 +30,6 @@ struct NtExports {
   RtlCreateUserThreadFunction            RtlCreateUserThread;
   RtlDestroyHeapFunction                 RtlDestroyHeap;
   RtlFreeHeapFunction                    RtlFreeHeap;
-  RtlNtStatusToDosErrorFunction          RtlNtStatusToDosError;
   _strnicmpFunction                      _strnicmp;
   strlenFunction                         strlen;
   wcslenFunction                         wcslen;
@@ -57,4 +44,4 @@ enum AllocationType {
 
 }  // namespace sandbox
 
-#endif  // SANDBOX_WIN_SRC_SANDBOX_NT_TYPES_H_
+#endif  // SANDBOX_SRC_SANDBOX_NT_TYPES_H__

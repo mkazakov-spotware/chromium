@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,33 +11,25 @@
 #include <utility>
 #include <vector>
 
-#include "base/android/build_info.h"
-#include "base/android/jni_android.h"
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/cxx17_backports.h"
 #include "base/files/file_util.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/no_destructor.h"
+#include "base/numerics/ranges.h"
 #include "chromecast/base/init_command_line_shlib.h"
+#include "chromecast/base/serializers.h"
 #include "chromecast/chromecast_buildflags.h"
 #include "chromecast/media/cma/backend/android/audio_track_jni_headers/VolumeControl_jni.h"
+#if BUILDFLAG(ENABLE_VOLUME_TABLES_ACCESS)
 #include "chromecast/media/cma/backend/android/audio_track_jni_headers/VolumeMap_jni.h"
+#endif
 
 namespace chromecast {
 namespace media {
-
-namespace {
-
-bool IsSingleVolumeDevice() {
-  JNIEnv* env = base::android::AttachCurrentThread();
-  return Java_VolumeControl_isSingleVolumeDevice(env);
-}
-
-}  // namespace
 
 VolumeControlAndroid& GetVolumeControl() {
   static base::NoDestructor<VolumeControlAndroid> volume_control;
@@ -45,8 +37,7 @@ VolumeControlAndroid& GetVolumeControl() {
 }
 
 VolumeControlAndroid::VolumeControlAndroid()
-    : is_single_volume_(IsSingleVolumeDevice()),
-      thread_("VolumeControl"),
+    : thread_("VolumeControl"),
       initialize_complete_event_(
           base::WaitableEvent::ResetPolicy::MANUAL,
           base::WaitableEvent::InitialState::NOT_SIGNALED) {
@@ -56,7 +47,7 @@ VolumeControlAndroid::VolumeControlAndroid()
 
   base::Thread::Options options;
   options.message_pump_type = base::MessagePumpType::IO;
-  thread_.StartWithOptions(std::move(options));
+  thread_.StartWithOptions(options);
 
   thread_.task_runner()->PostTask(
       FROM_HERE, base::BindOnce(&VolumeControlAndroid::InitializeOnThread,
@@ -93,7 +84,7 @@ void VolumeControlAndroid::SetVolume(VolumeChangeSource source,
     return;
   }
 
-  level = base::clamp(level, 0.0f, 1.0f);
+  level = base::ClampToRange(level, 0.0f, 1.0f);
   // The input level value is in the kMedia (MUSIC) volume table domain.
   float mapped_level =
       MapIntoDifferentVolumeTableDomain(AudioContentType::kMedia, type, level);
@@ -129,7 +120,7 @@ void VolumeControlAndroid::SetOutputLimit(AudioContentType type, float limit) {
   }
 
   // The input limit is in the kMedia (MUSIC) volume table domain.
-  limit = base::clamp(limit, 0.0f, 1.0f);
+  limit = base::ClampToRange(limit, 0.0f, 1.0f);
   float limit_db = VolumeToDbFSCached(AudioContentType::kMedia, limit);
   AudioSinkManager::Get()->SetOutputLimitDb(type, limit_db);
 }
@@ -142,8 +133,7 @@ void VolumeControlAndroid::OnVolumeChange(
   thread_.task_runner()->PostTask(
       FROM_HERE,
       base::BindOnce(&VolumeControlAndroid::ReportVolumeChangeOnThread,
-                     base::Unretained(this),
-                     static_cast<AudioContentType>(type), level));
+                     base::Unretained(this), (AudioContentType)type, level));
 }
 
 void VolumeControlAndroid::OnMuteChange(
@@ -152,28 +142,34 @@ void VolumeControlAndroid::OnMuteChange(
     jint type,
     jboolean muted) {
   thread_.task_runner()->PostTask(
-      FROM_HERE, base::BindOnce(&VolumeControlAndroid::ReportMuteChangeOnThread,
-                                base::Unretained(this),
-                                static_cast<AudioContentType>(type), muted));
+      FROM_HERE,
+      base::BindOnce(&VolumeControlAndroid::ReportMuteChangeOnThread,
+                     base::Unretained(this), (AudioContentType)type, muted));
 }
 
+#if BUILDFLAG(ENABLE_VOLUME_TABLES_ACCESS)
+
 int VolumeControlAndroid::GetMaxVolumeIndex(AudioContentType type) {
-  if (base::android::BuildInfo::GetInstance()->sdk_int() <
-      base::android::SDK_VERSION_NOUGAT) {
-    return 1;
-  }
   return Java_VolumeMap_getMaxVolumeIndex(base::android::AttachCurrentThread(),
                                           static_cast<int>(type));
 }
 
 float VolumeControlAndroid::VolumeToDbFS(AudioContentType type, float volume) {
-  if (base::android::BuildInfo::GetInstance()->sdk_int() <
-      base::android::SDK_VERSION_NOUGAT) {
-    return 1.0f;
-  }
   return Java_VolumeMap_volumeToDbFs(base::android::AttachCurrentThread(),
                                      static_cast<int>(type), volume);
 }
+
+#else  // Dummies:
+
+int VolumeControlAndroid::GetMaxVolumeIndex(AudioContentType type) {
+  return 1;
+}
+
+float VolumeControlAndroid::VolumeToDbFS(AudioContentType type, float volume) {
+  return 1.0f;
+}
+
+#endif
 
 void VolumeControlAndroid::InitializeOnThread() {
   DCHECK(thread_.task_runner()->BelongsToCurrentThread());
@@ -198,7 +194,16 @@ void VolumeControlAndroid::InitializeOnThread() {
               << " mute=" << muted_[type];
   }
 
-  // kOther is not used on Android, so we don't attempt to set it to 100% here.
+#if !BUILDFLAG(IS_SINGLE_VOLUME)
+  // The kOther content type should not have any type-wide volume control or
+  // mute (volume control for kOther is per-stream only). Therefore, ensure
+  // that the global volume and mute state fo kOther is initialized correctly
+  // (100% volume, and not muted).
+  SetVolumeOnThread(VolumeChangeSource::kAutomatic, AudioContentType::kOther,
+                    1.0f, false /* from_android */);
+  SetMutedOnThread(VolumeChangeSource::kAutomatic, AudioContentType::kOther,
+                   false, false /* from_android */);
+#endif
 
   initialize_complete_event_.Signal();
 }
@@ -272,6 +277,16 @@ void VolumeControlAndroid::SetMutedOnThread(VolumeChangeSource source,
 void VolumeControlAndroid::ReportVolumeChangeOnThread(AudioContentType type,
                                                       float level) {
   DCHECK(thread_.task_runner()->BelongsToCurrentThread());
+#if !BUILDFLAG(IS_SINGLE_VOLUME)
+  if (type == AudioContentType::kOther) {
+    // Volume for AudioContentType::kOther should stay at 1.0.
+    Java_VolumeControl_setVolume(base::android::AttachCurrentThread(),
+                                 j_volume_control_, static_cast<int>(type),
+                                 1.0f);
+    return;
+  }
+#endif
+
   SetVolumeOnThread(VolumeChangeSource::kUser, type, level,
                     true /* from android */);
 }
@@ -279,6 +294,16 @@ void VolumeControlAndroid::ReportVolumeChangeOnThread(AudioContentType type,
 void VolumeControlAndroid::ReportMuteChangeOnThread(AudioContentType type,
                                                     bool muted) {
   DCHECK(thread_.task_runner()->BelongsToCurrentThread());
+#if !BUILDFLAG(IS_SINGLE_VOLUME)
+  if (type == AudioContentType::kOther) {
+    // Mute state for AudioContentType::kOther should always be false.
+    Java_VolumeControl_setMuted(base::android::AttachCurrentThread(),
+                                j_volume_control_, static_cast<int>(type),
+                                false);
+    return;
+  }
+#endif
+
   SetMutedOnThread(VolumeChangeSource::kUser, type, muted,
                    true /* from_android */);
 }
@@ -310,7 +335,7 @@ float VolumeControlAndroid::DbFSToVolumeCached(AudioContentType type,
 
 // static
 void VolumeControl::Initialize(const std::vector<std::string>& argv) {
-  GetVolumeControl();
+  // Nothing to do.
 }
 
 // static

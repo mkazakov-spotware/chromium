@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,10 @@ namespace ownership {
 ///////////////////////////////////////////////////////////////////////////
 // PublicKey
 
-PublicKey::PublicKey(bool is_persisted, std::vector<uint8_t> data)
-    : is_persisted_(is_persisted), data_(std::move(data)) {}
+PublicKey::PublicKey() {
+}
 
-PublicKey::~PublicKey() = default;
-
-scoped_refptr<PublicKey> PublicKey::clone() {
-  return base::MakeRefCounted<ownership::PublicKey>(is_persisted_, data_);
+PublicKey::~PublicKey() {
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -26,6 +23,7 @@ scoped_refptr<PublicKey> PublicKey::clone() {
 PrivateKey::PrivateKey(crypto::ScopedSECKEYPrivateKey key)
     : key_(std::move(key)) {}
 
-PrivateKey::~PrivateKey() = default;
+PrivateKey::~PrivateKey() {
+}
 
 }  // namespace ownership

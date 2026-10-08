@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -229,10 +229,9 @@ static const CGFloat kDontShowAgainViewHeightAdjustment = 10.f;
 }
 
 - (void)didTapLinkButton:(id)button {
-  NSURL* linkUrl = _linkUrl;
   [self dismissViewControllerAnimated:YES
                            completion:^() {
-                             [UIApplication.sharedApplication openURL:linkUrl
+                             [UIApplication.sharedApplication openURL:_linkUrl
                                                               options:@{}
                                                     completionHandler:nil];
                            }];

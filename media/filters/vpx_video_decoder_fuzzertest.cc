@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,16 +30,15 @@ struct Env {
   base::test::SingleThreadTaskEnvironment task_environment;
 };
 
-void OnDecodeComplete(base::OnceClosure quit_closure,
-                      media::DecoderStatus status) {
-  std::move(quit_closure).Run();
+void OnDecodeComplete(const base::Closure& quit_closure, media::Status status) {
+  quit_closure.Run();
 }
 
-void OnInitDone(base::OnceClosure quit_closure,
+void OnInitDone(const base::Closure& quit_closure,
                 bool* success_dest,
-                media::DecoderStatus status) {
+                media::Status status) {
   *success_dest = status.is_ok();
-  std::move(quit_closure).Run();
+  quit_closure.Run();
 }
 
 void OnOutputComplete(scoped_refptr<media::VideoFrame> frame) {}
@@ -49,7 +48,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   // Create Env on the first run of LLVMFuzzerTestOneInput otherwise
   // message_loop will be created before this process forks when used with AFL,
   // causing hangs.
-  [[maybe_unused]] static Env* env = new Env();
+  static Env* env = new Env();
+  ALLOW_UNUSED_LOCAL(env);
   std::mt19937_64 rng;
 
   {  // Seed rng from data.
@@ -64,11 +64,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
   bool has_alpha = false;
   if (rng() & 1) {
-    codec = media::VideoCodec::kVP8;
+    codec = media::kCodecVP8;
     // non-Alpha VP8 decoding isn't supported by VpxVideoDecoder on Linux.
     has_alpha = true;
   } else {
-    codec = media::VideoCodec::kVP9;
+    codec = media::kCodecVP9;
     has_alpha = rng() & 1;
   }
 

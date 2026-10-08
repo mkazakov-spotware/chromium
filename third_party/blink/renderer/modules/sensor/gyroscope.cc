@@ -1,10 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/sensor/gyroscope.h"
 
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
+#include "third_party/blink/public/mojom/feature_policy/feature_policy_feature.mojom-blink.h"
 
 using device::mojom::blink::SensorType;
 
@@ -31,24 +31,24 @@ Gyroscope::Gyroscope(ExecutionContext* execution_context,
              options,
              exception_state,
              SensorType::GYROSCOPE,
-             {mojom::blink::PermissionsPolicyFeature::kGyroscope}) {}
+             {mojom::blink::FeaturePolicyFeature::kGyroscope}) {}
 
-absl::optional<double> Gyroscope::x() const {
+base::Optional<double> Gyroscope::x() const {
   if (hasReading())
     return GetReading().gyro.x;
-  return absl::nullopt;
+  return base::nullopt;
 }
 
-absl::optional<double> Gyroscope::y() const {
+base::Optional<double> Gyroscope::y() const {
   if (hasReading())
     return GetReading().gyro.y;
-  return absl::nullopt;
+  return base::nullopt;
 }
 
-absl::optional<double> Gyroscope::z() const {
+base::Optional<double> Gyroscope::z() const {
   if (hasReading())
     return GetReading().gyro.z;
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 void Gyroscope::Trace(Visitor* visitor) const {

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,8 @@
 
 namespace base {
 
+#if defined(BASE_STRING16_IS_STD_U16STRING)
+
 std::wstring StrCat(span<const WStringPiece> pieces) {
   return internal::StrCatT(pieces);
 }
@@ -21,11 +23,13 @@ std::wstring StrCat(span<const std::wstring> pieces) {
 }
 
 void StrAppend(std::wstring* dest, span<const WStringPiece> pieces) {
-  internal::StrAppendT(*dest, pieces);
+  internal::StrAppendT(dest, pieces);
 }
 
 void StrAppend(std::wstring* dest, span<const std::wstring> pieces) {
-  internal::StrAppendT(*dest, pieces);
+  internal::StrAppendT(dest, pieces);
 }
+
+#endif
 
 }  // namespace base

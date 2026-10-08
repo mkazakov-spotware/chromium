@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,9 +14,7 @@ class CSSTokenizerInputStream {
   USING_FAST_MALLOC(CSSTokenizerInputStream);
 
  public:
-  explicit CSSTokenizerInputStream(const String& input)
-      : string_length_(input.length()), string_(input.Impl()) {}
-
+  explicit CSSTokenizerInputStream(const String& input);
   CSSTokenizerInputStream(const CSSTokenizerInputStream&) = delete;
   CSSTokenizerInputStream& operator=(const CSSTokenizerInputStream&) = delete;
 
@@ -75,7 +73,7 @@ class CSSTokenizerInputStream {
   }
 
  private:
-  wtf_size_t offset_ = 0;
+  wtf_size_t offset_;
   const wtf_size_t string_length_;
   const scoped_refptr<StringImpl> string_;
 };

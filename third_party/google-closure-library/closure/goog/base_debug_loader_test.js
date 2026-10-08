@@ -22,17 +22,10 @@ goog.provide('goog.baseDebugLoaderTest');
 
 goog.setTestOnly('goog.baseDebugLoaderTest');
 
-// Used to test dynamic loading works, see testRequire*
-goog.require('goog.Timer');
-goog.require('goog.dom');
 goog.require('goog.functions');
 goog.require('goog.object');
-goog.require('goog.test_module');
 goog.require('goog.testing.PropertyReplacer');
 goog.require('goog.testing.jsunit');
-
-// NOTE: using computed properties to avoid compiler checks
-const earlyTestModuleGet = goog['module'].get('goog.test_module');
 
 var stubs = new goog.testing.PropertyReplacer();
 var originalGoogBind = goog.bind;
@@ -58,10 +51,7 @@ function FakeDependency(
 goog.inherits(FakeDependency, goog.Dependency);
 
 
-/**
- * @override
- * @suppress {missingProperties,checkTypes}
- */
+/** @override */
 FakeDependency.prototype.load = function(controller) {
   this.markLoaded = function() {
     delete this.markLoaded;
@@ -78,7 +68,6 @@ FakeDependency.prototype.load = function(controller) {
 /**
  * @struct @constructor
  * @extends {goog.DependencyFactory}
- * @suppress {checkTypes}
  */
 function FakeDependencyFactory() {
   this.realFactory = new goog.DependencyFactory();
@@ -101,16 +90,12 @@ FakeDependencyFactory.prototype.createDependency = function(
 var testDependencies = [];
 var realDependencies = [];
 
-// Avoid the compiler checks on goog.addDependency
-const addDependency = goog.addDependency;
-
 
 function setUpPage() {
-  goog.global['CLOSURE_NO_DEPS'] = true;
+  CLOSURE_NO_DEPS = true;
 }
 
 
-/** @suppress {visibility,const} */
 function setUp() {
   autoLoadDep = true;
   testDependencies = [];
@@ -121,14 +106,11 @@ function setUp() {
 
 
 function tearDown() {
-  // Use computed property here to avoid the compiler check that the value
-  // is valid.
-  goog['setCssNameMapping'](undefined);
+  goog.setCssNameMapping(undefined);
   stubs.reset();
   goog.bind = originalGoogBind;
 }
 
-/** @suppress {constantProperty,visibility,checkTypes} */
 function testInHtmlDocument() {
   var savedGoogGlobal = goog.global;
   try {
@@ -144,7 +126,7 @@ function testInHtmlDocument() {
   }
 }
 
-/** @suppress {constantProperty,missingRequire,visibility,checkTypes} */
+/** @suppress {missingRequire|visibility} */
 function testLoadInNonHtmlNotThrows() {
   var savedGoogGlobal = goog.global;
   try {
@@ -154,7 +136,8 @@ function testLoadInNonHtmlNotThrows() {
     // The goog code which is executed at load.
     goog.findBasePath_();
     goog.setDependencyFactory(new goog.DependencyFactory());
-    addDependency('loadInNonHtmlNotThrows', ['load.InNonHtmlNotThrows'], []);
+    goog.addDependency(
+        'loadInNonHtmlNotThrows', ['load.InNonHtmlNotThrows'], []);
     var require = goog.require;
     require('load.InNonHtmlNotThrows');
   } finally {
@@ -163,7 +146,6 @@ function testLoadInNonHtmlNotThrows() {
   }
 }
 
-/** @suppress {constantProperty,visibility,checkTypes} */
 function testLoadBaseWithQueryParamOk() {
   var savedGoogGlobal = goog.global;
   try {
@@ -182,7 +164,6 @@ function testLoadBaseWithQueryParamOk() {
   }
 }
 
-/** @suppress {constantProperty,visibility,checkTypes} */
 function testLoadBaseFromGlobalVariableOk() {
   var savedGoogGlobal = goog.global;
   try {
@@ -201,7 +182,6 @@ function testLoadBaseFromGlobalVariableOk() {
   }
 }
 
-/** @suppress {constantProperty,visibility,checkTypes} */
 function testLoadBaseFromGlobalVariableDOMClobbered() {
   var savedGoogGlobal = goog.global;
   try {
@@ -225,7 +205,6 @@ function testLoadBaseFromGlobalVariableDOMClobbered() {
   }
 }
 
-/** @suppress {constantProperty,visibility,checkTypes} */
 function testLoadBaseFromCurrentScriptIgnoringOthers() {
   var savedGoogGlobal = goog.global;
   try {
@@ -244,9 +223,9 @@ function testLoadBaseFromCurrentScriptIgnoringOthers() {
   }
 }
 
-/** @suppress {undefinedVars,checkTypes} testDep */
+
 function testAddDependency() {
-  addDependency('foo.js', ['testDep.foo'], ['testDep.bar']);
+  goog.addDependency('foo.js', ['testDep.foo'], ['testDep.bar']);
 
   // alias to avoid the being picked up by the deps scanner.
   var provide = goog.provide;
@@ -295,9 +274,9 @@ function assertDepData(dep, relPath, provides, requires, loadFlags) {
 
 
 function testAddDependencyModule() {
-  addDependency('mod.js', ['testDep.mod'], [], true);
-  addDependency('empty.js', ['testDep.empty'], [], {});
-  addDependency('mod-goog.js', ['testDep.goog'], [], {'module': 'goog'});
+  goog.addDependency('mod.js', ['testDep.mod'], [], true);
+  goog.addDependency('empty.js', ['testDep.empty'], [], {});
+  goog.addDependency('mod-goog.js', ['testDep.goog'], [], {'module': 'goog'});
 
   // To differentiate this call from the real one.
   var require = goog.require;
@@ -326,7 +305,7 @@ function testAddDependencyModule() {
 
 
 function testAddDependencyEs6Module() {
-  addDependency('mod-es6.js', ['testDep.es6'], [], {'module': 'es6'});
+  goog.addDependency('mod-es6.js', ['testDep.es6'], [], {'module': 'es6'});
 
   // To differentiate this call from the real one.
   var require = goog.require;
@@ -343,17 +322,18 @@ function testAddDependencyEs6Module() {
            goog.TranspiledDependency));
 }
 
-/** @suppress {visibility} */
+
 function testAddDependencyTranspile() {
   var requireTranspilation = false;
   stubs.set(goog.transpiler_, 'needsTranspile', function() {
     return requireTranspilation;
   });
 
-  addDependency(
-      'fancy.js', ['testDep.fancy'], [], {'lang': 'es6', 'module': 'goog'});
+  goog.addDependency(
+      'fancy.js', ['testDep.fancy'], [],
+      {'lang': 'es6', 'module': 'goog'});
   requireTranspilation = true;
-  addDependency('super.js', ['testDep.superFancy'], [], {'lang': 'es7'});
+  goog.addDependency('super.js', ['testDep.superFancy'], [], {'lang': 'es7'});
 
   assertFalse(testDependencies[0].needsTranspile);
   assertTrue(testDependencies[1].needsTranspile);
@@ -364,9 +344,9 @@ function testAddDependencyTranspile() {
 
 
 async function testBootstrap() {
-  addDependency('a.js', ['a'], [], {});
-  addDependency('b.js', ['b'], ['a'], {});
-  addDependency('c.js', ['c'], [], {});
+  goog.addDependency('a.js', ['a'], [], {});
+  goog.addDependency('b.js', ['b'], ['a'], {});
+  goog.addDependency('c.js', ['c'], [], {});
 
   assertEquals(3, testDependencies.length);
 
@@ -382,13 +362,12 @@ async function testBootstrap() {
 }
 
 
-/** @suppress {missingProperties} */
 async function testBootstrapDelayLoadingDep() {
   autoLoadDep = false;
 
-  addDependency('a.js', ['a'], [], {});
-  addDependency('b.js', ['b'], ['a'], {});
-  addDependency('c.js', ['c'], [], {});
+  goog.addDependency('a.js', ['a'], [], {});
+  goog.addDependency('b.js', ['b'], ['a'], {});
+  goog.addDependency('c.js', ['c'], [], {});
 
   assertEquals(3, testDependencies.length);
 
@@ -419,315 +398,4 @@ async function testBootstrapDelayLoadingDep() {
   await new Promise(resolve => setTimeout(resolve, 0));
 
   assertTrue(bootstrapped);
-}
-
-
-//=== tests for Provide logic ===
-
-/** @suppress {missingProperties} */
-function testProvide() {
-  // alias to avoid the being picked up by the deps scanner.
-  const provide = goog.provide;
-
-  provide('goog.test.name.space');
-  assertNotUndefined('provide failed: goog.test', goog.test);
-  assertNotUndefined('provide failed: goog.test.name', goog.test.name);
-  assertNotUndefined(
-      'provide failed: goog.test.name.space', goog.test.name.space);
-
-  // ensure that providing 'goog.test.name' doesn't throw an exception
-  provide('goog.test');
-  provide('goog.test.name');
-  delete goog.test;
-}
-
-
-// "watch" is a native member of Object.prototype on Firefox
-// Ensure it can still be added as a namespace
-/** @suppress {missingProperties} */
-function testProvideWatch() {
-  // alias to avoid the being picked up by the deps scanner.
-  const provide = goog.provide;
-
-  provide('goog.yoddle.watch');
-  assertNotUndefined('provide failed: goog.yoddle.watch', goog.yoddle.watch);
-  delete goog.yoddle;
-}
-
-/** @suppress {missingProperties} */
-function testProvideStrictness() {
-  // alias to avoid the being picked up by the deps scanner.
-  const provide = goog.provide;
-
-  provide('goog.xy');
-  assertProvideFails('goog.xy');
-
-  provide('goog.xy.z');
-  assertProvideFails('goog.xy');
-
-  window['goog']['xyz'] = 'Bob';
-  assertProvideFails('goog.xyz');
-
-  delete goog.xy;
-  delete goog.xyz;
-}
-
-/** @param {?} namespace */
-function assertProvideFails(namespace) {
-  assertThrows(
-      'goog.provide(' + namespace + ') should have failed',
-      goog.partial(goog.provide, namespace));
-}
-
-
-/** @suppress {visibility} */
-function testIsProvided() {
-  // alias to avoid the being picked up by the deps scanner.
-  const provide = goog.provide;
-
-  provide('goog.explicit');
-  assertTrue(goog.isProvided_('goog.explicit'));
-  provide('goog.implicit.explicit');
-  assertFalse(goog.isProvided_('goog.implicit'));
-  assertTrue(goog.isProvided_('goog.implicit.explicit'));
-}
-
-
-//=== tests for Require logic ===
-
-function testRequireClosure() {
-  assertNotUndefined('goog.Timer should be available', goog.Timer);
-  /** @suppress {missingRequire} */
-  assertNotUndefined(
-      'goog.events.EventTarget should be available', goog.events.EventTarget);
-}
-
-function testRequireWithExternalDuplicate() {
-  // alias to avoid the being picked up by the deps scanner.
-  const provide = goog.provide;
-
-  // Do a provide without going via goog.require. Then goog.require it
-  // indirectly and ensure it doesn't cause a duplicate script.
-  addDependency('dup.js', ['dup.base'], []);
-  addDependency('dup-child.js', ['dup.base.child'], ['dup.base']);
-  provide('dup.base');
-
-  stubs.set(goog, 'isDocumentFinishedLoading_', false);
-  stubs.set(goog.global, 'CLOSURE_IMPORT_SCRIPT', function(src) {
-    if (src == goog.basePath + 'dup.js') {
-      fail('Duplicate script written!');
-    } else if (src == goog.basePath + 'dup-child.js') {
-      // Allow expected script.
-      return true;
-    } else {
-      // Avoid affecting other state.
-      return false;
-    }
-  });
-
-  // To differentiate this call from the real one.
-  const require = goog.require;
-  require('dup.base.child');
-}
-
-/**
- * @suppress {undefinedVars,visibility,missingProperties} 'far' defined by
- * goog.provide
- */
-function testGoogRequireCheck() {
-  // alias to avoid the being picked up by the deps scanner.
-  const provide = goog.provide;
-
-  stubs.set(goog, 'ENABLE_DEBUG_LOADER', true);
-  stubs.set(goog, 'useStrictRequires', true);
-  stubs.set(goog, 'implicitNamespaces_', {});
-
-  // Aliased so that build tools do not mistake this for an actual call.
-  const require = goog.require;
-  // should not throw
-  require('far.outnotprovided');
-
-  assertUndefined(goog.global.far);
-  assertEvaluatesToFalse(goog.getObjectByName('far.out'));
-  assertObjectEquals({}, goog.implicitNamespaces_);
-  assertFalse(goog.isProvided_('far.out'));
-
-  provide('far.out');
-
-  assertNotUndefined(far.out);
-  assertEvaluatesToTrue(goog.getObjectByName('far.out'));
-  assertObjectEquals({'far': true}, goog.implicitNamespaces_);
-  assertTrue(goog.isProvided_('far.out'));
-
-  goog.global.far.out = 42;
-  assertEquals(42, goog.getObjectByName('far.out'));
-  assertTrue(goog.isProvided_('far.out'));
-
-  // Empty string should be allowed.
-  goog.global.far.out = '';
-  assertEquals('', goog.getObjectByName('far.out'));
-  assertTrue(goog.isProvided_('far.out'));
-
-  // Null or undefined are not allowed.
-  goog.global.far.out = null;
-  assertNull(goog.getObjectByName('far.out'));
-  assertFalse(goog.isProvided_('far.out'));
-
-  goog.global.far.out = undefined;
-  assertNull(goog.getObjectByName('far.out'));
-  assertFalse(goog.isProvided_('far.out'));
-
-  stubs.reset();
-  delete goog.global.far;
-}
-
-
-/** @suppress {visibility} */
-function testGetScriptNonce() {
-  // clear nonce cache for test.
-  const origNonce = goog.getScriptNonce_();
-  goog.cspNonce_ = null;
-  const nonce = origNonce ? origNonce : 'ThisIsANonceThisIsANonceThisIsANonce';
-  const script = goog.dom.createElement(goog.dom.TagName.SCRIPT);
-  script.setAttribute('nonce', 'invalid nonce');
-  document.body.appendChild(script);
-
-  try {
-    assertEquals(origNonce, goog.getScriptNonce_());
-    // clear nonce cache for test.
-    goog.cspNonce_ = null;
-    script.nonce = nonce;
-    assertEquals(nonce, goog.getScriptNonce_());
-  } finally {
-    goog.dom.removeNode(script);
-  }
-}
-
-/** @suppress {checkTypes} */
-function testBaseClass() {
-  function A(x, y) {
-    this.foo = x + y;
-  }
-
-  function B(x, y) {
-    B.base(this, 'constructor', x, y);
-    this.foo += 2;
-  }
-  goog.inherits(B, A);
-
-  function C(x, y) {
-    C.base(this, 'constructor', x, y);
-    this.foo += 4;
-  }
-  goog.inherits(C, B);
-
-  function D(x, y) {
-    D.base(this, 'constructor', x, y);
-    this.foo += 8;
-  }
-  goog.inherits(D, C);
-
-  assertEquals(15, (new D(1, 0)).foo);
-  assertEquals(16, (new D(1, 1)).foo);
-  assertEquals(16, (new D(2, 0)).foo);
-  assertEquals(7, (new C(1, 0)).foo);
-  assertEquals(3, (new B(1, 0)).foo);
-}
-
-/** @suppress {checkTypes} */
-function testBaseMethodAndBaseCtor() {
-  // This will fail on FF4.0 if the following bug is not fixed:
-  // https://bugzilla.mozilla.org/show_bug.cgi?id=586482
-  function A(x, y) {
-    this.foo(x, y);
-  }
-  A.prototype.foo = function(x, y) {
-    this.bar = x + y;
-  };
-
-  function B(x, y) {
-    B.base(this, 'constructor', x, y);
-  }
-  goog.inherits(B, A);
-  B.prototype.foo = function(x, y) {
-    B.base(this, 'foo', x, y);
-    this.bar = this.bar * 2;
-  };
-
-  assertEquals(14, new B(3, 4).bar);
-}
-
-
-//=== tests for bind() and friends ===
-
-// Function.prototype.bind and Function.prototype.partial are purposefullly
-// not defined in open sourced Closure.  These functions sniff for their
-// presence.
-
-var foo = 'global';
-
-/**
- * @param {?} arg1
- * @param {?} arg2
- * @return {?}
- * @suppress {checkTypes}
- */
-function getFoo(arg1, arg2) {
-  return {foo: this.foo, arg1: arg1, arg2: arg2};
-}
-
-
-/** @suppress {checkTypes} */
-function testBindWithoutObj() {
-  if (Function.prototype.bind) {
-    assertEquals(foo, getFoo.bind()().foo);
-  }
-}
-
-/** @suppress {checkTypes} */
-function testBindWithNullObj() {
-  if (Function.prototype.bind) {
-    assertEquals(foo, getFoo.bind(null)().foo);
-  }
-}
-
-
-// Validate the behavior of goog.module when used from traditional files.
-/** @suppress {missingProperties} namespaces */
-function testGoogModuleGet() {
-  // assert that goog.module doesn't modify the global namespace
-  assertUndefined(
-      'module failed to protect global namespace: ' +
-          'goog.test_module_dep',
-      goog.test_module_dep);
-
-  // assert that goog.module with goog.module.declareLegacyNamespace is
-  // present.
-  assertNotUndefined(
-      'module failed to declare global namespace: ' +
-          'goog.test_module',
-      goog.test_module);
-
-  // assert that a require'd goog.module is available immediately after the
-  // goog.require call.
-  assertNotUndefined(
-      'module failed to protect global namespace: ' +
-          'goog.test_module_dep',
-      earlyTestModuleGet);
-
-  // assert that an non-existent module request doesn't throw and returns
-  // null.
-  // NOTE: using computed properties to avoid compiler checks
-  assertEquals(null, goog['module'].get('unrequired.module.id'));
-
-  // Validate the module exports
-  const testModuleExports = goog.module.get('goog.test_module');
-  assertTrue(typeof testModuleExports === 'function');
-
-  // Test that any escaping of </script> in test files is correct. Escape the
-  // / in </script> here so that any such code does not affect it here.
-  assertEquals('<\/script>', testModuleExports.CLOSING_SCRIPT_TAG);
-
-  // Validate that the module exports object has not changed
-  assertEquals(earlyTestModuleGet, testModuleExports);
 }

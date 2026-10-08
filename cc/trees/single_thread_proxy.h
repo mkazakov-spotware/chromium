@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,16 +10,12 @@
 #include <vector>
 
 #include "base/cancelable_callback.h"
-#include "base/containers/flat_set.h"
-#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "cc/scheduler/scheduler.h"
 #include "cc/trees/layer_tree_host_impl.h"
-#include "cc/trees/paint_holding_reason.h"
 #include "cc/trees/proxy.h"
 #include "cc/trees/task_runner_provider.h"
 #include "components/viz/common/frame_sinks/begin_frame_args.h"
-#include "components/viz/common/surfaces/local_surface_id.h"
 
 namespace viz {
 class BeginFrameSource;
@@ -55,29 +51,31 @@ class CC_EXPORT SingleThreadProxy : public Proxy,
   void SetNeedsUpdateLayers() override;
   void SetNeedsCommit() override;
   void SetNeedsRedraw(const gfx::Rect& damage_rect) override;
-  void SetTargetLocalSurfaceId(
-      const viz::LocalSurfaceId& target_local_surface_id) override;
+  void SetNextCommitWaitsForActivation() override;
   bool RequestedAnimatePending() override;
   void SetDeferMainFrameUpdate(bool defer_main_frame_update) override;
-  void SetPauseRendering(bool pause_rendering) override;
-  bool StartDeferringCommits(base::TimeDelta timeout,
-                             PaintHoldingReason reason) override;
+  void StartDeferringCommits(base::TimeDelta timeout) override;
   void StopDeferringCommits(PaintHoldingCommitTrigger) override;
-  bool IsDeferringCommits() const override;
   bool CommitRequested() const override;
   void Start() override;
   void Stop() override;
   void SetMutator(std::unique_ptr<LayerTreeMutator> mutator) override;
   void SetPaintWorkletLayerPainter(
       std::unique_ptr<PaintWorkletLayerPainter> painter) override;
+  bool SupportsImplScrolling() const override;
   bool MainFrameWillHappenForTesting() override;
-  void RequestBeginMainFrameNotExpected(bool new_state) override;
-  void SetSourceURL(ukm::SourceId source_id, const GURL& url) override;
+  void SetSourceURL(ukm::SourceId source_id, const GURL& url) override {
+    // Single-threaded mode is only for browser compositing and for renderers in
+    // layout tests. This will still get called in the latter case, but we don't
+    // need to record UKM in that case.
+  }
   void SetUkmSmoothnessDestination(
-      base::WritableSharedMemoryMapping ukm_smoothness_data) override;
+      base::WritableSharedMemoryMapping ukm_smoothness_data) override {}
+  void ClearHistory() override;
   void SetRenderFrameObserver(
       std::unique_ptr<RenderFrameMetadataObserver> observer) override;
-  double GetPercentDroppedFrames() const override;
+  void SetEnableFrameRateThrottling(
+      bool enable_frame_rate_throttling) override {}
 
   void UpdateBrowserControlsState(BrowserControlsState constraints,
                                   BrowserControlsState current,
@@ -95,7 +93,6 @@ class CC_EXPORT SingleThreadProxy : public Proxy,
   DrawResult ScheduledActionDrawIfPossible() override;
   DrawResult ScheduledActionDrawForced() override;
   void ScheduledActionCommit() override;
-  void ScheduledActionPostCommit() override;
   void ScheduledActionActivateSyncTree() override;
   void ScheduledActionBeginLayerTreeFrameSinkCreation() override;
   void ScheduledActionPrepareTiles() override;
@@ -105,7 +102,7 @@ class CC_EXPORT SingleThreadProxy : public Proxy,
   void ScheduledActionBeginMainFrameNotExpectedUntil(
       base::TimeTicks time) override;
   void FrameIntervalUpdated(base::TimeDelta interval) override;
-  bool HasInvalidationAnimation() const override;
+  bool HasCustomPropertyAnimations() const override;
 
   // LayerTreeHostImplClient implementation
   void DidLoseLayerTreeFrameSinkOnImplThread() override;
@@ -113,18 +110,17 @@ class CC_EXPORT SingleThreadProxy : public Proxy,
   void DidReceiveCompositorFrameAckOnImplThread() override;
   void OnCanDrawStateChanged(bool can_draw) override;
   void NotifyReadyToActivate() override;
-  bool IsReadyToActivate() override;
   void NotifyReadyToDraw() override;
   void SetNeedsRedrawOnImplThread() override;
   void SetNeedsOneBeginImplFrameOnImplThread() override;
   void SetNeedsPrepareTilesOnImplThread() override;
   void SetNeedsCommitOnImplThread() override;
   void SetVideoNeedsBeginFrames(bool needs_begin_frames) override;
-  void SetDeferBeginMainFrameFromImpl(bool defer_begin_main_frame) override {}
   bool IsInsideDraw() override;
-  void RenewTreePriority() override;
+  bool IsBeginMainFrameExpected() override;
+  void RenewTreePriority() override {}
   void PostDelayedAnimationTaskOnImplThread(base::OnceClosure task,
-                                            base::TimeDelta delay) override;
+                                            base::TimeDelta delay) override {}
   void DidActivateSyncTree() override;
   void WillPrepareTiles() override;
   void DidPrepareTiles() override;
@@ -132,11 +128,11 @@ class CC_EXPORT SingleThreadProxy : public Proxy,
   void OnDrawForLayerTreeFrameSink(bool resourceless_software_draw,
                                    bool skip_draw) override;
   void NeedsImplSideInvalidation(bool needs_first_draw_on_activation) override;
+  void RequestBeginMainFrameNotExpected(bool new_state) override;
   void NotifyImageDecodeRequestFinished() override;
-  void NotifyTransitionRequestFinished(uint32_t sequence_id) override;
   void DidPresentCompositorFrameOnImplThread(
       uint32_t frame_token,
-      PresentationTimeCallbackBuffer::PendingCallbacks callbacks,
+      std::vector<LayerTreeHost::PresentationTimeCallback> callbacks,
       const viz::FrameTimingDetails& details) override;
   void NotifyAnimationWorkletStateChange(
       AnimationWorkletMutationState state,
@@ -145,16 +141,16 @@ class CC_EXPORT SingleThreadProxy : public Proxy,
       Scheduler::PaintWorkletState state) override;
   void NotifyThroughputTrackerResults(CustomTrackerResults results) override;
   bool IsInSynchronousComposite() const override;
-  void FrameSinksToThrottleUpdated(
-      const base::flat_set<viz::FrameSinkId>& ids) override;
-  void ClearHistory() override;
-  size_t CommitDurationSampleCountForTesting() const override;
 
   void RequestNewLayerTreeFrameSink();
 
   void DidObserveFirstScrollDelay(
       base::TimeDelta first_scroll_delay,
-      base::TimeTicks first_scroll_timestamp) override;
+      base::TimeTicks first_scroll_timestamp) override {
+    // Single-threaded mode is only for browser compositing and for renderers in
+    // layout tests. This will still get called in the latter case, but we don't
+    // need to record UKM in that case.
+  }
 
   // Called by the legacy path where RenderWidget does the scheduling.
   // Rasterization of tiles is only performed when |raster| is true.
@@ -170,9 +166,8 @@ class CC_EXPORT SingleThreadProxy : public Proxy,
   void BeginMainFrame(const viz::BeginFrameArgs& begin_frame_args);
   void BeginMainFrameAbortedOnImplThread(CommitEarlyOutReason reason);
   void DoBeginMainFrame(const viz::BeginFrameArgs& begin_frame_args);
-  void DoPainting(const viz::BeginFrameArgs& commit_args);
+  void DoPainting();
   void DoCommit(const viz::BeginFrameArgs& commit_args);
-  void DoPostCommit();
   DrawResult DoComposite(LayerTreeHostImpl::FrameData* frame);
   void DoSwap();
   void DidCommitAndDrawFrame();
@@ -185,10 +180,10 @@ class CC_EXPORT SingleThreadProxy : public Proxy,
   void DidReceiveCompositorFrameAck();
 
   // Accessed on main thread only.
-  raw_ptr<LayerTreeHost> layer_tree_host_;
-  raw_ptr<LayerTreeHostSingleThreadClient> single_thread_client_;
+  LayerTreeHost* layer_tree_host_;
+  LayerTreeHostSingleThreadClient* single_thread_client_;
 
-  raw_ptr<TaskRunnerProvider> task_runner_provider_;
+  TaskRunnerProvider* task_runner_provider_;
 
   // Used on the Thread, but checked on main thread during
   // initialization/shutdown.
@@ -207,9 +202,7 @@ class CC_EXPORT SingleThreadProxy : public Proxy,
 #endif
   bool inside_draw_;
   bool defer_main_frame_update_;
-  bool pause_rendering_;
-  absl::optional<PaintHoldingReason> paint_holding_reason_;
-  bool did_apply_compositor_deltas_ = false;
+  bool defer_commits_;
   bool animate_requested_;
   bool update_layers_requested_;
   bool commit_requested_;
@@ -247,10 +240,7 @@ class DebugScopedSetImplThread {
   explicit DebugScopedSetImplThread(TaskRunnerProvider* task_runner_provider)
       : task_runner_provider_(task_runner_provider) {
     previous_value_ = task_runner_provider_->impl_thread_is_overridden_;
-    // Some test code will used this in both single- and multi-threaded mode;
-    // we should just ignore it in multi-threaded mode.
-    if (!task_runner_provider_->HasImplThread())
-      task_runner_provider_->SetCurrentThreadIsImplThread(true);
+    task_runner_provider_->SetCurrentThreadIsImplThread(true);
   }
 #else
   explicit DebugScopedSetImplThread(TaskRunnerProvider* task_runner_provider) {}
@@ -260,8 +250,7 @@ class DebugScopedSetImplThread {
 
   ~DebugScopedSetImplThread() {
 #if DCHECK_IS_ON()
-    if (!task_runner_provider_->HasImplThread())
-      task_runner_provider_->SetCurrentThreadIsImplThread(previous_value_);
+    task_runner_provider_->SetCurrentThreadIsImplThread(previous_value_);
 #endif
   }
 
@@ -271,7 +260,7 @@ class DebugScopedSetImplThread {
 
  private:
   bool previous_value_;
-  raw_ptr<TaskRunnerProvider> task_runner_provider_;
+  TaskRunnerProvider* task_runner_provider_;
 #endif
 };
 
@@ -283,8 +272,7 @@ class DebugScopedSetMainThread {
   explicit DebugScopedSetMainThread(TaskRunnerProvider* task_runner_provider)
       : task_runner_provider_(task_runner_provider) {
     previous_value_ = task_runner_provider_->impl_thread_is_overridden_;
-    if (!task_runner_provider_->HasImplThread())
-      task_runner_provider_->SetCurrentThreadIsImplThread(false);
+    task_runner_provider_->SetCurrentThreadIsImplThread(false);
   }
 #else
   explicit DebugScopedSetMainThread(TaskRunnerProvider* task_runner_provider) {}
@@ -294,8 +282,7 @@ class DebugScopedSetMainThread {
 
   ~DebugScopedSetMainThread() {
 #if DCHECK_IS_ON()
-    if (!task_runner_provider_->HasImplThread())
-      task_runner_provider_->SetCurrentThreadIsImplThread(previous_value_);
+    task_runner_provider_->SetCurrentThreadIsImplThread(previous_value_);
 #endif
   }
 
@@ -305,7 +292,7 @@ class DebugScopedSetMainThread {
 
  private:
   bool previous_value_;
-  raw_ptr<TaskRunnerProvider> task_runner_provider_;
+  TaskRunnerProvider* task_runner_provider_;
 #endif
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@
 #include "mojo/public/cpp/bindings/remote.h"
 #include "net/base/ip_address.h"
 #include "net/base/net_errors.h"
-#include "net/base/network_anonymization_key.h"
+#include "net/base/network_isolation_key.h"
 #include "net/base/request_priority.h"
 #include "net/base/test_completion_callback.h"
 #include "net/log/net_log_with_source.h"
@@ -94,11 +94,11 @@ class MockMojoHostResolver : public HostResolverMojo::Impl {
   // Information logged from a call to ResolveDns().
   struct RequestInfo {
     std::string hostname;
-    net::NetworkAnonymizationKey network_anonymization_key;
+    net::NetworkIsolationKey network_isolation_key;
 
     bool operator==(const RequestInfo& other) const {
       return hostname == other.hostname &&
-             network_anonymization_key == other.network_anonymization_key;
+             network_isolation_key == other.network_isolation_key;
     }
   };
 
@@ -120,9 +120,9 @@ class MockMojoHostResolver : public HostResolverMojo::Impl {
   void ResolveDns(
       const std::string& hostname,
       net::ProxyResolveDnsOperation operation,
-      const net::NetworkAnonymizationKey& network_anonymization_key,
+      const net::NetworkIsolationKey& network_isolation_key,
       mojo::PendingRemote<mojom::HostResolverRequestClient> client) override {
-    request_info_.push_back(RequestInfo{hostname, network_anonymization_key});
+    request_info_.push_back(RequestInfo{hostname, network_isolation_key});
     ASSERT_LE(results_returned_, actions_.size());
     switch (actions_[results_returned_].action) {
       case HostResolverAction::COMPLETE:
@@ -165,12 +165,12 @@ class HostResolverMojoTest : public testing::Test {
         resolver_(&mock_resolver_) {}
 
   int Resolve(const std::string& hostname,
-              const net::NetworkAnonymizationKey& network_anonymization_key,
+              const net::NetworkIsolationKey& network_isolation_key,
               std::vector<net::IPAddress>* out_addresses) {
     std::unique_ptr<ProxyHostResolver::Request> request =
         resolver_.CreateRequest(hostname,
                                 net::ProxyResolveDnsOperation::DNS_RESOLVE_EX,
-                                network_anonymization_key);
+                                network_isolation_key);
 
     net::TestCompletionCallback callback;
     int result = callback.GetResult(request->Start(callback.callback()));
@@ -186,9 +186,9 @@ class HostResolverMojoTest : public testing::Test {
 };
 
 TEST_F(HostResolverMojoTest, Basic) {
-  const net::SchemefulSite kSite =
-      net::SchemefulSite(GURL("https://not-example.com/"));
-  const net::NetworkAnonymizationKey kNetworkAnonymizationKey(kSite, kSite);
+  const url::Origin kOrigin =
+      url::Origin::Create(GURL("https://not-example.com/"));
+  const net::NetworkIsolationKey kNetworkIsolationKey(kOrigin, kOrigin);
 
   std::vector<net::IPAddress> addresses;
   net::IPAddress address(1, 2, 3, 4);
@@ -197,14 +197,13 @@ TEST_F(HostResolverMojoTest, Basic) {
   mock_resolver_.AddAction(HostResolverAction::ReturnResult(addresses));
 
   std::vector<net::IPAddress> result;
-  EXPECT_THAT(Resolve("example.com", kNetworkAnonymizationKey, &result),
-              IsOk());
+  EXPECT_THAT(Resolve("example.com", kNetworkIsolationKey, &result), IsOk());
   EXPECT_EQ(addresses, result);
 
   ASSERT_EQ(1u, mock_resolver_.request_info().size());
   EXPECT_EQ("example.com", mock_resolver_.request_info()[0].hostname);
-  EXPECT_EQ(kNetworkAnonymizationKey,
-            mock_resolver_.request_info()[0].network_anonymization_key);
+  EXPECT_EQ(kNetworkIsolationKey,
+            mock_resolver_.request_info()[0].network_isolation_key);
 }
 
 TEST_F(HostResolverMojoTest, ResolveCachedResult) {
@@ -216,23 +215,23 @@ TEST_F(HostResolverMojoTest, ResolveCachedResult) {
 
   // Load results into cache.
   std::vector<net::IPAddress> result;
-  ASSERT_THAT(Resolve("example.com", net::NetworkAnonymizationKey(), &result),
+  ASSERT_THAT(Resolve("example.com", net::NetworkIsolationKey(), &result),
               IsOk());
   ASSERT_EQ(1u, mock_resolver_.request_info().size());
 
   // Expect results from cache.
   result.clear();
-  EXPECT_THAT(Resolve("example.com", net::NetworkAnonymizationKey(), &result),
+  EXPECT_THAT(Resolve("example.com", net::NetworkIsolationKey(), &result),
               IsOk());
   EXPECT_EQ(addresses, result);
   EXPECT_EQ(1u, mock_resolver_.request_info().size());
 }
 
-// Make sure the cache indexes entries by NetworkAnonymizationKey.
-TEST_F(HostResolverMojoTest, ResolveCachedResultWithNetworkAnonymizationKey) {
-  const net::SchemefulSite kSite =
-      net::SchemefulSite(GURL("https://not-example.com/"));
-  const net::NetworkAnonymizationKey kNetworkAnonymizationKey(kSite, kSite);
+// Make sure the cache indexes entries by NetworkIsolationKey.
+TEST_F(HostResolverMojoTest, ResolveCachedResultWithNetworkIsolationKey) {
+  const url::Origin kOrigin =
+      url::Origin::Create(GURL("https://not-example.com/"));
+  const net::NetworkIsolationKey kNetworkIsolationKey(kOrigin, kOrigin);
 
   std::vector<net::IPAddress> addresses1;
   net::IPAddress address1(1, 2, 3, 4);
@@ -240,21 +239,19 @@ TEST_F(HostResolverMojoTest, ResolveCachedResultWithNetworkAnonymizationKey) {
   addresses1.push_back(ConvertIPv4ToIPv4MappedIPv6(address1));
   mock_resolver_.AddAction(HostResolverAction::ReturnResult(addresses1));
 
-  // Load results into cache using kNetworkAnonymizationKey.
+  // Load results into cache using kNetworkIsolationKey.
   std::vector<net::IPAddress> result;
-  ASSERT_THAT(Resolve("example.com", kNetworkAnonymizationKey, &result),
-              IsOk());
+  ASSERT_THAT(Resolve("example.com", kNetworkIsolationKey, &result), IsOk());
   ASSERT_EQ(1u, mock_resolver_.request_info().size());
 
-  // Expect results from cache when using kNetworkAnonymizationKey.
+  // Expect results from cache when using kNetworkIsolationKey.
   result.clear();
-  EXPECT_THAT(Resolve("example.com", kNetworkAnonymizationKey, &result),
-              IsOk());
+  EXPECT_THAT(Resolve("example.com", kNetworkIsolationKey, &result), IsOk());
   EXPECT_EQ(addresses1, result);
   EXPECT_EQ(1u, mock_resolver_.request_info().size());
 
-  // A request with an empty NetworkAnonymizationKey should not use results
-  // cached using kNetworkAnonymizationKey.
+  // A request with an empty NetworkIsolationKey should not use results cached
+  // using kNetworkIsolationKey.
 
   std::vector<net::IPAddress> addresses2;
   net::IPAddress address2(2, 3, 5, 8);
@@ -263,24 +260,23 @@ TEST_F(HostResolverMojoTest, ResolveCachedResultWithNetworkAnonymizationKey) {
   mock_resolver_.AddAction(HostResolverAction::ReturnResult(addresses2));
 
   result.clear();
-  EXPECT_THAT(Resolve("example.com", net::NetworkAnonymizationKey(), &result),
+  EXPECT_THAT(Resolve("example.com", net::NetworkIsolationKey(), &result),
               IsOk());
   EXPECT_EQ(addresses2, result);
   EXPECT_EQ(2u, mock_resolver_.request_info().size());
 
-  // Using the empty NetworkAnonymizationKey again should result in the second
+  // Using the empty NetworkIsolationKey again should result in the second
   // cached address list.
   result.clear();
-  EXPECT_THAT(Resolve("example.com", net::NetworkAnonymizationKey(), &result),
+  EXPECT_THAT(Resolve("example.com", net::NetworkIsolationKey(), &result),
               IsOk());
   EXPECT_EQ(addresses2, result);
   EXPECT_EQ(2u, mock_resolver_.request_info().size());
 
-  // Using kNetworkAnonymizationKey again should result in the first cached
-  // address list.
+  // Using kNetworkIsolationKey again should result in the first cached address
+  // list.
   result.clear();
-  EXPECT_THAT(Resolve("example.com", kNetworkAnonymizationKey, &result),
-              IsOk());
+  EXPECT_THAT(Resolve("example.com", kNetworkIsolationKey, &result), IsOk());
   EXPECT_EQ(addresses1, result);
   EXPECT_EQ(2u, mock_resolver_.request_info().size());
 }
@@ -295,11 +291,11 @@ TEST_F(HostResolverMojoTest, Multiple) {
   std::unique_ptr<ProxyHostResolver::Request> request1 =
       resolver_.CreateRequest("example.com",
                               net::ProxyResolveDnsOperation::DNS_RESOLVE_EX,
-                              net::NetworkAnonymizationKey());
+                              net::NetworkIsolationKey());
   std::unique_ptr<ProxyHostResolver::Request> request2 =
       resolver_.CreateRequest("example.org",
                               net::ProxyResolveDnsOperation::DNS_RESOLVE_EX,
-                              net::NetworkAnonymizationKey());
+                              net::NetworkIsolationKey());
   net::TestCompletionCallback callback1;
   net::TestCompletionCallback callback2;
   ASSERT_EQ(net::ERR_IO_PENDING, request1->Start(callback1.callback()));
@@ -313,10 +309,10 @@ TEST_F(HostResolverMojoTest, Multiple) {
 
   EXPECT_THAT(mock_resolver_.request_info(),
               testing::ElementsAre(
+                  MockMojoHostResolver::RequestInfo{"example.com",
+                                                    net::NetworkIsolationKey()},
                   MockMojoHostResolver::RequestInfo{
-                      "example.com", net::NetworkAnonymizationKey()},
-                  MockMojoHostResolver::RequestInfo{
-                      "example.org", net::NetworkAnonymizationKey()}));
+                      "example.org", net::NetworkIsolationKey()}));
 }
 
 TEST_F(HostResolverMojoTest, Error) {
@@ -324,7 +320,7 @@ TEST_F(HostResolverMojoTest, Error) {
       HostResolverAction::ReturnError(net::ERR_NAME_NOT_RESOLVED));
 
   std::vector<net::IPAddress> result;
-  EXPECT_THAT(Resolve("example.com", net::NetworkAnonymizationKey(), &result),
+  EXPECT_THAT(Resolve("example.com", net::NetworkIsolationKey(), &result),
               IsError(net::ERR_NAME_NOT_RESOLVED));
   EXPECT_TRUE(result.empty());
 
@@ -336,7 +332,7 @@ TEST_F(HostResolverMojoTest, EmptyResult) {
   mock_resolver_.AddAction(HostResolverAction::ReturnError(net::OK));
 
   std::vector<net::IPAddress> result;
-  EXPECT_THAT(Resolve("example.com", net::NetworkAnonymizationKey(), &result),
+  EXPECT_THAT(Resolve("example.com", net::NetworkIsolationKey(), &result),
               IsOk());
   EXPECT_TRUE(result.empty());
 
@@ -348,7 +344,7 @@ TEST_F(HostResolverMojoTest, Cancel) {
 
   std::unique_ptr<ProxyHostResolver::Request> request = resolver_.CreateRequest(
       "example.com", net::ProxyResolveDnsOperation::DNS_RESOLVE_EX,
-      net::NetworkAnonymizationKey());
+      net::NetworkIsolationKey());
   request->Start(base::BindOnce(&Fail));
 
   request.reset();
@@ -362,7 +358,7 @@ TEST_F(HostResolverMojoTest, ImplDropsClientConnection) {
   mock_resolver_.AddAction(HostResolverAction::DropRequest());
 
   std::vector<net::IPAddress> result;
-  EXPECT_THAT(Resolve("example.com", net::NetworkAnonymizationKey(), &result),
+  EXPECT_THAT(Resolve("example.com", net::NetworkIsolationKey(), &result),
               IsError(net::ERR_FAILED));
   EXPECT_TRUE(result.empty());
 

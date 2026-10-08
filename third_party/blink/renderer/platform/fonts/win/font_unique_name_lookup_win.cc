@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,27 @@
 #include <utility>
 
 #include "base/files/file_path.h"
-#include "base/files/file_util.h"
-#include "base/metrics/histogram_macros.h"
 #include "mojo/public/mojom/base/shared_memory.mojom-blink.h"
-#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/thread_safe_browser_interface_broker_proxy.h"
 #include "third_party/blink/public/mojom/dwrite_font_proxy/dwrite_font_proxy.mojom-blink.h"
 #include "third_party/blink/public/platform/platform.h"
+#include "third_party/blink/renderer/platform/instrumentation/histogram.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
-#include "third_party/skia/include/core/SkStream.h"
 #include "third_party/skia/include/ports/SkTypeface_win.h"
+
+namespace {
+
+// These enum values correspond to the
+// "Blink.Fonts.WindowsUniqueLocalFontInstantiationResult" histogram, new values
+// can be added, but old values should never be reused.
+enum WindowsUniqueLocalFontInstantiationResult {
+  kSuccess = 0,
+  kErrorOutsideWindowsFontsDirectory = 1,
+  kErrorOther = 2,
+  kMaxWindowsUniqueLocalFontInstantiationResult = 3
+};
+
+}  // namespace
 
 namespace blink {
 
@@ -35,16 +46,19 @@ sk_sp<SkTypeface> FontUniqueNameLookupWin::MatchUniqueName(
 sk_sp<SkTypeface> FontUniqueNameLookupWin::MatchUniqueNameSingleLookup(
     const String& font_unique_name) {
   DCHECK(lookup_mode_ == blink::mojom::UniqueFontLookupMode::kSingleLookups);
-  base::File font_file;
+  base::FilePath font_file_path;
   uint32_t ttc_index = 0;
 
   EnsureServiceConnected();
 
   bool matching_mojo_success =
-      service_->MatchUniqueFont(font_unique_name, &font_file, &ttc_index);
+      service_->MatchUniqueFont(font_unique_name, &font_file_path, &ttc_index);
   DCHECK(matching_mojo_success);
 
-  return InstantiateFromFileAndTtcIndex(std::move(font_file), ttc_index);
+  if (!font_file_path.value().size())
+    return nullptr;
+
+  return InstantiateFromPathAndTtcIndex(font_file_path, ttc_index);
 }
 
 sk_sp<SkTypeface> FontUniqueNameLookupWin::MatchUniqueNameLookupTable(
@@ -54,7 +68,7 @@ sk_sp<SkTypeface> FontUniqueNameLookupWin::MatchUniqueNameLookupTable(
   if (!IsFontUniqueNameLookupReadyForSyncLookup())
     return nullptr;
 
-  absl::optional<FontTableMatcher::MatchResult> match_result =
+  base::Optional<FontTableMatcher::MatchResult> match_result =
       font_table_matcher_->MatchName(font_unique_name.Utf8());
   if (!match_result)
     return nullptr;
@@ -64,28 +78,39 @@ sk_sp<SkTypeface> FontUniqueNameLookupWin::MatchUniqueNameLookupTable(
   return InstantiateFromPathAndTtcIndex(file_path, match_result->ttc_index);
 }
 
-// Used for font matching with table lookup case only.
 sk_sp<SkTypeface> FontUniqueNameLookupWin::InstantiateFromPathAndTtcIndex(
     base::FilePath font_file_path,
     uint32_t ttc_index) {
-  return SkTypeface::MakeFromFile(font_file_path.AsUTF8Unsafe().c_str(),
-                                  ttc_index);
-}
+  // Record here when a locally uniquely matched font could not be
+  // instantiated. One reason could be that the font was outside the
+  // C:\Windows\Fonts directory and thus not accessible due to sandbox
+  // restrictions.
+  sk_sp<SkTypeface> local_typeface = SkTypeface::MakeFromFile(
+      font_file_path.AsUTF8Unsafe().c_str(), ttc_index);
 
-// Used for font matching with single lookup case only.
-sk_sp<SkTypeface> FontUniqueNameLookupWin::InstantiateFromFileAndTtcIndex(
-    base::File file_handle,
-    uint32_t ttc_index) {
-  FILE* cfile = base::FileToFILE(std::move(file_handle), "rb");
-  if (!cfile) {
-    return nullptr;
+  WindowsUniqueLocalFontInstantiationResult result = kSuccess;
+
+  // There is a chance that some systems have managed to register fonts into the
+  // Windows system font collection outside the C:\Windows\Fonts directory. For
+  // sandboxing reasons, we are unable to access them here. This histogram
+  // serves to quantify how often this case occurs and whether we need and
+  // additional sandbox helper to open the file handle on the browser process
+  // side.
+  if (!local_typeface) {
+    base::FilePath windows_fonts_path(L"C:\\WINDOWS\\FONTS");
+    if (!windows_fonts_path.IsParent(font_file_path))
+      result = kErrorOutsideWindowsFontsDirectory;
+    else
+      result = kErrorOther;
   }
-  auto data = SkData::MakeFromFILE(cfile);
-  base::CloseFile(cfile);
-  if (!data) {
-    return nullptr;
-  }
-  return SkTypeface::MakeFromData(std::move(data), ttc_index);
+
+  DEFINE_THREAD_SAFE_STATIC_LOCAL(
+      EnumerationHistogram, windows_unique_local_font_instantiation_histogram,
+      ("Blink.Fonts.WindowsUniqueLocalFontInstantiationResult",
+       kMaxWindowsUniqueLocalFontInstantiationResult));
+  windows_unique_local_font_instantiation_histogram.Count(result);
+
+  return local_typeface;
 }
 
 bool FontUniqueNameLookupWin::IsFontUniqueNameLookupReadyForSyncLookup() {
@@ -166,43 +191,14 @@ void FontUniqueNameLookupWin::PrepareFontUniqueNameLookup(
       base::Unretained(this)));
 }
 
-void FontUniqueNameLookupWin::Init() {
-  if (!base::FeatureList::IsEnabled(features::kPrefetchFontLookupTables))
-    return;
-
-  EnsureServiceConnected();
-
-  if (lookup_mode_.has_value()) {
-    InitWithLookupMode(lookup_mode_.value());
-    return;
-  }
-
-  service_->GetUniqueFontLookupMode(base::BindOnce(
-      &FontUniqueNameLookupWin::InitWithLookupMode, base::Unretained(this)));
-}
-
 void FontUniqueNameLookupWin::ReceiveReadOnlySharedMemoryRegion(
     base::ReadOnlySharedMemoryRegion shared_memory_region) {
   DCHECK(lookup_mode_ == blink::mojom::UniqueFontLookupMode::kRetrieveTable);
   font_table_matcher_ =
       std::make_unique<FontTableMatcher>(shared_memory_region.Map());
-  while (!pending_callbacks_.empty()) {
+  while (!pending_callbacks_.IsEmpty()) {
     NotifyFontUniqueNameLookupReady callback = pending_callbacks_.TakeFirst();
     std::move(callback).Run();
-  }
-}
-
-void FontUniqueNameLookupWin::InitWithLookupMode(
-    blink::mojom::UniqueFontLookupMode lookup_mode) {
-  lookup_mode_ = lookup_mode;
-
-  if (!font_table_matcher_.get() &&
-      RuntimeEnabledFeatures::FontSrcLocalMatchingEnabled() &&
-      lookup_mode_ == blink::mojom::UniqueFontLookupMode::kRetrieveTable) {
-    // This call primes IsFontUniqueNameLookupReadyForSyncLookup() by
-    // asynchronously fetching the font table so it will be ready when needed.
-    // It isn't needed now, so base::DoNothing() is passed as the callback.
-    PrepareFontUniqueNameLookup(base::DoNothing());
   }
 }
 

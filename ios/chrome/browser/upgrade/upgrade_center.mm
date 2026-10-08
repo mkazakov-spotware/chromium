@@ -1,35 +1,31 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/upgrade/upgrade_center.h"
 
-#import <memory>
-#import <set>
-#import <utility>
+#include <memory>
+#include <set>
+#include <utility>
 
-#import "base/mac/bundle_locations.h"
-#import "base/mac/foundation_util.h"
-#import "base/scoped_observation.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/time/time.h"
-#import "base/version.h"
-#import "components/infobars/core/confirm_infobar_delegate.h"
-#import "components/infobars/core/infobar.h"
-#import "components/infobars/core/infobar_manager.h"
-#import "components/version_info/version_info.h"
-#import "ios/chrome/browser/infobars/infobar_utils.h"
+#include "base/mac/bundle_locations.h"
+#include "base/scoped_observer.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/version.h"
+#include "components/infobars/core/confirm_infobar_delegate.h"
+#include "components/infobars/core/infobar.h"
+#include "components/infobars/core/infobar_manager.h"
+#include "components/version_info/version_info.h"
 #import "ios/chrome/browser/ui/commands/application_commands.h"
 #import "ios/chrome/browser/ui/commands/open_new_tab_command.h"
-#import "ios/chrome/browser/ui/icons/symbols.h"
 #import "ios/chrome/browser/upgrade/upgrade_constants.h"
-#import "ios/chrome/grit/ios_chromium_strings.h"
-#import "ios/chrome/grit/ios_strings.h"
+#include "ios/chrome/grit/ios_chromium_strings.h"
+#include "ios/chrome/grit/ios_strings.h"
 #import "ios/web/common/url_scheme_util.h"
 #import "net/base/mac/url_conversions.h"
-#import "ui/base/l10n/l10n_util.h"
-#import "ui/gfx/image/image.h"
-#import "url/gurl.h"
+#include "ui/base/l10n/l10n_util.h"
+#include "ui/gfx/image/image.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -59,17 +55,11 @@
 
 namespace {
 
-// The amount of time that must elapse before showing the infobar again.
-constexpr base::TimeDelta kInfobarDisplayInterval = base::Days(1);
-
 // The class controlling the look of the infobar displayed when an upgrade is
 // available.
 class UpgradeInfoBarDelegate : public ConfirmInfoBarDelegate {
  public:
   UpgradeInfoBarDelegate() : trigger_upgrade_(false) {}
-
-  UpgradeInfoBarDelegate(const UpgradeInfoBarDelegate&) = delete;
-  UpgradeInfoBarDelegate& operator=(const UpgradeInfoBarDelegate&) = delete;
 
   ~UpgradeInfoBarDelegate() override {}
 
@@ -91,17 +81,14 @@ class UpgradeInfoBarDelegate : public ConfirmInfoBarDelegate {
     return false;
   }
 
-  ui::ImageModel GetIcon() const override {
+  gfx::Image GetIcon() const override {
     if (icon_.IsEmpty()) {
-      icon_ = gfx::Image(UseSymbols()
-                             ? DefaultSymbolWithPointSize(
-                                   kInfoCircleSymbol, kInfobarSymbolPointSize)
-                             : [UIImage imageNamed:@"infobar_update"]);
+      icon_ = gfx::Image([UIImage imageNamed:@"infobar_update"]);
     }
-    return ui::ImageModel::FromImage(icon_);
+    return icon_;
   }
 
-  std::u16string GetMessageText() const override {
+  base::string16 GetMessageText() const override {
     return l10n_util::GetStringUTF16(IDS_IOS_UPGRADE_AVAILABLE);
   }
 
@@ -112,13 +99,15 @@ class UpgradeInfoBarDelegate : public ConfirmInfoBarDelegate {
 
   int GetButtons() const override { return BUTTON_OK; }
 
-  std::u16string GetButtonLabel(InfoBarButton button) const override {
+  base::string16 GetButtonLabel(InfoBarButton button) const override {
     DCHECK(button == BUTTON_OK);
     return l10n_util::GetStringUTF16(IDS_IOS_UPGRADE_AVAILABLE_BUTTON);
   }
 
   mutable gfx::Image icon_;
   bool trigger_upgrade_;
+
+  DISALLOW_COPY_AND_ASSIGN(UpgradeInfoBarDelegate);
 };
 
 // The InfoBarDelegate unfortunately is not called at all when an infoBar is
@@ -129,11 +118,9 @@ class UpgradeInfoBarDismissObserver
     : public infobars::InfoBarManager::Observer {
  public:
   UpgradeInfoBarDismissObserver()
-      : infobar_delegate_(nullptr), dismiss_delegate_(nil) {}
-
-  UpgradeInfoBarDismissObserver(const UpgradeInfoBarDismissObserver&) = delete;
-  UpgradeInfoBarDismissObserver& operator=(
-      const UpgradeInfoBarDismissObserver&) = delete;
+      : infobar_delegate_(nullptr),
+        dismiss_delegate_(nil),
+        scoped_observer_(this) {}
 
   ~UpgradeInfoBarDismissObserver() override {}
 
@@ -141,7 +128,7 @@ class UpgradeInfoBarDismissObserver
                         UpgradeInfoBarDelegate* infobar_delegate,
                         NSString* tab_id,
                         UpgradeCenter* dismiss_delegate) {
-    scoped_observation_.Observe(infobar_manager);
+    scoped_observer_.Add(infobar_manager);
     infobar_delegate_ = infobar_delegate;
     dismiss_delegate_ = dismiss_delegate;
     tab_id_ = [tab_id copy];
@@ -160,16 +147,16 @@ class UpgradeInfoBarDismissObserver
 
   void OnManagerShuttingDown(
       infobars::InfoBarManager* infobar_manager) override {
-    DCHECK(scoped_observation_.IsObservingSource(infobar_manager));
-    scoped_observation_.Reset();
+    scoped_observer_.Remove(infobar_manager);
   }
 
   UpgradeInfoBarDelegate* infobar_delegate_;
   __weak UpgradeCenter* dismiss_delegate_;
   __strong NSString* tab_id_;
-  base::ScopedObservation<infobars::InfoBarManager,
-                          infobars::InfoBarManager::Observer>
-      scoped_observation_{this};
+  ScopedObserver<infobars::InfoBarManager, infobars::InfoBarManager::Observer>
+      scoped_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(UpgradeInfoBarDismissObserver);
 };
 
 }  // namespace
@@ -269,17 +256,14 @@ class UpgradeInfoBarDismissObserver
 
 - (BOOL)infoBarShownRecently {
   NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
-  NSDate* lastDisplayDate = base::mac::ObjCCast<NSDate>(
-      [defaults objectForKey:kLastInfobarDisplayTimeKey]);
-  if (!lastDisplayDate) {
-    return NO;
-  }
-
+  NSDate* lastDisplay = [defaults objectForKey:kLastInfobarDisplayTimeKey];
   // Absolute value is to ensure the infobar won't be suppressed forever if the
   // clock temporarily jumps to the distant future.
-  const base::Time lastDisplayTime = base::Time::FromNSDate(lastDisplayDate);
-  return (base::Time::Now() - lastDisplayTime).magnitude() <
-         kInfobarDisplayInterval;
+  if (lastDisplay && fabs([lastDisplay timeIntervalSinceNow]) <
+                         kInfobarDisplayIntervalInSeconds) {
+    return YES;
+  }
+  return NO;
 }
 
 - (void)applicationWillEnterForeground:(NSNotification*)note {
@@ -328,7 +312,8 @@ class UpgradeInfoBarDismissObserver
                                                tabId:tabId];
 
   [_upgradeInfoBarDelegates setObject:delegateHolder forKey:tabId];
-  infoBarManager->AddInfoBar(CreateConfirmInfoBar(std::move(infobarDelegate)));
+  infoBarManager->AddInfoBar(
+      infoBarManager->CreateConfirmInfoBar(std::move(infobarDelegate)));
 }
 
 - (void)tabWillClose:(NSString*)tabId {
@@ -461,10 +446,9 @@ class UpgradeInfoBarDismissObserver
 }
 
 - (void)setLastDisplayToPast {
-  const base::Time pastDate =
-      base::Time::Now() - kInfobarDisplayInterval - base::Seconds(1);
-
-  [[NSUserDefaults standardUserDefaults] setObject:pastDate.ToNSDate()
+  NSDate* pastDate = [NSDate
+      dateWithTimeIntervalSinceNow:-(kInfobarDisplayIntervalInSeconds + 1)];
+  [[NSUserDefaults standardUserDefaults] setObject:pastDate
                                             forKey:kLastInfobarDisplayTimeKey];
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,8 @@
 #include <memory>
 
 #include "base/callback_forward.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "content/shell/browser/shell_javascript_dialog_manager.h"
 
 namespace content {
@@ -15,20 +17,14 @@ namespace content {
 class WebTestJavaScriptDialogManager : public ShellJavaScriptDialogManager {
  public:
   WebTestJavaScriptDialogManager();
-
-  WebTestJavaScriptDialogManager(const WebTestJavaScriptDialogManager&) =
-      delete;
-  WebTestJavaScriptDialogManager& operator=(
-      const WebTestJavaScriptDialogManager&) = delete;
-
   ~WebTestJavaScriptDialogManager() override;
 
   // JavaScriptDialogManager:
   void RunJavaScriptDialog(WebContents* web_contents,
                            RenderFrameHost* render_frame_host,
                            JavaScriptDialogType dialog_type,
-                           const std::u16string& message_text,
-                           const std::u16string& default_prompt_text,
+                           const base::string16& message_text,
+                           const base::string16& default_prompt_text,
                            DialogClosedCallback callback,
                            bool* did_suppress_message) override;
 
@@ -36,6 +32,9 @@ class WebTestJavaScriptDialogManager : public ShellJavaScriptDialogManager {
                              RenderFrameHost* render_frame_host,
                              bool is_reload,
                              DialogClosedCallback callback) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WebTestJavaScriptDialogManager);
 };
 
 }  // namespace content

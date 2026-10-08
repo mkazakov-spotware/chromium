@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Helpers for processing conditionally enabled features in a mojom."""
@@ -17,10 +17,8 @@ class EnableIfError(Error):
 def _IsEnabled(definition, enabled_features):
   """Returns true if a definition is enabled.
 
-  A definition is enabled if it has no EnableIf/EnableIfNot attribute.
-  It is retained if it has an EnableIf attribute and the attribute is in
-  enabled_features. It is retained if it has an EnableIfNot attribute and the
-  attribute is not in enabled features.
+  A definition is enabled if it has no EnableIf attribute, or if the value of
+  the EnableIf attribute is in enabled_features.
   """
   if not hasattr(definition, "attribute_list"):
     return True
@@ -29,18 +27,16 @@ def _IsEnabled(definition, enabled_features):
 
   already_defined = False
   for a in definition.attribute_list:
-    if a.key == 'EnableIf' or a.key == 'EnableIfNot':
+    if a.key == 'EnableIf':
       if already_defined:
         raise EnableIfError(
             definition.filename,
-            "EnableIf/EnableIfNot attribute may only be set once per field.",
+            "EnableIf attribute may only be defined once per field.",
             definition.lineno)
       already_defined = True
 
   for attribute in definition.attribute_list:
     if attribute.key == 'EnableIf' and attribute.value not in enabled_features:
-      return False
-    if attribute.key == 'EnableIfNot' and attribute.value in enabled_features:
       return False
   return True
 

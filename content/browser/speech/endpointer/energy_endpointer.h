@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,6 +42,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "content/browser/speech/endpointer/energy_endpointer_params.h"
 #include "content/common/content_export.h"
 
@@ -61,10 +62,6 @@ class CONTENT_EXPORT EnergyEndpointer {
   // The default construction MUST be followed by Init(), before any
   // other use can be made of the instance.
   EnergyEndpointer();
-
-  EnergyEndpointer(const EnergyEndpointer&) = delete;
-  EnergyEndpointer& operator=(const EnergyEndpointer&) = delete;
-
   virtual ~EnergyEndpointer();
 
   void Init(const EnergyEndpointerParams& params);
@@ -155,6 +152,8 @@ class CONTENT_EXPORT EnergyEndpointer {
   // Time when mode switched from environment estimation to user input. This
   // is used to time forced rejection of audio feedback contamination.
   int64_t user_input_start_time_us_;
+
+  DISALLOW_COPY_AND_ASSIGN(EnergyEndpointer);
 };
 
 }  // namespace content

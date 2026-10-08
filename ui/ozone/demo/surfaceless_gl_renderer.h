@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "ui/gfx/geometry/rect_f.h"
-#include "ui/gfx/native_pixmap.h"
 #include "ui/ozone/demo/gl_renderer.h"
 
 namespace gl {
@@ -27,10 +27,6 @@ class SurfacelessGlRenderer : public RendererBase {
                         std::unique_ptr<PlatformWindowSurface> window_surface,
                         const scoped_refptr<gl::GLSurface>& surface,
                         const gfx::Size& size);
-
-  SurfacelessGlRenderer(const SurfacelessGlRenderer&) = delete;
-  SurfacelessGlRenderer& operator=(const SurfacelessGlRenderer&) = delete;
-
   ~SurfacelessGlRenderer() override;
 
   // Renderer:
@@ -46,7 +42,7 @@ class SurfacelessGlRenderer : public RendererBase {
     BufferWrapper();
     ~BufferWrapper();
 
-    scoped_refptr<gfx::NativePixmap> image() const;
+    gl::GLImage* image() const { return image_.get(); }
 
     bool Initialize(gfx::AcceleratedWidget widget, const gfx::Size& size);
     void BindFramebuffer();
@@ -80,6 +76,8 @@ class SurfacelessGlRenderer : public RendererBase {
   scoped_refptr<gl::GLContext> context_;
 
   base::WeakPtrFactory<SurfacelessGlRenderer> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SurfacelessGlRenderer);
 };
 
 }  // namespace ui

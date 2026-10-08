@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,13 +39,15 @@ void DriveServiceWrapper::DeleteResource(
 void DriveServiceWrapper::DownloadFile(
     const base::FilePath& local_cache_path,
     const std::string& resource_id,
-    google_apis::DownloadActionCallback download_action_callback,
+    const google_apis::DownloadActionCallback& download_action_callback,
     const google_apis::GetContentCallback& get_content_callback,
     google_apis::ProgressCallback progress_callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  drive_service_->DownloadFile(local_cache_path, resource_id,
-                               std::move(download_action_callback),
-                               get_content_callback, progress_callback);
+  drive_service_->DownloadFile(local_cache_path,
+                               resource_id,
+                               download_action_callback,
+                               get_content_callback,
+                               progress_callback);
 }
 
 void DriveServiceWrapper::GetAboutResource(

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,8 +41,8 @@ void InkDropRipple::AnimateToState(InkDropState ink_drop_state) {
     GetRootLayer()->SetVisible(true);
   }
 
-  AnimateStateChange(old_ink_drop_state, target_ink_drop_state_);
-
+  AnimateStateChange(old_ink_drop_state, target_ink_drop_state_,
+                     animation_observer_.get());
   animation_observer_->SetActive();
   // |this| may be deleted! |animation_observer_| might synchronously call
   // AnimationEndedCallback which can delete |this|.
@@ -75,10 +75,6 @@ void InkDropRipple::SnapToHidden() {
 
 test::InkDropRippleTestApi* InkDropRipple::GetTestApi() {
   return nullptr;
-}
-
-ui::LayerAnimationObserver* InkDropRipple::GetLayerAnimationObserver() {
-  return animation_observer_.get();
 }
 
 void InkDropRipple::AnimationStartedCallback(

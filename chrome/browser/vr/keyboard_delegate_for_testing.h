@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <queue>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/vr/keyboard_delegate.h"
 #include "chrome/browser/vr/model/text_input_info.h"
 #include "chrome/browser/vr/ui_test_input.h"
@@ -26,11 +26,6 @@ struct CameraModel;
 class VR_BASE_EXPORT KeyboardDelegateForTesting : public KeyboardDelegate {
  public:
   KeyboardDelegateForTesting();
-
-  KeyboardDelegateForTesting(const KeyboardDelegateForTesting&) = delete;
-  KeyboardDelegateForTesting& operator=(const KeyboardDelegateForTesting&) =
-      delete;
-
   ~KeyboardDelegateForTesting() override;
 
   void QueueKeyboardInputForTesting(KeyboardTestInput keyboard_input);
@@ -50,11 +45,13 @@ class VR_BASE_EXPORT KeyboardDelegateForTesting : public KeyboardDelegate {
   void UpdateInput(const TextInputInfo& info) override;
 
  private:
-  raw_ptr<KeyboardUiInterface> ui_;
+  KeyboardUiInterface* ui_;
   std::queue<KeyboardTestInput> keyboard_input_queue_;
   TextInputInfo cached_keyboard_input_;
   bool keyboard_shown_ = false;
   bool pause_keyboard_input_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(KeyboardDelegateForTesting);
 };
 
 }  // namespace vr

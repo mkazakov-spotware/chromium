@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,10 @@
 #include <vector>
 
 #include "base/callback_helpers.h"
-#include "base/memory/scoped_refptr.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_service.h"
 #include "components/browsing_data/core/counters/autofill_counter.h"
 #include "components/browsing_data/core/counters/history_counter.h"
@@ -30,9 +29,8 @@ namespace {
 class FakeWebDataService : public autofill::AutofillWebDataService {
  public:
   FakeWebDataService()
-      : AutofillWebDataService(
-            base::SingleThreadTaskRunner::GetCurrentDefault(),
-            base::SingleThreadTaskRunner::GetCurrentDefault()) {}
+      : AutofillWebDataService(base::ThreadTaskRunnerHandle::Get(),
+                               base::ThreadTaskRunnerHandle::Get()) {}
 
  protected:
   ~FakeWebDataService() override = default;
@@ -57,7 +55,8 @@ class BrowsingDataUtilsTest : public testing::Test {
 
 // Tests the complex output of the Autofill counter.
 TEST_F(BrowsingDataUtilsTest, AutofillCounterResult) {
-  AutofillCounter counter(base::MakeRefCounted<FakeWebDataService>(), nullptr);
+  AutofillCounter counter(
+      scoped_refptr<FakeWebDataService>(new FakeWebDataService()), nullptr);
 
   // Test all configurations of zero and nonzero partial results for datatypes.
   // Test singular and plural for each datatype.
@@ -95,18 +94,17 @@ TEST_F(BrowsingDataUtilsTest, AutofillCounterResult) {
                            test_case.num_credit_cards, test_case.num_addresses,
                            test_case.num_suggestions));
 
-    std::u16string output = browsing_data::GetCounterTextFromResult(&result);
+    base::string16 output = browsing_data::GetCounterTextFromResult(&result);
     EXPECT_EQ(output, base::ASCIIToUTF16(test_case.expected_output));
   }
 }
 
 // Tests the output of the Passwords counter.
 TEST_F(BrowsingDataUtilsTest, PasswordsCounterResult) {
-  auto store = base::MakeRefCounted<password_manager::TestPasswordStore>();
-  store->Init(prefs(), /*affiliated_match_helper=*/nullptr);
+  scoped_refptr<password_manager::TestPasswordStore> store(
+      new password_manager::TestPasswordStore());
   PasswordsCounter counter(
-      scoped_refptr<password_manager::PasswordStoreInterface>(store), nullptr,
-      nullptr);
+      scoped_refptr<password_manager::PasswordStore>(store), nullptr, nullptr);
 
   // Use a separate struct for input to make test cases easier to read after
   // auto formatting.
@@ -148,7 +146,7 @@ TEST_F(BrowsingDataUtilsTest, PasswordsCounterResult) {
     SCOPED_TRACE(base::StringPrintf(
         "Test params: %d password(s), %d account password(s), %d is_synced",
         input.num_passwords, input.num_account_passwords, input.is_synced));
-    std::u16string output = browsing_data::GetCounterTextFromResult(&result);
+    base::string16 output = browsing_data::GetCounterTextFromResult(&result);
     EXPECT_EQ(output, base::ASCIIToUTF16(test_case.expected_output));
   }
   store->ShutdownOnUIThread();
@@ -189,7 +187,7 @@ TEST_F(BrowsingDataUtilsTest, HistoryCounterResult) {
     SCOPED_TRACE(
         base::StringPrintf("Test params: %d history, %d has_synced_visits",
                            test_case.num_history, test_case.has_sync_visits));
-    std::u16string output = browsing_data::GetCounterTextFromResult(&result);
+    base::string16 output = browsing_data::GetCounterTextFromResult(&result);
     EXPECT_EQ(output, base::ASCIIToUTF16(test_case.expected_output));
   }
 }

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,36 +9,38 @@
 #include <string>
 #include <vector>
 
-#include "base/command_line.h"
-#include "base/values.h"
-#include "content/public/browser/devtools_agent_host.h"
 #include "content/public/test/browser_test.h"
+#include "headless/public/devtools/domains/runtime.h"
+#include "headless/public/headless_devtools_client.h"
 #include "headless/test/headless_browser_test.h"
-#include "headless/test/headless_devtooled_browsertest.h"
 
 namespace headless {
 
-class HeadlessProtocolBrowserTest : public HeadlessDevTooledBrowserTest {
+class HeadlessProtocolBrowserTest
+    : public HeadlessAsyncDevTooledBrowserTest,
+      public HeadlessDevToolsClient::RawProtocolListener,
+      public runtime::ExperimentalObserver {
  public:
   HeadlessProtocolBrowserTest();
-  ~HeadlessProtocolBrowserTest() override;
 
  protected:
   void SetUpCommandLine(base::CommandLine* command_line) override;
 
-  virtual base::Value::Dict GetPageUrlExtraParams();
-
-  virtual bool RequiresSitePerProcess();
+  virtual std::vector<std::string> GetPageUrlExtraParams();
 
  private:
   // HeadlessWebContentsObserver implementation.
   void RunDevTooledTest() override;
+  void BindingCreated(std::unique_ptr<headless::runtime::AddBindingResult>);
 
-  void OnLoadEventFired(const base::Value::Dict& params);
-  void OnEvaluateResult(base::Value::Dict params);
-  void OnConsoleAPICalled(const base::Value::Dict& params);
+  // runtime::Observer implementation.
+  void OnBindingCalled(const runtime::BindingCalledParams& params) override;
 
-  void ProcessTestResult(const std::string& test_result);
+  // HeadlessDevToolsClient::RawProtocolListener
+  bool OnProtocolMessage(base::span<const uint8_t> json_message,
+                         const base::DictionaryValue& parsed_message) override;
+
+  void SendMessageToJS(base::StringPiece message);
   void FinishTest();
 
  protected:

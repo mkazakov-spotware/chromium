@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2009 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Provides facilities for creating and querying tweaks.
@@ -21,8 +29,18 @@ goog.require('goog.tweak.ButtonAction');
 goog.require('goog.tweak.NumericSetting');
 goog.require('goog.tweak.Registry');
 goog.require('goog.tweak.StringSetting');
-goog.requireType('goog.tweak.BaseEntry');
 
+
+/**
+ * Calls to this function are overridden by the compiler by the processTweaks
+ * pass. It returns the overrides to default values for tweaks set by compiler
+ * options.
+ * @return {!Object<number|string|boolean>} A map of tweakId -> defaultValue.
+ * @private
+ */
+goog.tweak.getCompilerOverrides_ = function() {
+  return {};
+};
 
 
 /**
@@ -44,13 +62,12 @@ goog.tweak.activeBooleanGroup_ = null;
 /**
  * Returns/creates the registry singleton.
  * @return {!goog.tweak.Registry} The tweak registry.
- * @deprecated
  */
 goog.tweak.getRegistry = function() {
-  'use strict';
   if (!goog.tweak.registry_) {
     var queryString = window.location.search;
-    goog.tweak.registry_ = new goog.tweak.Registry(queryString);
+    var overrides = goog.tweak.getCompilerOverrides_();
+    goog.tweak.registry_ = new goog.tweak.Registry(queryString, overrides);
   }
   return goog.tweak.registry_;
 };
@@ -80,7 +97,6 @@ goog.tweak.ConfigParams;
  * @private
  */
 goog.tweak.applyConfigParams_ = function(entry, configParams) {
-  'use strict';
   if (configParams.label) {
     entry.label = configParams.label;
     delete configParams.label;
@@ -140,7 +156,6 @@ goog.tweak.applyConfigParams_ = function(entry, configParams) {
  * @private
  */
 goog.tweak.doRegister_ = function(entry, opt_defaultValue, opt_configParams) {
-  'use strict';
   if (opt_configParams) {
     goog.tweak.applyConfigParams_(entry, opt_configParams);
   }
@@ -170,7 +185,6 @@ goog.tweak.doRegister_ = function(entry, opt_defaultValue, opt_configParams) {
  *     parameters.
  */
 goog.tweak.beginBooleanGroup = function(id, description, opt_configParams) {
-  'use strict';
   var entry = new goog.tweak.BooleanGroup(id, description);
   goog.tweak.doRegister_(entry, undefined, opt_configParams);
   goog.tweak.activeBooleanGroup_ = entry;
@@ -181,7 +195,6 @@ goog.tweak.beginBooleanGroup = function(id, description, opt_configParams) {
  * Stops adding boolean entries to the active boolean group.
  */
 goog.tweak.endBooleanGroup = function() {
-  'use strict';
   goog.tweak.activeBooleanGroup_ = null;
 };
 
@@ -193,11 +206,9 @@ goog.tweak.endBooleanGroup = function() {
  * @param {boolean=} opt_defaultValue The default value for the setting.
  * @param {goog.tweak.ConfigParams=} opt_configParams Extra configuration
  *     parameters.
- * @deprecated
  */
 goog.tweak.registerBoolean = function(
     id, description, opt_defaultValue, opt_configParams) {
-  'use strict';
   // TODO(agrieve): There is a bug in the compiler that causes these calls not
   //     to be stripped without this outer if. Might be Issue #90.
   if (goog.tweak.activeBooleanGroup_) {
@@ -217,11 +228,9 @@ goog.tweak.registerBoolean = function(
  * @param {string=} opt_defaultValue The default value for the setting.
  * @param {goog.tweak.ConfigParams=} opt_configParams Extra configuration
  *     parameters.
- * @deprecated
  */
 goog.tweak.registerString = function(
     id, description, opt_defaultValue, opt_configParams) {
-  'use strict';
   goog.tweak.doRegister_(
       new goog.tweak.StringSetting(id, description), opt_defaultValue,
       opt_configParams);
@@ -235,11 +244,9 @@ goog.tweak.registerString = function(
  * @param {number=} opt_defaultValue The default value for the setting.
  * @param {goog.tweak.ConfigParams=} opt_configParams Extra configuration
  *     parameters.
- * @deprecated
  */
 goog.tweak.registerNumber = function(
     id, description, opt_defaultValue, opt_configParams) {
-  'use strict';
   goog.tweak.doRegister_(
       new goog.tweak.NumericSetting(id, description), opt_defaultValue,
       opt_configParams);
@@ -254,10 +261,21 @@ goog.tweak.registerNumber = function(
  * @param {string=} opt_label The button text (instead of the ID).
  */
 goog.tweak.registerButton = function(id, description, callback, opt_label) {
-  'use strict';
   var tweak = new goog.tweak.ButtonAction(id, description, callback);
   tweak.label = opt_label || tweak.label;
   goog.tweak.doRegister_(tweak);
+};
+
+
+/**
+ * Sets a default value to use for the given tweak instead of the one passed
+ * to the register* function. This function must be called before the tweak is
+ * registered.
+ * @param {string} id The unique string that identifies the entry.
+ * @param {string|number|boolean} value The new default value for the tweak.
+ */
+goog.tweak.overrideDefaultValue = function(id, value) {
+  goog.tweak.getRegistry().overrideDefaultValue(id, value);
 };
 
 
@@ -267,7 +285,6 @@ goog.tweak.registerButton = function(id, description, callback, opt_label) {
  * @return {boolean} The value of the tweak.
  */
 goog.tweak.getBoolean = function(id) {
-  'use strict';
   return goog.tweak.getRegistry().getBooleanSetting(id).getValue();
 };
 
@@ -278,7 +295,6 @@ goog.tweak.getBoolean = function(id) {
  * @return {string} The value of the tweak.
  */
 goog.tweak.getString = function(id) {
-  'use strict';
   return goog.tweak.getRegistry().getStringSetting(id).getValue();
 };
 
@@ -289,6 +305,5 @@ goog.tweak.getString = function(id) {
  * @return {number} The value of the tweak.
  */
 goog.tweak.getNumber = function(id) {
-  'use strict';
   return goog.tweak.getRegistry().getNumericSetting(id).getValue();
 };

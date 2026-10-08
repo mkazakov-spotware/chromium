@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <memory>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
 #include "media/base/audio_decoder.h"
 #include "media/mojo/mojom/audio_decoder.mojom.h"
@@ -30,16 +31,12 @@ class MojoAudioDecoder final : public AudioDecoder,
  public:
   MojoAudioDecoder(scoped_refptr<base::SequencedTaskRunner> task_runner,
                    mojo::PendingRemote<mojom::AudioDecoder> remote_decoder);
-
-  MojoAudioDecoder(const MojoAudioDecoder&) = delete;
-  MojoAudioDecoder& operator=(const MojoAudioDecoder&) = delete;
-
   ~MojoAudioDecoder() final;
 
   // Decoder implementation
   bool IsPlatformDecoder() const final;
   bool SupportsDecryption() const final;
-  AudioDecoderType GetDecoderType() const override;
+  std::string GetDisplayName() const final;
 
   // AudioDecoder implementation.
   void Initialize(const AudioDecoderConfig& config,
@@ -66,15 +63,13 @@ class MojoAudioDecoder final : public AudioDecoder,
   void OnConnectionError();
 
   // Fail an initialization with a Status.
-  void FailInit(InitCB init_cb, DecoderStatus err);
+  void FailInit(InitCB init_cb, Status err);
 
   // Called when |remote_decoder_| finished initialization.
-  void OnInitialized(const DecoderStatus& status,
-                     bool needs_bitstream_conversion,
-                     AudioDecoderType decoder_type);
+  void OnInitialized(const Status& status, bool needs_bitstream_conversion);
 
   // Called when |remote_decoder_| accepted or rejected DecoderBuffer.
-  void OnDecodeStatus(const DecoderStatus& decode_status);
+  void OnDecodeStatus(const Status& decode_status);
 
   // called when |remote_decoder_| finished Reset() sequence.
   void OnResetDone();
@@ -108,7 +103,8 @@ class MojoAudioDecoder final : public AudioDecoder,
   // Flag telling whether this decoder requires bitstream conversion.
   // Passed from |remote_decoder_| as a result of its initialization.
   bool needs_bitstream_conversion_ = false;
-  AudioDecoderType decoder_type_ = AudioDecoderType::kUnknown;
+
+  DISALLOW_COPY_AND_ASSIGN(MojoAudioDecoder);
 };
 
 }  // namespace media

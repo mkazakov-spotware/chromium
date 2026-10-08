@@ -27,11 +27,7 @@
 
 #include <limits>
 #include "third_party/blink/renderer/platform/image-decoders/segment_stream.h"
-#include "third_party/skia/include/codec/SkCodec.h"
-#include "third_party/skia/include/codec/SkCodecAnimation.h"
-#include "third_party/skia/include/core/SkAlphaType.h"
-#include "third_party/skia/include/core/SkColorType.h"
-#include "third_party/skia/include/core/SkEncodedImageFormat.h"
+#include "third_party/blink/renderer/platform/wtf/wtf_size_t.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
 
 namespace blink {
@@ -56,7 +52,7 @@ ImageFrame::DisposalMethod ConvertDisposalMethod(
 
 GIFImageDecoder::GIFImageDecoder(AlphaOption alpha_option,
                                  const ColorBehavior& color_behavior,
-                                 wtf_size_t max_decoded_bytes)
+                                 size_t max_decoded_bytes)
     : ImageDecoder(alpha_option,
                    ImageDecoder::kDefaultBitDepth,
                    color_behavior,
@@ -156,14 +152,14 @@ int GIFImageDecoder::RepetitionCount() const {
   return repetition_count_;
 }
 
-bool GIFImageDecoder::FrameIsReceivedAtIndex(wtf_size_t index) const {
+bool GIFImageDecoder::FrameIsReceivedAtIndex(size_t index) const {
   SkCodec::FrameInfo frame_info;
   if (!codec_ || !codec_->getFrameInfo(index, &frame_info))
     return false;
   return frame_info.fFullyReceived;
 }
 
-base::TimeDelta GIFImageDecoder::FrameDurationAtIndex(wtf_size_t index) const {
+base::TimeDelta GIFImageDecoder::FrameDurationAtIndex(size_t index) const {
   if (index < frame_buffer_cache_.size())
     return frame_buffer_cache_[index].Duration();
   return base::TimeDelta();
@@ -175,7 +171,7 @@ bool GIFImageDecoder::SetFailed() {
   return ImageDecoder::SetFailed();
 }
 
-wtf_size_t GIFImageDecoder::ClearCacheExceptFrame(wtf_size_t index) {
+size_t GIFImageDecoder::ClearCacheExceptFrame(size_t index) {
   if (frame_buffer_cache_.size() <= 1)
     return 0;
 
@@ -183,7 +179,7 @@ wtf_size_t GIFImageDecoder::ClearCacheExceptFrame(wtf_size_t index) {
   // possible that frame has been evicted. A later frame which could also
   // be used as the required frame may still be cached. Try to preserve a frame
   // that is still cached.
-  wtf_size_t index2 = kNotFound;
+  size_t index2 = kNotFound;
   if (index < frame_buffer_cache_.size()) {
     const ImageFrame& frame = frame_buffer_cache_[index];
     if (frame.RequiredPreviousFrameIndex() != kNotFound &&
@@ -196,14 +192,14 @@ wtf_size_t GIFImageDecoder::ClearCacheExceptFrame(wtf_size_t index) {
   return ClearCacheExceptTwoFrames(index, index2);
 }
 
-wtf_size_t GIFImageDecoder::DecodeFrameCount() {
+size_t GIFImageDecoder::DecodeFrameCount() {
   if (!codec_ || segment_stream_->IsCleared())
     return frame_buffer_cache_.size();
 
   return codec_->getFrameCount();
 }
 
-void GIFImageDecoder::InitializeNewFrame(wtf_size_t index) {
+void GIFImageDecoder::InitializeNewFrame(size_t index) {
   DCHECK(codec_);
 
   ImageFrame& frame = frame_buffer_cache_[index];
@@ -211,25 +207,25 @@ void GIFImageDecoder::InitializeNewFrame(wtf_size_t index) {
   // the current frame. Because of this, rather than correctly filling in the
   // frame rect, we set the frame rect to be the image's full size.
   // The original frame rect is not used, anyway.
-  gfx::Size full_image_size = Size();
-  frame.SetOriginalFrameRect(gfx::Rect(full_image_size));
+  IntSize full_image_size = Size();
+  frame.SetOriginalFrameRect(IntRect(IntPoint(), full_image_size));
 
   SkCodec::FrameInfo frame_info;
   bool frame_info_received = codec_->getFrameInfo(index, &frame_info);
   DCHECK(frame_info_received);
-  frame.SetDuration(base::Milliseconds(frame_info.fDuration));
-  wtf_size_t required_previous_frame_index;
+  frame.SetDuration(base::TimeDelta::FromMilliseconds(frame_info.fDuration));
+  size_t required_previous_frame_index;
   if (frame_info.fRequiredFrame == SkCodec::kNoFrame) {
     required_previous_frame_index = kNotFound;
   } else {
     required_previous_frame_index =
-        static_cast<wtf_size_t>(frame_info.fRequiredFrame);
+        static_cast<size_t>(frame_info.fRequiredFrame);
   }
   frame.SetRequiredPreviousFrameIndex(required_previous_frame_index);
   frame.SetDisposalMethod(ConvertDisposalMethod(frame_info.fDisposalMethod));
 }
 
-void GIFImageDecoder::Decode(wtf_size_t index) {
+void GIFImageDecoder::Decode(size_t index) {
   if (!codec_ || segment_stream_->IsCleared())
     return;
 
@@ -244,15 +240,14 @@ void GIFImageDecoder::Decode(wtf_size_t index) {
   UpdateAggressivePurging(index);
 
   if (frame.GetStatus() == ImageFrame::kFrameEmpty) {
-    wtf_size_t required_previous_frame_index =
-        frame.RequiredPreviousFrameIndex();
+    size_t required_previous_frame_index = frame.RequiredPreviousFrameIndex();
     if (required_previous_frame_index == kNotFound) {
-      frame.AllocatePixelData(Size().width(), Size().height(),
+      frame.AllocatePixelData(Size().Width(), Size().Height(),
                               ColorSpaceForSkImages());
       frame.ZeroFillPixelData();
       prior_frame_ = SkCodec::kNoFrame;
     } else {
-      wtf_size_t previous_frame_index = GetViableReferenceFrameIndex(index);
+      size_t previous_frame_index = GetViableReferenceFrameIndex(index);
       if (previous_frame_index == kNotFound) {
         previous_frame_index = required_previous_frame_index;
         Decode(previous_frame_index);
@@ -341,18 +336,17 @@ void GIFImageDecoder::Decode(wtf_size_t index) {
   }
 }
 
-bool GIFImageDecoder::CanReusePreviousFrameBuffer(
-    wtf_size_t frame_index) const {
+bool GIFImageDecoder::CanReusePreviousFrameBuffer(size_t frame_index) const {
   DCHECK_LT(frame_index, frame_buffer_cache_.size());
   return frame_buffer_cache_[frame_index].GetDisposalMethod() !=
          ImageFrame::kDisposeOverwritePrevious;
 }
 
-wtf_size_t GIFImageDecoder::GetViableReferenceFrameIndex(
-    wtf_size_t dependent_index) const {
+size_t GIFImageDecoder::GetViableReferenceFrameIndex(
+    size_t dependent_index) const {
   DCHECK_LT(dependent_index, frame_buffer_cache_.size());
 
-  wtf_size_t required_previous_frame_index =
+  size_t required_previous_frame_index =
       frame_buffer_cache_[dependent_index].RequiredPreviousFrameIndex();
 
   // Any frame in the range [|required_previous_frame_index|, |dependent_index|)
@@ -366,7 +360,7 @@ wtf_size_t GIFImageDecoder::GetViableReferenceFrameIndex(
   DCHECK_NE(required_previous_frame_index, kNotFound);
   // Loop backwards because the frames most likely to be in cache are the most
   // recent.
-  for (wtf_size_t i = dependent_index - 1; i != required_previous_frame_index;
+  for (size_t i = dependent_index - 1; i != required_previous_frame_index;
        i--) {
     const ImageFrame& frame = frame_buffer_cache_[i];
 

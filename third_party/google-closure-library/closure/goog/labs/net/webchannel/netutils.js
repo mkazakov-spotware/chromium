@@ -1,13 +1,20 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2013 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Utility functions for managing networking, such as
  * testing network connectivity.
- *
  */
 
 
@@ -17,9 +24,8 @@ goog.require('goog.Uri');
 goog.require('goog.labs.net.webChannel.WebChannelDebug');
 
 goog.scope(function() {
-'use strict';
-const netUtils = goog.labs.net.webChannel.netUtils;
-const WebChannelDebug = goog.labs.net.webChannel.WebChannelDebug;
+var netUtils = goog.labs.net.webChannel.netUtils;
+var WebChannelDebug = goog.labs.net.webChannel.WebChannelDebug;
 
 
 /**
@@ -41,8 +47,7 @@ netUtils.NETWORK_TIMEOUT = 10000;
  *     test.
  */
 netUtils.testNetwork = function(callback, opt_imageUri) {
-  'use strict';
-  let uri = opt_imageUri;
+  var uri = opt_imageUri;
   if (!uri) {
     // default google.com image
     uri = new goog.Uri('//www.google.com/images/cleardot.gif');
@@ -69,7 +74,6 @@ netUtils.testNetwork = function(callback, opt_imageUri) {
  */
 netUtils.testLoadImageWithRetries = function(
     url, timeout, callback, retries, channelDebug, opt_pauseBetweenRetriesMS) {
-  'use strict';
   channelDebug.debug('TestLoadImageWithRetries: ' + opt_pauseBetweenRetriesMS);
   if (retries == 0) {
     // no more retries, give up
@@ -77,16 +81,14 @@ netUtils.testLoadImageWithRetries = function(
     return;
   }
 
-  const pauseBetweenRetries = opt_pauseBetweenRetriesMS || 0;
+  var pauseBetweenRetries = opt_pauseBetweenRetriesMS || 0;
   retries--;
   netUtils.testLoadImage(url, timeout, function(succeeded) {
-    'use strict';
     if (succeeded) {
       callback(true);
     } else {
       // try again
       goog.global.setTimeout(function() {
-        'use strict';
         netUtils.testLoadImageWithRetries(
             url, timeout, callback, retries, channelDebug, pauseBetweenRetries);
       }, pauseBetweenRetries);
@@ -103,11 +105,10 @@ netUtils.testLoadImageWithRetries = function(
  * @suppress {strictMissingProperties} Part of the go/strict_warnings_migration
  */
 netUtils.testLoadImage = function(url, timeout, callback) {
-  'use strict';
-  const channelDebug = new WebChannelDebug();
+  var channelDebug = new WebChannelDebug();
   channelDebug.debug('TestLoadImage: loading ' + url);
   if (goog.global.Image) {
-    const img = new Image();
+    var img = new Image();
     img.onload = goog.partial(
         netUtils.imageCallback_, channelDebug, img, 'TestLoadImage: loaded',
         true, callback);
@@ -122,7 +123,6 @@ netUtils.testLoadImage = function(url, timeout, callback) {
         false, callback);
 
     goog.global.setTimeout(function() {
-      'use strict';
       if (img.ontimeout) {
         img.ontimeout();
       }
@@ -146,7 +146,6 @@ netUtils.testLoadImage = function(url, timeout, callback) {
  */
 netUtils.imageCallback_ = function(
     channelDebug, img, debugText, result, callback) {
-  'use strict';
   try {
     channelDebug.debug(debugText);
     netUtils.clearImageCallbacks_(img);
@@ -164,7 +163,6 @@ netUtils.imageCallback_ = function(
  * @suppress {strictMissingProperties} Part of the go/strict_warnings_migration
  */
 netUtils.clearImageCallbacks_ = function(img) {
-  'use strict';
   img.onload = null;
   img.onerror = null;
   img.onabort = null;

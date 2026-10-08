@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@ package org.chromium.support_lib_glue;
 
 import android.webkit.WebResourceResponse;
 
+import com.android.webview.chromium.ServiceWorkerClientAdapter;
 import com.android.webview.chromium.WebResourceRequestAdapter;
 
 import org.chromium.android_webview.AwContentsClient.AwWebResourceRequest;
@@ -34,11 +35,6 @@ class SupportLibServiceWorkerClientAdapter extends AwServiceWorkerClient {
         }
         WebResourceResponse response =
                 mImpl.shouldInterceptRequest(new WebResourceRequestAdapter(request));
-        if (response == null) {
-            return null;
-        }
-        return new WebResourceResponseInfo(response.getMimeType(), response.getEncoding(),
-                response.getData(), response.getStatusCode(), response.getReasonPhrase(),
-                response.getResponseHeaders());
+        return ServiceWorkerClientAdapter.fromWebResourceResponse(response);
     }
 }

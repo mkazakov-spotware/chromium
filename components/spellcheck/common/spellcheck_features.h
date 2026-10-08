@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,8 +15,8 @@ namespace spellcheck {
 
 bool UseBrowserSpellChecker();
 
-#if BUILDFLAG(IS_WIN)
-BASE_DECLARE_FEATURE(kWinUseBrowserSpellChecker);
+#if defined(OS_WIN)
+extern const base::Feature kWinUseBrowserSpellChecker;
 
 // If the kWinDelaySpellcheckServiceInit feature flag is enabled, don't
 // initialize the spellcheck dictionaries when the SpellcheckService is
@@ -36,20 +36,17 @@ BASE_DECLARE_FEATURE(kWinUseBrowserSpellChecker);
 //     chrome
 //    --enable-features=WinUseBrowserSpellChecker,WinDelaySpellcheckServiceInit
 //    --disable-sync-types="Dictionary"
-BASE_DECLARE_FEATURE(kWinDelaySpellcheckServiceInit);
-
-// When set, do not perform the expensive operation of retrieving suggestions
-// for all misspelled words while performing a text check. Instead retrieve
-// suggestions on demand when the context menu is brought up with a misspelled
-// word selected.
-BASE_DECLARE_FEATURE(kWinRetrieveSuggestionsOnlyOnDemand);
+extern const base::Feature kWinDelaySpellcheckServiceInit;
 
 bool WindowsVersionSupportsSpellchecker();
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
+extern const base::Feature kAndroidSpellChecker;
+extern const base::Feature kAndroidSpellCheckerNonLowEnd;
+
 bool IsAndroidSpellCheckFeatureEnabled();
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 #endif  // BUILDFLAG(ENABLE_SPELLCHECK)
 

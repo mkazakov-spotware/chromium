@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,11 +22,10 @@ namespace chromeos {
 class StorageApitest : public LoginScreenApitestBase {
  public:
   StorageApitest() : LoginScreenApitestBase(version_info::Channel::DEV) {}
-
-  StorageApitest(const StorageApitest&) = delete;
-  StorageApitest& operator=(const StorageApitest&) = delete;
-
   ~StorageApitest() override = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(StorageApitest);
 };
 
 IN_PROC_BROWSER_TEST_F(StorageApitest, CannotAccessLocalStorage) {

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,13 @@ import androidx.annotation.NonNull;
 
 /**
  * Parameters for {@link NavigationController#navigate}.
+ *
+ * @since 83
  */
-class NavigateParams {
-    private boolean mShouldReplaceCurrentEntry;
+public class NavigateParams {
+    private org.chromium.weblayer_private.interfaces.NavigateParams mInterfaceParams =
+            new org.chromium.weblayer_private.interfaces.NavigateParams();
     private boolean mIntentProcessingDisabled;
-    private boolean mIntentLaunchesAllowedInBackground;
     private boolean mNetworkErrorAutoReloadDisabled;
     private boolean mAutoPlayEnabled;
     private WebResourceResponse mResponse;
@@ -46,7 +48,7 @@ class NavigateParams {
          */
         @NonNull
         public Builder setShouldReplaceCurrentEntry(boolean replace) {
-            mParams.mShouldReplaceCurrentEntry = replace;
+            mParams.mInterfaceParams.mShouldReplaceCurrentEntry = replace;
             return this;
         }
 
@@ -56,28 +58,16 @@ class NavigateParams {
          * create and launch an Intent. The exact heuristics of when Intent matching is performed
          * depends upon a wide range of state (such as the uri being navigated to, navigation
          * stack...).
+         *
+         * @since 86
          */
         @NonNull
         public Builder disableIntentProcessing() {
-            mParams.mIntentProcessingDisabled = true;
-            return this;
-        }
-
-        /**
-         * Enables intent launching to occur for this navigation even if it is being executed in a
-         * background (i.e., non-visible) tab (by default, intent launches are disallowed in
-         * background tabs).
-         *
-         * @since 89
-         */
-        @NonNull
-        public Builder allowIntentLaunchesInBackground() {
             if (WebLayer.shouldPerformVersionChecks()
-                    && WebLayer.getSupportedMajorVersionInternal() < 89) {
+                    && WebLayer.getSupportedMajorVersionInternal() < 86) {
                 throw new UnsupportedOperationException();
             }
-
-            mParams.mIntentLaunchesAllowedInBackground = true;
+            mParams.mIntentProcessingDisabled = true;
             return this;
         }
 
@@ -90,15 +80,25 @@ class NavigateParams {
          */
         @NonNull
         public Builder disableNetworkErrorAutoReload() {
+            if (WebLayer.shouldPerformVersionChecks()
+                    && WebLayer.getSupportedMajorVersionInternal() < 86) {
+                throw new UnsupportedOperationException();
+            }
             mParams.mNetworkErrorAutoReloadDisabled = true;
             return this;
         }
 
         /**
          * Enable auto-play for videos in this navigation. Auto-play is disabled by default.
+         *
+         * @since 86
          */
         @NonNull
         public Builder enableAutoPlay() {
+            if (WebLayer.shouldPerformVersionChecks()
+                    && WebLayer.getSupportedMajorVersionInternal() < 86) {
+                throw new UnsupportedOperationException();
+            }
             mParams.mAutoPlayEnabled = true;
             return this;
         }
@@ -114,53 +114,62 @@ class NavigateParams {
          *                  page wasn't in the back-forward cache. An example to cache for 1 minute:
          *                      Cache-Control: private, max-age=60
          *             -since this isn't fetched by WebLayer it won't have the necessary certificate
-         *                  information to show the security padlock or certificate data.
+         *                  information to show the security padlock or certificate data. As such an
+         *                  exception is thrown if this is set when a View from UrlBarController is
+         *                  attached to a window.
+         *
+         * @since 87
          */
         @NonNull
         public Builder setResponse(@NonNull WebResourceResponse response) {
+            if (WebLayer.getSupportedMajorVersionInternal() < 87) {
+                throw new UnsupportedOperationException();
+            }
             mParams.mResponse = response;
             return this;
         }
     }
 
+    org.chromium.weblayer_private.interfaces.NavigateParams toInterfaceParams() {
+        return mInterfaceParams;
+    }
+
     /**
      * Returns true if the current navigation will be replaced, false otherwise.
+     *
+     * @since 83
      */
     public boolean getShouldReplaceCurrentEntry() {
-        return mShouldReplaceCurrentEntry;
+        return mInterfaceParams.mShouldReplaceCurrentEntry;
     }
 
     /**
      * Returns true if intent processing is disabled.
      *
      * @return Whether intent processing is disabled.
+     *
+     * @since 86
      */
     public boolean isIntentProcessingDisabled() {
-        return mIntentProcessingDisabled;
-    }
-
-    /**
-     * Returns true if intent launches are allowed in the background.
-     *
-     * @return Whether intent launches are allowed in the background.
-     *
-     * @since 89
-     */
-    public boolean areIntentLaunchesAllowedInBackground() {
         if (WebLayer.shouldPerformVersionChecks()
-                && WebLayer.getSupportedMajorVersionInternal() < 89) {
+                && WebLayer.getSupportedMajorVersionInternal() < 86) {
             throw new UnsupportedOperationException();
         }
-
-        return mIntentLaunchesAllowedInBackground;
+        return mIntentProcessingDisabled;
     }
 
     /**
      * Returns true if auto reload for network errors is disabled.
      *
      * @return Whether auto reload for network errors is disabled.
+     *
+     * @since 86
      */
     public boolean isNetworkErrorAutoReloadDisabled() {
+        if (WebLayer.shouldPerformVersionChecks()
+                && WebLayer.getSupportedMajorVersionInternal() < 86) {
+            throw new UnsupportedOperationException();
+        }
         return mNetworkErrorAutoReloadDisabled;
     }
 
@@ -168,8 +177,14 @@ class NavigateParams {
      * Returns true if auto play for videos is enabled.
      *
      * @return Whether auto play for videos is enabled.
+     *
+     * @since 86
      */
     public boolean isAutoPlayEnabled() {
+        if (WebLayer.shouldPerformVersionChecks()
+                && WebLayer.getSupportedMajorVersionInternal() < 86) {
+            throw new UnsupportedOperationException();
+        }
         return mAutoPlayEnabled;
     }
 
@@ -177,8 +192,10 @@ class NavigateParams {
      * Returns a response of the html to use.
      *
      * @return WebResourceResponse of html to use.
+     *
+     * @since 87
      */
-    public WebResourceResponse getResponse() {
+    WebResourceResponse getResponse() {
         return mResponse;
     }
 }

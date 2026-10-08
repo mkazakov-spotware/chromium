@@ -1,11 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/sharing/sharing_message_sender.h"
 
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
 #include "base/test/mock_callback.h"
 #include "chrome/browser/sharing/fake_device_info.h"
 #include "chrome/browser/sharing/proto/sharing_message.pb.h"
@@ -14,7 +13,6 @@
 #include "chrome/browser/sharing/sharing_sync_preference.h"
 #include "chrome/browser/sharing/sharing_utils.h"
 #include "components/send_tab_to_self/target_device_info.h"
-#include "components/sync/protocol/device_info_specifics.pb.h"
 #include "components/sync_device_info/device_info.h"
 #include "components/sync_device_info/fake_device_info_sync_service.h"
 #include "components/sync_device_info/fake_local_device_info_provider.h"
@@ -38,7 +36,7 @@ const char kSenderSenderIdFcmToken[] = "sender_sender_id_fcm_token";
 const char kSenderSenderIdP256dh[] = "sender_sender_id_p256dh";
 const char kSenderSenderIdAuthSecret[] = "sender_sender_id_auth_secret";
 const char kSenderMessageID[] = "sender_message_id";
-constexpr base::TimeDelta kTimeToLive = base::Seconds(10);
+constexpr base::TimeDelta kTimeToLive = base::TimeDelta::FromSeconds(10);
 
 namespace {
 
@@ -114,10 +112,6 @@ class SharingMessageSenderTest : public testing::Test {
         SharingMessageSender::DelegateType::kFCM,
         std::move(mock_sharing_fcm_sender));
   }
-
-  SharingMessageSenderTest(const SharingMessageSenderTest&) = delete;
-  SharingMessageSenderTest& operator=(const SharingMessageSenderTest&) = delete;
-
   ~SharingMessageSenderTest() override = default;
 
   std::unique_ptr<syncer::DeviceInfo> SetupDevice() {
@@ -144,7 +138,9 @@ class SharingMessageSenderTest : public testing::Test {
 
   SharingMessageSender sharing_message_sender_{
       fake_device_info_sync_service_.GetLocalDeviceInfoProvider()};
-  raw_ptr<MockSharingFCMSender> mock_sharing_fcm_sender_;
+  MockSharingFCMSender* mock_sharing_fcm_sender_;
+
+  DISALLOW_COPY_AND_ASSIGN(SharingMessageSenderTest);
 };
 
 MATCHER_P(ProtoEquals, message, "") {
@@ -210,7 +206,7 @@ TEST_F(SharingMessageSenderTest, SendMessageToDevice_InternalError) {
           SharingFCMSender::SendMessageCallback callback) {
         // FCM message not sent successfully.
         std::move(callback).Run(SharingSendMessageResult::kInternalError,
-                                absl::nullopt, SharingChannelType::kUnknown);
+                                base::nullopt, SharingChannelType::kUnknown);
 
         // Callback already run with result timeout, ack received for same
         // message id is ignored.
@@ -350,29 +346,4 @@ TEST_F(SharingMessageSenderTest, NonExistingDelegate) {
   sharing_message_sender.SendMessageToDevice(
       *device_info.get(), kTimeToLive, chrome_browser_sharing::SharingMessage(),
       SharingMessageSender::DelegateType::kFCM, mock_callback.Get());
-}
-
-TEST_F(SharingMessageSenderTest, RequestCancelled) {
-  std::unique_ptr<syncer::DeviceInfo> device_info = SetupDevice();
-
-  chrome_browser_sharing::SharingMessage sent_message;
-  sent_message.mutable_sms_fetch_request()->add_origins("https://a.com");
-
-  chrome_browser_sharing::ResponseMessage expected_response_message;
-  base::MockCallback<SharingMessageSender::ResponseCallback> mock_callback;
-  EXPECT_CALL(mock_callback,
-              Run(testing::Eq(SharingSendMessageResult::kCancelled),
-                  testing::Eq(nullptr)));
-
-  EXPECT_CALL(
-      *mock_sharing_fcm_sender_,
-      SendMessageToFcmTarget(testing::_, testing::_, testing::_, testing::_));
-
-  base::OnceClosure cancel_callback =
-      sharing_message_sender_.SendMessageToDevice(
-          *device_info.get(), kTimeToLive, std::move(sent_message),
-          SharingMessageSender::DelegateType::kFCM, mock_callback.Get());
-
-  ASSERT_FALSE(cancel_callback.is_null());
-  std::move(cancel_callback).Run();
 }

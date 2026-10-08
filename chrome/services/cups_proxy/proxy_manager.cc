@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@
 #include "base/containers/ring_buffer.h"
 #include "base/feature_list.h"
 #include "base/logging.h"
-#include "base/time/time.h"
+#include "base/task/post_task.h"
 #include "chrome/services/cups_proxy/cups_proxy_service_delegate.h"
 #include "chrome/services/cups_proxy/ipp_validator.h"
 #include "chrome/services/cups_proxy/printer_installer.h"
@@ -23,7 +23,7 @@
 #include "chrome/services/cups_proxy/public/cpp/ipp_messages.h"
 #include "chrome/services/cups_proxy/public/cpp/type_conversions.h"
 #include "chrome/services/cups_proxy/socket_manager.h"
-#include "chrome/services/ipp_parser/public/cpp/browser/ipp_parser_launcher.h"
+#include "chrome/services/ipp_parser/ipp_parser_service.h"
 #include "chrome/services/ipp_parser/public/cpp/ipp_converter.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -52,12 +52,7 @@ class ProxyManagerImpl : public ProxyManager {
         socket_manager_(std::move(socket_manager)),
         receiver_(this, std::move(request)) {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-    receiver_.set_disconnect_handler(
-        base::BindOnce([] { LOG(ERROR) << "CupsProxy mojo connection lost"; }));
   }
-
-  ProxyManagerImpl(const ProxyManagerImpl&) = delete;
-  ProxyManagerImpl& operator=(const ProxyManagerImpl&) = delete;
 
   ~ProxyManagerImpl() override = default;
 
@@ -113,9 +108,10 @@ class ProxyManagerImpl : public ProxyManager {
 
   mojo::Receiver<mojom::CupsProxier> receiver_;
   base::WeakPtrFactory<ProxyManagerImpl> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(ProxyManagerImpl);
 };
 
-absl::optional<std::vector<uint8_t>> RebuildIppRequest(
+base::Optional<std::vector<uint8_t>> RebuildIppRequest(
     const std::string& method,
     const std::string& url,
     const std::string& version,
@@ -124,12 +120,12 @@ absl::optional<std::vector<uint8_t>> RebuildIppRequest(
   auto request_line_buffer =
       ipp_converter::BuildRequestLine(method, url, version);
   if (!request_line_buffer.has_value()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   auto headers_buffer = ipp_converter::BuildHeaders(headers);
   if (!headers_buffer.has_value()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   std::vector<uint8_t> ret;
@@ -155,12 +151,13 @@ void ProxyManagerImpl::ProxyRequest(
   // kRateLimit, the request is blocked and the HTTP 429 Too Many Requests
   // response status code is returned.
   base::TimeTicks time = base::TimeTicks::Now();
-  bool block_request = timestamp_.CurrentIndex() >= timestamp_.BufferSize() &&
-                       time - timestamp_.ReadBuffer(0) < base::Seconds(1);
+  bool block_request =
+      timestamp_.CurrentIndex() >= timestamp_.BufferSize() &&
+      time - timestamp_.ReadBuffer(0) < base::TimeDelta::FromSeconds(1);
   timestamp_.SaveToBuffer(time);
   if (block_request) {
-    LOG(WARNING) << "CupsPrintService: Rate limit (" << kRateLimit
-                 << ") exceeded";
+    DVLOG(1) << "CupsPrintService Error: Rate limit (" << kRateLimit
+             << ") exceeded";
     std::move(cb).Run({}, {}, 429);  // HTTP_STATUS_TOO_MANY_REQUESTS
     return;
   }
@@ -260,7 +257,7 @@ void ProxyManagerImpl::SpoofGetPrinters() {
       delegate_->GetPrinters(chromeos::PrinterClass::kSaved),
       delegate_->GetPrinters(chromeos::PrinterClass::kEnterprise),
       delegate_->GetRecentlyUsedPrinters());
-  absl::optional<IppResponse> response =
+  base::Optional<IppResponse> response =
       BuildGetDestsResponse(in_flight_->request, printers);
   if (!response.has_value()) {
     return Fail("Failed to spoof CUPS-Get-Printers response",

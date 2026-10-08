@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "third_party/blink/renderer/platform/audio/audio_bus.h"
 #include "third_party/blink/renderer/platform/audio/audio_utilities.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
-#include "third_party/fdlibm/ieee754.h"
 
 namespace blink {
 
@@ -43,9 +42,8 @@ void StereoPanner::PanWithSampleAccurateValues(const AudioBus* input_bus,
   float* destination_r =
       output_bus->ChannelByType(AudioBus::kChannelRight)->MutableData();
 
-  if (!source_l || !source_r || !destination_l || !destination_r) {
+  if (!source_l || !source_r || !destination_l || !destination_r)
     return;
-  }
 
   double gain_l, gain_r, pan_radian;
 
@@ -54,11 +52,11 @@ void StereoPanner::PanWithSampleAccurateValues(const AudioBus* input_bus,
   if (number_of_input_channels == 1) {  // For mono source case.
     while (n--) {
       float input_l = *source_l++;
-      double pan = ClampTo(*pan_values++, -1.0, 1.0);
+      double pan = clampTo(*pan_values++, -1.0, 1.0);
       // Pan from left to right [-1; 1] will be normalized as [0; 1].
       pan_radian = (pan * 0.5 + 0.5) * kPiOverTwoDouble;
-      gain_l = fdlibm::cos(pan_radian);
-      gain_r = fdlibm::sin(pan_radian);
+      gain_l = std::cos(pan_radian);
+      gain_r = std::sin(pan_radian);
       *destination_l++ = static_cast<float>(input_l * gain_l);
       *destination_r++ = static_cast<float>(input_l * gain_r);
     }
@@ -66,11 +64,11 @@ void StereoPanner::PanWithSampleAccurateValues(const AudioBus* input_bus,
     while (n--) {
       float input_l = *source_l++;
       float input_r = *source_r++;
-      double pan = ClampTo(*pan_values++, -1.0, 1.0);
+      double pan = clampTo(*pan_values++, -1.0, 1.0);
       // Normalize [-1; 0] to [0; 1]. Do nothing when [0; 1].
       pan_radian = (pan <= 0 ? pan + 1 : pan) * kPiOverTwoDouble;
-      gain_l = fdlibm::cos(pan_radian);
-      gain_r = fdlibm::sin(pan_radian);
+      gain_l = std::cos(pan_radian);
+      gain_r = std::sin(pan_radian);
       if (pan <= 0) {
         *destination_l++ = static_cast<float>(input_l + input_r * gain_l);
         *destination_r++ = static_cast<float>(input_r * gain_r);
@@ -105,11 +103,10 @@ void StereoPanner::PanToTargetValue(const AudioBus* input_bus,
   float* destination_r =
       output_bus->ChannelByType(AudioBus::kChannelRight)->MutableData();
 
-  if (!source_l || !source_r || !destination_l || !destination_r) {
+  if (!source_l || !source_r || !destination_l || !destination_r)
     return;
-  }
 
-  float target_pan = ClampTo(pan_value, -1.0, 1.0);
+  float target_pan = clampTo(pan_value, -1.0, 1.0);
 
   int n = frames_to_process;
 
@@ -117,8 +114,8 @@ void StereoPanner::PanToTargetValue(const AudioBus* input_bus,
     // Pan from left to right [-1; 1] will be normalized as [0; 1].
     double pan_radian = (target_pan * 0.5 + 0.5) * kPiOverTwoDouble;
 
-    double gain_l = fdlibm::cos(pan_radian);
-    double gain_r = fdlibm::sin(pan_radian);
+    double gain_l = std::cos(pan_radian);
+    double gain_r = std::sin(pan_radian);
 
     // TODO(rtoy): This can be vectorized using vector_math::Vsmul
     while (n--) {
@@ -132,8 +129,8 @@ void StereoPanner::PanToTargetValue(const AudioBus* input_bus,
     double pan_radian =
         (target_pan <= 0 ? target_pan + 1 : target_pan) * kPiOverTwoDouble;
 
-    double gain_l = fdlibm::cos(pan_radian);
-    double gain_r = fdlibm::sin(pan_radian);
+    double gain_l = std::cos(pan_radian);
+    double gain_r = std::sin(pan_radian);
 
     // TODO(rtoy): Consider moving the if statement outside the loop
     // since |target_pan| is constant inside the loop.

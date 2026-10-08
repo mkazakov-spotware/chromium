@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@ let openTab;
 
 async function runNotAllowedTest(method, params, expectAllowed) {
   const NOT_ALLOWED = "Not allowed";
-  const NOT_FOUND = '\'Browser.setDownloadBehavior\' wasn\'t found';
   const tab = await openTab(chrome.runtime.getURL('dummy.html'));
   const debuggee = {tabId: tab.id};
   chrome.debugger.attach(debuggee, '1.2', function() {
@@ -28,7 +27,7 @@ async function runNotAllowedTest(method, params, expectAllowed) {
       } catch (e) {
       }
       chrome.debugger.detach(debuggee, () => {
-        const allowed = message !== NOT_ALLOWED && message !== NOT_FOUND;
+        const allowed = message !== NOT_ALLOWED;
         if (allowed === expectAllowed)
           chrome.test.succeed();
         else
@@ -91,13 +90,10 @@ async function runNotAllowedTest(method, params, expectAllowed) {
             responded = true;
             if (expectFileAccess) {
               chrome.test.assertNoLastError();
+              chrome.tabs.remove(tabId);
             } else {
-              chrome.test.assertLastError(JSON.stringify({
-                code: -32000,
-                message: 'Navigating to local URL is not allowed'
-              }));
+              chrome.test.assertLastError('Detached while handling command.');
             }
-            chrome.tabs.remove(tabId);
           }
 
           function onDetach(from, reason) {

@@ -1,15 +1,13 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "components/omnibox/browser/omnibox_view.h"
-
 #include <stddef.h>
-
-#include <string>
 #include <utility>
 
 #include "base/callback_helpers.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
@@ -18,6 +16,7 @@
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/test/test_bookmark_client.h"
 #include "components/omnibox/browser/autocomplete_match.h"
+#include "components/omnibox/browser/omnibox_view.h"
 #include "components/omnibox/browser/test_omnibox_client.h"
 #include "components/omnibox/browser/test_omnibox_edit_controller.h"
 #include "components/omnibox/browser/test_omnibox_edit_model.h"
@@ -27,7 +26,7 @@
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/favicon_size.h"
 #include "ui/gfx/paint_vector_icon.h"
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+#if !defined(OS_ANDROID) && !defined(OS_IOS)
 #include "components/omnibox/browser/vector_icons.h"  // nogncheck
 #include "components/vector_icons/vector_icons.h"     // nogncheck
 #endif
@@ -41,8 +40,8 @@ class OmniboxViewTest : public testing::Test {
   OmniboxViewTest() {
     controller_ = std::make_unique<TestOmniboxEditController>();
     view_ = std::make_unique<TestOmniboxView>(controller_.get());
-    view_->SetModel(std::make_unique<TestOmniboxEditModel>(
-        view_.get(), controller_.get(), nullptr));
+    view_->SetModel(
+        std::make_unique<TestOmniboxEditModel>(view_.get(), controller_.get()));
 
     bookmark_model_ = bookmarks::TestBookmarkClient::CreateModel();
     client()->SetBookmarkModel(bookmark_model_.get());
@@ -98,7 +97,7 @@ TEST_F(OmniboxViewTest, TestStripSchemasUnsafeForPaste) {
       "alert(5)"   // Embedded control characters unsafe.
   };
 
-  for (size_t i = 0; i < std::size(urls); i++) {
+  for (size_t i = 0; i < base::size(urls); i++) {
     EXPECT_EQ(ASCIIToUTF16(expecteds[i]),
               OmniboxView::StripJavascriptSchemas(base::UTF8ToUTF16(urls[i])));
   }
@@ -106,55 +105,57 @@ TEST_F(OmniboxViewTest, TestStripSchemasUnsafeForPaste) {
 
 TEST_F(OmniboxViewTest, SanitizeTextForPaste) {
   const struct {
-    std::u16string input;
-    std::u16string output;
+    base::string16 input;
+    base::string16 output;
   } kTestcases[] = {
       // No whitespace: leave unchanged.
-      {std::u16string(), std::u16string()},
-      {u"a", u"a"},
-      {u"abc", u"abc"},
+      {base::string16(), base::string16()},
+      {ASCIIToUTF16("a"), ASCIIToUTF16("a")},
+      {ASCIIToUTF16("abc"), ASCIIToUTF16("abc")},
 
       // Leading/trailing whitespace: remove.
-      {u" abc", u"abc"},
-      {u"  \n  abc", u"abc"},
-      {u"abc ", u"abc"},
-      {u"abc\t \t", u"abc"},
-      {u"\nabc\n", u"abc"},
+      {ASCIIToUTF16(" abc"), ASCIIToUTF16("abc")},
+      {ASCIIToUTF16("  \n  abc"), ASCIIToUTF16("abc")},
+      {ASCIIToUTF16("abc "), ASCIIToUTF16("abc")},
+      {ASCIIToUTF16("abc\t \t"), ASCIIToUTF16("abc")},
+      {ASCIIToUTF16("\nabc\n"), ASCIIToUTF16("abc")},
 
       // All whitespace: Convert to single space.
-      {u" ", u" "},
-      {u"\n", u" "},
-      {u"   ", u" "},
-      {u"\n\n\n", u" "},
-      {u" \n\t", u" "},
+      {ASCIIToUTF16(" "), ASCIIToUTF16(" ")},
+      {ASCIIToUTF16("\n"), ASCIIToUTF16(" ")},
+      {ASCIIToUTF16("   "), ASCIIToUTF16(" ")},
+      {ASCIIToUTF16("\n\n\n"), ASCIIToUTF16(" ")},
+      {ASCIIToUTF16(" \n\t"), ASCIIToUTF16(" ")},
 
       // Broken URL has newlines stripped.
-      {u"http://www.chromium.org/developers/testing/chromium-\n"
-       u"build-infrastructure/tour-of-the-chromium-buildbot",
-       u"http://www.chromium.org/developers/testing/"
-       u"chromium-build-infrastructure/tour-of-the-chromium-buildbot"},
+      {ASCIIToUTF16("http://www.chromium.org/developers/testing/chromium-\n"
+                    "build-infrastructure/tour-of-the-chromium-buildbot"),
+       ASCIIToUTF16("http://www.chromium.org/developers/testing/chromium-"
+                    "build-infrastructure/tour-of-the-chromium-buildbot")},
 
       // Multi-line address is converted to a single-line address.
-      {u"1600 Amphitheatre Parkway\nMountain View, CA",
-       u"1600 Amphitheatre Parkway Mountain View, CA"},
+      {ASCIIToUTF16("1600 Amphitheatre Parkway\nMountain View, CA"),
+       ASCIIToUTF16("1600 Amphitheatre Parkway Mountain View, CA")},
 
       // Line-breaking the JavaScript scheme with no other whitespace results in
       // a
       // dangerous URL that is sanitized by dropping the scheme.
-      {u"java\x0d\x0ascript:alert(0)", u"alert(0)"},
+      {ASCIIToUTF16("java\x0d\x0ascript:alert(0)"), ASCIIToUTF16("alert(0)")},
 
       // Line-breaking the JavaScript scheme with whitespace elsewhere in the
       // string results in a safe string with a space replacing the line break.
-      {u"java\x0d\x0ascript: alert(0)", u"java script: alert(0)"},
+      {ASCIIToUTF16("java\x0d\x0ascript: alert(0)"),
+       ASCIIToUTF16("java script: alert(0)")},
 
       // Unusual URL with multiple internal spaces is preserved as-is.
-      {u"http://foo.com/a.  b", u"http://foo.com/a.  b"},
+      {ASCIIToUTF16("http://foo.com/a.  b"),
+       ASCIIToUTF16("http://foo.com/a.  b")},
 
       // URL with unicode whitespace is also preserved as-is.
-      {u"http://foo.com/a\x3000"
-       u"b",
-       u"http://foo.com/a\x3000"
-       u"b"},
+      {base::WideToUTF16(L"http://foo.com/a\x3000"
+                         "b"),
+       base::WideToUTF16(L"http://foo.com/a\x3000"
+                         "b")},
   };
 
   for (const auto& testcase : kTestcases) {
@@ -163,7 +164,7 @@ TEST_F(OmniboxViewTest, SanitizeTextForPaste) {
   }
 }
 
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+#if !defined(OS_ANDROID) && !defined(OS_IOS)
 // Tests GetIcon returns the default search icon when the match is a search
 // query.
 TEST_F(OmniboxViewTest, GetIcon_Default) {
@@ -185,7 +186,7 @@ TEST_F(OmniboxViewTest, GetIcon_BookmarkIcon) {
   model()->SetCurrentMatchForTest(match);
 
   bookmark_model()->AddURL(bookmark_model()->bookmark_bar_node(), 0,
-                           u"a bookmark", kUrl);
+                           base::ASCIIToUTF16("a bookmark"), kUrl);
 
   ui::ImageModel expected_icon = ui::ImageModel::FromVectorIcon(
       omnibox::kBookmarkIcon, gfx::kPlaceholderColor, gfx::kFaviconSize);
@@ -209,7 +210,7 @@ TEST_F(OmniboxViewTest, GetIcon_Favicon) {
 
   EXPECT_EQ(client()->GetPageUrlForLastFaviconRequest(), kUrl);
 }
-#endif  // !BUILDFLAG(IS_IOS)
+#endif  // !defined(OS_IOS)
 
 // Tests GetStateChanges correctly determines if text was deleted.
 TEST_F(OmniboxViewTest, GetStateChanges_DeletedText) {
@@ -271,7 +272,7 @@ TEST_F(OmniboxViewTest, GetStateChanges_DeletedText_RichAutocompletion) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitAndEnableFeatureWithParameters(
       omnibox::kRichAutocompletion,
-      {{OmniboxFieldTrial::kRichAutocompletionAutocompleteNonPrefixAll.name,
+      {{OmniboxFieldTrial::kRichAutocompletionAutocompleteNonPrefixAllParam,
         "true"}});
 
   // Cases with single selection

@@ -1,11 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/common/child_process_host_impl.h"
 
 #include <limits>
-#include <tuple>
 
 #include "base/atomic_sequence_num.h"
 #include "base/clang_profiling_buildflags.h"
@@ -20,13 +19,12 @@
 #include "base/path_service.h"
 #include "base/process/process_metrics.h"
 #include "base/rand_util.h"
+#include "base/strings/stringprintf.h"
 #include "base/synchronization/lock.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "content/common/content_constants_internal.h"
-#include "content/common/pseudonymization_salt.h"
 #include "content/public/common/child_process_host_delegate.h"
-#include "content/public/common/content_client.h"
 #include "content/public/common/content_paths.h"
 #include "content/public/common/content_switches.h"
 #include "ipc/ipc.mojom.h"
@@ -35,15 +33,20 @@
 #include "ipc/ipc_logging.h"
 #include "ipc/message_filter.h"
 #include "mojo/public/cpp/bindings/lib/message_quota_checker.h"
+#include "ppapi/buildflags/buildflags.h"
 #include "services/resource_coordinator/public/mojom/memory_instrumentation/constants.mojom.h"
 #include "services/service_manager/public/cpp/interface_provider.h"
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "base/linux_util.h"
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
 #include "base/mac/foundation_util.h"
 #include "content/common/mac_helpers.h"
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+
+#if BUILDFLAG(CLANG_PROFILING_INSIDE_SANDBOX)
+#include "content/public/common/profiling_utils.h"
+#endif
 
 namespace {
 
@@ -53,8 +56,6 @@ base::AtomicSequenceNumber g_unique_id;
 }  // namespace
 
 namespace content {
-
-ChildProcessHost::~ChildProcessHost() = default;
 
 // static
 std::unique_ptr<ChildProcessHost> ChildProcessHost::Create(
@@ -70,7 +71,7 @@ base::FilePath ChildProcessHost::GetChildPath(int flags) {
   child_path = base::CommandLine::ForCurrentProcess()->GetSwitchValuePath(
       switches::kBrowserSubprocessPath);
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   // Use /proc/self/exe rather than our known binary path so updates
   // can't swap out the binary from underneath us.
   if (child_path.empty() && flags & CHILD_ALLOW_SELF)
@@ -82,10 +83,14 @@ base::FilePath ChildProcessHost::GetChildPath(int flags) {
   if (child_path.empty())
     base::PathService::Get(CHILD_PROCESS_EXE, &child_path);
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   std::string child_base_name = child_path.BaseName().value();
 
-  if (flags != CHILD_NORMAL && base::mac::AmIBundled()) {
+  if (flags != CHILD_NORMAL && base::mac::AmIBundled()
+#if defined(ARCH_CPU_ARM64)
+      && flags != CHILD_LAUNCH_X86_64
+#endif  // ARCH_CPU_ARM64
+  ) {
     // This is a specialized helper, with the |child_path| at
     // ../Framework.framework/Versions/X/Helpers/Chromium Helper.app/Contents/
     // MacOS/Chromium Helper. Go back up to the "Helpers" directory to select
@@ -96,10 +101,10 @@ base::FilePath ChildProcessHost::GetChildPath(int flags) {
       child_base_name += kMacHelperSuffix_renderer;
     } else if (flags == CHILD_GPU) {
       child_base_name += kMacHelperSuffix_gpu;
+#if BUILDFLAG(ENABLE_PLUGINS)
     } else if (flags == CHILD_PLUGIN) {
       child_base_name += kMacHelperSuffix_plugin;
-    } else if (flags > CHILD_EMBEDDER_FIRST) {
-      return GetContentClient()->GetChildProcessPath(flags, child_path);
+#endif
     } else {
       NOTREACHED();
     }
@@ -109,7 +114,7 @@ base::FilePath ChildProcessHost::GetChildPath(int flags) {
                      .Append("MacOS")
                      .Append(child_base_name);
   }
-#endif  // BUILDFLAG(IS_MAC)
+#endif
 
   return child_path;
 }
@@ -120,13 +125,12 @@ ChildProcessHostImpl::ChildProcessHostImpl(ChildProcessHostDelegate* delegate,
   if (ipc_mode_ == IpcMode::kLegacy) {
     // In legacy mode, we only have an IPC Channel. Bind ChildProcess to a
     // disconnected pipe so it quietly discards messages.
-    std::ignore = child_process_.BindNewPipeAndPassReceiver();
+    ignore_result(child_process_.BindNewPipeAndPassReceiver());
     channel_ = IPC::ChannelMojo::Create(
         mojo_invitation_->AttachMessagePipe(
             kChildProcessReceiverAttachmentName),
-        IPC::Channel::MODE_SERVER, this,
-        base::SingleThreadTaskRunner::GetCurrentDefault(),
-        base::SingleThreadTaskRunner::GetCurrentDefault(),
+        IPC::Channel::MODE_SERVER, this, base::ThreadTaskRunnerHandle::Get(),
+        base::ThreadTaskRunnerHandle::Get(),
         mojo::internal::MessageQuotaChecker::MaybeCreate());
   } else if (ipc_mode_ == IpcMode::kNormal) {
     child_process_.Bind(mojo::PendingRemote<mojom::ChildProcess>(
@@ -136,9 +140,6 @@ ChildProcessHostImpl::ChildProcessHostImpl(ChildProcessHostDelegate* delegate,
     receiver_.Bind(mojo::PendingReceiver<mojom::ChildProcessHost>(
         mojo_invitation_->AttachMessagePipe(
             kChildProcessHostRemoteAttachmentName)));
-    receiver_.set_disconnect_handler(
-        base::BindOnce(&ChildProcessHostImpl::OnDisconnectedFromChildProcess,
-                       base::Unretained(this)));
   }
 }
 
@@ -149,9 +150,9 @@ ChildProcessHostImpl::~ChildProcessHostImpl() {
   if (!channel_)
     return;
 
-  for (auto& filter : filters_) {
-    filter->OnChannelClosing();
-    filter->OnFilterRemoved();
+  for (size_t i = 0; i < filters_.size(); ++i) {
+    filters_[i]->OnChannelClosing();
+    filters_[i]->OnFilterRemoved();
   }
 }
 
@@ -166,46 +167,17 @@ void ChildProcessHostImpl::BindReceiver(mojo::GenericPendingReceiver receiver) {
   child_process_->BindReceiver(std::move(receiver));
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-void ChildProcessHostImpl::ReinitializeLogging(
-    uint32_t logging_dest,
-    base::ScopedFD log_file_descriptor) {
-  auto logging_settings = mojom::LoggingSettings::New();
-  logging_settings->logging_dest = logging_dest;
-  logging_settings->log_file_descriptor =
-      mojo::PlatformHandle(std::move(log_file_descriptor));
-  child_process()->ReinitializeLogging(std::move(logging_settings));
-}
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-base::Process& ChildProcessHostImpl::GetPeerProcess() {
-  if (!peer_process_.IsValid()) {
-    const base::Process& process = delegate_->GetProcess();
-    if (process.IsValid()) {
-      peer_process_ = base::Process::OpenWithExtraPrivileges(process.Pid());
-      if (!peer_process_.IsValid())
-        peer_process_ = process.Duplicate();
-      DCHECK(peer_process_.IsValid());
-    }
-  }
-
-  return peer_process_;
-}
-
-// TODO(crbug.com/1328879): Remove this method when fixing the bug.
-#if BUILDFLAG(IS_CASTOS) || BUILDFLAG(IS_CAST_ANDROID)
-void ChildProcessHostImpl::RunServiceDeprecated(
+void ChildProcessHostImpl::RunService(
     const std::string& service_name,
-    mojo::ScopedMessagePipeHandle service_pipe) {
-  child_process_->RunServiceDeprecated(service_name, std::move(service_pipe));
+    mojo::PendingReceiver<service_manager::mojom::Service> receiver) {
+  child_process_->RunService(service_name, std::move(receiver));
 }
-#endif
 
 void ChildProcessHostImpl::ForceShutdown() {
   child_process_->ProcessShutdown();
 }
 
-absl::optional<mojo::OutgoingInvitation>&
+base::Optional<mojo::OutgoingInvitation>&
 ChildProcessHostImpl::GetMojoInvitation() {
   return mojo_invitation_;
 }
@@ -218,21 +190,16 @@ void ChildProcessHostImpl::CreateChannelMojo() {
     DCHECK_EQ(ipc_mode_, IpcMode::kNormal);
     DCHECK(child_process_);
 
-    mojo::ScopedMessagePipeHandle bootstrap =
-        mojo_invitation_->AttachMessagePipe(kLegacyIpcBootstrapAttachmentName);
+    mojo::PendingRemote<IPC::mojom::ChannelBootstrap> bootstrap;
+    auto bootstrap_receiver = bootstrap.InitWithNewPipeAndPassReceiver();
+    child_process_->BootstrapLegacyIpc(std::move(bootstrap_receiver));
     channel_ = IPC::ChannelMojo::Create(
-        std::move(bootstrap), IPC::Channel::MODE_SERVER, this,
-        base::SingleThreadTaskRunner::GetCurrentDefault(),
-        base::SingleThreadTaskRunner::GetCurrentDefault(),
+        bootstrap.PassPipe(), IPC::Channel::MODE_SERVER, this,
+        base::ThreadTaskRunnerHandle::Get(),
+        base::ThreadTaskRunnerHandle::Get(),
         mojo::internal::MessageQuotaChecker::MaybeCreate());
   }
   DCHECK(channel_);
-
-  // Since we're initializing a legacy IPC Channel, we will use its connection
-  // status to monitor child process lifetime instead of using the status of the
-  // `receiver_` endpoint.
-  if (receiver_.is_bound())
-    receiver_.set_disconnect_handler(base::NullCallback());
 
   bool initialized = InitChannel();
   DCHECK(initialized);
@@ -242,8 +209,8 @@ bool ChildProcessHostImpl::InitChannel() {
   if (!channel_->Connect())
     return false;
 
-  for (auto& filter : filters_)
-    filter->OnFilterAdded(channel_.get());
+  for (size_t i = 0; i < filters_.size(); ++i)
+    filters_[i]->OnFilterAdded(channel_.get());
 
   delegate_->OnChannelInitialized(channel_.get());
 
@@ -253,21 +220,13 @@ bool ChildProcessHostImpl::InitChannel() {
   child_process_->SetIPCLoggingEnabled(enabled);
 #endif
 
+#if BUILDFLAG(CLANG_PROFILING_INSIDE_SANDBOX)
+  child_process_->SetProfilingFile(OpenProfilingFile());
+#endif
+
   opening_channel_ = true;
 
   return true;
-}
-
-void ChildProcessHostImpl::OnDisconnectedFromChildProcess() {
-  if (channel_) {
-    opening_channel_ = false;
-    delegate_->OnChannelError();
-    for (auto& filter : filters_)
-      filter->OnChannelError();
-  }
-
-  // This will delete host_, which will also destroy this!
-  delegate_->OnChildDisconnected();
 }
 
 bool ChildProcessHostImpl::IsChannelOpening() {
@@ -314,10 +273,6 @@ uint64_t ChildProcessHostImpl::ChildProcessUniqueIdToTracingProcessId(
          1;
 }
 
-void ChildProcessHostImpl::Ping(PingCallback callback) {
-  std::move(callback).Run();
-}
-
 void ChildProcessHostImpl::BindHostReceiver(
     mojo::GenericPendingReceiver receiver) {
   delegate_->BindHostReceiver(std::move(receiver));
@@ -336,15 +291,15 @@ bool ChildProcessHostImpl::OnMessageReceived(const IPC::Message& msg) {
 #endif
 
   bool handled = false;
-  for (auto& filter : filters_) {
-    if (filter->OnMessageReceived(msg)) {
+  for (size_t i = 0; i < filters_.size(); ++i) {
+    if (filters_[i]->OnMessageReceived(msg)) {
       handled = true;
       break;
     }
   }
 
   if (!handled) {
-    handled = delegate_->OnMessageReceived(msg);
+      handled = delegate_->OnMessageReceived(msg);
   }
 
 #if BUILDFLAG(IPC_MESSAGE_LOG_ENABLED)
@@ -355,34 +310,27 @@ bool ChildProcessHostImpl::OnMessageReceived(const IPC::Message& msg) {
 }
 
 void ChildProcessHostImpl::OnChannelConnected(int32_t peer_pid) {
-  // Propagate the pseudonymization salt to all the child processes.
-  //
-  // TODO(dullweber, lukasza): Figure out if it is possible to reset the salt
-  // at a regular interval (on the order of hours?).  The browser would need
-  // to be responsible for 1) deciding when the refresh happens and 2) pushing
-  // the updated salt to all the child processes.
-  child_process_->SetPseudonymizationSalt(GetPseudonymizationSalt());
-
-  // We ignore the `peer_pid` argument, which ultimately comes over IPC from the
-  // remote process, in favor of the PID already known by the browser after
-  // launching the process. This is partly because IPC Channel is being phased
-  // out and some process types no longer use it, but also because there's
-  // really no need to get this information from the child process when we
-  // already have it.
-  //
-  // TODO(crbug.com/616980): Remove the peer_pid argument altogether from
-  // IPC::Listener::OnChannelConnected.
-  const base::Process& peer_process = GetPeerProcess();
-  base::ProcessId pid =
-      peer_process.IsValid() ? peer_process.Pid() : base::GetCurrentProcId();
+  if (!peer_process_.IsValid()) {
+    peer_process_ = base::Process::OpenWithExtraPrivileges(peer_pid);
+    if (!peer_process_.IsValid())
+       peer_process_ = delegate_->GetProcess().Duplicate();
+    DCHECK(peer_process_.IsValid());
+  }
   opening_channel_ = false;
-  delegate_->OnChannelConnected(pid);
-  for (auto& filter : filters_)
-    filter->OnChannelConnected(pid);
+  delegate_->OnChannelConnected(peer_pid);
+  for (size_t i = 0; i < filters_.size(); ++i)
+    filters_[i]->OnChannelConnected(peer_pid);
 }
 
 void ChildProcessHostImpl::OnChannelError() {
-  OnDisconnectedFromChildProcess();
+  opening_channel_ = false;
+  delegate_->OnChannelError();
+
+  for (size_t i = 0; i < filters_.size(); ++i)
+    filters_[i]->OnChannelError();
+
+  // This will delete host_, which will also destroy this!
+  delegate_->OnChildDisconnected();
 }
 
 void ChildProcessHostImpl::OnBadMessageReceived(const IPC::Message& message) {
@@ -392,10 +340,6 @@ void ChildProcessHostImpl::OnBadMessageReceived(const IPC::Message& message) {
 #if BUILDFLAG(CLANG_PROFILING_INSIDE_SANDBOX)
 void ChildProcessHostImpl::DumpProfilingData(base::OnceClosure callback) {
   child_process_->WriteClangProfilingProfile(std::move(callback));
-}
-
-void ChildProcessHostImpl::SetProfilingFile(base::File file) {
-  child_process_->SetProfilingFile(std::move(file));
 }
 #endif
 

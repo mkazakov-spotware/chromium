@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,8 @@ std::string GetSignedInUserEmail() {
   if (!identity_manager)
     return std::string();
   // Browser sync consent is not required to use feedback.
-  return identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin)
+  return identity_manager
+      ->GetPrimaryAccountInfo(signin::ConsentLevel::kNotRequired)
       .email;
 }
 

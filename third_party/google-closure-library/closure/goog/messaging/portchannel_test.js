@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2010 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.messaging.PortChannelTest');
 goog.setTestOnly();
@@ -10,14 +18,12 @@ goog.setTestOnly();
 const EventType = goog.require('goog.events.EventType');
 const GoogEventTarget = goog.require('goog.events.EventTarget');
 const GoogPromise = goog.require('goog.Promise');
-const MessagingMessageChannel = goog.requireType('goog.messaging.MessageChannel');
 const MockControl = goog.require('goog.testing.MockControl');
 const MockMessageEvent = goog.require('goog.testing.messaging.MockMessageEvent');
 const PortChannel = goog.require('goog.messaging.PortChannel');
 const TagName = goog.require('goog.dom.TagName');
 const TestCase = goog.require('goog.testing.TestCase');
 const Timer = goog.require('goog.Timer');
-const dispose = goog.require('goog.dispose');
 const dom = goog.require('goog.dom');
 const events = goog.require('goog.events');
 const googJson = goog.require('goog.json');
@@ -35,7 +41,7 @@ let frameDiv;
 /**
  * Registers a service on a channel that will accept a single test message and
  * then fire a Promise.
- * @param {!MessagingMessageChannel} channel
+ * @param {!goog.messaging.MessageChannel} channel
  * @param {string} name The service name.
  * @param {boolean=} objectPayload Whether incoming payloads should be parsed as
  *     Objects instead of raw strings.
@@ -48,7 +54,6 @@ function registerService(channel, name, objectPayload = undefined) {
   });
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function makeMessage(serviceName, payload) {
   let msg = {'serviceName': serviceName, 'payload': payload};
   msg[PortChannel.FLAG] = true;
@@ -70,7 +75,6 @@ function receiveMessage(
       undefined, undefined, ports));
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function receiveNonChannelMessage(data) {
   if (PortChannel.REQUIRES_SERIALIZATION_ && typeof data !== 'string') {
     data = googJson.serialize(data);
@@ -135,7 +139,7 @@ testSuite({
     // long time in Edge and Safari.
     TestCase.getActiveTestCase().promiseTimeout = 60 * 1000;
 
-    if (!('Worker' in globalThis)) {
+    if (!('Worker' in goog.global)) {
       return;
     }
 
@@ -152,50 +156,37 @@ testSuite({
   },
 
   tearDownPage() {
-    dispose(workerChannel);
+    goog.dispose(workerChannel);
   },
 
   setUp() {
     timer = new Timer(50);
     mockControl = new MockControl();
     mockPort = new GoogEventTarget();
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     mockPort.postMessage = mockControl.createFunctionMock('postMessage');
-    /** @suppress {checkTypes} suppression added to enable type checking */
     portChannel = new PortChannel(mockPort);
 
-    if ('Worker' in globalThis) {
+    if ('Worker' in goog.global) {
       // Ensure the worker channel has started before running each test.
       return setUpPromise;
     }
   },
 
   tearDown() {
-    dispose(timer);
+    goog.dispose(timer);
     portChannel.dispose();
     dom.removeChildren(frameDiv);
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testPostMessage() {
     mockPort.postMessage(makeMessage('foobar', 'This is a value'), []);
     mockControl.$replayAll();
     portChannel.send('foobar', 'This is a value');
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testPostMessageWithPorts() {
-    if (!('MessageChannel' in globalThis)) {
+    if (!('MessageChannel' in goog.global)) {
       return;
     }
     const channel = new MessageChannel();
@@ -222,7 +213,7 @@ testSuite({
   },
 
   testReceiveMessageWithPorts() {
-    if (!('MessageChannel' in globalThis)) {
+    if (!('MessageChannel' in goog.global)) {
       return;
     }
     const channel = new MessageChannel();
@@ -272,7 +263,7 @@ testSuite({
   },
 
   testWorker() {
-    if (!('Worker' in globalThis)) {
+    if (!('Worker' in goog.global)) {
       return;
     }
     const promise = registerService(workerChannel, 'pong', true);
@@ -284,7 +275,7 @@ testSuite({
   },
 
   testWorkerWithPorts() {
-    if (!('Worker' in globalThis) || !('MessageChannel' in globalThis)) {
+    if (!('Worker' in goog.global) || !('MessageChannel' in goog.global)) {
       return;
     }
     const messageChannel = new MessageChannel();
@@ -296,7 +287,7 @@ testSuite({
   },
 
   testPort() {
-    if (!('Worker' in globalThis) || !('MessageChannel' in globalThis)) {
+    if (!('Worker' in goog.global) || !('MessageChannel' in goog.global)) {
       return;
     }
     const messageChannel = new MessageChannel();
@@ -315,13 +306,12 @@ testSuite({
   },
 
   testPortIgnoresOrigin() {
-    if (!('Worker' in globalThis) || !('MessageChannel' in globalThis)) {
+    if (!('Worker' in goog.global) || !('MessageChannel' in goog.global)) {
       return;
     }
     const messageChannel = new MessageChannel();
     workerChannel.send('addPort', messageChannel.port1);
     messageChannel.port2.start();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const realPortChannel =
         new PortChannel(messageChannel.port2, 'http://somewhere-else.com');
     const promise = registerService(realPortChannel, 'pong', true);
@@ -336,13 +326,12 @@ testSuite({
   },
 
   testWindow() {
-    if (!('Worker' in globalThis) || !('MessageChannel' in globalThis)) {
+    if (!('Worker' in goog.global) || !('MessageChannel' in goog.global)) {
       return;
     }
 
     return createIframe().then((iframe) => {
       const peerOrigin = window.location.protocol + '//' + window.location.host;
-      /** @suppress {checkTypes} suppression added to enable type checking */
       const iframeChannel =
           PortChannel.forEmbeddedWindow(iframe, peerOrigin, timer);
 
@@ -352,19 +341,18 @@ testSuite({
       return promise.then((msg) => {
         assertEquals('fizzbang', msg);
 
-        dispose(iframeChannel);
+        goog.dispose(iframeChannel);
       });
     });
   },
 
   testWindowCanceled() {
-    if (!('Worker' in globalThis) || !('MessageChannel' in globalThis)) {
+    if (!('Worker' in goog.global) || !('MessageChannel' in goog.global)) {
       return;
     }
 
     return createIframe().then((iframe) => {
       const peerOrigin = window.location.protocol + '//' + window.location.host;
-      /** @suppress {checkTypes} suppression added to enable type checking */
       const iframeChannel =
           PortChannel.forEmbeddedWindow(iframe, peerOrigin, timer);
       iframeChannel.cancel();
@@ -383,12 +371,11 @@ testSuite({
   },
 
   testWindowWontSendToWrongOrigin() {
-    if (!('Worker' in globalThis) || !('MessageChannel' in globalThis)) {
+    if (!('Worker' in goog.global) || !('MessageChannel' in goog.global)) {
       return;
     }
 
     return createIframe().then((iframe) => {
-      /** @suppress {checkTypes} suppression added to enable type checking */
       const iframeChannel = PortChannel.forEmbeddedWindow(
           iframe, 'http://somewhere-else.com', timer);
 
@@ -404,7 +391,7 @@ testSuite({
   },
 
   testWindowWontReceiveFromWrongOrigin() {
-    if (!('Worker' in globalThis) || !('MessageChannel' in globalThis)) {
+    if (!('Worker' in goog.global) || !('MessageChannel' in goog.global)) {
       return;
     }
 
@@ -412,9 +399,6 @@ testSuite({
         .then((iframe) => {
           const peerOrigin =
               window.location.protocol + '//' + window.location.host;
-          /**
-           * @suppress {checkTypes} suppression added to enable type checking
-           */
           const iframeChannel =
               PortChannel.forEmbeddedWindow(iframe, peerOrigin, timer);
 

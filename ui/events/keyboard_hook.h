@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/component_export.h"
 #include "base/containers/flat_set.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
+#include "ui/events/events_export.h"
 #include "ui/gfx/native_widget_types.h"
 
 namespace ui {
@@ -20,7 +20,7 @@ class KeyEvent;
 
 // Intercepts keyboard events typically handled by the OS or browser.
 // Destroying the instance will unregister and clean up the keyboard hook.
-class COMPONENT_EXPORT(KEYBOARD_HOOK) KeyboardHook {
+class EVENTS_EXPORT KeyboardHook {
  public:
   using KeyEventCallback = base::RepeatingCallback<void(KeyEvent* event)>;
 
@@ -33,7 +33,7 @@ class COMPONENT_EXPORT(KEYBOARD_HOOK) KeyboardHook {
   // Returns a valid instance if the hook was created and successfully
   // registered otherwise nullptr.
   static std::unique_ptr<KeyboardHook> CreateModifierKeyboardHook(
-      absl::optional<base::flat_set<DomCode>> dom_codes,
+      base::Optional<base::flat_set<DomCode>> dom_codes,
       gfx::AcceleratedWidget accelerated_widget,
       KeyEventCallback callback);
 

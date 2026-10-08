@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "base/mac/scoped_nsobject.h"
-#include "base/memory/raw_ptr.h"
 #include "device/bluetooth/bluetooth_remote_gatt_service.h"
 
 @class CBCharacteristic;
@@ -34,11 +33,6 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothRemoteGattServiceMac
       BluetoothLowEnergyDeviceMac* bluetooth_device_mac,
       CBService* service,
       bool is_primary);
-
-  BluetoothRemoteGattServiceMac(const BluetoothRemoteGattServiceMac&) = delete;
-  BluetoothRemoteGattServiceMac& operator=(
-      const BluetoothRemoteGattServiceMac&) = delete;
-
   ~BluetoothRemoteGattServiceMac() override;
 
   // BluetoothRemoteGattService override.
@@ -79,7 +73,7 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothRemoteGattServiceMac
       CBDescriptor* cb_descriptor) const;
 
   // bluetooth_device_mac_ owns instances of this class.
-  raw_ptr<BluetoothLowEnergyDeviceMac> bluetooth_device_mac_;
+  BluetoothLowEnergyDeviceMac* bluetooth_device_mac_;
   // A service from CBPeripheral.services.
   base::scoped_nsobject<CBService> service_;
   bool is_primary_;
@@ -90,6 +84,8 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothRemoteGattServiceMac
   // Increased each time DiscoverCharacteristics() is called. And decreased when
   // DidDiscoverCharacteristics() is called.
   int discovery_pending_count_;
+
+  DISALLOW_COPY_AND_ASSIGN(BluetoothRemoteGattServiceMac);
 };
 
 // Stream operator for logging.

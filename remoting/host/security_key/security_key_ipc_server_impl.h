@@ -1,11 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef REMOTING_HOST_SECURITY_KEY_SECURITY_KEY_IPC_SERVER_IMPL_H_
 #define REMOTING_HOST_SECURITY_KEY_SECURITY_KEY_IPC_SERVER_IMPL_H_
 
-#include "base/memory/raw_ptr.h"
 #include "remoting/host/security_key/security_key_ipc_server.h"
 
 #include <cstdint>
@@ -18,8 +17,6 @@
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "ipc/ipc_listener.h"
-#include "mojo/public/cpp/bindings/associated_receiver.h"
-#include "remoting/host/mojom/remote_security_key.mojom.h"
 
 namespace base {
 class TimeDelta;
@@ -39,8 +36,7 @@ namespace remoting {
 // Responsible for handing the server end of the IPC channel between the
 // the network process and the local remote_security_key process.
 class SecurityKeyIpcServerImpl : public SecurityKeyIpcServer,
-                                 public IPC::Listener,
-                                 public mojom::SecurityKeyForwarder {
+                                 public IPC::Listener {
  public:
   SecurityKeyIpcServerImpl(
       int connection_id,
@@ -49,10 +45,6 @@ class SecurityKeyIpcServerImpl : public SecurityKeyIpcServer,
       const SecurityKeyAuthHandler::SendMessageCallback& message_callback,
       base::OnceClosure connect_callback,
       base::OnceClosure done_callback);
-
-  SecurityKeyIpcServerImpl(const SecurityKeyIpcServerImpl&) = delete;
-  SecurityKeyIpcServerImpl& operator=(const SecurityKeyIpcServerImpl&) = delete;
-
   ~SecurityKeyIpcServerImpl() override;
 
   // SecurityKeyIpcServer implementation.
@@ -66,11 +58,8 @@ class SecurityKeyIpcServerImpl : public SecurityKeyIpcServer,
   void OnChannelConnected(int32_t peer_pid) override;
   void OnChannelError() override;
 
-  // mojom::SecurityKeyForwarder implementation.
-  void OnSecurityKeyRequest(const std::string& request_data,
-                            OnSecurityKeyRequestCallback callback) override;
-
-  void BindAssociatedInterface(mojo::ScopedInterfaceEndpointHandle handle);
+  // Handles security key resquest IPC messages.
+  void OnSecurityKeyRequest(const std::string& request);
 
   void CloseChannel();
 
@@ -78,7 +67,10 @@ class SecurityKeyIpcServerImpl : public SecurityKeyIpcServer,
   int connection_id_;
 
   // Interface which provides details about the client session.
-  raw_ptr<ClientSessionDetails> client_session_details_ = nullptr;
+  ClientSessionDetails* client_session_details_ = nullptr;
+
+  // Tracks whether the connection is in the process of being closed.
+  bool connection_close_pending_ = false;
 
   // Timeout for disconnecting the IPC channel if there is no client activity.
   base::TimeDelta initial_connect_timeout_;
@@ -99,20 +91,16 @@ class SecurityKeyIpcServerImpl : public SecurityKeyIpcServer,
   // Used to pass a security key request on to the remote client.
   SecurityKeyAuthHandler::SendMessageCallback message_callback_;
 
-  // Used to return response data to the remote security key process.
-  OnSecurityKeyRequestCallback response_callback_;
-
   // Used for sending/receiving security key messages between processes.
   std::unique_ptr<mojo::IsolatedConnection> mojo_connection_;
   std::unique_ptr<IPC::Channel> ipc_channel_;
-
-  mojo::AssociatedReceiver<mojom::SecurityKeyForwarder> security_key_forwarder_{
-      this};
 
   // Ensures SecurityKeyIpcServerImpl methods are called on the same thread.
   base::ThreadChecker thread_checker_;
 
   base::WeakPtrFactory<SecurityKeyIpcServerImpl> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SecurityKeyIpcServerImpl);
 };
 
 }  // namespace remoting

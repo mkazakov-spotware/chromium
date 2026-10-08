@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 
 #include "base/bind.h"
 #include "base/lazy_instance.h"
-#include "base/task/single_thread_task_runner.h"
-#include "content/public/browser/browser_thread.h"
+#include "base/task/post_task.h"
+#include "content/public/browser/browser_task_traits.h"
 #include "extensions/browser/api/socket/udp_socket.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extensions_browser_client.h"
@@ -85,7 +85,7 @@ void UDPSocketEventDispatcher::StartReceive(const ReceiveParams& params) {
 
   ResumableUDPSocket* socket =
       params.sockets->Get(params.extension_id, params.socket_id);
-  if (socket == nullptr) {
+  if (socket == NULL) {
     // This can happen if the socket is closed while our callback is active.
     return;
   }
@@ -123,7 +123,8 @@ void UDPSocketEventDispatcher::ReceiveCallback(
     receive_info.data.assign(io_buffer->data(), io_buffer->data() + bytes_read);
     receive_info.remote_address = address;
     receive_info.remote_port = port;
-    auto args = sockets_udp::OnReceive::Create(receive_info);
+    std::unique_ptr<base::ListValue> args =
+        sockets_udp::OnReceive::Create(receive_info);
     std::unique_ptr<Event> event(new Event(events::SOCKETS_UDP_ON_RECEIVE,
                                            sockets_udp::OnReceive::kEventName,
                                            std::move(args)));
@@ -131,8 +132,8 @@ void UDPSocketEventDispatcher::ReceiveCallback(
 
     // Post a task to delay the read until the socket is available, as
     // calling StartReceive at this point would error with ERR_IO_PENDING.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE,
+    base::PostTask(
+        FROM_HERE, {params.thread_id},
         base::BindOnce(&UDPSocketEventDispatcher::StartReceive, params));
   } else if (bytes_read == net::ERR_IO_PENDING) {
     // This happens when resuming a socket which already had an
@@ -146,7 +147,8 @@ void UDPSocketEventDispatcher::ReceiveCallback(
     sockets_udp::ReceiveErrorInfo receive_error_info;
     receive_error_info.socket_id = params.socket_id;
     receive_error_info.result_code = bytes_read;
-    auto args = sockets_udp::OnReceiveError::Create(receive_error_info);
+    std::unique_ptr<base::ListValue> args =
+        sockets_udp::OnReceiveError::Create(receive_error_info);
     std::unique_ptr<Event> event(
         new Event(events::SOCKETS_UDP_ON_RECEIVE_ERROR,
                   sockets_udp::OnReceiveError::kEventName, std::move(args)));
@@ -185,17 +187,8 @@ void UDPSocketEventDispatcher::DispatchEvent(void* browser_context_id,
   if (!extensions::ExtensionsBrowserClient::Get()->IsValidContext(context))
     return;
   EventRouter* router = EventRouter::Get(context);
-  if (router) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-    // Terminal app is the only non-extension to use sockets
-    // (crbug.com/1350479).
-    if (extension_id == kCrOSTerminal) {
-      router->DispatchEventToURL(GURL(extension_id), std::move(event));
-      return;
-    }
-#endif
+  if (router)
     router->DispatchEventToExtension(extension_id, std::move(event));
-  }
 }
 
 }  // namespace api

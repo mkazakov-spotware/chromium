@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "sql/statement.h"
 
 using base::Time;
+using base::TimeDelta;
 
 namespace history {
 
@@ -44,8 +45,8 @@ bool AndroidCacheDatabase::AddBookmarkCacheRow(const Time& created_time,
       "INSERT INTO android_cache_db.bookmark_cache (created_time, "
       "last_visit_time, url_id) VALUES (?, ?, ?)"));
 
-  statement.BindTime(0, created_time);
-  statement.BindTime(1, last_visit_time);
+  statement.BindInt64(0, ToDatabaseTime(created_time));
+  statement.BindInt64(1, ToDatabaseTime(last_visit_time));
   statement.BindInt64(2, url_id);
 
   if (!statement.Run()) {
@@ -108,14 +109,14 @@ bool AndroidCacheDatabase::SetFaviconID(URLID url_id,
 }
 
 SearchTermID AndroidCacheDatabase::AddSearchTerm(
-    const std::u16string& term,
+    const base::string16& term,
     const base::Time& last_visit_time) {
   sql::Statement statement(GetDB().GetCachedStatement(SQL_FROM_HERE,
       "INSERT INTO android_cache_db.search_terms (search, "
       "date) VALUES (?, ?)"));
 
   statement.BindString16(0, term);
-  statement.BindTime(1, last_visit_time);
+  statement.BindInt64(1, ToDatabaseTime(last_visit_time));
 
   if (!statement.Run()) {
     LOG(ERROR) << GetDB().GetErrorMessage();
@@ -133,13 +134,13 @@ bool AndroidCacheDatabase::UpdateSearchTerm(SearchTermID id,
       "WHERE _id = ?"
       ));
   statement.BindString16(0, row.term);
-  statement.BindTime(1, row.last_visit_time);
+  statement.BindInt64(1, ToDatabaseTime(row.last_visit_time));
   statement.BindInt64(2, id);
 
   return statement.Run();
 }
 
-SearchTermID AndroidCacheDatabase::GetSearchTerm(const std::u16string& term,
+SearchTermID AndroidCacheDatabase::GetSearchTerm(const base::string16& term,
                                                  SearchTermRow* row) {
   sql::Statement statement(GetDB().GetCachedStatement(SQL_FROM_HERE,
       "SELECT _id, search, date "
@@ -157,7 +158,7 @@ SearchTermID AndroidCacheDatabase::GetSearchTerm(const std::u16string& term,
   if (row) {
     row->id = statement.ColumnInt64(0);
     row->term = statement.ColumnString16(1);
-    row->last_visit_time = statement.ColumnTime(2);
+    row->last_visit_time = FromDatabaseTime(statement.ColumnInt64(2));
   }
   return statement.ColumnInt64(0);
 }

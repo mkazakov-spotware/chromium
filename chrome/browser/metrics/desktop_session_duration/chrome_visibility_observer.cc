@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include "base/bind.h"
 #include "base/memory/singleton.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/metrics/desktop_session_duration/desktop_session_duration_tracker.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
@@ -45,7 +45,7 @@ void ChromeVisibilityObserver::OnBrowserNoLongerActive(Browser* browser) {
   if (visibility_gap_timeout_.InMicroseconds() == 0) {
     SendVisibilityChangeEvent(false, base::TimeDelta());
   } else {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&ChromeVisibilityObserver::SendVisibilityChangeEvent,
                        weak_factory_.GetWeakPtr(), false,
@@ -72,7 +72,7 @@ void ChromeVisibilityObserver::InitVisibilityGapTimeout() {
   if (!param_value.empty())
     base::StringToInt(param_value, &timeout_seconds);
 
-  visibility_gap_timeout_ = base::Seconds(timeout_seconds);
+  visibility_gap_timeout_ = base::TimeDelta::FromSeconds(timeout_seconds);
 }
 
 void ChromeVisibilityObserver::SetVisibilityGapTimeoutForTesting(

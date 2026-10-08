@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "ui/display/display_export.h"
 
@@ -19,10 +20,6 @@ class DisplayObserver;
 class DISPLAY_EXPORT DisplayChangeNotifier {
  public:
   DisplayChangeNotifier();
-
-  DisplayChangeNotifier(const DisplayChangeNotifier&) = delete;
-  DisplayChangeNotifier& operator=(const DisplayChangeNotifier&) = delete;
-
   ~DisplayChangeNotifier();
 
   void AddObserver(DisplayObserver* observer);
@@ -38,6 +35,8 @@ class DISPLAY_EXPORT DisplayChangeNotifier {
   // The observers that need to be notified when a display is modified, added
   // or removed.
   base::ObserverList<DisplayObserver> observer_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(DisplayChangeNotifier);
 };
 
 }  // namespace display

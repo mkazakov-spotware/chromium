@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,11 +47,10 @@ function cancelTestTimeout() {
 }
 
 function detectVideoPlayingWithExpectedResolution(
-    videoElementName, video_width, video_height, alignment) {
+    videoElementName, video_width, video_height) {
   return detectVideo(
       videoElementName, function(pixels, previous_pixels, videoElement) {
-        return hasExpectedResolution(
-                   videoElement, video_width, video_height, alignment) &&
+        return hasExpectedResolution(videoElement, video_width, video_height) &&
             isVideoPlaying(pixels, previous_pixels);
       });
 }
@@ -111,7 +110,7 @@ function detectVideoWithDimension(
             ' to appear');
         return;
       }
-      var context = canvas.getContext('2d', {willReadFrequently: true});
+      var context = canvas.getContext('2d');
       context.drawImage(videoElement, 0, 0);
       var pixels = context.getImageData(0, 0, width, height / 3).data;
 
@@ -166,18 +165,7 @@ function waitForConnectionToStabilizeIfNeeded(peerConnection) {
   });
 }
 
-function hasExpectedResolution(
-    videoElement, expected_width, expected_height, alignment) {
-  if (videoElement.videoWidth == expected_width &&
-      videoElement.videoHeight == expected_height) {
-    return true;
-  }
-
-  if (!alignment)
-    return false;
-
-  expected_width -= expected_width % alignment;
-  expected_height -= expected_height % alignment;
+function hasExpectedResolution(videoElement, expected_width, expected_height) {
   return videoElement.videoWidth == expected_width &&
       videoElement.videoHeight == expected_height;
 }

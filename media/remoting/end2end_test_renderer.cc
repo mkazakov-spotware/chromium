@@ -1,24 +1,21 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/remoting/end2end_test_renderer.h"
-#include "base/memory/raw_ptr.h"
-
-#include <memory>
 
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/callback_helpers.h"
 #include "base/check.h"
 #include "base/notreached.h"
-#include "base/task/single_thread_task_runner.h"
-#include "components/cast_streaming/public/remoting_proto_utils.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "media/base/demuxer_stream.h"
 #include "media/mojo/common/mojo_data_pipe_read_write.h"
 #include "media/mojo/common/mojo_decoder_buffer_converter.h"
 #include "media/mojo/mojom/remoting.mojom.h"
 #include "media/remoting/courier_renderer.h"
+#include "media/remoting/proto_utils.h"
 #include "media/remoting/receiver.h"
 #include "media/remoting/receiver_controller.h"
 #include "media/remoting/renderer_controller.h"
@@ -30,8 +27,6 @@
 #include "mojo/public/cpp/bindings/remote.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "mojo/public/cpp/system/data_pipe.h"
-
-using openscreen::cast::RpcMessenger;
 
 namespace media {
 namespace remoting {
@@ -53,9 +48,6 @@ class TestStreamSender final : public mojom::RemotingDataStreamSender {
         data_pipe_reader_(std::move(handle)),
         type_(type),
         send_frame_to_sink_cb_(std::move(callback)) {}
-
-  TestStreamSender(const TestStreamSender&) = delete;
-  TestStreamSender& operator=(const TestStreamSender&) = delete;
 
   ~TestStreamSender() override = default;
 
@@ -84,6 +76,8 @@ class TestStreamSender final : public mojom::RemotingDataStreamSender {
   const DemuxerStream::Type type_;
   const SendFrameToSinkCallback send_frame_to_sink_cb_;
   std::vector<uint8_t> next_frame_data_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestStreamSender);
 };
 
 class TestRemoter final : public mojom::Remoter {
@@ -96,9 +90,6 @@ class TestRemoter final : public mojom::Remoter {
       : source_(std::move(source)),
         send_message_to_sink_cb_(std::move(send_message_to_sink_cb)),
         send_frame_to_sink_cb_(std::move(send_frame_to_sink_cb)) {}
-
-  TestRemoter(const TestRemoter&) = delete;
-  TestRemoter& operator=(const TestRemoter&) = delete;
 
   ~TestRemoter() override = default;
 
@@ -113,14 +104,14 @@ class TestRemoter final : public mojom::Remoter {
                         mojo::PendingReceiver<mojom::RemotingDataStreamSender>
                             video_sender_receiver) override {
     if (audio_pipe.is_valid()) {
-      audio_stream_sender_ = std::make_unique<TestStreamSender>(
+      audio_stream_sender_.reset(new TestStreamSender(
           std::move(audio_sender_receiver), std::move(audio_pipe),
-          DemuxerStream::AUDIO, send_frame_to_sink_cb_);
+          DemuxerStream::AUDIO, send_frame_to_sink_cb_));
     }
     if (video_pipe.is_valid()) {
-      video_stream_sender_ = std::make_unique<TestStreamSender>(
+      video_stream_sender_.reset(new TestStreamSender(
           std::move(video_sender_receiver), std::move(video_pipe),
-          DemuxerStream::VIDEO, send_frame_to_sink_cb_);
+          DemuxerStream::VIDEO, send_frame_to_sink_cb_));
     }
   }
 
@@ -149,6 +140,8 @@ class TestRemoter final : public mojom::Remoter {
   const TestStreamSender::SendFrameToSinkCallback send_frame_to_sink_cb_;
   std::unique_ptr<TestStreamSender> audio_stream_sender_;
   std::unique_ptr<TestStreamSender> video_stream_sender_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestRemoter);
 };
 
 std::unique_ptr<RendererController> CreateController(
@@ -242,7 +235,7 @@ class End2EndTestRenderer::TestRemotee : public mojom::Remotee {
   void OnVideoNaturalSizeChange(const gfx::Size& size) override {}
 
  private:
-  raw_ptr<RendererController> controller_;
+  RendererController* controller_;
 
   std::unique_ptr<MojoDecoderBufferWriter> audio_buffer_writer_;
   std::unique_ptr<MojoDecoderBufferWriter> video_buffer_writer_;
@@ -263,8 +256,7 @@ End2EndTestRenderer::End2EndTestRenderer(std::unique_ptr<Renderer> renderer)
       base::BindRepeating(&End2EndTestRenderer::SendFrameToSink,
                           weak_factory_.GetWeakPtr()));
   courier_renderer_ = std::make_unique<CourierRenderer>(
-      base::SingleThreadTaskRunner::GetCurrentDefault(),
-      controller_->GetWeakPtr(), nullptr);
+      base::ThreadTaskRunnerHandle::Get(), controller_->GetWeakPtr(), nullptr);
 
   // create receiver components
   media_remotee_ = std::make_unique<TestRemotee>(controller_.get());
@@ -272,21 +264,17 @@ End2EndTestRenderer::End2EndTestRenderer(std::unique_ptr<Renderer> renderer)
   receiver_controller_ = ReceiverController::GetInstance();
   ResetForTesting(receiver_controller_);
 
-  receiver_rpc_messenger_ = receiver_controller_->rpc_messenger();
-  receiver_renderer_handle_ = receiver_rpc_messenger_->GetUniqueHandle();
+  receiver_rpc_broker_ = receiver_controller_->rpc_broker();
+  receiver_renderer_handle_ = receiver_rpc_broker_->GetUniqueHandle();
 
-  receiver_rpc_messenger_->RegisterMessageReceiverCallback(
-      RpcMessenger::kAcquireRendererHandle,
-      [ptr = weak_factory_.GetWeakPtr()](
-          std::unique_ptr<openscreen::cast::RpcMessage> message) {
-        if (ptr) {
-          ptr->OnReceivedRpc(std::move(message));
-        }
-      });
+  receiver_rpc_broker_->RegisterMessageReceiverCallback(
+      RpcBroker::kAcquireRendererHandle,
+      base::BindRepeating(&End2EndTestRenderer::OnReceivedRpc,
+                          weak_factory_.GetWeakPtr()));
 
   receiver_ = std::make_unique<Receiver>(
       receiver_renderer_handle_, sender_renderer_handle_, receiver_controller_,
-      base::SingleThreadTaskRunner::GetCurrentDefault(), std::move(renderer),
+      base::ThreadTaskRunnerHandle::Get(), std::move(renderer),
       base::BindOnce(&End2EndTestRenderer::OnAcquireRendererDone,
                      weak_factory_.GetWeakPtr()));
 
@@ -294,12 +282,12 @@ End2EndTestRenderer::End2EndTestRenderer(std::unique_ptr<Renderer> renderer)
   media_remotee_->BindMojoReceiver(remotee.InitWithNewPipeAndPassReceiver());
   receiver_controller_->Initialize(std::move(remotee));
   stream_provider_ = std::make_unique<StreamProvider>(
-      receiver_controller_, base::SingleThreadTaskRunner::GetCurrentDefault());
+      receiver_controller_, base::ThreadTaskRunnerHandle::Get());
 }
 
 End2EndTestRenderer::~End2EndTestRenderer() {
-  receiver_rpc_messenger_->UnregisterMessageReceiverCallback(
-      RpcMessenger::kAcquireRendererHandle);
+  receiver_rpc_broker_->UnregisterMessageReceiverCallback(
+      RpcBroker::kAcquireRendererHandle);
 }
 
 void End2EndTestRenderer::Initialize(MediaResource* media_resource,
@@ -318,21 +306,21 @@ void End2EndTestRenderer::Initialize(MediaResource* media_resource,
 }
 
 void End2EndTestRenderer::InitializeReceiverRenderer(PipelineStatus status) {
-  DCHECK(status == PIPELINE_OK);
+  DCHECK_EQ(PIPELINE_OK, status);
   receiver_->Initialize(
       stream_provider_.get(), nullptr,
-      base::BindOnce(&End2EndTestRenderer::OnReceiverInitialized,
+      base::BindOnce(&End2EndTestRenderer::OnReceiverInitalized,
                      weak_factory_.GetWeakPtr()));
 }
 
 void End2EndTestRenderer::OnCourierRendererInitialized(PipelineStatus status) {
-  DCHECK(status == PIPELINE_OK);
+  DCHECK_EQ(PIPELINE_OK, status);
   courier_renderer_initialized_ = true;
   CompleteInitialize();
 }
 
-void End2EndTestRenderer::OnReceiverInitialized(PipelineStatus status) {
-  DCHECK(status == PIPELINE_OK);
+void End2EndTestRenderer::OnReceiverInitalized(PipelineStatus status) {
+  DCHECK_EQ(PIPELINE_OK, status);
   receiver_initialized_ = true;
   CompleteInitialize();
 }
@@ -345,34 +333,34 @@ void End2EndTestRenderer::CompleteInitialize() {
 }
 
 void End2EndTestRenderer::OnReceivedRpc(
-    std::unique_ptr<openscreen::cast::RpcMessage> message) {
+    std::unique_ptr<media::remoting::pb::RpcMessage> message) {
   DCHECK(message);
   DCHECK_EQ(message->proc(),
-            openscreen::cast::RpcMessage::RPC_ACQUIRE_RENDERER);
+            media::remoting::pb::RpcMessage::RPC_ACQUIRE_RENDERER);
   OnAcquireRenderer(std::move(message));
 }
 
 void End2EndTestRenderer::OnAcquireRenderer(
-    std::unique_ptr<openscreen::cast::RpcMessage> message) {
+    std::unique_ptr<media::remoting::pb::RpcMessage> message) {
   DCHECK(message->has_integer_value());
-  DCHECK(message->integer_value() != RpcMessenger::kInvalidHandle);
+  DCHECK(message->integer_value() != RpcBroker::kInvalidHandle);
 
-  if (sender_renderer_handle_ == RpcMessenger::kInvalidHandle) {
+  if (sender_renderer_handle_ == RpcBroker::kInvalidHandle) {
     sender_renderer_handle_ = message->integer_value();
     receiver_->SetRemoteHandle(sender_renderer_handle_);
   }
 }
 
 void End2EndTestRenderer::OnAcquireRendererDone(int receiver_renderer_handle) {
-  openscreen::cast::RpcMessage rpc;
-  rpc.set_handle(sender_renderer_handle_);
-  rpc.set_proc(openscreen::cast::RpcMessage::RPC_ACQUIRE_RENDERER_DONE);
-  rpc.set_integer_value(receiver_renderer_handle);
-  receiver_rpc_messenger_->SendMessageToRemote(rpc);
+  auto rpc = std::make_unique<pb::RpcMessage>();
+  rpc->set_handle(sender_renderer_handle_);
+  rpc->set_proc(pb::RpcMessage::RPC_ACQUIRE_RENDERER_DONE);
+  rpc->set_integer_value(receiver_renderer_handle);
+  receiver_rpc_broker_->SendMessageToRemote(std::move(rpc));
 }
 
 void End2EndTestRenderer::SetLatencyHint(
-    absl::optional<base::TimeDelta> latency_hint) {
+    base::Optional<base::TimeDelta> latency_hint) {
   courier_renderer_->SetLatencyHint(latency_hint);
 }
 
@@ -400,10 +388,6 @@ base::TimeDelta End2EndTestRenderer::GetMediaTime() {
   return courier_renderer_->GetMediaTime();
 }
 
-RendererType End2EndTestRenderer::GetRendererType() {
-  return RendererType::kTest;
-}
-
 void End2EndTestRenderer::SendMessageToSink(
     const std::vector<uint8_t>& message) {
   media_remotee_->OnMessage(message);
@@ -413,8 +397,7 @@ void End2EndTestRenderer::SendFrameToSink(uint32_t frame_count,
                                           const std::vector<uint8_t>& frame,
                                           DemuxerStream::Type type) {
   scoped_refptr<DecoderBuffer> decoder_buffer =
-      cast_streaming::remoting::ByteArrayToDecoderBuffer(frame.data(),
-                                                         frame.size());
+      ByteArrayToDecoderBuffer(frame.data(), frame.size());
   if (type == DemuxerStream::Type::AUDIO) {
     media_remotee_->OnAudioFrame(frame_count, decoder_buffer);
   } else if (type == DemuxerStream::Type::VIDEO) {

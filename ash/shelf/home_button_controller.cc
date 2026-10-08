@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "ash/app_list/app_list_controller_impl.h"
 #include "ash/assistant/model/assistant_ui_model.h"
+#include "ash/home_screen/home_screen_controller.h"
 #include "ash/public/cpp/assistant/controller/assistant_ui_controller.h"
 #include "ash/root_window_controller.h"
 #include "ash/shelf/assistant_overlay.h"
@@ -18,6 +19,7 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
+#include "chromeos/constants/chromeos_features.h"
 #include "components/account_id/account_id.h"
 #include "ui/display/screen.h"
 #include "ui/views/animation/ink_drop.h"
@@ -27,7 +29,8 @@
 namespace ash {
 namespace {
 
-constexpr base::TimeDelta kAssistantAnimationDelay = base::Milliseconds(200);
+constexpr base::TimeDelta kAssistantAnimationDelay =
+    base::TimeDelta::FromMilliseconds(200);
 
 // Returns true if the button should appear activatable.
 bool CanActivate(int64_t display_id) {
@@ -75,10 +78,8 @@ bool HomeButtonController::MaybeHandleGestureEvent(ui::GestureEvent* event) {
         assistant_animation_delay_timer_->Stop();
       }
 
-      if (CanActivate(button_->GetDisplayId())) {
-        views::InkDrop::Get(button_)->AnimateToState(
-            views::InkDropState::ACTION_TRIGGERED, event);
-      }
+      if (CanActivate(button_->GetDisplayId()))
+        button_->AnimateInkDrop(views::InkDropState::ACTION_TRIGGERED, event);
 
       // After animating the ripple, let the button handle the event.
       return false;
@@ -90,10 +91,8 @@ bool HomeButtonController::MaybeHandleGestureEvent(ui::GestureEvent* event) {
                            base::Unretained(this)));
       }
 
-      if (CanActivate(button_->GetDisplayId())) {
-        views::InkDrop::Get(button_)->AnimateToState(
-            views::InkDropState::ACTION_PENDING, event);
-      }
+      if (CanActivate(button_->GetDisplayId()))
+        button_->AnimateInkDrop(views::InkDropState::ACTION_PENDING, event);
 
       return false;
     case ui::ET_GESTURE_LONG_PRESS:
@@ -116,8 +115,7 @@ bool HomeButtonController::MaybeHandleGestureEvent(ui::GestureEvent* event) {
         return false;
 
       // This event happens after the user long presses and lifts the finger.
-      views::InkDrop::Get(button_)->AnimateToState(views::InkDropState::HIDDEN,
-                                                   event);
+      button_->AnimateInkDrop(views::InkDropState::HIDDEN, event);
 
       // We already handled the long press; consume the long tap to avoid
       // bringing up the context menu again.
@@ -130,7 +128,8 @@ bool HomeButtonController::MaybeHandleGestureEvent(ui::GestureEvent* event) {
 
 bool HomeButtonController::IsAssistantAvailable() {
   AssistantStateBase* state = AssistantState::Get();
-  return state->allowed_state() == assistant::AssistantAllowedState::ALLOWED &&
+  return state->allowed_state() ==
+             chromeos::assistant::AssistantAllowedState::ALLOWED &&
          state->settings_enabled().value_or(false);
 }
 
@@ -150,12 +149,11 @@ void HomeButtonController::OnAppListVisibilityWillChange(bool shown,
 }
 
 void HomeButtonController::OnTabletModeStarted() {
-  views::InkDrop::Get(button_)->AnimateToState(views::InkDropState::DEACTIVATED,
-                                               nullptr);
+  button_->AnimateInkDrop(views::InkDropState::DEACTIVATED, nullptr);
 }
 
 void HomeButtonController::OnAssistantFeatureAllowedChanged(
-    assistant::AssistantAllowedState state) {
+    chromeos::assistant::AssistantAllowedState state) {
   button_->OnAssistantAvailabilityChanged();
 }
 
@@ -166,8 +164,8 @@ void HomeButtonController::OnAssistantSettingsEnabled(bool enabled) {
 void HomeButtonController::OnUiVisibilityChanged(
     AssistantVisibility new_visibility,
     AssistantVisibility old_visibility,
-    absl::optional<AssistantEntryPoint> entry_point,
-    absl::optional<AssistantExitPoint> exit_point) {
+    base::Optional<AssistantEntryPoint> entry_point,
+    base::Optional<AssistantExitPoint> exit_point) {
   button_->OnAssistantAvailabilityChanged();
 }
 
@@ -178,21 +176,25 @@ void HomeButtonController::StartAssistantAnimation() {
 void HomeButtonController::OnAppListShown() {
   // Do not show a highlight in tablet mode, since the home screen view is
   // always open in the background.
-  if (!Shell::Get()->IsInTabletMode()) {
-    views::InkDrop::Get(button_)->AnimateToState(views::InkDropState::ACTIVATED,
-                                                 nullptr);
-  }
+  if (!Shell::Get()->IsInTabletMode())
+    button_->AnimateInkDrop(views::InkDropState::ACTIVATED, nullptr);
+  is_showing_app_list_ = true;
+  RootWindowController::ForWindow(button_->GetWidget()->GetNativeWindow())
+      ->UpdateShelfVisibility();
 }
 
 void HomeButtonController::OnAppListDismissed() {
   // If ink drop is not hidden already, snap it to active state, so animation to
   // DEACTIVATED state starts immediately (the animation would otherwise wait
   // for the current animation to finish).
-  views::InkDrop* const ink_drop = views::InkDrop::Get(button_)->GetInkDrop();
+  views::InkDrop* const ink_drop = button_->GetInkDrop();
   if (ink_drop->GetTargetInkDropState() != views::InkDropState::HIDDEN)
     ink_drop->SnapToActivated();
-  views::InkDrop::Get(button_)->AnimateToState(views::InkDropState::DEACTIVATED,
-                                               nullptr);
+  button_->AnimateInkDrop(views::InkDropState::DEACTIVATED, nullptr);
+
+  is_showing_app_list_ = false;
+  RootWindowController::ForWindow(button_->GetWidget()->GetNativeWindow())
+      ->UpdateShelfVisibility();
 }
 
 void HomeButtonController::InitializeAssistantOverlay() {

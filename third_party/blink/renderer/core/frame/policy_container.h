@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,7 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_POLICY_CONTAINER_H_
 
 #include "mojo/public/cpp/bindings/associated_remote.h"
-#include "mojo/public/cpp/bindings/pending_remote.h"
-#include "services/network/public/mojom/content_security_policy.mojom-blink-forward.h"
 #include "services/network/public/mojom/referrer_policy.mojom-shared.h"
-#include "services/network/public/mojom/web_sandbox_flags.mojom-shared.h"
 #include "third_party/blink/public/mojom/frame/policy_container.mojom-blink.h"
 #include "third_party/blink/public/platform/web_policy_container.h"
 #include "third_party/blink/renderer/core/core_export.h"
@@ -30,37 +27,23 @@ class CORE_EXPORT PolicyContainer {
   PolicyContainer() = delete;
   PolicyContainer(
       mojo::PendingAssociatedRemote<mojom::blink::PolicyContainerHost> remote,
-      mojom::blink::PolicyContainerPoliciesPtr policies);
+      mojom::blink::PolicyContainerDocumentPoliciesPtr policies);
   PolicyContainer(const PolicyContainer&) = delete;
   PolicyContainer& operator=(const PolicyContainer&) = delete;
   ~PolicyContainer() = default;
 
-  static std::unique_ptr<PolicyContainer> CreateEmpty();
   static std::unique_ptr<PolicyContainer> CreateFromWebPolicyContainer(
       std::unique_ptr<WebPolicyContainer> container);
 
   // Change the Referrer Policy and sync the new policy with the corresponding
-  // PolicyContainerHost.
+  // PolicyContainer owned by the RenderFrameHost.
   void UpdateReferrerPolicy(network::mojom::blink::ReferrerPolicy policy);
   network::mojom::blink::ReferrerPolicy GetReferrerPolicy() const;
 
-  // Append |policies| to the list of Content Security Policy and sync them with
-  // the PolicyContainerHost.
-  void AddContentSecurityPolicies(
-      Vector<network::mojom::blink::ContentSecurityPolicyPtr> policies);
-
-  const mojom::blink::PolicyContainerPolicies& GetPolicies() const;
-
-  // Return a keep alive handle for the browser process' PolicyContainerHost. If
-  // that PolicyContainerHost is owned by a RenderFrameHost, holding a keep
-  // alive handle ensures that the PolicyContainerHost will still be retrievable
-  // via RenderFrameHostImpl::GetPolicyContainerHost, even if the
-  // RenderFrameHost has been deleted in between.
-  mojo::PendingRemote<mojom::blink::PolicyContainerHostKeepAliveHandle>
-  IssueKeepAliveHandle();
+  const mojom::blink::PolicyContainerDocumentPoliciesPtr& GetPolicies() const;
 
  private:
-  mojom::blink::PolicyContainerPoliciesPtr policies_;
+  mojom::blink::PolicyContainerDocumentPoliciesPtr policies_;
 
   mojo::AssociatedRemote<mojom::blink::PolicyContainerHost>
       policy_container_host_remote_;
@@ -68,4 +51,4 @@ class CORE_EXPORT PolicyContainer {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_POLICY_CONTAINER_H_
+#endif

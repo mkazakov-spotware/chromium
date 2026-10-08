@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@ import android.view.ContextThemeWrapper;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.accessibility.AccessibilityEvent;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
@@ -50,12 +49,6 @@ public abstract class TabModalPresenter extends ModalDialogManager.Presenter {
     /** Whether the action bar on selected text is temporarily cleared for showing dialogs. */
     private boolean mDidClearTextControls;
 
-    /**
-     * Whether the dialog should gain focus for accessibility when in front, determined by the
-     * dialog {@link ModalDialogProperties} FOCUS_DIALOG property.
-     */
-    private boolean mFocusDialog;
-
     private class ViewBinder extends ModalDialogViewBinder {
         @Override
         public void bind(PropertyModel model, ModalDialogView view, PropertyKey propertyKey) {
@@ -67,10 +60,6 @@ public abstract class TabModalPresenter extends ModalDialogManager.Presenter {
                     });
                 } else {
                     mDialogContainer.setOnClickListener(null);
-                }
-            } else if (ModalDialogProperties.FOCUS_DIALOG == propertyKey) {
-                if (model.get(ModalDialogProperties.FOCUS_DIALOG)) {
-                    mFocusDialog = true;
                 }
             } else {
                 super.bind(model, view, propertyKey);
@@ -122,14 +111,9 @@ public abstract class TabModalPresenter extends ModalDialogManager.Presenter {
     protected void addDialogView(PropertyModel model) {
         if (mDialogContainer == null) mDialogContainer = createDialogContainer();
 
-        int style = R.style.ThemeOverlay_BrowserUI_ModalDialog_TextPrimaryButton;
-        int buttonStyles = model.get(ModalDialogProperties.BUTTON_STYLES);
-        if (buttonStyles == ModalDialogProperties.ButtonStyles.PRIMARY_FILLED_NEGATIVE_OUTLINE) {
-            style = R.style.ThemeOverlay_BrowserUI_ModalDialog_FilledPrimaryButton;
-        } else if (buttonStyles
-                == ModalDialogProperties.ButtonStyles.PRIMARY_OUTLINE_NEGATIVE_FILLED) {
-            style = R.style.ThemeOverlay_BrowserUI_ModalDialog_FilledNegativeButton;
-        }
+        int style = model.get(ModalDialogProperties.PRIMARY_BUTTON_FILLED)
+                ? R.style.Theme_Chromium_ModalDialog_FilledPrimaryButton
+                : R.style.Theme_Chromium_ModalDialog_TextPrimaryButton;
         mDialogView = loadDialogView(style);
         mModelChangeProcessor =
                 PropertyModelChangeProcessor.create(model, mDialogView, new ViewBinder());
@@ -171,9 +155,6 @@ public abstract class TabModalPresenter extends ModalDialogManager.Presenter {
             mDialogView.announceForAccessibility(getContentDescription(getDialogModel()));
             mDialogView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
             mDialogView.requestFocus();
-            if (mFocusDialog) {
-                mDialogView.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_FOCUSED);
-            }
         } else {
             mDialogView.clearFocus();
             mDialogView.setImportantForAccessibility(
@@ -217,7 +198,7 @@ public abstract class TabModalPresenter extends ModalDialogManager.Presenter {
         FrameLayout.LayoutParams params =
                 new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
-        mDialogView.setBackgroundResource(R.drawable.dialog_bg_no_shadow);
+        mDialogView.setBackgroundResource(org.chromium.ui.R.drawable.popup_bg_tinted);
         mDialogContainer.addView(mDialogView, params);
         mDialogContainer.setAlpha(0f);
         mDialogContainer.setVisibility(View.VISIBLE);

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "extensions/common/permissions/manifest_permission.h"
 
 namespace base {
@@ -20,11 +21,6 @@ namespace extensions {
 class MockManifestPermission : public ManifestPermission {
  public:
   explicit MockManifestPermission(const std::string& name);
-  explicit MockManifestPermission(const std::string& name,
-                                  const std::string& value);
-
-  MockManifestPermission(const MockManifestPermission&) = delete;
-  MockManifestPermission& operator=(const MockManifestPermission&) = delete;
 
   std::string name() const override;
   std::string id() const override;
@@ -44,8 +40,8 @@ class MockManifestPermission : public ManifestPermission {
 
  private:
   std::string name_;
-  // value_ is ignored for the Diff, Union and Intersect operations
-  std::string value_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockManifestPermission);
 };
 
 }  // namespace extensions

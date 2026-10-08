@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "base/bind.h"
 #include "base/json/json_reader.h"
 #include "base/strings/stringprintf.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
@@ -18,20 +19,21 @@ void ParseJsonOnBackgroundThread(
     InProcessJsonParser::SuccessCallback success_callback,
     InProcessJsonParser::ErrorCallback error_callback) {
   DCHECK(task_runner);
-  auto value_with_error = base::JSONReader::ReadAndReturnValueWithError(
-      unsafe_json, base::JSON_PARSE_RFC);
-  if (value_with_error.has_value()) {
+  base::JSONReader::ValueWithError value_with_error =
+      base::JSONReader::ReadAndReturnValueWithError(unsafe_json,
+                                                    base::JSON_PARSE_RFC);
+  if (value_with_error.value) {
     task_runner->PostTask(FROM_HERE,
                           base::BindOnce(std::move(success_callback),
-                                         std::move(*value_with_error)));
+                                         std::move(*value_with_error.value)));
   } else {
     task_runner->PostTask(
-        FROM_HERE, base::BindOnce(std::move(error_callback),
-                                  base::StringPrintf(
-                                      "%s (%d:%d)",
-                                      value_with_error.error().message.c_str(),
-                                      value_with_error.error().line,
-                                      value_with_error.error().column)));
+        FROM_HERE,
+        base::BindOnce(
+            std::move(error_callback),
+            base::StringPrintf(
+                "%s (%d:%d)", value_with_error.error_message.c_str(),
+                value_with_error.error_line, value_with_error.error_column)));
   }
 }
 }  // namespace

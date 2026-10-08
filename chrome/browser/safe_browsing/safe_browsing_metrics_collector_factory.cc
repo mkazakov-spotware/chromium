@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
-#include "components/safe_browsing/core/browser/safe_browsing_metrics_collector.h"
+#include "chrome/browser/safe_browsing/safe_browsing_metrics_collector.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "content/public/browser/browser_context.h"
 
 namespace safe_browsing {
@@ -25,7 +26,9 @@ SafeBrowsingMetricsCollectorFactory::GetInstance() {
 }
 
 SafeBrowsingMetricsCollectorFactory::SafeBrowsingMetricsCollectorFactory()
-    : ProfileKeyedServiceFactory("SafeBrowsingMetricsCollector") {}
+    : BrowserContextKeyedServiceFactory(
+          "SafeBrowsingMetricsCollector",
+          BrowserContextDependencyManager::GetInstance()) {}
 
 KeyedService* SafeBrowsingMetricsCollectorFactory::BuildServiceInstanceFor(
     content::BrowserContext* context) const {

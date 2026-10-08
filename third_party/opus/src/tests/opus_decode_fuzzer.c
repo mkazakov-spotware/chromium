@@ -40,8 +40,6 @@
 /* 4 bytes: packet length, 4 bytes: encoder final range */
 #define SETUP_BYTE_COUNT 8
 
-#define MAX_DECODES 12
-
 typedef struct {
     int fs;
     int channels;
@@ -64,11 +62,9 @@ static void ParseToc(const uint8_t *toc, TocInfo *const info) {
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     OpusDecoder *dec;
     opus_int16 *pcm;
-    uint8_t *temp_data;
+    uint8_t *packet;
     TocInfo toc;
-    int i = 0;
-    int err = OPUS_OK;
-    int num_decodes = 0;
+    int i, err;
 
     /* Not enough data to setup the decoder (+1 for the ToC) */
     if (size < SETUP_BYTE_COUNT + 1) {
@@ -79,20 +75,26 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     ParseToc(&data[SETUP_BYTE_COUNT], &toc);
 
     dec = opus_decoder_create(toc.fs, toc.channels, &err);
-    if (err != OPUS_OK || dec == NULL) {
+    if (err != OPUS_OK | dec == NULL) {
         return 0;
     }
 
     pcm = (opus_int16*) malloc(sizeof(*pcm) * MAX_FRAME_SAMP * toc.channels);
+    packet = (uint8_t*) calloc(MAX_PACKET, sizeof(*packet));
 
-    while (i + SETUP_BYTE_COUNT < size && num_decodes++ < MAX_DECODES) {
+    i = 0;
+    while (1) {
         int len, fec;
+
+        if (i + SETUP_BYTE_COUNT >= size) {
+            break;
+        }
 
         len = (opus_uint32) data[i    ] << 24 |
               (opus_uint32) data[i + 1] << 16 |
               (opus_uint32) data[i + 2] <<  8 |
               (opus_uint32) data[i + 3];
-        if (len > MAX_PACKET || len < 0 || i + SETUP_BYTE_COUNT + len > size) {
+        if (len > MAX_PACKET || len < 0) {
             break;
         }
 
@@ -100,18 +102,17 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
          * Instead, byte 4 is repurposed to determine if FEC is used. */
         fec = data[i + 4] & 1;
 
+        /* Lost packet */
         if (len == 0) {
-            /* Lost packet */
             int frame_size;
             opus_decoder_ctl(dec, OPUS_GET_LAST_PACKET_DURATION(&frame_size));
-            (void) opus_decode(dec, NULL, len, pcm, frame_size, fec);
+            (void) opus_decode(dec, NULL, size, pcm, frame_size, fec);
         } else {
-            temp_data = (uint8_t*) malloc(len);
-            memcpy(temp_data, &data[i + SETUP_BYTE_COUNT], len);
-
-            (void) opus_decode(dec, temp_data, len, pcm, MAX_FRAME_SAMP, fec);
-
-            free(temp_data);
+            if (i + SETUP_BYTE_COUNT + len > size) {
+                break;
+            }
+            memcpy(pcm, &data[i + SETUP_BYTE_COUNT], len);
+            (void) opus_decode(dec, data, size, pcm, MAX_FRAME_SAMP, fec);
         }
 
         i += SETUP_BYTE_COUNT + len;
@@ -119,6 +120,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
     opus_decoder_destroy(dec);
     free(pcm);
+    free(packet);
 
     return 0;
 }

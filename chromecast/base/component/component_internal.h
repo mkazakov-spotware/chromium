@@ -1,12 +1,17 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROMECAST_BASE_COMPONENT_COMPONENT_INTERNAL_H_
 #define CHROMECAST_BASE_COMPONENT_COMPONENT_INTERNAL_H_
 
+#include <set>
+#include <string>
+#include <vector>
+
 #include "base/callback.h"
 #include "base/check.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread_checker.h"
@@ -32,10 +37,6 @@ class DependencyCount;
 class DependencyBase {
  public:
   DependencyBase(const WeakReferenceBase& dependency, ComponentBase* dependent);
-
-  DependencyBase(const DependencyBase&) = delete;
-  DependencyBase& operator=(const DependencyBase&) = delete;
-
   ~DependencyBase();
 
   void StartUsing();
@@ -55,6 +56,8 @@ class DependencyBase {
 
   const scoped_refptr<DependencyCount> counter_;
   base::ThreadChecker thread_checker_;
+
+  DISALLOW_COPY_AND_ASSIGN(DependencyBase);
 };
 
 // Base class for weak dependencies. Weak dependencies cannot be used

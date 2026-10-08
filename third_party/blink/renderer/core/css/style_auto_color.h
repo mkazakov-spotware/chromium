@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,6 @@ class StyleAutoColor : public StyleColor {
  public:
   explicit StyleAutoColor(Color color) : StyleColor(color) {}
   explicit StyleAutoColor(CSSValueID keyword) : StyleColor(keyword) {}
-  StyleAutoColor(Color color, CSSValueID keyword)
-      : StyleColor(color, keyword) {}
   static StyleAutoColor AutoColor() {
     return StyleAutoColor(CSSValueID::kAuto);
   }

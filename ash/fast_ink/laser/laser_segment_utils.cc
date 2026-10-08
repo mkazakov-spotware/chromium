@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,8 @@
 #include "ui/gfx/geometry/angle_conversions.h"
 #include "ui/gfx/geometry/point3_f.h"
 #include "ui/gfx/geometry/point_f.h"
-#include "ui/gfx/geometry/transform.h"
 #include "ui/gfx/geometry/vector2d_f.h"
+#include "ui/gfx/transform.h"
 
 namespace ash {
 namespace {
@@ -35,7 +35,8 @@ float AngleOfPointInNewCoordinates(const gfx::PointF& origin,
   gfx::Transform transform;
   transform.Rotate(-angle_degrees);
   transform.Translate(-origin.x(), -origin.y());
-  gfx::PointF point_to_transform = transform.MapPoint(point);
+  gfx::Point3F point_to_transform(point.x(), point.y(), 0.0f);
+  transform.TransformPoint(&point_to_transform);
   return atan2(point_to_transform.y(), point_to_transform.x());
 }
 

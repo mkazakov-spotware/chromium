@@ -1,6 +1,7 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
+
 """Unit tests for results_processor methods."""
 
 import datetime
@@ -18,7 +19,6 @@ from tracing.value import histogram_set
 
 
 class ResultsProcessorUnitTests(unittest.TestCase):
-
   def testAddDiagnosticsToHistograms(self):
     start_ts = 1500000000
     start_iso = datetime.datetime.utcfromtimestamp(start_ts).isoformat() + 'Z'
@@ -35,10 +35,9 @@ class ResultsProcessorUnitTests(unittest.TestCase):
     test_result['_histograms'] = histogram_set.HistogramSet()
     test_result['_histograms'].CreateHistogram('a', 'unitless', [0])
 
-    processor.AddDiagnosticsToHistograms(test_result,
-                                         test_suite_start=start_iso,
-                                         results_label='label',
-                                         test_path_format='telemetry')
+    processor.AddDiagnosticsToHistograms(
+        test_result, test_suite_start=start_iso, results_label='label',
+        test_path_format='telemetry')
 
     hist = test_result['_histograms'].GetFirstHistogram()
     self.assertEqual(hist.diagnostics['labels'],
@@ -62,9 +61,9 @@ class ResultsProcessorUnitTests(unittest.TestCase):
     test_result = testing.TestResult(
         'benchmark/story',
         output_artifacts={
-            'logs': testing.Artifact('/log.log'),
-            'trace.html': testing.Artifact('/trace.html'),
-            'screenshot': testing.Artifact('/screenshot.png'),
+          'logs': testing.Artifact('/log.log'),
+          'trace.html': testing.Artifact('/trace.html'),
+          'screenshot': testing.Artifact('/screenshot.png'),
         },
     )
 
@@ -72,22 +71,22 @@ class ResultsProcessorUnitTests(unittest.TestCase):
       cloud_patch.return_value = processor.cloud_storage.CloudFilepath(
           'bucket', 'path')
       processor.UploadArtifacts(test_result, 'bucket', 'run1')
-      cloud_patch.assert_has_calls(
-          [
-              mock.call('bucket', 'run1/benchmark/story/retry_0/logs',
-                        '/log.log'),
-              mock.call('bucket', 'run1/benchmark/story/retry_0/trace.html',
-                        '/trace.html'),
-              mock.call('bucket', 'run1/benchmark/story/retry_0/screenshot',
-                        '/screenshot.png'),
-          ],
-          any_order=True,
+      cloud_patch.assert_has_calls([
+          mock.call('bucket', 'run1/benchmark/story/retry_0/logs', '/log.log'),
+          mock.call('bucket', 'run1/benchmark/story/retry_0/trace.html',
+                    '/trace.html'),
+          mock.call('bucket', 'run1/benchmark/story/retry_0/screenshot',
+                    '/screenshot.png'),
+        ],
+        any_order=True,
       )
 
-    for artifact in test_result['outputArtifacts'].values():
+    for artifact in test_result['outputArtifacts'].itervalues():
       self.assertEqual(artifact['fetchUrl'], 'gs://bucket/path')
-      self.assertEqual(artifact['viewUrl'],
-                       'https://storage.cloud.google.com/bucket/path')
+      self.assertEqual(
+          artifact['viewUrl'],
+          'https://console.developers.google.com'
+          '/m/cloudstorage/b/bucket/o/path')
 
   def testRunIdentifier(self):
     with mock.patch('random.randint') as randint_patch:
@@ -101,11 +100,9 @@ class ResultsProcessorUnitTests(unittest.TestCase):
     test_result = testing.TestResult(
         'benchmark/story2',
         output_artifacts={
-            'trace/1.json':
-            testing.Artifact(
+            'trace/1.json': testing.Artifact(
                 os.path.join('test_run', 'story2', 'trace', '1.json')),
-            'trace/2.txt':
-            testing.Artifact(
+            'trace/2.txt': testing.Artifact(
                 os.path.join('test_run', 'story2', 'trace', '2.txt')),
         },
     )
@@ -130,13 +127,13 @@ class ResultsProcessorUnitTests(unittest.TestCase):
 
     artifacts = test_result['outputArtifacts']
     self.assertEqual(len(artifacts), 1)
-    self.assertEqual(list(artifacts.keys())[0], 'trace.html')
+    self.assertEqual(artifacts.keys()[0], 'trace.html')
 
   def testMeasurementToHistogram(self):
     hist = processor.MeasurementToHistogram('a', {
-        'unit': 'sizeInBytes',
-        'samples': [1, 2, 3],
-        'description': 'desc',
+      'unit': 'sizeInBytes',
+      'samples': [1, 2, 3],
+      'description': 'desc',
     })
 
     self.assertEqual(hist.name, 'a')
@@ -146,8 +143,8 @@ class ResultsProcessorUnitTests(unittest.TestCase):
 
   def testMeasurementToHistogramLegacyUnits(self):
     hist = processor.MeasurementToHistogram('a', {
-        'unit': 'seconds',
-        'samples': [1, 2, 3],
+      'unit': 'seconds',
+      'samples': [1, 2, 3],
     })
 
     self.assertEqual(hist.name, 'a')
@@ -171,7 +168,9 @@ class ResultsProcessorUnitTests(unittest.TestCase):
   def testGetTraceUrlLocal(self):
     test_result = testing.TestResult(
         'benchmark/story',
-        output_artifacts={'trace.html': testing.Artifact('trace.html')},
+        output_artifacts={
+            'trace.html': testing.Artifact('trace.html')
+        },
     )
     url = processor.GetTraceUrl(test_result)
     self.assertEqual(url, 'file://trace.html')

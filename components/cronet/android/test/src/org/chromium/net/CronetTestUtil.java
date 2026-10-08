@@ -1,10 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.net;
-
-import android.net.Network;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -78,13 +76,6 @@ public class CronetTestUtil {
         return nativeGetLoadFlags(((CronetUrlRequest) urlRequest).getUrlRequestAdapterForTesting());
     }
 
-    public static boolean doesURLRequestContextExistForTesting(
-            CronetEngine engine, Network network) {
-        CronetUrlRequestContext context = (CronetUrlRequestContext) engine;
-        return nativeURLRequestContextExistsForTesting(
-                context.getUrlRequestContextAdapter(), network.getNetworkHandle());
-    }
-
     public static void setMockCertVerifierForTesting(
             ExperimentalCronetEngine.Builder builder, long mockCertVerifier) {
         getCronetEngineBuilderImpl(builder).setMockCertVerifierForTesting(mockCertVerifier);
@@ -112,6 +103,4 @@ public class CronetTestUtil {
 
     private static native void nativePrepareNetworkThread(long contextAdapter);
     private static native void nativeCleanupNetworkThread(long contextAdapter);
-    private static native boolean nativeURLRequestContextExistsForTesting(
-            long contextAdapter, long networkHandle);
 }

@@ -1,16 +1,17 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.crypto;
 
+import android.annotation.SuppressLint;
 import android.os.Bundle;
 
 import androidx.annotation.AnyThread;
-import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.ByteArrayGenerator;
 import org.chromium.base.Log;
+import org.chromium.base.ObserverList;
+import org.chromium.base.SecureRandomInitializer;
 import org.chromium.base.task.AsyncTask;
 import org.chromium.base.task.PostTask;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
@@ -57,6 +58,16 @@ public class CipherFactory {
     static final String BUNDLE_IV = "org.chromium.content.browser.crypto.CipherFactory.IV";
     static final String BUNDLE_KEY = "org.chromium.content.browser.crypto.CipherFactory.KEY";
 
+    /**
+     * An observer for whether cipher data has been created.
+     */
+    public interface CipherDataObserver {
+        /**
+         * Called asynchronously after new cipher key data has been generated.
+         */
+        void onCipherDataGenerated();
+    }
+
     /** Holds intermediate data for the computation. */
     private static class CipherData {
         public final Key key;
@@ -71,16 +82,6 @@ public class CipherFactory {
     /** Singleton holder for the class. */
     private static class LazyHolder {
         private static CipherFactory sInstance = new CipherFactory();
-    }
-
-    @VisibleForTesting
-    public static void resetInstanceForTesting() {
-        LazyHolder.sInstance = new CipherFactory();
-    }
-
-    @VisibleForTesting
-    public static void resetInstanceForTesting(CipherFactory cipherFactory) {
-        LazyHolder.sInstance = cipherFactory;
     }
 
     /**
@@ -99,7 +100,7 @@ public class CipherFactory {
     private ByteArrayGenerator mRandomNumberProvider;
 
     /** A list of observers for this class. */
-    private Runnable mTestCipherDataGeneratedCallback;
+    private final ObserverList<CipherDataObserver> mObservers;
 
     /** @return The Singleton instance. Creates it if it doesn't exist. */
     public static CipherFactory getInstance() {
@@ -145,22 +146,22 @@ public class CipherFactory {
      * @return Data to use for the Cipher, null if it couldn't be generated.
      */
     CipherData getCipherData(boolean generateIfNeeded) {
-        synchronized (mDataLock) {
-            if (mData == null && generateIfNeeded) {
-                // Ideally, this task should have been started way before this.
-                triggerKeyGenerationLocked();
+        if (mData == null && generateIfNeeded) {
+            // Ideally, this task should have been started way before this.
+            triggerKeyGeneration();
 
-                // Grab the data from the task.
-                CipherData data;
-                try {
-                    data = mDataGenerator.get();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                } catch (ExecutionException e) {
-                    throw new RuntimeException(e);
-                }
+            // Grab the data from the task.
+            CipherData data;
+            try {
+                data = mDataGenerator.get();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            }
 
-                // Only the first thread is allowed to save the data.
+            // Only the first thread is allowed to save the data.
+            synchronized (mDataLock) {
                 if (mData == null) {
                     mData = data;
 
@@ -185,6 +186,9 @@ public class CipherFactory {
      */
     private Callable<CipherData> createGeneratorCallable() {
         return new Callable<CipherData>() {
+            // SecureRandomInitializer addresses the bug in SecureRandom that "TrulyRandom"
+            // warns about, so this lint warning can safely be suppressed.
+            @SuppressLint("TrulyRandom")
             @Override
             public CipherData call() {
                 // Poll random data to generate initialization parameters for the Cipher.
@@ -201,10 +205,14 @@ public class CipherFactory {
 
                 try {
                     SecureRandom random = new SecureRandom();
+                    SecureRandomInitializer.initialize(random);
 
                     KeyGenerator generator = KeyGenerator.getInstance("AES");
                     generator.init(128, random);
                     return new CipherData(generator.generateKey(), iv);
+                } catch (IOException e) {
+                    Log.e(TAG, "Couldn't get generator data.");
+                    return null;
                 } catch (GeneralSecurityException e) {
                     Log.e(TAG, "Couldn't get generator instances.");
                     return null;
@@ -219,16 +227,13 @@ public class CipherFactory {
      * than immediately calling {@link CipherFactory#getCipher(int)}.
      */
     public void triggerKeyGeneration() {
-        synchronized (mDataLock) {
-            triggerKeyGenerationLocked();
-        }
-    }
-
-    private void triggerKeyGenerationLocked() {
         if (mData != null) return;
-        if (mDataGenerator == null) {
-            mDataGenerator = new FutureTask<CipherData>(createGeneratorCallable());
-            AsyncTask.THREAD_POOL_EXECUTOR.execute(mDataGenerator);
+
+        synchronized (mDataLock) {
+            if (mDataGenerator == null) {
+                mDataGenerator = new FutureTask<CipherData>(createGeneratorCallable());
+                AsyncTask.THREAD_POOL_EXECUTOR.execute(mDataGenerator);
+            }
         }
     }
 
@@ -306,15 +311,30 @@ public class CipherFactory {
         mRandomNumberProvider = mockProvider;
     }
 
-    void setTestCipherDataGeneratedCallback(Runnable callback) {
-        mTestCipherDataGeneratedCallback = callback;
+    /**
+     * Adds an observer for cipher data creation.
+     * @param observer The observer to add.
+     */
+    public void addCipherDataObserver(CipherDataObserver observer) {
+        mObservers.addObserver(observer);
+    }
+
+    /**
+     * Removes a cipher data observer for cipher data creation.
+     * @param observer The observer to remove.
+     */
+    public void removeCipherDataObserver(CipherDataObserver observer) {
+        mObservers.removeObserver(observer);
     }
 
     private void notifyCipherDataGenerated() {
-        if (mTestCipherDataGeneratedCallback != null) mTestCipherDataGeneratedCallback.run();
+        for (CipherDataObserver observer : mObservers) {
+            observer.onCipherDataGenerated();
+        }
     }
 
     private CipherFactory() {
         mRandomNumberProvider = new ByteArrayGenerator();
+        mObservers = new ObserverList<CipherDataObserver>();
     }
 }

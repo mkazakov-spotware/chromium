@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
-#include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/ui/views/payments/payment_request_browsertest_base.h"
 #include "chrome/browser/ui/views/payments/payment_request_dialog_view_ids.h"
@@ -18,11 +17,11 @@ namespace payments {
 
 namespace {
 
-const char16_t kNameFull[] = u"Kirby Puckett";
-const char16_t kPhoneNumber[] = u"6515558946";
-const char16_t kPhoneNumberInvalid[] = u"123";
-const char16_t kEmailAddress[] = u"kirby@example.com";
-const char16_t kEmailAddressInvalid[] = u"kirby";
+const char kNameFull[] = "Kirby Puckett";
+const char kPhoneNumber[] = "6515558946";
+const char kPhoneNumberInvalid[] = "123";
+const char kEmailAddress[] = "kirby@example.com";
+const char kEmailAddressInvalid[] = "kirby";
 
 std::string GetLocale() {
   return g_browser_process->GetApplicationLocale();
@@ -30,45 +29,24 @@ std::string GetLocale() {
 
 }  // namespace
 
-#if BUILDFLAG(IS_MAC)
-// Entire test suite is flaky on MacOS: https://crbug.com/1164438
-#define MAYBE_PaymentRequestContactInfoEditorTest \
-  DISABLED_PaymentRequestContactInfoEditorTest
-#else
-#define MAYBE_PaymentRequestContactInfoEditorTest \
-  PaymentRequestContactInfoEditorTest
-#endif
-
-class MAYBE_PaymentRequestContactInfoEditorTest
+class PaymentRequestContactInfoEditorTest
     : public PaymentRequestBrowserTestBase {
  protected:
-  MAYBE_PaymentRequestContactInfoEditorTest() = default;
+  PaymentRequestContactInfoEditorTest() {}
 
   PersonalDataLoadedObserverMock personal_data_observer_;
 };
 
-IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest, HappyPath) {
-  // Installs two apps so that the Payment Request UI will be shown.
-  std::string a_method_name;
-  InstallPaymentApp("a.com", "/payment_request_success_responder.js",
-                    &a_method_name);
-  std::string b_method_name;
-  InstallPaymentApp("b.com", "/payment_request_success_responder.js",
-                    &b_method_name);
-
+IN_PROC_BROWSER_TEST_F(PaymentRequestContactInfoEditorTest, HappyPath) {
   NavigateTo("/payment_request_contact_details_test.html");
-
-  // Show a Payment Request.
-  InvokePaymentRequestUIWithJs(
-      content::JsReplace("buyWithMethods([{supportedMethods:$1}"
-                         ", {supportedMethods:$2}]);",
-                         a_method_name, b_method_name));
-
+  InvokePaymentRequestUI();
   OpenContactInfoEditorScreen();
 
-  SetEditorTextfieldValue(kNameFull, autofill::NAME_FULL);
-  SetEditorTextfieldValue(kPhoneNumber, autofill::PHONE_HOME_WHOLE_NUMBER);
-  SetEditorTextfieldValue(kEmailAddress, autofill::EMAIL_ADDRESS);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kNameFull), autofill::NAME_FULL);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kPhoneNumber),
+                          autofill::PHONE_HOME_WHOLE_NUMBER);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kEmailAddress),
+                          autofill::EMAIL_ADDRESS);
 
   autofill::PersonalDataManager* personal_data_manager = GetDataManager();
   personal_data_manager->AddObserver(&personal_data_observer_);
@@ -80,51 +58,38 @@ IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest, HappyPath) {
   ClickOnDialogViewAndWait(DialogViewID::EDITOR_SAVE_BUTTON);
   data_loop.Run();
 
-  personal_data_manager->RemoveObserver(&personal_data_observer_);
   ASSERT_EQ(1UL, personal_data_manager->GetProfiles().size());
   autofill::AutofillProfile* profile = personal_data_manager->GetProfiles()[0];
   DCHECK(profile);
 
-  EXPECT_EQ(kNameFull,
+  EXPECT_EQ(base::ASCIIToUTF16(kNameFull),
             profile->GetInfo(autofill::AutofillType(autofill::NAME_FULL),
                              GetLocale()));
-  EXPECT_EQ(u"16515558946",
+  EXPECT_EQ(base::ASCIIToUTF16("16515558946"),
             profile->GetInfo(
                 autofill::AutofillType(autofill::PHONE_HOME_WHOLE_NUMBER),
                 GetLocale()));
-  EXPECT_EQ(kEmailAddress,
+  EXPECT_EQ(base::ASCIIToUTF16(kEmailAddress),
             profile->GetInfo(autofill::AutofillType(autofill::EMAIL_ADDRESS),
                              GetLocale()));
 
-  PaymentRequest* request = GetPaymentRequests().front();
+  PaymentRequest* request = GetPaymentRequests(GetActiveWebContents()).front();
   EXPECT_EQ(1U, request->state()->contact_profiles().size());
   EXPECT_EQ(request->state()->contact_profiles().back(),
             request->state()->selected_contact_profile());
 }
 
-IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest,
+IN_PROC_BROWSER_TEST_F(PaymentRequestContactInfoEditorTest,
                        EnterAcceleratorHappyPath) {
-  // Installs two apps so that the Payment Request UI will be shown.
-  std::string a_method_name;
-  InstallPaymentApp("a.com", "/payment_request_success_responder.js",
-                    &a_method_name);
-  std::string b_method_name;
-  InstallPaymentApp("b.com", "/payment_request_success_responder.js",
-                    &b_method_name);
-
   NavigateTo("/payment_request_contact_details_test.html");
-
-  // Show a Payment Request.
-  InvokePaymentRequestUIWithJs(
-      content::JsReplace("buyWithMethods([{supportedMethods:$1}"
-                         ", {supportedMethods:$2}]);",
-                         a_method_name, b_method_name));
-
+  InvokePaymentRequestUI();
   OpenContactInfoEditorScreen();
 
-  SetEditorTextfieldValue(kNameFull, autofill::NAME_FULL);
-  SetEditorTextfieldValue(kPhoneNumber, autofill::PHONE_HOME_WHOLE_NUMBER);
-  SetEditorTextfieldValue(kEmailAddress, autofill::EMAIL_ADDRESS);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kNameFull), autofill::NAME_FULL);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kPhoneNumber),
+                          autofill::PHONE_HOME_WHOLE_NUMBER);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kEmailAddress),
+                          autofill::EMAIL_ADDRESS);
 
   autofill::PersonalDataManager* personal_data_manager = GetDataManager();
   personal_data_manager->AddObserver(&personal_data_observer_);
@@ -139,57 +104,45 @@ IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest,
       ui::Accelerator(ui::VKEY_RETURN, ui::EF_NONE));
   data_loop.Run();
 
-  personal_data_manager->RemoveObserver(&personal_data_observer_);
   ASSERT_EQ(1UL, personal_data_manager->GetProfiles().size());
   autofill::AutofillProfile* profile = personal_data_manager->GetProfiles()[0];
   DCHECK(profile);
 
-  EXPECT_EQ(kNameFull,
+  EXPECT_EQ(base::ASCIIToUTF16(kNameFull),
             profile->GetInfo(autofill::AutofillType(autofill::NAME_FULL),
                              GetLocale()));
-  EXPECT_EQ(u"16515558946",
+  EXPECT_EQ(base::ASCIIToUTF16("16515558946"),
             profile->GetInfo(
                 autofill::AutofillType(autofill::PHONE_HOME_WHOLE_NUMBER),
                 GetLocale()));
-  EXPECT_EQ(kEmailAddress,
+  EXPECT_EQ(base::ASCIIToUTF16(kEmailAddress),
             profile->GetInfo(autofill::AutofillType(autofill::EMAIL_ADDRESS),
                              GetLocale()));
 }
 
-IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest, Validation) {
-  // Installs two apps so that the Payment Request UI will be shown.
-  std::string a_method_name;
-  InstallPaymentApp("a.com", "/payment_request_success_responder.js",
-                    &a_method_name);
-  std::string b_method_name;
-  InstallPaymentApp("b.com", "/payment_request_success_responder.js",
-                    &b_method_name);
-
+IN_PROC_BROWSER_TEST_F(PaymentRequestContactInfoEditorTest, Validation) {
   NavigateTo("/payment_request_contact_details_test.html");
-
-  // Show a Payment Request.
-  InvokePaymentRequestUIWithJs(
-      content::JsReplace("buyWithMethods([{supportedMethods:$1}"
-                         ", {supportedMethods:$2}]);",
-                         a_method_name, b_method_name));
-
+  InvokePaymentRequestUI();
   OpenContactInfoEditorScreen();
 
   // Insert invalid values into fields which have rules more complex than
   // just emptiness, and an empty string into simple required fields.
-  SetEditorTextfieldValue(std::u16string(), autofill::NAME_FULL);
-  SetEditorTextfieldValue(kPhoneNumberInvalid,
+  SetEditorTextfieldValue(base::string16(), autofill::NAME_FULL);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kPhoneNumberInvalid),
                           autofill::PHONE_HOME_WHOLE_NUMBER);
-  SetEditorTextfieldValue(kEmailAddressInvalid, autofill::EMAIL_ADDRESS);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kEmailAddressInvalid),
+                          autofill::EMAIL_ADDRESS);
 
   EXPECT_TRUE(IsEditorTextfieldInvalid(autofill::NAME_FULL));
   EXPECT_TRUE(IsEditorTextfieldInvalid(autofill::PHONE_HOME_WHOLE_NUMBER));
   EXPECT_TRUE(IsEditorTextfieldInvalid(autofill::EMAIL_ADDRESS));
 
   // Correct the problems.
-  SetEditorTextfieldValue(kNameFull, autofill::NAME_FULL);
-  SetEditorTextfieldValue(kPhoneNumber, autofill::PHONE_HOME_WHOLE_NUMBER);
-  SetEditorTextfieldValue(kEmailAddress, autofill::EMAIL_ADDRESS);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kNameFull), autofill::NAME_FULL);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kPhoneNumber),
+                          autofill::PHONE_HOME_WHOLE_NUMBER);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kEmailAddress),
+                          autofill::EMAIL_ADDRESS);
 
   EXPECT_FALSE(IsEditorTextfieldInvalid(autofill::NAME_FULL));
   EXPECT_FALSE(IsEditorTextfieldInvalid(autofill::PHONE_HOME_WHOLE_NUMBER));
@@ -205,47 +158,33 @@ IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest, Validation) {
   ClickOnDialogViewAndWait(DialogViewID::EDITOR_SAVE_BUTTON);
   data_loop.Run();
 
-  personal_data_manager->RemoveObserver(&personal_data_observer_);
   ASSERT_EQ(1UL, personal_data_manager->GetProfiles().size());
   autofill::AutofillProfile* profile = personal_data_manager->GetProfiles()[0];
   DCHECK(profile);
 
-  EXPECT_EQ(kNameFull,
+  EXPECT_EQ(base::ASCIIToUTF16(kNameFull),
             profile->GetInfo(autofill::AutofillType(autofill::NAME_FULL),
                              GetLocale()));
-  EXPECT_EQ(u"16515558946",
+  EXPECT_EQ(base::ASCIIToUTF16("16515558946"),
             profile->GetInfo(
                 autofill::AutofillType(autofill::PHONE_HOME_WHOLE_NUMBER),
                 GetLocale()));
-  EXPECT_EQ(kEmailAddress,
+  EXPECT_EQ(base::ASCIIToUTF16(kEmailAddress),
             profile->GetInfo(autofill::AutofillType(autofill::EMAIL_ADDRESS),
                              GetLocale()));
 }
 
-IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest,
-                       ModifyExisting) {
-  // Installs two apps so that the Payment Request UI will be shown.
-  std::string a_method_name;
-  InstallPaymentApp("a.com", "/payment_request_success_responder.js",
-                    &a_method_name);
-  std::string b_method_name;
-  InstallPaymentApp("b.com", "/payment_request_success_responder.js",
-                    &b_method_name);
-
+IN_PROC_BROWSER_TEST_F(PaymentRequestContactInfoEditorTest, ModifyExisting) {
   NavigateTo("/payment_request_contact_details_test.html");
   autofill::PersonalDataManager* personal_data_manager = GetDataManager();
   personal_data_manager->AddObserver(&personal_data_observer_);
 
   autofill::AutofillProfile incomplete_profile;
-  incomplete_profile.SetInfo(autofill::NAME_FULL, kNameFull, GetLocale());
+  incomplete_profile.SetInfo(autofill::NAME_FULL, base::ASCIIToUTF16(kNameFull),
+                             GetLocale());
   AddAutofillProfile(incomplete_profile);
 
-  // Show a Payment Request.
-  InvokePaymentRequestUIWithJs(
-      content::JsReplace("buyWithMethods([{supportedMethods:$1}"
-                         ", {supportedMethods:$2}]);",
-                         a_method_name, b_method_name));
-
+  InvokePaymentRequestUI();
   OpenContactInfoScreen();
 
   views::View* list_view = dialog_view()->GetViewByID(
@@ -254,9 +193,12 @@ IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest,
   ClickOnDialogViewAndWait(list_view->children().front());
 
   // Do not set name: This should have been populated when opening the screen.
-  EXPECT_EQ(kNameFull, GetEditorTextfieldValue(autofill::NAME_FULL));
-  SetEditorTextfieldValue(kPhoneNumber, autofill::PHONE_HOME_WHOLE_NUMBER);
-  SetEditorTextfieldValue(kEmailAddress, autofill::EMAIL_ADDRESS);
+  EXPECT_EQ(base::ASCIIToUTF16(kNameFull),
+            GetEditorTextfieldValue(autofill::NAME_FULL));
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kPhoneNumber),
+                          autofill::PHONE_HOME_WHOLE_NUMBER);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kEmailAddress),
+                          autofill::EMAIL_ADDRESS);
 
   // Wait until the web database has been updated and the notification sent.
   base::RunLoop save_data_loop;
@@ -265,54 +207,42 @@ IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest,
   ClickOnDialogViewAndWait(DialogViewID::EDITOR_SAVE_BUTTON);
   save_data_loop.Run();
 
-  personal_data_manager->RemoveObserver(&personal_data_observer_);
   ASSERT_EQ(1UL, personal_data_manager->GetProfiles().size());
   autofill::AutofillProfile* profile = personal_data_manager->GetProfiles()[0];
   DCHECK(profile);
 
-  EXPECT_EQ(kNameFull,
+  EXPECT_EQ(base::ASCIIToUTF16(kNameFull),
             profile->GetInfo(autofill::AutofillType(autofill::NAME_FULL),
                              GetLocale()));
-  EXPECT_EQ(u"16515558946",
+  EXPECT_EQ(base::ASCIIToUTF16("16515558946"),
             profile->GetInfo(
                 autofill::AutofillType(autofill::PHONE_HOME_WHOLE_NUMBER),
                 GetLocale()));
-  EXPECT_EQ(kEmailAddress,
+  EXPECT_EQ(base::ASCIIToUTF16(kEmailAddress),
             profile->GetInfo(autofill::AutofillType(autofill::EMAIL_ADDRESS),
                              GetLocale()));
 }
 
-IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest,
+IN_PROC_BROWSER_TEST_F(PaymentRequestContactInfoEditorTest,
                        ModifyExistingSelectsIt) {
-  // Installs two apps so that the Payment Request UI will be shown.
-  std::string a_method_name;
-  InstallPaymentApp("a.com", "/payment_request_success_responder.js",
-                    &a_method_name);
-  std::string b_method_name;
-  InstallPaymentApp("b.com", "/payment_request_success_responder.js",
-                    &b_method_name);
-
   NavigateTo("/payment_request_contact_details_test.html");
   autofill::PersonalDataManager* personal_data_manager = GetDataManager();
   personal_data_manager->AddObserver(&personal_data_observer_);
 
   autofill::AutofillProfile incomplete_profile;
-  incomplete_profile.SetInfo(autofill::NAME_FULL, kNameFull, GetLocale());
+  incomplete_profile.SetInfo(autofill::NAME_FULL, base::ASCIIToUTF16(kNameFull),
+                             GetLocale());
   AddAutofillProfile(incomplete_profile);
 
   autofill::AutofillProfile other_incomplete_profile;
-  other_incomplete_profile.SetInfo(autofill::NAME_FULL, u"other", GetLocale());
+  other_incomplete_profile.SetInfo(autofill::NAME_FULL,
+                                   base::ASCIIToUTF16("other"), GetLocale());
   AddAutofillProfile(other_incomplete_profile);
 
-  // Show a Payment Request.
-  InvokePaymentRequestUIWithJs(
-      content::JsReplace("buyWithMethods([{supportedMethods:$1}"
-                         ", {supportedMethods:$2}]);",
-                         a_method_name, b_method_name));
-
+  InvokePaymentRequestUI();
   OpenContactInfoScreen();
 
-  PaymentRequest* request = GetPaymentRequests().front();
+  PaymentRequest* request = GetPaymentRequests(GetActiveWebContents()).front();
 
   // No contact profiles are selected because both are incomplete.
   EXPECT_EQ(nullptr, request->state()->selected_contact_profile());
@@ -322,8 +252,10 @@ IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest,
   DCHECK(list_view);
   ClickOnDialogViewAndWait(list_view->children()[1]);
 
-  SetEditorTextfieldValue(kPhoneNumber, autofill::PHONE_HOME_WHOLE_NUMBER);
-  SetEditorTextfieldValue(kEmailAddress, autofill::EMAIL_ADDRESS);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kPhoneNumber),
+                          autofill::PHONE_HOME_WHOLE_NUMBER);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kEmailAddress),
+                          autofill::EMAIL_ADDRESS);
 
   // Wait until the web database has been updated and the notification sent.
   base::RunLoop save_data_loop;
@@ -332,16 +264,15 @@ IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest,
   ClickOnDialogViewAndWait(DialogViewID::EDITOR_SAVE_BUTTON);
   save_data_loop.Run();
 
-  personal_data_manager->RemoveObserver(&personal_data_observer_);
   autofill::AutofillProfile* profile =
       request->state()->selected_contact_profile();
   DCHECK(profile);
 
-  EXPECT_EQ(u"16515558946",
+  EXPECT_EQ(base::ASCIIToUTF16("16515558946"),
             profile->GetInfo(
                 autofill::AutofillType(autofill::PHONE_HOME_WHOLE_NUMBER),
                 GetLocale()));
-  EXPECT_EQ(kEmailAddress,
+  EXPECT_EQ(base::ASCIIToUTF16(kEmailAddress),
             profile->GetInfo(autofill::AutofillType(autofill::EMAIL_ADDRESS),
                              GetLocale()));
 
@@ -350,30 +281,18 @@ IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest,
   EXPECT_EQ(request->state()->contact_profiles().back(), profile);
 }
 
-IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest,
+IN_PROC_BROWSER_TEST_F(PaymentRequestContactInfoEditorTest,
                        HappyPathInIncognito) {
-  // Installs two apps so that the Payment Request UI will be shown.
-  std::string a_method_name;
-  InstallPaymentApp("a.com", "/payment_request_success_responder.js",
-                    &a_method_name);
-  std::string b_method_name;
-  InstallPaymentApp("b.com", "/payment_request_success_responder.js",
-                    &b_method_name);
-
   SetIncognito();
   NavigateTo("/payment_request_contact_details_test.html");
-
-  // Show a Payment Request.
-  InvokePaymentRequestUIWithJs(
-      content::JsReplace("buyWithMethods([{supportedMethods:$1}"
-                         ", {supportedMethods:$2}]);",
-                         a_method_name, b_method_name));
-
+  InvokePaymentRequestUI();
   OpenContactInfoEditorScreen();
 
-  SetEditorTextfieldValue(kNameFull, autofill::NAME_FULL);
-  SetEditorTextfieldValue(kPhoneNumber, autofill::PHONE_HOME_WHOLE_NUMBER);
-  SetEditorTextfieldValue(kEmailAddress, autofill::EMAIL_ADDRESS);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kNameFull), autofill::NAME_FULL);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kPhoneNumber),
+                          autofill::PHONE_HOME_WHOLE_NUMBER);
+  SetEditorTextfieldValue(base::ASCIIToUTF16(kEmailAddress),
+                          autofill::EMAIL_ADDRESS);
 
   autofill::PersonalDataManager* personal_data_manager = GetDataManager();
   personal_data_manager->AddObserver(&personal_data_observer_);
@@ -381,11 +300,10 @@ IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest,
   EXPECT_CALL(personal_data_observer_, OnPersonalDataChanged()).Times(0);
   ClickOnDialogViewAndWait(DialogViewID::EDITOR_SAVE_BUTTON);
 
-  personal_data_manager->RemoveObserver(&personal_data_observer_);
   // In incognito, the profile should be available in contact_profiles but it
   // shouldn't be saved to the PersonalDataManager.
   ASSERT_EQ(0UL, personal_data_manager->GetProfiles().size());
-  PaymentRequest* request = GetPaymentRequests().front();
+  PaymentRequest* request = GetPaymentRequests(GetActiveWebContents()).front();
   EXPECT_EQ(1U, request->state()->contact_profiles().size());
   EXPECT_EQ(request->state()->contact_profiles().back(),
             request->state()->selected_contact_profile());
@@ -394,167 +312,108 @@ IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest,
       request->state()->contact_profiles().back();
   DCHECK(profile);
 
-  EXPECT_EQ(kNameFull,
+  EXPECT_EQ(base::ASCIIToUTF16(kNameFull),
             profile->GetInfo(autofill::AutofillType(autofill::NAME_FULL),
                              GetLocale()));
-  EXPECT_EQ(u"16515558946",
+  EXPECT_EQ(base::ASCIIToUTF16("16515558946"),
             profile->GetInfo(
                 autofill::AutofillType(autofill::PHONE_HOME_WHOLE_NUMBER),
                 GetLocale()));
-  EXPECT_EQ(kEmailAddress,
+  EXPECT_EQ(base::ASCIIToUTF16(kEmailAddress),
             profile->GetInfo(autofill::AutofillType(autofill::EMAIL_ADDRESS),
                              GetLocale()));
 }
 
-IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest,
+IN_PROC_BROWSER_TEST_F(PaymentRequestContactInfoEditorTest,
                        RetryWithPayerErrors) {
-  // Installs two apps so that the Payment Request UI will be shown.
-  std::string a_method_name;
-  InstallPaymentApp("a.com", "/payment_request_success_responder.js",
-                    &a_method_name);
-  std::string b_method_name;
-  InstallPaymentApp("b.com", "/payment_request_success_responder.js",
-                    &b_method_name);
-
   NavigateTo("/payment_request_retry_with_payer_errors.html");
 
   autofill::AutofillProfile contact = autofill::test::GetFullProfile();
   AddAutofillProfile(contact);
 
-  // Show a Payment Request.
-  InvokePaymentRequestUIWithJs(
-      content::JsReplace("buyWithMethods([{supportedMethods:$1}"
-                         ", {supportedMethods:$2}]);",
-                         a_method_name, b_method_name));
+  autofill::CreditCard card = autofill::test::GetCreditCard();
+  card.set_billing_address_id(contact.guid());
+  AddCreditCard(card);
 
-  // Click on pay.
-  EXPECT_TRUE(IsPayButtonEnabled());
-  ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_SHOWN});
-  ClickOnDialogViewAndWait(DialogViewID::PAY_BUTTON, dialog_view());
+  InvokePaymentRequestUI();
+  PayWithCreditCard(base::ASCIIToUTF16("123"));
+  RetryPaymentRequest(
+      "{"
+      "  payer: {"
+      "    email: 'EMAIL ERROR',"
+      "    name: 'NAME ERROR',"
+      "    phone: 'PHONE ERROR'"
+      "  }"
+      "}",
+      DialogEvent::CONTACT_INFO_EDITOR_OPENED, dialog_view());
 
-  // Wait for the response to settle.
-  ASSERT_TRUE(
-      content::ExecJs(GetActiveWebContents(), "processShowResponse();"));
-
-  ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_HIDDEN,
-                               DialogEvent::SPEC_DONE_UPDATING,
-                               DialogEvent::PROCESSING_SPINNER_HIDDEN,
-                               DialogEvent::BACK_TO_PAYMENT_SHEET_NAVIGATION,
-                               DialogEvent::CONTACT_INFO_EDITOR_OPENED});
-  ASSERT_TRUE(content::ExecuteScript(GetActiveWebContents(),
-                                     "retry({"
-                                     "  payer: {"
-                                     "    email: 'EMAIL ERROR',"
-                                     "    name: 'NAME ERROR',"
-                                     "    phone: 'PHONE ERROR'"
-                                     "  }"
-                                     "});"));
-  WaitForObservedEvent();
-
-  EXPECT_EQ(u"EMAIL ERROR", GetErrorLabelForType(autofill::EMAIL_ADDRESS));
-  EXPECT_EQ(u"NAME ERROR", GetErrorLabelForType(autofill::NAME_FULL));
-  EXPECT_EQ(u"PHONE ERROR",
+  EXPECT_EQ(base::ASCIIToUTF16("EMAIL ERROR"),
+            GetErrorLabelForType(autofill::EMAIL_ADDRESS));
+  EXPECT_EQ(base::ASCIIToUTF16("NAME ERROR"),
+            GetErrorLabelForType(autofill::NAME_FULL));
+  EXPECT_EQ(base::ASCIIToUTF16("PHONE ERROR"),
             GetErrorLabelForType(autofill::PHONE_HOME_WHOLE_NUMBER));
 }
 
 IN_PROC_BROWSER_TEST_F(
-    MAYBE_PaymentRequestContactInfoEditorTest,
+    PaymentRequestContactInfoEditorTest,
     RetryWithPayerErrors_HasSameValueButDifferentErrorsShown) {
-  // Installs two apps so that the Payment Request UI will be shown.
-  std::string a_method_name;
-  InstallPaymentApp("a.com", "/payment_request_success_responder.js",
-                    &a_method_name);
-  std::string b_method_name;
-  InstallPaymentApp("b.com", "/payment_request_success_responder.js",
-                    &b_method_name);
-
   NavigateTo("/payment_request_retry_with_payer_errors.html");
 
   autofill::AutofillProfile contact = autofill::test::GetFullProfile();
   // Set the same value in both of email and name field.
-  contact.SetRawInfo(autofill::EMAIL_ADDRESS, u"johndoe@hades.com");
-  contact.SetRawInfo(autofill::NAME_FULL, u"johndoe@hades.com");
+  contact.SetRawInfo(autofill::EMAIL_ADDRESS,
+                     base::ASCIIToUTF16("johndoe@hades.com"));
+  contact.SetRawInfo(autofill::NAME_FULL,
+                     base::ASCIIToUTF16("johndoe@hades.com"));
   AddAutofillProfile(contact);
 
-  // Show a Payment Request.
-  InvokePaymentRequestUIWithJs(
-      content::JsReplace("buyWithMethods([{supportedMethods:$1}"
-                         ", {supportedMethods:$2}]);",
-                         a_method_name, b_method_name));
+  autofill::CreditCard card = autofill::test::GetCreditCard();
+  card.set_billing_address_id(contact.guid());
+  AddCreditCard(card);
 
-  // Click on pay.
-  EXPECT_TRUE(IsPayButtonEnabled());
-  ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_SHOWN});
-  ClickOnDialogViewAndWait(DialogViewID::PAY_BUTTON, dialog_view());
+  InvokePaymentRequestUI();
+  PayWithCreditCard(base::ASCIIToUTF16("123"));
+  RetryPaymentRequest(
+      "{"
+      "  payer: {"
+      "    email: 'EMAIL ERROR',"
+      "    name: 'NAME ERROR',"
+      "    phone: 'PHONE ERROR'"
+      "  }"
+      "}",
+      DialogEvent::CONTACT_INFO_EDITOR_OPENED, dialog_view());
 
-  // Wait for the response to settle.
-  ASSERT_TRUE(
-      content::ExecJs(GetActiveWebContents(), "processShowResponse();"));
-
-  ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_HIDDEN,
-                               DialogEvent::SPEC_DONE_UPDATING,
-                               DialogEvent::PROCESSING_SPINNER_HIDDEN,
-                               DialogEvent::BACK_TO_PAYMENT_SHEET_NAVIGATION,
-                               DialogEvent::CONTACT_INFO_EDITOR_OPENED});
-  ASSERT_TRUE(content::ExecuteScript(GetActiveWebContents(),
-                                     "retry({"
-                                     "  payer: {"
-                                     "    email: 'EMAIL ERROR',"
-                                     "    name: 'NAME ERROR',"
-                                     "    phone: 'PHONE ERROR'"
-                                     "  }"
-                                     "});"));
-  WaitForObservedEvent();
-
-  EXPECT_EQ(u"EMAIL ERROR", GetErrorLabelForType(autofill::EMAIL_ADDRESS));
-  EXPECT_EQ(u"NAME ERROR", GetErrorLabelForType(autofill::NAME_FULL));
-  EXPECT_EQ(u"PHONE ERROR",
+  EXPECT_EQ(base::ASCIIToUTF16("EMAIL ERROR"),
+            GetErrorLabelForType(autofill::EMAIL_ADDRESS));
+  EXPECT_EQ(base::ASCIIToUTF16("NAME ERROR"),
+            GetErrorLabelForType(autofill::NAME_FULL));
+  EXPECT_EQ(base::ASCIIToUTF16("PHONE ERROR"),
             GetErrorLabelForType(autofill::PHONE_HOME_WHOLE_NUMBER));
 }
 
-IN_PROC_BROWSER_TEST_F(MAYBE_PaymentRequestContactInfoEditorTest,
+IN_PROC_BROWSER_TEST_F(PaymentRequestContactInfoEditorTest,
                        RetryWithPayerErrors_NoPaymentOptions) {
-  // Installs two apps so that the Payment Request UI will be shown.
-  std::string a_method_name;
-  InstallPaymentApp("a.com", "/payment_request_success_responder.js",
-                    &a_method_name);
-  std::string b_method_name;
-  InstallPaymentApp("b.com", "/payment_request_success_responder.js",
-                    &b_method_name);
-
   NavigateTo("/payment_request_retry_with_no_payment_options.html");
 
   autofill::AutofillProfile contact = autofill::test::GetFullProfile();
   AddAutofillProfile(contact);
 
-  // Show a Payment Request.
-  InvokePaymentRequestUIWithJs(
-      content::JsReplace("buyWithMethods([{supportedMethods:$1}"
-                         ", {supportedMethods:$2}]);",
-                         a_method_name, b_method_name));
+  autofill::CreditCard card = autofill::test::GetCreditCard();
+  card.set_billing_address_id(contact.guid());
+  AddCreditCard(card);
 
-  // Click on pay.
-  EXPECT_TRUE(IsPayButtonEnabled());
-  ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_SHOWN});
-  ClickOnDialogViewAndWait(DialogViewID::PAY_BUTTON, dialog_view());
-
-  // Wait for the response to settle.
-  ASSERT_TRUE(
-      content::ExecJs(GetActiveWebContents(), "processShowResponse();"));
-
-  ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_HIDDEN,
-                               DialogEvent::SPEC_DONE_UPDATING,
-                               DialogEvent::PROCESSING_SPINNER_HIDDEN,
-                               DialogEvent::BACK_TO_PAYMENT_SHEET_NAVIGATION});
-  ASSERT_TRUE(content::ExecuteScript(GetActiveWebContents(),
-                                     "retry({"
-                                     "  payer: {"
-                                     "    email: 'EMAIL ERROR',"
-                                     "    name: 'NAME ERROR',"
-                                     "    phone: 'PHONE ERROR'"
-                                     "  }"
-                                     "});"));
-  WaitForObservedEvent();
+  InvokePaymentRequestUI();
+  PayWithCreditCard(base::ASCIIToUTF16("123"));
+  RetryPaymentRequest(
+      "{"
+      "  payer: {"
+      "    email: 'EMAIL ERROR',"
+      "    name: 'NAME ERROR',"
+      "    phone: 'PHONE ERROR'"
+      "  }"
+      "}",
+      dialog_view());
 
   const int kErrorLabelOffset =
       static_cast<int>(DialogViewID::ERROR_LABEL_OFFSET);

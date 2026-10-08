@@ -65,7 +65,7 @@ SVGTextLayoutAttributesBuilder::SVGTextLayoutAttributesBuilder(
 void SVGTextLayoutAttributesBuilder::BuildLayoutAttributes() {
   character_data_map_.clear();
 
-  if (text_positions_.empty()) {
+  if (text_positions_.IsEmpty()) {
     character_count_ = 0;
     CollectTextPositioningElements(text_root_);
   }
@@ -117,7 +117,7 @@ static SVGTextPositioningElement* PositioningElementFromLayoutObject(
 
 void SVGTextLayoutAttributesBuilder::CollectTextPositioningElements(
     LayoutBoxModelObject& start) {
-  DCHECK(!start.IsSVGText() || text_positions_.empty());
+  DCHECK(!start.IsSVGText() || text_positions_.IsEmpty());
   SVGTextPositioningElement* element =
       PositioningElementFromLayoutObject(start);
   unsigned at_position = text_positions_.size();
@@ -178,15 +178,15 @@ class AttributeListsIterator {
 
  private:
   SVGLengthContext length_context_;
-  const SVGLengthList* x_list_;
+  SVGLengthList* x_list_;
   unsigned x_list_remaining_;
-  const SVGLengthList* y_list_;
+  SVGLengthList* y_list_;
   unsigned y_list_remaining_;
-  const SVGLengthList* dx_list_;
+  SVGLengthList* dx_list_;
   unsigned dx_list_remaining_;
-  const SVGLengthList* dy_list_;
+  SVGLengthList* dy_list_;
   unsigned dy_list_remaining_;
-  const SVGNumberList* rotate_list_;
+  SVGNumberList* rotate_list_;
   unsigned rotate_list_remaining_;
 };
 

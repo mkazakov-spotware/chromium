@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,16 +16,11 @@
 @protocol PasswordListNavigator;
 
 namespace password_manager {
-class PasswordStoreInterface;
+class PasswordStore;
 }  // namespace password_manager
-
-namespace web {
-class WebState;
-}  // namespace web
 
 class FaviconLoader;
 class GURL;
-class SyncSetupService;
 
 namespace manual_fill {
 
@@ -62,23 +57,19 @@ extern NSString* const SuggestPasswordAccessibilityIdentifier;
 @property(nonatomic, assign, getter=isActionSectionEnabled)
     BOOL actionSectionEnabled;
 
-// The designated initializer. `passwordStore` must not be nil.
+// The designated initializer. |passwordStore| must not be nil.
 - (instancetype)initWithPasswordStore:
-                    (scoped_refptr<password_manager::PasswordStoreInterface>)
+                    (scoped_refptr<password_manager::PasswordStore>)
                         passwordStore
                         faviconLoader:(FaviconLoader*)faviconLoader
-                             webState:(web::WebState*)webState
-                          syncService:(SyncSetupService*)syncService
-                                  URL:(const GURL&)URL
-               invokedOnPasswordField:(BOOL)invokedOnPasswordField
     NS_DESIGNATED_INITIALIZER;
 
-// Unavailable. Use `initWithPasswordStore:faviconLoader:`.
+// Unavailable. Use |initWithPasswordStore:faviconLoader:|.
 - (instancetype)init NS_UNAVAILABLE;
 
-// Fetches passwords using the URL provided at initialisation as the filter.
-// If the URL is empty (invalid) it will fetch all the passwords.
-- (void)fetchPasswords;
+// Fetches passwords using |origin| as the filter. If origin is empty (invalid)
+// it will fetch all the passwords.
+- (void)fetchPasswordsForURL:(const GURL&)URL;
 
 @end
 

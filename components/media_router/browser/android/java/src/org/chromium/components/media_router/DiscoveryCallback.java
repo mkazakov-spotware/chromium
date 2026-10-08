@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,20 +23,16 @@ public class DiscoveryCallback extends MediaRouter.Callback {
     private Set<String> mSourceUrns = new HashSet<String>();
     private List<MediaSink> mSinks = new ArrayList<MediaSink>();
 
-    public DiscoveryCallback(
-            String sourceUrn, DiscoveryDelegate delegate, MediaRouteSelector selector) {
+    public DiscoveryCallback(String sourceUrn, List<MediaSink> knownSinks,
+            DiscoveryDelegate delegate, MediaRouteSelector selector) {
         assert delegate != null;
         assert sourceUrn != null && !sourceUrn.isEmpty();
 
-        mSourceUrns.add(sourceUrn);
+        mSinks.addAll(knownSinks);
         mDiscoveryDelegate = delegate;
         mRouteSelector = selector;
-    }
 
-    public DiscoveryCallback(String sourceUrn, List<MediaSink> knownSinks,
-            DiscoveryDelegate delegate, MediaRouteSelector selector) {
-        this(sourceUrn, delegate, selector);
-        setAndUpdateSinks(knownSinks);
+        addSourceUrn(sourceUrn);
     }
 
     public void addSourceUrn(String sourceUrn) {
@@ -51,11 +47,6 @@ public class DiscoveryCallback extends MediaRouter.Callback {
 
     public boolean isEmpty() {
         return mSourceUrns.isEmpty();
-    }
-
-    public void setAndUpdateSinks(List<MediaSink> knownSinks) {
-        mSinks = knownSinks;
-        updateBrowserMediaRouter();
     }
 
     @Override

@@ -1,41 +1,37 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.tab;
 
+import android.support.test.InstrumentationRegistry;
+
 import androidx.test.filters.MediumTest;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.StrictModeContext;
-import org.chromium.base.jank_tracker.DummyJankTracker;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.ObservableSupplierImpl;
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.MetricsUtils.HistogramDelta;
-import org.chromium.cc.input.BrowserControlsState;
-import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.TabbedModeTabDelegateFactory;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.share.ShareDelegate;
-import org.chromium.chrome.browser.tab.TabUtils.LoadIfNeededCaller;
-import org.chromium.chrome.browser.ui.RootUiCoordinator;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.components.browser_ui.util.BrowserControlsVisibilityDelegate;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.content_public.common.BrowserControlsState;
 import org.chromium.net.test.EmbeddedTestServer;
 
 import java.io.DataOutputStream;
@@ -50,15 +46,9 @@ import java.util.concurrent.ExecutionException;
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@Batch(Batch.PER_CLASS)
 public class TabUmaTest {
-    @ClassRule
-    public static ChromeTabbedActivityTestRule sActivityTestRule =
-            new ChromeTabbedActivityTestRule();
-
     @Rule
-    public BlankCTATabInitialStateRule mInitialStateRule =
-            new BlankCTATabInitialStateRule(sActivityTestRule, false);
+    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
     @Rule
     public TemporaryFolder mTemporaryFolder = new TemporaryFolder();
 
@@ -69,40 +59,37 @@ public class TabUmaTest {
 
     @Before
     public void setUp() throws Exception {
-        mTestServer = sActivityTestRule.getTestServer();
+        mActivityTestRule.startMainActivityOnBlankPage();
+        mTestServer = EmbeddedTestServer.createAndStartServer(InstrumentationRegistry.getContext());
         mTestUrl = mTestServer.getURL(TEST_PATH);
+    }
+
+    @After
+    public void tearDown() {
+        mTestServer.stopAndDestroyServer();
     }
 
     private TabbedModeTabDelegateFactory createTabDelegateFactory() {
         BrowserControlsVisibilityDelegate visibilityDelegate =
                 new BrowserControlsVisibilityDelegate(BrowserControlsState.BOTH) {};
-        ChromeTabbedActivity cta = sActivityTestRule.getActivity();
-        RootUiCoordinator rootUiCoordinator = cta.getRootUiCoordinatorForTesting();
         // clang-format off
-        return new TabbedModeTabDelegateFactory(sActivityTestRule.getActivity(), visibilityDelegate,
+        return new TabbedModeTabDelegateFactory(mActivityTestRule.getActivity(), visibilityDelegate,
                 new ObservableSupplierImpl<ShareDelegate>(), null,
-                () -> {}, rootUiCoordinator.getBottomSheetController(),
-                /* ChromeActivityNativeDelegate */ cta, /* isCustomTab= */ false,
-                rootUiCoordinator.getBrowserControlsManager(),
-                cta.getFullscreenManager(), /* TabCreatorManager */ cta,
-                cta::getTabModelSelector, cta.getCompositorViewHolderSupplier(),
-                cta.getModalDialogManagerSupplier(), cta::getSnackbarManager,
-                cta.getBrowserControlsManager(), cta.getActivityTabProvider(),
-                cta.getLifecycleDispatcher(), cta.getWindowAndroid(),
-                cta::getLastUserInteractionTime, cta::hadWarmStart, new DummyJankTracker(),
-                rootUiCoordinator.getToolbarManager()::getToolbar, /*crowButtonDelegate=*/ null);
+                () -> {}, mActivityTestRule.getActivity()
+                        .getRootUiCoordinatorForTesting()
+                        .getBottomSheetController());
         // clang-format on
     }
 
     private Tab createLazilyLoadedTab(boolean show) throws ExecutionException {
         return TestThreadUtils.runOnUiThreadBlocking(() -> {
             Tab bgTab = TabBuilder.createForLazyLoad(new LoadUrlParams(mTestUrl))
-                                .setWindow(sActivityTestRule.getActivity().getWindowAndroid())
+                                .setWindow(mActivityTestRule.getActivity().getWindowAndroid())
                                 .setLaunchType(TabLaunchType.FROM_LONGPRESS_BACKGROUND)
                                 .setDelegateFactory(createTabDelegateFactory())
                                 .setInitiallyHidden(true)
                                 .build();
-            if (show) bgTab.show(TabSelectionType.FROM_USER, LoadIfNeededCaller.OTHER);
+            if (show) bgTab.show(TabSelectionType.FROM_USER);
             return bgTab;
         });
     }
@@ -110,7 +97,7 @@ public class TabUmaTest {
     private Tab createLiveTab(boolean foreground, boolean kill) throws ExecutionException {
         return TestThreadUtils.runOnUiThreadBlocking(() -> {
             Tab tab = TabBuilder.createLiveTab(!foreground)
-                              .setWindow(sActivityTestRule.getActivity().getWindowAndroid())
+                              .setWindow(mActivityTestRule.getActivity().getWindowAndroid())
                               .setLaunchType(TabLaunchType.FROM_LONGPRESS_BACKGROUND)
                               .setDelegateFactory(createTabDelegateFactory())
                               .setInitiallyHidden(!foreground)
@@ -118,9 +105,9 @@ public class TabUmaTest {
             tab.loadUrl(new LoadUrlParams(mTestUrl));
 
             // Simulate the renderer being killed by the OS.
-            if (kill) ChromeTabUtils.simulateRendererKilledForTesting(tab);
+            if (kill) ChromeTabUtils.simulateRendererKilledForTesting(tab, false);
 
-            tab.show(TabSelectionType.FROM_USER, LoadIfNeededCaller.OTHER);
+            tab.show(TabSelectionType.FROM_USER);
             return tab;
         });
     }
@@ -137,17 +124,15 @@ public class TabUmaTest {
         String histogram = "Tab.StatusWhenSwitchedBackToForeground";
         HistogramDelta lazyLoadCount =
                 new HistogramDelta(histogram, TabUma.TAB_STATUS_LAZY_LOAD_FOR_BG_TAB);
-        int offset = lazyLoadCount.getDelta();
+        Assert.assertEquals(0, lazyLoadCount.getDelta()); // Sanity check.
 
         // Show the tab and verify that one sample was recorded in the lazy load bucket.
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> { tab.show(TabSelectionType.FROM_USER, LoadIfNeededCaller.OTHER); });
-        Assert.assertEquals(offset + 1, lazyLoadCount.getDelta());
+        TestThreadUtils.runOnUiThreadBlocking(() -> { tab.show(TabSelectionType.FROM_USER); });
+        Assert.assertEquals(1, lazyLoadCount.getDelta());
 
         // Show the tab again and verify that we didn't record another sample.
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> { tab.show(TabSelectionType.FROM_USER, LoadIfNeededCaller.OTHER); });
-        Assert.assertEquals(offset + 1, lazyLoadCount.getDelta());
+        TestThreadUtils.runOnUiThreadBlocking(() -> { tab.show(TabSelectionType.FROM_USER); });
+        Assert.assertEquals(1, lazyLoadCount.getDelta());
     }
 
     /**
@@ -161,27 +146,27 @@ public class TabUmaTest {
 
         String ageStartup = "Tabs.ForegroundTabAgeAtStartup";
         String ageRestore = "Tab.AgeUponRestoreFromColdStart";
-        int switchFgStatusOffset = getHistogram(switchFgStatus);
-        int ageStartupOffset = getHistogram(ageStartup);
-        int ageRestoreOffset = getHistogram(ageRestore);
+
+        Assert.assertEquals(0, getHistogram(switchFgStatus));
+        Assert.assertEquals(1, getHistogram(ageStartup));
+        Assert.assertEquals(0, getHistogram(ageRestore));
 
         // Test a normal tab without an explicit creation state. UMA task doesn't start.
         Tab tab = TestThreadUtils.runOnUiThreadBlocking(() -> {
             return new TabBuilder()
-                    .setWindow(sActivityTestRule.getActivity().getWindowAndroid())
+                    .setWindow(mActivityTestRule.getActivity().getWindowAndroid())
                     .setDelegateFactory(createTabDelegateFactory())
                     .setLaunchType(TabLaunchType.FROM_LONGPRESS_BACKGROUND)
                     .setTabState(createTabState())
                     .build();
         });
 
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> tab.show(TabSelectionType.FROM_USER, LoadIfNeededCaller.OTHER));
+        TestThreadUtils.runOnUiThreadBlocking(() -> tab.show(TabSelectionType.FROM_USER));
 
         // There should be no histogram changes.
-        Assert.assertEquals(switchFgStatusOffset, getHistogram(switchFgStatus));
-        Assert.assertEquals(ageStartupOffset, getHistogram(ageStartup));
-        Assert.assertEquals(ageRestoreOffset, getHistogram(ageRestore));
+        Assert.assertEquals(0, getHistogram(switchFgStatus));
+        Assert.assertEquals(1, getHistogram(ageStartup));
+        Assert.assertEquals(0, getHistogram(ageRestore));
     }
 
     /**
@@ -230,11 +215,11 @@ public class TabUmaTest {
         // at Tab#show(), so created anew.
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             Tab tab = TabBuilder.createFromFrozenState()
-                              .setWindow(sActivityTestRule.getActivity().getWindowAndroid())
+                              .setWindow(mActivityTestRule.getActivity().getWindowAndroid())
                               .setDelegateFactory(createTabDelegateFactory())
                               .setTabState(createTabState())
                               .build();
-            tab.show(TabSelectionType.FROM_USER, LoadIfNeededCaller.OTHER);
+            tab.show(TabSelectionType.FROM_USER);
             return tab;
         });
 

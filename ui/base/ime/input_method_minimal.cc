@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,8 @@
 
 namespace ui {
 
-InputMethodMinimal::InputMethodMinimal(
-    ImeKeyEventDispatcher* ime_key_event_dispatcher)
-    : InputMethodBase(ime_key_event_dispatcher) {}
+InputMethodMinimal::InputMethodMinimal(internal::InputMethodDelegate* delegate)
+    : InputMethodBase(delegate) {}
 
 InputMethodMinimal::~InputMethodMinimal() {}
 

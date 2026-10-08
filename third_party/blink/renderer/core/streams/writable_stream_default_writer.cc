@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,9 @@
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
 #include "third_party/blink/renderer/platform/bindings/v8_binding.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
+#include "third_party/blink/renderer/platform/heap/visitor.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
@@ -92,7 +94,7 @@ WritableStreamDefaultWriter::WritableStreamDefaultWriter(
     case WritableStream::kErroring: {
       //      a. Set this.[[readyPromise]] to a promise rejected with
       //         stream.[[storedError]].
-      ready_promise_ = StreamPromiseResolver::CreateRejectedAndSilent(
+      ready_promise_ = StreamPromiseResolver::CreateRejected(
           script_state, stream->GetStoredError(isolate));
 
       //      b. Set this.[[readyPromise]].[[PromiseIsHandled]] to true.
@@ -127,16 +129,16 @@ WritableStreamDefaultWriter::WritableStreamDefaultWriter(
 
       //      c. Set this.[[readyPromise]] to a promise rejected with
       //         storedError.
-      ready_promise_ = StreamPromiseResolver::CreateRejectedAndSilent(
-          script_state, stored_error);
+      ready_promise_ =
+          StreamPromiseResolver::CreateRejected(script_state, stored_error);
 
       //      d. Set this.[[readyPromise]].[[PromiseIsHandled]] to true.
       ready_promise_->MarkAsHandled(isolate);
 
       //      e. Set this.[[closedPromise]] to a promise rejected with
       //         storedError.
-      closed_promise_ = StreamPromiseResolver::CreateRejectedAndSilent(
-          script_state, stored_error);
+      closed_promise_ =
+          StreamPromiseResolver::CreateRejected(script_state, stored_error);
 
       //      f. Set this.[[closedPromise]].[[PromiseIsHandled]] to true.
       closed_promise_->MarkAsHandled(isolate);
@@ -284,13 +286,12 @@ void WritableStreamDefaultWriter::EnsureReadyPromiseRejected(
   //  1. If writer.[[readyPromise]].[[PromiseState]] is "pending", reject
   //     writer.[[readyPromise]] with error.
   if (!writer->ready_promise_->IsSettled()) {
-    writer->ready_promise_->MarkAsSilent(isolate);
     writer->ready_promise_->Reject(script_state, error);
   } else {
     //  2. Otherwise, set writer.[[readyPromise]] to a promise rejected with
     //     error.
     writer->ready_promise_ =
-        StreamPromiseResolver::CreateRejectedAndSilent(script_state, error);
+        StreamPromiseResolver::CreateRejected(script_state, error);
   }
 
   //  3. Set writer.[[readyPromise]].[[PromiseIsHandled]] to true.
@@ -439,7 +440,7 @@ v8::Local<v8::Promise> WritableStreamDefaultWriter::Write(
   return promise;
 }
 
-absl::optional<double> WritableStreamDefaultWriter::GetDesiredSizeInternal()
+base::Optional<double> WritableStreamDefaultWriter::GetDesiredSizeInternal()
     const {
   // https://streams.spec.whatwg.org/#writable-stream-default-writer-get-desired-size
   //  1. Let stream be writer.[[ownerWritableStream]].
@@ -452,7 +453,7 @@ absl::optional<double> WritableStreamDefaultWriter::GetDesiredSizeInternal()
     //  3. If state is "errored" or "erroring", return null.
     case WritableStream::kErrored:
     case WritableStream::kErroring:
-      return absl::nullopt;
+      return base::nullopt;
 
       //  4. If state is "closed", return 0.
     case WritableStream::kClosed:
@@ -518,13 +519,12 @@ void WritableStreamDefaultWriter::EnsureClosedPromiseRejected(
   //  1. If writer.[[closedPromise]].[[PromiseState]] is "pending", reject
   //     writer.[[closedPromise]] with error.
   if (!writer->closed_promise_->IsSettled()) {
-    writer->closed_promise_->MarkAsSilent(isolate);
     writer->closed_promise_->Reject(script_state, error);
   } else {
     //  2. Otherwise, set writer.[[closedPromise]] to a promise rejected with
     //     error.
     writer->closed_promise_ =
-        StreamPromiseResolver::CreateRejectedAndSilent(script_state, error);
+        StreamPromiseResolver::CreateRejected(script_state, error);
   }
 
   //  3. Set writer.[[closedPromise]].[[PromiseIsHandled]] to true.
@@ -538,7 +538,7 @@ v8::Local<v8::Value> WritableStreamDefaultWriter::GetDesiredSize(
   //  1. Let stream be writer.[[ownerWritableStream]].
   //  2. Let state be stream.[[state]].
   //  3. If state is "errored" or "erroring", return null.
-  absl::optional<double> desired_size = writer->GetDesiredSizeInternal();
+  base::Optional<double> desired_size = writer->GetDesiredSizeInternal();
   if (!desired_size.has_value()) {
     return v8::Null(isolate);
   }

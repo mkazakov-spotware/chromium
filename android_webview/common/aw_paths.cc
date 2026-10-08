@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,18 +19,6 @@ bool PathProvider(int key, base::FilePath* result) {
       if (!base::android::GetCacheDirectory(&cur))
         return false;
       cur = cur.Append(FILE_PATH_LITERAL("Crashpad"));
-      break;
-    case DIR_COMPONENTS_ROOT:
-      if (!base::android::GetDataDirectory(&cur))
-        return false;
-      cur = cur.Append(FILE_PATH_LITERAL("components"))
-                .Append(FILE_PATH_LITERAL("cus"));
-      break;
-    case DIR_COMPONENTS_TEMP:
-      if (!base::android::GetCacheDirectory(&cur))
-        return false;
-      cur = cur.Append(FILE_PATH_LITERAL("components"))
-                .Append(FILE_PATH_LITERAL("cus"));
       break;
     case DIR_SAFE_BROWSING:
       if (!base::android::GetCacheDirectory(&cur))

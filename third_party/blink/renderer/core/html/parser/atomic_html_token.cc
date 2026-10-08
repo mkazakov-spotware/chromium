@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,10 @@
 
 namespace blink {
 
-bool g_use_html_attribute_name_lookup = true;
+QualifiedName AtomicHTMLToken::NameForAttribute(
+    const HTMLToken::Attribute& attribute) const {
+  return QualifiedName(g_null_atom, attribute.GetName(), g_null_atom);
+}
 
 bool AtomicHTMLToken::UsesName() const {
   return type_ == HTMLToken::kStartTag || type_ == HTMLToken::kEndTag ||
@@ -42,9 +45,9 @@ void AtomicHTMLToken::Show() const {
     case HTMLToken::kEndTag:
       if (self_closing_)
         printf(" selfclosing");
-      [[fallthrough]];
+      FALLTHROUGH;
     case HTMLToken::DOCTYPE:
-      printf(" name \"%s\"", GetName().GetString().Utf8().c_str());
+      printf(" name \"%s\"", name_.GetString().Utf8().c_str());
       break;
     case HTMLToken::kComment:
     case HTMLToken::kCharacter:

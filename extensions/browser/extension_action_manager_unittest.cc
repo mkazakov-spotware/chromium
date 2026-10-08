@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,10 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "extensions/browser/extension_action.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extensions_test.h"
-#include "extensions/common/api/extension_action/action_info.h"
+#include "extensions/common/api/extension_action/action_info_test_util.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/manifest_handlers/icons_handler.h"
 #include "extensions/common/value_builder.h"
@@ -27,10 +26,6 @@ class ExtensionActionManagerTest
  public:
   ExtensionActionManagerTest();
 
-  ExtensionActionManagerTest(const ExtensionActionManagerTest&) = delete;
-  ExtensionActionManagerTest& operator=(const ExtensionActionManagerTest&) =
-      delete;
-
  protected:
   // ExtensionsTest:
   void SetUp() override;
@@ -39,8 +34,10 @@ class ExtensionActionManagerTest
   ExtensionRegistry* registry() { return registry_; }
 
  private:
-  raw_ptr<ExtensionRegistry> registry_;
-  raw_ptr<ExtensionActionManager> manager_;
+  ExtensionRegistry* registry_;
+  ExtensionActionManager* manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionActionManagerTest);
 };
 
 ExtensionActionManagerTest::ExtensionActionManagerTest() = default;
@@ -63,7 +60,7 @@ TEST_P(ExtensionActionManagerTest, TestPopulateMissingValues_Icons) {
                                        .Set("48", "icon48.png")
                                        .Set("128", "icon128.png")
                                        .Build())
-          .SetManifestKey(ActionInfo::GetManifestKeyForActionType(GetParam()),
+          .SetManifestKey(GetManifestKeyForActionType(GetParam()),
                           std::make_unique<base::DictionaryValue>())
           .Build();
 
@@ -83,7 +80,7 @@ TEST_P(ExtensionActionManagerTest, TestPopulateMissingValues_Icons) {
 TEST_P(ExtensionActionManagerTest, TestPopulateMissingValues_Title) {
   scoped_refptr<const Extension> extension =
       ExtensionBuilder("Test Extension")
-          .SetManifestKey(ActionInfo::GetManifestKeyForActionType(GetParam()),
+          .SetManifestKey(GetManifestKeyForActionType(GetParam()),
                           std::make_unique<base::DictionaryValue>())
           .Build();
 
@@ -105,7 +102,7 @@ TEST_P(ExtensionActionManagerTest, TestDontOverrideIfDefaultsProvided) {
           .SetManifestKey("icons",
                           DictionaryBuilder().Set("24", "icon24.png").Build())
           .SetManifestKey(
-              ActionInfo::GetManifestKeyForActionType(GetParam()),
+              GetManifestKeyForActionType(GetParam()),
               DictionaryBuilder()
                   .Set("default_icon",
                        DictionaryBuilder().Set("19", "icon19.png").Build())

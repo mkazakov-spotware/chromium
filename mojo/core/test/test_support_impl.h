@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 
+#include "base/macros.h"
 #include "mojo/public/tests/test_support_private.h"
 
 namespace mojo {
@@ -16,10 +17,6 @@ namespace test {
 class TestSupportImpl : public mojo::test::TestSupport {
  public:
   TestSupportImpl();
-
-  TestSupportImpl(const TestSupportImpl&) = delete;
-  TestSupportImpl& operator=(const TestSupportImpl&) = delete;
-
   ~TestSupportImpl() override;
 
   void LogPerfResult(const char* test_name,
@@ -29,6 +26,9 @@ class TestSupportImpl : public mojo::test::TestSupport {
   FILE* OpenSourceRootRelativeFile(const char* relative_path) override;
   char** EnumerateSourceRootRelativeDirectory(
       const char* relative_path) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestSupportImpl);
 };
 
 }  // namespace test

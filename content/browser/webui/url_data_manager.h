@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,14 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/supports_user_data.h"
-#include "base/values.h"
 #include "content/common/content_export.h"
+
+namespace base {
+class DictionaryValue;
+}
 
 namespace content {
 class BrowserContext;
@@ -28,10 +32,6 @@ class WebUIDataSource;
 class CONTENT_EXPORT URLDataManager : public base::SupportsUserData::Data {
  public:
   explicit URLDataManager(BrowserContext* browser_context);
-
-  URLDataManager(const URLDataManager&) = delete;
-  URLDataManager& operator=(const URLDataManager&) = delete;
-
   ~URLDataManager() override;
 
   // Adds a DataSource to the collection of data sources. This *must* be invoked
@@ -47,7 +47,7 @@ class CONTENT_EXPORT URLDataManager : public base::SupportsUserData::Data {
   void AddDataSource(URLDataSourceImpl* source);
 
   void UpdateWebUIDataSource(const std::string& source_name,
-                             const base::Value::Dict& update);
+                             std::unique_ptr<base::DictionaryValue> update);
 
   // Deletes any data sources no longer referenced. This is normally invoked
   // for you, but can be invoked to force deletion (such as during shutdown).
@@ -64,9 +64,10 @@ class CONTENT_EXPORT URLDataManager : public base::SupportsUserData::Data {
                                  WebUIDataSource* source);
 
   // Updates an existing WebUI data source.
-  static void UpdateWebUIDataSource(BrowserContext* browser_context,
-                                    const std::string& source_name,
-                                    const base::Value::Dict& update);
+  static void UpdateWebUIDataSource(
+      BrowserContext* browser_context,
+      const std::string& source_name,
+      std::unique_ptr<base::DictionaryValue> update);
 
  private:
   friend class URLDataSourceImpl;
@@ -82,11 +83,13 @@ class CONTENT_EXPORT URLDataManager : public base::SupportsUserData::Data {
   // was invoked).
   static bool IsScheduledForDeletion(const URLDataSourceImpl* data_source);
 
-  raw_ptr<BrowserContext, DanglingUntriaged> browser_context_;
+  BrowserContext* browser_context_;
 
   // |data_sources_| that are no longer referenced and scheduled for deletion.
   // Protected by g_delete_lock in the .cc file.
   static URLDataSources* data_sources_;
+
+  DISALLOW_COPY_AND_ASSIGN(URLDataManager);
 };
 
 }  // namespace content

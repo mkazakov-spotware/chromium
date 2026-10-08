@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,15 +13,16 @@
 
 #include "base/callback.h"
 #include "base/check_op.h"
+#include "base/compiler_specific.h"
 #include "base/containers/flat_map.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/numerics/checked_math.h"
 #include "base/sequence_checker.h"
 #include "components/services/storage/indexed_db/leveldb/leveldb_state.h"
-#include "components/services/storage/indexed_db/locks/partitioned_lock.h"
 #include "components/services/storage/indexed_db/scopes/leveldb_scope_deletion_mode.h"
 #include "components/services/storage/indexed_db/scopes/leveldb_scopes_coding.h"
+#include "components/services/storage/indexed_db/scopes/scope_lock.h"
 #include "components/services/storage/indexed_db/scopes/scopes_metadata.pb.h"
 #include "third_party/leveldatabase/src/include/leveldb/slice.h"
 #include "third_party/leveldatabase/src/include/leveldb/status.h"
@@ -66,12 +67,9 @@ class LevelDBScope {
  public:
   using RollbackCallback =
       base::OnceCallback<leveldb::Status(int64_t scope_id,
-                                         std::vector<PartitionedLock> locks)>;
+                                         std::vector<ScopeLock> locks)>;
   using TearDownCallback = base::RepeatingCallback<void(leveldb::Status)>;
   using CleanupCallback = base::OnceCallback<void(int64_t scope_id)>;
-
-  LevelDBScope(const LevelDBScope&) = delete;
-  LevelDBScope& operator=(const LevelDBScope&) = delete;
 
   ~LevelDBScope();
 
@@ -80,19 +78,19 @@ class LevelDBScope {
     return scope_id_;
   }
 
-  [[nodiscard]] leveldb::Status Put(const leveldb::Slice& key,
-                                    const leveldb::Slice& value);
-  [[nodiscard]] leveldb::Status Delete(const leveldb::Slice& key);
+  leveldb::Status Put(const leveldb::Slice& key,
+                      const leveldb::Slice& value) WARN_UNUSED_RESULT;
+  leveldb::Status Delete(const leveldb::Slice& key) WARN_UNUSED_RESULT;
 
   // Deletes the range. |begin| is always inclusive. See
   // |LevelDBScopeDeletionMode| for the different types of range deletion.
-  [[nodiscard]] leveldb::Status DeleteRange(const leveldb::Slice& begin,
-                                            const leveldb::Slice& end,
-                                            LevelDBScopeDeletionMode mode);
+  leveldb::Status DeleteRange(const leveldb::Slice& begin,
+                              const leveldb::Slice& end,
+                              LevelDBScopeDeletionMode mode) WARN_UNUSED_RESULT;
   // Submits pending changes & the undo log to LevelDB. Required to be able to
   // read any keys that have been submitted to |Put|, |Delete|, or
   // |DeleteRange|.
-  [[nodiscard]] leveldb::Status WriteChangesAndUndoLog();
+  leveldb::Status WriteChangesAndUndoLog() WARN_UNUSED_RESULT;
 
   // In the case of LevelDBScopes being in the mode
   // TaskRunnerMode::kUseCurrentSequence, rollbacks happen synchronously. The
@@ -118,14 +116,13 @@ class LevelDBScope {
     // This constructor is needed to satisfy the constraints of having default
     // construction of the |empty_ranges_| flat_map below.
     EmptyRangeLessThan();
-    explicit EmptyRangeLessThan(const leveldb::Comparator* comparator);
-    EmptyRangeLessThan(const EmptyRangeLessThan& other);
+    EmptyRangeLessThan(const leveldb::Comparator* comparator);
     EmptyRangeLessThan& operator=(const EmptyRangeLessThan& other);
 
     // The ranges are expected to be disjoint.
     bool operator()(const EmptyRange& lhs, const EmptyRange& rhs) const;
 
-    raw_ptr<const leveldb::Comparator, DanglingUntriaged> comparator_ = nullptr;
+    const leveldb::Comparator* comparator_ = nullptr;
   };
 
   enum class Mode { kInMemory, kUndoLogOnDisk };
@@ -138,7 +135,7 @@ class LevelDBScope {
                std::vector<uint8_t> prefix,
                size_t write_batch_size,
                scoped_refptr<LevelDBState> level_db,
-               std::vector<PartitionedLock> locks,
+               std::vector<ScopeLock> locks,
                std::vector<EmptyRange> empty_ranges,
                RollbackCallback rollback_callback,
                TearDownCallback tear_down_callback);
@@ -147,7 +144,8 @@ class LevelDBScope {
   // status & the mode of this scope. The caller (LevelDBScopes) is expected to
   // queue up a cleanup task if the mode is kUndoLogOnDisk. This instance should
   // not be used after this call.
-  [[nodiscard]] std::pair<leveldb::Status, Mode> Commit(bool sync_on_commit);
+  std::pair<leveldb::Status, Mode> Commit(bool sync_on_commit)
+      WARN_UNUSED_RESULT;
 
   // Submits pending changes & the undo log to LevelDB. Required to be able to
   // read any keys that have been submitted to Put, Delete, or
@@ -179,7 +177,7 @@ class LevelDBScope {
   bool CanSkipWritingUndoEntry(const leveldb::Slice& key);
 
   void AddCommitPoint();
-  [[nodiscard]] leveldb::Status WriteBufferBatch(bool sync);
+  leveldb::Status WriteBufferBatch(bool sync) WARN_UNUSED_RESULT;
 
 #if DCHECK_IS_ON()
   std::vector<std::pair<std::string, std::string>> deferred_delete_ranges_;
@@ -200,7 +198,7 @@ class LevelDBScope {
   const std::vector<uint8_t> prefix_;
   const size_t write_batch_size_;
   const scoped_refptr<LevelDBState> level_db_;
-  std::vector<PartitionedLock> locks_;
+  std::vector<ScopeLock> locks_;
   base::flat_map<EmptyRange, bool, EmptyRangeLessThan> empty_ranges_;
   RollbackCallback rollback_callback_;
   // Warning: Calling this callback can destroy this scope.
@@ -216,6 +214,8 @@ class LevelDBScope {
   LevelDBScopesCleanupTask cleanup_task_buffer_;
   ScopesEncoder key_encoder_;
   std::string value_buffer_;
+
+  DISALLOW_COPY_AND_ASSIGN(LevelDBScope);
 };
 
 }  // namespace content

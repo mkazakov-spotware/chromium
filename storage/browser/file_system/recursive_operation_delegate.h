@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "base/component_export.h"
 #include "base/containers/queue.h"
 #include "base/containers/stack.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "storage/browser/file_system/file_system_operation.h"
 #include "storage/browser/file_system/file_system_url.h"
@@ -30,10 +30,6 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) RecursiveOperationDelegate
   using StatusCallback = FileSystemOperation::StatusCallback;
   using FileEntryList = FileSystemOperation::FileEntryList;
   using ErrorBehavior = FileSystemOperation::ErrorBehavior;
-
-  RecursiveOperationDelegate(const RecursiveOperationDelegate&) = delete;
-  RecursiveOperationDelegate& operator=(const RecursiveOperationDelegate&) =
-      delete;
 
   virtual ~RecursiveOperationDelegate();
 
@@ -66,10 +62,10 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) RecursiveOperationDelegate
  protected:
   explicit RecursiveOperationDelegate(FileSystemContext* file_system_context);
 
-  // Starts to process files/directories recursively from the given `root`.
+  // Starts to process files/directories recursively from the given |root|.
   // This will call ProcessFile and ProcessDirectory on each file or directory.
   //
-  // First, this tries to call ProcessFile with `root` regardless whether it is
+  // First, this tries to call ProcessFile with |root| regardless whether it is
   // actually a file or a directory. If it is a directory, ProcessFile should
   // return File::FILE_NOT_A_FILE.
   //
@@ -109,14 +105,10 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) RecursiveOperationDelegate
   // PostProcessDirectory(b2_dir)
   // PostProcessDirectory(a_dir)
   //
-  // `error_behavior` is to specify how this behaves when an operation have
+  // |error_behavior| is to specify how this behaves when an operation have
   // failed.
-  // `callback` is fired with `base::File::FILE_OK` when every file/directory
-  // under `root` is processed, or fired earlier when any suboperation fails.
-  //
-  // For `ERROR_BEHAVIOR_SKIP`, `callback` is fired at the end of the operation
-  // or when an unrecoverable error occurs. `callback` is called with the last
-  // error or `base::File::FILE_OK` if no error occurred.
+  // |callback| is fired with base::File::FILE_OK when every file/directory
+  // under |root| is processed, or fired earlier when any suboperation fails.
   void StartRecursiveOperation(const FileSystemURL& root,
                                ErrorBehavior error_behavior,
                                StatusCallback callback);
@@ -145,19 +137,20 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) RecursiveOperationDelegate
   void DidProcessFile(const FileSystemURL& url, base::File::Error error);
   void ProcessSubDirectory();
   void DidPostProcessDirectory(base::File::Error error);
-  void SetPreviousError(base::File::Error error);
 
   // Called when all recursive operation is done (or an error occurs).
   void Done(base::File::Error error);
 
-  raw_ptr<FileSystemContext, DanglingUntriaged> file_system_context_;
+  FileSystemContext* file_system_context_;
   StatusCallback callback_;
   base::stack<FileSystemURL> pending_directories_;
   base::stack<base::queue<FileSystemURL>> pending_directory_stack_;
   base::queue<FileSystemURL> pending_files_;
-  bool canceled_ = false;
-  ErrorBehavior error_behavior_ = ErrorBehavior::ERROR_BEHAVIOR_ABORT;
-  base::File::Error previous_error_ = base::File::FILE_OK;
+  bool canceled_;
+  ErrorBehavior error_behavior_;
+  bool failed_some_operations_;
+
+  DISALLOW_COPY_AND_ASSIGN(RecursiveOperationDelegate);
 };
 
 }  // namespace storage

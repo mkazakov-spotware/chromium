@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/ozone/platform/x11/gl_surface_egl_readback_x11.h"
 
-#include "base/logging.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
 #include "third_party/skia/include/core/SkPixmap.h"
 #include "ui/base/x/x11_util.h"
@@ -18,10 +17,8 @@ constexpr x11::GraphicsContext kNoGC = x11::GraphicsContext{};
 
 }
 
-GLSurfaceEglReadbackX11::GLSurfaceEglReadbackX11(gl::GLDisplayEGL* display,
-                                                 gfx::AcceleratedWidget window)
-    : GLSurfaceEglReadback(display),
-      window_(static_cast<x11::Window>(window)),
+GLSurfaceEglReadbackX11::GLSurfaceEglReadbackX11(gfx::AcceleratedWidget window)
+    : window_(static_cast<x11::Window>(window)),
       connection_(x11::Connection::Get()) {}
 
 bool GLSurfaceEglReadbackX11::Initialize(gl::GLSurfaceFormat format) {

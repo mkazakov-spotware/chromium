@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -148,7 +148,7 @@ class VulkanSurfaceWin32::WindowThread : public base::Thread,
     DCHECK(!g_thread);
     g_thread = this;
     base::Thread::Options options(base::MessagePumpType::UI, 0);
-    StartWithOptions(std::move(options));
+    StartWithOptions(options);
   }
 
   WindowThread(const WindowThread&) = delete;
@@ -207,17 +207,20 @@ std::unique_ptr<VulkanSurfaceWin32> VulkanSurfaceWin32::Create(
     return nullptr;
   }
   return std::make_unique<VulkanSurfaceWin32>(
-      base::PassKey<VulkanSurfaceWin32>(), vk_instance, surface,
+      util::PassKey<VulkanSurfaceWin32>(), vk_instance, surface,
       std::move(thread), std::move(window));
 }
 
 VulkanSurfaceWin32::VulkanSurfaceWin32(
-    base::PassKey<VulkanSurfaceWin32> pass_key,
+    util::PassKey<VulkanSurfaceWin32> pass_key,
     VkInstance vk_instance,
     VkSurfaceKHR vk_surface,
     scoped_refptr<WindowThread> thread,
     std::unique_ptr<gfx::WindowImpl> window)
-    : VulkanSurface(vk_instance, window->hwnd(), vk_surface),
+    : VulkanSurface(vk_instance,
+                    window->hwnd(),
+                    vk_surface,
+                    false /* use_protected_memory */),
       thread_(std::move(thread)),
       window_(std::move(window)) {}
 

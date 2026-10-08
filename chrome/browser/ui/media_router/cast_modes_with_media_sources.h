@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,11 +22,6 @@ class CastModesWithMediaSources {
  public:
   explicit CastModesWithMediaSources(const MediaSink& sink);
   CastModesWithMediaSources(CastModesWithMediaSources&& other);
-
-  CastModesWithMediaSources(const CastModesWithMediaSources&) = delete;
-  CastModesWithMediaSources& operator=(const CastModesWithMediaSources&) =
-      delete;
-
   ~CastModesWithMediaSources();
 
   const MediaSink& sink() const { return sink_; }
@@ -50,7 +45,10 @@ class CastModesWithMediaSources {
 
  private:
   MediaSink sink_;
-  std::map<MediaCastMode, std::set<MediaSource, MediaSource::Cmp>> cast_modes_;
+  std::map<MediaCastMode, std::unordered_set<MediaSource, MediaSource::Hash>>
+      cast_modes_;
+
+  DISALLOW_COPY_AND_ASSIGN(CastModesWithMediaSources);
 };
 
 }  // namespace media_router

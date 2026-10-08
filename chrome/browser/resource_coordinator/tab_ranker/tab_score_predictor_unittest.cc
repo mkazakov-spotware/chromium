@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/rand_util.h"
 #include "base/test/scoped_feature_list.h"
-#include "build/build_config.h"
 #include "chrome/browser/resource_coordinator/tab_manager_features.h"
 #include "chrome/browser/resource_coordinator/tab_ranker/tab_features.h"
 #include "chrome/browser/resource_coordinator/tab_ranker/tab_features_test_helper.h"
@@ -22,10 +21,6 @@ namespace {
 class TabScorePredictorTest : public testing::Test {
  public:
   TabScorePredictorTest() = default;
-
-  TabScorePredictorTest(const TabScorePredictorTest&) = delete;
-  TabScorePredictorTest& operator=(const TabScorePredictorTest&) = delete;
-
   ~TabScorePredictorTest() override = default;
 
  protected:
@@ -38,18 +33,16 @@ class TabScorePredictorTest : public testing::Test {
   }
 
   base::test::ScopedFeatureList scoped_feature_list_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TabScorePredictorTest);
 };
 
 }  // namespace
 
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_KnownScore DISABLED_KnownScore
-#else
-#define MAYBE_KnownScore KnownScore
-#endif
 // Checks the score for an example that we have calculated a known score for
 // outside of Chrome.
-TEST_F(TabScorePredictorTest, MAYBE_KnownScore) {
+TEST_F(TabScorePredictorTest, KnownScore) {
   scoped_feature_list_.InitAndEnableFeatureWithParameters(
       features::kTabRanker, {{"scorer_type", "1"}});
   // Pre-calculated score using the generated model outside of Chrome.
@@ -65,30 +58,18 @@ TEST_F(TabScorePredictorTest, KnownScoreMissingOptionalFeatures) {
   EXPECT_FLOAT_EQ(ScoreTab(GetPartialTabFeaturesForTesting()), 5.1401806);
 }
 
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_KnownScorePairwise DISABLED_KnownScorePairwise
-#else
-#define MAYBE_KnownScorePairwise KnownScorePairwise
-#endif
 // Checks the score for an example that we have calculated a known score for
 // outside of Chrome.
-TEST_F(TabScorePredictorTest, MAYBE_KnownScorePairwise) {
+TEST_F(TabScorePredictorTest, KnownScorePairwise) {
   scoped_feature_list_.InitAndEnableFeatureWithParameters(
       features::kTabRanker, {{"scorer_type", "2"}});
   // Pre-calculated score using the generated model outside of Chrome.
   EXPECT_FLOAT_EQ(ScoreTab(GetFullTabFeaturesForTesting()), -3.8852997);
 }
 
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_KnownScoreMissingOptionalFeaturesPairwise \
-  DISABLED_KnownScoreMissingOptionalFeaturesPairwise
-#else
-#define MAYBE_KnownScoreMissingOptionalFeaturesPairwise \
-  KnownScoreMissingOptionalFeaturesPairwise
-#endif
 // Checks the score for a different example that we have calculated a known
 // score for outside of Chrome. This example omits the optional features.
-TEST_F(TabScorePredictorTest, MAYBE_KnownScoreMissingOptionalFeaturesPairwise) {
+TEST_F(TabScorePredictorTest, KnownScoreMissingOptionalFeaturesPairwise) {
   scoped_feature_list_.InitAndEnableFeatureWithParameters(
       features::kTabRanker, {{"scorer_type", "2"}});
   // Pre-calculated score using the generated model outside of Chrome.
@@ -132,7 +113,7 @@ TEST_F(TabScorePredictorTest, ScoreTabWithFrecencyScorer) {
 class ScoreTabsWithPairwiseScorerTest : public testing::Test {
  protected:
   std::map<int32_t, float> ScoreTabsWithPairwiseScorer(
-      const std::map<int32_t, absl::optional<TabFeatures>>& tabs) {
+      const std::map<int32_t, base::Optional<TabFeatures>>& tabs) {
     return TabScorePredictor().ScoreTabsWithPairwiseScorer(tabs);
   }
 };
@@ -150,7 +131,7 @@ TEST_F(ScoreTabsWithPairwiseScorerTest, EmptyTabFeaturesFirst) {
     }
     base::RandomShuffle(ids.begin(), ids.end());
 
-    std::map<int32_t, absl::optional<TabFeatures>> tabs;
+    std::map<int32_t, base::Optional<TabFeatures>> tabs;
     for (int i = 0; i < length; ++i) {
       TabFeatures tab;
       tab.mru_index = base::RandInt(0, 3000);
@@ -159,7 +140,7 @@ TEST_F(ScoreTabsWithPairwiseScorerTest, EmptyTabFeaturesFirst) {
 
       // Set half of the TabFeatures to be null.
       if (i < length / 2) {
-        tabs[ids[i]] = absl::nullopt;
+        tabs[ids[i]] = base::nullopt;
       } else {
         tabs[ids[i]] = tab;
       }
@@ -194,7 +175,7 @@ TEST_F(ScoreTabsWithPairwiseScorerTest, SortByScore) {
     base::RandomShuffle(ids.begin(), ids.end());
 
     // set ids[i] to have frecency_score i*5;
-    std::map<int32_t, absl::optional<TabFeatures>> tabs;
+    std::map<int32_t, base::Optional<TabFeatures>> tabs;
     for (int i = 0; i < length; ++i) {
       TabFeatures tab;
       tab.mru_index = base::RandInt(0, 3000);

@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/history/core/browser/android/android_urls_sql_handler.h"
 
 #include "base/check.h"
+#include "base/stl_util.h"
 #include "components/history/core/browser/android/android_urls_database.h"
 
 namespace history {
@@ -19,7 +20,7 @@ const HistoryAndBookmarkRow::ColumnID kInterestingColumns[] = {
 
 AndroidURLsSQLHandler::AndroidURLsSQLHandler(
     AndroidURLsDatabase* android_urls_db)
-    : SQLHandler(kInterestingColumns, std::size(kInterestingColumns)),
+    : SQLHandler(kInterestingColumns, base::size(kInterestingColumns)),
       android_urls_db_(android_urls_db) {}
 
 AndroidURLsSQLHandler::~AndroidURLsSQLHandler() {

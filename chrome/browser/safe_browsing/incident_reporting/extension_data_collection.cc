@@ -1,19 +1,18 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/safe_browsing/incident_reporting/extension_data_collection.h"
 
-#include "base/containers/contains.h"
 #include "base/json/json_string_value_serializer.h"
-#include "base/time/time.h"
+#include "base/stl_util.h"
 #include "base/version.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/extension_util.h"
 #include "chrome/browser/extensions/install_signer.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/safe_browsing/incident_reporting/incident_reporting_service.h"
-#include "components/safe_browsing/core/common/proto/csd.pb.h"
+#include "components/safe_browsing/core/proto/csd.pb.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_prefs_factory.h"
 #include "extensions/browser/extension_registry.h"
@@ -45,23 +44,23 @@ void PopulateExtensionInfo(
   else if (extension_registry.disabled_extensions().Contains(extension_id))
     extension_info->set_state(Info::STATE_DISABLED);
   else if (extension_registry.blocklisted_extensions().Contains(extension_id))
-    extension_info->set_state(Info::STATE_BLOCKLISTED);
+    extension_info->set_state(Info::STATE_BLACKLISTED);
   else if (extension_registry.blocked_extensions().Contains(extension_id))
     extension_info->set_state(Info::STATE_BLOCKED);
   else if (extension_registry.terminated_extensions().Contains(extension_id))
     extension_info->set_state(Info::STATE_TERMINATED);
 
   extension_info->set_type(extension.GetType());
-  if (const std::string* update_url = extension.manifest()->FindStringPath(
-          extensions::manifest_keys::kUpdateURL)) {
-    extension_info->set_update_url(*update_url);
+  std::string update_url;
+  if (extension.manifest()->GetString(extensions::manifest_keys::kUpdateURL,
+                                      &update_url)) {
+    extension_info->set_update_url(update_url);
   }
 
   extension_info->set_installed_by_default(
       extension.was_installed_by_default());
   extension_info->set_installed_by_oem(extension.was_installed_by_oem());
-  // TODO(crbug.com/1065748): Remove this setter.
-  extension_info->set_from_bookmark(false);
+  extension_info->set_from_bookmark(extension.from_bookmark());
   extension_info->set_from_webstore(extension.from_webstore());
   extension_info->set_converted_from_user_script(
       extension.converted_from_user_script());
@@ -69,17 +68,20 @@ void PopulateExtensionInfo(
   extension_info->set_install_time_msec(
       extension_prefs.GetInstallTime(extension.id()).ToJavaTime());
 
-  std::unique_ptr<extensions::InstallSignature> signature_from_prefs =
-      extensions::InstallSignature::FromDict(
-          extension_prefs.GetInstallSignature());
-  if (signature_from_prefs) {
-    if (base::Contains(signature_from_prefs->ids, extension_id)) {
-      extension_info->set_has_signature_validation(true);
-      extension_info->set_signature_is_valid(true);
-    } else if (base::Contains(signature_from_prefs->invalid_ids,
-                              extension_id)) {
-      extension_info->set_has_signature_validation(true);
-      extension_info->set_signature_is_valid(false);
+  const base::DictionaryValue* signature =
+      extension_prefs.GetInstallSignature();
+  if (signature) {
+    std::unique_ptr<extensions::InstallSignature> signature_from_prefs =
+        extensions::InstallSignature::FromValue(*signature);
+    if (signature_from_prefs) {
+      if (base::Contains(signature_from_prefs->ids, extension_id)) {
+        extension_info->set_has_signature_validation(true);
+        extension_info->set_signature_is_valid(true);
+      } else if (base::Contains(signature_from_prefs->invalid_ids,
+                                extension_id)) {
+        extension_info->set_has_signature_validation(true);
+        extension_info->set_signature_is_valid(false);
+      }
     }
   }
 
@@ -88,8 +90,7 @@ void PopulateExtensionInfo(
   if (serializer.Serialize(*extension.manifest()->value()))
     extension_info->mutable_manifest()->swap(manifest_json);
 
-  extension_info->set_manifest_location_type(
-      static_cast<int>(extension.manifest()->location()));
+  extension_info->set_manifest_location_type(extension.manifest()->location());
 }
 
 }  // namespace

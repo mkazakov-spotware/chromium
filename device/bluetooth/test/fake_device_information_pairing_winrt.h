@@ -1,17 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef DEVICE_BLUETOOTH_TEST_FAKE_DEVICE_INFORMATION_PAIRING_WINRT_H_
 #define DEVICE_BLUETOOTH_TEST_FAKE_DEVICE_INFORMATION_PAIRING_WINRT_H_
 
-#include <Windows.Devices.Enumeration.h>
+#include <windows.devices.enumeration.h>
 #include <wrl/client.h>
 #include <wrl/implements.h>
 
 #include <string>
 
-#include "base/strings/string_piece_forward.h"
+#include "base/macros.h"
 
 namespace device {
 
@@ -24,17 +24,6 @@ class FakeDeviceInformationPairingWinrt
  public:
   explicit FakeDeviceInformationPairingWinrt(bool is_paired);
   explicit FakeDeviceInformationPairingWinrt(std::string pin);
-  explicit FakeDeviceInformationPairingWinrt(
-      ABI::Windows::Devices::Enumeration::DevicePairingKinds pairing_kind);
-  explicit FakeDeviceInformationPairingWinrt(
-      ABI::Windows::Devices::Enumeration::DevicePairingKinds pairing_kind,
-      base::StringPiece display_pin);
-
-  FakeDeviceInformationPairingWinrt(const FakeDeviceInformationPairingWinrt&) =
-      delete;
-  FakeDeviceInformationPairingWinrt& operator=(
-      const FakeDeviceInformationPairingWinrt&) = delete;
-
   ~FakeDeviceInformationPairingWinrt() override;
 
   // IDeviceInformationPairing:
@@ -78,6 +67,8 @@ class FakeDeviceInformationPairingWinrt
   Microsoft::WRL::ComPtr<
       ABI::Windows::Devices::Enumeration::IDeviceInformationCustomPairing>
       custom_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeDeviceInformationPairingWinrt);
 };
 
 }  // namespace device

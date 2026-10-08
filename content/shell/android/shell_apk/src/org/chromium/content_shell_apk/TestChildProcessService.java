@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -74,7 +74,7 @@ public class TestChildProcessService extends Service {
         }
 
         @Override
-        public void preloadNativeLibrary(String packageName) {
+        public void preloadNativeLibrary(Context hostContext) {
             LibraryLoader.getInstance().preloadNow();
         }
 
@@ -138,9 +138,6 @@ public class TestChildProcessService extends Service {
             Looper.prepare();
             Looper.loop();
         }
-
-        @Override
-        public void consumeRelroBundle(Bundle bundle) {}
     }
 
     private ChildProcessService mService;

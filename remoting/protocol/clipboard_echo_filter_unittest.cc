@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,8 @@
 using ::testing::_;
 using ::testing::InSequence;
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 using test::EqualsClipboardEvent;
 
@@ -105,4 +106,5 @@ TEST(ClipboardEchoFilter, NoClientStub) {
   filter.client_filter()->InjectClipboardEvent(event);
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

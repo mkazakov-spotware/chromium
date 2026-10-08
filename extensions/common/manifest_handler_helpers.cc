@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,10 +46,10 @@ bool NormalizeAndValidatePath(const std::string& path,
 
 bool LoadIconsFromDictionary(const base::Value* icons_value,
                              ExtensionIconSet* icons,
-                             std::u16string* error) {
+                             base::string16* error) {
   DCHECK(icons);
   DCHECK(error);
-  for (auto entry : icons_value->DictItems()) {
+  for (const auto& entry : icons_value->DictItems()) {
     int size = 0;
     if (!base::StringToInt(entry.first, &size) || size <= 0 ||
         size > extension_misc::EXTENSION_ICON_GIGANTOR * 4) {

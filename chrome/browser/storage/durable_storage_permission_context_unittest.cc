@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
+#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
@@ -48,8 +49,7 @@ class TestDurablePermissionContext : public DurableStoragePermissionContext {
   ContentSetting GetContentSettingFromMap(const GURL& url_a,
                                           const GURL& url_b) {
     return HostContentSettingsMapFactory::GetForProfile(browser_context())
-        ->GetContentSetting(url_a.DeprecatedGetOriginAsURL(),
-                            url_b.DeprecatedGetOriginAsURL(),
+        ->GetContentSetting(url_a.GetOrigin(), url_b.GetOrigin(),
                             ContentSettingsType::DURABLE_STORAGE);
   }
 
@@ -61,14 +61,13 @@ class TestDurablePermissionContext : public DurableStoragePermissionContext {
                            permissions::BrowserPermissionCallback callback,
                            bool persist,
                            ContentSetting content_setting,
-                           bool is_one_time,
-                           bool is_final_decision) override {
+                           bool is_one_time) override {
     permission_set_count_++;
     last_permission_set_persisted_ = persist;
     last_permission_set_setting_ = content_setting;
     DurableStoragePermissionContext::NotifyPermissionSet(
         id, requesting_origin, embedder_origin, std::move(callback), persist,
-        content_setting, is_one_time, is_final_decision);
+        content_setting, is_one_time);
   }
 
   int permission_set_count_;
@@ -83,8 +82,7 @@ class DurableStoragePermissionContextTest
     : public ChromeRenderViewHostTestHarness {
  protected:
   void MakeOriginImportant(const GURL& origin) {
-    site_engagement::ImportantSitesUtil::MarkOriginAsImportantForTesting(
-        profile(), origin);
+    ImportantSitesUtil::MarkOriginAsImportantForTesting(profile(), origin);
   }
 };
 
@@ -95,16 +93,16 @@ TEST_F(DurableStoragePermissionContextTest, Bookmarked) {
   NavigateAndCommit(url);
 
   const permissions::PermissionRequestID id(
-      web_contents()->GetPrimaryMainFrame()->GetGlobalId(),
-      permissions::PermissionRequestID::RequestLocalId());
+      web_contents()->GetMainFrame()->GetProcess()->GetID(),
+      web_contents()->GetMainFrame()->GetRoutingID(), -1);
 
   ASSERT_EQ(0, permission_context.permission_set_count());
   ASSERT_FALSE(permission_context.last_permission_set_persisted());
   ASSERT_EQ(CONTENT_SETTING_DEFAULT,
             permission_context.last_permission_set_setting());
 
-  permission_context.DecidePermission(id, url, url, true /* user_gesture */,
-                                      base::DoNothing());
+  permission_context.DecidePermission(
+      web_contents(), id, url, url, true /* user_gesture */, base::DoNothing());
   // Success.
   EXPECT_EQ(1, permission_context.permission_set_count());
   EXPECT_TRUE(permission_context.last_permission_set_persisted());
@@ -114,22 +112,22 @@ TEST_F(DurableStoragePermissionContextTest, Bookmarked) {
 
 TEST_F(DurableStoragePermissionContextTest, BookmarkAndIncognitoMode) {
   TestDurablePermissionContext permission_context(
-      profile()->GetPrimaryOTRProfile(/*create_if_needed=*/true));
+      profile()->GetPrimaryOTRProfile());
   GURL url("https://www.google.com");
   MakeOriginImportant(url);
   NavigateAndCommit(url);
 
   const permissions::PermissionRequestID id(
-      web_contents()->GetPrimaryMainFrame()->GetGlobalId(),
-      permissions::PermissionRequestID::RequestLocalId());
+      web_contents()->GetMainFrame()->GetProcess()->GetID(),
+      web_contents()->GetMainFrame()->GetRoutingID(), -1);
 
   ASSERT_EQ(0, permission_context.permission_set_count());
   ASSERT_FALSE(permission_context.last_permission_set_persisted());
   ASSERT_EQ(CONTENT_SETTING_DEFAULT,
             permission_context.last_permission_set_setting());
 
-  permission_context.DecidePermission(id, url, url, true /* user_gesture */,
-                                      base::DoNothing());
+  permission_context.DecidePermission(
+      web_contents(), id, url, url, true /* user_gesture */, base::DoNothing());
   // Success.
   EXPECT_EQ(1, permission_context.permission_set_count());
   EXPECT_TRUE(permission_context.last_permission_set_persisted());
@@ -140,23 +138,22 @@ TEST_F(DurableStoragePermissionContextTest, BookmarkAndIncognitoMode) {
 TEST_F(DurableStoragePermissionContextTest, BookmarkAndNonPrimaryOTRProfile) {
   TestDurablePermissionContext permission_context(
       profile()->GetOffTheRecordProfile(
-          Profile::OTRProfileID::CreateUniqueForTesting(),
-          /*create_if_needed=*/true));
+          Profile::OTRProfileID("Test::DurableStorage")));
   GURL url("https://www.google.com");
   MakeOriginImportant(url);
   NavigateAndCommit(url);
 
   const permissions::PermissionRequestID id(
-      web_contents()->GetPrimaryMainFrame()->GetGlobalId(),
-      permissions::PermissionRequestID::RequestLocalId());
+      web_contents()->GetMainFrame()->GetProcess()->GetID(),
+      web_contents()->GetMainFrame()->GetRoutingID(), -1);
 
   ASSERT_EQ(0, permission_context.permission_set_count());
   ASSERT_FALSE(permission_context.last_permission_set_persisted());
   ASSERT_EQ(CONTENT_SETTING_DEFAULT,
             permission_context.last_permission_set_setting());
 
-  permission_context.DecidePermission(id, url, url, true /* user_gesture */,
-                                      base::DoNothing());
+  permission_context.DecidePermission(
+      web_contents(), id, url, url, true /* user_gesture */, base::DoNothing());
   // Success.
   EXPECT_EQ(1, permission_context.permission_set_count());
   EXPECT_TRUE(permission_context.last_permission_set_persisted());
@@ -170,16 +167,16 @@ TEST_F(DurableStoragePermissionContextTest, NoBookmark) {
   NavigateAndCommit(url);
 
   const permissions::PermissionRequestID id(
-      web_contents()->GetPrimaryMainFrame()->GetGlobalId(),
-      permissions::PermissionRequestID::RequestLocalId());
+      web_contents()->GetMainFrame()->GetProcess()->GetID(),
+      web_contents()->GetMainFrame()->GetRoutingID(), -1);
 
   ASSERT_EQ(0, permission_context.permission_set_count());
   ASSERT_FALSE(permission_context.last_permission_set_persisted());
   ASSERT_EQ(CONTENT_SETTING_DEFAULT,
             permission_context.last_permission_set_setting());
 
-  permission_context.DecidePermission(id, url, url, true /* user_gesture */,
-                                      base::DoNothing());
+  permission_context.DecidePermission(
+      web_contents(), id, url, url, true /* user_gesture */, base::DoNothing());
 
   // We shouldn't be granted.
   EXPECT_EQ(1, permission_context.permission_set_count());
@@ -200,16 +197,16 @@ TEST_F(DurableStoragePermissionContextTest, CookiesNotAllowed) {
   cookie_settings->SetCookieSetting(url, CONTENT_SETTING_BLOCK);
 
   const permissions::PermissionRequestID id(
-      web_contents()->GetPrimaryMainFrame()->GetGlobalId(),
-      permissions::PermissionRequestID::RequestLocalId());
+      web_contents()->GetMainFrame()->GetProcess()->GetID(),
+      web_contents()->GetMainFrame()->GetRoutingID(), -1);
 
   ASSERT_EQ(0, permission_context.permission_set_count());
   ASSERT_FALSE(permission_context.last_permission_set_persisted());
   ASSERT_EQ(CONTENT_SETTING_DEFAULT,
             permission_context.last_permission_set_setting());
 
-  permission_context.DecidePermission(id, url, url, true /* user_gesture */,
-                                      base::DoNothing());
+  permission_context.DecidePermission(
+      web_contents(), id, url, url, true /* user_gesture */, base::DoNothing());
   // We shouldn't be granted.
   EXPECT_EQ(1, permission_context.permission_set_count());
   EXPECT_FALSE(permission_context.last_permission_set_persisted());
@@ -225,16 +222,17 @@ TEST_F(DurableStoragePermissionContextTest, EmbeddedFrame) {
   NavigateAndCommit(url);
 
   const permissions::PermissionRequestID id(
-      web_contents()->GetPrimaryMainFrame()->GetGlobalId(),
-      permissions::PermissionRequestID::RequestLocalId());
+      web_contents()->GetMainFrame()->GetProcess()->GetID(),
+      web_contents()->GetMainFrame()->GetRoutingID(), -1);
 
   ASSERT_EQ(0, permission_context.permission_set_count());
   ASSERT_FALSE(permission_context.last_permission_set_persisted());
   ASSERT_EQ(CONTENT_SETTING_DEFAULT,
             permission_context.last_permission_set_setting());
 
-  permission_context.DecidePermission(
-      id, requesting_url, url, true /* user_gesture */, base::DoNothing());
+  permission_context.DecidePermission(web_contents(), id, requesting_url, url,
+                                      true /* user_gesture */,
+                                      base::DoNothing());
   // We shouldn't be granted.
   EXPECT_EQ(1, permission_context.permission_set_count());
   EXPECT_FALSE(permission_context.last_permission_set_persisted());

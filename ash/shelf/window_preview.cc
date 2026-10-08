@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,7 @@
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/wm/window_preview_view.h"
 #include "ash/wm/window_util.h"
-#include "base/bind.h"
 #include "ui/aura/window.h"
-#include "ui/color/color_id.h"
-#include "ui/color/color_provider.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/background.h"
@@ -36,7 +33,9 @@ constexpr SkColor kPreviewContainerBgColor =
     SkColorSetA(gfx::kGoogleGrey100, 0x24);
 constexpr int kPreviewBorderRadius = 4;
 
-WindowPreview::WindowPreview(aura::Window* window, Delegate* delegate)
+WindowPreview::WindowPreview(aura::Window* window,
+                             Delegate* delegate,
+                             const ui::NativeTheme* theme)
     : delegate_(delegate) {
   preview_view_ =
       new WindowPreviewView(window, /*trilinear_filtering_on_init=*/false);
@@ -46,12 +45,14 @@ WindowPreview::WindowPreview(aura::Window* window, Delegate* delegate)
   title_ = new views::Label(window->GetTitle());
   close_button_ = new views::ImageButton(base::BindRepeating(
       &WindowPreview::CloseButtonPressed, base::Unretained(this)));
-  close_button_->SetFocusBehavior(FocusBehavior::NEVER);
+  close_button_->SetFocusBehavior(FocusBehavior::ACCESSIBLE_ONLY);
 
   AddChildView(preview_container_view_);
   AddChildView(preview_view_);
   AddChildView(title_);
   AddChildView(close_button_);
+
+  SetStyling(theme);
 }
 
 WindowPreview::~WindowPreview() = default;
@@ -134,13 +135,11 @@ const char* WindowPreview::GetClassName() const {
   return "WindowPreview";
 }
 
-void WindowPreview::OnThemeChanged() {
-  views::View::OnThemeChanged();
-  const auto* color_provider = GetColorProvider();
+void WindowPreview::SetStyling(const ui::NativeTheme* theme) {
   SkColor background_color =
-      color_provider->GetColor(ui::kColorTooltipBackground);
+      theme->GetSystemColor(ui::NativeTheme::kColorId_TooltipBackground);
   title_->SetEnabledColor(
-      color_provider->GetColor(ui::kColorTooltipForeground));
+      theme->GetSystemColor(ui::NativeTheme::kColorId_TooltipText));
   title_->SetBackgroundColor(background_color);
 
   // The background is not opaque, so we can't do subpixel rendering.

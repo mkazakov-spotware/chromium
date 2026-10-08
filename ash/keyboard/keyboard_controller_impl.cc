@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,11 @@
 
 #include <utility>
 
-#include "ash/constants/ash_constants.h"
-#include "ash/constants/ash_features.h"
-#include "ash/constants/ash_pref_names.h"
 #include "ash/keyboard/ui/keyboard_ui_controller.h"
 #include "ash/keyboard/ui/keyboard_ui_factory.h"
 #include "ash/keyboard/virtual_keyboard_controller.h"
+#include "ash/public/cpp/ash_constants.h"
+#include "ash/public/cpp/ash_pref_names.h"
 #include "ash/public/cpp/keyboard/keyboard_switches.h"
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/root_window_controller.h"
@@ -20,14 +19,11 @@
 #include "ash/shell.h"
 #include "ash/shell_delegate.h"
 #include "ash/wm/window_util.h"
-#include "base/bind.h"
 #include "base/command_line.h"
-#include "base/feature_list.h"
-#include "base/metrics/histogram_functions.h"
+#include "base/optional.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/aura/env.h"
 #include "ui/aura/window_delegate.h"
 #include "ui/base/ui_base_features.h"
@@ -59,21 +55,25 @@ const char kSpellCheckEnabledKey[] = "spell_check_enabled";
 // enabled.
 const char kVoiceInputEnabledKey[] = "voice_input_enabled";
 
-absl::optional<display::Display> GetFirstTouchDisplay() {
+base::Optional<display::Display> GetFirstTouchDisplay() {
   for (const auto& display : display::Screen::GetScreen()->GetAllDisplays()) {
     if (display.touch_support() == display::Display::TouchSupport::AVAILABLE)
       return display;
   }
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 bool GetVirtualKeyboardFeatureValue(PrefService* prefs,
                                     const std::string& feature_path) {
   DCHECK(prefs);
-  const base::Value::Dict& features =
-      prefs->GetDict(prefs::kAccessibilityVirtualKeyboardFeatures);
+  const base::DictionaryValue* features =
+      prefs->GetDictionary(prefs::kAccessibilityVirtualKeyboardFeatures);
 
-  return features.FindBool(feature_path).value_or(false);
+  if (!features)
+    return false;
+
+  bool feature_value = false;
+  return features->GetBoolean(feature_path, &feature_value) && feature_value;
 }
 
 }  // namespace
@@ -117,6 +117,12 @@ void KeyboardControllerImpl::CreateVirtualKeyboard(
   DCHECK(keyboard_ui_factory);
   virtual_keyboard_controller_ = std::make_unique<VirtualKeyboardController>();
   keyboard_ui_controller_->Initialize(std::move(keyboard_ui_factory), this);
+
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+          keyboard::switches::kEnableVirtualKeyboard)) {
+    keyboard_ui_controller_->SetEnableFlag(
+        KeyboardEnableFlag::kCommandLineEnabled);
+  }
 }
 
 void KeyboardControllerImpl::DestroyVirtualKeyboard() {
@@ -269,27 +275,19 @@ void KeyboardControllerImpl::RemoveObserver(
   observers_.RemoveObserver(observer);
 }
 
-absl::optional<KeyRepeatSettings>
-KeyboardControllerImpl::GetKeyRepeatSettings() {
-  if (!pref_change_registrar_)
-    return absl::nullopt;
+KeyRepeatSettings KeyboardControllerImpl::GetKeyRepeatSettings() {
   PrefService* prefs = pref_change_registrar_->prefs();
   bool enabled = prefs->GetBoolean(ash::prefs::kXkbAutoRepeatEnabled);
   int delay_in_ms = prefs->GetInteger(ash::prefs::kXkbAutoRepeatDelay);
   int interval_in_ms = prefs->GetInteger(ash::prefs::kXkbAutoRepeatInterval);
-  return KeyRepeatSettings{enabled, base::Milliseconds(delay_in_ms),
-                           base::Milliseconds(interval_in_ms)};
-}
-
-bool KeyboardControllerImpl::AreTopRowKeysFunctionKeys() {
-  PrefService* prefs = pref_change_registrar_->prefs();
-  return prefs->GetBoolean(ash::prefs::kSendFunctionKeys);
+  return KeyRepeatSettings{enabled,
+                           base::TimeDelta::FromMilliseconds(delay_in_ms),
+                           base::TimeDelta::FromMilliseconds(interval_in_ms)};
 }
 
 // SessionObserver
 void KeyboardControllerImpl::OnSessionStateChanged(
     session_manager::SessionState state) {
-  SetEnableFlagFromCommandLine();
   if (!keyboard_ui_controller_->IsEnabled())
     return;
 
@@ -315,20 +313,6 @@ void KeyboardControllerImpl::OnSigninScreenPrefServiceInitialized(
 
 void KeyboardControllerImpl::OnActiveUserPrefServiceChanged(
     PrefService* prefs) {
-  auto account_id = Shell::Get()->session_controller()->GetActiveAccountId();
-  if (prefs && !recorded_accounts_.contains(account_id)) {
-    base::UmaHistogramBoolean(
-        "ChromeOS.Settings.Device.KeyboardAutoRepeatEnabled",
-        prefs->GetBoolean(prefs::kXkbAutoRepeatEnabled));
-    base::UmaHistogramTimes(
-        "ChromeOS.Settings.Device.KeyboardAutoRepeatDelay",
-        base::Milliseconds(prefs->GetInteger(prefs::kXkbAutoRepeatDelay)));
-    base::UmaHistogramTimes(
-        "ChromeOS.Settings.Device.KeyboardAutoRepeatInterval",
-        base::Milliseconds(prefs->GetInteger(prefs::kXkbAutoRepeatInterval)));
-    recorded_accounts_.insert(account_id);
-  }
-
   ObservePrefs(prefs);
 }
 
@@ -339,12 +323,6 @@ void KeyboardControllerImpl::OnActiveUserPrefServiceChanged(
 // active user's PrefService, or the signin screen's PrefService if nobody's
 // logged in yet.
 void KeyboardControllerImpl::ObservePrefs(PrefService* prefs) {
-  if (!prefs) {
-    // Just for testing cases.
-    pref_change_registrar_.reset();
-    return;
-  }
-
   pref_change_registrar_ = std::make_unique<PrefChangeRegistrar>();
   pref_change_registrar_->Init(prefs);
 
@@ -374,9 +352,7 @@ void KeyboardControllerImpl::ObservePrefs(PrefService* prefs) {
 }
 
 void KeyboardControllerImpl::SendKeyRepeatUpdate() {
-  auto key_repeat_settings = GetKeyRepeatSettings();
-  DCHECK(key_repeat_settings.has_value());
-  OnKeyRepeatSettingsChanged(key_repeat_settings.value());
+  OnKeyRepeatSettingsChanged(GetKeyRepeatSettings());
 }
 
 void KeyboardControllerImpl::SendKeyboardConfigUpdate() {
@@ -405,7 +381,7 @@ aura::Window* KeyboardControllerImpl::GetContainerForDisplay(
 
 aura::Window* KeyboardControllerImpl::GetContainerForDefaultDisplay() {
   const display::Screen* screen = display::Screen::GetScreen();
-  const absl::optional<display::Display> first_touch_display =
+  const base::Optional<display::Display> first_touch_display =
       GetFirstTouchDisplay();
   const bool has_touch_display = first_touch_display.has_value();
 
@@ -429,11 +405,6 @@ aura::Window* KeyboardControllerImpl::GetContainerForDefaultDisplay() {
 
 void KeyboardControllerImpl::TransferGestureEventToShelf(
     const ui::GestureEvent& e) {
-  if (!base::FeatureList::IsEnabled(
-          features::kShelfGesturesWithVirtualKeyboard)) {
-    return;
-  }
-
   ash::Shelf* shelf =
       ash::Shelf::ForWindow(keyboard_ui_controller_->GetKeyboardWindow());
   if (shelf) {
@@ -483,19 +454,6 @@ void KeyboardControllerImpl::OnKeyboardEnableFlagsChanged(
 void KeyboardControllerImpl::OnKeyboardEnabledChanged(bool is_enabled) {
   for (auto& observer : observers_)
     observer.OnKeyboardEnabledChanged(is_enabled);
-}
-
-void KeyboardControllerImpl::SetEnableFlagFromCommandLine() {
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          keyboard::switches::kEnableVirtualKeyboard)) {
-    keyboard_ui_controller_->SetEnableFlag(
-        KeyboardEnableFlag::kCommandLineEnabled);
-  }
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          keyboard::switches::kDisableVirtualKeyboard)) {
-    keyboard_ui_controller_->SetEnableFlag(
-        KeyboardEnableFlag::kCommandLineDisabled);
-  }
 }
 
 }  // namespace ash

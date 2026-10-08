@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,13 +14,13 @@ namespace ash {
 enum AmbientViewID {
   // We start at 1000 to prevent potential overlapping of Assistant view ids.
   kAmbientContainerView = 1000,
+  kAmbientAssistantContainerView,
+  kAmbientAssistantResponseContainerView,
   kAmbientPhotoView,
   kAmbientBackgroundImageView,
   kAmbientGlanceableInfoView,
+  kAmbientAssistantDialogPlate,
   kAmbientMediaStringView,
-  kAmbientInfoView,
-  kAmbientShieldView,
-  kAmbientAnimationView,
 };
 
 }  // namespace ash

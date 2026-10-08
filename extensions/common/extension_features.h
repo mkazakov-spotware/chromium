@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,42 +9,34 @@
 
 namespace extensions_features {
 
-BASE_DECLARE_FEATURE(kSafeBrowsingCrxAllowlistShowWarnings);
-BASE_DECLARE_FEATURE(kSafeBrowsingCrxAllowlistAutoDisable);
+extern const base::Feature kDisableMalwareExtensionsRemotely;
 
-BASE_DECLARE_FEATURE(kForceWebRequestProxyForTest);
+// Extension check up related features.
+extern const base::Feature kExtensionsCheckup;
+extern const char kExtensionsCheckupEntryPointParameter[];
+extern const char kExtensionsCheckupBannerMessageParameter[];
+extern const char kStartupEntryPoint[];
+extern const char kNtpPromoEntryPoint[];
+extern const char kPerformanceMessage[];
+extern const char kPrivacyMessage[];
+extern const char kNeutralMessage[];
 
-BASE_DECLARE_FEATURE(kAllowWithholdingExtensionPermissionsOnInstall);
+extern const base::Feature kForceWebRequestProxyForTest;
 
-BASE_DECLARE_FEATURE(kContentScriptsMatchOriginAsFallback);
+extern const base::Feature kAllowWithholdingExtensionPermissionsOnInstall;
 
-BASE_DECLARE_FEATURE(kReportKeepaliveUkm);
+extern const base::Feature kContentScriptsMatchOriginAsFallback;
 
-BASE_DECLARE_FEATURE(kAllowSharedArrayBuffersUnconditionally);
+extern const base::Feature kMv3ExtensionsSupported;
 
-BASE_DECLARE_FEATURE(kStructuredCloningForMV3Messaging);
+extern const base::Feature kReportKeepaliveUkm;
 
-BASE_DECLARE_FEATURE(kRestrictDeveloperModeAPIs);
+extern const base::Feature kReturnScopesInGetAuthToken;
 
-BASE_DECLARE_FEATURE(kCheckingNoExtensionIdInExtensionIpcs);
+extern const base::Feature kSelectedUserIdInGetAuthToken;
 
-BASE_DECLARE_FEATURE(kNewExtensionFaviconHandling);
-
-BASE_DECLARE_FEATURE(kExtensionDynamicURLRedirection);
-
-BASE_DECLARE_FEATURE(kExtensionsMenuAccessControl);
-
-BASE_DECLARE_FEATURE(kAvoidEarlyExtensionScriptContextCreation);
-
-BASE_DECLARE_FEATURE(kExtensionsOffscreenDocuments);
-
-BASE_DECLARE_FEATURE(kNewWebstoreDomain);
-
-BASE_DECLARE_FEATURE(kExtensionSidePanelIntegration);
-
-BASE_DECLARE_FEATURE(kFileHandlersMV3);
-
-BASE_DECLARE_FEATURE(kExtensionSourceUrlEnforcement);
+extern const base::Feature kCorbCorsAllowlist;
+extern const char kCorbCorsAllowlistParamName[];
 
 }  // namespace extensions_features
 

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,9 @@
 #define COMPONENTS_METRICS_DAILY_EVENT_H_
 
 #include <memory>
-#include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 
 class PrefRegistrySimple;
@@ -32,7 +31,7 @@ class DailyEvent {
     FIRST_RUN,
     DAY_ELAPSED,
     CLOCK_CHANGED,
-    kMaxValue = CLOCK_CHANGED,
+    NUM_TYPES,
   };
 
   // Observer receives notifications from a DailyEvent.
@@ -41,14 +40,13 @@ class DailyEvent {
   class Observer {
    public:
     Observer();
-
-    Observer(const Observer&) = delete;
-    Observer& operator=(const Observer&) = delete;
-
     virtual ~Observer();
 
     // Called when the daily event is fired.
     virtual void OnDailyEvent(IntervalType type) = 0;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Observer);
   };
 
   // Constructs DailyEvent monitor which stores the time it last fired in the
@@ -57,15 +55,10 @@ class DailyEvent {
   // Caller is responsible for ensuring that |pref_service| and |pref_name|
   // outlive the DailyEvent.
   // |histogram_name| is the name of the UMA metric which record when this
-  // interval fires, and should be registered in histograms.xml. If
-  // |histogram_name| is empty - interval fires are not recorded.
+  // interval fires, and should be registered in histograms.xml
   DailyEvent(PrefService* pref_service,
              const char* pref_name,
              const std::string& histogram_name);
-
-  DailyEvent(const DailyEvent&) = delete;
-  DailyEvent& operator=(const DailyEvent&) = delete;
-
   ~DailyEvent();
 
   // Adds a observer to be notified when a day elapses. All observers should
@@ -77,8 +70,7 @@ class DailyEvent {
   void CheckInterval();
 
   // Registers the preference used by this interval.
-  static void RegisterPref(PrefRegistrySimple* registry,
-                           const std::string& pref_name);
+  static void RegisterPref(PrefRegistrySimple* registry, const char* pref_name);
 
  private:
   // Handles an interval elapsing because of |type|.
@@ -87,7 +79,7 @@ class DailyEvent {
   // A weak pointer to the PrefService object to read and write preferences
   // from. Calling code should ensure this object continues to exist for the
   // lifetime of the DailyEvent object.
-  raw_ptr<PrefService> pref_service_;
+  PrefService* pref_service_;
 
   // The name of the preference to store the last fired time in.
   // Calling code should ensure this outlives the DailyEvent.
@@ -101,6 +93,8 @@ class DailyEvent {
 
   // The time that the daily event was last fired.
   base::Time last_fired_;
+
+  DISALLOW_COPY_AND_ASSIGN(DailyEvent);
 };
 
 }  // namespace metrics

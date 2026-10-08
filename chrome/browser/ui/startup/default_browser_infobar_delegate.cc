@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,26 +7,23 @@
 #include <memory>
 
 #include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
-#include "base/task/single_thread_task_runner.h"
-#include "chrome/browser/infobars/confirm_infobar_creator.h"
+#include "base/threading/thread_task_runner_handle.h"
+#include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/ui/startup/default_browser_prompt.h"
 #include "chrome/grit/chromium_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/infobars/core/infobar.h"
-#include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
 
 namespace chrome {
 
 // static
-void DefaultBrowserInfoBarDelegate::Create(
-    infobars::ContentInfoBarManager* infobar_manager,
-    Profile* profile) {
-  infobar_manager->AddInfoBar(
-      CreateConfirmInfoBar(std::unique_ptr<ConfirmInfoBarDelegate>(
+void DefaultBrowserInfoBarDelegate::Create(InfoBarService* infobar_service,
+                                           Profile* profile) {
+  infobar_service->AddInfoBar(infobar_service->CreateConfirmInfoBar(
+      std::unique_ptr<ConfirmInfoBarDelegate>(
           new DefaultBrowserInfoBarDelegate(profile))));
 }
 
@@ -34,11 +31,11 @@ DefaultBrowserInfoBarDelegate::DefaultBrowserInfoBarDelegate(Profile* profile)
     : profile_(profile) {
   // We want the info-bar to stick-around for few seconds and then be hidden
   // on the next navigation after that.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&DefaultBrowserInfoBarDelegate::AllowExpiry,
                      weak_factory_.GetWeakPtr()),
-      base::Seconds(8));
+      base::TimeDelta::FromSeconds(8));
 }
 
 DefaultBrowserInfoBarDelegate::~DefaultBrowserInfoBarDelegate() {
@@ -60,7 +57,7 @@ DefaultBrowserInfoBarDelegate::GetIdentifier() const {
 }
 
 const gfx::VectorIcon& DefaultBrowserInfoBarDelegate::GetVectorIcon() const {
-  return vector_icons::kProductIcon;
+  return kProductIcon;
 }
 
 bool DefaultBrowserInfoBarDelegate::ShouldExpire(
@@ -79,7 +76,7 @@ void DefaultBrowserInfoBarDelegate::InfoBarDismissed() {
                             NUM_INFO_BAR_USER_INTERACTION_TYPES);
 }
 
-std::u16string DefaultBrowserInfoBarDelegate::GetMessageText() const {
+base::string16 DefaultBrowserInfoBarDelegate::GetMessageText() const {
   return l10n_util::GetStringUTF16(IDS_DEFAULT_BROWSER_INFOBAR_TEXT);
 }
 
@@ -87,7 +84,7 @@ int DefaultBrowserInfoBarDelegate::GetButtons() const {
   return BUTTON_OK;
 }
 
-std::u16string DefaultBrowserInfoBarDelegate::GetButtonLabel(
+base::string16 DefaultBrowserInfoBarDelegate::GetButtonLabel(
     InfoBarButton button) const {
   DCHECK_EQ(BUTTON_OK, button);
   return l10n_util::GetStringUTF16(IDS_DEFAULT_BROWSER_INFOBAR_OK_BUTTON_LABEL);

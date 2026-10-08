@@ -1,13 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/viz/service/display/frame_rate_decider.h"
 
-#include <memory>
-
 #include "base/callback_helpers.h"
-#include "base/time/time.h"
 #include "components/viz/common/frame_sinks/begin_frame_source.h"
 #include "components/viz/common/surfaces/surface_info.h"
 #include "components/viz/service/surfaces/surface.h"
@@ -29,15 +26,11 @@ class FrameRateDeciderTest : public testing::Test,
   ~FrameRateDeciderTest() override = default;
 
   void SetUp() override {
-    surface_manager_ = std::make_unique<SurfaceManager>(
-        this, /*activation_deadline_in_frames=*/absl::nullopt,
-        /*max_uncommitted_frames=*/0);
+    surface_manager_ = std::make_unique<SurfaceManager>(this, base::nullopt);
     bool hw_support_for_multiple_refresh_rates = true;
     frame_rate_decider_ = std::make_unique<FrameRateDecider>(
         surface_manager_.get(), this, hw_support_for_multiple_refresh_rates,
-        false);
-    frame_rate_decider_->set_min_num_of_frames_to_toggle_interval_for_testing(
-        0u);
+        false, 0);
   }
 
   void TearDown() override {
@@ -112,7 +105,7 @@ class FrameRateDeciderTest : public testing::Test,
 
 TEST_F(FrameRateDeciderTest, ActiveSurfaceTrackingFrameIndexChange) {
   const FrameSinkId frame_sink_id(1u, 1u);
-  const base::TimeDelta preferred_interval = base::Seconds(1);
+  const base::TimeDelta preferred_interval = base::TimeDelta::FromSeconds(1);
   preferred_intervals_[frame_sink_id] = preferred_interval;
 
   const std::vector<base::TimeDelta> supported_intervals = {
@@ -143,7 +136,7 @@ TEST_F(FrameRateDeciderTest, ActiveSurfaceTrackingFrameIndexChange) {
 
 TEST_F(FrameRateDeciderTest, ActiveSurfaceTrackingSurfaceIdChange) {
   const FrameSinkId frame_sink_id(1u, 1u);
-  const base::TimeDelta preferred_interval = base::Seconds(1);
+  const base::TimeDelta preferred_interval = base::TimeDelta::FromSeconds(1);
   preferred_intervals_[frame_sink_id] = preferred_interval;
 
   const std::vector<base::TimeDelta> supported_intervals = {
@@ -173,7 +166,7 @@ TEST_F(FrameRateDeciderTest, ActiveSurfaceTrackingSurfaceIdChange) {
 
 TEST_F(FrameRateDeciderTest,
        SurfaceWithMinIntervalPicksLowestSupportedInterval) {
-  base::TimeDelta min_supported_interval = base::Seconds(1);
+  base::TimeDelta min_supported_interval = base::TimeDelta::FromSeconds(1);
   const std::vector<base::TimeDelta> supported_intervals = {
       min_supported_interval * 3, min_supported_interval * 2,
       min_supported_interval};
@@ -214,7 +207,7 @@ TEST_F(FrameRateDeciderTest,
 }
 
 TEST_F(FrameRateDeciderTest, OptimalFrameSinkIntervelIsPicked) {
-  base::TimeDelta min_supported_interval = base::Seconds(1);
+  base::TimeDelta min_supported_interval = base::TimeDelta::FromSeconds(1);
   const std::vector<base::TimeDelta> supported_intervals = {
       min_supported_interval * 2, min_supported_interval};
   frame_rate_decider_->SetSupportedFrameIntervals(supported_intervals);
@@ -258,7 +251,7 @@ TEST_F(FrameRateDeciderTest, OptimalFrameSinkIntervelIsPicked) {
 }
 
 TEST_F(FrameRateDeciderTest, MinFrameSinkIntervalIsPicked) {
-  base::TimeDelta min_supported_interval = base::Seconds(1);
+  base::TimeDelta min_supported_interval = base::TimeDelta::FromSeconds(1);
   const std::vector<base::TimeDelta> supported_intervals = {
       min_supported_interval * 3, min_supported_interval * 2,
       min_supported_interval};
@@ -289,27 +282,10 @@ TEST_F(FrameRateDeciderTest, MinFrameSinkIntervalIsPicked) {
     frame_rate_decider_->OnSurfaceWillBeDrawn(surface2);
   }
   EXPECT_EQ(display_interval_, min_supported_interval * 2);
-
-  FrameSinkId frame_sink_id3(1u, 3u);
-  preferred_intervals_[frame_sink_id3] = min_supported_interval * 1.8;
-  auto* surface3 = CreateAndDrawSurface(frame_sink_id3);
-  UpdateFrame(surface1);
-  UpdateFrame(surface2);
-  UpdateFrame(surface3);
-  {
-    FrameRateDecider::ScopedAggregate scope(frame_rate_decider_.get());
-    frame_rate_decider_->OnSurfaceWillBeDrawn(surface1);
-    frame_rate_decider_->OnSurfaceWillBeDrawn(surface2);
-    frame_rate_decider_->OnSurfaceWillBeDrawn(surface3);
-  }
-  // Even though surface3 has a frame interval that is closer to
-  // min_supported_interval * 2, we need to pick a smaller interval
-  // so that frames from that surface are not dropped.
-  EXPECT_EQ(display_interval_, min_supported_interval);
 }
 
 TEST_F(FrameRateDeciderTest, TogglesAfterMinNumOfFrames) {
-  base::TimeDelta min_supported_interval = base::Seconds(1);
+  base::TimeDelta min_supported_interval = base::TimeDelta::FromSeconds(1);
   const std::vector<base::TimeDelta> supported_intervals = {
       min_supported_interval * 2, min_supported_interval};
   frame_rate_decider_->SetSupportedFrameIntervals(supported_intervals);
@@ -350,10 +326,9 @@ TEST_F(FrameRateDeciderTest, TogglesAfterMinNumOfFrames) {
 TEST_F(FrameRateDeciderTest, TogglesWithSyntheticBFS) {
   bool hw_support_for_multiple_refresh_rate = false;
   frame_rate_decider_ = std::make_unique<FrameRateDecider>(
-      surface_manager_.get(), this, hw_support_for_multiple_refresh_rate,
-      false);
-  frame_rate_decider_->set_min_num_of_frames_to_toggle_interval_for_testing(0u);
-  base::TimeDelta min_supported_interval = base::Seconds(1);
+      surface_manager_.get(), this, hw_support_for_multiple_refresh_rate, false,
+      0);
+  base::TimeDelta min_supported_interval = base::TimeDelta::FromSeconds(1);
   const std::vector<base::TimeDelta> supported_intervals = {
       min_supported_interval * 2, min_supported_interval};
   frame_rate_decider_->SetSupportedFrameIntervals(supported_intervals);
@@ -398,7 +373,7 @@ TEST_F(FrameRateDeciderTest, TogglesWithSyntheticBFS) {
 }
 
 TEST_F(FrameRateDeciderTest, ManySinksWithMinInterval) {
-  base::TimeDelta min_supported_interval = base::Seconds(1);
+  base::TimeDelta min_supported_interval = base::TimeDelta::FromSeconds(1);
   const std::vector<base::TimeDelta> supported_intervals = {
       min_supported_interval * 3, min_supported_interval * 2,
       min_supported_interval};
@@ -427,7 +402,7 @@ TEST_F(FrameRateDeciderTest, ManySinksWithMinInterval) {
 
 // If there are no fixed frame sources, we should not lower the frame interval.
 TEST_F(FrameRateDeciderTest, NoFixedIntervalSurfaces) {
-  base::TimeDelta min_supported_interval = base::Seconds(1);
+  base::TimeDelta min_supported_interval = base::TimeDelta::FromSeconds(1);
   const std::vector<base::TimeDelta> supported_intervals = {
       min_supported_interval * 3, min_supported_interval * 2,
       min_supported_interval};
@@ -456,10 +431,9 @@ TEST_F(FrameRateDeciderTest, NoFixedIntervalSurfaces) {
 TEST_F(FrameRateDeciderTest, NoHwSupportForMultiRefreshRates) {
   bool hw_support_for_multiple_refresh_rate = false;
   frame_rate_decider_ = std::make_unique<FrameRateDecider>(
-      surface_manager_.get(), this, hw_support_for_multiple_refresh_rate,
-      false);
-  frame_rate_decider_->set_min_num_of_frames_to_toggle_interval_for_testing(0u);
-  base::TimeDelta min_supported_interval = base::Seconds(1);
+      surface_manager_.get(), this, hw_support_for_multiple_refresh_rate, false,
+      0);
+  base::TimeDelta min_supported_interval = base::TimeDelta::FromSeconds(1);
   const std::vector<base::TimeDelta> supported_intervals = {
       min_supported_interval * 3, min_supported_interval * 2,
       min_supported_interval};

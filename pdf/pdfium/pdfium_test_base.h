@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -22,7 +21,7 @@ class PDFiumPage;
 class TestClient;
 class TestDocumentLoader;
 
-class PDFiumTestBase : public testing::TestWithParam<bool> {
+class PDFiumTestBase : public testing::Test {
  public:
   PDFiumTestBase();
   PDFiumTestBase(const PDFiumTestBase&) = delete;
@@ -40,22 +39,19 @@ class PDFiumTestBase : public testing::TestWithParam<bool> {
     InitializeEngineResult& operator=(InitializeEngineResult&& other) noexcept;
     ~InitializeEngineResult();
 
-    // Completes loading the document.
-    void FinishLoading();
-
     // Initialized engine.
     std::unique_ptr<PDFiumEngine> engine;
 
     // Corresponding test document loader.
-    raw_ptr<TestDocumentLoader> document_loader;
+    TestDocumentLoader* document_loader;
   };
 
   // testing::Test:
   void SetUp() override;
   void TearDown() override;
 
-  // Initializes a PDFiumEngine for use in testing with `client`. Loads a PDF
-  // named `pdf_name`. See TestDocumentLoader for more info about `pdf_name`.
+  // Initializes a PDFiumEngine for use in testing with |client|. Loads a PDF
+  // named |pdf_name|. See TestDocumentLoader for more info about |pdf_name|.
   std::unique_ptr<PDFiumEngine> InitializeEngine(
       TestClient* client,
       const base::FilePath::CharType* pdf_name);
@@ -76,7 +72,7 @@ class PDFiumTestBase : public testing::TestWithParam<bool> {
  private:
   void InitializePDFium();
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   base::FilePath test_fonts_path_;
 #endif
 

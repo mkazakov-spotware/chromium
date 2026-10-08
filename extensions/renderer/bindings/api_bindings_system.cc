@@ -1,14 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/renderer/bindings/api_bindings_system.h"
 
-#include <utility>
-
 #include "base/bind.h"
 #include "base/values.h"
-#include "extensions/common/mojom/event_dispatcher.mojom.h"
 #include "extensions/renderer/bindings/api_binding_hooks.h"
 #include "extensions/renderer/bindings/api_binding_util.h"
 #include "extensions/renderer/bindings/api_response_validator.h"
@@ -45,8 +42,6 @@ APIBindingsSystem::APIBindingsSystem(
   if (binding::IsResponseValidationEnabled()) {
     request_handler_.SetResponseValidator(
         std::make_unique<APIResponseValidator>(&type_reference_map_));
-    event_handler_.SetResponseValidator(
-        std::make_unique<APIResponseValidator>(&type_reference_map_));
   }
 }
 
@@ -66,14 +61,16 @@ v8::Local<v8::Object> APIBindingsSystem::CreateAPIInstance(
 
 std::unique_ptr<APIBinding> APIBindingsSystem::CreateNewAPIBinding(
     const std::string& api_name) {
-  const base::Value::Dict& api_schema = get_api_schema_.Run(api_name);
+  const base::DictionaryValue& api_schema = get_api_schema_.Run(api_name);
 
-  const base::Value::List* function_definitions =
-      api_schema.FindList("functions");
-  const base::Value::List* type_definitions = api_schema.FindList("types");
-  const base::Value::List* event_definitions = api_schema.FindList("events");
-  const base::Value::Dict* property_definitions =
-      api_schema.FindDict("properties");
+  const base::ListValue* function_definitions = nullptr;
+  api_schema.GetList("functions", &function_definitions);
+  const base::ListValue* type_definitions = nullptr;
+  api_schema.GetList("types", &type_definitions);
+  const base::ListValue* event_definitions = nullptr;
+  api_schema.GetList("events", &event_definitions);
+  const base::DictionaryValue* property_definitions = nullptr;
+  api_schema.GetDictionary("properties", &property_definitions);
 
   // Find the hooks for the API. If none exist, an empty set will be created so
   // we can use JS custom bindings.
@@ -85,7 +82,7 @@ std::unique_ptr<APIBinding> APIBindingsSystem::CreateNewAPIBinding(
     hooks = std::move(iter->second);
     binding_hooks_.erase(iter);
   } else {
-    hooks = std::make_unique<APIBindingHooks>(api_name, &request_handler_);
+    hooks = std::make_unique<APIBindingHooks>(api_name);
   }
 
   return std::make_unique<APIBinding>(
@@ -116,22 +113,17 @@ void APIBindingsSystem::InitializeType(const std::string& type_name) {
   api_bindings_[api_name] = CreateNewAPIBinding(api_name);
 }
 
-void APIBindingsSystem::CompleteRequest(
-    int request_id,
-    const base::Value::List& response,
-    const std::string& error,
-    mojom::ExtraResponseDataPtr extra_data) {
-  request_handler_.CompleteRequest(request_id, response, error,
-                                   std::move(extra_data));
+void APIBindingsSystem::CompleteRequest(int request_id,
+                                        const base::ListValue& response,
+                                        const std::string& error) {
+  request_handler_.CompleteRequest(request_id, response, error);
 }
 
-void APIBindingsSystem::FireEventInContext(
-    const std::string& event_name,
-    v8::Local<v8::Context> context,
-    const base::Value::List& response,
-    mojom::EventFilteringInfoPtr filter) {
-  event_handler_.FireEventInContext(event_name, context, response,
-                                    std::move(filter));
+void APIBindingsSystem::FireEventInContext(const std::string& event_name,
+                                           v8::Local<v8::Context> context,
+                                           const base::ListValue& response,
+                                           const EventFilteringInfo* filter) {
+  event_handler_.FireEventInContext(event_name, context, response, filter);
 }
 
 APIBindingHooks* APIBindingsSystem::GetHooksForAPI(
@@ -140,7 +132,7 @@ APIBindingHooks* APIBindingsSystem::GetHooksForAPI(
       << "Hook registration must happen before creating any binding instances.";
   std::unique_ptr<APIBindingHooks>& hooks = binding_hooks_[api_name];
   if (!hooks)
-    hooks = std::make_unique<APIBindingHooks>(api_name, &request_handler_);
+    hooks = std::make_unique<APIBindingHooks>(api_name);
   return hooks.get();
 }
 
@@ -161,7 +153,7 @@ v8::Local<v8::Object> APIBindingsSystem::CreateCustomType(
     v8::Isolate* isolate,
     const std::string& type_name,
     const std::string& property_name,
-    const base::Value::List* property_values) {
+    const base::ListValue* property_values) {
   auto iter = custom_types_.find(type_name);
   DCHECK(iter != custom_types_.end()) << "Custom type not found: " << type_name;
   return iter->second.Run(isolate, property_name, property_values,

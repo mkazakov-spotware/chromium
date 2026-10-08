@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@
 
 #import <Foundation/Foundation.h>
 #include <stddef.h>
-
-#include <memory>
 
 #include "net/cookies/canonical_cookie.h"
 
@@ -73,6 +71,12 @@ void ReportGetCookiesForURLResult(SystemCookieStoreType store_type,
 // Reports metrics to indicate that GetCookiesForURL was called from cookie
 // store with type |store_type|.
 void ReportGetCookiesForURLCall(SystemCookieStoreType store_type);
+
+// Report metrics if the number of cookies drops unexpectedly.
+void CheckForCookieLoss(size_t cookie_count, CookieEvent event);
+
+// Reset the cookie count internally used by the CheckForCookieLoss() function.
+void ResetCookieCountMetrics();
 
 }  // namespace net
 

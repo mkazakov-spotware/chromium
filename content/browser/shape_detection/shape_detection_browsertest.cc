@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/command_line.h"
 #include "base/strings/string_tokenizer.h"
-#include "build/build_config.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -28,7 +27,7 @@ struct TestParameters {
     {"FaceDetector", "/blank.jpg", std::vector<std::vector<float>>{}},
     {"FaceDetector",
      "/single_face.jpg",
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
      {{23, 20, 42, 42}}
 #else
      {{23, 26, 42, 42}}
@@ -69,9 +68,9 @@ class ShapeDetectionBrowserTest
     EXPECT_TRUE(NavigateToURL(shell(), html_url));
     const std::string js_command = "detectShapesOnImageUrl('" + detector_name +
                                    "', '" + image_url.spec() + "')";
-    std::string response_string =
-        EvalJs(shell(), js_command, EXECUTE_SCRIPT_USE_MANUAL_REPLY)
-            .ExtractString();
+    std::string response_string;
+    ASSERT_TRUE(
+        ExecuteScriptAndExtractString(shell(), js_command, &response_string));
 
     base::StringTokenizer outer_tokenizer(response_string, "#");
     std::vector<std::vector<float>> detected_bounding_boxes;
@@ -98,7 +97,7 @@ class ShapeDetectionBrowserTest
 };
 
 // TODO(https://crbug.com/659138): Enable the test on other platforms.
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_MAC)
+#if defined(OS_ANDROID) || defined(OS_MAC)
 #define MAYBE_DetectShapesInImage DetectShapesInImage
 #else
 #define MAYBE_DetectShapesInImage DISABLED_DetectShapesInImage

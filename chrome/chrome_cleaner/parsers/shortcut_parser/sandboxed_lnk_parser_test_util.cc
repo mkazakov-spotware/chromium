@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,7 @@ base::win::ScopedHandle CreateAndOpenShortcutInTempDir(
       temp_dir->GetPath().AppendASCII(lnk_name.c_str());
   if (!base::win::CreateOrUpdateShortcutLink(
           shortcut_path, properties,
-          base::win::ShortcutOperation::kCreateAlways)) {
+          base::win::ShortcutOperation::SHORTCUT_CREATE_ALWAYS)) {
     LOG(ERROR) << "Could not create shortcut";
     return base::win::ScopedHandle(INVALID_HANDLE_VALUE);
   }
@@ -37,16 +37,13 @@ base::win::ScopedHandle CreateAndOpenShortcutInTempDir(
 
 bool CheckParsedShortcut(const ParsedLnkFile& parsed_shortcut,
                          base::FilePath expected_target_path,
-                         base::FilePath expected_working_dir,
                          std::wstring expected_arguments,
                          base::FilePath expected_icon_location,
                          const int32_t expected_icon_index) {
-  base::FilePath parsed_target_path(parsed_shortcut.target_path);
-  base::FilePath parsed_working_dir_path(parsed_shortcut.working_dir);
-  return PathEqual(parsed_target_path, expected_target_path) &&
-         PathEqual(parsed_working_dir_path, expected_working_dir) &&
+  base::FilePath parsed_file_path(parsed_shortcut.target_path);
+  return PathEqual(parsed_file_path, expected_target_path) &&
          (parsed_shortcut.command_line_arguments == expected_arguments) &&
-         PathEqual(expected_target_path, expected_icon_location) &&
+         PathEqual(parsed_file_path, expected_icon_location) &&
          (parsed_shortcut.icon_index == expected_icon_index);
 }
 
@@ -55,17 +52,13 @@ void OnLnkParseDone(
     mojom::LnkParsingResult* out_result_code,
     base::OnceClosure callback,
     mojom::LnkParsingResult result_code,
-    const absl::optional<std::wstring>& optional_target_path,
-    const absl::optional<std::wstring>& optional_working_dir,
-    const absl::optional<std::wstring>& optional_command_line_arguments,
-    const absl::optional<std::wstring>& optional_icon_location,
+    const base::Optional<std::wstring>& optional_file_path,
+    const base::Optional<std::wstring>& optional_command_line_arguments,
+    const base::Optional<std::wstring>& optional_icon_location,
     int32_t icon_index) {
   *out_result_code = result_code;
-  if (optional_target_path.has_value())
-    out_parsed_shortcut->target_path = optional_target_path.value();
-
-  if (optional_working_dir.has_value())
-    out_parsed_shortcut->working_dir = optional_working_dir.value();
+  if (optional_file_path.has_value())
+    out_parsed_shortcut->target_path = optional_file_path.value();
 
   if (optional_command_line_arguments.has_value()) {
     out_parsed_shortcut->command_line_arguments =

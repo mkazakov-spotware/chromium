@@ -1,5 +1,5 @@
 
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,6 +46,9 @@ var allTests = [
           chrome.automation.getTree(backgroundTab.id, function(rootNode) {
             chrome.test.assertFalse(rootNode === undefined,
                                     "Got automation tree for background tab");
+            chrome.test.assertFalse(
+                rootNode.docLoaded,
+                "Load complete never fires unless tab is foregrounded");
 
             chrome.tabs.update(backgroundTab.id, { active: true }, function() {
               if (rootNode.docLoaded) {

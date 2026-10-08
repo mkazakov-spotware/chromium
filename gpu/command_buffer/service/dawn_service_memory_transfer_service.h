@@ -1,13 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef GPU_COMMAND_BUFFER_SERVICE_DAWN_SERVICE_MEMORY_TRANSFER_SERVICE_H_
 #define GPU_COMMAND_BUFFER_SERVICE_DAWN_SERVICE_MEMORY_TRANSFER_SERVICE_H_
 
-#include <dawn/wire/WireServer.h>
-
-#include "base/memory/raw_ptr.h"
+#include <dawn_wire/WireServer.h>
 
 namespace gpu {
 
@@ -16,7 +14,7 @@ class CommonDecoder;
 namespace webgpu {
 
 class DawnServiceMemoryTransferService final
-    : public dawn::wire::server::MemoryTransferService {
+    : public dawn_wire::server::MemoryTransferService {
  public:
   DawnServiceMemoryTransferService(CommonDecoder* decoder);
   ~DawnServiceMemoryTransferService() override;
@@ -38,7 +36,7 @@ class DawnServiceMemoryTransferService final
                               WriteHandle** write_handle) override;
 
  private:
-  raw_ptr<CommonDecoder> decoder_;
+  CommonDecoder* decoder_;
 };
 
 }  // namespace webgpu

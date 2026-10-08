@@ -1,5 +1,5 @@
 skip_child_includes = [
-  'chromium',
+  'linux',
 ]
 
 specific_include_rules = {

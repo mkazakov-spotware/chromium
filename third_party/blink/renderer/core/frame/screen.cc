@@ -28,106 +28,62 @@
 
 #include "third_party/blink/renderer/core/frame/screen.h"
 
-#include "base/numerics/safe_conversions.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
-#include "third_party/blink/renderer/core/event_target_names.h"
+#include "third_party/blink/public/common/privacy_budget/identifiability_metric_builder.h"
+#include "third_party/blink/public/common/privacy_budget/identifiability_metrics.h"
+#include "third_party/blink/public/common/widget/screen_info.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
+#include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/frame/settings.h"
 #include "third_party/blink/renderer/core/page/chrome_client.h"
-#include "ui/display/screen_info.h"
-#include "ui/display/screen_infos.h"
+#include "third_party/blink/renderer/core/probe/core_probes.h"
 
 namespace blink {
 
 namespace {
 
-}  // namespace
-
-Screen::Screen(LocalDOMWindow* window,
-               int64_t display_id,
-               bool use_size_override)
-    : ExecutionContextClient(window),
-      display_id_(display_id),
-      use_size_override_(use_size_override) {}
-
-// static
-bool Screen::AreWebExposedScreenPropertiesEqual(
-    const display::ScreenInfo& prev,
-    const display::ScreenInfo& current,
-    bool use_size_override) {
-  // height() and width() use rect.size() or size_override
-  gfx::Size prev_size = prev.rect.size();
-  if (prev.size_override && use_size_override)
-    prev_size = *prev.size_override;
-  gfx::Size current_size = current.rect.size();
-  if (current.size_override && use_size_override)
-    current_size = *current.size_override;
-  if (prev_size != current_size)
-    return false;
-
-  // height() and width() use device_scale_factor
-  // Note: comparing device_scale_factor is a bit of a lie as Screen only uses
-  // this with the PhysicalPixelsQuirk (see width() / height() below).  However,
-  // this value likely changes rarely and should not throw many false positives.
-  if (prev.device_scale_factor != current.device_scale_factor)
-    return false;
-
-  // availLeft() and availTop() use available_rect.origin()
-  if (prev.available_rect.origin() != current.available_rect.origin())
-    return false;
-
-  // availHeight() and availWidth() use available_rect.size() or size_override
-  gfx::Size prev_avail_size = prev.available_rect.size();
-  if (prev.size_override && use_size_override)
-    prev_avail_size = *prev.size_override;
-  gfx::Size current_avail_size = current.available_rect.size();
-  if (current.size_override && use_size_override)
-    current_avail_size = *current.size_override;
-  if (prev_avail_size != current_avail_size)
-    return false;
-
-  // colorDepth() and pixelDepth() use depth
-  if (prev.depth != current.depth)
-    return false;
-
-  // isExtended()
-  if (prev.is_extended != current.is_extended)
-    return false;
-
-  if (RuntimeEnabledFeatures::CanvasHDREnabled()) {
-    // (red|green|blue)Primary(X|Y) and whitePoint(X|Y).
-    const auto& prev_dcs = prev.display_color_spaces;
-    const auto& current_dcs = current.display_color_spaces;
-    if (prev_dcs.GetPrimaries() != current_dcs.GetPrimaries())
-      return false;
-
-    // highDynamicRangeHeadroom.
-    if (prev_dcs.GetHDRMaxLuminanceRelative() !=
-        current_dcs.GetHDRMaxLuminanceRelative()) {
-      return false;
-    }
-  }
-
-  return true;
+ScreenInfo GetScreenInfo(LocalFrame& frame) {
+  return frame.GetChromeClient().GetScreenInfo(frame);
 }
 
+}  // namespace
+
+Screen::Screen(LocalDOMWindow* window) : ExecutionContextClient(window) {}
+
 int Screen::height() const {
+  if (display_)
+    return display_->bounds.height();
   if (!DomWindow())
     return 0;
-  return GetRect(/*available=*/false).height();
+  LocalFrame* frame = DomWindow()->GetFrame();
+  if (frame->GetSettings()->GetReportScreenSizeInPhysicalPixelsQuirk()) {
+    ScreenInfo screen_info = GetScreenInfo(*frame);
+    return static_cast<int>(
+        lroundf(screen_info.rect.height() * screen_info.device_scale_factor));
+  }
+  return GetScreenInfo(*frame).rect.height();
 }
 
 int Screen::width() const {
+  if (display_)
+    return display_->bounds.width();
   if (!DomWindow())
     return 0;
-  return GetRect(/*available=*/false).width();
+  LocalFrame* frame = DomWindow()->GetFrame();
+  if (frame->GetSettings()->GetReportScreenSizeInPhysicalPixelsQuirk()) {
+    ScreenInfo screen_info = GetScreenInfo(*frame);
+    return static_cast<int>(
+        lroundf(screen_info.rect.width() * screen_info.device_scale_factor));
+  }
+  return GetScreenInfo(*frame).rect.width();
 }
 
 unsigned Screen::colorDepth() const {
+  if (display_)
+    return display_->color_depth;
   if (!DomWindow())
     return 0;
-  return base::saturated_cast<unsigned>(GetScreenInfo().depth);
+  return static_cast<unsigned>(GetScreenInfo(*DomWindow()->GetFrame()).depth);
 }
 
 unsigned Screen::pixelDepth() const {
@@ -135,79 +91,155 @@ unsigned Screen::pixelDepth() const {
 }
 
 int Screen::availLeft() const {
+  if (display_)
+    return display_->work_area.x();
   if (!DomWindow())
     return 0;
-  return GetRect(/*available=*/true).x();
+  LocalFrame* frame = DomWindow()->GetFrame();
+  if (frame->GetSettings()->GetReportScreenSizeInPhysicalPixelsQuirk()) {
+    ScreenInfo screen_info = GetScreenInfo(*frame);
+    return static_cast<int>(lroundf(screen_info.available_rect.x() *
+                                    screen_info.device_scale_factor));
+  }
+  return static_cast<int>(GetScreenInfo(*frame).available_rect.x());
 }
 
 int Screen::availTop() const {
+  if (display_)
+    return display_->work_area.y();
   if (!DomWindow())
     return 0;
-  return GetRect(/*available=*/true).y();
+  LocalFrame* frame = DomWindow()->GetFrame();
+  if (frame->GetSettings()->GetReportScreenSizeInPhysicalPixelsQuirk()) {
+    ScreenInfo screen_info = GetScreenInfo(*frame);
+    return static_cast<int>(lroundf(screen_info.available_rect.y() *
+                                    screen_info.device_scale_factor));
+  }
+  return static_cast<int>(GetScreenInfo(*frame).available_rect.y());
 }
 
 int Screen::availHeight() const {
+  if (display_)
+    return display_->work_area.height();
   if (!DomWindow())
     return 0;
-  return GetRect(/*available=*/true).height();
+  LocalFrame* frame = DomWindow()->GetFrame();
+  if (frame->GetSettings()->GetReportScreenSizeInPhysicalPixelsQuirk()) {
+    ScreenInfo screen_info = GetScreenInfo(*frame);
+    return static_cast<int>(lroundf(screen_info.available_rect.height() *
+                                    screen_info.device_scale_factor));
+  }
+  return GetScreenInfo(*frame).available_rect.height();
 }
 
 int Screen::availWidth() const {
+  if (display_)
+    return display_->work_area.width();
   if (!DomWindow())
     return 0;
-  return GetRect(/*available=*/true).width();
+  LocalFrame* frame = DomWindow()->GetFrame();
+  if (frame->GetSettings()->GetReportScreenSizeInPhysicalPixelsQuirk()) {
+    ScreenInfo screen_info = GetScreenInfo(*frame);
+    return static_cast<int>(lroundf(screen_info.available_rect.width() *
+                                    screen_info.device_scale_factor));
+  }
+  return GetScreenInfo(*frame).available_rect.width();
 }
 
 void Screen::Trace(Visitor* visitor) const {
-  EventTargetWithInlineData::Trace(visitor);
+  ScriptWrappable::Trace(visitor);
   ExecutionContextClient::Trace(visitor);
   Supplementable<Screen>::Trace(visitor);
 }
 
-const WTF::AtomicString& Screen::InterfaceName() const {
-  return event_target_names::kScreen;
-}
+Screen::Screen(display::mojom::blink::DisplayPtr display,
+               bool internal,
+               bool primary,
+               const String& id)
+    : ExecutionContextClient(static_cast<ExecutionContext*>(nullptr)),
+      display_(std::move(display)),
+      internal_(internal),
+      primary_(primary),
+      id_(id) {}
 
-ExecutionContext* Screen::GetExecutionContext() const {
-  return ExecutionContextClient::GetExecutionContext();
-}
-
-bool Screen::isExtended() const {
+int Screen::left() const {
+  if (display_)
+    return display_->bounds.x();
   if (!DomWindow())
-    return false;
-  auto* context = GetExecutionContext();
-  if (!context->IsFeatureEnabled(
-          mojom::blink::PermissionsPolicyFeature::kWindowPlacement)) {
-    return false;
+    return 0;
+  LocalFrame* frame = DomWindow()->GetFrame();
+  if (frame->GetSettings()->GetReportScreenSizeInPhysicalPixelsQuirk()) {
+    ScreenInfo screen_info = GetScreenInfo(*frame);
+    return static_cast<int>(
+        lroundf(screen_info.rect.x() * screen_info.device_scale_factor));
   }
-
-  return GetScreenInfo().is_extended;
+  return GetScreenInfo(*frame).rect.x();
 }
 
-gfx::Rect Screen::GetRect(bool available) const {
+int Screen::top() const {
+  if (display_)
+    return display_->bounds.y();
   if (!DomWindow())
-    return gfx::Rect();
+    return 0;
   LocalFrame* frame = DomWindow()->GetFrame();
-  const display::ScreenInfo& screen_info = GetScreenInfo();
-  gfx::Rect rect = available ? screen_info.available_rect : screen_info.rect;
-  if (screen_info.size_override && use_size_override_)
-    rect.set_size(*screen_info.size_override);
-  if (frame->GetSettings()->GetReportScreenSizeInPhysicalPixelsQuirk())
-    return gfx::ScaleToRoundedRect(rect, screen_info.device_scale_factor);
-  return rect;
+  if (frame->GetSettings()->GetReportScreenSizeInPhysicalPixelsQuirk()) {
+    ScreenInfo screen_info = GetScreenInfo(*frame);
+    return static_cast<int>(
+        lroundf(screen_info.rect.y() * screen_info.device_scale_factor));
+  }
+  return GetScreenInfo(*frame).rect.y();
 }
 
-const display::ScreenInfo& Screen::GetScreenInfo() const {
-  DCHECK(DomWindow());
-  LocalFrame* frame = DomWindow()->GetFrame();
+bool Screen::internal() const {
+  if (display_)
+    return internal_.has_value() && internal_.value();
+  // TODO(crbug.com/1116528): Use a dictionary, not the Screen interface, for
+  // proposed multi-screen info: https://github.com/webscreens/window-placement
+  NOTIMPLEMENTED_LOG_ONCE();
+  return false;
+}
 
-  const auto& screen_infos = frame->GetChromeClient().GetScreenInfos(*frame);
-  for (const auto& screen : screen_infos.screen_infos) {
-    if (screen.display_id == display_id_)
-      return screen;
+bool Screen::primary() const {
+  if (display_)
+    return primary_.has_value() && primary_.value();
+  // TODO(crbug.com/1116528): Use a dictionary, not the Screen interface, for
+  // proposed multi-screen info: https://github.com/webscreens/window-placement
+  NOTIMPLEMENTED_LOG_ONCE();
+  return false;
+}
+
+float Screen::scaleFactor() const {
+  if (display_)
+    return display_->device_scale_factor;
+  if (!DomWindow())
+    return 0;
+  return GetScreenInfo(*DomWindow()->GetFrame()).device_scale_factor;
+}
+
+const String Screen::id() const {
+  if (display_)
+    return id_;
+  // TODO(crbug.com/1116528): Use a dictionary, not the Screen interface, for
+  // proposed multi-screen info: https://github.com/webscreens/window-placement
+  NOTIMPLEMENTED_LOG_ONCE();
+  return String();
+}
+
+bool Screen::touchSupport() const {
+  if (display_) {
+    return display_->touch_support ==
+           display::mojom::blink::TouchSupport::AVAILABLE;
   }
-  DEFINE_STATIC_LOCAL(display::ScreenInfo, kEmptyScreenInfo, ());
-  return kEmptyScreenInfo;
+  // TODO(crbug.com/1116528): Use a dictionary, not the Screen interface, for
+  // proposed multi-screen info: https://github.com/webscreens/window-placement
+  NOTIMPLEMENTED_LOG_ONCE();
+  return false;
+}
+
+int64_t Screen::DisplayId() const {
+  if (display_)
+    return display_->id;
+  return kInvalidDisplayId;
 }
 
 }  // namespace blink

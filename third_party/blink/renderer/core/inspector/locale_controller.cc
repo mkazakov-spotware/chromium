@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,7 +41,7 @@ LocaleController::LocaleController()
 String LocaleController::SetLocaleOverride(const String& locale) {
   if (locale_override_ == locale)
     return String();
-  if (locale.empty()) {
+  if (locale.IsEmpty()) {
     UpdateLocale(embedder_locale_);
   } else {
     icu::Locale locale_object(locale.Ascii().data());
@@ -55,7 +55,7 @@ String LocaleController::SetLocaleOverride(const String& locale) {
 }
 
 bool LocaleController::has_locale_override() const {
-  return !locale_override_.empty();
+  return !locale_override_.IsEmpty();
 }
 
 // static

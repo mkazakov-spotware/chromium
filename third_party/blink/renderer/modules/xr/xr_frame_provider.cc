@@ -1,10 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/xr/xr_frame_provider.h"
-
-#include <utility>
 
 #include "build/build_config.h"
 #include "third_party/blink/public/platform/platform.h"
@@ -16,13 +14,15 @@
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/imagebitmap/image_bitmap.h"
 #include "third_party/blink/renderer/core/loader/document_loader.h"
+#include "third_party/blink/renderer/modules/xr/xr_plane_detection_state.h"
 #include "third_party/blink/renderer/modules/xr/xr_session.h"
 #include "third_party/blink/renderer/modules/xr/xr_system.h"
 #include "third_party/blink/renderer/modules/xr/xr_viewport.h"
 #include "third_party/blink/renderer/modules/xr/xr_webgl_layer.h"
+#include "third_party/blink/renderer/modules/xr/xr_world_tracking_state.h"
 #include "third_party/blink/renderer/platform/graphics/gpu/xr_frame_transport.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
-#include "ui/gfx/geometry/transform.h"
+#include "third_party/blink/renderer/platform/transforms/transformation_matrix.h"
 
 #include "ui/display/display.h"
 
@@ -85,15 +85,15 @@ void XRFrameProvider::OnSessionStarted(
         std::move(session_ptr->data_provider),
         xr_->GetExecutionContext()->GetTaskRunner(TaskType::kMiscPlatformAPI));
     immersive_data_provider_.set_disconnect_handler(
-        WTF::BindOnce(&XRFrameProvider::OnProviderConnectionError,
-                      WrapWeakPersistent(this), WrapWeakPersistent(session)));
+        WTF::Bind(&XRFrameProvider::OnProviderConnectionError,
+                  WrapWeakPersistent(this), WrapWeakPersistent(session)));
 
     immersive_presentation_provider_.Bind(
         std::move(session_ptr->submit_frame_sink->provider),
         xr_->GetExecutionContext()->GetTaskRunner(TaskType::kMiscPlatformAPI));
     immersive_presentation_provider_.set_disconnect_handler(
-        WTF::BindOnce(&XRFrameProvider::OnProviderConnectionError,
-                      WrapWeakPersistent(this), WrapWeakPersistent(session)));
+        WTF::Bind(&XRFrameProvider::OnProviderConnectionError,
+                  WrapWeakPersistent(this), WrapWeakPersistent(session)));
 
     frame_transport_->BindSubmitFrameClient(
         std::move(session_ptr->submit_frame_sink->client_receiver));
@@ -107,14 +107,15 @@ void XRFrameProvider::OnSessionStarted(
       return;
     }
 
-    HeapMojoRemote<device::mojom::blink::XRFrameDataProvider> data_provider(
-        xr_->GetExecutionContext());
+    HeapMojoRemote<device::mojom::blink::XRFrameDataProvider,
+                   HeapMojoWrapperMode::kWithoutContextObserver>
+        data_provider(xr_->GetExecutionContext());
     data_provider.Bind(
         std::move(session_ptr->data_provider),
         xr_->GetExecutionContext()->GetTaskRunner(TaskType::kMiscPlatformAPI));
     data_provider.set_disconnect_handler(
-        WTF::BindOnce(&XRFrameProvider::OnProviderConnectionError,
-                      WrapWeakPersistent(this), WrapWeakPersistent(session)));
+        WTF::Bind(&XRFrameProvider::OnProviderConnectionError,
+                  WrapWeakPersistent(this), WrapWeakPersistent(session)));
 
     non_immersive_data_providers_.insert(
         session, WrapDisallowNew(std::move(data_provider)));
@@ -154,10 +155,10 @@ void XRFrameProvider::OnSessionEnded(XRSession* session) {
     frame_id_ = -1;
     immersive_presentation_provider_.reset();
     immersive_data_provider_.reset();
-    immersive_frame_viewer_pose_ = nullptr;
+    immersive_frame_pose_ = nullptr;
     is_immersive_frame_position_emulated_ = false;
-    first_immersive_frame_time_ = absl::nullopt;
-    first_immersive_frame_time_delta_ = absl::nullopt;
+    first_immersive_frame_time_ = base::nullopt;
+    first_immersive_frame_time_delta_ = base::nullopt;
 
     frame_transport_ = MakeGarbageCollected<XRFrameTransport>(
         session->GetExecutionContext(),
@@ -232,8 +233,8 @@ void XRFrameProvider::ScheduleImmersiveFrame(
   pending_immersive_vsync_ = true;
 
   immersive_data_provider_->GetFrameData(
-      std::move(options), WTF::BindOnce(&XRFrameProvider::OnImmersiveFrameData,
-                                        WrapWeakPersistent(this)));
+      std::move(options), WTF::Bind(&XRFrameProvider::OnImmersiveFrameData,
+                                    WrapWeakPersistent(this)));
 }
 
 void XRFrameProvider::ScheduleNonImmersiveFrame(
@@ -263,50 +264,45 @@ void XRFrameProvider::ScheduleNonImmersiveFrame(
 void XRFrameProvider::OnImmersiveFrameData(
     device::mojom::blink::XRFrameDataPtr data) {
   TRACE_EVENT0("gpu", __FUNCTION__);
-  DVLOG(2) << __FUNCTION__ << ": data.is_null()=" << data.is_null();
-
-  // We may have lost the immersive session since the last VSync request.
-  if (!immersive_session_) {
-    DVLOG(1) << __func__ << ": immersive session lost";
+  DVLOG(2) << __FUNCTION__;
+  if (!data) {
     return;
   }
 
-  if (!data) {
-    DVLOG(3) << __func__ << ": frame data not received, re-requesting frame";
-    // We have not received any frame data from the device. We could try to run
-    // an XR animation frame [1], but that may cause issues with APIs that
-    // receive state updates via XRFrameData (e.g. anchors, planes) for
-    // maintaining their current state - they would behave as if all entities
-    // lost tracking and got removed on the device. Let's behave as if we have
-    // not received anything from the device and request a new frame.
-    //
-    // [1]  https://immersive-web.github.io/webxr/#xr-animation-frame)
-
-    pending_immersive_vsync_ = false;
-    RequestFrame(immersive_session_);
+  // We may have lost the immersive session since the last VSync request.
+  if (!immersive_session_) {
     return;
   }
 
   LocalDOMWindow* window = xr_->DomWindow();
-  if (!window) {
-    DVLOG(3) << __func__ << ": unable to get local DOM window!";
+  if (!window)
     return;
+
+  if (!first_immersive_frame_time_) {
+    DCHECK(!first_immersive_frame_time_delta_);
+
+    first_immersive_frame_time_ = base::TimeTicks::Now();
+    first_immersive_frame_time_delta_ = data->time_delta;
   }
 
-  // Note: The |high_res_now_ms| is computed based on frame time returned from
-  // immersive frame and eventually passed in to requestAnimationFrame callback
-  // as `DOMHighResTimeStamp time`. This means that in case of immersive frames,
-  // the `now` is the same as `frameTime` in XR animation frame algorithm [1].
-  //
-  // [1] https://immersive-web.github.io/webxr/#xr-animation-frame
-  double high_res_now_ms = UpdateImmersiveFrameTime(window, *data);
+  base::TimeDelta current_frame_time_from_first_frame =
+      data->time_delta - *first_immersive_frame_time_delta_;
+  base::TimeTicks current_frame_time =
+      *first_immersive_frame_time_ + current_frame_time_from_first_frame;
 
-  immersive_frame_viewer_pose_ = std::move(data->mojo_from_viewer);
-  if (immersive_frame_viewer_pose_) {
+  double high_res_now_ms =
+      window->document()
+          ->Loader()
+          ->GetTiming()
+          .MonotonicTimeToZeroBasedDocumentTime(current_frame_time)
+          .InMillisecondsF();
+
+  immersive_frame_pose_ = std::move(data->pose);
+  if (immersive_frame_pose_) {
     DVLOG(3) << __func__ << ": pose available, emulated_position="
-             << immersive_frame_viewer_pose_->emulated_position;
+             << immersive_frame_pose_->emulated_position;
     is_immersive_frame_position_emulated_ =
-        immersive_frame_viewer_pose_->emulated_position;
+        immersive_frame_pose_->emulated_position;
   } else {
     DVLOG(2) << __func__ << ": emulating immersive frame position";
     is_immersive_frame_position_emulated_ = true;
@@ -331,10 +327,9 @@ void XRFrameProvider::OnImmersiveFrameData(
   // Used kInternalMedia since 1) this is not spec-ed and 2) this is media
   // related then tasks should not be throttled or frozen in background tabs.
   window->GetTaskRunner(blink::TaskType::kInternalMedia)
-      ->PostTask(FROM_HERE,
-                 WTF::BindOnce(&XRFrameProvider::ProcessScheduledFrame,
-                               WrapWeakPersistent(this), std::move(data),
-                               high_res_now_ms));
+      ->PostTask(FROM_HERE, WTF::Bind(&XRFrameProvider::ProcessScheduledFrame,
+                                      WrapWeakPersistent(this), std::move(data),
+                                      high_res_now_ms));
 }
 
 void XRFrameProvider::OnNonImmersiveVSync(double high_res_now_ms) {
@@ -352,10 +347,9 @@ void XRFrameProvider::OnNonImmersiveVSync(double high_res_now_ms) {
     return;
 
   window->GetTaskRunner(blink::TaskType::kInternalMedia)
-      ->PostTask(
-          FROM_HERE,
-          WTF::BindOnce(&XRFrameProvider::ProcessScheduledFrame,
-                        WrapWeakPersistent(this), nullptr, high_res_now_ms));
+      ->PostTask(FROM_HERE,
+                 WTF::Bind(&XRFrameProvider::ProcessScheduledFrame,
+                           WrapWeakPersistent(this), nullptr, high_res_now_ms));
 }
 
 void XRFrameProvider::OnNonImmersiveFrameData(
@@ -420,8 +414,8 @@ void XRFrameProvider::RequestNonImmersiveFrameData(XRSession* session) {
 
     data_provider->GetFrameData(
         std::move(options),
-        WTF::BindOnce(&XRFrameProvider::OnNonImmersiveFrameData,
-                      WrapWeakPersistent(this), WrapWeakPersistent(session)));
+        WTF::Bind(&XRFrameProvider::OnNonImmersiveFrameData,
+                  WrapWeakPersistent(this), WrapWeakPersistent(session)));
   }
 }
 
@@ -454,13 +448,13 @@ void XRFrameProvider::ProcessScheduledFrame(
     // because input events may call into |session.end()| which will destroy
     // this data otherwise. Move the data into local scope here so that it can't
     // be destroyed.
-    auto mojo_from_viewer_pose = std::move(immersive_frame_viewer_pose_);
+    auto frame_pose = std::move(immersive_frame_pose_);
 
     // Prior to updating input source state, update the state needed to create
     // presentation frame as newly created presentation frame will get passed to
     // the input source select[/start/end] events.
     immersive_session_->UpdatePresentationFrameState(
-        high_res_now_ms, mojo_from_viewer_pose, frame_data, frame_id_,
+        high_res_now_ms, frame_pose, frame_data, frame_id_,
         is_immersive_frame_position_emulated_);
 
     // Check if immersive session is still set as OnInputStateChange may have
@@ -488,8 +482,9 @@ void XRFrameProvider::ProcessScheduledFrame(
       DCHECK(buffer_mailbox_holder_);
     }
 #endif
-    if (frame_data && !frame_data->views.empty()) {
-      immersive_session_->UpdateViews(frame_data->views);
+    if (frame_data && (frame_data->left_eye || frame_data->right_eye)) {
+      immersive_session_->UpdateEyeParameters(frame_data->left_eye,
+                                              frame_data->right_eye);
     }
 
     if (frame_data) {
@@ -502,10 +497,10 @@ void XRFrameProvider::ProcessScheduledFrame(
     // is already updated.
     window->GetTaskRunner(blink::TaskType::kInternalMedia)
         ->PostTask(FROM_HERE,
-                   WTF::BindOnce(&XRSession::OnFrame,
-                                 WrapWeakPersistent(immersive_session_.Get()),
-                                 high_res_now_ms, buffer_mailbox_holder_,
-                                 camera_image_mailbox_holder_));
+                   WTF::Bind(&XRSession::OnFrame,
+                             WrapWeakPersistent(immersive_session_.Get()),
+                             high_res_now_ms, buffer_mailbox_holder_,
+                             camera_image_mailbox_holder_));
   } else {
     // In the process of fulfilling the frame requests for each session they are
     // extremely likely to request another frame. Work off of a separate list
@@ -526,8 +521,7 @@ void XRFrameProvider::ProcessScheduledFrame(
 
       const auto& inline_frame_data = request.value;
       device::mojom::blink::VRPosePtr inline_pose_data =
-          inline_frame_data ? std::move(inline_frame_data->mojo_from_viewer)
-                            : nullptr;
+          inline_frame_data ? std::move(inline_frame_data->pose) : nullptr;
 
       // Prior to updating input source state, update the state needed to create
       // presentation frame as newly created presentation frame will get passed
@@ -561,11 +555,11 @@ void XRFrameProvider::ProcessScheduledFrame(
       // a helper method who can determine if the state requirements are still
       // met that would allow the frame to be served.
       window->GetTaskRunner(blink::TaskType::kInternalMedia)
-          ->PostTask(FROM_HERE,
-                     WTF::BindOnce(&XRFrameProvider::OnPreDispatchInlineFrame,
-                                   WrapWeakPersistent(this),
-                                   WrapWeakPersistent(session), high_res_now_ms,
-                                   absl::nullopt, absl::nullopt));
+          ->PostTask(
+              FROM_HERE,
+              WTF::Bind(&XRFrameProvider::OnPreDispatchInlineFrame,
+                        WrapWeakPersistent(this), WrapWeakPersistent(session),
+                        high_res_now_ms, base::nullopt, base::nullopt));
     }
   }
 }
@@ -573,8 +567,8 @@ void XRFrameProvider::ProcessScheduledFrame(
 void XRFrameProvider::OnPreDispatchInlineFrame(
     XRSession* session,
     double timestamp,
-    const absl::optional<gpu::MailboxHolder>& output_mailbox_holder,
-    const absl::optional<gpu::MailboxHolder>& camera_image_mailbox_holder) {
+    const base::Optional<gpu::MailboxHolder>& output_mailbox_holder,
+    const base::Optional<gpu::MailboxHolder>& camera_image_mailbox_holder) {
   // Do nothing if the session was cleaned up or ended before we were schedueld.
   if (!session || session->ended())
     return;
@@ -591,44 +585,6 @@ void XRFrameProvider::OnPreDispatchInlineFrame(
   // should serve the frame.
   session->OnFrame(timestamp, output_mailbox_holder,
                    camera_image_mailbox_holder);
-}
-
-double XRFrameProvider::UpdateImmersiveFrameTime(
-    LocalDOMWindow* window,
-    const device::mojom::blink::XRFrameData& data) {
-  DVLOG(3) << __func__;
-
-  // `data.time_delta` is in unspecified base. Because of that, we capture the
-  // `time_delta` of the first frame we see (this gives us device_t_0), along
-  // with the time we saw it (renderer_t_0). That allows us to translate from
-  // device time to renderer time, so when we see frame N, we perform:
-  // renderer_t_N = renderer_t_0 + (device_t_N - device_t_0)
-
-  if (!first_immersive_frame_time_) {
-    DCHECK(!first_immersive_frame_time_delta_);
-
-    // This is the first time we got a frame data from an immersive session.
-    // Let's capture device_t_0 and renderer_t_0.
-
-    first_immersive_frame_time_ = base::TimeTicks::Now();
-    first_immersive_frame_time_delta_ = data.time_delta;
-  }
-
-  // (device_t_N - device_t_0) is:
-  base::TimeDelta current_frame_time_from_first_frame =
-      data.time_delta - *first_immersive_frame_time_delta_;
-  // renderer_t_N is then:
-  base::TimeTicks current_frame_time =
-      *first_immersive_frame_time_ + current_frame_time_from_first_frame;
-
-  double high_res_now_ms =
-      window->document()
-          ->Loader()
-          ->GetTiming()
-          .MonotonicTimeToZeroBasedDocumentTime(current_frame_time)
-          .InMillisecondsF();
-
-  return high_res_now_ms;
 }
 
 void XRFrameProvider::SubmitWebGLLayer(XRWebGLLayer* layer, bool was_changed) {
@@ -664,12 +620,11 @@ void XRFrameProvider::SubmitWebGLLayer(XRWebGLLayer* layer, bool was_changed) {
   if (frame_transport_->DrawingIntoSharedBuffer()) {
     // Image is written to shared buffer already. Just submit with a
     // placeholder.
-    scoped_refptr<Image> image_ref;
+    scoped_refptr<Image> image_ref = nullptr;
     DVLOG(3) << __FUNCTION__ << ": FrameSubmit for SharedBuffer mode";
-    frame_transport_->FrameSubmit(
-        immersive_presentation_provider_.get(), webgl_context->ContextGL(),
-        webgl_context->SharedImageInterface(), webgl_context,
-        std::move(image_ref), frame_id_);
+    frame_transport_->FrameSubmit(immersive_presentation_provider_.get(),
+                                  webgl_context->ContextGL(), webgl_context,
+                                  std::move(image_ref), frame_id_);
     return;
   }
 
@@ -687,9 +642,8 @@ void XRFrameProvider::SubmitWebGLLayer(XRWebGLLayer* layer, bool was_changed) {
   }
 
   frame_transport_->FrameSubmit(immersive_presentation_provider_.get(),
-                                webgl_context->ContextGL(),
-                                webgl_context->SharedImageInterface(),
-                                webgl_context, std::move(image_ref), frame_id_);
+                                webgl_context->ContextGL(), webgl_context,
+                                std::move(image_ref), frame_id_);
 
   // Reset our frame id, since anything we'd want to do (resizing/etc) can
   // no-longer happen to this frame.
@@ -702,10 +656,8 @@ void XRFrameProvider::UpdateWebGLLayerViewports(XRWebGLLayer* layer) {
   DCHECK(layer->session() == immersive_session_);
   DCHECK(immersive_presentation_provider_.is_bound());
 
-  XRViewport* left =
-      layer->GetViewportForEye(device::mojom::blink::XREye::kLeft);
-  XRViewport* right =
-      layer->GetViewportForEye(device::mojom::blink::XREye::kRight);
+  XRViewport* left = layer->GetViewportForEye(XRView::kEyeLeft);
+  XRViewport* right = layer->GetViewportForEye(XRView::kEyeRight);
   float width = layer->framebufferWidth();
   float height = layer->framebufferHeight();
 

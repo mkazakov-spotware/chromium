@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,11 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
+#include "base/strings/string16.h"
+#include "components/autofill/core/browser/data_model/credit_card.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/payments/content/initialization_task.h"
 #include "components/payments/core/currency_formatter.h"
@@ -69,10 +71,6 @@ class PaymentRequestSpec : public PaymentOptionsProvider,
                      std::vector<mojom::PaymentMethodDataPtr> method_data,
                      base::WeakPtr<PaymentRequestSpec::Observer> observer,
                      const std::string& app_locale);
-
-  PaymentRequestSpec(const PaymentRequestSpec&) = delete;
-  PaymentRequestSpec& operator=(const PaymentRequestSpec&) = delete;
-
   ~PaymentRequestSpec() override;
 
   // Called when the merchant has new PaymentDetails. Will recompute every spec
@@ -83,7 +81,7 @@ class PaymentRequestSpec : public PaymentOptionsProvider,
   void Retry(mojom::PaymentValidationErrorsPtr validation_errors);
 
   // Gets the display string for the general retry error message.
-  const std::u16string& retry_error_message() const {
+  const base::string16& retry_error_message() const {
     return retry_error_message_;
   }
 
@@ -95,10 +93,10 @@ class PaymentRequestSpec : public PaymentOptionsProvider,
 
   // Gets the display string for the shipping address error for the given
   // |type|.
-  std::u16string GetShippingAddressError(autofill::ServerFieldType type);
+  base::string16 GetShippingAddressError(autofill::ServerFieldType type);
 
   // Gets the display string for the payer error for the given |type|.
-  std::u16string GetPayerError(autofill::ServerFieldType type);
+  base::string16 GetPayerError(autofill::ServerFieldType type);
 
   // Returns whether there is a shipping address error message set by merchant.
   bool has_shipping_address_error() const;
@@ -125,11 +123,26 @@ class PaymentRequestSpec : public PaymentOptionsProvider,
   const mojom::PaymentOptionsPtr& payment_options() const { return options_; }
 
   // Returns the query to be used for the quota on hasEnrolledInstrument()
-  // calls: the payment method identifiers and their corresponding data.
+  // calls. Generally this returns the payment method identifiers and their
+  // corresponding data. However, in the case of basic-card with
+  // kStrictHasEnrolledAutofillInstrument feature enabled, this method also
+  // returns the following payment options:
+  // - requestPayerEmail
+  // - requestPayerName
+  // - requestPayerPhone
+  // - requestShipping
   const std::map<std::string, std::set<std::string>>& query_for_quota() const {
     return query_for_quota_;
   }
 
+  bool supports_basic_card() const { return !supported_card_networks_.empty(); }
+
+  const std::vector<std::string>& supported_card_networks() const {
+    return supported_card_networks_;
+  }
+  const std::set<std::string>& supported_card_networks_set() const {
+    return supported_card_networks_set_;
+  }
   const std::map<std::string, std::set<std::string>>& stringified_method_data()
       const {
     return stringified_method_data_;
@@ -140,10 +153,14 @@ class PaymentRequestSpec : public PaymentOptionsProvider,
   const std::set<std::string>& payment_method_identifiers_set() const {
     return payment_method_identifiers_set_;
   }
+  // Returns whether the |method_name| was specified as supported through the
+  // "basic-card" payment method. If false, it means either the |method_name| is
+  // not supported at all, or specified directly in supportedMethods.
+  bool IsMethodSupportedThroughBasicCard(const std::string& method_name);
 
   // Uses CurrencyFormatter to format the value of |currency_amount| with the
   // currency symbol for its currency.
-  std::u16string GetFormattedCurrencyAmount(
+  base::string16 GetFormattedCurrencyAmount(
       const mojom::PaymentCurrencyAmountPtr& currency_amount);
 
   // Uses CurrencyFormatter to get the formatted currency code for
@@ -157,7 +174,7 @@ class PaymentRequestSpec : public PaymentOptionsProvider,
   // This may contain a non-empty error returned by the merchant. In this case
   // PaymentRequestState::selected_shipping_option_error_profile() will contain
   // the profile related to the error.
-  const std::u16string& selected_shipping_option_error() const {
+  const base::string16& selected_shipping_option_error() const {
     return selected_shipping_option_error_;
   }
 
@@ -227,15 +244,26 @@ class PaymentRequestSpec : public PaymentOptionsProvider,
   std::vector<mojom::PaymentMethodDataPtr> method_data_;
   const std::string app_locale_;
   // The currently shipping option as specified by the merchant.
-  raw_ptr<mojom::PaymentShippingOption, DanglingUntriaged>
-      selected_shipping_option_;
-  std::u16string selected_shipping_option_error_;
+  mojom::PaymentShippingOption* selected_shipping_option_;
+  base::string16 selected_shipping_option_error_;
 
   // One currency formatter is instantiated and cached per currency code.
   std::map<std::string, CurrencyFormatter> currency_formatters_;
 
+  // A list/set of supported basic card networks. The list is used to keep the
+  // order in which they were specified by the merchant. The set is used for
+  // fast lookup of supported methods.
+  std::vector<std::string> supported_card_networks_;
+  std::set<std::string> supported_card_networks_set_;
+
+  // Only the set of basic-card specified networks. NOTE: callers should use
+  // |supported_card_networks_set_| to check merchant support.
+  std::set<std::string> basic_card_specified_networks_;
+
   // A list of supported url-based payment method identifiers specified by the
-  // merchant.
+  // merchant. This encompasses one of the two types of payment method
+  // identifiers, the other being standardized payment method identifiers i.e.,
+  // basic-card.
   std::vector<GURL> url_payment_method_identifiers_;
 
   // The set of all payment method identifiers.
@@ -246,7 +274,13 @@ class PaymentRequestSpec : public PaymentOptionsProvider,
   std::map<std::string, std::set<std::string>> stringified_method_data_;
 
   // A mapping of the payment method names to the corresponding JSON-stringified
-  // payment method specific data.
+  // payment method specific data. If kStrictHasEnrolledAutofillInstrument is
+  // enabled, then the key "basic-card-payment-options" also maps to the
+  // following payment options:
+  // - requestPayerEmail
+  // - requestPayerName
+  // - requestPayerPhone
+  // - requestShipping
   std::map<std::string, std::set<std::string>> query_for_quota_;
 
   // The reason why this payment request is waiting for updateWith.
@@ -256,12 +290,14 @@ class PaymentRequestSpec : public PaymentOptionsProvider,
   // notified.
   base::ObserverList<Observer> observers_;
 
-  std::u16string retry_error_message_;
+  base::string16 retry_error_message_;
   mojom::PayerErrorsPtr payer_errors_;
 
   std::set<std::string> app_store_billing_methods_;
 
   base::WeakPtrFactory<PaymentRequestSpec> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PaymentRequestSpec);
 };
 
 }  // namespace payments

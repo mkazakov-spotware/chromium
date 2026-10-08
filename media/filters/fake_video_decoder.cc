@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,11 @@
 
 namespace media {
 
-FakeVideoDecoder::FakeVideoDecoder(int decoder_id,
+FakeVideoDecoder::FakeVideoDecoder(const std::string& decoder_name,
                                    int decoding_delay,
                                    int max_parallel_decoding_requests,
                                    const BytesDecodedCB& bytes_decoded_cb)
-    : decoder_id_(decoder_id),
+    : decoder_name_(decoder_name),
       decoding_delay_(decoding_delay),
       max_parallel_decoding_requests_(max_parallel_decoding_requests),
       bytes_decoded_cb_(bytes_decoded_cb),
@@ -23,12 +23,12 @@ FakeVideoDecoder::FakeVideoDecoder(int decoder_id,
       total_bytes_decoded_(0),
       fail_to_initialize_(false) {
   DETACH_FROM_SEQUENCE(sequence_checker_);
-  DVLOG(1) << decoder_id_ << ": " << __func__;
+  DVLOG(1) << decoder_name_ << ": " << __func__;
   DCHECK_GE(decoding_delay, 0);
 }
 
 FakeVideoDecoder::~FakeVideoDecoder() {
-  DVLOG(1) << decoder_id_ << ": " << __func__;
+  DVLOG(1) << decoder_name_ << ": " << __func__;
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (state_ == STATE_UNINITIALIZED)
@@ -64,8 +64,8 @@ bool FakeVideoDecoder::IsPlatformDecoder() const {
   return is_platform_decoder_;
 }
 
-VideoDecoderType FakeVideoDecoder::GetDecoderType() const {
-  return VideoDecoderType::kTesting;
+std::string FakeVideoDecoder::GetDisplayName() const {
+  return decoder_name_;
 }
 
 void FakeVideoDecoder::Initialize(const VideoDecoderConfig& config,
@@ -74,7 +74,7 @@ void FakeVideoDecoder::Initialize(const VideoDecoderConfig& config,
                                   InitCB init_cb,
                                   const OutputCB& output_cb,
                                   const WaitingCB& waiting_cb) {
-  DVLOG(1) << decoder_id_ << ": " << __func__;
+  DVLOG(1) << decoder_name_ << ": " << __func__;
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(config.IsValidConfig());
   DCHECK(held_decode_callbacks_.empty())
@@ -96,18 +96,18 @@ void FakeVideoDecoder::Initialize(const VideoDecoderConfig& config,
   if (config.is_encrypted() && (!supports_encrypted_config_ || !cdm_context)) {
     DVLOG(1) << "Encrypted config not supported.";
     state_ = STATE_NORMAL;
-    init_cb_.RunOrHold(DecoderStatus::Codes::kUnsupportedEncryptionMode);
+    init_cb_.RunOrHold(StatusCode::kEncryptedContentUnsupported);
     return;
   }
 
   if (fail_to_initialize_) {
-    DVLOG(1) << decoder_id_ << ": Initialization failed.";
+    DVLOG(1) << decoder_name_ << ": Initialization failed.";
     state_ = STATE_ERROR;
-    init_cb_.RunOrHold(DecoderStatus::Codes::kFailed);
+    init_cb_.RunOrHold(StatusCode::kDecoderInitializeNeverCompleted);
   } else {
-    DVLOG(1) << decoder_id_ << ": Initialization succeeded.";
+    DVLOG(1) << decoder_name_ << ": Initialization succeeded.";
     state_ = STATE_NORMAL;
-    init_cb_.RunOrHold(DecoderStatus::Codes::kOk);
+    init_cb_.RunOrHold(OkStatus());
   }
 }
 
@@ -127,7 +127,7 @@ void FakeVideoDecoder::Decode(scoped_refptr<DecoderBuffer> buffer,
       buffer_size, BindToCurrentLoop(std::move(decode_cb)));
 
   if (state_ == STATE_ERROR) {
-    std::move(wrapped_decode_cb).Run(DecoderStatus::Codes::kFailed);
+    std::move(wrapped_decode_cb).Run(DecodeStatus::DECODE_ERROR);
     return;
   }
 
@@ -218,8 +218,7 @@ void FakeVideoDecoder::SimulateError() {
 
   state_ = STATE_ERROR;
   while (!held_decode_callbacks_.empty()) {
-    std::move(held_decode_callbacks_.front())
-        .Run(DecoderStatus::Codes::kFailed);
+    std::move(held_decode_callbacks_.front()).Run(DecodeStatus::DECODE_ERROR);
     held_decode_callbacks_.pop_front();
   }
   decoded_frames_.clear();
@@ -235,7 +234,7 @@ int FakeVideoDecoder::GetMaxDecodeRequests() const {
 
 void FakeVideoDecoder::OnFrameDecoded(int buffer_size,
                                       DecodeCB decode_cb,
-                                      DecoderStatus status) {
+                                      Status status) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (status.is_ok()) {
@@ -262,7 +261,7 @@ void FakeVideoDecoder::RunDecodeCallback(DecodeCB decode_cb) {
 
   if (!reset_cb_.IsNull()) {
     DCHECK(decoded_frames_.empty());
-    std::move(decode_cb).Run(DecoderStatus::Codes::kAborted);
+    std::move(decode_cb).Run(DecodeStatus::ABORTED);
     return;
   }
 
@@ -287,7 +286,7 @@ void FakeVideoDecoder::RunDecodeCallback(DecodeCB decode_cb) {
     }
   }
 
-  std::move(decode_cb).Run(DecoderStatus::Codes::kOk);
+  std::move(decode_cb).Run(DecodeStatus::OK);
 }
 
 void FakeVideoDecoder::DoReset() {

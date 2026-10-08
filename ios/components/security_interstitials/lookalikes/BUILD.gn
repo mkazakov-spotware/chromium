@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -22,7 +22,6 @@ source_set("lookalikes") {
     "//base",
     "//components/lookalikes/core",
     "//components/lookalikes/core:features",
-    "//components/reputation/core",
     "//components/security_interstitials/core",
     "//components/ukm/ios",
     "//components/url_formatter/spoof_checks/top_domains:common",
@@ -46,7 +45,6 @@ source_set("unit_tests") {
     "//base/test:test_support",
     "//components/lookalikes/core",
     "//components/lookalikes/core:features",
-    "//components/reputation/core",
     "//components/security_interstitials/core",
     "//components/ukm:test_support",
     "//components/ukm/ios",

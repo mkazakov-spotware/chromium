@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #include "chrome/test/chromedriver/log_replay/log_replay_socket.h"
@@ -8,15 +8,6 @@
 #include "base/files/file_path.h"
 #include "base/json/json_reader.h"
 #include "base/values.h"
-
-namespace {
-
-std::string SessionIdJson(const std::string session_id) {
-  return session_id.empty() ? std::string()
-                            : ",\"session_id\":\"" + session_id + "\"";
-}
-
-}  // namespace
 
 LogReplaySocket::LogReplaySocket(const base::FilePath& log_path)
     : connected_(false), log_reader_(log_path) {}
@@ -49,8 +40,9 @@ std::unique_ptr<LogEntry> LogReplaySocket::GetNextSocketEntry(
     std::unique_ptr<LogEntry> next = log_reader_.GetNext(LogEntry::kWebSocket);
     if (next == nullptr)
       return nullptr;
-    // it's a request (and |include_requests| is false)
-    if (!include_requests && next->event_type == LogEntry::kRequest)
+    // wrong socket or it's a request (and |include_requests| is false)
+    if (next->socket_id != socket_id_ ||
+        (!include_requests && next->event_type == LogEntry::kRequest))
       continue;
     return next;
   }
@@ -60,22 +52,20 @@ SyncWebSocket::StatusCode LogReplaySocket::ReceiveNextMessage(
     std::string* message,
     const Timeout& timeout) {
   if (socket_id_ == "") {
-    return SyncWebSocket::StatusCode::kDisconnected;
+    return SyncWebSocket::kDisconnected;
   }
   std::unique_ptr<LogEntry> next = GetNextSocketEntry(false);
   if (next->event_type == LogEntry::kResponse) {
     // We have to build the messages back up to what they would have been
     // in the actual WebSocket.
     *message = "{\"id\":" + std::to_string(next->id) +
-               SessionIdJson(next->session_id) +
                ",\"result\":" + next->payload + "}";
-    return SyncWebSocket::StatusCode::kOk;
+    return SyncWebSocket::kOk;
   }
   // it's an event
   *message = "{\"method\":\"" + next->command_name +
-             SessionIdJson(next->session_id) +
              "\",\"params\":" + next->payload + "}";
-  return SyncWebSocket::StatusCode::kOk;
+  return SyncWebSocket::kOk;
 }
 
 // Ensures that we are not getting ahead of Chromedriver.
@@ -104,7 +94,7 @@ bool LogReplaySocket::HasNextMessage() {
     log_reader_.UndoGetNext(std::move(next));
     return true;
   }
-  bool have_message = next->id <= max_id_;
+  bool haveMessage = next->id <= max_id_;
   log_reader_.UndoGetNext(std::move(next));
-  return have_message;
+  return haveMessage;
 }

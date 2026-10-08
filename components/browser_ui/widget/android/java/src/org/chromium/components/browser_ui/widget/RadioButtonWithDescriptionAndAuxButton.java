@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,6 +54,7 @@ import androidx.annotation.VisibleForTesting;
  * }</pre>
  * </p>
  *
+ * TODO(crbug.com/1097310): Add render tests in RadioButtonRenderTest.java for this widget.
  */
 public class RadioButtonWithDescriptionAndAuxButton extends RadioButtonWithDescription {
     /**
@@ -138,14 +139,6 @@ public class RadioButtonWithDescriptionAndAuxButton extends RadioButtonWithDescr
     public void setAuxButtonClickedListener(OnAuxButtonClickedListener listener) {
         mListener = listener;
         mAuxButton.setOnClickListener(v -> mListener.onAuxButtonClicked(getId()));
-    }
-
-    /**
-     * Set the aux button content description.
-     * @param contentDescription for aux button, used for accessibility purposes.
-     */
-    public void setAuxButtonContentDescription(String contentDescription) {
-        mAuxButton.setContentDescription(contentDescription);
     }
 
     /**

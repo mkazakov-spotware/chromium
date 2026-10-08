@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,13 @@
 #include <string>
 
 #include "base/memory/weak_ptr.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/values.h"
 #include "components/invalidation/public/ack_handle.h"
 #include "components/invalidation/public/invalidation_export.h"
 #include "components/invalidation/public/invalidation_util.h"
 
-namespace invalidation {
+namespace syncer {
 
 class AckHandler;
 
@@ -37,7 +37,7 @@ class INVALIDATION_EXPORT Invalidation {
   ~Invalidation();
 
   // Compares two invalidations.  The comparison ignores ack-tracking state.
-  bool operator==(const Invalidation& other) const;
+  bool Equals(const Invalidation& other) const;
 
   Topic topic() const;
   bool is_unknown_version() const;
@@ -89,7 +89,7 @@ class INVALIDATION_EXPORT Invalidation {
   // Acknowledge() on the most recently dropped inavlidation.
   void Drop();
 
-  base::Value::Dict ToValue() const;
+  std::unique_ptr<base::DictionaryValue> ToValue() const;
   std::string ToString() const;
 
  private:
@@ -121,6 +121,6 @@ class INVALIDATION_EXPORT Invalidation {
   scoped_refptr<base::SequencedTaskRunner> ack_handler_task_runner_;
 };
 
-}  // namespace invalidation
+}  // namespace syncer
 
 #endif  // COMPONENTS_INVALIDATION_PUBLIC_INVALIDATION_H_

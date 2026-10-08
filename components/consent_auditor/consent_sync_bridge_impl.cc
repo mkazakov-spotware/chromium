@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,13 +13,14 @@
 #include "base/callback_helpers.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "build/build_config.h"
 #include "components/sync/model/data_type_activation_request.h"
 #include "components/sync/model/entity_change.h"
 #include "components/sync/model/metadata_batch.h"
 #include "components/sync/model/mutable_data_batch.h"
-#include "components/sync/protocol/user_consent_specifics.pb.h"
+#include "components/sync/protocol/sync.pb.h"
 
 namespace consent_auditor {
 
@@ -83,7 +84,7 @@ ConsentSyncBridgeImpl::CreateMetadataChangeList() {
   return WriteBatch::CreateMetadataChangeList();
 }
 
-absl::optional<ModelError> ConsentSyncBridgeImpl::MergeSyncData(
+base::Optional<ModelError> ConsentSyncBridgeImpl::MergeSyncData(
     std::unique_ptr<MetadataChangeList> metadata_change_list,
     EntityChangeList entity_data) {
   DCHECK(entity_data.empty());
@@ -94,7 +95,7 @@ absl::optional<ModelError> ConsentSyncBridgeImpl::MergeSyncData(
                           std::move(entity_data));
 }
 
-absl::optional<ModelError> ConsentSyncBridgeImpl::ApplySyncChanges(
+base::Optional<ModelError> ConsentSyncBridgeImpl::ApplySyncChanges(
     std::unique_ptr<MetadataChangeList> metadata_change_list,
     EntityChangeList entity_changes) {
   std::unique_ptr<WriteBatch> batch = store_->CreateWriteBatch();
@@ -164,7 +165,7 @@ void ConsentSyncBridgeImpl::ReadAllDataAndResubmit() {
 }
 
 void ConsentSyncBridgeImpl::OnReadAllDataToResubmit(
-    const absl::optional<ModelError>& error,
+    const base::Optional<ModelError>& error,
     std::unique_ptr<RecordList> data_records) {
   if (change_processor()->TrackedAccountId().empty()) {
     // Meanwhile the sync has been disabled. We will try next time.
@@ -248,7 +249,7 @@ void ConsentSyncBridgeImpl::ProcessQueuedEvents() {
 }
 
 void ConsentSyncBridgeImpl::OnStoreCreated(
-    const absl::optional<ModelError>& error,
+    const base::Optional<ModelError>& error,
     std::unique_ptr<ModelTypeStore> store) {
   if (error) {
     change_processor()->ReportError(*error);
@@ -262,7 +263,7 @@ void ConsentSyncBridgeImpl::OnStoreCreated(
 }
 
 void ConsentSyncBridgeImpl::OnReadAllMetadata(
-    const absl::optional<ModelError>& error,
+    const base::Optional<ModelError>& error,
     std::unique_ptr<MetadataBatch> metadata_batch) {
   if (error) {
     change_processor()->ReportError(*error);
@@ -279,7 +280,7 @@ void ConsentSyncBridgeImpl::OnReadAllMetadata(
   }
 }
 
-void ConsentSyncBridgeImpl::OnCommit(const absl::optional<ModelError>& error) {
+void ConsentSyncBridgeImpl::OnCommit(const base::Optional<ModelError>& error) {
   if (error) {
     change_processor()->ReportError(*error);
   }
@@ -287,7 +288,7 @@ void ConsentSyncBridgeImpl::OnCommit(const absl::optional<ModelError>& error) {
 
 void ConsentSyncBridgeImpl::OnReadData(
     DataCallback callback,
-    const absl::optional<ModelError>& error,
+    const base::Optional<ModelError>& error,
     std::unique_ptr<RecordList> data_records,
     std::unique_ptr<IdList> missing_id_list) {
   OnReadAllData(std::move(callback), error, std::move(data_records));
@@ -295,7 +296,7 @@ void ConsentSyncBridgeImpl::OnReadData(
 
 void ConsentSyncBridgeImpl::OnReadAllData(
     DataCallback callback,
-    const absl::optional<ModelError>& error,
+    const base::Optional<ModelError>& error,
     std::unique_ptr<RecordList> data_records) {
   if (error) {
     change_processor()->ReportError(*error);

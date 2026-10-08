@@ -1,12 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_MEDIA_WEBRTC_WEBRTC_EVENT_LOG_MANAGER_KEYED_SERVICE_FACTORY_H_
 #define CHROME_BROWSER_MEDIA_WEBRTC_WEBRTC_EVENT_LOG_MANAGER_KEYED_SERVICE_FACTORY_H_
 
+#include "base/macros.h"
 #include "base/memory/singleton.h"
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 class KeyedService;
 
@@ -18,14 +19,9 @@ namespace webrtc_event_logging {
 
 // Produces WebRtcEventLogManagerKeyedService-s for non-incognito profiles.
 class WebRtcEventLogManagerKeyedServiceFactory
-    : public ProfileKeyedServiceFactory {
+    : public BrowserContextKeyedServiceFactory {
  public:
   static WebRtcEventLogManagerKeyedServiceFactory* GetInstance();
-
-  WebRtcEventLogManagerKeyedServiceFactory(
-      const WebRtcEventLogManagerKeyedServiceFactory&) = delete;
-  WebRtcEventLogManagerKeyedServiceFactory& operator=(
-      const WebRtcEventLogManagerKeyedServiceFactory&) = delete;
 
  protected:
   bool ServiceIsCreatedWithBrowserContext() const override;
@@ -39,6 +35,8 @@ class WebRtcEventLogManagerKeyedServiceFactory
 
   KeyedService* BuildServiceInstanceFor(
       content::BrowserContext* context) const override;
+
+  DISALLOW_COPY_AND_ASSIGN(WebRtcEventLogManagerKeyedServiceFactory);
 };
 
 }  // namespace webrtc_event_logging

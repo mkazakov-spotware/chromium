@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -78,7 +78,8 @@ class SignedExchangeSignatureVerifierTest
   SignedExchangeSignatureVerifierTest() {}
 
   const base::Time VerificationTime() {
-    return base::Time::UnixEpoch() + base::Seconds(kSignatureHeaderDate);
+    return base::Time::UnixEpoch() +
+           base::TimeDelta::FromSeconds(kSignatureHeaderDate);
   }
 
   void TestVerifierGivenValidInput(
@@ -102,13 +103,13 @@ class SignedExchangeSignatureVerifierTest
     }
     {
       base::HistogramTester histogram_tester;
-      EXPECT_EQ(
-          SignedExchangeSignatureVerifier::Result::kErrFutureDate,
-          SignedExchangeSignatureVerifier::Verify(
-              GetParam(), envelope, &cert_chain,
-              base::Time::UnixEpoch() + base::Seconds(kSignatureHeaderDate - 1),
-              nullptr /* devtools_proxy */
-              ));
+      EXPECT_EQ(SignedExchangeSignatureVerifier::Result::kErrFutureDate,
+                SignedExchangeSignatureVerifier::Verify(
+                    GetParam(), envelope, &cert_chain,
+                    base::Time::UnixEpoch() +
+                        base::TimeDelta::FromSeconds(kSignatureHeaderDate - 1),
+                    nullptr /* devtools_proxy */
+                    ));
       histogram_tester.ExpectTotalCount("SignedExchange.TimeUntilExpiration",
                                         0);
       histogram_tester.ExpectUniqueSample(
@@ -119,13 +120,13 @@ class SignedExchangeSignatureVerifierTest
 
     {
       base::HistogramTester histogram_tester;
-      EXPECT_EQ(
-          SignedExchangeSignatureVerifier::Result::kSuccess,
-          SignedExchangeSignatureVerifier::Verify(
-              GetParam(), envelope, &cert_chain,
-              base::Time::UnixEpoch() + base::Seconds(kSignatureHeaderExpires),
-              nullptr /* devtools_proxy */
-              ));
+      EXPECT_EQ(SignedExchangeSignatureVerifier::Result::kSuccess,
+                SignedExchangeSignatureVerifier::Verify(
+                    GetParam(), envelope, &cert_chain,
+                    base::Time::UnixEpoch() +
+                        base::TimeDelta::FromSeconds(kSignatureHeaderExpires),
+                    nullptr /* devtools_proxy */
+                    ));
       histogram_tester.ExpectUniqueSample("SignedExchange.TimeUntilExpiration",
                                           0, 1);
       histogram_tester.ExpectTotalCount(
@@ -138,8 +139,8 @@ class SignedExchangeSignatureVerifierTest
       EXPECT_EQ(SignedExchangeSignatureVerifier::Result::kErrExpired,
                 SignedExchangeSignatureVerifier::Verify(
                     GetParam(), envelope, &cert_chain,
-                    base::Time::UnixEpoch() +
-                        base::Seconds(kSignatureHeaderExpires + 1),
+                    base::Time::UnixEpoch() + base::TimeDelta::FromSeconds(
+                                                  kSignatureHeaderExpires + 1),
                     nullptr /* devtools_proxy */
                     ));
       histogram_tester.ExpectTotalCount("SignedExchange.TimeUntilExpiration",

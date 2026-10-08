@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,15 @@
 #include <vector>
 
 #include "base/notreached.h"
-#include "base/strings/escape.h"
 #include "base/strings/string_split.h"
+#include "net/base/escape.h"
+#include "net/url_request/url_request.h"
 
 namespace android_webview {
 
 namespace {
+
+const char kHeaderName[] = "X-Auto-Login";
 
 bool MatchRealm(const std::string& realm, RealmRestriction restriction) {
   switch (restriction) {
@@ -51,7 +54,7 @@ bool ParseHeader(const std::string& header,
        ++it) {
     const std::string& key = it->first;
     const std::string& value = it->second;
-    std::string unescaped_value = base::UnescapeBinaryURLComponent(value);
+    std::string unescaped_value = net::UnescapeBinaryURLComponent(value);
     if (key == "realm") {
       if (!MatchRealm(unescaped_value, realm_restriction))
         return false;
@@ -67,6 +70,14 @@ bool ParseHeader(const std::string& header,
 
   *header_data = local_params;
   return true;
+}
+
+bool ParserHeaderInResponse(net::URLRequest* request,
+                            RealmRestriction realm_restriction,
+                            HeaderData* header_data) {
+  std::string header_string;
+  request->GetResponseHeaderByName(kHeaderName, &header_string);
+  return ParseHeader(header_string, realm_restriction, header_data);
 }
 
 }  // namespace android_webview

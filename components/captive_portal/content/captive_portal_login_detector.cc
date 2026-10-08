@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,8 @@ void CaptivePortalLoginDetector::OnStoppedLoading() {
     return;
   }
 
-  captive_portal_service_->DetectCaptivePortal();
+  captive_portal_service_->DetectCaptivePortal(
+      CaptivePortalProbeReason::kLoginTabLoad);
 }
 
 void CaptivePortalLoginDetector::OnCaptivePortalResults(

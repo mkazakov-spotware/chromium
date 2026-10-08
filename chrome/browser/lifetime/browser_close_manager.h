@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define CHROME_BROWSER_LIFETIME_BROWSER_CLOSE_MANAGER_H_
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 
 class Browser;
@@ -16,9 +16,6 @@ class Browser;
 class BrowserCloseManager : public base::RefCounted<BrowserCloseManager> {
  public:
   BrowserCloseManager();
-
-  BrowserCloseManager(const BrowserCloseManager&) = delete;
-  BrowserCloseManager& operator=(const BrowserCloseManager&) = delete;
 
   // Starts closing all browser windows.
   void StartClosingBrowsers();
@@ -30,7 +27,7 @@ class BrowserCloseManager : public base::RefCounted<BrowserCloseManager> {
 
   virtual void ConfirmCloseWithPendingDownloads(
       int download_count,
-      base::OnceCallback<void(bool)> callback);
+      const base::Callback<void(bool)>& callback);
 
  private:
   // Notifies all browser windows that the close is cancelled.
@@ -59,7 +56,9 @@ class BrowserCloseManager : public base::RefCounted<BrowserCloseManager> {
 
   // The browser for which we are waiting for a callback to
   // OnBrowserReportCloseable.
-  raw_ptr<Browser> current_browser_;
+  Browser* current_browser_;
+
+  DISALLOW_COPY_AND_ASSIGN(BrowserCloseManager);
 };
 
 #endif  // CHROME_BROWSER_LIFETIME_BROWSER_CLOSE_MANAGER_H_

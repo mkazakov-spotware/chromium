@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 #include <memory>
 #include <utility>
 
-#include "components/sync/model/client_tag_based_model_type_processor.h"
-#include "components/sync/model/forwarding_model_type_controller_delegate.h"
-#include "components/sync/model/syncable_service_based_bridge.h"
+#include "components/sync/model_impl/client_tag_based_model_type_processor.h"
+#include "components/sync/model_impl/forwarding_model_type_controller_delegate.h"
+#include "components/sync/model_impl/syncable_service_based_bridge.h"
 
 namespace syncer {
 
@@ -23,7 +23,8 @@ class ControllerDelegate : public ModelTypeControllerDelegate {
                      OnceModelTypeStoreFactory store_factory,
                      base::WeakPtr<SyncableService> syncable_service,
                      const base::RepeatingClosure& dump_stack)
-      : type_(type), dump_stack_(dump_stack) {
+      : type_(type),
+        dump_stack_(dump_stack) {
     DCHECK(store_factory);
 
     // The |syncable_service| can be null in tests.
@@ -36,10 +37,7 @@ class ControllerDelegate : public ModelTypeControllerDelegate {
     }
   }
 
-  ControllerDelegate(const ControllerDelegate&) = delete;
-  ControllerDelegate& operator=(const ControllerDelegate&) = delete;
-
-  ~ControllerDelegate() override = default;
+  ~ControllerDelegate() override {}
 
   void OnSyncStarting(const DataTypeActivationRequest& request,
                       StartCallback callback) override {
@@ -73,6 +71,8 @@ class ControllerDelegate : public ModelTypeControllerDelegate {
   const ModelType type_;
   const base::RepeatingClosure dump_stack_;
   std::unique_ptr<ModelTypeSyncBridge> bridge_;
+
+  DISALLOW_COPY_AND_ASSIGN(ControllerDelegate);
 };
 
 }  // namespace

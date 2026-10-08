@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,10 @@
 
 #include <string>
 
+#include "base/macros.h"
+#include "base/optional.h"
 #include "chromecast/browser/webui/mojom/webui.mojom.h"
 #include "content/public/browser/url_data_source.h"
-#include "mojo/public/cpp/bindings/pending_receiver.h"
-#include "mojo/public/cpp/bindings/remote.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace chromecast {
 
@@ -32,7 +31,7 @@ class CastResourceDataSource : public content::URLDataSource {
       const GURL& url,
       const content::WebContents::Getter& wc_getter,
       content::URLDataSource::GotDataCallback callback) override;
-  std::string GetMimeType(const GURL& url) override;
+  std::string GetMimeType(const std::string& path) override;
   bool ShouldServiceRequest(const GURL& url,
                             content::BrowserContext* browser_context,
                             int render_process_id) override;
@@ -47,7 +46,7 @@ class CastResourceDataSource : public content::URLDataSource {
   const bool for_webui_;
   mojo::Remote<mojom::Resources> remote_;
 
-  absl::optional<std::string> frame_src_;
+  base::Optional<std::string> frame_src_;
   bool deny_xframe_options_ = true;
 };
 

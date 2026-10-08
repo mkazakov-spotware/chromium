@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <string>
 
 #include "base/containers/flat_map.h"
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "chrome/browser/media/router/providers/cast/cast_internal_message_util.h"
 #include "chrome/browser/media/router/providers/cast/cast_session_client.h"
 #include "chrome/browser/media/router/providers/cast/cast_session_tracker.h"
@@ -19,7 +19,6 @@
 #include "components/media_router/common/providers/cast/cast_media_source.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace cast_channel {
 class CastMessageHandler;
@@ -54,10 +53,9 @@ class CastActivity {
 
   const MediaRoute& route() const { return route_; }
   const std::string& app_id() const { return app_id_; }
-  const absl::optional<std::string>& session_id() const { return session_id_; }
+  const base::Optional<std::string>& session_id() const { return session_id_; }
+  base::Optional<int> mirroring_tab_id() const { return mirroring_tab_id_; }
   const MediaSinkInternal sink() const { return sink_; }
-
-  void SetRouteIsConnecting(bool is_connecting);
 
   // Adds a new client |client_id| to this session and returns the handles of
   // the two pipes to be held by Blink It is invalid to call this method if the
@@ -65,7 +63,7 @@ class CastActivity {
   virtual mojom::RoutePresentationConnectionPtr AddClient(
       const CastMediaSource& source,
       const url::Origin& origin,
-      int frame_tree_node_id);
+      int tab_id);
 
   virtual void RemoveClient(const std::string& client_id);
 
@@ -87,8 +85,8 @@ class CastActivity {
       const std::string& client_id,
       blink::mojom::PresentationConnectionMessagePtr message);
 
-  virtual void SendMediaStatusToClients(const base::Value::Dict& media_status,
-                                        absl::optional<int> request_id);
+  virtual void SendMediaStatusToClients(const base::Value& media_status,
+                                        base::Optional<int> request_id);
 
   // Handles a message forwarded by CastActivityManager.
   virtual void OnAppMessage(const cast::channel::CastMessage& message) = 0;
@@ -108,7 +106,7 @@ class CastActivity {
   // Sends media command |cast_message|, which came from the SDK client, to the
   // receiver hosting this session. Returns the locally-assigned request ID of
   // the message sent to the receiver.
-  virtual absl::optional<int> SendMediaRequestToReceiver(
+  virtual base::Optional<int> SendMediaRequestToReceiver(
       const CastInternalMessage& cast_message);
 
   // Sends app message |cast_message|, which came from the SDK client, to the
@@ -167,22 +165,21 @@ class CastActivity {
     return it == connected_clients_.end() ? nullptr : it->second.get();
   }
 
-  virtual std::string GetRouteDescription(const CastSession& session) const;
-
   int cast_channel_id() const { return sink_.cast_channel_id(); }
 
   MediaRoute route_;
   std::string app_id_;
+  base::Optional<int> mirroring_tab_id_;
 
   // TODO(https://crbug.com/809249): Consider wrapping CastMessageHandler with
   // known parameters (sink, client ID, session transport ID) and passing them
   // to objects that need to send messages to the receiver.
-  const raw_ptr<cast_channel::CastMessageHandler> message_handler_;
+  cast_channel::CastMessageHandler* const message_handler_;
 
-  const raw_ptr<CastSessionTracker> session_tracker_;
+  CastSessionTracker* const session_tracker_;
 
   // Set by CastActivityManager after the session is launched successfully.
-  absl::optional<std::string> session_id_;
+  base::Optional<std::string> session_id_;
 
   MediaSinkInternal sink_;
   ClientMap connected_clients_;

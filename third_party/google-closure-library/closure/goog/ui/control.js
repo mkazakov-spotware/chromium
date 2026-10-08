@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Base class for UI controls such as buttons, menus, menu items,
@@ -18,7 +26,6 @@ goog.provide('goog.ui.Control');
 
 goog.require('goog.Disposable');
 goog.require('goog.array');
-goog.require('goog.dispose');
 goog.require('goog.dom');
 goog.require('goog.events.BrowserEvent');
 goog.require('goog.events.Event');
@@ -34,8 +41,6 @@ goog.require('goog.ui.ControlContent');
 goog.require('goog.ui.ControlRenderer');
 goog.require('goog.ui.registry');
 goog.require('goog.userAgent');
-goog.requireType('goog.a11y.aria.Role');
-goog.requireType('goog.events.KeyEvent');
 
 
 
@@ -70,7 +75,6 @@ goog.requireType('goog.events.KeyEvent');
  * @extends {goog.ui.Component}
  */
 goog.ui.Control = function(opt_content, opt_renderer, opt_domHelper) {
-  'use strict';
   goog.ui.Component.call(this, opt_domHelper);
   this.renderer_ =
       opt_renderer || goog.ui.registry.getDefaultRenderer(this.constructor);
@@ -83,6 +87,7 @@ goog.ui.Control = function(opt_content, opt_renderer, opt_domHelper) {
   this.ieMouseEventSequenceSimulator_;
 };
 goog.inherits(goog.ui.Control, goog.ui.Component);
+goog.tagUnsealableClass(goog.ui.Control);
 
 
 // Renderer registry.
@@ -244,7 +249,6 @@ goog.ui.Control.prototype.preferredAriaRole_ = null;
  * @return {boolean} Whether the control handles its own mouse events.
  */
 goog.ui.Control.prototype.isHandleMouseEvents = function() {
-  'use strict';
   return this.handleMouseEvents_;
 };
 
@@ -257,7 +261,6 @@ goog.ui.Control.prototype.isHandleMouseEvents = function() {
  * @param {boolean} enable Whether to enable or disable mouse event handling.
  */
 goog.ui.Control.prototype.setHandleMouseEvents = function(enable) {
-  'use strict';
   if (this.isInDocument() && enable != this.handleMouseEvents_) {
     // Already in the document; need to update event handler.
     this.enableMouseEventHandling_(enable);
@@ -273,7 +276,6 @@ goog.ui.Control.prototype.setHandleMouseEvents = function(enable) {
  *     events.
  */
 goog.ui.Control.prototype.getKeyEventTarget = function() {
-  'use strict';
   // Delegate to renderer.
   return this.renderer_.getKeyEventTarget(this);
 };
@@ -287,7 +289,6 @@ goog.ui.Control.prototype.getKeyEventTarget = function() {
  * @protected
  */
 goog.ui.Control.prototype.getKeyHandler = function() {
-  'use strict';
   return this.keyHandler_ || (this.keyHandler_ = new goog.events.KeyHandler());
 };
 
@@ -299,7 +300,6 @@ goog.ui.Control.prototype.getKeyHandler = function() {
  *     (undefined if none).
  */
 goog.ui.Control.prototype.getRenderer = function() {
-  'use strict';
   return this.renderer_;
 };
 
@@ -311,7 +311,6 @@ goog.ui.Control.prototype.getRenderer = function() {
  * @throws {Error} If the control is already in the document.
  */
 goog.ui.Control.prototype.setRenderer = function(renderer) {
-  'use strict';
   if (this.isInDocument()) {
     // Too late.
     throw new Error(goog.ui.Component.Error.ALREADY_RENDERED);
@@ -338,7 +337,6 @@ goog.ui.Control.prototype.setRenderer = function(renderer) {
  *     the component's root element (null if none).
  */
 goog.ui.Control.prototype.getExtraClassNames = function() {
-  'use strict';
   return this.extraClassNames_;
 };
 
@@ -350,7 +348,6 @@ goog.ui.Control.prototype.getExtraClassNames = function() {
  *     component's root element.
  */
 goog.ui.Control.prototype.addClassName = function(className) {
-  'use strict';
   if (className) {
     if (this.extraClassNames_) {
       if (!goog.array.contains(this.extraClassNames_, className)) {
@@ -371,7 +368,6 @@ goog.ui.Control.prototype.addClassName = function(className) {
  *     element.
  */
 goog.ui.Control.prototype.removeClassName = function(className) {
-  'use strict';
   if (className && this.extraClassNames_ &&
       goog.array.remove(this.extraClassNames_, className)) {
     if (this.extraClassNames_.length == 0) {
@@ -389,7 +385,6 @@ goog.ui.Control.prototype.removeClassName = function(className) {
  * @param {boolean} enable Whether to add or remove the class name.
  */
 goog.ui.Control.prototype.enableClassName = function(className, enable) {
-  'use strict';
   if (enable) {
     this.addClassName(className);
   } else {
@@ -407,7 +402,6 @@ goog.ui.Control.prototype.enableClassName = function(className, enable) {
  * @override
  */
 goog.ui.Control.prototype.createDom = function() {
-  'use strict';
   var element = this.renderer_.createDom(this);
   this.setElementInternal(element);
 
@@ -440,7 +434,6 @@ goog.ui.Control.prototype.createDom = function() {
  *     no preferred ARIA role is set.
  */
 goog.ui.Control.prototype.getPreferredAriaRole = function() {
-  'use strict';
   return this.preferredAriaRole_;
 };
 
@@ -454,7 +447,6 @@ goog.ui.Control.prototype.getPreferredAriaRole = function() {
  * @param {goog.a11y.aria.Role} role This control's preferred ARIA role.
  */
 goog.ui.Control.prototype.setPreferredAriaRole = function(role) {
-  'use strict';
   this.preferredAriaRole_ = role;
 };
 
@@ -464,7 +456,6 @@ goog.ui.Control.prototype.setPreferredAriaRole = function(role) {
  * @return {?string} This control's aria label.
  */
 goog.ui.Control.prototype.getAriaLabel = function() {
-  'use strict';
   return this.ariaLabel_;
 };
 
@@ -476,7 +467,6 @@ goog.ui.Control.prototype.getAriaLabel = function() {
  *     No escaping is done on this value.
  */
 goog.ui.Control.prototype.setAriaLabel = function(label) {
-  'use strict';
   this.ariaLabel_ = label;
   var element = this.getElement();
   if (element) {
@@ -493,7 +483,6 @@ goog.ui.Control.prototype.setAriaLabel = function(label) {
  * @override
  */
 goog.ui.Control.prototype.getContentElement = function() {
-  'use strict';
   // Delegate to renderer.
   return this.renderer_.getContentElement(this.getElement());
 };
@@ -507,7 +496,6 @@ goog.ui.Control.prototype.getContentElement = function() {
  * @override
  */
 goog.ui.Control.prototype.canDecorate = function(element) {
-  'use strict';
   // Controls support pluggable renderers; delegate to the renderer.
   return this.renderer_.canDecorate(element);
 };
@@ -522,7 +510,6 @@ goog.ui.Control.prototype.canDecorate = function(element) {
  * @override
  */
 goog.ui.Control.prototype.decorateInternal = function(element) {
-  'use strict';
   element = this.renderer_.decorate(this, element);
   this.setElementInternal(element);
 
@@ -547,7 +534,6 @@ goog.ui.Control.prototype.decorateInternal = function(element) {
  * @override
  */
 goog.ui.Control.prototype.enterDocument = function() {
-  'use strict';
   goog.ui.Control.superClass_.enterDocument.call(this);
 
   // Call the renderer's setAriaStates method to set element's aria attributes.
@@ -593,7 +579,6 @@ goog.ui.Control.prototype.enterDocument = function() {
  * @private
  */
 goog.ui.Control.prototype.enableMouseEventHandling_ = function(enable) {
-  'use strict';
   var MouseEventType = goog.ui.ComponentUtil.getMouseEventType(this);
 
   var handler = this.getHandler();
@@ -667,7 +652,6 @@ goog.ui.Control.prototype.enableMouseEventHandling_ = function(enable) {
  * @override
  */
 goog.ui.Control.prototype.exitDocument = function() {
-  'use strict';
   goog.ui.Control.superClass_.exitDocument.call(this);
   if (this.keyHandler_) {
     this.keyHandler_.detach();
@@ -680,7 +664,6 @@ goog.ui.Control.prototype.exitDocument = function() {
 
 /** @override */
 goog.ui.Control.prototype.disposeInternal = function() {
-  'use strict';
   goog.ui.Control.superClass_.disposeInternal.call(this);
   if (this.keyHandler_) {
     this.keyHandler_.dispose();
@@ -702,7 +685,6 @@ goog.ui.Control.prototype.disposeInternal = function() {
  *     comprising the component's contents.
  */
 goog.ui.Control.prototype.getContent = function() {
-  'use strict';
   return this.content_;
 };
 
@@ -715,7 +697,6 @@ goog.ui.Control.prototype.getContent = function() {
  *     structure to set as the component's contents.
  */
 goog.ui.Control.prototype.setContent = function(content) {
-  'use strict';
   // Controls support pluggable renderers; delegate to the renderer.
   this.renderer_.setContent(this.getElement(), content);
 
@@ -736,7 +717,6 @@ goog.ui.Control.prototype.setContent = function(content) {
  *     to set as the component's contents.
  */
 goog.ui.Control.prototype.setContentInternal = function(content) {
-  'use strict';
   this.content_ = content;
 };
 
@@ -745,15 +725,14 @@ goog.ui.Control.prototype.setContentInternal = function(content) {
  * @return {string} Text caption of the control or empty string if none.
  */
 goog.ui.Control.prototype.getCaption = function() {
-  'use strict';
   var content = this.getContent();
   if (!content) {
     return '';
   }
   var caption = (typeof content === 'string') ?
       content :
-      Array.isArray(content) ?
-      content.map(goog.dom.getRawTextContent).join('') :
+      goog.isArray(content) ?
+      goog.array.map(content, goog.dom.getRawTextContent).join('') :
       goog.dom.getTextContent(/** @type {!Node} */ (content));
   return goog.string.collapseBreakingSpaces(caption);
 };
@@ -764,7 +743,6 @@ goog.ui.Control.prototype.getCaption = function() {
  * @param {string} caption Text caption of the component.
  */
 goog.ui.Control.prototype.setCaption = function(caption) {
-  'use strict';
   this.setContent(caption);
 };
 
@@ -774,7 +752,6 @@ goog.ui.Control.prototype.setCaption = function(caption) {
 
 /** @override */
 goog.ui.Control.prototype.setRightToLeft = function(rightToLeft) {
-  'use strict';
   // The superclass implementation ensures the control isn't in the document.
   goog.ui.Control.superClass_.setRightToLeft.call(this, rightToLeft);
 
@@ -794,7 +771,6 @@ goog.ui.Control.prototype.setRightToLeft = function(rightToLeft) {
  * @return {boolean} Whether the control allows text selection.
  */
 goog.ui.Control.prototype.isAllowTextSelection = function() {
-  'use strict';
   return this.allowTextSelection_;
 };
 
@@ -804,7 +780,6 @@ goog.ui.Control.prototype.isAllowTextSelection = function() {
  * @param {boolean} allow Whether the control should allow text selection.
  */
 goog.ui.Control.prototype.setAllowTextSelection = function(allow) {
-  'use strict';
   this.allowTextSelection_ = allow;
 
   var element = this.getElement();
@@ -823,7 +798,6 @@ goog.ui.Control.prototype.setAllowTextSelection = function(allow) {
  * @return {boolean} Whether the component is visible.
  */
 goog.ui.Control.prototype.isVisible = function() {
-  'use strict';
   return this.visible_;
 };
 
@@ -841,12 +815,10 @@ goog.ui.Control.prototype.isVisible = function() {
  * @return {boolean} Whether the visibility was changed.
  */
 goog.ui.Control.prototype.setVisible = function(visible, opt_force) {
-  'use strict';
-  if (opt_force ||
-      (this.visible_ != visible &&
-       this.dispatchEvent(
-           visible ? goog.ui.Component.EventType.SHOW :
-                     goog.ui.Component.EventType.HIDE))) {
+  if (opt_force || (this.visible_ != visible &&
+                    this.dispatchEvent(
+                        visible ? goog.ui.Component.EventType.SHOW :
+                                  goog.ui.Component.EventType.HIDE))) {
     var element = this.getElement();
     if (element) {
       this.renderer_.setVisible(element, visible);
@@ -866,7 +838,6 @@ goog.ui.Control.prototype.setVisible = function(visible, opt_force) {
  * @return {boolean} Whether the component is enabled.
  */
 goog.ui.Control.prototype.isEnabled = function() {
-  'use strict';
   return !this.hasState(goog.ui.Component.State.DISABLED);
 };
 
@@ -878,7 +849,6 @@ goog.ui.Control.prototype.isEnabled = function() {
  * @private
  */
 goog.ui.Control.prototype.isParentDisabled_ = function() {
-  'use strict';
   var parent = this.getParent();
   return !!parent && typeof parent.isEnabled == 'function' &&
       !parent.isEnabled();
@@ -897,7 +867,6 @@ goog.ui.Control.prototype.isParentDisabled_ = function() {
  * @see #isTransitionAllowed
  */
 goog.ui.Control.prototype.setEnabled = function(enable) {
-  'use strict';
   if (!this.isParentDisabled_() &&
       this.isTransitionAllowed(goog.ui.Component.State.DISABLED, !enable)) {
     if (!enable) {
@@ -917,7 +886,6 @@ goog.ui.Control.prototype.setEnabled = function(enable) {
  * @return {boolean} Whether the component is highlighted.
  */
 goog.ui.Control.prototype.isHighlighted = function() {
-  'use strict';
   return this.hasState(goog.ui.Component.State.HOVER);
 };
 
@@ -929,7 +897,6 @@ goog.ui.Control.prototype.isHighlighted = function() {
  * @see #isTransitionAllowed
  */
 goog.ui.Control.prototype.setHighlighted = function(highlight) {
-  'use strict';
   if (this.isTransitionAllowed(goog.ui.Component.State.HOVER, highlight)) {
     this.setState(goog.ui.Component.State.HOVER, highlight);
   }
@@ -941,7 +908,6 @@ goog.ui.Control.prototype.setHighlighted = function(highlight) {
  * @return {boolean} Whether the component is active.
  */
 goog.ui.Control.prototype.isActive = function() {
-  'use strict';
   return this.hasState(goog.ui.Component.State.ACTIVE);
 };
 
@@ -953,7 +919,6 @@ goog.ui.Control.prototype.isActive = function() {
  * @see #isTransitionAllowed
  */
 goog.ui.Control.prototype.setActive = function(active) {
-  'use strict';
   if (this.isTransitionAllowed(goog.ui.Component.State.ACTIVE, active)) {
     this.setState(goog.ui.Component.State.ACTIVE, active);
   }
@@ -965,7 +930,6 @@ goog.ui.Control.prototype.setActive = function(active) {
  * @return {boolean} Whether the component is selected.
  */
 goog.ui.Control.prototype.isSelected = function() {
-  'use strict';
   return this.hasState(goog.ui.Component.State.SELECTED);
 };
 
@@ -977,7 +941,6 @@ goog.ui.Control.prototype.isSelected = function() {
  * @see #isTransitionAllowed
  */
 goog.ui.Control.prototype.setSelected = function(select) {
-  'use strict';
   if (this.isTransitionAllowed(goog.ui.Component.State.SELECTED, select)) {
     this.setState(goog.ui.Component.State.SELECTED, select);
   }
@@ -989,7 +952,6 @@ goog.ui.Control.prototype.setSelected = function(select) {
  * @return {boolean} Whether the component is checked.
  */
 goog.ui.Control.prototype.isChecked = function() {
-  'use strict';
   return this.hasState(goog.ui.Component.State.CHECKED);
 };
 
@@ -1001,7 +963,6 @@ goog.ui.Control.prototype.isChecked = function() {
  * @see #isTransitionAllowed
  */
 goog.ui.Control.prototype.setChecked = function(check) {
-  'use strict';
   if (this.isTransitionAllowed(goog.ui.Component.State.CHECKED, check)) {
     this.setState(goog.ui.Component.State.CHECKED, check);
   }
@@ -1017,7 +978,6 @@ goog.ui.Control.prototype.setChecked = function(check) {
  *     keyboard focus.
  */
 goog.ui.Control.prototype.isFocused = function() {
-  'use strict';
   return this.hasState(goog.ui.Component.State.FOCUSED);
 };
 
@@ -1033,7 +993,6 @@ goog.ui.Control.prototype.isFocused = function() {
  *     the component's element has keyboard focus.
  */
 goog.ui.Control.prototype.setFocused = function(focused) {
-  'use strict';
   if (this.isTransitionAllowed(goog.ui.Component.State.FOCUSED, focused)) {
     this.setState(goog.ui.Component.State.FOCUSED, focused);
   }
@@ -1045,7 +1004,6 @@ goog.ui.Control.prototype.setFocused = function(focused) {
  * @return {boolean} Whether the component is open.
  */
 goog.ui.Control.prototype.isOpen = function() {
-  'use strict';
   return this.hasState(goog.ui.Component.State.OPENED);
 };
 
@@ -1057,7 +1015,6 @@ goog.ui.Control.prototype.isOpen = function() {
  * @see #isTransitionAllowed
  */
 goog.ui.Control.prototype.setOpen = function(open) {
-  'use strict';
   if (this.isTransitionAllowed(goog.ui.Component.State.OPENED, open)) {
     this.setState(goog.ui.Component.State.OPENED, open);
   }
@@ -1070,7 +1027,6 @@ goog.ui.Control.prototype.setOpen = function(open) {
  * @return {number} Bit mask representing component state.
  */
 goog.ui.Control.prototype.getState = function() {
-  'use strict';
   return this.state_;
 };
 
@@ -1081,7 +1037,6 @@ goog.ui.Control.prototype.getState = function() {
  * @return {boolean} Whether the component is in the given state.
  */
 goog.ui.Control.prototype.hasState = function(state) {
-  'use strict';
   return !!(this.state_ & state);
 };
 
@@ -1096,7 +1051,6 @@ goog.ui.Control.prototype.hasState = function(state) {
  * @param {boolean=} opt_calledFrom Prevents looping with setEnabled.
  */
 goog.ui.Control.prototype.setState = function(state, enable, opt_calledFrom) {
-  'use strict';
   if (!opt_calledFrom && state == goog.ui.Component.State.DISABLED) {
     this.setEnabled(!enable);
     return;
@@ -1121,7 +1075,6 @@ goog.ui.Control.prototype.setState = function(state, enable, opt_calledFrom) {
  * @param {number} state Bit mask representing component state.
  */
 goog.ui.Control.prototype.setStateInternal = function(state) {
-  'use strict';
   this.state_ = state;
 };
 
@@ -1132,7 +1085,6 @@ goog.ui.Control.prototype.setStateInternal = function(state) {
  * @return {boolean} Whether the component supports the given state.
  */
 goog.ui.Control.prototype.isSupportedState = function(state) {
-  'use strict';
   return !!(this.supportedStates_ & state);
 };
 
@@ -1145,7 +1097,6 @@ goog.ui.Control.prototype.isSupportedState = function(state) {
  * @throws {Error} If disabling support for a state the control is currently in.
  */
 goog.ui.Control.prototype.setSupportedState = function(state, support) {
-  'use strict';
   if (this.isInDocument() && this.hasState(state) && !support) {
     // Since we hook up event handlers in enterDocument(), this is an error.
     throw new Error(goog.ui.Component.Error.ALREADY_RENDERED);
@@ -1169,7 +1120,6 @@ goog.ui.Control.prototype.setSupportedState = function(state, support) {
  *     the state.
  */
 goog.ui.Control.prototype.isAutoState = function(state) {
-  'use strict';
   return !!(this.autoStates_ & state) && this.isSupportedState(state);
 };
 
@@ -1182,7 +1132,6 @@ goog.ui.Control.prototype.isAutoState = function(state) {
  *     handling for the state(s).
  */
 goog.ui.Control.prototype.setAutoStates = function(states, enable) {
-  'use strict';
   this.autoStates_ =
       enable ? this.autoStates_ | states : this.autoStates_ & ~states;
 };
@@ -1196,7 +1145,6 @@ goog.ui.Control.prototype.setAutoStates = function(states, enable) {
  *     the state.
  */
 goog.ui.Control.prototype.isDispatchTransitionEvents = function(state) {
-  'use strict';
   return !!(this.statesWithTransitionEvents_ & state) &&
       this.isSupportedState(state);
 };
@@ -1212,7 +1160,6 @@ goog.ui.Control.prototype.isDispatchTransitionEvents = function(state) {
  */
 goog.ui.Control.prototype.setDispatchTransitionEvents = function(
     states, enable) {
-  'use strict';
   this.statesWithTransitionEvents_ = enable ?
       this.statesWithTransitionEvents_ | states :
       this.statesWithTransitionEvents_ & ~states;
@@ -1240,7 +1187,6 @@ goog.ui.Control.prototype.setDispatchTransitionEvents = function(
  * @protected
  */
 goog.ui.Control.prototype.isTransitionAllowed = function(state, enable) {
-  'use strict';
   return this.isSupportedState(state) && this.hasState(state) != enable &&
       (!(this.statesWithTransitionEvents_ & state) ||
        this.dispatchEvent(
@@ -1260,7 +1206,6 @@ goog.ui.Control.prototype.isTransitionAllowed = function(state, enable) {
  * @param {goog.events.BrowserEvent} e Mouse event to handle.
  */
 goog.ui.Control.prototype.handleMouseOver = function(e) {
-  'use strict';
   // Ignore mouse moves between descendants.
   if (!goog.ui.Control.isMouseEventWithinElement_(e, this.getElement()) &&
       this.dispatchEvent(goog.ui.Component.EventType.ENTER) &&
@@ -1278,7 +1223,6 @@ goog.ui.Control.prototype.handleMouseOver = function(e) {
  * @param {goog.events.BrowserEvent} e Mouse event to handle.
  */
 goog.ui.Control.prototype.handleMouseOut = function(e) {
-  'use strict';
   if (!goog.ui.Control.isMouseEventWithinElement_(e, this.getElement()) &&
       this.dispatchEvent(goog.ui.Component.EventType.LEAVE)) {
     if (this.isAutoState(goog.ui.Component.State.ACTIVE)) {
@@ -1297,7 +1241,6 @@ goog.ui.Control.prototype.handleMouseOut = function(e) {
  * @private
  */
 goog.ui.Control.prototype.preventPointerCapture_ = function(e) {
-  'use strict';
   var elem = /** @type {!Element} */ (e.target);
   if (!!elem.releasePointerCapture) {
     elem.releasePointerCapture(e.pointerId);
@@ -1322,7 +1265,6 @@ goog.ui.Control.prototype.handleContextMenu = goog.nullFunction;
  * @private
  */
 goog.ui.Control.isMouseEventWithinElement_ = function(e, elem) {
-  'use strict';
   // If relatedTarget is null, it means there was no previous element (e.g.
   // the mouse moved out of the window).  Assume this means that the mouse
   // event was not within the element.
@@ -1338,7 +1280,6 @@ goog.ui.Control.isMouseEventWithinElement_ = function(e, elem) {
  * @param {goog.events.Event} e Mouse event to handle.
  */
 goog.ui.Control.prototype.handleMouseDown = function(e) {
-  'use strict';
   if (this.isEnabled()) {
     // Highlight enabled control on mousedown, regardless of the mouse button.
     if (this.isAutoState(goog.ui.Component.State.HOVER)) {
@@ -1372,7 +1313,6 @@ goog.ui.Control.prototype.handleMouseDown = function(e) {
  * @param {goog.events.Event} e Mouse event to handle.
  */
 goog.ui.Control.prototype.handleMouseUp = function(e) {
-  'use strict';
   if (this.isEnabled()) {
     if (this.isAutoState(goog.ui.Component.State.HOVER)) {
       this.setHighlighted(true);
@@ -1399,7 +1339,6 @@ goog.ui.Control.prototype.handleMouseUp = function(e) {
  * @param {goog.events.Event} e Mouse event to handle.
  */
 goog.ui.Control.prototype.handleDblClick = function(e) {
-  'use strict';
   if (this.isEnabled()) {
     this.performActionInternal(e);
   }
@@ -1416,7 +1355,6 @@ goog.ui.Control.prototype.handleDblClick = function(e) {
  * @protected
  */
 goog.ui.Control.prototype.performActionInternal = function(e) {
-  'use strict';
   if (this.isAutoState(goog.ui.Component.State.CHECKED)) {
     this.setChecked(!this.isChecked());
   }
@@ -1449,7 +1387,6 @@ goog.ui.Control.prototype.performActionInternal = function(e) {
  * @param {goog.events.Event} e Focus event to handle.
  */
 goog.ui.Control.prototype.handleFocus = function(e) {
-  'use strict';
   if (this.isAutoState(goog.ui.Component.State.FOCUSED)) {
     this.setFocused(true);
   }
@@ -1466,7 +1403,6 @@ goog.ui.Control.prototype.handleFocus = function(e) {
  * @param {goog.events.Event} e Blur event to handle.
  */
 goog.ui.Control.prototype.handleBlur = function(e) {
-  'use strict';
   if (this.isAutoState(goog.ui.Component.State.ACTIVE)) {
     this.setActive(false);
   }
@@ -1484,7 +1420,6 @@ goog.ui.Control.prototype.handleBlur = function(e) {
  * @return {boolean} Whether the key event was handled.
  */
 goog.ui.Control.prototype.handleKeyEvent = function(e) {
-  'use strict';
   if (this.isVisible() && this.isEnabled() && this.handleKeyEventInternal(e)) {
     e.preventDefault();
     e.stopPropagation();
@@ -1503,7 +1438,6 @@ goog.ui.Control.prototype.handleKeyEvent = function(e) {
  * @protected
  */
 goog.ui.Control.prototype.handleKeyEventInternal = function(e) {
-  'use strict';
   return e.keyCode == goog.events.KeyCodes.ENTER &&
       this.performActionInternal(e);
 };
@@ -1515,10 +1449,8 @@ goog.ui.registry.setDefaultRenderer(goog.ui.Control, goog.ui.ControlRenderer);
 
 // Register a decorator factory function for goog.ui.Controls.
 goog.ui.registry.setDecoratorByClassName(
-    goog.ui.ControlRenderer.CSS_CLASS, function() {
-      'use strict';
-      return new goog.ui.Control(null);
-    });
+    goog.ui.ControlRenderer.CSS_CLASS,
+    function() { return new goog.ui.Control(null); });
 
 
 
@@ -1546,7 +1478,6 @@ goog.ui.registry.setDecoratorByClassName(
  * @private
  */
 goog.ui.Control.IeMouseEventSequenceSimulator_ = function(control) {
-  'use strict';
   goog.ui.Control.IeMouseEventSequenceSimulator_.base(this, 'constructor');
 
   /** @private {goog.ui.Control}*/
@@ -1586,7 +1517,6 @@ goog.ui.Control.IeMouseEventSequenceSimulator_.SYNTHETIC_EVENTS_ =
 /** @private */
 goog.ui.Control.IeMouseEventSequenceSimulator_.prototype.handleMouseDown_ =
     function() {
-  'use strict';
   this.clickExpected_ = false;
 };
 
@@ -1594,7 +1524,6 @@ goog.ui.Control.IeMouseEventSequenceSimulator_.prototype.handleMouseDown_ =
 /** @private */
 goog.ui.Control.IeMouseEventSequenceSimulator_.prototype.handleMouseUp_ =
     function() {
-  'use strict';
   this.clickExpected_ = true;
 };
 
@@ -1607,7 +1536,6 @@ goog.ui.Control.IeMouseEventSequenceSimulator_.prototype.handleMouseUp_ =
  */
 goog.ui.Control.IeMouseEventSequenceSimulator_.makeLeftMouseEvent_ = function(
     e, typeArg) {
-  'use strict';
   'use strict';
 
   if (!goog.ui.Control.IeMouseEventSequenceSimulator_.SYNTHETIC_EVENTS_) {
@@ -1637,7 +1565,6 @@ goog.ui.Control.IeMouseEventSequenceSimulator_.makeLeftMouseEvent_ = function(
  */
 goog.ui.Control.IeMouseEventSequenceSimulator_.prototype.handleClick_ =
     function(e) {
-  'use strict';
   if (this.clickExpected_) {
     // This is the end of a normal click sequence: mouse-down, mouse-up, click.
     // Assume appropriate actions have already been performed.
@@ -1681,7 +1608,6 @@ goog.ui.Control.IeMouseEventSequenceSimulator_.prototype.handleClick_ =
 /** @override */
 goog.ui.Control.IeMouseEventSequenceSimulator_.prototype.disposeInternal =
     function() {
-  'use strict';
   this.control_ = null;
   goog.ui.Control.IeMouseEventSequenceSimulator_.base(this, 'disposeInternal');
 };

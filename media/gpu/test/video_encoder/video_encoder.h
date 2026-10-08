@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,23 +12,24 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
 #include "base/synchronization/condition_variable.h"
 #include "base/synchronization/lock.h"
 #include "base/thread_annotations.h"
-#include "base/time/time.h"
+
+namespace gpu {
+class GpuMemoryBufferFactory;
+}  // namespace gpu
 
 namespace media {
-class VideoBitrateAllocation;
-
 namespace test {
 
 class BitstreamProcessor;
 class Video;
 class VideoEncoderClient;
 struct VideoEncoderClientConfig;
-class VideoEncoderStats;
+struct VideoEncoderStats;
 
 // This class provides a framework to build video encode accelerator tests upon.
 // It provides methods to control video encoding, and wait for specific events
@@ -36,7 +37,7 @@ class VideoEncoderStats;
 class VideoEncoder {
  public:
   // Different video encoder states.
-  enum class EncoderState { kUninitialized = 0, kIdle, kEncoding, kError };
+  enum class EncoderState { kUninitialized = 0, kIdle, kEncoding };
 
   // The list of events that can be thrown by the video encoder.
   enum EncoderEvent {
@@ -45,8 +46,6 @@ class VideoEncoder {
     kBitstreamReady,
     kFlushing,
     kFlushDone,
-    kKeyFrame,
-    kError,
     kNumEvents,
   };
 
@@ -57,6 +56,7 @@ class VideoEncoder {
   // destroyed on the same sequence where they are created.
   static std::unique_ptr<VideoEncoder> Create(
       const VideoEncoderClientConfig& config,
+      gpu::GpuMemoryBufferFactory* const gpu_memory_buffer_factory,
       std::vector<std::unique_ptr<BitstreamProcessor>> bitstream_processors =
           {});
 
@@ -89,9 +89,7 @@ class VideoEncoder {
   // Flush the encoder.
   void Flush();
   // Updates bitrate based on the specified |bitrate| and |framerate|.
-  void UpdateBitrate(const VideoBitrateAllocation& bitrate, uint32_t framerate);
-  // Force key frame.
-  void ForceKeyFrame();
+  void UpdateBitrate(uint32_t bitrate, uint32_t framerate);
 
   // Get the current state of the video encoder.
   EncoderState GetState() const;
@@ -101,8 +99,6 @@ class VideoEncoder {
   // events with different types will be consumed. Will return false if the
   // specified timeout is exceeded while waiting for the events.
   bool WaitForEvent(EncoderEvent event, size_t times = 1);
-  // Wait until the |video_encoder_state_| becomes kIdle.
-  bool WaitUntilIdle();
   // Helper function to wait for a FlushDone event.
   bool WaitForFlushDone();
   // Helper function to wait for the specified number of FrameReleased events.
@@ -120,6 +116,7 @@ class VideoEncoder {
 
   bool CreateEncoderClient(
       const VideoEncoderClientConfig& config,
+      gpu::GpuMemoryBufferFactory* const gpu_memory_buffer_factory,
       std::vector<std::unique_ptr<BitstreamProcessor>> bitstream_processors);
 
   // Notify the video encoder an event has occurred (e.g. bitstream ready).
@@ -127,7 +124,7 @@ class VideoEncoder {
   bool NotifyEvent(EncoderEvent event);
 
   // The video currently being encoded.
-  raw_ptr<const Video> video_ = nullptr;
+  const Video* video_ = nullptr;
   // The state of the video encoder.
   std::atomic<EncoderState> video_encoder_state_{EncoderState::kUninitialized};
   // The video encoder client communicating between this class and the hardware
@@ -149,7 +146,8 @@ class VideoEncoder {
 
   // Automatically pause encoding once the video encoder has seen the specified
   // number of events occur.
-  std::pair<EncoderEvent, size_t> encode_until_;
+  std::pair<EncoderEvent, size_t> encode_until_{
+      kNumEvents, std::numeric_limits<size_t>::max()};
 
   SEQUENCE_CHECKER(sequence_checker_);
 };

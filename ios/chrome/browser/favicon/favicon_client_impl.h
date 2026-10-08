@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "components/favicon/core/favicon_client.h"
 #include "components/favicon_base/favicon_callback.h"
@@ -17,10 +18,6 @@ class GURL;
 class FaviconClientImpl : public favicon::FaviconClient {
  public:
   FaviconClientImpl();
-
-  FaviconClientImpl(const FaviconClientImpl&) = delete;
-  FaviconClientImpl& operator=(const FaviconClientImpl&) = delete;
-
   ~FaviconClientImpl() override;
 
  private:
@@ -33,6 +30,8 @@ class FaviconClientImpl : public favicon::FaviconClient {
       const std::vector<int>& desired_sizes_in_pixel,
       favicon_base::FaviconResultsCallback callback,
       base::CancelableTaskTracker* tracker) override;
+
+  DISALLOW_COPY_AND_ASSIGN(FaviconClientImpl);
 };
 
 #endif  // IOS_CHROME_BROWSER_FAVICON_FAVICON_CLIENT_IMPL_H_

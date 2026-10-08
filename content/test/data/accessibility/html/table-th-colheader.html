@@ -1,21 +1,16 @@
 <!--
-@BLINK-ALLOW:*ColumnCount*
-@BLINK-ALLOW:*ColumnIndex*
+@AURALINUX-ALLOW:table-cell-index*
+@AURALINUX-ALLOW:posinset*
+@AURALINUX-ALLOW:setsize*
 @WIN-ALLOW:row_*
 @WIN-ALLOW:column_*
-@WIN-ALLOW:table*
-@UIA-WIN-ALLOW
 @MAC-ALLOW:AXIndex=*
-@MAC-ALLOW:AXColumnIndexRange=*
-@MAC-ALLOW:AXRowIndexRange=*
 @MAC-ALLOW:AXColumnHeaderUIElements=*
 @MAC-ALLOW:AXColumnIndexRange=*
 @MAC-ALLOW:AXHeader=*
 @MAC-ALLOW:AXRowHeaderUIElements=*
 @MAC-ALLOW:AXRowIndexRange=*
-@AURALINUX-ALLOW:table-cell-index*
-@AURALINUX-ALLOW:posinset*
-@AURALINUX-ALLOW:setsize*
+@MAC-DENY:AXDescription=*
 -->
 <!DOCTYPE html>
 <html>
@@ -23,7 +18,7 @@
 
 <table border=1>
   <tr>
-    <th aria-label="Firstname" class="test">Firstname</th>
+    <th aria-label="Firstname">Firstname</th>
     <th aria-label="Lastname">Lastname</th>
   </tr>
   <tr>

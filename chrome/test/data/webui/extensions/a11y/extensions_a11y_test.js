@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@ GEN_INCLUDE([
   '//chrome/test/data/webui/polymer_browser_test_base.js',
 ]);
 
-GEN('#include "build/build_config.h"');
 GEN('#include "chrome/browser/ui/webui/extensions/' +
     'extension_settings_browsertest.h"');
 GEN('#include "content/public/test/browser_test.h"');
@@ -18,6 +17,7 @@ GEN('#include "content/public/test/browser_test.h"');
  * @constructor
  * @extends {PolymerTest}
  */
+// eslint-disable-next-line no-var
 var CrExtensionsA11yTest = class extends PolymerTest {
   /** @override */
   get browsePreload() {
@@ -41,12 +41,6 @@ var CrExtensionsA11yTest = class extends PolymerTest {
         'skip-link': {enabled: false},
         // TODO(crbug.com/761461): enable after addressing flaky tests.
         'color-contrast': {enabled: false},
-        // TODO(crbug.com/1226013): Fails when the device is managed (due to
-        // violations in <managed-footnote>, happens on some Win bots.
-        'region': {enabled: false},
-        // TODO(crbug.com/1226013): Fails when the device is managed (due to
-        // violations in <managed-footnote>, happens on some Win bots.
-        'link-in-text-block': {enabled: false},
       },
     };
   }
@@ -111,7 +105,13 @@ AccessibilityTest.define('CrExtensionsA11yTest', {
   name: 'NoExtensions',
 
   /** @override */
-  axeOptions: CrExtensionsA11yTest.axeOptions,
+  // TODO(crbug.com/1002627): when bug is addressed, this should be replaced
+  // with axeOptions: CrExtensionsA11yTest.axeOptions,
+  axeOptions: Object.assign({}, CrExtensionsA11yTest.axeOptions, {
+    'rules': Object.assign({}, CrExtensionsA11yTest.axeOptions.rules, {
+      'link-in-text-block': {enabled: false},
+    })
+  }),
 
   /** @override */
   violationFilter: CrExtensionsA11yTest.violationFilter,
@@ -119,11 +119,10 @@ AccessibilityTest.define('CrExtensionsA11yTest', {
   /** @override */
   tests: {
     'Accessible with No Extensions': function() {
-      const list = document.querySelector('extensions-manager')
-                       .shadowRoot.querySelector('#items-list');
+      let list = document.querySelector('extensions-manager').$$('#items-list');
       assertEquals(list.extensions.length, 0);
       assertEquals(list.apps.length, 0);
-    },
+    }
   },
 });
 
@@ -150,8 +149,7 @@ AccessibilityTest.define('CrExtensionsA11yTestWithMultipleExensions', {
   /** @override */
   tests: {
     'Accessible with Extensions and Apps': function() {
-      const list = document.querySelector('extensions-manager')
-                       .shadowRoot.querySelector('#items-list');
+      let list = document.querySelector('extensions-manager').$$('#items-list');
       assertEquals(list.extensions.length, 1);
       assertEquals(list.apps.length, 3);
     },
@@ -179,9 +177,8 @@ AccessibilityTest.define('CrExtensionsShortcutA11yTestWithNoExtensions', {
   /** @override */
   tests: {
     'Accessible with No Extensions or Apps': function() {
-      const list =
-          document.querySelector('extensions-manager')
-              .shadowRoot.querySelector('extensions-keyboard-shortcuts');
+      let list = document.querySelector('extensions-manager')
+                     .$$('extensions-keyboard-shortcuts');
       assertEquals(list.items.length, 0);
     },
   },
@@ -208,9 +205,8 @@ AccessibilityTest.define('CrExtensionsShortcutA11yTestWithExtensions', {
   /** @override */
   tests: {
     'Accessible with Extensions': function() {
-      const list =
-          document.querySelector('extensions-manager')
-              .shadowRoot.querySelector('extensions-keyboard-shortcuts');
+      let list = document.querySelector('extensions-manager')
+                     .$$('extensions-keyboard-shortcuts');
       assertEquals(list.items.length, 1);
     },
   },
@@ -225,10 +221,6 @@ CrExtensionsErrorConsoleA11yTest =
 
   /** @override */
   testGenPreamble() {
-    // (crbug.com/1199580): Disabled tests from Mac and Win failures
-    GEN('#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)');
-    GEN('#define DISABLED_All');
-    GEN('#endif');
     GEN('  SetDevModeEnabled(true);');
     GEN('  InstallErrorsExtension();');
   }
@@ -253,8 +245,8 @@ AccessibilityTest.define('CrExtensionsErrorConsoleA11yTest', {
   tests: {
     'Accessible Error Console': function() {
       assertTrue(!!document.querySelector('extensions-manager')
-                       .shadowRoot.querySelector('extensions-error-page')
-                       .shadowRoot.querySelector('#errorsList'));
+                       .$$('extensions-error-page')
+                       .$$('#errorsList'));
     },
   },
 });

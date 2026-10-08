@@ -1,27 +1,32 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/webui/translate_internals/ios_translate_internals_handler.h"
 
-#import "components/translate/core/common/language_detection_details.h"
-#import "ios/chrome/browser/application_context/application_context.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "components/translate/core/common/language_detection_details.h"
+#include "ios/chrome/browser/application_context.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/main/all_web_state_list_observation_registrar.h"
 #import "ios/chrome/browser/main/browser.h"
 #import "ios/chrome/browser/main/browser_list.h"
 #import "ios/chrome/browser/main/browser_list_factory.h"
-#import "ios/chrome/browser/translate/chrome_ios_translate_client.h"
-#import "ios/chrome/browser/translate/translate_service_ios.h"
+#include "ios/chrome/browser/translate/chrome_ios_translate_client.h"
+#include "ios/chrome/browser/translate/translate_service_ios.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
-#import "ios/web/public/webui/web_ui_ios.h"
+#include "ios/web/public/webui/web_ui_ios.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
-IOSTranslateInternalsHandler::IOSTranslateInternalsHandler() = default;
-IOSTranslateInternalsHandler::~IOSTranslateInternalsHandler() = default;
+IOSTranslateInternalsHandler::IOSTranslateInternalsHandler()
+    : scoped_tab_helper_observer_(
+          std::make_unique<ScopedObserver<
+              language::IOSLanguageDetectionTabHelper,
+              language::IOSLanguageDetectionTabHelper::Observer>>(this)) {}
+
+IOSTranslateInternalsHandler::~IOSTranslateInternalsHandler() {}
 
 translate::TranslateClient* IOSTranslateInternalsHandler::GetTranslateClient() {
   return ChromeIOSTranslateClient::FromWebState(web_ui()->GetWebState());
@@ -33,14 +38,14 @@ IOSTranslateInternalsHandler::GetVariationsService() {
 }
 
 void IOSTranslateInternalsHandler::RegisterMessageCallback(
-    base::StringPiece message,
-    MessageCallback callback) {
-  web_ui()->RegisterMessageCallback(message, std::move(callback));
+    const std::string& message,
+    const MessageCallback& callback) {
+  web_ui()->RegisterMessageCallback(message, callback);
 }
 
 void IOSTranslateInternalsHandler::CallJavascriptFunction(
-    base::StringPiece function_name,
-    base::span<const base::ValueView> args) {
+    const std::string& function_name,
+    const std::vector<const base::Value*>& args) {
   web_ui()->CallJavascriptFunction(function_name, args);
 }
 
@@ -93,8 +98,8 @@ void IOSTranslateInternalsHandler::AddLanguageDetectionObserverForWebState(
     web::WebState* web_state) {
   language::IOSLanguageDetectionTabHelper* tab_helper =
       language::IOSLanguageDetectionTabHelper::FromWebState(web_state);
-  if (!scoped_tab_helper_observations_.IsObservingSource(tab_helper)) {
-    scoped_tab_helper_observations_.AddObservation(tab_helper);
+  if (!scoped_tab_helper_observer_->IsObserving(tab_helper)) {
+    scoped_tab_helper_observer_->Add(tab_helper);
   }
 }
 
@@ -102,7 +107,7 @@ void IOSTranslateInternalsHandler::RemoveLanguageDetectionObserverForWebState(
     web::WebState* web_state) {
   language::IOSLanguageDetectionTabHelper* tab_helper =
       language::IOSLanguageDetectionTabHelper::FromWebState(web_state);
-  scoped_tab_helper_observations_.RemoveObservation(tab_helper);
+  scoped_tab_helper_observer_->Remove(tab_helper);
 }
 
 IOSTranslateInternalsHandler::Observer::Observer(

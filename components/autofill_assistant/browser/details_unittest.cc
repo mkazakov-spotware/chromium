@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,9 @@
 #include "components/autofill/core/browser/autofill_test_utils.h"
 #include "components/autofill/core/browser/data_model/autofill_profile.h"
 #include "components/autofill/core/browser/geo/country_names.h"
+#include "components/autofill_assistant/browser/details.h"
 #include "components/autofill_assistant/browser/service.pb.h"
 #include "components/autofill_assistant/browser/trigger_context.h"
-#include "components/autofill_assistant/browser/user_data.h"
-#include "components/autofill_assistant/browser/user_model.h"
 #include "components/strings/grit/components_strings.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -60,44 +59,57 @@ class DetailsTest : public testing::Test {
   }
 
   UserData user_data_;
-  UserModel user_model_;
   CollectUserDataOptions user_data_options_;
 };
 
 TEST_F(DetailsTest, UpdateFromParametersEmpty) {
   Details details;
   // Nothing has to be updated.
-  EXPECT_FALSE(details.UpdateFromParameters({}));
+  auto context = TriggerContext::CreateEmpty();
+  EXPECT_FALSE(details.UpdateFromParameters(*context));
 }
 
 TEST_F(DetailsTest, UpdateFromParametersShowInitialNoUpdate) {
+  std::map<std::string, std::string> parameters;
+  parameters["DETAILS_SHOW_INITIAL"] = "false";
+  auto context = TriggerContext::Create(parameters, "exps");
+
   Details details;
-  EXPECT_FALSE(
-      details.UpdateFromParameters({{{"DETAILS_SHOW_INITIAL", "false"}}}));
+  EXPECT_FALSE(details.UpdateFromParameters(*context));
 }
 
 TEST_F(DetailsTest, UpdateFromParametersSetsPlaceholderFlags) {
-  Details details;
-  details.UpdateFromParameters({{{"DETAILS_SHOW_INITIAL", "true"}}});
+  std::map<std::string, std::string> parameters;
+  parameters["DETAILS_SHOW_INITIAL"] = "true";
 
-  EXPECT_TRUE(details.placeholders().show_image_placeholder());
+  auto context = TriggerContext::Create(parameters, "exps");
+
+  Details details;
+  details.UpdateFromParameters(*context);
+
+  EXPECT_TRUE(details.animatePlaceholders());
+  EXPECT_TRUE(details.showImagePlaceholder());
 }
 
 TEST_F(DetailsTest, UpdateFromParametersUpdateFromDetails) {
-  Details details;
-  EXPECT_TRUE(details.UpdateFromParameters(
-      {{{"DETAILS_SHOW_INITIAL", "true"},
-        {"DETAILS_TITLE", "title"},
-        {"DETAILS_DESCRIPTION_LINE_1", "line1"},
-        {"DETAILS_DESCRIPTION_LINE_2", "line2"},
-        {"DETAILS_DESCRIPTION_LINE_3", "Est. total"},
-        {"DETAILS_IMAGE_URL", "image"},
-        {"DETAILS_IMAGE_ACCESSIBILITY_HINT", "hint"},
-        {"DETAILS_IMAGE_CLICKTHROUGH_URL", "clickthrough"},
-        {"DETAILS_TOTAL_PRICE_LABEL", "total"},
-        {"DETAILS_TOTAL_PRICE", "12"}}}));
+  std::map<std::string, std::string> parameters;
+  parameters["DETAILS_SHOW_INITIAL"] = "true";
+  parameters["DETAILS_TITLE"] = "title";
+  parameters["DETAILS_DESCRIPTION_LINE_1"] = "line1";
+  parameters["DETAILS_DESCRIPTION_LINE_2"] = "line2";
+  parameters["DETAILS_DESCRIPTION_LINE_3"] = "Est. total";
+  parameters["DETAILS_IMAGE_URL"] = "image";
+  parameters["DETAILS_IMAGE_ACCESSIBILITY_HINT"] = "hint";
+  parameters["DETAILS_IMAGE_CLICKTHROUGH_URL"] = "clickthrough";
+  parameters["DETAILS_TOTAL_PRICE_LABEL"] = "total";
+  parameters["DETAILS_TOTAL_PRICE"] = "12";
 
-  EXPECT_TRUE(details.placeholders().show_image_placeholder());
+  auto context = TriggerContext::Create(parameters, "exps");
+
+  Details details;
+  EXPECT_TRUE(details.UpdateFromParameters(*context));
+
+  EXPECT_TRUE(details.animatePlaceholders());
   EXPECT_THAT(details.title(), Eq("title"));
   EXPECT_THAT(details.descriptionLine1(), Eq("line1"));
   EXPECT_THAT(details.descriptionLine2(), Eq("line2"));
@@ -109,6 +121,28 @@ TEST_F(DetailsTest, UpdateFromParametersUpdateFromDetails) {
   EXPECT_THAT(details.imageClickthroughUrl(), Eq("clickthrough"));
   EXPECT_THAT(details.totalPriceLabel(), Eq("total"));
   EXPECT_THAT(details.totalPrice(), Eq("12"));
+}
+
+TEST_F(DetailsTest, UpdateFromParametersBackwardsCompatibility) {
+  base::test::ScopedRestoreICUDefaultLocale restore_locale;
+  base::i18n::SetICUDefaultLocale("en_US");
+
+  std::map<std::string, std::string> parameters;
+  parameters["MOVIES_MOVIE_NAME"] = "movie_name";
+  parameters["MOVIES_THEATER_NAME"] = "movie_theater";
+  parameters["MOVIES_SCREENING_DATETIME"] = "2019-09-26T16:40:02";
+
+  auto context = TriggerContext::Create(parameters, "exps");
+
+  Details details;
+  EXPECT_TRUE(details.UpdateFromParameters(*context));
+
+  EXPECT_TRUE(details.animatePlaceholders());
+  EXPECT_TRUE(details.showImagePlaceholder());
+  EXPECT_THAT(details.title(), Eq("movie_name"));
+  EXPECT_THAT(details.descriptionLine2(), Eq("movie_theater"));
+  EXPECT_THAT(details.descriptionLine1(),
+              Eq("4:40 PM \xE2\x80\xA2 Thu, Sep 26"));
 }
 
 TEST_F(DetailsTest, UpdateFromProtoNoDetails) {
@@ -142,8 +176,7 @@ TEST_F(DetailsTest, UpdateFromContactDetailsNoUserDataOptions) {
 TEST_F(DetailsTest, UpdateFromContactDetailsNoContactInfoRequested) {
   ShowDetailsProto proto;
   proto.set_contact_details("contact");
-  user_model_.SetSelectedAutofillProfile("contact", MakeAutofillProfile(),
-                                         &user_data_);
+  user_data_.selected_addresses_["contact"] = MakeAutofillProfile();
   user_data_options_.request_payer_name = false;
   user_data_options_.request_payer_email = false;
   EXPECT_FALSE(Details::UpdateFromContactDetails(proto, &user_data_,
@@ -153,8 +186,7 @@ TEST_F(DetailsTest, UpdateFromContactDetailsNoContactInfoRequested) {
 TEST_F(DetailsTest, UpdateFromContactDetails) {
   ShowDetailsProto proto;
   proto.set_contact_details("contact");
-  user_model_.SetSelectedAutofillProfile("contact", MakeAutofillProfile(),
-                                         &user_data_);
+  user_data_.selected_addresses_["contact"] = MakeAutofillProfile();
   user_data_options_.request_payer_name = true;
   user_data_options_.request_payer_email = true;
 
@@ -171,8 +203,7 @@ TEST_F(DetailsTest, UpdateFromContactDetails) {
 TEST_F(DetailsTest, UpdateFromContactOnlyName) {
   ShowDetailsProto proto;
   proto.set_contact_details("contact");
-  user_model_.SetSelectedAutofillProfile("contact", MakeAutofillProfile(),
-                                         &user_data_);
+  user_data_.selected_addresses_["contact"] = MakeAutofillProfile();
   user_data_options_.request_payer_name = true;
   user_data_options_.request_payer_email = false;
 
@@ -189,8 +220,7 @@ TEST_F(DetailsTest, UpdateFromContactOnlyName) {
 TEST_F(DetailsTest, UpdateFromContactOnlyEmail) {
   ShowDetailsProto proto;
   proto.set_contact_details("contact");
-  user_model_.SetSelectedAutofillProfile("contact", MakeAutofillProfile(),
-                                         &user_data_);
+  user_data_.selected_addresses_["contact"] = MakeAutofillProfile();
   user_data_options_.request_payer_name = false;
   user_data_options_.request_payer_email = true;
 
@@ -212,8 +242,7 @@ TEST_F(DetailsTest, UpdateFromShippingAddressNoAddressInMemory) {
 TEST_F(DetailsTest, UpdateFromShippingAddress) {
   ShowDetailsProto proto;
   proto.set_shipping_address("shipping");
-  user_model_.SetSelectedAutofillProfile("shipping", MakeAutofillProfile(),
-                                         &user_data_);
+  user_data_.selected_addresses_["shipping"] = MakeAutofillProfile();
 
   Details details;
   EXPECT_TRUE(Details::UpdateFromShippingAddress(proto, &user_data_, &details));
@@ -236,7 +265,7 @@ TEST_F(DetailsTest, UpdateFromSelectedCreditCardEmptyMemory) {
 TEST_F(DetailsTest, UpdateFromSelectedCreditCardNotRequested) {
   ShowDetailsProto proto;
   proto.set_credit_card(false);
-  user_model_.SetSelectedCreditCard(MakeCreditCard(), &user_data_);
+  user_data_.selected_card_ = MakeCreditCard();
   EXPECT_FALSE(Details::UpdateFromSelectedCreditCard(ShowDetailsProto(),
                                                      &user_data_, nullptr));
 }
@@ -244,7 +273,7 @@ TEST_F(DetailsTest, UpdateFromSelectedCreditCardNotRequested) {
 TEST_F(DetailsTest, UpdateFromCreditCard) {
   ShowDetailsProto proto;
   proto.set_credit_card(true);
-  user_model_.SetSelectedCreditCard(MakeCreditCard(), &user_data_);
+  user_data_.selected_card_ = MakeCreditCard();
 
   Details details;
   EXPECT_TRUE(
@@ -256,6 +285,42 @@ TEST_F(DetailsTest, UpdateFromCreditCard) {
   // The credit card string contains 4 non-ascii dots, we just check that it
   // does contain something.
   EXPECT_FALSE(details.descriptionLine1().empty());
+}
+
+TEST_F(DetailsTest, GetTitleMaxLines) {
+  Details details;
+
+  ShowDetailsProto proto_no_description;
+  proto_no_description.mutable_details()->set_title("title");
+  EXPECT_TRUE(Details::UpdateFromProto(proto_no_description, &details));
+  EXPECT_THAT(details.titleMaxLines(), Eq(3));
+
+  ShowDetailsProto proto_description1;
+  proto_description1.mutable_details()->set_title("title");
+  proto_description1.mutable_details()->set_description_line_1("line 1");
+  EXPECT_TRUE(Details::UpdateFromProto(proto_description1, &details));
+  EXPECT_THAT(details.titleMaxLines(), Eq(2));
+
+  ShowDetailsProto proto_description2;
+  proto_description2.mutable_details()->set_title("title");
+  proto_description2.mutable_details()->set_description_line_2("line 2");
+  EXPECT_TRUE(Details::UpdateFromProto(proto_description2, &details));
+  EXPECT_THAT(details.titleMaxLines(), Eq(2));
+
+  ShowDetailsProto proto_description1_date;
+  proto_description1_date.mutable_details()->set_title("title");
+  SetDateTimeProto(
+      proto_description1_date.mutable_details()->mutable_datetime(), 2019, 9,
+      26, 16, 40, 2);
+  EXPECT_TRUE(Details::UpdateFromProto(proto_description1_date, &details));
+  EXPECT_THAT(details.titleMaxLines(), Eq(2));
+
+  ShowDetailsProto proto_both_descriptions;
+  proto_both_descriptions.mutable_details()->set_title("title");
+  proto_both_descriptions.mutable_details()->set_description_line_1("line 1");
+  proto_both_descriptions.mutable_details()->set_description_line_2("line 2");
+  EXPECT_TRUE(Details::UpdateFromProto(proto_both_descriptions, &details));
+  EXPECT_THAT(details.titleMaxLines(), Eq(1));
 }
 
 TEST_F(DetailsTest, GetDescriptionLine1) {
@@ -274,7 +339,7 @@ TEST_F(DetailsTest, GetDescriptionLine1) {
                    25, 15, 16, 0);
   EXPECT_TRUE(Details::UpdateFromProto(proto_date, &details));
   EXPECT_THAT(details.descriptionLine1(),
-              Eq("3:16\xE2\x80\xAFPM \xE2\x80\xA2 Wed, Sep 25"));
+              Eq("3:16 PM \xE2\x80\xA2 Wed, Sep 25"));
 
   base::i18n::SetICUDefaultLocale("de_DE");
   ShowDetailsProto proto_date_de;
@@ -282,7 +347,7 @@ TEST_F(DetailsTest, GetDescriptionLine1) {
                    25, 15, 16, 0);
   EXPECT_TRUE(Details::UpdateFromProto(proto_date, &details));
   EXPECT_THAT(details.descriptionLine1(),
-              Eq("3:16\xE2\x80\xAFPM \xE2\x80\xA2 Mi., 25. Sept."));
+              Eq("3:16 PM \xE2\x80\xA2 Mi., 25. Sept."));
 
   ShowDetailsProto proto_empty;
   proto_empty.mutable_details()->set_title("title");
@@ -378,13 +443,14 @@ TEST_F(DetailsTest, GetClickthroughData) {
   EXPECT_THAT(details.imageClickthroughUrl(), Eq("url"));
 }
 
-TEST_F(DetailsTest, GetPlaceholderConfiguration) {
+TEST_F(DetailsTest, GetPlaceholderFlags) {
   Details details;
   ShowDetailsProto proto;
-  proto.mutable_details()->mutable_placeholders()->set_show_image_placeholder(
-      true);
+  proto.mutable_details()->set_show_image_placeholder(true);
+  proto.mutable_details()->set_animate_placeholders(true);
   EXPECT_TRUE(Details::UpdateFromProto(proto, &details));
-  EXPECT_TRUE(details.placeholders().show_image_placeholder());
+  EXPECT_TRUE(details.showImagePlaceholder());
+  EXPECT_TRUE(details.animatePlaceholders());
 }
 
 TEST_F(DetailsTest, GetTotalPrice) {

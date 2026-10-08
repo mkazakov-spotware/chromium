@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "extensions/browser/api/messaging/native_message_host.h"
 #include "extensions/browser/api/messaging/native_messaging_channel.h"
@@ -23,10 +24,6 @@ class NativeMessagingPipe
       public extensions::NativeMessageHost::Client {
  public:
   NativeMessagingPipe();
-
-  NativeMessagingPipe(const NativeMessagingPipe&) = delete;
-  NativeMessagingPipe& operator=(const NativeMessagingPipe&) = delete;
-
   ~NativeMessagingPipe() override;
 
   // Starts processing messages from the pipe.
@@ -44,6 +41,8 @@ class NativeMessagingPipe
  private:
   std::unique_ptr<extensions::NativeMessagingChannel> channel_;
   std::unique_ptr<extensions::NativeMessageHost> host_;
+
+  DISALLOW_COPY_AND_ASSIGN(NativeMessagingPipe);
 };
 
 }  // namespace remoting

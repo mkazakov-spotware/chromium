@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,17 @@
 #define CONTENT_SHELL_BROWSER_SHELL_JAVASCRIPT_DIALOG_H_
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "content/public/browser/javascript_dialog_manager.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #if __OBJC__
 @class ShellJavaScriptDialogHelper;
 #else
 class ShellJavaScriptDialogHelper;
 #endif  // __OBJC__
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
 namespace content {
 
@@ -27,31 +27,29 @@ class ShellJavaScriptDialog {
   ShellJavaScriptDialog(ShellJavaScriptDialogManager* manager,
                         gfx::NativeWindow parent_window,
                         JavaScriptDialogType dialog_type,
-                        const std::u16string& message_text,
-                        const std::u16string& default_prompt_text,
+                        const base::string16& message_text,
+                        const base::string16& default_prompt_text,
                         JavaScriptDialogManager::DialogClosedCallback callback);
-
-  ShellJavaScriptDialog(const ShellJavaScriptDialog&) = delete;
-  ShellJavaScriptDialog& operator=(const ShellJavaScriptDialog&) = delete;
-
   ~ShellJavaScriptDialog();
 
   // Called to cancel a dialog mid-flight.
   void Cancel();
 
  private:
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   ShellJavaScriptDialogHelper* helper_;  // owned
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   JavaScriptDialogManager::DialogClosedCallback callback_;
-  raw_ptr<ShellJavaScriptDialogManager> manager_;
+  ShellJavaScriptDialogManager* manager_;
   JavaScriptDialogType dialog_type_;
   HWND dialog_win_;
-  std::u16string message_text_;
-  std::u16string default_prompt_text_;
+  base::string16 message_text_;
+  base::string16 default_prompt_text_;
   static INT_PTR CALLBACK DialogProc(HWND dialog, UINT message, WPARAM wparam,
                                      LPARAM lparam);
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(ShellJavaScriptDialog);
 };
 
 }  // namespace content

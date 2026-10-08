@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include <math.h>
 
-#include "base/cxx17_backports.h"
+#include "base/numerics/ranges.h"
 #include "ui/gfx/animation/animation_delegate.h"
 
 namespace gfx {
@@ -17,7 +17,7 @@ SlideAnimation::SlideAnimation(AnimationDelegate* target)
 SlideAnimation::~SlideAnimation() = default;
 
 void SlideAnimation::Reset(double value) {
-  direction_ = absl::nullopt;
+  direction_ = base::nullopt;
   value_current_ = value;
   Stop();
 }
@@ -72,9 +72,10 @@ void SlideAnimation::BeginAnimating(Direction direction) {
 }
 
 void SlideAnimation::AnimateToState(double state) {
-  state = Tween::CalculateValue(tween_type_, base::clamp(state, 0.0, 1.0));
+  state =
+      Tween::CalculateValue(tween_type_, base::ClampToRange(state, 0.0, 1.0));
   if (state == 1.0)
-    direction_ = absl::nullopt;
+    direction_ = base::nullopt;
 
   value_current_ = value_start_ + (value_end_ - value_start_) * state;
 

@@ -1,99 +1,64 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import './app_item.js';
-import './app_management_cros_shared_style.css.js';
-import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
-import 'chrome://resources/cr_elements/cr_shared_style.css.js';
+Polymer({
+  is: 'app-management-main-view',
 
-import {focusWithoutInk} from 'chrome://resources/ash/common/focus_without_ink_js.js';
-import {App} from 'chrome://resources/cr_components/app_management/app_management.mojom-webui.js';
-import {alphabeticalSort} from 'chrome://resources/cr_components/app_management/util.js';
-import {assert} from 'chrome://resources/js/assert.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+  behaviors: [
+    app_management.StoreClient,
+    settings.RouteObserverBehavior,
+  ],
 
-import {Route} from '../../../router.js';
-import {routes} from '../../os_route.js';
-import {RouteObserverBehavior, RouteObserverBehaviorInterface} from '../../route_observer_behavior.js';
+  properties: {
+    /**
+     * @type {string}
+     */
+    searchTerm: {
+      type: String,
+    },
 
-import {AppManagementStore} from './store.js';
-import {AppManagementStoreClient, AppManagementStoreClientInterface} from './store_client.js';
-import {AppMap} from './types.js';
+    /**
+     * @private {AppMap}
+     */
+    apps_: {
+      type: Object,
+    },
 
-/**
- * @constructor
- * @extends {PolymerElement}
- * @implements {AppManagementStoreClientInterface}
- * @implements {RouteObserverBehaviorInterface}
- */
-const AppManagementMainViewElementBase = mixinBehaviors(
-    [AppManagementStoreClient, RouteObserverBehavior], PolymerElement);
+    /**
+     * List of apps displayed.
+     * @private {Array<App>}
+     */
+    appList_: {
+      type: Array,
+      value: () => [],
+      computed: 'computeAppList_(apps_, searchTerm)'
+    },
+  },
 
-/** @polymer */
-class AppManagementMainViewElement extends AppManagementMainViewElementBase {
-  static get is() {
-    return 'app-management-main-view';
-  }
-
-  static get template() {
-    return html`{__html_template__}`;
-  }
-
-  static get properties() {
-    return {
-      /**
-       * @type {string}
-       */
-      searchTerm: {
-        type: String,
-      },
-
-      /**
-       * @private {AppMap}
-       */
-      apps_: {
-        type: Object,
-      },
-
-      /**
-       * List of apps displayed.
-       * @private {Array<App>}
-       */
-      appList_: {
-        type: Array,
-        value: () => [],
-        computed: 'computeAppList_(apps_, searchTerm)',
-      },
-    };
-  }
-
-  connectedCallback() {
-    super.connectedCallback();
-
+  attached() {
     this.watch('apps_', state => state.apps);
     this.updateFromStore();
-  }
+  },
 
   /**
-   * @param {!Route} route
-   * @param {!Route=} oldRoute
+   * @param {!settings.Route} route
+   * @param {!settings.Route} oldRoute
    */
   currentRouteChanged(route, oldRoute) {
-    if (route === routes.APP_MANAGEMENT) {
-      const appId = AppManagementStore.getInstance().data.selectedAppId;
+    if (route === settings.routes.APP_MANAGEMENT) {
+      const appId = app_management.Store.getInstance().data.selectedAppId;
 
       // Expect this to be false the first time the "Manage your apps" page
       // is requested as no app has been selected yet.
       if (appId) {
-        const button =
-            this.shadowRoot.querySelector(`#app-subpage-button-${appId}`);
+        const button = this.$$(`#app-subpage-button-${appId}`);
         if (button) {
-          focusWithoutInk(button);
+          cr.ui.focusWithoutInk(button);
         }
       }
     }
-  }
+  },
 
   /**
    * @private
@@ -102,7 +67,7 @@ class AppManagementMainViewElement extends AppManagementMainViewElementBase {
    */
   isAppListEmpty_(appList) {
     return appList.length === 0;
-  }
+  },
 
   /**
    * @private
@@ -131,12 +96,9 @@ class AppManagementMainViewElement extends AppManagementMainViewElementBase {
     }
 
     filteredApps.sort(
-        (a, b) => alphabeticalSort(
+        (a, b) => app_management.util.alphabeticalSort(
             /** @type {string} */ (a.title), /** @type {string} */ (b.title)));
 
     return filteredApps;
-  }
-}
-
-customElements.define(
-    AppManagementMainViewElement.is, AppManagementMainViewElement);
+  },
+});

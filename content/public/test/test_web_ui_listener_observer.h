@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/values.h"
 #include "content/public/test/test_web_ui.h"
@@ -40,12 +39,12 @@ class TestWebUIListenerObserver : public TestWebUI::JavascriptCallObserver {
   void OnJavascriptFunctionCalled(
       const TestWebUI::CallData& call_data) override;
 
-  raw_ptr<content::TestWebUI> web_ui_;
+  content::TestWebUI* web_ui_;
   std::string listener_name_;
   base::RunLoop run_loop_;
 
   // Only filled when a matching listener call has been observed.
-  absl::optional<std::vector<base::Value>> call_args_;
+  base::Optional<std::vector<base::Value>> call_args_;
 };
 
 }  // namespace content

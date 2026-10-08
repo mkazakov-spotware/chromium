@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <limits>
 
 #include "base/check.h"
+#include "base/stl_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace media {
@@ -38,13 +39,13 @@ const uint8_t kCommonSystemSystemId[] = {
 class CencUtilsTest : public testing::Test {
  public:
   CencUtilsTest()
-      : key1_(kKey1Data, kKey1Data + std::size(kKey1Data)),
-        key2_(kKey2Data, kKey2Data + std::size(kKey2Data)),
-        key3_(kKey3Data, kKey3Data + std::size(kKey3Data)),
-        key4_(kKey4Data, kKey4Data + std::size(kKey4Data)),
+      : key1_(kKey1Data, kKey1Data + base::size(kKey1Data)),
+        key2_(kKey2Data, kKey2Data + base::size(kKey2Data)),
+        key3_(kKey3Data, kKey3Data + base::size(kKey3Data)),
+        key4_(kKey4Data, kKey4Data + base::size(kKey4Data)),
         common_system_system_id_(
             kCommonSystemSystemId,
-            kCommonSystemSystemId + std::size(kCommonSystemSystemId)) {}
+            kCommonSystemSystemId + base::size(kCommonSystemSystemId)) {}
 
  protected:
   // Initialize the start of the 'pssh' box (up to key_count)
@@ -336,9 +337,9 @@ TEST_F(CencUtilsTest, LongSize) {
 
   KeyIdList key_ids;
   EXPECT_TRUE(
-      ValidatePsshInput(std::vector<uint8_t>(data, data + std::size(data))));
+      ValidatePsshInput(std::vector<uint8_t>(data, data + base::size(data))));
   EXPECT_TRUE(GetKeyIdsForCommonSystemId(
-      std::vector<uint8_t>(data, data + std::size(data)), &key_ids));
+      std::vector<uint8_t>(data, data + base::size(data)), &key_ids));
   EXPECT_EQ(2u, key_ids.size());
 }
 
@@ -360,9 +361,9 @@ TEST_F(CencUtilsTest, SizeIsZero) {
 
   KeyIdList key_ids;
   EXPECT_TRUE(
-      ValidatePsshInput(std::vector<uint8_t>(data, data + std::size(data))));
+      ValidatePsshInput(std::vector<uint8_t>(data, data + base::size(data))));
   EXPECT_TRUE(GetKeyIdsForCommonSystemId(
-      std::vector<uint8_t>(data, data + std::size(data)), &key_ids));
+      std::vector<uint8_t>(data, data + base::size(data)), &key_ids));
   EXPECT_EQ(2u, key_ids.size());
 }
 
@@ -387,9 +388,9 @@ TEST_F(CencUtilsTest, HugeSize) {
   // These calls fail as the box size is huge (0xffffffffffffffff) and there
   // is not enough bytes in |data|.
   EXPECT_FALSE(
-      ValidatePsshInput(std::vector<uint8_t>(data, data + std::size(data))));
+      ValidatePsshInput(std::vector<uint8_t>(data, data + base::size(data))));
   EXPECT_FALSE(GetKeyIdsForCommonSystemId(
-      std::vector<uint8_t>(data, data + std::size(data)), &key_ids));
+      std::vector<uint8_t>(data, data + base::size(data)), &key_ids));
 }
 
 TEST_F(CencUtilsTest, GetPsshData_Version0) {
@@ -400,7 +401,7 @@ TEST_F(CencUtilsTest, GetPsshData_Version0) {
   EXPECT_TRUE(GetPsshData(box, CommonSystemSystemId(), &pssh_data));
   EXPECT_EQ(0u, pssh_data.size());
 
-  std::vector<uint8_t> data(data_bytes, data_bytes + std::size(data_bytes));
+  std::vector<uint8_t> data(data_bytes, data_bytes + base::size(data_bytes));
   AppendData(box, data);
   EXPECT_TRUE(GetPsshData(box, CommonSystemSystemId(), &pssh_data));
   EXPECT_EQ(data, pssh_data);
@@ -414,7 +415,7 @@ TEST_F(CencUtilsTest, GetPsshData_Version1NoKeys) {
   EXPECT_TRUE(GetPsshData(box, CommonSystemSystemId(), &pssh_data));
   EXPECT_EQ(0u, pssh_data.size());
 
-  std::vector<uint8_t> data(data_bytes, data_bytes + std::size(data_bytes));
+  std::vector<uint8_t> data(data_bytes, data_bytes + base::size(data_bytes));
   AppendData(box, data);
   EXPECT_TRUE(GetPsshData(box, CommonSystemSystemId(), &pssh_data));
   EXPECT_EQ(data, pssh_data);
@@ -428,7 +429,7 @@ TEST_F(CencUtilsTest, GetPsshData_Version1WithKeys) {
   EXPECT_TRUE(GetPsshData(box, CommonSystemSystemId(), &pssh_data));
   EXPECT_EQ(0u, pssh_data.size());
 
-  std::vector<uint8_t> data(data_bytes, data_bytes + std::size(data_bytes));
+  std::vector<uint8_t> data(data_bytes, data_bytes + base::size(data_bytes));
   AppendData(box, data);
   EXPECT_TRUE(GetPsshData(box, CommonSystemSystemId(), &pssh_data));
   EXPECT_EQ(data, pssh_data);
@@ -487,7 +488,7 @@ TEST_F(CencUtilsTest, GetPsshData_Version1ThenVersion2) {
 
 TEST_F(CencUtilsTest, GetPsshData_DifferentSystemID) {
   std::vector<uint8_t> unknown_system_id(kKey1Data,
-                                         kKey1Data + std::size(kKey1Data));
+                                         kKey1Data + base::size(kKey1Data));
   std::vector<uint8_t> pssh_data;
 
   std::vector<uint8_t> box = MakePSSHBox(1, Key1());
@@ -500,7 +501,7 @@ TEST_F(CencUtilsTest, GetPsshData_MissingData) {
   std::vector<uint8_t> pssh_data;
 
   std::vector<uint8_t> box = MakePSSHBox(1, Key1());
-  std::vector<uint8_t> data(data_bytes, data_bytes + std::size(data_bytes));
+  std::vector<uint8_t> data(data_bytes, data_bytes + base::size(data_bytes));
   AppendData(box, data);
   EXPECT_TRUE(GetPsshData(box, CommonSystemSystemId(), &pssh_data));
 
@@ -516,11 +517,13 @@ TEST_F(CencUtilsTest, GetPsshData_MultiplePssh) {
   std::vector<uint8_t> pssh_data;
 
   std::vector<uint8_t> box1 = MakePSSHBox(1, Key1());
-  std::vector<uint8_t> data1(data1_bytes, data1_bytes + std::size(data1_bytes));
+  std::vector<uint8_t> data1(data1_bytes,
+                             data1_bytes + base::size(data1_bytes));
   AppendData(box1, data1);
 
   std::vector<uint8_t> box2 = MakePSSHBox(0);
-  std::vector<uint8_t> data2(data2_bytes, data2_bytes + std::size(data2_bytes));
+  std::vector<uint8_t> data2(data2_bytes,
+                             data2_bytes + base::size(data2_bytes));
   AppendData(box2, data2);
 
   box1.insert(box1.end(), box2.begin(), box2.end());
@@ -535,7 +538,7 @@ TEST_F(CencUtilsTest, NonPsshData) {
     0x00, 0x00, 0x00, 0x08,   // size = 8
     'p',  's',  's',  'g'
   };
-  std::vector<uint8_t> non_pssh_box(data, data + std::size(data));
+  std::vector<uint8_t> non_pssh_box(data, data + base::size(data));
   EXPECT_FALSE(ValidatePsshInput(non_pssh_box));
 
   // Make a valid 'pssh' box.

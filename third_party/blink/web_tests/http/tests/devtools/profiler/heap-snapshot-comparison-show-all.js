@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(
       `Tests Comparison view of detailed heap snapshots. The "Show All" button must show all nodes.\n`);
-  await TestRunner.loadTestModule('heap_profiler_test_runner');
+  await TestRunner.loadModule('heap_profiler_test_runner');
   await TestRunner.showPanel('heap_profiler');
 
   var instanceCount = 24;
@@ -36,9 +36,9 @@
     var countA;
     var countB;
     function step3(row) {
-      countA = row.addedCount;
+      countA = row._addedCount;
       TestRunner.assertEquals(true, countA > 0, 'countA > 0');
-      countB = row.removedCount;
+      countB = row._removedCount;
       TestRunner.assertEquals(true, countB > 0, 'countB > 0');
 
       var buttonsNode = HeapProfilerTestRunner.findButtonsNode(row);
@@ -48,7 +48,7 @@
         var maybeNumber = parseInt(words[i], 10);
         if (!isNaN(maybeNumber))
           TestRunner.assertEquals(
-              countA + countB - row.dataGrid.defaultPopulateCount(), maybeNumber, buttonsNode.showAll.textContent);
+              countA + countB - row._dataGrid.defaultPopulateCount(), maybeNumber, buttonsNode.showAll.textContent);
       }
       HeapProfilerTestRunner.clickShowMoreButton('showAll', buttonsNode, step4);
     }
@@ -59,7 +59,7 @@
       });
       TestRunner.assertEquals(countA, rowsShown, 'after showAll click 1');
 
-      countB = row.removedCount;
+      countB = row._removedCount;
       TestRunner.assertEquals(true, countB > 0, 'countB > 0');
       var buttonsNode = HeapProfilerTestRunner.findButtonsNode(row);
       TestRunner.assertEquals(false, !!buttonsNode, 'buttons node (deleted)');

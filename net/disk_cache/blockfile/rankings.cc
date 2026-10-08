@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,9 @@
 #include <stdint.h>
 
 #include <limits>
-#include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/process/process.h"
-#include "base/time/time.h"
 #include "build/build_config.h"
 #include "net/base/net_export.h"
 #include "net/disk_cache/blockfile/backend_impl.h"
@@ -21,7 +19,7 @@
 #include "net/disk_cache/blockfile/histogram_macros.h"
 #include "net/disk_cache/blockfile/stress_support.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #endif
 
@@ -56,13 +54,10 @@ class Transaction {
   // volatile is not enough for that, but it should be a good hint.
   Transaction(volatile disk_cache::LruData* data, disk_cache::Addr addr,
               Operation op, int list);
-
-  Transaction(const Transaction&) = delete;
-  Transaction& operator=(const Transaction&) = delete;
-
   ~Transaction();
  private:
-  raw_ptr<volatile disk_cache::LruData> data_;
+  volatile disk_cache::LruData* data_;
+  DISALLOW_COPY_AND_ASSIGN(Transaction);
 };
 
 Transaction::Transaction(volatile disk_cache::LruData* data,
@@ -92,7 +87,7 @@ enum CrashLocation {
 // builds, according to the value of g_rankings_crash. This used by
 // crash_cache.exe to generate unit-test files.
 void GenerateCrash(CrashLocation location) {
-#if !defined(NDEBUG) && !BUILDFLAG(IS_IOS)
+#if !defined(NDEBUG) && !defined(OS_IOS)
   if (disk_cache::NO_CRASH == disk_cache::g_rankings_crash)
     return;
   switch (location) {
@@ -212,14 +207,13 @@ Rankings::Iterator::Iterator() {
 
 void Rankings::Iterator::Reset() {
   if (my_rankings) {
-    for (auto* node : nodes) {
-      ScopedRankingsBlock(my_rankings, node);
-    }
+    for (int i = 0; i < 3; i++)
+      ScopedRankingsBlock(my_rankings, nodes[i]);
   }
   memset(this, 0, sizeof(Iterator));
 }
 
-Rankings::Rankings() = default;
+Rankings::Rankings() : init_(false) {}
 
 Rankings::~Rankings() = default;
 
@@ -286,8 +280,6 @@ void Rankings::Insert(CacheRankingsBlock* node, bool modified, List list) {
 
   UpdateTimes(node, modified);
   node->Store();
-  // Make sure other aliased in-memory copies get synchronized.
-  UpdateIterators(node);
   GenerateCrash(ON_INSERT_3);
 
   // The last thing to do is move our head to point to a node already stored.
@@ -820,8 +812,7 @@ int Rankings::CheckListSection(List list, Addr end1, Addr end2, bool forward,
   std::unique_ptr<CacheRankingsBlock> node;
   Addr prev_addr(current);
   do {
-    node =
-        std::make_unique<CacheRankingsBlock>(backend_->File(current), current);
+    node.reset(new CacheRankingsBlock(backend_->File(current), current));
     node->Load();
     if (!SanityCheck(node.get(), true))
       return ERR_INVALID_ENTRY;
@@ -843,7 +834,8 @@ int Rankings::CheckListSection(List list, Addr end1, Addr end2, bool forward,
     (*num_items)++;
 
     if (next_addr == prev_addr) {
-      if (next_addr == (forward ? tails_[list] : heads_[list]))
+      Addr last = forward ? tails_[list] : heads_[list];
+      if (next_addr == last)
         return ERR_NO_ERROR;
       return ERR_INVALID_TAIL;
     }
@@ -876,11 +868,10 @@ bool Rankings::IsTail(CacheAddr addr, List* list) const {
 // of cache iterators and update all that are pointing to the given node.
 void Rankings::UpdateIterators(CacheRankingsBlock* node) {
   CacheAddr address = node->address().value();
-  for (auto& iterator : iterators_) {
-    if (iterator.first == address && iterator.second->HasData()) {
-      CacheRankingsBlock* other = iterator.second;
-      if (other != node)
-        *other->Data() = *node->Data();
+  for (auto it = iterators_.begin(); it != iterators_.end(); ++it) {
+    if (it->first == address && it->second->HasData()) {
+      CacheRankingsBlock* other = it->second;
+      *other->Data() = *node->Data();
     }
   }
 }
@@ -888,10 +879,10 @@ void Rankings::UpdateIterators(CacheRankingsBlock* node) {
 void Rankings::UpdateIteratorsForRemoved(CacheAddr address,
                                          CacheRankingsBlock* next) {
   CacheAddr next_addr = next->address().value();
-  for (auto& iterator : iterators_) {
-    if (iterator.first == address) {
-      iterator.first = next_addr;
-      iterator.second->CopyFrom(next);
+  for (auto it = iterators_.begin(); it != iterators_.end(); ++it) {
+    if (it->first == address) {
+      it->first = next_addr;
+      it->second->CopyFrom(next);
     }
   }
 }

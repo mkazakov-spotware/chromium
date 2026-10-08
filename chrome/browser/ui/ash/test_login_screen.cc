@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,8 +43,6 @@ void TestLoginScreen::EnableAddUserButton(bool enable) {}
 
 void TestLoginScreen::EnableShutdownButton(bool enable) {}
 
-void TestLoginScreen::EnableShelfButtons(bool enable) {}
-
 void TestLoginScreen::SetIsFirstSigninStep(bool is_first) {}
 
 void TestLoginScreen::ShowParentAccessButton(bool show) {}
@@ -61,6 +59,11 @@ void TestLoginScreen::RequestSecurityTokenPin(
 
 void TestLoginScreen::ClearSecurityTokenPinRequest() {}
 
-views::Widget* TestLoginScreen::GetLoginWindowWidget() {
-  return nullptr;
+bool TestLoginScreen::SetLoginShelfGestureHandler(
+    const base::string16& nudge_text,
+    const base::RepeatingClosure& fling_callback,
+    base::OnceClosure exit_callback) {
+  return false;
 }
+
+void TestLoginScreen::ClearLoginShelfGestureHandler() {}

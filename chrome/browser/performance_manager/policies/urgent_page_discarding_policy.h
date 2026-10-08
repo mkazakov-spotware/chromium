@@ -1,26 +1,23 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_PERFORMANCE_MANAGER_POLICIES_URGENT_PAGE_DISCARDING_POLICY_H_
 #define CHROME_BROWSER_PERFORMANCE_MANAGER_POLICIES_URGENT_PAGE_DISCARDING_POLICY_H_
 
+#include "base/macros.h"
 #include "base/memory/memory_pressure_listener.h"
-#include "base/memory/raw_ptr.h"
 #include "base/sequence_checker.h"
-#include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/performance_manager/public/graph/graph.h"
-#include "components/performance_manager/public/graph/system_node.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace performance_manager {
 
 namespace policies {
 
-// Urgently discard a tab when receiving a memory pressure signal.
-class UrgentPageDiscardingPolicy : public GraphOwned,
-                                   public SystemNode::ObserverDefaultImpl {
+// Urgently discard a tab when receiving a memory pressure signal. The discard
+// strategy used by this policy is based on a feature flag, see
+// UrgentDiscardingParams for more details.
+class UrgentPageDiscardingPolicy : public GraphOwned {
  public:
   UrgentPageDiscardingPolicy();
   ~UrgentPageDiscardingPolicy() override;
@@ -33,24 +30,22 @@ class UrgentPageDiscardingPolicy : public GraphOwned,
   void OnTakenFromGraph(Graph* graph) override;
 
  private:
-  // SystemNodeObserver:
   void OnMemoryPressure(
-      base::MemoryPressureListener::MemoryPressureLevel new_level) override;
+      base::MemoryPressureListener::MemoryPressureLevel level);
+
+  // Register to start listening to memory pressure. Called on startup or after
+  // handling a pressure event.
+  void RegisterMemoryPressureListener();
+
+  // Unregister to stop listening to memory pressure. Called on shutdown or
+  // when handling a pressure event.
+  void UnregisterMemoryPressureListener();
 
   // Callback called when a discard attempt has completed.
   void PostDiscardAttemptCallback(bool success);
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  // Called when the reclaim target is ready.
-  void OnReclaimTarget(absl::optional<uint64_t> reclaim_target_kb);
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
-
-  // True while we are in the process of discarding tab(s) in response to a
-  // memory pressure notification. It becomes false once we're done responding
-  // to this notification.
-  bool handling_memory_pressure_notification_ = false;
-
-  raw_ptr<Graph> graph_ = nullptr;
+  std::unique_ptr<base::MemoryPressureListener> memory_pressure_listener_;
+  Graph* graph_ = nullptr;
 
   SEQUENCE_CHECKER(sequence_checker_);
 };

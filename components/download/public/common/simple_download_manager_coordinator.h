@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/time/time.h"
@@ -32,19 +31,18 @@ class COMPONENTS_DOWNLOAD_EXPORT SimpleDownloadManagerCoordinator
     : public KeyedService,
       public SimpleDownloadManager::Observer {
  public:
-  class Observer : public base::CheckedObserver {
+  class Observer {
    public:
     Observer() = default;
-
-    Observer(const Observer&) = delete;
-    Observer& operator=(const Observer&) = delete;
-
-    ~Observer() override = default;
+    virtual ~Observer() = default;
 
     virtual void OnManagerGoingDown(
         SimpleDownloadManagerCoordinator* coordinator) {}
     virtual void OnDownloadsInitialized(bool active_downloads_only) {}
     virtual void OnDownloadCreated(DownloadItem* item) {}
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Observer);
   };
 
   using DownloadWhenFullManagerStartsCallBack =
@@ -52,12 +50,6 @@ class COMPONENTS_DOWNLOAD_EXPORT SimpleDownloadManagerCoordinator
   SimpleDownloadManagerCoordinator(const DownloadWhenFullManagerStartsCallBack&
                                        download_when_full_manager_starts_cb,
                                    bool record_full_download_manager_delay);
-
-  SimpleDownloadManagerCoordinator(const SimpleDownloadManagerCoordinator&) =
-      delete;
-  SimpleDownloadManagerCoordinator& operator=(
-      const SimpleDownloadManagerCoordinator&) = delete;
-
   ~SimpleDownloadManagerCoordinator() override;
 
   void AddObserver(Observer* observer);
@@ -97,7 +89,7 @@ class COMPONENTS_DOWNLOAD_EXPORT SimpleDownloadManagerCoordinator
   void OnManagerGoingDown() override;
   void OnDownloadCreated(DownloadItem* item) override;
 
-  raw_ptr<SimpleDownloadManager> simple_download_manager_;
+  SimpleDownloadManager* simple_download_manager_;
 
   // Object for notifying others about various download events.
   std::unique_ptr<AllDownloadEventNotifier> notifier_;
@@ -116,12 +108,14 @@ class COMPONENTS_DOWNLOAD_EXPORT SimpleDownloadManagerCoordinator
   DownloadWhenFullManagerStartsCallBack download_when_full_manager_starts_cb_;
 
   // Observers that want to be notified of changes to the set of downloads.
-  base::ObserverList<Observer> observers_;
+  base::ObserverList<Observer>::Unchecked observers_;
 
   // Time when this object was created.
   base::TimeTicks creation_time_ticks_;
 
   base::WeakPtrFactory<SimpleDownloadManagerCoordinator> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SimpleDownloadManagerCoordinator);
 };
 
 }  // namespace download

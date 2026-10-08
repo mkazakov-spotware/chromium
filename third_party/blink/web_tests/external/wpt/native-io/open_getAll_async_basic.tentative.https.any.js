@@ -4,12 +4,12 @@
 'use strict';
 
 promise_test(async testCase => {
-  const file = await storageFoundation.open('test_file');
+  const file = await nativeIO.open('test_file');
   testCase.add_cleanup(async () => {
-    await storageFoundation.delete('test_file');
+    await nativeIO.delete('test_file');
   });
   await file.close();
 
-  const fileNames = await storageFoundation.getAll();
+  const fileNames = await nativeIO.getAll();
   assert_in_array('test_file', fileNames);
-}, 'storageFoundation.getAll returns file created by storageFoundation.open');
+}, 'nativeIO.getAll returns file created by nativeIO.open');

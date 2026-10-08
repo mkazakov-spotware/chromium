@@ -24,9 +24,9 @@ test(function() {
   assert_not_equals(anchor, undefined);
   var target = anchor.inPageLinkTarget;
   assert_not_equals(target, undefined);
-  // AXGenericContainer because this is how the "a" tag is marked in the AX tree
+  // AXAncor because this is how the "a" tag is marked in the accessibility tree
   // when it's a target and not a link.
-  assert_equals(target.role, 'AXRole: AXGenericContainer');
+  assert_equals(target.role, 'AXRole: AXAnchor');
   assert_equals(target.name, '');
 }, 'Test finding the target when it is an empty anchor.');
 
@@ -35,9 +35,10 @@ test(function() {
   assert_not_equals(anchor, undefined);
   var target = anchor.inPageLinkTarget;
   assert_not_equals(target, undefined);
-  // AXGenericContainer because this is how the "a" tag is marked in the AX tree
+  // AXAncor because this is how the "a" tag is marked in the accessibility tree
   // when it's a target and not a link.
-  assert_equals(target.role, 'AXRole: AXGenericContainer');
+  assert_equals(target.role, 'AXRole: AXAnchor');
+  assert_equals(target.name, 'Anchor with content');
 }, 'Test finding the target when it is an anchor with content.');
 
 test(function() {
@@ -45,9 +46,10 @@ test(function() {
   assert_not_equals(anchor, undefined);
   var target = anchor.inPageLinkTarget;
   assert_not_equals(target, undefined);
-  // AXGenericContainer because this is how the "a" tag is marked in the AX tree
+  // AXAncor because this is how the "a" tag is marked in the accessibility tree
   // when it's a target and not a link.
-  assert_equals(target.role, 'AXRole: AXGenericContainer');
+  assert_equals(target.role, 'AXRole: AXAnchor');
+  assert_equals(target.name, 'Anchor with ID');
 }, 'Test finding the target when it is an anchor with ID.');
 
 test(function() {

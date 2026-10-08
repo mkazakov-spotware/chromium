@@ -33,7 +33,6 @@
 
 #include <memory>
 
-#include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/platform/web_content_decryption_module_result.h"
 #include "third_party/blink/public/platform/web_content_decryption_module_session.h"
 

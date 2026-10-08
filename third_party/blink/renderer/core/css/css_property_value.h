@@ -21,7 +21,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSS_PROPERTY_VALUE_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSS_PROPERTY_VALUE_H_
 
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/css_property_name.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/css/css_value.h"
@@ -39,10 +38,7 @@ struct CORE_EXPORT CSSPropertyValueMetadata {
                            bool implicit);
 
   CSSPropertyID ShorthandID() const;
-  CSSPropertyID PropertyID() const {
-    return ConvertToCSSPropertyID(property_id_);
-  }
-
+  CSSPropertyID PropertyID() const;
   CSSPropertyName Name() const;
 
   AtomicString custom_name_;
@@ -72,17 +68,11 @@ class CORE_EXPORT CSSPropertyValue {
                   index_in_shorthands_vector,
                   important,
                   implicit),
-        value_(value, decltype(value_)::AtomicInitializerTag{}) {}
-
-  CSSPropertyValue(const CSSPropertyValue& other)
-      : metadata_(other.metadata_),
-        value_(other.value_, decltype(value_)::AtomicInitializerTag{}) {}
-  CSSPropertyValue& operator=(const CSSPropertyValue& other) = default;
+        value_(value) {}
 
   // FIXME: Remove this.
   CSSPropertyValue(CSSPropertyValueMetadata metadata, const CSSValue& value)
-      : metadata_(metadata),
-        value_(value, decltype(value_)::AtomicInitializerTag{}) {}
+      : metadata_(metadata), value_(value) {}
 
   CSSPropertyID Id() const { return metadata_.PropertyID(); }
   bool IsSetFromShorthand() const { return metadata_.is_set_from_shorthand_; }
@@ -105,15 +95,6 @@ class CORE_EXPORT CSSPropertyValue {
 
 }  // namespace blink
 
-namespace WTF {
-template <>
-struct VectorTraits<blink::CSSPropertyValue>
-    : VectorTraitsBase<blink::CSSPropertyValue> {
-  static const bool kCanInitializeWithMemset = true;
-  static const bool kCanClearUnusedSlotsWithMemset = true;
-  static const bool kCanMoveWithMemcpy = true;
-  static const bool kCanTraceConcurrently = true;
-};
-}  // namespace WTF
+WTF_ALLOW_MOVE_AND_INIT_WITH_MEM_FUNCTIONS(blink::CSSPropertyValue)
 
 #endif  // THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSS_PROPERTY_VALUE_H_

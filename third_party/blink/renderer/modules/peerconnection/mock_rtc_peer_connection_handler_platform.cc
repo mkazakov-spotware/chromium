@@ -1,14 +1,13 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/peerconnection/mock_rtc_peer_connection_handler_platform.h"
 
-#include <memory>
 #include <utility>
 
 #include "third_party/blink/public/platform/scheduler/test/renderer_scheduler_test_support.h"
-#include "third_party/blink/renderer/platform/mediastream/media_stream_component_impl.h"
+#include "third_party/blink/renderer/platform/mediastream/media_stream_component.h"
 #include "third_party/blink/renderer/platform/mediastream/media_stream_source.h"
 #include "third_party/blink/renderer/platform/peerconnection/rtc_dtmf_sender_handler.h"
 #include "third_party/blink/renderer/platform/peerconnection/rtc_ice_candidate_platform.h"
@@ -23,12 +22,6 @@
 namespace blink {
 
 namespace {
-
-webrtc::PeerConnectionInterface::RTCConfiguration DefaultConfiguration() {
-  webrtc::PeerConnectionInterface::RTCConfiguration config;
-  config.sdp_semantics = webrtc::SdpSemantics::kUnifiedPlan;
-  return config;
-}
 
 // Having a refcounted helper class allows multiple DummyRTCRtpSenderPlatform to
 // share the same internal states.
@@ -109,7 +102,7 @@ class DummyRTCRtpReceiverPlatform : public RTCRtpReceiverPlatform {
           MediaStreamSource::StreamType::kTypeAudio,
           String::FromUTF8("remoteAudioName"), true /* remote */);
       component_ =
-          MakeGarbageCollected<MediaStreamComponentImpl>(source->Id(), source);
+          MakeGarbageCollected<MediaStreamComponent>(source->Id(), source);
     } else {
       DCHECK_EQ(type, MediaStreamSource::StreamType::kTypeVideo);
       auto* source = MakeGarbageCollected<MediaStreamSource>(
@@ -117,7 +110,7 @@ class DummyRTCRtpReceiverPlatform : public RTCRtpReceiverPlatform {
           MediaStreamSource::StreamType::kTypeVideo,
           String::FromUTF8("remoteVideoName"), true /* remote */);
       component_ =
-          MakeGarbageCollected<MediaStreamComponentImpl>(source->Id(), source);
+          MakeGarbageCollected<MediaStreamComponent>(source->Id(), source);
     }
   }
   DummyRTCRtpReceiverPlatform(const DummyRTCRtpReceiverPlatform& other)
@@ -148,7 +141,7 @@ class DummyRTCRtpReceiverPlatform : public RTCRtpReceiverPlatform {
   }
 
   void SetJitterBufferMinimumDelay(
-      absl::optional<double> delay_seconds) override {}
+      base::Optional<double> delay_seconds) override {}
 
  private:
   const uintptr_t id_;
@@ -172,7 +165,7 @@ class DummyTransceiverInternal
         receiver_(type),
         direction_(webrtc::RtpTransceiverDirection::kSendRecv) {
     DCHECK(!sender_.Track() ||
-           sender_.Track()->GetSourceType() ==
+           sender_.Track()->Source()->GetType() ==
                static_cast<MediaStreamSource::StreamType>(type));
   }
 
@@ -215,6 +208,10 @@ class MockRTCPeerConnectionHandlerPlatform::DummyRTCRtpTransceiverPlatform
 
   scoped_refptr<DummyTransceiverInternal> internal() const { return internal_; }
 
+  RTCRtpTransceiverPlatformImplementationType ImplementationType()
+      const override {
+    return RTCRtpTransceiverPlatformImplementationType::kFullTransceiver;
+  }
   uintptr_t Id() const override { return internal_->id(); }
   String Mid() const override { return String(); }
   std::unique_ptr<RTCRtpSenderPlatform> Sender() const override {
@@ -223,6 +220,7 @@ class MockRTCPeerConnectionHandlerPlatform::DummyRTCRtpTransceiverPlatform
   std::unique_ptr<RTCRtpReceiverPlatform> Receiver() const override {
     return internal_->Receiver();
   }
+  bool Stopped() const override { return true; }
   webrtc::RtpTransceiverDirection Direction() const override {
     return internal_->direction();
   }
@@ -230,25 +228,13 @@ class MockRTCPeerConnectionHandlerPlatform::DummyRTCRtpTransceiverPlatform
       webrtc::RtpTransceiverDirection direction) override {
     return internal_->set_direction(direction);
   }
-  absl::optional<webrtc::RtpTransceiverDirection> CurrentDirection()
+  base::Optional<webrtc::RtpTransceiverDirection> CurrentDirection()
       const override {
-    return absl::nullopt;
+    return base::nullopt;
   }
-  absl::optional<webrtc::RtpTransceiverDirection> FiredDirection()
+  base::Optional<webrtc::RtpTransceiverDirection> FiredDirection()
       const override {
-    return absl::nullopt;
-  }
-  webrtc::RTCError SetOfferedRtpHeaderExtensions(
-      Vector<webrtc::RtpHeaderExtensionCapability> header_extensions) override {
-    return webrtc::RTCError(webrtc::RTCErrorType::UNSUPPORTED_OPERATION);
-  }
-  Vector<webrtc::RtpHeaderExtensionCapability> HeaderExtensionsNegotiated()
-      const override {
-    return {};
-  }
-  Vector<webrtc::RtpHeaderExtensionCapability> HeaderExtensionsToOffer()
-      const override {
-    return {};
+    return base::nullopt;
   }
 
  private:
@@ -263,12 +249,16 @@ MockRTCPeerConnectionHandlerPlatform::~MockRTCPeerConnectionHandlerPlatform() =
     default;
 
 bool MockRTCPeerConnectionHandlerPlatform::Initialize(
-    ExecutionContext*,
     const webrtc::PeerConnectionInterface::RTCConfiguration&,
-    GoogMediaConstraints*,
-    WebLocalFrame*,
-    ExceptionState&) {
+    const MediaConstraints&,
+    WebLocalFrame*) {
   return true;
+}
+
+Vector<std::unique_ptr<RTCRtpTransceiverPlatform>>
+MockRTCPeerConnectionHandlerPlatform::CreateOffer(RTCSessionDescriptionRequest*,
+                                                  const MediaConstraints&) {
+  return {};
 }
 
 Vector<std::unique_ptr<RTCRtpTransceiverPlatform>>
@@ -279,6 +269,10 @@ MockRTCPeerConnectionHandlerPlatform::CreateOffer(RTCSessionDescriptionRequest*,
 
 void MockRTCPeerConnectionHandlerPlatform::CreateAnswer(
     RTCSessionDescriptionRequest*,
+    const MediaConstraints&) {}
+
+void MockRTCPeerConnectionHandlerPlatform::CreateAnswer(
+    RTCSessionDescriptionRequest*,
     RTCAnswerOptionsPlatform*) {}
 
 void MockRTCPeerConnectionHandlerPlatform::SetLocalDescription(
@@ -286,16 +280,15 @@ void MockRTCPeerConnectionHandlerPlatform::SetLocalDescription(
 
 void MockRTCPeerConnectionHandlerPlatform::SetLocalDescription(
     RTCVoidRequest*,
-    ParsedSessionDescription) {}
+    RTCSessionDescriptionPlatform*) {}
 
 void MockRTCPeerConnectionHandlerPlatform::SetRemoteDescription(
     RTCVoidRequest*,
-    ParsedSessionDescription) {}
+    RTCSessionDescriptionPlatform*) {}
 
 const webrtc::PeerConnectionInterface::RTCConfiguration&
 MockRTCPeerConnectionHandlerPlatform::GetConfiguration() const {
-  static const webrtc::PeerConnectionInterface::RTCConfiguration configuration =
-      DefaultConfiguration();
+  static const webrtc::PeerConnectionInterface::RTCConfiguration configuration;
   return configuration;
 }
 
@@ -304,7 +297,7 @@ webrtc::RTCErrorType MockRTCPeerConnectionHandlerPlatform::SetConfiguration(
   return webrtc::RTCErrorType::NONE;
 }
 
-void MockRTCPeerConnectionHandlerPlatform::AddIceCandidate(
+void MockRTCPeerConnectionHandlerPlatform::AddICECandidate(
     RTCVoidRequest*,
     RTCIceCandidatePlatform*) {}
 
@@ -320,8 +313,9 @@ webrtc::RTCErrorOr<std::unique_ptr<RTCRtpTransceiverPlatform>>
 MockRTCPeerConnectionHandlerPlatform::AddTransceiverWithTrack(
     MediaStreamComponent* component,
     const webrtc::RtpTransceiverInit&) {
-  transceivers_.push_back(std::make_unique<DummyRTCRtpTransceiverPlatform>(
-      component->GetSourceType(), component));
+  transceivers_.push_back(std::unique_ptr<DummyRTCRtpTransceiverPlatform>(
+      new DummyRTCRtpTransceiverPlatform(component->Source()->GetType(),
+                                         component)));
   std::unique_ptr<DummyRTCRtpTransceiverPlatform> copy(
       new DummyRTCRtpTransceiverPlatform(*transceivers_.back()));
   return std::unique_ptr<RTCRtpTransceiverPlatform>(std::move(copy));
@@ -331,10 +325,11 @@ webrtc::RTCErrorOr<std::unique_ptr<RTCRtpTransceiverPlatform>>
 MockRTCPeerConnectionHandlerPlatform::AddTransceiverWithKind(
     const String& kind,
     const webrtc::RtpTransceiverInit&) {
-  transceivers_.push_back(std::make_unique<DummyRTCRtpTransceiverPlatform>(
-      kind == "audio" ? MediaStreamSource::StreamType::kTypeAudio
-                      : MediaStreamSource::StreamType::kTypeVideo,
-      nullptr /*MediaStreamComponent*/));
+  transceivers_.push_back(std::unique_ptr<DummyRTCRtpTransceiverPlatform>(
+      new DummyRTCRtpTransceiverPlatform(
+          kind == "audio" ? MediaStreamSource::StreamType::kTypeAudio
+                          : MediaStreamSource::StreamType::kTypeVideo,
+          nullptr /*MediaStreamComponent*/)));
   std::unique_ptr<DummyRTCRtpTransceiverPlatform> copy(
       new DummyRTCRtpTransceiverPlatform(*transceivers_.back()));
   return std::unique_ptr<RTCRtpTransceiverPlatform>(std::move(copy));
@@ -344,8 +339,9 @@ webrtc::RTCErrorOr<std::unique_ptr<RTCRtpTransceiverPlatform>>
 MockRTCPeerConnectionHandlerPlatform::AddTrack(
     MediaStreamComponent* component,
     const MediaStreamDescriptorVector&) {
-  transceivers_.push_back(std::make_unique<DummyRTCRtpTransceiverPlatform>(
-      component->GetSourceType(), component));
+  transceivers_.push_back(std::unique_ptr<DummyRTCRtpTransceiverPlatform>(
+      new DummyRTCRtpTransceiverPlatform(component->Source()->GetType(),
+                                         component)));
   std::unique_ptr<DummyRTCRtpTransceiverPlatform> copy(
       new DummyRTCRtpTransceiverPlatform(*transceivers_.back()));
   return std::unique_ptr<RTCRtpTransceiverPlatform>(std::move(copy));
@@ -374,8 +370,8 @@ MockRTCPeerConnectionHandlerPlatform::CreateDataChannel(
   return nullptr;
 }
 
-void MockRTCPeerConnectionHandlerPlatform::Close() {}
-void MockRTCPeerConnectionHandlerPlatform::CloseAndUnregister() {}
+void MockRTCPeerConnectionHandlerPlatform::Stop() {}
+void MockRTCPeerConnectionHandlerPlatform::StopAndUnregister() {}
 
 webrtc::PeerConnectionInterface*
 MockRTCPeerConnectionHandlerPlatform::NativePeerConnection() {
@@ -387,10 +383,12 @@ void MockRTCPeerConnectionHandlerPlatform::
                                                const char* trace_event_name) {}
 
 void MockRTCPeerConnectionHandlerPlatform::
-    RunSynchronousOnceClosureOnSignalingThread(base::OnceClosure closure,
-                                               const char* trace_event_name) {}
+    RunSynchronousRepeatingClosureOnSignalingThread(
+        const base::RepeatingClosure& closure,
+        const char* trace_event_name) {}
 
 void MockRTCPeerConnectionHandlerPlatform::TrackIceConnectionStateChange(
+    RTCPeerConnectionHandler::IceConnectionStateVersion version,
     webrtc::PeerConnectionInterface::IceConnectionState state) {}
 
 }  // namespace blink

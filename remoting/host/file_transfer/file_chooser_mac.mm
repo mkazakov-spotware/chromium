@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,8 @@
 #include "base/mac/foundation_util.h"
 #include "base/mac/scoped_nsobject.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/threading/sequence_bound.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "remoting/base/string_resources.h"
 #include "ui/base/l10n/l10n_util_mac.h"
 
@@ -31,7 +31,7 @@
 - (BOOL)panel:(id)sender validateURL:(NSURL*)url error:(NSError**)outError {
   // Refuse to accept users closing the dialog with a key repeat, since the key
   // may have been first pressed while the user was looking at something else.
-  if ([[NSApp currentEvent] type] == NSEventTypeKeyDown &&
+  if ([[NSApp currentEvent] type] == NSKeyDown &&
       [[NSApp currentEvent] isARepeat]) {
     return NO;
   }
@@ -52,9 +52,6 @@ class MacFileChooserOnUiThread {
       scoped_refptr<base::SequencedTaskRunner> caller_task_runner,
       base::WeakPtr<FileChooserMac> file_chooser_mac);
 
-  MacFileChooserOnUiThread(const MacFileChooserOnUiThread&) = delete;
-  MacFileChooserOnUiThread& operator=(const MacFileChooserOnUiThread&) = delete;
-
   ~MacFileChooserOnUiThread();
 
   void Show();
@@ -66,15 +63,14 @@ class MacFileChooserOnUiThread {
   base::scoped_nsobject<NSOpenPanel> open_panel_;
   scoped_refptr<base::SequencedTaskRunner> caller_task_runner_;
   base::WeakPtr<FileChooserMac> file_chooser_mac_;
+
+  DISALLOW_COPY_AND_ASSIGN(MacFileChooserOnUiThread);
 };
 
 class FileChooserMac : public FileChooser {
  public:
   FileChooserMac(scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
                  ResultCallback callback);
-
-  FileChooserMac(const FileChooserMac&) = delete;
-  FileChooserMac& operator=(const FileChooserMac&) = delete;
 
   ~FileChooserMac() override;
 
@@ -87,6 +83,8 @@ class FileChooserMac : public FileChooser {
   FileChooser::ResultCallback callback_;
   base::SequenceBound<MacFileChooserOnUiThread> mac_file_chooser_on_ui_thread_;
   base::WeakPtrFactory<FileChooserMac> weak_ptr_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(FileChooserMac);
 };
 
 MacFileChooserOnUiThread::MacFileChooserOnUiThread(
@@ -113,8 +111,8 @@ void MacFileChooserOnUiThread::Show() {
   [open_panel_ setCanChooseDirectories:NO];
   [open_panel_ setDelegate:delegate_];
   [open_panel_ beginWithCompletionHandler:^(NSModalResponse result) {
-    if (result == NSModalResponseOK) {
-      NSURL* url = [open_panel_ URLs][0];
+    if (result == NSFileHandlingPanelOKButton) {
+      NSURL* url = [[open_panel_ URLs] objectAtIndex:0];
       if (![url isFileURL]) {
         // Delegate should prevent this.
         RunCallback(protocol::MakeFileTransferError(
@@ -143,12 +141,13 @@ FileChooserMac::FileChooserMac(
     : callback_(std::move(callback)), weak_ptr_factory_(this) {
   mac_file_chooser_on_ui_thread_ =
       base::SequenceBound<MacFileChooserOnUiThread>(
-          ui_task_runner, base::SequencedTaskRunner::GetCurrentDefault(),
+          ui_task_runner, base::SequencedTaskRunnerHandle::Get(),
           weak_ptr_factory_.GetWeakPtr());
 }
 
 void FileChooserMac::Show() {
-  mac_file_chooser_on_ui_thread_.AsyncCall(&MacFileChooserOnUiThread::Show);
+  mac_file_chooser_on_ui_thread_.Post(FROM_HERE,
+                                      &MacFileChooserOnUiThread::Show);
 }
 
 void FileChooserMac::RunCallback(FileChooser::Result result) {

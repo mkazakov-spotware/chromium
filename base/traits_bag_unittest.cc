@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/traits_bag.h"
 
 #include "testing/gmock/include/gmock/gmock.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 namespace trait_helpers {
@@ -80,7 +79,7 @@ struct OptionalEnumTestTraits {
   constexpr OptionalEnumTestTraits(ArgTypes... args)
       : enum_trait_a(trait_helpers::GetOptionalEnum<EnumTraitA>(args...)) {}
 
-  const absl::optional<EnumTraitA> enum_trait_a;
+  const Optional<EnumTraitA> enum_trait_a;
 };
 
 }  // namespace

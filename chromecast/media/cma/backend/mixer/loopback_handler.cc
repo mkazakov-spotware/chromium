@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,8 @@
 #include "base/check_op.h"
 #include "base/containers/flat_map.h"
 #include "base/location.h"
+#include "base/sequenced_task_runner.h"
 #include "base/synchronization/lock.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/thread_annotations.h"
 #include "chromecast/media/audio/mixer_service/loopback_interrupt_reason.h"
 #include "chromecast/media/cma/backend/mixer/mixer_loopback_connection.h"
@@ -25,10 +25,6 @@ namespace media {
 class LoopbackHandler::LoopbackIO {
  public:
   LoopbackIO() = default;
-
-  LoopbackIO(const LoopbackIO&) = delete;
-  LoopbackIO& operator=(const LoopbackIO&) = delete;
-
   ~LoopbackIO() = default;
 
   void AddConnection(std::unique_ptr<MixerLoopbackConnection> connection) {
@@ -84,6 +80,8 @@ class LoopbackHandler::LoopbackIO {
   int sample_rate_ = 0;
   int num_channels_ = 0;
   int data_size_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(LoopbackIO);
 };
 
 class LoopbackHandler::ExternalLoopbackHandler
@@ -93,9 +91,6 @@ class LoopbackHandler::ExternalLoopbackHandler
     DCHECK(owner_);
     ExternalAudioPipelineShlib::AddExternalLoopbackAudioObserver(this);
   }
-
-  ExternalLoopbackHandler(const ExternalLoopbackHandler&) = delete;
-  ExternalLoopbackHandler& operator=(const ExternalLoopbackHandler&) = delete;
 
   void Destroy() {
     {
@@ -138,6 +133,8 @@ class LoopbackHandler::ExternalLoopbackHandler
 
   base::Lock lock_;
   bool destroyed_ GUARDED_BY(lock_) = false;
+
+  DISALLOW_COPY_AND_ASSIGN(ExternalLoopbackHandler);
 };
 
 void LoopbackHandler::ExternalDeleter::operator()(
@@ -163,7 +160,7 @@ LoopbackHandler::~LoopbackHandler() = default;
 
 void LoopbackHandler::AddConnection(
     std::unique_ptr<MixerLoopbackConnection> connection) {
-  io_.AsyncCall(&LoopbackIO::AddConnection).WithArgs(std::move(connection));
+  io_.Post(FROM_HERE, &LoopbackIO::AddConnection, std::move(connection));
 }
 
 void LoopbackHandler::SetDataSize(int data_size_bytes) {
@@ -172,8 +169,8 @@ void LoopbackHandler::SetDataSize(int data_size_bytes) {
   }
 
   if (SetDataSizeInternal(data_size_bytes) && sample_rate_ != 0) {
-    io_.AsyncCall(&LoopbackIO::SetStreamConfig)
-        .WithArgs(format_, sample_rate_, num_channels_, data_size_);
+    io_.Post(FROM_HERE, &LoopbackIO::SetStreamConfig, format_, sample_rate_,
+             num_channels_, data_size_);
   }
 }
 
@@ -223,8 +220,8 @@ void LoopbackHandler::SendDataInternal(int64_t timestamp,
     format_ = format;
     sample_rate_ = sample_rate;
     num_channels_ = num_channels;
-    io_.AsyncCall(&LoopbackIO::SetStreamConfig)
-        .WithArgs(format_, sample_rate_, num_channels_, data_size_);
+    io_.Post(FROM_HERE, &LoopbackIO::SetStreamConfig, format_, sample_rate_,
+             num_channels_, data_size_);
   }
 
   DCHECK_LE(data_size_bytes, data_size_);
@@ -232,8 +229,8 @@ void LoopbackHandler::SendDataInternal(int64_t timestamp,
   auto buffer = buffer_pool_->GetBuffer();
   memcpy(buffer->data() + mixer_service::MixerSocket::kAudioMessageHeaderSize,
          data, data_size_bytes);
-  io_.AsyncCall(&LoopbackIO::SendData)
-      .WithArgs(std::move(buffer), data_size_bytes, timestamp);
+  io_.Post(FROM_HERE, &LoopbackIO::SendData, std::move(buffer), data_size_bytes,
+           timestamp);
 }
 
 void LoopbackHandler::SendInterruptInternal(LoopbackInterruptReason reason) {
@@ -241,7 +238,7 @@ void LoopbackHandler::SendInterruptInternal(LoopbackInterruptReason reason) {
     return;
   }
 
-  io_.AsyncCall(&LoopbackIO::SendInterrupt).WithArgs(reason);
+  io_.Post(FROM_HERE, &LoopbackIO::SendInterrupt, reason);
 }
 
 }  // namespace media

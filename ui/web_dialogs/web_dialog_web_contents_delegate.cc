@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <utility>
 
 #include "base/check.h"
-#include "content/public/browser/file_select_listener.h"
 #include "content/public/browser/web_contents.h"
 #include "third_party/blink/public/common/input/web_gesture_event.h"
 
@@ -47,14 +46,13 @@ void WebDialogWebContentsDelegate::AddNewContents(
     std::unique_ptr<WebContents> new_contents,
     const GURL& target_url,
     WindowOpenDisposition disposition,
-    const blink::mojom::WindowFeatures& window_features,
+    const gfx::Rect& initial_rect,
     bool user_gesture,
     bool* was_blocked) {
   // TODO(erikchen): Refactor AddNewContents to take strong ownership semantics.
   // https://crbug.com/832879.
   handler_->AddNewContents(browser_context_, source, std::move(new_contents),
-                           target_url, disposition, window_features,
-                           user_gesture);
+                           target_url, disposition, initial_rect, user_gesture);
 }
 
 bool WebDialogWebContentsDelegate::PreHandleGestureEvent(
@@ -64,10 +62,4 @@ bool WebDialogWebContentsDelegate::PreHandleGestureEvent(
   return blink::WebInputEvent::IsPinchGestureEventType(event.GetType());
 }
 
-void WebDialogWebContentsDelegate::RunFileChooser(
-    content::RenderFrameHost* render_frame_host,
-    scoped_refptr<content::FileSelectListener> listener,
-    const blink::mojom::FileChooserParams& params) {
-  handler_->RunFileChooser(render_frame_host, listener, params);
-}
 }  // namespace ui

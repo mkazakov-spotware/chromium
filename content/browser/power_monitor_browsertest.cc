@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "content/browser/renderer_host/render_process_host_impl.h"
@@ -18,7 +19,6 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/common/content_features.h"
 #include "content/public/common/process_type.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -49,15 +49,24 @@ void VerifyPowerStateInChildProcess(mojom::PowerMonitorTest* power_monitor_test,
   run_loop.Run();
 }
 
+void StartUtilityProcessOnIOThread(
+    mojo::PendingReceiver<mojom::PowerMonitorTest> receiver) {
+  UtilityProcessHost* host = new UtilityProcessHost();
+  host->SetMetricsName("test_process");
+  host->SetName(base::ASCIIToUTF16("TestProcess"));
+  EXPECT_TRUE(host->Start());
+
+  host->GetChildProcess()->BindReceiver(std::move(receiver));
+}
+
+void BindInterfaceForGpuOnIOThread(
+    mojo::PendingReceiver<mojom::PowerMonitorTest> receiver) {
+  BindInterfaceInGpuProcess(std::move(receiver));
+}
+
 class MockPowerMonitorMessageBroadcaster : public device::mojom::PowerMonitor {
  public:
   MockPowerMonitorMessageBroadcaster() = default;
-
-  MockPowerMonitorMessageBroadcaster(
-      const MockPowerMonitorMessageBroadcaster&) = delete;
-  MockPowerMonitorMessageBroadcaster& operator=(
-      const MockPowerMonitorMessageBroadcaster&) = delete;
-
   ~MockPowerMonitorMessageBroadcaster() override = default;
 
   void Bind(mojo::PendingReceiver<device::mojom::PowerMonitor> receiver) {
@@ -84,6 +93,8 @@ class MockPowerMonitorMessageBroadcaster : public device::mojom::PowerMonitor {
 
   mojo::ReceiverSet<device::mojom::PowerMonitor> receivers_;
   mojo::RemoteSet<device::mojom::PowerMonitorClient> clients_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockPowerMonitorMessageBroadcaster);
 };
 
 class PowerMonitorTest : public ContentBrowserTest {
@@ -97,9 +108,6 @@ class PowerMonitorTest : public ContentBrowserTest {
         base::BindRepeating(&PowerMonitorTest::BindForNonRenderer,
                             base::Unretained(this)));
   }
-
-  PowerMonitorTest(const PowerMonitorTest&) = delete;
-  PowerMonitorTest& operator=(const PowerMonitorTest&) = delete;
 
   ~PowerMonitorTest() override {
     RenderProcessHost::InterceptBindHostReceiverForTesting(
@@ -138,14 +146,10 @@ class PowerMonitorTest : public ContentBrowserTest {
       mojo::Remote<mojom::PowerMonitorTest>* power_monitor_test,
       base::OnceClosure utility_bound_closure) {
     utility_bound_closure_ = std::move(utility_bound_closure);
-
-    UtilityProcessHost* host = new UtilityProcessHost();
-    host->SetMetricsName("test_process");
-    host->SetName(u"TestProcess");
-    EXPECT_TRUE(host->Start());
-
-    host->GetChildProcess()->BindReceiver(
-        power_monitor_test->BindNewPipeAndPassReceiver());
+    GetIOThreadTaskRunner({})->PostTask(
+        FROM_HERE,
+        base::BindOnce(&StartUtilityProcessOnIOThread,
+                       power_monitor_test->BindNewPipeAndPassReceiver()));
   }
 
   void set_renderer_bound_closure(base::OnceClosure closure) {
@@ -213,6 +217,8 @@ class PowerMonitorTest : public ContentBrowserTest {
   base::OnceClosure utility_bound_closure_;
 
   MockPowerMonitorMessageBroadcaster power_monitor_message_broadcaster_;
+
+  DISALLOW_COPY_AND_ASSIGN(PowerMonitorTest);
 };
 
 IN_PROC_BROWSER_TEST_F(PowerMonitorTest, TestRendererProcess) {
@@ -225,7 +231,7 @@ IN_PROC_BROWSER_TEST_F(PowerMonitorTest, TestRendererProcess) {
 
   mojo::Remote<mojom::PowerMonitorTest> power_monitor_renderer;
   RenderProcessHost* rph =
-      shell()->web_contents()->GetPrimaryMainFrame()->GetProcess();
+      shell()->web_contents()->GetMainFrame()->GetProcess();
   rph->BindReceiver(power_monitor_renderer.BindNewPipeAndPassReceiver());
 
   // Ensure that the PowerMonitorTestImpl instance has been created and is
@@ -280,7 +286,10 @@ IN_PROC_BROWSER_TEST_F(PowerMonitorTest, TestGpuProcess) {
   EXPECT_EQ(1, request_count_from_gpu());
 
   mojo::Remote<mojom::PowerMonitorTest> power_monitor_gpu;
-  BindInterfaceInGpuProcess(power_monitor_gpu.BindNewPipeAndPassReceiver());
+  GetIOThreadTaskRunner({})->PostTask(
+      FROM_HERE,
+      base::BindOnce(&BindInterfaceForGpuOnIOThread,
+                     power_monitor_gpu.BindNewPipeAndPassReceiver()));
 
   // Ensure that the PowerMonitorTestImpl instance has been created and is
   // observing power state changes in the child process before simulating a

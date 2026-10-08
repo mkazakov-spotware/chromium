@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,27 +9,41 @@
 #include <vector>
 
 #include "base/strings/string_util.h"
+#include "base/task/post_task.h"
 #include "components/web_package/web_bundle_utils.h"
-#include "content/browser/renderer_host/frame_tree_node.h"
-#include "content/browser/renderer_host/navigation_request.h"
 #include "content/browser/web_package/web_bundle_reader.h"
 #include "content/browser/web_package/web_bundle_source.h"
-#include "content/browser/web_package/web_bundle_utils.h"
+#include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/content_client.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "net/base/net_errors.h"
 #include "net/http/http_request_headers.h"
 #include "net/http/http_status_code.h"
 #include "net/http/http_util.h"
 #include "services/network/public/cpp/constants.h"
-#include "services/network/public/cpp/features.h"
-#include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/mojom/url_loader.mojom.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
-#include "third_party/blink/public/mojom/devtools/console_message.mojom.h"
 
 namespace content {
+
+namespace {
+
+void AddResponseParseErrorMessageToConsole(
+    int frame_tree_node_id,
+    const web_package::mojom::BundleResponseParseErrorPtr& error) {
+  WebContents* web_contents =
+      WebContents::FromFrameTreeNodeId(frame_tree_node_id);
+  if (!web_contents)
+    return;
+  web_contents->GetMainFrame()->AddMessageToConsole(
+      blink::mojom::ConsoleMessageLevel::kError,
+      std::string("Failed to read response header of Web Bundle file: ") +
+          error->message);
+}
+
+}  // namespace
 
 // TODO(crbug.com/966753): Consider security models, i.e. plausible CORS
 // adoption.
@@ -59,13 +73,10 @@ class WebBundleURLLoaderFactory::EntryLoader final
     }
 
     factory_->reader()->ReadResponse(
-        resource_request, base::BindOnce(&EntryLoader::OnResponseReady,
-                                         weak_factory_.GetWeakPtr()));
+        resource_request, GetAcceptLangs(),
+        base::BindOnce(&EntryLoader::OnResponseReady,
+                       weak_factory_.GetWeakPtr()));
   }
-
-  EntryLoader(const EntryLoader&) = delete;
-  EntryLoader& operator=(const EntryLoader&) = delete;
-
   ~EntryLoader() override = default;
 
  private:
@@ -74,7 +85,7 @@ class WebBundleURLLoaderFactory::EntryLoader final
       const std::vector<std::string>& removed_headers,
       const net::HttpRequestHeaders& modified_headers,
       const net::HttpRequestHeaders& modified_cors_exempt_headers,
-      const absl::optional<GURL>& new_url) override {}
+      const base::Optional<GURL>& new_url) override {}
   void SetPriority(net::RequestPriority priority,
                    int intra_priority_value) override {}
   void PauseReadingBodyFromNet() override {}
@@ -88,12 +99,8 @@ class WebBundleURLLoaderFactory::EntryLoader final
     // TODO(crbug.com/990733): For the initial implementation, we allow only
     // net::HTTP_OK, but we should clarify acceptable status code in the spec.
     if (!response || response->response_code != net::HTTP_OK) {
-      if (error) {
-        web_bundle_utils::LogErrorMessageToConsole(
-            frame_tree_node_id_,
-            std::string("Failed to read response header of Web Bundle file: ") +
-                error->message);
-      }
+      if (error)
+        AddResponseParseErrorMessageToConsole(frame_tree_node_id_, error);
       loader_client_->OnComplete(
           network::URLLoaderCompletionStatus(net::ERR_INVALID_WEB_BUNDLE));
       return;
@@ -117,6 +124,7 @@ class WebBundleURLLoaderFactory::EntryLoader final
         return;
       }
     }
+    loader_client_->OnReceiveResponse(std::move(response_head));
 
     mojo::ScopedDataPipeProducerHandle producer_handle;
     mojo::ScopedDataPipeConsumerHandle consumer_handle;
@@ -125,14 +133,12 @@ class WebBundleURLLoaderFactory::EntryLoader final
     options.flags = MOJO_CREATE_DATA_PIPE_FLAG_NONE;
     options.element_num_bytes = 1;
     options.capacity_num_bytes =
-        std::min(base::strict_cast<uint64_t>(
-                     network::features::GetDataPipeDefaultAllocationSize()),
+        std::min(static_cast<uint64_t>(network::kDataPipeDefaultAllocationSize),
                  response->payload_length);
 
     auto result =
-        mojo::CreateDataPipe(&options, producer_handle, consumer_handle);
-    loader_client_->OnReceiveResponse(
-        std::move(response_head), std::move(consumer_handle), absl::nullopt);
+        mojo::CreateDataPipe(&options, &producer_handle, &consumer_handle);
+    loader_client_->OnStartLoadingResponseBody(std::move(consumer_handle));
     if (result != MOJO_RESULT_OK) {
       loader_client_->OnComplete(
           network::URLLoaderCompletionStatus(net::ERR_INSUFFICIENT_RESOURCES));
@@ -154,12 +160,23 @@ class WebBundleURLLoaderFactory::EntryLoader final
     loader_client_->OnComplete(status);
   }
 
+  std::string GetAcceptLangs() const {
+    auto* web_contents = WebContents::FromFrameTreeNodeId(frame_tree_node_id_);
+    // This may be null if the WebContents has been closed, or in unit tests.
+    if (!web_contents)
+      return std::string();
+    return GetContentClient()->browser()->GetAcceptLangs(
+        web_contents->GetBrowserContext());
+  }
+
   base::WeakPtr<WebBundleURLLoaderFactory> factory_;
   mojo::Remote<network::mojom::URLLoaderClient> loader_client_;
   const int frame_tree_node_id_;
-  absl::optional<net::HttpByteRange> byte_range_;
+  base::Optional<net::HttpByteRange> byte_range_;
 
   base::WeakPtrFactory<EntryLoader> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(EntryLoader);
 };
 
 WebBundleURLLoaderFactory::WebBundleURLLoaderFactory(
@@ -176,6 +193,7 @@ void WebBundleURLLoaderFactory::SetFallbackFactory(
 
 void WebBundleURLLoaderFactory::CreateLoaderAndStart(
     mojo::PendingReceiver<network::mojom::URLLoader> loader_receiver,
+    int32_t routing_id,
     int32_t request_id,
     uint32_t options,
     const network::ResourceRequest& resource_request,
@@ -191,8 +209,8 @@ void WebBundleURLLoaderFactory::CreateLoaderAndStart(
                                    std::move(loader_receiver)));
   } else if (fallback_factory_) {
     fallback_factory_->CreateLoaderAndStart(
-        std::move(loader_receiver), request_id, options, resource_request,
-        std::move(loader_client), traffic_annotation);
+        std::move(loader_receiver), routing_id, request_id, options,
+        resource_request, std::move(loader_client), traffic_annotation);
   } else {
     mojo::Remote<network::mojom::URLLoaderClient>(std::move(loader_client))
         ->OnComplete(network::URLLoaderCompletionStatus(net::ERR_FAILED));

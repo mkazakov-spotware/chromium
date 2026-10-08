@@ -1,10 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/ash/test_login_screen_model.h"
-
-class AccountId;
 
 TestLoginScreenModel::TestLoginScreenModel() = default;
 TestLoginScreenModel::~TestLoginScreenModel() = default;
@@ -13,18 +11,11 @@ void TestLoginScreenModel::SetUserList(
     const std::vector<ash::LoginUserInfo>& users) {}
 void TestLoginScreenModel::SetPinEnabledForUser(const AccountId& account_id,
                                                 bool is_enabled) {}
-void TestLoginScreenModel::SetAvatarForUser(const AccountId& account_id,
-                                            const ash::UserAvatar& avatar) {}
 void TestLoginScreenModel::SetFingerprintState(const AccountId& account_id,
                                                ash::FingerprintState state) {}
+void TestLoginScreenModel::SetAvatarForUser(const AccountId& account_id,
+                                            const ash::UserAvatar& avatar) {}
 void TestLoginScreenModel::NotifyFingerprintAuthResult(
-    const AccountId& account_id,
-    bool successful) {}
-void TestLoginScreenModel::ResetFingerprintUIState(
-    const AccountId& account_id) {}
-void TestLoginScreenModel::SetSmartLockState(const AccountId& account_id,
-                                             ash::SmartLockState state) {}
-void TestLoginScreenModel::NotifySmartLockAuthResult(
     const AccountId& account_id,
     bool successful) {}
 void TestLoginScreenModel::EnableAuthForUser(const AccountId& account_id) {}
@@ -41,11 +32,11 @@ void TestLoginScreenModel::ForceOnlineSignInForUser(
     const AccountId& account_id) {}
 void TestLoginScreenModel::ShowEasyUnlockIcon(
     const AccountId& account_id,
-    const ash::EasyUnlockIconInfo& icon_info) {}
+    const ash::EasyUnlockIconOptions& icon) {}
 void TestLoginScreenModel::SetChallengeResponseAuthEnabledForUser(
     const AccountId& user,
     bool enabled) {}
-void TestLoginScreenModel::UpdateWarningMessage(const std::u16string& message) {
+void TestLoginScreenModel::UpdateWarningMessage(const base::string16& message) {
 }
 void TestLoginScreenModel::SetSystemInfo(
     bool show,
@@ -70,4 +61,3 @@ void TestLoginScreenModel::SetPublicSessionShowFullManagementDisclosure(
     bool show_full_management_disclosure) {}
 void TestLoginScreenModel::HandleFocusLeavingLockScreenApps(bool reverse) {}
 void TestLoginScreenModel::NotifyOobeDialogState(ash::OobeDialogState state) {}
-void TestLoginScreenModel::NotifyFocusPod(const AccountId& account_id) {}

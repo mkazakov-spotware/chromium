@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,7 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "device/bluetooth/bluetooth_device.h"
 #include "extensions/browser/api/bluetooth/bluetooth_extension_function.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
@@ -59,14 +58,11 @@ class BluetoothAPI : public BrowserContextKeyedAPI,
   static const bool kServiceRedirectedInIncognito = true;
   static const bool kServiceIsNULLWhileTesting = true;
 
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
 
   // Created lazily on first access.
   std::unique_ptr<BluetoothEventRouter> event_router_;
 };
-
-template <>
-void BrowserContextKeyedAPIFactory<BluetoothAPI>::DeclareFactoryDependencies();
 
 namespace api {
 
@@ -88,10 +84,6 @@ class BluetoothGetDevicesFunction : public BluetoothExtensionFunction {
 
   BluetoothGetDevicesFunction();
 
-  BluetoothGetDevicesFunction(const BluetoothGetDevicesFunction&) = delete;
-  BluetoothGetDevicesFunction& operator=(const BluetoothGetDevicesFunction&) =
-      delete;
-
  protected:
   ~BluetoothGetDevicesFunction() override;
 
@@ -101,6 +93,8 @@ class BluetoothGetDevicesFunction : public BluetoothExtensionFunction {
 
  private:
   std::unique_ptr<bluetooth::GetDevices::Params> params_;
+
+  DISALLOW_COPY_AND_ASSIGN(BluetoothGetDevicesFunction);
 };
 
 class BluetoothGetDeviceFunction : public BluetoothExtensionFunction {
@@ -108,10 +102,6 @@ class BluetoothGetDeviceFunction : public BluetoothExtensionFunction {
   DECLARE_EXTENSION_FUNCTION("bluetooth.getDevice", BLUETOOTH_GETDEVICE)
 
   BluetoothGetDeviceFunction();
-
-  BluetoothGetDeviceFunction(const BluetoothGetDeviceFunction&) = delete;
-  BluetoothGetDeviceFunction& operator=(const BluetoothGetDeviceFunction&) =
-      delete;
 
   // BluetoothExtensionFunction:
   bool CreateParams() override;
@@ -122,6 +112,8 @@ class BluetoothGetDeviceFunction : public BluetoothExtensionFunction {
 
  private:
   std::unique_ptr<extensions::api::bluetooth::GetDevice::Params> params_;
+
+  DISALLOW_COPY_AND_ASSIGN(BluetoothGetDeviceFunction);
 };
 
 class BluetoothStartDiscoveryFunction : public BluetoothExtensionFunction {

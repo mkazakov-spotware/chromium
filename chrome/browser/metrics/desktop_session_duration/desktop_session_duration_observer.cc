@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,12 +13,8 @@ namespace metrics {
 DesktopSessionDurationObserver::DesktopSessionDurationObserver(
     content::WebContents* web_contents,
     DesktopSessionDurationTracker* service)
-    : content::WebContentsObserver(web_contents),
-      content::WebContentsUserData<DesktopSessionDurationObserver>(
-          *web_contents),
-      service_(service) {
-  RegisterInputEventObserver(
-      web_contents->GetPrimaryMainFrame()->GetRenderViewHost());
+    : content::WebContentsObserver(web_contents), service_(service) {
+  RegisterInputEventObserver(web_contents->GetMainFrame()->GetRenderViewHost());
 }
 
 DesktopSessionDurationObserver::~DesktopSessionDurationObserver() {}
@@ -65,6 +61,6 @@ void DesktopSessionDurationObserver::RenderViewHostChanged(
   RegisterInputEventObserver(new_host);
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(DesktopSessionDurationObserver);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(DesktopSessionDurationObserver)
 
 }  // namespace metrics

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/containers/span.h"
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "mojo/public/cpp/system/data_pipe_producer.h"
 #include "mojo/public/cpp/system/system_export.h"
@@ -28,11 +29,7 @@ class MOJO_CPP_SYSTEM_EXPORT StringDataSource final
     STRING_STAYS_VALID_UNTIL_COMPLETION
   };
 
-  StringDataSource(base::span<const char> data, AsyncWritingMode mode);
-
-  StringDataSource(const StringDataSource&) = delete;
-  StringDataSource& operator=(const StringDataSource&) = delete;
-
+  StringDataSource(base::StringPiece data, AsyncWritingMode mode);
   ~StringDataSource() override;
 
  private:
@@ -42,6 +39,8 @@ class MOJO_CPP_SYSTEM_EXPORT StringDataSource final
 
   std::string data_;
   base::span<const char> data_view_;
+
+  DISALLOW_COPY_AND_ASSIGN(StringDataSource);
 };
 
 }  // namespace mojo

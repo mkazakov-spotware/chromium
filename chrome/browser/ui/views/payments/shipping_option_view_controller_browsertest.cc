@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,19 +15,17 @@
 
 namespace payments {
 
-using PaymentRequestShippingOptionViewControllerTest =
-    PaymentRequestBrowserTestBase;
+class PaymentRequestShippingOptionViewControllerTest
+    : public PaymentRequestBrowserTestBase {
+ protected:
+  PaymentRequestShippingOptionViewControllerTest() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PaymentRequestShippingOptionViewControllerTest);
+};
 
 IN_PROC_BROWSER_TEST_F(PaymentRequestShippingOptionViewControllerTest,
                        SelectingVariousShippingOptions) {
-  // Installs two apps so that the Payment Request UI will be shown.
-  std::string a_method_name;
-  InstallPaymentApp("a.com", "/payment_request_success_responder.js",
-                    &a_method_name);
-  std::string b_method_name;
-  InstallPaymentApp("b.com", "/payment_request_success_responder.js",
-                    &b_method_name);
-
   NavigateTo("/payment_request_dynamic_shipping_test.html");
   // In MI state, shipping is $5.00.
   autofill::AutofillProfile michigan = autofill::test::GetFullProfile2();
@@ -35,16 +33,14 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestShippingOptionViewControllerTest,
   AddAutofillProfile(michigan);
   // A Canadian address will have no shipping options.
   autofill::AutofillProfile canada = autofill::test::GetFullProfile();
-  canada.SetRawInfo(autofill::ADDRESS_HOME_COUNTRY, u"CA");
+  canada.SetRawInfo(autofill::ADDRESS_HOME_COUNTRY, base::ASCIIToUTF16("CA"));
   canada.set_use_count(50U);
   AddAutofillProfile(canada);
 
-  InvokePaymentRequestUIWithJs(content::JsReplace(
-      "buyWithMethods([{supportedMethods:$1}, {supportedMethods:$2}]);",
-      a_method_name, b_method_name));
+  InvokePaymentRequestUI();
 
   // There is no shipping option section, because no address has been selected.
-  PaymentRequest* request = GetPaymentRequests().front();
+  PaymentRequest* request = GetPaymentRequests(GetActiveWebContents()).front();
   EXPECT_EQ(2U, request->state()->shipping_profiles().size());
   EXPECT_EQ(nullptr, request->state()->selected_shipping_profile());
   EXPECT_EQ(nullptr, dialog_view()->GetViewByID(static_cast<int>(
@@ -55,7 +51,8 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestShippingOptionViewControllerTest,
 
   // Go to the shipping address screen and select the first address (MI state).
   OpenShippingAddressSectionScreen();
-  EXPECT_EQ(u"To see shipping methods and requirements, select an address",
+  EXPECT_EQ(base::ASCIIToUTF16(
+                "To see shipping methods and requirements, select an address"),
             GetLabelText(DialogViewID::WARNING_LABEL));
 
   ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_SHOWN,
@@ -73,19 +70,21 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestShippingOptionViewControllerTest,
   WaitForAnimation();
 
   // Michigan address is selected and has standard shipping.
-  std::vector<std::u16string> shipping_address_labels = GetProfileLabelValues(
+  std::vector<base::string16> shipping_address_labels = GetProfileLabelValues(
       DialogViewID::PAYMENT_SHEET_SHIPPING_ADDRESS_SECTION);
-  EXPECT_EQ(u"Jane A. Smith", shipping_address_labels[0]);
-  EXPECT_EQ(u"ACME, 123 Main Street, Unit 1, Greensdale, MI 48838",
-            shipping_address_labels[1]);
-  EXPECT_EQ(u"+1 310-555-7889", shipping_address_labels[2]);
+  EXPECT_EQ(base::ASCIIToUTF16("Jane A. Smith"), shipping_address_labels[0]);
+  EXPECT_EQ(
+      base::ASCIIToUTF16("ACME, 123 Main Street, Unit 1, Greensdale, MI 48838"),
+      shipping_address_labels[1]);
+  EXPECT_EQ(base::ASCIIToUTF16("+1 310-555-7889"), shipping_address_labels[2]);
 
   // The shipping option section exists, and the shipping option is shown.
-  std::vector<std::u16string> shipping_option_labels =
+  std::vector<base::string16> shipping_option_labels =
       GetShippingOptionLabelValues(
           DialogViewID::PAYMENT_SHEET_SHIPPING_OPTION_SECTION);
-  EXPECT_EQ(u"Standard shipping in US", shipping_option_labels[0]);
-  EXPECT_EQ(u"$5.00", shipping_option_labels[1]);
+  EXPECT_EQ(base::ASCIIToUTF16("Standard shipping in US"),
+            shipping_option_labels[0]);
+  EXPECT_EQ(base::ASCIIToUTF16("$5.00"), shipping_option_labels[1]);
 
   // Go to the shipping address screen and select the second address (Canada).
   OpenShippingAddressSectionScreen();
@@ -102,7 +101,7 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestShippingOptionViewControllerTest,
             request->state()->selected_shipping_option_error_profile());
 
   // The address selector has this error.
-  EXPECT_EQ(u"We do not ship to this address",
+  EXPECT_EQ(base::ASCIIToUTF16("We do not ship to this address"),
             GetLabelText(DialogViewID::WARNING_LABEL));
 
   // There is no a longer shipping option section, because no shipping options

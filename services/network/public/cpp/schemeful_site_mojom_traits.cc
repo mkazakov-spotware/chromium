@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,16 @@ bool StructTraits<network::mojom::SchemefulSiteDataView, net::SchemefulSite>::
   if (!data.ReadSiteAsOrigin(&site_as_origin))
     return false;
 
-  return net::SchemefulSite::FromWire(site_as_origin, out);
+  // The origin passed into this constructor may not match the
+  // `site_as_origin_` used as the internal representation of the schemeful
+  // site. However, a valid SchemefulSite's internal origin should result in a
+  // match if used to construct another SchemefulSite. Thus, if there is a
+  // mismatch here, we must indicate a failure.
+  net::SchemefulSite ss(site_as_origin);
+  bool success = site_as_origin == ss.site_as_origin_;
+  if (success)
+    *out = std::move(ss);
+  return success;
 }
 
 }  // namespace mojo

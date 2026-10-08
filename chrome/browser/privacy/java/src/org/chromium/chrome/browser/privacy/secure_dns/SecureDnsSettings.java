@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,12 +43,12 @@ public class SecureDnsSettings extends PreferenceFragmentCompat {
         } else if (mode == SecureDnsMode.AUTOMATIC) {
             return context.getString(R.string.settings_automatic_mode_summary);
         } else {
-            String config = SecureDnsBridge.getConfig();
+            String templateGroup = SecureDnsBridge.getTemplates();
             List<SecureDnsBridge.Entry> providers = SecureDnsBridge.getProviders();
-            String serverName = config;
+            String serverName = templateGroup;
             for (int i = 0; i < providers.size(); i++) {
                 SecureDnsBridge.Entry entry = providers.get(i);
-                if (entry.config.equals(config)) {
+                if (entry.template.equals(templateGroup)) {
                     serverName = entry.name;
                     break;
                 }
@@ -114,12 +114,13 @@ public class SecureDnsSettings extends PreferenceFragmentCompat {
     private boolean storePreferenceState(boolean enabled, State controlState) {
         if (!enabled) {
             SecureDnsBridge.setMode(SecureDnsMode.OFF);
-            SecureDnsBridge.setConfig("");
+            SecureDnsBridge.setTemplates("");
         } else if (!controlState.secure) {
             SecureDnsBridge.setMode(SecureDnsMode.AUTOMATIC);
-            SecureDnsBridge.setConfig("");
+            SecureDnsBridge.setTemplates("");
         } else {
-            if (controlState.config.isEmpty() || !SecureDnsBridge.setConfig(controlState.config)) {
+            if (controlState.template.isEmpty()
+                    || !SecureDnsBridge.setTemplates(controlState.template)) {
                 return false;
             }
             SecureDnsBridge.setMode(SecureDnsMode.SECURE);
@@ -137,9 +138,9 @@ public class SecureDnsSettings extends PreferenceFragmentCompat {
         mSecureDnsProviderPreference.setEnabled(enabled && !enforced);
 
         boolean secure = mode == SecureDnsMode.SECURE;
-        String config = SecureDnsBridge.getConfig();
+        String template = SecureDnsBridge.getTemplates();
         boolean valid = true; // States loaded from storage are presumed valid.
-        mSecureDnsProviderPreference.setState(new State(secure, config, valid));
+        mSecureDnsProviderPreference.setState(new State(secure, template, valid));
     }
 
     @Override

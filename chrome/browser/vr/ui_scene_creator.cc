@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,10 @@
 #include "base/numerics/math_constants.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
+#include "cc/animation/animation_curve.h"
+#include "cc/animation/animation_target.h"
+#include "cc/animation/keyframe_effect.h"
+#include "cc/animation/keyframed_animation_curve.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/vr/content_input_delegate.h"
 #include "chrome/browser/vr/databinding/binding.h"
@@ -75,11 +79,10 @@
 #include "components/url_formatter/elide_url.h"
 #include "components/vector_icons/vector_icons.h"
 #include "device/base/features.h"
+#include "device/vr/buildflags/buildflags.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/gfx/animation/keyframe/animation_curve.h"
-#include "ui/gfx/animation/keyframe/keyframed_animation_curve.h"
-#include "ui/gfx/geometry/transform_util.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/gfx/transform_util.h"
 
 namespace vr {
 
@@ -228,7 +231,7 @@ void OnSuggestionModelAdded(UiScene* scene,
   background->AddChild(std::move(suggestion_layout));
 
   element_binding->bindings().push_back(
-      VR_BIND_FUNC(std::u16string, SuggestionBinding, element_binding,
+      VR_BIND_FUNC(base::string16, SuggestionBinding, element_binding,
                    model->model()->contents, Text, p_content_text, SetText));
   element_binding->bindings().push_back(
       std::make_unique<Binding<TextFormatting>>(
@@ -246,12 +249,12 @@ void OnSuggestionModelAdded(UiScene* scene,
               },
               base::Unretained(p_content_text))));
   element_binding->bindings().push_back(
-      std::make_unique<Binding<std::u16string>>(
+      std::make_unique<Binding<base::string16>>(
           VR_BIND_LAMBDA(
               [](SuggestionBinding* m) { return m->model()->description; },
               base::Unretained(element_binding)),
           VR_BIND_LAMBDA(
-              [](Text* v, const std::u16string& text) {
+              [](Text* v, const base::string16& text) {
                 v->SetVisible(!text.empty());
                 v->SetText(text);
               },
@@ -285,8 +288,8 @@ void OnSuggestionModelRemoved(UiScene* scene, SuggestionBinding* binding) {
 std::unique_ptr<TransientElement> CreateTransientParent(UiElementName name,
                                                         int timeout_seconds,
                                                         bool animate_opacity) {
-  auto element =
-      std::make_unique<SimpleTransientElement>(base::Seconds(timeout_seconds));
+  auto element = std::make_unique<SimpleTransientElement>(
+      base::TimeDelta::FromSeconds(timeout_seconds));
   element->SetName(name);
   element->SetVisible(false);
   if (animate_opacity)
@@ -412,7 +415,7 @@ typedef typename ControllerSetBinding::ElementBinding ControllerBinding;
 std::unique_ptr<UiElement> CreateControllerLabel(
     UiElementName name,
     float z_offset,
-    const std::u16string& text,
+    const base::string16& text,
     Model* model,
     ControllerBinding* element_binding) {
   auto layout = Create<LinearLayout>(name, kPhaseNone, LinearLayout::kLeft);
@@ -590,7 +593,7 @@ void OnControllerModelAdded(UiScene* scene,
   callout_group->SetVisible(false);
   callout_group->SetTransitionedProperties({OPACITY});
   callout_group->SetTransitionDuration(
-      base::Milliseconds(kControllerLabelTransitionDurationMs));
+      base::TimeDelta::FromMilliseconds(kControllerLabelTransitionDurationMs));
   callout_group->AddBinding(
       VR_BIND_FUNC(bool, ControllerBinding, element_binding,
                    model->model()->resting_in_viewport, UiElement,
@@ -716,7 +719,7 @@ std::unique_ptr<UiElement> CreateWebVrIndicator(Model* model,
                                           VectorIcon, icon_element.get(),
                                           SetIcon));
   } else {
-    icon_element->SetIcon(*spec.icon);
+    icon_element->SetIcon(spec.icon);
   }
 
   std::unique_ptr<UiElement> description_element;
@@ -906,7 +909,7 @@ std::unique_ptr<TransientElement> CreateTextToast(
     UiElementName transient_parent_name,
     UiElementName toast_name,
     Model* model,
-    const std::u16string& text) {
+    const base::string16& text) {
   auto parent =
       CreateTransientParent(transient_parent_name, kToastTimeoutSeconds, false);
   parent->set_bounds_contain_children(true);
@@ -939,12 +942,12 @@ std::unique_ptr<TransientElement> CreateTextToast(
   return parent;
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void BindIndicatorTranscienceForWin(
     TransientElement* e,
     Model* model,
     UiScene* scene,
-    const absl::optional<
+    const base::Optional<
         std::tuple<bool, CapturingStateModel, CapturingStateModel>>& last_value,
     const std::tuple<bool, CapturingStateModel, CapturingStateModel>& value) {
   const bool in_web_vr_presentation = model->web_vr_enabled() &&
@@ -976,35 +979,34 @@ void BindIndicatorTranscienceForWin(
   e->SetTranslate(0, kWebVrPermissionOffsetStart, 0);
 
   // Build up a keyframe model for the initial transition.
-  std::unique_ptr<gfx::KeyframedTransformAnimationCurve> curve(
-      gfx::KeyframedTransformAnimationCurve::Create());
+  std::unique_ptr<cc::KeyframedTransformAnimationCurve> curve(
+      cc::KeyframedTransformAnimationCurve::Create());
 
-  gfx::TransformOperations value_1;
+  cc::TransformOperations value_1;
   value_1.AppendTranslate(0, kWebVrPermissionOffsetStart, 0);
-  curve->AddKeyframe(gfx::TransformKeyframe::Create(
+  curve->AddKeyframe(cc::TransformKeyframe::Create(
       base::TimeDelta(), value_1,
-      gfx::CubicBezierTimingFunction::CreatePreset(
-          gfx::CubicBezierTimingFunction::EaseType::EASE)));
+      cc::CubicBezierTimingFunction::CreatePreset(
+          cc::CubicBezierTimingFunction::EaseType::EASE)));
 
-  gfx::TransformOperations value_2;
+  cc::TransformOperations value_2;
   value_2.AppendTranslate(0, kWebVrPermissionOffsetOvershoot, 0);
-  curve->AddKeyframe(gfx::TransformKeyframe::Create(
-      base::Milliseconds(kWebVrPermissionOffsetMs), value_2,
-      gfx::CubicBezierTimingFunction::CreatePreset(
-          gfx::CubicBezierTimingFunction::EaseType::EASE)));
+  curve->AddKeyframe(cc::TransformKeyframe::Create(
+      base::TimeDelta::FromMilliseconds(kWebVrPermissionOffsetMs), value_2,
+      cc::CubicBezierTimingFunction::CreatePreset(
+          cc::CubicBezierTimingFunction::EaseType::EASE)));
 
-  gfx::TransformOperations value_3;
+  cc::TransformOperations value_3;
   value_3.AppendTranslate(0, kWebVrPermissionOffsetFinal, 0);
-  curve->AddKeyframe(gfx::TransformKeyframe::Create(
-      base::Milliseconds(kWebVrPermissionAnimationDurationMs), value_3,
-      gfx::CubicBezierTimingFunction::CreatePreset(
-          gfx::CubicBezierTimingFunction::EaseType::EASE)));
+  curve->AddKeyframe(cc::TransformKeyframe::Create(
+      base::TimeDelta::FromMilliseconds(kWebVrPermissionAnimationDurationMs),
+      value_3,
+      cc::CubicBezierTimingFunction::CreatePreset(
+          cc::CubicBezierTimingFunction::EaseType::EASE)));
 
-  curve->set_target(e);
-
-  e->AddKeyframeModel(gfx::KeyframeModel::Create(
-      std::move(curve), gfx::KeyframeEffect::GetNextKeyframeModelId(),
-      TRANSFORM));
+  e->AddKeyframeModel(cc::KeyframeModel::Create(
+      std::move(curve), Animation::GetNextKeyframeModelId(),
+      Animation::GetNextGroupId(), TRANSFORM));
 }
 
 #else
@@ -1013,7 +1015,7 @@ void BindIndicatorTranscience(
     TransientElement* e,
     Model* model,
     UiScene* scene,
-    const absl::optional<std::tuple<bool, bool, bool>>& last_value,
+    const base::Optional<std::tuple<bool, bool, bool>>& last_value,
     const std::tuple<bool, bool, bool>& value) {
   const bool in_web_vr_presentation = std::get<0>(value);
   const bool in_long_press = std::get<1>(value);
@@ -1062,47 +1064,44 @@ void BindIndicatorTranscience(
   e->SetTranslate(0, kWebVrPermissionOffsetStart, 0);
 
   // Build up a keyframe model for the initial transition.
-  std::unique_ptr<gfx::KeyframedTransformAnimationCurve> curve(
-      gfx::KeyframedTransformAnimationCurve::Create());
+  std::unique_ptr<cc::KeyframedTransformAnimationCurve> curve(
+      cc::KeyframedTransformAnimationCurve::Create());
 
-  gfx::TransformOperations value_1;
+  cc::TransformOperations value_1;
   value_1.AppendTranslate(0, kWebVrPermissionOffsetStart, 0);
-  curve->AddKeyframe(gfx::TransformKeyframe::Create(
+  curve->AddKeyframe(cc::TransformKeyframe::Create(
       base::TimeDelta(), value_1,
-      gfx::CubicBezierTimingFunction::CreatePreset(
-          gfx::CubicBezierTimingFunction::EaseType::EASE)));
+      cc::CubicBezierTimingFunction::CreatePreset(
+          cc::CubicBezierTimingFunction::EaseType::EASE)));
 
-  gfx::TransformOperations value_2;
+  cc::TransformOperations value_2;
   value_2.AppendTranslate(0, kWebVrPermissionOffsetOvershoot, 0);
-  curve->AddKeyframe(gfx::TransformKeyframe::Create(
-      base::Milliseconds(kWebVrPermissionOffsetMs), value_2,
-      gfx::CubicBezierTimingFunction::CreatePreset(
-          gfx::CubicBezierTimingFunction::EaseType::EASE)));
+  curve->AddKeyframe(cc::TransformKeyframe::Create(
+      base::TimeDelta::FromMilliseconds(kWebVrPermissionOffsetMs), value_2,
+      cc::CubicBezierTimingFunction::CreatePreset(
+          cc::CubicBezierTimingFunction::EaseType::EASE)));
 
-  gfx::TransformOperations value_3;
+  cc::TransformOperations value_3;
   value_3.AppendTranslate(0, kWebVrPermissionOffsetFinal, 0);
-  curve->AddKeyframe(gfx::TransformKeyframe::Create(
-      base::Milliseconds(kWebVrPermissionAnimationDurationMs), value_3,
-      gfx::CubicBezierTimingFunction::CreatePreset(
-          gfx::CubicBezierTimingFunction::EaseType::EASE)));
+  curve->AddKeyframe(cc::TransformKeyframe::Create(
+      base::TimeDelta::FromMilliseconds(kWebVrPermissionAnimationDurationMs),
+      value_3,
+      cc::CubicBezierTimingFunction::CreatePreset(
+          cc::CubicBezierTimingFunction::EaseType::EASE)));
 
-  curve->set_target(e);
-
-  e->AddKeyframeModel(gfx::KeyframeModel::Create(
-      std::move(curve), gfx::KeyframeEffect::GetNextKeyframeModelId(),
-      TRANSFORM));
+  e->AddKeyframeModel(cc::KeyframeModel::Create(
+      std::move(curve), Animation::GetNextKeyframeModelId(),
+      Animation::GetNextGroupId(), TRANSFORM));
 }
 
 #endif
 
 int GetIndicatorsTimeout() {
-  // Some runtimes on Windows have quite lengthy animations that may cause
-  // indicators to not be visible at our normal timeout length.
-#if BUILDFLAG(IS_WIN)
-  return kWindowsInitialIndicatorsTimeoutSeconds;
-#else
-  return kToastTimeoutSeconds;
+#if BUILDFLAG(ENABLE_WINDOWS_MR)
+  if (base::FeatureList::IsEnabled(device::features::kWindowsMixedReality))
+    return kWmrInitialIndicatorsTimeoutSeconds;
 #endif
+  return kToastTimeoutSeconds;
 }
 
 NOINLINE void CrashIntentionally() {
@@ -1199,16 +1198,16 @@ void UiSceneCreator::Create2dBrowsingSubtreeRoots() {
 
   auto hider = Create<UiElement>(k2dBrowsingVisibiltyHider, kPhaseNone);
   hider->SetTransitionedProperties({OPACITY});
-  hider->SetTransitionDuration(
-      base::Milliseconds(kSpeechRecognitionOpacityAnimationDurationMs));
+  hider->SetTransitionDuration(base::TimeDelta::FromMilliseconds(
+      kSpeechRecognitionOpacityAnimationDurationMs));
   VR_BIND_VISIBILITY(
       hider, model->default_browsing_enabled() || model->fullscreen_enabled());
   scene_->AddUiElement(k2dBrowsingRepositioner, std::move(hider));
 
   auto fader = Create<UiElement>(k2dBrowsingVisibiltyFader, kPhaseNone);
   fader->SetTransitionedProperties({OPACITY});
-  fader->SetTransitionDuration(
-      base::Milliseconds(kSpeechRecognitionOpacityAnimationDurationMs));
+  fader->SetTransitionDuration(base::TimeDelta::FromMilliseconds(
+      kSpeechRecognitionOpacityAnimationDurationMs));
   fader->AddBinding(std::make_unique<Binding<float>>(
       VR_BIND_LAMBDA(
           [](Model* model) {
@@ -1228,8 +1227,8 @@ void UiSceneCreator::Create2dBrowsingSubtreeRoots() {
   element = Create<UiElement>(k2dBrowsingForeground, kPhaseNone);
   element->set_bounds_contain_children(true);
   element->SetTransitionedProperties({OPACITY});
-  element->SetTransitionDuration(
-      base::Milliseconds(kSpeechRecognitionOpacityAnimationDurationMs));
+  element->SetTransitionDuration(base::TimeDelta::FromMilliseconds(
+      kSpeechRecognitionOpacityAnimationDurationMs));
   scene_->AddUiElement(k2dBrowsingVisibiltyFader, std::move(element));
 
   element = Create<UiElement>(k2dBrowsingContentGroup, kPhaseNone);
@@ -1295,7 +1294,7 @@ void UiSceneCreator::CreateSystemIndicators() {
   auto specs = GetIndicatorSpecs();
   for (const auto& spec : specs) {
     auto element = std::make_unique<VectorIconButton>(
-        base::RepeatingCallback<void()>(), *spec.icon, audio_delegate_);
+        base::RepeatingCallback<void()>(), spec.icon, audio_delegate_);
     element->SetName(spec.name);
     element->SetDrawPhase(kPhaseForeground);
     element->SetSize(kIndicatorHeightDMM, kIndicatorHeightDMM);
@@ -1512,7 +1511,7 @@ void UiSceneCreator::CreateContentQuad() {
   frame->SetLocalOpacity(0.0f);
   frame->SetTransitionedProperties({LOCAL_OPACITY});
   frame->SetTransitionDuration(
-      base::Milliseconds(kRepositionFrameTransitionDurationMs));
+      base::TimeDelta::FromMilliseconds(kRepositionFrameTransitionDurationMs));
   VR_BIND_COLOR(model_, frame.get(), &ColorScheme::content_reposition_frame,
                 &Rect::SetColor);
 
@@ -1542,7 +1541,7 @@ void UiSceneCreator::CreateContentQuad() {
 }
 
 void UiSceneCreator::CreateExternalPromptNotifcationOverlay() {
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   auto phase = kPhaseForeground;
   auto icon = Create<VectorIcon>(kNone, phase, 100);
   icon->SetType(kTypePromptIcon);
@@ -1643,7 +1642,7 @@ void UiSceneCreator::CreateExternalPromptNotifcationOverlay() {
           base::Unretained(line1_text), base::Unretained(vector_icon))));
 
   scene_->AddUiElement(kWebVrViewportAwareRoot, std::move(scaler));
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 }
 
 void UiSceneCreator::CreateWebVrSubtree() {
@@ -1755,7 +1754,7 @@ void UiSceneCreator::CreateWebVrTimeoutScreen() {
   timeout_text->SetFieldWidth(kTimeoutMessageTextWidthDMM);
   timeout_text->set_hit_testable(true);
 
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
   auto button_scaler =
       std::make_unique<ScaledDepthAdjuster>(kTimeoutButtonDepthOffset);
 
@@ -1790,15 +1789,15 @@ void UiSceneCreator::CreateWebVrTimeoutScreen() {
 
   button->AddChild(std::move(timeout_button_text));
   button_scaler->AddChild(std::move(button));
-#endif  // !BUILDFLAG(IS_WIN)
+#endif  // !defined(OS_WIN)
 
   timeout_layout->AddChild(std::move(timeout_icon));
   timeout_layout->AddChild(std::move(timeout_text));
   timeout_message->AddChild(std::move(timeout_layout));
 
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
   timeout_message->AddChild(std::move(button_scaler));
-#endif  // !BUILDFLAG(IS_WIN)
+#endif  // !defined(OS_WIN)
 
   scaler->AddChild(std::move(timeout_message));
   scaler->AddChild(std::move(spinner));
@@ -1880,7 +1879,7 @@ void UiSceneCreator::CreateViewportAwareRoot() {
   // On Windows, allow the viewport-aware UI to translate as well as rotate, so
   // it remains centered appropriately if the user moves.  Only enabled for
   // OS_WIN, since it conflicts with browser UI that isn't shown on Windows.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   element->SetRecenterOnRotate(true);
 #endif
   scene_->AddUiElement(kWebVrRoot, std::move(element));
@@ -1888,7 +1887,7 @@ void UiSceneCreator::CreateViewportAwareRoot() {
   element = std::make_unique<ViewportAwareRoot>();
   element->SetName(k2dBrowsingViewportAwareRoot);
   element->set_contributes_to_parent_bounds(false);
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   element->SetRecenterOnRotate(true);
 #endif
   scene_->AddUiElement(k2dBrowsingRepositioner, std::move(element));
@@ -1902,7 +1901,8 @@ void UiSceneCreator::CreateVoiceSearchUiGroup() {
   speech_recognition_root->SetTranslate(0.f, 0.f, -kContentDistance);
   speech_recognition_root->SetTransitionedProperties({OPACITY});
   speech_recognition_root->SetTransitionDuration(
-      base::Milliseconds(kSpeechRecognitionOpacityAnimationDurationMs));
+      base::TimeDelta::FromMilliseconds(
+          kSpeechRecognitionOpacityAnimationDurationMs));
   VR_BIND_VISIBILITY(speech_recognition_root, model->voice_search_active());
 
   auto inner_circle = std::make_unique<Rect>();
@@ -1923,8 +1923,8 @@ void UiSceneCreator::CreateVoiceSearchUiGroup() {
   auto speech_result_parent =
       Create<UiElement>(kSpeechRecognitionResult, kPhaseNone);
   speech_result_parent->SetTransitionedProperties({OPACITY});
-  speech_result_parent->SetTransitionDuration(
-      base::Milliseconds(kSpeechRecognitionOpacityAnimationDurationMs));
+  speech_result_parent->SetTransitionDuration(base::TimeDelta::FromMilliseconds(
+      kSpeechRecognitionOpacityAnimationDurationMs));
   speech_result_parent->AddBinding(std::make_unique<Binding<bool>>(
       VR_BIND_LAMBDA(
           [](Model* m) { return !m->speech.recognition_result.empty(); },
@@ -1946,7 +1946,7 @@ void UiSceneCreator::CreateVoiceSearchUiGroup() {
   speech_result->SetAlignment(kTextAlignmentCenter);
   VR_BIND_COLOR(model_, speech_result.get(), &ColorScheme::prompt_foreground,
                 &Text::SetColor);
-  speech_result->AddBinding(VR_BIND_FUNC(std::u16string, Model, model_,
+  speech_result->AddBinding(VR_BIND_FUNC(base::string16, Model, model_,
                                          model->speech.recognition_result, Text,
                                          speech_result.get(), SetText));
   speech_result_parent->AddChild(std::move(speech_result));
@@ -2040,7 +2040,7 @@ void UiSceneCreator::CreateContentRepositioningAffordance() {
 namespace {
 
 bool ControllerVisibility(Model* model) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   return model->browsing_enabled() ||
          model->hosted_platform_ui.hosted_ui_enabled;
 #else
@@ -2077,7 +2077,7 @@ void UiSceneCreator::CreateControllers() {
   auto reticle_laser_group = Create<UiElement>(kReticleLaserGroup, kPhaseNone);
   reticle_laser_group->SetTransitionedProperties({OPACITY});
   reticle_laser_group->SetTransitionDuration(
-      base::Milliseconds(kControllerLabelTransitionDurationMs));
+      base::TimeDelta::FromMilliseconds(kControllerLabelTransitionDurationMs));
   VR_BIND_VISIBILITY(reticle_laser_group, !model->reposition_window_enabled());
 
   auto laser = std::make_unique<Laser>(model_);
@@ -2571,7 +2571,8 @@ void UiSceneCreator::CreateOmnibox() {
   auto omnibox_root = Create<UiElement>(kOmniboxRoot, kPhaseNone);
   omnibox_root->SetVisible(false);
   omnibox_root->SetTransitionedProperties({OPACITY});
-  omnibox_root->SetTransitionDuration(base::Milliseconds(kOmniboxTransitionMs));
+  omnibox_root->SetTransitionDuration(
+      base::TimeDelta::FromMilliseconds(kOmniboxTransitionMs));
   VR_BIND_VISIBILITY(omnibox_root, model->get_mode() == kModeEditingOmnibox);
 
   auto omnibox_outer_layout =
@@ -2801,17 +2802,17 @@ void UiSceneCreator::CreateOmnibox() {
   parent->AddChild(std::move(scaler));
 
   // This binding must run whether or not the omnibox is visible.
-  parent->AddBinding(std::make_unique<Binding<std::pair<bool, std::u16string>>>(
+  parent->AddBinding(std::make_unique<Binding<std::pair<bool, base::string16>>>(
       VR_BIND_LAMBDA(
           [](Model* m) {
             bool editing_omnibox = m->has_mode_in_stack(kModeEditingOmnibox);
-            std::u16string url_text =
+            base::string16 url_text =
                 FormatUrlForVr(m->location_bar_state.gurl, nullptr);
             return std::make_pair(editing_omnibox, url_text);
           },
           base::Unretained(model_)),
       VR_BIND_LAMBDA(
-          [](Model* m, const std::pair<bool, std::u16string>& value) {
+          [](Model* m, const std::pair<bool, base::string16>& value) {
             if (value.first /* editing_omnibox */) {
               EditedText omnibox_text = m->omnibox_text_field_info;
               omnibox_text.current =
@@ -2990,7 +2991,7 @@ void UiSceneCreator::CreateWebVrOverlayElements() {
   auto parent = CreateTransientParent(kWebVrIndicatorTransience,
                                       GetIndicatorsTimeout(), true);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   parent->AddBinding(
       std::make_unique<
           Binding<std::tuple<bool, CapturingStateModel, CapturingStateModel>>>(
@@ -3032,7 +3033,7 @@ void UiSceneCreator::CreateWebVrOverlayElements() {
 
 void UiSceneCreator::CreateToasts() {
   auto platform_toast = CreateTextToast(
-      kPlatformToastTransientParent, kPlatformToast, model_, std::u16string());
+      kPlatformToastTransientParent, kPlatformToast, model_, base::string16());
   platform_toast->set_contributes_to_parent_bounds(false);
   platform_toast->set_y_anchoring(BOTTOM);
   platform_toast->set_y_centering(TOP);

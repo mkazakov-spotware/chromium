@@ -1,17 +1,17 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/ui/recent_tabs/synced_sessions.h"
+#include "ios/chrome/browser/ui/recent_tabs/synced_sessions.h"
 
-#import <functional>
-#import <memory>
+#include <functional>
+#include <memory>
 
-#import "base/check_op.h"
-#import "base/strings/utf_string_conversions.h"
-#import "components/sync_sessions/open_tabs_ui_delegate.h"
-#import "components/sync_sessions/session_sync_service.h"
-#import "ios/chrome/browser/sync/sync_setup_service.h"
+#include "base/check_op.h"
+#include "base/strings/utf_string_conversions.h"
+#include "components/sync_sessions/open_tabs_ui_delegate.h"
+#include "components/sync_sessions/session_sync_service.h"
+#include "ios/chrome/browser/sync/sync_setup_service.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -66,13 +66,7 @@ size_t DistantTab::hashOfUserVisibleProperties() {
   return std::hash<std::string>()(ss.str());
 }
 
-DistantTabsSet::DistantTabsSet() = default;
-
-DistantTabsSet::~DistantTabsSet() = default;
-
-DistantTabsSet::DistantTabsSet(const DistantTabsSet&) = default;
-
-DistantSession::DistantSession() = default;
+DistantSession::DistantSession() {}
 
 DistantSession::DistantSession(sync_sessions::SessionSyncService* sync_service,
                                const std::string& tag) {
@@ -90,49 +84,53 @@ DistantSession::DistantSession(sync_sessions::SessionSyncService* sync_service,
   }
 }
 
-DistantSession::~DistantSession() = default;
+DistantSession::~DistantSession() {}
 
 void DistantSession::InitWithSyncedSession(
     const sync_sessions::SyncedSession* synced_session,
-    sync_sessions::OpenTabsUIDelegate* open_tabs_delegate) {
+    sync_sessions::OpenTabsUIDelegate* open_tabs) {
   tag = synced_session->session_tag;
   name = synced_session->session_name;
   modified_time = synced_session->modified_time;
+  device_type = synced_session->device_type;
 
-  std::vector<const sessions::SessionTab*> open_tabs;
-  open_tabs_delegate->GetForeignSessionTabs(tag, &open_tabs);
-  for (const sessions::SessionTab* session_tab : open_tabs) {
-    AddTabToDistantSession(*session_tab, tag, this);
+  // Order tabs by their visual position within window.
+  for (const auto& kv : synced_session->windows) {
+    for (const auto& session_tab : kv.second->wrapped_window.tabs) {
+      AddTabToDistantSession(*session_tab, synced_session->session_tag, this);
+    }
   }
 }
 
-SyncedSessions::SyncedSessions() = default;
+SyncedSessions::SyncedSessions() {}
 
 SyncedSessions::SyncedSessions(
     sync_sessions::SessionSyncService* sync_service) {
   DCHECK(sync_service);
-  // Reload Sync open tab sessions.
+  // Reload Sync open tab sesions.
   sync_sessions::OpenTabsUIDelegate* open_tabs =
       sync_service->GetOpenTabsUIDelegate();
   if (open_tabs) {
-    // Iterating through all remote sessions, then retrieving the tabs to
-    // display to the user.
+    // Iterating through all remote sessions, then all remote windows, then all
+    // remote tabs to retrieve the tabs to display to the user. This will
+    // flatten all of those data into a sequential vector of tabs.
+
     std::vector<const sync_sessions::SyncedSession*> sessions;
     open_tabs->GetAllForeignSessions(&sessions);
     for (const auto* session : sessions) {
-      auto distant_session = std::make_unique<DistantSession>();
+      std::unique_ptr<DistantSession> distant_session(new DistantSession());
       distant_session->InitWithSyncedSession(session, open_tabs);
       // Don't display sessions with no tabs.
-      if (!distant_session->tabs.empty())
+      if (distant_session->tabs.size() > 0)
         sessions_.push_back(std::move(distant_session));
     }
   }
   std::sort(sessions_.begin(), sessions_.end(), SortSessionsByTime);
 }
 
-SyncedSessions::~SyncedSessions() = default;
+SyncedSessions::~SyncedSessions() {}
 
-// Returns the session at index `index`.
+// Returns the session at index |index|.
 DistantSession const* SyncedSessions::GetSession(size_t index) const {
   DCHECK_LE(index, GetSessionCount());
   return sessions_[index].get();
@@ -153,16 +151,8 @@ size_t SyncedSessions::GetSessionCount() const {
   return sessions_.size();
 }
 
-// Deletes the session at index `index`.
-void SyncedSessions::EraseSessionWithTag(const std::string& tag) {
-  size_t index = GetSessionCount();
-  for (size_t i = 0; i < GetSessionCount(); i++) {
-    if (GetSession(i)->tag == tag) {
-      index = i;
-      break;
-    }
-  }
-
+// Deletes the session at index |index|.
+void SyncedSessions::EraseSession(size_t index) {
   DCHECK_LE(index, GetSessionCount());
   sessions_.erase(sessions_.begin() + index);
 }

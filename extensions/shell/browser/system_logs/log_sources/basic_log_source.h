@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_SHELL_BROWSER_SYSTEM_LOGS_LOG_SOURCES_BASIC_LOG_SOURCE_H_
 #define EXTENSIONS_SHELL_BROWSER_SYSTEM_LOGS_LOG_SOURCES_BASIC_LOG_SOURCE_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/feedback/system_logs/system_logs_source.h"
 
 namespace content {
@@ -18,10 +18,6 @@ namespace system_logs {
 class BasicLogSource : public SystemLogsSource {
  public:
   explicit BasicLogSource(content::BrowserContext* browser_context);
-
-  BasicLogSource(const BasicLogSource&) = delete;
-  BasicLogSource& operator=(const BasicLogSource&) = delete;
-
   ~BasicLogSource() override;
 
   // SystemLogsSource:
@@ -31,7 +27,9 @@ class BasicLogSource : public SystemLogsSource {
   void PopulateVersionStrings(SystemLogsResponse* response);
   void PopulateExtensionInfoLogs(SystemLogsResponse* response);
 
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
+
+  DISALLOW_COPY_AND_ASSIGN(BasicLogSource);
 };
 
 }  // namespace system_logs

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,7 @@ const CSSValue* InlineStylePropertyMap::GetProperty(
 }
 
 const CSSValue* InlineStylePropertyMap::GetCustomProperty(
-    const AtomicString& property_name) const {
+    AtomicString property_name) const {
   const CSSPropertyValueSet* inline_style = owner_element_->InlineStyle();
   return inline_style ? inline_style->GetPropertyCSSValue(property_name)
                       : nullptr;
@@ -32,7 +32,6 @@ const CSSValue* InlineStylePropertyMap::GetCustomProperty(
 
 void InlineStylePropertyMap::SetProperty(CSSPropertyID property_id,
                                          const CSSValue& value) {
-  DCHECK_NE(property_id, CSSPropertyID::kVariable);
   owner_element_->SetInlineStyleProperty(property_id, value);
   owner_element_->NotifyInlineStyleMutation();
 }
@@ -42,22 +41,21 @@ bool InlineStylePropertyMap::SetShorthandProperty(
     const String& value,
     SecureContextMode secure_context_mode) {
   DCHECK(CSSProperty::Get(property_id).IsShorthand());
-  const auto result =
-      owner_element_->EnsureMutableInlineStyle().ParseAndSetProperty(
-          property_id, value, false /* important */, secure_context_mode);
-  return result != MutableCSSPropertyValueSet::kParseError;
+  const auto result = owner_element_->EnsureMutableInlineStyle().SetProperty(
+      property_id, value, false /* important */, secure_context_mode);
+  return result.did_parse;
 }
 
 void InlineStylePropertyMap::SetCustomProperty(
     const AtomicString& property_name,
     const CSSValue& value) {
   DCHECK(value.IsVariableReferenceValue());
-  const auto& variable_value = To<CSSVariableReferenceValue>(value);
-  CSSVariableData* variable_data = variable_value.VariableDataValue();
+  auto* variable_data =
+      To<CSSVariableReferenceValue>(value).VariableDataValue();
   owner_element_->SetInlineStyleProperty(
-      CSSPropertyName(property_name),
-      *MakeGarbageCollected<CSSCustomPropertyDeclaration>(
-          variable_data, variable_value.ParserContext()));
+      CSSPropertyID::kVariable,
+      *MakeGarbageCollected<CSSCustomPropertyDeclaration>(property_name,
+                                                          variable_data));
   owner_element_->NotifyInlineStyleMutation();
 }
 
@@ -74,12 +72,13 @@ void InlineStylePropertyMap::RemoveAllProperties() {
   owner_element_->RemoveAllInlineStyleProperties();
 }
 
-void InlineStylePropertyMap::ForEachProperty(IterationFunction visitor) {
+void InlineStylePropertyMap::ForEachProperty(
+    const IterationCallback& callback) {
   CSSPropertyValueSet& inline_style_set =
       owner_element_->EnsureMutableInlineStyle();
   for (unsigned i = 0; i < inline_style_set.PropertyCount(); i++) {
     const auto& property_reference = inline_style_set.PropertyAt(i);
-    visitor(property_reference.Name(), property_reference.Value());
+    callback(property_reference.Name(), property_reference.Value());
   }
 }
 
@@ -90,6 +89,8 @@ String InlineStylePropertyMap::SerializationForShorthand(
     return StylePropertySerializer(*inline_style)
         .SerializeShorthand(property.PropertyID());
   }
+
+  NOTREACHED();
   return "";
 }
 

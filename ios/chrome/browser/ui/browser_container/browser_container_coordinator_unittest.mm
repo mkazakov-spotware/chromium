@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #import "base/mac/foundation_util.h"
 #import "base/test/task_environment.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
 #import "ios/chrome/browser/link_to_text/link_to_text_payload.h"
 #import "ios/chrome/browser/main/test_browser.h"
 #import "ios/chrome/browser/ui/browser_container/browser_container_view_controller.h"
@@ -18,6 +17,7 @@
 #import "ios/chrome/browser/ui/link_to_text/link_to_text_consumer.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/chrome/test/scoped_key_window.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
 #import "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
 #import "third_party/ocmock/gtest_support.h"
@@ -32,10 +32,8 @@
 class BrowserContainerCoordinatorTest : public PlatformTest {
  public:
   BrowserContainerCoordinatorTest() {
-    browser_state_ = TestChromeBrowserState::Builder().Build();
-    browser_ = std::make_unique<TestBrowser>(browser_state_.get());
     mocked_handler_ = OCMStrictProtocolMock(@protocol(ActivityServiceCommands));
-    [browser_->GetCommandDispatcher()
+    [browser_.GetCommandDispatcher()
         startDispatchingToTarget:mocked_handler_
                      forProtocol:@protocol(ActivityServiceCommands)];
   }
@@ -44,7 +42,7 @@ class BrowserContainerCoordinatorTest : public PlatformTest {
     BrowserContainerCoordinator* coordinator =
         [[BrowserContainerCoordinator alloc]
             initWithBaseViewController:nil
-                               browser:browser_.get()];
+                               browser:&browser_];
     [coordinator start];
     [scoped_key_window_.Get() setRootViewController:coordinator.viewController];
     return coordinator;
@@ -52,8 +50,8 @@ class BrowserContainerCoordinatorTest : public PlatformTest {
 
  protected:
   base::test::TaskEnvironment task_environment_;
-  std::unique_ptr<TestChromeBrowserState> browser_state_;
-  std::unique_ptr<TestBrowser> browser_;
+
+  TestBrowser browser_;
   id mocked_handler_;
   ScopedKeyWindow scoped_key_window_;
 };

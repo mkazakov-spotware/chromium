@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,6 @@
 #include <stdint.h>
 
 #include <string>
-#include <tuple>
-#include <utility>
 #include <vector>
 
 #include "base/compiler_specific.h"
@@ -31,47 +29,32 @@ class NET_EXPORT AddressList {
   AddressList();
   AddressList(const AddressList&);
   AddressList& operator=(const AddressList&);
-  AddressList(AddressList&&);
-  AddressList& operator=(AddressList&&);
   ~AddressList();
 
-  // Creates an address list for a single IP endpoint.
+  // Creates an address list for a single IP literal.
   explicit AddressList(const IPEndPoint& endpoint);
-
-  // Creates an address list for a single IP endpoint and a list of DNS aliases.
-  AddressList(const IPEndPoint& endpoint, std::vector<std::string> aliases);
-
-  // Creates an address list for a list of IP endpoints.
-  explicit AddressList(std::vector<IPEndPoint> endpoints);
 
   static AddressList CreateFromIPAddress(const IPAddress& address,
                                          uint16_t port);
 
   static AddressList CreateFromIPAddressList(const IPAddressList& addresses,
-                                             std::vector<std::string> aliases);
+                                             const std::string& canonical_name);
 
-  // Copies the data from `head` and the chained list into an AddressList.
+  // Copies the data from |head| and the chained list into an AddressList.
   static AddressList CreateFromAddrinfo(const struct addrinfo* head);
 
-  // Returns a copy of `list` with port on each element set to |port|.
+  // Returns a copy of |list| with port on each element set to |port|.
   static AddressList CopyWithPort(const AddressList& list, uint16_t port);
 
-  bool operator==(const AddressList& other) const {
-    return std::tie(endpoints_, dns_aliases_) ==
-           std::tie(other.endpoints_, other.dns_aliases_);
+  // TODO(szym): Remove all three. http://crbug.com/126134
+  const std::string& canonical_name() const { return canonical_name_; }
+
+  void set_canonical_name(const std::string& canonical_name) {
+    canonical_name_ = canonical_name;
   }
-  bool operator!=(const AddressList& other) const { return !(*this == other); }
 
-  // Sets the first entry of `dns_aliases_` to the literal of the first IP
-  // address on the list. Assumes that `dns_aliases_` is empty.
+  // Sets canonical name to the literal of the first IP address on the list.
   void SetDefaultCanonicalName();
-
-  // The alias chain in no particular order.
-  const std::vector<std::string>& dns_aliases() const { return dns_aliases_; }
-
-  void SetDnsAliases(std::vector<std::string> aliases);
-
-  void AppendDnsAliases(std::vector<std::string> aliases);
 
   // Creates a value representation of the address list, appropriate for
   // inclusion in a NetLog.
@@ -110,9 +93,8 @@ class NET_EXPORT AddressList {
 
  private:
   std::vector<IPEndPoint> endpoints_;
-
-  // In no particular order.
-  std::vector<std::string> dns_aliases_;
+  // TODO(szym): Remove. http://crbug.com/126134
+  std::string canonical_name_;
 };
 
 }  // namespace net

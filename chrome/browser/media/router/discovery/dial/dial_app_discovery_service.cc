@@ -1,14 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media/router/discovery/dial/dial_app_discovery_service.h"
 
 #include "base/bind.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
-#include "base/strings/stringprintf.h"
 #include "base/time/default_clock.h"
 #include "chrome/browser/media/router/data_decoder_util.h"
 #include "net/http/http_status_code.h"
@@ -17,8 +16,6 @@
 namespace media_router {
 
 namespace {
-
-const char kLoggerComponent[] = "DialAppDiscoveryService";
 
 GURL GetAppUrl(const media_router::MediaSinkInternal& sink,
                const std::string& app_name) {
@@ -37,13 +34,8 @@ void RecordDialFetchAppInfo(DialAppInfoResultCode result_code) {
 
 DialAppInfoResult::DialAppInfoResult(
     std::unique_ptr<ParsedDialAppInfo> app_info,
-    DialAppInfoResultCode result_code,
-    const std::string& error_message,
-    absl::optional<int> http_error_code)
-    : app_info(std::move(app_info)),
-      result_code(result_code),
-      error_message(error_message),
-      http_error_code(http_error_code) {}
+    DialAppInfoResultCode result_code)
+    : app_info(std::move(app_info)), result_code(result_code) {}
 
 DialAppInfoResult::DialAppInfoResult(DialAppInfoResult&& other) = default;
 
@@ -120,22 +112,22 @@ void DialAppDiscoveryService::PendingRequest::OnDialAppInfoFetchComplete(
 }
 
 void DialAppDiscoveryService::PendingRequest::OnDialAppInfoFetchError(
-    const std::string& error_message,
-    absl::optional<int> http_response_code) {
+    int response_code,
+    const std::string& error_message) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  auto result_code = DialAppInfoResultCode::kNetworkError;
-  if (http_response_code) {
-    if (*http_response_code >= 200 && *http_response_code < 300) {
-      result_code = DialAppInfoResultCode::kParsingError;
-    } else {
-      result_code = DialAppInfoResultCode::kHttpError;
-    }
+  if (response_code == net::HTTP_NOT_FOUND ||
+      response_code >= net::HTTP_INTERNAL_SERVER_ERROR ||
+      response_code == net::HTTP_OK) {
+    RecordDialFetchAppInfo(DialAppInfoResultCode::kNotFound);
+    std::move(app_info_cb_)
+        .Run(sink_id_, app_name_,
+             DialAppInfoResult(nullptr, DialAppInfoResultCode::kNotFound));
+  } else {
+    RecordDialFetchAppInfo(DialAppInfoResultCode::kNetworkError);
+    std::move(app_info_cb_)
+        .Run(sink_id_, app_name_,
+             DialAppInfoResult(nullptr, DialAppInfoResultCode::kNetworkError));
   }
-  RecordDialFetchAppInfo(result_code);
-  std::move(app_info_cb_)
-      .Run(sink_id_, app_name_,
-           DialAppInfoResult(nullptr, result_code, error_message,
-                             http_response_code));
   service_->RemovePendingRequest(this);
 }
 
@@ -149,13 +141,6 @@ void DialAppDiscoveryService::PendingRequest::OnDialAppInfoParsed(
         .Run(sink_id_, app_name_,
              DialAppInfoResult(nullptr, DialAppInfoResultCode::kParsingError));
   } else {
-    LoggerList::GetInstance()->Log(
-        LoggerImpl::Severity::kInfo, mojom::LogCategory::kDiscovery,
-        kLoggerComponent,
-        base::StringPrintf("DIAL sink supports disconnect: %s",
-                           parsed_app_info->allow_stop ? "true" : "false"),
-        sink_id_, "", "");
-
     RecordDialFetchAppInfo(DialAppInfoResultCode::kOk);
     std::move(app_info_cb_)
         .Run(sink_id_, app_name_,

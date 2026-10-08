@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,12 @@
 #include <vector>
 
 #include "base/command_line.h"
+#include "base/stl_util.h"
 #include "components/exo/wayland/clients/client_helper.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkImage.h"
 #include "third_party/skia/include/core/SkSurface.h"
-#include "third_party/skia/include/effects/SkImageFilters.h"
+#include "third_party/skia/include/effects/SkBlurImageFilter.h"
 #include "third_party/skia/include/gpu/GrDirectContext.h"
 #include "ui/gl/gl_bindings.h"
 
@@ -70,11 +71,9 @@ void DrawContents(SkImage* background_grid_image,
                   base::TimeDelta elapsed_time,
                   SkCanvas* canvas) {
   // Draw background grid.
-  {
-    SkPaint paint;
-    paint.setBlendMode(SkBlendMode::kSrc);
-    canvas->drawImage(background_grid_image, 0, 0, SkSamplingOptions(), &paint);
-  }
+  SkPaint paint;
+  paint.setBlendMode(SkBlendMode::kSrc);
+  canvas->drawImage(background_grid_image, 0, 0, &paint);
 
   // Draw rotated rectangles.
   SkScalar rect_size =
@@ -88,7 +87,7 @@ void DrawContents(SkImage* background_grid_image,
                                  SK_ColorRED,  SK_ColorYELLOW,
                                  SK_ColorCYAN, SK_ColorMAGENTA};
       SkPaint paint;
-      paint.setColor(kColors[(y * kGridSize + x) % std::size(kColors)]);
+      paint.setColor(kColors[(y * kGridSize + x) % base::size(kColors)]);
       canvas->save();
       canvas->translate(
           x * cell_size.width() + SkScalarHalf(cell_size.width()),
@@ -132,8 +131,8 @@ void Blur::Run(double sigma_x,
   if (sigma_x > 0.0 || sigma_y > 0.0) {
     sigma_x = AdjustSigma(sigma_x, max_sigma, &blur_scale_factor_x);
     sigma_y = AdjustSigma(sigma_y, max_sigma, &blur_scale_factor_y);
-    blur_filter = SkImageFilters::Blur(sigma_x, sigma_y, SkTileMode::kClamp,
-                                       nullptr, nullptr);
+    blur_filter = SkBlurImageFilter::Make(sigma_x, sigma_y, nullptr, nullptr,
+                                          SkBlurImageFilter::kClamp_TileMode);
     auto size = SkISize::Make(size_.width() / blur_scale_factor_x,
                               size_.height() / blur_scale_factor_y);
     do {
@@ -173,8 +172,8 @@ void Blur::Run(double sigma_x,
                         size.height() / content_surfaces.back()->height());
           SkPaint paint;
           paint.setBlendMode(SkBlendMode::kSrc);
-          content_surfaces.back()->draw(
-              canvas, 0, 0, SkSamplingOptions(SkFilterMode::kLinear), &paint);
+          paint.setFilterQuality(SkFilterQuality::kLow_SkFilterQuality);
+          content_surfaces.back()->draw(canvas, 0, 0, &paint);
         }
 
         canvas->restore();
@@ -195,12 +194,12 @@ void Blur::Run(double sigma_x,
                     size.height() / blur_image->height());
       SkPaint paint;
       paint.setBlendMode(SkBlendMode::kSrc);
-      SkSamplingOptions sampling(SkFilterMode::kLinear);
+      paint.setFilterQuality(SkFilterQuality::kLow_SkFilterQuality);
       // Simulate multi-texturing by adding foreground opacity.
       int alpha = (1.0 - kForegroundOpacity) * 255.0 + 0.5;
       paint.setColor(SkColorSetA(SK_ColorBLACK, alpha));
       canvas->drawImage(blurred_image, offset.x() - subset.x(),
-                        offset.y() - subset.y(), sampling, &paint);
+                        offset.y() - subset.y(), &paint);
       canvas->restore();
 
       // Restore blur surfaces for next frame.

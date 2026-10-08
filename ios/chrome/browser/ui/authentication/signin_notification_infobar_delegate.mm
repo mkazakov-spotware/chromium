@@ -1,37 +1,45 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/ui/authentication/signin_notification_infobar_delegate.h"
+#include "ios/chrome/browser/ui/authentication/signin_notification_infobar_delegate.h"
 
 #import <UIKit/UIKit.h>
 
-#import <utility>
+#include <utility>
 
-#import "base/check.h"
-#import "base/memory/ptr_util.h"
-#import "base/metrics/user_metrics.h"
-#import "base/strings/sys_string_conversions.h"
-#import "components/infobars/core/infobar.h"
-#import "components/infobars/core/infobar_delegate.h"
-#import "components/infobars/core/infobar_manager.h"
+#include "base/check.h"
+#include "base/memory/ptr_util.h"
+#include "base/metrics/user_metrics.h"
+#include "base/strings/sys_string_conversions.h"
+#include "components/infobars/core/infobar.h"
+#include "components/infobars/core/infobar_delegate.h"
+#include "components/infobars/core/infobar_manager.h"
+#include "components/signin/ios/browser/features.h"
 #import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/infobars/infobar_utils.h"
+#include "ios/chrome/browser/infobars/infobar_utils.h"
 #import "ios/chrome/browser/main/browser.h"
 #import "ios/chrome/browser/signin/authentication_service.h"
 #import "ios/chrome/browser/signin/authentication_service_factory.h"
-#import "ios/chrome/browser/signin/chrome_account_manager_service.h"
-#import "ios/chrome/browser/signin/chrome_account_manager_service_factory.h"
-#import "ios/chrome/browser/signin/system_identity.h"
 #import "ios/chrome/browser/ui/commands/application_commands.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
-#import "ios/chrome/grit/ios_chromium_strings.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ui/base/l10n/l10n_util.h"
+#include "ios/chrome/grit/ios_chromium_strings.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ios/public/provider/chrome/browser/chrome_browser_provider.h"
+#import "ios/public/provider/chrome/browser/signin/chrome_identity.h"
+#include "ios/public/provider/chrome/browser/signin/chrome_identity_service.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
+
+namespace {
+
+// Avatar profile picture size.
+const CGFloat kAvatarImageDimension = 40.0f;
+
+}  // namespace
 
 // static
 bool SigninNotificationInfoBarDelegate::Create(
@@ -58,18 +66,26 @@ SigninNotificationInfoBarDelegate::SigninNotificationInfoBarDelegate(
   AuthenticationService* auth_service =
       AuthenticationServiceFactory::GetForBrowserState(browser_state);
   DCHECK(auth_service);
-  id<SystemIdentity> identity =
-      auth_service->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
+  ChromeIdentity* identity = auth_service->GetAuthenticatedIdentity();
 
-  ChromeAccountManagerService* accountManagerService =
-      ChromeAccountManagerServiceFactory::GetForBrowserState(browser_state);
-  UIImage* image = accountManagerService->GetIdentityAvatarWithIdentity(
-      identity, IdentityAvatarSize::Regular);
-  icon_ = gfx::Image(CircularImageFromImage(image, image.size.width));
+  UIImage* image = ios::GetChromeBrowserProvider()
+                       ->GetChromeIdentityService()
+                       ->GetCachedAvatarForIdentity(identity);
+  if (!image) {
+    image = [UIImage imageNamed:@"ios_default_avatar"];
+  }
+  icon_ = gfx::Image(CircularImageFromImage(image, kAvatarImageDimension));
 
-  title_ = base::SysNSStringToUTF16(l10n_util::GetNSStringF(
-      IDS_IOS_SIGNIN_ACCOUNT_NOTIFICATION_TITLE_WITH_USERNAME,
-      base::SysNSStringToUTF16(identity.userGivenName)));
+  if (base::FeatureList::IsEnabled(
+          signin::kSigninNotificationInfobarUsernameInTitle)) {
+    title_ = base::SysNSStringToUTF16(l10n_util::GetNSStringF(
+        IDS_IOS_SIGNIN_ACCOUNT_NOTIFICATION_TITLE_WITH_USERNAME,
+        base::SysNSStringToUTF16(identity.userFullName)));
+  } else {
+    title_ = base::SysNSStringToUTF16(
+        l10n_util::GetNSString(IDS_IOS_SIGNIN_ACCOUNT_NOTIFICATION_TITLE));
+  }
+
   message_ = base::SysNSStringToUTF16(identity.userEmail);
   button_text_ =
       base::SysNSStringToUTF16(l10n_util::GetNSString(IDS_IOS_SETTINGS_TITLE));
@@ -82,11 +98,11 @@ SigninNotificationInfoBarDelegate::GetIdentifier() const {
   return RE_SIGN_IN_INFOBAR_DELEGATE_IOS;
 }
 
-std::u16string SigninNotificationInfoBarDelegate::GetTitleText() const {
+base::string16 SigninNotificationInfoBarDelegate::GetTitleText() const {
   return title_;
 }
 
-std::u16string SigninNotificationInfoBarDelegate::GetMessageText() const {
+base::string16 SigninNotificationInfoBarDelegate::GetMessageText() const {
   return message_;
 }
 
@@ -94,14 +110,14 @@ int SigninNotificationInfoBarDelegate::GetButtons() const {
   return BUTTON_OK;
 }
 
-std::u16string SigninNotificationInfoBarDelegate::GetButtonLabel(
+base::string16 SigninNotificationInfoBarDelegate::GetButtonLabel(
     InfoBarButton button) const {
   DCHECK(button == BUTTON_OK);
   return button_text_;
 }
 
-ui::ImageModel SigninNotificationInfoBarDelegate::GetIcon() const {
-  return ui::ImageModel::FromImage(icon_);
+gfx::Image SigninNotificationInfoBarDelegate::GetIcon() const {
+  return icon_;
 }
 
 bool SigninNotificationInfoBarDelegate::UseIconBackgroundTint() const {
@@ -113,12 +129,4 @@ bool SigninNotificationInfoBarDelegate::Accept() {
   base::RecordAction(base::UserMetricsAction(
       "Settings.GoogleServices.FromSigninNotificationInfobar"));
   return true;
-}
-
-bool SigninNotificationInfoBarDelegate::ShouldExpire(
-    const NavigationDetails& details) const {
-  // Due to the redirects that occur when navigating to a Google subdomain from
-  // the Omnibox, Chrome ensures that the sign-in infobar is displayed after
-  // restoring Gaia cookies regardless of the navigation type.
-  return false;
 }

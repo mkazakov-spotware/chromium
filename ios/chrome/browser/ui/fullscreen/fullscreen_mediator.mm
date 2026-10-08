@@ -1,17 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/fullscreen/fullscreen_mediator.h"
 
-#import "base/check_op.h"
-#import "base/memory/ptr_util.h"
+#include "base/check_op.h"
+#include "base/memory/ptr_util.h"
 #import "ios/chrome/browser/ui/fullscreen/fullscreen_animator.h"
 #import "ios/chrome/browser/ui/fullscreen/fullscreen_content_adjustment_util.h"
 #import "ios/chrome/browser/ui/fullscreen/fullscreen_controller_observer.h"
 #import "ios/chrome/browser/ui/fullscreen/fullscreen_model.h"
 #import "ios/chrome/browser/ui/fullscreen/fullscreen_web_view_resizer.h"
-#import "ios/chrome/common/ui/util/ui_util.h"
+#include "ios/chrome/browser/ui/util/ui_util.h"
 #import "ios/web/public/web_state.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -146,12 +146,8 @@ void FullscreenMediator::FullscreenModelWasReset(FullscreenModel* model) {
   // callback occurs after the model's state is reset, and updating the model
   // the with active animator's current value would overwrite the reset value.
   StopAnimating(false /* update_model */);
-  // Update observers for the reset progress value and set the inset range in
-  // case this is a new WebState.
+  // Update observers for the reset progress value.
   for (auto& observer : observers_) {
-    observer.FullscreenViewportInsetRangeChanged(
-        controller_, controller_->GetMinViewportInsets(),
-        controller_->GetMaxViewportInsets());
     observer.FullscreenProgressUpdated(controller_, model_->progress());
   }
 

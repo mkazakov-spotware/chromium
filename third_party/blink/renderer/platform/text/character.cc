@@ -34,14 +34,14 @@
 #include <unicode/ucptrie.h>
 #include <unicode/uobject.h>
 #include <unicode/uscript.h>
-
 #include <algorithm>
 
+#include "base/stl_util.h"
 #include "third_party/blink/renderer/platform/text/character_property_data.h"
 #include "third_party/blink/renderer/platform/text/icu_error.h"
 #include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
-#include "third_party/blink/renderer/platform/wtf/text/unicode.h"
+
 
 namespace blink {
 
@@ -87,10 +87,16 @@ bool Character::IsHangulSlow(UChar32 character) {
 unsigned Character::ExpansionOpportunityCount(
     base::span<const LChar> characters,
     TextDirection direction,
-    bool& is_after_expansion) {
+    bool& is_after_expansion,
+    const TextJustify text_justify) {
+  if (text_justify == TextJustify::kDistribute) {
+    is_after_expansion = true;
+    return characters.size();
+  }
+
   unsigned count = 0;
   if (direction == TextDirection::kLtr) {
-    for (size_t i = 0; i < characters.size(); ++i) {
+    for (unsigned i = 0; i < characters.size(); ++i) {
       if (TreatAsSpace(characters[i])) {
         count++;
         is_after_expansion = true;
@@ -99,7 +105,7 @@ unsigned Character::ExpansionOpportunityCount(
       }
     }
   } else {
-    for (size_t i = characters.size(); i > 0; --i) {
+    for (unsigned i = characters.size(); i > 0; --i) {
       if (TreatAsSpace(characters[i - 1])) {
         count++;
         is_after_expansion = true;
@@ -115,10 +121,11 @@ unsigned Character::ExpansionOpportunityCount(
 unsigned Character::ExpansionOpportunityCount(
     base::span<const UChar> characters,
     TextDirection direction,
-    bool& is_after_expansion) {
+    bool& is_after_expansion,
+    const TextJustify text_justify) {
   unsigned count = 0;
   if (direction == TextDirection::kLtr) {
-    for (size_t i = 0; i < characters.size(); ++i) {
+    for (unsigned i = 0; i < characters.size(); ++i) {
       UChar32 character = characters[i];
       if (TreatAsSpace(character)) {
         count++;
@@ -130,7 +137,8 @@ unsigned Character::ExpansionOpportunityCount(
         character = U16_GET_SUPPLEMENTARY(character, characters[i + 1]);
         i++;
       }
-      if (IsCJKIdeographOrSymbol(character)) {
+      if (text_justify == TextJustify::kAuto &&
+          IsCJKIdeographOrSymbol(character)) {
         if (!is_after_expansion)
           count++;
         count++;
@@ -140,7 +148,7 @@ unsigned Character::ExpansionOpportunityCount(
       is_after_expansion = false;
     }
   } else {
-    for (size_t i = characters.size(); i > 0; --i) {
+    for (unsigned i = characters.size(); i > 0; --i) {
       UChar32 character = characters[i - 1];
       if (TreatAsSpace(character)) {
         count++;
@@ -151,7 +159,8 @@ unsigned Character::ExpansionOpportunityCount(
         character = U16_GET_SUPPLEMENTARY(characters[i - 2], character);
         i--;
       }
-      if (IsCJKIdeographOrSymbol(character)) {
+      if (text_justify == TextJustify::kAuto &&
+          IsCJKIdeographOrSymbol(character)) {
         if (!is_after_expansion)
           count++;
         count++;
@@ -267,7 +276,7 @@ bool Character::HasDefiniteScript(UChar32 character) {
          hint_char_script != USCRIPT_COMMON;
 }
 
-// https://w3c.github.io/mathml-core/#stretchy-operator-axis
+// https://mathml-refresh.github.io/mathml-core/#stretchy-operator-axis
 static const UChar stretchy_operator_with_inline_axis[]{
     0x003D, 0x005E, 0x005F, 0x007E, 0x00AF, 0x02C6, 0x02C7, 0x02C9, 0x02CD,
     0x02DC, 0x02F7, 0x0302, 0x0332, 0x203E, 0x20D0, 0x20D1, 0x20D6, 0x20D7,
@@ -287,7 +296,7 @@ bool Character::IsVerticalMathCharacter(UChar32 text_content) {
          text_content != kArabicMathematicalOperatorHahWithDal &&
          !std::binary_search(stretchy_operator_with_inline_axis,
                              stretchy_operator_with_inline_axis +
-                                 std::size(stretchy_operator_with_inline_axis),
+                                 base::size(stretchy_operator_with_inline_axis),
                              text_content);
 }
 

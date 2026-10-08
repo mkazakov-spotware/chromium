@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,8 +28,7 @@ MediaPipelineBackendAndroid::CreateAudioDecoder() {
   DCHECK_EQ(kStateUninitialized, state_);
   if (audio_decoder_)
     return nullptr;
-  audio_decoder_.reset(new AudioDecoderAndroid(
-      this, params_.sync_type == MediaPipelineDeviceParams::kModeApkSyncPts));
+  audio_decoder_.reset(new AudioDecoderAndroid(this));
   return audio_decoder_.get();
 }
 

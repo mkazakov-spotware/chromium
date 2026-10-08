@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# Copyright 2015 The Chromium Authors
+#!/usr/bin/env python
+# Copyright (c) 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -22,15 +22,7 @@ def _EscapeResource(resource):
   '''
   if resource == None or type(resource) in (int, bool):
     return str(resource)
-  return xml_escape.escape(
-      resource,
-      {
-          # Written order is matter to prevent "'" becomes "\\\\'" instead of
-          # "\\'".
-          "\\": "\\\\",
-          "'": "\\'",
-          '"': '\\"',
-      })
+  return xml_escape.escape(resource, {"'": "\\'", '"': '\\"', '\\': '\\\\'})
 
 
 class AndroidPolicyWriter(xml_formatted_writer.XMLFormattedWriter):

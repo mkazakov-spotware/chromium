@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,13 @@
 #include "base/bind.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chrome/browser/ash/crostini/crostini_features.h"
-#include "chrome/browser/ash/crostini/crostini_manager.h"
+#include "chrome/browser/chromeos/crostini/crostini_features.h"
+#include "chrome/browser/chromeos/crostini/crostini_manager.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/chromeos/devicetype_utils.h"
 #include "ui/strings/grit/ui_strings.h"
@@ -28,18 +28,20 @@ namespace {
 CrostiniUninstallerView* g_crostini_uninstaller_view = nullptr;
 
 constexpr char kCrostiniUninstallResultHistogram[] = "Crostini.UninstallResult";
+constexpr char kCrostiniUninstallSourceHistogram[] = "Crostini.UninstallSource";
 
 }  // namespace
 
-void crostini::ShowCrostiniUninstallerView(Profile* profile) {
+void crostini::ShowCrostiniUninstallerView(
+    Profile* profile,
+    crostini::CrostiniUISurface ui_surface) {
+  base::UmaHistogramEnumeration(kCrostiniUninstallSourceHistogram, ui_surface,
+                                crostini::CrostiniUISurface::kCount);
   return CrostiniUninstallerView::Show(profile);
 }
 
 void CrostiniUninstallerView::Show(Profile* profile) {
-  if (!crostini::CrostiniFeatures::Get()->IsAllowedNow(profile)) {
-    return;
-  }
-
+  DCHECK(crostini::CrostiniFeatures::Get()->IsUIAllowed(profile));
   if (!g_crostini_uninstaller_view) {
     g_crostini_uninstaller_view = new CrostiniUninstallerView(profile);
     views::DialogDelegate::CreateDialogWidget(g_crostini_uninstaller_view,
@@ -96,20 +98,22 @@ CrostiniUninstallerView::CrostiniUninstallerView(Profile* profile)
       provider->GetInsetsMetric(views::InsetsMetric::INSETS_DIALOG),
       provider->GetDistanceMetric(views::DISTANCE_RELATED_CONTROL_VERTICAL)));
 
-  const std::u16string device_type = ui::GetChromeOSDeviceName();
-  const std::u16string message =
+  const base::string16 device_type = ui::GetChromeOSDeviceName();
+  const base::string16 message =
       l10n_util::GetStringFUTF16(IDS_CROSTINI_UNINSTALLER_BODY, device_type);
   message_label_ = new views::Label(message);
   message_label_->SetMultiLine(true);
   message_label_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   AddChildView(message_label_);
+
+  chrome::RecordDialogCreation(chrome::DialogIdentifier::CROSTINI_UNINSTALLER);
 }
 
 CrostiniUninstallerView::~CrostiniUninstallerView() {
   g_crostini_uninstaller_view = nullptr;
 }
 
-void CrostiniUninstallerView::HandleError(const std::u16string& error_message) {
+void CrostiniUninstallerView::HandleError(const base::string16& error_message) {
   state_ = State::ERROR;
   SetButtons(ui::DIALOG_BUTTON_CANCEL);
   message_label_->SetVisible(true);
@@ -146,6 +150,3 @@ void CrostiniUninstallerView::RecordUninstallResultHistogram(
                                 UninstallResult::kCount);
   has_logged_result_ = true;
 }
-
-BEGIN_METADATA(CrostiniUninstallerView, views::BubbleDialogDelegateView)
-END_METADATA

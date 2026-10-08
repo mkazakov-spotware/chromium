@@ -28,12 +28,10 @@
 
 #include <memory>
 #include "base/memory/scoped_refptr.h"
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/css_property_source_data.h"
-#include "third_party/blink/renderer/core/css/css_scope_rule.h"
 #include "third_party/blink/renderer/core/css/css_style_declaration.h"
-#include "third_party/blink/renderer/core/inspector/protocol/css.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/core/inspector/protocol/CSS.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
@@ -42,11 +40,9 @@ namespace blink {
 
 class CSSKeyframeRule;
 class CSSMediaRule;
-class CSSContainerRule;
 class CSSStyleDeclaration;
 class CSSStyleRule;
 class CSSStyleSheet;
-class CSSSupportsRule;
 class Document;
 class Element;
 class ExceptionState;
@@ -77,8 +73,6 @@ class InspectorStyle final : public GarbageCollected<InspectorStyle> {
   void PopulateAllProperties(Vector<CSSPropertySourceData>& result);
   std::unique_ptr<protocol::CSS::CSSStyle> StyleWithProperties();
   String ShorthandValue(const String& shorthand_property);
-  std::unique_ptr<protocol::Array<protocol::CSS::CSSProperty>>
-  LonghandProperties(const CSSPropertySourceData& property_entry);
 
   Member<CSSStyleDeclaration> style_;
   Member<CSSRuleSourceData> source_data_;
@@ -168,21 +162,6 @@ class InspectorStyleSheet : public InspectorStyleSheetBase {
                                  SourceRange* new_range,
                                  String* old_selector,
                                  ExceptionState&);
-  CSSContainerRule* SetContainerRuleText(const SourceRange&,
-                                         const String& selector,
-                                         SourceRange* new_range,
-                                         String* old_selector,
-                                         ExceptionState&);
-  CSSScopeRule* SetScopeRuleText(const SourceRange&,
-                                 const String& selector,
-                                 SourceRange* new_range,
-                                 String* old_selector,
-                                 ExceptionState&);
-  CSSSupportsRule* SetSupportsRuleText(const SourceRange&,
-                                       const String& selector,
-                                       SourceRange* new_range,
-                                       String* old_selector,
-                                       ExceptionState&);
   CSSStyleRule* AddRule(const String& rule_text,
                         const SourceRange& location,
                         SourceRange* added_range,
@@ -193,7 +172,7 @@ class InspectorStyleSheet : public InspectorStyleSheetBase {
 
   std::unique_ptr<protocol::CSS::CSSStyleSheetHeader>
   BuildObjectForStyleSheetInfo();
-  std::unique_ptr<protocol::CSS::CSSRule> BuildObjectForRuleWithoutAncestorData(
+  std::unique_ptr<protocol::CSS::CSSRule> BuildObjectForRuleWithoutMedia(
       CSSStyleRule*);
   std::unique_ptr<protocol::CSS::RuleUsage> BuildObjectForRuleUsage(CSSRule*,
                                                                     bool);
@@ -308,4 +287,4 @@ class InspectorStyleSheetForInlineStyle final : public InspectorStyleSheetBase {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_INSPECTOR_INSPECTOR_STYLE_SHEET_H_
+#endif  // !defined(InspectorStyleSheet_h)

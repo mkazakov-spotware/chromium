@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,10 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_export.h"
 #include "net/base/request_priority.h"
@@ -25,17 +25,13 @@
 #include "net/socket/ssl_client_socket.h"
 #include "net/spdy/spdy_buffer.h"
 #include "net/ssl/ssl_client_cert_type.h"
-#include "net/third_party/quiche/src/quiche/spdy/core/http2_header_block.h"
-#include "net/third_party/quiche/src/quiche/spdy/core/spdy_framer.h"
-#include "net/third_party/quiche/src/quiche/spdy/core/spdy_protocol.h"
+#include "net/third_party/quiche/src/spdy/core/spdy_framer.h"
+#include "net/third_party/quiche/src/spdy/core/spdy_header_block.h"
+#include "net/third_party/quiche/src/spdy/core/spdy_protocol.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "url/gurl.h"
 
 namespace net {
-
-namespace test {
-class SpdyStreamTest;
-}
 
 class IPEndPoint;
 struct LoadTimingInfo;
@@ -73,27 +69,18 @@ class NET_EXPORT_PRIVATE SpdyStream {
   // Delegate handles protocol specific behavior of spdy stream.
   class NET_EXPORT_PRIVATE Delegate {
    public:
-    Delegate() = default;
-
-    Delegate(const Delegate&) = delete;
-    Delegate& operator=(const Delegate&) = delete;
+    Delegate() {}
 
     // Called when the request headers have been sent. Never called
     // for push streams. Must not cause the stream to be closed.
     virtual void OnHeadersSent() = 0;
 
-    // OnEarlyHintsReceived(), OnHeadersReceived(), OnDataReceived(),
-    // OnTrailers(), and OnClose() are guaranteed to be called in the following
-    // order:
-    //   - OnEarlyHintsReceived() zero or more times;
+    // OnHeadersReceived(), OnDataReceived(), OnTrailers(), and OnClose()
+    // are guaranteed to be called in the following order:
     //   - OnHeadersReceived() exactly once;
     //   - OnDataReceived() zero or more times;
     //   - OnTrailers() zero or one times;
     //   - OnClose() exactly once.
-
-    // Called when a 103 Early Hints response is received.
-    virtual void OnEarlyHintsReceived(
-        const spdy::Http2HeaderBlock& headers) = 0;
 
     // Called when response headers have been received.  In case of a pushed
     // stream, the pushed request headers are also passed.
@@ -127,7 +114,10 @@ class NET_EXPORT_PRIVATE SpdyStream {
     virtual NetLogSource source_dependency() const = 0;
 
    protected:
-    virtual ~Delegate() = default;
+    virtual ~Delegate() {}
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Delegate);
   };
 
   // SpdyStream constructor
@@ -138,11 +128,7 @@ class NET_EXPORT_PRIVATE SpdyStream {
              int32_t initial_send_window_size,
              int32_t max_recv_window_size,
              const NetLogWithSource& net_log,
-             const NetworkTrafficAnnotationTag& traffic_annotation,
-             bool detect_broken_connection);
-
-  SpdyStream(const SpdyStream&) = delete;
-  SpdyStream& operator=(const SpdyStream&) = delete;
+             const NetworkTrafficAnnotationTag& traffic_annotation);
 
   ~SpdyStream();
 
@@ -195,7 +181,7 @@ class NET_EXPORT_PRIVATE SpdyStream {
   // Returns true if successful.  Returns false if |send_window_size_|
   // would exceed 2^31-1 after the update, see RFC7540 Section 6.9.2.
   // Note that |send_window_size_| should not possibly underflow.
-  [[nodiscard]] bool AdjustSendWindowSize(int32_t delta_window_size);
+  bool AdjustSendWindowSize(int32_t delta_window_size) WARN_UNUSED_RESULT;
 
   // Called when bytes are consumed from a SpdyBuffer for a DATA frame
   // that is to be written or is being written. Increases the send
@@ -405,15 +391,14 @@ class NET_EXPORT_PRIVATE SpdyStream {
     return response_headers_;
   }
 
+  // Returns the estimate of dynamically allocated memory in bytes.
+  size_t EstimateMemoryUsage() const;
+
   const NetworkTrafficAnnotationTag traffic_annotation() const {
     return traffic_annotation_;
   }
 
-  bool detect_broken_connection() const { return detect_broken_connection_; }
-
  private:
-  friend class test::SpdyStreamTest;
-
   class HeadersBufferProducer;
 
   // SpdyStream states and transitions are modeled
@@ -462,9 +447,6 @@ class NET_EXPORT_PRIVATE SpdyStream {
   // |pending_send_data_| is set.
   void QueueNextDataFrame();
 
-  void OnEarlyHintsReceived(const spdy::Http2HeaderBlock& response_headers,
-                            base::TimeTicks recv_first_byte_time);
-
   // Saves the given headers into |response_headers_| and calls
   // OnHeadersReceived() on the delegate if attached.
   void SaveResponseHeaders(const spdy::Http2HeaderBlock& response_headers,
@@ -474,11 +456,11 @@ class NET_EXPORT_PRIVATE SpdyStream {
 
   const SpdyStreamType type_;
 
-  spdy::SpdyStreamId stream_id_ = 0;
+  spdy::SpdyStreamId stream_id_;
   const GURL url_;
   RequestPriority priority_;
 
-  bool send_stalled_by_flow_control_ = false;
+  bool send_stalled_by_flow_control_;
 
   // Current send window size.
   int32_t send_window_size_;
@@ -496,24 +478,21 @@ class NET_EXPORT_PRIVATE SpdyStream {
   // When bytes are consumed, SpdyIOBuffer destructor calls back to SpdySession,
   // and this member keeps count of them until the corresponding WINDOW_UPDATEs
   // are sent.
-  int32_t unacked_recv_window_bytes_ = 0;
-
-  // Time of the last WINDOW_UPDATE for the receive window
-  base::TimeTicks last_recv_window_update_;
+  int32_t unacked_recv_window_bytes_;
 
   const base::WeakPtr<SpdySession> session_;
 
   // The transaction should own the delegate.
-  raw_ptr<SpdyStream::Delegate> delegate_ = nullptr;
+  SpdyStream::Delegate* delegate_;
 
   // The headers for the request to send.
-  bool request_headers_valid_ = false;
+  bool request_headers_valid_;
   spdy::Http2HeaderBlock request_headers_;
 
   // Data waiting to be sent, and the close state of the local endpoint
   // after the data is fully written.
   scoped_refptr<DrainableIOBuffer> pending_send_data_;
-  SpdySendStatus pending_send_status_ = MORE_DATA_TO_SEND;
+  SpdySendStatus pending_send_status_;
 
   // Data waiting to be received, and the close state of the remote endpoint
   // after the data is fully read. Specifically, data received before the
@@ -526,54 +505,40 @@ class NET_EXPORT_PRIVATE SpdyStream {
   base::Time request_time_;
 
   spdy::Http2HeaderBlock response_headers_;
-  ResponseState response_state_ = READY_FOR_HEADERS;
+  ResponseState response_state_;
   base::Time response_time_;
 
-  State io_state_ = STATE_IDLE;
+  State io_state_;
 
   NetLogWithSource net_log_;
 
   base::TimeTicks send_time_;
-
-  // The time at which the first / last byte of the HTTP headers were received.
-  //
-  // These correspond to |LoadTimingInfo::receive_headers_start| and
-  // |LoadTimingInfo::receive_headers_end|. See also comments there.
   base::TimeTicks recv_first_byte_time_;
   base::TimeTicks recv_last_byte_time_;
-
-  // The time at which the first byte of the HTTP headers for the
-  // non-informational response (non-1xx). This corresponds to
-  // |LoadTimingInfo::receive_non_informational_headers_start|. See also
-  // comments there.
-  base::TimeTicks recv_first_byte_time_for_non_informational_response_;
-
   // The time at which the first 103 Early Hints response is received.
   base::TimeTicks first_early_hints_time_;
 
   // Number of bytes that have been received on this stream, including frame
   // overhead and headers.
-  int64_t raw_received_bytes_ = 0;
+  int64_t raw_received_bytes_;
   // Number of bytes that have been sent on this stream, including frame
   // overhead and headers.
-  int64_t raw_sent_bytes_ = 0;
+  int64_t raw_sent_bytes_;
 
   // Number of data bytes that have been received on this stream, not including
   // frame overhead. Note that this does not count headers.
-  int recv_bytes_ = 0;
+  int recv_bytes_;
 
   // Guards calls of delegate write handlers ensuring |this| is not destroyed.
   // TODO(jgraettinger): Consider removing after crbug.com/35511 is tracked
   // down.
-  bool write_handler_guard_ = false;
+  bool write_handler_guard_;
 
   const NetworkTrafficAnnotationTag traffic_annotation_;
 
-  // Used by SpdySession to remember if this stream requested broken connection
-  // detection.
-  bool detect_broken_connection_;
-
   base::WeakPtrFactory<SpdyStream> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SpdyStream);
 };
 
 }  // namespace net

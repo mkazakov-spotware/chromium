@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define ANDROID_WEBVIEW_GPU_AW_CONTENT_GPU_CLIENT_H_
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "content/public/gpu/content_gpu_client.h"
 
 namespace android_webview {
@@ -16,33 +17,26 @@ class AwContentGpuClient : public content::ContentGpuClient {
       base::RepeatingCallback<gpu::SyncPointManager*()>;
   using GetSharedImageManagerCallback =
       base::RepeatingCallback<gpu::SharedImageManager*()>;
-  using GetSchedulerCallback = base::RepeatingCallback<gpu::Scheduler*()>;
   using GetVizCompositorThreadRunnerCallback =
       base::RepeatingCallback<viz::VizCompositorThreadRunner*()>;
 
   AwContentGpuClient(
-      GetSyncPointManagerCallback sync_point_manager_callback,
-      GetSharedImageManagerCallback shared_image_manager_callback,
-      GetSchedulerCallback scheduler_callback,
-      GetVizCompositorThreadRunnerCallback
+      const GetSyncPointManagerCallback& sync_point_manager_callback,
+      const GetSharedImageManagerCallback& shared_image_manager_callback,
+      const GetVizCompositorThreadRunnerCallback&
           viz_compositor_thread_runner_callback);
-
-  AwContentGpuClient(const AwContentGpuClient&) = delete;
-  AwContentGpuClient& operator=(const AwContentGpuClient&) = delete;
-
   ~AwContentGpuClient() override;
 
   // content::ContentGpuClient implementation.
   gpu::SyncPointManager* GetSyncPointManager() override;
   gpu::SharedImageManager* GetSharedImageManager() override;
-  gpu::Scheduler* GetScheduler() override;
   viz::VizCompositorThreadRunner* GetVizCompositorThreadRunner() override;
 
  private:
   GetSyncPointManagerCallback sync_point_manager_callback_;
   GetSharedImageManagerCallback shared_image_manager_callback_;
-  GetSchedulerCallback scheduler_callback_;
   GetVizCompositorThreadRunnerCallback viz_compositor_thread_runner_callback_;
+  DISALLOW_COPY_AND_ASSIGN(AwContentGpuClient);
 };
 
 }  // namespace android_webview

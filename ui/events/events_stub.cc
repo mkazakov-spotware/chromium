@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,11 +30,6 @@ int EventFlagsFromNative(const PlatformEvent& native_event) {
 base::TimeTicks EventTimeFromNative(const PlatformEvent& native_event) {
   NOTIMPLEMENTED();
   return base::TimeTicks();
-}
-
-base::TimeTicks EventLatencyTimeFromNative(const PlatformEvent& native_event,
-                                           base::TimeTicks current_time) {
-  return EventTimeFromNative(native_event);
 }
 
 gfx::PointF EventLocationFromNative(const PlatformEvent& native_event) {

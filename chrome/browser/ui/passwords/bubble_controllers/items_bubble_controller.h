@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,6 @@ struct FaviconImageResult;
 
 namespace password_manager {
 struct PasswordForm;
-enum class SyncState;
 }  // namespace password_manager
 
 // This controller provides data and actions for the PasswordItemsView.
@@ -44,16 +43,6 @@ class ItemsBubbleController : public PasswordBubbleControllerBase {
   void RequestFavicon(
       base::OnceCallback<void(const gfx::Image&)> favicon_ready_callback);
 
-  password_manager::SyncState GetPasswordSyncState();
-
-  // Returns the email of current primary account. Returns empty string if no
-  // account is signed in.
-  std::u16string GetPrimaryAccountEmail();
-
-  // Called by the view code when the "Google Password Manager" link in the
-  // bubble footer in clicked by the user.
-  void OnGooglePasswordManagerLinkClicked();
-
   // Returns the available credentials which match the current site.
   const std::vector<password_manager::PasswordForm>& local_credentials() const {
     return local_credentials_;
@@ -67,7 +56,7 @@ class ItemsBubbleController : public PasswordBubbleControllerBase {
       const favicon_base::FaviconImageResult& result);
 
   // PasswordBubbleControllerBase methods:
-  std::u16string GetTitle() const override;
+  base::string16 GetTitle() const override;
   void ReportInteractions() override;
 
   const std::vector<password_manager::PasswordForm> local_credentials_;
@@ -75,7 +64,7 @@ class ItemsBubbleController : public PasswordBubbleControllerBase {
   // Used to track a requested favicon.
   base::CancelableTaskTracker favicon_tracker_;
 
-  const std::u16string title_;
+  const base::string16 title_;
   // Dismissal reason for a password bubble.
   password_manager::metrics_util::UIDismissalReason dismissal_reason_ =
       password_manager::metrics_util::NO_DIRECT_INTERACTION;

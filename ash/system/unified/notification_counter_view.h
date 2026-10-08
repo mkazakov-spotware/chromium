@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,42 +6,33 @@
 #define ASH_SYSTEM_UNIFIED_NOTIFICATION_COUNTER_VIEW_H_
 
 #include "ash/ash_export.h"
+#include "ash/public/cpp/session/session_observer.h"
 #include "ash/system/tray/tray_item_view.h"
-#include "base/scoped_observation.h"
-
-namespace session_manager {
-enum class SessionState;
-}  // namespace session_manager
-
-namespace views {
-class Separator;
-}  // namespace views
+#include "base/macros.h"
 
 namespace ash {
-
-class NotificationIconsController;
 
 // Maximum count of notification shown by a number label. "+" icon is shown
 // instead if it exceeds this limit.
 constexpr size_t kTrayNotificationMaxCount = 9;
 
 // A notification counter view in UnifiedSystemTray button.
-class ASH_EXPORT NotificationCounterView : public TrayItemView {
+class ASH_EXPORT NotificationCounterView : public TrayItemView,
+                                           public SessionObserver {
  public:
-  NotificationCounterView(Shelf* shelf,
-                          NotificationIconsController* controller);
+  explicit NotificationCounterView(Shelf* shelf);
   ~NotificationCounterView() override;
-  NotificationCounterView(const NotificationCounterView&) = delete;
-  NotificationCounterView& operator=(const NotificationCounterView&) = delete;
 
   void Update();
 
   // Returns a string describing the current state for accessibility.
-  std::u16string GetAccessibleNameString() const;
+  base::string16 GetAccessibleNameString() const;
 
   // TrayItemView:
   void HandleLocaleChange() override;
-  void OnThemeChanged() override;
+
+  // SessionObserver:
+  void OnSessionStateChanged(session_manager::SessionState state) override;
 
   // views::TrayItemView:
   const char* GetClassName() const override;
@@ -55,44 +46,28 @@ class ASH_EXPORT NotificationCounterView : public TrayItemView {
   // |kTrayNotificationMaxCount| + 1 indicates the plus icon.
   int count_for_display_ = 0;
 
-  NotificationIconsController* const controller_;
+  DISALLOW_COPY_AND_ASSIGN(NotificationCounterView);
 };
 
 // A do-not-distrub icon view in UnifiedSystemTray button.
-class QuietModeView : public TrayItemView {
+class QuietModeView : public TrayItemView, public SessionObserver {
  public:
   explicit QuietModeView(Shelf* shelf);
   ~QuietModeView() override;
-  QuietModeView(const QuietModeView&) = delete;
-  QuietModeView& operator=(const QuietModeView&) = delete;
 
   void Update();
 
   // TrayItemView:
   void HandleLocaleChange() override;
-  void OnThemeChanged() override;
+
+  // SessionObserver:
+  void OnSessionStateChanged(session_manager::SessionState state) override;
 
   // views::TrayItemView:
   const char* GetClassName() const override;
-};
-
-// Separator view in UnifiedSystemTray button.
-class SeparatorTrayItemView : public TrayItemView {
- public:
-  explicit SeparatorTrayItemView(Shelf* shelf);
-  ~SeparatorTrayItemView() override;
-  SeparatorTrayItemView(const SeparatorTrayItemView&) = delete;
-  SeparatorTrayItemView& operator=(const SeparatorTrayItemView&) = delete;
-
-  // TrayItemView:
-  void HandleLocaleChange() override;
-  const char* GetClassName() const override;
-
-  // Update the color of separator depending on the given state.
-  void UpdateColor(session_manager::SessionState state);
 
  private:
-  views::Separator* separator_ = nullptr;
+  DISALLOW_COPY_AND_ASSIGN(QuietModeView);
 };
 
 }  // namespace ash

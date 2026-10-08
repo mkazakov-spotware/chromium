@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,11 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/ranges/algorithm.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "components/sessions/core/command_storage_backend.h"
 #include "components/sessions/core/command_storage_manager_delegate.h"
 #include "crypto/random.h"
@@ -22,41 +23,22 @@ namespace {
 
 // Delay between when a command is received, and when we save it to the
 // backend.
-constexpr base::TimeDelta kSaveDelay = base::Milliseconds(2500);
-
-void AdaptGetLastSessionCommands(
-    CommandStorageManager::GetCommandsCallback callback,
-    CommandStorageBackend::ReadCommandsResult result) {
-  std::move(callback).Run(std::move(result.commands), result.error_reading);
-}
+constexpr base::TimeDelta kSaveDelay = base::TimeDelta::FromMilliseconds(2500);
 
 }  // namespace
 
 CommandStorageManager::CommandStorageManager(
-    SessionType type,
     const base::FilePath& path,
     CommandStorageManagerDelegate* delegate,
-    bool enable_crypto,
-    const std::vector<uint8_t>& decryption_key,
-    scoped_refptr<base::SequencedTaskRunner> backend_task_runner)
-    : backend_(base::MakeRefCounted<CommandStorageBackend>(
-          backend_task_runner ? backend_task_runner
-                              : CreateDefaultBackendTaskRunner(),
-          path,
-          type,
-          decryption_key)),
-      use_crypto_(enable_crypto),
-      delegate_(delegate),
-      backend_task_runner_(backend_->owning_task_runner()) {}
+    bool enable_crypto)
+    : CommandStorageManager(base::MakeRefCounted<CommandStorageBackend>(
+                                CreateDefaultBackendTaskRunner(),
+                                path),
+                            delegate) {
+  use_crypto_ = enable_crypto;
+}
 
 CommandStorageManager::~CommandStorageManager() = default;
-
-// static
-scoped_refptr<base::SequencedTaskRunner>
-CommandStorageManager::CreateDefaultBackendTaskRunner() {
-  return base::ThreadPool::CreateSequencedTaskRunner(
-      {base::MayBlock(), base::TaskShutdownBehavior::BLOCK_SHUTDOWN});
-}
 
 // static
 std::vector<uint8_t> CommandStorageManager::CreateCryptoKey() {
@@ -82,41 +64,42 @@ void CommandStorageManager::AppendRebuildCommand(
 
 void CommandStorageManager::AppendRebuildCommands(
     std::vector<std::unique_ptr<SessionCommand>> commands) {
-  commands_since_reset_ += commands.size();
   pending_commands_.insert(pending_commands_.end(),
                            std::make_move_iterator(commands.begin()),
                            std::make_move_iterator(commands.end()));
 }
 
 void CommandStorageManager::EraseCommand(SessionCommand* old_command) {
-  auto it = base::ranges::find(pending_commands_, old_command,
-                               &std::unique_ptr<SessionCommand>::get);
+  auto it = std::find_if(
+      pending_commands_.begin(), pending_commands_.end(),
+      [old_command](const std::unique_ptr<SessionCommand>& command_ptr) {
+        return command_ptr.get() == old_command;
+      });
   CHECK(it != pending_commands_.end());
   pending_commands_.erase(it);
-  DCHECK_GT(commands_since_reset_, 0);
-  --commands_since_reset_;
 }
 
 void CommandStorageManager::SwapCommand(
     SessionCommand* old_command,
     std::unique_ptr<SessionCommand> new_command) {
-  auto it = base::ranges::find(pending_commands_, old_command,
-                               &std::unique_ptr<SessionCommand>::get);
+  auto it = std::find_if(
+      pending_commands_.begin(), pending_commands_.end(),
+      [old_command](const std::unique_ptr<SessionCommand>& command_ptr) {
+        return command_ptr.get() == old_command;
+      });
   CHECK(it != pending_commands_.end());
   *it = std::move(new_command);
 }
 
 void CommandStorageManager::ClearPendingCommands() {
-  DCHECK_GE(commands_since_reset_, static_cast<int>(pending_commands_.size()));
-  commands_since_reset_ -= static_cast<int>(pending_commands_.size());
   pending_commands_.clear();
 }
 
 void CommandStorageManager::StartSaveTimer() {
   // Don't start a timer when testing.
   if (delegate_->ShouldUseDelayedSave() &&
-      base::SingleThreadTaskRunner::HasCurrentDefault() && !HasPendingSave()) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      base::ThreadTaskRunnerHandle::IsSet() && !HasPendingSave()) {
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&CommandStorageManager::Save,
                        weak_factory_for_timer_.GetWeakPtr()),
@@ -125,8 +108,6 @@ void CommandStorageManager::StartSaveTimer() {
 }
 
 void CommandStorageManager::Save() {
-  weak_factory_for_timer_.InvalidateWeakPtrs();
-
   // Inform the delegate that we will save the commands now, giving it the
   // opportunity to append more commands.
   delegate_->OnWillSaveCommands();
@@ -139,13 +120,11 @@ void CommandStorageManager::Save() {
     crypto_key = CreateCryptoKey();
     delegate_->OnGeneratedNewCryptoKey(crypto_key);
   }
-  auto error_callback = base::BindOnce(
-      &CommandStorageManager::OnErrorWritingToFile, weak_factory_.GetWeakPtr());
-  backend_task_runner_->PostNonNestableTask(
+  backend_task_runner()->PostNonNestableTask(
       FROM_HERE,
       base::BindOnce(&CommandStorageBackend::AppendCommands, backend_,
-                     std::move(pending_commands_), pending_reset_,
-                     std::move(error_callback), crypto_key));
+                     std::move(pending_commands_), pending_reset_, crypto_key));
+
   if (pending_reset_) {
     commands_since_reset_ = 0;
     pending_reset_ = false;
@@ -156,31 +135,28 @@ bool CommandStorageManager::HasPendingSave() const {
   return weak_factory_for_timer_.HasWeakPtrs();
 }
 
-void CommandStorageManager::MoveCurrentSessionToLastSession() {
-  Save();
-  backend_task_runner_->PostNonNestableTask(
-      FROM_HERE,
-      base::BindOnce(&CommandStorageBackend::MoveCurrentSessionToLastSession,
-                     backend()));
-}
-
-void CommandStorageManager::DeleteLastSession() {
-  backend_task_runner_->PostNonNestableTask(
-      FROM_HERE,
-      base::BindOnce(&CommandStorageBackend::DeleteLastSession, backend()));
-}
-
-void CommandStorageManager::GetLastSessionCommands(
-    GetCommandsCallback callback) {
+void CommandStorageManager::GetCurrentSessionCommands(
+    GetCommandsCallback callback,
+    const std::vector<uint8_t>& decryption_key) {
   backend_task_runner_->PostTaskAndReplyWithResult(
       FROM_HERE,
-      base::BindOnce(&CommandStorageBackend::ReadLastSessionCommands,
-                     backend()),
-      base::BindOnce(&AdaptGetLastSessionCommands, std::move(callback)));
+      base::BindOnce(&CommandStorageBackend::ReadCurrentSessionCommands,
+                     backend_.get(), decryption_key),
+      std::move(callback));
 }
 
-void CommandStorageManager::OnErrorWritingToFile() {
-  delegate_->OnErrorWritingSessionCommands();
+CommandStorageManager::CommandStorageManager(
+    scoped_refptr<CommandStorageBackend> backend,
+    CommandStorageManagerDelegate* delegate)
+    : backend_(std::move(backend)),
+      delegate_(delegate),
+      backend_task_runner_(backend_->owning_task_runner()) {}
+
+// static
+scoped_refptr<base::SequencedTaskRunner>
+CommandStorageManager::CreateDefaultBackendTaskRunner() {
+  return base::ThreadPool::CreateSequencedTaskRunner(
+      {base::MayBlock(), base::TaskShutdownBehavior::BLOCK_SHUTDOWN});
 }
 
 }  // namespace sessions

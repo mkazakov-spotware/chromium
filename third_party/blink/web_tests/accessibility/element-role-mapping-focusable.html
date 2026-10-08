@@ -86,7 +86,7 @@ if (window.testRunner && window.accessibilityController) {
     function hasSingleSelectRole(select_id, option_id) {
         debug(select_id);
         window.elem = accessibilityController.accessibleElementById(select_id);
-        shouldBe("elem.role", "\"AXRole: AXComboBoxSelect\"");
+        shouldBe("elem.role", "\"AXRole: AXPopUpButton\"");
         
         window.axMenuListPopup = elem.childAtIndex(0);
         shouldBe("axMenuListPopup.role", "\"AXRole: AXMenuListPopup\"");
@@ -109,8 +109,8 @@ if (window.testRunner && window.accessibilityController) {
     hasRole("input_radio_id", "AXRole: AXRadioButton");
 
     hasRole("menu_button_id", "AXRole: AXButton");
-    hasRole("menu_checkbox_id", "AXRole: AXCheckBox");
-    hasRole("menu_radio_id", "AXRole: AXRadioButton");
+    hasRole("menu_checkbox_id", "AXRole: AXMenuItemCheckBox");
+    hasRole("menu_radio_id", "AXRole: AXMenuItemRadio");
 
     hasRole("input_date_id", "AXRole: AXDate");
     hasRole("input_datetime_id", "AXRole: AXTextField");

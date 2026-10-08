@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "base/values.h"
@@ -135,9 +135,6 @@ class MetadataDatabase {
       bool enable_on_disk_index,
       std::unique_ptr<MetadataDatabase>* metadata_database_out);
 
-  MetadataDatabase(const MetadataDatabase&) = delete;
-  MetadataDatabase& operator=(const MetadataDatabase&) = delete;
-
   ~MetadataDatabase();
 
   static void ClearDatabase(
@@ -152,10 +149,10 @@ class MetadataDatabase {
   bool HasSyncRoot() const;
 
   // Returns all file metadata for the given |app_id|.
-  base::Value::List DumpFiles(const std::string& app_id);
+  std::unique_ptr<base::ListValue> DumpFiles(const std::string& app_id);
 
   // Returns all database data.
-  base::Value::List DumpDatabase();
+  std::unique_ptr<base::ListValue> DumpDatabase();
 
   // TODO(tzik): Move GetLargestKnownChangeID() to private section, and hide its
   // handling in the class, instead of letting user do.
@@ -383,8 +380,8 @@ class MetadataDatabase {
 
   bool HasNewerFileMetadata(const std::string& file_id, int64_t change_id);
 
-  base::Value::List DumpTrackers();
-  base::Value::List DumpMetadata();
+  std::unique_ptr<base::ListValue> DumpTrackers();
+  std::unique_ptr<base::ListValue> DumpMetadata();
 
   void AttachSyncRoot(const google_apis::FileResource& sync_root_folder);
   void AttachInitialAppRoot(const google_apis::FileResource& app_root_folder);
@@ -396,7 +393,7 @@ class MetadataDatabase {
   bool CanClearDirty(const FileTracker& tracker);
 
   base::FilePath database_path_;
-  raw_ptr<leveldb::Env> env_override_;
+  leveldb::Env* env_override_;
   std::unique_ptr<LevelDBWrapper> db_;
 
   bool enable_on_disk_index_;
@@ -406,6 +403,8 @@ class MetadataDatabase {
   std::unique_ptr<MetadataDatabaseIndexInterface> index_;
 
   base::WeakPtrFactory<MetadataDatabase> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MetadataDatabase);
 };
 
 }  // namespace drive_backend

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,10 +31,8 @@ public class SectionInformation {
      */
     public static final int INVALID_SELECTION = -2;
 
-    protected final ArrayList<EditableOption> mItems = new ArrayList<>();
-
     @PaymentRequestUI.DataType private final int mDataType;
-
+    protected ArrayList<EditableOption> mItems;
     private int mSelectedItem;
     private boolean mDisplayInSingleLineInNormalMode = true;
     public String mErrorMessage;
@@ -86,7 +84,7 @@ public class SectionInformation {
      * @return Whether the section is empty.
      */
     public boolean isEmpty() {
-        return mItems.isEmpty();
+        return mItems == null || mItems.isEmpty();
     }
 
     /**
@@ -96,7 +94,7 @@ public class SectionInformation {
      * @return The number of items in this section.
      */
     public int getSize() {
-        return mItems.size();
+        return mItems == null ? 0 : mItems.size();
     }
 
     /**
@@ -107,7 +105,7 @@ public class SectionInformation {
      */
     @Nullable
     public EditableOption getItem(int position) {
-        if (mItems.isEmpty() || position < 0 || position >= mItems.size()) {
+        if (mItems == null || mItems.isEmpty() || position < 0 || position >= mItems.size()) {
             return null;
         }
 
@@ -131,6 +129,7 @@ public class SectionInformation {
      *                     made.
      */
     public void setSelectedItem(EditableOption selectedItem) {
+        if (mItems == null) return;
         for (int i = 0; i < mItems.size(); i++) {
             if (mItems.get(i) == selectedItem) {
                 mSelectedItem = i;
@@ -165,6 +164,7 @@ public class SectionInformation {
      * @param item The item to add.
      */
     public void addAndSelectItem(EditableOption item) {
+        if (mItems == null) mItems = new ArrayList<>();
         mItems.add(0, item);
         mSelectedItem = 0;
     }
@@ -176,6 +176,7 @@ public class SectionInformation {
      * @param item The item to add or update.
      */
     public void addAndSelectOrUpdateItem(EditableOption item) {
+        if (mItems == null) mItems = new ArrayList<>();
         int i = 0;
         for (; i < mItems.size(); i++) {
             if (TextUtils.equals(mItems.get(i).getIdentifier(), item.getIdentifier())) {
@@ -276,7 +277,8 @@ public class SectionInformation {
         return mAddditionalText;
     }
 
-    /** @return List of items in the section. */
+    /** @return List of items in the section. Can be null. */
+    @Nullable
     public List<EditableOption> getItems() {
         return mItems;
     }
@@ -289,12 +291,12 @@ public class SectionInformation {
      */
     protected void updateItemsWithCollection(
             int selection, @Nullable Collection<? extends EditableOption> itemCollection) {
-        mItems.clear();
         if (itemCollection == null || itemCollection.isEmpty()) {
             mSelectedItem = NO_SELECTION;
+            mItems = null;
         } else {
             mSelectedItem = selection;
-            mItems.addAll(itemCollection);
+            mItems = new ArrayList<>(itemCollection);
         }
     }
 

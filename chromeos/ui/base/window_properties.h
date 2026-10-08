@@ -1,13 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROMEOS_UI_BASE_WINDOW_PROPERTIES_H_
 #define CHROMEOS_UI_BASE_WINDOW_PROPERTIES_H_
 
-#include <string>
-
 #include "base/component_export.h"
+#include "base/strings/string16.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/class_property.h"
 
@@ -24,57 +23,16 @@ enum class WindowPinType;
 
 // Alphabetical sort.
 
-// Whether resizable windows equal to or larger than the screen should be
-// automatically maximized. Affects Exo's xdg-shell clients only.
-COMPONENT_EXPORT(CHROMEOS_UI_BASE)
-extern const ui::ClassProperty<bool>* const kAutoMaximizeXdgShellEnabled;
-
 // If set to true, the window will be replaced by a black rectangle when taking
 // screenshot for assistant. Used to preserve privacy for incognito windows.
 COMPONENT_EXPORT(CHROMEOS_UI_BASE)
 extern const ui::ClassProperty<bool>* const kBlockedForAssistantSnapshotKey;
 
-// If true, the window can attach into another window.
-COMPONENT_EXPORT(CHROMEOS_UI_BASE)
-extern const ui::ClassProperty<bool>* const kCanAttachToAnotherWindowKey;
-
-// If true, the window is the target window for the tab-dragged window. The key
-// is used by overview to show a highlight indication to indicate which overview
-// window the dragged tabs will merge into when the user releases the pointer.
-COMPONENT_EXPORT(CHROMEOS_UI_BASE)
-extern const ui::ClassProperty<bool>* const
-    kIsDeferredTabDraggingTargetWindowKey;
-
-// Whether holding esc should exit fullscreen. Used by Plugin VM.
-COMPONENT_EXPORT(CHROMEOS_UI_BASE)
-extern const ui::ClassProperty<bool>* const kEscHoldToExitFullscreen;
-
-// Whether to promote users to use Overview to exit fullscreen.
-// Borealis apps set this since they do not handle window size changes.
-COMPONENT_EXPORT(CHROMEOS_UI_BASE)
-extern const ui::ClassProperty<bool>* const kUseOverviewToExitFullscreen;
-
-// If true, Exo clients may request pointer lock for this window.
-// When the lock activates, users will be notified to use Overview to exit
-// pointer lock.
-// Only ARC++ and Lacros may use pointer lock without this property being set.
-COMPONENT_EXPORT(CHROMEOS_UI_BASE)
-extern const ui::ClassProperty<bool>* const kUseOverviewToExitPointerLock;
-
-// True if clients expect the window to track the system's default frame colors.
-// This is used to determine whether a frame's color should be kept in sync with
-// default colors during system theme transitions, or if frame colors should be
-// left unmodified (e.g. system app custom frame colors).
-COMPONENT_EXPORT(CHROMEOS_UI_BASE)
-extern const ui::ClassProperty<bool>* const kTrackDefaultFrameColors;
-
 // A property key to store the active color on the window frame.
-// `kTrackDefaultFrameColors` must be set to false for this to take effect.
 COMPONENT_EXPORT(CHROMEOS_UI_BASE)
 extern const ui::ClassProperty<SkColor>* const kFrameActiveColorKey;
 
 // A property key to store the inactive color on the window frame.
-// `kTrackDefaultFrameColors` must be set to false for this to take effect.
 COMPONENT_EXPORT(CHROMEOS_UI_BASE)
 extern const ui::ClassProperty<SkColor>* const kFrameInactiveColorKey;
 
@@ -108,10 +66,6 @@ extern const ui::ClassProperty<gfx::Rect*>* const
 COMPONENT_EXPORT(CHROMEOS_UI_BASE)
 extern const ui::ClassProperty<bool>* const kIsShowingInOverviewKey;
 
-// A property to indicate if a window should have a highlight border overlay.
-COMPONENT_EXPORT(CHROMEOS_UI_BASE)
-extern const ui::ClassProperty<bool>* const kShouldHaveHighlightBorderOverlay;
-
 // A property key to tell if the window's opacity should be managed by WM.
 COMPONENT_EXPORT(CHROMEOS_UI_BASE)
 extern const ui::ClassProperty<bool>* const kWindowManagerManagesOpacityKey;
@@ -120,10 +74,18 @@ extern const ui::ClassProperty<bool>* const kWindowManagerManagesOpacityKey;
 COMPONENT_EXPORT(CHROMEOS_UI_BASE)
 extern const ui::ClassProperty<WindowStateType>* const kWindowStateTypeKey;
 
+// A property key to store ash::WindowPinType for a window.
+// When setting this property to PINNED or TRUSTED_PINNED, the window manager
+// will try to fullscreen the window and pin it on the top of the screen. If the
+// window manager failed to do it, the property will be restored to NONE. When
+// setting this property to NONE, the window manager will restore the window.
+COMPONENT_EXPORT(CHROMEOS_UI_BASE)
+extern const ui::ClassProperty<WindowPinType>* const kWindowPinTypeKey;
+
 // A property key whose value is shown in alt-tab/overview mode. If non-value
 // is set, the window's title is used.
 COMPONENT_EXPORT(CHROMEOS_UI_BASE)
-extern const ui::ClassProperty<std::u16string*>* const kWindowOverviewTitleKey;
+extern const ui::ClassProperty<base::string16*>* const kWindowOverviewTitleKey;
 
 // Alphabetical sort.
 

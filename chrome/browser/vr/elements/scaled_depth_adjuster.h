@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 
 #include <sstream>
 
+#include "base/macros.h"
 #include "chrome/browser/vr/elements/ui_element.h"
 #include "chrome/browser/vr/vr_ui_export.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
 namespace vr {
 
@@ -20,10 +21,6 @@ namespace vr {
 class VR_UI_EXPORT ScaledDepthAdjuster : public UiElement {
  public:
   explicit ScaledDepthAdjuster(float delta_z);
-
-  ScaledDepthAdjuster(const ScaledDepthAdjuster&) = delete;
-  ScaledDepthAdjuster& operator=(const ScaledDepthAdjuster&) = delete;
-
   ~ScaledDepthAdjuster() override;
 
  private:
@@ -43,6 +40,8 @@ class VR_UI_EXPORT ScaledDepthAdjuster : public UiElement {
   // if we use a delta_z_ of -0.1, this will cause our descendants to be
   // positioned at depth 2.4.
   float delta_z_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScaledDepthAdjuster);
 };
 
 }  // namespace vr

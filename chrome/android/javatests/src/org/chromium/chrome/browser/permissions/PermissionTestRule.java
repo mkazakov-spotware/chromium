@@ -1,15 +1,15 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.permissions;
 
-import android.view.View;
-
-import androidx.annotation.IdRes;
+import android.support.test.InstrumentationRegistry;
 
 import org.hamcrest.Matchers;
 import org.junit.Assert;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.Criteria;
@@ -28,6 +28,8 @@ import org.chromium.components.infobars.InfoBar;
 import org.chromium.components.permissions.PermissionDialogController;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.browser.test.util.TouchCommon;
+import org.chromium.net.test.EmbeddedTestServer;
+import org.chromium.net.test.ServerCertificate;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogType;
 
@@ -50,6 +52,8 @@ import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogType;
  */
 public class PermissionTestRule extends ChromeTabbedActivityTestRule {
     private InfoBarTestAnimationListener mListener;
+    private EmbeddedTestServer mTestServer;
+    private boolean mUseHttpsServer;
 
     /**
      * Waits till a JavaScript callback which updates the page title is called the specified number
@@ -96,22 +100,45 @@ public class PermissionTestRule extends ChromeTabbedActivityTestRule {
         }
     }
 
+    @Override
+    public Statement apply(final Statement base, Description desc) {
+        return super.apply(new Statement() {
+            @Override
+            public void evaluate() throws Throwable {
+                ruleSetUp();
+                base.evaluate();
+                ruleTearDown();
+            }
+        }, desc);
+    }
+
     public PermissionTestRule() {
         this(false);
     }
 
     public PermissionTestRule(boolean useHttpsServer) {
-        getEmbeddedTestServerRule().setServerUsesHttps(useHttpsServer);
+        mUseHttpsServer = useHttpsServer;
+    }
+
+    private void ruleSetUp() {
+        // TODO(https://crbug.com/867446): Refactor to use EmbeddedTestServerRule.
+        mTestServer = mUseHttpsServer
+                ? EmbeddedTestServer.createAndStartHTTPSServer(
+                        InstrumentationRegistry.getContext(), ServerCertificate.CERT_OK)
+                : EmbeddedTestServer.createAndStartServer(InstrumentationRegistry.getContext());
     }
 
     /**
      * Starts an activity and listens for info-bars appearing/disappearing.
      */
-    public void setUpActivity() throws InterruptedException {
+    void setUpActivity() throws InterruptedException {
         startMainActivityOnBlankPage();
         mListener = new InfoBarTestAnimationListener();
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> getInfoBarContainer().addAnimationListener(mListener));
+        getInfoBarContainer().addAnimationListener(mListener);
+    }
+
+    private void ruleTearDown() {
+        mTestServer.stopAndDestroyServer();
     }
 
     public void setUpUrl(final String url) {
@@ -119,15 +146,15 @@ public class PermissionTestRule extends ChromeTabbedActivityTestRule {
     }
 
     public String getURL(String url) {
-        return getTestServer().getURL(url);
+        return mTestServer.getURL(url);
     }
 
     public String getOrigin() {
-        return getTestServer().getURL("/");
+        return mTestServer.getURL("/");
     }
 
     public String getURLWithHostName(String hostName, String url) {
-        return getTestServer().getURLWithHostName(hostName, url);
+        return mTestServer.getURLWithHostName(hostName, url);
     }
 
     /**
@@ -225,7 +252,7 @@ public class PermissionTestRule extends ChromeTabbedActivityTestRule {
         }
     }
 
-    public void runJavaScriptCodeInCurrentTabWithGesture(String javascript)
+    private void runJavaScriptCodeInCurrentTabWithGesture(String javascript)
             throws java.util.concurrent.TimeoutException {
         runJavaScriptCodeInCurrentTab("functionToRun = '" + javascript + "'");
         TouchCommon.singleClickView(getActivity().getActivityTab().getView());
@@ -271,20 +298,18 @@ public class PermissionTestRule extends ChromeTabbedActivityTestRule {
      * Utility functions to support permissions testing in other contexts.
      */
     public static void replyToDialog(boolean allow, ChromeActivity activity) {
-        // Wait for button view to appear in view hierarchy. If the browser controls are not visible
-        // then ModalDialogPresenter will first trigger animation for showing browser controls and
-        // only then add modal dialog view into the container.
-        @IdRes
-        int buttonId = allow ? R.id.positive_button : R.id.negative_button;
-        CriteriaHelper.pollUiThread(() -> {
+        // Wait a tiny bit before clicking the dialog. Sometimes the click happens too quick and the
+        // dialog is not ready. See crbug.com/1098806 for example flaky tests.
+        try {
+            Thread.sleep(300);
+        } catch (Exception ex) {
+        }
+
+        TestThreadUtils.runOnUiThreadBlocking(() -> {
             TabModalPresenter presenter = (TabModalPresenter) activity.getModalDialogManager()
                                                   .getCurrentPresenterForTest();
-            View buttonView = presenter.getDialogContainerForTest().findViewById(buttonId);
-            if (buttonView == null) {
-                return false;
-            }
-            TouchCommon.singleClickView(buttonView);
-            return true;
+            TouchCommon.singleClickView(presenter.getDialogContainerForTest().findViewById(
+                    allow ? R.id.positive_button : R.id.negative_button));
         });
     }
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 namespace extensions {
 
 MockExternalProvider::MockExternalProvider(VisitorInterface* visitor,
-                                           mojom::ManifestLocation location)
+                                           Manifest::Location location)
     : location_(location), visitor_(visitor), visit_count_(0) {}
 
 MockExternalProvider::~MockExternalProvider() {}
@@ -52,16 +52,8 @@ void MockExternalProvider::VisitRegisteredExtension() {
     visitor_->OnExternalExtensionFileFound(*extension_kv.second);
   for (const auto& extension_kv : url_extension_map_)
     visitor_->OnExternalExtensionUpdateUrlFound(*extension_kv.second,
-                                                true /* force_update */);
+                                                true /* is_initial_load */);
   visitor_->OnExternalProviderReady(this);
-}
-
-void MockExternalProvider::TriggerOnExternalExtensionFound() {
-  for (const auto& extension_kv : file_extension_map_)
-    visitor_->OnExternalExtensionFileFound(*extension_kv.second);
-  for (const auto& extension_kv : url_extension_map_)
-    visitor_->OnExternalExtensionUpdateUrlFound(*extension_kv.second,
-                                                false /* force_update */);
 }
 
 bool MockExternalProvider::HasExtension(const std::string& id) const {
@@ -71,7 +63,7 @@ bool MockExternalProvider::HasExtension(const std::string& id) const {
 
 bool MockExternalProvider::GetExtensionDetails(
     const std::string& id,
-    mojom::ManifestLocation* location,
+    Manifest::Location* location,
     std::unique_ptr<base::Version>* version) const {
   auto it1 = file_extension_map_.find(id);
   auto it2 = url_extension_map_.find(id);
@@ -82,7 +74,7 @@ bool MockExternalProvider::GetExtensionDetails(
 
   // Only ExternalInstallInfoFile has version.
   if (version && it1 != file_extension_map_.end())
-    *version = std::make_unique<base::Version>(it1->second->version);
+    version->reset(new base::Version(it1->second->version));
 
   if (location)
     *location = location_;

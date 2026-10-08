@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "base/containers/small_map.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "gpu/command_buffer/service/context_group.h"
 #include "gpu/command_buffer/service/gl_utils.h"
@@ -79,9 +78,6 @@ class GPU_GLES2_EXPORT Framebuffer : public base::RefCounted<Framebuffer> {
   };
 
   Framebuffer(FramebufferManager* manager, GLuint service_id);
-
-  Framebuffer(const Framebuffer&) = delete;
-  Framebuffer& operator=(const Framebuffer&) = delete;
 
   GLuint service_id() const {
     return service_id_;
@@ -276,7 +272,7 @@ class GPU_GLES2_EXPORT Framebuffer : public base::RefCounted<Framebuffer> {
   void AdjustDrawBuffersImpl(uint32_t desired_mask);
 
   // The managers that owns this.
-  raw_ptr<FramebufferManager> manager_;
+  FramebufferManager* manager_;
 
   bool deleted_;
 
@@ -290,8 +286,7 @@ class GPU_GLES2_EXPORT Framebuffer : public base::RefCounted<Framebuffer> {
   unsigned framebuffer_complete_state_count_id_;
 
   // A map of attachments.
-  using AttachmentMap =
-      base::small_map<std::unordered_map<GLenum, scoped_refptr<Attachment>>, 8>;
+  typedef std::unordered_map<GLenum, scoped_refptr<Attachment>> AttachmentMap;
   AttachmentMap attachments_;
 
   // User's draw buffers setting through DrawBuffers() call.
@@ -319,6 +314,8 @@ class GPU_GLES2_EXPORT Framebuffer : public base::RefCounted<Framebuffer> {
   GLsizei last_color_attachment_id_;
 
   GLenum read_buffer_;
+
+  DISALLOW_COPY_AND_ASSIGN(Framebuffer);
 };
 
 struct DecoderFramebufferState {
@@ -342,10 +339,6 @@ class GPU_GLES2_EXPORT FramebufferManager {
       uint32_t max_draw_buffers,
       uint32_t max_color_attachments,
       FramebufferCompletenessCache* framebuffer_combo_complete_cache);
-
-  FramebufferManager(const FramebufferManager&) = delete;
-  FramebufferManager& operator=(const FramebufferManager&) = delete;
-
   ~FramebufferManager();
 
   // Must call before destruction.
@@ -405,7 +398,9 @@ class GPU_GLES2_EXPORT FramebufferManager {
   uint32_t max_draw_buffers_;
   uint32_t max_color_attachments_;
 
-  raw_ptr<FramebufferCompletenessCache> framebuffer_combo_complete_cache_;
+  FramebufferCompletenessCache* framebuffer_combo_complete_cache_;
+
+  DISALLOW_COPY_AND_ASSIGN(FramebufferManager);
 };
 
 }  // namespace gles2

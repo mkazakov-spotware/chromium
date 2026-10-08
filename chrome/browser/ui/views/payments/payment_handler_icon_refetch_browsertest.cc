@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,12 +43,12 @@ class PaymentHandlerIconRefetchTest : public PaymentRequestBrowserTestBase {
     content::BrowserContext* context =
         GetActiveWebContents()->GetBrowserContext();
     auto downloader = std::make_unique<TestDownloader>(
-        GetCSPCheckerForTests(), context->GetDefaultStoragePartition()
-                                     ->GetURLLoaderFactoryForBrowserProcess());
+        content::BrowserContext::GetDefaultStoragePartition(context)
+            ->GetURLLoaderFactoryForBrowserProcess());
     downloader->AddTestServerURL("https://kylepay.com/",
                                  kylepay_server_.GetURL("kylepay.com", "/"));
     ServiceWorkerPaymentAppFinder::GetOrCreateForCurrentDocument(
-        GetActiveWebContents()->GetPrimaryMainFrame())
+        GetActiveWebContents()->GetMainFrame())
         ->SetDownloaderAndIgnorePortInOriginComparisonForTesting(
             std::move(downloader));
   }
@@ -58,17 +58,17 @@ class PaymentHandlerIconRefetchTest : public PaymentRequestBrowserTestBase {
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-IN_PROC_BROWSER_TEST_F(PaymentHandlerIconRefetchTest, RefetchMissingIcon) {
+IN_PROC_BROWSER_TEST_F(PaymentHandlerIconRefetchTest, RefechMissingIcon) {
   // Navigate to a page with strict CSP so that Kylepay's icon fetch fails.
   NavigateTo("/csp_prevent_icon_download.html");
   SetDownloaderAndIgnorePortInOriginComparisonForTesting();
 
   // Create a payment request for Kylepay.
   ResetEventWaiterForDialogOpened();
-  content::ExecuteScriptAsync(
+  EXPECT_TRUE(content::ExecJs(
       GetActiveWebContents(),
       "testPaymentMethods([{supportedMethods: 'https://kylepay.com/webpay'}], "
-      "/* requestShippingContact= */ true);");
+      "/* requestShippingContact= */ true);"));
   WaitForObservedEvent();
 
   // App with missing icon is not preselectable.

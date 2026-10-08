@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,18 +10,11 @@
 #include "content/public/common/content_switches.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_api.h"
-#include "extensions/common/features/feature_developer_mode_only.h"
 #include "extensions/common/features/feature_provider.h"
-#include "extensions/renderer/dispatcher.h"
 
 namespace extensions {
 
-FeatureCache::ExtensionFeatureData::ExtensionFeatureData() = default;
-FeatureCache::ExtensionFeatureData::ExtensionFeatureData(
-    const ExtensionFeatureData&) = default;
-FeatureCache::ExtensionFeatureData::~ExtensionFeatureData() = default;
-
-FeatureCache::FeatureCache() = default;
+FeatureCache::FeatureCache() {}
 FeatureCache::~FeatureCache() = default;
 
 FeatureCache::FeatureNameVector FeatureCache::GetAvailableFeatures(
@@ -38,12 +31,11 @@ FeatureCache::FeatureNameVector FeatureCache::GetAvailableFeatures(
   DCHECK_NE(Feature::UNSPECIFIED_CONTEXT, context_type)
       << "FeatureCache shouldn't be used for unspecified contexts.";
 
-  const ExtensionFeatureData& features =
-      GetFeaturesFromCache(context_type, extension,
-                           url.DeprecatedGetOriginAsURL(), kRendererProfileId);
+  const FeatureVector& features =
+      GetFeaturesFromCache(context_type, extension, url.GetOrigin());
   FeatureNameVector names;
-  names.reserve(features.available_features.size());
-  for (const Feature* feature : features.available_features) {
+  names.reserve(features.size());
+  for (const Feature* feature : features) {
     // Since we only cache based on extension id and context type, instead of
     // all attributes of a context (like URL), we need to double-check if the
     // feature is actually available to the context. This is still a win, since
@@ -53,26 +45,10 @@ FeatureCache::FeatureNameVector FeatureCache::GetAvailableFeatures(
     // change based on additional context attributes.
     if (ExtensionAPI::GetSharedInstance()->IsAnyFeatureAvailableToContext(
             *feature, extension, context_type, url,
-            CheckAliasStatus::NOT_ALLOWED, kRendererProfileId)) {
+            CheckAliasStatus::NOT_ALLOWED)) {
       names.push_back(feature->name());
     }
   }
-  return names;
-}
-
-FeatureCache::FeatureNameVector
-FeatureCache::GetDeveloperModeRestrictedFeatures(Feature::Context context_type,
-                                                 const Extension* extension,
-                                                 const GURL& url) {
-  const ExtensionFeatureData& features =
-      GetFeaturesFromCache(context_type, extension,
-                           url.DeprecatedGetOriginAsURL(), kRendererProfileId);
-  FeatureNameVector names;
-  names.reserve(features.dev_mode_restricted_features.size());
-  for (const Feature* feature : features.dev_mode_restricted_features) {
-    names.push_back(feature->name());
-  }
-
   return names;
 }
 
@@ -85,19 +61,17 @@ void FeatureCache::InvalidateExtension(const ExtensionId& extension_id) {
   }
 }
 
-const FeatureCache::ExtensionFeatureData& FeatureCache::GetFeaturesFromCache(
+const FeatureCache::FeatureVector& FeatureCache::GetFeaturesFromCache(
     Feature::Context context_type,
     const Extension* extension,
-    const GURL& origin,
-    int context_id) {
+    const GURL& origin) {
   if (context_type == Feature::WEBUI_CONTEXT ||
       context_type == Feature::WEBUI_UNTRUSTED_CONTEXT) {
     auto iter = webui_cache_.find(origin);
     if (iter != webui_cache_.end())
       return iter->second;
     return webui_cache_
-        .emplace(origin,
-                 CreateCacheEntry(context_type, extension, origin, context_id))
+        .emplace(origin, CreateCacheEntry(context_type, extension, origin))
         .first->second;
   }
 
@@ -107,17 +81,15 @@ const FeatureCache::ExtensionFeatureData& FeatureCache::GetFeaturesFromCache(
   if (iter != extension_cache_.end())
     return iter->second;
   return extension_cache_
-      .emplace(key,
-               CreateCacheEntry(context_type, extension, origin, context_id))
+      .emplace(key, CreateCacheEntry(context_type, extension, origin))
       .first->second;
 }
 
-FeatureCache::ExtensionFeatureData FeatureCache::CreateCacheEntry(
+FeatureCache::FeatureVector FeatureCache::CreateCacheEntry(
     Feature::Context context_type,
     const Extension* extension,
-    const GURL& origin,
-    int context_id) {
-  ExtensionFeatureData features;
+    const GURL& origin) {
+  FeatureVector features;
   const FeatureProvider* api_feature_provider =
       FeatureProvider::GetAPIFeatures();
   GURL empty_url;
@@ -152,33 +124,17 @@ FeatureCache::ExtensionFeatureData FeatureCache::CreateCacheEntry(
 
     if (!ExtensionAPI::GetSharedInstance()->IsAnyFeatureAvailableToContext(
             *feature, extension, context_type, url_to_use,
-            CheckAliasStatus::NOT_ALLOWED, context_id)) {
-      if (feature
-              ->IsAvailableToContextIgnoringDevMode(
-                  extension, context_type, url_to_use,
-                  Feature::GetCurrentPlatform(), context_id)
-              .is_available()) {
-        features.dev_mode_restricted_features.push_back(feature);
-      }
+            CheckAliasStatus::NOT_ALLOWED)) {
       continue;
     }
 
-    features.available_features.push_back(feature);
+    features.push_back(feature);
   }
 
   std::sort(
-      features.dev_mode_restricted_features.begin(),
-      features.dev_mode_restricted_features.end(),
+      features.begin(), features.end(),
       [](const Feature* a, const Feature* b) { return a->name() < b->name(); });
-  std::sort(
-      features.available_features.begin(), features.available_features.end(),
-      [](const Feature* a, const Feature* b) { return a->name() < b->name(); });
-  DCHECK(std::unique(features.dev_mode_restricted_features.begin(),
-                     features.dev_mode_restricted_features.end()) ==
-         features.dev_mode_restricted_features.end());
-  DCHECK(std::unique(features.available_features.begin(),
-                     features.available_features.end()) ==
-         features.available_features.end());
+  DCHECK(std::unique(features.begin(), features.end()) == features.end());
 
   return features;
 }

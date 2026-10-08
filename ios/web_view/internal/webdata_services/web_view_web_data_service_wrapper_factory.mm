@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "base/check.h"
 #include "base/files/file_path.h"
 #include "base/no_destructor.h"
+#include "base/task/post_task.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_service.h"
 #include "components/keyed_service/core/service_access_type.h"
 #include "components/keyed_service/ios/browser_state_dependency_manager.h"
@@ -88,7 +89,8 @@ WebViewWebDataServiceWrapperFactory::BuildServiceInstanceFor(
   return std::make_unique<WebDataServiceWrapper>(
       browser_state_path,
       ApplicationContext::GetInstance()->GetApplicationLocale(),
-      web::GetUIThreadTaskRunner({}), base::DoNothing());
+      base::CreateSingleThreadTaskRunner({web::WebThread::UI}),
+      base::DoNothing());
 }
 
 bool WebViewWebDataServiceWrapperFactory::ServiceIsNULLWhileTesting() const {

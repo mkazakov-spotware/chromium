@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,9 @@
 
 #include <vector>
 
-#include "base/gtest_prod_util.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/views/view.h"
 #include "ui/views/animation/bounds_animator.h"
 #include "ui/views/animation/bounds_animator_observer.h"
-#include "ui/views/view.h"
 
 namespace payments {
 class PaymentRequestBrowserTestBase;
@@ -24,10 +22,7 @@ class PaymentRequestBrowserTestBase;
 class ViewStack : public views::BoundsAnimatorObserver,
                   public views::View {
  public:
-  METADATA_HEADER(ViewStack);
   ViewStack();
-  ViewStack(const ViewStack&) = delete;
-  ViewStack& operator=(const ViewStack&) = delete;
   ~ViewStack() override;
 
   // Adds a view to the stack and starts animating it in from the right.
@@ -47,7 +42,7 @@ class ViewStack : public views::BoundsAnimatorObserver,
   // without the sliding animation.
   void PopMany(int n, bool animate = true);
 
-  size_t GetSize() const;
+  size_t size() const;
 
   // views::View:
   // The children of this view must not be able to process events when the views
@@ -85,6 +80,8 @@ class ViewStack : public views::BoundsAnimatorObserver,
   // Should be the last member, because views need to be destroyed before other
   // members, and members are destroyed in reverse order of their creation.
   std::vector<views::View*> stack_;
+
+  DISALLOW_COPY_AND_ASSIGN(ViewStack);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_PAYMENTS_VIEW_STACK_H_

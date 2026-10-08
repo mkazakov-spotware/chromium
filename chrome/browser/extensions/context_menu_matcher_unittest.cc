@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/context_menu_matcher.h"
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/extensions/menu_manager.h"
 #include "chrome/browser/extensions/menu_manager_factory.h"
 #include "chrome/browser/extensions/test_extension_prefs.h"
@@ -27,10 +26,7 @@ class ContextMenuMatcherTest : public testing::Test {
   ContextMenuMatcherTest()
       : profile_(std::make_unique<TestingProfile>()),
         manager_(CreateMenuManager()),
-        prefs_(base::SingleThreadTaskRunner::GetCurrentDefault()) {}
-
-  ContextMenuMatcherTest(const ContextMenuMatcherTest&) = delete;
-  ContextMenuMatcherTest& operator=(const ContextMenuMatcherTest&) = delete;
+        prefs_(base::ThreadTaskRunnerHandle::Get()) {}
 
   // Returns a test item with the given string ID.
   std::unique_ptr<MenuItem> CreateTestItem(Extension* extension,
@@ -65,9 +61,12 @@ class ContextMenuMatcherTest : public testing::Test {
   content::BrowserTaskEnvironment task_environment_;
   std::unique_ptr<TestingProfile> profile_;
 
-  raw_ptr<MenuManager> manager_;
+  MenuManager* manager_;
   ExtensionList extensions_;
   TestExtensionPrefs prefs_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ContextMenuMatcherTest);
 };
 
 // Tests appending an extension item with an invisible submenu.
@@ -90,7 +89,7 @@ TEST_F(ContextMenuMatcherTest, AppendExtensionItemsWithInvisibleSubmenu) {
           profile_.get(), nullptr, menu_model.get(),
           base::BindRepeating(MenuItemHasAnyContext));
 
-  std::u16string printable_selection_text;
+  base::string16 printable_selection_text;
   int index = 0;
 
   // Add the items associated with the test extension.
@@ -125,7 +124,7 @@ TEST_F(ContextMenuMatcherTest, AppendExtensionItemsWithVisibleSubmenu) {
           base::BindRepeating(MenuItemHasAnyContext));
 
   // Add the items associated with the test extension.
-  std::u16string printable_selection_text;
+  base::string16 printable_selection_text;
   int index = 0;
   extension_items->AppendExtensionItems(MenuItem::ExtensionKey(extension->id()),
                                         printable_selection_text, &index,
@@ -171,7 +170,7 @@ TEST_F(ContextMenuMatcherTest, AppendExtensionItemWithInvisibleSubmenu) {
           base::BindRepeating(MenuItemHasAnyContext));
 
   // Add the items associated with the test extension.
-  std::u16string printable_selection_text;
+  base::string16 printable_selection_text;
   int index = 0;
   extension_items->AppendExtensionItems(MenuItem::ExtensionKey(extension->id()),
                                         printable_selection_text, &index,

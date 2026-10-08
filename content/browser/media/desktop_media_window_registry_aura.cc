@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,12 +20,7 @@ class DesktopMediaWindowRegistryAura final : public DesktopMediaWindowRegistry,
 
   DesktopMediaWindowRegistryAura() = default;
 
-  DesktopMediaWindowRegistryAura(const DesktopMediaWindowRegistryAura&) =
-      delete;
-  DesktopMediaWindowRegistryAura& operator=(
-      const DesktopMediaWindowRegistryAura&) = delete;
-
-  DesktopMediaID::Id RegisterWindow(gfx::NativeWindow window) final {
+  Id RegisterWindow(gfx::NativeWindow window) final {
     base::IDMap<aura::Window*>::const_iterator it(&registered_windows_);
     for (; !it.IsAtEnd(); it.Advance()) {
       if (it.GetCurrentValue() == window)
@@ -36,7 +31,7 @@ class DesktopMediaWindowRegistryAura final : public DesktopMediaWindowRegistry,
     return registered_windows_.Add(window);
   }
 
-  gfx::NativeWindow GetWindowById(DesktopMediaID::Id id) final {
+  gfx::NativeWindow GetWindowById(Id id) final {
     return registered_windows_.Lookup(id);
   }
 
@@ -56,6 +51,8 @@ class DesktopMediaWindowRegistryAura final : public DesktopMediaWindowRegistry,
   }
 
   base::IDMap<aura::Window*> registered_windows_;
+
+  DISALLOW_COPY_AND_ASSIGN(DesktopMediaWindowRegistryAura);
 };
 
 // static

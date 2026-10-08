@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -166,7 +166,7 @@ void SpeechRecognizerImplAndroid::OnRecognitionResults(
     const JavaParamRef<jfloatArray>& floats,
     jboolean provisional) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  std::vector<std::u16string> options;
+  std::vector<base::string16> options;
   AppendJavaStringArrayToStringVector(env, strings, &options);
   std::vector<float> scores(options.size(), 0.0);
   if (floats != NULL)

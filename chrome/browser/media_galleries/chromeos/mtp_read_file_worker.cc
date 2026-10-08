@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,7 @@ namespace {
 uint32_t WriteDataChunkIntoSnapshotFileOnFileThread(
     const base::FilePath& snapshot_file_path,
     const std::string& data) {
-  return base::AppendToFile(snapshot_file_path, data)
+  return base::AppendToFile(snapshot_file_path, data.c_str(), data.size())
              ? base::checked_cast<uint32_t>(data.size())
              : 0;
 }
@@ -46,11 +46,11 @@ MTPReadFileWorker::~MTPReadFileWorker() {
 }
 
 void MTPReadFileWorker::WriteDataIntoSnapshotFile(
-    SnapshotRequestInfo request_info,
+    const SnapshotRequestInfo& request_info,
     const base::File::Info& snapshot_file_info) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  ReadDataChunkFromDeviceFile(std::make_unique<SnapshotFileDetails>(
-      std::move(request_info), snapshot_file_info));
+  ReadDataChunkFromDeviceFile(
+      std::make_unique<SnapshotFileDetails>(request_info, snapshot_file_info));
 }
 
 void MTPReadFileWorker::ReadDataChunkFromDeviceFile(
@@ -70,7 +70,7 @@ void MTPReadFileWorker::ReadDataChunkFromDeviceFile(
       snapshot_file_details_ptr->BytesToRead(),
       base::BindOnce(&MTPReadFileWorker::OnDidReadDataChunkFromDeviceFile,
                      weak_ptr_factory_.GetWeakPtr(),
-                     std::move(snapshot_file_details)));
+                     base::Passed(&snapshot_file_details)));
 }
 
 void MTPReadFileWorker::OnDidReadDataChunkFromDeviceFile(

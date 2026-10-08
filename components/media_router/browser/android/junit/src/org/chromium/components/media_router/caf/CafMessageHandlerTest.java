@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,6 @@ import static org.mockito.Mockito.verify;
 import com.google.android.gms.cast.ApplicationMetadata;
 import com.google.android.gms.cast.CastDevice;
 import com.google.android.gms.cast.framework.CastSession;
-import com.google.android.gms.common.api.CommonStatusCodes;
 import com.google.android.gms.common.api.Status;
 
 import org.json.JSONArray;
@@ -930,11 +929,12 @@ public class CafMessageHandlerTest {
 
     @Test
     public void testOnAppMessageSent() {
-        Status fakeResult = new Status(CommonStatusCodes.SUCCESS);
+        Status mockResult = mock(Status.class);
+        doReturn(true).when(mockResult).isSuccess();
         doNothing()
                 .when(mMessageHandler)
                 .sendEnclosedMessageToClient(anyString(), anyString(), anyString(), anyInt());
-        mMessageHandler.onSendAppMessageResult(fakeResult, CLIENT_ID1, SEQUENCE_NUMBER1);
+        mMessageHandler.onSendAppMessageResult(mockResult, CLIENT_ID1, SEQUENCE_NUMBER1);
         verify(mMessageHandler)
                 .sendEnclosedMessageToClient(
                         eq(CLIENT_ID1), eq("app_message"), (String) isNull(), eq(SEQUENCE_NUMBER1));

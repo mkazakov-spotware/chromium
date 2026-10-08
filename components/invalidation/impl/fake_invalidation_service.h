@@ -1,22 +1,27 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_INVALIDATION_IMPL_FAKE_INVALIDATION_SERVICE_H_
 #define COMPONENTS_INVALIDATION_IMPL_FAKE_INVALIDATION_SERVICE_H_
 
+#include <list>
 #include <memory>
 #include <utility>
 
 #include "base/callback_forward.h"
-#include "components/invalidation/impl/fake_ack_handler.h"
+#include "base/macros.h"
 #include "components/invalidation/impl/invalidator_registrar_with_memory.h"
+#include "components/invalidation/impl/mock_ack_handler.h"
 #include "components/invalidation/public/invalidation_service.h"
 #include "components/prefs/testing_pref_service.h"
 
+namespace syncer {
+class Invalidation;
+}
+
 namespace invalidation {
 
-class Invalidation;
 class InvalidationLogger;
 
 // An InvalidationService that emits invalidations only when
@@ -24,41 +29,43 @@ class InvalidationLogger;
 class FakeInvalidationService : public InvalidationService {
  public:
   FakeInvalidationService();
-  FakeInvalidationService(const FakeInvalidationService& other) = delete;
-  FakeInvalidationService& operator=(const FakeInvalidationService& other) =
-      delete;
   ~FakeInvalidationService() override;
 
-  void RegisterInvalidationHandler(InvalidationHandler* handler) override;
-  bool UpdateInterestedTopics(InvalidationHandler* handler,
-                              const TopicSet& topics) override;
-  void UnsubscribeFromUnregisteredTopics(InvalidationHandler* handler) override;
-  void UnregisterInvalidationHandler(InvalidationHandler* handler) override;
+  void RegisterInvalidationHandler(
+      syncer::InvalidationHandler* handler) override;
+  bool UpdateInterestedTopics(syncer::InvalidationHandler* handler,
+                              const syncer::TopicSet& topics) override;
+  void UnregisterInvalidationHandler(
+      syncer::InvalidationHandler* handler) override;
 
-  InvalidatorState GetInvalidatorState() const override;
+  syncer::InvalidatorState GetInvalidatorState() const override;
   std::string GetInvalidatorClientId() const override;
   InvalidationLogger* GetInvalidationLogger() override;
   void RequestDetailedStatus(
-      base::RepeatingCallback<void(base::Value::Dict)> caller) const override;
+      base::RepeatingCallback<void(const base::DictionaryValue&)> caller)
+      const override;
 
-  void SetInvalidatorState(InvalidatorState state);
+  void SetInvalidatorState(syncer::InvalidatorState state);
 
-  const InvalidatorRegistrarWithMemory& invalidator_registrar() const {
+  const syncer::InvalidatorRegistrarWithMemory& invalidator_registrar() const {
     return *invalidator_registrar_;
   }
 
-  void EmitInvalidationForTest(const Invalidation& invalidation);
+  void EmitInvalidationForTest(const syncer::Invalidation& invalidation);
 
   // Emitted invalidations will be hooked up to this AckHandler.  Clients can
   // query it to assert the invalidaitons are being acked properly.
-  FakeAckHandler* GetFakeAckHandler();
+  syncer::MockAckHandler* GetMockAckHandler();
 
  private:
   std::string client_id_;
   // |pref_service_| must outlive |invalidator_registrar_|.
   TestingPrefServiceSimple pref_service_;
-  std::unique_ptr<InvalidatorRegistrarWithMemory> invalidator_registrar_;
-  FakeAckHandler fake_ack_handler_;
+  std::unique_ptr<syncer::InvalidatorRegistrarWithMemory>
+      invalidator_registrar_;
+  syncer::MockAckHandler mock_ack_handler_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeInvalidationService);
 };
 
 }  // namespace invalidation

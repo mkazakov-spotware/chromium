@@ -1,14 +1,16 @@
 /*
- * Copyright 2017 The Chromium Authors
+ * Copyright 2017 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
+
+/* global PaymentRequest:false */
 
 /**
  * Launches the PaymentRequest UI with Bob Pay and basic-card as payment
  * methods and a modifier for basic-card.
  */
-function buy() {
+function buy() { // eslint-disable-line no-unused-vars
   try {
     new PaymentRequest(
         [
@@ -52,7 +54,7 @@ function buy() {
  * Launches the PaymentRequest UI with Bob Pay and basic-card as payment
  * methods and a modifier for Bob Pay.
  */
-function buyWithBobPayDiscount() {
+function buyWithBobPayDiscount() { // eslint-disable-line no-unused-vars
   try {
     new PaymentRequest(
         [
@@ -96,7 +98,7 @@ function buyWithBobPayDiscount() {
  * Launches the PaymentRequest UI with Bob Pay and basic-card as payment
  * methods and a modifier for basic-card with "visa" network
  */
-function visaSupportedNetwork() {
+function visaSupportedNetwork() { // eslint-disable-line no-unused-vars
   try {
     new PaymentRequest(
         [
@@ -143,7 +145,7 @@ function visaSupportedNetwork() {
  * Launches the PaymentRequest UI with Bob Pay and basic-card as payment
  * methods and a modifier for basic-card with "mastercard" network
  */
-function mastercardSupportedNetwork() {
+function mastercardSupportedNetwork() { // eslint-disable-line no-unused-vars
   try {
     new PaymentRequest(
         [
@@ -190,7 +192,7 @@ function mastercardSupportedNetwork() {
  * Launches the PaymentRequest UI with Bob Pay and basic-card as payment
  * methods and a modifier for basic-card with "mastercard" network.
  */
-function mastercardAnySupportedType() {
+function mastercardAnySupportedType() { // eslint-disable-line no-unused-vars
   try {
     new PaymentRequest(
         [
@@ -238,7 +240,7 @@ function mastercardAnySupportedType() {
  * modifier for basic-card with "mastercard" network, but the modifier does not
  * have a total specified.
  */
-function noTotal() {
+function noTotal() { // eslint-disable-line no-unused-vars
   try {
     new PaymentRequest([{supportedMethods: 'basic-card'}], {
       total: {label: 'Total', amount: {currency: 'USD', value: '5.00'}},

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
 
@@ -26,11 +27,6 @@ class WebViewAutocompleteHistoryManagerFactory
       WebViewBrowserState* browser_state);
   static WebViewAutocompleteHistoryManagerFactory* GetInstance();
 
-  WebViewAutocompleteHistoryManagerFactory(
-      const WebViewAutocompleteHistoryManagerFactory&) = delete;
-  WebViewAutocompleteHistoryManagerFactory& operator=(
-      const WebViewAutocompleteHistoryManagerFactory&) = delete;
-
  private:
   friend class base::NoDestructor<WebViewAutocompleteHistoryManagerFactory>;
 
@@ -42,6 +38,8 @@ class WebViewAutocompleteHistoryManagerFactory
       web::BrowserState* context) const override;
   web::BrowserState* GetBrowserStateToUse(
       web::BrowserState* context) const override;
+
+  DISALLOW_COPY_AND_ASSIGN(WebViewAutocompleteHistoryManagerFactory);
 };
 
 }  // namespace ios_web_view

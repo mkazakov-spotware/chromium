@@ -1,4 +1,4 @@
-// Copyright 2018 The Crashpad Authors
+// Copyright 2018 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "snapshot/memory_snapshot.h"
 #include "util/file/file_reader.h"
 #include "util/misc/initialization_state_dcheck.h"
@@ -29,10 +30,6 @@ namespace internal {
 class MemorySnapshotMinidump : public MemorySnapshot {
  public:
   MemorySnapshotMinidump();
-
-  MemorySnapshotMinidump(const MemorySnapshotMinidump&) = delete;
-  MemorySnapshotMinidump& operator=(const MemorySnapshotMinidump&) = delete;
-
   ~MemorySnapshotMinidump() override;
 
   //! \brief Initializes the object.
@@ -56,6 +53,8 @@ class MemorySnapshotMinidump : public MemorySnapshot {
   uint64_t address_;
   std::vector<uint8_t> data_;
   InitializationStateDcheck initialized_;
+
+  DISALLOW_COPY_AND_ASSIGN(MemorySnapshotMinidump);
 };
 
 }  // namespace internal

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,8 +20,9 @@ namespace infobars {
 
 // InfoBarAndroid -------------------------------------------------------------
 
-InfoBarAndroid::InfoBarAndroid(std::unique_ptr<InfoBarDelegate> delegate)
-    : InfoBar(std::move(delegate)) {}
+InfoBarAndroid::InfoBarAndroid(std::unique_ptr<InfoBarDelegate> delegate,
+                               const ResourceIdMapper& resource_id_mapper)
+    : InfoBar(std::move(delegate)), resource_id_mapper_(resource_id_mapper) {}
 
 InfoBarAndroid::~InfoBarAndroid() {
   if (!java_info_bar_.is_null()) {
@@ -73,6 +74,10 @@ void InfoBarAndroid::CloseJavaInfoBar() {
     Java_InfoBar_resetNativeInfoBar(env, java_info_bar_);
     java_info_bar_.Reset(nullptr);
   }
+}
+
+int InfoBarAndroid::GetJavaIconId() {
+  return resource_id_mapper_.Run(delegate()->GetIconId());
 }
 
 }  // namespace infobars

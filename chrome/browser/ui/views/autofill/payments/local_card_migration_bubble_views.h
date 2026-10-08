@@ -1,12 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_AUTOFILL_PAYMENTS_LOCAL_CARD_MIGRATION_BUBBLE_VIEWS_H_
 #define CHROME_BROWSER_UI_VIEWS_AUTOFILL_PAYMENTS_LOCAL_CARD_MIGRATION_BUBBLE_VIEWS_H_
 
-#include "base/memory/raw_ptr.h"
-#include "chrome/browser/ui/autofill/autofill_bubble_base.h"
+#include "base/macros.h"
+#include "chrome/browser/ui/autofill/payments/local_card_migration_bubble.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_bubble_delegate_view.h"
 #include "components/autofill/core/browser/ui/payments/local_card_migration_bubble_controller.h"
 #include "components/autofill/core/browser/ui/payments/payments_bubble_closed_reasons.h"
@@ -19,7 +19,7 @@ namespace autofill {
 
 // Class responsible for showing the local card migration bubble which is
 // the entry point of the entire migration flow.
-class LocalCardMigrationBubbleViews : public AutofillBubbleBase,
+class LocalCardMigrationBubbleViews : public LocalCardMigrationBubble,
                                       public LocationBarBubbleDelegateView {
  public:
   // The |controller| is lazily initialized in ChromeAutofillClient and there
@@ -29,20 +29,16 @@ class LocalCardMigrationBubbleViews : public AutofillBubbleBase,
                                 content::WebContents* web_contents,
                                 LocalCardMigrationBubbleController* controller);
 
-  LocalCardMigrationBubbleViews(const LocalCardMigrationBubbleViews&) = delete;
-  LocalCardMigrationBubbleViews& operator=(
-      const LocalCardMigrationBubbleViews&) = delete;
-
   void Show(DisplayReason reason);
 
-  // AutofillBubbleBase:
+  // LocalCardMigrationBubble:
   void Hide() override;
 
   // LocationBarBubbleDelegateView:
   void AddedToWidget() override;
-  std::u16string GetWindowTitle() const override;
+  base::string16 GetWindowTitle() const override;
   void WindowClosing() override;
-  void OnWidgetDestroying(views::Widget* widget) override;
+  void OnWidgetClosing(views::Widget* widget) override;
 
  private:
   friend class LocalCardMigrationBrowserTest;
@@ -55,7 +51,12 @@ class LocalCardMigrationBubbleViews : public AutofillBubbleBase,
   // views::BubbleDialogDelegateView:
   void Init() override;
 
-  raw_ptr<LocalCardMigrationBubbleController> controller_;
+  PaymentsBubbleClosedReason closed_reason_ =
+      PaymentsBubbleClosedReason::kUnknown;
+
+  LocalCardMigrationBubbleController* controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(LocalCardMigrationBubbleViews);
 };
 
 }  // namespace autofill

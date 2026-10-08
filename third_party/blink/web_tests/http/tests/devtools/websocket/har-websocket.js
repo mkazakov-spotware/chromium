@@ -1,10 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult('Verifies that HAR exports contain websocket messages');
-  await TestRunner.loadTestModule('network_test_runner');
+  await TestRunner.loadModule('network_test_runner');
   await TestRunner.showPanel('network');
   await TestRunner.NetworkAgent.setCacheDisabled(true);
 
@@ -35,7 +35,7 @@
   const harString = await new Promise(async resolve => {
     const stream = new TestRunner.StringOutputStream(resolve);
     const progress = new Common.Progress();
-    await NetworkTestRunner.writeHARLog(
+    await Network.HARWriter.write(
         stream, NetworkTestRunner.networkRequests(), progress);
     progress.done();
     stream.close();

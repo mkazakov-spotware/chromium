@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define CHROME_BROWSER_SAFE_BROWSING_VERDICT_CACHE_MANAGER_FACTORY_H_
 
 #include "base/memory/singleton.h"
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 class KeyedService;
 class Profile;
@@ -23,7 +23,7 @@ class VerdictCacheManager;
 // Profile. It listens to profile destroy events and destroy its associated
 // service. It returns a separate instance if the profile is in the Incognito
 // mode.
-class VerdictCacheManagerFactory : public ProfileKeyedServiceFactory {
+class VerdictCacheManagerFactory : public BrowserContextKeyedServiceFactory {
  public:
   // Creates the service if it doesn't exist already for the given |profile|.
   // If the service already exists, return its pointer.
@@ -31,10 +31,6 @@ class VerdictCacheManagerFactory : public ProfileKeyedServiceFactory {
 
   // Get the singleton instance.
   static VerdictCacheManagerFactory* GetInstance();
-
-  VerdictCacheManagerFactory(const VerdictCacheManagerFactory&) = delete;
-  VerdictCacheManagerFactory& operator=(const VerdictCacheManagerFactory&) =
-      delete;
 
  private:
   friend struct base::DefaultSingletonTraits<VerdictCacheManagerFactory>;
@@ -45,6 +41,10 @@ class VerdictCacheManagerFactory : public ProfileKeyedServiceFactory {
   // BrowserContextKeyedServiceFactory:
   KeyedService* BuildServiceInstanceFor(
       content::BrowserContext* context) const override;
+  content::BrowserContext* GetBrowserContextToUse(
+      content::BrowserContext* context) const override;
+
+  DISALLOW_COPY_AND_ASSIGN(VerdictCacheManagerFactory);
 };
 
 }  // namespace safe_browsing

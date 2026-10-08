@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,14 +16,15 @@ import org.robolectric.shadows.ShadowLog;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Feature;
 import org.chromium.mojo_base.BigBufferUtil;
-import org.chromium.skia.mojom.BitmapN32;
-import org.chromium.skia.mojom.BitmapN32ImageInfo;
+import org.chromium.skia.mojom.Bitmap;
+import org.chromium.skia.mojom.ColorType;
+import org.chromium.skia.mojom.ImageInfo;
 
 /**
  * Test suite for conversion-to-Frame utils.
  */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
+@Config(sdk = 21, manifest = Config.NONE)
 public class BitmapUtilsTest {
     private static final int VALID_WIDTH = 1;
     private static final int VALID_HEIGHT = 1;
@@ -45,9 +46,9 @@ public class BitmapUtilsTest {
     @Test
     @Feature({"ShapeDetection"})
     public void testConversionFailsWithInvalidBitmap() {
-        BitmapN32 bitmap = new BitmapN32();
+        Bitmap bitmap = new Bitmap();
         bitmap.pixelData = null;
-        bitmap.imageInfo = new BitmapN32ImageInfo();
+        bitmap.imageInfo = new ImageInfo();
 
         assertNull(BitmapUtils.convertToFrame(bitmap));
     }
@@ -58,8 +59,8 @@ public class BitmapUtilsTest {
     @Test
     @Feature({"ShapeDetection"})
     public void testConversionFailsWithInvalidDimensions() {
-        BitmapN32 bitmap = new BitmapN32();
-        bitmap.imageInfo = new BitmapN32ImageInfo();
+        Bitmap bitmap = new Bitmap();
+        bitmap.imageInfo = new ImageInfo();
         bitmap.pixelData = BigBufferUtil.createBigBufferFromBytes(EMPTY_DATA);
         bitmap.imageInfo.width = INVALID_WIDTH;
         bitmap.imageInfo.height = VALID_HEIGHT;
@@ -73,11 +74,12 @@ public class BitmapUtilsTest {
     @Test
     @Feature({"ShapeDetection"})
     public void testConversionFailsWithWronglyWrappedData() {
-        BitmapN32 bitmap = new BitmapN32();
-        bitmap.imageInfo = new BitmapN32ImageInfo();
+        Bitmap bitmap = new Bitmap();
+        bitmap.imageInfo = new ImageInfo();
         bitmap.pixelData = BigBufferUtil.createBigBufferFromBytes(EMPTY_DATA);
         bitmap.imageInfo.width = VALID_WIDTH;
         bitmap.imageInfo.height = VALID_HEIGHT;
+        bitmap.imageInfo.colorType = ColorType.RGBA_8888;
 
         assertNull(BitmapUtils.convertToFrame(bitmap));
     }

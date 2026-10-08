@@ -1,104 +1,101 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.debug.ErrorHandlerTest');
 goog.setTestOnly();
 
 const ErrorHandler = goog.require('goog.debug.ErrorHandler');
 const MockControl = goog.require('goog.testing.MockControl');
-const NativeResolver = goog.require('goog.promise.NativeResolver');
-const TestCase = goog.require('goog.testing.TestCase');
-const dispose = goog.require('goog.dispose');
-const recordFunction = goog.require('goog.testing.recordFunction');
 const testSuite = goog.require('goog.testing.testSuite');
 
-const PROTECTED_FUNCTION_ERROR_PREFIX =
-    ErrorHandler.ProtectedFunctionError.MESSAGE_PREFIX;
-const ERROR_HANDLER_TEST_ERROR = 'ERROR_HANDLER_TEST_ERROR';
+let oldGetObjectByName;
+
+// provide our own window that implements our instrumented and
+// immediate-call versions of setTimeout and setInterval
+let fakeWin = {};
 
 let errorHandler;
 let mockControl;
 
-let state = {};
-
-const JSUnitOnError = window.onerror;
-// Here we set up an `onerror` handler to be able to catch the re-thrown errors
-// at the end of the implementation of
-// `goog.debug.ErrorHandler.prototype.handleError_`.
-/**
- * A function that will record expected caught errors in the state object.
- * Unexpected errors will be relayed to the previously installed handler and
- * re-thrown.
- * @param {string} error the error
- */
-window.onerror = (error) => {
-  if (!error.includes(ERROR_HANDLER_TEST_ERROR)) {
-    JSUnitOnError(error);
-    fail(`An unexpected error reached the \`onerror\` handler: ${error}`);
-    throw error;
-  }
-  state.lastUncaughtError = error;
-};
-
-/**
- * A function that constructs functions that throw errors and call resolvers.
- * @param {!Function} resolve the resolver to call when.
- * @returns {Function!} the error thrower.
- */
-function errorThrowerFactory(resolve) {
-  return function() {
-    resolve && resolve();
-    throw ERROR_HANDLER_TEST_ERROR;
-  };
+function badTimer() {
+  arguments.callee.called = true;
+  throw 'die die die';
 }
 
-/**
- * @suppress {strictMissingProperties} suppression added to enable type
- * checking
- */
-function assertMethodCalledHelper(method) {
-  assertTrue('An error was not re-thrown', Boolean(state.lastUncaughtError));
-  assertTrue(
-      'The re-thrown error does not include the "Protected Function" prefix',
-      state.lastUncaughtError.includes(PROTECTED_FUNCTION_ERROR_PREFIX));
-  const errorSansPrefix = state.lastUncaughtError.replace(
-      new RegExp(`.*${PROTECTED_FUNCTION_ERROR_PREFIX}`), '');
+function assertSetTimeoutError(caught) {
+  assertMethodCalledHelper('setTimeout', caught);
+}
+
+function assertSetIntervalError(caught) {
+  assertMethodCalledHelper('setInterval', caught);
+}
+
+function assertRequestAnimationFrameError(caught) {
+  assertMethodCalledHelper('requestAnimationFrame', caught);
+}
+
+function assertMethodCalledHelper(method, caught) {
+  assertTrue('exception not thrown', !!caught);
   assertEquals(
-      'The Error Handler did not catch the error', errorSansPrefix,
-      errorHandler.ex);
-  assertTrue(
-      `The protected function "${method}" was not called`,
-      state.fake[method].getCallCount() >= 1);
+      'exception not caught by error handler', caught.cause, errorHandler.ex);
+  assertTrue(`fake ${method} not called`, !!fakeWin[method].called);
   assertTrue(
       `"this" not passed to original ${method}`,
-      state.fake[method].getLastCall().getThis() === window);
+      fakeWin[method].that === fakeWin);
 }
 
 testSuite({
-  setUpPage() {
-    state.real = {setTimeout, setInterval, requestAnimationFrame};
-  },
   setUp() {
-    state.fake = {
-      setTimeout: recordFunction(state.real.setTimeout.bind(null)),
-      // Here we mock `setInterval` with `setTimeout` as we only want it to
-      // run once.
-      setInterval: recordFunction(state.real.setTimeout.bind(null)),
-      requestAnimationFrame: recordFunction(state.real.setTimeout.bind(null)),
-    };
-
-    window.setTimeout = state.fake.setTimeout;
-    window.setInterval = state.fake.setInterval;
-    window.requestAnimationFrame = state.fake.requestAnimationFrame;
-
     mockControl = new MockControl();
-
     // On IE, globalEval happens async. So make it synchronous.
     goog.globalEval = (str) => {
       eval(str);
+    };
+
+    oldGetObjectByName = goog.getObjectByName;
+    goog.getObjectByName = (name) => {
+      if (name == 'window') {
+        return fakeWin;
+      } else {
+        return oldGetObjectByName(name);
+      }
+    };
+
+    fakeWin.setTimeout = function(fn, time) {
+      fakeWin.setTimeout.called = true;
+      fakeWin.setTimeout.that = this;
+      if (typeof fn === 'string') {
+        eval(fn);
+      } else {
+        fn.apply(this, Array.prototype.slice.call(arguments, 2));
+      }
+    };
+
+    fakeWin.setInterval = function(fn, time) {
+      fakeWin.setInterval.called = true;
+      fakeWin.setInterval.that = this;
+      if (typeof fn === 'string') {
+        eval(fn);
+      } else {
+        fn.apply(this, Array.prototype.slice.call(arguments, 2));
+      }
+    };
+
+    fakeWin.requestAnimationFrame = function(fn) {
+      fakeWin.requestAnimationFrame.called = true;
+      fakeWin.requestAnimationFrame.that = this;
+      fn();
     };
 
     // just record the exception in the error handler when it happens
@@ -108,114 +105,112 @@ testSuite({
   },
 
   tearDown() {
-    // Clean our state.
-    delete state.lastUncaughtError;
-    state.fake = {};
-
-    // Clean our window.
-    window.setTimeout = state.real.setTimeout;
-    window.setInterval = state.real.setInterval;
-    window.requestAnimationFrame = state.real.requestAnimationFrame;
-
-    // Tear down and dispose.
     mockControl.$tearDown();
-    dispose(errorHandler);
+    goog.dispose(errorHandler);
     errorHandler = null;
+
+    goog.getObjectByName = oldGetObjectByName;
+
+    delete badTimer['__protected__'];
   },
 
-  async testWrapSetTimeout() {
-    TestCase.getActiveTestCase().promiseTimeout = 10000;
-
+  testWrapSetTimeout() {
     errorHandler.protectWindowSetTimeout();
 
-    const resolver = new NativeResolver();
-    window.setTimeout(errorThrowerFactory(resolver.resolve), 30);
-    await resolver.promise;
+    let caught;
 
-    assertMethodCalledHelper('setTimeout');
+    try {
+      fakeWin.setTimeout(badTimer, 3);
+    } catch (ex) {
+      caught = ex;
+    }
+    assertSetTimeoutError(caught);
   },
 
   testWrapSetTimeoutWithoutException() {
     errorHandler.protectWindowSetTimeout();
 
-    window.setTimeout((x, y) => {
+    fakeWin.setTimeout((x, y) => {
       assertEquals('test', x);
       assertEquals(7, y);
     }, 3, 'test', 7);
   },
 
-  async testWrapSetTimeoutWithString() {
+  testWrapSetTimeoutWithString() {
     errorHandler.protectWindowSetTimeout();
 
-    const resolver = new NativeResolver();
-    const errorThrower = errorThrowerFactory(resolver.resolve);
-    /** @suppress {strictMissingProperties} */  // We want the `errorThrower` to
-                                                // be readable by the `eval`ed
-                                                // string below.
-    window.errorThrower = errorThrower;
-    window.setTimeout('window.errorThrower()', 3);
-    await resolver.promise;
-    delete window.errorThrower;
+    let caught;
 
-    assertMethodCalledHelper('setTimeout');
+    try {
+      fakeWin.setTimeout('badTimer()', 3);
+    } catch (ex) {
+      caught = ex;
+    }
+    assertSetTimeoutError(caught);
   },
 
-  async testWrapSetInterval() {
+  testWrapSetInterval() {
     errorHandler.protectWindowSetInterval();
 
-    const resolver = new NativeResolver();
-    window.setInterval(errorThrowerFactory(resolver.resolve), 30);
-    await resolver.promise;
+    let caught;
 
-    assertMethodCalledHelper('setInterval');
+    try {
+      fakeWin.setInterval(badTimer, 3);
+    } catch (ex) {
+      caught = ex;
+    }
+    assertSetIntervalError(caught);
   },
 
   testWrapSetIntervalWithoutException() {
     errorHandler.protectWindowSetInterval();
 
-    window.setInterval((x, y) => {
+    fakeWin.setInterval((x, y) => {
       assertEquals('test', x);
       assertEquals(7, y);
     }, 3, 'test', 7);
   },
 
-  async testWrapSetIntervalWithString() {
+  testWrapSetIntervalWithString() {
     errorHandler.protectWindowSetInterval();
 
-    const resolver = new NativeResolver();
-    const errorThrower = errorThrowerFactory(resolver.resolve);
-    /** @suppress {strictMissingProperties} */  // We want the `errorThrower` to
-                                                // be readable by the `eval`ed
-                                                // string below.
-    window.errorThrower = errorThrower;
-    window.setInterval('window.errorThrower()', 3);
-    await resolver.promise;
-    delete window.errorThrower;
+    let caught;
 
-    assertMethodCalledHelper('setInterval');
+    try {
+      fakeWin.setInterval('badTimer()', 3);
+    } catch (ex) {
+      caught = ex;
+    }
+    assertSetIntervalError(caught);
   },
 
-  async testWrapRequestAnimationFrame() {
+  testWrapRequestAnimationFrame() {
     errorHandler.protectWindowRequestAnimationFrame();
 
-    const resolver = new NativeResolver();
-    window.requestAnimationFrame(errorThrowerFactory(resolver.resolve));
-    await resolver.promise;
-
-    assertMethodCalledHelper('requestAnimationFrame');
+    let caught;
+    try {
+      fakeWin.requestAnimationFrame(badTimer);
+    } catch (ex) {
+      caught = ex;
+    }
+    assertRequestAnimationFrameError(caught);
   },
 
   testDisposal() {
+    fakeWin = goog.getObjectByName('window');
+    const originalSetTimeout = fakeWin.setTimeout;
+    const originalSetInterval = fakeWin.setInterval;
+
     errorHandler.protectWindowSetTimeout();
     errorHandler.protectWindowSetInterval();
 
-    assertNotEquals(window.setTimeout, state.fake.setTimeout);
-    assertNotEquals(window.setInterval, state.fake.setInterval);
+    assertNotEquals(originalSetTimeout, fakeWin.setTimeout);
+    assertNotEquals(originalSetInterval, fakeWin.setInterval);
 
     errorHandler.dispose();
 
-    assertEquals(window.setTimeout, state.fake.setTimeout);
-    assertEquals(window.setInterval, state.fake.setInterval);
+    assertEquals(originalSetTimeout, fakeWin.setTimeout);
+    assertEquals(originalSetInterval, fakeWin.setInterval);
   },
 
   testUnwrap() {
@@ -247,30 +242,20 @@ testSuite({
     }
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testGetProtectedFunction() {
     const fn = () => {
       throw new Error('Foo');
     };
-    /** @suppress {visibility} suppression added to enable type checking */
     const protectedFn = errorHandler.getProtectedFunction(fn);
     const e = assertThrows(protectedFn);
     assertTrue(e instanceof ErrorHandler.ProtectedFunctionError);
     assertEquals('Foo', e.cause.message);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testGetProtectedFunctionNullError() {
     const fn = () => {
       throw null;
     };
-    /** @suppress {visibility} suppression added to enable type checking */
     const protectedFn = errorHandler.getProtectedFunction(fn);
     const e = assertThrows(protectedFn);
     assertTrue(e instanceof ErrorHandler.ProtectedFunctionError);
@@ -280,7 +265,7 @@ testSuite({
   testGetProtectedFunction_withoutWrappedErrors() {
     const shouldCallErrorLog = !!Error.captureStackTrace;
     if (shouldCallErrorLog) {
-      mockControl.createMethodMock(globalThis.console, 'error');
+      mockControl.createMethodMock(goog.global.console, 'error');
     }
     errorHandler.setWrapErrors(false);
     const fn = () => {
@@ -288,10 +273,9 @@ testSuite({
       e.stack = 'STACK';
       throw e;
     };
-    /** @suppress {visibility} suppression added to enable type checking */
     const protectedFn = errorHandler.getProtectedFunction(fn);
     if (shouldCallErrorLog) {
-      globalThis.console.error('Foo', 'STACK');
+      goog.global.console.error('Foo', 'STACK');
     }
     mockControl.$replayAll();
     const e = assertThrows(protectedFn);
@@ -307,7 +291,6 @@ testSuite({
     const fn = () => {
       throw new Error('Foo');
     };
-    /** @suppress {visibility} suppression added to enable type checking */
     let protectedFn = errorHandler.getProtectedFunction(fn);
     let e = assertThrows(protectedFn);
     assertTrue(e instanceof Error);
@@ -317,7 +300,6 @@ testSuite({
     const stringError = () => {
       throw 'String';
     };
-    /** @suppress {visibility} suppression added to enable type checking */
     protectedFn = errorHandler.getProtectedFunction(stringError);
     e = assertThrows(protectedFn);
     assertEquals('string', typeof e);
@@ -325,19 +307,16 @@ testSuite({
         ErrorHandler.ProtectedFunctionError.MESSAGE_PREFIX + 'String', e);
   },
 
-  async testProtectedFunction_infiniteLoop() {
+  testProtectedFunction_infiniteLoop() {
     let numErrors = 0;
     const errorHandler = new ErrorHandler((ex) => {
       numErrors++;
     });
     errorHandler.protectWindowSetTimeout();
 
-    const resolver = new NativeResolver();
-    window.setTimeout(() => {
-      window.setTimeout(errorThrowerFactory(resolver.resolve), 3);
+    fakeWin.setTimeout(() => {
+      fakeWin.setTimeout(badTimer, 3);
     }, 3);
-    await resolver.promise;
-
     assertEquals(
         'Error handler should only have been executed once.', 1, numErrors);
   },

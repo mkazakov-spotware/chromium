@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,23 +12,23 @@
 #include <string>
 
 #include "base/bind.h"
+#include "base/compiler_specific.h"
 #include "base/component_export.h"
 #include "base/files/scoped_file.h"
 #include "base/memory/ref_counted.h"
 #include "base/process/process.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "ipc/ipc.mojom-forward.h"
 #include "ipc/ipc_channel_handle.h"
 #include "ipc/ipc_message.h"
 #include "ipc/ipc_sender.h"
-#include "mojo/public/cpp/bindings/generic_pending_associated_receiver.h"
 #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
 #include "mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h"
-#include "mojo/public/cpp/bindings/shared_remote.h"
+#include "mojo/public/cpp/bindings/thread_safe_interface_ptr.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <sys/types.h>
 #endif
 
@@ -50,10 +50,11 @@ class COMPONENT_EXPORT(IPC) Channel : public Sender {
 
  public:
   // Flags to test modes
-  using ModeFlags = int;
-  static constexpr ModeFlags MODE_NO_FLAG = 0x0;
-  static constexpr ModeFlags MODE_SERVER_FLAG = 0x1;
-  static constexpr ModeFlags MODE_CLIENT_FLAG = 0x2;
+  enum ModeFlags {
+    MODE_NO_FLAG = 0x0,
+    MODE_SERVER_FLAG = 0x1,
+    MODE_CLIENT_FLAG = 0x2,
+  };
 
   // Some Standard Modes
   // TODO(morrita): These are under deprecation work. You should use Create*()
@@ -103,8 +104,9 @@ class COMPONENT_EXPORT(IPC) Channel : public Sender {
         const GenericAssociatedInterfaceFactory& factory) = 0;
 
     // Requests an associated interface from the remote endpoint.
-    virtual void GetRemoteAssociatedInterface(
-        mojo::GenericPendingAssociatedReceiver receiver) = 0;
+    virtual void GetGenericRemoteAssociatedInterface(
+        const std::string& name,
+        mojo::ScopedInterfaceEndpointHandle handle) = 0;
 
     // Template helper to add an interface factory to this channel.
     template <typename Interface>
@@ -117,6 +119,14 @@ class COMPONENT_EXPORT(IPC) Channel : public Sender {
           Interface::Name_,
           base::BindRepeating(&BindPendingAssociatedReceiver<Interface>,
                               factory));
+    }
+
+    // Template helper to request a remote associated interface.
+    template <typename Interface>
+    void GetRemoteAssociatedInterface(
+        mojo::PendingAssociatedReceiver<Interface> receiver) {
+      GetGenericRemoteAssociatedInterface(Interface::Name_,
+                                          receiver.PassHandle());
     }
 
    private:
@@ -153,7 +163,7 @@ class COMPONENT_EXPORT(IPC) Channel : public Sender {
   // There are four type of modes how channels operate:
   //
   // - Server and named server: In these modes, the Channel is
-  //   responsible for setting up the IPC object.
+  //   responsible for settingb up the IPC object
   // - An "open" named server: It accepts connections from ANY client.
   //   The caller must then implement their own access-control based on the
   //   client process' user Id.
@@ -186,7 +196,7 @@ class COMPONENT_EXPORT(IPC) Channel : public Sender {
   //
   // The subclass implementation must call WillConnect() at the beginning of its
   // implementation.
-  [[nodiscard]] virtual bool Connect() = 0;
+  virtual bool Connect() WARN_UNUSED_RESULT = 0;
 
   // Pause the channel. Subsequent sends will be queued internally until
   // Unpause() is called and the channel is flushed either by Unpause() or a
@@ -229,12 +239,12 @@ class COMPONENT_EXPORT(IPC) Channel : public Sender {
   // deleted once the contents of the Message have been sent.
   bool Send(Message* message) override = 0;
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL_SFI)
   // Generates a channel ID that's non-predictable and unique.
   static std::string GenerateUniqueRandomChannelID();
 #endif
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   // Sandboxed processes live in a PID namespace, so when sending the IPC hello
   // message from client to server we need to send the PID from the global
   // PID namespace.

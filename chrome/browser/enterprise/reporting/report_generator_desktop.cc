@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,19 +6,17 @@
 
 #include <utility>
 
-#include "build/chromeos_buildflags.h"
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "base/logging.h"
 #include "base/strings/stringprintf.h"
-#include "chrome/browser/ash/arc/arc_util.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/chromeos/arc/arc_util.h"
 #include "chrome/browser/enterprise/reporting/android_app_info_generator.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_list_prefs.h"
 #include "components/policy/core/common/cloud/cloud_policy_util.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
 namespace em = enterprise_management;
 
@@ -26,10 +24,11 @@ namespace enterprise_reporting {
 
 // TODO(crbug.com/1102047): Split up Chrome OS reporting code into its own
 // delegates, then move this method's implementation to ReportGeneratorChromeOS.
-void ReportGeneratorDesktop::SetAndroidAppInfos(ReportRequest* basic_request) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+void ReportGeneratorDesktop::SetAndroidAppInfos(
+    ReportGenerator::ReportRequest* basic_request) {
+#if defined(OS_CHROMEOS)
   DCHECK(basic_request);
-  basic_request->GetDeviceReportRequest().clear_android_app_infos();
+  basic_request->clear_android_app_infos();
 
   // Android application is only supported for primary profile.
   Profile* primary_profile =
@@ -50,11 +49,10 @@ void ReportGeneratorDesktop::SetAndroidAppInfos(ReportRequest* basic_request) {
 
   AndroidAppInfoGenerator generator;
   for (std::string app_id : prefs->GetAppIds()) {
-    basic_request->GetDeviceReportRequest()
-        .mutable_android_app_infos()
-        ->AddAllocated(generator.Generate(prefs, app_id).release());
+    basic_request->mutable_android_app_infos()->AddAllocated(
+        generator.Generate(prefs, app_id).release());
   }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 }
 
 }  // namespace enterprise_reporting

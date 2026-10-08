@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.share.clipboard;
 
 import android.graphics.Bitmap;
-import android.net.Uri;
 import android.os.Looper;
 
 import androidx.test.filters.SmallTest;
@@ -18,9 +17,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.ContentUriUtils;
-import org.chromium.base.ContextUtils;
 import org.chromium.base.task.AsyncTask;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
@@ -30,7 +27,6 @@ import org.chromium.chrome.browser.FileProviderHelper;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.components.browser_ui.share.ClipboardImageFileProvider;
 import org.chromium.ui.base.Clipboard;
 
 import java.io.ByteArrayOutputStream;
@@ -98,15 +94,11 @@ public class ClipboardImageFileProviderTest {
 
         CriteriaHelper.pollUiThread(() -> {
             Criteria.checkThat(Clipboard.getInstance().getImageUri(), Matchers.notNullValue());
-            Criteria.checkThat(Clipboard.getInstance().getImageUriIfSharedByThisApp(),
-                    Matchers.is(Clipboard.getInstance().getImageUri()));
         });
 
-        Uri uri = Clipboard.getInstance().getImageUri();
-        Assert.assertNotNull(uri);
-        Bitmap bitmap = ApiCompatibilityUtils.getBitmapByUri(
-                ContextUtils.getApplicationContext().getContentResolver(), uri);
-        Assert.assertNotNull(bitmap);
+        // Make sure Clipboard::getImage is call on non UI thread.
+        AsyncTask.SERIAL_EXECUTOR.execute(
+                () -> { Assert.assertNotNull(Clipboard.getInstance().getImage()); });
 
         // Wait for the above check to complete.
         waitForAsync();

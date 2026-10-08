@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,9 +25,8 @@ class COMPOSITOR_EXPORT ThroughputTrackerHost {
   virtual void StartThroughputTracker(TrackerId tracker_id,
                                       ReportCallback callback) = 0;
 
-  // Stops the tracking for the given tracker id. Returns true if tracking
-  // is stopped successfully. Otherwise, returns false.
-  virtual bool StopThroughtputTracker(TrackerId tracker_id) = 0;
+  // Stops the tracking for the given tracker id.
+  virtual void StopThroughtputTracker(TrackerId tracker_id) = 0;
 
   // Cancels the tracking for the given tracker id.
   virtual void CancelThroughtputTracker(TrackerId tracker_id) = 0;

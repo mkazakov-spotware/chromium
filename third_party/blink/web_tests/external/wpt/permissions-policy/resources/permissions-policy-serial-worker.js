@@ -6,8 +6,8 @@ if (typeof postMessage === 'function') {
     switch(event.data.type) {
       case 'ready':
         navigator.serial.getPorts().then(
-            () => postMessage({ type: 'availability-result', enabled: true }),
-            error => postMessage ({ type: 'availability-result', enabled: false }));
+            () => postMessage({ enabled: true }),
+            error => postMessage ({ enabled: false }));
         break;
     }
   };

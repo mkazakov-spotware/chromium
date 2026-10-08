@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.editor.PluginTest');
 goog.setTestOnly();
@@ -27,7 +35,6 @@ testSuite({
     plugin.dispose();
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testRegisterFieldObject() {
     plugin.registerFieldObject(fieldObject);
     assertEquals(
@@ -39,7 +46,6 @@ testSuite({
         plugin.isEnabled(fieldObject));
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testUnregisterFieldObject() {
     plugin.registerFieldObject(fieldObject);
     plugin.enable(fieldObject);
@@ -89,10 +95,6 @@ testSuite({
         plugin.isSupportedCommand('+indent'));
   },
 
-  /**
-     @suppress {missingProperties} suppression added to enable type
-     checking
-   */
   testExecCommand() {
     const mockField = new StrictMock(Field);
     plugin.registerFieldObject(mockField);
@@ -109,7 +111,6 @@ testSuite({
     let passedArg;
     let passedCommand;
 
-    /** @suppress {visibility} suppression added to enable type checking */
     plugin.execCommandInternal = (command, arg) => {
       passedCommand = command;
       passedArg = arg;
@@ -119,8 +120,7 @@ testSuite({
     // Verify that execCommand dispatched the expected events.
     mockField.$verify();
     mockField.$reset();
-    // Verify that execCommandInternal was called with the correct
-    // arguments.
+    // Verify that execCommandInternal was called with the correct arguments.
     assertEquals('+indent', passedCommand);
     assertTrue(passedArg);
 
@@ -129,23 +129,15 @@ testSuite({
     plugin.execCommand('+outdent', false);
     // Verify that execCommand on a silent plugin dispatched no events.
     mockField.$verify();
-    // Verify that execCommandInternal was called with the correct
-    // arguments.
+    // Verify that execCommandInternal was called with the correct arguments.
     assertEquals('+outdent', passedCommand);
     assertFalse(passedArg);
   },
 
-  /**
-     Regression test for http://b/issue?id=1471355 .
-     @suppress {missingProperties} suppression added to enable type checking
-   */
+  /** Regression test for http://b/issue?id=1471355 . */
   testExecCommandException() {
     const mockField = new StrictMock(Field);
     plugin.registerFieldObject(mockField);
-    /**
-     * @suppress {visibility,duplicate} suppression added to enable type
-     * checking
-     */
     plugin.execCommandInternal = () => {
       throw 1;
     };
@@ -167,7 +159,6 @@ testSuite({
     mockField.$verify();
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testDisposed() {
     plugin.registerFieldObject(fieldObject);
     plugin.dispose();

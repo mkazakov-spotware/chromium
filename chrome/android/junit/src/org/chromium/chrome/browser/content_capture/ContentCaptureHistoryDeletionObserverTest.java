@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,7 @@ import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.history.HistoryDeletionInfo;
-import org.chromium.components.content_capture.PlatformContentCaptureController;
+import org.chromium.components.content_capture.ContentCaptureController;
 
 /**
  * Unit tests for the ContentCaptureHistoryDeletionObserver.
@@ -29,7 +29,7 @@ import org.chromium.components.content_capture.PlatformContentCaptureController;
 @Config(manifest = Config.NONE)
 public class ContentCaptureHistoryDeletionObserverTest {
     @Mock
-    PlatformContentCaptureController mContentCaptureController;
+    ContentCaptureController mContentCaptureController;
     @Mock
     HistoryDeletionInfo mHistoryDeletionInfo;
 

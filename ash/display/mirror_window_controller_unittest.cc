@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,19 +44,18 @@ display::ManagedDisplayInfo CreateDisplayInfo(int64_t id,
 class MirrorOnBootTest : public AshTestBase {
  public:
   MirrorOnBootTest() = default;
-
-  MirrorOnBootTest(const MirrorOnBootTest&) = delete;
-  MirrorOnBootTest& operator=(const MirrorOnBootTest&) = delete;
-
   ~MirrorOnBootTest() override = default;
 
   void SetUp() override {
     base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
-        ::switches::kHostWindowBounds, "1+1-400x300,1+301-400x300");
+        ::switches::kHostWindowBounds, "1+1-300x300,1+301-300x300");
     base::CommandLine::ForCurrentProcess()->AppendSwitch(
         ::switches::kEnableSoftwareMirroring);
     AshTestBase::SetUp();
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MirrorOnBootTest);
 };
 
 }  // namespace
@@ -70,9 +69,9 @@ TEST_F(MirrorWindowControllerTest, DockMode) {
   const int64_t external_id = 2;
 
   const display::ManagedDisplayInfo internal_display_info =
-      CreateDisplayInfo(internal_id, gfx::Rect(0, 0, 400, 500));
+      CreateDisplayInfo(internal_id, gfx::Rect(0, 0, 500, 500));
   const display::ManagedDisplayInfo external_display_info =
-      CreateDisplayInfo(external_id, gfx::Rect(1, 1, 200, 100));
+      CreateDisplayInfo(external_id, gfx::Rect(1, 1, 100, 100));
   std::vector<display::ManagedDisplayInfo> display_info_list;
 
   // software mirroring.
@@ -84,7 +83,7 @@ TEST_F(MirrorWindowControllerTest, DockMode) {
           .SetFirstDisplayAsInternalDisplay();
   EXPECT_EQ(internal_id, internal_display_id);
 
-  display_manager()->SetMirrorMode(display::MirrorMode::kNormal, absl::nullopt);
+  display_manager()->SetMirrorMode(display::MirrorMode::kNormal, base::nullopt);
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1U, display_manager()->GetNumDisplays());
   EXPECT_TRUE(display_manager()->IsInSoftwareMirrorMode());
@@ -147,7 +146,7 @@ TEST_P(MirrorWindowControllerRotationAndPanelOrientationTest, MirrorSize) {
     // Start software mirroring.
     display_manager()->OnNativeDisplaysChanged(display_info_list);
     display_manager()->SetMirrorMode(display::MirrorMode::kNormal,
-                                     absl::nullopt);
+                                     base::nullopt);
     base::RunLoop().RunUntilIdle();
     EXPECT_EQ(1U, display_manager()->GetNumDisplays());
     EXPECT_TRUE(display_manager()->IsInSoftwareMirrorMode());

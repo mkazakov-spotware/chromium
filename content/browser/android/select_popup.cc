@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/browser/web_contents/web_contents_view_android.h"
 #include "content/public/android/content_jni_headers/SelectPopup_jni.h"
+#include "content/public/common/use_zoom_for_dsf_policy.h"
 #include "ui/gfx/geometry/rect_f.h"
 
 using base::android::AttachCurrentThread;
@@ -116,9 +117,11 @@ void SelectPopup::ShowMenu(
   popup_client_.set_disconnect_handler(
       base::BindOnce(&SelectPopup::HideMenu, base::Unretained(this)));
 
-  // |bounds| is in physical pixels.
+  // |bounds| is in physical pixels if --use-zoom-for-dsf is enabled.
+  // Otherwise, it is in DIP pixels.
   gfx::RectF bounds_dip = gfx::RectF(bounds);
-  bounds_dip.Scale(1 / web_contents_->GetNativeView()->GetDipScale());
+  if (IsUseZoomForDSFEnabled())
+    bounds_dip.Scale(1 / web_contents_->GetNativeView()->GetDipScale());
   view->SetAnchorRect(popup_view, bounds_dip);
   Java_SelectPopup_show(
       env, j_obj, popup_view, reinterpret_cast<jlong>(popup_client_.get()),

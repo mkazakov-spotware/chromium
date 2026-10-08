@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,10 +47,6 @@ class CrowdDenyPreloadDataTest : public testing::Test {
   using SiteReputation = chrome_browser_crowd_deny::SiteReputation;
 
   CrowdDenyPreloadDataTest() {}
-
-  CrowdDenyPreloadDataTest(const CrowdDenyPreloadDataTest&) = delete;
-  CrowdDenyPreloadDataTest& operator=(const CrowdDenyPreloadDataTest&) = delete;
-
   ~CrowdDenyPreloadDataTest() override = default;
 
  protected:
@@ -135,14 +131,12 @@ class CrowdDenyPreloadDataTest : public testing::Test {
     }
   }
 
-  const SiteReputation* GetReputationDataForSite(const url::Origin& origin) {
-    return preload_data()->GetReputationDataForSite(origin);
-  }
-
  private:
   base::test::TaskEnvironment task_environment_;
   base::ScopedTempDir scoped_temp_dir_;
   CrowdDenyPreloadData preload_data_;
+
+  DISALLOW_COPY_AND_ASSIGN(CrowdDenyPreloadDataTest);
 };
 
 TEST_F(CrowdDenyPreloadDataTest, NoData) {
@@ -173,22 +167,24 @@ TEST_F(CrowdDenyPreloadDataTest, BadData) {
 TEST_F(CrowdDenyPreloadDataTest, DataIntegrityAndDefaults) {
   ASSERT_NO_FATAL_FAILURE(SerializeAndLoadCannedTestData());
 
-  const auto* data =
-      GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginAlpha)));
+  const auto* data = preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginAlpha)));
   ASSERT_TRUE(data);
   EXPECT_EQ(kTestDomainAlpha, data->domain());
   EXPECT_EQ(SiteReputation::UNKNOWN, data->notification_ux_quality());
   EXPECT_FALSE(data->include_subdomains());
   EXPECT_FALSE(data->warning_only());
 
-  data = GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginBeta)));
+  data = preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginBeta)));
   ASSERT_TRUE(data);
   EXPECT_EQ(kTestDomainBeta, data->domain());
   EXPECT_EQ(SiteReputation::ACCEPTABLE, data->notification_ux_quality());
   EXPECT_FALSE(data->include_subdomains());
   EXPECT_FALSE(data->warning_only());
 
-  data = GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginGamma)));
+  data = preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginGamma)));
   ASSERT_TRUE(data);
   EXPECT_EQ(kTestDomainGamma, data->domain());
   EXPECT_EQ(SiteReputation::UNSOLICITED_PROMPTS,
@@ -196,22 +192,24 @@ TEST_F(CrowdDenyPreloadDataTest, DataIntegrityAndDefaults) {
   EXPECT_FALSE(data->include_subdomains());
   EXPECT_FALSE(data->warning_only());
 
-  data = GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginDelta)));
+  data = preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginDelta)));
   ASSERT_TRUE(data);
   EXPECT_EQ(kTestDomainDelta, data->domain());
   EXPECT_EQ(SiteReputation::ABUSIVE_PROMPTS, data->notification_ux_quality());
   EXPECT_TRUE(data->include_subdomains());
   EXPECT_TRUE(data->warning_only());
 
-  data =
-      GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginEpsilon)));
+  data = preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginEpsilon)));
   ASSERT_TRUE(data);
   EXPECT_EQ(kTestDomainEpsilon, data->domain());
   EXPECT_EQ(SiteReputation::UNKNOWN, data->notification_ux_quality());
   EXPECT_FALSE(data->include_subdomains());
   EXPECT_FALSE(data->warning_only());
 
-  data = GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginZeta)));
+  data = preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginZeta)));
   EXPECT_FALSE(data);
 }
 
@@ -224,55 +222,56 @@ TEST_F(CrowdDenyPreloadDataTest, GetReputationReturnsNullForNonHttpsOrigins) {
   };
 
   ASSERT_NO_FATAL_FAILURE(SerializeAndLoadCannedTestData());
-  EXPECT_TRUE(
-      GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginAlpha))));
+  EXPECT_TRUE(preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginAlpha))));
 
   for (const char* non_https_origin : kNonHttpsOrigins) {
     SCOPED_TRACE(non_https_origin);
-    EXPECT_FALSE(
-        GetReputationDataForSite(url::Origin::Create(GURL(non_https_origin))));
+    EXPECT_FALSE(preload_data()->GetReputationDataForSite(
+        url::Origin::Create(GURL(non_https_origin))));
   }
 }
 
 TEST_F(CrowdDenyPreloadDataTest, GetReputationIgnoresPort) {
   ASSERT_NO_FATAL_FAILURE(SerializeAndLoadCannedTestData());
 
-  EXPECT_TRUE(GetReputationDataForSite(
+  EXPECT_TRUE(preload_data()->GetReputationDataForSite(
       url::Origin::Create(GURL("https://alpha.com:443"))));
-  EXPECT_TRUE(GetReputationDataForSite(
+  EXPECT_TRUE(preload_data()->GetReputationDataForSite(
       url::Origin::Create(GURL("https://alpha.com:1234"))));
 }
 
 TEST_F(CrowdDenyPreloadDataTest, GetReputationWithSubdomainMatching) {
   ASSERT_NO_FATAL_FAILURE(SerializeAndLoadCannedTestData());
 
-  const auto* data =
-      GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginDelta)));
+  const auto* data = preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginDelta)));
   ASSERT_TRUE(data);
   EXPECT_EQ(kTestDomainDelta, data->domain());
   ASSERT_TRUE(data->include_subdomains());
 
-  data = GetReputationDataForSite(
+  data = preload_data()->GetReputationDataForSite(
       url::Origin::Create(GURL(kTestOriginSubdomainOfDelta1)));
   ASSERT_TRUE(data);
   EXPECT_EQ(kTestDomainDelta, data->domain());
 
-  data = GetReputationDataForSite(
+  data = preload_data()->GetReputationDataForSite(
       url::Origin::Create(GURL(kTestOriginSubdomainOfDelta2)));
   ASSERT_TRUE(data);
   EXPECT_EQ(kTestDomainDelta, data->domain());
 
-  data = GetReputationDataForSite(
+  data = preload_data()->GetReputationDataForSite(
       url::Origin::Create(GURL(kTestOriginNotSubdomainOfDelta)));
   EXPECT_FALSE(data);
 
-  data = GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginAlpha)));
+  data = preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginAlpha)));
   ASSERT_TRUE(data);
   EXPECT_EQ(kTestDomainAlpha, data->domain());
   ASSERT_FALSE(data->include_subdomains());
 
   // Should not return `alpha.com` because |include_subdomains| is not set.
-  data = GetReputationDataForSite(
+  data = preload_data()->GetReputationDataForSite(
       url::Origin::Create(GURL(kTestOriginSubdomainOfAlpha)));
   EXPECT_FALSE(data);
 }
@@ -294,13 +293,13 @@ TEST_F(CrowdDenyPreloadDataTest, SubdomainSpecificOverride) {
 
   ASSERT_NO_FATAL_FAILURE(SerializeAndLoadTestData(std::move(test_data)));
 
-  const auto* data = GetReputationDataForSite(
+  const auto* data = preload_data()->GetReputationDataForSite(
       url::Origin::Create(GURL(kTestOriginSubdomainOfDelta1)));
   ASSERT_TRUE(data);
   EXPECT_EQ(kTestSubdomainOfDelta1, data->domain());
   EXPECT_EQ(SiteReputation::ACCEPTABLE, data->notification_ux_quality());
 
-  data = GetReputationDataForSite(
+  data = preload_data()->GetReputationDataForSite(
       url::Origin::Create(GURL(kTestOriginSubdomainOfDelta2)));
   ASSERT_TRUE(data);
   EXPECT_EQ(kTestDomainDelta, data->domain());
@@ -328,22 +327,22 @@ TEST_F(CrowdDenyPreloadDataTest, Update) {
   ASSERT_NO_FATAL_FAILURE(SerializeAndLoadTestData(std::move(test_data_v2)));
 
   // Check that the updated preload data is visible.
-  EXPECT_FALSE(
-      GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginAlpha))));
-  EXPECT_FALSE(
-      GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginBeta))));
-  EXPECT_FALSE(
-      GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginGamma))));
+  EXPECT_FALSE(preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginAlpha))));
+  EXPECT_FALSE(preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginBeta))));
+  EXPECT_FALSE(preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginGamma))));
 
-  const auto* data =
-      GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginDelta)));
+  const auto* data = preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginDelta)));
   ASSERT_TRUE(data);
   EXPECT_EQ(kTestDomainDelta, data->domain());
   EXPECT_EQ(SiteReputation::UNSOLICITED_PROMPTS,
             data->notification_ux_quality());
 
-  data =
-      GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginEpsilon)));
+  data = preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginEpsilon)));
   ASSERT_TRUE(data);
   EXPECT_EQ(kTestDomainEpsilon, data->domain());
   EXPECT_EQ(SiteReputation::ACCEPTABLE, data->notification_ux_quality());
@@ -411,12 +410,12 @@ TEST_F(CrowdDenyPreloadDataTest, LastOneSurvivesFromUpdatesInQuickSuccession) {
   task_environment()->RunUntilIdle();
 
   // Expect the new version to have become visible.
-  const auto* data =
-      GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginEpsilon)));
+  const auto* data = preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginEpsilon)));
   ASSERT_TRUE(data);
   EXPECT_EQ(kTestDomainEpsilon, data->domain());
   EXPECT_EQ(SiteReputation::ACCEPTABLE, data->notification_ux_quality());
 
-  EXPECT_FALSE(
-      GetReputationDataForSite(url::Origin::Create(GURL(kTestOriginDelta))));
+  EXPECT_FALSE(preload_data()->GetReputationDataForSite(
+      url::Origin::Create(GURL(kTestOriginDelta))));
 }

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,9 +46,9 @@ double GetTimeTicks() {
 }
 
 void CallbackWrapper(PP_CompletionCallback callback, int32_t result) {
-  TRACE_EVENT2("ppapi_proxy", "CallOnMainThread callback", "Func",
-               reinterpret_cast<void*>(callback.func), "UserData",
-               callback.user_data);
+  TRACE_EVENT2("ppapi proxy", "CallOnMainThread callback",
+               "Func", reinterpret_cast<void*>(callback.func),
+               "UserData", callback.user_data);
   CallWhileUnlocked(PP_RunCompletionCallback, &callback, result);
 }
 
@@ -56,7 +56,7 @@ void CallOnMainThread(int delay_in_ms,
                       PP_CompletionCallback callback,
                       int32_t result) {
   DCHECK(callback.func);
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL)
   // Some NaCl apps pass a negative delay, so we just sanitize to 0, to run as
   // soon as possible. MessageLoop checks that the delay is non-negative.
   if (delay_in_ms < 0)
@@ -75,7 +75,7 @@ void CallOnMainThread(int delay_in_ms,
   PpapiGlobals::Get()->GetMainThreadMessageLoop()->PostDelayedTask(
       FROM_HERE,
       RunWhileLocked(base::BindOnce(&CallbackWrapper, callback, result)),
-      base::Milliseconds(delay_in_ms));
+      base::TimeDelta::FromMilliseconds(delay_in_ms));
 }
 
 PP_Bool IsMainThread() {
@@ -112,7 +112,7 @@ const PPB_Core* PPB_Core_Proxy::GetPPB_Core_Interface() {
 }
 
 bool PPB_Core_Proxy::OnMessageReceived(const IPC::Message& msg) {
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL)
   return false;
 #else
   bool handled = true;
@@ -128,7 +128,7 @@ bool PPB_Core_Proxy::OnMessageReceived(const IPC::Message& msg) {
 #endif
 }
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
 void PPB_Core_Proxy::OnMsgAddRefResource(const HostResource& resource) {
   ppb_core_impl_->AddRefResource(resource.host_resource());
 }
@@ -136,7 +136,7 @@ void PPB_Core_Proxy::OnMsgAddRefResource(const HostResource& resource) {
 void PPB_Core_Proxy::OnMsgReleaseResource(const HostResource& resource) {
   ppb_core_impl_->ReleaseResource(resource.host_resource());
 }
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
 }  // namespace proxy
 }  // namespace ppapi

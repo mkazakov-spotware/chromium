@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include "ash/fast_ink/fast_ink_points.h"
 #include "ash/fast_ink/fast_ink_view.h"
-#include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "ui/views/widget/unique_widget_ptr.h"
 
@@ -18,9 +17,6 @@ namespace ash {
 // trail of lines to help users track.
 class LaserPointerView : public fast_ink::FastInkView {
  public:
-  LaserPointerView(const LaserPointerView&) = delete;
-  LaserPointerView& operator=(const LaserPointerView&) = delete;
-
   ~LaserPointerView() override;
 
   // Function to create a container Widget, initialize |cursor_view| and
@@ -62,6 +58,8 @@ class LaserPointerView : public fast_ink::FastInkView {
   gfx::Rect laser_content_rect_;
   bool pending_update_buffer_ = false;
   base::WeakPtrFactory<LaserPointerView> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(LaserPointerView);
 };
 
 }  // namespace ash

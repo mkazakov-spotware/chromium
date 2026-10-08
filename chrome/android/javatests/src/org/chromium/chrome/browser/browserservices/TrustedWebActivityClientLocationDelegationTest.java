@@ -1,9 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.browserservices;
 
+import android.content.ComponentName;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.RemoteException;
@@ -20,9 +21,8 @@ import org.junit.runner.RunWith;
 
 import org.chromium.base.task.PostTask;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
-import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.chrome.browser.ChromeApplication;
 import org.chromium.chrome.browser.dependency_injection.ChromeAppComponent;
 import org.chromium.components.embedder_support.util.Origin;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
@@ -43,7 +43,6 @@ import java.util.concurrent.TimeoutException;
  * 3. TestTrustedWebActivityService notify the result with TrustedWebActivityCallback.
  */
 @RunWith(BaseJUnit4ClassRunner.class)
-@Batch(Batch.PER_CLASS)
 public class TrustedWebActivityClientLocationDelegationTest {
     private static final Uri SCOPE = Uri.parse("https://www.example.com/notifications");
     private static final Origin ORIGIN = Origin.create(SCOPE);
@@ -57,11 +56,11 @@ public class TrustedWebActivityClientLocationDelegationTest {
 
     @Before
     public void setUp() throws TimeoutException, RemoteException {
-        ChromeAppComponent component = ChromeApplicationImpl.getComponent();
+        ChromeAppComponent component = ChromeApplication.getComponent();
         mClient = component.resolveTrustedWebActivityClient();
 
         // TestTrustedWebActivityService is in the test support apk.
-        component.resolvePermissionManager().addDelegateApp(ORIGIN, TEST_SUPPORT_PACKAGE);
+        component.resolveTwaPermissionManager().addDelegateApp(ORIGIN, TEST_SUPPORT_PACKAGE);
     }
 
     /**
@@ -72,11 +71,16 @@ public class TrustedWebActivityClientLocationDelegationTest {
     public void testCheckLocationPermission() throws TimeoutException {
         CallbackHelper locationPermission = new CallbackHelper();
 
-        TrustedWebActivityClient.PermissionCallback callback =
-                (app, settingValue) -> locationPermission.notifyCalled();
+        TrustedWebActivityClient.PermissionCheckCallback callback =
+                new TrustedWebActivityClient.PermissionCheckCallback() {
+                    @Override
+                    public void onPermissionCheck(ComponentName answeringApp, boolean enabled) {
+                        locationPermission.notifyCalled();
+                    }
+                };
 
         PostTask.runOrPostTask(UiThreadTaskTraits.DEFAULT,
-                () -> mClient.checkLocationPermission(SCOPE.toString(), callback));
+                () -> mClient.checkLocationPermission(ORIGIN, callback));
         locationPermission.waitForFirst();
     }
 
@@ -102,8 +106,8 @@ public class TrustedWebActivityClientLocationDelegationTest {
         };
         PostTask.runOrPostTask(UiThreadTaskTraits.DEFAULT,
                 ()
-                        -> mClient.startListeningLocationUpdates(SCOPE.toString(),
-                                false /* highAccuracy */, locationUpdateCallback));
+                        -> mClient.startListeningLocationUpdates(
+                                ORIGIN, false /* highAccuracy */, locationUpdateCallback));
         locationUpdate.waitForFirst();
     }
 
@@ -128,8 +132,8 @@ public class TrustedWebActivityClientLocationDelegationTest {
         };
         PostTask.runOrPostTask(UiThreadTaskTraits.DEFAULT,
                 ()
-                        -> mClient.startListeningLocationUpdates(otherOrigin.toString(),
-                                false /* highAccuracy */, locationUpdateCallback));
+                        -> mClient.startListeningLocationUpdates(
+                                otherOrigin, false /* highAccuracy */, locationUpdateCallback));
         locationError.waitForFirst();
     }
 }

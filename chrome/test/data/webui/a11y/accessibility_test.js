@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,8 +54,8 @@ AccessibilityTest.Definition;
 AccessibilityTest.runAudit_ = function(testDef) {
   // Ignore iron-iconset-svg elements that have duplicate ids and result in
   // false postives from the audit.
-  const context = {exclude: ['iron-iconset-svg']};
-  const options = testDef.axeOptions || {};
+  let context = {exclude: ['iron-iconset-svg']};
+  let options = testDef.axeOptions || {};
   // Element references needed for filtering audit results.
   options.elementRef = true;
 
@@ -65,10 +65,10 @@ AccessibilityTest.runAudit_ = function(testDef) {
         reject(err);
       }
 
-      const filteredViolations = AccessibilityTest.filterViolations_(
+      let filteredViolations = AccessibilityTest.filterViolations_(
           results.violations, testDef.violationFilter || {});
 
-      const violationCount = filteredViolations.length;
+      let violationCount = filteredViolations.length;
       if (violationCount) {
         AccessibilityTest.print_(filteredViolations);
         reject('Found ' + violationCount + ' accessibility violations.');
@@ -91,11 +91,11 @@ AccessibilityTest.filterViolations_ = function(violations, filter) {
     return violations;
   }
 
-  const filteredViolations = [];
+  let filteredViolations = [];
   // Check for and remove any nodes specified by filter.
-  for (const violation of violations) {
+  for (let violation of violations) {
     if (violation.id in filter) {
-      const exclusionRule = filter[violation.id];
+      let exclusionRule = filter[violation.id];
       violation.nodes = violation.nodes.filter((node) => !exclusionRule(node));
     }
 
@@ -116,12 +116,12 @@ AccessibilityTest.define = function(testFixture, testDef) {
   // Disable in debug mode because of timeouts.
   GEN('#if defined(NDEBUG)');
 
-  const axeOptions = testDef.axeOptions || {};
+  let axeOptions = testDef.axeOptions || {};
   testDef.setup = testDef.setup || (() => {});
 
   // Define a test for each audit rule separately.
-  const rules = axeOptions.runOnly ? axeOptions.runOnly.values :
-                                     AccessibilityTest.ruleIds;
+  let rules = axeOptions.runOnly ? axeOptions.runOnly.values :
+                                   AccessibilityTest.ruleIds;
   rules.forEach((ruleId) => {
     // Skip rules disabled in axeOptions.
     if (axeOptions.rules && ruleId in axeOptions.rules &&
@@ -129,7 +129,7 @@ AccessibilityTest.define = function(testFixture, testDef) {
       return;
     }
 
-    const newTestDef = Object.assign({}, testDef);
+    let newTestDef = Object.assign({}, testDef);
     newTestDef.name += '_' + ruleId;
     // Replace hyphens, which break the build.
     newTestDef.name = newTestDef.name.replace(new RegExp('-', 'g'), '_');
@@ -140,7 +140,7 @@ AccessibilityTest.define = function(testFixture, testDef) {
       // Define the mocha tests
       suite(newTestDef.name, () => {
         setup(newTestDef.setup.bind(newTestDef));
-        for (const testMember in newTestDef.tests) {
+        for (let testMember in newTestDef.tests) {
           test(
               testMember,
               AccessibilityTest.getMochaTest_(testMember, newTestDef));
@@ -166,7 +166,7 @@ AccessibilityTest.getMochaTest_ = function(testMember, testDef) {
   return () => {
     // Run commands specified by the test definition followed by the
     // accessibility audit.
-    const promise = testDef.tests[testMember].call(testDef);
+    let promise = testDef.tests[testMember].call(testDef);
     if (promise) {
       return promise.then(() => AccessibilityTest.runAudit_(testDef));
     } else {
@@ -182,18 +182,17 @@ AccessibilityTest.getMochaTest_ = function(testMember, testDef) {
  */
 AccessibilityTest.print_ = function(violations) {
   // Elements have circular references and must be removed before printing.
-  for (const violation of violations) {
-    for (const node of violation.nodes) {
+  for (let violation of violations) {
+    for (let node of violation.nodes) {
       delete node['element'];
       ['all', 'any', 'none'].forEach((attribute) => {
-        for (const checkResult of node[attribute]) {
-          for (const relatedNode of checkResult.relatedNodes) {
+        for (let checkResult of node[attribute]) {
+          for (let relatedNode of checkResult.relatedNodes) {
             delete relatedNode['element'];
           }
         }
       });
     }
   }
-  // eslint-disable-next-line no-console
   console.log(JSON.stringify(violations, null, 4));
 };

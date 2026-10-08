@@ -48,4 +48,4 @@ typedef enum {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_PAGE_DRAG_ACTIONS_H_
+#endif  // !DragActions_h

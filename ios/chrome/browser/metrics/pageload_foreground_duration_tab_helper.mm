@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,9 @@
 
 #import <UIKit/UIKit.h>
 
-#import "components/ukm/ios/ukm_url_recorder.h"
+#include "components/ukm/ios/ukm_url_recorder.h"
 #import "ios/web/public/navigation/navigation_context.h"
-#import "services/metrics/public/cpp/ukm_builders.h"
+#include "services/metrics/public/cpp/ukm_builders.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -18,9 +18,9 @@ WEB_STATE_USER_DATA_KEY_IMPL(PageloadForegroundDurationTabHelper)
 
 PageloadForegroundDurationTabHelper::PageloadForegroundDurationTabHelper(
     web::WebState* web_state)
-    : web_state_(web_state) {
+    : web_state_(web_state), scoped_observer_(this) {
   DCHECK(web_state);
-  scoped_observation_.Observe(web_state);
+  scoped_observer_.Add(web_state);
   background_notification_observer_ = [[NSNotificationCenter defaultCenter]
       addObserverForName:UIApplicationDidEnterBackgroundNotification
                   object:nil
@@ -115,8 +115,7 @@ void PageloadForegroundDurationTabHelper::WebStateDestroyed(
     web::WebState* web_state) {
   DCHECK_EQ(web_state_, web_state);
   RecordUkmIfInForeground();
-  DCHECK(scoped_observation_.IsObservingSource(web_state));
-  scoped_observation_.Reset();
+  scoped_observer_.Remove(web_state);
   web_state_ = nullptr;
 }
 

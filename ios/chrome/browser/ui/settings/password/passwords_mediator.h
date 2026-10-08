@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,44 +8,32 @@
 #import <Foundation/Foundation.h>
 
 #include "base/memory/scoped_refptr.h"
-#include "ios/chrome/browser/signin/identity_manager_factory.h"
-#include "ios/chrome/browser/sync/sync_service_factory.h"
-#import "ios/chrome/browser/ui/settings/password/password_manager_view_controller_delegate.h"
-#import "ios/chrome/browser/ui/settings/utils/password_auto_fill_status_observer.h"
-#import "ios/chrome/browser/ui/table_view/table_view_favicon_data_source.h"
+#import "ios/chrome/browser/ui/settings/password/passwords_table_view_controller_delegate.h"
 #import "ios/chrome/common/ui/reauthentication/reauthentication_module.h"
 
-class FaviconLoader;
+class AuthenticationService;
 class IOSChromePasswordCheckManager;
 @protocol PasswordsConsumer;
 class SyncSetupService;
 
 namespace password_manager {
-struct CredentialUIEntry;
+class PasswordStore;
 }
 
 // This mediator fetches and organises the passwords for its consumer.
-@interface PasswordsMediator : NSObject <PasswordAutoFillStatusObserver,
-                                         PasswordManagerViewControllerDelegate,
-                                         SuccessfulReauthTimeAccessor,
-                                         TableViewFaviconDataSource>
+@interface PasswordsMediator : NSObject <PasswordsTableViewControllerDelegate,
+                                         SuccessfulReauthTimeAccessor>
 
 - (instancetype)
-    initWithPasswordCheckManager:
-        (scoped_refptr<IOSChromePasswordCheckManager>)passwordCheckManager
-                syncSetupService:(SyncSetupService*)syncSetupService
-                   faviconLoader:(FaviconLoader*)faviconLoader
-                 identityManager:(signin::IdentityManager*)identityManager
-                     syncService:(syncer::SyncService*)syncService
+    initWithPasswordStore:
+        (scoped_refptr<password_manager::PasswordStore>)passwordStore
+     passwordCheckManager:
+         (scoped_refptr<IOSChromePasswordCheckManager>)passwordCheckManager
+              authService:(AuthenticationService*)authService
+              syncService:(SyncSetupService*)syncService
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;
-
-// Deletes 'form' and its duplicates.
-- (void)deleteCredential:(const password_manager::CredentialUIEntry&)credential;
-
-// Disconnect the observers.
-- (void)disconnect;
 
 @property(nonatomic, weak) id<PasswordsConsumer> consumer;
 

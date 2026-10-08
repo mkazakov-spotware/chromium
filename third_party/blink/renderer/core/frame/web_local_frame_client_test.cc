@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -32,14 +32,17 @@ class CallTrackingTestWebLocalFrameClient
   }
 
   void DidCommitNavigation(
-      WebHistoryCommitType commit_type,
-      bool should_reset_browser_interface_broker,
-      const ParsedPermissionsPolicy& permissions_policy_header,
-      const DocumentPolicyFeatureState& document_policy_header) override {
+      const WebHistoryItem& item,
+      WebHistoryCommitType type,
+      bool should_reset_browser_interface_broker) override {
     calls_.push_back("DidCommitNavigation");
     TestWebFrameClient::DidCommitNavigation(
-        commit_type, should_reset_browser_interface_broker,
-        permissions_policy_header, document_policy_header);
+        item, type, should_reset_browser_interface_broker);
+  }
+
+  void DidCreateInitialEmptyDocument() override {
+    calls_.push_back("DidCreateInitialEmptyDocument");
+    TestWebFrameClient::DidCreateInitialEmptyDocument();
   }
 
   void DidCreateDocumentElement() override {
@@ -52,9 +55,9 @@ class CallTrackingTestWebLocalFrameClient
     TestWebFrameClient::RunScriptsAtDocumentElementAvailable();
   }
 
-  void DidDispatchDOMContentLoadedEvent() override {
-    calls_.push_back("DidDispatchDOMContentLoadedEvent");
-    TestWebFrameClient::DidDispatchDOMContentLoadedEvent();
+  void DidFinishDocumentLoad() override {
+    calls_.push_back("DidFinishDocumentLoad");
+    TestWebFrameClient::DidFinishDocumentLoad();
   }
 
   void RunScriptsAtDocumentReady() override {
@@ -92,24 +95,25 @@ TEST(WebLocalFrameClientTest, Basic) {
   web_view_helper.Initialize(&client);
   EXPECT_THAT(client.TakeCalls(),
               testing::ElementsAre("DidCreateDocumentLoader",
+                                   "DidCreateInitialEmptyDocument",
                                    "DidCreateDocumentElement",
                                    "RunScriptsAtDocumentElementAvailable"));
 
   frame_test_helpers::LoadHTMLString(web_view_helper.LocalMainFrame(),
                                      "<p>Hello world!</p>",
                                      ToKURL("https://example.com/"));
-  EXPECT_THAT(client.TakeCalls(),
-              testing::ElementsAre(
-                  // TODO(https://crbug.com/1057229): RunScriptsAtDocumentIdle
-                  // really should not be here, but there might be a bug where a
-                  // truly empty initial document doesn't fire document_idle due
-                  // to an early return in FrameLoader::FinishedParsing()...
-                  "RunScriptsAtDocumentIdle", "DidCreateDocumentLoader",
-                  "DidCommitNavigation", "DidCreateDocumentElement",
-                  "RunScriptsAtDocumentElementAvailable",
-                  "DidDispatchDOMContentLoadedEvent",
-                  "RunScriptsAtDocumentReady", "RunScriptsAtDocumentIdle",
-                  "DidHandleOnloadEvents", "DidFinishLoad"));
+  EXPECT_THAT(
+      client.TakeCalls(),
+      testing::ElementsAre(
+          // TODO(https://crbug.com/1057229): RunScriptsAtDocumentIdle really
+          // should not be here, but there might be a bug where a truly empty
+          // initial document doesn't fire document_idle due to an early return
+          // in FrameLoader::FinishedParsing()...
+          "RunScriptsAtDocumentIdle", "DidCreateDocumentLoader",
+          "DidCommitNavigation", "DidCreateDocumentElement",
+          "RunScriptsAtDocumentElementAvailable", "DidFinishDocumentLoad",
+          "RunScriptsAtDocumentReady", "RunScriptsAtDocumentIdle",
+          "DidHandleOnloadEvents", "DidFinishLoad"));
 }
 
 // TODO(dcheng): Add test cases for iframes (i.e. iframe with no source, iframe

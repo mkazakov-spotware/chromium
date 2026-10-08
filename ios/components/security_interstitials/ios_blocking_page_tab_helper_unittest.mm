@@ -1,14 +1,14 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/components/security_interstitials/ios_blocking_page_tab_helper.h"
 
-#import "ios/components/security_interstitials/ios_security_interstitial_page.h"
+#include "ios/components/security_interstitials/ios_security_interstitial_page.h"
 #import "ios/web/public/test/fakes/fake_navigation_context.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "testing/platform_test.h"
-#import "url/gurl.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "testing/platform_test.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -18,7 +18,7 @@ namespace security_interstitials {
 
 class TestInterstitialPage : public IOSSecurityInterstitialPage {
  public:
-  // `*destroyed_tracker` is set to true in the destructor.
+  // |*destroyed_tracker| is set to true in the destructor.
   TestInterstitialPage(web::WebState* web_state,
                        const GURL& request_url,
                        bool* destroyed_tracker)
@@ -33,13 +33,14 @@ class TestInterstitialPage : public IOSSecurityInterstitialPage {
   }
 
  private:
-  void HandleCommand(SecurityInterstitialCommand command,
-                     const GURL& origin_url,
-                     bool user_is_interacting,
-                     web::WebFrame* sender_frame) override {}
+  void HandleScriptCommand(const base::DictionaryValue& message,
+                           const GURL& origin_url,
+                           bool user_is_interacting,
+                           web::WebFrame* sender_frame) override {}
   bool ShouldCreateNewNavigation() const override { return false; }
   void PopulateInterstitialStrings(
-      base::Value::Dict& load_time_data) const override {}
+      base::DictionaryValue* load_time_data) const override {}
+  void AfterShow() override {}
 
   bool* destroyed_tracker_ = nullptr;
 };
@@ -63,8 +64,8 @@ class IOSBlockingPageTabHelperTest : public PlatformTest {
     return IOSBlockingPageTabHelper::FromWebState(&web_state_);
   }
 
-  // Creates a blocking page and associates it with `context`'s navigation ID
-  // in the tab helper.  Returns the created blocking page.  `destroyed_tracker`
+  // Creates a blocking page and associates it with |context|'s navigation ID
+  // in the tab helper.  Returns the created blocking page.  |destroyed_tracker|
   // is an out-parameter that is reset to true when the blocking page is
   // destroyed.
   IOSSecurityInterstitialPage* CreateAssociatedBlockingPage(
@@ -79,7 +80,7 @@ class IOSBlockingPageTabHelperTest : public PlatformTest {
     return blocking_page;
   }
 
-  web::FakeWebState web_state_;
+  web::TestWebState web_state_;
 };
 
 // Tests that the helper properly handles the lifetime of a single blocking

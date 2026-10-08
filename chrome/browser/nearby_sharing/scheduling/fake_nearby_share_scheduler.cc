@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,12 +23,12 @@ void FakeNearbyShareScheduler::Reschedule() {
   ++num_reschedule_calls_;
 }
 
-absl::optional<base::Time> FakeNearbyShareScheduler::GetLastSuccessTime()
+base::Optional<base::Time> FakeNearbyShareScheduler::GetLastSuccessTime()
     const {
   return last_success_time_;
 }
 
-absl::optional<base::TimeDelta>
+base::Optional<base::TimeDelta>
 FakeNearbyShareScheduler::GetTimeUntilNextRequest() const {
   return time_until_next_request_;
 }
@@ -55,12 +55,12 @@ void FakeNearbyShareScheduler::InvokeRequestCallback() {
 }
 
 void FakeNearbyShareScheduler::SetLastSuccessTime(
-    absl::optional<base::Time> time) {
+    base::Optional<base::Time> time) {
   last_success_time_ = time;
 }
 
 void FakeNearbyShareScheduler::SetTimeUntilNextRequest(
-    absl::optional<base::TimeDelta> time_delta) {
+    base::Optional<base::TimeDelta> time_delta) {
   time_until_next_request_ = time_delta;
 }
 

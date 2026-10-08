@@ -1,10 +1,12 @@
-#!/usr/bin/env python3
-# Copyright 2018 The Chromium Authors
+#!/usr/bin/python
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 """Parses /proc/[pid]/smaps on a device and shows the total amount of swap used.
 """
+
+from __future__ import print_function
 
 import argparse
 import collections
@@ -19,7 +21,7 @@ sys.path.append(os.path.join(_SRC_PATH, 'third_party', 'catapult', 'devil'))
 from devil.android import device_utils
 
 
-class Mapping:
+class Mapping(object):
   """A single entry (mapping) in /proc/[pid]/smaps."""
 
   def __init__(self, start, end, permissions, offset, pathname):
@@ -129,8 +131,6 @@ def _GetPageTableFootprint(device, pid):
     if line.startswith('VmPTE:'):
       value = int(line[len('VmPTE: '):line.index('kB')])
       return value
-  # Should not be reached.
-  return None
 
 
 def _SummarizeMapping(mapping, metric):
@@ -173,7 +173,8 @@ def _FootprintForAnonymousMapping(mapping):
     # libc_malloc mappings can come from the zygote. In this case, the shared
     # dirty memory is likely dirty in the zygote, don't count it.
     return mapping.fields['Rss']
-  return mapping.fields['Private_Dirty']
+  else:
+    return mapping.fields['Private_Dirty']
 
 
 def _PrintEstimatedFootprintStats(mappings, page_table_kb):

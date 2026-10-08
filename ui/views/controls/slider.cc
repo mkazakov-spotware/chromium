@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include <utility>
 
 #include "base/check_op.h"
-#include "base/i18n/rtl.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/current_thread.h"
@@ -22,14 +21,13 @@
 #include "ui/accessibility/ax_action_data.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
-#include "ui/color/color_id.h"
-#include "ui/color/color_provider.h"
 #include "ui/events/event.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/rect.h"
+#include "ui/native_theme/native_theme.h"
+#include "ui/views/metadata/metadata_impl_macros.h"
 #include "ui/views/widget/widget.h"
 
 namespace views {
@@ -45,7 +43,10 @@ constexpr float kSliderRoundedRadius = 2.f;
 // The padding used to hide the slider underneath the thumb.
 constexpr int kSliderPadding = 2;
 
-// The radius of the highlighted thumb of the slider
+// The radius of the thumb and the highlighted thumb of the slider,
+// respectively.
+constexpr float kThumbRadius = 4.f;
+constexpr float kThumbWidth = 2 * kThumbRadius;
 constexpr float kThumbHighlightRadius = 12.f;
 
 float GetNearestAllowedValue(const base::flat_set<float>& allowed_values,
@@ -71,10 +72,9 @@ float GetNearestAllowedValue(const base::flat_set<float>& allowed_values,
 }  // namespace
 
 Slider::Slider(SliderListener* listener) : listener_(listener) {
-  highlight_animation_.SetSlideDuration(base::Milliseconds(150));
+  highlight_animation_.SetSlideDuration(base::TimeDelta::FromMilliseconds(150));
   SetFlipCanvasOnPaintForRTLUI(true);
-
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_APPLE)
   SetFocusBehavior(FocusBehavior::ACCESSIBLE_ONLY);
 #else
   SetFocusBehavior(FocusBehavior::ALWAYS);
@@ -91,14 +91,6 @@ float Slider::GetValue() const {
 
 void Slider::SetValue(float value) {
   SetValueInternal(value, SliderChangeReason::kByApi);
-}
-
-float Slider::GetValueIndicatorRadius() const {
-  return value_indicator_radius_;
-}
-
-void Slider::SetValueIndicatorRadius(float radius) {
-  value_indicator_radius_ = radius;
 }
 
 bool Slider::GetEnableAccessibilityEvents() const {
@@ -194,7 +186,7 @@ void Slider::SetValueInternal(float value, SliderChangeReason reason) {
     if (!move_animation_) {
       initial_animating_value_ = old_value;
       move_animation_ = std::make_unique<gfx::SlideAnimation>(this);
-      move_animation_->SetSlideDuration(base::Milliseconds(150));
+      move_animation_->SetSlideDuration(base::TimeDelta::FromMilliseconds(150));
       move_animation_->Show();
     }
     OnPropertyChanged(&value_, kPropertyEffectsNone);
@@ -218,13 +210,12 @@ void Slider::PrepareForMove(const int new_x) {
   gfx::Rect content = GetContentsBounds();
   float value = GetAnimatingValue();
 
-  const int thumb_x = value * (content.width() - 2 * value_indicator_radius_);
+  const int thumb_x = value * (content.width() - kThumbWidth);
   const int candidate_x = GetMirroredXInView(new_x - inset.left()) - thumb_x;
-  if (candidate_x >= value_indicator_radius_ - kThumbRadius &&
-      candidate_x < value_indicator_radius_ + kThumbRadius)
+  if (candidate_x >= 0 && candidate_x < kThumbWidth)
     initial_button_offset_ = candidate_x;
   else
-    initial_button_offset_ = value_indicator_radius_;
+    initial_button_offset_ = kThumbRadius;
 }
 
 void Slider::MoveButtonTo(const gfx::Point& point) {
@@ -233,9 +224,9 @@ void Slider::MoveButtonTo(const gfx::Point& point) {
   int amount = base::i18n::IsRTL()
                    ? width() - inset.left() - point.x() - initial_button_offset_
                    : point.x() - inset.left() - initial_button_offset_;
-  SetValueInternal(static_cast<float>(amount) /
-                       (width() - inset.width() - 2 * value_indicator_radius_),
-                   SliderChangeReason::kByUser);
+  SetValueInternal(
+      static_cast<float>(amount) / (width() - inset.width() - kThumbWidth),
+      SliderChangeReason::kByUser);
 }
 
 void Slider::OnSliderDragStarted() {
@@ -367,18 +358,10 @@ void Slider::OnPaint(gfx::Canvas* canvas) {
   const int thumb_highlight_radius =
       HasFocus() ? kThumbHighlightRadius : thumb_highlight_radius_;
   if (thumb_highlight_radius > kThumbRadius) {
-    cc::PaintFlags highlight_background;
-    highlight_background.setColor(GetTroughColor());
-    highlight_background.setAntiAlias(true);
-    canvas->DrawCircle(thumb_center, thumb_highlight_radius,
-                       highlight_background);
-
-    cc::PaintFlags highlight_border;
-    highlight_border.setColor(GetThumbColor());
-    highlight_border.setAntiAlias(true);
-    highlight_border.setStyle(cc::PaintFlags::kStroke_Style);
-    highlight_border.setStrokeWidth(kLineThickness);
-    canvas->DrawCircle(thumb_center, thumb_highlight_radius, highlight_border);
+    cc::PaintFlags highlight;
+    highlight.setColor(GetTroughColor());
+    highlight.setAntiAlias(true);
+    canvas->DrawCircle(thumb_center, thumb_highlight_radius, highlight);
   }
 
   // Paint the thumb of the slider.
@@ -424,7 +407,7 @@ void Slider::OnGestureEvent(ui::GestureEvent* event) {
     case ui::ET_GESTURE_TAP_DOWN:
       OnSliderDragStarted();
       PrepareForMove(event->location().x());
-      [[fallthrough]];
+      FALLTHROUGH;
     case ui::ET_GESTURE_SCROLL_BEGIN:
     case ui::ET_GESTURE_SCROLL_UPDATE:
       MoveButtonTo(event->location());
@@ -444,18 +427,22 @@ void Slider::OnGestureEvent(ui::GestureEvent* event) {
 SkColor Slider::GetThumbColor() const {
   switch (style_) {
     case RenderingStyle::kDefaultStyle:
-      return GetColorProvider()->GetColor(ui::kColorSliderThumb);
+      return GetNativeTheme()->GetSystemColor(
+          ui::NativeTheme::kColorId_SliderThumbDefault);
     case RenderingStyle::kMinimalStyle:
-      return GetColorProvider()->GetColor(ui::kColorSliderThumbMinimal);
+      return GetNativeTheme()->GetSystemColor(
+          ui::NativeTheme::kColorId_SliderThumbMinimal);
   }
 }
 
 SkColor Slider::GetTroughColor() const {
   switch (style_) {
     case RenderingStyle::kDefaultStyle:
-      return GetColorProvider()->GetColor(ui::kColorSliderTrack);
+      return GetNativeTheme()->GetSystemColor(
+          ui::NativeTheme::kColorId_SliderTroughDefault);
     case RenderingStyle::kMinimalStyle:
-      return GetColorProvider()->GetColor(ui::kColorSliderTrackMinimal);
+      return GetNativeTheme()->GetSystemColor(
+          ui::NativeTheme::kColorId_SliderTroughMinimal);
   }
 }
 
@@ -473,7 +460,6 @@ int Slider::GetSliderExtraPadding() const {
 BEGIN_METADATA(Slider, View)
 ADD_PROPERTY_METADATA(float, Value)
 ADD_PROPERTY_METADATA(bool, EnableAccessibilityEvents)
-ADD_PROPERTY_METADATA(float, ValueIndicatorRadius)
 END_METADATA
 
 }  // namespace views

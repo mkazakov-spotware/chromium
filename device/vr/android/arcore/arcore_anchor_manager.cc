@@ -1,15 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/vr/android/arcore/arcore_anchor_manager.h"
 
-#include "base/containers/contains.h"
 #include "device/vr/android/arcore/type_converters.h"
 
 namespace device {
 
-ArCoreAnchorManager::ArCoreAnchorManager(base::PassKey<ArCoreImpl> pass_key,
+ArCoreAnchorManager::ArCoreAnchorManager(util::PassKey<ArCoreImpl> pass_key,
                                          ArSession* arcore_session)
     : arcore_session_(arcore_session) {
   DCHECK(arcore_session_);
@@ -32,13 +31,6 @@ mojom::XRAnchorsDataPtr ArCoreAnchorManager::GetAnchorsData() const {
   DVLOG(3) << __func__ << ": anchor_id_to_anchor_info_.size()="
            << anchor_id_to_anchor_info_.size()
            << ", updated_anchor_ids_.size()=" << updated_anchor_ids_.size();
-
-#if DCHECK_IS_ON()
-  DCHECK(was_anchor_data_retrieved_in_current_frame_)
-      << "Update() must not be called twice in a row without a call to "
-         "GetAnchorsData() in between";
-  was_anchor_data_retrieved_in_current_frame_ = false;
-#endif
 
   std::vector<uint64_t> all_anchors_ids;
   all_anchors_ids.reserve(anchor_id_to_anchor_info_.size());
@@ -69,13 +61,9 @@ mojom::XRAnchorsDataPtr ArCoreAnchorManager::GetAnchorsData() const {
                << ", position=untracked, orientation=untracked";
 
       updated_anchors.push_back(
-          mojom::XRAnchorData::New(anchor_id.GetUnsafeValue(), absl::nullopt));
+          mojom::XRAnchorData::New(anchor_id.GetUnsafeValue(), base::nullopt));
     }
   }
-
-#if DCHECK_IS_ON()
-  was_anchor_data_retrieved_in_current_frame_ = true;
-#endif
 
   return mojom::XRAnchorsData::New(std::move(all_anchors_ids),
                                    std::move(updated_anchors));
@@ -188,7 +176,7 @@ void ArCoreAnchorManager::Update(ArFrame* ar_frame) {
   updated_anchor_ids_.swap(updated_anchor_ids);
 }
 
-absl::optional<AnchorId> ArCoreAnchorManager::CreateAnchor(
+base::Optional<AnchorId> ArCoreAnchorManager::CreateAnchor(
     const device::mojom::Pose& pose) {
   auto ar_pose = GetArPoseFromMojomPose(arcore_session_, pose);
 
@@ -199,7 +187,7 @@ absl::optional<AnchorId> ArCoreAnchorManager::CreateAnchor(
           .get());
 
   if (status != AR_SUCCESS) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   auto result = anchor_address_to_id_.CreateOrGetId(ar_anchor.get());
@@ -219,7 +207,7 @@ absl::optional<AnchorId> ArCoreAnchorManager::CreateAnchor(
   return result.id;
 }
 
-absl::optional<AnchorId> ArCoreAnchorManager::CreateAnchor(
+base::Optional<AnchorId> ArCoreAnchorManager::CreateAnchor(
     ArCorePlaneManager* plane_manager,
     const device::mojom::Pose& pose,
     PlaneId plane_id) {
@@ -228,9 +216,9 @@ absl::optional<AnchorId> ArCoreAnchorManager::CreateAnchor(
   DVLOG(2) << __func__ << ": plane_id=" << plane_id;
 
   auto ar_anchor = plane_manager->CreateAnchor(
-      base::PassKey<ArCoreAnchorManager>(), plane_id, pose);
+      util::PassKey<ArCoreAnchorManager>(), plane_id, pose);
   if (!ar_anchor.is_valid()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   auto result = anchor_address_to_id_.CreateOrGetId(ar_anchor.get());
@@ -265,11 +253,11 @@ bool ArCoreAnchorManager::AnchorExists(AnchorId id) const {
   return base::Contains(anchor_id_to_anchor_info_, id);
 }
 
-absl::optional<gfx::Transform> ArCoreAnchorManager::GetMojoFromAnchor(
+base::Optional<gfx::Transform> ArCoreAnchorManager::GetMojoFromAnchor(
     AnchorId id) const {
   auto it = anchor_id_to_anchor_info_.find(id);
   if (it == anchor_id_to_anchor_info_.end()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   ArAnchor_getPose(arcore_session_, it->second.anchor.get(), ar_pose_.get());

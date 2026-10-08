@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@ String LayoutSize::ToString() const {
 }
 
 WTF::TextStream& operator<<(WTF::TextStream& ts, const LayoutSize& size) {
-  return ts << gfx::SizeF(size).ToString();
+  return ts << FloatSize(size);
 }
 
 }  // namespace blink

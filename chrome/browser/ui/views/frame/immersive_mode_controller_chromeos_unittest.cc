@@ -1,19 +1,19 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/frame/immersive_mode_controller_chromeos.h"
 
 #include "base/command_line.h"
+#include "base/macros.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/ui/ash/window_pin_util.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_test.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_non_client_frame_view.h"
-#include "chrome/browser/ui/views/frame/browser_non_client_frame_view_chromeos.h"
+#include "chrome/browser/ui/views/frame/browser_non_client_frame_view_ash.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/test_with_browser_view.h"
 #include "chrome/browser/ui/views/frame/top_container_view.h"
@@ -21,9 +21,8 @@
 #include "chrome/browser/ui/views/fullscreen_control/fullscreen_control_host.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+#include "chromeos/ui/base/window_pin_type.h"
 #include "chromeos/ui/frame/immersive/immersive_fullscreen_controller_test_api.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
-#include "third_party/blink/public/mojom/frame/fullscreen.mojom.h"
 #include "ui/aura/window.h"
 #include "ui/base/pointer/touch_ui_controller.h"
 #include "ui/events/event.h"
@@ -34,12 +33,6 @@ class ImmersiveModeControllerChromeosTest : public TestWithBrowserView {
  public:
   ImmersiveModeControllerChromeosTest()
       : TestWithBrowserView(Browser::TYPE_NORMAL) {}
-
-  ImmersiveModeControllerChromeosTest(
-      const ImmersiveModeControllerChromeosTest&) = delete;
-  ImmersiveModeControllerChromeosTest& operator=(
-      const ImmersiveModeControllerChromeosTest&) = delete;
-
   ~ImmersiveModeControllerChromeosTest() override {}
 
   // TestWithBrowserView override:
@@ -78,8 +71,7 @@ class ImmersiveModeControllerChromeosTest : public TestWithBrowserView {
     FullscreenNotificationObserver waiter(browser());
     auto* delegate = static_cast<content::WebContentsDelegate*>(browser());
     if (tab_fullscreen)
-      delegate->EnterFullscreenModeForTab(web_contents->GetPrimaryMainFrame(),
-                                          {});
+      delegate->EnterFullscreenModeForTab(web_contents->GetMainFrame(), {});
     else
       delegate->ExitFullscreenModeForTab(web_contents);
     waiter.Wait();
@@ -88,8 +80,8 @@ class ImmersiveModeControllerChromeosTest : public TestWithBrowserView {
   // Attempt revealing the top-of-window views.
   void AttemptReveal() {
     if (!revealed_lock_.get()) {
-      revealed_lock_ = controller_->GetRevealedLock(
-          ImmersiveModeControllerChromeos::ANIMATE_REVEAL_NO);
+      revealed_lock_.reset(controller_->GetRevealedLock(
+          ImmersiveModeControllerChromeos::ANIMATE_REVEAL_NO));
     }
   }
 
@@ -103,6 +95,8 @@ class ImmersiveModeControllerChromeosTest : public TestWithBrowserView {
   ImmersiveModeController* controller_;
 
   std::unique_ptr<ImmersiveRevealedLock> revealed_lock_;
+
+  DISALLOW_COPY_AND_ASSIGN(ImmersiveModeControllerChromeosTest);
 };
 
 // Test the layout and visibility of the tabstrip, toolbar and TopContainerView
@@ -197,22 +191,6 @@ TEST_F(ImmersiveModeControllerChromeosTest, Layout) {
   EXPECT_TRUE(toolbar->GetVisible());
 }
 
-// Verifies that transitioning from fullscreen to trusted pinned disables the
-// immersive controls.
-TEST_F(ImmersiveModeControllerChromeosTest, FullscreenToLockedTransition) {
-  AddTab(browser(), GURL("about:blank"));
-  // Start in fullscreen.
-  ToggleFullscreen();
-  // ImmersiveController is enabled in fullscreen.
-  EXPECT_TRUE(controller()->IsEnabled());
-
-  // Transition to locked fullscreen.
-  PinWindow(browser_view()->GetWidget()->GetNativeWindow(), /*trusted=*/true);
-  // ImmersiveController is disabled in TrustedPinned so that it cannot be
-  // exited.
-  EXPECT_FALSE(controller()->IsEnabled());
-}
-
 // Test that the browser commands which are usually disabled in fullscreen are
 // are enabled in immersive fullscreen.
 TEST_F(ImmersiveModeControllerChromeosTest, EnabledCommands) {
@@ -263,20 +241,12 @@ TEST_F(ImmersiveModeControllerChromeosTest, LayeredSpinners) {
   EXPECT_TRUE(tabstrip->CanPaintThrobberToLayer());
 }
 
-class ImmersiveModeControllerChromeosWebUITabStripTest
-    : public ImmersiveModeControllerChromeosTest {
- public:
-  ImmersiveModeControllerChromeosWebUITabStripTest() {
-    scoped_feature_list_.InitAndEnableFeature(features::kWebUITabStrip);
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
 // Ensures the WebUI tab strip can be opened during immersive reveal.
 // Regression test for crbug.com/1096569 where it couldn't be opened.
-TEST_F(ImmersiveModeControllerChromeosWebUITabStripTest, CanOpen) {
+TEST_F(ImmersiveModeControllerChromeosTest, WebUITabStripCanOpen) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(features::kWebUITabStrip);
+
   AddTab(browser(), GURL("about:blank"));
 
   // The WebUI tab strip is only used in touch mode.

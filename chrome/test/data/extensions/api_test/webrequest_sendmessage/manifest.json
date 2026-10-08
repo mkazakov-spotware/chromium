@@ -5,7 +5,6 @@
   "description": "Tests the SendMessageToExtension feature of declarative webRequest API.",
   "permissions": ["declarativeWebRequest", "<all_urls>"],
   "background": {
-    "scripts": ["background.js"],
-    "persistent": true
+    "scripts": ["background.js"]
   }
 }

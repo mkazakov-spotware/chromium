@@ -1,10 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // Defines messages between the browser and NaCl process.
 
-// no-include-guard-because-multiply-included
 // Multiply-included message file, no traditional include guard.
 
 #include <stdint.h>
@@ -16,7 +15,6 @@
 #include "components/nacl/common/nacl_types_param_traits.h"
 #include "ipc/ipc_channel_handle.h"
 #include "ipc/ipc_message_macros.h"
-#include "ipc/ipc_message_start.h"
 #include "ipc/ipc_mojo_param_traits.h"
 #include "ipc/ipc_platform_file.h"
 #include "mojo/public/cpp/system/message_pipe.h"
@@ -27,8 +25,14 @@ IPC_STRUCT_TRAITS_BEGIN(nacl::NaClStartParams)
   IPC_STRUCT_TRAITS_MEMBER(nexe_file)
   IPC_STRUCT_TRAITS_MEMBER(nexe_file_path_metadata)
   IPC_STRUCT_TRAITS_MEMBER(irt_handle)
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   IPC_STRUCT_TRAITS_MEMBER(debug_stub_server_bound_socket)
+#endif
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_NACL_NONSFI)
+  IPC_STRUCT_TRAITS_MEMBER(ppapi_browser_channel_handle)
+  IPC_STRUCT_TRAITS_MEMBER(ppapi_renderer_channel_handle)
+  IPC_STRUCT_TRAITS_MEMBER(trusted_service_channel_handle)
+  IPC_STRUCT_TRAITS_MEMBER(manifest_service_channel_handle)
 #endif
   IPC_STRUCT_TRAITS_MEMBER(validation_cache_enabled)
   IPC_STRUCT_TRAITS_MEMBER(validation_cache_key)
@@ -58,7 +62,7 @@ IPC_MESSAGE_CONTROL1(NaClProcessMsg_AddPrefetchedResource,
 IPC_MESSAGE_CONTROL1(NaClProcessMsg_Start,
                      nacl::NaClStartParams /* params */)
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // Tells the NaCl broker to launch a NaCl loader process.
 IPC_MESSAGE_CONTROL2(NaClProcessMsg_LaunchLoaderThroughBroker,
                      int, /* launch_id */
@@ -124,6 +128,8 @@ IPC_MESSAGE_CONTROL4(NaClProcessMsg_ResolveFileTokenReply,
 
 // Notify the browser process that the server side of the PPAPI channel was
 // created successfully.
+// This is used for SFI mode only. Non-SFI mode passes channel handles in
+// NaClStartParams instead.
 IPC_MESSAGE_CONTROL5(
     NaClProcessHostMsg_PpapiChannelsCreated,
     IPC::ChannelHandle, /* browser_channel_handle */

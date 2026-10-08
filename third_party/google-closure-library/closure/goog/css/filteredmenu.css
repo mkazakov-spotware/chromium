@@ -5,9 +5,9 @@
  * See the COPYING file for details.
  */
 
-/* goog.ui.FilteredMenu */
+/* Author: pupius@google.com (Daniel Pupius) */
 
-@provide 'goog.css.filteredmenu';
+/* goog.ui.FilteredMenu */
 
 .goog-menu-filter {
   margin: 2px;

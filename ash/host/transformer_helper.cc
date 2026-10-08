@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "ui/aura/window_tree_host.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_element.h"
-#include "ui/compositor/layer_animator.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/gfx/geometry/dip_util.h"
@@ -22,7 +21,7 @@
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/geometry/size_conversions.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
 namespace ash {
 namespace {
@@ -33,10 +32,6 @@ class SimpleRootWindowTransformer : public RootWindowTransformer {
   SimpleRootWindowTransformer(const aura::Window* root_window,
                               const gfx::Transform& transform)
       : root_window_(root_window), transform_(transform) {}
-
-  SimpleRootWindowTransformer(const SimpleRootWindowTransformer&) = delete;
-  SimpleRootWindowTransformer& operator=(const SimpleRootWindowTransformer&) =
-      delete;
 
   // RootWindowTransformer overrides:
   gfx::Transform GetTransform() const override { return transform_; }
@@ -52,8 +47,8 @@ class SimpleRootWindowTransformer : public RootWindowTransformer {
     gfx::Rect host_bounds_in_pixels(host_size);
     gfx::RectF host_bounds_in_dips = gfx::ConvertRectToDips(
         host_bounds_in_pixels, root_window_->layer()->device_scale_factor());
-    gfx::RectF root_window_bounds =
-        GetInverseTransform().MapRect(host_bounds_in_dips);
+    gfx::RectF root_window_bounds = host_bounds_in_dips;
+    GetInverseTransform().TransformRect(&root_window_bounds);
     return gfx::Rect(gfx::ToFlooredSize(root_window_bounds.size()));
   }
 
@@ -67,6 +62,8 @@ class SimpleRootWindowTransformer : public RootWindowTransformer {
 
   const aura::Window* root_window_;
   const gfx::Transform transform_;
+
+  DISALLOW_COPY_AND_ASSIGN(SimpleRootWindowTransformer);
 };
 
 }  // namespace
@@ -101,7 +98,7 @@ void TransformerHelper::SetRootWindowTransformer(
   // update the root window size immediately.
   if (!window->layer()->GetAnimator()->IsAnimatingProperty(
           ui::LayerAnimationElement::TRANSFORM)) {
-    ash_host_->UpdateRootWindowSize();
+    host->UpdateRootWindowSizeInPixels();
   }
 }
 

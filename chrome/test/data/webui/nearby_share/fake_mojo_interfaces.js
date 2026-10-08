@@ -1,10 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /** @fileoverview Contains fake implementations of mojo interfaces. */
 
-import {TestBrowserProxy} from '../chromeos/test_browser_proxy.js';
+import {TestBrowserProxy} from '../test_browser_proxy.m.js';
 
 /**
  * @implements {nearbyShare.mojom.ConfirmationManagerInterface}
@@ -42,11 +42,9 @@ export class FakeConfirmationManagerRemote extends TestBrowserProxy {
 export class FakeDiscoveryManagerRemote extends TestBrowserProxy {
   constructor() {
     super([
-      'getPayloadPreview',
+      'getSendPreview',
       'selectShareTarget',
       'startDiscovery',
-      'stopDiscovery',
-      'addDiscoveryObserver',
     ]);
 
     this.selectShareTargetResult = {
@@ -55,18 +53,15 @@ export class FakeDiscoveryManagerRemote extends TestBrowserProxy {
       confirmationManager: null,
     };
     this.shareDescription = 'Test is a test share';
-    this.startDiscoveryResult = nearbyShare.mojom.StartDiscoveryResult.kSuccess;
-    /** @private {!nearbyShare.mojom.DiscoveryObserverInterface} */
-    this.observer_;
   }
 
   /**
-   * @return {!Promise<{payloadPreview: !nearbyShare.mojom.PayloadPreview}>}
+   * @return {!Promise<{sendPreview: !nearbyShare.mojom.SendPreview}>}
    */
-  async getPayloadPreview() {
-    this.methodCalled('getPayloadPreview');
+  async getSendPreview() {
+    this.methodCalled('getSendPreview');
     return {
-      payloadPreview: /** @type {!nearbyShare.mojom.PayloadPreview} */ ({
+      sendPreview: /** @type {!nearbyShare.mojom.SendPreview} */ ({
         description: this.shareDescription,
         fileCount: 0,
         shareType: 0,
@@ -84,24 +79,9 @@ export class FakeDiscoveryManagerRemote extends TestBrowserProxy {
     return this.selectShareTargetResult;
   }
 
-  /**
-   * @param {nearbyShare.mojom.ShareTargetListenerRemote} listener
-   */
   async startDiscovery(listener) {
     this.methodCalled('startDiscovery', listener);
-    return {result: this.startDiscoveryResult};
-  }
-
-  async stopDiscovery() {
-    this.methodCalled('stopDiscovery');
-  }
-
-  /**
-   * @param {!nearbyShare.mojom.DiscoveryObserverRemote} observer
-   */
-  addDiscoveryObserver(observer) {
-    this.methodCalled('addDiscoveryObserver');
-    this.observer_ = observer;
+    return {success: true};
   }
 }
 

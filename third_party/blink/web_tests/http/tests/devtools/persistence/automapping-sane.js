@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Verify that automapping is sane.\n`);
-  await TestRunner.loadTestModule('bindings_test_runner');
+  await TestRunner.loadModule('bindings_test_runner');
 
   var timestamp = new Date('December 1, 1989');
   var index_html = {
@@ -44,7 +44,7 @@
     'http://example.com/sources/module.json': sources_module_json,
   });
 
-  var fs = new BindingsTestRunner.TestFileSystem('/var/www');
+  var fs = new BindingsTestRunner.TestFileSystem('file:///var/www');
   BindingsTestRunner.addFiles(fs, {
     'index.html': index_html,
     'scripts/foo.js': foo_js,

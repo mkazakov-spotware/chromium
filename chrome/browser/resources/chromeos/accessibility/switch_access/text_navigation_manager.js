@@ -1,23 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {EventGenerator} from '../common/event_generator.js';
-import {EventHandler} from '../common/event_handler.js';
-import {KeyCode} from '../common/key_code.js';
-
-import {ActionManager} from './action_manager.js';
-import {Navigator} from './navigator.js';
-import {SwitchAccess} from './switch_access.js';
-import {SAConstants, SwitchAccessMenuAction} from './switch_access_constants.js';
-
-const AutomationNode = chrome.automation.AutomationNode;
 
 /**
  * Class to handle navigating text. Currently, only
  * navigation and selection in editable text fields is supported.
  */
-export class TextNavigationManager {
+class TextNavigationManager {
   /** @private */
   constructor() {
     /** @private {number} */
@@ -38,7 +27,7 @@ export class TextNavigationManager {
     /** @private {!EventHandler} */
     this.selectionListener_ = new EventHandler(
         [], chrome.automation.EventType.TEXT_SELECTION_CHANGED,
-        () => this.onNavChange_());
+        this.onNavChange_.bind(this));
 
     /**
      * Keeps track of when there's a selection in the current node.
@@ -54,7 +43,7 @@ export class TextNavigationManager {
 
     if (SwitchAccess.instance.improvedTextInputEnabled()) {
       chrome.clipboard.onClipboardDataChanged.addListener(
-          () => this.updateClipboardHasData_());
+          this.updateClipboardHasData_.bind(this));
     }
   }
 
@@ -253,7 +242,7 @@ export class TextNavigationManager {
    */
   static saveSelectStart() {
     const manager = TextNavigationManager.instance;
-    chrome.automation.getFocus(focusedNode => {
+    chrome.automation.getFocus((focusedNode) => {
       manager.selectionStartObject_ = focusedNode;
       manager.selectionStartIndex_ = manager.getSelectionIndexFromNode_(
           manager.selectionStartObject_,
@@ -322,7 +311,7 @@ export class TextNavigationManager {
    */
   static saveSelectEnd() {
     const manager = TextNavigationManager.instance;
-    chrome.automation.getFocus(focusedNode => {
+    chrome.automation.getFocus((focusedNode) => {
       manager.selectionEndObject_ = focusedNode;
       manager.selectionEndIndex_ = manager.getSelectionIndexFromNode_(
           manager.selectionEndObject_,
@@ -384,7 +373,7 @@ export class TextNavigationManager {
         anchorObject: this.selectionStartObject_,
         anchorOffset: this.selectionStartIndex_,
         focusObject: this.selectionEndObject_,
-        focusOffset: this.selectionEndIndex_,
+        focusOffset: this.selectionEndIndex_
       });
     }
   }
@@ -397,7 +386,7 @@ export class TextNavigationManager {
    */
   updateClipboardHasData_() {
     this.clipboardHasData_ = true;
-    const node = Navigator.byItem.currentNode;
+    const node = NavigationManager.currentNode;
     if (node.hasAction(SwitchAccessMenuAction.PASTE)) {
       ActionManager.refreshMenuForNode(node);
     }

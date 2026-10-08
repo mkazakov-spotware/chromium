@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 namespace blink {
 
 class WorkerReportingProxy;
+struct ThreadCreationParams;
 
 // SemiRealtimeAudioWorkletThread is a per-AudioWorkletGlobalScope object that
 // has a reference count to the backing thread that performs AudioWorklet tasks.
@@ -25,6 +26,7 @@ class MODULES_EXPORT SemiRealtimeAudioWorkletThread final : public WorkerThread 
   WorkerBackingThread& GetWorkerBackingThread() final;
   void ClearWorkerBackingThread() final {}
 
+  static void EnsureSharedBackingThread(const ThreadCreationParams&);
   static void ClearSharedBackingThread();
 
  private:
@@ -34,6 +36,10 @@ class MODULES_EXPORT SemiRealtimeAudioWorkletThread final : public WorkerThread 
   ThreadType GetThreadType() const final {
     return ThreadType::kSemiRealtimeAudioWorkletThread;
   }
+
+  // Use for ref-counting of all SemiRealtimeAudioWorkletThread instances in a
+  // process. Incremented by the constructor and decremented by destructor.
+  static int s_ref_count_;
 };
 
 }  // namespace blink

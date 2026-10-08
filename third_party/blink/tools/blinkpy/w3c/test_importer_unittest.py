@@ -1,11 +1,8 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-from __future__ import print_function
-
 import json
-import six
 import unittest
 
 from blinkpy.common.checkout.git_mock import MockGit
@@ -21,47 +18,26 @@ from blinkpy.common.system.log_testing import LoggingTestCase
 from blinkpy.w3c.chromium_commit_mock import MockChromiumCommit
 from blinkpy.w3c.local_wpt import LocalWPT
 from blinkpy.w3c.local_wpt_mock import MockLocalWPT
-from blinkpy.w3c.test_importer import TestImporter, ROTATIONS_URL, SHERIFF_EMAIL_FALLBACK, RUBBER_STAMPER_BOT
+from blinkpy.w3c.test_importer import TestImporter, ROTATIONS_URL, TBR_FALLBACK
 from blinkpy.w3c.wpt_github_mock import MockWPTGitHub
 from blinkpy.w3c.wpt_manifest import BASE_MANIFEST_NAME
-from blinkpy.web_tests.port.android import ANDROID_DISABLED_TESTS
-from blinkpy.web_tests.builder_list import BuilderList
+from blinkpy.web_tests.port.android import PRODUCTS_TO_EXPECTATION_FILE_PATHS
 
 MOCK_WEB_TESTS = '/mock-checkout/' + RELATIVE_WEB_TESTS
 MANIFEST_INSTALL_CMD = [
-    'python3', '/mock-checkout/third_party/wpt_tools/wpt/wpt', 'manifest',
-    '-v', '--no-download', '--tests-root', MOCK_WEB_TESTS + 'external/wpt'
-]
-
+    'python',
+    '/mock-checkout/third_party/blink/tools/blinkpy/third_party/wpt/wpt/wpt',
+    'manifest',
+    '--no-download',
+    '--tests-root',
+    MOCK_WEB_TESTS + 'external/wpt']
 
 class TestImporterTest(LoggingTestCase):
 
     def mock_host(self):
         host = MockHost()
-        host.builders = BuilderList({
-            'cq-builder-a': {
-                'port_name': 'linux-trusty',
-                'specifiers': ['Trusty', 'Release'],
-                'is_try_builder': True,
-            },
-            'cq-builder-b': {
-                'port_name': 'mac-mac12',
-                'specifiers': ['Mac12', 'Release'],
-                'is_try_builder': True,
-            },
-            'cq-wpt-builder-c': {
-                'port_name': 'linux-trusty',
-                'specifiers': ['Trusty', 'Release'],
-                'is_try_builder': True,
-            },
-            'CI Builder D': {
-                'port_name': 'linux-trusty',
-                'specifiers': ['Trusty', 'Release'],
-            },
-        })
-        port = host.port_factory.get()
-        MANIFEST_INSTALL_CMD[0] = port.python3_command()
-        host.filesystem.write_text_file(ANDROID_DISABLED_TESTS, '')
+        for path in PRODUCTS_TO_EXPECTATION_FILE_PATHS.values():
+            host.filesystem.write_text_file(path, '')
         return host
 
     @staticmethod
@@ -82,11 +58,6 @@ class TestImporterTest(LoggingTestCase):
         self.assertFalse(success)
         self.assertLog([
             'INFO: Triggering try jobs for updating expectations.\n',
-            'INFO: For rebaselining:\n',
-            'INFO:   cq-builder-a\n',
-            'INFO:   cq-builder-b\n',
-            'INFO: For updating WPT metadata:\n',
-            'INFO:   cq-wpt-builder-c\n',
             'ERROR: No initial try job results, aborting.\n',
         ])
         self.assertEqual(importer.git_cl.calls[-1], ['git', 'cl', 'set-close'])
@@ -106,11 +77,6 @@ class TestImporterTest(LoggingTestCase):
         self.assertFalse(success)
         self.assertLog([
             'INFO: Triggering try jobs for updating expectations.\n',
-            'INFO: For rebaselining:\n',
-            'INFO:   cq-builder-a\n',
-            'INFO:   cq-builder-b\n',
-            'INFO: For updating WPT metadata:\n',
-            'INFO:   cq-wpt-builder-c\n',
             'ERROR: The CL was closed, aborting.\n',
         ])
 
@@ -128,11 +94,6 @@ class TestImporterTest(LoggingTestCase):
         success = importer.update_expectations_for_cl()
         self.assertLog([
             'INFO: Triggering try jobs for updating expectations.\n',
-            'INFO: For rebaselining:\n',
-            'INFO:   cq-builder-a\n',
-            'INFO:   cq-builder-b\n',
-            'INFO: For updating WPT metadata:\n',
-            'INFO:   cq-wpt-builder-c\n',
             'INFO: All jobs finished.\n',
         ])
         self.assertTrue(success)
@@ -149,16 +110,10 @@ class TestImporterTest(LoggingTestCase):
                 Build('builder-a', 123): TryJobStatus('COMPLETED', 'FAILURE'),
             })
         importer.fetch_new_expectations_and_baselines = lambda: None
-        importer.fetch_wpt_override_expectations = lambda: None
         success = importer.update_expectations_for_cl()
         self.assertTrue(success)
         self.assertLog([
             'INFO: Triggering try jobs for updating expectations.\n',
-            'INFO: For rebaselining:\n',
-            'INFO:   cq-builder-a\n',
-            'INFO:   cq-builder-b\n',
-            'INFO: For updating WPT metadata:\n',
-            'INFO:   cq-wpt-builder-c\n',
             'INFO: All jobs finished.\n',
         ])
 
@@ -182,21 +137,13 @@ class TestImporterTest(LoggingTestCase):
         self.assertLog([
             'INFO: Triggering CQ try jobs.\n',
             'INFO: All jobs finished.\n',
-            'INFO: CQ appears to have passed; sending to the rubber-stamper '
-            'bot for CR+1 and commit.\n',
-            'INFO: If the rubber-stamper bot rejects the CL, you either need '
-            'to modify the benign file patterns, or manually CR+1 and land the '
-            'import yourself if it touches code files. See https://chromium.'
-            'googlesource.com/infra/infra/+/refs/heads/main/go/src/infra/'
-            'appengine/rubber-stamper/README.md\n',
+            'INFO: CQ appears to have passed; trying to commit.\n',
             'INFO: Update completed.\n',
         ])
         self.assertEqual(importer.git_cl.calls, [
             ['git', 'cl', 'try'],
-            [
-                'git', 'cl', 'upload', '-f', '--send-mail',
-                '--enable-auto-submit', '--reviewers', RUBBER_STAMPER_BOT
-            ],
+            ['git', 'cl', 'upload', '-f', '--send-mail'],
+            ['git', 'cl', 'set-commit'],
         ])
 
     def test_run_commit_queue_for_cl_fail_cq(self):
@@ -243,28 +190,19 @@ class TestImporterTest(LoggingTestCase):
                 Build('cq-builder-a', 123): TryJobStatus(
                     'COMPLETED', 'SUCCESS'),
             })
-        importer._need_sheriff_attention = lambda: False
-        importer.git_cl.wait_for_closed_status = lambda timeout_seconds: False
+        importer.git_cl.wait_for_closed_status = lambda: False
         success = importer.run_commit_queue_for_cl()
         self.assertFalse(success)
         self.assertLog([
             'INFO: Triggering CQ try jobs.\n',
             'INFO: All jobs finished.\n',
-            'INFO: CQ appears to have passed; sending to the rubber-stamper '
-            'bot for CR+1 and commit.\n',
-            'INFO: If the rubber-stamper bot rejects the CL, you either need '
-            'to modify the benign file patterns, or manually CR+1 and land the '
-            'import yourself if it touches code files. See https://chromium.'
-            'googlesource.com/infra/infra/+/refs/heads/main/go/src/infra/'
-            'appengine/rubber-stamper/README.md\n',
+            'INFO: CQ appears to have passed; trying to commit.\n',
             'ERROR: Cannot submit CL; aborting.\n',
         ])
         self.assertEqual(importer.git_cl.calls, [
             ['git', 'cl', 'try'],
-            [
-                'git', 'cl', 'upload', '-f', '--send-mail',
-                '--enable-auto-submit', '--reviewers', RUBBER_STAMPER_BOT
-            ],
+            ['git', 'cl', 'upload', '-f', '--send-mail'],
+            ['git', 'cl', 'set-commit'],
             ['git', 'cl', 'set-close'],
         ])
 
@@ -332,30 +270,21 @@ class TestImporterTest(LoggingTestCase):
                 Build('cq-builder-a', 123): TryJobStatus(
                     'COMPLETED', 'SUCCESS')
             })
-        importer._need_sheriff_attention = lambda: False
-        importer.git_cl.wait_for_closed_status = lambda timeout_seconds: False
+        importer.git_cl.wait_for_closed_status = lambda: False
         success = importer.run_commit_queue_for_cl()
         # Since the CL is already merged, we absorb the error and treat it as success.
         self.assertTrue(success)
         self.assertLog([
             'INFO: Triggering CQ try jobs.\n',
             'INFO: All jobs finished.\n',
-            'INFO: CQ appears to have passed; sending to the rubber-stamper '
-            'bot for CR+1 and commit.\n',
-            'INFO: If the rubber-stamper bot rejects the CL, you either need '
-            'to modify the benign file patterns, or manually CR+1 and land the '
-            'import yourself if it touches code files. See https://chromium.'
-            'googlesource.com/infra/infra/+/refs/heads/main/go/src/infra/'
-            'appengine/rubber-stamper/README.md\n',
+            'INFO: CQ appears to have passed; trying to commit.\n',
             'ERROR: Cannot submit CL; aborting.\n',
             'ERROR: CL is already merged; treating as success.\n',
         ])
         self.assertEqual(importer.git_cl.calls, [
             ['git', 'cl', 'try'],
-            [
-                'git', 'cl', 'upload', '-f', '--send-mail',
-                '--enable-auto-submit', '--reviewers', RUBBER_STAMPER_BOT
-            ],
+            ['git', 'cl', 'upload', '-f', '--send-mail'],
+            ['git', 'cl', 'set-commit'],
             ['git', 'cl', 'set-close'],
         ])
 
@@ -471,12 +400,12 @@ class TestImporterTest(LoggingTestCase):
             'a few new failures, please fix the failures by adding new\n'
             'lines to TestExpectations rather than reverting. See:\n'
             'https://chromium.googlesource.com'
-            '/chromium/src/+/main/docs/testing/web_platform_tests.md\n\n'
+            '/chromium/src/+/master/docs/testing/web_platform_tests.md\n\n'
             'NOAUTOREVERT=true\n'
             'No-Export: true\n'
             'Cq-Include-Trybots: luci.chromium.try:linux-wpt-identity-fyi-rel,'
-            'linux-wpt-input-fyi-rel,linux-blink-rel')
-        print(host.executive.calls)
+            'linux-wpt-payments-fyi-rel')
+        print host.executive.calls
         self.assertEqual(host.executive.calls,
                          [MANIFEST_INSTALL_CMD] +
                          [['git', 'log', '-1', '--format=%B']])
@@ -506,33 +435,27 @@ class TestImporterTest(LoggingTestCase):
             'x@chromium.org, y@chromium.org:\n'
             '  external/wpt/baz\n\n', description)
 
-    def test_sheriff_email_no_response_uses_backup(self):
+    def test_tbr_reviewer_no_response_uses_backup(self):
         host = self.mock_host()
         importer = self._get_test_importer(host)
-        self.assertEqual(SHERIFF_EMAIL_FALLBACK, importer.sheriff_email())
-        if six.PY3:
-            self.assertLog([
-                'ERROR: Exception while fetching current sheriff: '
-                'Expecting value: line 1 column 1 (char 0)\n'
-            ])
-        else:
-            self.assertLog([
-                'ERROR: Exception while fetching current sheriff: '
-                'No JSON object could be decoded\n'
-            ])
+        self.assertEqual(TBR_FALLBACK, importer.tbr_reviewer())
+        self.assertLog([
+            'ERROR: Exception while fetching current sheriff: '
+            'No JSON object could be decoded\n'
+        ])
 
-    def test_sheriff_email_no_emails_field(self):
+    def test_tbr_reviewer_no_emails_field(self):
         host = self.mock_host()
         host.web.urls[ROTATIONS_URL] = json.dumps(
             {'updated_unix_timestamp': '1591108191'})
         importer = self._get_test_importer(host)
-        self.assertEqual(SHERIFF_EMAIL_FALLBACK, importer.sheriff_email())
+        self.assertEqual(TBR_FALLBACK, importer.tbr_reviewer())
         self.assertLog([
             'ERROR: No email found for current sheriff. Retrieved content: %s\n'
             % host.web.urls[ROTATIONS_URL]
         ])
 
-    def test_sheriff_email_nobody_on_rotation(self):
+    def test_tbr_reviewer_nobody_on_rotation(self):
         host = self.mock_host()
         host.web.urls[ROTATIONS_URL] = json.dumps({
             'emails': [],
@@ -540,23 +463,23 @@ class TestImporterTest(LoggingTestCase):
             '1591108191'
         })
         importer = self._get_test_importer(host)
-        self.assertEqual(SHERIFF_EMAIL_FALLBACK, importer.sheriff_email())
+        self.assertEqual(TBR_FALLBACK, importer.tbr_reviewer())
         self.assertLog([
             'ERROR: No email found for current sheriff. Retrieved content: %s\n'
             % host.web.urls[ROTATIONS_URL]
         ])
 
-    def test_sheriff_email_rotations_url_unavailable(self):
+    def test_tbr_reviewer_rotations_url_unavailable(self):
         def raise_exception(*_):
             raise NetworkTimeout
 
         host = self.mock_host()
         host.web.get_binary = raise_exception
         importer = self._get_test_importer(host)
-        self.assertEqual(SHERIFF_EMAIL_FALLBACK, importer.sheriff_email())
+        self.assertEqual(TBR_FALLBACK, importer.tbr_reviewer())
         self.assertLog(['ERROR: Cannot fetch %s\n' % ROTATIONS_URL])
 
-    def test_sheriff_email(self):
+    def test_tbr_reviewer(self):
         host = self.mock_host()
         host.web.urls[ROTATIONS_URL] = json.dumps({
             'emails': ['current-sheriff@chromium.org'],
@@ -565,8 +488,16 @@ class TestImporterTest(LoggingTestCase):
         })
         importer = self._get_test_importer(host)
         self.assertEqual('current-sheriff@chromium.org',
-                         importer.sheriff_email())
+                         importer.tbr_reviewer())
         self.assertLog([])
+
+    def test_tbr_reviewer_skips_non_committer(self):
+        host = self.mock_host()
+        importer = self._get_test_importer(host)
+        importer._fetch_ecosystem_infra_sheriff_email = lambda: 'kyleju@google.com'
+        self.assertEqual(TBR_FALLBACK, importer.tbr_reviewer())
+        self.assertLog(
+            ['WARNING: Cannot TBR by kyleju@google.com: not a committer\n'])
 
     def test_generate_manifest_successful_run(self):
         # This test doesn't test any aspect of the real manifest script, it just
@@ -580,48 +511,17 @@ class TestImporterTest(LoggingTestCase):
         self.assertEqual(importer.chromium_git.added_paths,
                          {MOCK_WEB_TESTS + 'external/' + BASE_MANIFEST_NAME})
 
-    def test_has_wpt_changes(self):
+    def test_only_wpt_manifest_changed(self):
         host = self.mock_host()
         importer = self._get_test_importer(host)
         importer.chromium_git.changed_files = lambda: [
             RELATIVE_WEB_TESTS + 'external/' + BASE_MANIFEST_NAME,
             RELATIVE_WEB_TESTS + 'external/wpt/foo/x.html']
-        self.assertTrue(importer._has_wpt_changes())
-
-        importer.chromium_git.changed_files = lambda: [
-            RELATIVE_WEB_TESTS + 'external/' + BASE_MANIFEST_NAME,
-            RELATIVE_WEB_TESTS + 'TestExpectations']
-        self.assertFalse(importer._has_wpt_changes())
+        self.assertFalse(importer._only_wpt_manifest_changed())
 
         importer.chromium_git.changed_files = lambda: [
             RELATIVE_WEB_TESTS + 'external/' + BASE_MANIFEST_NAME]
-        self.assertFalse(importer._has_wpt_changes())
-
-    def test_need_sheriff_attention(self):
-        host = self.mock_host()
-        importer = self._get_test_importer(host)
-        importer.chromium_git.changed_files = lambda: [
-            RELATIVE_WEB_TESTS + 'external/' + BASE_MANIFEST_NAME,
-            RELATIVE_WEB_TESTS + 'external/wpt/foo/x.html']
-        self.assertFalse(importer._need_sheriff_attention())
-
-        importer.chromium_git.changed_files = lambda: [
-            RELATIVE_WEB_TESTS + 'external/' + BASE_MANIFEST_NAME,
-            RELATIVE_WEB_TESTS + 'external/wpt/foo/x.html',
-            RELATIVE_WEB_TESTS + 'external/wpt/foo/y.sh']
-        self.assertTrue(importer._need_sheriff_attention())
-
-        importer.chromium_git.changed_files = lambda: [
-            RELATIVE_WEB_TESTS + 'external/' + BASE_MANIFEST_NAME,
-            RELATIVE_WEB_TESTS + 'external/wpt/foo/x.html',
-            RELATIVE_WEB_TESTS + 'external/wpt/foo/y.py']
-        self.assertTrue(importer._need_sheriff_attention())
-
-        importer.chromium_git.changed_files = lambda: [
-            RELATIVE_WEB_TESTS + 'external/' + BASE_MANIFEST_NAME,
-            RELATIVE_WEB_TESTS + 'external/wpt/foo/x.html',
-            RELATIVE_WEB_TESTS + 'external/wpt/foo/y.bat']
-        self.assertTrue(importer._need_sheriff_attention())
+        self.assertTrue(importer._only_wpt_manifest_changed())
 
     # TODO(crbug.com/800570): Fix orphan baseline finding in the presence of
     # variant tests.

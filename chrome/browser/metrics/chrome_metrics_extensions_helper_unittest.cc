@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,6 +43,5 @@ TEST(ChromeMetricsExtensionsHelperTest, Basic) {
                                                site_instance->GetId());
   EXPECT_TRUE(extensions_helper.IsExtensionProcess(host));
 #endif
-  rph_factory.reset();
   profile_manager.DeleteAllTestingProfiles();
 }

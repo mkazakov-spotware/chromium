@@ -1,9 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "android_webview/renderer/aw_render_thread_observer.h"
 
+#include "content/public/common/cpu_affinity.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
 #include "third_party/blink/public/platform/web_cache.h"
 #include "third_party/blink/public/platform/web_network_state_notifier.h"
@@ -21,7 +22,7 @@ void AwRenderThreadObserver::RegisterMojoInterfaces(
   // base::Unretained can be used here because the associated_interfaces
   // is owned by the RenderThread and will live for the duration of the
   // RenderThread.
-  associated_interfaces->AddInterface<mojom::Renderer>(
+  associated_interfaces->AddInterface(
       base::BindRepeating(&AwRenderThreadObserver::OnRendererAssociatedRequest,
                           base::Unretained(this)));
 }
@@ -42,6 +43,10 @@ void AwRenderThreadObserver::ClearCache() {
 
 void AwRenderThreadObserver::SetJsOnlineProperty(bool network_up) {
   blink::WebNetworkStateNotifier::SetOnLine(network_up);
+}
+
+void AwRenderThreadObserver::SetCpuAffinityToLittleCores() {
+  content::EnforceProcessCpuAffinity(base::CpuAffinityMode::kLittleCoresOnly);
 }
 
 }  // namespace android_webview

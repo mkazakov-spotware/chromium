@@ -1,12 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/network/public/cpp/source_stream_to_data_pipe.h"
 
 #include "base/bind.h"
-#include "base/numerics/checked_math.h"
-#include "base/task/sequenced_task_runner.h"
 #include "net/filter/source_stream.h"
 
 namespace network {
@@ -18,7 +16,7 @@ SourceStreamToDataPipe::SourceStreamToDataPipe(
       dest_(std::move(dest)),
       writable_handle_watcher_(FROM_HERE,
                                mojo::SimpleWatcher::ArmingPolicy::MANUAL,
-                               base::SequencedTaskRunner::GetCurrentDefault()) {
+                               base::SequencedTaskRunnerHandle::Get()) {
   writable_handle_watcher_.Watch(
       dest_.get(), MOJO_HANDLE_SIGNAL_WRITABLE,
       base::BindRepeating(&SourceStreamToDataPipe::OnDataPipeWritable,
@@ -83,7 +81,7 @@ void SourceStreamToDataPipe::DidRead(int result) {
 
   pending_write_ = nullptr;
 
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&SourceStreamToDataPipe::ReadMore,
                                 weak_factory_.GetWeakPtr()));
 }

@@ -1,17 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_PUBLIC_RUNTIME_MANAGER_H_
 #define COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_PUBLIC_RUNTIME_MANAGER_H_
 
-#include "base/memory/weak_ptr.h"
 #include "components/autofill_assistant/browser/public/runtime_observer.h"
 #include "components/autofill_assistant/browser/public/ui_state.h"
-
-namespace content {
-class WebContents;
-}  // namespace content
+#include "content/public/browser/web_contents.h"
 
 namespace autofill_assistant {
 // Notifies subscribed observers when the UI state changes.
@@ -35,10 +31,6 @@ class RuntimeManager {
 
   // Return Autofill Assistant state.
   virtual UIState GetState() const = 0;
-
-  virtual void SetUIState(UIState state) = 0;
-
-  virtual base::WeakPtr<RuntimeManager> GetWeakPtr() = 0;
 };
 
 }  // namespace autofill_assistant

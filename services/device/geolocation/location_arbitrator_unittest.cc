@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 
 #include "base/bind.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/test/task_environment.h"
 #include "services/device/geolocation/fake_location_provider.h"
 #include "services/device/geolocation/fake_position_cache.h"
@@ -89,8 +88,6 @@ class TestingLocationArbitrator : public LocationArbitrator {
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
       bool should_use_system_location_provider = false)
       : LocationArbitrator(provider_getter,
-                           /*geolocation_system_permission_manager=*/nullptr,
-                           /*main_task_runner=*/nullptr,
                            std::move(url_loader_factory),
                            std::string() /* api_key */,
                            std::make_unique<FakePositionCache>()),
@@ -105,7 +102,7 @@ class TestingLocationArbitrator : public LocationArbitrator {
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
       const std::string& api_key) override {
     network_location_provider_ = new FakeLocationProvider;
-    return base::WrapUnique(network_location_provider_.get());
+    return base::WrapUnique(network_location_provider_);
   }
 
   std::unique_ptr<LocationProvider> NewSystemLocationProvider() override {
@@ -114,11 +111,11 @@ class TestingLocationArbitrator : public LocationArbitrator {
     }
 
     system_location_provider_ = new FakeLocationProvider;
-    return base::WrapUnique(system_location_provider_.get());
+    return base::WrapUnique(system_location_provider_);
   }
 
-  raw_ptr<FakeLocationProvider> network_location_provider_ = nullptr;
-  raw_ptr<FakeLocationProvider> system_location_provider_ = nullptr;
+  FakeLocationProvider* network_location_provider_ = nullptr;
+  FakeLocationProvider* system_location_provider_ = nullptr;
   bool should_use_system_location_provider_;
 };
 
@@ -137,9 +134,9 @@ class GeolocationLocationArbitratorTest : public testing::Test {
     const LocationProvider::LocationProviderUpdateCallback callback =
         base::BindRepeating(&MockLocationObserver::OnLocationUpdate,
                             base::Unretained(observer_.get()));
-    arbitrator_ = std::make_unique<TestingLocationArbitrator>(
+    arbitrator_.reset(new TestingLocationArbitrator(
         callback, provider_getter, std::move(url_loader_factory),
-        should_use_system_location_provider);
+        should_use_system_location_provider));
   }
 
   // testing::Test
@@ -158,7 +155,7 @@ class GeolocationLocationArbitratorTest : public testing::Test {
   base::TimeDelta SwitchOnFreshnessCliff() {
     // Add 1, to ensure it meets any greater-than test.
     return LocationArbitrator::kFixStaleTimeoutTimeDelta +
-           base::Milliseconds(1);
+           base::TimeDelta::FromMilliseconds(1);
   }
 
   FakeLocationProvider* network_location_provider() {
@@ -345,7 +342,7 @@ TEST_F(GeolocationLocationArbitratorTest, TwoOneShotsIsNewPositionBetter) {
   arbitrator_->StartProvider(false);
 
   // Advance the time a short while to simulate successive calls.
-  AdvanceTimeNow(base::Milliseconds(5));
+  AdvanceTimeNow(base::TimeDelta::FromMilliseconds(5));
 
   // Update with a less accurate position to verify 240956.
   SetPositionFix(network_location_provider(), 3, 139, 150);

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,8 @@
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/platform/web_url_request.h"
 #include "third_party/blink/renderer/bindings/core/v8/module_record.h"
+#include "third_party/blink/renderer/bindings/core/v8/script_source_code.h"
+#include "third_party/blink/renderer/bindings/core/v8/source_location.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_gc_controller.h"
 #include "third_party/blink/renderer/bindings/core/v8/worker_or_worklet_script_controller.h"
 #include "third_party/blink/renderer/core/inspector/console_message.h"
@@ -24,7 +26,6 @@
 #include "third_party/blink/renderer/core/workers/worklet_thread_holder.h"
 #include "third_party/blink/renderer/modules/animationworklet/animation_worklet_proxy_client.h"
 #include "third_party/blink/renderer/modules/worklet/worklet_thread_test_common.h"
-#include "third_party/blink/renderer/platform/bindings/source_location.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_loader_options.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
@@ -43,18 +44,18 @@ class TestAnimationWorkletProxyClient : public AnimationWorkletProxyClient {
 }  // namespace
 
 class AnimationAndPaintWorkletThreadTest : public PageTestBase,
-                                           public ModuleTestBase {
+                                           public ParametrizedModuleTest {
  public:
   void SetUp() override {
-    ModuleTestBase::SetUp();
-    PageTestBase::SetUp(gfx::Size());
+    ParametrizedModuleTest::SetUp();
+    PageTestBase::SetUp(IntSize());
     NavigateTo(KURL("https://example.com/"));
     reporting_proxy_ = std::make_unique<WorkerReportingProxy>();
   }
 
   void TearDown() override {
     PageTestBase::TearDown();
-    ModuleTestBase::TearDown();
+    ParametrizedModuleTest::TearDown();
   }
 
   // Attempts to run some simple script for |thread|.
@@ -81,8 +82,10 @@ class AnimationAndPaintWorkletThreadTest : public PageTestBase,
     EXPECT_TRUE(script_state);
     ScriptState::Scope scope(script_state);
     const KURL js_url("https://example.com/foo.js");
-    v8::Local<v8::Module> module = ModuleTestBase::CompileModule(
-        script_state, "var counter = 0; ++counter;", js_url);
+    v8::Local<v8::Module> module = ModuleRecord::Compile(
+        script_state->GetIsolate(), "var counter = 0; ++counter;", js_url,
+        js_url, ScriptFetchOptions(), TextPosition::MinimumPosition(),
+        ASSERT_NO_EXCEPTION);
     EXPECT_FALSE(module.IsEmpty());
     ScriptValue exception =
         ModuleRecord::Instantiate(script_state, module, js_url);
@@ -90,13 +93,13 @@ class AnimationAndPaintWorkletThreadTest : public PageTestBase,
     ScriptEvaluationResult result =
         JSModuleScript::CreateForTest(Modulator::From(script_state), module,
                                       js_url)
-            ->RunScriptOnScriptStateAndReturnValue(script_state);
-    EXPECT_FALSE(GetResult(script_state, std::move(result)).IsEmpty());
+            ->RunScriptAndReturnValue();
+    EXPECT_FALSE(GetResult(script_state, result).IsEmpty());
     wait_event->Signal();
   }
 };
 
-TEST_F(AnimationAndPaintWorkletThreadTest, Basic) {
+TEST_P(AnimationAndPaintWorkletThreadTest, Basic) {
   std::unique_ptr<AnimationAndPaintWorkletThread> worklet =
       CreateThreadAndProvideAnimationWorkletProxyClient(&GetDocument(),
                                                         reporting_proxy_.get());
@@ -107,7 +110,7 @@ TEST_F(AnimationAndPaintWorkletThreadTest, Basic) {
 
 // Tests that the same WebThread is used for new worklets if the WebThread is
 // still alive.
-TEST_F(AnimationAndPaintWorkletThreadTest, CreateSecondAndTerminateFirst) {
+TEST_P(AnimationAndPaintWorkletThreadTest, CreateSecondAndTerminateFirst) {
   // Create the first worklet and wait until it is initialized.
   std::unique_ptr<AnimationAndPaintWorkletThread> first_worklet =
       CreateThreadAndProvideAnimationWorkletProxyClient(&GetDocument(),
@@ -145,7 +148,7 @@ TEST_F(AnimationAndPaintWorkletThreadTest, CreateSecondAndTerminateFirst) {
 
 // Tests that the WebThread is reused if all existing worklets are terminated
 // before a new worklet is created, as long as the worklets are not destructed.
-TEST_F(AnimationAndPaintWorkletThreadTest, TerminateFirstAndCreateSecond) {
+TEST_P(AnimationAndPaintWorkletThreadTest, TerminateFirstAndCreateSecond) {
   // Create the first worklet, wait until it is initialized, and terminate it.
   std::unique_ptr<AnimationAndPaintWorkletThread> worklet =
       CreateThreadAndProvideAnimationWorkletProxyClient(&GetDocument(),
@@ -170,7 +173,7 @@ TEST_F(AnimationAndPaintWorkletThreadTest, TerminateFirstAndCreateSecond) {
 
 // Tests that v8::Isolate and WebThread are correctly set-up if a worklet is
 // created while another is terminating.
-TEST_F(AnimationAndPaintWorkletThreadTest,
+TEST_P(AnimationAndPaintWorkletThreadTest,
        CreatingSecondDuringTerminationOfFirst) {
   std::unique_ptr<AnimationAndPaintWorkletThread> first_worklet =
       CreateThreadAndProvideAnimationWorkletProxyClient(&GetDocument(),
@@ -203,7 +206,7 @@ TEST_F(AnimationAndPaintWorkletThreadTest,
 
 // Tests that the backing thread is correctly created, torn down, and recreated
 // as AnimationWorkletThreads are created and destroyed.
-TEST_F(AnimationAndPaintWorkletThreadTest,
+TEST_P(AnimationAndPaintWorkletThreadTest,
        WorkletThreadHolderIsRefCountedProperly) {
   EXPECT_FALSE(
       AnimationAndPaintWorkletThread::GetWorkletThreadHolderForTesting());
@@ -247,4 +250,9 @@ TEST_F(AnimationAndPaintWorkletThreadTest,
   worklet3->WaitForShutdownForTesting();
 }
 
+// Instantiate tests once with TLA and once without:
+INSTANTIATE_TEST_SUITE_P(AnimationAndPaintWorkletThreadTestGroup,
+                         AnimationAndPaintWorkletThreadTest,
+                         testing::Bool(),
+                         ParametrizedModuleTestParamName());
 }  // namespace blink

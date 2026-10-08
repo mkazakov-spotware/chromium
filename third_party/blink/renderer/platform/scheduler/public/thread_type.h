@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,10 +31,8 @@ enum class ThreadType {
   kOfflineAudioWorkletThread = 18,
   kRealtimeAudioWorkletThread = 19,
   kSemiRealtimeAudioWorkletThread = 20,
-  kFontThread = 21,
-  kPreloadScannerThread = 22,
 
-  kMaxValue = kPreloadScannerThread,
+  kCount = 21
 };
 
 BLINK_PLATFORM_EXPORT const char* GetNameForThreadType(ThreadType);

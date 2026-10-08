@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <sys/param.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -15,7 +16,6 @@
 #include "base/file_descriptor_posix.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/stringprintf.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "base/threading/sequenced_task_runner_handle.h"
@@ -43,18 +43,18 @@ void FilePathWatcherKQueue::ReleaseEvent(struct kevent& event) {
   event.udata = NULL;
 }
 
-size_t FilePathWatcherKQueue::EventsForPath(FilePath path,
-                                            EventVector* events) {
+int FilePathWatcherKQueue::EventsForPath(FilePath path, EventVector* events) {
   // Make sure that we are working with a clean slate.
   DCHECK(events->empty());
 
-  std::vector<FilePath::StringType> components = path.GetComponents();
+  std::vector<FilePath::StringType> components;
+  path.GetComponents(&components);
 
-  if (components.empty()) {
+  if (components.size() < 1) {
     return 0;
   }
 
-  size_t last_existing_entry = 0;
+  int last_existing_entry = 0;
   FilePath built_path;
   bool path_still_exists = true;
   for (std::vector<FilePath::StringType>::iterator i = components.begin();
@@ -85,8 +85,8 @@ size_t FilePathWatcherKQueue::EventsForPath(FilePath path,
 }
 
 // static
-size_t FilePathWatcherKQueue::EventForItem(const FilePath& path,
-                                           EventVector* events) {
+int FilePathWatcherKQueue::EventForItem(const FilePath& path,
+                                        EventVector* events) {
   // Make sure that we are working with a clean slate.
   DCHECK(events->empty());
 
@@ -104,9 +104,9 @@ size_t FilePathWatcherKQueue::EventForItem(const FilePath& path,
 uintptr_t FilePathWatcherKQueue::FileDescriptorForPath(const FilePath& path) {
   ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
   int fd = HANDLE_EINTR(open(path.value().c_str(), O_EVTONLY));
-  if (fd < 0)
+  if (fd == kInvalidFd)
     return kNoFileDescriptor;
-  return static_cast<uintptr_t>(fd);
+  return fd;
 }
 
 void FilePathWatcherKQueue::CloseFileDescriptor(uintptr_t* fd) {
@@ -114,14 +114,14 @@ void FilePathWatcherKQueue::CloseFileDescriptor(uintptr_t* fd) {
     return;
   }
 
-  if (IGNORE_EINTR(close(checked_cast<int>(*fd))) != 0) {
+  if (IGNORE_EINTR(close(*fd)) != 0) {
     DPLOG(ERROR) << "close";
   }
   *fd = kNoFileDescriptor;
 }
 
 bool FilePathWatcherKQueue::AreKeventValuesValid(struct kevent* kevents,
-                                                 int count) {
+                                               int count) {
   if (count < 0) {
     DPLOG(ERROR) << "kevent";
     return false;
@@ -234,9 +234,8 @@ bool FilePathWatcherKQueue::UpdateWatches(bool* target_file_affected) {
 
     EventVector updates(valid);
     ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
-    const int valid_int = checked_cast<int>(valid);
-    int count = HANDLE_EINTR(
-        kevent(kqueue_, &events_[0], valid_int, &updates[0], valid_int, NULL));
+    int count = HANDLE_EINTR(kevent(kqueue_, &events_[0], valid, &updates[0],
+                                    valid, NULL));
     if (!AreKeventValuesValid(&updates[0], count)) {
       return false;
     }
@@ -277,10 +276,10 @@ bool FilePathWatcherKQueue::Watch(const FilePath& path,
     return false;
   }
 
-  size_t last_entry = type == Type::kNonRecursive
-                          ? EventsForPath(target_, &events_)
-                          : EventForItem(target_, &events_);
-  if (!last_entry) {
+  int last_entry = type == Type::kNonRecursive
+                       ? EventsForPath(target_, &events_)
+                       : EventForItem(target_, &events_);
+  if (last_entry < 1) {
     // No notifications can possibly come in, so fail fast.
     Cancel();
     return false;
@@ -289,9 +288,8 @@ bool FilePathWatcherKQueue::Watch(const FilePath& path,
   EventVector responses(last_entry);
 
   ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
-  const int last_entry_int = checked_cast<int>(last_entry);
-  int count = HANDLE_EINTR(kevent(kqueue_, &events_[0], last_entry_int,
-                                  &responses[0], last_entry_int, NULL));
+  int count = HANDLE_EINTR(kevent(kqueue_, &events_[0], last_entry,
+                                  &responses[0], last_entry, NULL));
   if (!AreKeventValuesValid(&responses[0], count)) {
     // Calling Cancel() here to close any file descriptors that were opened.
     // This would happen in the destructor anyways, but FilePathWatchers tend to
@@ -325,7 +323,7 @@ void FilePathWatcherKQueue::Cancel() {
       DPLOG(ERROR) << "close kqueue";
     }
     kqueue_ = -1;
-    base::ranges::for_each(events_, ReleaseEvent);
+    std::for_each(events_.begin(), events_.end(), ReleaseEvent);
     events_.clear();
     callback_.Reset();
   }
@@ -340,8 +338,8 @@ void FilePathWatcherKQueue::OnKQueueReadable() {
   // occurred.
   EventVector updates(events_.size());
   struct timespec timeout = {0, 0};
-  int count = HANDLE_EINTR(kevent(kqueue_, NULL, 0, &updates[0],
-                                  checked_cast<int>(updates.size()), &timeout));
+  int count = HANDLE_EINTR(kevent(kqueue_, NULL, 0, &updates[0], updates.size(),
+                                  &timeout));
 
   // Error values are stored within updates, so check to make sure that no
   // errors occurred.
@@ -355,8 +353,7 @@ void FilePathWatcherKQueue::OnKQueueReadable() {
   bool send_notification = false;
 
   // Iterate through each of the updates and react to them.
-  // AreKeventValuesValid() guarantees `count` is non-negative.
-  for (size_t i = 0; i < static_cast<size_t>(count); ++i) {
+  for (int i = 0; i < count; ++i) {
     // Find our kevent record that matches the update notification.
     EventVector::iterator event = events_.begin();
     for (; event != events_.end(); ++event) {
@@ -396,7 +393,6 @@ void FilePathWatcherKQueue::OnKQueueReadable() {
     if (!UpdateWatches(&send_notification)) {
       callback_.Run(target_, true /* error */);
       Cancel();
-      return;
     }
   }
 

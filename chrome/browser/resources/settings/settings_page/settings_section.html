@@ -1,3 +1,9 @@
+<link rel="import" href="chrome://resources/html/polymer.html">
+
+<link rel="import" href="chrome://resources/cr_elements/shared_vars_css.html">
+
+<dom-module id="settings-section">
+  <template>
     <style>
       :host {
         display: flex;
@@ -23,18 +29,8 @@
         border-radius: var(--cr-card-border-radius);
         box-shadow: var(--cr-card-shadow);
         flex: 1;
-        overflow: hidden;
       }
 
-      @media (forced-colors: active) {
-        /* Use border instead of box-shadow (which does not work) in Windows
-           HCM. */
-        :host(:not(.expanded)) #card {
-          border: var(--cr-border-hcm);
-        }
-      }
-
-      :host(.expanded) #header,
       :host([hidden-by-search]) {
         display: none;
       }
@@ -46,3 +42,6 @@
     <div id="card">
       <slot></slot>
     </div>
+  </template>
+  <script src="settings_section.js"></script>
+</dom-module>

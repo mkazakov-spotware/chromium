@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,13 +10,12 @@
 #include <memory>
 #include <string>
 
-#include "net/base/isolation_info.h"
+#include "base/optional.h"
 #include "net/base/net_export.h"
 #include "net/base/privacy_mode.h"
 #include "net/base/request_priority.h"
 #include "net/log/net_log_capture_mode.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class GURL;
 
@@ -30,6 +29,7 @@ class Origin;
 
 namespace net {
 
+class NetworkIsolationKey;
 class SiteForCookies;
 
 // Returns a Value containing NetLog parameters for constructing a URLRequest.
@@ -43,9 +43,10 @@ NET_EXPORT base::Value NetLogURLRequestStartParams(
     const GURL& url,
     const std::string& method,
     int load_flags,
-    const IsolationInfo& isolation_info,
+    PrivacyMode privacy_mode,
+    const NetworkIsolationKey& network_isolation_key,
     const SiteForCookies& site_for_cookies,
-    const absl::optional<url::Origin>& initiator,
+    const base::Optional<url::Origin>& initiator,
     int64_t upload_id);
 
 }  // namespace net

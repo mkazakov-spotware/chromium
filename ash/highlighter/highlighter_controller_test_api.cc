@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,20 +18,20 @@ HighlighterControllerTestApi::HighlighterControllerTestApi(
 }
 
 HighlighterControllerTestApi::~HighlighterControllerTestApi() {
-  if (scoped_observation_)
+  if (scoped_observer_)
     DetachClient();
-  if (instance_->is_enabled())
+  if (instance_->enabled())
     instance_->SetEnabled(false);
   instance_->DestroyPointerView();
 }
 
 void HighlighterControllerTestApi::AttachClient() {
-  scoped_observation_ = std::make_unique<ScopedObservation>(this);
-  scoped_observation_->Observe(instance_);
+  scoped_observer_ = std::make_unique<ScopedObserver>(this);
+  scoped_observer_->Add(instance_);
 }
 
 void HighlighterControllerTestApi::DetachClient() {
-  scoped_observation_.reset();
+  scoped_observer_.reset();
   instance_->CallExitCallback();
 }
 

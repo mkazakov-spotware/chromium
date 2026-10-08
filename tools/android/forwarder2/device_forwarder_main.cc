@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #include <stdlib.h>
 
 #include <iostream>
-#include <memory>
 #include <string>
 
 #include "base/at_exit.h"
@@ -14,10 +13,10 @@
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/logging.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread.h"
 #include "tools/android/forwarder2/common.h"
 #include "tools/android/forwarder2/daemon.h"
@@ -66,7 +65,7 @@ class ServerDelegate : public Daemon::ServerDelegate {
     g_notifier = new forwarder2::PipeNotifier();
     signal(SIGTERM, KillHandler);
     signal(SIGINT, KillHandler);
-    controller_thread_ = std::make_unique<base::Thread>("controller_thread");
+    controller_thread_.reset(new base::Thread("controller_thread"));
     controller_thread_->Start();
   }
 

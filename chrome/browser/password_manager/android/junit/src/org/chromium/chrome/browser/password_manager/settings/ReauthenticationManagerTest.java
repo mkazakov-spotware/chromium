@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.annotation.Config;
-import org.robolectric.annotation.LooperMode;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.R;
@@ -32,7 +31,6 @@ import org.chromium.chrome.R;
  */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
-@LooperMode(LooperMode.Mode.LEGACY)
 public class ReauthenticationManagerTest {
     private FragmentManager mFragmentManager;
 
@@ -47,10 +45,10 @@ public class ReauthenticationManagerTest {
 
         // Prepare a dummy Fragment and commit a FragmentTransaction with it.
         FragmentTransaction fragmentTransaction = mFragmentManager.beginTransaction();
-        // Replacement fragment for CredentialEntryFragment, which is the fragment that
+        // Replacement fragment for PasswordEntryViewer, which is the fragment that
         // replaces PasswordReauthentication after popBackStack is called.
-        Fragment mockCredentialEntryFragment = new Fragment();
-        fragmentTransaction.add(mockCredentialEntryFragment, "credential_entry_fragment");
+        Fragment mockPasswordEntryViewer = new Fragment();
+        fragmentTransaction.add(mockPasswordEntryViewer, "password_entry_viewer");
         fragmentTransaction.addToBackStack(null);
         fragmentTransaction.commit();
     }

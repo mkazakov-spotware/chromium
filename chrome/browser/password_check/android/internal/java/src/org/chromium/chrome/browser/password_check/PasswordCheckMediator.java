@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,6 @@ import static org.chromium.chrome.browser.password_check.PasswordCheckProperties
 import static org.chromium.chrome.browser.password_check.PasswordCheckProperties.VIEW_CREDENTIAL;
 import static org.chromium.chrome.browser.password_check.PasswordCheckProperties.VIEW_DIALOG_HANDLER;
 
-import android.content.Context;
 import android.content.DialogInterface;
 import android.util.Pair;
 
@@ -30,13 +29,11 @@ import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.app.AlertDialog;
 
 import org.chromium.base.task.PostTask;
-import org.chromium.chrome.browser.device_reauth.ReauthenticatorBridge;
 import org.chromium.chrome.browser.password_check.helper.PasswordCheckChangePasswordHelper;
 import org.chromium.chrome.browser.password_check.helper.PasswordCheckIconHelper;
-import org.chromium.chrome.browser.password_manager.PasswordCheckReferrer;
-import org.chromium.chrome.browser.password_manager.settings.PasswordAccessReauthenticationHelper;
-import org.chromium.chrome.browser.password_manager.settings.PasswordAccessReauthenticationHelper.ReauthReason;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.chrome.browser.password_check.helper.PasswordCheckReauthenticationHelper;
+import org.chromium.chrome.browser.password_check.helper.PasswordCheckReauthenticationHelper.ReauthReason;
+import org.chromium.chrome.browser.settings.SettingsLauncher;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
 import org.chromium.ui.modelutil.ListModel;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
@@ -55,8 +52,7 @@ class PasswordCheckMediator
         implements PasswordCheckCoordinator.CredentialEventHandler, PasswordCheck.Observer {
     private static long sStatusUpdateDelayMillis = 1000;
 
-    private final PasswordAccessReauthenticationHelper mReauthenticationHelper;
-    private final ReauthenticatorBridge mReauthenticatorBridge;
+    private final PasswordCheckReauthenticationHelper mReauthenticationHelper;
     private final PasswordCheckChangePasswordHelper mChangePasswordDelegate;
     private PropertyModel mModel;
     private PasswordCheckComponentUi.Delegate mDelegate;
@@ -68,14 +64,12 @@ class PasswordCheckMediator
     private boolean mCctIsOpened;
 
     PasswordCheckMediator(PasswordCheckChangePasswordHelper changePasswordDelegate,
-            PasswordAccessReauthenticationHelper reauthenticationHelper,
-            ReauthenticatorBridge reauthenticatorBridge, SettingsLauncher settingsLauncher,
-            PasswordCheckIconHelper passwordCheckIconHelper) {
+            PasswordCheckReauthenticationHelper reauthenticationHelper,
+            SettingsLauncher settingsLauncher, PasswordCheckIconHelper passwordCheckIconHelper) {
         mChangePasswordDelegate = changePasswordDelegate;
         mReauthenticationHelper = reauthenticationHelper;
         mSettingsLauncher = settingsLauncher;
         mIconHelper = passwordCheckIconHelper;
-        mReauthenticatorBridge = reauthenticatorBridge;
     }
 
     void initialize(PropertyModel model, PasswordCheckComponentUi.Delegate delegate,
@@ -189,8 +183,6 @@ class PasswordCheckMediator
         } else {
             header = items.get(0).model;
         }
-        @PasswordCheckUIStatus
-        int oldStatus = header.get(CHECK_STATUS);
         header.set(CHECK_STATUS, status);
         Pair<Integer, Integer> progress = header.get(CHECK_PROGRESS);
         if (progress == null) progress = UNKNOWN_PROGRESS;
@@ -201,12 +193,6 @@ class PasswordCheckMediator
             compromisedCredentialCount = getPasswordCheck().getCompromisedCredentialsCount();
             checkTimestamp = getPasswordCheck().getLastCheckTimestamp();
             header.set(SHOW_CHECK_SUBTITLE, true);
-
-            // If a check was just completed, record some metrics.
-            if (oldStatus == PasswordCheckUIStatus.RUNNING) {
-                PasswordCheckMetricsRecorder.recordCompromisedCredentialsCountAfterCheck(
-                        compromisedCredentialCount);
-            }
         }
         header.set(CHECK_TIMESTAMP, checkTimestamp);
         header.set(COMPROMISED_CREDENTIALS_COUNT, compromisedCredentialCount);
@@ -235,10 +221,26 @@ class PasswordCheckMediator
     }
 
     @Override
-    public void onEdit(CompromisedCredential credential, Context context) {
+    public void onCompromisedCredentialFound(CompromisedCredential leakedCredential) {
+        assert leakedCredential != null;
+        ListModel<ListItem> items = mModel.get(ITEMS);
+        assert items.size() >= 1 : "Needs to initialize list with header before adding items!";
+        updateStatusHeaderWhenCredentialsChange();
+        items.add(createEntryForCredential(leakedCredential));
+    }
+
+    @Override
+    public void onEdit(CompromisedCredential credential) {
         PasswordCheckMetricsRecorder.recordUiUserAction(
                 PasswordCheckUserAction.EDIT_PASSWORD_CLICK);
-        mDelegate.onEditCredential(credential, context);
+        if (!mReauthenticationHelper.canReauthenticate()) {
+            mReauthenticationHelper.showScreenLockToast();
+            return;
+        }
+
+        mReauthenticationHelper.reauthenticate(ReauthReason.EDIT_PASSWORD, reauthSucceeded -> {
+            if (reauthSucceeded) mChangePasswordDelegate.launchEditPage(credential);
+        });
     }
 
     @Override
@@ -272,7 +274,7 @@ class PasswordCheckMediator
         PasswordCheckMetricsRecorder.recordUiUserAction(
                 PasswordCheckUserAction.VIEW_PASSWORD_CLICK);
         if (!mReauthenticationHelper.canReauthenticate()) {
-            mReauthenticationHelper.showScreenLockToast(ReauthReason.VIEW_PASSWORD);
+            mReauthenticationHelper.showScreenLockToast();
             return;
         }
 
@@ -299,12 +301,24 @@ class PasswordCheckMediator
 
     @Override
     public void onChangePasswordButtonClick(CompromisedCredential credential) {
-        PasswordCheckMetricsRecorder.recordUiUserAction(PasswordCheckUserAction.CHANGE_PASSWORD);
+        PasswordCheckMetricsRecorder.recordUiUserAction(credential.hasAutoChangeButton()
+                        ? PasswordCheckUserAction.CHANGE_PASSWORD_MANUALLY
+                        : PasswordCheckUserAction.CHANGE_PASSWORD);
         PasswordCheckMetricsRecorder.recordCheckResolutionAction(
                 PasswordCheckResolutionAction.OPENED_SITE, credential);
         mCctIsOpened = true;
-        mDelegate.onManualPasswordChangeStarted(credential);
         mChangePasswordDelegate.launchAppOrCctWithChangePasswordUrl(credential);
+    }
+
+    @Override
+    public void onChangePasswordWithScriptButtonClick(CompromisedCredential credential) {
+        assert credential.hasAutoChangeButton();
+        PasswordCheckMetricsRecorder.recordUiUserAction(
+                PasswordCheckUserAction.CHANGE_PASSWORD_AUTOMATICALLY);
+        PasswordCheckMetricsRecorder.recordCheckResolutionAction(
+                PasswordCheckResolutionAction.STARTED_SCRIPT, credential);
+        mCctIsOpened = true;
+        mChangePasswordDelegate.launchCctWithScript(credential);
     }
 
     private void updateStatusHeaderWhenCredentialsChange() {
@@ -369,8 +383,10 @@ class PasswordCheckMediator
         mIconHelper.getLargeIcon(credential, (faviconOrFallback) -> {
             credentialModel.set(FAVICON_OR_FALLBACK, faviconOrFallback);
         });
-        return new ListItem(
-                PasswordCheckProperties.ItemType.COMPROMISED_CREDENTIAL, credentialModel);
+        return new ListItem(credential.hasAutoChangeButton()
+                        ? PasswordCheckProperties.ItemType.COMPROMISED_CREDENTIAL_WITH_SCRIPT
+                        : PasswordCheckProperties.ItemType.COMPROMISED_CREDENTIAL,
+                credentialModel);
     }
 
     private void sortCredentials(List<CompromisedCredential> credentials) {
@@ -380,8 +396,8 @@ class PasswordCheckMediator
 
         Collections.sort(credentials, (CompromisedCredential lhs, CompromisedCredential rhs) -> {
             // Phished credentials should always appear first.
-            if (lhs.isOnlyPhished() != rhs.isOnlyPhished()) {
-                return lhs.isOnlyPhished() ? -1 : 1;
+            if (lhs.isPhished() != rhs.isPhished()) {
+                return lhs.isPhished() ? -1 : 1;
             }
 
             boolean lhsInitial = mPreCheckSet.contains(lhs);

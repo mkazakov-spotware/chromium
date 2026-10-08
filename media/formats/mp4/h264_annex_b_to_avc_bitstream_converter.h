@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,10 @@
 
 #include "base/containers/flat_map.h"
 #include "base/containers/span.h"
+#include "base/macros.h"
 #include "media/base/media_export.h"
+#include "media/base/status.h"
 #include "media/formats/mp4/box_definitions.h"
-#include "media/formats/mp4/mp4_status.h"
 #include "media/video/h264_parser.h"
 
 namespace media {
@@ -23,12 +24,6 @@ namespace media {
 class MEDIA_EXPORT H264AnnexBToAvcBitstreamConverter {
  public:
   H264AnnexBToAvcBitstreamConverter();
-
-  H264AnnexBToAvcBitstreamConverter(const H264AnnexBToAvcBitstreamConverter&) =
-      delete;
-  H264AnnexBToAvcBitstreamConverter& operator=(
-      const H264AnnexBToAvcBitstreamConverter&) = delete;
-
   ~H264AnnexBToAvcBitstreamConverter();
 
   // Converts a video chunk from a format with in-place decoder configuration
@@ -45,10 +40,10 @@ class MEDIA_EXPORT H264AnnexBToAvcBitstreamConverter {
   // from GetCurrentConfig().
   // |size_out| - number of bytes written to |output|, or desired size of
   // |output| if it's too small.
-  MP4Status ConvertChunk(base::span<const uint8_t> input,
-                         base::span<uint8_t> output,
-                         bool* config_changed_out,
-                         size_t* size_out);
+  Status ConvertChunk(base::span<const uint8_t> input,
+                      base::span<uint8_t> output,
+                      bool* config_changed_out,
+                      size_t* size_out);
 
   // Returns the latest version of decoder configuration, found in converted
   // video chunks.
@@ -64,6 +59,8 @@ class MEDIA_EXPORT H264AnnexBToAvcBitstreamConverter {
 
   int active_sps_id_ = -1;
   int active_pps_id_ = -1;
+
+  DISALLOW_COPY_AND_ASSIGN(H264AnnexBToAvcBitstreamConverter);
 };
 
 }  // namespace media

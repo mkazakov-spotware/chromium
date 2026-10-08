@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,14 @@
 
 #import "ios/chrome/app/main_application_delegate.h"
 
-@class AppState;
 @class MainController;
+@class AppState;
 
 @interface MainApplicationDelegate ()
-@property(nonatomic, class, readonly) MainController* sharedMainController;
-@property(nonatomic, class, readonly) AppState* sharedAppState;
 @property(nonatomic, readonly) MainController* mainController;
-@end
 
++ (MainController*)sharedMainController;
++ (AppState*)sharedAppState;
+
+@end
 #endif  // IOS_CHROME_APP_MAIN_APPLICATION_DELEGATE_TESTING_H_

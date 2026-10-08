@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,11 @@
 #include <string>
 #include <vector>
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
+#include "components/search_engines/omnibox_focus_type.h"
 #include "third_party/metrics_proto/omnibox_event.pb.h"
-#include "third_party/metrics_proto/omnibox_focus_type.pb.h"
 #include "third_party/metrics_proto/omnibox_input_type.pb.h"
-#include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
 #include "url/gurl.h"
 #include "url/third_party/mozilla/url_parse.h"
 
@@ -33,41 +33,30 @@ class AutocompleteInput {
   //
   // |scheme_classifier| is passed to Parse() to help determine the type of
   // input this is; see comments there.
-  AutocompleteInput(const std::u16string& text,
+  AutocompleteInput(const base::string16& text,
                     metrics::OmniboxEventProto::PageClassification
                         current_page_classification,
-                    const AutocompleteSchemeClassifier& scheme_classifier,
-                    bool should_use_https_as_default_scheme = false,
-                    int https_port_for_testing = 0,
-                    bool use_fake_https_for_https_upgrade_testing = false);
+                    const AutocompleteSchemeClassifier& scheme_classifier);
   // This constructor adds |cursor_position|, related to |text|.
   // |cursor_position| represents the location of the cursor within the
-  // query |text|. It may be set to std::u16string::npos if the input
+  // query |text|. It may be set to base::string16::npos if the input
   // doesn't come directly from the user's typing.
-  AutocompleteInput(const std::u16string& text,
+  AutocompleteInput(const base::string16& text,
                     size_t cursor_position,
                     metrics::OmniboxEventProto::PageClassification
                         current_page_classification,
-                    const AutocompleteSchemeClassifier& scheme_classifier,
-                    bool should_use_https_as_default_scheme = false,
-                    int https_port_for_testing = 0,
-                    bool use_fake_https_for_https_upgrade_testing = false);
-
+                    const AutocompleteSchemeClassifier& scheme_classifier);
   // This constructor adds |desired_tld|, related to |text|. |desired_tld|
   // is the user's desired TLD, if one is not already present in the text to
   // autocomplete. When this is non-empty, it also implies that "www."
   // should be prepended to the domain where possible. The |desired_tld|
   // should not contain a leading '.' (use "com" instead of ".com").
-  AutocompleteInput(const std::u16string& text,
+  AutocompleteInput(const base::string16& text,
                     size_t cursor_position,
                     const std::string& desired_tld,
                     metrics::OmniboxEventProto::PageClassification
                         current_page_classification,
-                    const AutocompleteSchemeClassifier& scheme_classifier,
-                    bool should_use_https_as_default_scheme = false,
-                    int https_port_for_testing = 0,
-                    bool use_fake_https_for_https_upgrade_testing = false);
-
+                    const AutocompleteSchemeClassifier& scheme_classifier);
   AutocompleteInput(const AutocompleteInput& other);
   ~AutocompleteInput();
 
@@ -82,11 +71,11 @@ class AutocompleteInput {
   // canonicalized URL is stored in |canonicalized_url|; however, this URL is
   // not guaranteed to be valid, especially if the parsed type is, e.g., QUERY.
   static metrics::OmniboxInputType Parse(
-      const std::u16string& text,
+      const base::string16& text,
       const std::string& desired_tld,
       const AutocompleteSchemeClassifier& scheme_classifier,
       url::Parsed* parts,
-      std::u16string* scheme,
+      base::string16* scheme,
       GURL* canonicalized_url);
 
   // Parses |text| and fill |scheme| and |host| by the positions of them.
@@ -94,21 +83,10 @@ class AutocompleteInput {
   // is view-source, this function returns the positions of scheme and host
   // in the URL qualified by "view-source:" prefix.
   static void ParseForEmphasizeComponents(
-      const std::u16string& text,
+      const base::string16& text,
       const AutocompleteSchemeClassifier& scheme_classifier,
       url::Component* scheme,
       url::Component* host);
-
-  // Returns true if the given text and url combination should be upgraded to
-  // use https:// as the default scheme. If so, fills |upgraded_url| with the
-  // upgraded https:// URL. |https_port_for_testing| can be set to a non-zero
-  // value in tests to load test cases over net::EmbeddedTestServer.
-  static bool ShouldUpgradeToHttps(
-      const std::u16string& text,
-      const GURL& url,
-      int https_port_for_testing,
-      bool use_fake_https_for_https_upgrade_testing,
-      GURL* upgraded_url);
 
   // Code that wants to format URLs with a format flag including
   // net::kFormatUrlOmitTrailingSlashOnBareHostname risk changing the meaning if
@@ -119,32 +97,29 @@ class AutocompleteInput {
   // to determine the meaning of the different strings, callers need to supply a
   // |scheme_classifier| to pass to Parse(). If |offset| is non-null, it will
   // be updated with any changes that shift it.
-  static std::u16string FormattedStringWithEquivalentMeaning(
+  static base::string16 FormattedStringWithEquivalentMeaning(
       const GURL& url,
-      const std::u16string& formatted_url,
+      const base::string16& formatted_url,
       const AutocompleteSchemeClassifier& scheme_classifier,
       size_t* offset);
 
   // Returns the number of non-empty components in |parts| besides the host.
   static int NumNonHostComponents(const url::Parsed& parts);
 
-  // Returns whether |text| begins with "http:" or "view-source:http:".
-  static bool HasHTTPScheme(const std::u16string& text);
-
-  // Returns whether |text| begins with "https:" or "view-source:https:".
-  static bool HasHTTPSScheme(const std::u16string& text);
+  // Returns whether |text| begins "http:" or "view-source:http:".
+  static bool HasHTTPScheme(const base::string16& text);
 
   // User-provided text to be completed.
-  const std::u16string& text() const { return text_; }
+  const base::string16& text() const { return text_; }
 
-  // Returns 0-based cursor position within |text_| or std::u16string::npos if
+  // Returns 0-based cursor position within |text_| or base::string16::npos if
   // not used.
   size_t cursor_position() const { return cursor_position_; }
 
   // Use of this setter is risky, since no other internal state is updated
   // besides |text_|, |cursor_position_| and |parts_|.  Only callers who know
   // that they're not changing the type/scheme/etc. should use this.
-  void UpdateText(const std::u16string& text,
+  void UpdateText(const base::string16& text,
                   size_t cursor_position,
                   const url::Parsed& parts);
 
@@ -156,10 +131,10 @@ class AutocompleteInput {
 
   // The title of the current page, corresponding to the current URL, or empty
   // if this is not available.
-  const std::u16string& current_title() const { return current_title_; }
+  const base::string16& current_title() const { return current_title_; }
   // This is sometimes set as the description if returning a
   // URL-what-you-typed match for the current URL.
-  void set_current_title(const std::u16string& title) {
+  void set_current_title(const base::string16& title) {
     current_title_ = title;
   }
 
@@ -178,9 +153,9 @@ class AutocompleteInput {
 
   // The scheme parsed from the provided text; only meaningful when type_ is
   // URL.
-  const std::u16string& scheme() const { return scheme_; }
+  const base::string16& scheme() const { return scheme_; }
 
-  // The input as a URL to navigate to, if possible.
+  // The input as an URL to navigate to, if possible.
   const GURL& canonicalized_url() const { return canonicalized_url_; }
 
   // The user's desired TLD.
@@ -235,39 +210,36 @@ class AutocompleteInput {
     keyword_mode_entry_method_ = entry_method;
   }
 
-  // Returns whether providers should avoid obtaining matches asynchronously
-  // when processing the input.
-  bool omit_asynchronous_matches() const { return omit_asynchronous_matches_; }
-  // If |omit_asynchronous_matches| is true, the controller asks the
+  // Returns whether providers should be allowed to make asynchronous requests
+  // when processing this input.
+  bool want_asynchronous_matches() const { return want_asynchronous_matches_; }
+  // If |want_asynchronous_matches| is false, the controller asks the
   // providers to only return matches which are synchronously available,
   // which should mean that all providers will be done immediately.
-  void set_omit_asynchronous_matches(bool omit_asynchronous_matches) {
-    omit_asynchronous_matches_ = omit_asynchronous_matches;
+  void set_want_asynchronous_matches(bool want_asynchronous_matches) {
+    want_asynchronous_matches_ = want_asynchronous_matches;
   }
 
   // Returns the type of UI interaction that started this autocomplete query.
-  metrics::OmniboxFocusType focus_type() const { return focus_type_; }
+  OmniboxFocusType focus_type() const { return focus_type_; }
   // |focus_type| should specify the UI interaction that started autocomplete.
-  // Generally, this should be left alone as INTERACTION_DEFAULT. Most providers
-  // only provide results for the INTERACTION_DEFAULT focus type. Providers like
-  // ZeroSuggestProvider that only want to display matches on-focus or
-  // on-clobber will look at this flag.
-  void set_focus_type(metrics::OmniboxFocusType focus_type) {
-    focus_type_ = focus_type;
-  }
+  // Generally, this should be left alone as DEFAULT. Most providers only
+  // provide results for DEFAULT focus type. Providers (like ZeroSuggest) that
+  // only want to display matches on-focus or on-clobber will look at this flag.
+  void set_focus_type(OmniboxFocusType focus_type) { focus_type_ = focus_type; }
 
   // Returns the terms in |text_| that start with http:// or https:// plus
   // at least one more character, stored without the scheme.  Used in
   // duplicate elimination to detect whether, for a given URL, the user may
   // have started typing that URL with an explicit scheme; see comments on
   // AutocompleteMatch::GURLToStrippedGURL().
-  const std::vector<std::u16string>& terms_prefixed_by_http_or_https() const {
+  const std::vector<base::string16>& terms_prefixed_by_http_or_https() const {
     return terms_prefixed_by_http_or_https_;
   }
 
   // Returns the ID of the query tile selected by the user, if any.
-  // If no tile was selected, returns absl::nullopt.
-  const absl::optional<std::string>& query_tile_id() const {
+  // If no tile was selected, returns base::nullopt.
+  const base::Optional<std::string>& query_tile_id() const {
     return query_tile_id_;
   }
 
@@ -285,66 +257,35 @@ class AutocompleteInput {
   // See base/trace_event/memory_usage_estimator.h for more info.
   size_t EstimateMemoryUsage() const;
 
-  void set_added_default_scheme_to_typed_url(
-      bool added_default_scheme_to_typed_url) {
-    added_default_scheme_to_typed_url_ = added_default_scheme_to_typed_url;
-  }
-
-  bool added_default_scheme_to_typed_url() const {
-    return added_default_scheme_to_typed_url_;
-  }
-
-  void WriteIntoTrace(perfetto::TracedValue context) const;
-
-  // Returns true if in zero prefix input state.
-  // Zero suggest state is determined implicitly from focus type and is
-  // used to inform autocomplete tab matching and action attachment.
-  bool IsZeroSuggest() const;
-
  private:
   friend class AutocompleteProviderTest;
 
   // The common initialization of the non-default constructors, called after
   // the initial fields are set. These remaining parameters are used as inputs
   // to setting the remaining fields.
-  void Init(const std::u16string& text,
+  void Init(const base::string16& text,
             const AutocompleteSchemeClassifier& scheme_classifier);
 
   // NOTE: Whenever adding a new field here, please make sure to update Clear()
   // and EstimateMemoryUsage() methods.
-  std::u16string text_;
+  base::string16 text_;
   size_t cursor_position_;
   GURL current_url_;
-  std::u16string current_title_;
+  base::string16 current_title_;
   metrics::OmniboxEventProto::PageClassification current_page_classification_;
   metrics::OmniboxInputType type_;
   url::Parsed parts_;
-  std::u16string scheme_;
+  base::string16 scheme_;
   GURL canonicalized_url_;
   std::string desired_tld_;
   bool prevent_inline_autocomplete_;
   bool prefer_keyword_;
   bool allow_exact_keyword_match_;
   metrics::OmniboxEventProto::KeywordModeEntryMethod keyword_mode_entry_method_;
-  bool omit_asynchronous_matches_;
-  metrics::OmniboxFocusType focus_type_ =
-      metrics::OmniboxFocusType::INTERACTION_DEFAULT;
-  std::vector<std::u16string> terms_prefixed_by_http_or_https_;
-  absl::optional<std::string> query_tile_id_;
-
-  // Flags for OmniboxDefaultNavigationsToHttps feature.
-  bool should_use_https_as_default_scheme_;
-  bool added_default_scheme_to_typed_url_;
-  // Port used by the embedded https server in tests. This is used to determine
-  // the correct port while upgrading URLs to https if the original URL has a
-  // non-default port.
-  // TODO(crbug.com/1168371): Remove when URLLoaderInterceptor can simulate
-  // redirects.
-  int https_port_for_testing_;
-  // If true, indicates that the tests are using a faux-HTTPS server which is
-  // actually an HTTP server that pretends to serve HTTPS responses. Should only
-  // be true on iOS.
-  bool use_fake_https_for_https_upgrade_testing_;
+  bool want_asynchronous_matches_;
+  OmniboxFocusType focus_type_ = OmniboxFocusType::DEFAULT;
+  std::vector<base::string16> terms_prefixed_by_http_or_https_;
+  base::Optional<std::string> query_tile_id_;
 };
 
 #endif  // COMPONENTS_OMNIBOX_BROWSER_AUTOCOMPLETE_INPUT_H_

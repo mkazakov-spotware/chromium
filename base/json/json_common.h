@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <stddef.h>
 
 #include "base/check_op.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 
 namespace base {
 namespace internal {
@@ -25,17 +25,15 @@ class StackMarker {
     ++(*depth_);
     DCHECK_LE(*depth_, max_depth_);
   }
-
-  StackMarker(const StackMarker&) = delete;
-  StackMarker& operator=(const StackMarker&) = delete;
-
   ~StackMarker() { --(*depth_); }
 
   bool IsTooDeep() const { return *depth_ >= max_depth_; }
 
  private:
   const size_t max_depth_;
-  const raw_ptr<size_t> depth_;
+  size_t* const depth_;
+
+  DISALLOW_COPY_AND_ASSIGN(StackMarker);
 };
 
 }  // namespace internal

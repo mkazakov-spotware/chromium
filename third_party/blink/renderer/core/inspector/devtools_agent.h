@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,19 +7,17 @@
 
 #include <memory>
 
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/unguessable_token.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
 #include "third_party/blink/public/mojom/devtools/devtools_agent.mojom-blink.h"
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_associated_receiver.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_associated_remote.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_remote.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_wrapper_mode.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
-#include "third_party/blink/renderer/platform/wtf/functional.h"
 #include "third_party/blink/renderer/platform/wtf/ref_counted.h"
 
 namespace blink {
@@ -32,11 +30,6 @@ class InspectorTaskRunner;
 class WorkerThread;
 struct WorkerDevToolsParams;
 
-// All public methods of this class are expected to be called on the same thread
-// that created the instance. That might be the main thread or a worker thread.
-// If used on a worker via BindReceiverForWorker() this class will delegate
-// internally to the IO thread to avoid blocking the worker thread. See
-// DevToolsAgent::IOAgent for more details.
 class CORE_EXPORT DevToolsAgent : public GarbageCollected<DevToolsAgent>,
                                   public mojom::blink::DevToolsAgent {
  public:
@@ -55,7 +48,7 @@ class CORE_EXPORT DevToolsAgent : public GarbageCollected<DevToolsAgent>,
       WorkerThread*,
       const KURL&,
       const String& global_scope_name,
-      const absl::optional<const DedicatedWorkerToken>& token);
+      const base::Optional<const DedicatedWorkerToken>& token);
   static void WorkerThreadTerminated(ExecutionContext* parent_context,
                                      WorkerThread*);
 
@@ -96,15 +89,13 @@ class CORE_EXPORT DevToolsAgent : public GarbageCollected<DevToolsAgent>,
       mojo::PendingReceiver<mojom::blink::DevToolsSession> io_session,
       mojom::blink::DevToolsSessionStatePtr reattach_session_state,
       bool client_expects_binary_responses,
-      bool client_is_trusted,
-      const WTF::String& session_id,
-      bool session_waits_for_debugger) override;
+      const WTF::String& session_id) override;
   void InspectElement(const gfx::Point& point) override;
-  void ReportChildTargets(bool report,
+  void ReportChildWorkers(bool report,
                           bool wait_for_debugger,
                           base::OnceClosure callback) override;
 
-  void ReportChildTargetsPostCallbackToIO(bool report,
+  void ReportChildWorkersPostCallbackToIO(bool report,
                                           bool wait_for_debugger,
                                           CrossThreadOnceClosure callback);
 
@@ -115,9 +106,8 @@ class CORE_EXPORT DevToolsAgent : public GarbageCollected<DevToolsAgent>,
     base::UnguessableToken devtools_worker_token;
     bool waiting_for_debugger;
     String name;
-    mojom::blink::DevToolsExecutionContextType context_type;
   };
-  void ReportChildTarget(std::unique_ptr<WorkerData>);
+  void ReportChildWorker(std::unique_ptr<WorkerData>);
 
   void CleanupConnection();
 
@@ -128,22 +118,25 @@ class CORE_EXPORT DevToolsAgent : public GarbageCollected<DevToolsAgent>,
       mojo::PendingReceiver<mojom::blink::DevToolsSession> io_session,
       mojom::blink::DevToolsSessionStatePtr reattach_session_state,
       bool client_expects_binary_responses,
-      bool client_is_trusted,
-      const WTF::String& session_id,
-      bool session_waits_for_debugger);
+      const WTF::String& session_id);
   void InspectElementImpl(const gfx::Point& point);
-  void ReportChildTargetsImpl(bool report,
+  void ReportChildWorkersImpl(bool report,
                               bool wait_for_debugger,
                               base::OnceClosure callback);
 
   Client* client_;
   // DevToolsAgent is not tied to ExecutionContext
-  HeapMojoAssociatedReceiver<mojom::blink::DevToolsAgent, DevToolsAgent>
+  HeapMojoAssociatedReceiver<mojom::blink::DevToolsAgent,
+                             DevToolsAgent,
+                             HeapMojoWrapperMode::kWithoutContextObserver>
       associated_receiver_{this, nullptr};
   // DevToolsAgent is not tied to ExecutionContext
-  HeapMojoRemote<mojom::blink::DevToolsAgentHost> host_remote_{nullptr};
+  HeapMojoRemote<mojom::blink::DevToolsAgentHost,
+                 HeapMojoWrapperMode::kWithoutContextObserver>
+      host_remote_{nullptr};
   // DevToolsAgent is not tied to ExecutionContext
-  HeapMojoAssociatedRemote<mojom::blink::DevToolsAgentHost>
+  HeapMojoAssociatedRemote<mojom::blink::DevToolsAgentHost,
+                           HeapMojoWrapperMode::kWithoutContextObserver>
       associated_host_remote_{nullptr};
   Member<InspectedFrames> inspected_frames_;
   Member<CoreProbeSink> probe_sink_;

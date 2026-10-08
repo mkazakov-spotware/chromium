@@ -1,11 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_GFX_SYS_COLOR_CHANGE_LISTENER_H_
 #define UI_GFX_SYS_COLOR_CHANGE_LISTENER_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/gfx/gfx_export.h"
 
 namespace gfx {
@@ -24,15 +24,12 @@ class GFX_EXPORT SysColorChangeListener {
 class GFX_EXPORT ScopedSysColorChangeListener {
  public:
   explicit ScopedSysColorChangeListener(SysColorChangeListener* listener);
-
-  ScopedSysColorChangeListener(const ScopedSysColorChangeListener&) = delete;
-  ScopedSysColorChangeListener& operator=(const ScopedSysColorChangeListener&) =
-      delete;
-
   ~ScopedSysColorChangeListener();
 
  private:
-  raw_ptr<SysColorChangeListener> listener_;
+  SysColorChangeListener* listener_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedSysColorChangeListener);
 };
 
 }  // namespace gfx;

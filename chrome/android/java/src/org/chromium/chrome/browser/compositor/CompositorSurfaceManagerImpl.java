@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.compositor;
 import android.content.Context;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.Drawable;
-import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -80,9 +79,7 @@ class CompositorSurfaceManagerImpl implements SurfaceHolder.Callback2, Composito
         }
 
         public boolean isValid() {
-            Surface surface = surfaceHolder().getSurface();
-            if (surface == null) return false;
-            return surface.isValid();
+            return surfaceHolder().getSurface().isValid();
         }
 
         // Attach to |parent|, such that isAttached() will be correct immediately.  Otherwise,
@@ -94,7 +91,7 @@ class CompositorSurfaceManagerImpl implements SurfaceHolder.Callback2, Composito
         }
 
         public void detachFromParent() {
-            Log.i(TAG, "SurfaceState : detach from parent : %d", format);
+            Log.e(TAG, "SurfaceState : detach from parent : " + format);
             final ViewGroup parent = mParent;
             // Since removeView can call surfaceDestroyed before returning, be sure that isAttached
             // will return false.
@@ -159,7 +156,7 @@ class CompositorSurfaceManagerImpl implements SurfaceHolder.Callback2, Composito
 
     @Override
     public void requestSurface(int format) {
-        Log.i(TAG, "Transitioning to surface with format: %d", format);
+        Log.e(TAG, "Transitioning to surface with format : " + format);
         mRequestedByClient = (format == PixelFormat.TRANSLUCENT) ? mTranslucent : mOpaque;
 
         // If destruction is pending, then we must wait for it to complete.  When we're notified
@@ -193,10 +190,7 @@ class CompositorSurfaceManagerImpl implements SurfaceHolder.Callback2, Composito
         // which is fine.  We'll send destroy / create for it.  Also note that we don't actually
         // start tear-down of the owned surface; the client notifies us via doneWithUnownedSurface
         // when it is safe to do that.
-        disownClientSurface(mOwnedByClient, false);
-
-        // `disownClientSurface` may recursively shutdown.
-        if (mRequestedByClient == null) return;
+        disownClientSurface(mOwnedByClient);
 
         // The client now owns |mRequestedByClient|.  Notify it that it's ready.
         mOwnedByClient = mRequestedByClient;
@@ -244,7 +238,7 @@ class CompositorSurfaceManagerImpl implements SurfaceHolder.Callback2, Composito
             public void run() {
                 if (mOwnedByClient == null) return;
                 SurfaceState owned = mOwnedByClient;
-                mClient.surfaceDestroyed(owned.surfaceHolder().getSurface(), true);
+                mClient.surfaceDestroyed(owned.surfaceHolder().getSurface());
                 mOwnedByClient = null;
                 detachSurfaceNow(owned);
             }
@@ -284,7 +278,7 @@ class CompositorSurfaceManagerImpl implements SurfaceHolder.Callback2, Composito
         // Note that |createPending| might not be set, if Android destroyed and recreated this
         // surface on its own.
 
-        Log.i(TAG, "surfaceCreated format: %d", state.format);
+        Log.e(TAG, "surfaceCreated format : " + state.format);
         if (state != mRequestedByClient) {
             // Surface is created, but it's not the one that's been requested most recently.  Just
             // destroy it again.
@@ -303,12 +297,7 @@ class CompositorSurfaceManagerImpl implements SurfaceHolder.Callback2, Composito
         // since we would have removed ownership when we got surfaceDestroyed.  It's okay if the
         // client doesn't own either surface.
         assert mOwnedByClient != state;
-        disownClientSurface(mOwnedByClient, false);
-
-        // TODO(crbug.com/1242632): `disownClientSurface` may recursively shutdown which sets
-        // `mRequestedByClient` to null. However testing shows throwing an NPE in this case
-        // is caught by SurfaceView implementation and does not crash, and throwing actually
-        // avoids an ANR due to some unexplained reason.
+        disownClientSurface(mOwnedByClient);
 
         // The client now owns this surface, so notify it.
         mOwnedByClient = mRequestedByClient;
@@ -339,7 +328,7 @@ class CompositorSurfaceManagerImpl implements SurfaceHolder.Callback2, Composito
         // This can happen if Android destroys the surface on its own.  It's also possible that
         // we've detached it, if a destroy was pending.  Either way, notify the client.
         if (state == mOwnedByClient) {
-            disownClientSurface(mOwnedByClient, true);
+            disownClientSurface(mOwnedByClient);
 
             // Do not re-request the surface here.  If android gives the surface back, then we'll
             // re-signal the client about construction.
@@ -417,7 +406,7 @@ class CompositorSurfaceManagerImpl implements SurfaceHolder.Callback2, Composito
 
     /**
      * Post a Runnable to attach |state|.  This is helpful, since one cannot directly interact with
-     * the View hierarchy during Surface callbacks.
+     * the View heirarchy during Surface callbacks.
      */
     private void attachSurfaceLater(final SurfaceState state) {
         // We shouldn't try to post construction if there's an in-flight destroy.
@@ -437,10 +426,10 @@ class CompositorSurfaceManagerImpl implements SurfaceHolder.Callback2, Composito
      * the surface has been destroyed (recall that ownership involves getting created).  It's okay
      * if |state| is null or isn't owned by the client.
      */
-    private void disownClientSurface(SurfaceState state, boolean surfaceDestroyed) {
+    private void disownClientSurface(SurfaceState state) {
         if (mOwnedByClient != state || state == null) return;
 
-        mClient.surfaceDestroyed(mOwnedByClient.surfaceHolder().getSurface(), surfaceDestroyed);
+        mClient.surfaceDestroyed(mOwnedByClient.surfaceHolder().getSurface());
         mOwnedByClient = null;
     }
 
@@ -471,7 +460,7 @@ class CompositorSurfaceManagerImpl implements SurfaceHolder.Callback2, Composito
 
         // The surface isn't attached, or was attached but wasn't currently valid.  Either way,
         // we're not going to get a destroy, so notify the client now if needed.
-        disownClientSurface(state, false);
+        disownClientSurface(state);
 
         // If the client has since re-requested the surface, then start construction.
         if (state == mRequestedByClient) attachSurfaceNow(mRequestedByClient);

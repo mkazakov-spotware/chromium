@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,10 +14,10 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.DisabledTest;
+import org.chromium.base.test.util.FlakyTest;
 import org.chromium.base.test.util.MinAndroidSdkLevel;
-import org.chromium.blink.mojom.DisplayMode;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
+import org.chromium.chrome.browser.webapps.WebDisplayMode;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 
 import java.util.concurrent.TimeoutException;
@@ -37,7 +37,8 @@ public class WebappDisplayCutoutTest {
      */
     @Test
     @LargeTest
-    @WebappDisplayCutoutTestRule.TestConfiguration(displayMode = DisplayMode.UNDEFINED)
+    @FlakyTest(message = "crbug.com/862728")
+    @WebappDisplayCutoutTestRule.TestConfiguration(displayMode = WebDisplayMode.UNDEFINED)
     public void testViewportFitWebapp() throws TimeoutException {
         mTestRule.setViewportFit(DisplayCutoutTestRule.VIEWPORT_FIT_COVER);
 
@@ -51,8 +52,8 @@ public class WebappDisplayCutoutTest {
      */
     @Test
     @LargeTest
-    @WebappDisplayCutoutTestRule.TestConfiguration(displayMode = DisplayMode.FULLSCREEN)
-    @DisabledTest(message = "Flaky test - see: https://crbug.com/1211064")
+    @FlakyTest(message = "crbug.com/862728")
+    @WebappDisplayCutoutTestRule.TestConfiguration(displayMode = WebDisplayMode.FULLSCREEN)
     public void testViewportFitWebapp_Fullscreen() throws TimeoutException {
         mTestRule.setViewportFit(DisplayCutoutTestRule.VIEWPORT_FIT_COVER);
 
@@ -67,7 +68,8 @@ public class WebappDisplayCutoutTest {
      */
     @Test
     @LargeTest
-    @WebappDisplayCutoutTestRule.TestConfiguration(displayMode = DisplayMode.MINIMAL_UI)
+    @FlakyTest(message = "crbug.com/862728")
+    @WebappDisplayCutoutTestRule.TestConfiguration(displayMode = WebDisplayMode.MINIMAL_UI)
     public void testViewportFitWebapp_MinimalUi() throws TimeoutException {
         mTestRule.setViewportFit(DisplayCutoutTestRule.VIEWPORT_FIT_COVER);
 
@@ -82,7 +84,8 @@ public class WebappDisplayCutoutTest {
      */
     @Test
     @LargeTest
-    @WebappDisplayCutoutTestRule.TestConfiguration(displayMode = DisplayMode.STANDALONE)
+    @FlakyTest(message = "crbug.com/862728")
+    @WebappDisplayCutoutTestRule.TestConfiguration(displayMode = WebDisplayMode.STANDALONE)
     public void testViewportFitWebapp_Standalone() throws TimeoutException {
         mTestRule.setViewportFit(DisplayCutoutTestRule.VIEWPORT_FIT_COVER);
 

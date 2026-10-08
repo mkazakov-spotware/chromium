@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/overlays/infobar_modal/save_card/save_card_infobar_modal_overlay_mediator.h"
 
-#import "base/strings/sys_string_conversions.h"
-#import "components/autofill/core/common/autofill_payments_features.h"
+#include "base/strings/sys_string_conversions.h"
+#include "components/autofill/core/common/autofill_payments_features.h"
 #import "ios/chrome/browser/overlays/public/infobar_modal/save_card_infobar_modal_overlay_request_config.h"
 #import "ios/chrome/browser/overlays/public/infobar_modal/save_card_infobar_modal_overlay_responses.h"
 #import "ios/chrome/browser/ui/infobars/modals/infobar_save_card_modal_consumer.h"
@@ -13,7 +13,6 @@
 #import "ios/chrome/browser/ui/overlays/infobar_modal/save_card/save_card_infobar_modal_overlay_mediator_delegate.h"
 #import "ios/chrome/browser/ui/overlays/overlay_request_mediator+subclassing.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
-#import "ui/gfx/image/image.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -52,13 +51,10 @@ using save_card_infobar_overlays::SaveCardMainAction;
   // Only allow editing if the card will be uploaded and it hasn't been
   // previously saved.
   BOOL supportsEditing =
-      config->should_upload_credentials() && !config->current_card_saved();
-
-  // Convert gfx::Image to UIImage. The NSDictionary below doesn't support nil,
-  // so NSNull must be used.
-  const gfx::Image& avatar_gfx = config->displayed_target_account_avatar();
-  NSObject* avatar =
-      avatar_gfx.IsEmpty() ? [NSNull null] : avatar_gfx.ToUIImage();
+      base::FeatureList::IsEnabled(
+          autofill::features::kAutofillSaveCardInfobarEditSupport)
+          ? config->should_upload_credentials() && !config->current_card_saved()
+          : NO;
 
   NSDictionary* prefs = @{
     kCardholderNamePrefKey :
@@ -71,10 +67,7 @@ using save_card_infobar_overlays::SaveCardMainAction;
         base::SysUTF16ToNSString(config->expiration_date_year()),
     kLegalMessagesPrefKey : config->legal_message_lines(),
     kCurrentCardSavedPrefKey : @(config->current_card_saved()),
-    kSupportsEditingPrefKey : @(supportsEditing),
-    kDisplayedTargetAccountEmailPrefKey :
-        base::SysUTF16ToNSString(config->displayed_target_account_email()),
-    kDisplayedTargetAccountAvatarPrefKey : avatar,
+    kSupportsEditingPrefKey : @(supportsEditing)
   };
   [_consumer setupModalViewControllerWithPrefs:prefs];
 }

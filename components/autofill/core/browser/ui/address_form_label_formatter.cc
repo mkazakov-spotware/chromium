@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,14 +24,14 @@ AddressFormLabelFormatter::AddressFormLabelFormatter(
 
 AddressFormLabelFormatter::~AddressFormLabelFormatter() {}
 
-std::u16string AddressFormLabelFormatter::GetLabelForProfile(
+base::string16 AddressFormLabelFormatter::GetLabelForProfile(
     const AutofillProfile& profile,
     FieldTypeGroup focused_group) const {
-  if (focused_group != FieldTypeGroup::kAddressHome) {
+  if (focused_group != ADDRESS_HOME) {
     return GetLabelNationalAddress(field_types_for_labels(), profile,
                                    app_locale());
   } else {
-    std::vector<std::u16string> label_parts;
+    std::vector<base::string16> label_parts;
 
     if (data_util::ContainsName(groups())) {
       AddLabelPartIfNotEmpty(

@@ -31,10 +31,8 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_FLEXIBLE_BOX_ALGORITHM_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_FLEXIBLE_BOX_ALGORITHM_H_
 
-#include "base/check_op.h"
-#include "third_party/blink/renderer/core/layout/geometry/flex_offset.h"
+#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/min_max_sizes.h"
-#include "third_party/blink/renderer/core/layout/ng/ng_baseline_utils.h"
 #include "third_party/blink/renderer/core/layout/ng/ng_block_node.h"
 #include "third_party/blink/renderer/core/layout/ng/ng_layout_result.h"
 #include "third_party/blink/renderer/core/layout/order_iterator.h"
@@ -49,10 +47,8 @@ namespace blink {
 class FlexItem;
 class FlexLine;
 class FlexLayoutAlgorithm;
-class NGFlexLayoutAlgorithm;
 class LayoutBox;
 struct MinMaxSizes;
-struct NGFlexLine;
 
 enum FlexSign {
   kPositiveFlexibility,
@@ -66,7 +62,7 @@ enum class TransformedWritingMode {
   kBottomToTopWritingMode
 };
 
-typedef HeapVector<FlexItem, 8> FlexItemVector;
+typedef Vector<FlexItem, 8> FlexItemVector;
 
 class AutoClearOverrideLogicalHeight {
   STACK_ALLOCATED();
@@ -92,8 +88,6 @@ class AutoClearOverrideLogicalHeight {
 };
 
 class AutoClearOverrideLogicalWidth {
-  STACK_ALLOCATED();
-
  public:
   explicit AutoClearOverrideLogicalWidth(LayoutBox* box)
       : box_(box), old_override_width_(-1) {
@@ -130,13 +124,11 @@ class FlexItem {
            LayoutUnit flex_base_content_size,
            MinMaxSizes min_max_main_sizes,
            // Ignored for legacy, required for NG:
-           absl::optional<MinMaxSizes> min_max_cross_sizes,
+           base::Optional<MinMaxSizes> min_max_cross_sizes,
            LayoutUnit main_axis_border_padding,
            LayoutUnit cross_axis_border_padding,
            NGPhysicalBoxStrut physical_margins,
            NGBoxStrut scrollbars,
-           WritingMode baseline_writing_mode,
-           BaselineGroup baseline_group = BaselineGroup::kMajor,
            bool depends_on_min_max_sizes = false);
 
   LayoutUnit HypotheticalMainAxisMarginBoxSize() const {
@@ -169,15 +161,15 @@ class FlexItem {
   LayoutUnit FlowAwareMarginStart() const;
   LayoutUnit FlowAwareMarginEnd() const;
   LayoutUnit FlowAwareMarginBefore() const;
-  LayoutUnit FlowAwareMarginAfter() const;
-  LayoutUnit MarginBlockEnd() const;
 
   LayoutUnit MainAxisMarginExtent() const;
   LayoutUnit CrossAxisMarginExtent() const;
 
-  LayoutUnit MarginBoxAscent(bool is_last_baseline, bool is_wrap_reverse) const;
+  LayoutUnit MarginBoxAscent() const;
 
   LayoutUnit AvailableAlignmentSpace() const;
+
+  bool HasAutoMarginsInCrossAxis() const;
 
   void UpdateAutoMarginsInMainAxis(LayoutUnit auto_margin_offset);
 
@@ -192,32 +184,30 @@ class FlexItem {
 
   static LayoutUnit AlignmentOffset(LayoutUnit available_free_space,
                                     ItemPosition position,
-                                    LayoutUnit baseline_offset,
+                                    LayoutUnit ascent,
+                                    LayoutUnit max_ascent,
                                     bool is_wrap_reverse,
                                     bool is_deprecated_webkit_box);
 
-  void Trace(Visitor*) const;
-
   const FlexLayoutAlgorithm* algorithm_;
   wtf_size_t line_number_;
-  Member<LayoutBox> box_;
+  LayoutBox* box_;
   const ComputedStyle& style_;
   const LayoutUnit flex_base_content_size_;
   const MinMaxSizes min_max_main_sizes_;
-  const absl::optional<MinMaxSizes> min_max_cross_sizes_;
+  const base::Optional<MinMaxSizes> min_max_cross_sizes_;
   const LayoutUnit hypothetical_main_content_size_;
   const LayoutUnit main_axis_border_padding_;
   const LayoutUnit cross_axis_border_padding_;
   NGPhysicalBoxStrut physical_margins_;
   const NGBoxStrut scrollbars_;
-  const WritingDirectionMode baseline_writing_direction_;
-  const BaselineGroup baseline_group_;
 
   LayoutUnit flexed_content_size_;
 
   // When set by the caller, this should be the size pre-stretching.
   LayoutUnit cross_axis_size_;
-  FlexOffset* offset_ = nullptr;
+  // The algorithm stores the main axis offset in X and cross axis offset in Y.
+  LayoutPoint desired_location_;
 
   const bool depends_on_min_max_sizes_;
   bool frozen_;
@@ -227,11 +217,8 @@ class FlexItem {
   // margins). FlexLayoutAlgorithm uses this flag to report back to legacy.
   bool needs_relayout_for_stretch_;
 
-  // The above fields are used by the flex algorithm. The following fields, by
-  // contrast, are just convenient storage.
   NGBlockNode ng_input_node_;
-  Member<const NGLayoutResult> layout_result_;
-  absl::optional<LayoutUnit> max_content_contribution_;
+  scoped_refptr<const NGLayoutResult> layout_result_;
 };
 
 class FlexItemVectorView {
@@ -348,9 +335,8 @@ class FlexLine {
   LayoutUnit main_axis_extent_;
   LayoutUnit cross_axis_offset_;
   LayoutUnit cross_axis_extent_;
-
-  LayoutUnit max_major_ascent_ = LayoutUnit::Min();
-  LayoutUnit max_minor_ascent_ = LayoutUnit::Min();
+  LayoutUnit max_ascent_;
+  LayoutUnit sum_justify_adjustments_;
 };
 
 // This class implements the CSS Flexbox layout algorithm:
@@ -374,8 +360,8 @@ class FlexLine {
 //        LayoutUnit main_axis_offset = border + padding + scrollbar;
 //        line->ComputeLineItemsPosition(main_axis_offset, cross_axis_offset);
 //     }
-// The final position of each flex item is in item.offset
-class CORE_EXPORT FlexLayoutAlgorithm {
+//     // The final position of each flex item is in item.desired_location
+class FlexLayoutAlgorithm {
   DISALLOW_NEW();
 
  public:
@@ -384,16 +370,12 @@ class CORE_EXPORT FlexLayoutAlgorithm {
                       LogicalSize percent_resolution_sizes,
                       Document*);
   FlexLayoutAlgorithm(const FlexLayoutAlgorithm&) = delete;
-
-  ~FlexLayoutAlgorithm() { all_items_.clear(); }
   FlexLayoutAlgorithm& operator=(const FlexLayoutAlgorithm&) = delete;
 
   template <typename... Args>
   FlexItem& emplace_back(Args&&... args) {
     return all_items_.emplace_back(this, std::forward<Args>(args)...);
   }
-
-  wtf_size_t NumItems() const { return all_items_.size(); }
 
   const ComputedStyle* Style() const { return style_; }
   const ComputedStyle& StyleRef() const { return *style_; }
@@ -428,16 +410,14 @@ class CORE_EXPORT FlexLayoutAlgorithm {
   // Positions flex lines by modifying FlexLine::cross_axis_offset, and
   // FlexItem::desired_position. When lines stretch, also modifies
   // FlexLine::cross_axis_extent.
-  void AlignFlexLines(LayoutUnit cross_axis_content_extent,
-                      HeapVector<NGFlexLine>* flex_line_outputs = nullptr);
+  void AlignFlexLines(LayoutUnit cross_axis_content_extent);
 
-  // Positions flex items by modifying FlexItem::offset.
+  // Positions flex items by modifying FlexItem::desired_location.
   // When lines stretch, also modifies FlexItem::cross_axis_size.
   void AlignChildren();
 
   void FlipForWrapReverse(LayoutUnit cross_axis_start_edge,
-                          LayoutUnit cross_axis_content_size,
-                          HeapVector<NGFlexLine>* flex_line_outputs = nullptr);
+                          LayoutUnit cross_axis_content_size);
 
   static TransformedWritingMode GetTransformedWritingMode(const ComputedStyle&);
 
@@ -447,20 +427,11 @@ class CORE_EXPORT FlexLayoutAlgorithm {
   static ItemPosition AlignmentForChild(const ComputedStyle& flexbox_style,
                                         const ComputedStyle& child_style);
 
-  // Translates [self-]{start,end}, left, right to flex-{start,end} based on the
-  // flex flow and container/item writing-modes. Note that callers of this
-  // function treat flex-{start,end} as {start,end}. That convention will be
-  // easy to fix when legacy flex code is deleted.
-  static ItemPosition TranslateItemPosition(const ComputedStyle& flexbox_style,
-                                            const ComputedStyle& child_style,
-                                            ItemPosition align);
-
   static LayoutUnit InitialContentPositionOffset(
       const ComputedStyle& style,
       LayoutUnit available_free_space,
       const StyleContentAlignmentData&,
-      unsigned number_of_items,
-      bool is_reversed = false);
+      unsigned number_of_items);
   static LayoutUnit ContentDistributionSpaceBetweenChildren(
       LayoutUnit available_free_space,
       const StyleContentAlignmentData&,
@@ -470,27 +441,21 @@ class CORE_EXPORT FlexLayoutAlgorithm {
                            LayoutUnit border_scrollbar_padding_before);
   bool IsNGFlexBox() const;
 
-  FlexItem* FlexItemAtIndex(wtf_size_t line_index, wtf_size_t item_index) const;
-
   static LayoutUnit GapBetweenItems(const ComputedStyle& style,
                                     LogicalSize percent_resolution_sizes);
   static LayoutUnit GapBetweenLines(const ComputedStyle& style,
                                     LogicalSize percent_resolution_sizes);
-
-  void Trace(Visitor*) const;
-
   const LayoutUnit gap_between_items_;
   const LayoutUnit gap_between_lines_;
 
  private:
-  friend class NGFlexLayoutAlgorithm;
   EOverflow MainAxisOverflowForChild(const LayoutBox& child) const;
 
   const ComputedStyle* style_;
   const LayoutUnit line_break_length_;
   FlexItemVector all_items_;
   Vector<FlexLine> flex_lines_;
-  wtf_size_t next_item_index_;
+  size_t next_item_index_;
 };
 
 inline const FlexLine* FlexItem::Line() const {
@@ -498,7 +463,5 @@ inline const FlexLine* FlexItem::Line() const {
 }
 
 }  // namespace blink
-
-WTF_ALLOW_CLEAR_UNUSED_SLOTS_WITH_MEM_FUNCTIONS(blink::FlexItem)
 
 #endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_FLEXIBLE_BOX_ALGORITHM_H_

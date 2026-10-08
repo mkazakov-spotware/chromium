@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "base/strings/string_util.h"
 #include "chrome/browser/media/history/media_history_table_base.h"
 #include "sql/init_status.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 namespace base {
@@ -38,9 +37,9 @@ class MediaHistoryImagesTable : public MediaHistoryTableBase {
   sql::InitStatus CreateTableIfNonExistent() override;
 
   // Saves the image or gets the image ID if it is already in the database.
-  absl::optional<int64_t> SaveOrGetImage(const GURL& url,
+  base::Optional<int64_t> SaveOrGetImage(const GURL& url,
                                          const url::Origin& playback_origin,
-                                         const std::u16string& mime_type);
+                                         const base::string16& mime_type);
 };
 
 }  // namespace media_history

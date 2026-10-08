@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/fuchsia/fuchsia_logging.h"
-#include "base/fuchsia/mem_buffer_util.h"
 #include "base/logging.h"
+#include "fuchsia/base/mem_buffer_util.h"
 
 namespace media {
 
@@ -45,9 +45,8 @@ void ProvisioningFetcherImpl::Fetch(
     return;
   }
 
-  absl::optional<std::string> request_str =
-      base::StringFromMemBuffer(request.message);
-  if (!request_str) {
+  std::string request_str;
+  if (!cr_fuchsia::StringFromMemBuffer(request.message, &request_str)) {
     DLOG(WARNING) << "Failed to read ProvisioningRequest.";
     OnError(ZX_ERR_INVALID_ARGS);
     return;
@@ -65,7 +64,7 @@ void ProvisioningFetcherImpl::Fetch(
 
   retrieve_in_progress_ = true;
   fetcher_->Retrieve(
-      GURL(request.default_provisioning_server_url.value()), *request_str,
+      GURL(request.default_provisioning_server_url.value()), request_str,
       base::BindRepeating(&ProvisioningFetcherImpl::OnRetrieveComplete,
                           base::Unretained(this),
                           base::Passed(std::move(callback))));
@@ -81,7 +80,7 @@ void ProvisioningFetcherImpl::OnRetrieveComplete(FetchCallback callback,
 
   fuchsia::media::drm::ProvisioningResponse provision_response;
   provision_response.message =
-      base::MemBufferFromString(response, "cr-drm-provision-response");
+      cr_fuchsia::MemBufferFromString(response, "cr-drm-provision-response");
 
   callback(std::move(provision_response));
 }

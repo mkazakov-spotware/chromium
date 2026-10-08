@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define ASH_PUBLIC_CPP_EXTERNAL_ARC_MESSAGE_CENTER_ARC_NOTIFICATION_VIEW_H_
 
 #include "ash/public/cpp/external_arc/message_center/arc_notification_item.h"
+#include "base/macros.h"
 #include "ui/message_center/views/message_view.h"
 
 namespace aura {
@@ -33,12 +34,7 @@ class ArcNotificationView : public message_center::MessageView,
 
   // |content_view| is a view to be hosted in this view.
   ArcNotificationView(ArcNotificationItem* item,
-                      const message_center::Notification& notification,
-                      bool shown_in_popup);
-
-  ArcNotificationView(const ArcNotificationView&) = delete;
-  ArcNotificationView& operator=(const ArcNotificationView&) = delete;
-
+                      const message_center::Notification& notification);
   ~ArcNotificationView() override;
 
   // These method are called by the content view when focus handling is deferred
@@ -62,11 +58,7 @@ class ArcNotificationView : public message_center::MessageView,
   void OnContainerAnimationEnded() override;
   void OnSettingsButtonPressed(const ui::Event& event) override;
   void OnSnoozeButtonPressed(const ui::Event& event) override;
-  void OnThemeChanged() override;
   void UpdateCornerRadius(int top_radius, int bottom_radius) override;
-  void UpdateBackgroundPainter() override;
-  base::TimeDelta GetBoundsAnimationDuration(
-      const message_center::Notification&) const override;
 
   // views::SlideOutControllerDelegate:
   void OnSlideChanged(bool in_progress) override;
@@ -101,9 +93,9 @@ class ArcNotificationView : public message_center::MessageView,
   // The view for the custom content. Owned by view hierarchy.
   ArcNotificationContentView* const content_view_;
 
-  const bool shown_in_popup_;
-
   std::unique_ptr<views::Painter> focus_painter_;
+
+  DISALLOW_COPY_AND_ASSIGN(ArcNotificationView);
 };
 
 }  // namespace ash

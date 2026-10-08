@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,13 @@
 #include <string>
 
 #include "base/bind.h"
-#include "base/callback_helpers.h"
-#include "base/containers/contains.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
+#include "build/chromeos_buildflags.h"
 #include "content/browser/media/media_devices_permission_checker.h"
 #include "content/browser/renderer_host/media/in_process_video_capture_provider.h"
 #include "content/browser/renderer_host/media/video_capture_manager.h"
@@ -53,14 +52,13 @@ const int kNumCalls = 3;
 
 const size_t kNumAudioInputDevices = 2;
 
-const auto kIgnoreLogMessageCB = base::DoNothing();
+const auto kIgnoreLogMessageCB = base::BindRepeating([](const std::string&) {});
 
-std::string salt = "fake_media_device_salt";
 MediaDeviceSaltAndOrigin GetSaltAndOrigin(int /* process_id */,
                                           int /* frame_id */) {
-  return MediaDeviceSaltAndOrigin(salt, "fake_group_id_salt",
-                                  url::Origin::Create(GURL("https://test.com")),
-                                  /*has_focus=*/true, /*is_background=*/false);
+  return MediaDeviceSaltAndOrigin(
+      "fake_media_device_salt", "fake_group_id_salt",
+      url::Origin::Create(GURL("https://test.com")));
 }
 
 // This class mocks the audio manager and overrides some methods to ensure that
@@ -72,10 +70,6 @@ class MockAudioManager : public media::FakeAudioManager {
                          &fake_audio_log_factory_),
         num_output_devices_(2),
         num_input_devices_(kNumAudioInputDevices) {}
-
-  MockAudioManager(const MockAudioManager&) = delete;
-  MockAudioManager& operator=(const MockAudioManager&) = delete;
-
   ~MockAudioManager() override {}
 
   MOCK_METHOD1(MockGetAudioInputDeviceNames, void(media::AudioDeviceNames*));
@@ -130,15 +124,13 @@ class MockAudioManager : public media::FakeAudioManager {
 
   media::AudioParameters GetDefaultOutputStreamParameters() override {
     return media::AudioParameters(media::AudioParameters::AUDIO_PCM_LOW_LATENCY,
-                                  media::ChannelLayoutConfig::Stereo(), 48000,
-                                  128);
+                                  media::CHANNEL_LAYOUT_STEREO, 48000, 128);
   }
 
   media::AudioParameters GetOutputStreamParameters(
       const std::string& device_id) override {
     return media::AudioParameters(media::AudioParameters::AUDIO_PCM_LOW_LATENCY,
-                                  media::ChannelLayoutConfig::Stereo(), 48000,
-                                  128);
+                                  media::CHANNEL_LAYOUT_STEREO, 48000, 128);
   }
 
   void RemoveInputAudioDeviceById(const std::string& device_id) {
@@ -173,6 +165,7 @@ class MockAudioManager : public media::FakeAudioManager {
   std::string default_device_id_;
   std::string communications_device_id_;
   std::set<std::string> removed_input_audio_device_ids_;
+  DISALLOW_COPY_AND_ASSIGN(MockAudioManager);
 };
 
 // This class mocks the video capture device factory and overrides some methods
@@ -235,10 +228,6 @@ class MediaDevicesManagerTest : public ::testing::Test {
   MediaDevicesManagerTest()
       : task_environment_(content::BrowserTaskEnvironment::IO_MAINLOOP),
         video_capture_device_factory_(nullptr) {}
-
-  MediaDevicesManagerTest(const MediaDevicesManagerTest&) = delete;
-  MediaDevicesManagerTest& operator=(const MediaDevicesManagerTest&) = delete;
-
   ~MediaDevicesManagerTest() override { audio_manager_->Shutdown(); }
 
   MOCK_METHOD1(MockCallback, void(const MediaDeviceEnumeration&));
@@ -319,18 +308,17 @@ class MediaDevicesManagerTest : public ::testing::Test {
     auto video_capture_provider =
         std::make_unique<InProcessVideoCaptureProvider>(
             std::move(video_capture_system),
-            base::SingleThreadTaskRunner::GetCurrentDefault(),
-            kIgnoreLogMessageCB);
+            base::ThreadTaskRunnerHandle::Get(), kIgnoreLogMessageCB);
     video_capture_manager_ = new VideoCaptureManager(
         std::move(video_capture_provider), kIgnoreLogMessageCB);
-    media_devices_manager_ = std::make_unique<MediaDevicesManager>(
+    media_devices_manager_.reset(new MediaDevicesManager(
         audio_system_.get(), video_capture_manager_,
         base::BindRepeating(
             &MockMediaDevicesManagerClient::StopRemovedInputDevice,
             base::Unretained(&media_devices_manager_client_)),
         base::BindRepeating(
             &MockMediaDevicesManagerClient::InputDevicesChangedUI,
-            base::Unretained(&media_devices_manager_client_)));
+            base::Unretained(&media_devices_manager_client_))));
     media_devices_manager_->set_salt_and_origin_callback_for_testing(
         base::BindRepeating(&GetSaltAndOrigin));
     media_devices_manager_->SetPermissionChecker(
@@ -348,12 +336,15 @@ class MediaDevicesManagerTest : public ::testing::Test {
 
   std::unique_ptr<MediaDevicesManager> media_devices_manager_;
   scoped_refptr<VideoCaptureManager> video_capture_manager_;
-  raw_ptr<MockVideoCaptureDeviceFactory> video_capture_device_factory_;
+  MockVideoCaptureDeviceFactory* video_capture_device_factory_;
   std::unique_ptr<MockAudioManager> audio_manager_;
   std::unique_ptr<media::AudioSystem> audio_system_;
   testing::StrictMock<MockMediaDevicesManagerClient>
       media_devices_manager_client_;
   std::set<std::string> removed_device_ids_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MediaDevicesManagerTest);
 };
 
 TEST_F(MediaDevicesManagerTest, EnumerateNoCacheAudioInput) {
@@ -976,7 +967,7 @@ TEST_F(MediaDevicesManagerTest, EnumerateDevicesWithCapabilities) {
 
 TEST_F(MediaDevicesManagerTest, EnumerateDevicesUnplugDefaultDevice) {
   // This tests does not apply to CrOS, which is to seamlessly switch device.
-#if !BUILDFLAG(IS_CHROMEOS)
+#if !BUILDFLAG(IS_CHROMEOS_ASH)
   std::string default_device_id("fake_device_id_1");
   std::string new_default_device_id("fake_device_id_2");
 
@@ -1010,13 +1001,13 @@ TEST_F(MediaDevicesManagerTest, EnumerateDevicesUnplugDefaultDevice) {
   EXPECT_TRUE(base::Contains(removed_device_ids_, default_device_id));
   EXPECT_TRUE(base::Contains(removed_device_ids_,
                              media::AudioDeviceDescription::kDefaultDeviceId));
-#endif  // !BUILDFLAG(IS_CHROMEOS)
+#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 }
 
 TEST_F(MediaDevicesManagerTest, EnumerateDevicesUnplugCommunicationsDevice) {
   // This test has only significance on Windows devices, since communication
   // devices can only be found on windows.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   std::string communications_device_id("fake_device_id_1");
   std::string new_communications_device_id("fake_device_id_2");
 
@@ -1051,14 +1042,14 @@ TEST_F(MediaDevicesManagerTest, EnumerateDevicesUnplugCommunicationsDevice) {
   EXPECT_TRUE(
       base::Contains(removed_device_ids_,
                      media::AudioDeviceDescription::kCommunicationsDeviceId));
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 }
 
 TEST_F(MediaDevicesManagerTest,
        EnumerateDevicesUnplugDefaultAndCommunicationsDevice) {
   // This test has only significance on Windows devices, since communication
   // devices can only be found on windows.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // The two device IDs that will be used as 'default' and 'communications'
   // devices.
   std::string target_device_id("fake_device_id_1");
@@ -1100,7 +1091,7 @@ TEST_F(MediaDevicesManagerTest,
   EXPECT_TRUE(
       base::Contains(removed_device_ids_,
                      media::AudioDeviceDescription::kCommunicationsDeviceId));
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 }
 
 TEST_F(MediaDevicesManagerTest, GuessVideoGroupID) {
@@ -1183,55 +1174,6 @@ TEST_F(MediaDevicesManagerTest, GuessVideoGroupID) {
             repeated_usb1_video.device_id);
   EXPECT_EQ(GuessVideoGroupID(audio_devices, repeated_usb2_video),
             repeated_usb2_video.device_id);
-}
-
-TEST_F(MediaDevicesManagerTest, DeviceIdSaltReset) {
-  EXPECT_CALL(*video_capture_device_factory_, MockGetDevicesInfo()).Times(2);
-  EXPECT_CALL(media_devices_manager_client_, InputDevicesChangedUI(_, _))
-      .Times(1);
-
-  size_t num_video_input_devices = 4;
-  video_capture_device_factory_->SetToDefaultDevicesConfig(
-      num_video_input_devices);
-
-  // Run an enumeration to make sure |media_devices_manager_| has the new
-  // configuration.
-  EXPECT_CALL(*this, MockCallback(_));
-  MediaDevicesManager::BoolDeviceTypes devices_to_enumerate;
-  devices_to_enumerate[static_cast<size_t>(
-      MediaDeviceType::MEDIA_VIDEO_INPUT)] = true;
-  base::RunLoop run_loop;
-  media_devices_manager_->EnumerateDevices(
-      devices_to_enumerate,
-      base::BindOnce(&MediaDevicesManagerTest::EnumerateCallback,
-                     base::Unretained(this), &run_loop));
-  run_loop.Run();
-
-  // Add device-change event listener.
-  MockMediaDevicesListener listener_video_input;
-  MediaDevicesManager::BoolDeviceTypes video_input_devices_to_subscribe;
-  video_input_devices_to_subscribe[static_cast<size_t>(
-      MediaDeviceType::MEDIA_VIDEO_INPUT)] = true;
-  media_devices_manager_->SubscribeDeviceChangeNotifications(
-      kRenderProcessId, kRenderFrameId, video_input_devices_to_subscribe,
-      listener_video_input.CreateInterfacePtrAndBind());
-
-  // Expect an OnDevicesChanged event.
-  blink::WebMediaDeviceInfoArray notification_video_input;
-  EXPECT_CALL(listener_video_input,
-              OnDevicesChanged(MediaDeviceType::MEDIA_VIDEO_INPUT, _))
-      .Times(1)
-      .WillOnce(SaveArg<1>(&notification_video_input));
-
-  base::RunLoop().RunUntilIdle();
-
-  // Set a new salt and notify MDM.
-  salt = "new-device-id-salt";
-  media_devices_manager_->OnDevicesChanged(
-      base::SystemMonitor::DEVTYPE_VIDEO_CAPTURE);
-
-  base::RunLoop().RunUntilIdle();
-  EXPECT_EQ(num_video_input_devices, notification_video_input.size());
 }
 
 }  // namespace content

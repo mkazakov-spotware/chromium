@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ namespace blink {
 
 RTCPeerConnectionIceErrorEvent* RTCPeerConnectionIceErrorEvent::Create(
     const String& address,
-    absl::optional<uint16_t> port,
+    base::Optional<uint16_t> port,
     const String& host_candidate,
     const String& url,
     int error_code,
@@ -30,7 +30,7 @@ RTCPeerConnectionIceErrorEvent* RTCPeerConnectionIceErrorEvent::Create(
 
 RTCPeerConnectionIceErrorEvent::RTCPeerConnectionIceErrorEvent(
     const String& address,
-    absl::optional<uint16_t> port,
+    base::Optional<uint16_t> port,
     const String& host_candidate,
     const String& url,
     uint16_t error_code,
@@ -57,8 +57,8 @@ RTCPeerConnectionIceErrorEvent::RTCPeerConnectionIceErrorEvent(
     host_candidate_ = initializer->hostCandidate();
   if (initializer->hasUrl())
     url_ = initializer->url();
-  if (initializer->hasErrorText())
-    error_text_ = initializer->errorText();
+  if (initializer->hasStatusText())
+    error_text_ = initializer->statusText();
 }
 
 RTCPeerConnectionIceErrorEvent::~RTCPeerConnectionIceErrorEvent() = default;
@@ -67,7 +67,7 @@ String RTCPeerConnectionIceErrorEvent::address() const {
   return address_;
 }
 
-absl::optional<uint16_t> RTCPeerConnectionIceErrorEvent::port() const {
+base::Optional<uint16_t> RTCPeerConnectionIceErrorEvent::port() const {
   return port_;
 }
 

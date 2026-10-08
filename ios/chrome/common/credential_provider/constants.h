@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,20 +10,9 @@
 // Path to the persisted file for the credential provider archivable store.
 NSURL* CredentialProviderSharedArchivableStoreURL();
 
-// Key for the app group user defaults containing the user ID, which can be
+// Key for the app group user defaults containing the managed user ID to be
 // validated in the extension.
-NSString* AppGroupUserDefaultsCredentialProviderUserID();
-
-// Key for the app group user defaults containing the current user email.
-NSString* AppGroupUserDefaultsCredentialProviderUserEmail();
-
-// Key for the app group user defaults containing the metadata for credentials
-// created in the extension.
-NSString* AppGroupUserDefaultsCredentialProviderNewCredentials();
-
-// Key for the app group user defaults containing whether saving passwords is
-// currently enabled.
-NSString* AppGroupUserDefaulsCredentialProviderSavingPasswordsEnabled();
+NSString* AppGroupUserDefaultsCredentialProviderManagedUserID();
 
 // An array of deprecated keys to be removed if present.
 NSArray<NSString*>* UnusedUserDefaultsCredentialProviderKeys();
@@ -39,25 +28,8 @@ extern NSString* const
 // to be sync once Chrome is updated.
 extern NSString* const kUserDefaultsCredentialProviderFirstTimeSyncCompleted;
 
-// Values of the UMA IOS.CredentialExtension.PasswordCreated. Must be kept up to
-// date with IOSCredentialProviderPasswordCreated in enums.xml. These values are
-// persisted to logs. Entries should not be renumbered and numeric values should
-// never be reused.
-enum class CPEPasswordCreated {
-  kPasswordManuallyEntered = 0,
-  kPasswordSuggested = 1,
-  kPasswordSuggestedAndChanged = 2,
-  kMaxValue = kPasswordSuggestedAndChanged,
-};
-
-// Values of the UMA IOS.CredentialExtension.NewCredentialUsername. Must be kept
-// up to date with IOSCredentialProviderNewCredentialUsername in enums.xml.
-// These values are persisted to logs. Entries should not be renumbered and
-// numeric values should never be reused.
-enum class CPENewCredentialUsername {
-  kCredentialWithUsername = 0,
-  kCredentialWithoutUsername = 1,
-  kMaxValue = kCredentialWithoutUsername,
-};
+// Key for the app group user defaults indicating if the user has enabled and
+// given consent for the credential provider extension.
+extern NSString* const kUserDefaultsCredentialProviderConsentVerified;
 
 #endif  // IOS_CHROME_COMMON_CREDENTIAL_PROVIDER_CONSTANTS_H_

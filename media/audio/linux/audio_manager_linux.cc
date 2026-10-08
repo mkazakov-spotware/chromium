@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,9 @@
 #include "media/audio/alsa/audio_manager_alsa.h"
 #endif
 
-#if defined(USE_CRAS)
+#if defined(USE_CRAS) && BUILDFLAG(IS_ASH)
+#include "media/audio/cras/audio_manager_chromeos.h"
+#elif defined(USE_CRAS)
 #include "media/audio/cras/audio_manager_cras.h"
 #endif
 
@@ -25,6 +27,13 @@
 #endif
 
 namespace media {
+
+enum LinuxAudioIO {
+  kPulse,
+  kAlsa,
+  kCras,
+  kAudioIOMax = kCras  // Must always be equal to largest logged entry.
+};
 
 std::unique_ptr<media::AudioManager> CreateAudioManager(
     std::unique_ptr<AudioThread> audio_thread,
@@ -38,8 +47,14 @@ std::unique_ptr<media::AudioManager> CreateAudioManager(
 
 #if defined(USE_CRAS)
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kUseCras)) {
+    UMA_HISTOGRAM_ENUMERATION("Media.LinuxAudioIO", kCras, kAudioIOMax + 1);
+#if BUILDFLAG(IS_ASH)
+    return std::make_unique<AudioManagerChromeOS>(std::move(audio_thread),
+                                                  audio_log_factory);
+#else
     return std::make_unique<AudioManagerCras>(std::move(audio_thread),
-                                              audio_log_factory);
+                                                   audio_log_factory);
+#endif
   }
 #endif // defined(USE_CRAS)
 
@@ -47,6 +62,7 @@ std::unique_ptr<media::AudioManager> CreateAudioManager(
   pa_threaded_mainloop* pa_mainloop = nullptr;
   pa_context* pa_context = nullptr;
   if (pulse::InitPulse(&pa_mainloop, &pa_context)) {
+    UMA_HISTOGRAM_ENUMERATION("Media.LinuxAudioIO", kPulse, kAudioIOMax + 1);
     return std::make_unique<AudioManagerPulse>(
         std::move(audio_thread), audio_log_factory, pa_mainloop, pa_context);
   }
@@ -55,6 +71,7 @@ std::unique_ptr<media::AudioManager> CreateAudioManager(
 #endif
 
 #if defined(USE_ALSA)
+  UMA_HISTOGRAM_ENUMERATION("Media.LinuxAudioIO", kAlsa, kAudioIOMax + 1);
   return std::make_unique<AudioManagerAlsa>(std::move(audio_thread),
                                             audio_log_factory);
 #else

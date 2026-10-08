@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
+#include "base/optional.h"
 #include "chrome/browser/extensions/api/notifications/extension_notification_handler.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/test/base/testing_browser_process.h"
@@ -13,7 +14,6 @@
 #include "chrome/test/base/testing_profile_manager.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace extensions {
 namespace {
@@ -41,10 +41,10 @@ class TestExtensionNotificationHandler : public ExtensionNotificationHandler {
                  events::HistogramValue histogram_value,
                  const std::string& event_name,
                  EventRouter::UserGestureState user_gesture,
-                 base::Value::List args) final {
+                 std::unique_ptr<base::ListValue> args) final {
     EXPECT_EQ(event_name_, event_name);
     EXPECT_EQ(extension_id_, extension_id);
-    EXPECT_EQ(param_count_, args.size());
+    EXPECT_EQ(param_count_, args->GetSize());
   }
 
  private:
@@ -82,8 +82,8 @@ TEST_F(ExtensionNotificationHandlerTest, ClickHandler) {
   TestExtensionNotificationHandler handler;
   handler.SetTestExpectations(kChromeExtensionId, "notifications.onClicked", 1);
   handler.OnClick(profile.get(), GURL(kChromeExtensionOrigin),
-                  kChromeNotificationId, absl::nullopt /* action_index */,
-                  absl::nullopt /* reply */, base::DoNothing());
+                  kChromeNotificationId, base::nullopt /* action_index */,
+                  base::nullopt /* reply */, base::DoNothing());
 }
 
 TEST_F(ExtensionNotificationHandlerTest, ClickHandlerButton) {
@@ -96,7 +96,7 @@ TEST_F(ExtensionNotificationHandlerTest, ClickHandlerButton) {
                               "notifications.onButtonClicked", 2);
   handler.OnClick(profile.get(), GURL(kChromeExtensionOrigin),
                   kChromeNotificationId, 1 /* action_index */,
-                  absl::nullopt /* reply */, base::DoNothing());
+                  base::nullopt /* reply */, base::DoNothing());
 }
 
 }  // namespace extensions

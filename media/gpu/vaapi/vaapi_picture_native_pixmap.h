@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,16 @@
 
 #include <stdint.h>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "media/gpu/vaapi/va_surface.h"
 #include "media/gpu/vaapi/vaapi_picture.h"
+#include "ui/gfx/buffer_types.h"
 #include "ui/gfx/geometry/size.h"
+#include "ui/gfx/gpu_memory_buffer.h"
+
+namespace gl {
+class GLImage;
+}
 
 namespace media {
 
@@ -29,10 +35,6 @@ class VaapiPictureNativePixmap : public VaapiPicture {
       uint32_t texture_id,
       uint32_t client_texture_id,
       uint32_t texture_target);
-
-  VaapiPictureNativePixmap(const VaapiPictureNativePixmap&) = delete;
-  VaapiPictureNativePixmap& operator=(const VaapiPictureNativePixmap&) = delete;
-
   ~VaapiPictureNativePixmap() override;
 
   // VaapiPicture implementation.
@@ -41,8 +43,14 @@ class VaapiPictureNativePixmap : public VaapiPicture {
   VASurfaceID va_surface_id() const override;
 
  protected:
+  // GLImage bound to the GL textures used by the VDA client.
+  scoped_refptr<gl::GLImage> gl_image_;
+
   // VASurface used to transfer from the decoder's pixel format.
   scoped_refptr<VASurface> va_surface_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(VaapiPictureNativePixmap);
 };
 
 }  // namespace media

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "components/os_crypt/os_crypt_mocker.h"
+#include "components/sync/base/fake_encryptor.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace syncer {
@@ -26,12 +26,9 @@ class NigoriStorageImplTest : public testing::Test {
   NigoriStorageImplTest() = default;
   ~NigoriStorageImplTest() override = default;
 
-  void SetUp() override {
-    ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
-    OSCryptMocker::SetUp();
-  }
+  void SetUp() override { ASSERT_TRUE(temp_dir_.CreateUniqueTempDir()); }
 
-  void TearDown() override { OSCryptMocker::TearDown(); }
+  const Encryptor* encryptor() { return &encryptor_; }
 
   base::FilePath GetFilePath() {
     return temp_dir_.GetPath().Append(
@@ -39,30 +36,31 @@ class NigoriStorageImplTest : public testing::Test {
   }
 
  private:
+  FakeEncryptor encryptor_;
   base::ScopedTempDir temp_dir_;
 };
 
 TEST_F(NigoriStorageImplTest, ShouldBeAbleToRestoreAfterWrite) {
-  NigoriStorageImpl writer_storage(GetFilePath());
+  NigoriStorageImpl writer_storage(GetFilePath(), encryptor());
   sync_pb::NigoriLocalData write_data = MakeSomeNigoriLocalData();
   writer_storage.StoreData(write_data);
 
   // Use different NigoriStorageImpl when reading to avoid dependency on its
   // state and emulate browser restart.
-  NigoriStorageImpl reader_storage(GetFilePath());
-  absl::optional<sync_pb::NigoriLocalData> read_data =
+  NigoriStorageImpl reader_storage(GetFilePath(), encryptor());
+  base::Optional<sync_pb::NigoriLocalData> read_data =
       reader_storage.RestoreData();
-  EXPECT_NE(read_data, absl::nullopt);
+  EXPECT_NE(read_data, base::nullopt);
   EXPECT_EQ(read_data->SerializeAsString(), write_data.SerializeAsString());
 }
 
 TEST_F(NigoriStorageImplTest, ShouldReturnNulloptWhenFileNotExists) {
-  NigoriStorageImpl storage(GetFilePath());
-  EXPECT_EQ(storage.RestoreData(), absl::nullopt);
+  NigoriStorageImpl storage(GetFilePath(), encryptor());
+  EXPECT_EQ(storage.RestoreData(), base::nullopt);
 }
 
 TEST_F(NigoriStorageImplTest, ShouldRemoveFile) {
-  NigoriStorageImpl storage(GetFilePath());
+  NigoriStorageImpl storage(GetFilePath(), encryptor());
   sync_pb::NigoriLocalData data = MakeSomeNigoriLocalData();
   storage.StoreData(data);
   ASSERT_TRUE(base::PathExists(GetFilePath()));

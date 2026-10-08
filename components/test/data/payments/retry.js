@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Chromium Authors
+ * Copyright 2019 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -10,32 +10,14 @@ var gRetryPromise = null;
 /**
  * Launches the PaymentRequest UI
  */
-function buy() {
-  buyWithMethod([{supportedMethods: 'basic-card'}]);
-}
-
-/**
- * Launches the PaymentRequest UI
- */
-function buyWithUrlMethod() {
-  buyWithMethod([
-    {supportedMethods: 'https://bobpay.com'},
-    {supportedMethods: 'https://kylepay.com/webpay'},
-  ]);
-}
-
-/**
- * Launches the PaymentRequest UI
- * @param {string} method The payment method to request
- */
-function buyWithMethod(method) {
+function buy() { // eslint-disable-line no-unused-vars
   var options = {
     requestPayerEmail: true,
     requestPayerName: true,
     requestPayerPhone: true,
     requestShipping: true,
   };
-  getPaymentResponseWithMethod(options, method)
+  getPaymentResponse(options)
       .then(function(response) {
         gPaymentResponse = response;
         var eventPromise = new Promise(function(resolve) {
@@ -55,7 +37,7 @@ function buyWithMethod(method) {
  *
  * @param {PaymentValidationErrors} validationErrors Represent validation errors
  */
-function retry(validationErrors) {
+function retry(validationErrors) { // eslint-disable-line no-unused-vars
   if (gPaymentResponse == null) {
     return;
   }

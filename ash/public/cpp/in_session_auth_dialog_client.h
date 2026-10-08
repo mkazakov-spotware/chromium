@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "ash/public/cpp/ash_public_export.h"
 #include "ash/public/cpp/login_types.h"
 #include "base/callback_forward.h"
-#include "base/functional/callback_forward.h"
 #include "components/account_id/account_id.h"
 
 namespace aura {
@@ -23,12 +22,6 @@ namespace ash {
 // is responsible for.
 class ASH_PUBLIC_EXPORT InSessionAuthDialogClient {
  public:
-  // Starts a cryptohome auth session that spans the life of the dialog.
-  virtual void StartAuthSession(base::OnceCallback<void(bool)> callback) = 0;
-
-  // Ends the cryptohome auth session when the dialog is destroyed.
-  virtual void InvalidateAuthSession() = 0;
-
   // Attempt to authenticate the current session user with a password or PIN.
   // |password|: The submitted password.
   // |authenticated_by_pin|: True if we are authenticating by PIN..
@@ -47,7 +40,7 @@ class ASH_PUBLIC_EXPORT InSessionAuthDialogClient {
       base::OnceCallback<void(bool)> callback) = 0;
 
   // Switch biometrics daemon to normal mode. Used when closing the dialog.
-  virtual void EndFingerprintAuthSession(base::OnceClosure callback) = 0;
+  virtual void EndFingerprintAuthSession() = 0;
 
   // Check whether PIN auth is available for |account_id|.
   virtual void CheckPinAuthAvailability(

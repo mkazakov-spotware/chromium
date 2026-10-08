@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,8 @@
     TestRunner.addResult(`# of node.appendChild calls: ${calls.appendChild.length}`);
     TestRunner.addResult(`# of node.removeChildren calls: ${calls.removeChildren.length}`);
     calls.appendChild.forEach(node => {
-      const data = node.data;
-      const selected = node.selected ? '[selected]' : '';
+      const data = node._data;
+      const selected = node._selected ? '[selected]' : '';
       TestRunner.addResult(`node.appendChild call: ${data.name} ${data.value} ${data.expires} ${selected}`.trim());
     });
   }
@@ -27,7 +27,7 @@
     };
 
     var mockNode = {
-      calls: calls,
+      _calls: calls,
       dataGrid: options.dataGrid,
       cookie: options.cookie,
       deselect: () => undefined,
@@ -70,7 +70,7 @@
       startEditingNextEditableColumnOfDataGridNode: function() {
         calls.startEditingNextEditableColumnOfDataGridNode.push(arguments);
       },
-      calls: calls,
+      _calls: calls,
     };
 
     return dataGrid;
@@ -90,8 +90,8 @@
   function createSortAndDumpCookies(cookieData, sortColumn, isAsc) {
     const table = new CookieTable.CookiesTable(SDK.targetManager.mainTarget(), true);
     const cookies = cookieData.map(createCookie);
-    table.dataGrid = mockDataGrid({sortColumn, isAsc});
-    table.sortCookies(cookies);
+    table._dataGrid = mockDataGrid({sortColumn, isAsc});
+    table._sortCookies(cookies);
     TestRunner.addResult(`params: ${sortColumn} ${isAsc ? 'asc' : 'desc'}`);
     dumpCookies(cookies);
   }
@@ -100,15 +100,15 @@
     const table = new CookieTable.CookiesTable(SDK.targetManager.mainTarget(), true);
     const cookies = cookieData && cookieData.map(createCookie);
     const rootNode = mockNode({});
-    table.lastEditedColumnId = lastEditedColumn || null;
-    table.dataGrid = mockDataGrid({
+    table._lastEditedColumnId = lastEditedColumn || null;
+    table._dataGrid = mockDataGrid({
       isAsc: Boolean(isAsc),
       sortColumn: 'name',
       rootNode: rootNode,
       selectedNode: selectedNode,
     });
     table.setCookies(cookies);
-    dumpNodeCalls(rootNode.calls);
+    dumpNodeCalls(rootNode._calls);
   }
 
   function testSortCookies(cookieData) {
@@ -154,6 +154,5 @@
     TestRunner.completeTest();
   }
 
-  await TestRunner.loadLegacyModule('cookie_table');
-  run();
+  self.runtime.loadModulePromise('cookie_table').then(run);
 })();

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2013 The Chromium Authors
+# Copyright (c) 2013 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -174,7 +174,7 @@ def main(args):
   retval = 0
   lib_files = PartitionFiles(options.sources)
   directory_list = GetDirectoryList(PPAPI_DIR, relative_to=SRC_DIR)
-  for lib_name, filenames in iter(lib_files.items()):
+  for lib_name, filenames in lib_files.iteritems():
     if not filenames:
       continue
 

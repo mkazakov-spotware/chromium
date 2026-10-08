@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #include <windows.h>
@@ -40,7 +40,7 @@ third_party_dlls::ExitCode LoadDll(std::wstring name) {
 
 // Utility function to protect the local registry.
 void RegRedirect(registry_util::RegistryOverrideManager* rom) {
-  std::wstring temp;
+  base::string16 temp;
   rom->OverrideRegistry(HKEY_CURRENT_USER, &temp);
   nt::SetTestingOverride(nt::HKCU, temp);
 }
@@ -52,7 +52,7 @@ void RegRedirect(registry_util::RegistryOverrideManager* rom) {
 bool MatchPath(const wchar_t* arg_path, const third_party_dlls::LogEntry& log) {
   base::FilePath drive_path;
   if (!base::DevicePathToDriveLetterPath(
-          base::FilePath(base::UTF8ToWide(log.path)), &drive_path)) {
+          base::FilePath(base::UTF8ToUTF16(log.path)), &drive_path)) {
     return false;
   }
 
@@ -70,7 +70,7 @@ bool MatchPath(const wchar_t* arg_path, const third_party_dlls::LogEntry& log) {
 // - Attempt to load a specific DLL.
 //
 // Arguments:
-// #1: path to test blocklist file (mandatory).
+// #1: path to test blacklist file (mandatory).
 // #2: test identifier (mandatory).
 // #3: path to dll (test-identifier dependent).
 //
@@ -92,21 +92,21 @@ int main() {
   install_static::InitializeProductDetailsForPrimaryModule();
   install_static::InitializeProcessType();
 
-  // Get the required arguments, path to blocklist file and test id to run.
+  // Get the required arguments, path to blacklist file and test id to run.
   if (argument_count < 3)
     return third_party_dlls::kMissingArgument;
 
-  const wchar_t* blocklist_path = argv[1];
-  if (!blocklist_path || ::wcslen(blocklist_path) == 0)
-    return third_party_dlls::kBadBlocklistPath;
+  const wchar_t* blacklist_path = argv[1];
+  if (!blacklist_path || ::wcslen(blacklist_path) == 0)
+    return third_party_dlls::kBadBlacklistPath;
 
   const wchar_t* arg2 = argv[2];
   int test_id = ::_wtoi(arg2);
   if (!test_id)
     return third_party_dlls::kUnsupportedTestId;
 
-  // Override blocklist path before initializing.
-  third_party_dlls::OverrideFilePathForTesting(blocklist_path);
+  // Override blacklist path before initializing.
+  third_party_dlls::OverrideFilePathForTesting(blacklist_path);
 
   // Enable a registry test net before initializing.
   registry_util::RegistryOverrideManager rom;

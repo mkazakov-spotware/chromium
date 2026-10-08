@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include "components/invalidation/public/invalidation_util.h"
 #include "components/invalidation/public/invalidator_state.h"
 
-namespace invalidation {
+namespace syncer {
 
 class TopicInvalidationMap;
 
@@ -32,6 +32,8 @@ class INVALIDATION_EXPORT InvalidationHandler {
 
   // Returned value must be unique for the handlers using the same invalidation
   // service.
+  // TODO(crbug.com/1049591): this is currently not the case for
+  // CloudPolicyInvalidator.
   virtual std::string GetOwnerName() const = 0;
 
   // Called on change of |client_id|. Client id is used to identify the
@@ -42,6 +44,6 @@ class INVALIDATION_EXPORT InvalidationHandler {
   virtual bool IsPublicTopic(const Topic& topic) const;
 };
 
-}  // namespace invalidation
+}  // namespace syncer
 
 #endif  // COMPONENTS_INVALIDATION_PUBLIC_INVALIDATION_HANDLER_H_

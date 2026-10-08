@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -161,9 +161,8 @@ TEST(CFIBacktraceAndroidTest, TestCFICache) {
   EXPECT_FALSE(cache.Find(1, &cfi));
 
   // Insert 1 - 2*kLimit
-  for (uintptr_t i = 1; i <= 2 * cache.kLimit; ++i) {
-    CFIBacktraceAndroid::CFIRow val = {static_cast<uint16_t>(4 * i),
-                                       static_cast<uint16_t>(2 * i)};
+  for (size_t i = 1; i <= 2 * cache.kLimit; ++i) {
+    CFIBacktraceAndroid::CFIRow val = {4 * i, 2 * i};
     cache.Add(i, val);
     ASSERT_TRUE(cache.Find(i, &cfi));
     ASSERT_EQ(cfi, val);
@@ -175,14 +174,13 @@ TEST(CFIBacktraceAndroidTest, TestCFICache) {
   // Cache contains kLimit+1 - 2*kLimit.
 
   // Check that 1 - kLimit cannot be found.
-  for (uintptr_t i = 1; i <= cache.kLimit; ++i) {
+  for (size_t i = 1; i <= cache.kLimit; ++i) {
     ASSERT_FALSE(cache.Find(i, &cfi));
   }
 
   // Check if kLimit+1 - 2*kLimit still exists in cache.
-  for (uintptr_t i = cache.kLimit + 1; i <= 2 * cache.kLimit; ++i) {
-    CFIBacktraceAndroid::CFIRow val = {static_cast<uint16_t>(4 * i),
-                                       static_cast<uint16_t>(2 * i)};
+  for (size_t i = cache.kLimit + 1; i <= 2 * cache.kLimit; ++i) {
+    CFIBacktraceAndroid::CFIRow val = {4 * i, 2 * i};
     ASSERT_TRUE(cache.Find(i, &cfi));
     ASSERT_EQ(cfi, val);
   }

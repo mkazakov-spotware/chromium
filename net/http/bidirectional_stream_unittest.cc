@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,10 @@
 #include <vector>
 
 #include "base/containers/span.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
 #include "base/timer/mock_timer.h"
@@ -22,12 +23,10 @@
 #include "net/base/load_timing_info.h"
 #include "net/base/load_timing_info_test_util.h"
 #include "net/base/net_errors.h"
-#include "net/dns/public/secure_dns_policy.h"
 #include "net/http/bidirectional_stream_request_info.h"
 #include "net/http/http_network_session.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_server_properties.h"
-#include "net/log/net_log.h"
 #include "net/log/net_log_capture_mode.h"
 #include "net/log/net_log_event_type.h"
 #include "net/log/net_log_source_type.h"
@@ -54,7 +53,7 @@ namespace net {
 namespace {
 
 const char kBodyData[] = "Body data";
-const size_t kBodyDataSize = std::size(kBodyData);
+const size_t kBodyDataSize = base::size(kBodyData);
 const std::string kBodyDataString(kBodyData, kBodyDataSize);
 // Size of the buffer to be allocated for each read.
 const size_t kReadBufferSize = 4096;
@@ -66,7 +65,7 @@ void ExpectLoadTimingValid(const LoadTimingInfo& load_timing_info) {
   EXPECT_FALSE(load_timing_info.receive_headers_end.is_null());
   EXPECT_FALSE(load_timing_info.send_start.is_null());
   EXPECT_FALSE(load_timing_info.send_end.is_null());
-  EXPECT_TRUE(load_timing_info.request_start <=
+  EXPECT_TRUE(load_timing_info.request_start <
               load_timing_info.receive_headers_end);
   EXPECT_TRUE(load_timing_info.send_start <= load_timing_info.send_end);
 }
@@ -104,10 +103,16 @@ class TestDelegateBase : public BidirectionalStream::Delegate {
                    std::unique_ptr<base::OneShotTimer> timer)
       : read_buf_(read_buf),
         read_buf_len_(read_buf_len),
-        timer_(std::move(timer)) {}
-
-  TestDelegateBase(const TestDelegateBase&) = delete;
-  TestDelegateBase& operator=(const TestDelegateBase&) = delete;
+        timer_(std::move(timer)),
+        loop_(nullptr),
+        received_bytes_(0),
+        sent_bytes_(0),
+        error_(OK),
+        on_data_read_count_(0),
+        on_data_sent_count_(0),
+        do_not_start_read_(false),
+        run_until_completion_(false),
+        not_expect_callback_(false) {}
 
   ~TestDelegateBase() override = default;
 
@@ -167,8 +172,8 @@ class TestDelegateBase : public BidirectionalStream::Delegate {
 
   void Start(std::unique_ptr<BidirectionalStreamRequestInfo> request_info,
              HttpNetworkSession* session) {
-    stream_ = std::make_unique<BidirectionalStream>(
-        std::move(request_info), session, true, this, std::move(timer_));
+    stream_.reset(new BidirectionalStream(std::move(request_info), session,
+                                          true, this, std::move(timer_)));
     if (run_until_completion_)
       loop_->Run();
   }
@@ -177,8 +182,8 @@ class TestDelegateBase : public BidirectionalStream::Delegate {
              HttpNetworkSession* session,
              CompletionOnceCallback cb) {
     callback_ = std::move(cb);
-    stream_ = std::make_unique<BidirectionalStream>(
-        std::move(request_info), session, true, this, std::move(timer_));
+    stream_.reset(new BidirectionalStream(std::move(request_info), session,
+                                          true, this, std::move(timer_)));
     if (run_until_completion_)
       WaitUntilCompletion();
   }
@@ -272,7 +277,7 @@ class TestDelegateBase : public BidirectionalStream::Delegate {
   // Sets whether the delegate should wait until the completion of the stream.
   void SetRunUntilCompletion(bool run_until_completion) {
     run_until_completion_ = run_until_completion;
-    loop_ = std::make_unique<base::RunLoop>();
+    loop_.reset(new base::RunLoop);
   }
 
  protected:
@@ -289,19 +294,20 @@ class TestDelegateBase : public BidirectionalStream::Delegate {
   spdy::Http2HeaderBlock response_headers_;
   spdy::Http2HeaderBlock trailers_;
   NextProto next_proto_;
-  int64_t received_bytes_ = 0;
-  int64_t sent_bytes_ = 0;
+  int64_t received_bytes_;
+  int64_t sent_bytes_;
   LoadTimingInfo load_timing_info_;
-  int error_ = OK;
-  int on_data_read_count_ = 0;
-  int on_data_sent_count_ = 0;
-  bool do_not_start_read_ = false;
-  bool run_until_completion_ = false;
+  int error_;
+  int on_data_read_count_;
+  int on_data_sent_count_;
+  bool do_not_start_read_;
+  bool run_until_completion_;
   // This is to ensure that delegate callback is not invoked synchronously when
   // calling into |stream_|.
-  bool not_expect_callback_ = false;
+  bool not_expect_callback_;
 
   CompletionOnceCallback callback_;
+  DISALLOW_COPY_AND_ASSIGN(TestDelegateBase);
 };
 
 // A delegate that deletes the stream in a particular callback.
@@ -317,10 +323,6 @@ class DeleteStreamDelegate : public TestDelegateBase {
 
   DeleteStreamDelegate(IOBuffer* buf, int buf_len, Phase phase)
       : TestDelegateBase(buf, buf_len), phase_(phase) {}
-
-  DeleteStreamDelegate(const DeleteStreamDelegate&) = delete;
-  DeleteStreamDelegate& operator=(const DeleteStreamDelegate&) = delete;
-
   ~DeleteStreamDelegate() override = default;
 
   void OnHeadersReceived(
@@ -372,16 +374,14 @@ class DeleteStreamDelegate : public TestDelegateBase {
   // Indicates in which callback the delegate should cancel or delete the
   // stream.
   Phase phase_;
+
+  DISALLOW_COPY_AND_ASSIGN(DeleteStreamDelegate);
 };
 
 // A Timer that does not start a delayed task unless the timer is fired.
 class MockTimer : public base::MockOneShotTimer {
  public:
-  MockTimer() = default;
-
-  MockTimer(const MockTimer&) = delete;
-  MockTimer& operator=(const MockTimer&) = delete;
-
+  MockTimer() {}
   ~MockTimer() override = default;
 
   void Start(const base::Location& posted_from,
@@ -392,6 +392,9 @@ class MockTimer : public base::MockOneShotTimer {
     base::MockOneShotTimer::Start(posted_from, infinite_delay,
                                   std::move(user_task));
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockTimer);
 };
 
 }  // namespace
@@ -405,10 +408,9 @@ class BidirectionalStreamTest : public TestWithTaskEnvironment {
     ssl_data_.next_proto = kProtoHTTP2;
     ssl_data_.ssl_info.cert =
         ImportCertFromFile(GetTestCertsDirectory(), "ok_cert.pem");
-    net_log_observer_.SetObserverCaptureMode(NetLogCaptureMode::kEverything);
-    auto socket_factory = std::make_unique<MockTaggingClientSocketFactory>();
-    socket_factory_ = socket_factory.get();
-    session_deps_.socket_factory = std::move(socket_factory);
+    net_log_.SetObserverCaptureMode(NetLogCaptureMode::kEverything);
+    socket_factory_ = new MockTaggingClientSocketFactory();
+    session_deps_.socket_factory.reset(socket_factory_);
   }
 
  protected:
@@ -425,27 +427,25 @@ class BidirectionalStreamTest : public TestWithTaskEnvironment {
                    const SocketTag& socket_tag) {
     ASSERT_TRUE(ssl_data_.ssl_info.cert.get());
     session_deps_.socket_factory->AddSSLSocketDataProvider(&ssl_data_);
-    sequenced_data_ = std::make_unique<SequencedSocketData>(reads, writes);
+    sequenced_data_.reset(new SequencedSocketData(reads, writes));
     session_deps_.socket_factory->AddSocketDataProvider(sequenced_data_.get());
-    session_deps_.net_log = NetLog::Get();
+    session_deps_.net_log = net_log_.bound().net_log();
     http_session_ = SpdySessionDependencies::SpdyCreateSession(&session_deps_);
     SpdySessionKey key(host_port_pair_, ProxyServer::Direct(),
                        PRIVACY_MODE_DISABLED,
                        SpdySessionKey::IsProxySession::kFalse, socket_tag,
-                       NetworkAnonymizationKey(), SecureDnsPolicy::kAllow);
-    session_ =
-        CreateSpdySession(http_session_.get(), key,
-                          NetLogWithSource::Make(NetLogSourceType::NONE));
+                       NetworkIsolationKey(), false /* disable_secure_dns */);
+    session_ = CreateSpdySession(http_session_.get(), key, net_log_.bound());
   }
 
-  RecordingNetLogObserver net_log_observer_;
+  RecordingBoundTestNetLog net_log_;
   SpdyTestUtil spdy_util_;
   SpdySessionDependencies session_deps_;
   const GURL default_url_;
   const HostPortPair host_port_pair_;
   std::unique_ptr<SequencedSocketData> sequenced_data_;
   std::unique_ptr<HttpNetworkSession> http_session_;
-  raw_ptr<MockTaggingClientSocketFactory> socket_factory_;
+  MockTaggingClientSocketFactory* socket_factory_;
 
  private:
   SSLSocketDataProvider ssl_data_;
@@ -453,14 +453,15 @@ class BidirectionalStreamTest : public TestWithTaskEnvironment {
 };
 
 TEST_F(BidirectionalStreamTest, CreateInsecureStream) {
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "GET";
   request_info->url = GURL("http://www.example.org/");
 
   TestDelegateBase delegate(nullptr, 0);
-  auto session = std::make_unique<HttpNetworkSession>(
+  std::unique_ptr<HttpNetworkSession> session(new HttpNetworkSession(
       SpdySessionDependencies::CreateSessionParams(&session_deps_),
-      SpdySessionDependencies::CreateSessionContext(&session_deps_));
+      SpdySessionDependencies::CreateSessionContext(&session_deps_)));
   delegate.SetRunUntilCompletion(true);
   delegate.Start(std::move(request_info), session.get());
 
@@ -485,15 +486,16 @@ TEST_F(BidirectionalStreamTest, SimplePostRequest) {
   };
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "POST";
   request_info->url = default_url_;
   request_info->extra_headers.SetHeader(net::HttpRequestHeaders::kContentLength,
                                         base::NumberToString(kBodyDataSize));
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto delegate =
-      std::make_unique<TestDelegateBase>(read_buffer.get(), kReadBufferSize);
+  std::unique_ptr<TestDelegateBase> delegate(
+      new TestDelegateBase(read_buffer.get(), kReadBufferSize));
   delegate->Start(std::move(request_info), http_session_.get());
   sequenced_data_->RunUntilPaused();
 
@@ -534,11 +536,13 @@ TEST_F(BidirectionalStreamTest, LoadTimingTwoRequests) {
                       MockRead(ASYNC, 0, 6)};
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "GET";
   request_info->url = default_url_;
   request_info->end_stream_on_headers = true;
-  auto request_info2 = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info2(
+      new BidirectionalStreamRequestInfo);
   request_info2->method = "GET";
   request_info2->url = default_url_;
   request_info2->end_stream_on_headers = true;
@@ -547,10 +551,10 @@ TEST_F(BidirectionalStreamTest, LoadTimingTwoRequests) {
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
   scoped_refptr<IOBuffer> read_buffer2 =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto delegate =
-      std::make_unique<TestDelegateBase>(read_buffer.get(), kReadBufferSize);
-  auto delegate2 =
-      std::make_unique<TestDelegateBase>(read_buffer2.get(), kReadBufferSize);
+  std::unique_ptr<TestDelegateBase> delegate(
+      new TestDelegateBase(read_buffer.get(), kReadBufferSize));
+  std::unique_ptr<TestDelegateBase> delegate2(
+      new TestDelegateBase(read_buffer2.get(), kReadBufferSize));
   delegate->Start(std::move(request_info), http_session_.get());
   delegate2->Start(std::move(request_info2), http_session_.get());
   delegate->SetRunUntilCompletion(true);
@@ -571,14 +575,15 @@ TEST_F(BidirectionalStreamTest, LoadTimingTwoRequests) {
 // without waiting for the OnFailed task to be executed.
 TEST_F(BidirectionalStreamTest,
        CreateInsecureStreamAndDestroyStreamRightAfter) {
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "GET";
   request_info->url = GURL("http://www.example.org/");
 
-  auto delegate = std::make_unique<TestDelegateBase>(nullptr, 0);
-  auto session = std::make_unique<HttpNetworkSession>(
+  std::unique_ptr<TestDelegateBase> delegate(new TestDelegateBase(nullptr, 0));
+  std::unique_ptr<HttpNetworkSession> session(new HttpNetworkSession(
       SpdySessionDependencies::CreateSessionParams(&session_deps_),
-      SpdySessionDependencies::CreateSessionContext(&session_deps_));
+      SpdySessionDependencies::CreateSessionContext(&session_deps_)));
   delegate->Start(std::move(request_info), session.get());
   // Reset stream right before the OnFailed task is executed.
   delegate.reset();
@@ -624,8 +629,9 @@ TEST_F(BidirectionalStreamTest, ClientAuthRequestIgnored) {
   SpdySessionKey key(host_port_pair_, ProxyServer::Direct(),
                      PRIVACY_MODE_DISABLED,
                      SpdySessionKey::IsProxySession::kFalse, SocketTag(),
-                     NetworkAnonymizationKey(), SecureDnsPolicy::kAllow);
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+                     NetworkIsolationKey(), false /* disable_secure_dns */);
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "GET";
   request_info->url = default_url_;
   request_info->end_stream_on_headers = true;
@@ -633,8 +639,8 @@ TEST_F(BidirectionalStreamTest, ClientAuthRequestIgnored) {
 
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto delegate =
-      std::make_unique<TestDelegateBase>(read_buffer.get(), kReadBufferSize);
+  std::unique_ptr<TestDelegateBase> delegate(
+      new TestDelegateBase(read_buffer.get(), kReadBufferSize));
 
   delegate->SetRunUntilCompletion(true);
   delegate->Start(std::move(request_info), http_session_.get());
@@ -685,7 +691,8 @@ TEST_F(BidirectionalStreamTest, TestReadDataAfterClose) {
 
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "GET";
   request_info->url = default_url_;
   request_info->end_stream_on_headers = true;
@@ -695,24 +702,23 @@ TEST_F(BidirectionalStreamTest, TestReadDataAfterClose) {
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
   // Create a MockTimer. Retain a raw pointer since the underlying
   // BidirectionalStreamImpl owns it.
-  auto timer = std::make_unique<MockTimer>();
-  MockTimer* timer_ptr = timer.get();
-  auto delegate = std::make_unique<TestDelegateBase>(
-      read_buffer.get(), kReadBufferSize, std::move(timer));
+  MockTimer* timer = new MockTimer();
+  std::unique_ptr<TestDelegateBase> delegate(new TestDelegateBase(
+      read_buffer.get(), kReadBufferSize, base::WrapUnique(timer)));
   delegate->set_do_not_start_read(true);
 
   delegate->Start(std::move(request_info), http_session_.get());
 
   // Write request, and deliver response headers.
   sequenced_data_->RunUntilPaused();
-  EXPECT_FALSE(timer_ptr->IsRunning());
+  EXPECT_FALSE(timer->IsRunning());
   // ReadData returns asynchronously because no data is buffered.
   int rv = delegate->ReadData();
   EXPECT_THAT(rv, IsError(ERR_IO_PENDING));
   // Deliver a DATA frame.
   sequenced_data_->Resume();
   base::RunLoop().RunUntilIdle();
-  timer_ptr->Fire();
+  timer->Fire();
   // Asynchronous completion callback is invoke.
   EXPECT_EQ(1, delegate->on_data_read_count());
   EXPECT_EQ(kUploadDataSize * 1,
@@ -771,7 +777,8 @@ TEST_F(BidirectionalStreamTest, TestNetLogContainEntries) {
 
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "POST";
   request_info->url = default_url_;
   request_info->priority = LOWEST;
@@ -781,15 +788,14 @@ TEST_F(BidirectionalStreamTest, TestNetLogContainEntries) {
 
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto timer = std::make_unique<MockTimer>();
-  MockTimer* timer_ptr = timer.get();
-  auto delegate = std::make_unique<TestDelegateBase>(
-      read_buffer.get(), kReadBufferSize, std::move(timer));
+  MockTimer* timer = new MockTimer();
+  std::unique_ptr<TestDelegateBase> delegate(new TestDelegateBase(
+      read_buffer.get(), kReadBufferSize, base::WrapUnique(timer)));
   delegate->set_do_not_start_read(true);
   delegate->Start(std::move(request_info), http_session_.get());
   // Send the request and receive response headers.
   sequenced_data_->RunUntilPaused();
-  EXPECT_FALSE(timer_ptr->IsRunning());
+  EXPECT_FALSE(timer->IsRunning());
 
   scoped_refptr<StringIOBuffer> buf =
       base::MakeRefCounted<StringIOBuffer>(kBodyDataString);
@@ -804,7 +810,7 @@ TEST_F(BidirectionalStreamTest, TestNetLogContainEntries) {
   // |sequenced_data_| is now stopped after delivering first DATA frame but
   // before the second DATA frame.
   // Fire the timer to allow the first ReadData to complete asynchronously.
-  timer_ptr->Fire();
+  timer->Fire();
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1, delegate->on_data_read_count());
 
@@ -826,7 +832,7 @@ TEST_F(BidirectionalStreamTest, TestNetLogContainEntries) {
   // Destroy the delegate will destroy the stream, so we can get an end event
   // for BIDIRECTIONAL_STREAM_ALIVE.
   delegate.reset();
-  auto entries = net_log_observer_.GetEntries();
+  auto entries = net_log_.GetEntries();
 
   size_t index = ExpectLogContainsSomewhere(
       entries, 0, NetLogEventType::BIDIRECTIONAL_STREAM_ALIVE,
@@ -908,7 +914,8 @@ TEST_F(BidirectionalStreamTest, TestInterleaveReadDataAndSendData) {
 
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "POST";
   request_info->url = default_url_;
   request_info->priority = LOWEST;
@@ -918,15 +925,14 @@ TEST_F(BidirectionalStreamTest, TestInterleaveReadDataAndSendData) {
 
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto timer = std::make_unique<MockTimer>();
-  MockTimer* timer_ptr = timer.get();
-  auto delegate = std::make_unique<TestDelegateBase>(
-      read_buffer.get(), kReadBufferSize, std::move(timer));
+  MockTimer* timer = new MockTimer();
+  std::unique_ptr<TestDelegateBase> delegate(new TestDelegateBase(
+      read_buffer.get(), kReadBufferSize, base::WrapUnique(timer)));
   delegate->set_do_not_start_read(true);
   delegate->Start(std::move(request_info), http_session_.get());
   // Send the request and receive response headers.
   sequenced_data_->RunUntilPaused();
-  EXPECT_FALSE(timer_ptr->IsRunning());
+  EXPECT_FALSE(timer->IsRunning());
 
   // Send a DATA frame.
   scoped_refptr<StringIOBuffer> buf =
@@ -940,7 +946,7 @@ TEST_F(BidirectionalStreamTest, TestInterleaveReadDataAndSendData) {
   // Deliver a DATA frame, and fire the timer.
   sequenced_data_->Resume();
   sequenced_data_->RunUntilPaused();
-  timer_ptr->Fire();
+  timer->Fire();
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1, delegate->on_data_sent_count());
   EXPECT_EQ(1, delegate->on_data_read_count());
@@ -953,7 +959,7 @@ TEST_F(BidirectionalStreamTest, TestInterleaveReadDataAndSendData) {
   // Deliver a DATA frame, and fire the timer.
   sequenced_data_->Resume();
   sequenced_data_->RunUntilPaused();
-  timer_ptr->Fire();
+  timer->Fire();
   base::RunLoop().RunUntilIdle();
   // Last DATA frame is read. Server half closes.
   EXPECT_EQ(2, delegate->on_data_read_count());
@@ -999,7 +1005,8 @@ TEST_F(BidirectionalStreamTest, TestCoalesceSmallDataBuffers) {
 
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "POST";
   request_info->url = default_url_;
   request_info->priority = LOWEST;
@@ -1009,9 +1016,9 @@ TEST_F(BidirectionalStreamTest, TestCoalesceSmallDataBuffers) {
 
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto timer = std::make_unique<MockTimer>();
-  auto delegate = std::make_unique<TestDelegateBase>(
-      read_buffer.get(), kReadBufferSize, std::move(timer));
+  MockTimer* timer = new MockTimer();
+  std::unique_ptr<TestDelegateBase> delegate(new TestDelegateBase(
+      read_buffer.get(), kReadBufferSize, base::WrapUnique(timer)));
   delegate->set_do_not_start_read(true);
   TestCompletionCallback callback;
   delegate->Start(std::move(request_info), http_session_.get(),
@@ -1039,7 +1046,7 @@ TEST_F(BidirectionalStreamTest, TestCoalesceSmallDataBuffers) {
   EXPECT_EQ(CountWriteBytes(writes), delegate->GetTotalSentBytes());
   EXPECT_EQ(CountReadBytes(reads), delegate->GetTotalReceivedBytes());
 
-  auto entries = net_log_observer_.GetEntries();
+  auto entries = net_log_.GetEntries();
   size_t index = ExpectLogContainsSomewhere(
       entries, 0, NetLogEventType::BIDIRECTIONAL_STREAM_SENDV_DATA,
       NetLogEventPhase::NONE);
@@ -1091,7 +1098,8 @@ TEST_F(BidirectionalStreamTest, TestCompleteAsyncRead) {
 
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "GET";
   request_info->url = default_url_;
   request_info->priority = LOWEST;
@@ -1099,15 +1107,14 @@ TEST_F(BidirectionalStreamTest, TestCompleteAsyncRead) {
 
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto timer = std::make_unique<MockTimer>();
-  MockTimer* timer_ptr = timer.get();
-  auto delegate = std::make_unique<TestDelegateBase>(
-      read_buffer.get(), kReadBufferSize, std::move(timer));
+  MockTimer* timer = new MockTimer();
+  std::unique_ptr<TestDelegateBase> delegate(new TestDelegateBase(
+      read_buffer.get(), kReadBufferSize, base::WrapUnique(timer)));
   delegate->set_do_not_start_read(true);
   delegate->Start(std::move(request_info), http_session_.get());
   // Write request, and deliver response headers.
   sequenced_data_->RunUntilPaused();
-  EXPECT_FALSE(timer_ptr->IsRunning());
+  EXPECT_FALSE(timer->IsRunning());
 
   // ReadData should return asynchronously because no data is buffered.
   int rv = delegate->ReadData();
@@ -1152,7 +1159,8 @@ TEST_F(BidirectionalStreamTest, TestBuffering) {
 
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "GET";
   request_info->url = default_url_;
   request_info->priority = LOWEST;
@@ -1160,24 +1168,23 @@ TEST_F(BidirectionalStreamTest, TestBuffering) {
 
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto timer = std::make_unique<MockTimer>();
-  MockTimer* timer_ptr = timer.get();
-  auto delegate = std::make_unique<TestDelegateBase>(
-      read_buffer.get(), kReadBufferSize, std::move(timer));
+  MockTimer* timer = new MockTimer();
+  std::unique_ptr<TestDelegateBase> delegate(new TestDelegateBase(
+      read_buffer.get(), kReadBufferSize, base::WrapUnique(timer)));
   delegate->Start(std::move(request_info), http_session_.get());
   // Deliver two DATA frames together.
   sequenced_data_->RunUntilPaused();
-  EXPECT_TRUE(timer_ptr->IsRunning());
-  timer_ptr->Fire();
+  EXPECT_TRUE(timer->IsRunning());
+  timer->Fire();
   base::RunLoop().RunUntilIdle();
   // This should trigger |more_read_data_pending_| to execute the task at a
   // later time, and Delegate::OnReadComplete should not have been called.
-  EXPECT_TRUE(timer_ptr->IsRunning());
+  EXPECT_TRUE(timer->IsRunning());
   EXPECT_EQ(0, delegate->on_data_read_count());
 
   // Fire the timer now, the two DATA frame should be combined into one
   // single Delegate::OnReadComplete callback.
-  timer_ptr->Fire();
+  timer->Fire();
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1, delegate->on_data_read_count());
   EXPECT_EQ(kUploadDataSize * 2,
@@ -1234,12 +1241,12 @@ TEST_F(BidirectionalStreamTest, TestBufferingWithTrailers) {
 
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto timer = std::make_unique<MockTimer>();
-  MockTimer* timer_ptr = timer.get();
-  auto delegate = std::make_unique<TestDelegateBase>(
-      read_buffer.get(), kReadBufferSize, std::move(timer));
+  MockTimer* timer = new MockTimer();
+  std::unique_ptr<TestDelegateBase> delegate(new TestDelegateBase(
+      read_buffer.get(), kReadBufferSize, base::WrapUnique(timer)));
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "GET";
   request_info->url = default_url_;
   request_info->priority = LOWEST;
@@ -1248,12 +1255,12 @@ TEST_F(BidirectionalStreamTest, TestBufferingWithTrailers) {
   delegate->Start(std::move(request_info), http_session_.get());
   // Deliver all three DATA frames together.
   sequenced_data_->RunUntilPaused();
-  EXPECT_TRUE(timer_ptr->IsRunning());
-  timer_ptr->Fire();
+  EXPECT_TRUE(timer->IsRunning());
+  timer->Fire();
   base::RunLoop().RunUntilIdle();
   // This should trigger |more_read_data_pending_| to execute the task at a
   // later time, and Delegate::OnReadComplete should not have been called.
-  EXPECT_TRUE(timer_ptr->IsRunning());
+  EXPECT_TRUE(timer->IsRunning());
   EXPECT_EQ(0, delegate->on_data_read_count());
 
   // Deliver trailers. Remaining read should be completed, since OnClose is
@@ -1299,7 +1306,8 @@ TEST_F(BidirectionalStreamTest, DeleteStreamAfterSendData) {
 
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "POST";
   request_info->url = default_url_;
   request_info->priority = LOWEST;
@@ -1309,8 +1317,8 @@ TEST_F(BidirectionalStreamTest, DeleteStreamAfterSendData) {
 
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto delegate =
-      std::make_unique<TestDelegateBase>(read_buffer.get(), kReadBufferSize);
+  std::unique_ptr<TestDelegateBase> delegate(
+      new TestDelegateBase(read_buffer.get(), kReadBufferSize));
   delegate->set_do_not_start_read(true);
   delegate->Start(std::move(request_info), http_session_.get());
   // Send the request and receive response headers.
@@ -1334,7 +1342,7 @@ TEST_F(BidirectionalStreamTest, DeleteStreamAfterSendData) {
   EXPECT_EQ(kProtoHTTP2, delegate->GetProtocol());
   // Bytes sent excludes the RST frame.
   EXPECT_EQ(
-      CountWriteBytes(base::make_span(writes).first(std::size(writes) - 1)),
+      CountWriteBytes(base::make_span(writes).first(base::size(writes) - 1)),
       delegate->GetTotalSentBytes());
   EXPECT_EQ(CountReadBytes(reads), delegate->GetTotalReceivedBytes());
 }
@@ -1362,7 +1370,8 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringReadData) {
 
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "POST";
   request_info->url = default_url_;
   request_info->priority = LOWEST;
@@ -1372,8 +1381,8 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringReadData) {
 
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto delegate =
-      std::make_unique<TestDelegateBase>(read_buffer.get(), kReadBufferSize);
+  std::unique_ptr<TestDelegateBase> delegate(
+      new TestDelegateBase(read_buffer.get(), kReadBufferSize));
   delegate->set_do_not_start_read(true);
   delegate->Start(std::move(request_info), http_session_.get());
   // Send the request and receive response headers.
@@ -1393,11 +1402,11 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringReadData) {
   EXPECT_EQ(kProtoHTTP2, delegate->GetProtocol());
   // Bytes sent excludes the RST frame.
   EXPECT_EQ(
-      CountWriteBytes(base::make_span(writes).first(std::size(writes) - 1)),
+      CountWriteBytes(base::make_span(writes).first(base::size(writes) - 1)),
       delegate->GetTotalSentBytes());
   // Response body frame isn't read becase stream is deleted once read returns
   // ERR_IO_PENDING.
-  EXPECT_EQ(CountReadBytes(base::make_span(reads).first(std::size(reads) - 2)),
+  EXPECT_EQ(CountReadBytes(base::make_span(reads).first(base::size(reads) - 2)),
             delegate->GetTotalReceivedBytes());
 }
 
@@ -1423,7 +1432,8 @@ TEST_F(BidirectionalStreamTest, PropagateProtocolError) {
 
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "POST";
   request_info->url = default_url_;
   request_info->extra_headers.SetHeader(
@@ -1432,8 +1442,8 @@ TEST_F(BidirectionalStreamTest, PropagateProtocolError) {
 
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto delegate =
-      std::make_unique<TestDelegateBase>(read_buffer.get(), kReadBufferSize);
+  std::unique_ptr<TestDelegateBase> delegate(
+      new TestDelegateBase(read_buffer.get(), kReadBufferSize));
   delegate->SetRunUntilCompletion(true);
   delegate->Start(std::move(request_info), http_session_.get());
 
@@ -1450,7 +1460,7 @@ TEST_F(BidirectionalStreamTest, PropagateProtocolError) {
             delegate->GetTotalSentBytes());
   EXPECT_EQ(0, delegate->GetTotalReceivedBytes());
 
-  auto entries = net_log_observer_.GetEntries();
+  auto entries = net_log_.GetEntries();
 
   size_t index = ExpectLogContainsSomewhere(
       entries, 0, NetLogEventType::BIDIRECTIONAL_STREAM_READY,
@@ -1485,7 +1495,8 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnHeadersReceived) {
 
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "GET";
   request_info->url = default_url_;
   request_info->priority = LOWEST;
@@ -1493,9 +1504,9 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnHeadersReceived) {
 
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto delegate = std::make_unique<DeleteStreamDelegate>(
+  std::unique_ptr<DeleteStreamDelegate> delegate(new DeleteStreamDelegate(
       read_buffer.get(), kReadBufferSize,
-      DeleteStreamDelegate::Phase::ON_HEADERS_RECEIVED);
+      DeleteStreamDelegate::Phase::ON_HEADERS_RECEIVED));
   delegate->SetRunUntilCompletion(true);
   delegate->Start(std::move(request_info), http_session_.get());
   // Makes sure delegate does not get called.
@@ -1510,7 +1521,7 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnHeadersReceived) {
   EXPECT_EQ(kProtoHTTP2, delegate->GetProtocol());
   // Bytes sent excludes the RST frame.
   EXPECT_EQ(
-      CountWriteBytes(base::make_span(writes).first(std::size(writes) - 1)),
+      CountWriteBytes(base::make_span(writes).first(base::size(writes) - 1)),
       delegate->GetTotalSentBytes());
   EXPECT_EQ(CountReadBytes(reads), delegate->GetTotalReceivedBytes());
 }
@@ -1539,7 +1550,8 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnDataRead) {
 
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "GET";
   request_info->url = default_url_;
   request_info->priority = LOWEST;
@@ -1547,9 +1559,9 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnDataRead) {
 
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto delegate = std::make_unique<DeleteStreamDelegate>(
-      read_buffer.get(), kReadBufferSize,
-      DeleteStreamDelegate::Phase::ON_DATA_READ);
+  std::unique_ptr<DeleteStreamDelegate> delegate(
+      new DeleteStreamDelegate(read_buffer.get(), kReadBufferSize,
+                               DeleteStreamDelegate::Phase::ON_DATA_READ));
   delegate->SetRunUntilCompletion(true);
   delegate->Start(std::move(request_info), http_session_.get());
   // Makes sure delegate does not get called.
@@ -1564,7 +1576,7 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnDataRead) {
   EXPECT_EQ(kProtoHTTP2, delegate->GetProtocol());
   // Bytes sent excludes the RST frame.
   EXPECT_EQ(
-      CountWriteBytes(base::make_span(writes).first(std::size(writes) - 1)),
+      CountWriteBytes(base::make_span(writes).first(base::size(writes) - 1)),
       delegate->GetTotalSentBytes());
   EXPECT_EQ(CountReadBytes(reads), delegate->GetTotalReceivedBytes());
 }
@@ -1598,7 +1610,8 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnTrailersReceived) {
 
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "GET";
   request_info->url = default_url_;
   request_info->priority = LOWEST;
@@ -1606,9 +1619,9 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnTrailersReceived) {
 
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto delegate = std::make_unique<DeleteStreamDelegate>(
+  std::unique_ptr<DeleteStreamDelegate> delegate(new DeleteStreamDelegate(
       read_buffer.get(), kReadBufferSize,
-      DeleteStreamDelegate::Phase::ON_TRAILERS_RECEIVED);
+      DeleteStreamDelegate::Phase::ON_TRAILERS_RECEIVED));
   delegate->SetRunUntilCompletion(true);
   delegate->Start(std::move(request_info), http_session_.get());
   // Makes sure delegate does not get called.
@@ -1623,7 +1636,7 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnTrailersReceived) {
   EXPECT_EQ(kProtoHTTP2, delegate->GetProtocol());
   // Bytes sent excludes the RST frame.
   EXPECT_EQ(
-      CountWriteBytes(base::make_span(writes).first(std::size(writes) - 1)),
+      CountWriteBytes(base::make_span(writes).first(base::size(writes) - 1)),
       delegate->GetTotalSentBytes());
   EXPECT_EQ(CountReadBytes(reads), delegate->GetTotalReceivedBytes());
 }
@@ -1649,7 +1662,8 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnFailed) {
 
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "GET";
   request_info->url = default_url_;
   request_info->priority = LOWEST;
@@ -1657,9 +1671,9 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnFailed) {
 
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto delegate = std::make_unique<DeleteStreamDelegate>(
-      read_buffer.get(), kReadBufferSize,
-      DeleteStreamDelegate::Phase::ON_FAILED);
+  std::unique_ptr<DeleteStreamDelegate> delegate(
+      new DeleteStreamDelegate(read_buffer.get(), kReadBufferSize,
+                               DeleteStreamDelegate::Phase::ON_FAILED));
   delegate->SetRunUntilCompletion(true);
   delegate->Start(std::move(request_info), http_session_.get());
   // Makes sure delegate does not get called.
@@ -1673,7 +1687,7 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnFailed) {
   EXPECT_EQ(kProtoHTTP2, delegate->GetProtocol());
   // Bytes sent excludes the RST frame.
   EXPECT_EQ(
-      CountWriteBytes(base::make_span(writes).first(std::size(writes) - 1)),
+      CountWriteBytes(base::make_span(writes).first(base::size(writes) - 1)),
       delegate->GetTotalSentBytes());
   EXPECT_EQ(0, delegate->GetTotalReceivedBytes());
 }
@@ -1683,8 +1697,7 @@ TEST_F(BidirectionalStreamTest, TestHonorAlternativeServiceHeader) {
       spdy_util_.ConstructSpdyGet(kDefaultUrl, 1, LOWEST));
   MockWrite writes[] = {CreateMockWrite(req, 0)};
 
-  std::string alt_svc_header_value =
-      quic::AlpnForVersion(DefaultSupportedQuicVersions().front());
+  std::string alt_svc_header_value = NextProtoToString(kProtoQUIC);
   alt_svc_header_value.append("=\"www.example.org:443\"");
   const char* const kExtraResponseHeaders[] = {"alt-svc",
                                                alt_svc_header_value.c_str()};
@@ -1703,7 +1716,8 @@ TEST_F(BidirectionalStreamTest, TestHonorAlternativeServiceHeader) {
   session_deps_.enable_quic = true;
   InitSession(reads, writes, SocketTag());
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "GET";
   request_info->url = default_url_;
   request_info->priority = LOWEST;
@@ -1711,9 +1725,9 @@ TEST_F(BidirectionalStreamTest, TestHonorAlternativeServiceHeader) {
 
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto timer = std::make_unique<MockTimer>();
-  auto delegate = std::make_unique<TestDelegateBase>(
-      read_buffer.get(), kReadBufferSize, std::move(timer));
+  MockTimer* timer = new MockTimer();
+  std::unique_ptr<TestDelegateBase> delegate(new TestDelegateBase(
+      read_buffer.get(), kReadBufferSize, base::WrapUnique(timer)));
   delegate->SetRunUntilCompletion(true);
   delegate->Start(std::move(request_info), http_session_.get());
 
@@ -1728,7 +1742,7 @@ TEST_F(BidirectionalStreamTest, TestHonorAlternativeServiceHeader) {
 
   AlternativeServiceInfoVector alternative_service_info_vector =
       http_session_->http_server_properties()->GetAlternativeServiceInfos(
-          url::SchemeHostPort(default_url_), NetworkAnonymizationKey());
+          url::SchemeHostPort(default_url_), NetworkIsolationKey());
   ASSERT_EQ(1u, alternative_service_info_vector.size());
   AlternativeService alternative_service(kProtoQUIC, "www.example.org", 443);
   EXPECT_EQ(alternative_service,
@@ -1753,14 +1767,15 @@ TEST_F(BidirectionalStreamTest, Tagging) {
       MockRead(ASYNC, ERR_IO_PENDING, 2),  // Force a pause.
       CreateMockRead(response_body_frame, 4), MockRead(ASYNC, 0, 5),
   };
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   SocketTag tag(0x12345678, 0x87654321);
 #else
   SocketTag tag;
 #endif
   InitSession(reads, writes, tag);
 
-  auto request_info = std::make_unique<BidirectionalStreamRequestInfo>();
+  std::unique_ptr<BidirectionalStreamRequestInfo> request_info(
+      new BidirectionalStreamRequestInfo);
   request_info->method = "POST";
   request_info->url = default_url_;
   request_info->extra_headers.SetHeader(net::HttpRequestHeaders::kContentLength,
@@ -1768,8 +1783,8 @@ TEST_F(BidirectionalStreamTest, Tagging) {
   request_info->socket_tag = tag;
   scoped_refptr<IOBuffer> read_buffer =
       base::MakeRefCounted<IOBuffer>(kReadBufferSize);
-  auto delegate =
-      std::make_unique<TestDelegateBase>(read_buffer.get(), kReadBufferSize);
+  std::unique_ptr<TestDelegateBase> delegate(
+      new TestDelegateBase(read_buffer.get(), kReadBufferSize));
   delegate->Start(std::move(request_info), http_session_.get());
   sequenced_data_->RunUntilPaused();
 

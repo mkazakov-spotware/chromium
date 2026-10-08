@@ -1,12 +1,13 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_COMMON_EXTENSION_RESOURCE_H_
 #define EXTENSIONS_COMMON_EXTENSION_RESOURCE_H_
 
+#include <string>
+
 #include "base/files/file_path.h"
-#include "extensions/common/extension_id.h"
 
 namespace extensions {
 
@@ -25,12 +26,12 @@ class ExtensionResource {
   };
 
   ExtensionResource();
-  ExtensionResource(const ExtensionId& extension_id,
+
+  ExtensionResource(const std::string& extension_id,
                     const base::FilePath& extension_root,
                     const base::FilePath& relative_path);
+
   ExtensionResource(const ExtensionResource& other);
-  ExtensionResource(ExtensionResource&& other);
-  ExtensionResource& operator=(ExtensionResource&& other);
 
   ~ExtensionResource();
 
@@ -57,7 +58,7 @@ class ExtensionResource {
                                     SymlinkPolicy symlink_policy);
 
   // Getters
-  const ExtensionId& extension_id() const { return extension_id_; }
+  const std::string& extension_id() const { return extension_id_; }
 
   // Note that this might be empty for a valid ExtensionResource since dummy
   // Extension objects may be created with an empty extension root path in code.
@@ -65,11 +66,16 @@ class ExtensionResource {
 
   const base::FilePath& relative_path() const { return relative_path_; }
 
-  bool empty() const { return relative_path_.empty(); }
+  bool empty() const { return relative_path().empty(); }
+
+  // Unit test helpers.
+  base::FilePath::StringType NormalizeSeperators(
+      const base::FilePath::StringType& path) const;
+  bool ComparePathWithDefault(const base::FilePath& path) const;
 
  private:
   // The id of the extension that this resource is associated with.
-  ExtensionId extension_id_;
+  std::string extension_id_;
 
   // Extension root.
   base::FilePath extension_root_;

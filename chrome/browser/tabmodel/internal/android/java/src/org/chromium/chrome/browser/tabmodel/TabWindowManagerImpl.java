@@ -1,11 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.tabmodel;
 
 import android.app.Activity;
-import android.util.Pair;
 import android.util.SparseArray;
 
 import org.chromium.base.ActivityState;
@@ -27,43 +26,30 @@ import java.util.Map;
 public class TabWindowManagerImpl implements ActivityStateListener, TabWindowManager {
     private TabModelSelectorFactory mSelectorFactory;
     private final AsyncTabParamsManager mAsyncTabParamsManager;
-    private final int mMaxSelectors;
 
     private List<TabModelSelector> mSelectors = new ArrayList<>();
 
     private Map<Activity, TabModelSelector> mAssignments = new HashMap<>();
 
-    TabWindowManagerImpl(TabModelSelectorFactory selectorFactory,
-            AsyncTabParamsManager asyncTabParamsManager, int maxSelectors) {
+    TabWindowManagerImpl(
+            TabModelSelectorFactory selectorFactory, AsyncTabParamsManager asyncTabParamsManager) {
         mSelectorFactory = selectorFactory;
         mAsyncTabParamsManager = asyncTabParamsManager;
         ApplicationStatus.registerStateListenerForAllActivities(this);
-        mMaxSelectors = maxSelectors;
-        for (int i = 0; i < mMaxSelectors; i++) mSelectors.add(null);
-    }
 
-    @Override
-    public int getMaxSimultaneousSelectors() {
-        return mMaxSelectors;
-    }
-
-    @Override
-    public Pair<Integer, TabModelSelector> requestSelector(Activity activity,
-            TabCreatorManager tabCreatorManager, NextTabPolicySupplier nextTabPolicySupplier,
-            int index) {
-        if (index < 0 || index >= mSelectors.size()) return null;
-
-        // Return the already existing selector if found.
-        if (mAssignments.get(activity) != null) {
-            TabModelSelector assignedSelector = mAssignments.get(activity);
-            for (int i = 0; i < mSelectors.size(); i++) {
-                if (mSelectors.get(i) == assignedSelector) {
-                    return Pair.create(i, assignedSelector);
-                }
-            }
-            throw new IllegalStateException(
-                    "TabModelSelector is assigned to an Activity but has no index.");
+        for (int i = 0; i < TabWindowManager.MAX_SIMULTANEOUS_SELECTORS; i++) {
+            mSelectors.add(null);
         }
+    }
+
+    @Override
+    public TabModelSelector requestSelector(Activity activity, TabCreatorManager tabCreatorManager,
+            NextTabPolicySupplier nextTabPolicySupplier, int index) {
+        if (mAssignments.get(activity) != null) {
+            return mAssignments.get(activity);
+        }
+
+        if (index < 0 || index >= mSelectors.size()) index = 0;
 
         if (mSelectors.get(index) != null) {
             for (int i = 0; i < mSelectors.size(); i++) {
@@ -82,7 +68,7 @@ public class TabWindowManagerImpl implements ActivityStateListener, TabWindowMan
         mSelectors.set(index, selector);
         mAssignments.put(activity, selector);
 
-        return Pair.create(index, selector);
+        return selector;
     }
 
     @Override
@@ -148,11 +134,6 @@ public class TabWindowManagerImpl implements ActivityStateListener, TabWindowMan
         }
 
         return null;
-    }
-
-    @Override
-    public TabModelSelector getTabModelSelectorById(int index) {
-        return mSelectors.get(index);
     }
 
     // ActivityStateListener

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "third_party/blink/renderer/core/layout/ng/inline/ng_fragment_items.h"
 #include "third_party/blink/renderer/core/layout/ng/inline/ng_inline_cursor.h"
 #include "third_party/blink/renderer/core/paint/box_paint_invalidator.h"
-#include "third_party/blink/renderer/core/paint/object_paint_invalidator.h"
+#include "third_party/blink/renderer/core/paint/ng/ng_paint_fragment.h"
 #include "third_party/blink/renderer/core/paint/paint_invalidator.h"
 
 namespace blink {
@@ -46,6 +46,12 @@ void BlockFlowPaintInvalidator::InvalidateDisplayItemClients(
     PaintInvalidationReason reason) {
   ObjectPaintInvalidator object_paint_invalidator(block_flow_);
   object_paint_invalidator.InvalidateDisplayItemClient(block_flow_, reason);
+
+  const NGPaintFragment* paint_fragment = block_flow_.PaintFragment();
+  if (paint_fragment) {
+    object_paint_invalidator.InvalidateDisplayItemClient(*paint_fragment,
+                                                         reason);
+  }
 
   NGInlineCursor cursor(block_flow_);
   if (cursor) {

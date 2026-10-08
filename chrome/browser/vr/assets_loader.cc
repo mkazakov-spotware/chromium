@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 #include "base/bind.h"
 #include "base/files/file_util.h"
 #include "base/memory/singleton.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
 #include "chrome/browser/vr/model/assets.h"
 #include "chrome/browser/vr/vr_buildflags.h"
@@ -77,9 +78,10 @@ bool AssetsLoader::AssetsSupported() {
 #endif  // BUILDFLAG(USE_VR_ASSETS_COMPONENT)
 }
 
-void AssetsLoader::OnComponentReady(const base::Version& version,
-                                    const base::FilePath& install_dir,
-                                    base::Value manifest) {
+void AssetsLoader::OnComponentReady(
+    const base::Version& version,
+    const base::FilePath& install_dir,
+    std::unique_ptr<base::DictionaryValue> manifest) {
   main_thread_task_runner_->PostTask(
       FROM_HERE,
       base::BindOnce(&AssetsLoader::OnComponentReadyInternal,
@@ -88,11 +90,10 @@ void AssetsLoader::OnComponentReady(const base::Version& version,
 
 void AssetsLoader::Load(OnAssetsLoadedCallback on_loaded) {
   main_thread_task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(&AssetsLoader::LoadInternal,
-                     weak_ptr_factory_.GetWeakPtr(),
-                     base::SingleThreadTaskRunner::GetCurrentDefault(),
-                     std::move(on_loaded)));
+      FROM_HERE, base::BindOnce(&AssetsLoader::LoadInternal,
+                                weak_ptr_factory_.GetWeakPtr(),
+                                base::ThreadTaskRunnerHandle::Get(),
+                                std::move(on_loaded)));
 }
 
 bool AssetsLoader::ComponentReady() {
@@ -209,7 +210,10 @@ void AssetsLoader::LoadAssetsTask(
 
   auto sounds_iter = sounds.begin();
   while (status == AssetsLoadStatus::kSuccess && sounds_iter != sounds.end()) {
-    auto [min_version, file_name, data] = *sounds_iter;
+    const char* min_version;
+    const base::FilePath::CharType* file_name;
+    std::unique_ptr<std::string>* data;
+    std::tie(min_version, file_name, data) = *sounds_iter;
     if (component_version >= base::Version(min_version)) {
       status = LoadSound(component_install_dir, file_name, data);
     }

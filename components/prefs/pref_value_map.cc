@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,15 @@
 #include <limits.h>
 #include <map>
 #include <memory>
-#include <string>
 #include <utility>
 
-#include "base/strings/string_piece.h"
 #include "base/values.h"
 
 PrefValueMap::PrefValueMap() {}
 
 PrefValueMap::~PrefValueMap() {}
 
-bool PrefValueMap::GetValue(base::StringPiece key,
+bool PrefValueMap::GetValue(const std::string& key,
                             const base::Value** value) const {
   auto it = prefs_.find(key);
   if (it == prefs_.end())
@@ -29,7 +27,7 @@ bool PrefValueMap::GetValue(base::StringPiece key,
   return true;
 }
 
-bool PrefValueMap::GetValue(base::StringPiece key, base::Value** value) {
+bool PrefValueMap::GetValue(const std::string& key, base::Value** value) {
   auto it = prefs_.find(key);
   if (it == prefs_.end())
     return false;
@@ -91,11 +89,7 @@ bool PrefValueMap::empty() const {
 
 bool PrefValueMap::GetBoolean(const std::string& key, bool* value) const {
   const base::Value* stored_value = nullptr;
-  if (GetValue(key, &stored_value) && stored_value->is_bool()) {
-    *value = stored_value->GetBool();
-    return true;
-  }
-  return false;
+  return GetValue(key, &stored_value) && stored_value->GetAsBoolean(value);
 }
 
 void PrefValueMap::SetBoolean(const std::string& key, bool value) {
@@ -104,11 +98,7 @@ void PrefValueMap::SetBoolean(const std::string& key, bool value) {
 
 bool PrefValueMap::GetString(const std::string& key, std::string* value) const {
   const base::Value* stored_value = nullptr;
-  if (GetValue(key, &stored_value) && stored_value->is_string()) {
-    *value = stored_value->GetString();
-    return true;
-  }
-  return false;
+  return GetValue(key, &stored_value) && stored_value->GetAsString(value);
 }
 
 void PrefValueMap::SetString(const std::string& key, const std::string& value) {
@@ -117,11 +107,7 @@ void PrefValueMap::SetString(const std::string& key, const std::string& value) {
 
 bool PrefValueMap::GetInteger(const std::string& key, int* value) const {
   const base::Value* stored_value = nullptr;
-  if (GetValue(key, &stored_value) && stored_value->is_int()) {
-    *value = stored_value->GetInt();
-    return true;
-  }
-  return false;
+  return GetValue(key, &stored_value) && stored_value->GetAsInteger(value);
 }
 
 void PrefValueMap::SetInteger(const std::string& key, const int value) {
@@ -151,7 +137,7 @@ void PrefValueMap::GetDifferingKeys(
   while (this_pref != this_prefs.end() && other_pref != other_prefs.end()) {
     const int diff = this_pref->first.compare(other_pref->first);
     if (diff == 0) {
-      if (*this_pref->second != *other_pref->second)
+      if (!this_pref->second->Equals(other_pref->second))
         differing_keys->push_back(this_pref->first);
       ++this_pref;
       ++other_pref;
@@ -171,10 +157,10 @@ void PrefValueMap::GetDifferingKeys(
     differing_keys->push_back(other_pref->first);
 }
 
-base::Value::Dict PrefValueMap::AsDict() const {
-  base::Value::Dict dictionary;
+std::unique_ptr<base::DictionaryValue> PrefValueMap::AsDictionaryValue() const {
+  auto dictionary = std::make_unique<base::DictionaryValue>();
   for (const auto& value : prefs_)
-    dictionary.SetByDottedPath(value.first, value.second.Clone());
+    dictionary->Set(value.first, value.second.CreateDeepCopy());
 
   return dictionary;
 }

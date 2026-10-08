@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,9 @@
 #define UI_GL_GL_SHARE_GROUP_H_
 
 #include <set>
+#include <unordered_map>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "build/build_config.h"
 #include "ui/gl/gl_export.h"
@@ -20,9 +21,6 @@ class GLContext;
 class GL_EXPORT GLShareGroup : public base::RefCounted<GLShareGroup> {
  public:
   GLShareGroup();
-
-  GLShareGroup(const GLShareGroup&) = delete;
-  GLShareGroup& operator=(const GLShareGroup&) = delete;
 
   // These two should only be called from the constructor and destructor of
   // GLContext.
@@ -41,7 +39,7 @@ class GL_EXPORT GLShareGroup : public base::RefCounted<GLShareGroup> {
   void SetSharedContext(GLContext* context);
   GLContext* shared_context() { return shared_context_; }
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   // Sets and returns the ID of the renderer that all contexts in this share
   // group should be on.
   void SetRendererID(int renderer_id);
@@ -58,11 +56,13 @@ class GL_EXPORT GLShareGroup : public base::RefCounted<GLShareGroup> {
   typedef std::set<GLContext*> ContextSet;
   ContextSet contexts_;
 
-  raw_ptr<GLContext> shared_context_ = nullptr;
+  GLContext* shared_context_ = nullptr;
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   int renderer_id_;
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(GLShareGroup);
 };
 
 }  // namespace gl

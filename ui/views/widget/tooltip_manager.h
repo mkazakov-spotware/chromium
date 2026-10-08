@@ -1,11 +1,13 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_VIEWS_WIDGET_TOOLTIP_MANAGER_H_
 #define UI_VIEWS_WIDGET_TOOLTIP_MANAGER_H_
 
+#include <string>
 
+#include "base/strings/string16.h"
 #include "ui/views/views_export.h"
 
 namespace gfx {

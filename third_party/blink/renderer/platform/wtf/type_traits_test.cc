@@ -21,6 +21,7 @@
 
 #include "third_party/blink/renderer/platform/wtf/type_traits.h"
 
+#include "base/macros.h"
 #include "build/build_config.h"
 
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
@@ -104,17 +105,13 @@ static_assert(std::is_trivially_default_constructible<NestedOwned>::value,
               "NestedOwned should have a trivial default constructor");
 
 class NonCopyableClass {
- public:
-  NonCopyableClass(const NonCopyableClass&) = delete;
-  NonCopyableClass& operator=(const NonCopyableClass&) = delete;
+  DISALLOW_COPY_AND_ASSIGN(NonCopyableClass);
 };
-
-static_assert(!std::is_trivially_move_assignable<NonCopyableClass>::value,
-              "NonCopyableClass should not be trivially move assignable");
-static_assert(!std::is_trivially_copy_assignable<NonCopyableClass>::value,
-              "NonCopyableClass should not be trivially copy assignable");
-static_assert(!std::is_trivially_default_constructible<NonCopyableClass>::value,
-              "NonCopyableClass should not have a trivial default constructor");
+#if 0   // Compilers don't get this "right" yet if using = delete.
+static_assert(!IsTriviallyMoveAssignable<NonCopyableClass>::value, "NonCopyableClass should not be trivially move assignable");
+static_assert(!IsTriviallyCopyAssignable<NonCopyableClass>::value, "NonCopyableClass should not be trivially copy assignable");
+static_assert(IsTriviallyDefaultConstructible<NonCopyableClass>::value, "NonCopyableClass should have a trivial default constructor");
+#endif  // 0
 
 template <typename T>
 class TestBaseClass {};

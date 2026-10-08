@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "ppapi/c/dev/ppp_video_capture_dev.h"
 #include "ppapi/proxy/device_enumeration_resource_helper.h"
 #include "ppapi/proxy/plugin_resource.h"
@@ -25,10 +26,6 @@ class VideoCaptureResource
   VideoCaptureResource(Connection connection,
                        PP_Instance instance,
                        PluginDispatcher* dispatcher);
-
-  VideoCaptureResource(const VideoCaptureResource&) = delete;
-  VideoCaptureResource& operator=(const VideoCaptureResource&) = delete;
-
   ~VideoCaptureResource() override;
 
   // PluginResource override.
@@ -94,6 +91,8 @@ class VideoCaptureResource
   OpenState open_state_;
 
   DeviceEnumerationResourceHelper enumeration_helper_;
+
+  DISALLOW_COPY_AND_ASSIGN(VideoCaptureResource);
 };
 
 }  // namespace proxy

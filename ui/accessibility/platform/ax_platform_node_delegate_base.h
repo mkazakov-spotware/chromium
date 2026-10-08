@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,9 @@
 #include <memory>
 #include <set>
 #include <string>
-#include <utility>
 #include <vector>
 
-#include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
-#include "base/strings/string_split.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "ui/accessibility/ax_enums.mojom-forward.h"
-#include "ui/accessibility/ax_node_position.h"
+#include "base/optional.h"
 #include "ui/accessibility/platform/ax_platform_node_delegate.h"
 
 namespace ui {
@@ -27,29 +21,27 @@ namespace ui {
 // return a default value. Useful for classes that want to implement
 // AXPlatformNodeDelegate but don't need to override much of its
 // behavior.
-class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegateBase
-    : public AXPlatformNodeDelegate {
+class AX_EXPORT AXPlatformNodeDelegateBase : public AXPlatformNodeDelegate {
  public:
   AXPlatformNodeDelegateBase();
-
-  AXPlatformNodeDelegateBase(const AXPlatformNodeDelegateBase&) = delete;
-  AXPlatformNodeDelegateBase& operator=(const AXPlatformNodeDelegateBase&) =
-      delete;
-
   ~AXPlatformNodeDelegateBase() override;
 
-  // `AXPlatformNodeDelegate` implementation.
+  // Get the accessibility data that should be exposed for this node.
+  // Virtually all of the information is obtained from this structure
+  // (role, state, name, cursor position, etc.) - the rest of this interface
+  // is mostly to implement support for walking the accessibility tree.
   const AXNodeData& GetData() const override;
-  std::u16string GetTextContentUTF16() const override;
-  std::u16string GetValueForControl() const override;
 
-  AXNodePosition::AXPositionInstance CreatePositionAt(
-      int offset,
-      ax::mojom::TextAffinity affinity) const override;
+  // Get the accessibility tree data for this node.
+  const AXTreeData& GetTreeData() const override;
 
+  base::string16 GetInnerText() const override;
+  base::string16 GetValueForControl() const override;
+  const AXTree::Selection GetUnignoredSelection() const override;
+
+  // Creates a text position rooted at this object.
   AXNodePosition::AXPositionInstance CreateTextPositionAt(
-      int offset,
-      ax::mojom::TextAffinity affinity) const override;
+      int offset) const override;
 
   // See comments in AXPlatformNodeDelegate.
   gfx::NativeViewAccessible GetNSWindow() override;
@@ -60,16 +52,16 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegateBase
 
   // Get the parent of the node, which may be an AXPlatformNode or it may
   // be a native accessible object implemented by another class.
-  gfx::NativeViewAccessible GetParent() const override;
+  gfx::NativeViewAccessible GetParent() override;
 
   // Get the index in parent. Typically this is the AXNode's index_in_parent_.
-  absl::optional<size_t> GetIndexInParent() override;
+  int GetIndexInParent() override;
 
   // Get the number of children of this node.
-  size_t GetChildCount() const override;
+  int GetChildCount() const override;
 
   // Get the child of a node given a 0-based index.
-  gfx::NativeViewAccessible ChildAtIndex(size_t index) override;
+  gfx::NativeViewAccessible ChildAtIndex(int index) override;
 
   // Returns true if it has a modal dialog.
   bool HasModalDialog() const override;
@@ -80,41 +72,37 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegateBase
   gfx::NativeViewAccessible GetPreviousSibling() override;
 
   bool IsChildOfLeaf() const override;
-  bool IsDescendantOfAtomicTextField() const override;
-  bool IsPlatformDocument() const override;
-  bool IsFocused() const override;
+  bool IsDescendantOfPlainTextField() const override;
+  bool IsLeaf() const override;
   bool IsToplevelBrowserWindow() override;
-  gfx::NativeViewAccessible GetLowestPlatformAncestor() const override;
-  gfx::NativeViewAccessible GetTextFieldAncestor() const override;
-  gfx::NativeViewAccessible GetSelectionContainer() const override;
-  gfx::NativeViewAccessible GetTableAncestor() const override;
+  gfx::NativeViewAccessible GetClosestPlatformObject() const override;
 
   class ChildIteratorBase : public ChildIterator {
    public:
-    ChildIteratorBase(AXPlatformNodeDelegateBase* parent, size_t index);
+    ChildIteratorBase(AXPlatformNodeDelegateBase* parent, int index);
     ChildIteratorBase(const ChildIteratorBase& it);
     ~ChildIteratorBase() override = default;
-    ChildIteratorBase& operator++() override;
-    ChildIteratorBase& operator++(int) override;
-    ChildIteratorBase& operator--() override;
-    ChildIteratorBase& operator--(int) override;
+    bool operator==(const ChildIterator& rhs) const override;
+    bool operator!=(const ChildIterator& rhs) const override;
+    void operator++() override;
+    void operator++(int) override;
+    void operator--() override;
+    void operator--(int) override;
     gfx::NativeViewAccessible GetNativeViewAccessible() const override;
-    absl::optional<size_t> GetIndexInParent() const override;
+    int GetIndexInParent() const override;
     AXPlatformNodeDelegate& operator*() const override;
     AXPlatformNodeDelegate* operator->() const override;
 
    private:
-    size_t index_;
-    raw_ptr<AXPlatformNodeDelegateBase> parent_;
+    int index_;
+    AXPlatformNodeDelegateBase* parent_;
   };
   std::unique_ptr<AXPlatformNodeDelegate::ChildIterator> ChildrenBegin()
       override;
   std::unique_ptr<AXPlatformNodeDelegate::ChildIterator> ChildrenEnd() override;
 
-  const std::string& GetDescription() const override;
-  std::u16string GetHypertext() const override;
-  const std::map<int, int>& GetHypertextOffsetToHyperlinkChildIndex()
-      const override;
+  std::string GetName() const override;
+  base::string16 GetHypertext() const override;
   bool SetHypertextSelection(int start_offset, int end_offset) override;
   TextAttributeMap ComputeTextAttributeMap(
       const TextAttributeList& default_attributes) const override;
@@ -138,6 +126,12 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegateBase
       const AXClippingBehavior clipping_behavior,
       AXOffscreenResult* offscreen_result) const override;
 
+  // Derivative utils for AXPlatformNodeDelegate::GetBoundsRect
+  gfx::Rect GetClippedScreenBoundsRect(
+      AXOffscreenResult* offscreen_result = nullptr) const override;
+  gfx::Rect GetUnclippedScreenBoundsRect(
+      AXOffscreenResult* offscreen_result = nullptr) const;
+
   // Do a *synchronous* hit test of the given location in global screen physical
   // pixel coordinates, and the node within this node's subtree (inclusive)
   // that's hit, if any.
@@ -155,13 +149,10 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegateBase
 
   // Return the node within this node's subtree (inclusive) that currently
   // has focus.
-  gfx::NativeViewAccessible GetFocus() const override;
+  gfx::NativeViewAccessible GetFocus() override;
 
   // Get whether this node is offscreen.
   bool IsOffscreen() const override;
-
-  // Returns true if this node is ignored.
-  bool IsIgnored() const override;
 
   // Get whether this node is a minimized window.
   bool IsMinimized() const override;
@@ -206,28 +197,64 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegateBase
   std::set<AXPlatformNode*> GetReverseRelations(
       ax::mojom::IntListAttribute attr) override;
 
-  std::u16string GetAuthorUniqueId() const override;
+  base::string16 GetAuthorUniqueId() const override;
 
   const AXUniqueId& GetUniqueId() const override;
 
-  const std::vector<gfx::NativeViewAccessible> GetUIADirectChildrenInRange(
-      ui::AXPlatformNodeDelegate* start,
-      ui::AXPlatformNodeDelegate* end) override;
+  base::Optional<int> FindTextBoundary(
+      ax::mojom::TextBoundary boundary,
+      int offset,
+      ax::mojom::MoveDirection direction,
+      ax::mojom::TextAffinity affinity) const override;
+
+  const std::vector<gfx::NativeViewAccessible> GetUIADescendants()
+      const override;
+
+  std::string GetLanguage() const override;
 
   //
   // Tables. All of these should be called on a node that's a table-like
   // role, otherwise they return nullopt.
   //
-  absl::optional<int> GetTableAriaColCount() const override;
-  absl::optional<int> GetTableAriaRowCount() const override;
+  bool IsTable() const override;
+  base::Optional<int> GetTableColCount() const override;
+  base::Optional<int> GetTableRowCount() const override;
+  base::Optional<int> GetTableAriaColCount() const override;
+  base::Optional<int> GetTableAriaRowCount() const override;
+  base::Optional<int> GetTableCellCount() const override;
+  base::Optional<bool> GetTableHasColumnOrRowHeaderNode() const override;
+  std::vector<int32_t> GetColHeaderNodeIds() const override;
+  std::vector<int32_t> GetColHeaderNodeIds(int col_index) const override;
+  std::vector<int32_t> GetRowHeaderNodeIds() const override;
+  std::vector<int32_t> GetRowHeaderNodeIds(int row_index) const override;
   AXPlatformNode* GetTableCaption() const override;
 
+  // Table row-like nodes.
+  bool IsTableRow() const override;
+  base::Optional<int> GetTableRowRowIndex() const override;
+
   // Table cell-like nodes.
-  bool IsRootWebAreaForPresentationalIframe() const override;
+  bool IsTableCellOrHeader() const override;
+  base::Optional<int> GetTableCellIndex() const override;
+  base::Optional<int> GetTableCellColIndex() const override;
+  base::Optional<int> GetTableCellRowIndex() const override;
+  base::Optional<int> GetTableCellColSpan() const override;
+  base::Optional<int> GetTableCellRowSpan() const override;
+  base::Optional<int> GetTableCellAriaColIndex() const override;
+  base::Optional<int> GetTableCellAriaRowIndex() const override;
+  base::Optional<int32_t> GetCellId(int row_index,
+                                    int col_index) const override;
+  base::Optional<int32_t> CellIndexToId(int cell_index) const override;
+
+  // Helper methods to check if a cell is an ARIA-1.1+ 'cell' or 'gridcell'
+  bool IsCellOrHeaderOfARIATable() const override;
+  bool IsCellOrHeaderOfARIAGrid() const override;
 
   // Ordered-set-like and item-like nodes.
-  absl::optional<int> GetPosInSet() const override;
-  absl::optional<int> GetSetSize() const override;
+  bool IsOrderedSetItem() const override;
+  bool IsOrderedSet() const override;
+  base::Optional<int> GetPosInSet() const override;
+  base::Optional<int> GetSetSize() const override;
 
   //
   // Events.
@@ -249,12 +276,12 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegateBase
   // Localized strings.
   //
 
-  std::u16string GetLocalizedStringForImageAnnotationStatus(
+  base::string16 GetLocalizedStringForImageAnnotationStatus(
       ax::mojom::ImageAnnotationStatus status) const override;
-  std::u16string GetLocalizedRoleDescriptionForUnlabeledImage() const override;
-  std::u16string GetLocalizedStringForLandmarkType() const override;
-  std::u16string GetLocalizedStringForRoleDescription() const override;
-  std::u16string GetStyleNameAttributeAsLocalizedString() const override;
+  base::string16 GetLocalizedRoleDescriptionForUnlabeledImage() const override;
+  base::string16 GetLocalizedStringForLandmarkType() const override;
+  base::string16 GetLocalizedStringForRoleDescription() const override;
+  base::string16 GetStyleNameAttributeAsLocalizedString() const override;
 
   //
   // Testing.
@@ -274,7 +301,10 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegateBase
   std::set<ui::AXPlatformNode*> GetNodesForNodeIds(
       const std::set<int32_t>& ids);
 
-  AXPlatformNodeDelegate* GetParentDelegate() const;
+  AXPlatformNodeDelegate* GetParentDelegate();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AXPlatformNodeDelegateBase);
 };
 
 }  // namespace ui

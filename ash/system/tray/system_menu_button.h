@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 #define ASH_SYSTEM_TRAY_SYSTEM_MENU_BUTTON_H_
 
 #include "ash/resources/vector_icons/vector_icons.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/button/image_button.h"
@@ -17,7 +18,6 @@ namespace ash {
 // used across Ash material design native UI menus.
 class SystemMenuButton : public views::ImageButton {
  public:
-  METADATA_HEADER(SystemMenuButton);
   // Constructs the button with |callback| and a centered icon corresponding to
   // |normal_icon| when button is enabled and |disabled_icon| when it is
   // disabled. |accessible_name_id| corresponds to the string in
@@ -33,19 +33,24 @@ class SystemMenuButton : public views::ImageButton {
   SystemMenuButton(PressedCallback callback,
                    const gfx::VectorIcon& icon,
                    int accessible_name_id);
-
-  SystemMenuButton(const SystemMenuButton&) = delete;
-  SystemMenuButton& operator=(const SystemMenuButton&) = delete;
-
   ~SystemMenuButton() override;
 
   // Sets the normal and disabled icons based on that using default menu icon
   // colors.
   void SetVectorIcon(const gfx::VectorIcon& icon);
 
+  // views::ImageButton:
+  std::unique_ptr<views::InkDrop> CreateInkDrop() override;
+  std::unique_ptr<views::InkDropRipple> CreateInkDropRipple() const override;
+  std::unique_ptr<views::InkDropHighlight> CreateInkDropHighlight()
+      const override;
+  const char* GetClassName() const override;
+
  private:
   // Returns the size that the ink drop should be constructed with.
   gfx::Size GetInkDropSize() const;
+
+  DISALLOW_COPY_AND_ASSIGN(SystemMenuButton);
 };
 
 }  // namespace ash

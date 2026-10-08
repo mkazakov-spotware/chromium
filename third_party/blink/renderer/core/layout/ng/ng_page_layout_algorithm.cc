@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,19 +19,17 @@ NGPageLayoutAlgorithm::NGPageLayoutAlgorithm(
     const NGLayoutAlgorithmParams& params)
     : NGLayoutAlgorithm(params) {}
 
-const NGLayoutResult* NGPageLayoutAlgorithm::Layout() {
-  DCHECK(!BreakToken());
+scoped_refptr<const NGLayoutResult> NGPageLayoutAlgorithm::Layout() {
   LogicalSize page_size = ChildAvailableSize();
-  DCHECK(page_size.inline_size != kIndefiniteSize);
-  DCHECK(page_size.block_size != kIndefiniteSize);
 
   NGConstraintSpace child_space = CreateConstraintSpaceForPages(page_size);
 
   WritingDirectionMode writing_direction =
       ConstraintSpace().GetWritingDirection();
-  const NGBlockBreakToken* break_token = nullptr;
+  scoped_refptr<const NGBlockBreakToken> break_token = BreakToken();
   LayoutUnit intrinsic_block_size;
-  LogicalOffset page_offset;
+  LogicalOffset page_offset = BorderScrollbarPadding().StartOffset();
+  // TODO(mstensho): Handle auto block size.
   LogicalOffset page_progression(LayoutUnit(), page_size.block_size);
 
   container_builder_.SetIsBlockFragmentationContextRoot();
@@ -39,11 +37,10 @@ const NGLayoutResult* NGPageLayoutAlgorithm::Layout() {
   do {
     // Lay out one page. Each page will become a fragment.
     NGFragmentGeometry fragment_geometry =
-        CalculateInitialFragmentGeometry(child_space, Node(), BreakToken());
+        CalculateInitialFragmentGeometry(child_space, Node());
     NGBlockLayoutAlgorithm child_algorithm(
-        {Node(), fragment_geometry, child_space, break_token});
-    child_algorithm.SetBoxType(NGPhysicalFragment::kPageBox);
-    const NGLayoutResult* result = child_algorithm.Layout();
+        {Node(), fragment_geometry, child_space, break_token.get()});
+    scoped_refptr<const NGLayoutResult> result = child_algorithm.Layout();
     const auto& page = result->PhysicalFragment();
 
     container_builder_.AddChild(page, page_offset);
@@ -60,19 +57,24 @@ const NGLayoutResult* NGPageLayoutAlgorithm::Layout() {
 
   // Compute the block-axis size now that we know our content size.
   LayoutUnit block_size = ComputeBlockSizeForFragment(
-      ConstraintSpace(), Style(), /* border_padding */ NGBoxStrut(),
-      intrinsic_block_size, absl::nullopt);
+      ConstraintSpace(), Style(), BorderPadding(), intrinsic_block_size,
+      container_builder_.InitialBorderBoxSize().inline_size);
   container_builder_.SetFragmentsTotalBlockSize(block_size);
 
   NGOutOfFlowLayoutPart(Node(), ConstraintSpace(), &container_builder_).Run();
+
+  // TODO(mstensho): Propagate baselines.
 
   return container_builder_.ToBoxFragment();
 }
 
 MinMaxSizesResult NGPageLayoutAlgorithm::ComputeMinMaxSizes(
-    const MinMaxSizesFloatInput&) {
-  NOTREACHED();
-  return MinMaxSizesResult();
+    const MinMaxSizesInput& input) const {
+  NGFragmentGeometry fragment_geometry =
+      CalculateInitialMinMaxFragmentGeometry(ConstraintSpace(), Node());
+  NGBlockLayoutAlgorithm algorithm(
+      {Node(), fragment_geometry, ConstraintSpace()});
+  return algorithm.ComputeMinMaxSizes(input);
 }
 
 NGConstraintSpace NGPageLayoutAlgorithm::CreateConstraintSpaceForPages(
@@ -81,10 +83,9 @@ NGConstraintSpace NGPageLayoutAlgorithm::CreateConstraintSpaceForPages(
       ConstraintSpace(), Style().GetWritingDirection(), /* is_new_fc */ true);
   space_builder.SetAvailableSize(page_size);
   space_builder.SetPercentageResolutionSize(page_size);
-  space_builder.SetInlineAutoBehavior(NGAutoBehavior::kStretchImplicit);
 
+  // TODO(mstensho): Handle auto block size.
   space_builder.SetFragmentationType(kFragmentPage);
-  space_builder.SetShouldPropagateChildBreakValues();
   space_builder.SetFragmentainerBlockSize(page_size.block_size);
   space_builder.SetIsAnonymous(true);
 

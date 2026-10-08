@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Verify that breakpoints are moved appropriately in case of page reload.\n`);
-  await TestRunner.loadLegacyModule('sources'); await TestRunner.loadTestModule('sources_test_runner');
-  await TestRunner.loadTestModule('bindings_test_runner');
+  await TestRunner.loadModule('sources_test_runner');
+  await TestRunner.loadModule('bindings_test_runner');
   await TestRunner.showPanel('sources');
   await TestRunner.evaluateInPagePromise(`
       function addFooJS() {
@@ -16,7 +16,7 @@
   `);
 
   var testMapping = BindingsTestRunner.initializeTestMapping();
-  var fs = new BindingsTestRunner.TestFileSystem('/var/www');
+  var fs = new BindingsTestRunner.TestFileSystem('file:///var/www');
   BindingsTestRunner.addFooJSFile(fs);
 
   TestRunner.runTestSuite([
@@ -51,7 +51,7 @@
   ]);
 
   function dumpBreakpointSidebarPane() {
-    var pane = Sources.JavaScriptBreakpointsSidebarPane.instance();
+    var pane = self.runtime.sharedInstance(Sources.JavaScriptBreakpointsSidebarPane);
     if (!pane._emptyElement.classList.contains('hidden'))
       return TestRunner.textContentWithLineBreaks(pane._emptyElement);
     var entries = Array.from(pane.contentElement.querySelectorAll('.breakpoint-entry'));

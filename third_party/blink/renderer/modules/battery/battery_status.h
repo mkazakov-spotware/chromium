@@ -1,13 +1,13 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_BATTERY_BATTERY_STATUS_H_
-#define THIRD_PARTY_BLINK_RENDERER_MODULES_BATTERY_BATTERY_STATUS_H_
+#ifndef BLINK_MODULES_BATTERY_BATTERY_STATUS_H_
+#define BLINK_MODULES_BATTERY_BATTERY_STATUS_H_
 
-#include "base/time/time.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 
 #include <cmath>
 #include <limits>
@@ -20,10 +20,13 @@ class MODULES_EXPORT BatteryStatus final {
 
  public:
   BatteryStatus()
-      : charging_(true), discharging_time_(base::TimeDelta::Max()), level_(1) {}
+      : charging_(true),
+        charging_time_(0),
+        discharging_time_(std::numeric_limits<double>::infinity()),
+        level_(1) {}
   BatteryStatus(bool charging,
-                base::TimeDelta charging_time,
-                base::TimeDelta discharging_time,
+                double charging_time,
+                double discharging_time,
                 double level)
       : charging_(charging),
         charging_time_(charging_time),
@@ -33,8 +36,8 @@ class MODULES_EXPORT BatteryStatus final {
   BatteryStatus& operator=(const BatteryStatus&) = default;
 
   bool Charging() const { return charging_; }
-  base::TimeDelta charging_time() const { return charging_time_; }
-  base::TimeDelta discharging_time() const { return discharging_time_; }
+  double charging_time() const { return charging_time_; }
+  double discharging_time() const { return discharging_time_; }
   double Level() const { return level_; }
 
  private:
@@ -50,11 +53,11 @@ class MODULES_EXPORT BatteryStatus final {
   }
 
   bool charging_;
-  base::TimeDelta charging_time_;
-  base::TimeDelta discharging_time_;
+  double charging_time_;
+  double discharging_time_;
   double level_;
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_MODULES_BATTERY_BATTERY_STATUS_H_
+#endif  // BLINK_MODULES_BATTERY_BATTERY_STATUS_H_

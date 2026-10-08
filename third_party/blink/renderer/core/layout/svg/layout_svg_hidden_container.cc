@@ -19,6 +19,7 @@
 
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_hidden_container.h"
 
+#include "third_party/blink/renderer/core/layout/layout_analyzer.h"
 #include "third_party/blink/renderer/core/layout/svg/svg_layout_support.h"
 
 namespace blink {
@@ -29,6 +30,7 @@ LayoutSVGHiddenContainer::LayoutSVGHiddenContainer(SVGElement* element)
 void LayoutSVGHiddenContainer::UpdateLayout() {
   NOT_DESTROYED();
   DCHECK(NeedsLayout());
+  LayoutAnalyzer::Scope analyzer(*this);
 
   SVGContainerLayoutInfo layout_info;
   layout_info.force_layout = SelfNeedsLayout();
@@ -46,7 +48,7 @@ void LayoutSVGHiddenContainer::UpdateLayout() {
 bool LayoutSVGHiddenContainer::NodeAtPoint(HitTestResult&,
                                            const HitTestLocation&,
                                            const PhysicalOffset&,
-                                           HitTestPhase) {
+                                           HitTestAction) {
   NOT_DESTROYED();
   return false;
 }

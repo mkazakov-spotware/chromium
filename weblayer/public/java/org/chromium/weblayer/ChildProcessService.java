@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,9 +31,8 @@ public abstract class ChildProcessService extends Service {
             Context appContext = getApplicationContext();
             Context remoteContext = WebLayer.getOrCreateRemoteContext(appContext);
             mImpl = IChildProcessService.Stub.asInterface(
-                    (IBinder) WebLayer
-                            .loadRemoteClass(appContext,
-                                    "org.chromium.weblayer_private.ChildProcessServiceImpl")
+                    (IBinder) WebLayer.getOrCreateRemoteClassLoader(appContext)
+                            .loadClass("org.chromium.weblayer_private.ChildProcessServiceImpl")
                             .getMethod("create", Service.class, Context.class, Context.class)
                             .invoke(null, this, appContext, remoteContext));
             mImpl.onCreate();

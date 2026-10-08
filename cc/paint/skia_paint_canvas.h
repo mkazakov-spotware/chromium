@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,26 +12,8 @@
 #include "cc/paint/paint_canvas.h"
 #include "cc/paint/paint_flags.h"
 #include "cc/paint/paint_record.h"
-#include "cc/paint/skottie_color_map.h"
-#include "third_party/skia/include/core/SkBitmap.h"
-#include "third_party/skia/include/core/SkColor.h"
-#include "third_party/skia/include/core/SkColorSpace.h"
-#include "third_party/skia/include/core/SkData.h"
-#include "third_party/skia/include/core/SkRefCnt.h"
-#include "third_party/skia/include/core/SkScalar.h"
-#include "third_party/skia/include/core/SkTextBlob.h"
-
-class SkCanvas;
-class SkM44;
-class SkMatrix;
-class SkPath;
-class SkRRect;
-class SkSurfaceProps;
-enum class SkClipOp;
-struct SkImageInfo;
-struct SkIPoint;
-struct SkIRect;
-struct SkRect;
+#include "third_party/skia/include/core/SkCanvas.h"
+#include "third_party/skia/include/gpu/GrRecordingContext.h"
 
 namespace cc {
 class ImageProvider;
@@ -88,23 +70,18 @@ class CC_PAINT_EXPORT SkiaPaintCanvas final : public PaintCanvas {
   void rotate(SkScalar degrees) override;
   void concat(const SkMatrix& matrix) override;
   void setMatrix(const SkMatrix& matrix) override;
-  void concat(const SkM44& matrix) override;
-  void setMatrix(const SkM44& matrix) override;
 
   void clipRect(const SkRect& rect, SkClipOp op, bool do_anti_alias) override;
   void clipRRect(const SkRRect& rrect,
                  SkClipOp op,
                  bool do_anti_alias) override;
-  void clipPath(const SkPath& path,
-                SkClipOp op,
-                bool do_anti_alias,
-                UsePaintCache) override;
+  void clipPath(const SkPath& path, SkClipOp op, bool do_anti_alias) override;
   SkRect getLocalClipBounds() const override;
   bool getLocalClipBounds(SkRect* bounds) const override;
   SkIRect getDeviceClipBounds() const override;
   bool getDeviceClipBounds(SkIRect* bounds) const override;
-  void drawColor(SkColor4f color, SkBlendMode mode) override;
-  void clear(SkColor4f color) override;
+  void drawColor(SkColor color, SkBlendMode mode) override;
+  void clear(SkColor color) override;
 
   void drawLine(SkScalar x0,
                 SkScalar y0,
@@ -122,26 +99,19 @@ class CC_PAINT_EXPORT SkiaPaintCanvas final : public PaintCanvas {
                      SkScalar rx,
                      SkScalar ry,
                      const PaintFlags& flags) override;
-  void drawPath(const SkPath& path,
-                const PaintFlags& flags,
-                UsePaintCache) override;
+  void drawPath(const SkPath& path, const PaintFlags& flags) override;
   void drawImage(const PaintImage& image,
                  SkScalar left,
                  SkScalar top,
-                 const SkSamplingOptions&,
                  const PaintFlags* flags) override;
   void drawImageRect(const PaintImage& image,
                      const SkRect& src,
                      const SkRect& dst,
-                     const SkSamplingOptions&,
                      const PaintFlags* flags,
                      SkCanvas::SrcRectConstraint constraint) override;
   void drawSkottie(scoped_refptr<SkottieWrapper> skottie,
                    const SkRect& dst,
-                   float t,
-                   SkottieFrameDataMap images,
-                   const SkottieColorMap& color_map,
-                   SkottieTextPropertyValueMap text_map) override;
+                   float t) override;
   void drawTextBlob(sk_sp<SkTextBlob> blob,
                     SkScalar x,
                     SkScalar y,
@@ -156,9 +126,6 @@ class CC_PAINT_EXPORT SkiaPaintCanvas final : public PaintCanvas {
 
   bool isClipEmpty() const override;
   SkMatrix getTotalMatrix() const override;
-  SkM44 getLocalToDevice() const override;
-
-  bool NeedsFlush() const override;
 
   void Annotate(AnnotationType type,
                 const SkRect& rect,
@@ -183,7 +150,10 @@ class CC_PAINT_EXPORT SkiaPaintCanvas final : public PaintCanvas {
  private:
   void FlushAfterDrawIfNeeded();
 
-  int GetMaxTextureSize() const;
+  int max_texture_size() const {
+    auto* context = canvas_->recordingContext();
+    return context ? context->maxTextureSize() : 0;
+  }
 
   SkCanvas* canvas_;
   SkBitmap bitmap_;

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,10 +52,6 @@ size_t GbmPixmap::GetNumberOfPlanes() const {
   return buffer_->GetNumPlanes();
 }
 
-bool GbmPixmap::SupportsZeroCopyWebGPUImport() const {
-  return buffer_->SupportsZeroCopyWebGPUImport();
-}
-
 uint64_t GbmPixmap::GetBufferFormatModifier() const {
   return buffer_->GetFormatModifier();
 }
@@ -74,7 +70,11 @@ uint32_t GbmPixmap::GetUniqueId() const {
 
 bool GbmPixmap::ScheduleOverlayPlane(
     gfx::AcceleratedWidget widget,
-    const gfx::OverlayPlaneData& overlay_plane_data,
+    int plane_z_order,
+    gfx::OverlayTransform plane_transform,
+    const gfx::Rect& display_bounds,
+    const gfx::RectF& crop_rect,
+    bool enable_blend,
     std::vector<gfx::GpuFence> acquire_fences,
     std::vector<gfx::GpuFence> release_fences) {
   DCHECK(buffer_->GetFlags() & GBM_BO_USE_SCANOUT);
@@ -84,7 +84,8 @@ bool GbmPixmap::ScheduleOverlayPlane(
   if (framebuffer_) {
     DCHECK(acquire_fences.empty() || acquire_fences.size() == 1u);
     surface_manager_->GetSurface(widget)->QueueOverlayPlane(DrmOverlayPlane(
-        framebuffer_, overlay_plane_data,
+        framebuffer_, plane_z_order, plane_transform, display_bounds, crop_rect,
+        enable_blend,
         acquire_fences.empty()
             ? nullptr
             : std::make_unique<gfx::GpuFence>(std::move(acquire_fences[0]))));

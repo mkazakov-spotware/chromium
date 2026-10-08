@@ -1,13 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {ThumbnailLoader} from './thumbnail_loader.js';
 
 /**
  * Mock thumbnail loader.
  */
-export class MockThumbnailLoader {
+class MockThumbnailLoader {
   /**
    * @param {Entry} entry An entry.
    * @param {ThumbnailLoader.LoaderType=} opt_loaderType Loader type.
@@ -36,7 +34,7 @@ export class MockThumbnailLoader {
     return Promise.resolve({
       data: MockThumbnailLoader.testImageDataUrl,
       width: MockThumbnailLoader.testImageWidth,
-      height: MockThumbnailLoader.testImageHeight,
+      height: MockThumbnailLoader.testImageHeight
     });
   }
 }

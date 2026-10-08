@@ -1,9 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef PPAPI_SHARED_IMPL_PPAPI_NACL_PLUGIN_ARGS_H_
-#define PPAPI_SHARED_IMPL_PPAPI_NACL_PLUGIN_ARGS_H_
+#ifndef PPAPI_SHARED_IMPL_PPAPI_NACL_PLUGIN_ARGS_H
+#define PPAPI_SHARED_IMPL_PPAPI_NACL_PLUGIN_ARGS_H
 
 #include <string>
 #include <vector>
@@ -28,4 +28,4 @@ struct PPAPI_SHARED_EXPORT PpapiNaClPluginArgs {
 
 }  // namespace ppapi
 
-#endif  // PPAPI_SHARED_IMPL_PPAPI_NACL_PLUGIN_ARGS_H_
+#endif  // PPAPI_SHARED_IMPL_PPAPI_NACL_PLUGIN_ARGS_H

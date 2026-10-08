@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,9 @@
 #include "components/password_manager/core/common/password_manager_ui.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
+
+const char ManagePasswordsIconViews::kClassName[] = "ManagePasswordsIconViews";
 
 ManagePasswordsIconViews::ManagePasswordsIconViews(
     CommandUpdater* updater,
@@ -22,8 +23,7 @@ ManagePasswordsIconViews::ManagePasswordsIconViews(
     : PageActionIconView(updater,
                          IDC_MANAGE_PASSWORDS_FOR_PAGE,
                          icon_label_bubble_delegate,
-                         page_action_icon_delegate,
-                         "ManagePasswords") {
+                         page_action_icon_delegate) {
   // Password icon should not be mirrored in RTL.
   image()->SetFlipCanvasOnPaintForRTLUI(false);
 }
@@ -78,29 +78,28 @@ const gfx::VectorIcon& ManagePasswordsIconViews::GetVectorIcon() const {
   return kKeyIcon;
 }
 
-std::u16string ManagePasswordsIconViews::GetTextForTooltipAndAccessibleName()
+base::string16 ManagePasswordsIconViews::GetTextForTooltipAndAccessibleName()
     const {
   switch (state_) {
     case password_manager::ui::INACTIVE_STATE:
     case password_manager::ui::CONFIRMATION_STATE:
     case password_manager::ui::CREDENTIAL_REQUEST_STATE:
     case password_manager::ui::AUTO_SIGNIN_STATE:
+    case password_manager::ui::CHROME_SIGN_IN_PROMO_STATE:
     case password_manager::ui::WILL_DELETE_UNSYNCED_ACCOUNT_PASSWORDS_STATE:
     case password_manager::ui::MANAGE_STATE:
     case password_manager::ui::PASSWORD_UPDATED_SAFE_STATE:
     case password_manager::ui::PASSWORD_UPDATED_MORE_TO_FIX:
+    case password_manager::ui::PASSWORD_UPDATED_UNSAFE_STATE:
       return l10n_util::GetStringUTF16(IDS_PASSWORD_MANAGER_TOOLTIP_MANAGE);
     case password_manager::ui::PENDING_PASSWORD_UPDATE_STATE:
     case password_manager::ui::PENDING_PASSWORD_STATE:
       return l10n_util::GetStringUTF16(IDS_PASSWORD_MANAGER_TOOLTIP_SAVE);
     case password_manager::ui::CAN_MOVE_PASSWORD_TO_ACCOUNT_STATE:
       return l10n_util::GetStringUTF16(IDS_PASSWORD_MANAGER_TOOLTIP_MOVE);
-    case password_manager::ui::BIOMETRIC_AUTHENTICATION_FOR_FILLING_STATE:
-    case password_manager::ui::BIOMETRIC_AUTHENTICATION_CONFIRMATION_STATE:
-      return l10n_util::GetStringUTF16(IDS_PASSWORD_MANAGER_TOOLTIP_PROTECT);
   }
   NOTREACHED();
-  return std::u16string();
+  return base::string16();
 }
 
 void ManagePasswordsIconViews::AboutToRequestFocusFromTabTraversal(
@@ -109,5 +108,6 @@ void ManagePasswordsIconViews::AboutToRequestFocusFromTabTraversal(
     PasswordBubbleViewBase::ActivateBubble();
 }
 
-BEGIN_METADATA(ManagePasswordsIconViews, PageActionIconView)
-END_METADATA
+const char* ManagePasswordsIconViews::GetClassName() const {
+  return kClassName;
+}

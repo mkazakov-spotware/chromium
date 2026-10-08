@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,10 +17,6 @@ class WinUsbHandleTraits {
  public:
   using Handle = WINUSB_INTERFACE_HANDLE;
 
-  WinUsbHandleTraits() = delete;
-  WinUsbHandleTraits(const WinUsbHandleTraits&) = delete;
-  WinUsbHandleTraits& operator=(const WinUsbHandleTraits&) = delete;
-
   static bool CloseHandle(Handle handle);
 
   static bool IsHandleValid(Handle handle) {
@@ -28,6 +24,9 @@ class WinUsbHandleTraits {
   }
 
   static Handle NullHandle() { return nullptr; }
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(WinUsbHandleTraits);
 };
 
 using ScopedWinUsbHandle =

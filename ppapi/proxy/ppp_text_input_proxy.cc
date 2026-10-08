@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@ namespace proxy {
 
 namespace {
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
 void RequestSurroundingText(PP_Instance instance,
                             uint32_t desired_number_of_characters) {
   proxy::HostDispatcher* dispatcher =
@@ -36,7 +36,7 @@ const PPP_TextInput_Dev g_ppp_text_input_thunk = {
 #else
 // The NaCl plugin doesn't need the host side interface - stub it out.
 static const PPP_TextInput_Dev g_ppp_text_input_thunk = {};
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
 }  // namespace
 

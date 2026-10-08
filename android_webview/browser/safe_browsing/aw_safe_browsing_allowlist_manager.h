@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,7 +44,7 @@ struct TrieNode;
 // The hostname with a leading dot means an exact match, otherwise subdomains
 // are also matched. This particular rule is similar to admiministration
 // policy format:
-//      https://www.chromium.org/administrators/url-blocklist-filter-format
+//      https://www.chromium.org/administrators/url-blacklist-filter-format
 //
 // The expected number of entries on the list should be 100s at most, however
 // the size is not enforced here. The list size can be enforced at
@@ -59,12 +59,6 @@ class AwSafeBrowsingAllowlistManager {
   AwSafeBrowsingAllowlistManager(
       const scoped_refptr<base::SequencedTaskRunner>& background_task_runner,
       const scoped_refptr<base::SequencedTaskRunner>& io_task_runner);
-
-  AwSafeBrowsingAllowlistManager(const AwSafeBrowsingAllowlistManager&) =
-      delete;
-  AwSafeBrowsingAllowlistManager& operator=(
-      const AwSafeBrowsingAllowlistManager&) = delete;
-
   virtual ~AwSafeBrowsingAllowlistManager();
 
   // Returns true if |url| is allowed by the current allowlist. Must be
@@ -87,6 +81,8 @@ class AwSafeBrowsingAllowlistManager {
   scoped_refptr<base::SequencedTaskRunner> ui_task_runner_;
 
   std::unique_ptr<TrieNode> allowlist_;
+
+  DISALLOW_COPY_AND_ASSIGN(AwSafeBrowsingAllowlistManager);
 };
 
 }  // namespace android_webview

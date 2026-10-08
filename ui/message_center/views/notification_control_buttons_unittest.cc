@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/message_center/views/notification_control_buttons_view.h"
 
-#include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gfx/color_palette.h"
@@ -15,9 +14,6 @@
 #include "ui/message_center/public/cpp/notification.h"
 #include "ui/message_center/vector_icons.h"
 #include "ui/message_center/views/message_view.h"
-#include "ui/views/controls/button/image_button.h"
-#include "ui/views/test/views_test_base.h"
-#include "ui/views/widget/widget.h"
 
 namespace message_center {
 
@@ -26,57 +22,40 @@ namespace {
 class TestMessageView : public MessageView {
  public:
   explicit TestMessageView(const Notification& notification)
-      : MessageView(notification) {}
+      : MessageView(notification),
+        buttons_view_(std::make_unique<NotificationControlButtonsView>(this)) {}
 
   NotificationControlButtonsView* GetControlButtonsView() const override {
-    return buttons_view_;
-  }
-
-  void set_control_buttons_view(NotificationControlButtonsView* buttons_view) {
-    buttons_view_ = buttons_view;
+    return buttons_view_.get();
   }
 
  private:
-  raw_ptr<NotificationControlButtonsView> buttons_view_ = nullptr;
+  std::unique_ptr<NotificationControlButtonsView> buttons_view_;
 };
 
 }  // namespace
 
-class NotificationControlButtonsTest : public views::ViewsTestBase {
+class NotificationControlButtonsTest : public testing::Test {
  public:
   NotificationControlButtonsTest() = default;
-
-  NotificationControlButtonsTest(const NotificationControlButtonsTest&) =
-      delete;
-  NotificationControlButtonsTest& operator=(
-      const NotificationControlButtonsTest&) = delete;
-
   ~NotificationControlButtonsTest() override = default;
 
-  // views::ViewsTestBase:
+  // testing::Test
   void SetUp() override {
-    views::ViewsTestBase::SetUp();
-    widget_ = CreateTestWidget();
+    Test::SetUp();
     Notification notification(
-        NOTIFICATION_TYPE_SIMPLE, "id", u"title", u"id", ui::ImageModel(),
-        std::u16string(), GURL(),
+        NOTIFICATION_TYPE_SIMPLE, "id", base::UTF8ToUTF16("title"),
+        base::UTF8ToUTF16("id"), gfx::Image(), base::string16(), GURL(),
         NotifierId(NotifierType::APPLICATION, "notifier_id"),
         RichNotificationData(), nullptr);
     message_view_ = std::make_unique<TestMessageView>(notification);
-    message_view_->set_control_buttons_view(widget_->SetContentsView(
-        std::make_unique<NotificationControlButtonsView>(message_view_.get())));
-  }
-
-  void TearDown() override {
-    widget_.reset();
-    views::ViewsTestBase::TearDown();
   }
 
   NotificationControlButtonsView* buttons_view() {
     return message_view_->GetControlButtonsView();
   }
 
-  bool MatchesIcon(views::ImageButton* button,
+  bool MatchesIcon(PaddedButton* button,
                    const gfx::VectorIcon& icon,
                    SkColor color) {
     SkBitmap expected = *gfx::CreateVectorIcon(icon, color).bitmap();
@@ -94,8 +73,9 @@ class NotificationControlButtonsTest : public views::ViewsTestBase {
   }
 
  private:
-  std::unique_ptr<views::Widget> widget_;
   std::unique_ptr<TestMessageView> message_view_;
+
+  DISALLOW_COPY_AND_ASSIGN(NotificationControlButtonsTest);
 };
 
 TEST_F(NotificationControlButtonsTest, TestShowAndHideButtons) {
@@ -126,7 +106,7 @@ TEST_F(NotificationControlButtonsTest, IconColor_NoContrastEnforcement) {
   buttons_view()->ShowSnoozeButton(true);
 
   // Default icon color.
-  ExpectIconColor(buttons_view()->GetColorProvider()->GetColor(ui::kColorIcon));
+  ExpectIconColor(gfx::kChromeIconGrey);
 
   // Without setting a background color we won't enforce contrast ratios.
   buttons_view()->SetButtonIconColors(SK_ColorWHITE);

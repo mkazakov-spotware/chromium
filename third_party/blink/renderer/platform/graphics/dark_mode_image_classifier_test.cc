@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/platform/graphics/bitmap_image.h"
-#include "third_party/blink/renderer/platform/graphics/dark_mode_settings.h"
 #include "third_party/blink/renderer/platform/graphics/image.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_image.h"
 #include "third_party/blink/renderer/platform/testing/testing_platform_support_with_mock_scheduler.h"
@@ -23,8 +22,7 @@ const float kEpsilon = 0.00001;
 class DarkModeImageClassifierTest : public testing::Test {
  public:
   DarkModeImageClassifierTest() {
-    dark_mode_image_classifier_ = std::make_unique<DarkModeImageClassifier>(
-        DarkModeImageClassifierPolicy::kNumColorsWithMlFallback);
+    dark_mode_image_classifier_ = std::make_unique<DarkModeImageClassifier>();
   }
 
   // Loads the image from |file_name|.

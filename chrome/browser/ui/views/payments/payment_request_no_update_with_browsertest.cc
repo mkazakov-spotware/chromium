@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,19 +13,27 @@
 
 namespace payments {
 
-using PaymentRequestNoUpdateWithTest = PaymentRequestBrowserTestBase;
+class PaymentRequestNoUpdateWithTest : public PaymentRequestBrowserTestBase {
+ protected:
+  PaymentRequestNoUpdateWithTest() {}
+
+  void RunJavaScriptFunctionToOpenPaymentRequestUI(
+      const std::string& function_name) {
+    ResetEventWaiterForDialogOpened();
+
+    content::WebContents* web_contents = GetActiveWebContents();
+    ASSERT_TRUE(content::ExecuteScript(web_contents, function_name + "();"));
+
+    WaitForObservedEvent();
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PaymentRequestNoUpdateWithTest);
+};
 
 // A merchant that does not listen to shipping address update events will not
 // cause timeouts in UI.
 IN_PROC_BROWSER_TEST_F(PaymentRequestNoUpdateWithTest, BuyWithoutListeners) {
-  // Installs two apps so that the Payment Request UI will be shown.
-  std::string a_method_name;
-  InstallPaymentApp("a.com", "/payment_request_success_responder.js",
-                    &a_method_name);
-  std::string b_method_name;
-  InstallPaymentApp("b.com", "/payment_request_success_responder.js",
-                    &b_method_name);
-
   NavigateTo("/payment_request_no_update_with_test.html");
   autofill::AutofillProfile billing_address = autofill::test::GetFullProfile();
   AddAutofillProfile(billing_address);
@@ -34,10 +42,7 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestNoUpdateWithTest, BuyWithoutListeners) {
   card.set_billing_address_id(billing_address.guid());
   AddCreditCard(card);
 
-  InvokePaymentRequestUIWithJs(
-      content::JsReplace("buyWithoutListenersWithMethods([{supportedMethods:$1}"
-                         ", {supportedMethods:$2}]);",
-                         a_method_name, b_method_name));
+  RunJavaScriptFunctionToOpenPaymentRequestUI("buyWithoutListeners");
 
   OpenShippingAddressSectionScreen();
   ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_SHOWN,
@@ -54,11 +59,7 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestNoUpdateWithTest, BuyWithoutListeners) {
   // updated) and this hits a DCHECK.
   WaitForAnimation();
 
-  // Click on pay.
-  EXPECT_TRUE(IsPayButtonEnabled());
-  ResetEventWaiterForSequence(
-      {DialogEvent::PROCESSING_SPINNER_SHOWN, DialogEvent::DIALOG_CLOSED});
-  ClickOnDialogViewAndWait(DialogViewID::PAY_BUTTON, dialog_view());
+  PayWithCreditCardAndWait(base::ASCIIToUTF16("123"));
 
   ExpectBodyContains({"freeShipping"});
 }
@@ -67,14 +68,6 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestNoUpdateWithTest, BuyWithoutListeners) {
 // updateWith() on the event, will not cause timeouts in UI.
 IN_PROC_BROWSER_TEST_F(PaymentRequestNoUpdateWithTest,
                        BuyWithoutCallingUpdateWith) {
-  // Installs two apps so that the Payment Request UI will be shown.
-  std::string a_method_name;
-  InstallPaymentApp("a.com", "/payment_request_success_responder.js",
-                    &a_method_name);
-  std::string b_method_name;
-  InstallPaymentApp("b.com", "/payment_request_success_responder.js",
-                    &b_method_name);
-
   NavigateTo("/payment_request_no_update_with_test.html");
   autofill::AutofillProfile billing_address = autofill::test::GetFullProfile();
   AddAutofillProfile(billing_address);
@@ -83,10 +76,7 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestNoUpdateWithTest,
   card.set_billing_address_id(billing_address.guid());
   AddCreditCard(card);
 
-  InvokePaymentRequestUIWithJs(
-      content::JsReplace("buyWithoutCallingUpdateWithWithMethods([{"
-                         "supportedMethods:$1}, {supportedMethods:$2}]);",
-                         a_method_name, b_method_name));
+  RunJavaScriptFunctionToOpenPaymentRequestUI("buyWithoutCallingUpdateWith");
 
   OpenShippingAddressSectionScreen();
   ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_SHOWN,
@@ -103,11 +93,7 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestNoUpdateWithTest,
   // updated) and this hits a DCHECK.
   WaitForAnimation();
 
-  // Click on pay.
-  EXPECT_TRUE(IsPayButtonEnabled());
-  ResetEventWaiterForSequence(
-      {DialogEvent::PROCESSING_SPINNER_SHOWN, DialogEvent::DIALOG_CLOSED});
-  ClickOnDialogViewAndWait(DialogViewID::PAY_BUTTON, dialog_view());
+  PayWithCreditCardAndWait(base::ASCIIToUTF16("123"));
 
   ExpectBodyContains({"freeShipping"});
 }
@@ -115,14 +101,6 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestNoUpdateWithTest,
 // A merchant that invokes updateWith() directly without using a promise will
 // not cause timeouts in UI.
 IN_PROC_BROWSER_TEST_F(PaymentRequestNoUpdateWithTest, BuyWithoutPromises) {
-  // Installs two apps so that the Payment Request UI will be shown.
-  std::string a_method_name;
-  InstallPaymentApp("a.com", "/payment_request_success_responder.js",
-                    &a_method_name);
-  std::string b_method_name;
-  InstallPaymentApp("b.com", "/payment_request_success_responder.js",
-                    &b_method_name);
-
   NavigateTo("/payment_request_no_update_with_test.html");
   autofill::AutofillProfile billing_address = autofill::test::GetFullProfile();
   AddAutofillProfile(billing_address);
@@ -131,13 +109,10 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestNoUpdateWithTest, BuyWithoutPromises) {
   card.set_billing_address_id(billing_address.guid());
   AddCreditCard(card);
 
-  InvokePaymentRequestUIWithJs(
-      content::JsReplace("buyWithoutPromisesWithMethods([{supportedMethods:$1},"
-                         " {supportedMethods:$2}]);",
-                         a_method_name, b_method_name));
+  RunJavaScriptFunctionToOpenPaymentRequestUI("buyWithoutPromises");
 
   OpenOrderSummaryScreen();
-  EXPECT_EQ(u"$5.00",
+  EXPECT_EQ(base::ASCIIToUTF16("$5.00"),
             GetLabelText(DialogViewID::ORDER_SUMMARY_TOTAL_AMOUNT_LABEL));
   ClickOnBackArrow();
 
@@ -157,15 +132,11 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestNoUpdateWithTest, BuyWithoutPromises) {
   WaitForAnimation();
 
   OpenOrderSummaryScreen();
-  EXPECT_EQ(u"$10.00",
+  EXPECT_EQ(base::ASCIIToUTF16("$10.00"),
             GetLabelText(DialogViewID::ORDER_SUMMARY_TOTAL_AMOUNT_LABEL));
   ClickOnBackArrow();
 
-  // Click on pay.
-  EXPECT_TRUE(IsPayButtonEnabled());
-  ResetEventWaiterForSequence(
-      {DialogEvent::PROCESSING_SPINNER_SHOWN, DialogEvent::DIALOG_CLOSED});
-  ClickOnDialogViewAndWait(DialogViewID::PAY_BUTTON, dialog_view());
+  PayWithCreditCardAndWait(base::ASCIIToUTF16("123"));
 
   ExpectBodyContains({"updatedShipping"});
 }

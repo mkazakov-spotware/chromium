@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "ash/ash_export.h"
 #include "ash/wallpaper/wallpaper_constants.h"
 #include "base/callback.h"
+#include "base/macros.h"
 #include "ui/compositor/layer_animation_observer.h"
 
 namespace ui {
@@ -34,12 +35,8 @@ class WallpaperView;
 class ASH_EXPORT WallpaperWidgetController
     : public ui::ImplicitAnimationObserver {
  public:
-  explicit WallpaperWidgetController(aura::Window* root_window);
-
-  WallpaperWidgetController(const WallpaperWidgetController&) = delete;
-  WallpaperWidgetController& operator=(const WallpaperWidgetController&) =
-      delete;
-
+  WallpaperWidgetController(aura::Window* root_window,
+                            base::OnceClosure wallpaper_set_callback);
   ~WallpaperWidgetController() override;
 
   // Initialize the widget. |lock| specifies if the wallpaper should be created
@@ -92,6 +89,9 @@ class ASH_EXPORT WallpaperWidgetController
 
   aura::Window* root_window_;
 
+  // Callback that will be run when |active_widget_| is first set.
+  base::OnceClosure wallpaper_set_callback_;
+
   // The current wallpaper widget.
   std::unique_ptr<views::Widget> widget_;
 
@@ -105,6 +105,8 @@ class ASH_EXPORT WallpaperWidgetController
   // Callbacks to be run when the |animating_widget_| stops animating and gets
   // set as the active widget.
   std::list<base::OnceClosure> animation_end_callbacks_;
+
+  DISALLOW_COPY_AND_ASSIGN(WallpaperWidgetController);
 };
 
 }  // namespace ash

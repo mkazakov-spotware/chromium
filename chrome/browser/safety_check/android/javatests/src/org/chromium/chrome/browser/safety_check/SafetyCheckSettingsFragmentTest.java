@@ -1,10 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.safety_check;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -17,7 +19,6 @@ import androidx.preference.Preference;
 import androidx.test.filters.MediumTest;
 import androidx.test.filters.SmallTest;
 
-import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -27,8 +28,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import org.chromium.base.test.util.CallbackHelper;
-import org.chromium.base.test.util.Criteria;
-import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.password_check.PasswordCheck;
 import org.chromium.chrome.browser.password_check.PasswordCheckFactory;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
@@ -43,6 +43,7 @@ import org.chromium.ui.modelutil.PropertyModel;
 
 /** Tests {@link SafetyCheckSettingsFragment} together with {@link SafetyCheckViewBinder}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
+@Features.EnableFeatures({ChromeFeatureList.SAFETY_CHECK_ANDROID, ChromeFeatureList.PASSWORD_CHECK})
 public class SafetyCheckSettingsFragmentTest {
     private static final String PASSWORDS = "passwords";
     private static final String SAFE_BROWSING = "safe_browsing";
@@ -88,6 +89,32 @@ public class SafetyCheckSettingsFragmentTest {
 
     @Test
     @SmallTest
+    public void testGetSafetyCheckSettingsElementTitleNew() {
+        SharedPreferencesManager preferenceManager = SharedPreferencesManager.getInstance();
+        // The "NEW" label should still be shown after one run.
+        preferenceManager.writeInt(ChromePreferenceKeys.SETTINGS_SAFETY_CHECK_RUN_COUNTER, 1);
+        String title = SafetyCheckSettingsFragment
+                               .getSafetyCheckSettingsElementTitle(
+                                       InstrumentationRegistry.getTargetContext())
+                               .toString();
+        assertTrue(title.contains("New"));
+    }
+
+    @Test
+    @SmallTest
+    public void testGetSafetyCheckSettingsElementTitleNoNew() {
+        SharedPreferencesManager preferenceManager = SharedPreferencesManager.getInstance();
+        // The "NEW" label disappears after 3 runs.
+        preferenceManager.writeInt(ChromePreferenceKeys.SETTINGS_SAFETY_CHECK_RUN_COUNTER, 3);
+        String title = SafetyCheckSettingsFragment
+                               .getSafetyCheckSettingsElementTitle(
+                                       InstrumentationRegistry.getTargetContext())
+                               .toString();
+        assertFalse(title.contains("New"));
+    }
+
+    @Test
+    @SmallTest
     public void testLastRunTimestampStrings() {
         long t0 = 12345;
         Context context = InstrumentationRegistry.getTargetContext();
@@ -115,14 +142,6 @@ public class SafetyCheckSettingsFragmentTest {
 
     private void createFragmentAndModel() {
         mSettingsActivityTestRule.startSettingsActivity();
-        mFragment = (SafetyCheckSettingsFragment) mSettingsActivityTestRule.getFragment();
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> { mModel = SafetyCheckCoordinator.createModelAndMcp(mFragment); });
-    }
-
-    private void createFragmentAndModelByBundle(boolean safetyCheckImmediateRun) {
-        mSettingsActivityTestRule.startSettingsActivity(
-                SafetyCheckSettingsFragment.createBundle(safetyCheckImmediateRun));
         mFragment = (SafetyCheckSettingsFragment) mSettingsActivityTestRule.getFragment();
         TestThreadUtils.runOnUiThreadBlocking(
                 () -> { mModel = SafetyCheckCoordinator.createModelAndMcp(mFragment); });
@@ -209,29 +228,5 @@ public class SafetyCheckSettingsFragmentTest {
         assertEquals(1, passwordsClicked.getCallCount());
         assertEquals(0, safeBrowsingClicked.getCallCount());
         assertEquals(1, updatesClicked.getCallCount());
-    }
-
-    @Test
-    @MediumTest
-    public void testSafetyCheckDoNotImmediatelyRunByDefault() {
-        createFragmentAndModelByBundle(/*safetyCheckImmediateRun=*/false);
-        assertEquals(false, mFragment.shouldRunSafetyCheckImmediately());
-        assertEquals(0,
-                SharedPreferencesManager.getInstance().readLong(
-                        ChromePreferenceKeys.SETTINGS_SAFETY_CHECK_LAST_RUN_TIMESTAMP, 0));
-    }
-
-    @Test
-    @MediumTest
-    public void testSafetyCheckImmediatelyRunByBundle() {
-        createFragmentAndModelByBundle(/*safetyCheckImmediateRun=*/true);
-
-        // Make sure the safety check was ran.
-        CriteriaHelper.pollUiThread(() -> {
-            Criteria.checkThat(
-                    SharedPreferencesManager.getInstance().readLong(
-                            ChromePreferenceKeys.SETTINGS_SAFETY_CHECK_LAST_RUN_TIMESTAMP, 0),
-                    Matchers.not(0));
-        });
     }
 }

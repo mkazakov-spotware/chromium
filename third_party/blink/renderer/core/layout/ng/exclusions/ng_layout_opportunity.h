@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,19 +19,14 @@ class NGConstraintSpace;
 // calling FindLayoutOpportunity, or AllLayoutOpportunities.
 //
 // Its coordinates are relative to the BFC.
-struct CORE_EXPORT NGLayoutOpportunity final {
-  DISALLOW_NEW();
-
- public:
+struct CORE_EXPORT NGLayoutOpportunity {
   NGLayoutOpportunity()
       : rect(NGBfcOffset(LayoutUnit::Min(), LayoutUnit::Min()),
              NGBfcOffset(LayoutUnit::Max(), LayoutUnit::Max())) {}
-  explicit NGLayoutOpportunity(
+  NGLayoutOpportunity(
       const NGBfcRect& rect,
-      const NGShapeExclusions* shape_exclusions = nullptr)
-      : rect(rect), shape_exclusions(shape_exclusions) {}
-
-  void Trace(Visitor* visitor) const { visitor->Trace(shape_exclusions); }
+      scoped_refptr<const NGShapeExclusions> shape_exclusions = nullptr)
+      : rect(rect), shape_exclusions(std::move(shape_exclusions)) {}
 
   // Rectangle in BFC coordinates that represents this opportunity.
   NGBfcRect rect;
@@ -39,11 +34,11 @@ struct CORE_EXPORT NGLayoutOpportunity final {
   // The shape exclusions hold all of the adjacent exclusions which may affect
   // the line layout opportunity when queried. May be null if no shapes are
   // present.
-  Member<const NGShapeExclusions> shape_exclusions;
+  scoped_refptr<const NGShapeExclusions> shape_exclusions;
 
   // Returns if the opportunity has any shapes which may affect a line layout
   // opportunity.
-  bool HasShapeExclusions() const { return shape_exclusions; }
+  bool HasShapeExclusions() const { return shape_exclusions.get(); }
 
   // Returns if the given delta (relative to the start of the opportunity) will
   // be below any shapes.
@@ -62,11 +57,6 @@ struct CORE_EXPORT NGLayoutOpportunity final {
         rect.BlockStartOffset() + block_delta, line_block_size);
   }
 
-  bool operator==(const NGLayoutOpportunity& other) const;
-  bool operator!=(const NGLayoutOpportunity& other) const {
-    return !operator==(other);
-  }
-
  private:
   LayoutUnit ComputeLineLeftOffset(const NGConstraintSpace&,
                                    LayoutUnit line_block_size,
@@ -76,11 +66,6 @@ struct CORE_EXPORT NGLayoutOpportunity final {
                                     LayoutUnit block_delta) const;
 };
 
-CORE_EXPORT std::ostream& operator<<(std::ostream& os,
-                                     const NGLayoutOpportunity& opportunity);
-
 }  // namespace blink
-
-WTF_ALLOW_CLEAR_UNUSED_SLOTS_WITH_MEM_FUNCTIONS(blink::NGLayoutOpportunity)
 
 #endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_EXCLUSIONS_NG_LAYOUT_OPPORTUNITY_H_

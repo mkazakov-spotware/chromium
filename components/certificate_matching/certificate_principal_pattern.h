@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,10 @@
 
 #include "base/component_export.h"
 #include "base/strings/string_piece_forward.h"
-#include "base/values.h"
+
+namespace base {
+class Value;
+}
 
 namespace net {
 struct CertPrincipal;
@@ -58,7 +61,7 @@ class COMPONENT_EXPORT(CERTIFICATE_MATCHING) CertificatePrincipalPattern {
   // empty (putting no constraint on the principal field). If |value| is nullptr
   // or not a dictionary, returns an empty pattern.
   static CertificatePrincipalPattern ParseFromOptionalDict(
-      const base::Value::Dict* dict,
+      const base::Value* dict,
       base::StringPiece key_common_name,
       base::StringPiece key_locality,
       base::StringPiece key_organization,

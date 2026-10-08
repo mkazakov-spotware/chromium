@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_PUBLIC_CPP_SHELL_WINDOW_IDS_H_
 #define ASH_PUBLIC_CPP_SHELL_WINDOW_IDS_H_
 
+#include <array>
 #include <vector>
 
 #include "ash/public/cpp/ash_public_export.h"
@@ -32,9 +33,7 @@ enum ShellWindowId {
 
   // A higher-level container that holds all of the containers stacked below
   // kShellWindowId_LockScreenContainer.  Only used by PowerButtonController for
-  // animating lower-level containers and AccessibilityController for hiding
-  // non-lock screen windows from Accessibility when the user session is
-  // blocked.
+  // animating lower-level containers.
   kShellWindowId_NonLockScreenContainersContainer,
 
   // A higher-level container that holds containers that hold lock-screen
@@ -50,48 +49,29 @@ enum ShellWindowId {
   // PowerButtonController for animating lower-level containers.
   kShellWindowId_LockScreenRelatedContainersContainer,
 
-  // A container used for windows that temporarily have no parent. It is
-  // expected the windows will get parented to another container shortly after.
+  // A container used for windows of WINDOW_TYPE_CONTROL that have no parent.
   // This container is not visible.
-  kShellWindowId_UnparentedContainer,
+  kShellWindowId_UnparentedControlContainer,
 
   // The wallpaper (desktop background) window.
   kShellWindowId_WallpaperContainer,
-
-  // The glanceables ("welcome back") window container.
-  kShellWindowId_GlanceablesContainer,
 
   // The containers for standard top-level windows per active desks.
   // * Notes:
   //   - There are no direct mapping between `kShellWindowId_DeskContainerA` and
   //     Desk 1, or `kShellWindowId_DeskContainerB` and Desk 2. The containers
   //     are reused as desks are created and deleted.
-  //   - Keep the desk container IDs sequential here.
   //   - **DO NOT** use these container IDs directly, instead use
   //     `desks_util::GetActiveDeskContainerId()`.
-  kShellWindowId_DeskContainerA,
+  // TODO(afakhry): Rename this container, unexpose it, and add the rest of the
+  // containers.
+  kShellWindowId_DefaultContainerDeprecated,
   kShellWindowId_DeskContainerB,
   kShellWindowId_DeskContainerC,
   kShellWindowId_DeskContainerD,
-  kShellWindowId_DeskContainerE,
-  kShellWindowId_DeskContainerF,
-  kShellWindowId_DeskContainerG,
-  kShellWindowId_DeskContainerH,
-  kShellWindowId_DeskContainerI,
-  kShellWindowId_DeskContainerJ,
-  kShellWindowId_DeskContainerK,
-  kShellWindowId_DeskContainerL,
-  kShellWindowId_DeskContainerM,
-  kShellWindowId_DeskContainerN,
-  kShellWindowId_DeskContainerO,
-  kShellWindowId_DeskContainerP,
 
   // The container for top-level windows with the 'always-on-top' flag set.
   kShellWindowId_AlwaysOnTopContainer,
-
-  // The container for the floating window.
-  // Experimental feature, please don't use this container.
-  kShellWindowId_FloatContainer,
 
   // The container for the app list.
   kShellWindowId_AppListContainer,
@@ -150,8 +130,7 @@ enum ShellWindowId {
   // The container for menus.
   kShellWindowId_MenuContainer,
 
-  // The container for drag/drop images, tooltips, and widgets that are tagged
-  // with ui::ZOrderLevel::kSecuritySurface.
+  // The container for drag/drop images and tooltips.
   kShellWindowId_DragImageAndTooltipContainer,
 
   // The container for the fullscreen power button menu.
@@ -213,24 +192,6 @@ enum NonContainerWindowId {
   // Only one window exists whenever the display settings page is open with
   // multiple displays connected.
   kShellWindowId_DisplayIdentificationHighlightWindow,
-
-  // The window specified as the owner of the folder selection menu for capture
-  // mode, which will be a transient window parent of the about to be created
-  // dialog window. This is needed in order to prevent
-  // |SelectFileDialogExtension| from favoring to parent the dialog to a browser
-  // window (if one exists).
-  kShellWindowId_CaptureModeFolderSelectionDialogOwner,
-
-  // The window that shows the "Save desk as template" button and `Save desk for
-  // later` button below the Virtual Desks bar. There's only one such window on
-  // each display when overview mode is active.
-  kShellWindowId_SaveDeskButtonContainer,
-
-  // The window that shows the Saved Desk Library in overview.
-  kShellWindowId_SavedDeskLibraryWindow,
-
-  // The window that shows the "No recent items" label in overview.
-  kShellWindowId_OverviewNoWindowsLabelWindow,
 };
 
 // A list of system modal container IDs. The order of the list is important that
@@ -245,9 +206,9 @@ constexpr int kSystemModalContainerIds[] = {
 // windows in containers appearing later in the list. This list is used by
 // AshFocusRules to determine which container to start the search from when
 // looking for the next activatable window.
-ASH_PUBLIC_EXPORT std::vector<int> GetActivatableShellWindowIds();
+ASH_PUBLIC_EXPORT const std::array<int, 18>& GetActivatableShellWindowIds();
 
-// Returns true if |id| is in GetActivatableShellWindowIds.
+// Returns true if |id| is in |kActivatableContainersIds|.
 ASH_PUBLIC_EXPORT bool IsActivatableShellWindowId(int id);
 
 }  // namespace ash

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,8 +27,6 @@ function WebViewEvents(webViewImpl) {
 }
 
 function createOnMessageEvent(name, schema, options, webviewId) {
-  // There is a dependency on these IDs between the renderer and
-  // the browser, so this cannot use GetNextScopedId.
   var subEventName = name + '/' + IdGenerator.GetNextId();
   var newEvent = bindingUtil.createCustomEvent(
       subEventName, false /* supports filters */,
@@ -73,6 +71,10 @@ WebViewEvents.EVENTS = {
     evt: CreateEvent('webViewInternal.onDialog'),
     fields: ['defaultPromptText', 'messageText', 'messageType', 'url'],
     handler: 'handleDialogEvent'
+  },
+  'droplink': {
+    evt: CreateEvent('webViewInternal.onDropLink'),
+    fields: ['url']
   },
   'exit': {
     evt: CreateEvent('webViewInternal.onExit'),
@@ -277,8 +279,8 @@ WebViewEvents.prototype.handleLoadCommitEvent = function(event, eventName) {
                          event.currentEntryIndex,
                          event.entryCount,
                          event.processId,
-                         event.visibleUrl);
-
+                         event.url,
+                         event.isTopLevel);
   var webViewEvent = this.makeDomEvent(event, eventName);
   this.view.dispatchEvent(webViewEvent);
 };

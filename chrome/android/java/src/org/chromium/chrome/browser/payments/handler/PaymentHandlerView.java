@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@ import android.widget.FrameLayout;
 
 import androidx.annotation.Nullable;
 
-import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.chrome.R;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 import org.chromium.content_public.browser.RenderCoordinates;
@@ -30,8 +29,6 @@ import org.chromium.content_public.browser.WebContents;
     private final View mThinWebView;
     private final WebContents mWebContents;
     private final int mToolbarHeightPx;
-    private final ObservableSupplierImpl<Boolean> mBackPressStateChangedSupplier =
-            new ObservableSupplierImpl<>();
     private Runnable mBackPressCallback;
 
     /**
@@ -54,7 +51,6 @@ import org.chromium.content_public.browser.WebContents;
         mContentView.setPadding(
                 /*left=*/0, /*top=*/mToolbarHeightPx, /*right=*/0, /*bottom=*/0);
         mContentView.addView(thinWebView, /*index=*/0);
-        mBackPressStateChangedSupplier.set(true);
     }
 
     /**
@@ -134,16 +130,6 @@ import org.chromium.content_public.browser.WebContents;
     public boolean handleBackPress() {
         mBackPressCallback.run();
         return true; // Prevent further handling of the back press.
-    }
-
-    @Override
-    public ObservableSupplierImpl<Boolean> getBackPressStateChangedSupplier() {
-        return mBackPressStateChangedSupplier;
-    }
-
-    @Override
-    public void onBackPressed() {
-        mBackPressCallback.run();
     }
 
     @Override

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,9 +20,7 @@
 #include "extensions/browser/extension_action.h"
 #include "extensions/browser/extension_action_manager.h"
 #include "extensions/browser/extension_system.h"
-#include "extensions/browser/user_script_manager.h"
 #include "extensions/common/api/declarative/declarative_constants.h"
-#include "extensions/common/api/extension_action/action_info.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/value_builder.h"
@@ -39,7 +37,6 @@ namespace {
 using base::test::ParseJson;
 using testing::HasSubstr;
 using ContentActionType = declarative_content_constants::ContentActionType;
-using extensions::mojom::ManifestLocation;
 
 std::unique_ptr<base::DictionaryValue> SimpleManifest() {
   return DictionaryBuilder()
@@ -60,12 +57,8 @@ class RequestContentScriptTest : public ExtensionServiceTestBase {
   // issue is fixed.
   virtual void Init() {
     InitializeEmptyExtensionService();
-    auto* extension_system =
-        static_cast<TestExtensionSystem*>(ExtensionSystem::Get(profile()));
-
-    extension_system->CreateUserScriptManager();
-    service()->AddExtension(extension());
-    extension_system->SetReady();
+    static_cast<TestExtensionSystem*>(ExtensionSystem::Get(profile()))->
+        SetReady();
     base::RunLoop().RunUntilIdle();
   }
 
@@ -124,7 +117,7 @@ TEST(DeclarativeContentActionTest, ShowActionWithoutAction) {
   scoped_refptr<const Extension> extension =
       ExtensionBuilder()
           .SetManifest(manifest.Build())
-          .SetLocation(ManifestLocation::kComponent)
+          .SetLocation(Manifest::COMPONENT)
           .Build();
   env.GetExtensionService()->AddExtension(extension.get());
 
@@ -144,7 +137,7 @@ TEST(DeclarativeContentActionTest, ShowActionWithoutAction) {
 }
 
 class ParameterizedDeclarativeContentActionTest
-    : public ::testing::TestWithParam<ActionInfo::Type> {};
+    : public ::testing::TestWithParam<ExtensionBuilder::ActionType> {};
 
 TEST_P(ParameterizedDeclarativeContentActionTest, ShowAction) {
   TestExtensionEnvironment env;
@@ -153,7 +146,7 @@ TEST_P(ParameterizedDeclarativeContentActionTest, ShowAction) {
   scoped_refptr<const Extension> extension =
       ExtensionBuilder("extension")
           .SetAction(GetParam())
-          .SetLocation(ManifestLocation::kInternal)
+          .SetLocation(Manifest::INTERNAL)
           .Build();
 
   env.GetExtensionService()->AddExtension(extension.get());
@@ -177,7 +170,7 @@ TEST_P(ParameterizedDeclarativeContentActionTest, ShowAction) {
   auto* action_manager = ExtensionActionManager::Get(env.profile());
   ExtensionAction* action = action_manager->GetExtensionAction(*extension);
   ASSERT_TRUE(action);
-  if (GetParam() == ActionInfo::TYPE_BROWSER) {
+  if (GetParam() == ExtensionBuilder::ActionType::BROWSER_ACTION) {
     EXPECT_EQ(ActionInfo::TYPE_BROWSER, action->action_type());
     // Switch the default so we properly see the action toggling.
     action->SetIsVisible(ExtensionAction::kDefaultTabId, false);
@@ -212,10 +205,11 @@ TEST_P(ParameterizedDeclarativeContentActionTest, ShowAction) {
   EXPECT_FALSE(action->GetIsVisible(tab_id));
 }
 
-INSTANTIATE_TEST_SUITE_P(All,
-                         ParameterizedDeclarativeContentActionTest,
-                         testing::Values(ActionInfo::TYPE_BROWSER,
-                                         ActionInfo::TYPE_PAGE));
+INSTANTIATE_TEST_SUITE_P(
+    All,
+    ParameterizedDeclarativeContentActionTest,
+    testing::Values(ExtensionBuilder::ActionType::BROWSER_ACTION,
+                    ExtensionBuilder::ActionType::PAGE_ACTION));
 
 TEST(DeclarativeContentActionTest, SetIcon) {
   enum Mode { Base64, Mojo, MojoHuge };
@@ -276,6 +270,9 @@ TEST(DeclarativeContentActionTest, SetIcon) {
     EXPECT_THAT(histogram_tester.GetAllSamples(
                     "Extensions.DeclarativeSetIconWasVisible"),
                 testing::ElementsAre(base::Bucket(1, 1)));
+    EXPECT_THAT(histogram_tester.GetAllSamples(
+                    "Extensions.DeclarativeSetIconWasVisibleRendered"),
+                testing::ElementsAre(base::Bucket(1, 1)));
     histogram_tester.ExpectUniqueSample(
         "Extensions.DeclarativeContentActionCreated",
         ContentActionType::kSetIcon, 1);
@@ -298,6 +295,49 @@ TEST(DeclarativeContentActionTest, SetIcon) {
     result->Revert(apply_info);
     EXPECT_TRUE(action->GetDeclarativeIcon(tab_id).IsEmpty());
   }
+}
+
+TEST(DeclarativeContentActionTest, SetInvalidIcon) {
+  TestExtensionEnvironment env;
+  content::RenderViewHostTestEnabler rvh_enabler;
+
+  // This bitmap type is allowed by skia::mojom::InlineBitmap but we should
+  // convert to N32 upon receipt.
+  SkBitmap bitmap;
+  EXPECT_TRUE(bitmap.tryAllocPixels(
+      SkImageInfo::Make(19, 19, kAlpha_8_SkColorType, kPremul_SkAlphaType)));
+  bitmap.eraseARGB(255, 255, 0, 0);
+
+  DictionaryBuilder builder;
+  builder.Set("instanceType", "declarativeContent.SetIcon");
+
+  std::vector<uint8_t> s = skia::mojom::InlineBitmap::Serialize(&bitmap);
+  builder.Set("imageData", DictionaryBuilder().Set("19", s).Build());
+
+  std::unique_ptr<base::DictionaryValue> dict = builder.Build();
+
+  const Extension* extension = env.MakeExtension(
+      ParseJson(R"({"page_action": {"default_title": "Extension"}})"));
+  base::HistogramTester histogram_tester;
+  TestingProfile profile;
+  std::string error;
+  std::unique_ptr<const ContentAction> result =
+      ContentAction::Create(&profile, extension, *dict, &error);
+  EXPECT_EQ("", error);
+  ASSERT_TRUE(result.get());
+
+  ExtensionAction* action = ExtensionActionManager::Get(env.profile())
+                                ->GetExtensionAction(*extension);
+
+  std::unique_ptr<content::WebContents> contents = env.MakeTab();
+  const int tab_id = ExtensionTabUtil::GetTabId(contents.get());
+  ContentAction::ApplyInfo apply_info = {extension, env.profile(),
+                                         contents.get(), 100};
+  EXPECT_TRUE(action->GetDeclarativeIcon(tab_id).IsEmpty());
+  result->Apply(apply_info);
+  EXPECT_FALSE(action->GetDeclarativeIcon(tab_id).IsEmpty());
+  EXPECT_EQ(kN32_SkColorType,
+            action->GetDeclarativeIcon(tab_id).ToSkBitmap()->colorType());
 }
 
 TEST(DeclarativeContentActionTest, SetInvisibleIcon) {
@@ -334,6 +374,9 @@ TEST(DeclarativeContentActionTest, SetInvisibleIcon) {
   EXPECT_THAT(
       histogram_tester.GetAllSamples("Extensions.DeclarativeSetIconWasVisible"),
       testing::ElementsAre(base::Bucket(0, 1)));
+  EXPECT_THAT(histogram_tester.GetAllSamples(
+                  "Extensions.DeclarativeSetIconWasVisibleRendered"),
+              testing::ElementsAre(base::Bucket(0, 1)));
   histogram_tester.ExpectTotalCount(
       "Extensions.DeclarativeContentActionCreated", 0);
 }

@@ -1,15 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.display_cutout;
 
+import android.annotation.TargetApi;
 import android.graphics.Rect;
 import android.os.Build;
 import android.support.test.InstrumentationRegistry;
 import android.view.WindowManager.LayoutParams;
-
-import androidx.annotation.RequiresApi;
 
 import org.hamcrest.Matchers;
 import org.json.JSONException;
@@ -18,7 +17,6 @@ import org.junit.Assert;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
-import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.CriteriaNotSatisfiedException;
@@ -43,7 +41,7 @@ import java.util.concurrent.TimeoutException;
  *
  * @param <T> The type of {@link ChromeActivity} to use for the test.
  */
-@RequiresApi(Build.VERSION_CODES.P)
+@TargetApi(Build.VERSION_CODES.P)
 public class DisplayCutoutTestRule<T extends ChromeActivity> extends ChromeActivityTestRule<T> {
     /** These are the two test safe areas with and without the test cutout. */
     public static final Rect TEST_SAFE_AREA_WITH_CUTOUT = new Rect(10, 20, 30, 40);
@@ -59,23 +57,11 @@ public class DisplayCutoutTestRule<T extends ChromeActivity> extends ChromeActiv
     public static final String VIEWPORT_FIT_COVER = "cover";
 
     /** This class has polyfills for Android P+ system apis. */
-    public static final class TestDisplayCutoutController extends DisplayCutoutController {
+    private static final class TestDisplayCutoutController extends DisplayCutoutController {
         private boolean mDeviceHasCutout = true;
         private float mDipScale = 1;
 
-        public static TestDisplayCutoutController create(
-                Tab tab, final ObservableSupplier<Integer> browserCutoutModeSupplier) {
-            DisplayCutoutTabHelper.ChromeDisplayCutoutDelegate delegate =
-                    new DisplayCutoutTabHelper.ChromeDisplayCutoutDelegate(tab) {
-                        @Override
-                        public ObservableSupplier<Integer> getBrowserDisplayCutoutModeSupplier() {
-                            return browserCutoutModeSupplier;
-                        }
-                    };
-            return new TestDisplayCutoutController(delegate);
-        }
-
-        private TestDisplayCutoutController(DisplayCutoutController.Delegate delegate) {
+        TestDisplayCutoutController(DisplayCutoutController.Delegate delegate) {
             super(delegate);
         }
 
@@ -179,25 +165,20 @@ public class DisplayCutoutTestRule<T extends ChromeActivity> extends ChromeActiv
 
     protected void setUp() {
         mTab = getActivity().getActivityTab();
+        mTestController = new TestDisplayCutoutController(
+                new DisplayCutoutTabHelper.ChromeDisplayCutoutDelegate(mTab));
 
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            setDisplayCutoutController(TestDisplayCutoutController.create(mTab, null));
-            mListener = new FullscreenToggleObserver();
-            getActivity().getFullscreenManager().addObserver(mListener);
-        });
-    }
+        TestThreadUtils.runOnUiThreadBlocking(
+                () -> DisplayCutoutTabHelper.initForTesting(mTab, mTestController));
 
-    protected void setDisplayCutoutController(TestDisplayCutoutController controller) {
-        mTestController = controller;
-        DisplayCutoutTabHelper.initForTesting(mTab, mTestController);
+        mListener = new FullscreenToggleObserver();
+        getActivity().getFullscreenManager().addObserver(mListener);
     }
 
     protected void tearDown() {
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            if (!getActivity().isActivityFinishingOrDestroyed()) {
-                getActivity().getFullscreenManager().removeObserver(mListener);
-            }
-        });
+        if (!getActivity().isActivityFinishingOrDestroyed()) {
+            getActivity().getFullscreenManager().removeObserver(mListener);
+        }
         mTestServer.stopAndDestroyServer();
     }
 

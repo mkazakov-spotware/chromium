@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,20 +18,17 @@ class MockLeakDetectionCheckFactory : public LeakDetectionCheckFactory {
   ~MockLeakDetectionCheckFactory() override;
 
   // LeakDetectionCheckFactory:
-  MOCK_METHOD(std::unique_ptr<LeakDetectionCheck>,
-              TryCreateLeakCheck,
-              (LeakDetectionDelegateInterface*,
-               signin::IdentityManager*,
-               scoped_refptr<network::SharedURLLoaderFactory>,
-               version_info::Channel),
-              (const, override));
+  MOCK_CONST_METHOD3(TryCreateLeakCheck,
+                     std::unique_ptr<LeakDetectionCheck>(
+                         LeakDetectionDelegateInterface*,
+                         signin::IdentityManager*,
+                         scoped_refptr<network::SharedURLLoaderFactory>));
 
-  MOCK_METHOD(std::unique_ptr<BulkLeakCheck>,
-              TryCreateBulkLeakCheck,
-              (BulkLeakCheckDelegateInterface*,
-               signin::IdentityManager*,
-               scoped_refptr<network::SharedURLLoaderFactory>),
-              (const, override));
+  MOCK_CONST_METHOD3(TryCreateBulkLeakCheck,
+                     std::unique_ptr<BulkLeakCheck>(
+                         BulkLeakCheckDelegateInterface*,
+                         signin::IdentityManager*,
+                         scoped_refptr<network::SharedURLLoaderFactory>));
 };
 
 }  // namespace password_manager

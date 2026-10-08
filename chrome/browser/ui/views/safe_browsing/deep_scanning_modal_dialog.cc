@@ -1,9 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/safe_browsing/deep_scanning_modal_dialog.h"
 
+#include "base/callback_forward.h"
 #include "chrome/browser/ui/tab_modal_confirm_dialog_delegate.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -20,23 +21,23 @@ DeepScanningModalDialog::DeepScanningModalDialog(
 
 DeepScanningModalDialog::~DeepScanningModalDialog() {}
 
-std::u16string DeepScanningModalDialog::GetTitle() {
+base::string16 DeepScanningModalDialog::GetTitle() {
   return l10n_util::GetStringUTF16(IDS_DEEP_SCANNING_DIALOG_OPEN_NOW_TITLE);
 }
 
-std::u16string DeepScanningModalDialog::GetDialogMessage() {
+base::string16 DeepScanningModalDialog::GetDialogMessage() {
   return l10n_util::GetStringUTF16(IDS_DEEP_SCANNING_DIALOG_OPEN_NOW_MESSAGE);
 }
 
-std::u16string DeepScanningModalDialog::GetAcceptButtonTitle() {
+base::string16 DeepScanningModalDialog::GetAcceptButtonTitle() {
   return l10n_util::GetStringUTF16(
       IDS_DEEP_SCANNING_DIALOG_OPEN_NOW_ACCEPT_BUTTON);
 }
 
-std::u16string DeepScanningModalDialog::GetLinkText() const {
+base::string16 DeepScanningModalDialog::GetLinkText() const {
   // TODO(drubery): Once we have an FAQ page for download deep scanning, link it
   // here.
-  return std::u16string();
+  return base::string16();
 }
 
 void DeepScanningModalDialog::OnLinkClicked(WindowOpenDisposition disposition) {

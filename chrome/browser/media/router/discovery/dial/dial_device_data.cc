@@ -1,10 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media/router/discovery/dial/dial_device_data.h"
-
-#include "base/check.h"
+#include "net/base/ip_address.h"
 
 namespace media_router {
 
@@ -31,22 +30,30 @@ void DialDeviceData::set_device_description_url(const GURL& url) {
   device_description_url_ = url;
 }
 
-void DialDeviceData::set_ip_address(const net::IPAddress& ip_address) {
-  ip_address_ = ip_address;
-}
-
-bool DialDeviceData::IsValidUrl(const GURL& url) const {
+// static
+bool DialDeviceData::IsDeviceDescriptionUrl(const GURL& url) {
   if (!url.is_valid() || url.is_empty() || !url.SchemeIsHTTPOrHTTPS())
     return false;
 
-  net::IPAddress host_address;
-  if (!net::ParseURLHostnameToAddress(url.host(), &host_address))
+  net::IPAddress address;
+  if (!net::ParseURLHostnameToAddress(url.host(), &address))
     return false;
 
-  if (host_address.IsPubliclyRoutable())
+  // TODO(crbug.com/679432): check that this IP address matches the address that
+  // we received the SSDP advertisement from.
+  return !address.IsPubliclyRoutable();
+}
+
+// static
+bool DialDeviceData::IsValidDialAppUrl(
+    const GURL& url,
+    const net::IPAddress& expected_ip_address) {
+  if (!url.is_valid() || !url.SchemeIsHTTPOrHTTPS())
     return false;
 
-  return host_address == ip_address_;
+  net::IPAddress host_ip;
+  return host_ip.AssignFromIPLiteral(url.HostNoBracketsPiece()) &&
+         host_ip.IsValid() && host_ip == expected_ip_address;
 }
 
 bool DialDeviceData::UpdateFrom(const DialDeviceData& new_data) {
@@ -55,9 +62,7 @@ bool DialDeviceData::UpdateFrom(const DialDeviceData& new_data) {
   std::string label_tmp(label_);
   bool updated_api_visible_field =
       (new_data.device_description_url() != device_description_url_) ||
-      (new_data.config_id() != config_id_) ||
-      (new_data.ip_address() != ip_address_) ||
-      (new_data.max_age() != max_age_);
+      (new_data.config_id() != config_id_);
   *this = new_data;
   label_ = label_tmp;
   return updated_api_visible_field;

@@ -1,23 +1,23 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/files/file_path_watcher.h"
-
-#include <windows.h>
 
 #include "base/bind.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/strings/string_util.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/win/object_watcher.h"
+
+#include <windows.h>
 
 namespace base {
 
@@ -26,9 +26,8 @@ namespace {
 class FilePathWatcherImpl : public FilePathWatcher::PlatformDelegate,
                             public base::win::ObjectWatcher::Delegate {
  public:
-  FilePathWatcherImpl() = default;
-  FilePathWatcherImpl(const FilePathWatcherImpl&) = delete;
-  FilePathWatcherImpl& operator=(const FilePathWatcherImpl&) = delete;
+  FilePathWatcherImpl()
+      : handle_(INVALID_HANDLE_VALUE), type_(Type::kNonRecursive) {}
   ~FilePathWatcherImpl() override;
 
   // FilePathWatcher::PlatformDelegate:
@@ -45,12 +44,12 @@ class FilePathWatcherImpl : public FilePathWatcher::PlatformDelegate,
   // the directory sub trees. Returns true if no fatal error occurs. |handle|
   // will receive the handle value if |dir| is watchable, otherwise
   // INVALID_HANDLE_VALUE.
-  [[nodiscard]] static bool SetupWatchHandle(const FilePath& dir,
-                                             bool recursive,
-                                             HANDLE* handle);
+  static bool SetupWatchHandle(const FilePath& dir,
+                               bool recursive,
+                               HANDLE* handle) WARN_UNUSED_RESULT;
 
   // (Re-)Initialize the watch handle.
-  [[nodiscard]] bool UpdateWatch();
+  bool UpdateWatch() WARN_UNUSED_RESULT;
 
   // Destroy the watch handle.
   void DestroyWatch();
@@ -62,16 +61,16 @@ class FilePathWatcherImpl : public FilePathWatcher::PlatformDelegate,
   FilePath target_;
 
   // Set to true in the destructor.
-  raw_ptr<bool> was_deleted_ptr_ = nullptr;
+  bool* was_deleted_ptr_ = nullptr;
 
   // Handle for FindFirstChangeNotification.
-  HANDLE handle_ = INVALID_HANDLE_VALUE;
+  HANDLE handle_;
 
   // ObjectWatcher to watch handle_ for events.
   base::win::ObjectWatcher watcher_;
 
   // The type of watch requested.
-  Type type_ = Type::kNonRecursive;
+  Type type_;
 
   // Keep track of the last modified time of the file.  We use nulltime
   // to represent the file not existing.
@@ -80,6 +79,8 @@ class FilePathWatcherImpl : public FilePathWatcher::PlatformDelegate,
   // The time at which we processed the first notification with the
   // |last_modified_| time stamp.
   Time first_notification_;
+
+  DISALLOW_COPY_AND_ASSIGN(FilePathWatcherImpl);
 };
 
 FilePathWatcherImpl::~FilePathWatcherImpl() {
@@ -178,7 +179,7 @@ void FilePathWatcherImpl::OnObjectSignaled(HANDLE object) {
     // clock has advanced one second from the initial notification. After that
     // interval, client code is guaranteed to having seen the current revision
     // of the file.
-    if (Time::Now() - first_notification_ > Seconds(1)) {
+    if (Time::Now() - first_notification_ > TimeDelta::FromSeconds(1)) {
       // Stop further notifications for this |last_modification_| time stamp.
       first_notification_ = Time();
     }
@@ -294,7 +295,7 @@ void FilePathWatcherImpl::DestroyWatch() {
 }  // namespace
 
 FilePathWatcher::FilePathWatcher() {
-  DETACH_FROM_SEQUENCE(sequence_checker_);
+  sequence_checker_.DetachFromSequence();
   impl_ = std::make_unique<FilePathWatcherImpl>();
 }
 

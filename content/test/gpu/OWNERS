@@ -1,6 +1,5 @@
 bajones@chromium.org
 bsheedy@chromium.org
-gman@chromium.org
 kainino@chromium.org
 kbr@chromium.org
 ynovikov@chromium.org
@@ -8,3 +7,6 @@ zmo@chromium.org
 
 # Emeritus:
 # dtu@chromium.org
+
+# COMPONENT: Internals>GPU>Internals
+# TEAM: graphics-dev@chromium.org

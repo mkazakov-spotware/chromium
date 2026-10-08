@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,7 +38,7 @@ class PlatformSpellChecker {
 
   virtual void RequestTextCheck(
       int document_tag,
-      const std::u16string& text,
+      const base::string16& text,
       spellcheck_platform::TextCheckCompleteCallback callback) = 0;
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,7 @@ COMPONENT_EXPORT(MEDIA_MESSAGE_CENTER) extern const char kCountHistogramName[];
 // Creates a string describing media session metadata intended to be read out by
 // a screen reader.
 COMPONENT_EXPORT(MEDIA_MESSAGE_CENTER)
-std::u16string GetAccessibleNameFromMetadata(
+base::string16 GetAccessibleNameFromMetadata(
     media_session::MediaMetadata session_metadata);
 
 // Returns actions that can be displayed as buttons in the media controller UI

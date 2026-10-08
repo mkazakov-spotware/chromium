@@ -1,11 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_TREES_SCOPED_ABORT_REMAINING_SWAP_PROMISES_H_
 #define CC_TREES_SCOPED_ABORT_REMAINING_SWAP_PROMISES_H_
 
-#include "base/memory/raw_ptr.h"
 #include "cc/trees/swap_promise.h"
 #include "cc/trees/swap_promise_manager.h"
 
@@ -27,7 +26,7 @@ class ScopedAbortRemainingSwapPromises {
       const ScopedAbortRemainingSwapPromises&) = delete;
 
  private:
-  raw_ptr<SwapPromiseManager> swap_promise_manager_;
+  SwapPromiseManager* swap_promise_manager_;
 };
 
 }  // namespace cc

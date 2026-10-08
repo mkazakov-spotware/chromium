@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,98 +45,100 @@ scoped_refptr<const Extension> CreateExtensionImportingModule(
 
 }  // namespace
 
-TEST(PepperPermissionUtilTest, ExtensionAllowed) {
+TEST(PepperPermissionUtilTest, ExtensionWhitelisting) {
   ScopedCurrentChannel current_channel(version_info::Channel::UNKNOWN);
   ExtensionSet extensions;
-  std::string allowed_id = crx_file::id_util::GenerateId("allowed_extension");
+  std::string whitelisted_id =
+      crx_file::id_util::GenerateId("whitelisted_extension");
   std::unique_ptr<base::DictionaryValue> manifest =
       DictionaryBuilder()
-          .Set("name", "Allowed Extension")
+          .Set("name", "Whitelisted Extension")
           .Set("version", "1.0")
           .Set("manifest_version", 2)
           .Build();
   scoped_refptr<const Extension> ext = ExtensionBuilder()
                                            .SetManifest(std::move(manifest))
-                                           .SetID(allowed_id)
+                                           .SetID(whitelisted_id)
                                            .Build();
   extensions.Insert(ext);
-  std::set<std::string> allowlist;
-  std::string url = std::string("chrome-extension://") + allowed_id +
+  std::set<std::string> whitelist;
+  std::string url = std::string("chrome-extension://") + whitelisted_id +
                     std::string("/manifest.nmf");
   std::string bad_scheme_url =
-      std::string("http://") + allowed_id + std::string("/manifest.nmf");
+      std::string("http://") + whitelisted_id + std::string("/manifest.nmf");
   std::string bad_host_url = std::string("chrome-extension://") +
                              crx_file::id_util::GenerateId("bad_host");
   std::string("/manifest.nmf");
 
   EXPECT_FALSE(
-      IsExtensionOrSharedModuleAllowed(GURL(url), &extensions, allowlist));
-  allowlist.insert(allowed_id);
+      IsExtensionOrSharedModuleWhitelisted(GURL(url), &extensions, whitelist));
+  whitelist.insert(whitelisted_id);
   EXPECT_TRUE(
-      IsExtensionOrSharedModuleAllowed(GURL(url), &extensions, allowlist));
-  EXPECT_FALSE(IsExtensionOrSharedModuleAllowed(GURL(bad_scheme_url),
-                                                &extensions, allowlist));
-  EXPECT_FALSE(IsExtensionOrSharedModuleAllowed(GURL(bad_host_url), &extensions,
-                                                allowlist));
+      IsExtensionOrSharedModuleWhitelisted(GURL(url), &extensions, whitelist));
+  EXPECT_FALSE(IsExtensionOrSharedModuleWhitelisted(
+      GURL(bad_scheme_url), &extensions, whitelist));
+  EXPECT_FALSE(IsExtensionOrSharedModuleWhitelisted(
+      GURL(bad_host_url), &extensions, whitelist));
 }
 
-TEST(PepperPermissionUtilTest, SharedModuleAllowed) {
+TEST(PepperPermissionUtilTest, SharedModuleWhitelisting) {
   ScopedCurrentChannel current_channel(version_info::Channel::UNKNOWN);
   ExtensionSet extensions;
-  std::string allowed_id = crx_file::id_util::GenerateId("extension_id");
+  std::string whitelisted_id = crx_file::id_util::GenerateId("extension_id");
   std::string bad_id = crx_file::id_util::GenerateId("bad_id");
 
   std::unique_ptr<base::DictionaryValue> shared_module_manifest =
       DictionaryBuilder()
-          .Set("name", "Allowed Shared Module")
+          .Set("name", "Whitelisted Shared Module")
           .Set("version", "1.0")
           .Set("manifest_version", 2)
           .Set("export",
                DictionaryBuilder()
                    .Set("resources", ListBuilder().Append("*").Build())
-                   // Add the extension to the allowlist.  This
-                   // restricts import to |allowed_id| only.
-                   .Set("whitelist", ListBuilder().Append(allowed_id).Build())
+                   // Add the extension to the whitelist.  This
+                   // restricts import to |whitelisted_id| only.
+                   .Set("whitelist",
+                        ListBuilder().Append(whitelisted_id).Build())
                    .Build())
           .Build();
   scoped_refptr<const Extension> shared_module =
       ExtensionBuilder().SetManifest(std::move(shared_module_manifest)).Build();
 
   scoped_refptr<const Extension> ext =
-      CreateExtensionImportingModule(shared_module->id(), allowed_id);
+      CreateExtensionImportingModule(shared_module->id(), whitelisted_id);
   std::string extension_url =
       std::string("chrome-extension://") + ext->id() + std::string("/foo.html");
 
-  std::set<std::string> allowlist;
-  // Important: allow *only* the shared module.
-  allowlist.insert(shared_module->id());
+  std::set<std::string> whitelist;
+  // Important: whitelist *only* the shared module.
+  whitelist.insert(shared_module->id());
 
   extensions.Insert(ext);
   // This should fail because shared_module is not in the set of extensions.
-  EXPECT_FALSE(IsExtensionOrSharedModuleAllowed(GURL(extension_url),
-                                                &extensions, allowlist));
+  EXPECT_FALSE(IsExtensionOrSharedModuleWhitelisted(
+      GURL(extension_url), &extensions, whitelist));
   extensions.Insert(shared_module);
-  EXPECT_TRUE(IsExtensionOrSharedModuleAllowed(GURL(extension_url), &extensions,
-                                               allowlist));
-  scoped_refptr<const Extension> not_in_sm_allowlist =
+  EXPECT_TRUE(IsExtensionOrSharedModuleWhitelisted(
+      GURL(extension_url), &extensions, whitelist));
+  scoped_refptr<const Extension> not_in_sm_whitelist =
       CreateExtensionImportingModule(shared_module->id(), bad_id);
-  std::string not_in_sm_allowlist_url = std::string("chrome-extension://") +
-                                        not_in_sm_allowlist->id() +
+  std::string not_in_sm_whitelist_url = std::string("chrome-extension://") +
+                                        not_in_sm_whitelist->id() +
                                         std::string("/foo.html");
 
-  extensions.Insert(not_in_sm_allowlist);
-  // This should succeed, even though |not_in_sm_allowlist| is not allowed
+  extensions.Insert(not_in_sm_whitelist);
+  // This should succeed, even though |not_in_sm_whitelist| is not whitelisted
   // to use shared_module, because the pepper permission utility does not care
-  // about that allowlist.  It is possible to install against the allowlist as
+  // about that whitelist.  It is possible to install against the whitelist as
   // an unpacked extension.
-  EXPECT_TRUE(IsExtensionOrSharedModuleAllowed(GURL(not_in_sm_allowlist_url),
-                                               &extensions, allowlist));
+  EXPECT_TRUE(IsExtensionOrSharedModuleWhitelisted(
+      GURL(not_in_sm_whitelist_url), &extensions, whitelist));
 
-  // Note that the allowlist should be empty after this call, so tests checking
+  // Note that the whitelist should be empty after this call, so tests checking
   // for failure to import will fail because of this.
-  allowlist.erase(shared_module->id());
-  EXPECT_FALSE(IsExtensionOrSharedModuleAllowed(GURL(extension_url),
-                                                &extensions, allowlist));
+  whitelist.erase(shared_module->id());
+  EXPECT_FALSE(IsExtensionOrSharedModuleWhitelisted(
+      GURL(extension_url), &extensions, whitelist));
 }
 
 }  // namespace extensions

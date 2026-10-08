@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that the Diff module correctly diffs things.\n`);
-  await TestRunner.loadLegacyModule('diff');
+  await TestRunner.loadModule('diff');
 
   print(Diff.Diff.charDiff('test this sentence.', 'test that sentence'));
   print(Diff.Diff.lineDiff(['test this sentence.'], ['test that sentence']));

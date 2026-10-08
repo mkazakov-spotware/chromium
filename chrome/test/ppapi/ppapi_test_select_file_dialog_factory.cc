@@ -1,14 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/test/ppapi/ppapi_test_select_file_dialog_factory.h"
 
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/shell_dialogs/select_file_dialog.h"
-#include "url/gurl.h"
 
 namespace {
 
@@ -27,14 +26,13 @@ class PPAPITestSelectFileDialog : public ui::SelectFileDialog {
  protected:
   // ui::SelectFileDialog
   void SelectFileImpl(Type type,
-                      const std::u16string& title,
+                      const base::string16& title,
                       const base::FilePath& default_path,
                       const FileTypeInfo* file_types,
                       int file_type_index,
                       const base::FilePath::StringType& default_extension,
                       gfx::NativeWindow owning_window,
-                      void* params,
-                      const GURL* caller) override {
+                      void* params) override {
     switch (mode_) {
       case PPAPITestSelectFileDialogFactory::RESPOND_WITH_FILE_LIST:
         break;
@@ -57,7 +55,7 @@ class PPAPITestSelectFileDialog : public ui::SelectFileDialog {
         ADD_FAILURE() << "Unexpected SelectFileImpl invocation.";
     }
 
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(
             &PPAPITestSelectFileDialog::RespondToFileSelectionRequest, this,

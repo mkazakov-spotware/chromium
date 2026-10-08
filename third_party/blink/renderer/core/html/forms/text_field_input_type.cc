@@ -45,13 +45,14 @@
 #include "third_party/blink/renderer/core/html/forms/text_control_inner_elements.h"
 #include "third_party/blink/renderer/core/html/shadow/shadow_element_names.h"
 #include "third_party/blink/renderer/core/html_names.h"
+#include "third_party/blink/renderer/core/layout/layout_details_marker.h"
 #include "third_party/blink/renderer/core/layout/layout_object_factory.h"
 #include "third_party/blink/renderer/core/page/chrome_client.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
 #include "third_party/blink/renderer/core/paint/paint_layer_scrollable_area.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
@@ -60,6 +61,12 @@ class DataListIndicatorElement final : public HTMLDivElement {
  private:
   inline HTMLInputElement* HostInput() const {
     return To<HTMLInputElement>(OwnerShadowHost());
+  }
+
+  LayoutObject* CreateLayoutObject(const ComputedStyle&,
+                                   LegacyLayout) override {
+    UseCounter::Count(GetDocument(), WebFeature::kLegacyLayoutByDetailsMarker);
+    return new LayoutDetailsMarker(this);
   }
 
   EventDispatchHandlingState* PreDispatchEventHandler(Event& event) override {
@@ -89,27 +96,14 @@ class DataListIndicatorElement final : public HTMLDivElement {
   }
 
  public:
-  explicit DataListIndicatorElement(Document& document)
-      : HTMLDivElement(document) {}
-
-  // This function should be called after appending |this| to a UA ShadowRoot.
-  void InitializeInShadowTree() {
-    DCHECK(ContainingShadowRoot());
-    DCHECK(ContainingShadowRoot()->IsUserAgent());
+  DataListIndicatorElement(Document& document) : HTMLDivElement(document) {
     SetShadowPseudoId(AtomicString("-webkit-calendar-picker-indicator"));
     setAttribute(html_names::kIdAttr, shadow_element_names::kIdPickerIndicator);
-    setAttribute(html_names::kStyleAttr,
-                 "display:list-item; "
-                 "list-style:disclosure-open inside; "
-                 "counter-increment: list-item 0;"
-                 "block-size:1em;");
-    // Do not expose list-item role.
-    setAttribute(html_names::kAriaHiddenAttr, "true");
   }
 };
 
-TextFieldInputType::TextFieldInputType(Type type, HTMLInputElement& element)
-    : InputType(type, element), InputTypeView(element) {}
+TextFieldInputType::TextFieldInputType(HTMLInputElement& element)
+    : InputType(element), InputTypeView(element) {}
 
 TextFieldInputType::~TextFieldInputType() = default;
 
@@ -144,7 +138,7 @@ bool TextFieldInputType::IsTextField() const {
 bool TextFieldInputType::ValueMissing(const String& value) const {
   // For text-mode input elements, the value is missing only if it is mutable.
   // https://html.spec.whatwg.org/multipage/input.html#the-required-attribute
-  return GetElement().IsRequired() && value.empty() &&
+  return GetElement().IsRequired() && value.IsEmpty() &&
          !GetElement().IsDisabledOrReadOnly();
 }
 
@@ -163,24 +157,14 @@ void TextFieldInputType::SetValue(const String& sanitized_value,
   else
     GetElement().SetNonAttributeValueByUserEdit(sanitized_value);
 
-  // Visible value needs update if it differs from sanitized value,
-  // if it was set with setValue().
-  // event_behavior == kDispatchNoEvent usually means this call is
-  // not a user edit.
-  bool need_editor_update =
-      value_changed ||
-      (event_behavior == TextFieldEventBehavior::kDispatchNoEvent &&
-       sanitized_value != GetElement().InnerEditorValue());
-
-  if (need_editor_update)
-    GetElement().UpdateView();
   // The following early-return can't be moved to the beginning of this
   // function. We need to update non-attribute value even if the value is not
   // changed.  For example, <input type=number> has a badInput string, that is
   // to say, IDL value=="", and new value is "", which should clear the badInput
-  // string and update validity.
+  // string and update validiity.
   if (!value_changed)
     return;
+  GetElement().UpdateView();
 
   if (selection == TextControlSetValueSelection::kSetSelectionToEnd) {
     unsigned max = VisibleValue().length();
@@ -280,22 +264,24 @@ void TextFieldInputType::HandleBlurEvent() {
 }
 
 bool TextFieldInputType::ShouldSubmitImplicitly(const Event& event) {
-  if (const TextEvent* text_event = DynamicTo<TextEvent>(event)) {
-    if (!text_event->IsPaste() && !text_event->IsDrop() &&
-        text_event->data() == "\n") {
-      return true;
-    }
-  }
-  return InputTypeView::ShouldSubmitImplicitly(event);
+  return (event.type() == event_type_names::kTextInput &&
+          event.HasInterface(event_interface_names::kTextEvent) &&
+          To<TextEvent>(event).data() == "\n") ||
+         InputTypeView::ShouldSubmitImplicitly(event);
 }
 
-scoped_refptr<ComputedStyle> TextFieldInputType::CustomStyleForLayoutObject(
-    scoped_refptr<ComputedStyle> original_style) {
+void TextFieldInputType::CustomStyleForLayoutObject(ComputedStyle& style) {
   // The flag is necessary in order that a text field <input> with non-'visible'
   // overflow property doesn't change its baseline.
-  ComputedStyleBuilder builder(*original_style);
-  builder.SetShouldIgnoreOverflowPropertyForInlineBlockBaseline();
-  return builder.TakeStyle();
+  style.SetShouldIgnoreOverflowPropertyForInlineBlockBaseline();
+}
+
+bool TextFieldInputType::TypeShouldForceLegacyLayout() const {
+  if (RuntimeEnabledFeatures::LayoutNGTextControlEnabled())
+    return false;
+  UseCounter::Count(GetElement().GetDocument(),
+                    WebFeature::kLegacyLayoutByTextControl);
+  return true;
 }
 
 LayoutObject* TextFieldInputType::CreateLayoutObject(
@@ -303,10 +289,6 @@ LayoutObject* TextFieldInputType::CreateLayoutObject(
     LegacyLayout legacy) const {
   return LayoutObjectFactory::CreateTextControlSingleLine(GetElement(), style,
                                                           legacy);
-}
-
-ControlPart TextFieldInputType::AutoAppearance() const {
-  return kTextFieldPart;
 }
 
 void TextFieldInputType::CreateShadowSubtree() {
@@ -338,9 +320,8 @@ void TextFieldInputType::CreateShadowSubtree() {
   container->AppendChild(editing_view_port);
 
   if (should_have_data_list_indicator) {
-    auto* data_list = MakeGarbageCollected<DataListIndicatorElement>(document);
-    container->AppendChild(data_list);
-    data_list->InitializeInShadowTree();
+    container->AppendChild(
+        MakeGarbageCollected<DataListIndicatorElement>(document));
   }
   // FIXME: Because of a special handling for a spin button in
   // LayoutTextControlSingleLine, we need to put it to the last position. It's
@@ -379,10 +360,9 @@ void TextFieldInputType::ListAttributeTargetChanged() {
   if (will_have_picker_indicator) {
     Document& document = GetElement().GetDocument();
     if (Element* container = ContainerElement()) {
-      auto* data_list =
-          MakeGarbageCollected<DataListIndicatorElement>(document);
-      container->InsertBefore(data_list, GetSpinButtonElement());
-      data_list->InitializeInShadowTree();
+      container->InsertBefore(
+          MakeGarbageCollected<DataListIndicatorElement>(document),
+          GetSpinButtonElement());
     } else {
       // FIXME: The following code is similar to createShadowSubtree(),
       // but they are different. We should simplify the code by making
@@ -397,13 +377,10 @@ void TextFieldInputType::ListAttributeTargetChanged() {
           MakeGarbageCollected<EditingViewPortElement>(document);
       editing_view_port->AppendChild(inner_editor);
       rp_container->AppendChild(editing_view_port);
-      auto* data_list =
-          MakeGarbageCollected<DataListIndicatorElement>(document);
-      rp_container->AppendChild(data_list);
-      data_list->InitializeInShadowTree();
-      Element& input = GetElement();
-      if (input.GetDocument().FocusedElement() == input)
-        input.UpdateSelectionOnFocus(SelectionBehaviorOnFocus::kRestore);
+      rp_container->AppendChild(
+          MakeGarbageCollected<DataListIndicatorElement>(document));
+      if (GetElement().GetDocument().FocusedElement() == GetElement())
+        GetElement().UpdateFocusAppearance(SelectionBehaviorOnFocus::kRestore);
     }
   } else {
     picker->remove(ASSERT_NO_EXCEPTION);
@@ -507,12 +484,12 @@ bool TextFieldInputType::ShouldRespectListAttribute() {
   return true;
 }
 
-void TextFieldInputType::UpdatePlaceholderText(bool is_suggested_value) {
+void TextFieldInputType::UpdatePlaceholderText() {
   if (!SupportsPlaceholder())
     return;
   HTMLElement* placeholder = GetElement().PlaceholderElement();
   String placeholder_text = GetElement().GetPlaceholderValue();
-  if (placeholder_text.empty()) {
+  if (placeholder_text.IsEmpty()) {
     if (placeholder)
       placeholder->remove(ASSERT_NO_EXCEPTION);
     return;
@@ -534,12 +511,6 @@ void TextFieldInputType::UpdatePlaceholderText(bool is_suggested_value) {
     Node* previous = container ? container : GetElement().InnerEditorElement();
     previous->parentNode()->InsertBefore(placeholder, previous);
     SECURITY_DCHECK(placeholder->parentNode() == previous->parentNode());
-  }
-  if (is_suggested_value) {
-    placeholder->SetInlineStyleProperty(CSSPropertyID::kUserSelect,
-                                        CSSValueID::kNone, true);
-  } else {
-    placeholder->RemoveInlineStyleProperty(CSSPropertyID::kUserSelect);
   }
   placeholder->setTextContent(placeholder_text);
 }
@@ -571,13 +542,6 @@ void TextFieldInputType::SubtreeHasChanged() {
   DidSetValueByUserEdit();
 }
 
-void TextFieldInputType::OpenPopupView() {
-  if (GetElement().IsDisabledOrReadOnly())
-    return;
-  if (ChromeClient* chrome_client = GetChromeClient())
-    chrome_client->OpenTextDataListChooser(GetElement());
-}
-
 void TextFieldInputType::DidSetValueByUserEdit() {
   if (!GetElement().IsFocused())
     return;
@@ -594,7 +558,7 @@ void TextFieldInputType::SpinButtonStepUp() {
 }
 
 void TextFieldInputType::UpdateView() {
-  if (GetElement().SuggestedValue().empty() &&
+  if (GetElement().SuggestedValue().IsEmpty() &&
       GetElement().NeedsToUpdateViewValue()) {
     // Update the view only if needsToUpdateViewValue is true. It protects
     // an unacceptable view value from being overwritten with the DOM value.
@@ -608,7 +572,7 @@ void TextFieldInputType::UpdateView() {
 }
 
 void TextFieldInputType::FocusAndSelectSpinButtonOwner() {
-  GetElement().Focus();
+  GetElement().focus();
   GetElement().SetSelectionRange(0, std::numeric_limits<int>::max());
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,10 +28,7 @@ class ProfileOAuth2TokenServiceObserver {
   // Called after all refresh tokens are loaded during ProfileOAuth2TokenService
   // startup.
   virtual void OnRefreshTokensLoaded() {}
-  // Sent after a batch of refresh token changes. This only includes events
-  // about tokens available or revoked. It's guaranteed that every call to
-  // `OnRefreshTokenAvailable()` and `OnRefreshTokenRevoked()` is part of a
-  // batch, but there is no guarantee for other calls.
+  // Sent after a batch of refresh token changes is done.
   virtual void OnEndBatchChanges() {}
   // Called when the authentication error state for |account_id| has changed.
   // Note: It is always called after |OnRefreshTokenAvailable| when refresh

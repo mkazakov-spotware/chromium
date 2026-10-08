@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,10 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "components/keyed_service/core/keyed_service_shutdown_notifier.h"
 #include "extensions/browser/api/web_request/web_request_api.h"
 #include "extensions/browser/api/web_request/web_request_info.h"
@@ -23,13 +24,11 @@
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "services/network/public/mojom/websocket.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
 namespace net {
 class IPEndPoint;
-class SiteForCookies;
 }  // namespace net
 
 namespace extensions {
@@ -39,7 +38,7 @@ namespace extensions {
 class WebRequestProxyingWebSocket
     : public WebRequestAPI::Proxy,
       public network::mojom::WebSocketHandshakeClient,
-      public network::mojom::WebSocketAuthenticationHandler,
+      public network::mojom::AuthenticationHandler,
       public network::mojom::TrustedHeaderClient {
  public:
   using WebSocketFactory = content::ContentBrowserClient::WebSocketFactory;
@@ -56,11 +55,6 @@ class WebRequestProxyingWebSocket
       content::BrowserContext* browser_context,
       WebRequestAPI::RequestIDGenerator* request_id_generator,
       WebRequestAPI::ProxySet* proxies);
-
-  WebRequestProxyingWebSocket(const WebRequestProxyingWebSocket&) = delete;
-  WebRequestProxyingWebSocket& operator=(const WebRequestProxyingWebSocket&) =
-      delete;
-
   ~WebRequestProxyingWebSocket() override;
 
   void Start();
@@ -76,7 +70,7 @@ class WebRequestProxyingWebSocket
       mojo::ScopedDataPipeConsumerHandle readable,
       mojo::ScopedDataPipeProducerHandle writable) override;
 
-  // network::mojom::WebSocketAuthenticationHandler method:
+  // network::mojom::AuthenticationHandler method:
   void OnAuthRequired(const net::AuthChallengeInfo& auth_info,
                       const scoped_refptr<net::HttpResponseHeaders>& headers,
                       const net::IPEndPoint& remote_endpoint,
@@ -92,8 +86,8 @@ class WebRequestProxyingWebSocket
   static void StartProxying(
       WebSocketFactory factory,
       const GURL& url,
-      const net::SiteForCookies& site_for_cookies,
-      const absl::optional<std::string>& user_agent,
+      const GURL& site_for_cookies,
+      const base::Optional<std::string>& user_agent,
       mojo::PendingRemote<network::mojom::WebSocketHandshakeClient>
           handshake_client,
       bool has_extra_headers,
@@ -131,12 +125,12 @@ class WebRequestProxyingWebSocket
   void OnMojoConnectionError();
 
   WebSocketFactory factory_;
-  const raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* const browser_context_;
   mojo::Remote<network::mojom::WebSocketHandshakeClient>
       forwarding_handshake_client_;
   mojo::Receiver<network::mojom::WebSocketHandshakeClient>
       receiver_as_handshake_client_{this};
-  mojo::Receiver<network::mojom::WebSocketAuthenticationHandler>
+  mojo::Receiver<network::mojom::AuthenticationHandler>
       receiver_as_auth_handler_{this};
   mojo::Receiver<network::mojom::TrustedHeaderClient>
       receiver_as_header_client_{this};
@@ -163,12 +157,14 @@ class WebRequestProxyingWebSocket
   WebRequestInfo info_;
 
   // Owns |this|.
-  const raw_ptr<WebRequestAPI::ProxySet> proxies_;
+  WebRequestAPI::ProxySet* const proxies_;
 
   // Notifies the proxy that the browser context has been shutdown.
-  base::CallbackListSubscription shutdown_notifier_subscription_;
+  std::unique_ptr<KeyedServiceShutdownNotifier::Subscription>
+      shutdown_notifier_;
 
   base::WeakPtrFactory<WebRequestProxyingWebSocket> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(WebRequestProxyingWebSocket);
 };
 
 }  // namespace extensions

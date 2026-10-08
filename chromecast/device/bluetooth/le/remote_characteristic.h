@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
 #include "chromecast/device/bluetooth/le/ble_types.h"
@@ -29,9 +30,6 @@ class RemoteCharacteristic
   using ReadCallback =
       base::OnceCallback<void(bool, const std::vector<uint8_t>&)>;
   using StatusCallback = base::OnceCallback<void(bool)>;
-
-  RemoteCharacteristic(const RemoteCharacteristic&) = delete;
-  RemoteCharacteristic& operator=(const RemoteCharacteristic&) = delete;
 
   // Return a list of all descriptors.
   virtual std::vector<scoped_refptr<RemoteDescriptor>> GetDescriptors() = 0;
@@ -91,6 +89,9 @@ class RemoteCharacteristic
 
   RemoteCharacteristic() = default;
   virtual ~RemoteCharacteristic() = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(RemoteCharacteristic);
 };
 
 }  // namespace bluetooth

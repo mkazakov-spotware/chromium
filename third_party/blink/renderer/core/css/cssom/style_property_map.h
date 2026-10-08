@@ -1,11 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSSOM_STYLE_PROPERTY_MAP_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSSOM_STYLE_PROPERTY_MAP_H_
 
-#include "third_party/blink/renderer/core/core_export.h"
+#include "third_party/blink/renderer/bindings/core/v8/css_style_value_or_string.h"
 #include "third_party/blink/renderer/core/css/cssom/style_property_map_read_only_main_thread.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 
@@ -13,7 +13,6 @@ namespace blink {
 
 class ExceptionState;
 class ExecutionContext;
-class V8UnionCSSStyleValueOrString;
 
 class CORE_EXPORT StylePropertyMap : public StylePropertyMapReadOnlyMainThread {
   DEFINE_WRAPPERTYPEINFO();
@@ -22,14 +21,14 @@ class CORE_EXPORT StylePropertyMap : public StylePropertyMapReadOnlyMainThread {
   StylePropertyMap(const StylePropertyMap&) = delete;
   StylePropertyMap& operator=(const StylePropertyMap&) = delete;
 
-  void set(const ExecutionContext* execution_context,
+  void set(const ExecutionContext*,
            const String& property_name,
-           const HeapVector<Member<V8UnionCSSStyleValueOrString>>& values,
-           ExceptionState& exception_state);
-  void append(const ExecutionContext* execution_context,
+           const HeapVector<CSSStyleValueOrString>& values,
+           ExceptionState&);
+  void append(const ExecutionContext*,
               const String& property_name,
-              const HeapVector<Member<V8UnionCSSStyleValueOrString>>& values,
-              ExceptionState& exception_state);
+              const HeapVector<CSSStyleValueOrString>& values,
+              ExceptionState&);
   void remove(const ExecutionContext*,
               const String& property_name,
               ExceptionState&);
@@ -50,4 +49,4 @@ class CORE_EXPORT StylePropertyMap : public StylePropertyMapReadOnlyMainThread {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSSOM_STYLE_PROPERTY_MAP_H_
+#endif

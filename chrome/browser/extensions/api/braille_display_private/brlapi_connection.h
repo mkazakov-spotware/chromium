@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,7 @@ namespace braille_display_private {
 // about the semantics of the methods in this class.
 class BrlapiConnection {
  public:
-  typedef base::RepeatingClosure OnDataReadyCallback;
+  typedef base::Closure OnDataReadyCallback;
 
   enum ConnectResult {
     CONNECT_ERROR_RETRY,
@@ -35,7 +35,7 @@ class BrlapiConnection {
   BrlapiConnection& operator=(const BrlapiConnection&) = delete;
   virtual ~BrlapiConnection() = default;
 
-  virtual ConnectResult Connect(OnDataReadyCallback onDataReady) = 0;
+  virtual ConnectResult Connect(const OnDataReadyCallback& onDataReady) = 0;
 
   virtual void Disconnect() = 0;
 

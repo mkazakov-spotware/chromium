@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,13 @@
 
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "base/base_export.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_piece.h"
 #include "base/values.h"
 
@@ -91,21 +92,18 @@ class JSONValueConverter;
 
 namespace internal {
 
-template <typename StructType>
+template<typename StructType>
 class FieldConverterBase {
  public:
   explicit FieldConverterBase(const std::string& path) : field_path_(path) {}
-
-  FieldConverterBase(const FieldConverterBase&) = delete;
-  FieldConverterBase& operator=(const FieldConverterBase&) = delete;
-
   virtual ~FieldConverterBase() = default;
-  virtual bool ConvertField(const base::Value& value,
-                            StructType* obj) const = 0;
+  virtual bool ConvertField(const base::Value& value, StructType* obj)
+      const = 0;
   const std::string& field_path() const { return field_path_; }
 
  private:
   std::string field_path_;
+  DISALLOW_COPY_AND_ASSIGN(FieldConverterBase);
 };
 
 template <typename FieldType>
@@ -119,22 +117,21 @@ template <typename StructType, typename FieldType>
 class FieldConverter : public FieldConverterBase<StructType> {
  public:
   explicit FieldConverter(const std::string& path,
-                          FieldType StructType::*field,
+                          FieldType StructType::* field,
                           ValueConverter<FieldType>* converter)
       : FieldConverterBase<StructType>(path),
         field_pointer_(field),
-        value_converter_(converter) {}
-
-  FieldConverter(const FieldConverter&) = delete;
-  FieldConverter& operator=(const FieldConverter&) = delete;
+        value_converter_(converter) {
+  }
 
   bool ConvertField(const base::Value& value, StructType* dst) const override {
     return value_converter_->Convert(value, &(dst->*field_pointer_));
   }
 
  private:
-  FieldType StructType::*field_pointer_;
+  FieldType StructType::* field_pointer_;
   std::unique_ptr<ValueConverter<FieldType>> value_converter_;
+  DISALLOW_COPY_AND_ASSIGN(FieldConverter);
 };
 
 template <typename FieldType>
@@ -145,10 +142,10 @@ class BASE_EXPORT BasicValueConverter<int> : public ValueConverter<int> {
  public:
   BasicValueConverter() = default;
 
-  BasicValueConverter(const BasicValueConverter&) = delete;
-  BasicValueConverter& operator=(const BasicValueConverter&) = delete;
-
   bool Convert(const base::Value& value, int* field) const override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BasicValueConverter);
 };
 
 template <>
@@ -157,22 +154,22 @@ class BASE_EXPORT BasicValueConverter<std::string>
  public:
   BasicValueConverter() = default;
 
-  BasicValueConverter(const BasicValueConverter&) = delete;
-  BasicValueConverter& operator=(const BasicValueConverter&) = delete;
-
   bool Convert(const base::Value& value, std::string* field) const override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BasicValueConverter);
 };
 
 template <>
-class BASE_EXPORT BasicValueConverter<std::u16string>
-    : public ValueConverter<std::u16string> {
+class BASE_EXPORT BasicValueConverter<string16>
+    : public ValueConverter<string16> {
  public:
   BasicValueConverter() = default;
 
-  BasicValueConverter(const BasicValueConverter&) = delete;
-  BasicValueConverter& operator=(const BasicValueConverter&) = delete;
+  bool Convert(const base::Value& value, string16* field) const override;
 
-  bool Convert(const base::Value& value, std::u16string* field) const override;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BasicValueConverter);
 };
 
 template <>
@@ -180,10 +177,10 @@ class BASE_EXPORT BasicValueConverter<double> : public ValueConverter<double> {
  public:
   BasicValueConverter() = default;
 
-  BasicValueConverter(const BasicValueConverter&) = delete;
-  BasicValueConverter& operator=(const BasicValueConverter&) = delete;
-
   bool Convert(const base::Value& value, double* field) const override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BasicValueConverter);
 };
 
 template <>
@@ -191,22 +188,19 @@ class BASE_EXPORT BasicValueConverter<bool> : public ValueConverter<bool> {
  public:
   BasicValueConverter() = default;
 
-  BasicValueConverter(const BasicValueConverter&) = delete;
-  BasicValueConverter& operator=(const BasicValueConverter&) = delete;
-
   bool Convert(const base::Value& value, bool* field) const override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BasicValueConverter);
 };
 
 template <typename FieldType>
 class ValueFieldConverter : public ValueConverter<FieldType> {
  public:
-  typedef bool (*ConvertFunc)(const base::Value* value, FieldType* field);
+  typedef bool(*ConvertFunc)(const base::Value* value, FieldType* field);
 
   explicit ValueFieldConverter(ConvertFunc convert_func)
       : convert_func_(convert_func) {}
-
-  ValueFieldConverter(const ValueFieldConverter&) = delete;
-  ValueFieldConverter& operator=(const ValueFieldConverter&) = delete;
 
   bool Convert(const base::Value& value, FieldType* field) const override {
     return convert_func_(&value, field);
@@ -214,6 +208,8 @@ class ValueFieldConverter : public ValueConverter<FieldType> {
 
  private:
   ConvertFunc convert_func_;
+
+  DISALLOW_COPY_AND_ASSIGN(ValueFieldConverter);
 };
 
 template <typename FieldType>
@@ -224,15 +220,16 @@ class CustomFieldConverter : public ValueConverter<FieldType> {
   explicit CustomFieldConverter(ConvertFunc convert_func)
       : convert_func_(convert_func) {}
 
-  CustomFieldConverter(const CustomFieldConverter&) = delete;
-  CustomFieldConverter& operator=(const CustomFieldConverter&) = delete;
-
   bool Convert(const base::Value& value, FieldType* field) const override {
-    return value.is_string() && convert_func_(value.GetString(), field);
+    std::string string_value;
+    return value.GetAsString(&string_value) &&
+        convert_func_(string_value, field);
   }
 
  private:
   ConvertFunc convert_func_;
+
+  DISALLOW_COPY_AND_ASSIGN(CustomFieldConverter);
 };
 
 template <typename NestedType>
@@ -240,15 +237,13 @@ class NestedValueConverter : public ValueConverter<NestedType> {
  public:
   NestedValueConverter() = default;
 
-  NestedValueConverter(const NestedValueConverter&) = delete;
-  NestedValueConverter& operator=(const NestedValueConverter&) = delete;
-
   bool Convert(const base::Value& value, NestedType* field) const override {
     return converter_.Convert(value, field);
   }
 
  private:
   JSONValueConverter<NestedType> converter_;
+  DISALLOW_COPY_AND_ASSIGN(NestedValueConverter);
 };
 
 template <typename Element>
@@ -257,20 +252,16 @@ class RepeatedValueConverter
  public:
   RepeatedValueConverter() = default;
 
-  RepeatedValueConverter(const RepeatedValueConverter&) = delete;
-  RepeatedValueConverter& operator=(const RepeatedValueConverter&) = delete;
-
   bool Convert(const base::Value& value,
                std::vector<std::unique_ptr<Element>>* field) const override {
-    const Value::List* list = value.GetIfList();
-    if (!list) {
+    if (!value.is_list()) {
       // The field is not a list.
       return false;
     }
 
-    field->reserve(list->size());
+    field->reserve(value.GetList().size());
     size_t i = 0;
-    for (const Value& element : *list) {
+    for (const Value& element : value.GetList()) {
       auto e = std::make_unique<Element>();
       if (basic_converter_.Convert(element, e.get())) {
         field->push_back(std::move(e));
@@ -285,6 +276,7 @@ class RepeatedValueConverter
 
  private:
   BasicValueConverter<Element> basic_converter_;
+  DISALLOW_COPY_AND_ASSIGN(RepeatedValueConverter);
 };
 
 template <typename NestedType>
@@ -293,18 +285,14 @@ class RepeatedMessageConverter
  public:
   RepeatedMessageConverter() = default;
 
-  RepeatedMessageConverter(const RepeatedMessageConverter&) = delete;
-  RepeatedMessageConverter& operator=(const RepeatedMessageConverter&) = delete;
-
   bool Convert(const base::Value& value,
                std::vector<std::unique_ptr<NestedType>>* field) const override {
-    const Value::List* list = value.GetIfList();
-    if (!list)
+    if (!value.is_list())
       return false;
 
-    field->reserve(list->size());
+    field->reserve(value.GetList().size());
     size_t i = 0;
-    for (const Value& element : *list) {
+    for (const Value& element : value.GetList()) {
       auto nested = std::make_unique<NestedType>();
       if (converter_.Convert(element, nested.get())) {
         field->push_back(std::move(nested));
@@ -319,30 +307,26 @@ class RepeatedMessageConverter
 
  private:
   JSONValueConverter<NestedType> converter_;
+  DISALLOW_COPY_AND_ASSIGN(RepeatedMessageConverter);
 };
 
 template <typename NestedType>
 class RepeatedCustomValueConverter
     : public ValueConverter<std::vector<std::unique_ptr<NestedType>>> {
  public:
-  typedef bool (*ConvertFunc)(const base::Value* value, NestedType* field);
+  typedef bool(*ConvertFunc)(const base::Value* value, NestedType* field);
 
   explicit RepeatedCustomValueConverter(ConvertFunc convert_func)
       : convert_func_(convert_func) {}
 
-  RepeatedCustomValueConverter(const RepeatedCustomValueConverter&) = delete;
-  RepeatedCustomValueConverter& operator=(const RepeatedCustomValueConverter&) =
-      delete;
-
   bool Convert(const base::Value& value,
                std::vector<std::unique_ptr<NestedType>>* field) const override {
-    const Value::List* list = value.GetIfList();
-    if (!list)
+    if (!value.is_list())
       return false;
 
-    field->reserve(list->size());
+    field->reserve(value.GetList().size());
     size_t i = 0;
-    for (const Value& element : *list) {
+    for (const Value& element : value.GetList()) {
       auto nested = std::make_unique<NestedType>();
       if ((*convert_func_)(&element, nested.get())) {
         field->push_back(std::move(nested));
@@ -357,56 +341,57 @@ class RepeatedCustomValueConverter
 
  private:
   ConvertFunc convert_func_;
+  DISALLOW_COPY_AND_ASSIGN(RepeatedCustomValueConverter);
 };
+
 
 }  // namespace internal
 
 template <class StructType>
 class JSONValueConverter {
  public:
-  JSONValueConverter() { StructType::RegisterJSONConverter(this); }
+  JSONValueConverter() {
+    StructType::RegisterJSONConverter(this);
+  }
 
-  JSONValueConverter(const JSONValueConverter&) = delete;
-  JSONValueConverter& operator=(const JSONValueConverter&) = delete;
-
-  void RegisterIntField(const std::string& field_name, int StructType::*field) {
+  void RegisterIntField(const std::string& field_name,
+                        int StructType::* field) {
     fields_.push_back(
         std::make_unique<internal::FieldConverter<StructType, int>>(
             field_name, field, new internal::BasicValueConverter<int>));
   }
 
   void RegisterStringField(const std::string& field_name,
-                           std::string StructType::*field) {
+                           std::string StructType::* field) {
     fields_.push_back(
         std::make_unique<internal::FieldConverter<StructType, std::string>>(
             field_name, field, new internal::BasicValueConverter<std::string>));
   }
 
   void RegisterStringField(const std::string& field_name,
-                           std::u16string StructType::*field) {
+                           string16 StructType::* field) {
     fields_.push_back(
-        std::make_unique<internal::FieldConverter<StructType, std::u16string>>(
-            field_name, field,
-            new internal::BasicValueConverter<std::u16string>));
+        std::make_unique<internal::FieldConverter<StructType, string16>>(
+            field_name, field, new internal::BasicValueConverter<string16>));
   }
 
   void RegisterBoolField(const std::string& field_name,
-                         bool StructType::*field) {
+                         bool StructType::* field) {
     fields_.push_back(
         std::make_unique<internal::FieldConverter<StructType, bool>>(
             field_name, field, new internal::BasicValueConverter<bool>));
   }
 
   void RegisterDoubleField(const std::string& field_name,
-                           double StructType::*field) {
+                           double StructType::* field) {
     fields_.push_back(
         std::make_unique<internal::FieldConverter<StructType, double>>(
             field_name, field, new internal::BasicValueConverter<double>));
   }
 
   template <class NestedType>
-  void RegisterNestedField(const std::string& field_name,
-                           NestedType StructType::*field) {
+  void RegisterNestedField(
+      const std::string& field_name, NestedType StructType::* field) {
     fields_.push_back(
         std::make_unique<internal::FieldConverter<StructType, NestedType>>(
             field_name, field, new internal::NestedValueConverter<NestedType>));
@@ -423,10 +408,10 @@ class JSONValueConverter {
   }
 
   template <typename FieldType>
-  void RegisterCustomValueField(const std::string& field_name,
-                                FieldType StructType::*field,
-                                bool (*convert_func)(const base::Value*,
-                                                     FieldType*)) {
+  void RegisterCustomValueField(
+      const std::string& field_name,
+      FieldType StructType::* field,
+      bool (*convert_func)(const base::Value*, FieldType*)) {
     fields_.push_back(
         std::make_unique<internal::FieldConverter<StructType, FieldType>>(
             field_name, field,
@@ -453,12 +438,10 @@ class JSONValueConverter {
 
   void RegisterRepeatedString(
       const std::string& field_name,
-      std::vector<std::unique_ptr<std::u16string>> StructType::*field) {
-    fields_.push_back(
-        std::make_unique<internal::FieldConverter<
-            StructType, std::vector<std::unique_ptr<std::u16string>>>>(
-            field_name, field,
-            new internal::RepeatedValueConverter<std::u16string>));
+      std::vector<std::unique_ptr<string16>> StructType::*field) {
+    fields_.push_back(std::make_unique<internal::FieldConverter<
+                          StructType, std::vector<std::unique_ptr<string16>>>>(
+        field_name, field, new internal::RepeatedValueConverter<string16>));
   }
 
   void RegisterRepeatedDouble(
@@ -502,15 +485,13 @@ class JSONValueConverter {
   }
 
   bool Convert(const base::Value& value, StructType* output) const {
-    const Value::Dict* dict = value.GetIfDict();
-    if (!dict)
+    if (!value.is_dict())
       return false;
 
     for (size_t i = 0; i < fields_.size(); ++i) {
       const internal::FieldConverterBase<StructType>* field_converter =
           fields_[i].get();
-      const base::Value* field =
-          dict->FindByDottedPath(field_converter->field_path());
+      const base::Value* field = value.FindPath(field_converter->field_path());
       if (field) {
         if (!field_converter->ConvertField(*field, output)) {
           DVLOG(1) << "failure at field " << field_converter->field_path();
@@ -524,6 +505,8 @@ class JSONValueConverter {
  private:
   std::vector<std::unique_ptr<internal::FieldConverterBase<StructType>>>
       fields_;
+
+  DISALLOW_COPY_AND_ASSIGN(JSONValueConverter);
 };
 
 }  // namespace base

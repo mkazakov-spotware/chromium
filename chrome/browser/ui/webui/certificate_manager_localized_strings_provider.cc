@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/webui/certificate_manager_localized_strings_provider.h"
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/strings/grit/components_strings.h"
@@ -81,7 +80,7 @@ void AddLocalizedStrings(content::WebUIDataSource* html_source) {
      IDS_SETTINGS_CERTIFICATE_MANAGER_CONFIRM_PASSWORD},
     {"certificateImportErrorFormat",
      IDS_SETTINGS_CERTIFICATE_MANAGER_IMPORT_ERROR_FORMAT},
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
     {"certificateProvisioningListHeader",
      IDS_SETTINGS_CERTIFICATE_MANAGER_PROVISIONING_LIST_HEADER},
     {"certificateProvisioningRefresh",
@@ -90,24 +89,20 @@ void AddLocalizedStrings(content::WebUIDataSource* html_source) {
      IDS_SETTINGS_CERTIFICATE_MANAGER_PROVISIONING_DETAILS},
     {"certificateProvisioningAdvancedSectionTitle",
      IDS_SETTINGS_CERTIFICATE_MANAGER_PROVISIONING_ADVANCED},
-    {"certificateProvisioningProfileName",
-     IDS_SETTINGS_CERTIFICATE_MANAGER_PROVISIONING_CERTIFICATE_PROFILE_NAME},
-    {"certificateProvisioningProfileId",
-     IDS_SETTINGS_CERTIFICATE_MANAGER_PROVISIONING_CERTIFICATE_PROFILE_ID},
+    {"certificateProvisioningProfile",
+     IDS_SETTINGS_CERTIFICATE_MANAGER_PROVISIONING_CERTIFICATE_PROFILE},
     {"certificateProvisioningStatus",
      IDS_SETTINGS_CERTIFICATE_MANAGER_PROVISIONING_STATUS},
     {"certificateProvisioningStatusId",
      IDS_SETTINGS_CERTIFICATE_MANAGER_PROVISIONING_STATUS_ID},
     {"certificateProvisioningLastUpdate",
      IDS_SETTINGS_CERTIFICATE_MANAGER_PROVISIONING_LAST_UPDATE},
-    {"certificateProvisioningLastUnsuccessfulStatus",
-     IDS_SETTINGS_CERTIFICATE_MANAGER_PROVISIONING_LAST_UNSUCCESSFUL_STATUS},
     {"certificateProvisioningPublicKey", IDS_CERT_DETAILS_SUBJECT_KEY},
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)
     // For A11y.
     {"menu", IDS_MENU},
   };
-  html_source->AddLocalizedStrings(kLocalizedStrings);
+  AddLocalizedStringsBulk(html_source, kLocalizedStrings);
 }
 
 }  // namespace certificate_manager

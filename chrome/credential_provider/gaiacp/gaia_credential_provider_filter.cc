@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/credential_provider/gaiacp/gaia_credential_provider_filter.h"
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "build/branding_buildflags.h"
 #include "chrome/credential_provider/gaiacp/associated_user_validator.h"
 #include "chrome/credential_provider/gaiacp/auth_utils.h"
@@ -99,7 +98,7 @@ HRESULT CGaiaCredentialProviderFilter::UpdateRemoteCredential(
 
   // If serialziation data is set, try to extract the sid for the user
   // referenced in the serialization data.
-  std::wstring serialization_sid;
+  base::string16 serialization_sid;
   hr = DetermineUserSidFromAuthenticationBuffer(pcpcs_in, &serialization_sid);
   if (FAILED(hr))
     return E_NOTIMPL;

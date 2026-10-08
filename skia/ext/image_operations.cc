@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 
 #include "base/check.h"
 #include "base/containers/stack_container.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
 #include "base/numerics/math_constants.h"
@@ -99,9 +100,6 @@ class ResizeFilter {
                int dest_width, int dest_height,
                const SkIRect& dest_subset);
 
-  ResizeFilter(const ResizeFilter&) = delete;
-  ResizeFilter& operator=(const ResizeFilter&) = delete;
-
   // Returns the filled filter values.
   const ConvolutionFilter1D& x_filter() { return x_filter_; }
   const ConvolutionFilter1D& y_filter() { return y_filter_; }
@@ -162,6 +160,8 @@ class ResizeFilter {
 
   ConvolutionFilter1D x_filter_;
   ConvolutionFilter1D y_filter_;
+
+  DISALLOW_COPY_AND_ASSIGN(ResizeFilter);
 };
 
 ResizeFilter::ResizeFilter(ImageOperations::ResizeMethod method,
@@ -375,7 +375,8 @@ SkBitmap ImageOperations::Resize(const SkPixmap& source,
   SkBitmap result;
   result.setInfo(
       source.info().makeWH(dest_subset.width(), dest_subset.height()));
-  if (!result.tryAllocPixels(allocator) || !result.readyToDraw())
+  result.allocPixels(allocator);
+  if (!result.readyToDraw())
     return SkBitmap();
 
   BGRAConvolve2D(source_subset, static_cast<int>(source.rowBytes()),

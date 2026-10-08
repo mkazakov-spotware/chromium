@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,11 +23,11 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
-import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.chrome.browser.ChromeApplication;
 import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.customtabs.CustomTabsConnection;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
-import org.chromium.components.version_info.VersionInfo;
+import org.chromium.chrome.browser.version.ChromeVersionInfo;
 
 /**
  * An exposed Activity that allows launching an Incognito Tab.
@@ -60,7 +60,7 @@ public class IncognitoTabLauncher extends Activity {
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        if (VersionInfo.isLocalBuild() && ACTION_DEBUG.equals(getIntent().getAction())) {
+        if (ChromeVersionInfo.isLocalBuild() && ACTION_DEBUG.equals(getIntent().getAction())) {
             setComponentEnabled(false);
             finish();
             return;
@@ -120,7 +120,7 @@ public class IncognitoTabLauncher extends Activity {
         String sendersPackageName =
                 intent.getStringExtra(IncognitoTabLauncher.EXTRA_SENDERS_PACKAGE_NAME);
         return !TextUtils.isEmpty(sendersPackageName)
-                && ChromeApplicationImpl.getComponent().resolveExternalAuthUtils().isGoogleSigned(
+                && ChromeApplication.getComponent().resolveExternalAuthUtils().isGoogleSigned(
                         sendersPackageName);
     }
 

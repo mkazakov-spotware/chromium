@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,19 +14,17 @@
 #include "build/build_config.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/color/color_id.h"
-#include "ui/color/color_provider.h"
-#include "ui/compositor/layer.h"
 #include "ui/gfx/animation/throb_animation.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/font_list.h"
 #include "ui/gfx/geometry/vector2d.h"
 #include "ui/native_theme/native_theme.h"
+#include "ui/native_theme/themed_vector_icon.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/background.h"
 #include "ui/views/controls/button/label_button_border.h"
+#include "ui/views/metadata/metadata_impl_macros.h"
 #include "ui/views/painter.h"
 #include "ui/views/style/platform_style.h"
 #include "ui/views/view_class_properties.h"
@@ -35,7 +33,7 @@
 namespace views {
 
 LabelButton::LabelButton(PressedCallback callback,
-                         const std::u16string& text,
+                         const base::string16& text,
                          int button_context)
     : Button(std::move(callback)),
       cached_normal_font_list_(
@@ -53,20 +51,25 @@ LabelButton::LabelButton(PressedCallback callback,
   label_->SetAutoColorReadabilityEnabled(false);
   label_->SetHorizontalAlignment(gfx::ALIGN_TO_HEAD);
 
-  SetAnimationDuration(base::Milliseconds(170));
+  SetAnimationDuration(base::TimeDelta::FromMilliseconds(170));
   SetTextInternal(text);
 }
 
-LabelButton::~LabelButton() {
-  // TODO(pbos): Revisit explicit removal of InkDrop for classes that override
-  // Add/RemoveLayerBeneathView(). This is done so that the InkDrop doesn't
-  // access the non-override versions in ~View.
-  views::InkDrop::Remove(this);
-}
+LabelButton::~LabelButton() = default;
 
 gfx::ImageSkia LabelButton::GetImage(ButtonState for_state) const {
   for_state = ImageStateForState(for_state);
-  return button_state_image_models_[for_state].Rasterize(GetColorProvider());
+
+  const auto& image_model = button_state_image_models_[for_state];
+  if (image_model.IsImage())
+    return image_model.GetImage().AsImageSkia();
+
+  if (image_model.IsVectorIcon()) {
+    return ui::ThemedVectorIcon(image_model.GetVectorIcon())
+        .GetImageSkia(GetNativeTheme());
+  }
+
+  return gfx::ImageSkia();
 }
 
 void LabelButton::SetImage(ButtonState for_state, const gfx::ImageSkia& image) {
@@ -87,15 +90,11 @@ void LabelButton::SetImageModel(ButtonState for_state,
     UpdateImage();
 }
 
-bool LabelButton::HasImage(ButtonState for_state) const {
-  return !button_state_image_models_[for_state].IsEmpty();
-}
-
-const std::u16string& LabelButton::GetText() const {
+const base::string16& LabelButton::GetText() const {
   return label_->GetText();
 }
 
-void LabelButton::SetText(const std::u16string& text) {
+void LabelButton::SetText(const base::string16& text) {
   SetTextInternal(text);
 }
 
@@ -118,7 +117,7 @@ void LabelButton::SetTextColor(ButtonState for_state, SkColor color) {
   explicitly_set_colors_[for_state] = true;
 }
 
-void LabelButton::SetEnabledTextColors(absl::optional<SkColor> color) {
+void LabelButton::SetEnabledTextColors(base::Optional<SkColor> color) {
   ButtonState states[] = {STATE_NORMAL, STATE_HOVERED, STATE_PRESSED};
   if (color.has_value()) {
     for (auto state : states)
@@ -232,7 +231,7 @@ std::unique_ptr<LabelButtonBorder> LabelButton::CreateDefaultBorder() const {
 }
 
 void LabelButton::SetBorder(std::unique_ptr<Border> border) {
-  explicitly_set_border_ = true;
+  border_is_themed_border_ = false;
   View::SetBorder(std::move(border));
 }
 
@@ -247,13 +246,6 @@ gfx::Size LabelButton::CalculatePreferredSize() const {
   // Account for the label only when the button is not shrinking down to hide
   // the label entirely.
   if (!shrinking_down_label_) {
-    if (max_size_.width() > 0) {
-      if (label_->GetMultiLine())
-        label_->SetMaximumWidth(max_size_.width() - size.width());
-      else
-        label_->SetMaximumWidthSingleLine(max_size_.width() - size.width());
-    }
-
     const gfx::Size preferred_label_size = label_->GetPreferredSize();
     size.Enlarge(preferred_label_size.width(), 0);
     size.SetToMax(
@@ -319,7 +311,7 @@ void LabelButton::Layout() {
   // If the button have a limited space to fit in, the image and the label
   // may overlap with the border, which often times contains a lot of empty
   // padding.
-  image_area.Inset(gfx::Insets::TLBR(0, insets.left(), 0, insets.right()));
+  image_area.Inset(insets.left(), 0, insets.right(), 0);
   // The space that the label can use. Labels truncate horizontally, so there
   // is no need to allow the label to take up the complete horizontal space.
   gfx::Rect label_area = image_area;
@@ -331,9 +323,9 @@ void LabelButton::Layout() {
   if (!image_size.IsEmpty()) {
     int image_space = image_size.width() + GetImageLabelSpacing();
     if (horizontal_alignment == gfx::ALIGN_RIGHT)
-      label_area.Inset(gfx::Insets::TLBR(0, 0, 0, image_space));
+      label_area.Inset(0, 0, image_space, 0);
     else
-      label_area.Inset(gfx::Insets::TLBR(0, image_space, 0, 0));
+      label_area.Inset(image_space, 0, 0, 0);
   }
 
   gfx::Size label_size(
@@ -429,8 +421,7 @@ ui::NativeTheme::State LabelButton::GetForegroundThemeState(
 }
 
 void LabelButton::UpdateImage() {
-  if (GetWidget())
-    image_->SetImage(GetImage(GetVisualState()));
+  image_->SetImage(GetImage(GetVisualState()));
 }
 
 void LabelButton::AddLayerBeneathView(ui::Layer* new_layer) {
@@ -485,7 +476,7 @@ void LabelButton::AddedToWidget() {
 }
 
 void LabelButton::RemovedFromWidget() {
-  paint_as_active_subscription_ = {};
+  paint_as_active_subscription_.reset();
 }
 
 void LabelButton::OnFocus() {
@@ -504,8 +495,8 @@ void LabelButton::OnThemeChanged() {
   Button::OnThemeChanged();
   ResetColorsFromNativeTheme();
   UpdateImage();
-  if (!explicitly_set_border_)
-    View::SetBorder(CreateDefaultBorder());
+  if (border_is_themed_border_)
+    View::SetBorder(PlatformStyle::CreateThemedLabelButtonBorder(this));
   ResetLabelEnabledColor();
   // The entire button has to be repainted here, since the native theme can
   // define the tint for the entire background/border/focus ring.
@@ -518,7 +509,7 @@ void LabelButton::StateChanged(ButtonState old_state) {
   VisualStateChanged();
 }
 
-void LabelButton::SetTextInternal(const std::u16string& text) {
+void LabelButton::SetTextInternal(const base::string16& text) {
   SetAccessibleName(text);
   label_->SetText(text);
 
@@ -539,7 +530,7 @@ void LabelButton::ClearTextIfShrunkDown() {
       height() <= preferred_size.height()) {
     // Once the button shrinks down to its preferred size (that disregards the
     // current text), we finish the operation by clearing the text.
-    SetText(std::u16string());
+    SetText(base::string16());
   }
 }
 
@@ -554,8 +545,8 @@ gfx::Size LabelButton::GetUnclampedSizeWithoutLabel() const {
     size.Enlarge(GetImageLabelSpacing(), 0);
 
   // Make the size at least as large as the minimum size needed by the border.
-  if (GetBorder())
-    size.SetToMax(GetBorder()->GetMinimumSize());
+  if (border())
+    size.SetToMax(border()->GetMinimumSize());
 
   return size;
 }
@@ -576,27 +567,19 @@ Button::ButtonState LabelButton::GetVisualState() const {
 }
 
 void LabelButton::VisualStateChanged() {
-  if (GetWidget()) {
-    UpdateImage();
-    UpdateBackgroundColor();
-  }
+  UpdateImage();
+  UpdateBackgroundColor();
   label_->SetEnabled(GetVisualState() != STATE_DISABLED);
 }
 
 void LabelButton::ResetColorsFromNativeTheme() {
-  if (!GetWidget()) {
-    // If there is no widget, we can't actually get the real colors here.
-    // An OnThemeChanged() will fire once a widget is available.
-    return;
-  }
-
-  const ui::ColorProvider* color_provider = GetColorProvider();
+  const ui::NativeTheme* theme = GetNativeTheme();
   // Since this is a LabelButton, use the label colors.
   SkColor colors[STATE_COUNT] = {
-      color_provider->GetColor(ui::kColorLabelForeground),
-      color_provider->GetColor(ui::kColorLabelForeground),
-      color_provider->GetColor(ui::kColorLabelForeground),
-      color_provider->GetColor(ui::kColorLabelForegroundDisabled),
+      theme->GetSystemColor(ui::NativeTheme::kColorId_LabelEnabledColor),
+      theme->GetSystemColor(ui::NativeTheme::kColorId_LabelEnabledColor),
+      theme->GetSystemColor(ui::NativeTheme::kColorId_LabelEnabledColor),
+      theme->GetSystemColor(ui::NativeTheme::kColorId_LabelDisabledColor),
   };
 
   label_->SetBackground(nullptr);
@@ -627,7 +610,7 @@ void LabelButton::FlipCanvasOnPaintForRTLUIChanged() {
 }
 
 BEGIN_METADATA(LabelButton, Button)
-ADD_PROPERTY_METADATA(std::u16string, Text)
+ADD_PROPERTY_METADATA(base::string16, Text)
 ADD_PROPERTY_METADATA(gfx::HorizontalAlignment, HorizontalAlignment)
 ADD_PROPERTY_METADATA(gfx::Size, MinSize)
 ADD_PROPERTY_METADATA(gfx::Size, MaxSize)

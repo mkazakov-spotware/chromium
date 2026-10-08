@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -96,24 +96,7 @@ public class MediaRouteChooserDialogManager extends BaseMediaRouteDialogManager 
                 ListView listView = (ListView) findViewById(R.id.mr_chooser_list);
                 if (listView != null) {
                     listView.setOnItemClickListener(Fragment.this::onItemClick);
-                    recordSinkCountWithDelay();
                 }
-            }
-
-            // The number of discovered sinks is recorded with a three second
-            // delay. This is consistent with how sink count is recorded on
-            // Chrome desktop.
-            private void recordSinkCountWithDelay() {
-                Handler handler = new Handler();
-                handler.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        ListView listView = (ListView) findViewById(R.id.mr_chooser_list);
-                        if (listView != null) {
-                            MediaRouteUmaRecorder.recordDeviceCountWithDelay(listView.getCount());
-                        }
-                    }
-                }, 3000);
             }
         }
 

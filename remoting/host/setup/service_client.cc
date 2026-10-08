@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <memory>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "remoting/base/directory_service_client.h"
 #include "remoting/base/passthrough_oauth_token_getter.h"
 #include "remoting/base/protobuf_http_status.h"
@@ -54,7 +54,7 @@ class ServiceClient::Core
 
   void NotifyError(const ProtobufHttpStatus& status);
 
-  raw_ptr<ServiceClient::Delegate> delegate_ = nullptr;
+  ServiceClient::Delegate* delegate_ = nullptr;
   PendingRequestType pending_request_type_ = PENDING_REQUEST_NONE;
   PassthroughOAuthTokenGetter token_getter_;
   DirectoryServiceClient directory_service_client_;

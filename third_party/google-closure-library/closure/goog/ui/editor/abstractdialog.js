@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Wrapper around {@link goog.ui.Dialog}, to provide
@@ -20,7 +28,6 @@ goog.require('goog.events.EventTarget');
 goog.require('goog.string');
 goog.require('goog.ui.Dialog');
 goog.require('goog.ui.PopupBase');
-goog.requireType('goog.events.Event');
 
 
 // *** Public interface ***************************************************** //
@@ -35,7 +42,6 @@ goog.requireType('goog.events.Event');
  * @extends {goog.events.EventTarget}
  */
 goog.ui.editor.AbstractDialog = function(domHelper) {
-  'use strict';
   goog.ui.editor.AbstractDialog.base(this, 'constructor');
   this.dom = domHelper;
 
@@ -50,7 +56,6 @@ goog.inherits(goog.ui.editor.AbstractDialog, goog.events.EventTarget);
  * dialog if needed.
  */
 goog.ui.editor.AbstractDialog.prototype.show = function() {
-  'use strict';
   // Lazily create the wrapped dialog to be shown.
   if (!this.dialogInternal_) {
     this.dialogInternal_ = this.createDialogControl();
@@ -66,7 +71,6 @@ goog.ui.editor.AbstractDialog.prototype.show = function() {
  * Hides the dialog, causing AFTER_HIDE to fire.
  */
 goog.ui.editor.AbstractDialog.prototype.hide = function() {
-  'use strict';
   if (this.dialogInternal_) {
     // This eventually fires the wrapped dialog's AFTER_HIDE event, calling our
     // handleAfterHide_().
@@ -79,7 +83,6 @@ goog.ui.editor.AbstractDialog.prototype.hide = function() {
  * @return {boolean} Whether the dialog is open.
  */
 goog.ui.editor.AbstractDialog.prototype.isOpen = function() {
-  'use strict';
   return !!this.dialogInternal_ && this.dialogInternal_.isVisible();
 };
 
@@ -92,10 +95,8 @@ goog.ui.editor.AbstractDialog.prototype.isOpen = function() {
  * @protected
  */
 goog.ui.editor.AbstractDialog.prototype.processOkAndClose = function() {
-  'use strict';
   // Fake an OK event from the wrapped dialog control.
-  const evt =
-      new goog.ui.Dialog.Event(goog.ui.Dialog.DefaultButtonKeys.OK, null);
+  var evt = new goog.ui.Dialog.Event(goog.ui.Dialog.DefaultButtonKeys.OK, null);
   if (this.handleOk(evt)) {
     // handleOk calls dispatchEvent, so if any listener calls preventDefault it
     // will return false and we won't hide the dialog.
@@ -133,7 +134,6 @@ goog.ui.editor.AbstractDialog.EventType = {
  * @constructor
  */
 goog.ui.editor.AbstractDialog.Builder = function(editorDialog) {
-  'use strict';
   // We require the editor dialog to be passed in so that the builder can set up
   // ok/cancel listeners by default, making it easier for most dialogs.
   this.editorDialog_ = editorDialog;
@@ -150,7 +150,6 @@ goog.ui.editor.AbstractDialog.Builder = function(editorDialog) {
  * @return {!goog.ui.editor.AbstractDialog.Builder} This.
  */
 goog.ui.editor.AbstractDialog.Builder.prototype.setTitle = function(title) {
-  'use strict';
   this.wrappedDialog_.setTitle(title);
   return this;
 };
@@ -164,10 +163,9 @@ goog.ui.editor.AbstractDialog.Builder.prototype.setTitle = function(title) {
  */
 goog.ui.editor.AbstractDialog.Builder.prototype.addOkButton = function(
     opt_label) {
-  'use strict';
-  const key = goog.ui.Dialog.DefaultButtonKeys.OK;
+  var key = goog.ui.Dialog.DefaultButtonKeys.OK;
   /** @desc Label for an OK button in an editor dialog. */
-  const MSG_TR_DIALOG_OK = goog.getMsg('OK');
+  var MSG_TR_DIALOG_OK = goog.getMsg('OK');
   // True means this is the default/OK button.
   this.buttonSet_.set(key, opt_label || MSG_TR_DIALOG_OK, true);
   this.buttonHandlers_[key] =
@@ -184,10 +182,9 @@ goog.ui.editor.AbstractDialog.Builder.prototype.addOkButton = function(
  */
 goog.ui.editor.AbstractDialog.Builder.prototype.addCancelButton = function(
     opt_label) {
-  'use strict';
-  const key = goog.ui.Dialog.DefaultButtonKeys.CANCEL;
+  var key = goog.ui.Dialog.DefaultButtonKeys.CANCEL;
   /** @desc Label for a cancel button in an editor dialog. */
-  const MSG_TR_DIALOG_CANCEL = goog.getMsg('Cancel');
+  var MSG_TR_DIALOG_CANCEL = goog.getMsg('Cancel');
   // False means it's not the OK button, true means it's the Cancel button.
   this.buttonSet_.set(key, opt_label || MSG_TR_DIALOG_CANCEL, false, true);
   this.buttonHandlers_[key] =
@@ -209,10 +206,9 @@ goog.ui.editor.AbstractDialog.Builder.prototype.addCancelButton = function(
  */
 goog.ui.editor.AbstractDialog.Builder.prototype.addButton = function(
     label, handler, opt_buttonId) {
-  'use strict';
   // We don't care what the key is, just that we can match the button with the
   // handler function later.
-  const key = opt_buttonId || goog.string.createUniqueString();
+  var key = opt_buttonId || goog.string.createUniqueString();
   this.buttonSet_.set(key, label);
   this.buttonHandlers_[key] = handler;
   return this;
@@ -226,7 +222,6 @@ goog.ui.editor.AbstractDialog.Builder.prototype.addButton = function(
  */
 goog.ui.editor.AbstractDialog.Builder.prototype.addClassName = function(
     className) {
-  'use strict';
   goog.dom.classlist.add(
       goog.asserts.assert(this.wrappedDialog_.getDialogElement()), className);
   return this;
@@ -240,7 +235,6 @@ goog.ui.editor.AbstractDialog.Builder.prototype.addClassName = function(
  */
 goog.ui.editor.AbstractDialog.Builder.prototype.setContent = function(
     contentElem) {
-  'use strict';
   goog.dom.appendChild(this.wrappedDialog_.getContentElement(), contentElem);
   return this;
 };
@@ -252,7 +246,6 @@ goog.ui.editor.AbstractDialog.Builder.prototype.setContent = function(
  * @return {!goog.ui.Dialog} The wrapped dialog control.
  */
 goog.ui.editor.AbstractDialog.Builder.prototype.build = function() {
-  'use strict';
   if (this.buttonSet_.isEmpty()) {
     // If caller didn't set any buttons, add an OK and Cancel button by default.
     this.addOkButton();
@@ -260,14 +253,13 @@ goog.ui.editor.AbstractDialog.Builder.prototype.build = function() {
   }
   this.wrappedDialog_.setButtonSet(this.buttonSet_);
 
-  const handlers = this.buttonHandlers_;
+  var handlers = this.buttonHandlers_;
   this.buttonHandlers_ = null;
   this.wrappedDialog_.listen(
       goog.ui.Dialog.EventType.SELECT,
       // Listen for the SELECT event, which means a button was clicked, and
       // call the handler associated with that button via the key property.
       function(e) {
-        'use strict';
         if (handlers[e.key]) {
           return handlers[e.key](e);
         }
@@ -276,7 +268,7 @@ goog.ui.editor.AbstractDialog.Builder.prototype.build = function() {
   // All editor dialogs are modal.
   this.wrappedDialog_.setModal(true);
 
-  const dialog = this.wrappedDialog_;
+  var dialog = this.wrappedDialog_;
   this.wrappedDialog_ = null;
   return dialog;
 };
@@ -342,7 +334,6 @@ goog.ui.editor.AbstractDialog.prototype.createDialogControl =
  * @protected
  */
 goog.ui.editor.AbstractDialog.prototype.getOkButtonElement = function() {
-  'use strict';
   return this.getButtonElement(goog.ui.Dialog.DefaultButtonKeys.OK);
 };
 
@@ -353,7 +344,6 @@ goog.ui.editor.AbstractDialog.prototype.getOkButtonElement = function() {
  * @protected
  */
 goog.ui.editor.AbstractDialog.prototype.getCancelButtonElement = function() {
-  'use strict';
   return this.getButtonElement(goog.ui.Dialog.DefaultButtonKeys.CANCEL);
 };
 
@@ -366,7 +356,6 @@ goog.ui.editor.AbstractDialog.prototype.getCancelButtonElement = function() {
  * @protected
  */
 goog.ui.editor.AbstractDialog.prototype.getButtonElement = function(buttonId) {
-  'use strict';
   return this.dialogInternal_.getButtonSet().getButton(buttonId);
 };
 
@@ -397,8 +386,7 @@ goog.ui.editor.AbstractDialog.prototype.createOkEvent = goog.abstractMethod;
  * @protected
  */
 goog.ui.editor.AbstractDialog.prototype.handleOk = function(e) {
-  'use strict';
-  const eventObj = this.createOkEvent(e);
+  var eventObj = this.createOkEvent(e);
   if (eventObj) {
     return this.dispatchEvent(eventObj);
   } else {
@@ -415,7 +403,6 @@ goog.ui.editor.AbstractDialog.prototype.handleOk = function(e) {
  * @protected
  */
 goog.ui.editor.AbstractDialog.prototype.handleCancel = function() {
-  'use strict';
   return this.dispatchEvent(goog.ui.editor.AbstractDialog.EventType.CANCEL);
 };
 
@@ -427,7 +414,6 @@ goog.ui.editor.AbstractDialog.prototype.handleCancel = function() {
  * @protected
  */
 goog.ui.editor.AbstractDialog.prototype.disposeInternal = function() {
-  'use strict';
   if (this.dialogInternal_) {
     this.hide();
 
@@ -448,6 +434,5 @@ goog.ui.editor.AbstractDialog.prototype.disposeInternal = function() {
  * @private
  */
 goog.ui.editor.AbstractDialog.prototype.handleAfterHide_ = function() {
-  'use strict';
   this.dispatchEvent(goog.ui.editor.AbstractDialog.EventType.AFTER_HIDE);
 };

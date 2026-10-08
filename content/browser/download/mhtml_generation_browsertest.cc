@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/macros.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
@@ -61,9 +62,6 @@ class FindTrackingDelegate : public WebContentsDelegate {
   explicit FindTrackingDelegate(const std::string& search)
       : search_(search), matches_(-1) {}
 
-  FindTrackingDelegate(const FindTrackingDelegate&) = delete;
-  FindTrackingDelegate& operator=(const FindTrackingDelegate&) = delete;
-
   // Returns number of results.
   int Wait(WebContents* web_contents) {
     WebContentsDelegate* old_delegate = web_contents->GetDelegate();
@@ -100,6 +98,8 @@ class FindTrackingDelegate : public WebContentsDelegate {
   std::string search_;
   int matches_;
   base::RunLoop run_loop_;
+
+  DISALLOW_COPY_AND_ASSIGN(FindTrackingDelegate);
 };
 
 // static
@@ -113,10 +113,6 @@ const char kTestData[] =
 class MockWriterBase : public mojom::MhtmlFileWriter {
  public:
   MockWriterBase() = default;
-
-  MockWriterBase(const MockWriterBase&) = delete;
-  MockWriterBase& operator=(const MockWriterBase&) = delete;
-
   ~MockWriterBase() override = default;
 
   void BindReceiver(mojo::ScopedInterfaceEndpointHandle handle) {
@@ -127,7 +123,7 @@ class MockWriterBase : public mojom::MhtmlFileWriter {
  protected:
   void SendResponse(SerializeAsMHTMLCallback callback) {
     std::vector<std::string> dummy_digests;
-    base::TimeDelta dummy_time_delta = base::Milliseconds(100);
+    base::TimeDelta dummy_time_delta = base::TimeDelta::FromMilliseconds(100);
     std::move(callback).Run(mojom::MhtmlSaveStatus::kSuccess, dummy_digests,
                             dummy_time_delta);
   }
@@ -147,6 +143,9 @@ class MockWriterBase : public mojom::MhtmlFileWriter {
   }
 
   mojo::AssociatedReceiver<mojom::MhtmlFileWriter> receiver_{this};
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockWriterBase);
 };
 
 // This Mock injects our overwritten interface, running the callback
@@ -156,11 +155,6 @@ class RespondAndDisconnectMockWriter
       public base::RefCountedThreadSafe<RespondAndDisconnectMockWriter> {
  public:
   RespondAndDisconnectMockWriter() {}
-
-  RespondAndDisconnectMockWriter(const RespondAndDisconnectMockWriter&) =
-      delete;
-  RespondAndDisconnectMockWriter& operator=(
-      const RespondAndDisconnectMockWriter&) = delete;
 
   void SerializeAsMHTML(mojom::SerializeAsMHTMLParamsPtr params,
                         SerializeAsMHTMLCallback callback) override {
@@ -274,6 +268,8 @@ class RespondAndDisconnectMockWriter
   friend base::RefCountedThreadSafe<RespondAndDisconnectMockWriter>;
 
   ~RespondAndDisconnectMockWriter() override = default;
+
+  DISALLOW_COPY_AND_ASSIGN(RespondAndDisconnectMockWriter);
 };
 
 }  // namespace
@@ -284,7 +280,7 @@ class MHTMLGenerationTest : public ContentBrowserTest,
   MHTMLGenerationTest()
       : has_mhtml_callback_run_(false),
         file_size_(0),
-        file_digest_(absl::nullopt),
+        file_digest_(base::nullopt),
         well_formedness_check_(true) {}
 
   enum TaskOrder { WriteThenRespond, RespondThenWrite };
@@ -300,7 +296,7 @@ class MHTMLGenerationTest : public ContentBrowserTest,
     blink::AssociatedInterfaceProvider* remote_interfaces =
         shell()
             ->web_contents()
-            ->GetPrimaryMainFrame()
+            ->GetMainFrame()
             ->GetRemoteAssociatedInterfaces();
     remote_interfaces->OverrideBinderForTesting(
         mojom::MhtmlFileWriter::Name_,
@@ -320,7 +316,7 @@ class MHTMLGenerationTest : public ContentBrowserTest,
 
   void GenerateMHTMLForCurrentPage(MHTMLGenerationParams& params) {
     base::RunLoop run_loop;
-    histogram_tester_ = std::make_unique<base::HistogramTester>();
+    histogram_tester_.reset(new base::HistogramTester());
 
     bool use_result_callback = GetParam();
 
@@ -344,8 +340,8 @@ class MHTMLGenerationTest : public ContentBrowserTest,
 
     // TODO(crbug.com/997408): Add tests which will let MHTMLGeneration manager
     // fail during file write operation. This will allow us to actually test if
-    // we receive a bogus hash instead of a absl::nullopt.
-    EXPECT_EQ(absl::nullopt, file_digest());
+    // we receive a bogus hash instead of a base::nullopt.
+    EXPECT_EQ(base::nullopt, file_digest());
 
     // Skip well formedness check if explicitly disabled or there was a
     // generation error.
@@ -413,8 +409,7 @@ class MHTMLGenerationTest : public ContentBrowserTest,
       const std::vector<std::string>& expected_substrings,
       const std::vector<std::string>& forbidden_substrings) {
     int actual_number_of_frames =
-        CollectAllRenderFrameHosts(shell()->web_contents()->GetPrimaryPage())
-            .size();
+        shell()->web_contents()->GetAllFrames().size();
     EXPECT_EQ(expected_number_of_frames, actual_number_of_frames);
 
     for (const auto& expected_substring : expected_substrings) {
@@ -423,7 +418,7 @@ class MHTMLGenerationTest : public ContentBrowserTest,
       EXPECT_EQ(1, actual_number_of_matches)
           << "Verifying that \"" << expected_substring << "\" appears "
           << "exactly once in the text of web contents of "
-          << shell()->web_contents()->GetLastCommittedURL().spec();
+          << shell()->web_contents()->GetURL().spec();
     }
 
     for (const auto& forbidden_substring : forbidden_substrings) {
@@ -432,7 +427,7 @@ class MHTMLGenerationTest : public ContentBrowserTest,
       EXPECT_EQ(0, actual_number_of_matches)
           << "Verifying that \"" << forbidden_substring << "\" doesn't "
           << "appear in the text of web contents of "
-          << shell()->web_contents()->GetLastCommittedURL().spec();
+          << shell()->web_contents()->GetURL().spec();
     }
   }
 
@@ -471,7 +466,7 @@ class MHTMLGenerationTest : public ContentBrowserTest,
 
   bool has_mhtml_callback_run() const { return has_mhtml_callback_run_; }
   int64_t file_size() const { return file_size_; }
-  absl::optional<std::string> file_digest() const { return file_digest_; }
+  base::Optional<std::string> file_digest() const { return file_digest_; }
   base::HistogramTester* histogram_tester() { return histogram_tester_.get(); }
 
   base::ScopedTempDir temp_dir_;
@@ -492,7 +487,7 @@ class MHTMLGenerationTest : public ContentBrowserTest,
 
   bool has_mhtml_callback_run_;
   int64_t file_size_;
-  absl::optional<std::string> file_digest_;
+  base::Optional<std::string> file_digest_;
   bool well_formedness_check_;
   std::unique_ptr<base::HistogramTester> histogram_tester_;
 };
@@ -528,7 +523,7 @@ IN_PROC_BROWSER_TEST_P(MHTMLGenerationTest, GenerateMHTML) {
 // Regression test for the crash/race from https://crbug.com/612098.
 //
 // TODO(crbug.com/959435): Flaky on Android.
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #define MAYBE_GenerateMHTMLAndCloseConnection \
   DISABLED_GenerateMHTMLAndCloseConnection
 #else
@@ -557,7 +552,7 @@ IN_PROC_BROWSER_TEST_P(MHTMLGenerationTest,
 }
 
 // TODO(crbug.com/672313): Flaky on Windows.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_InvalidPath DISABLED_InvalidPath
 #else
 #define MAYBE_InvalidPath InvalidPath
@@ -649,7 +644,7 @@ IN_PROC_BROWSER_TEST_P(MHTMLGenerationTest, GenerateMHTMLIgnoreNoStore) {
 }
 
 // TODO(crbug.com/615291): These fail on Android under some circumstances.
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #define MAYBE_ViewedMHTMLContainsNoStoreContent \
   DISABLED_ViewedMHTMLContainsNoStoreContent
 #else
@@ -680,11 +675,6 @@ class MHTMLGenerationSitePerProcessTest : public MHTMLGenerationTest {
  public:
   MHTMLGenerationSitePerProcessTest() {}
 
-  MHTMLGenerationSitePerProcessTest(const MHTMLGenerationSitePerProcessTest&) =
-      delete;
-  MHTMLGenerationSitePerProcessTest& operator=(
-      const MHTMLGenerationSitePerProcessTest&) = delete;
-
  protected:
   void SetUpCommandLine(base::CommandLine* command_line) override {
     MHTMLGenerationTest::SetUpCommandLine(command_line);
@@ -699,6 +689,9 @@ class MHTMLGenerationSitePerProcessTest : public MHTMLGenerationTest {
 
     MHTMLGenerationTest::SetUpOnMainThread();
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MHTMLGenerationSitePerProcessTest);
 };
 
 // Test for crbug.com/538766.

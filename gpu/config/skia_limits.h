@@ -1,12 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef GPU_CONFIG_SKIA_LIMITS_H_
 #define GPU_CONFIG_SKIA_LIMITS_H_
 
-#include <stddef.h>
+#include <memory>
 
+#include "base/optional.h"
 #include "gpu/gpu_export.h"
 
 namespace gpu {

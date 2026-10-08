@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 #import <UIKit/UIKit.h>
 
 #include <memory>
-#include <string>
 
 #include "base/memory/weak_ptr.h"
+#include "base/strings/string16.h"
 #include "components/autofill/core/browser/ui/payments/card_expiration_date_fix_flow_controller.h"
 #include "components/autofill/core/browser/ui/payments/card_expiration_date_fix_flow_view.h"
 
@@ -22,12 +22,6 @@ class CardExpirationDateFixFlowViewBridge
   CardExpirationDateFixFlowViewBridge(
       CardExpirationDateFixFlowController* controller,
       UIViewController* base_view_controller);
-
-  CardExpirationDateFixFlowViewBridge(
-      const CardExpirationDateFixFlowViewBridge&) = delete;
-  CardExpirationDateFixFlowViewBridge& operator=(
-      const CardExpirationDateFixFlowViewBridge&) = delete;
-
   ~CardExpirationDateFixFlowViewBridge() override;
 
   // CardExpirationDateFixFlowView:
@@ -37,8 +31,8 @@ class CardExpirationDateFixFlowViewBridge
   CardExpirationDateFixFlowController* GetController();
 
   // Called when the user confirms the expirationn date.
-  void OnConfirmedExpirationDate(const std::u16string& month,
-                                 const std::u16string& year);
+  void OnConfirmedExpirationDate(const base::string16& month,
+                                 const base::string16& year);
 
   // Called when the user cancels the fix flow.
   void OnDismissed();
@@ -55,7 +49,7 @@ class CardExpirationDateFixFlowViewBridge
   UIViewController* view_controller_;
 
  private:
-  // The controller `this` queries for logic and state.
+  // The controller |this| queries for logic and state.
   CardExpirationDateFixFlowController* controller_;  // weak
 
   // Weak reference to the view controller used to present UI.
@@ -63,13 +57,15 @@ class CardExpirationDateFixFlowViewBridge
 
   base::WeakPtrFactory<CardExpirationDateFixFlowViewBridge> weak_ptr_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(CardExpirationDateFixFlowViewBridge);
 };
 
 }  // namespace autofill
 
 @interface CardExpirationDateFixFlowViewController : UITableViewController
 
-// Designated initializer. `bridge` must not be null.
+// Designated initializer. |bridge| must not be null.
 - (instancetype)initWithBridge:
     (autofill::CardExpirationDateFixFlowViewBridge*)bridge
     NS_DESIGNATED_INITIALIZER;

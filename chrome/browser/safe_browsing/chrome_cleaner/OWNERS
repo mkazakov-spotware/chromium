@@ -2,3 +2,6 @@ file://chrome/browser/safe_browsing/OWNERS
 
 joenotcharles@chromium.org  # emeritus
 proberge@chromium.org  # emeritus
+
+# COMPONENT: Services>Safebrowsing>ChromeCleanup
+# TEAM: safebrowsing@chromium.org

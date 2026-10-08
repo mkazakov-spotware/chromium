@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,10 @@
 #define UI_VIEWS_CONTROLS_BUTTON_IMAGE_BUTTON_H_
 
 #include <memory>
-#include <utility>
 
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "ui/base/layout.h"
-#include "ui/base/models/image_model.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/metadata/view_factory.h"
@@ -28,14 +27,10 @@ class VIEWS_EXPORT ImageButton : public Button {
   enum VerticalAlignment { ALIGN_TOP = 0, ALIGN_MIDDLE, ALIGN_BOTTOM };
 
   explicit ImageButton(PressedCallback callback = PressedCallback());
-
-  ImageButton(const ImageButton&) = delete;
-  ImageButton& operator=(const ImageButton&) = delete;
-
   ~ImageButton() override;
 
   // Returns the image for a given |state|.
-  virtual gfx::ImageSkia GetImage(ButtonState state) const;
+  virtual const gfx::ImageSkia& GetImage(ButtonState state) const;
 
   // Set the image the button should use for the provided state.
   void SetImage(ButtonState state, const gfx::ImageSkia* image);
@@ -43,11 +38,7 @@ class VIEWS_EXPORT ImageButton : public Button {
   // As above, but takes a const ref. TODO(estade): all callers should be
   // updated to use this version, and then the implementations can be
   // consolidated.
-  // TODO(http://crbug.com/1100034) prefer SetImageModel over SetImage().
-  void SetImage(ButtonState state, const gfx::ImageSkia& image);
-
-  virtual void SetImageModel(ButtonState state,
-                             const ui::ImageModel& image_model);
+  virtual void SetImage(ButtonState state, const gfx::ImageSkia& image);
 
   // Set the background details.  The background image uses the same alignment
   // as the image.
@@ -83,10 +74,10 @@ class VIEWS_EXPORT ImageButton : public Button {
   virtual gfx::ImageSkia GetImageToPaint();
 
   // Updates button background for |scale_factor|.
-  void UpdateButtonBackground(ui::ResourceScaleFactor scale_factor);
+  void UpdateButtonBackground(ui::ScaleFactor scale_factor);
 
   // The images used to render the different states of this button.
-  ui::ImageModel images_[STATE_COUNT];
+  gfx::ImageSkia images_[STATE_COUNT];
 
   gfx::ImageSkia background_image_;
 
@@ -112,6 +103,8 @@ class VIEWS_EXPORT ImageButton : public Button {
   // small curved corner in the close button designed to fit into the frame
   // resources.
   bool draw_image_mirrored_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(ImageButton);
 };
 
 BEGIN_VIEW_BUILDER(VIEWS_EXPORT, ImageButton, Button)
@@ -120,12 +113,6 @@ VIEW_BUILDER_PROPERTY(ImageButton::HorizontalAlignment,
                       ImageHorizontalAlignment)
 VIEW_BUILDER_PROPERTY(ImageButton::VerticalAlignment, ImageVerticalAlignment)
 VIEW_BUILDER_PROPERTY(gfx::Size, MinimumImageSize)
-VIEW_BUILDER_OVERLOAD_METHOD(SetImage,
-                             Button::ButtonState,
-                             const gfx::ImageSkia*)
-VIEW_BUILDER_OVERLOAD_METHOD(SetImage,
-                             Button::ButtonState,
-                             const gfx::ImageSkia&)
 END_VIEW_BUILDER
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,10 +127,6 @@ class VIEWS_EXPORT ToggleImageButton : public ImageButton {
   METADATA_HEADER(ToggleImageButton);
 
   explicit ToggleImageButton(PressedCallback callback = PressedCallback());
-
-  ToggleImageButton(const ToggleImageButton&) = delete;
-  ToggleImageButton& operator=(const ToggleImageButton&) = delete;
-
   ~ToggleImageButton() override;
 
   // Change the toggled state.
@@ -154,57 +137,47 @@ class VIEWS_EXPORT ToggleImageButton : public ImageButton {
   // "has been toggled" state.  Must be called for each button state
   // before the button is toggled.
   void SetToggledImage(ButtonState state, const gfx::ImageSkia* image);
-  void SetToggledImageModel(ButtonState state,
-                            const ui::ImageModel& image_model);
-
-  // Like Views::SetBackground(), but to set the background color used for the
-  // "has been toggled" state.
-  void SetToggledBackground(std::unique_ptr<Background> b);
-  Background* GetToggledBackground() const { return toggled_background_.get(); }
 
   // Get/Set the tooltip text displayed when the button is toggled.
-  std::u16string GetToggledTooltipText() const;
-  void SetToggledTooltipText(const std::u16string& tooltip);
+  base::string16 GetToggledTooltipText() const;
+  void SetToggledTooltipText(const base::string16& tooltip);
 
   // Get/Set the accessible text used when the button is toggled.
-  std::u16string GetToggledAccessibleName() const;
-  void SetToggledAccessibleName(const std::u16string& name);
+  base::string16 GetToggledAccessibleName() const;
+  void SetToggledAccessibleName(const base::string16& name);
 
   // Overridden from ImageButton:
-  gfx::ImageSkia GetImage(ButtonState state) const override;
-  void SetImageModel(ButtonState state,
-                     const ui::ImageModel& image_model) override;
+  const gfx::ImageSkia& GetImage(ButtonState state) const override;
+  void SetImage(ButtonState state, const gfx::ImageSkia& image) override;
 
   // Overridden from View:
-  std::u16string GetTooltipText(const gfx::Point& p) const override;
+  base::string16 GetTooltipText(const gfx::Point& p) const override;
   void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
-  void OnPaintBackground(gfx::Canvas* canvas) override;
 
  private:
   // The parent class's images_ member is used for the current images,
   // and this array is used to hold the alternative images.
   // We swap between the two when toggling.
-  ui::ImageModel alternate_images_[STATE_COUNT];
+  gfx::ImageSkia alternate_images_[STATE_COUNT];
 
   // True if the button is currently toggled.
   bool toggled_ = false;
 
-  std::unique_ptr<Background> toggled_background_;
-
   // The parent class's tooltip_text_ is displayed when not toggled, and
   // this one is shown when toggled.
-  std::u16string toggled_tooltip_text_;
+  base::string16 toggled_tooltip_text_;
 
   // The parent class's accessibility data is used when not toggled, and this
   // one is used when toggled.
-  std::u16string toggled_accessible_name_;
+  base::string16 toggled_accessible_name_;
+
+  DISALLOW_COPY_AND_ASSIGN(ToggleImageButton);
 };
 
 BEGIN_VIEW_BUILDER(VIEWS_EXPORT, ToggleImageButton, ImageButton)
 VIEW_BUILDER_PROPERTY(bool, Toggled)
-VIEW_BUILDER_PROPERTY(std::unique_ptr<Background>, ToggledBackground)
-VIEW_BUILDER_PROPERTY(std::u16string, ToggledTooltipText)
-VIEW_BUILDER_PROPERTY(std::u16string, ToggledAccessibleName)
+VIEW_BUILDER_PROPERTY(base::string16, ToggledTooltipText)
+VIEW_BUILDER_PROPERTY(base::string16, ToggledAccessibleName)
 END_VIEW_BUILDER
 
 }  // namespace views

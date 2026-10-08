@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2006 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Definition of the ChannelDebug class. ChannelDebug provides
@@ -15,11 +23,10 @@
  */
 goog.provide('goog.net.ChannelDebug');
 
+goog.forwardDeclare('goog.Uri');
+goog.forwardDeclare('goog.net.XmlHttp.ReadyState');
 goog.require('goog.json');
 goog.require('goog.log');
-goog.require('goog.log.Logger');
-goog.requireType('goog.Uri');
-goog.requireType('goog.net.XmlHttp.ReadyState');
 
 
 
@@ -29,11 +36,10 @@ goog.requireType('goog.net.XmlHttp.ReadyState');
  * @constructor
  */
 goog.net.ChannelDebug = function() {
-  'use strict';
   /**
    * The logger instance.
    * @const
-   * @private {?goog.log.Logger}
+   * @private {?goog.debug.Logger}
    */
   this.logger_ = goog.log.getLogger('goog.net.BrowserChannel');
 };
@@ -41,10 +47,9 @@ goog.net.ChannelDebug = function() {
 
 /**
  * Gets the logger used by this ChannelDebug.
- * @return {?goog.log.Logger} The logger used by this ChannelDebug.
+ * @return {goog.debug.Logger} The logger used by this ChannelDebug.
  */
 goog.net.ChannelDebug.prototype.getLogger = function() {
-  'use strict';
   return this.logger_;
 };
 
@@ -54,7 +59,6 @@ goog.net.ChannelDebug.prototype.getLogger = function() {
  * @param {goog.Uri} url The URL being requested.
  */
 goog.net.ChannelDebug.prototype.browserOfflineResponse = function(url) {
-  'use strict';
   this.info('BROWSER_OFFLINE: ' + url);
 };
 
@@ -69,7 +73,6 @@ goog.net.ChannelDebug.prototype.browserOfflineResponse = function(url) {
  */
 goog.net.ChannelDebug.prototype.xmlHttpChannelRequest = function(
     verb, uri, id, attempt, postData) {
-  'use strict';
   this.info(
       'XMLHTTP REQ (' + id + ') [attempt ' + attempt + ']: ' + verb + '\n' +
       uri + '\n' + this.maybeRedactPostData_(postData));
@@ -87,7 +90,6 @@ goog.net.ChannelDebug.prototype.xmlHttpChannelRequest = function(
  */
 goog.net.ChannelDebug.prototype.xmlHttpChannelResponseMetaData = function(
     verb, uri, id, attempt, readyState, statusCode) {
-  'use strict';
   this.info(
       'XMLHTTP RESP (' + id + ') [ attempt ' + attempt + ']: ' + verb + '\n' +
       uri + '\n' + readyState + ' ' + statusCode);
@@ -102,7 +104,6 @@ goog.net.ChannelDebug.prototype.xmlHttpChannelResponseMetaData = function(
  */
 goog.net.ChannelDebug.prototype.xmlHttpChannelResponseText = function(
     id, responseText, opt_desc) {
-  'use strict';
   this.info(
       'XMLHTTP TEXT (' + id + '): ' + this.redactResponse_(responseText) +
       (opt_desc ? ' ' + opt_desc : ''));
@@ -118,7 +119,6 @@ goog.net.ChannelDebug.prototype.xmlHttpChannelResponseText = function(
  */
 goog.net.ChannelDebug.prototype.tridentChannelRequest = function(
     verb, uri, id, attempt) {
-  'use strict';
   this.info(
       'TRIDENT REQ (' + id + ') [ attempt ' + attempt + ']: ' + verb + '\n' +
       uri);
@@ -132,7 +132,6 @@ goog.net.ChannelDebug.prototype.tridentChannelRequest = function(
  */
 goog.net.ChannelDebug.prototype.tridentChannelResponseText = function(
     id, responseText) {
-  'use strict';
   this.info('TRIDENT TEXT (' + id + '): ' + this.redactResponse_(responseText));
 };
 
@@ -144,7 +143,6 @@ goog.net.ChannelDebug.prototype.tridentChannelResponseText = function(
  */
 goog.net.ChannelDebug.prototype.tridentChannelResponseDone = function(
     id, successful) {
-  'use strict';
   this.info('TRIDENT TEXT (' + id + '): ' + successful ? 'success' : 'failure');
 };
 
@@ -154,7 +152,6 @@ goog.net.ChannelDebug.prototype.tridentChannelResponseDone = function(
  * @param {goog.Uri} uri The uri that timed out.
  */
 goog.net.ChannelDebug.prototype.timeoutResponse = function(uri) {
-  'use strict';
   this.info('TIMEOUT: ' + uri);
 };
 
@@ -164,7 +161,6 @@ goog.net.ChannelDebug.prototype.timeoutResponse = function(uri) {
  * @param {string} text The message.
  */
 goog.net.ChannelDebug.prototype.debug = function(text) {
-  'use strict';
   this.info(text);
 };
 
@@ -184,7 +180,6 @@ goog.net.ChannelDebug.prototype.dumpException = function(e, msg = 'Exception') {
  * @param {string} text The message.
  */
 goog.net.ChannelDebug.prototype.info = function(text) {
-  'use strict';
   goog.log.info(this.logger_, text);
 };
 
@@ -194,7 +189,6 @@ goog.net.ChannelDebug.prototype.info = function(text) {
  * @param {string} text The message.
  */
 goog.net.ChannelDebug.prototype.warning = function(text) {
-  'use strict';
   goog.log.warning(this.logger_, text);
 };
 
@@ -217,7 +211,6 @@ goog.net.ChannelDebug.prototype.severe = function(text, error = undefined) {
  * @private
  */
 goog.net.ChannelDebug.prototype.redactResponse_ = function(responseText) {
-  'use strict';
   // first check if it's not JS - the only non-JS should be the magic cookie
   if (!responseText ||
       responseText == goog.net.ChannelDebug.MAGIC_RESPONSE_COOKIE) {
@@ -225,10 +218,10 @@ goog.net.ChannelDebug.prototype.redactResponse_ = function(responseText) {
   }
 
   try {
-    const responseArray = JSON.parse(responseText);
+    var responseArray = JSON.parse(responseText);
     if (responseArray) {
-      for (let i = 0; i < responseArray.length; i++) {
-        if (Array.isArray(responseArray[i])) {
+      for (var i = 0; i < responseArray.length; i++) {
+        if (goog.isArray(responseArray[i])) {
           this.maybeRedactArray_(responseArray[i]);
         }
       }
@@ -248,22 +241,21 @@ goog.net.ChannelDebug.prototype.redactResponse_ = function(responseText) {
  * @private
  */
 goog.net.ChannelDebug.prototype.maybeRedactArray_ = function(array) {
-  'use strict';
   if (array.length < 2) {
     return;
   }
-  const dataPart = array[1];
-  if (!Array.isArray(dataPart)) {
+  var dataPart = array[1];
+  if (!goog.isArray(dataPart)) {
     return;
   }
   if (dataPart.length < 1) {
     return;
   }
 
-  const type = dataPart[0];
+  var type = dataPart[0];
   if (type != 'noop' && type != 'stop') {
     // redact all fields in the array
-    for (let i = 1; i < dataPart.length; i++) {
+    for (var i = 1; i < dataPart.length; i++) {
       dataPart[i] = '';
     }
   }
@@ -278,20 +270,19 @@ goog.net.ChannelDebug.prototype.maybeRedactArray_ = function(array) {
  * @private
  */
 goog.net.ChannelDebug.prototype.maybeRedactPostData_ = function(data) {
-  'use strict';
   if (!data) {
     return null;
   }
-  let out = '';
-  const params = data.split('&');
-  for (let i = 0; i < params.length; i++) {
-    const param = params[i];
-    const keyValue = param.split('=');
+  var out = '';
+  var params = data.split('&');
+  for (var i = 0; i < params.length; i++) {
+    var param = params[i];
+    var keyValue = param.split('=');
     if (keyValue.length > 1) {
-      const key = keyValue[0];
-      const value = keyValue[1];
+      var key = keyValue[0];
+      var value = keyValue[1];
 
-      const keyParts = key.split('_');
+      var keyParts = key.split('_');
       if (keyParts.length >= 2 && keyParts[1] == 'type') {
         out += key + '=' + value + '&';
       } else {

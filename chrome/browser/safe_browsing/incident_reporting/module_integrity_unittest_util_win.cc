@@ -1,10 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/safe_browsing/incident_reporting/module_integrity_unittest_util_win.h"
 
-#include <iterator>
+#include "base/stl_util.h"
 
 namespace safe_browsing {
 
@@ -13,7 +13,7 @@ const wchar_t* const kTestDllNames[] = {
     L"verifier_test_dll_2.dll",
 };
 
-const size_t kTestDllNamesCount = std::size(kTestDllNames);
+const size_t kTestDllNamesCount = base::size(kTestDllNames);
 
 const char kTestExportName[] = "DummyExport";
 

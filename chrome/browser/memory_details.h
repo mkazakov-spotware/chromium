@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,13 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/process/process_handle.h"
 #include "base/process/process_metrics.h"
+#include "base/strings/string16.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "content/public/common/process_type.h"
 
 namespace memory_instrumentation {
@@ -51,9 +53,9 @@ struct ProcessMemoryInformation {
   // The process id.
   base::ProcessId pid;
   // The process version
-  std::u16string version;
+  base::string16 version;
   // The process product name.
-  std::u16string product_name;
+  base::string16 product_name;
   // The number of processes which this memory represents.
   int num_processes;
   // If this is a child process of Chrome, what type (i.e. plugin) it is.
@@ -65,7 +67,7 @@ struct ProcessMemoryInformation {
   // If this is a renderer process, what type it is.
   RendererProcessType renderer_type;
   // A collection of titles used, i.e. for a tab it'll show all the page titles.
-  std::vector<std::u16string> titles;
+  std::vector<base::string16> titles;
   // Consistent memory metric for all platforms.
   size_t private_memory_footprint_kb;
 };
@@ -79,8 +81,8 @@ struct ProcessData {
   ~ProcessData();
   ProcessData& operator=(const ProcessData& rhs);
 
-  std::u16string name;
-  std::u16string process_name;
+  base::string16 name;
+  base::string16 process_name;
   ProcessMemoryInformationList processes;
 };
 
@@ -114,9 +116,6 @@ class MemoryDetails : public base::RefCountedThreadSafe<MemoryDetails> {
   // Constructor.
   MemoryDetails();
 
-  MemoryDetails(const MemoryDetails&) = delete;
-  MemoryDetails& operator=(const MemoryDetails&) = delete;
-
   // Initiate updating the current memory details.  These are fetched
   // asynchronously because data must be collected from multiple threads.
   // OnDetailsAvailable will be called when this process is complete.
@@ -142,11 +141,18 @@ class MemoryDetails : public base::RefCountedThreadSafe<MemoryDetails> {
   // Returns a pointer to the ProcessData structure for Chrome.
   ProcessData* ChromeBrowser();
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   const base::SwapInfo& swap_info() const { return swap_info_; }
 #endif
 
  private:
+  // Collect child process information on the IO thread.  This is needed because
+  // information about some child process types (i.e. plugins) can only be taken
+  // on that thread.  The data will be used by about:memory.  When finished,
+  // invokes back to the file thread to run the rest of the about:memory
+  // functionality.
+  void CollectChildInfoOnIOThread();
+
   // Collect current process information from the OS and store it
   // for processing.  If data has already been collected, clears old
   // data and re-collects the data.
@@ -166,9 +172,11 @@ class MemoryDetails : public base::RefCountedThreadSafe<MemoryDetails> {
 
   std::vector<ProcessData> process_data_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   base::SwapInfo swap_info_;
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(MemoryDetails);
 };
 
 #endif  // CHROME_BROWSER_MEMORY_DETAILS_H_

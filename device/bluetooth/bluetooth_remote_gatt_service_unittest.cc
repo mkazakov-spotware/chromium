@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,34 +10,34 @@
 #include "device/bluetooth/test/test_bluetooth_adapter_observer.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "device/bluetooth/test/bluetooth_test_android.h"
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
 #include "device/bluetooth/test/bluetooth_test_mac.h"
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include "device/bluetooth/test/bluetooth_test_win.h"
 #elif defined(USE_CAST_BLUETOOTH_ADAPTER)
 #include "device/bluetooth/test/bluetooth_test_cast.h"
-#elif BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
+#elif defined(OS_CHROMEOS) || defined(OS_LINUX)
 #include "device/bluetooth/test/bluetooth_test_bluez.h"
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
 #include "device/bluetooth/test/bluetooth_test_fuchsia.h"
 #endif
 
 namespace device {
 
 class BluetoothRemoteGattServiceTest : public BluetoothTest {};
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 class BluetoothRemoteGattServiceTestWinrt : public BluetoothTestWinrt {};
 #endif
 
 // Android is excluded because it fires a single discovery event per device.
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #define MAYBE_IsDiscoveryComplete IsDiscoveryComplete
 #else
 #define MAYBE_IsDiscoveryComplete DISABLED_IsDiscoveryComplete
 #endif
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TEST_P(BluetoothRemoteGattServiceTestWinrt, IsDiscoveryComplete) {
 #else
 TEST_F(BluetoothRemoteGattServiceTest, MAYBE_IsDiscoveryComplete) {
@@ -49,8 +49,8 @@ TEST_F(BluetoothRemoteGattServiceTest, MAYBE_IsDiscoveryComplete) {
   InitWithFakeAdapter();
   StartLowEnergyDiscoverySession();
   BluetoothDevice* device = SimulateLowEnergyDevice(1);
-  device->CreateGattConnection(
-      GetGattConnectionCallback(Call::EXPECTED, Result::SUCCESS));
+  device->CreateGattConnection(GetGattConnectionCallback(Call::EXPECTED),
+                               GetConnectErrorCallback(Call::NOT_EXPECTED));
   SimulateGattConnection(device);
   base::RunLoop().RunUntilIdle();
   SimulateGattServicesDiscovered(
@@ -61,12 +61,12 @@ TEST_F(BluetoothRemoteGattServiceTest, MAYBE_IsDiscoveryComplete) {
   EXPECT_TRUE(service->IsDiscoveryComplete());
 }
 
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_MAC)
+#if defined(OS_ANDROID) || defined(OS_MAC)
 #define MAYBE_GetIdentifier GetIdentifier
 #else
 #define MAYBE_GetIdentifier DISABLED_GetIdentifier
 #endif
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TEST_P(BluetoothRemoteGattServiceTestWinrt, GetIdentifier) {
 #else
 TEST_F(BluetoothRemoteGattServiceTest, MAYBE_GetIdentifier) {
@@ -80,10 +80,10 @@ TEST_F(BluetoothRemoteGattServiceTest, MAYBE_GetIdentifier) {
   // 2 devices to verify unique IDs across them.
   BluetoothDevice* device1 = SimulateLowEnergyDevice(3);
   BluetoothDevice* device2 = SimulateLowEnergyDevice(4);
-  device1->CreateGattConnection(
-      GetGattConnectionCallback(Call::EXPECTED, Result::SUCCESS));
-  device2->CreateGattConnection(
-      GetGattConnectionCallback(Call::EXPECTED, Result::SUCCESS));
+  device1->CreateGattConnection(GetGattConnectionCallback(Call::EXPECTED),
+                                GetConnectErrorCallback(Call::NOT_EXPECTED));
+  device2->CreateGattConnection(GetGattConnectionCallback(Call::EXPECTED),
+                                GetConnectErrorCallback(Call::NOT_EXPECTED));
   SimulateGattConnection(device1);
   SimulateGattConnection(device2);
   base::RunLoop().RunUntilIdle();
@@ -112,12 +112,12 @@ TEST_F(BluetoothRemoteGattServiceTest, MAYBE_GetIdentifier) {
   EXPECT_NE(service3->GetIdentifier(), service4->GetIdentifier());
 }
 
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_MAC)
+#if defined(OS_ANDROID) || defined(OS_MAC)
 #define MAYBE_GetUUID GetUUID
 #else
 #define MAYBE_GetUUID DISABLED_GetUUID
 #endif
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TEST_P(BluetoothRemoteGattServiceTestWinrt, GetUUID) {
 #else
 TEST_F(BluetoothRemoteGattServiceTest, MAYBE_GetUUID) {
@@ -129,8 +129,8 @@ TEST_F(BluetoothRemoteGattServiceTest, MAYBE_GetUUID) {
   InitWithFakeAdapter();
   StartLowEnergyDiscoverySession();
   BluetoothDevice* device = SimulateLowEnergyDevice(3);
-  device->CreateGattConnection(
-      GetGattConnectionCallback(Call::EXPECTED, Result::SUCCESS));
+  device->CreateGattConnection(GetGattConnectionCallback(Call::EXPECTED),
+                               GetConnectErrorCallback(Call::NOT_EXPECTED));
   SimulateGattConnection(device);
   base::RunLoop().RunUntilIdle();
 
@@ -147,12 +147,12 @@ TEST_F(BluetoothRemoteGattServiceTest, MAYBE_GetUUID) {
   EXPECT_EQ(uuid, device->GetGattServices()[1]->GetUUID());
 }
 
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_MAC)
+#if defined(OS_ANDROID) || defined(OS_MAC)
 #define MAYBE_GetCharacteristics_FindNone GetCharacteristics_FindNone
 #else
 #define MAYBE_GetCharacteristics_FindNone DISABLED_GetCharacteristics_FindNone
 #endif
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TEST_P(BluetoothRemoteGattServiceTestWinrt, GetCharacteristics_FindNone) {
 #else
 TEST_F(BluetoothRemoteGattServiceTest, MAYBE_GetCharacteristics_FindNone) {
@@ -164,8 +164,8 @@ TEST_F(BluetoothRemoteGattServiceTest, MAYBE_GetCharacteristics_FindNone) {
   InitWithFakeAdapter();
   StartLowEnergyDiscoverySession();
   BluetoothDevice* device = SimulateLowEnergyDevice(3);
-  device->CreateGattConnection(
-      GetGattConnectionCallback(Call::EXPECTED, Result::SUCCESS));
+  device->CreateGattConnection(GetGattConnectionCallback(Call::EXPECTED),
+                               GetConnectErrorCallback(Call::NOT_EXPECTED));
   SimulateGattConnection(device);
   base::RunLoop().RunUntilIdle();
 
@@ -178,14 +178,14 @@ TEST_F(BluetoothRemoteGattServiceTest, MAYBE_GetCharacteristics_FindNone) {
   EXPECT_EQ(0u, service->GetCharacteristics().size());
 }
 
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_MAC)
+#if defined(OS_ANDROID) || defined(OS_MAC)
 #define MAYBE_GetCharacteristics_and_GetCharacteristic \
   GetCharacteristics_and_GetCharacteristic
 #else
 #define MAYBE_GetCharacteristics_and_GetCharacteristic \
   DISABLED_GetCharacteristics_and_GetCharacteristic
 #endif
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TEST_P(BluetoothRemoteGattServiceTestWinrt,
        GetCharacteristics_and_GetCharacteristic) {
 #else
@@ -199,8 +199,8 @@ TEST_F(BluetoothRemoteGattServiceTest,
   InitWithFakeAdapter();
   StartLowEnergyDiscoverySession();
   BluetoothDevice* device = SimulateLowEnergyDevice(3);
-  device->CreateGattConnection(
-      GetGattConnectionCallback(Call::EXPECTED, Result::SUCCESS));
+  device->CreateGattConnection(GetGattConnectionCallback(Call::EXPECTED),
+                               GetConnectErrorCallback(Call::NOT_EXPECTED));
   SimulateGattConnection(device);
   base::RunLoop().RunUntilIdle();
 
@@ -243,12 +243,12 @@ TEST_F(BluetoothRemoteGattServiceTest,
             service->GetCharacteristic(char_id1));
 }
 
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_MAC)
+#if defined(OS_ANDROID) || defined(OS_MAC)
 #define MAYBE_GetCharacteristicsByUUID GetCharacteristicsByUUID
 #else
 #define MAYBE_GetCharacteristicsByUUID DISABLED_GetCharacteristicsByUUID
 #endif
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TEST_P(BluetoothRemoteGattServiceTestWinrt, GetCharacteristicsByUUID) {
 #else
 TEST_F(BluetoothRemoteGattServiceTest, MAYBE_GetCharacteristicsByUUID) {
@@ -260,8 +260,8 @@ TEST_F(BluetoothRemoteGattServiceTest, MAYBE_GetCharacteristicsByUUID) {
   InitWithFakeAdapter();
   StartLowEnergyDiscoverySession();
   BluetoothDevice* device = SimulateLowEnergyDevice(3);
-  device->CreateGattConnection(
-      GetGattConnectionCallback(Call::EXPECTED, Result::SUCCESS));
+  device->CreateGattConnection(GetGattConnectionCallback(Call::EXPECTED),
+                               GetConnectErrorCallback(Call::NOT_EXPECTED));
   SimulateGattConnection(device);
   base::RunLoop().RunUntilIdle();
 
@@ -312,7 +312,7 @@ TEST_F(BluetoothRemoteGattServiceTest, MAYBE_GetCharacteristicsByUUID) {
           .empty());
 }
 
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+#if defined(OS_MAC) || defined(OS_WIN)
 #define MAYBE_GattCharacteristics_ObserversCalls \
   GattCharacteristics_ObserversCalls
 #else
@@ -329,8 +329,8 @@ TEST_F(BluetoothRemoteGattServiceTest,
   InitWithFakeAdapter();
   StartLowEnergyDiscoverySession();
   BluetoothDevice* device = SimulateLowEnergyDevice(3);
-  device->CreateGattConnection(
-      GetGattConnectionCallback(Call::EXPECTED, Result::SUCCESS));
+  device->CreateGattConnection(GetGattConnectionCallback(Call::EXPECTED),
+                               GetConnectErrorCallback(Call::NOT_EXPECTED));
   SimulateGattConnection(device);
   base::RunLoop().RunUntilIdle();
 
@@ -378,12 +378,12 @@ TEST_F(BluetoothRemoteGattServiceTest,
   EXPECT_EQ(0u, service->GetCharacteristics().size());
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #define MAYBE_SimulateGattServiceRemove SimulateGattServiceRemove
 #else
 #define MAYBE_SimulateGattServiceRemove DISABLED_SimulateGattServiceRemove
 #endif
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TEST_P(BluetoothRemoteGattServiceTestWinrt, SimulateGattServiceRemove) {
 #else
 TEST_F(BluetoothRemoteGattServiceTest, MAYBE_SimulateGattServiceRemove) {
@@ -395,8 +395,8 @@ TEST_F(BluetoothRemoteGattServiceTest, MAYBE_SimulateGattServiceRemove) {
   InitWithFakeAdapter();
   StartLowEnergyDiscoverySession();
   BluetoothDevice* device = SimulateLowEnergyDevice(3);
-  device->CreateGattConnection(
-      GetGattConnectionCallback(Call::EXPECTED, Result::SUCCESS));
+  device->CreateGattConnection(GetGattConnectionCallback(Call::EXPECTED),
+                               GetConnectErrorCallback(Call::NOT_EXPECTED));
   SimulateGattConnection(device);
   base::RunLoop().RunUntilIdle();
 
@@ -415,18 +415,18 @@ TEST_F(BluetoothRemoteGattServiceTest, MAYBE_SimulateGattServiceRemove) {
   std::string removed_service = service1->GetIdentifier();
   SimulateGattServiceRemoved(device->GetGattService(removed_service));
   base::RunLoop().RunUntilIdle();
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   if (!UsesNewBleImplementation()) {
     // The GattServicesRemoved event is not implemented for WinRT.
     EXPECT_EQ(1, observer.gatt_service_removed_count());
   }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
   EXPECT_EQ(1u, device->GetGattServices().size());
   EXPECT_FALSE(device->GetGattService(removed_service));
   EXPECT_EQ(device->GetGattServices()[0], service2);
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 // Tests to receive a services changed notification from macOS, while
 // discovering characteristics. The gatt device should scan again for services
 // and characteristics, before scanning for descriptors. Only after the gatt
@@ -442,8 +442,8 @@ TEST_F(BluetoothRemoteGattServiceTest,
   InitWithFakeAdapter();
   StartLowEnergyDiscoverySession();
   BluetoothDevice* device = SimulateLowEnergyDevice(3);
-  device->CreateGattConnection(
-      GetGattConnectionCallback(Call::EXPECTED, Result::SUCCESS));
+  device->CreateGattConnection(GetGattConnectionCallback(Call::EXPECTED),
+                               GetConnectErrorCallback(Call::NOT_EXPECTED));
 
   TestBluetoothAdapterObserver observer(adapter_);
 
@@ -493,9 +493,9 @@ TEST_F(BluetoothRemoteGattServiceTest,
   SimulateDidDiscoverDescriptorsMac(characteristic2);
   EXPECT_EQ(1, observer.gatt_service_changed_count());
 }
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 // Simulates to receive an extra discovery characteristic notifications from
 // macOS. Those notifications should be ignored.
 // Android: This test doesn't apply to Android because there is no services
@@ -508,8 +508,8 @@ TEST_F(BluetoothRemoteGattServiceTest, ExtraDidDiscoverServicesCall) {
   InitWithFakeAdapter();
   StartLowEnergyDiscoverySession();
   BluetoothDevice* device = SimulateLowEnergyDevice(3);
-  device->CreateGattConnection(
-      GetGattConnectionCallback(Call::EXPECTED, Result::SUCCESS));
+  device->CreateGattConnection(GetGattConnectionCallback(Call::EXPECTED),
+                               GetConnectErrorCallback(Call::NOT_EXPECTED));
 
   TestBluetoothAdapterObserver observer(adapter_);
 
@@ -544,9 +544,9 @@ TEST_F(BluetoothRemoteGattServiceTest, ExtraDidDiscoverServicesCall) {
   SimulateDidDiscoverServicesMac(device);  // Extra system call.
   EXPECT_EQ(2, observer.device_changed_count());
 }
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 // Simulates to receive an extra discovery characteristic notifications from
 // macOS. Those notifications should be ignored.
 // Android: This test doesn't apply to Android because there is no services
@@ -559,8 +559,8 @@ TEST_F(BluetoothRemoteGattServiceTest, ExtraDidDiscoverCharacteristicsCall) {
   InitWithFakeAdapter();
   StartLowEnergyDiscoverySession();
   BluetoothDevice* device = SimulateLowEnergyDevice(3);
-  device->CreateGattConnection(
-      GetGattConnectionCallback(Call::EXPECTED, Result::SUCCESS));
+  device->CreateGattConnection(GetGattConnectionCallback(Call::EXPECTED),
+                               GetConnectErrorCallback(Call::NOT_EXPECTED));
 
   TestBluetoothAdapterObserver observer(adapter_);
 
@@ -595,12 +595,12 @@ TEST_F(BluetoothRemoteGattServiceTest, ExtraDidDiscoverCharacteristicsCall) {
   SimulateDidDiscoverCharacteristicsMac(service);  // Extra system call.
   EXPECT_EQ(2, observer.device_changed_count());
 }
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 INSTANTIATE_TEST_SUITE_P(All,
                          BluetoothRemoteGattServiceTestWinrt,
                          ::testing::ValuesIn(kBluetoothTestWinrtParamAll));
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace device

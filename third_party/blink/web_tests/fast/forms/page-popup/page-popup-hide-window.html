@@ -2,12 +2,11 @@
 <html>
 <head>
 <script src="../../../resources/js-test.js"></script>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
 <script src="../resources/common.js"></script>
 <script src="../resources/picker-common.js"></script>
 <script src="../calendar-picker/resources/calendar-picker-common.js"></script>
 </head>
+<body style="zoom:1.25;">
 <p id="description"></p>
 <div id="console"></div>
 
@@ -16,14 +15,14 @@
 <script>
 description('Test for hideWindow() function in page-popups.');
 
-openPickerDeprecatedJsTest(document.getElementById('date'), test);
+openPicker(document.getElementById('date'), test);
 
 function test() {
-    internals.pagePopupWindow.addEventListener('didHide', function() {
+    popupWindow.addEventListener('didHide', function() {
         testPassed('didHide event was dispatched.');
         finishJSTest();
     }, false);
-    internals.pagePopupWindow.hideWindow();
+    popupWindow.hideWindow();
 
     setTimeout(function() {
         testFailed('didHide event was not dispatched.');

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,18 +9,15 @@
 #include <utility>
 #include <vector>
 
-#include "ash/accessibility/accessibility_event_handler_manager.h"
 #include "ash/ash_export.h"
-#include "ash/constants/ash_features.h"
-#include "ash/in_session_auth/in_session_auth_dialog_controller_impl.h"
+#include "ash/metrics/user_metrics_recorder.h"
 #include "ash/public/cpp/session/session_observer.h"
 #include "ash/public/cpp/shelf_types.h"
-#include "ash/public/cpp/system_sounds_delegate.h"
 #include "ash/wm/system_modal_container_event_filter_delegate.h"
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
-#include "base/scoped_observation_traits.h"
 #include "ui/aura/window.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/display/screen.h"
@@ -51,6 +48,7 @@ class DisplayManager;
 }  // namespace display
 
 namespace gfx {
+class Insets;
 class Point;
 }  // namespace gfx
 
@@ -85,34 +83,25 @@ class WindowModalityController;
 namespace ash {
 
 class AcceleratorControllerImpl;
-class AcceleratorTracker;
 class AccessibilityControllerImpl;
 class AccessibilityDelegate;
-class AccessibilityEventHandlerManager;
 class AccessibilityFocusRingControllerImpl;
-class AdaptiveChargingController;
 class AmbientController;
 class AppListControllerImpl;
-class AppListFeatureUsageMetrics;
-class AshAcceleratorConfiguration;
 class AshColorProvider;
 class AshDBusServices;
 class AshFocusRules;
 class AshTouchTransformController;
 class AssistantControllerImpl;
 class AutoclickController;
-class AutozoomControllerImpl;
 class BackGestureEventHandler;
 class BacklightsForcedOffSetter;
-class BluetoothDeviceStatusUiHandler;
+class BloomUiControllerImpl;
 class BluetoothNotificationController;
+class BluetoothPowerController;
 class BrightnessControlDelegate;
-class CalendarController;
-class CameraEffectsController;
 class CaptureModeController;
-class ControlVHistogramRecorder;
 class CrosDisplayConfig;
-class DarkLightModeControllerImpl;
 class DesksController;
 class DetachableBaseHandler;
 class DetachableBaseNotificationController;
@@ -126,28 +115,20 @@ class DisplayHighlightController;
 class DisplayPrefs;
 class DisplayShutdownObserver;
 class DisplaySpeakerController;
-class DockedMagnifierController;
+class DockedMagnifierControllerImpl;
 class DragDropController;
 class EventClientImpl;
 class EventRewriterControllerImpl;
 class EventTransformationHandler;
-class WindowRestoreController;
-class FirmwareUpdateManager;
-class FirmwareUpdateNotificationController;
-class FloatController;
 class FocusCycler;
 class FrameThrottlingController;
-class FullscreenMagnifierController;
-class GeolocationController;
-class GlanceablesController;
-class ColorEnhancementController;
+class HighContrastController;
 class HighlighterController;
 class HoldingSpaceController;
-class HumanPresenceOrientationController;
+class HomeScreenController;
 class ImeControllerImpl;
-class WebAuthNDialogControllerImpl;
+class InSessionAuthDialogControllerImpl;
 class KeyAccessibilityEnabler;
-class KeyboardBacklightColorController;
 class KeyboardBrightnessControlDelegate;
 class KeyboardControllerImpl;
 class LaserPointerController;
@@ -155,52 +136,41 @@ class LocaleUpdateControllerImpl;
 class LockStateController;
 class LogoutConfirmationController;
 class LoginScreenController;
-class LoginUnlockThroughputRecorder;
-class MediaNotificationProviderImpl;
-class TabClusterUIController;
+class MagnificationController;
 class TabletModeController;
 class MediaControllerImpl;
-class MessageCenterAshImpl;
+class MediaNotificationControllerImpl;
 class MessageCenterController;
 class MouseCursorEventFilter;
 class MruWindowTracker;
 class MultiDeviceNotificationPresenter;
-class MultitaskMenuNudgeController;
 class NearbyShareControllerImpl;
-class DesksTemplatesDelegate;
 class NearbyShareDelegate;
 class NightLightControllerImpl;
-class OcclusionTrackerPauser;
 class OverlayEventFilter;
 class OverviewController;
 class ParentAccessController;
-class PartialMagnifierController;
-class PciePeripheralNotificationController;
-class UsbPeripheralNotificationController;
-class PeripheralBatteryListener;
+class PartialMagnificationController;
 class PeripheralBatteryNotifier;
-class PersistentDesksBarController;
+class PeripheralBatteryTracker;
 class PersistentWindowController;
 class PolicyRecommendationRestorer;
 class PowerButtonController;
 class PowerEventObserver;
 class PowerPrefs;
-class PrivacyHubController;
 class PrivacyScreenController;
 class ProjectingObserver;
-class ProjectorControllerImpl;
-class RgbKeyboardManager;
-class RefreshRateThrottleController;
+class QuickAnswersController;
 class ResizeShadowController;
 class ResolutionNotificationController;
 class RootWindowController;
 class ScreenLayoutObserver;
 class ScreenOrientationController;
+class ScreenshotController;
 class ScreenPinningController;
 class ScreenPositionController;
 class ScreenSwitchCheckController;
 class SessionControllerImpl;
-class FeatureDiscoveryDurationReporterImpl;
 class ShelfConfig;
 class ShelfController;
 class ShelfWindowWatcher;
@@ -209,12 +179,10 @@ struct ShellInitParams;
 class ShellObserver;
 class ShutdownControllerImpl;
 class SmsObserver;
-class SnoopingProtectionController;
 class StickyKeysController;
 class SystemGestureEventFilter;
 class SystemModalContainerEventFilter;
 class SystemNotificationController;
-class SystemSoundsDelegate;
 class SystemTrayModel;
 class SystemTrayNotifier;
 class ToastManagerImpl;
@@ -222,34 +190,16 @@ class ToplevelWindowEventHandler;
 class ClipboardHistoryControllerImpl;
 class TouchDevicesController;
 class TrayAction;
-class UserMetricsRecorder;
+class TrayBluetoothHelper;
 class VideoActivityNotifier;
 class VideoDetector;
 class WallpaperControllerImpl;
 class WindowCycleController;
 class WindowPositioner;
 class WindowTreeHostManager;
-class WmModeController;
 class ArcInputMethodBoundsTracker;
-class MultiCaptureServiceClient;
 
 enum class LoginStatus;
-
-namespace diagnostics {
-class DiagnosticsLogController;
-}  // namespace diagnostics
-
-namespace federated {
-class FederatedServiceController;
-}  // namespace federated
-
-namespace quick_pair {
-class Mediator;
-}  // namespace quick_pair
-
-namespace curtain {
-class SecurityCurtainController;
-}  // namespace curtain
 
 // Shell is a singleton object that presents the Shell API and implements the
 // RootWindow's delegate interface.
@@ -262,9 +212,6 @@ class ASH_EXPORT Shell : public SessionObserver,
                          public ::wm::ActivationChangeObserver {
  public:
   typedef std::vector<RootWindowController*> RootWindowControllerList;
-
-  Shell(const Shell&) = delete;
-  Shell& operator=(const Shell&) = delete;
 
   // Creates the single Shell instance.
   static Shell* CreateInstance(ShellInitParams init_params);
@@ -333,14 +280,15 @@ class ASH_EXPORT Shell : public SessionObserver,
   std::unique_ptr<views::NonClientFrameView> CreateDefaultNonClientFrameView(
       views::Widget* widget);
 
+  // Sets work area insets of the display containing |window|, pings observers.
+  void SetDisplayWorkAreaInsets(aura::Window* window,
+                                const gfx::Insets& insets);
+
   // Called when a casting session is started or stopped.
   void OnCastingSessionStartedOrStopped(bool started);
 
   // Called when a root window is created.
   void OnRootWindowAdded(aura::Window* root_window);
-
-  // Called when a root window is about to shutdown.
-  void OnRootWindowWillShutdown(aura::Window* root_window);
 
   // Called when dictation is activated.
   void OnDictationStarted();
@@ -362,12 +310,6 @@ class ASH_EXPORT Shell : public SessionObserver,
   AcceleratorControllerImpl* accelerator_controller() {
     return accelerator_controller_.get();
   }
-  wm::AcceleratorFilter* accelerator_filter() {
-    return accelerator_filter_.get();
-  }
-  AcceleratorTracker* accelerator_tracker() {
-    return accelerator_tracker_.get();
-  }
   AccessibilityControllerImpl* accessibility_controller() {
     return accessibility_controller_.get();
   }
@@ -381,51 +323,27 @@ class ASH_EXPORT Shell : public SessionObserver,
   AppListControllerImpl* app_list_controller() {
     return app_list_controller_.get();
   }
-  AdaptiveChargingController* adaptive_charging_controller() {
-    return adaptive_charging_controller_.get();
-  }
   AmbientController* ambient_controller() { return ambient_controller_.get(); }
-  AshAcceleratorConfiguration* ash_accelerator_configuration() {
-    return ash_accelerator_configuration_.get();
-  }
   AssistantControllerImpl* assistant_controller() {
     return assistant_controller_.get();
   }
   AutoclickController* autoclick_controller() {
     return autoclick_controller_.get();
   }
-  AutozoomControllerImpl* autozoom_controller() {
-    return autozoom_controller_.get();
-  }
   BacklightsForcedOffSetter* backlights_forced_off_setter() {
     return backlights_forced_off_setter_.get();
   }
+  BluetoothPowerController* bluetooth_power_controller() {
+    return bluetooth_power_controller_.get();
+  }
   BrightnessControlDelegate* brightness_control_delegate() {
     return brightness_control_delegate_.get();
-  }
-  CalendarController* calendar_controller() {
-    return calendar_controller_.get();
-  }
-  CameraEffectsController* camera_effects_controller() {
-    return camera_effects_controller_.get();
   }
   CrosDisplayConfig* cros_display_config() {
     return cros_display_config_.get();
   }
   ::wm::CursorManager* cursor_manager() { return cursor_manager_.get(); }
-  curtain::SecurityCurtainController& security_curtain_controller() {
-    return *security_curtain_controller_;
-  }
-  DarkLightModeControllerImpl* dark_light_mode_controller() {
-    return dark_light_mode_controller_.get();
-  }
   DesksController* desks_controller() { return desks_controller_.get(); }
-  PersistentDesksBarController* persistent_desks_bar_controller() {
-    return persistent_desks_bar_controller_.get();
-  }
-  DesksTemplatesDelegate* desks_templates_delegate() {
-    return desks_templates_delegate_.get();
-  }
   DetachableBaseHandler* detachable_base_handler() {
     return detachable_base_handler_.get();
   }
@@ -434,10 +352,6 @@ class ASH_EXPORT Shell : public SessionObserver,
   DisplayPrefs* display_prefs() { return display_prefs_.get(); }
   DisplayConfigurationController* display_configuration_controller() {
     return display_configuration_controller_.get();
-  }
-
-  RefreshRateThrottleController* refresh_rate_throttle_controller() {
-    return refresh_rate_throttle_controller_.get();
   }
 
   DisplayAlignmentController* display_alignment_controller() {
@@ -453,17 +367,11 @@ class ASH_EXPORT Shell : public SessionObserver,
     return display_error_observer_.get();
   }
 
-  ProjectingObserver* projecting_observer() {
-    return projecting_observer_.get();
-  }
-
   DisplayHighlightController* display_highlight_controller() {
     return display_highlight_controller_.get();
   }
 
-  DockedMagnifierController* docked_magnifier_controller() {
-    return docked_magnifier_controller_.get();
-  }
+  DockedMagnifierControllerImpl* docked_magnifier_controller();
   ::wm::CompoundEventFilter* env_filter() { return env_filter_.get(); }
   EventRewriterControllerImpl* event_rewriter_controller() {
     return event_rewriter_controller_.get();
@@ -472,50 +380,24 @@ class ASH_EXPORT Shell : public SessionObserver,
   EventTransformationHandler* event_transformation_handler() {
     return event_transformation_handler_.get();
   }
-
-  federated::FederatedServiceController* federated_service_controller() {
-    return federated_service_controller_.get();
+  HomeScreenController* home_screen_controller() {
+    return home_screen_controller_.get();
   }
-
-  FirmwareUpdateNotificationController*
-  firmware_update_notification_controller() {
-    return firmware_update_notification_controller_.get();
-  }
-
-  FloatController* float_controller() { return float_controller_.get(); }
   ::wm::FocusController* focus_controller() { return focus_controller_.get(); }
   AshFocusRules* focus_rules() { return focus_rules_; }
   FocusCycler* focus_cycler() { return focus_cycler_.get(); }
-  FullscreenMagnifierController* fullscreen_magnifier_controller() {
-    return fullscreen_magnifier_controller_.get();
-  }
-  GeolocationController* geolocation_controller() {
-    return geolocation_controller_.get();
-  }
-  GlanceablesController* glanceables_controller() {
-    return glanceables_controller_.get();
-  }
   HighlighterController* highlighter_controller() {
     return highlighter_controller_.get();
   }
-  ColorEnhancementController* color_enhancement_controller() {
-    return color_enhancement_controller_.get();
-  }
-  HumanPresenceOrientationController* human_presence_orientation_controller() {
-    return human_presence_orientation_controller_.get();
+  HighContrastController* high_contrast_controller() {
+    return high_contrast_controller_.get();
   }
   ImeControllerImpl* ime_controller() { return ime_controller_.get(); }
-  WebAuthNDialogControllerImpl* webauthn_dialog_controller() {
-    return webauthn_dialog_controller_.get();
-  }
   InSessionAuthDialogControllerImpl* in_session_auth_dialog_controller() {
     return in_session_auth_dialog_controller_.get();
   }
   KeyAccessibilityEnabler* key_accessibility_enabler() {
     return key_accessibility_enabler_.get();
-  }
-  KeyboardBacklightColorController* keyboard_backlight_color_controller() {
-    return keyboard_backlight_color_controller_.get();
   }
   KeyboardBrightnessControlDelegate* keyboard_brightness_control_delegate() {
     return keyboard_brightness_control_delegate_.get();
@@ -538,12 +420,12 @@ class ASH_EXPORT Shell : public SessionObserver,
   LogoutConfirmationController* logout_confirmation_controller() {
     return logout_confirmation_controller_.get();
   }
-  MediaControllerImpl* media_controller() { return media_controller_.get(); }
-  MediaNotificationProviderImpl* media_notification_provider() {
-    return media_notification_provider_.get();
+  MagnificationController* magnification_controller() {
+    return magnification_controller_.get();
   }
-  MessageCenterAshImpl* message_center_ash_impl() {
-    return message_center_ash_impl_.get();
+  MediaControllerImpl* media_controller() { return media_controller_.get(); }
+  MediaNotificationControllerImpl* media_notification_controller() {
+    return media_notification_controller_.get();
   }
   MessageCenterController* message_center_controller() {
     return message_center_controller_.get();
@@ -552,9 +434,6 @@ class ASH_EXPORT Shell : public SessionObserver,
     return mouse_cursor_filter_.get();
   }
   MruWindowTracker* mru_window_tracker() { return mru_window_tracker_.get(); }
-  MultitaskMenuNudgeController* multitask_menu_nudge_controller() {
-    return multitask_menu_nudge_controller_.get();
-  }
   NearbyShareControllerImpl* nearby_share_controller() {
     return nearby_share_controller_.get();
   }
@@ -564,15 +443,15 @@ class ASH_EXPORT Shell : public SessionObserver,
   NightLightControllerImpl* night_light_controller() {
     return night_light_controller_.get();
   }
+  PrivacyScreenController* privacy_screen_controller() {
+    return privacy_screen_controller_.get();
+  }
   OverlayEventFilter* overlay_filter() { return overlay_filter_.get(); }
   ParentAccessController* parent_access_controller() {
     return parent_access_controller_.get();
   }
-  PartialMagnifierController* partial_magnifier_controller() {
-    return partial_magnifier_controller_.get();
-  }
-  PeripheralBatteryListener* peripheral_battery_listener() {
-    return peripheral_battery_listener_.get();
+  PartialMagnificationController* partial_magnification_controller() {
+    return partial_magnification_controller_.get();
   }
   PolicyRecommendationRestorer* policy_recommendation_restorer() {
     return policy_recommendation_restorer_.get();
@@ -583,26 +462,14 @@ class ASH_EXPORT Shell : public SessionObserver,
   PowerEventObserver* power_event_observer() {
     return power_event_observer_.get();
   }
-  PrivacyHubController* privacy_hub_controller() {
-    return privacy_hub_controller_.get();
-  }
-  PrivacyScreenController* privacy_screen_controller() {
-    return privacy_screen_controller_.get();
-  }
-  quick_pair::Mediator* quick_pair_mediator() {
-    return quick_pair_mediator_.get();
-  }
-  MultiCaptureServiceClient* multi_capture_service_client() {
-    return multi_capture_service_client_.get();
-  }
   ResizeShadowController* resize_shadow_controller() {
     return resize_shadow_controller_.get();
   }
   ResolutionNotificationController* resolution_notification_controller() {
     return resolution_notification_controller_.get();
   }
-  RgbKeyboardManager* rgb_keyboard_manager() {
-    return rgb_keyboard_manager_.get();
+  ScreenshotController* screenshot_controller() {
+    return screenshot_controller_.get();
   }
   ScreenLayoutObserver* screen_layout_observer() {
     return screen_layout_observer_.get();
@@ -619,9 +486,6 @@ class ASH_EXPORT Shell : public SessionObserver,
   SessionControllerImpl* session_controller() {
     return session_controller_.get();
   }
-  FeatureDiscoveryDurationReporterImpl* feature_discover_reporter() {
-    return feature_discover_reporter_.get();
-  }
   ::wm::ShadowController* shadow_controller() {
     return shadow_controller_.get();
   }
@@ -630,9 +494,6 @@ class ASH_EXPORT Shell : public SessionObserver,
   ShellDelegate* shell_delegate() { return shell_delegate_.get(); }
   ShutdownControllerImpl* shutdown_controller() {
     return shutdown_controller_.get();
-  }
-  SnoopingProtectionController* snooping_protection_controller() {
-    return snooping_protection_controller_.get();
   }
   StickyKeysController* sticky_keys_controller() {
     return sticky_keys_controller_.get();
@@ -643,12 +504,6 @@ class ASH_EXPORT Shell : public SessionObserver,
   SystemTrayModel* system_tray_model() { return system_tray_model_.get(); }
   SystemTrayNotifier* system_tray_notifier() {
     return system_tray_notifier_.get();
-  }
-  SystemSoundsDelegate* system_sounds_delegate() {
-    return system_sounds_delegate_.get();
-  }
-  TabClusterUIController* tab_cluster_ui_controller() const {
-    return tab_cluster_ui_controller_.get();
   }
   TabletModeController* tablet_mode_controller() const {
     return tablet_mode_controller_.get();
@@ -667,9 +522,10 @@ class ASH_EXPORT Shell : public SessionObserver,
     return touch_transformer_controller_.get();
   }
   TrayAction* tray_action() { return tray_action_.get(); }
-
+  TrayBluetoothHelper* tray_bluetooth_helper() {
+    return tray_bluetooth_helper_.get();
+  }
   UserMetricsRecorder* metrics() { return user_metrics_recorder_.get(); }
-
   VideoDetector* video_detector() { return video_detector_.get(); }
   WallpaperControllerImpl* wallpaper_controller() {
     return wallpaper_controller_.get();
@@ -699,23 +555,9 @@ class ASH_EXPORT Shell : public SessionObserver,
     return frame_throttling_controller_.get();
   }
 
-  ProjectorControllerImpl* projector_controller() {
-    return projector_controller_.get();
-  }
-
-  PciePeripheralNotificationController*
-  pcie_peripheral_notification_controller() {
-    return pcie_peripheral_notification_controller_.get();
-  }
-
-  UsbPeripheralNotificationController*
-  usb_peripheral_notification_controller() {
-    return usb_peripheral_notification_controller_.get();
-  }
-
-  OcclusionTrackerPauser* occlusion_tracker_pauser() {
-    return occlusion_tracker_pauser_.get();
-  }
+  // Force the shelf to query for it's current visibility state.
+  // TODO(jamescook): Move to Shelf.
+  void UpdateShelfVisibility();
 
   // Does the primary display have status area?
   bool HasPrimaryStatusArea();
@@ -742,10 +584,6 @@ class ASH_EXPORT Shell : public SessionObserver,
   void AddShellObserver(ShellObserver* observer);
   void RemoveShellObserver(ShellObserver* observer);
 
-  // Disables event dispatch during shutdown so that Window events no longer
-  // propagate as they are being closed/destroyed.
-  void ShutdownEventDispatch();
-
   // Called when the login status changes.
   // TODO(oshima): Investigate if we can merge this and |OnLoginStateChanged|.
   void UpdateAfterLoginStatusChange(LoginStatus status);
@@ -767,21 +605,9 @@ class ASH_EXPORT Shell : public SessionObserver,
   void NotifyShelfAlignmentChanged(aura::Window* root_window,
                                    ShelfAlignment old_alignment);
 
-  // Notifies observers that the display for new windows has changed.
-  void NotifyDisplayForNewWindowsChanged();
-
-  // Adds the |handler| based on its |type| to receive events, ensuring that
-  // event handlers continue to be called in their HandlerType order.
-  void AddAccessibilityEventHandler(
-      ui::EventHandler* handler,
-      AccessibilityEventHandlerManager::HandlerType type);
-
-  // Removes |handler| which was added through AddAccessibilityEventHandler.
-  void RemoveAccessibilityEventHandler(ui::EventHandler* handler);
-
-  LoginUnlockThroughputRecorder* login_unlock_throughput_recorder() {
-    return login_unlock_throughput_recorder_.get();
-  }
+  // Notifies observers that |root_window|'s shelf changed auto-hide behavior.
+  // TODO(jamescook): Move to Shelf.
+  void NotifyShelfAutoHideBehaviorChanged(aura::Window* root_window);
 
  private:
   FRIEND_TEST_ALL_PREFIXES(ExtendedDesktopTest, TestCursor);
@@ -790,6 +616,7 @@ class ASH_EXPORT Shell : public SessionObserver,
   friend class AcceleratorControllerTest;
   friend class AshTestHelper;
   friend class RootWindowController;
+  friend class ScopedRootWindowForNewWindows;
   friend class ShellTestApi;
   friend class SmsObserverTest;
 
@@ -840,56 +667,33 @@ class ASH_EXPORT Shell : public SessionObserver,
   std::unique_ptr<UserMetricsRecorder> user_metrics_recorder_;
   std::unique_ptr<WindowPositioner> window_positioner_;
 
-  std::unique_ptr<AshAcceleratorConfiguration> ash_accelerator_configuration_;
   std::unique_ptr<AcceleratorControllerImpl> accelerator_controller_;
   std::unique_ptr<AccessibilityControllerImpl> accessibility_controller_;
   std::unique_ptr<AccessibilityDelegate> accessibility_delegate_;
   std::unique_ptr<AccessibilityFocusRingControllerImpl>
       accessibility_focus_ring_controller_;
-  std::unique_ptr<AdaptiveChargingController> adaptive_charging_controller_;
   std::unique_ptr<AmbientController> ambient_controller_;
   std::unique_ptr<AppListControllerImpl> app_list_controller_;
-  std::unique_ptr<AppListFeatureUsageMetrics> app_list_feature_usage_metrics_;
   // May be null in tests or when running on linux-chromeos.
   scoped_refptr<dbus::Bus> dbus_bus_;
   std::unique_ptr<AshDBusServices> ash_dbus_services_;
   std::unique_ptr<AssistantControllerImpl> assistant_controller_;
-  std::unique_ptr<AutozoomControllerImpl> autozoom_controller_;
   std::unique_ptr<BacklightsForcedOffSetter> backlights_forced_off_setter_;
+  std::unique_ptr<BloomUiControllerImpl> bloom_ui_controller_;
   std::unique_ptr<BrightnessControlDelegate> brightness_control_delegate_;
-  std::unique_ptr<CalendarController> calendar_controller_;
-  std::unique_ptr<CameraEffectsController> camera_effects_controller_;
   std::unique_ptr<CrosDisplayConfig> cros_display_config_;
-  std::unique_ptr<curtain::SecurityCurtainController>
-      security_curtain_controller_;
-  std::unique_ptr<DarkLightModeControllerImpl> dark_light_mode_controller_;
   std::unique_ptr<DesksController> desks_controller_;
-  std::unique_ptr<DesksTemplatesDelegate> desks_templates_delegate_;
   std::unique_ptr<DetachableBaseHandler> detachable_base_handler_;
   std::unique_ptr<DetachableBaseNotificationController>
       detachable_base_notification_controller_;
-  std::unique_ptr<diagnostics::DiagnosticsLogController>
-      diagnostics_log_controller_;
   std::unique_ptr<DisplayHighlightController> display_highlight_controller_;
   std::unique_ptr<DisplaySpeakerController> display_speaker_controller_;
   std::unique_ptr<DragDropController> drag_drop_controller_;
-  std::unique_ptr<FirmwareUpdateManager> firmware_update_manager_;
-  std::unique_ptr<FirmwareUpdateNotificationController>
-      firmware_update_notification_controller_;
   std::unique_ptr<FocusCycler> focus_cycler_;
-  std::unique_ptr<FloatController> float_controller_;
-  std::unique_ptr<GeolocationController> geolocation_controller_;
-  std::unique_ptr<GlanceablesController> glanceables_controller_;
   std::unique_ptr<HoldingSpaceController> holding_space_controller_;
-  std::unique_ptr<PowerPrefs> power_prefs_;
-  std::unique_ptr<SnoopingProtectionController> snooping_protection_controller_;
-  std::unique_ptr<HumanPresenceOrientationController>
-      human_presence_orientation_controller_;
+  std::unique_ptr<HomeScreenController> home_screen_controller_;
   std::unique_ptr<ImeControllerImpl> ime_controller_;
   std::unique_ptr<chromeos::ImmersiveContext> immersive_context_;
-  std::unique_ptr<WebAuthNDialogControllerImpl> webauthn_dialog_controller_;
-  std::unique_ptr<KeyboardBacklightColorController>
-      keyboard_backlight_color_controller_;
   std::unique_ptr<InSessionAuthDialogControllerImpl>
       in_session_auth_dialog_controller_;
   std::unique_ptr<KeyboardBrightnessControlDelegate>
@@ -897,31 +701,19 @@ class ASH_EXPORT Shell : public SessionObserver,
   std::unique_ptr<LocaleUpdateControllerImpl> locale_update_controller_;
   std::unique_ptr<LoginScreenController> login_screen_controller_;
   std::unique_ptr<LogoutConfirmationController> logout_confirmation_controller_;
-  std::unique_ptr<TabClusterUIController> tab_cluster_ui_controller_;
   std::unique_ptr<TabletModeController> tablet_mode_controller_;
-  std::unique_ptr<MessageCenterAshImpl> message_center_ash_impl_;
   std::unique_ptr<MediaControllerImpl> media_controller_;
-  std::unique_ptr<MediaNotificationProviderImpl> media_notification_provider_;
+  std::unique_ptr<MediaNotificationControllerImpl>
+      media_notification_controller_;
   std::unique_ptr<MruWindowTracker> mru_window_tracker_;
   std::unique_ptr<MultiDeviceNotificationPresenter>
       multidevice_notification_presenter_;
-  std::unique_ptr<MultitaskMenuNudgeController>
-      multitask_menu_nudge_controller_;
   std::unique_ptr<NearbyShareControllerImpl> nearby_share_controller_;
   std::unique_ptr<NearbyShareDelegate> nearby_share_delegate_;
   std::unique_ptr<ParentAccessController> parent_access_controller_;
-  std::unique_ptr<PciePeripheralNotificationController>
-      pcie_peripheral_notification_controller_;
-  std::unique_ptr<PrivacyHubController> privacy_hub_controller_;
-  std::unique_ptr<UsbPeripheralNotificationController>
-      usb_peripheral_notification_controller_;
-  std::unique_ptr<PersistentDesksBarController>
-      persistent_desks_bar_controller_;
-  std::unique_ptr<RgbKeyboardManager> rgb_keyboard_manager_;
+  std::unique_ptr<QuickAnswersController> quick_answers_controller_;
   std::unique_ptr<ResizeShadowController> resize_shadow_controller_;
   std::unique_ptr<SessionControllerImpl> session_controller_;
-  std::unique_ptr<FeatureDiscoveryDurationReporterImpl>
-      feature_discover_reporter_;
   std::unique_ptr<AshColorProvider> ash_color_provider_;
   std::unique_ptr<NightLightControllerImpl> night_light_controller_;
   std::unique_ptr<PrivacyScreenController> privacy_screen_controller_;
@@ -932,20 +724,16 @@ class ASH_EXPORT Shell : public SessionObserver,
   std::unique_ptr<ShelfWindowWatcher> shelf_window_watcher_;
   std::unique_ptr<ShellDelegate> shell_delegate_;
   std::unique_ptr<CaptureModeController> capture_mode_controller_;
-  std::unique_ptr<ControlVHistogramRecorder> control_v_histogram_recorder_;
-  std::unique_ptr<AcceleratorTracker> accelerator_tracker_;
   std::unique_ptr<ShutdownControllerImpl> shutdown_controller_;
   std::unique_ptr<SystemNotificationController> system_notification_controller_;
   std::unique_ptr<SystemTrayModel> system_tray_model_;
   std::unique_ptr<SystemTrayNotifier> system_tray_notifier_;
-  std::unique_ptr<SystemSoundsDelegate> system_sounds_delegate_;
   std::unique_ptr<ToastManagerImpl> toast_manager_;
   std::unique_ptr<ClipboardHistoryControllerImpl> clipboard_history_controller_;
   std::unique_ptr<TouchDevicesController> touch_devices_controller_;
   std::unique_ptr<TrayAction> tray_action_;
   std::unique_ptr<WallpaperControllerImpl> wallpaper_controller_;
   std::unique_ptr<WindowCycleController> window_cycle_controller_;
-  std::unique_ptr<WindowRestoreController> window_restore_controller_;
   std::unique_ptr<OverviewController> overview_controller_;
   // Owned by |focus_controller_|.
   AshFocusRules* focus_rules_ = nullptr;
@@ -960,11 +748,12 @@ class ASH_EXPORT Shell : public SessionObserver,
   std::unique_ptr<VideoDetector> video_detector_;
   std::unique_ptr<WindowTreeHostManager> window_tree_host_manager_;
   std::unique_ptr<PersistentWindowController> persistent_window_controller_;
-  std::unique_ptr<ColorEnhancementController> color_enhancement_controller_;
-  std::unique_ptr<FullscreenMagnifierController>
-      fullscreen_magnifier_controller_;
+  std::unique_ptr<HighContrastController> high_contrast_controller_;
+  std::unique_ptr<MagnificationController> magnification_controller_;
   std::unique_ptr<AutoclickController> autoclick_controller_;
   std::unique_ptr<::wm::FocusController> focus_controller_;
+
+  std::unique_ptr<ScreenshotController> screenshot_controller_;
 
   std::unique_ptr<MouseCursorEventFilter> mouse_cursor_filter_;
   std::unique_ptr<ScreenPositionController> screen_position_controller_;
@@ -997,14 +786,13 @@ class ASH_EXPORT Shell : public SessionObserver,
   std::unique_ptr<DisplayConfigurationController>
       display_configuration_controller_;
   std::unique_ptr<DisplayConfigurationObserver> display_configuration_observer_;
-  std::unique_ptr<RefreshRateThrottleController>
-      refresh_rate_throttle_controller_;
 
   std::unique_ptr<ScreenPinningController> screen_pinning_controller_;
 
-  std::unique_ptr<PeripheralBatteryListener> peripheral_battery_listener_;
   std::unique_ptr<PeripheralBatteryNotifier> peripheral_battery_notifier_;
+  std::unique_ptr<PeripheralBatteryTracker> peripheral_battery_tracker_;
   std::unique_ptr<PowerEventObserver> power_event_observer_;
+  std::unique_ptr<PowerPrefs> power_prefs_;
   std::unique_ptr<ui::UserActivityPowerManagerNotifier> user_activity_notifier_;
   std::unique_ptr<VideoActivityNotifier> video_activity_notifier_;
   std::unique_ptr<StickyKeysController> sticky_keys_controller_;
@@ -1012,8 +800,8 @@ class ASH_EXPORT Shell : public SessionObserver,
       resolution_notification_controller_;
   std::unique_ptr<BluetoothNotificationController>
       bluetooth_notification_controller_;
-  std::unique_ptr<BluetoothDeviceStatusUiHandler>
-      bluetooth_device_status_ui_handler_;
+  std::unique_ptr<BluetoothPowerController> bluetooth_power_controller_;
+  std::unique_ptr<TrayBluetoothHelper> tray_bluetooth_helper_;
   std::unique_ptr<KeyboardControllerImpl> keyboard_controller_;
   std::unique_ptr<DisplayAlignmentController> display_alignment_controller_;
   std::unique_ptr<DisplayColorManager> display_color_manager_;
@@ -1038,14 +826,13 @@ class ASH_EXPORT Shell : public SessionObserver,
   std::unique_ptr<ui::EventHandler> magnifier_key_scroll_handler_;
   std::unique_ptr<ui::EventHandler> speech_feedback_handler_;
   std::unique_ptr<LaserPointerController> laser_pointer_controller_;
-  std::unique_ptr<PartialMagnifierController> partial_magnifier_controller_;
+  std::unique_ptr<PartialMagnificationController>
+      partial_magnification_controller_;
   std::unique_ptr<HighlighterController> highlighter_controller_;
 
-  std::unique_ptr<DockedMagnifierController> docked_magnifier_controller_;
+  std::unique_ptr<DockedMagnifierControllerImpl> docked_magnifier_controller_;
 
   std::unique_ptr<chromeos::SnapController> snap_controller_;
-
-  std::unique_ptr<WmModeController> wm_mode_controller_;
 
   // |native_cursor_manager_| is owned by |cursor_manager_|, but we keep a
   // pointer to vend to test code.
@@ -1061,47 +848,18 @@ class ASH_EXPORT Shell : public SessionObserver,
 
   std::unique_ptr<FrameThrottlingController> frame_throttling_controller_;
 
-  std::unique_ptr<ProjectorControllerImpl> projector_controller_;
-
-  std::unique_ptr<AccessibilityEventHandlerManager>
-      accessibility_event_handler_manager_;
-
   // For testing only: simulate that a modal window is open
   bool simulate_modal_window_open_for_test_ = false;
 
   std::unique_ptr<MessageCenterController> message_center_controller_;
 
-  std::unique_ptr<LoginUnlockThroughputRecorder>
-      login_unlock_throughput_recorder_;
-
-  std::unique_ptr<OcclusionTrackerPauser> occlusion_tracker_pauser_;
-
-  std::unique_ptr<MultiCaptureServiceClient> multi_capture_service_client_;
-
-  std::unique_ptr<federated::FederatedServiceController>
-      federated_service_controller_;
-
-  std::unique_ptr<quick_pair::Mediator> quick_pair_mediator_;
-
   base::ObserverList<ShellObserver>::Unchecked shell_observers_;
 
   base::WeakPtrFactory<Shell> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(Shell);
 };
 
 }  // namespace ash
-
-namespace base {
-
-template <>
-struct ScopedObservationTraits<ash::Shell, ash::ShellObserver> {
-  static void AddObserver(ash::Shell* source, ash::ShellObserver* observer) {
-    source->AddShellObserver(observer);
-  }
-  static void RemoveObserver(ash::Shell* source, ash::ShellObserver* observer) {
-    source->RemoveShellObserver(observer);
-  }
-};
-
-}  // namespace base
 
 #endif  // ASH_SHELL_H_

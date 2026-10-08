@@ -1,18 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef NET_QUIC_QUIC_EVENT_LOGGER_H_
 #define NET_QUIC_QUIC_EVENT_LOGGER_H_
 
-#include "base/memory/raw_ptr.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/net_export.h"
 #include "net/cert/cert_verify_result.h"
 #include "net/log/net_log_with_source.h"
-#include "net/third_party/quiche/src/quiche/quic/core/quic_connection.h"
-#include "net/third_party/quiche/src/quiche/quic/core/quic_packet_creator.h"
-#include "net/third_party/quiche/src/quiche/quic/core/quic_session.h"
+#include "net/third_party/quiche/src/quic/core/quic_connection.h"
+#include "net/third_party/quiche/src/quic/core/quic_packet_creator.h"
+#include "net/third_party/quiche/src/quic/core/quic_session.h"
 
 namespace net {
 
@@ -30,6 +29,9 @@ class NET_EXPORT_PRIVATE QuicEventLogger
   void OnStreamFrameCoalesced(const quic::QuicStreamFrame& frame) override;
 
   // quic::QuicConnectionDebugVisitor Interface
+  void OnPacketSent(const quic::SerializedPacket& serialized_packet,
+                    quic::TransmissionType transmission_type,
+                    quic::QuicTime sent_time) override;
   void OnPacketSent(quic::QuicPacketNumber packet_number,
                     quic::QuicPacketLength packet_length,
                     bool has_crypto_handshake,
@@ -49,7 +51,6 @@ class NET_EXPORT_PRIVATE QuicEventLogger
                     quic::EncryptionLevel encryption_level,
                     quic::TransmissionType transmission_type,
                     quic::QuicTime detection_time) override;
-  void OnConfigProcessed(const SendParameters& parameters) override;
   void OnPacketReceived(const quic::QuicSocketAddress& self_address,
                         const quic::QuicSocketAddress& peer_address,
                         const quic::QuicEncryptedPacket& packet) override;
@@ -114,7 +115,7 @@ class NET_EXPORT_PRIVATE QuicEventLogger
   void OnCertificateVerified(const CertVerifyResult& result);
 
  private:
-  raw_ptr<quic::QuicSession> session_;  // Unowned.
+  quic::QuicSession* session_;  // Unowned.
   NetLogWithSource net_log_;
 
   // The quic::kCADR value provided by the server in ServerHello.
@@ -123,4 +124,4 @@ class NET_EXPORT_PRIVATE QuicEventLogger
 
 }  // namespace net
 
-#endif  // NET_QUIC_QUIC_EVENT_LOGGER_H_
+#endif /* NET_QUIC_QUIC_EVENT_LOGGER_H_ */

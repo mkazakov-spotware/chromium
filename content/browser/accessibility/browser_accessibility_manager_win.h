@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,34 +12,23 @@
 #include <set>
 #include <vector>
 
+#include "base/macros.h"
 #include "content/browser/accessibility/browser_accessibility_manager.h"
-#include "content/common/content_export.h"
 #include "ui/accessibility/platform/ax_platform_node_win.h"
 
 namespace content {
-
 class BrowserAccessibilityWin;
-class WebAXPlatformTreeManagerDelegate;
-
-using UiaRaiseActiveTextPositionChangedEventFunction =
-    HRESULT(WINAPI*)(IRawElementProviderSimple*, ITextRangeProvider*);
 
 // Manages a tree of BrowserAccessibilityWin objects.
 class CONTENT_EXPORT BrowserAccessibilityManagerWin
     : public BrowserAccessibilityManager {
  public:
   BrowserAccessibilityManagerWin(const ui::AXTreeUpdate& initial_tree,
-                                 WebAXPlatformTreeManagerDelegate* delegate);
-
-  BrowserAccessibilityManagerWin(const BrowserAccessibilityManagerWin&) =
-      delete;
-  BrowserAccessibilityManagerWin& operator=(
-      const BrowserAccessibilityManagerWin&) = delete;
+                                 BrowserAccessibilityDelegate* delegate);
 
   ~BrowserAccessibilityManagerWin() override;
 
   static ui::AXTreeUpdate GetEmptyDocument();
-  static bool IsUiaActiveTextPositionChangedEventSupported();
 
   // Get the closest containing HWND.
   HWND GetParentHWND();
@@ -47,15 +36,14 @@ class CONTENT_EXPORT BrowserAccessibilityManagerWin
   // BrowserAccessibilityManager methods
   void UserIsReloading() override;
   BrowserAccessibility* GetFocus() const override;
-  bool IsIgnoredChangedNode(const BrowserAccessibility* node) const;
   bool CanFireEvents() const override;
+  gfx::Rect GetViewBoundsInScreenCoordinates() const override;
 
-  void FireFocusEvent(ui::AXNode* node) override;
+  void FireFocusEvent(BrowserAccessibility* node) override;
   void FireBlinkEvent(ax::mojom::Event event_type,
-                      BrowserAccessibility* node,
-                      int action_request_id) override;
+                      BrowserAccessibility* node) override;
   void FireGeneratedEvent(ui::AXEventGenerator::Event event_type,
-                          const ui::AXNode* node) override;
+                          BrowserAccessibility* node) override;
 
   void FireWinAccessibilityEvent(LONG win_event, BrowserAccessibility* node);
   void FireUiaAccessibilityEvent(LONG uia_event, BrowserAccessibility* node);
@@ -63,7 +51,6 @@ class CONTENT_EXPORT BrowserAccessibilityManagerWin
                                    BrowserAccessibility* node);
   void FireUiaStructureChangedEvent(StructureChangeType change_type,
                                     BrowserAccessibility* node);
-  void FireUiaActiveTextPositionChangedEvent(BrowserAccessibility* node);
 
   // Do event pre-processing
   void BeforeAccessibilityEvents() override;
@@ -82,6 +69,7 @@ class CONTENT_EXPORT BrowserAccessibilityManagerWin
  protected:
   // AXTreeObserver methods.
   void OnSubtreeWillBeDeleted(ui::AXTree* tree, ui::AXNode* node) override;
+  void OnNodeWillBeDeleted(ui::AXTree* tree, ui::AXNode* node) override;
   void OnAtomicUpdateFinished(
       ui::AXTree* tree,
       bool root_changed,
@@ -102,6 +90,7 @@ class CONTENT_EXPORT BrowserAccessibilityManagerWin
       base::RepeatingCallback<void(BrowserAccessibility*,
                                    BrowserAccessibility*,
                                    const SelectionEvents&)>;
+
   static bool IsIA2NodeSelected(BrowserAccessibility* node);
   static bool IsUIANodeSelected(BrowserAccessibility* node);
 
@@ -122,16 +111,18 @@ class CONTENT_EXPORT BrowserAccessibilityManagerWin
       IsSelectedPredicate is_selected_predicate,
       FirePlatformSelectionEventsCallback fire_platform_events_callback);
 
-  // Retrieve UIA RaiseActiveTextPositionChangedEvent function if supported.
-  static UiaRaiseActiveTextPositionChangedEventFunction
-  GetUiaActiveTextPositionChangedEventFunction();
-
   void HandleAriaPropertiesChangedEvent(BrowserAccessibility& node);
-  void EnqueueTextChangedEvent(BrowserAccessibility& node);
-  void EnqueueSelectionChangedEvent(BrowserAccessibility& node);
+  void HandleTextChangedEvent(BrowserAccessibility& node);
+  void HandleTextSelectionChangedEvent(BrowserAccessibility& node);
 
   // Give BrowserAccessibilityManager::Create access to our constructor.
   friend class BrowserAccessibilityManager;
+
+  // Keep track of if we got a "load complete" event but were unable to fire
+  // it because of no HWND, because otherwise JAWS can get very confused.
+  // TODO(dmazzoni): a better fix would be to always have an HWND.
+  // http://crbug.com/521877
+  bool load_complete_pending_;
 
   // Since there could be multiple aria property changes on a node and we only
   // want to fire UIA_AriaPropertiesPropertyId once for that node, we use the
@@ -139,17 +130,18 @@ class CONTENT_EXPORT BrowserAccessibilityManagerWin
   // so we only fire the event once for every node.
   std::set<BrowserAccessibility*> aria_properties_events_;
 
-  // Since there could be duplicate selection changed events on a node raised
-  // from both EventType::DOCUMENT_SELECTION_CHANGED and
-  // EventType::TEXT_SELECTION_CHANGED, we keep track of the unique
-  // nodes so we only fire the event once for every node.
-  std::set<BrowserAccessibility*> selection_changed_nodes_;
+  // Since there could be duplicate text selection changed events on a node
+  // raised from both FireBlinkEvent and FireGeneratedEvent, we use the set here
+  // to keep track of the unique nodes that had
+  // UIA_Text_TextSelectionChangedEventId, so we only fire the event once for
+  // every node.
+  std::set<BrowserAccessibility*> text_selection_changed_events_;
 
   // Since there could be duplicate text changed events on a node raised from
   // both FireBlinkEvent and FireGeneratedEvent, we use the set here to keep
   // track of the unique nodes that had UIA_Text_TextChangedEventId, so we only
   // fire the event once for every node.
-  std::set<BrowserAccessibility*> text_changed_nodes_;
+  std::set<BrowserAccessibility*> text_changed_events_;
 
   // When the ignored state changes for a node, we only want to fire the
   // events relevant to the ignored state change (e.g. show / hide).
@@ -161,6 +153,8 @@ class CONTENT_EXPORT BrowserAccessibilityManagerWin
   // the map is cleared in |FinalizeAccessibilityEvents|.
   SelectionEventsMap ia2_selection_events_;
   SelectionEventsMap uia_selection_events_;
+
+  DISALLOW_COPY_AND_ASSIGN(BrowserAccessibilityManagerWin);
 };
 
 }  // namespace content

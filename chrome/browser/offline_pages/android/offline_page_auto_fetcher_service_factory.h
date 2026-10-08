@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 #define CHROME_BROWSER_OFFLINE_PAGES_ANDROID_OFFLINE_PAGE_AUTO_FETCHER_SERVICE_FACTORY_H_
 
 #include <memory>
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "base/macros.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 #include "content/public/browser/browser_context.h"
 
 namespace base {
@@ -18,16 +19,12 @@ namespace offline_pages {
 class OfflinePageAutoFetcherService;
 
 // A factory to create one unique OfflinePageAutoFetcherService.
-class OfflinePageAutoFetcherServiceFactory : public ProfileKeyedServiceFactory {
+class OfflinePageAutoFetcherServiceFactory
+    : public BrowserContextKeyedServiceFactory {
  public:
   static OfflinePageAutoFetcherServiceFactory* GetInstance();
   static OfflinePageAutoFetcherService* GetForBrowserContext(
       content::BrowserContext* context);
-
-  OfflinePageAutoFetcherServiceFactory(
-      const OfflinePageAutoFetcherServiceFactory&) = delete;
-  OfflinePageAutoFetcherServiceFactory& operator=(
-      const OfflinePageAutoFetcherServiceFactory&) = delete;
 
  private:
   class ServiceDelegate;
@@ -41,6 +38,7 @@ class OfflinePageAutoFetcherServiceFactory : public ProfileKeyedServiceFactory {
       content::BrowserContext* context) const override;
 
   std::unique_ptr<ServiceDelegate> service_delegate_;
+  DISALLOW_COPY_AND_ASSIGN(OfflinePageAutoFetcherServiceFactory);
 };
 
 }  // namespace offline_pages

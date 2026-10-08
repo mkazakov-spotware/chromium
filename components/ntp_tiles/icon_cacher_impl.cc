@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/bind.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/strings/string_piece.h"
 #include "components/favicon/core/favicon_service.h"
 #include "components/favicon/core/favicon_util.h"
 #include "components/favicon/core/large_icon_service.h"
@@ -20,7 +19,6 @@
 #include "components/image_fetcher/core/image_fetcher.h"
 #include "components/ntp_tiles/features.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
-#include "services/data_decoder/public/cpp/data_decoder.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/image/image.h"
@@ -70,12 +68,10 @@ int GetMinimumFetchingSizeForChromeSuggestionsFaviconsFromServer() {
 IconCacherImpl::IconCacherImpl(
     favicon::FaviconService* favicon_service,
     favicon::LargeIconService* large_icon_service,
-    std::unique_ptr<image_fetcher::ImageFetcher> image_fetcher,
-    std::unique_ptr<data_decoder::DataDecoder> data_decoder)
+    std::unique_ptr<image_fetcher::ImageFetcher> image_fetcher)
     : favicon_service_(favicon_service),
       large_icon_service_(large_icon_service),
-      image_fetcher_(std::move(image_fetcher)),
-      data_decoder_(std::move(data_decoder)) {}
+      image_fetcher_(std::move(image_fetcher)) {}
 
 IconCacherImpl::~IconCacherImpl() = default;
 
@@ -132,8 +128,6 @@ void IconCacherImpl::OnGetFaviconImageForPageURLFinished(
                                            kImageFetcherUmaClient);
   // For images with multiple frames, prefer one of size 128x128px.
   params.set_frame_size(gfx::Size(kDesiredFrameSize, kDesiredFrameSize));
-  if (data_decoder_)
-    params.set_data_decoder(data_decoder_.get());
   image_fetcher_->FetchImage(
       IconURL(site),
       base::BindOnce(&IconCacherImpl::OnPopularSitesFaviconDownloaded,
@@ -187,7 +181,7 @@ IconCacherImpl::MaybeProvideDefaultIcon(
     const PopularSites::Site& site,
     base::OnceClosure preliminary_icon_available) {
   if (site.default_icon_resource < 0) {
-    return nullptr;
+    return std::unique_ptr<CancelableImageCallback>();
   }
   std::unique_ptr<CancelableImageCallback> preliminary_callback(
       new CancelableImageCallback(
@@ -195,9 +189,10 @@ IconCacherImpl::MaybeProvideDefaultIcon(
                          weak_ptr_factory_.GetWeakPtr(), site,
                          std::move(preliminary_icon_available))));
   image_fetcher_->GetImageDecoder()->DecodeImage(
-      std::string(ui::ResourceBundle::GetSharedInstance().GetRawDataResource(
-          site.default_icon_resource)),
-      gfx::Size(kDesiredFrameSize, kDesiredFrameSize), data_decoder_.get(),
+      ui::ResourceBundle::GetSharedInstance()
+          .GetRawDataResource(site.default_icon_resource)
+          .as_string(),
+      gfx::Size(kDesiredFrameSize, kDesiredFrameSize),
       preliminary_callback->callback());
   return preliminary_callback;
 }

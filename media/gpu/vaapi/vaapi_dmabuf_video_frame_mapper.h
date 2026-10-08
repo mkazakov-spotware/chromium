@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,21 +22,19 @@ class MEDIA_GPU_EXPORT VaapiDmaBufVideoFrameMapper : public VideoFrameMapper {
  public:
   static std::unique_ptr<VideoFrameMapper> Create(VideoPixelFormat format);
 
-  VaapiDmaBufVideoFrameMapper(const VaapiDmaBufVideoFrameMapper&) = delete;
-  VaapiDmaBufVideoFrameMapper& operator=(const VaapiDmaBufVideoFrameMapper&) =
-      delete;
-
   ~VaapiDmaBufVideoFrameMapper() override;
 
   // VideoFrameMapper override.
-  scoped_refptr<VideoFrame> Map(scoped_refptr<const VideoFrame> video_frame,
-                                int permissions) const override;
+  scoped_refptr<VideoFrame> Map(
+      scoped_refptr<const VideoFrame> video_frame) const override;
 
  private:
   explicit VaapiDmaBufVideoFrameMapper(VideoPixelFormat format);
 
   // Vaapi components for mapping.
   const scoped_refptr<VaapiWrapper> vaapi_wrapper_;
+
+  DISALLOW_COPY_AND_ASSIGN(VaapiDmaBufVideoFrameMapper);
 };
 
 }  // namespace media

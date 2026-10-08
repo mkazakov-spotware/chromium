@@ -32,10 +32,11 @@
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_AUDIO_UP_SAMPLER_H_
 
 #include <memory>
+
+#include "base/macros.h"
 #include "third_party/blink/renderer/platform/audio/audio_array.h"
 #include "third_party/blink/renderer/platform/audio/direct_convolver.h"
 #include "third_party/blink/renderer/platform/audio/simple_fft_convolver.h"
-#include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
@@ -46,14 +47,12 @@ class PLATFORM_EXPORT UpSampler {
   USING_FAST_MALLOC(UpSampler);
 
  public:
-  explicit UpSampler(unsigned input_block_size);
-  UpSampler(const UpSampler&) = delete;
-  UpSampler& operator=(const UpSampler&) = delete;
+  explicit UpSampler(size_t input_block_size);
 
   // The destination buffer |destP| is of size sourceFramesToProcess * 2.
   void Process(const float* source_p,
                float* dest_p,
-               uint32_t source_frames_to_process);
+               size_t source_frames_to_process);
 
   void Reset();
 
@@ -63,7 +62,7 @@ class PLATFORM_EXPORT UpSampler {
  private:
   enum { kDefaultKernelSize = 128 };
 
-  unsigned input_block_size_;
+  size_t input_block_size_;
 
   // Computes the odd sample-frames of the output.
   std::unique_ptr<DirectConvolver> direct_convolver_;
@@ -76,6 +75,8 @@ class PLATFORM_EXPORT UpSampler {
   // the FIR filter (convolution) used to generate the odd sample-frames of the
   // output.
   AudioFloatArray input_buffer_;
+
+  DISALLOW_COPY_AND_ASSIGN(UpSampler);
 };
 
 }  // namespace blink

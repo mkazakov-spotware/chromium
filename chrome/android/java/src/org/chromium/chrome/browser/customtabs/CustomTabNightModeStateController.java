@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@ import androidx.browser.customtabs.CustomTabsIntent;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.ObserverList;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
-import org.chromium.chrome.browser.lifecycle.DestroyObserver;
+import org.chromium.chrome.browser.lifecycle.Destroyable;
 import org.chromium.chrome.browser.night_mode.NightModeStateProvider;
 import org.chromium.chrome.browser.night_mode.NightModeUtils;
 import org.chromium.chrome.browser.night_mode.PowerSavingModeMonitor;
@@ -23,7 +23,7 @@ import org.chromium.chrome.browser.night_mode.SystemNightModeMonitor;
 /**
  * Maintains and provides the night mode state for {@link CustomTabActivity}.
  */
-public class CustomTabNightModeStateController implements DestroyObserver, NightModeStateProvider {
+public class CustomTabNightModeStateController implements Destroyable, NightModeStateProvider {
     private final ObserverList<Observer> mObservers = new ObserverList<>();
     private final PowerSavingModeMonitor mPowerSavingModeMonitor;
     private final SystemNightModeMonitor mSystemNightModeMonitor;
@@ -75,9 +75,9 @@ public class CustomTabNightModeStateController implements DestroyObserver, Night
         }
     }
 
-    // DestroyObserver implementation.
+    // Destroyable implementation.
     @Override
-    public void onDestroy() {
+    public void destroy() {
         mSystemNightModeMonitor.removeObserver(mSystemNightModeObserver);
         mPowerSavingModeMonitor.removeObserver(mPowerSaveModeObserver);
     }

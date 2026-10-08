@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/browser_thread.h"
-#include "content/public/browser/storage_partition.h"
 #include "content/public/test/browser_test.h"
 #include "net/cert/mock_cert_verifier.h"
 #include "net/http/transport_security_state.h"
@@ -34,7 +33,8 @@ class ExpectCTBrowserTest : public CertVerifierBrowserTest {
  public:
   ExpectCTBrowserTest() : CertVerifierBrowserTest() {
     feature_list_.InitWithFeatures(
-        {network::features::kExpectCTReporting, net::kDynamicExpectCTFeature},
+        {network::features::kExpectCTReporting,
+         net::TransportSecurityState::kDynamicExpectCTFeature},
         {});
 
     // Expect-CT reporting depends on actually enforcing Certificate
@@ -43,12 +43,9 @@ class ExpectCTBrowserTest : public CertVerifierBrowserTest {
         true);
   }
 
-  ExpectCTBrowserTest(const ExpectCTBrowserTest&) = delete;
-  ExpectCTBrowserTest& operator=(const ExpectCTBrowserTest&) = delete;
-
   ~ExpectCTBrowserTest() override {
     SystemNetworkContextManager::SetEnableCertificateTransparencyForTesting(
-        absl::nullopt);
+        base::nullopt);
   }
 
   void SetUpOnMainThread() override {
@@ -124,25 +121,23 @@ class ExpectCTBrowserTest : public CertVerifierBrowserTest {
   // The report-uri value to use in the Expect-CT header for requests handled by
   // ExpectCTHeaderRequestHandler.
   GURL report_uri_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExpectCTBrowserTest);
 };
 
 // Tests that an Expect-CT reporter is properly set up and used for violations
 // of Expect-CT HTTP headers.
 IN_PROC_BROWSER_TEST_F(ExpectCTBrowserTest, TestDynamicExpectCTReporting) {
-  content::StoragePartition* partition =
-      browser()->profile()->GetDefaultStoragePartition();
-  partition->GetNetworkContext()->SetCTLogListAlwaysTimelyForTesting();
-
   net::EmbeddedTestServer report_server;
-  report_server.RegisterRequestHandler(base::BindRepeating(
+  report_server.RegisterRequestHandler(base::Bind(
       &ExpectCTBrowserTest::ReportRequestHandler, base::Unretained(this)));
   ASSERT_TRUE(report_server.Start());
   GURL report_url = report_server.GetURL("/");
 
   net::EmbeddedTestServer test_server(net::EmbeddedTestServer::TYPE_HTTPS);
   test_server.RegisterRequestHandler(
-      base::BindRepeating(&ExpectCTBrowserTest::TestRequestHandler,
-                          base::Unretained(this), report_url));
+      base::Bind(&ExpectCTBrowserTest::TestRequestHandler,
+                 base::Unretained(this), report_url));
   ASSERT_TRUE(test_server.Start());
 
   // Set up the mock cert verifier to accept |test_server|'s certificate as
@@ -161,11 +156,11 @@ IN_PROC_BROWSER_TEST_F(ExpectCTBrowserTest, TestDynamicExpectCTReporting) {
   mock_cert_verifier()->AddResultForCert(cert, verify_result, net::OK);
 
   // Fire off a request so that |test_server| sets a valid Expect-CT header.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_server.GetURL("/")));
+  ui_test_utils::NavigateToURL(browser(), test_server.GetURL("/"));
 
   // Navigate to a test server URL, which should trigger an Expect-CT report
   // because the test server doesn't serve SCTs.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_server.GetURL("/")));
+  ui_test_utils::NavigateToURL(browser(), test_server.GetURL("/"));
   WaitForReport();
   // WaitForReport() does not return util ReportRequestHandler runs, and the
   // handler does all the assertions, so there are no more assertions needed
@@ -175,18 +170,14 @@ IN_PROC_BROWSER_TEST_F(ExpectCTBrowserTest, TestDynamicExpectCTReporting) {
 // Tests that Expect-CT HTTP headers are processed correctly.
 IN_PROC_BROWSER_TEST_F(ExpectCTBrowserTest,
                        TestDynamicExpectCTHeaderProcessing) {
-  content::StoragePartition* partition =
-      browser()->profile()->GetDefaultStoragePartition();
-  partition->GetNetworkContext()->SetCTLogListAlwaysTimelyForTesting();
-
   net::EmbeddedTestServer test_server(net::EmbeddedTestServer::TYPE_HTTPS);
   test_server.RegisterRequestHandler(
-      base::BindRepeating(&ExpectCTBrowserTest::ExpectCTHeaderRequestHandler,
-                          base::Unretained(this)));
+      base::Bind(&ExpectCTBrowserTest::ExpectCTHeaderRequestHandler,
+                 base::Unretained(this)));
   ASSERT_TRUE(test_server.Start());
 
   net::EmbeddedTestServer report_server;
-  report_server.RegisterRequestHandler(base::BindRepeating(
+  report_server.RegisterRequestHandler(base::Bind(
       &ExpectCTBrowserTest::ReportRequestHandler, base::Unretained(this)));
   ASSERT_TRUE(report_server.Start());
 
@@ -211,7 +202,7 @@ IN_PROC_BROWSER_TEST_F(ExpectCTBrowserTest,
 
   // Navigate to a test server URL, whose header should trigger an Expect-CT
   // report because the test server doesn't serve SCTs.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_server.GetURL("/")));
+  ui_test_utils::NavigateToURL(browser(), test_server.GetURL("/"));
   WaitForReport();
   // WaitForReport() does not return util ReportRequestHandler runs, and the
   // handler does all the assertions, so there are no more assertions needed

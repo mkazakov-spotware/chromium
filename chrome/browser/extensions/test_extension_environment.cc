@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/command_line.h"
 #include "base/json/json_writer.h"
 #include "base/values.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/test_extension_system.h"
 #include "chrome/browser/sessions/session_tab_helper_factory.h"
@@ -23,10 +22,10 @@
 #include "extensions/common/value_builder.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/login/users/scoped_test_user_manager.h"
-#include "chrome/browser/ash/settings/device_settings_service.h"
-#include "chrome/browser/ash/settings/scoped_cros_settings_test_helper.h"
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/login/users/scoped_test_user_manager.h"
+#include "chrome/browser/chromeos/settings/device_settings_service.h"
+#include "chrome/browser/chromeos/settings/scoped_cros_settings_test_helper.h"
 #endif
 
 namespace extensions {
@@ -72,20 +71,19 @@ std::unique_ptr<base::DictionaryValue> MakePackagedAppManifest() {
 
 }  // namespace
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 // Extra environment state required for ChromeOS.
 class TestExtensionEnvironment::ChromeOSEnv {
  public:
   ChromeOSEnv() {}
 
-  ChromeOSEnv(const ChromeOSEnv&) = delete;
-  ChromeOSEnv& operator=(const ChromeOSEnv&) = delete;
-
  private:
-  ash::ScopedCrosSettingsTestHelper cros_settings_test_helper_;
-  ash::ScopedTestUserManager test_user_manager_;
+  chromeos::ScopedCrosSettingsTestHelper cros_settings_test_helper_;
+  chromeos::ScopedTestUserManager test_user_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeOSEnv);
 };
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
 // static
 ExtensionService* TestExtensionEnvironment::CreateExtensionServiceForProfile(
@@ -101,8 +99,8 @@ TestExtensionEnvironment::TestExtensionEnvironment(Type type)
           type == Type::kWithTaskEnvironment
               ? std::make_unique<content::BrowserTaskEnvironment>()
               : nullptr),
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-      chromeos_env_(ash::DeviceSettingsService::IsInitialized()
+#if defined(OS_CHROMEOS)
+      chromeos_env_(chromeos::DeviceSettingsService::IsInitialized()
                         ? nullptr
                         : std::make_unique<ChromeOSEnv>()),
 #endif

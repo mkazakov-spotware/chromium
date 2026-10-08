@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -15,12 +15,14 @@
 
 #include <string>
 
+#include "base/strings/string16.h"
+
 namespace installer {
 
 class TranslationDelegate {
  public:
   virtual ~TranslationDelegate();
-  virtual std::wstring GetLocalizedString(int installer_string_id) = 0;
+  virtual base::string16 GetLocalizedString(int installer_string_id) = 0;
 };
 
 // If we're in Chrome, the installer strings aren't in the binary, but are in
@@ -37,6 +39,11 @@ void SetTranslationDelegate(TranslationDelegate* delegate);
 // IDS_INBOUND_MDNS_RULE_NAME is mapped to IDS_INBOUND_MDNS_RULE_NAME_CANARY for
 // canary Chrome).
 std::wstring GetLocalizedString(int base_message_id);
+
+// Returns the localized version of a string (obtained from GetLocalizedString)
+// with $1 replaced with |a|. Additionally, $$ is replaced by $.
+base::string16 GetLocalizedStringF(int base_message_id,
+                                   const base::string16& a);
 
 // Given the system language, return a url that points to the localized eula.
 // The empty string is returned on failure.

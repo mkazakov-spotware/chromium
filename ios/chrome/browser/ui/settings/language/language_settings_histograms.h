@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,10 +17,6 @@ enum class LanguageSettingsPages {
   PAGE_MAIN = 0,
   PAGE_ADD_LANGUAGE = 1,
   PAGE_LANGUAGE_DETAILS = 2,
-  // PAGE_CHROME_LANGUAGE = 3, // Windows and Android only.
-  // PAGE_ADVANCED_LANGUAGE_SETTINGS = 4,
-  // PAGE_TARGET_LANGUAGE = 5,
-  // PAGE_LANGUAGE_OVERFLOW_MENU_OPENED = 6 // Desktop only.
   kMaxValue = PAGE_LANGUAGE_DETAILS,
 };
 

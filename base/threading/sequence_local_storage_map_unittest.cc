@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <memory>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace base {
@@ -24,17 +23,15 @@ class SetOnDestroy {
     DCHECK(was_destroyed_ptr_);
     DCHECK(!(*was_destroyed_ptr_));
   }
-
-  SetOnDestroy(const SetOnDestroy&) = delete;
-  SetOnDestroy& operator=(const SetOnDestroy&) = delete;
-
   ~SetOnDestroy() {
     DCHECK(!(*was_destroyed_ptr_));
     *was_destroyed_ptr_ = true;
   }
 
  private:
-  const raw_ptr<bool> was_destroyed_ptr_;
+  bool* const was_destroyed_ptr_;
+
+  DISALLOW_COPY_AND_ASSIGN(SetOnDestroy);
 };
 
 template <typename T, typename... Args>

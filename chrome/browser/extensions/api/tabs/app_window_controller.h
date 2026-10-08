@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/extensions/window_controller.h"
 
 class Profile;
@@ -24,10 +24,6 @@ class AppWindowController : public WindowController {
   AppWindowController(AppWindow* window,
                       std::unique_ptr<AppBaseWindow> base_window,
                       Profile* profile);
-
-  AppWindowController(const AppWindowController&) = delete;
-  AppWindowController& operator=(const AppWindowController&) = delete;
-
   ~AppWindowController() override;
 
   // extensions::WindowController:
@@ -40,8 +36,10 @@ class AppWindowController : public WindowController {
       bool allow_dev_tools_windows) const override;
 
  private:
-  raw_ptr<AppWindow> app_window_;  // Owns us.
+  AppWindow* app_window_;  // Owns us.
   std::unique_ptr<AppBaseWindow> base_window_;
+
+  DISALLOW_COPY_AND_ASSIGN(AppWindowController);
 };
 
 }  // namespace extensions

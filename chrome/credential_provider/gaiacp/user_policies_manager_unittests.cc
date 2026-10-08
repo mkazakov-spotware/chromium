@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,7 @@ namespace testing {
 class GcpUserPoliciesBaseTest : public GlsRunnerTestBase {
  protected:
   void SetUp() override;
-  std::wstring CreateUser();
+  base::string16 CreateUser();
 };
 
 void GcpUserPoliciesBaseTest::SetUp() {
@@ -33,15 +33,15 @@ void GcpUserPoliciesBaseTest::SetUp() {
   FakesForTesting fakes;
   fakes.fake_win_http_url_fetcher_creator =
       fake_http_url_fetcher_factory()->GetCreatorCallback();
-  UserPoliciesManager::Get()->SetFakesForTesting(&fakes);
+  UserPoliciesManager::Get()->SetFakesForTesting(&fakes);  // IN-TEST
 }
 
-std::wstring GcpUserPoliciesBaseTest::CreateUser() {
+base::string16 GcpUserPoliciesBaseTest::CreateUser() {
   // Create a fake user associated to a gaia id.
   CComBSTR sid_str;
   EXPECT_EQ(S_OK, fake_os_user_manager()->CreateTestOSUser(
                       kDefaultUsername, L"password", L"Full Name", L"comment",
-                      base::UTF8ToWide(kDefaultGaiaId), L"user@company.com",
+                      base::UTF8ToUTF16(kDefaultGaiaId), L"user@company.com",
                       &sid_str));
   return OLE2W(sid_str);
 }
@@ -55,7 +55,7 @@ TEST_F(GcpUserPoliciesBaseTest, NonExistentUser) {
 }
 
 TEST_F(GcpUserPoliciesBaseTest, NoAccessToken) {
-  std::wstring sid = CreateUser();
+  base::string16 sid = CreateUser();
 
   ASSERT_TRUE(FAILED(
       UserPoliciesManager::Get()->FetchAndStoreCloudUserPolicies(sid, "")));
@@ -64,7 +64,7 @@ TEST_F(GcpUserPoliciesBaseTest, NoAccessToken) {
 }
 
 TEST_F(GcpUserPoliciesBaseTest, DetectMissingAndStalePolicies) {
-  std::wstring sid = CreateUser();
+  base::string16 sid = CreateUser();
   ASSERT_TRUE(UserPoliciesManager::Get()->IsUserPolicyStaleOrMissing(sid));
 
   UserPolicies policies;
@@ -83,7 +83,7 @@ TEST_F(GcpUserPoliciesBaseTest, DetectMissingAndStalePolicies) {
 
   ASSERT_FALSE(UserPoliciesManager::Get()->IsUserPolicyStaleOrMissing(sid));
 
-  std::wstring fetch_time_millis = base::NumberToWString(
+  base::string16 fetch_time_millis = base::NumberToString16(
       base::Time::Now().ToDeltaSinceWindowsEpoch().InMilliseconds() -
       kMaxTimeDeltaSinceLastUserPolicyRefresh.InMilliseconds() - 1);
 
@@ -110,7 +110,7 @@ class GcpUserPoliciesFetchAndReadTest
                          DWORD validity_days);
 
   UserPolicies policies_;
-  std::wstring sid_;
+  base::string16 sid_;
 };
 
 void GcpUserPoliciesFetchAndReadTest::SetUp() {
@@ -141,7 +141,7 @@ void GcpUserPoliciesFetchAndReadTest::SetRegistryValues(bool dm_enrollment,
   ASSERT_EQ(S_OK, SetGlobalFlagForTesting(kRegMdmSupportsMultiUser,
                                           multi_user ? 1 : 0));
   ASSERT_EQ(S_OK,
-            SetGlobalFlagForTesting(base::UTF8ToWide(kKeyValidityPeriodInDays),
+            SetGlobalFlagForTesting(base::UTF8ToUTF16(kKeyValidityPeriodInDays),
                                     validity_days));
 }
 
@@ -256,20 +256,20 @@ GcpUserPoliciesExtensionTest::GcpUserPoliciesExtensionTest() {
 }
 
 TEST_P(GcpUserPoliciesExtensionTest, WithUserDeviceContext) {
-  const std::wstring device_resource_id(std::get<0>(GetParam()));
+  const base::string16 device_resource_id(std::get<0>(GetParam()));
   bool has_valid_sid = std::get<1>(GetParam());
-  const std::wstring dm_token(std::get<2>(GetParam()));
+  const base::string16 dm_token(std::get<2>(GetParam()));
 
   const bool request_can_succeed =
       has_valid_sid && !device_resource_id.empty() && !dm_token.empty();
 
-  std::wstring user_sid = L"invalid-user-sid";
+  base::string16 user_sid = L"invalid-user-sid";
   if (has_valid_sid) {
     // Create a fake user associated to a gaia id.
     CComBSTR sid_str;
     ASSERT_EQ(S_OK, fake_os_user_manager()->CreateTestOSUser(
                         kDefaultUsername, L"password", L"Full Name", L"comment",
-                        base::UTF8ToWide(kDefaultGaiaId), L"user@company.com",
+                        base::UTF8ToUTF16(kDefaultGaiaId), L"user@company.com",
                         &sid_str));
     user_sid = OLE2W(sid_str);
   }
@@ -290,9 +290,9 @@ TEST_P(GcpUserPoliciesExtensionTest, WithUserDeviceContext) {
     ASSERT_TRUE(user_policies_url.is_valid());
     ASSERT_NE(std::string::npos, user_policies_url.spec().find(kDefaultGaiaId));
     ASSERT_NE(std::string::npos, user_policies_url.spec().find(
-                                     base::WideToUTF8(device_resource_id)));
+                                     base::UTF16ToUTF8(device_resource_id)));
     ASSERT_NE(std::string::npos,
-              user_policies_url.spec().find(base::WideToUTF8(dm_token)));
+              user_policies_url.spec().find(base::UTF16ToUTF8(dm_token)));
   } else {
     ASSERT_FALSE(user_policies_url.is_valid());
   }
@@ -330,17 +330,17 @@ INSTANTIATE_TEST_SUITE_P(
                        ::testing::Bool(),
                        ::testing::Values(L"", L"valid-dm-token")));
 
-// Test to verify cloud policies can be disabled from registry.
+// Test to verify automatic enabling of cloud policies when DM token is present.
 // Parameters:
 // string : Value of DM Token on the device.
 // int : 0 - Cloud policies disabled through registry.
 //       1 - Cloud policies enabled through registry.
 //       2 - Cloud policies registry flag not set.
-class GcpUserPoliciesDisableFromRegistryTest
+class GcpUserPoliciesEnableOnDmTokenTest
     : public GcpUserPoliciesBaseTest,
       public ::testing::WithParamInterface<std::tuple<const char*, int>> {};
 
-TEST_P(GcpUserPoliciesDisableFromRegistryTest, DisableIfSet) {
+TEST_P(GcpUserPoliciesEnableOnDmTokenTest, EnableIfFound) {
   std::string dm_token(std::get<0>(GetParam()));
   int reg_enable_cloud_policies = std::get<1>(GetParam());
 
@@ -356,9 +356,10 @@ TEST_P(GcpUserPoliciesDisableFromRegistryTest, DisableIfSet) {
   // UserDeviceManager in each test.
   FakeUserPoliciesManager fake_user_policies_manager;
 
-  // Feature is enabled if it's explicitly enabled or if the flag is not set
-  // whether a valid DM token exists or not.
-  if (reg_enable_cloud_policies == 1 || reg_enable_cloud_policies == 2) {
+  // Feature is enabled if it's explicitly enabled or if the flag is not set and
+  // a valid DM token exists.
+  if (reg_enable_cloud_policies == 1 ||
+      (reg_enable_cloud_policies == 2 && !dm_token.empty())) {
     ASSERT_TRUE(UserPoliciesManager::Get()->CloudPoliciesEnabled());
   } else {
     ASSERT_FALSE(UserPoliciesManager::Get()->CloudPoliciesEnabled());
@@ -366,7 +367,7 @@ TEST_P(GcpUserPoliciesDisableFromRegistryTest, DisableIfSet) {
 }
 
 INSTANTIATE_TEST_SUITE_P(All,
-                         GcpUserPoliciesDisableFromRegistryTest,
+                         GcpUserPoliciesEnableOnDmTokenTest,
                          ::testing::Combine(::testing::Values("", "dm-token"),
                                             ::testing::Values(0, 1, 2)));
 

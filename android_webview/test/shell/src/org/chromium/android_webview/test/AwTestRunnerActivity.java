@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,6 @@ import org.chromium.base.StrictModeContext;
  * This is a lightweight activity for tests that only require WebView functionality.
  */
 public class AwTestRunnerActivity extends Activity {
-    public static final String FLAG_HIDE_ACTION_BAR = "hide_action_bar";
 
     private LinearLayout mLinearLayout;
     private Intent mLastSentIntent;
@@ -30,7 +29,7 @@ public class AwTestRunnerActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         AwShellResourceProvider.registerResources(this);
-        try (StrictModeContext ignored = StrictModeContext.allowDiskReads()) {
+        try (StrictModeContext ctx = StrictModeContext.allowDiskReads()) {
             AwBrowserProcess.loadLibrary(null);
         }
 
@@ -40,22 +39,7 @@ public class AwTestRunnerActivity extends Activity {
         mLinearLayout.setLayoutParams(new LayoutParams(LayoutParams.MATCH_PARENT,
                 LayoutParams.MATCH_PARENT));
 
-        hideActionBarIfNecessary();
-
         setContentView(mLinearLayout);
-    }
-
-    private void hideActionBarIfNecessary() {
-        Intent intent = getIntent();
-        if (intent == null) return;
-        Bundle extras = intent.getExtras();
-        if (extras == null) return;
-        Boolean hideActionBar = extras.getBoolean(FLAG_HIDE_ACTION_BAR);
-        if (hideActionBar == null || !hideActionBar) return;
-
-        // This should be called before setContentView in onCreate() to take an
-        // effect.
-        getActionBar().hide();
     }
 
     public int getRootLayoutWidth() {

@@ -7,11 +7,9 @@
 
 /*
  * Standard styling for a goog.ui.PopupDatePicker.
+ *
+ * @provide {goog.css.popupdatepicker}
  */
-
-@provide 'goog.css.popupdatepicker';
-
-@require './datepicker';
 
 .goog-date-picker {
   position: absolute;

@@ -48,6 +48,14 @@ void DecodedDataDocumentParser::SetDecoder(
   decoder_ = std::move(decoder);
 }
 
+TextResourceDecoder* DecodedDataDocumentParser::Decoder() {
+  return decoder_.get();
+}
+
+std::unique_ptr<TextResourceDecoder> DecodedDataDocumentParser::TakeDecoder() {
+  return std::move(decoder_);
+}
+
 void DecodedDataDocumentParser::AppendBytes(const char* data, size_t length) {
   TRACE_EVENT0("loading", "DecodedDataDocumentParser::AppendBytes");
   if (!length)
@@ -79,24 +87,15 @@ void DecodedDataDocumentParser::Flush() {
   UpdateDocument(remaining_data);
 }
 
-void DecodedDataDocumentParser::AppendDecodedData(
-    const String& data,
-    const DocumentEncodingData& encoding_data) {
-  if (IsDetached())
-    return;
-
+void DecodedDataDocumentParser::UpdateDocument(String& decoded_data) {
   // A Document created from XSLT may have changed the encoding of the data
   // before feeding it to the parser, so don't overwrite the encoding data XSLT
   // provided about the original encoding.
   if (!DocumentXSLT::HasTransformSourceDocument(*GetDocument()))
-    GetDocument()->SetEncodingData(encoding_data);
+    GetDocument()->SetEncodingData(DocumentEncodingData(*decoder_.get()));
 
-  if (!data.empty())
-    Append(data);
-}
-
-void DecodedDataDocumentParser::UpdateDocument(const String& decoded_data) {
-  AppendDecodedData(decoded_data, DocumentEncodingData(*decoder_.get()));
+  if (!decoded_data.IsEmpty())
+    Append(decoded_data);
 }
 
 }  // namespace blink

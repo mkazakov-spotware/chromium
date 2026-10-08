@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
+#include "base/time/time.h"
 #include "net/base/backoff_entry.h"
 #include "net/base/net_export.h"
 #include "net/base/rand_callback.h"
@@ -40,9 +40,6 @@ class NET_EXPORT ReportingContext {
       URLRequestContext* request_context,
       ReportingCache::PersistentReportingStore* store);
 
-  ReportingContext(const ReportingContext&) = delete;
-  ReportingContext& operator=(const ReportingContext&) = delete;
-
   ~ReportingContext();
 
   const ReportingPolicy& policy() const { return policy_; }
@@ -62,11 +59,7 @@ class NET_EXPORT ReportingContext {
   void RemoveCacheObserver(ReportingCacheObserver* observer);
 
   void NotifyCachedReportsUpdated();
-  void NotifyReportAdded(const ReportingReport* report);
-  void NotifyReportUpdated(const ReportingReport* report);
   void NotifyCachedClientsUpdated();
-  void NotifyEndpointsUpdatedForOrigin(
-      const std::vector<ReportingEndpoint>& endpoints);
 
   // Returns whether the data in the cache is persisted across restarts in the
   // PersistentReportingStore.
@@ -87,8 +80,8 @@ class NET_EXPORT ReportingContext {
  private:
   ReportingPolicy policy_;
 
-  raw_ptr<base::Clock> clock_;
-  raw_ptr<const base::TickClock> tick_clock_;
+  base::Clock* clock_;
+  const base::TickClock* tick_clock_;
   std::unique_ptr<ReportingUploader> uploader_;
 
   base::ObserverList<ReportingCacheObserver, /* check_empty= */ true>::Unchecked
@@ -98,7 +91,7 @@ class NET_EXPORT ReportingContext {
 
   std::unique_ptr<ReportingCache> cache_;
 
-  const raw_ptr<ReportingCache::PersistentReportingStore> store_;
+  ReportingCache::PersistentReportingStore* const store_;
 
   // |delivery_agent_| must come after |tick_clock_|, |delegate_|, |uploader_|,
   // and |cache_|.
@@ -109,6 +102,8 @@ class NET_EXPORT ReportingContext {
 
   // |network_change_observer_| must come after |cache_|.
   std::unique_ptr<ReportingNetworkChangeObserver> network_change_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(ReportingContext);
 };
 
 }  // namespace net

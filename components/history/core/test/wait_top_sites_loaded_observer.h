@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_HISTORY_CORE_TEST_WAIT_TOP_SITES_LOADED_OBSERVER_H_
 #define COMPONENTS_HISTORY_CORE_TEST_WAIT_TOP_SITES_LOADED_OBSERVER_H_
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
 #include "components/history/core/browser/top_sites_observer.h"
@@ -17,11 +18,6 @@ class TopSites;
 class WaitTopSitesLoadedObserver : public TopSitesObserver {
  public:
   explicit WaitTopSitesLoadedObserver(scoped_refptr<TopSites> top_sites);
-
-  WaitTopSitesLoadedObserver(const WaitTopSitesLoadedObserver&) = delete;
-  WaitTopSitesLoadedObserver& operator=(const WaitTopSitesLoadedObserver&) =
-      delete;
-
   ~WaitTopSitesLoadedObserver() override;
 
   // Wait until TopSites has finished loading. Returns immediately if it has
@@ -36,6 +32,8 @@ class WaitTopSitesLoadedObserver : public TopSitesObserver {
 
   scoped_refptr<TopSites> top_sites_;
   base::RunLoop run_loop_;
+
+  DISALLOW_COPY_AND_ASSIGN(WaitTopSitesLoadedObserver);
 };
 
 }  // namespace history

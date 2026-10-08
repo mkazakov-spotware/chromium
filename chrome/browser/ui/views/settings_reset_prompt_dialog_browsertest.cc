@@ -1,8 +1,6 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "chrome/browser/ui/views/settings_reset_prompt_dialog.h"
 
 #include <algorithm>
 #include <initializer_list>
@@ -14,7 +12,7 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "chrome/browser/profile_resetter/brandcoded_default_settings.h"
@@ -26,6 +24,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
+#include "chrome/browser/ui/views/settings_reset_prompt_dialog.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -71,12 +70,12 @@ class MockSettingsResetPromptModel
             profile,
             std::make_unique<NiceMock<MockSettingsResetPromptConfig>>(),
             std::make_unique<NiceMock<MockProfileResetter>>(profile)) {
-    EXPECT_LE(params.startup_pages, std::size(kStartupUrls));
+    EXPECT_LE(params.startup_pages, base::size(kStartupUrls));
 
     // Set up startup URLs to be returned by member functions based on the
     // constructor arguments.
     for (size_t i = 0;
-         i < std::min(std::size(kStartupUrls), params.startup_pages); ++i) {
+         i < std::min(base::size(kStartupUrls), params.startup_pages); ++i) {
       startup_urls_.push_back(GURL(kStartupUrls[i]));
     }
 
@@ -110,11 +109,6 @@ class MockSettingsResetPromptModel
                        ? RESET_REQUIRED
                        : NO_RESET_REQUIRED_DUE_TO_DOMAIN_NOT_MATCHED));
   }
-
-  MockSettingsResetPromptModel(const MockSettingsResetPromptModel&) = delete;
-  MockSettingsResetPromptModel& operator=(const MockSettingsResetPromptModel&) =
-      delete;
-
   ~MockSettingsResetPromptModel() override {}
 
   void PerformReset(std::unique_ptr<BrandcodedDefaultSettings> default_settings,
@@ -136,6 +130,8 @@ class MockSettingsResetPromptModel
  private:
   std::vector<GURL> startup_urls_;
   std::vector<GURL> startup_urls_to_reset_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockSettingsResetPromptModel);
 };
 
 class SettingsResetPromptDialogTest : public DialogBrowserTest {
@@ -192,7 +188,7 @@ class SettingsResetPromptDialogCloseTest : public DialogBrowserTest {
   void DismissUi() override { dialog_->Close(); }
 
  private:
-  raw_ptr<SettingsResetPromptDialog> dialog_ = nullptr;
+  SettingsResetPromptDialog* dialog_ = nullptr;
 };
 
 IN_PROC_BROWSER_TEST_F(SettingsResetPromptDialogCloseTest,

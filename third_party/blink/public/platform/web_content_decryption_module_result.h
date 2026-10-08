@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ class ContentDecryptionModuleResult;
 class WebContentDecryptionModule;
 class WebString;
 
-class BLINK_PLATFORM_EXPORT WebContentDecryptionModuleResult {
+class WebContentDecryptionModuleResult {
  public:
   enum SessionStatus {
     // New session has been initialized.
@@ -44,29 +44,33 @@ class BLINK_PLATFORM_EXPORT WebContentDecryptionModuleResult {
 
   // Called when the CDM completes an operation and has no additional data to
   // pass back.
-  void Complete();
+  BLINK_PLATFORM_EXPORT void Complete();
 
   // Called when a CDM is created.
-  void CompleteWithContentDecryptionModule(WebContentDecryptionModule*);
+  BLINK_PLATFORM_EXPORT void CompleteWithContentDecryptionModule(
+      WebContentDecryptionModule*);
 
   // Called when the CDM completes a session operation.
-  void CompleteWithSession(SessionStatus);
+  BLINK_PLATFORM_EXPORT void CompleteWithSession(SessionStatus);
 
   // Called when the CDM completes getting key status for policy.
-  void CompleteWithKeyStatus(WebEncryptedMediaKeyInformation::KeyStatus);
+  BLINK_PLATFORM_EXPORT void CompleteWithKeyStatus(
+      WebEncryptedMediaKeyInformation::KeyStatus);
 
   // Called when the operation fails.
-  void CompleteWithError(WebContentDecryptionModuleException,
-                         uint32_t system_code,
-                         const WebString& message);
+  BLINK_PLATFORM_EXPORT void CompleteWithError(
+      WebContentDecryptionModuleException,
+      uint32_t system_code,
+      const WebString& message);
 
 #if INSIDE_BLINK
-  explicit WebContentDecryptionModuleResult(ContentDecryptionModuleResult*);
+  BLINK_PLATFORM_EXPORT explicit WebContentDecryptionModuleResult(
+      ContentDecryptionModuleResult*);
 #endif
 
  private:
-  void Reset();
-  void Assign(const WebContentDecryptionModuleResult&);
+  BLINK_PLATFORM_EXPORT void Reset();
+  BLINK_PLATFORM_EXPORT void Assign(const WebContentDecryptionModuleResult&);
 
   WebPrivatePtr<ContentDecryptionModuleResult,
                 kWebPrivatePtrDestructionCrossThread>
@@ -75,4 +79,4 @@ class BLINK_PLATFORM_EXPORT WebContentDecryptionModuleResult {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_CONTENT_DECRYPTION_MODULE_RESULT_H_
+#endif  // WebContentDecryptionModuleSession_h

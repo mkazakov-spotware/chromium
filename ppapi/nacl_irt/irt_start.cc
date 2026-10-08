@@ -1,6 +1,12 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+#include "build/build_config.h"
+
+// We need nacl_irt_start injection in SFI mode. Non-SFI has a different
+// start up procedure so we just exclude it.
+#if defined(OS_NACL_SFI)
 
 #include <stdint.h>
 
@@ -34,3 +40,5 @@ void nacl_irt_start(uint32_t* info) {
 
   nacl_irt_enter_user_code(info, chrome_irt_query);
 }
+
+#endif  // defined(OS_NACL_SFI)

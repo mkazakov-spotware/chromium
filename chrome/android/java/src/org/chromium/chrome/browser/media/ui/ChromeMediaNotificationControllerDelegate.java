@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,6 @@ import androidx.annotation.VisibleForTesting;
 import androidx.mediarouter.media.MediaRouter;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.base.SplitCompatService;
 import org.chromium.chrome.browser.notifications.NotificationConstants;
@@ -147,8 +146,7 @@ class ChromeMediaNotificationControllerDelegate implements MediaNotificationCont
         public void onCreate() {
             super.onCreate();
             IntentFilter filter = new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY);
-            ContextUtils.registerProtectedBroadcastReceiver(
-                    getService(), mAudioBecomingNoisyReceiver, filter);
+            getService().registerReceiver(mAudioBecomingNoisyReceiver, filter);
         }
 
         @Override
@@ -167,19 +165,7 @@ class ChromeMediaNotificationControllerDelegate implements MediaNotificationCont
                 Intent i = new Intent(getContext(),
                         ChromeMediaNotificationControllerServices.PlaybackListenerService.class);
                 i.setAction(intent.getAction());
-                boolean succeeded = true;
-                try {
-                    getContext().startService(i);
-                } catch (RuntimeException e) {
-                    // This happens occasionally with "cannot start foreground service".  It's not
-                    // at all clear what causes it; no combination of multi-window / background
-                    // unplugging headphones has managed to repro it locally.  While it might be
-                    // possible to trampoline this through an activity like we do elsewhere for
-                    // notifications, that's a fairly invasive change without a local repro.  So,
-                    // for now, just log that this happened and move on. https://crbug.com/1245017
-                    succeeded = false;
-                }
-                RecordHistogram.recordBooleanHistogram("Media.Android.BecomingNoisy", succeeded);
+                getContext().startService(i);
             }
         };
     }
@@ -238,9 +224,16 @@ class ChromeMediaNotificationControllerDelegate implements MediaNotificationCont
 
     @Override
     public void onMediaSessionUpdated(MediaSessionCompat session) {
-        // Tell the MediaRouter about the session, so that Chrome can control the volume
-        // on the remote cast device (if any).
-        MediaRouter.getInstance(getContext()).setMediaSessionCompat(session);
+        try {
+            // Tell the MediaRouter about the session, so that Chrome can control the volume
+            // on the remote cast device (if any).
+            // Pre-MR1 versions of JB do not have the complete MediaRouter APIs,
+            // so getting the MediaRouter instance will throw an exception.
+            MediaRouter.getInstance(getContext()).setMediaSessionCompat(session);
+        } catch (NoSuchMethodError e) {
+            // Do nothing. Chrome can't be casting without a MediaRouter, so there is nothing
+            // to do here.
+        }
     }
 
     @Override
@@ -255,7 +248,8 @@ class ChromeMediaNotificationControllerDelegate implements MediaNotificationCont
                 new NotificationMetadata(NotificationUmaTracker.SystemNotificationType.MEDIA,
                         null /* notificationTag */, notificationId);
         return NotificationWrapperBuilderFactory.createNotificationWrapperBuilder(
-                ChromeChannelDefinitions.ChannelId.MEDIA_PLAYBACK, metadata);
+                true /* preferCompat */, ChromeChannelDefinitions.ChannelId.MEDIA_PLAYBACK,
+                null /* remoteAppPackageName*/, metadata);
     }
 
     private static Context getContext() {

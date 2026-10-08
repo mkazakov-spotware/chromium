@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,46 +14,41 @@
 
 namespace {
 
-// Obsolete-system checks get the system version from kernel32.dll's version, to
-// avoid getting an incorrect version reported by App Compatibility mode. This
-// prevents obsolete-system warnings from appearing when Chrome is run in
-// compatibility mode on modern versions of Windows.
-base::win::Version GetRealOSVersion() {
-  return base::win::OSInfo::GetInstance()->Kernel32Version();
+bool IsObsoleteOsVersion() {
+  return base::win::GetVersion() < base::win::Version::WIN7;
 }
 
-bool IsObsoleteOsVersion() {
-  return GetRealOSVersion() < base::win::Version::WIN10;
+bool IsObsoleteCpu() {
+#if defined(ARCH_CPU_X86_FAMILY)
+  return !base::CPU().has_sse3();
+#else
+  return false;
+#endif
 }
 
 }  // namespace
 
 // static
 bool ObsoleteSystem::IsObsoleteNowOrSoon() {
-  return IsObsoleteOsVersion();
+  return IsObsoleteCpu() || IsObsoleteOsVersion();
 }
 
 // static
-std::u16string ObsoleteSystem::LocalizedObsoleteString() {
-  const auto version = GetRealOSVersion();
-  if (version == base::win::Version::WIN7)
-    return l10n_util::GetStringUTF16(IDS_WIN_7_OBSOLETE);
-  if (version == base::win::Version::WIN8)
-    return l10n_util::GetStringUTF16(IDS_WIN_8_OBSOLETE);
-  if (version == base::win::Version::WIN8_1)
-    return l10n_util::GetStringUTF16(IDS_WIN_8_1_OBSOLETE);
-  return l10n_util::GetStringUTF16(IDS_WIN_XP_VISTA_OBSOLETE);
+base::string16 ObsoleteSystem::LocalizedObsoleteString() {
+  // We check for an obsolete CPU first so that we don't nudge users through
+  // an OS upgrade, only to find out that they need a new computer anyway.
+  return IsObsoleteCpu()
+             ? l10n_util::GetStringUTF16(IDS_CPU_X86_SSE2_OBSOLETE_SOON)
+             : l10n_util::GetStringUTF16(IDS_WIN_XP_VISTA_OBSOLETE);
 }
 
 // static
 bool ObsoleteSystem::IsEndOfTheLine() {
-  return true;
+  return IsObsoleteCpu() ? CHROME_VERSION_MAJOR >= 88 : true;
 }
 
 // static
 const char* ObsoleteSystem::GetLinkURL() {
-  const auto version = GetRealOSVersion();
-  if (version < base::win::Version::WIN7)
-    return chrome::kWindowsXPVistaDeprecationURL;
-  return chrome::kWindows78DeprecationURL;
+  return IsObsoleteCpu() ? chrome::kCpuX86Sse2ObsoleteURL
+                         : chrome::kWindowsXPVistaDeprecationURL;
 }

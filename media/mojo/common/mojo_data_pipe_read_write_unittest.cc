@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/test/mock_callback.h"
 #include "base/test/task_environment.h"
@@ -25,14 +26,12 @@ class MojoDataPipeReadWrite {
  public:
   MojoDataPipeReadWrite(
       uint32_t data_pipe_capacity_bytes = kDefaultDataPipeCapacityBytes) {
-    mojo::ScopedDataPipeProducerHandle producer_handle;
-    mojo::ScopedDataPipeConsumerHandle consumer_handle;
-    CHECK_EQ(mojo::CreateDataPipe(data_pipe_capacity_bytes, producer_handle,
-                                  consumer_handle),
-             MOJO_RESULT_OK);
+    mojo::DataPipe data_pipe(data_pipe_capacity_bytes);
 
-    writer_ = std::make_unique<MojoDataPipeWriter>(std::move(producer_handle));
-    reader_ = std::make_unique<MojoDataPipeReader>(std::move(consumer_handle));
+    writer_ = std::make_unique<MojoDataPipeWriter>(
+        std::move(data_pipe.producer_handle));
+    reader_ = std::make_unique<MojoDataPipeReader>(
+        std::move(data_pipe.consumer_handle));
   }
 
   void WriteAndRead(const uint8_t* buffer,

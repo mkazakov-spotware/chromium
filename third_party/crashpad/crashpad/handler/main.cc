@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,17 +17,17 @@
 #include "build/build_config.h"
 #include "tools/tool_support.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #endif
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 
 int main(int argc, char* argv[]) {
   return crashpad::HandlerMain(argc, argv, nullptr);
 }
 
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 
 namespace {
 
@@ -50,4 +50,4 @@ int wmain(int argc, wchar_t* argv[]) {
   return crashpad::ToolSupport::Wmain(argc, argv, HandlerMainAdaptor);
 }
 
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX

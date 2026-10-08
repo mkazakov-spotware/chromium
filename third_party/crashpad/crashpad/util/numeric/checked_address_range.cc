@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,17 +17,16 @@
 #include "base/check_op.h"
 #include "base/format_macros.h"
 #include "base/strings/stringprintf.h"
-#include "build/build_config.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include <mach/mach.h>
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include "util/win/address_types.h"
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 #include "util/linux/address_types.h"
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
 #include <zircon/types.h>
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // OS_APPLE
 
 namespace crashpad {
 namespace internal {
@@ -127,15 +126,15 @@ std::string CheckedAddressRangeGeneric<ValueType, SizeType>::AsString() const {
 }
 
 // Explicit instantiations for the cases we use.
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 template class CheckedAddressRangeGeneric<mach_vm_address_t, mach_vm_size_t>;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 template class CheckedAddressRangeGeneric<WinVMAddress, WinVMSize>;
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 template class CheckedAddressRangeGeneric<LinuxVMAddress, LinuxVMSize>;
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
 template class CheckedAddressRangeGeneric<zx_vaddr_t, size_t>;
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // OS_APPLE
 
 }  // namespace internal
 }  // namespace crashpad

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "base/optional.h"
 #include "chrome/services/ipp_parser/public/cpp/ipp_converter.h"
 #include "printing/backend/cups_ipp_helper.h"
 
@@ -29,12 +30,7 @@ struct IppRequest {
   // Explicitly declared/defined defaults since [chromium-style] flagged this as
   // a complex struct.
   IppRequest();
-
-  IppRequest(const IppRequest&) = delete;
-  IppRequest& operator=(const IppRequest&) = delete;
-
   IppRequest(IppRequest&& other);
-
   ~IppRequest();
 
   // Implicitly deleted by DISALLOW, so adding back in.
@@ -46,6 +42,8 @@ struct IppRequest {
   std::vector<ipp_converter::HttpHeader> headers;
   printing::ScopedIppPtr ipp;
   std::vector<uint8_t> ipp_data;
+
+  DISALLOW_COPY_AND_ASSIGN(IppRequest);
 };
 
 // Helpful wrapper for a HTTP Response status-line.
@@ -60,12 +58,7 @@ struct IppResponse {
   // Explicitly declared/defined defaults since [chromium-style] flagged this as
   // a complex struct.
   IppResponse();
-
-  IppResponse(const IppResponse&) = delete;
-  IppResponse& operator=(const IppResponse&) = delete;
-
   IppResponse(IppResponse&& other);
-
   ~IppResponse();
 
   // Implicitly deleted by DISALLOW, so adding back in.
@@ -77,6 +70,8 @@ struct IppResponse {
   std::vector<ipp_converter::HttpHeader> headers;
   printing::ScopedIppPtr ipp;
   std::vector<uint8_t> ipp_data;
+
+  DISALLOW_COPY_AND_ASSIGN(IppResponse);
 };
 
 }  // namespace cups_proxy

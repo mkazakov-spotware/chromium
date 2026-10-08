@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,8 +24,6 @@ class GLDisplayEglUtilOzone : public GLDisplayEglUtil {
       std::vector<EGLAttrib>* attributes) override;
   void ChoosePlatformCustomAlphaAndBufferSize(EGLint* alpha_size,
                                               EGLint* buffer_size) override;
-  absl::optional<base::ScopedEnvironmentVariableOverride>
-  MaybeGetScopedDisplayUnsetForVulkan() override;
 
  private:
   friend base::NoDestructor<GLDisplayEglUtilOzone>;

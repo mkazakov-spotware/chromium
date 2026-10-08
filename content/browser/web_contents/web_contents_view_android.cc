@@ -1,25 +1,22 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/web_contents/web_contents_view_android.h"
 
-#include <memory>
-#include <utility>
-
 #include "base/android/build_info.h"
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/check.h"
-#include "base/feature_list.h"
 #include "base/notreached.h"
+#include "base/optional.h"
 #include "cc/layers/layer.h"
 #include "content/browser/accessibility/browser_accessibility_manager_android.h"
 #include "content/browser/android/content_ui_event_handler.h"
-#include "content/browser/android/drop_data_android.h"
 #include "content/browser/android/gesture_listener_manager.h"
 #include "content/browser/android/select_popup.h"
 #include "content/browser/android/selection/selection_popup_controller.h"
+#include "content/browser/renderer_host/display_util.h"
 #include "content/browser/renderer_host/render_view_host_factory.h"
 #include "content/browser/renderer_host/render_view_host_impl.h"
 #include "content/browser/renderer_host/render_widget_host_view_android.h"
@@ -31,59 +28,36 @@
 #include "content/public/common/content_client.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/drop_data.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/android/overscroll_refresh_handler.h"
 #include "ui/base/clipboard/clipboard.h"
 #include "ui/base/clipboard/clipboard_constants.h"
-#include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
-#include "ui/display/display_util.h"
 #include "ui/display/screen.h"
 #include "ui/events/android/drag_event_android.h"
 #include "ui/events/android/gesture_event_android.h"
 #include "ui/events/android/key_event_android.h"
 #include "ui/events/android/motion_event_android.h"
 #include "ui/gfx/android/java_bitmap.h"
-#include "ui/gfx/android/view_configuration.h"
 #include "ui/gfx/image/image_skia.h"
 
 using base::android::AttachCurrentThread;
 using base::android::ConvertJavaStringToUTF16;
+using base::android::ConvertUTF16ToJavaString;
+using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
 
 namespace content {
 
 namespace {
 
-// Returns the minimum distance in DIPs, for drag event being considered as an
-// intentional drag.
-int DragMovementThresholdDip() {
-  static int radius = features::kTouchDragMovementThresholdDip.Get();
-  return radius;
-}
-
 // True if we want to disable Android native event batching and use
 // compositor event queue.
 bool ShouldRequestUnbufferedDispatch() {
   static bool should_request_unbuffered_dispatch =
+      base::FeatureList::IsEnabled(features::kRequestUnbufferedDispatch) &&
       base::android::BuildInfo::GetInstance()->sdk_int() >=
           base::android::SDK_VERSION_LOLLIPOP &&
       !content::GetContentClient()->UsingSynchronousCompositing();
   return should_request_unbuffered_dispatch;
-}
-
-bool IsDragAndDropEnabled() {
-  // Cache the feature flag value so it isn't queried on every drag start.
-  static const bool drag_feature_enabled =
-      base::FeatureList::IsEnabled(features::kTouchDragAndContextMenu);
-  return drag_feature_enabled;
-}
-
-bool IsDragEnabledForDropData(const DropData& drop_data) {
-  if (!IsDragAndDropEnabled()) {
-    return drop_data.text.has_value();
-  }
-  return !drop_data.url.is_empty() || !drop_data.file_contents.empty() ||
-         drop_data.text.has_value();
 }
 }
 
@@ -103,21 +77,21 @@ void SynchronousCompositor::SetClientForWebContents(
     rwhv->SetSynchronousCompositorClient(client);
 }
 
-std::unique_ptr<WebContentsView> CreateWebContentsView(
+WebContentsView* CreateWebContentsView(
     WebContentsImpl* web_contents,
-    std::unique_ptr<WebContentsViewDelegate> delegate,
+    WebContentsViewDelegate* delegate,
     RenderViewHostDelegateView** render_view_host_delegate_view) {
-  auto rv = std::make_unique<WebContentsViewAndroid>(web_contents,
-                                                     std::move(delegate));
-  *render_view_host_delegate_view = rv.get();
+  WebContentsViewAndroid* rv = new WebContentsViewAndroid(
+      web_contents, delegate);
+  *render_view_host_delegate_view = rv;
   return rv;
 }
 
 WebContentsViewAndroid::WebContentsViewAndroid(
     WebContentsImpl* web_contents,
-    std::unique_ptr<WebContentsViewDelegate> delegate)
+    WebContentsViewDelegate* delegate)
     : web_contents_(web_contents),
-      delegate_(std::move(delegate)),
+      delegate_(delegate),
       view_(ui::ViewAndroid::LayoutType::NORMAL),
       synchronous_compositor_client_(nullptr) {
   view_.SetLayer(cc::Layer::Create());
@@ -178,7 +152,7 @@ gfx::Rect WebContentsViewAndroid::GetContainerBounds() const {
   return GetViewBounds();
 }
 
-void WebContentsViewAndroid::SetPageTitle(const std::u16string& title) {
+void WebContentsViewAndroid::SetPageTitle(const base::string16& title) {
   // Do nothing.
 }
 
@@ -251,7 +225,7 @@ void WebContentsViewAndroid::RenderViewReady() {
     return;
   auto* rwhva = GetRenderWidgetHostViewAndroid();
   if (rwhva)
-    rwhva->UpdateScreenInfo();
+    rwhva->UpdateScreenInfo(GetNativeView());
 
   web_contents_->OnScreenOrientationChange();
 }
@@ -287,24 +261,14 @@ void WebContentsViewAndroid::SetFocus(bool focused) {
 void WebContentsViewAndroid::SetOverscrollControllerEnabled(bool enabled) {
 }
 
-void WebContentsViewAndroid::OnCapturerCountChanged() {}
-
-void WebContentsViewAndroid::FullscreenStateChanged(bool is_fullscreen) {
-  if (is_fullscreen && select_popup_)
-    select_popup_->HideMenu();
-}
-
-void WebContentsViewAndroid::ShowContextMenu(RenderFrameHost& render_frame_host,
-                                             const ContextMenuParams& params) {
-  if (is_active_drag_ && drag_exceeded_movement_threshold_)
-    return;
-
+void WebContentsViewAndroid::ShowContextMenu(
+    RenderFrameHost* render_frame_host, const ContextMenuParams& params) {
   auto* rwhv = static_cast<RenderWidgetHostViewAndroid*>(
       web_contents_->GetRenderWidgetHostView());
 
   // See if context menu is handled by SelectionController as a selection menu.
   // If not, use the delegate to show it.
-  if (rwhv && rwhv->ShowSelectionMenu(&render_frame_host, params))
+  if (rwhv && rwhv->ShowSelectionMenu(params))
     return;
 
   if (delegate_)
@@ -336,11 +300,10 @@ void WebContentsViewAndroid::StartDragging(
     const DropData& drop_data,
     blink::DragOperationsMask allowed_ops,
     const gfx::ImageSkia& image,
-    const gfx::Vector2d& cursor_offset,
-    const gfx::Rect& drag_obj_rect,
+    const gfx::Vector2d& image_offset,
     const blink::mojom::DragEventSourceInfo& event_info,
     RenderWidgetHostImpl* source_rwh) {
-  if (!IsDragEnabledForDropData(drop_data)) {
+  if (!drop_data.text) {
     // Need to clear drag and drop state in blink.
     OnSystemDragEnded();
     return;
@@ -366,12 +329,12 @@ void WebContentsViewAndroid::StartDragging(
     bitmap = &dummy_bitmap;
   }
 
-  // TODO(crbug.com/1302094): The params `cursor_offset` and `drag_obj_rect`
-  // are unused.
+  JNIEnv* env = AttachCurrentThread();
+  ScopedJavaLocalRef<jstring> jtext =
+      ConvertUTF16ToJavaString(env, *drop_data.text);
 
-  ScopedJavaLocalRef<jobject> jdrop_data = ToJavaDropData(drop_data);
-  if (!native_view->StartDragAndDrop(gfx::ConvertToJavaBitmap(*bitmap),
-                                     jdrop_data)) {
+  if (!native_view->StartDragAndDrop(jtext,
+                                     gfx::ConvertToJavaBitmap(*bitmap))) {
     // Need to clear drag and drop state in blink.
     OnSystemDragEnded();
     return;
@@ -386,7 +349,7 @@ void WebContentsViewAndroid::StartDragging(
   }
 }
 
-void WebContentsViewAndroid::UpdateDragCursor(ui::mojom::DragOperation op) {
+void WebContentsViewAndroid::UpdateDragCursor(blink::DragOperation op) {
   // Intentional no-op because Android does not have cursor.
 }
 
@@ -394,23 +357,23 @@ bool WebContentsViewAndroid::OnDragEvent(const ui::DragEventAndroid& event) {
   switch (event.action()) {
     case JNI_DragEvent::ACTION_DRAG_ENTERED: {
       std::vector<DropData::Metadata> metadata;
-      for (const std::u16string& mime_type : event.mime_types()) {
+      for (const base::string16& mime_type : event.mime_types()) {
         metadata.push_back(DropData::Metadata::CreateForMimeType(
             DropData::Kind::STRING, mime_type));
       }
-      OnDragEntered(metadata, event.location(), event.screen_location());
+      OnDragEntered(metadata, event.location_f(), event.screen_location_f());
       break;
     }
     case JNI_DragEvent::ACTION_DRAG_LOCATION:
-      OnDragUpdated(event.location(), event.screen_location());
+      OnDragUpdated(event.location_f(), event.screen_location_f());
       break;
     case JNI_DragEvent::ACTION_DROP: {
       DropData drop_data;
       drop_data.did_originate_from_renderer = false;
       JNIEnv* env = AttachCurrentThread();
-      std::u16string drop_content =
+      base::string16 drop_content =
           ConvertJavaStringToUTF16(env, event.GetJavaContent());
-      for (const std::u16string& mime_type : event.mime_types()) {
+      for (const base::string16& mime_type : event.mime_types()) {
         if (base::EqualsASCII(mime_type, ui::kMimeTypeURIList)) {
           drop_data.url = GURL(drop_content);
         } else if (base::EqualsASCII(mime_type, ui::kMimeTypeText)) {
@@ -420,7 +383,7 @@ bool WebContentsViewAndroid::OnDragEvent(const ui::DragEventAndroid& event) {
         }
       }
 
-      OnPerformDrop(&drop_data, event.location(), event.screen_location());
+      OnPerformDrop(&drop_data, event.location_f(), event.screen_location_f());
       break;
     }
     case JNI_DragEvent::ACTION_DRAG_EXITED:
@@ -436,9 +399,9 @@ bool WebContentsViewAndroid::OnDragEvent(const ui::DragEventAndroid& event) {
   return true;
 }
 
-// TODO(crbug.com/1301905): does not work for OOPIFs. The drag-and-drop calls
-// on GetRenderViewHost()->GetWidget() in the following functions will need to
-// be targeted to specific RenderWidgetHosts.
+// TODO(paulmeyer): The drag-and-drop calls on GetRenderViewHost()->GetWidget()
+// in the following functions will need to be targeted to specific
+// RenderWidgetHosts in order to work with OOPIFs. See crbug.com/647249.
 
 void WebContentsViewAndroid::OnDragEntered(
     const std::vector<DropData::Metadata>& metadata,
@@ -447,10 +410,9 @@ void WebContentsViewAndroid::OnDragEntered(
   blink::DragOperationsMask allowed_ops =
       static_cast<blink::DragOperationsMask>(blink::kDragOperationCopy |
                                              blink::kDragOperationMove);
-  web_contents_->GetRenderViewHost()
-      ->GetWidget()
-      ->DragTargetDragEnterWithMetaData(metadata, location, screen_location,
-                                        allowed_ops, 0, base::DoNothing());
+  web_contents_->GetRenderViewHost()->GetWidget()->
+      DragTargetDragEnterWithMetaData(metadata, location, screen_location,
+                                      allowed_ops, 0);
 }
 
 void WebContentsViewAndroid::OnDragUpdated(const gfx::PointF& location,
@@ -458,29 +420,11 @@ void WebContentsViewAndroid::OnDragUpdated(const gfx::PointF& location,
   drag_location_ = location;
   drag_screen_location_ = screen_location;
 
-  // When drag and drop is enabled, attempt to dismiss the context menu if drag
-  // leaves start location.
-  if (IsDragAndDropEnabled()) {
-    // On Android DragEvent.ACTION_DRAG_ENTER does not have a valid location.
-    // See https://developer.android.com/guide/topics/ui/drag-drop#table2.
-    if (!is_active_drag_) {
-      is_active_drag_ = true;
-      drag_entered_location_ = location;
-    } else if (!drag_exceeded_movement_threshold_) {
-      int radius = DragMovementThresholdDip();
-      if (!drag_location_.IsWithinDistance(drag_entered_location_, radius)) {
-        drag_exceeded_movement_threshold_ = true;
-        if (delegate_)
-          delegate_->DismissContextMenu();
-      }
-    }
-  }
-
   blink::DragOperationsMask allowed_ops =
       static_cast<blink::DragOperationsMask>(blink::kDragOperationCopy |
                                              blink::kDragOperationMove);
   web_contents_->GetRenderViewHost()->GetWidget()->DragTargetDragOver(
-      location, screen_location, allowed_ops, 0, base::DoNothing());
+      location, screen_location, allowed_ops, 0);
 }
 
 void WebContentsViewAndroid::OnDragExited() {
@@ -494,7 +438,7 @@ void WebContentsViewAndroid::OnPerformDrop(DropData* drop_data,
   web_contents_->Focus();
   web_contents_->GetRenderViewHost()->GetWidget()->FilterDropData(drop_data);
   web_contents_->GetRenderViewHost()->GetWidget()->DragTargetDrop(
-      *drop_data, location, screen_location, 0, base::DoNothing());
+      *drop_data, location, screen_location, 0);
 }
 
 void WebContentsViewAndroid::OnSystemDragEnded() {
@@ -511,13 +455,9 @@ void WebContentsViewAndroid::OnSystemDragEnded() {
 
 void WebContentsViewAndroid::OnDragEnded() {
   web_contents_->GetRenderViewHost()->GetWidget()->DragSourceEndedAt(
-      drag_location_, drag_screen_location_, ui::mojom::DragOperation::kNone,
-      base::DoNothing());
+      drag_location_, drag_screen_location_, blink::kDragOperationNone);
   OnSystemDragEnded();
 
-  is_active_drag_ = false;
-  drag_exceeded_movement_threshold_ = false;
-  drag_entered_location_ = gfx::PointF();
   drag_location_ = gfx::PointF();
   drag_screen_location_ = gfx::PointF();
 }
@@ -635,12 +575,12 @@ void WebContentsViewAndroid::OnSizeChanged() {
   if (rwhv) {
     web_contents_->SendScreenRects();
     rwhv->SynchronizeVisualProperties(cc::DeadlinePolicy::UseDefaultDeadline(),
-                                      absl::nullopt);
+                                      base::nullopt);
   }
 }
 
 void WebContentsViewAndroid::OnPhysicalBackingSizeChanged(
-    absl::optional<base::TimeDelta> deadline_override) {
+    base::Optional<base::TimeDelta> deadline_override) {
   if (web_contents_->GetRenderWidgetHostView())
     web_contents_->SendScreenRects();
 }
@@ -649,14 +589,14 @@ void WebContentsViewAndroid::OnBrowserControlsHeightChanged() {
   auto* rwhv = GetRenderWidgetHostViewAndroid();
   if (rwhv)
     rwhv->SynchronizeVisualProperties(cc::DeadlinePolicy::UseDefaultDeadline(),
-                                      absl::nullopt);
+                                      base::nullopt);
 }
 
 void WebContentsViewAndroid::OnControlsResizeViewChanged() {
   auto* rwhv = GetRenderWidgetHostViewAndroid();
   if (rwhv)
     rwhv->SynchronizeVisualProperties(cc::DeadlinePolicy::UseDefaultDeadline(),
-                                      absl::nullopt);
+                                      base::nullopt);
 }
 
 void WebContentsViewAndroid::NotifyVirtualKeyboardOverlayRect(

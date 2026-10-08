@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "base/files/file.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
@@ -18,9 +19,9 @@
 #include "extensions/common/api/file_system.h"
 #include "ui/shell_dialogs/select_file_dialog.h"
 
-#if BUILDFLAG(IS_CHROMEOS)
-#include "extensions/browser/api/file_system/consent_provider.h"
-#endif  // BUILDFLAG(IS_CHROMEOS)
+namespace content {
+class WebContents;
+}  // namespace content
 
 namespace extensions {
 class ExtensionPrefs;
@@ -47,14 +48,15 @@ class FileSystemGetDisplayPathFunction : public ExtensionFunction {
                              FILESYSTEM_GETDISPLAYPATH)
 
  protected:
-  ~FileSystemGetDisplayPathFunction() override;
+  ~FileSystemGetDisplayPathFunction() override {}
   ResponseAction Run() override;
 };
 
 class FileSystemEntryFunction : public ExtensionFunction {
  protected:
   FileSystemEntryFunction();
-  ~FileSystemEntryFunction() override;
+
+  ~FileSystemEntryFunction() override {}
 
   // This is called when writable file entries are being returned. The function
   // will ensure the files exist, creating them if necessary, and also check
@@ -69,21 +71,21 @@ class FileSystemEntryFunction : public ExtensionFunction {
       const std::vector<base::FilePath>& path);
 
   // Creates a result dictionary.
-  base::Value::Dict CreateResult();
+  std::unique_ptr<base::DictionaryValue> CreateResult();
 
   // Adds an entry to the result dictionary.
   void AddEntryToResult(const base::FilePath& path,
                         const std::string& id_override,
-                        base::Value::Dict& result);
+                        base::DictionaryValue* result);
 
   // called on the UI thread if there is a problem checking a writable file.
   void HandleWritableFileError(const base::FilePath& error_path);
 
   // Whether multiple entries have been requested.
-  bool multiple_ = false;
+  bool multiple_;
 
   // Whether a directory has been requested.
-  bool is_directory_ = false;
+  bool is_directory_;
 };
 
 class FileSystemGetWritableEntryFunction : public FileSystemEntryFunction {
@@ -92,7 +94,7 @@ class FileSystemGetWritableEntryFunction : public FileSystemEntryFunction {
                              FILESYSTEM_GETWRITABLEENTRY)
 
  protected:
-  ~FileSystemGetWritableEntryFunction() override;
+  ~FileSystemGetWritableEntryFunction() override {}
   ResponseAction Run() override;
 
  private:
@@ -109,60 +111,23 @@ class FileSystemIsWritableEntryFunction : public ExtensionFunction {
                              FILESYSTEM_ISWRITABLEENTRY)
 
  protected:
-  ~FileSystemIsWritableEntryFunction() override;
+  ~FileSystemIsWritableEntryFunction() override {}
   ResponseAction Run() override;
 };
 
 class FileSystemChooseEntryFunction : public FileSystemEntryFunction {
  public:
-  class SkipPickerBaseForTest {
-   protected:
-    SkipPickerBaseForTest();
-    ~SkipPickerBaseForTest();
-
-   private:
-    // Nested pickers are not allowed, so track the singleton
-    // instance.
-    static SkipPickerBaseForTest* g_picker;
-  };
-
-  // Various classes to to allow the picker UI to be skipped in testing.
-  // Upon destruction, the affected global variables are reset to their
-  // default values;
-  class SkipPickerAndAlwaysSelectPathForTest : public SkipPickerBaseForTest {
-   public:
-    explicit SkipPickerAndAlwaysSelectPathForTest(
-        const base::FilePath& path,
-        bool skip_dir_confirmation = false,
-        bool allow_directory_access = false);
-    ~SkipPickerAndAlwaysSelectPathForTest();
-
-   private:
-    const base::FilePath path_;
-  };
-
-  class SkipPickerAndAlwaysSelectPathsForTest : public SkipPickerBaseForTest {
-   public:
-    explicit SkipPickerAndAlwaysSelectPathsForTest(
-        const std::vector<base::FilePath>& paths);
-    ~SkipPickerAndAlwaysSelectPathsForTest();
-
-   private:
-    const std::vector<base::FilePath> paths_;
-  };
-
-  class SkipPickerAndSelectSuggestedPathForTest : public SkipPickerBaseForTest {
-   public:
-    SkipPickerAndSelectSuggestedPathForTest();
-    ~SkipPickerAndSelectSuggestedPathForTest() = default;
-  };
-
-  class SkipPickerAndAlwaysCancelForTest : public SkipPickerBaseForTest {
-   public:
-    SkipPickerAndAlwaysCancelForTest();
-    ~SkipPickerAndAlwaysCancelForTest();
-  };
-
+  // Allow picker UI to be skipped in testing.
+  static void SkipPickerAndAlwaysSelectPathForTest(base::FilePath* path);
+  static void SkipPickerAndAlwaysSelectPathsForTest(
+      std::vector<base::FilePath>* paths);
+  static void SkipPickerAndSelectSuggestedPathForTest();
+  static void SkipPickerAndAlwaysCancelForTest();
+  static void StopSkippingPickerForTest();
+  // Allow directory access confirmation UI to be skipped in testing.
+  static void SkipDirectoryConfirmationForTest();
+  static void AutoCancelDirectoryConfirmationForTest();
+  static void StopSkippingDirectoryConfirmationForTest();
   // Call this with the directory for test file paths. On Chrome OS, accessed
   // path needs to be explicitly registered for smooth integration with Google
   // Drive support.
@@ -170,33 +135,30 @@ class FileSystemChooseEntryFunction : public FileSystemEntryFunction {
                                                     const base::FilePath& path);
   DECLARE_EXTENSION_FUNCTION("fileSystem.chooseEntry", FILESYSTEM_CHOOSEENTRY)
 
-  using AcceptOptions = std::vector<api::file_system::AcceptOption>;
+  typedef std::vector<api::file_system::AcceptOption> AcceptOptions;
 
   static void BuildFileTypeInfo(
       ui::SelectFileDialog::FileTypeInfo* file_type_info,
       const base::FilePath::StringType& suggested_extension,
-      const absl::optional<AcceptOptions>& accepts,
-      const absl::optional<bool>& accepts_all_types);
-  static void BuildSuggestion(const absl::optional<std::string>& opt_name,
+      const AcceptOptions* accepts,
+      const bool* accepts_all_types);
+  static void BuildSuggestion(const std::string* opt_name,
                               base::FilePath* suggested_name,
                               base::FilePath::StringType* suggested_extension);
 
  protected:
-  ~FileSystemChooseEntryFunction() override;
+  ~FileSystemChooseEntryFunction() override {}
   ResponseAction Run() override;
+  void ShowPicker(const ui::SelectFileDialog::FileTypeInfo& file_type_info,
+                  ui::SelectFileDialog::Type picker_type);
 
  private:
-  void CalculateInitialPathAndShowPicker(
+  void SetInitialPathAndShowPicker(
       const base::FilePath& previous_path,
       const base::FilePath& suggested_name,
       const ui::SelectFileDialog::FileTypeInfo& file_type_info,
       ui::SelectFileDialog::Type picker_type,
       bool is_path_non_native_directory);
-  void ShowPicker(const ui::SelectFileDialog::FileTypeInfo& file_type_info,
-                  ui::SelectFileDialog::Type picker_type,
-                  const base::FilePath& initial_path);
-  void MaybeUseManagedSavePath(base::OnceClosure fallback_file_picker_callback,
-                               const base::FilePath& path);
 
   // FilesSelected and FileSelectionCanceled are called by the file picker.
   void FilesSelected(const std::vector<base::FilePath>& paths);
@@ -206,14 +168,17 @@ class FileSystemChooseEntryFunction : public FileSystemEntryFunction {
   // directory. If so, calls ConfirmSensitiveDirectoryAccess. Otherwise, calls
   // OnDirectoryAccessConfirmed.
   void ConfirmDirectoryAccessAsync(bool non_native_path,
-                                   const std::vector<base::FilePath>& paths);
+                                   const std::vector<base::FilePath>& paths,
+                                   content::WebContents* web_contents);
 
   // Shows a dialog to confirm whether the user wants to open the directory.
   // Calls OnDirectoryAccessConfirmed or FileSelectionCanceled.
-  void ConfirmSensitiveDirectoryAccess(
-      const std::vector<base::FilePath>& paths);
+  void ConfirmSensitiveDirectoryAccess(const std::vector<base::FilePath>& paths,
+                                       content::WebContents* web_contents);
 
   void OnDirectoryAccessConfirmed(const std::vector<base::FilePath>& paths);
+
+  base::FilePath initial_path_;
 };
 
 class FileSystemRetainEntryFunction : public ExtensionFunction {
@@ -221,7 +186,7 @@ class FileSystemRetainEntryFunction : public ExtensionFunction {
   DECLARE_EXTENSION_FUNCTION("fileSystem.retainEntry", FILESYSTEM_RETAINENTRY)
 
  protected:
-  ~FileSystemRetainEntryFunction() override;
+  ~FileSystemRetainEntryFunction() override {}
   ResponseAction Run() override;
 
  private:
@@ -239,7 +204,7 @@ class FileSystemIsRestorableFunction : public ExtensionFunction {
   DECLARE_EXTENSION_FUNCTION("fileSystem.isRestorable", FILESYSTEM_ISRESTORABLE)
 
  protected:
-  ~FileSystemIsRestorableFunction() override;
+  ~FileSystemIsRestorableFunction() override {}
   ResponseAction Run() override;
 };
 
@@ -248,11 +213,38 @@ class FileSystemRestoreEntryFunction : public FileSystemEntryFunction {
   DECLARE_EXTENSION_FUNCTION("fileSystem.restoreEntry", FILESYSTEM_RESTOREENTRY)
 
  protected:
-  ~FileSystemRestoreEntryFunction() override;
+  ~FileSystemRestoreEntryFunction() override {}
   ResponseAction Run() override;
 };
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if !BUILDFLAG(IS_CHROMEOS_ASH)
+// Stub for non Chrome OS operating systems.
+class FileSystemRequestFileSystemFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("fileSystem.requestFileSystem",
+                             FILESYSTEM_REQUESTFILESYSTEM)
+
+ protected:
+  ~FileSystemRequestFileSystemFunction() override {}
+
+  // ExtensionFunction overrides.
+  ExtensionFunction::ResponseAction Run() override;
+};
+
+// Stub for non Chrome OS operating systems.
+class FileSystemGetVolumeListFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("fileSystem.getVolumeList",
+                             FILESYSTEM_GETVOLUMELIST)
+
+ protected:
+  ~FileSystemGetVolumeListFunction() override {}
+
+  // ExtensionFunction overrides.
+  ExtensionFunction::ResponseAction Run() override;
+};
+
+#else
 // Requests a file system for the specified volume id.
 class FileSystemRequestFileSystemFunction : public ExtensionFunction {
  public:
@@ -271,8 +263,6 @@ class FileSystemRequestFileSystemFunction : public ExtensionFunction {
   // access.
   void OnGotFileSystem(const std::string& id, const std::string& path);
   void OnError(const std::string& error);
-
-  std::unique_ptr<ConsentProvider> consent_provider_;
 };
 
 // Requests a list of available volumes.
@@ -291,36 +281,8 @@ class FileSystemGetVolumeListFunction : public ExtensionFunction {
  private:
   void OnGotVolumeList(const std::vector<api::file_system::Volume>& volumes);
   void OnError(const std::string& error);
-
-  std::unique_ptr<ConsentProvider> consent_provider_;
 };
-#else   // BUILDFLAG(IS_CHROMEOS)
-// Stub for non Chrome OS operating systems.
-class FileSystemRequestFileSystemFunction : public ExtensionFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("fileSystem.requestFileSystem",
-                             FILESYSTEM_REQUESTFILESYSTEM)
-
- protected:
-  ~FileSystemRequestFileSystemFunction() override;
-
-  // ExtensionFunction overrides.
-  ExtensionFunction::ResponseAction Run() override;
-};
-
-// Stub for non Chrome OS operating systems.
-class FileSystemGetVolumeListFunction : public ExtensionFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("fileSystem.getVolumeList",
-                             FILESYSTEM_GETVOLUMELIST)
-
- protected:
-  ~FileSystemGetVolumeListFunction() override;
-
-  // ExtensionFunction overrides.
-  ExtensionFunction::ResponseAction Run() override;
-};
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif
 
 }  // namespace extensions
 

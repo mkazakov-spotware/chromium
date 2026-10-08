@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "sandbox/linux/system_headers/linux_signal.h"
 #include "sandbox/sandbox_export.h"
 
@@ -17,10 +18,6 @@ namespace sandbox {
 // low-level control.
 class SANDBOX_EXPORT Syscall {
  public:
-  Syscall() = delete;
-  Syscall(const Syscall&) = delete;
-  Syscall& operator=(const Syscall&) = delete;
-
   // InvalidCall() invokes Call() with a platform-appropriate syscall
   // number that is guaranteed to not be implemented (i.e., normally
   // returns -ENOSYS).
@@ -160,6 +157,8 @@ class SANDBOX_EXPORT Syscall {
                                     const intptr_t* args,
                                     intptr_t* err_stat);
 #endif  // defined(__mips__)
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Syscall);
 };
 
 }  // namespace sandbox

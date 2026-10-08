@@ -1,9 +1,6 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {DirectoryModel} from './directory_model.js';
-import {NavigationListModel, NavigationModelFakeItem, NavigationModelItemType, NavigationModelVolumeItem} from './navigation_list_model.js';
 
 /**
  * Namespace for crossover search utility functions.
@@ -53,12 +50,11 @@ crossoverSearchUtils.findQueryMatchedDirectoryEntry =
 
     const scanner = dirModel.createScannerFactory(dirEntry, searchQuery)();
     await new Promise(
-        resolve => scanner.scan(entriesCallback, resolve, errorCallback));
+        resolve => scanner.scan(
+            entriesCallback.bind(this), resolve, errorCallback.bind(this)));
     if (isMatchedEntryFound) {
       return dirEntry;
     }
   }
   return null;
 };
-
-export {crossoverSearchUtils};

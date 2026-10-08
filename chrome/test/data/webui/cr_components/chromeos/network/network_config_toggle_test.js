@@ -1,10 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/ash/common/network/network_config_toggle.js';
+// clang-format off
+// #import 'chrome://resources/cr_components/chromeos/network/network_config_toggle.m.js';
 
-import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+// #import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+// clang-format on
 
 suite('NetworkConfigToggleTest', function() {
   /** @type {!NetworkConfigToggle|undefined} */
@@ -13,13 +15,13 @@ suite('NetworkConfigToggleTest', function() {
   setup(function() {
     configToggle = document.createElement('network-config-toggle');
     document.body.appendChild(configToggle);
-    flush();
+    Polymer.dom.flush();
   });
 
   test('Policy on left', function() {
     assertFalse(configToggle.policyOnLeft);
 
-    const rightIndicator = configToggle.$$('cr-policy-network-indicator-mojo');
+    let rightIndicator = configToggle.$$('cr-policy-network-indicator-mojo');
     assertFalse(rightIndicator.classList.contains('left'));
 
     // Use sibling selector to assert correct position (on the right).
@@ -27,9 +29,9 @@ suite('NetworkConfigToggleTest', function() {
     assertTrue(!!toggle);
 
     configToggle.policyOnLeft = true;
-    flush();
+    Polymer.dom.flush();
 
-    const leftIndicator = configToggle.$$('cr-policy-network-indicator-mojo');
+    let leftIndicator = configToggle.$$('cr-policy-network-indicator-mojo');
     assertTrue(leftIndicator.classList.contains('left'));
 
     // Use general sibling selector to assert the indicator is to the left of

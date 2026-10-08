@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,21 +7,16 @@
 #include "base/check_op.h"
 #include "base/metrics/histogram_functions.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
+#include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/common/pref_names.h"
 #include "components/content_settings/core/browser/cookie_settings.h"
 #include "components/content_settings/core/common/pref_names.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_thread.h"
-#include "extensions/buildflags/buildflags.h"
-
-#if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "extensions/common/constants.h"
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/profiles/profile_helper.h"
-#endif
 
 using content_settings::CookieControlsMode;
 
@@ -39,11 +34,9 @@ CookieSettingsFactory* CookieSettingsFactory::GetInstance() {
 }
 
 CookieSettingsFactory::CookieSettingsFactory()
-    : RefcountedProfileKeyedServiceFactory(
+    : RefcountedBrowserContextKeyedServiceFactory(
           "CookieSettings",
-          // The incognito profile has its own content settings map. Therefore,
-          // it should get its own CookieSettings.
-          ProfileSelections::BuildForRegularAndIncognito()) {
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(HostContentSettingsMapFactory::GetInstance());
 }
 
@@ -54,40 +47,35 @@ void CookieSettingsFactory::RegisterProfilePrefs(
   content_settings::CookieSettings::RegisterProfilePrefs(registry);
 }
 
+content::BrowserContext* CookieSettingsFactory::GetBrowserContextToUse(
+    content::BrowserContext* context) const {
+  // The incognito profile has its own content settings map. Therefore, it
+  // should get its own CookieSettings.
+  return chrome::GetBrowserContextOwnInstanceInIncognito(context);
+}
+
 scoped_refptr<RefcountedKeyedService>
 CookieSettingsFactory::BuildServiceInstanceFor(
     content::BrowserContext* context) const {
   Profile* profile = Profile::FromBrowserContext(context);
   PrefService* prefs = profile->GetPrefs();
 
-  bool should_record_metrics = profile->IsRegularProfile();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  // ChromeOS creates various irregular profiles (login, lock screen...); they
-  // are of type kRegular (returns true for `Profile::IsRegular()`), that aren't
-  // used to browse the web and users can't configure. Don't collect metrics
-  // about them.
-  should_record_metrics =
-      should_record_metrics && ash::ProfileHelper::IsUserProfile(profile);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-  if (should_record_metrics) {
-    // Record cookie setting histograms.
-    auto cookie_controls_mode = static_cast<CookieControlsMode>(
-        prefs->GetInteger(prefs::kCookieControlsMode));
-    base::UmaHistogramBoolean(
-        "Privacy.ThirdPartyCookieBlockingSetting.RegularProfile",
-        cookie_controls_mode == CookieControlsMode::kBlockThirdParty);
-    base::UmaHistogramEnumeration(
-        "Privacy.CookieControlsSetting.RegularProfile", cookie_controls_mode);
-  }
-
-  const char* extension_scheme =
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-      extensions::kExtensionScheme;
-#else
-      content_settings::kDummyExtensionScheme;
-#endif
-
+  // Record cookie setting histograms.
+  auto cookie_controls_mode = static_cast<CookieControlsMode>(
+      prefs->GetInteger(prefs::kCookieControlsMode));
+  base::UmaHistogramBoolean(
+      "Privacy.ThirdPartyCookieBlockingSetting",
+      cookie_controls_mode == CookieControlsMode::kBlockThirdParty);
+  base::UmaHistogramEnumeration("Privacy.CookieControlsSetting",
+                                cookie_controls_mode);
+  // The DNT setting is only vaguely cookie-related. However, there is currently
+  // no DNT-related code that is executed once per Profile lifetime, and
+  // creating a new BrowserContextKeyedService to record this metric would be
+  // an overkill. Hence, we put it here.
+  // TODO(msramek): Find a better place for this metric.
+  base::UmaHistogramBoolean("Privacy.DoNotTrackSetting",
+                            prefs->GetBoolean(prefs::kEnableDoNotTrack));
   return new content_settings::CookieSettings(
       HostContentSettingsMapFactory::GetForProfile(profile), prefs,
-      profile->IsIncognitoProfile(), extension_scheme);
+      profile->IsIncognitoProfile(), extensions::kExtensionScheme);
 }

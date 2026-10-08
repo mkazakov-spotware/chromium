@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/trace_event/trace_event.h"
 #include "mojo/core/core.h"
@@ -16,7 +17,6 @@
 #include "mojo/core/ports/message_filter.h"
 #include "mojo/core/request_context.h"
 #include "mojo/core/user_message_impl.h"
-#include "mojo/public/cpp/bindings/mojo_buildflags.h"
 
 namespace mojo {
 namespace core {
@@ -46,9 +46,6 @@ class MessagePipeDispatcher::PortObserverThunk
   explicit PortObserverThunk(scoped_refptr<MessagePipeDispatcher> dispatcher)
       : dispatcher_(dispatcher) {}
 
-  PortObserverThunk(const PortObserverThunk&) = delete;
-  PortObserverThunk& operator=(const PortObserverThunk&) = delete;
-
  private:
   ~PortObserverThunk() override = default;
 
@@ -56,6 +53,8 @@ class MessagePipeDispatcher::PortObserverThunk
   void OnPortStatusChanged() override { dispatcher_->OnPortStatusChanged(); }
 
   scoped_refptr<MessagePipeDispatcher> dispatcher_;
+
+  DISALLOW_COPY_AND_ASSIGN(PortObserverThunk);
 };
 
 #if DCHECK_IS_ON()
@@ -65,10 +64,6 @@ class MessagePipeDispatcher::PortObserverThunk
 class PeekSizeMessageFilter : public ports::MessageFilter {
  public:
   PeekSizeMessageFilter() = default;
-
-  PeekSizeMessageFilter(const PeekSizeMessageFilter&) = delete;
-  PeekSizeMessageFilter& operator=(const PeekSizeMessageFilter&) = delete;
-
   ~PeekSizeMessageFilter() override = default;
 
   // ports::MessageFilter:
@@ -83,6 +78,8 @@ class PeekSizeMessageFilter : public ports::MessageFilter {
 
  private:
   size_t message_size_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(PeekSizeMessageFilter);
 };
 
 #endif  // DCHECK_IS_ON()
@@ -202,7 +199,7 @@ MojoResult MessagePipeDispatcher::ReadMessage(
 }
 
 MojoResult MessagePipeDispatcher::SetQuota(MojoQuotaType type, uint64_t limit) {
-  absl::optional<uint64_t> new_ack_request_interval;
+  base::Optional<uint64_t> new_ack_request_interval;
   {
     base::AutoLock lock(signal_lock_);
     switch (type) {
@@ -360,25 +357,19 @@ scoped_refptr<Dispatcher> MessagePipeDispatcher::Deserialize(
     size_t num_ports,
     PlatformHandle* handles,
     size_t num_handles) {
-  if (num_ports != 1 || num_handles || num_bytes != sizeof(SerializedState)) {
-    AssertNotExtractingHandlesFromMessage();
+  if (num_ports != 1 || num_handles || num_bytes != sizeof(SerializedState))
     return nullptr;
-  }
 
   const SerializedState* state = static_cast<const SerializedState*>(data);
 
   ports::Node* node = Core::Get()->GetNodeController()->node();
   ports::PortRef port;
-  if (node->GetPort(ports[0], &port) != ports::OK) {
-    AssertNotExtractingHandlesFromMessage();
+  if (node->GetPort(ports[0], &port) != ports::OK)
     return nullptr;
-  }
 
   ports::PortStatus status;
-  if (node->GetStatus(port, &status) != ports::OK) {
-    AssertNotExtractingHandlesFromMessage();
+  if (node->GetStatus(port, &status) != ports::OK)
     return nullptr;
-  }
 
   return new MessagePipeDispatcher(Core::Get()->GetNodeController(), port,
                                    state->pipe_id, state->endpoint);
@@ -398,11 +389,8 @@ MojoResult MessagePipeDispatcher::CloseNoLock() {
     base::AutoUnlock unlock(signal_lock_);
     node_controller_->ClosePort(port_);
 
-#if BUILDFLAG(MOJO_TRACE_ENABLED)
-    TRACE_EVENT_WITH_FLOW0(TRACE_DISABLED_BY_DEFAULT("mojom"),
-                           "MessagePipe closing", pipe_id_ + endpoint_,
-                           TRACE_EVENT_FLAG_FLOW_OUT);
-#endif
+    TRACE_EVENT_WITH_FLOW0("toplevel.flow", "MessagePipe closing",
+                           pipe_id_ + endpoint_, TRACE_EVENT_FLAG_FLOW_OUT);
   }
 
   return MOJO_RESULT_OK;
@@ -446,18 +434,17 @@ HandleSignalsState MessagePipeDispatcher::GetHandleSignalsStateNoLock() const {
   }
   rv.satisfiable_signals |=
       MOJO_HANDLE_SIGNAL_PEER_CLOSED | MOJO_HANDLE_SIGNAL_QUOTA_EXCEEDED;
-#if BUILDFLAG(MOJO_TRACE_ENABLED)
+
   const bool was_peer_closed =
       last_known_satisfied_signals_ & MOJO_HANDLE_SIGNAL_PEER_CLOSED;
   const bool is_peer_closed =
       rv.satisfied_signals & MOJO_HANDLE_SIGNAL_PEER_CLOSED;
-  if (is_peer_closed && !was_peer_closed) {
-    TRACE_EVENT_WITH_FLOW0(
-        TRACE_DISABLED_BY_DEFAULT("mojom"), "MessagePipe peer closed",
-        pipe_id_ + (1 - endpoint_), TRACE_EVENT_FLAG_FLOW_IN);
-  }
-#endif
   last_known_satisfied_signals_ = rv.satisfied_signals;
+  if (is_peer_closed && !was_peer_closed) {
+    TRACE_EVENT_WITH_FLOW0("toplevel.flow", "MessagePipe peer closed",
+                           pipe_id_ + (1 - endpoint_),
+                           TRACE_EVENT_FLAG_FLOW_IN);
+  }
 
   return rv;
 }

@@ -12,8 +12,7 @@
 <div id='target'>Target</div>
 <script>
   promise_test(async t => {
-    // Loose event because a mouseleave from html -> body also occurs
-    return testEventType(t, 'mouseleave', true);
+    return testEventType(t, 'mouseleave');
   })
 </script>
 </html>

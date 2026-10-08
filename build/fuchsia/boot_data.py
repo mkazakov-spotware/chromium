@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -18,6 +18,7 @@ Host *
   StrictHostKeyChecking no
   ForwardAgent no
   ForwardX11 no
+  UserKnownHostsFile {known_hosts}
   User fuchsia
   IdentitiesOnly yes
   IdentityFile {identity}
@@ -29,79 +30,88 @@ Host *
   ConnectTimeout 5
   """
 
+FVM_TYPE_QCOW = 'qcow'
+FVM_TYPE_SPARSE = 'sparse'
+
 # Specifies boot files intended for use by an emulator.
 TARGET_TYPE_QEMU = 'qemu'
 
 # Specifies boot files intended for use by anything (incl. physical devices).
 TARGET_TYPE_GENERIC = 'generic'
 
-# Defaults used by Fuchsia SDK
-_SSH_DIR = os.path.expanduser('~/.ssh')
-_SSH_CONFIG_DIR = os.path.expanduser('~/.fuchsia')
+def _GetPubKeyPath(output_dir):
+  """Returns a path to the generated SSH public key."""
+
+  return os.path.join(output_dir, 'id_ed25519.pub')
 
 
-def _GetAuthorizedKeysPath():
-  """Returns a path to the authorized keys which get copied to your Fuchsia
-  device during paving"""
+def ProvisionSSH(output_dir):
+  """Generates a keypair and config file for SSH."""
 
-  return os.path.join(_SSH_DIR, 'fuchsia_authorized_keys')
+  host_key_path = os.path.join(output_dir, 'ssh_key')
+  host_pubkey_path = host_key_path + '.pub'
+  id_key_path = os.path.join(output_dir, 'id_ed25519')
+  id_pubkey_path = _GetPubKeyPath(output_dir)
+  known_hosts_path = os.path.join(output_dir, 'known_hosts')
+  ssh_config_path = os.path.join(output_dir, 'ssh_config')
+
+  logging.debug('Generating SSH credentials.')
+  if not os.path.isfile(host_key_path):
+    subprocess.check_call(['ssh-keygen', '-t', 'ed25519', '-h', '-f',
+                           host_key_path, '-P', '', '-N', ''],
+                          stdout=open(os.devnull))
+  if not os.path.isfile(id_key_path):
+    subprocess.check_call(['ssh-keygen', '-t', 'ed25519', '-f', id_key_path,
+                           '-P', '', '-N', ''], stdout=open(os.devnull))
+
+  with open(ssh_config_path, "w") as ssh_config:
+    ssh_config.write(
+        _SSH_CONFIG_TEMPLATE.format(identity=id_key_path,
+                                    known_hosts=known_hosts_path))
+
+  if os.path.exists(known_hosts_path):
+    os.remove(known_hosts_path)
 
 
-def ProvisionSSH():
-  """Generates a key pair and config file for SSH using the GN SDK."""
-
-  returncode, out, err = common.RunGnSdkFunction('fuchsia-common.sh',
-                                                 'check-fuchsia-ssh-config')
-  if returncode != 0:
-    logging.error('Command exited with error code %d' % (returncode))
-    logging.error('Stdout: %s' % out)
-    logging.error('Stderr: %s' % err)
-    raise Exception('Failed to provision ssh keys')
-
-
-def GetTargetFile(filename, image_path):
+def GetTargetFile(filename, target_arch, target_type):
   """Computes a path to |filename| in the Fuchsia boot image directory specific
-  to |image_path|."""
+  to |target_type| and |target_arch|."""
 
-  return os.path.join(common.IMAGES_ROOT, image_path, filename)
+  assert target_type == TARGET_TYPE_QEMU or target_type == TARGET_TYPE_GENERIC
 
-
-def GetSSHConfigPath():
-  return os.path.join(_SSH_CONFIG_DIR, 'sshconfig')
+  return os.path.join(common.IMAGES_ROOT, target_arch, target_type, filename)
 
 
-def GetBootImage(output_dir, image_path, image_name):
+def GetSSHConfigPath(output_dir):
+  return output_dir + '/ssh_config'
+
+
+def GetBootImage(output_dir, target_arch, target_type):
   """"Gets a path to the Zircon boot image, with the SSH client public key
   added."""
-  ProvisionSSH()
-  authkeys_path = _GetAuthorizedKeysPath()
+
+  ProvisionSSH(output_dir)
+  pubkey_path = _GetPubKeyPath(output_dir)
   zbi_tool = common.GetHostToolPathFromPlatform('zbi')
-  image_source_path = GetTargetFile(image_name, image_path)
+  image_source_path = GetTargetFile('zircon-a.zbi', target_arch, target_type)
   image_dest_path = os.path.join(output_dir, 'gen', 'fuchsia-with-keys.zbi')
 
-  cmd = [
-      zbi_tool, '-o', image_dest_path, image_source_path, '-e',
-      'data/ssh/authorized_keys=' + authkeys_path
-  ]
+  cmd = [ zbi_tool, '-o', image_dest_path, image_source_path,
+          '-e', 'data/ssh/authorized_keys=' + pubkey_path ]
   subprocess.check_call(cmd)
 
   return image_dest_path
 
 
-def GetKernelArgs():
-  """Returns a list of Zircon commandline arguments to use when booting a
-  system."""
-  return [
-      'devmgr.epoch=%d' % time.time(),
-      'blobfs.write-compression-algorithm=UNCOMPRESSED'
-  ]
+def GetKernelArgs(output_dir):
+  return ['devmgr.epoch=%d' % time.time()]
 
 
-def AssertBootImagesExist(image_path):
-  assert os.path.exists(GetTargetFile('fuchsia.zbi', image_path)), \
+def AssertBootImagesExist(arch, platform):
+  assert os.path.exists(GetTargetFile('zircon-a.zbi', arch, platform)), \
       'This checkout is missing the files necessary for\n' \
       'booting this configuration of Fuchsia.\n' \
       'To check out the files, add this entry to the "custom_vars"\n' \
       'section of your .gclient file:\n\n' \
-      '    "checkout_fuchsia_boot_images": "%s"\n\n' % \
-           image_path
+      '    "checkout_fuchsia_boot_images": "%s.%s"\n\n' % \
+           (platform, arch)

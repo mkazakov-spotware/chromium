@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "build/build_config.h"
+#include "base/macros.h"
 #include "gpu/command_buffer/common/context_creation_attribs.h"
 #include "gpu/command_buffer/common/mailbox.h"
 #include "gpu/command_buffer/service/gles2_cmd_decoder.h"
@@ -40,10 +40,6 @@ class MockGLES2Decoder : public GLES2Decoder {
   MockGLES2Decoder(DecoderClient* client,
                    CommandBufferServiceBase* command_buffer_service,
                    Outputter* outputter);
-
-  MockGLES2Decoder(const MockGLES2Decoder&) = delete;
-  MockGLES2Decoder& operator=(const MockGLES2Decoder&) = delete;
-
   ~MockGLES2Decoder() override;
 
   base::WeakPtr<DecoderContext> AsWeakPtr() override;
@@ -59,12 +55,6 @@ class MockGLES2Decoder : public GLES2Decoder {
   MOCK_METHOD0(ReleaseSurface, void());
   MOCK_METHOD1(TakeFrontBuffer, void(const Mailbox& mailbox));
   MOCK_METHOD2(ReturnFrontBuffer, void(const Mailbox& mailbox, bool is_lost));
-  MOCK_METHOD5(SetDefaultFramebufferSharedImage,
-               void(const Mailbox& mailbox,
-                    int samples,
-                    bool preserve,
-                    bool needs_depth,
-                    bool needs_stencil));
   MOCK_METHOD0(GetSavedBackTextureCountForTest, size_t());
   MOCK_METHOD0(GetCreatedBackTextureCountForTest, size_t());
   MOCK_METHOD1(ResizeOffscreenFramebuffer, bool(const gfx::Size& size));
@@ -111,6 +101,7 @@ class MockGLES2Decoder : public GLES2Decoder {
   MOCK_METHOD0(
       GetTransformFeedbackManager, gpu::gles2::TransformFeedbackManager*());
   MOCK_METHOD0(GetVertexArrayManager, gpu::gles2::VertexArrayManager*());
+  MOCK_METHOD0(GetImageManagerForTest, gpu::gles2::ImageManager*());
   MOCK_METHOD1(SetIgnoreCachedStateForTest, void(bool ignore));
   MOCK_METHOD1(SetForceShaderNameHashingForTest, void(bool force));
   MOCK_METHOD1(SetAllowExit, void(bool allow));
@@ -181,17 +172,11 @@ class MockGLES2Decoder : public GLES2Decoder {
   MOCK_CONST_METHOD0(WasContextLostByRobustnessExtension, bool());
   MOCK_METHOD1(MarkContextLost, void(gpu::error::ContextLostReason reason));
   MOCK_METHOD0(CheckResetStatus, bool());
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-  MOCK_METHOD3(AttachImageToTextureWithDecoderBinding,
+  MOCK_METHOD4(BindImage,
                void(uint32_t client_texture_id,
                     uint32_t texture_target,
-                    gl::GLImage* image));
-#else
-  MOCK_METHOD3(AttachImageToTextureWithClientBinding,
-               void(uint32_t client_texture_id,
-                    uint32_t texture_target,
-                    gl::GLImage* image));
-#endif
+                    gl::GLImage* image,
+                    bool can_bind_to_sampler));
   MOCK_METHOD1(
       SetCopyTextureResourceManagerForTest,
       void(CopyTextureCHROMIUMResourceManager* copy_texture_resource_manager));
@@ -201,6 +186,8 @@ class MockGLES2Decoder : public GLES2Decoder {
 
  private:
   base::WeakPtrFactory<MockGLES2Decoder> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MockGLES2Decoder);
 };
 
 }  // namespace gles2

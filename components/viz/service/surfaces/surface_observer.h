@@ -1,10 +1,12 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_VIZ_SERVICE_SURFACES_SURFACE_OBSERVER_H_
 #define COMPONENTS_VIZ_SERVICE_SURFACES_SURFACE_OBSERVER_H_
 
+#include "base/optional.h"
+#include "base/time/time.h"
 #include "components/viz/service/viz_service_export.h"
 
 namespace viz {
@@ -22,9 +24,6 @@ class VIZ_SERVICE_EXPORT SurfaceObserver {
   // Called when a CompositorFrame with a new SurfaceId activates for the first
   // time.
   virtual void OnFirstSurfaceActivation(const SurfaceInfo& surface_info) {}
-
-  // Called when there is new frame in uncommitted queue of the surface.
-  virtual void OnSurfaceHasNewUncommittedFrame(const SurfaceId& surface_id) {}
 
   // Called when a CompositorFrame within a surface corresponding to
   // |surface_id| activates.

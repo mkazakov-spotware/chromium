@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include <string>
 #include <vector>
 
-#include "ash/components/arc/mojom/app.mojom-forward.h"
+#include "base/macros.h"
+#include "components/arc/mojom/app.mojom-forward.h"
 
 namespace arc {
 namespace mojom {
@@ -19,11 +20,9 @@ class ArcPlayStoreEnabledPreferenceHandler;
 class ArcServiceManager;
 class ArcSessionManager;
 class FakeAppInstance;
-class FakeIntentHelperHost;
-class FakeIntentHelperInstance;
-}  // namespace arc
+}
 
-namespace ash {
+namespace chromeos {
 class FakeChromeUserManager;
 }
 
@@ -39,10 +38,6 @@ class Profile;
 class ArcAppTest {
  public:
   ArcAppTest();
-
-  ArcAppTest(const ArcAppTest&) = delete;
-  ArcAppTest& operator=(const ArcAppTest&) = delete;
-
   virtual ~ArcAppTest();
 
   void SetUp(Profile* profile);
@@ -52,18 +47,12 @@ class ArcAppTest {
   void StopArcInstance();
   void RestartArcInstance();
 
-  void SetUpIntentHelper();
-
   static std::string GetAppId(const arc::mojom::AppInfo& app_info);
   static std::string GetAppId(const arc::mojom::ShortcutInfo& shortcut);
 
   // Helper that clones packages info array.
   static std::vector<arc::mojom::ArcPackageInfoPtr> ClonePackages(
       const std::vector<arc::mojom::ArcPackageInfoPtr>& packages);
-
-  // Helper that clones app info array.
-  static std::vector<arc::mojom::AppInfoPtr> CloneApps(
-      const std::vector<arc::mojom::AppInfoPtr>& apps);
 
   const std::vector<arc::mojom::ArcPackageInfoPtr>& fake_packages() const {
     return fake_packages_;
@@ -72,20 +61,16 @@ class ArcAppTest {
   // Adds package info and takes ownership.
   void AddPackage(arc::mojom::ArcPackageInfoPtr package);
 
-  // Replaces package if a package with this package name exists.
-  void UpdatePackage(arc::mojom::ArcPackageInfoPtr package);
-
   void RemovePackage(const std::string& package_name);
 
   void WaitForDefaultApps();
-  void WaitForRemoveAllApps();
 
   // The 0th item is sticky but not the followings.
-  const std::vector<arc::mojom::AppInfoPtr>& fake_apps() const {
+  const std::vector<arc::mojom::AppInfo>& fake_apps() const {
     return fake_apps_;
   }
 
-  const std::vector<arc::mojom::AppInfoPtr>& fake_default_apps() const {
+  const std::vector<arc::mojom::AppInfo>& fake_default_apps() const {
     return fake_default_apps_;
   }
 
@@ -93,13 +78,9 @@ class ArcAppTest {
     return fake_shortcuts_;
   }
 
-  ash::FakeChromeUserManager* GetUserManager();
+  chromeos::FakeChromeUserManager* GetUserManager();
 
   arc::FakeAppInstance* app_instance() { return app_instance_.get(); }
-
-  arc::FakeIntentHelperInstance* intent_helper_instance() {
-    return intent_helper_instance_.get();
-  }
 
   ArcAppListPrefs* arc_app_list_prefs() { return arc_app_list_pref_; }
 
@@ -122,14 +103,6 @@ class ArcAppTest {
     persist_service_manager_ = persist_service_manager;
   }
 
-  void set_start_app_service_publisher(bool start_app_service_publisher) {
-    start_app_service_publisher_ = start_app_service_publisher;
-  }
-
-  void set_initialize_real_intent_helper_bridge(bool value) {
-    initialize_real_intent_helper_bridge_ = value;
-  }
-
  private:
   const user_manager::User* CreateUserAndLogin();
   bool FindPackage(const std::string& package_name);
@@ -149,29 +122,21 @@ class ArcAppTest {
   // down.
   bool persist_service_manager_ = false;
 
-  // Whether the ArcApps AppService publisher should be started during
-  // initialization.
-  bool start_app_service_publisher_ = true;
-
-  // If set to true, the real ArcIntentHelperBridge is initialized on test start
-  // up.
-  bool initialize_real_intent_helper_bridge_ = false;
-
   std::unique_ptr<arc::ArcServiceManager> arc_service_manager_;
   std::unique_ptr<arc::ArcSessionManager> arc_session_manager_;
   std::unique_ptr<arc::ArcPlayStoreEnabledPreferenceHandler>
       arc_play_store_enabled_preference_handler_;
   std::unique_ptr<arc::FakeAppInstance> app_instance_;
-  std::unique_ptr<arc::FakeIntentHelperHost> intent_helper_host_;
-  std::unique_ptr<arc::FakeIntentHelperInstance> intent_helper_instance_;
 
   std::unique_ptr<user_manager::ScopedUserManager> user_manager_enabler_;
-  std::vector<arc::mojom::AppInfoPtr> fake_apps_;
-  std::vector<arc::mojom::AppInfoPtr> fake_default_apps_;
+  std::vector<arc::mojom::AppInfo> fake_apps_;
+  std::vector<arc::mojom::AppInfo> fake_default_apps_;
   std::vector<arc::mojom::ArcPackageInfoPtr> fake_packages_;
   std::vector<arc::mojom::ShortcutInfo> fake_shortcuts_;
 
-  bool concierge_client_initialized_ = false;
+  bool dbus_thread_manager_initialized_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(ArcAppTest);
 };
 
 #endif  // CHROME_BROWSER_UI_APP_LIST_ARC_ARC_APP_TEST_H_

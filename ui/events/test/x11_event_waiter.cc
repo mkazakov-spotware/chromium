@@ -1,10 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/events/test/x11_event_waiter.h"
 
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
+#include "ui/gfx/x/connection.h"
 #include "ui/gfx/x/x11_atom_cache.h"
 #include "ui/gfx/x/xproto.h"
 #include "ui/gfx/x/xproto_util.h"
@@ -32,25 +33,25 @@ XEventWaiter* XEventWaiter::Create(x11::Window window,
 // XEventWaiter implementation
 XEventWaiter::XEventWaiter(base::OnceClosure callback)
     : success_callback_(std::move(callback)) {
-  x11::Connection::Get()->AddEventObserver(this);
+  ui::X11EventSource::GetInstance()->AddXEventObserver(this);
 }
 
 XEventWaiter::~XEventWaiter() {
-  x11::Connection::Get()->RemoveEventObserver(this);
+  ui::X11EventSource::GetInstance()->RemoveXEventObserver(this);
 }
 
-void XEventWaiter::OnEvent(const x11::Event& xev) {
-  auto* client = xev.As<x11::ClientMessageEvent>();
+void XEventWaiter::WillProcessXEvent(x11::Event* xev) {
+  auto* client = xev->As<x11::ClientMessageEvent>();
   if (client && client->type == MarkerEventAtom()) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, std::move(success_callback_));
+    base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                  std::move(success_callback_));
     delete this;
   }
 }
 
 // Returns atom that indidates that the XEvent is marker event.
 x11::Atom XEventWaiter::MarkerEventAtom() {
-  return x11::GetAtom("marker_event");
+  return gfx::GetAtom("marker_event");
 }
 
 }  // namespace ui

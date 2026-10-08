@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 #include <memory>
 
 #include "base/bind.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/renderer/chrome_content_renderer_client.h"
 #include "chrome/renderer/chrome_render_thread_observer.h"
 #include "chrome/renderer/media/webrtc_logging_agent_impl.h"
@@ -22,16 +21,13 @@
 #include "components/spellcheck/renderer/spellcheck.h"
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "base/allocator/buildflags.h"
-#if defined(ARCH_CPU_X86_64)
-#include "chrome/renderer/performance_manager/mechanisms/userspace_swap_impl_chromeos.h"
-#endif  // defined(ARCH_CPU_X86_64)
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-#if BUILDFLAG(IS_WIN)
-#include "chrome/renderer/font_prewarmer.h"
-#endif
+#if BUILDFLAG(USE_TCMALLOC)
+#include "chrome/common/performance_manager/mojom/tcmalloc.mojom.h"
+#include "chrome/renderer/performance_manager/mechanisms/tcmalloc_tunables_impl.h"
+#endif  // BUILDFLAG(USE_TCMALLOC)
+#endif  // defined(OS_CHROMEOS)
 
 namespace {
 
@@ -55,41 +51,28 @@ void BindSpellChecker(
 void ExposeChromeRendererInterfacesToBrowser(
     ChromeContentRendererClient* client,
     mojo::BinderMap* binders) {
-  binders->Add<visitedlink::mojom::VisitedLinkNotificationSink>(
+  binders->Add(
       client->GetChromeObserver()->visited_link_reader()->GetBindCallback(),
-      base::SequencedTaskRunner::GetCurrentDefault());
+      base::SequencedTaskRunnerHandle::Get());
 
-  binders->Add<web_cache::mojom::WebCache>(
-      base::BindRepeating(&web_cache::WebCacheImpl::BindReceiver,
-                          base::Unretained(client->GetWebCache())),
-      base::SequencedTaskRunner::GetCurrentDefault());
+  binders->Add(base::BindRepeating(&web_cache::WebCacheImpl::BindReceiver,
+                                   base::Unretained(client->GetWebCache())),
+               base::SequencedTaskRunnerHandle::Get());
 
-  binders->Add<chrome::mojom::WebRtcLoggingAgent>(
-      base::BindRepeating(&BindWebRTCLoggingAgent, client),
-      base::SequencedTaskRunner::GetCurrentDefault());
+  binders->Add(base::BindRepeating(&BindWebRTCLoggingAgent, client),
+               base::SequencedTaskRunnerHandle::Get());
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#if defined(ARCH_CPU_X86_64)
-  if (performance_manager::mechanism::UserspaceSwapImpl::
-          PlatformSupportsUserspaceSwap()) {
-    binders->Add<userspace_swap::mojom::UserspaceSwap>(
-        base::BindRepeating(
-            &performance_manager::mechanism::UserspaceSwapImpl::Create),
-        base::SequencedTaskRunner::GetCurrentDefault());
-  }
-#endif  // defined(ARCH_CPU_X86_64)
-
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
+#if BUILDFLAG(USE_TCMALLOC)
+  binders->Add(
+      base::BindRepeating(
+          &performance_manager::mechanism::TcmallocTunablesImpl::Create),
+      base::SequencedTaskRunnerHandle::Get());
+#endif  // BUILDFLAG(USE_TCMALLOC)
+#endif  // defined(OS_CHROMEOS)
 
 #if BUILDFLAG(ENABLE_SPELLCHECK)
-  binders->Add<spellcheck::mojom::SpellChecker>(
-      base::BindRepeating(&BindSpellChecker, client),
-      base::SequencedTaskRunner::GetCurrentDefault());
-#endif
-
-#if BUILDFLAG(IS_WIN)
-  binders->Add<chrome::mojom::FontPrewarmer>(
-      base::BindRepeating(&FontPrewarmer::Bind),
-      base::SequencedTaskRunner::GetCurrentDefault());
+  binders->Add(base::BindRepeating(&BindSpellChecker, client),
+               base::SequencedTaskRunnerHandle::Get());
 #endif
 }

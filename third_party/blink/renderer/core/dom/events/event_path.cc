@@ -26,16 +26,15 @@
 
 #include "third_party/blink/renderer/core/dom/events/event_path.h"
 
-#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/events/window_event_context.h"
 #include "third_party/blink/renderer/core/dom/shadow_root.h"
+#include "third_party/blink/renderer/core/dom/v0_insertion_point.h"
 #include "third_party/blink/renderer/core/events/touch_event.h"
 #include "third_party/blink/renderer/core/events/touch_event_context.h"
 #include "third_party/blink/renderer/core/html/html_slot_element.h"
 #include "third_party/blink/renderer/core/input/touch.h"
 #include "third_party/blink/renderer/core/input/touch_list.h"
-#include "third_party/blink/renderer/platform/instrumentation/histogram.h"
 
 namespace blink {
 
@@ -51,8 +50,14 @@ EventTarget& EventPath::EventTargetRespectingTargetRules(Node& reference_node) {
 static inline bool ShouldStopAtShadowRoot(Event& event,
                                           ShadowRoot& shadow_root,
                                           EventTarget& target) {
-  // An event is scoped by default unless event.composed flag is set.
-  return !event.composed() && target.ToNode() &&
+  if (shadow_root.IsV1()) {
+    // In v1, an event is scoped by default unless event.composed flag is set.
+    return !event.composed() && target.ToNode() &&
+           target.ToNode()->OwnerShadowHost() == shadow_root.host();
+  }
+  // Ignores event.composed() for v0.
+  // Instead, use event.isScopedInV0() for backward compatibility.
+  return event.IsScopedInV0() && target.ToNode() &&
          target.ToNode()->OwnerShadowHost() == shadow_root.host();
 }
 
@@ -70,11 +75,7 @@ void EventPath::InitializeWith(Node& node, Event* event) {
 }
 
 static inline bool EventPathShouldBeEmptyFor(Node& node) {
-  // Event path should be empty for orphaned pseudo elements, and nodes
-  // whose document is stopped. In corner cases (crbug.com/1210480), the node
-  // document can get detached before we can remove event listeners.
-  return (node.IsPseudoElement() && !node.parentElement()) ||
-         node.GetDocument().IsStopped();
+  return node.IsPseudoElement() && !node.parentElement();
 }
 
 void EventPath::Initialize() {
@@ -86,78 +87,11 @@ void EventPath::Initialize() {
   CalculateTreeOrderAndSetNearestAncestorClosedTree();
 }
 
-EventPath::NodePath EventPath::CalculateNodePath(Node& node) {
-  // Given a node, find all the nodes the event path might traverse.
-  NodePath node_path;
-  Node* current = &node;
-
-  node_path.push_back(current);
-  while (current) {
-    if (current->IsChildOfShadowHost() && !current->IsPseudoElement()) {
-      if (HTMLSlotElement* slot = current->AssignedSlot()) {
-        current = slot;
-        node_path.push_back(current);
-        continue;
-      }
-    }
-    if (auto* shadow_root = DynamicTo<ShadowRoot>(current)) {
-      current = current->OwnerShadowHost();
-      node_path.push_back(current);
-    } else {
-      current = current->parentNode();
-      if (current)
-        node_path.push_back(current);
-    }
-  }
-  return node_path;
-}
-
-static bool EventNodePathCachingEnabled() {
-  // Cache the feature value since checking for each event path regresses
-  // performance.
-  static const bool kEnabled =
-      base::FeatureList::IsEnabled(features::kDocumentEventNodePathCaching);
-  return kEnabled;
-}
-
 void EventPath::CalculatePath() {
-  // TODO(crbug.com/1394555): This histogram should be removed once the UMA
-  // study DocumentEventNodePathCaching is complete.
-  SCOPED_BLINK_UMA_HISTOGRAM_TIMER_HIGHRES("Blink.EventPath.CalculateTime");
-
   DCHECK(node_);
-  DCHECK(node_event_contexts_.empty());
+  DCHECK(node_event_contexts_.IsEmpty());
+  node_->UpdateDistributionForLegacyDistributedNodes();
 
-  if (EventNodePathCachingEnabled())
-    CalculatePathCachingEnabled();
-  else
-    CalculatePathCachingDisabled();
-}
-
-void EventPath::CalculatePathCachingEnabled() {
-  // Find the cached CalculateNodePath result
-  const NodePath& node_path =
-      node_->GetDocument().GetOrCalculateEventNodePath(*node_);
-  // We need to do the KeepEventInNode and ShouldStopAtShadowRoot checks
-  // outside of CalculateNodePath as they depend on the dispatched event.
-  for (Node* node_in_path : node_path) {
-    DCHECK(node_in_path);
-    node_event_contexts_.push_back(NodeEventContext(
-        *node_in_path, EventTargetRespectingTargetRules(*node_in_path)));
-    if (!event_)
-      continue;
-    if (node_in_path->KeepEventInNode(*event_))
-      break;
-    if (auto* shadow_root = DynamicTo<ShadowRoot>(node_in_path)) {
-      if (ShouldStopAtShadowRoot(*event_, *shadow_root, *node_))
-        break;
-    }
-  }
-}
-
-// TODO(crbug.com/329788): This function should be removed once the
-// kDocumentEventNodePathCaching experiment is fully enabled.
-void EventPath::CalculatePathCachingDisabled() {
   // For performance and memory usage reasons we want to store the
   // path using as few bytes as possible and with as few allocations
   // as possible which is why we gather the data on the stack before
@@ -169,7 +103,15 @@ void EventPath::CalculatePathCachingDisabled() {
   while (current) {
     if (event_ && current->KeepEventInNode(*event_))
       break;
-    if (current->IsChildOfShadowHost() && !current->IsPseudoElement()) {
+    HeapVector<Member<V0InsertionPoint>, 8> insertion_points;
+    CollectDestinationInsertionPoints(*current, insertion_points);
+    if (!insertion_points.IsEmpty()) {
+      for (const auto& insertion_point : insertion_points)
+        nodes_in_path.push_back(insertion_point);
+      current = insertion_points.back();
+      continue;
+    }
+    if (current->IsChildOfV1ShadowHost()) {
       if (HTMLSlotElement* slot = current->AssignedSlot()) {
         current = slot;
         nodes_in_path.push_back(current);
@@ -188,7 +130,7 @@ void EventPath::CalculatePathCachingDisabled() {
     }
   }
 
-  node_event_contexts_.reserve(nodes_in_path.size());
+  node_event_contexts_.ReserveCapacity(nodes_in_path.size());
   for (Node* node_in_path : nodes_in_path) {
     DCHECK(node_in_path);
     node_event_contexts_.push_back(NodeEventContext(
@@ -438,15 +380,6 @@ void EventPath::AdjustTouchList(
     // hot path.
     // TODO(bikineev): Revisit after young generation is there.
     related_node_map.clear();
-  }
-}
-
-void EventPath::AdjustForDisabledFormControl() {
-  for (unsigned i = 0; i < node_event_contexts_.size(); i++) {
-    if (IsDisabledFormControl(&node_event_contexts_[i].GetNode())) {
-      Shrink(i);
-      return;
-    }
   }
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,11 @@
 
 #include "net/net_jni_headers/AndroidTrafficStats_jni.h"
 
-namespace net::android::traffic_stats {
+namespace net {
+
+namespace android {
+
+namespace traffic_stats {
 
 // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.net
 enum TrafficStatsError {
@@ -39,4 +43,8 @@ bool GetCurrentUidRxBytes(int64_t* bytes) {
   return *bytes != ERROR_NOT_SUPPORTED;
 }
 
-}  // namespace net::android::traffic_stats
+}  // namespace traffic_stats
+
+}  // namespace android
+
+}  // namespace net

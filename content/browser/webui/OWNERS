@@ -1,1 +1,5 @@
-file://ui/webui/PLATFORM_OWNERS
+dpapad@chromium.org
+groby@chromium.org
+tommycli@chromium.org
+
+# COMPONENT: UI>Browser>WebUI

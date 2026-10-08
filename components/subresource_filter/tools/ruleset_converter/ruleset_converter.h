@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "components/subresource_filter/tools/ruleset_converter/rule_stream.h"
 #include "components/subresource_filter/tools/ruleset_converter/ruleset_format.h"
 
@@ -23,10 +24,6 @@ namespace subresource_filter {
 class RulesetConverter {
  public:
   RulesetConverter();
-
-  RulesetConverter(const RulesetConverter&) = delete;
-  RulesetConverter& operator=(const RulesetConverter&) = delete;
-
   ~RulesetConverter();
 
   // Converts rulesets based on Set* configurations.
@@ -67,6 +64,8 @@ class RulesetConverter {
 
   // Increase this if rule_stream gets more custom logic for versions > 59.
   int chrome_version_ = 59;
+
+  DISALLOW_COPY_AND_ASSIGN(RulesetConverter);
 };
 
 }  // namespace subresource_filter

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -64,14 +64,15 @@
               "endTime": {"type": "number", "optional": true, "description": "Limit results to those visited before this date, represented in milliseconds since the epoch."},
               "maxResults": {"type": "integer", "optional": true, "minimum": 0, "description": "The maximum number of results to retrieve.  Defaults to 100."}
             }
+          },
+          {
+            "name": "callback",
+            "type": "function",
+            "parameters": [
+              { "name": "results", "type": "array", "items": { "$ref": "HistoryItem"} }
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            { "name": "results", "type": "array", "items": { "$ref": "HistoryItem"} }
-          ]
-        }
+        ]
       },
       {
         "name": "getVisits",
@@ -81,14 +82,15 @@
           {
             "name": "details",
             "$ref": "UrlDetails"
+          },
+          {
+            "name": "callback",
+            "type": "function",
+            "parameters": [
+              { "name": "results", "type": "array", "items": { "$ref": "VisitItem"} }
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            { "name": "results", "type": "array", "items": { "$ref": "VisitItem"} }
-          ]
-        }
+        ]
       },
       {
         "name": "addUrl",
@@ -98,13 +100,14 @@
           {
             "name": "details",
             "$ref": "UrlDetails"
+          },
+          {
+            "name": "callback",
+            "type": "function",
+            "optional": true,
+            "parameters": []
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "optional": true,
-          "parameters": []
-        }
+        ]
       },
       {
         "name": "deleteUrl",
@@ -114,13 +117,14 @@
           {
             "name": "details",
             "$ref": "UrlDetails"
+          },
+          {
+            "name": "callback",
+            "type": "function",
+            "optional": true,
+            "parameters": []
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "optional": true,
-          "parameters": []
-        }
+        ]
       },
       {
         "name": "deleteRange",
@@ -134,22 +138,21 @@
               "startTime": { "type": "number", "description": "Items added to history after this date, represented in milliseconds since the epoch." },
               "endTime": { "type": "number", "description": "Items added to history before this date, represented in milliseconds since the epoch." }
             }
+          },
+          {
+            "name": "callback", "type": "function", "parameters": []
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": []
-        }
+        ]
       },
       {
         "name": "deleteAll",
         "type": "function",
         "description": "Deletes all items from the history.",
-        "parameters": [],
-        "returns_async": {
-          "name": "callback",
-          "parameters": []
-        }
+        "parameters": [
+          {
+            "name": "callback", "type": "function", "parameters": []
+          }
+        ]
       }
     ],
     "events": [

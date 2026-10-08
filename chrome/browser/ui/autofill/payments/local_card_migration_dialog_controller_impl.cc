@@ -1,20 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/autofill/payments/local_card_migration_dialog_controller_impl.h"
 
 #include <stddef.h>
-
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/logging.h"
-#include "base/observer_list.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -28,12 +25,11 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "components/autofill/core/browser/metrics/autofill_metrics.h"
-#include "components/autofill/core/browser/metrics/payments/local_card_migration_metrics.h"
+#include "components/autofill/core/browser/autofill_metrics.h"
 #include "components/autofill/core/browser/payments/local_card_migration_manager.h"
 #include "components/autofill/core/browser/payments/local_card_migration_strike_database.h"
 #include "components/autofill/core/browser/payments/payments_service_url.h"
-#include "components/autofill/core/browser/strike_database.h"
+#include "components/autofill/core/browser/payments/strike_database.h"
 #include "components/autofill/core/browser/validation.h"
 #include "components/autofill/core/common/autofill_clock.h"
 #include "components/autofill/core/common/autofill_features.h"
@@ -47,8 +43,7 @@ namespace autofill {
 
 LocalCardMigrationDialogControllerImpl::LocalCardMigrationDialogControllerImpl(
     content::WebContents* web_contents)
-    : content::WebContentsUserData<LocalCardMigrationDialogControllerImpl>(
-          *web_contents),
+    : content::WebContentsObserver(web_contents),
       pref_service_(
           user_prefs::UserPrefs::Get(web_contents->GetBrowserContext())) {}
 
@@ -70,20 +65,21 @@ void LocalCardMigrationDialogControllerImpl::ShowOfferDialog(
   view_state_ = LocalCardMigrationDialogState::kOffered;
   // Need to create the icon first otherwise the dialog will not be shown.
   UpdateLocalCardMigrationIcon();
-  local_card_migration_dialog_ = CreateLocalCardMigrationDialogView(this);
+  local_card_migration_dialog_ =
+      CreateLocalCardMigrationDialogView(this, web_contents());
   start_migrating_cards_callback_ = std::move(start_migrating_cards_callback);
   migratable_credit_cards_ = migratable_credit_cards;
   user_email_ = user_email;
-  local_card_migration_dialog_->ShowDialog(GetWebContents());
+  local_card_migration_dialog_->ShowDialog();
   UpdateLocalCardMigrationIcon();
   dialog_is_visible_duration_timer_ = base::ElapsedTimer();
 
-  autofill_metrics::LogLocalCardMigrationDialogOfferMetric(
-      autofill_metrics::LOCAL_CARD_MIGRATION_DIALOG_SHOWN);
+  AutofillMetrics::LogLocalCardMigrationDialogOfferMetric(
+      AutofillMetrics::LOCAL_CARD_MIGRATION_DIALOG_SHOWN);
 }
 
 void LocalCardMigrationDialogControllerImpl::UpdateCreditCardIcon(
-    const std::u16string& tip_message,
+    const base::string16& tip_message,
     const std::vector<MigratableCreditCard>& migratable_credit_cards,
     AutofillClient::MigrationDeleteCardCallback delete_local_card_callback) {
   if (local_card_migration_dialog_)
@@ -105,23 +101,24 @@ void LocalCardMigrationDialogControllerImpl::UpdateCreditCardIcon(
 }
 
 void LocalCardMigrationDialogControllerImpl::ShowFeedbackDialog() {
-  autofill_metrics::LogLocalCardMigrationDialogOfferMetric(
-      autofill_metrics::LOCAL_CARD_MIGRATION_DIALOG_FEEDBACK_SHOWN);
+  AutofillMetrics::LogLocalCardMigrationDialogOfferMetric(
+      AutofillMetrics::LOCAL_CARD_MIGRATION_DIALOG_FEEDBACK_SHOWN);
 
-  local_card_migration_dialog_ = CreateLocalCardMigrationDialogView(this);
-  local_card_migration_dialog_->ShowDialog(GetWebContents());
+  local_card_migration_dialog_ =
+      CreateLocalCardMigrationDialogView(this, web_contents());
+  local_card_migration_dialog_->ShowDialog();
   UpdateLocalCardMigrationIcon();
   dialog_is_visible_duration_timer_ = base::ElapsedTimer();
 }
 
 void LocalCardMigrationDialogControllerImpl::ShowErrorDialog() {
-  autofill_metrics::LogLocalCardMigrationDialogOfferMetric(
-      autofill_metrics::
-          LOCAL_CARD_MIGRATION_DIALOG_FEEDBACK_SERVER_ERROR_SHOWN);
+  AutofillMetrics::LogLocalCardMigrationDialogOfferMetric(
+      AutofillMetrics::LOCAL_CARD_MIGRATION_DIALOG_FEEDBACK_SERVER_ERROR_SHOWN);
 
-  local_card_migration_dialog_ = CreateLocalCardMigrationErrorDialogView(this);
+  local_card_migration_dialog_ =
+      CreateLocalCardMigrationErrorDialogView(this, web_contents());
   UpdateLocalCardMigrationIcon();
-  local_card_migration_dialog_->ShowDialog(GetWebContents());
+  local_card_migration_dialog_->ShowDialog();
   dialog_is_visible_duration_timer_ = base::ElapsedTimer();
 }
 
@@ -145,7 +142,7 @@ LocalCardMigrationDialogControllerImpl::GetLegalMessageLines() const {
   return legal_message_lines_;
 }
 
-const std::u16string& LocalCardMigrationDialogControllerImpl::GetTipMessage()
+const base::string16& LocalCardMigrationDialogControllerImpl::GetTipMessage()
     const {
   return tip_message_;
 }
@@ -163,15 +160,15 @@ void LocalCardMigrationDialogControllerImpl::OnSaveButtonClicked(
   // deselected in this round.
   LocalCardMigrationStrikeDatabase local_card_migration_strike_database(
       StrikeDatabaseFactory::GetForProfile(
-          Profile::FromBrowserContext(GetWebContents().GetBrowserContext())));
+          Profile::FromBrowserContext(web_contents()->GetBrowserContext())));
   local_card_migration_strike_database.AddStrikes(
       LocalCardMigrationStrikeDatabase::kStrikesToAddWhenDialogClosed);
 
-  autofill_metrics::LogLocalCardMigrationDialogUserSelectionPercentageMetric(
+  AutofillMetrics::LogLocalCardMigrationDialogUserSelectionPercentageMetric(
       selected_cards_guids.size(), migratable_credit_cards_.size());
-  autofill_metrics::LogLocalCardMigrationDialogUserInteractionMetric(
+  AutofillMetrics::LogLocalCardMigrationDialogUserInteractionMetric(
       dialog_is_visible_duration_timer_.Elapsed(),
-      autofill_metrics::LOCAL_CARD_MIGRATION_DIALOG_CLOSED_SAVE_BUTTON_CLICKED);
+      AutofillMetrics::LOCAL_CARD_MIGRATION_DIALOG_CLOSED_SAVE_BUTTON_CLICKED);
 
   std::move(start_migrating_cards_callback_).Run(selected_cards_guids);
   NotifyMigrationStarted();
@@ -182,13 +179,13 @@ void LocalCardMigrationDialogControllerImpl::OnCancelButtonClicked() {
   // dialog.
   LocalCardMigrationStrikeDatabase local_card_migration_strike_database(
       StrikeDatabaseFactory::GetForProfile(
-          Profile::FromBrowserContext(GetWebContents().GetBrowserContext())));
+          Profile::FromBrowserContext(web_contents()->GetBrowserContext())));
   local_card_migration_strike_database.AddStrikes(
       LocalCardMigrationStrikeDatabase::kStrikesToAddWhenDialogClosed);
 
-  autofill_metrics::LogLocalCardMigrationDialogUserInteractionMetric(
+  AutofillMetrics::LogLocalCardMigrationDialogUserInteractionMetric(
       dialog_is_visible_duration_timer_.Elapsed(),
-      autofill_metrics::
+      AutofillMetrics::
           LOCAL_CARD_MIGRATION_DIALOG_CLOSED_CANCEL_BUTTON_CLICKED);
 
   start_migrating_cards_callback_.Reset();
@@ -196,16 +193,16 @@ void LocalCardMigrationDialogControllerImpl::OnCancelButtonClicked() {
 }
 
 void LocalCardMigrationDialogControllerImpl::OnDoneButtonClicked() {
-  autofill_metrics::LogLocalCardMigrationDialogUserInteractionMetric(
+  AutofillMetrics::LogLocalCardMigrationDialogUserInteractionMetric(
       dialog_is_visible_duration_timer_.Elapsed(),
-      autofill_metrics::LOCAL_CARD_MIGRATION_DIALOG_CLOSED_DONE_BUTTON_CLICKED);
+      AutofillMetrics::LOCAL_CARD_MIGRATION_DIALOG_CLOSED_DONE_BUTTON_CLICKED);
   NotifyMigrationNoLongerAvailable();
 }
 
 void LocalCardMigrationDialogControllerImpl::OnViewCardsButtonClicked() {
-  autofill_metrics::LogLocalCardMigrationDialogUserInteractionMetric(
+  AutofillMetrics::LogLocalCardMigrationDialogUserInteractionMetric(
       dialog_is_visible_duration_timer_.Elapsed(),
-      autofill_metrics::
+      AutofillMetrics::
           LOCAL_CARD_MIGRATION_DIALOG_CLOSED_VIEW_CARDS_BUTTON_CLICKED);
 
   OpenUrl(payments::GetManageInstrumentsUrl());
@@ -215,9 +212,9 @@ void LocalCardMigrationDialogControllerImpl::OnViewCardsButtonClicked() {
 void LocalCardMigrationDialogControllerImpl::OnLegalMessageLinkClicked(
     const GURL& url) {
   OpenUrl(url);
-  autofill_metrics::LogLocalCardMigrationDialogUserInteractionMetric(
+  AutofillMetrics::LogLocalCardMigrationDialogUserInteractionMetric(
       dialog_is_visible_duration_timer_.Elapsed(),
-      autofill_metrics::LOCAL_CARD_MIGRATION_DIALOG_LEGAL_MESSAGE_CLICKED);
+      AutofillMetrics::LOCAL_CARD_MIGRATION_DIALOG_LEGAL_MESSAGE_CLICKED);
 }
 
 void LocalCardMigrationDialogControllerImpl::DeleteCard(
@@ -234,9 +231,9 @@ void LocalCardMigrationDialogControllerImpl::DeleteCard(
     delete_local_card_callback_.Reset();
   }
 
-  autofill_metrics::LogLocalCardMigrationDialogUserInteractionMetric(
+  AutofillMetrics::LogLocalCardMigrationDialogUserInteractionMetric(
       dialog_is_visible_duration_timer_.Elapsed(),
-      autofill_metrics::LOCAL_CARD_MIGRATION_DIALOG_DELETE_CARD_ICON_CLICKED);
+      AutofillMetrics::LOCAL_CARD_MIGRATION_DIALOG_DELETE_CARD_ICON_CLICKED);
 }
 
 void LocalCardMigrationDialogControllerImpl::OnDialogClosed() {
@@ -250,11 +247,15 @@ bool LocalCardMigrationDialogControllerImpl::AllCardsInvalid() const {
   // For kOffered state, the migration status of all cards are UNKNOWN,
   // so this function will return true as well. Need an early exit to avoid
   // it.
-  return (view_state_ != LocalCardMigrationDialogState::kOffered) &&
-         !base::Contains(
-             migratable_credit_cards_,
-             MigratableCreditCard::MigrationStatus::SUCCESS_ON_UPLOAD,
-             &MigratableCreditCard::migration_status);
+  if (view_state_ == LocalCardMigrationDialogState::kOffered)
+    return false;
+
+  return std::find_if(
+             migratable_credit_cards_.begin(), migratable_credit_cards_.end(),
+             [](const auto& card) {
+               return card.migration_status() ==
+                      MigratableCreditCard::MigrationStatus::SUCCESS_ON_UPLOAD;
+             }) == migratable_credit_cards_.end();
 }
 
 LocalCardMigrationDialog*
@@ -264,13 +265,13 @@ LocalCardMigrationDialogControllerImpl::local_card_migration_dialog_view()
 }
 
 void LocalCardMigrationDialogControllerImpl::OpenUrl(const GURL& url) {
-  GetWebContents().OpenURL(content::OpenURLParams(
+  web_contents()->OpenURL(content::OpenURLParams(
       url, content::Referrer(), WindowOpenDisposition::NEW_POPUP,
       ui::PAGE_TRANSITION_LINK, false));
 }
 
 void LocalCardMigrationDialogControllerImpl::UpdateLocalCardMigrationIcon() {
-  Browser* browser = chrome::FindBrowserWithWebContents(&GetWebContents());
+  Browser* browser = chrome::FindBrowserWithWebContents(web_contents());
   if (browser) {
     browser->window()->UpdatePageActionIcon(
         PageActionIconType::kLocalCardMigration);
@@ -278,10 +279,12 @@ void LocalCardMigrationDialogControllerImpl::UpdateLocalCardMigrationIcon() {
 }
 
 bool LocalCardMigrationDialogControllerImpl::HasFailedCard() const {
-  return base::Contains(
-      migratable_credit_cards_,
-      MigratableCreditCard::MigrationStatus::FAILURE_ON_UPLOAD,
-      &MigratableCreditCard::migration_status);
+  return std::find_if(
+             migratable_credit_cards_.begin(), migratable_credit_cards_.end(),
+             [](const auto& card) {
+               return card.migration_status() ==
+                      MigratableCreditCard::MigrationStatus::FAILURE_ON_UPLOAD;
+             }) != migratable_credit_cards_.end();
 }
 
 void LocalCardMigrationDialogControllerImpl::
@@ -297,6 +300,6 @@ void LocalCardMigrationDialogControllerImpl::NotifyMigrationStarted() {
   }
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(LocalCardMigrationDialogControllerImpl);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(LocalCardMigrationDialogControllerImpl)
 
 }  // namespace autofill

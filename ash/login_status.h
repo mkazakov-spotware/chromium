@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@ enum class LoginStatus {
   USER,           // A regular user is logged in
   GUEST,          // A guest is logged in (i.e. incognito)
   PUBLIC,         // A public account is logged in
-  CHILD,          // A Family Link user is logged in
+  SUPERVISED,     // A supervised user is logged in
   KIOSK_APP       // In kiosk mode for Chrome app, ARC, or PWA.
 };
 

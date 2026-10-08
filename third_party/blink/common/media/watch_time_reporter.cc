@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <numeric>
 
 #include "base/bind.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/power_monitor/power_monitor.h"
 #include "base/time/time.h"
 #include "media/base/pipeline_status.h"
@@ -95,7 +94,7 @@ WatchTimeReporter::WatchTimeReporter(
   if (is_muted_)
     DCHECK_EQ(volume_, 1.0);
 
-  base::PowerMonitor::AddPowerStateObserver(this);
+  base::PowerMonitor::AddObserver(this);
 
   provider->AcquireWatchTimeRecorder(properties_->Clone(),
                                      recorder_.BindNewPipeAndPassReceiver());
@@ -145,7 +144,7 @@ WatchTimeReporter::~WatchTimeReporter() {
   // This is our last chance, so finalize now if there's anything remaining.
   in_shutdown_ = true;
   MaybeFinalizeWatchTime(FinalizeTime::IMMEDIATELY);
-  base::PowerMonitor::RemovePowerStateObserver(this);
+  base::PowerMonitor::RemoveObserver(this);
 }
 
 void WatchTimeReporter::OnPlaying() {
@@ -485,7 +484,8 @@ void WatchTimeReporter::RecordWatchTime() {
       // purposes these are considered as timeouts. We want a maximum since
       // rebuffer duration is in real time and not media time, which means if
       // the rebuffer spans a suspend/resume the time can be arbitrarily long.
-      constexpr base::TimeDelta kMaximumRebufferDuration = base::Minutes(1);
+      constexpr base::TimeDelta kMaximumRebufferDuration =
+          base::TimeDelta::FromMinutes(1);
       if (ufe.duration != media::kNoTimestamp &&
           ufe.duration <= kMaximumRebufferDuration) {
         ++total_completed_underflow_count_;

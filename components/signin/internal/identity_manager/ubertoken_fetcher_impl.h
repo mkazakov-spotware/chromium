@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/timer/timer.h"
 #include "components/signin/internal/identity_manager/profile_oauth2_token_service.h"
 #include "components/signin/public/identity_manager/ubertoken_fetcher.h"
@@ -63,10 +63,6 @@ class UbertokenFetcherImpl : public UbertokenFetcher,
                        ProfileOAuth2TokenService* token_service,
                        CompletionCallback ubertoken_callback,
                        GaiaAuthFetcherFactory factory);
-
-  UbertokenFetcherImpl(const UbertokenFetcherImpl&) = delete;
-  UbertokenFetcherImpl& operator=(const UbertokenFetcherImpl&) = delete;
-
   ~UbertokenFetcherImpl() override;
 
   // Overridden from GaiaAuthConsumer
@@ -87,7 +83,7 @@ class UbertokenFetcherImpl : public UbertokenFetcher,
   // Exchanges an oauth2 access token for an uber-auth token.
   void ExchangeTokens();
 
-  raw_ptr<ProfileOAuth2TokenService> token_service_;
+  ProfileOAuth2TokenService* token_service_;
   CompletionCallback ubertoken_callback_;
   GaiaAuthFetcherFactory gaia_auth_fetcher_factory_;
   std::unique_ptr<GaiaAuthFetcher> gaia_auth_fetcher_;
@@ -97,6 +93,8 @@ class UbertokenFetcherImpl : public UbertokenFetcher,
   int retry_number_;
   base::OneShotTimer retry_timer_;
   bool second_access_token_request_;
+
+  DISALLOW_COPY_AND_ASSIGN(UbertokenFetcherImpl);
 };
 
 }  // namespace signin

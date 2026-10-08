@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.query_tiles;
 
-import android.content.Context;
 import android.graphics.Bitmap;
 import android.view.View;
 import android.view.ViewGroup;
@@ -13,6 +12,11 @@ import android.view.ViewGroup.LayoutParams;
 import org.chromium.base.Callback;
 import org.chromium.base.task.PostTask;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.image_fetcher.ImageFetcher;
+import org.chromium.chrome.browser.image_fetcher.ImageFetcherConfig;
+import org.chromium.chrome.browser.image_fetcher.ImageFetcherFactory;
+import org.chromium.chrome.browser.ntp.search.SearchBoxChipDelegate;
+import org.chromium.chrome.browser.ntp.search.SearchBoxCoordinator;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.browser_ui.util.GlobalDiscardableReferencePool;
 import org.chromium.components.browser_ui.widget.R;
@@ -20,9 +24,6 @@ import org.chromium.components.browser_ui.widget.image_tiles.ImageTile;
 import org.chromium.components.browser_ui.widget.image_tiles.ImageTileCoordinator;
 import org.chromium.components.browser_ui.widget.image_tiles.ImageTileCoordinatorFactory;
 import org.chromium.components.browser_ui.widget.image_tiles.TileConfig;
-import org.chromium.components.image_fetcher.ImageFetcher;
-import org.chromium.components.image_fetcher.ImageFetcherConfig;
-import org.chromium.components.image_fetcher.ImageFetcherFactory;
 import org.chromium.components.query_tiles.QueryTile;
 import org.chromium.components.query_tiles.QueryTileConstants;
 import org.chromium.components.query_tiles.TileProvider;
@@ -30,7 +31,6 @@ import org.chromium.components.query_tiles.TileUmaLogger;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
 import org.chromium.ui.display.DisplayAndroid;
 import org.chromium.ui.display.DisplayUtil;
-import org.chromium.url.GURL;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,7 +42,6 @@ import java.util.List;
  * section.
  */
 public class QueryTileSection {
-    private static final String UMA_PREFIX = "QueryTiles.NTP";
     private static final String MOST_VISITED_MAX_ROWS_SMALL_SCREEN =
             "most_visited_max_rows_small_screen";
     private static final String MOST_VISITED_MAX_ROWS_NORMAL_SCREEN =
@@ -50,9 +49,10 @@ public class QueryTileSection {
     private static final String VARIATION_SMALL_SCREEN_HEIGHT_THRESHOLD_DP =
             "small_screen_height_threshold_dp";
     private static final int DEFAULT_SMALL_SCREEN_HEIGHT_THRESHOLD_DP = 700;
-    private static final int DEFAULT_MOST_VISITED_MAX_ROWS = 1;
+    private static final String UMA_PREFIX = "QueryTiles.NTP";
 
     private final ViewGroup mQueryTileSectionView;
+    private final SearchBoxCoordinator mSearchBoxCoordinator;
     private final Callback<QueryInfo> mSubmitQueryCallback;
     private ImageTileCoordinator mTileCoordinator;
     private TileProvider mTileProvider;
@@ -76,9 +76,11 @@ public class QueryTileSection {
     }
 
     /** Constructor. */
-    public QueryTileSection(ViewGroup queryTileSectionView, Profile profile,
+    public QueryTileSection(ViewGroup queryTileSectionView,
+            SearchBoxCoordinator searchBoxCoordinator, Profile profile,
             Callback<QueryInfo> performSearchQueryCallback) {
         mQueryTileSectionView = queryTileSectionView;
+        mSearchBoxCoordinator = searchBoxCoordinator;
         mSubmitQueryCallback = performSearchQueryCallback;
 
         mTileProvider = TileProviderFactory.getForProfile(profile);
@@ -90,7 +92,8 @@ public class QueryTileSection {
                 new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         mImageFetcher =
                 ImageFetcherFactory.createImageFetcher(ImageFetcherConfig.IN_MEMORY_WITH_DISK_CACHE,
-                        profile.getProfileKey(), GlobalDiscardableReferencePool.getReferencePool());
+                        profile, GlobalDiscardableReferencePool.getReferencePool());
+        mSearchBoxCoordinator.addVoiceSearchButtonClickListener(v -> reloadTiles());
         reloadTiles();
     }
 
@@ -115,25 +118,58 @@ public class QueryTileSection {
         }
         // TODO(qinmin): don't return all tiles, just return the top-level tiles.
         mTileProvider.getQueryTiles(null, this::setTiles);
+        mSearchBoxCoordinator.setChipText(null);
         mNeedReload = false;
     }
 
     private void onTileClicked(ImageTile tile) {
         QueryTile queryTile = (QueryTile) tile;
         mTileUmaLogger.recordTileClicked(queryTile);
-        mTileProvider.onTileClicked(queryTile.id);
-        QueryTileUtils.onQueryTileClicked();
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.QUERY_TILES_LOCAL_ORDERING)) {
+            mTileProvider.onTileClicked(queryTile.id);
+        }
 
         // TODO(qinmin): make isLastLevelTile a member variable of ImageTile.
         boolean isLastLevelTile = queryTile.children.isEmpty();
         if (isLastLevelTile) {
-            mSubmitQueryCallback.onResult(
-                    new QueryInfo(queryTile.queryText, queryTile.searchParams));
+            if (QueryTileUtils.isQueryEditingEnabled()) {
+                mSearchBoxCoordinator.setSearchText(queryTile.queryText, true);
+            } else {
+                mSubmitQueryCallback.onResult(
+                        new QueryInfo(queryTile.queryText, queryTile.searchParams));
+            }
             return;
         }
 
         mNeedReload = true;
         mTileProvider.getQueryTiles(tile.id, this::setTiles);
+        showQueryChip(queryTile);
+    }
+
+    private void showQueryChip(QueryTile queryTile) {
+        mSearchBoxCoordinator.setChipText(queryTile.queryText);
+        mSearchBoxCoordinator.setChipDelegate(new SearchBoxChipDelegate() {
+            @Override
+            public void onChipClicked() {
+                mTileUmaLogger.recordSearchButtonClicked(queryTile);
+                mSubmitQueryCallback.onResult(
+                        new QueryInfo(queryTile.queryText, queryTile.searchParams));
+            }
+
+            @Override
+            public void onCancelClicked() {
+                mTileUmaLogger.recordChipCleared();
+                mSearchBoxCoordinator.setChipText(null);
+                reloadTiles();
+            }
+
+            @Override
+            public void getChipIcon(Callback<Bitmap> callback) {
+                int chipIconSize = mQueryTileSectionView.getResources().getDimensionPixelSize(
+                        R.dimen.chip_icon_size);
+                fetchImage(queryTile, chipIconSize, callback);
+            }
+        });
     }
 
     private void setTiles(List<QueryTile> tiles) {
@@ -160,7 +196,7 @@ public class QueryTileSection {
             return;
         }
 
-        GURL url = queryTile.urls.get(0);
+        String url = queryTile.urls.get(0);
         ImageFetcher.Params params = ImageFetcher.Params.createWithExpirationInterval(url,
                 ImageFetcher.QUERY_TILE_UMA_CLIENT_NAME, size, size,
                 QueryTileConstants.IMAGE_EXPIRATION_INTERVAL_MINUTES);
@@ -168,12 +204,12 @@ public class QueryTileSection {
     }
 
     /**
-     * @param context Context for display calculation.
      * @return Max number of rows for most visited tiles. For smaller screens, the most visited
      *         tiles section on NTP is shortened so that feed is still visible above the fold.
      */
-    public static int getMaxRowsForMostVisitedTiles(Context context) {
-        DisplayAndroid display = DisplayAndroid.getNonMultiDisplay(context);
+    public Integer getMaxRowsForMostVisitedTiles() {
+        DisplayAndroid display =
+                DisplayAndroid.getNonMultiDisplay(mQueryTileSectionView.getContext());
         int screenHeightDp = DisplayUtil.pxToDp(display, display.getDisplayHeight());
         int smallScreenHeightThresholdDp = ChromeFeatureList.getFieldTrialParamByFeatureAsInt(
                 ChromeFeatureList.QUERY_TILES, VARIATION_SMALL_SCREEN_HEIGHT_THRESHOLD_DP,
@@ -182,6 +218,6 @@ public class QueryTileSection {
         return ChromeFeatureList.getFieldTrialParamByFeatureAsInt(ChromeFeatureList.QUERY_TILES,
                 isSmallScreen ? MOST_VISITED_MAX_ROWS_SMALL_SCREEN
                               : MOST_VISITED_MAX_ROWS_NORMAL_SCREEN,
-                DEFAULT_MOST_VISITED_MAX_ROWS);
+                2);
     }
 }

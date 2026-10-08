@@ -1,11 +1,12 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef ASH_DISPLAY_MOUSE_WARP_CONTROLLER_H_
-#define ASH_DISPLAY_MOUSE_WARP_CONTROLLER_H_
+#ifndef ASH_DISPLAY_MOUSE_WARP_CONTROLLER_H
+#define ASH_DISPLAY_MOUSE_WARP_CONTROLLER_H
 
 #include "ash/ash_export.h"
+#include "base/macros.h"
 
 namespace ui {
 class MouseEvent;
@@ -30,4 +31,4 @@ class ASH_EXPORT MouseWarpController {
 
 }  // namespace ash
 
-#endif  // ASH_DISPLAY_MOUSE_WARP_CONTROLLER_H_
+#endif  // ASH_DISPLAY_MOUSE_WARP_CONTROLLER_H

@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,12 @@
 #define COMPONENTS_HISTORY_CORE_BROWSER_FEATURES_H_
 
 #include "base/feature_list.h"
-#include "base/metrics/field_trial_params.h"
 
 namespace history {
 
-// Organic Repeatable Queries
-BASE_DECLARE_FEATURE(kOrganicRepeatableQueries);
-extern const base::FeatureParam<int> kMaxNumRepeatableQueries;
-extern const base::FeatureParam<bool> kScaleRepeatableQueriesScores;
-extern const base::FeatureParam<bool> kPrivilegeRepeatableQueries;
+// If true, navigations with a transition qualifier of
+// PAGE_TRANSITION_FROM_API_3 are not returned from queries for visible rows.
+extern const base::Feature kHideFromApi3Transitions;
 
 }  // namespace history
 

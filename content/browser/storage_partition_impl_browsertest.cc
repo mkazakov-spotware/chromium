@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -60,9 +60,6 @@ class ClientCertBrowserClient : public ContentBrowserClient {
       : select_certificate_callback_(std::move(select_certificate_callback)),
         delete_delegate_callback_(std::move(delete_delegate_callback)) {}
 
-  ClientCertBrowserClient(const ClientCertBrowserClient&) = delete;
-  ClientCertBrowserClient& operator=(const ClientCertBrowserClient&) = delete;
-
   ~ClientCertBrowserClient() override = default;
 
   // Returns a cancellation callback for the imaginary client certificate
@@ -87,6 +84,7 @@ class ClientCertBrowserClient : public ContentBrowserClient {
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
   base::OnceClosure select_certificate_callback_;
   base::OnceClosure delete_delegate_callback_;
+  DISALLOW_COPY_AND_ASSIGN(ClientCertBrowserClient);
 };
 
 class ClientCertBrowserTest : public ContentBrowserTest {
@@ -102,10 +100,7 @@ class ClientCertBrowserTest : public ContentBrowserTest {
     https_test_server_.ServeFilesFromSourceDirectory(GetTestDataFilePath());
   }
 
-  ~ClientCertBrowserTest() override {
-    // This is to avoid having a dangling pointer in `ContentClient`.
-    content::SetBrowserClientForTesting(nullptr);
-  }
+  ~ClientCertBrowserTest() override = default;
 
  protected:
   void SetUpOnMainThread() override {
@@ -172,10 +167,8 @@ IN_PROC_BROWSER_TEST_F(StoragePartitionImplBrowsertest, NetworkContext) {
   params->automatically_assign_isolation_info = true;
   params->is_corb_enabled = false;
   mojo::Remote<network::mojom::URLLoaderFactory> loader_factory;
-  shell()
-      ->web_contents()
-      ->GetBrowserContext()
-      ->GetDefaultStoragePartition()
+  BrowserContext::GetDefaultStoragePartition(
+      shell()->web_contents()->GetBrowserContext())
       ->GetNetworkContext()
       ->CreateURLLoaderFactory(loader_factory.BindNewPipeAndPassReceiver(),
                                std::move(params));
@@ -186,7 +179,7 @@ IN_PROC_BROWSER_TEST_F(StoragePartitionImplBrowsertest, NetworkContext) {
   request.method = "GET";
   mojo::PendingRemote<network::mojom::URLLoader> loader;
   loader_factory->CreateLoaderAndStart(
-      loader.InitWithNewPipeAndPassReceiver(), 1,
+      loader.InitWithNewPipeAndPassReceiver(), 2, 1,
       network::mojom::kURLLoadOptionNone, request, client.CreateRemote(),
       net::MutableNetworkTrafficAnnotationTag(TRAFFIC_ANNOTATION_FOR_TESTS));
 
@@ -210,10 +203,8 @@ IN_PROC_BROWSER_TEST_F(StoragePartitionImplBrowsertest,
 
   base::ScopedAllowBlockingForTesting allow_blocking;
   auto pending_shared_url_loader_factory =
-      shell()
-          ->web_contents()
-          ->GetBrowserContext()
-          ->GetDefaultStoragePartition()
+      BrowserContext::GetDefaultStoragePartition(
+          shell()->web_contents()->GetBrowserContext())
           ->GetURLLoaderFactoryForBrowserProcessIOThread();
 
   auto factory_owner = IOThreadSharedURLLoaderFactoryOwner::Create(
@@ -232,7 +223,8 @@ IN_PROC_BROWSER_TEST_F(StoragePartitionImplBrowsertest,
   base::ScopedAllowBlockingForTesting allow_blocking;
   std::unique_ptr<ShellBrowserContext> browser_context =
       std::make_unique<ShellBrowserContext>(true);
-  auto* partition = browser_context->GetDefaultStoragePartition();
+  auto* partition =
+      BrowserContext::GetDefaultStoragePartition(browser_context.get());
   auto pending_shared_url_loader_factory =
       partition->GetURLLoaderFactoryForBrowserProcessIOThread();
 
@@ -255,7 +247,8 @@ IN_PROC_BROWSER_TEST_F(StoragePartitionImplBrowsertest,
   base::ScopedAllowBlockingForTesting allow_blocking;
   std::unique_ptr<ShellBrowserContext> browser_context =
       std::make_unique<ShellBrowserContext>(true);
-  auto* partition = browser_context->GetDefaultStoragePartition();
+  auto* partition =
+      BrowserContext::GetDefaultStoragePartition(browser_context.get());
   auto factory_owner = IOThreadSharedURLLoaderFactoryOwner::Create(
       partition->GetURLLoaderFactoryForBrowserProcessIOThread());
 
@@ -276,7 +269,8 @@ IN_PROC_BROWSER_TEST_F(StoragePartitionImplBrowsertest, URLLoaderInterceptor) {
   base::ScopedAllowBlockingForTesting allow_blocking;
   std::unique_ptr<ShellBrowserContext> browser_context =
       std::make_unique<ShellBrowserContext>(true);
-  auto* partition = browser_context->GetDefaultStoragePartition();
+  auto* partition =
+      BrowserContext::GetDefaultStoragePartition(browser_context.get());
 
   // Run a request the first time without the interceptor set, as the
   // StoragePartitionImpl lazily creates the factory and we want to make sure

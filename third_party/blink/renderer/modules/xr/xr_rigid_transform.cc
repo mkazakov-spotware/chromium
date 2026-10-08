@@ -1,47 +1,39 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/xr/xr_rigid_transform.h"
 
-#include <cmath>
 #include <utility>
 
 #include "third_party/blink/renderer/bindings/core/v8/v8_dom_point_init.h"
 #include "third_party/blink/renderer/core/geometry/dom_point_read_only.h"
 #include "third_party/blink/renderer/modules/xr/xr_utils.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "ui/gfx/geometry/decomposed_transform.h"
-#include "ui/gfx/geometry/transform.h"
+#include "third_party/blink/renderer/platform/transforms/transformation_matrix.h"
 
 namespace blink {
 
-namespace {
-
-bool IsComponentValid(DOMPointInit* point) {
-  DCHECK(point);
-  return std::isfinite(point->x()) && std::isfinite(point->y()) &&
-         std::isfinite(point->z()) && std::isfinite(point->w());
-}
-}  // anonymous namespace
-
 // makes a deep copy of transformationMatrix
-XRRigidTransform::XRRigidTransform(const gfx::Transform& transformationMatrix)
-    : matrix_(std::make_unique<gfx::Transform>(transformationMatrix)) {
+XRRigidTransform::XRRigidTransform(
+    const TransformationMatrix& transformationMatrix)
+    : matrix_(std::make_unique<TransformationMatrix>(transformationMatrix)) {
   DecomposeMatrix();
 }
 
 void XRRigidTransform::DecomposeMatrix() {
   // decompose matrix to position and orientation
-  absl::optional<gfx::DecomposedTransform> decomp = matrix_->Decompose();
-  DCHECK(decomp) << "Matrix decompose failed for " << matrix_->ToString();
+  TransformationMatrix::DecomposedType decomposed;
+  bool succeeded = matrix_->Decompose(decomposed);
+  DCHECK(succeeded) << "Matrix decompose failed for " << matrix_->ToString();
 
-  position_ = DOMPointReadOnly::Create(
-      decomp->translate[0], decomp->translate[1], decomp->translate[2], 1.0);
+  position_ =
+      DOMPointReadOnly::Create(decomposed.translate_x, decomposed.translate_y,
+                               decomposed.translate_z, 1.0);
 
-  orientation_ =
-      makeNormalizedQuaternion(decomp->quaternion.x(), decomp->quaternion.y(),
-                               decomp->quaternion.z(), decomp->quaternion.w());
+  orientation_ = makeNormalizedQuaternion(
+      decomposed.quaternion_x, decomposed.quaternion_y, decomposed.quaternion_z,
+      decomposed.quaternion_w);
 }
 
 XRRigidTransform::XRRigidTransform(DOMPointInit* position,
@@ -72,13 +64,6 @@ XRRigidTransform* XRRigidTransform::Create(DOMPointInit* position,
     return nullptr;
   }
 
-  if ((position && !IsComponentValid(position)) ||
-      (orientation && !IsComponentValid(orientation))) {
-    exception_state.ThrowTypeError(
-        "Position and Orientation must consist of only finite values");
-    return nullptr;
-  }
-
   if (orientation) {
     double x = orientation->x();
     double y = orientation->y();
@@ -91,14 +76,6 @@ XRRigidTransform* XRRigidTransform::Create(DOMPointInit* position,
     if (sq_len == 0.0) {
       exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                         "Orientation's length cannot be 0");
-      return nullptr;
-    } else if (!std::isfinite(sq_len)) {
-      // If the orientation has any large numbers that cause us to overflow when
-      // calculating the length, we won't be able to generate a valid normalized
-      // quaternion.
-      exception_state.ThrowDOMException(
-          DOMExceptionCode::kInvalidStateError,
-          "Orientation is too large to normalize");
       return nullptr;
     }
   }
@@ -127,28 +104,36 @@ XRRigidTransform* XRRigidTransform::inverse() {
   return inverse_;
 }
 
-gfx::Transform XRRigidTransform::InverseTransformMatrix() {
+TransformationMatrix XRRigidTransform::InverseTransformMatrix() {
   EnsureInverse();
   return inverse_->TransformMatrix();
 }
 
-gfx::Transform XRRigidTransform::TransformMatrix() {
+TransformationMatrix XRRigidTransform::TransformMatrix() {
   EnsureMatrix();
   return *matrix_;
 }
 
 void XRRigidTransform::EnsureMatrix() {
   if (!matrix_) {
-    gfx::DecomposedTransform decomp;
+    matrix_ = std::make_unique<TransformationMatrix>();
+    TransformationMatrix::DecomposedType decomp;
+    memset(&decomp, 0, sizeof(decomp));
+    decomp.perspective_w = 1;
+    decomp.scale_x = 1;
+    decomp.scale_y = 1;
+    decomp.scale_z = 1;
 
-    decomp.quaternion = gfx::Quaternion(orientation_->x(), orientation_->y(),
-                                        orientation_->z(), orientation_->w());
+    decomp.quaternion_x = orientation_->x();
+    decomp.quaternion_y = orientation_->y();
+    decomp.quaternion_z = orientation_->z();
+    decomp.quaternion_w = orientation_->w();
 
-    decomp.translate[0] = position_->x();
-    decomp.translate[1] = position_->y();
-    decomp.translate[2] = position_->z();
+    decomp.translate_x = position_->x();
+    decomp.translate_y = position_->y();
+    decomp.translate_z = position_->z();
 
-    matrix_ = std::make_unique<gfx::Transform>(gfx::Transform::Compose(decomp));
+    matrix_->Recompose(decomp);
   }
 }
 
@@ -158,14 +143,8 @@ void XRRigidTransform::EnsureInverse() {
   // the caching is safe.
   if (!inverse_) {
     EnsureMatrix();
-    gfx::Transform inverse;
-    if (!matrix_->GetInverse(&inverse)) {
-      DLOG(ERROR) << "Matrix was not invertible: " << matrix_->ToString();
-      // TODO(https://crbug.com/1258611): Define behavior for non-invertible
-      // matrices. Note that this is consistent with earlier behavior, which
-      // just always passed matrix_->Inverse() whether it was invertible or not.
-    }
-    inverse_ = MakeGarbageCollected<XRRigidTransform>(inverse);
+    DCHECK(matrix_->IsInvertible());
+    inverse_ = MakeGarbageCollected<XRRigidTransform>(matrix_->Inverse());
     inverse_->inverse_ = this;
   }
 }

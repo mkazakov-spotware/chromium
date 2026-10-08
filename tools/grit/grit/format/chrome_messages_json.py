@@ -1,4 +1,4 @@
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -27,11 +27,11 @@ def Format(root, lang='en', output_dir='.'):
         id = id[4:]
 
       translation_missing = child.GetCliques()[0].clique.get(lang) is None;
-      if (child.ShouldFallbackToEnglish() and translation_missing
-          and lang not in constants.PSEUDOLOCALES):
-        # Skip the string if it's not translated. Chrome will fallback
-        # to English automatically.
-        continue
+      if (child.ShouldFallbackToEnglish() and translation_missing and
+          lang != constants.FAKE_BIDI):
+          # Skip the string if it's not translated. Chrome will fallback
+          # to English automatically.
+          continue
 
       loc_message = encoder.encode(child.ws_at_start + child.Translate(lang) +
                                    child.ws_at_end)

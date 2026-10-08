@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/supports_user_data.h"
 
 namespace content {
@@ -28,8 +28,6 @@ class WebContentsTaskProvider;
 // |task_manager::WebContentsTags|.
 class WebContentsTag : public base::SupportsUserData::Data {
  public:
-  WebContentsTag(const WebContentsTag&) = delete;
-  WebContentsTag& operator=(const WebContentsTag&) = delete;
   ~WebContentsTag() override;
 
   // Retrieves the instance of the WebContentsTag that was attached to the
@@ -57,7 +55,9 @@ class WebContentsTag : public base::SupportsUserData::Data {
   static void* kTagKey;
 
   // The owning WebContents.
-  raw_ptr<content::WebContents> web_contents_;
+  content::WebContents* web_contents_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebContentsTag);
 };
 
 }  // namespace task_manager

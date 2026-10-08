@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/paint/scoped_raster_flags.h"
 
 #include <utility>
+
 #include "base/bind.h"
 #include "base/callback.h"
 #include "cc/paint/paint_op_buffer.h"
@@ -12,14 +13,6 @@
 #include "cc/test/skia_common.h"
 #include "cc/test/test_paint_worklet_input.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/skia/include/core/SkBitmap.h"
-#include "third_party/skia/include/core/SkImage.h"
-#include "third_party/skia/include/core/SkMatrix.h"
-#include "third_party/skia/include/core/SkPaint.h"
-#include "third_party/skia/include/core/SkRect.h"
-#include "third_party/skia/include/core/SkRefCnt.h"
-#include "third_party/skia/include/core/SkSize.h"
-#include "third_party/skia/include/core/SkTileMode.h"
 
 namespace cc {
 namespace {
@@ -38,8 +31,7 @@ class MockImageProvider : public ImageProvider {
 
     return ScopedResult(
         DecodedDrawImage(image, nullptr, SkSize::MakeEmpty(),
-                         SkSize::Make(1.0f, 1.0f), draw_image.filter_quality(),
-                         true),
+                         SkSize::Make(1.0f, 1.0f), draw_image.filter_quality()),
         base::BindOnce(&MockImageProvider::UnrefImage, base::Unretained(this)));
   }
 
@@ -81,7 +73,7 @@ TEST(ScopedRasterFlagsTest, DecodePaintWorkletImageShader) {
   flags.setShader(shader);
 
   MockPaintWorkletImageProvider provider;
-  ScopedRasterFlags scoped_flags(&flags, &provider, SkMatrix::I(), 0, 1.0f);
+  ScopedRasterFlags scoped_flags(&flags, &provider, SkMatrix::I(), 0, 255);
   ASSERT_TRUE(scoped_flags.flags());
   EXPECT_TRUE(scoped_flags.flags()->getShader()->shader_type() ==
               PaintShader::Type::kPaintRecord);
@@ -90,11 +82,11 @@ TEST(ScopedRasterFlagsTest, DecodePaintWorkletImageShader) {
 TEST(ScopedRasterFlagsTest, KeepsDecodesAlive) {
   auto record = sk_make_sp<PaintOpBuffer>();
   record->push<DrawImageOp>(CreateDiscardablePaintImage(gfx::Size(10, 10)), 0.f,
-                            0.f);
+                            0.f, nullptr);
   record->push<DrawImageOp>(CreateDiscardablePaintImage(gfx::Size(10, 10)), 0.f,
-                            0.f);
+                            0.f, nullptr);
   record->push<DrawImageOp>(CreateDiscardablePaintImage(gfx::Size(10, 10)), 0.f,
-                            0.f);
+                            0.f, nullptr);
   auto record_shader = PaintShader::MakePaintRecord(
       record, SkRect::MakeWH(100, 100), SkTileMode::kClamp, SkTileMode::kClamp,
       &SkMatrix::I());
@@ -104,7 +96,7 @@ TEST(ScopedRasterFlagsTest, KeepsDecodesAlive) {
   PaintFlags flags;
   flags.setShader(record_shader);
   {
-    ScopedRasterFlags scoped_flags(&flags, &provider, SkMatrix::I(), 0, 1.0f);
+    ScopedRasterFlags scoped_flags(&flags, &provider, SkMatrix::I(), 0, 255);
     ASSERT_TRUE(scoped_flags.flags());
     EXPECT_NE(scoped_flags.flags(), &flags);
     SkPaint paint = scoped_flags.flags()->ToSkPaint();
@@ -116,13 +108,13 @@ TEST(ScopedRasterFlagsTest, KeepsDecodesAlive) {
 
 TEST(ScopedRasterFlagsTest, NoImageProvider) {
   PaintFlags flags;
-  flags.setAlphaf(1.0f);
+  flags.setAlpha(255);
   flags.setShader(PaintShader::MakeImage(
       CreateDiscardablePaintImage(gfx::Size(10, 10)), SkTileMode::kClamp,
       SkTileMode::kClamp, &SkMatrix::I()));
-  ScopedRasterFlags scoped_flags(&flags, nullptr, SkMatrix::I(), 0, 0.1f);
+  ScopedRasterFlags scoped_flags(&flags, nullptr, SkMatrix::I(), 0, 10);
   EXPECT_NE(scoped_flags.flags(), &flags);
-  EXPECT_EQ(scoped_flags.flags()->getAlphaf(), 1.0f * 0.1f);
+  EXPECT_EQ(scoped_flags.flags()->getAlpha(), SkMulDiv255Round(255, 10));
 }
 
 TEST(ScopedRasterFlagsTest, ThinAliasedStroke) {
@@ -133,21 +125,21 @@ TEST(ScopedRasterFlagsTest, ThinAliasedStroke) {
 
   struct {
     SkMatrix ctm;
-    float alpha;
+    uint8_t alpha;
 
     bool expect_same_flags;
     bool expect_aa;
     float expect_stroke_width;
-    float expect_alpha;
+    uint8_t expect_alpha;
   } tests[] = {
       // No downscaling                    => no stroke change.
-      {SkMatrix::Scale(1.0f, 1.0f), 1.0f, true, false, 1.0f, 1.0f},
+      {SkMatrix::Scale(1.0f, 1.0f), 255, true, false, 1.0f, 0xFF},
       // Symmetric downscaling             => modulated hairline stroke.
-      {SkMatrix::Scale(0.5f, 0.5f), 1.0f, false, false, 0.0f, 0.5f},
+      {SkMatrix::Scale(0.5f, 0.5f), 255, false, false, 0.0f, 0x80},
       // Symmetric downscaling w/ alpha    => modulated hairline stroke.
-      {SkMatrix::Scale(0.5f, 0.5f), 0.5f, false, false, 0.0f, 0.25f},
+      {SkMatrix::Scale(0.5f, 0.5f), 127, false, false, 0.0f, 0x40},
       // Anisotropic scaling              => AA stroke.
-      {SkMatrix::Scale(0.5f, 1.5f), 1.0f, false, true, 1.0f, 1.0f},
+      {SkMatrix::Scale(0.5f, 1.5f), 255, false, true, 1.0f, 0xFF},
   };
 
   for (const auto& test : tests) {
@@ -157,8 +149,7 @@ TEST(ScopedRasterFlagsTest, ThinAliasedStroke) {
     EXPECT_EQ(scoped_flags.flags() == &flags, test.expect_same_flags);
     EXPECT_EQ(scoped_flags.flags()->isAntiAlias(), test.expect_aa);
     EXPECT_EQ(scoped_flags.flags()->getStrokeWidth(), test.expect_stroke_width);
-    EXPECT_LE(std::abs(scoped_flags.flags()->getAlphaf() - test.expect_alpha),
-              0.01f);
+    EXPECT_EQ(scoped_flags.flags()->getAlpha(), test.expect_alpha);
   }
 }
 

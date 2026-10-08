@@ -1,9 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/time/time.h"
 #include "chrome/browser/browser_process.h"
@@ -25,10 +26,8 @@
 #include "components/blocked_content/popup_blocker_tab_helper.h"
 #include "components/content_settings/browser/page_specific_content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
-#include "components/permissions/features.h"
+#include "components/permissions/notification_permission_ui_selector.h"
 #include "components/permissions/permission_request_manager.h"
-#include "components/permissions/permission_ui_selector.h"
-#include "components/permissions/request_type.h"
 #include "components/permissions/test/mock_permission_request.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -40,39 +39,31 @@
 
 namespace {
 
-using QuietUiReason = permissions::PermissionUiSelector::QuietUiReason;
+using QuietUiReason =
+    permissions::NotificationPermissionUiSelector::QuietUiReason;
 
 // Test implementation of NotificationPermissionUiSelector that always forces
 // the quiet UI to be used for surfacing notification permission requests.
 class TestQuietNotificationPermissionUiSelector
-    : public permissions::PermissionUiSelector {
+    : public permissions::NotificationPermissionUiSelector {
  public:
   explicit TestQuietNotificationPermissionUiSelector(
       QuietUiReason simulated_reason_for_quiet_ui)
       : simulated_reason_for_quiet_ui_(simulated_reason_for_quiet_ui) {}
-
-  TestQuietNotificationPermissionUiSelector(
-      const TestQuietNotificationPermissionUiSelector&) = delete;
-  TestQuietNotificationPermissionUiSelector& operator=(
-      const TestQuietNotificationPermissionUiSelector&) = delete;
-
   ~TestQuietNotificationPermissionUiSelector() override = default;
 
  protected:
-  // permissions::PermissionUiSelector:
+  // permissions::NotificationPermissionUiSelector:
   void SelectUiToUse(permissions::PermissionRequest* request,
                      DecisionMadeCallback callback) override {
     std::move(callback).Run(
-        Decision(simulated_reason_for_quiet_ui_, absl::nullopt));
-  }
-
-  bool IsPermissionRequestSupported(
-      permissions::RequestType request_type) override {
-    return request_type == permissions::RequestType::kNotifications;
+        Decision(simulated_reason_for_quiet_ui_, base::nullopt));
   }
 
  private:
   QuietUiReason simulated_reason_for_quiet_ui_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestQuietNotificationPermissionUiSelector);
 };
 
 }  // namespace
@@ -82,15 +73,9 @@ using ImageType = ContentSettingImageModel::ImageType;
 class ContentSettingBubbleDialogTest : public DialogBrowserTest {
  public:
   ContentSettingBubbleDialogTest() {
-    scoped_feature_list_.InitWithFeatures(
-        {features::kQuietNotificationPrompts},
-        {permissions::features::kPermissionQuietChip});
+    scoped_feature_list_.InitAndEnableFeature(
+        features::kQuietNotificationPrompts);
   }
-
-  ContentSettingBubbleDialogTest(const ContentSettingBubbleDialogTest&) =
-      delete;
-  ContentSettingBubbleDialogTest& operator=(
-      const ContentSettingBubbleDialogTest&) = delete;
 
   void ApplyMediastreamSettings(bool mic_accessed, bool camera_accessed);
   void ApplyContentSettingsForType(ContentSettingsType content_type);
@@ -103,8 +88,10 @@ class ContentSettingBubbleDialogTest : public DialogBrowserTest {
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
-  absl::optional<permissions::MockPermissionRequest>
+  base::Optional<permissions::MockPermissionRequest>
       notification_permission_request_;
+
+  DISALLOW_COPY_AND_ASSIGN(ContentSettingBubbleDialogTest);
 };
 
 void ContentSettingBubbleDialogTest::ApplyMediastreamSettings(
@@ -120,10 +107,7 @@ void ContentSettingBubbleDialogTest::ApplyMediastreamSettings(
           : 0;
   content_settings::PageSpecificContentSettings* content_settings =
       content_settings::PageSpecificContentSettings::GetForFrame(
-          browser()
-              ->tab_strip_model()
-              ->GetActiveWebContents()
-              ->GetPrimaryMainFrame());
+          browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame());
   content_settings->OnMediaStreamPermissionSet(
       GURL("https://example.com/"), mic_setting | camera_setting, std::string(),
       std::string(), std::string(), std::string());
@@ -135,7 +119,7 @@ void ContentSettingBubbleDialogTest::ApplyContentSettingsForType(
       browser()->tab_strip_model()->GetActiveWebContents();
   content_settings::PageSpecificContentSettings* content_settings =
       content_settings::PageSpecificContentSettings::GetForFrame(
-          web_contents->GetPrimaryMainFrame());
+          web_contents->GetMainFrame());
   switch (content_type) {
     case ContentSettingsType::AUTOMATIC_DOWNLOADS: {
       // Automatic downloads are handled by DownloadRequestLimiter.
@@ -149,9 +133,9 @@ void ContentSettingBubbleDialogTest::ApplyContentSettingsForType(
       break;
     }
     case ContentSettingsType::POPUPS: {
-      ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      ui_test_utils::NavigateToURL(
           browser(),
-          embedded_test_server()->GetURL("/popup_blocker/popup-many-10.html")));
+          embedded_test_server()->GetURL("/popup_blocker/popup-many-10.html"));
       EXPECT_TRUE(content::ExecuteScript(web_contents, std::string()));
       auto* helper =
           blocked_content::PopupBlockerTabHelper::FromWebContents(web_contents);
@@ -161,9 +145,8 @@ void ContentSettingBubbleDialogTest::ApplyContentSettingsForType(
     }
     case ContentSettingsType::PROTOCOL_HANDLERS:
       chrome::PageSpecificContentSettingsDelegate::FromWebContents(web_contents)
-          ->set_pending_protocol_handler(
-              custom_handlers::ProtocolHandler::CreateProtocolHandler(
-                  "mailto", GURL("https://example.com/")));
+          ->set_pending_protocol_handler(ProtocolHandler::CreateProtocolHandler(
+              "mailto", GURL("https://example.com/")));
       break;
 
     default:
@@ -180,13 +163,16 @@ void ContentSettingBubbleDialogTest::TriggerQuietNotificationPermissionRequest(
       browser()->tab_strip_model()->GetActiveWebContents();
   auto* permission_request_manager =
       permissions::PermissionRequestManager::FromWebContents(web_contents);
-  permission_request_manager->set_permission_ui_selector_for_testing(
-      std::make_unique<TestQuietNotificationPermissionUiSelector>(
-          simulated_reason_for_quiet_ui));
+  permission_request_manager
+      ->set_notification_permission_ui_selector_for_testing(
+          std::make_unique<TestQuietNotificationPermissionUiSelector>(
+              simulated_reason_for_quiet_ui));
   DCHECK(!notification_permission_request_);
   notification_permission_request_.emplace(
-      GURL("https://example.com"), permissions::RequestType::kNotifications);
-  permission_request_manager->AddRequest(web_contents->GetPrimaryMainFrame(),
+      "notifications",
+      permissions::PermissionRequestType::PERMISSION_NOTIFICATIONS,
+      GURL("https://example.com"));
+  permission_request_manager->AddRequest(web_contents->GetMainFrame(),
                                          &*notification_permission_request_);
   base::RunLoop().RunUntilIdle();
 }
@@ -195,9 +181,15 @@ void ContentSettingBubbleDialogTest::ShowDialogBubble(
     ContentSettingImageModel::ImageType image_type) {
   LocationBarTesting* location_bar_testing =
       browser()->window()->GetLocationBar()->GetLocationBarForTesting();
+
+  base::HistogramTester histograms;
+
   EXPECT_TRUE(location_bar_testing->TestContentSettingImagePressed(
       ContentSettingImageModel::GetContentSettingImageModelIndexForTesting(
           image_type)));
+
+  histograms.ExpectBucketCount("ContentSettings.ImagePressed",
+                               static_cast<int>(image_type), 1);
 }
 
 void ContentSettingBubbleDialogTest::ShowUi(const std::string& name) {
@@ -219,7 +211,7 @@ void ContentSettingBubbleDialogTest::ShowUi(const std::string& name) {
     else if (name == "notifications_quiet_abusive_content")
       reason = QuietUiReason::kTriggeredDueToAbusiveContent;
     else if (name == "notifications_quiet_predicted_very_unlikely")
-      reason = QuietUiReason::kServicePredictedVeryUnlikelyGrant;
+      reason = QuietUiReason::kPredictedVeryUnlikelyGrant;
     TriggerQuietNotificationPermissionRequest(reason);
     ShowDialogBubble(ImageType::NOTIFICATIONS_QUIET_PROMPT);
     return;
@@ -233,8 +225,11 @@ void ContentSettingBubbleDialogTest::ShowUi(const std::string& name) {
       {"cookies", ContentSettingsType::COOKIES, ImageType::COOKIES},
       {"images", ContentSettingsType::IMAGES, ImageType::IMAGES},
       {"javascript", ContentSettingsType::JAVASCRIPT, ImageType::JAVASCRIPT},
+      {"plugins", ContentSettingsType::PLUGINS, ImageType::PLUGINS},
       {"popups", ContentSettingsType::POPUPS, ImageType::POPUPS},
       {"geolocation", ContentSettingsType::GEOLOCATION, ImageType::GEOLOCATION},
+      {"ppapi_broker", ContentSettingsType::PPAPI_BROKER,
+       ImageType::PPAPI_BROKER},
       {"mixed_script", ContentSettingsType::MIXEDSCRIPT,
        ImageType::MIXEDSCRIPT},
       {"protocol_handlers", ContentSettingsType::PROTOCOL_HANDLERS,
@@ -266,12 +261,20 @@ IN_PROC_BROWSER_TEST_F(ContentSettingBubbleDialogTest, InvokeUi_javascript) {
   ShowAndVerifyUi();
 }
 
+IN_PROC_BROWSER_TEST_F(ContentSettingBubbleDialogTest, InvokeUi_plugins) {
+  ShowAndVerifyUi();
+}
+
 IN_PROC_BROWSER_TEST_F(ContentSettingBubbleDialogTest, InvokeUi_popups) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ShowAndVerifyUi();
 }
 
 IN_PROC_BROWSER_TEST_F(ContentSettingBubbleDialogTest, InvokeUi_geolocation) {
+  ShowAndVerifyUi();
+}
+
+IN_PROC_BROWSER_TEST_F(ContentSettingBubbleDialogTest, InvokeUi_ppapi_broker) {
   ShowAndVerifyUi();
 }
 

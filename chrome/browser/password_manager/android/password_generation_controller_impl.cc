@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,14 @@
 #include "base/callback.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/trace_event/trace_event.h"
 #include "chrome/browser/autofill/manual_filling_controller.h"
 #include "chrome/browser/password_manager/android/password_accessory_controller.h"
 #include "chrome/browser/password_manager/android/password_generation_dialog_view_interface.h"
 #include "chrome/browser/password_manager/chrome_password_manager_client.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/password_generation_util.h"
+#include "components/autofill/core/common/renderer_id.h"
 #include "components/autofill/core/common/signatures.h"
-#include "components/autofill/core/common/unique_ids.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_generation_frame_helper.h"
 #include "components/password_manager/core/browser/password_manager.h"
@@ -97,7 +96,7 @@ void PasswordGenerationControllerImpl::OnAutomaticGenerationAvailable(
 
   active_frame_driver_->GetPasswordManager()
       ->SetGenerationElementAndTypeForForm(
-          active_frame_driver_.get(), ui_data.form_data.unique_renderer_id,
+          active_frame_driver_.get(), ui_data.form_data,
           ui_data.generation_element_id, PasswordGenerationType::kAutomatic);
 
   if (!base::FeatureList::IsEnabled(
@@ -111,7 +110,7 @@ void PasswordGenerationControllerImpl::OnAutomaticGenerationAvailable(
 
   if (!manual_filling_controller_) {
     manual_filling_controller_ =
-        ManualFillingController::GetOrCreate(&GetWebContents());
+        ManualFillingController::GetOrCreate(web_contents_);
   }
 
   DCHECK(manual_filling_controller_);
@@ -131,8 +130,6 @@ void PasswordGenerationControllerImpl::ShowManualGenerationDialog(
 void PasswordGenerationControllerImpl::FocusedInputChanged(
     autofill::mojom::FocusedFieldType focused_field_type,
     base::WeakPtr<password_manager::PasswordManagerDriver> driver) {
-  TRACE_EVENT0("passwords",
-               "PasswordGenerationControllerImpl::FocusedInputChanged");
   ResetState();
   if (focused_field_type == FocusedFieldType::kFillablePasswordField)
     active_frame_driver_ = std::move(driver);
@@ -149,7 +146,7 @@ void PasswordGenerationControllerImpl::OnGenerationRequested(
 }
 
 void PasswordGenerationControllerImpl::GeneratedPasswordAccepted(
-    const std::u16string& password,
+    const base::string16& password,
     base::WeakPtr<password_manager::PasswordManagerDriver> driver,
     PasswordGenerationType type) {
   if (!driver)
@@ -169,12 +166,9 @@ void PasswordGenerationControllerImpl::GeneratedPasswordRejected(
       GenerationDialogChoice::kRejected, type);
 }
 
-gfx::NativeWindow PasswordGenerationControllerImpl::top_level_native_window() {
-  return GetWebContents().GetTopLevelNativeWindow();
-}
-
-content::WebContents* PasswordGenerationControllerImpl::web_contents() {
-  return &GetWebContents();
+gfx::NativeWindow PasswordGenerationControllerImpl::top_level_native_window()
+    const {
+  return web_contents_->GetTopLevelNativeWindow();
 }
 
 // static
@@ -196,8 +190,7 @@ void PasswordGenerationControllerImpl::CreateForWebContentsForTesting(
 
 PasswordGenerationControllerImpl::PasswordGenerationControllerImpl(
     content::WebContents* web_contents)
-    : content::WebContentsUserData<PasswordGenerationControllerImpl>(
-          *web_contents),
+    : web_contents_(web_contents),
       client_(ChromePasswordManagerClient::FromWebContents(web_contents)),
       create_dialog_factory_(
           base::BindRepeating(&PasswordGenerationDialogViewInterface::Create)) {
@@ -208,8 +201,7 @@ PasswordGenerationControllerImpl::PasswordGenerationControllerImpl(
     password_manager::PasswordManagerClient* client,
     base::WeakPtr<ManualFillingController> manual_filling_controller,
     CreateDialogFactory create_dialog_factory)
-    : content::WebContentsUserData<PasswordGenerationControllerImpl>(
-          *web_contents),
+    : web_contents_(web_contents),
       client_(client),
       manual_filling_controller_(std::move(manual_filling_controller)),
       create_dialog_factory_(create_dialog_factory) {}
@@ -228,9 +220,9 @@ void PasswordGenerationControllerImpl::ShowDialog(PasswordGenerationType type) {
 
   dialog_view_ = create_dialog_factory_.Run(this);
 
-  std::u16string password =
+  base::string16 password =
       active_frame_driver_->GetPasswordGenerationHelper()->GeneratePassword(
-          GetWebContents().GetLastCommittedURL().DeprecatedGetOriginAsURL(),
+          web_contents_->GetLastCommittedURL().GetOrigin(),
           generation_element_data_->form_signature,
           generation_element_data_->field_signature,
           generation_element_data_->max_password_length);
@@ -253,4 +245,4 @@ void PasswordGenerationControllerImpl::ResetState() {
   manual_generation_requested_ = false;
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(PasswordGenerationControllerImpl);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(PasswordGenerationControllerImpl)

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 #define REMOTING_HOST_ACTION_EXECUTOR_H_
 
 #include <memory>
+
+#include "base/macros.h"
 
 namespace remoting {
 
@@ -15,9 +17,6 @@ class ActionRequest;
 
 class ActionExecutor {
  public:
-  ActionExecutor(const ActionExecutor&) = delete;
-  ActionExecutor& operator=(const ActionExecutor&) = delete;
-
   virtual ~ActionExecutor();
 
   // Creates an action executor for the current platform / host architecture.
@@ -29,6 +28,9 @@ class ActionExecutor {
 
  protected:
   ActionExecutor();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ActionExecutor);
 };
 
 }  // namespace remoting

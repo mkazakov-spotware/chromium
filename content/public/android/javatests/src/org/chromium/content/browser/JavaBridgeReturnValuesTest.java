@@ -1,10 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.content.browser;
-
-import android.webkit.JavascriptInterface;
 
 import androidx.test.filters.SmallTest;
 
@@ -48,7 +46,6 @@ public class JavaBridgeReturnValuesTest {
         private boolean mBooleanResult;
 
         // These four methods are used to control the test.
-        @JavascriptInterface
         public synchronized void setStringResult(String x) {
             mStringResult = x;
             notifyResultIsReady();
@@ -57,7 +54,6 @@ public class JavaBridgeReturnValuesTest {
             waitForResult();
             return mStringResult;
         }
-        @JavascriptInterface
         public synchronized void setBooleanResult(boolean x) {
             mBooleanResult = x;
             notifyResultIsReady();
@@ -67,72 +63,56 @@ public class JavaBridgeReturnValuesTest {
             return mBooleanResult;
         }
 
-        @JavascriptInterface
         public boolean getBooleanValue() {
             return true;
         }
-        @JavascriptInterface
         public byte getByteValue() {
             return 42;
         }
-        @JavascriptInterface
         public char getCharValue() {
             return '\u002A';
         }
-        @JavascriptInterface
         public short getShortValue() {
             return 42;
         }
-        @JavascriptInterface
         public int getIntValue() {
             return 42;
         }
-        @JavascriptInterface
         public long getLongValue() {
             return 42L;
         }
-        @JavascriptInterface
         public float getFloatValue() {
             return 42.1f;
         }
-        @JavascriptInterface
         public float getFloatValueNoDecimal() {
             return 42.0f;
         }
-        @JavascriptInterface
         public double getDoubleValue() {
             return 42.1;
         }
-        @JavascriptInterface
         public double getDoubleValueNoDecimal() {
             return 42.0;
         }
-        @JavascriptInterface
         public String getStringValue() {
             return "foo";
         }
-        @JavascriptInterface
         public String getEmptyStringValue() {
             return "";
         }
-        @JavascriptInterface
         public String getNullStringValue() {
             return null;
         }
-        @JavascriptInterface
         public Object getObjectValue() {
             return new Object();
         }
-        @JavascriptInterface
         public Object getNullObjectValue() {
             return null;
         }
-        @JavascriptInterface
         public CustomType getCustomTypeValue() {
             return new CustomType();
         }
-        @JavascriptInterface
-        public void getVoidValue() {}
+        public void getVoidValue() {
+        }
     }
 
     // A custom type used when testing passing objects.

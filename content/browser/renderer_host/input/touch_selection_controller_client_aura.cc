@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,8 @@
 
 #include <set>
 
-#include "ash/constants/ash_features.h"
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
-#include "base/observer_list.h"
-#include "build/chromeos_buildflags.h"
+#include "base/macros.h"
 #include "content/browser/renderer_host/render_widget_host_delegate.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
 #include "content/browser/renderer_host/render_widget_host_view_aura.h"
@@ -70,9 +67,6 @@ class TouchSelectionControllerClientAura::EnvEventObserver
     env->AddEventObserver(this, env, types);
   }
 
-  EnvEventObserver(const EnvEventObserver&) = delete;
-  EnvEventObserver& operator=(const EnvEventObserver&) = delete;
-
   ~EnvEventObserver() override {
     aura::Env::GetInstance()->RemoveEventObserver(this);
   }
@@ -103,8 +97,10 @@ class TouchSelectionControllerClientAura::EnvEventObserver
     selection_controller_->HideAndDisallowShowingAutomatically();
   }
 
-  raw_ptr<ui::TouchSelectionController> selection_controller_;
-  raw_ptr<aura::Window> window_;
+  ui::TouchSelectionController* selection_controller_;
+  aura::Window* window_;
+
+  DISALLOW_COPY_AND_ASSIGN(EnvEventObserver);
 };
 
 TouchSelectionControllerClientAura::TouchSelectionControllerClientAura(
@@ -114,7 +110,7 @@ TouchSelectionControllerClientAura::TouchSelectionControllerClientAura(
       active_client_(&internal_client_),
       active_menu_client_(this),
       quick_menu_timer_(FROM_HERE,
-                        base::Milliseconds(kQuickMenuDelayInMs),
+                        base::TimeDelta::FromMilliseconds(kQuickMenuDelayInMs),
                         base::BindRepeating(
                             &TouchSelectionControllerClientAura::ShowQuickMenu,
                             base::Unretained(this))),
@@ -271,8 +267,7 @@ void TouchSelectionControllerClientAura::ShowQuickMenu() {
 
   aura::Window* parent = rwhva_->GetNativeView();
   ui::TouchSelectionMenuRunner::GetInstance()->OpenMenu(
-      active_menu_client_->GetWeakPtr(),
-      ConvertRectToScreen(parent, anchor_rect),
+      active_menu_client_, ConvertRectToScreen(parent, anchor_rect),
       gfx::ToRoundedSize(max_handle_size), parent->GetToplevelWindow());
 }
 
@@ -364,7 +359,7 @@ void TouchSelectionControllerClientAura::OnSelectionEvent(
   switch (event) {
     case ui::SELECTION_HANDLES_SHOWN:
       quick_menu_requested_ = true;
-      [[fallthrough]];
+      FALLTHROUGH;
     case ui::INSERTION_HANDLE_SHOWN:
       UpdateQuickMenu();
       env_event_observer_ = std::make_unique<EnvEventObserver>(
@@ -403,11 +398,9 @@ void TouchSelectionControllerClientAura::InternalClient::OnSelectionEvent(
 }
 
 void TouchSelectionControllerClientAura::OnDragUpdate(
-    const ui::TouchSelectionDraggable::Type type,
     const gfx::PointF& position) {}
 
 void TouchSelectionControllerClientAura::InternalClient::OnDragUpdate(
-    const ui::TouchSelectionDraggable::Type type,
     const gfx::PointF& position) {
   NOTREACHED();
 }
@@ -446,18 +439,13 @@ bool TouchSelectionControllerClientAura::IsCommandIdEnabled(
     case ui::TouchEditable::kCopy:
       return readable && has_selection;
     case ui::TouchEditable::kPaste: {
-      std::u16string result;
+      base::string16 result;
       ui::DataTransferEndpoint data_dst = ui::DataTransferEndpoint(
           ui::EndpointType::kDefault, /*notify_if_restricted=*/false);
       ui::Clipboard::GetForCurrentThread()->ReadText(
           ui::ClipboardBuffer::kCopyPaste, &data_dst, &result);
       return editable && !result.empty();
     }
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-    case ui::TouchEditable::kSelectAll:
-      return readable && base::FeatureList::IsEnabled(
-                             chromeos::features::kTouchTextEditingRedesign);
-#endif
     default:
       return false;
   }
@@ -479,9 +467,6 @@ void TouchSelectionControllerClientAura::ExecuteCommand(int command_id,
       break;
     case ui::TouchEditable::kPaste:
       host_delegate->Paste();
-      break;
-    case ui::TouchEditable::kSelectAll:
-      host_delegate->SelectAll();
       break;
     default:
       NOTREACHED();
@@ -509,7 +494,7 @@ bool TouchSelectionControllerClientAura::ShouldShowQuickMenu() {
          !handle_drag_in_progress_ && IsQuickMenuAvailable();
 }
 
-std::u16string TouchSelectionControllerClientAura::GetSelectedText() {
+base::string16 TouchSelectionControllerClientAura::GetSelectedText() {
   return rwhva_->GetSelectedText();
 }
 

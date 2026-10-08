@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include <type_traits>
 
 #include "base/check_op.h"
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "util/misc/implicit_cast.h"
 
@@ -81,9 +82,6 @@ class TSimpleStringDictionary {
           current_(0) {
     }
 
-    Iterator(const Iterator&) = delete;
-    Iterator& operator=(const Iterator&) = delete;
-
     //! \brief Returns the next entry in the map, or `nullptr` if at the end of
     //!     the collection.
     const Entry* Next() {
@@ -99,6 +97,8 @@ class TSimpleStringDictionary {
    private:
     const TSimpleStringDictionary& map_;
     size_t current_;
+
+    DISALLOW_COPY_AND_ASSIGN(Iterator);
   };
 
   TSimpleStringDictionary()

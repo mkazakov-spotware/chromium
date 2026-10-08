@@ -1,3 +1,35 @@
+<link rel="import" href="chrome://resources/html/polymer.html">
+
+<link rel="import" href="chrome://resources/html/assert.html">
+<link rel="import" href="chrome://resources/html/util.html">
+<link rel="import" href="chrome://resources/html/cr/ui/focus_without_ink.html">
+<link rel="import" href="chrome://resources/html/web_ui_listener_behavior.html">
+<link rel="import" href="chrome://resources/cr_elements/cr_button/cr_button.html">
+<link rel="import" href="chrome://resources/cr_elements/cr_dialog/cr_dialog.html">
+<link rel="import" href="chrome://resources/cr_elements/cr_input/cr_input.html">
+<link rel="import" href="chrome://resources/cr_elements/cr_link_row/cr_link_row.html">
+<link rel="import" href="chrome://resources/cr_elements/icons.html">
+<link rel="import" href="chrome://resources/cr_elements/shared_style_css.html">
+<link rel="import" href="chrome://resources/cr_elements/shared_vars_css.html">
+<link rel="import" href="chrome://resources/cr_elements/cr_expand_button/cr_expand_button.html">
+<link rel="import" href="chrome://resources/polymer/v1_0/iron-collapse/iron-collapse.html">
+<link rel="import" href="chrome://resources/polymer/v1_0/iron-icon/iron-icon.html">
+<link rel="import" href="chrome://resources/polymer/v1_0/iron-flex-layout/iron-flex-layout-classes.html">
+<link rel="import" href="sync_account_control.html">
+<link rel="import" href="sync_encryption_options.html">
+<link rel="import" href="sync_browser_proxy.html">
+<link rel="import" href="../i18n_setup.html">
+<link rel="import" href="../privacy_page/personalization_options.html">
+<link rel="import" href="../router.html">
+<link rel="import" href="../settings_shared_css.html">
+<link rel="import" href="../settings_vars_css.html">
+
+<if expr="not chromeos">
+<link rel="import" href="chrome://resources/cr_elements/cr_toast/cr_toast.html">
+</if>
+
+<dom-module id="settings-sync-page">
+  <template>
     <style include="cr-shared-style settings-shared iron-flex">
       #sync-separator {
         border-bottom: var(--cr-separator-line);
@@ -60,11 +92,10 @@
       }
 
       cr-link-row {
-        padding-inline-end: 0;
         padding-inline-start: 0;
+        padding-inline-end: 8px;
       }
     </style>
-
     <template is="dom-if" if="[[shouldShowSyncAccountControl_(
         syncStatus.syncSystemEnabled)]]">
       <settings-sync-account-control embedded-in-subpage
@@ -83,24 +114,15 @@
       </div>
     </div>
 
-<if expr="is_chromeos">
-    <!-- TODO(crbug.com/1231500): Remove this warning after Lacros side-by-side
-      rollout stage. -->
-    <template is="dom-if" if="[[shouldShowLacrosSideBySideWarning_()]]">
-      <div class="cr-row first cr-padded-text">
-        $i18n{syncSettingsLacrosSideBySideWarning}
-      </div>
-    </template>
-</if>
-
-    <template is="dom-if" if="[[showExistingPassphraseBelowAccount_]]"
+    <template is="dom-if" if="[[shouldShowExistingPassphraseBelowAccount_(
+        syncPrefs.passphraseRequired)]]"
         on-dom-change="focusPassphraseInput_">
       <div id="existingPassphrase" class="list-frame">
         <div id="existingPassphraseTitle" class="list-item">
             <div class="start cr-padded-text">
               <div>$i18n{existingPassphraseTitle}</div>
-              <div id="enterPassphraseLabel" class="secondary"
-                  inner-h-t-m-l="[[enterPassphraseLabel_]]">
+              <div class="secondary"
+                  inner-h-t-m-l="[[syncPrefs.enterPassphraseBody]]">
               </div>
             </div>
         </div>
@@ -130,12 +152,12 @@
         <h2 class="cr-title-text">$i18n{sync}</h2>
       </div>
 
-      <div id="[[pageStatusEnum_.SPINNER]]" class="cr-row first cr-padded-text"
-          hidden$="[[!isStatus_(pageStatusEnum_.SPINNER, pageStatus_)]]">
+      <div id="[[pages_.SPINNER]]" class="cr-row first cr-padded-text"
+          hidden$="[[!isStatus_(pages_.SPINNER, pageStatus_)]]">
         $i18n{syncLoading}
       </div>
-      <div id="[[pageStatusEnum_.CONFIGURE]]"
-          hidden$="[[!isStatus_(pageStatusEnum_.CONFIGURE, pageStatus_)]]">
+      <div id="[[pages_.CONFIGURE]]"
+          hidden$="[[!isStatus_(pages_.CONFIGURE, pageStatus_)]]">
         <div id="other-sync-items" class="list-frame">
           <cr-link-row id="sync-advanced-row"
               label="$i18n{syncAdvancedPageTitle}"
@@ -144,7 +166,6 @@
 
           <cr-link-row class="hr"
               label="$i18n{personalizeGoogleServicesTitle}"
-              hidden="[[!showActivityControls_()]]"
               on-click="onActivityControlsClick_" external></cr-link-row>
 
           <cr-link-row id="syncDashboardLink" class="hr"
@@ -173,7 +194,6 @@
               opened="[[encryptionExpanded_]]">
             <settings-sync-encryption-options
                 sync-status="[[syncStatus]]" sync-prefs="{{syncPrefs}}"
-                existing-passphrase-label="[[existingPassphraseLabel_]]"
                 on-passphrase-changed="onPassphraseChanged_">
             </settings-sync-encryption-options>
           </iron-collapse>
@@ -191,7 +211,7 @@
         page-visibility="[[pageVisibility]]" sync-status="[[syncStatus]]">
     </settings-personalization-options>
 
-<if expr="not chromeos_ash">
+<if expr="not chromeos">
     <template is="dom-if" if="[[showSetupCancelDialog_]]" restamp>
       <cr-dialog id="setupCancelDialog" on-close="onSetupCancelDialogClose_"
           ignore-popstate>
@@ -210,3 +230,6 @@
       </cr-dialog>
     </template>
 </if>
+  </template>
+  <script src="sync_page.js"></script>
+</dom-module>

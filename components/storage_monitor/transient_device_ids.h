@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include <map>
 #include <string>
 
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 
 namespace storage_monitor {
@@ -20,10 +21,6 @@ namespace storage_monitor {
 class TransientDeviceIds {
  public:
   TransientDeviceIds();
-
-  TransientDeviceIds(const TransientDeviceIds&) = delete;
-  TransientDeviceIds& operator=(const TransientDeviceIds&) = delete;
-
   ~TransientDeviceIds();
 
   // Returns the transient ID for a given |device_id|.
@@ -43,6 +40,8 @@ class TransientDeviceIds {
   IdMap transient_id_map_;
 
   base::ThreadChecker thread_checker_;
+
+  DISALLOW_COPY_AND_ASSIGN(TransientDeviceIds);
 };
 
 }  // namespace storage_monitor

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,10 @@
 #include <utility>
 
 #include "base/metrics/histogram_macros.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "third_party/blink/public/common/privacy_budget/identifiability_metric_builder.h"
 #include "third_party/blink/public/common/privacy_budget/identifiable_surface.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink.h"
-#include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom-blink.h"
-#include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_union_request_usvstring.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_cache_query_options.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_image_resource.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
@@ -28,8 +25,8 @@
 #include "third_party/blink/renderer/modules/service_worker/service_worker_registration.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
+#include "third_party/blink/renderer/platform/heap/heap_allocator.h"
 
 namespace blink {
 
@@ -74,6 +71,11 @@ void BackgroundFetchRegistration::OnProgress(
   result_ = result;
   failure_reason_ = failure_reason;
 
+  ExecutionContext* context = GetExecutionContext();
+  if (!context || context->IsContextDestroyed())
+    return;
+
+  DCHECK(context->IsContextThread());
   DispatchEvent(*Event::Create(event_type_names::kProgress));
 }
 
@@ -135,46 +137,46 @@ ScriptPromise BackgroundFetchRegistration::abort(ScriptState* script_state) {
   DCHECK(registration_);
   DCHECK(registration_service_);
 
-  registration_service_->Abort(
-      WTF::BindOnce(&BackgroundFetchRegistration::DidAbort,
-                    WrapPersistent(this), WrapPersistent(resolver)));
+  registration_service_->Abort(WTF::Bind(&BackgroundFetchRegistration::DidAbort,
+                                         WrapPersistent(this),
+                                         WrapPersistent(resolver)));
 
   return promise;
 }
 
 ScriptPromise BackgroundFetchRegistration::match(
     ScriptState* script_state,
-    const V8RequestInfo* request,
+    const RequestOrUSVString& request,
     const CacheQueryOptions* options,
     ExceptionState& exception_state) {
-  return MatchImpl(script_state, request,
-                   mojom::blink::CacheQueryOptions::From(options),
-                   exception_state,
-                   /* match_all = */ false);
+  return MatchImpl(
+      script_state, base::make_optional<RequestOrUSVString>(request),
+      mojom::blink::CacheQueryOptions::From(options), exception_state,
+      /* match_all = */ false);
 }
 
 ScriptPromise BackgroundFetchRegistration::matchAll(
     ScriptState* script_state,
     ExceptionState& exception_state) {
-  return MatchImpl(script_state, /* request = */ nullptr,
+  return MatchImpl(script_state, /* request = */ base::nullopt,
                    /* cache_query_options = */ nullptr, exception_state,
                    /* match_all = */ true);
 }
 
 ScriptPromise BackgroundFetchRegistration::matchAll(
     ScriptState* script_state,
-    const V8RequestInfo* request,
+    const RequestOrUSVString& request,
     const CacheQueryOptions* options,
     ExceptionState& exception_state) {
-  return MatchImpl(script_state, request,
-                   mojom::blink::CacheQueryOptions::From(options),
-                   exception_state,
-                   /* match_all = */ true);
+  return MatchImpl(
+      script_state, base::make_optional<RequestOrUSVString>(request),
+      mojom::blink::CacheQueryOptions::From(options), exception_state,
+      /* match_all = */ true);
 }
 
 ScriptPromise BackgroundFetchRegistration::MatchImpl(
     ScriptState* script_state,
-    const V8RequestInfo* request,
+    base::Optional<RequestOrUSVString> request,
     mojom::blink::CacheQueryOptionsPtr cache_query_options,
     ExceptionState& exception_state,
     bool match_all) {
@@ -197,19 +199,15 @@ ScriptPromise BackgroundFetchRegistration::MatchImpl(
 
   // Convert |request| to mojom::blink::FetchAPIRequestPtr.
   mojom::blink::FetchAPIRequestPtr request_to_match;
-  if (request) {
-    switch (request->GetContentType()) {
-      case V8RequestInfo::ContentType::kRequest:
-        request_to_match = request->GetAsRequest()->CreateFetchAPIRequest();
-        break;
-      case V8RequestInfo::ContentType::kUSVString: {
-        Request* new_request = Request::Create(
-            script_state, request->GetAsUSVString(), exception_state);
-        if (exception_state.HadException())
-          return ScriptPromise();
-        request_to_match = new_request->CreateFetchAPIRequest();
-        break;
-      }
+  if (request.has_value()) {
+    if (request->IsRequest()) {
+      request_to_match = request->GetAsRequest()->CreateFetchAPIRequest();
+    } else {
+      Request* new_request = Request::Create(
+          script_state, request->GetAsUSVString(), exception_state);
+      if (exception_state.HadException())
+        return ScriptPromise();
+      request_to_match = new_request->CreateFetchAPIRequest();
     }
   }
 
@@ -218,8 +216,8 @@ ScriptPromise BackgroundFetchRegistration::MatchImpl(
 
   registration_service_->MatchRequests(
       std::move(request_to_match), std::move(cache_query_options), match_all,
-      WTF::BindOnce(&BackgroundFetchRegistration::DidGetMatchingRequests,
-                    WrapPersistent(this), WrapPersistent(resolver), match_all));
+      WTF::Bind(&BackgroundFetchRegistration::DidGetMatchingRequests,
+                WrapPersistent(this), WrapPersistent(resolver), match_all));
 
   return promise;
 }
@@ -253,7 +251,7 @@ void BackgroundFetchRegistration::DidGetMatchingRequests(
   }
 
   if (!return_all) {
-    if (settled_fetches.empty()) {
+    if (settled_fetches.IsEmpty()) {
       // Nothing was matched. Resolve with `undefined`.
       resolver->Resolve();
       return;
@@ -341,7 +339,7 @@ const String BackgroundFetchRegistration::result() const {
 
 const String BackgroundFetchRegistration::failureReason() const {
   blink::IdentifiabilityMetricBuilder(GetExecutionContext()->UkmSourceID())
-      .Add(
+      .Set(
           blink::IdentifiableSurface::FromTypeAndToken(
               blink::IdentifiableSurface::Type::kWebFeature,
               WebFeature::
@@ -374,7 +372,7 @@ bool BackgroundFetchRegistration::HasPendingActivity() const {
   if (GetExecutionContext()->IsContextDestroyed())
     return false;
 
-  return !observers_.empty();
+  return !observers_.IsEmpty();
 }
 
 void BackgroundFetchRegistration::UpdateUI(

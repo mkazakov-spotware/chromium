@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -71,9 +71,8 @@ constexpr typename std::make_signed<T>::type ConditionalNegate(
   static_assert(std::is_integral<T>::value, "Type must be integral");
   using SignedT = typename std::make_signed<T>::type;
   using UnsignedT = typename std::make_unsigned<T>::type;
-  return static_cast<SignedT>((static_cast<UnsignedT>(x) ^
-                               static_cast<UnsignedT>(-SignedT(is_negative))) +
-                              is_negative);
+  return static_cast<SignedT>(
+      (static_cast<UnsignedT>(x) ^ -SignedT(is_negative)) + is_negative);
 }
 
 // This performs a safe, absolute value via unsigned overflow.
@@ -86,18 +85,30 @@ constexpr typename std::make_unsigned<T>::type SafeUnsignedAbs(T value) {
              : static_cast<UnsignedT>(value);
 }
 
-// TODO(jschuh): Switch to std::is_constant_evaluated() once C++20 is supported.
-// Alternately, the usage could be restructured for "consteval if" in C++23.
-#define IsConstantEvaluated() (__builtin_is_constant_evaluated())
-
-// TODO(jschuh): Debug builds don't reliably propagate constants, so we restrict
-// some accelerated runtime paths to release builds until this can be forced
-// with consteval support in C++20 or C++23.
-#if defined(NDEBUG)
-constexpr bool kEnableAsmCode = true;
+// This allows us to switch paths on known compile-time constants.
+#if defined(__clang__) || defined(__GNUC__)
+constexpr bool CanDetectCompileTimeConstant() {
+  return true;
+}
+template <typename T>
+constexpr bool IsCompileTimeConstant(const T v) {
+  return __builtin_constant_p(v);
+}
 #else
-constexpr bool kEnableAsmCode = false;
+constexpr bool CanDetectCompileTimeConstant() {
+  return false;
+}
+template <typename T>
+constexpr bool IsCompileTimeConstant(const T) {
+  return false;
+}
 #endif
+template <typename T>
+constexpr bool MustTreatAsConstexpr(const T v) {
+  // Either we can't detect a compile-time constant, and must always use the
+  // constexpr path, or we know we have a compile-time constant.
+  return !CanDetectCompileTimeConstant() || IsCompileTimeConstant(v);
+}
 
 // Forces a crash, like a CHECK(false). Used for numeric boundary errors.
 // Also used in a constexpr template to trigger a compilation failure on
@@ -182,7 +193,7 @@ class RangeCheck {
  public:
   constexpr RangeCheck(bool is_in_lower_bound, bool is_in_upper_bound)
       : is_underflow_(!is_in_lower_bound), is_overflow_(!is_in_upper_bound) {}
-  constexpr RangeCheck() : is_underflow_(false), is_overflow_(false) {}
+  constexpr RangeCheck() : is_underflow_(0), is_overflow_(0) {}
   constexpr bool IsValid() const { return !is_overflow_ && !is_underflow_; }
   constexpr bool IsInvalid() const { return is_overflow_ && is_underflow_; }
   constexpr bool IsOverflow() const { return is_overflow_ && !is_underflow_; }
@@ -245,10 +256,9 @@ struct NarrowingRange {
   static constexpr T Adjust(T value) {
     static_assert(std::is_same<T, Dst>::value, "");
     static_assert(kShift < DstLimits::digits, "");
-    using UnsignedDst = typename std::make_unsigned_t<T>;
-    return static_cast<T>(ConditionalNegate(
-        SafeUnsignedAbs(value) & ~((UnsignedDst{1} << kShift) - UnsignedDst{1}),
-        IsValueNegative(value)));
+    return static_cast<T>(
+        ConditionalNegate(SafeUnsignedAbs(value) & ~((T(1) << kShift) - T(1)),
+                          IsValueNegative(value)));
   }
 
   template <typename T,
@@ -266,8 +276,7 @@ struct NarrowingRange {
 
 template <typename Dst,
           typename Src,
-          template <typename>
-          class Bounds,
+          template <typename> class Bounds,
           IntegerRepresentation DstSign = std::is_signed<Dst>::value
                                               ? INTEGER_REPRESENTATION_SIGNED
                                               : INTEGER_REPRESENTATION_UNSIGNED,
@@ -285,8 +294,7 @@ struct DstRangeRelationToSrcRangeImpl;
 // Same sign narrowing: The range is contained for normal limits.
 template <typename Dst,
           typename Src,
-          template <typename>
-          class Bounds,
+          template <typename> class Bounds,
           IntegerRepresentation DstSign,
           IntegerRepresentation SrcSign>
 struct DstRangeRelationToSrcRangeImpl<Dst,
@@ -692,8 +700,9 @@ constexpr bool IsLessImpl(const L lhs,
                           const RangeCheck l_range,
                           const RangeCheck r_range) {
   return l_range.IsUnderflow() || r_range.IsOverflow() ||
-         (l_range == r_range && static_cast<decltype(lhs + rhs)>(lhs) <
-                                    static_cast<decltype(lhs + rhs)>(rhs));
+         (l_range == r_range &&
+          static_cast<decltype(lhs + rhs)>(lhs) <
+              static_cast<decltype(lhs + rhs)>(rhs));
 }
 
 template <typename L, typename R>
@@ -712,8 +721,9 @@ constexpr bool IsLessOrEqualImpl(const L lhs,
                                  const RangeCheck l_range,
                                  const RangeCheck r_range) {
   return l_range.IsUnderflow() || r_range.IsOverflow() ||
-         (l_range == r_range && static_cast<decltype(lhs + rhs)>(lhs) <=
-                                    static_cast<decltype(lhs + rhs)>(rhs));
+         (l_range == r_range &&
+          static_cast<decltype(lhs + rhs)>(lhs) <=
+              static_cast<decltype(lhs + rhs)>(rhs));
 }
 
 template <typename L, typename R>
@@ -732,8 +742,9 @@ constexpr bool IsGreaterImpl(const L lhs,
                              const RangeCheck l_range,
                              const RangeCheck r_range) {
   return l_range.IsOverflow() || r_range.IsUnderflow() ||
-         (l_range == r_range && static_cast<decltype(lhs + rhs)>(lhs) >
-                                    static_cast<decltype(lhs + rhs)>(rhs));
+         (l_range == r_range &&
+          static_cast<decltype(lhs + rhs)>(lhs) >
+              static_cast<decltype(lhs + rhs)>(rhs));
 }
 
 template <typename L, typename R>
@@ -752,8 +763,9 @@ constexpr bool IsGreaterOrEqualImpl(const L lhs,
                                     const RangeCheck l_range,
                                     const RangeCheck r_range) {
   return l_range.IsOverflow() || r_range.IsUnderflow() ||
-         (l_range == r_range && static_cast<decltype(lhs + rhs)>(lhs) >=
-                                    static_cast<decltype(lhs + rhs)>(rhs));
+         (l_range == r_range &&
+          static_cast<decltype(lhs + rhs)>(lhs) >=
+              static_cast<decltype(lhs + rhs)>(rhs));
 }
 
 template <typename L, typename R>

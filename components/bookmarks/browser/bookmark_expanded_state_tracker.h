@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <set>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/bookmarks/browser/base_bookmark_model_observer.h"
 
 class PrefService;
@@ -26,11 +26,6 @@ class BookmarkExpandedStateTracker : public BaseBookmarkModelObserver {
 
   BookmarkExpandedStateTracker(BookmarkModel* bookmark_model,
                                PrefService* pref_service);
-
-  BookmarkExpandedStateTracker(const BookmarkExpandedStateTracker&) = delete;
-  BookmarkExpandedStateTracker& operator=(const BookmarkExpandedStateTracker&) =
-      delete;
-
   ~BookmarkExpandedStateTracker() override;
 
   // The set of expanded nodes.
@@ -54,8 +49,10 @@ class BookmarkExpandedStateTracker : public BaseBookmarkModelObserver {
   // GetExpandedNodes().
   void UpdatePrefs(const Nodes& nodes);
 
-  raw_ptr<BookmarkModel> bookmark_model_;
-  raw_ptr<PrefService> pref_service_;
+  BookmarkModel* bookmark_model_;
+  PrefService* pref_service_;
+
+  DISALLOW_COPY_AND_ASSIGN(BookmarkExpandedStateTracker);
 };
 
 }  // namespace bookmarks

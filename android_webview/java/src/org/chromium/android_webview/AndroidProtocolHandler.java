@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.url.GURL;
+import org.chromium.base.metrics.RecordHistogram;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,7 +42,7 @@ public class AndroidProtocolHandler {
      * @return An InputStream to the Android resource.
      */
     @CalledByNative
-    public static InputStream open(GURL url) {
+    public static InputStream open(String url) {
         Uri uri = verifyUrl(url);
         if (uri == null) {
             return null;
@@ -93,17 +93,19 @@ public class AndroidProtocolHandler {
                 packageName + ".R$" + assetType);
     }
 
-    // file://android_res/ has no choice but to do name-based resource lookups
-    @SuppressWarnings("DiscouragedApi")
     private static int getFieldId(String assetType, String assetName)
             throws ClassNotFoundException, NoSuchFieldException, IllegalAccessException {
         Context appContext = ContextUtils.getApplicationContext();
         String packageName = appContext.getPackageName();
         int id = appContext.getResources().getIdentifier(assetName, assetType, packageName);
         if (id != 0) {
+            RecordHistogram.recordBooleanHistogram(
+                    "Android.WebView.AndroidProtocolHandler.ResourceGetIdentifier", true);
             return id;
         }
-        // Fail back to reflection if getIdentifier fails, see https://crbug.com/923956.
+        // Resource id can't be found using Resources class so fallback to reflection.
+        // TODO(https://crbug.com/923956) remove reflection fallback if the histogram is always
+        // true.
         Class<?> clazz = null;
         try {
             clazz = getClazz(packageName, assetType);
@@ -121,9 +123,10 @@ public class AndroidProtocolHandler {
                 }
             }
         }
+        RecordHistogram.recordBooleanHistogram(
+                "Android.WebView.AndroidProtocolHandler.ResourceGetIdentifier", false);
         java.lang.reflect.Field field = clazz.getField(assetName);
         id = field.getInt(null);
-
         return id;
     }
 
@@ -210,7 +213,7 @@ public class AndroidProtocolHandler {
      * @return The mime type or null if the type is unknown.
      */
     @CalledByNative
-    public static String getMimeType(InputStream stream, GURL url) {
+    public static String getMimeType(InputStream stream, String url) {
         Uri uri = verifyUrl(url);
         if (uri == null) {
             return null;
@@ -241,15 +244,14 @@ public class AndroidProtocolHandler {
     }
 
     /**
-     * Make sure the given GURL is correctly formed and parse it into a Uri.
+     * Make sure the given string URL is correctly formed and parse it into a Uri.
      *
      * @return a Uri instance, or null if the URL was invalid.
      */
-    private static Uri verifyUrl(GURL url) {
+    private static Uri verifyUrl(String url) {
         if (url == null) return null;
         if (url.isEmpty()) return null;
-        Uri uri = Uri.parse(
-                url.getSpec()); // Never null. parse() doesn't actually parse or verify anything.
+        Uri uri = Uri.parse(url); // Never null. parse() doesn't actually parse or verify anything.
         String path = uri.getPath();
         if (path == null || path.isEmpty() || path.equals("/")) {
             Log.e(TAG, "URL does not have a path: " + url);

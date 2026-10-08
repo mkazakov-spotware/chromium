@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "services/media_session/public/cpp/android/media_session_jni_headers/MediaImage_jni.h"
-#include "url/android/gurl_android.h"
 
 using base::android::ScopedJavaLocalRef;
 
@@ -33,7 +32,9 @@ ScopedJavaLocalRef<jobjectArray> MediaImage::ToJavaArray(
 }
 
 ScopedJavaLocalRef<jobject> MediaImage::CreateJavaObject(JNIEnv* env) const {
-  ScopedJavaLocalRef<jobject> j_src(url::GURLAndroid::FromNativeGURL(env, src));
+  std::string src_spec = src.spec();
+  ScopedJavaLocalRef<jstring> j_src(
+      base::android::ConvertUTF8ToJavaString(env, src_spec));
   ScopedJavaLocalRef<jstring> j_type(
       base::android::ConvertUTF16ToJavaString(env, type));
 

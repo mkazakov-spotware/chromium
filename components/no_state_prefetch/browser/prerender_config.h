@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 #define COMPONENTS_NO_STATE_PREFETCH_BROWSER_PRERENDER_CONFIG_H_
 
 #include <stddef.h>
+
+#include <string>
 
 #include "base/time/time.h"
 #include "ui/gfx/geometry/rect.h"
@@ -20,18 +22,18 @@ struct Config {
   size_t max_bytes;
 
   // Number of simultaneous prerender pages from link elements allowed. Enforced
-  // by NoStatePrefetchLinkManager.
+  // by PrerenderLinkManager.
   size_t max_link_concurrency;
 
   // Number of simultaneous prerender pages from link elements allowed per
-  // launching page. Enforced by NoStatePrefetchLinkManager.
+  // launching page. Enforced by PrerenderLinkManager.
   size_t max_link_concurrency_per_launcher;
 
   // Is rate limiting enabled?
   bool rate_limit_enabled;
 
   // The maximum time that a prerender can wait for launch in the
-  // NoStatePrefetchLinkManager.
+  // PrerenderLinkManager.
   base::TimeDelta max_wait_to_launch;
 
   // The default time to live of a newly created prerender. May be shortened to

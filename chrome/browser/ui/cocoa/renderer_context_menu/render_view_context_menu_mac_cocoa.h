@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,13 +17,9 @@
 // target of the NSMenu, bridging back to this C++ class.
 class RenderViewContextMenuMacCocoa : public RenderViewContextMenuMac {
  public:
-  RenderViewContextMenuMacCocoa(content::RenderFrameHost& render_frame_host,
+  RenderViewContextMenuMacCocoa(content::RenderFrameHost* render_frame_host,
                                 const content::ContextMenuParams& params,
                                 NSView* parent_view);
-
-  RenderViewContextMenuMacCocoa(const RenderViewContextMenuMacCocoa&) = delete;
-  RenderViewContextMenuMacCocoa& operator=(
-      const RenderViewContextMenuMacCocoa&) = delete;
 
   ~RenderViewContextMenuMacCocoa() override;
 
@@ -40,13 +36,15 @@ class RenderViewContextMenuMacCocoa : public RenderViewContextMenuMac {
   void UpdateToolkitMenuItem(int command_id,
                              bool enabled,
                              bool hidden,
-                             const std::u16string& title);
+                             const base::string16& title);
 
   // The Cocoa menu controller for this menu.
   base::scoped_nsobject<MenuControllerCocoa> menu_controller_;
 
   // The Cocoa parent view.
   NSView* parent_view_;
+
+  DISALLOW_COPY_AND_ASSIGN(RenderViewContextMenuMacCocoa);
 };
 
 // The ChromeSwizzleServicesMenuUpdater filters Services menu items in the

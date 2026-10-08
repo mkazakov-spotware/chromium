@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -138,7 +138,7 @@ void EngineClient::InitializeReadOnlyCallbacks() {
 }
 
 bool EngineClient::InitializeCleaningCallbacks() {
-  std::unique_ptr<ZipArchiver> archiver;
+  std::unique_ptr<ZipArchiver> archiver = nullptr;
   if (archiver_for_testing_) {
     archiver = std::move(archiver_for_testing_);
   } else {
@@ -222,10 +222,10 @@ uint32_t EngineClient::ScanningWatchdogTimeoutInSeconds() const {
 void EngineClient::PostBindEngineCommandsRemote(
     mojo::ScopedMessagePipeHandle pipe) {
   mojo_task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(
-          &EngineClient::BindEngineCommandsRemote, this, std::move(pipe),
-          base::BindOnce(connection_error_callback_, SandboxType::kEngine)));
+      FROM_HERE, base::BindOnce(&EngineClient::BindEngineCommandsRemote,
+                                base::RetainedRef(this), std::move(pipe),
+                                base::BindOnce(connection_error_callback_,
+                                               SandboxType::kEngine)));
 }
 
 void EngineClient::BindEngineCommandsRemote(mojo::ScopedMessagePipeHandle pipe,

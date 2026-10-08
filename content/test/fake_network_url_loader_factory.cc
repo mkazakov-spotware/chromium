@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,6 +27,7 @@ FakeNetworkURLLoaderFactory::~FakeNetworkURLLoaderFactory() = default;
 
 void FakeNetworkURLLoaderFactory::CreateLoaderAndStart(
     mojo::PendingReceiver<network::mojom::URLLoader> receiver,
+    int32_t routing_id,
     int32_t request_id,
     uint32_t options,
     const network::ResourceRequest& url_request,
@@ -34,6 +35,7 @@ void FakeNetworkURLLoaderFactory::CreateLoaderAndStart(
     const net::MutableNetworkTrafficAnnotationTag& traffic_annotation) {
   URLLoaderInterceptor::RequestParams params;
   params.process_id = ChildProcessHost::kInvalidUniqueID;  // unused
+  params.routing_id = routing_id;
   params.request_id = request_id;
   params.options = options;
   params.url_request = url_request;

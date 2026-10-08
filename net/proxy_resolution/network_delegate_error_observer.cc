@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
 #include "net/base/net_errors.h"
 #include "net/base/network_delegate.h"
 
@@ -21,10 +21,7 @@ class NetworkDelegateErrorObserver::Core
   Core(NetworkDelegate* network_delegate,
        base::SingleThreadTaskRunner* origin_runner);
 
-  Core(const Core&) = delete;
-  Core& operator=(const Core&) = delete;
-
-  void NotifyPACScriptError(int line_number, const std::u16string& error);
+  void NotifyPACScriptError(int line_number, const base::string16& error);
 
   void Shutdown();
 
@@ -33,8 +30,10 @@ class NetworkDelegateErrorObserver::Core
 
   virtual ~Core();
 
-  raw_ptr<NetworkDelegate> network_delegate_;
+  NetworkDelegate* network_delegate_;
   scoped_refptr<base::SingleThreadTaskRunner> origin_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(Core);
 };
 
 NetworkDelegateErrorObserver::Core::Core(
@@ -48,7 +47,7 @@ NetworkDelegateErrorObserver::Core::~Core() = default;
 
 void NetworkDelegateErrorObserver::Core::NotifyPACScriptError(
     int line_number,
-    const std::u16string& error) {
+    const base::string16& error) {
   if (!origin_runner_->BelongsToCurrentThread()) {
     origin_runner_->PostTask(
         FROM_HERE,
@@ -69,7 +68,8 @@ void NetworkDelegateErrorObserver::Core::Shutdown() {
 NetworkDelegateErrorObserver::NetworkDelegateErrorObserver(
     NetworkDelegate* network_delegate,
     base::SingleThreadTaskRunner* origin_runner)
-    : core_(base::MakeRefCounted<Core>(network_delegate, origin_runner)) {}
+    : core_(new Core(network_delegate, origin_runner)) {
+}
 
 NetworkDelegateErrorObserver::~NetworkDelegateErrorObserver() {
   core_->Shutdown();
@@ -86,7 +86,7 @@ NetworkDelegateErrorObserver::Create(
 
 void NetworkDelegateErrorObserver::OnPACScriptError(
     int line_number,
-    const std::u16string& error) {
+    const base::string16& error) {
   core_->NotifyPACScriptError(line_number, error);
 }
 

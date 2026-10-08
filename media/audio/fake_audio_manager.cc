@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 
 #include <algorithm>
 #include <utility>
-#include "media/base/audio_parameters.h"
-#include "media/base/channel_layout.h"
 
 namespace media {
 
@@ -66,23 +64,23 @@ AudioParameters FakeAudioManager::GetPreferredOutputStreamParameters(
     const AudioParameters& input_params) {
   static const int kDefaultOutputBufferSize = 2048;
   static const int kDefaultSampleRate = 48000;
-  ChannelLayoutConfig channel_layout_config = ChannelLayoutConfig::Stereo();
+  ChannelLayout channel_layout = CHANNEL_LAYOUT_STEREO;
   int sample_rate = kDefaultSampleRate;
   int buffer_size = kDefaultOutputBufferSize;
   if (input_params.IsValid()) {
     sample_rate = input_params.sample_rate();
-    channel_layout_config = input_params.channel_layout_config();
+    channel_layout = input_params.channel_layout();
     buffer_size = std::min(input_params.frames_per_buffer(), buffer_size);
   }
 
-  return AudioParameters(AudioParameters::AUDIO_PCM_LOW_LATENCY,
-                         channel_layout_config, sample_rate, buffer_size);
+  return AudioParameters(AudioParameters::AUDIO_PCM_LOW_LATENCY, channel_layout,
+                         sample_rate, buffer_size);
 }
 
 AudioParameters FakeAudioManager::GetInputStreamParameters(
     const std::string& device_id) {
   return AudioParameters(AudioParameters::AUDIO_PCM_LOW_LATENCY,
-                         ChannelLayoutConfig::Stereo(), kDefaultSampleRate,
+                         CHANNEL_LAYOUT_STEREO, kDefaultSampleRate,
                          kDefaultInputBufferSize);
 }
 

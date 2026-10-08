@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Migrates histogram_suffixes to patterned histograms"""
@@ -15,7 +15,7 @@ import histogram_paths
 import path_util
 
 HISTOGRAM_SUFFIXES_LIST_PATH = path_util.GetInputFile(
-    'tools/metrics/histograms/metadata/histogram_suffixes_list.xml')
+    'tools/metrics/histograms/histograms_xml/histogram_suffixes_list.xml')
 
 
 def _ExtractObsoleteNode(node, recursive=True):
@@ -293,10 +293,13 @@ def ChooseFiles(args):
   """Chooses a set of files to process so that we can migrate incrementally."""
   paths = []
   for path in sorted(histogram_paths.HISTOGRAMS_XMLS):
-    if 'metadata' in path and path.endswith('histograms.xml'):
+    if 'histograms_xml' in path and path.endswith('histograms.xml'):
       name = os.path.basename(os.path.dirname(path))
       if args.start <= name[0] <= args.end:
         paths.append(path)
+
+  if args.obsolete:
+    paths.append(histogram_paths.OBSOLETE_XML)
   return paths
 
 
@@ -346,6 +349,9 @@ if __name__ == '__main__':
   parser.add_argument('--end',
                       help='End migration at a certain character (inclusive).',
                       default='z')
+  parser.add_argument('--obsolete',
+                      help='Whether to migrate obsolete_histograms.xml',
+                      default=False)
   args = parser.parse_args()
   assert len(args.start) == 1 and len(args.end) == 1, (
       'start and end flag should only contain a single letter.')

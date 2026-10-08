@@ -1,14 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.media;
 
+import android.annotation.TargetApi;
+import android.os.Build;
+
 import org.chromium.base.Callback;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
+import org.chromium.base.annotations.MainDex;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.build.annotations.MainDex;
 
 /**
  * Origin isolated media drm scope id storage. Isolated origin is guranteed by native
@@ -16,6 +19,7 @@ import org.chromium.build.annotations.MainDex;
  */
 @JNINamespace("media")
 @MainDex
+@TargetApi(Build.VERSION_CODES.M)
 class MediaDrmStorageBridge {
     private static final long INVALID_NATIVE_MEDIA_DRM_STORAGE_BRIDGE = -1;
 
@@ -24,6 +28,7 @@ class MediaDrmStorageBridge {
     /**
      * Information that need to be persistent on the device. Exposed to JNI.
      */
+    @MainDex
     static class PersistentInfo {
         // EME session ID, which is generated randomly.
         private final byte[] mEmeId;

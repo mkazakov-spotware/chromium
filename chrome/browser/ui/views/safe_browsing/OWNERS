@@ -1,1 +1,6 @@
-file://components/safe_browsing/OWNERS
+drubery@chromium.org
+lpz@chromium.org
+nparker@chromium.org
+vakh@chromium.org
+
+# COMPONENT: UI>Browser>Safebrowsing

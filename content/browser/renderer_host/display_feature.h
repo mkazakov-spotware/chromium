@@ -1,15 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_RENDERER_HOST_DISPLAY_FEATURE_H_
 #define CONTENT_BROWSER_RENDERER_HOST_DISPLAY_FEATURE_H_
 
-#include <vector>
-
+#include "base/optional.h"
 #include "build/build_config.h"
 #include "content/common/content_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/gfx/geometry/rect.h"
 
 namespace content {
@@ -65,7 +63,7 @@ struct CONTENT_EXPORT DisplayFeature {
   std::vector<gfx::Rect> ComputeWindowSegments(
       const gfx::Size& visible_viewport_size) const;
 
-  static absl::optional<DisplayFeature> Create(
+  static base::Optional<DisplayFeature> Create(
       Orientation orientation,
       int offset,
       int mask_length,

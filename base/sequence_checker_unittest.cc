@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,11 @@
 #include <utility>
 
 #include "base/bind.h"
+#include "base/callback_forward.h"
 #include "base/callback_helpers.h"
 #include "base/sequence_token.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/test/bind.h"
 #include "base/test/gtest_util.h"
@@ -108,7 +110,7 @@ TEST(SequenceCheckerTest, CallsDisallowedOnSameThreadDifferentSequenceToken) {
   {
     ScopedSetSequenceTokenForCurrentThread
         scoped_set_sequence_token_for_current_thread(SequenceToken::Create());
-    sequence_checker = std::make_unique<SequenceCheckerImpl>();
+    sequence_checker.reset(new SequenceCheckerImpl);
   }
 
   {
@@ -128,7 +130,7 @@ TEST(SequenceCheckerTest, DetachFromSequence) {
   {
     ScopedSetSequenceTokenForCurrentThread
         scoped_set_sequence_token_for_current_thread(SequenceToken::Create());
-    sequence_checker = std::make_unique<SequenceCheckerImpl>();
+    sequence_checker.reset(new SequenceCheckerImpl);
   }
 
   sequence_checker->DetachFromSequence();
@@ -268,7 +270,6 @@ class SequenceCheckerOwner {
 // Verifies SequenceCheckerImpl::CalledOnValidSequence() returns true if called
 // during thread destruction.
 TEST(SequenceCheckerTest, CalledOnValidSequenceFromThreadDestruction) {
-  SequenceChecker::EnableStackLogging();
   ThreadLocalOwnedPointer<SequenceCheckerOwner> thread_local_owner;
   {
     test::TaskEnvironment task_environment;

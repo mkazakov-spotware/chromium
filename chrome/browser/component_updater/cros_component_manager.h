@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -66,11 +66,9 @@ class CrOSComponentManager
 
   // Policy on update operation.
   enum class UpdatePolicy {
-    // Force component update. The component will not be available until the
-    // Omaha update check is complete.
+    // Force component update.
     kForce,
-    // Do not update if a compatible component is installed. The compatible
-    // component will load now and any updates will download in the background.
+    // Do not update if a compatible component is installed.
     kDontForce,
     // Do not run updater, even if a compatible component is not installed at
     // the moment.

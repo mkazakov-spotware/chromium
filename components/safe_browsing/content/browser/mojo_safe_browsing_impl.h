@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SAFE_BROWSING_CONTENT_BROWSER_MOJO_SAFE_BROWSING_IMPL_H_
 #define COMPONENTS_SAFE_BROWSING_CONTENT_BROWSER_MOJO_SAFE_BROWSING_IMPL_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "components/safe_browsing/content/common/safe_browsing.mojom.h"
 #include "components/safe_browsing/core/browser/url_checker_delegate.h"
@@ -13,7 +13,6 @@
 #include "ipc/ipc_message.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
-#include "services/network/public/mojom/fetch_api.mojom.h"
 
 namespace content {
 class ResourceContext;
@@ -27,9 +26,6 @@ namespace safe_browsing {
 // disconnected or |resource_context_| is destructed.
 class MojoSafeBrowsingImpl : public mojom::SafeBrowsing {
  public:
-  MojoSafeBrowsingImpl(const MojoSafeBrowsingImpl&) = delete;
-  MojoSafeBrowsingImpl& operator=(const MojoSafeBrowsingImpl&) = delete;
-
   ~MojoSafeBrowsingImpl() override;
 
   static void MaybeCreate(
@@ -52,7 +48,7 @@ class MojoSafeBrowsingImpl : public mojom::SafeBrowsing {
       const std::string& method,
       const net::HttpRequestHeaders& headers,
       int32_t load_flags,
-      network::mojom::RequestDestination request_destination,
+      blink::mojom::ResourceType resource_type,
       bool has_user_gesture,
       bool originated_from_service_worker,
       CreateCheckerAndCheckCallback callback) override;
@@ -62,7 +58,7 @@ class MojoSafeBrowsingImpl : public mojom::SafeBrowsing {
 
   // This is an instance of SafeBrowserUserData that is set as user-data on
   // |resource_context_|. SafeBrowserUserData owns |this|.
-  raw_ptr<const void> user_data_key_ = nullptr;
+  const void* user_data_key_ = nullptr;
 
   mojo::ReceiverSet<mojom::SafeBrowsing> receivers_;
   scoped_refptr<UrlCheckerDelegate> delegate_;
@@ -70,7 +66,9 @@ class MojoSafeBrowsingImpl : public mojom::SafeBrowsing {
 
   // Not owned by this object. It is always valid during the lifetime of this
   // object.
-  raw_ptr<content::ResourceContext> resource_context_;
+  content::ResourceContext* resource_context_;
+
+  DISALLOW_COPY_AND_ASSIGN(MojoSafeBrowsingImpl);
 };
 
 }  // namespace safe_browsing

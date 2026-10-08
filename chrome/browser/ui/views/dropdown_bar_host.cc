@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "chrome/browser/ui/views/dropdown_bar_host_delegate.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/theme_copying_widget.h"
-#include "ui/compositor/layer.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/animation/slide_animation.h"
 #include "ui/gfx/scrollbar_size.h"
@@ -53,10 +52,11 @@ void DropdownBarHost::Init(views::View* host_view,
   views::Widget::InitParams params(views::Widget::InitParams::TYPE_CONTROL);
   params.delegate = this;
   params.name = "DropdownBarHost";
+  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   params.parent = browser_view_->GetWidget()->GetNativeView();
   params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
-#if BUILDFLAG(IS_MAC)
-  params.activatable = views::Widget::InitParams::Activatable::kYes;
+#if defined(OS_MAC)
+  params.activatable = views::Widget::InitParams::ACTIVATABLE_YES;
 #endif
   host_->Init(std::move(params));
   host_->SetContentsView(std::move(clip_view));
@@ -99,16 +99,10 @@ void DropdownBarHost::StopAnimation() {
 }
 
 void DropdownBarHost::Show(bool animate) {
-  DCHECK(host_);
-
-  if (!focus_tracker_) {
-    // Stores the currently focused view, and tracks focus changes so that we
-    // can restore focus when the dropdown widget is closed.
-    // One may already be set if this Show() call is part of restoring this
-    // DropdownBarHost visibility to a specific tab.
-    focus_tracker_ =
-        std::make_unique<views::ExternalFocusTracker>(view_, focus_manager_);
-  }
+  // Stores the currently focused view, and tracks focus changes so that we can
+  // restore focus when the dropdown widget is closed.
+  focus_tracker_ =
+      std::make_unique<views::ExternalFocusTracker>(view_, focus_manager_);
 
   SetDialogPosition(GetDialogPosition(gfx::Rect()));
 
@@ -138,7 +132,6 @@ void DropdownBarHost::Show(bool animate) {
 void DropdownBarHost::Hide(bool animate) {
   if (!IsVisible())
     return;
-
   if (animate && !disable_animations_during_testing_ &&
       !animation_->IsClosing()) {
     animation_->Hide();
@@ -207,14 +200,8 @@ void DropdownBarHost::AnimationProgressed(const gfx::Animation* animation) {
 }
 
 void DropdownBarHost::AnimationEnded(const gfx::Animation* animation) {
-  // Ensure the position gets a final update.  This is important when ending the
-  // animation early (e.g. closing a tab with an open find bar), since otherwise
-  // the position will be out of date at the start of the next animation.
-  AnimationProgressed(animation);
-
   if (!animation_->IsShowing()) {
     // Animation has finished closing.
-    DCHECK(host_);
     host_->Hide();
     is_visible_ = false;
     OnVisibilityChanged();
@@ -239,16 +226,6 @@ void DropdownBarHost::UnregisterAccelerators() {
 }
 
 void DropdownBarHost::OnVisibilityChanged() {}
-
-void DropdownBarHost::SetFocusTracker(
-    std::unique_ptr<views::ExternalFocusTracker> focus_tracker) {
-  focus_tracker_ = std::move(focus_tracker);
-}
-
-std::unique_ptr<views::ExternalFocusTracker>
-DropdownBarHost::TakeFocusTracker() {
-  return std::move(focus_tracker_);
-}
 
 void DropdownBarHost::ResetFocusTracker() {
   focus_tracker_.reset();

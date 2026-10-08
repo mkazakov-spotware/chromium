@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,10 +13,11 @@
 
 #include "base/callback.h"
 #include "base/containers/queue.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "content/browser/renderer_host/pepper/browser_ppapi_host_impl.h"
+#include "content/common/content_export.h"
 #include "content/public/browser/vpn_service_proxy.h"
 #include "ipc/ipc_message.h"
 #include "ppapi/c/pp_instance.h"
@@ -32,16 +33,11 @@ class BrowserContext;
 
 // The host for PPB_VpnProvider.
 // Important: The PPB_VpnProvider API is available only on Chrome OS.
-class PepperVpnProviderMessageFilter
+class CONTENT_EXPORT PepperVpnProviderMessageFilter
     : public ppapi::host::ResourceMessageFilter {
  public:
   PepperVpnProviderMessageFilter(BrowserPpapiHostImpl* host,
                                  PP_Instance instance);
-
-  PepperVpnProviderMessageFilter(const PepperVpnProviderMessageFilter&) =
-      delete;
-  PepperVpnProviderMessageFilter& operator=(
-      const PepperVpnProviderMessageFilter&) = delete;
 
   // ppapi::host::ResourceMessageFilter overrides.
   scoped_refptr<base::SequencedTaskRunner> OverrideTaskRunnerForMessage(
@@ -100,7 +96,7 @@ class PepperVpnProviderMessageFilter
   std::string configuration_id_;
   std::string configuration_name_;
 
-  raw_ptr<BrowserContext> browser_context_;
+  BrowserContext* browser_context_;
   std::unique_ptr<VpnServiceProxy> vpn_service_proxy_;
 
   bool bound_;
@@ -110,6 +106,8 @@ class PepperVpnProviderMessageFilter
   base::queue<std::vector<char>> received_packets_;
 
   base::WeakPtrFactory<PepperVpnProviderMessageFilter> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PepperVpnProviderMessageFilter);
 };
 
 }  // namespace content

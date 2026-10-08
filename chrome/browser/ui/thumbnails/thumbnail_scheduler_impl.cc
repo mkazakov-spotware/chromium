@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include <algorithm>
 
-#include "base/memory/raw_ptr.h"
+#include "base/stl_util.h"
 
 // static
 constexpr int ThumbnailSchedulerImpl::kMaxTotalCaptures;
@@ -19,7 +19,7 @@ struct ThumbnailSchedulerImpl::TabSchedulingData {
 };
 
 struct ThumbnailSchedulerImpl::TabNode : public base::LinkNode<TabNode> {
-  raw_ptr<TabCapturer> capturer = nullptr;
+  TabCapturer* capturer = nullptr;
   TabSchedulingData data;
   bool is_capturing = false;
 };

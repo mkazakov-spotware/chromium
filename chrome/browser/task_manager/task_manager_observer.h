@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 
@@ -22,10 +22,6 @@ using TaskIdList = std::vector<TaskId>;
 
 // Defines a list of types of resources that an observer needs to be refreshed
 // on every task manager refresh cycle.
-// Note: task_manager.mojom API SetRefreshFlags passes the bit flags
-// (|refresh_flags|) of RefreshType as an argument, which requires that
-// RefreshType must be stablized. Therefore, we can never reorder or delete
-// old types.
 enum RefreshType {
   REFRESH_TYPE_NONE = 0,
   REFRESH_TYPE_CPU = 1,
@@ -47,11 +43,11 @@ enum RefreshType {
   // or backgrounded.
   REFRESH_TYPE_PRIORITY = 1 << 13,
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_MAC)
   // For observers interested in getting the number of open file descriptors of
   // processes.
   REFRESH_TYPE_FD_COUNT = 1 << 14,
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_MAC)
 
   REFRESH_TYPE_KEEPALIVE_COUNT = 1 << 15,
   REFRESH_TYPE_MEMORY_FOOTPRINT = 1 << 16,
@@ -80,8 +76,6 @@ class TaskManagerObserver {
   // will update its refresh time and the calculated resources to be the minimum
   // required value of all the remaining observers.
   TaskManagerObserver(base::TimeDelta refresh_time, int64_t resources_flags);
-  TaskManagerObserver(const TaskManagerObserver&) = delete;
-  TaskManagerObserver& operator=(const TaskManagerObserver&) = delete;
   virtual ~TaskManagerObserver();
 
   // Notifies the observer that a chrome task with |id| has started and the task
@@ -139,7 +133,7 @@ class TaskManagerObserver {
   friend class TaskManagerInterface;
 
   // The currently observed task Manager.
-  raw_ptr<TaskManagerInterface> observed_task_manager_;
+  TaskManagerInterface* observed_task_manager_;
 
   // The minimum update time of the task manager that this observer needs to
   // do its job.
@@ -148,8 +142,11 @@ class TaskManagerObserver {
   // The flags that contain the resources that this observer needs to be
   // calculated on each refresh.
   int64_t desired_resources_flags_;
+
+  DISALLOW_COPY_AND_ASSIGN(TaskManagerObserver);
 };
 
 }  // namespace task_manager
+
 
 #endif  // CHROME_BROWSER_TASK_MANAGER_TASK_MANAGER_OBSERVER_H_

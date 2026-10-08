@@ -1,16 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/service_worker/service_worker_identifiability_metrics.h"
 
-#include "base/containers/contains.h"
+#include "base/stl_util.h"
 #include "content/public/browser/worker_type.h"
 #include "services/metrics/public/cpp/delegating_ukm_recorder.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "third_party/blink/public/common/privacy_budget/identifiability_sample_collector.h"
-#include "third_party/blink/public/common/privacy_budget/identifiability_study_settings.h"
-#include "third_party/blink/public/common/privacy_budget/identifiability_study_worker_client_added.h"
 #include "url/gurl.h"
 
 namespace content {
@@ -26,12 +24,11 @@ void ServiceWorkerIdentifiabilityMetrics::OnNewLiveVersion(
   auto version_it = version_map_.find(version_id);
   if (version_it != version_map_.end()) {
     DCHECK_EQ(version_it->second.ukm_source_id, version_info.ukm_source_id);
-    DCHECK_EQ(version_it->second.origin,
-              version_info.storage_key.origin().GetURL());
+    DCHECK_EQ(version_it->second.origin, version_info.origin.GetURL());
     return;
   }
 
-  GURL origin = version_info.storage_key.origin().GetURL();
+  GURL origin = version_info.origin.GetURL();
   version_map_.emplace(version_id, VersionIdentifiabilityInfo(
                                        version_info.ukm_source_id, origin));
 
@@ -64,7 +61,7 @@ void ServiceWorkerIdentifiabilityMetrics::OnClientIsExecutionReady(
     ukm::SourceId client_source_id,
     const GURL& url,
     blink::mojom::ServiceWorkerClientType type) {
-  GURL client_origin = url.DeprecatedGetOriginAsURL();
+  GURL client_origin = url.GetOrigin();
 
   // Don't track dedicated workers as they simply inherit the source id of their
   // parents.
@@ -90,7 +87,7 @@ void ServiceWorkerIdentifiabilityMetrics::OnClientDestroyed(
     ukm::SourceId client_source_id,
     const GURL& url,
     blink::mojom::ServiceWorkerClientType type) {
-  GURL client_origin = url.DeprecatedGetOriginAsURL();
+  GURL client_origin = url.GetOrigin();
 
   // Don't track dedicated workers as they simply inherit the source id of their
   // parents.
@@ -116,13 +113,6 @@ void ServiceWorkerIdentifiabilityMetrics::EmitClientAddedEvent(
         .SetClientSourceId(client_ukm_source_id)
         .SetWorkerType(static_cast<int64_t>(WorkerType::kServiceWorker))
         .Record(ukm_recorder);
-
-    if (blink::IdentifiabilityStudySettings::Get()->IsActive()) {
-      blink::IdentifiabilityStudyWorkerClientAdded(version_ukm_source_id)
-          .SetClientSourceId(client_ukm_source_id)
-          .SetWorkerType(blink::IdentifiableSurface::WorkerType::kServiceWorker)
-          .Record(ukm_recorder);
-    }
   }
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/files/file_util.h"
 #include "base/logging.h"
 #include "base/test/test_suite.h"
-#include "base/test/test_timeouts.h"
 #include "build/build_config.h"
 #include "sandbox/linux/tests/test_utils.h"
 #include "sandbox/linux/tests/unit_tests.h"
@@ -71,8 +70,6 @@ int main(int argc, char* argv[]) {
   // we still do not use this on Android, we must install the handler ourselves.
   logging::ScopedLogAssertHandler scoped_assert_handler(
       base::BindRepeating(UnitTestAssertHandler));
-  // TaskEnvironment requires initialized TestTimeouts.
-  TestTimeouts::Initialize();
 #endif
   // Always go through re-execution for death tests.
   // This makes gtest only marginally slower for us and has the

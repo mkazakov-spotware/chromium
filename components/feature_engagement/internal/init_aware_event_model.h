@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,10 +20,6 @@ namespace feature_engagement {
 class InitAwareEventModel : public EventModel {
  public:
   InitAwareEventModel(std::unique_ptr<EventModel> event_model);
-
-  InitAwareEventModel(const InitAwareEventModel&) = delete;
-  InitAwareEventModel& operator=(const InitAwareEventModel&) = delete;
-
   ~InitAwareEventModel() override;
 
   // EventModel implementation.
@@ -36,16 +32,6 @@ class InitAwareEventModel : public EventModel {
                          uint32_t window_size) const override;
   void IncrementEvent(const std::string& event_name,
                       uint32_t current_day) override;
-  void IncrementSnooze(const std::string& event_name,
-                       uint32_t current_day,
-                       base::Time current_time) override;
-  void DismissSnooze(const std::string& event_name) override;
-  base::Time GetLastSnoozeTimestamp(
-      const std::string& event_name) const override;
-  uint32_t GetSnoozeCount(const std::string& event_name,
-                          uint32_t window,
-                          uint32_t current_day) const override;
-  bool IsSnoozeDismissed(const std::string& event_name) const override;
 
   size_t GetQueuedEventCountForTesting();
 
@@ -62,6 +48,8 @@ class InitAwareEventModel : public EventModel {
   bool initialization_complete_;
 
   base::WeakPtrFactory<InitAwareEventModel> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(InitAwareEventModel);
 };
 
 }  // namespace feature_engagement

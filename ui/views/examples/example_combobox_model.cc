@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,20 +6,22 @@
 
 #include "base/strings/utf_string_conversions.h"
 
-namespace views::examples {
+namespace views {
+namespace examples {
 
 ExampleComboboxModel::ExampleComboboxModel(const char* const* strings,
-                                           size_t count)
+                                           int count)
     : strings_(strings), count_(count) {}
 
 ExampleComboboxModel::~ExampleComboboxModel() = default;
 
-size_t ExampleComboboxModel::GetItemCount() const {
+int ExampleComboboxModel::GetItemCount() const {
   return count_;
 }
 
-std::u16string ExampleComboboxModel::GetItemAt(size_t index) const {
+base::string16 ExampleComboboxModel::GetItemAt(int index) const {
   return base::ASCIIToUTF16(strings_[index]);
 }
 
-}  // namespace views::examples
+}  // namespace examples
+}  // namespace views

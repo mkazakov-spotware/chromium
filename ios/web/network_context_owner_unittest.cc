@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,9 @@
 
 #include "base/bind.h"
 #include "base/run_loop.h"
+#include "base/task/post_task.h"
 #include "ios/web/public/test/web_task_environment.h"
 #include "ios/web/public/thread/web_task_traits.h"
-#include "ios/web/public/thread/web_thread.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "net/url_request/url_request_context.h"
 #include "net/url_request/url_request_context_getter.h"
@@ -26,7 +26,7 @@ class NetworkContextOwnerTest : public PlatformTest {
   NetworkContextOwnerTest()
       : saw_connection_error_(false),
         context_getter_(base::MakeRefCounted<net::TestURLRequestContextGetter>(
-            GetIOThreadTaskRunner({}))) {}
+            base::CreateSingleThreadTaskRunner({WebThread::IO}))) {}
 
   ~NetworkContextOwnerTest() override {
     // Tests should cleanup after themselves.
@@ -61,8 +61,8 @@ TEST_F(NetworkContextOwnerTest, Basic) {
   base::RunLoop().RunUntilIdle();
   EXPECT_FALSE(saw_connection_error_);
 
-  web::GetIOThreadTaskRunner({})->DeleteSoon(FROM_HERE,
-                                             network_context_owner_.release());
+  base::DeleteSoon(FROM_HERE, {web::WebThread::IO},
+                   network_context_owner_.release());
   base::RunLoop().RunUntilIdle();
   EXPECT_TRUE(saw_connection_error_);  // other end gone
 }
@@ -80,8 +80,8 @@ TEST_F(NetworkContextOwnerTest, ShutdownHandling) {
   base::RunLoop().RunUntilIdle();
   EXPECT_FALSE(saw_connection_error_);
 
-  web::GetIOThreadTaskRunner({})->PostTask(
-      FROM_HERE,
+  base::PostTask(
+      FROM_HERE, {web::WebThread::IO},
       base::BindOnce(
           &net::TestURLRequestContextGetter::NotifyContextShuttingDown,
           context_getter_));
@@ -89,8 +89,8 @@ TEST_F(NetworkContextOwnerTest, ShutdownHandling) {
   base::RunLoop().RunUntilIdle();
   EXPECT_TRUE(saw_connection_error_);  // other end gone post-shutdown.
 
-  web::GetIOThreadTaskRunner({})->DeleteSoon(FROM_HERE,
-                                             network_context_owner_.release());
+  base::DeleteSoon(FROM_HERE, {web::WebThread::IO},
+                   network_context_owner_.release());
 }
 
 }  // namespace web

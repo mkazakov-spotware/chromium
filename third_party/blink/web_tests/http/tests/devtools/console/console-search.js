@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests console search.\n`);
 
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.showPanel('console');
   await TestRunner.evaluateInPagePromise(`
     console.log("FIRST MATCH, SECOND MATCH");
@@ -24,15 +24,15 @@
   }
 
   function setQuery(text, isRegex, caseSensitive, callback) {
-    TestRunner.addSniffer(consoleView, 'searchFinishedForTests', callback);
-    consoleView.searchableView().searchInputElement.value = text;
-    consoleView.searchableView().regexButton.setToggled(isRegex);
-    consoleView.searchableView().caseSensitiveButton.setToggled(caseSensitive);
-    consoleView.searchableView().showSearchField();
+    TestRunner.addSniffer(consoleView, '_searchFinishedForTests', callback);
+    consoleView._searchableView._searchInputElement.value = text;
+    consoleView._searchableView._regexButton.setToggled(isRegex);
+    consoleView._searchableView._caseSensitiveButton.setToggled(caseSensitive);
+    consoleView._searchableView.showSearchField();
   }
 
   function matchesText() {
-    return consoleView.searchableView().contentElement.querySelector('.search-results-matches').textContent;
+    return consoleView._searchableView.contentElement.querySelector('.search-results-matches').textContent;
   }
 
   function dumpMatches() {
@@ -46,7 +46,7 @@
   }
 
   var consoleView = Console.ConsoleView.instance();
-  var viewport = consoleView.viewport;
+  var viewport = consoleView._viewport;
   const maximumViewportMessagesCount = 150;
   TestRunner.runTestSuite([
     function waitForMessages(next) {
@@ -57,7 +57,7 @@
 
     function assertViewportHeight(next) {
       viewport.invalidate();
-      var viewportMessagesCount = viewport.lastVisibleIndex - viewport.firstVisibleIndex;
+      var viewportMessagesCount = viewport._lastVisibleIndex - viewport._firstVisibleIndex;
       if (viewportMessagesCount > maximumViewportMessagesCount) {
         TestRunner.addResult(
           String.sprintf(
@@ -88,15 +88,15 @@
     function testCanJumpForward(next) {
       setQuery('MATCH', false, false, function() {
         // Find first match.
-        consoleView.searchableView().handleFindNextShortcut();
+        consoleView._searchableView.handleFindNextShortcut();
         addResult('first visible message index: ' + viewport.firstVisibleIndex());
 
         // Find second match.
-        consoleView.searchableView().handleFindNextShortcut();
+        consoleView._searchableView.handleFindNextShortcut();
         addResult('first visible message index: ' + viewport.firstVisibleIndex());
 
         // Find last match.
-        consoleView.searchableView().handleFindNextShortcut();
+        consoleView._searchableView.handleFindNextShortcut();
         addResult('last visible message index: ' + viewport.lastVisibleIndex());
         next();
       });
@@ -105,18 +105,18 @@
     function testCanJumpBackward(next) {
       setQuery('MATCH', false, false, function() {
         // Start out at the first match.
-        consoleView.searchableView().handleFindNextShortcut();
+        consoleView._searchableView.handleFindNextShortcut();
 
         // Find last match.
-        consoleView.searchableView().handleFindPreviousShortcut();
+        consoleView._searchableView.handleFindPreviousShortcut();
         addResult('last visible message index: ' + viewport.lastVisibleIndex());
 
         // Find second match.
-        consoleView.searchableView().handleFindPreviousShortcut();
+        consoleView._searchableView.handleFindPreviousShortcut();
         addResult('first visible message index: ' + viewport.firstVisibleIndex());
 
         // Find first match.
-        consoleView.searchableView().handleFindPreviousShortcut();
+        consoleView._searchableView.handleFindPreviousShortcut();
         addResult('first visible message index: ' + viewport.firstVisibleIndex());
         next();
       });
@@ -137,11 +137,11 @@
 
       setQuery('MATCH', false, false, function() {
         // Find first match.
-        consoleView.searchableView().handleFindNextShortcut();
+        consoleView._searchableView.handleFindNextShortcut();
         addCurrentMarked();
 
         // Find second match.
-        consoleView.searchableView().handleFindNextShortcut();
+        consoleView._searchableView.handleFindNextShortcut();
         addCurrentMarked();
 
         next();
@@ -150,7 +150,7 @@
 
     function testCanJumpForwardBetweenTreeElementMatches(next) {
       function dumpElements(callback) {
-        consoleView.searchableView().handleFindNextShortcut();
+        consoleView._searchableView.handleFindNextShortcut();
         var currentResultElem = consoleView.element
           .childTextNodes()
           .filter(node => node.parentElement.classList.contains('current-search-result'))[0];
@@ -173,7 +173,7 @@
 
     function testCaseInsensitiveRegex(next) {
       setQuery('. MATCH', true, false, function() {
-        consoleView.searchableView().handleFindNextShortcut();
+        consoleView._searchableView.handleFindNextShortcut();
         dumpMatches();
         next();
       });
@@ -181,7 +181,7 @@
 
     function testCaseSensitiveTextWithoutMatches(next) {
       setQuery('match', false, true, function() {
-        consoleView.searchableView().handleFindNextShortcut();
+        consoleView._searchableView.handleFindNextShortcut();
         dumpMatches();
         next();
       });
@@ -189,7 +189,7 @@
 
     function testCaseSensitiveTextWithMatches(next) {
       setQuery('MATCH', false, true, function() {
-        consoleView.searchableView().handleFindNextShortcut();
+        consoleView._searchableView.handleFindNextShortcut();
         dumpMatches();
         next();
       });
@@ -197,7 +197,7 @@
 
     function testCaseSensitiveRegexWithoutMatches(next) {
       setQuery('. match', true, true, function() {
-        consoleView.searchableView().handleFindNextShortcut();
+        consoleView._searchableView.handleFindNextShortcut();
         dumpMatches();
         next();
       });
@@ -205,7 +205,7 @@
 
     function testCaseSensitiveRegexWithMatches(next) {
       setQuery('. MATCH', true, true, function() {
-        consoleView.searchableView().handleFindNextShortcut();
+        consoleView._searchableView.handleFindNextShortcut();
         dumpMatches();
         next();
       });

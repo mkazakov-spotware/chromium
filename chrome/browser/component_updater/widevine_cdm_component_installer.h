@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,6 +17,8 @@ class ComponentUpdateService;
 // 4) Register the Widevine CDM (via the adapter) with Chrome.
 // The first part is IO intensive so we do it asynchronously in the file thread.
 void RegisterWidevineCdmComponent(ComponentUpdateService* cus);
+
+bool WasWidevineCdmComponentRejectedDueToNoRosetta();
 
 }  // namespace component_updater
 

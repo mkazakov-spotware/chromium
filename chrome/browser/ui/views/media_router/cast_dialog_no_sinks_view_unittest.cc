@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,11 +17,6 @@ namespace media_router {
 class CastDialogNoSinksViewTest : public ChromeViewsTestBase {
  public:
   CastDialogNoSinksViewTest() = default;
-
-  CastDialogNoSinksViewTest(const CastDialogNoSinksViewTest&) = delete;
-  CastDialogNoSinksViewTest& operator=(const CastDialogNoSinksViewTest&) =
-      delete;
-
   ~CastDialogNoSinksViewTest() override = default;
 
   void SetUp() override {
@@ -36,12 +31,14 @@ class CastDialogNoSinksViewTest : public ChromeViewsTestBase {
   const views::View* get_icon() const {
     return no_sinks_view_->icon_for_testing();
   }
-  const std::u16string& get_label_text() const {
+  const base::string16& get_label_text() const {
     return no_sinks_view_->label_text_for_testing();
   }
 
  private:
   std::unique_ptr<CastDialogNoSinksView> no_sinks_view_;
+
+  DISALLOW_COPY_AND_ASSIGN(CastDialogNoSinksViewTest);
 };
 
 TEST_F(CastDialogNoSinksViewTest, SwitchViews) {

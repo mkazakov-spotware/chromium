@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,4 +43,10 @@ public interface ContextMenuUi {
      * Dismiss the context menu.
      */
     void dismiss();
+
+    /**
+     * @return Whether the menu is dismissed. It may be dismissed but still be visible, e.g. hiding
+     *         with an animation.
+     */
+    boolean isDismissed();
 }

@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests sidebars in WebInspector extensions API\n`);
-  await TestRunner.loadTestModule('extensions_test_runner');
+  await TestRunner.loadModule('extensions_test_runner');
 
   TestRunner.dumpSidebarContent = function(panelName, callback) {
     var sidebar = TestRunner._extensionSidebar(panelName);
@@ -37,16 +37,9 @@
       function onSidebarCreated(sidebar) {
         output("Sidebar created");
         dumpObject(sidebar);
-        async function onShown(win) {
-          while (win.document.documentElement.getBoundingClientRect().height <
-                 10) {
-            await new Promise(resolve => setTimeout(resolve, 10));
-          }
-
-          if (panelName !== 'elements')
-            output(
-                'sidebar height ' +
-                win.document.documentElement.getBoundingClientRect().height);
+        function onShown(win) {
+          if (panelName !== "elements")
+            output("sidebar height " + win.document.documentElement.getBoundingClientRect().height);
           sidebar.onShown.removeListener(onShown);
           nextTest();
         }

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define BASE_MAC_SCOPED_SENDING_EVENT_H_
 
 #include "base/base_export.h"
+#include "base/macros.h"
 #include "base/message_loop/message_pump_mac.h"
 
 // Nested event loops can pump IPC messages, including
@@ -24,15 +25,12 @@
 - (void)setHandlingSendEvent:(BOOL)handlingSendEvent;
 @end
 
-namespace base::mac {
+namespace base {
+namespace mac {
 
 class BASE_EXPORT ScopedSendingEvent {
  public:
   ScopedSendingEvent();
-
-  ScopedSendingEvent(const ScopedSendingEvent&) = delete;
-  ScopedSendingEvent& operator=(const ScopedSendingEvent&) = delete;
-
   ~ScopedSendingEvent();
 
  private:
@@ -40,8 +38,11 @@ class BASE_EXPORT ScopedSendingEvent {
   // sure the |handling_| setting is restored appropriately.
   NSObject<CrAppControlProtocol>* app_;
   BOOL handling_;  // Value of -[app_ handlingSendEvent] at construction.
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedSendingEvent);
 };
 
-}  // namespace base::mac
+}  // namespace mac
+}  // namespace base
 
 #endif  // BASE_MAC_SCOPED_SENDING_EVENT_H_

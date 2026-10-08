@@ -1,23 +1,21 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/omnibox/omnibox_container_view.h"
 
-#import "ios/chrome/browser/ui/omnibox/omnibox_text_field_experimental.h"
 #import "ios/chrome/browser/ui/omnibox/omnibox_text_field_ios.h"
-#import "ios/chrome/browser/ui/omnibox/omnibox_text_field_legacy.h"
-#import "ios/chrome/browser/ui/ui_feature_flags.h"
 #import "ios/chrome/browser/ui/util/animation_util.h"
 #import "ios/chrome/browser/ui/util/named_guide.h"
-#import "ios/chrome/browser/ui/util/rtl_geometry.h"
+#include "ios/chrome/browser/ui/util/rtl_geometry.h"
+#include "ios/chrome/browser/ui/util/ui_util.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/material_timing.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ios/chrome/grit/ios_theme_resources.h"
-#import "skia/ext/skia_utils_ios.h"
-#import "ui/gfx/color_palette.h"
-#import "ui/gfx/image/image.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ios/chrome/grit/ios_theme_resources.h"
+#include "skia/ext/skia_utils_ios.h"
+#include "ui/gfx/color_palette.h"
+#include "ui/gfx/image/image.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -41,8 +39,8 @@ const CGFloat kTextFieldClearButtonTrailingOffset = 4;
 #pragma mark - OmniboxContainerView
 
 @interface OmniboxContainerView ()
-// Constraints the leading textfield side to the leading of `self`.
-// Active when the `leadingView` is nil or hidden.
+// Constraints the leading textfield side to the leading of |self|.
+// Active when the |leadingView| is nil or hidden.
 @property(nonatomic, strong) NSLayoutConstraint* leadingTextfieldConstraint;
 // The leading image view. Used for autocomplete icons.
 @property(nonatomic, strong) UIImageView* leadingImageView;
@@ -65,16 +63,9 @@ const CGFloat kTextFieldClearButtonTrailingOffset = 4;
                      iconTint:(UIColor*)iconTint {
   self = [super initWithFrame:frame];
   if (self) {
-    if (base::FeatureList::IsEnabled(kIOSNewOmniboxImplementation)) {
-      _textField =
-          [[OmniboxTextFieldExperimental alloc] initWithFrame:frame
-                                                    textColor:textColor
-                                                    tintColor:textFieldTint];
-    } else {
-      _textField = [[OmniboxTextFieldLegacy alloc] initWithFrame:frame
-                                                       textColor:textColor
-                                                       tintColor:textFieldTint];
-    }
+    _textField = [[OmniboxTextFieldIOS alloc] initWithFrame:frame
+                                                  textColor:textColor
+                                                  tintColor:textFieldTint];
     [self addSubview:_textField];
 
     _leadingTextfieldConstraint = [_textField.leadingAnchor

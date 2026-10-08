@@ -1,1 +1,5 @@
-file://components/prefs/OWNERS
+battre@chromium.org
+gab@chromium.org
+
+# COMPONENT: UI>Browser>Preferences
+# TEAM: chromium-dev@chromium.org

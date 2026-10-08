@@ -35,17 +35,17 @@
 
 #include "third_party/blink/renderer/core/animation/animation_effect.h"
 #include "third_party/blink/renderer/core/animation/compositor_animations.h"
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/css_property_equality.h"
-#include "third_party/blink/renderer/core/css/properties/longhands.h"
 #include "third_party/blink/renderer/core/css/property_registry.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/frame/web_feature.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
+#include "third_party/blink/renderer/platform/animation/animation_utilities.h"
+#include "third_party/blink/renderer/platform/geometry/float_box.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
+#include "third_party/blink/renderer/platform/transforms/transformation_matrix.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_hash.h"
-#include "ui/gfx/geometry/transform.h"
 
 namespace blink {
 
@@ -96,16 +96,15 @@ bool KeyframeEffectModelBase::Sample(
 
 namespace {
 
-static const size_t num_compositable_properties = 9;
+static const size_t num_compositable_properties = 7;
 
 const CSSProperty** CompositableProperties() {
   static const CSSProperty*
       kCompositableProperties[num_compositable_properties] = {
-          &GetCSSPropertyOpacity(),        &GetCSSPropertyRotate(),
-          &GetCSSPropertyScale(),          &GetCSSPropertyTransform(),
-          &GetCSSPropertyTranslate(),      &GetCSSPropertyFilter(),
-          &GetCSSPropertyBackdropFilter(), &GetCSSPropertyBackgroundColor(),
-          &GetCSSPropertyClipPath()};
+          &GetCSSPropertyOpacity(),       &GetCSSPropertyRotate(),
+          &GetCSSPropertyScale(),         &GetCSSPropertyTransform(),
+          &GetCSSPropertyTranslate(),     &GetCSSPropertyFilter(),
+          &GetCSSPropertyBackdropFilter()};
   return kCompositableProperties;
 }
 
@@ -116,18 +115,19 @@ bool KeyframeEffectModelBase::SnapshotNeutralCompositorKeyframes(
     const ComputedStyle& old_style,
     const ComputedStyle& new_style,
     const ComputedStyle* parent_style) const {
-  auto should_snapshot_property = [&old_style,
-                                   &new_style](const PropertyHandle& property) {
-    return !CSSPropertyEquality::PropertiesEqual(property, old_style,
-                                                 new_style);
-  };
-  auto should_snapshot_keyframe = [](const PropertySpecificKeyframe& keyframe) {
-    return keyframe.IsNeutral();
-  };
+  ShouldSnapshotPropertyCallback should_snapshot_property_callback =
+      [&old_style, &new_style](const PropertyHandle& property) {
+        return !CSSPropertyEquality::PropertiesEqual(property, old_style,
+                                                     new_style);
+      };
+  ShouldSnapshotKeyframeCallback should_snapshot_keyframe_callback =
+      [](const PropertySpecificKeyframe& keyframe) {
+        return keyframe.IsNeutral();
+      };
 
   return SnapshotCompositableProperties(element, new_style, parent_style,
-                                        should_snapshot_property,
-                                        should_snapshot_keyframe);
+                                        should_snapshot_property_callback,
+                                        should_snapshot_keyframe_callback);
 }
 
 bool KeyframeEffectModelBase::SnapshotAllCompositorKeyframesIfNecessary(
@@ -139,19 +139,18 @@ bool KeyframeEffectModelBase::SnapshotAllCompositorKeyframesIfNecessary(
   needs_compositor_keyframes_snapshot_ = false;
 
   bool has_neutral_compositable_keyframe = false;
-  auto should_snapshot_property = [](const PropertyHandle& property) {
-    return true;
-  };
-  auto should_snapshot_keyframe =
+  ShouldSnapshotPropertyCallback should_snapshot_property_callback =
+      [](const PropertyHandle& property) { return true; };
+  ShouldSnapshotKeyframeCallback should_snapshot_keyframe_callback =
       [&has_neutral_compositable_keyframe](
-          const PropertySpecificKeyframe& keyframe) {
+          const PropertySpecificKeyframe& keyframe) mutable {
         has_neutral_compositable_keyframe |= keyframe.IsNeutral();
         return true;
       };
 
   bool updated = SnapshotCompositableProperties(
-      element, base_style, parent_style, should_snapshot_property,
-      should_snapshot_keyframe);
+      element, base_style, parent_style, should_snapshot_property_callback,
+      should_snapshot_keyframe_callback);
 
   if (updated && has_neutral_compositable_keyframe) {
     UseCounter::Count(element.GetDocument(),
@@ -164,15 +163,16 @@ bool KeyframeEffectModelBase::SnapshotCompositableProperties(
     Element& element,
     const ComputedStyle& computed_style,
     const ComputedStyle* parent_style,
-    ShouldSnapshotPropertyFunction should_snapshot_property,
-    ShouldSnapshotKeyframeFunction should_snapshot_keyframe) const {
+    ShouldSnapshotPropertyCallback should_snapshot_property_callback,
+    ShouldSnapshotKeyframeCallback should_snapshot_keyframe_callback) const {
   EnsureKeyframeGroups();
   bool updated = false;
   static const CSSProperty** compositable_properties = CompositableProperties();
   for (size_t i = 0; i < num_compositable_properties; i++) {
     updated |= SnapshotCompositorKeyFrames(
         PropertyHandle(*compositable_properties[i]), element, computed_style,
-        parent_style, should_snapshot_property, should_snapshot_keyframe);
+        parent_style, should_snapshot_property_callback,
+        should_snapshot_keyframe_callback);
   }
 
   // Custom properties need to be handled separately, since not all values
@@ -196,7 +196,7 @@ bool KeyframeEffectModelBase::SnapshotCompositableProperties(
     }
     updated |= SnapshotCompositorKeyFrames(
         PropertyHandle(name), element, computed_style, parent_style,
-        should_snapshot_property, should_snapshot_keyframe);
+        should_snapshot_property_callback, should_snapshot_keyframe_callback);
   }
   return updated;
 }
@@ -206,20 +206,19 @@ bool KeyframeEffectModelBase::SnapshotCompositorKeyFrames(
     Element& element,
     const ComputedStyle& computed_style,
     const ComputedStyle* parent_style,
-    ShouldSnapshotPropertyFunction should_snapshot_property,
-    ShouldSnapshotKeyframeFunction should_snapshot_keyframe) const {
-  if (!should_snapshot_property(property))
+    ShouldSnapshotPropertyCallback should_snapshot_property_callback,
+    ShouldSnapshotKeyframeCallback should_snapshot_keyframe_callback) const {
+  if (!should_snapshot_property_callback(property))
     return false;
 
-  auto it = keyframe_groups_->find(property);
-  if (it == keyframe_groups_->end())
+  PropertySpecificKeyframeGroup* keyframe_group =
+      keyframe_groups_->at(property);
+  if (!keyframe_group)
     return false;
-
-  PropertySpecificKeyframeGroup* keyframe_group = it->value;
 
   bool updated = false;
   for (auto& keyframe : keyframe_group->keyframes_) {
-    if (!should_snapshot_keyframe(*keyframe))
+    if (!should_snapshot_keyframe_callback(*keyframe))
       continue;
 
     updated |= keyframe->PopulateCompositorKeyframeValue(
@@ -236,10 +235,10 @@ Vector<double> KeyframeEffectModelBase::GetComputedOffsets(
   // this function that std::numeric_limits::quiet_NaN() represents null.
   double last_offset = 0;
   Vector<double> result;
-  result.reserve(keyframes.size());
+  result.ReserveCapacity(keyframes.size());
 
   for (const auto& keyframe : keyframes) {
-    absl::optional<double> offset = keyframe->Offset();
+    base::Optional<double> offset = keyframe->Offset();
     if (offset) {
       DCHECK_GE(offset.value(), 0);
       DCHECK_LE(offset.value(), 1);
@@ -249,7 +248,7 @@ Vector<double> KeyframeEffectModelBase::GetComputedOffsets(
     result.push_back(offset.value_or(std::numeric_limits<double>::quiet_NaN()));
   }
 
-  if (result.empty())
+  if (result.IsEmpty())
     return result;
 
   if (std::isnan(result.back()))
@@ -338,7 +337,6 @@ void KeyframeEffectModelBase::EnsureKeyframeGroups() const {
           keyframe->CreatePropertySpecificKeyframe(property, composite_,
                                                    computed_offset);
       has_revert_ |= property_specific_keyframe->IsRevert();
-      has_revert_ |= property_specific_keyframe->IsRevertLayer();
       group->AppendKeyframe(property_specific_keyframe);
     }
   }
@@ -353,14 +351,11 @@ void KeyframeEffectModelBase::EnsureKeyframeGroups() const {
   }
 }
 
-bool KeyframeEffectModelBase::RequiresPropertyNode() const {
+bool KeyframeEffectModelBase::HasNonVariableProperty() const {
   for (const auto& keyframe : keyframes_) {
     for (const auto& property : keyframe->Properties()) {
       if (!property.IsCSSProperty() ||
-          (property.GetCSSProperty().PropertyID() != CSSPropertyID::kVariable &&
-           property.GetCSSProperty().PropertyID() !=
-               CSSPropertyID::kBackgroundColor &&
-           property.GetCSSProperty().PropertyID() != CSSPropertyID::kClipPath))
+          property.GetCSSProperty().PropertyID() != CSSPropertyID::kVariable)
         return true;
     }
   }
@@ -430,7 +425,7 @@ bool KeyframeEffectModelBase::IsReplaceOnly() const {
 
 void KeyframeEffectModelBase::PropertySpecificKeyframeGroup::AppendKeyframe(
     Keyframe::PropertySpecificKeyframe* keyframe) {
-  DCHECK(keyframes_.empty() ||
+  DCHECK(keyframes_.IsEmpty() ||
          keyframes_.back()->Offset() <= keyframe->Offset());
   keyframes_.push_back(std::move(keyframe));
 }
@@ -458,7 +453,7 @@ void KeyframeEffectModelBase::PropertySpecificKeyframeGroup::
 bool KeyframeEffectModelBase::PropertySpecificKeyframeGroup::
     AddSyntheticKeyframeIfRequired(
         scoped_refptr<TimingFunction> zero_offset_easing) {
-  DCHECK(!keyframes_.empty());
+  DCHECK(!keyframes_.IsEmpty());
 
   bool added_synthetic_keyframe = false;
 

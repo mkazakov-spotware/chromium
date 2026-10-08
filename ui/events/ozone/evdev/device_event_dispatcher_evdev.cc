@@ -1,9 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/events/ozone/evdev/device_event_dispatcher_evdev.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 
 namespace ui {
 
@@ -36,8 +36,8 @@ MouseMoveEventParams::MouseMoveEventParams(int device_id,
       flags(flags),
       location(location),
       ordinal_delta(ordinal_delta
-                        ? absl::optional<gfx::Vector2dF>(*ordinal_delta)
-                        : absl::nullopt),
+                        ? base::Optional<gfx::Vector2dF>(*ordinal_delta)
+                        : base::nullopt),
       pointer_details(details),
       timestamp(timestamp) {}
 
@@ -51,7 +51,7 @@ MouseButtonEventParams::MouseButtonEventParams(int device_id,
                                                const gfx::PointF& location,
                                                unsigned int button,
                                                bool down,
-                                               MouseButtonMapType map_type,
+                                               bool allow_remap,
                                                const PointerDetails& details,
                                                base::TimeTicks timestamp)
     : device_id(device_id),
@@ -59,7 +59,7 @@ MouseButtonEventParams::MouseButtonEventParams(int device_id,
       location(location),
       button(button),
       down(down),
-      map_type(map_type),
+      allow_remap(allow_remap),
       pointer_details(details),
       timestamp(timestamp) {}
 
@@ -153,4 +153,4 @@ TouchEventParams::TouchEventParams(const TouchEventParams& other) = default;
 TouchEventParams::~TouchEventParams() {
 }
 
-}  // namespace ui
+}  // namspace ui

@@ -1,11 +1,14 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_GL_GL_CONTEXT_GLX_H_
 #define UI_GL_GL_CONTEXT_GLX_H_
 
-#include "base/memory/raw_ptr.h"
+#include <string>
+
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "ui/gfx/x/connection.h"
 #include "ui/gl/gl_context.h"
 #include "ui/gl/gl_export.h"
@@ -18,9 +21,6 @@ class GLSurface;
 class GL_EXPORT GLContextGLX : public GLContextReal {
  public:
   explicit GLContextGLX(GLShareGroup* share_group);
-
-  GLContextGLX(const GLContextGLX&) = delete;
-  GLContextGLX& operator=(const GLContextGLX&) = delete;
 
   // Implement GLContext.
   bool Initialize(GLSurface* compatible_surface,
@@ -37,9 +37,11 @@ class GL_EXPORT GLContextGLX : public GLContextReal {
  private:
   void Destroy();
 
-  raw_ptr<void> context_ = nullptr;
-  raw_ptr<x11::Connection> connection_ = nullptr;
+  void* context_ = nullptr;
+  x11::Connection* connection_ = nullptr;
   unsigned int graphics_reset_status_ = 0;  // GL_NO_ERROR
+
+  DISALLOW_COPY_AND_ASSIGN(GLContextGLX);
 };
 
 }  // namespace gl

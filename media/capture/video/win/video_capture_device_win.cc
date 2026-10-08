@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,8 @@
 #include <utility>
 
 #include "base/feature_list.h"
-#include "base/metrics/histogram_functions.h"
+#include "base/stl_util.h"
 #include "base/strings/sys_string_conversions.h"
-#include "base/trace_event/trace_event.h"
 #include "base/win/scoped_co_mem.h"
 #include "base/win/scoped_variant.h"
 #include "base/win/win_util.h"
@@ -129,15 +128,15 @@ void VideoCaptureDeviceWin::GetPinCapabilityList(
   ComPtr<IAMVideoControl> video_control;
   hr = capture_filter.As(&video_control);
 
-  int count = 0, byte_size = 0;
-  hr = stream_config->GetNumberOfCapabilities(&count, &byte_size);
+  int count = 0, size = 0;
+  hr = stream_config->GetNumberOfCapabilities(&count, &size);
   if (FAILED(hr)) {
     DLOG(ERROR) << "GetNumberOfCapabilities failed: "
                 << logging::SystemErrorCodeToString(hr);
     return;
   }
 
-  std::unique_ptr<BYTE[]> caps(new BYTE[byte_size]);
+  std::unique_ptr<BYTE[]> caps(new BYTE[size]);
   for (int i = 0; i < count; ++i) {
     VideoCaptureDeviceWin::ScopedMediaType media_type;
     hr = stream_config->GetStreamCaps(i, media_type.Receive(), caps.get());
@@ -333,6 +332,15 @@ VideoCaptureDeviceWin::~VideoCaptureDeviceWin() {
 
   if (capture_graph_builder_.Get())
     capture_graph_builder_.Reset();
+
+  if (!take_photo_callbacks_.empty()) {
+    for (size_t k = 0; k < take_photo_callbacks_.size(); k++) {
+      LogWindowsImageCaptureOutcome(
+          VideoCaptureWinBackend::kDirectShow,
+          ImageCaptureOutcome::kFailedUsingVideoStream,
+          IsHighResolution(capture_format_));
+    }
+  }
 }
 
 bool VideoCaptureDeviceWin::Init() {
@@ -412,9 +420,6 @@ void VideoCaptureDeviceWin::AllocateAndStart(
     const VideoCaptureParams& params,
     std::unique_ptr<VideoCaptureDevice::Client> client) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("video_and_image_capture"),
-               "VideoCaptureDeviceWin::AllocateAndStart");
-
   if (state_ != kIdle)
     return;
 
@@ -518,28 +523,12 @@ void VideoCaptureDeviceWin::AllocateAndStart(
     return;
   }
 
-  base::UmaHistogramEnumeration(
-      "Media.VideoCapture.Win.Device.InternalPixelFormat",
-      capture_format_.pixel_format, media::VideoPixelFormat::PIXEL_FORMAT_MAX);
-  base::UmaHistogramEnumeration(
-      "Media.VideoCapture.Win.Device.CapturePixelFormat",
-      capture_format_.pixel_format, media::VideoPixelFormat::PIXEL_FORMAT_MAX);
-  base::UmaHistogramEnumeration(
-      "Media.VideoCapture.Win.Device.RequestedPixelFormat",
-      params.requested_format.pixel_format,
-      media::VideoPixelFormat::PIXEL_FORMAT_MAX);
-
-  {
-    base::AutoLock lock(lock_);
-    client_->OnStarted();
-    state_ = kCapturing;
-  }
+  client_->OnStarted();
+  state_ = kCapturing;
 }
 
 void VideoCaptureDeviceWin::StopAndDeAllocate() {
   DCHECK(thread_checker_.CalledOnValidThread());
-  TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("video_and_image_capture"),
-               "VideoCaptureDeviceWin::StopAndDeAllocate");
   if (state_ != kCapturing)
     return;
 
@@ -554,11 +543,8 @@ void VideoCaptureDeviceWin::StopAndDeAllocate() {
   graph_builder_->Disconnect(output_capture_pin_.Get());
   graph_builder_->Disconnect(input_sink_pin_.Get());
 
-  {
-    base::AutoLock lock(lock_);
-    client_.reset();
-    state_ = kIdle;
-  }
+  client_.reset();
+  state_ = kIdle;
 }
 
 void VideoCaptureDeviceWin::TakePhoto(TakePhotoCallback callback) {
@@ -863,35 +849,28 @@ void VideoCaptureDeviceWin::FrameReceived(const uint8_t* buffer,
                                           const VideoCaptureFormat& format,
                                           base::TimeDelta timestamp,
                                           bool flip_y) {
-  // We always calculate camera rotation for the first frame. We also cache
-  // the latest value to use when AutoRotation is turned off.
-  // To avoid potential deadlock, do this without holding a lock.
+  if (first_ref_time_.is_null())
+    first_ref_time_ = base::TimeTicks::Now();
+
+  // There is a chance that the platform does not provide us with the timestamp,
+  // in which case, we use reference time to calculate a timestamp.
+  if (timestamp == kNoTimestamp)
+    timestamp = base::TimeTicks::Now() - first_ref_time_;
+
+  // We always calculate camera rotation for the first frame. We also cache the
+  // latest value to use when AutoRotation is turned off.
   if (!camera_rotation_.has_value() || IsAutoRotationEnabled())
     camera_rotation_ = GetCameraRotation(device_descriptor_.facing);
 
-  {
-    base::AutoLock lock(lock_);
-    if (state_ != kCapturing)
-      return;
-
-    if (first_ref_time_.is_null())
-      first_ref_time_ = base::TimeTicks::Now();
-
-    // There is a chance that the platform does not provide us with the
-    // timestamp, in which case, we use reference time to calculate a timestamp.
-    if (timestamp == kNoTimestamp)
-      timestamp = base::TimeTicks::Now() - first_ref_time_;
-
-    // TODO(julien.isorce): retrieve the color space information using the
-    // DirectShow api, AM_MEDIA_TYPE::VIDEOINFOHEADER2::dwControlFlags. If
-    // AMCONTROL_COLORINFO_PRESENT, then reinterpret dwControlFlags as a
-    // DXVA_ExtendedFormat. Then use its fields DXVA_VideoPrimaries,
-    // DXVA_VideoTransferMatrix, DXVA_VideoTransferFunction and
-    // DXVA_NominalRangeto build a gfx::ColorSpace. See http://crbug.com/959992.
-    client_->OnIncomingCapturedData(buffer, length, format, gfx::ColorSpace(),
-                                    camera_rotation_.value(), flip_y,
-                                    base::TimeTicks::Now(), timestamp);
-  }
+  // TODO(julien.isorce): retrieve the color space information using the
+  // DirectShow api, AM_MEDIA_TYPE::VIDEOINFOHEADER2::dwControlFlags. If
+  // AMCONTROL_COLORINFO_PRESENT, then reinterpret dwControlFlags as a
+  // DXVA_ExtendedFormat. Then use its fields DXVA_VideoPrimaries,
+  // DXVA_VideoTransferMatrix, DXVA_VideoTransferFunction and
+  // DXVA_NominalRangeto build a gfx::ColorSpace. See http://crbug.com/959992.
+  client_->OnIncomingCapturedData(buffer, length, format, gfx::ColorSpace(),
+                                  camera_rotation_.value(), flip_y,
+                                  base::TimeTicks::Now(), timestamp);
 
   while (!take_photo_callbacks_.empty()) {
     TakePhotoCallback cb = std::move(take_photo_callbacks_.front());
@@ -900,6 +879,15 @@ void VideoCaptureDeviceWin::FrameReceived(const uint8_t* buffer,
     mojom::BlobPtr blob = RotateAndBlobify(buffer, length, format, 0);
     if (blob) {
       std::move(cb).Run(std::move(blob));
+      LogWindowsImageCaptureOutcome(
+          VideoCaptureWinBackend::kDirectShow,
+          ImageCaptureOutcome::kSucceededUsingVideoStream,
+          IsHighResolution(format));
+    } else {
+      LogWindowsImageCaptureOutcome(
+          VideoCaptureWinBackend::kDirectShow,
+          ImageCaptureOutcome::kFailedUsingVideoStream,
+          IsHighResolution(format));
     }
   }
 }

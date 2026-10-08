@@ -1,13 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/infobars/presentation/infobar_banner_presentation_controller.h"
 
-#import <algorithm>
-#import <cmath>
-
-#import "base/check.h"
+#include "base/check.h"
+#import "ios/chrome/browser/ui/infobars/infobar_feature.h"
 #import "ios/chrome/browser/ui/infobars/presentation/infobar_banner_positioner.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -23,7 +21,7 @@ const CGFloat kContainerMaxWidth = 398;
 const CGFloat kContainerMaxHeight = 230;
 // Minimum height or width frame change that should warrant a resizing of the
 // container view in response to a relayout.
-const CGFloat kMinimumSizeChange = 0.5;
+const CGFloat kMinimumSizeChange = 0.01;
 }
 
 @interface InfobarBannerPresentationController ()
@@ -83,7 +81,7 @@ const CGFloat kMinimumSizeChange = 0.5;
 #pragma mark - OverlayPresentationController
 
 - (BOOL)resizesPresentationContainer {
-  return YES;
+  return base::FeatureList::IsEnabled(kInfobarOverlayUI);
 }
 
 #pragma mark - UIPresentationController
@@ -93,7 +91,9 @@ const CGFloat kMinimumSizeChange = 0.5;
   // OverlayPresenter are inserted into the correct place in the view hierarchy.
   // Returning NO adds the container view as a sibling view in front of the
   // presenting view controller's view.
-  return [super shouldPresentInFullscreen];
+  if (base::FeatureList::IsEnabled(kInfobarOverlayUI))
+    return [super shouldPresentInFullscreen];
+  return YES;
 }
 
 - (void)presentationTransitionWillBegin {
@@ -108,18 +108,22 @@ const CGFloat kMinimumSizeChange = 0.5;
   UIView* containerView = self.containerView;
   UIWindow* window = containerView.window;
 
-  UIView* bannerView = self.presentedView;
-  CGRect newFrame = [bannerView.superview convertRect:bannerFrame
-                                             fromView:window];
-  if (std::fabs(newFrame.size.height - bannerView.frame.size.height) >
-          kMinimumSizeChange ||
-      std::fabs(newFrame.size.width - bannerView.frame.size.width) >
-          kMinimumSizeChange) {
-    bannerView.frame = newFrame;
-    containerView.frame = newFrame;
-    self.needsLayout = YES;
+  if (!base::FeatureList::IsEnabled(kInfobarOverlayUI)) {
+    CGRect newFrame = [containerView.superview convertRect:bannerFrame
+                                                  fromView:window];
+    // Make sure new calculate frame has changed enough to warrant a rerender.
+    // Otherwise, an infinite loop is possible.
+    if (std::fabs(newFrame.size.height - containerView.frame.size.height) >
+            kMinimumSizeChange ||
+        std::fabs(newFrame.size.width - containerView.frame.size.width) >
+            kMinimumSizeChange) {
+      containerView.frame = newFrame;
+    }
   }
 
+  UIView* bannerView = self.presentedView;
+  bannerView.frame = [bannerView.superview convertRect:bannerFrame
+                                              fromView:window];
   [super containerViewWillLayoutSubviews];
 }
 

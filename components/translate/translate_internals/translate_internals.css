@@ -1,4 +1,4 @@
-/* Copyright 2013 The Chromium Authors
+/* Copyright 2013 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file. */
 
@@ -24,15 +24,15 @@ td {
   padding: 1px 4px;
 }
 
-div[slot='panel'] {
+tabpanel {
   padding-bottom: 10px;
 }
 
-div[slot='panel'] > div {
+tabpanel > div {
   display: flex;
 }
 
-div[slot='panel'] > div > div {
+tabpanel > div > div {
   flex: 1;
 }
 
@@ -77,14 +77,6 @@ td.detection-logs-url {
 }
 
 .detection-logs-cld-language {
-  width: 10%;
-}
-
-.detection-logs-detection-model-version {
-  width: 10%;
-}
-
-.detection-logs-model-reliability {
   width: 10%;
 }
 

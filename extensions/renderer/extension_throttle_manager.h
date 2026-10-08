@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,8 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/synchronization/lock.h"
 #include "extensions/renderer/extension_throttle_entry.h"
 #include "services/network/public/mojom/url_response_head.mojom-forward.h"
@@ -37,10 +39,6 @@ namespace extensions {
 class ExtensionThrottleManager {
  public:
   ExtensionThrottleManager();
-
-  ExtensionThrottleManager(const ExtensionThrottleManager&) = delete;
-  ExtensionThrottleManager& operator=(const ExtensionThrottleManager&) = delete;
-
   virtual ~ExtensionThrottleManager();
 
   // Creates a throttle which uses this class to prevent extensions from
@@ -128,6 +126,8 @@ class ExtensionThrottleManager {
 
   // Used to synchronize all public methods.
   base::Lock lock_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionThrottleManager);
 };
 
 }  // namespace extensions

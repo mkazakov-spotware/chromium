@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@
 
 #include "components/consent_auditor/consent_auditor.h"
 #include "components/consent_auditor/fake_consent_auditor.h"
-#include "components/sync/protocol/user_consent_specifics.pb.h"
-#include "components/sync/protocol/user_consent_types.pb.h"
 
 namespace {
 
@@ -48,19 +46,13 @@ void FakeConsentAuditor::RecordSyncConsent(
 void FakeConsentAuditor::RecordAssistantActivityControlConsent(
     const CoreAccountId& account_id,
     const sync_pb::UserConsentTypes::AssistantActivityControlConsent& consent) {
-  account_id_ = account_id;
-  sync_pb::UserConsentSpecifics consent_specifics;
-  *consent_specifics.mutable_assistant_activity_control_consent() = consent;
-  recorded_consents_.push_back(std::move(consent_specifics));
+  NOTIMPLEMENTED();
 }
 
 void FakeConsentAuditor::RecordAccountPasswordsConsent(
     const CoreAccountId& account_id,
     const sync_pb::UserConsentTypes::AccountPasswordsConsent& consent) {
-  account_id_ = account_id;
-  sync_pb::UserConsentSpecifics consent_specifics;
-  *consent_specifics.mutable_account_passwords_consent() = consent;
-  recorded_consents_.push_back(std::move(consent_specifics));
+  NOTIMPLEMENTED();
 }
 
 void FakeConsentAuditor::RecordGaiaConsent(
@@ -74,6 +66,13 @@ void FakeConsentAuditor::RecordGaiaConsent(
   recorded_confirmation_ids_.push_back(confirmation_grd_id);
   recorded_features_.push_back(feature);
   recorded_statuses_.push_back(status);
+}
+
+void FakeConsentAuditor::RecordLocalConsent(
+    const std::string& feature,
+    const std::string& description_text,
+    const std::string& confirmation_text) {
+  NOTIMPLEMENTED();
 }
 
 base::WeakPtr<syncer::ModelTypeControllerDelegate>

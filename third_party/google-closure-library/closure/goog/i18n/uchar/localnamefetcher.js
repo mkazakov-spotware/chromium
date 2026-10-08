@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2012 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Object which fetches Unicode codepoint names that are locally
@@ -48,11 +56,9 @@ goog.i18n.uChar.LocalNameFetcher.prototype.prefetch = function(character) {};
 /** @override */
 goog.i18n.uChar.LocalNameFetcher.prototype.getName = function(
     character, callback) {
-  'use strict';
-  const localName = goog.i18n.uCharNames.toName(character);
+  var localName = goog.i18n.uCharNames.toName(character);
   if (!localName) {
-    goog.log.warning(
-        goog.i18n.uChar.LocalNameFetcher.logger_,
+    goog.i18n.uChar.LocalNameFetcher.logger_.warning(
         'No local name defined for character ' + character);
   }
   callback(localName);
@@ -62,6 +68,5 @@ goog.i18n.uChar.LocalNameFetcher.prototype.getName = function(
 /** @override */
 goog.i18n.uChar.LocalNameFetcher.prototype.isNameAvailable = function(
     character) {
-  'use strict';
   return !!goog.i18n.uCharNames.toName(character);
 };

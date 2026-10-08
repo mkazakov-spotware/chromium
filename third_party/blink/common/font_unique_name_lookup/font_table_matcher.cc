@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,7 @@ FontTableMatcher::MemoryMappingFromFontUniqueNameTable(
   return mapped_region.region.Map();
 }
 
-absl::optional<FontTableMatcher::MatchResult> FontTableMatcher::MatchName(
+base::Optional<FontTableMatcher::MatchResult> FontTableMatcher::MatchName(
     const std::string& name_request) const {
   std::string folded_name_request = IcuFoldCase(name_request);
 
@@ -52,7 +52,7 @@ absl::optional<FontTableMatcher::MatchResult> FontTableMatcher::MatchName(
 
   if (found_font.file_path().empty())
     return {};
-  return absl::optional<MatchResult>(
+  return base::Optional<MatchResult>(
       {found_font.file_path(), found_font.ttc_index()});
 }
 

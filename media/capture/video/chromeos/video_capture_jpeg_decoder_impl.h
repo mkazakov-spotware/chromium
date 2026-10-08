@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/unsafe_shared_memory_region.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
@@ -42,11 +43,6 @@ class CAPTURE_EXPORT VideoCaptureJpegDecoderImpl
       scoped_refptr<base::SequencedTaskRunner> decoder_task_runner,
       DecodeDoneCB decode_done_cb,
       base::RepeatingCallback<void(const std::string&)> send_log_message_cb);
-
-  VideoCaptureJpegDecoderImpl(const VideoCaptureJpegDecoderImpl&) = delete;
-  VideoCaptureJpegDecoderImpl& operator=(const VideoCaptureJpegDecoderImpl&) =
-      delete;
-
   ~VideoCaptureJpegDecoderImpl() override;
 
   // Implementation of VideoCaptureJpegDecoder:
@@ -83,7 +79,7 @@ class CAPTURE_EXPORT VideoCaptureJpegDecoderImpl
   scoped_refptr<base::SequencedTaskRunner> decoder_task_runner_;
 
   // The underlying JPEG decode accelerator.
-  std::unique_ptr<chromeos_camera::MojoMjpegDecodeAccelerator> decoder_;
+  std::unique_ptr<chromeos_camera::MjpegDecodeAccelerator> decoder_;
 
   // The callback to run when decode succeeds.
   const DecodeDoneCB decode_done_cb_;
@@ -91,10 +87,11 @@ class CAPTURE_EXPORT VideoCaptureJpegDecoderImpl
   const base::RepeatingCallback<void(const std::string&)> send_log_message_cb_;
   bool has_received_decoded_frame_;
 
-  // The closure of |decode_done_cb_| with bound parameters.
+  // Guards |decode_done_closure_| and |decoder_status_|.
   mutable base::Lock lock_;
-  STATUS decoder_status_ GUARDED_BY(lock_);
-  base::OnceClosure decode_done_closure_ GUARDED_BY(lock_);
+
+  // The closure of |decode_done_cb_| with bound parameters.
+  base::OnceClosure decode_done_closure_;
 
   // Next id for input BitstreamBuffer.
   int32_t next_task_id_;
@@ -107,9 +104,13 @@ class CAPTURE_EXPORT VideoCaptureJpegDecoderImpl
   base::UnsafeSharedMemoryRegion in_shared_region_;
   base::WritableSharedMemoryMapping in_shared_mapping_;
 
+  STATUS decoder_status_;
+
   SEQUENCE_CHECKER(sequence_checker_);
 
   base::WeakPtrFactory<VideoCaptureJpegDecoderImpl> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(VideoCaptureJpegDecoderImpl);
 };
 
 }  // namespace media

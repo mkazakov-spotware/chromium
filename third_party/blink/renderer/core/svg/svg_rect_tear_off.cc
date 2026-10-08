@@ -30,8 +30,7 @@
 
 #include "third_party/blink/renderer/core/svg/svg_rect_tear_off.h"
 
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "ui/gfx/geometry/rect_f.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -76,17 +75,9 @@ void SVGRectTearOff::setHeight(float f, ExceptionState& exception_state) {
   CommitChange();
 }
 
-SVGRectTearOff* SVGRectTearOff::CreateDetached(const gfx::RectF& r) {
-  return CreateDetached(r.x(), r.y(), r.width(), r.height());
-}
-
-SVGRectTearOff* SVGRectTearOff::CreateDetached(float x,
-                                               float y,
-                                               float width,
-                                               float height) {
+SVGRectTearOff* SVGRectTearOff::CreateDetached(const FloatRect& rect) {
   return MakeGarbageCollected<SVGRectTearOff>(
-      MakeGarbageCollected<SVGRect>(x, y, width, height), nullptr,
-      kPropertyIsNotAnimVal);
+      MakeGarbageCollected<SVGRect>(rect), nullptr, kPropertyIsNotAnimVal);
 }
 
 }  // namespace blink

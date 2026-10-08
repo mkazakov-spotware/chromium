@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
 
@@ -22,11 +23,6 @@ class IOSChromeLargeIconCacheFactory : public BrowserStateKeyedServiceFactory {
 
   static IOSChromeLargeIconCacheFactory* GetInstance();
 
-  IOSChromeLargeIconCacheFactory(const IOSChromeLargeIconCacheFactory&) =
-      delete;
-  IOSChromeLargeIconCacheFactory& operator=(
-      const IOSChromeLargeIconCacheFactory&) = delete;
-
  private:
   friend class base::NoDestructor<IOSChromeLargeIconCacheFactory>;
 
@@ -38,6 +34,8 @@ class IOSChromeLargeIconCacheFactory : public BrowserStateKeyedServiceFactory {
       web::BrowserState* context) const override;
   web::BrowserState* GetBrowserStateToUse(
       web::BrowserState* context) const override;
+
+  DISALLOW_COPY_AND_ASSIGN(IOSChromeLargeIconCacheFactory);
 };
 
 #endif  // IOS_CHROME_BROWSER_FAVICON_IOS_CHROME_LARGE_ICON_CACHE_FACTORY_H_

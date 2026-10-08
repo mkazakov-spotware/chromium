@@ -1,18 +1,16 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
  * @fileoverview Implements support for live regions in ChromeVox Next.
  */
-import {AutomationUtil} from '../../common/automation_util.js';
-import {CursorRange} from '../../common/cursors/range.js';
-import {QueueMode, TtsCategory} from '../common/tts_types.js';
 
-import {ChromeVoxState} from './chromevox_state.js';
-import {Output} from './output/output.js';
-import {OutputCustomEvent} from './output/output_types.js';
+goog.provide('LiveRegions');
 
+goog.require('ChromeVoxState');
+
+goog.scope(function() {
 const AutomationNode = chrome.automation.AutomationNode;
 const RoleType = chrome.automation.RoleType;
 const StateType = chrome.automation.StateType;
@@ -21,11 +19,20 @@ const TreeChangeObserverFilter = chrome.automation.TreeChangeObserverFilter;
 const TreeChangeType = chrome.automation.TreeChangeType;
 
 /**
- * ChromeVox live region handler.
+ * ChromeVox2 live region handler.
  */
-export class LiveRegions {
-  /** @private */
-  constructor() {
+LiveRegions = class {
+  /**
+   * @param {!ChromeVoxState} chromeVoxState The ChromeVox state object,
+   *     keeping track of the current mode and current range.
+   */
+  constructor(chromeVoxState) {
+    /**
+     * @type {!ChromeVoxState}
+     * @private
+     */
+    this.chromeVoxState_ = chromeVoxState;
+
     /**
      * The time the last live region event was output.
      * @type {!Date}
@@ -50,13 +57,6 @@ export class LiveRegions {
     chrome.automation.addTreeChangeObserver(
         TreeChangeObserverFilter.LIVE_REGION_TREE_CHANGES,
         this.onTreeChange.bind(this));
-  }
-
-  static init() {
-    if (LiveRegions.instance) {
-      throw 'Error: Trying to create two instances of singleton LiveRegions';
-    }
-    LiveRegions.instance = new LiveRegions();
   }
 
   /**
@@ -114,11 +114,13 @@ export class LiveRegions {
     // Schedule all live regions after all events in the native C++
     // EventBundle.
     this.liveRegionNodeSet_ = new WeakSet();
-    for (let i = 0; i < this.changedNodes_.length; i++) {
-      const node = this.changedNodes_[i];
-      this.outputLiveRegionChange_(node, null);
-    }
-    this.changedNodes_ = [];
+    setTimeout(function() {
+      for (let i = 0; i < this.changedNodes_.length; i++) {
+        const node = this.changedNodes_[i];
+        this.outputLiveRegionChange_(node, null);
+      }
+      this.changedNodes_ = [];
+    }.bind(this), 0);
   }
 
   /**
@@ -154,14 +156,14 @@ export class LiveRegions {
    * @private
    */
   outputLiveRegionChangeForNode_(node, opt_prependFormatStr) {
-    const range = CursorRange.fromNode(node);
+    const range = cursors.Range.fromNode(node);
     const output = new Output();
     output.withSpeechCategory(TtsCategory.LIVE);
 
     // Queue live regions coming from background tabs.
     let hostView = AutomationUtil.getTopLevelRoot(node);
     hostView = hostView ? hostView.parent : null;
-    const currentRange = ChromeVoxState.instance.currentRange;
+    const currentRange = this.chromeVoxState_.currentRange;
     const forceQueue = !hostView || !hostView.state.focused ||
         (currentRange && currentRange.start.node.root !== node.root) ||
         node.containerLiveStatus === 'polite';
@@ -180,7 +182,7 @@ export class LiveRegions {
     if (opt_prependFormatStr) {
       output.format(opt_prependFormatStr);
     }
-    output.withSpeech(range, range, OutputCustomEvent.NAVIGATE);
+    output.withSpeech(range, range, Output.EventType.NAVIGATE);
 
     if (!output.hasSpeech && node.liveAtomic) {
       output.format('$joinedDescendants', node);
@@ -195,6 +197,7 @@ export class LiveRegions {
     // describe their tree changes especially during page load within the
     // LiveRegions.LIVE_REGION_MIN_SAME_NODE_MS to prevent excessive chatter.
     this.addNodeToNodeSetRecursive_(node);
+    window.prev = output;
     output.go();
     this.lastLiveRegionTime_ = currentTime;
   }
@@ -220,7 +223,7 @@ export class LiveRegions {
       return false;
     }
 
-    const currentRange = ChromeVoxState.instance.currentRange;
+    const currentRange = this.chromeVoxState_.currentRange;
     if (currentRange && currentRange.start.node.root === node.root) {
       return false;
     }
@@ -242,27 +245,28 @@ export class LiveRegions {
 
     return true;
   }
-}
+};
 
 /**
  * Live region events received in fewer than this many milliseconds will
  * queue, otherwise they'll be output with a category flush.
- * @const {number}
+ * @type {number}
+ * @const
  */
 LiveRegions.LIVE_REGION_QUEUE_TIME_MS = 5000;
 
 /**
  * Live region events received on the same node in fewer than this many
  * milliseconds will be dropped to avoid a stream of constant chatter.
- * @const {number}
+ * @type {number}
+ * @const
  */
 LiveRegions.LIVE_REGION_MIN_SAME_NODE_MS = 20;
 
 /**
  * Whether live regions from background tabs should be announced or not.
- * @private {boolean}
+ * @type {boolean}
+ * @private
  */
 LiveRegions.announceLiveRegionsFromBackgroundTabs_ = false;
-
-/** @type {LiveRegions} */
-LiveRegions.instance;
+});  // goog.scope

@@ -1,12 +1,14 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/app_list/arc/arc_package_syncable_service_factory.h"
 
+#include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_list_prefs_factory.h"
 #include "chrome/browser/ui/app_list/arc/arc_package_syncable_service.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_context.h"
 
@@ -27,11 +29,9 @@ ArcPackageSyncableServiceFactory::GetInstance() {
 }
 
 ArcPackageSyncableServiceFactory::ArcPackageSyncableServiceFactory()
-    : ProfileKeyedServiceFactory(
+    : BrowserContextKeyedServiceFactory(
           "ArcPackageSyncableService",
-          // This matches the logic in ExtensionSyncServiceFactory, which uses
-          // the original browser context.
-          ProfileSelections::BuildRedirectedInIncognito()) {
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(ArcAppListPrefsFactory::GetInstance());
 }
 
@@ -44,6 +44,14 @@ KeyedService* ArcPackageSyncableServiceFactory::BuildServiceInstanceFor(
 
   return ArcPackageSyncableService::Create(profile,
                                            ArcAppListPrefs::Get(profile));
+}
+
+content::BrowserContext*
+ArcPackageSyncableServiceFactory::GetBrowserContextToUse(
+    content::BrowserContext* context) const {
+  // This matches the logic in ExtensionSyncServiceFactory, which uses the
+  // orginal browser context.
+  return chrome::GetBrowserContextRedirectedInIncognito(context);
 }
 
 }  // namespace arc

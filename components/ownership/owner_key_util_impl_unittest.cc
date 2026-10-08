@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -47,10 +48,6 @@ const uint8_t kTestKeyData[] = {
 };
 
 class OwnerKeyUtilImplTest : public testing::Test {
- public:
-  OwnerKeyUtilImplTest(const OwnerKeyUtilImplTest&) = delete;
-  OwnerKeyUtilImplTest& operator=(const OwnerKeyUtilImplTest&) = delete;
-
  protected:
   OwnerKeyUtilImplTest() {}
   ~OwnerKeyUtilImplTest() override {}
@@ -64,6 +61,9 @@ class OwnerKeyUtilImplTest : public testing::Test {
   base::ScopedTempDir tmpdir_;
   base::FilePath key_file_;
   scoped_refptr<OwnerKeyUtil> util_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(OwnerKeyUtilImplTest);
 };
 
 TEST_F(OwnerKeyUtilImplTest, ImportPublicKey) {
@@ -76,22 +76,24 @@ TEST_F(OwnerKeyUtilImplTest, ImportPublicKey) {
                             public_key.size()));
   EXPECT_TRUE(util_->IsPublicKeyPresent());
 
-  scoped_refptr<PublicKey> from_disk = util_->ImportPublicKey();
-  EXPECT_TRUE(from_disk);
+  std::vector<uint8_t> from_disk;
+  EXPECT_TRUE(util_->ImportPublicKey(&from_disk));
 
-  EXPECT_EQ(public_key, from_disk->data());
-  EXPECT_EQ(true, from_disk->is_persisted());
+  EXPECT_EQ(public_key, from_disk);
 }
 
 TEST_F(OwnerKeyUtilImplTest, ImportPublicKeyFailed) {
   // First test the case where the file is missing which should fail.
   EXPECT_FALSE(util_->IsPublicKeyPresent());
-  EXPECT_FALSE(util_->ImportPublicKey());
+  std::vector<uint8_t> from_disk;
+  EXPECT_FALSE(util_->ImportPublicKey(&from_disk));
 
-  // Next try empty file. This should fail as well.
+  // Next try empty file. This should fail and the array should be empty.
+  from_disk.resize(10);
   ASSERT_EQ(0, base::WriteFile(key_file_, "", 0));
   EXPECT_TRUE(util_->IsPublicKeyPresent());
-  EXPECT_FALSE(util_->ImportPublicKey());
+  EXPECT_FALSE(util_->ImportPublicKey(&from_disk));
+  EXPECT_FALSE(from_disk.size());
 }
 
 }  // namespace ownership

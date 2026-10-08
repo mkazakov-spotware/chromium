@@ -1,11 +1,12 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef MOJO_CORE_ATOMIC_FLAG_H_
 #define MOJO_CORE_ATOMIC_FLAG_H_
 
-#include <atomic>
+#include "base/atomicops.h"
+#include "base/macros.h"
 
 namespace mojo {
 namespace core {
@@ -31,20 +32,19 @@ namespace core {
 // }
 class AtomicFlag {
  public:
-  AtomicFlag();
-  AtomicFlag(const AtomicFlag&) = delete;
-  AtomicFlag& operator=(const AtomicFlag&) = delete;
-
+  AtomicFlag() : flag_(0) {}
   ~AtomicFlag() = default;
 
-  void Set(bool value) { flag_.store(value, std::memory_order_release); }
+  void Set(bool value) { base::subtle::Release_Store(&flag_, value ? 1 : 0); }
 
-  bool Get() const { return flag_.load(std::memory_order_acquire); }
+  bool Get() const { return base::subtle::Acquire_Load(&flag_) ? true : false; }
 
   operator const bool() const { return Get(); }
 
  private:
-  std::atomic<bool> flag_;
+  base::subtle::Atomic32 flag_;
+
+  DISALLOW_COPY_AND_ASSIGN(AtomicFlag);
 };
 
 }  // namespace core

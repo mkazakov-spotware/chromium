@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,7 @@ namespace switches {
 extern const char kAllowHTTPBackgroundPage[];
 extern const char kAllowLegacyExtensionManifests[];
 extern const char kAllowlistedExtensionID[];
-extern const char kDEPRECATED_AllowlistedExtensionID[];
-extern const char kDisableAppContentVerification[];
+extern const char kDisableDesktopCaptureAudio[];
 extern const char kDisableExtensionsHttpThrottling[];
 extern const char kEmbeddedExtensionOptions[];
 extern const char kEnableExperimentalExtensionApis[];
@@ -25,13 +24,12 @@ extern const char kEnableBLEAdvertising[];
 extern const char kExtensionProcess[];
 extern const char kExtensionsOnChromeURLs[];
 extern const char kForceDevModeHighlighting[];
+extern const char kForceEmptyCorbAllowlist[];
 extern const char kLoadApps[];
 extern const char kLoadExtension[];
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 extern const char kLoadSigninProfileTestExtension[];
-extern const char kLoadGuestModeTestExtension[];
 #endif
-extern const char kOffscreenDocumentTesting[];
 extern const char kSetExtensionThrottleTestParams[];
 extern const char kShowComponentExtensionOptions[];
 extern const char kTraceAppSource[];

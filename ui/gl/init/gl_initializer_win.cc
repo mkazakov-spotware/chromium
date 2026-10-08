@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,15 +13,15 @@
 #include "base/logging.h"
 #include "base/native_library.h"
 #include "base/path_service.h"
+#include "base/strings/stringprintf.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/trace_event/trace_event.h"
 #include "base/win/windows_version.h"
-#include "ui/gl/direct_composition_support.h"
+#include "ui/gl/buildflags.h"
 #include "ui/gl/gl_bindings.h"
-#include "ui/gl/gl_display.h"
 #include "ui/gl/gl_egl_api_implementation.h"
 #include "ui/gl/gl_gl_api_implementation.h"
-#include "ui/gl/gl_utils.h"
+#include "ui/gl/gl_surface_egl.h"
 #include "ui/gl/vsync_provider_win.h"
 
 namespace gl {
@@ -34,9 +34,9 @@ const wchar_t kD3DCompiler[] = L"D3DCompiler_47.dll";
 bool LoadD3DXLibrary(const base::FilePath& module_path,
                      const base::FilePath::StringType& name) {
   base::NativeLibrary library =
-      base::LoadNativeLibrary(module_path.Append(name), nullptr);
+      base::LoadNativeLibrary(base::FilePath(name), nullptr);
   if (!library) {
-    library = base::LoadNativeLibrary(base::FilePath(name), nullptr);
+    library = base::LoadNativeLibrary(module_path.Append(name), nullptr);
     if (!library) {
       DVLOG(1) << name << " not found.";
       return false;
@@ -45,21 +45,29 @@ bool LoadD3DXLibrary(const base::FilePath& module_path,
   return true;
 }
 
-bool InitializeStaticEGLInternalFromLibrary(GLImplementation implementation) {
-#if BUILDFLAG(USE_STATIC_ANGLE)
-  NOTREACHED();
-#endif
-
+bool InitializeStaticEGLInternal(GLImplementation implementation) {
   base::FilePath module_path;
   if (!base::PathService::Get(base::DIR_MODULE, &module_path))
     return false;
 
-  // Attempt to load the D3DX shader compiler using an absolute path. This is to
-  // ensure that we load the versions of these DLLs that we ship. If that fails,
-  // load the OS version.
+  // Attempt to load the D3DX shader compiler using the default search path
+  // and if that fails, using an absolute path. This is to ensure these DLLs
+  // are loaded before ANGLE is loaded in case they are not in the default
+  // search path.
   LoadD3DXLibrary(module_path, kD3DCompiler);
 
-  base::FilePath gles_path = module_path;
+  base::FilePath gles_path;
+  if (implementation == kGLImplementationSwiftShaderGL) {
+#if BUILDFLAG(ENABLE_SWIFTSHADER)
+    gles_path = module_path.Append(L"swiftshader/");
+    // Preload library
+    LoadLibrary(L"ddraw.dll");
+#else
+    return false;
+#endif
+  } else {
+    gles_path = module_path;
+  }
 
   // Load libglesv2.dll before libegl.dll because the latter is dependent on
   // the former and if there is another version of libglesv2.dll in the dll
@@ -95,26 +103,8 @@ bool InitializeStaticEGLInternalFromLibrary(GLImplementation implementation) {
   SetGLGetProcAddressProc(get_proc_address);
   AddGLNativeLibrary(egl_library);
   AddGLNativeLibrary(gles_library);
+  SetGLImplementation(implementation);
 
-  return true;
-}
-
-bool InitializeStaticEGLInternal(GLImplementationParts implementation) {
-#if BUILDFLAG(USE_STATIC_ANGLE)
-  if (implementation.gl == kGLImplementationEGLANGLE) {
-    // Use ANGLE if it is requested and it is statically linked
-    if (!InitializeStaticANGLEEGL())
-      return false;
-  } else if (!InitializeStaticEGLInternalFromLibrary(implementation.gl)) {
-    return false;
-  }
-#else
-  if (!InitializeStaticEGLInternalFromLibrary(implementation.gl)) {
-    return false;
-  }
-#endif  // !BUILDFLAG(USE_STATIC_ANGLE)
-
-  SetGLImplementationParts(implementation);
   InitializeStaticGLBindingsGL();
   InitializeStaticGLBindingsEGL();
 
@@ -123,17 +113,16 @@ bool InitializeStaticEGLInternal(GLImplementationParts implementation) {
 
 }  // namespace
 
-GLDisplay* InitializeGLOneOffPlatform(uint64_t system_device_id) {
+bool InitializeGLOneOffPlatform() {
   VSyncProviderWin::InitializeOneOff();
 
-  GLDisplayEGL* display = GetDisplayEGL(system_device_id);
   switch (GetGLImplementation()) {
+    case kGLImplementationSwiftShaderGL:
     case kGLImplementationEGLANGLE:
-      if (!display->Initialize(EGLDisplayPlatform(GetDC(nullptr)))) {
-        LOG(ERROR) << "GLDisplayEGL::Initialize failed.";
-        return nullptr;
+      if (!GLSurfaceEGL::InitializeOneOff(EGLDisplayPlatform(GetDC(nullptr)))) {
+        LOG(ERROR) << "GLSurfaceEGL::InitializeOneOff failed.";
+        return false;
       }
-      InitializeDirectComposition(display);
       break;
     case kGLImplementationMockGL:
     case kGLImplementationStubGL:
@@ -141,10 +130,10 @@ GLDisplay* InitializeGLOneOffPlatform(uint64_t system_device_id) {
     default:
       NOTREACHED();
   }
-  return display;
+  return true;
 }
 
-bool InitializeStaticGLBindings(GLImplementationParts implementation) {
+bool InitializeStaticGLBindings(GLImplementation implementation) {
   // Prevent reinitialization with a different implementation. Once the gpu
   // unit tests have initialized with kGLImplementationMock, we don't want to
   // later switch to another GL implementation.
@@ -154,14 +143,15 @@ bool InitializeStaticGLBindings(GLImplementationParts implementation) {
   // after instituting restrictions on I/O. Going forward they will
   // likely be used in the browser process on most platforms. The
   // one-time initialization cost is small, between 2 and 5 ms.
-  base::ScopedAllowBlocking allow_blocking;
+  base::ThreadRestrictions::ScopedAllowIO allow_io;
 
-  switch (implementation.gl) {
+  switch (implementation) {
+    case kGLImplementationSwiftShaderGL:
     case kGLImplementationEGLANGLE:
       return InitializeStaticEGLInternal(implementation);
     case kGLImplementationMockGL:
     case kGLImplementationStubGL:
-      SetGLImplementationParts(implementation);
+      SetGLImplementation(implementation);
       InitializeStaticGLBindingsGL();
       return true;
     default:
@@ -171,10 +161,8 @@ bool InitializeStaticGLBindings(GLImplementationParts implementation) {
   return false;
 }
 
-void ShutdownGLPlatform(GLDisplay* display) {
-  ShutdownDirectComposition();
-  if (display)
-    display->Shutdown();
+void ShutdownGLPlatform() {
+  GLSurfaceEGL::ShutdownOneOff();
   ClearBindingsEGL();
   ClearBindingsGL();
 }

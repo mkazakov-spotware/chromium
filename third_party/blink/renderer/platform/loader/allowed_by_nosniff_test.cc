@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,13 @@
 
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom-blink.h"
+#include "third_party/blink/public/mojom/web_feature/web_feature.mojom-blink.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/loader/fetch/console_logger.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_fetcher.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_response.h"
 #include "third_party/blink/renderer/platform/loader/testing/test_loader_factory.h"
 #include "third_party/blink/renderer/platform/loader/testing/test_resource_fetcher_properties.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 
 namespace blink {
 
@@ -32,32 +30,25 @@ class MockUseCounter : public GarbageCollected<MockUseCounter>,
   }
 
   MOCK_METHOD1(CountUse, void(mojom::WebFeature));
-  MOCK_METHOD1(CountDeprecation, void(mojom::WebFeature));
 };
 
 class MockConsoleLogger : public GarbageCollected<MockConsoleLogger>,
                           public ConsoleLogger {
  public:
-  MOCK_METHOD5(AddConsoleMessageImpl,
+  MOCK_METHOD4(AddConsoleMessageImpl,
                void(mojom::ConsoleMessageSource,
                     mojom::ConsoleMessageLevel,
                     const String&,
-                    bool,
-                    absl::optional<mojom::ConsoleMessageCategory>));
+                    bool));
 };
 
 }  // namespace
 
-class AllowedByNosniffTest : public testing::TestWithParam<bool> {
+class AllowedByNosniffTest : public testing::Test {
  public:
 };
 
-INSTANTIATE_TEST_SUITE_P(All, AllowedByNosniffTest, ::testing::Bool());
-
-TEST_P(AllowedByNosniffTest, AllowedOrNot) {
-  RuntimeEnabledFeaturesTestHelpers::ScopedStrictMimeTypesForWorkers feature(
-      GetParam());
-
+TEST_F(AllowedByNosniffTest, AllowedOrNot) {
   struct {
     const char* mimetype;
     bool allowed;
@@ -117,27 +108,23 @@ TEST_P(AllowedByNosniffTest, AllowedOrNot) {
 
     EXPECT_CALL(*use_counter, CountUse(_)).Times(::testing::AnyNumber());
     if (!testcase.allowed)
-      EXPECT_CALL(*logger, AddConsoleMessageImpl(_, _, _, _, _));
+      EXPECT_CALL(*logger, AddConsoleMessageImpl(_, _, _, _));
     EXPECT_EQ(testcase.allowed, AllowedByNosniff::MimeTypeAsScript(
                                     *use_counter, logger, response,
                                     MimeTypeCheck::kLaxForElement));
     ::testing::Mock::VerifyAndClear(use_counter);
 
     EXPECT_CALL(*use_counter, CountUse(_)).Times(::testing::AnyNumber());
-    bool expect_allowed =
-        RuntimeEnabledFeatures::StrictMimeTypesForWorkersEnabled()
-            ? testcase.strict_allowed
-            : testcase.allowed;
-    if (!expect_allowed)
-      EXPECT_CALL(*logger, AddConsoleMessageImpl(_, _, _, _, _));
-    EXPECT_EQ(expect_allowed,
+    if (!testcase.allowed)
+      EXPECT_CALL(*logger, AddConsoleMessageImpl(_, _, _, _));
+    EXPECT_EQ(testcase.allowed,
               AllowedByNosniff::MimeTypeAsScript(*use_counter, logger, response,
                                                  MimeTypeCheck::kLaxForWorker));
     ::testing::Mock::VerifyAndClear(use_counter);
 
     EXPECT_CALL(*use_counter, CountUse(_)).Times(::testing::AnyNumber());
     if (!testcase.strict_allowed)
-      EXPECT_CALL(*logger, AddConsoleMessageImpl(_, _, _, _, _));
+      EXPECT_CALL(*logger, AddConsoleMessageImpl(_, _, _, _));
     EXPECT_EQ(testcase.strict_allowed,
               AllowedByNosniff::MimeTypeAsScript(*use_counter, logger, response,
                                                  MimeTypeCheck::kStrict));
@@ -145,10 +132,7 @@ TEST_P(AllowedByNosniffTest, AllowedOrNot) {
   }
 }
 
-TEST_P(AllowedByNosniffTest, Counters) {
-  RuntimeEnabledFeaturesTestHelpers::ScopedStrictMimeTypesForWorkers feature(
-      GetParam());
-
+TEST_F(AllowedByNosniffTest, Counters) {
   constexpr auto kBasic = network::mojom::FetchResponseType::kBasic;
   constexpr auto kOpaque = network::mojom::FetchResponseType::kOpaque;
   constexpr auto kCors = network::mojom::FetchResponseType::kCors;
@@ -168,16 +152,6 @@ TEST_P(AllowedByNosniffTest, Counters) {
       {bla, blubb, "text/plain", kOpaque, WebFeature::kCrossOriginTextPlain},
       {bla, bla, "text/plain", kBasic, WebFeature::kSameOriginTextScript},
       {bla, bla, "text/plain", kBasic, WebFeature::kSameOriginTextPlain},
-      {bla, bla, "text/json", kBasic, WebFeature::kSameOriginTextScript},
-
-      // JSON
-      {bla, bla, "text/json", kBasic, WebFeature::kSameOriginJsonTypeForScript},
-      {bla, bla, "application/json", kBasic,
-       WebFeature::kSameOriginJsonTypeForScript},
-      {bla, blubb, "text/json", kOpaque,
-       WebFeature::kCrossOriginJsonTypeForScript},
-      {bla, blubb, "application/json", kOpaque,
-       WebFeature::kCrossOriginJsonTypeForScript},
 
       // Test mime type and subtype handling.
       {bla, bla, "text/xml", kBasic, WebFeature::kSameOriginTextScript},
@@ -192,12 +166,6 @@ TEST_P(AllowedByNosniffTest, Counters) {
       {blubb, blubb, "application/xml", kCors,
        WebFeature::kCrossOriginApplicationXml},
       {bla, bla, "text/html", kBasic, WebFeature::kSameOriginTextHtml},
-
-      // Unknown
-      {bla, bla, "not/script", kBasic,
-       WebFeature::kSameOriginStrictNosniffWouldBlock},
-      {bla, blubb, "not/script", kOpaque,
-       WebFeature::kCrossOriginStrictNosniffWouldBlock},
   };
 
   for (auto& testcase : data) {
@@ -220,27 +188,15 @@ TEST_P(AllowedByNosniffTest, Counters) {
                                        MimeTypeCheck::kLaxForElement);
     ::testing::Mock::VerifyAndClear(use_counter);
 
-    // kLaxForWorker should (by default) behave the same as kLaxForElement,
-    // but should behave like kStrict if StrictMimeTypesForWorkersEnabled().
-    // So in the strict case we'll expect the counter calls only if it's a
-    // legitimate script.
-    bool expect_worker_lax =
-        (testcase.expected == WebFeature::kCrossOriginTextScript ||
-         testcase.expected == WebFeature::kSameOriginTextScript) ||
-        !RuntimeEnabledFeatures::StrictMimeTypesForWorkersEnabled();
-    EXPECT_CALL(*use_counter, CountUse(testcase.expected))
-        .Times(expect_worker_lax);
+    EXPECT_CALL(*use_counter, CountUse(testcase.expected));
     EXPECT_CALL(*use_counter, CountUse(::testing::Ne(testcase.expected)))
         .Times(::testing::AnyNumber());
     AllowedByNosniff::MimeTypeAsScript(*use_counter, logger, response,
                                        MimeTypeCheck::kLaxForWorker);
     ::testing::Mock::VerifyAndClear(use_counter);
 
-    // The kStrictMimeTypeChecksWouldBlockWorker counter should only be active
-    // is "lax" checking for workers is enabled.
     EXPECT_CALL(*use_counter,
-                CountUse(WebFeature::kStrictMimeTypeChecksWouldBlockWorker))
-        .Times(!RuntimeEnabledFeatures::StrictMimeTypesForWorkersEnabled());
+                CountUse(WebFeature::kStrictMimeTypeChecksWouldBlockWorker));
     EXPECT_CALL(*use_counter,
                 CountUse(::testing::Ne(
                     WebFeature::kStrictMimeTypeChecksWouldBlockWorker)))
@@ -251,10 +207,7 @@ TEST_P(AllowedByNosniffTest, Counters) {
   }
 }
 
-TEST_P(AllowedByNosniffTest, AllTheSchemes) {
-  RuntimeEnabledFeaturesTestHelpers::ScopedStrictMimeTypesForWorkers feature(
-      GetParam());
-
+TEST_F(AllowedByNosniffTest, AllTheSchemes) {
   // We test various URL schemes.
   // To force a decision based on the scheme, we give all responses an
   // invalid Content-Type plus a "nosniff" header. That way, all Content-Type
@@ -289,7 +242,7 @@ TEST_P(AllowedByNosniffTest, AllTheSchemes) {
     auto* use_counter = MockUseCounter::Create();
     Persistent<MockConsoleLogger> logger =
         MakeGarbageCollected<MockConsoleLogger>();
-    EXPECT_CALL(*logger, AddConsoleMessageImpl(_, _, _, _, _))
+    EXPECT_CALL(*logger, AddConsoleMessageImpl(_, _, _, _))
         .Times(::testing::AnyNumber());
     SCOPED_TRACE(testing::Message() << "\n  url: " << testcase.url
                                     << "\n  allowed: " << testcase.allowed);

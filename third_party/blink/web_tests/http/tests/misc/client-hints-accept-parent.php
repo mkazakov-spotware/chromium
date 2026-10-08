@@ -1,5 +1,6 @@
 <?php
     header("ACCEPT-CH: DPR, Device-Memory, Width, Viewport-Width");
+    header("ACCEPT-CH-Lifetime: 3600");
 ?>
 <!DOCTYPE html>
 <script src="../../../resources/testharness.js"></script>

@@ -1,17 +1,16 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_SERVICE_WORKER_RESPOND_WITH_OBSERVER_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_SERVICE_WORKER_RESPOND_WITH_OBSERVER_H_
 
-#include "base/time/time.h"
 #include "third_party/blink/public/mojom/service_worker/service_worker_error_type.mojom-blink-forward.h"
 #include "third_party/blink/renderer/core/dom/events/event_target.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -32,7 +31,7 @@ class MODULES_EXPORT RespondWithObserver
   virtual ~RespondWithObserver() = default;
 
   void WillDispatchEvent();
-  void DidDispatchEvent(ScriptState*, DispatchEventResult dispatch_result);
+  void DidDispatchEvent(DispatchEventResult dispatch_result);
 
   // Observes the given promise and calls OnResponseRejected() or
   // OnResponseFulfilled() when it settles. It also keeps the event alive by
@@ -46,18 +45,17 @@ class MODULES_EXPORT RespondWithObserver
   // Called when the respondWith() promise was fulfilled.
   virtual void OnResponseFulfilled(ScriptState*,
                                    const ScriptValue&,
-                                   const ExceptionContext&) = 0;
+                                   ExceptionState::ContextType,
+                                   const char* interface_name,
+                                   const char* property_name) = 0;
 
   // Called when the event handler finished without calling respondWith().
-  virtual void OnNoResponse(ScriptState*) = 0;
+  virtual void OnNoResponse() = 0;
 
   void Trace(Visitor*) const override;
 
  protected:
   RespondWithObserver(ExecutionContext*, int event_id, WaitUntilObserver*);
-
-  bool WaitUntil(ScriptState*, ScriptPromise, ExceptionState&);
-
   const int event_id_;
   base::TimeTicks event_dispatch_time_;
 
@@ -67,7 +65,9 @@ class MODULES_EXPORT RespondWithObserver
   void ResponseWasRejected(mojom::ServiceWorkerResponseError,
                            const ScriptValue&);
   void ResponseWasFulfilled(ScriptState* state,
-                            const ExceptionContext&,
+                            ExceptionState::ContextType,
+                            const char* interface_name,
+                            const char* property_name,
                             const ScriptValue&);
 
   enum State { kInitial, kPending, kDone };

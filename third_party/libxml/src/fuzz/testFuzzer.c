@@ -12,65 +12,41 @@
 #include <libxml/xmlstring.h>
 #include "fuzz.h"
 
-#ifdef HAVE_HTML_FUZZER
-int fuzzHtmlInit(int *argc, char ***argv);
-int fuzzHtml(const char *data, size_t size);
 #define LLVMFuzzerInitialize fuzzHtmlInit
 #define LLVMFuzzerTestOneInput fuzzHtml
 #include "html.c"
 #undef LLVMFuzzerInitialize
 #undef LLVMFuzzerTestOneInput
-#endif
 
-#ifdef HAVE_REGEXP_FUZZER
-int fuzzRegexpInit(int *argc, char ***argv);
-int fuzzRegexp(const char *data, size_t size);
 #define LLVMFuzzerInitialize fuzzRegexpInit
 #define LLVMFuzzerTestOneInput fuzzRegexp
 #include "regexp.c"
 #undef LLVMFuzzerInitialize
 #undef LLVMFuzzerTestOneInput
-#endif
 
-#ifdef HAVE_SCHEMA_FUZZER
-int fuzzSchemaInit(int *argc, char ***argv);
-int fuzzSchema(const char *data, size_t size);
 #define LLVMFuzzerInitialize fuzzSchemaInit
 #define LLVMFuzzerTestOneInput fuzzSchema
 #include "schema.c"
 #undef LLVMFuzzerInitialize
 #undef LLVMFuzzerTestOneInput
-#endif
 
-#ifdef HAVE_URI_FUZZER
-int fuzzUriInit(int *argc, char ***argv);
-int fuzzUri(const char *data, size_t size);
 #define LLVMFuzzerInitialize fuzzUriInit
 #define LLVMFuzzerTestOneInput fuzzUri
 #include "uri.c"
 #undef LLVMFuzzerInitialize
 #undef LLVMFuzzerTestOneInput
-#endif
 
-#ifdef HAVE_XML_FUZZER
-int fuzzXmlInit(int *argc, char ***argv);
-int fuzzXml(const char *data, size_t size);
 #define LLVMFuzzerInitialize fuzzXmlInit
 #define LLVMFuzzerTestOneInput fuzzXml
 #include "xml.c"
 #undef LLVMFuzzerInitialize
 #undef LLVMFuzzerTestOneInput
-#endif
 
-#ifdef HAVE_XPATH_FUZZER
-int fuzzXPathInit(int *argc, char ***argv);
-int fuzzXPath(const char *data, size_t size);
 #define LLVMFuzzerInitialize fuzzXPathInit
 #define LLVMFuzzerTestOneInput fuzzXPath
 #include "xpath.c"
 #undef LLVMFuzzerInitialize
 #undef LLVMFuzzerTestOneInput
-#endif
 
 typedef int
 (*initFunc)(int *argc, char ***argv);
@@ -83,7 +59,7 @@ static int
 testFuzzer(initFunc init, fuzzFunc fuzz, const char *pattern) {
     glob_t globbuf;
     int ret = -1;
-    size_t i;
+    int i;
 
     if (glob(pattern, 0, NULL, &globbuf) != 0) {
         fprintf(stderr, "pattern %s matches no files\n", pattern);
@@ -115,9 +91,8 @@ error:
     return(ret);
 }
 
-#ifdef HAVE_XML_FUZZER
 static int
-testEntityLoader(void) {
+testEntityLoader() {
     static const char data[] =
         "doc.xml\\\n"
         "<!DOCTYPE doc SYSTEM \"doc.dtd\">\n"
@@ -157,40 +132,25 @@ testEntityLoader(void) {
 
     return(ret);
 }
-#endif
 
 int
-main(void) {
+main() {
     int ret = 0;
 
-#ifdef HAVE_XML_FUZZER
     if (testEntityLoader() != 0)
         ret = 1;
-#endif
-#ifdef HAVE_HTML_FUZZER
     if (testFuzzer(fuzzHtmlInit, fuzzHtml, "seed/html/*") != 0)
         ret = 1;
-#endif
-#ifdef HAVE_REGEXP_FUZZER
     if (testFuzzer(fuzzRegexpInit, fuzzRegexp, "seed/regexp/*") != 0)
         ret = 1;
-#endif
-#ifdef HAVE_SCHEMA_FUZZER
     if (testFuzzer(fuzzSchemaInit, fuzzSchema, "seed/schema/*") != 0)
         ret = 1;
-#endif
-#ifdef HAVE_URI_FUZZER
     if (testFuzzer(NULL, fuzzUri, "seed/uri/*") != 0)
         ret = 1;
-#endif
-#ifdef HAVE_XML_FUZZER
     if (testFuzzer(fuzzXmlInit, fuzzXml, "seed/xml/*") != 0)
         ret = 1;
-#endif
-#ifdef HAVE_XPATH_FUZZER
     if (testFuzzer(fuzzXPathInit, fuzzXPath, "seed/xpath/*") != 0)
         ret = 1;
-#endif
 
     if (ret == 0)
         printf("Successfully tested %d inputs\n", numInputs);

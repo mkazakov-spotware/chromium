@@ -33,7 +33,6 @@
 
 #include <memory>
 
-#include "base/numerics/safe_conversions.h"
 #include "services/network/public/cpp/cors/cors_error_status.h"
 #include "services/network/public/mojom/cors.mojom-blink.h"
 #include "services/network/public/mojom/fetch_api.mojom-blink.h"
@@ -43,12 +42,12 @@
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/loader/threadable_loader_client.h"
 #include "third_party/blink/renderer/core/probe/core_probes.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/core/workers/worker_global_scope.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/heap/self_keep_alive.h"
 #include "third_party/blink/renderer/platform/loader/cors/cors.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_client_settings_object.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_parameters.h"
-#include "third_party/blink/renderer/platform/loader/fetch/loader_freeze_mode.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_fetcher.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_fetcher_properties.h"
@@ -67,25 +66,22 @@ namespace {
 class DetachedClient final : public GarbageCollected<DetachedClient>,
                              public ThreadableLoaderClient {
  public:
-  explicit DetachedClient(ThreadableLoader* loader) : loader_(loader) {}
-  ~DetachedClient() override = default;
+  explicit DetachedClient(ThreadableLoader* loader)
+      : self_keep_alive_(PERSISTENT_FROM_HERE, this), loader_(loader) {}
+  ~DetachedClient() override {}
 
   void DidFinishLoading(uint64_t identifier) override {
     self_keep_alive_.Clear();
   }
-  void DidFail(uint64_t identifier, const ResourceError&) override {
-    self_keep_alive_.Clear();
-  }
-  void DidFailRedirectCheck(uint64_t identifier) override {
-    self_keep_alive_.Clear();
-  }
+  void DidFail(const ResourceError&) override { self_keep_alive_.Clear(); }
+  void DidFailRedirectCheck() override { self_keep_alive_.Clear(); }
   void Trace(Visitor* visitor) const override {
     visitor->Trace(loader_);
     ThreadableLoaderClient::Trace(visitor);
   }
 
  private:
-  SelfKeepAlive<DetachedClient> self_keep_alive_{this};
+  SelfKeepAlive<DetachedClient> self_keep_alive_;
   // Keep it alive.
   const Member<ThreadableLoader> loader_;
 };
@@ -97,16 +93,18 @@ ThreadableLoader::ThreadableLoader(
     ThreadableLoaderClient* client,
     const ResourceLoaderOptions& resource_loader_options,
     ResourceFetcher* resource_fetcher)
-    : resource_loader_options_(resource_loader_options),
-      client_(client),
+    : client_(client),
       execution_context_(execution_context),
       resource_fetcher_(resource_fetcher),
+      resource_loader_options_(resource_loader_options),
       request_mode_(network::mojom::RequestMode::kSameOrigin),
       timeout_timer_(execution_context_->GetTaskRunner(TaskType::kNetworking),
                      this,
                      &ThreadableLoader::DidTimeout) {
   DCHECK(client);
   if (!resource_fetcher_) {
+    if (auto* scope = DynamicTo<WorkerGlobalScope>(*execution_context_))
+      scope->EnsureFetcher();
     resource_fetcher_ = execution_context_->Fetcher();
   }
 }
@@ -166,7 +164,7 @@ void ThreadableLoader::Start(ResourceRequest request) {
   }
 }
 
-ThreadableLoader::~ThreadableLoader() = default;
+ThreadableLoader::~ThreadableLoader() {}
 
 void ThreadableLoader::SetTimeout(const base::TimeDelta& timeout) {
   timeout_ = timeout;
@@ -216,8 +214,9 @@ void ThreadableLoader::Detach() {
 
 void ThreadableLoader::SetDefersLoading(bool value) {
   if (GetResource() && GetResource()->Loader()) {
-    GetResource()->Loader()->SetDefersLoading(value ? LoaderFreezeMode::kStrict
-                                                    : LoaderFreezeMode::kNone);
+    GetResource()->Loader()->SetDefersLoading(
+        value ? WebURLLoader::DeferType::kDeferred
+              : WebURLLoader::DeferType::kNotDeferred);
   }
 }
 
@@ -238,8 +237,7 @@ bool ThreadableLoader::RedirectReceived(
   DCHECK_EQ(resource, GetResource());
   checker_.RedirectReceived();
 
-  return client_->WillFollowRedirect(resource->InspectorId(), new_request.Url(),
-                                     redirect_response);
+  return client_->WillFollowRedirect(new_request.Url(), redirect_response);
 }
 
 void ThreadableLoader::RedirectBlocked() {
@@ -250,8 +248,7 @@ void ThreadableLoader::RedirectBlocked() {
   // unknown reason).
   ThreadableLoaderClient* client = client_;
   Clear();
-  uint64_t identifier = 0;  // We don't have an inspector id here.
-  client->DidFailRedirectCheck(identifier);
+  client->DidFailRedirectCheck();
 }
 
 void ThreadableLoader::DataSent(Resource* resource,
@@ -288,9 +285,21 @@ void ThreadableLoader::ResponseReceived(Resource* resource,
                                         const ResourceResponse& response) {
   DCHECK(client_);
   DCHECK_EQ(resource, GetResource());
+  DCHECK(!response.WasFallbackRequiredByServiceWorker());
 
   checker_.ResponseReceived();
 
+  // Now the following check is not needed as the service worker added their own
+  // checks and today memory cache and preload matching rules are more strict.
+  // TODO(crbug.com/1053866): Remove the check.
+  if (response.WasFetchedViaServiceWorker() &&
+      request_mode_ != network::mojom::RequestMode::kNoCors &&
+      response.GetType() == network::mojom::FetchResponseType::kOpaque) {
+    DispatchDidFail(ResourceError(
+        response.CurrentRequestUrl(),
+        network::CorsErrorStatus(network::mojom::CorsError::kInvalidResponse)));
+    return;
+  }
   client_->DidReceiveResponse(resource->InspectorId(), response);
 }
 
@@ -303,15 +312,15 @@ void ThreadableLoader::ResponseBodyReceived(Resource* resource,
   client_->DidStartLoadingResponseBody(body);
 }
 
-void ThreadableLoader::CachedMetadataReceived(
-    Resource* resource,
-    mojo_base::BigBuffer cached_metadata) {
+void ThreadableLoader::SetSerializedCachedMetadata(Resource* resource,
+                                                   const uint8_t* data,
+                                                   size_t size) {
   DCHECK(client_);
   DCHECK_EQ(resource, GetResource());
 
   checker_.SetSerializedCachedMetadata();
-
-  client_->DidReceiveCachedMetadata(std::move(cached_metadata));
+  client_->DidReceiveCachedMetadata(reinterpret_cast<const char*>(data),
+                                    SafeCast<int>(size));
 }
 
 void ThreadableLoader::DataReceived(Resource* resource,
@@ -324,7 +333,7 @@ void ThreadableLoader::DataReceived(Resource* resource,
 
   // TODO(junov): Fix the ThreadableLoader ecosystem to use size_t. Until then,
   // we use safeCast to trap potential overflows.
-  client_->DidReceiveData(data, base::checked_cast<unsigned>(data_length));
+  client_->DidReceiveData(data, SafeCast<unsigned>(data_length));
 }
 
 void ThreadableLoader::NotifyFinished(Resource* resource) {
@@ -368,19 +377,14 @@ void ThreadableLoader::DispatchDidFail(const ResourceError& error) {
     resource->SetResponseType(network::mojom::FetchResponseType::kError);
   ThreadableLoaderClient* client = client_;
   Clear();
-  client->DidFail(resource->InspectorId(), error);
+  client->DidFail(error);
 }
 
 void ThreadableLoader::Trace(Visitor* visitor) const {
   visitor->Trace(execution_context_);
   visitor->Trace(client_);
   visitor->Trace(resource_fetcher_);
-  visitor->Trace(timeout_timer_);
   RawResourceClient::Trace(visitor);
-}
-
-scoped_refptr<base::SingleThreadTaskRunner> ThreadableLoader::GetTaskRunner() {
-  return execution_context_->GetTaskRunner(TaskType::kNetworking);
 }
 
 }  // namespace blink

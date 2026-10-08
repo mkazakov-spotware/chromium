@@ -5,6 +5,7 @@
 <title>CSS Images Module Level 3: image-orientation: none</title>
 <link rel="author" title="Noam Rosenthal" href="mailto:noam@webkit.org">
 <link rel="help" href="https://github.com/w3c/csswg-drafts/issues/5165">
+<meta name=fuzzy content="10;100">
 <style>
     body {
         overflow: hidden;
@@ -12,10 +13,11 @@
     }
     img {display: none}
     canvas {
-        width: 20px;
-        height: 20px;
+        width: 100px;
+        height: 100px;
         margin: 10px;
     }
+    .no-orient { image-orientation: none; }
 </style>
 <body>
     <p>You should see 8 green rectangles, no red.</p>

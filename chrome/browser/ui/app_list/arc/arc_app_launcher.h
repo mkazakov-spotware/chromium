@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,11 @@
 
 #include <string>
 
-#include "ash/components/arc/metrics/arc_metrics_constants.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_list_prefs.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_utils.h"
-#include "components/services/app_service/public/cpp/app_launch_util.h"
-#include "components/services/app_service/public/cpp/app_registry_cache.h"
-#include "components/services/app_service/public/cpp/app_types.h"
-#include "components/services/app_service/public/cpp/intent.h"
+#include "components/arc/metrics/arc_metrics_constants.h"
 
 namespace content {
 class BrowserContext;
@@ -23,19 +21,14 @@ class BrowserContext;
 
 // Helper class for deferred ARC app launching in case app is not ready on the
 // moment of request.
-class ArcAppLauncher : public ArcAppListPrefs::Observer,
-                       public apps::AppRegistryCache::Observer {
+class ArcAppLauncher : public ArcAppListPrefs::Observer {
  public:
   ArcAppLauncher(content::BrowserContext* context,
                  const std::string& app_id,
-                 apps::IntentPtr launch_intent,
+                 const base::Optional<std::string>& launch_intent,
                  bool deferred_launch_allowed,
                  int64_t display_id,
-                 apps::LaunchSource launch_source);
-
-  ArcAppLauncher(const ArcAppLauncher&) = delete;
-  ArcAppLauncher& operator=(const ArcAppLauncher&) = delete;
-
+                 arc::UserInteractionType interaction);
   ~ArcAppLauncher() override;
 
   bool app_launched() const { return app_launched_; }
@@ -46,15 +39,9 @@ class ArcAppLauncher : public ArcAppListPrefs::Observer,
   void OnAppStatesChanged(const std::string& app_id,
                           const ArcAppListPrefs::AppInfo& app_info) override;
 
-  // apps::AppRegistryCache::Observer overrides:
-  void OnAppUpdate(const apps::AppUpdate& update) override;
-  void OnAppRegistryCacheWillBeDestroyed(
-      apps::AppRegistryCache* cache) override;
-
  private:
   bool MaybeLaunchApp(const std::string& app_id,
-                      const ArcAppListPrefs::AppInfo& app_info,
-                      apps::Readiness readiness);
+                      const ArcAppListPrefs::AppInfo& app_info);
 
   // Unowned pointer.
   content::BrowserContext* context_;
@@ -62,7 +49,7 @@ class ArcAppLauncher : public ArcAppListPrefs::Observer,
   const std::string app_id_;
   // Optional intent to launch the app. If not set then app is started default
   // way.
-  apps::IntentPtr launch_intent_;
+  const base::Optional<std::string> launch_intent_;
   // If it is set to true that means app is allowed to launch in deferred mode
   // once it is registered, regardless it is ready or not. Otherwise app is
   // launched when it becomes ready.
@@ -72,7 +59,9 @@ class ArcAppLauncher : public ArcAppListPrefs::Observer,
   // Flag indicating that ARC app was launched.
   bool app_launched_ = false;
   // Enum that indicates what type of metric to record to UMA on launch.
-  apps::LaunchSource launch_source_;
+  arc::UserInteractionType interaction_;
+
+  DISALLOW_COPY_AND_ASSIGN(ArcAppLauncher);
 };
 
 #endif  // CHROME_BROWSER_UI_APP_LIST_ARC_ARC_APP_LAUNCHER_H_

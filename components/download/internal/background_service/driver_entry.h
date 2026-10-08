@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,9 @@
 
 #include "base/files/file_path.h"
 #include "base/memory/ref_counted.h"
-#include "base/time/time.h"
-#include "build/build_config.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "url/gurl.h"
-
-#if !BUILDFLAG(IS_IOS)
+#include "base/optional.h"
 #include "storage/browser/blob/blob_data_handle.h"
-#endif
+#include "url/gurl.h"
 
 namespace net {
 class HttpResponseHeaders;
@@ -73,11 +68,9 @@ struct DriverEntry {
   // Will be empty file path in incognito mode.
   base::FilePath current_file_path;
 
-#if !BUILDFLAG(IS_IOS)
   // The blob data handle that contains download data.
   // Will be available after the download is completed in incognito mode.
-  absl::optional<storage::BlobDataHandle> blob_handle;
-#endif
+  base::Optional<storage::BlobDataHandle> blob_handle;
 
   // Time the download was marked as complete, base::Time() if the download is
   // not yet complete.

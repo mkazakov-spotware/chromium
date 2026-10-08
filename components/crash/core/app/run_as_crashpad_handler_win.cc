@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,9 @@
 #include <vector>
 
 #include "base/command_line.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/files/file_path.h"
 #include "base/process/memory.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/platform_thread.h"
@@ -56,13 +56,13 @@ int RunAsCrashpadHandler(const base::CommandLine& command_line,
     crashpad_info->set_simple_annotations(annotations);
   }
 
-  std::vector<std::wstring> argv = command_line.argv();
-  const std::wstring process_type_arg_prefix =
-      L"--" + base::UTF8ToWide(process_type_switch) + L"=";
-  const std::wstring user_data_dir_arg_prefix =
-      L"--" + base::UTF8ToWide(user_data_dir_switch) + L"=";
+  std::vector<base::string16> argv = command_line.argv();
+  const base::string16 process_type_arg_prefix =
+      base::string16(L"--") + base::UTF8ToUTF16(process_type_switch) + L"=";
+  const base::string16 user_data_dir_arg_prefix =
+      base::string16(L"--") + base::UTF8ToUTF16(user_data_dir_switch) + L"=";
   base::EraseIf(argv, [&process_type_arg_prefix,
-                       &user_data_dir_arg_prefix](const std::wstring& str) {
+                       &user_data_dir_arg_prefix](const base::string16& str) {
     return base::StartsWith(str, process_type_arg_prefix,
                             base::CompareCase::SENSITIVE) ||
            base::StartsWith(str, user_data_dir_arg_prefix,
@@ -74,7 +74,7 @@ int RunAsCrashpadHandler(const base::CommandLine& command_line,
   std::vector<std::string> storage;
   storage.reserve(argv.size());
   for (size_t i = 0; i < argv.size(); ++i) {
-    storage.push_back(base::WideToUTF8(argv[i]));
+    storage.push_back(base::UTF16ToUTF8(argv[i]));
     argv_as_utf8[i] = &storage[i][0];
   }
   argv_as_utf8[argv.size()] = nullptr;

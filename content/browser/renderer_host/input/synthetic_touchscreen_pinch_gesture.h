@@ -1,10 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_RENDERER_HOST_INPUT_SYNTHETIC_TOUCHSCREEN_PINCH_GESTURE_H_
 #define CONTENT_BROWSER_RENDERER_HOST_INPUT_SYNTHETIC_TOUCHSCREEN_PINCH_GESTURE_H_
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "content/browser/renderer_host/input/synthetic_gesture.h"
 #include "content/browser/renderer_host/input/synthetic_gesture_target.h"
@@ -21,12 +22,6 @@ class CONTENT_EXPORT SyntheticTouchscreenPinchGesture
  public:
   explicit SyntheticTouchscreenPinchGesture(
       const SyntheticPinchGestureParams& params);
-
-  SyntheticTouchscreenPinchGesture(const SyntheticTouchscreenPinchGesture&) =
-      delete;
-  SyntheticTouchscreenPinchGesture& operator=(
-      const SyntheticTouchscreenPinchGesture&) = delete;
-
   ~SyntheticTouchscreenPinchGesture() override;
 
   SyntheticGesture::Result ForwardInputEvents(
@@ -59,10 +54,13 @@ class CONTENT_EXPORT SyntheticTouchscreenPinchGesture
   float start_y_0_;
   float start_y_1_;
   float max_pointer_delta_0_;
-  content::mojom::GestureSourceType gesture_source_type_;
+  SyntheticGestureParams::GestureSourceType gesture_source_type_;
   GestureState state_;
   base::TimeTicks start_time_;
   base::TimeTicks stop_time_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SyntheticTouchscreenPinchGesture);
 };
 
 }  // namespace content

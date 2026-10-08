@@ -19,6 +19,7 @@
 
 #include "third_party/blink/renderer/core/layout/svg/svg_text_layout_engine_baseline.h"
 
+#include "third_party/blink/renderer/core/style/svg_computed_style.h"
 #include "third_party/blink/renderer/core/svg/svg_length_context.h"
 #include "third_party/blink/renderer/platform/fonts/font.h"
 
@@ -32,20 +33,21 @@ SVGTextLayoutEngineBaseline::SVGTextLayoutEngineBaseline(const Font& font,
 
 float SVGTextLayoutEngineBaseline::CalculateBaselineShift(
     const ComputedStyle& style) const {
+  const SVGComputedStyle& svg_style = style.SvgStyle();
   const SimpleFontData* font_data = font_.PrimaryFont();
   DCHECK(font_data);
   if (!font_data)
     return 0;
 
   DCHECK(effective_zoom_);
-  switch (style.BaselineShiftType()) {
-    case EBaselineShiftType::kLength:
+  switch (svg_style.BaselineShift()) {
+    case BS_LENGTH:
       return SVGLengthContext::ValueForLength(
-          style.BaselineShift(), style,
+          svg_style.BaselineShiftValue(), style,
           font_.GetFontDescription().ComputedPixelSize() / effective_zoom_);
-    case EBaselineShiftType::kSub:
+    case BS_SUB:
       return -font_data->GetFontMetrics().FloatHeight() / 2 / effective_zoom_;
-    case EBaselineShiftType::kSuper:
+    case BS_SUPER:
       return font_data->GetFontMetrics().FloatHeight() / 2 / effective_zoom_;
     default:
       NOTREACHED();
@@ -60,47 +62,49 @@ SVGTextLayoutEngineBaseline::DominantBaselineToAlignmentBaseline(
   DCHECK(text_line_layout);
   DCHECK(text_line_layout.Style());
 
-  EDominantBaseline baseline = text_line_layout.StyleRef().DominantBaseline();
-  if (baseline == EDominantBaseline::kAuto) {
+  const SVGComputedStyle& style = text_line_layout.StyleRef().SvgStyle();
+
+  EDominantBaseline baseline = style.DominantBaseline();
+  if (baseline == DB_AUTO) {
     if (is_vertical_text)
-      baseline = EDominantBaseline::kCentral;
+      baseline = DB_CENTRAL;
     else
-      baseline = EDominantBaseline::kAlphabetic;
+      baseline = DB_ALPHABETIC;
   }
 
   switch (baseline) {
-    case EDominantBaseline::kUseScript:
+    case DB_USE_SCRIPT:
       // TODO(fs): The dominant-baseline and the baseline-table components
       // are set by determining the predominant script of the character data
       // content.
-      return EAlignmentBaseline::kAlphabetic;
-    case EDominantBaseline::kNoChange:
+      return AB_ALPHABETIC;
+    case DB_NO_CHANGE:
       DCHECK(text_line_layout.Parent());
       return DominantBaselineToAlignmentBaseline(is_vertical_text,
                                                  text_line_layout.Parent());
-    case EDominantBaseline::kResetSize:
+    case DB_RESET_SIZE:
       DCHECK(text_line_layout.Parent());
       return DominantBaselineToAlignmentBaseline(is_vertical_text,
                                                  text_line_layout.Parent());
-    case EDominantBaseline::kIdeographic:
-      return EAlignmentBaseline::kIdeographic;
-    case EDominantBaseline::kAlphabetic:
-      return EAlignmentBaseline::kAlphabetic;
-    case EDominantBaseline::kHanging:
-      return EAlignmentBaseline::kHanging;
-    case EDominantBaseline::kMathematical:
-      return EAlignmentBaseline::kMathematical;
-    case EDominantBaseline::kCentral:
-      return EAlignmentBaseline::kCentral;
-    case EDominantBaseline::kMiddle:
-      return EAlignmentBaseline::kMiddle;
-    case EDominantBaseline::kTextAfterEdge:
-      return EAlignmentBaseline::kTextAfterEdge;
-    case EDominantBaseline::kTextBeforeEdge:
-      return EAlignmentBaseline::kTextBeforeEdge;
+    case DB_IDEOGRAPHIC:
+      return AB_IDEOGRAPHIC;
+    case DB_ALPHABETIC:
+      return AB_ALPHABETIC;
+    case DB_HANGING:
+      return AB_HANGING;
+    case DB_MATHEMATICAL:
+      return AB_MATHEMATICAL;
+    case DB_CENTRAL:
+      return AB_CENTRAL;
+    case DB_MIDDLE:
+      return AB_MIDDLE;
+    case DB_TEXT_AFTER_EDGE:
+      return AB_TEXT_AFTER_EDGE;
+    case DB_TEXT_BEFORE_EDGE:
+      return AB_TEXT_BEFORE_EDGE;
     default:
       NOTREACHED();
-      return EAlignmentBaseline::kAuto;
+      return AB_AUTO;
   }
 }
 
@@ -114,13 +118,13 @@ float SVGTextLayoutEngineBaseline::CalculateAlignmentBaselineShift(
   LineLayoutItem text_line_layout_parent = text_line_layout.Parent();
   DCHECK(text_line_layout_parent);
 
-  EAlignmentBaseline baseline = text_line_layout.StyleRef().AlignmentBaseline();
-  if (baseline == EAlignmentBaseline::kAuto ||
-      baseline == EAlignmentBaseline::kBaseline) {
+  EAlignmentBaseline baseline =
+      text_line_layout.StyleRef().SvgStyle().AlignmentBaseline();
+  if (baseline == AB_AUTO || baseline == AB_BASELINE) {
     baseline = DominantBaselineToAlignmentBaseline(is_vertical_text,
                                                    text_line_layout_parent);
-    DCHECK_NE(baseline, EAlignmentBaseline::kAuto);
-    DCHECK_NE(baseline, EAlignmentBaseline::kBaseline);
+    DCHECK_NE(baseline, AB_AUTO);
+    DCHECK_NE(baseline, AB_BASELINE);
   }
 
   const SimpleFontData* font_data = font_.PrimaryFont();
@@ -135,24 +139,24 @@ float SVGTextLayoutEngineBaseline::CalculateAlignmentBaselineShift(
 
   // Note: http://wiki.apache.org/xmlgraphics-fop/LineLayout/AlignmentHandling
   switch (baseline) {
-    case EAlignmentBaseline::kBeforeEdge:
-    case EAlignmentBaseline::kTextBeforeEdge:
+    case AB_BEFORE_EDGE:
+    case AB_TEXT_BEFORE_EDGE:
       return ascent;
-    case EAlignmentBaseline::kMiddle:
+    case AB_MIDDLE:
       return xheight / 2;
-    case EAlignmentBaseline::kCentral:
+    case AB_CENTRAL:
       return (ascent - descent) / 2;
-    case EAlignmentBaseline::kAfterEdge:
-    case EAlignmentBaseline::kTextAfterEdge:
-    case EAlignmentBaseline::kIdeographic:
+    case AB_AFTER_EDGE:
+    case AB_TEXT_AFTER_EDGE:
+    case AB_IDEOGRAPHIC:
       return -descent;
-    case EAlignmentBaseline::kAlphabetic:
+    case AB_ALPHABETIC:
       return 0;
-    case EAlignmentBaseline::kHanging:
+    case AB_HANGING:
       return ascent * 8 / 10.f;
-    case EAlignmentBaseline::kMathematical:
+    case AB_MATHEMATICAL:
       return ascent / 2;
-    case EAlignmentBaseline::kBaseline:
+    case AB_BASELINE:
     default:
       NOTREACHED();
       return 0;

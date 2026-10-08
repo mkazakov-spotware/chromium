@@ -1,28 +1,29 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "ash/constants/ash_pref_names.h"
+#include "ash/public/cpp/ash_pref_names.h"
 #include "ash/public/cpp/shelf_prefs.h"
+#include "base/strings/stringprintf.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "chrome/browser/sync/test/integration/os_sync_test.h"
 #include "chrome/browser/sync/test/integration/preferences_helper.h"
+#include "chrome/browser/sync/test/integration/profile_sync_service_harness.h"
 #include "chrome/browser/sync/test/integration/sync_integration_test_util.h"
-#include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
-#include "chrome/browser/sync/test/integration/sync_test.h"
 #include "components/prefs/pref_service.h"
-#include "components/sync/engine/cycle/entity_change_metric_recording.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 using preferences_helper::ChangeStringPref;
 using preferences_helper::ClearPref;
 using preferences_helper::GetPrefs;
+using preferences_helper::GetRegistry;
 
 namespace {
 
-class TwoClientOsPreferencesSyncTest : public SyncTest {
+class TwoClientOsPreferencesSyncTest : public OsSyncTest {
  public:
-  TwoClientOsPreferencesSyncTest() : SyncTest(TWO_CLIENT) {}
+  TwoClientOsPreferencesSyncTest() : OsSyncTest(TWO_CLIENT) {}
   ~TwoClientOsPreferencesSyncTest() override = default;
 
   // Needed for AwaitQuiescence().
@@ -48,12 +49,12 @@ IN_PROC_BROWSER_TEST_F(TwoClientOsPreferencesSyncTest, E2E_ENABLED(Sanity)) {
 
   EXPECT_EQ(0, histogram_tester.GetBucketCount(
                    "Sync.ModelTypeEntityChange3.OS_PREFERENCE",
-                   syncer::ModelTypeEntityChange::kRemoteInitialUpdate));
+                   /*REMOTE_INITIAL_UPDATE=*/5));
   // Client 0 may or may not see its own reflection during the test, but at
   // least client 1 should have received one update.
   EXPECT_NE(0, histogram_tester.GetBucketCount(
                    "Sync.ModelTypeEntityChange3.OS_PREFERENCE",
-                   syncer::ModelTypeEntityChange::kRemoteNonInitialUpdate));
+                   /*REMOTE_NON_INITIAL_UPDATE=*/4));
   EXPECT_NE(
       0U,
       histogram_tester
@@ -93,21 +94,6 @@ IN_PROC_BROWSER_TEST_F(TwoClientOsPreferencesSyncTest, E2E_ENABLED(ClearPref)) {
   ClearPref(0, ash::prefs::kShelfAlignment);
 
   ASSERT_TRUE(ClearedPrefMatchChecker(ash::prefs::kShelfAlignment).Wait());
-}
-
-// OS Settings syncing even when browser sync is disabled.
-IN_PROC_BROWSER_TEST_F(TwoClientOsPreferencesSyncTest, BrowserSyncDisabled) {
-  ASSERT_TRUE(SetupSync()) << "SetupSync() failed.";
-
-  for (int i = 0; i < num_clients(); ++i) {
-    // Disable all browser types.
-    GetSyncService(i)->GetUserSettings()->SetSelectedTypes(
-        false, syncer::UserSelectableTypeSet());
-    GetClient(i)->AwaitSyncSetupCompletion();
-  }
-
-  ChangeStringPref(0, ash::prefs::kShelfAlignment, ash::kShelfAlignmentRight);
-  EXPECT_TRUE(StringPrefMatchChecker(ash::prefs::kShelfAlignment).Wait());
 }
 
 }  // namespace

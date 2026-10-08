@@ -1,10 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.tab;
-
-import static org.chromium.components.content_settings.PrefNames.DESKTOP_SITE_PERIPHERAL_SETTING_ENABLED;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -26,53 +24,39 @@ import org.chromium.base.TraceEvent;
 import org.chromium.base.UserDataHost;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.ObservableSupplierImpl;
-import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.ActivityUtils;
 import org.chromium.chrome.browser.WarmupManager;
 import org.chromium.chrome.browser.WebContentsFactory;
 import org.chromium.chrome.browser.app.ChromeActivity;
-import org.chromium.chrome.browser.compositor.CompositorViewHolder;
 import org.chromium.chrome.browser.content.ContentUtils;
 import org.chromium.chrome.browser.contextmenu.ContextMenuPopulatorFactory;
+import org.chromium.chrome.browser.flags.CachedFeatureFlags;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
-import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.native_page.NativePageAssassin;
 import org.chromium.chrome.browser.night_mode.NightModeUtils;
 import org.chromium.chrome.browser.offlinepages.OfflinePageUtils;
 import org.chromium.chrome.browser.paint_preview.StartupPaintPreviewHelper;
-import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.rlz.RevenueStats;
-import org.chromium.chrome.browser.tab.TabUtils.LoadIfNeededCaller;
-import org.chromium.chrome.browser.tab.TabUtils.UseDesktopUserAgentCaller;
 import org.chromium.chrome.browser.tab.state.CriticalPersistedTabData;
-import org.chromium.chrome.browser.tab.state.SerializedCriticalPersistedTabData;
+import org.chromium.chrome.browser.ui.TabObscuringHandler;
 import org.chromium.chrome.browser.ui.native_page.FrozenNativePage;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
+import org.chromium.chrome.browser.version.ChromeVersionInfo;
 import org.chromium.chrome.browser.vr.VrModuleProvider;
 import org.chromium.components.dom_distiller.core.DomDistillerUrlUtils;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.embedder_support.view.ContentView;
-import org.chromium.components.prefs.PrefService;
-import org.chromium.components.security_state.ConnectionSecurityLevel;
-import org.chromium.components.security_state.SecurityStateModel;
-import org.chromium.components.url_formatter.UrlFormatter;
-import org.chromium.components.user_prefs.UserPrefs;
-import org.chromium.components.version_info.VersionInfo;
 import org.chromium.content_public.browser.ChildProcessImportance;
-import org.chromium.content_public.browser.ContentFeatureList;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsAccessibility;
-import org.chromium.content_public.browser.navigation_controller.UserAgentOverrideOption;
+import org.chromium.content_public.common.ResourceRequestBody;
 import org.chromium.ui.base.PageTransition;
-import org.chromium.ui.base.ViewAndroidDelegate;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.util.ColorUtils;
 import org.chromium.url.GURL;
+import org.chromium.url.Origin;
 
 /**
  * Implementation of the interface {@link Tab}. Contains and manages a {@link ContentView}.
@@ -84,9 +68,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
     /** Used for logging. */
     private static final String TAG = "Tab";
 
-    private static final String PRODUCT_VERSION = VersionInfo.getProductVersion();
-
-    private static final String REQUEST_DESKTOP_ENABLED_PARAM = "enabled";
+    private static final String PRODUCT_VERSION = ChromeVersionInfo.getProductVersion();
 
     private long mNativeTabAndroid;
 
@@ -124,8 +106,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
     private TabViewManagerImpl mTabViewManager;
 
     /** A list of Tab observers.  These are used to broadcast Tab events to listeners. */
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    protected final ObserverList<TabObserver> mObservers = new ObserverList<>();
+    private final ObserverList<TabObserver> mObservers = new ObserverList<>();
 
     // Content layer Delegates
     private TabWebContentsDelegateAndroidImpl mWebContentsDelegate;
@@ -133,10 +114,13 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
     /**
      * Tab id to be used as a source tab in SyncedTabDelegate.
      */
-    private int mSourceTabId = INVALID_TAB_ID;
+    private final int mSourceTabId;
 
     private boolean mIsClosing;
     private boolean mIsShowingErrorPage;
+
+    /** Whether or not the TabState has changed. */
+    private boolean mIsTabStateDirty = true;
 
     /**
      * Saves how this tab was launched (from a link, external app, etc) so that
@@ -207,10 +191,6 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
     private ObservableSupplierImpl<Boolean> mIsTabSaveEnabledSupplier =
             new ObservableSupplierImpl<>();
 
-    private final TabThemeColorHelper mThemeColorHelper;
-    private int mThemeColor;
-    private boolean mUsedCriticalPersistedTabData;
-
     /**
      * Creates an instance of a {@link TabImpl}.
      *
@@ -220,20 +200,20 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
      * Package-private. Use {@link TabBuilder} to create an instance.
      *
      * @param id The id this tab should be identified with.
+     * @param parent The tab that caused this tab to be opened.
      * @param incognito Whether or not this tab is incognito.
      * @param launchType Type indicating how this tab was launched.
-     * @param serializedCriticalPersistedTabData serialized {@link CriticalPersistedTabData}
      */
     @SuppressLint("HandlerLeak")
-    TabImpl(int id, boolean incognito, @Nullable @TabLaunchType Integer launchType,
-            @Nullable SerializedCriticalPersistedTabData serializedCriticalPersistedTabData) {
+    TabImpl(int id, Tab parent, boolean incognito, @Nullable @TabLaunchType Integer launchType) {
         mIsTabSaveEnabledSupplier.set(false);
         mId = TabIdManager.getInstance().generateValidId(id);
         mIncognito = incognito;
-        if (!CriticalPersistedTabData.isEmptySerialization(serializedCriticalPersistedTabData)
-                && useCriticalPersistedTabData()) {
-            CriticalPersistedTabData.build(this, serializedCriticalPersistedTabData);
-            mUsedCriticalPersistedTabData = true;
+        if (parent == null) {
+            mSourceTabId = INVALID_TAB_ID;
+        } else {
+            CriticalPersistedTabData.from(this).setParentId(parent.getId());
+            mSourceTabId = parent.isIncognito() == incognito ? parent.getId() : INVALID_TAB_ID;
         }
 
         // Override the configuration for night mode to always stay in light mode until all UIs in
@@ -244,7 +224,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
         // activity.
         mThemedApplicationContext =
                 NightModeUtils.wrapContextWithNightModeConfig(ContextUtils.getApplicationContext(),
-                        ActivityUtils.getThemeId(), false /*nightMode*/);
+                        ChromeActivity.getThemeId(), false /*nightMode*/);
 
         mLaunchType = launchType;
 
@@ -262,8 +242,6 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
             }
         };
         mTabViewManager = new TabViewManagerImpl(this);
-        mThemeColorHelper = new TabThemeColorHelper(this, this::updateThemeColor);
-        mThemeColor = TabState.UNSPECIFIED_THEME_COLOR;
     }
 
     @Override
@@ -274,11 +252,6 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
     @Override
     public void removeObserver(TabObserver observer) {
         mObservers.removeObserver(observer);
-    }
-
-    @Override
-    public boolean hasObserver(TabObserver observer) {
-        return mObservers.hasObserver(observer);
     }
 
     @Override
@@ -315,7 +288,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
 
             // Reload the NativePage (if any), since the old NativePage has a reference to the old
             // activity.
-            if (isNativePage()) maybeShowNativePage(getUrl().getSpec(), true);
+            if (isNativePage()) maybeShowNativePage(getUrlString(), true);
         }
 
         // Notify the event to observers only when we do the reparenting task, not when we simply
@@ -327,8 +300,6 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
                 observer.onActivityAttachmentChanged(this, window);
             }
         }
-
-        updateInteractableState();
     }
 
     /**
@@ -348,7 +319,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
     public View getView() {
         if (mCustomView != null) return mCustomView;
 
-        if (mNativePage != null && !mNativePage.isFrozen()) return mNativePage.getView();
+        if (mNativePage != null) return mNativePage.getView();
 
         return mContentView;
     }
@@ -364,9 +335,14 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
         return mId;
     }
 
+    // TODO(crbug.com/1113249) move getUrl() and getUrlString() to CriticalPersistedTabData
+    @Override
+    public String getUrlString() {
+        return getUrl().getSpec();
+    }
+
     @CalledByNative
     @Override
-    // TODO(crbug.com/1113249) move getUrl() to CriticalPersistedTabData
     public GURL getUrl() {
         if (!isInitialized()) {
             return GURL.emptyGURL();
@@ -385,8 +361,8 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
     }
 
     @Override
-    public GURL getOriginalUrl() {
-        return DomDistillerUrlUtils.getOriginalUrlFromDistillerUrl(getUrl());
+    public String getOriginalUrl() {
+        return DomDistillerUrlUtils.getOriginalUrlFromDistillerUrl(getUrlString());
     }
 
     @CalledByNative
@@ -420,7 +396,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
     @Override
     public void freezeNativePage() {
         if (mNativePage == null || mNativePage.isFrozen()
-                || mNativePage.getView().getParent() != null) {
+                || mNativePage.getView().getParent() == null) {
             return;
         }
         mNativePage = FrozenNativePage.freeze(mNativePage);
@@ -428,29 +404,10 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
     }
 
     @Override
-    @CalledByNative
     public @TabLaunchType int getLaunchType() {
         return mLaunchType;
     }
 
-    @Override
-    public int getThemeColor() {
-        return mThemeColor;
-    }
-
-    @Override
-    public boolean isThemingAllowed() {
-        // Do not apply the theme color if there are any security issues on the page.
-        int securityLevel = SecurityStateModel.getSecurityLevelForWebContents(getWebContents());
-        boolean hasSecurityIssue = securityLevel == ConnectionSecurityLevel.DANGEROUS
-            || securityLevel == ConnectionSecurityLevel.SECURE_WITH_POLICY_INSTALLED_CERT;
-        // If chrome is showing an error page, allow theming so the system UI can match the page.
-        // This is considered acceptable since chrome is in control of the error page. Otherwise, if
-        // the page has a security issue, disable theming.
-        return isShowingErrorPage() || !hasSecurityIssue;
-    }
-
-    @CalledByNative
     @Override
     public boolean isIncognito() {
         return mIncognito;
@@ -490,11 +447,6 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
                 return handleJavaCrash();
             }
 
-            if (isDestroyed()) {
-                // This will crash below, but we want to know if the tab was destroyed or just never
-                // initialize.
-                throw new RuntimeException("Tab.loadUrl called on a destroyed tab");
-            }
             if (mNativeTabAndroid == 0) {
                 // if mNativeTabAndroid is null then we are going to crash anyways on the
                 // native side. Lets crash on the java side so that we can have a better stack
@@ -502,55 +454,31 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
                 throw new RuntimeException("Tab.loadUrl called when no native side exists");
             }
 
-            // TODO(https://crbug.com/783819): Don't fix up all URLs. Documentation on
-            // FixupURL explicitly says not to use it on URLs coming from untrustworthy
-            // sources, like other apps. Once migrations of Java code to GURL are complete
-            // and incoming URLs are converted to GURLs at their source, we can make
-            // decisions of whether or not to fix up GURLs on a case-by-case basis based
-            // on trustworthiness of the incoming URL.
-            GURL fixedUrl = UrlFormatter.fixupUrl(params.getUrl());
-            // Request desktop sites if necessary.
-            if (fixedUrl.isValid()) {
-                params.setOverrideUserAgent(calculateUserAgentOverrideOption(fixedUrl));
-            } else {
-                // Fall back to the Url in webContents for site level setting.
-                params.setOverrideUserAgent(calculateUserAgentOverrideOption(null));
-            }
-
-            @TabLoadStatus
-            int result = loadUrlInternal(params, fixedUrl);
+            // We load the URL from the tab rather than directly from the ContentView so the tab has
+            // a chance of using a prerenderer page is any.
+            int loadType = TabImplJni.get().loadUrl(mNativeTabAndroid, TabImpl.this,
+                    params.getUrl(), params.getInitiatorOrigin(), params.getVerbatimHeaders(),
+                    params.getPostData(), params.getTransitionType(),
+                    params.getReferrer() != null ? params.getReferrer().getUrl() : null,
+                    // Policy will be ignored for null referrer url, 0 is just a placeholder.
+                    // TODO(ppi): Should we pass Referrer jobject and add JNI methods to read it
+                    //            from the native?
+                    params.getReferrer() != null ? params.getReferrer().getPolicy() : 0,
+                    params.getIsRendererInitiated(), params.getShouldReplaceCurrentEntry(),
+                    params.getHasUserGesture(), params.getShouldClearHistoryList(),
+                    params.getInputStartTimestamp(), params.getIntentReceivedTimestamp());
 
             for (TabObserver observer : mObservers) {
-                observer.onLoadUrl(this, params, result);
+                observer.onLoadUrl(this, params, loadType);
             }
-            return result;
+            return loadType;
         } finally {
             TraceEvent.end("Tab.loadUrl");
         }
     }
 
-    private @TabLoadStatus int loadUrlInternal(LoadUrlParams params, GURL fixedUrl) {
-        if (mWebContents == null) return TabLoadStatus.PAGE_LOAD_FAILED;
-
-        if (!fixedUrl.isValid()) return TabLoadStatus.PAGE_LOAD_FAILED;
-
-        // Record UMA "ShowHistory" here. That way it'll pick up both user
-        // typing chrome://history as well as selecting from the drop down menu.
-        if (fixedUrl.getSpec().equals(UrlConstants.HISTORY_URL)) {
-            RecordUserAction.record("ShowHistory");
-        }
-
-        if (TabImplJni.get().handleNonNavigationAboutURL(fixedUrl)) {
-            return TabLoadStatus.DEFAULT_PAGE_LOAD;
-        }
-
-        params.setUrl(fixedUrl.getSpec());
-        mWebContents.getNavigationController().loadUrl(params);
-        return TabLoadStatus.DEFAULT_PAGE_LOAD;
-    }
-
     @Override
-    public boolean loadIfNeeded(@LoadIfNeededCaller int caller) {
+    public boolean loadIfNeeded() {
         if (getActivity() == null) {
             Log.e(TAG, "Tab couldn't be loaded because Context was null.");
             return false;
@@ -558,12 +486,10 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
 
         if (mPendingLoadParams != null) {
             assert isFrozen();
-            WebContents webContents =
-                    WarmupManager.getInstance().takeSpareWebContents(isIncognito(), isHidden());
+            WebContents webContents = WarmupManager.getInstance().takeSpareWebContents(
+                    isIncognito(), isHidden(), isCustomTab());
             if (webContents == null) {
-                Profile profile =
-                        IncognitoUtils.getProfileFromWindowAndroid(mWindowAndroid, isIncognito());
-                webContents = WebContentsFactory.createWebContents(profile, isHidden());
+                webContents = WebContentsFactory.createWebContents(isIncognito(), isHidden());
             }
             initWebContents(webContents);
             loadUrl(mPendingLoadParams);
@@ -571,38 +497,26 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
             return true;
         }
 
-        RequestDesktopUtils.maybeRestoreUserAgentOnSiteSettingsDowngrade(this);
-        switchUserAgentIfNeeded(UseDesktopUserAgentCaller.LOAD_IF_NEEDED + caller);
         restoreIfNeeded();
         return true;
     }
 
     @Override
     public void reload() {
-        NativePage nativePage = getNativePage();
-        if (nativePage != null) {
-            nativePage.reload();
-            return;
-        }
-
         // TODO(dtrainor): Should we try to rebuild the ContentView if it's frozen?
         if (OfflinePageUtils.isOfflinePage(this)) {
             // If current page is an offline page, reload it with custom behavior defined in extra
             // header respected.
             OfflinePageUtils.reload(getWebContents(),
                     /*loadUrlDelegate=*/new OfflinePageUtils.TabOfflinePageLoadUrlDelegate(this));
-            return;
+        } else {
+            if (getWebContents() != null) getWebContents().getNavigationController().reload(true);
         }
-
-        if (getWebContents() == null) return;
-        switchUserAgentIfNeeded(UseDesktopUserAgentCaller.RELOAD);
-        getWebContents().getNavigationController().reload(true);
     }
 
     @Override
     public void reloadIgnoringCache() {
         if (getWebContents() != null) {
-            switchUserAgentIfNeeded(UseDesktopUserAgentCaller.RELOAD_IGNORING_CACHE);
             getWebContents().getNavigationController().reloadBypassingCache(true);
         }
     }
@@ -612,7 +526,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
         if (isLoading()) {
             RewindableIterator<TabObserver> observers = getTabObservers();
             while (observers.hasNext()) {
-                observers.next().onPageLoadFinished(this, getUrl());
+                observers.next().onPageLoadFinished(this, getUrlString());
             }
         }
         if (getWebContents() != null) getWebContents().stop();
@@ -667,12 +581,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
     }
 
     @Override
-    public boolean isDestroyed() {
-        return mIsDestroyed;
-    }
-
-    @Override
-    public final void show(@TabSelectionType int type, @LoadIfNeededCaller int caller) {
+    public final void show(@TabSelectionType int type) {
         try {
             TraceEvent.begin("Tab.show");
             if (!isHidden()) return;
@@ -681,23 +590,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
             mIsHidden = false;
             updateInteractableState();
 
-            loadIfNeeded(caller);
-
-            // TODO(crbug.com/1253938): We should provide a timestamp that apporoximates the input
-            // event timestamp. When presenting a Tablet UI, StripLayoutTab.handleClick does
-            // receive a timestamp. When presenting a Phone UI
-            // TabGridViewBinder.bindClosableTabProperties is called by Android.View.performClick,
-            // and does not receive the event timestamp. This currently triggers an animation in
-            // TabSwitcherAndStartSurfaceLayout.startHidingImpl which lasts around 300ms.
-            // TabSwitcherAndStartSurfaceLayout.doneHiding runs after the animation, actually
-            // triggering this tab change.
-            //
-            // Due to this TabSwitchMetrics.startTabSwitchLatencyTiming is not using an accurate
-            // start time and needs updating.
-            //
-            // We should also consider merging the TabImpl and WebContents onShow into a single Jni
-            // call.
-            TabImplJni.get().onShow(mNativeTabAndroid);
+            loadIfNeeded();
 
             if (getWebContents() != null) getWebContents().onShow();
 
@@ -752,7 +645,6 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
 
     @Override
     public void setClosing(boolean closing) {
-        if (mIsClosing == closing) return;
         mIsClosing = closing;
         for (TabObserver observer : mObservers) observer.onClosingStateChanged(this, closing);
     }
@@ -765,10 +657,6 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
 
     @Override
     public void destroy() {
-        // Set at the start since destroying the WebContents can lead to calling back into
-        // this class.
-        mIsDestroyed = true;
-
         // Update the title before destroying the tab. http://b/5783092
         updateTitle();
 
@@ -787,7 +675,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
         // destroying the native tab cleanups up any remaining infobars. The infobar container
         // expects all infobars to be cleaned up before its own destruction.
         if (mNativeTabAndroid != 0) {
-            TabImplJni.get().destroy(mNativeTabAndroid);
+            TabImplJni.get().destroy(mNativeTabAndroid, TabImpl.this);
             assert mNativeTabAndroid == 0;
         }
     }
@@ -822,26 +710,59 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
         return !(activity instanceof ChromeActivity);
     }
 
+    /**
+     * @return Whether the TabState representing this Tab has been updated.
+     */
+    public boolean isTabStateDirty() {
+        return mIsTabStateDirty;
+    }
+
+    @Override
+    public void setIsTabStateDirty(boolean isDirty) {
+        mIsTabStateDirty = isDirty;
+    }
+
+    @Override
+    public void setAddApi2TransitionToFutureNavigations(boolean shouldAdd) {
+        if (mNativeTabAndroid != 0) {
+            TabImplJni.get().setAddApi2TransitionToFutureNavigations(mNativeTabAndroid, shouldAdd);
+        }
+    }
+
+    @Override
+    public boolean getAddApi2TransitionToFutureNavigations() {
+        return (mNativeTabAndroid != 0)
+                && TabImplJni.get().getAddApi2TransitionToFutureNavigations(mNativeTabAndroid);
+    }
+
+    @Override
+    public void setHideFutureNavigations(boolean hide) {
+        if (mNativeTabAndroid != 0) {
+            TabImplJni.get().setHideFutureNavigations(mNativeTabAndroid, hide);
+        }
+    }
+
+    @Override
+    public boolean getHideFutureNavigations() {
+        return (mNativeTabAndroid != 0)
+                && TabImplJni.get().getHideFutureNavigations(mNativeTabAndroid);
+    }
+
     @Override
     public void setIsTabSaveEnabled(boolean isTabSaveEnabled) {
         mIsTabSaveEnabledSupplier.set(isTabSaveEnabled);
     }
 
-    @VisibleForTesting
-    public ObservableSupplierImpl<Boolean> getIsTabSaveEnabledSupplierForTesting() {
-        return mIsTabSaveEnabledSupplier;
-    }
-
     // TabObscuringHandler.Observer
 
     @Override
-    public void updateObscured(boolean obscureTabContent, boolean obscureToolbar) {
+    public void updateObscured(boolean isObscured) {
         // Update whether or not the current native tab and/or web contents are
         // currently visible (from an accessibility perspective), or whether
         // they're obscured by another view.
         View view = getView();
         if (view != null) {
-            int importantForAccessibility = obscureTabContent
+            int importantForAccessibility = isObscured
                     ? View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
                     : View.IMPORTANT_FOR_ACCESSIBILITY_YES;
             if (view.getImportantForAccessibility() != importantForAccessibility) {
@@ -852,7 +773,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
 
         WebContentsAccessibility wcax = getWebContentsAccessibility(getWebContents());
         if (wcax != null) {
-            boolean isWebContentObscured = obscureTabContent || isShowingCustomView();
+            boolean isWebContentObscured = isObscured || isShowingCustomView();
             wcax.setObscuredByAnotherView(isWebContentObscured);
         }
     }
@@ -868,19 +789,15 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
      * @param initiallyHidden Only used if {@code webContents} is {@code null}.  Determines
      *        whether or not the newly created {@link WebContents} will be hidden or not.
      * @param tabState State containing information about this Tab, if it was persisted.
+     * @param serializedCriticalPersistedTabData {@link CriticalPersistedTabData} in serialized
+     * form. {@link CriticalPersistedTabData} is a replacement for {@link TabState}
      */
-    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-    public void initialize(Tab parent, @Nullable @TabCreationState Integer creationState,
+    void initialize(Tab parent, @Nullable @TabCreationState Integer creationState,
             LoadUrlParams loadUrlParams, WebContents webContents,
             @Nullable TabDelegateFactory delegateFactory, boolean initiallyHidden,
-            TabState tabState) {
+            TabState tabState, @Nullable byte[] serializedCriticalPersistedTabData) {
         try {
             TraceEvent.begin("Tab.initialize");
-
-            if (parent != null) {
-                CriticalPersistedTabData.from(this).setParentId(parent.getId());
-                mSourceTabId = parent.isIncognito() == mIncognito ? parent.getId() : INVALID_TAB_ID;
-            }
 
             CriticalPersistedTabData.from(this).setLaunchTypeAtCreation(mLaunchType);
             mCreationState = creationState;
@@ -889,22 +806,17 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
                 CriticalPersistedTabData.from(this).setUrl(new GURL(loadUrlParams.getUrl()));
             }
 
-            // The {@link mDelegateFactory} needs to be set before calling
-            // {@link TabHelpers.initTabHelpers()}. This is because it creates a
-            // TabBrowserControlsConstraintsHelper, and
-            // {@link TabBrowserControlsConstraintsHelper#updateVisibilityDelegate()} will call the
-            // Tab#getDelegateFactory().createBrowserControlsVisibilityDelegate().
-            // See https://crbug.com/1179419.
-            mDelegateFactory = delegateFactory;
-
             TabHelpers.initTabHelpers(this, parent);
 
-            if (tabState != null) {
+            if (serializedCriticalPersistedTabData != null && useCriticalPersistedTabData()) {
+                CriticalPersistedTabData.build(this, serializedCriticalPersistedTabData, true);
+            } else if (tabState != null) {
                 restoreFieldsFromState(tabState);
             }
 
             initializeNative();
 
+            mDelegateFactory = delegateFactory;
             RevenueStats.getInstance().tabCreated(this);
 
             // If there is a frozen WebContents state or a pending lazy load, don't create a new
@@ -917,21 +829,16 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
             boolean creatingWebContents = webContents == null;
             if (creatingWebContents) {
                 webContents = WarmupManager.getInstance().takeSpareWebContents(
-                        isIncognito(), initiallyHidden);
+                        isIncognito(), initiallyHidden, isCustomTab());
                 if (webContents == null) {
-                    Profile profile = IncognitoUtils.getProfileFromWindowAndroid(
-                            mWindowAndroid, isIncognito());
-                    webContents = WebContentsFactory.createWebContents(profile, initiallyHidden);
+                    webContents =
+                            WebContentsFactory.createWebContents(isIncognito(), initiallyHidden);
                 }
             }
 
             initWebContents(webContents);
-            // Avoid an empty title by updating the title here. This could happen if restoring from
-            // a WebContents that has no renderer and didn't force a reload. This happens on
-            // background tab creation from Recent Tabs (TabRestoreService).
-            updateTitle();
 
-            if (!creatingWebContents && webContents.shouldShowLoadingUI()) {
+            if (!creatingWebContents && webContents.isLoadingToDifferentDocument()) {
                 didStartPageLoad(webContents.getVisibleUrl());
             }
 
@@ -940,24 +847,22 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
                 CriticalPersistedTabData.from(this).setTimestampMillis(System.currentTimeMillis());
             }
             registerTabSaving();
-            String appId = null;
-            Boolean hasThemeColor = null;
-            int themeColor = 0;
-            if (mUsedCriticalPersistedTabData) {
+            String appId;
+            Boolean hasThemeColor;
+            int themeColor;
+            if (serializedCriticalPersistedTabData != null && useCriticalPersistedTabData()) {
                 appId = CriticalPersistedTabData.from(this).getOpenerAppId();
                 themeColor = CriticalPersistedTabData.from(this).getThemeColor();
                 hasThemeColor = themeColor != TabState.UNSPECIFIED_THEME_COLOR
-                        && !ColorUtils.isThemeColorTooBright(themeColor);
-            } else if (tabState != null) {
-                appId = tabState.openerAppId;
-                themeColor = tabState.getThemeColor();
-                hasThemeColor = tabState.hasThemeColor();
+                        && ColorUtils.isValidThemeColor(themeColor);
+            } else {
+                appId = tabState != null ? tabState.openerAppId : null;
+                hasThemeColor = tabState != null ? tabState.hasThemeColor() : null;
+                themeColor = tabState != null ? tabState.getThemeColor() : 0;
             }
-            if (hasThemeColor != null) {
-                updateThemeColor(hasThemeColor ? themeColor : TabState.UNSPECIFIED_THEME_COLOR);
+            for (TabObserver observer : mObservers) {
+                observer.onInitialized(this, appId, hasThemeColor, themeColor);
             }
-
-            for (TabObserver observer : mObservers) observer.onInitialized(this, appId);
             TraceEvent.end("Tab.initialize");
         }
     }
@@ -969,7 +874,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
     }
 
     private boolean useCriticalPersistedTabData() {
-        return ChromeFeatureList.sCriticalPersistedTabData.isEnabled();
+        return CachedFeatureFlags.isEnabled(ChromeFeatureList.CRITICAL_PERSISTED_TAB_DATA);
     }
 
     @Nullable
@@ -993,7 +898,6 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
         CriticalPersistedTabData.from(this).setLaunchTypeAtCreation(state.tabLaunchTypeAtCreation);
         CriticalPersistedTabData.from(this).setRootId(
                 state.rootId == Tab.INVALID_TAB_ID ? mId : state.rootId);
-        CriticalPersistedTabData.from(this).setUserAgent(state.userAgent);
     }
 
     /**
@@ -1078,7 +982,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
         updateTitle();
         if (mIsRendererUnresponsive) handleRendererResponsiveStateChanged(true);
         for (TabObserver observer : mObservers) {
-            observer.onPageLoadStarted(this, validatedUrl);
+            observer.onPageLoadStarted(this, validatedUrl.getSpec());
         }
     }
 
@@ -1086,7 +990,8 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
      * Called when a page has finished loading.
      * @param url URL that was loaded.
      */
-    void didFinishPageLoad(GURL url) {
+    void didFinishPageLoad(String url) {
+        mIsTabStateDirty = true;
         updateTitle();
 
         for (TabObserver observer : mObservers) observer.onPageLoadFinished(this, url);
@@ -1109,9 +1014,10 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
      * @param url The URL that was loaded.
      * @param transitionType The transition type to the current URL.
      */
-    void handleDidFinishNavigation(GURL url, int transitionType) {
+    void handleDidFinishNavigation(GURL url, Integer transitionType) {
         mIsNativePageCommitPending = false;
-        boolean isReload = (transitionType & PageTransition.CORE_MASK) == PageTransition.RELOAD;
+        boolean isReload = (transitionType != null
+                && (transitionType & PageTransition.CORE_MASK) == PageTransition.RELOAD);
         if (!maybeShowNativePage(url.getSpec(), isReload)) {
             showRenderedPage();
         }
@@ -1130,8 +1036,8 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
      */
     void pushNativePageStateToNavigationEntry() {
         assert mNativeTabAndroid != 0 && getNativePage() != null;
-        TabImplJni.get().setActiveNavigationEntryTitleForUrl(
-                mNativeTabAndroid, getNativePage().getUrl(), getNativePage().getTitle());
+        TabImplJni.get().setActiveNavigationEntryTitleForUrl(mNativeTabAndroid, TabImpl.this,
+                getNativePage().getUrl(), getNativePage().getTitle());
     }
 
     /**
@@ -1146,6 +1052,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
      * Called when navigation entries were removed.
      */
     void notifyNavigationEntriesDeleted() {
+        mIsTabStateDirty = true;
         for (TabObserver observer : mObservers) observer.onNavigationEntriesDeleted(this);
     }
 
@@ -1163,7 +1070,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
      */
     void loadOriginalImage() {
         if (mNativeTabAndroid != 0) {
-            TabImplJni.get().loadOriginalImage(mNativeTabAndroid);
+            TabImplJni.get().loadOriginalImage(mNativeTabAndroid, TabImpl.this);
         }
     }
 
@@ -1208,11 +1115,11 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
         for (TabObserver observer : mObservers) observer.onContentChanged(this);
     }
 
-    void updateThemeColor(int themeColor) {
-        if (mThemeColor == themeColor) return;
-        mThemeColor = themeColor;
+    void notifyThemeColorChanged(int themeColor) {
         RewindableIterator<TabObserver> observers = getTabObservers();
-        while (observers.hasNext()) observers.next().onDidChangeThemeColor(this, themeColor);
+        while (observers.hasNext()) {
+            observers.next().onDidChangeThemeColor(this, themeColor);
+        }
     }
 
     void updateTitle() {
@@ -1242,6 +1149,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
     void updateTitle(String title) {
         if (TextUtils.equals(CriticalPersistedTabData.from(this).getTitle(), title)) return;
 
+        mIsTabStateDirty = true;
         CriticalPersistedTabData.from(this).setTitle(title);
         notifyPageTitleChanged();
     }
@@ -1249,6 +1157,19 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
     @Override
     public LoadUrlParams getPendingLoadParams() {
         return mPendingLoadParams;
+    }
+
+    @Override
+    public void setShouldBlockNewNotificationRequests(boolean value) {
+        if (mNativeTabAndroid != 0) {
+            TabImplJni.get().setShouldBlockNewNotificationRequests(mNativeTabAndroid, value);
+        }
+    }
+
+    @Override
+    public boolean getShouldBlockNewNotificationRequests() {
+        return mNativeTabAndroid != 0
+                && TabImplJni.get().getShouldBlockNewNotificationRequests(mNativeTabAndroid);
     }
 
     /**
@@ -1297,10 +1218,10 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
             if (bounds != null) {
                 assert mNativeTabAndroid != 0;
                 TabImplJni.get().onPhysicalBackingSizeChanged(
-                        mNativeTabAndroid, webContents, bounds.right, bounds.bottom);
+                        mNativeTabAndroid, TabImpl.this, webContents, bounds.right, bounds.bottom);
             }
-            initWebContents(webContents);
             webContents.onShow();
+            initWebContents(webContents);
         });
 
         if (didStartLoad) {
@@ -1308,7 +1229,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
             didStartPageLoad(getUrl());
 
             // Simulate the PAGE_LOAD_FINISHED notification that we did not get.
-            if (didFinishLoad) didFinishPageLoad(getUrl());
+            if (didFinishLoad) didFinishPageLoad(getUrlString());
         }
 
         for (TabObserver observer : mObservers) {
@@ -1345,17 +1266,6 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
         mNativeTabAndroid = nativePtr;
     }
 
-    @CalledByNative
-    private static long[] getAllNativePtrs(Tab[] tabsArray) {
-        if (tabsArray == null) return null;
-
-        long[] tabsPtrArray = new long[tabsArray.length];
-        for (int i = 0; i < tabsArray.length; i++) {
-            tabsPtrArray[i] = ((TabImpl) tabsArray[i]).getNativePtr();
-        }
-        return tabsPtrArray;
-    }
-
     /**
      * Initializes the {@link WebContents}. Completes the browser content components initialization
      * around a native WebContents pointer.
@@ -1389,9 +1299,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
             }
 
             mWebContents.setImportance(mImportance);
-
-            ContentUtils.setUserAgentOverride(mWebContents,
-                    calculateUserAgentOverrideOption(null) == UserAgentOverrideOption.TRUE);
+            ContentUtils.setUserAgentOverride(mWebContents);
 
             mContentView.addOnAttachStateChangeListener(mAttachStateChangeListener);
             updateInteractableState();
@@ -1399,8 +1307,8 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
             mWebContentsDelegate = createWebContentsDelegate();
 
             assert mNativeTabAndroid != 0;
-            TabImplJni.get().initWebContents(mNativeTabAndroid, mIncognito, isDetached(this),
-                    webContents, mWebContentsDelegate,
+            TabImplJni.get().initWebContents(mNativeTabAndroid, TabImpl.this, mIncognito,
+                    isDetached(this), webContents, mSourceTabId, mWebContentsDelegate,
                     new TabContextMenuPopulatorFactory(
                             mDelegateFactory.createContextMenuPopulatorFactory(this), this));
 
@@ -1430,8 +1338,6 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
                 mNativePage.getView().addOnAttachStateChangeListener(mAttachStateChangeListener);
             }
             pushNativePageStateToNavigationEntry();
-
-            updateThemeColor(TabState.UNSPECIFIED_THEME_COLOR);
         });
     }
 
@@ -1466,7 +1372,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
 
         WebContents webContents = getWebContents();
         if (webContents != null) {
-            TabImplJni.get().updateDelegates(mNativeTabAndroid, mWebContentsDelegate,
+            TabImplJni.get().updateDelegates(mNativeTabAndroid, TabImpl.this, mWebContentsDelegate,
                     new TabContextMenuPopulatorFactory(
                             mDelegateFactory.createContextMenuPopulatorFactory(this), this));
             webContents.notifyRendererPreferenceUpdate();
@@ -1483,7 +1389,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
     private void notifyFaviconChanged() {
         RewindableIterator<TabObserver> observers = getTabObservers();
         while (observers.hasNext()) {
-            observers.next().onFaviconUpdated(this, null, null);
+            observers.next().onFaviconUpdated(this, null);
         }
     }
 
@@ -1493,8 +1399,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
      */
     private void updateInteractableState() {
         boolean currentState = !mIsHidden && !isFrozen()
-                && (mIsViewAttachedToWindow || VrModuleProvider.getDelegate().isInVr())
-                && !isDetached(this);
+                && (mIsViewAttachedToWindow || VrModuleProvider.getDelegate().isInVr());
 
         if (currentState == mInteractableState) return;
 
@@ -1552,15 +1457,11 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
                 // State restore failed, just create a new empty web contents as that is the best
                 // that can be done at this point. TODO(jcivelli) http://b/5910521 - we should show
                 // an error page instead of a blank page in that case (and the last loaded URL).
-                Profile profile =
-                        IncognitoUtils.getProfileFromWindowAndroid(mWindowAndroid, isIncognito());
-                webContents = WebContentsFactory.createWebContents(profile, isHidden());
+                webContents = WebContentsFactory.createWebContents(isIncognito(), isHidden());
                 for (TabObserver observer : mObservers) observer.onRestoreFailed(this);
                 restored = false;
             }
-            Supplier<CompositorViewHolder> compositorViewHolderSupplier =
-                    getActivity().getCompositorViewHolderSupplier();
-            View compositorView = compositorViewHolderSupplier.get();
+            View compositorView = getActivity().getCompositorViewHolder();
             webContents.setSize(compositorView.getWidth(), compositorView.getHeight());
 
             CriticalPersistedTabData.from(this).setWebContentsState(null);
@@ -1579,8 +1480,7 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
     }
 
     @CalledByNative
-    @Override
-    public boolean isCustomTab() {
+    private boolean isCustomTab() {
         ChromeActivity activity = getActivity();
         return activity != null && activity.isCustomTab();
     }
@@ -1633,10 +1533,6 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
         updateInteractableState();
 
         WebContents contentsToDestroy = mWebContents;
-        if (contentsToDestroy.getViewAndroidDelegate() != null
-                && contentsToDestroy.getViewAndroidDelegate() instanceof TabViewAndroidDelegate) {
-            ((TabViewAndroidDelegate) contentsToDestroy.getViewAndroidDelegate()).destroy();
-        }
         mWebContents = null;
         mWebContentsDelegate = null;
 
@@ -1644,104 +1540,46 @@ public class TabImpl implements Tab, TabObscuringHandler.Observer {
         if (deleteNativeWebContents) {
             // Destruction of the native WebContents will call back into Java to destroy the Java
             // WebContents.
-            TabImplJni.get().destroyWebContents(mNativeTabAndroid);
+            TabImplJni.get().destroyWebContents(mNativeTabAndroid, TabImpl.this);
         } else {
-            // This branch is to not delete the WebContents, but just to release the WebContent from
-            // the Tab and clear the WebContents for two different cases a) The WebContents will be
-            // destroyed eventually, but from the native WebContents. b) The WebContents will be
-            // reused later. We need to clear the reference to the Tab from WebContentsObservers or
-            // the UserData. If the WebContents will be reused, we should set the necessary
-            // delegates again.
-            TabImplJni.get().releaseWebContents(mNativeTabAndroid);
-            // This call is just a workaround, Chrome should clean up the WebContentsObservers
-            // itself.
-            contentsToDestroy.clearJavaWebContentsObservers();
-            contentsToDestroy.initialize(PRODUCT_VERSION,
-                    ViewAndroidDelegate.createBasicDelegate(/* containerView */ null),
-                    /* accessDelegate */ null, /* windowAndroid */ null,
-                    WebContents.createDefaultInternalsHolder());
+            TabImplJni.get().releaseWebContents(mNativeTabAndroid, TabImpl.this);
+            // Since the native WebContents is still alive, we need to clear its reference to the
+            // Java WebContents. While doing so, it will also call back into Java to destroy the
+            // Java WebContents.
+            contentsToDestroy.clearNativeReference();
         }
-    }
-
-    private @UserAgentOverrideOption int calculateUserAgentOverrideOption(@Nullable GURL url) {
-        WebContents webContents = getWebContents();
-        boolean currentRequestDesktopSite = TabUtils.isUsingDesktopUserAgent(webContents);
-        @TabUserAgent
-        int tabUserAgent = TabUtils.getTabUserAgent(this);
-        // INHERIT means use the same UA that was used last time.
-        @UserAgentOverrideOption
-        int userAgentOverrideOption = UserAgentOverrideOption.INHERIT;
-
-        Profile profile = IncognitoUtils.getProfileFromWindowAndroid(mWindowAndroid, isIncognito());
-        if (url == null && webContents != null) {
-            url = webContents.getVisibleUrl();
-        }
-
-        // Do not override UA if there is a tab level setting.
-        if (tabUserAgent != TabUserAgent.DEFAULT) {
-            recordHistogramUseDesktopUserAgent(currentRequestDesktopSite);
-            RequestDesktopUtils.maybeUpgradeTabLevelDesktopSiteSetting(
-                    this, profile, tabUserAgent, url);
-            return userAgentOverrideOption;
-        }
-
-        boolean shouldRequestDesktopSite =
-                TabUtils.readRequestDesktopSiteContentSettings(profile, url);
-        if (!shouldRequestDesktopSite
-                && ContentFeatureList.isEnabled(
-                        ContentFeatureList.REQUEST_DESKTOP_SITE_ADDITIONS)) {
-            // TODO(shuyng): Make additional setting compatible with site level setting.
-            PrefService prefService = UserPrefs.get(profile);
-            boolean peripheralPref =
-                    prefService.getBoolean(DESKTOP_SITE_PERIPHERAL_SETTING_ENABLED);
-            shouldRequestDesktopSite = TabUtils.isHardwareKeyboardAvailable(this) && peripheralPref;
-        }
-        if (shouldRequestDesktopSite != currentRequestDesktopSite) {
-            // The user is not forcing any mode and we determined that we need to
-            // change, therefore we are using TRUE or FALSE option. On Android TRUE mean
-            // override to Desktop user agent, while FALSE means go with Mobile version.
-            userAgentOverrideOption = shouldRequestDesktopSite ? UserAgentOverrideOption.TRUE
-                                                               : UserAgentOverrideOption.FALSE;
-        }
-        recordHistogramUseDesktopUserAgent(shouldRequestDesktopSite);
-        return userAgentOverrideOption;
-    }
-
-    // TODO(crbug.com/1243758): Confirm if a new histogram should be used.
-    private void recordHistogramUseDesktopUserAgent(boolean value) {
-        RecordHistogram.recordBooleanHistogram(
-                "Android.RequestDesktopSite.UseDesktopUserAgent", value);
-    }
-
-    private void switchUserAgentIfNeeded(int caller) {
-        if (calculateUserAgentOverrideOption(null) == UserAgentOverrideOption.INHERIT
-                || getWebContents() == null) {
-            return;
-        }
-        boolean usingDesktopUserAgent =
-                getWebContents().getNavigationController().getUseDesktopUserAgent();
-        TabUtils.switchUserAgent(this, /* switchToDesktop */ !usingDesktopUserAgent,
-                /* forcedByUser */ false, caller);
     }
 
     @NativeMethods
-    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-    public interface Natives {
+    interface Natives {
         TabImpl fromWebContents(WebContents webContents);
         void init(TabImpl caller);
-        void destroy(long nativeTabAndroid);
-        void initWebContents(long nativeTabAndroid, boolean incognito, boolean isBackgroundTab,
-                WebContents webContents, TabWebContentsDelegateAndroidImpl delegate,
+        void destroy(long nativeTabAndroid, TabImpl caller);
+        void initWebContents(long nativeTabAndroid, TabImpl caller, boolean incognito,
+                boolean isBackgroundTab, WebContents webContents, int parentTabId,
+                TabWebContentsDelegateAndroidImpl delegate,
                 ContextMenuPopulatorFactory contextMenuPopulatorFactory);
-        void updateDelegates(long nativeTabAndroid, TabWebContentsDelegateAndroidImpl delegate,
+        void updateDelegates(long nativeTabAndroid, TabImpl caller,
+                TabWebContentsDelegateAndroidImpl delegate,
                 ContextMenuPopulatorFactory contextMenuPopulatorFactory);
-        void destroyWebContents(long nativeTabAndroid);
-        void releaseWebContents(long nativeTabAndroid);
-        void onPhysicalBackingSizeChanged(
-                long nativeTabAndroid, WebContents webContents, int width, int height);
-        void setActiveNavigationEntryTitleForUrl(long nativeTabAndroid, String url, String title);
-        void loadOriginalImage(long nativeTabAndroid);
-        boolean handleNonNavigationAboutURL(GURL url);
-        void onShow(long nativeTabAndroid);
+        void destroyWebContents(long nativeTabAndroid, TabImpl caller);
+        void releaseWebContents(long nativeTabAndroid, TabImpl caller);
+        void onPhysicalBackingSizeChanged(long nativeTabAndroid, TabImpl caller,
+                WebContents webContents, int width, int height);
+        int loadUrl(long nativeTabAndroid, TabImpl caller, String url, Origin initiatorOrigin,
+                String extraHeaders, ResourceRequestBody postData, int transition,
+                String referrerUrl, int referrerPolicy, boolean isRendererInitiated,
+                boolean shoulReplaceCurrentEntry, boolean hasUserGesture,
+                boolean shouldClearHistoryList, long inputStartTimestamp,
+                long intentReceivedTimestamp);
+        void setActiveNavigationEntryTitleForUrl(
+                long nativeTabAndroid, TabImpl caller, String url, String title);
+        void loadOriginalImage(long nativeTabAndroid, TabImpl caller);
+        void setAddApi2TransitionToFutureNavigations(long nativeTabAndroid, boolean shouldAdd);
+        boolean getAddApi2TransitionToFutureNavigations(long nativeTabAndroid);
+        void setHideFutureNavigations(long nativeTabAndroid, boolean hide);
+        boolean getHideFutureNavigations(long nativeTabAndroid);
+        void setShouldBlockNewNotificationRequests(long nativeTabAndroid, boolean value);
+        boolean getShouldBlockNewNotificationRequests(long nativeTabAndroid);
     }
 }

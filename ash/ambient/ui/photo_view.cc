@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,17 +9,14 @@
 #include <memory>
 
 #include "ash/ambient/ambient_constants.h"
-#include "ash/ambient/ambient_view_delegate_impl.h"
 #include "ash/ambient/model/ambient_backend_model.h"
 #include "ash/ambient/ui/ambient_background_image_view.h"
+#include "ash/ambient/ui/ambient_view_delegate.h"
 #include "ash/ambient/ui/ambient_view_ids.h"
-#include "ash/public/cpp/ambient/ambient_ui_model.h"
 #include "ash/public/cpp/metrics_util.h"
-#include "base/bind.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "ui/aura/window.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/compositor/animation_throughput_reporter.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
@@ -34,30 +31,28 @@ constexpr char kPhotoTransitionSmoothness[] =
     "Ash.AmbientMode.AnimationSmoothness.PhotoTransition";
 
 void ReportSmoothness(int value) {
-  base::UmaHistogramPercentage(kPhotoTransitionSmoothness, value);
+  base::UmaHistogramPercentageObsoleteDoNotUse(kPhotoTransitionSmoothness,
+                                               value);
 }
-
-constexpr JitterCalculator::Config kGlanceableInfoJitterConfig = {
-    /*step_size=*/5,
-    /*x_min_translation=*/0,
-    /*x_max_translation=*/20,
-    /*y_min_translation=*/-20,
-    /*y_max_translation=*/0};
 
 }  // namespace
 
 // PhotoView ------------------------------------------------------------------
-PhotoView::PhotoView(AmbientViewDelegateImpl* delegate)
-    : delegate_(delegate),
-      glanceable_info_jitter_calculator_(kGlanceableInfoJitterConfig) {
+PhotoView::PhotoView(AmbientViewDelegate* delegate) : delegate_(delegate) {
   DCHECK(delegate_);
   SetID(AmbientViewID::kAmbientPhotoView);
   Init();
 }
 
-PhotoView::~PhotoView() = default;
+PhotoView::~PhotoView() {
+  delegate_->GetAmbientBackendModel()->RemoveObserver(this);
+}
 
-void PhotoView::OnImageAdded() {
+const char* PhotoView::GetClassName() const {
+  return "PhotoView";
+}
+
+void PhotoView::OnImagesChanged() {
   // If NeedToAnimate() is true, will start transition animation and
   // UpdateImages() when animation completes. Otherwise, update images
   // immediately.
@@ -66,10 +61,7 @@ void PhotoView::OnImageAdded() {
     return;
   }
 
-  PhotoWithDetails next_image;
-  delegate_->GetAmbientBackendModel()->GetCurrentAndNextImages(
-      /*current_image=*/nullptr, &next_image);
-  UpdateImage(next_image);
+  UpdateImage(delegate_->GetAmbientBackendModel()->GetNextImage());
 }
 
 void PhotoView::Init() {
@@ -78,59 +70,36 @@ void PhotoView::Init() {
   SetLayoutManager(std::make_unique<views::FillLayout>());
 
   for (auto*& image_view : image_views_) {
-    // Creates image views. The same |glanceable_info_jitter_calculator_|
-    // instance is shared between the AmbientBackgroundImageViews so that the
-    // glanceable info on screen does not shift too much at once when
-    // transitioning between AmbientBackgroundImageViews in
-    // StartTransitionAnimation().
-    image_view = AddChildView(std::make_unique<AmbientBackgroundImageView>(
-        delegate_, &glanceable_info_jitter_calculator_));
+    // Creates image views.
+    image_view =
+        AddChildView(std::make_unique<AmbientBackgroundImageView>(delegate_));
     // Each image view will be animated on its own layer.
     image_view->SetPaintToLayer();
     image_view->layer()->SetFillsBoundsOpaquely(false);
   }
 
   // Hides one image view initially for fade in animation.
-  image_views_.back()->layer()->SetOpacity(0.0f);
+  image_views_[1]->layer()->SetOpacity(0.0f);
 
   auto* model = delegate_->GetAmbientBackendModel();
-  scoped_backend_model_observer_.Observe(model);
+  model->AddObserver(this);
 
-  // |PhotoView::Init| is called after
-  // |AmbientBackendModelObserver::OnImagesReady| has been called.
-  // |AmbientBackendModel| has two images ready and views should be constructed
-  // for each one.
-  PhotoWithDetails current_image, next_image;
-  model->GetCurrentAndNextImages(&current_image, &next_image);
-  UpdateImage(current_image);
-  UpdateImage(next_image);
-  delegate_->NotifyObserversMarkerHit(
-      AmbientPhotoConfig::Marker::kUiStartRendering);
+  UpdateImage(model->GetCurrentImage());
 }
 
 void PhotoView::UpdateImage(const PhotoWithDetails& next_image) {
   if (next_image.photo.isNull())
     return;
 
-  image_views_.at(image_index_)
-      ->UpdateImage(next_image.photo, next_image.related_photo,
-                    next_image.is_portrait, next_image.topic_type);
-  image_views_.at(image_index_)
-      ->UpdateImageDetails(base::UTF8ToUTF16(next_image.details),
-                           base::UTF8ToUTF16(next_image.related_details));
+  image_views_[image_index_]->UpdateImage(next_image.photo,
+                                          next_image.related_photo);
+  image_views_[image_index_]->UpdateImageDetails(
+      base::UTF8ToUTF16(next_image.details));
   image_index_ = 1 - image_index_;
-  photo_refresh_timer_.Start(FROM_HERE,
-                             AmbientUiModel::Get()->photo_refresh_interval(),
-                             this, &PhotoView::OnImageCycleComplete);
-}
-
-void PhotoView::OnImageCycleComplete() {
-  delegate_->NotifyObserversMarkerHit(
-      AmbientPhotoConfig::Marker::kUiCycleEnded);
 }
 
 void PhotoView::StartTransitionAnimation() {
-  ui::Layer* visible_layer = image_views_.at(image_index_)->layer();
+  ui::Layer* visible_layer = image_views_[image_index_]->layer();
   {
     ui::ScopedLayerAnimationSettings animation(visible_layer->GetAnimator());
     animation.SetTransitionDuration(kAnimationDuration);
@@ -146,7 +115,7 @@ void PhotoView::StartTransitionAnimation() {
     visible_layer->SetOpacity(0.0f);
   }
 
-  ui::Layer* invisible_layer = image_views_.at(1 - image_index_)->layer();
+  ui::Layer* invisible_layer = image_views_[1 - image_index_]->layer();
   {
     ui::ScopedLayerAnimationSettings animation(invisible_layer->GetAnimator());
     animation.SetTransitionDuration(kAnimationDuration);
@@ -166,23 +135,18 @@ void PhotoView::StartTransitionAnimation() {
 }
 
 void PhotoView::OnImplicitAnimationsCompleted() {
-  PhotoWithDetails next_image;
-  delegate_->GetAmbientBackendModel()->GetCurrentAndNextImages(
-      /*current_image=*/nullptr, &next_image);
-  UpdateImage(next_image);
+  UpdateImage(delegate_->GetAmbientBackendModel()->GetNextImage());
+  delegate_->OnPhotoTransitionAnimationCompleted();
 }
 
 bool PhotoView::NeedToAnimateTransition() const {
   // Can do transition animation if both two images in |images_unscaled_| are
   // not nullptr. Check the image index 1 is enough.
-  return !image_views_.back()->GetCurrentImage().isNull();
+  return !image_views_[1]->GetCurrentImage().isNull();
 }
 
-gfx::ImageSkia PhotoView::GetVisibleImageForTesting() {
-  return image_views_.at(image_index_)->GetCurrentImage();
+const gfx::ImageSkia& PhotoView::GetCurrentImagesForTesting() {
+  return image_views_[image_index_]->GetCurrentImage();
 }
-
-BEGIN_METADATA(PhotoView, views::View)
-END_METADATA
 
 }  // namespace ash

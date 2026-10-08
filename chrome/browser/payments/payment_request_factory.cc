@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,11 @@
 
 #include "base/no_destructor.h"
 #include "chrome/browser/payments/chrome_payment_request_delegate.h"
-#include "components/payments/content/payment_request.h"
+#include "components/payments/content/payment_request_web_contents_manager.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/web_contents.h"
 #include "mojo/public/cpp/bindings/message.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom-shared.h"
+#include "third_party/blink/public/mojom/feature_policy/feature_policy_feature.mojom-shared.h"
 
 namespace payments {
 
@@ -32,7 +33,7 @@ PaymentRequestFactoryCallback& GetTestingFactoryCallback() {
 void CreatePaymentRequest(
     content::RenderFrameHost* render_frame_host,
     mojo::PendingReceiver<mojom::PaymentRequest> receiver) {
-  if (!render_frame_host->IsActive()) {
+  if (!render_frame_host->IsCurrent()) {
     // This happens when the page has navigated away, which would cause the
     // blink PaymentRequest to be released shortly, or when the iframe is being
     // removed from the page, which is not a use case that we support.
@@ -42,8 +43,8 @@ void CreatePaymentRequest(
   }
 
   if (!render_frame_host->IsFeatureEnabled(
-          blink::mojom::PermissionsPolicyFeature::kPayment)) {
-    mojo::ReportBadMessage("Permissions policy blocks Payment");
+          blink::mojom::FeaturePolicyFeature::kPayment)) {
+    mojo::ReportBadMessage("Feature policy blocks Payment");
     return;
   }
 
@@ -52,11 +53,13 @@ void CreatePaymentRequest(
                                            render_frame_host);
   }
 
-  // PaymentRequest is a DocumentService, whose lifetime is managed by the
-  // RenderFrameHost passed in here.
-  auto delegate =
-      std::make_unique<ChromePaymentRequestDelegate>(render_frame_host);
-  new PaymentRequest(std::move(delegate), std::move(receiver));
+  PaymentRequestWebContentsManager::GetOrCreateForWebContents(
+      content::WebContents::FromRenderFrameHost(render_frame_host))
+      ->CreatePaymentRequest(
+          render_frame_host,
+          std::make_unique<ChromePaymentRequestDelegate>(render_frame_host),
+          std::move(receiver),
+          /*observer_for_testing=*/nullptr);
 }
 
 void SetPaymentRequestFactoryForTesting(

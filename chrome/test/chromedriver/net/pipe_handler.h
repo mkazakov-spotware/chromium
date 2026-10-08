@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
 #include "base/memory/ref_counted.h"
 #include "chrome/test/chromedriver/net/websocket.h"
 
@@ -20,10 +20,6 @@ class WebSocketListener;
 class PipeHandler {
  public:
   PipeHandler(WebSocketListener* listener, int write_fd, int read_fd);
-
-  PipeHandler(const PipeHandler&) = delete;
-  PipeHandler& operator=(const PipeHandler&) = delete;
-
   virtual ~PipeHandler();
 
   // Sends the given message and returns true on success.
@@ -35,13 +31,15 @@ class PipeHandler {
   void Read();
   void Close();
 
-  raw_ptr<WebSocketListener> listener_;
+  WebSocketListener* listener_;
   int write_fd_;
   int read_fd_;
 
   scoped_refptr<net::DrainableIOBuffer> write_buffer_;
   scoped_refptr<net::DrainableIOBuffer> read_buffer_;
   std::string pending_write_;
+
+  DISALLOW_COPY_AND_ASSIGN(PipeHandler);
 };
 
 #endif  // CHROME_TEST_CHROMEDRIVER_NET_PIPE_HANDLER_H_

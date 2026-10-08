@@ -1,12 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "chrome/browser/image_fetcher/image_decoder_impl.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/image/image.h"
@@ -16,15 +15,8 @@ class ImageDecoderImpl::DecodeImageRequest
     : public ::ImageDecoder::ImageRequest {
  public:
   DecodeImageRequest(ImageDecoderImpl* decoder,
-                     data_decoder::DataDecoder* data_decoder,
                      image_fetcher::ImageDecodedCallback callback)
-      : ImageRequest(data_decoder),
-        decoder_(decoder),
-        callback_(std::move(callback)) {}
-
-  DecodeImageRequest(const DecodeImageRequest&) = delete;
-  DecodeImageRequest& operator=(const DecodeImageRequest&) = delete;
-
+      : decoder_(decoder), callback_(std::move(callback)) {}
   ~DecodeImageRequest() override {}
 
  private:
@@ -37,10 +29,12 @@ class ImageDecoderImpl::DecodeImageRequest
 
   void OnDecodeImageFailed() override;
 
-  raw_ptr<ImageDecoderImpl> decoder_;
+  ImageDecoderImpl* decoder_;
 
   // The callback to call after the request completed.
   image_fetcher::ImageDecodedCallback callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(DecodeImageRequest);
 };
 
 void ImageDecoderImpl::DecodeImageRequest::OnImageDecoded(
@@ -71,13 +65,14 @@ ImageDecoderImpl::~ImageDecoderImpl() {}
 void ImageDecoderImpl::DecodeImage(
     const std::string& image_data,
     const gfx::Size& desired_image_frame_size,
-    data_decoder::DataDecoder* data_decoder,
     image_fetcher::ImageDecodedCallback callback) {
   std::unique_ptr<DecodeImageRequest> decode_image_request(
-      new DecodeImageRequest(this, data_decoder, std::move(callback)));
+      new DecodeImageRequest(this, std::move(callback)));
 
   ::ImageDecoder::StartWithOptions(
-      decode_image_request.get(), image_data, ::ImageDecoder::DEFAULT_CODEC,
+      decode_image_request.get(),
+      std::vector<uint8_t>(image_data.begin(), image_data.end()),
+      ::ImageDecoder::DEFAULT_CODEC,
       /*shrink_to_fit=*/false, desired_image_frame_size);
 
   decode_image_requests_.push_back(std::move(decode_image_request));
@@ -86,8 +81,10 @@ void ImageDecoderImpl::DecodeImage(
 void ImageDecoderImpl::RemoveDecodeImageRequest(DecodeImageRequest* request) {
   // Remove the finished request from the request queue.
   auto request_it =
-      base::ranges::find(decode_image_requests_, request,
-                         &std::unique_ptr<DecodeImageRequest>::get);
+      std::find_if(decode_image_requests_.begin(), decode_image_requests_.end(),
+                   [request](const std::unique_ptr<DecodeImageRequest>& r) {
+                     return r.get() == request;
+                   });
   DCHECK(request_it != decode_image_requests_.end());
   decode_image_requests_.erase(request_it);
 }

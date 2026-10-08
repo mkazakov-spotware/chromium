@@ -1,12 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/bluetooth/frame_connected_bluetooth_devices.h"
 
-#include <tuple>
-
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "content/browser/bluetooth/web_bluetooth_service_impl.h"
 #include "content/test/test_render_view_host.h"
@@ -45,7 +43,7 @@ constexpr char kDeviceName1[] = "Device1";
 mojo::AssociatedRemote<blink::mojom::WebBluetoothServerClient>
 CreateServerClient() {
   mojo::AssociatedRemote<blink::mojom::WebBluetoothServerClient> client;
-  std::ignore = client.BindNewEndpointAndPassDedicatedReceiver();
+  ignore_result(client.BindNewEndpointAndPassDedicatedReceiver());
   return client;
 }
 
@@ -81,15 +79,14 @@ class FrameConnectedBluetoothDevicesTest
     RenderViewHostImplTestHarness::SetUp();
 
     // Create subframe to simulate two maps on the same WebContents.
-    contents()->GetPrimaryMainFrame()->InitializeRenderFrameIfNeeded();
+    contents()->GetMainFrame()->InitializeRenderFrameIfNeeded();
     TestRenderFrameHost* subframe =
-        contents()->GetPrimaryMainFrame()->AppendChild("bluetooth_frame");
+        contents()->GetMainFrame()->AppendChild("bluetooth_frame");
     subframe->InitializeRenderFrameIfNeeded();
 
     // Simulate two frames each connected to a bluetooth service.
-    service0_ = contents()
-                    ->GetPrimaryMainFrame()
-                    ->CreateWebBluetoothServiceForTesting();
+    service0_ =
+        contents()->GetMainFrame()->CreateWebBluetoothServiceForTesting();
     map0_ = service0_->connected_devices_.get();
 
     service1_ = subframe->CreateWebBluetoothServiceForTesting();
@@ -111,21 +108,21 @@ class FrameConnectedBluetoothDevicesTest
   }
 
   void ResetService0() {
-    std::exchange(service0_, nullptr)->ResetAndDeleteThis();
+    service0_->ClearState();
     map0_ = nullptr;
   }
 
   void ResetService1() {
-    std::exchange(service1_, nullptr)->ResetAndDeleteThis();
+    service1_->ClearState();
     map1_ = nullptr;
   }
 
  protected:
-  raw_ptr<FrameConnectedBluetoothDevices> map0_;
-  raw_ptr<WebBluetoothServiceImpl> service0_;
+  FrameConnectedBluetoothDevices* map0_;
+  WebBluetoothServiceImpl* service0_;
 
-  raw_ptr<FrameConnectedBluetoothDevices> map1_;
-  raw_ptr<WebBluetoothServiceImpl> service1_;
+  FrameConnectedBluetoothDevices* map1_;
+  WebBluetoothServiceImpl* service1_;
 
  private:
   scoped_refptr<NiceMockBluetoothAdapter> adapter_;

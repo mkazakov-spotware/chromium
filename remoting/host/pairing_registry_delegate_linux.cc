@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,8 +37,8 @@ PairingRegistryDelegateLinux::PairingRegistryDelegateLinux() = default;
 
 PairingRegistryDelegateLinux::~PairingRegistryDelegateLinux() = default;
 
-base::Value::List PairingRegistryDelegateLinux::LoadAll() {
-  base::Value::List pairings;
+std::unique_ptr<base::ListValue> PairingRegistryDelegateLinux::LoadAll() {
+  std::unique_ptr<base::ListValue> pairings(new base::ListValue());
 
   // Enumerate all pairing files in the pairing registry.
   base::FilePath registry_path = GetRegistryPath();
@@ -59,7 +59,7 @@ base::Value::List PairingRegistryDelegateLinux::LoadAll() {
       continue;
     }
 
-    pairings.Append(base::Value::FromUniquePtrValue(std::move(pairing_json)));
+    pairings->Append(std::move(pairing_json));
   }
 
   return pairings;
@@ -98,12 +98,13 @@ PairingRegistry::Pairing PairingRegistryDelegateLinux::Load(
     return PairingRegistry::Pairing();
   }
 
-  if (!pairing->is_dict()) {
+  base::DictionaryValue* pairing_dictionary;
+  if (!pairing->GetAsDictionary(&pairing_dictionary)) {
     LOG(WARNING) << "Failed to parse pairing information: not a dictionary.";
     return PairingRegistry::Pairing();
   }
 
-  return PairingRegistry::Pairing::CreateFromValue(pairing->GetDict());
+  return PairingRegistry::Pairing::CreateFromValue(*pairing_dictionary);
 }
 
 bool PairingRegistryDelegateLinux::Save(
@@ -117,7 +118,7 @@ bool PairingRegistryDelegateLinux::Save(
 
   std::string pairing_json;
   JSONStringValueSerializer serializer(&pairing_json);
-  if (!serializer.Serialize(pairing.ToValue())) {
+  if (!serializer.Serialize(*pairing.ToValue())) {
     LOG(ERROR) << "Failed to serialize pairing data for "
                << pairing.client_id();
     return false;

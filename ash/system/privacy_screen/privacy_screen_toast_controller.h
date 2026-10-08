@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -51,10 +51,10 @@ class ASH_EXPORT PrivacyScreenToastController
   void BubbleViewDestroyed() override;
   void OnMouseEnteredView() override;
   void OnMouseExitedView() override;
-  std::u16string GetAccessibleNameForBubble() override;
+  base::string16 GetAccessibleNameForBubble() override;
 
   // PrivacyScreenController::Observer:
-  void OnPrivacyScreenSettingChanged(bool enabled, bool notify_ui) override;
+  void OnPrivacyScreenSettingChanged(bool enabled) override;
 
   UnifiedSystemTray* const tray_;
   TrayBubbleView* bubble_view_ = nullptr;

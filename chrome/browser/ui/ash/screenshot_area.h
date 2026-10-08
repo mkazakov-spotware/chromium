@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_ASH_SCREENSHOT_AREA_H_
 #define CHROME_BROWSER_UI_ASH_SCREENSHOT_AREA_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "ui/gfx/geometry/rect.h"
 
 namespace aura {
@@ -32,12 +32,12 @@ struct ScreenshotArea {
 
   const ScreenshotType type;
   const aura::Window* window = nullptr;
-  const absl::optional<const gfx::Rect> rect;
+  const base::Optional<const gfx::Rect> rect;
 
  private:
   ScreenshotArea(ScreenshotType type,
                  const aura::Window* window,
-                 absl::optional<const gfx::Rect> rect);
+                 base::Optional<const gfx::Rect> rect);
 };
 
 #endif  // CHROME_BROWSER_UI_ASH_SCREENSHOT_AREA_H_

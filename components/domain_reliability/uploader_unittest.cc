@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,22 +11,16 @@
 
 #include "base/bind.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_simple_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "components/domain_reliability/test_util.h"
-#include "net/base/isolation_info.h"
 #include "net/base/load_flags.h"
-#include "net/base/network_anonymization_key.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_response_info.h"
-#include "net/http/http_util.h"
 #include "net/log/net_log_with_source.h"
 #include "net/url_request/url_request.h"
-#include "net/url_request/url_request_context.h"
-#include "net/url_request/url_request_context_builder.h"
 #include "net/url_request/url_request_filter.h"
 #include "net/url_request/url_request_interceptor.h"
 #include "net/url_request/url_request_job.h"
@@ -99,7 +93,7 @@ class UploadMockURLRequestJob : public net::URLRequestJob {
     info->headers = result_.response_headers;
   }
 
-  raw_ptr<net::UploadDataStream> upload_stream_;
+  net::UploadDataStream* upload_stream_;
   scoped_refptr<net::IOBufferWithSize> upload_buffer_;
   std::string upload_data_;
   MockUploadResult result_;
@@ -107,19 +101,12 @@ class UploadMockURLRequestJob : public net::URLRequestJob {
 
 class UploadInterceptor : public net::URLRequestInterceptor {
  public:
-  explicit UploadInterceptor(
-      const net::IsolationInfo& expected_network_isolation_info)
-      : expected_network_isolation_info_(expected_network_isolation_info),
-        request_count_(0),
-        last_upload_depth_(-1) {}
+  UploadInterceptor() : request_count_(0), last_upload_depth_(-1) {}
 
   ~UploadInterceptor() override { EXPECT_TRUE(results_.empty()); }
 
   std::unique_ptr<net::URLRequestJob> MaybeInterceptRequest(
       net::URLRequest* request) const override {
-    EXPECT_TRUE(expected_network_isolation_info_.IsEqualForTesting(
-        request->isolation_info()));
-
     EXPECT_FALSE(results_.empty());
     MockUploadResult result = results_.front();
     results_.pop_front();
@@ -150,8 +137,6 @@ class UploadInterceptor : public net::URLRequestInterceptor {
   int last_upload_depth() const { return last_upload_depth_; }
 
  private:
-  const net::IsolationInfo expected_network_isolation_info_;
-
   mutable std::list<MockUploadResult> results_;
   mutable int request_count_;
   mutable int last_upload_depth_;
@@ -184,13 +169,9 @@ class TestUploadCallback {
 class DomainReliabilityUploaderTest : public testing::Test {
  protected:
   DomainReliabilityUploaderTest()
-      : url_request_context_(
-            net::CreateTestURLRequestContextBuilder()->Build()),
-        uploader_(
-            DomainReliabilityUploader::Create(&time_,
-                                              url_request_context_.get())) {
-    auto interceptor =
-        std::make_unique<UploadInterceptor>(expected_isolation_info_);
+      : uploader_(
+            DomainReliabilityUploader::Create(&time_, &url_request_context_)) {
+    auto interceptor = std::make_unique<UploadInterceptor>();
     interceptor_ = interceptor.get();
     net::URLRequestFilter::GetInstance()->AddUrlInterceptor(
         GURL(kUploadURL), std::move(interceptor));
@@ -203,23 +184,15 @@ class DomainReliabilityUploaderTest : public testing::Test {
 
   DomainReliabilityUploader* uploader() const { return uploader_.get(); }
   UploadInterceptor* interceptor() const { return interceptor_; }
-  net::URLRequestContext* url_request_context() {
-    return url_request_context_.get();
-  }
-
-  const net::NetworkAnonymizationKey& network_anonymization_key() const {
-    return expected_isolation_info_.network_anonymization_key();
+  net::TestURLRequestContext* url_request_context() {
+    return &url_request_context_;
   }
 
  private:
   base::test::SingleThreadTaskEnvironment task_environment_{
       base::test::SingleThreadTaskEnvironment::MainThreadType::IO};
-
-  const net::IsolationInfo expected_isolation_info_ =
-      net::IsolationInfo::CreateTransient();
-
-  std::unique_ptr<net::URLRequestContext> url_request_context_;
-  raw_ptr<UploadInterceptor> interceptor_;
+  net::TestURLRequestContext url_request_context_;
+  UploadInterceptor* interceptor_;
   MockTime time_;
   std::unique_ptr<DomainReliabilityUploader> uploader_;
 };
@@ -232,8 +205,7 @@ TEST_F(DomainReliabilityUploaderTest, SuccessfulUpload) {
   interceptor()->ExpectRequestAndReturnResponseHeaders("HTTP/1.1 200\r\n\r\n");
 
   TestUploadCallback c;
-  uploader()->UploadReport("{}", 0, GURL(kUploadURL),
-                           network_anonymization_key(), c.callback());
+  uploader()->UploadReport("{}", 0, GURL(kUploadURL), c.callback());
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1u, c.called_count());
   EXPECT_TRUE(c.last_result().is_success());
@@ -245,8 +217,7 @@ TEST_F(DomainReliabilityUploaderTest, NetworkErrorUpload) {
   interceptor()->ExpectRequestAndReturnError(net::ERR_CONNECTION_REFUSED);
 
   TestUploadCallback c;
-  uploader()->UploadReport("{}", 0, GURL(kUploadURL),
-                           network_anonymization_key(), c.callback());
+  uploader()->UploadReport("{}", 0, GURL(kUploadURL), c.callback());
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1u, c.called_count());
   EXPECT_TRUE(c.last_result().is_failure());
@@ -258,8 +229,7 @@ TEST_F(DomainReliabilityUploaderTest, ServerErrorUpload) {
   interceptor()->ExpectRequestAndReturnResponseHeaders("HTTP/1.1 500\r\n\r\n");
 
   TestUploadCallback c;
-  uploader()->UploadReport("{}", 0, GURL(kUploadURL),
-                           network_anonymization_key(), c.callback());
+  uploader()->UploadReport("{}", 0, GURL(kUploadURL), c.callback());
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1u, c.called_count());
   EXPECT_TRUE(c.last_result().is_failure());
@@ -272,8 +242,7 @@ TEST_F(DomainReliabilityUploaderTest, RetryAfterUpload) {
       "HTTP/1.1 503 Ugh\nRetry-After: 3600\n\n");
 
   TestUploadCallback c;
-  uploader()->UploadReport("{}", 0, GURL(kUploadURL),
-                           network_anonymization_key(), c.callback());
+  uploader()->UploadReport("{}", 0, GURL(kUploadURL), c.callback());
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1u, c.called_count());
   EXPECT_TRUE(c.last_result().is_retry_after());
@@ -285,8 +254,7 @@ TEST_F(DomainReliabilityUploaderTest, UploadDepth1) {
   interceptor()->ExpectRequestAndReturnResponseHeaders("HTTP/1.1 200\r\n\r\n");
 
   TestUploadCallback c;
-  uploader()->UploadReport("{}", 0, GURL(kUploadURL),
-                           network_anonymization_key(), c.callback());
+  uploader()->UploadReport("{}", 0, GURL(kUploadURL), c.callback());
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1u, c.called_count());
 
@@ -299,8 +267,7 @@ TEST_F(DomainReliabilityUploaderTest, UploadDepth2) {
   interceptor()->ExpectRequestAndReturnResponseHeaders("HTTP/1.1 200\r\n\r\n");
 
   TestUploadCallback c;
-  uploader()->UploadReport("{}", 1, GURL(kUploadURL),
-                           network_anonymization_key(), c.callback());
+  uploader()->UploadReport("{}", 1, GURL(kUploadURL), c.callback());
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1u, c.called_count());
 
@@ -313,8 +280,7 @@ TEST_F(DomainReliabilityUploaderTest, UploadCanceledAtShutdown) {
   interceptor()->ExpectRequestAndReturnError(net::ERR_IO_PENDING);
 
   TestUploadCallback c;
-  uploader()->UploadReport("{}", 1, GURL(kUploadURL),
-                           network_anonymization_key(), c.callback());
+  uploader()->UploadReport("{}", 1, GURL(kUploadURL), c.callback());
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1, interceptor()->request_count());
   EXPECT_EQ(0u, c.called_count());
@@ -330,8 +296,7 @@ TEST_F(DomainReliabilityUploaderTest, NoUploadAfterShutdown) {
   uploader()->Shutdown();
 
   TestUploadCallback c;
-  uploader()->UploadReport("{}", 1, GURL(kUploadURL),
-                           network_anonymization_key(), c.callback());
+  uploader()->UploadReport("{}", 1, GURL(kUploadURL), c.callback());
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1u, c.called_count());
   EXPECT_EQ(0, interceptor()->request_count());

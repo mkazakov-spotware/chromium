@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,11 @@
 
 #include <stdint.h>
 
+#include "base/stl_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace crx_file::id_util {
+namespace crx_file {
+namespace id_util {
 
 TEST(IDUtilTest, GenerateID) {
   const uint8_t public_key_info[] = {
@@ -28,7 +30,7 @@ TEST(IDUtilTest, GenerateID) {
       0x0f, 0x02, 0x03, 0x01, 0x00, 0x01};
   std::string extension_id =
       GenerateId(std::string(reinterpret_cast<const char*>(&public_key_info[0]),
-                             std::size(public_key_info)));
+                             base::size(public_key_info)));
   EXPECT_EQ("melddjfinppjdikinhbgehiennejpfhp", extension_id);
 
   EXPECT_EQ("daibjpdaanagajckigeiigphanababab",
@@ -50,4 +52,5 @@ TEST(IDUtilTest, GenerateID) {
       GenerateId("this_string_is_longer_than_a_single_sha256_hash_digest"));
 }
 
-}  // namespace crx_file::id_util
+}  // namespace id_util
+}  // namespace crx_file

@@ -32,6 +32,11 @@
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_KEYBOARD_CODES_H_
 
 #include "build/build_config.h"
+
+#if defined(OS_WIN)
+#include <windows.h>
+#endif
+
 #include "third_party/blink/renderer/platform/windows_keyboard_codes.h"
 
 namespace blink {
@@ -569,4 +574,4 @@ enum {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_KEYBOARD_CODES_H_
+#endif

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include <wtsapi32.h>
 
 #include <memory>
-#include <string>
 
 #include "base/command_line.h"
 #include "base/files/file_path.h"
@@ -19,6 +18,8 @@
 #include "base/process/launch.h"
 #include "base/process/process_info.h"
 #include "base/rand_util.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/win/registry.h"
 #include "base/win/scoped_handle.h"
@@ -85,12 +86,12 @@ bool IsEnterpriseInstall(const InstallerState& installer_state) {
 // minutes) can be overridden via --experiment-retry-delay=SECONDS.
 base::TimeDelta GetRetryDelay() {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  std::wstring value =
+  base::string16 value =
       command_line->GetSwitchValueNative(kExperimentRetryDelay);
   int seconds;
   if (!value.empty() && base::StringToInt(value, &seconds))
-    return base::Seconds(seconds);
-  return base::Minutes(5);
+    return base::TimeDelta::FromSeconds(seconds);
+  return base::TimeDelta::FromMinutes(5);
 }
 
 // Overrides the participation value for testing if a value is provided via
@@ -104,7 +105,7 @@ ExperimentStorage::Study HandleParticipationOverride(
   if (!command_line->HasSwitch(kExperimentParticipation))
     return current_participation;
 
-  std::wstring participation_override =
+  base::string16 participation_override =
       command_line->GetSwitchValueNative(kExperimentParticipation);
   ExperimentStorage::Study participation = ExperimentStorage::kNoStudySelected;
   if (participation_override == L"one")
@@ -166,7 +167,8 @@ bool MayShowNotifications() {
 }
 
 bool UserSessionIsNotYoung() {
-  static constexpr base::TimeDelta kMinSessionLength = base::Minutes(5);
+  static constexpr base::TimeDelta kMinSessionLength =
+      base::TimeDelta::FromMinutes(5);
   base::Time session_start_time = GetConsoleSessionStartTime();
   if (session_start_time.is_null())
     return true;
@@ -278,7 +280,7 @@ void BeginUserExperiment(const InstallerState& installer_state,
       kExperimentRetryDelay,
   };
   setup_command.CopySwitchesFrom(*base::CommandLine::ForCurrentProcess(),
-                                 kSwitchesToCopy, std::size(kSwitchesToCopy));
+                                 kSwitchesToCopy, base::size(kSwitchesToCopy));
 
   if (user_context) {
     // This is either a per-user install or a per-machine install run via
@@ -332,14 +334,14 @@ void BeginUserExperiment(const InstallerState& installer_state,
 // setup.exe immediately after a successful update or following user logon as a
 // result of Active Setup.
 void RunUserExperiment(const base::CommandLine& command_line,
-                       const InitialPreferences& initial_preferences,
+                       const InitialPreferences& master_preferences,
                        InstallationState* original_state,
                        InstallerState* installer_state) {
   VLOG(1) << __func__;
 
   ExperimentStorage storage;
   std::unique_ptr<SetupSingleton> setup_singleton(SetupSingleton::Acquire(
-      command_line, initial_preferences, original_state, installer_state));
+      command_line, master_preferences, original_state, installer_state));
   if (!setup_singleton) {
     VLOG(1) << "Timed out while waiting for setup singleton";
     WriteInitialState(&storage, ExperimentMetrics::kSingletonWaitTimeout);
@@ -507,7 +509,7 @@ bool IsUpdateRenamePending() {
   // Consider an update to be pending if an "opv" value is present in the
   // registry or if Chrome's version as registered with Omaha doesn't match the
   // current version.
-  std::wstring clients_key_path = install_static::GetClientsKeyPath();
+  base::string16 clients_key_path = install_static::GetClientsKeyPath();
   const HKEY root = install_static::IsSystemInstall() ? HKEY_LOCAL_MACHINE
                                                       : HKEY_CURRENT_USER;
   base::win::RegKey clients_key;
@@ -520,7 +522,7 @@ bool IsUpdateRenamePending() {
   }
   if (clients_key.HasValue(google_update::kRegOldVersionField))
     return true;
-  std::wstring product_version;
+  base::string16 product_version;
   if (clients_key.ReadValue(google_update::kRegVersionField,
                             &product_version) != ERROR_SUCCESS) {
     return false;
@@ -533,14 +535,14 @@ void LaunchChrome(const InstallerState& installer_state,
   const base::FilePath chrome_exe =
       installer_state.target_path().Append(kChromeExe);
   base::CommandLine command_line(chrome_exe);
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   command_line.AppendSwitchNative(::switches::kTryChromeAgain,
-                                  base::NumberToWString(experiment.group()));
-#endif  // BUILDFLAG(IS_WIN)
+                                  base::NumberToString16(experiment.group()));
+#endif  // defined(OS_WIN)
 
   STARTUPINFOW startup_info = {sizeof(startup_info)};
   PROCESS_INFORMATION temp_process_info = {};
-  std::wstring writable_command_line_string(
+  base::string16 writable_command_line_string(
       command_line.GetCommandLineString());
   if (!::CreateProcess(
           chrome_exe.value().c_str(), &writable_command_line_string[0],

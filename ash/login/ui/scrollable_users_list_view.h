@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,9 @@
 #include "ash/ash_export.h"
 #include "ash/login/ui/login_display_style.h"
 #include "ash/login/ui/login_user_view.h"
-#include "ash/public/cpp/wallpaper/wallpaper_controller.h"
-#include "ash/public/cpp/wallpaper/wallpaper_controller_observer.h"
-#include "base/scoped_observation.h"
+#include "ash/public/cpp/wallpaper_controller.h"
+#include "ash/public/cpp/wallpaper_controller_observer.h"
+#include "base/scoped_observer.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/views/controls/scroll_view.h"
 
@@ -50,10 +50,6 @@ class ASH_EXPORT ScrollableUsersListView : public views::ScrollView,
   ScrollableUsersListView(const std::vector<LoginUserInfo>& users,
                           const ActionWithUser& on_tap_user,
                           LoginDisplayStyle display_style);
-
-  ScrollableUsersListView(const ScrollableUsersListView&) = delete;
-  ScrollableUsersListView& operator=(const ScrollableUsersListView&) = delete;
-
   ~ScrollableUsersListView() override;
 
   // Returns user view at |index| if it exists or nullptr otherwise.
@@ -67,14 +63,9 @@ class ASH_EXPORT ScrollableUsersListView : public views::ScrollView,
   // Returns user view with |account_id| if it exists or nullptr otherwise.
   LoginUserView* GetUserView(const AccountId& account_id);
 
-  // Updates the insets for the `user_view_host_layout_` based on whether the
-  // view is in landscape or portrait mode.
-  void UpdateUserViewHostLayoutInsets();
-
   // views::View:
   void Layout() override;
   void OnPaintBackground(gfx::Canvas* canvas) override;
-  void OnThemeChanged() override;
 
   // WallpaperControllerObserver:
   void OnWallpaperColorsChanged() override;
@@ -82,8 +73,7 @@ class ASH_EXPORT ScrollableUsersListView : public views::ScrollView,
 
  private:
   struct GradientParams {
-    static GradientParams BuildForStyle(LoginDisplayStyle style,
-                                        views::View* view);
+    static GradientParams BuildForStyle(LoginDisplayStyle style);
 
     // Start color for drawing linear gradient.
     SkColor color_from = SK_ColorTRANSPARENT;
@@ -106,8 +96,10 @@ class ASH_EXPORT ScrollableUsersListView : public views::ScrollView,
 
   GradientParams gradient_params_;
 
-  base::ScopedObservation<WallpaperController, WallpaperControllerObserver>
-      observation_{this};
+  ScopedObserver<WallpaperController, WallpaperControllerObserver> observer_{
+      this};
+
+  DISALLOW_COPY_AND_ASSIGN(ScrollableUsersListView);
 };
 
 }  // namespace ash

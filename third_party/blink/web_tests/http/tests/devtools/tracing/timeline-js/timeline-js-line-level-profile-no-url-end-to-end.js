@@ -1,13 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that a line-level CPU profile is collected and shown in the text editor.\n`);
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
-  await TestRunner.loadLegacyModule('sources'); await TestRunner.loadTestModule('sources_test_runner');
-  await TestRunner.loadLegacyModule('timeline'); await TestRunner.loadTestModule('performance_test_runner');
-  await TestRunner.loadLegacyModule('source_frame');
+  await TestRunner.loadModule('console_test_runner');
+  await TestRunner.loadModule('sources_test_runner');
+  await TestRunner.loadModule('performance_test_runner');
   await TestRunner.showPanel('timeline');
   await TestRunner.showPanel('sources');
 
@@ -35,7 +34,7 @@
 
   TestRunner.addSniffer(SourceFrame.SourcesTextEditor.prototype, 'setGutterDecoration', decorationAdded, true);
 
-  const debuggerModel = SDK.targetManager.mainFrameTarget().model(SDK.DebuggerModel);
+  const debuggerModel = SDK.targetManager.mainTarget().model(SDK.DebuggerModel);
   const rawLocation = debuggerModel.createRawLocationByScriptId(scriptId, 0, 0);
   const uiLocation = await Bindings.debuggerWorkspaceBinding.rawLocationToUILocation(rawLocation);
   await SourcesTestRunner.showUISourceCodePromise(uiLocation.uiSourceCode);

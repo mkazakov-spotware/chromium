@@ -1,11 +1,12 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_SYNC_GLUE_SYNCED_WINDOW_DELEGATE_ANDROID_H_
 #define CHROME_BROWSER_SYNC_GLUE_SYNCED_WINDOW_DELEGATE_ANDROID_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "components/sessions/core/session_id.h"
 #include "components/sync_sessions/synced_window_delegate.h"
 
@@ -20,11 +21,6 @@ namespace browser_sync {
 class SyncedWindowDelegateAndroid : public sync_sessions::SyncedWindowDelegate {
  public:
   SyncedWindowDelegateAndroid(TabModel* tab_model, bool is_tabbed_activity);
-
-  SyncedWindowDelegateAndroid(const SyncedWindowDelegateAndroid&) = delete;
-  SyncedWindowDelegateAndroid& operator=(const SyncedWindowDelegateAndroid&) =
-      delete;
-
   ~SyncedWindowDelegateAndroid() override;
 
   // sync_sessions::SyncedWindowDelegate implementation.
@@ -41,8 +37,10 @@ class SyncedWindowDelegateAndroid : public sync_sessions::SyncedWindowDelegate {
   bool ShouldSync() const override;
 
  private:
-  raw_ptr<TabModel> tab_model_;
+  TabModel* tab_model_;
   const bool is_tabbed_activity_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(SyncedWindowDelegateAndroid);
 };
 
 }  // namespace browser_sync

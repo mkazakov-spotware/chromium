@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,8 @@ import static android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO;
 import static android.view.View.IMPORTANT_FOR_ACCESSIBILITY_YES;
 
 import static androidx.test.espresso.Espresso.onView;
-import static androidx.test.espresso.action.ViewActions.clearText;
 import static androidx.test.espresso.action.ViewActions.click;
-import static androidx.test.espresso.action.ViewActions.typeText;
-import static androidx.test.espresso.action.ViewActions.typeTextIntoFocusedView;
+import static androidx.test.espresso.action.ViewActions.replaceText;
 import static androidx.test.espresso.assertion.PositionAssertions.isLeftAlignedWith;
 import static androidx.test.espresso.assertion.ViewAssertions.doesNotExist;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
@@ -21,6 +19,7 @@ import static androidx.test.espresso.matcher.ViewMatchers.assertThat;
 import static androidx.test.espresso.matcher.ViewMatchers.hasSibling;
 import static androidx.test.espresso.matcher.ViewMatchers.isChecked;
 import static androidx.test.espresso.matcher.ViewMatchers.isCompletelyDisplayed;
+import static androidx.test.espresso.matcher.ViewMatchers.isDescendantOfA;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.isEnabled;
 import static androidx.test.espresso.matcher.ViewMatchers.isNotChecked;
@@ -30,6 +29,7 @@ import static androidx.test.espresso.matcher.ViewMatchers.withTagValue;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
 import static org.hamcrest.CoreMatchers.allOf;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -46,7 +46,6 @@ import static org.chromium.chrome.browser.autofill_assistant.AutofillAssistantUi
 import static org.chromium.chrome.browser.autofill_assistant.AutofillAssistantUiTestUtil.waitUntilViewMatchesCondition;
 import static org.chromium.chrome.browser.autofill_assistant.AutofillAssistantUiTestUtil.withMinimumSize;
 import static org.chromium.chrome.browser.autofill_assistant.AutofillAssistantUiTestUtil.withTextGravity;
-import static org.chromium.chrome.browser.autofill_assistant.ProtoTestUtil.toCssSelector;
 
 import android.graphics.Typeface;
 import android.support.test.InstrumentationRegistry;
@@ -61,33 +60,30 @@ import androidx.test.filters.MediumTest;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
+import org.chromium.chrome.autofill_assistant.R;
+import org.chromium.chrome.browser.autofill_assistant.generic_ui.AssistantDimension;
 import org.chromium.chrome.browser.autofill_assistant.proto.ActionProto;
-import org.chromium.chrome.browser.autofill_assistant.proto.AutofillCreditCardProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.AutofillFormatProto;
-import org.chromium.chrome.browser.autofill_assistant.proto.AutofillProfileProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.BooleanAndProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.BooleanList;
 import org.chromium.chrome.browser.autofill_assistant.proto.BooleanNotProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.CallbackProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ChipProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ChipType;
-import org.chromium.chrome.browser.autofill_assistant.proto.ClearPersistentUiProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ClearViewContainerProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ClientDimensionProto;
-import org.chromium.chrome.browser.autofill_assistant.proto.ClientSettingsProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.CollectUserDataProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.CollectUserDataResultProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ColorProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ComputeValueProto;
+import org.chromium.chrome.browser.autofill_assistant.proto.CreateCreditCardResponseProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.CreateNestedGenericUiProto;
-import org.chromium.chrome.browser.autofill_assistant.proto.CreditCardList;
+import org.chromium.chrome.browser.autofill_assistant.proto.CreditCardResponseProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.DateFormatProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.DateList;
 import org.chromium.chrome.browser.autofill_assistant.proto.DateProto;
@@ -96,7 +92,6 @@ import org.chromium.chrome.browser.autofill_assistant.proto.DrawableProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ElementAreaProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ElementAreaProto.Rectangle;
 import org.chromium.chrome.browser.autofill_assistant.proto.ElementConditionProto;
-import org.chromium.chrome.browser.autofill_assistant.proto.Empty;
 import org.chromium.chrome.browser.autofill_assistant.proto.EndActionProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.EventProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ForEachProto;
@@ -109,19 +104,15 @@ import org.chromium.chrome.browser.autofill_assistant.proto.InteractionProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.InteractionsProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.LinearLayoutProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ModelProto;
-import org.chromium.chrome.browser.autofill_assistant.proto.ModelProto.ModelValue;
 import org.chromium.chrome.browser.autofill_assistant.proto.OnModelValueChangedEventProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.OnTextLinkClickedProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.OnUserActionCalled;
 import org.chromium.chrome.browser.autofill_assistant.proto.OnViewClickedEventProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ProcessedActionProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ProcessedActionStatusProto;
-import org.chromium.chrome.browser.autofill_assistant.proto.ProfileList;
 import org.chromium.chrome.browser.autofill_assistant.proto.PromptProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.SelectorProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.SetModelValueProto;
-import org.chromium.chrome.browser.autofill_assistant.proto.SetPersistentUiProto;
-import org.chromium.chrome.browser.autofill_assistant.proto.SetTextProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.SetUserActionsProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.SetViewEnabledProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.SetViewVisibilityProto;
@@ -145,8 +136,6 @@ import org.chromium.chrome.browser.autofill_assistant.proto.ToggleUserActionProt
 import org.chromium.chrome.browser.autofill_assistant.proto.UserActionList;
 import org.chromium.chrome.browser.autofill_assistant.proto.UserActionProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ValueComparisonProto;
-import org.chromium.chrome.browser.autofill_assistant.proto.ValueExpression;
-import org.chromium.chrome.browser.autofill_assistant.proto.ValueExpression.Chunk;
 import org.chromium.chrome.browser.autofill_assistant.proto.ValueProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ValueReferenceProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.VerticalExpanderAccordionProto;
@@ -158,9 +147,6 @@ import org.chromium.chrome.browser.autofill_assistant.proto.ViewProto;
 import org.chromium.chrome.browser.customtabs.CustomTabActivityTestRule;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.components.autofill_assistant.R;
-import org.chromium.components.autofill_assistant.generic_ui.AssistantDimension;
-import org.chromium.ui.test.util.UiDisableIf;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -173,22 +159,30 @@ import java.util.List;
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @RunWith(ChromeJUnit4ClassRunner.class)
 public class AutofillAssistantGenericUiTest {
-    private final CustomTabActivityTestRule mTestRule = new CustomTabActivityTestRule();
-
     @Rule
-    public final TestRule mRulesChain =
-            RuleChain.outerRule(mTestRule).around(new AutofillAssistantCustomTabTestRule(
-                    mTestRule, "autofill_assistant_target_website.html"));
+    public CustomTabActivityTestRule mTestRule = new CustomTabActivityTestRule();
 
     private AutofillAssistantCollectUserDataTestHelper mHelper;
 
+    private static final String TEST_PAGE = "/components/test/data/autofill_assistant/html/"
+            + "autofill_assistant_target_website.html";
+
     @Before
     public void setUp() throws Exception {
+        AutofillAssistantPreferencesUtil.setInitialPreferences(true);
+        mTestRule.startCustomTabActivityWithIntent(
+                AutofillAssistantUiTestUtil.createMinimalCustomTabIntentForAutobot(
+                        mTestRule.getTestServer().getURL(TEST_PAGE),
+                        /* startImmediately = */ true));
+        mTestRule.getActivity()
+                .getRootUiCoordinatorForTesting()
+                .getScrimCoordinator()
+                .disableAnimationForTesting(true);
         mHelper = new AutofillAssistantCollectUserDataTestHelper();
     }
 
     private ViewProto createTestImage(String resourceId, String identifier) {
-        return ViewProto.newBuilder()
+        return (ViewProto) ViewProto.newBuilder()
                 .setImageView(ImageViewProto.newBuilder().setImage(
                         DrawableProto.newBuilder().setResourceIdentifier(resourceId)))
                 .setLayoutParams(
@@ -201,7 +195,7 @@ public class AutofillAssistantGenericUiTest {
     }
 
     private ViewProto createTextView(String text, String identifier) {
-        return ViewProto.newBuilder()
+        return (ViewProto) ViewProto.newBuilder()
                 .setTextView(TextViewProto.newBuilder().setText(text).setTextAppearance(
                         "TextAppearance.TextMedium.Secondary"))
                 .setAttributes(ViewAttributesProto.newBuilder().setPaddingStart(24))
@@ -216,7 +210,7 @@ public class AutofillAssistantGenericUiTest {
 
     private ViewProto createRadioButtonView(ViewProto contentView, String radioGroup,
             String viewIdentifier, String modelIdentifier) {
-        return ViewProto.newBuilder()
+        return (ViewProto) ViewProto.newBuilder()
                 .setToggleButtonView(
                         ToggleButtonViewProto.newBuilder()
                                 .setRadioButton(ToggleButtonViewProto.RadioButton.newBuilder()
@@ -229,7 +223,7 @@ public class AutofillAssistantGenericUiTest {
 
     private ViewProto createCheckBoxView(
             String text, String viewIdentifier, String modelIdentifier) {
-        return ViewProto.newBuilder()
+        return (ViewProto) ViewProto.newBuilder()
                 .setToggleButtonView(
                         ToggleButtonViewProto.newBuilder()
                                 .setCheckBox(ToggleButtonViewProto.CheckBox.newBuilder())
@@ -241,7 +235,7 @@ public class AutofillAssistantGenericUiTest {
     }
 
     private ViewProto createSectionView(List<ViewProto> views, String identifier) {
-        return ViewProto.newBuilder()
+        return (ViewProto) ViewProto.newBuilder()
                 .setViewContainer(
                         ViewContainerProto.newBuilder()
                                 .setLinearLayout(LinearLayoutProto.newBuilder().setOrientation(
@@ -261,7 +255,7 @@ public class AutofillAssistantGenericUiTest {
     }
 
     private ViewProto createSectionDividerView(String identifier) {
-        return ViewProto.newBuilder()
+        return (ViewProto) ViewProto.newBuilder()
                 .setDividerView(DividerViewProto.newBuilder())
                 .setLayoutParams(
                         ViewLayoutParamsProto.newBuilder()
@@ -274,7 +268,7 @@ public class AutofillAssistantGenericUiTest {
     }
 
     private ViewProto createSimpleTextView(String identifier, String text) {
-        return ViewProto.newBuilder()
+        return (ViewProto) ViewProto.newBuilder()
                 .setIdentifier(identifier)
                 .setTextView(TextViewProto.newBuilder().setText(text))
                 .build();
@@ -282,15 +276,15 @@ public class AutofillAssistantGenericUiTest {
 
     // A simple view that takes its text from the provided model identifier.
     private ViewProto createTextModelView(String identifier, String modelIdentifier) {
-        return ViewProto.newBuilder()
+        return (ViewProto) ViewProto.newBuilder()
                 .setIdentifier(identifier)
                 .setTextView(TextViewProto.newBuilder().setModelIdentifier(modelIdentifier))
                 .build();
     }
 
-    private CallbackProto createAutofillToStringCallback(String inputModelIdentifier,
-            String resultModelIdentifier, ValueExpression.Builder valueExpression) {
-        return CallbackProto.newBuilder()
+    private CallbackProto createAutofillToStringCallback(
+            String inputModelIdentifier, String resultModelIdentifier, String autofillFormat) {
+        return (CallbackProto) CallbackProto.newBuilder()
                 .setComputeValue(
                         ComputeValueProto.newBuilder()
                                 .setResultModelIdentifier(resultModelIdentifier)
@@ -300,23 +294,26 @@ public class AutofillAssistantGenericUiTest {
                                                                   .setModelIdentifier(
                                                                           inputModelIdentifier))
                                                 .setAutofillFormat(
-                                                        AutofillFormatProto.newBuilder()
-                                                                .setValueExpression(
-                                                                        valueExpression))))
+                                                        AutofillFormatProto.newBuilder().setPattern(
+                                                                autofillFormat))))
                 .build();
     }
 
     private ValueReferenceProto createValueReference(String modelIdentifier) {
-        return ValueReferenceProto.newBuilder().setModelIdentifier(modelIdentifier).build();
+        return (ValueReferenceProto) ValueReferenceProto.newBuilder()
+                .setModelIdentifier(modelIdentifier)
+                .build();
     }
 
     private ValueReferenceProto createEmptyValue() {
-        return ValueReferenceProto.newBuilder().setValue(ValueProto.getDefaultInstance()).build();
+        return (ValueReferenceProto) ValueReferenceProto.newBuilder()
+                .setValue(ValueProto.getDefaultInstance())
+                .build();
     }
 
     private ValueComparisonProto createValueComparison(ValueReferenceProto valueA,
             ValueReferenceProto valueB, ValueComparisonProto.Mode mode) {
-        return ValueComparisonProto.newBuilder()
+        return (ValueComparisonProto) ValueComparisonProto.newBuilder()
                 .setMode(mode)
                 .setValueA(valueA)
                 .setValueB(valueB)
@@ -325,9 +322,11 @@ public class AutofillAssistantGenericUiTest {
 
     @Test
     @MediumTest
+    @DisabledTest(message = "crbug.com/1033877")
+    @DisableIf.Build(sdk_is_less_than = 21)
     public void testStaticUserInterface() {
         DrawableProto roundedRect =
-                DrawableProto.newBuilder()
+                (DrawableProto) DrawableProto.newBuilder()
                         .setShape(
                                 ShapeDrawableProto.newBuilder()
                                         .setRectangle(ShapeDrawableProto.Rectangle.newBuilder()
@@ -353,7 +352,7 @@ public class AutofillAssistantGenericUiTest {
                 Arrays.asList(cardImage, cardTextView, cardChevron), "cardSection");
 
         ViewProto rootView =
-                ViewProto.newBuilder()
+                (ViewProto) ViewProto.newBuilder()
                         .setAttributes(ViewAttributesProto.newBuilder().setBackground(roundedRect))
                         .setLayoutParams(
                                 ViewLayoutParamsProto.newBuilder()
@@ -374,7 +373,7 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setCollectUserData(
                                  CollectUserDataProto.newBuilder()
                                          .setGenericUserInterfacePrepended(
@@ -382,14 +381,15 @@ public class AutofillAssistantGenericUiTest {
                                                          rootView))
                                          .setRequestTermsAndConditions(false))
                          .build());
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setPrompt(PromptProto.newBuilder().setMessage("End").addChoices(
                                  PromptProto.Choice.newBuilder()))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -413,21 +413,22 @@ public class AutofillAssistantGenericUiTest {
 
     @Test
     @MediumTest
+    @DisableIf.Build(sdk_is_less_than = 21)
     @DisabledTest(message = "crbug.com/1087042")
     public void testOnViewClickedWriteToModel() {
-        ViewProto clickableView1 = ViewProto.newBuilder()
+        ViewProto clickableView1 = (ViewProto) ViewProto.newBuilder()
                                            .setTextView(TextViewProto.newBuilder().setText(
                                                    "Writes 'true' to output_1 when clicked"))
                                            .setIdentifier("clickableView1")
                                            .build();
-        ViewProto clickableView2 = ViewProto.newBuilder()
+        ViewProto clickableView2 = (ViewProto) ViewProto.newBuilder()
                                            .setTextView(TextViewProto.newBuilder().setText(
                                                    "Writes 'Hello World' to output_2 when clicked"))
                                            .setIdentifier("clickableView2")
                                            .build();
 
         ViewProto rootViewPrepended =
-                ViewProto.newBuilder()
+                (ViewProto) ViewProto.newBuilder()
                         .setViewContainer(
                                 ViewContainerProto.newBuilder()
                                         .setLinearLayout(
@@ -436,7 +437,7 @@ public class AutofillAssistantGenericUiTest {
                                         .addViews(clickableView1))
                         .build();
         ViewProto rootViewAppended =
-                ViewProto.newBuilder()
+                (ViewProto) ViewProto.newBuilder()
                         .setViewContainer(
                                 ViewContainerProto.newBuilder()
                                         .setLinearLayout(
@@ -447,7 +448,7 @@ public class AutofillAssistantGenericUiTest {
 
         List<InteractionProto> interactionsPrepended = new ArrayList<>();
         interactionsPrepended.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                 OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                         "clickableView1")))
@@ -461,7 +462,7 @@ public class AutofillAssistantGenericUiTest {
                         .build());
         List<InteractionProto> interactionsAppended = new ArrayList<>();
         interactionsAppended.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                 OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                         "clickableView2")))
@@ -484,7 +485,7 @@ public class AutofillAssistantGenericUiTest {
                                         .build());
 
         GenericUserInterfaceProto genericUserInterfacePrepended =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(rootViewPrepended)
                         .setInteractions(InteractionsProto.newBuilder().addAllInteractions(
                                 interactionsPrepended))
@@ -492,7 +493,7 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         GenericUserInterfaceProto genericUserInterfaceAppended =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(rootViewAppended)
                         .setInteractions(InteractionsProto.newBuilder().addAllInteractions(
                                 interactionsAppended))
@@ -500,18 +501,20 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
-                         .setCollectUserData(CollectUserDataProto.newBuilder()
-                                                     .setGenericUserInterfacePrepended(
-                                                             genericUserInterfacePrepended)
-                                                     .setGenericUserInterfaceAppended(
-                                                             genericUserInterfaceAppended)
-                                                     .setRequestTermsAndConditions(false))
+        list.add((ActionProto) ActionProto.newBuilder()
+                         .setCollectUserData(
+                                 CollectUserDataProto.newBuilder()
+                                         .setGenericUserInterfacePrepended(
+                                                 genericUserInterfacePrepended)
+                                         .setGenericUserInterfaceAppended(
+                                                 genericUserInterfaceAppended)
+                                         .setRequestTermsAndConditions(false))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -527,7 +530,7 @@ public class AutofillAssistantGenericUiTest {
         // Finish action, wait for response and prepare next set of actions.
         List<ActionProto> nextActions = new ArrayList<>();
         nextActions.add(
-                ActionProto.newBuilder()
+                (ActionProto) ActionProto.newBuilder()
                         .setPrompt(PromptProto.newBuilder()
                                            .setMessage("Finished")
                                            .addChoices(PromptProto.Choice.newBuilder().setChip(
@@ -563,16 +566,17 @@ public class AutofillAssistantGenericUiTest {
 
     @Test
     @MediumTest
+    @DisableIf.Build(sdk_is_less_than = 21)
     public void testCallbackChain() {
         ViewProto clickableView =
-                ViewProto.newBuilder()
+                (ViewProto) ViewProto.newBuilder()
                         .setTextView(TextViewProto.newBuilder().setText(
                                 "Writes 'Hello World' to output_1 and output_3 when clicked"))
                         .setIdentifier("clickableView")
                         .build();
 
         ViewProto rootView =
-                ViewProto.newBuilder()
+                (ViewProto) ViewProto.newBuilder()
                         .setViewContainer(
                                 ViewContainerProto.newBuilder()
                                         .setLinearLayout(
@@ -583,7 +587,7 @@ public class AutofillAssistantGenericUiTest {
 
         List<InteractionProto> interactions = new ArrayList<>();
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                 OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                         "clickableView")))
@@ -604,7 +608,7 @@ public class AutofillAssistantGenericUiTest {
                         .build());
         // Whenever output_1 changes, copy the value to output_2.
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "output_1")))
@@ -619,7 +623,7 @@ public class AutofillAssistantGenericUiTest {
         // Whenever output_2 changes, copy the value to output_1. This tests that no infinite loop
         // is created, because events should only be fired for actual value changes.
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "output_2")))
@@ -644,7 +648,7 @@ public class AutofillAssistantGenericUiTest {
                                 .build());
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setCollectUserData(
                                  CollectUserDataProto.newBuilder()
                                          .setGenericUserInterfacePrepended(
@@ -660,9 +664,10 @@ public class AutofillAssistantGenericUiTest {
                                          .setRequestTermsAndConditions(false))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -678,7 +683,7 @@ public class AutofillAssistantGenericUiTest {
         // Finish action, wait for response and prepare next set of actions.
         List<ActionProto> nextActions = new ArrayList<>();
         nextActions.add(
-                ActionProto.newBuilder()
+                (ActionProto) ActionProto.newBuilder()
                         .setPrompt(PromptProto.newBuilder()
                                            .setMessage("Finished")
                                            .addChoices(PromptProto.Choice.newBuilder().setChip(
@@ -720,15 +725,16 @@ public class AutofillAssistantGenericUiTest {
 
     @Test
     @MediumTest
+    @DisableIf.Build(sdk_is_less_than = 21)
     public void testShowInfoPopupOnClick() {
-        ViewProto clickableView = ViewProto.newBuilder()
+        ViewProto clickableView = (ViewProto) ViewProto.newBuilder()
                                           .setTextView(TextViewProto.newBuilder().setText(
                                                   "Shows an info popup when clicked"))
                                           .setIdentifier("clickableView")
                                           .build();
 
         ViewProto rootView =
-                ViewProto.newBuilder()
+                (ViewProto) ViewProto.newBuilder()
                         .setViewContainer(
                                 ViewContainerProto.newBuilder()
                                         .setLinearLayout(
@@ -738,7 +744,7 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         List<InteractionProto> interactions = new ArrayList<>();
-        interactions.add(InteractionProto.newBuilder()
+        interactions.add((InteractionProto) InteractionProto.newBuilder()
                                  .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                          OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                                  "clickableView")))
@@ -750,7 +756,7 @@ public class AutofillAssistantGenericUiTest {
                                  .build());
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setCollectUserData(
                                  CollectUserDataProto.newBuilder()
                                          .setGenericUserInterfacePrepended(
@@ -763,25 +769,15 @@ public class AutofillAssistantGenericUiTest {
                                          .setRequestTermsAndConditions(false))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
-        AutofillAssistantTestService testService = new AutofillAssistantTestService(
-                Collections.singletonList(script),
-                ClientSettingsProto.newBuilder()
-                        .setIntegrationTestSettings(
-                                ClientSettingsProto.IntegrationTestSettings.newBuilder()
-                                        .setDisableHeaderAnimations(true)
-                                        .setDisableCarouselChangeAnimations(true))
-                        .setDisplayStringsLocale("fr-FR")
-                        .addDisplayStrings(ClientSettingsProto.DisplayString.newBuilder()
-                                                   .setId(ClientSettingsProto.DisplayStringId.CLOSE)
-                                                   .setValue("fr_close")
-                                                   .build())
-                        .build());
+        AutofillAssistantTestService testService =
+                new AutofillAssistantTestService(Collections.singletonList(script));
         startAutofillAssistant(mTestRule.getActivity(), testService);
 
         waitUntilViewMatchesCondition(withText("Continue"), isCompletelyDisplayed());
@@ -789,15 +785,16 @@ public class AutofillAssistantGenericUiTest {
         onView(withText("Shows an info popup when clicked")).perform(click());
         onView(withText("Some title")).check(matches(isDisplayed()));
         onView(withText("Info message here")).check(matches(isDisplayed()));
-        onView(withText("fr_close")).perform(click());
+        onView(withText(mTestRule.getActivity().getString(R.string.close))).perform(click());
     }
 
     @Test
     @MediumTest
+    @DisableIf.Build(sdk_is_less_than = 21)
     public void testListPopup() {
         List<InteractionProto> interactions = new ArrayList<>();
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "chips")))
@@ -806,7 +803,7 @@ public class AutofillAssistantGenericUiTest {
                                         ValueReferenceProto.newBuilder().setModelIdentifier(
                                                 "chips"))))
                         .build());
-        interactions.add(InteractionProto.newBuilder()
+        interactions.add((InteractionProto) InteractionProto.newBuilder()
                                  .addTriggerEvent(EventProto.newBuilder().setOnUserActionCalled(
                                          OnUserActionCalled.newBuilder().setUserActionIdentifier(
                                                  "done_chip")))
@@ -815,7 +812,7 @@ public class AutofillAssistantGenericUiTest {
                                                  ProcessedActionStatusProto.ACTION_APPLIED)))
                                  .build());
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                 OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                         "clickableView")))
@@ -853,7 +850,7 @@ public class AutofillAssistantGenericUiTest {
                                 .build());
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(ViewProto.newBuilder()
                                              .setTextView(TextViewProto.newBuilder().setText(
                                                      "Shows a list popup when clicked"))
@@ -864,7 +861,7 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(
                                  ShowGenericUiProto.newBuilder()
                                          .setGenericUserInterface(genericUserInterface)
@@ -872,9 +869,10 @@ public class AutofillAssistantGenericUiTest {
                                                  "selected_items_indices", "selected_item_names")))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -914,20 +912,21 @@ public class AutofillAssistantGenericUiTest {
 
     @Test
     @MediumTest
+    @DisableIf.Build(sdk_is_less_than = 21)
     public void testMandatoryFields() {
-        ViewProto clickableView1 = ViewProto.newBuilder()
+        ViewProto clickableView1 = (ViewProto) ViewProto.newBuilder()
                                            .setTextView(TextViewProto.newBuilder().setText(
                                                    "Writes 'true' to output1 when clicked"))
                                            .setIdentifier("clickableView1")
                                            .build();
-        ViewProto clickableView2 = ViewProto.newBuilder()
+        ViewProto clickableView2 = (ViewProto) ViewProto.newBuilder()
                                            .setTextView(TextViewProto.newBuilder().setText(
                                                    "Writes 'true' to output2 when clicked"))
                                            .setIdentifier("clickableView2")
                                            .build();
 
         ViewProto rootView =
-                ViewProto.newBuilder()
+                (ViewProto) ViewProto.newBuilder()
                         .setViewContainer(
                                 ViewContainerProto.newBuilder()
                                         .setLinearLayout(
@@ -939,7 +938,7 @@ public class AutofillAssistantGenericUiTest {
 
         List<InteractionProto> interactions = new ArrayList<>();
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                 OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                         "clickableView1")))
@@ -952,7 +951,7 @@ public class AutofillAssistantGenericUiTest {
                                                                 true))))))
                         .build());
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                 OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                         "clickableView2")))
@@ -965,7 +964,7 @@ public class AutofillAssistantGenericUiTest {
                                                                 true))))))
                         .build());
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "output1")))
@@ -992,7 +991,7 @@ public class AutofillAssistantGenericUiTest {
                                 .build());
 
         GenericUserInterfaceProto genericUserInterfacePrepended =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(rootView)
                         .setInteractions(
                                 InteractionsProto.newBuilder().addAllInteractions(interactions))
@@ -1001,14 +1000,14 @@ public class AutofillAssistantGenericUiTest {
 
         ArrayList<ActionProto> list = new ArrayList<>();
         list.add(
-                ActionProto.newBuilder()
+                (ActionProto) ActionProto.newBuilder()
                         .setCollectUserData(CollectUserDataProto.newBuilder()
                                                     .setGenericUserInterfacePrepended(
                                                             genericUserInterfacePrepended)
                                                     .setAdditionalModelIdentifierToCheck("combined")
                                                     .setRequestTermsAndConditions(false))
                         .build());
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setPrompt(PromptProto.newBuilder()
                                             .setMessage("Finished")
                                             .addChoices(PromptProto.Choice.newBuilder().setChip(
@@ -1017,9 +1016,10 @@ public class AutofillAssistantGenericUiTest {
                                                             .setText("End"))))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -1048,7 +1048,7 @@ public class AutofillAssistantGenericUiTest {
     public void testGenericUiChipsEndAction() {
         List<InteractionProto> interactions = new ArrayList<>();
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "chips")))
@@ -1057,7 +1057,7 @@ public class AutofillAssistantGenericUiTest {
                                         ValueReferenceProto.newBuilder().setModelIdentifier(
                                                 "chips"))))
                         .build());
-        interactions.add(InteractionProto.newBuilder()
+        interactions.add((InteractionProto) InteractionProto.newBuilder()
                                  .addTriggerEvent(EventProto.newBuilder().setOnUserActionCalled(
                                          OnUserActionCalled.newBuilder().setUserActionIdentifier(
                                                  "done_chip")))
@@ -1085,22 +1085,23 @@ public class AutofillAssistantGenericUiTest {
                         .build());
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setInteractions(
                                 InteractionsProto.newBuilder().addAllInteractions(interactions))
                         .setModel(ModelProto.newBuilder().addAllValues(modelValues))
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder()
                                                    .setGenericUserInterface(genericUserInterface)
                                                    .addOutputModelIdentifiers("value_a"))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -1158,7 +1159,7 @@ public class AutofillAssistantGenericUiTest {
 
         List<InteractionProto> interactions = new ArrayList<>();
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "chips")))
@@ -1167,7 +1168,7 @@ public class AutofillAssistantGenericUiTest {
                                         ValueReferenceProto.newBuilder().setModelIdentifier(
                                                 "chips"))))
                         .build());
-        interactions.add(InteractionProto.newBuilder()
+        interactions.add((InteractionProto) InteractionProto.newBuilder()
                                  .addTriggerEvent(EventProto.newBuilder().setOnUserActionCalled(
                                          OnUserActionCalled.newBuilder().setUserActionIdentifier(
                                                  "done_chip")))
@@ -1176,7 +1177,7 @@ public class AutofillAssistantGenericUiTest {
                                                  ProcessedActionStatusProto.ACTION_APPLIED)))
                                  .build());
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                 OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                         "text_view")))
@@ -1199,7 +1200,7 @@ public class AutofillAssistantGenericUiTest {
                                                                         .setDay(31)))))))
                         .build());
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "date")))
@@ -1218,7 +1219,7 @@ public class AutofillAssistantGenericUiTest {
                         .build());
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(
                                 ViewProto.newBuilder()
                                         .setIdentifier("text_view")
@@ -1233,15 +1234,16 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder()
                                                    .setGenericUserInterface(genericUserInterface)
                                                    .addOutputModelIdentifiers("date"))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -1298,7 +1300,7 @@ public class AutofillAssistantGenericUiTest {
     @MediumTest
     public void testContentDescription() {
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(ViewProto.newBuilder().setViewContainer(
                                 ViewContainerProto.newBuilder()
                                         .setLinearLayout(
@@ -1327,14 +1329,15 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder().setGenericUserInterface(
                                  genericUserInterface))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -1359,7 +1362,7 @@ public class AutofillAssistantGenericUiTest {
     public void testGenericUiDisableChips() {
         List<InteractionProto> interactions = new ArrayList<>();
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "chips")))
@@ -1369,7 +1372,7 @@ public class AutofillAssistantGenericUiTest {
                                                 "chips"))))
                         .build());
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "enabled")))
@@ -1382,7 +1385,7 @@ public class AutofillAssistantGenericUiTest {
                                         .setUserActionIdentifier("done_chip")))
                         .build());
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                 OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                         "text_view")))
@@ -1413,7 +1416,7 @@ public class AutofillAssistantGenericUiTest {
                                 .build());
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(createTextView("Click me to toggle the chip", "text_view"))
                         .setInteractions(
                                 InteractionsProto.newBuilder().addAllInteractions(interactions))
@@ -1421,14 +1424,15 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder().setGenericUserInterface(
                                  genericUserInterface))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -1458,7 +1462,7 @@ public class AutofillAssistantGenericUiTest {
                                                         IntList.newBuilder().addValues(1)))
                                                 .build();
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                 OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                         "text_view")))
@@ -1483,7 +1487,7 @@ public class AutofillAssistantGenericUiTest {
                                                      IntList.newBuilder().addValues(3)))
                                              .build();
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "counter")))
@@ -1508,7 +1512,7 @@ public class AutofillAssistantGenericUiTest {
                                 .build());
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(createTextView("Click me three+ times", "text_view"))
                         .setInteractions(
                                 InteractionsProto.newBuilder().addAllInteractions(interactions))
@@ -1516,14 +1520,15 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder().setGenericUserInterface(
                                  genericUserInterface))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -1548,7 +1553,7 @@ public class AutofillAssistantGenericUiTest {
     public void testViewVisibility() {
         List<InteractionProto> interactions = new ArrayList<>();
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                 OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                         "toggle_view")))
@@ -1560,7 +1565,7 @@ public class AutofillAssistantGenericUiTest {
                                                         "visible")))))
                         .build());
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "visible")))
@@ -1581,7 +1586,7 @@ public class AutofillAssistantGenericUiTest {
                                 .build());
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(ViewProto.newBuilder().setViewContainer(
                                 ViewContainerProto.newBuilder()
                                         .setLinearLayout(
@@ -1605,14 +1610,15 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder().setGenericUserInterface(
                                  genericUserInterface))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -1656,7 +1662,7 @@ public class AutofillAssistantGenericUiTest {
 
         List<InteractionProto> interactions = new ArrayList<>();
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "chips")))
@@ -1665,7 +1671,7 @@ public class AutofillAssistantGenericUiTest {
                                         ValueReferenceProto.newBuilder().setModelIdentifier(
                                                 "chips"))))
                         .build());
-        interactions.add(InteractionProto.newBuilder()
+        interactions.add((InteractionProto) InteractionProto.newBuilder()
                                  .addTriggerEvent(EventProto.newBuilder().setOnUserActionCalled(
                                          OnUserActionCalled.newBuilder().setUserActionIdentifier(
                                                  "done_chip")))
@@ -1675,36 +1681,31 @@ public class AutofillAssistantGenericUiTest {
                                  .build());
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
-                        .setRootView(
-                                ViewProto.newBuilder()
-                                        .setIdentifier("text_view")
-                                        .setLayoutParams(
-                                                ViewLayoutParamsProto.newBuilder().setLayoutWidth(
-                                                        ViewLayoutParamsProto.Size
-                                                                .MATCH_PARENT_VALUE))
-                                        .setTextInputView(
-                                                TextInputViewProto.newBuilder()
-                                                        .setHint("Type here")
-                                                        .setType(TextInputViewProto.InputTypeHint
-                                                                         .NONE)
-                                                        .setModelIdentifier("text_value")
-                                                        .setFocusAndShowKeyboard(true)))
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
+                        .setRootView(ViewProto.newBuilder()
+                                             .setIdentifier("text_view")
+                                             .setTextInputView(
+                                                     TextInputViewProto.newBuilder()
+                                                             .setHint("Type here")
+                                                             .setType(TextInputViewProto
+                                                                              .InputTypeHint.NONE)
+                                                             .setModelIdentifier("text_value")))
                         .setInteractions(
                                 InteractionsProto.newBuilder().addAllInteractions(interactions))
                         .setModel(ModelProto.newBuilder().addAllValues(modelValues))
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder()
                                                    .setGenericUserInterface(genericUserInterface)
                                                    .addOutputModelIdentifiers("text_value"))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -1713,14 +1714,10 @@ public class AutofillAssistantGenericUiTest {
         startAutofillAssistant(mTestRule.getActivity(), testService);
 
         waitUntilViewMatchesCondition(withContentDescription("Type here"), isCompletelyDisplayed());
-        // Verify that the text input view is focused.
-        // Ideally, we should also check for keyboard being open but Espresso does not show keyboard
-        // on focus or click.
-        onView(withContentDescription("Type here")).perform(typeTextIntoFocusedView("test 1"));
-        waitUntilViewMatchesCondition(withText("test 1"), isDisplayed());
-        onView(withContentDescription("Type here")).perform(clearText());
-        onView(withContentDescription("Type here")).perform(typeText("test 2"));
-        waitUntilViewMatchesCondition(withText("test 2"), isDisplayed());
+        onView(withContentDescription("Type here")).perform(replaceText("test 1"));
+        onView(withText("test 1")).check(matches(isDisplayed()));
+        onView(withContentDescription("Type here")).perform(replaceText("test 2"));
+        onView(withText("test 2")).check(matches(isDisplayed()));
 
         int numNextActionsCalled = testService.getNextActionsCounter();
         onView(withContentDescription("Done")).perform(click());
@@ -1754,7 +1751,7 @@ public class AutofillAssistantGenericUiTest {
 
         List<InteractionProto> interactions = new ArrayList<>();
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnTextLinkClicked(
                                 OnTextLinkClickedProto.newBuilder().setTextLink(1)))
                         .addCallbacks(CallbackProto.newBuilder().setSetValue(
@@ -1769,7 +1766,7 @@ public class AutofillAssistantGenericUiTest {
                         .build());
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(ViewProto.newBuilder().setViewContainer(
                                 ViewContainerProto.newBuilder()
                                         .setLinearLayout(
@@ -1790,15 +1787,16 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder()
                                                    .setGenericUserInterface(genericUserInterface)
                                                    .addOutputModelIdentifiers("text_link_clicked"))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -1840,7 +1838,7 @@ public class AutofillAssistantGenericUiTest {
     public void testVerticalExpanders() {
         // Regular expander, can expand and collapse.
         ViewProto expanderA =
-                ViewProto.newBuilder()
+                (ViewProto) ViewProto.newBuilder()
                         .setVerticalExpanderView(
                                 VerticalExpanderViewProto.newBuilder()
                                         .setTitleView(ViewProto.newBuilder().setTextView(
@@ -1857,7 +1855,7 @@ public class AutofillAssistantGenericUiTest {
         // Only title+collapsed, can not expand (similar to date/time sections in current
         // CollectUserData action).
         ViewProto expanderB =
-                ViewProto.newBuilder()
+                (ViewProto) ViewProto.newBuilder()
                         .setVerticalExpanderView(
                                 VerticalExpanderViewProto.newBuilder()
                                         .setTitleView(ViewProto.newBuilder().setTextView(
@@ -1872,7 +1870,7 @@ public class AutofillAssistantGenericUiTest {
 
         // Regular expander, can expand and collapse.
         ViewProto expanderC =
-                ViewProto.newBuilder()
+                (ViewProto) ViewProto.newBuilder()
                         .setVerticalExpanderView(
                                 VerticalExpanderViewProto.newBuilder()
                                         .setTitleView(ViewProto.newBuilder().setTextView(
@@ -1887,7 +1885,7 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(ViewProto.newBuilder().setViewContainer(
                                 ViewContainerProto.newBuilder()
                                         .setExpanderAccordion(
@@ -1901,14 +1899,15 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder().setGenericUserInterface(
                                  genericUserInterface))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -2001,7 +2000,7 @@ public class AutofillAssistantGenericUiTest {
         // The only explicit interaction is for the chips. All others are defined implicitly.
         List<InteractionProto> interactions = new ArrayList<>();
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "chips")))
@@ -2010,7 +2009,7 @@ public class AutofillAssistantGenericUiTest {
                                         ValueReferenceProto.newBuilder().setModelIdentifier(
                                                 "chips"))))
                         .build());
-        interactions.add(InteractionProto.newBuilder()
+        interactions.add((InteractionProto) InteractionProto.newBuilder()
                                  .addTriggerEvent(EventProto.newBuilder().setOnUserActionCalled(
                                          OnUserActionCalled.newBuilder().setUserActionIdentifier(
                                                  "done_chip")))
@@ -2021,7 +2020,7 @@ public class AutofillAssistantGenericUiTest {
 
         // Shows two groups of two radio buttons each, as well as a final checkbox.
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(ViewProto.newBuilder().setViewContainer(
                                 ViewContainerProto.newBuilder()
                                         .setLinearLayout(
@@ -2054,7 +2053,7 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder()
                                                    .setGenericUserInterface(genericUserInterface)
                                                    .addAllOutputModelIdentifiers(Arrays.asList(
@@ -2063,9 +2062,10 @@ public class AutofillAssistantGenericUiTest {
                                                            "option_e_toggled", "option_f_toggled")))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -2159,7 +2159,7 @@ public class AutofillAssistantGenericUiTest {
     public void testEnableDisableView() {
         List<InteractionProto> interactions = new ArrayList<>();
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                 OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                         "toggle_view")))
@@ -2171,7 +2171,7 @@ public class AutofillAssistantGenericUiTest {
                                                         "enabled")))))
                         .build());
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "enabled")))
@@ -2192,7 +2192,7 @@ public class AutofillAssistantGenericUiTest {
                                 .build());
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(ViewProto.newBuilder().setViewContainer(
                                 ViewContainerProto.newBuilder()
                                         .setLinearLayout(
@@ -2216,14 +2216,15 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder().setGenericUserInterface(
                                  genericUserInterface))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -2250,7 +2251,7 @@ public class AutofillAssistantGenericUiTest {
     public void testMultipleActions() {
         List<InteractionProto> interactionsA = new ArrayList<>();
         interactionsA.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "chips")))
@@ -2259,7 +2260,7 @@ public class AutofillAssistantGenericUiTest {
                                         ValueReferenceProto.newBuilder().setModelIdentifier(
                                                 "chips"))))
                         .build());
-        interactionsA.add(InteractionProto.newBuilder()
+        interactionsA.add((InteractionProto) InteractionProto.newBuilder()
                                   .addTriggerEvent(EventProto.newBuilder().setOnUserActionCalled(
                                           OnUserActionCalled.newBuilder().setUserActionIdentifier(
                                                   "shared_identifier")))
@@ -2282,7 +2283,7 @@ public class AutofillAssistantGenericUiTest {
                         .build());
 
         GenericUserInterfaceProto genericUserInterfaceA =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setModel(ModelProto.newBuilder().addAllValues(modelValuesA))
                         .setInteractions(
                                 InteractionsProto.newBuilder().addAllInteractions(interactionsA))
@@ -2293,7 +2294,7 @@ public class AutofillAssistantGenericUiTest {
         // correctly, and the EndAction interaction defined there no longer exists.
         List<InteractionProto> interactionsB = new ArrayList<>();
         interactionsB.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "chips")))
@@ -2302,7 +2303,7 @@ public class AutofillAssistantGenericUiTest {
                                         ValueReferenceProto.newBuilder().setModelIdentifier(
                                                 "chips"))))
                         .build());
-        interactionsB.add(InteractionProto.newBuilder()
+        interactionsB.add((InteractionProto) InteractionProto.newBuilder()
                                   .addTriggerEvent(EventProto.newBuilder().setOnUserActionCalled(
                                           OnUserActionCalled.newBuilder().setUserActionIdentifier(
                                                   "shared_identifier")))
@@ -2327,25 +2328,26 @@ public class AutofillAssistantGenericUiTest {
                         .build());
 
         GenericUserInterfaceProto genericUserInterfaceB =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setModel(ModelProto.newBuilder().addAllValues(modelValuesB))
                         .setInteractions(
                                 InteractionsProto.newBuilder().addAllInteractions(interactionsB))
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder().setGenericUserInterface(
                                  genericUserInterfaceA))
                          .build());
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder().setGenericUserInterface(
                                  genericUserInterfaceB))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -2367,14 +2369,15 @@ public class AutofillAssistantGenericUiTest {
     @Test
     @MediumTest
     public void testNestedGenericPopups() {
-        ValueReferenceProto counterValue =
-                ValueReferenceProto.newBuilder().setModelIdentifier("counter").build();
-        ValueReferenceProto incrementValue = ValueReferenceProto.newBuilder()
+        ValueReferenceProto counterValue = (ValueReferenceProto) ValueReferenceProto.newBuilder()
+                                                   .setModelIdentifier("counter")
+                                                   .build();
+        ValueReferenceProto incrementValue = (ValueReferenceProto) ValueReferenceProto.newBuilder()
                                                      .setValue(ValueProto.newBuilder().setInts(
                                                              IntList.newBuilder().addValues(1)))
                                                      .build();
         CallbackProto incrementCounterCallback =
-                CallbackProto.newBuilder()
+                (CallbackProto) CallbackProto.newBuilder()
                         .setComputeValue(ComputeValueProto.newBuilder()
                                                  .setResultModelIdentifier("counter")
                                                  .setIntegerSum(IntegerSumProto.newBuilder()
@@ -2385,14 +2388,14 @@ public class AutofillAssistantGenericUiTest {
         // Clicking |nested_text_view| will increment |counter| by 1.
         List<InteractionProto> interactions_nested = new ArrayList<>();
         interactions_nested.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                 OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                         "nested_text_view")))
                         .addCallbacks(incrementCounterCallback)
                         .build());
         GenericUserInterfaceProto nestedUi =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(createTextView("click me (nested)", "nested_text_view"))
                         .setInteractions(InteractionsProto.newBuilder().addAllInteractions(
                                 interactions_nested))
@@ -2400,7 +2403,7 @@ public class AutofillAssistantGenericUiTest {
 
         // Clicking |root_text_view| will increment |counter| by 1 and open a nested popup.
         List<InteractionProto> interactions = new ArrayList<>();
-        interactions.add(InteractionProto.newBuilder()
+        interactions.add((InteractionProto) InteractionProto.newBuilder()
                                  .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                          OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                                  "root_text_view")))
@@ -2411,7 +2414,7 @@ public class AutofillAssistantGenericUiTest {
                                                  .setGenericUi(nestedUi)))
                                  .build());
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "chips")))
@@ -2420,7 +2423,7 @@ public class AutofillAssistantGenericUiTest {
                                         ValueReferenceProto.newBuilder().setModelIdentifier(
                                                 "chips"))))
                         .build());
-        interactions.add(InteractionProto.newBuilder()
+        interactions.add((InteractionProto) InteractionProto.newBuilder()
                                  .addTriggerEvent(EventProto.newBuilder().setOnUserActionCalled(
                                          OnUserActionCalled.newBuilder().setUserActionIdentifier(
                                                  "done_chip")))
@@ -2448,7 +2451,7 @@ public class AutofillAssistantGenericUiTest {
                         .build());
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(ViewProto.newBuilder()
                                              .setIdentifier("root_text_view")
                                              .setTextView(TextViewProto.newBuilder().setText(
@@ -2459,15 +2462,16 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder()
                                                    .setGenericUserInterface(genericUserInterface)
                                                    .addOutputModelIdentifiers("counter"))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -2512,13 +2516,13 @@ public class AutofillAssistantGenericUiTest {
     @MediumTest
     public void testTextAlignment() {
         ViewProto defaultAlignedView =
-                ViewProto.newBuilder()
+                (ViewProto) ViewProto.newBuilder()
                         .setLayoutParams(ViewLayoutParamsProto.newBuilder().setLayoutWidth(
                                 ViewLayoutParamsProto.Size.MATCH_PARENT_VALUE))
                         .setTextView(TextViewProto.newBuilder().setText("default-aligned text"))
                         .build();
         ViewProto centerAlignedView =
-                ViewProto.newBuilder()
+                (ViewProto) ViewProto.newBuilder()
                         .setLayoutParams(ViewLayoutParamsProto.newBuilder().setLayoutWidth(
                                 ViewLayoutParamsProto.Size.MATCH_PARENT_VALUE))
                         .setTextView(TextViewProto.newBuilder()
@@ -2528,7 +2532,7 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(
                                 ViewProto.newBuilder()
                                         .setLayoutParams(
@@ -2548,14 +2552,15 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder().setGenericUserInterface(
                                  genericUserInterface))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -2576,7 +2581,7 @@ public class AutofillAssistantGenericUiTest {
     @MediumTest
     public void testCreateNestedUi() {
         GenericUserInterfaceProto nestedUi =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(
                                 ViewProto.newBuilder()
                                         .setIdentifier("nested_text_view")
@@ -2586,7 +2591,7 @@ public class AutofillAssistantGenericUiTest {
 
         List<InteractionProto> interactions = new ArrayList<>();
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                 OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                         "text_view_create_nested_on_click")))
@@ -2603,7 +2608,7 @@ public class AutofillAssistantGenericUiTest {
                                                         StringList.newBuilder().addValues(
                                                                 "Hello World"))))))
                         .build());
-        interactions.add(InteractionProto.newBuilder()
+        interactions.add((InteractionProto) InteractionProto.newBuilder()
                                  .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                          OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                                  "text_view_delete_nested_on_click")))
@@ -2613,14 +2618,14 @@ public class AutofillAssistantGenericUiTest {
                                  .build());
 
         ViewProto nestedUiContainer =
-                ViewProto.newBuilder()
+                (ViewProto) ViewProto.newBuilder()
                         .setIdentifier("nested_ui_container")
                         .setViewContainer(ViewContainerProto.newBuilder().setLinearLayout(
                                 LinearLayoutProto.newBuilder().setOrientation(
                                         LinearLayoutProto.Orientation.VERTICAL)))
                         .build();
         ViewProto rootView =
-                ViewProto.newBuilder()
+                (ViewProto) ViewProto.newBuilder()
                         .setViewContainer(
                                 ViewContainerProto.newBuilder()
                                         .setLinearLayout(
@@ -2636,21 +2641,22 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(rootView)
                         .setInteractions(
                                 InteractionsProto.newBuilder().addAllInteractions(interactions))
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder().setGenericUserInterface(
                                  genericUserInterface))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -2676,13 +2682,12 @@ public class AutofillAssistantGenericUiTest {
      */
     @Test
     @MediumTest
-    @DisableIf.Device(type = {UiDisableIf.TABLET}) // https://crbug.com/1350993
     public void testElementCondition() throws Exception {
         List<InteractionProto> interactions = new ArrayList<>();
 
         // When touch_area_one_present becomes false, end the action
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "touch_area_one_present")))
@@ -2694,7 +2699,7 @@ public class AutofillAssistantGenericUiTest {
                                         .setResultModelIdentifier("end_action")))
                         .build());
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
                                 OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
                                         "end_action")))
@@ -2705,7 +2710,7 @@ public class AutofillAssistantGenericUiTest {
                         .build());
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(
                                 ViewProto.newBuilder()
                                         .setTextView(TextViewProto.newBuilder().setText("Text"))
@@ -2715,10 +2720,14 @@ public class AutofillAssistantGenericUiTest {
                         .setModel(ModelProto.newBuilder())
                         .build();
 
-        SelectorProto touch_area_one = toCssSelector("#touch_area_one");
+        SelectorProto touch_area_one =
+                (SelectorProto) SelectorProto.newBuilder()
+                        .addFilters(
+                                SelectorProto.Filter.newBuilder().setCssSelector("#touch_area_one"))
+                        .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowCast(ShowCastProto.newBuilder()
                                               .setElementToPresent(touch_area_one)
                                               .setTouchableElementArea(
@@ -2735,7 +2744,7 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         list.add(
-                ActionProto.newBuilder()
+                (ActionProto) ActionProto.newBuilder()
                         .setShowGenericUi(
                                 ShowGenericUiProto.newBuilder()
                                         .setGenericUserInterface(genericUserInterface)
@@ -2744,15 +2753,16 @@ public class AutofillAssistantGenericUiTest {
                                                         touch_area_one_present)))
                         .build());
 
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setPrompt(PromptProto.newBuilder().setMessage("Prompt").addChoices(
                                  PromptProto.Choice.newBuilder()))
                          .build());
 
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -2776,7 +2786,7 @@ public class AutofillAssistantGenericUiTest {
         // value to result_i, and then ends the action.
         List<InteractionProto> interactions = new ArrayList<>();
         interactions.add(
-                InteractionProto.newBuilder()
+                (InteractionProto) InteractionProto.newBuilder()
                         .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                 OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                         "clickable_view")))
@@ -2812,7 +2822,7 @@ public class AutofillAssistantGenericUiTest {
                                 .build());
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(ViewProto.newBuilder()
                                              .setIdentifier("clickable_view")
                                              .setTextView(TextViewProto.newBuilder().setText(
@@ -2823,16 +2833,17 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(ShowGenericUiProto.newBuilder()
                                                    .setGenericUserInterface(genericUserInterface)
                                                    .addAllOutputModelIdentifiers(Arrays.asList(
                                                            "result_0", "result_1", "result_2")))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -2894,7 +2905,7 @@ public class AutofillAssistantGenericUiTest {
         // result_2_2 = third
         //
         CallbackProto nestedForEach =
-                CallbackProto.newBuilder()
+                (CallbackProto) CallbackProto.newBuilder()
                         .setForEach(ForEachProto.newBuilder()
                                             .setLoopCounter("j")
                                             .setLoopValueModelIdentifier("loop_value")
@@ -2906,7 +2917,7 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         List<InteractionProto> interactions = new ArrayList<>();
-        interactions.add(InteractionProto.newBuilder()
+        interactions.add((InteractionProto) InteractionProto.newBuilder()
                                  .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
                                          OnViewClickedEventProto.newBuilder().setViewIdentifier(
                                                  "clickable_view")))
@@ -2940,7 +2951,7 @@ public class AutofillAssistantGenericUiTest {
         }
 
         GenericUserInterfaceProto genericUserInterface =
-                GenericUserInterfaceProto.newBuilder()
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
                         .setRootView(ViewProto.newBuilder()
                                              .setIdentifier("clickable_view")
                                              .setTextView(TextViewProto.newBuilder().setText(
@@ -2951,16 +2962,17 @@ public class AutofillAssistantGenericUiTest {
                         .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setShowGenericUi(
                                  ShowGenericUiProto.newBuilder()
                                          .setGenericUserInterface(genericUserInterface)
                                          .addAllOutputModelIdentifiers(outputModelIdentifiers))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
 
@@ -2996,302 +3008,314 @@ public class AutofillAssistantGenericUiTest {
         assertThat(resultModelValues, containsInAnyOrder(expectedResultValues.toArray()));
     }
 
+    /**
+     * Shows a simple UI (one view per credit card).
+     */
     @Test
     @MediumTest
-    public void testSetPersistentUi() {
-        ViewProto rootView =
-                ViewProto.newBuilder()
-                        .setTextView(TextViewProto.newBuilder().setText("initial text"))
-                        .setIdentifier("clickableView")
+    @DisabledTest(message = "https://crbug.com/1102828")
+    public void testCreditCardUi() throws Exception {
+        // When the toggle button becomes checked, we write the current card to
+        // |selected_credit_card|.
+        List<InteractionProto> singleCardInteractions = new ArrayList<>();
+        singleCardInteractions.add(
+                (InteractionProto) InteractionProto.newBuilder()
+                        .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
+                                OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
+                                        "credit_card_selected_${i}")))
+                        .addCallbacks(
+                                CallbackProto.newBuilder()
+                                        .setConditionModelIdentifier("credit_card_selected_${i}")
+                                        .setSetValue(
+                                                SetModelValueProto.newBuilder()
+                                                        .setModelIdentifier("selected_credit_card")
+                                                        .setValue(createValueReference(
+                                                                "credit_cards[${i}]"))))
+                        .build());
+
+        // For each credit card, a simple UI containing the name and the obfuscated number is
+        // created.
+        GenericUserInterfaceProto singleCardUi =
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
+                        .setRootView(createRadioButtonView(
+                                (ViewProto) ViewProto.newBuilder()
+                                        .setViewContainer(
+                                                ViewContainerProto.newBuilder()
+                                                        .setLinearLayout(
+                                                                LinearLayoutProto.newBuilder()
+                                                                        .setOrientation(
+                                                                                LinearLayoutProto
+                                                                                        .Orientation
+                                                                                        .VERTICAL))
+                                                        .addViews(createTextModelView(
+                                                                "card_holder_name_view_${i}",
+                                                                "card_holder_name_${i}"))
+                                                        .addViews(createTextModelView(
+                                                                "obfuscated_number_view_${i}",
+                                                                "obfuscated_number_${i}")))
+                                        .build(),
+                                "credit_cards", "credit_card_view_${i}",
+                                "credit_card_selected_${i}"))
+                        .setInteractions(InteractionsProto.newBuilder().addAllInteractions(
+                                singleCardInteractions))
+
                         .build();
 
+        // Every time |credit_cards| changes, we:
+        // - clear any previous card views
+        // - store previously selected card in 'previously_selected_card'
+        // - clear currently selected credit card
+        // - compute |card_holder_name_${i}| and |obfuscated_number_${i}|
+        // - re-create card UI
+        // - try to re-select the previously selected card
         List<InteractionProto> interactions = new ArrayList<>();
-        interactions.add(InteractionProto.newBuilder()
-                                 .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
-                                         OnViewClickedEventProto.newBuilder().setViewIdentifier(
-                                                 "clickableView")))
-                                 .addCallbacks(CallbackProto.newBuilder().setSetText(
-                                         SetTextProto.newBuilder()
-                                                 .setText(ValueReferenceProto.newBuilder().setValue(
-                                                         ValueProto.newBuilder().setStrings(
-                                                                 StringList.newBuilder().addValues(
-                                                                         "changed text"))))
-                                                 .setViewIdentifier("clickableView")))
+        interactions.add(
+                (InteractionProto) InteractionProto.newBuilder()
+                        .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
+                                OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
+                                        "credit_cards")))
+                        .addCallbacks(CallbackProto.newBuilder().setClearViewContainer(
+                                ClearViewContainerProto.newBuilder().setViewIdentifier(
+                                        "credit_card_container_view")))
+                        .addCallbacks(CallbackProto.newBuilder().setSetValue(
+                                SetModelValueProto.newBuilder()
+                                        .setModelIdentifier("previously_selected_card")
+                                        .setValue(createValueReference("selected_credit_card"))))
+                        .addCallbacks(CallbackProto.newBuilder().setSetValue(
+                                SetModelValueProto.newBuilder()
+                                        .setModelIdentifier("selected_credit_card")
+                                        .setValue(ValueReferenceProto.newBuilder().setValue(
+                                                ValueProto.getDefaultInstance()))))
+                        .addCallbacks(CallbackProto.newBuilder().setForEach(
+                                ForEachProto.newBuilder()
+                                        .setLoopCounter("i")
+                                        .setLoopValueModelIdentifier("credit_cards")
+                                        .addCallbacks(
+                                                createAutofillToStringCallback("credit_cards[${i}]",
+                                                        "card_holder_name_${i}", "${51}"))
+                                        .addCallbacks(
+                                                createAutofillToStringCallback("credit_cards[${i}]",
+                                                        "obfuscated_number_${i}", "•••• ${-4}"))
+                                        .addCallbacks(CallbackProto.newBuilder().setCreateNestedUi(
+                                                CreateNestedGenericUiProto.newBuilder()
+                                                        .setGenericUiIdentifier("nested_ui_${i}")
+                                                        .setGenericUi(singleCardUi)
+                                                        .setParentViewIdentifier(
+                                                                "credit_card_container_view")))
+                                        .addCallbacks(CallbackProto.newBuilder().setComputeValue(
+                                                ComputeValueProto.newBuilder()
+                                                        .setResultModelIdentifier(
+                                                                "credit_card_selected_${i}")
+                                                        .setComparison(createValueComparison(
+                                                                createValueReference(
+                                                                        "credit_cards[${i}]"),
+                                                                createValueReference(
+                                                                        "previously_selected_card"),
+                                                                ValueComparisonProto.Mode.EQUAL))))
+
+                                        ))
+                        .build());
+
+        // Every time |selected_credit_card| changes:
+        //  - write the network of the selected card to |selected_card_network|, which will be
+        // sent back to backend.
+        // - enable/disable confirm button
+        interactions.add(
+                (InteractionProto) InteractionProto.newBuilder()
+                        .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
+                                OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
+                                        "selected_credit_card")))
+                        .addCallbacks(CallbackProto.newBuilder().setComputeValue(
+                                ComputeValueProto.newBuilder()
+                                        .setResultModelIdentifier("selected_card_network")
+                                        .setCreateCreditCardResponse(
+                                                CreateCreditCardResponseProto.newBuilder().setValue(
+                                                        createValueReference(
+                                                                "selected_credit_card")))))
+                        .addCallbacks(CallbackProto.newBuilder().setComputeValue(
+                                ComputeValueProto.newBuilder()
+                                        .setResultModelIdentifier("confirm_button_disabled")
+                                        .setComparison(createValueComparison(
+                                                createValueReference("selected_credit_card"),
+                                                createEmptyValue(),
+                                                ValueComparisonProto.Mode.EQUAL))))
+                        .build());
+        interactions.add(
+                (InteractionProto) InteractionProto.newBuilder()
+                        .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
+                                OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
+                                        "confirm_button_disabled")))
+                        .addCallbacks(CallbackProto.newBuilder().setComputeValue(
+                                ComputeValueProto.newBuilder()
+                                        .setResultModelIdentifier("confirm_button_enabled")
+                                        .setBooleanNot(BooleanNotProto.newBuilder().setValue(
+                                                ValueReferenceProto.newBuilder(createValueReference(
+                                                        "confirm_button_disabled"))))))
+                        .build());
+        interactions.add(
+                (InteractionProto) InteractionProto.newBuilder()
+                        .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
+                                OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
+                                        "confirm_button_enabled")))
+                        .addCallbacks(CallbackProto.newBuilder().setToggleUserAction(
+                                ToggleUserActionProto.newBuilder()
+                                        .setUserActionsModelIdentifier("chips")
+                                        .setUserActionIdentifier("done_chip")
+                                        .setEnabled(ValueReferenceProto.newBuilder(
+                                                createValueReference("confirm_button_enabled")))))
+                        .build());
+
+        // A confirm chip interaction that ends the action.
+        interactions.add(
+                (InteractionProto) InteractionProto.newBuilder()
+                        .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
+                                OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
+                                        "chips")))
+                        .addCallbacks(CallbackProto.newBuilder().setSetUserActions(
+                                SetUserActionsProto.newBuilder().setUserActions(
+                                        ValueReferenceProto.newBuilder().setModelIdentifier(
+                                                "chips"))))
+                        .build());
+        interactions.add((InteractionProto) InteractionProto.newBuilder()
+                                 .addTriggerEvent(EventProto.newBuilder().setOnUserActionCalled(
+                                         OnUserActionCalled.newBuilder().setUserActionIdentifier(
+                                                 "done_chip")))
+                                 .addCallbacks(CallbackProto.newBuilder().setEndAction(
+                                         EndActionProto.newBuilder().setStatus(
+                                                 ProcessedActionStatusProto.ACTION_APPLIED)))
                                  .build());
 
-        ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
-                         .setSetPersistentUi(
-                                 SetPersistentUiProto.newBuilder().setGenericUserInterface(
-                                         GenericUserInterfaceProto.newBuilder()
-                                                 .setRootView(rootView)
-                                                 .setInteractions(InteractionsProto.newBuilder()
-                                                                          .addAllInteractions(
-                                                                                  interactions))))
-                         .build());
-        list.add(ActionProto.newBuilder()
-                         .setPrompt(PromptProto.newBuilder().setMessage("Prompt").addChoices(
-                                 PromptProto.Choice.newBuilder().setChip(
-                                         ChipProto.newBuilder()
-                                                 .setType(ChipType.DONE_ACTION)
-                                                 .setText("Clear"))))
-                         .build());
-
-        list.add(ActionProto.newBuilder()
-                         .setClearPersistentUi(ClearPersistentUiProto.newBuilder())
-                         .build());
-        list.add(ActionProto.newBuilder()
-                         .setPrompt(PromptProto.newBuilder().setMessage("End").addChoices(
-                                 PromptProto.Choice.newBuilder()))
-                         .build());
-
-        AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
-                        .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
-                        .build(),
-                list);
-
-        AutofillAssistantTestService testService =
-                new AutofillAssistantTestService(Collections.singletonList(script));
-        startAutofillAssistant(mTestRule.getActivity(), testService);
-
-        waitUntilViewMatchesCondition(withText("initial text"), isDisplayed());
-
-        // Verify that a basic interaction works.
-        onView(withText("initial text")).perform(click());
-        waitUntilViewMatchesCondition(withText("changed text"), isDisplayed());
-
-        // Verify that the Ui is cleared by the second SetPersistentUi action.
-        onView(withText("Clear")).perform(click());
-        waitUntilViewMatchesCondition(withText("End"), isDisplayed());
-        onView(withText("changed text")).check(doesNotExist());
-    }
-
-    @Test
-    @MediumTest
-    public void testPersistentAndTransientGenericUi() {
-        ViewProto persistentRootView =
-                ViewProto.newBuilder()
-                        .setTextView(TextViewProto.newBuilder().setText("persistent initial text"))
-                        .setIdentifier("persistentClickableView")
-                        .build();
-
-        List<InteractionProto> persistentInteractions = new ArrayList<>();
-        persistentInteractions.add(
-                InteractionProto.newBuilder()
-                        .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
-                                OnViewClickedEventProto.newBuilder().setViewIdentifier(
-                                        "persistentClickableView")))
-                        .addCallbacks(CallbackProto.newBuilder().setSetText(
-                                SetTextProto.newBuilder()
-                                        .setText(ValueReferenceProto.newBuilder().setValue(
-                                                ValueProto.newBuilder().setStrings(
-                                                        StringList.newBuilder().addValues(
-                                                                "persistent changed text"))))
-                                        .setViewIdentifier("persistentClickableView")))
-                        .build());
-
-        ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
-                         .setSetPersistentUi(
-                                 SetPersistentUiProto.newBuilder().setGenericUserInterface(
-                                         GenericUserInterfaceProto.newBuilder()
-                                                 .setRootView(persistentRootView)
-                                                 .setInteractions(
-                                                         InteractionsProto.newBuilder()
-                                                                 .addAllInteractions(
-                                                                         persistentInteractions))))
-                         .build());
-
-        ViewProto promptRootView =
-                ViewProto.newBuilder()
-                        .setTextView(TextViewProto.newBuilder().setText("end action"))
-                        .setIdentifier("promptClickableView")
-                        .build();
-
-        // End the action when the text is clicked.
-        List<InteractionProto> promptInteractions = new ArrayList<>();
-        promptInteractions.add(
-                InteractionProto.newBuilder()
-                        .addTriggerEvent(EventProto.newBuilder().setOnViewClicked(
-                                OnViewClickedEventProto.newBuilder().setViewIdentifier(
-                                        "promptClickableView")))
-                        .addCallbacks(CallbackProto.newBuilder().setEndAction(
-                                EndActionProto.newBuilder().setStatus(
-                                        ProcessedActionStatusProto.ACTION_APPLIED)))
-                        .build());
-
-        list.add(ActionProto.newBuilder()
-                         .setShowGenericUi(ShowGenericUiProto.newBuilder().setGenericUserInterface(
-                                 GenericUserInterfaceProto.newBuilder()
-                                         .setRootView(promptRootView)
-                                         .setInteractions(
-                                                 InteractionsProto.newBuilder().addAllInteractions(
-                                                         promptInteractions))))
-                         .build());
-
-        list.add(ActionProto.newBuilder()
-                         .setPrompt(PromptProto.newBuilder().setMessage("Prompt").addChoices(
-                                 PromptProto.Choice.newBuilder().setChip(
-                                         ChipProto.newBuilder()
-                                                 .setType(ChipType.DONE_ACTION)
-                                                 .setText("Clear"))))
-                         .build());
-
-        list.add(ActionProto.newBuilder()
-                         .setClearPersistentUi(ClearPersistentUiProto.newBuilder())
-                         .build());
-
-        list.add(ActionProto.newBuilder()
-                         .setPrompt(PromptProto.newBuilder().setMessage("End").addChoices(
-                                 PromptProto.Choice.newBuilder()))
-                         .build());
-
-        AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
-                        .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
-                        .build(),
-                list);
-
-        AutofillAssistantTestService testService =
-                new AutofillAssistantTestService(Collections.singletonList(script));
-        startAutofillAssistant(mTestRule.getActivity(), testService);
-
-        // This is displayed by the persistent UI.
-        waitUntilViewMatchesCondition(withText("persistent initial text"), isDisplayed());
-
-        // This is displayed by the ShowGenericUi action.
-        waitUntilViewMatchesCondition(withText("end action"), isDisplayed());
-
-        // Clicking the text displayed by ShowGenericUi should trigger the specified end action
-        // interaction which should terminate the ShowGenericUi action, clearing the bottom part of
-        // the ui but not the persistent part.
-        onView(withText("end action")).perform(click());
-        waitUntilViewMatchesCondition(withText("Prompt"), isDisplayed());
-        onView(withText("persistent initial text")).check(matches(isDisplayed()));
-        onView(withText("end action")).check(doesNotExist());
-
-        // Verify that the persistent UI's interaction still works.
-        onView(withText("persistent initial text")).perform(click());
-        waitUntilViewMatchesCondition(withText("persistent changed text"), isDisplayed());
-
-        // Verify that the UI is cleared by the second SetPersistentUi action.
-        onView(withText("Clear")).perform(click());
-        waitUntilViewMatchesCondition(withText("End"), isDisplayed());
-        onView(withText("callback")).check(doesNotExist());
-    }
-
-    @Test
-    @MediumTest
-    public void testDisplaySelectedInfo() throws Exception {
-        mHelper.addDummyCreditCard(
-                mHelper.addDummyProfile("Jane Doe", "johndoe@google.com"), "4111111111111111");
-
-        ViewProto creditCardView =
-                ViewProto.newBuilder()
-                        .setTextView(TextViewProto.newBuilder().setModelIdentifier("card_type"))
-                        .setIdentifier("cardView")
-                        .build();
-
-        ViewProto profileView =
-                ViewProto.newBuilder()
-                        .setTextView(TextViewProto.newBuilder().setModelIdentifier("profile_name"))
-                        .setIdentifier("profileView")
-                        .build();
-
-        ViewProto rootView =
-                ViewProto.newBuilder()
-                        .setViewContainer(
-                                ViewContainerProto.newBuilder()
-                                        .setLinearLayout(
-                                                LinearLayoutProto.newBuilder().setOrientation(
-                                                        LinearLayoutProto.Orientation.VERTICAL))
-                                        .addViews(creditCardView)
-                                        .addViews(profileView))
-                        .build();
-
-        List<InteractionProto> interactions = new ArrayList<>();
-        interactions.add(
-                InteractionProto.newBuilder()
-                        .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
-                                OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
-                                        "selected_card")))
-                        .addCallbacks(
-                                createAutofillToStringCallback("selected_card[0]", "card_type",
-                                        ValueExpression.newBuilder().addChunk(
-                                                Chunk.newBuilder().setKey(58))))
-                        .build());
-
-        interactions.add(
-                InteractionProto.newBuilder()
-                        .addTriggerEvent(EventProto.newBuilder().setOnValueChanged(
-                                OnModelValueChangedEventProto.newBuilder().setModelIdentifier(
-                                        "profile")))
-                        .addCallbacks(createAutofillToStringCallback("profile[0]", "profile_name",
-                                ValueExpression.newBuilder().addChunk(
-                                        Chunk.newBuilder().setKey(3))))
-                        .build());
-
         List<ModelProto.ModelValue> modelValues = new ArrayList<>();
+        modelValues.add((ModelProto.ModelValue) ModelProto.ModelValue.newBuilder()
+                                .setIdentifier("selected_card_network")
+                                .build());
         modelValues.add(
-                ModelValue.newBuilder()
-                        .setValue(ValueProto.newBuilder().setCreditCards(
-                                CreditCardList.newBuilder().addValues(
-                                        AutofillCreditCardProto.newBuilder().setSelectedCreditCard(
-                                                Empty.newBuilder()))))
-                        .setIdentifier("selected_card")
+                (ModelProto.ModelValue) ModelProto.ModelValue.newBuilder()
+                        .setIdentifier("chips")
+                        .setValue(ValueProto.newBuilder().setUserActions(
+                                UserActionList.newBuilder().addValues(
+                                        UserActionProto.newBuilder()
+                                                .setChip(ChipProto.newBuilder()
+                                                                 .setText("Confirm")
+                                                                 .setType(ChipType.NORMAL_ACTION))
+                                                .setIdentifier("done_chip"))))
                         .build());
-        modelValues.add(
-                ModelValue.newBuilder()
-                        .setValue(ValueProto.newBuilder().setProfiles(
-                                ProfileList.newBuilder().addValues(
-                                        AutofillProfileProto.newBuilder().setSelectedProfileName(
-                                                "billing_address"))))
-                        .setIdentifier("profile")
-                        .build());
+
+        GenericUserInterfaceProto genericUserInterface =
+                (GenericUserInterfaceProto) GenericUserInterfaceProto.newBuilder()
+                        .setRootView(
+                                ViewProto.newBuilder()
+                                        .setIdentifier("credit_card_container_view")
+                                        .setViewContainer(
+                                                ViewContainerProto.newBuilder().setLinearLayout(
+                                                        LinearLayoutProto.newBuilder()
+                                                                .setOrientation(
+                                                                        LinearLayoutProto
+                                                                                .Orientation
+                                                                                .VERTICAL))))
+                        .setInteractions(
+                                InteractionsProto.newBuilder().addAllInteractions(interactions))
+                        .setModel(ModelProto.newBuilder().addAllValues(modelValues))
+                        .build();
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
-                         .setCollectUserData(CollectUserDataProto.newBuilder()
-                                                     .setRequestTermsAndConditions(false)
-                                                     .setRequestPaymentMethod(true)
-                                                     .setBillingAddressName("billing_address")
-                                                     .addSupportedBasicCardNetworks("visa"))
+        list.add((ActionProto) ActionProto.newBuilder()
+                         .setShowGenericUi(
+                                 ShowGenericUiProto.newBuilder()
+                                         .setGenericUserInterface(genericUserInterface)
+                                         .setRequestCreditCards(
+                                                 ShowGenericUiProto.RequestAutofillCreditCards
+                                                         .newBuilder()
+                                                         .setModelIdentifier("credit_cards"))
+                                         .addOutputModelIdentifiers("selected_card_network"))
                          .build());
-        list.add(ActionProto.newBuilder()
-                         .setSetPersistentUi(
-                                 SetPersistentUiProto.newBuilder().setGenericUserInterface(
-                                         GenericUserInterfaceProto.newBuilder()
-                                                 .setRootView(rootView)
-                                                 .setModel(ModelProto.newBuilder().addAllValues(
-                                                         modelValues))
-                                                 .setInteractions(InteractionsProto.newBuilder()
-                                                                          .addAllInteractions(
-                                                                                  interactions))))
-                         .build());
-        list.add(ActionProto.newBuilder()
-                         .setPrompt(PromptProto.newBuilder().setMessage("End").addChoices(
-                                 PromptProto.Choice.newBuilder()))
-                         .build());
-
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath("autofill_assistant_target_website.html")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 list);
+
+        // John with Visa, Jane with MasterCard.
+        mHelper.addDummyCreditCard(
+                mHelper.addDummyProfile("John Doe", "johndoe@google.com"), "4111111111111111");
+        String janeCardId = mHelper.addDummyCreditCard(
+                mHelper.addDummyProfile("Jane Doe", "janedoe@google.com"), "5555555555554444");
 
         AutofillAssistantTestService testService =
                 new AutofillAssistantTestService(Collections.singletonList(script));
         startAutofillAssistant(mTestRule.getActivity(), testService);
 
-        waitUntilViewMatchesCondition(withText("Continue"), isDisplayed());
-        onView(withText("Continue")).perform(click());
+        waitUntilViewMatchesCondition(withText("John Doe"), isCompletelyDisplayed());
+        onView(withText("Jane Doe")).check(matches(isDisplayed()));
+        onView(allOf(withText(containsString("1111")), hasSibling(withText("John Doe"))))
+                .check(matches(isDisplayed()));
+        onView(allOf(withText(containsString("4444")), hasSibling(withText("Jane Doe"))))
+                .check(matches(isDisplayed()));
 
-        waitUntilViewMatchesCondition(withText("End"), isDisplayed());
-        waitUntilViewMatchesCondition(withText("Visa"), isCompletelyDisplayed());
-        waitUntilViewMatchesCondition(withText("Jane"), isCompletelyDisplayed());
+        // No initial selection.
+        onView(withText("John Doe")).check(matches(isDescendantOfA(hasSibling(isNotChecked()))));
+        onView(withText("Jane Doe")).check(matches(isDescendantOfA(hasSibling(isNotChecked()))));
+        waitUntilViewAssertionTrue(withContentDescription("Confirm"), matches(not(isEnabled())),
+                DEFAULT_MAX_TIME_TO_POLL);
+
+        // Select John's card.
+        onView(withText("John Doe")).perform(click());
+        onView(withText("John Doe")).check(matches(isDescendantOfA(hasSibling(isChecked()))));
+        onView(withText("Jane Doe")).check(matches(isDescendantOfA(hasSibling(isNotChecked()))));
+        waitUntilViewAssertionTrue(
+                withContentDescription("Confirm"), matches(isEnabled()), DEFAULT_MAX_TIME_TO_POLL);
+
+        // Select Jane's card.
+        onView(withText("Jane Doe")).perform(click());
+        onView(withText("John Doe")).check(matches(isDescendantOfA(hasSibling(isNotChecked()))));
+        onView(withText("Jane Doe")).check(matches(isDescendantOfA(hasSibling(isChecked()))));
+        waitUntilViewAssertionTrue(
+                withContentDescription("Confirm"), matches(isEnabled()), DEFAULT_MAX_TIME_TO_POLL);
+
+        // External: add Mary's card (American Express). Jane's card should still be selected.
+        mHelper.addDummyCreditCard(
+                mHelper.addDummyProfile("Mary Doe", "marydoe@google.com"), "371449635398431");
+        waitUntilViewMatchesCondition(
+                allOf(withText(containsString("8431")), hasSibling(withText("Mary Doe"))),
+                isDisplayed());
+        onView(withText("John Doe")).check(matches(isDescendantOfA(hasSibling(isNotChecked()))));
+        onView(withText("Jane Doe")).check(matches(isDescendantOfA(hasSibling(isChecked()))));
+        onView(withText("Mary Doe")).check(matches(isDescendantOfA(hasSibling(isNotChecked()))));
+        waitUntilViewAssertionTrue(
+                withContentDescription("Confirm"), matches(isEnabled()), DEFAULT_MAX_TIME_TO_POLL);
+
+        // External: remove Jane's card. The card selection is cleared.
+        mHelper.deleteCreditCard(janeCardId);
+        waitUntilViewAssertionTrue(withText("Jane Doe"), doesNotExist(), DEFAULT_MAX_TIME_TO_POLL);
+        onView(withText("John Doe")).check(matches(isDescendantOfA(hasSibling(isNotChecked()))));
+        onView(withText("Mary Doe")).check(matches(isDescendantOfA(hasSibling(isNotChecked()))));
+        waitUntilViewAssertionTrue(withContentDescription("Confirm"), matches(not(isEnabled())),
+                DEFAULT_MAX_TIME_TO_POLL);
+
+        // Select Mary's card and complete the action.
+        onView(withText("Mary Doe")).perform(click());
+        waitUntilViewAssertionTrue(
+                withContentDescription("Confirm"), matches(isEnabled()), DEFAULT_MAX_TIME_TO_POLL);
+
+        int numNextActionsCalled = testService.getNextActionsCounter();
+        onView(withContentDescription("Confirm")).perform(click());
+        testService.waitUntilGetNextActions(numNextActionsCalled + 1);
+
+        List<ProcessedActionProto> processedActions = testService.getProcessedActions();
+        assertThat(processedActions, iterableWithSize(1));
+        assertThat(
+                processedActions.get(0).getStatus(), is(ProcessedActionStatusProto.ACTION_APPLIED));
+        ShowGenericUiProto.Result result = processedActions.get(0).getShowGenericUiResult();
+        List<ModelProto.ModelValue> resultModelValues = result.getModel().getValuesList();
+        assertThat(resultModelValues, iterableWithSize(1));
+        assertThat(resultModelValues,
+                containsInAnyOrder(
+                        (ModelProto.ModelValue) ModelProto.ModelValue.newBuilder()
+                                .setIdentifier("selected_card_network")
+                                .setValue(ValueProto.newBuilder().setCreditCardResponse(
+                                        CreditCardResponseProto.newBuilder().setNetwork("amex")))
+                                .build()));
     }
 }

@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "mojo/public/cpp/bindings/lib/buffer.h"
 
 #include <cstring>
-#include <tuple>
 
 #include "base/check_op.h"
 #include "base/notreached.h"
@@ -90,7 +89,7 @@ size_t Buffer::Allocate(size_t num_bytes) {
   return block_start;
 }
 
-bool Buffer::AttachHandles(std::vector<ScopedHandle>* handles) {
+void Buffer::AttachHandles(std::vector<ScopedHandle>* handles) {
   DCHECK(message_.is_valid());
 
   uint32_t new_size = 0;
@@ -98,13 +97,11 @@ bool Buffer::AttachHandles(std::vector<ScopedHandle>* handles) {
       message_.value(), 0, reinterpret_cast<MojoHandle*>(handles->data()),
       static_cast<uint32_t>(handles->size()), nullptr, &data_, &new_size);
   if (rv != MOJO_RESULT_OK)
-    return false;
+    return;
 
   size_ = new_size;
   for (auto& handle : *handles)
-    std::ignore = handle.release();
-  handles->clear();
-  return true;
+    ignore_result(handle.release());
 }
 
 void Buffer::Seal() {

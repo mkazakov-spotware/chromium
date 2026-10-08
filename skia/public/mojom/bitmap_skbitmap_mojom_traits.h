@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,58 +16,37 @@
 
 namespace mojo {
 
-// Struct traits to convert between SkBitmap and mojom types.
-
+// Struct traits to use SkBitmap for skia::mojom::Bitmap in Chrome C++ code.
 template <>
 struct COMPONENT_EXPORT(SKIA_SHARED_TRAITS)
-    StructTraits<skia::mojom::BitmapN32DataView, SkBitmap> {
-  static bool IsNull(const SkBitmap& b) { return b.isNull(); }
-  static void SetToNull(SkBitmap* b) { b->reset(); }
-
-  static const SkImageInfo& image_info(const SkBitmap& b) { return b.info(); }
+    StructTraits<skia::mojom::BitmapDataView, SkBitmap> {
+  static bool IsNull(const SkBitmap& b);
+  static void SetToNull(SkBitmap* b);
+  static const SkImageInfo& image_info(const SkBitmap& b);
+  static uint64_t row_bytes(const SkBitmap& b);
   static mojo_base::BigBufferView pixel_data(const SkBitmap& b);
-
-  static bool Read(skia::mojom::BitmapN32DataView data, SkBitmap* b);
+  static bool Read(skia::mojom::BitmapDataView data, SkBitmap* b);
 };
 
 template <>
 struct COMPONENT_EXPORT(SKIA_SHARED_TRAITS)
-    StructTraits<skia::mojom::BitmapWithArbitraryBppDataView, SkBitmap> {
-  static bool IsNull(const SkBitmap& b) { return b.isNull(); }
-  static void SetToNull(SkBitmap* b) { b->reset(); }
-
-  static const SkImageInfo& image_info(const SkBitmap& b) { return b.info(); }
-  static uint64_t UNUSED_row_bytes(const SkBitmap& b) { return 0; }
+    StructTraits<skia::mojom::UnsafeBitmapDataView, SkBitmap> {
+  static bool IsNull(const SkBitmap& b);
+  static void SetToNull(SkBitmap* b);
+  static const SkImageInfo& image_info(const SkBitmap& b);
+  static uint64_t row_bytes(const SkBitmap& b);
   static mojo_base::BigBufferView pixel_data(const SkBitmap& b);
-
-  static bool Read(skia::mojom::BitmapWithArbitraryBppDataView data,
-                   SkBitmap* b);
-};
-
-template <>
-struct COMPONENT_EXPORT(SKIA_SHARED_TRAITS)
-    StructTraits<skia::mojom::BitmapMappedFromTrustedProcessDataView,
-                 SkBitmap> {
-  static bool IsNull(const SkBitmap& b) { return b.isNull(); }
-  static void SetToNull(SkBitmap* b) { b->reset(); }
-
-  static const SkImageInfo& image_info(const SkBitmap& b) { return b.info(); }
-  static uint64_t UNUSED_row_bytes(const SkBitmap& b) { return 0; }
-  static mojo_base::BigBufferView pixel_data(const SkBitmap& b);
-
-  static bool Read(skia::mojom::BitmapMappedFromTrustedProcessDataView data,
-                   SkBitmap* b);
+  static bool Read(skia::mojom::UnsafeBitmapDataView data, SkBitmap* b);
 };
 
 template <>
 struct COMPONENT_EXPORT(SKIA_SHARED_TRAITS)
     StructTraits<skia::mojom::InlineBitmapDataView, SkBitmap> {
-  static bool IsNull(const SkBitmap& b) { return b.isNull(); }
-  static void SetToNull(SkBitmap* b) { b->reset(); }
-
-  static const SkImageInfo& image_info(const SkBitmap& b) { return b.info(); }
+  static bool IsNull(const SkBitmap& b);
+  static void SetToNull(SkBitmap* b);
+  static const SkImageInfo& image_info(const SkBitmap& b);
+  static uint64_t row_bytes(const SkBitmap& b);
   static base::span<const uint8_t> pixel_data(const SkBitmap& b);
-
   static bool Read(skia::mojom::InlineBitmapDataView data, SkBitmap* b);
 };
 

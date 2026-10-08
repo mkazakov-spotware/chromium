@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,7 @@ class TestContentSettingBubbleModel : public ContentSettingBubbleModel {
   explicit TestContentSettingBubbleModel(content::WebContents* web_contents)
       : ContentSettingBubbleModel(nullptr, web_contents) {
     AddListItem(
-        ListItem(nullptr, std::u16string(), std::u16string(), false, false, 0));
+        ListItem(nullptr, base::string16(), base::string16(), false, false, 0));
   }
 };
 

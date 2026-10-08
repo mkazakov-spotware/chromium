@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,14 @@
 #define CHROME_BROWSER_PROFILES_PROFILE_KEY_H_
 
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "components/keyed_service/core/simple_factory_key.h"
 #include "components/leveldb_proto/public/proto_database_provider.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "chrome/browser/profiles/profile_key_android.h"
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // OS_ANDROID
 
 class PrefService;
 
@@ -23,10 +23,6 @@ class ProfileKey : public SimpleFactoryKey {
  public:
   ProfileKey(const base::FilePath& path,
              ProfileKey* original_key = nullptr);
-
-  ProfileKey(const ProfileKey&) = delete;
-  ProfileKey& operator=(const ProfileKey&) = delete;
-
   ~ProfileKey() override;
 
   // Profile-specific APIs needed in reduced mode:
@@ -43,21 +39,22 @@ class ProfileKey : public SimpleFactoryKey {
 
   static ProfileKey* FromSimpleFactoryKey(SimpleFactoryKey* key);
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   ProfileKeyAndroid* GetProfileKeyAndroid();
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // OS_ANDROID
 
  private:
-  raw_ptr<PrefService> prefs_ = nullptr;
-  raw_ptr<leveldb_proto::ProtoDatabaseProvider, DanglingUntriaged>
-      db_provider_ = nullptr;
+  PrefService* prefs_ = nullptr;
+  leveldb_proto::ProtoDatabaseProvider* db_provider_ = nullptr;
 
   // Points to the original (non off-the-record) ProfileKey.
-  raw_ptr<ProfileKey> original_key_ = nullptr;
+  ProfileKey* original_key_ = nullptr;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   std::unique_ptr<ProfileKeyAndroid> profile_key_android_;
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // OS_ANDROID
+
+  DISALLOW_COPY_AND_ASSIGN(ProfileKey);
 };
 
 #endif  // CHROME_BROWSER_PROFILES_PROFILE_KEY_H_

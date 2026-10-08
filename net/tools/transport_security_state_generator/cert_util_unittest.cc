@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,9 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/boringssl/src/include/openssl/x509v3.h"
 
-namespace net::transport_security_state {
+namespace net {
+
+namespace transport_security_state {
 
 namespace {
 
@@ -210,4 +212,6 @@ TEST(CertUtilTest, ExtractSubjectNameFromCertificate) {
 
 }  // namespace
 
-}  // namespace net::transport_security_state
+}  // namespace transport_security_state
+
+}  // namespace net

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "chromecast/renderer/cast_activity_url_filter_manager.h"
-#include "third_party/blink/public/platform/websocket_handshake_throttle_provider.h"
+#include "content/public/renderer/websocket_handshake_throttle_provider.h"
 
 namespace chromecast {
 
@@ -18,18 +19,14 @@ namespace chromecast {
 // This must be constructed on the render thread, and then used and destructed
 // on a single thread, which can be different from the render thread.
 class CastWebSocketHandshakeThrottleProvider
-    : public blink::WebSocketHandshakeThrottleProvider {
+    : public content::WebSocketHandshakeThrottleProvider {
  public:
   explicit CastWebSocketHandshakeThrottleProvider(
       CastActivityUrlFilterManager* url_filter_manager);
-
-  CastWebSocketHandshakeThrottleProvider& operator=(
-      const CastWebSocketHandshakeThrottleProvider&) = delete;
-
   ~CastWebSocketHandshakeThrottleProvider() override;
 
-  // blink::WebSocketHandshakeThrottleProvider implementation:
-  std::unique_ptr<blink::WebSocketHandshakeThrottleProvider> Clone(
+  // content::WebSocketHandshakeThrottleProvider implementation:
+  std::unique_ptr<content::WebSocketHandshakeThrottleProvider> Clone(
       scoped_refptr<base::SingleThreadTaskRunner> task_runner) override;
   std::unique_ptr<blink::WebSocketHandshakeThrottle> CreateThrottle(
       int render_frame_id,
@@ -44,6 +41,8 @@ class CastWebSocketHandshakeThrottleProvider
   CastActivityUrlFilterManager* const cast_activity_url_filter_manager_;
 
   THREAD_CHECKER(thread_checker_);
+
+  DISALLOW_ASSIGN(CastWebSocketHandshakeThrottleProvider);
 };
 
 }  // namespace chromecast

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,20 +18,20 @@ SuitableTrustTokenOrigin::SuitableTrustTokenOrigin(
 SuitableTrustTokenOrigin& SuitableTrustTokenOrigin::operator=(
     SuitableTrustTokenOrigin&& rhs) = default;
 
-absl::optional<SuitableTrustTokenOrigin> SuitableTrustTokenOrigin::Create(
+base::Optional<SuitableTrustTokenOrigin> SuitableTrustTokenOrigin::Create(
     url::Origin origin) {
   if (origin.scheme() != url::kHttpsScheme &&
       origin.scheme() != url::kHttpScheme)
-    return absl::nullopt;
+    return base::nullopt;
   if (!IsOriginPotentiallyTrustworthy(origin))
-    return absl::nullopt;
+    return base::nullopt;
 
-  return absl::optional<SuitableTrustTokenOrigin>(
-      absl::in_place, base::PassKey<SuitableTrustTokenOrigin>(),
+  return base::Optional<SuitableTrustTokenOrigin>(
+      base::in_place, util::PassKey<SuitableTrustTokenOrigin>(),
       std::move(origin));
 }
 
-absl::optional<SuitableTrustTokenOrigin> SuitableTrustTokenOrigin::Create(
+base::Optional<SuitableTrustTokenOrigin> SuitableTrustTokenOrigin::Create(
     const GURL& url) {
   return Create(url::Origin::Create(url));
 }
@@ -41,7 +41,7 @@ std::string SuitableTrustTokenOrigin::Serialize() const {
 }
 
 SuitableTrustTokenOrigin::SuitableTrustTokenOrigin(
-    base::PassKey<SuitableTrustTokenOrigin>,
+    util::PassKey<SuitableTrustTokenOrigin>,
     url::Origin&& origin)
     : origin_(std::move(origin)) {}
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "base/files/file_util.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
@@ -32,10 +33,6 @@ scoped_refptr<const Extension> CreateExtension(const std::string& id) {
 class ExtensionMigratorTest : public ExtensionServiceTestBase {
  public:
   ExtensionMigratorTest() {}
-
-  ExtensionMigratorTest(const ExtensionMigratorTest&) = delete;
-  ExtensionMigratorTest& operator=(const ExtensionMigratorTest&) = delete;
-
   ~ExtensionMigratorTest() override {}
 
  protected:
@@ -54,8 +51,7 @@ class ExtensionMigratorTest : public ExtensionServiceTestBase {
   void AddMigratorProvider() {
     service()->AddProviderForTesting(std::make_unique<ExternalProviderImpl>(
         service(), new ExtensionMigrator(profile(), kOldId, kNewId), profile(),
-        mojom::ManifestLocation::kExternalPref,
-        mojom::ManifestLocation::kExternalPrefDownload,
+        Manifest::EXTERNAL_PREF, Manifest::EXTERNAL_PREF_DOWNLOAD,
         Extension::FROM_WEBSTORE | Extension::WAS_INSTALLED_BY_DEFAULT));
   }
 
@@ -68,6 +64,9 @@ class ExtensionMigratorTest : public ExtensionServiceTestBase {
     return service()->pending_extension_manager()->IsIdPending(kNewId) ||
            registry()->GetInstalledExtension(kNewId);
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ExtensionMigratorTest);
 };
 
 TEST_F(ExtensionMigratorTest, NoExistingOld) {

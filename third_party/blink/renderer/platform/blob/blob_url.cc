@@ -53,10 +53,10 @@ String BlobURL::GetOrigin(const KURL& url) {
 }
 
 KURL BlobURL::CreateBlobURL(const String& origin_string) {
-  DCHECK(!origin_string.empty());
+  DCHECK(!origin_string.IsEmpty());
   String url_string =
       "blob:" + origin_string + '/' + WTF::CreateCanonicalUUIDString();
-  return KURL(url_string);
+  return KURL::CreateIsolated(url_string);
 }
 
 }  // namespace blink

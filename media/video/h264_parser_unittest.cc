@@ -1,8 +1,6 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "media/video/h264_parser.h"
 
 #include <limits>
 #include <memory>
@@ -11,11 +9,13 @@
 #include "base/command_line.h"
 #include "base/files/memory_mapped_file.h"
 #include "base/logging.h"
+#include "base/optional.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "media/base/subsample_entry.h"
 #include "media/base/test_data_util.h"
+#include "media/video/h264_parser.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -62,7 +62,7 @@ TEST_F(H264SPSTest, GetCodedSize) {
 
   // Overflow.
   sps->pic_width_in_mbs_minus1 = std::numeric_limits<int>::max();
-  EXPECT_EQ(absl::nullopt, sps->GetCodedSize());
+  EXPECT_EQ(base::nullopt, sps->GetCodedSize());
 }
 
 TEST_F(H264SPSTest, GetVisibleRect) {
@@ -89,14 +89,14 @@ TEST_F(H264SPSTest, GetVisibleRect) {
   sps->frame_crop_right_offset = 1;
   sps->frame_crop_top_offset = 0;
   sps->frame_crop_bottom_offset = 0;
-  EXPECT_EQ(absl::nullopt, sps->GetVisibleRect());
+  EXPECT_EQ(base::nullopt, sps->GetVisibleRect());
 
   // Overflow.
   sps->frame_crop_left_offset = std::numeric_limits<int>::max() / 2 + 1;
   sps->frame_crop_right_offset = 0;
   sps->frame_crop_top_offset = 0;
   sps->frame_crop_bottom_offset = 0;
-  EXPECT_EQ(absl::nullopt, sps->GetVisibleRect());
+  EXPECT_EQ(base::nullopt, sps->GetVisibleRect());
 }
 
 TEST(H264ParserTest, StreamFileParsing) {
@@ -115,7 +115,7 @@ TEST(H264ParserTest, StreamFileParsing) {
   int num_parsed_nalus = 0;
   while (true) {
     media::H264SliceHeader shdr;
-    media::H264SEI sei;
+    media::H264SEIMessage sei_msg;
     H264NALU nalu;
     H264Parser::Result res = parser.AdvanceToNextNALU(&nalu);
     if (res == H264Parser::kEOStream) {
@@ -144,7 +144,7 @@ TEST(H264ParserTest, StreamFileParsing) {
         break;
 
       case H264NALU::kSEIMessage:
-        ASSERT_EQ(parser.ParseSEI(&sei), H264Parser::kOk);
+        ASSERT_EQ(parser.ParseSEI(&sei_msg), H264Parser::kOk);
         break;
 
       default:
@@ -199,7 +199,7 @@ TEST(H264ParserTest, GetCurrentSubsamplesNormal) {
   subsamples.emplace_back(5u, 20u);
   subsamples.emplace_back(10u, 0u);
   H264Parser parser;
-  parser.SetEncryptedStream(kStream, std::size(kStream), subsamples);
+  parser.SetEncryptedStream(kStream, base::size(kStream), subsamples);
 
   H264NALU nalu;
   ASSERT_EQ(H264Parser::kOk, parser.AdvanceToNextNALU(&nalu));
@@ -247,7 +247,7 @@ TEST(H264ParserTest, GetCurrentSubsamplesSubsampleNotStartingAtNaluBoundary) {
   subsamples.emplace_back(4u, 24u);
   subsamples.emplace_back(18, 0);
   H264Parser parser;
-  parser.SetEncryptedStream(kStream, std::size(kStream), subsamples);
+  parser.SetEncryptedStream(kStream, base::size(kStream), subsamples);
 
   H264NALU nalu;
   ASSERT_EQ(H264Parser::kOk, parser.AdvanceToNextNALU(&nalu));
@@ -274,70 +274,4 @@ TEST(H264ParserTest, GetCurrentSubsamplesSubsampleNotStartingAtNaluBoundary) {
   EXPECT_EQ(0u, nalu_subsamples[0].cypher_bytes);
 }
 
-// Verify recovery point SEI is correctly parsed.
-TEST(H264ParserTest, RecoveryPointSEIParsing) {
-  constexpr uint8_t kStream[] = {
-      // First NALU Start code.
-      0x00,
-      0x00,
-      0x00,
-      0x01,
-      // NALU type = 6 (kSEIMessage).
-      0x06,
-      // SEI payload type = 6 (recovery_point).
-      0x06,
-      // SEI payload size = 1.
-      0x01,
-      // SEI payload.
-      0x84,
-      // RBSP trailing bits.
-      0x80,
-      // Second NALU Start code.
-      0x00,
-      0x00,
-      0x00,
-      0x01,
-      // NALU type = 6 (kSEIMessage).
-      0x06,
-      // SEI payload type = 1 (pic_timing).
-      0x01,
-      // SEI payload size = 1.
-      0x01,
-      // SEI payload.
-      0x04,
-      // RBSP trailing bits.
-      0x80,
-  };
-
-  H264Parser parser;
-  parser.SetStream(kStream, std::size(kStream));
-
-  H264NALU target_nalu;
-  ASSERT_EQ(H264Parser::kOk, parser.AdvanceToNextNALU(&target_nalu));
-  EXPECT_EQ(target_nalu.nal_unit_type, H264NALU::kSEIMessage);
-
-  // Parse the first SEI.
-  H264SEI recovery_point_sei;
-  EXPECT_EQ(H264Parser::kOk, parser.ParseSEI(&recovery_point_sei));
-
-  // Recovery point present.
-  EXPECT_EQ(recovery_point_sei.msgs.size(), 1u);
-  for (auto& sei_msg : recovery_point_sei.msgs) {
-    EXPECT_EQ(sei_msg.type, H264SEIMessage::kSEIRecoveryPoint);
-    EXPECT_EQ(sei_msg.recovery_point.recovery_frame_cnt, 0);
-    EXPECT_EQ(sei_msg.recovery_point.exact_match_flag, false);
-    EXPECT_EQ(sei_msg.recovery_point.broken_link_flag, false);
-    EXPECT_EQ(sei_msg.recovery_point.changing_slice_group_idc, 0);
-  }
-
-  ASSERT_EQ(H264Parser::kOk, parser.AdvanceToNextNALU(&target_nalu));
-  EXPECT_EQ(target_nalu.nal_unit_type, H264NALU::kSEIMessage);
-
-  // Parse the second SEI.
-  H264SEI pic_timing_sei;
-  EXPECT_EQ(H264Parser::kOk, parser.ParseSEI(&pic_timing_sei));
-
-  // Recovery point not present.
-  EXPECT_EQ(pic_timing_sei.msgs.size(), 0u);
-}
 }  // namespace media

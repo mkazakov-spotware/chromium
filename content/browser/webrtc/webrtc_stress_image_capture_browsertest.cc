@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@
 #include "media/capture/video/fake_video_capture_device_factory.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/build_info.h"
 #endif
 
@@ -31,7 +31,7 @@ static const char kImageCaptureStressHtmlFile[] =
 
 enum class TargetVideoCaptureImplementation {
   DEFAULT,
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   WIN_MEDIA_FOUNDATION
 #endif
 };
@@ -43,9 +43,9 @@ class WebRtcImageCaptureStressBrowserTest
       public testing::WithParamInterface<TargetVideoCaptureImplementation> {
  public:
   WebRtcImageCaptureStressBrowserTest() {
-    std::vector<base::test::FeatureRef> features_to_enable;
-    std::vector<base::test::FeatureRef> features_to_disable;
-#if BUILDFLAG(IS_WIN)
+    std::vector<base::Feature> features_to_enable;
+    std::vector<base::Feature> features_to_disable;
+#if defined(OS_WIN)
     if (GetParam() == TargetVideoCaptureImplementation::WIN_MEDIA_FOUNDATION) {
       features_to_enable.push_back(media::kMediaFoundationVideoCapture);
     } else {
@@ -55,12 +55,6 @@ class WebRtcImageCaptureStressBrowserTest
     scoped_feature_list_.InitWithFeatures(features_to_enable,
                                           features_to_disable);
   }
-
-  WebRtcImageCaptureStressBrowserTest(
-      const WebRtcImageCaptureStressBrowserTest&) = delete;
-  WebRtcImageCaptureStressBrowserTest& operator=(
-      const WebRtcImageCaptureStressBrowserTest&) = delete;
-
   ~WebRtcImageCaptureStressBrowserTest() override = default;
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
@@ -89,15 +83,17 @@ class WebRtcImageCaptureStressBrowserTest
 
     LookupAndLogNameAndIdOfFirstCamera();
 
-    std::string result =
-        EvalJs(shell(), command, EXECUTE_SCRIPT_USE_MANUAL_REPLY)
-            .ExtractString();
+    std::string result;
+    if (!ExecuteScriptAndExtractString(shell(), command, &result))
+      return false;
     DLOG_IF(ERROR, result != "OK") << result;
     return result == "OK";
   }
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebRtcImageCaptureStressBrowserTest);
 };
 
 IN_PROC_BROWSER_TEST_P(WebRtcImageCaptureStressBrowserTest,
@@ -109,13 +105,13 @@ IN_PROC_BROWSER_TEST_P(WebRtcImageCaptureStressBrowserTest,
 // API has already been implemented.
 // Note, these tests must be run sequentially, since multiple parallel test runs
 // competing for a single physical webcam typically causes failures.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC) || \
-    BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_MAC) || \
+    defined(OS_ANDROID) || defined(OS_WIN)
 
 const TargetVideoCaptureImplementation
     kTargetVideoCaptureImplementationsForRealWebcam[] = {
         TargetVideoCaptureImplementation::DEFAULT,
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
         TargetVideoCaptureImplementation::WIN_MEDIA_FOUNDATION
 #endif
 };

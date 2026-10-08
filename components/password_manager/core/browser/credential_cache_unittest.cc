@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,7 @@ using url::Origin;
 
 using IsPublicSuffixMatch = UiCredential::IsPublicSuffixMatch;
 using IsAffiliationBasedMatch = UiCredential::IsAffiliationBasedMatch;
-using IsOriginBlocklisted = CredentialCache::IsOriginBlocklisted;
+using IsOriginBlacklisted = CredentialCache::IsOriginBlacklisted;
 
 constexpr char kExampleSite[] = "https://example.com/";
 constexpr char kExampleSite2[] = "https://example.two.com/";
@@ -39,7 +39,7 @@ UiCredential MakeUiCredential(
         IsAffiliationBasedMatch(false)) {
   return UiCredential(base::UTF8ToUTF16(username), base::UTF8ToUTF16(password),
                       Origin::Create(GURL(origin)), is_public_suffix_match,
-                      is_affiliation_based_match, base::Time());
+                      is_affiliation_based_match);
 }
 
 }  // namespace
@@ -62,7 +62,7 @@ TEST_F(CredentialCacheTest, ReturnsSameStoreForSameOriginOnly) {
 
 TEST_F(CredentialCacheTest, StoresCredentialsSortedByAplhabetAndOrigins) {
   Origin origin = Origin::Create(GURL(kExampleSite));
-  cache()->SaveCredentialsAndBlocklistedForOrigin(
+  cache()->SaveCredentialsAndBlacklistedForOrigin(
       {CreateEntry("Berta", "30948", GURL(kExampleSite), false, false).get(),
        CreateEntry("Adam", "Pas83B", GURL(kExampleSite), false, false).get(),
        CreateEntry("Dora", "PakudC", GURL(kExampleSite), false, false).get(),
@@ -77,7 +77,7 @@ TEST_F(CredentialCacheTest, StoresCredentialsSortedByAplhabetAndOrigins) {
            .get(),
        CreateEntry("Alf", "R4nd50m", GURL(kExampleSiteMobile), true, false)
            .get()},
-      IsOriginBlocklisted(false), origin);
+      IsOriginBlacklisted(false), origin);
 
   EXPECT_THAT(
       cache()->GetCredentialStore(origin).GetCredentials(),
@@ -111,12 +111,12 @@ TEST_F(CredentialCacheTest, StoredCredentialsForIndependentOrigins) {
   Origin origin = Origin::Create(GURL(kExampleSite));
   Origin origin2 = Origin::Create(GURL(kExampleSite2));
 
-  cache()->SaveCredentialsAndBlocklistedForOrigin(
+  cache()->SaveCredentialsAndBlacklistedForOrigin(
       {CreateEntry("Ben", "S3cur3", GURL(kExampleSite), false, false).get()},
-      IsOriginBlocklisted(false), origin);
-  cache()->SaveCredentialsAndBlocklistedForOrigin(
+      IsOriginBlacklisted(false), origin);
+  cache()->SaveCredentialsAndBlacklistedForOrigin(
       {CreateEntry("Abe", "B4dPW", GURL(kExampleSite2), false, false).get()},
-      IsOriginBlocklisted(false), origin2);
+      IsOriginBlacklisted(false), origin2);
 
   EXPECT_THAT(cache()->GetCredentialStore(origin).GetCredentials(),
               testing::ElementsAre(MakeUiCredential("Ben", "S3cur3")));
@@ -127,9 +127,9 @@ TEST_F(CredentialCacheTest, StoredCredentialsForIndependentOrigins) {
 
 TEST_F(CredentialCacheTest, ClearsCredentials) {
   Origin origin = Origin::Create(GURL(kExampleSite));
-  cache()->SaveCredentialsAndBlocklistedForOrigin(
+  cache()->SaveCredentialsAndBlacklistedForOrigin(
       {CreateEntry("Ben", "S3cur3", GURL(kExampleSite), false, false).get()},
-      IsOriginBlocklisted(false), Origin::Create(GURL(kExampleSite)));
+      IsOriginBlacklisted(false), Origin::Create(GURL(kExampleSite)));
   ASSERT_THAT(cache()->GetCredentialStore(origin).GetCredentials(),
               testing::ElementsAre(MakeUiCredential("Ben", "S3cur3")));
 
@@ -137,13 +137,13 @@ TEST_F(CredentialCacheTest, ClearsCredentials) {
   EXPECT_EQ(cache()->GetCredentialStore(origin).GetCredentials().size(), 0u);
 }
 
-TEST_F(CredentialCacheTest, StoresBlocklistedWithCredentials) {
+TEST_F(CredentialCacheTest, StoresBlacklistedWithCredentials) {
   Origin origin = Origin::Create(GURL(kExampleSite));
-  cache()->SaveCredentialsAndBlocklistedForOrigin(
+  cache()->SaveCredentialsAndBlacklistedForOrigin(
       {CreateEntry("Ben", "S3cur3", GURL(kExampleSite), false, false).get()},
-      IsOriginBlocklisted(true), Origin::Create(GURL(kExampleSite)));
-  EXPECT_EQ(OriginCredentialStore::BlocklistedStatus::kIsBlocklisted,
-            cache()->GetCredentialStore(origin).GetBlocklistedStatus());
+      IsOriginBlacklisted(true), Origin::Create(GURL(kExampleSite)));
+  EXPECT_EQ(OriginCredentialStore::BlacklistedStatus::kIsBlacklisted,
+            cache()->GetCredentialStore(origin).GetBlacklistedStatus());
 }
 
 }  // namespace password_manager

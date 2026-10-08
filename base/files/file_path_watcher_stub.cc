@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "base/files/file_path_watcher.h"
 
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 
 namespace base {
@@ -16,8 +17,6 @@ namespace {
 class FilePathWatcherImpl : public FilePathWatcher::PlatformDelegate {
  public:
   FilePathWatcherImpl() = default;
-  FilePathWatcherImpl(const FilePathWatcherImpl&) = delete;
-  FilePathWatcherImpl& operator=(const FilePathWatcherImpl&) = delete;
   ~FilePathWatcherImpl() override = default;
 
   bool Watch(const FilePath& path,
@@ -27,12 +26,15 @@ class FilePathWatcherImpl : public FilePathWatcher::PlatformDelegate {
   }
 
   void Cancel() override {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FilePathWatcherImpl);
 };
 
 }  // namespace
 
 FilePathWatcher::FilePathWatcher() {
-  DETACH_FROM_SEQUENCE(sequence_checker_);
+  sequence_checker_.DetachFromSequence();
   impl_ = std::make_unique<FilePathWatcherImpl>();
 }
 

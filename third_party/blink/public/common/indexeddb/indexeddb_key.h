@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/check_op.h"
+#include "base/strings/string16.h"
 #include "third_party/blink/public/common/common_export.h"
 #include "third_party/blink/public/common/indexeddb/web_idb_types.h"
 
@@ -29,7 +30,7 @@ class BLINK_COMMON_EXPORT IndexedDBKey {
   explicit IndexedDBKey(mojom::IDBKeyType);  // must be Null or Invalid
   explicit IndexedDBKey(KeyArray array);
   explicit IndexedDBKey(std::string binary);
-  explicit IndexedDBKey(std::u16string string);
+  explicit IndexedDBKey(base::string16 string);
   IndexedDBKey(double number,
                mojom::IDBKeyType type);  // must be date or number
   IndexedDBKey(const IndexedDBKey& other);
@@ -50,7 +51,7 @@ class BLINK_COMMON_EXPORT IndexedDBKey {
     DCHECK_EQ(type_, mojom::IDBKeyType::Binary);
     return binary_;
   }
-  const std::u16string& string() const {
+  const base::string16& string() const {
     DCHECK_EQ(type_, mojom::IDBKeyType::String);
     return string_;
   }
@@ -72,7 +73,7 @@ class BLINK_COMMON_EXPORT IndexedDBKey {
   // Returns a copy of this array-type key, but with "holes" replaced by the
   // given primary key. Used in cases where a compound key references an
   // auto-generated primary key.
-  [[nodiscard]] IndexedDBKey FillHoles(const IndexedDBKey&) const;
+  IndexedDBKey FillHoles(const IndexedDBKey&) const WARN_UNUSED_RESULT;
 
   std::string DebugString() const;
 
@@ -82,7 +83,7 @@ class BLINK_COMMON_EXPORT IndexedDBKey {
   mojom::IDBKeyType type_;
   std::vector<IndexedDBKey> array_;
   std::string binary_;
-  std::u16string string_;
+  base::string16 string_;
   double number_ = 0;
 
   size_t size_estimate_;

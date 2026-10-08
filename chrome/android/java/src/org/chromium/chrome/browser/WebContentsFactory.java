@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,6 +20,21 @@ import dagger.Reusable;
 public class WebContentsFactory {
     @Inject
     public WebContentsFactory() {}
+    /**
+     * A factory method to build a {@link WebContents} object.
+     * @param incognito       Whether or not the {@link WebContents} should be built with an
+     *                        off-the-record profile or not.
+     * @param initiallyHidden Whether or not the {@link WebContents} should be initially hidden.
+     * @return                A newly created {@link WebContents} object.
+     *
+     * @deprecated use {@link #createWebContents(Profile, boolean)} instead.
+     */
+    @Deprecated
+    public static WebContents createWebContents(boolean incognito, boolean initiallyHidden) {
+        Profile profile = Profile.getLastUsedRegularProfile();
+        if (incognito) profile = profile.getPrimaryOTRProfile();
+        return createWebContents(profile, initiallyHidden, false);
+    }
 
     /**
      * A factory method to build a {@link WebContents} object.

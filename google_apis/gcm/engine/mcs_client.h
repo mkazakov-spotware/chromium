@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,8 @@
 #include <vector>
 
 #include "base/containers/circular_deque.h"
-#include "base/memory/raw_ptr.h"
+#include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "google_apis/gcm/base/gcm_export.h"
 #include "google_apis/gcm/base/mcs_message.h"
@@ -72,7 +73,7 @@ class GCM_EXPORT MCSClient {
     APP_QUEUE_SIZE_LIMIT_REACHED,
     // Message too large to send.
     MESSAGE_TOO_LARGE,
-    // Message not send because of TTL = 0 and no working connection.
+    // Message not send becuase of TTL = 0 and no working connection.
     NO_CONNECTION_ON_ZERO_TTL,
     // Message exceeded TTL.
     TTL_EXCEEDED,
@@ -106,10 +107,6 @@ class GCM_EXPORT MCSClient {
             GCMStore* gcm_store,
             scoped_refptr<base::SequencedTaskRunner> io_task_runner,
             GCMStatsRecorder* recorder);
-
-  MCSClient(const MCSClient&) = delete;
-  MCSClient& operator=(const MCSClient&) = delete;
-
   virtual ~MCSClient();
 
   // Initialize the client. Will load any previous id/token information as well
@@ -242,7 +239,7 @@ class GCM_EXPORT MCSClient {
   const std::string version_string_;
 
   // Clock for enforcing TTL. Passed in for testing.
-  const raw_ptr<base::Clock> clock_;
+  base::Clock* const clock_;
 
   // Client state.
   State state_;
@@ -257,11 +254,11 @@ class GCM_EXPORT MCSClient {
   uint64_t security_token_;
 
   // Factory for creating new connections and connection handlers.
-  raw_ptr<ConnectionFactory> connection_factory_;
+  ConnectionFactory* connection_factory_;
 
   // Connection handler to handle all over-the-wire protocol communication
   // with the mobile connection server.
-  raw_ptr<ConnectionHandler> connection_handler_;
+  ConnectionHandler* connection_handler_;
 
   // -----  Reliablie Message Queue section -----
   // Note: all queues/maps are ordered from oldest (front/begin) message to
@@ -302,7 +299,7 @@ class GCM_EXPORT MCSClient {
   PersistentIdList restored_unackeds_server_ids_;
 
   // The GCM persistent store. Not owned.
-  raw_ptr<GCMStore> gcm_store_;
+  GCMStore* gcm_store_;
 
   const scoped_refptr<base::SequencedTaskRunner> io_task_runner_;
 
@@ -313,9 +310,11 @@ class GCM_EXPORT MCSClient {
   std::map<std::string, int> custom_heartbeat_intervals_;
 
   // Recorder that records GCM activities for debugging purpose. Not owned.
-  raw_ptr<GCMStatsRecorder> recorder_;
+  GCMStatsRecorder* recorder_;
 
   base::WeakPtrFactory<MCSClient> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MCSClient);
 };
 
 } // namespace gcm

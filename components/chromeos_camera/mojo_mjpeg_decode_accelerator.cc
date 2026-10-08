@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/system/platform_handle.h"
 
@@ -25,9 +26,14 @@ MojoMjpegDecodeAccelerator::~MojoMjpegDecodeAccelerator() {
   DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
 }
 
-void MojoMjpegDecodeAccelerator::InitializeAsync(
-    MjpegDecodeAccelerator::Client* client,
-    MjpegDecodeAccelerator::InitCB init_cb) {
+bool MojoMjpegDecodeAccelerator::Initialize(
+    MjpegDecodeAccelerator::Client* /*client*/) {
+  NOTIMPLEMENTED();
+  return false;
+}
+
+void MojoMjpegDecodeAccelerator::InitializeAsync(Client* client,
+                                                 InitCB init_cb) {
   DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
 
   jpeg_decoder_.Bind(std::move(jpeg_decoder_remote_));
@@ -43,29 +49,40 @@ void MojoMjpegDecodeAccelerator::InitializeAsync(
 
 void MojoMjpegDecodeAccelerator::Decode(
     media::BitstreamBuffer bitstream_buffer,
-    media::VideoPixelFormat format,
-    const gfx::Size& coded_size,
-    base::UnsafeSharedMemoryRegion output_region) {
+    scoped_refptr<media::VideoFrame> video_frame) {
   DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
   DCHECK(jpeg_decoder_.is_bound());
 
-  const size_t output_buffer_size =
-      media::VideoFrame::AllocationSize(format, coded_size);
-  DCHECK_GE(output_region.GetSize(), output_buffer_size);
+  DCHECK(video_frame->storage_type() == media::VideoFrame::STORAGE_SHMEM)
+      << video_frame->storage_type();
+
+  size_t output_buffer_size = media::VideoFrame::AllocationSize(
+      video_frame->format(), video_frame->coded_size());
+  DCHECK_GE(video_frame->shm_region()->GetSize(), output_buffer_size);
 
   mojo::ScopedSharedBufferHandle output_frame_handle =
-      mojo::WrapUnsafeSharedMemoryRegion(std::move(output_region));
+      mojo::WrapUnsafeSharedMemoryRegion(
+          video_frame->shm_region()->Duplicate());
   if (!output_frame_handle.is_valid()) {
     DLOG(ERROR) << "Failed to duplicate handle of VideoFrame";
     return;
   }
 
   // base::Unretained is safe because |this| owns |jpeg_decoder_|.
-  jpeg_decoder_->Decode(std::move(bitstream_buffer), coded_size,
+  jpeg_decoder_->Decode(std::move(bitstream_buffer), video_frame->coded_size(),
                         std::move(output_frame_handle),
                         base::checked_cast<uint32_t>(output_buffer_size),
                         base::BindOnce(&MojoMjpegDecodeAccelerator::OnDecodeAck,
                                        base::Unretained(this)));
+}
+
+void MojoMjpegDecodeAccelerator::Decode(
+    int32_t task_id,
+    base::ScopedFD src_dmabuf_fd,
+    size_t src_size,
+    off_t src_offset,
+    scoped_refptr<media::VideoFrame> dst_frame) {
+  NOTIMPLEMENTED();
 }
 
 bool MojoMjpegDecodeAccelerator::IsSupported() {
@@ -73,7 +90,7 @@ bool MojoMjpegDecodeAccelerator::IsSupported() {
 }
 
 void MojoMjpegDecodeAccelerator::OnInitializeDone(
-    MjpegDecodeAccelerator::InitCB init_cb,
+    InitCB init_cb,
     MjpegDecodeAccelerator::Client* client,
     bool success) {
   DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
@@ -100,7 +117,7 @@ void MojoMjpegDecodeAccelerator::OnDecodeAck(
   // Only NotifyError once.
   // Client::NotifyError() may trigger deletion of |this|, so calling it needs
   // to be the last thing done on this stack!
-  MjpegDecodeAccelerator::Client* client = nullptr;
+  Client* client = nullptr;
   std::swap(client, client_);
   client->NotifyError(bitstream_buffer_id, error);
 }
@@ -108,7 +125,7 @@ void MojoMjpegDecodeAccelerator::OnDecodeAck(
 void MojoMjpegDecodeAccelerator::OnLostConnectionToJpegDecoder() {
   DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
   OnDecodeAck(
-      MjpegDecodeAccelerator::kInvalidTaskId,
+      kInvalidTaskId,
       ::chromeos_camera::MjpegDecodeAccelerator::Error::PLATFORM_FAILURE);
 }
 

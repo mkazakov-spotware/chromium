@@ -2,6 +2,7 @@ This test documents all computed styles on a div element.
 
 On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE".
 
+-webkit-app-region: none
 -webkit-border-horizontal-spacing: 0px
 -webkit-border-image: none
 -webkit-border-vertical-spacing: 0px
@@ -15,6 +16,7 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 -webkit-box-reflect: none
 -webkit-font-smoothing: auto
 -webkit-highlight: none
+-webkit-hyphenate-character: auto
 -webkit-line-break: auto
 -webkit-line-clamp: none
 -webkit-locale: auto
@@ -37,6 +39,9 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 -webkit-rtl-ordering: logical
 -webkit-text-combine: none
 -webkit-text-decorations-in-effect: none
+-webkit-text-emphasis-color: rgb(0, 0, 0)
+-webkit-text-emphasis-position: over right
+-webkit-text-emphasis-style: none
 -webkit-text-fill-color: rgb(0, 0, 0)
 -webkit-text-orientation: vertical-right
 -webkit-text-security: none
@@ -45,15 +50,11 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 -webkit-user-drag: auto
 -webkit-user-modify: read-only
 -webkit-writing-mode: horizontal-tb
-accent-color: auto
 align-content: normal
 align-items: normal
 align-self: auto
 alignment-baseline: auto
-anchor-name: none
-anchor-scroll: none
-animation-delay-end: 0s
-animation-delay-start: 0s
+animation-delay: 0s
 animation-direction: normal
 animation-duration: 0s
 animation-fill-mode: none
@@ -62,7 +63,6 @@ animation-name: none
 animation-play-state: running
 animation-timeline: auto
 animation-timing-function: ease
-app-region: none
 appearance: none
 backdrop-filter: none
 backface-visibility: visible
@@ -91,8 +91,6 @@ border-bottom-right-radius: 0px
 border-bottom-style: none
 border-bottom-width: 0px
 border-collapse: separate
-border-end-end-radius: 0px
-border-end-start-radius: 0px
 border-image-outset: 0
 border-image-repeat: stretch
 border-image-slice: 100%
@@ -111,8 +109,6 @@ border-right-color: rgb(0, 0, 0)
 border-right-style: none
 border-right-width: 0px
 border-spacing: 0px 0px
-border-start-end-radius: 0px
-border-start-start-radius: 0px
 border-top-color: rgb(0, 0, 0)
 border-top-left-radius: 0px
 border-top-right-radius: 0px
@@ -142,13 +138,6 @@ column-rule-style: none
 column-rule-width: 0px
 column-span: none
 column-width: auto
-contain-intrinsic-block-size: none
-contain-intrinsic-height: none
-contain-intrinsic-inline-size: none
-contain-intrinsic-size: none
-contain-intrinsic-width: none
-container-name: none
-container-type: normal
 content: normal
 cursor: auto
 cx: 0px
@@ -172,21 +161,15 @@ flood-color: rgb(0, 0, 0)
 flood-opacity: 1
 font-kerning: auto
 font-optical-sizing: auto
-font-palette: normal
 font-size: 16px
 font-size-adjust: none
 font-stretch: 100%
 font-style: normal
-font-synthesis-small-caps: auto
-font-synthesis-style: auto
-font-synthesis-weight: auto
 font-variant: normal
-font-variant-alternates: normal
 font-variant-caps: normal
 font-variant-east-asian: normal
 font-variant-ligatures: normal
 font-variant-numeric: normal
-font-variant-position: normal
 font-weight: 400
 grid-auto-columns: auto
 grid-auto-flow: row
@@ -199,12 +182,9 @@ grid-template-areas: none
 grid-template-columns: none
 grid-template-rows: none
 height: 0px
-hyphenate-character: auto
-hyphenate-limit-chars: auto
 hyphens: manual
 image-orientation: from-image
 image-rendering: auto
-initial-letter: normal
 inline-size: 769px
 inset-block-end: auto
 inset-block-start: auto
@@ -249,7 +229,6 @@ min-width: 0px
 mix-blend-mode: normal
 object-fit: fill
 object-position: 50% 50%
-object-view-box: none
 offset-anchor: auto
 offset-distance: 0px
 offset-path: none
@@ -285,7 +264,6 @@ perspective: none
 perspective-origin: 384.5px 0px
 pointer-events: auto
 position: static
-position-fallback: none
 r: 0px
 resize: none
 right: auto
@@ -304,8 +282,6 @@ scroll-padding-block-end: auto
 scroll-padding-block-start: auto
 scroll-padding-inline-end: auto
 scroll-padding-inline-start: auto
-scroll-timeline-axis: block
-scroll-timeline-name: none
 scrollbar-gutter: auto
 scrollbar-width: auto
 shape-image-threshold: 0
@@ -333,20 +309,14 @@ text-decoration-color: rgb(0, 0, 0)
 text-decoration-line: none
 text-decoration-skip-ink: auto
 text-decoration-style: solid
-text-emphasis-color: rgb(0, 0, 0)
-text-emphasis-position: over
-text-emphasis-style: none
 text-indent: 0px
+text-justify: auto
 text-overflow: clip
 text-rendering: auto
 text-shadow: none
 text-size-adjust: auto
 text-transform: none
 text-underline-position: auto
-toggle-group: none
-toggle-root: none
-toggle-trigger: none
-toggle-visibility: normal
 top: auto
 touch-action: auto
 transform: none
@@ -361,9 +331,6 @@ unicode-bidi: normal
 user-select: auto
 vector-effect: none
 vertical-align: baseline
-view-timeline-axis: block
-view-timeline-inset: 0px
-view-timeline-name: none
 visibility: visible
 white-space: normal
 widows: 2

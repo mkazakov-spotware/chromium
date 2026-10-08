@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,9 @@
 
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_testing.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_element_definition_options.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
-#include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/html/custom/custom_element_definition.h"
 #include "third_party/blink/renderer/core/html/custom/custom_element_registry.h"
 #include "third_party/blink/renderer/core/html/custom/custom_element_test_helpers.h"
@@ -119,8 +117,7 @@ TEST(CustomElementTest, TestIsValidNamePotentialCustomElementName8BitChar) {
     EXPECT_EQ(Character::IsPotentialCustomElementName8BitChar(ch),
               Character::IsPotentialCustomElementNameChar(ch))
         << "isPotentialCustomElementName8BitChar must agree with "
-        << "isPotentialCustomElementNameChar: 0x" << std::hex
-        << static_cast<uint16_t>(ch);
+        << "isPotentialCustomElementNameChar: 0x" << std::hex << ch;
   }
 }
 
@@ -168,14 +165,16 @@ TEST(CustomElementTest, StateByParser) {
   struct {
     const char* id;
     CustomElementState state;
+    Element::V0CustomElementState v0state;
   } parser_data[] = {
-      {"div", CustomElementState::kUncustomized},
-      {"v1v0", CustomElementState::kUndefined},
-      {"v0", CustomElementState::kUncustomized},
+      {"div", CustomElementState::kUncustomized, Element::kV0NotCustomElement},
+      {"v1v0", CustomElementState::kUndefined, Element::kV0WaitingForUpgrade},
+      {"v0", CustomElementState::kUncustomized, Element::kV0WaitingForUpgrade},
   };
   for (const auto& data : parser_data) {
     Element* element = document.getElementById(data.id);
     EXPECT_EQ(data.state, element->GetCustomElementState()) << data.id;
+    EXPECT_EQ(data.v0state, element->GetV0CustomElementState()) << data.id;
   }
 }
 
@@ -183,41 +182,49 @@ TEST(CustomElementTest, StateByCreateElement) {
   struct {
     const char* name;
     CustomElementState state;
+    Element::V0CustomElementState v0state;
   } create_element_data[] = {
-      {"div", CustomElementState::kUncustomized},
-      {"a-a", CustomElementState::kUndefined},
-      {"font-face", CustomElementState::kUncustomized},
-      {"_-X", CustomElementState::kUncustomized},
+      {"div", CustomElementState::kUncustomized, Element::kV0NotCustomElement},
+      {"a-a", CustomElementState::kUndefined, Element::kV0WaitingForUpgrade},
+      // TODO(pdr): <font-face> should be V0NotCustomElement as per the spec,
+      // but was regressed to be V0WaitingForUpgrade in
+      // http://crrev.com/656913006
+      {"font-face", CustomElementState::kUncustomized,
+       Element::kV0WaitingForUpgrade},
+      {"_-X", CustomElementState::kUncustomized, Element::kV0WaitingForUpgrade},
   };
   auto page_holder = std::make_unique<DummyPageHolder>();
   Document& document = page_holder->GetDocument();
   for (const auto& data : create_element_data) {
     Element* element = document.CreateElementForBinding(data.name);
     EXPECT_EQ(data.state, element->GetCustomElementState()) << data.name;
+    EXPECT_EQ(data.v0state, element->GetV0CustomElementState()) << data.name;
 
     element = document.createElementNS(html_names::xhtmlNamespaceURI, data.name,
                                        ASSERT_NO_EXCEPTION);
     EXPECT_EQ(data.state, element->GetCustomElementState()) << data.name;
+    EXPECT_EQ(data.v0state, element->GetV0CustomElementState()) << data.name;
 
     element = document.createElementNS(svg_names::kNamespaceURI, data.name,
                                        ASSERT_NO_EXCEPTION);
     EXPECT_EQ(CustomElementState::kUncustomized,
               element->GetCustomElementState())
         << data.name;
+    EXPECT_EQ(data.v0state, element->GetV0CustomElementState()) << data.name;
   }
 }
 
 TEST(CustomElementTest,
      CreateElement_TagNameCaseHandlingCreatingCustomElement) {
-  V8TestingScope scope;
   // register a definition
-  ScriptState* script_state = scope.GetScriptState();
+  auto holder(std::make_unique<DummyPageHolder>());
+  ScriptState* script_state = ToScriptStateForMainWorld(&holder->GetFrame());
   CustomElementRegistry* registry =
-      scope.GetFrame().DomWindow()->customElements();
+      holder->GetFrame().DomWindow()->customElements();
   NonThrowableExceptionState should_not_throw;
   {
     CEReactionsScope reactions;
-    TestCustomElementDefinitionBuilder builder(script_state);
+    TestCustomElementDefinitionBuilder builder;
     registry->DefineInternal(script_state, "a-a", builder,
                              ElementDefinitionOptions::Create(),
                              should_not_throw);
@@ -227,7 +234,7 @@ TEST(CustomElementTest,
   EXPECT_NE(nullptr, definition) << "a-a should be registered";
 
   // create an element with an uppercase tag name
-  Document& document = scope.GetDocument();
+  Document& document = holder->GetDocument();
   EXPECT_TRUE(IsA<HTMLDocument>(document))
       << "this test requires a HTML document";
   Element* element = document.CreateElementForBinding("A-A", should_not_throw);

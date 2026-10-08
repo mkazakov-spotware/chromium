@@ -1,9 +1,7 @@
-#!/usr/bin/env vpython3
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-from __future__ import absolute_import
 import logging
 import os
 import tempfile
@@ -15,7 +13,6 @@ import run_cts
 
 sys.path.append(os.path.join(
     os.path.dirname(__file__), os.pardir, os.pardir, 'build', 'android'))
-# pylint: disable=wrong-import-position,import-error
 import devil_chromium  # pylint: disable=unused-import
 from devil.android.ndk import abis
 from devil.android.sdk import version_codes
@@ -32,12 +29,9 @@ class _RunCtsTest(unittest.TestCase):
 
   @staticmethod
   def _getArgsMock(**kwargs):
-    args = {
-        'test_filter_files': None,
-        'test_filters': None,
-        'isolated_script_test_filters': None,
-        'skip_expected_failures': False
-    }
+    args = {'test_filter_file': None, 'test_filter': None,
+            'isolated_script_test_filter': None,
+            'skip_expected_failures': False}
     args.update(kwargs)
     return mock.Mock(**args)
 
@@ -68,12 +62,11 @@ class _RunCtsTest(unittest.TestCase):
     logging_mock.assert_called()
 
   def testDetermineCtsRelease_tooLow(self):
-    device = mock.Mock(build_version_sdk=version_codes.LOLLIPOP_MR1)
+    device = mock.Mock(build_version_sdk=version_codes.KITKAT)
     with self.assertRaises(Exception) as cm:
       run_cts.DetermineCtsRelease(device)
     message = str(cm.exception)
-    self.assertIn("We don't support running CTS tests on platforms less than",
-                  message)
+    self.assertIn('not updatable', message)
 
   def testDetermineCtsRelease_tooHigh(self):
     device = mock.Mock(build_version_sdk=version_codes.OREO)
@@ -103,208 +96,85 @@ class _RunCtsTest(unittest.TestCase):
                      run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
 
   def testFilter_CombinesExcludedMatches(self):
-    mock_args = self._getArgsMock(test_filters=['good#test'],
+    mock_args = self._getArgsMock(test_filter='good#test',
                                   skip_expected_failures=False)
     self.assertEqual([run_cts.TEST_FILTER_OPT + '=good.test'],
                      run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
 
   def testFilter_CombinesAll(self):
-    mock_args = self._getArgsMock(test_filters=['good#test'],
+    mock_args = self._getArgsMock(test_filter='good#test',
                                   skip_expected_failures=True)
     skip = self._getSkipString()
-    self.assertEqual([
-        run_cts.TEST_FILTER_OPT + '=good.test',
-        run_cts.TEST_FILTER_OPT + '=-' + skip
-    ], run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
+    self.assertEqual([run_cts.TEST_FILTER_OPT + '=good.test-' + skip],
+                     run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
 
   def testFilter_ForMultipleTests(self):
-    mock_args = self._getArgsMock(test_filters=['good#t1:good#t2'],
+    mock_args = self._getArgsMock(test_filter='good#t1:good#t2',
                                   skip_expected_failures=True)
     skip = self._getSkipString()
-    self.assertEqual([
-        run_cts.TEST_FILTER_OPT + '=good.t1:good.t2',
-        run_cts.TEST_FILTER_OPT + '=-' + skip
-    ], run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
-
-  def testFilter_IncludesForArchitecture(self):
-    mock_args = self._getArgsMock()
-
-    cts_run = {
-        'apk':
-        'module.apk',
-        'includes': [{
-            'match': 'good#test1',
-            'arch': 'x86'
-        }, {
-            'match': 'good#test2'
-        }, {
-            'match': 'exclude#test4',
-            'arch': 'arm64'
-        }]
-    }
-
-    self.assertEqual([run_cts.TEST_FILTER_OPT + '=good.test1:good.test2'],
-                     run_cts.GetTestRunFilterArg(mock_args, cts_run,
-                                                 arch='x86'))
-
-  def testFilter_ExcludesForArchitecture(self):
-    mock_args = self._getArgsMock(skip_expected_failures=True)
-
-    cts_run = {
-        'apk':
-        'module.apk',
-        'excludes': [{
-            'match': 'good#test1',
-            'arch': 'x86'
-        }, {
-            'match': 'good#test2'
-        }, {
-            'match': 'exclude#test4',
-            'arch': 'arm64'
-        }]
-    }
-
-    self.assertEqual([run_cts.TEST_FILTER_OPT + '=-good.test1:good.test2'],
-                     run_cts.GetTestRunFilterArg(mock_args, cts_run,
-                                                 arch='x86'))
-
-  def testFilter_IncludesForMode(self):
-    mock_args = self._getArgsMock()
-
-    cts_run = {
-        'apk':
-        'module.apk',
-        'includes': [{
-            'match': 'good#test1',
-            'mode': 'instant'
-        }, {
-            'match': 'good#test2'
-        }, {
-            'match': 'exclude#test4',
-            'mode': 'full'
-        }]
-    }
-
-    self.assertEqual([run_cts.TEST_FILTER_OPT + '=good.test1:good.test2'],
-                     run_cts.GetTestRunFilterArg(mock_args,
-                                                 cts_run,
-                                                 test_app_mode='instant'))
-
-  def testFilter_ExcludesForMode(self):
-    mock_args = self._getArgsMock(skip_expected_failures=True)
-
-    cts_run = {
-        'apk':
-        'module.apk',
-        'excludes': [{
-            'match': 'good#test1',
-            'mode': 'instant'
-        }, {
-            'match': 'good#test2'
-        }, {
-            'match': 'exclude#test4',
-            'mode': 'full'
-        }]
-    }
-
-    self.assertEqual([run_cts.TEST_FILTER_OPT + '=-good.test1:good.test2'],
-                     run_cts.GetTestRunFilterArg(mock_args,
-                                                 cts_run,
-                                                 test_app_mode='instant'))
+    self.assertEqual([run_cts.TEST_FILTER_OPT + '=good.t1:good.t2-' + skip],
+                     run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
 
   def testIsolatedFilter_CombinesExcludedMatches(self):
-    mock_args = self._getArgsMock(isolated_script_test_filters=['good#test'],
+    mock_args = self._getArgsMock(isolated_script_test_filter='good#test',
                                   skip_expected_failures=False)
     self.assertEqual([run_cts.TEST_FILTER_OPT + '=good.test'],
                      run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
 
   def testIsolatedFilter_CombinesAll(self):
-    mock_args = self._getArgsMock(isolated_script_test_filters=['good#test'],
+    mock_args = self._getArgsMock(isolated_script_test_filter='good#test',
                                   skip_expected_failures=True)
     skip = self._getSkipString()
-    self.assertEqual([
-        run_cts.TEST_FILTER_OPT + '=good.test',
-        run_cts.TEST_FILTER_OPT + '=-' + skip
-    ], run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
+    self.assertEqual([run_cts.TEST_FILTER_OPT + '=good.test-' + skip],
+                     run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
 
   def testIsolatedFilter_ForMultipleTests(self):
     # Isolated test filters use :: to separate matches
     mock_args = self._getArgsMock(
-        isolated_script_test_filters=['good#t1::good#t2'],
+        isolated_script_test_filter='good#t1::good#t2',
         skip_expected_failures=True)
     skip = self._getSkipString()
-    self.assertEqual([
-        run_cts.TEST_FILTER_OPT + '=good.t1:good.t2',
-        run_cts.TEST_FILTER_OPT + '=-' + skip
-    ], run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
+    self.assertEqual([run_cts.TEST_FILTER_OPT + '=good.t1:good.t2-' + skip],
+                     run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
 
-  @unittest.skipIf(os.name == "nt", "Opening NamedTemporaryFile by name "
-                   "doesn't work in Windows.")
   def testFilterFile_CombinesExcludedMatches(self):
     with tempfile.NamedTemporaryFile(prefix='cts_run_test') as filter_file:
-      filter_file.write('suite.goodtest'.encode())
+      filter_file.write('suite.goodtest')
       filter_file.seek(0)
-      mock_args = self._getArgsMock(test_filter_files=[filter_file.name],
-                                    skip_expected_failures=False)
+      mock_args = self._getArgsMock(
+          test_filter_file=filter_file.name,
+          skip_expected_failures=False)
       self.assertEqual([run_cts.TEST_FILTER_OPT + '=suite.goodtest'],
                        run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
 
-  @unittest.skipIf(os.name == "nt", "Opening NamedTemporaryFile by name "
-                   "doesn't work in Windows.")
-  def testFilterFile_MultipleFilters(self):
-    with tempfile.NamedTemporaryFile(prefix='cts_run_test') as filter_file:
-      filter_file.write(
-          'suite.goodtest1\nsuite.goodtest2\n-suite.badtest1'.encode())
-      filter_file.seek(0)
-      with tempfile.NamedTemporaryFile(prefix='cts_run_test2') as filter_file2:
-        filter_file2.write(
-            'suite.goodtest2\nsuite.goodtest3\n-suite.badtest2'.encode())
-        filter_file2.seek(0)
-        mock_args = self._getArgsMock(
-            test_filter_files=[filter_file.name, filter_file2.name],
-            skip_expected_failures=False)
-        self.assertEqual([
-            run_cts.TEST_FILTER_OPT +
-            '=suite.goodtest1:suite.goodtest2-suite.badtest1',
-            run_cts.TEST_FILTER_OPT +
-            '=suite.goodtest2:suite.goodtest3-suite.badtest2'
-        ], run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
-
-  @unittest.skipIf(os.name == "nt", "Opening NamedTemporaryFile by name "
-                   "doesn't work in Windows.")
   def testFilterFile_CombinesAll(self):
     with tempfile.NamedTemporaryFile(prefix='cts_run_test') as filter_file:
-      filter_file.write('suite.goodtest'.encode())
+      filter_file.write('suite.goodtest')
       filter_file.seek(0)
-      mock_args = self._getArgsMock(test_filter_files=[filter_file.name],
-                                    skip_expected_failures=True)
+      mock_args = self._getArgsMock(
+          test_filter_file=filter_file.name,
+          skip_expected_failures=True)
       skip = self._getSkipString()
-      self.assertEqual([
-          run_cts.TEST_FILTER_OPT + '=suite.goodtest',
-          run_cts.TEST_FILTER_OPT + '=-' + skip
-      ], run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
+      self.assertEqual([run_cts.TEST_FILTER_OPT + '=suite.goodtest-' + skip],
+                       run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
 
   def testNegative_Filter(self):
-    mock_args = self._getArgsMock(test_filters=['-good#t1:good#t2'],
+    mock_args = self._getArgsMock(test_filter='-good#t1:good#t2',
                                   skip_expected_failures=True)
     skip = self._getSkipString()
-    self.assertEqual([
-        run_cts.TEST_FILTER_OPT + '=-good.t1:good.t2',
-        run_cts.TEST_FILTER_OPT + '=-' + skip
-    ], run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
+    self.assertEqual([run_cts.TEST_FILTER_OPT + '=-good.t1:good.t2:' + skip],
+                     run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
 
   def testNegative_IsolatedFilter(self):
     mock_args = self._getArgsMock(
-        isolated_script_test_filters=['-good#t1::good#t2'],
+        isolated_script_test_filter='-good#t1::good#t2',
         skip_expected_failures=True)
     skip = self._getSkipString()
-    self.assertEqual([
-        run_cts.TEST_FILTER_OPT + '=-good.t1:good.t2',
-        run_cts.TEST_FILTER_OPT + '=-' + skip
-    ], run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
+    self.assertEqual([run_cts.TEST_FILTER_OPT + '=-good.t1:good.t2:' + skip],
+                     run_cts.GetTestRunFilterArg(mock_args, self._CTS_RUN))
 
   def testFilter_OverridesInclusion(self):
-    mock_args = self._getArgsMock(test_filters=['good#test1'],
+    mock_args = self._getArgsMock(test_filter='good#test1',
                                   skip_expected_failures=False)
     cts_run = {'apk': 'module.apk', 'includes': [{'match': 'good#test2'}]}
     self.assertEqual([run_cts.TEST_FILTER_OPT + '=good.test1'],

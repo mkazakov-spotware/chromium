@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,24 +9,20 @@
 #include <memory>
 #include <string>
 
-#include "base/containers/flat_set.h"
-#include "base/memory/raw_ptr.h"
 #include "extensions/browser/api/declarative_net_request/extension_url_pattern_index_matcher.h"
 #include "extensions/browser/api/declarative_net_request/flat/extension_ruleset_generated.h"
 #include "extensions/browser/api/declarative_net_request/regex_rules_matcher.h"
 #include "extensions/common/api/declarative_net_request/constants.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace content {
-class NavigationHandle;
 class RenderFrameHost;
 }  // namespace content
 
 namespace extensions {
 
 namespace declarative_net_request {
-
-struct RulesCountPair;
+class RulesetSource;
+enum class LoadRulesetResult;
 
 namespace flat {
 struct ExtensionIndexedRuleset;
@@ -40,32 +36,32 @@ struct UrlRuleMetadata;
 // inherits from RulesetMatcherBase.
 class RulesetMatcher {
  public:
-  RulesetMatcher(std::string ruleset_data,
-                 RulesetID id,
-                 const ExtensionId& extension_id);
-
-  RulesetMatcher(const RulesetMatcher&) = delete;
-  RulesetMatcher& operator=(const RulesetMatcher&) = delete;
+  // Factory function to create a verified RulesetMatcher for |source|. Must be
+  // called on a sequence where file IO is allowed. Returns kSuccess on
+  // success along with the ruleset |matcher|.
+  static LoadRulesetResult CreateVerifiedMatcher(
+      const RulesetSource& source,
+      int expected_ruleset_checksum,
+      std::unique_ptr<RulesetMatcher>* matcher);
 
   ~RulesetMatcher();
 
-  absl::optional<RequestAction> GetBeforeRequestAction(
+  base::Optional<RequestAction> GetBeforeRequestAction(
       const RequestParams& params) const;
 
   // Returns a list of actions corresponding to all matched
   // modifyHeaders rules with priority greater than |min_priority| if specified.
   std::vector<RequestAction> GetModifyHeadersActions(
       const RequestParams& params,
-      absl::optional<uint64_t> min_priority) const;
+      base::Optional<uint64_t> min_priority) const;
 
   bool IsExtraHeadersMatcher() const;
   size_t GetRulesCount() const;
   size_t GetRegexRulesCount() const;
-  RulesCountPair GetRulesCountPair() const;
 
   void OnRenderFrameCreated(content::RenderFrameHost* host);
   void OnRenderFrameDeleted(content::RenderFrameHost* host);
-  void OnDidFinishNavigation(content::NavigationHandle* navigation_handle);
+  void OnDidFinishNavigation(content::RenderFrameHost* host);
 
   // ID of the ruleset. Each extension can have multiple rulesets with
   // their own unique ids.
@@ -73,19 +69,17 @@ class RulesetMatcher {
 
   // Returns the tracked highest priority matching allowsAllRequests action, if
   // any, for |host|.
-  absl::optional<RequestAction> GetAllowlistedFrameActionForTesting(
+  base::Optional<RequestAction> GetAllowlistedFrameActionForTesting(
       content::RenderFrameHost* host) const;
 
-  // Set the disabled rule ids to the ruleset matcher.
-  void SetDisabledRuleIds(base::flat_set<int> disabled_rule_ids);
-
-  // Returns the disabled rule ids for testing.
-  const base::flat_set<int>& GetDisabledRuleIdsForTesting() const;
-
  private:
+  explicit RulesetMatcher(std::string ruleset_data,
+                          RulesetID id,
+                          const ExtensionId& extension_id);
+
   const std::string ruleset_data_;
 
-  const raw_ptr<const flat::ExtensionIndexedRuleset> root_;
+  const flat::ExtensionIndexedRuleset* const root_;
 
   const RulesetID id_;
 
@@ -95,6 +89,8 @@ class RulesetMatcher {
 
   // Underlying matcher for regex rules.
   RegexRulesMatcher regex_matcher_;
+
+  DISALLOW_COPY_AND_ASSIGN(RulesetMatcher);
 };
 
 }  // namespace declarative_net_request

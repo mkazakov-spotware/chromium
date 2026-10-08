@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -80,8 +80,7 @@ bool IsValidMessageHeader(const internal::MessageHeader* header,
     return false;
   }
 
-  constexpr const internal::ContainerValidateParams& validate_params =
-      internal::GetArrayValidator<0, false, nullptr>();
+  const internal::ContainerValidateParams validate_params(0, false, nullptr);
   if (!internal::ValidateContainer(header_v2->payload_interface_ids,
                                    validation_context, &validate_params)) {
     return false;

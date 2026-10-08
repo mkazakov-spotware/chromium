@@ -1,17 +1,20 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef NET_TOOLS_HUFFMAN_TRIE_TRIE_TRIE_WRITER_H_
 #define NET_TOOLS_HUFFMAN_TRIE_TRIE_TRIE_WRITER_H_
 
+#include <string>
 #include <vector>
 
 #include "net/tools/huffman_trie/bit_writer.h"
 #include "net/tools/huffman_trie/huffman/huffman_builder.h"
 #include "net/tools/huffman_trie/trie_entry.h"
 
-namespace net::huffman_trie {
+namespace net {
+
+namespace huffman_trie {
 
 enum : uint8_t { kTerminalValue = 0, kEndOfTableValue = 127 };
 
@@ -54,6 +57,8 @@ class TrieWriter {
   HuffmanBuilder* huffman_builder_;
 };
 
-}  // namespace net::huffman_trie
+}  // namespace huffman_trie
+
+}  // namespace net
 
 #endif  // NET_TOOLS_HUFFMAN_TRIE_TRIE_TRIE_WRITER_H_

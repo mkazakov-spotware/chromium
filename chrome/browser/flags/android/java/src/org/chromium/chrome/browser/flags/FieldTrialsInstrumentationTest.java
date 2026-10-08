@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,9 +18,6 @@ import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.util.browser.Features;
 import org.chromium.chrome.test.util.browser.FieldTrials;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Tests for {@link FieldTrials}.
@@ -49,10 +46,10 @@ public final class FieldTrialsInstrumentationTest {
             "force-fieldtrials=Study/Group", "force-fieldtrial-params=Study.Group:a1/b1"})
     public void testOneFeatureTrialGroup() {
         // clang-format on
-        Assert.assertTrue(ChromeFeatureList.sTestDefaultDisabled.isEnabled());
+        Assert.assertTrue(ChromeFeatureList.isEnabled(sFeature1));
         Assert.assertEquals("b1", ChromeFeatureList.getFieldTrialParamByFeature(sFeature1, "a1"));
 
-        Assert.assertTrue(ChromeFeatureList.sTestDefaultDisabled.isEnabled());
+        Assert.assertTrue(CachedFeatureFlags.isEnabled(sFeature1));
         StringCachedFieldTrialParameter parameterA1 =
                 new StringCachedFieldTrialParameter(sFeature1, "a1", "default");
         Assert.assertEquals("b1", parameterA1.getValue());
@@ -74,8 +71,8 @@ public final class FieldTrialsInstrumentationTest {
         Assert.assertTrue(ChromeFeatureList.isEnabled(sFeature2));
         Assert.assertEquals("b2", ChromeFeatureList.getFieldTrialParamByFeature(sFeature1, "a2"));
 
-        Assert.assertTrue(ChromeFeatureList.sTestDefaultDisabled.isEnabled());
-        Assert.assertTrue(ChromeFeatureList.sTestDefaultEnabled.isEnabled());
+        Assert.assertTrue(CachedFeatureFlags.isEnabled(sFeature1));
+        Assert.assertTrue(CachedFeatureFlags.isEnabled(sFeature2));
         StringCachedFieldTrialParameter parameterA1 =
                 new StringCachedFieldTrialParameter(sFeature1, "a1", "");
         Assert.assertEquals("b1", parameterA1.getValue());
@@ -107,8 +104,8 @@ public final class FieldTrialsInstrumentationTest {
         Assert.assertEquals("100", ChromeFeatureList.getFieldTrialParamByFeature(sFeature1, "a2"));
         Assert.assertEquals("true", ChromeFeatureList.getFieldTrialParamByFeature(sFeature2, "a3"));
 
-        Assert.assertTrue(ChromeFeatureList.sTestDefaultDisabled.isEnabled());
-        Assert.assertTrue(ChromeFeatureList.sTestDefaultEnabled.isEnabled());
+        Assert.assertTrue(CachedFeatureFlags.isEnabled(sFeature1));
+        Assert.assertTrue(CachedFeatureFlags.isEnabled(sFeature2));
         DoubleCachedFieldTrialParameter parameterA1 =
                 new DoubleCachedFieldTrialParameter(sFeature1, "a1", 0.1);
         Assert.assertEquals(0.5, parameterA1.getValue(), 1e-7);
@@ -130,7 +127,7 @@ public final class FieldTrialsInstrumentationTest {
     public void testFeatureWithoutParams() {
         // clang-format on
         Assert.assertTrue(ChromeFeatureList.isEnabled(sFeature1));
-        Assert.assertTrue(ChromeFeatureList.sTestDefaultDisabled.isEnabled());
+        Assert.assertTrue(CachedFeatureFlags.isEnabled(sFeature1));
     }
 
     @Test
@@ -146,27 +143,7 @@ public final class FieldTrialsInstrumentationTest {
         Assert.assertEquals("b1", parameter.getValue());
 
         // Make sure ensureCommandLineIsUpToDate() doesn't erase the value.
-        Features.getInstance().ensureCommandLineIsUpToDate();
+        Features.ensureCommandLineIsUpToDate();
         Assert.assertEquals("b1", parameter.getValue());
-    }
-
-    @Test
-    @SmallTest
-    // clang-format off
-    @CommandLineFlags.Add({"enable-features=" + sFeature2 + "<Study",
-            "force-fieldtrials=Study/Group",
-            "force-fieldtrial-params=Study.Group:101/x/y/99"})
-    public void testAllCachedFieldTrialParameters() {
-        AllCachedFieldTrialParameters parameters = new AllCachedFieldTrialParameters(sFeature2);
-        Map<String, String> expectedFeatures = new HashMap<>();
-        expectedFeatures.put("101", "x");
-        expectedFeatures.put("y", "99");
-        Assert.assertEquals(expectedFeatures, parameters.getParams());
-    }
-
-    @Test
-    @SmallTest
-    public void testGetLastUpdateFromNativeTimeMillis() {
-        Assert.assertNotEquals(0, CachedFeatureFlags.getLastCachedMinimalBrowserFlagsTimeMillis());
     }
 }

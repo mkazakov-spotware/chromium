@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_AURA_CLIENT_CURSOR_CLIENT_H_
 #define UI_AURA_CLIENT_CURSOR_CLIENT_H_
 
+#include "base/strings/string16.h"
 #include "ui/aura/aura_export.h"
 #include "ui/base/cursor/cursor.h"
 #include "ui/gfx/native_widget_types.h"
@@ -13,13 +14,8 @@ namespace display {
 class Display;
 }
 
-namespace gfx {
-class Size;
-}
-
 namespace ui {
 class KeyEvent;
-class TouchEvent;
 enum class CursorSize;
 }
 
@@ -93,11 +89,6 @@ class AURA_EXPORT CursorClient {
 
   // Returns true if the mouse cursor should be hidden on |event|.
   virtual bool ShouldHideCursorOnKeyEvent(const ui::KeyEvent& event) const = 0;
-  virtual bool ShouldHideCursorOnTouchEvent(
-      const ui::TouchEvent& event) const = 0;
-
-  // Returns the OS cursor size in DIP.
-  virtual gfx::Size GetSystemCursorSize() const = 0;
 
  protected:
   virtual ~CursorClient() {}

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,8 @@
 #include <string>
 #include <vector>
 
-#include "base/containers/flat_set.h"
-#include "components/services/app_service/public/cpp/intent.h"
-#include "components/services/app_service/public/cpp/intent_filter.h"
-#include "components/services/app_service/public/cpp/preferred_app.h"
-#include "components/services/app_service/public/cpp/preferred_apps_list_handle.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
+#include "components/services/app_service/public/mojom/types.mojom.h"
 
 class GURL;
 
@@ -22,7 +18,7 @@ namespace apps {
 
 // The preferred apps set by the user. The preferred apps is stored as
 // an list of |intent_filter| vs. app_id.
-class PreferredAppsList : public PreferredAppsListHandle {
+class PreferredAppsList {
  public:
   PreferredAppsList();
   ~PreferredAppsList();
@@ -30,55 +26,44 @@ class PreferredAppsList : public PreferredAppsListHandle {
   PreferredAppsList(const PreferredAppsList&) = delete;
   PreferredAppsList& operator=(const PreferredAppsList&) = delete;
 
-  // Initialize the preferred app with empty list or existing |preferred_apps|;
-  void Init();
-  void Init(PreferredApps preferred_apps);
+  using PreferredApps = std::vector<apps::mojom::PreferredAppPtr>;
+
+  // Find preferred app id for an |intent|.
+  base::Optional<std::string> FindPreferredAppForIntent(
+      const apps::mojom::IntentPtr& intent);
+
+  // Find preferred app id for an |url|.
+  base::Optional<std::string> FindPreferredAppForUrl(const GURL& url);
 
   // Add a preferred app for an |intent_filter|, and returns a group of
   // |app_ids| that is no longer preferred app of their corresponding
   // |intent_filters|.
-  ReplacedAppPreferences AddPreferredApp(const std::string& app_id,
-                                         const IntentFilterPtr& intent_filter);
+  apps::mojom::ReplacedAppPreferencesPtr AddPreferredApp(
+      const std::string& app_id,
+      const apps::mojom::IntentFilterPtr& intent_filter);
 
   // Delete a preferred app for an |intent_filter| with the same |app_id|.
-  // Returns the deleted filters, if any.
-  IntentFilters DeletePreferredApp(const std::string& app_id,
-                                   const IntentFilterPtr& intent_filter);
+  void DeletePreferredApp(const std::string& app_id,
+                          const apps::mojom::IntentFilterPtr& intent_filter);
 
-  // Delete all settings for an |app_id|. Returns the deleted filters, if any.
-  IntentFilters DeleteAppId(const std::string& app_id);
+  // Delete all settings for an |app_id|.
+  void DeleteAppId(const std::string& app_id);
 
-  // Deletes all stored supported link preferences for an |app_id|.
-  // Returns the deleted filters, if any.
-  IntentFilters DeleteSupportedLinks(const std::string& app_id);
+  // Initialize the preferred app with empty list or existing |preferred_apps|;
+  void Init();
+  void Init(PreferredApps& preferred_apps);
 
-  // Applies all of the |changes| in a single bulk update. This method is
-  // intended to only be called from |OnPreferredAppsChanged| App Service
-  // subscriber overrides.
-  // Note that removed filters are processed before new filters are added. If
-  // the same filter appears in both |changes->added_filters| and
-  // |changes->removed_filters|, it be removed and then immediately added back.
-  void ApplyBulkUpdate(apps::PreferredAppChangesPtr changes);
+  // Get a copy of the preferred apps.
+  PreferredApps GetValue();
 
-  // PreferredAppsListHandler overrides:
-  bool IsInitialized() const override;
-  size_t GetEntrySize() const override;
-  PreferredApps GetValue() const override;
-  const PreferredApps& GetReference() const override;
-  bool IsPreferredAppForSupportedLinks(
-      const std::string& app_id) const override;
-  absl::optional<std::string> FindPreferredAppForUrl(
-      const GURL& url) const override;
-  absl::optional<std::string> FindPreferredAppForIntent(
-      const IntentPtr& intent) const override;
-  base::flat_set<std::string> FindPreferredAppsForFilters(
-      const IntentFilters& intent_filters) const override;
+  bool IsInitialized();
+
+  const PreferredApps& GetReference() const;
+
+  // Get the entry size of the preferred app list.
+  size_t GetEntrySize();
 
  private:
-  // Check if the entry already exists in the preferred app list.
-  bool EntryExists(const std::string& app_id,
-                   const IntentFilterPtr& intent_filter);
-
   PreferredApps preferred_apps_;
   bool initialized_ = false;
 };

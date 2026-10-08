@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/android/scoped_java_ref.h"
+#include "base/macros.h"
+#include "chrome/browser/infobars/infobar_service.h"
 #include "chrome/browser/ui/messages/android/jni_headers/SimpleConfirmInfoBarBuilder_jni.h"
-#include "components/infobars/android/confirm_infobar.h"
-#include "components/infobars/content/content_infobar_manager.h"
 #include "components/infobars/core/confirm_infobar_delegate.h"
 #include "components/infobars/core/infobar.h"
 #include "content/public/browser/web_contents.h"
@@ -27,28 +27,24 @@ class SimpleConfirmInfoBarDelegate : public ConfirmInfoBarDelegate {
       const JavaParamRef<jobject>& j_listener,
       infobars::InfoBarDelegate::InfoBarIdentifier infobar_identifier,
       const gfx::Image& bitmap,
-      const std::u16string& message_str,
-      const std::u16string& primary_str,
-      const std::u16string& secondary_str,
-      const std::u16string& link_text_str,
+      const base::string16& message_str,
+      const base::string16& primary_str,
+      const base::string16& secondary_str,
+      const base::string16& link_text_str,
       bool auto_expire);
-
-  SimpleConfirmInfoBarDelegate(const SimpleConfirmInfoBarDelegate&) = delete;
-  SimpleConfirmInfoBarDelegate& operator=(const SimpleConfirmInfoBarDelegate&) =
-      delete;
 
   ~SimpleConfirmInfoBarDelegate() override;
 
   // ConfirmInfoBarDelegate:
   infobars::InfoBarDelegate::InfoBarIdentifier GetIdentifier() const override;
-  ui::ImageModel GetIcon() const override;
-  std::u16string GetLinkText() const override;
+  gfx::Image GetIcon() const override;
+  base::string16 GetLinkText() const override;
   bool ShouldExpire(const NavigationDetails& details) const override;
   bool LinkClicked(WindowOpenDisposition disposition) override;
   void InfoBarDismissed() override;
-  std::u16string GetMessageText() const override;
+  base::string16 GetMessageText() const override;
   int GetButtons() const override;
-  std::u16string GetButtonLabel(InfoBarButton button) const override;
+  base::string16 GetButtonLabel(InfoBarButton button) const override;
   bool Accept() override;
   bool Cancel() override;
 
@@ -56,21 +52,23 @@ class SimpleConfirmInfoBarDelegate : public ConfirmInfoBarDelegate {
   base::android::ScopedJavaGlobalRef<jobject> java_listener_;
   infobars::InfoBarDelegate::InfoBarIdentifier identifier_;
   gfx::Image icon_bitmap_;
-  std::u16string message_str_;
-  std::u16string primary_str_;
-  std::u16string secondary_str_;
-  std::u16string link_text_str_;
+  base::string16 message_str_;
+  base::string16 primary_str_;
+  base::string16 secondary_str_;
+  base::string16 link_text_str_;
   bool auto_expire_;
+
+  DISALLOW_COPY_AND_ASSIGN(SimpleConfirmInfoBarDelegate);
 };
 
 SimpleConfirmInfoBarDelegate::SimpleConfirmInfoBarDelegate(
     const JavaParamRef<jobject>& j_listener,
     infobars::InfoBarDelegate::InfoBarIdentifier identifier,
     const gfx::Image& bitmap,
-    const std::u16string& message_str,
-    const std::u16string& primary_str,
-    const std::u16string& secondary_str,
-    const std::u16string& link_text_str,
+    const base::string16& message_str,
+    const base::string16& primary_str,
+    const base::string16& secondary_str,
+    const base::string16& link_text_str,
     bool auto_expire)
     : identifier_(identifier),
       icon_bitmap_(bitmap),
@@ -90,12 +88,12 @@ SimpleConfirmInfoBarDelegate::GetIdentifier() const {
   return identifier_;
 }
 
-ui::ImageModel SimpleConfirmInfoBarDelegate::GetIcon() const {
+gfx::Image SimpleConfirmInfoBarDelegate::GetIcon() const {
   return icon_bitmap_.IsEmpty() ? ConfirmInfoBarDelegate::GetIcon()
-                                : ui::ImageModel::FromImage(icon_bitmap_);
+                                : icon_bitmap_;
 }
 
-std::u16string SimpleConfirmInfoBarDelegate::GetLinkText() const {
+base::string16 SimpleConfirmInfoBarDelegate::GetLinkText() const {
   return link_text_str_;
 }
 
@@ -115,7 +113,7 @@ void SimpleConfirmInfoBarDelegate::InfoBarDismissed() {
       base::android::AttachCurrentThread(), java_listener_);
 }
 
-std::u16string SimpleConfirmInfoBarDelegate::GetMessageText() const {
+base::string16 SimpleConfirmInfoBarDelegate::GetMessageText() const {
   return message_str_;
 }
 
@@ -124,8 +122,8 @@ int SimpleConfirmInfoBarDelegate::GetButtons() const {
       (secondary_str_.empty() ? 0 : BUTTON_CANCEL);
 }
 
-std::u16string SimpleConfirmInfoBarDelegate::GetButtonLabel(
-    InfoBarButton button) const {
+base::string16
+SimpleConfirmInfoBarDelegate::GetButtonLabel(InfoBarButton button) const {
   return button == BUTTON_OK ? primary_str_ : secondary_str_;
 }
 
@@ -163,27 +161,23 @@ void JNI_SimpleConfirmInfoBarBuilder_Create(
         gfx::CreateSkBitmapFromJavaBitmap(gfx::JavaBitmap(j_icon)));
   }
 
-  std::u16string message_str =
-      j_message.is_null()
-          ? std::u16string()
-          : base::android::ConvertJavaStringToUTF16(env, j_message);
-  std::u16string primary_str =
-      j_primary.is_null()
-          ? std::u16string()
-          : base::android::ConvertJavaStringToUTF16(env, j_primary);
-  std::u16string secondary_str =
-      j_secondary.is_null()
-          ? std::u16string()
-          : base::android::ConvertJavaStringToUTF16(env, j_secondary);
-  std::u16string link_text_str =
+  base::string16 message_str = j_message.is_null()
+      ? base::string16()
+      : base::android::ConvertJavaStringToUTF16(env, j_message);
+  base::string16 primary_str = j_primary.is_null()
+      ? base::string16()
+      : base::android::ConvertJavaStringToUTF16(env, j_primary);
+  base::string16 secondary_str = j_secondary.is_null()
+      ? base::string16()
+      : base::android::ConvertJavaStringToUTF16(env, j_secondary);
+  base::string16 link_text_str =
       j_link_text.is_null()
-          ? std::u16string()
+          ? base::string16()
           : base::android::ConvertJavaStringToUTF16(env, j_link_text);
 
-  infobars::ContentInfoBarManager* manager =
-      infobars::ContentInfoBarManager::FromWebContents(
-          content::WebContents::FromJavaWebContents(j_web_contents));
-  manager->AddInfoBar(std::make_unique<infobars::ConfirmInfoBar>(
+  InfoBarService* service = InfoBarService::FromWebContents(
+      content::WebContents::FromJavaWebContents(j_web_contents));
+  service->AddInfoBar(service->CreateConfirmInfoBar(
       std::make_unique<SimpleConfirmInfoBarDelegate>(
           j_listener, infobar_identifier, icon_bitmap, message_str, primary_str,
           secondary_str, link_text_str, auto_expire)));

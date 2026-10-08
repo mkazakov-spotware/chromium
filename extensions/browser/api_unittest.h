@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,14 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "extensions/browser/extensions_test.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 class Value;
+class DictionaryValue;
+class ListValue;
 }
 
 namespace content {
@@ -58,7 +59,19 @@ class ApiUnitTest : public ExtensionsTest {
   // See also the RunFunction* methods in extension_function_test_utils.h.
 
   // Return the function result as a base::Value.
-  absl::optional<base::Value> RunFunctionAndReturnValue(
+  std::unique_ptr<base::Value> RunFunctionAndReturnValue(
+      ExtensionFunction* function,
+      const std::string& args);
+
+  // Return the function result as a base::DictionaryValue, or NULL.
+  // This will EXPECT-fail if the result is not a DictionaryValue.
+  std::unique_ptr<base::DictionaryValue> RunFunctionAndReturnDictionary(
+      ExtensionFunction* function,
+      const std::string& args);
+
+  // Return the function result as a base::ListValue, or NULL.
+  // This will EXPECT-fail if the result is not a ListValue.
+  std::unique_ptr<base::ListValue> RunFunctionAndReturnList(
       ExtensionFunction* function,
       const std::string& args);
 

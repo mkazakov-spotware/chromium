@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,6 +39,14 @@ TEST_F(OpenDirectoryTest, OpenFile) {
   ASSERT_TRUE(WriteFile(file_path, "foo"));
   auto dir = OpenDirectoryHandle(file_path);
   ASSERT_FALSE(dir);
+}
+
+// TODO(crbug.com/1073821): Remove this test.
+// Tests the deprecated ::base::fuchsia::OpenDirectory() function works until
+// all callers have been removed.
+TEST_F(OpenDirectoryTest, OpenTransitional) {
+  auto dir = ::base::fuchsia::OpenDirectory(temp_dir.GetPath());
+  ASSERT_TRUE(dir);
 }
 
 }  // namespace base

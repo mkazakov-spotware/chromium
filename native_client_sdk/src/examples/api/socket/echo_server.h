@@ -1,9 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef EXAMPLES_API_SOCKET_ECHO_SERVER_H_
-#define EXAMPLES_API_SOCKET_ECHO_SERVER_H_
+#ifndef SOCKET_ECHO_SERVER_H_
+#define SOCKET_ECHO_SERVER_H_
 
 #include "ppapi/cpp/instance.h"
 #include "ppapi/cpp/tcp_socket.h"
@@ -43,4 +43,4 @@ class EchoServer {
   char receive_buffer_[kBufferSize];
 };
 
-#endif  // EXAMPLES_API_SOCKET_ECHO_SERVER_H_
+#endif  // SOCKET_ECHO_SERVER_H_

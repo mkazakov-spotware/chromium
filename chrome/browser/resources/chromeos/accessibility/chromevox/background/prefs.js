@@ -1,98 +1,150 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
  * @fileoverview Common page for reading and writing preferences from
  * the background context (background page or options page).
+ *
  */
-import {LocalStorage} from '../../common/local_storage.js';
-import {BridgeConstants} from '../common/bridge_constants.js';
-import {BridgeHelper} from '../common/bridge_helper.js';
-import {Msgs} from '../common/msgs.js';
-import {Personality} from '../common/tts_types.js';
 
-import {ChromeVox} from './chromevox.js';
-import {ConsoleTts} from './console_tts.js';
-import {EventStreamLogger} from './logging/event_stream_logger.js';
-import {LogUrlWatcher} from './logging/log_url_watcher.js';
-import {Output} from './output/output.js';
-import {TtsBackground} from './tts_background.js';
+goog.provide('ChromeVoxPrefs');
+goog.provide('RichTextSpeechStyle');
+
+goog.require('ConsoleTts');
+goog.require('EventStreamLogger');
+goog.require('ChromeVox');
+goog.require('ExtensionBridge');
+goog.require('KeyMap');
 
 /**
  * This object has default values of preferences and contains the common
  * code for working with preferences shared by the Options and Background
  * pages.
  */
-export class ChromeVoxPrefs {
+ChromeVoxPrefs = class {
   constructor() {
-    LocalStorage.set('lastRunVersion', chrome.runtime.getManifest().version);
+    let lastRunVersion = localStorage['lastRunVersion'];
+    if (!lastRunVersion) {
+      lastRunVersion = '1.16.0';
+    }
+    let loadExistingSettings = true;
+    // TODO(dtseng): Logic below needs clarification. Perhaps needs a
+    // 'lastIncompatibleVersion' member.
+    if (lastRunVersion === '1.16.0') {
+      loadExistingSettings = false;
+    }
+    localStorage['lastRunVersion'] = chrome.runtime.getManifest().version;
+
+    /**
+     * The current mapping from keys to command.
+     * @type {!KeyMap}
+     * @private
+     */
+    this.keyMap_ = KeyMap.fromLocalStorage() || KeyMap.fromDefaults();
+    this.keyMap_.merge(KeyMap.fromDefaults());
 
     // Clear per session preferences.
     // This is to keep the position dictionary from growing excessively large.
-    LocalStorage.set('position', {});
+    localStorage['position'] = '{}';
 
     // Default per session sticky to off.
-    LocalStorage.set('sticky', false);
+    localStorage['sticky'] = false;
+
+    this.init(loadExistingSettings);
   }
 
   /**
    * Merge the default values of all known prefs with what's found in
-   * LocalStorage.
+   * localStorage.
+   * @param {boolean} pullFromLocalStorage or not to pull prefs from local
+   * storage. True if we want to respect changes the user has already made
+   * to prefs, false if we want to overwrite them. Set false if we've made
+   * changes to keyboard shortcuts and need to make sure they aren't
+   * overridden by the old keymap in local storage.
    */
-  static init() {
-    ChromeVoxPrefs.instance = new ChromeVoxPrefs();
-
-    ChromeVoxPrefs.isStickyPrefOn = LocalStorage.get('sticky');
-
-    // Set the default value of any pref that isn't already in LocalStorage.
+  init(pullFromLocalStorage) {
+    // Set the default value of any pref that isn't already in localStorage.
     for (const pref in ChromeVoxPrefs.DEFAULT_PREFS) {
-      if (LocalStorage.get(pref) === undefined) {
-        LocalStorage.set(pref, ChromeVoxPrefs.DEFAULT_PREFS[pref]);
+      if (localStorage[pref] === undefined) {
+        localStorage[pref] = ChromeVoxPrefs.DEFAULT_PREFS[pref];
       }
     }
-    ChromeVoxPrefs.instance.enableOrDisableLogUrlWatcher_();
+  }
 
-    BridgeHelper.registerHandler(
-        BridgeConstants.ChromeVoxPrefs.TARGET,
-        BridgeConstants.ChromeVoxPrefs.Action.GET_PREFS,
-        () => ChromeVoxPrefs.instance.getPrefs());
-    BridgeHelper.registerHandler(
-        BridgeConstants.ChromeVoxPrefs.TARGET,
-        BridgeConstants.ChromeVoxPrefs.Action.GET_STICKY_PREF,
-        () => ChromeVoxPrefs.isStickyPrefOn);
-    BridgeHelper.registerHandler(
-        BridgeConstants.ChromeVoxPrefs.TARGET,
-        BridgeConstants.ChromeVoxPrefs.Action.SET_LOGGING_PREFS,
-        (key, value) => ChromeVoxPrefs.instance.setLoggingPrefs(key, value));
-    BridgeHelper.registerHandler(
-        BridgeConstants.ChromeVoxPrefs.TARGET,
-        BridgeConstants.ChromeVoxPrefs.Action.SET_PREF,
-        (key, value) => ChromeVoxPrefs.instance.setPref(key, value));
+  /**
+   * Switches to another key map.
+   * @param {string} selectedKeyMap The id of the keymap in
+   * KeyMap.AVAIABLE_KEYMAP_INFO.
+   */
+  switchToKeyMap(selectedKeyMap) {
+    // Switching key maps potentially affects the key codes that involve
+    // sequencing. Without resetting this list, potentially stale key
+    // codes remain. The key codes themselves get pushed in
+    // KeySequence.deserialize which gets called by KeyMap.
+    ChromeVox.sequenceSwitchKeyCodes = [];
+
+    // TODO(dtseng): Leaking state about multiple key maps here until we have a
+    // class to manage multiple key maps.
+    localStorage['currentKeyMap'] = selectedKeyMap;
+    this.keyMap_ = KeyMap.fromCurrentKeyMap();
+    ChromeVoxKbHandler.handlerKeyMap = this.keyMap_;
+    this.keyMap_.toLocalStorage();
+    this.keyMap_.resetModifier();
   }
 
   /**
    * Get the prefs (not including keys).
-   * @return {Object<string, string>} A map of all prefs except the key map from
-   *     LocalStorage.
+   * @return {Object} A map of all prefs except the key map from localStorage.
    */
   getPrefs() {
     const prefs = {};
     for (const pref in ChromeVoxPrefs.DEFAULT_PREFS) {
-      prefs[pref] = LocalStorage.get(pref);
+      prefs[pref] = localStorage[pref];
     }
     prefs['version'] = chrome.runtime.getManifest().version;
     return prefs;
   }
 
   /**
+   * Reloads the key map from local storage.
+   */
+  reloadKeyMap() {
+    // Get the current key map from localStorage.
+    // TODO(dtseng): We currently don't support merges since we write the entire
+    // map back to local storage.
+    let currentKeyMap = KeyMap.fromLocalStorage();
+    if (!currentKeyMap) {
+      currentKeyMap = KeyMap.fromCurrentKeyMap();
+      currentKeyMap.toLocalStorage();
+    }
+    this.keyMap_ = currentKeyMap;
+  }
+
+  /**
+   * Get the key map, from key binding to an array of [command, description].
+   * @return {KeyMap} The key map.
+   */
+  getKeyMap() {
+    return this.keyMap_;
+  }
+
+  /**
+   * Reset to the default key bindings.
+   */
+  resetKeys() {
+    this.keyMap_ = KeyMap.fromDefaults();
+    this.keyMap_.toLocalStorage();
+  }
+
+  /**
    * Set the value of a pref.
    * @param {string} key The pref key.
-   * @param {Object|string|number|boolean} value The new value of the pref.
+   * @param {Object|string|boolean} value The new value of the pref.
    */
   setPref(key, value) {
-    if (LocalStorage.get(key) !== value) {
-      LocalStorage.set(key, value);
+    if (localStorage[key] !== value) {
+      localStorage[key] = value;
     }
   }
 
@@ -102,55 +154,28 @@ export class ChromeVoxPrefs {
    * @param {boolean} value The new value of the pref.
    */
   setLoggingPrefs(key, value) {
-    LocalStorage.set(key, value);
+    localStorage[key] = value;
     if (key === 'enableSpeechLogging') {
-      TtsBackground.console.setEnabled(value);
+      ConsoleTts.getInstance().setEnabled(value);
     } else if (key === 'enableEventStreamLogging') {
       EventStreamLogger.instance.notifyEventStreamFilterChangedAll(value);
     }
-    this.enableOrDisableLogUrlWatcher_();
   }
 
   /**
-   * Returns whether sticky mode is on, taking both the global sticky mode
-   * pref and the temporary sticky mode override into account.
-   * @return {boolean} Whether sticky mode is on.
+   * Delegates to KeyMap.
+   * @param {string} command The command to set.
+   * @param {KeySequence} newKey The new key to assign it to.
+   * @return {boolean} True if the key was bound to the command.
    */
-  static isStickyModeOn() {
-    if (ChromeVoxPrefs.stickyOverride !== null) {
-      return ChromeVoxPrefs.stickyOverride;
-    } else {
-      return ChromeVoxPrefs.isStickyPrefOn;
+  setKey(command, newKey) {
+    if (this.keyMap_.rebind(command, newKey)) {
+      this.keyMap_.toLocalStorage();
+      return true;
     }
+    return false;
   }
-
-  /**
-   * Sets the value of the sticky mode pref, as well as updating the listeners
-   * and announcing.
-   * @param {boolean} value
-   */
-  setAndAnnounceStickyPref(value) {
-    chrome.accessibilityPrivate.setKeyboardListener(true, value);
-    new Output()
-        .withInitialSpeechProperties(Personality.ANNOTATION)
-        .withString(
-            value ? Msgs.getMsg('sticky_mode_enabled') :
-                    Msgs.getMsg('sticky_mode_disabled'))
-        .go();
-    this.setPref('sticky', value);
-    ChromeVoxPrefs.isStickyPrefOn = value;
-  }
-
-  enableOrDisableLogUrlWatcher_() {
-    for (const pref of Object.values(ChromeVoxPrefs.loggingPrefs)) {
-      if (LocalStorage.get(pref)) {
-        LogUrlWatcher.create();
-        return;
-      }
-    }
-    LogUrlWatcher.destroy();
-  }
-}
+};
 
 
 /**
@@ -167,8 +192,9 @@ ChromeVoxPrefs.DEFAULT_PREFS = {
   'brailleSideBySide': true,
   'brailleTableType': 'brailleTable8',
   'brailleTable6': 'en-UEB-g2',
-  'brailleTable8': 'en-nabcc',
+  'brailleTable8': 'en-US-comp8',
   'capitalStrategy': 'increasePitch',
+  'currentKeyMap': KeyMap.DEFAULT_KEYMAP,
   'cvoxKey': '',
   'enableBrailleLogging': false,
   'enableEarconLogging': false,
@@ -180,11 +206,12 @@ ChromeVoxPrefs.DEFAULT_PREFS = {
   'languageSwitching': false,
   'menuBrailleCommands': false,
   'numberReadingStyle': 'asWords',
-  'position': {},
+  'position': '{}',
   'smartStickyMode': true,
   'speakTextUnderMouse': false,
   'sticky': false,
   'typingEcho': 0,
+  'useIBeamCursor': false,
   'useClassic': false,
   'usePitchChanges': true,
   'useVerboseMode': true,
@@ -240,7 +267,7 @@ ChromeVoxPrefs.DEFAULT_PREFS = {
   'textChanged': true,
   'textSelectionChanged': true,
   'treeChanged': true,
-  'valueInTextFieldChanged': true,
+  'valueInTextFieldChanged': true
 };
 
 
@@ -252,21 +279,5 @@ ChromeVoxPrefs.loggingPrefs = {
   EVENT: 'enableEventStreamLogging',
 };
 
-/** @type {ChromeVoxPrefs} */
-ChromeVoxPrefs.instance;
-
-/**
- * This indicates whether or not the sticky mode pref is toggled on.
- * Use ChromeVoxPrefs.isStickyModeOn() to test if sticky mode is enabled
- * either through the pref or due to being temporarily toggled on.
- * @type {boolean}
- */
-ChromeVoxPrefs.isStickyPrefOn = false;
-
-/**
- * If set to true or false, this value overrides ChromeVoxPrefs.isStickyPrefOn
- * temporarily - in order to temporarily enable sticky mode while doing
- * 'read from here' or to temporarily disable it while using a widget.
- * @type {?boolean}
- */
-ChromeVoxPrefs.stickyOverride = null;
+/** @type {!ChromeVoxPrefs} */
+ChromeVoxPrefs.instance = new ChromeVoxPrefs();

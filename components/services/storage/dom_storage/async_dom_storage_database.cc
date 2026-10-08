@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,10 @@
 #include <string>
 #include <utility>
 
+#include "base/optional.h"
 #include "base/rand_util.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/sequenced_task_runner.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/strings/stringprintf.h"
 #include "third_party/leveldatabase/env_chromium.h"
 #include "third_party/leveldatabase/src/include/leveldb/db.h"
 #include "third_party/leveldatabase/src/include/leveldb/write_batch.h"
@@ -26,7 +26,7 @@ std::unique_ptr<AsyncDomStorageDatabase> AsyncDomStorageDatabase::OpenDirectory(
     const leveldb_env::Options& options,
     const base::FilePath& directory,
     const std::string& dbname,
-    const absl::optional<base::trace_event::MemoryAllocatorDumpGuid>&
+    const base::Optional<base::trace_event::MemoryAllocatorDumpGuid>&
         memory_dump_id,
     scoped_refptr<base::SequencedTaskRunner> blocking_task_runner,
     StatusCallback callback) {
@@ -41,7 +41,7 @@ std::unique_ptr<AsyncDomStorageDatabase> AsyncDomStorageDatabase::OpenDirectory(
 
 // static
 std::unique_ptr<AsyncDomStorageDatabase> AsyncDomStorageDatabase::OpenInMemory(
-    const absl::optional<base::trace_event::MemoryAllocatorDumpGuid>&
+    const base::Optional<base::trace_event::MemoryAllocatorDumpGuid>&
         memory_dump_id,
     const std::string& tracking_name,
     scoped_refptr<base::SequencedTaskRunner> blocking_task_runner,
@@ -98,14 +98,17 @@ void AsyncDomStorageDatabase::DeletePrefixed(
 
 void AsyncDomStorageDatabase::RewriteDB(StatusCallback callback) {
   DCHECK(database_);
-  database_.PostTaskWithThisObject(base::BindOnce(
-      [](StatusCallback callback,
-         scoped_refptr<base::SequencedTaskRunner> callback_task_runner,
-         DomStorageDatabase* db) {
-        callback_task_runner->PostTask(
-            FROM_HERE, base::BindOnce(std::move(callback), db->RewriteDB()));
-      },
-      std::move(callback), base::SequencedTaskRunner::GetCurrentDefault()));
+  database_.PostTaskWithThisObject(
+      FROM_HERE,
+      base::BindOnce(
+          [](StatusCallback callback,
+             scoped_refptr<base::SequencedTaskRunner> callback_task_runner,
+             DomStorageDatabase* db) {
+            callback_task_runner->PostTask(
+                FROM_HERE,
+                base::BindOnce(std::move(callback), db->RewriteDB()));
+          },
+          std::move(callback), base::SequencedTaskRunnerHandle::Get()));
 }
 
 void AsyncDomStorageDatabase::Get(const std::vector<uint8_t>& key,
@@ -172,7 +175,7 @@ void AsyncDomStorageDatabase::OnDatabaseOpened(
   std::swap(tasks, tasks_to_run_on_open_);
   if (status.ok()) {
     for (auto& task : tasks)
-      database_.PostTaskWithThisObject(std::move(task));
+      database_.PostTaskWithThisObject(FROM_HERE, std::move(task));
   }
   std::move(callback).Run(status);
 }

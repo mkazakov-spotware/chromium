@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,17 +23,8 @@
 @property(nonatomic) NSAttributedString* detailText;
 @property(nonatomic) NSInteger numberOfLines;
 @property(nonatomic) UIImage* suggestionTypeIcon;
-@property(nonatomic) id<OmniboxIcon> icon;
-@property(nonatomic) id<OmniboxPedal, OmniboxIcon> pedal;
-@property(nonatomic) BOOL isTailSuggestion;
-@property(nonatomic, readonly) NSString* commonPrefix;
-@property(nonatomic, strong) NSNumber* suggestionGroupId;
-@property(nonatomic, strong) NSNumber* suggestionSectionId;
 
-@property(nonatomic) NSAttributedString* omniboxPreviewText;
-@property(nonatomic) UIImage* matchTypeIcon;
-@property(nonatomic, getter=isMatchTypeSearch) BOOL matchTypeSearch;
-@property(nonatomic) CrURL* destinationUrl;
+@property(nonatomic) id<OmniboxIcon> icon;
 
 // Simple suggestion with text.
 + (instancetype)simpleSuggestion;

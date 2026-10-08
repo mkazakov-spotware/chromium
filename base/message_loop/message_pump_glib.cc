@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,9 @@
 #include <math.h>
 
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
-#include "base/notreached.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/synchronization/lock.h"
-#include "base/threading/platform_thread.h"
 
 namespace base {
 
@@ -105,7 +102,7 @@ bool RunningOnMainThread() {
 // around event handling.
 
 struct WorkSource : public GSource {
-  raw_ptr<MessagePumpGlib> pump;
+  MessagePumpGlib* pump;
 };
 
 gboolean WorkSourcePrepare(GSource* source, gint* timeout_ms) {
@@ -134,8 +131,8 @@ GSourceFuncs WorkSourceFuncs = {WorkSourcePrepare, WorkSourceCheck,
                                 WorkSourceDispatch, nullptr};
 
 struct FdWatchSource : public GSource {
-  raw_ptr<MessagePumpGlib> pump;
-  raw_ptr<MessagePumpGlib::FdWatchController> controller;
+  MessagePumpGlib* pump;
+  MessagePumpGlib::FdWatchController* controller;
 };
 
 gboolean FdWatchSourcePrepare(GSource* source, gint* timeout_ms) {
@@ -162,7 +159,7 @@ GSourceFuncs g_fd_watch_source_funcs = {
 }  // namespace
 
 struct MessagePumpGlib::RunState {
-  raw_ptr<Delegate> delegate;
+  Delegate* delegate;
 
   // Used to flag that the current Run() invocation should return ASAP.
   bool should_quit;
@@ -182,38 +179,41 @@ MessagePumpGlib::MessagePumpGlib()
   if (RunningOnMainThread()) {
     context_ = g_main_context_default();
   } else {
-    owned_context_ = std::unique_ptr<GMainContext, GMainContextDeleter>(
-        g_main_context_new());
-    context_ = owned_context_.get();
+    context_ = g_main_context_new();
     g_main_context_push_thread_default(context_);
+    context_owned_ = true;
   }
 
   // Create our wakeup pipe, which is used to flag when work was scheduled.
   int fds[2];
-  [[maybe_unused]] int ret = pipe(fds);
+  int ret = pipe(fds);
   DCHECK_EQ(ret, 0);
+  (void)ret;  // Prevent warning in release mode.
 
   wakeup_pipe_read_ = fds[0];
   wakeup_pipe_write_ = fds[1];
   wakeup_gpollfd_->fd = wakeup_pipe_read_;
   wakeup_gpollfd_->events = G_IO_IN;
 
-  work_source_ = std::unique_ptr<GSource, GSourceDeleter>(
-      g_source_new(&WorkSourceFuncs, sizeof(WorkSource)));
-  static_cast<WorkSource*>(work_source_.get())->pump = this;
-  g_source_add_poll(work_source_.get(), wakeup_gpollfd_.get());
-  g_source_set_priority(work_source_.get(), kPriorityWork);
+  work_source_ = g_source_new(&WorkSourceFuncs, sizeof(WorkSource));
+  static_cast<WorkSource*>(work_source_)->pump = this;
+  g_source_add_poll(work_source_, wakeup_gpollfd_.get());
+  g_source_set_priority(work_source_, kPriorityWork);
   // This is needed to allow Run calls inside Dispatch.
-  g_source_set_can_recurse(work_source_.get(), TRUE);
-  g_source_attach(work_source_.get(), context_);
+  g_source_set_can_recurse(work_source_, TRUE);
+  g_source_attach(work_source_, context_);
 }
 
 MessagePumpGlib::~MessagePumpGlib() {
-  work_source_.reset();
+  g_source_destroy(work_source_);
+  g_source_unref(work_source_);
   close(wakeup_pipe_read_);
   close(wakeup_pipe_write_);
-  context_ = nullptr;
-  owned_context_.reset();
+
+  if (context_owned_) {
+    g_main_context_pop_thread_default(context_);
+    g_main_context_unref(context_);
+  }
 }
 
 MessagePumpGlib::FdWatchController::FdWatchController(const Location& location)
@@ -347,7 +347,7 @@ bool MessagePumpGlib::HandleCheck() {
   // shouldn't block.
   if (wakeup_gpollfd_->revents & G_IO_IN) {
     char msg[2];
-    const long num_bytes = HANDLE_EINTR(read(wakeup_pipe_read_, msg, 2));
+    const int num_bytes = HANDLE_EINTR(read(wakeup_pipe_read_, msg, 2));
     if (num_bytes < 1) {
       NOTREACHED() << "Error reading from the wakeup pipe.";
     }
@@ -435,8 +435,7 @@ void MessagePumpGlib::ScheduleWork() {
   }
 }
 
-void MessagePumpGlib::ScheduleDelayedWork(
-    const Delegate::NextWorkInfo& next_work_info) {
+void MessagePumpGlib::ScheduleDelayedWork(const TimeTicks& delayed_work_time) {
   // We need to wake up the loop in case the poll timeout needs to be
   // adjusted.  This will cause us to try to do work, but that's OK.
   ScheduleWork();

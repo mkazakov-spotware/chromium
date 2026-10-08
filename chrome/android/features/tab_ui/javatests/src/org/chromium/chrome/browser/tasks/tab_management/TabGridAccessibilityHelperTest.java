@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,9 +15,11 @@ import static org.junit.Assert.assertTrue;
 
 import static org.chromium.chrome.browser.tasks.tab_management.TabUiTestHelper.createTabs;
 import static org.chromium.chrome.browser.tasks.tab_management.TabUiTestHelper.enterTabSwitcher;
+import static org.chromium.chrome.browser.tasks.tab_management.TabUiTestHelper.rotateDeviceToOrientation;
 import static org.chromium.chrome.browser.tasks.tab_management.TabUiTestHelper.verifyTabSwitcherCardCount;
 
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.util.Pair;
 import android.view.View;
@@ -35,17 +37,15 @@ import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.compositor.layouts.Layout;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
-import org.chromium.chrome.features.start_surface.TabSwitcherAndStartSurfaceLayout;
+import org.chromium.chrome.features.start_surface.StartSurfaceLayout;
 import org.chromium.chrome.tab_ui.R;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.util.ActivityTestUtils;
 import org.chromium.chrome.test.util.browser.Features;
 import org.chromium.ui.test.util.UiRestriction;
 
@@ -81,19 +81,19 @@ public class TabGridAccessibilityHelperTest {
     public void setUp() {
         mActivityTestRule.startMainActivityFromLauncher();
         Layout layout = mActivityTestRule.getActivity().getLayoutManager().getOverviewLayout();
-        assertTrue(layout instanceof TabSwitcherAndStartSurfaceLayout);
+        assertTrue(layout instanceof StartSurfaceLayout);
         CriteriaHelper.pollUiThread(
                 mActivityTestRule.getActivity().getTabModelSelector()::isTabStateInitialized);
     }
 
     @After
     public void tearDown() {
-        ActivityTestUtils.clearActivityOrientation(mActivityTestRule.getActivity());
+        mActivityTestRule.getActivity().setRequestedOrientation(
+                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
     }
 
     @Test
     @MediumTest
-    @DisabledTest(message = "https://crbug.com/1318376")
     public void testGetPotentialActionsForView() {
         // clang-format on
         final ChromeTabbedActivity cta = mActivityTestRule.getActivity();
@@ -142,7 +142,7 @@ public class TabGridAccessibilityHelperTest {
                             new ArrayList<>(Arrays.asList(TabMovementDirection.UP)));
                 });
 
-        ActivityTestUtils.rotateActivityToOrientation(cta, Configuration.ORIENTATION_LANDSCAPE);
+        rotateDeviceToOrientation(cta, Configuration.ORIENTATION_LANDSCAPE);
 
         // Verify action list in landscape mode with span count = 3.
         onView(allOf(withParent(withId(R.id.compositor_view_holder)), withId(R.id.tab_list_view)))
@@ -183,7 +183,6 @@ public class TabGridAccessibilityHelperTest {
 
     @Test
     @MediumTest
-    @DisabledTest(message = "https://crbug.com/1318394")
     public void testGetPositionsOfReorderAction() {
         final ChromeTabbedActivity cta = mActivityTestRule.getActivity();
         int leftActionId = R.id.move_tab_left;
@@ -223,7 +222,7 @@ public class TabGridAccessibilityHelperTest {
                     assertEquals(1, (int) positions.second);
                 });
 
-        ActivityTestUtils.rotateActivityToOrientation(cta, Configuration.ORIENTATION_LANDSCAPE);
+        rotateDeviceToOrientation(cta, Configuration.ORIENTATION_LANDSCAPE);
 
         onView(allOf(withParent(withId(R.id.compositor_view_holder)), withId(R.id.tab_list_view)))
                 .check((v, noMatchingViewException) -> {

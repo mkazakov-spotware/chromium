@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,9 @@
 #include <vector>
 
 #include "base/command_line.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/ui/views/payments/payment_request_dialog_view.h"
 #include "chrome/browser/ui/views/payments/test_chrome_payment_request_delegate.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -21,8 +22,7 @@
 #include "components/autofill/core/browser/personal_data_manager_observer.h"
 #include "components/autofill/core/browser/test_event_waiter.h"
 #include "components/payments/content/payment_request.h"
-#include "components/payments/core/const_csp_checker.h"
-#include "components/sync/test/test_sync_service.h"
+#include "components/sync/driver/test_sync_service.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -93,14 +93,7 @@ class PaymentRequestBrowserTestBase
     PROCESSING_SPINNER_SHOWN,
     PROCESSING_SPINNER_HIDDEN,
     PAYMENT_HANDLER_WINDOW_OPENED,
-    PAYMENT_HANDLER_TITLE_SET,
   };
-
-  PaymentRequestBrowserTestBase(const PaymentRequestBrowserTestBase&) = delete;
-  PaymentRequestBrowserTestBase& operator=(
-      const PaymentRequestBrowserTestBase&) = delete;
-
-  base::WeakPtr<PaymentRequestBrowserTestBase> GetWeakPtr();
 
  protected:
   PaymentRequestBrowserTestBase();
@@ -112,11 +105,11 @@ class PaymentRequestBrowserTestBase
   // Test will open a browser window to |file_path| (relative to
   // components/test/data/payments).
   void NavigateTo(const std::string& file_path);
-  void NavigateTo(const std::string& hostname, const std::string& file_path);
 
   void SetIncognito();
   void SetInvalidSsl();
   void SetBrowserWindowInactive();
+  void SetSkipUiForForBasicCard();
 
   // PaymentRequest::ObserverForTest:
   void OnCanMakePaymentCalled() override;
@@ -129,11 +122,11 @@ class PaymentRequestBrowserTestBase
 
   // PaymentRequestDialogView::ObserverForTest:
   void OnDialogOpened() override;
-  void OnDialogClosed() override;
   void OnOrderSummaryOpened() override;
   void OnPaymentMethodOpened() override;
   void OnShippingAddressSectionOpened() override;
   void OnShippingOptionSectionOpened() override;
+  void OnCreditCardEditorOpened() override;
   void OnShippingAddressEditorOpened() override;
   void OnContactInfoEditorOpened() override;
   void OnBackNavigation() override;
@@ -142,23 +135,14 @@ class PaymentRequestBrowserTestBase
   void OnEditorViewUpdated() override;
   void OnErrorMessageShown() override;
   void OnSpecDoneUpdating() override;
+  void OnCvcPromptShown() override;
   void OnProcessingSpinnerShown() override;
   void OnProcessingSpinnerHidden() override;
   void OnPaymentHandlerWindowOpened() override;
-  void OnPaymentHandlerTitleSet() override;
-
-  void InstallPaymentApp(const std::string& hostname,
-                         const std::string& service_worker_filename,
-                         std::string* url_method_output);
-
-  void InstallPaymentAppWithoutIcon(const std::string& hostname,
-                                    const std::string& service_worker_filename,
-                                    std::string* url_method_output);
 
   // Will call JavaScript to invoke the PaymentRequest dialog and verify that
   // it's open and ready for input.
   void InvokePaymentRequestUI();
-  void InvokePaymentRequestUIWithJs(const std::string& script);
 
   // Will expect that all strings in |expected_strings| are present in output.
   void ExpectBodyContains(const std::vector<std::string>& expected_strings);
@@ -178,8 +162,10 @@ class PaymentRequestBrowserTestBase
 
   content::WebContents* GetActiveWebContents();
 
-  // Convenience method to get all the `PaymentRequest`s that are still alive.
-  const std::vector<PaymentRequest*> GetPaymentRequests();
+  // Convenience method to get a list of PaymentRequest associated with
+  // |web_contents|.
+  const std::vector<PaymentRequest*> GetPaymentRequests(
+      content::WebContents* web_contents);
 
   autofill::PersonalDataManager* GetDataManager();
   // Adds the various models to the database, waiting until the personal data
@@ -212,34 +198,35 @@ class PaymentRequestBrowserTestBase
                                      DialogViewID list_view_id,
                                      bool wait_for_animation = true);
   // Returns profile label values under |parent_view|.
-  std::vector<std::u16string> GetProfileLabelValues(
+  std::vector<base::string16> GetProfileLabelValues(
       DialogViewID parent_view_id);
   // Returns the shipping option labels under |parent_view_id|.
-  std::vector<std::u16string> GetShippingOptionLabelValues(
+  std::vector<base::string16> GetShippingOptionLabelValues(
       DialogViewID parent_view_id);
 
-  // TODO(crbug.com/1209835): Remove remaining test usage and delete these.
-  void OpenCVCPromptWithCVC(const std::u16string& cvc,
+  void OpenCVCPromptWithCVC(const base::string16& cvc);
+  void OpenCVCPromptWithCVC(const base::string16& cvc,
                             PaymentRequestDialogView* dialog_view);
-  void PayWithCreditCard(const std::u16string& cvc);
-
+  void PayWithCreditCardAndWait(const base::string16& cvc);
+  void PayWithCreditCardAndWait(const base::string16& cvc,
+                                PaymentRequestDialogView* dialog_view);
+  void PayWithCreditCard(const base::string16& cvc);
   void RetryPaymentRequest(const std::string& validation_errors,
                            PaymentRequestDialogView* dialog_view);
   void RetryPaymentRequest(const std::string& validation_errors,
                            const DialogEvent& dialog_event,
                            PaymentRequestDialogView* dialog_view);
 
-  // Returns whether a given view is visible in the current (or given) dialog.
+  // Returns whether a given view is visible in the current dialog.
   bool IsViewVisible(DialogViewID view_id) const;
-  bool IsViewVisible(DialogViewID view_id, views::View* dialog_view) const;
 
   // Getting/setting the |value| in the textfield of a given |type|.
-  std::u16string GetEditorTextfieldValue(autofill::ServerFieldType type);
-  void SetEditorTextfieldValue(const std::u16string& value,
+  base::string16 GetEditorTextfieldValue(autofill::ServerFieldType type);
+  void SetEditorTextfieldValue(const base::string16& value,
                                autofill::ServerFieldType type);
   // Getting/setting the |value| in the combobox of a given |type|.
-  std::u16string GetComboboxValue(autofill::ServerFieldType type);
-  void SetComboboxValue(const std::u16string& value,
+  base::string16 GetComboboxValue(autofill::ServerFieldType type);
+  void SetComboboxValue(const base::string16& value,
                         autofill::ServerFieldType type);
   // Special case for the billing address since the interesting value is not
   // the visible one accessible directly on the base combobox model.
@@ -252,7 +239,7 @@ class PaymentRequestBrowserTestBase
 
   bool IsPayButtonEnabled();
 
-  std::u16string GetPrimaryButtonLabel() const;
+  base::string16 GetPrimaryButtonLabel() const;
 
   // Sets proper animation delegates and waits for animation to finish.
   void WaitForAnimation();
@@ -260,21 +247,17 @@ class PaymentRequestBrowserTestBase
 
   // Returns the text of the Label or StyledLabel with the specific |view_id|
   // that is a child of the Payment Request dialog view.
-  const std::u16string& GetLabelText(DialogViewID view_id);
-  const std::u16string& GetLabelText(DialogViewID view_id,
-                                     views::View* dialog_view);
-  const std::u16string& GetStyledLabelText(DialogViewID view_id);
+  const base::string16& GetLabelText(DialogViewID view_id);
+  const base::string16& GetStyledLabelText(DialogViewID view_id);
   // Returns the error label text associated with a given field |type|.
-  const std::u16string& GetErrorLabelForType(autofill::ServerFieldType type);
+  const base::string16& GetErrorLabelForType(autofill::ServerFieldType type);
 
   net::EmbeddedTestServer* https_server() { return https_server_.get(); }
 
-  PaymentRequestDialogView* dialog_view() const {
-    return delegate_->dialog_view();
-  }
+  PaymentRequestDialogView* dialog_view() { return delegate_->dialog_view(); }
 
   void SetRegionDataLoader(autofill::RegionDataLoader* region_data_loader) {
-    delegate_->OverrideRegionDataLoader(region_data_loader);
+    delegate_->SetRegionDataLoader(region_data_loader);
   }
 
   // Sets the value of the payments.can_make_payment_enabled pref.
@@ -288,24 +271,19 @@ class PaymentRequestBrowserTestBase
   // Wait for the event(s) passed to ResetEventWaiter*() to occur.
   void WaitForObservedEvent();
 
-  // Return a weak pointer to a Content Security Policy (CSP) checker for tests.
-  base::WeakPtr<CSPChecker> GetCSPCheckerForTests();
-
  private:
   std::unique_ptr<autofill::EventWaiter<DialogEvent>> event_waiter_;
   std::unique_ptr<net::EmbeddedTestServer> https_server_;
   // Weak, owned by the PaymentRequest object.
-  raw_ptr<TestChromePaymentRequestDelegate, DanglingUntriaged> delegate_ =
-      nullptr;
+  TestChromePaymentRequestDelegate* delegate_ = nullptr;
   syncer::TestSyncService sync_service_;
   sync_preferences::TestingPrefServiceSyncable prefs_;
   bool is_incognito_ = false;
   bool is_valid_ssl_ = true;
   bool is_browser_window_active_ = true;
-  std::vector<base::WeakPtr<PaymentRequest>> requests_;
-  ConstCSPChecker const_csp_checker_{/*allow=*/true};
+  bool skip_ui_for_basic_card_ = false;
 
-  base::WeakPtrFactory<PaymentRequestBrowserTestBase> weak_ptr_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(PaymentRequestBrowserTestBase);
 };
 
 }  // namespace payments

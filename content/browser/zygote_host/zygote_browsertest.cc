@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,18 +27,20 @@ namespace content {
 class LinuxZygoteBrowserTest : public ContentBrowserTest {
  public:
   LinuxZygoteBrowserTest() = default;
-
-  LinuxZygoteBrowserTest(const LinuxZygoteBrowserTest&) = delete;
-  LinuxZygoteBrowserTest& operator=(const LinuxZygoteBrowserTest&) = delete;
-
   ~LinuxZygoteBrowserTest() override = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(LinuxZygoteBrowserTest);
 };
 
 // https://crbug.com/638303
 IN_PROC_BROWSER_TEST_F(LinuxZygoteBrowserTest, GetLocalTimeHasTimeZone) {
+  const char kTestCommand[] =
+      "window.domAutomationController.send(new Date().toString());";
+
   EXPECT_TRUE(NavigateToURL(shell(), GURL("data:text/html,start page")));
-  std::string result =
-      EvalJs(shell(), "new Date().toString();").ExtractString();
+  std::string result;
+  ASSERT_TRUE(ExecuteScriptAndExtractString(shell(), kTestCommand, &result));
   std::vector<std::string> parts = base::SplitString(
       result, "()", base::KEEP_WHITESPACE, base::SPLIT_WANT_ALL);
   ASSERT_EQ(3U, parts.size());
@@ -70,12 +72,6 @@ IN_PROC_BROWSER_TEST_F(LinuxZygoteBrowserTest, ZygoteSandboxes) {
 class LinuxZygoteDisabledBrowserTest : public ContentBrowserTest {
  public:
   LinuxZygoteDisabledBrowserTest() = default;
-
-  LinuxZygoteDisabledBrowserTest(const LinuxZygoteDisabledBrowserTest&) =
-      delete;
-  LinuxZygoteDisabledBrowserTest& operator=(
-      const LinuxZygoteDisabledBrowserTest&) = delete;
-
   ~LinuxZygoteDisabledBrowserTest() override = default;
 
  protected:
@@ -84,6 +80,9 @@ class LinuxZygoteDisabledBrowserTest : public ContentBrowserTest {
     command_line->AppendSwitch(switches::kNoZygote);
     command_line->AppendSwitch(sandbox::policy::switches::kNoSandbox);
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(LinuxZygoteDisabledBrowserTest);
 };
 
 // https://crbug.com/712779

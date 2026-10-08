@@ -1,10 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/public/common/drop_data.h"
 
-#include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "net/base/filename_util.h"
 #include "net/base/mime_util.h"
@@ -16,7 +15,7 @@ DropData::Metadata::Metadata() {}
 // static
 DropData::Metadata DropData::Metadata::CreateForMimeType(
     const Kind& kind,
-    const std::u16string& mime_type) {
+    const base::string16& mime_type) {
   Metadata metadata;
   metadata.kind = kind;
   metadata.mime_type = mime_type;
@@ -41,15 +40,6 @@ DropData::Metadata DropData::Metadata::CreateForFileSystemUrl(
   return metadata;
 }
 
-// static
-DropData::Metadata DropData::Metadata::CreateForBinary(
-    const GURL& file_contents_url) {
-  Metadata metadata;
-  metadata.kind = Kind::BINARY;
-  metadata.file_contents_url = file_contents_url;
-  return metadata;
-}
-
 DropData::Metadata::Metadata(const DropData::Metadata& other) = default;
 
 DropData::Metadata::~Metadata() {}
@@ -62,7 +52,7 @@ DropData::DropData(const DropData& other) = default;
 
 DropData::~DropData() {}
 
-absl::optional<base::FilePath> DropData::GetSafeFilenameForImageFileContents()
+base::Optional<base::FilePath> DropData::GetSafeFilenameForImageFileContents()
     const {
   base::FilePath file_name = net::GenerateFileName(
       file_contents_source_url, file_contents_content_disposition,
@@ -77,7 +67,7 @@ absl::optional<base::FilePath> DropData::GetSafeFilenameForImageFileContents()
                        base::CompareCase::INSENSITIVE_ASCII)) {
     return file_name.ReplaceExtension(file_contents_filename_extension);
   }
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 // static

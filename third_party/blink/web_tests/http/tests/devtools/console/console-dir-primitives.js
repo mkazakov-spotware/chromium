@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that console dir makes messages expandable only when necessary.\n`);
 
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.showPanel('console');
 
   await TestRunner.evaluateInPagePromise(`
@@ -20,7 +20,7 @@
   `);
 
   var consoleView = Console.ConsoleView.instance();
-  var viewMessages = consoleView.visibleViewMessages;
+  var viewMessages = consoleView._visibleViewMessages;
   for (var i = 0; i < viewMessages.length; ++i) {
     var messageElement = viewMessages[i].element();
     // Console messages contain live locations.

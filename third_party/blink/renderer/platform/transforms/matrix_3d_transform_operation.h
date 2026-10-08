@@ -35,28 +35,29 @@ class PLATFORM_EXPORT Matrix3DTransformOperation final
     : public TransformOperation {
  public:
   static scoped_refptr<Matrix3DTransformOperation> Create(
-      const gfx::Transform& matrix) {
+      const TransformationMatrix& matrix) {
     return base::AdoptRef(new Matrix3DTransformOperation(matrix));
   }
 
-  gfx::Transform Matrix() const { return matrix_; }
+  TransformationMatrix Matrix() const { return matrix_; }
 
   static bool IsMatchingOperationType(OperationType type) {
     return type == kMatrix3D;
   }
 
- protected:
-  bool IsEqualAssumingSameType(const TransformOperation& o) const override {
+ private:
+  OperationType GetType() const override { return kMatrix3D; }
+
+  bool operator==(const TransformOperation& o) const override {
+    if (!IsSameType(o))
+      return false;
     const Matrix3DTransformOperation* m =
         static_cast<const Matrix3DTransformOperation*>(&o);
     return matrix_ == m->matrix_;
   }
 
- private:
-  OperationType GetType() const override { return kMatrix3D; }
-
-  void Apply(gfx::Transform& transform, const gfx::SizeF&) const override {
-    transform.PreConcat(matrix_);
+  void Apply(TransformationMatrix& transform, const FloatSize&) const override {
+    transform.Multiply(TransformationMatrix(matrix_));
   }
 
   scoped_refptr<TransformOperation> Accumulate(
@@ -71,14 +72,10 @@ class PLATFORM_EXPORT Matrix3DTransformOperation final
   bool PreservesAxisAlignment() const final {
     return matrix_.Preserves2dAxisAlignment();
   }
-  bool IsIdentityOrTranslation() const final {
-    return matrix_.IsIdentityOrTranslation();
-  }
 
-  explicit Matrix3DTransformOperation(const gfx::Transform& mat)
-      : matrix_(mat) {}
+  Matrix3DTransformOperation(const TransformationMatrix& mat) { matrix_ = mat; }
 
-  gfx::Transform matrix_;
+  TransformationMatrix matrix_;
 };
 
 template <>

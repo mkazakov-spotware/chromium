@@ -24,6 +24,7 @@
 #include "third_party/blink/renderer/core/dom/tag_collection.h"
 
 #include "third_party/blink/renderer/core/dom/node_rare_data.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 
 namespace blink {
 
@@ -49,7 +50,7 @@ TagCollectionNS::TagCollectionNS(ContainerNode& root_node,
     : HTMLCollection(root_node, type, kDoesNotOverrideItemAfter),
       namespace_uri_(namespace_uri),
       local_name_(local_name) {
-  DCHECK(namespace_uri_.IsNull() || !namespace_uri_.empty());
+  DCHECK(namespace_uri_.IsNull() || !namespace_uri_.IsEmpty());
 }
 
 TagCollectionNS::~TagCollectionNS() = default;

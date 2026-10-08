@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <memory>
 
-#include "ash/app_list/app_list_bubble_presenter.h"
 #include "ash/app_list/app_list_controller_impl.h"
 #include "ash/app_list/app_list_presenter_impl.h"
 #include "ash/public/cpp/shell_window_ids.h"
@@ -16,25 +15,12 @@
 #include "ash/shelf/shelf_widget.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
-#include "base/test/scoped_feature_list.h"
-#include "testing/gtest/include/gtest/gtest.h"
 #include "ui/aura/window.h"
+#include "ui/events/test/event_generator.h"
 
 namespace ash {
-namespace {
 
-// Returns visibility from the presenter's perspective.
-bool GetPresenterVisibility() {
-  auto* controller = Shell::Get()->app_list_controller();
-  return controller->bubble_presenter_for_test()->IsShowing();
-}
-
-}  // namespace
-
-class AppListTest : public AshTestBase {
- public:
-  AppListTest() = default;
-};
+using AppListTest = AshTestBase;
 
 // An integration test to toggle the app list by pressing the shelf button.
 TEST_F(AppListTest, PressHomeButtonToShowAndDismiss) {
@@ -49,21 +35,24 @@ TEST_F(AppListTest, PressHomeButtonToShowAndDismiss) {
 
   aura::Window* app_list_container =
       root_window->GetChildById(kShellWindowId_AppListContainer);
+  ui::test::EventGenerator* generator = GetEventGenerator();
 
   // Click the home button to show the app list.
   auto* controller = Shell::Get()->app_list_controller();
+  auto* presenter = controller->presenter();
   EXPECT_FALSE(controller->GetTargetVisibility(GetPrimaryDisplay().id()));
-  EXPECT_FALSE(GetPresenterVisibility());
+  EXPECT_FALSE(presenter->GetTargetVisibility());
   EXPECT_EQ(0u, app_list_container->children().size());
   EXPECT_FALSE(home_button->IsShowingAppList());
 
-  LeftClickOn(home_button);
-  EXPECT_TRUE(GetPresenterVisibility());
+  generator->MoveMouseTo(home_button->GetBoundsInScreen().CenterPoint());
+  generator->ClickLeftButton();
+  EXPECT_TRUE(presenter->GetTargetVisibility());
   EXPECT_EQ(1u, app_list_container->children().size());
   EXPECT_TRUE(home_button->IsShowingAppList());
 
   // Click the button again to dismiss the app list; it will animate to close.
-  LeftClickOn(home_button);
+  generator->ClickLeftButton();
   EXPECT_FALSE(controller->GetTargetVisibility(GetPrimaryDisplay().id()));
   EXPECT_EQ(1u, app_list_container->children().size());
   EXPECT_FALSE(home_button->IsShowingAppList());
@@ -85,24 +74,27 @@ TEST_F(AppListTest, PressHomeButtonToShowAndDismissOnSecondDisplay) {
 
   aura::Window* app_list_container =
       root_window->GetChildById(kShellWindowId_AppListContainer);
+  ui::test::EventGenerator* generator = GetEventGenerator();
 
   // Click the home button to show the app list.
   auto* controller = Shell::Get()->app_list_controller();
+  auto* presenter = controller->presenter();
   EXPECT_FALSE(controller->GetTargetVisibility(GetPrimaryDisplay().id()));
   EXPECT_FALSE(controller->GetTargetVisibility(GetSecondaryDisplay().id()));
-  EXPECT_FALSE(GetPresenterVisibility());
+  EXPECT_FALSE(presenter->GetTargetVisibility());
   EXPECT_EQ(0u, app_list_container->children().size());
   EXPECT_FALSE(home_button->IsShowingAppList());
 
-  LeftClickOn(home_button);
+  generator->MoveMouseTo(home_button->GetBoundsInScreen().CenterPoint());
+  generator->ClickLeftButton();
   EXPECT_FALSE(controller->GetTargetVisibility(GetPrimaryDisplay().id()));
   EXPECT_TRUE(controller->GetTargetVisibility(GetSecondaryDisplay().id()));
-  EXPECT_TRUE(GetPresenterVisibility());
+  EXPECT_TRUE(presenter->GetTargetVisibility());
   EXPECT_EQ(1u, app_list_container->children().size());
   EXPECT_TRUE(home_button->IsShowingAppList());
 
   // Click the button again to dismiss the app list; it will animate to close.
-  LeftClickOn(home_button);
+  generator->ClickLeftButton();
   EXPECT_FALSE(controller->GetTargetVisibility(GetPrimaryDisplay().id()));
   EXPECT_FALSE(controller->GetTargetVisibility(GetSecondaryDisplay().id()));
   EXPECT_EQ(1u, app_list_container->children().size());

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,24 +9,22 @@
 
 #include "base/bind.h"
 #include "base/check_op.h"
+#include "base/deferred_sequenced_task_runner.h"
+#include "base/macros.h"
 #include "base/no_destructor.h"
+#include "base/single_thread_task_runner.h"
 #include "base/system/system_monitor.h"
-#include "base/task/deferred_sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/time/default_tick_clock.h"
 #include "base/trace_event/trace_event.h"
-#include "build/build_config.h"
-#include "media/audio/aecdump_recording_manager.h"
 #include "media/audio/audio_manager.h"
 #include "media/base/bind_to_current_loop.h"
-#include "media/media_buildflags.h"
 #include "services/audio/debug_recording.h"
 #include "services/audio/device_notifier.h"
 #include "services/audio/log_factory_manager.h"
 #include "services/audio/service_metrics.h"
 #include "services/audio/system_info.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include "media/audio/mac/audio_device_listener_mac.h"
 #endif
 
@@ -51,19 +49,10 @@ Service::Service(std::unique_ptr<AudioManagerAccessor> audio_manager_accessor,
     // created. This is required for in-process device notifications.
     InitializeDeviceMonitor();
   }
-  TRACE_EVENT0("audio", "audio::Service::OnStart");
+  TRACE_EVENT0("audio", "audio::Service::OnStart")
 
   // This will pre-create AudioManager if AudioManagerAccessor owns it.
   CHECK(audio_manager_accessor_->GetAudioManager());
-
-#if BUILDFLAG(CHROME_WIDE_ECHO_CANCELLATION) || BUILDFLAG(IS_CHROMEOS)
-  aecdump_recording_manager_ = std::make_unique<media::AecdumpRecordingManager>(
-      audio_manager_accessor_->GetAudioManager()->GetTaskRunner());
-
-  // This is no-op except on ChromeOS.
-  audio_manager_accessor_->GetAudioManager()->SetAecDumpRecordingManager(
-      aecdump_recording_manager_->AsWeakPtr());
-#endif
 
   metrics_ =
       std::make_unique<ServiceMetrics>(base::DefaultTickClock::GetInstance());
@@ -129,17 +118,15 @@ void Service::BindDebugRecording(
   // create a new DebugRecording instance to enable debug recording.
   debug_recording_.reset();
   debug_recording_ = std::make_unique<DebugRecording>(
-      std::move(receiver), audio_manager_accessor_->GetAudioManager(),
-      aecdump_recording_manager_.get());
+      std::move(receiver), audio_manager_accessor_->GetAudioManager());
 }
 
 void Service::BindStreamFactory(
-    mojo::PendingReceiver<media::mojom::AudioStreamFactory> receiver) {
+    mojo::PendingReceiver<mojom::StreamFactory> receiver) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
   if (!stream_factory_)
-    stream_factory_.emplace(audio_manager_accessor_->GetAudioManager(),
-                            aecdump_recording_manager_.get());
+    stream_factory_.emplace(audio_manager_accessor_->GetAudioManager());
   stream_factory_->Bind(std::move(receiver));
 }
 
@@ -171,21 +158,19 @@ void Service::BindTestingApi(
 
 void Service::InitializeDeviceMonitor() {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   if (audio_device_listener_mac_)
     return;
 
   TRACE_EVENT0("audio", "audio::Service::InitializeDeviceMonitor");
 
-  audio_device_listener_mac_ = media::AudioDeviceListenerMac::Create(
+  audio_device_listener_mac_ = std::make_unique<media::AudioDeviceListenerMac>(
       media::BindToCurrentLoop(base::BindRepeating([] {
         if (auto* monitor = base::SystemMonitor::Get())
           monitor->ProcessDevicesChanged(base::SystemMonitor::DEVTYPE_AUDIO);
       })),
-      /*monitor_sample_rate_changes=*/false,
-      /*monitor_default_input=*/true,
-      /*monitor_addition_removal=*/true,
-      /*monitor_sources=*/true);
+      true /* monitor_default_input */, true /* monitor_addition_removal */,
+      true /* monitor_sources */);
 #endif
 }
 

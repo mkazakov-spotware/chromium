@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <string>
 
-#include "base/strings/utf_string_conversions.h"
 #include "components/translate/core/language_detection/language_detection_util.h"
 
 namespace language_detection {
@@ -18,13 +17,12 @@ LanguageDetectionServiceImpl::LanguageDetectionServiceImpl(
 LanguageDetectionServiceImpl::~LanguageDetectionServiceImpl() = default;
 
 void LanguageDetectionServiceImpl::DetermineLanguage(
-    const ::std::u16string& text,
+    const ::base::string16& text,
     DetermineLanguageCallback callback) {
-  bool is_model_reliable = false;
-  float model_reliability_score = 0.0;
-  std::string model_detected_language = translate::DetermineTextLanguage(
-      base::UTF16ToUTF8(text), &is_model_reliable, model_reliability_score);
-  std::move(callback).Run(model_detected_language, is_model_reliable);
+  bool is_cld_reliable = false;
+  std::string cld_language =
+      translate::DetermineTextLanguage(text, &is_cld_reliable);
+  std::move(callback).Run(cld_language, is_cld_reliable);
 }
 
 }  // namespace language_detection

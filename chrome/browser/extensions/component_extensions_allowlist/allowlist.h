@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 #define CHROME_BROWSER_EXTENSIONS_COMPONENT_EXTENSIONS_ALLOWLIST_ALLOWLIST_H_
 
 #include <string>
-
-#include "build/chromeos_buildflags.h"
 
 namespace extensions {
 
@@ -44,7 +42,7 @@ bool IsComponentExtensionAllowlisted(const std::string& extension_id);
 // Checks using resource ID of manifest.
 bool IsComponentExtensionAllowlisted(int manifest_resource_id);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 // Checks using extension id for sign in profile.
 bool IsComponentExtensionAllowlistedForSignInProfile(
     const std::string& extension_id);

@@ -1,9 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_COMMON_CURSORS_WEBCURSOR_H_
 #define CONTENT_COMMON_CURSORS_WEBCURSOR_H_
+
+#include <vector>
 
 #include "build/build_config.h"
 #include "content/common/content_export.h"
@@ -14,7 +16,9 @@
 #include "ui/gfx/native_widget_types.h"
 
 #if defined(USE_AURA)
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
+
+#include "ui/base/cursor/cursor.h"
 #endif
 
 namespace content {
@@ -28,6 +32,7 @@ class CONTENT_EXPORT WebCursor {
   WebCursor();
   explicit WebCursor(const ui::Cursor& info);
   explicit WebCursor(const WebCursor& other);
+  WebCursor& operator=(const WebCursor& other);
   ~WebCursor();
 
   const ui::Cursor& cursor() const { return cursor_; }
@@ -43,6 +48,8 @@ class CONTENT_EXPORT WebCursor {
   gfx::NativeCursor GetNativeCursor();
 
 #if defined(USE_AURA)
+  ui::PlatformCursor GetPlatformCursor(const ui::Cursor& cursor);
+
   // Updates |device_scale_factor_| and |rotation_| based on |display|.
   void SetDisplayInfo(const display::Display& display);
 
@@ -54,6 +61,12 @@ class CONTENT_EXPORT WebCursor {
 #endif
 
  private:
+  // Copies all data from |other| to this object.
+  void CopyAllData(const WebCursor& other);
+
+  // Copies platform specific data from the WebCursor instance passed in.
+  void CopyPlatformData(const WebCursor& other);
+
   // Platform specific cleanup.
   void CleanupPlatformData();
 
@@ -62,20 +75,21 @@ class CONTENT_EXPORT WebCursor {
   // The basic cursor info.
   ui::Cursor cursor_;
 
-#if defined(USE_AURA) || BUILDFLAG(IS_OZONE)
+#if defined(USE_AURA) || defined(USE_OZONE)
   // Only used for custom cursors.
+  ui::PlatformCursor platform_cursor_ = 0;
   float device_scale_factor_ = 1.f;
   display::Display::Rotation rotation_ = display::Display::ROTATE_0;
 #endif
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
   // This matches ozone drm_util.cc's kDefaultCursorWidth/Height.
   static constexpr int kDefaultMaxSize = 64;
   gfx::Size maximum_cursor_size_ = {kDefaultMaxSize, kDefaultMaxSize};
 #endif
 
 #if defined(USE_AURA)
-  absl::optional<ui::Cursor> custom_cursor_;
+  base::Optional<ui::Cursor> custom_cursor_;
 #endif
 };
 

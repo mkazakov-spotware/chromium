@@ -7,9 +7,8 @@
 
 /*
  * Standard styles for RoundedPanel.
+ *
  */
-
-@provide 'goog.css.roundedpanel';
 
 .goog-roundedpanel {
   position: relative;

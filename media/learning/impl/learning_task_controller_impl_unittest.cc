@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/test/task_environment.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "media/learning/impl/distribution_reporter.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -24,7 +23,7 @@ class LearningTaskControllerImplTest : public testing::Test {
         : DistributionReporter(task) {}
 
     // protected => public
-    const absl::optional<std::set<int>>& feature_indices() const {
+    const base::Optional<std::set<int>>& feature_indices() const {
       return DistributionReporter::feature_indices();
     }
 
@@ -86,7 +85,7 @@ class LearningTaskControllerImplTest : public testing::Test {
 
    private:
     LearningTask task_;
-    raw_ptr<int> num_models_ = nullptr;
+    int* num_models_ = nullptr;
     TargetValue target_value_;
 
     // Most recently provided training data.
@@ -134,21 +133,21 @@ class LearningTaskControllerImplTest : public testing::Test {
   }
 
   void AddExample(const LabelledExample& example,
-                  absl::optional<ukm::SourceId> source_id = absl::nullopt) {
+                  base::Optional<ukm::SourceId> source_id = base::nullopt) {
     base::UnguessableToken id = base::UnguessableToken::Create();
-    controller_->BeginObservation(id, example.features, absl::nullopt,
+    controller_->BeginObservation(id, example.features, base::nullopt,
                                   source_id);
     controller_->CompleteObservation(
         id, ObservationCompletion(example.target_value, example.weight));
   }
 
   void VerifyPrediction(const FeatureVector& features,
-                        absl::optional<TargetHistogram> expectation) {
-    absl::optional<TargetHistogram> observed_prediction;
+                        base::Optional<TargetHistogram> expectation) {
+    base::Optional<TargetHistogram> observed_prediction;
     controller_->PredictDistribution(
         features, base::BindOnce(
-                      [](absl::optional<TargetHistogram>* test_storage,
-                         const absl::optional<TargetHistogram>& predicted) {
+                      [](base::Optional<TargetHistogram>* test_storage,
+                         const base::Optional<TargetHistogram>& predicted) {
                         *test_storage = predicted;
                       },
                       &observed_prediction));
@@ -165,8 +164,8 @@ class LearningTaskControllerImplTest : public testing::Test {
   const TargetValue predicted_target_;
   const TargetValue not_predicted_target_;
 
-  raw_ptr<FakeDistributionReporter> reporter_raw_ = nullptr;
-  raw_ptr<FakeTrainer> trainer_raw_ = nullptr;
+  FakeDistributionReporter* reporter_raw_ = nullptr;
+  FakeTrainer* trainer_raw_ = nullptr;
 
   LearningTask task_;
   std::unique_ptr<LearningTaskControllerImpl> controller_;
@@ -221,7 +220,7 @@ TEST_F(LearningTaskControllerImplTest, FeatureProviderIsUsed) {
   task_.feature_descriptions.push_back({"AddedByFeatureProvider"});
   SequenceBoundFeatureProvider feature_provider =
       base::SequenceBound<FakeFeatureProvider>(
-          base::SequencedTaskRunner::GetCurrentDefault());
+          base::SequencedTaskRunnerHandle::Get());
   CreateController(std::move(feature_provider));
   LabelledExample example;
   example.features.push_back(FeatureValue(123));
@@ -280,9 +279,9 @@ TEST_F(LearningTaskControllerImplTest, FeatureSubsetsWork) {
 TEST_F(LearningTaskControllerImplTest, PredictDistribution) {
   CreateController();
 
-  // Predictions should be absl::nullopt until we have a model.
+  // Predictions should be base::nullopt until we have a model.
   LabelledExample example;
-  VerifyPrediction(example.features, absl::nullopt);
+  VerifyPrediction(example.features, base::nullopt);
 
   AddExample(example);
   TargetHistogram expected_histogram;

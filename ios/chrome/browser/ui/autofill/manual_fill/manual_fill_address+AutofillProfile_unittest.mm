@@ -1,16 +1,16 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/autofill/manual_fill/manual_fill_address+AutofillProfile.h"
 
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
-#import "components/autofill/core/browser/data_model/autofill_profile.h"
-#import "components/autofill/core/browser/geo/country_names.h"
-#import "ios/chrome/browser/application_context/application_context.h"
-#import "testing/platform_test.h"
-#import "url/gurl.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
+#include "components/autofill/core/browser/data_model/autofill_profile.h"
+#include "components/autofill/core/browser/geo/country_names.h"
+#include "ios/chrome/browser/application_context.h"
+#include "testing/platform_test.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -24,7 +24,7 @@ namespace {
 void SetProfileFieldTypeValue(AutofillProfile* profile,
                               const autofill::ServerFieldType fieldType,
                               NSString* value) {
-  const std::u16string v = base::SysNSStringToUTF16(value);
+  const base::string16 v = base::SysNSStringToUTF16(value);
   const std::string& app_locale =
       GetApplicationContext()->GetApplicationLocale();
   profile->SetInfo(fieldType, v, app_locale);
@@ -44,7 +44,7 @@ TEST_F(ManualFillAddressFormAutofilliOSTest, CreationWithMiddleName) {
   NSString* city = @"Springfield";
   NSString* state = @"State";
   NSString* country = @"US";
-  NSString* phoneNumber = @"6502345678";
+  NSString* phoneNumber = @"123-456-789";
   NSString* emailAddress = @"john@doe";
 
   autofill::CountryNames::SetLocaleString("en-US");
@@ -95,7 +95,7 @@ TEST_F(ManualFillAddressFormAutofilliOSTest, CreationWithMiddleInitial) {
   NSString* city = @"Springfield";
   NSString* state = @"State";
   NSString* country = @"US";
-  NSString* phoneNumber = @"6502345678";
+  NSString* phoneNumber = @"123-456-789";
   NSString* emailAddress = @"john@doe";
 
   autofill::CountryNames::SetLocaleString("en-US");

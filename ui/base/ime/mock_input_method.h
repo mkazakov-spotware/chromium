@@ -1,18 +1,20 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_BASE_IME_MOCK_INPUT_METHOD_H_
 #define UI_BASE_IME_MOCK_INPUT_METHOD_H_
 
+#include <string>
+
 #include "base/compiler_specific.h"
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "build/build_config.h"
 #include "ui/base/ime/input_method.h"
+#include "ui/base/ime/input_method_keyboard_controller_stub.h"
 #include "ui/base/ime/input_method_observer.h"
-#include "ui/base/ime/virtual_keyboard_controller_stub.h"
 
 namespace ui {
 
@@ -25,47 +27,48 @@ class TextInputClient;
 // ui/base/ime/init/input_method_factory.h
 class COMPONENT_EXPORT(UI_BASE_IME) MockInputMethod : public InputMethod {
  public:
-  explicit MockInputMethod(ImeKeyEventDispatcher* ime_key_event_dispatcher);
-
-  MockInputMethod(const MockInputMethod&) = delete;
-  MockInputMethod& operator=(const MockInputMethod&) = delete;
-
+  explicit MockInputMethod(internal::InputMethodDelegate* delegate);
   ~MockInputMethod() override;
 
   // Overriden from InputMethod.
-  void SetImeKeyEventDispatcher(
-      ImeKeyEventDispatcher* ime_key_event_dispatcher) override;
+  void SetDelegate(internal::InputMethodDelegate* delegate) override;
   void OnFocus() override;
   void OnBlur() override;
-  void OnTouch(ui::EventPointerType pointerType) override;
 
-#if BUILDFLAG(IS_WIN)
-  bool OnUntranslatedIMEMessage(const CHROME_MSG event,
+#if defined(OS_WIN)
+  bool OnUntranslatedIMEMessage(const MSG event,
                                 NativeEventResult* result) override;
-  void OnInputLocaleChanged() override;
-  bool IsInputLocaleCJK() const override;
 #endif
 
   void SetFocusedTextInputClient(TextInputClient* client) override;
   void DetachTextInputClient(TextInputClient* client) override;
   TextInputClient* GetTextInputClient() const override;
   ui::EventDispatchDetails DispatchKeyEvent(ui::KeyEvent* event) override;
-  void OnTextInputTypeChanged(TextInputClient* client) override;
+  void OnTextInputTypeChanged(const TextInputClient* client) override;
   void OnCaretBoundsChanged(const TextInputClient* client) override;
   void CancelComposition(const TextInputClient* client) override;
+  void OnInputLocaleChanged() override;
+  bool IsInputLocaleCJK() const override;
   TextInputType GetTextInputType() const override;
+  TextInputMode GetTextInputMode() const override;
+  int GetTextInputFlags() const override;
+  bool CanComposeInline() const override;
   bool IsCandidatePopupOpen() const override;
-  void SetVirtualKeyboardVisibilityIfEnabled(bool should_show) override;
+  bool GetClientShouldDoLearning() override;
+  void ShowVirtualKeyboardIfEnabled() override;
   void AddObserver(InputMethodObserver* observer) override;
   void RemoveObserver(InputMethodObserver* observer) override;
-  VirtualKeyboardController* GetVirtualKeyboardController() override;
+  InputMethodKeyboardController* GetInputMethodKeyboardController() override;
 
  private:
-  raw_ptr<TextInputClient, DanglingUntriaged> text_input_client_;
-  base::ObserverList<InputMethodObserver>::Unchecked observer_list_;
-  raw_ptr<ImeKeyEventDispatcher> ime_key_event_dispatcher_;
 
-  VirtualKeyboardControllerStub keyboard_controller_;
+  TextInputClient* text_input_client_;
+  base::ObserverList<InputMethodObserver>::Unchecked observer_list_;
+  internal::InputMethodDelegate* delegate_;
+
+  InputMethodKeyboardControllerStub keyboard_controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockInputMethod);
 };
 
 }  // namespace ui

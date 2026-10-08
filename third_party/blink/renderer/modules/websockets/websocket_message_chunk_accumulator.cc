@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 
 #include <string.h>
 #include <algorithm>
-
-#include "base/time/tick_clock.h"
 
 namespace blink {
 
@@ -22,14 +20,8 @@ WebSocketMessageChunkAccumulator::WebSocketMessageChunkAccumulator(
 
 WebSocketMessageChunkAccumulator::~WebSocketMessageChunkAccumulator() = default;
 
-void WebSocketMessageChunkAccumulator::SetTaskRunnerForTesting(
-    scoped_refptr<base::SingleThreadTaskRunner> task_runner,
-    const base::TickClock* tick_clock) {
-  timer_.SetTaskRunnerForTesting(std::move(task_runner), tick_clock);
-}
-
 void WebSocketMessageChunkAccumulator::Append(base::span<const char> data) {
-  if (!segments_.empty()) {
+  if (!segments_.IsEmpty()) {
     const size_t to_be_written =
         std::min(data.size(), kSegmentSize - GetLastSegmentSize());
     memcpy(segments_.back().get() + GetLastSegmentSize(), data.data(),
@@ -39,7 +31,7 @@ void WebSocketMessageChunkAccumulator::Append(base::span<const char> data) {
   }
   while (!data.empty()) {
     SegmentPtr segment_ptr;
-    if (pool_.empty()) {
+    if (pool_.IsEmpty()) {
       segment_ptr = CreateSegment();
     } else {
       segment_ptr = std::move(pool_.back());
@@ -56,11 +48,11 @@ void WebSocketMessageChunkAccumulator::Append(base::span<const char> data) {
 Vector<base::span<const char>> WebSocketMessageChunkAccumulator::GetView()
     const {
   Vector<base::span<const char>> view;
-  if (segments_.empty()) {
+  if (segments_.IsEmpty()) {
     return view;
   }
 
-  view.reserve(segments_.size());
+  view.ReserveCapacity(segments_.size());
   for (wtf_size_t i = 0; i < segments_.size() - 1; ++i) {
     view.push_back(base::make_span(segments_[i].get(), kSegmentSize));
   }
@@ -72,7 +64,7 @@ void WebSocketMessageChunkAccumulator::Clear() {
   num_pooled_segments_to_be_removed_ =
       std::min(num_pooled_segments_to_be_removed_, pool_.size());
   size_ = 0;
-  pool_.reserve(pool_.size() + segments_.size());
+  pool_.ReserveCapacity(pool_.size() + segments_.size());
   for (auto& segment : segments_) {
     pool_.push_back(std::move(segment));
   }

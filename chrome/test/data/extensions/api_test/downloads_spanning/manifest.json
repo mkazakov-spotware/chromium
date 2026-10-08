@@ -7,7 +7,6 @@
   "web_accessible_resources": ["empty.html"],
   "permissions": [
     "downloads",
-    "downloads.ui",
     "http://*/*",
     "file://*"
   ]

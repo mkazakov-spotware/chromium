@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@
 
 #include <string>
 #include <vector>
-
-class Profile;
 
 namespace send_tab_to_self {
 
@@ -31,10 +29,6 @@ class ReceivingUiHandler {
   // Entry object is owned by the the model and should not be
   // modified by any implementors of this class.
   virtual void DismissEntries(const std::vector<std::string>& guids) = 0;
-
-  // Return the Profile associated with this handler. When this Profile shuts
-  // down, the handler will be destroyed too.
-  virtual const Profile* profile() const = 0;
 };
 
 }  // namespace send_tab_to_self

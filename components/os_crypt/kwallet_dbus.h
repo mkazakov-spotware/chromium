@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,10 @@
 #include <vector>
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/nix/xdg_util.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 
 namespace dbus {
 class Bus;
@@ -26,10 +26,6 @@ class COMPONENT_EXPORT(OS_CRYPT) KWalletDBus {
   enum Error { SUCCESS = 0, CANNOT_CONTACT, CANNOT_READ };
 
   explicit KWalletDBus(base::nix::DesktopEnvironment desktop_env);
-
-  KWalletDBus(const KWalletDBus&) = delete;
-  KWalletDBus& operator=(const KWalletDBus&) = delete;
-
   virtual ~KWalletDBus();
 
   // Set the bus that we will use. Required before any other operation.
@@ -40,7 +36,7 @@ class COMPONENT_EXPORT(OS_CRYPT) KWalletDBus {
   virtual dbus::Bus* GetSessionBus();
 
   // Use KLauncher to start the KWallet service. Returns true if successful.
-  [[nodiscard]] virtual bool StartKWalletd();
+  virtual bool StartKWalletd() WARN_UNUSED_RESULT;
 
   // The functions below are wrappers for calling the eponymous KWallet dbus
   // methods. They take pointers to locations where the return values will be
@@ -48,96 +44,96 @@ class COMPONENT_EXPORT(OS_CRYPT) KWalletDBus {
   // https://api.kde.org/4.12-api/kdelibs-apidocs/kdeui/html/classKWallet_1_1Wallet.html
 
   // Determine if the KDE wallet is enabled.
-  [[nodiscard]] virtual Error IsEnabled(bool* enabled);
+  virtual Error IsEnabled(bool* enabled) WARN_UNUSED_RESULT;
 
   // Get the name of the wallet used to store network passwords.
-  [[nodiscard]] virtual Error NetworkWallet(std::string* wallet_name_ptr);
+  virtual Error NetworkWallet(std::string* wallet_name_ptr) WARN_UNUSED_RESULT;
 
   // Open the |wallet_name| wallet for use.
-  [[nodiscard]] virtual Error Open(const std::string& wallet_name,
-                                   const std::string& app_name,
-                                   int* handle_ptr);
+  virtual Error Open(const std::string& wallet_name,
+                     const std::string& app_name,
+                     int* handle_ptr) WARN_UNUSED_RESULT;
 
   // Determine if the current folder has they entry key.
-  [[nodiscard]] virtual Error HasEntry(int wallet_handle,
-                                       const std::string& folder_name,
-                                       const std::string& signon_realm,
-                                       const std::string& app_name,
-                                       bool* has_entry_ptr);
+  virtual Error HasEntry(int wallet_handle,
+                         const std::string& folder_name,
+                         const std::string& signon_realm,
+                         const std::string& app_name,
+                         bool* has_entry_ptr) WARN_UNUSED_RESULT;
 
   // Read the entry key from the current folder.
-  [[nodiscard]] virtual Error ReadEntry(int wallet_handle,
-                                        const std::string& folder_name,
-                                        const std::string& signon_realm,
-                                        const std::string& app_name,
-                                        std::vector<uint8_t>* bytes_ptr);
+  virtual Error ReadEntry(int wallet_handle,
+                          const std::string& folder_name,
+                          const std::string& signon_realm,
+                          const std::string& app_name,
+                          std::vector<uint8_t>* bytes_ptr) WARN_UNUSED_RESULT;
 
   // Return the list of keys of all entries in this folder.
-  [[nodiscard]] virtual Error EntryList(
-      int wallet_handle,
-      const std::string& folder_name,
-      const std::string& app_name,
-      std::vector<std::string>* entry_list_ptr);
+  virtual Error EntryList(int wallet_handle,
+                          const std::string& folder_name,
+                          const std::string& app_name,
+                          std::vector<std::string>* entry_list_ptr)
+      WARN_UNUSED_RESULT;
 
   // Remove the entry key from the current folder.
   // |*return_code_ptr| is 0 on success.
-  [[nodiscard]] virtual Error RemoveEntry(int wallet_handle,
-                                          const std::string& folder_name,
-                                          const std::string& signon_realm,
-                                          const std::string& app_name,
-                                          int* return_code_ptr);
+  virtual Error RemoveEntry(int wallet_handle,
+                            const std::string& folder_name,
+                            const std::string& signon_realm,
+                            const std::string& app_name,
+                            int* return_code_ptr) WARN_UNUSED_RESULT;
 
   // Write a binary entry to the current folder.
   // |*return_code_ptr| is 0 on success.
-  [[nodiscard]] virtual Error WriteEntry(int wallet_handle,
-                                         const std::string& folder_name,
-                                         const std::string& signon_realm,
-                                         const std::string& app_name,
-                                         const uint8_t* data,
-                                         size_t length,
-                                         int* return_code_ptr);
+  virtual Error WriteEntry(int wallet_handle,
+                           const std::string& folder_name,
+                           const std::string& signon_realm,
+                           const std::string& app_name,
+                           const uint8_t* data,
+                           size_t length,
+                           int* return_code_ptr) WARN_UNUSED_RESULT;
 
   // Determine if the folder |folder_name| exists in the wallet.
-  [[nodiscard]] virtual Error HasFolder(int handle,
-                                        const std::string& folder_name,
-                                        const std::string& app_name,
-                                        bool* has_folder_ptr);
+  virtual Error HasFolder(int handle,
+                          const std::string& folder_name,
+                          const std::string& app_name,
+                          bool* has_folder_ptr) WARN_UNUSED_RESULT;
 
   // Create the folder |folder_name|.
-  [[nodiscard]] virtual Error CreateFolder(int handle,
-                                           const std::string& folder_name,
-                                           const std::string& app_name,
-                                           bool* success_ptr);
+  virtual Error CreateFolder(int handle,
+                             const std::string& folder_name,
+                             const std::string& app_name,
+                             bool* success_ptr) WARN_UNUSED_RESULT;
 
   // Write a password to the current folder.
-  [[nodiscard]] virtual Error WritePassword(int handle,
-                                            const std::string& folder_name,
-                                            const std::string& key,
-                                            const std::string& password,
-                                            const std::string& app_name,
-                                            bool* write_success_ptr);
+  virtual Error WritePassword(int handle,
+                              const std::string& folder_name,
+                              const std::string& key,
+                              const std::string& password,
+                              const std::string& app_name,
+                              bool* write_success_ptr) WARN_UNUSED_RESULT;
 
   // Read the password for |key| from |folder_name|.
   // Clear |password_ptr| if no such password exists.
-  [[nodiscard]] virtual Error ReadPassword(
-      int handle,
-      const std::string& folder_name,
-      const std::string& key,
-      const std::string& app_name,
-      absl::optional<std::string>* const password_ptr);
+  virtual Error ReadPassword(int handle,
+                             const std::string& folder_name,
+                             const std::string& key,
+                             const std::string& app_name,
+                             base::Optional<std::string>* const password_ptr)
+      WARN_UNUSED_RESULT;
 
   // Close the wallet. The wallet will only be closed if it is open but not in
   // use (rare), or if it is forced closed.
-  [[nodiscard]] virtual Error Close(int handle,
-                                    bool force,
-                                    const std::string& app_name,
-                                    bool* success_ptr);
+  virtual Error Close(int handle,
+                      bool force,
+                      const std::string& app_name,
+                      bool* success_ptr) WARN_UNUSED_RESULT;
 
  private:
   // DBus handle for communication with klauncher and kwalletd.
   scoped_refptr<dbus::Bus> session_bus_;
   // Object proxy for kwalletd. We do not own this.
-  raw_ptr<dbus::ObjectProxy> kwallet_proxy_;
+  dbus::ObjectProxy* kwallet_proxy_;
 
   // KWallet DBus name.
   std::string dbus_service_name_;
@@ -145,6 +141,8 @@ class COMPONENT_EXPORT(OS_CRYPT) KWalletDBus {
   std::string dbus_path_;
   // The name used for logging and by klauncher when starting KWallet.
   std::string kwalletd_name_;
+
+  DISALLOW_COPY_AND_ASSIGN(KWalletDBus);
 };
 
 #endif  // COMPONENTS_OS_CRYPT_KWALLET_DBUS_H_

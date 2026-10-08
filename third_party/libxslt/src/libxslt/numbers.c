@@ -92,12 +92,6 @@ xsltUTF8Charcmp(xmlChar *utf1, xmlChar *utf2) {
     return xmlStrncmp(utf1, utf2, len);
 }
 
-static int
-xsltIsLetterDigit(int val) {
-    return xmlIsBaseCharQ(val) || xmlIsIdeographicQ(val) ||
-           xmlIsDigitQ(val);
-}
-
 /***** Stop temp insert *****/
 /************************************************************************
  *									*
@@ -183,7 +177,7 @@ xsltNumberFormatDecimal(xmlBufferPtr buffer,
 	        i = -1;
 		break;
 	    }
-	    *(--pointer) = val;
+	    *(--pointer) = (xmlChar)val;
 	}
 	else {
 	/*
@@ -353,8 +347,8 @@ xsltNumberFormatTokenize(const xmlChar *format,
      * Insert initial non-alphanumeric token.
      * There is always such a token in the list, even if NULL
      */
-    while (!xsltIsLetterDigit(val = xmlStringCurrentChar(NULL, format+ix,
-                                                         &len))) {
+    while (! (IS_LETTER(val=xmlStringCurrentChar(NULL, format+ix, &len)) ||
+	      IS_DIGIT(val)) ) {
 	if (format[ix] == 0)		/* if end of format string */
 	    break; /* while */
 	ix += len;
@@ -420,7 +414,7 @@ xsltNumberFormatTokenize(const xmlChar *format,
 	 * to correspond to the Letter and Digit classes from XML (and
 	 * one wonders why XSLT doesn't refer to these instead).
 	 */
-	while (xsltIsLetterDigit(val)) {
+	while (IS_LETTER(val) || IS_DIGIT(val)) {
 	    ix += len;
 	    val = xmlStringCurrentChar(NULL, format+ix, &len);
 	}
@@ -429,7 +423,7 @@ xsltNumberFormatTokenize(const xmlChar *format,
 	 * Insert temporary non-alphanumeric final tooken.
 	 */
 	j = ix;
-	while (!xsltIsLetterDigit(val)) {
+	while (! (IS_LETTER(val) || IS_DIGIT(val))) {
 	    if (val == 0)
 		break; /* while */
 	    ix += len;

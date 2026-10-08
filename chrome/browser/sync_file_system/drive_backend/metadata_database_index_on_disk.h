@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/sync_file_system/drive_backend/metadata_database_index_interface.h"
 #include "chrome/browser/sync_file_system/drive_backend/tracker_id_set.h"
 
@@ -33,10 +33,6 @@ class MetadataDatabaseIndexOnDisk : public MetadataDatabaseIndexInterface {
  public:
   static std::unique_ptr<MetadataDatabaseIndexOnDisk> Create(
       LevelDBWrapper* db);
-
-  MetadataDatabaseIndexOnDisk(const MetadataDatabaseIndexOnDisk&) = delete;
-  MetadataDatabaseIndexOnDisk& operator=(const MetadataDatabaseIndexOnDisk&) =
-      delete;
 
   ~MetadataDatabaseIndexOnDisk() override;
 
@@ -170,10 +166,12 @@ class MetadataDatabaseIndexOnDisk : public MetadataDatabaseIndexInterface {
   // Deletes entries whose keys start from |prefix|.
   void DeleteKeyStartsWith(const std::string& prefix);
 
-  raw_ptr<LevelDBWrapper> db_;  // Not owned.
+  LevelDBWrapper* db_;  // Not owned.
   std::unique_ptr<ServiceMetadata> service_metadata_;
 
   size_t num_dirty_trackers_;
+
+  DISALLOW_COPY_AND_ASSIGN(MetadataDatabaseIndexOnDisk);
 };
 
 }  // namespace drive_backend

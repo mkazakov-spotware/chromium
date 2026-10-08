@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,7 @@
 #include "base/component_export.h"
 #include "base/pickle.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
-#include "ui/base/clipboard/file_info.h"
+#include "ui/base/dragdrop/file_info/file_info.h"
 #include "ui/base/dragdrop/os_exchange_data_provider.h"
 #include "ui/gfx/geometry/vector2d.h"
 #include "ui/gfx/image/image_skia.h"
@@ -43,18 +42,16 @@ class COMPONENT_EXPORT(UI_BASE) OSExchangeDataProviderNonBacked
   std::unique_ptr<OSExchangeDataProvider> Clone() const override;
   void MarkOriginatedFromRenderer() override;
   bool DidOriginateFromRenderer() const override;
-  void MarkAsFromPrivileged() override;
-  bool IsFromPrivileged() const override;
-  void SetString(const std::u16string& data) override;
-  void SetURL(const GURL& url, const std::u16string& title) override;
+  void SetString(const base::string16& data) override;
+  void SetURL(const GURL& url, const base::string16& title) override;
   void SetFilename(const base::FilePath& path) override;
   void SetFilenames(const std::vector<FileInfo>& filenames) override;
   void SetPickledData(const ClipboardFormatType& format,
                       const base::Pickle& data) override;
-  bool GetString(std::u16string* data) const override;
+  bool GetString(base::string16* data) const override;
   bool GetURLAndTitle(FilenameToURLPolicy policy,
                       GURL* url,
-                      std::u16string* title) const override;
+                      base::string16* title) const override;
   bool GetFilename(base::FilePath* path) const override;
   bool GetFilenames(std::vector<FileInfo>* filenames) const override;
   bool GetPickledData(const ClipboardFormatType& format,
@@ -63,14 +60,13 @@ class COMPONENT_EXPORT(UI_BASE) OSExchangeDataProviderNonBacked
   bool HasURL(FilenameToURLPolicy policy) const override;
   bool HasFile() const override;
   bool HasCustomFormat(const ClipboardFormatType& format) const override;
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   void SetFileContents(const base::FilePath& filename,
                        const std::string& file_contents) override;
-  bool GetFileContents(base::FilePath* filename,
-                       std::string* file_contents) const override;
-  bool HasFileContents() const override;
+#endif
 
-  void SetHtml(const std::u16string& html, const GURL& base_url) override;
-  bool GetHtml(std::u16string* html, GURL* base_url) const override;
+  void SetHtml(const base::string16& html, const GURL& base_url) override;
+  bool GetHtml(base::string16* html, GURL* base_url) const override;
   bool HasHtml() const override;
   void SetDragImage(const gfx::ImageSkia& image,
                     const gfx::Vector2d& cursor_offset) override;
@@ -79,14 +75,6 @@ class COMPONENT_EXPORT(UI_BASE) OSExchangeDataProviderNonBacked
 
   void SetSource(std::unique_ptr<DataTransferEndpoint> data_source) override;
   DataTransferEndpoint* GetSource() const override;
-
- protected:
-  // Copy internal data into |provider| object.
-  void CopyData(OSExchangeDataProviderNonBacked* provider) const;
-
-  const std::map<ClipboardFormatType, base::Pickle>& pickle_data() const {
-    return pickle_data_;
-  }
 
  private:
   // Returns true if |formats_| contains a file format and the file name can be
@@ -102,11 +90,11 @@ class COMPONENT_EXPORT(UI_BASE) OSExchangeDataProviderNonBacked
   int formats_ = 0;
 
   // String contents.
-  std::u16string string_;
+  base::string16 string_;
 
   // URL contents.
   GURL url_;
-  std::u16string title_;
+  base::string16 title_;
 
   // File name.
   std::vector<FileInfo> filenames_;
@@ -118,21 +106,13 @@ class COMPONENT_EXPORT(UI_BASE) OSExchangeDataProviderNonBacked
   gfx::ImageSkia drag_image_;
   gfx::Vector2d drag_image_offset_;
 
-  // For file contents.
-  base::FilePath file_contents_filename_;
-  std::string file_contents_;
-
   // For HTML format
-  std::u16string html_;
+  base::string16 html_;
   GURL base_url_;
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-  // For marking data originating from the renderer.
+#if !defined(OS_CHROMEOS)
   bool originated_from_renderer_ = false;
 #endif
-
-  // For marking data originating by privileged WebContents.
-  bool is_from_privileged_ = false;
 
   // Data source.
   std::unique_ptr<DataTransferEndpoint> source_;

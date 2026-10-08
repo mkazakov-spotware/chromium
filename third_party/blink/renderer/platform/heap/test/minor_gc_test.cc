@@ -1,26 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "testing/gtest/include/gtest/gtest.h"
-
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap_page.h"
 #include "third_party/blink/renderer/platform/heap/heap_test_utilities.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
 #include "third_party/blink/renderer/platform/heap/thread_state.h"
-#include "third_party/blink/renderer/platform/heap/visitor.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
-#include "v8/include/cppgc/testing.h"
 
 namespace blink {
 
 namespace {
-
-bool IsOld(void* object) {
-  return cppgc::testing::IsHeapObjectOld(object);
-}
 
 class SimpleGCedBase : public GarbageCollected<SimpleGCedBase> {
  public:
@@ -65,14 +56,14 @@ class MinorGCTest : public TestSupportingGC {
     return SimpleGCedBase::destructed_objects;
   }
 
-  static void CollectMinor() {
-    ThreadState::Current()->CollectGarbageInYoungGenerationForTesting(
-        ThreadState::StackState::kNoHeapPointers);
-  }
+  static void CollectMinor() { Collect(BlinkGC::CollectionType::kMinor); }
+  static void CollectMajor() { Collect(BlinkGC::CollectionType::kMajor); }
 
-  static void CollectMajor() {
-    ThreadState::Current()->CollectAllGarbageForTesting(
-        ThreadState::StackState::kNoHeapPointers);
+ private:
+  static void Collect(BlinkGC::CollectionType type) {
+    ThreadState::Current()->CollectGarbage(
+        type, BlinkGC::kNoHeapPointersOnStack, BlinkGC::kAtomicMarking,
+        BlinkGC::kEagerSweeping, BlinkGC::GCReason::kForcedGCForTesting);
   }
 };
 
@@ -87,6 +78,98 @@ class MinorGCTestForType : public MinorGCTest {
 using ObjectTypes = ::testing::Types<Small, Large>;
 TYPED_TEST_SUITE(MinorGCTestForType, ObjectTypes);
 
+TYPED_TEST(MinorGCTestForType, MinorCollection) {
+  using Type = typename TestFixture::Type;
+
+  MakeGarbageCollected<Type>();
+  EXPECT_EQ(0u, TestFixture::DestructedObjects());
+  MinorGCTest::CollectMinor();
+  EXPECT_EQ(1u, TestFixture::DestructedObjects());
+
+  Type* prev = nullptr;
+  for (size_t i = 0; i < 64; ++i) {
+    auto* ptr = MakeGarbageCollected<Type>();
+    ptr->next = prev;
+    prev = ptr;
+  }
+
+  MinorGCTest::CollectMinor();
+  EXPECT_EQ(65u, TestFixture::DestructedObjects());
+}
+
+TYPED_TEST(MinorGCTestForType, StickyBits) {
+  using Type = typename TestFixture::Type;
+
+  Persistent<Type> p1 = MakeGarbageCollected<Type>();
+  TestFixture::CollectMinor();
+  EXPECT_TRUE(HeapObjectHeader::FromPayload(p1.Get())->IsOld());
+  TestFixture::CollectMajor();
+  EXPECT_TRUE(HeapObjectHeader::FromPayload(p1.Get())->IsOld());
+  EXPECT_EQ(0u, TestFixture::DestructedObjects());
+}
+
+TYPED_TEST(MinorGCTestForType, OldObjectIsNotVisited) {
+  using Type = typename TestFixture::Type;
+
+  Persistent<Type> p = MakeGarbageCollected<Type>();
+  TestFixture::CollectMinor();
+  EXPECT_EQ(0u, TestFixture::DestructedObjects());
+  EXPECT_TRUE(HeapObjectHeader::FromPayload(p.Get())->IsOld());
+
+  // Check that the old deleted object won't be visited during minor GC.
+  Type* raw = p.Release();
+  TestFixture::CollectMinor();
+  EXPECT_EQ(0u, TestFixture::DestructedObjects());
+  EXPECT_TRUE(HeapObjectHeader::FromPayload(raw)->IsOld());
+  EXPECT_FALSE(HeapObjectHeader::FromPayload(raw)->IsFree());
+
+  // Check that the old deleted object will be revisited in major GC.
+  TestFixture::CollectMajor();
+  EXPECT_EQ(1u, TestFixture::DestructedObjects());
+}
+
+template <typename Type1, typename Type2>
+void InterGenerationalPointerTest() {
+  Persistent<Type1> old = MakeGarbageCollected<Type1>();
+  MinorGCTest::CollectMinor();
+  EXPECT_TRUE(HeapObjectHeader::FromPayload(old.Get())->IsOld());
+
+  // Allocate young objects.
+  Type2* young = nullptr;
+  for (size_t i = 0; i < 64; ++i) {
+    auto* ptr = MakeGarbageCollected<Type2>();
+    ptr->next = young;
+    young = ptr;
+    EXPECT_FALSE(HeapObjectHeader::FromPayload(young)->IsOld());
+  }
+
+  // Issue generational barrier.
+  old->next = young;
+
+  // Check that the remembered set is visited.
+  MinorGCTest::CollectMinor();
+  EXPECT_EQ(0u, MinorGCTest::DestructedObjects());
+  for (size_t i = 0; i < 64; ++i) {
+    EXPECT_TRUE(HeapObjectHeader::FromPayload(young)->IsOld());
+    EXPECT_FALSE(HeapObjectHeader::FromPayload(young)->IsFree());
+    young = static_cast<Type2*>(young->next.Get());
+  }
+
+  old.Release();
+  MinorGCTest::CollectMajor();
+  EXPECT_EQ(65u, MinorGCTest::DestructedObjects());
+}
+
+TYPED_TEST(MinorGCTestForType, InterGenerationalPointerForSamePageTypes) {
+  using Type = typename TestFixture::Type;
+  InterGenerationalPointerTest<Type, Type>();
+}
+
+TYPED_TEST(MinorGCTestForType, InterGenerationalPointerForDifferentPageTypes) {
+  using Type = typename TestFixture::Type;
+  InterGenerationalPointerTest<Type, typename OtherType<Type>::Type>();
+}
+
 TYPED_TEST(MinorGCTestForType, InterGenerationalPointerInCollection) {
   using Type = typename TestFixture::Type;
 
@@ -95,9 +178,9 @@ TYPED_TEST(MinorGCTestForType, InterGenerationalPointerInCollection) {
       MakeGarbageCollected<HeapVector<Member<Type>>>();
   old->resize(kCollectionSize);
   void* raw_backing = old->data();
-  EXPECT_FALSE(IsOld(raw_backing));
+  EXPECT_FALSE(HeapObjectHeader::FromPayload(raw_backing)->IsOld());
   MinorGCTest::CollectMinor();
-  EXPECT_TRUE(IsOld(raw_backing));
+  EXPECT_TRUE(HeapObjectHeader::FromPayload(raw_backing)->IsOld());
 
   // Issue barrier for every second member.
   size_t i = 0;
@@ -115,7 +198,8 @@ TYPED_TEST(MinorGCTestForType, InterGenerationalPointerInCollection) {
   EXPECT_EQ(kCollectionSize / 2, MinorGCTest::DestructedObjects());
   for (const auto& member : *old) {
     if (member) {
-      EXPECT_TRUE(IsOld(member.Get()));
+      EXPECT_TRUE(HeapObjectHeader::FromPayload(member.Get())->IsOld());
+      EXPECT_FALSE(HeapObjectHeader::FromPayload(member.Get())->IsFree());
     }
   }
 
@@ -135,15 +219,12 @@ TYPED_TEST(MinorGCTestForType, InterGenerationalPointerInPlaceBarrier) {
   old->ReserveInitialCapacity(kCollectionSize);
 
   void* raw_backing = old->data();
-  EXPECT_FALSE(IsOld(raw_backing));
+  EXPECT_FALSE(HeapObjectHeader::FromPayload(raw_backing)->IsOld());
   MinorGCTest::CollectMinor();
-  EXPECT_TRUE(IsOld(raw_backing));
+  EXPECT_TRUE(HeapObjectHeader::FromPayload(raw_backing)->IsOld());
 
   // Issue barrier (in HeapAllocator::NotifyNewElement).
   old->push_back(std::make_pair("test", MakeGarbageCollected<Type>()));
-
-  // Store the reference in a weak pointer to check liveness.
-  WeakPersistent<Type> object_is_live = (*old)[0].second;
 
   // Check that the remembered set is visited.
   MinorGCTest::CollectMinor();
@@ -154,13 +235,12 @@ TYPED_TEST(MinorGCTestForType, InterGenerationalPointerInPlaceBarrier) {
 
   {
     Type* member = (*old)[0].second;
-    EXPECT_TRUE(IsOld(member));
-    EXPECT_TRUE(object_is_live);
+    EXPECT_TRUE(HeapObjectHeader::FromPayload(member)->IsOld());
+    EXPECT_FALSE(HeapObjectHeader::FromPayload(member)->IsFree());
   }
 
   old.Release();
   MinorGCTest::CollectMajor();
-  EXPECT_FALSE(object_is_live);
   EXPECT_EQ(1u, MinorGCTest::DestructedObjects());
 }
 
@@ -177,19 +257,16 @@ TYPED_TEST(MinorGCTestForType,
   old->ReserveInitialCapacity(1);
 
   void* raw_backing = old->data();
-  EXPECT_FALSE(IsOld(raw_backing));
+  EXPECT_FALSE(HeapObjectHeader::FromPayload(raw_backing)->IsOld());
 
   // Mark old backing.
   MinorGCTest::CollectMinor();
-  EXPECT_TRUE(IsOld(raw_backing));
+  EXPECT_TRUE(HeapObjectHeader::FromPayload(raw_backing)->IsOld());
 
   Persistent<CollectionType> young = MakeGarbageCollected<CollectionType>();
 
   // Add a single element to the young container.
   young->push_back(std::make_pair(1, MakeGarbageCollected<Type>()));
-
-  // Store the reference in a weak pointer to check liveness.
-  WeakPersistent<Type> object_is_live = (*young)[0].second;
 
   // Copy young container and issue barrier in HeapAllocator::NotifyNewElements.
   *old = *young;
@@ -206,76 +283,12 @@ TYPED_TEST(MinorGCTestForType,
 
   {
     Type* member = (*old)[0].second;
-    EXPECT_TRUE(IsOld(member));
-    EXPECT_TRUE(object_is_live);
+    EXPECT_TRUE(HeapObjectHeader::FromPayload(member)->IsOld());
+    EXPECT_FALSE(HeapObjectHeader::FromPayload(member)->IsFree());
   }
 
   old.Release();
   MinorGCTest::CollectMajor();
-  EXPECT_FALSE(object_is_live);
-  EXPECT_EQ(1u, MinorGCTest::DestructedObjects());
-}
-
-namespace {
-template <typename T>
-class InlinedObjectBase {
-  DISALLOW_NEW();
-
- public:
-  InlinedObjectBase() : value_(MakeGarbageCollected<T>()) {}
-  virtual ~InlinedObjectBase() = default;
-
-  void Trace(Visitor* visitor) const { visitor->Trace(value_); }
-
-  Member<T> GetValue() const { return value_; }
-
- private:
-  int a = 0;
-  Member<T> value_;
-};
-
-template <typename T>
-class InlinedObject : public InlinedObjectBase<T> {};
-}  // namespace
-
-TYPED_TEST(MinorGCTestForType,
-           InterGenerationalPointerInPlaceBarrierForTraced) {
-  using Type = typename TestFixture::Type;
-  using ValueType = InlinedObject<Type>;
-  using CollectionType = HeapVector<ValueType>;
-
-  static constexpr size_t kCollectionSize = 1;
-
-  Persistent<CollectionType> old = MakeGarbageCollected<CollectionType>();
-  old->ReserveInitialCapacity(kCollectionSize);
-
-  void* raw_backing = old->data();
-  EXPECT_FALSE(IsOld(raw_backing));
-  MinorGCTest::CollectMinor();
-  EXPECT_TRUE(IsOld(raw_backing));
-
-  // Issue barrier (in HeapAllocator::NotifyNewElement).
-  old->push_back(ValueType{});
-
-  // Store the reference in a weak pointer to check liveness.
-  WeakPersistent<Type> object_is_live = old->at(0).GetValue();
-
-  // Check that the remembered set is visited.
-  MinorGCTest::CollectMinor();
-
-  // No objects destructed.
-  EXPECT_EQ(0u, MinorGCTest::DestructedObjects());
-  EXPECT_EQ(1u, old->size());
-
-  {
-    Type* member = old->at(0).GetValue();
-    EXPECT_TRUE(IsOld(member));
-    EXPECT_TRUE(object_is_live);
-  }
-
-  old.Release();
-  MinorGCTest::CollectMajor();
-  EXPECT_FALSE(object_is_live);
   EXPECT_EQ(1u, MinorGCTest::DestructedObjects());
 }
 

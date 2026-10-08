@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,9 +31,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/SourceLocation.h"
 
-#include "BlinkDataMemberTypeChecker.h"
 #include "CheckIPCVisitor.h"
-#include "CheckLayoutObjectMethodsVisitor.h"
 #include "ChromeClassTester.h"
 #include "Options.h"
 #include "SuppressibleDiagnosticBuilder.h"
@@ -85,14 +83,10 @@ class FindBadConstructsConsumer
   void CheckVirtualSpecifiers(const clang::CXXMethodDecl* method);
   void CheckVirtualBodies(const clang::CXXMethodDecl* method);
 
-  enum class TypeClassification {
-    kTrivial,
-    kNonTrivial,
-    kTrivialTemplate,
-    kNonTrivialTemplate,
-    kNonTrivialExternTemplate
-  };
-  TypeClassification ClassifyType(const clang::Type* type);
+  void CountType(const clang::Type* type,
+                 int* trivial_member,
+                 int* non_trivial_member,
+                 int* templated_non_trivial_member);
 
   static RefcountIssue CheckRecordForRefcountIssue(
       const clang::CXXRecordDecl* record,
@@ -136,9 +130,7 @@ class FindBadConstructsConsumer
   unsigned diag_note_public_dtor_;
   unsigned diag_note_protected_non_virtual_dtor_;
 
-  std::unique_ptr<BlinkDataMemberTypeChecker> blink_data_member_type_checker_;
   std::unique_ptr<CheckIPCVisitor> ipc_visitor_;
-  std::unique_ptr<CheckLayoutObjectMethodsVisitor> layout_visitor_;
 };
 
 }  // namespace chrome_checker

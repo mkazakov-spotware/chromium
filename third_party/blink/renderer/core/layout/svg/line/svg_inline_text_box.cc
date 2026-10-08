@@ -22,6 +22,7 @@
 #include "third_party/blink/renderer/core/layout/svg/line/svg_inline_text_box.h"
 
 #include "third_party/blink/renderer/core/editing/markers/document_marker.h"
+#include "third_party/blink/renderer/core/editing/markers/text_marker_base.h"
 #include "third_party/blink/renderer/core/editing/markers/text_match_marker.h"
 #include "third_party/blink/renderer/core/layout/api/line_layout_svg_inline_text.h"
 #include "third_party/blink/renderer/core/layout/hit_test_result.h"
@@ -30,7 +31,6 @@
 #include "third_party/blink/renderer/core/paint/svg_inline_text_box_painter.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
 #include "third_party/blink/renderer/platform/wtf/size_assertions.h"
-#include "ui/gfx/geometry/rect_conversions.h"
 
 namespace blink {
 
@@ -88,8 +88,7 @@ int SVGInlineTextBox::OffsetForPositionInFragment(
   TextRun text_run = ConstructTextRun(line_layout_item.StyleRef(), fragment);
   return fragment.character_offset - Start() +
          line_layout_item.ScaledFont().OffsetForPosition(
-             text_run, position, kIncludePartialGlyphs,
-             BreakGlyphsOption(true));
+             text_run, position, IncludePartialGlyphs, BreakGlyphs);
 }
 
 LayoutUnit SVGInlineTextBox::PositionForOffset(int) const {
@@ -98,7 +97,7 @@ LayoutUnit SVGInlineTextBox::PositionForOffset(int) const {
   return LayoutUnit();
 }
 
-gfx::RectF SVGInlineTextBox::SelectionRectForTextFragment(
+FloatRect SVGInlineTextBox::SelectionRectForTextFragment(
     const SVGTextFragment& fragment,
     int start_position,
     int end_position,
@@ -115,16 +114,16 @@ gfx::RectF SVGInlineTextBox::SelectionRectForTextFragment(
   const SimpleFontData* font_data = scaled_font.PrimaryFont();
   DCHECK(font_data);
   if (!font_data)
-    return gfx::RectF();
+    return FloatRect();
 
   const FontMetrics& scaled_font_metrics = font_data->GetFontMetrics();
-  gfx::PointF text_origin(fragment.x, fragment.y);
+  FloatPoint text_origin(fragment.x, fragment.y);
   if (scaling_factor != 1)
     text_origin.Scale(scaling_factor, scaling_factor);
 
-  text_origin.Offset(0, -scaled_font_metrics.FloatAscent());
+  text_origin.Move(0, -scaled_font_metrics.FloatAscent());
 
-  gfx::RectF selection_rect = scaled_font.SelectionRectForText(
+  FloatRect selection_rect = scaled_font.SelectionRectForText(
       ConstructTextRun(style, fragment), text_origin,
       fragment.height * scaling_factor, start_position, end_position);
   if (scaling_factor == 1)
@@ -146,7 +145,7 @@ LayoutRect SVGInlineTextBox::LocalSelectionRect(
 
   const ComputedStyle& style = GetLineLayoutItem().StyleRef();
 
-  gfx::RectF selection_rect;
+  FloatRect selection_rect;
   int fragment_start_position = 0;
   int fragment_end_position = 0;
 
@@ -160,15 +159,15 @@ LayoutRect SVGInlineTextBox::LocalSelectionRect(
             fragment, fragment_start_position, fragment_end_position))
       continue;
 
-    gfx::RectF fragment_rect = SelectionRectForTextFragment(
+    FloatRect fragment_rect = SelectionRectForTextFragment(
         fragment, fragment_start_position, fragment_end_position, style);
     if (fragment.IsTransformed())
       fragment_rect = fragment.BuildFragmentTransform().MapRect(fragment_rect);
 
-    selection_rect.Union(fragment_rect);
+    selection_rect.Unite(fragment_rect);
   }
 
-  return LayoutRect(gfx::ToEnclosingRect(selection_rect));
+  return LayoutRect(EnclosingIntRect(selection_rect));
 }
 
 void SVGInlineTextBox::Paint(const PaintInfo& paint_info,
@@ -243,7 +242,7 @@ void SVGInlineTextBox::PaintDocumentMarker(const PaintInfo&,
 
 void SVGInlineTextBox::PaintTextMarkerForeground(const PaintInfo& paint_info,
                                                  const PhysicalOffset& point,
-                                                 const DocumentMarker& marker,
+                                                 const TextMarkerBase& marker,
                                                  const ComputedStyle& style,
                                                  const Font& font) const {
   SVGInlineTextBoxPainter(*this).PaintTextMarkerForeground(paint_info, point,
@@ -252,28 +251,28 @@ void SVGInlineTextBox::PaintTextMarkerForeground(const PaintInfo& paint_info,
 
 void SVGInlineTextBox::PaintTextMarkerBackground(const PaintInfo& paint_info,
                                                  const PhysicalOffset& point,
-                                                 const DocumentMarker& marker,
+                                                 const TextMarkerBase& marker,
                                                  const ComputedStyle& style,
                                                  const Font& font) const {
   SVGInlineTextBoxPainter(*this).PaintTextMarkerBackground(paint_info, point,
                                                            marker, style, font);
 }
 
-gfx::RectF SVGInlineTextBox::CalculateBoundaries() const {
+FloatRect SVGInlineTextBox::CalculateBoundaries() const {
   LineLayoutSVGInlineText line_layout_item =
       LineLayoutSVGInlineText(GetLineLayoutItem());
   const SimpleFontData* font_data = line_layout_item.ScaledFont().PrimaryFont();
   DCHECK(font_data);
   if (!font_data)
-    return gfx::RectF();
+    return FloatRect();
 
   float scaling_factor = line_layout_item.ScalingFactor();
   DCHECK(scaling_factor);
   float baseline = font_data->GetFontMetrics().FloatAscent() / scaling_factor;
 
-  gfx::RectF text_bounding_rect;
+  FloatRect text_bounding_rect;
   for (const SVGTextFragment& fragment : text_fragments_)
-    text_bounding_rect.Union(fragment.OverflowBoundingBox(baseline));
+    text_bounding_rect.Unite(fragment.OverflowBoundingBox(baseline));
 
   return text_bounding_rect;
 }
@@ -290,7 +289,7 @@ bool SVGInlineTextBox::HitTestFragments(
   float baseline = font_data->GetFontMetrics().FloatAscent() /
                    line_layout_item.ScalingFactor();
   for (const SVGTextFragment& fragment : text_fragments_) {
-    gfx::QuadF fragment_quad = fragment.BoundingQuad(baseline);
+    FloatQuad fragment_quad = fragment.BoundingQuad(baseline);
     if (hit_test_location.Intersects(fragment_quad))
       return true;
   }
@@ -307,16 +306,16 @@ bool SVGInlineTextBox::NodeAtPoint(HitTestResult& result,
 
   auto line_layout_item = LineLayoutSVGInlineText(GetLineLayoutItem());
   const ComputedStyle& style = line_layout_item.StyleRef();
-  PointerEventsHitRules hit_rules(PointerEventsHitRules::kSvgTextHitTesting,
+  PointerEventsHitRules hit_rules(PointerEventsHitRules::SVG_TEXT_HITTESTING,
                                   result.GetHitTestRequest(),
-                                  style.UsedPointerEvents());
+                                  style.PointerEvents());
   if (hit_rules.require_visible && style.Visibility() != EVisibility::kVisible)
     return false;
   if (hit_rules.can_hit_bounding_box ||
       (hit_rules.can_hit_stroke &&
-       (style.HasStroke() || !hit_rules.require_stroke)) ||
+       (style.SvgStyle().HasStroke() || !hit_rules.require_stroke)) ||
       (hit_rules.can_hit_fill &&
-       (style.HasFill() || !hit_rules.require_fill))) {
+       (style.SvgStyle().HasFill() || !hit_rules.require_fill))) {
     // Currently SVGInlineTextBox doesn't flip in blocks direction.
     PhysicalRect rect{PhysicalOffset(Location()), PhysicalSize(Size())};
     rect.Move(accumulated_offset);

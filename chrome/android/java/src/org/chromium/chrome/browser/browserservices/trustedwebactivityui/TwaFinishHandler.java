@@ -1,17 +1,17 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.browserservices.trustedwebactivityui;
 
-import android.app.Activity;
 import android.os.Build;
 import android.os.Bundle;
 
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.intents.WebApkExtras;
+import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.customtabs.CustomTabsConnection;
 import org.chromium.chrome.browser.dependency_injection.ActivityScope;
+import org.chromium.chrome.browser.webapps.WebApkExtras;
 import org.chromium.chrome.browser.webapps.WebApkServiceClient;
 
 import javax.inject.Inject;
@@ -24,15 +24,15 @@ public class TwaFinishHandler {
     private static final String FINISH_TASK_COMMAND_NAME = "finishAndRemoveTask";
     private static final String SUCCESS_KEY = "success";
 
-    private final Activity mActivity;
+    private final ChromeActivity<?> mActivity;
     private final BrowserServicesIntentDataProvider mIntentDataProvider;
     private final CustomTabsConnection mConnection;
 
     private boolean mShouldAttemptFinishingTask;
 
     @Inject
-    public TwaFinishHandler(Activity activity, BrowserServicesIntentDataProvider intentDataProvider,
-            CustomTabsConnection connection) {
+    public TwaFinishHandler(ChromeActivity<?> activity,
+            BrowserServicesIntentDataProvider intentDataProvider, CustomTabsConnection connection) {
         mActivity = activity;
         mIntentDataProvider = intentDataProvider;
         mConnection = connection;

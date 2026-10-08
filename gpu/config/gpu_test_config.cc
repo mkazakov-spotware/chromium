@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@
 #include "gpu/config/gpu_test_expectations_parser.h"
 #include "ui/gl/gl_utils.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/windows_version.h"
 #endif
 
@@ -26,12 +26,11 @@ namespace gpu {
 namespace {
 
 GPUTestConfig::OS GetCurrentOS() {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_ASH)
   return GPUTestConfig::kOsChromeOS;
-#elif (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)) || \
-    BUILDFLAG(IS_OPENBSD)
+#elif defined(OS_LINUX) || defined(OS_OPENBSD)
   return GPUTestConfig::kOsLinux;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   int32_t major_version = 0;
   int32_t minor_version = 0;
   int32_t bugfix_version = 0;
@@ -48,7 +47,7 @@ GPUTestConfig::OS GetCurrentOS() {
   if (major_version == 10)
     return GPUTestConfig::kOsWin10;
   return GPUTestConfig::kOsUnknown;
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
   int32_t major_version = 0;
   int32_t minor_version = 0;
   int32_t bugfix_version = 0;
@@ -82,16 +81,16 @@ GPUTestConfig::OS GetCurrentOS() {
       }
       break;
     case 11:
-      return GPUTestConfig::kOsMacBigSur;
-    case 12:
-      return GPUTestConfig::kOsMacMonterey;
-    case 13:
-      return GPUTestConfig::kOsMacVentura;
+      switch (minor_version) {
+        case 0:
+          return GPUTestConfig::kOsMacBigSur;
+      }
+      break;
   }
   return GPUTestConfig::kOsUnknown;
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
   return GPUTestConfig::kOsAndroid;
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   return GPUTestConfig::kOsFuchsia;
 #else
 #error "unknown os"
@@ -195,7 +194,7 @@ void GPUTestBotConfig::AddGPUVendor(uint32_t gpu_vendor) {
 bool GPUTestBotConfig::SetGPUInfo(const GPUInfo& gpu_info) {
   if (gpu_info.gpu.vendor_id == 0)
     return false;
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
   // ARM-based Mac GPUs do not have valid PCI device IDs.
   // https://crbug.com/1110421
   if (gpu_info.gpu.device_id == 0)
@@ -231,8 +230,6 @@ bool GPUTestBotConfig::IsValid() const {
     case kOsMacMojave:
     case kOsMacCatalina:
     case kOsMacBigSur:
-    case kOsMacMonterey:
-    case kOsMacVentura:
     case kOsLinux:
     case kOsChromeOS:
     case kOsAndroid:
@@ -301,7 +298,7 @@ bool GPUTestBotConfig::Matches(const std::string& config_data) const {
 bool GPUTestBotConfig::LoadCurrentConfig(const GPUInfo* gpu_info) {
   bool rt;
   if (!gpu_info) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
     // TODO(zmo): Implement this.
     rt = false;
 #else
@@ -313,7 +310,7 @@ bool GPUTestBotConfig::LoadCurrentConfig(const GPUInfo* gpu_info) {
     } else {
       rt = SetGPUInfo(my_gpu_info);
     }
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // OS_ANDROID
   } else {
     rt = SetGPUInfo(*gpu_info);
   }

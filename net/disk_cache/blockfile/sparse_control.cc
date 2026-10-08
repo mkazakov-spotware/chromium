@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,11 @@
 #include "base/format_macros.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/numerics/checked_math.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "net/base/interval.h"
 #include "net/base/io_buffer.h"
@@ -67,16 +68,13 @@ class ChildrenDeleter
       public disk_cache::FileIOCallback {
  public:
   ChildrenDeleter(disk_cache::BackendImpl* backend, const std::string& name)
-      : backend_(backend->GetWeakPtr()), name_(name) {}
-
-  ChildrenDeleter(const ChildrenDeleter&) = delete;
-  ChildrenDeleter& operator=(const ChildrenDeleter&) = delete;
+      : backend_(backend->GetWeakPtr()), name_(name), signature_(0) {}
 
   void OnFileIOComplete(int bytes_copied) override;
 
   // Two ways of deleting the children: if we have the children map, use Start()
   // directly, otherwise pass the data address to ReadData().
-  void Start(std::unique_ptr<char[]> buffer, int len);
+  void Start(char* buffer, int len);
   void ReadData(disk_cache::Addr address, int len);
 
  private:
@@ -88,24 +86,26 @@ class ChildrenDeleter
   base::WeakPtr<disk_cache::BackendImpl> backend_;
   std::string name_;
   disk_cache::Bitmap children_map_;
-  int64_t signature_ = 0;
+  int64_t signature_;
   std::unique_ptr<char[]> buffer_;
+  DISALLOW_COPY_AND_ASSIGN(ChildrenDeleter);
 };
 
 // This is the callback of the file operation.
 void ChildrenDeleter::OnFileIOComplete(int bytes_copied) {
-  Start(std::move(buffer_), bytes_copied);
+  char* buffer = buffer_.release();
+  Start(buffer, bytes_copied);
 }
 
-void ChildrenDeleter::Start(std::unique_ptr<char[]> buffer, int len) {
-  buffer_ = std::move(buffer);
+void ChildrenDeleter::Start(char* buffer, int len) {
+  buffer_.reset(buffer);
   if (len < static_cast<int>(sizeof(disk_cache::SparseData)))
     return Release();
 
   // Just copy the information from |buffer|, delete |buffer| and start deleting
   // the child entries.
   disk_cache::SparseData* data =
-      reinterpret_cast<disk_cache::SparseData*>(buffer_.get());
+      reinterpret_cast<disk_cache::SparseData*>(buffer);
   signature_ = data->header.signature;
 
   int num_bits = (len - sizeof(disk_cache::SparseHeader)) * 8;
@@ -128,7 +128,7 @@ void ChildrenDeleter::ReadData(disk_cache::Addr address, int len) {
   size_t file_offset = address.start_block() * address.BlockSize() +
                        disk_cache::kBlockHeaderSize;
 
-  buffer_ = std::make_unique<char[]>(len);
+  buffer_.reset(new char[len]);
   bool completed;
   if (!file->Read(buffer_.get(), len, file_offset, this, &completed))
     return Release();
@@ -150,7 +150,7 @@ void ChildrenDeleter::DeleteChildren() {
   children_map_.Set(child_id, false);
 
   // Post a task to delete the next child.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&ChildrenDeleter::DeleteChildren, this));
 }
 
@@ -200,7 +200,19 @@ namespace disk_cache {
 
 SparseControl::SparseControl(EntryImpl* entry)
     : entry_(entry),
-      child_map_(child_data_.bitmap, kNumSparseBits, kNumSparseBits / 32) {
+      child_(nullptr),
+      operation_(kNoOperation),
+      pending_(false),
+      finished_(false),
+      init_(false),
+      range_found_(false),
+      abort_(false),
+      child_map_(child_data_.bitmap, kNumSparseBits, kNumSparseBits / 32),
+      offset_(0),
+      buf_len_(0),
+      child_offset_(0),
+      child_len_(0),
+      result_(0) {
   memset(&sparse_header_, 0, sizeof(sparse_header_));
   memset(&child_data_, 0, sizeof(child_data_));
 }
@@ -324,23 +336,25 @@ int SparseControl::StartIO(SparseOperation op,
   return net::ERR_IO_PENDING;
 }
 
-RangeResult SparseControl::GetAvailableRange(int64_t offset, int len) {
+int SparseControl::GetAvailableRange(int64_t offset, int len, int64_t* start) {
   DCHECK(init_);
   // We don't support simultaneous IO for sparse data.
   if (operation_ != kNoOperation)
-    return RangeResult(net::ERR_CACHE_OPERATION_NOT_SUPPORTED);
+    return net::ERR_CACHE_OPERATION_NOT_SUPPORTED;
+
+  DCHECK(start);
 
   range_found_ = false;
   int result = StartIO(kGetRangeOperation, offset, nullptr, len,
                        CompletionOnceCallback());
-  if (range_found_)
-    return RangeResult(offset_, result);
+  if (range_found_) {
+    *start = offset_;
+    return result;
+  }
 
-  // This is a failure. We want to return a valid start value if it's just an
-  // empty range, though.
-  if (result < 0)
-    return RangeResult(static_cast<net::Error>(result));
-  return RangeResult(offset, 0);
+  // This is a failure. We want to return a valid start value in any case.
+  *start = offset;
+  return result < 0 ? result : 0;  // Don't mask error codes to the caller.
 }
 
 void SparseControl::CancelIO() {
@@ -373,7 +387,7 @@ void SparseControl::DeleteChildren(EntryImpl* entry) {
   if (map_len > kMaxMapSize || map_len % 4)
     return;
 
-  std::unique_ptr<char[]> buffer;
+  char* buffer;
   Addr address;
   entry->GetData(kSparseIndex, &buffer, &address);
   if (!buffer && !address.is_initialized())
@@ -388,11 +402,11 @@ void SparseControl::DeleteChildren(EntryImpl* entry) {
   deleter->AddRef();
 
   if (buffer) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(&ChildrenDeleter::Start, deleter,
-                                  std::move(buffer), data_len));
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
+        FROM_HERE,
+        base::BindOnce(&ChildrenDeleter::Start, deleter, buffer, data_len));
   } else {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&ChildrenDeleter::ReadData, deleter, address, data_len));
   }
@@ -706,8 +720,7 @@ void SparseControl::DoChildrenIO() {
   // |finished_| to true.
   if (kGetRangeOperation == operation_ && entry_->net_log().IsCapturing()) {
     entry_->net_log().EndEvent(net::NetLogEventType::SPARSE_GET_RANGE, [&] {
-      return CreateNetLogGetAvailableRangeResultParams(
-          RangeResult(offset_, result_));
+      return CreateNetLogGetAvailableRangeResultParams(offset_, result_);
     });
   }
   if (finished_) {
@@ -739,7 +752,6 @@ bool SparseControl::DoChildIO() {
   }
 
   int rv = 0;
-  bool optimistic = false;
   switch (operation_) {
     case kReadOperation:
       if (entry_->net_log().IsCapturing()) {
@@ -759,8 +771,7 @@ bool SparseControl::DoChildIO() {
                               child_->net_log().source(), child_len_);
       }
       rv = child_->WriteDataImpl(kSparseData, child_offset_, user_buf_.get(),
-                                 child_len_, std::move(callback), false,
-                                 &optimistic);
+                                 child_len_, std::move(callback), false);
       break;
     case kGetRangeOperation:
       rv = DoGetAvailableRange();
@@ -769,7 +780,7 @@ bool SparseControl::DoChildIO() {
       NOTREACHED();
   }
 
-  if (rv == net::ERR_IO_PENDING || optimistic) {
+  if (rv == net::ERR_IO_PENDING) {
     if (!pending_) {
       pending_ = true;
       // The child will protect himself against closing the entry while IO is in

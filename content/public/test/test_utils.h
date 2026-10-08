@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
 #include "base/threading/thread_checker.h"
@@ -16,7 +16,6 @@
 #include "content/public/browser/browser_child_process_observer.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/content_browser_client.h"
-#include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/notification_details.h"
 #include "content/public/browser/notification_observer.h"
 #include "content/public/browser/notification_registrar.h"
@@ -25,7 +24,7 @@
 #include "third_party/blink/public/common/fetch/fetch_api_request_headers_map.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include <jni.h>
 #endif
 
@@ -51,6 +50,9 @@ blink::mojom::FetchAPIRequestPtr CreateFetchAPIRequest(
 // Deprecated: Use RunLoop::Run(). Use RunLoop::Type::kNestableTasksAllowed to
 // force nesting in browser tests.
 void RunMessageLoop();
+
+// Deprecated: Invoke |run_loop->Run()| directly.
+void RunThisRunLoop(base::RunLoop* run_loop);
 
 // Turns on nestable tasks, runs all pending tasks in the message loop, then
 // resets nestable tasks to what they were originally. Can only be called from
@@ -89,29 +91,9 @@ base::Value ExecuteScriptAndGetValue(RenderFrameHost* render_frame_host,
 // that is incompatible with --site-per-process.
 bool AreAllSitesIsolatedForTesting();
 
-// Returns true if |origin| is currently isolated with respect to the
-// BrowsingInstance of |site_instance|. This is only relevant for
-// OriginAgentCluster isolation, and not other types of origin isolation.
-// Note: this only indicates logcial OriginAgentCluster isolation, and says
-// nothing about process-isolation (RequiresOriginKeyedProcess).
-bool IsOriginAgentClusterEnabledForOrigin(SiteInstance* site_instance,
-                                          const url::Origin& origin);
-
 // Returns true if default SiteInstances are enabled. Typically used in a test
 // to mark expectations specific to default SiteInstances.
 bool AreDefaultSiteInstancesEnabled();
-
-// Returns true if the process model only allows a SiteInstance to contain
-// a single site.
-bool AreStrictSiteInstancesEnabled();
-
-// Returns true if a test needs to register an origin for isolation to ensure
-// that navigations, for that origin, are placed in a dedicated process. Some
-// process model modes allow sites to share a process if they are not isolated.
-// This helper indicates when such a mode is in use and indicates the test must
-// register an isolated origin to ensure the origin gets placed in its own
-// process.
-bool IsIsolatedOriginRequiredToGuaranteeDedicatedProcess();
 
 // Appends --site-per-process to the command line, enabling tests to exercise
 // site isolation and cross-process iframes. This must be called early in
@@ -150,7 +132,7 @@ std::string GetWebUIURLString(const std::string& host);
 // inner WebContents will be deleted if the frame it's attached to goes away.
 WebContents* CreateAndAttachInnerContents(RenderFrameHost* rfh);
 
-// Spins a run loop until IsDocumentOnLoadCompletedInPrimaryMainFrame() is true.
+// Spins a run loop until IsDocumentOnLoadCompletedInMainFrame() is true.
 void AwaitDocumentOnLoadCompleted(WebContents* web_contents);
 
 // Helper class to Run and Quit the message loop. Run and Quit can only happen
@@ -173,10 +155,7 @@ class MessageLoopRunner : public base::RefCountedThreadSafe<MessageLoopRunner> {
     DEFERRED,
   };
 
-  explicit MessageLoopRunner(QuitMode mode = QuitMode::DEFERRED);
-
-  MessageLoopRunner(const MessageLoopRunner&) = delete;
-  MessageLoopRunner& operator=(const MessageLoopRunner&) = delete;
+  MessageLoopRunner(QuitMode mode = QuitMode::DEFERRED);
 
   // Run the current MessageLoop unless the quit closure
   // has already been called.
@@ -206,9 +185,11 @@ class MessageLoopRunner : public base::RefCountedThreadSafe<MessageLoopRunner> {
   // True after closure returned by |QuitClosure| has been called.
   bool quit_closure_called_ = false;
 
-  base::RunLoop run_loop_{base::RunLoop::Type::kNestableTasksAllowed};
+  base::RunLoop run_loop_;
 
   base::ThreadChecker thread_checker_;
+
+  DISALLOW_COPY_AND_ASSIGN(MessageLoopRunner);
 };
 
 // A WindowedNotificationObserver allows code to wait until a condition is met.
@@ -262,10 +243,6 @@ class WindowedNotificationObserver : public NotificationObserver {
       int notification_type,
       ConditionTestCallbackWithoutSourceAndDetails callback);
 
-  WindowedNotificationObserver(const WindowedNotificationObserver&) = delete;
-  WindowedNotificationObserver& operator=(const WindowedNotificationObserver&) =
-      delete;
-
   ~WindowedNotificationObserver() override;
 
   // Adds an additional notification type to wait for. The condition will be met
@@ -303,36 +280,8 @@ class WindowedNotificationObserver : public NotificationObserver {
   NotificationSource source_;
   NotificationDetails details_;
   base::RunLoop run_loop_;
-};
 
-// Helper to wait for loading to stop on a WebContents.  It should be preferred
-// to uses of WindowedNotificationObserver for NOTIFICATION_LOAD_STOP.
-//
-// This helper class exists to avoid the following common pattern in tests:
-//   PerformAction()
-//   WaitForCompletionNotification()
-// The pattern leads to flakiness as there is a window between PerformAction
-// returning and the observers getting registered, where a notification will be
-// missed.
-//
-// Rather, one can do this:
-//   LoadStopObserver signal(web_contents)
-//   PerformAction()
-//   signal.Wait()
-class LoadStopObserver : public WebContentsObserver {
- public:
-  explicit LoadStopObserver(WebContents* web_contents);
-
-  // Wait until at least one load stop has been observed.  Return immediately if
-  // one has been observed since construction.
-  void Wait();
-
-  // WebContentsObserver
-  void DidStopLoading() override;
-
- private:
-  bool seen_ = false;
-  base::RunLoop run_loop_;
+  DISALLOW_COPY_AND_ASSIGN(WindowedNotificationObserver);
 };
 
 // Unit tests can use code which runs in the utility process by having it run on
@@ -349,11 +298,6 @@ class LoadStopObserver : public WebContentsObserver {
 class InProcessUtilityThreadHelper : public BrowserChildProcessObserver {
  public:
   InProcessUtilityThreadHelper();
-
-  InProcessUtilityThreadHelper(const InProcessUtilityThreadHelper&) = delete;
-  InProcessUtilityThreadHelper& operator=(const InProcessUtilityThreadHelper&) =
-      delete;
-
   ~InProcessUtilityThreadHelper() override;
 
  private:
@@ -362,75 +306,31 @@ class InProcessUtilityThreadHelper : public BrowserChildProcessObserver {
   void BrowserChildProcessHostDisconnected(
       const ChildProcessData& data) override;
 
-  absl::optional<base::RunLoop> run_loop_;
+  base::Optional<base::RunLoop> run_loop_;
+
+  DISALLOW_COPY_AND_ASSIGN(InProcessUtilityThreadHelper);
 };
 
-// This observer keeps tracks of whether a given RenderFrameHost has received
-// WebContentsObserver::RenderFrameDeleted.
+// This observer keeps tracks of whether a given RenderFrameHost is deleted or
+// not to avoid accessing it and causing use-after-free condition.
 class RenderFrameDeletedObserver : public WebContentsObserver {
  public:
-  // |rfh| should not already be deleted.
-  explicit RenderFrameDeletedObserver(RenderFrameHost* rfh);
-
-  RenderFrameDeletedObserver(const RenderFrameDeletedObserver&) = delete;
-  RenderFrameDeletedObserver& operator=(const RenderFrameDeletedObserver&) =
-      delete;
-
+  RenderFrameDeletedObserver(RenderFrameHost* rfh);
   ~RenderFrameDeletedObserver() override;
 
   // Overridden WebContentsObserver methods.
   void RenderFrameDeleted(RenderFrameHost* render_frame_host) override;
 
-  // TODO(1267073): Add [[nodiscard]]
-  // Returns true if the frame was deleted before the timeout.
-  bool WaitUntilDeleted();
-  bool deleted() const;
+  void WaitUntilDeleted();
+  bool deleted();
 
  private:
-  // We cannot keep a pointer because if the RenderFrameHost is not in the
-  // created state when this class is initialized, then RenderFrameDeleted might
-  // not be called when it is destroyed.
-  GlobalRenderFrameHostId rfh_id_;
+  int process_id_;
+  int routing_id_;
+  bool deleted_;
   std::unique_ptr<base::RunLoop> runner_;
-};
 
-// This class holds a RenderFrameHost*, providing safe access to it for testing.
-// If the RFH is destroyed, it can no longer be accessed. Attempting to access
-// it via dereference will cause a DCHECK failure.
-//
-// For convenience, it also wraps a RenderFrameDeletedObserver and provides
-// access to |deleted| and |WaitForDeleted|. Note, deletion of the RenderFrame
-// does not always correspond to destruction of the RenderFrameHost, see
-// the comments on |RenderFrameDeletedObserver|).
-class RenderFrameHostWrapper {
- public:
-  explicit RenderFrameHostWrapper(RenderFrameHost* rfh);
-  ~RenderFrameHostWrapper();
-  RenderFrameHostWrapper(RenderFrameHostWrapper&&);
-
-  // Returns the pointer or nullptr if the RFH has already been destroyed.
-  RenderFrameHost* get() const;
-  // Returns true if RenderFrameHost has been destroyed.
-  bool IsDestroyed() const;
-
-  // See RenderFrameDeletedObserver for notes on the difference between
-  // RenderFrame being deleted and RenderFrameHost being destroyed.
-  // Returns true if the frame was deleted before the timeout.
-  [[nodiscard]] bool WaitUntilRenderFrameDeleted() const;
-  bool IsRenderFrameDeleted() const;
-
-  // Pointerish operators. Feel free to add more if you need them.
-  RenderFrameHost& operator*() const;
-  RenderFrameHost* operator->() const;
-
-  explicit operator bool() const { return get() != nullptr; }
-
- private:
-  const GlobalRenderFrameHostId rfh_id_;
-
-  // It's tempting to just inherit but RenderFrameDeletedObserver is not
-  // movable because it is a WebContentsObserver.
-  std::unique_ptr<RenderFrameDeletedObserver> deleted_observer_;
+  DISALLOW_COPY_AND_ASSIGN(RenderFrameDeletedObserver);
 };
 
 // Watches a WebContents. Can be used to block until it is destroyed or just
@@ -438,11 +338,6 @@ class RenderFrameHostWrapper {
 class WebContentsDestroyedWatcher : public WebContentsObserver {
  public:
   explicit WebContentsDestroyedWatcher(WebContents* web_contents);
-
-  WebContentsDestroyedWatcher(const WebContentsDestroyedWatcher&) = delete;
-  WebContentsDestroyedWatcher& operator=(const WebContentsDestroyedWatcher&) =
-      delete;
-
   ~WebContentsDestroyedWatcher() override;
 
   // Waits until the WebContents is destroyed.
@@ -458,16 +353,14 @@ class WebContentsDestroyedWatcher : public WebContentsObserver {
   base::RunLoop run_loop_;
 
   bool destroyed_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(WebContentsDestroyedWatcher);
 };
 
 // Watches a web contents for page scales.
 class TestPageScaleObserver : public WebContentsObserver {
  public:
   explicit TestPageScaleObserver(WebContents* web_contents);
-
-  TestPageScaleObserver(const TestPageScaleObserver&) = delete;
-  TestPageScaleObserver& operator=(const TestPageScaleObserver&) = delete;
-
   ~TestPageScaleObserver() override;
   float WaitForPageScaleUpdate();
 
@@ -477,6 +370,8 @@ class TestPageScaleObserver : public WebContentsObserver {
   base::OnceClosure done_callback_;
   bool seen_page_scale_change_ = false;
   float last_scale_ = 0.f;
+
+  DISALLOW_COPY_AND_ASSIGN(TestPageScaleObserver);
 };
 
 // A custom ContentBrowserClient that simulates GetEffectiveURL() translation
@@ -490,12 +385,6 @@ class EffectiveURLContentBrowserClient : public ContentBrowserClient {
   EffectiveURLContentBrowserClient(const GURL& url_to_modify,
                                    const GURL& url_to_return,
                                    bool requires_dedicated_process);
-
-  EffectiveURLContentBrowserClient(const EffectiveURLContentBrowserClient&) =
-      delete;
-  EffectiveURLContentBrowserClient& operator=(
-      const EffectiveURLContentBrowserClient&) = delete;
-
   ~EffectiveURLContentBrowserClient() override;
 
   // Adds effective URL translation from |url_to_modify| to |url_to_return|.
@@ -511,27 +400,8 @@ class EffectiveURLContentBrowserClient : public ContentBrowserClient {
   std::map<GURL, GURL> urls_to_modify_;
 
   bool requires_dedicated_process_;
-};
 
-// Wrapper around `SetBrowserClientForTesting()` that ensures the
-// previous content browser client is restored upon destruction.
-class ScopedContentBrowserClientSetting final {
- public:
-  explicit ScopedContentBrowserClientSetting(ContentBrowserClient* new_client);
-  ~ScopedContentBrowserClientSetting();
-
-  ScopedContentBrowserClientSetting(const ScopedContentBrowserClientSetting&) =
-      delete;
-  ScopedContentBrowserClientSetting(ScopedContentBrowserClientSetting&&) =
-      delete;
-
-  ScopedContentBrowserClientSetting& operator=(
-      const ScopedContentBrowserClientSetting&) = delete;
-  ScopedContentBrowserClientSetting& operator=(
-      ScopedContentBrowserClientSetting&&) = delete;
-
- private:
-  const raw_ptr<ContentBrowserClient> old_client_;
+  DISALLOW_COPY_AND_ASSIGN(EffectiveURLContentBrowserClient);
 };
 
 }  // namespace content

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,16 +41,13 @@ class ASH_PUBLIC_EXPORT MediaController {
   // MediaCaptureState representing every user's state.
   virtual void NotifyCaptureState(
       const base::flat_map<AccountId, MediaCaptureState>& capture_states) = 0;
-  // Called when VMs' media capture notifications change. Each VM can have 0 or
-  // 1 media notification. It can either be a "camera", "mic", or "camera and
-  // mic" notification. Each of the argument is true if a notification of the
-  // corresponding type is active.
+  // Called when a VM's media capture state changes. There is no `AccountId` in
+  // the argument because only the primary account/profile can launch a VM.
   //
-  // There is no `AccountId` in the argument because only the primary
-  // account/profile can launch a VM.
-  virtual void NotifyVmMediaNotificationState(bool camera,
-                                              bool mic,
-                                              bool camera_and_mic) = 0;
+  // TODO(b/167491603): We should consider merging this with
+  // `NotifyCaptureState()` if the browser also uses the same systray capturing
+  // indicators as VMs'.
+  virtual void NotifyVmCaptureState(MediaCaptureState capture_state) = 0;
 
  protected:
   MediaController();

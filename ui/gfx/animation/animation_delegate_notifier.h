@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define UI_GFX_ANIMATION_ANIMATION_DELEGATE_NOTIFIER_H_
 
 #include "base/check.h"
-#include "base/memory/raw_ptr.h"
 #include "ui/gfx/animation/animation_delegate.h"
 
 namespace gfx {
@@ -48,7 +47,7 @@ class AnimationDelegateNotifier : public AnimationDelegateType {
   }
 
  private:
-  const raw_ptr<gfx::AnimationDelegate> owner_;
+  gfx::AnimationDelegate* const owner_;
 };
 
 }  // namespace gfx

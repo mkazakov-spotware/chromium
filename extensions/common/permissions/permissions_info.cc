@@ -1,13 +1,13 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/common/permissions/permissions_info.h"
 
 #include "base/check.h"
-#include "base/containers/contains.h"
 #include "base/lazy_instance.h"
 #include "base/memory/ptr_util.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "extensions/common/alias.h"
 
@@ -31,8 +31,7 @@ void PermissionsInfo::RegisterPermissions(
     RegisterAlias(alias);
 }
 
-const APIPermissionInfo* PermissionsInfo::GetByID(
-    mojom::APIPermissionID id) const {
+const APIPermissionInfo* PermissionsInfo::GetByID(APIPermission::ID id) const {
   auto i = id_map_.find(id);
   return (i == id_map_.end()) ? nullptr : i->second.get();
 }
@@ -55,9 +54,8 @@ APIPermissionSet PermissionsInfo::GetAllByName(
   APIPermissionSet permissions;
   for (auto i = permission_names.cbegin(); i != permission_names.cend(); ++i) {
     const APIPermissionInfo* permission_info = GetByName(*i);
-    if (permission_info) {
+    if (permission_info)
       permissions.insert(permission_info->id());
-    }
   }
   return permissions;
 }

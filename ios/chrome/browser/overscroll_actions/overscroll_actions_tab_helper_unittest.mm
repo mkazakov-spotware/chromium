@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,20 +7,21 @@
 #import <UIKit/UIKit.h>
 
 #import "base/test/ios/wait_util.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#include "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
 #import "ios/chrome/browser/ui/overscroll_actions/overscroll_actions_controller.h"
 #import "ios/chrome/browser/ui/overscroll_actions/overscroll_actions_view.h"
+#import "ios/chrome/common/ui/colors/dynamic_color_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/test/fakes/fake_overscroll_actions_controller_delegate.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "ios/web/public/test/web_task_environment.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "ios/web/public/test/web_task_environment.h"
 #import "ios/web/public/ui/crw_web_view_proxy.h"
 #import "ios/web/public/ui/crw_web_view_scroll_view_proxy.h"
-#import "testing/gtest/include/gtest/gtest.h"
+#include "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
-#import "testing/platform_test.h"
+#include "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
-#import "third_party/ocmock/gtest_support.h"
+#include "third_party/ocmock/gtest_support.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -52,14 +53,14 @@ class OverscrollActionsTabHelperTest : public PlatformTest {
     return overscroll_delegate_.headerView.subviews.firstObject;
   }
 
-  // Simulates scroll on the `scroll_view_proxy_` view, which should trigger
+  // Simulates scroll on the |scroll_view_proxy_| view, which should trigger
   // page refresh action.
   void SimulatePullForRefreshAction() {
     [ui_scroll_view_.delegate scrollViewWillBeginDragging:ui_scroll_view_];
     // Wait until scroll action is allowed. There is no condition to wait, just
     // a time period.
-    base::test::ios::SpinRunLoopWithMinDelay(
-        kMinimumPullDurationToTransitionToReady);
+    base::test::ios::SpinRunLoopWithMinDelay(base::TimeDelta::FromSecondsD(
+        kMinimumPullDurationToTransitionToReadyInSeconds));
     [ui_scroll_view_.delegate scrollViewDidScroll:ui_scroll_view_];
     // Scroll to content offset below action threshold to cancel bounce
     // animation.
@@ -77,7 +78,7 @@ class OverscrollActionsTabHelperTest : public PlatformTest {
 
   web::WebTaskEnvironment task_environment_;
   std::unique_ptr<ChromeBrowserState> browser_state_;
-  web::FakeWebState web_state_;
+  web::TestWebState web_state_;
   FakeOverscrollActionsControllerDelegate* overscroll_delegate_;
   CRWWebViewScrollViewProxy* scroll_view_proxy_;
   UIScrollView* ui_scroll_view_;
@@ -119,7 +120,9 @@ TEST_F(OverscrollActionsTabHelperTest, TestOffTheRecordBrowserStateStyle) {
   SimulatePullForRefreshAction();
   // For iOS 13 and dark mode, the incognito overscroll actions view uses a
   // dynamic color.
-  UIColor* expected_color = [UIColor colorNamed:kBackgroundColor];
+  UIColor* expected_color =
+      color::DarkModeDynamicColor([UIColor colorNamed:kBackgroundColor], true,
+                                  [UIColor colorNamed:kBackgroundDarkColor]);
   EXPECT_TRUE(action_view());
   EXPECT_NSEQ(expected_color, action_view().backgroundColor);
 }

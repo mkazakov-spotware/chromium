@@ -1,15 +1,16 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // https://streams.spec.whatwg.org/#rbs-controller-class-definition
 [
-    Exposed=(Window,Worker,Worklet)
+    Exposed=(Window,Worker,Worklet),
+    RuntimeEnabled=ReadableByteStream
 ] interface ReadableByteStreamController {
-    readonly attribute ReadableStreamBYOBRequest? byobRequest;
-    readonly attribute double? desiredSize;
+    [RaisesException] readonly attribute ReadableStreamBYOBRequest? byobRequest;
+    [RaisesException] readonly attribute double? desiredSize;
 
     [CallWith=ScriptState, RaisesException] void close();
     [CallWith=ScriptState, RaisesException] void enqueue(ArrayBufferView chunk);
-    [CallWith=ScriptState] void error(optional any e);
+    [CallWith=ScriptState, RaisesException] void error(optional any e);
 };

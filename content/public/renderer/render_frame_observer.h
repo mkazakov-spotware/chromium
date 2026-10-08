@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,30 +7,29 @@
 
 #include <stdint.h>
 
-#include <string>
-
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/read_only_shared_memory_region.h"
-#include "base/time/time.h"
-#include "build/build_config.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "content/common/content_export.h"
 #include "ipc/ipc_listener.h"
 #include "ipc/ipc_sender.h"
 #include "mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h"
 #include "mojo/public/cpp/system/message_pipe.h"
 #include "services/network/public/mojom/url_response_head.mojom-forward.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/loader/loading_behavior_flag.h"
-#include "third_party/blink/public/common/responsiveness_metrics/user_interaction_latency.h"
-#include "third_party/blink/public/common/tokens/tokens.h"
-#include "third_party/blink/public/common/use_counter/use_counter_feature.h"
-#include "third_party/blink/public/mojom/devtools/console_message.mojom-shared.h"
+#include "third_party/blink/public/common/loader/previews_state.h"
 #include "third_party/blink/public/mojom/loader/resource_load_info.mojom-shared.h"
+#include "third_party/blink/public/mojom/use_counter/css_property_id.mojom.h"
+#include "third_party/blink/public/mojom/web_feature/web_feature.mojom.h"
 #include "third_party/blink/public/platform/web_vector.h"
+#include "third_party/blink/public/web/web_local_frame_client.h"
 #include "third_party/blink/public/web/web_meaningful_layout.h"
 #include "third_party/blink/public/web/web_navigation_type.h"
 #include "ui/accessibility/ax_mode.h"
 #include "ui/base/page_transition_types.h"
-#include "v8/include/v8-forward.h"
+#include "v8/include/v8.h"
 
 class GURL;
 
@@ -38,37 +37,25 @@ namespace blink {
 class WebDocumentLoader;
 class WebElement;
 class WebFormElement;
-class WebSecurityOrigin;
 class WebString;
-class WebURLRequest;
 class WebWorkerFetchContext;
 }  // namespace blink
-
-namespace gfx {
-class Rect;
-}  // namespace gfx
 
 namespace network {
 struct URLLoaderCompletionStatus;
 }  // namespace network
 
-namespace url {
-class SchemeHostPort;
-}  // namespace url
-
 namespace content {
 
 class RendererPpapiHost;
 class RenderFrame;
+class RenderFrameImpl;
 
 // Base class for objects that want to filter incoming IPCs, and also get
 // notified of changes to the frame.
 class CONTENT_EXPORT RenderFrameObserver : public IPC::Listener,
                                            public IPC::Sender {
  public:
-  RenderFrameObserver(const RenderFrameObserver&) = delete;
-  RenderFrameObserver& operator=(const RenderFrameObserver&) = delete;
-
   // A subclass can use this to delete itself. If it does not, the subclass must
   // always null-check each call to render_frame() because the RenderFrame can
   // go away at any time.
@@ -106,7 +93,7 @@ class CONTENT_EXPORT RenderFrameObserver : public IPC::Listener,
   // the browser process (e.g. by typing a url) won't have a navigation type.
   virtual void DidStartNavigation(
       const GURL& url,
-      absl::optional<blink::WebNavigationType> navigation_type) {}
+      base::Optional<blink::WebNavigationType> navigation_type) {}
 
   // Called when a navigation has just committed and |document_loader|
   // will start loading a new document in the RenderFrame.
@@ -119,10 +106,7 @@ class CONTENT_EXPORT RenderFrameObserver : public IPC::Listener,
   // Called when a RenderFrame's page lifecycle state gets updated.
   virtual void DidSetPageLifecycleState() {}
 
-  // These match the Blink API notifications. These will not be called for the
-  // initial empty document, since that already exists before an observer for a
-  // frame has a chance to be created (before notification about the RenderFrame
-  // being created occurs).
+  // These match the Blink API notifications
   virtual void DidCreateNewDocument() {}
   virtual void DidCreateDocumentElement() {}
   // TODO(dgozman): replace next two methods with DidFinishNavigation.
@@ -131,8 +115,7 @@ class CONTENT_EXPORT RenderFrameObserver : public IPC::Listener,
   virtual void DidCommitProvisionalLoad(ui::PageTransition transition) {}
   virtual void DidFailProvisionalLoad() {}
   virtual void DidFinishLoad() {}
-  virtual void DidFinishLoadForPrinting() {}
-  virtual void DidDispatchDOMContentLoadedEvent() {}
+  virtual void DidFinishDocumentLoad() {}
   virtual void DidHandleOnloadEvents() {}
   virtual void DidCreateScriptContext(v8::Local<v8::Context> context,
                                       int32_t world_id) {}
@@ -140,17 +123,11 @@ class CONTENT_EXPORT RenderFrameObserver : public IPC::Listener,
                                         int32_t world_id) {}
   virtual void DidClearWindowObject() {}
   virtual void DidChangeScrollOffset() {}
+  virtual void WillSendSubmitEvent(const blink::WebFormElement& form) {}
   virtual void WillSubmitForm(const blink::WebFormElement& form) {}
   virtual void DidMatchCSS(
       const blink::WebVector<blink::WebString>& newly_matching_selectors,
       const blink::WebVector<blink::WebString>& stopped_matching_selectors) {}
-
-  // Called when the RenderFrame creates a FencedFrame and provides the
-  // RemoteFrameToken to identify the `blink::RemoteFrame` to the inner
-  // RenderFrame. This is called immediately after the FencedFrame is created
-  // in the browser and the `blink::RemoteFrame` initialized in this renderer.
-  virtual void DidCreateFencedFrame(
-      const blink::RemoteFrameToken& placeholder_token) {}
 
   // Called when same-document navigation finishes.
   // This is the only callback for same-document navigations,
@@ -176,12 +153,11 @@ class CONTENT_EXPORT RenderFrameObserver : public IPC::Listener,
   // internal), and |stack_trace| is the stack trace of the error in a
   // human-readable format (each frame is formatted as
   // "\n    at function_name (source:line_number:column_number)").
-  virtual void DetailedConsoleMessageAdded(
-      const std::u16string& message,
-      const std::u16string& source,
-      const std::u16string& stack_trace,
-      uint32_t line_number,
-      blink::mojom::ConsoleMessageLevel level) {}
+  virtual void DetailedConsoleMessageAdded(const base::string16& message,
+                                           const base::string16& source,
+                                           const base::string16& stack_trace,
+                                           uint32_t line_number,
+                                           int32_t severity_level) {}
 
   // Called when an interesting (from document lifecycle perspective),
   // compositor-driven layout had happened. This is a reasonable hook to use
@@ -196,11 +172,6 @@ class CONTENT_EXPORT RenderFrameObserver : public IPC::Listener,
   // Notifications When an input delay data becomes available.
   virtual void DidObserveInputDelay(base::TimeDelta input_delay) {}
 
-  // Notifications When a user interaction latency data becomes available.
-  virtual void DidObserveUserInteraction(
-      base::TimeDelta max_event_duration,
-      blink::UserInteractionType interaction_type) {}
-
   // Notification When the First Scroll Delay becomes available.
   virtual void DidObserveFirstScrollDelay(base::TimeDelta first_scroll_delay) {}
 
@@ -212,26 +183,12 @@ class CONTENT_EXPORT RenderFrameObserver : public IPC::Listener,
   // load. This is used for metrics collection.
   virtual void DidObserveLoadingBehavior(blink::LoadingBehaviorFlag behavior) {}
 
-  // Notification when the renderer uses subresources.
-  // It is called when there is a subresouce load. The reported values via
-  // arguments are cumulative. They are NOT a difference from the previous call.
-  virtual void DidObserveSubresourceLoad(
-      uint32_t number_of_subresources_loaded,
-      uint32_t number_of_subresource_loads_handled_by_service_worker) {}
-
   // Notification when the renderer observes a new use counter usage during a
   // page load. This is used for UseCounter metrics.
-  virtual void DidObserveNewFeatureUsage(
-      const blink::UseCounterFeature& feature) {}
-
-  // A new soft navigation was observed.
-  // A soft navigation is:
-  // - A same-document navigation in the top-level document.
-  // - Triggered with a user gesture.
-  // - Initiated with the window.history or window.navigation APIs.
-  // - Accompanied with a DOM modification of the <main> element during the same
-  // or a descendant task.
-  virtual void DidObserveSoftNavigation(uint32_t count) {}
+  virtual void DidObserveNewFeatureUsage(blink::mojom::WebFeature feature) {}
+  virtual void DidObserveNewCssPropertyUsage(
+      blink::mojom::CSSSampleId css_property,
+      bool is_animated) {}
 
   // Reports that visible elements in the frame shifted (bit.ly/lsm-explainer).
   // This is called once for each animation frame containing any layout shift,
@@ -249,17 +206,24 @@ class CONTENT_EXPORT RenderFrameObserver : public IPC::Listener,
                                   uint32_t all_call_count,
                                   uint32_t ng_call_count) {}
 
-  // Reports that a resource will be requested.
-  virtual void WillSendRequest(const blink::WebURLRequest& request) {}
+  // Reports lazy loaded behavior when the frame or image is fully deferred or
+  // if the frame or image is loaded after being deferred by lazy load.
+  // Called every time the behavior occurs. This does not apply to image
+  // requests for placeholder images.
+  virtual void DidObserveLazyLoadBehavior(
+      blink::WebLocalFrameClient::LazyLoadBehavior lazy_load_behavior) {}
 
   // Notification when the renderer a response started, completed or canceled.
   // Complete or Cancel is guaranteed to be called for a response that started.
   // |request_id| uniquely identifies the request within this render frame.
+  // |previews_state| is the PreviewsState if the request is a sub-resource. For
+  // Document resources, |previews_state| should be reported as PREVIEWS_OFF.
   virtual void DidStartResponse(
-      const url::SchemeHostPort& final_response_url,
+      const GURL& response_url,
       int request_id,
       const network::mojom::URLResponseHead& response_head,
-      network::mojom::RequestDestination request_destination) {}
+      network::mojom::RequestDestination request_destination,
+      blink::PreviewsState previews_state) {}
   virtual void DidCompleteResponse(
       int request_id,
       const network::URLLoaderCompletionStatus& status) {}
@@ -296,37 +260,9 @@ class CONTENT_EXPORT RenderFrameObserver : public IPC::Listener,
   // Called when a worker fetch context will be created.
   virtual void WillCreateWorkerFetchContext(blink::WebWorkerFetchContext*) {}
 
-  // For the main frame, called when the main frame's dimensions have changed,
-  // e.g. resizing a tab causes the document width to change; loading additional
-  // content causes the document height to increase; explicitly changing the
-  // height of the body element.
-  //
-  // For a subframe, called when the intersection rect between the main frame
-  // and the subframe has changed, e.g. the subframe is initially added; the
-  // subframe's position is updated explicitly or inherently (e.g. sticky
-  // position while the page is being scrolled).
+  // Called when a frame's intersection with the main frame changes.
   virtual void OnMainFrameIntersectionChanged(
-      const gfx::Rect& main_frame_intersection_rect) {}
-
-  // Called when the main frame's viewport rectangle (the viewport dimensions
-  // and the scroll position) changed, e.g. the user scrolled the main frame or
-  // the viewport dimensions themselves changed. Only invoked on the main frame.
-  virtual void OnMainFrameViewportRectangleChanged(
-      const gfx::Rect& main_frame_viewport_rect) {}
-
-  // Overlay-popup-ad violates The Better Ads Standards
-  // (https://www.betterads.org/standards/). This method will be called when an
-  // overlay-popup-ad is detected, to let the embedder
-  // (i.e. subresource_filter::ContentSubresourceFilterThrottleManager) know the
-  // violation so as to apply further interventions.
-  virtual void OnOverlayPopupAdDetected() {}
-
-  // Large-sticky-ad violates The Better Ads Standards
-  // (https://www.betterads.org/standards/). This method will be called when a
-  // large-sticky-ad is detected, to let the embedder
-  // (i.e. subresource_filter::ContentSubresourceFilterThrottleManager) know the
-  // violation so as to apply further interventions.
-  virtual void OnLargeStickyAdDetected() {}
+      const blink::WebRect& intersect_rect) {}
 
   // Called to give the embedder an opportunity to bind an interface request
   // for a frame. If the request can be bound, |interface_pipe| will be taken.
@@ -342,16 +278,14 @@ class CONTENT_EXPORT RenderFrameObserver : public IPC::Listener,
       const std::string& interface_name,
       mojo::ScopedInterfaceEndpointHandle* handle);
 
+  // Called when a page's mobile friendliness changed.
+  virtual void OnMobileFriendlinessChanged(const blink::MobileFriendliness&) {}
+
   // The smoothness metrics is shared over shared-memory. The interested
   // observer should invalidate |shared_memory| (by std::move()'ing it), and
   // return true. All other observers should return false (default).
   virtual bool SetUpSmoothnessReporting(
       base::ReadOnlySharedMemoryRegion& shared_memory);
-
-  // Notifies the observers of the origins for which subresource redirect
-  // optimizations can be preloaded.
-  virtual void PreloadSubresourceOptimizationsForOrigins(
-      const std::vector<blink::WebSecurityOrigin>& origins) {}
 
   // IPC::Listener implementation.
   bool OnMessageReceived(const IPC::Message& message) override;
@@ -376,6 +310,8 @@ class CONTENT_EXPORT RenderFrameObserver : public IPC::Listener,
   RenderFrame* render_frame_;
   // The routing ID of the associated RenderFrame.
   int routing_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(RenderFrameObserver);
 };
 
 }  // namespace content

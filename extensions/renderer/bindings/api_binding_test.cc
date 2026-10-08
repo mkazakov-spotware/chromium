@@ -1,11 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/renderer/bindings/api_binding_test.h"
 
-#include "base/ranges/algorithm.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "gin/array_buffer.h"
 #include "gin/public/context_holder.h"
 #include "gin/public/isolate_holder.h"
@@ -33,7 +32,7 @@ void APIBindingTest::SetUp() {
                                  gin::ArrayBufferAllocator::SharedInstance());
 
   isolate_holder_ = std::make_unique<gin::IsolateHolder>(
-      base::SingleThreadTaskRunner::GetCurrentDefault(),
+      base::ThreadTaskRunnerHandle::Get(),
       gin::IsolateHolder::IsolateType::kTest);
   isolate()->Enter();
 
@@ -116,8 +115,11 @@ void APIBindingTest::DisposeContext(v8::Local<v8::Context> context) {
     return;
   }
 
-  auto iter = base::ranges::find(additional_context_holders_, context,
-                                 &gin::ContextHolder::context);
+  auto iter = std::find_if(
+      additional_context_holders_.begin(), additional_context_holders_.end(),
+      [context](const std::unique_ptr<gin::ContextHolder>& holder) {
+        return holder->context() == context;
+      });
   ASSERT_TRUE(iter != additional_context_holders_.end())
       << "Could not find context";
   OnWillDisposeContext(context);

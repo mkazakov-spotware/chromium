@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -60,11 +60,17 @@ ResultExpr AudioProcessPolicy::EvaluateSyscall(int system_call_number) const {
 #if defined(__NR_ioctl)
     case __NR_ioctl:
 #endif
+#if defined(__NR_memfd_create)
+    case __NR_memfd_create:
+#endif
 #if defined(__NR_pwrite)
     case __NR_pwrite:
 #endif
 #if defined(__NR_pwrite64)
     case __NR_pwrite64:
+#endif
+#if defined(__NR_sched_setscheduler)
+    case __NR_sched_setscheduler:
 #endif
 #if defined(__NR_setsockopt)
     case __NR_setsockopt:
@@ -74,15 +80,10 @@ ResultExpr AudioProcessPolicy::EvaluateSyscall(int system_call_number) const {
 #endif
       return Allow();
 #if defined(__NR_futex)
-    case __NR_futex:
-#if defined(__i386__) || defined(__arm__) || \
-    (defined(ARCH_CPU_MIPS_FAMILY) && defined(ARCH_CPU_32_BITS))
-    case __NR_futex_time64:
-#endif
-    {
+    case __NR_futex: {
       const Arg<int> op(1);
 #if defined(USE_PULSEAUDIO)
-      return Switch(op & ~(FUTEX_PRIVATE_FLAG | FUTEX_CLOCK_REALTIME))
+      return Switch(op & ~FUTEX_PRIVATE_FLAG)
           .SANDBOX_BPF_DSL_CASES(
               (FUTEX_CMP_REQUEUE, FUTEX_LOCK_PI, FUTEX_UNLOCK_PI, FUTEX_WAIT,
                FUTEX_WAIT_BITSET, FUTEX_WAKE),
@@ -129,7 +130,7 @@ ResultExpr AudioProcessPolicy::EvaluateSyscall(int system_call_number) const {
 
       auto* sandbox_linux = SandboxLinux::GetInstance();
       if (sandbox_linux->ShouldBrokerHandleSyscall(system_call_number))
-        return sandbox_linux->HandleViaBroker(system_call_number);
+        return sandbox_linux->HandleViaBroker();
 
       return BPFBasePolicy::EvaluateSyscall(system_call_number);
   }

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,8 @@
 
 // Misc functions to access the Android platform KeyStore.
 
-namespace net::android {
+namespace net {
+namespace android {
 
 // Define a list of constants describing private key types. The
 // values are shared with Java through org.chromium.net.PrivateKeyType.
@@ -71,6 +72,7 @@ bool EncryptWithPrivateKey(const base::android::JavaRef<jobject>& private_key,
                            base::span<const uint8_t> input,
                            std::vector<uint8_t>* ciphertext);
 
-}  // namespace net::android
+}  // namespace android
+}  // namespace net
 
 #endif  // NET_ANDROID_KEYSTORE_H_

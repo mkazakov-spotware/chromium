@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
-#include "base/win/windows_types.h"
-#elif BUILDFLAG(IS_APPLE)
+#if defined(OS_WIN)
+#include <windows.h>
+#elif defined(OS_APPLE)
 #if defined(__OBJC__)
 @class NSEvent;
 #else   // __OBJC__
@@ -24,11 +24,11 @@ class Event;
 namespace ui {
 
 // Cross platform typedefs for native event types.
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE) || defined(USE_X11)
 using PlatformEvent = ui::Event*;
-#elif BUILDFLAG(IS_WIN)
-using PlatformEvent = CHROME_MSG;
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_WIN)
+using PlatformEvent = MSG;
+#elif defined(OS_APPLE)
 using PlatformEvent = NSEvent*;
 #else
 using PlatformEvent = void*;

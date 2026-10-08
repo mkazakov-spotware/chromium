@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
     "compiler_options": {
       "implemented_in": "chrome/browser/extensions/api/web_view/chrome_web_view_internal_api.h"
     },
-    "dependencies": ["contextMenus"],
+    "dependencies": ["contextMenusInternal", "contextMenus"],
     "types": [
       {
         "id": "ContextMenuItem",
@@ -91,7 +91,7 @@
                 "parameters": [
                   {
                     "name": "info",
-                    "$ref": "contextMenus.OnClickData",
+                    "$ref": "contextMenusInternal.OnClickData",
                     "description": "Information about the item clicked and the context where the click happened."
                   }
                 ]
@@ -293,7 +293,7 @@
         "name": "onClicked",
         "type": "function",
         "nodoc": true,
-        "$ref": "contextMenus.onClicked"
+        "$ref": "contextMenusInternal.onClicked"
       },
       {
         "name": "onShow",

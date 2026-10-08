@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,25 +17,24 @@ namespace {
 
 class GraphOperationsTest : public GraphTestHarness {
  public:
-  using Super = GraphTestHarness;
-
   // Sets up two parallel frame trees that span multiple processes each.
   void SetUp() override {
-    Super::SetUp();
     process1_ = CreateNode<ProcessNodeImpl>();
     process2_ = CreateNode<ProcessNodeImpl>();
     page1_ = CreateNode<PageNodeImpl>();
     page2_ = CreateNode<PageNodeImpl>();
-    mainframe1_ = CreateFrameNodeAutoId(process1_.get(), page1_.get(), nullptr);
-    mainframe2_ = CreateFrameNodeAutoId(process2_.get(), page2_.get(), nullptr);
-    childframe1a_ =
-        CreateFrameNodeAutoId(process2_.get(), page1_.get(), mainframe1_.get());
-    childframe1b_ =
-        CreateFrameNodeAutoId(process2_.get(), page1_.get(), mainframe1_.get());
-    childframe2a_ =
-        CreateFrameNodeAutoId(process1_.get(), page2_.get(), mainframe2_.get());
-    childframe2b_ =
-        CreateFrameNodeAutoId(process1_.get(), page2_.get(), mainframe2_.get());
+    mainframe1_ =
+        CreateFrameNodeAutoId(process1_.get(), page1_.get(), nullptr, 0);
+    mainframe2_ =
+        CreateFrameNodeAutoId(process2_.get(), page2_.get(), nullptr, 1);
+    childframe1a_ = CreateFrameNodeAutoId(process2_.get(), page1_.get(),
+                                          mainframe1_.get(), 2);
+    childframe1b_ = CreateFrameNodeAutoId(process2_.get(), page1_.get(),
+                                          mainframe1_.get(), 3);
+    childframe2a_ = CreateFrameNodeAutoId(process1_.get(), page2_.get(),
+                                          mainframe2_.get(), 4);
+    childframe2b_ = CreateFrameNodeAutoId(process1_.get(), page2_.get(),
+                                          mainframe2_.get(), 5);
   }
 
   TestNodeWrapper<ProcessNodeImpl> process1_;
@@ -82,8 +81,8 @@ TEST_F(GraphOperationsTest, GetAssociatedProcessNodes) {
 
 TEST_F(GraphOperationsTest, GetFrameNodes) {
   // Add a grandchild frame.
-  auto grandchild =
-      CreateFrameNodeAutoId(process1_.get(), page1_.get(), childframe1a_.get());
+  auto grandchild = CreateFrameNodeAutoId(process1_.get(), page1_.get(),
+                                          childframe1a_.get(), 6);
 
   auto frame_nodes = GraphOperations::GetFrameNodes(page1_.get());
   EXPECT_THAT(frame_nodes,

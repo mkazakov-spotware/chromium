@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include "base/callback_helpers.h"
 #include "base/values.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/translate/chrome_translate_client.h"
 #include "chrome/browser/translate/translate_service.h"
@@ -21,20 +22,21 @@
 #include "components/translate/core/browser/translate_download_manager.h"
 #include "components/translate/core/browser/translate_error_details.h"
 #include "components/translate/core/browser/translate_event_details.h"
-#include "components/translate/core/browser/translate_manager.h"
 #include "components/translate/core/browser/translate_pref_names.h"
 #include "components/translate/core/browser/translate_prefs.h"
 #include "components/translate/core/common/language_detection_details.h"
 #include "components/variations/service/variations_service.h"
+#include "content/public/browser/notification_details.h"
+#include "content/public/browser/notification_service.h"
+#include "content/public/browser/notification_source.h"
+#include "content/public/browser/notification_types.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 
 ChromeTranslateInternalsHandler::ChromeTranslateInternalsHandler() {
-  detection_subscription_ =
-      translate::TranslateManager::RegisterLanguageDetectedCallback(
-          base::BindRepeating(
-              &ChromeTranslateInternalsHandler::LanguageDetected,
-              base::Unretained(this)));
+  notification_registrar_.Add(this,
+                              chrome::NOTIFICATION_TAB_LANGUAGE_DETERMINED,
+                              content::NotificationService::AllSources());
 }
 
 ChromeTranslateInternalsHandler::~ChromeTranslateInternalsHandler() {}
@@ -50,14 +52,14 @@ ChromeTranslateInternalsHandler::GetVariationsService() {
 }
 
 void ChromeTranslateInternalsHandler::RegisterMessageCallback(
-    base::StringPiece message,
-    MessageCallback callback) {
-  web_ui()->RegisterMessageCallback(message, std::move(callback));
+    const std::string& message,
+    const MessageCallback& callback) {
+  web_ui()->RegisterMessageCallback(message, callback);
 }
 
 void ChromeTranslateInternalsHandler::CallJavascriptFunction(
-    base::StringPiece function_name,
-    base::span<const base::ValueView> args) {
+    const std::string& function_name,
+    const std::vector<const base::Value*>& args) {
   web_ui()->CallJavascriptFunctionUnsafe(function_name, args);
 }
 
@@ -65,7 +67,22 @@ void ChromeTranslateInternalsHandler::RegisterMessages() {
   RegisterMessageCallbacks();
 }
 
-void ChromeTranslateInternalsHandler::LanguageDetected(
-    const translate::LanguageDetectionDetails& details) {
-  AddLanguageDetectionDetails(details);
+void ChromeTranslateInternalsHandler::Observe(
+    int type,
+    const content::NotificationSource& source,
+    const content::NotificationDetails& details) {
+  DCHECK_EQ(chrome::NOTIFICATION_TAB_LANGUAGE_DETERMINED, type);
+
+  content::WebContents* web_contents =
+      content::Source<content::WebContents>(source).ptr();
+  const translate::LanguageDetectionDetails* language_detection_details =
+      content::Details<const translate::LanguageDetectionDetails>(details)
+          .ptr();
+  if (web_contents->GetBrowserContext()->IsOffTheRecord() ||
+      !GetTranslateClient()->IsTranslatableURL(
+          language_detection_details->url)) {
+    return;
+  }
+
+  AddLanguageDetectionDetails(*language_detection_details);
 }

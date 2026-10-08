@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.testing.local;
 
-import org.junit.runner.Computer;
 import org.junit.runner.JUnitCore;
 import org.junit.runner.Request;
 import org.junit.runner.RunWith;
@@ -63,10 +62,7 @@ public final class JunitTestMain {
 
     private static Class<?> classOrNull(String className) {
         try {
-            // Do not initialize classes (clinit) yet, Android methods are all
-            // stubs until robolectric loads the real implementations.
-            return Class.forName(
-                    className, /*initialize*/ false, JunitTestMain.class.getClassLoader());
+            return Class.forName(className);
         } catch (ClassNotFoundException e) {
             System.err.println("Class not found: " + className);
         } catch (NoClassDefFoundError e) {
@@ -81,22 +77,13 @@ public final class JunitTestMain {
         JunitTestArgParser parser = JunitTestArgParser.parse(args);
 
         JUnitCore core = new JUnitCore();
+        GtestLogger gtestLogger = new GtestLogger(System.out);
+        core.addListener(new GtestListener(gtestLogger));
+        JsonLogger jsonLogger = new JsonLogger(parser.getJsonOutputFile());
+        core.addListener(new JsonListener(jsonLogger));
         Class[] classes = findClassesFromClasspath();
+        Request testRequest = Request.classes(new GtestComputer(gtestLogger), classes);
 
-        Computer computer;
-        if (parser.isListTests()) {
-            // Causes test names to have the sdk version as a [suffix].
-            System.setProperty("robolectric.alwaysIncludeVariantMarkersInTestName", "true");
-            computer = new TestListComputer(System.out);
-        } else {
-            GtestLogger gtestLogger = new GtestLogger(System.out);
-            core.addListener(new GtestListener(gtestLogger));
-            JsonLogger jsonLogger = new JsonLogger(parser.getJsonOutputFile());
-            core.addListener(new JsonListener(jsonLogger));
-            computer = new GtestComputer(gtestLogger);
-        }
-
-        Request testRequest = Request.classes(computer, classes);
         for (String packageFilter : parser.getPackageFilters()) {
             testRequest = testRequest.filterWith(new PackageFilter(packageFilter));
         }
@@ -108,4 +95,6 @@ public final class JunitTestMain {
         }
         System.exit(core.run(testRequest).wasSuccessful() ? 0 : 1);
     }
+
 }
+

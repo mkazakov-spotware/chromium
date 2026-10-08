@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,16 +9,35 @@
 #include "base/android/path_utils.h"
 #include "base/bind.h"
 #include "base/memory/ptr_util.h"
+#include "base/metrics/histogram_macros.h"
+#include "base/optional.h"
 #include "chrome/browser/download/android/download_controller.h"
-#include "chrome/browser/download/android/download_dialog_utils.h"
+#include "chrome/browser/infobars/infobar_service.h"
 #include "chrome/browser/ui/android/infobars/duplicate_download_infobar.h"
 #include "components/download/public/common/download_path_reservation_tracker.h"
-#include "components/infobars/content/content_infobar_manager.h"
 #include "components/infobars/core/infobar.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/download_item_utils.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+
+namespace {
+
+void CreateNewFileDone(
+    const DownloadTargetDeterminerDelegate::ConfirmationCallback& callback,
+    download::PathValidationResult result,
+    const base::FilePath& target_path) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (result == download::PathValidationResult::SUCCESS) {
+    callback.Run(DownloadConfirmationResult::CONFIRMED, target_path,
+                 base::nullopt /*download_schedule*/);
+
+  } else {
+    callback.Run(DownloadConfirmationResult::FAILED, base::FilePath(),
+                 base::nullopt /*download_schedule*/);
+  }
+}
+
+}  // namespace
 
 namespace android {
 
@@ -30,13 +49,13 @@ ChromeDuplicateDownloadInfoBarDelegate::
 
 // static
 void ChromeDuplicateDownloadInfoBarDelegate::Create(
-    infobars::ContentInfoBarManager* infobar_manager,
+    InfoBarService* infobar_service,
     download::DownloadItem* download_item,
     const base::FilePath& file_path,
-    DownloadTargetDeterminerDelegate::ConfirmationCallback callback) {
-  infobar_manager->AddInfoBar(DuplicateDownloadInfoBar::CreateInfoBar(
+    const DownloadTargetDeterminerDelegate::ConfirmationCallback& callback) {
+  infobar_service->AddInfoBar(DuplicateDownloadInfoBar::CreateInfoBar(
       base::WrapUnique(new ChromeDuplicateDownloadInfoBarDelegate(
-          download_item, file_path, std::move(callback)))));
+          download_item, file_path, callback))));
 }
 
 void ChromeDuplicateDownloadInfoBarDelegate::OnDownloadDestroyed(
@@ -48,14 +67,15 @@ void ChromeDuplicateDownloadInfoBarDelegate::OnDownloadDestroyed(
 ChromeDuplicateDownloadInfoBarDelegate::ChromeDuplicateDownloadInfoBarDelegate(
     download::DownloadItem* download_item,
     const base::FilePath& file_path,
-    DownloadTargetDeterminerDelegate::ConfirmationCallback
+    const DownloadTargetDeterminerDelegate::ConfirmationCallback&
         file_selected_callback)
     : download_item_(download_item),
       file_path_(file_path),
-      file_selected_callback_(std::move(file_selected_callback)) {
+      is_off_the_record_(
+          content::DownloadItemUtils::GetBrowserContext(download_item)
+              ->IsOffTheRecord()),
+      file_selected_callback_(file_selected_callback) {
   download_item_->AddObserver(this);
-  DuplicateDownloadInfoBar::RecordDuplicateDownloadInfobarEvent(
-      false, DuplicateDownloadInfobarEvent::kShown);
 }
 
 infobars::InfoBarDelegate::InfoBarIdentifier
@@ -64,8 +84,6 @@ ChromeDuplicateDownloadInfoBarDelegate::GetIdentifier() const {
 }
 
 bool ChromeDuplicateDownloadInfoBarDelegate::Accept() {
-  DuplicateDownloadInfoBar::RecordDuplicateDownloadInfobarEvent(
-      false, DuplicateDownloadInfobarEvent::kAccepted);
   if (!download_item_) {
     return true;
   }
@@ -79,19 +97,17 @@ bool ChromeDuplicateDownloadInfoBarDelegate::Accept() {
       download_item_, file_path_, download_dir,
       base::FilePath(), /* fallback_directory */
       true, download::DownloadPathReservationTracker::UNIQUIFY,
-      base::BindOnce(&DownloadDialogUtils::CreateNewFileDone,
-                     std::move(file_selected_callback_)));
+      base::BindOnce(&CreateNewFileDone, file_selected_callback_));
   return true;
 }
 
 bool ChromeDuplicateDownloadInfoBarDelegate::Cancel() {
-  DuplicateDownloadInfoBar::RecordDuplicateDownloadInfobarEvent(
-      false, DuplicateDownloadInfobarEvent::kCanceled);
   if (!download_item_)
     return true;
 
-  std::move(file_selected_callback_)
-      .Run(DownloadConfirmationResult::CANCELED, base::FilePath());
+  file_selected_callback_.Run(DownloadConfirmationResult::CANCELED,
+                              base::FilePath(),
+                              base::nullopt /*download_schedule*/);
   return true;
 }
 
@@ -100,22 +116,11 @@ std::string ChromeDuplicateDownloadInfoBarDelegate::GetFilePath() const {
 }
 
 void ChromeDuplicateDownloadInfoBarDelegate::InfoBarDismissed() {
-  DuplicateDownloadInfoBar::RecordDuplicateDownloadInfobarEvent(
-      false, DuplicateDownloadInfobarEvent::kDismissed);
   Cancel();
 }
 
-absl::optional<Profile::OTRProfileID>
-ChromeDuplicateDownloadInfoBarDelegate::GetOTRProfileID() const {
-  content::BrowserContext* browser_context =
-      content::DownloadItemUtils::GetBrowserContext(download_item_);
-  // If belongs to an off-the-record profile, then the OTRProfileID should be
-  // taken from the browser context to support multiple off-the-record profiles.
-  if (browser_context && browser_context->IsOffTheRecord()) {
-    return Profile::FromBrowserContext(browser_context)->GetOTRProfileID();
-  }
-  // If belongs to the regular profile, then OTRProfileID should be null.
-  return absl::nullopt;
+bool ChromeDuplicateDownloadInfoBarDelegate::IsOffTheRecord() const {
+  return is_off_the_record_;
 }
 
 }  // namespace android

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,8 @@
 
 #include "base/check.h"
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/memory/ptr_util.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "base/time/time.h"
 #include "ui/events/event.h"
 #include "ui/events/event_constants.h"
@@ -63,16 +62,10 @@ bool RemoveValueFromMap(std::map<Key, T>* map, const Value& value) {
 
 GestureRecognizerImpl::GestureRecognizerImpl() = default;
 
-GestureRecognizerImpl::~GestureRecognizerImpl() {
-  // The gesture recognizer impl observes the gesture providers that are owned
-  // by `consumer_gesture_provider_`. Clear `consumer_gesture_provider_`
-  // explicitly so that the notifications sent by gesture providers during
-  // destruction are handled properly.
-  consumer_gesture_provider_.clear();
-}
+GestureRecognizerImpl::~GestureRecognizerImpl() = default;
 
 // Checks if this finger is already down, if so, returns the current target.
-// Otherwise, returns nullptr.
+// Otherwise, returns NULL.
 GestureConsumer* GestureRecognizerImpl::GetTouchLockedTarget(
     const TouchEvent& event) {
   return touch_id_target_[event.pointer_details().id];
@@ -109,7 +102,7 @@ GestureConsumer* GestureRecognizerImpl::GetTargetForLocation(
 
   if (closest_distance_squared < max_distance * max_distance)
     return touch_id_target_[closest_touch_id];
-  return nullptr;
+  return NULL;
 }
 
 void GestureRecognizerImpl::CancelActiveTouchesExcept(
@@ -191,7 +184,9 @@ void GestureRecognizerImpl::TransferEventsTo(
 
 std::vector<std::unique_ptr<ui::TouchEvent>>
 GestureRecognizerImpl::ExtractTouches(GestureConsumer* consumer) {
-  return GetEventPerPointForConsumer(consumer, ET_TOUCH_PRESSED);
+  std::vector<std::unique_ptr<ui::TouchEvent>> touches =
+      GetEventPerPointForConsumer(consumer, ET_TOUCH_PRESSED);
+  return touches;
 }
 
 void GestureRecognizerImpl::TransferTouches(
@@ -232,7 +227,6 @@ GestureRecognizerImpl::GetEventPerPointForConsumer(GestureConsumer* consumer,
       consumer_gesture_provider_[consumer]->pointer_state();
   if (pointer_state.GetPointerCount() == 0)
     return cancelling_touches;
-  cancelling_touches.reserve(pointer_state.GetPointerCount());
   for (size_t i = 0; i < pointer_state.GetPointerCount(); ++i) {
     auto touch_event = std::make_unique<TouchEvent>(
         type, gfx::Point(), EventTimeForNow(),
@@ -256,11 +250,18 @@ bool GestureRecognizerImpl::CancelActiveTouches(GestureConsumer* consumer) {
 
 GestureProviderAura* GestureRecognizerImpl::GetGestureProviderForConsumer(
     GestureConsumer* consumer) {
-  auto& gesture_provider = consumer_gesture_provider_[consumer];
-  if (!gesture_provider) {
-    gesture_provider = std::make_unique<GestureProviderAura>(consumer, this);
+  GestureProviderAura* gesture_provider = nullptr;
+
+  if (!consumer_gesture_provider_.empty() &&
+      base::Contains(consumer_gesture_provider_, consumer)) {
+    gesture_provider = consumer_gesture_provider_.at(consumer).get();
   }
-  return gesture_provider.get();
+
+  if (!gesture_provider) {
+    gesture_provider = new GestureProviderAura(consumer, this);
+    consumer_gesture_provider_[consumer] = base::WrapUnique(gesture_provider);
+  }
+  return gesture_provider;
 }
 
 bool GestureRecognizerImpl::ProcessTouchEventPreDispatch(
@@ -329,11 +330,12 @@ void GestureRecognizerImpl::CancelActiveTouchesExceptImpl(
   // Do not iterate directly over |consumer_gesture_provider_| because canceling
   // active touches may cause the consumer to be removed from
   // |consumer_gesture_provider_|. See https://crbug.com/651258 for more info.
-  std::vector<GestureConsumer*> consumers;
-  consumers.reserve(consumer_gesture_provider_.size());
+  std::vector<GestureConsumer*> consumers(consumer_gesture_provider_.size());
   for (const auto& entry : consumer_gesture_provider_) {
-    if (entry.first != not_cancelled)
-      consumers.push_back(entry.first);
+    if (entry.first == not_cancelled)
+      continue;
+
+    consumers.push_back(entry.first);
   }
 
   for (auto* consumer : consumers)
@@ -381,23 +383,9 @@ void GestureRecognizerImpl::AddGestureEventHelper(GestureEventHelper* helper) {
 
 void GestureRecognizerImpl::RemoveGestureEventHelper(
     GestureEventHelper* helper) {
-  auto it = base::ranges::find(helpers_, helper);
+  auto it = std::find(helpers_.begin(), helpers_.end(), helper);
   if (it != helpers_.end())
     helpers_.erase(it);
-}
-
-bool GestureRecognizerImpl::DoesConsumerHaveActiveTouch(
-    GestureConsumer* consumer) const {
-  for (const auto& id_consumer_pair : touch_id_target_) {
-    if (id_consumer_pair.second == consumer)
-      return true;
-  }
-  return false;
-}
-
-void GestureRecognizerImpl::SendSynthesizedEndEvents(
-    GestureConsumer* consumer) {
-  GetGestureProviderForConsumer(consumer)->SendSynthesizedEndEvents();
 }
 
 void GestureRecognizerImpl::OnGestureEvent(GestureConsumer* raw_input_consumer,
@@ -405,25 +393,14 @@ void GestureRecognizerImpl::OnGestureEvent(GestureConsumer* raw_input_consumer,
   DispatchGestureEvent(raw_input_consumer, event);
 }
 
-void GestureRecognizerImpl::OnGestureProviderAuraWillBeDestroyed(
-    GestureProviderAura* gesture_provider) {
-  // Clean `event_to_gesture_provider_` by removing invalid raw pointers.
-  for (auto iter = event_to_gesture_provider_.begin();
-       iter != event_to_gesture_provider_.end();) {
-    if (iter->second == gesture_provider)
-      iter = event_to_gesture_provider_.erase(iter);
-    else
-      ++iter;
-  }
-}
-
 GestureEventHelper* GestureRecognizerImpl::FindDispatchHelperForConsumer(
     GestureConsumer* consumer) {
-  for (GestureEventHelper* helper : helpers_) {
-    if (helper->CanDispatchToConsumer(consumer))
-      return helper;
+  std::vector<GestureEventHelper*>::iterator it;
+  for (it = helpers_.begin(); it != helpers_.end(); ++it) {
+    if ((*it)->CanDispatchToConsumer(consumer))
+      return (*it);
   }
-  return nullptr;
+  return NULL;
 }
 
 }  // namespace ui

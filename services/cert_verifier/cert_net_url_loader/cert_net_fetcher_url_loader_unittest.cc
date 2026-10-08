@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/run_loop.h"
 #include "base/synchronization/lock.h"
@@ -19,7 +19,6 @@
 #include "net/cert/mock_cert_verifier.h"
 #include "net/cert/multi_log_ct_verifier.h"
 #include "net/dns/mock_host_resolver.h"
-#include "net/dns/public/secure_dns_policy.h"
 #include "net/http/http_server_properties.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/gtest_util.h"
@@ -32,7 +31,6 @@
 #include "services/cert_verifier/cert_net_url_loader/cert_net_fetcher_test.h"
 #include "services/network/public/mojom/url_loader.mojom.h"
 #include "services/network/test/test_url_loader_factory.h"
-#include "services/network/url_loader.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/platform_test.h"
@@ -149,9 +147,9 @@ class CertNetFetcherURLLoaderTest : public PlatformTest {
 
   void StartNetworkThread() {
     // Start the network thread.
-    creation_thread_ = std::make_unique<base::Thread>("network thread");
+    creation_thread_.reset(new base::Thread("network thread"));
     base::Thread::Options options(base::MessagePumpType::IO, 0);
-    EXPECT_TRUE(creation_thread_->StartWithOptions(std::move(options)));
+    EXPECT_TRUE(creation_thread_->StartWithOptions(options));
   }
 
   void ResetTestUtilOnNetworkThread(base::WaitableEvent* done) {
@@ -231,12 +229,12 @@ class SecureDnsInterceptor : public net::URLRequestInterceptor {
   // URLRequestInterceptor implementation:
   std::unique_ptr<net::URLRequestJob> MaybeInterceptRequest(
       net::URLRequest* request) const override {
-    EXPECT_EQ(net::SecureDnsPolicy::kDisable, request->secure_dns_policy());
+    EXPECT_TRUE(request->disable_secure_dns());
     *invoked_interceptor_ = true;
     return nullptr;
   }
 
-  raw_ptr<bool> invoked_interceptor_;
+  bool* invoked_interceptor_;
 };
 
 class CertNetFetcherURLLoaderTestWithSecureDnsInterceptor
@@ -263,7 +261,7 @@ class CertNetFetcherURLLoaderTestWithSecureDnsInterceptor
 };
 
 // Helper to start an AIA fetch using default parameters.
-[[nodiscard]] std::unique_ptr<net::CertNetFetcher::Request> StartRequest(
+WARN_UNUSED_RESULT std::unique_ptr<net::CertNetFetcher::Request> StartRequest(
     net::CertNetFetcher* fetcher,
     const GURL& url) {
   return fetcher->FetchCaIssuers(url, net::CertNetFetcher::DEFAULT,
@@ -501,7 +499,7 @@ TEST_F(CertNetFetcherURLLoaderTest,
     request1->WaitForResult(&error, &body);
   }
 
-  EXPECT_LE(2, NumCreatedRequests());
+  EXPECT_GE(2, NumCreatedRequests());
 
   ResetTestURLLoaderFactory();
 

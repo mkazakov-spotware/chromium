@@ -1,11 +1,13 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/vr/ui_scene_creator.h"
 
+#include "base/macros.h"
 #include "base/numerics/ranges.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/version.h"
 #include "build/build_config.h"
@@ -32,7 +34,6 @@
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/gfx/geometry/test/geometry_util.h"
 
 namespace vr {
 
@@ -140,8 +141,8 @@ TEST_F(UiTest, WebVrToastTransience) {
   browser_ui->SetCapturingState(CapturingStateModel(), CapturingStateModel(),
                                 CapturingStateModel());
   EXPECT_TRUE(IsVisible(kWebVrExclusiveScreenToast));
-  EXPECT_TRUE(RunForSeconds(kWindowsInitialIndicatorsTimeoutSeconds +
-                            kSmallDelaySeconds));
+  EXPECT_TRUE(
+      RunForSeconds(kWmrInitialIndicatorsTimeoutSeconds + kSmallDelaySeconds));
   EXPECT_FALSE(IsVisible(kWebVrExclusiveScreenToast));
 
   browser_ui->SetWebVrMode(false);
@@ -154,21 +155,21 @@ TEST_F(UiTest, PlatformToast) {
   auto browser_ui = ui_->GetBrowserUiWeakPtr();
 
   // show and hide toast after a timeout.
-  browser_ui->ShowPlatformToast(u"Downloading");
+  browser_ui->ShowPlatformToast(base::UTF8ToUTF16("Downloading"));
   EXPECT_TRUE(IsVisible(kPlatformToast));
   EXPECT_TRUE(RunForSeconds(kToastTimeoutSeconds + kSmallDelaySeconds));
   EXPECT_FALSE(IsVisible(kPlatformToast));
 
   // toast can be cancelled.
-  browser_ui->ShowPlatformToast(u"Downloading");
+  browser_ui->ShowPlatformToast(base::UTF8ToUTF16("Downloading"));
   EXPECT_TRUE(IsVisible(kPlatformToast));
   browser_ui->CancelPlatformToast();
   EXPECT_FALSE(IsVisible(kPlatformToast));
 
   // toast can refresh visible timeout.
-  browser_ui->ShowPlatformToast(u"Downloading");
+  browser_ui->ShowPlatformToast(base::UTF8ToUTF16("Downloading"));
   EXPECT_TRUE(RunForSeconds(kSmallDelaySeconds));
-  browser_ui->ShowPlatformToast(u"Downloading");
+  browser_ui->ShowPlatformToast(base::UTF8ToUTF16("Downloading"));
   EXPECT_TRUE(RunForSeconds(kToastTimeoutSeconds - kSmallDelaySeconds));
   EXPECT_TRUE(IsVisible(kPlatformToast));
   EXPECT_TRUE(RunForSeconds(kToastTimeoutSeconds + kSmallDelaySeconds));
@@ -181,7 +182,7 @@ TEST_F(UiTest, CaptureToasts) {
 
   for (auto& spec : GetIndicatorSpecs()) {
     for (int i = 0; i < 3; ++i) {
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
       if (i == 1)  // Skip background tabs for non-Android platforms.
         continue;
 #endif
@@ -221,7 +222,7 @@ TEST_F(UiTest, CaptureToasts) {
                                     potential_capturing);
       EXPECT_TRUE(IsVisible(kWebVrExclusiveScreenToast));
       EXPECT_TRUE(IsVisible(spec.webvr_name) == (string_id != 0));
-      EXPECT_TRUE(RunForSeconds(kWindowsInitialIndicatorsTimeoutSeconds +
+      EXPECT_TRUE(RunForSeconds(kWmrInitialIndicatorsTimeoutSeconds +
                                 kSmallDelaySeconds));
       EXPECT_FALSE(IsVisible(kWebVrExclusiveScreenToast));
 
@@ -820,7 +821,7 @@ TEST_F(UiTest, WebVrTimeout) {
 
   RunForMs(500);
   // On Windows, the timeout message button is not shown.
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
   VerifyVisibility(
       {kWebVrTimeoutSpinner, kWebVrTimeoutMessage, kWebVrTimeoutMessageLayout,
        kWebVrTimeoutMessageIcon, kWebVrTimeoutMessageText,
@@ -831,7 +832,7 @@ TEST_F(UiTest, WebVrTimeout) {
       {kWebVrTimeoutSpinner, kWebVrTimeoutMessage, kWebVrTimeoutMessageLayout,
        kWebVrTimeoutMessageIcon, kWebVrTimeoutMessageText},
       false);
-#endif  // !BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
   VerifyVisibility(
       {
           kWebVrBackground,
@@ -841,7 +842,7 @@ TEST_F(UiTest, WebVrTimeout) {
   model_->web_vr.state = kWebVrTimeoutImminent;
   RunForMs(500);
   // On Windows, the timeout message button is not shown.
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
   VerifyVisibility({kWebVrTimeoutMessage, kWebVrTimeoutMessageLayout,
                     kWebVrTimeoutMessageIcon, kWebVrTimeoutMessageText,
                     kWebVrTimeoutMessageButton, kWebVrTimeoutMessageButtonText},
@@ -850,7 +851,7 @@ TEST_F(UiTest, WebVrTimeout) {
   VerifyVisibility({kWebVrTimeoutMessage, kWebVrTimeoutMessageLayout,
                     kWebVrTimeoutMessageIcon, kWebVrTimeoutMessageText},
                    false);
-#endif  // !BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
   VerifyVisibility(
       {
           kWebVrTimeoutSpinner, kWebVrBackground,
@@ -865,7 +866,7 @@ TEST_F(UiTest, WebVrTimeout) {
       },
       false);
 // On Windows, the timeout message button is not shown.
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
   VerifyVisibility(
       {kWebVrBackground, kWebVrTimeoutMessage, kWebVrTimeoutMessageLayout,
        kWebVrTimeoutMessageIcon, kWebVrTimeoutMessageText,
@@ -876,7 +877,7 @@ TEST_F(UiTest, WebVrTimeout) {
       {kWebVrBackground, kWebVrTimeoutMessage, kWebVrTimeoutMessageLayout,
        kWebVrTimeoutMessageIcon, kWebVrTimeoutMessageText},
       true);
-#endif  // !BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 }
 
 TEST_F(UiTest, SpeechRecognitionUiVisibility) {
@@ -911,7 +912,7 @@ TEST_F(UiTest, SpeechRecognitionUiVisibility) {
 
   // Mock received speech result.
   model_->speech.speech_recognition_state = SPEECH_RECOGNITION_END;
-  browser_ui->SetRecognitionResult(u"test");
+  browser_ui->SetRecognitionResult(base::ASCIIToUTF16("test"));
   browser_ui->SetSpeechRecognitionEnabled(false);
 
   EXPECT_TRUE(RunForMs(10));
@@ -989,9 +990,9 @@ TEST_F(UiTest, OmniboxSuggestionBindings) {
   EXPECT_EQ(NumVisibleInTree(kOmniboxSuggestions), 0);
 
   model_->omnibox_suggestions.emplace_back(
-      OmniboxSuggestion(std::u16string(), std::u16string(),
+      OmniboxSuggestion(base::string16(), base::string16(),
                         ACMatchClassifications(), ACMatchClassifications(),
-                        nullptr, GURL(), std::u16string(), std::u16string()));
+                        nullptr, GURL(), base::string16(), base::string16()));
   AdvanceFrame();
   EXPECT_EQ(container->children().size(), 1u);
   EXPECT_GT(NumVisibleInTree(kOmniboxSuggestions), 1);
@@ -1007,9 +1008,9 @@ TEST_F(UiTest, OmniboxSuggestionNavigates) {
   GURL gurl("http://test.com/");
   model_->push_mode(kModeEditingOmnibox);
   model_->omnibox_suggestions.emplace_back(
-      OmniboxSuggestion(std::u16string(), std::u16string(),
+      OmniboxSuggestion(base::string16(), base::string16(),
                         ACMatchClassifications(), ACMatchClassifications(),
-                        nullptr, gurl, std::u16string(), std::u16string()));
+                        nullptr, gurl, base::string16(), base::string16()));
   AdvanceFrame();
 
   // Let the omnibox fade in.
@@ -1258,7 +1259,7 @@ TEST_F(UiTest, ResetRepositioner) {
   model_->mutable_primary_controller().recentered = true;
 
   AdvanceFrame();
-  EXPECT_TRANSFORM_NEAR(original, repositioner->world_space_transform(), 1e-20);
+  EXPECT_EQ(original, repositioner->world_space_transform());
 }
 
 // No element in the controller root's subtree should be hit testable.
@@ -1340,7 +1341,7 @@ TEST_F(UiTest, RepositionHostedUi) {
 
 // Ensures that permissions do not appear after showing hosted UI.
 TEST_F(UiTest, DoNotShowIndicatorsAfterHostedUi) {
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
   CreateScene(kInWebVr);
   auto browser_ui = ui_->GetBrowserUiWeakPtr();
   browser_ui->SetWebVrMode(true);
@@ -1364,7 +1365,7 @@ TEST_F(UiTest, DoNotShowIndicatorsAfterHostedUi) {
 // is released that we do not show the exclusive screen toast. Distinguishing
 // these cases requires knowledge of the previous state.
 TEST_F(UiTest, LongPressMenuButtonInWebVrMode) {
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
   CreateScene(kInWebVr);
   auto browser_ui = ui_->GetBrowserUiWeakPtr();
   browser_ui->SetWebVrMode(true);

@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(
       `Tests Comparison view of detailed heap snapshots. Shown node count must be preserved after sorting.\n`);
-  await TestRunner.loadTestModule('heap_profiler_test_runner');
+  await TestRunner.loadModule('heap_profiler_test_runner');
   await TestRunner.showPanel('heap_profiler');
 
   var instanceCount = 24;
@@ -47,7 +47,7 @@
       var row = HeapProfilerTestRunner.findRow('B');
       TestRunner.assertEquals(true, !!row, '"B" row');
       function deletedNodeMatcher(data) {
-        return data.isDeletedNode && data.name.charAt(0) === 'B';
+        return data._isDeletedNode && data._name.charAt(0) === 'B';
       }
       var bInstanceRow = HeapProfilerTestRunner.findMatchingRow(deletedNodeMatcher, row);
       TestRunner.assertEquals(true, !!bInstanceRow, '"B" instance row');

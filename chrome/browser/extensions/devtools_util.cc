@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -57,8 +57,7 @@ void InspectServiceWorkerBackground(const Extension* extension,
     if (host->GetType() == content::DevToolsAgentHost::kTypeServiceWorker &&
         host->GetURL() ==
             extension->GetResourceURL(
-                BackgroundInfo::GetBackgroundServiceWorkerScript(extension)) &&
-        host->GetBrowserContext() == profile) {
+                BackgroundInfo::GetBackgroundServiceWorkerScript(extension))) {
       DevToolsWindow::OpenDevToolsWindow(host, profile);
       break;
     }

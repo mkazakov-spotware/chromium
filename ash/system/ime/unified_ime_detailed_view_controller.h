@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,14 @@
 #include "ash/system/ime/ime_observer.h"
 #include "ash/system/unified/detailed_view_controller.h"
 #include "ash/system/virtual_keyboard/virtual_keyboard_observer.h"
+#include "base/macros.h"
 
 namespace ash {
+namespace tray {
+class IMEDetailedView;
+}  // namespace tray
 
 class DetailedViewDelegate;
-class IMEDetailedView;
 class UnifiedSystemTrayController;
 
 // Controller of IME detailed view in UnifiedSystemTray.
@@ -26,17 +29,11 @@ class UnifiedIMEDetailedViewController : public DetailedViewController,
  public:
   explicit UnifiedIMEDetailedViewController(
       UnifiedSystemTrayController* tray_controller);
-
-  UnifiedIMEDetailedViewController(const UnifiedIMEDetailedViewController&) =
-      delete;
-  UnifiedIMEDetailedViewController& operator=(
-      const UnifiedIMEDetailedViewController&) = delete;
-
   ~UnifiedIMEDetailedViewController() override;
 
-  // DetailedViewController:
-  std::unique_ptr<views::View> CreateView() override;
-  std::u16string GetAccessibleName() const override;
+  // DetailedViewControllerBase:
+  views::View* CreateView() override;
+  base::string16 GetAccessibleName() const override;
 
   // VirtualKeyboardObserver:
   void OnKeyboardSuppressionChanged(bool suppressed) override;
@@ -49,21 +46,17 @@ class UnifiedIMEDetailedViewController : public DetailedViewController,
   void OnIMEMenuActivationChanged(bool is_active) override;
 
  private:
-  // Updates the view with the active IME and the list of installed IMEs.
   void Update();
 
-  // Returns true if an item should be added with an on/off toggle for the
-  // 'On-screen keyboard'.
   bool ShouldShowKeyboardToggle() const;
 
   const std::unique_ptr<DetailedViewDelegate> detailed_view_delegate_;
 
-  // The view being controlled.
-  IMEDetailedView* view_ = nullptr;
+  tray::IMEDetailedView* view_ = nullptr;
 
-  // Whether the on-screen keyboard is suppressed, for example by being in
-  // tablet mode with an external keyboard attached.
   bool keyboard_suppressed_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(UnifiedIMEDetailedViewController);
 };
 
 }  // namespace ash

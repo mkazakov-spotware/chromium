@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,7 +33,7 @@ TabLifecycleUnitExternal* TestLifecycleUnit::AsTabLifecycleUnitExternal() {
   return nullptr;
 }
 
-std::u16string TestLifecycleUnit::GetTitle() const {
+base::string16 TestLifecycleUnit::GetTitle() const {
   return title_;
 }
 
@@ -70,8 +70,7 @@ bool TestLifecycleUnit::CanDiscard(mojom::LifecycleUnitDiscardReason reason,
   return can_discard_;
 }
 
-bool TestLifecycleUnit::Discard(LifecycleUnitDiscardReason discard_reason,
-                                uint64_t resident_set_size_estimate) {
+bool TestLifecycleUnit::Discard(LifecycleUnitDiscardReason discard_reason) {
   return false;
 }
 

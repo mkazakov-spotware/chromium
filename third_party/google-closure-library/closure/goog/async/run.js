@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2013 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.provide('goog.async.run');
 
@@ -26,7 +34,6 @@ goog.ASSUME_NATIVE_PROMISE = goog.define('goog.ASSUME_NATIVE_PROMISE', false);
  * @template THIS
  */
 goog.async.run = function(callback, opt_context) {
-  'use strict';
   if (!goog.async.run.schedule_) {
     goog.async.run.initializeRunner_();
   }
@@ -45,7 +52,6 @@ goog.async.run = function(callback, opt_context) {
  * @private
  */
 goog.async.run.initializeRunner_ = function() {
-  'use strict';
   if (goog.ASSUME_NATIVE_PROMISE ||
       (goog.global.Promise && goog.global.Promise.resolve)) {
     // Use goog.global.Promise instead of just Promise because the relevant
@@ -54,12 +60,10 @@ goog.async.run.initializeRunner_ = function() {
     // as optional.
     var promise = goog.global.Promise.resolve(undefined);
     goog.async.run.schedule_ = function() {
-      'use strict';
       promise.then(goog.async.run.processWorkQueue);
     };
   } else {
     goog.async.run.schedule_ = function() {
-      'use strict';
       goog.async.nextTick(goog.async.run.processWorkQueue);
     };
   }
@@ -80,9 +84,7 @@ goog.async.run.initializeRunner_ = function() {
  * @param {function(function())=} opt_realSetTimeout
  */
 goog.async.run.forceNextTick = function(opt_realSetTimeout) {
-  'use strict';
   goog.async.run.schedule_ = function() {
-    'use strict';
     goog.async.nextTick(goog.async.run.processWorkQueue);
     if (opt_realSetTimeout) {
       opt_realSetTimeout(goog.async.run.processWorkQueue);
@@ -111,17 +113,8 @@ if (goog.DEBUG) {
    * Reset the work queue. Only available for tests in debug mode.
    */
   goog.async.run.resetQueue = function() {
-    'use strict';
     goog.async.run.workQueueScheduled_ = false;
     goog.async.run.workQueue_ = new goog.async.WorkQueue();
-  };
-
-
-  /**
-   * Resets the scheduler. Only available for tests in debug mode.
-   */
-  goog.async.run.resetSchedulerForTest = function() {
-    goog.async.run.initializeRunner_();
   };
 }
 
@@ -132,7 +125,6 @@ if (goog.DEBUG) {
  * goog.async.nextTick.
  */
 goog.async.run.processWorkQueue = function() {
-  'use strict';
   // NOTE: additional work queue items may be added while processing.
   var item = null;
   while (item = goog.async.run.workQueue_.remove()) {

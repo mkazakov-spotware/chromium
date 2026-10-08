@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,6 @@
 
 namespace chromecast {
 
-struct Attachment;
-
 class CrashUtil {
  public:
   // Returns true if the filesystem has sufficient space to collect the crash.
@@ -30,11 +28,9 @@ class CrashUtil {
 
   // Helper function to request upload an existing minidump file. Returns true
   // on success, false otherwise.
-  static bool RequestUploadCrashDump(
-      const std::string& existing_minidump_path,
-      uint64_t crashed_pid,
-      uint64_t crashed_process_start_time_ms,
-      const std::vector<Attachment>* attachments = nullptr);
+  static bool RequestUploadCrashDump(const std::string& existing_minidump_path,
+                                     uint64_t crashed_pid,
+                                     uint64_t crashed_process_start_time_ms);
 
   // Util function to get current time in ms. This is used to record
   // crashed_process_start_time_ms in client side.

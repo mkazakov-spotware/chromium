@@ -8,7 +8,9 @@
 
         if (window.testRunner) {
             testRunner.dumpAsText();
+            testRunner.setCanOpenWindows();
             testRunner.waitUntilDone();
+            testRunner.setPopupBlockingEnabled(true);
         }
 
         function clickHandler() {

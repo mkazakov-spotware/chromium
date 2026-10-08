@@ -1,20 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LIST_MARKER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LIST_MARKER_H_
 
-#include "base/check_op.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/layout_object.h"
 
 namespace blink {
 
-class CounterStyle;
 class LayoutListItem;
 class LayoutNGListItem;
-class LayoutTextFragment;
+class LayoutText;
 
 // This class holds code shared among all classes for list markers, for both
 // legacy layout and LayoutNG.
@@ -52,11 +50,9 @@ class CORE_EXPORT ListMarker {
 
   // Compute inline margins for 'list-style-position: inside' and 'outside'.
   static std::pair<LayoutUnit, LayoutUnit> InlineMarginsForInside(
-      Document&,
       const ComputedStyle& marker_style,
       const ComputedStyle& list_item_style);
   static std::pair<LayoutUnit, LayoutUnit> InlineMarginsForOutside(
-      Document&,
       const ComputedStyle& marker_style,
       const ComputedStyle& list_item_style,
       LayoutUnit marker_inline_size);
@@ -70,17 +66,10 @@ class CORE_EXPORT ListMarker {
 
   // Returns the list's style as one of a reduced high level categorical set of
   // styles.
-  static ListStyleCategory GetListStyleCategory(Document&,
-                                                const ComputedStyle&);
-
-  static const CounterStyle& GetCounterStyle(Document&, const ComputedStyle&);
+  static ListStyleCategory GetListStyleCategory(EListStyleType);
 
  private:
-  enum MarkerTextFormat {
-    kWithPrefixSuffix,
-    kWithoutPrefixSuffix,
-    kAlternativeText
-  };
+  enum MarkerTextFormat { kWithSuffix, kWithoutSuffix };
   enum MarkerTextType {
     kNotText,  // The marker doesn't have a LayoutText, either because it has
                // not been created yet or because 'list-style-type' is 'none',
@@ -95,19 +84,14 @@ class CORE_EXPORT ListMarker {
                             StringBuilder*,
                             MarkerTextFormat) const;
   void UpdateMarkerText(LayoutObject&);
+  void UpdateMarkerText(LayoutObject&, LayoutText*);
 
   void ListStyleTypeChanged(LayoutObject&);
   void OrdinalValueChanged(LayoutObject&);
-  void CounterStyleChanged(LayoutObject&);
 
   int ListItemValue(const LayoutObject&) const;
 
-  LayoutTextFragment& GetTextChild(const LayoutObject& marker) const;
-  LayoutObject* GetContentChild(const LayoutObject& marker) const;
-
   unsigned marker_text_type_ : 3;  // MarkerTextType
-
-  friend class StyleEngineTest;
 };
 
 }  // namespace blink

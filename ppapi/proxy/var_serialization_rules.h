@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,15 @@
 #include "base/memory/ref_counted.h"
 #include "ppapi/c/pp_var.h"
 
+#include <string>
+
 namespace ppapi {
 namespace proxy {
 
 // Encapsulates the rules for serializing and deserializing vars to and from
 // the local process. The renderer and the plugin process each have separate
 // bookkeeping rules.
-class VarSerializationRules
-    : public base::RefCountedThreadSafe<VarSerializationRules> {
+class VarSerializationRules : public base::RefCounted<VarSerializationRules> {
  public:
   // Caller-owned calls --------------------------------------------------------
   //
@@ -79,7 +80,7 @@ class VarSerializationRules
   virtual ~VarSerializationRules() {}
 
  private:
-  friend class base::RefCountedThreadSafe<VarSerializationRules>;
+  friend class base::RefCounted<VarSerializationRules>;
 };
 
 }  // namespace proxy

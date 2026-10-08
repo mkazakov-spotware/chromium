@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -75,9 +75,9 @@ MediaImageManager::MediaImageManager(int min_size, int ideal_size)
 
 MediaImageManager::~MediaImageManager() = default;
 
-absl::optional<MediaImage> MediaImageManager::SelectImage(
+base::Optional<MediaImage> MediaImageManager::SelectImage(
     const std::vector<MediaImage>& images) {
-  absl::optional<MediaImage> selected;
+  base::Optional<MediaImage> selected;
 
   double best_score = 0;
   for (auto& image : images) {
@@ -85,16 +85,6 @@ absl::optional<MediaImage> MediaImageManager::SelectImage(
     if (score > best_score) {
       best_score = score;
       selected = image;
-    }
-  }
-
-  // If we haven't found an image based on size then we should check if there
-  // are any images that have an "any" size which is denoted by a single empty
-  // gfx::Size value.
-  if (!selected.has_value()) {
-    for (auto& image : images) {
-      if (image.sizes.size() == 1 && image.sizes[0].IsEmpty())
-        return image;
     }
   }
 
@@ -114,9 +104,9 @@ double MediaImageManager::GetImageScore(const MediaImage& image) const {
   }
 
   double type_score = kDefaultTypeScore;
-  if (absl::optional<double> ext_score = GetImageExtensionScore(image.src)) {
+  if (base::Optional<double> ext_score = GetImageExtensionScore(image.src)) {
     type_score = *ext_score;
-  } else if (absl::optional<double> mime_score =
+  } else if (base::Optional<double> mime_score =
                  GetImageTypeScore(image.type)) {
     type_score = *mime_score;
   }
@@ -125,10 +115,10 @@ double MediaImageManager::GetImageScore(const MediaImage& image) const {
 }
 
 // static
-absl::optional<double> MediaImageManager::GetImageExtensionScore(
+base::Optional<double> MediaImageManager::GetImageExtensionScore(
     const GURL& url) {
   if (!url.has_path())
-    return absl::nullopt;
+    return base::nullopt;
 
   std::string extension = GetExtension(url.path());
 
@@ -149,15 +139,16 @@ absl::optional<double> MediaImageManager::GetImageExtensionScore(
       return kGIFTypeScore;
   }
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 // static
-absl::optional<double> MediaImageManager::GetImageTypeScore(
-    const std::u16string& type) {
+base::Optional<double> MediaImageManager::GetImageTypeScore(
+    const base::string16& type) {
   // These hashes are calculated in
   // MediaImageManagerTest_CheckExpectedImageTypeHashes
-  switch (base::PersistentHash(type.data(), type.size() * sizeof(char16_t))) {
+  switch (
+      base::PersistentHash(type.data(), type.size() * sizeof(base::char16))) {
     case 0xfd295465:  // image/bmp
       return kBMPTypeScore;
     case 0xce81e113:  // image/gif
@@ -170,7 +161,7 @@ absl::optional<double> MediaImageManager::GetImageTypeScore(
       return kXIconTypeScore;
   }
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 }  // namespace media_session

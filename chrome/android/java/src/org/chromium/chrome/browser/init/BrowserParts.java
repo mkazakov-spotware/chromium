@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,32 +9,29 @@ import androidx.annotation.Nullable;
 /**
  * Interface that any {@link AsyncInitializationActivity} can use to interact with this delegate
  * during start up. Functions called by
- * {@link ChromeBrowserInitializer#handlePreNativeStartupAndLoadLibraries(BrowserParts)} are called
- * in the order they are listed.
+ * {@link ChromeBrowserInitializer#handlePreNativeStartup(BrowserParts)} are called in the order
+ * they are listed.
  */
 public interface BrowserParts {
     /**
-     * Called during {@link
-     * ChromeBrowserInitializer#handlePreNativeStartupAndLoadLibraries(BrowserParts)}. This should
-     * consist of java only calls that will not take too much time.
+     * Called during {@link ChromeBrowserInitializer#handlePreNativeStartup(BrowserParts)}.
+     * This should consist of java only calls that will not take too much time.
      */
     void preInflationStartup();
 
     /**
-     * Called during {@link
-     * ChromeBrowserInitializer#handlePreNativeStartupAndLoadLibraries(BrowserParts)}. It should
-     * start layout inflation and also should start loading libraries using {@link
-     * NativeInitializationController#startBackgroundTasks}. The {@param
+     * Called during {@link ChromeBrowserInitializer#handlePreNativeStartup(BrowserParts)}.
+     * It should start layout inflation and also should start loading libraries
+     * using {@link NativeInitializationController#startBackgroundTasks}. The {@param
      * onInflationCompleteCallback} should be called once inflation is complete and the content view
      * has been set.
      */
     void setContentViewAndLoadLibrary(Runnable onInflationCompleteCallback);
 
     /**
-     * Called during {@link
-     * ChromeBrowserInitializer#handlePreNativeStartupAndLoadLibraries(BrowserParts)}. Early setup
-     * after the view hierarchy has been inflated and the background tasks has been initialized. No
-     * native calls.
+     * Called during {@link ChromeBrowserInitializer#handlePreNativeStartup(BrowserParts)}.
+     * Early setup after the view hierarchy has been inflated and the background tasks has been
+     * initialized. No native calls.
      */
     void postInflationStartup();
 
@@ -91,10 +88,10 @@ public interface BrowserParts {
     boolean shouldStartGpuProcess();
 
     /**
-     * @return Whether a minimal browser should be launched during the startup, without running
+     * @return Whether only ServiceManager should be launched during the startup, without running
      *         remaining parts of the Chrome.
      */
-    default boolean startMinimalBrowser() {
+    default boolean startServiceManagerOnly() {
         return false;
     }
 }

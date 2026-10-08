@@ -1,20 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_BINDINGS_CORE_V8_SCRIPT_EVALUATION_RESULT_H_
 #define THIRD_PARTY_BLINK_RENDERER_BINDINGS_CORE_V8_SCRIPT_EVALUATION_RESULT_H_
 
-#include "base/dcheck_is_on.h"
 #include "third_party/blink/public/mojom/script/script_type.mojom-blink-forward.h"
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
+#include "third_party/blink/renderer/platform/bindings/script_state.h"
 #include "v8/include/v8.h"
 
 namespace blink {
 
 class ScriptPromise;
-class ScriptState;
 
 // ScriptEvaluationResult encapsulates the result of a classic or module script
 // evaluation:
@@ -28,10 +26,9 @@ class CORE_EXPORT ScriptEvaluationResult final {
 
  public:
   ScriptEvaluationResult() = delete;
-  ScriptEvaluationResult(const ScriptEvaluationResult&) = delete;
-  ScriptEvaluationResult& operator=(const ScriptEvaluationResult&) = delete;
-  ScriptEvaluationResult(ScriptEvaluationResult&&) = default;
-  ScriptEvaluationResult& operator=(ScriptEvaluationResult&&) = default;
+  ScriptEvaluationResult(const ScriptEvaluationResult& value) = default;
+  ScriptEvaluationResult& operator=(const ScriptEvaluationResult& value) =
+      default;
   ~ScriptEvaluationResult() = default;
 
   enum class ResultType {
@@ -61,11 +58,8 @@ class CORE_EXPORT ScriptEvaluationResult final {
     // The script is evaluated and an exception is thrown.
     // Spec: #run-a-classic-script/#run-a-module-script return an abrupt
     //       completion.
-    // |value_| is the non-empty exception thrown for
-    // - module scripts or
-    // - classic scripts with |RethrowErrorsOption::DoNotRethrow()|
-    // or empty for
-    // - classic scripts with |RethrowErrorsOption::Rethrow()|
+    // |value_| is the non-empty exception thrown for module scripts, or
+    // empty for classic scripts.
     //
     // Note: The exception can be already caught and passed to
     // https://html.spec.whatwg.org/C/#report-the-error, instead of being
@@ -93,9 +87,7 @@ class CORE_EXPORT ScriptEvaluationResult final {
 
   static ScriptEvaluationResult FromClassicNotRun();
   static ScriptEvaluationResult FromClassicSuccess(v8::Local<v8::Value> value);
-  static ScriptEvaluationResult FromClassicExceptionRethrown();
-  static ScriptEvaluationResult FromClassicException(
-      v8::Local<v8::Value> exception);
+  static ScriptEvaluationResult FromClassicException();
   static ScriptEvaluationResult FromClassicAborted();
 
   static ScriptEvaluationResult FromModuleNotRun();
@@ -103,6 +95,8 @@ class CORE_EXPORT ScriptEvaluationResult final {
   static ScriptEvaluationResult FromModuleException(
       v8::Local<v8::Value> exception);
   static ScriptEvaluationResult FromModuleAborted();
+
+  ScriptEvaluationResult& Escape(ScriptState::EscapableScope* scope);
 
   ResultType GetResultType() const { return result_type_; }
 
@@ -112,16 +106,9 @@ class CORE_EXPORT ScriptEvaluationResult final {
   // promise for modules.
   v8::Local<v8::Value> GetSuccessValue() const;
 
-  // Returns the value when GetResultType() == kSuccess, or empty otherwise.
-  v8::Local<v8::Value> GetSuccessValueOrEmpty() const;
-
   // Returns the exception thrown.
   // Can be called only when GetResultType() == kException.
   v8::Local<v8::Value> GetExceptionForModule() const;
-
-  // Returns the exception thrown for both module and classic scripts.
-  // Can be called only when GetResultType() == kException.
-  v8::Local<v8::Value> GetExceptionForClassicForTesting() const;
 
   // Returns the promise returned by #run-a-module-script.
   // Can be called only

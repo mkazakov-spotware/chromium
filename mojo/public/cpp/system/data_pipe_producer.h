@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/callback_forward.h"
 #include "base/containers/span.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "mojo/public/cpp/system/data_pipe.h"
@@ -58,10 +59,6 @@ class MOJO_CPP_SYSTEM_EXPORT DataPipeProducer {
 
   // Constructs a new DataPipeProducer which will write data to |producer|.
   explicit DataPipeProducer(ScopedDataPipeProducerHandle producer);
-
-  DataPipeProducer(const DataPipeProducer&) = delete;
-  DataPipeProducer& operator=(const DataPipeProducer&) = delete;
-
   ~DataPipeProducer();
 
   // Attempts to eventually write all of |data_source|'s contents to the pipe.
@@ -100,6 +97,8 @@ class MOJO_CPP_SYSTEM_EXPORT DataPipeProducer {
   ScopedDataPipeProducerHandle producer_;
   scoped_refptr<SequenceState> sequence_state_;
   base::WeakPtrFactory<DataPipeProducer> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DataPipeProducer);
 };
 
 }  // namespace mojo

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,9 @@
 #include <vector>
 
 #include "base/files/file_path.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/message_bundle.h"
-#include "extensions/common/mojom/manifest.mojom-shared.h"
 #include "third_party/skia/include/core/SkColor.h"
 
 class ExtensionIconSet;
@@ -51,14 +50,14 @@ void UninstallExtension(const base::FilePath& extensions_dir,
 // the default manifest filename. Returns nullptr on failure, with a
 // description of the error in |error|.
 scoped_refptr<Extension> LoadExtension(const base::FilePath& extension_root,
-                                       mojom::ManifestLocation location,
+                                       Manifest::Location location,
                                        int flags,
                                        std::string* error);
 
 // The same as LoadExtension except use the provided |extension_id|.
 scoped_refptr<Extension> LoadExtension(const base::FilePath& extension_root,
                                        const std::string& extension_id,
-                                       mojom::ManifestLocation location,
+                                       Manifest::Location location,
                                        int flags,
                                        std::string* error);
 
@@ -69,7 +68,7 @@ scoped_refptr<Extension> LoadExtension(
     const base::FilePath& extension_root,
     const base::FilePath::CharType* manifest_file,
     const std::string& extension_id,
-    mojom::ManifestLocation location,
+    Manifest::Location location,
     int flags,
     std::string* error);
 
@@ -134,6 +133,7 @@ void SetReportErrorForInvisibleIconForTesting(bool value);
 bool ValidateExtensionIconSet(const ExtensionIconSet& icon_set,
                               const Extension* extension,
                               const char* manifest_key,
+                              SkColor background_color,
                               std::string* error);
 
 // Loads extension message catalogs and returns message bundle. Passes
@@ -145,6 +145,31 @@ MessageBundle* LoadMessageBundle(
     const std::string& default_locale,
     extension_l10n_util::GzippedMessagesPermission gzip_permission,
     std::string* error);
+
+// Loads the extension message bundle substitution map. Contains at least
+// the extension_id item. Does not supported compressed locale files. Passes
+// |gzip_permission| to extension_l10n_util::LoadMessageCatalogs (see
+// extension_l10n_util.h).
+MessageBundle::SubstitutionMap* LoadMessageBundleSubstitutionMap(
+    const base::FilePath& extension_path,
+    const std::string& extension_id,
+    const std::string& default_locale,
+    extension_l10n_util::GzippedMessagesPermission gzip_permission);
+
+// Loads the extension message bundle substitution map for a non-localized
+// extension. Contains only the extension_id item.
+// This doesn't require hitting disk, so it's safe to call on any thread.
+MessageBundle::SubstitutionMap* LoadNonLocalizedMessageBundleSubstitutionMap(
+    const std::string& extension_id);
+
+// Loads the extension message bundle substitution map from the specified paths.
+// Contains at least the extension_id item. Passes |gzip_permission| to
+// extension_l10n_util::LoadMessageCatalogs (see extension_l10n_util.h).
+MessageBundle::SubstitutionMap* LoadMessageBundleSubstitutionMapFromPaths(
+    const std::vector<base::FilePath>& paths,
+    const std::string& extension_id,
+    const std::string& default_locale,
+    extension_l10n_util::GzippedMessagesPermission gzip_permission);
 
 // Helper functions for getting paths for files used in content verification.
 base::FilePath GetVerifiedContentsPath(const base::FilePath& extension_path);

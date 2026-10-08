@@ -31,8 +31,9 @@
 
 #include "build/build_config.h"
 
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
 #include <unicode/uset.h>
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
@@ -112,4 +113,4 @@ bool IsCharacterSmartReplaceExempt(UChar32 c, bool is_previous_character) {
 }
 }
 
-#endif  // !BUILDFLAG(IS_MAC)
+#endif  // !defined(OS_MAC)

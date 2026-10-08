@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -18,15 +18,14 @@ source_set("cpp") {
     "type_conversions.h",
   ]
 
-  deps = [
-    "//base",
-    "//chromeos/printing",
-  ]
+  deps = [ "//base" ]
 
   public_deps = [
     "//chrome/services/ipp_parser/public/cpp",
-    "//printing/backend",
+    "//printing",
   ]
+
+  configs += [ "//printing:cups" ]
 }
 
 source_set("unit_tests") {
@@ -35,7 +34,6 @@ source_set("unit_tests") {
   deps = [
     ":cpp",
     "//base",
-    "//chromeos/printing",
     "//testing/gmock",
     "//testing/gtest",
   ]

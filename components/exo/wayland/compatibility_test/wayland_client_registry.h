@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,9 @@
 #include <wayland-client-core.h>
 #include <wayland-client-protocol.h>
 
+#include "base/macros.h"
+#include "base/optional.h"
 #include "components/exo/wayland/compatibility_test/generated-wayland-client-helpers.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace exo {
 namespace wayland {
@@ -47,7 +48,7 @@ class WaylandClientRegistry {
     uint32_t server_version;
   };
 
-  absl::optional<Entry> GetEntry(const char* interface_name) const noexcept;
+  base::Optional<Entry> GetEntry(const char* interface_name) const noexcept;
   bool Has(const char* interface_name, uint32_t client_version) const noexcept;
   void* Bind(const char* interface_name,
              const struct wl_interface* protocol_interface,

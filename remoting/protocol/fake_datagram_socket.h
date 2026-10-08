@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "net/base/completion_repeating_callback.h"
 #include "remoting/protocol/datagram_channel_factory.h"
@@ -19,7 +20,8 @@ namespace base {
 class SingleThreadTaskRunner;
 }
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 // FakeDatagramSocket implement P2PStreamSocket interface. All data written to
 // FakeDatagramSocket is stored in a buffer returned by written_packets().
@@ -34,10 +36,6 @@ namespace remoting::protocol {
 class FakeDatagramSocket : public P2PDatagramSocket {
  public:
   FakeDatagramSocket();
-
-  FakeDatagramSocket(const FakeDatagramSocket&) = delete;
-  FakeDatagramSocket& operator=(const FakeDatagramSocket&) = delete;
-
   ~FakeDatagramSocket() override;
 
   const std::vector<std::string>& written_packets() const {
@@ -95,16 +93,13 @@ class FakeDatagramSocket : public P2PDatagramSocket {
 
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
   base::WeakPtrFactory<FakeDatagramSocket> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FakeDatagramSocket);
 };
 
 class FakeDatagramChannelFactory : public DatagramChannelFactory {
  public:
   FakeDatagramChannelFactory();
-
-  FakeDatagramChannelFactory(const FakeDatagramChannelFactory&) = delete;
-  FakeDatagramChannelFactory& operator=(const FakeDatagramChannelFactory&) =
-      delete;
-
   ~FakeDatagramChannelFactory() override;
 
   void set_asynchronous_create(bool asynchronous_create) {
@@ -144,8 +139,11 @@ class FakeDatagramChannelFactory : public DatagramChannelFactory {
   bool fail_create_;
 
   base::WeakPtrFactory<FakeDatagramChannelFactory> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FakeDatagramChannelFactory);
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_FAKE_DATAGRAM_SOCKET_H_

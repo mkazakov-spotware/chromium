@@ -31,7 +31,7 @@
 #include "third_party/blink/renderer/core/svg/svg_enumeration_map.h"
 #include "third_party/blink/renderer/core/svg/svg_stop_element.h"
 #include "third_party/blink/renderer/core/svg/svg_transform_list.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -107,9 +107,7 @@ void SVGGradientElement::CollectStyleForPresentationAttribute(
   SVGElement::CollectStyleForPresentationAttribute(name, value, style);
 }
 
-void SVGGradientElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  const QualifiedName& attr_name = params.name;
+void SVGGradientElement::SvgAttributeChanged(const QualifiedName& attr_name) {
   if (attr_name == svg_names::kGradientTransformAttr) {
     InvalidateSVGPresentationAttributeStyle();
     SetNeedsStyleRecalc(kLocalStyleChange,
@@ -130,7 +128,7 @@ void SVGGradientElement::SvgAttributeChanged(
     return;
   }
 
-  SVGElement::SvgAttributeChanged(params);
+  SVGElement::SvgAttributeChanged(attr_name);
 }
 
 Node::InsertionNotificationRequest SVGGradientElement::InsertedInto(
@@ -185,7 +183,7 @@ void SVGGradientElement::CollectCommonAttributes(
 
   if (!attributes.HasStops()) {
     const Vector<Gradient::ColorStop>& stops(BuildStops());
-    if (!stops.empty())
+    if (!stops.IsEmpty())
       attributes.SetStops(stops);
   }
 }

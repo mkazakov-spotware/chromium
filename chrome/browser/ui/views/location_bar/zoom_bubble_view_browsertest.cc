@@ -1,11 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/location_bar/zoom_bubble_view.h"
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_test.h"
@@ -19,17 +18,16 @@
 #include "content/public/test/browser_test.h"
 #include "extensions/browser/extension_zoom_request_client.h"
 #include "extensions/common/extension_builder.h"
-#include "third_party/blink/public/mojom/frame/fullscreen.mojom.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/views/test/test_widget_observer.h"
 #include "ui/views/test/widget_test.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "chrome/browser/ui/views/frame/immersive_mode_controller_chromeos.h"
 #include "chromeos/ui/frame/immersive/immersive_fullscreen_controller_test_api.h"
 #endif
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "chrome/browser/ui/browser_commands_mac.h"
 #include "ui/base/test/scoped_fake_nswindow_fullscreen.h"
 #include "ui/views/test/button_test_api.h"
@@ -51,7 +49,7 @@ void ShowInActiveTab(Browser* browser) {
 // Test whether the zoom bubble is anchored and whether it is visible when in
 // non-immersive fullscreen.
 IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest, NonImmersiveFullscreen) {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   ui::test::ScopedFakeNSWindowFullscreen fake_fullscreen;
 #endif
 
@@ -71,7 +69,7 @@ IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest, NonImmersiveFullscreen) {
     // notification before testing the zoom bubble visibility.
     FullscreenNotificationObserver waiter(browser());
     static_cast<content::WebContentsDelegate*>(browser())
-        ->EnterFullscreenModeForTab(web_contents->GetPrimaryMainFrame(), {});
+        ->EnterFullscreenModeForTab(web_contents->GetMainFrame(), {});
     waiter.Wait();
   }
   ASSERT_FALSE(browser_view->immersive_mode_controller()->IsEnabled());
@@ -97,14 +95,14 @@ IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest, NonImmersiveFullscreen) {
 // bubble should close and re-show in a new un-anchored position.
 //
 // TODO(crbug.com/1142682): Fails on Lacros bots.
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_LACROS)
 #define MAYBE_AnchorPositionsInFullscreen DISABLED_AnchorPositionsInFullscreen
 #else
 #define MAYBE_AnchorPositionsInFullscreen AnchorPositionsInFullscreen
 #endif
 IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest,
                        MAYBE_AnchorPositionsInFullscreen) {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   ui::test::ScopedFakeNSWindowFullscreen fake_fullscreen;
 #endif
 
@@ -128,7 +126,7 @@ IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest,
   }
   EXPECT_FALSE(ZoomBubbleView::GetZoomBubble());
 
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_MAC) || defined(OS_CHROMEOS)
   const bool should_show_toolbar = true;
 #else
   const bool should_show_toolbar = false;
@@ -142,7 +140,7 @@ IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest,
   ASSERT_TRUE(zoom_bubble);
   if (should_show_toolbar) {
     EXPECT_EQ(org_anchor_view, zoom_bubble->GetAnchorView());
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     const ZoomBubbleView* org_zoom_bubble = zoom_bubble;
     // Hide toolbar.
     chrome::ToggleFullscreenToolbar(browser());
@@ -177,7 +175,7 @@ IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest,
   }
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 // Test whether the zoom bubble is anchored and whether it is visible when in
 // immersive fullscreen.
 IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest, ImmersiveFullscreen) {
@@ -208,11 +206,11 @@ IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest, ImmersiveFullscreen) {
   EXPECT_FALSE(zoom_bubble->GetAnchorView());
 
   // An immersive reveal should hide the zoom bubble.
-  std::unique_ptr<ImmersiveRevealedLock> immersive_reveal_lock =
+  std::unique_ptr<ImmersiveRevealedLock> immersive_reveal_lock(
       immersive_controller->GetRevealedLock(
-          ImmersiveModeController::ANIMATE_REVEAL_NO);
+          ImmersiveModeController::ANIMATE_REVEAL_NO));
   ASSERT_TRUE(immersive_controller->IsRevealed());
-  EXPECT_EQ(nullptr, ZoomBubbleView::zoom_bubble_);
+  EXPECT_EQ(NULL, ZoomBubbleView::zoom_bubble_);
 
   // The zoom bubble should be anchored when it is shown in immersive fullscreen
   // and the top-of-window views are revealed.
@@ -238,7 +236,7 @@ IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest, ImmersiveFullscreen) {
     waiter.Wait();
   }
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // OS_CHROMEOS
 
 // Tests that trying to open zoom bubble with stale WebContents is safe.
 IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest, NoWebContentsIsSafe) {
@@ -254,8 +252,7 @@ IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest, NoWebContentsIsSafe) {
 
 // Ensure a tab switch closes the bubble.
 IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest, TabSwitchCloses) {
-  ASSERT_TRUE(
-      AddTabAtIndex(0, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_LINK));
+  AddTabAtIndex(0, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_LINK);
   ShowInActiveTab(browser());
   chrome::SelectNextTab(browser());
   EXPECT_FALSE(ZoomBubbleView::GetZoomBubble());
@@ -264,8 +261,7 @@ IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest, TabSwitchCloses) {
 // Ensure the bubble is dismissed on tab closure and doesn't reference a
 // destroyed WebContents.
 IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest, DestroyedWebContents) {
-  ASSERT_TRUE(
-      AddTabAtIndex(0, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_LINK));
+  AddTabAtIndex(0, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_LINK);
   ShowInActiveTab(browser());
 
   ZoomBubbleView* bubble = ZoomBubbleView::GetZoomBubble();
@@ -325,7 +321,7 @@ IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest,
   ASSERT_TRUE(bubble);
 
   const double old_zoom_level = zoom_controller->GetZoomLevel();
-  const std::u16string old_label = bubble->label_->GetText();
+  const base::string16 old_label = bubble->label_->GetText();
 
   scoped_refptr<const extensions::Extension> extension =
       extensions::ExtensionBuilder("Test").Build();
@@ -335,7 +331,7 @@ IN_PROC_BROWSER_TEST_F(ZoomBubbleBrowserTest,
   zoom_controller->SetZoomLevelByClient(new_zoom_level, client);
 
   ASSERT_EQ(ZoomBubbleView::GetZoomBubble(), bubble);
-  const std::u16string new_label = bubble->label_->GetText();
+  const base::string16 new_label = bubble->label_->GetText();
 
   EXPECT_NE(new_label, old_label);
 }
@@ -410,11 +406,11 @@ class ZoomBubbleDialogTest : public DialogBrowserTest {
  public:
   ZoomBubbleDialogTest() {}
 
-  ZoomBubbleDialogTest(const ZoomBubbleDialogTest&) = delete;
-  ZoomBubbleDialogTest& operator=(const ZoomBubbleDialogTest&) = delete;
-
   // DialogBrowserTest:
   void ShowUi(const std::string& name) override { ShowInActiveTab(browser()); }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ZoomBubbleDialogTest);
 };
 
 // Test that calls ShowUi("default").

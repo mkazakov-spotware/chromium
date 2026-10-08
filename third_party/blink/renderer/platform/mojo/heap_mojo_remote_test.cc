@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,14 +12,41 @@
 #include "third_party/blink/renderer/platform/heap/heap_test_utilities.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
 #include "third_party/blink/renderer/platform/heap_observer_set.h"
+#include "third_party/blink/renderer/platform/mojo/features.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_wrapper_mode.h"
-#include "third_party/blink/renderer/platform/mojo/mojo_binding_context.h"
-#include "third_party/blink/renderer/platform/testing/mock_context_lifecycle_notifier.h"
-#include "third_party/blink/renderer/platform/wtf/functional.h"
 
 namespace blink {
 
 namespace {
+
+class MockContext final : public GarbageCollected<MockContext>,
+                          public ContextLifecycleNotifier {
+ public:
+  MockContext() = default;
+
+  void AddContextLifecycleObserver(
+      ContextLifecycleObserver* observer) override {
+    observers_.AddObserver(observer);
+  }
+  void RemoveContextLifecycleObserver(
+      ContextLifecycleObserver* observer) override {
+    observers_.RemoveObserver(observer);
+  }
+
+  void NotifyContextDestroyed() {
+    observers_.ForEachObserver([](ContextLifecycleObserver* observer) {
+      observer->ContextDestroyed();
+    });
+  }
+
+  void Trace(Visitor* visitor) const override {
+    visitor->Trace(observers_);
+    ContextLifecycleNotifier::Trace(visitor);
+  }
+
+ private:
+  HeapObserverSet<ContextLifecycleObserver> observers_;
+};
 
 class ServiceImpl : public sample::blink::Service {
  public:
@@ -41,8 +68,7 @@ class ServiceImpl : public sample::blink::Service {
 template <HeapMojoWrapperMode Mode>
 class RemoteOwner : public GarbageCollected<RemoteOwner<Mode>> {
  public:
-  explicit RemoteOwner(MockContextLifecycleNotifier* context)
-      : remote_(context) {}
+  explicit RemoteOwner(MockContext* context) : remote_(context) {}
   explicit RemoteOwner(HeapMojoRemote<sample::blink::Service, Mode> remote)
       : remote_(std::move(remote)) {}
 
@@ -57,7 +83,7 @@ template <HeapMojoWrapperMode Mode>
 class HeapMojoRemoteDestroyContextBaseTest : public TestSupportingGC {
  protected:
   void SetUp() override {
-    context_ = MakeGarbageCollected<MockContextLifecycleNotifier>();
+    context_ = MakeGarbageCollected<MockContext>();
     owner_ = MakeGarbageCollected<RemoteOwner<Mode>>(context_);
     scoped_refptr<base::NullTaskRunner> null_task_runner =
         base::MakeRefCounted<base::NullTaskRunner>();
@@ -66,7 +92,7 @@ class HeapMojoRemoteDestroyContextBaseTest : public TestSupportingGC {
   }
 
   ServiceImpl impl_;
-  Persistent<MockContextLifecycleNotifier> context_;
+  Persistent<MockContext> context_;
   Persistent<RemoteOwner<Mode>> owner_;
 };
 
@@ -80,13 +106,13 @@ class HeapMojoRemoteDisconnectWithReasonHandlerBaseTest
  protected:
   void SetUp() override {
     CHECK(!disconnected_with_reason_);
-    context_ = MakeGarbageCollected<MockContextLifecycleNotifier>();
+    context_ = MakeGarbageCollected<MockContext>();
     owner_ = MakeGarbageCollected<RemoteOwner<Mode>>(context_);
     scoped_refptr<base::NullTaskRunner> null_task_runner =
         base::MakeRefCounted<base::NullTaskRunner>();
     impl_.receiver().Bind(
         owner_->remote().BindNewPipeAndPassReceiver(null_task_runner));
-    impl_.receiver().set_disconnect_with_reason_handler(WTF::BindOnce(
+    impl_.receiver().set_disconnect_with_reason_handler(WTF::Bind(
         [](HeapMojoRemoteDisconnectWithReasonHandlerBaseTest* remote_test,
            const uint32_t custom_reason, const std::string& description) {
           remote_test->run_loop().Quit();
@@ -96,7 +122,7 @@ class HeapMojoRemoteDisconnectWithReasonHandlerBaseTest
   }
 
   ServiceImpl impl_;
-  Persistent<MockContextLifecycleNotifier> context_;
+  Persistent<MockContext> context_;
   Persistent<RemoteOwner<Mode>> owner_;
   base::RunLoop run_loop_;
   bool disconnected_with_reason_ = false;
@@ -106,7 +132,7 @@ template <HeapMojoWrapperMode Mode>
 class HeapMojoRemoteMoveBaseTest : public TestSupportingGC {
  protected:
   void SetUp() override {
-    context_ = MakeGarbageCollected<MockContextLifecycleNotifier>();
+    context_ = MakeGarbageCollected<MockContext>();
     HeapMojoRemote<sample::blink::Service, Mode> remote(context_);
     owner_ = MakeGarbageCollected<RemoteOwner<Mode>>(std::move(remote));
     scoped_refptr<base::NullTaskRunner> null_task_runner =
@@ -116,7 +142,7 @@ class HeapMojoRemoteMoveBaseTest : public TestSupportingGC {
   }
 
   ServiceImpl impl_;
-  Persistent<MockContextLifecycleNotifier> context_;
+  Persistent<MockContext> context_;
   Persistent<RemoteOwner<Mode>> owner_;
 };
 
@@ -125,6 +151,9 @@ class HeapMojoRemoteMoveBaseTest : public TestSupportingGC {
 class HeapMojoRemoteDestroyContextWithContextObserverTest
     : public HeapMojoRemoteDestroyContextBaseTest<
           HeapMojoWrapperMode::kWithContextObserver> {};
+class HeapMojoRemoteDestroyContextWithoutContextObserverTest
+    : public HeapMojoRemoteDestroyContextBaseTest<
+          HeapMojoWrapperMode::kWithoutContextObserver> {};
 class HeapMojoRemoteDestroyContextForceWithoutContextObserverTest
     : public HeapMojoRemoteDestroyContextBaseTest<
           HeapMojoWrapperMode::kForceWithoutContextObserver> {};
@@ -148,6 +177,29 @@ TEST_F(HeapMojoRemoteDestroyContextWithContextObserverTest,
   EXPECT_TRUE(owner_->remote().is_bound());
   context_->NotifyContextDestroyed();
   EXPECT_FALSE(owner_->remote().is_bound());
+}
+
+// Destroy the context without context observer and check that the connection is
+// disconnected.
+TEST_F(HeapMojoRemoteDestroyContextWithoutContextObserverTest,
+       ResetsOnContextDestroyedWhenFinchEnabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeaturesAndParameters(
+      {{kHeapMojoUseContextObserver, {}}}, {});
+  EXPECT_TRUE(owner_->remote().is_bound());
+  context_->NotifyContextDestroyed();
+  EXPECT_FALSE(owner_->remote().is_bound());
+}
+
+// Destroy the context without context observer and check that the connection is
+// still connected.
+TEST_F(HeapMojoRemoteDestroyContextWithoutContextObserverTest,
+       ResetsOnContextDestroyedWhenFinchDisabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeaturesAndParameters({}, {kHeapMojoUseContextObserver});
+  EXPECT_TRUE(owner_->remote().is_bound());
+  context_->NotifyContextDestroyed();
+  EXPECT_TRUE(owner_->remote().is_bound());
 }
 
 // Destroy the context without context observer and check that the connection is

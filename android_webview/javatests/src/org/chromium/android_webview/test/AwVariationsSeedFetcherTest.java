@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.android_webview.test;
 
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
@@ -38,17 +37,11 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.components.background_task_scheduler.TaskIds;
-import org.chromium.components.variations.VariationsSeedOuterClass.VariationsSeed;
 import org.chromium.components.variations.firstrun.VariationsSeedFetcher;
-import org.chromium.components.variations.firstrun.VariationsSeedFetcher.DateTime;
-import org.chromium.components.variations.firstrun.VariationsSeedFetcher.SeedInfo;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -60,7 +53,6 @@ import java.util.concurrent.TimeoutException;
 @OnlyRunIn(SINGLE_PROCESS)
 public class AwVariationsSeedFetcherTest {
     private static final int HTTP_NOT_FOUND = 404;
-    private static final int HTTP_NOT_MODIFIED = 304;
     private static final int JOB_ID = TaskIds.WEBVIEW_VARIATIONS_SEED_FETCH_JOB_ID;
     private static final long DOWNLOAD_DURATION = 10;
     private static final long JOB_DELAY = 2000;
@@ -115,6 +107,8 @@ public class AwVariationsSeedFetcherTest {
             Assert.assertEquals("Job scheduled with wrong ID", JOB_ID, job.getId());
             Assert.assertEquals("Job scheduled with wrong network type",
                     JobInfo.NETWORK_TYPE_ANY, job.getNetworkType());
+            Assert.assertTrue("Job scheduled without charging requirement",
+                    job.isRequireCharging());
             mJob = job;
             return JobScheduler.RESULT_SUCCESS;
         }
@@ -123,30 +117,17 @@ public class AwVariationsSeedFetcherTest {
     // A test VariationsSeedFetcher which doesn't actually download seeds, but verifies the request
     // parameters.
     private class TestVariationsSeedFetcher extends VariationsSeedFetcher {
-        private static final String SAVED_VARIATIONS_SEED_SERIAL_NUMBER = "savedSerialNumber";
-        private Date mDownloadDate;
-
         public int fetchResult;
 
         @Override
         public SeedFetchInfo downloadContent(@VariationsSeedFetcher.VariationsPlatform int platform,
-                String restrictMode, String milestone, String channel, SeedInfo curSeedInfo) {
+                String restrictMode, String milestone, String channel) {
             Assert.assertEquals(VariationsSeedFetcher.VariationsPlatform.ANDROID_WEBVIEW, platform);
             Assert.assertTrue(Integer.parseInt(milestone) > 0);
             mClock.timestamp += DOWNLOAD_DURATION;
 
             SeedFetchInfo fetchInfo = new SeedFetchInfo();
-            // Pretend the servers-side |serialNumber| equals |SAVED_VARIATIONS_SEED_SERIAL_NUMBER|
-            // and return |HTTP_NOT_MODIFIED|
-            if (curSeedInfo != null
-                    && curSeedInfo.getParsedVariationsSeed().getSerialNumber().equals(
-                            SAVED_VARIATIONS_SEED_SERIAL_NUMBER)) {
-                fetchInfo.seedInfo = curSeedInfo;
-                fetchInfo.seedInfo.date = getDateTime().newDate().getTime();
-                fetchInfo.seedFetchResult = HTTP_NOT_MODIFIED;
-            } else {
-                fetchInfo.seedFetchResult = fetchResult;
-            }
+            fetchInfo.seedFetchResult = fetchResult;
             return fetchInfo;
         }
     }
@@ -155,7 +136,7 @@ public class AwVariationsSeedFetcherTest {
     private class FailingVariationsSeedFetcher extends VariationsSeedFetcher {
         @Override
         public SeedFetchInfo downloadContent(@VariationsSeedFetcher.VariationsPlatform int platform,
-                String restrictMode, String milestone, String channel, SeedInfo curSeedInfo) {
+                String restrictMode, String milestone, String channel) {
             SeedFetchInfo fetchInfo = new SeedFetchInfo();
             fetchInfo.seedFetchResult = -1;
             return fetchInfo;
@@ -333,40 +314,6 @@ public class AwVariationsSeedFetcherTest {
         }
     }
 
-    // Tests the default behavior (without --finch-seed-no-charging-requirement flag) requires the
-    // device to be charging.
-    @Test
-    @SmallTest
-    public void testFinchSeedChargingRequiredByDefault() {
-        File stamp = VariationsUtils.getStampFile();
-        try {
-            AwVariationsSeedFetcher.scheduleIfNeeded();
-            JobInfo job = mScheduler.getPendingJob(JOB_ID);
-            Assert.assertNotNull("Job should have been scheduled", job);
-            Assert.assertTrue("Job should require charging but does not", job.isRequireCharging());
-        } finally {
-            mScheduler.clear();
-        }
-    }
-
-    // Tests that the --finch-seed-no-charging-requirement flag means the job does not require
-    // charging.
-    @Test
-    @SmallTest
-    @CommandLineFlags.Add(AwSwitches.FINCH_SEED_NO_CHARGING_REQUIREMENT)
-    public void testFinchSeedChargingNotRequiredWithSwitch() {
-        File stamp = VariationsUtils.getStampFile();
-        try {
-            AwVariationsSeedFetcher.scheduleIfNeeded();
-            JobInfo job = mScheduler.getPendingJob(JOB_ID);
-            Assert.assertNotNull("Job should have been scheduled", job);
-            Assert.assertFalse("Job should not require charging when flag is set but it does",
-                    job.isRequireCharging());
-        } finally {
-            mScheduler.clear();
-        }
-    }
-
     @Test
     @SmallTest
     public void testFetch() throws IOException, TimeoutException {
@@ -472,6 +419,8 @@ public class AwVariationsSeedFetcherTest {
 
             VariationsServiceMetricsHelper metrics =
                     VariationsServiceMetricsHelper.fromVariationsSharedPreferences(mContext);
+            Assert.assertEquals(HTTP_NOT_FOUND, metrics.getSeedFetchResult());
+            Assert.assertEquals(DOWNLOAD_DURATION, metrics.getSeedFetchTime());
             Assert.assertEquals(START_TIME, metrics.getLastJobStartTime());
             Assert.assertFalse(metrics.hasLastEnqueueTime());
             Assert.assertFalse(metrics.hasJobInterval());
@@ -506,6 +455,8 @@ public class AwVariationsSeedFetcherTest {
 
             VariationsServiceMetricsHelper metrics =
                     VariationsServiceMetricsHelper.fromVariationsSharedPreferences(mContext);
+            Assert.assertEquals(HTTP_NOT_FOUND, metrics.getSeedFetchResult());
+            Assert.assertEquals(DOWNLOAD_DURATION, metrics.getSeedFetchTime());
             Assert.assertEquals(START_TIME + JOB_DELAY, metrics.getLastJobStartTime());
             Assert.assertEquals(JOB_DELAY, metrics.getJobQueueTime());
             Assert.assertFalse(metrics.hasLastEnqueueTime());
@@ -543,6 +494,8 @@ public class AwVariationsSeedFetcherTest {
 
             VariationsServiceMetricsHelper metrics =
                     VariationsServiceMetricsHelper.fromVariationsSharedPreferences(mContext);
+            Assert.assertEquals(HTTP_NOT_FOUND, metrics.getSeedFetchResult());
+            Assert.assertEquals(DOWNLOAD_DURATION, metrics.getSeedFetchTime());
             Assert.assertEquals(
                     START_TIME + appRunDelay + JOB_DELAY, metrics.getLastJobStartTime());
             Assert.assertEquals(appRunDelay + JOB_DELAY, metrics.getJobInterval());
@@ -550,57 +503,6 @@ public class AwVariationsSeedFetcherTest {
             Assert.assertFalse(metrics.hasLastEnqueueTime());
         } finally {
             VariationsTestUtils.deleteSeeds(); // Remove the stamp file.
-        }
-    }
-
-    // Test the If-None-Match header with a serialNumber that matches the server-side serial number.
-    // No new seed data is returned the return value is HTTP_NOT_MODIFIED.
-    @Test
-    @MediumTest
-    public void testNotModifiedResponse() throws IOException, TimeoutException {
-        FileOutputStream out = null;
-        try {
-            TestAwVariationsSeedFetcher fetcher = new TestAwVariationsSeedFetcher();
-            SeedInfo seedInfo = new SeedInfo();
-            seedInfo.signature = "signature";
-            seedInfo.country = "US";
-            seedInfo.isGzipCompressed = false;
-
-            Date lastSeedDate = new Date();
-            lastSeedDate.setTime(12345L);
-            seedInfo.date = lastSeedDate.getTime();
-
-            final Date date = mock(Date.class);
-            when(date.getTime()).thenReturn(67890L);
-            final DateTime dt = mock(DateTime.class);
-            when(dt.newDate()).thenReturn(date);
-            mDownloader.setDateTime(dt);
-
-            VariationsSeed seed =
-                    VariationsSeed.newBuilder()
-                            .setVersion("V")
-                            .setSerialNumber(
-                                    TestVariationsSeedFetcher.SAVED_VARIATIONS_SEED_SERIAL_NUMBER)
-                            .build();
-            seedInfo.seedData = seed.toByteArray();
-
-            out = new FileOutputStream(VariationsUtils.getSeedFile());
-            VariationsUtils.writeSeed(out, seedInfo);
-
-            fetcher.onStartJob(null);
-            fetcher.helper.waitForCallback(
-                    "Timeout out waiting for AwVariationsSeedFetcher to call downloadContent", 0);
-
-            SeedInfo updatedSeedInfo = VariationsUtils.readSeedFile(VariationsUtils.getSeedFile());
-
-            Assert.assertEquals(seedInfo.signature, updatedSeedInfo.signature);
-            Assert.assertEquals(seedInfo.country, updatedSeedInfo.country);
-            Assert.assertEquals(seedInfo.isGzipCompressed, updatedSeedInfo.isGzipCompressed);
-            Assert.assertEquals(67890L, updatedSeedInfo.date);
-            Arrays.equals(seedInfo.seedData, updatedSeedInfo.seedData);
-        } finally {
-            VariationsUtils.closeSafely(out);
-            VariationsTestUtils.deleteSeeds(); // Remove seed files.
         }
     }
 }

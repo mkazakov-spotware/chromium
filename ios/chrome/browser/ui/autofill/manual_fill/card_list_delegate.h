@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,7 @@
 // Delegate for actions in manual fallback's cards list.
 @protocol CardListDelegate
 
-// Open feature to add a credit card.
-- (void)openAddCreditCard;
-
-// Open cards settings.
+// Opens cards settings.
 - (void)openCardSettings;
 
 // Open credit card unlock, through CVC, prompt.

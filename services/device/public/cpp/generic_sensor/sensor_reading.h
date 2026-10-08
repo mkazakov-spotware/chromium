@@ -1,11 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef SERVICES_DEVICE_PUBLIC_CPP_GENERIC_SENSOR_SENSOR_READING_H_
 #define SERVICES_DEVICE_PUBLIC_CPP_GENERIC_SENSOR_SENSOR_READING_H_
 
-#include <type_traits>
 #include "device/base/synchronization/one_writer_seqlock.h"
 #include "services/device/public/mojom/sensor.mojom.h"
 
@@ -18,9 +17,6 @@ class SensorReadingField {
  public:
   static_assert(sizeof(Data) <= sizeof(int64_t),
                 "The field size must be <= 64 bits.");
-  static_assert(std::is_trivially_destructible<Data>::value,
-                "Data must be a trivially destructible type.");
-
   SensorReadingField() = default;
   SensorReadingField(Data value) { storage_.value = value; }
   SensorReadingField& operator=(Data value) {
@@ -36,26 +32,22 @@ class SensorReadingField {
   union Storage {
     int64_t unused;
     Data value;
-    Storage() {
-      // There is a static_assert above that checks that Data is trivially
-      // destructible, so we do not need a custom destructor here that invokes
-      // Data's and can keep Storage and SensorReadingField trivially copyable.
-      new (&value) Data();
-    }
+    Storage() { new (&value) Data(); }
+    ~Storage() { value.~Data(); }
   };
   Storage storage_;
 };
 
 struct SensorReadingBase {
   SensorReadingBase();
-  ~SensorReadingBase() = default;
+  ~SensorReadingBase();
   SensorReadingField<double> timestamp;
 };
 
 // Represents raw sensor reading data: timestamp and 4 values.
 struct SensorReadingRaw : public SensorReadingBase {
   SensorReadingRaw();
-  ~SensorReadingRaw() = default;
+  ~SensorReadingRaw();
 
   constexpr static size_t kValuesCount = 4;
   SensorReadingField<double> values[kValuesCount];
@@ -64,14 +56,14 @@ struct SensorReadingRaw : public SensorReadingBase {
 // Represents a single data value.
 struct SensorReadingSingle : public SensorReadingBase {
   SensorReadingSingle();
-  ~SensorReadingSingle() = default;
+  ~SensorReadingSingle();
   SensorReadingField<double> value;
 };
 
 // Represents a vector in 3d coordinate system.
 struct SensorReadingXYZ : public SensorReadingBase {
   SensorReadingXYZ();
-  ~SensorReadingXYZ() = default;
+  ~SensorReadingXYZ();
   SensorReadingField<double> x;
   SensorReadingField<double> y;
   SensorReadingField<double> z;
@@ -80,7 +72,7 @@ struct SensorReadingXYZ : public SensorReadingBase {
 // Represents quaternion.
 struct SensorReadingQuat : public SensorReadingXYZ {
   SensorReadingQuat();
-  ~SensorReadingQuat() = default;
+  ~SensorReadingQuat();
   SensorReadingField<double> w;
 };
 
@@ -113,17 +105,6 @@ struct SensorReadingQuat : public SensorReadingXYZ {
 // Accelerometer Specification.
 // accel.z: acceleration on the z-axis in SI meters per second squared
 // (m/s^2) units. It corresponds to LinearAccelerationSensor.z in the W3C
-// Accelerometer Specification.
-//
-// GRAVITY:
-// accel.x: acceleration on the x-axis in SI meters per second squared
-// (m/s^2) units. It corresponds to GravitySensor.x in the W3C
-// Accelerometer Specification.
-// accel.y: acceleration on the y-axis in SI meters per second squared
-// (m/s^2) units. It corresponds to GravitySensor.y in the W3C
-// Accelerometer Specification.
-// accel.z: acceleration on the z-axis in SI meters per second squared
-// (m/s^2) units. It corresponds to GravitySensor.z in the W3C
 // Accelerometer Specification.
 //
 // GYROSCOPE:
@@ -189,14 +170,11 @@ struct SensorReadingQuat : public SensorReadingXYZ {
 // the device in 3D space.
 
 union SensorReading {
-  static_assert(std::is_trivially_destructible<SensorReadingRaw>::value,
-                "SensorReading's fields must be trivially destructible.");
-
   SensorReadingRaw raw;
   SensorReadingSingle als;             // AMBIENT_LIGHT
   SensorReadingSingle proximity;       // PROXIMITY
   SensorReadingSingle pressure;        // PRESSURE
-  SensorReadingXYZ accel;  // ACCELEROMETER, LINEAR_ACCELERATION, GRAVITY
+  SensorReadingXYZ accel;              // ACCELEROMETER, LINEAR_ACCELERATION
   SensorReadingXYZ gyro;               // GYROSCOPE
   SensorReadingXYZ magn;               // MAGNETOMETER
   SensorReadingQuat orientation_quat;  // ABSOLUTE_ORIENTATION_QUATERNION,
@@ -207,13 +185,13 @@ union SensorReading {
   double timestamp() const { return raw.timestamp; }
 
   SensorReading();
-  ~SensorReading() = default;
+  SensorReading(const SensorReading&);
+  ~SensorReading();
+  SensorReading& operator=(const SensorReading&);
 };
 
 static_assert(sizeof(SensorReading) == sizeof(SensorReadingRaw),
               "Check SensorReading size.");
-static_assert(std::is_trivially_copyable<SensorReading>::value,
-              "SensorReading must be trivially copyable.");
 
 // This structure represents sensor reading buffer: sensor reading and seqlock
 // for synchronization.

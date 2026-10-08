@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@ StatusTray::~StatusTray() {
 
 StatusIcon* StatusTray::CreateStatusIcon(StatusIconType type,
                                          const gfx::ImageSkia& image,
-                                         const std::u16string& tool_tip) {
+                                         const base::string16& tool_tip) {
   auto icon = CreatePlatformStatusIcon(type, image, tool_tip);
   if (!icon)
     return nullptr;

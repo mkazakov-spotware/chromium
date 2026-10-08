@@ -19,10 +19,8 @@
 
 #include "third_party/blink/renderer/core/svg/svg_path_string_builder.h"
 
-#include "base/notreached.h"
 #include "third_party/blink/renderer/core/svg/svg_path_data.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
-#include "ui/gfx/geometry/point_f.h"
 
 namespace blink {
 
@@ -47,9 +45,9 @@ static void AppendBool(StringBuilder& string_builder, bool value) {
 }
 
 static void AppendPoint(StringBuilder& string_builder,
-                        const gfx::PointF& point) {
-  AppendFloat(string_builder, point.x());
-  AppendFloat(string_builder, point.y());
+                        const FloatPoint& point) {
+  AppendFloat(string_builder, point.X());
+  AppendFloat(string_builder, point.Y());
 }
 
 // TODO(fs): Centralized location for this (SVGPathSeg.h?)
@@ -92,11 +90,11 @@ void SVGPathStringBuilder::EmitSegment(const PathSegmentData& segment) {
       break;
     case kPathSegLineToHorizontalRel:
     case kPathSegLineToHorizontalAbs:
-      AppendFloat(string_builder_, segment.target_point.x());
+      AppendFloat(string_builder_, segment.target_point.X());
       break;
     case kPathSegLineToVerticalRel:
     case kPathSegLineToVerticalAbs:
-      AppendFloat(string_builder_, segment.target_point.y());
+      AppendFloat(string_builder_, segment.target_point.Y());
       break;
     case kPathSegClosePath:
       break;
@@ -119,7 +117,7 @@ void SVGPathStringBuilder::EmitSegment(const PathSegmentData& segment) {
     case kPathSegArcRel:
     case kPathSegArcAbs:
       AppendPoint(string_builder_, segment.point1);
-      AppendFloat(string_builder_, segment.point2.x());
+      AppendFloat(string_builder_, segment.point2.X());
       AppendBool(string_builder_, segment.arc_large);
       AppendBool(string_builder_, segment.arc_sweep);
       AppendPoint(string_builder_, segment.target_point);

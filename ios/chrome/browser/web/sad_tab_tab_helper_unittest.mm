@@ -1,26 +1,26 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/web/sad_tab_tab_helper.h"
 
-#import <memory>
+#include <memory>
 
-#import "base/test/task_environment.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#include "base/test/task_environment.h"
+#include "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#include "ios/chrome/browser/chrome_url_constants.h"
 #import "ios/chrome/browser/ntp/new_tab_page_tab_helper.h"
 #import "ios/chrome/browser/ntp/new_tab_page_tab_helper_delegate.h"
 #import "ios/chrome/browser/ui/util/named_guide.h"
-#import "ios/chrome/browser/url/chrome_url_constants.h"
 #import "ios/chrome/browser/web/features.h"
 #import "ios/chrome/browser/web/page_placeholder_tab_helper.h"
 #import "ios/chrome/browser/web/sad_tab_tab_helper_delegate.h"
 #import "ios/chrome/test/scoped_key_window.h"
 #import "ios/web/public/test/fakes/fake_navigation_context.h"
-#import "ios/web/public/test/fakes/fake_navigation_manager.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "testing/platform_test.h"
+#import "ios/web/public/test/fakes/test_navigation_manager.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -29,7 +29,7 @@
 
 // Delegate for testing.
 @interface SadTabTabHelperTestDelegate : NSObject<SadTabTabHelperDelegate>
-// `repeatedFailure` could be used by the delegate to display different types of
+// |repeatedFailure| could be used by the delegate to display different types of
 // SadTabs.
 @property(nonatomic, assign) BOOL repeatedFailure;
 // YES if SadTab is currently being shown.
@@ -79,14 +79,14 @@ class SadTabTabHelperTest : public PlatformTest {
     NamedGuide* guide = [[NamedGuide alloc] initWithName:kContentAreaGuide];
     [web_state_view_ addLayoutGuide:guide];
 
-    SadTabTabHelper::CreateForWebState(
-        &web_state_, SadTabTabHelper::kDefaultRepeatFailureInterval);
+    SadTabTabHelper::CreateForWebState(&web_state_);
     tab_helper()->SetDelegate(sad_tab_delegate_);
     PagePlaceholderTabHelper::CreateForWebState(&web_state_);
     OCMStub([application_ sharedApplication]).andReturn(application_);
 
     // Setup navigation manager.
-    auto navigation_manager = std::make_unique<web::FakeNavigationManager>();
+    std::unique_ptr<web::TestNavigationManager> navigation_manager =
+        std::make_unique<web::TestNavigationManager>();
     navigation_manager->SetBrowserState(browser_state_.get());
     navigation_manager_ = navigation_manager.get();
     web_state_.SetNavigationManager(std::move(navigation_manager));
@@ -103,8 +103,8 @@ class SadTabTabHelperTest : public PlatformTest {
   ScopedKeyWindow scoped_key_window_;
   UIView* web_state_view_;
   std::unique_ptr<ChromeBrowserState> browser_state_;
-  web::FakeWebState web_state_;
-  web::FakeNavigationManager* navigation_manager_;
+  web::TestWebState web_state_;
+  web::TestNavigationManager* navigation_manager_;
   id application_;
   SadTabTabHelperTestDelegate* sad_tab_delegate_;
 };
@@ -346,17 +346,18 @@ TEST_F(SadTabTabHelperTest, FailureInterval) {
   OCMStub([application_ applicationState]).andReturn(UIApplicationStateActive);
 
   // N.B. The test fixture web_state_ is not used for this test as a custom
-  // `repeat_failure_interval` is required.
+  // |repeat_failure_interval| is required.
   std::unique_ptr<ChromeBrowserState> browser_state =
       TestChromeBrowserState::Builder().Build();
 
-  auto navigation_manager = std::make_unique<web::FakeNavigationManager>();
+  std::unique_ptr<web::TestNavigationManager> navigation_manager =
+      std::make_unique<web::TestNavigationManager>();
   navigation_manager->SetBrowserState(browser_state_.get());
 
-  web::FakeWebState web_state;
+  web::TestWebState web_state;
   web_state.SetBrowserState(browser_state.get());
   web_state.SetNavigationManager(std::move(navigation_manager));
-  SadTabTabHelper::CreateForWebState(&web_state, base::TimeDelta());
+  SadTabTabHelper::CreateForWebState(&web_state, 0.0f);
   SadTabTabHelper::FromWebState(&web_state)->SetDelegate(sad_tab_delegate_);
   PagePlaceholderTabHelper::CreateForWebState(&web_state);
   web_state.WasShown();

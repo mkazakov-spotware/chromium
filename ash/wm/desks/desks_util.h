@@ -1,16 +1,15 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_WM_DESKS_DESKS_UTIL_H_
 #define ASH_WM_DESKS_DESKS_UTIL_H_
 
-#include <algorithm>
+#include <array>
 #include <vector>
 
 #include "ash/ash_export.h"
 #include "ash/public/cpp/shell_window_ids.h"
-#include "base/check_op.h"
 #include "ui/compositor/compositor.h"
 
 namespace aura {
@@ -23,17 +22,11 @@ class Compositor;
 
 namespace ash {
 
-class Desk;
 namespace desks_util {
 
-// Note: the max number of desks depends on a runtime flag and the function
-// `GetMaxNumberOfDesks` below will return that value. The value returned from
-// that function will not be more than this constant.
-constexpr size_t kDesksUpperLimit = 16;
+constexpr size_t kMaxNumberOfDesks = 4;
 
-ASH_EXPORT size_t GetMaxNumberOfDesks();
-
-ASH_EXPORT std::vector<int> GetDesksContainersIds();
+ASH_EXPORT const std::array<int, kMaxNumberOfDesks>& GetDesksContainersIds();
 
 ASH_EXPORT std::vector<aura::Window*> GetDesksContainers(aura::Window* root);
 
@@ -56,64 +49,15 @@ ASH_EXPORT aura::Window* GetActiveDeskContainerForRoot(aura::Window* root);
 
 ASH_EXPORT bool BelongsToActiveDesk(aura::Window* window);
 
-// If `context` is a descendent window of a desk container, return that desk
-// container, otherwise return nullptr. Note that this will return nullptr if
-// `context` is a descendent of the float container, even if it is associated
-// with a desk container.
+// If |context| is a descendent window of a desk container, return that desk
+// container, otherwise return nullptr.
 ASH_EXPORT aura::Window* GetDeskContainerForContext(aura::Window* context);
-
-// If `context` belong to a desk, return the desk pointer, otherwise return
-// nullptr. Note that floated window is not in the desk container but still
-// considered as "belonging" to the desk, as it's only visible on a particular
-// desk.
-const Desk* GetDeskForContext(aura::Window* context);
 
 // Returns true if the DesksBar widget should be created in overview mode.
 ASH_EXPORT bool ShouldDesksBarBeCreated();
 
 // Selects and returns the compositor to measure performance metrics.
 ui::Compositor* GetSelectedCompositorForPerformanceMetrics();
-
-// Check if a desk is being dragged.
-ASH_EXPORT bool IsDraggingAnyDesk();
-
-// Returns whether a |window| is visible on all workspaces.
-ASH_EXPORT bool IsWindowVisibleOnAllWorkspaces(const aura::Window* window);
-
-// Returns true for windows that are interesting from an all-desk z-order
-// tracking perspective.
-ASH_EXPORT bool IsZOrderTracked(aura::Window* window);
-
-// Get the position of `window` in `windows` (as filtered by `IsZOrderTracked`)
-// in reverse order. If `window` is not in the list (or isn't z-order tracked),
-// then nullopt is returned.
-ASH_EXPORT absl::optional<size_t> GetWindowZOrder(
-    const std::vector<aura::Window*>& windows,
-    aura::Window* window);
-
-// Move an item at |old_index| to |new_index|.
-template <typename T>
-ASH_EXPORT void ReorderItem(std::vector<T>& items,
-                            int old_index,
-                            int new_index) {
-  const int items_size = static_cast<int>(items.size());
-
-  DCHECK_GE(old_index, 0);
-  DCHECK_LT(old_index, items_size);
-  DCHECK_GE(new_index, 0);
-  DCHECK_LT(new_index, items_size);
-
-  if (old_index == new_index)
-    return;
-
-  auto start_iter = items.begin();
-  const int step = old_index < new_index ? 1 : -1;
-
-  for (auto iter = start_iter + old_index; iter != start_iter + new_index;
-       iter += step) {
-    std::iter_swap(iter, iter + step);
-  }
-}
 
 }  // namespace desks_util
 

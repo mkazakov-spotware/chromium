@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,13 +24,13 @@ import org.chromium.base.test.params.ParameterProvider;
 import org.chromium.base.test.params.ParameterSet;
 import org.chromium.base.test.params.ParameterizedRunner;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.MetricsUtils;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.profiles.OTRProfileID;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.test.ChromeBrowserTestRule;
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
-import org.chromium.chrome.test.util.browser.signin.AccountManagerTestRule;
-import org.chromium.content_public.browser.GlobalRenderFrameHostId;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
@@ -68,18 +68,13 @@ public class WarmupManagerTest {
     }
 
     @Rule
-    public final AccountManagerTestRule mAccountManagerTestRule = new AccountManagerTestRule();
+    public final ChromeBrowserTestRule mChromeBrowserTestRule = new ChromeBrowserTestRule();
 
     private WarmupManager mWarmupManager;
     private Context mContext;
 
     @Before
     public void setUp() throws Exception {
-        // Unlike most of Chrome, the WarmupManager inflates layouts with the application context.
-        // This is because the inflation happens before an activity exists. If you're trying to fix
-        // a failing test, it's important to not add extra theme/style information to this context
-        // in this test because it could hide a real production issue. See https://crbug.com/1246329
-        // for an example.
         mContext = InstrumentationRegistry.getInstrumentation()
                            .getTargetContext()
                            .getApplicationContext();
@@ -97,16 +92,14 @@ public class WarmupManagerTest {
     private static Profile getNonPrimaryOTRProfile() {
         return TestThreadUtils.runOnUiThreadBlockingNoException((Callable<Profile>) () -> {
             OTRProfileID otrProfileID = OTRProfileID.createUnique("CCT:Incognito");
-            return Profile.getLastUsedRegularProfile().getOffTheRecordProfile(
-                    otrProfileID, /*createIfNeeded=*/true);
+            return Profile.getLastUsedRegularProfile().getOffTheRecordProfile(otrProfileID);
         });
     }
 
     private static Profile getPrimaryOTRProfile() {
         return TestThreadUtils.runOnUiThreadBlockingNoException(
                 (Callable<Profile>) ()
-                        -> Profile.getLastUsedRegularProfile().getPrimaryOTRProfile(
-                                /*createIfNeeded=*/true));
+                        -> Profile.getLastUsedRegularProfile().getPrimaryOTRProfile());
     }
 
     private static Profile getRegularProfile() {
@@ -128,31 +121,30 @@ public class WarmupManagerTest {
     @Test
     @SmallTest
     public void testCreateAndTakeSpareRenderer() {
-        final AtomicBoolean isRenderFrameLive = new AtomicBoolean();
+        final AtomicBoolean isRenderViewReady = new AtomicBoolean();
         final AtomicReference<WebContents> webContentsReference = new AtomicReference<>();
 
         PostTask.runOrPostTask(UiThreadTaskTraits.DEFAULT, () -> {
-            mWarmupManager.createSpareWebContents();
+            mWarmupManager.createSpareWebContents(!WarmupManager.FOR_CCT);
             Assert.assertTrue(mWarmupManager.hasSpareWebContents());
-            WebContents webContents = mWarmupManager.takeSpareWebContents(false, false);
+            WebContents webContents =
+                    mWarmupManager.takeSpareWebContents(false, false, !WarmupManager.FOR_CCT);
             Assert.assertNotNull(webContents);
             Assert.assertFalse(mWarmupManager.hasSpareWebContents());
-
-            if (webContents.getMainFrame().isRenderFrameLive()) {
-                isRenderFrameLive.set(true);
-            }
             WebContentsObserver observer = new WebContentsObserver(webContents) {
                 @Override
-                public void renderFrameCreated(GlobalRenderFrameHostId id) {
-                    isRenderFrameLive.set(true);
+                public void renderViewReady() {
+                    isRenderViewReady.set(true);
                 }
             };
-            webContents.addObserver(observer);
 
+            // This is not racy because {@link WebContentsObserver} methods are called on the UI
+            // thread by posting a task. See {@link RenderViewHostImpl::PostRenderViewReady}.
+            webContents.addObserver(observer);
             webContentsReference.set(webContents);
         });
         CriteriaHelper.pollUiThread(
-                () -> isRenderFrameLive.get(), "Spare renderer is not initialized");
+                () -> isRenderViewReady.get(), "Spare renderer is not initialized");
         PostTask.runOrPostTask(
                 UiThreadTaskTraits.DEFAULT, () -> webContentsReference.get().destroy());
     }
@@ -162,8 +154,9 @@ public class WarmupManagerTest {
     @SmallTest
     @UiThreadTest
     public void testTakeSpareWebContents() {
-        mWarmupManager.createSpareWebContents();
-        WebContents webContents = mWarmupManager.takeSpareWebContents(false, false);
+        mWarmupManager.createSpareWebContents(!WarmupManager.FOR_CCT);
+        WebContents webContents =
+                mWarmupManager.takeSpareWebContents(false, false, !WarmupManager.FOR_CCT);
         Assert.assertNotNull(webContents);
         Assert.assertFalse(mWarmupManager.hasSpareWebContents());
         webContents.destroy();
@@ -173,11 +166,12 @@ public class WarmupManagerTest {
     @SmallTest
     @UiThreadTest
     public void testTakeSpareWebContentsChecksArguments() {
-        mWarmupManager.createSpareWebContents();
-        Assert.assertNull(mWarmupManager.takeSpareWebContents(true, false));
-        Assert.assertNull(mWarmupManager.takeSpareWebContents(true, true));
+        mWarmupManager.createSpareWebContents(!WarmupManager.FOR_CCT);
+        Assert.assertNull(mWarmupManager.takeSpareWebContents(true, false, !WarmupManager.FOR_CCT));
+        Assert.assertNull(mWarmupManager.takeSpareWebContents(true, true, !WarmupManager.FOR_CCT));
         Assert.assertTrue(mWarmupManager.hasSpareWebContents());
-        Assert.assertNotNull(mWarmupManager.takeSpareWebContents(false, true));
+        Assert.assertNotNull(
+                mWarmupManager.takeSpareWebContents(false, true, !WarmupManager.FOR_CCT));
         Assert.assertFalse(mWarmupManager.hasSpareWebContents());
     }
 
@@ -185,9 +179,64 @@ public class WarmupManagerTest {
     @SmallTest
     @UiThreadTest
     public void testClearsDeadWebContents() {
-        mWarmupManager.createSpareWebContents();
-        WebContentsUtils.simulateRendererKilled(mWarmupManager.mSpareWebContents);
-        Assert.assertNull(mWarmupManager.takeSpareWebContents(false, false));
+        mWarmupManager.createSpareWebContents(!WarmupManager.FOR_CCT);
+        WebContentsUtils.simulateRendererKilled(mWarmupManager.mSpareWebContents, false);
+        Assert.assertNull(
+                mWarmupManager.takeSpareWebContents(false, false, !WarmupManager.FOR_CCT));
+    }
+
+    @Test
+    @SmallTest
+    @UiThreadTest
+    public void testRecordWebContentsStatus() {
+        String name = WarmupManager.WEBCONTENTS_STATUS_HISTOGRAM;
+        MetricsUtils.HistogramDelta createdDelta =
+                new MetricsUtils.HistogramDelta(name, WarmupManager.WebContentsStatus.CREATED);
+        MetricsUtils.HistogramDelta usedDelta =
+                new MetricsUtils.HistogramDelta(name, WarmupManager.WebContentsStatus.USED);
+        MetricsUtils.HistogramDelta killedDelta =
+                new MetricsUtils.HistogramDelta(name, WarmupManager.WebContentsStatus.KILLED);
+        MetricsUtils.HistogramDelta destroyedDelta =
+                new MetricsUtils.HistogramDelta(name, WarmupManager.WebContentsStatus.DESTROYED);
+        MetricsUtils.HistogramDelta stolenDelta =
+                new MetricsUtils.HistogramDelta(name, WarmupManager.WebContentsStatus.STOLEN);
+
+        // Created, used.
+        mWarmupManager.createSpareWebContents(WarmupManager.FOR_CCT);
+        Assert.assertEquals(1, createdDelta.getDelta());
+        Assert.assertNotNull(
+                mWarmupManager.takeSpareWebContents(false, false, WarmupManager.FOR_CCT));
+        Assert.assertEquals(1, usedDelta.getDelta());
+
+        // Created, killed.
+        mWarmupManager.createSpareWebContents(WarmupManager.FOR_CCT);
+        Assert.assertEquals(2, createdDelta.getDelta());
+        Assert.assertNotNull(mWarmupManager.mSpareWebContents);
+        WebContentsUtils.simulateRendererKilled(mWarmupManager.mSpareWebContents, false);
+        Assert.assertEquals(1, killedDelta.getDelta());
+        Assert.assertNull(mWarmupManager.takeSpareWebContents(false, false, WarmupManager.FOR_CCT));
+
+        // Created, destroyed.
+        mWarmupManager.createSpareWebContents(WarmupManager.FOR_CCT);
+        Assert.assertEquals(3, createdDelta.getDelta());
+        Assert.assertNotNull(mWarmupManager.mSpareWebContents);
+        mWarmupManager.destroySpareWebContents();
+        Assert.assertEquals(1, destroyedDelta.getDelta());
+
+        // Created, stolen.
+        mWarmupManager.createSpareWebContents(WarmupManager.FOR_CCT);
+        Assert.assertEquals(4, createdDelta.getDelta());
+        Assert.assertNotNull(
+                mWarmupManager.takeSpareWebContents(false, false, !WarmupManager.FOR_CCT));
+        Assert.assertEquals(1, stolenDelta.getDelta());
+
+        // Created, used, not for CCT.
+        mWarmupManager.createSpareWebContents(!WarmupManager.FOR_CCT);
+        Assert.assertEquals(4, createdDelta.getDelta());
+        Assert.assertNotNull(
+                mWarmupManager.takeSpareWebContents(false, false, !WarmupManager.FOR_CCT));
+        Assert.assertEquals(1, stolenDelta.getDelta());
+        Assert.assertEquals(1, usedDelta.getDelta());
     }
 
     /** Checks that the View inflation works. */

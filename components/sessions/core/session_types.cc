@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,7 +33,6 @@ SessionTabGroup::~SessionTabGroup() {}
 
 SessionWindow::SessionWindow()
     : window_id(SessionID::NewUnique()),
-      visible_on_all_workspaces(false),
       selected_tab_index(-1),
       type(TYPE_NORMAL),
       is_constrained(true),

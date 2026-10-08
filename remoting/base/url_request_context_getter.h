@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "net/cert_net/cert_net_fetcher_url_request.h"
+#include "base/macros.h"
 #include "net/url_request/url_request_context_getter.h"
 
 namespace base {
@@ -25,9 +25,6 @@ class URLRequestContextGetter : public net::URLRequestContextGetter {
   explicit URLRequestContextGetter(
       scoped_refptr<base::SingleThreadTaskRunner> network_task_runner);
 
-  URLRequestContextGetter(const URLRequestContextGetter&) = delete;
-  URLRequestContextGetter& operator=(const URLRequestContextGetter&) = delete;
-
   // Overridden from net::URLRequestContextGetter:
   net::URLRequestContext* GetURLRequestContext() override;
   scoped_refptr<base::SingleThreadTaskRunner> GetNetworkTaskRunner()
@@ -40,7 +37,8 @@ class URLRequestContextGetter : public net::URLRequestContextGetter {
   scoped_refptr<base::SingleThreadTaskRunner> network_task_runner_;
   std::unique_ptr<net::ProxyConfigService> proxy_config_service_;
   std::unique_ptr<net::URLRequestContext> url_request_context_;
-  scoped_refptr<net::CertNetFetcherURLRequest> cert_net_fetcher_;
+
+  DISALLOW_COPY_AND_ASSIGN(URLRequestContextGetter);
 };
 
 }  // namespace remoting

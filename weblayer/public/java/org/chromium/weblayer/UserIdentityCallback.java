@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,11 @@ import androidx.annotation.NonNull;
  * Used to provide details about the current user's identity.
  *
  * If this callback is implemented and set on {@link Profile}, the information is used to better
- * organize contact details in the navigator.contacts UI as well as by Autofill Assistant.
+ * organize contact details in the navigator.contacts UI.
+ *
+ * @since 87
  */
-abstract class UserIdentityCallback {
+public abstract class UserIdentityCallback {
     /**
      * The current user's email address. If no user is signed in or the email is currently
      * unavailable, this should return an empty string.
@@ -38,9 +40,8 @@ abstract class UserIdentityCallback {
      *         size avatar is returned, WebLayer will scale the returned image.
      * @param avatarLoadedCallback to be called with the avatar when it is available (synchronously
      *         or asynchronously). Until such time that it's called, WebLayer will fall back to a
-     *         monogram based on {@link getFullName()}, e.g. encircled "JD" for "Jill Doe". This
-     *         will no-op if the associated {@link Profile} object is destroyed before this is
-     *         called.
+     *         monogram based on {@link getFullName()}, e.g. encircled "JD" for "Jill Doe".
+     * @since 87
      */
     public void getAvatar(int desiredSize, @NonNull ValueCallback<Bitmap> avatarLoadedCallback) {}
 }

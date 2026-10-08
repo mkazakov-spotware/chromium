@@ -1,10 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/test/base/ui_test_utils.h"
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
 
 #include <stddef.h>
 
@@ -14,10 +12,8 @@
 #include "base/callback.h"
 #include "base/callback_helpers.h"
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
-#include "base/logging.h"
 #include "base/memory/ref_counted.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
@@ -52,6 +48,7 @@
 #include "components/omnibox/browser/autocomplete_controller.h"
 #include "components/omnibox/browser/omnibox_controller_emitter.h"
 #include "components/omnibox/browser/omnibox_edit_model.h"
+#include "components/omnibox/browser/omnibox_popup_model.h"
 #include "components/omnibox/browser/omnibox_view.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/download_manager.h"
@@ -76,10 +73,9 @@
 #include "services/device/public/mojom/geoposition.mojom.h"
 #include "services/network/public/cpp/resource_request_body.h"
 #include "services/network/public/mojom/cookie_manager.mojom.h"
-#include "third_party/blink/public/common/chrome_debug_urls.h"
 #include "ui/gfx/geometry/rect.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #endif
 
@@ -149,23 +145,16 @@ class AppModalDialogWaiter : public javascript_dialogs::AppModalDialogObserver {
     // is someone who doesn't know the requirement to disable the hang monitor,
     // and this will catch that case.
     auto* contents = dialog->web_contents();
-    bool found_disabled_for_testing = false;
-    contents->GetPrimaryMainFrame()->ForEachRenderFrameHostWithAction(
-        [&found_disabled_for_testing](content::RenderFrameHost* frame) {
-          if (frame->IsBeforeUnloadHangMonitorDisabledForTesting()) {
-            found_disabled_for_testing = true;
-            return content::RenderFrameHost::FrameIterationAction::kStop;
-          }
-          return content::RenderFrameHost::FrameIterationAction::kContinue;
-        });
+    for (auto* frame : contents->GetAllFrames())
+      if (frame->IsBeforeUnloadHangMonitorDisabledForTesting())
+        return;
 
-    ASSERT_TRUE(found_disabled_for_testing)
-        << "If waiting for a beforeunload dialog, the beforeunload timer "
-           "must be disabled on the spawning frame to avoid flakiness.";
+    FAIL() << "If waiting for a beforeunload dialog, the beforeunload timer "
+              "must be disabled on the spawning frame to avoid flakiness.";
   }
 
  private:
-  raw_ptr<javascript_dialogs::AppModalDialogController> dialog_ = nullptr;
+  javascript_dialogs::AppModalDialogController* dialog_ = nullptr;
   scoped_refptr<content::MessageLoopRunner> message_loop_runner_;
 };
 
@@ -173,7 +162,7 @@ class AppModalDialogWaiter : public javascript_dialogs::AppModalDialogObserver {
 class AutocompleteChangeObserver : public AutocompleteController::Observer {
  public:
   explicit AutocompleteChangeObserver(Profile* profile) {
-    scoped_observation_.Observe(
+    scoped_observer_.Add(
         OmniboxControllerEmitter::GetForBrowserContext(profile));
   }
 
@@ -193,14 +182,13 @@ class AutocompleteChangeObserver : public AutocompleteController::Observer {
 
  private:
   base::RunLoop run_loop_;
-  base::ScopedObservation<OmniboxControllerEmitter,
-                          AutocompleteController::Observer>
-      scoped_observation_{this};
+  ScopedObserver<OmniboxControllerEmitter, AutocompleteController::Observer>
+      scoped_observer_{this};
 };
 
 }  // namespace
 
-bool GetCurrentTabTitle(const Browser* browser, std::u16string* title) {
+bool GetCurrentTabTitle(const Browser* browser, base::string16* title) {
   WebContents* web_contents =
       browser->tab_strip_model()->GetActiveWebContents();
   if (!web_contents)
@@ -227,49 +215,34 @@ void NavigateToURLWithPost(Browser* browser, const GURL& url) {
   NavigateToURL(&params);
 }
 
-content::RenderFrameHost* NavigateToURL(Browser* browser, const GURL& url) {
+content::RenderProcessHost* NavigateToURL(Browser* browser, const GURL& url) {
   return NavigateToURLWithDisposition(browser, url,
                                       WindowOpenDisposition::CURRENT_TAB,
                                       BROWSER_TEST_WAIT_FOR_LOAD_STOP);
 }
 
-content::RenderFrameHost*
+content::RenderProcessHost*
 NavigateToURLWithDispositionBlockUntilNavigationsComplete(
     Browser* browser,
     const GURL& url,
     int number_of_navigations,
     WindowOpenDisposition disposition,
     int browser_test_flags) {
-  TRACE_EVENT1("test",
-               "ui_test_utils::"
-               "NavigateToURLWithDispositionBlockUntilNavigationsComplete",
-               "params", [&](perfetto::TracedValue context) {
-                 // TODO(crbug.com/1183371): Replace this with passing more
-                 // parameters to TRACE_EVENT directly when available.
-                 auto dict = std::move(context).WriteDictionary();
-                 dict.Add("url", url);
-                 dict.Add("number_of_navigations", number_of_navigations);
-                 dict.Add("disposition", disposition);
-                 dict.Add("browser_test_flags", browser_test_flags);
-               });
   TabStripModel* tab_strip = browser->tab_strip_model();
   if (disposition == WindowOpenDisposition::CURRENT_TAB &&
       tab_strip->GetActiveWebContents())
     content::WaitForLoadStop(tab_strip->GetActiveWebContents());
   content::TestNavigationObserver same_tab_observer(
       tab_strip->GetActiveWebContents(), number_of_navigations,
-      content::MessageLoopRunner::QuitMode::DEFERRED,
-      /*ignore_uncommitted_navigations=*/false);
-  if (!blink::IsRendererDebugURL(url))
-    same_tab_observer.set_expected_initial_url(url);
+      content::MessageLoopRunner::QuitMode::DEFERRED);
 
   std::set<Browser*> initial_browsers;
-  for (auto* initial_browser : *BrowserList::GetInstance())
-    initial_browsers.insert(initial_browser);
+  for (auto* browser : *BrowserList::GetInstance())
+    initial_browsers.insert(browser);
 
   AllBrowserTabAddedWaiter tab_added_waiter;
 
-  WebContents* web_contents = browser->OpenURL(OpenURLParams(
+  browser->OpenURL(OpenURLParams(
       url, Referrer(), disposition, ui::PAGE_TRANSITION_TYPED, false));
   if (browser_test_flags & BROWSER_TEST_WAIT_FOR_BROWSER)
     browser = WaitForBrowserNotInSet(initial_browsers);
@@ -279,7 +252,11 @@ NavigateToURLWithDispositionBlockUntilNavigationsComplete(
     // Some other flag caused the wait prior to this.
     return nullptr;
   }
+  WebContents* web_contents = nullptr;
   if (disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB) {
+    // We've opened up a new tab, but not selected it.
+    TabStripModel* tab_strip = browser->tab_strip_model();
+    web_contents = tab_strip->GetWebContentsAt(tab_strip->active_index() + 1);
     EXPECT_TRUE(web_contents)
         << " Unable to wait for navigation to \"" << url.spec()
         << "\" because the new tab is not available yet";
@@ -288,21 +265,18 @@ NavigateToURLWithDispositionBlockUntilNavigationsComplete(
   } else if ((disposition == WindowOpenDisposition::CURRENT_TAB) ||
              (disposition == WindowOpenDisposition::NEW_FOREGROUND_TAB) ||
              (disposition == WindowOpenDisposition::SINGLETON_TAB)) {
-    // The tab we navigated should be the active one.
-    EXPECT_EQ(web_contents, browser->tab_strip_model()->GetActiveWebContents());
+    // The currently selected tab is the right one.
+    web_contents = browser->tab_strip_model()->GetActiveWebContents();
   }
   if (disposition == WindowOpenDisposition::CURRENT_TAB) {
     same_tab_observer.Wait();
-    return web_contents->GetPrimaryMainFrame();
+    return web_contents->GetMainFrame()->GetProcess();
   } else if (web_contents) {
     content::TestNavigationObserver observer(
         web_contents, number_of_navigations,
-        content::MessageLoopRunner::QuitMode::DEFERRED,
-        /*ignore_uncommitted_navigations=*/false);
-    if (!blink::IsRendererDebugURL(url))
-      observer.set_expected_initial_url(url);
+        content::MessageLoopRunner::QuitMode::DEFERRED);
     observer.Wait();
-    return web_contents->GetPrimaryMainFrame();
+    return web_contents->GetMainFrame()->GetProcess();
   }
   EXPECT_TRUE(web_contents)
       << " Unable to wait for navigation to \"" << url.spec() << "\""
@@ -310,7 +284,7 @@ NavigateToURLWithDispositionBlockUntilNavigationsComplete(
   return nullptr;
 }
 
-content::RenderFrameHost* NavigateToURLWithDisposition(
+content::RenderProcessHost* NavigateToURLWithDisposition(
     Browser* browser,
     const GURL& url,
     WindowOpenDisposition disposition,
@@ -319,7 +293,7 @@ content::RenderFrameHost* NavigateToURLWithDisposition(
       browser, url, 1, disposition, browser_test_flags);
 }
 
-content::RenderFrameHost* NavigateToURLBlockUntilNavigationsComplete(
+content::RenderProcessHost* NavigateToURLBlockUntilNavigationsComplete(
     Browser* browser,
     const GURL& url,
     int number_of_navigations) {
@@ -363,10 +337,11 @@ bool GetRelativeBuildDirectory(base::FilePath* build_dir) {
     return false;
 
   size_t match, exe_size, src_size;
+  std::vector<base::FilePath::StringType> src_parts, exe_parts;
 
   // Determine point at which src and exe diverge.
-  auto exe_parts = exe_dir.GetComponents();
-  auto src_parts = src_dir.GetComponents();
+  exe_dir.GetComponents(&exe_parts);
+  src_dir.GetComponents(&src_parts);
   exe_size = exe_parts.size();
   src_size = src_parts.size();
   for (match = 0; match < exe_size && match < src_size; ++match) {
@@ -412,7 +387,7 @@ void WaitForViewVisibility(Browser* browser, ViewID vid, bool visible) {
 #endif
 
 int FindInPage(WebContents* tab,
-               const std::u16string& search_string,
+               const base::string16& search_string,
                bool forward,
                bool match_case,
                int* ordinal,
@@ -433,13 +408,13 @@ int FindInPage(WebContents* tab,
 
 void DownloadURL(Browser* browser, const GURL& download_url) {
   content::DownloadManager* download_manager =
-      browser->profile()->GetDownloadManager();
+      content::BrowserContext::GetDownloadManager(browser->profile());
   std::unique_ptr<content::DownloadTestObserver> observer(
       new content::DownloadTestObserverTerminal(
           download_manager, 1,
           content::DownloadTestObserver::ON_DANGEROUS_DOWNLOAD_ACCEPT));
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser, download_url));
+  ui_test_utils::NavigateToURL(browser, download_url);
   observer->WaitForFinished();
 }
 
@@ -493,11 +468,10 @@ void GetCookies(const GURL& url,
   if (url.is_valid() && contents) {
     base::RunLoop loop;
     auto* storage_partition =
-        contents->GetPrimaryMainFrame()->GetProcess()->GetStoragePartition();
+        contents->GetMainFrame()->GetProcess()->GetStoragePartition();
     net::CookieList cookie_list;
     storage_partition->GetCookieManagerForBrowserProcess()->GetCookieList(
         url, net::CookieOptions::MakeAllInclusive(),
-        net::CookiePartitionKeyCollection(),
         base::BindOnce(GetCookieCallback, loop.QuitClosure(), &cookie_list));
     loop.Run();
 
@@ -520,8 +494,7 @@ void UrlLoadObserver::Observe(
     const content::NotificationDetails& details) {
   NavigationController* controller =
       content::Source<NavigationController>(source).ptr();
-  NavigationEntry* entry = controller->GetVisibleEntry();
-  if (!entry || entry->GetVirtualURL() != url_)
+  if (controller->GetWebContents()->GetURL() != url_)
     return;
 
   WindowedNotificationObserver::Observe(type, source, details);
@@ -534,7 +507,7 @@ HistoryEnumerator::HistoryEnumerator(Profile* profile) {
   HistoryServiceFactory::GetForProfile(profile,
                                        ServiceAccessType::EXPLICIT_ACCESS)
       ->QueryHistory(
-          std::u16string(), history::QueryOptions(),
+          base::string16(), history::QueryOptions(),
           base::BindLambdaForTesting([&](history::QueryResults results) {
             for (const auto& item : results)
               urls_.push_back(item.url());
@@ -557,7 +530,7 @@ class WaitHistoryLoadedObserver : public history::HistoryServiceObserver {
 
  private:
   // weak
-  raw_ptr<content::MessageLoopRunner> runner_;
+  content::MessageLoopRunner* runner_;
 };
 
 WaitHistoryLoadedObserver::WaitHistoryLoadedObserver(
@@ -578,10 +551,9 @@ void WaitForHistoryToLoad(history::HistoryService* history_service) {
     scoped_refptr<content::MessageLoopRunner> runner =
         new content::MessageLoopRunner;
     WaitHistoryLoadedObserver observer(runner.get());
-    base::ScopedObservation<history::HistoryService,
-                            history::HistoryServiceObserver>
+    ScopedObserver<history::HistoryService, history::HistoryServiceObserver>
         scoped_observer(&observer);
-    scoped_observer.Observe(history_service);
+    scoped_observer.Add(history_service);
     runner->Run();
   }
 }
@@ -602,7 +574,6 @@ TabAddedWaiter::TabAddedWaiter(Browser* browser) {
 }
 
 void TabAddedWaiter::Wait() {
-  TRACE_EVENT0("test", "TabAddedWaiter::Wait");
   run_loop_.Run();
 }
 

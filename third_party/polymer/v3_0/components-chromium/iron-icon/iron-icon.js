@@ -8,6 +8,8 @@ found at http://polymer.github.io/CONTRIBUTORS.txt Code distributed by Google as
 part of the polymer project is also subject to an additional IP rights grant
 found at http://polymer.github.io/PATENTS.txt
 */
+import '../iron-flex-layout/iron-flex-layout.js';
+
 import {IronMeta} from '../iron-meta/iron-meta.js';
 import {Polymer} from '../polymer/polymer_bundled.min.js';
 import {dom} from '../polymer/polymer_bundled.min.js';
@@ -87,9 +89,8 @@ Polymer({
   _template: html`
     <style>
       :host {
-        align-items: center;
-        display: inline-flex;
-        justify-content: center;
+        @apply --layout-inline;
+        @apply --layout-center-center;
         position: relative;
 
         vertical-align: middle;
@@ -99,6 +100,7 @@ Polymer({
 
         width: var(--iron-icon-width, 24px);
         height: var(--iron-icon-height, 24px);
+        @apply --iron-icon;
       }
 
       :host([hidden]) {

@@ -1,22 +1,19 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.browserservices.ui.controller.trustedwebactivity;
 
-import static org.chromium.chrome.browser.dependency_injection.ChromeCommonQualifiers.SAVED_INSTANCE_SUPPLIER;
-
 import android.os.Bundle;
 
-import org.chromium.base.supplier.Supplier;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
+import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.customtabs.CustomTabsConnection;
 import org.chromium.chrome.browser.dependency_injection.ActivityScope;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.SaveInstanceStateObserver;
 
 import javax.inject.Inject;
-import javax.inject.Named;
 
 /**
  * Provides the client package name for TWAs - this can come from either the Custom Tabs Connection
@@ -30,11 +27,11 @@ public class ClientPackageNameProvider implements SaveInstanceStateObserver {
     private final String mClientPackageName;
 
     @Inject
-    public ClientPackageNameProvider(ActivityLifecycleDispatcher lifecycleDispatcher,
+    public ClientPackageNameProvider(ChromeActivity<?> activity,
+            ActivityLifecycleDispatcher lifecycleDispatcher,
             BrowserServicesIntentDataProvider intentDataProvider,
-            CustomTabsConnection customTabsConnection,
-            @Named(SAVED_INSTANCE_SUPPLIER) Supplier<Bundle> savedInstanceStateSupplier) {
-        Bundle savedInstanceState = savedInstanceStateSupplier.get();
+            CustomTabsConnection customTabsConnection) {
+        Bundle savedInstanceState = activity.getSavedInstanceState();
         if (savedInstanceState != null) {
             mClientPackageName = savedInstanceState.getString(KEY_CLIENT_PACKAGE);
         } else {

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/files/file_path.h"
 #include "base/lazy_instance.h"
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 
 namespace storage {
@@ -24,9 +25,6 @@ class MTPDeviceAsyncDelegate;
 class MTPDeviceMapService {
  public:
   static MTPDeviceMapService* GetInstance();
-
-  MTPDeviceMapService(const MTPDeviceMapService&) = delete;
-  MTPDeviceMapService& operator=(const MTPDeviceMapService&) = delete;
 
   // Gets the media device delegate associated with |url|'s filesystem
   // id.  Return NULL if |url| is no longer valid (e.g. because the
@@ -91,6 +89,8 @@ class MTPDeviceMapService {
   MTPDeviceFileSystemMap mtp_device_map_;
 
   MTPDeviceUsageMap mtp_device_usage_map_;
+
+  DISALLOW_COPY_AND_ASSIGN(MTPDeviceMapService);
 };
 
 #endif  // CHROME_BROWSER_MEDIA_GALLERIES_FILEAPI_MTP_DEVICE_MAP_SERVICE_H_

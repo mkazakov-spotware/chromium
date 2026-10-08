@@ -1,14 +1,14 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/device/generic_sensor/linux/sensor_device_manager.h"
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/threading/scoped_blocking_call.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "services/device/generic_sensor/linux/sensor_data_linux.h"
 #include "services/device/public/cpp/generic_sensor/sensor_reading.h"
 
@@ -24,7 +24,7 @@ std::string StringOrEmptyIfNull(const char* value) {
 
 SensorDeviceManager::SensorDeviceManager(base::WeakPtr<Delegate> delegate)
     : delegate_(std::move(delegate)),
-      delegate_task_runner_(base::SequencedTaskRunner::GetCurrentDefault()) {
+      delegate_task_runner_(base::SequencedTaskRunnerHandle::Get()) {
   DETACH_FROM_SEQUENCE(sequence_checker_);
 }
 

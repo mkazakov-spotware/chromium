@@ -1,22 +1,32 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.test.util.browser;
 
+import android.text.TextUtils;
+
+import androidx.annotation.Nullable;
+
 import org.chromium.base.CommandLine;
-import org.chromium.base.test.util.FeaturesBase;
+import org.chromium.base.test.util.AnnotationRule;
 import org.chromium.chrome.browser.flags.CachedFeatureFlags;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 
 import java.lang.annotation.Annotation;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.util.List;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
- * Helps with setting Feature flags during tests. Relies on registering the appropriate
- * {@code Processor} rule on the test class.
- **
+ * Heps with setting Feature flags during tests. Relies on registering the appropriate
+ * {@link Processor} rule on the test class.
+ *
  * Use {@link EnableFeatures} and {@link DisableFeatures} to specify the features to register and
  * whether they should be enabled.
  *
@@ -34,10 +44,8 @@ import java.util.List;
  *
  * This class also offers Singleton access to enable and disable features, letting other rules
  * affect the final configuration before the start of the test.
- *
- * See {@link FeaturesBase} for more details.
  */
-public class Features extends FeaturesBase {
+public class Features {
     @Retention(RetentionPolicy.RUNTIME)
     public @interface EnableFeatures {
         String[] value();
@@ -48,59 +56,91 @@ public class Features extends FeaturesBase {
         String[] value();
     }
 
+    private static @Nullable Features sInstance;
+    private final Map<String, Boolean> mRegisteredState = new HashMap<>();
+
     private Features() {}
 
-    /**
-     * @return the instance of this class, creating a new one if necessary.
-     */
     public static Features getInstance() {
         if (sInstance == null) sInstance = new Features();
-        assert sInstance
-                instanceof Features
-            : "Mixed use of Features annotations detected. "
-              + "Ensure the correct base/ or chrome/ version is being used.";
-        return (Features) sInstance;
+        return sInstance;
     }
 
-    @Override
-    protected void applyForJUnit() {
-        super.applyForJUnit();
+    /**
+     * Explicitly applies features collected so far to the command line.
+     * Note: This is only valid during instrumentation tests.
+     * TODO(dgn): remove once we have the compound test rule is available to enable a deterministic
+     * rule execution order.
+     */
+    public static void ensureCommandLineIsUpToDate() {
+        getInstance().applyForInstrumentation();
+    }
+
+    /** Collects the provided features to be registered as enabled. */
+    public void enable(String... featureNames) {
+        // TODO(dgn): assert that it's not being called too late and will be able to be applied.
+        for (String featureName : featureNames) mRegisteredState.put(featureName, true);
+    }
+
+    /** Collects the provided features to be registered as disabled. */
+    public void disable(String... featureNames) {
+        // TODO(dgn): assert that it's not being called too late and will be able to be applied.
+        for (String featureName : featureNames) mRegisteredState.put(featureName, false);
+    }
+
+    private void applyForJUnit() {
+        ChromeFeatureList.setTestFeatures(mRegisteredState);
         CachedFeatureFlags.setFeaturesForTesting(mRegisteredState);
     }
 
-    @Override
-    protected void applyForInstrumentation() {
-        super.applyForInstrumentation();
+    private void applyForInstrumentation() {
+        ChromeFeatureList.setTestCanUseDefaultsForTesting();
+        mergeFeatureLists("enable-features", true);
+        mergeFeatureLists("disable-features", false);
         CachedFeatureFlags.setFeaturesForTesting(mRegisteredState);
         FieldTrials.getInstance().applyFieldTrials();
     }
 
     /**
-     * Feature processor intended to be used in Robolectric and {@link BlankUiTestActivityTestCase}
-     * tests. The collected feature states would be applied to {@link FeatureList}'s internal
-     * test-only feature map.
+     * Updates the reference list of features held by the CommandLine by merging it with the feature
+     * state registered via this utility.
+     * @param switchName Name of the command line switch that is the reference feature state.
+     * @param enabled Whether the feature list being modified is the enabled or disabled one.
      */
-    public static class JUnitProcessor extends BaseJUnitProcessor {
-        public JUnitProcessor() {
-            super(EnableFeatures.class, DisableFeatures.class);
-            getInstance();
+    private void mergeFeatureLists(String switchName, boolean enabled) {
+        CommandLine commandLine = CommandLine.getInstance();
+        String switchValue = commandLine.getSwitchValue(switchName);
+        Set<String> existingFeatures = new HashSet<>();
+        if (switchValue != null) {
+            Collections.addAll(existingFeatures, switchValue.split(","));
+        }
+        for (String additionalFeature : mRegisteredState.keySet()) {
+            if (mRegisteredState.get(additionalFeature) != enabled) continue;
+            existingFeatures.add(additionalFeature);
         }
 
-        @Override
-        protected void before() {
-            getInstance();
-            super.before();
-        }
+        // Not really append, it puts the value in a map so we can override values that way too.
+        commandLine.appendSwitchWithValue(switchName, TextUtils.join(",", existingFeatures));
+    }
 
-        @Override
-        protected void after() {
-            super.after();
-            resetCachedFlags(/*forInstrumentation=*/false);
-        }
+    /** Resets Features-related state that might persist in between tests. */
+    private static void reset() {
+        sInstance = null;
+        ChromeFeatureList.setTestFeatures(null);
+        ChromeFeatureList.resetTestCanUseDefaultsForTesting();
+        CachedFeatureFlags.resetFlagsForTesting();
+        FieldTrials.getInstance().reset();
+    }
 
+    /**
+     * Feature processor intended to be used in Robolectric and {@link DummyUiActivityTestCase}
+     * tests. The collected feature states would be applied to {@link ChromeFeatureList}'s
+     * internal test-only feature map.
+     */
+    public static class JUnitProcessor extends Processor {
         @Override
-        protected void collectFeatures() {
-            collectFeaturesImpl(getAnnotations());
+        protected void applyFeatures() {
+            getInstance().applyForJUnit();
         }
     }
 
@@ -109,39 +149,43 @@ public class Features extends FeaturesBase {
      * those run with {@link ChromeJUnit4ClassRunner}. The collected feature states would be applied
      * to {@link CommandLine}.
      */
-    public static class InstrumentationProcessor extends BaseInstrumentationProcessor {
-        public InstrumentationProcessor() {
+    public static class InstrumentationProcessor extends Processor {
+        @Override
+        protected void applyFeatures() {
+            getInstance().applyForInstrumentation();
+        }
+    }
+
+    /**
+     * Add this rule to tests to activate the {@link Features} annotations and choose flags
+     * to enable, or get rid of exceptions when the production code tries to check for enabled
+     * features.
+     */
+    private abstract static class Processor extends AnnotationRule {
+        public Processor() {
             super(EnableFeatures.class, DisableFeatures.class);
-            getInstance();
+        }
+
+        @Override
+        protected void before() {
+            collectFeatures();
+            applyFeatures();
         }
 
         @Override
         protected void after() {
-            super.after();
-            resetCachedFlags(/*forInstrumentation=*/true);
+            reset();
         }
 
-        @Override
+        protected abstract void applyFeatures();
+
         protected void collectFeatures() {
-            collectFeaturesImpl(getAnnotations());
-        }
-    }
-
-    /** Resets Features-related state that might persist in between tests. */
-    private static void resetCachedFlags(boolean forInstrumentation) {
-        CachedFeatureFlags.resetFlagsForTesting();
-        if (forInstrumentation) {
-            CachedFeatureFlags.resetDiskForTesting();
-        }
-        FieldTrials.getInstance().reset();
-    }
-
-    private static void collectFeaturesImpl(List<Annotation> annotations) {
-        for (Annotation annotation : annotations) {
-            if (annotation instanceof EnableFeatures) {
-                sInstance.enable(((EnableFeatures) annotation).value());
-            } else if (annotation instanceof DisableFeatures) {
-                sInstance.disable(((DisableFeatures) annotation).value());
+            for (Annotation annotation : getAnnotations()) {
+                if (annotation instanceof EnableFeatures) {
+                    getInstance().enable(((EnableFeatures) annotation).value());
+                } else if (annotation instanceof DisableFeatures) {
+                    getInstance().disable(((DisableFeatures) annotation).value());
+                }
             }
         }
     }

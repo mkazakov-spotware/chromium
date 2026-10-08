@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/callback_helpers.h"
 #include "base/location.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "device/bluetooth/bluetooth_socket.h"
@@ -22,7 +23,6 @@
 #include "net/base/io_buffer.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace bluetooth {
 
@@ -78,7 +78,7 @@ TEST_F(ServerSocketTest, TestOnDestroyCallsClose) {
   // When destroyed, |server_socket_| is expected to tear down its
   // BluetoothSocket.
   server_socket_.reset();
-  EXPECT_TRUE(fake_bluetooth_server_socket_->called_disconnect());
+  EXPECT_TRUE(fake_bluetooth_server_socket_->called_close());
 }
 
 TEST_F(ServerSocketTest, TestAccept_Success) {
@@ -121,11 +121,6 @@ TEST_F(ServerSocketTest, TestAccept_Error) {
   EXPECT_FALSE(accept_connection_result_);
 
   EXPECT_FALSE(fake_bluetooth_server_socket_->HasAcceptArgs());
-}
-
-TEST_F(ServerSocketTest, TestDisconnect) {
-  server_socket_->Disconnect(base::DoNothing());
-  EXPECT_TRUE(fake_bluetooth_server_socket_->called_disconnect());
 }
 
 }  // namespace bluetooth

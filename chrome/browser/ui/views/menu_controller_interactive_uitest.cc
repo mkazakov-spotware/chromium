@@ -1,7 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/views/menu_test_base.h"
@@ -14,18 +15,14 @@ class MenuControllerMnemonicTest : public MenuTestBase {
   MenuControllerMnemonicTest() {
   }
 
-  MenuControllerMnemonicTest(const MenuControllerMnemonicTest&) = delete;
-  MenuControllerMnemonicTest& operator=(const MenuControllerMnemonicTest&) =
-      delete;
-
   ~MenuControllerMnemonicTest() override {
   }
 
   // MenuTestBase overrides:
   void BuildMenu(views::MenuItemView* menu) override {
     ASSERT_NE(ui::VKEY_DIVIDE, '/');
-    menu->AppendMenuItem(1, u"One&/");
-    menu->AppendMenuItem(2, u"Two");
+    menu->AppendMenuItem(1, base::ASCIIToUTF16("One&/"));
+    menu->AppendMenuItem(2, base::ASCIIToUTF16("Two"));
   }
 
   void DoTestWithMenuOpen() override {
@@ -49,6 +46,9 @@ class MenuControllerMnemonicTest : public MenuTestBase {
     ASSERT_FALSE(menu()->GetSubmenu()->IsShowing());
     Done();
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MenuControllerMnemonicTest);
 };
 
 // Pressing the mnemonic for a menu item should execute the command for that
@@ -56,7 +56,7 @@ class MenuControllerMnemonicTest : public MenuTestBase {
 typedef MenuControllerMnemonicTest<ui::VKEY_DIVIDE,1>
     MenuControllerMnemonicTestMnemonicMatch;
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 // Mnemonics and activation by title match aren't used on macOS.
 #define MAYBE_MnemonicMatch DISABLED_MnemonicMatch
 #define MAYBE_TitleMatch DISABLED_TitleMatch

@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/signaling/iq_sender.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -14,14 +13,13 @@
 #include "base/test/mock_callback.h"
 #include "base/test/task_environment.h"
 #include "remoting/signaling/mock_signal_strategy.h"
-#include "remoting/signaling/xmpp_constants.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
+#include "third_party/libjingle_xmpp/xmpp/constants.h"
 
 using ::testing::_;
 using ::testing::DeleteArg;
-using ::testing::DoAll;
 using ::testing::InvokeWithoutArgs;
 using ::testing::NotNull;
 using ::testing::Return;
@@ -51,7 +49,7 @@ class IqSenderTest : public testing::Test {
  public:
   IqSenderTest() : signal_strategy_(SignalingAddress("local_jid@domain.com")) {
     EXPECT_CALL(signal_strategy_, AddListener(NotNull()));
-    sender_ = std::make_unique<IqSender>(&signal_strategy_);
+    sender_.reset(new IqSender(&signal_strategy_));
     EXPECT_CALL(signal_strategy_, RemoveListener(
         static_cast<SignalStrategy::Listener*>(sender_.get())));
   }
@@ -81,7 +79,7 @@ class IqSenderTest : public testing::Test {
 
   bool FormatAndDeliverResponse(const std::string& from,
                                 std::unique_ptr<XmlElement>* response_out) {
-    std::unique_ptr<XmlElement> response(new XmlElement(kQNameIq));
+    std::unique_ptr<XmlElement> response(new XmlElement(jingle_xmpp::QN_IQ));
     response->AddAttr(QName(std::string(), "type"), "result");
     response->AddAttr(QName(std::string(), "id"), kStanzaId);
     response->AddAttr(QName(std::string(), "from"), from);
@@ -122,7 +120,7 @@ TEST_F(IqSenderTest, Timeout) {
     SendTestMessage();
   });
 
-  request_->SetTimeout(base::Milliseconds(2));
+  request_->SetTimeout(base::TimeDelta::FromMilliseconds(2));
 
   base::RunLoop run_loop;
   EXPECT_CALL(callback_, Run(request_.get(), nullptr))

@@ -1,23 +1,23 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web/navigation/navigation_item_impl.h"
 
-#import <stddef.h>
+#include <stddef.h>
 
-#import <memory>
-#import <utility>
+#include <memory>
+#include <utility>
 
-#import "base/check_op.h"
-#import "base/strings/utf_string_conversions.h"
-#import "components/url_formatter/url_formatter.h"
-#import "ios/web/common/features.h"
+#include "base/check_op.h"
+#include "base/strings/utf_string_conversions.h"
+#include "components/url_formatter/url_formatter.h"
+#include "ios/web/common/features.h"
 #import "ios/web/navigation/navigation_manager_impl.h"
-#import "ios/web/navigation/wk_navigation_util.h"
+#include "ios/web/navigation/wk_navigation_util.h"
 #import "ios/web/public/web_client.h"
-#import "ui/base/page_transition_types.h"
-#import "ui/gfx/text_elider.h"
+#include "ui/base/page_transition_types.h"
+#include "ui/gfx/text_elider.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -51,11 +51,14 @@ NavigationItemImpl::NavigationItemImpl()
     : unique_id_(GetUniqueIDInConstructor()),
       transition_type_(ui::PAGE_TRANSITION_LINK),
       user_agent_type_(UserAgentType::NONE),
+      is_created_from_push_state_(false),
+      has_state_been_replaced_(false),
       is_created_from_hash_change_(false),
+      should_skip_repost_form_confirmation_(false),
       should_skip_serialization_(false),
       navigation_initiation_type_(web::NavigationInitiationType::NONE),
-      is_untrusted_(false),
-      https_upgrade_type_(HttpsUpgradeType::kNone) {}
+      is_untrusted_(false) {
+}
 
 NavigationItemImpl::~NavigationItemImpl() {
 }
@@ -69,19 +72,23 @@ NavigationItemImpl::NavigationItemImpl(const NavigationItemImpl& item)
       title_(item.title_),
       page_display_state_(item.page_display_state_),
       transition_type_(item.transition_type_),
-      favicon_status_(item.favicon_status_),
+      favicon_(item.favicon_),
       ssl_(item.ssl_),
       timestamp_(item.timestamp_),
       user_agent_type_(item.user_agent_type_),
       http_request_headers_([item.http_request_headers_ mutableCopy]),
       serialized_state_object_([item.serialized_state_object_ copy]),
+      is_created_from_push_state_(item.is_created_from_push_state_),
+      has_state_been_replaced_(item.has_state_been_replaced_),
       is_created_from_hash_change_(item.is_created_from_hash_change_),
+      should_skip_repost_form_confirmation_(
+          item.should_skip_repost_form_confirmation_),
       should_skip_serialization_(item.should_skip_serialization_),
       post_data_([item.post_data_ copy]),
+      error_retry_state_machine_(item.error_retry_state_machine_),
       navigation_initiation_type_(item.navigation_initiation_type_),
       is_untrusted_(item.is_untrusted_),
-      cached_display_title_(item.cached_display_title_),
-      https_upgrade_type_(item.https_upgrade_type_) {}
+      cached_display_title_(item.cached_display_title_) {}
 
 int NavigationItemImpl::GetUniqueID() const {
   return unique_id_;
@@ -98,6 +105,7 @@ const GURL& NavigationItemImpl::GetOriginalRequestURL() const {
 void NavigationItemImpl::SetURL(const GURL& url) {
   url_ = url;
   cached_display_title_.clear();
+  error_retry_state_machine_.SetURL(url);
 }
 
 const GURL& NavigationItemImpl::GetURL() const {
@@ -121,7 +129,7 @@ const GURL& NavigationItemImpl::GetVirtualURL() const {
   return virtual_url_.is_empty() ? url_ : virtual_url_;
 }
 
-void NavigationItemImpl::SetTitle(const std::u16string& title) {
+void NavigationItemImpl::SetTitle(const base::string16& title) {
   if (title_ == title)
     return;
 
@@ -133,7 +141,7 @@ void NavigationItemImpl::SetTitle(const std::u16string& title) {
   cached_display_title_.clear();
 }
 
-const std::u16string& NavigationItemImpl::GetTitle() const {
+const base::string16& NavigationItemImpl::GetTitle() const {
   return title_;
 }
 
@@ -146,7 +154,7 @@ const PageDisplayState& NavigationItemImpl::GetPageDisplayState() const {
   return page_display_state_;
 }
 
-const std::u16string& NavigationItemImpl::GetTitleForDisplay() const {
+const base::string16& NavigationItemImpl::GetTitleForDisplay() const {
   // Most pages have real titles. Don't even bother caching anything if this is
   // the case.
   if (!title_.empty())
@@ -171,12 +179,12 @@ ui::PageTransition NavigationItemImpl::GetTransitionType() const {
   return transition_type_;
 }
 
-const FaviconStatus& NavigationItemImpl::GetFaviconStatus() const {
-  return favicon_status_;
+const FaviconStatus& NavigationItemImpl::GetFavicon() const {
+  return favicon_;
 }
 
-void NavigationItemImpl::SetFaviconStatus(const FaviconStatus& favicon_status) {
-  favicon_status_ = favicon_status;
+FaviconStatus& NavigationItemImpl::GetFavicon() {
+  return favicon_;
 }
 
 const SSLStatus& NavigationItemImpl::GetSSL() const {
@@ -232,15 +240,6 @@ void NavigationItemImpl::AddHttpRequestHeaders(
     http_request_headers_ = [additional_headers mutableCopy];
 }
 
-void NavigationItemImpl::SetHttpsUpgradeType(
-    HttpsUpgradeType https_upgrade_type) {
-  https_upgrade_type_ = https_upgrade_type;
-}
-
-HttpsUpgradeType NavigationItemImpl::GetHttpsUpgradeType() const {
-  return https_upgrade_type_;
-}
-
 void NavigationItemImpl::SetSerializedStateObject(
     NSString* serialized_state_object) {
   serialized_state_object_ = serialized_state_object;
@@ -248,6 +247,14 @@ void NavigationItemImpl::SetSerializedStateObject(
 
 NSString* NavigationItemImpl::GetSerializedStateObject() const {
   return serialized_state_object_;
+}
+
+void NavigationItemImpl::SetIsCreatedFromPushState(bool push_state) {
+  is_created_from_push_state_ = push_state;
+}
+
+bool NavigationItemImpl::IsCreatedFromPushState() const {
+  return is_created_from_push_state_;
 }
 
 void NavigationItemImpl::SetNavigationInitiationType(
@@ -260,12 +267,28 @@ web::NavigationInitiationType NavigationItemImpl::NavigationInitiationType()
   return navigation_initiation_type_;
 }
 
+void NavigationItemImpl::SetHasStateBeenReplaced(bool replace_state) {
+  has_state_been_replaced_ = replace_state;
+}
+
+bool NavigationItemImpl::HasStateBeenReplaced() const {
+  return has_state_been_replaced_;
+}
+
 void NavigationItemImpl::SetIsCreatedFromHashChange(bool hash_change) {
   is_created_from_hash_change_ = hash_change;
 }
 
 bool NavigationItemImpl::IsCreatedFromHashChange() const {
   return is_created_from_hash_change_;
+}
+
+void NavigationItemImpl::SetShouldSkipRepostFormConfirmation(bool skip) {
+  should_skip_repost_form_confirmation_ = skip;
+}
+
+bool NavigationItemImpl::ShouldSkipRepostFormConfirmation() const {
+  return should_skip_repost_form_confirmation_;
 }
 
 void NavigationItemImpl::SetShouldSkipSerialization(bool skip) {
@@ -303,7 +326,7 @@ void NavigationItemImpl::ResetForCommit() {
 
 void NavigationItemImpl::RestoreStateFromItem(NavigationItem* other) {
   // Restore the UserAgent type in any case, as if the URLs are different it
-  // might mean that `this` is a next navigation. The page display state and the
+  // might mean that |this| is a next navigation. The page display state and the
   // virtual URL only make sense if it is the same item. The other headers might
   // not make sense after creating a new navigation to the page.
   if (other->GetUserAgentType() != UserAgentType::NONE) {
@@ -315,17 +338,22 @@ void NavigationItemImpl::RestoreStateFromItem(NavigationItem* other) {
   }
 }
 
-// static
-std::u16string NavigationItemImpl::GetDisplayTitleForURL(const GURL& url) {
-  if (url.is_empty())
-    return std::u16string();
+ErrorRetryStateMachine& NavigationItemImpl::error_retry_state_machine() {
+  DCHECK(!base::FeatureList::IsEnabled(web::features::kUseJSForErrorPage));
+  return error_retry_state_machine_;
+}
 
-  std::u16string title = url_formatter::FormatUrl(url);
+// static
+base::string16 NavigationItemImpl::GetDisplayTitleForURL(const GURL& url) {
+  if (url.is_empty())
+    return base::string16();
+
+  base::string16 title = url_formatter::FormatUrl(url);
 
   // For file:// URLs use the filename as the title, not the full path.
   if (url.SchemeIsFile()) {
-    std::u16string::size_type slashpos = title.rfind('/');
-    if (slashpos != std::u16string::npos && slashpos != (title.size() - 1))
+    base::string16::size_type slashpos = title.rfind('/');
+    if (slashpos != base::string16::npos && slashpos != (title.size() - 1))
       title = title.substr(slashpos + 1);
   }
 
@@ -341,17 +369,18 @@ NSString* NavigationItemImpl::GetDescription() const {
           @"url:%s virtual_url_:%s originalurl:%s referrer: %s title:%s "
           @"transition:%d "
            "displayState:%@ userAgent:%s "
-           "is_created_from_hash_change: %@ "
-           "navigation_initiation_type: %d "
-           "https_upgrade_type: %s",
+           "is_create_from_push_state: %@ "
+           "has_state_been_replaced: %@ is_created_from_hash_change: %@ "
+           "navigation_initiation_type: %d",
           url_.spec().c_str(), virtual_url_.spec().c_str(),
           original_request_url_.spec().c_str(), referrer_.url.spec().c_str(),
           base::UTF16ToUTF8(title_).c_str(), transition_type_,
           page_display_state_.GetDescription(),
           GetUserAgentTypeDescription(user_agent_type_).c_str(),
+          is_created_from_push_state_ ? @"true" : @"false",
+          has_state_been_replaced_ ? @"true" : @"false",
           is_created_from_hash_change_ ? @"true" : @"false",
-          navigation_initiation_type_,
-          GetHttpsUpgradeTypeDescription(https_upgrade_type_).c_str()];
+          navigation_initiation_type_];
 }
 #endif
 

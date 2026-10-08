@@ -1,10 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/test/focus_manager_test.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/widget/widget.h"
 
@@ -61,7 +62,8 @@ const Widget* FocusManagerTest::GetWidget() const {
 }
 
 void FocusManagerTest::GetAccessiblePanes(std::vector<View*>* panes) {
-  base::ranges::copy(accessible_panes_, std::back_inserter(*panes));
+  std::copy(accessible_panes_.begin(), accessible_panes_.end(),
+            std::back_inserter(*panes));
 }
 
 void FocusManagerTest::InitContentView() {}

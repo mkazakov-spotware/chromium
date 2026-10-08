@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,10 @@
 namespace contextual_search {
 
 const char kContextualSearchFieldTrialName[] = "ContextualSearch";
+
+// Longpress Resolve variations:
+const char kLongpressResolveParamName[] = "longpress_resolve_variation";
+const char kLongpressResolvePreserveTap[] = "1";
 
 // Contextual Cards variations and integration Api settings.
 const char kContextualCardsVersionParamName[] = "contextual_cards_version";

@@ -1,13 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/download/internal/common/download_worker.h"
 
-#include <memory>
-
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
 #include "components/download/internal/common/resource_downloader.h"
 #include "components/download/public/common/download_create_info.h"
 #include "components/download/public/common/download_interrupt_reasons.h"
@@ -32,10 +29,6 @@ bool IsURLSafe(int render_process_id, const GURL& url) {
 class CompletedInputStream : public InputStream {
  public:
   CompletedInputStream(DownloadInterruptReason status) : status_(status) {}
-
-  CompletedInputStream(const CompletedInputStream&) = delete;
-  CompletedInputStream& operator=(const CompletedInputStream&) = delete;
-
   ~CompletedInputStream() override = default;
 
   // InputStream
@@ -50,6 +43,7 @@ class CompletedInputStream : public InputStream {
 
  private:
   DownloadInterruptReason status_;
+  DISALLOW_COPY_AND_ASSIGN(CompletedInputStream);
 };
 
 void CreateUrlDownloadHandler(
@@ -90,15 +84,14 @@ void DownloadWorker::SendRequest(
     URLLoaderFactoryProvider* url_loader_factory_provider,
     mojo::PendingRemote<device::mojom::WakeLockProvider> wake_lock_provider) {
   GetIOTaskRunner()->PostTask(
-      FROM_HERE,
-      base::BindOnce(&CreateUrlDownloadHandler, std::move(params),
-                     weak_factory_.GetWeakPtr(),
-                     // This is safe because URLLoaderFactoryProvider
-                     // deleter is called on the same task sequence.
-                     base::Unretained(url_loader_factory_provider),
-                     base::BindRepeating(&IsURLSafe),
-                     std::move(wake_lock_provider),
-                     base::SingleThreadTaskRunner::GetCurrentDefault()));
+      FROM_HERE, base::BindOnce(&CreateUrlDownloadHandler, std::move(params),
+                                weak_factory_.GetWeakPtr(),
+                                // This is safe because URLLoaderFactoryProvider
+                                // deleter is called on the same task sequence.
+                                base::Unretained(url_loader_factory_provider),
+                                base::BindRepeating(&IsURLSafe),
+                                std::move(wake_lock_provider),
+                                base::ThreadTaskRunnerHandle::Get()));
 }
 
 void DownloadWorker::Pause() {
@@ -140,7 +133,7 @@ void DownloadWorker::OnUrlDownloadStarted(
     VLOG(kWorkerVerboseLevel)
         << "Parallel download sub-request failed. reason = "
         << create_info->result;
-    input_stream = std::make_unique<CompletedInputStream>(create_info->result);
+    input_stream.reset(new CompletedInputStream(create_info->result));
     url_download_handler_.reset();
   }
 
@@ -155,7 +148,7 @@ void DownloadWorker::OnUrlDownloadStarted(
                                 std::move(create_info));
 }
 
-void DownloadWorker::OnUrlDownloadStopped(UrlDownloadHandlerID downloader) {
+void DownloadWorker::OnUrlDownloadStopped(UrlDownloadHandler* downloader) {
   // Release the |url_download_handler_|, the object will be deleted on IO
   // thread.
   url_download_handler_.reset();

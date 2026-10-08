@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,8 @@
 #include "net/disk_cache/simple/simple_entry_format.h"
 #include "net/disk_cache/simple/simple_util.h"
 
-namespace disk_cache::simple_util {
+namespace disk_cache {
+namespace simple_util {
 
 using base::File;
 using base::FilePath;
@@ -130,4 +131,5 @@ bool CorruptStream0LengthFromEntry(const std::string& key,
   return true;
 }
 
-}  // namespace disk_cache::simple_util
+}  // namespace simple_util
+}  // namespace disk_cache

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "ash/public/cpp/app_list/app_list_controller_observer.h"
 #include "ash/public/cpp/assistant/assistant_state.h"
 #include "ash/public/cpp/tablet_mode_observer.h"
+#include "base/macros.h"
 
 namespace ui {
 class GestureEvent;
@@ -30,10 +31,6 @@ class HomeButtonController : public AppListControllerObserver,
                              public AssistantUiModelObserver {
  public:
   explicit HomeButtonController(HomeButton* button);
-
-  HomeButtonController(const HomeButtonController&) = delete;
-  HomeButtonController& operator=(const HomeButtonController&) = delete;
-
   ~HomeButtonController() override;
 
   // Maybe handles a gesture event based on the event and whether the Assistant
@@ -47,6 +44,8 @@ class HomeButtonController : public AppListControllerObserver,
   // Whether the Assistant UI currently showing.
   bool IsAssistantVisible();
 
+  bool is_showing_app_list() const { return is_showing_app_list_; }
+
  private:
   // AppListControllerObserver:
   void OnAppListVisibilityWillChange(bool shown, int64_t display_id) override;
@@ -56,15 +55,15 @@ class HomeButtonController : public AppListControllerObserver,
 
   // AssistantStateObserver:
   void OnAssistantFeatureAllowedChanged(
-      assistant::AssistantAllowedState) override;
+      chromeos::assistant::AssistantAllowedState) override;
   void OnAssistantSettingsEnabled(bool enabled) override;
 
   // AssistantUiModelObserver:
   void OnUiVisibilityChanged(
       AssistantVisibility new_visibility,
       AssistantVisibility old_visibility,
-      absl::optional<AssistantEntryPoint> entry_point,
-      absl::optional<AssistantExitPoint> exit_point) override;
+      base::Optional<AssistantEntryPoint> entry_point,
+      base::Optional<AssistantExitPoint> exit_point) override;
 
   void OnAppListShown();
   void OnAppListDismissed();
@@ -74,12 +73,18 @@ class HomeButtonController : public AppListControllerObserver,
   // Initialize the Assistant overlay.
   void InitializeAssistantOverlay();
 
+  // True if the app list is currently showing for the button's display.
+  // This is useful because other app_list_visible functions aren't per-display.
+  bool is_showing_app_list_ = false;
+
   // The button that owns this controller.
   HomeButton* const button_;
 
   // Owned by the button's view hierarchy.
   AssistantOverlay* assistant_overlay_ = nullptr;
   std::unique_ptr<base::OneShotTimer> assistant_animation_delay_timer_;
+
+  DISALLOW_COPY_AND_ASSIGN(HomeButtonController);
 };
 
 }  // namespace ash

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include "remoting/proto/remoting/v1/network_traversal_messages.pb.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 TEST(IceConfigTest, ParseValid) {
   const char kTestConfigJson[] =
@@ -41,9 +42,11 @@ TEST(IceConfigTest, ParseValid) {
 
   // lifetimeDuration in the config is set to 12 hours. Verify that the
   // resulting expiration time is within 20 seconds before 12 hours after now.
-  EXPECT_TRUE(base::Time::Now() + base::Hours(12) - base::Seconds(20) <
+  EXPECT_TRUE(base::Time::Now() + base::TimeDelta::FromHours(12) -
+                  base::TimeDelta::FromSeconds(20) <
               config.expiration_time);
-  EXPECT_TRUE(config.expiration_time < base::Time::Now() + base::Hours(12));
+  EXPECT_TRUE(config.expiration_time <
+              base::Time::Now() + base::TimeDelta::FromHours(12));
 
   EXPECT_EQ(6U, config.turn_servers.size());
   EXPECT_TRUE(cricket::RelayServerConfig("8.8.8.8", 19234, "123", "abc",
@@ -92,9 +95,11 @@ TEST(IceConfigTest, ParseGetIceConfigResponse) {
 
   // lifetimeDuration in the config is set to 12 hours. Verify that the
   // resulting expiration time is within 20 seconds before 12 hours after now.
-  EXPECT_TRUE(base::Time::Now() + base::Hours(12) - base::Seconds(20) <
+  EXPECT_TRUE(base::Time::Now() + base::TimeDelta::FromHours(12) -
+                  base::TimeDelta::FromSeconds(20) <
               config.expiration_time);
-  EXPECT_TRUE(config.expiration_time < base::Time::Now() + base::Hours(12));
+  EXPECT_TRUE(config.expiration_time <
+              base::Time::Now() + base::TimeDelta::FromHours(12));
 
   EXPECT_EQ(6U, config.turn_servers.size());
   EXPECT_TRUE(cricket::RelayServerConfig("8.8.8.8", 19234, "123", "abc",
@@ -234,4 +239,5 @@ TEST(IceConfigTest, OneSpecifiedMaxRate_IsUsed) {
   EXPECT_EQ(2000, config2.max_bitrate_kbps);
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

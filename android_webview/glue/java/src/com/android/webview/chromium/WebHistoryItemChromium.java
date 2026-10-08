@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@ import android.graphics.Bitmap;
 import android.webkit.WebHistoryItem;
 
 import org.chromium.content_public.browser.NavigationEntry;
-import org.chromium.url.GURL;
 
 /**
  * WebView Chromium implementation of WebHistoryItem. Simple immutable wrapper
@@ -16,8 +15,8 @@ import org.chromium.url.GURL;
  */
 @SuppressWarnings("deprecation")
 public class WebHistoryItemChromium extends WebHistoryItem {
-    private final GURL mUrl;
-    private final GURL mOriginalUrl;
+    private final String mUrl;
+    private final String mOriginalUrl;
     private final String mTitle;
     private final Bitmap mFavicon;
 
@@ -42,7 +41,7 @@ public class WebHistoryItemChromium extends WebHistoryItem {
      */
     @Override
     public String getUrl() {
-        return mUrl.getSpec();
+        return mUrl;
     }
 
     /**
@@ -50,7 +49,7 @@ public class WebHistoryItemChromium extends WebHistoryItem {
      */
     @Override
     public String getOriginalUrl() {
-        return mOriginalUrl.getSpec();
+        return mOriginalUrl;
     }
 
     /**
@@ -70,7 +69,7 @@ public class WebHistoryItemChromium extends WebHistoryItem {
     }
 
     // Clone constructor.
-    private WebHistoryItemChromium(GURL url, GURL originalUrl, String title, Bitmap favicon) {
+    private WebHistoryItemChromium(String url, String originalUrl, String title, Bitmap favicon) {
         mUrl = url;
         mOriginalUrl = originalUrl;
         mTitle = title;

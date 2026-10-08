@@ -1,21 +1,21 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef GIN_OBJECT_TEMPLATE_BUILDER_H_
 #define GIN_OBJECT_TEMPLATE_BUILDER_H_
 
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
 #include "base/strings/string_piece.h"
 #include "gin/converter.h"
 #include "gin/function_template.h"
 #include "gin/gin_export.h"
-#include "v8/include/v8-forward.h"
+#include "v8/include/v8.h"
 
 namespace gin {
 
@@ -61,23 +61,15 @@ class GIN_EXPORT ObjectTemplateBuilder {
   }
 
   // In the following methods, T and U can be function pointer, member function
-  // pointer, base::RepeatingCallback, or v8::FunctionTemplate. Most clients
-  // will want to use one of the first two options. Also see
-  // gin::CreateFunctionTemplate() for creating raw function templates.
+  // pointer, base::Callback, or v8::FunctionTemplate. Most clients will want to
+  // use one of the first two options. Also see gin::CreateFunctionTemplate()
+  // for creating raw function templates.
   template<typename T>
   ObjectTemplateBuilder& SetMethod(const base::StringPiece& name,
                                    const T& callback) {
     return SetImpl(
         name, internal::CreateFunctionTemplate(isolate_, callback, type_name_));
   }
-
-  template <typename T>
-  ObjectTemplateBuilder& SetMethod(v8::Local<v8::Name> name,
-                                   const T& callback) {
-    return SetImpl(
-        name, internal::CreateFunctionTemplate(isolate_, callback, type_name_));
-  }
-
   template<typename T>
   ObjectTemplateBuilder& SetProperty(const base::StringPiece& name,
                                      const T& getter) {
@@ -104,7 +96,9 @@ class GIN_EXPORT ObjectTemplateBuilder {
       options.holder_is_first_argument = true;
       options.holder_type = type_name_;
     }
-    auto [callback, data] = CreateDataPropertyCallback(
+    v8::AccessorNameGetterCallback callback;
+    v8::Local<v8::Value> data;
+    std::tie(callback, data) = CreateDataPropertyCallback(
         isolate_, base::BindRepeating(getter), std::move(options));
     return SetLazyDataPropertyImpl(name, callback, data);
   }
@@ -117,8 +111,6 @@ class GIN_EXPORT ObjectTemplateBuilder {
  private:
   ObjectTemplateBuilder& SetImpl(const base::StringPiece& name,
                                  v8::Local<v8::Data> val);
-  ObjectTemplateBuilder& SetImpl(v8::Local<v8::Name> name,
-                                 v8::Local<v8::Data> val);
   ObjectTemplateBuilder& SetPropertyImpl(
       const base::StringPiece& name, v8::Local<v8::FunctionTemplate> getter,
       v8::Local<v8::FunctionTemplate> setter);
@@ -127,7 +119,7 @@ class GIN_EXPORT ObjectTemplateBuilder {
       v8::AccessorNameGetterCallback callback,
       v8::Local<v8::Value> data);
 
-  raw_ptr<v8::Isolate> isolate_;
+  v8::Isolate* isolate_;
 
   // If provided, |type_name_| will be used to give a user-friendly error
   // message if a member function is invoked on the wrong type of object.

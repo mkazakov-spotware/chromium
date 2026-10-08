@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "components/zucchini/buffer_view.h"
 #include "components/zucchini/element_detection.h"
 #include "components/zucchini/ensemble_matcher.h"
@@ -33,8 +34,6 @@ class ImposedMatchParser {
   };
 
   ImposedMatchParser();
-  ImposedMatchParser(const ImposedMatchParser&) = delete;
-  const ImposedMatchParser& operator=(const ImposedMatchParser&) = delete;
   ~ImposedMatchParser();
 
   // Parses |imposed_matches| and writes the results to member variables.
@@ -58,6 +57,8 @@ class ImposedMatchParser {
   // unsupported image types (which will simply be ignored). Note that imposing
   // matches for known but incompatible image types would result in error.
   std::vector<ElementMatch> bad_matches_;
+
+  DISALLOW_COPY_AND_ASSIGN(ImposedMatchParser);
 };
 
 // An ensemble matcher that parses a format string that describes matches.
@@ -66,9 +67,6 @@ class ImposedEnsembleMatcher : public EnsembleMatcher {
   // |imposed_matches| specifies imposed maches, using a format described below.
   // Validation is performed in RunMatch().
   explicit ImposedEnsembleMatcher(const std::string& imposed_matches);
-  ImposedEnsembleMatcher(const ImposedEnsembleMatcher&) = delete;
-  const ImposedEnsembleMatcher& operator=(const ImposedEnsembleMatcher&) =
-      delete;
   ~ImposedEnsembleMatcher() override;
 
   // EnsembleMatcher:
@@ -76,6 +74,8 @@ class ImposedEnsembleMatcher : public EnsembleMatcher {
 
  private:
   const std::string imposed_matches_;
+
+  DISALLOW_COPY_AND_ASSIGN(ImposedEnsembleMatcher);
 };
 
 }  // namespace zucchini

@@ -1,11 +1,12 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_ANDROID_COMPOSITOR_LAYER_OVERLAY_PANEL_LAYER_H_
 #define CHROME_BROWSER_ANDROID_COMPOSITOR_LAYER_OVERLAY_PANEL_LAYER_H_
 
-#include "base/memory/raw_ptr.h"
+#include <memory>
+
 #include "chrome/browser/android/compositor/layer/layer.h"
 
 namespace cc {
@@ -56,13 +57,10 @@ class OverlayPanelLayer : public Layer {
                      int icon_tint,
                      int drag_handlebar_tint,
                      float icon_opacity,
-                     int separator_line_color,
-                     float in_bar_related_searches_height);
+                     int separator_line_color);
 
   void SetProgressBar(int progress_bar_background_resource_id,
-                      int progress_bar_background_tint,
                       int progress_bar_resource_id,
-                      int progress_bar_tint,
                       bool progress_bar_visible,
                       float progress_bar_position_y,
                       float progress_bar_height,
@@ -79,10 +77,11 @@ class OverlayPanelLayer : public Layer {
   virtual scoped_refptr<cc::Layer> GetIconLayer();
   void AddBarTextLayer(scoped_refptr<cc::Layer> text_layer);
 
-  raw_ptr<ui::ResourceManager> resource_manager_;
+  ui::ResourceManager* resource_manager_;
   scoped_refptr<cc::Layer> layer_;
 
   scoped_refptr<cc::NinePatchLayer> panel_shadow_;
+  scoped_refptr<cc::NinePatchLayer> panel_shadow_right_;
   scoped_refptr<cc::NinePatchLayer> rounded_bar_top_;
   scoped_refptr<cc::SolidColorLayer> bar_background_;
   scoped_refptr<cc::UIResourceLayer> bar_text_;

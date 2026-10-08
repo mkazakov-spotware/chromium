@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,11 @@
 #define STORAGE_BROWSER_FILE_SYSTEM_FILE_STREAM_READER_TEST_H_
 
 #include "base/callback_helpers.h"
+#include "base/files/file_path.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread.h"
-#include "base/time/time.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
 #include "net/base/test_completion_callback.h"
@@ -53,15 +53,9 @@ class FileStreamReaderTest : public testing::Test {
 
   static void NeverCalled(int unused) { ADD_FAILURE(); }
 
- protected:
-  // Must be listed before base::test::TaskEnvironment.
-  base::ScopedTempDir dir_;
-
-  // FileSystemContext queries QuotaDatabase, and even with MockQuotaManager
-  // (which really fakes parts of QuotaManagerImpl), a thread pool is created
-  // that requires TaskEnvironment.
-  base::test::TaskEnvironment task_environment_{
-      base::test::TaskEnvironment::MainThreadType::IO};
+ private:
+  base::test::SingleThreadTaskEnvironment task_environment_{
+      base::test::SingleThreadTaskEnvironment::MainThreadType::IO};
   base::Time test_file_modification_time_;
 };
 
@@ -118,7 +112,8 @@ TYPED_TEST_P(FileStreamReaderTypedTest, GetLengthNormal) {
 }
 
 TYPED_TEST_P(FileStreamReaderTypedTest, GetLengthAfterModified) {
-  this->TouchFile(std::string(this->kTestFileName), base::Seconds(10));
+  this->TouchFile(std::string(this->kTestFileName),
+                  base::TimeDelta::FromSeconds(10));
 
   std::unique_ptr<FileStreamReader> reader(
       this->CreateFileReader(std::string(this->kTestFileName), 0,
@@ -165,7 +160,8 @@ TYPED_TEST_P(FileStreamReaderTypedTest, ReadAfterModified) {
   // Touch file so that the file's modification time becomes different
   // from what we expect. Note that the resolution on some filesystems
   // is 1s so we can't test with deltas less than that.
-  this->TouchFile(std::string(this->kTestFileName), base::Seconds(-1));
+  this->TouchFile(std::string(this->kTestFileName),
+                  base::TimeDelta::FromSeconds(-1));
 
   std::unique_ptr<FileStreamReader> reader(
       this->CreateFileReader(std::string(this->kTestFileName), 0,
@@ -181,7 +177,8 @@ TYPED_TEST_P(FileStreamReaderTypedTest, ReadAfterModifiedLessThanThreshold) {
   // Due to precision loss converting int64_t->double->int64_t (e.g. through
   // Blink) the expected/actual time may vary by microseconds. With
   // modification time delta < 10us this should work.
-  this->TouchFile(std::string(this->kTestFileName), base::Microseconds(1));
+  this->TouchFile(std::string(this->kTestFileName),
+                  base::TimeDelta::FromMicroseconds(1));
   std::unique_ptr<FileStreamReader> reader(
       this->CreateFileReader(std::string(this->kTestFileName), 0,
                              this->test_file_modification_time()));
@@ -207,7 +204,8 @@ TYPED_TEST_P(FileStreamReaderTypedTest, ReadAfterModifiedWithMatchingTimes) {
 }
 
 TYPED_TEST_P(FileStreamReaderTypedTest, ReadAfterModifiedWithoutExpectedTime) {
-  this->TouchFile(std::string(this->kTestFileName), base::Seconds(-1));
+  this->TouchFile(std::string(this->kTestFileName),
+                  base::TimeDelta::FromSeconds(-1));
   std::unique_ptr<FileStreamReader> reader(this->CreateFileReader(
       std::string(this->kTestFileName), 0, base::Time()));
   int result = 0;

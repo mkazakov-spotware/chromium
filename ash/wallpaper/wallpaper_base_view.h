@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,6 @@
 
 #include "ui/gfx/geometry/vector2d_f.h"
 #include "ui/views/view.h"
-
-namespace cc {
-class PaintFlags;
-}
 
 namespace ash {
 
@@ -34,7 +30,6 @@ class WallpaperBaseView : public views::View {
 
   // views::View:
   void OnPaint(gfx::Canvas* canvas) override;
-  void OnThemeChanged() override;
 
  protected:
   virtual void DrawWallpaper(const gfx::ImageSkia& wallpaper,

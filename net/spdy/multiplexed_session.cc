@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,9 +14,9 @@ MultiplexedSessionHandle::MultiplexedSessionHandle(
 
 MultiplexedSessionHandle::~MultiplexedSessionHandle() = default;
 
-int MultiplexedSessionHandle::GetRemoteEndpoint(IPEndPoint* endpoint) {
+bool MultiplexedSessionHandle::GetRemoteEndpoint(IPEndPoint* endpoint) {
   if (!session_)
-    return ERR_SOCKET_NOT_CONNECTED;
+    return false;
 
   return session_->GetRemoteEndpoint(endpoint);
 }
@@ -31,12 +31,6 @@ bool MultiplexedSessionHandle::GetSSLInfo(SSLInfo* ssl_info) const {
 
 void MultiplexedSessionHandle::SaveSSLInfo() {
   has_ssl_info_ = session_->GetSSLInfo(&ssl_info_);
-}
-
-base::StringPiece MultiplexedSessionHandle::GetAcceptChViaAlps(
-    const url::SchemeHostPort& scheme_host_port) const {
-  return session_ ? session_->GetAcceptChViaAlps(scheme_host_port)
-                  : base::StringPiece();
 }
 
 }  // namespace net

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -87,7 +87,7 @@ class BASE_EXPORT StackCopier {
   static const uint8_t* CopyStackContentsAndRewritePointers(
       const uint8_t* original_stack_bottom,
       const uintptr_t* original_stack_top,
-      size_t platform_stack_alignment,
+      int platform_stack_alignment,
       uintptr_t* stack_buffer_bottom);
 };
 

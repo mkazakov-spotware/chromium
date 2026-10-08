@@ -33,8 +33,6 @@
 #include "third_party/blink/renderer/core/loader/http_refresh_scheduler.h"
 
 #include <memory>
-
-#include "base/trace_event/trace_event.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/renderer/core/events/current_input_event.h"
@@ -45,7 +43,7 @@
 #include "third_party/blink/renderer/platform/scheduler/public/thread_scheduler.h"
 
 static constexpr base::TimeDelta kMaxScheduledDelay =
-    base::Seconds(INT32_MAX / 1000);
+    base::TimeDelta::FromSeconds(INT32_MAX / 1000);
 
 namespace blink {
 
@@ -77,7 +75,7 @@ void HttpRefreshScheduler::Schedule(
   DCHECK(document_->GetFrame());
   if (!document_->GetFrame()->IsNavigationAllowed())
     return;
-  if (delay.is_negative() || delay > kMaxScheduledDelay)
+  if (delay < base::TimeDelta() || delay > kMaxScheduledDelay)
     return;
   if (url.IsEmpty())
     return;
@@ -114,11 +112,11 @@ void HttpRefreshScheduler::NavigateTask() {
   // in a frame where there hasn't actually been a navigation yet. Therefore,
   // don't treat as a reload if all this frame has ever seen is empty documents.
   if (EqualIgnoringFragmentIdentifier(document_->Url(), refresh->url) &&
-      document_->GetFrame()->Loader().HasLoadedNonInitialEmptyDocument()) {
+      document_->GetFrame()->Loader().HasLoadedNonEmptyDocument()) {
     request.GetResourceRequest().SetCacheMode(
         mojom::FetchCacheMode::kValidateCache);
     load_type = WebFrameLoadType::kReload;
-  } else if (refresh->delay <= base::Seconds(1)) {
+  } else if (refresh->delay <= base::TimeDelta::FromSeconds(1)) {
     load_type = WebFrameLoadType::kReplaceCurrentItem;
   }
 
@@ -138,8 +136,7 @@ void HttpRefreshScheduler::MaybeStartTimer() {
   // task handle is destroyed on the dtor of this HttpRefreshScheduler.
   navigate_task_handle_ = PostDelayedCancellableTask(
       *document_->GetTaskRunner(TaskType::kInternalLoading), FROM_HERE,
-      WTF::BindOnce(&HttpRefreshScheduler::NavigateTask,
-                    WrapWeakPersistent(this)),
+      WTF::Bind(&HttpRefreshScheduler::NavigateTask, WrapWeakPersistent(this)),
       refresh_->delay);
 
   probe::FrameScheduledNavigation(document_->GetFrame(), refresh_->url,

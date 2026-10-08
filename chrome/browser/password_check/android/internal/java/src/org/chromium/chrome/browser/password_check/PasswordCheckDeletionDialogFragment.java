@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,10 +30,10 @@ public class PasswordCheckDeletionDialogFragment extends PasswordCheckDialogFrag
     @Override
     public Dialog onCreateDialog(Bundle savedInstanceState) {
         return new AlertDialog
-                .Builder(getActivity(), R.style.ThemeOverlay_BrowserUI_AlertDialog_NoActionBar)
-                .setTitle(R.string.password_entry_edit_delete_credential_dialog_title)
+                .Builder(getActivity(), R.style.Theme_Chromium_AlertDialog_NoActionBar)
+                .setTitle(R.string.password_check_delete_credential_dialog_title)
                 .setPositiveButton(
-                        R.string.password_entry_edit_delete_credential_dialog_confirm, mHandler)
+                        R.string.password_check_delete_credential_dialog_confirm, mHandler)
                 .setNegativeButton(R.string.password_check_credential_dialog_cancel, mHandler)
                 .setMessage(
                         getString(R.string.password_check_delete_credential_dialog_body, mOrigin))

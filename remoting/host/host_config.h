@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,9 @@
 #include <memory>
 #include <string>
 
-#include "base/values.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
+class DictionaryValue;
 class FilePath;
 }  // namespace base
 
@@ -29,7 +28,7 @@ extern const char kHostOwnerConfigPath[];
 extern const char kHostOwnerEmailConfigPath[];
 // Login used to authenticate signaling.
 extern const char kXmppLoginConfigPath[];
-// OAuth refresh token used to fetch an access token for calling network APIs.
+// OAuth refresh token used to fetch an access token for the XMPP network.
 extern const char kOAuthRefreshTokenConfigPath[];
 // Unique identifier of the host used to register the host in directory.
 // Normally a random UUID.
@@ -49,15 +48,15 @@ extern const char kEnableH264ConfigPath[];
 // Number of Kibibytes of frame data to allow each client to record.
 extern const char kFrameRecorderBufferKbConfigPath[];
 
-// Helpers for serializing/deserializing Host configuration dictionaries.
-absl::optional<base::Value::Dict> HostConfigFromJson(
+// Helpers for serializing/deserializing Host configuration dictonaries.
+std::unique_ptr<base::DictionaryValue> HostConfigFromJson(
     const std::string& serialized);
-std::string HostConfigToJson(const base::Value::Dict& host_config);
+std::string HostConfigToJson(const base::DictionaryValue& host_config);
 
 // Helpers for loading/saving host configurations from/to files.
-absl::optional<base::Value::Dict> HostConfigFromJsonFile(
+std::unique_ptr<base::DictionaryValue> HostConfigFromJsonFile(
     const base::FilePath& config_file);
-bool HostConfigToJsonFile(const base::Value::Dict& host_config,
+bool HostConfigToJsonFile(const base::DictionaryValue& host_config,
                           const base::FilePath& config_file);
 
 }  // namespace remoting

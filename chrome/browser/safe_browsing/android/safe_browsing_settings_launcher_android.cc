@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,9 @@
 
 namespace safe_browsing {
 
-void ShowSafeBrowsingSettings(content::WebContents* web_contents,
-                              SettingsAccessPoint access_point) {
+void ShowSafeBrowsingSettings(content::WebContents* web_contents) {
   Java_SafeBrowsingSettingsLauncher_showSafeBrowsingSettings(
-      base::android::AttachCurrentThread(), web_contents->GetJavaWebContents(),
-      static_cast<int>(access_point));
+      base::android::AttachCurrentThread(), web_contents->GetJavaWebContents());
 }
 
 }  // namespace safe_browsing

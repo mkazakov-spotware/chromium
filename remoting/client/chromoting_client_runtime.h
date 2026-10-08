@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/sequence_bound.h"
 #include "net/url_request/url_request_context_getter.h"
@@ -54,9 +54,6 @@ class ChromotingClientRuntime {
   };
 
   static ChromotingClientRuntime* GetInstance();
-
-  ChromotingClientRuntime(const ChromotingClientRuntime&) = delete;
-  ChromotingClientRuntime& operator=(const ChromotingClientRuntime&) = delete;
 
   // Must be called before calling any other methods on this object.
   void Init(ChromotingClientRuntime::Delegate* delegate);
@@ -122,9 +119,11 @@ class ChromotingClientRuntime {
   // For logging session stage changes and stats.
   std::unique_ptr<TelemetryLogWriter> log_writer_;
 
-  raw_ptr<ChromotingClientRuntime::Delegate> delegate_ = nullptr;
+  ChromotingClientRuntime::Delegate* delegate_ = nullptr;
 
   friend struct base::DefaultSingletonTraits<ChromotingClientRuntime>;
+
+  DISALLOW_COPY_AND_ASSIGN(ChromotingClientRuntime);
 };
 
 }  // namespace remoting

@@ -29,13 +29,16 @@
 #include "third_party/blink/renderer/modules/webdatabase/sql_result_set.h"
 
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/wtf/wtf.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
 SQLResultSet::SQLResultSet()
-    : rows_(MakeGarbageCollected<SQLResultSetRowList>()) {
+    : rows_(MakeGarbageCollected<SQLResultSetRowList>()),
+      insert_id_(0),
+      rows_affected_(0),
+      insert_id_set_(false),
+      is_valid_(false) {
   DCHECK(IsMainThread());
 }
 
@@ -57,7 +60,7 @@ int64_t SQLResultSet::insertId(ExceptionState& exception_state) const {
   return -1;
 }
 
-int64_t SQLResultSet::rowsAffected() const {
+int SQLResultSet::rowsAffected() const {
   return rows_affected_;
 }
 
@@ -72,7 +75,7 @@ void SQLResultSet::SetInsertId(int64_t id) {
   insert_id_set_ = true;
 }
 
-void SQLResultSet::SetRowsAffected(int64_t count) {
+void SQLResultSet::SetRowsAffected(int count) {
   rows_affected_ = count;
   is_valid_ = true;
 }

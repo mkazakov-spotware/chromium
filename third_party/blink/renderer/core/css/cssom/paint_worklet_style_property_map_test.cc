@@ -1,12 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/css/cssom/paint_worklet_style_property_map.h"
 
 #include <memory>
+#include "base/single_thread_task_runner.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/single_thread_task_runner.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/core/css/css_computed_style_declaration.h"
 #include "third_party/blink/renderer/core/css/css_test_helpers.h"
@@ -14,15 +14,14 @@
 #include "third_party/blink/renderer/core/css/cssom/css_paint_worklet_input.h"
 #include "third_party/blink/renderer/core/css/cssom/css_unit_value.h"
 #include "third_party/blink/renderer/core/css/cssom/css_unparsed_value.h"
-#include "third_party/blink/renderer/core/css/cssom/css_unsupported_color.h"
+#include "third_party/blink/renderer/core/css/cssom/css_unsupported_color_value.h"
 #include "third_party/blink/renderer/core/css/properties/longhands/custom_property.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/testing/page_test_base.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/scheduler/public/non_main_thread.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
-#include "third_party/blink/renderer/platform/wtf/cross_thread_copier_base.h"
+#include "third_party/blink/renderer/platform/scheduler/public/thread.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
 
 namespace blink {
@@ -31,7 +30,7 @@ class PaintWorkletStylePropertyMapTest : public PageTestBase {
  public:
   PaintWorkletStylePropertyMapTest() = default;
 
-  void SetUp() override { PageTestBase::SetUp(gfx::Size()); }
+  void SetUp() override { PageTestBase::SetUp(IntSize()); }
 
   Node* PageNode() { return GetDocument().documentElement(); }
 
@@ -99,16 +98,16 @@ class PaintWorkletStylePropertyMapTest : public PageTestBase {
               "test");
     EXPECT_EQ(data.at("--gar")->ToCSSStyleValue()->GetType(),
               CSSStyleValue::StyleValueType::kUnsupportedColorType);
-    EXPECT_EQ(
-        To<CSSUnsupportedColor>(data.at("--gar")->ToCSSStyleValue())->Value(),
-        Color(255, 0, 0));
+    EXPECT_EQ(To<CSSUnsupportedColorValue>(data.at("--gar")->ToCSSStyleValue())
+                  ->Value(),
+              Color(255, 0, 0));
     EXPECT_EQ(data.at("display")->ToCSSStyleValue()->GetType(),
               CSSStyleValue::StyleValueType::kKeywordType);
     waitable_event->Signal();
   }
 
  protected:
-  std::unique_ptr<blink::NonMainThread> thread_;
+  std::unique_ptr<blink::Thread> thread_;
 };
 
 TEST_F(PaintWorkletStylePropertyMapTest, UnregisteredCustomProperty) {
@@ -133,11 +132,11 @@ TEST_F(PaintWorkletStylePropertyMapTest, UnregisteredCustomProperty) {
   std::vector<cc::PaintWorkletInput::PropertyKey> property_keys;
   scoped_refptr<CSSPaintWorkletInput> input =
       base::MakeRefCounted<CSSPaintWorkletInput>(
-          "test", gfx::SizeF(100, 100), 1.0f, 1, std::move(data.value()),
+          "test", FloatSize(100, 100), 1.0f, 1.0f, 1, std::move(data.value()),
           std::move(input_arguments), std::move(property_keys));
   ASSERT_TRUE(input);
 
-  thread_ = blink::NonMainThread::CreateThread(
+  thread_ = blink::Thread::CreateThread(
       ThreadCreationParams(ThreadType::kTestThread).SetSupportsGC(true));
   base::WaitableEvent waitable_event;
   PostCrossThreadTask(
@@ -181,11 +180,11 @@ TEST_F(PaintWorkletStylePropertyMapTest, SupportedCrossThreadData) {
   std::vector<cc::PaintWorkletInput::PropertyKey> property_keys;
   scoped_refptr<CSSPaintWorkletInput> input =
       base::MakeRefCounted<CSSPaintWorkletInput>(
-          "test", gfx::SizeF(100, 100), 1.0f, 1, std::move(data.value()),
+          "test", FloatSize(100, 100), 1.0f, 1.0f, 1, std::move(data.value()),
           std::move(input_arguments), std::move(property_keys));
   DCHECK(input);
 
-  thread_ = blink::NonMainThread::CreateThread(
+  thread_ = blink::Thread::CreateThread(
       ThreadCreationParams(ThreadType::kTestThread).SetSupportsGC(true));
   base::WaitableEvent waitable_event;
   PostCrossThreadTask(

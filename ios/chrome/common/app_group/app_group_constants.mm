@@ -1,14 +1,13 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/common/app_group/app_group_constants.h"
+#include "ios/chrome/common/app_group/app_group_constants.h"
 
-#import "base/check.h"
-#import "base/strings/sys_string_conversions.h"
-#import "components/version_info/version_info.h"
-#import "ios/chrome/common/app_group/app_group_helper.h"
-#import "ios/chrome/common/ios_app_bundle_id_prefix_buildflags.h"
+#include "base/check.h"
+#include "base/strings/sys_string_conversions.h"
+#include "components/version_info/version_info.h"
+#include "ios/chrome/common/ios_app_bundle_id_prefix_buildflags.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -16,14 +15,9 @@
 
 namespace app_group {
 
-extern NSString* const kChromeCapabilitiesPreference = @"Chrome.Capabilities";
-
-extern NSString* const kChromeShowDefaultBrowserPromoCapability =
-    @"ShowDefaultBrowserPromo";
-
 const char kChromeAppGroupXCallbackCommand[] = "app-group-command";
 
-NSString* const kChromeExtensionFieldTrialPreference = @"Extension.FieldTrial";
+const char kChromeExtensionFieldTrialPreference[] = "Extension.FieldTrial";
 
 const char kChromeAppGroupCommandPreference[] =
     "GroupApp.ChromeAppGroupCommand";
@@ -43,12 +37,8 @@ const char kChromeAppGroupNewTabCommand[] = "newtab";
 const char kChromeAppGroupFocusOmniboxCommand[] = "focusomnibox";
 const char kChromeAppGroupIncognitoSearchCommand[] = "incognitosearch";
 const char kChromeAppGroupQRScannerCommand[] = "qrscanner";
-const char kChromeAppGroupLensCommand[] = "lens";
 
 const char kChromeAppGroupSupportsSearchByImage[] = "supportsSearchByImage";
-const char kChromeAppGroupIsGoogleDefaultSearchEngine[] =
-    "isGoogleDefaultSearchEngine";
-const char kChromeAppGroupEnableLensInWidget[] = "enableLensInWidget";
 
 const char kChromeAppClientID[] = "ClientID";
 const char kUserMetricsEnabledDate[] = "UserMetricsEnabledDate";
@@ -74,7 +64,13 @@ NSString* const kOpenCommandSourceCredentialsExtension =
 NSString* const kSuggestedItems = @"SuggestedItems";
 
 NSString* ApplicationGroup() {
-  return [AppGroupHelper applicationGroup];
+  NSBundle* bundle = [NSBundle mainBundle];
+  NSString* group = [bundle objectForInfoDictionaryKey:@"KSApplicationGroup"];
+  if (![group length]) {
+    return [NSString stringWithFormat:@"group.%s.chrome",
+                                      BUILDFLAG(IOS_APP_BUNDLE_ID_PREFIX), nil];
+  }
+  return group;
 }
 
 NSString* CommonApplicationGroup() {
@@ -97,11 +93,11 @@ NSString* ApplicationName(AppGroupApplications application) {
   }
 }
 
-NSUserDefaults* GetCommonGroupUserDefaults() {
-  NSString* applicationGroup = CommonApplicationGroup();
+NSUserDefaults* GetGroupUserDefaults() {
+  NSUserDefaults* defaults = nil;
+  NSString* applicationGroup = ApplicationGroup();
   if (applicationGroup) {
-    NSUserDefaults* defaults =
-        [[NSUserDefaults alloc] initWithSuiteName:applicationGroup];
+    defaults = [[NSUserDefaults alloc] initWithSuiteName:applicationGroup];
     if (defaults)
       return defaults;
   }
@@ -110,10 +106,6 @@ NSUserDefaults* GetCommonGroupUserDefaults() {
   // the application. This is not the case on simulator.
   DCHECK(TARGET_IPHONE_SIMULATOR);
   return [NSUserDefaults standardUserDefaults];
-}
-
-NSUserDefaults* GetGroupUserDefaults() {
-  return [AppGroupHelper groupUserDefaults];
 }
 
 NSURL* LegacyShareExtensionItemsFolder() {
@@ -146,27 +138,6 @@ NSURL* ContentWidgetFaviconsFolder() {
       [chromeURL URLByAppendingPathComponent:@"ContentWidgetFavicons"
                                  isDirectory:YES];
   return contentWidgetFaviconsURL;
-}
-
-NSURL* SharedFaviconAttributesFolder() {
-  NSURL* groupURL = [[NSFileManager defaultManager]
-      containerURLForSecurityApplicationGroupIdentifier:ApplicationGroup()];
-  NSURL* chromeURL = [groupURL URLByAppendingPathComponent:@"Chrome"
-                                               isDirectory:YES];
-  NSURL* sharedFaviconAttributesURL =
-      [chromeURL URLByAppendingPathComponent:@"SharedFaviconAttributes"
-                                 isDirectory:YES];
-  return sharedFaviconAttributesURL;
-}
-
-NSURL* CrashpadFolder() {
-  NSURL* groupURL = [[NSFileManager defaultManager]
-      containerURLForSecurityApplicationGroupIdentifier:ApplicationGroup()];
-  NSURL* chromeURL = [groupURL URLByAppendingPathComponent:@"Chrome"
-                                               isDirectory:YES];
-  NSURL* crashpadURL = [chromeURL URLByAppendingPathComponent:@"Crashpad"
-                                                  isDirectory:YES];
-  return crashpadURL;
 }
 
 }  // namespace app_group

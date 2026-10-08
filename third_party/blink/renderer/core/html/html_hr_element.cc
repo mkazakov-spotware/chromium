@@ -22,7 +22,7 @@
 
 #include "third_party/blink/renderer/core/html/html_hr_element.h"
 
-#include "third_party/blink/renderer/core/css/css_color.h"
+#include "third_party/blink/renderer/core/css/css_color_value.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/css/css_property_value_set.h"
 #include "third_party/blink/renderer/core/css_value_keywords.h"
@@ -77,26 +77,17 @@ void HTMLHRElement::CollectStyleForPresentationAttribute(
       AddHTMLLengthToStyle(style, CSSPropertyID::kWidth, value);
     }
   } else if (name == html_names::kColorAttr) {
-    for (CSSPropertyID property_id :
-         {CSSPropertyID::kBorderTopStyle, CSSPropertyID::kBorderBottomStyle,
-          CSSPropertyID::kBorderLeftStyle, CSSPropertyID::kBorderRightStyle}) {
-      AddPropertyToPresentationAttributeStyle(style, property_id,
-                                              CSSValueID::kSolid);
-    }
+    AddPropertyToPresentationAttributeStyle(style, CSSPropertyID::kBorderStyle,
+                                            CSSValueID::kSolid);
     AddHTMLColorToStyle(style, CSSPropertyID::kBorderColor, value);
     AddHTMLColorToStyle(style, CSSPropertyID::kBackgroundColor, value);
   } else if (name == html_names::kNoshadeAttr) {
     if (!FastHasAttribute(html_names::kColorAttr)) {
-      for (CSSPropertyID property_id :
-           {CSSPropertyID::kBorderTopStyle, CSSPropertyID::kBorderBottomStyle,
-            CSSPropertyID::kBorderLeftStyle,
-            CSSPropertyID::kBorderRightStyle}) {
-        AddPropertyToPresentationAttributeStyle(style, property_id,
-                                                CSSValueID::kSolid);
-      }
+      AddPropertyToPresentationAttributeStyle(
+          style, CSSPropertyID::kBorderStyle, CSSValueID::kSolid);
 
-      const cssvalue::CSSColor& dark_gray_value =
-          *cssvalue::CSSColor::Create(Color::kDarkGray);
+      const cssvalue::CSSColorValue& dark_gray_value =
+          *cssvalue::CSSColorValue::Create(Color::kDarkGray);
       style->SetProperty(CSSPropertyID::kBorderColor, dark_gray_value);
       style->SetProperty(CSSPropertyID::kBackgroundColor, dark_gray_value);
     }

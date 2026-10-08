@@ -1,8 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/task/single_thread_task_executor.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
@@ -23,9 +24,6 @@ class TestClient : public Service, public mojom::TestService {
     registry_.AddInterface(base::BindRepeating(
         &TestClient::BindTestServiceReceiver, base::Unretained(this)));
   }
-
-  TestClient(const TestClient&) = delete;
-  TestClient& operator=(const TestClient&) = delete;
 
   ~TestClient() override = default;
 
@@ -50,6 +48,8 @@ class TestClient : public Service, public mojom::TestService {
   ServiceReceiver service_receiver_;
   BinderRegistry registry_;
   mojo::ReceiverSet<mojom::TestService> receivers_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestClient);
 };
 
 }  // namespace service_manager

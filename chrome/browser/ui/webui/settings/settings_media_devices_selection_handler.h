@@ -1,12 +1,12 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_WEBUI_SETTINGS_SETTINGS_MEDIA_DEVICES_SELECTION_HANDLER_H_
 #define CHROME_BROWSER_UI_WEBUI_SETTINGS_SETTINGS_MEDIA_DEVICES_SELECTION_HANDLER_H_
 
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/ui/webui/settings/settings_page_ui_handler.h"
 #include "content/public/browser/web_contents.h"
@@ -19,11 +19,6 @@ class MediaDevicesSelectionHandler
       public SettingsPageUIHandler {
  public:
   explicit MediaDevicesSelectionHandler(Profile* profile);
-
-  MediaDevicesSelectionHandler(const MediaDevicesSelectionHandler&) = delete;
-  MediaDevicesSelectionHandler& operator=(const MediaDevicesSelectionHandler&) =
-      delete;
-
   ~MediaDevicesSelectionHandler() override;
 
   // SettingsPageUIHandler:
@@ -42,12 +37,12 @@ class MediaDevicesSelectionHandler
   };
 
   // Fetches the list of default capture devices.
-  void GetDefaultCaptureDevices(const base::Value::List& args);
+  void GetDefaultCaptureDevices(const base::ListValue* args);
 
   // Sets the default audio/video capture device for media. |args| includes the
   // media type (kAuudio/kVideo) and the unique id of the new default device
   // that the user has chosen.
-  void SetDefaultCaptureDevice(const base::Value::List& args);
+  void SetDefaultCaptureDevice(const base::ListValue* args);
 
   // Helpers methods to update the device menus.
   void UpdateDevicesMenuForType(DeviceType type);
@@ -58,11 +53,12 @@ class MediaDevicesSelectionHandler
   std::string GetDeviceDisplayName(
       const blink::MediaStreamDevice& device) const;
 
-  raw_ptr<Profile> profile_;  // Weak pointer.
+  Profile* profile_;  // Weak pointer.
 
-  base::ScopedObservation<MediaCaptureDevicesDispatcher,
-                          MediaCaptureDevicesDispatcher::Observer>
-      observation_{this};
+  ScopedObserver<MediaCaptureDevicesDispatcher,
+                 MediaCaptureDevicesDispatcher::Observer> observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaDevicesSelectionHandler);
 };
 
 }  // namespace settings

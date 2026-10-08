@@ -1,23 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {ArrayUtil} from '../common/array_util.js';
-import {EventHandler} from '../common/event_handler.js';
-
-import {ActionManager} from './action_manager.js';
-import {Navigator} from './navigator.js';
-import {SwitchAccess} from './switch_access.js';
-import {SwitchAccessMenuAction} from './switch_access_constants.js';
-
-const AutomationNode = chrome.automation.AutomationNode;
 
 /**
  * Class to handle interactions with the Switch Access action menu, including
  * opening and closing the menu and setting its location / the actions to be
  * displayed.
  */
-export class MenuManager {
+class MenuManager {
   /** @private */
   constructor() {
     /** @private {?Array<!SwitchAccessMenuAction>} */
@@ -35,7 +25,7 @@ export class MenuManager {
     /** @private {!EventHandler} */
     this.clickHandler_ = new EventHandler(
         [], chrome.automation.EventType.CLICKED,
-        event => this.onButtonClicked_(event));
+        this.onButtonClicked_.bind(this));
   }
 
   static get instance() {
@@ -74,7 +64,7 @@ export class MenuManager {
     MenuManager.instance.actionNode_ = null;
     MenuManager.instance.displayedActions_ = null;
     MenuManager.instance.displayedLocation_ = null;
-    Navigator.byItem.exitIfInGroup(MenuManager.instance.menuAutomationNode_);
+    NavigationManager.exitIfInGroup(MenuManager.instance.menuAutomationNode_);
     MenuManager.instance.menuAutomationNode_ = null;
 
     chrome.accessibilityPrivate.updateSwitchAccessBubble(
@@ -135,9 +125,9 @@ export class MenuManager {
     SwitchAccess.findNodeMatching(
         {
           role: chrome.automation.RoleType.MENU,
-          attributes: {className: 'SwitchAccessMenuView'},
+          attributes: {className: 'SwitchAccessMenuView'}
         },
-        node => this.jumpToMenuAutomationNode_(node));
+        this.jumpToMenuAutomationNode_.bind(this));
   }
 
   /** @private */
@@ -164,9 +154,9 @@ export class MenuManager {
           node,
           [
             chrome.automation.EventType.CHILDREN_CHANGED,
-            chrome.automation.EventType.LOCATION_CHANGED,
+            chrome.automation.EventType.LOCATION_CHANGED
           ],
-          () => this.jumpToMenuAutomationNode_(node), {listenOnce: true})
+          this.jumpToMenuAutomationNode_.bind(this, node), {listenOnce: true})
           .start();
       return;
     }
@@ -174,7 +164,7 @@ export class MenuManager {
     this.menuAutomationNode_ = node;
     this.clickHandler_.setNodes(this.menuAutomationNode_);
     this.clickHandler_.start();
-    Navigator.byItem.jumpToSwitchAccessMenu();
+    NavigationManager.jumpToSwitchAccessMenu();
   }
 
   /**

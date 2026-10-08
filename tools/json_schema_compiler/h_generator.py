@@ -1,4 +1,4 @@
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -32,8 +32,7 @@ class _Generator(object):
     c = Code()
     (c.Append(cpp_util.CHROMIUM_LICENSE)
       .Append()
-      .Append(cpp_util.GENERATED_FILE_MESSAGE %
-              cpp_util.ToPosixPath(self._namespace.source_file))
+      .Append(cpp_util.GENERATED_FILE_MESSAGE % self._namespace.source_file)
       .Append()
     )
 
@@ -169,8 +168,11 @@ class _Generator(object):
       needs_blank_line = True
       if prop.description:
         c.Comment(prop.description)
+      # ANY is a base::Value which is abstract and cannot be a direct member, so
+      # we always need to wrap it in a scoped_ptr.
+      is_ptr = prop.optional or prop.type_.property_type == PropertyType.ANY
       (c.Append('%s %s;' % (
-           self._type_helper.GetCppType(prop.type_, is_optional=prop.optional),
+           self._type_helper.GetCppType(prop.type_, is_ptr=is_ptr),
            prop.unix_name))
       )
     return c
@@ -259,11 +261,11 @@ class _Generator(object):
       if type_.origin.from_client:
         value_type = ('base::Value'
                       if type_.property_type is PropertyType.CHOICES else
-                      'base::Value::Dict')
+                      'base::DictionaryValue')
         (c.Append()
-          .Comment('Returns a new %s representing the serialized form of this'
+          .Comment('Returns a new %s representing the serialized form of this '
                    '%s object.' % (value_type, classname))
-          .Append('%s ToValue() const;' % value_type)
+          .Append('std::unique_ptr<%s> ToValue() const;' % value_type)
         )
 
       if type_.origin.from_manifest_keys:
@@ -276,7 +278,7 @@ class _Generator(object):
         c.Append('// Choices:')
         for choice_type in type_.choices:
           c.Append('%s as_%s;' % (
-              self._type_helper.GetCppType(choice_type, is_optional=True),
+              self._type_helper.GetCppType(choice_type, is_ptr=True),
               choice_type.unix_name))
       else:
         properties = type_.properties.values()
@@ -285,13 +287,14 @@ class _Generator(object):
           .Cblock(self._GenerateFields(properties)))
         if type_.additional_properties is not None:
           # Most additionalProperties actually have type "any", which is better
-          # modelled as a Value::Dict rather than a map of string -> Value.
+          # modelled as a DictionaryValue rather than a map of string -> Value.
           if type_.additional_properties.property_type == PropertyType.ANY:
-            c.Append('base::Value::Dict additional_properties;')
+            c.Append('base::DictionaryValue additional_properties;')
           else:
             (c.Cblock(self._GenerateType(type_.additional_properties))
               .Append('std::map<std::string, %s> additional_properties;' %
-                      self._type_helper.GetCppType(type_.additional_properties))
+                      self._type_helper.GetCppType(type_.additional_properties,
+                                                   is_in_container=True))
             )
       (c.Eblock('};'))
     return c.Substitute({'classname': classname})
@@ -338,8 +341,7 @@ class _Generator(object):
     c = Code()
     (c.Sblock('struct Params {')
       .Append('static std::unique_ptr<Params> Create(%s);' %
-                  self._GenerateParams(
-                      ('const base::Value::List& args',)))
+                  self._GenerateParams(('const base::ListValue& args',)))
       .Append('Params(const Params&) = delete;')
       .Append('Params& operator=(const Params&) = delete;')
       .Append('~Params();')
@@ -382,9 +384,9 @@ class _Generator(object):
     # manifest types.
     if type_.IsRootManifestKeyType():
       params = [
-        'const base::Value::Dict& root_dict',
+        'const base::DictionaryValue& root_dict',
         '%s* out' % classname,
-        'std::u16string* error'
+        'base::string16* error'
       ]
       comment = (
         'Parses manifest keys for this namespace. Any keys not available to the'
@@ -392,10 +394,10 @@ class _Generator(object):
         '|error| is populated.')
     else:
       params = [
-        'const base::Value::Dict& root_dict',
+        'const base::DictionaryValue& root_dict',
         'base::StringPiece key',
         '%s* out' % classname,
-        'std::u16string* error',
+        'base::string16* error',
         'std::vector<base::StringPiece>* error_path_reversed'
       ]
       comment = (
@@ -437,7 +439,7 @@ class _Generator(object):
         c.Comment(param.description)
       declaration_list.append(cpp_util.GetParameterDeclaration(
           param, self._type_helper.GetCppType(param.type_)))
-    c.Append('base::Value::List Create(%s);' %
+    c.Append('std::unique_ptr<base::ListValue> Create(%s);' %
              ', '.join(declaration_list))
     return c
 
@@ -474,5 +476,5 @@ class _Generator(object):
     if generate_error_messages is None:
       generate_error_messages = self._generate_error_messages
     if generate_error_messages:
-      params += ('std::u16string* error',)
+      params += ('base::string16* error',)
     return ', '.join(str(p) for p in params)

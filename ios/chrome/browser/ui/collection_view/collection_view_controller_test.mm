@@ -1,34 +1,23 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/collection_view/collection_view_controller_test.h"
 
-#import <MaterialComponents/MaterialCollectionCells.h>
-
-#import "base/check.h"
+#include "base/check.h"
 #import "base/mac/foundation_util.h"
+#import "ios/chrome/browser/ui/collection_view/cells/collection_view_account_item.h"
 #import "ios/chrome/browser/ui/collection_view/cells/collection_view_item.h"
 #import "ios/chrome/browser/ui/collection_view/cells/collection_view_switch_item.h"
 #import "ios/chrome/browser/ui/collection_view/collection_view_controller.h"
 #import "ios/chrome/browser/ui/collection_view/collection_view_model.h"
 
-#import "testing/gtest_mac.h"
-#import "ui/base/l10n/l10n_util.h"
+#include "testing/gtest_mac.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
-
-// Dummy interface to allow using @selector(...) in the helper implementation.
-@interface DummyCollectionViewItemForSelector : CollectionViewItem
-
-@property(nonatomic, copy) NSString* detailText;
-
-// The accessory type for the represented cell.
-@property(nonatomic, assign) MDCCollectionViewCellAccessoryType accessoryType;
-
-@end
 
 CollectionViewControllerTest::CollectionViewControllerTest() {}
 
@@ -98,7 +87,7 @@ void CollectionViewControllerTest::CheckTitleWithId(int expected_title_id) {
 void CollectionViewControllerTest::CheckSectionHeader(NSString* expected_title,
                                                       int section) {
   CollectionViewItem* header =
-      [[controller_ collectionViewModel] headerForSectionIndex:section];
+      [[controller_ collectionViewModel] headerForSection:section];
   ASSERT_TRUE([header respondsToSelector:@selector(text)]);
   EXPECT_NSEQ(expected_title, [(id)header text]);
 }

@@ -1,5 +1,5 @@
 rootWebArea
-++genericContainer ignored invisible
+++genericContainer ignored
 ++++genericContainer ignored invisible
 ++++++section ignored invisible
 ++++++++dialog
@@ -8,8 +8,6 @@ rootWebArea
 ++++++++++link name='Link inside the dialog.'
 ++++++++++++staticText name='Link inside the dialog.'
 ++++++++++++++inlineTextBox name='Link inside the dialog.'
-++++++++menuListPopup ignored invisible
-++++++++++menuListOption ignored
-++++++genericContainer ignored invisible
-++++++++staticText ignored invisible name='No file chosen'
+++++++++popUpButton collapsed ignored invisible value='This should be pruned out of the tree.'
+++++++button ignored invisible name='No file chosen, Choose File' value='No file chosen'
 ++++++dialog ignored invisible

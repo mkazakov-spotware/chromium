@@ -1,60 +1,48 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/external_protocol/external_protocol_handler.h"
 
 #include <stddef.h>
-
 #include <utility>
 
 #include "base/bind.h"
 #include "base/check_op.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
-#include "base/strings/escape.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
-#include "base/types/optional_util.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/external_protocol/auto_launch_protocols_policy_handler.h"
-#include "chrome/browser/external_protocol/constants.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/tab_contents/tab_util.h"
 #include "chrome/common/pref_names.h"
+#include "components/policy/core/browser/url_util.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/url_matcher/url_matcher.h"
-#include "components/url_matcher/url_util.h"
 #include "content/public/browser/browser_thread.h"
-#include "content/public/browser/weak_document_ptr.h"
+#include "content/public/browser/web_contents.h"
+#include "net/base/escape.h"
 #include "services/network/public/cpp/is_potentially_trustworthy.h"
-#include "third_party/blink/public/mojom/devtools/console_message.mojom.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_FUCHSIA) && \
-    !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_ANDROID)
 #include "chrome/browser/sharing/click_to_call/click_to_call_ui_controller.h"
 #include "chrome/browser/sharing/click_to_call/click_to_call_utils.h"
-#endif
-
-#if BUILDFLAG(IS_ANDROID)
-#include "components/navigation_interception/intercept_navigation_delegate.h"
-#else
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #endif
 
 namespace {
 
-// Anti-flood protection controls whether we accept requests for launching
-// external protocols. Set to false each time an external protocol is requested,
-// and set back to true on each user gesture, extension API call, and navigation
-// to an external handler via bookmarks or the omnibox. This variable should
-// only be accessed from the UI thread.
+// Whether we accept requests for launching external protocols. This is set to
+// false every time an external protocol is requested, and set back to true on
+// each user gesture. This variable should only be accessed from the UI thread.
 bool g_accept_requests = true;
 
 ExternalProtocolHandler::Delegate* g_external_protocol_handler_delegate =
@@ -73,7 +61,6 @@ constexpr const char* kDeniedSchemes[] = {
     "hcp",
     "ie.http",
     "javascript",
-    "mk",
     "ms-help",
     "nntp",
     "res",
@@ -90,25 +77,16 @@ constexpr const char* kAllowedSchemes[] = {
     "mailto", "news", "snews",
 };
 
-void AddMessageToConsole(const content::WeakDocumentPtr& document,
-                         blink::mojom::ConsoleMessageLevel level,
-                         const std::string& message) {
-  if (content::RenderFrameHost* rfh = document.AsRenderFrameHostIfValid())
-    rfh->AddMessageToConsole(level, message);
-}
-
-#if !BUILDFLAG(IS_ANDROID)
 // Functions enabling unit testing. Using a NULL delegate will use the default
 // behavior; if a delegate is provided it will be used instead.
 scoped_refptr<shell_integration::DefaultProtocolClientWorker> CreateShellWorker(
-    const GURL& url,
+    const std::string& protocol,
     ExternalProtocolHandler::Delegate* delegate) {
   if (delegate)
-    return delegate->CreateShellWorker(url);
+    return delegate->CreateShellWorker(protocol);
   return base::MakeRefCounted<shell_integration::DefaultProtocolClientWorker>(
-      url);
+      protocol);
 }
-#endif
 
 ExternalProtocolHandler::BlockState GetBlockStateWithDelegate(
     const std::string& scheme,
@@ -121,31 +99,26 @@ ExternalProtocolHandler::BlockState GetBlockStateWithDelegate(
                                                 profile);
 }
 
-#if !BUILDFLAG(IS_ANDROID)
 void RunExternalProtocolDialogWithDelegate(
     const GURL& url,
     content::WebContents* web_contents,
     ui::PageTransition page_transition,
     bool has_user_gesture,
-    bool is_in_fenced_frame_tree,
-    const absl::optional<url::Origin>& initiating_origin,
-    content::WeakDocumentPtr initiator_document,
-    const std::u16string& program_name,
+    const base::Optional<url::Origin>& initiating_origin,
     ExternalProtocolHandler::Delegate* delegate) {
   DCHECK(web_contents);
   if (delegate) {
     delegate->RunExternalProtocolDialog(url, web_contents, page_transition,
-                                        has_user_gesture, initiating_origin,
-                                        program_name);
+                                        has_user_gesture, initiating_origin);
     return;
   }
 
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+#if defined(OS_MAC) || defined(OS_WIN)
   // If the Shell does not have a registered name for the protocol,
   // attempting to invoke the protocol will fail.
-  if (program_name.empty()) {
-    AddMessageToConsole(
-        initiator_document, blink::mojom::ConsoleMessageLevel::kError,
+  if (shell_integration::GetApplicationNameForProtocol(url).empty()) {
+    web_contents->GetMainFrame()->AddMessageToConsole(
+        blink::mojom::ConsoleMessageLevel::kError,
         "Failed to launch '" + url.possibly_invalid_spec() +
             "' because the scheme does not have a registered handler.");
     return;
@@ -153,16 +126,12 @@ void RunExternalProtocolDialogWithDelegate(
 #endif
 
   ExternalProtocolHandler::RunExternalProtocolDialog(
-      url, web_contents, page_transition, has_user_gesture,
-      is_in_fenced_frame_tree, initiating_origin, std::move(initiator_document),
-      program_name);
+      url, web_contents, page_transition, has_user_gesture, initiating_origin);
 }
-#endif  // !BUILDFLAG(IS_ANDROID)
 
 void LaunchUrlWithoutSecurityCheckWithDelegate(
     const GURL& url,
     content::WebContents* web_contents,
-    content::WeakDocumentPtr initiator_document,
     ExternalProtocolHandler::Delegate* delegate) {
   if (delegate) {
     delegate->LaunchUrlWithoutSecurityCheck(url, web_contents);
@@ -174,17 +143,14 @@ void LaunchUrlWithoutSecurityCheckWithDelegate(
   if (!web_contents)
     return;
 
-  AddMessageToConsole(
-      initiator_document, blink::mojom::ConsoleMessageLevel::kInfo,
+  web_contents->GetMainFrame()->AddMessageToConsole(
+      blink::mojom::ConsoleMessageLevel::kInfo,
       "Launched external handler for '" + url.possibly_invalid_spec() + "'.");
 
   platform_util::OpenExternal(
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-      Profile::FromBrowserContext(web_contents->GetBrowserContext()),
-#endif
-      url);
+      Profile::FromBrowserContext(web_contents->GetBrowserContext()), url);
 
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_ANDROID) && !defined(OS_CHROMEOS)
   // If the protocol navigation occurs in a new tab, close it.
   // Avoid calling CloseContents if the tab is not in this browser's tab strip
   // model; this can happen if the protocol was initiated by something
@@ -199,28 +165,26 @@ void LaunchUrlWithoutSecurityCheckWithDelegate(
 #endif
 }
 
-#if !BUILDFLAG(IS_ANDROID)
 // When we are about to launch a URL with the default OS level application, we
 // check if the external application will be us. If it is we just ignore the
 // request.
 void OnDefaultProtocolClientWorkerFinished(
     const GURL& escaped_url,
-    content::WebContents::Getter web_contents_getter,
+    int render_process_host_id,
+    int render_view_routing_id,
     bool prompt_user,
     ui::PageTransition page_transition,
     bool has_user_gesture,
-    bool is_in_fenced_frame_tree,
-    const absl::optional<url::Origin>& initiating_origin,
-    content::WeakDocumentPtr initiator_document,
+    const base::Optional<url::Origin>& initiating_origin,
     ExternalProtocolHandler::Delegate* delegate,
-    shell_integration::DefaultWebClientState state,
-    const std::u16string& program_name) {
+    shell_integration::DefaultWebClientState state) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   if (delegate)
     delegate->FinishedProcessingCheck();
 
-  content::WebContents* web_contents = web_contents_getter.Run();
+  content::WebContents* web_contents = tab_util::GetWebContentsByID(
+      render_process_host_id, render_view_routing_id);
 
   // The default handler is hidden if it is Chrome itself, as nothing will
   // happen if it is selected (since this is invoked by the external protocol
@@ -228,15 +192,13 @@ void OnDefaultProtocolClientWorkerFinished(
   bool chrome_is_default_handler = state == shell_integration::IS_DEFAULT;
 
   // On ChromeOS, Click to Call is integrated into the external protocol dialog.
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_FUCHSIA) && \
-    !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_ANDROID) && !defined(OS_CHROMEOS)
   if (web_contents && ShouldOfferClickToCallForURL(
                           web_contents->GetBrowserContext(), escaped_url)) {
     // Handle tel links by opening the Click to Call dialog. This will call back
     // into LaunchUrlWithoutSecurityCheck if the user selects a system handler.
-    ClickToCallUiController::ShowDialog(
-        web_contents, initiating_origin, std::move(initiator_document),
-        escaped_url, chrome_is_default_handler, program_name);
+    ClickToCallUiController::ShowDialog(web_contents, initiating_origin,
+                                        escaped_url, chrome_is_default_handler);
     return;
   }
 #endif
@@ -257,17 +219,15 @@ void OnDefaultProtocolClientWorkerFinished(
     // Ask the user if they want to allow the protocol. This will call
     // LaunchUrlWithoutSecurityCheck if the user decides to accept the
     // protocol.
-    RunExternalProtocolDialogWithDelegate(
-        escaped_url, web_contents, page_transition, has_user_gesture,
-        is_in_fenced_frame_tree, initiating_origin,
-        std::move(initiator_document), program_name, delegate);
+    RunExternalProtocolDialogWithDelegate(escaped_url, web_contents,
+                                          page_transition, has_user_gesture,
+                                          initiating_origin, delegate);
     return;
   }
 
-  LaunchUrlWithoutSecurityCheckWithDelegate(
-      escaped_url, web_contents, std::move(initiator_document), delegate);
+  LaunchUrlWithoutSecurityCheckWithDelegate(escaped_url, web_contents,
+                                            delegate);
 }
-#endif  // !BUILDFLAG(IS_ANDROID)
 
 bool IsSchemeOriginPairAllowedByPolicy(const std::string& scheme,
                                        const url::Origin* initiating_origin,
@@ -275,18 +235,21 @@ bool IsSchemeOriginPairAllowedByPolicy(const std::string& scheme,
   if (!initiating_origin)
     return false;
 
-  const base::Value::List& exempted_protocols =
+  const base::ListValue* exempted_protocols =
       prefs->GetList(prefs::kAutoLaunchProtocolsFromOrigins);
+  if (!exempted_protocols)
+    return false;
 
-  const base::Value::List* origin_patterns = nullptr;
-  for (const base::Value& entry : exempted_protocols) {
-    const base::Value::Dict& protocol_origins_map = entry.GetDict();
-    const std::string* protocol = protocol_origins_map.FindString(
-        policy::external_protocol::kProtocolNameKey);
+  const base::Value* origin_patterns = nullptr;
+  for (const base::Value& entry : exempted_protocols->GetList()) {
+    const base::DictionaryValue& protocol_origins_map =
+        base::Value::AsDictionaryValue(entry);
+    const std::string* protocol = protocol_origins_map.FindStringKey(
+        policy::AutoLaunchProtocolsPolicyHandler::kProtocolNameKey);
     DCHECK(protocol);
     if (*protocol == scheme) {
-      origin_patterns = protocol_origins_map.FindList(
-          policy::external_protocol::kOriginListKey);
+      origin_patterns = protocol_origins_map.FindListKey(
+          policy::AutoLaunchProtocolsPolicyHandler::kOriginListKey);
       break;
     }
   }
@@ -294,9 +257,9 @@ bool IsSchemeOriginPairAllowedByPolicy(const std::string& scheme,
     return false;
 
   url_matcher::URLMatcher matcher;
-  base::MatcherStringPattern::ID id(0);
-  url_matcher::util::AddFilters(&matcher, true /* allowed */, &id,
-                                *origin_patterns);
+  url_matcher::URLMatcherConditionSet::ID id(0);
+  policy::url_util::AddFilters(&matcher, true /* allowed */, &id,
+                               &base::Value::AsListValue(*origin_patterns));
 
   auto matching_set = matcher.MatchURL(initiating_origin->GetURL());
   return !matching_set.empty();
@@ -337,13 +300,13 @@ ExternalProtocolHandler::BlockState ExternalProtocolHandler::GetBlockState(
   }
 
   // Always block the hard-coded denied schemes.
-  for (size_t i = 0; i < std::size(kDeniedSchemes); ++i) {
+  for (size_t i = 0; i < base::size(kDeniedSchemes); ++i) {
     if (kDeniedSchemes[i] == scheme)
       return BLOCK;
   }
 
   // Always allow the hard-coded allowed schemes.
-  for (size_t i = 0; i < std::size(kAllowedSchemes); ++i) {
+  for (size_t i = 0; i < base::size(kAllowedSchemes); ++i) {
     if (kAllowedSchemes[i] == scheme)
       return DONT_BLOCK;
   }
@@ -357,15 +320,15 @@ ExternalProtocolHandler::BlockState ExternalProtocolHandler::GetBlockState(
 
     if (MayRememberAllowDecisionsForThisOrigin(initiating_origin)) {
       // Check if there is a matching {Origin+Protocol} pair exemption:
-      const base::Value::Dict& allowed_origin_protocol_pairs =
-          profile_prefs->GetDict(
+      const base::DictionaryValue* allowed_origin_protocol_pairs =
+          profile_prefs->GetDictionary(
               prefs::kProtocolHandlerPerOriginAllowedProtocols);
-      const base::Value::Dict* allowed_protocols_for_origin =
-          allowed_origin_protocol_pairs.FindDict(
+      const base::Value* allowed_protocols_for_origin =
+          allowed_origin_protocol_pairs->FindDictKey(
               initiating_origin->Serialize());
       if (allowed_protocols_for_origin) {
-        absl::optional<bool> allow =
-            allowed_protocols_for_origin->FindBool(scheme);
+        base::Optional<bool> allow =
+            allowed_protocols_for_origin->FindBoolKey(scheme);
         if (allow.has_value() && allow.value())
           return DONT_BLOCK;
       }
@@ -423,22 +386,12 @@ void ExternalProtocolHandler::SetBlockState(
 // static
 void ExternalProtocolHandler::LaunchUrl(
     const GURL& url,
-    content::WebContents::Getter web_contents_getter,
+    int render_process_host_id,
+    int render_view_routing_id,
     ui::PageTransition page_transition,
     bool has_user_gesture,
-    bool is_in_fenced_frame_tree,
-    const absl::optional<url::Origin>& initiating_origin,
-    content::WeakDocumentPtr initiator_document) {
+    const base::Optional<url::Origin>& initiating_origin) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-
-  // Disable anti-flood protection if the user is invoking a bookmark or
-  // navigating directly using the omnibox.
-  if (!g_accept_requests &&
-      (PageTransitionCoreTypeIs(page_transition,
-                                ui::PAGE_TRANSITION_AUTO_BOOKMARK) ||
-       PageTransitionCoreTypeIs(page_transition, ui::PAGE_TRANSITION_TYPED))) {
-    g_accept_requests = true;
-  }
 
   // Escape the input scheme to be sure that the command does not
   // have parameters unexpected by the external program.
@@ -446,19 +399,20 @@ void ExternalProtocolHandler::LaunchUrl(
   // the URL", something that probably should be done by the GURL constructor
   // itself. The GURL constructor does do it in some cases (e.g., mailto) but
   // not in general. https://crbug.com/788244.
-  std::string escaped_url_string = base::EscapeExternalHandlerValue(url.spec());
+  std::string escaped_url_string = net::EscapeExternalHandlerValue(url.spec());
   GURL escaped_url(escaped_url_string);
 
-  content::WebContents* web_contents = web_contents_getter.Run();
+  content::WebContents* web_contents = tab_util::GetWebContentsByID(
+      render_process_host_id, render_view_routing_id);
   Profile* profile = nullptr;
   if (web_contents)  // Maybe NULL during testing.
     profile = Profile::FromBrowserContext(web_contents->GetBrowserContext());
   BlockState block_state = GetBlockStateWithDelegate(
-      escaped_url.scheme(), base::OptionalToPtr(initiating_origin),
+      escaped_url.scheme(), base::OptionalOrNullptr(initiating_origin),
       g_external_protocol_handler_delegate, profile);
   if (block_state == BLOCK) {
-    AddMessageToConsole(
-        initiator_document, blink::mojom::ConsoleMessageLevel::kError,
+    web_contents->GetMainFrame()->AddMessageToConsole(
+        blink::mojom::ConsoleMessageLevel::kError,
         "Not allowed to launch '" + url.possibly_invalid_spec() + "'" +
             (g_accept_requests ? "." : " because a user gesture is required."));
 
@@ -469,22 +423,7 @@ void ExternalProtocolHandler::LaunchUrl(
 
   g_accept_requests = false;
 
-  // Shell integration code below doesn't work on Android - default handler
-  // checks are instead handled through the InterceptNavigationDelegate. See
-  // ExternalNavigationHandler.java.
-  // The Origin is used for security checks, not for displaying to the user, so
-  // the precursor origin should not be used.
-  // Also, a protocol dialog isn't used on Android.
-#if BUILDFLAG(IS_ANDROID)
-  navigation_interception::InterceptNavigationDelegate* delegate =
-      navigation_interception::InterceptNavigationDelegate::Get(web_contents);
-  if (delegate) {
-    delegate->HandleSubframeExternalProtocol(
-        escaped_url, page_transition, has_user_gesture, initiating_origin);
-  }
-  return;
-#else
-  absl::optional<url::Origin> initiating_origin_or_precursor;
+  base::Optional<url::Origin> initiating_origin_or_precursor;
   if (initiating_origin) {
     // Transform the initiating origin to its precursor origin if it is
     // opaque. |initiating_origin| is shown in the UI to attribute the external
@@ -500,27 +439,23 @@ void ExternalProtocolHandler::LaunchUrl(
 
   // The worker creates tasks with references to itself and puts them into
   // message loops.
-  shell_integration::DefaultProtocolHandlerWorkerCallback callback =
-      base::BindOnce(&OnDefaultProtocolClientWorkerFinished, escaped_url,
-                     std::move(web_contents_getter), block_state == UNKNOWN,
-                     page_transition, has_user_gesture, is_in_fenced_frame_tree,
-                     initiating_origin_or_precursor,
-                     std::move(initiator_document),
-                     g_external_protocol_handler_delegate);
+  shell_integration::DefaultWebClientWorkerCallback callback = base::BindOnce(
+      &OnDefaultProtocolClientWorkerFinished, escaped_url,
+      render_process_host_id, render_view_routing_id, block_state == UNKNOWN,
+      page_transition, has_user_gesture, initiating_origin_or_precursor,
+      g_external_protocol_handler_delegate);
 
   // Start the check process running. This will send tasks to a worker task
   // runner and when the answer is known will send the result back to
   // OnDefaultProtocolClientWorkerFinished().
-  CreateShellWorker(escaped_url, g_external_protocol_handler_delegate)
-      ->StartCheckIsDefaultAndGetDefaultClientName(std::move(callback));
-#endif
+  CreateShellWorker(escaped_url.scheme(), g_external_protocol_handler_delegate)
+      ->StartCheckIsDefault(std::move(callback));
 }
 
 // static
 void ExternalProtocolHandler::LaunchUrlWithoutSecurityCheck(
     const GURL& url,
-    content::WebContents* web_contents,
-    content::WeakDocumentPtr initiator_document) {
+    content::WebContents* web_contents) {
   // Escape the input scheme to be sure that the command does not
   // have parameters unexpected by the external program. The url passed in the
   // |url| parameter might already be escaped but the EscapeExternalHandlerValue
@@ -528,12 +463,11 @@ void ExternalProtocolHandler::LaunchUrlWithoutSecurityCheck(
   // TODO(788244): This essentially amounts to "remove illegal characters from
   // the URL", something that probably should be done by the GURL constructor
   // itself.
-  std::string escaped_url_string = base::EscapeExternalHandlerValue(url.spec());
+  std::string escaped_url_string = net::EscapeExternalHandlerValue(url.spec());
   GURL escaped_url(escaped_url_string);
 
   LaunchUrlWithoutSecurityCheckWithDelegate(
-      escaped_url, web_contents, std::move(initiator_document),
-      g_external_protocol_handler_delegate);
+      escaped_url, web_contents, g_external_protocol_handler_delegate);
 }
 
 // static

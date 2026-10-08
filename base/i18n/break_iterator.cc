@@ -1,15 +1,13 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/i18n/break_iterator.h"
 
 #include <stdint.h>
-#include <ostream>
 
 #include "base/check.h"
 #include "base/lazy_instance.h"
-#include "base/memory/raw_ptr.h"
 #include "base/notreached.h"
 #include "base/synchronization/lock.h"
 #include "third_party/icu/source/common/unicode/ubrk.h"
@@ -28,8 +26,7 @@ BreakIterator::BreakIterator(const StringPiece16& str, BreakType break_type)
       prev_(npos),
       pos_(0) {}
 
-BreakIterator::BreakIterator(const StringPiece16& str,
-                             const std::u16string& rules)
+BreakIterator::BreakIterator(const StringPiece16& str, const string16& rules)
     : iter_(nullptr),
       string_(str),
       rules_(rules),
@@ -104,7 +101,7 @@ class DefaultLocaleBreakIteratorCache {
 
  private:
   UErrorCode main_status_;
-  raw_ptr<UBreakIterator> main_;
+  UBreakIterator* main_;
   bool main_could_be_leased_ GUARDED_BY(lock_);
   Lock lock_;
 };
@@ -142,6 +139,9 @@ BreakIterator::~BreakIterator() {
       case BREAK_NEWLINE:
         line_break_cache.Pointer()->Return(iter);
         break;
+      default:
+        NOTREACHED() << "invalid break_type_";
+        break;
     }
   }
 }
@@ -172,6 +172,9 @@ bool BreakIterator::Init() {
                      << parse_error.line << ", offset " << parse_error.offset;
       }
       break;
+    default:
+      NOTREACHED() << "invalid break_type_";
+      return false;
   }
 
   if (U_FAILURE(status) || iter_ == nullptr) {
@@ -221,12 +224,16 @@ bool BreakIterator::Advance() {
         return false;
       }
       return true;
+    default:
+      NOTREACHED() << "invalid break_type_";
+      return false;
   }
 }
 
-bool BreakIterator::SetText(const char16_t* text, const size_t length) {
+bool BreakIterator::SetText(const base::char16* text, const size_t length) {
   UErrorCode status = U_ZERO_ERROR;
-  ubrk_setText(static_cast<UBreakIterator*>(iter_), text, length, &status);
+  ubrk_setText(static_cast<UBreakIterator*>(iter_),
+               text, length, &status);
   pos_ = 0;  // implicit when ubrk_setText is done
   prev_ = npos;
   if (U_FAILURE(status)) {
@@ -289,8 +296,8 @@ bool BreakIterator::IsGraphemeBoundary(size_t position) const {
   return !!ubrk_isBoundary(iter, static_cast<int32_t>(position));
 }
 
-std::u16string BreakIterator::GetString() const {
-  return std::u16string(GetStringPiece());
+string16 BreakIterator::GetString() const {
+  return string16(GetStringPiece());
 }
 
 StringPiece16 BreakIterator::GetStringPiece() const {

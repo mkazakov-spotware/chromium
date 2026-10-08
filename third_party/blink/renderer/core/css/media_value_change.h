@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,6 @@ namespace blink {
 enum class MediaValueChange {
   // Viewport or device size changed. width/height/device-width/device-height.
   kSize,
-  // dv* unit evaluation changed.
-  kDynamicViewport,
   // Any other value which affect media query evaluations changed.
   kOther,
 };

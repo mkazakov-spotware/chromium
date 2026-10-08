@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,17 +8,17 @@
 #import <Foundation/Foundation.h>
 
 #include "base/callback.h"
-#include "base/observer_list_types.h"
+#include "base/macros.h"
 #include "ui/base/page_transition_types.h"
 #include "url/gurl.h"
 
 namespace web {
 
 class WebState;
-class FakeWebState;
+class TestWebState;
 
 // Decides the navigation policy for a web state.
-class WebStatePolicyDecider : public base::CheckedObserver {
+class WebStatePolicyDecider {
  public:
   // Specifies a navigation decision. Used as a return value by
   // WebStatePolicyDecider::ShouldAllowRequest(), and used by
@@ -31,8 +31,8 @@ class WebStatePolicyDecider : public base::CheckedObserver {
     // A policy decision which cancels the navigation.
     static PolicyDecision Cancel();
 
-    // A policy decision which cancels the navigation and displays `error`.
-    // NOTE: The `error` will only be displayed if the associated navigation is
+    // A policy decision which cancels the navigation and displays |error|.
+    // NOTE: The |error| will only be displayed if the associated navigation is
     // being loaded in the main frame.
     static PolicyDecision CancelAndDisplayError(NSError* error);
 
@@ -43,13 +43,13 @@ class WebStatePolicyDecider : public base::CheckedObserver {
     bool ShouldCancelNavigation() const;
 
     // Whether or not an error should be displayed. Always returns false if
-    // `ShouldAllowNavigation` is true.
+    // |ShouldAllowNavigation| is true.
     // NOTE: Will return true when the receiver is created with
-    // `CancelAndDisplayError` even though an error will only end up being
+    // |CancelAndDisplayError| even though an error will only end up being
     // displayed if the associated navigation is occurring in the main frame.
     bool ShouldDisplayError() const;
 
-    // The error to display when `ShouldDisplayError` is true.
+    // The error to display when |ShouldDisplayError| is true.
     NSError* GetDisplayError() const;
 
    private:
@@ -72,7 +72,7 @@ class WebStatePolicyDecider : public base::CheckedObserver {
     Decision decision = Decision::kAllow;
 
     // An error associated with the navigation. This error will be displayed if
-    // `decision` is `kCancelAndDisplayError`.
+    // |decision| is |kCancelAndDisplayError|.
     NSError* error = nil;
   };
 
@@ -84,58 +84,47 @@ class WebStatePolicyDecider : public base::CheckedObserver {
   struct RequestInfo {
     RequestInfo(ui::PageTransition transition_type,
                 bool target_frame_is_main,
-                bool target_frame_is_cross_origin,
                 bool has_user_gesture)
         : transition_type(transition_type),
           target_frame_is_main(target_frame_is_main),
-          target_frame_is_cross_origin(target_frame_is_cross_origin),
           has_user_gesture(has_user_gesture) {}
     // The navigation page transition type.
     ui::PageTransition transition_type =
         ui::PageTransition::PAGE_TRANSITION_FIRST;
     // Indicates whether the navigation target frame is the main frame.
     bool target_frame_is_main = false;
-    // Indicates whether the navigation target frame is cross-origin with
-    // respect to the the navigation source frame.
-    bool target_frame_is_cross_origin = false;
     // Indicates if there was a recent user interaction with the request frame.
     bool has_user_gesture = false;
   };
 
-  // Data Transfer Object for the additional information about response
-  // request passed to WebStatePolicyDecider::ShouldAllowResponse().
-  struct ResponseInfo {
-    explicit ResponseInfo(bool for_main_frame)
-        : for_main_frame(for_main_frame) {}
-    // Indicates whether the response target frame is the main frame.
-    bool for_main_frame = false;
-  };
+  // Removes self as a policy decider of |web_state_|.
+  virtual ~WebStatePolicyDecider();
 
-  WebStatePolicyDecider(const WebStatePolicyDecider&) = delete;
-  WebStatePolicyDecider& operator=(const WebStatePolicyDecider&) = delete;
-
-  // Removes self as a policy decider of `web_state_`.
-  ~WebStatePolicyDecider() override;
-
-  // Asks the decider whether the navigation corresponding to `request` should
-  // be allowed to continue. Defaults to PolicyDecision::Allow() if not
-  // overridden. Called before WebStateObserver::DidStartNavigation. Calls
-  // `callback` with the decision. Never called in the following cases:
-  //  - same-document back-forward and state change navigations
-  virtual void ShouldAllowRequest(NSURLRequest* request,
-                                  RequestInfo request_info,
-                                  PolicyDecisionCallback callback);
-
-  // Asks the decider whether the navigation corresponding to `response` should
-  // be allowed to continue. Defaults to PolicyDecision::Allow() if not
-  // overridden. Called before WebStateObserver::DidFinishNavigation. Calls
-  // `callback` with the decision.
+  // Asks the decider whether the navigation corresponding to |request| should
+  // be allowed to continue. The first policy decider returning a PolicyDecision
+  // where ShouldCancelNavigation() is true will be the PolicyDecision used for
+  // the navigation. This means that a policy decider may not be called and have
+  // its expected decision performed for a given navigation. As such, the
+  // highest priority policy deciders should be added first to ensure those
+  // decisions are prioritized.
+  // Called before WebStateObserver::DidStartNavigation.
+  // Defaults to PolicyDecision::Allow() if not overridden.
   // Never called in the following cases:
-  //  - same-document navigations (unless initiated via LoadURLWithParams)
+  //  - same-document back-forward and state change navigations
+  virtual PolicyDecision ShouldAllowRequest(NSURLRequest* request,
+                                            const RequestInfo& request_info);
+
+  // Asks the decider whether the navigation corresponding to |response| should
+  // be allowed to continue. Defaults to PolicyDecision::Allow() if not
+  // overridden. |for_main_frame| indicates whether the frame being navigated is
+  // the main frame. Called before WebStateObserver::DidFinishNavigation. Calls
+  // |callback| with the decision.
+  // Never called in the following cases:
+  //  - same-document navigations (unless ititiated via LoadURLWithParams)
   //  - going back after form submission navigation
   //  - user-initiated POST navigation on iOS 10
   virtual void ShouldAllowResponse(NSURLResponse* response,
-                                   ResponseInfo response_info,
+                                   bool for_main_frame,
                                    PolicyDecisionCallback callback);
 
   // Notifies the policy decider that the web state is being destroyed.
@@ -147,18 +136,20 @@ class WebStatePolicyDecider : public base::CheckedObserver {
   WebState* web_state() const { return web_state_; }
 
  protected:
-  // Designated constructor. Subscribes to `web_state`.
+  // Designated constructor. Subscribes to |web_state|.
   explicit WebStatePolicyDecider(WebState* web_state);
 
  private:
   friend class WebStateImpl;
-  friend class FakeWebState;
+  friend class TestWebState;
 
   // Resets the current web state.
   void ResetWebState();
 
   // The web state to decide navigation policy for.
   WebState* web_state_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebStatePolicyDecider);
 };
 }  // namespace web
 

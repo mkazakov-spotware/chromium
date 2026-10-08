@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,11 @@
 
 #include <vector>
 
-#include "base/memory/raw_ref.h"
+#include "base/optional.h"
 #include "components/zucchini/address_translator.h"
 #include "components/zucchini/buffer_source.h"
 #include "components/zucchini/buffer_view.h"
 #include "components/zucchini/image_utils.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace zucchini {
 
@@ -66,9 +65,9 @@ class RelocRvaReaderWin32 {
   RelocRvaReaderWin32(RelocRvaReaderWin32&&);
   ~RelocRvaReaderWin32();
 
-  // Successively visits and returns data for each reloc unit, or absl::nullopt
+  // Successively visits and returns data for each reloc unit, or base::nullopt
   // when all reloc units are found. Encapsulates block transition details.
-  absl::optional<RelocUnitWin32> GetNext();
+  base::Optional<RelocUnitWin32> GetNext();
 
  private:
   // Assuming that |block_begin| points to the beginning of a reloc block, loads
@@ -103,7 +102,7 @@ class RelocReaderWin32 : public ReferenceReader {
   ~RelocReaderWin32() override;
 
   // ReferenceReader:
-  absl::optional<Reference> GetNext() override;
+  base::Optional<Reference> GetNext() override;
 
  private:
   RelocRvaReaderWin32 reloc_rva_reader_;
@@ -132,7 +131,7 @@ class RelocWriterWin32 : public ReferenceWriter {
   const uint16_t reloc_type_;
   MutableBufferView image_;
   BufferRegion reloc_region_;
-  const raw_ref<const std::vector<offset_t>> reloc_block_offsets_;
+  const std::vector<offset_t>& reloc_block_offsets_;
   AddressTranslator::OffsetToRvaCache target_offset_to_rva_;
 };
 

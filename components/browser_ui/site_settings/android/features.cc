@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,7 @@
 
 namespace browser_ui {
 
-BASE_FEATURE(kSiteDataImprovements,
-             "SiteDataImprovements",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-BASE_FEATURE(kRequestDesktopSiteExceptionsDowngrade,
-             "RequestDesktopSiteExceptionsDowngrade",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kAppNotificationStatusMessaging{
+    "AppNotificationStatusMessaging", base::FEATURE_DISABLED_BY_DEFAULT};
 
 }  // namespace browser_ui

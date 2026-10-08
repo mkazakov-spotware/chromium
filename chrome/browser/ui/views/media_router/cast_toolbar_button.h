@@ -1,16 +1,15 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_MEDIA_ROUTER_CAST_TOOLBAR_BUTTON_H_
 #define CHROME_BROWSER_UI_VIEWS_MEDIA_ROUTER_CAST_TOOLBAR_BUTTON_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/ui/toolbar/media_router_action_controller.h"
 #include "chrome/browser/ui/toolbar/media_router_contextual_menu.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
 #include "components/media_router/browser/issues_observer.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/events/event.h"
 
 class Browser;
@@ -31,15 +30,11 @@ class CastToolbarButton : public ToolbarButton,
                           public IssuesObserver,
                           public MediaRoutesObserver {
  public:
-  METADATA_HEADER(CastToolbarButton);
-
   static std::unique_ptr<CastToolbarButton> Create(Browser* browser);
 
   CastToolbarButton(Browser* browser,
                     MediaRouter* media_router,
                     std::unique_ptr<MediaRouterContextualMenu> context_menu);
-  CastToolbarButton(const CastToolbarButton&) = delete;
-  CastToolbarButton& operator=(const CastToolbarButton&) = delete;
   ~CastToolbarButton() override;
 
   // MediaRouterActionController::Observer:
@@ -53,14 +48,14 @@ class CastToolbarButton : public ToolbarButton,
   void OnIssuesCleared() override;
 
   // media_router::MediaRoutesObserver:
-  void OnRoutesUpdated(
-      const std::vector<media_router::MediaRoute>& routes) override;
+  void OnRoutesUpdated(const std::vector<media_router::MediaRoute>& routes,
+                       const std::vector<media_router::MediaRoute::Id>&
+                           joinable_route_ids) override;
 
   // ToolbarButton:
   bool OnMousePressed(const ui::MouseEvent& event) override;
   void OnMouseReleased(const ui::MouseEvent& event) override;
   void OnGestureEvent(ui::GestureEvent* event) override;
-  void OnThemeChanged() override;
   void UpdateIcon() override;
 
   MediaRouterContextualMenu* context_menu_for_test() {
@@ -77,19 +72,21 @@ class CastToolbarButton : public ToolbarButton,
 
   void LogIconChange(const gfx::VectorIcon* icon);
 
-  const raw_ptr<Browser> browser_;
-  const raw_ptr<Profile> profile_;
+  Browser* const browser_;
+  Profile* const profile_;
 
   // This value is set only when there is an outstanding issue.
   std::unique_ptr<media_router::IssueInfo> current_issue_;
 
   std::unique_ptr<MediaRouterContextualMenu> context_menu_;
 
-  bool has_local_route_ = false;
+  bool has_local_display_route_ = false;
 
-  raw_ptr<const gfx::VectorIcon> icon_ = nullptr;
+  const gfx::VectorIcon* icon_ = nullptr;
 
-  const raw_ptr<LoggerImpl> logger_;
+  LoggerImpl* const logger_;
+
+  DISALLOW_COPY_AND_ASSIGN(CastToolbarButton);
 };
 
 }  // namespace media_router

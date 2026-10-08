@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,11 @@
 
 #include <map>
 #include <set>
-#include <string>
 #include <utility>
-#include <vector>
 
-#include "base/containers/contains.h"
 #include "base/json/json_reader.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "base/test/bind.h"
 #include "base/time/time.h"
 #include "chrome/browser/ui/webui/discards/discards.mojom.h"
@@ -312,10 +310,10 @@ TEST_F(DiscardsGraphDumpImplTest, ChangeStream) {
               // Check that the descriptions make sense.
               for (auto kv : node_descriptions_json) {
                 keys_received.push_back(kv.first);
-                absl::optional<base::Value> v =
+                base::Optional<base::Value> v =
                     base::JSONReader::Read(kv.second);
                 EXPECT_TRUE(v->is_dict());
-                std::string* str = v->GetDict().FindString("test");
+                std::string* str = v->FindStringKey("test");
                 EXPECT_TRUE(str);
                 if (str) {
                   EXPECT_TRUE(*str == "frame" || *str == "page" ||

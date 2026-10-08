@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,11 @@
 #include "base/bind.h"
 #include "base/logging.h"
 #include "base/rand_util.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/single_thread_task_runner.h"
-#include "remoting/signaling/xmpp_constants.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
+#include "third_party/libjingle_xmpp/xmpp/constants.h"
 
 namespace remoting {
 
@@ -19,7 +20,7 @@ DelegatingSignalStrategy::DelegatingSignalStrategy(
     scoped_refptr<base::SingleThreadTaskRunner> client_task_runner,
     const IqCallback& send_iq_callback)
     : local_address_(local_address),
-      delegate_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+      delegate_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       client_task_runner_(client_task_runner),
       send_iq_callback_(send_iq_callback) {
   incoming_iq_callback_ =

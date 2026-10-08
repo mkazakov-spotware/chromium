@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,16 @@
 #include <list>
 #include <map>
 
+#include "base/compiler_specific.h"
 #include "base/containers/circular_deque.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_multi_source_observation.h"
+#include "base/scoped_observer.h"
 #include "content/public/browser/notification_observer.h"
 #include "content/public/browser/notification_registrar.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
+#include "extensions/browser/user_script_loader.h"
 
 class GURL;
 class URLPattern;
@@ -29,29 +32,22 @@ namespace extensions {
 class Extension;
 
 // This class handles delaying of resource loads that depend on unloaded user
-// scripts. For each request that comes in, we check if its url pattern matches
-// one that user scripts will be injected into. If at least one matching user
-// script has not been loaded yet, then we delay the request.
+// scripts. For each request that comes in, we check if it depends on a user
+// script, and if so, whether that user script is ready; if not, we delay the
+// request.
 //
 // This class lives on the UI thread.
 class UserScriptListener : public content::NotificationObserver,
-                           public ExtensionRegistryObserver {
+                           public ExtensionRegistryObserver,
+                           public UserScriptLoader::Observer {
  public:
   UserScriptListener();
-
-  UserScriptListener(const UserScriptListener&) = delete;
-  UserScriptListener& operator=(const UserScriptListener&) = delete;
-
   ~UserScriptListener() override;
 
   // Constructs a NavigationThrottle if the UserScriptListener needs to delay
   // the given navigation. Otherwise, this method returns NULL.
   std::unique_ptr<content::NavigationThrottle> CreateNavigationThrottle(
       content::NavigationHandle* navigation_handle);
-
-  // Called when manifest scripts have finished loading for the given
-  // BrowserContext.
-  void OnScriptsLoaded(content::BrowserContext* context);
 
   void SetUserScriptsNotReadyForTesting(content::BrowserContext* context);
   void TriggerUserScriptsReadyForTesting(content::BrowserContext* context);
@@ -100,8 +96,7 @@ class UserScriptListener : public content::NotificationObserver,
 
   // Helper to collect the extension's user script URL patterns in a list and
   // return it.
-  void CollectURLPatterns(content::BrowserContext* context,
-                          const Extension* extension,
+  void CollectURLPatterns(const Extension* extension,
                           URLPatterns* patterns);
 
   // content::NotificationObserver
@@ -117,11 +112,21 @@ class UserScriptListener : public content::NotificationObserver,
                            UnloadedExtensionReason reason) override;
   void OnShutdown(ExtensionRegistry* registry) override;
 
-  base::ScopedMultiSourceObservation<extensions::ExtensionRegistry,
-                                     extensions::ExtensionRegistryObserver>
-      extension_registry_observations_{this};
+  // UserScriptLoader::Observer:
+  void OnScriptsLoaded(UserScriptLoader* loader,
+                       content::BrowserContext* browser_context) override;
+  void OnUserScriptLoaderDestroyed(UserScriptLoader* loader) override;
+
+  ScopedObserver<extensions::ExtensionRegistry,
+                 extensions::ExtensionRegistryObserver>
+      extension_registry_observer_{this};
+  ScopedObserver<extensions::UserScriptLoader,
+                 extensions::UserScriptLoader::Observer>
+      user_script_loader_observer_{this};
 
   content::NotificationRegistrar registrar_;
+
+  DISALLOW_COPY_AND_ASSIGN(UserScriptListener);
 };
 
 }  // namespace extensions

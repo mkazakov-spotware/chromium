@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@
 #include "components/constrained_window/constrained_window_views.h"
 #include "components/prefs/pref_service.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/text_constants.h"
 #include "ui/views/controls/button/checkbox.h"
@@ -42,9 +41,9 @@ CaretBrowsingDialogDelegate::CaretBrowsingDialogDelegate(
           views::DISTANCE_RELATED_CONTROL_VERTICAL)));
 
   set_margins(ChromeLayoutProvider::Get()->GetDialogInsetsForContentType(
-      views::DialogContentType::kText, views::DialogContentType::kControl));
+      views::TEXT, views::CONTROL));
 
-  std::u16string message_text =
+  base::string16 message_text =
       l10n_util::GetStringUTF16(IDS_ENABLE_CARET_BROWSING_INFO);
 
   auto* message_label = AddChildView(std::make_unique<views::Label>(
@@ -89,6 +88,3 @@ CaretBrowsingDialogDelegate::CaretBrowsingDialogDelegate(
 }
 
 CaretBrowsingDialogDelegate::~CaretBrowsingDialogDelegate() = default;
-
-BEGIN_METADATA(CaretBrowsingDialogDelegate, views::DialogDelegateView)
-END_METADATA

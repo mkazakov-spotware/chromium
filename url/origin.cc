@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,24 +7,19 @@
 #include <stdint.h>
 
 #include <algorithm>
-#include <ostream>
-#include <string>
-#include <tuple>
-#include <utility>
+#include <vector>
 
 #include "base/base64.h"
-#include "base/check.h"
 #include "base/check_op.h"
-#include "base/containers/contains.h"
 #include "base/containers/span.h"
-#include "base/debug/crash_logging.h"
 #include "base/pickle.h"
+#include "base/stl_util.h"
 #include "base/strings/strcat.h"
-#include "base/strings/string_piece.h"
-#include "base/unguessable_token.h"
-#include "third_party/perfetto/include/perfetto/tracing/traced_value.h"
+#include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
 #include "url/gurl.h"
-#include "url/scheme_host_port.h"
+#include "url/url_canon.h"
+#include "url/url_canon_stdstring.h"
 #include "url/url_constants.h"
 #include "url/url_util.h"
 
@@ -62,7 +57,7 @@ Origin Origin::Create(const GURL& url) {
 }
 
 Origin Origin::Resolve(const GURL& url, const Origin& base_origin) {
-  if (url.SchemeIs(kAboutScheme) || url.is_empty())
+  if (url.SchemeIs(kAboutScheme))
     return base_origin;
   Origin result = Origin::Create(url);
   if (!result.opaque())
@@ -77,25 +72,25 @@ Origin& Origin::operator=(Origin&&) noexcept = default;
 Origin::~Origin() = default;
 
 // static
-absl::optional<Origin> Origin::UnsafelyCreateTupleOriginWithoutNormalization(
+base::Optional<Origin> Origin::UnsafelyCreateTupleOriginWithoutNormalization(
     base::StringPiece scheme,
     base::StringPiece host,
     uint16_t port) {
-  SchemeHostPort tuple(std::string(scheme), std::string(host), port,
+  SchemeHostPort tuple(scheme.as_string(), host.as_string(), port,
                        SchemeHostPort::CHECK_CANONICALIZATION);
   if (!tuple.IsValid())
-    return absl::nullopt;
+    return base::nullopt;
   return Origin(std::move(tuple));
 }
 
 // static
-absl::optional<Origin> Origin::UnsafelyCreateOpaqueOriginWithoutNormalization(
+base::Optional<Origin> Origin::UnsafelyCreateOpaqueOriginWithoutNormalization(
     base::StringPiece precursor_scheme,
     base::StringPiece precursor_host,
     uint16_t precursor_port,
     const Origin::Nonce& nonce) {
-  SchemeHostPort precursor(std::string(precursor_scheme),
-                           std::string(precursor_host), precursor_port,
+  SchemeHostPort precursor(precursor_scheme.as_string(),
+                           precursor_host.as_string(), precursor_port,
                            SchemeHostPort::CHECK_CANONICALIZATION);
   // For opaque origins, it is okay for the SchemeHostPort to be invalid;
   // however, this should only arise when the arguments indicate the
@@ -103,7 +98,7 @@ absl::optional<Origin> Origin::UnsafelyCreateOpaqueOriginWithoutNormalization(
   if (!precursor.IsValid() &&
       !(precursor_scheme.empty() && precursor_host.empty() &&
         precursor_port == 0)) {
-    return absl::nullopt;
+    return base::nullopt;
   }
   return Origin(std::move(nonce), std::move(precursor));
 }
@@ -152,28 +147,17 @@ GURL Origin::GetURL() const {
   return tuple_.GetURL();
 }
 
-const base::UnguessableToken* Origin::GetNonceForSerialization() const {
-  return nonce_ ? &nonce_->token() : nullptr;
+base::Optional<base::UnguessableToken> Origin::GetNonceForSerialization()
+    const {
+  // TODO(nasko): Consider not making a copy here, but return a reference to
+  // the nonce.
+  return nonce_ ? base::make_optional(nonce_->token()) : base::nullopt;
 }
 
 bool Origin::IsSameOriginWith(const Origin& other) const {
   // scheme/host/port must match, even for opaque origins where |tuple_| holds
   // the precursor origin.
   return std::tie(tuple_, nonce_) == std::tie(other.tuple_, other.nonce_);
-}
-
-bool Origin::IsSameOriginWith(const GURL& url) const {
-  if (opaque())
-    return false;
-
-  // The `url::Origin::Create` call here preserves how IsSameOriginWith was used
-  // historically, even though in some scenarios it is not clearly correct:
-  // - Origin of about:blank and about:srcdoc cannot be correctly
-  //   computed/recovered.
-  // - Ideally passing an invalid `url` would be a caller error (e.g. a DCHECK).
-  // - The caller intent is not always clear wrt handling the outer-vs-inner
-  //   origins/URLs in blob: and filesystem: schemes.
-  return IsSameOriginWith(url::Origin::Create(url));
 }
 
 bool Origin::CanBeDerivedFrom(const GURL& url) const {
@@ -303,11 +287,11 @@ Origin::Origin(const Nonce& nonce, SchemeHostPort precursor)
   DCHECK_EQ(0U, port());
 }
 
-absl::optional<std::string> Origin::SerializeWithNonce() const {
+base::Optional<std::string> Origin::SerializeWithNonce() const {
   return SerializeWithNonceImpl();
 }
 
-absl::optional<std::string> Origin::SerializeWithNonceAndInitIfNeeded() {
+base::Optional<std::string> Origin::SerializeWithNonceAndInitIfNeeded() {
   GetNonceForSerialization();
   return SerializeWithNonceImpl();
 }
@@ -316,9 +300,9 @@ absl::optional<std::string> Origin::SerializeWithNonceAndInitIfNeeded() {
 // string - tuple_.GetURL().spec().
 // uint64_t (if opaque) - high bits of nonce if opaque. 0 if not initialized.
 // uint64_t (if opaque) - low bits of nonce if opaque. 0 if not initialized.
-absl::optional<std::string> Origin::SerializeWithNonceImpl() const {
+base::Optional<std::string> Origin::SerializeWithNonceImpl() const {
   if (!opaque() && !tuple_.IsValid())
-    return absl::nullopt;
+    return base::nullopt;
 
   base::Pickle pickle;
   pickle.WriteString(tuple_.Serialize());
@@ -331,23 +315,24 @@ absl::optional<std::string> Origin::SerializeWithNonceImpl() const {
     pickle.WriteUInt64(0);
   }
 
-  base::span<const uint8_t> data(static_cast<const uint8_t*>(pickle.data()),
-                                 pickle.size());
+  base::span<const uint8_t> data(
+      static_cast<const uint8_t*>(pickle.data()),
+      static_cast<const uint8_t*>(pickle.data()) + pickle.size());
   // Base64 encode the data to make it nicer to play with.
   return base::Base64Encode(data);
 }
 
 // static
-absl::optional<Origin> Origin::Deserialize(const std::string& value) {
+base::Optional<Origin> Origin::Deserialize(const std::string& value) {
   std::string data;
   if (!base::Base64Decode(value, &data))
-    return absl::nullopt;
+    return base::nullopt;
   base::Pickle pickle(reinterpret_cast<char*>(&data[0]), data.size());
   base::PickleIterator reader(pickle);
 
   std::string pickled_url;
   if (!reader.ReadString(&pickled_url))
-    return absl::nullopt;
+    return base::nullopt;
   GURL url(pickled_url);
 
   // If only a tuple was serialized, then this origin is not opaque. For opaque
@@ -356,24 +341,24 @@ absl::optional<Origin> Origin::Deserialize(const std::string& value) {
 
   // Opaque origins without a tuple are ok.
   if (!is_opaque && !url.is_valid())
-    return absl::nullopt;
+    return base::nullopt;
   SchemeHostPort tuple(url);
 
   // Possible successful early return if the pickled Origin was not opaque.
   if (!is_opaque) {
     Origin origin(tuple);
     if (origin.opaque())
-      return absl::nullopt;  // Something went horribly wrong.
+      return base::nullopt;  // Something went horribly wrong.
     return origin;
   }
 
   uint64_t nonce_high = 0;
   if (!reader.ReadUInt64(&nonce_high))
-    return absl::nullopt;
+    return base::nullopt;
 
   uint64_t nonce_low = 0;
   if (!reader.ReadUInt64(&nonce_low))
-    return absl::nullopt;
+    return base::nullopt;
 
   Origin::Nonce nonce;
   if (nonce_high != 0 && nonce_low != 0) {
@@ -385,10 +370,6 @@ absl::optional<Origin> Origin::Deserialize(const std::string& value) {
   origin.nonce_ = std::move(nonce);
   origin.tuple_ = tuple;
   return origin;
-}
-
-void Origin::WriteIntoTrace(perfetto::TracedValue context) const {
-  std::move(context).WriteString(GetDebugString());
 }
 
 std::ostream& operator<<(std::ostream& out, const url::Origin& origin) {
@@ -436,11 +417,11 @@ Origin::Nonce& Origin::Nonce::operator=(const Origin::Nonce& other) {
 }
 
 // Moving a nonce does NOT trigger lazy-generation of the token.
-Origin::Nonce::Nonce(Origin::Nonce&& other) noexcept : token_(other.token_) {
+Origin::Nonce::Nonce(Origin::Nonce&& other) : token_(other.token_) {
   other.token_ = base::UnguessableToken();  // Reset |other|.
 }
 
-Origin::Nonce& Origin::Nonce::operator=(Origin::Nonce&& other) noexcept {
+Origin::Nonce& Origin::Nonce::operator=(Origin::Nonce&& other) {
   token_ = other.token_;
   other.token_ = base::UnguessableToken();  // Reset |other|.
   return *this;
@@ -468,7 +449,7 @@ namespace debug {
 ScopedOriginCrashKey::ScopedOriginCrashKey(
     base::debug::CrashKeyString* crash_key,
     const url::Origin* value)
-    : scoped_string_value_(
+    : base::debug::ScopedCrashKeyString(
           crash_key,
           value ? value->GetDebugString(false /* include_nonce */)
                 : "nullptr") {}

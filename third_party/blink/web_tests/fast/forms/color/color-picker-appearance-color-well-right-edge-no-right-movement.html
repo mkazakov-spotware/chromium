@@ -5,8 +5,6 @@
 testRunner.dumpAsText();
 testRunner.waitUntilDone();
 </script>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
 <script src='../../../fast/forms/resources/picker-common.js'></script>
 </head>
 <body>
@@ -18,13 +16,13 @@ testRunner.waitUntilDone();
 <script src='color-picker-appearance-no-movement-helper.js'></script>
 <script>
 let descriptionContainer = document.getElementById('description');
-openPickerDeprecatedJsTest(document.getElementById('color'), openPickerCallback, openPickerCallback);
+openPicker(document.getElementById('color'), openPickerCallback, openPickerCallback);
 
 function openPickerCallback() {
   if (internals.pagePopupWindow) {
     descriptionContainer.append('Popup opened.', document.createElement('br'));
-    internals.pagePopupWindow.focus();
-    const popupDocument = internals.pagePopupWindow.document;
+    popupWindow.focus();
+    const popupDocument = popupWindow.document;
     const colorWell = popupDocument.querySelector('color-well');
     const colorWellRect = colorWell.getBoundingClientRect();
     const colorWellSelectionRing = popupDocument.querySelector('color-well > color-selection-ring');

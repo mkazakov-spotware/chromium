@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,9 @@
 #include <set>
 #include <vector>
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
+#include "base/time/time.h"
 #include "ui/events/devices/gamepad_device.h"
 #include "ui/events/ozone/gamepad/gamepad_observer.h"
 
@@ -23,9 +25,6 @@ class COMPONENT_EXPORT(EVENTS_OZONE) GamepadProviderOzone {
  public:
   // Get the GamepadProviderOzone instance.
   static GamepadProviderOzone* GetInstance();
-
-  GamepadProviderOzone(const GamepadProviderOzone&) = delete;
-  GamepadProviderOzone& operator=(const GamepadProviderOzone&) = delete;
 
   // Dispatch GamepadDevicesUpdate event when gamepad device is connected or
   // disconnected. This function must be called on UI thread.
@@ -64,6 +63,8 @@ class COMPONENT_EXPORT(EVENTS_OZONE) GamepadProviderOzone {
 
   // List of current connected gamepad events.
   std::vector<GamepadDevice> gamepad_devices_;
+
+  DISALLOW_COPY_AND_ASSIGN(GamepadProviderOzone);
 };
 
 }  // namespace ui

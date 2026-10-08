@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include "base/file_descriptor_posix.h"
 #include "gpu/command_buffer/common/gpu_memory_buffer_support.h"
 #include "media/gpu/vaapi/va_surface.h"
-#include "media/gpu/vaapi/vaapi_status.h"
 #include "media/gpu/vaapi/vaapi_wrapper.h"
 #include "ui/gfx/linux/native_pixmap_dmabuf.h"
 #include "ui/gfx/native_pixmap.h"
@@ -47,17 +46,9 @@ VaapiPictureNativePixmapEgl::~VaapiPictureNativePixmapEgl() {
     gl_image_->ReleaseTexImage(texture_target_);
     DCHECK_EQ(glGetError(), static_cast<GLenum>(GL_NO_ERROR));
   }
-
-  // Reset |va_surface_| before |gl_image_| to preserve the order of destruction
-  // before the refactoring done in
-  // https://chromium-review.googlesource.com/c/chromium/src/+/4025005.
-  // TODO(crbug.com/1366367): Determine whether preserving this order matters
-  // and remove these calls if not.
-  va_surface_.reset();
-  gl_image_.reset();
 }
 
-VaapiStatus VaapiPictureNativePixmapEgl::Initialize(
+Status VaapiPictureNativePixmapEgl::Initialize(
     scoped_refptr<gfx::NativePixmap> pixmap) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(pixmap);
@@ -67,39 +58,39 @@ VaapiStatus VaapiPictureNativePixmapEgl::Initialize(
   va_surface_ = vaapi_wrapper_->CreateVASurfaceForPixmap(std::move(pixmap));
   if (!va_surface_) {
     LOG(ERROR) << "Failed creating VASurface for NativePixmap";
-    return VaapiStatus::Codes::kNoSurface;
+    return StatusCode::kVaapiNoSurface;
   }
 
   if (bind_image_cb_ &&
-      !bind_image_cb_.Run(client_texture_id_, texture_target_, gl_image_)) {
+      !bind_image_cb_.Run(client_texture_id_, texture_target_, gl_image_,
+                          true /* can_bind_to_sampler */)) {
     LOG(ERROR) << "Failed to bind client_texture_id";
-    return VaapiStatus::Codes::kFailedToBindImage;
+    return StatusCode::kVaapiFailedToBindImage;
   }
-  return VaapiStatus::Codes::kOk;
+  return OkStatus();
 }
 
-VaapiStatus VaapiPictureNativePixmapEgl::Allocate(gfx::BufferFormat format) {
+Status VaapiPictureNativePixmapEgl::Allocate(gfx::BufferFormat format) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   // Export the gl texture as dmabuf.
   if (make_context_current_cb_ && !make_context_current_cb_.Run())
-    return VaapiStatus::Codes::kBadContext;
+    return StatusCode::kVaapiBadContext;
 
-  // TODO(b/220336463): plumb the right color space.
   auto image =
       base::MakeRefCounted<gl::GLImageNativePixmap>(visible_size_, format);
   // Create an EGLImage from a gl texture
   if (!image->InitializeFromTexture(texture_id_)) {
     DLOG(ERROR) << "Failed to initialize eglimage from texture id: "
                 << texture_id_;
-    return VaapiStatus::Codes::kFailedToInitializeImage;
+    return StatusCode::kVaapiFailedToInitializeImage;
   }
 
   // Export the EGLImage as dmabuf.
   gfx::NativePixmapHandle native_pixmap_handle = image->ExportHandle();
   if (!native_pixmap_handle.planes.size()) {
     DLOG(ERROR) << "Failed to export EGLImage as dmabuf fds";
-    return VaapiStatus::Codes::kFailedToExportImage;
+    return StatusCode::kVaapiFailedToExportImage;
   }
 
   if (size_.width() > static_cast<int>(native_pixmap_handle.planes[0].stride) ||
@@ -107,7 +98,7 @@ VaapiStatus VaapiPictureNativePixmapEgl::Allocate(gfx::BufferFormat format) {
     DLOG(ERROR) << "EGLImage (stride=" << native_pixmap_handle.planes[0].stride
                 << ", size=" << native_pixmap_handle.planes[0].size
                 << "is smaller than size_=" << size_.ToString();
-    return VaapiStatus::Codes::kBadImageSize;
+    return StatusCode::kVaapiBadImageSize;
   }
 
   // Convert NativePixmapHandle to NativePixmapDmaBuf.
@@ -116,12 +107,12 @@ VaapiStatus VaapiPictureNativePixmapEgl::Allocate(gfx::BufferFormat format) {
                                   std::move(native_pixmap_handle)));
   if (!native_pixmap_dmabuf->AreDmaBufFdsValid()) {
     DLOG(ERROR) << "Invalid dmabuf fds";
-    return VaapiStatus::Codes::kNoBufferHandle;
+    return StatusCode::kVaapiNoBufferHandle;
   }
 
   if (!image->BindTexImage(texture_target_)) {
     DLOG(ERROR) << "Failed to bind texture to GLImage";
-    return VaapiStatus::Codes::kFailedToBindImage;
+    return StatusCode::kVaapiFailedToBindImage;
   }
 
   // The |va_surface_| created from |native_pixmap_dmabuf| shares the ownership

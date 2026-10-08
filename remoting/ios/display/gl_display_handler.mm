@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,7 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "remoting/client/chromoting_client_runtime.h"
 #include "remoting/client/cursor_shape_stub_proxy.h"
@@ -38,10 +39,6 @@ namespace GlDisplayHandler {
 class Core : public protocol::CursorShapeStub, public GlRendererDelegate {
  public:
   Core();
-
-  Core(const Core&) = delete;
-  Core& operator=(const Core&) = delete;
-
   ~Core() override;
 
   void Initialize();
@@ -90,6 +87,8 @@ class Core : public protocol::CursorShapeStub, public GlRendererDelegate {
   // Used on display thread.
   base::WeakPtr<Core> weak_ptr_;
   base::WeakPtrFactory<Core> weak_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(Core);
 };
 
 Core::Core() : weak_factory_(this) {
@@ -125,7 +124,7 @@ void Core::Initialize() {
     eagl_context_ =
         [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES3];
     if (!eagl_context_) {
-      LOG(WARNING) << "Failed to create GLES3 context. Attempting to create "
+      LOG(WARNING) << "Failed to create GLES3 context. Atempting to create "
                    << "GLES2 context.";
       eagl_context_ =
           [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];

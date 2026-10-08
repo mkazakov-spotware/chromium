@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,8 @@
 
 #include "cc/layers/picture_layer.h"
 #include "third_party/blink/public/mojom/loader/request_context_frame_type.mojom-blink.h"
-#include "third_party/blink/renderer/bindings/core/v8/capture_source_location.h"
+#include "third_party/blink/renderer/bindings/core/v8/script_source_code.h"
+#include "third_party/blink/renderer/bindings/core/v8/source_location.h"
 #include "third_party/blink/renderer/core/animation/animation.h"
 #include "third_party/blink/renderer/core/animation/keyframe_effect.h"
 #include "third_party/blink/renderer/core/css/invalidation/invalidation_set.h"
@@ -35,9 +36,8 @@
 #include "third_party/blink/renderer/core/workers/worker_global_scope.h"
 #include "third_party/blink/renderer/core/workers/worker_thread.h"
 #include "third_party/blink/renderer/core/xmlhttprequest/xml_http_request.h"
-#include "third_party/blink/renderer/platform/bindings/source_location.h"
+#include "third_party/blink/renderer/platform/graphics/graphics_layer.h"
 #include "third_party/blink/renderer/platform/instrumentation/instance_counters.h"
-#include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/traced_value.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_load_priority.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_load_timing.h"
@@ -54,35 +54,33 @@ namespace blink {
 
 namespace {
 
-const unsigned kMaxLayoutRoots = 10;
-const unsigned kMaxQuads = 10;
-
-void InspectorParseHtmlBeginData(perfetto::TracedValue context,
-                                 Document* document,
-                                 int start_line) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("startLine", start_line);
-  dict.Add("frame", IdentifiersFactory::FrameId(document->GetFrame()));
-  dict.Add("url", document->Url().GetString());
-  SetCallStack(dict);
+std::unique_ptr<TracedValue> InspectorParseHtmlBeginData(Document* document,
+                                                         unsigned start_line) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetInteger("startLine", start_line);
+  value->SetString("frame", IdentifiersFactory::FrameId(document->GetFrame()));
+  value->SetString("url", document->Url().GetString());
+  SetCallStack(value.get());
+  return value;
 }
 
-void InspectorParseHtmlEndData(perfetto::TracedValue context, int end_line) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("endLine", end_line);
+std::unique_ptr<TracedValue> InspectorParseHtmlEndData(unsigned end_line) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetInteger("endLine", end_line);
+  return value;
 }
 
-void GetNavigationTracingData(perfetto::TracedValue context,
-                              Document* document) {
-  auto dict = std::move(context).WriteDictionary();
+std::unique_ptr<TracedValue> GetNavigationTracingData(Document* document) {
+  auto data = std::make_unique<TracedValue>();
 
-  dict.Add("navigationId", IdentifiersFactory::LoaderId(document->Loader()));
+  data->SetString("navigationId",
+                  IdentifiersFactory::LoaderId(document->Loader()));
+  return data;
 }
 
 int GetModifierFromEvent(const UIEventWithKeyState& event) {
   int modifier = 0;
   if (event.altKey())
-
     modifier |= 1;
   if (event.ctrlKey())
     modifier |= 2;
@@ -100,41 +98,34 @@ String ToHexString(const void* p) {
                         static_cast<uint64_t>(reinterpret_cast<uintptr_t>(p)));
 }
 
-void SetCallStack(perfetto::TracedDictionary& dict) {
+void SetCallStack(TracedValue* value) {
   static const unsigned char* trace_category_enabled = nullptr;
   WTF_ANNOTATE_BENIGN_RACE(&trace_category_enabled, "trace_event category");
-  if (!trace_category_enabled) {
+  if (!trace_category_enabled)
     trace_category_enabled = TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(
         TRACE_DISABLED_BY_DEFAULT("devtools.timeline.stack"));
-  }
   if (!*trace_category_enabled)
     return;
   // The CPU profiler stack trace does not include call site line numbers.
-  // So we collect the top frame with  CaptureSourceLocation() to
-  // get the binding call site info.
-  auto source_location = CaptureSourceLocation();
-  if (source_location->HasStackTrace())
-    dict.Add("stackTrace", source_location);
+  // So we collect the top frame with SourceLocation::capture() to get the
+  // binding call site info.
+  SourceLocation::Capture()->ToTracedValue(value, "stackTrace");
   v8::CpuProfiler::CollectSample(v8::Isolate::GetCurrent());
 }
 
 void InspectorTraceEvents::WillSendRequest(
+    uint64_t identifier,
     DocumentLoader* loader,
     const KURL& fetch_context_url,
     const ResourceRequest& request,
     const ResourceResponse& redirect_response,
-    const ResourceLoaderOptions&,
-    ResourceType,
-    RenderBlockingBehavior render_blocking_behavior,
-    base::TimeTicks timestamp) {
+    const FetchInitiatorInfo&,
+    ResourceType) {
   LocalFrame* frame = loader ? loader->GetFrame() : nullptr;
-  TRACE_EVENT_INSTANT_WITH_TIMESTAMP1(
+  TRACE_EVENT_INSTANT1(
       "devtools.timeline", "ResourceSendRequest", TRACE_EVENT_SCOPE_THREAD,
-      timestamp, "data", [&](perfetto::TracedValue ctx) {
-        inspector_send_request_event::Data(std::move(ctx), loader,
-                                           request.InspectorId(), frame,
-                                           request, render_blocking_behavior);
-      });
+      "data",
+      inspector_send_request_event::Data(loader, identifier, frame, request));
 }
 
 void InspectorTraceEvents::WillSendNavigationRequest(
@@ -144,9 +135,10 @@ void InspectorTraceEvents::WillSendNavigationRequest(
     const AtomicString& http_method,
     EncodedFormData*) {
   LocalFrame* frame = loader ? loader->GetFrame() : nullptr;
-  DEVTOOLS_TIMELINE_TRACE_EVENT_INSTANT(
-      "ResourceSendRequest", inspector_send_navigation_request_event::Data,
-      loader, identifier, frame, url, http_method);
+  TRACE_EVENT_INSTANT1("devtools.timeline", "ResourceSendRequest",
+                       TRACE_EVENT_SCOPE_THREAD, "data",
+                       inspector_send_navigation_request_event::Data(
+                           loader, identifier, frame, url, http_method));
 }
 
 void InspectorTraceEvents::DidReceiveResourceResponse(
@@ -155,9 +147,10 @@ void InspectorTraceEvents::DidReceiveResourceResponse(
     const ResourceResponse& response,
     const Resource*) {
   LocalFrame* frame = loader ? loader->GetFrame() : nullptr;
-  DEVTOOLS_TIMELINE_TRACE_EVENT_INSTANT("ResourceReceiveResponse",
-                                        inspector_receive_response_event::Data,
-                                        loader, identifier, frame, response);
+  TRACE_EVENT_INSTANT1("devtools.timeline", "ResourceReceiveResponse",
+                       TRACE_EVENT_SCOPE_THREAD, "data",
+                       inspector_receive_response_event::Data(
+                           loader, identifier, frame, response));
 }
 
 void InspectorTraceEvents::DidReceiveData(uint64_t identifier,
@@ -165,9 +158,10 @@ void InspectorTraceEvents::DidReceiveData(uint64_t identifier,
                                           const char* data,
                                           uint64_t encoded_data_length) {
   LocalFrame* frame = loader ? loader->GetFrame() : nullptr;
-  DEVTOOLS_TIMELINE_TRACE_EVENT_INSTANT(
-      "ResourceReceivedData", inspector_receive_data_event::Data, loader,
-      identifier, frame, encoded_data_length);
+  TRACE_EVENT_INSTANT1("devtools.timeline", "ResourceReceivedData",
+                       TRACE_EVENT_SCOPE_THREAD, "data",
+                       inspector_receive_data_event::Data(
+                           loader, identifier, frame, encoded_data_length));
 }
 
 void InspectorTraceEvents::DidFinishLoading(uint64_t identifier,
@@ -176,9 +170,11 @@ void InspectorTraceEvents::DidFinishLoading(uint64_t identifier,
                                             int64_t encoded_data_length,
                                             int64_t decoded_body_length,
                                             bool should_report_corb_blocking) {
-  DEVTOOLS_TIMELINE_TRACE_EVENT_INSTANT(
-      "ResourceFinish", inspector_resource_finish_event::Data, loader,
-      identifier, finish_time, false, encoded_data_length, decoded_body_length);
+  TRACE_EVENT_INSTANT1(
+      "devtools.timeline", "ResourceFinish", TRACE_EVENT_SCOPE_THREAD, "data",
+      inspector_resource_finish_event::Data(loader, identifier, finish_time,
+                                            false, encoded_data_length,
+                                            decoded_body_length));
 }
 
 void InspectorTraceEvents::DidFailLoading(
@@ -187,62 +183,53 @@ void InspectorTraceEvents::DidFailLoading(
     DocumentLoader* loader,
     const ResourceError&,
     const base::UnguessableToken& devtools_frame_or_worker_token) {
-  DEVTOOLS_TIMELINE_TRACE_EVENT_INSTANT(
-      "ResourceFinish", inspector_resource_finish_event::Data, loader,
-      identifier, base::TimeTicks(), true, 0, 0);
+  TRACE_EVENT_INSTANT1("devtools.timeline", "ResourceFinish",
+                       TRACE_EVENT_SCOPE_THREAD, "data",
+                       inspector_resource_finish_event::Data(
+                           loader, identifier, base::TimeTicks(), true, 0, 0));
 }
 
 void InspectorTraceEvents::MarkResourceAsCached(DocumentLoader* loader,
                                                 uint64_t identifier) {
-  DEVTOOLS_TIMELINE_TRACE_EVENT_INSTANT(
-      "ResourceMarkAsCached", inspector_mark_resource_cached_event::Data,
-      loader, identifier);
+  TRACE_EVENT_INSTANT1(
+      "devtools.timeline", "ResourceMarkAsCached", TRACE_EVENT_SCOPE_THREAD,
+      "data", inspector_mark_resource_cached_event::Data(loader, identifier));
 }
 
 void InspectorTraceEvents::Will(const probe::ExecuteScript&) {}
 
 void InspectorTraceEvents::Did(const probe::ExecuteScript&) {
-  TRACE_EVENT_INSTANT1(
-      TRACE_DISABLED_BY_DEFAULT("devtools.timeline"), "UpdateCounters",
-      TRACE_EVENT_SCOPE_THREAD, "data", [](perfetto::TracedValue context) {
-        inspector_update_counters_event::Data(std::move(context));
-      });
+  TRACE_EVENT_INSTANT1(TRACE_DISABLED_BY_DEFAULT("devtools.timeline"),
+                       "UpdateCounters", TRACE_EVENT_SCOPE_THREAD, "data",
+                       inspector_update_counters_event::Data());
 }
 
 void InspectorTraceEvents::Will(const probe::ParseHTML& probe) {
   // FIXME: Pass in current input length.
-  TRACE_EVENT_BEGIN1("devtools.timeline", "ParseHTML", "beginData",
-                     [&](perfetto::TracedValue context) {
-                       InspectorParseHtmlBeginData(
-                           std::move(context), probe.parser->GetDocument(),
-                           probe.parser->LineNumber().ZeroBasedInt());
-                     });
+  TRACE_EVENT_BEGIN1(
+      "devtools.timeline", "ParseHTML", "beginData",
+      InspectorParseHtmlBeginData(probe.parser->GetDocument(),
+                                  probe.parser->LineNumber().ZeroBasedInt()));
 }
 
 void InspectorTraceEvents::Did(const probe::ParseHTML& probe) {
-  TRACE_EVENT_END1("devtools.timeline", "ParseHTML", "endData",
-                   [&](perfetto::TracedValue context) {
-                     InspectorParseHtmlEndData(
-                         std::move(context),
-                         probe.parser->LineNumber().ZeroBasedInt() - 1);
-                   });
-  TRACE_EVENT_INSTANT1(
-      TRACE_DISABLED_BY_DEFAULT("devtools.timeline"), "UpdateCounters",
-      TRACE_EVENT_SCOPE_THREAD, "data", [](perfetto::TracedValue context) {
-        inspector_update_counters_event::Data(std::move(context));
-      });
+  TRACE_EVENT_END1(
+      "devtools.timeline", "ParseHTML", "endData",
+      InspectorParseHtmlEndData(probe.parser->LineNumber().ZeroBasedInt() - 1));
+  TRACE_EVENT_INSTANT1(TRACE_DISABLED_BY_DEFAULT("devtools.timeline"),
+                       "UpdateCounters", TRACE_EVENT_SCOPE_THREAD, "data",
+                       inspector_update_counters_event::Data());
 }
 
-void InspectorTraceEvents::Will(const probe::CallFunction& probe) {}
+void InspectorTraceEvents::Will(const probe::CallFunction& probe) {
+}
 
 void InspectorTraceEvents::Did(const probe::CallFunction& probe) {
   if (probe.depth)
     return;
-  TRACE_EVENT_INSTANT1(
-      TRACE_DISABLED_BY_DEFAULT("devtools.timeline"), "UpdateCounters",
-      TRACE_EVENT_SCOPE_THREAD, "data", [](perfetto::TracedValue context) {
-        inspector_update_counters_event::Data(std::move(context));
-      });
+  TRACE_EVENT_INSTANT1(TRACE_DISABLED_BY_DEFAULT("devtools.timeline"),
+                       "UpdateCounters", TRACE_EVENT_SCOPE_THREAD, "data",
+                       inspector_update_counters_event::Data());
 }
 
 void InspectorTraceEvents::PaintTiming(Document* document,
@@ -251,10 +238,7 @@ void InspectorTraceEvents::PaintTiming(Document* document,
   TRACE_EVENT_MARK_WITH_TIMESTAMP2("loading,rail,devtools.timeline", name,
                                    trace_event::ToTraceTimestamp(timestamp),
                                    "frame", ToTraceValue(document->GetFrame()),
-                                   "data", [&](perfetto::TracedValue context) {
-                                     GetNavigationTracingData(
-                                         std::move(context), document);
-                                   });
+                                   "data", GetNavigationTracingData(document));
 }
 
 void InspectorTraceEvents::FrameStartedLoading(LocalFrame* frame) {
@@ -264,13 +248,14 @@ void InspectorTraceEvents::FrameStartedLoading(LocalFrame* frame) {
 
 namespace {
 
-void SetNodeInfo(perfetto::TracedDictionary& dict,
+void SetNodeInfo(TracedValue* value,
                  Node* node,
-                 perfetto::StaticString id_field_name,
-                 perfetto::StaticString name_field_name = nullptr) {
-  dict.Add(id_field_name, IdentifiersFactory::IntIdForNode(node));
-  if (name_field_name.value)
-    dict.Add(name_field_name, node->DebugName());
+                 const char* id_field_name,
+                 const char* name_field_name = nullptr) {
+  value->SetIntegerWithCopiedName(id_field_name,
+                                  IdentifiersFactory::IntIdForNode(node));
+  if (name_field_name)
+    value->SetStringWithCopiedName(name_field_name, node->DebugName());
 }
 
 const char* PseudoTypeToString(CSSSelector::PseudoType pseudo_type) {
@@ -302,7 +287,6 @@ const char* PseudoTypeToString(CSSSelector::PseudoType pseudo_type) {
     DEFINE_STRING_MAPPING(PseudoWebkitAnyLink)
     DEFINE_STRING_MAPPING(PseudoAnyLink)
     DEFINE_STRING_MAPPING(PseudoAutofill)
-    DEFINE_STRING_MAPPING(PseudoWebKitAutofill)
     DEFINE_STRING_MAPPING(PseudoAutofillPreviewed)
     DEFINE_STRING_MAPPING(PseudoAutofillSelected)
     DEFINE_STRING_MAPPING(PseudoHover)
@@ -315,7 +299,6 @@ const char* PseudoTypeToString(CSSSelector::PseudoType pseudo_type) {
     DEFINE_STRING_MAPPING(PseudoEnabled)
     DEFINE_STRING_MAPPING(PseudoFullPageMedia)
     DEFINE_STRING_MAPPING(PseudoDefault)
-    DEFINE_STRING_MAPPING(PseudoDir)
     DEFINE_STRING_MAPPING(PseudoDisabled)
     DEFINE_STRING_MAPPING(PseudoOptional)
     DEFINE_STRING_MAPPING(PseudoPlaceholderShown)
@@ -333,7 +316,6 @@ const char* PseudoTypeToString(CSSSelector::PseudoType pseudo_type) {
     DEFINE_STRING_MAPPING(PseudoLang)
     DEFINE_STRING_MAPPING(PseudoNot)
     DEFINE_STRING_MAPPING(PseudoPlaceholder)
-    DEFINE_STRING_MAPPING(PseudoFileSelectorButton)
     DEFINE_STRING_MAPPING(PseudoResizer)
     DEFINE_STRING_MAPPING(PseudoRoot)
     DEFINE_STRING_MAPPING(PseudoScope)
@@ -361,20 +343,20 @@ const char* PseudoTypeToString(CSSSelector::PseudoType pseudo_type) {
     DEFINE_STRING_MAPPING(PseudoFullScreen)
     DEFINE_STRING_MAPPING(PseudoFullScreenAncestor)
     DEFINE_STRING_MAPPING(PseudoFullscreen)
-    DEFINE_STRING_MAPPING(PseudoPaused)
     DEFINE_STRING_MAPPING(PseudoPictureInPicture)
-    DEFINE_STRING_MAPPING(PseudoPlaying)
     DEFINE_STRING_MAPPING(PseudoInRange)
     DEFINE_STRING_MAPPING(PseudoOutOfRange)
-    DEFINE_STRING_MAPPING(PseudoToggle)
     DEFINE_STRING_MAPPING(PseudoWebKitCustomElement)
     DEFINE_STRING_MAPPING(PseudoBlinkInternalElement)
     DEFINE_STRING_MAPPING(PseudoCue)
     DEFINE_STRING_MAPPING(PseudoFutureCue)
     DEFINE_STRING_MAPPING(PseudoPastCue)
+    DEFINE_STRING_MAPPING(PseudoUnresolved)
     DEFINE_STRING_MAPPING(PseudoDefined)
+    DEFINE_STRING_MAPPING(PseudoContent)
     DEFINE_STRING_MAPPING(PseudoHost)
     DEFINE_STRING_MAPPING(PseudoHostContext)
+    DEFINE_STRING_MAPPING(PseudoShadow)
     DEFINE_STRING_MAPPING(PseudoSlotted)
     DEFINE_STRING_MAPPING(PseudoSpatialNavigationFocus)
     DEFINE_STRING_MAPPING(PseudoSpatialNavigationInterest)
@@ -382,26 +364,12 @@ const char* PseudoTypeToString(CSSSelector::PseudoType pseudo_type) {
     DEFINE_STRING_MAPPING(PseudoIsHtml)
     DEFINE_STRING_MAPPING(PseudoListBox)
     DEFINE_STRING_MAPPING(PseudoMultiSelectFocus)
-    DEFINE_STRING_MAPPING(PseudoOpen)
-    DEFINE_STRING_MAPPING(PseudoClosed)
     DEFINE_STRING_MAPPING(PseudoHostHasAppearance)
     DEFINE_STRING_MAPPING(PseudoVideoPersistent)
     DEFINE_STRING_MAPPING(PseudoVideoPersistentAncestor)
     DEFINE_STRING_MAPPING(PseudoXrOverlay)
     DEFINE_STRING_MAPPING(PseudoTargetText)
-    DEFINE_STRING_MAPPING(PseudoSelectorFragmentAnchor)
     DEFINE_STRING_MAPPING(PseudoModal)
-    DEFINE_STRING_MAPPING(PseudoHighlight)
-    DEFINE_STRING_MAPPING(PseudoSpellingError)
-    DEFINE_STRING_MAPPING(PseudoGrammarError)
-    DEFINE_STRING_MAPPING(PseudoHas)
-    DEFINE_STRING_MAPPING(PseudoRelativeAnchor)
-    DEFINE_STRING_MAPPING(PseudoViewTransition)
-    DEFINE_STRING_MAPPING(PseudoViewTransitionGroup);
-    DEFINE_STRING_MAPPING(PseudoViewTransitionImagePair);
-    DEFINE_STRING_MAPPING(PseudoViewTransitionNew);
-    DEFINE_STRING_MAPPING(PseudoViewTransitionOld);
-    DEFINE_STRING_MAPPING(PseudoParent)
 #undef DEFINE_STRING_MAPPING
   }
 
@@ -413,6 +381,19 @@ String UrlForFrame(LocalFrame* frame) {
   KURL url = frame->GetDocument()->Url();
   url.RemoveFragmentIdentifier();
   return url.GetString();
+}
+
+const char* CompileOptionsString(v8::ScriptCompiler::CompileOptions options) {
+  switch (options) {
+    case v8::ScriptCompiler::kNoCompileOptions:
+      return "code";
+    case v8::ScriptCompiler::kConsumeCodeCache:
+      return "code";
+    case v8::ScriptCompiler::kEagerCompile:
+      return "full code";
+  }
+  NOTREACHED();
+  return "";
 }
 
 const char* NotStreamedReasonString(ScriptStreamer::NotStreamingReason reason) {
@@ -453,10 +434,6 @@ const char* NotStreamedReasonString(ScriptStreamer::NotStreamingReason reason) {
       return "no data pipe received";
     case ScriptStreamer::NotStreamingReason::kDisabledByFeatureList:
       return "streaming disabled from the feature list";
-    case ScriptStreamer::NotStreamingReason::kErrorScriptTypeMismatch:
-      return "wrong script type";
-    case ScriptStreamer::NotStreamingReason::kNonJavascriptModule:
-      return "not a javascript module";
     case ScriptStreamer::NotStreamingReason::kLoadingCancelled:
       return "loading was cancelled";
     case ScriptStreamer::NotStreamingReason::kDidntTryToStartStreaming:
@@ -471,18 +448,19 @@ const char* NotStreamedReasonString(ScriptStreamer::NotStreamingReason reason) {
 }  // namespace
 
 namespace inspector_schedule_style_invalidation_tracking_event {
-void FillCommonPart(perfetto::TracedDictionary& dict,
-                    ContainerNode& node,
-                    const InvalidationSet& invalidation_set,
-                    const char* invalidated_selector) {
-  dict.Add("frame", IdentifiersFactory::FrameId(node.GetDocument().GetFrame()));
-  SetNodeInfo(dict, &node, "nodeId", "nodeName");
-  dict.Add("invalidationSet",
-           DescendantInvalidationSetToIdString(invalidation_set));
-  dict.Add("invalidatedSelectorId", invalidated_selector);
-  auto source_location = CaptureSourceLocation();
-  if (source_location->HasStackTrace())
-    dict.Add("stackTrace", source_location);
+std::unique_ptr<TracedValue> FillCommonPart(
+    ContainerNode& node,
+    const InvalidationSet& invalidation_set,
+    const char* invalidated_selector) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("frame",
+                   IdentifiersFactory::FrameId(node.GetDocument().GetFrame()));
+  SetNodeInfo(value.get(), &node, "nodeId", "nodeName");
+  value->SetString("invalidationSet",
+                   DescendantInvalidationSetToIdString(invalidation_set));
+  value->SetString("invalidatedSelectorId", invalidated_selector);
+  SourceLocation::Capture()->ToTracedValue(value.get(), "stackTrace");
+  return value;
 }
 }  // namespace inspector_schedule_style_invalidation_tracking_event
 
@@ -520,52 +498,57 @@ const char* ResourcePriorityString(ResourceLoadPriority priority) {
   return priority_string;
 }
 
-void inspector_schedule_style_invalidation_tracking_event::IdChange(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue>
+inspector_schedule_style_invalidation_tracking_event::IdChange(
     Element& element,
     const InvalidationSet& invalidation_set,
     const AtomicString& id) {
-  auto dict = std::move(context).WriteDictionary();
-  FillCommonPart(dict, element, invalidation_set, kId);
-  dict.Add("changedId", id);
+  std::unique_ptr<TracedValue> value =
+      FillCommonPart(element, invalidation_set, kId);
+  value->SetString("changedId", id);
+  return value;
 }
 
-void inspector_schedule_style_invalidation_tracking_event::ClassChange(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue>
+inspector_schedule_style_invalidation_tracking_event::ClassChange(
     Element& element,
     const InvalidationSet& invalidation_set,
     const AtomicString& class_name) {
-  auto dict = std::move(context).WriteDictionary();
-  FillCommonPart(dict, element, invalidation_set, kClass);
-  dict.Add("changedClass", class_name);
+  std::unique_ptr<TracedValue> value =
+      FillCommonPart(element, invalidation_set, kClass);
+  value->SetString("changedClass", class_name);
+  return value;
 }
 
-void inspector_schedule_style_invalidation_tracking_event::AttributeChange(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue>
+inspector_schedule_style_invalidation_tracking_event::AttributeChange(
     Element& element,
     const InvalidationSet& invalidation_set,
     const QualifiedName& attribute_name) {
-  auto dict = std::move(context).WriteDictionary();
-  FillCommonPart(dict, element, invalidation_set, kAttribute);
-  dict.Add("changedAttribute", attribute_name.ToString());
+  std::unique_ptr<TracedValue> value =
+      FillCommonPart(element, invalidation_set, kAttribute);
+  value->SetString("changedAttribute", attribute_name.ToString());
+  return value;
 }
 
-void inspector_schedule_style_invalidation_tracking_event::PseudoChange(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue>
+inspector_schedule_style_invalidation_tracking_event::PseudoChange(
     Element& element,
     const InvalidationSet& invalidation_set,
     CSSSelector::PseudoType pseudo_type) {
-  auto dict = std::move(context).WriteDictionary();
-  FillCommonPart(dict, element, invalidation_set, kAttribute);
-  dict.Add("changedPseudo", PseudoTypeToString(pseudo_type));
+  std::unique_ptr<TracedValue> value =
+      FillCommonPart(element, invalidation_set, kAttribute);
+  value->SetString("changedPseudo", PseudoTypeToString(pseudo_type));
+  return value;
 }
 
-void inspector_schedule_style_invalidation_tracking_event::RuleSetInvalidation(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue>
+inspector_schedule_style_invalidation_tracking_event::RuleSetInvalidation(
     ContainerNode& root_node,
     const InvalidationSet& invalidation_set) {
-  auto dict = std::move(context).WriteDictionary();
-  FillCommonPart(dict, root_node, invalidation_set, kRuleSet);
+  std::unique_ptr<TracedValue> value =
+      FillCommonPart(root_node, invalidation_set, kRuleSet);
+  return value;
 }
 
 String DescendantInvalidationSetToIdString(const InvalidationSet& set) {
@@ -591,68 +574,70 @@ const char inspector_style_invalidator_invalidate_event::
     kInvalidationSetMatchedPart[] = "Invalidation set matched part";
 
 namespace inspector_style_invalidator_invalidate_event {
-void FillCommonPart(perfetto::TracedDictionary& dict,
-                    ContainerNode& node,
-                    const char* reason) {
-  dict.Add("frame", IdentifiersFactory::FrameId(node.GetDocument().GetFrame()));
-  SetNodeInfo(dict, &node, "nodeId", "nodeName");
-  dict.Add("reason", reason);
+std::unique_ptr<TracedValue> FillCommonPart(ContainerNode& node,
+                                            const char* reason) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("frame",
+                   IdentifiersFactory::FrameId(node.GetDocument().GetFrame()));
+  SetNodeInfo(value.get(), &node, "nodeId", "nodeName");
+  value->SetString("reason", reason);
+  return value;
 }
 }  // namespace inspector_style_invalidator_invalidate_event
 
-void inspector_style_invalidator_invalidate_event::Data(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue> inspector_style_invalidator_invalidate_event::Data(
     Element& element,
     const char* reason) {
-  auto dict = std::move(context).WriteDictionary();
-  FillCommonPart(dict, element, reason);
+  return FillCommonPart(element, reason);
 }
 
-void inspector_style_invalidator_invalidate_event::SelectorPart(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue>
+inspector_style_invalidator_invalidate_event::SelectorPart(
     Element& element,
     const char* reason,
     const InvalidationSet& invalidation_set,
     const String& selector_part) {
-  auto dict = std::move(context).WriteDictionary();
-  FillCommonPart(dict, element, reason);
-  {
-    auto array = dict.AddArray("invalidationList");
-    array.Append(invalidation_set);
-  }
-  dict.Add("selectorPart", selector_part);
+  std::unique_ptr<TracedValue> value = FillCommonPart(element, reason);
+  value->BeginArray("invalidationList");
+  invalidation_set.ToTracedValue(value.get());
+  value->EndArray();
+  value->SetString("selectorPart", selector_part);
+  return value;
 }
 
-void inspector_style_invalidator_invalidate_event::InvalidationList(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue>
+inspector_style_invalidator_invalidate_event::InvalidationList(
     ContainerNode& node,
     const Vector<scoped_refptr<InvalidationSet>>& invalidation_list) {
-  auto dict = std::move(context).WriteDictionary();
-  FillCommonPart(dict, node, kElementHasPendingInvalidationList);
-  dict.Add("invalidationList", invalidation_list);
+  std::unique_ptr<TracedValue> value =
+      FillCommonPart(node, kElementHasPendingInvalidationList);
+  value->BeginArray("invalidationList");
+  for (const auto& invalidation_set : invalidation_list)
+    invalidation_set->ToTracedValue(value.get());
+  value->EndArray();
+  return value;
 }
 
-void inspector_style_recalc_invalidation_tracking_event::Data(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue>
+inspector_style_recalc_invalidation_tracking_event::Data(
     Node* node,
     StyleChangeType change_type,
     const StyleChangeReasonForTracing& reason) {
   DCHECK(node);
 
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("frame",
-           IdentifiersFactory::FrameId(node->GetDocument().GetFrame()));
-  SetNodeInfo(dict, node, "nodeId", "nodeName");
-  dict.Add("subtree", change_type == kSubtreeStyleChange);
-  dict.Add("reason", reason.ReasonString());
-  dict.Add("extraData", reason.GetExtraData());
-  auto source_location = CaptureSourceLocation();
-  if (source_location->HasStackTrace())
-    dict.Add("stackTrace", source_location);
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("frame",
+                   IdentifiersFactory::FrameId(node->GetDocument().GetFrame()));
+  SetNodeInfo(value.get(), node, "nodeId", "nodeName");
+  value->SetBoolean("subtree", change_type == kSubtreeStyleChange);
+  value->SetString("reason", reason.ReasonString());
+  value->SetString("extraData", reason.GetExtraData());
+  SourceLocation::Capture()->ToTracedValue(value.get(), "stackTrace");
+  return value;
 }
 
-void inspector_layout_event::BeginData(perfetto::TracedValue context,
-                                       LocalFrameView* frame_view) {
+std::unique_ptr<TracedValue> inspector_layout_event::BeginData(
+    LocalFrameView* frame_view) {
   bool is_partial;
   unsigned needs_layout_objects;
   unsigned total_objects;
@@ -660,69 +645,56 @@ void inspector_layout_event::BeginData(perfetto::TracedValue context,
   frame.View()->CountObjectsNeedingLayout(needs_layout_objects, total_objects,
                                           is_partial);
 
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("dirtyObjects", needs_layout_objects);
-  dict.Add("totalObjects", total_objects);
-  dict.Add("partialLayout", is_partial);
-  dict.Add("frame", IdentifiersFactory::FrameId(&frame));
-  SetCallStack(dict);
+  auto value = std::make_unique<TracedValue>();
+  value->SetInteger("dirtyObjects", needs_layout_objects);
+  value->SetInteger("totalObjects", total_objects);
+  value->SetBoolean("partialLayout", is_partial);
+  value->SetString("frame", IdentifiersFactory::FrameId(&frame));
+  SetCallStack(value.get());
+  return value;
 }
 
-static void CreateQuad(perfetto::TracedValue context, const gfx::QuadF& quad) {
-  auto array = std::move(context).WriteArray();
-  array.Append(quad.p1().x());
-  array.Append(quad.p1().y());
-  array.Append(quad.p2().x());
-  array.Append(quad.p2().y());
-  array.Append(quad.p3().x());
-  array.Append(quad.p3().y());
-  array.Append(quad.p4().x());
-  array.Append(quad.p4().y());
+static void CreateQuad(TracedValue* value,
+                       const char* name,
+                       const FloatQuad& quad) {
+  value->BeginArray(name);
+  value->PushDouble(quad.P1().X());
+  value->PushDouble(quad.P1().Y());
+  value->PushDouble(quad.P2().X());
+  value->PushDouble(quad.P2().Y());
+  value->PushDouble(quad.P3().X());
+  value->PushDouble(quad.P3().Y());
+  value->PushDouble(quad.P4().X());
+  value->PushDouble(quad.P4().Y());
+  value->EndArray();
 }
 
-static void SetGeneratingNodeInfo(
-    perfetto::TracedDictionary& dict,
-    const LayoutObject* layout_object,
-    perfetto::StaticString id_field_name,
-    perfetto::StaticString name_field_name = nullptr) {
+static void SetGeneratingNodeInfo(TracedValue* value,
+                                  const LayoutObject* layout_object,
+                                  const char* id_field_name,
+                                  const char* name_field_name = nullptr) {
   Node* node = nullptr;
   for (; layout_object && !node; layout_object = layout_object->Parent())
     node = layout_object->GeneratingNode();
   if (!node)
     return;
 
-  SetNodeInfo(dict, node, id_field_name, name_field_name);
+  SetNodeInfo(value, node, id_field_name, name_field_name);
 }
 
-static void CreateLayoutRoot(perfetto::TracedValue context,
-                             const LayoutObjectWithDepth& layout_root) {
-  auto dict = std::move(context).WriteDictionary();
-  SetGeneratingNodeInfo(dict, layout_root.object, "nodeId");
-  dict.Add("depth", static_cast<int>(layout_root.depth));
-  Vector<gfx::QuadF> quads;
-  layout_root.object->AbsoluteQuads(quads);
-  if (quads.size() > kMaxQuads)
-    quads.Shrink(kMaxQuads);
-  {
-    auto array = dict.AddArray("quads");
-    for (auto& quad : quads)
-      CreateQuad(array.AppendItem(), quad);
-  }
-}
+std::unique_ptr<TracedValue> inspector_layout_event::EndData(
+    LayoutObject* root_for_this_layout) {
+  Vector<FloatQuad> quads;
+  root_for_this_layout->AbsoluteQuads(quads);
 
-void inspector_layout_event::EndData(
-    perfetto::TracedValue context,
-    const HeapVector<LayoutObjectWithDepth>& layout_roots) {
-  auto dict = std::move(context).WriteDictionary();
-  {
-    auto array = dict.AddArray("layoutRoots");
-    unsigned numRoots = 0u;
-    for (auto& layout_root : layout_roots) {
-      if (++numRoots > kMaxLayoutRoots)
-        break;
-      CreateLayoutRoot(array.AppendItem(), layout_root);
-    }
+  auto value = std::make_unique<TracedValue>();
+  if (quads.size() >= 1) {
+    CreateQuad(value.get(), "root", quads[0]);
+    SetGeneratingNodeInfo(value.get(), root_for_this_layout, "rootNode");
+  } else {
+    NOTREACHED();
   }
+  return value;
 }
 
 namespace layout_invalidation_reason {
@@ -742,7 +714,6 @@ const char kFullscreen[] = "Fullscreen change";
 const char kChildChanged[] = "Child changed";
 const char kListValueChange[] = "List value change";
 const char kListStyleTypeChange[] = "List style type change";
-const char kCounterStyleChange[] = "Counter style change";
 const char kImageChanged[] = "Image changed";
 const char kLineBoxesChanged[] = "Line boxes changed";
 const char kSliderValueChanged[] = "Slider value changed";
@@ -762,238 +733,192 @@ const char kTextControlChanged[] = "Text control changed";
 const char kSvgChanged[] = "SVG changed";
 const char kScrollbarChanged[] = "Scrollbar changed";
 const char kDisplayLock[] = "Display lock";
-const char kDevtools[] = "Inspected by devtools";
-const char kAnchorPositioning[] = "Anchor positioning";
 }  // namespace layout_invalidation_reason
 
-void inspector_layout_invalidation_tracking_event::Data(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue> inspector_layout_invalidation_tracking_event::Data(
     const LayoutObject* layout_object,
     LayoutInvalidationReasonForTracing reason) {
   DCHECK(layout_object);
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("frame", IdentifiersFactory::FrameId(layout_object->GetFrame()));
-  SetGeneratingNodeInfo(dict, layout_object, "nodeId", "nodeName");
-  dict.Add("reason", reason);
-  auto source_location = CaptureSourceLocation();
-  if (source_location->HasStackTrace())
-    dict.Add("stackTrace", source_location);
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("frame",
+                   IdentifiersFactory::FrameId(layout_object->GetFrame()));
+  SetGeneratingNodeInfo(value.get(), layout_object, "nodeId", "nodeName");
+  value->SetString("reason", reason);
+  SourceLocation::Capture()->ToTracedValue(value.get(), "stackTrace");
+  return value;
 }
 
-void inspector_change_resource_priority_event::Data(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue> inspector_change_resource_priority_event::Data(
     DocumentLoader* loader,
     uint64_t identifier,
     const ResourceLoadPriority& load_priority) {
   String request_id = IdentifiersFactory::RequestId(loader, identifier);
 
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("requestId", request_id);
-  dict.Add("priority", ResourcePriorityString(load_priority));
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("requestId", request_id);
+  value->SetString("priority", ResourcePriorityString(load_priority));
+  return value;
 }
 
-namespace {
-String GetRenderBlockingStringFromBehavior(
-    RenderBlockingBehavior render_blocking_behavior) {
-  String render_blocking_string;
-  switch (render_blocking_behavior) {
-    case RenderBlockingBehavior::kUnset:
-      break;
-    case RenderBlockingBehavior::kBlocking:
-      render_blocking_string = "blocking";
-      break;
-    case RenderBlockingBehavior::kNonBlocking:
-      render_blocking_string = "non_blocking";
-      break;
-    case RenderBlockingBehavior::kNonBlockingDynamic:
-      render_blocking_string = "dynamically_injected_non_blocking";
-      break;
-    case RenderBlockingBehavior::kInBodyParserBlocking:
-      render_blocking_string = "in_body_parser_blocking";
-      break;
-    case RenderBlockingBehavior::kPotentiallyBlocking:
-      render_blocking_string = "potentially_blocking";
-      break;
-    default:
-      NOTREACHED();
-  }
-  return render_blocking_string;
-}
-
-}  // namespace
-
-void inspector_send_request_event::Data(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue> inspector_send_request_event::Data(
     DocumentLoader* loader,
     uint64_t identifier,
     LocalFrame* frame,
-    const ResourceRequest& request,
-    RenderBlockingBehavior render_blocking_behavior) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("requestId", IdentifiersFactory::RequestId(loader, identifier));
-  dict.Add("frame", IdentifiersFactory::FrameId(frame));
-  dict.Add("url", request.Url().GetString());
-  dict.Add("requestMethod", request.HttpMethod());
-  String render_blocking_string =
-      GetRenderBlockingStringFromBehavior(render_blocking_behavior);
-  if (!render_blocking_string.IsNull()) {
-    dict.Add("renderBlocking", render_blocking_string);
-  }
+    const ResourceRequest& request) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("requestId",
+                   IdentifiersFactory::RequestId(loader, identifier));
+  value->SetString("frame", IdentifiersFactory::FrameId(frame));
+  value->SetString("url", request.Url().GetString());
+  value->SetString("requestMethod", request.HttpMethod());
   const char* priority = ResourcePriorityString(request.Priority());
   if (priority)
-    dict.Add("priority", priority);
-  SetCallStack(dict);
+    value->SetString("priority", priority);
+  SetCallStack(value.get());
+  return value;
 }
 
-void inspector_change_render_blocking_behavior_event::Data(
-    perfetto::TracedValue context,
-    DocumentLoader* loader,
-    uint64_t identifier,
-    const ResourceRequestHead& request,
-    RenderBlockingBehavior render_blocking_behavior) {
-  String request_id = IdentifiersFactory::RequestId(loader, identifier);
-
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("requestId", request_id);
-  dict.Add("url", request.Url().GetString());
-  String render_blocking_string =
-      GetRenderBlockingStringFromBehavior(render_blocking_behavior);
-  if (!render_blocking_string.IsNull()) {
-    dict.Add("renderBlocking", render_blocking_string);
-  }
-}
-
-void inspector_send_navigation_request_event::Data(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue> inspector_send_navigation_request_event::Data(
     DocumentLoader* loader,
     uint64_t identifier,
     LocalFrame* frame,
     const KURL& url,
     const AtomicString& http_method) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("requestId", IdentifiersFactory::LoaderId(loader));
-  dict.Add("frame", IdentifiersFactory::FrameId(frame));
-  dict.Add("url", url.GetString());
-  dict.Add("requestMethod", http_method);
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("requestId", IdentifiersFactory::LoaderId(loader));
+  value->SetString("frame", IdentifiersFactory::FrameId(frame));
+  value->SetString("url", url.GetString());
+  value->SetString("requestMethod", http_method);
   const char* priority =
       ResourcePriorityString(ResourceLoadPriority::kVeryHigh);
   if (priority)
-    dict.Add("priority", priority);
-  SetCallStack(dict);
+    value->SetString("priority", priority);
+  SetCallStack(value.get());
+  return value;
 }
 
 namespace {
-void RecordTiming(perfetto::TracedValue context,
-                  const ResourceLoadTiming& timing) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("requestTime", timing.RequestTime().since_origin().InSecondsF());
-  dict.Add("proxyStart", timing.CalculateMillisecondDelta(timing.ProxyStart()));
-  dict.Add("proxyEnd", timing.CalculateMillisecondDelta(timing.ProxyEnd()));
-  dict.Add("dnsStart",
-           timing.CalculateMillisecondDelta(timing.DomainLookupStart()));
-  dict.Add("dnsEnd",
-           timing.CalculateMillisecondDelta(timing.DomainLookupEnd()));
-  dict.Add("connectStart",
-           timing.CalculateMillisecondDelta(timing.ConnectStart()));
-  dict.Add("connectEnd", timing.CalculateMillisecondDelta(timing.ConnectEnd()));
-  dict.Add("sslStart", timing.CalculateMillisecondDelta(timing.SslStart()));
-  dict.Add("sslEnd", timing.CalculateMillisecondDelta(timing.SslEnd()));
-  dict.Add("workerStart",
-           timing.CalculateMillisecondDelta(timing.WorkerStart()));
-  dict.Add("workerReady",
-           timing.CalculateMillisecondDelta(timing.WorkerReady()));
-  dict.Add("sendStart", timing.CalculateMillisecondDelta(timing.SendStart()));
-  dict.Add("sendEnd", timing.CalculateMillisecondDelta(timing.SendEnd()));
-  dict.Add("receiveHeadersEnd",
-           timing.CalculateMillisecondDelta(timing.ReceiveHeadersEnd()));
-  dict.Add("pushStart", timing.PushStart().since_origin().InSecondsF());
-  dict.Add("pushEnd", timing.PushEnd().since_origin().InSecondsF());
+void RecordTiming(const ResourceLoadTiming& timing, TracedValue* value) {
+  value->SetDouble("requestTime",
+                   timing.RequestTime().since_origin().InSecondsF());
+  value->SetDouble("proxyStart",
+                   timing.CalculateMillisecondDelta(timing.ProxyStart()));
+  value->SetDouble("proxyEnd",
+                   timing.CalculateMillisecondDelta(timing.ProxyEnd()));
+  value->SetDouble("dnsStart",
+                   timing.CalculateMillisecondDelta(timing.DnsStart()));
+  value->SetDouble("dnsEnd", timing.CalculateMillisecondDelta(timing.DnsEnd()));
+  value->SetDouble("connectStart",
+                   timing.CalculateMillisecondDelta(timing.ConnectStart()));
+  value->SetDouble("connectEnd",
+                   timing.CalculateMillisecondDelta(timing.ConnectEnd()));
+  value->SetDouble("sslStart",
+                   timing.CalculateMillisecondDelta(timing.SslStart()));
+  value->SetDouble("sslEnd", timing.CalculateMillisecondDelta(timing.SslEnd()));
+  value->SetDouble("workerStart",
+                   timing.CalculateMillisecondDelta(timing.WorkerStart()));
+  value->SetDouble("workerReady",
+                   timing.CalculateMillisecondDelta(timing.WorkerReady()));
+  value->SetDouble("sendStart",
+                   timing.CalculateMillisecondDelta(timing.SendStart()));
+  value->SetDouble("sendEnd",
+                   timing.CalculateMillisecondDelta(timing.SendEnd()));
+  value->SetDouble("receiveHeadersEnd", timing.CalculateMillisecondDelta(
+                                            timing.ReceiveHeadersEnd()));
+  value->SetDouble("pushStart", timing.PushStart().since_origin().InSecondsF());
+  value->SetDouble("pushEnd", timing.PushEnd().since_origin().InSecondsF());
 }
 }  // namespace
 
-void inspector_receive_response_event::Data(perfetto::TracedValue context,
-                                            DocumentLoader* loader,
-                                            uint64_t identifier,
-                                            LocalFrame* frame,
-                                            const ResourceResponse& response) {
+std::unique_ptr<TracedValue> inspector_receive_response_event::Data(
+    DocumentLoader* loader,
+    uint64_t identifier,
+    LocalFrame* frame,
+    const ResourceResponse& response) {
   String request_id = IdentifiersFactory::RequestId(loader, identifier);
 
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("requestId", request_id);
-  dict.Add("frame", IdentifiersFactory::FrameId(frame));
-  dict.Add("statusCode", response.HttpStatusCode());
-  dict.Add("mimeType", response.MimeType().GetString());
-  dict.Add("encodedDataLength", response.EncodedDataLength());
-  dict.Add("fromCache", response.WasCached());
-  dict.Add("fromServiceWorker", response.WasFetchedViaServiceWorker());
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("requestId", request_id);
+  value->SetString("frame", IdentifiersFactory::FrameId(frame));
+  value->SetInteger("statusCode", response.HttpStatusCode());
+  value->SetString("mimeType", response.MimeType().GetString().IsolatedCopy());
+  value->SetDouble("encodedDataLength", response.EncodedDataLength());
+  value->SetBoolean("fromCache", response.WasCached());
+  value->SetBoolean("fromServiceWorker", response.WasFetchedViaServiceWorker());
 
   if (response.WasFetchedViaServiceWorker()) {
     switch (response.GetServiceWorkerResponseSource()) {
       case network::mojom::FetchResponseSource::kCacheStorage:
-        dict.Add("serviceWorkerResponseSource", "cacheStorage");
+        value->SetString("serviceWorkerResponseSource", "cacheStorage");
         break;
       case network::mojom::FetchResponseSource::kHttpCache:
-        dict.Add("serviceWorkerResponseSource", "httpCache");
+        value->SetString("serviceWorkerResponseSource", "httpCache");
         break;
       case network::mojom::FetchResponseSource::kNetwork:
-        dict.Add("serviceWorkerResponseSource", "network");
+        value->SetString("serviceWorkerResponseSource", "network");
         break;
       case network::mojom::FetchResponseSource::kUnspecified:
-        dict.Add("serviceWorkerResponseSource", "fallbackCode");
+        value->SetString("serviceWorkerResponseSource", "fallbackCode");
     }
   }
 
   if (!response.ResponseTime().is_null()) {
-    dict.Add("responseTime", response.ResponseTime().ToJsTime());
+    value->SetDouble("responseTime", response.ResponseTime().ToJsTime());
   }
-  if (!response.CacheStorageCacheName().empty()) {
-    dict.Add("cacheStorageCacheName", response.CacheStorageCacheName());
+  if (!response.CacheStorageCacheName().IsEmpty()) {
+    value->SetString("cacheStorageCacheName", response.CacheStorageCacheName());
   }
 
   if (response.GetResourceLoadTiming()) {
-    RecordTiming(dict.AddItem("timing"), *response.GetResourceLoadTiming());
+    value->BeginDictionary("timing");
+    RecordTiming(*response.GetResourceLoadTiming(), value.get());
+    value->EndDictionary();
   }
   if (response.WasFetchedViaServiceWorker())
-    dict.Add("fromServiceWorker", true);
+    value->SetBoolean("fromServiceWorker", true);
+  return value;
 }
 
-void inspector_receive_data_event::Data(perfetto::TracedValue context,
-                                        DocumentLoader* loader,
-                                        uint64_t identifier,
-                                        LocalFrame* frame,
-                                        uint64_t encoded_data_length) {
+std::unique_ptr<TracedValue> inspector_receive_data_event::Data(
+    DocumentLoader* loader,
+    uint64_t identifier,
+    LocalFrame* frame,
+    uint64_t encoded_data_length) {
   String request_id = IdentifiersFactory::RequestId(loader, identifier);
 
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("requestId", request_id);
-  dict.Add("frame", IdentifiersFactory::FrameId(frame));
-  dict.Add("encodedDataLength", encoded_data_length);
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("requestId", request_id);
+  value->SetString("frame", IdentifiersFactory::FrameId(frame));
+  value->SetDouble("encodedDataLength", encoded_data_length);
+  return value;
 }
 
-void inspector_resource_finish_event::Data(perfetto::TracedValue context,
-                                           DocumentLoader* loader,
-                                           uint64_t identifier,
-                                           base::TimeTicks finish_time,
-                                           bool did_fail,
-                                           int64_t encoded_data_length,
-                                           int64_t decoded_body_length) {
+std::unique_ptr<TracedValue> inspector_resource_finish_event::Data(
+    DocumentLoader* loader,
+    uint64_t identifier,
+    base::TimeTicks finish_time,
+    bool did_fail,
+    int64_t encoded_data_length,
+    int64_t decoded_body_length) {
   String request_id = IdentifiersFactory::RequestId(loader, identifier);
 
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("requestId", request_id);
-  dict.Add("didFail", did_fail);
-  dict.Add("encodedDataLength", encoded_data_length);
-  dict.Add("decodedBodyLength", decoded_body_length);
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("requestId", request_id);
+  value->SetBoolean("didFail", did_fail);
+  value->SetDouble("encodedDataLength", encoded_data_length);
+  value->SetDouble("decodedBodyLength", decoded_body_length);
   if (!finish_time.is_null())
-    dict.Add("finishTime", finish_time.since_origin().InSecondsF());
+    value->SetDouble("finishTime", finish_time.since_origin().InSecondsF());
+  return value;
 }
 
-void inspector_mark_resource_cached_event::Data(perfetto::TracedValue context,
-                                                DocumentLoader* loader,
-                                                uint64_t identifier) {
-  auto dict = std::move(context).WriteDictionary();
+std::unique_ptr<TracedValue> inspector_mark_resource_cached_event::Data(
+    DocumentLoader* loader,
+    uint64_t identifier) {
+  auto value = std::make_unique<TracedValue>();
   String request_id = IdentifiersFactory::RequestId(loader, identifier);
-  dict.Add("requestId", request_id);
+  value->SetString("requestId", request_id);
+  return value;
 }
 
 static LocalFrame* FrameForExecutionContext(ExecutionContext* context) {
@@ -1002,344 +927,373 @@ static LocalFrame* FrameForExecutionContext(ExecutionContext* context) {
   return nullptr;
 }
 
-static void GenericTimerData(perfetto::TracedDictionary& dict,
-                             ExecutionContext* context,
-                             int timer_id) {
-  dict.Add("timerId", timer_id);
+static std::unique_ptr<TracedValue> GenericTimerData(ExecutionContext* context,
+                                                     int timer_id) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetInteger("timerId", timer_id);
   if (LocalFrame* frame = FrameForExecutionContext(context))
-    dict.Add("frame", IdentifiersFactory::FrameId(frame));
+    value->SetString("frame", IdentifiersFactory::FrameId(frame));
+  return value;
 }
 
-void inspector_timer_install_event::Data(perfetto::TracedValue trace_context,
-                                         ExecutionContext* context,
-                                         int timer_id,
-                                         base::TimeDelta timeout,
-                                         bool single_shot) {
-  auto dict = std::move(trace_context).WriteDictionary();
-  GenericTimerData(dict, context, timer_id);
-  dict.Add("timeout", timeout.InMillisecondsF());
-  dict.Add("singleShot", single_shot);
-  SetCallStack(dict);
+std::unique_ptr<TracedValue> inspector_timer_install_event::Data(
+    ExecutionContext* context,
+    int timer_id,
+    base::TimeDelta timeout,
+    bool single_shot) {
+  std::unique_ptr<TracedValue> value = GenericTimerData(context, timer_id);
+  value->SetDouble("timeout", timeout.InMillisecondsF());
+  value->SetBoolean("singleShot", single_shot);
+  SetCallStack(value.get());
+  return value;
 }
 
-void inspector_timer_remove_event::Data(perfetto::TracedValue trace_context,
-                                        ExecutionContext* context,
-                                        int timer_id) {
-  auto dict = std::move(trace_context).WriteDictionary();
-  GenericTimerData(dict, context, timer_id);
-  SetCallStack(dict);
+std::unique_ptr<TracedValue> inspector_timer_remove_event::Data(
+    ExecutionContext* context,
+    int timer_id) {
+  std::unique_ptr<TracedValue> value = GenericTimerData(context, timer_id);
+  SetCallStack(value.get());
+  return value;
 }
 
-void inspector_timer_fire_event::Data(perfetto::TracedValue trace_context,
-                                      ExecutionContext* context,
-                                      int timer_id) {
-  auto dict = std::move(trace_context).WriteDictionary();
-  GenericTimerData(dict, context, timer_id);
+std::unique_ptr<TracedValue> inspector_timer_fire_event::Data(
+    ExecutionContext* context,
+    int timer_id) {
+  return GenericTimerData(context, timer_id);
 }
 
-void inspector_animation_frame_event::Data(perfetto::TracedValue trace_context,
-                                           ExecutionContext* context,
-                                           int callback_id) {
-  auto dict = std::move(trace_context).WriteDictionary();
-  dict.Add("id", callback_id);
+std::unique_ptr<TracedValue> inspector_animation_frame_event::Data(
+    ExecutionContext* context,
+    int callback_id) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetInteger("id", callback_id);
   if (auto* window = DynamicTo<LocalDOMWindow>(context)) {
-    dict.Add("frame", IdentifiersFactory::FrameId(window->GetFrame()));
+    value->SetString("frame", IdentifiersFactory::FrameId(window->GetFrame()));
   } else if (auto* scope = DynamicTo<WorkerGlobalScope>(context)) {
-    dict.Add("worker", ToHexString(scope));
+    value->SetString("worker", ToHexString(scope));
   }
-  SetCallStack(dict);
+  SetCallStack(value.get());
+  return value;
 }
 
-void GenericIdleCallbackEvent(perfetto::TracedDictionary& dict,
-                              ExecutionContext* context,
-                              int id) {
-  dict.Add("id", id);
+std::unique_ptr<TracedValue> GenericIdleCallbackEvent(ExecutionContext* context,
+                                                      int id) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetInteger("id", id);
   if (LocalFrame* frame = FrameForExecutionContext(context))
-    dict.Add("frame", IdentifiersFactory::FrameId(frame));
-  SetCallStack(dict);
+    value->SetString("frame", IdentifiersFactory::FrameId(frame));
+  SetCallStack(value.get());
+  return value;
 }
 
-void inspector_idle_callback_request_event::Data(
-    perfetto::TracedValue trace_context,
+std::unique_ptr<TracedValue> inspector_idle_callback_request_event::Data(
     ExecutionContext* context,
     int id,
     double timeout) {
-  auto dict = std::move(trace_context).WriteDictionary();
-  GenericIdleCallbackEvent(dict, context, id);
-  dict.Add("timeout", timeout);
+  std::unique_ptr<TracedValue> value = GenericIdleCallbackEvent(context, id);
+  value->SetInteger("timeout", timeout);
+  return value;
 }
 
-void inspector_idle_callback_cancel_event::Data(
-    perfetto::TracedValue trace_context,
+std::unique_ptr<TracedValue> inspector_idle_callback_cancel_event::Data(
     ExecutionContext* context,
     int id) {
-  auto dict = std::move(trace_context).WriteDictionary();
-  GenericIdleCallbackEvent(dict, context, id);
+  return GenericIdleCallbackEvent(context, id);
 }
 
-void inspector_idle_callback_fire_event::Data(
-    perfetto::TracedValue trace_context,
+std::unique_ptr<TracedValue> inspector_idle_callback_fire_event::Data(
     ExecutionContext* context,
     int id,
     double allotted_milliseconds,
     bool timed_out) {
-  auto dict = std::move(trace_context).WriteDictionary();
-  GenericIdleCallbackEvent(dict, context, id);
-  dict.Add("allottedMilliseconds", allotted_milliseconds);
-  dict.Add("timedOut", timed_out);
+  std::unique_ptr<TracedValue> value = GenericIdleCallbackEvent(context, id);
+  value->SetDouble("allottedMilliseconds", allotted_milliseconds);
+  value->SetBoolean("timedOut", timed_out);
+  return value;
 }
 
-void inspector_parse_author_style_sheet_event::Data(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue> inspector_parse_author_style_sheet_event::Data(
     const CSSStyleSheetResource* cached_style_sheet) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("styleSheetUrl", cached_style_sheet->Url().GetString());
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("styleSheetUrl", cached_style_sheet->Url().GetString());
+  return value;
 }
 
-void inspector_xhr_ready_state_change_event::Data(
-    perfetto::TracedValue trace_context,
+std::unique_ptr<TracedValue> inspector_xhr_ready_state_change_event::Data(
     ExecutionContext* context,
     XMLHttpRequest* request) {
-  auto dict = std::move(trace_context).WriteDictionary();
-  dict.Add("url", request->Url().GetString());
-  dict.Add("readyState", request->readyState());
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("url", request->Url().GetString());
+  value->SetInteger("readyState", request->readyState());
   if (LocalFrame* frame = FrameForExecutionContext(context))
-    dict.Add("frame", IdentifiersFactory::FrameId(frame));
-  SetCallStack(dict);
+    value->SetString("frame", IdentifiersFactory::FrameId(frame));
+  SetCallStack(value.get());
+  return value;
 }
 
-void inspector_xhr_load_event::Data(perfetto::TracedValue trace_context,
-                                    ExecutionContext* context,
-                                    XMLHttpRequest* request) {
-  auto dict = std::move(trace_context).WriteDictionary();
-  dict.Add("url", request->Url().GetString());
+std::unique_ptr<TracedValue> inspector_xhr_load_event::Data(
+    ExecutionContext* context,
+    XMLHttpRequest* request) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("url", request->Url().GetString());
   if (LocalFrame* frame = FrameForExecutionContext(context))
-    dict.Add("frame", IdentifiersFactory::FrameId(frame));
-  SetCallStack(dict);
+    value->SetString("frame", IdentifiersFactory::FrameId(frame));
+  SetCallStack(value.get());
+  return value;
 }
 
-void inspector_paint_event::Data(perfetto::TracedValue context,
-                                 Frame* frame,
-                                 const LayoutObject* layout_object,
-                                 const gfx::QuadF& quad,
-                                 int layer_id) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("frame", IdentifiersFactory::FrameId(frame));
-  CreateQuad(dict.AddItem("clip"), quad);
-  SetGeneratingNodeInfo(dict, layout_object, "nodeId");
-  dict.Add("layerId", layer_id);
-  SetCallStack(dict);
+static FloatPoint LocalCoordToFloatPoint(LocalFrameView* view,
+                                         const FloatPoint& local) {
+  return FloatPoint(view->ConvertToRootFrame(RoundedIntPoint(local)));
 }
 
-void FrameEventData(perfetto::TracedDictionary& dict, LocalFrame* frame) {
-  DCHECK(frame);
-  dict.Add("isMainFrame", frame->IsMainFrame());
-  dict.Add("isOutermostMainFrame", frame->IsOutermostMainFrame());
+static void LocalToPageQuad(const LayoutObject& layout_object,
+                            const PhysicalRect& rect,
+                            FloatQuad* quad) {
+  LocalFrame* frame = layout_object.GetFrame();
+  LocalFrameView* view = frame->View();
+  FloatQuad absolute = layout_object.LocalRectToAbsoluteQuad(rect);
+  quad->SetP1(LocalCoordToFloatPoint(view, absolute.P1()));
+  quad->SetP2(LocalCoordToFloatPoint(view, absolute.P2()));
+  quad->SetP3(LocalCoordToFloatPoint(view, absolute.P3()));
+  quad->SetP4(LocalCoordToFloatPoint(view, absolute.P4()));
+}
+
+std::unique_ptr<TracedValue> inspector_paint_event::Data(
+    LayoutObject* layout_object,
+    const PhysicalRect& clip_rect,
+    const GraphicsLayer* graphics_layer) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("frame",
+                   IdentifiersFactory::FrameId(layout_object->GetFrame()));
+  FloatQuad quad;
+  LocalToPageQuad(*layout_object, clip_rect, &quad);
+  CreateQuad(value.get(), "clip", quad);
+  SetGeneratingNodeInfo(value.get(), layout_object, "nodeId");
+  int graphics_layer_id = graphics_layer ? graphics_layer->CcLayer().id() : 0;
+  value->SetInteger("layerId", graphics_layer_id);
+  SetCallStack(value.get());
+  return value;
+}
+
+std::unique_ptr<TracedValue> FrameEventData(LocalFrame* frame) {
+  auto value = std::make_unique<TracedValue>();
+  bool is_main_frame = frame && frame->IsMainFrame();
+  value->SetBoolean("isMainFrame", is_main_frame);
   // TODO(dgozman): this does not work with OOPIF, so everyone who
   // uses it should migrate to frame instead.
-  dict.Add("page", IdentifiersFactory::FrameId(&frame->LocalFrameRoot()));
+  value->SetString("page",
+                   IdentifiersFactory::FrameId(&frame->LocalFrameRoot()));
+  return value;
 }
 
-void FillCommonFrameData(perfetto::TracedDictionary& dict, LocalFrame* frame) {
-  DCHECK(frame);
-  dict.Add("frame", IdentifiersFactory::FrameId(frame));
-  dict.Add("url", UrlForFrame(frame));
-  dict.Add("name", frame->Tree().GetName());
+void FillCommonFrameData(TracedValue* frame_data, LocalFrame* frame) {
+  frame_data->SetString("frame", IdentifiersFactory::FrameId(frame));
+  frame_data->SetString("url", UrlForFrame(frame));
+  frame_data->SetString("name", frame->Tree().GetName());
 
   FrameOwner* owner = frame->Owner();
   if (auto* frame_owner_element = DynamicTo<HTMLFrameOwnerElement>(owner)) {
-    dict.Add("nodeId", IdentifiersFactory::IntIdForNode(frame_owner_element));
+    frame_data->SetInteger(
+        "nodeId", IdentifiersFactory::IntIdForNode(frame_owner_element));
   }
   Frame* parent = frame->Tree().Parent();
   if (IsA<LocalFrame>(parent))
-    dict.Add("parent", IdentifiersFactory::FrameId(parent));
+    frame_data->SetString("parent", IdentifiersFactory::FrameId(parent));
 }
 
-void inspector_commit_load_event::Data(perfetto::TracedValue context,
-                                       LocalFrame* frame) {
-  auto dict = std::move(context).WriteDictionary();
-  FrameEventData(dict, frame);
-  FillCommonFrameData(dict, frame);
+std::unique_ptr<TracedValue> inspector_commit_load_event::Data(
+    LocalFrame* frame) {
+  std::unique_ptr<TracedValue> frame_data = FrameEventData(frame);
+  FillCommonFrameData(frame_data.get(), frame);
+  return frame_data;
 }
 
-void inspector_mark_load_event::Data(perfetto::TracedValue context,
-                                     LocalFrame* frame) {
-  auto dict = std::move(context).WriteDictionary();
-  FrameEventData(dict, frame);
-  dict.Add("frame", IdentifiersFactory::FrameId(frame));
+std::unique_ptr<TracedValue> inspector_mark_load_event::Data(
+    LocalFrame* frame) {
+  std::unique_ptr<TracedValue> frame_data = FrameEventData(frame);
+  frame_data->SetString("frame", IdentifiersFactory::FrameId(frame));
+  return frame_data;
 }
 
-void inspector_pre_paint_event::Data(perfetto::TracedValue context,
-                                     LocalFrame* frame) {
-  auto dict = std::move(context).WriteDictionary();
-  FrameEventData(dict, frame);
-  dict.Add("frame", IdentifiersFactory::FrameId(frame));
+std::unique_ptr<TracedValue> inspector_scroll_layer_event::Data(
+    LayoutObject* layout_object) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("frame",
+                   IdentifiersFactory::FrameId(layout_object->GetFrame()));
+  SetGeneratingNodeInfo(value.get(), layout_object, "nodeId");
+  return value;
 }
 
-void inspector_scroll_layer_event::Data(perfetto::TracedValue context,
-                                        LayoutObject* layout_object) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("frame", IdentifiersFactory::FrameId(layout_object->GetFrame()));
-  SetGeneratingNodeInfo(dict, layout_object, "nodeId");
+std::unique_ptr<TracedValue> inspector_update_layer_tree_event::Data(
+    LocalFrame* frame) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("frame", IdentifiersFactory::FrameId(frame));
+  return value;
 }
 
 namespace {
-void FillLocation(perfetto::TracedDictionary& dict,
-                  const String& url,
-                  const TextPosition& text_position) {
-  dict.Add("url", url);
-  dict.Add("lineNumber", text_position.line_.OneBasedInt());
-  dict.Add("columnNumber", text_position.column_.OneBasedInt());
+std::unique_ptr<TracedValue> FillLocation(const String& url,
+                                          const TextPosition& text_position) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("url", url);
+  value->SetInteger("lineNumber", text_position.line_.OneBasedInt());
+  value->SetInteger("columnNumber", text_position.column_.OneBasedInt());
+  return value;
 }
 }  // namespace
 
-void inspector_evaluate_script_event::Data(perfetto::TracedValue context,
-                                           LocalFrame* frame,
-                                           const String& url,
-                                           const TextPosition& text_position) {
-  auto dict = std::move(context).WriteDictionary();
-  FillLocation(dict, url, text_position);
-  dict.Add("frame", IdentifiersFactory::FrameId(frame));
-  SetCallStack(dict);
+std::unique_ptr<TracedValue> inspector_evaluate_script_event::Data(
+    LocalFrame* frame,
+    const String& url,
+    const TextPosition& text_position) {
+  std::unique_ptr<TracedValue> value = FillLocation(url, text_position);
+  value->SetString("frame", IdentifiersFactory::FrameId(frame));
+  SetCallStack(value.get());
+  return value;
 }
 
-void inspector_parse_script_event::Data(perfetto::TracedValue context,
-                                        uint64_t identifier,
-                                        const String& url) {
-  String request_id = IdentifiersFactory::RequestId(
-      static_cast<ExecutionContext*>(nullptr), identifier);
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("requestId", request_id);
-  dict.Add("url", url);
+std::unique_ptr<TracedValue> inspector_parse_script_event::Data(
+    uint64_t identifier,
+    const String& url) {
+  String request_id = IdentifiersFactory::RequestId(nullptr, identifier);
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("requestId", request_id);
+  value->SetString("url", url);
+  return value;
 }
 
-void inspector_deserialize_script_event::Data(perfetto::TracedValue context,
-                                              uint64_t identifier,
-                                              const String& url) {
-  String request_id = IdentifiersFactory::RequestId(
-      static_cast<ExecutionContext*>(nullptr), identifier);
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("requestId", request_id);
-  dict.Add("url", url);
-}
+inspector_compile_script_event::V8CacheResult::ProduceResult::ProduceResult(
+    int cache_size)
+    : cache_size(cache_size) {}
 
-inspector_compile_script_event::V8ConsumeCacheResult::V8ConsumeCacheResult(
+inspector_compile_script_event::V8CacheResult::ConsumeResult::ConsumeResult(
+    v8::ScriptCompiler::CompileOptions consume_options,
     int cache_size,
     bool rejected)
-    : cache_size(cache_size), rejected(rejected) {}
+    : consume_options(consume_options),
+      cache_size(cache_size),
+      rejected(rejected) {
+  DCHECK_EQ(consume_options, v8::ScriptCompiler::kConsumeCodeCache);
+}
 
-void inspector_compile_script_event::Data(
-    perfetto::TracedValue context,
+inspector_compile_script_event::V8CacheResult::V8CacheResult(
+    base::Optional<ProduceResult> produce_result,
+    base::Optional<ConsumeResult> consume_result)
+    : produce_result(std::move(produce_result)),
+      consume_result(std::move(consume_result)) {}
+
+std::unique_ptr<TracedValue> inspector_compile_script_event::Data(
     const String& url,
     const TextPosition& text_position,
-    absl::optional<V8ConsumeCacheResult> consume_cache_result,
-    bool eager,
+    const V8CacheResult& cache_result,
     bool streamed,
     ScriptStreamer::NotStreamingReason not_streaming_reason) {
-  auto dict = std::move(context).WriteDictionary();
-  FillLocation(dict, url, text_position);
+  std::unique_ptr<TracedValue> value = FillLocation(url, text_position);
 
-  if (consume_cache_result) {
-    dict.Add("consumedCacheSize", consume_cache_result->cache_size);
-    dict.Add("cacheRejected", consume_cache_result->rejected);
+  if (cache_result.produce_result) {
+    value->SetInteger("producedCacheSize",
+                      cache_result.produce_result->cache_size);
   }
-  if (eager) {
-    // Eager compilation is rare so only add this key when it's set.
-    dict.Add("eager", true);
+
+  if (cache_result.consume_result) {
+    value->SetString(
+        "cacheConsumeOptions",
+        CompileOptionsString(cache_result.consume_result->consume_options));
+    value->SetInteger("consumedCacheSize",
+                      cache_result.consume_result->cache_size);
+    value->SetBoolean("cacheRejected", cache_result.consume_result->rejected);
   }
-  dict.Add("streamed", streamed);
+  value->SetBoolean("streamed", streamed);
   if (!streamed) {
-    dict.Add("notStreamedReason",
-             NotStreamedReasonString(not_streaming_reason));
+    value->SetString("notStreamedReason",
+                     NotStreamedReasonString(not_streaming_reason));
   }
+  return value;
 }
 
-void inspector_produce_script_cache_event::Data(
-    perfetto::TracedValue context,
-    const String& url,
-    const TextPosition& text_position,
-    int cache_size) {
-  auto dict = std::move(context).WriteDictionary();
-  FillLocation(dict, url, text_position);
-  dict.Add("producedCacheSize", cache_size);
-}
-
-void inspector_function_call_event::Data(
-    perfetto::TracedValue trace_context,
+std::unique_ptr<TracedValue> inspector_function_call_event::Data(
     ExecutionContext* context,
     const v8::Local<v8::Function>& function) {
-  auto dict = std::move(trace_context).WriteDictionary();
+  auto value = std::make_unique<TracedValue>();
   if (LocalFrame* frame = FrameForExecutionContext(context))
-    dict.Add("frame", IdentifiersFactory::FrameId(frame));
+    value->SetString("frame", IdentifiersFactory::FrameId(frame));
 
   if (function.IsEmpty())
-    return;
+    return value;
 
   v8::Local<v8::Function> original_function = GetBoundFunction(function);
   v8::Local<v8::Value> function_name = original_function->GetDebugName();
   if (!function_name.IsEmpty() && function_name->IsString()) {
-    dict.Add("functionName", ToCoreString(function_name.As<v8::String>()));
+    value->SetString("functionName",
+                     ToCoreString(function_name.As<v8::String>()));
   }
   std::unique_ptr<SourceLocation> location =
-      CaptureSourceLocation(original_function);
-  dict.Add("scriptId", String::Number(location->ScriptId()));
-  dict.Add("url", location->Url());
-  dict.Add("lineNumber", location->LineNumber());
-  dict.Add("columnNumber", location->ColumnNumber());
+      SourceLocation::FromFunction(original_function);
+  value->SetString("scriptId", String::Number(location->ScriptId()));
+  value->SetString("url", location->Url());
+  value->SetInteger("lineNumber", location->LineNumber());
+  value->SetInteger("columnNumber", location->ColumnNumber());
+  return value;
 }
 
-void inspector_paint_image_event::Data(perfetto::TracedValue context,
-                                       const LayoutImage& layout_image,
-                                       const gfx::RectF& src_rect,
-                                       const gfx::RectF& dest_rect) {
-  auto dict = std::move(context).WriteDictionary();
-  SetGeneratingNodeInfo(dict, &layout_image, "nodeId");
+std::unique_ptr<TracedValue> inspector_paint_image_event::Data(
+    const LayoutImage& layout_image,
+    const FloatRect& src_rect,
+    const FloatRect& dest_rect) {
+  auto value = std::make_unique<TracedValue>();
+  SetGeneratingNodeInfo(value.get(), &layout_image, "nodeId");
   if (const ImageResourceContent* content = layout_image.CachedImage())
-    dict.Add("url", content->Url().ElidedString());
+    value->SetString("url", content->Url().GetString());
 
-  dict.Add("x", dest_rect.x());
-  dict.Add("y", dest_rect.y());
-  dict.Add("width", dest_rect.width());
-  dict.Add("height", dest_rect.height());
-  dict.Add("srcWidth", src_rect.width());
-  dict.Add("srcHeight", src_rect.height());
+  value->SetInteger("x", dest_rect.X());
+  value->SetInteger("y", dest_rect.Y());
+  value->SetInteger("width", dest_rect.Width());
+  value->SetInteger("height", dest_rect.Height());
+  value->SetInteger("srcWidth", src_rect.Width());
+  value->SetInteger("srcHeight", src_rect.Height());
+
+  return value;
 }
 
-void inspector_paint_image_event::Data(perfetto::TracedValue context,
-                                       const LayoutObject& owning_layout_object,
-                                       const StyleImage& style_image) {
-  auto dict = std::move(context).WriteDictionary();
-  SetGeneratingNodeInfo(dict, &owning_layout_object, "nodeId");
+std::unique_ptr<TracedValue> inspector_paint_image_event::Data(
+    const LayoutObject& owning_layout_object,
+    const StyleImage& style_image) {
+  auto value = std::make_unique<TracedValue>();
+  SetGeneratingNodeInfo(value.get(), &owning_layout_object, "nodeId");
   if (const ImageResourceContent* content = style_image.CachedImage())
-    dict.Add("url", content->Url().ElidedString());
+    value->SetString("url", content->Url().GetString());
+  return value;
 }
 
-void inspector_paint_image_event::Data(perfetto::TracedValue context,
-                                       Node* node,
-                                       const StyleImage& style_image,
-                                       const gfx::RectF& src_rect,
-                                       const gfx::RectF& dest_rect) {
-  auto dict = std::move(context).WriteDictionary();
+std::unique_ptr<TracedValue> inspector_paint_image_event::Data(
+    Node* node,
+    const StyleImage& style_image,
+    const FloatRect& src_rect,
+    const FloatRect& dest_rect) {
+  auto value = std::make_unique<TracedValue>();
   if (node)
-    SetNodeInfo(dict, node, "nodeId", nullptr);
+    SetNodeInfo(value.get(), node, "nodeId", nullptr);
   if (const ImageResourceContent* content = style_image.CachedImage())
-    dict.Add("url", content->Url().ElidedString());
+    value->SetString("url", content->Url().GetString());
 
-  dict.Add("x", dest_rect.x());
-  dict.Add("y", dest_rect.y());
-  dict.Add("width", dest_rect.width());
-  dict.Add("height", dest_rect.height());
-  dict.Add("srcWidth", src_rect.width());
-  dict.Add("srcHeight", src_rect.height());
+  value->SetInteger("x", dest_rect.X());
+  value->SetInteger("y", dest_rect.Y());
+  value->SetInteger("width", dest_rect.Width());
+  value->SetInteger("height", dest_rect.Height());
+  value->SetInteger("srcWidth", src_rect.Width());
+  value->SetInteger("srcHeight", src_rect.Height());
+
+  return value;
 }
 
-void inspector_paint_image_event::Data(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue> inspector_paint_image_event::Data(
     const LayoutObject* owning_layout_object,
     const ImageResourceContent& image_content) {
-  auto dict = std::move(context).WriteDictionary();
-  SetGeneratingNodeInfo(dict, owning_layout_object, "nodeId");
-  dict.Add("url", image_content.Url().ElidedString());
+  auto value = std::make_unique<TracedValue>();
+  SetGeneratingNodeInfo(value.get(), owning_layout_object, "nodeId");
+  value->SetString("url", image_content.Url().GetString());
+  return value;
 }
 
 static size_t UsedHeapSize() {
@@ -1348,40 +1302,41 @@ static size_t UsedHeapSize() {
   return heap_statistics.used_heap_size();
 }
 
-void inspector_update_counters_event::Data(perfetto::TracedValue context) {
-  auto dict = std::move(context).WriteDictionary();
+std::unique_ptr<TracedValue> inspector_update_counters_event::Data() {
+  auto value = std::make_unique<TracedValue>();
   if (IsMainThread()) {
-    dict.Add("documents", InstanceCounters::CounterValue(
-                              InstanceCounters::kDocumentCounter));
-    dict.Add("nodes",
-             InstanceCounters::CounterValue(InstanceCounters::kNodeCounter));
-    dict.Add("jsEventListeners",
-             InstanceCounters::CounterValue(
-                 InstanceCounters::kJSEventListenerCounter));
+    value->SetInteger("documents", InstanceCounters::CounterValue(
+                                       InstanceCounters::kDocumentCounter));
+    value->SetInteger("nodes", InstanceCounters::CounterValue(
+                                   InstanceCounters::kNodeCounter));
+    value->SetInteger("jsEventListeners",
+                      InstanceCounters::CounterValue(
+                          InstanceCounters::kJSEventListenerCounter));
   }
-  dict.Add("jsHeapSizeUsed", static_cast<double>(UsedHeapSize()));
+  value->SetDouble("jsHeapSizeUsed", static_cast<double>(UsedHeapSize()));
+  return value;
 }
 
-void inspector_invalidate_layout_event::Data(perfetto::TracedValue context,
-                                             LocalFrame* frame,
-                                             DOMNodeId nodeId) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("frame", IdentifiersFactory::FrameId(frame));
-  dict.Add("nodeId", nodeId);
-  SetCallStack(dict);
+std::unique_ptr<TracedValue> inspector_invalidate_layout_event::Data(
+    LocalFrame* frame) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("frame", IdentifiersFactory::FrameId(frame));
+  SetCallStack(value.get());
+  return value;
 }
 
-void inspector_recalculate_styles_event::Data(perfetto::TracedValue context,
-                                              LocalFrame* frame) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("frame", IdentifiersFactory::FrameId(frame));
-  SetCallStack(dict);
+std::unique_ptr<TracedValue> inspector_recalculate_styles_event::Data(
+    LocalFrame* frame) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("frame", IdentifiersFactory::FrameId(frame));
+  SetCallStack(value.get());
+  return value;
 }
 
-void inspector_event_dispatch_event::Data(perfetto::TracedValue context,
-                                          const Event& event) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("type", event.type());
+std::unique_ptr<TracedValue> inspector_event_dispatch_event::Data(
+    const Event& event) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("type", event.type());
   bool record_input_enabled;
   TRACE_EVENT_CATEGORY_GROUP_ENABLED(
       TRACE_DISABLED_BY_DEFAULT("devtools.timeline.inputs"),
@@ -1389,144 +1344,154 @@ void inspector_event_dispatch_event::Data(perfetto::TracedValue context,
   if (record_input_enabled) {
     const auto* keyboard_event = DynamicTo<KeyboardEvent>(event);
     if (keyboard_event) {
-      dict.Add("modifier", GetModifierFromEvent(*keyboard_event));
-      dict.Add(
+      value->SetInteger("modifier", GetModifierFromEvent(*keyboard_event));
+      value->SetDouble(
           "timestamp",
           keyboard_event->PlatformTimeStamp().since_origin().InMicroseconds());
-      dict.Add("code", keyboard_event->code());
-      dict.Add("key", keyboard_event->key());
+      value->SetString("code", keyboard_event->code());
+      value->SetString("key", keyboard_event->key());
     }
 
     const auto* mouse_event = DynamicTo<MouseEvent>(event);
     const auto* wheel_event = DynamicTo<WheelEvent>(event);
     if (mouse_event || wheel_event) {
-      dict.Add("x", mouse_event->x());
-      dict.Add("y", mouse_event->y());
-      dict.Add("modifier", GetModifierFromEvent(*mouse_event));
-      dict.Add(
+      value->SetDouble("x", mouse_event->x());
+      value->SetDouble("y", mouse_event->y());
+      value->SetInteger("modifier", GetModifierFromEvent(*mouse_event));
+      value->SetDouble(
           "timestamp",
           mouse_event->PlatformTimeStamp().since_origin().InMicroseconds());
-      dict.Add("button", mouse_event->button());
-      dict.Add("buttons", mouse_event->buttons());
-      dict.Add("clickCount", mouse_event->detail());
+      value->SetInteger("button", mouse_event->button());
+      value->SetInteger("buttons", mouse_event->buttons());
+      value->SetInteger("clickCount", mouse_event->detail());
       if (wheel_event) {
-        dict.Add("deltaX", wheel_event->deltaX());
-        dict.Add("deltaY", wheel_event->deltaY());
+        value->SetDouble("deltaX", wheel_event->deltaX());
+        value->SetDouble("deltaY", wheel_event->deltaY());
       }
     }
   }
-  SetCallStack(dict);
+  SetCallStack(value.get());
+  return value;
 }
 
-void inspector_time_stamp_event::Data(perfetto::TracedValue trace_context,
-                                      ExecutionContext* context,
-                                      const String& message) {
-  auto dict = std::move(trace_context).WriteDictionary();
-  dict.Add("message", message);
+std::unique_ptr<TracedValue> inspector_time_stamp_event::Data(
+    ExecutionContext* context,
+    const String& message) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("message", message);
   if (LocalFrame* frame = FrameForExecutionContext(context))
-    dict.Add("frame", IdentifiersFactory::FrameId(frame));
+    value->SetString("frame", IdentifiersFactory::FrameId(frame));
+  return value;
 }
 
-void inspector_tracing_session_id_for_worker_event::Data(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue>
+inspector_tracing_session_id_for_worker_event::Data(
     const base::UnguessableToken& worker_devtools_token,
     const base::UnguessableToken& parent_devtools_token,
     const KURL& url,
     PlatformThreadId worker_thread_id) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("frame", IdentifiersFactory::IdFromToken(parent_devtools_token));
-  dict.Add("url", url.GetString());
-  dict.Add("workerId", IdentifiersFactory::IdFromToken(worker_devtools_token));
-  dict.Add("workerThreadId", worker_thread_id);
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("frame",
+                   IdentifiersFactory::IdFromToken(parent_devtools_token));
+  value->SetString("url", url.GetString());
+  value->SetString("workerId",
+                   IdentifiersFactory::IdFromToken(worker_devtools_token));
+  value->SetDouble("workerThreadId", worker_thread_id);
+  return value;
 }
 
-void inspector_tracing_started_in_frame::Data(perfetto::TracedValue context,
-                                              const String& session_id,
-                                              LocalFrame* frame) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("sessionId", session_id);
-  dict.Add("page", IdentifiersFactory::FrameId(&frame->LocalFrameRoot()));
-  dict.Add("persistentIds", true);
-  {
-    auto frames_array = dict.AddArray("frames");
-    for (Frame* f = frame; f; f = f->Tree().TraverseNext(frame)) {
-      auto* local_frame = DynamicTo<LocalFrame>(f);
-      if (!local_frame)
-        continue;
-      auto frame_dict = frames_array.AppendDictionary();
-      FillCommonFrameData(frame_dict, local_frame);
-    }
+std::unique_ptr<TracedValue> inspector_tracing_started_in_frame::Data(
+    const String& session_id,
+    LocalFrame* frame) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("sessionId", session_id);
+  value->SetString("page",
+                   IdentifiersFactory::FrameId(&frame->LocalFrameRoot()));
+  value->SetBoolean("persistentIds", true);
+  value->BeginArray("frames");
+  for (Frame* f = frame; f; f = f->Tree().TraverseNext(frame)) {
+    auto* local_frame = DynamicTo<LocalFrame>(f);
+    if (!local_frame)
+      continue;
+    value->BeginDictionary();
+    FillCommonFrameData(value.get(), local_frame);
+    value->EndDictionary();
   }
+  value->EndArray();
+  return value;
 }
 
-void inspector_set_layer_tree_id::Data(perfetto::TracedValue context,
-                                       LocalFrame* frame) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("frame", IdentifiersFactory::FrameId(frame));
-  dict.Add("layerTreeId",
-           frame->GetPage()->GetChromeClient().GetLayerTreeId(*frame));
+std::unique_ptr<TracedValue> inspector_set_layer_tree_id::Data(
+    LocalFrame* frame) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("frame", IdentifiersFactory::FrameId(frame));
+  value->SetInteger("layerTreeId",
+                    frame->GetPage()->GetChromeClient().GetLayerTreeId(*frame));
+  return value;
 }
 
-void inspector_animation_event::Data(perfetto::TracedValue context,
-                                     const Animation& animation) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("id", String::Number(animation.SequenceNumber()));
-  dict.Add("state", animation.PlayStateString());
+std::unique_ptr<TracedValue> inspector_animation_event::Data(
+    const Animation& animation) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("id", String::Number(animation.SequenceNumber()));
+  value->SetString("state", animation.PlayStateString());
   if (const AnimationEffect* effect = animation.effect()) {
-    dict.Add("name", animation.id());
+    value->SetString("name", animation.id());
     if (auto* frame_effect = DynamicTo<KeyframeEffect>(effect)) {
       if (Element* target = frame_effect->EffectTarget())
-        SetNodeInfo(dict, target, "nodeId", "nodeName");
+        SetNodeInfo(value.get(), target, "nodeId", "nodeName");
     }
   }
+  return value;
 }
 
-void inspector_animation_state_event::Data(perfetto::TracedValue context,
-                                           const Animation& animation) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("state", animation.PlayStateString());
+std::unique_ptr<TracedValue> inspector_animation_state_event::Data(
+    const Animation& animation) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("state", animation.PlayStateString());
+  return value;
 }
 
-void inspector_animation_compositor_event::Data(
-    perfetto::TracedValue context,
+std::unique_ptr<TracedValue> inspector_animation_compositor_event::Data(
     CompositorAnimations::FailureReasons failure_reasons,
     const PropertyHandleSet& unsupported_properties) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("compositeFailed", failure_reasons);
-  {
-    auto unsupported_properties_array = dict.AddArray("unsupportedProperties");
-    for (const PropertyHandle& p : unsupported_properties) {
-      unsupported_properties_array.Append(
-          p.GetCSSPropertyName().ToAtomicString());
-    }
+  auto value = std::make_unique<TracedValue>();
+  value->SetInteger("compositeFailed", failure_reasons);
+  value->BeginArray("unsupportedProperties");
+  for (const PropertyHandle& p : unsupported_properties) {
+    value->PushString(p.GetCSSPropertyName().ToAtomicString());
   }
+  value->EndArray();
+  return value;
 }
 
-void inspector_hit_test_event::EndData(perfetto::TracedValue context,
-                                       const HitTestRequest& request,
-                                       const HitTestLocation& location,
-                                       const HitTestResult& result) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("x", location.RoundedPoint().x());
-  dict.Add("y", location.RoundedPoint().y());
+std::unique_ptr<TracedValue> inspector_hit_test_event::EndData(
+    const HitTestRequest& request,
+    const HitTestLocation& location,
+    const HitTestResult& result) {
+  auto value(std::make_unique<TracedValue>());
+  value->SetInteger("x", location.RoundedPoint().X());
+  value->SetInteger("y", location.RoundedPoint().Y());
   if (location.IsRectBasedTest())
-    dict.Add("rect", true);
+    value->SetBoolean("rect", true);
   if (location.IsRectilinear())
-    dict.Add("rectilinear", true);
+    value->SetBoolean("rectilinear", true);
   if (request.TouchEvent())
-    dict.Add("touch", true);
+    value->SetBoolean("touch", true);
   if (request.Move())
-    dict.Add("move", true);
+    value->SetBoolean("move", true);
   if (request.ListBased())
-    dict.Add("listBased", true);
+    value->SetBoolean("listBased", true);
   else if (Node* node = result.InnerNode())
-    SetNodeInfo(dict, node, "nodeId", "nodeName");
+    SetNodeInfo(value.get(), node, "nodeId", "nodeName");
+  return value;
 }
 
-void inspector_async_task::Data(perfetto::TracedValue context,
-                                const StringView& name) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("name", name.ToString());
+std::unique_ptr<TracedValue> inspector_async_task::Data(
+    const StringView& name) {
+  auto value = std::make_unique<TracedValue>();
+  value->SetString("name", name.ToString());
+  return value;
 }
 
 }  // namespace blink

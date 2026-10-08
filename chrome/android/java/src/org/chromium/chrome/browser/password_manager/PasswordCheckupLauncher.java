@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 package org.chromium.chrome.browser.password_manager;
@@ -8,14 +8,12 @@ import android.content.Intent;
 import android.net.Uri;
 
 import org.chromium.base.annotations.CalledByNative;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.chrome.browser.AppHooks;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.password_check.PasswordCheckFactory;
+import org.chromium.chrome.browser.password_check.PasswordCheckReferrer;
 import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
-import org.chromium.chrome.browser.sync.SyncService;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.ui.modaldialog.ModalDialogManager;
 
 /**
  * A utitily class for launching the password leak check.
@@ -29,19 +27,11 @@ public class PasswordCheckupLauncher {
     }
 
     @CalledByNative
-    private static void launchLocalCheckup(
-            WindowAndroid windowAndroid, @PasswordCheckReferrer int passwordCheckReferrer) {
+    private static void launchLocalCheckup(WindowAndroid windowAndroid) {
+        assert ChromeFeatureList.isEnabled(ChromeFeatureList.PASSWORD_CHECK);
         if (windowAndroid.getContext().get() == null) return; // Window not available yet/anymore.
-
-        if (PasswordManagerHelper.canUseUpm()) {
-            PasswordManagerHelper.showPasswordCheckup(windowAndroid.getContext().get(),
-                    passwordCheckReferrer, SyncService.get(),
-                    getModalDialogManagerSupplier(windowAndroid));
-            return;
-        }
-
         PasswordCheckFactory.getOrCreate(new SettingsLauncherImpl())
-                .showUi(windowAndroid.getContext().get(), passwordCheckReferrer);
+                .showUi(windowAndroid.getContext().get(), PasswordCheckReferrer.LEAK_DIALOG);
     }
 
     @CalledByNative
@@ -57,13 +47,5 @@ public class PasswordCheckupLauncher {
                 AppHooks.get().createGooglePasswordManagerUIProvider();
         if (googlePasswordManagerUIProvider == null) return false;
         return googlePasswordManagerUIProvider.launchPasswordCheckup(activity);
-    }
-
-    private static ObservableSupplier<ModalDialogManager> getModalDialogManagerSupplier(
-            WindowAndroid windowAndroid) {
-        ObservableSupplierImpl<ModalDialogManager> modalDialogManagerSupplier =
-                new ObservableSupplierImpl<>();
-        modalDialogManagerSupplier.set(windowAndroid.getModalDialogManager());
-        return modalDialogManagerSupplier;
     }
 }

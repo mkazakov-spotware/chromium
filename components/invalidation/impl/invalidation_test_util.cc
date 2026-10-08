@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,11 @@
 
 #include "base/json/json_writer.h"
 #include "base/json/string_escape.h"
+#include "base/macros.h"
 #include "base/values.h"
 #include "components/invalidation/public/invalidation.h"
 
-namespace invalidation {
+namespace syncer {
 
 using ::testing::MakeMatcher;
 using ::testing::MatchResultListener;
@@ -23,13 +24,15 @@ class AckHandleEqMatcher : public MatcherInterface<const AckHandle&> {
  public:
   explicit AckHandleEqMatcher(const AckHandle& expected);
 
-  bool MatchAndExplain(const AckHandle& actual,
-                       MatchResultListener* listener) const override;
-  void DescribeTo(::std::ostream* os) const override;
-  void DescribeNegationTo(::std::ostream* os) const override;
+  virtual bool MatchAndExplain(const AckHandle& actual,
+                               MatchResultListener* listener) const;
+  virtual void DescribeTo(::std::ostream* os) const;
+  virtual void DescribeNegationTo(::std::ostream* os) const;
 
  private:
   const AckHandle expected_;
+
+  DISALLOW_COPY_AND_ASSIGN(AckHandleEqMatcher);
 };
 
 AckHandleEqMatcher::AckHandleEqMatcher(const AckHandle& expected)
@@ -53,13 +56,15 @@ class InvalidationEqMatcher : public MatcherInterface<const Invalidation&> {
  public:
   explicit InvalidationEqMatcher(const Invalidation& expected);
 
-  bool MatchAndExplain(const Invalidation& actual,
-                       MatchResultListener* listener) const override;
-  void DescribeTo(::std::ostream* os) const override;
-  void DescribeNegationTo(::std::ostream* os) const override;
+  virtual bool MatchAndExplain(const Invalidation& actual,
+                               MatchResultListener* listener) const;
+  virtual void DescribeTo(::std::ostream* os) const;
+  virtual void DescribeNegationTo(::std::ostream* os) const;
 
  private:
   const Invalidation expected_;
+
+  DISALLOW_COPY_AND_ASSIGN(InvalidationEqMatcher);
 };
 
 InvalidationEqMatcher::InvalidationEqMatcher(const Invalidation& expected)
@@ -92,7 +97,7 @@ void InvalidationEqMatcher::DescribeNegationTo(::std::ostream* os) const {
 
 void PrintTo(const AckHandle& ack_handle, ::std::ostream* os) {
   std::string printable_ack_handle;
-  base::JSONWriter::Write(ack_handle.ToValue(), &printable_ack_handle);
+  base::JSONWriter::Write(*ack_handle.ToValue(), &printable_ack_handle);
   *os << "{ ack_handle: " << printable_ack_handle << " }";
 }
 
@@ -108,4 +113,4 @@ Matcher<const Invalidation&> Eq(const Invalidation& expected) {
   return MakeMatcher(new InvalidationEqMatcher(expected));
 }
 
-}  // namespace invalidation
+}  // namespace syncer

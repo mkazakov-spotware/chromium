@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@
 
 // NOTE(koz): Linux doesn't use the thick shadowed border, so we add padding
 // here.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 const int ExclusiveAccessBubble::kPaddingPx = 8;
 #else
 const int ExclusiveAccessBubble::kPaddingPx = 15;
@@ -33,37 +33,19 @@ ExclusiveAccessBubble::ExclusiveAccessBubble(
     ExclusiveAccessManager* manager,
     const GURL& url,
     ExclusiveAccessBubbleType bubble_type)
-    : manager_(manager),
-      url_(url),
-      bubble_type_(bubble_type),
-      hide_timeout_(
-          FROM_HERE,
-          base::Milliseconds(kInitialDelayMs),
-          base::BindRepeating(&ExclusiveAccessBubble::CheckMousePosition,
-                              base::Unretained(this))),
-      idle_timeout_(
-          FROM_HERE,
-          base::Milliseconds(kIdleTimeMs),
-          base::BindRepeating(&ExclusiveAccessBubble::CheckMousePosition,
-                              base::Unretained(this))),
-      suppress_notify_timeout_(
-          FROM_HERE,
-          base::Milliseconds(kSnoozeNotificationsTimeMs),
-          base::BindRepeating(&ExclusiveAccessBubble::CheckMousePosition,
-                              base::Unretained(this))),
-      mouse_position_checker_(
-          FROM_HERE,
-          base::Milliseconds(1000 / kPositionCheckHz),
-          base::BindRepeating(&ExclusiveAccessBubble::CheckMousePosition,
-                              base::Unretained(this))) {
+    : manager_(manager), url_(url), bubble_type_(bubble_type) {
   DCHECK_NE(EXCLUSIVE_ACCESS_BUBBLE_TYPE_NONE, bubble_type_);
 }
 
-ExclusiveAccessBubble::~ExclusiveAccessBubble() = default;
+ExclusiveAccessBubble::~ExclusiveAccessBubble() {
+}
 
 void ExclusiveAccessBubble::OnUserInput() {
   // We got some user input; reset the idle timer.
-  idle_timeout_.Reset();
+  idle_timeout_.Stop();  // If the timer isn't running, this is a no-op.
+  idle_timeout_.Start(FROM_HERE,
+                      base::TimeDelta::FromMilliseconds(kIdleTimeMs), this,
+                      &ExclusiveAccessBubble::CheckMousePosition);
 
   // If the notification suppression timer has elapsed, re-show it.
   if (!suppress_notify_timeout_.IsRunning()) {
@@ -81,7 +63,9 @@ void ExclusiveAccessBubble::OnUserInput() {
 void ExclusiveAccessBubble::StartWatchingMouse() {
   // Start the initial delay timer and begin watching the mouse.
   ShowAndStartTimers();
-  mouse_position_checker_.Reset();
+  mouse_position_checker_.Start(
+      FROM_HERE, base::TimeDelta::FromMilliseconds(1000 / kPositionCheckHz),
+      this, &ExclusiveAccessBubble::CheckMousePosition);
 }
 
 void ExclusiveAccessBubble::StopWatchingMouse() {
@@ -103,24 +87,24 @@ void ExclusiveAccessBubble::ExitExclusiveAccess() {
   manager_->ExitExclusiveAccess();
 }
 
-std::u16string ExclusiveAccessBubble::GetCurrentMessageText() const {
+base::string16 ExclusiveAccessBubble::GetCurrentMessageText() const {
   return exclusive_access_bubble::GetLabelTextForType(
       bubble_type_, url_,
       extensions::ExtensionRegistry::Get(manager_->context()->GetProfile()));
 }
 
-std::u16string ExclusiveAccessBubble::GetCurrentDenyButtonText() const {
+base::string16 ExclusiveAccessBubble::GetCurrentDenyButtonText() const {
   return exclusive_access_bubble::GetDenyButtonTextForType(bubble_type_);
 }
 
-std::u16string ExclusiveAccessBubble::GetCurrentAllowButtonText() const {
+base::string16 ExclusiveAccessBubble::GetCurrentAllowButtonText() const {
   return exclusive_access_bubble::GetAllowButtonTextForType(bubble_type_, url_);
 }
 
-std::u16string ExclusiveAccessBubble::GetInstructionText(
-    const std::u16string& accelerator) const {
-  return exclusive_access_bubble::GetInstructionTextForType(
-      bubble_type_, accelerator, notify_download_, notify_overridden_);
+base::string16 ExclusiveAccessBubble::GetInstructionText(
+    const base::string16& accelerator) const {
+  return exclusive_access_bubble::GetInstructionTextForType(bubble_type_,
+                                                            accelerator);
 }
 
 bool ExclusiveAccessBubble::IsHideTimeoutRunning() const {
@@ -131,8 +115,12 @@ void ExclusiveAccessBubble::ShowAndStartTimers() {
   Show();
 
   // Do not allow the notification to hide for a few seconds.
-  hide_timeout_.Reset();
+  hide_timeout_.Start(FROM_HERE,
+                      base::TimeDelta::FromMilliseconds(kInitialDelayMs), this,
+                      &ExclusiveAccessBubble::CheckMousePosition);
 
   // Do not show the notification again until a long time has elapsed.
-  suppress_notify_timeout_.Reset();
+  suppress_notify_timeout_.Start(
+      FROM_HERE, base::TimeDelta::FromMilliseconds(kSnoozeNotificationsTimeMs),
+      this, &ExclusiveAccessBubble::CheckMousePosition);
 }

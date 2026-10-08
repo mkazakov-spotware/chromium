@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@ import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
-import androidx.preference.Preference;
 import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
@@ -24,18 +23,17 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.safe_browsing.SafeBrowsingBridge;
 import org.chromium.chrome.browser.safe_browsing.SafeBrowsingState;
 import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
+import org.chromium.chrome.browser.settings.SettingsLauncher;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.util.browser.Features;
-import org.chromium.components.browser_ui.settings.SettingsFeatureList;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
 import org.chromium.components.browser_ui.settings.TextMessagePreference;
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescription;
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescriptionAndAuxButton;
@@ -46,8 +44,8 @@ import org.chromium.content_public.browser.test.util.TestThreadUtils;
  * Tests for {@link SafeBrowsingSettingsFragment}.
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
-@DoNotBatch(reason = "This test launches a Settings activity")
 // clang-format off
+@Features.EnableFeatures({ChromeFeatureList.SAFE_BROWSING_SECTION_UI})
 public class SafeBrowsingSettingsFragmentTest {
     // clang-format on
     private static final String ASSERT_SAFE_BROWSING_STATE_RADIO_BUTTON_GROUP =
@@ -69,8 +67,7 @@ public class SafeBrowsingSettingsFragmentTest {
 
     private SafeBrowsingSettingsFragment mSafeBrowsingSettingsFragment;
     private RadioButtonGroupSafeBrowsingPreference mSafeBrowsingPreference;
-    private TextMessagePreference mManagedTextPreferenceLegacy;
-    private Preference mManagedDisclaimerText;
+    private TextMessagePreference mManagedTextPreference;
 
     @Before
     public void setUp() {
@@ -82,35 +79,18 @@ public class SafeBrowsingSettingsFragmentTest {
         mSafeBrowsingSettingsFragment = mTestRule.getFragment();
         mSafeBrowsingPreference = mSafeBrowsingSettingsFragment.findPreference(
                 SafeBrowsingSettingsFragment.PREF_SAFE_BROWSING);
-        mManagedTextPreferenceLegacy = mSafeBrowsingSettingsFragment.findPreference(
-                SafeBrowsingSettingsFragment.PREF_TEXT_MANAGED_LEGACY);
-        mManagedDisclaimerText = mSafeBrowsingSettingsFragment.findPreference(
-                SafeBrowsingSettingsFragment.PREF_MANAGED_DISCLAIMER_TEXT);
+        mManagedTextPreference = mSafeBrowsingSettingsFragment.findPreference(
+                SafeBrowsingSettingsFragment.PREF_TEXT_MANAGED);
         Assert.assertNotNull(
                 "Safe Browsing preference should not be null.", mSafeBrowsingPreference);
-        Assert.assertNotNull(
-                "Text managed preference should not be null.", mManagedTextPreferenceLegacy);
-        Assert.assertNotNull(
-                "Managed disclaimer text preference should not be null.", mManagedDisclaimerText);
+        Assert.assertNotNull("Text managed preference should not be null.", mManagedTextPreference);
     }
 
     @Test
     @SmallTest
     @Feature({"SafeBrowsing"})
-    @Features.EnableFeatures(SettingsFeatureList.HIGHLIGHT_MANAGED_PREF_DISCLAIMER_ANDROID)
-    public void testOnStartup_EnableHighlight() {
-        testOnStartupImpl();
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"SafeBrowsing"})
-    @Features.DisableFeatures(SettingsFeatureList.HIGHLIGHT_MANAGED_PREF_DISCLAIMER_ANDROID)
-    public void testOnStartup_DisableHighlight() {
-        testOnStartupImpl();
-    }
-
-    private void testOnStartupImpl() {
+    @Features.EnableFeatures(ChromeFeatureList.SAFE_BROWSING_ENHANCED_PROTECTION_ENABLED)
+    public void testOnStartup() {
         launchSettingsActivity();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             @SafeBrowsingState
@@ -126,32 +106,18 @@ public class SafeBrowsingSettingsFragmentTest {
                     getStandardProtectionButton().isChecked());
             Assert.assertEquals(ASSERT_RADIO_BUTTON_CHECKED, no_protection_checked,
                     getNoProtectionButton().isChecked());
-            Assert.assertFalse(mManagedTextPreferenceLegacy.isVisible());
-            Assert.assertFalse(mManagedDisclaimerText.isVisible());
+            Assert.assertFalse(mManagedTextPreference.isVisible());
         });
     }
 
     @Test
     @SmallTest
     @Feature({"SafeBrowsing"})
-    @Features.EnableFeatures(SettingsFeatureList.HIGHLIGHT_MANAGED_PREF_DISCLAIMER_ANDROID)
-    public void testCheckRadioButtons_EnableHighlight() {
-        testCheckRadioButtonsImpl();
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"SafeBrowsing"})
-    @Features.DisableFeatures(SettingsFeatureList.HIGHLIGHT_MANAGED_PREF_DISCLAIMER_ANDROID)
-    public void testCheckRadioButtons_DisableHighlight() {
-        testCheckRadioButtonsImpl();
-    }
-
-    private void testCheckRadioButtonsImpl() {
+    @Features.EnableFeatures(ChromeFeatureList.SAFE_BROWSING_ENHANCED_PROTECTION_ENABLED)
+    public void testCheckRadioButtons() {
         launchSettingsActivity();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            Assert.assertFalse(mManagedTextPreferenceLegacy.isVisible());
-            Assert.assertFalse(mManagedDisclaimerText.isVisible());
+            Assert.assertFalse(mManagedTextPreference.isVisible());
             // Click the Enhanced Protection button.
             getEnhancedProtectionButton().onClick(null);
             Assert.assertEquals(ASSERT_SAFE_BROWSING_STATE_RADIO_BUTTON_GROUP,
@@ -183,6 +149,7 @@ public class SafeBrowsingSettingsFragmentTest {
     @Test
     @SmallTest
     @Feature({"SafeBrowsing"})
+    @Features.EnableFeatures(ChromeFeatureList.SAFE_BROWSING_ENHANCED_PROTECTION_ENABLED)
     public void testCheckNoProtectionRadioButtonsCancel() {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             ChromeBrowserInitializer.getInstance().handleSynchronousStartup();
@@ -222,6 +189,7 @@ public class SafeBrowsingSettingsFragmentTest {
     @Test
     @SmallTest
     @Feature({"SafeBrowsing"})
+    @Features.EnableFeatures(ChromeFeatureList.SAFE_BROWSING_ENHANCED_PROTECTION_ENABLED)
     public void testCheckNoProtectionRadioButtonsConfirm() {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             ChromeBrowserInitializer.getInstance().handleSynchronousStartup();
@@ -260,6 +228,7 @@ public class SafeBrowsingSettingsFragmentTest {
     @Test
     @SmallTest
     @Feature({"SafeBrowsing"})
+    @Features.EnableFeatures(ChromeFeatureList.SAFE_BROWSING_ENHANCED_PROTECTION_ENABLED)
     public void testCheckNoProtectionConfirmationIfAlreadyInNoProtectionMode() {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             ChromeBrowserInitializer.getInstance().handleSynchronousStartup();
@@ -276,6 +245,16 @@ public class SafeBrowsingSettingsFragmentTest {
     @Test
     @SmallTest
     @Feature({"SafeBrowsing"})
+    @Features.DisableFeatures(ChromeFeatureList.SAFE_BROWSING_ENHANCED_PROTECTION_ENABLED)
+    public void testEnhancedProtectionDisabled() {
+        launchSettingsActivity();
+        Assert.assertNull(getEnhancedProtectionButton());
+    }
+
+    @Test
+    @SmallTest
+    @Feature({"SafeBrowsing"})
+    @Features.EnableFeatures(ChromeFeatureList.SAFE_BROWSING_ENHANCED_PROTECTION_ENABLED)
     public void testEnhancedProtectionAuxButtonClicked() {
         launchSettingsActivity();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
@@ -290,6 +269,7 @@ public class SafeBrowsingSettingsFragmentTest {
     @Test
     @SmallTest
     @Feature({"SafeBrowsing"})
+    @Features.EnableFeatures(ChromeFeatureList.SAFE_BROWSING_ENHANCED_PROTECTION_ENABLED)
     public void testStandardProtectionAuxButtonClicked() {
         launchSettingsActivity();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
@@ -304,33 +284,15 @@ public class SafeBrowsingSettingsFragmentTest {
     @Test
     @SmallTest
     @Feature({"SafeBrowsing"})
+    @Features.EnableFeatures(ChromeFeatureList.SAFE_BROWSING_ENHANCED_PROTECTION_ENABLED)
     @Policies.Add({ @Policies.Item(key = "SafeBrowsingEnabled", string = "true") })
-    @Features.EnableFeatures(SettingsFeatureList.HIGHLIGHT_MANAGED_PREF_DISCLAIMER_ANDROID)
-    public void testSafeBrowsingManaged_EnableHighlight() {
-        testSafeBrowsingManagedImpl();
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"SafeBrowsing"})
-    @Policies.Add({ @Policies.Item(key = "SafeBrowsingEnabled", string = "true") })
-    @Features.DisableFeatures(SettingsFeatureList.HIGHLIGHT_MANAGED_PREF_DISCLAIMER_ANDROID)
-    public void testSafeBrowsingManaged_DisableHighlight() {
-        testSafeBrowsingManagedImpl();
-    }
-
-    private void testSafeBrowsingManagedImpl() {
+    public void testSafeBrowsingManaged() {
         TestThreadUtils.runOnUiThreadBlocking(
                 () -> { ChromeBrowserInitializer.getInstance().handleSynchronousStartup(); });
         launchSettingsActivity();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             Assert.assertTrue(SafeBrowsingBridge.isSafeBrowsingManaged());
-            Assert.assertNotEquals(mManagedTextPreferenceLegacy.isVisible(),
-                    SettingsFeatureList.isEnabled(
-                            SettingsFeatureList.HIGHLIGHT_MANAGED_PREF_DISCLAIMER_ANDROID));
-            Assert.assertEquals(mManagedDisclaimerText.isVisible(),
-                    SettingsFeatureList.isEnabled(
-                            SettingsFeatureList.HIGHLIGHT_MANAGED_PREF_DISCLAIMER_ANDROID));
+            Assert.assertTrue(mManagedTextPreference.isVisible());
             Assert.assertFalse(getEnhancedProtectionButton().isEnabled());
             Assert.assertFalse(getStandardProtectionButton().isEnabled());
             Assert.assertFalse(getNoProtectionButton().isEnabled());
@@ -344,33 +306,15 @@ public class SafeBrowsingSettingsFragmentTest {
     @Test
     @SmallTest
     @Feature({"SafeBrowsing"})
+    @Features.EnableFeatures(ChromeFeatureList.SAFE_BROWSING_ENHANCED_PROTECTION_ENABLED)
     @Policies.Add({ @Policies.Item(key = "SafeBrowsingProtectionLevel", string = "2") })
-    @Features.EnableFeatures(SettingsFeatureList.HIGHLIGHT_MANAGED_PREF_DISCLAIMER_ANDROID)
-    public void testSafeBrowsingProtectionLevelManagedEnhanced_EnableHighlight() {
-        testSafeBrowsingProtectionLevelManagedEnhancedImpl();
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"SafeBrowsing"})
-    @Policies.Add({ @Policies.Item(key = "SafeBrowsingProtectionLevel", string = "2") })
-    @Features.DisableFeatures(SettingsFeatureList.HIGHLIGHT_MANAGED_PREF_DISCLAIMER_ANDROID)
-    public void testSafeBrowsingProtectionLevelManagedEnhanced_DisableHighlight() {
-        testSafeBrowsingProtectionLevelManagedEnhancedImpl();
-    }
-
-    private void testSafeBrowsingProtectionLevelManagedEnhancedImpl() {
+    public void testSafeBrowsingProtectionLevelManagedEnhanced() {
         TestThreadUtils.runOnUiThreadBlocking(
                 () -> { ChromeBrowserInitializer.getInstance().handleSynchronousStartup(); });
         launchSettingsActivity();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             Assert.assertTrue(SafeBrowsingBridge.isSafeBrowsingManaged());
-            Assert.assertNotEquals(mManagedTextPreferenceLegacy.isVisible(),
-                    SettingsFeatureList.isEnabled(
-                            SettingsFeatureList.HIGHLIGHT_MANAGED_PREF_DISCLAIMER_ANDROID));
-            Assert.assertEquals(mManagedDisclaimerText.isVisible(),
-                    SettingsFeatureList.isEnabled(
-                            SettingsFeatureList.HIGHLIGHT_MANAGED_PREF_DISCLAIMER_ANDROID));
+            Assert.assertTrue(mManagedTextPreference.isVisible());
             Assert.assertFalse(getEnhancedProtectionButton().isEnabled());
             Assert.assertFalse(getStandardProtectionButton().isEnabled());
             Assert.assertFalse(getNoProtectionButton().isEnabled());
@@ -381,6 +325,7 @@ public class SafeBrowsingSettingsFragmentTest {
     @Test
     @SmallTest
     @Feature({"SafeBrowsing"})
+    @Features.EnableFeatures(ChromeFeatureList.SAFE_BROWSING_ENHANCED_PROTECTION_ENABLED)
     @Policies.Add({ @Policies.Item(key = "SafeBrowsingProtectionLevel", string = "1") })
     public void testSafeBrowsingProtectionLevelManagedStandard() {
         TestThreadUtils.runOnUiThreadBlocking(
@@ -395,6 +340,7 @@ public class SafeBrowsingSettingsFragmentTest {
     @Test
     @SmallTest
     @Feature({"SafeBrowsing"})
+    @Features.EnableFeatures(ChromeFeatureList.SAFE_BROWSING_ENHANCED_PROTECTION_ENABLED)
     @Policies.Add({ @Policies.Item(key = "SafeBrowsingProtectionLevel", string = "0") })
     public void testSafeBrowsingProtectionLevelManagedDisabled() {
         TestThreadUtils.runOnUiThreadBlocking(

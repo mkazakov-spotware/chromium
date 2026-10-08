@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/strings/sys_string_conversions.h"
 #include "components/autofill/core/browser/autofill_test_utils.h"
 #include "components/autofill/core/browser/form_structure.h"
+#include "components/autofill/core/browser/pattern_provider/test_pattern_provider.h"
 #include "ios/web_view/test/test_with_locale_and_resources.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
@@ -32,14 +33,14 @@ TEST_F(CWVAutofillFormTest, Initialization) {
   base::PathService::Get(base::DIR_MODULE, &pak_path);
   pak_path = pak_path.AppendASCII("web_view_resources.pak");
   ui::ResourceBundle::GetSharedInstance().AddDataPackFromPath(
-      pak_path, ui::kScaleFactorNone);
+      pak_path, ui::SCALE_FACTOR_NONE);
 
-  autofill::test::AutofillEnvironment autofill_environment_;
+  autofill::TestPatternProvider test_pattern_provider;
   autofill::FormData form_data;
   autofill::test::CreateTestAddressFormData(&form_data);
   std::unique_ptr<autofill::FormStructure> form_structure =
       std::make_unique<autofill::FormStructure>(form_data);
-  form_structure->DetermineHeuristicTypes(nullptr, nullptr);
+  form_structure->DetermineHeuristicTypes();
   CWVAutofillForm* form =
       [[CWVAutofillForm alloc] initWithFormStructure:*form_structure];
   EXPECT_NSEQ(base::SysUTF16ToNSString(form_data.name), form.name);

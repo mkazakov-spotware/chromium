@@ -1,8 +1,5 @@
 include_rules = [
   "+cc/base",
-  "+components/metal_util/types.h",
-  "+components/viz/common/resources/resource_format.h",
-  "+mojo/public/cpp/bindings",
   "+third_party/khronos",
   "+third_party/libsync",
   "+third_party/skia",
@@ -10,7 +7,6 @@ include_rules = [
   "+ui/base/x",
   "+ui/gfx",
   "+ui/ozone/buildflags.h",
-  "+third_party/angle/src/gpu_info_util/SystemInfo.h",
 ]
 
 specific_include_rules = {
@@ -18,16 +14,9 @@ specific_include_rules = {
   "angle_platform_impl.cc": [
     "+third_party/angle/include/platform/PlatformMethods.h",
   ],
-  "delegated_ink_point_renderer_gpu_unittest.cc": [
-    "+ui/base/win/hidden_window.h",
-  ],
   "direct_composition_surface_win_unittest.cc": [
     "+ui/base/win/hidden_window.h",
     "+ui/platform_window",
-  ],
-  "gl_angle_util_vulkan.cc": [
-    "+third_party/angle/include/EGL/egl.h",
-    "+third_party/angle/include/EGL/eglext.h",
   ],
   "gl_angle_util_win.cc": [
     "+third_party/angle/include/EGL/egl.h",
@@ -42,13 +31,7 @@ specific_include_rules = {
   "gl_image_egl_pixmap.cc": [
     "+ui/base/ui_base_features.h",
   ],
-  "gl_utils.cc": [
-    "+media/base/win/mf_helpers.h"
-  ],
   "hdr_metadata_helper_win_unittest.cc": [
     "+media/base/win/d3d11_mocks.h",
-  ],
-  "swap_chain_presenter.cc": [
-    "+media/base/win/mf_helpers.h"
   ],
 }

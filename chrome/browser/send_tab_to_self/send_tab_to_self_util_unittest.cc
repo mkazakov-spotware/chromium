@@ -1,24 +1,25 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/send_tab_to_self/send_tab_to_self_util.h"
 
 #include <memory>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "base/bind.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
+#include "chrome/browser/sync/profile_sync_service_factory.h"
 #include "chrome/browser/sync/send_tab_to_self_sync_service_factory.h"
-#include "chrome/browser/sync/sync_service_factory.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
-#include "components/send_tab_to_self/features.h"
 #include "components/send_tab_to_self/send_tab_to_self_sync_service.h"
 #include "components/send_tab_to_self/test_send_tab_to_self_model.h"
-#include "components/sync/test/test_sync_service.h"
+#include "components/sync/driver/sync_driver_switches.h"
 #include "content/public/test/navigation_simulator.h"
+#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 
@@ -26,105 +27,135 @@ namespace send_tab_to_self {
 
 namespace {
 
-const char kHttpsUrl[] = "https://www.foo.com";
-const char kHttpsUrl2[] = "https://www.bar.com";
-
-class FakeSendTabToSelfModel : public TestSendTabToSelfModel {
+class SendTabToSelfModelMock : public TestSendTabToSelfModel {
  public:
-  FakeSendTabToSelfModel() = default;
-  ~FakeSendTabToSelfModel() override = default;
+  SendTabToSelfModelMock() = default;
+  ~SendTabToSelfModelMock() override = default;
 
-  void SetIsReady(bool is_ready) { is_ready_ = is_ready; }
-  void SetHasValidTargetDevice(bool has_valid_target_device) {
-    if (has_valid_target_device) {
-      DCHECK(is_ready_) << "Target devices are only known if the model's ready";
-    }
-    has_valid_target_device_ = has_valid_target_device;
+  bool IsReady() override { return true; }
+  bool HasValidTargetDevice() override { return true; }
+};
+
+class TestSendTabToSelfSyncService : public SendTabToSelfSyncService {
+ public:
+  TestSendTabToSelfSyncService() = default;
+  ~TestSendTabToSelfSyncService() override = default;
+
+  SendTabToSelfModel* GetSendTabToSelfModel() override {
+    return &send_tab_to_self_model_mock_;
   }
 
-  bool IsReady() override { return is_ready_; }
-  bool HasValidTargetDevice() override { return has_valid_target_device_; }
-
- private:
-  bool is_ready_ = false;
-  bool has_valid_target_device_ = false;
+ protected:
+  SendTabToSelfModelMock send_tab_to_self_model_mock_;
 };
 
-class FakeSendTabToSelfSyncService : public SendTabToSelfSyncService {
- public:
-  FakeSendTabToSelfSyncService() = default;
-  ~FakeSendTabToSelfSyncService() override = default;
-
-  FakeSendTabToSelfModel* GetSendTabToSelfModel() override { return &model_; }
-
- private:
-  FakeSendTabToSelfModel model_;
-};
-
-std::unique_ptr<KeyedService> BuildFakeSendTabToSelfSyncService(
-    content::BrowserContext*) {
-  return std::make_unique<FakeSendTabToSelfSyncService>();
-}
-
-std::unique_ptr<KeyedService> BuildTestSyncService(content::BrowserContext*) {
-  return std::make_unique<syncer::TestSyncService>();
+std::unique_ptr<KeyedService> BuildTestSendTabToSelfSyncService(
+    content::BrowserContext* context) {
+  return std::make_unique<TestSendTabToSelfSyncService>();
 }
 
 class SendTabToSelfUtilTest : public BrowserWithTestWindowTest {
  public:
+  SendTabToSelfUtilTest() = default;
+  ~SendTabToSelfUtilTest() override = default;
+
   void SetUp() override {
     BrowserWithTestWindowTest::SetUp();
-
-    AddTab(browser(), GURL("about:blank"));
+    incognito_profile_ = profile()->GetPrimaryOTRProfile();
+    url_ = GURL("https://www.google.com");
+    title_ = base::UTF8ToUTF16(base::StringPiece("Google"));
   }
 
-  TestingProfile::TestingFactories GetTestingFactories() override {
-    return {{SendTabToSelfSyncServiceFactory::GetInstance(),
-             base::BindRepeating(&BuildFakeSendTabToSelfSyncService)},
-            {SyncServiceFactory::GetInstance(),
-             base::BindRepeating(&BuildTestSyncService)}};
-  }
-
-  content::WebContents* web_contents() {
-    return browser()->tab_strip_model()->GetActiveWebContents();
-  }
-
-  FakeSendTabToSelfSyncService* service() {
-    return static_cast<FakeSendTabToSelfSyncService*>(
-        SendTabToSelfSyncServiceFactory::GetForProfile(profile()));
-  }
-
-  void SignIn() {
-    CoreAccountInfo account;
-    account.gaia = "gaia_id";
-    account.email = "email@test.com";
-    account.account_id = CoreAccountId::FromGaiaId(account.gaia);
-    static_cast<syncer::TestSyncService*>(
-        SyncServiceFactory::GetForProfile(profile()))
-        ->SetAccountInfo(account);
-  }
+ protected:
+  base::test::ScopedFeatureList scoped_feature_list_;
+  Profile* incognito_profile_;
+  GURL url_;
+  base::string16 title_;
 };
 
-TEST_F(SendTabToSelfUtilTest, ShouldHideEntryPointInOmniboxWhileNavigating) {
-  SignIn();
-  service()->GetSendTabToSelfModel()->SetIsReady(true);
-  service()->GetSendTabToSelfModel()->SetHasValidTargetDevice(true);
-  NavigateAndCommitActiveTab(GURL(kHttpsUrl));
+TEST_F(SendTabToSelfUtilTest, HasValidTargetDevice) {
+  EXPECT_FALSE(HasValidTargetDevice(profile()));
 
-  ASSERT_FALSE(web_contents()->IsWaitingForResponse());
-  EXPECT_TRUE(ShouldOfferOmniboxIcon(web_contents()));
+  SendTabToSelfSyncServiceFactory::GetInstance()->SetTestingFactory(
+      profile(), base::BindRepeating(&BuildTestSendTabToSelfSyncService));
+
+  EXPECT_TRUE(HasValidTargetDevice(profile()));
+}
+
+TEST_F(SendTabToSelfUtilTest, ContentRequirementsMet) {
+  EXPECT_TRUE(AreContentRequirementsMet(url_, profile()));
+}
+
+TEST_F(SendTabToSelfUtilTest, NotHTTPOrHTTPS) {
+  url_ = GURL("192.168.0.0");
+  EXPECT_FALSE(AreContentRequirementsMet(url_, profile()));
+}
+
+TEST_F(SendTabToSelfUtilTest, UntrustedPage) {
+  url_ = GURL("chrome-untrusted://url");
+  EXPECT_FALSE(AreContentRequirementsMet(url_, profile()));
+}
+
+TEST_F(SendTabToSelfUtilTest, NativePage) {
+  url_ = GURL("chrome://flags");
+  EXPECT_FALSE(AreContentRequirementsMet(url_, profile()));
+}
+
+TEST_F(SendTabToSelfUtilTest, IncognitoMode) {
+  // Note: if changing this, audit profile-finding logic in the feature.
+  // For example, NotificationManager.java in the Android code assumes
+  // incognito is not supported.
+  EXPECT_FALSE(AreContentRequirementsMet(url_, incognito_profile_));
+}
+
+TEST_F(SendTabToSelfUtilTest, ShouldNotOfferFeatureForTelephoneLink) {
+  url_ = GURL("tel:07387252578");
+
+  AddTab(browser(), url_);
+  SendTabToSelfSyncServiceFactory::GetInstance()->SetTestingFactory(
+      profile(), base::BindRepeating(&BuildTestSendTabToSelfSyncService));
+
+  // get web contents
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+
+  EXPECT_FALSE(ShouldOfferFeatureForLink(web_contents, url_));
+}
+
+TEST_F(SendTabToSelfUtilTest, ShouldOfferFeatureForGoogleLink) {
+  AddTab(browser(), url_);
+  SendTabToSelfSyncServiceFactory::GetInstance()->SetTestingFactory(
+      profile(), base::BindRepeating(&BuildTestSendTabToSelfSyncService));
+
+  // get web contents
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+
+  EXPECT_TRUE(ShouldOfferFeatureForLink(web_contents, url_));
+}
+
+TEST_F(SendTabToSelfUtilTest, ShouldNotOfferFeatureInOmniboxWhileNavigating) {
+  AddTab(browser(), url_);
+  SendTabToSelfSyncServiceFactory::GetInstance()->SetTestingFactory(
+      profile(), base::BindRepeating(&BuildTestSendTabToSelfSyncService));
+
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+
+  EXPECT_FALSE(web_contents->IsWaitingForResponse());
+  EXPECT_TRUE(ShouldOfferOmniboxIcon(web_contents));
 
   std::unique_ptr<content::NavigationSimulator> simulator =
       content::NavigationSimulator::CreateRendererInitiated(
-          GURL(kHttpsUrl2), web_contents()->GetPrimaryMainFrame());
+          GURL("http://test.com/"), web_contents->GetMainFrame());
   simulator->SetTransition(ui::PAGE_TRANSITION_LINK);
   simulator->Start();
-  ASSERT_TRUE(web_contents()->IsWaitingForResponse());
-  EXPECT_FALSE(ShouldOfferOmniboxIcon(web_contents()));
+  EXPECT_TRUE(web_contents->IsWaitingForResponse());
+  EXPECT_FALSE(ShouldOfferOmniboxIcon(web_contents));
 
   simulator->Commit();
-  ASSERT_FALSE(web_contents()->IsWaitingForResponse());
-  EXPECT_TRUE(ShouldOfferOmniboxIcon(web_contents()));
+  EXPECT_FALSE(web_contents->IsWaitingForResponse());
+  EXPECT_TRUE(ShouldOfferOmniboxIcon(web_contents));
 }
 
 }  // namespace

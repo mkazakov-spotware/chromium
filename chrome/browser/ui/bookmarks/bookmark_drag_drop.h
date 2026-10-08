@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "ui/base/dragdrop/mojom/drag_drop_types.mojom-forward.h"
 #include "ui/gfx/geometry/point.h"
@@ -20,10 +19,6 @@ class Profile;
 namespace bookmarks {
 class BookmarkNode;
 struct BookmarkNodeData;
-}
-
-namespace content {
-class WebContents;
 }
 
 namespace ui {
@@ -44,7 +39,7 @@ using DoBookmarkDragCallback =
 struct BookmarkDragParams {
   BookmarkDragParams(std::vector<const bookmarks::BookmarkNode*> nodes,
                      int drag_node_index,
-                     content::WebContents* web_contents,
+                     gfx::NativeView view,
                      ui::mojom::DragEventSource source,
                      gfx::Point start_point);
   ~BookmarkDragParams();
@@ -55,8 +50,8 @@ struct BookmarkDragParams {
   // The index of the main dragged node.
   int drag_node_index;
 
-  // The web contents that initiated the drag.
-  raw_ptr<content::WebContents> web_contents;
+  // The native view that initiated the drag.
+  gfx::NativeView view;
 
   // The source of the drag.
   ui::mojom::DragEventSource source;
@@ -76,12 +71,11 @@ void DragBookmarksForTest(Profile* profile,
 // |copy| indicates the source operation: if true then the bookmarks in |data|
 // are copied, otherwise they are moved if they belong to the same |profile|.
 // Returns the drop type used.
-ui::mojom::DragOperation DropBookmarks(
-    Profile* profile,
-    const bookmarks::BookmarkNodeData& data,
-    const bookmarks::BookmarkNode* parent_node,
-    size_t index,
-    bool copy);
+int DropBookmarks(Profile* profile,
+                  const bookmarks::BookmarkNodeData& data,
+                  const bookmarks::BookmarkNode* parent_node,
+                  size_t index,
+                  bool copy);
 
 }  // namespace chrome
 

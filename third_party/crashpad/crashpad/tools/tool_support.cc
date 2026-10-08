@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,9 +19,7 @@
 #include <memory>
 #include <vector>
 
-#include "base/strings/string_piece.h"
 #include "base/strings/utf_string_conversions.h"
-#include "build/build_config.h"
 #include "package.h"
 
 namespace crashpad {
@@ -56,7 +54,7 @@ void ToolSupport::UsageHint(const base::FilePath& me, const char* hint) {
           me.value().c_str());
 }
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 // static
 void ToolSupport::Version(const std::string& me) {
   Version(base::FilePath(me));
@@ -71,9 +69,9 @@ void ToolSupport::UsageTail(const std::string& me) {
 void ToolSupport::UsageHint(const std::string& me, const char* hint) {
   UsageHint(base::FilePath(me), hint);
 }
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 // static
 int ToolSupport::Wmain(int argc, wchar_t* argv[], int (*entry)(int, char* [])) {
@@ -88,26 +86,26 @@ int ToolSupport::Wmain(int argc, wchar_t* argv[], int (*entry)(int, char* [])) {
   return entry(argc, argv_as_utf8.get());
 }
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
 // static
 base::FilePath::StringType ToolSupport::CommandLineArgumentToFilePathStringType(
     const base::StringPiece& path) {
-#if BUILDFLAG(IS_POSIX)
-  return std::string(path.data(), path.size());
-#elif BUILDFLAG(IS_WIN)
+#if defined(OS_POSIX)
+  return path.as_string();
+#elif defined(OS_WIN)
   return base::UTF8ToWide(path);
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX
 }
 
 // static
 std::string ToolSupport::FilePathToCommandLineArgument(
     const base::FilePath& file_path) {
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   return file_path.value();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   return base::WideToUTF8(file_path.value());
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX
 }
 
 }  // namespace crashpad

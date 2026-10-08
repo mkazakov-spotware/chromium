@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 
 #include "base/bind.h"
 #include "base/command_line.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "build/build_config.h"
 #include "headless/public/devtools/domains/page.h"
@@ -21,8 +20,7 @@
 #include "headless/public/headless_web_contents.h"
 #include "ui/gfx/geometry/size.h"
 
-#if BUILDFLAG(IS_WIN)
-#include "base/strings/utf_string_conversions.h"
+#if defined(OS_WIN)
 #include "content/public/app/sandbox_helper_win.h"
 #include "sandbox/win/src/sandbox_types.h"
 #endif
@@ -51,9 +49,9 @@ class HeadlessExample : public headless::HeadlessWebContents::Observer,
 
  private:
   // The headless browser instance. Owned by the headless library. See main().
-  raw_ptr<headless::HeadlessBrowser> browser_;
+  headless::HeadlessBrowser* browser_;
   // Our tab. Owned by |browser_|.
-  raw_ptr<headless::HeadlessWebContents> web_contents_;
+  headless::HeadlessWebContents* web_contents_;
   // The DevTools client used to control the tab.
   std::unique_ptr<headless::HeadlessDevToolsClient> devtools_client_;
   // A helper for creating weak pointers to this class.
@@ -149,11 +147,7 @@ void OnHeadlessBrowserStarted(headless::HeadlessBrowser* browser) {
     browser->Shutdown();
     return;
   }
-#if BUILDFLAG(IS_WIN)
-  GURL url(base::WideToUTF16(args[0]));
-#else
   GURL url(args[0]);
-#endif
 
   // Open a tab (i.e., HeadlessWebContents) in the newly created browser
   // context.
@@ -171,7 +165,7 @@ void OnHeadlessBrowserStarted(headless::HeadlessBrowser* browser) {
 }
 
 int main(int argc, const char** argv) {
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
   // This function must be the first thing we call to make sure child processes
   // such as the renderer are started properly. The headless library starts
   // child processes by forking and exec'ing the main application.
@@ -182,7 +176,7 @@ int main(int argc, const char** argv) {
   // and it can only be initialized once.
   headless::HeadlessBrowser::Options::Builder builder(argc, argv);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // In windows, you must initialize and set the sandbox, or pass it along
   // if it has already been initialized.
   sandbox::SandboxInterfaceInfo sandbox_info = {nullptr};

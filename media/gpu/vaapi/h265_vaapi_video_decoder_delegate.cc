@@ -1,15 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/gpu/vaapi/h265_vaapi_video_decoder_delegate.h"
 
+#include "base/stl_util.h"
 #include "build/chromeos_buildflags.h"
-#include "media/base/cdm_context.h"
 #include "media/gpu/decode_surface_handler.h"
 #include "media/gpu/macros.h"
 #include "media/gpu/vaapi/vaapi_common.h"
 #include "media/gpu/vaapi/vaapi_wrapper.h"
+
+#include "base/strings/string_number_conversions.h"
 
 namespace media {
 
@@ -36,15 +38,8 @@ using DecodeStatus = H265Decoder::H265Accelerator::Status;
 
 H265VaapiVideoDecoderDelegate::H265VaapiVideoDecoderDelegate(
     DecodeSurfaceHandler<VASurface>* const vaapi_dec,
-    scoped_refptr<VaapiWrapper> vaapi_wrapper,
-    ProtectedSessionUpdateCB on_protected_session_update_cb,
-    CdmContext* cdm_context,
-    EncryptionScheme encryption_scheme)
-    : VaapiVideoDecoderDelegate(vaapi_dec,
-                                std::move(vaapi_wrapper),
-                                std::move(on_protected_session_update_cb),
-                                cdm_context,
-                                encryption_scheme) {
+    scoped_refptr<VaapiWrapper> vaapi_wrapper)
+    : VaapiVideoDecoderDelegate(vaapi_dec, std::move(vaapi_wrapper)) {
   ref_pic_list_pocs_.reserve(kMaxRefIdxActive);
 }
 
@@ -59,11 +54,6 @@ scoped_refptr<H265Picture> H265VaapiVideoDecoderDelegate::CreateH265Picture() {
   return new VaapiH265Picture(std::move(va_surface));
 }
 
-bool H265VaapiVideoDecoderDelegate::IsChromaSamplingSupported(
-    VideoChromaSampling chroma_sampling) {
-  return chroma_sampling == VideoChromaSampling::k420;
-}
-
 DecodeStatus H265VaapiVideoDecoderDelegate::SubmitFrameMetadata(
     const H265SPS* sps,
     const H265PPS* pps,
@@ -75,9 +65,6 @@ DecodeStatus H265VaapiVideoDecoderDelegate::SubmitFrameMetadata(
 
   VAPictureParameterBufferHEVC pic_param;
   memset(&pic_param, 0, sizeof(pic_param));
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  memset(&crypto_params_, 0, sizeof(crypto_params_));
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
   int highest_tid = sps->sps_max_sub_layers_minus1;
 #define FROM_SPS_TO_PP(a) pic_param.a = sps->a
@@ -202,7 +189,7 @@ DecodeStatus H265VaapiVideoDecoderDelegate::SubmitFrameMetadata(
   FillVAPicture(&pic_param.CurrPic, std::move(pic));
 
   // Init reference pictures' array.
-  for (size_t i = 0; i < std::size(pic_param.ReferenceFrames); ++i)
+  for (size_t i = 0; i < base::size(pic_param.ReferenceFrames); ++i)
     InitVAPicture(&pic_param.ReferenceFrames[i]);
 
   // And fill it with picture info from DPB.
@@ -228,26 +215,26 @@ DecodeStatus H265VaapiVideoDecoderDelegate::SubmitFrameMetadata(
   // We need another one of these since we can't use |scaling_list| above in
   // the static_assert checks below.
   H265ScalingListData checker;
-  static_assert((std::size(checker.scaling_list_4x4) ==
-                 std::size(iq_matrix_buf.ScalingList4x4)) &&
-                    (std::size(checker.scaling_list_4x4[0]) ==
-                     std::size(iq_matrix_buf.ScalingList4x4[0])) &&
-                    (std::size(checker.scaling_list_8x8) ==
-                     std::size(iq_matrix_buf.ScalingList8x8)) &&
-                    (std::size(checker.scaling_list_8x8[0]) ==
-                     std::size(iq_matrix_buf.ScalingList8x8[0])) &&
-                    (std::size(checker.scaling_list_16x16) ==
-                     std::size(iq_matrix_buf.ScalingList16x16)) &&
-                    (std::size(checker.scaling_list_16x16[0]) ==
-                     std::size(iq_matrix_buf.ScalingList16x16[0])) &&
-                    (std::size(checker.scaling_list_32x32) / 3 ==
-                     std::size(iq_matrix_buf.ScalingList32x32)) &&
-                    (std::size(checker.scaling_list_32x32[0]) ==
-                     std::size(iq_matrix_buf.ScalingList32x32[0])) &&
-                    (std::size(checker.scaling_list_dc_coef_16x16) ==
-                     std::size(iq_matrix_buf.ScalingListDC16x16)) &&
-                    (std::size(checker.scaling_list_dc_coef_32x32) / 3 ==
-                     std::size(iq_matrix_buf.ScalingListDC32x32)),
+  static_assert((base::size(checker.scaling_list_4x4) ==
+                 base::size(iq_matrix_buf.ScalingList4x4)) &&
+                    (base::size(checker.scaling_list_4x4[0]) ==
+                     base::size(iq_matrix_buf.ScalingList4x4[0])) &&
+                    (base::size(checker.scaling_list_8x8) ==
+                     base::size(iq_matrix_buf.ScalingList8x8)) &&
+                    (base::size(checker.scaling_list_8x8[0]) ==
+                     base::size(iq_matrix_buf.ScalingList8x8[0])) &&
+                    (base::size(checker.scaling_list_16x16) ==
+                     base::size(iq_matrix_buf.ScalingList16x16)) &&
+                    (base::size(checker.scaling_list_16x16[0]) ==
+                     base::size(iq_matrix_buf.ScalingList16x16[0])) &&
+                    (base::size(checker.scaling_list_32x32) / 3 ==
+                     base::size(iq_matrix_buf.ScalingList32x32)) &&
+                    (base::size(checker.scaling_list_32x32[0]) ==
+                     base::size(iq_matrix_buf.ScalingList32x32[0])) &&
+                    (base::size(checker.scaling_list_dc_coef_16x16) ==
+                     base::size(iq_matrix_buf.ScalingListDC16x16)) &&
+                    (base::size(checker.scaling_list_dc_coef_32x32) / 3 ==
+                     base::size(iq_matrix_buf.ScalingListDC32x32)),
                 "Mismatched HEVC scaling list matrix sizes");
 
   for (int i = 0; i < H265ScalingListData::kNumScalingListMatrices; ++i) {
@@ -292,9 +279,6 @@ DecodeStatus H265VaapiVideoDecoderDelegate::SubmitSlice(
     const H265SliceHeader* slice_hdr,
     const H265Picture::Vector& ref_pic_list0,
     const H265Picture::Vector& ref_pic_list1,
-    const H265Picture::Vector& ref_pic_set_lt_curr,
-    const H265Picture::Vector& ref_pic_set_st_curr_after,
-    const H265Picture::Vector& ref_pic_set_st_curr_before,
     scoped_refptr<H265Picture> pic,
     const uint8_t* data,
     size_t size,
@@ -305,20 +289,6 @@ DecodeStatus H265VaapiVideoDecoderDelegate::SubmitSlice(
     return DecodeStatus::kFail;
   }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  if (IsEncryptedSession()) {
-    const ProtectedSessionState state =
-        SetupDecryptDecode(/*full_sample=*/false, size, &crypto_params_,
-                           &encryption_segment_info_, subsamples);
-    if (state == ProtectedSessionState::kFailed) {
-      LOG(ERROR) << "SubmitSlice fails because we couldn't setup the protected "
-                    "session";
-      return DecodeStatus::kFail;
-    } else if (state != ProtectedSessionState::kCreated) {
-      return DecodeStatus::kTryAgain;
-    }
-  }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
   memset(&slice_param_, 0, sizeof(slice_param_));
 
   slice_param_.slice_data_size = slice_hdr->nalu_size;
@@ -334,17 +304,17 @@ DecodeStatus H265VaapiVideoDecoderDelegate::SubmitSlice(
   const auto ref_pic_list0_size = ref_pic_list0.size();
   const auto ref_pic_list1_size = ref_pic_list1.size();
   // Fill in ref pic lists.
-  if (ref_pic_list0_size > std::size(slice_param_.RefPicList[0]) ||
-      ref_pic_list1_size > std::size(slice_param_.RefPicList[1])) {
+  if (ref_pic_list0_size > base::size(slice_param_.RefPicList[0]) ||
+      ref_pic_list1_size > base::size(slice_param_.RefPicList[1])) {
     DLOG(ERROR) << "Error, slice reference picture list is larger than 15";
     return DecodeStatus::kFail;
   }
 
   constexpr int kVaInvalidRefPicIndex = 0xFF;
-  std::fill_n(slice_param_.RefPicList[0], std::size(slice_param_.RefPicList[0]),
-              kVaInvalidRefPicIndex);
-  std::fill_n(slice_param_.RefPicList[1], std::size(slice_param_.RefPicList[1]),
-              kVaInvalidRefPicIndex);
+  std::fill_n(slice_param_.RefPicList[0],
+              base::size(slice_param_.RefPicList[0]), kVaInvalidRefPicIndex);
+  std::fill_n(slice_param_.RefPicList[1],
+              base::size(slice_param_.RefPicList[1]), kVaInvalidRefPicIndex);
   // There may be null entries in |ref_pic_list0| or |ref_pic_list1| for missing
   // reference pictures, just leave those marked as 0xFF and the accelerator
   // will do the right thing to deal with missing reference pictures.
@@ -441,16 +411,8 @@ DecodeStatus H265VaapiVideoDecoderDelegate::SubmitSlice(
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   slice_param_.slice_data_num_emu_prevn_bytes =
       slice_hdr->header_emulation_prevention_bytes;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif
 
-  if (IsTranscrypted()) {
-    // We use the encrypted region of the data as the actual slice data.
-    CHECK_EQ(subsamples.size(), 1u);
-    last_slice_data_ = data + subsamples[0].clear_bytes;
-    last_slice_size_ = subsamples[0].cypher_bytes;
-    last_transcrypt_params_ = GetDecryptKeyId();
-    return DecodeStatus::kOk;
-  }
   last_slice_data_ = data;
   last_slice_size_ = size;
   return DecodeStatus::kOk;
@@ -465,31 +427,11 @@ DecodeStatus H265VaapiVideoDecoderDelegate::SubmitDecode(
     return DecodeStatus::kFail;
   }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  if (IsEncryptedSession() &&
-      !vaapi_wrapper_->SubmitBuffer(VAEncryptionParameterBufferType,
-                                    sizeof(crypto_params_), &crypto_params_)) {
-    return DecodeStatus::kFail;
-  }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-  const VaapiH265Picture* vaapi_pic = pic->AsVaapiH265Picture();
-  CHECK(
-      gfx::Rect(vaapi_pic->va_surface()->size()).Contains(pic->visible_rect()));
-
-  const bool success = vaapi_wrapper_->ExecuteAndDestroyPendingBuffers(
-      vaapi_pic->GetVASurfaceID());
   ref_pic_list_pocs_.clear();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  encryption_segment_info_.clear();
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-  if (!success && NeedsProtectedSessionRecovery())
-    return DecodeStatus::kTryAgain;
-
-  if (success && IsEncryptedSession())
-    ProtectedDecodedSucceeded();
-
-  return success ? DecodeStatus::kOk : DecodeStatus::kFail;
+  return vaapi_wrapper_->ExecuteAndDestroyPendingBuffers(
+             pic->AsVaapiH265Picture()->va_surface()->id())
+             ? DecodeStatus::kOk
+             : DecodeStatus::kFail;
 }
 
 bool H265VaapiVideoDecoderDelegate::OutputPicture(
@@ -507,29 +449,14 @@ void H265VaapiVideoDecoderDelegate::Reset() {
   DETACH_FROM_SEQUENCE(sequence_checker_);
   vaapi_wrapper_->DestroyPendingBuffers();
   ref_pic_list_pocs_.clear();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  encryption_segment_info_.clear();
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
   last_slice_data_ = nullptr;
-  last_slice_size_ = 0;
-  last_transcrypt_params_.clear();
-}
-
-DecodeStatus H265VaapiVideoDecoderDelegate::SetStream(
-    base::span<const uint8_t> /*stream*/,
-    const DecryptConfig* decrypt_config) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!decrypt_config)
-    return Status::kOk;
-  return SetDecryptConfig(decrypt_config->Clone()) ? Status::kOk
-                                                   : Status::kFail;
 }
 
 void H265VaapiVideoDecoderDelegate::FillVAPicture(
     VAPictureHEVC* va_pic,
     scoped_refptr<H265Picture> pic) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  va_pic->picture_id = pic->AsVaapiH265Picture()->GetVASurfaceID();
+  va_pic->picture_id = pic->AsVaapiH265Picture()->va_surface()->id();
   va_pic->pic_order_cnt = pic->pic_order_cnt_val_;
   va_pic->flags = 0;
 
@@ -583,21 +510,10 @@ bool H265VaapiVideoDecoderDelegate::SubmitPriorSliceDataIfPresent(
   if (last_slice)
     slice_param_.LongSliceFlags.fields.LastSliceOfPic = 1;
 
-  bool success;
-  if (IsTranscrypted()) {
-    success = vaapi_wrapper_->SubmitBuffers(
-        {{VAProtectedSliceDataBufferType, last_transcrypt_params_.length(),
-          last_transcrypt_params_.data()},
-         {VASliceParameterBufferType, sizeof(slice_param_), &slice_param_},
-         {VASliceDataBufferType, last_slice_size_, last_slice_data_}});
-  } else {
-    success = vaapi_wrapper_->SubmitBuffers(
-        {{VASliceParameterBufferType, sizeof(slice_param_), &slice_param_},
-         {VASliceDataBufferType, last_slice_size_, last_slice_data_}});
-  }
+  const bool success = vaapi_wrapper_->SubmitBuffers(
+      {{VASliceParameterBufferType, sizeof(slice_param_), &slice_param_},
+       {VASliceDataBufferType, last_slice_size_, last_slice_data_}});
   last_slice_data_ = nullptr;
-  last_slice_size_ = 0;
-  last_transcrypt_params_.clear();
   return success;
 }
 

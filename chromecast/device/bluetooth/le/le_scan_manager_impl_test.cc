@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/memory/ptr_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread_task_runner_handle.h"
@@ -47,10 +48,6 @@ class MockLeScanManagerObserver : public LeScanManager::Observer {
 };
 
 class LeScanManagerTest : public ::testing::Test {
- public:
-  LeScanManagerTest(const LeScanManagerTest&) = delete;
-  LeScanManagerTest& operator=(const LeScanManagerTest&) = delete;
-
  protected:
   LeScanManagerTest()
       : io_task_runner_(base::ThreadPool::CreateSingleThreadTaskRunner(
@@ -74,6 +71,9 @@ class LeScanManagerTest : public ::testing::Test {
   bluetooth_v2_shlib::MockLeScanner le_scanner_;
   LeScanManagerImpl le_scan_manager_;
   MockLeScanManagerObserver mock_observer_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(LeScanManagerTest);
 };
 
 }  // namespace
@@ -189,7 +189,9 @@ TEST_F(LeScanManagerTest, TestEnableScanFails) {
 
 TEST_F(LeScanManagerTest, TestGetScanResults) {
   // Simulate some scan results.
-  bluetooth_v2_shlib::LeScanner::ScanResult raw_scan_result(kTestAddr1, {}, 1234);
+  bluetooth_v2_shlib::LeScanner::ScanResult raw_scan_result;
+  raw_scan_result.addr = kTestAddr1;
+  raw_scan_result.rssi = 1234;
 
   EXPECT_CALL(mock_observer_, OnNewScanResult(_));
   delegate()->OnScanResult(raw_scan_result);
@@ -211,14 +213,17 @@ TEST_F(LeScanManagerTest, TestGetScanResultsWithService) {
   EXPECT_CALL(mock_observer_, OnNewScanResult(_)).Times(2);
 
   // Add a scan result with service 0x4444.
-  bluetooth_v2_shlib::LeScanner::ScanResult raw_scan_result(
-    kTestAddr1, {0x03, 0x02, 0x44, 0x44}, 1234);
+  bluetooth_v2_shlib::LeScanner::ScanResult raw_scan_result;
+  raw_scan_result.addr = kTestAddr1;
+  raw_scan_result.adv_data = {0x03, 0x02, 0x44, 0x44};
+  raw_scan_result.rssi = 1234;
   delegate()->OnScanResult(raw_scan_result);
 
   // Add a scan result with service 0x5555.
-  bluetooth_v2_shlib::LeScanner::ScanResult raw_scan_result_two(
-    kTestAddr2, {0x03, 0x02, 0x55, 0x55}, 1234);
-  delegate()->OnScanResult(raw_scan_result_two);
+  raw_scan_result.addr = kTestAddr2;
+  raw_scan_result.adv_data = {0x03, 0x02, 0x55, 0x55};
+  raw_scan_result.rssi = 1234;
+  delegate()->OnScanResult(raw_scan_result);
 
   task_environment_.RunUntilIdle();
 
@@ -260,19 +265,23 @@ TEST_F(LeScanManagerTest, TestGetScanResultsSortedByRssi) {
   EXPECT_CALL(mock_observer_, OnNewScanResult(_)).Times(3);
 
   // Add a scan result with service 0x4444.
-  bluetooth_v2_shlib::LeScanner::ScanResult raw_scan_result(
-    kTestAddr1, {0x03, 0x02, 0x44, 0x44}, 1);
+  bluetooth_v2_shlib::LeScanner::ScanResult raw_scan_result;
+  raw_scan_result.addr = kTestAddr1;
+  raw_scan_result.adv_data = {0x03, 0x02, 0x44, 0x44};
+  raw_scan_result.rssi = 1;
   delegate()->OnScanResult(raw_scan_result);
 
   // Add a scan result with service 0x5555.
-  bluetooth_v2_shlib::LeScanner::ScanResult raw_scan_result_two(
-    kTestAddr2, {0x03, 0x02, 0x55, 0x55}, 3);
-  delegate()->OnScanResult(raw_scan_result_two);
+  raw_scan_result.addr = kTestAddr2;
+  raw_scan_result.adv_data = {0x03, 0x02, 0x55, 0x55};
+  raw_scan_result.rssi = 3;
+  delegate()->OnScanResult(raw_scan_result);
 
   // Add a scan result with service 0x5555.
-  bluetooth_v2_shlib::LeScanner::ScanResult raw_scan_result_three(
-    kTestAddr1, {0x03, 0x02, 0x55, 0x55}, 2);
-  delegate()->OnScanResult(raw_scan_result_three);
+  raw_scan_result.addr = kTestAddr1;
+  raw_scan_result.adv_data = {0x03, 0x02, 0x55, 0x55};
+  raw_scan_result.rssi = 2;
+  delegate()->OnScanResult(raw_scan_result);
 
   task_environment_.RunUntilIdle();
 
@@ -299,8 +308,10 @@ TEST_F(LeScanManagerTest, TestOnNewScanResult) {
           Invoke([&result](LeScanResult result_in) { result = result_in; }));
 
   // Add a scan result with service 0x4444.
-  bluetooth_v2_shlib::LeScanner::ScanResult raw_scan_result(
-    kTestAddr1, {0x03, 0x02, 0x44, 0x44}, 1);
+  bluetooth_v2_shlib::LeScanner::ScanResult raw_scan_result;
+  raw_scan_result.addr = kTestAddr1;
+  raw_scan_result.adv_data = {0x03, 0x02, 0x44, 0x44};
+  raw_scan_result.rssi = 1;
   delegate()->OnScanResult(raw_scan_result);
   task_environment_.RunUntilIdle();
 
@@ -315,11 +326,13 @@ TEST_F(LeScanManagerTest, TestMaxScanResultEntries) {
       .Times(LeScanManagerImpl::kMaxScanResultEntries + 5);
 
   // Add scan results with different addrs.
+  bluetooth_v2_shlib::LeScanner::ScanResult raw_scan_result;
   for (int i = 0; i < LeScanManagerImpl::kMaxScanResultEntries + 5; ++i) {
     uint8_t addr_bit0 = i & 0xFF;
     uint8_t addr_bit1 = (i & 0xFF00) >> 8;
-    bluetooth_v2_shlib::LeScanner::ScanResult raw_scan_result(
-      {{addr_bit0, addr_bit1, 0xFF, 0xFF, 0xFF, 0xFF}}, {0x03, 0x02, 0x44, 0x44}, -i);
+    raw_scan_result.addr = {{addr_bit0, addr_bit1, 0xFF, 0xFF, 0xFF, 0xFF}};
+    raw_scan_result.adv_data = {0x03, 0x02, 0x44, 0x44};
+    raw_scan_result.rssi = -i;
     delegate()->OnScanResult(raw_scan_result);
   }
 

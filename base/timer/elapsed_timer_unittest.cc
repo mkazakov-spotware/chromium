@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,8 @@ namespace base {
 
 namespace {
 
-constexpr TimeDelta kSleepDuration = Milliseconds(20);
+constexpr TimeDelta kSleepDuration = TimeDelta::FromMilliseconds(20);
+
 }
 
 TEST(ElapsedTimerTest, Simple) {
@@ -63,7 +64,7 @@ TEST_F(ElapsedThreadTimerTest, Simple) {
   EXPECT_TRUE(timer.is_supported());
 
   // 1ms of work.
-  constexpr TimeDelta kLoopingTime = Milliseconds(1);
+  constexpr TimeDelta kLoopingTime = TimeDelta::FromMilliseconds(1);
   const ThreadTicks start_ticks = ThreadTicks::Now();
   while (ThreadTicks::Now() - start_ticks < kLoopingTime) {
   }

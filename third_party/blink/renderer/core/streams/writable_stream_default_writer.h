@@ -1,15 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_STREAMS_WRITABLE_STREAM_DEFAULT_WRITER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_STREAMS_WRITABLE_STREAM_DEFAULT_WRITER_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
-#include "third_party/blink/renderer/platform/heap/visitor.h"
 #include "v8/include/v8.h"
 
 namespace blink {
@@ -19,6 +17,7 @@ class ScriptPromise;
 class ScriptState;
 class ScriptValue;
 class StreamPromiseResolver;
+class Visitor;
 class WritableStream;
 class WritableStream;
 
@@ -101,9 +100,9 @@ class CORE_EXPORT WritableStreamDefaultWriter final : public ScriptWrappable {
   WritableStream* OwnerWritableStream() { return owner_writable_stream_; }
 
   // This is a variant of GetDesiredSize() that doesn't create an intermediate
-  // JavaScript object. Instead it returns absl::nullopt where the JavaScript
+  // JavaScript object. Instead it returns base::nullopt where the JavaScript
   // version would return null.
-  absl::optional<double> GetDesiredSizeInternal() const;
+  base::Optional<double> GetDesiredSizeInternal() const;
 
   void SetReadyPromise(StreamPromiseResolver*);
 

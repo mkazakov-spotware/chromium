@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "mojo/public/cpp/bindings/shared_remote.h"
-#include "third_party/nearby/src/internal/platform/implementation/ble.h"
+#include "third_party/nearby/src/cpp/platform/api/ble.h"
 
 namespace location {
 namespace nearby {
@@ -48,8 +48,7 @@ class BleMedium : public api::BleMedium,
   bool StopAcceptingConnections(const std::string& service_id) override;
   std::unique_ptr<api::BleSocket> Connect(
       api::BlePeripheral& ble_peripheral,
-      const std::string& service_id,
-      CancellationFlag* cancellation_flag) override;
+      const std::string& service_id) override;
 
  private:
   // bluetooth::mojom::AdapterObserver:

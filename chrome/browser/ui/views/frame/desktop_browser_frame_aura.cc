@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,7 +36,8 @@ DesktopBrowserFrameAura::DesktopBrowserFrameAura(
 ///////////////////////////////////////////////////////////////////////////////
 // DesktopBrowserFrameAura, protected:
 
-DesktopBrowserFrameAura::~DesktopBrowserFrameAura() = default;
+DesktopBrowserFrameAura::~DesktopBrowserFrameAura() {
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // DesktopBrowserFrameAura, views::DesktopNativeWidgetAura overrides:
@@ -112,12 +113,4 @@ DesktopBrowserFrameAura::PreHandleKeyboardEvent(
 bool DesktopBrowserFrameAura::HandleKeyboardEvent(
     const content::NativeWebKeyboardEvent& event) {
   return false;
-}
-
-bool DesktopBrowserFrameAura::ShouldRestorePreviousBrowserWidgetState() const {
-  return true;
-}
-
-bool DesktopBrowserFrameAura::ShouldUseInitialVisibleOnAllWorkspaces() const {
-  return true;
 }

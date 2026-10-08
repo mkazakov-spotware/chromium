@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/browser_list_observer.h"
@@ -46,7 +46,7 @@ class BrowserActivationWaiter : public BrowserListObserver {
   // BrowserListObserver:
   void OnBrowserSetLastActive(Browser* browser) override;
 
-  const raw_ptr<const Browser> browser_;
+  const Browser* const browser_;
   bool observed_ = false;
   base::RunLoop run_loop_;
 };
@@ -71,20 +71,19 @@ class BrowserDeactivationWaiter : public BrowserListObserver {
   // BrowserListObserver:
   void OnBrowserNoLongerActive(Browser* browser) override;
 
-  const raw_ptr<const Browser> browser_;
+  const Browser* const browser_;
   bool observed_ = false;
   base::RunLoop run_loop_;
 };
 
 // Brings the native window for |browser| to the foreground and waits until the
 // browser is active.
-[[nodiscard]] bool BringBrowserWindowToFront(const Browser* browser);
+bool BringBrowserWindowToFront(const Browser* browser) WARN_UNUSED_RESULT;
 
 // Returns true if the View is focused.
 bool IsViewFocused(const Browser* browser, ViewID vid);
 
 // Simulates a mouse click on a View in the browser.
-void ClickOnView(views::View* view);
 void ClickOnView(const Browser* browser, ViewID vid);
 
 // Makes focus shift to the given View without clicking it.
@@ -98,34 +97,34 @@ void FocusView(const Browser* browser, ViewID vid);
 void HideNativeWindow(gfx::NativeWindow window);
 
 // Show and focus a native window. Returns true on success.
-[[nodiscard]] bool ShowAndFocusNativeWindow(gfx::NativeWindow window);
+bool ShowAndFocusNativeWindow(gfx::NativeWindow window) WARN_UNUSED_RESULT;
 
 // Sends a key press, blocking until the key press is received or the test times
 // out. This uses ui_controls::SendKeyPress, see it for details. Returns true
 // if the event was successfully sent and received.
-[[nodiscard]] bool SendKeyPressSync(const Browser* browser,
-                                    ui::KeyboardCode key,
-                                    bool control,
-                                    bool shift,
-                                    bool alt,
-                                    bool command);
+bool SendKeyPressSync(const Browser* browser,
+                      ui::KeyboardCode key,
+                      bool control,
+                      bool shift,
+                      bool alt,
+                      bool command) WARN_UNUSED_RESULT;
 
 // Sends a key press, blocking until the key press is received or the test times
 // out. This uses ui_controls::SendKeyPress, see it for details. Returns true
 // if the event was successfully sent and received.
-[[nodiscard]] bool SendKeyPressToWindowSync(const gfx::NativeWindow window,
-                                            ui::KeyboardCode key,
-                                            bool control,
-                                            bool shift,
-                                            bool alt,
-                                            bool command);
+bool SendKeyPressToWindowSync(const gfx::NativeWindow window,
+                              ui::KeyboardCode key,
+                              bool control,
+                              bool shift,
+                              bool alt,
+                              bool command) WARN_UNUSED_RESULT;
 
 // Sends a move event blocking until received. Returns true if the event was
 // successfully received. This uses ui_controls::SendMouse***NotifyWhenDone,
 // see it for details.
-[[nodiscard]] bool SendMouseMoveSync(const gfx::Point& location);
-[[nodiscard]] bool SendMouseEventsSync(ui_controls::MouseButton type,
-                                       int button_state);
+bool SendMouseMoveSync(const gfx::Point& location) WARN_UNUSED_RESULT;
+bool SendMouseEventsSync(ui_controls::MouseButton type,
+                         int button_state) WARN_UNUSED_RESULT;
 
 // A combination of SendMouseMove to the middle of the view followed by
 // SendMouseEvents. Only exposed for toolkit-views.
@@ -144,10 +143,9 @@ gfx::Point GetCenterInScreenCoordinates(const views::View* view);
 // Blocks until the given view is focused (or not focused, depending on
 // |focused|). Returns immediately if the state is already correct.
 void WaitForViewFocus(Browser* browser, ViewID vid, bool focused);
-void WaitForViewFocus(Browser* browser, views::View* view, bool focused);
 #endif
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 // Send press and release events for |key_code| with selected modifiers and wait
 // until the last event arrives to our NSApp. Events will be sent as CGEvents
 // through HID event tap. |key_code| must be a virtual key code (reference can

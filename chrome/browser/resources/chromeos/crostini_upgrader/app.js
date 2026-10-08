@@ -1,14 +1,14 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_elements/cr_button/cr_button.js';
-import 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.js';
-import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
+import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
+import 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.m.js';
+import 'chrome://resources/cr_elements/shared_vars_css.m.js';
 import 'chrome://resources/polymer/v3_0/paper-progress/paper-progress.js';
 import './strings.m.js';
 
-import {assert, assertNotReached} from 'chrome://resources/js/assert.js';
+import {assert, assertNotReached} from 'chrome://resources/js/assert.m.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
 import {html, Polymer} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
@@ -21,15 +21,14 @@ import {BrowserProxy} from './browser_proxy.js';
 const State = {
   PROMPT: 'prompt',
   BACKUP: 'backup',
-  BACKUP_ERROR: 'backupError',
   BACKUP_SUCCEEDED: 'backupSucceeded',
   PRECHECKS_FAILED: 'prechecksFailed',
   UPGRADING: 'upgrading',
   UPGRADE_ERROR: 'upgrade_error',
   OFFER_RESTORE: 'offerRestore',
   RESTORE: 'restore',
-  RESTORE_ERROR: 'restoreError',
   RESTORE_SUCCEEDED: 'restoreSucceeded',
+  ERROR: 'error',
   CANCELING: 'canceling',
   SUCCEEDED: 'succeeded',
 };
@@ -74,6 +73,7 @@ Polymer({
     /** @private */
     progressMessages_: {
       type: Array,
+      value: [],
     },
 
     /** @private */
@@ -100,18 +100,6 @@ Polymer({
       value: 0,
     },
 
-    /** @private */
-    logFileName_: {
-      type: String,
-      value: '',
-    },
-
-    /** @private */
-    precheckStatus_: {
-      type: Number,
-      value: ash.crostiniUpgrader.mojom.UpgradePrecheckStatus.OK,
-    },
-
     /**
      * Enable the html template to use State.
      * @private
@@ -120,13 +108,6 @@ Polymer({
       type: Object,
       value: State,
     },
-  },
-
-  /** @override */
-  created() {
-    // Must be set here rather then in the defaults above because arrays are
-    // mutable objects and every instance of the element needs its own array.
-    this.progressMessages_ = [];
   },
 
   /** @override */
@@ -156,14 +137,14 @@ Polymer({
       }),
       callbackRouter.onBackupFailed.addListener(() => {
         assert(this.state_ === State.BACKUP);
-        this.state_ = State.BACKUP_ERROR;
+        this.state_ = State.ERROR;
       }),
       callbackRouter.precheckStatus.addListener((status) => {
-        if (status === ash.crostiniUpgrader.mojom.UpgradePrecheckStatus.OK) {
+        this.precheckStatus_ = status;
+        if (status ===
+            chromeos.crostiniUpgrader.mojom.UpgradePrecheckStatus.OK) {
           this.precheckSuccessCallback_();
-          this.precheckStatus_ = status;
         } else {
-          this.precheckStatus_ = status;
           this.state_ = State.PRECHECKS_FAILED;
           this.precheckFailureCallback_();
         }
@@ -203,11 +184,11 @@ Polymer({
       }),
       callbackRouter.onRestoreFailed.addListener(() => {
         assert(this.state_ === State.RESTORE);
-        this.state_ = State.RESTORE_ERROR;
+        this.state_ = State.ERROR;
       }),
       callbackRouter.onCanceled.addListener(() => {
         if (this.state_ === State.RESTORE) {
-          this.state_ = State.RESTORE_ERROR;
+          this.state_ = State.ERROR;
           return;
         }
         this.closePage_();
@@ -216,10 +197,7 @@ Polymer({
         if (this.canCancel_(this.state_)) {
           this.onCancelButtonClick_();
         }
-      }),
-      callbackRouter.onLogFileCreated.addListener((path) => {
-        this.logFileName_ = path;
-      }),
+      })
     ];
 
     document.addEventListener('keyup', event => {
@@ -249,6 +227,7 @@ Polymer({
   onActionButtonClick_() {
     switch (this.state_) {
       case State.SUCCEEDED:
+      case State.RESTORE_SUCCEEDED:
         BrowserProxy.getInstance().handler.launch();
         this.closePage_();
         break;
@@ -265,8 +244,6 @@ Polymer({
       case State.OFFER_RESTORE:
         this.startRestore_();
         break;
-      default:
-        assertNotReached();
     }
   },
 
@@ -280,14 +257,9 @@ Polymer({
         this.state_ = State.CANCELING;
         BrowserProxy.getInstance().handler.cancel();
         break;
-      case State.RESTORE_SUCCEEDED:
-        BrowserProxy.getInstance().handler.launch();
-        this.closePage_();
-        break;
       case State.PRECHECKS_FAILED:
-      case State.BACKUP_ERROR:
       case State.UPGRADE_ERROR:
-      case State.RESTORE_ERROR:
+      case State.ERROR:
       case State.OFFER_RESTORE:
       case State.SUCCEEDED:
         this.closePage_();
@@ -347,6 +319,17 @@ Polymer({
     return state1 === state2;
   },
 
+  /**
+   * @param {State} state
+   * @return {boolean}
+   * @private
+   */
+  isProgressMessageHidden_(state) {
+    return this.isState_(this.state_, State.PROMPT) ||
+        this.isState_(this.state_, State.UPGRADE_ERROR) ||
+        this.isState_(this.state_, State.OFFER_RESTORE);
+  },
+
   isErrorLogsHidden_(state) {
     return !(
         this.isState_(this.state_, State.UPGRADE_ERROR) ||
@@ -364,6 +347,7 @@ Polymer({
       case State.PRECHECKS_FAILED:
       case State.SUCCEEDED:
       case State.OFFER_RESTORE:
+      case State.RESTORE_SUCCEEDED:
         return true;
     }
     return false;
@@ -399,9 +383,6 @@ Polymer({
       case State.BACKUP:
         titleId = 'backingUpTitle';
         break;
-      case State.BACKUP_ERROR:
-        titleId = 'backupErrorTitle';
-        break;
       case State.BACKUP_SUCCEEDED:
         titleId = 'backupSucceededTitle';
         break;
@@ -413,13 +394,11 @@ Polymer({
         break;
       case State.OFFER_RESTORE:
       case State.UPGRADE_ERROR:
+      case State.ERROR:
         titleId = 'errorTitle';
         break;
       case State.RESTORE:
         titleId = 'restoreTitle';
-        break;
-      case State.RESTORE_ERROR:
-        titleId = 'restoreErrorTitle';
         break;
       case State.RESTORE_SUCCEEDED:
         titleId = 'restoreSucceededTitle';
@@ -447,7 +426,11 @@ Polymer({
         return loadTimeData.getString('upgrade');
       case State.PRECHECKS_FAILED:
         return loadTimeData.getString('retry');
+      case State.UPGRADE_ERROR:
+      case State.ERROR:
+        return loadTimeData.getString('cancel');
       case State.SUCCEEDED:
+      case State.RESTORE_SUCCEEDED:
         return loadTimeData.getString('done');
       case State.OFFER_RESTORE:
         return loadTimeData.getString('restore');
@@ -462,10 +445,8 @@ Polymer({
    */
   getCancelButtonLabel_(state) {
     switch (state) {
+      case State.SUCCEEDED:
       case State.RESTORE_SUCCEEDED:
-      case State.BACKUP_ERROR:
-      case State.UPGRADE_ERROR:
-      case State.RESTORE_ERROR:
         return loadTimeData.getString('close');
       case State.PROMPT:
         return loadTimeData.getString('notNow');
@@ -479,7 +460,7 @@ Polymer({
    * @return {string}
    * @private
    */
-  getProgressMessage_(state, precheckStatus, file_name) {
+  getProgressMessage_(state) {
     let messageId = null;
     switch (state) {
       case State.PROMPT:
@@ -488,16 +469,21 @@ Polymer({
       case State.BACKUP:
         messageId = 'backingUpMessage';
         break;
-      case State.BACKUP_ERROR:
-        messageId = 'backupErrorMessage';
+      case State.BACKUP_SUCCEEDED:
+        messageId = 'backupSucceededMessage';
         break;
       case State.PRECHECKS_FAILED:
-        switch (precheckStatus) {
-          case ash.crostiniUpgrader.mojom.UpgradePrecheckStatus.NETWORK_FAILURE:
+        switch (this.precheckStatus_) {
+          case chromeos.crostiniUpgrader.mojom.UpgradePrecheckStatus
+              .NETWORK_FAILURE:
             messageId = 'precheckNoNetwork';
             break;
-          case ash.crostiniUpgrader.mojom.UpgradePrecheckStatus.LOW_POWER:
+          case chromeos.crostiniUpgrader.mojom.UpgradePrecheckStatus.LOW_POWER:
             messageId = 'precheckNoPower';
+            break;
+          case chromeos.crostiniUpgrader.mojom.UpgradePrecheckStatus
+              .INSUFFICIENT_SPACE:
+            messageId = 'precheckNoSpace';
             break;
           default:
             assertNotReached();
@@ -509,15 +495,11 @@ Polymer({
       case State.RESTORE:
         messageId = 'restoreMessage';
         break;
-      case State.RESTORE_ERROR:
-        messageId = 'restoreErrorMessage';
+      case State.RESTORE_SUCCEEDED:
+        messageId = 'restoreSucceededMessage';
         break;
       case State.SUCCEEDED:
-        return loadTimeData.getStringF('logFileMessageSuccess', file_name);
-        break;
-      case State.UPGRADE_ERROR:
-      case State.OFFER_RESTORE:
-        return loadTimeData.getStringF('logFileMessageError', file_name);
+        messageId = 'succeededMessage';
         break;
     }
     return messageId ? loadTimeData.getString(messageId) : '';
@@ -539,12 +521,14 @@ Polymer({
    */
   getIllustrationStyle_(state) {
     switch (state) {
-      case State.BACKUP_ERROR:
       case State.BACKUP_SUCCEEDED:
-      case State.RESTORE_ERROR:
       case State.RESTORE_SUCCEEDED:
       case State.PRECHECKS_FAILED:
         return 'img-square-illustration';
+      case State.OFFER_RESTORE:
+      case State.UPGRADE_ERROR:
+      case State.ERROR:
+        return 'img-square-error-illustration';
     }
     return 'img-rect-illustration';
   },
@@ -560,8 +544,9 @@ Polymer({
       case State.RESTORE_SUCCEEDED:
         return 'images/success_illustration.svg';
       case State.PRECHECKS_FAILED:
-      case State.BACKUP_ERROR:
-      case State.RESTORE_ERROR:
+      case State.OFFER_RESTORE:
+      case State.UPGRADE_ERROR:
+      case State.ERROR:
         return 'images/error_illustration.png';
     }
     return 'images/linux_illustration.png';
@@ -574,8 +559,8 @@ Polymer({
    */
   hideIllustration_(state) {
     switch (state) {
-      case State.OFFER_RESTORE:
-      case State.UPGRADE_ERROR:
+      case State.BACKUP:
+      case State.UPGRADING:
         return true;
     }
     return false;

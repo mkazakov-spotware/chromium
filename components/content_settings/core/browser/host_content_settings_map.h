@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,7 @@
 #include <string>
 #include <vector>
 
-#include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/observer_list.h"
 #include "base/threading/platform_thread.h"
@@ -25,7 +24,6 @@
 #include "components/content_settings/core/browser/user_modifiable_provider.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_constraints.h"
-#include "components/content_settings/core/common/content_settings_metadata.h"
 #include "components/content_settings/core/common/content_settings_pattern.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/keyed_service/core/refcounted_keyed_service.h"
@@ -45,7 +43,6 @@ class ProviderInterface;
 class PrefProvider;
 class TestUtils;
 class RuleIterator;
-class WebsiteSettingsInfo;
 }
 
 namespace user_prefs {
@@ -65,6 +62,7 @@ class HostContentSettingsMap : public content_settings::Observer,
     CUSTOM_EXTENSION_PROVIDER,
     INSTALLED_WEBAPP_PROVIDER,
     NOTIFICATION_ANDROID_PROVIDER,
+    EPHEMERAL_PROVIDER,
     ONE_TIME_GEOLOCATION_PROVIDER,
     PREF_PROVIDER,
     DEFAULT_PROVIDER,
@@ -82,18 +80,15 @@ class HostContentSettingsMap : public content_settings::Observer,
   HostContentSettingsMap(PrefService* prefs,
                          bool is_off_the_record,
                          bool store_last_modified,
-                         bool restore_session,
-                         bool should_record_metrics);
-
-  HostContentSettingsMap(const HostContentSettingsMap&) = delete;
-  HostContentSettingsMap& operator=(const HostContentSettingsMap&) = delete;
+                         bool restore_session);
 
   static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 
   // Adds a new provider for |type|. This should be used instead of
   // |RegisterProvider|, not in addition.
   //
-  // Providers added via this method may be cleared by
+  // Providers added via this method will be queried when
+  // |GetSettingLastModifiedDate| is called and their settings may be cleared by
   // |ClearSettingsForOneTypeWithPredicate| if they were recently modified.
   void RegisterUserModifiableProvider(
       ProviderType type,
@@ -138,14 +133,15 @@ class HostContentSettingsMap : public content_settings::Observer,
   // allowlisted. For allowlisted schemes the |source| field of |info| is set
   // the |SETTING_SOURCE_ALLOWLIST| and the |primary_pattern| and
   // |secondary_pattern| are set to a wildcard pattern.  If there is no content
-  // setting, a NONE-type value is returned and the |source| field of |info| is
-  // set to |SETTING_SOURCE_NONE|. The pattern fields of |info| are set to empty
+  // setting, NULL is returned and the |source| field of |info| is set to
+  // |SETTING_SOURCE_NONE|. The pattern fields of |info| are set to empty
   // patterns.
   // May be called on any thread.
-  base::Value GetWebsiteSetting(const GURL& primary_url,
-                                const GURL& secondary_url,
-                                ContentSettingsType content_type,
-                                content_settings::SettingInfo* info) const;
+  std::unique_ptr<base::Value> GetWebsiteSetting(
+      const GURL& primary_url,
+      const GURL& secondary_url,
+      ContentSettingsType content_type,
+      content_settings::SettingInfo* info) const;
 
   // For a given content type, returns all patterns with a non-default setting,
   // mapped to their actual settings, in the precedence order of the rules.
@@ -159,8 +155,15 @@ class HostContentSettingsMap : public content_settings::Observer,
   // This may be called on any thread.
   void GetSettingsForOneType(ContentSettingsType content_type,
                              ContentSettingsForOneType* settings,
-                             absl::optional<content_settings::SessionModel>
-                                 session_model = absl::nullopt) const;
+                             base::Optional<content_settings::SessionModel>
+                                 session_model = base::nullopt) const;
+
+  // Returns settings that are not applied.
+  // Example: Pattern for flash that are still set through enterprise policy but
+  // won't have any effect because they are deprecated.
+  void GetDiscardedSettingsForOneType(
+      ContentSettingsType content_type,
+      ContentSettingsForOneType* settings) const;
 
   // Sets the default setting for a particular content type. This method must
   // not be invoked on an incognito map.
@@ -212,8 +215,7 @@ class HostContentSettingsMap : public content_settings::Observer,
 
   // Sets the |value| for the default scope of the url that is appropriate for
   // the given |content_type| applying any provided |constraints|. Setting the
-  // value to NONE (base::Value()) removes the default pattern pair for this
-  // content type.
+  // value to null removes the default pattern pair for this content type.
   //
   // Internally this will call SetWebsiteSettingCustomScope() with the default
   // scope patterns for the given |content_type|. Developers will generally want
@@ -223,18 +225,18 @@ class HostContentSettingsMap : public content_settings::Observer,
       const GURL& requesting_url,
       const GURL& top_level_url,
       ContentSettingsType content_type,
-      base::Value value,
+      std::unique_ptr<base::Value> value,
       const content_settings::ContentSettingConstraints& constraints = {});
 
   // Sets a rule to apply the |value| for all sites matching |pattern|,
   // |content_type| applying any provided |constraints|. Setting the value to
-  // NONE removes the given pattern pair. Unless adding a custom-scoped setting,
+  // null removes the given pattern pair. Unless adding a custom-scoped setting,
   // most developers will want to use SetWebsiteSettingDefaultScope() instead.
   void SetWebsiteSettingCustomScope(
       const ContentSettingsPattern& primary_pattern,
       const ContentSettingsPattern& secondary_pattern,
       ContentSettingsType content_type,
-      base::Value value,
+      std::unique_ptr<base::Value> value,
       const content_settings::ContentSettingConstraints& constraints = {});
 
   // Check if a call to SetNarrowestContentSetting would succeed or if it would
@@ -260,16 +262,20 @@ class HostContentSettingsMap : public content_settings::Observer,
       ContentSetting setting,
       const content_settings::ContentSettingConstraints& constraints = {});
 
-  // Updates the last visited time to a recent coarse timestamp
-  // (week-precision).
-  void UpdateLastVisitedTime(const ContentSettingsPattern& primary_pattern,
-                             const ContentSettingsPattern& secondary_pattern,
-                             ContentSettingsType type);
-
   // Clears all host-specific settings for one content type.
   //
   // This should only be called on the UI thread.
   void ClearSettingsForOneType(ContentSettingsType content_type);
+
+  // Return the |last_modified| date of a content setting. This will only return
+  // valid values for settings from the PreferenceProvider. Settings from other
+  // providers will return base::Time().
+  //
+  // This may be called on any thread.
+  base::Time GetSettingLastModifiedDate(
+      const ContentSettingsPattern& primary_pattern,
+      const ContentSettingsPattern& secondary_pattern,
+      ContentSettingsType content_type) const;
 
   using PatternSourcePredicate = base::RepeatingCallback<bool(
       const ContentSettingsPattern& primary_pattern,
@@ -289,10 +295,9 @@ class HostContentSettingsMap : public content_settings::Observer,
   void ShutdownOnUIThread() override;
 
   // content_settings::Observer implementation.
-  void OnContentSettingChanged(
-      const ContentSettingsPattern& primary_pattern,
-      const ContentSettingsPattern& secondary_pattern,
-      ContentSettingsTypeSet content_type_set) override;
+  void OnContentSettingChanged(const ContentSettingsPattern& primary_pattern,
+                               const ContentSettingsPattern& secondary_pattern,
+                               ContentSettingsType content_type) override;
 
   // Returns the ProviderType associated with the given source string.
   // TODO(estade): I regret adding this. At the moment there are no legitimate
@@ -365,7 +370,7 @@ class HostContentSettingsMap : public content_settings::Observer,
       ContentSettingsType content_type,
       ContentSettingsForOneType* settings,
       bool incognito,
-      absl::optional<content_settings::SessionModel> session_model) const;
+      base::Optional<content_settings::SessionModel> session_model) const;
 
   // Call UsedContentSettingsProviders() whenever you access
   // content_settings_providers_ (apart from initialization and
@@ -375,7 +380,7 @@ class HostContentSettingsMap : public content_settings::Observer,
 
   // Returns the single content setting |value| with a toggle for if it
   // takes the global on/off switch into account.
-  base::Value GetWebsiteSettingInternal(
+  std::unique_ptr<base::Value> GetWebsiteSettingInternal(
       const GURL& primary_url,
       const GURL& secondary_url,
       ContentSettingsType content_type,
@@ -387,7 +392,7 @@ class HostContentSettingsMap : public content_settings::Observer,
       const GURL& secondary_url,
       ContentSettingsType type) const;
 
-  static base::Value GetContentSettingValueAndPatterns(
+  static std::unique_ptr<base::Value> GetContentSettingValueAndPatterns(
       const content_settings::ProviderInterface* provider,
       const GURL& primary_url,
       const GURL& secondary_url,
@@ -395,15 +400,15 @@ class HostContentSettingsMap : public content_settings::Observer,
       bool include_incognito,
       ContentSettingsPattern* primary_pattern,
       ContentSettingsPattern* secondary_pattern,
-      content_settings::RuleMetaData* metadata);
+      content_settings::SessionModel* session_model);
 
-  static base::Value GetContentSettingValueAndPatterns(
+  static std::unique_ptr<base::Value> GetContentSettingValueAndPatterns(
       content_settings::RuleIterator* rule_iterator,
       const GURL& primary_url,
       const GURL& secondary_url,
       ContentSettingsPattern* primary_pattern,
       ContentSettingsPattern* secondary_pattern,
-      content_settings::RuleMetaData* metadata);
+      content_settings::SessionModel* session_model);
 
   // Migrate requesting and top level origin content settings to remove all
   // settings that have a top level pattern. If there is a pattern set for
@@ -414,15 +419,13 @@ class HostContentSettingsMap : public content_settings::Observer,
   // It also ensures that we move away from (http://x.com, http://x.com)
   // patterns by replacing these patterns with (http://x.com, *).
   void MigrateSettingsPrecedingPermissionDelegationActivation();
-  void MigrateSingleSettingPrecedingPermissionDelegationActivation(
-      const content_settings::WebsiteSettingsInfo* info);
 
   // Verifies that this secondary pattern is allowed.
   bool IsSecondaryPatternAllowed(
       const ContentSettingsPattern& primary_pattern,
       const ContentSettingsPattern& secondary_pattern,
       ContentSettingsType content_type,
-      const base::Value& value);
+      base::Value* value);
 
 #ifndef NDEBUG
   // This starts as the thread ID of the thread that constructs this
@@ -435,7 +438,7 @@ class HostContentSettingsMap : public content_settings::Observer,
 #endif
 
   // Weak; owned by the Profile.
-  raw_ptr<PrefService> prefs_;
+  PrefService* prefs_;
 
   // Whether this settings map is for an incognito or guest session.
   bool is_off_the_record_;
@@ -457,7 +460,7 @@ class HostContentSettingsMap : public content_settings::Observer,
       user_modifiable_providers_;
 
   // content_settings_providers_[PREF_PROVIDER] but specialized.
-  raw_ptr<content_settings::PrefProvider> pref_provider_ = nullptr;
+  content_settings::PrefProvider* pref_provider_ = nullptr;
 
   base::ThreadChecker thread_checker_;
 
@@ -469,6 +472,8 @@ class HostContentSettingsMap : public content_settings::Observer,
   bool allow_invalid_secondary_pattern_for_testing_;
 
   base::WeakPtrFactory<HostContentSettingsMap> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(HostContentSettingsMap);
 };
 
 #endif  // COMPONENTS_CONTENT_SETTINGS_CORE_BROWSER_HOST_CONTENT_SETTINGS_MAP_H_

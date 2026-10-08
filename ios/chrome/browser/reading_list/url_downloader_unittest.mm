@@ -1,39 +1,33 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/reading_list/url_downloader.h"
+#include "ios/chrome/browser/reading_list/url_downloader.h"
 
-#import <vector>
+#include <vector>
 
-#import "base/bind.h"
-#import "base/containers/contains.h"
-#import "base/files/file_util.h"
-#import "base/path_service.h"
+#include "base/bind.h"
+#include "base/files/file_util.h"
+#include "base/path_service.h"
+#include "base/stl_util.h"
 #import "base/test/ios/wait_util.h"
-#import "base/test/task_environment.h"
-#import "components/reading_list/core/offline_url_utils.h"
-#import "ios/chrome/browser/dom_distiller/distiller_viewer.h"
-#import "ios/chrome/browser/paths/paths.h"
-#import "ios/chrome/browser/reading_list/offline_url_utils.h"
-#import "ios/chrome/browser/reading_list/reading_list_distiller_page.h"
-#import "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
-#import "services/network/public/mojom/url_response_head.mojom.h"
-#import "services/network/test/test_url_loader_factory.h"
-#import "services/network/test/test_utils.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "testing/platform_test.h"
+#include "base/test/task_environment.h"
+#include "components/reading_list/core/offline_url_utils.h"
+#include "ios/chrome/browser/chrome_paths.h"
+#include "ios/chrome/browser/dom_distiller/distiller_viewer.h"
+#include "ios/chrome/browser/reading_list/offline_url_utils.h"
+#include "ios/chrome/browser/reading_list/reading_list_distiller_page.h"
+#include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
+#include "services/network/test/test_url_loader_factory.h"
+#include "services/network/test/test_utils.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
 namespace {
-
-const char kDistilledHtmlContent[] = "html";
-const char kDistilledPdfContent[] = "123456789";
-const char kBadImageUrl[] = "http://image/bad";
-const char kGoodImageUrl[] = "http://image/good";
 
 class DistillerViewerTest : public dom_distiller::DistillerViewerInterface {
  public:
@@ -46,13 +40,8 @@ class DistillerViewerTest : public dom_distiller::DistillerViewerInterface {
       : dom_distiller::DistillerViewerInterface(nil) {
     std::vector<ImageInfo> images;
     ImageInfo image;
-
-    image.url = GURL(kBadImageUrl);
-    image.data = "BADIMAGE";
-    images.push_back(image);
-
-    image.url = GURL(kGoodImageUrl);
-    image.data = "GIF87a...GIFDATA";
+    image.url = GURL("http://image");
+    image.data = "image";
     images.push_back(image);
 
     if (redirect_url.is_valid()) {
@@ -68,8 +57,6 @@ class DistillerViewerTest : public dom_distiller::DistillerViewerInterface {
       const dom_distiller::DistilledArticleProto* article_proto) override {}
 
   void SendJavaScript(const std::string& buffer) override {}
-
-  std::string GetCspNonce() override { return std::string(); }
 };
 
 void RemoveOfflineFilesDirectory(base::FilePath base_directory) {
@@ -93,7 +80,7 @@ class MockURLDownloader : public URLDownloader {
                                           base::Unretained(this)),
                       base::BindRepeating(&MockURLDownloader::OnEndRemove,
                                           base::Unretained(this))),
-        html_(kDistilledHtmlContent) {}
+        html_("html") {}
 
   void ClearCompletionTrackers() {
     downloaded_files_.clear();
@@ -145,24 +132,9 @@ class MockURLDownloader : public URLDownloader {
                      int64_t size,
                      const std::string& title) {
     downloaded_files_.push_back(url);
-
+    // Saved data is the string "html" and an image with data "image".
+    EXPECT_EQ(size, 9);
     EXPECT_EQ(distilled_url, redirect_url_);
-
-    std::string distilled_content;
-
-    base::ReadFileToString(reading_list::OfflineURLAbsolutePathFromRelativePath(
-                               base_directory_, distilled_path),
-                           &distilled_content);
-
-    // PDF will download just the single file without any processing.
-    if (distilled_path.MatchesExtension((".pdf"))) {
-      EXPECT_EQ(distilled_content, kDistilledPdfContent);
-    } else {
-      // Check that the image with the bad mime-type was dropped
-      EXPECT_EQ(distilled_content.find(kDistilledHtmlContent), 0UL);
-      EXPECT_EQ(distilled_content.find(kBadImageUrl), std::string::npos);
-      EXPECT_NE(distilled_content.find(kGoodImageUrl), std::string::npos);
-    }
   }
 
   void OnEndRemove(const GURL& url, bool success) {
@@ -184,9 +156,6 @@ class URLDownloaderTest : public PlatformTest {
         new MockURLDownloader(data_dir, test_shared_url_loader_factory_));
   }
 
-  URLDownloaderTest(const URLDownloaderTest&) = delete;
-  URLDownloaderTest& operator=(const URLDownloaderTest&) = delete;
-
   ~URLDownloaderTest() override {}
 
   void TearDown() override {
@@ -204,6 +173,9 @@ class URLDownloaderTest : public PlatformTest {
       test_shared_url_loader_factory_;
 
   std::unique_ptr<MockURLDownloader> downloader_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(URLDownloaderTest);
 };
 
 TEST_F(URLDownloaderTest, SingleDownload) {
@@ -257,7 +229,7 @@ TEST_F(URLDownloaderTest, SingleDownloadPDF) {
   response_info->mime_type = "application/pdf";
   test_url_loader_factory_.SimulateResponseForPendingRequest(
       pending_request->request.url, network::URLLoaderCompletionStatus(net::OK),
-      std::move(response_info), std::string(kDistilledPdfContent));
+      std::move(response_info), std::string("123456789"));
 
   // Wait for all asynchronous tasks to complete.
   task_environment_.RunUntilIdle();

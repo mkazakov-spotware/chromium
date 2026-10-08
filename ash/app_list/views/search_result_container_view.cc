@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 
 namespace ash {
 
@@ -17,72 +18,23 @@ SearchResultContainerView::SearchResultContainerView(
 }
 
 SearchResultContainerView::~SearchResultContainerView() {
-  if (results_ && active_)
+  if (results_)
     results_->RemoveObserver(this);
 }
 
 void SearchResultContainerView::SetResults(
     SearchModel::SearchResults* results) {
-  if (results_ && active_)
+  if (results_)
     results_->RemoveObserver(this);
 
   results_ = results;
-  if (results_ && active_)
+  if (results_)
     results_->AddObserver(this);
 
-  if (active_)
-    Update();
+  Update();
 }
-
-void SearchResultContainerView::SetActive(bool active) {
-  if (active_ == active)
-    return;
-  active_ = active;
-
-  if (!active_)
-    update_factory_.InvalidateWeakPtrs();
-
-  if (results_) {
-    if (active_)
-      results_->AddObserver(this);
-    else
-      results_->RemoveObserver(this);
-  }
-}
-
-void SearchResultContainerView::ResetAndHide() {
-  SetVisible(false);
-
-  for (int i = 0; i < num_results(); ++i) {
-    SearchResultBaseView* const result_view = GetResultViewAt(i);
-    result_view->SetResult(nullptr);
-    result_view->SetVisible(false);
-  }
-  num_results_ = 0;
-}
-
-absl::optional<SearchResultContainerView::ResultsAnimationInfo>
-SearchResultContainerView::ScheduleResultAnimations(
-    const ResultsAnimationInfo& aggregate_animation_info) {
-  NOTREACHED();
-  return absl::nullopt;
-}
-
-void SearchResultContainerView::AppendShownResultMetadata(
-    std::vector<SearchResultAimationMetadata>* result_metadata_) {
-  NOTREACHED();
-}
-
-bool SearchResultContainerView::HasAnimatingChildView() {
-  NOTREACHED();
-  return false;
-}
-
-void SearchResultContainerView::OnSelectedResultChanged() {}
 
 void SearchResultContainerView::Update() {
-  DCHECK(active_);
-
   update_factory_.InvalidateWeakPtrs();
   num_results_ = DoUpdate();
   Layout();
@@ -100,12 +52,12 @@ const char* SearchResultContainerView::GetClassName() const {
 
 void SearchResultContainerView::AddObservedResultView(
     SearchResultBaseView* result_view) {
-  result_view_observations_.AddObservation(result_view);
+  result_view_observer_.Add(result_view);
 }
 
 void SearchResultContainerView::RemoveObservedResultView(
     SearchResultBaseView* result_view) {
-  result_view_observations_.RemoveObservation(result_view);
+  result_view_observer_.Remove(result_view);
 }
 
 void SearchResultContainerView::ListItemsAdded(size_t /*start*/,
@@ -132,23 +84,23 @@ SearchResultBaseView* SearchResultContainerView::GetFirstResultView() {
   return num_results_ <= 0 ? nullptr : GetResultViewAt(0);
 }
 
-bool SearchResultContainerView::RunScheduledUpdateForTest() {
-  if (!UpdateScheduled())
-    return false;
-  Update();
-  return true;
+void SearchResultContainerView::SetShown(bool shown) {
+  if (shown_ == shown) {
+    return;
+  }
+  shown_ = shown;
+  OnShownChanged();
 }
 
-void SearchResultContainerView::ScheduleUpdate() {
-  if (!active_)
-    return;
+void SearchResultContainerView::OnShownChanged() {}
 
+void SearchResultContainerView::ScheduleUpdate() {
   // When search results are added one by one, each addition generates an update
   // request. Consolidates those update requests into one Update call.
   if (!update_factory_.HasWeakPtrs()) {
     if (delegate_)
       delegate_->OnSearchResultContainerResultsChanging();
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&SearchResultContainerView::Update,
                                   update_factory_.GetWeakPtr()));
   }

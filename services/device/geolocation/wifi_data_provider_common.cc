@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,13 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/metrics/histogram_macros.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 
 namespace device {
 
-std::u16string MacAddressAsString16(const uint8_t mac_as_int[6]) {
+base::string16 MacAddressAsString16(const uint8_t mac_as_int[6]) {
   // |mac_as_int| is big-endian. Write in byte chunks.
   // Format is XX-XX-XX-XX-XX-XX.
   static const char* const kMacFormatString = "%02x-%02x-%02x-%02x-%02x-%02x";
@@ -68,9 +67,6 @@ void WifiDataProviderCommon::DoWifiScanTask() {
   if (!wlan_api_)
     return;
 
-  SCOPED_UMA_HISTOGRAM_TIMER(
-      "Geolocation.WifiDataProviderCommon.WifiScanTaskTime");
-
   bool update_available = false;
   WifiData new_data;
   if (!wlan_api_->GetAccessPointData(&new_data.access_point_data)) {
@@ -92,7 +88,7 @@ void WifiDataProviderCommon::ScheduleNextScan(int interval) {
       FROM_HERE,
       base::BindOnce(&WifiDataProviderCommon::DoWifiScanTask,
                      weak_factory_.GetWeakPtr()),
-      base::Milliseconds(interval));
+      base::TimeDelta::FromMilliseconds(interval));
 }
 
 }  // namespace device

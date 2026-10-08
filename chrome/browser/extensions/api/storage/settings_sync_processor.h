@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,9 @@
 #include <set>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/values.h"
+#include "base/macros.h"
 #include "components/sync/base/model_type.h"
-#include "components/value_store/value_store_change.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "extensions/browser/value_store/value_store_change.h"
 
 namespace syncer {
 class ModelError;
@@ -32,22 +30,18 @@ class SettingsSyncProcessor {
   SettingsSyncProcessor(const std::string& extension_id,
                         syncer::ModelType type,
                         syncer::SyncChangeProcessor* sync_processor);
-
-  SettingsSyncProcessor(const SettingsSyncProcessor&) = delete;
-  SettingsSyncProcessor& operator=(const SettingsSyncProcessor&) = delete;
-
   ~SettingsSyncProcessor();
 
   // Initializes this with the initial state of sync.
-  void Init(const base::Value::Dict& initial_state);
+  void Init(const base::DictionaryValue& initial_state);
 
   // Sends |changes| to sync.
-  absl::optional<syncer::ModelError> SendChanges(
-      const value_store::ValueStoreChangeList& changes);
+  base::Optional<syncer::ModelError> SendChanges(
+      const ValueStoreChangeList& changes);
 
   // Informs this that |changes| have been receieved from sync. No action will
   // be taken, but this must be notified for internal bookkeeping.
-  void NotifyChanges(const value_store::ValueStoreChangeList& changes);
+  void NotifyChanges(const ValueStoreChangeList& changes);
 
   syncer::ModelType type() { return type_; }
 
@@ -59,7 +53,7 @@ class SettingsSyncProcessor {
   const syncer::ModelType type_;
 
   // The sync processor used to send changes to sync.
-  const raw_ptr<syncer::SyncChangeProcessor, DanglingUntriaged> sync_processor_;
+  syncer::SyncChangeProcessor* const sync_processor_;
 
   // Whether Init() has been called.
   bool initialized_;
@@ -67,6 +61,8 @@ class SettingsSyncProcessor {
   // Keys of the settings that are currently being synced. Used to decide what
   // kind of action (ADD, UPDATE, REMOVE) to send to sync.
   std::set<std::string> synced_keys_;
+
+  DISALLOW_COPY_AND_ASSIGN(SettingsSyncProcessor);
 };
 
 }  // namespace extensions

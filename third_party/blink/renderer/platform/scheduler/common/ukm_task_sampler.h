@@ -1,12 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_SCHEDULER_COMMON_UKM_TASK_SAMPLER_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_SCHEDULER_COMMON_UKM_TASK_SAMPLER_H_
 
+#include <random>
+
 #include "base/gtest_prod_util.h"
-#include "base/rand_util.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 
 namespace blink {
@@ -46,7 +47,7 @@ class PLATFORM_EXPORT UkmTaskSampler {
   double thread_time_sampling_rate_;
   double ukm_task_sampling_rate_;
 
-  base::MetricsSubSampler metrics_subsampler_;
+  std::mt19937_64 random_generator_;
 };
 
 }  // namespace scheduler

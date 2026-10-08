@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ LocaleUpdateController* g_instance = nullptr;
 
 LocaleInfo::LocaleInfo() = default;
 LocaleInfo::LocaleInfo(const std::string& iso_code,
-                       const std::u16string& display_name)
+                       const base::string16& display_name)
     : iso_code(iso_code), display_name(display_name) {}
 LocaleInfo::LocaleInfo(const LocaleInfo& rhs) = default;
 LocaleInfo::LocaleInfo(LocaleInfo&& rhs) = default;

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@
 namespace extensions {
 
 ScriptsRunInfo::ScriptsRunInfo(content::RenderFrame* render_frame,
-                               mojom::RunLocation location)
+                               UserScript::RunLocation location)
     : num_css(0u),
       num_js(0u),
       num_blocking_js(0u),
@@ -37,7 +37,7 @@ void ScriptsRunInfo::LogRun(bool send_script_activity) {
   base::TimeDelta elapsed = timer.Elapsed();
 
   switch (run_location_) {
-    case mojom::RunLocation::kDocumentStart:
+    case UserScript::DOCUMENT_START:
       UMA_HISTOGRAM_COUNTS_100("Extensions.InjectStart_CssCount", num_css);
       UMA_HISTOGRAM_COUNTS_100("Extensions.InjectStart_ScriptCount", num_js);
       if (num_blocking_js) {
@@ -47,7 +47,7 @@ void ScriptsRunInfo::LogRun(bool send_script_activity) {
         UMA_HISTOGRAM_TIMES("Extensions.InjectStart_Time", elapsed);
       }
       break;
-    case mojom::RunLocation::kDocumentEnd:
+    case UserScript::DOCUMENT_END:
       UMA_HISTOGRAM_COUNTS_100("Extensions.InjectEnd_ScriptCount", num_js);
       if (num_blocking_js) {
         UMA_HISTOGRAM_COUNTS_100("Extensions.InjectEnd_BlockingScriptCount",
@@ -56,7 +56,7 @@ void ScriptsRunInfo::LogRun(bool send_script_activity) {
         UMA_HISTOGRAM_TIMES("Extensions.InjectEnd_Time", elapsed);
       }
       break;
-    case mojom::RunLocation::kDocumentIdle:
+    case UserScript::DOCUMENT_IDLE:
       UMA_HISTOGRAM_COUNTS_100("Extensions.InjectIdle_ScriptCount", num_js);
       if (num_blocking_js) {
         UMA_HISTOGRAM_COUNTS_100("Extensions.InjectIdle_BlockingScriptCount",
@@ -65,11 +65,12 @@ void ScriptsRunInfo::LogRun(bool send_script_activity) {
         UMA_HISTOGRAM_TIMES("Extensions.InjectIdle_Time", elapsed);
       }
       break;
-    case mojom::RunLocation::kRunDeferred:
-    case mojom::RunLocation::kBrowserDriven:
+    case UserScript::RUN_DEFERRED:
+    case UserScript::BROWSER_DRIVEN:
       // TODO(rdevlin.cronin): Add histograms.
       break;
-    case mojom::RunLocation::kUndefined:
+    case UserScript::UNDEFINED:
+    case UserScript::RUN_LOCATION_LAST:
       NOTREACHED();
   }
 }

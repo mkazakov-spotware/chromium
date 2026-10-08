@@ -29,6 +29,7 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_ACCESSIBILITY_AX_LIST_BOX_OPTION_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_ACCESSIBILITY_AX_LIST_BOX_OPTION_H_
 
+#include "base/macros.h"
 #include "third_party/blink/renderer/core/html/html_element.h"
 #include "third_party/blink/renderer/modules/accessibility/ax_layout_object.h"
 
@@ -40,20 +41,16 @@ class HTMLSelectElement;
 class AXListBoxOption final : public AXLayoutObject {
  public:
   AXListBoxOption(LayoutObject*, AXObjectCacheImpl&);
-
-  AXListBoxOption(const AXListBoxOption&) = delete;
-  AXListBoxOption& operator=(const AXListBoxOption&) = delete;
-
   ~AXListBoxOption() override;
 
   bool IsAXListBoxOption() const override { return true; }
-  ax::mojom::blink::Role NativeRoleIgnoringAria() const final;
+  ax::mojom::Role DetermineAccessibilityRole() final;
   AccessibilitySelectedState IsSelected() const override;
   bool IsSelectedOptionActive() const override;
   bool OnNativeSetSelectedAction(bool) override;
 
   String TextAlternative(bool recursive,
-                         const AXObject* aria_label_or_description_root,
+                         bool in_aria_labelled_by_traversal,
                          AXObjectSet& visited,
                          ax::mojom::NameFrom&,
                          AXRelatedObjectVector*,
@@ -64,6 +61,9 @@ class AXListBoxOption final : public AXLayoutObject {
   bool ComputeAccessibilityIsIgnored(IgnoredReasons* = nullptr) const override;
 
   HTMLSelectElement* ListBoxOptionParentNode() const;
+  bool IsParentPresentationalRole() const;
+
+  DISALLOW_COPY_AND_ASSIGN(AXListBoxOption);
 };
 
 }  // namespace blink

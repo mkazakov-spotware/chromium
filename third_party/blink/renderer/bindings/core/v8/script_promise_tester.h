@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,13 @@
 
 #include "base/memory/weak_ptr.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
-#include "third_party/blink/renderer/platform/heap/disallow_new_wrapper.h"
-#include "third_party/blink/renderer/platform/heap/persistent.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
 
 class ScriptState;
 class ScriptPromise;
+class Visitor;
 
 // Utility for writing unit tests involving promises.
 // Typical usage:
@@ -23,13 +22,10 @@ class ScriptPromise;
 //   EXPECT_TRUE(tester.IsFulfilled());
 //   EXPECT_TRUE(tester.Value().IsUndefined());
 class ScriptPromiseTester final {
-  STACK_ALLOCATED();
+  DISALLOW_NEW();
 
  public:
   ScriptPromiseTester(ScriptState*, ScriptPromise);
-
-  ScriptPromiseTester(const ScriptPromiseTester&) = delete;
-  ScriptPromiseTester& operator=(const ScriptPromiseTester&) = delete;
 
   // Run microtasks and tasks until the promise is either fulfilled or rejected.
   // If the promise never settles this will busy loop until the test times out.
@@ -44,21 +40,20 @@ class ScriptPromiseTester final {
   // The value the promise fulfilled or rejected with.
   ScriptValue Value() const;
 
+  void Trace(Visitor*) const;
+
  private:
   class ThenFunction;
 
-  using ScriptValueObject = DisallowNewWrapper<ScriptValue>;
-
   enum class State { kNotSettled, kFulfilled, kRejected };
 
-  ScriptState* script_state_;
+  Member<ScriptState> script_state_;
   State state_ = State::kNotSettled;
-  // Keep ScriptValue explicitly alive via stack-bound root. This allows running
-  // tests with `ScriptPromiseTester` that pump the message loop and invoke GCs
-  // without stack.
-  Persistent<ScriptValueObject> value_object_;
+  ScriptValue value_;
 
   base::WeakPtrFactory<ScriptPromiseTester> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ScriptPromiseTester);
 };
 
 }  // namespace blink

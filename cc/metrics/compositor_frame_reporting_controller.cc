@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,49 +6,25 @@
 
 #include <utility>
 
-#include "base/trace_event/trace_event.h"
-#include "base/trace_event/trace_id_helper.h"
 #include "cc/metrics/compositor_frame_reporter.h"
 #include "cc/metrics/dropped_frame_counter.h"
-#include "cc/metrics/frame_sequence_tracker_collection.h"
 #include "cc/metrics/latency_ukm_reporter.h"
 #include "components/viz/common/frame_timing_details.h"
 #include "components/viz/common/quads/compositor_frame_metadata.h"
-#include "services/tracing/public/cpp/perfetto/macros.h"
 
 namespace cc {
 namespace {
 using SmoothThread = CompositorFrameReporter::SmoothThread;
 using StageType = CompositorFrameReporter::StageType;
 using FrameTerminationStatus = CompositorFrameReporter::FrameTerminationStatus;
-
-constexpr char kTraceCategory[] = "cc,benchmark";
-constexpr int kNumOfCompositorStages =
-    static_cast<int>(StageType::kStageTypeCount) - 1;
-constexpr int kNumDispatchStages =
-    static_cast<int>(EventMetrics::DispatchStage::kMaxValue);
-constexpr base::TimeDelta kDefaultLatencyPredictionDeviationThreshold =
-    viz::BeginFrameArgs::DefaultInterval() / 2;
 }  // namespace
 
 CompositorFrameReportingController::CompositorFrameReportingController(
-    bool should_report_histograms,
-    bool should_report_ukm,
+    bool should_report_metrics,
     int layer_tree_host_id)
-    : should_report_histograms_(should_report_histograms),
+    : should_report_metrics_(should_report_metrics),
       layer_tree_host_id_(layer_tree_host_id),
-      latency_ukm_reporter_(std::make_unique<LatencyUkmReporter>()),
-      previous_latency_predictions_main_(base::Microseconds(-1)),
-      previous_latency_predictions_impl_(base::Microseconds(-1)),
-      event_latency_predictions_(
-          CompositorFrameReporter::EventLatencyInfo(kNumDispatchStages,
-                                                    kNumOfCompositorStages)) {
-  if (should_report_ukm) {
-    // UKM metrics should be reported if and only if `latency_ukm_reporter` is
-    // set on `global_trackers_`.
-    global_trackers_.latency_ukm_reporter = latency_ukm_reporter_.get();
-  }
-}
+      latency_ukm_reporter_(std::make_unique<LatencyUkmReporter>()) {}
 
 CompositorFrameReportingController::~CompositorFrameReportingController() {
   base::TimeTicks now = Now();
@@ -87,23 +63,16 @@ bool CompositorFrameReportingController::HasReporterAt(
 
 void CompositorFrameReportingController::ProcessSkippedFramesIfNecessary(
     const viz::BeginFrameArgs& args) {
-  const auto& previous_frame = last_started_compositor_frame_.args;
-  if (previous_frame.IsValid() &&
-      previous_frame.frame_id.source_id == args.frame_id.source_id) {
-    CreateReportersForDroppedFrames(previous_frame, args);
+  if (previous_frame_.IsValid() &&
+      previous_frame_.frame_id.source_id == args.frame_id.source_id) {
+    CreateReportersForDroppedFrames(previous_frame_, args);
   }
-
-  last_started_compositor_frame_.args = args;
-  last_started_compositor_frame_.scrolling_thread = scrolling_thread_;
-  last_started_compositor_frame_.active_trackers = active_trackers_;
-  last_started_compositor_frame_.smooth_thread = GetSmoothThread();
+  previous_frame_ = args;
 }
 
 void CompositorFrameReportingController::WillBeginImplFrame(
     const viz::BeginFrameArgs& args) {
   ProcessSkippedFramesIfNecessary(args);
-  ReportMultipleSwaps(args.frame_time, last_interval_);
-  last_interval_ = args.interval;
 
   base::TimeTicks begin_time = Now();
   if (reporters_[PipelineStage::kBeginImplFrame]) {
@@ -123,8 +92,9 @@ void CompositorFrameReportingController::WillBeginImplFrame(
     }
   }
   auto reporter = std::make_unique<CompositorFrameReporter>(
-      active_trackers_, args, should_report_histograms_, GetSmoothThread(),
-      scrolling_thread_, layer_tree_host_id_, global_trackers_);
+      active_trackers_, args, latency_ukm_reporter_.get(),
+      should_report_metrics_, GetSmoothThread(), layer_tree_host_id_,
+      dropped_frame_counter_);
   reporter->set_tick_clock(tick_clock_);
   reporter->StartStage(StageType::kBeginImplFrameToSendBeginMainFrame,
                        begin_time);
@@ -147,22 +117,11 @@ void CompositorFrameReportingController::WillBeginMainFrame(
   } else {
     // In this case we have already submitted the ImplFrame, but we received
     // beginMain frame before next BeginImplFrame (Not reached the ImplFrame
-    // deadline yet). So will start a new reporter at BeginMainFrame, and use
-    // the state(s) from the ImplFrame where necessary.
-    auto scrolling_thread = scrolling_thread_;
-    auto active_trackers = active_trackers_;
-    auto smooth_thread = GetSmoothThread();
-    if (args.frame_id == last_started_compositor_frame_.args.frame_id) {
-      // TODO(1277547): Instead of replacing all current information with the
-      // older information from when the impl-frame started, merge the two sets
-      // of information that makes sense.
-      scrolling_thread = last_started_compositor_frame_.scrolling_thread;
-      active_trackers = last_started_compositor_frame_.active_trackers;
-      smooth_thread = last_started_compositor_frame_.smooth_thread;
-    }
+    // deadline yet). So will start a new reporter at BeginMainFrame.
     auto reporter = std::make_unique<CompositorFrameReporter>(
-        active_trackers, args, should_report_histograms_, smooth_thread,
-        scrolling_thread, layer_tree_host_id_, global_trackers_);
+        active_trackers_, args, latency_ukm_reporter_.get(),
+        should_report_metrics_, GetSmoothThread(), layer_tree_host_id_,
+        dropped_frame_counter_);
     reporter->set_tick_clock(tick_clock_);
     reporter->StartStage(StageType::kSendBeginMainFrameToCommit, Now());
     reporters_[PipelineStage::kBeginMainFrame] = std::move(reporter);
@@ -170,28 +129,24 @@ void CompositorFrameReportingController::WillBeginMainFrame(
 }
 
 void CompositorFrameReportingController::BeginMainFrameAborted(
-    const viz::BeginFrameId& id,
-    CommitEarlyOutReason reason) {
+    const viz::BeginFrameId& id) {
   auto& reporter = reporters_[PipelineStage::kBeginMainFrame];
   DCHECK(reporter);
   DCHECK_EQ(reporter->frame_id(), id);
   reporter->OnAbortBeginMainFrame(Now());
-
-  if (reason == CommitEarlyOutReason::FINISHED_NO_UPDATES)
-    DidNotProduceFrame(id, FrameSkippedReason::kNoDamage);
 }
 
 void CompositorFrameReportingController::WillCommit() {
-  DCHECK(reporters_[PipelineStage::kReadyToCommit]);
-  reporters_[PipelineStage::kReadyToCommit]->StartStage(StageType::kCommit,
-                                                        Now());
+  DCHECK(reporters_[PipelineStage::kBeginMainFrame]);
+  reporters_[PipelineStage::kBeginMainFrame]->StartStage(StageType::kCommit,
+                                                         Now());
 }
 
 void CompositorFrameReportingController::DidCommit() {
-  DCHECK(reporters_[PipelineStage::kReadyToCommit]);
-  reporters_[PipelineStage::kReadyToCommit]->StartStage(
+  DCHECK(reporters_[PipelineStage::kBeginMainFrame]);
+  reporters_[PipelineStage::kBeginMainFrame]->StartStage(
       StageType::kEndCommitToActivation, Now());
-  AdvanceReporterStage(PipelineStage::kReadyToCommit, PipelineStage::kCommit);
+  AdvanceReporterStage(PipelineStage::kBeginMainFrame, PipelineStage::kCommit);
 }
 
 void CompositorFrameReportingController::WillInvalidateOnImplSide() {
@@ -219,11 +174,9 @@ void CompositorFrameReportingController::DidActivate() {
 
 void CompositorFrameReportingController::DidSubmitCompositorFrame(
     uint32_t frame_token,
-    base::TimeTicks submit_time,
     const viz::BeginFrameId& current_frame_id,
     const viz::BeginFrameId& last_activated_frame_id,
-    EventMetricsSet events_metrics,
-    bool has_missing_content) {
+    EventMetricsSet events_metrics) {
   bool is_activated_frame_new =
       (last_activated_frame_id != last_submitted_frame_id_);
 
@@ -268,10 +221,6 @@ void CompositorFrameReportingController::DidSubmitCompositorFrame(
     AdvanceReporterStage(PipelineStage::kBeginImplFrame,
                          PipelineStage::kActivate);
     impl_reporter = std::move(reporters_[PipelineStage::kActivate]);
-    CompositorFrameReporter* partial_update_decider =
-        GetOutstandingUpdatesFromMain(current_frame_id);
-    if (partial_update_decider)
-      impl_reporter->SetPartialUpdateDecider(partial_update_decider);
   } else if (CanSubmitMainFrame(current_frame_id)) {
     auto& reporter = reporters_[PipelineStage::kBeginMainFrame];
     reporter->StartStage(StageType::kEndActivateToSubmitCompositorFrame,
@@ -286,6 +235,10 @@ void CompositorFrameReportingController::DidSubmitCompositorFrame(
     if (reporter) {
       reporter->StartStage(StageType::kEndActivateToSubmitCompositorFrame,
                            reporter->impl_frame_finish_time());
+      // If the frame does not include any new updates from the main thread,
+      // then flag the frame as containing only partial updates.
+      if (!is_activated_frame_new)
+        reporter->set_has_partial_update(true);
       impl_reporter = std::move(reporter);
     }
   }
@@ -322,12 +275,9 @@ void CompositorFrameReportingController::DidSubmitCompositorFrame(
 
   if (main_reporter) {
     main_reporter->StartStage(
-        StageType::kSubmitCompositorFrameToPresentationCompositorFrame,
-        submit_time);
-    main_reporter->AddEventsMetrics(
+        StageType::kSubmitCompositorFrameToPresentationCompositorFrame, Now());
+    main_reporter->SetEventsMetrics(
         std::move(events_metrics.main_event_metrics));
-    main_reporter->set_has_missing_content(has_missing_content);
-    main_reporter->set_reporter_type_to_main();
     submitted_compositor_frames_.emplace_back(frame_token,
                                               std::move(main_reporter));
   }
@@ -335,14 +285,9 @@ void CompositorFrameReportingController::DidSubmitCompositorFrame(
   if (impl_reporter) {
     impl_reporter->EnableCompositorOnlyReporting();
     impl_reporter->StartStage(
-        StageType::kSubmitCompositorFrameToPresentationCompositorFrame,
-        submit_time);
-    impl_reporter->AddEventsMetrics(
+        StageType::kSubmitCompositorFrameToPresentationCompositorFrame, Now());
+    impl_reporter->SetEventsMetrics(
         std::move(events_metrics.impl_event_metrics));
-    impl_reporter->set_has_missing_content(has_missing_content);
-    impl_reporter->set_is_accompanied_by_main_thread_update(
-        is_activated_frame_new);
-    impl_reporter->set_reporter_type_to_impl();
     submitted_compositor_frames_.emplace_back(frame_token,
                                               std::move(impl_reporter));
   }
@@ -361,80 +306,20 @@ void CompositorFrameReportingController::DidNotProduceFrame(
       // BeginMain stage, but the main-thread can make updates, which can be
       // submitted with the next frame.
       stage_reporter->OnDidNotProduceFrame(skip_reason);
-      if (skip_reason == FrameSkippedReason::kWaitingOnMain)
-        SetPartialUpdateDeciderWhenWaitingOnMain(stage_reporter);
-
       break;
     }
   }
-}
 
-void CompositorFrameReportingController::
-    SetPartialUpdateDeciderWhenWaitingOnMain(
-        std::unique_ptr<CompositorFrameReporter>& stage_reporter) {
-  // If the compositor has no updates, and the main-thread has not responded
-  // to the begin-main-frame yet, then depending on main thread having
-  // update or not this would be a NoFrameProduced or a DroppedFrame. To
-  // handle this case , keep the reporter for the main-thread, but recreate
-  // a reporter for the current frame and link it to the reporter it depends
-  // on.
-  auto reporter = RestoreReporterAtBeginImpl(stage_reporter->frame_id());
-  if (reporter) {
-    reporter->OnDidNotProduceFrame(FrameSkippedReason::kWaitingOnMain);
-    reporter->TerminateFrame(FrameTerminationStatus::kDidNotProduceFrame,
-                             Now());
-    stage_reporter->AdoptReporter(std::move(reporter));
-  } else {
-    // The stage_reporter in this case was waiting for main, so needs to
-    // be adopted by the reporter which is waiting on Main thread's work
-    CompositorFrameReporter* partial_update_decider =
-        GetOutstandingUpdatesFromMain(stage_reporter->frame_id());
-    if (partial_update_decider) {
-      stage_reporter->SetPartialUpdateDecider(partial_update_decider);
-      stage_reporter->OnDidNotProduceFrame(FrameSkippedReason::kWaitingOnMain);
-      stage_reporter->TerminateFrame(
-          FrameTerminationStatus::kDidNotProduceFrame, Now());
-      partial_update_decider->AdoptReporter(std::move(stage_reporter));
-    }
-  }
-}
-
-void CompositorFrameReportingController::TrackSwapTiming(
-    const viz::FrameTimingDetails& details) {
-  if (details.swap_timings.swap_start != base::TimeTicks()) {
-    if (latest_swap_times_.empty() ||
-        latest_swap_times_.back() < details.swap_timings.swap_start)
-      latest_swap_times_.push(details.swap_timings.swap_start);
-  }
-
-  // Making sure the queue would not keep growing in size.
-  DCHECK_LE(latest_swap_times_.size(), 10u);
-}
-
-void CompositorFrameReportingController::ReportMultipleSwaps(
-    base::TimeTicks begin_frame_time,
-    base::TimeDelta interval) {
-  while (!latest_swap_times_.empty() &&
-         latest_swap_times_.front() <= begin_frame_time - interval) {
-    latest_swap_times_.pop();
-  }
-
-  if (latest_swap_times_.empty())
-    return;
-
-  if (latest_swap_times_.size() > 1) {
-    base::TimeDelta swap_delta =
-        latest_swap_times_.back() - latest_swap_times_.front();
-
-    if (swap_delta < interval) {
-      UMA_HISTOGRAM_PERCENTAGE("GPU.MultipleSwapsDelta",
-                               swap_delta * 100.0 / interval);
-
-      const auto trace_track =
-          perfetto::Track(base::trace_event::GetNextGlobalTraceId());
-      TRACE_EVENT_BEGIN(kTraceCategory, "MultipleSwaps", trace_track,
-                        latest_swap_times_.front());
-      TRACE_EVENT_END(kTraceCategory, trace_track, latest_swap_times_.back());
+  // If the compositor has no updates, and the main-thread has not responded to
+  // the begin-main-frame yet, then it is essentially a dropped frame. To handle
+  // this case, keep the reporter for the main-thread, but recreate a reporter
+  // for the dropped-frame.
+  if (skip_reason == FrameSkippedReason::kWaitingOnMain) {
+    auto reporter = RestoreReporterAtBeginImpl(id);
+    if (reporter) {
+      reporter->OnDidNotProduceFrame(skip_reason);
+      reporter->TerminateFrame(FrameTerminationStatus::kDidNotProduceFrame,
+                               Now());
     }
   }
 }
@@ -452,122 +337,37 @@ void CompositorFrameReportingController::OnFinishImplFrame(
 void CompositorFrameReportingController::DidPresentCompositorFrame(
     uint32_t frame_token,
     const viz::FrameTimingDetails& details) {
-  bool feedback_failed = details.presentation_feedback.failed();
+  while (!submitted_compositor_frames_.empty()) {
+    auto submitted_frame = submitted_compositor_frames_.begin();
+    if (viz::FrameTokenGT(submitted_frame->frame_token, frame_token))
+      break;
 
-  if (!feedback_failed)
-    TrackSwapTiming(details);
-
-  for (auto submitted_frame = submitted_compositor_frames_.begin();
-       submitted_frame != submitted_compositor_frames_.end() &&
-       !viz::FrameTokenGT(submitted_frame->frame_token, frame_token);) {
-    bool is_earlier_frame = submitted_frame->frame_token != frame_token;
-
-    // If the presentation feedback is a failure, earlier frames should still be
-    // left in the queue as they still might end up being presented
-    // successfully. Skip to the next frame.
-    if (feedback_failed && is_earlier_frame) {
-      submitted_frame++;
-      continue;
-    }
-
-    auto termination_status = feedback_failed
-                                  ? FrameTerminationStatus::kDidNotPresentFrame
-                                  : FrameTerminationStatus::kPresentedFrame;
-
-    // If this is an earlier frame, presentation feedback has been successful
-    // which means this earlier frame should be considered dropped.
-    if (is_earlier_frame)
+    auto termination_status = FrameTerminationStatus::kPresentedFrame;
+    if (submitted_frame->frame_token != frame_token ||
+        details.presentation_feedback.failed()) {
       termination_status = FrameTerminationStatus::kDidNotPresentFrame;
+    }
 
     auto& reporter = submitted_frame->reporter;
     reporter->SetVizBreakdown(details);
     reporter->TerminateFrame(termination_status,
                              details.presentation_feedback.timestamp);
 
-    base::TimeDelta latency_prediction_deviation_threshold =
-        details.presentation_feedback.interval.is_zero()
-            ? kDefaultLatencyPredictionDeviationThreshold
-            : (details.presentation_feedback.interval) / 2;
-    switch (reporter->get_reporter_type()) {
-      case CompositorFrameReporter::ReporterType::kImpl:
-        reporter->CalculateCompositorLatencyPrediction(
-            previous_latency_predictions_impl_,
-            latency_prediction_deviation_threshold);
-        break;
-      case CompositorFrameReporter::ReporterType::kMain:
-        reporter->CalculateCompositorLatencyPrediction(
-            previous_latency_predictions_main_,
-            latency_prediction_deviation_threshold);
-        break;
-    }
-
-    if (termination_status == FrameTerminationStatus::kPresentedFrame) {
-      // If there are outstanding metrics from dropped frames older than this
-      // frame, this frame would be the first frame presented after those
-      // dropped frames. So, this frame is the one presenting updates from those
-      // frames to the user and should report metrics for them. Note that since
-      // reporters for submitted but dropped frames are terminated before any
-      // following frame being presented, all events metrics that should
-      // potentially be included in this presented frame are already in
-      // `events_metrics_from_dropped_frames_`.
-      for (auto it = events_metrics_from_dropped_frames_.begin();
-           it != events_metrics_from_dropped_frames_.end() &&
-           !(reporter->frame_id() < it->first);
-           it = events_metrics_from_dropped_frames_.erase(it)) {
-        reporter->AddEventsMetrics(std::move(it->second));
-      }
-
-      // TODO(crbug.com/1334827): Consider using a separate container to
-      // differentiate event predictions with and without a main dispatch stage.
-      reporter->CalculateEventLatencyPrediction(
-          event_latency_predictions_, latency_prediction_deviation_threshold);
-
-      // For presented frames, if `reporter` was cloned from another reporter,
-      // and the original reporter is still alive, then check whether the cloned
-      // reporter has a 'partial update decider'. It is still possible for the
-      // original reporter to terminate with 'no damage', and if that happens,
-      // then the cloned reporter's 'partial update' flag will need to be reset.
-      // To allow this to happen, keep the cloned reporter alive, and hand over
-      // its ownership to the original reporter, so that the cloned reporter
-      // stays alive until the original reporter is terminated, and the cloned
-      // reporter's 'partial update' flag can be unset if necessary. This is not
-      // necessary for frames with failed presentation as we can say for sure
-      // that they are dropped and nothing will change their fate.
-      if (CompositorFrameReporter* orig_reporter =
-              reporter->partial_update_decider()) {
+    // If |reporter| was cloned from a reporter, and the original reporter is
+    // still alive, then check whether the cloned reporter has the 'partial
+    // update' flag set. It is still possible for the original reporter to
+    // terminate with 'no damage', and if that happens, then the cloned
+    // reporter's 'partial update' flag will need to be reset. To allow this to
+    // happen, keep the cloned reporter alive, and hand over its ownership to
+    // the original reporter, so that the cloned reporter stays alive until the
+    // original reporter is terminated, and the cloned reporter's 'partial
+    // update' flag can be unset if necessary.
+    if (reporter->has_partial_update()) {
+      auto orig_reporter = reporter->cloned_from();
+      if (orig_reporter)
         orig_reporter->AdoptReporter(std::move(reporter));
-      }
-    } else {
-      // If the frame didn't end up being presented, keep its metrics around to
-      // be reported with the first following presented frame.
-      auto reporter_events_metrics = reporter->TakeEventsMetrics();
-      if (!reporter_events_metrics.empty()) {
-        auto& frame_events_metrics =
-            events_metrics_from_dropped_frames_[reporter->frame_id()];
-        frame_events_metrics.insert(
-            frame_events_metrics.end(),
-            std::make_move_iterator(reporter_events_metrics.begin()),
-            std::make_move_iterator(reporter_events_metrics.end()));
-      }
     }
-
-    if (feedback_failed) {
-      // When feedback is for a failed presentation, `submitted_frame` is not
-      // necessarily in the front of the queue. We will reach here only once per
-      // did-present; so, we will have 1 operation of O(n) complexity (n is the
-      // number of previous frames).
-      submitted_frame = submitted_compositor_frames_.erase(submitted_frame);
-    } else {
-      // When feedback is for a successful presentation, `submitted_frame` is in
-      // the front of the queue; so, we will have n operations of O(1)
-      // complexity for a did-present (n is the number of previous frames).
-      // `pop_front()` function is used here to shrink the queue when necessary
-      // to avoid unnecessary memory usage over time.
-      DCHECK_EQ(submitted_frame->frame_token,
-                submitted_compositor_frames_.front().frame_token);
-      submitted_compositor_frames_.pop_front();
-      submitted_frame = submitted_compositor_frames_.begin();
-    }
+    submitted_compositor_frames_.erase(submitted_frame);
   }
 }
 
@@ -583,16 +383,15 @@ void CompositorFrameReportingController::OnStoppedRequestingBeginFrames() {
                                     now);
     }
   }
-  last_started_compositor_frame_ = {};
+  previous_frame_ = {};
 }
 
-void CompositorFrameReportingController::NotifyReadyToCommit(
-    std::unique_ptr<BeginMainFrameMetrics> details) {
+void CompositorFrameReportingController::SetBlinkBreakdown(
+    std::unique_ptr<BeginMainFrameMetrics> details,
+    base::TimeTicks main_thread_start_time) {
   DCHECK(reporters_[PipelineStage::kBeginMainFrame]);
   reporters_[PipelineStage::kBeginMainFrame]->SetBlinkBreakdown(
-      std::move(details), begin_main_frame_start_time_);
-  AdvanceReporterStage(PipelineStage::kBeginMainFrame,
-                       PipelineStage::kReadyToCommit);
+      std::move(details), main_thread_start_time);
 }
 
 void CompositorFrameReportingController::AddActiveTracker(
@@ -603,38 +402,18 @@ void CompositorFrameReportingController::AddActiveTracker(
 void CompositorFrameReportingController::RemoveActiveTracker(
     FrameSequenceTrackerType type) {
   active_trackers_.reset(static_cast<size_t>(type));
-  if (global_trackers_.dropped_frame_counter)
-    global_trackers_.dropped_frame_counter->ReportFrames();
-}
-
-void CompositorFrameReportingController::SetScrollingThread(
-    FrameInfo::SmoothEffectDrivingThread thread) {
-  scrolling_thread_ = thread;
+  if (dropped_frame_counter_)
+    dropped_frame_counter_->ReportFrames();
 }
 
 void CompositorFrameReportingController::SetThreadAffectsSmoothness(
-    FrameInfo::SmoothEffectDrivingThread thread_type,
+    FrameSequenceMetrics::ThreadType thread_type,
     bool affects_smoothness) {
-  auto current_smooth_thread = GetSmoothThread();
-
-  if (thread_type == FrameInfo::SmoothEffectDrivingThread::kCompositor) {
+  if (thread_type == FrameSequenceMetrics::ThreadType::kCompositor) {
     is_compositor_thread_driving_smoothness_ = affects_smoothness;
   } else {
-    DCHECK_EQ(thread_type, FrameInfo::SmoothEffectDrivingThread::kMain);
+    DCHECK_EQ(thread_type, FrameSequenceMetrics::ThreadType::kMain);
     is_main_thread_driving_smoothness_ = affects_smoothness;
-  }
-
-  // keep the history for the last 3 seconds.
-  if (!smooth_thread_history_.empty()) {
-    auto expired_smooth_thread =
-        smooth_thread_history_.lower_bound(Now() - base::Seconds(3))--;
-    smooth_thread_history_.erase(smooth_thread_history_.begin(),
-                                 expired_smooth_thread);
-  }
-
-  // Only trackes the history if there is a change in smooth_thread_
-  if (current_smooth_thread != GetSmoothThread()) {
-    smooth_thread_history_.insert(std::make_pair(Now(), current_smooth_thread));
   }
 }
 
@@ -684,18 +463,9 @@ std::unique_ptr<CompositorFrameReporter>
 CompositorFrameReportingController::RestoreReporterAtBeginImpl(
     const viz::BeginFrameId& id) {
   auto& main_reporter = reporters_[PipelineStage::kBeginMainFrame];
-  auto& ready_to_commit_reporter = reporters_[PipelineStage::kReadyToCommit];
   auto& commit_reporter = reporters_[PipelineStage::kCommit];
-  if (main_reporter && main_reporter->frame_id() == id) {
-    DCHECK(!ready_to_commit_reporter ||
-           ready_to_commit_reporter->frame_id() != id);
-    DCHECK(!commit_reporter || commit_reporter->frame_id() != id);
+  if (main_reporter && main_reporter->frame_id() == id)
     return main_reporter->CopyReporterAtBeginImplStage();
-  }
-  if (ready_to_commit_reporter && ready_to_commit_reporter->frame_id() == id) {
-    DCHECK(!commit_reporter || commit_reporter->frame_id() != id);
-    return ready_to_commit_reporter->CopyReporterAtBeginImplStage();
-  }
   if (commit_reporter && commit_reporter->frame_id() == id)
     return commit_reporter->CopyReporterAtBeginImplStage();
   return nullptr;
@@ -717,54 +487,14 @@ CompositorFrameReportingController::GetSmoothThread() const {
              : SmoothThread::kSmoothNone;
 }
 
-CompositorFrameReporter::SmoothThread
-CompositorFrameReportingController::GetSmoothThreadAtTime(
-    base::TimeTicks timestamp) const {
-  if (smooth_thread_history_.lower_bound(timestamp) ==
-      smooth_thread_history_.end())
-    return GetSmoothThread();
-  return smooth_thread_history_.lower_bound(timestamp)->second;
-}
-
-CompositorFrameReporter*
-CompositorFrameReportingController::GetOutstandingUpdatesFromMain(
-    const viz::BeginFrameId& id) const {
-  // Any unterminated reporter in the 'main frame', or 'commit' stages, then
-  // that indicates some pending updates from the main thread.
-  {
-    const auto& reporter = reporters_[PipelineStage::kBeginMainFrame];
-    if (reporter && reporter->frame_id() < id &&
-        !reporter->did_abort_main_frame()) {
-      return reporter.get();
-    }
-  }
-  {
-    const auto& reporter = reporters_[PipelineStage::kReadyToCommit];
-    if (reporter && reporter->frame_id() < id &&
-        !reporter->did_abort_main_frame()) {
-      return reporter.get();
-    }
-  }
-  {
-    const auto& reporter = reporters_[PipelineStage::kCommit];
-    if (reporter && reporter->frame_id() < id) {
-      DCHECK(!reporter->did_abort_main_frame());
-      return reporter.get();
-    }
-  }
-  return nullptr;
-}
-
 void CompositorFrameReportingController::CreateReportersForDroppedFrames(
     const viz::BeginFrameArgs& old_args,
     const viz::BeginFrameArgs& new_args) const {
   DCHECK_EQ(new_args.frame_id.source_id, old_args.frame_id.source_id);
-  DCHECK_GE(
-      new_args.frame_id.sequence_number - new_args.frames_throttled_since_last,
-      old_args.frame_id.sequence_number);
-  const uint32_t interval = new_args.frame_id.sequence_number -
-                            old_args.frame_id.sequence_number -
-                            new_args.frames_throttled_since_last;
+  DCHECK_GE(new_args.frame_id.sequence_number,
+            old_args.frame_id.sequence_number);
+  const uint32_t interval =
+      new_args.frame_id.sequence_number - old_args.frame_id.sequence_number;
 
   // Up to 100 frames will be reported (100 closest frames to new_args).
   const uint32_t kMaxFrameCount = 100;
@@ -780,41 +510,15 @@ void CompositorFrameReportingController::CreateReportersForDroppedFrames(
         old_args.frame_id.sequence_number + i, timestamp,
         timestamp + old_args.interval, old_args.interval,
         viz::BeginFrameArgs::NORMAL);
-    devtools_instrumentation::DidBeginFrame(
-        layer_tree_host_id_, args.frame_time, args.frame_id.sequence_number);
-    // ThreadType::kUnknown is used here for scrolling thread, because the
-    // frames reported here could have a scroll interaction active at their
-    // start time, but they were skipped and history of scrolling thread might
-    // change in the diff of start time and report time.
     auto reporter = std::make_unique<CompositorFrameReporter>(
-        active_trackers_, args, should_report_histograms_,
-        GetSmoothThreadAtTime(timestamp),
-        FrameInfo::SmoothEffectDrivingThread::kUnknown, layer_tree_host_id_,
-        global_trackers_);
+        active_trackers_, args, latency_ukm_reporter_.get(),
+        should_report_metrics_, GetSmoothThread(), layer_tree_host_id_,
+        dropped_frame_counter_);
     reporter->set_tick_clock(tick_clock_);
     reporter->StartStage(StageType::kBeginImplFrameToSendBeginMainFrame,
                          timestamp);
     reporter->TerminateFrame(FrameTerminationStatus::kDidNotPresentFrame,
                              args.deadline);
-    reporter->set_is_backfill(true);
-  }
-}
-
-void CompositorFrameReportingController::AddSortedFrame(
-    const viz::BeginFrameArgs& args,
-    const FrameInfo& frame_info) {
-  if (global_trackers_.frame_sequence_trackers) {
-    global_trackers_.frame_sequence_trackers->AddSortedFrame(args, frame_info);
-  }
-}
-
-void CompositorFrameReportingController::SetDroppedFrameCounter(
-    DroppedFrameCounter* counter) {
-  global_trackers_.dropped_frame_counter = counter;
-  if (counter) {
-    counter->SetSortedFrameCallback(
-        base::BindRepeating(&CompositorFrameReportingController::AddSortedFrame,
-                            base::Unretained(this)));
   }
 }
 

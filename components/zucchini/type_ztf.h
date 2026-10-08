@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,13 +38,11 @@ struct DeltaLineCol {
 };
 
 constexpr DeltaLineCol operator-(const LineCol& lhs, const LineCol& rhs) {
-  return DeltaLineCol{static_cast<dim_t>(lhs.line - rhs.line),
-                      static_cast<dim_t>(lhs.col - rhs.col)};
+  return DeltaLineCol{lhs.line - rhs.line, lhs.col - rhs.col};
 }
 
 constexpr LineCol operator+(const LineCol& lhs, const DeltaLineCol& rhs) {
-  return LineCol{static_cast<dim_t>(lhs.line + rhs.line),
-                 static_cast<dim_t>(lhs.col + rhs.col)};
+  return LineCol{lhs.line + rhs.line, lhs.col + rhs.col};
 }
 
 }  // namespace ztf

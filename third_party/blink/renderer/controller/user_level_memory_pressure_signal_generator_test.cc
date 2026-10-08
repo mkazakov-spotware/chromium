@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,11 +35,7 @@ class MockMemoryUsageMonitor : public MemoryUsageMonitor {
 class MockUserLevelMemoryPressureSignalGenerator
     : public UserLevelMemoryPressureSignalGenerator {
  public:
-  explicit MockUserLevelMemoryPressureSignalGenerator(
-      scoped_refptr<base::TestMockTimeTaskRunner> mock_time_task_runner)
-      : UserLevelMemoryPressureSignalGenerator(
-            mock_time_task_runner,
-            mock_time_task_runner->GetMockTickClock()) {
+  MockUserLevelMemoryPressureSignalGenerator() {
     ON_CALL(*this, Generate(_))
         .WillByDefault(testing::Invoke(
             this, &MockUserLevelMemoryPressureSignalGenerator::RealGenerate));
@@ -96,7 +92,7 @@ class UserLevelMemoryPressureSignalGeneratorTest : public testing::Test {
 constexpr double kMemoryThresholdBytes = 1024 * 1024 * 1024;
 
 // Flaky on Android, see crbug/1054788.
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #define MAYBE_GeneratesWhenOverThreshold DISABLED_GeneratesWhenOverThreshold
 #else
 #define MAYBE_GeneratesWhenOverThreshold GeneratesWhenOverThreshold
@@ -108,7 +104,8 @@ TEST_F(UserLevelMemoryPressureSignalGeneratorTest,
         std::make_unique<MockMemoryUsageMonitor>();
     ScopedMockMemoryUsageMonitor mock_memory_usage_scope(
         mock_memory_usage_monitor.get());
-    MockUserLevelMemoryPressureSignalGenerator generator(test_task_runner_);
+    MockUserLevelMemoryPressureSignalGenerator generator;
+    generator.SetTickClockForTesting(test_task_runner_->GetMockTickClock());
     // Ensure we are not loading as no signals are sent during a loading phase.
     generator.OnRAILModeChanged(RAILMode::kAnimation);
     {
@@ -121,8 +118,8 @@ TEST_F(UserLevelMemoryPressureSignalGeneratorTest,
       usage.swap_bytes = 0;
       usage.vm_size_bytes = 0;
       mock_memory_usage_monitor->SetMockMemoryUsage(usage);
-      AdvanceClock(base::Seconds(1));
-      test::RunDelayedTasks(base::Seconds(1));
+      AdvanceClock(base::TimeDelta::FromSeconds(1));
+      test::RunDelayedTasks(base::TimeDelta::FromSeconds(1));
     }
     {
       EXPECT_CALL(generator, Generate(_)).Times(1);
@@ -134,14 +131,14 @@ TEST_F(UserLevelMemoryPressureSignalGeneratorTest,
       usage.swap_bytes = 0;
       usage.vm_size_bytes = 0;
       mock_memory_usage_monitor->SetMockMemoryUsage(usage);
-      AdvanceClock(base::Minutes(10));
-      test::RunDelayedTasks(base::Seconds(1));
+      AdvanceClock(base::TimeDelta::FromMinutes(10));
+      test::RunDelayedTasks(base::TimeDelta::FromSeconds(1));
     }
   }
 }
 
 // Flaky on Android, see crbug/1058178.
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #define MAYBE_GenerationPauses DISABLED_GenerationPauses
 #else
 #define MAYBE_GenerationPauses GenerationPauses
@@ -152,7 +149,8 @@ TEST_F(UserLevelMemoryPressureSignalGeneratorTest, MAYBE_GenerationPauses) {
         std::make_unique<MockMemoryUsageMonitor>();
     ScopedMockMemoryUsageMonitor mock_memory_usage_scope(
         mock_memory_usage_monitor.get());
-    MockUserLevelMemoryPressureSignalGenerator generator(test_task_runner_);
+    MockUserLevelMemoryPressureSignalGenerator generator;
+    generator.SetTickClockForTesting(test_task_runner_->GetMockTickClock());
     // Ensure we are not loading as no signals are sent during a loading phase.
     generator.OnRAILModeChanged(RAILMode::kAnimation);
     {
@@ -164,33 +162,33 @@ TEST_F(UserLevelMemoryPressureSignalGeneratorTest, MAYBE_GenerationPauses) {
       usage.swap_bytes = 0;
       usage.vm_size_bytes = 0;
       mock_memory_usage_monitor->SetMockMemoryUsage(usage);
-      AdvanceClock(base::Minutes(10));
+      AdvanceClock(base::TimeDelta::FromMinutes(10));
       // Generated
       {
         EXPECT_CALL(generator, Generate(_)).Times(1);
-        test::RunDelayedTasks(base::Seconds(1));
+        test::RunDelayedTasks(base::TimeDelta::FromSeconds(1));
       }
 
-      AdvanceClock(base::Minutes(1));
+      AdvanceClock(base::TimeDelta::FromMinutes(1));
       // Not generated because too soon
       {
         EXPECT_CALL(generator, Generate(_)).Times(0);
-        test::RunDelayedTasks(base::Seconds(1));
+        test::RunDelayedTasks(base::TimeDelta::FromSeconds(1));
       }
 
-      AdvanceClock(base::Minutes(10));
+      AdvanceClock(base::TimeDelta::FromMinutes(10));
       generator.OnRAILModeChanged(RAILMode::kLoad);
       // Not generated because loading
       {
         EXPECT_CALL(generator, Generate(_)).Times(0);
-        test::RunDelayedTasks(base::Seconds(1));
+        test::RunDelayedTasks(base::TimeDelta::FromSeconds(1));
       }
 
       generator.OnRAILModeChanged(RAILMode::kAnimation);
       // Generated
       {
         EXPECT_CALL(generator, Generate(_)).Times(1);
-        test::RunDelayedTasks(base::Seconds(1));
+        test::RunDelayedTasks(base::TimeDelta::FromSeconds(1));
       }
     }
   }

@@ -1,4 +1,4 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -41,29 +41,11 @@ source_set("time_zone_monitor") {
 
   if (is_linux) {
     sources += [ "time_zone_monitor_linux.cc" ]
-    deps += [ "//build:chromeos_buildflags" ]
   }
 
-  if (is_chromeos_ash) {
-    sources += [ "time_zone_monitor_ash.cc" ]
-    deps += [ "//chromeos/ash/components/settings" ]
-  }
-
-  if (is_chromeos_lacros) {
-    sources += [
-      "time_zone_monitor_lacros.cc",
-      "time_zone_monitor_lacros.h",
-
-      # Keep using linux implementation as a fallback.
-      # TODO(crbug.com/1288168): TODO clean up this, when we no longer need
-      # to support older ash.
-      "time_zone_monitor_linux.cc",
-    ]
-    deps += [
-      "//build:chromeos_buildflags",
-      "//chromeos/crosapi/mojom",
-      "//chromeos/lacros",
-    ]
+  if (is_ash) {
+    sources += [ "time_zone_monitor_chromeos.cc" ]
+    deps += [ "//chromeos/settings" ]
   }
 
   if (is_mac) {
@@ -91,7 +73,6 @@ if (is_android) {
     deps = [
       "//base:base_java",
       "//base:jni_java",
-      "//build/android:build_java",
     ]
     annotation_processor_deps = [ "//base/android/jni_generator:jni_processor" ]
   }

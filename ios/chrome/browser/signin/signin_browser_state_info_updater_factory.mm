@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,11 @@
 #error "This file requires ARC support."
 #endif
 
-#import "base/no_destructor.h"
-#import "components/keyed_service/ios/browser_state_dependency_manager.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/signin/identity_manager_factory.h"
-#import "ios/chrome/browser/signin/signin_browser_state_info_updater.h"
-#import "ios/chrome/browser/signin/signin_error_controller_factory.h"
+#include "components/keyed_service/ios/browser_state_dependency_manager.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/signin/identity_manager_factory.h"
+#include "ios/chrome/browser/signin/signin_browser_state_info_updater.h"
+#include "ios/chrome/browser/signin/signin_error_controller_factory.h"
 
 // static
 SigninBrowserStateInfoUpdater*

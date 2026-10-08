@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "content/public/browser/bluetooth_chooser.h"
 
 namespace content {
@@ -20,12 +21,6 @@ class WebTestFirstDeviceBluetoothChooser : public BluetoothChooser {
   // used.
   explicit WebTestFirstDeviceBluetoothChooser(
       const EventHandler& event_handler);
-
-  WebTestFirstDeviceBluetoothChooser(
-      const WebTestFirstDeviceBluetoothChooser&) = delete;
-  WebTestFirstDeviceBluetoothChooser& operator=(
-      const WebTestFirstDeviceBluetoothChooser&) = delete;
-
   ~WebTestFirstDeviceBluetoothChooser() override;
 
   // BluetoothChooser:
@@ -33,13 +28,15 @@ class WebTestFirstDeviceBluetoothChooser : public BluetoothChooser {
   void ShowDiscoveryState(DiscoveryState state) override;
   void AddOrUpdateDevice(const std::string& device_id,
                          bool should_update_name,
-                         const std::u16string& device_name,
+                         const base::string16& device_name,
                          bool is_gatt_connected,
                          bool is_paired,
                          int signal_strength_level) override;
 
  private:
   EventHandler event_handler_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebTestFirstDeviceBluetoothChooser);
 };
 
 }  // namespace content

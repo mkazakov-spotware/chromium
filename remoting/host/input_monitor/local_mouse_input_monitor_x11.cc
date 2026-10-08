@@ -1,8 +1,7 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/memory/raw_ptr.h"
 #include "remoting/host/input_monitor/local_pointer_input_monitor.h"
 
 #include <sys/select.h>
@@ -13,16 +12,16 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/compiler_specific.h"
+#include "base/files/file_descriptor_watcher_posix.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
-#include "base/task/single_thread_task_runner.h"
-#include "remoting/host/input_monitor/local_input_monitor_x11_common.h"
+#include "base/single_thread_task_runner.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_geometry.h"
+#include "ui/events/devices/x11/xinput_util.h"
 #include "ui/events/event.h"
 #include "ui/gfx/x/connection.h"
-#include "ui/gfx/x/event.h"
-#include "ui/gfx/x/future.h"
 #include "ui/gfx/x/xinput.h"
 #include "ui/gfx/x/xproto.h"
 
@@ -37,24 +36,16 @@ class LocalMouseInputMonitorX11 : public LocalPointerInputMonitor {
       scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner,
       scoped_refptr<base::SingleThreadTaskRunner> input_task_runner,
       LocalInputMonitor::PointerMoveCallback on_mouse_move);
-
-  LocalMouseInputMonitorX11(const LocalMouseInputMonitorX11&) = delete;
-  LocalMouseInputMonitorX11& operator=(const LocalMouseInputMonitorX11&) =
-      delete;
-
   ~LocalMouseInputMonitorX11() override;
 
  private:
   // The actual implementation resides in LocalMouseInputMonitorX11::Core class.
   class Core : public base::RefCountedThreadSafe<Core>,
-               public x11::EventObserver {
+               public x11::Connection::Delegate {
    public:
     Core(scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner,
          scoped_refptr<base::SingleThreadTaskRunner> input_task_runner,
          LocalInputMonitor::PointerMoveCallback on_mouse_move);
-
-    Core(const Core&) = delete;
-    Core& operator=(const Core&) = delete;
 
     void Start();
     void Stop();
@@ -69,8 +60,9 @@ class LocalMouseInputMonitorX11 : public LocalPointerInputMonitor {
     // Called when there are pending X events.
     void OnConnectionData();
 
-    // x11::EventObserver:
-    void OnEvent(const x11::Event& event) override;
+    // x11::Connection::Delegate:
+    bool ShouldContinueStream() const override;
+    void DispatchXEvent(x11::Event* event) override;
 
     // Task runner on which public methods of this class must be called.
     scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner_;
@@ -81,12 +73,19 @@ class LocalMouseInputMonitorX11 : public LocalPointerInputMonitor {
     // Used to send mouse event notifications.
     LocalInputMonitor::PointerMoveCallback on_mouse_move_;
 
-    raw_ptr<x11::Connection> connection_ = nullptr;
+    // Controls watching X events.
+    std::unique_ptr<base::FileDescriptorWatcher::Controller> controller_;
+
+    std::unique_ptr<x11::Connection> connection_;
+
+    DISALLOW_COPY_AND_ASSIGN(Core);
   };
 
   scoped_refptr<Core> core_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(LocalMouseInputMonitorX11);
 };
 
 LocalMouseInputMonitorX11::LocalMouseInputMonitorX11(
@@ -128,45 +127,63 @@ void LocalMouseInputMonitorX11::Core::Stop() {
                                base::BindOnce(&Core::StopOnInputThread, this));
 }
 
-LocalMouseInputMonitorX11::Core::~Core() = default;
+LocalMouseInputMonitorX11::Core::~Core() {
+  DCHECK(!connection_);
+}
 
 void LocalMouseInputMonitorX11::Core::StartOnInputThread() {
   DCHECK(input_task_runner_->BelongsToCurrentThread());
   DCHECK(!connection_);
 
-  connection_ = x11::Connection::Get();
-  connection_->AddEventObserver(this);
+  // TODO(jamiewalch): We should pass the connection in.
+  connection_ = std::make_unique<x11::Connection>();
 
   if (!connection_->xinput().present()) {
-    LOG(ERROR) << "X Input extension not available.";
+    LOG(ERROR) << "X Record extension not available.";
     return;
   }
   // Let the server know the client XInput version.
   connection_->xinput().XIQueryVersion(
       {x11::Input::major_version, x11::Input::minor_version});
 
-  auto mask = CommonXIEventMaskForRootWindow();
+  x11::Input::XIEventMask mask;
+  ui::SetXinputMask(&mask, x11::Input::RawDeviceEvent::RawMotion);
   connection_->xinput().XISelectEvents(
       {connection_->default_root(),
        {{x11::Input::DeviceId::AllMaster, {mask}}}});
   connection_->Flush();
+
+  // Register OnConnectionData() to be called every time there is
+  // something to read from |connection_|.
+  controller_ = base::FileDescriptorWatcher::WatchReadable(
+      connection_->GetFd(),
+      base::BindRepeating(&Core::OnConnectionData, base::Unretained(this)));
+
+  // Fetch pending events if any.
+  OnConnectionData();
 }
 
 void LocalMouseInputMonitorX11::Core::StopOnInputThread() {
   DCHECK(input_task_runner_->BelongsToCurrentThread());
-  connection_->RemoveEventObserver(this);
+  controller_.reset();
+  connection_.reset();
 }
 
-void LocalMouseInputMonitorX11::Core::OnEvent(const x11::Event& event) {
+void LocalMouseInputMonitorX11::Core::OnConnectionData() {
+  DCHECK(input_task_runner_->BelongsToCurrentThread());
+  connection_->Dispatch(this);
+}
+
+bool LocalMouseInputMonitorX11::Core::ShouldContinueStream() const {
+  return true;
+}
+
+void LocalMouseInputMonitorX11::Core::DispatchXEvent(x11::Event* event) {
   DCHECK(input_task_runner_->BelongsToCurrentThread());
 
-  auto* raw = event.As<x11::Input::RawDeviceEvent>();
-  // The X server may send unsolicited MappingNotify events without having
-  // selected them.
-  if (!raw)
-    return;
-  if (raw->opcode != x11::Input::RawDeviceEvent::RawMotion)
-    return;
+  auto* raw = event->As<x11::Input::RawDeviceEvent>();
+  DCHECK(raw);
+  DCHECK(raw->opcode == x11::Input::RawDeviceEvent::RawMotion);
 
   connection_->QueryPointer({connection_->default_root()})
       .OnResponse(base::BindOnce(

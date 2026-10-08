@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,20 +33,20 @@ class AutofillInternalsWebUIBrowserTest : public InProcessBrowserTest {
 
   void SpinRunLoop() {
     base::RunLoop run_loop;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-        FROM_HERE, run_loop.QuitClosure(), base::Milliseconds(20));
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+        FROM_HERE, run_loop.QuitClosure(),
+        base::TimeDelta::FromMilliseconds(20));
     run_loop.Run();
   }
 };
 
 IN_PROC_BROWSER_TEST_F(AutofillInternalsWebUIBrowserTest, ResetCache) {
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), GURL("chrome://autofill-internals")));
+  ui_test_utils::NavigateToURL(browser(), GURL("chrome://autofill-internals"));
 
   // Wait for reset-fake-button to become visible
   constexpr char kGetResetButtonDisplayStyle[] =
       "document.getElementById('reset-cache-fake-button').style.display";
-  while ("inline" != EvalJs(kGetResetButtonDisplayStyle))
+  while ("inline-block" != EvalJs(kGetResetButtonDisplayStyle))
     SpinRunLoop();
 
   // Trigger reset button.

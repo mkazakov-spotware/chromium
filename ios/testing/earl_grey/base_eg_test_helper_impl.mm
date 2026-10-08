@@ -1,12 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/testing/earl_grey/base_eg_test_helper_impl.h"
 
-#import "base/debug/stack_trace.h"
-#import "base/logging.h"
-#import "ios/testing/earl_grey/earl_grey_test.h"
+#include "ios/testing/earl_grey/earl_grey_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -50,8 +48,6 @@
   if (!fail)
     return;
 
-  DLOG(WARNING) << "\n" << base::debug::StackTrace(/*count=*/15).ToString();
-
   NSString* reason =
       [NSString stringWithFormat:@"%@ is false: %@", expression, description];
   [self failWithExceptionName:@"expression error" reason:reason];
@@ -66,7 +62,7 @@
 - (void)failWithExceptionName:(NSString*)name reason:(NSString*)reason {
   GREYFrameworkException* exception =
       [GREYFrameworkException exceptionWithName:name reason:reason];
-  [_impl handleException:exception details:reason];
+  [_impl handleException:exception details:@""];
 }
 
 @end

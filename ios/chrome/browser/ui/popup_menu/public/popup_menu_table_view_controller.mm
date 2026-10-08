@@ -1,20 +1,20 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/popup_menu/public/popup_menu_table_view_controller.h"
 
-#import "base/ios/ios_util.h"
-#import "base/metrics/user_metrics.h"
-#import "base/metrics/user_metrics_action.h"
-#import "ios/chrome/browser/ui/popup_menu/popup_menu_metrics_handler.h"
+#include "base/feature_list.h"
+#include "base/ios/ios_util.h"
+#include "base/metrics/user_metrics.h"
+#include "base/metrics/user_metrics_action.h"
 #import "ios/chrome/browser/ui/popup_menu/public/cells/popup_menu_footer_item.h"
 #import "ios/chrome/browser/ui/popup_menu/public/cells/popup_menu_item.h"
 #import "ios/chrome/browser/ui/popup_menu/public/popup_menu_table_view_controller_delegate.h"
 #import "ios/chrome/browser/ui/popup_menu/public/popup_menu_ui_constants.h"
 #import "ios/chrome/browser/ui/table_view/chrome_table_view_styler.h"
+#include "ios/chrome/browser/ui/ui_feature_flags.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
-#import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/pointer_interaction_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -30,14 +30,12 @@ const CGFloat kScrollIndicatorVerticalInsets = 11;
 @interface PopupMenuTableViewController ()
 // Whether the -viewDidAppear: callback has been called.
 @property(nonatomic, assign) BOOL viewDidAppear;
-// A cached copy of `self.view.bounds`, made during calls to
-// viewDidLayoutSubviews, and used to reduce the number of calls to
-// calculatePreferredContentSize. which can be an expensive operation.
-@property(nonatomic, assign) CGRect cachedBounds;
+#if defined(__IPHONE_13_4)
 // Tracks reusable cells in memory, which has an upper limit. This is used to
 // ensure that pointer interaction is added only once to a cell.
 @property(nonatomic, strong)
     NSHashTable<UITableViewCell*>* cellsInMemory API_AVAILABLE(ios(13.4));
+#endif  // defined(__IPHONE_13_4)
 @end
 
 @implementation PopupMenuTableViewController
@@ -51,8 +49,14 @@ const CGFloat kScrollIndicatorVerticalInsets = 11;
 - (instancetype)init {
   self = [super initWithStyle:UITableViewStyleGrouped];
   if (self) {
-    self.cellsInMemory = [NSHashTable<UITableViewCell*> weakObjectsHashTable];
-    self.cachedBounds = CGRectZero;
+#if defined(__IPHONE_13_4)
+    if (@available(iOS 13.4, *)) {
+      if (base::FeatureList::IsEnabled(kPointerSupport)) {
+        self.cellsInMemory =
+            [NSHashTable<UITableViewCell*> weakObjectsHashTable];
+      }
+    }
+#endif  // defined(__IPHONE_13_4)
   }
   return self;
 }
@@ -137,7 +141,6 @@ const CGFloat kScrollIndicatorVerticalInsets = 11;
 
 - (void)viewDidLoad {
   self.styler.tableViewBackgroundColor = nil;
-  self.styler.cellBackgroundColor = [UIColor colorNamed:kBackgroundColor];
   [super viewDidLoad];
   self.tableView.contentInset = UIEdgeInsetsMake(kPopupMenuVerticalInsets, 0,
                                                  kPopupMenuVerticalInsets, 0);
@@ -167,13 +170,7 @@ const CGFloat kScrollIndicatorVerticalInsets = 11;
 - (void)viewDidLayoutSubviews {
   [super viewDidLayoutSubviews];
 
-  // -calculatePreferredContentSize is a somewhat expensive operation and may
-  // be responsible for some system hangs. Optimize away some calls by checking
-  // if bounds changed first. See crbug.com/1257151 for more context.
-  if (!CGRectEqualToRect(self.cachedBounds, self.view.bounds)) {
-    self.preferredContentSize = [self calculatePreferredContentSize];
-    self.cachedBounds = self.view.bounds;
-  }
+  self.preferredContentSize = [self calculatePreferredContentSize];
 }
 
 - (CGSize)calculatePreferredContentSize {
@@ -182,7 +179,7 @@ const CGFloat kScrollIndicatorVerticalInsets = 11;
   for (NSInteger section = 0; section < [self.tableViewModel numberOfSections];
        section++) {
     NSInteger sectionIdentifier =
-        [self.tableViewModel sectionIdentifierForSectionIndex:section];
+        [self.tableViewModel sectionIdentifierForSection:section];
     for (TableViewItem<PopupMenuItem>* item in
          [self.tableViewModel itemsInSectionWithIdentifier:sectionIdentifier]) {
       CGSize sizeForCell = [item cellSizeForWidth:self.view.bounds.size.width];
@@ -197,17 +194,10 @@ const CGFloat kScrollIndicatorVerticalInsets = 11;
   return CGSizeMake(width, ceil(height));
 }
 
-#pragma mark - UIScrollViewDelegate
-
-- (void)scrollViewDidScroll:(UIScrollView*)scrollView {
-  [self.metricsHandler popupMenuScrolledVertically];
-}
-
 #pragma mark - UITableViewDelegate
 
 - (void)tableView:(UITableView*)tableView
     didSelectRowAtIndexPath:(NSIndexPath*)indexPath {
-  [self.metricsHandler popupMenuTookAction];
   UIView* cell = [self.tableView cellForRowAtIndexPath:indexPath];
   CGPoint center = [cell convertPoint:cell.center toView:nil];
   [self.delegate popupMenuTableViewController:self
@@ -236,17 +226,23 @@ const CGFloat kScrollIndicatorVerticalInsets = 11;
         cellForRowAtIndexPath:(NSIndexPath*)indexPath {
   UITableViewCell* cell = [super tableView:tableView
                      cellForRowAtIndexPath:indexPath];
-  if (![self.cellsInMemory containsObject:cell]) {
-    [cell addInteraction:[[ViewPointerInteraction alloc] init]];
-    [self.cellsInMemory addObject:cell];
+#if defined(__IPHONE_13_4)
+  if (@available(iOS 13.4, *)) {
+    if (base::FeatureList::IsEnabled(kPointerSupport)) {
+      if (![self.cellsInMemory containsObject:cell]) {
+        [cell addInteraction:[[ViewPointerInteraction alloc] init]];
+        [self.cellsInMemory addObject:cell];
+      }
+    }
   }
+#endif  // defined(__IPHONE_13_4)
   return cell;
 }
 
 #pragma mark - Private
 
-// Returns the index path identifying the the row at the position `point`.
-// `point` must be in the window coordinates. Returns nil if `point` is outside
+// Returns the index path identifying the the row at the position |point|.
+// |point| must be in the window coordinates. Returns nil if |point| is outside
 // the bounds of the table view.
 - (NSIndexPath*)indexPathForInnerRowAtPoint:(CGPoint)point {
   CGPoint pointInTableViewCoordinates = [self.tableView convertPoint:point
@@ -265,7 +261,7 @@ const CGFloat kScrollIndicatorVerticalInsets = 11;
   return indexPath;
 }
 
-// Highlights the `item` and `repeat` the highlighting once.
+// Highlights the |item| and |repeat| the highlighting once.
 - (void)highlightItem:(TableViewItem<PopupMenuItem>*)item repeat:(BOOL)repeat {
   NSIndexPath* indexPath = [self.tableViewModel indexPathForItem:item];
   [self.tableView selectRowAtIndexPath:indexPath
@@ -279,7 +275,7 @@ const CGFloat kScrollIndicatorVerticalInsets = 11;
       });
 }
 
-// Removes the highlight from `item` and `repeat` the highlighting once.
+// Removes the highlight from |item| and |repeat| the highlighting once.
 - (void)unhighlightItem:(TableViewItem<PopupMenuItem>*)item
                  repeat:(BOOL)repeat {
   NSIndexPath* indexPath = [self.tableViewModel indexPathForItem:item];

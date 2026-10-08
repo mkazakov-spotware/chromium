@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <math.h>
 
 #include <array>
-#include <memory>
 
 #include "base/check.h"
 #include "remoting/client/display/canvas.h"
@@ -55,7 +54,7 @@ void GlCursorFeedback::SetCanvas(base::WeakPtr<Canvas> canvas) {
     layer_.reset();
     return;
   }
-  layer_ = std::make_unique<GlRenderLayer>(kGlCursorFeedbackTextureId, canvas);
+  layer_.reset(new GlRenderLayer(kGlCursorFeedbackTextureId, canvas));
   GlCursorFeedbackTexture* texture = GlCursorFeedbackTexture::GetInstance();
   layer_->SetTexture(texture->GetTexture().data(),
                      GlCursorFeedbackTexture::kTextureWidth,

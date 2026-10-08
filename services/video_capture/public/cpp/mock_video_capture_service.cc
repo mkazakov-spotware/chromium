@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,12 +23,12 @@ void MockVideoCaptureService::ConnectToVideoSourceProvider(
   DoConnectToVideoSourceProvider(std::move(receiver));
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_ASH)
 void MockVideoCaptureService::InjectGpuDependencies(
     mojo::PendingRemote<video_capture::mojom::AcceleratorFactory>
         accelerator_factory) {
   DoInjectGpuDependencies(std::move(accelerator_factory));
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_ASH)
 
 }  // namespace video_capture

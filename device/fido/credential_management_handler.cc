@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,9 @@
 #include "base/bind.h"
 #include "base/check_op.h"
 #include "base/notreached.h"
+#include "components/cbor/reader.h"
+#include "components/cbor/values.h"
+#include "components/cbor/writer.h"
 #include "device/fido/fido_authenticator.h"
 #include "device/fido/fido_constants.h"
 #include "device/fido/pin.h"
@@ -74,13 +77,6 @@ void CredentialManagementHandler::OnTouch(FidoAuthenticator* authenticator) {
     return;
   }
 
-  if (authenticator->ForcePINChange()) {
-    state_ = State::kFinished;
-    std::move(finished_callback_)
-        .Run(CredentialManagementStatus::kForcePINChange);
-    return;
-  }
-
   authenticator_ = authenticator;
   authenticator_->GetPinRetries(
       base::BindOnce(&CredentialManagementHandler::OnRetriesResponse,
@@ -89,7 +85,7 @@ void CredentialManagementHandler::OnTouch(FidoAuthenticator* authenticator) {
 
 void CredentialManagementHandler::OnRetriesResponse(
     CtapDeviceResponseCode status,
-    absl::optional<pin::RetriesResponse> response) {
+    base::Optional<pin::RetriesResponse> response) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK_EQ(state_, State::kGettingRetries);
   if (status != CtapDeviceResponseCode::kSuccess) {
@@ -105,13 +101,9 @@ void CredentialManagementHandler::OnRetriesResponse(
     return;
   }
   state_ = State::kWaitingForPIN;
-  get_pin_callback_.Run(
-      {.min_pin_length = authenticator_->CurrentMinPINLength(),
-       .pin_retries = response->retries,
-       .supports_update_user_information =
-           authenticator_->SupportsUpdateUserInformation()},
-      base::BindOnce(&CredentialManagementHandler::OnHavePIN,
-                     weak_factory_.GetWeakPtr()));
+  get_pin_callback_.Run(response->retries,
+                        base::BindOnce(&CredentialManagementHandler::OnHavePIN,
+                                       weak_factory_.GetWeakPtr()));
 }
 
 void CredentialManagementHandler::OnHavePIN(std::string pin) {
@@ -127,14 +119,14 @@ void CredentialManagementHandler::OnHavePIN(std::string pin) {
   state_ = State::kGettingPINToken;
   authenticator_->GetPINToken(
       std::move(pin), {pin::Permissions::kCredentialManagement},
-      /*rp_id=*/absl::nullopt,
+      /*rp_id=*/base::nullopt,
       base::BindOnce(&CredentialManagementHandler::OnHavePINToken,
                      weak_factory_.GetWeakPtr()));
 }
 
 void CredentialManagementHandler::OnHavePINToken(
     CtapDeviceResponseCode status,
-    absl::optional<pin::TokenResponse> response) {
+    base::Optional<pin::TokenResponse> response) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK_EQ(state_, State::kGettingPINToken);
 
@@ -189,7 +181,7 @@ void CredentialManagementHandler::GetCredentials(
 static void OnDeleteCredential(
     CredentialManagementHandler::DeleteCredentialCallback callback,
     CtapDeviceResponseCode status,
-    absl::optional<DeleteCredentialResponse> response) {
+    base::Optional<DeleteCredentialResponse> response) {
   std::move(callback).Run(status);
 }
 
@@ -210,10 +202,10 @@ void CredentialManagementHandler::DeleteCredential(
 }
 
 void CredentialManagementHandler::OnDeleteCredentials(
-    std::vector<device::PublicKeyCredentialDescriptor> remaining_credential_ids,
+    std::vector<std::vector<uint8_t>> remaining_credential_ids,
     CredentialManagementHandler::DeleteCredentialCallback callback,
     CtapDeviceResponseCode status,
-    absl::optional<DeleteCredentialResponse> response) {
+    base::Optional<DeleteCredentialResponse> response) {
   if (status != CtapDeviceResponseCode::kSuccess ||
       remaining_credential_ids.empty()) {
     std::move(callback).Run(status);
@@ -227,8 +219,8 @@ void CredentialManagementHandler::OnDeleteCredentials(
     return;
   }
 
-  device::PublicKeyCredentialDescriptor credential_id =
-      std::move(remaining_credential_ids.back());
+  auto credential_id = *PublicKeyCredentialDescriptor::CreateFromCBORValue(
+      *cbor::Reader::Read(remaining_credential_ids.back()));
   remaining_credential_ids.pop_back();
   authenticator_->DeleteCredential(
       *pin_token_, credential_id,
@@ -238,7 +230,7 @@ void CredentialManagementHandler::OnDeleteCredentials(
 }
 
 void CredentialManagementHandler::DeleteCredentials(
-    std::vector<device::PublicKeyCredentialDescriptor> credential_ids,
+    std::vector<std::vector<uint8_t>> credential_ids,
     DeleteCredentialCallback callback) {
   DCHECK(state_ == State::kReady && !get_credentials_callback_);
   if (!authenticator_) {
@@ -254,8 +246,8 @@ void CredentialManagementHandler::DeleteCredentials(
     return;
   }
 
-  device::PublicKeyCredentialDescriptor credential_id =
-      std::move(credential_ids.back());
+  auto credential_id = *PublicKeyCredentialDescriptor::CreateFromCBORValue(
+      *cbor::Reader::Read(credential_ids.back()));
   credential_ids.pop_back();
   authenticator_->DeleteCredential(
       *pin_token_, credential_id,
@@ -264,38 +256,13 @@ void CredentialManagementHandler::DeleteCredentials(
                      std::move(callback)));
 }
 
-static void OnUpdateUserInformation(
-    CredentialManagementHandler::UpdateUserInformationCallback callback,
-    CtapDeviceResponseCode status,
-    absl::optional<UpdateUserInformationResponse> response) {
-  std::move(callback).Run(status);
-}
-
-void CredentialManagementHandler::UpdateUserInformation(
-    const PublicKeyCredentialDescriptor& credential_id,
-    const PublicKeyCredentialUserEntity& updated_user,
-    UpdateUserInformationCallback callback) {
-  DCHECK(state_ == State::kReady && !get_credentials_callback_);
-  if (!authenticator_) {
-    // AuthenticatorRemoved() may have been called, but the observer would have
-    // seen a FidoAuthenticatorRemoved() call.
-    NOTREACHED();
-    return;
-  }
-  DCHECK(pin_token_);
-
-  authenticator_->UpdateUserInformation(
-      *pin_token_, credential_id, updated_user,
-      base::BindOnce(&OnUpdateUserInformation, std::move(callback)));
-}
-
 void CredentialManagementHandler::OnCredentialsMetadata(
     CtapDeviceResponseCode status,
-    absl::optional<CredentialsMetadataResponse> response) {
+    base::Optional<CredentialsMetadataResponse> response) {
   if (status != CtapDeviceResponseCode::kSuccess) {
     state_ = State::kFinished;
     std::move(get_credentials_callback_)
-        .Run(status, absl::nullopt, absl::nullopt);
+        .Run(status, base::nullopt, base::nullopt);
     return;
   }
   authenticator_->EnumerateCredentials(
@@ -307,21 +274,24 @@ void CredentialManagementHandler::OnCredentialsMetadata(
 void CredentialManagementHandler::OnEnumerateCredentials(
     CredentialsMetadataResponse metadata_response,
     CtapDeviceResponseCode status,
-    absl::optional<std::vector<AggregatedEnumerateCredentialsResponse>>
+    base::Optional<std::vector<AggregatedEnumerateCredentialsResponse>>
         responses) {
   if (status != CtapDeviceResponseCode::kSuccess) {
     state_ = State::kFinished;
     std::move(get_credentials_callback_)
-        .Run(status, absl::nullopt, absl::nullopt);
+        .Run(status, base::nullopt, base::nullopt);
     return;
   }
 
-  // Sort credentials by (RP ID, userId) ascending.
+  // Sort credentials by (RP ID, username, user) ascending.
   for (auto& response : *responses) {
     std::sort(response.credentials.begin(), response.credentials.end(),
               [](const EnumerateCredentialsResponse& a,
                  const EnumerateCredentialsResponse& b) {
-                return a.user.id < b.user.id;
+                if (a.user.name == b.user.name) {
+                  return a.user.id < b.user.id;
+                }
+                return a.user.name < b.user.name;
               });
   }
   std::sort(responses->begin(), responses->end(),

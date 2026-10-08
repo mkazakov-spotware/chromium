@@ -1,40 +1,39 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
+#include "chrome/browser/sync/test/integration/profile_sync_service_harness.h"
 #include "chrome/browser/sync/test/integration/session_hierarchy_match_checker.h"
 #include "chrome/browser/sync/test/integration/sessions_helper.h"
-#include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "chrome/browser/sync/test/integration/updated_progress_marker_checker.h"
 #include "chrome/common/webui_url_constants.h"
-#include "components/sync/driver/glue/sync_transport_data_prefs.h"
-#include "components/sync/driver/sync_service_impl.h"
+#include "components/sync/base/sync_prefs.h"
+#include "components/sync/driver/profile_sync_service.h"
 #include "components/sync/engine/polling_constants.h"
 #include "components/sync/protocol/client_commands.pb.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
-using sessions_helper::CheckInitialState;
-using sessions_helper::OpenTab;
 using testing::Eq;
 using testing::Ge;
 using testing::Le;
+using sessions_helper::CheckInitialState;
+using sessions_helper::OpenTab;
+using syncer::SyncPrefs;
 
 namespace {
 
 class SingleClientPollingSyncTest : public SyncTest {
  public:
   SingleClientPollingSyncTest() : SyncTest(SINGLE_CLIENT) {}
+  ~SingleClientPollingSyncTest() override {}
 
-  SingleClientPollingSyncTest(const SingleClientPollingSyncTest&) = delete;
-  SingleClientPollingSyncTest& operator=(const SingleClientPollingSyncTest&) =
-      delete;
-
-  ~SingleClientPollingSyncTest() override = default;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SingleClientPollingSyncTest);
 };
 
 // This test verifies that the poll interval in prefs gets initialized if no
@@ -42,16 +41,15 @@ class SingleClientPollingSyncTest : public SyncTest {
 IN_PROC_BROWSER_TEST_F(SingleClientPollingSyncTest, ShouldInitializePollPrefs) {
   // Setup clients and verify no poll interval is present yet.
   ASSERT_TRUE(SetupClients()) << "SetupClients() failed.";
-  syncer::SyncTransportDataPrefs transport_data_prefs(
-      GetProfile(0)->GetPrefs());
-  EXPECT_TRUE(transport_data_prefs.GetPollInterval().is_zero());
-  ASSERT_TRUE(transport_data_prefs.GetLastPollTime().is_null());
+  SyncPrefs sync_prefs(GetProfile(0)->GetPrefs());
+  EXPECT_TRUE(sync_prefs.GetPollInterval().is_zero());
+  ASSERT_TRUE(sync_prefs.GetLastPollTime().is_null());
 
   // Execute a sync cycle and verify the client set up (and persisted) the
   // default value.
   ASSERT_TRUE(SetupSync()) << "SetupSync() failed.";
-  EXPECT_THAT(transport_data_prefs.GetPollInterval(),
-              Eq(syncer::kDefaultPollInterval));
+  EXPECT_THAT(sync_prefs.GetPollInterval().InSeconds(),
+              Eq(syncer::kDefaultPollIntervalSeconds));
 }
 
 // This test verifies that updates of the poll interval get persisted
@@ -74,9 +72,8 @@ IN_PROC_BROWSER_TEST_F(SingleClientPollingSyncTest,
       GetSyncService(0), GetFakeServer());
   ASSERT_TRUE(checker.Wait());
 
-  syncer::SyncTransportDataPrefs transport_data_prefs(
-      GetProfile(0)->GetPrefs());
-  EXPECT_THAT(transport_data_prefs.GetPollInterval().InSeconds(), Eq(67));
+  SyncPrefs sync_prefs(GetProfile(0)->GetPrefs());
+  EXPECT_THAT(sync_prefs.GetPollInterval().InSeconds(), Eq(67));
 }
 
 IN_PROC_BROWSER_TEST_F(SingleClientPollingSyncTest,
@@ -101,11 +98,11 @@ IN_PROC_BROWSER_TEST_F(SingleClientPollingSyncTest,
 
   ASSERT_TRUE(SetupClients()) << "SetupClients() failed.";
 
-  syncer::SyncTransportDataPrefs remote_prefs(GetProfile(0)->GetPrefs());
+  SyncPrefs remote_prefs(GetProfile(0)->GetPrefs());
   // Set small polling interval to make random delays introduced in
   // SyncSchedulerImpl::ComputeLastPollOnStart() negligible, but big enough to
   // avoid periodic polls during a test run.
-  remote_prefs.SetPollInterval(base::Seconds(300));
+  remote_prefs.SetPollInterval(base::TimeDelta::FromSeconds(300));
 
   ASSERT_TRUE(SetupSync()) << "SetupSync() failed.";
 
@@ -130,9 +127,14 @@ IN_PROC_BROWSER_TEST_F(SingleClientPollingSyncTest,
 IN_PROC_BROWSER_TEST_F(SingleClientPollingSyncTest,
                        ShouldPollWhenIntervalExpiredAcrossRestarts) {
   ASSERT_TRUE(SetupClients()) << "SetupClients() failed.";
+#if defined(OS_CHROMEOS)
+  // signin::SetRefreshTokenForPrimaryAccount() is needed on ChromeOS in order
+  // to get a non-empty refresh token on startup.
+  GetClient(0)->SignInPrimaryAccount();
+#endif  // defined(OS_CHROMEOS)
   ASSERT_TRUE(GetClient(0)->AwaitEngineInitialization());
 
-  syncer::SyncTransportDataPrefs remote_prefs(GetProfile(0)->GetPrefs());
+  SyncPrefs remote_prefs(GetProfile(0)->GetPrefs());
   ASSERT_FALSE(remote_prefs.GetLastPollTime().is_null());
 
   // After restart, the last sync cycle snapshot should be empty.

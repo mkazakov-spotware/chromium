@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,16 @@
 #include <memory>
 #include <vector>
 
-#include "base/gtest_prod_util.h"
+#include "base/optional.h"
+#include "base/stl_util.h"
 #include "cc/paint/image_analysis_state.h"
 #include "cc/paint/paint_export.h"
-#include "cc/paint/paint_flags.h"
 #include "cc/paint/paint_image.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/skia/include/core/SkImage.h"
 #include "third_party/skia/include/core/SkScalar.h"
-#include "third_party/skia/include/effects/SkGradientShader.h"
+#include "third_party/skia/include/core/SkShader.h"
+#include "ui/gfx/color_space.h"
 #include "ui/gfx/geometry/size_f.h"
-
-class SkShader;
 
 namespace gpu {
 struct Mailbox;
@@ -54,59 +52,54 @@ class CC_PAINT_EXPORT PaintShader : public SkRefCnt {
 
   static sk_sp<PaintShader> MakeEmpty();
 
-  static sk_sp<PaintShader> MakeColor(SkColor4f color);
+  static sk_sp<PaintShader> MakeColor(SkColor color);
 
-  // TODO(crbug.com/1155544) SkMatrix is deprecated in favor of SkM44.
   static sk_sp<PaintShader> MakeLinearGradient(
       const SkPoint* points,
-      const SkColor4f colors[],
+      const SkColor* colors,
       const SkScalar* pos,
       int count,
       SkTileMode mode,
-      SkGradientShader::Interpolation interpolation = DefaultInterpolation(),
       uint32_t flags = 0,
       const SkMatrix* local_matrix = nullptr,
-      SkColor4f fallback_color = SkColors::kTransparent);
+      SkColor fallback_color = SK_ColorTRANSPARENT);
 
   static sk_sp<PaintShader> MakeRadialGradient(
       const SkPoint& center,
       SkScalar radius,
-      const SkColor4f colors[],
+      const SkColor colors[],
       const SkScalar pos[],
       int color_count,
       SkTileMode mode,
-      SkGradientShader::Interpolation interpolation = DefaultInterpolation(),
       uint32_t flags = 0,
       const SkMatrix* local_matrix = nullptr,
-      SkColor4f fallback_color = SkColors::kTransparent);
+      SkColor fallback_color = SK_ColorTRANSPARENT);
 
   static sk_sp<PaintShader> MakeTwoPointConicalGradient(
       const SkPoint& start,
       SkScalar start_radius,
       const SkPoint& end,
       SkScalar end_radius,
-      const SkColor4f colors[],
+      const SkColor colors[],
       const SkScalar pos[],
       int color_count,
       SkTileMode mode,
-      SkGradientShader::Interpolation interpolation = DefaultInterpolation(),
       uint32_t flags = 0,
       const SkMatrix* local_matrix = nullptr,
-      SkColor4f fallback_color = SkColors::kTransparent);
+      SkColor fallback_color = SK_ColorTRANSPARENT);
 
   static sk_sp<PaintShader> MakeSweepGradient(
       SkScalar cx,
       SkScalar cy,
-      const SkColor4f colors[],
+      const SkColor colors[],
       const SkScalar pos[],
       int color_count,
       SkTileMode mode,
       SkScalar start_degrees,
       SkScalar end_degrees,
-      SkGradientShader::Interpolation interpolation = DefaultInterpolation(),
       uint32_t flags = 0,
       const SkMatrix* local_matrix = nullptr,
-      SkColor4f fallback_color = SkColors::kTransparent);
+      SkColor fallback_color = SK_ColorTRANSPARENT);
 
   // |tile_rect| is not null only if the |image| is paint worklet backed.
   static sk_sp<PaintShader> MakeImage(const PaintImage& image,
@@ -150,11 +143,11 @@ class CC_PAINT_EXPORT PaintShader : public SkRefCnt {
     return image_;
   }
 
-  const sk_sp<PaintRecord>& paint_record() const { return record_; }
-  bool GetRasterizationTileRect(const SkMatrix& ctm, SkRect* tile_rect) const {
-    return GetClampedRasterizationTileRect(ctm, /*max_texture_size=*/0,
-                                           tile_rect);
+  const gfx::SizeF* tile_scale() const {
+    return base::OptionalOrNullptr(tile_scale_);
   }
+  const sk_sp<PaintRecord>& paint_record() const { return record_; }
+  bool GetRasterizationTileRect(const SkMatrix& ctm, SkRect* tile_rect) const;
 
   SkTileMode tx() const { return tx_; }
   SkTileMode ty() const { return ty_; }
@@ -183,29 +176,15 @@ class CC_PAINT_EXPORT PaintShader : public SkRefCnt {
   friend class PaintOpSerializationTestUtils;
   friend class PaintOpWriter;
   friend class ScopedRasterFlags;
-  friend class ShaderPaintFilter;
   FRIEND_TEST_ALL_PREFIXES(PaintShaderTest, DecodePaintRecord);
   FRIEND_TEST_ALL_PREFIXES(PaintOpBufferTest, PaintRecordShaderSerialization);
   FRIEND_TEST_ALL_PREFIXES(PaintOpBufferTest, RecordShadersCached);
 
-  static SkGradientShader::Interpolation DefaultInterpolation() {
-    SkGradientShader::Interpolation default_interpolation;
-    return default_interpolation;
-  }
-
   explicit PaintShader(Type type);
 
-  bool GetClampedRasterizationTileRect(const SkMatrix& ctm,
-                                       int max_texture_size,
-                                       SkRect* tile_rect) const;
-
-  sk_sp<SkShader> GetSkShader(PaintFlags::FilterQuality quality) const;
-
-  // If the type needs a resolve skia object (e.g. SkImage or SkPicture), this
-  // will create and cache it internally. Most types do not need this, but it
-  // is safe to call on any type.
-  void ResolveSkObjects(const gfx::SizeF* raster_scale = nullptr,
-                        ImageProvider* image_provider = nullptr);
+  sk_sp<SkShader> GetSkShader() const;
+  void CreateSkShader(const gfx::SizeF* raster_scale = nullptr,
+                      ImageProvider* image_provider = nullptr);
 
   // Creates a PaintShader to be rasterized at the given ctm. |raster_scale| is
   // set to the scale at which the record should be rasterized when the shader
@@ -223,27 +202,23 @@ class CC_PAINT_EXPORT PaintShader : public SkRefCnt {
   // |raster_quality| is set to the filter quality the shader should be
   // rasterized with.
   // Valid only for PaintImage backed shaders.
-  sk_sp<PaintShader> CreateDecodedImage(
-      const SkMatrix& ctm,
-      PaintFlags::FilterQuality requested_quality,
-      ImageProvider* image_provider,
-      uint32_t* transfer_cache_entry_id,
-      PaintFlags::FilterQuality* raster_quality,
-      bool* needs_mips,
-      gpu::Mailbox* mailbox) const;
+  sk_sp<PaintShader> CreateDecodedImage(const SkMatrix& ctm,
+                                        SkFilterQuality requested_quality,
+                                        ImageProvider* image_provider,
+                                        uint32_t* transfer_cache_entry_id,
+                                        SkFilterQuality* raster_quality,
+                                        bool* needs_mips,
+                                        gpu::Mailbox* mailbox) const;
 
   // Creates a paint record shader for worklet-backed images.
   sk_sp<PaintShader> CreatePaintWorkletRecord(
       ImageProvider* image_provider) const;
 
-  void SetColorsAndPositions(const SkColor4f* colors,
+  void SetColorsAndPositions(const SkColor* colors,
                              const SkScalar* positions,
                              int count);
   void SetMatrixAndTiling(const SkMatrix* matrix, SkTileMode tx, SkTileMode ty);
-  void SetFlagsAndFallback(uint32_t flags, SkColor4f fallback_color);
-  void SetGradientInterpolation(SkGradientShader::Interpolation interpolation) {
-    gradient_interpolation_ = interpolation;
-  }
+  void SetFlagsAndFallback(uint32_t flags, SkColor fallback_color);
 
   Type shader_type_ = Type::kShaderCount;
 
@@ -252,10 +227,10 @@ class CC_PAINT_EXPORT PaintShader : public SkRefCnt {
   SkScalar start_radius_ = 0;
   SkTileMode tx_ = SkTileMode::kClamp;
   SkTileMode ty_ = SkTileMode::kClamp;
-  SkColor4f fallback_color_ = SkColors::kTransparent;
+  SkColor fallback_color_ = SK_ColorTRANSPARENT;
   ScalingBehavior scaling_behavior_ = ScalingBehavior::kRasterAtScale;
 
-  absl::optional<SkMatrix> local_matrix_;
+  base::Optional<SkMatrix> local_matrix_;
   SkPoint center_ = SkPoint::Make(0, 0);
   SkRect tile_ = SkRect::MakeEmpty();
 
@@ -271,16 +246,15 @@ class CC_PAINT_EXPORT PaintShader : public SkRefCnt {
 
   // For decoded PaintRecord shaders, specifies the scale at which the record
   // will be rasterized.
-  absl::optional<gfx::SizeF> tile_scale_;
+  base::Optional<gfx::SizeF> tile_scale_;
 
-  std::vector<SkColor4f> colors_;
+  std::vector<SkColor> colors_;
   std::vector<SkScalar> positions_;
 
-  SkGradientShader::Interpolation gradient_interpolation_;
-
-  // Cached intermediates, for Paint objects that may not be thread-safe
-  sk_sp<SkPicture> sk_cached_picture_;
-  sk_sp<SkImage> sk_cached_image_;
+  // The |cached_shader_| can be derived/creates from other inputs present in
+  // the PaintShader but we always construct it at creation time to ensure that
+  // accesses to it are thread-safe.
+  sk_sp<SkShader> cached_shader_;
 
   ImageAnalysisState image_analysis_state_ = ImageAnalysisState::kNoAnalysis;
 };

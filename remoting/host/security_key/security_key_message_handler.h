@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/callback.h"
 #include "base/files/file.h"
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "remoting/host/security_key/security_key_message.h"
 
@@ -24,11 +25,6 @@ class SecurityKeyMessageWriter;
 class SecurityKeyMessageHandler {
  public:
   SecurityKeyMessageHandler();
-
-  SecurityKeyMessageHandler(const SecurityKeyMessageHandler&) = delete;
-  SecurityKeyMessageHandler& operator=(const SecurityKeyMessageHandler&) =
-      delete;
-
   ~SecurityKeyMessageHandler();
 
   // Sets up the handler to begin receiving and processing messages.
@@ -60,7 +56,7 @@ class SecurityKeyMessageHandler {
                               const std::string& message_payload);
 
   // Used to respond to IPC connection changes.
-  void HandleIpcConnectionChange();
+  void HandleIpcConnectionChange(bool connection_established);
 
   // Used to indicate an IPC connection error has occurred.
   void HandleIpcConnectionError();
@@ -86,7 +82,13 @@ class SecurityKeyMessageHandler {
   // Signaled when an error occurs.
   base::OnceClosure error_callback_;
 
+  // Used to indicate when we expect the IPC channel to be closed (i.e. in the
+  // invalid session scenario) and when it is an unexpected error.
+  bool expect_ipc_channel_close_ = false;
+
   base::ThreadChecker thread_checker_;
+
+  DISALLOW_COPY_AND_ASSIGN(SecurityKeyMessageHandler);
 };
 
 }  // namespace remoting

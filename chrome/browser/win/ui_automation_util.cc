@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,22 +12,22 @@
 #include "base/strings/string_util.h"
 #include "base/win/scoped_variant.h"
 
-std::wstring GetCachedBstrValue(IUIAutomationElement* element,
-                                PROPERTYID property_id) {
+base::string16 GetCachedBstrValue(IUIAutomationElement* element,
+                                  PROPERTYID property_id) {
   HRESULT result = S_OK;
   base::win::ScopedVariant var;
 
   result = element->GetCachedPropertyValueEx(property_id, TRUE, var.Receive());
   if (FAILED(result))
-    return std::wstring();
+    return base::string16();
 
   if (V_VT(var.ptr()) != VT_BSTR) {
     LOG_IF(ERROR, V_VT(var.ptr()) != VT_UNKNOWN)
         << __func__ << " property is not a BSTR: " << V_VT(var.ptr());
-    return std::wstring();
+    return base::string16();
   }
 
-  return std::wstring(V_BSTR(var.ptr()));
+  return base::string16(V_BSTR(var.ptr()));
 }
 
 bool GetCachedBoolValue(IUIAutomationElement* element, PROPERTYID property_id) {
@@ -190,8 +190,6 @@ const char* GetEventName(EVENTID event_id) {
       return "UIA_TextEdit_TextChangedEventId";
     case UIA_TextEdit_ConversionTargetChangedEventId:
       return "UIA_TextEdit_ConversionTargetChangedEventId";
-    case UIA_ActiveTextPositionChangedEventId:
-      return "UIA_ActiveTextPositionChangedEventId";
   }
 #endif  // DCHECK_IS_ON()
   return "";

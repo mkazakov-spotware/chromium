@@ -1,15 +1,13 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 the Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSSOM_COMPUTED_STYLE_PROPERTY_MAP_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSSOM_COMPUTED_STYLE_PROPERTY_MAP_H_
 
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/css_computed_style_declaration.h"
 #include "third_party/blink/renderer/core/css/css_selector.h"
 #include "third_party/blink/renderer/core/css/cssom/style_property_map_read_only_main_thread.h"
-#include "third_party/blink/renderer/core/css/parser/css_selector_parser.h"
 #include "third_party/blink/renderer/core/dom/node.h"
 
 namespace blink {
@@ -27,7 +25,7 @@ class CORE_EXPORT ComputedStylePropertyMap
     : public StylePropertyMapReadOnlyMainThread {
  public:
   ComputedStylePropertyMap(Node* node, const String& pseudo_element = String())
-      : pseudo_id_(CSSSelectorParser::ParsePseudoElement(pseudo_element, node)),
+      : pseudo_id_(CSSSelector::ParsePseudoId(pseudo_element, node)),
         node_(node) {}
   ComputedStylePropertyMap(const ComputedStylePropertyMap&) = delete;
   ComputedStylePropertyMap& operator=(const ComputedStylePropertyMap&) = delete;
@@ -47,8 +45,8 @@ class CORE_EXPORT ComputedStylePropertyMap
 
  protected:
   const CSSValue* GetProperty(CSSPropertyID) const override;
-  const CSSValue* GetCustomProperty(const AtomicString&) const override;
-  void ForEachProperty(IterationFunction visitor) override;
+  const CSSValue* GetCustomProperty(AtomicString) const override;
+  void ForEachProperty(const IterationCallback&) override;
 
   String SerializationForShorthand(const CSSProperty&) const final;
 
@@ -65,4 +63,4 @@ class CORE_EXPORT ComputedStylePropertyMap
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSSOM_COMPUTED_STYLE_PROPERTY_MAP_H_
+#endif

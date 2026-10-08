@@ -1,48 +1,31 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/updater/app/app_server.h"
 
-#include <string>
-#include <utility>
-#include <vector>
+#include <memory>
 
 #include "base/bind.h"
-#include "base/command_line.h"
 #include "base/logging.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/process/launch.h"
-#include "base/process/process.h"
 #include "base/version.h"
-#include "chrome/updater/app/app_utils.h"
 #include "chrome/updater/configurator.h"
 #include "chrome/updater/constants.h"
+#include "chrome/updater/control_service.h"
+#include "chrome/updater/control_service_impl.h"
+#include "chrome/updater/control_service_impl_inactive.h"
 #include "chrome/updater/persisted_data.h"
 #include "chrome/updater/prefs.h"
 #include "chrome/updater/update_service.h"
 #include "chrome/updater/update_service_impl.h"
 #include "chrome/updater/update_service_impl_inactive.h"
-#include "chrome/updater/update_service_internal.h"
-#include "chrome/updater/update_service_internal_impl.h"
-#include "chrome/updater/update_service_internal_impl_inactive.h"
-#include "chrome/updater/update_service_internal_impl_qualifying.h"
-#include "chrome/updater/updater_scope.h"
 #include "chrome/updater/updater_version.h"
 #include "components/prefs/pref_service.h"
 
 namespace updater {
 
-namespace {
-
-bool IsInternalService() {
-  return base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
-             kServerServiceSwitch) == kServerUpdateServiceInternalSwitchValue;
-}
-
-}  // namespace
-
-AppServer::AppServer() : external_constants_(CreateExternalConstants()) {}
+AppServer::AppServer() = default;
 
 AppServer::~AppServer() = default;
 
@@ -51,44 +34,31 @@ void AppServer::Initialize() {
 }
 
 base::OnceClosure AppServer::ModeCheck() {
-  scoped_refptr<GlobalPrefs> global_prefs = CreateGlobalPrefs(updater_scope());
+  std::unique_ptr<GlobalPrefs> global_prefs = CreateGlobalPrefs();
   if (!global_prefs) {
     return base::BindOnce(&AppServer::Shutdown, this,
                           kErrorFailedToLockPrefsMutex);
   }
 
-  const base::Version this_version(kUpdaterVersion);
-  base::Version active_version(global_prefs->GetActiveVersion());
-  if (!active_version.IsValid()) {
-    active_version = base::Version(std::vector<uint32_t>{0});
-  }
+  const base::Version this_version(UPDATER_VERSION_STRING);
+  const base::Version active_version(global_prefs->GetActiveVersion());
 
   VLOG(2) << "This version: " << this_version.GetString()
           << ", active version: " << active_version.GetString();
 
   if (this_version < active_version) {
     global_prefs = nullptr;
-    uninstall_self_ = true;
-    if (IsInternalService()) {
-      return base::BindOnce(&AppServer::ActiveDutyInternal, this,
-                            MakeInactiveUpdateServiceInternal());
-    }
+    uninstall_ = true;
     return base::BindOnce(&AppServer::ActiveDuty, this,
-                          MakeInactiveUpdateService());
+                          MakeInactiveUpdateService(),
+                          MakeInactiveControlService());
   }
 
   if (active_version != base::Version("0") && active_version != this_version) {
-    scoped_refptr<LocalPrefs> local_prefs = CreateLocalPrefs(updater_scope());
+    std::unique_ptr<LocalPrefs> local_prefs = CreateLocalPrefs();
     if (!local_prefs->GetQualified()) {
       global_prefs = nullptr;
-      prefs_ = local_prefs;
-      config_ = base::MakeRefCounted<Configurator>(prefs_, external_constants_);
-      return IsInternalService()
-                 ? base::BindOnce(&AppServer::ActiveDutyInternal, this,
-                                  MakeQualifyingUpdateServiceInternal(
-                                      config_, local_prefs))
-                 : base::BindOnce(&AppServer::ActiveDuty, this,
-                                  MakeInactiveUpdateService());
+      return base::BindOnce(&AppServer::Qualify, this, std::move(local_prefs));
     }
   }
 
@@ -97,54 +67,18 @@ base::OnceClosure AppServer::ModeCheck() {
       return base::BindOnce(&AppServer::Shutdown, this, kErrorFailedToSwap);
   }
 
-  if (IsInternalService()) {
-    prefs_ = CreateLocalPrefs(updater_scope());
-    return base::BindOnce(&AppServer::ActiveDutyInternal, this,
-                          base::MakeRefCounted<UpdateServiceInternalImpl>());
-  }
-
-  server_starts_ = global_prefs->CountServerStarts();
-  prefs_ = global_prefs;
-  config_ = base::MakeRefCounted<Configurator>(prefs_, external_constants_);
+  config_ = base::MakeRefCounted<Configurator>(std::move(global_prefs));
   return base::BindOnce(&AppServer::ActiveDuty, this,
-                        base::MakeRefCounted<UpdateServiceImpl>(config_));
+                        base::MakeRefCounted<UpdateServiceImpl>(config_),
+                        base::MakeRefCounted<ControlServiceImpl>(config_));
 }
 
 void AppServer::Uninitialize() {
-  if (prefs_)
-    PrefsCommitPendingWrites(prefs_->GetPrefService());
-  if (uninstall_self_) {
-    VLOG(1) << "Uninstalling version " << kUpdaterVersion;
+  if (config_)
+    PrefsCommitPendingWrites(config_->GetPrefService());
+  if (uninstall_) {
+    VLOG(1) << "Uninstalling version " << UPDATER_VERSION_STRING;
     UninstallSelf();
-  } else {
-    MaybeUninstall();
-  }
-}
-
-void AppServer::MaybeUninstall() {
-  if (!prefs_)
-    return;
-
-  auto persisted_data =
-      base::MakeRefCounted<PersistedData>(prefs_->GetPrefService());
-  if (ShouldUninstall(persisted_data->GetAppIds(), server_starts_,
-                      persisted_data->GetHadApps())) {
-    base::CommandLine command_line(
-        base::CommandLine::ForCurrentProcess()->GetProgram());
-    command_line.AppendSwitch(kUninstallIfUnusedSwitch);
-    if (IsSystemInstall(updater_scope()))
-      command_line.AppendSwitch(kSystemSwitch);
-    command_line.AppendSwitch(kEnableLoggingSwitch);
-    command_line.AppendSwitchASCII(kLoggingModuleSwitch,
-                                   kLoggingModuleSwitchValue);
-    VLOG(2) << "Launching uninstall command: "
-            << command_line.GetCommandLineString();
-
-    base::Process process = base::LaunchProcess(command_line, {});
-    if (!process.IsValid()) {
-      VLOG(2) << "Invalid process launching command: "
-              << command_line.GetCommandLineString();
-    }
   }
 }
 
@@ -152,21 +86,30 @@ void AppServer::FirstTaskRun() {
   std::move(first_task_).Run();
 }
 
+void AppServer::Qualify(std::unique_ptr<LocalPrefs> local_prefs) {
+  // For now, assume qualification succeeds.
+  DVLOG(2) << __func__;
+  local_prefs->SetQualified(true);
+  PrefsCommitPendingWrites(local_prefs->GetPrefService());
+
+  // Start ActiveDuty with inactive service implementations. To use active
+  // implementations, the server would have to ModeCheck again.
+  ActiveDuty(MakeInactiveUpdateService(), MakeInactiveControlService());
+}
+
 bool AppServer::SwapVersions(GlobalPrefs* global_prefs) {
   global_prefs->SetSwapping(true);
   PrefsCommitPendingWrites(global_prefs->GetPrefService());
-  if (!SwapInNewVersion())
+  bool result = SwapRPCInterfaces();
+  if (!result)
     return false;
-  if (!global_prefs->GetMigratedLegacyUpdaters()) {
-    if (!MigrateLegacyUpdaters(
-            base::BindRepeating(&PersistedData::RegisterApp,
-                                base::MakeRefCounted<PersistedData>(
-                                    global_prefs->GetPrefService())))) {
-      return false;
-    }
-    global_prefs->SetMigratedLegacyUpdaters();
+  global_prefs->SetActiveVersion(UPDATER_VERSION_STRING);
+  scoped_refptr<PersistedData> persisted_data =
+      base::MakeRefCounted<PersistedData>(global_prefs->GetPrefService());
+  if (!persisted_data->GetProductVersion(kUpdaterAppId).IsValid()) {
+    persisted_data->SetProductVersion(kUpdaterAppId,
+                                      base::Version(UPDATER_VERSION_STRING));
   }
-  global_prefs->SetActiveVersion(kUpdaterVersion);
   global_prefs->SetSwapping(false);
   PrefsCommitPendingWrites(global_prefs->GetPrefService());
   return true;

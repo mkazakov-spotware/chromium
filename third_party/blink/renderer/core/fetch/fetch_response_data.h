@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/time/time.h"
 #include "net/http/http_response_info.h"
 #include "services/network/public/mojom/fetch_api.mojom-blink-forward.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink-forward.h"
@@ -16,7 +16,7 @@
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/fetch/body_stream_buffer.h"
 #include "third_party/blink/renderer/core/fetch/fetch_request_data.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_response.h"
 #include "third_party/blink/renderer/platform/network/http_header_set.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
@@ -48,8 +48,6 @@ class CORE_EXPORT FetchResponseData final
                     network::mojom::FetchResponseSource,
                     uint16_t,
                     AtomicString);
-  FetchResponseData(const FetchResponseData&) = delete;
-  FetchResponseData& operator=(const FetchResponseData&) = delete;
 
   FetchResponseData* CreateBasicFilteredResponse() const;
   FetchResponseData* CreateCorsFilteredResponse(
@@ -86,10 +84,7 @@ class CORE_EXPORT FetchResponseData final
     return cors_exposed_header_names_;
   }
   bool HasRangeRequested() const { return has_range_requested_; }
-  bool RequestIncludeCredentials() const;
 
-  int64_t GetPadding() const { return padding_; }
-  void SetPadding(int64_t padding) { padding_ = padding; }
   void SetResponseSource(network::mojom::FetchResponseSource response_source) {
     response_source_ = response_source;
   }
@@ -121,15 +116,15 @@ class CORE_EXPORT FetchResponseData final
   void SetAlpnNegotiatedProtocol(AtomicString alpn_negotiated_protocol) {
     alpn_negotiated_protocol_ = alpn_negotiated_protocol;
   }
+  void SetLoadedWithCredentials(bool loaded_with_credentials) {
+    loaded_with_credentials_ = loaded_with_credentials;
+  }
   void SetWasFetchedViaSpdy(bool was_fetched_via_spdy) {
     was_fetched_via_spdy_ = was_fetched_via_spdy;
   }
   void SetHasRangeRequested(bool has_range_requested) {
     has_range_requested_ = has_range_requested;
   }
-  void SetAuthChallengeInfo(
-      const absl::optional<net::AuthChallengeInfo>& auth_challenge_info);
-  void SetRequestIncludeCredentials(bool request_include_credentials);
 
   // If the type is Default, replaces |buffer_|.
   // If the type is Basic or CORS, replaces |buffer_| and
@@ -143,18 +138,16 @@ class CORE_EXPORT FetchResponseData final
 
   // Initialize non-body data from the given |response|.
   void InitFromResourceResponse(
-      ExecutionContext* context,
-      network::mojom::FetchResponseType response_type,
       const Vector<KURL>& request_url_list,
       const AtomicString& request_method,
       network::mojom::CredentialsMode request_credentials,
+      FetchRequestData::Tainting tainting,
       const ResourceResponse& response);
 
   void Trace(Visitor*) const;
 
  private:
   network::mojom::FetchResponseType type_;
-  int64_t padding_;
   network::mojom::FetchResponseSource response_source_;
   std::unique_ptr<TerminationReason> termination_reason_;
   Vector<KURL> url_list_;
@@ -170,16 +163,11 @@ class CORE_EXPORT FetchResponseData final
   HTTPHeaderSet cors_exposed_header_names_;
   net::HttpResponseInfo::ConnectionInfo connection_info_;
   AtomicString alpn_negotiated_protocol_;
-  // |auth_challenge_info_| is a std::unique_ptr instead of absl::optional
-  // |because this member is empty in most cases.
-  std::unique_ptr<net::AuthChallengeInfo> auth_challenge_info_;
+  bool loaded_with_credentials_;
+  bool was_fetched_via_spdy_;
+  bool has_range_requested_;
 
-  bool was_fetched_via_spdy_ : 1;
-  bool has_range_requested_ : 1;
-  // The request's |includeCredentials| value from the "HTTP-network fetch"
-  // algorithm.
-  // See: https://fetch.spec.whatwg.org/#concept-http-network-fetch
-  bool request_include_credentials_ : 1;
+  DISALLOW_COPY_AND_ASSIGN(FetchResponseData);
 };
 
 }  // namespace blink

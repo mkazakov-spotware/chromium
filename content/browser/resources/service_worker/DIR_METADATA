@@ -1,2 +1,5 @@
-mixins: "//content/browser/service_worker/COMMON_METADATA"
+monorail {
+  component: "Blink>ServiceWorker"
+}
 
+team_email: "worker-dev@chromium.org"

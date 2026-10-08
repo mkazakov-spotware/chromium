@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,11 +27,10 @@ import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.UrlUtils;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
-import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.ShortcutHelper;
 import org.chromium.chrome.browser.app.ChromeActivity;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.intents.WebappConstants;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
+import org.chromium.chrome.browser.document.ChromeIntentUtil;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
@@ -81,11 +80,11 @@ public class WebappModeTest {
             // Needed for security reasons.  If the MAC is excluded, the URL of the webapp is opened
             // in a browser window, instead.
             String mac = ShortcutHelper.getEncodedMac(url);
-            intent.putExtra(WebappConstants.EXTRA_MAC, mac);
+            intent.putExtra(ShortcutHelper.EXTRA_MAC, mac);
         }
 
-        intent.putExtra(WebappConstants.EXTRA_ICON, icon);
-        intent.putExtra(WebappConstants.EXTRA_NAME, title);
+        intent.putExtra(ShortcutHelper.EXTRA_ICON, icon);
+        intent.putExtra(ShortcutHelper.EXTRA_NAME, title);
         return intent;
     }
 
@@ -200,8 +199,7 @@ public class WebappModeTest {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
 
         // Bring the WebappActivity back via an Intent.
-        Intent intent = IntentHandler.createTrustedBringTabToFrontIntent(
-                webappTabId, IntentHandler.BringToFrontSource.NOTIFICATION);
+        Intent intent = ChromeIntentUtil.createBringTabToFrontIntent(webappTabId);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         context.startActivity(intent);
 
@@ -224,8 +222,8 @@ public class WebappModeTest {
      * Ensure WebappActivities can't be launched without proper security checks.
      */
     @Test
-    @MediumTest
-    @Feature({"Webapps"})
+    //@MediumTest
+    //@Feature({"Webapps"})
     @DisabledTest(message = "crbug.com/755114")
     public void testWebappRequiresValidMac() throws Exception {
         // Try to start a WebappActivity.  Fail because the Intent is insecure.
@@ -247,7 +245,7 @@ public class WebappModeTest {
 
     /**
      * Starts a WebappActivity for the given data and waits for it to be initialized.  We can't use
-     * ActivityTestUtils.waitForActivity() because of the way WebappActivity is instanced on pre-L
+     * ActivityUtils.waitForActivity() because of the way WebappActivity is instanced on pre-L
      * devices.
      */
     private WebappActivity startWebappActivity(String id, String url, String title, String icon) {

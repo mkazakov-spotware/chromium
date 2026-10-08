@@ -1,17 +1,18 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef MEDIA_GPU_ANDROID_DIRECT_SHARED_IMAGE_VIDEO_PROVIDER_H_
 #define MEDIA_GPU_ANDROID_DIRECT_SHARED_IMAGE_VIDEO_PROVIDER_H_
 
-#include "base/memory/raw_ptr.h"
+#include <memory>
+
 #include "base/memory/weak_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/optional.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/sequence_bound.h"
 #include "gpu/command_buffer/service/gles2_cmd_decoder.h"
-#include "gpu/command_buffer/service/ref_counted_lock.h"
-#include "gpu/command_buffer/service/shared_image/shared_image_representation.h"
+#include "gpu/command_buffer/service/shared_image_representation.h"
 #include "gpu/command_buffer/service/texture_manager.h"
 #include "gpu/command_buffer/service/texture_owner.h"
 #include "gpu/ipc/common/vulkan_ycbcr_info.h"
@@ -31,29 +32,25 @@ class GpuSharedImageVideoFactory;
 // SharedImageVideoProvider implementation that lives on the thread that it's
 // created on, but hops to the GPU thread to create new shared images on demand.
 class MEDIA_GPU_EXPORT DirectSharedImageVideoProvider
-    : public SharedImageVideoProvider,
-      public gpu::RefCountedLockHelperDrDc {
+    : public SharedImageVideoProvider {
  public:
   DirectSharedImageVideoProvider(
       scoped_refptr<base::SingleThreadTaskRunner> gpu_task_runner,
-      GetStubCB get_stub_cb,
-      scoped_refptr<gpu::RefCountedLock> drdc_lock);
-
-  DirectSharedImageVideoProvider(const DirectSharedImageVideoProvider&) =
-      delete;
-  DirectSharedImageVideoProvider& operator=(
-      const DirectSharedImageVideoProvider&) = delete;
-
+      GetStubCB get_stub_cb);
   ~DirectSharedImageVideoProvider() override;
 
   // SharedImageVideoProvider
   void Initialize(GpuInitCB get_stub_cb) override;
-  void RequestImage(ImageReadyCB cb, const ImageSpec& spec) override;
+  void RequestImage(ImageReadyCB cb,
+                    const ImageSpec& spec,
+                    scoped_refptr<gpu::TextureOwner> texture_owner) override;
 
  private:
   base::SequenceBound<GpuSharedImageVideoFactory> gpu_factory_;
 
   scoped_refptr<base::SingleThreadTaskRunner> gpu_task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(DirectSharedImageVideoProvider);
 };
 
 // GpuSharedImageVideoFactory creates SharedImageVideo objects.  It must be run
@@ -67,11 +64,6 @@ class GpuSharedImageVideoFactory
  public:
   explicit GpuSharedImageVideoFactory(
       SharedImageVideoProvider::GetStubCB get_stub_cb);
-
-  GpuSharedImageVideoFactory(const GpuSharedImageVideoFactory&) = delete;
-  GpuSharedImageVideoFactory& operator=(const GpuSharedImageVideoFactory&) =
-      delete;
-
   ~GpuSharedImageVideoFactory() override;
 
   // Will run |init_cb| with the shared context current.  |init_cb| should not
@@ -88,23 +80,29 @@ class GpuSharedImageVideoFactory
   // mailbox support, where we have to have one texture per CodecImage.
   void CreateImage(FactoryImageReadyCB cb,
                    const SharedImageVideoProvider::ImageSpec& spec,
-                   scoped_refptr<gpu::RefCountedLock> drdc_lock);
+                   scoped_refptr<gpu::TextureOwner> texture_owner);
 
  private:
   // Creates a SharedImage for |mailbox|, and returns success or failure.
   bool CreateImageInternal(const SharedImageVideoProvider::ImageSpec& spec,
+                           scoped_refptr<gpu::TextureOwner> texture_owner,
                            gpu::Mailbox mailbox,
-                           scoped_refptr<CodecImage> image,
-                           scoped_refptr<gpu::RefCountedLock>);
+                           scoped_refptr<CodecImage> image);
 
   void OnWillDestroyStub(bool have_context) override;
 
-  raw_ptr<gpu::CommandBufferStub> stub_ = nullptr;
+  gpu::CommandBufferStub* stub_ = nullptr;
+
+  // A helper for creating textures. Only valid while |stub_| is valid.
+  std::unique_ptr<GLES2DecoderHelper> decoder_helper_;
+
   bool is_vulkan_ = false;
 
   THREAD_CHECKER(thread_checker_);
 
   base::WeakPtrFactory<GpuSharedImageVideoFactory> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(GpuSharedImageVideoFactory);
 };
 
 }  // namespace media

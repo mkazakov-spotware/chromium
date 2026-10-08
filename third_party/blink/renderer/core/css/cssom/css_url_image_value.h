@@ -1,11 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSSOM_CSS_URL_IMAGE_VALUE_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSSOM_CSS_URL_IMAGE_VALUE_H_
 
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/cssom/css_style_image_value.h"
 
 namespace blink {
@@ -21,14 +20,12 @@ class CORE_EXPORT CSSURLImageValue final : public CSSStyleImageValue {
   const String& url() const;
 
   // CSSStyleImageValue
-  absl::optional<gfx::Size> IntrinsicSize() const final;
+  base::Optional<IntSize> IntrinsicSize() const final;
 
   // CanvasImageSource
   ResourceStatus Status() const final;
-  scoped_refptr<Image> GetSourceImageForCanvas(
-      SourceImageStatus*,
-      const gfx::SizeF&,
-      const AlphaDisposition alpha_disposition = kPremultiplyAlpha) final;
+  scoped_refptr<Image> GetSourceImageForCanvas(SourceImageStatus*,
+                                               const FloatSize&) final;
   bool IsAccelerated() const final;
 
   // CSSStyleValue
@@ -45,4 +42,4 @@ class CORE_EXPORT CSSURLImageValue final : public CSSStyleImageValue {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSSOM_CSS_URL_IMAGE_VALUE_H_
+#endif  // CSSResourceValue_h

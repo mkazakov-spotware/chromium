@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,23 +8,20 @@
 #include "base/callback_helpers.h"
 #include "base/guid.h"
 #include "content/browser/service_worker/service_worker_context_core.h"
-#include "content/browser/service_worker/service_worker_context_wrapper.h"
-#include "content/browser/service_worker/service_worker_metrics.h"
 #include "content/browser/service_worker/service_worker_registration.h"
 #include "content/browser/service_worker/service_worker_version.h"
+#include "content/browser/storage_partition_impl.h"
 #include "content/common/fetch/fetch_request_type_converters.h"
 #include "services/network/public/mojom/fetch_api.mojom.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "third_party/blink/public/mojom/service_worker/service_worker_database.mojom.h"
 #include "url/gurl.h"
 
 namespace content {
 
 ServiceWorkerOfflineCapabilityChecker::ServiceWorkerOfflineCapabilityChecker(
-    const GURL& url,
-    const blink::StorageKey& key)
-    : url_(url), key_(key) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+    const GURL& url)
+    : url_(url) {
+  DCHECK_CURRENTLY_ON(ServiceWorkerContext::GetCoreThreadId());
 }
 
 ServiceWorkerOfflineCapabilityChecker::
@@ -35,12 +32,11 @@ void ServiceWorkerOfflineCapabilityChecker::Start(
     ServiceWorkerContext::CheckOfflineCapabilityCallback callback) {
   callback_ = std::move(callback);
   registry->FindRegistrationForClientUrl(
-      url_, key_,
-      base::BindOnce(
-          &ServiceWorkerOfflineCapabilityChecker::DidFindRegistration,
-          // We can use base::Unretained(this) because |this| is expected
-          // to be alive until the |callback_| is called.
-          base::Unretained(this)));
+      url_, base::BindOnce(
+                &ServiceWorkerOfflineCapabilityChecker::DidFindRegistration,
+                // We can use base::Unretained(this) because |this| is expected
+                // to be alive until the |callback_| is called.
+                base::Unretained(this)));
 }
 
 void ServiceWorkerOfflineCapabilityChecker::DidFindRegistration(
@@ -121,7 +117,8 @@ void ServiceWorkerOfflineCapabilityChecker::DidFindRegistration(
       /*is_offline_capability_check=*/true);
 
   fetch_dispatcher_->MaybeStartNavigationPreload(
-      resource_request, context->wrapper(), /*frame_tree_node_id=*/-1);
+      resource_request, context->loader_factory_getter(),
+      context->wrapper(), /*frame_tree_node_id=*/-1);
 
   fetch_dispatcher_->Run();
 }
@@ -134,11 +131,11 @@ void ServiceWorkerOfflineCapabilityChecker::OnFetchResult(
     blink::mojom::ServiceWorkerFetchEventTimingPtr /* timing */,
     scoped_refptr<ServiceWorkerVersion> version) {
   // The sites are considered as "offline capable" when the response finished
-  // successfully and returns successful responses (200–299) or redirects
-  // (300–399). Also considered as "offline capable" when the timeout happens.
+  // successfully and returns 200 or the timeout happens.
   if ((status == blink::ServiceWorkerStatusCode::kOk &&
        result == ServiceWorkerFetchDispatcher::FetchEventResult::kGotResponse &&
-       (200 <= response->status_code && response->status_code <= 399)) ||
+       // TODO(hayato): Investigate whether any 2xx should be accepted or not.
+       response->status_code == 200) ||
       status == blink::ServiceWorkerStatusCode::kErrorTimeout) {
     std::move(callback_).Run(OfflineCapability::kSupported,
                              version->registration_id());

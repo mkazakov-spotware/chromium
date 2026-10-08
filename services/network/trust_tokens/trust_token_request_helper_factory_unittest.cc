@@ -1,10 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/network/trust_tokens/trust_token_request_helper_factory.h"
 
-#include "base/no_destructor.h"
+#include "base/optional.h"
 #include "base/strings/strcat.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -16,11 +16,10 @@
 #include "services/network/public/cpp/trust_token_http_headers.h"
 #include "services/network/public/cpp/trust_token_parameterization.h"
 #include "services/network/public/mojom/trust_tokens.mojom.h"
-#include "services/network/test/trust_token_test_util.h"
 #include "services/network/trust_tokens/pending_trust_token_store.h"
+#include "services/network/trust_tokens/test/trust_token_test_util.h"
 #include "services/network/trust_tokens/trust_token_parameterization.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/origin.h"
 
 namespace network {
@@ -68,6 +67,7 @@ class TrustTokenRequestHelperFactoryTest : public ::testing::Test {
   const mojom::TrustTokenParams& suitable_signing_params() const {
     return *suitable_params_;
   }
+  const net::NetLog& net_log() const { return *maker_.net_log(); }
 
   std::unique_ptr<net::URLRequest> CreateSuitableRequest() {
     auto ret = maker_.MakeURLRequest("https://destination.example");
@@ -101,8 +101,7 @@ class TrustTokenRequestHelperFactoryTest : public ::testing::Test {
             []() -> mojom::NetworkContextClient* { return nullptr; }),
         base::BindRepeating([]() { return true; }))
         .CreateTrustTokenHelperForRequest(
-            request.isolation_info().top_frame_origin().value_or(url::Origin()),
-            request.extra_request_headers(), params, request.net_log(),
+            request, params,
             base::BindLambdaForTesting(
                 [&](TrustTokenStatusOrRequestHelper result) {
                   obtained_result = std::move(result);
@@ -171,7 +170,7 @@ TEST_F(TrustTokenRequestHelperFactoryTest, ForbiddenHeaders) {
   histogram_tester.ExpectUniqueSample(
       "Net.TrustTokens.RequestHelperFactoryOutcome.Signing",
       Outcome::kRequestRejectedDueToBearingAnInternalTrustTokensHeader,
-      std::size(TrustTokensRequestHeaders()));
+      base::size(TrustTokensRequestHeaders()));
 }
 
 TEST_F(TrustTokenRequestHelperFactoryTest,
@@ -279,9 +278,7 @@ TEST_F(TrustTokenRequestHelperFactoryTest, RespectsAuthorizer) {
           []() -> mojom::NetworkContextClient* { return nullptr; }),
       base::BindRepeating([]() { return false; }))
       .CreateTrustTokenHelperForRequest(
-          *suitable_request().isolation_info().top_frame_origin(),
-          suitable_request().extra_request_headers(), suitable_signing_params(),
-          suitable_request().net_log(),
+          suitable_request(), suitable_signing_params(),
           base::BindLambdaForTesting(
               [&](TrustTokenStatusOrRequestHelper result) {
                 obtained_result = std::move(result);

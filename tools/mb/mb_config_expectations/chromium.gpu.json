@@ -1,9 +1,8 @@
 {
   "Android Release (Nexus 5X)": {
     "gn_args": {
-      "android_static_analysis": "off",
       "dcheck_always_on": true,
-      "debuggable_apks": false,
+      "disable_android_lint": true,
       "ffmpeg_branding": "Chrome",
       "is_component_build": false,
       "is_debug": false,
@@ -11,7 +10,8 @@
       "symbol_level": 1,
       "target_cpu": "arm64",
       "target_os": "android",
-      "use_remoteexec": true,
+      "use_errorprone_java_compiler": false,
+      "use_goma": true,
       "use_static_angle": true
     }
   },
@@ -23,7 +23,7 @@
       "is_debug": false,
       "proprietary_codecs": true,
       "symbol_level": 1,
-      "use_remoteexec": true
+      "use_goma": true
     }
   },
   "GPU Linux Builder (dbg)": {
@@ -33,7 +33,7 @@
       "is_debug": true,
       "proprietary_codecs": true,
       "symbol_level": 1,
-      "use_remoteexec": true
+      "use_goma": true
     }
   },
   "GPU Mac Builder": {
@@ -42,9 +42,10 @@
       "ffmpeg_branding": "Chrome",
       "is_component_build": false,
       "is_debug": false,
+      "mac_deterministic_build": true,
       "proprietary_codecs": true,
       "symbol_level": 1,
-      "use_remoteexec": true
+      "use_goma": true
     }
   },
   "GPU Mac Builder (dbg)": {
@@ -54,7 +55,7 @@
       "is_debug": true,
       "proprietary_codecs": true,
       "symbol_level": 1,
-      "use_remoteexec": true
+      "use_goma": true
     }
   },
   "GPU Win x64 Builder": {
@@ -66,7 +67,7 @@
       "is_debug": false,
       "proprietary_codecs": true,
       "symbol_level": 1,
-      "use_remoteexec": true
+      "use_goma": true
     }
   },
   "GPU Win x64 Builder (dbg)": {
@@ -76,19 +77,19 @@
       "is_debug": true,
       "proprietary_codecs": true,
       "symbol_level": 1,
-      "use_remoteexec": true
+      "use_goma": true
     }
   },
   "GPU Win x64 Builder Code Coverage": {
     "gn_args": {
       "coverage_instrumentation_input_file": "//.code-coverage/files_to_instrument.txt",
       "dcheck_always_on": true,
-      "enable_resource_allowlist_generation": false,
+      "enable_resource_allowlist_generation": true,
       "ffmpeg_branding": "Chrome",
       "is_component_build": false,
       "is_debug": false,
       "proprietary_codecs": true,
-      "symbol_level": 0,
+      "symbol_level": 1,
       "use_clang_coverage": true,
       "use_goma": true
     }

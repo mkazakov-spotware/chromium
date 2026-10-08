@@ -4,8 +4,7 @@
   "name": "removeCSS test",
   "description": "Test extension API: removeCSS",
   "background": {
-    "scripts": ["test.js"],
-    "persistent": true
+    "scripts": ["test.js"]
   },
   "permissions": ["tabs", "webNavigation", "http://example.com/"],
   "content_scripts": [

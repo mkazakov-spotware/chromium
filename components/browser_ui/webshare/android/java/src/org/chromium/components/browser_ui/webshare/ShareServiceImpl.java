@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,7 +35,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Random;
 import java.util.Set;
 
 /**
@@ -73,7 +72,6 @@ public class ShareServiceImpl implements ShareService {
     // clang-format off
     private static final Set<String> PERMITTED_EXTENSIONS =
             Collections.unmodifiableSet(CollectionUtil.newHashSet(
-                    "avif", // image/avif
                     "bmp", // image/bmp / image/x-ms-bmp
                     "css", // text/css
                     "csv", // text/csv / text/comma-separated-values
@@ -88,7 +86,7 @@ public class ShareServiceImpl implements ShareService {
                     "jpg", // image/jpeg
                     "m4a", // audio/x-m4a
                     "m4v", // video/mp4
-                    "mp3", // audio/mpeg audio/mp3
+                    "mp3", // audio/mp3
                     "mp4", // video/mp4
                     "mpeg", // video/mpeg
                     "mpg", // video/mpeg
@@ -97,7 +95,6 @@ public class ShareServiceImpl implements ShareService {
                     "ogm", // video/ogg
                     "ogv", // video/ogg
                     "opus", // audio/ogg
-                    "pdf", // application/pdf
                     "pjp", // image/jpeg
                     "pjpeg", // image/jpeg
                     "png", // image/png
@@ -119,14 +116,11 @@ public class ShareServiceImpl implements ShareService {
     private static final Set<String> PERMITTED_MIME_TYPES =
             Collections.unmodifiableSet(CollectionUtil.newHashSet(
                      "audio/flac",
-                     "application/pdf",
                      "audio/mp3",
-                     "audio/mpeg",
                      "audio/ogg",
                      "audio/wav",
                      "audio/webm",
                      "audio/x-m4a",
-                     "image/avif",
                      "image/bmp",
                      "image/gif",
                      "image/jpeg",
@@ -179,7 +173,7 @@ public class ShareServiceImpl implements ShareService {
 
     @Override
     public void share(String title, String text, Url url, final SharedFile[] files,
-            final Share_Response callback) {
+            final ShareResponse callback) {
         RecordHistogram.recordEnumeratedHistogram(
                 "WebShare.ApiCount", WEBSHARE_METHOD_SHARE, WEBSHARE_METHOD_COUNT);
 
@@ -220,8 +214,7 @@ public class ShareServiceImpl implements ShareService {
         }
 
         for (SharedFile file : files) {
-            if (isDangerousFilename(file.name.path.path)
-                    || isDangerousMimeType(file.blob.contentType)) {
+            if (isDangerousFilename(file.name) || isDangerousMimeType(file.blob.contentType)) {
                 Log.i(TAG,
                         "Cannot share potentially dangerous \"" + file.blob.contentType
                                 + "\" file \"" + file.name + "\".");
@@ -249,25 +242,9 @@ public class ShareServiceImpl implements ShareService {
                         throw new IOException("Failed to create directory for shared file.");
                     }
 
-                    // As multiple files may have the same name, we create a distinct
-                    // subdirectory for each file.
-                    // Oreo (API level 26) has Files.createTempDirectory(). We emulate it here by
-                    // generating temp directories with random names.
-                    Random rand = new Random();
-                    for (SharedFile file : files) {
-                        File tempDir;
-                        File tempFile;
-                        int attempts = 0;
-                        do {
-                            if (++attempts > 10) {
-                                throw new IOException("Failed to create shared file.");
-                            }
-                            tempDir = new File(sharePath,
-                                    "share" + Integer.toHexString(rand.nextInt(1 << 30)));
-                            tempDir.mkdir();
-                            tempFile = new File(tempDir, file.name.path.path);
-                        } while (!tempFile.createNewFile());
-
+                    for (int index = 0; index < files.length; ++index) {
+                        File tempFile = File.createTempFile("share",
+                                "." + FileUtils.getExtension(files[index].name), sharePath);
                         fileUris.add(ContentUriUtils.getContentUriFromFile(tempFile));
                         blobReceivers.add(new BlobReceiver(
                                 new FileOutputStream(tempFile), MAX_SHARED_FILE_BYTES));

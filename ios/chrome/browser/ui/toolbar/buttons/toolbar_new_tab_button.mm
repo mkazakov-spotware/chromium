@@ -1,11 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/toolbar/buttons/toolbar_new_tab_button.h"
 
+#include "base/feature_list.h"
 #import "ios/chrome/browser/ui/toolbar/buttons/toolbar_configuration.h"
 #import "ios/chrome/browser/ui/toolbar/public/toolbar_constants.h"
+#include "ios/chrome/browser/ui/ui_feature_flags.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/common/ui/util/pointer_interaction_util.h"
 
@@ -26,27 +28,13 @@ const CGFloat kSpotlightHeight = 36.0f;
 
 - (void)setDimmed:(BOOL)dimmed {
   [super setDimmed:dimmed];
-  [self updateSpotlightViewHiddenState];
+
+  self.spotlightView.hidden = dimmed && !self.spotlighted;
 }
 
 - (void)setSpotlighted:(BOOL)spotlighted {
   [super setSpotlighted:spotlighted];
-  [self updateSpotlightViewHiddenState];
-}
-
-- (void)setIphHighlighted:(BOOL)iphHighlighted {
-  [super setIphHighlighted:iphHighlighted];
-  [self updateSpotlightViewHiddenState];
-}
-
-- (void)setToolbarConfiguration:(ToolbarConfiguration*)toolbarConfiguration {
-  [super setToolbarConfiguration:toolbarConfiguration];
-  [self updateSpotlightViewHiddenState];
-}
-
-- (void)updateSpotlightViewHiddenState {
-  self.spotlightView.hidden =
-      self.dimmed && !self.spotlighted && !self.iphHighlighted;
+  self.spotlightView.hidden = !spotlighted && self.dimmed;
 }
 
 #pragma mark - Subclassing
@@ -56,8 +44,7 @@ const CGFloat kSpotlightHeight = 36.0f;
   spotlightView.translatesAutoresizingMaskIntoConstraints = NO;
   spotlightView.userInteractionEnabled = NO;
   spotlightView.layer.cornerRadius = kSpotlightHeight / 2;
-  spotlightView.backgroundColor =
-      self.toolbarConfiguration.buttonsSpotlightColor;
+  spotlightView.backgroundColor = self.configuration.buttonsSpotlightColor;
   // Make sure that the spotlightView is below the image to avoid changing the
   // color of the image.
   [self insertSubview:spotlightView belowSubview:self.imageView];
@@ -69,9 +56,15 @@ const CGFloat kSpotlightHeight = 36.0f;
       .active = YES;
   self.spotlightView = spotlightView;
 
-  // Customize the pointer highlight tomatch the spotlight view.
-  self.pointerInteractionEnabled = YES;
-  self.pointerStyleProvider = CreateLiftEffectCirclePointerStyleProvider();
+#if defined(__IPHONE_13_4)
+  if (@available(iOS 13.4, *)) {
+    if (base::FeatureList::IsEnabled(kPointerSupport)) {
+      // Customize the pointer highlight tomatch the spotlight view.
+      self.pointerInteractionEnabled = YES;
+      self.pointerStyleProvider = CreateLiftEffectCirclePointerStyleProvider();
+    }
+  }
+#endif  // defined(__IPHONE_13_4)
 }
 
 @end

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/time/time.h"
 #include "ui/android/edge_effect.h"
 #include "ui/android/ui_android_export.h"
@@ -40,10 +40,6 @@ class UI_ANDROID_EXPORT OverscrollGlow {
   // The effect is enabled by default, but will remain dormant until the first
   // overscroll event.
   explicit OverscrollGlow(OverscrollGlowClient* client);
-
-  OverscrollGlow(const OverscrollGlow&) = delete;
-  OverscrollGlow& operator=(const OverscrollGlow&) = delete;
-
   virtual ~OverscrollGlow();
 
   // Called when the root content layer overscrolls.
@@ -67,7 +63,7 @@ class UI_ANDROID_EXPORT OverscrollGlow {
   // Note: All dimensions are in device pixels.
   void OnFrameUpdated(const gfx::SizeF& viewport_size,
                       const gfx::SizeF& content_size,
-                      const gfx::PointF& content_scroll_offset);
+                      const gfx::Vector2dF& content_scroll_offset);
 
   // Reset the effect to its inactive state, clearing any active effects.
   void Reset();
@@ -99,7 +95,7 @@ class UI_ANDROID_EXPORT OverscrollGlow {
 
   EdgeEffect* GetOppositeEdge(int edge_index);
 
-  raw_ptr<OverscrollGlowClient> client_;
+  OverscrollGlowClient* const client_;
   std::unique_ptr<EdgeEffect> edge_effects_[EDGE_COUNT];
 
   gfx::SizeF viewport_size_;
@@ -109,6 +105,8 @@ class UI_ANDROID_EXPORT OverscrollGlow {
   bool allow_vertical_overscroll_;
 
   scoped_refptr<cc::Layer> root_layer_;
+
+  DISALLOW_COPY_AND_ASSIGN(OverscrollGlow);
 };
 
 }  // namespace ui

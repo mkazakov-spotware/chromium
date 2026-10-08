@@ -1,10 +1,13 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_BROWSER_METRICS_MOBILE_SESSION_SHUTDOWN_METRICS_PROVIDER_H_
 #define IOS_CHROME_BROWSER_METRICS_MOBILE_SESSION_SHUTDOWN_METRICS_PROVIDER_H_
 
+#include <memory>
+
+#include "base/macros.h"
 #include "components/metrics/metrics_provider.h"
 
 namespace metrics {
@@ -33,12 +36,6 @@ class MobileSessionShutdownMetricsProvider : public metrics::MetricsProvider {
  public:
   explicit MobileSessionShutdownMetricsProvider(
       metrics::MetricsService* metrics_service);
-
-  MobileSessionShutdownMetricsProvider(
-      const MobileSessionShutdownMetricsProvider&) = delete;
-  MobileSessionShutdownMetricsProvider& operator=(
-      const MobileSessionShutdownMetricsProvider&) = delete;
-
   ~MobileSessionShutdownMetricsProvider() override;
 
   // metrics::MetricsProvider
@@ -69,6 +66,7 @@ class MobileSessionShutdownMetricsProvider : public metrics::MetricsProvider {
 
  private:
   metrics::MetricsService* metrics_service_;
+  DISALLOW_COPY_AND_ASSIGN(MobileSessionShutdownMetricsProvider);
 };
 
 #endif  // IOS_CHROME_BROWSER_METRICS_MOBILE_SESSION_SHUTDOWN_METRICS_PROVIDER_H_

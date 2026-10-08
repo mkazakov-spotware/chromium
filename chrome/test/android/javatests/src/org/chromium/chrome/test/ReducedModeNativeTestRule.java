@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -57,12 +57,12 @@ public class ReducedModeNativeTestRule implements TestRule {
             }
 
             @Override
-            public boolean startMinimalBrowser() {
+            public boolean startServiceManagerOnly() {
                 return true;
             }
         };
         PostTask.postTask(UiThreadTaskTraits.DEFAULT, () -> {
-            ChromeBrowserInitializer.getInstance().handlePreNativeStartupAndLoadLibraries(parts);
+            ChromeBrowserInitializer.getInstance().handlePreNativeStartup(parts);
             ChromeBrowserInitializer.getInstance().handlePostNativeStartup(true, parts);
         });
         waitForNativeLoaded();
@@ -70,14 +70,14 @@ public class ReducedModeNativeTestRule implements TestRule {
 
     private void waitForNativeLoaded() {
         CriteriaHelper.pollUiThread(
-                mNativeLoaded::get, "Failed while waiting for starting minimal browser.");
+                mNativeLoaded::get, "Failed while waiting for starting Service Manager.");
     }
 
-    public void assertMinimalBrowserStarted() {
+    public void assertOnlyServiceManagerStarted() {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             Assert.assertTrue("Native has not been started.",
                     BrowserStartupController.getInstance().isNativeStarted());
-            Assert.assertFalse("The full browser is started instead of minimal browser.",
+            Assert.assertFalse("The full browser is started instead of ServiceManager only.",
                     BrowserStartupController.getInstance().isFullBrowserStarted());
         });
     }

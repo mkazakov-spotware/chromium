@@ -25,27 +25,26 @@
 
 #include "third_party/blink/renderer/platform/graphics/filters/light_source.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
-#include "ui/gfx/geometry/point3_f.h"
 
 namespace blink {
 
 class PLATFORM_EXPORT SpotLightSource final : public LightSource {
  public:
-  static scoped_refptr<SpotLightSource> Create(const gfx::Point3F& position,
-                                               const gfx::Point3F& points_at,
+  static scoped_refptr<SpotLightSource> Create(const FloatPoint3D& position,
+                                               const FloatPoint3D& direction,
                                                float specular_exponent,
                                                float limiting_cone_angle) {
     return base::AdoptRef(new SpotLightSource(
-        position, points_at, specular_exponent, limiting_cone_angle));
+        position, direction, specular_exponent, limiting_cone_angle));
   }
 
-  const gfx::Point3F& GetPosition() const { return position_; }
-  const gfx::Point3F& PointsAt() const { return points_at_; }
+  const FloatPoint3D& GetPosition() const { return position_; }
+  const FloatPoint3D& Direction() const { return direction_; }
   float SpecularExponent() const { return specular_exponent_; }
   float LimitingConeAngle() const { return limiting_cone_angle_; }
 
-  bool SetPosition(const gfx::Point3F&) override;
-  bool SetPointsAt(const gfx::Point3F&) override;
+  bool SetPosition(const FloatPoint3D&) override;
+  bool SetPointsAt(const FloatPoint3D&) override;
 
   bool SetSpecularExponent(float) override;
   bool SetLimitingConeAngle(float) override;
@@ -53,18 +52,18 @@ class PLATFORM_EXPORT SpotLightSource final : public LightSource {
   WTF::TextStream& ExternalRepresentation(WTF::TextStream&) const override;
 
  private:
-  SpotLightSource(const gfx::Point3F& position,
-                  const gfx::Point3F& points_at,
+  SpotLightSource(const FloatPoint3D& position,
+                  const FloatPoint3D& direction,
                   float specular_exponent,
                   float limiting_cone_angle)
-      : LightSource(kLsSpot),
+      : LightSource(LS_SPOT),
         position_(position),
-        points_at_(points_at),
-        specular_exponent_(ClampTo(specular_exponent, 1.0f, 128.0f)),
+        direction_(direction),
+        specular_exponent_(clampTo(specular_exponent, 1.0f, 128.0f)),
         limiting_cone_angle_(limiting_cone_angle) {}
 
-  gfx::Point3F position_;
-  gfx::Point3F points_at_;
+  FloatPoint3D position_;
+  FloatPoint3D direction_;
 
   float specular_exponent_;
   float limiting_cone_angle_;

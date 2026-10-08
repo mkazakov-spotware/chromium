@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,8 @@ namespace web {
 class WebState;
 }
 
-@class ContentSuggestionsViewController;
-@protocol FeedDelegate;
+@class ContentSuggestionsHeaderViewController;
 @protocol NewTabPageControllerDelegate;
-@protocol NewTabPageDelegate;
-@class NTPHomeMediator;
-@protocol ThumbStripSupporting;
-@class ViewRevealingVerticalPanHandler;
 
 // Coordinator to manage the Suggestions UI via a
 // ContentSuggestionsViewController.
@@ -28,28 +23,27 @@ class WebState;
 
 @property(nonatomic, weak) id<NewTabPageControllerDelegate> toolbarDelegate;
 
-// YES if the coordinator has started. If YES, start is a no-op.
-@property(nonatomic, readonly) BOOL started;
+// Whether the Suggestions UI is displayed. If this is true, start is a no-op.
+@property(nonatomic, readonly) BOOL visible;
 
-// The ViewController that this coordinator managers.
 @property(nonatomic, strong, readonly)
-    ContentSuggestionsViewController* viewController;
+    ContentSuggestionsHeaderViewController* headerController;
 
-// Allows for the in-flight enabling/disabling of the thumb strip.
-@property(nonatomic, weak, readonly) id<ThumbStripSupporting>
-    thumbStripSupporting;
+@property(nonatomic, strong, readonly)
+    UICollectionViewController* viewController;
 
-// NTP Mediator used by this Coordinator.
-// TODO(crbug.com/1114792): Move all usage of this mediator to NTPCoordinator.
-// It might also be necessary to split it and create a ContentSuggestions
-// mediator for non NTP logic.
-@property(nonatomic, strong) NTPHomeMediator* ntpMediator;
+// Dismisses all modals owned by the NTP mediator.
+- (void)dismissModals;
 
-// Delegate for NTP related actions.
-@property(nonatomic, weak) id<NewTabPageDelegate> ntpDelegate;
+// Called when a snapshot of the content will be taken.
+- (void)willUpdateSnapshot;
 
-// Delegate used to communicate to communicate events to the feed.
-@property(nonatomic, weak) id<FeedDelegate> feedDelegate;
+// The content inset and offset of the scroll view.
+- (UIEdgeInsets)contentInset;
+- (CGPoint)contentOffset;
+
+// The current NTP view.
+- (UIView*)view;
 
 // Reloads the suggestions.
 - (void)reload;
@@ -60,8 +54,8 @@ class WebState;
 // Tell location bar has taken focus.
 - (void)locationBarDidBecomeFirstResponder;
 
-// Configure Content Suggestions if showing the Start Surface.
-- (void)configureStartSurfaceIfNeeded;
+// Constrains the named layout guide for the Discover header menu button.
+- (void)constrainDiscoverHeaderMenuButtonNamedGuide;
 
 @end
 

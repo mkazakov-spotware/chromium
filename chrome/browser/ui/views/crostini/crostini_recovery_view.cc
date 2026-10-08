@@ -1,20 +1,20 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/crostini/crostini_recovery_view.h"
 
 #include "base/metrics/histogram_functions.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chrome/browser/ash/crostini/crostini_features.h"
-#include "chrome/browser/ash/crostini/crostini_manager.h"
-#include "chrome/browser/ash/crostini/crostini_util.h"
-#include "chrome/browser/ash/guest_os/guest_os_terminal.h"
+#include "chrome/browser/chromeos/crostini/crostini_features.h"
+#include "chrome/browser/chromeos/crostini/crostini_manager.h"
+#include "chrome/browser/chromeos/crostini/crostini_terminal.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/chromeos/devicetype_utils.h"
 #include "ui/strings/grit/ui_strings.h"
@@ -49,11 +49,7 @@ void CrostiniRecoveryView::Show(Profile* profile,
                                 int64_t display_id,
                                 const std::vector<crostini::LaunchArg>& args,
                                 crostini::CrostiniSuccessCallback callback) {
-  if (!crostini::CrostiniFeatures::Get()->IsAllowedNow(profile)) {
-    std::move(callback).Run(false, "crostini is not allowed");
-    return;
-  }
-
+  DCHECK(crostini::CrostiniFeatures::Get()->IsUIAllowed(profile));
   // Any new apps launched during recovery are immediately cancelled.
   if (g_crostini_recovery_view) {
     std::move(callback).Run(false, "recovery in progress");
@@ -82,7 +78,7 @@ void CrostiniRecoveryView::OnStopVm(crostini::CrostiniResult result) {
   if (result != crostini::CrostiniResult::SUCCESS) {
     LOG(ERROR) << "Error stopping VM for recovery: " << (int)result;
   }
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&crostini::LaunchCrostiniApp, profile_, app_id_,
                                 display_id_, args_, std::move(callback_)));
   GetWidget()->CloseWithReason(
@@ -92,8 +88,7 @@ void CrostiniRecoveryView::OnStopVm(crostini::CrostiniResult result) {
 bool CrostiniRecoveryView::Cancel() {
   if (callback_) {
     std::move(callback_).Run(false, "cancelled for recovery");
-    guest_os::LaunchTerminal(profile_, display_id_,
-                             crostini::DefaultContainerId());
+    crostini::LaunchTerminal(profile_, display_id_);
   }
   return true;
 }
@@ -133,17 +128,16 @@ CrostiniRecoveryView::CrostiniRecoveryView(
       provider->GetInsetsMetric(views::InsetsMetric::INSETS_DIALOG),
       provider->GetDistanceMetric(views::DISTANCE_RELATED_CONTROL_VERTICAL)));
 
-  const std::u16string message =
+  const base::string16 message =
       l10n_util::GetStringUTF16(IDS_CROSTINI_RECOVERY_MESSAGE);
   views::Label* message_label = new views::Label(message);
   message_label->SetMultiLine(true);
   message_label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   AddChildView(message_label);
+
+  chrome::RecordDialogCreation(chrome::DialogIdentifier::CROSTINI_RECOVERY);
 }
 
 CrostiniRecoveryView::~CrostiniRecoveryView() {
   g_crostini_recovery_view = nullptr;
 }
-
-BEGIN_METADATA(CrostiniRecoveryView, views::BubbleDialogDelegateView)
-END_METADATA

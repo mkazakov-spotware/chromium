@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,7 @@ CastAudioInputStream::~CastAudioInputStream() {
   DCHECK_CALLED_ON_VALID_THREAD(audio_thread_checker_);
 }
 
-::media::AudioInputStream::OpenOutcome CastAudioInputStream::Open() {
+bool CastAudioInputStream::Open() {
   DCHECK_CALLED_ON_VALID_THREAD(audio_thread_checker_);
   DCHECK(!capture_service_receiver_);
   LOG(INFO) << __func__ << " " << this << ".";
@@ -41,7 +41,7 @@ CastAudioInputStream::~CastAudioInputStream() {
   if ((channel_layout != ::media::CHANNEL_LAYOUT_MONO) &&
       (channel_layout != ::media::CHANNEL_LAYOUT_STEREO)) {
     LOG(WARNING) << "Unsupported channel layout: " << channel_layout;
-    return ::media::AudioInputStream::OpenOutcome::kFailed;
+    return false;
   }
   DCHECK_GE(audio_params_.channels(), 1);
   DCHECK_LE(audio_params_.channels(), 2);
@@ -56,7 +56,7 @@ CastAudioInputStream::~CastAudioInputStream() {
       audio_params_.frames_per_buffer()};
   capture_service_receiver_ =
       std::make_unique<CaptureServiceReceiver>(stream_info_, this);
-  return ::media::AudioInputStream::OpenOutcome::kSuccess;
+  return true;
 }
 
 void CastAudioInputStream::Start(AudioInputCallback* input_callback) {
@@ -148,19 +148,16 @@ bool CastAudioInputStream::OnCaptureData(const char* data, size_t size) {
   }
 
   DCHECK(input_callback_);
-  input_callback_->OnData(audio_bus_.get(),
-                          base::TimeTicks() + base::Microseconds(timestamp_us),
-                          /* volume */ 1.0);
+  input_callback_->OnData(
+      audio_bus_.get(),
+      base::TimeTicks() + base::TimeDelta::FromMicroseconds(timestamp_us),
+      /* volume */ 1.0);
   return true;
 }
 
 void CastAudioInputStream::OnCaptureError() {
   DCHECK(input_callback_);
   input_callback_->OnError();
-}
-
-void CastAudioInputStream::OnCaptureMetadata(const char* data, size_t size) {
-  // Not implemented!
 }
 
 }  // namespace media

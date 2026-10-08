@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,8 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
+#include "content/common/content_export.h"
 #include "ppapi/host/resource_host.h"
 #include "ppapi/proxy/resource_message_params.h"
 #include "ppapi/shared_impl/url_request_info_data.h"
@@ -34,10 +36,6 @@ class PepperURLLoaderHost : public ppapi::host::ResourceHost,
                       bool main_document_loader,
                       PP_Instance instance,
                       PP_Resource resource);
-
-  PepperURLLoaderHost(const PepperURLLoaderHost&) = delete;
-  PepperURLLoaderHost& operator=(const PepperURLLoaderHost&) = delete;
-
   ~PepperURLLoaderHost() override;
 
   // ResourceHost implementation.
@@ -138,6 +136,8 @@ class PepperURLLoaderHost : public ppapi::host::ResourceHost,
   // PpapiPluginMsg_URLLoader_ReceivedResponse to the plugin, which introduces
   // ordering constraints on following messages to the plugin.
   bool pending_response_;
+
+  DISALLOW_COPY_AND_ASSIGN(PepperURLLoaderHost);
 };
 
 }  // namespace content

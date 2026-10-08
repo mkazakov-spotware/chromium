@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,13 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "content/browser/loader/navigation_loader_interceptor.h"
 #include "content/browser/service_worker/embedded_worker_status.h"
 #include "content/browser/service_worker/service_worker_fetch_dispatcher.h"
-#include "content/common/content_export.h"
+#include "content/browser/url_loader_factory_getter.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -68,12 +68,7 @@ class CONTENT_EXPORT ServiceWorkerMainResourceLoader
   ServiceWorkerMainResourceLoader(
       NavigationLoaderInterceptor::FallbackCallback fallback_callback,
       base::WeakPtr<ServiceWorkerContainerHost> container_host,
-      int frame_tree_node_id);
-
-  ServiceWorkerMainResourceLoader(const ServiceWorkerMainResourceLoader&) =
-      delete;
-  ServiceWorkerMainResourceLoader& operator=(
-      const ServiceWorkerMainResourceLoader&) = delete;
+      scoped_refptr<URLLoaderFactoryGetter> url_loader_factory_getter);
 
   ~ServiceWorkerMainResourceLoader() override;
 
@@ -127,10 +122,9 @@ class CONTENT_EXPORT ServiceWorkerMainResourceLoader
   // Calls url_loader_client_->OnReceiveResponse() with |response_head_|.
   void CommitResponseHeaders();
 
-  // Calls url_loader_client_->OnReceiveResponse() with
-  // |response_body| and |cached_metadata|.
-  void CommitResponseBody(mojo::ScopedDataPipeConsumerHandle response_body,
-                          absl::optional<mojo_base::BigBuffer> cached_metadata);
+  // Calls url_loader_client_->OnStartLoadingResponseBody() with
+  // |response_body|.
+  void CommitResponseBody(mojo::ScopedDataPipeConsumerHandle response_body);
 
   // Creates and sends an empty response's body with the net::OK status.
   // Sends net::ERR_INSUFFICIENT_RESOURCES when it can't be created.
@@ -145,7 +139,7 @@ class CONTENT_EXPORT ServiceWorkerMainResourceLoader
       const std::vector<std::string>& removed_headers,
       const net::HttpRequestHeaders& modified_headers,
       const net::HttpRequestHeaders& modified_cors_exempt_headers,
-      const absl::optional<GURL>& new_url) override;
+      const base::Optional<GURL>& new_url) override;
   void SetPriority(net::RequestPriority priority,
                    int32_t intra_priority_value) override;
   void PauseReadingBodyFromNet() override;
@@ -161,10 +155,6 @@ class CONTENT_EXPORT ServiceWorkerMainResourceLoader
   // handled the request (i.e. non network fallback case).
   void RecordTimingMetrics(bool handled);
 
-  // Records metrics related to the fetch event handler execution.
-  void RecordFetchEventHandlerMetrics(
-      ServiceWorkerFetchDispatcher::FetchEventResult fetch_result);
-
   void TransitionToStatus(Status new_status);
 
   NavigationLoaderInterceptor::FallbackCallback fallback_callback_;
@@ -172,8 +162,8 @@ class CONTENT_EXPORT ServiceWorkerMainResourceLoader
   network::ResourceRequest resource_request_;
 
   base::WeakPtr<ServiceWorkerContainerHost> container_host_;
-  const int frame_tree_node_id_;
 
+  scoped_refptr<URLLoaderFactoryGetter> url_loader_factory_getter_;
   std::unique_ptr<ServiceWorkerFetchDispatcher> fetch_dispatcher_;
   std::unique_ptr<StreamWaiter> stream_waiter_;
   // The blob needs to be held while it's read to keep it alive.
@@ -197,6 +187,8 @@ class CONTENT_EXPORT ServiceWorkerMainResourceLoader
   bool is_detached_ = false;
 
   base::WeakPtrFactory<ServiceWorkerMainResourceLoader> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ServiceWorkerMainResourceLoader);
 };
 
 // Owns a loader and calls DetachedFromRequest() to release it.
@@ -204,18 +196,14 @@ class ServiceWorkerMainResourceLoaderWrapper {
  public:
   explicit ServiceWorkerMainResourceLoaderWrapper(
       std::unique_ptr<ServiceWorkerMainResourceLoader> loader);
-
-  ServiceWorkerMainResourceLoaderWrapper(
-      const ServiceWorkerMainResourceLoaderWrapper&) = delete;
-  ServiceWorkerMainResourceLoaderWrapper& operator=(
-      const ServiceWorkerMainResourceLoaderWrapper&) = delete;
-
   ~ServiceWorkerMainResourceLoaderWrapper();
 
   ServiceWorkerMainResourceLoader* get() { return loader_.get(); }
 
  private:
   std::unique_ptr<ServiceWorkerMainResourceLoader> loader_;
+
+  DISALLOW_COPY_AND_ASSIGN(ServiceWorkerMainResourceLoaderWrapper);
 };
 
 }  // namespace content

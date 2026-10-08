@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,25 @@
 #include "base/callback_helpers.h"
 #include "base/metrics/histogram_macros.h"
 
-#if !defined(TOOLKIT_VIEWS)
-#include "ui/shell_dialogs/selected_file_info.h"
-#endif
-
 namespace chrome {
 
+void RecordDialogCreation(DialogIdentifier identifier) {
+  UMA_HISTOGRAM_ENUMERATION("Dialog.Creation", identifier,
+                            DialogIdentifier::MAX_VALUE);
+}
+
 #if !defined(TOOLKIT_VIEWS)
+base::OnceClosure ShowDeviceChooserDialog(
+    content::RenderFrameHost* owner,
+    std::unique_ptr<ChooserController> controller) {
+  NOTIMPLEMENTED();
+  return base::DoNothing();
+}
+bool IsDeviceChooserShowingForTesting() {
+  NOTIMPLEMENTED();
+  return false;
+}
+
 void ShowWindowNamePrompt(Browser* browser) {
   NOTIMPLEMENTED();
 }

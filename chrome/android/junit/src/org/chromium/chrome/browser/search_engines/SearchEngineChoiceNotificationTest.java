@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,8 +15,7 @@ import static org.mockito.Mockito.verify;
 
 import android.content.Context;
 import android.content.Intent;
-
-import androidx.test.filters.SmallTest;
+import android.support.test.filters.SmallTest;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -32,25 +31,22 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.metrics.UmaRecorderHolder;
+import org.chromium.base.metrics.test.ShadowRecordHistogram;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
-import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
+import org.chromium.chrome.browser.version.ChromeVersionInfo;
 import org.chromium.chrome.test.util.browser.Features;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
 import org.chromium.components.search_engines.TemplateUrl;
 import org.chromium.components.search_engines.TemplateUrlService;
-import org.chromium.components.version_info.VersionInfo;
 
 /**
  * Unit tests for {@link SearchEngineChoiceNotification}.
  */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
+@Config(manifest = Config.NONE, shadows = {ShadowRecordHistogram.class})
 @Features.EnableFeatures({})
 public final class SearchEngineChoiceNotificationTest {
     private static final String TEST_INITIAL_ENGINE = "google.com";
@@ -71,15 +67,13 @@ public final class SearchEngineChoiceNotificationTest {
     private TemplateUrl mAlternativeSearchEngine;
     @Captor
     private ArgumentCaptor<Snackbar> mSnackbarArgument;
-    @Mock
-    private SettingsLauncher mSettingsLauncher;
 
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
         ContextUtils.initApplicationContextForTests(mContext);
 
-        UmaRecorderHolder.resetForTesting();
+        ShadowRecordHistogram.reset();
 
         // Sets up appropriate responses from Template URL service.
         TemplateUrlServiceFactory.setInstanceForTesting(mTemplateUrlService);
@@ -119,13 +113,13 @@ public final class SearchEngineChoiceNotificationTest {
         SharedPreferencesManager prefs = SharedPreferencesManager.getInstance();
         assertFalse(prefs.contains(ChromePreferenceKeys.SEARCH_ENGINE_CHOICE_PRESENTED_VERSION));
 
-        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, null, mSettingsLauncher);
+        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, null);
 
         assertFalse("When not requested, the call should have been ignored.",
                 prefs.contains(ChromePreferenceKeys.SEARCH_ENGINE_CHOICE_PRESENTED_VERSION));
 
         assertEquals(0,
-                RecordHistogram.getHistogramValueCountForTesting(
+                ShadowRecordHistogram.getHistogramValueCountForTesting(
                         "Android.SearchEngineChoice.Events",
                         SearchEngineChoiceMetrics.Events.SNACKBAR_SHOWN));
     }
@@ -138,14 +132,14 @@ public final class SearchEngineChoiceNotificationTest {
         SharedPreferencesManager prefs = SharedPreferencesManager.getInstance();
         assertFalse(prefs.contains(ChromePreferenceKeys.SEARCH_ENGINE_CHOICE_PRESENTED_VERSION));
 
-        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, null, mSettingsLauncher);
+        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, null);
 
         assertFalse(
                 "When search engine settings are controlled by policy, the call should be ignored.",
                 prefs.contains(ChromePreferenceKeys.SEARCH_ENGINE_CHOICE_PRESENTED_VERSION));
 
         assertEquals(0,
-                RecordHistogram.getHistogramValueCountForTesting(
+                ShadowRecordHistogram.getHistogramValueCountForTesting(
                         "Android.SearchEngineChoice.Events",
                         SearchEngineChoiceMetrics.Events.SNACKBAR_SHOWN));
     }
@@ -154,14 +148,13 @@ public final class SearchEngineChoiceNotificationTest {
     @SmallTest
     public void handleSearchEngineChoice_performedFirstTime() {
         SearchEngineChoiceNotification.receiveSearchEngineChoiceRequest();
-        SearchEngineChoiceNotification.handleSearchEngineChoice(
-                mContext, mSnackbarManager, mSettingsLauncher);
+        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, mSnackbarManager);
         // TODO(fgorski): Snackbar content is scoped to its package, therefore cannot be verified
         // here at this time. See whether that can be fixed.
         verify(mSnackbarManager, times(1)).showSnackbar(any(Snackbar.class));
 
         assertEquals("We are expecting exactly one snackbar shown event.", 1,
-                RecordHistogram.getHistogramValueCountForTesting(
+                ShadowRecordHistogram.getHistogramValueCountForTesting(
                         "Android.SearchEngineChoice.Events",
                         SearchEngineChoiceMetrics.Events.SNACKBAR_SHOWN));
 
@@ -170,7 +163,7 @@ public final class SearchEngineChoiceNotificationTest {
                 prefs.contains(ChromePreferenceKeys.SEARCH_ENGINE_CHOICE_PRESENTED_VERSION));
 
         assertEquals("Presented version should be set to the current product version.",
-                VersionInfo.getProductVersion(),
+                ChromeVersionInfo.getProductVersion(),
                 prefs.readString(
                         ChromePreferenceKeys.SEARCH_ENGINE_CHOICE_PRESENTED_VERSION, null));
     }
@@ -179,23 +172,20 @@ public final class SearchEngineChoiceNotificationTest {
     @SmallTest
     public void handleSearchEngineChoice_ignoredOnSubsequentCalls() {
         SearchEngineChoiceNotification.receiveSearchEngineChoiceRequest();
-        SearchEngineChoiceNotification.handleSearchEngineChoice(
-                mContext, mSnackbarManager, mSettingsLauncher);
+        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, mSnackbarManager);
         verify(mSnackbarManager, times(1)).showSnackbar(any(Snackbar.class));
 
-        SearchEngineChoiceNotification.handleSearchEngineChoice(
-                mContext, mSnackbarManager, mSettingsLauncher);
+        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, mSnackbarManager);
         assertFalse("Second call removes the preference for search engine choice before.",
                 SharedPreferencesManager.getInstance().contains(
                         ChromePreferenceKeys.SEARCH_ENGINE_CHOICE_DEFAULT_TYPE_BEFORE));
 
-        SearchEngineChoiceNotification.handleSearchEngineChoice(
-                mContext, mSnackbarManager, mSettingsLauncher);
+        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, mSnackbarManager);
 
         // No increase in execution counter means it was not called again.
         verify(mSnackbarManager, times(1)).showSnackbar(any(Snackbar.class));
         assertEquals(1,
-                RecordHistogram.getHistogramValueCountForTesting(
+                ShadowRecordHistogram.getHistogramValueCountForTesting(
                         "Android.SearchEngineChoice.Events",
                         SearchEngineChoiceMetrics.Events.SNACKBAR_SHOWN));
     }
@@ -204,16 +194,12 @@ public final class SearchEngineChoiceNotificationTest {
     @SmallTest
     public void snackbarClicked() {
         SearchEngineChoiceNotification.receiveSearchEngineChoiceRequest();
-
-        // We do not use a mock for SettingsLauncher here since the test needs to
-        // verify that the launcher actually starts an activity.
-        SearchEngineChoiceNotification.handleSearchEngineChoice(
-                mContext, mSnackbarManager, new SettingsLauncherImpl());
+        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, mSnackbarManager);
         verify(mSnackbarManager, times(1)).showSnackbar(mSnackbarArgument.capture());
 
         mSnackbarArgument.getValue().getController().onAction(null);
         assertEquals(1,
-                RecordHistogram.getHistogramValueCountForTesting(
+                ShadowRecordHistogram.getHistogramValueCountForTesting(
                         "Android.SearchEngineChoice.Events",
                         SearchEngineChoiceMetrics.Events.PROMPT_FOLLOWED));
         verify(mContext, times(1)).startActivity(any(Intent.class), isNull());
@@ -223,14 +209,12 @@ public final class SearchEngineChoiceNotificationTest {
     @SmallTest
     public void reportSearchEngineChanged_whenNoChange() {
         SearchEngineChoiceNotification.receiveSearchEngineChoiceRequest();
-        SearchEngineChoiceNotification.handleSearchEngineChoice(
-                mContext, mSnackbarManager, mSettingsLauncher);
+        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, mSnackbarManager);
         verify(mSnackbarManager, times(1)).showSnackbar(mSnackbarArgument.capture());
         mSnackbarArgument.getValue().getController().onAction(null);
 
         // Simulates no change.
-        SearchEngineChoiceNotification.handleSearchEngineChoice(
-                mContext, mSnackbarManager, mSettingsLauncher);
+        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, mSnackbarManager);
 
         assertFalse(
                 "First handleSearchEngineChoice call after prompt removes SE choice before pref.",
@@ -238,11 +222,11 @@ public final class SearchEngineChoiceNotificationTest {
                         ChromePreferenceKeys.SEARCH_ENGINE_CHOICE_DEFAULT_TYPE_BEFORE));
 
         assertEquals(0,
-                RecordHistogram.getHistogramValueCountForTesting(
+                ShadowRecordHistogram.getHistogramValueCountForTesting(
                         "Android.SearchEngineChoice.Events",
                         SearchEngineChoiceMetrics.Events.SEARCH_ENGINE_CHANGED));
         assertEquals(0,
-                RecordHistogram.getHistogramValueCountForTesting(
+                ShadowRecordHistogram.getHistogramValueCountForTesting(
                         "Android.SearchEngineChoice.ChosenSearchEngine",
                         SearchEngineType.SEARCH_ENGINE_DUCKDUCKGO));
     }
@@ -251,14 +235,12 @@ public final class SearchEngineChoiceNotificationTest {
     @SmallTest
     public void reportSearchEngineChanged_whenNoChangeOnFirstVisitToSettings() {
         SearchEngineChoiceNotification.receiveSearchEngineChoiceRequest();
-        SearchEngineChoiceNotification.handleSearchEngineChoice(
-                mContext, mSnackbarManager, mSettingsLauncher);
+        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, mSnackbarManager);
         verify(mSnackbarManager, times(1)).showSnackbar(mSnackbarArgument.capture());
         mSnackbarArgument.getValue().getController().onAction(null);
 
         // Simulates a change between the initialization, but reporting happens only the first time.
-        SearchEngineChoiceNotification.handleSearchEngineChoice(
-                mContext, mSnackbarManager, mSettingsLauncher);
+        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, mSnackbarManager);
         assertFalse(
                 "First handleSearchEngineChoice call after prompt removes SE choice before pref.",
                 SharedPreferencesManager.getInstance().contains(
@@ -267,15 +249,14 @@ public final class SearchEngineChoiceNotificationTest {
         doReturn(mAlternativeSearchEngine)
                 .when(mTemplateUrlService)
                 .getDefaultSearchEngineTemplateUrl();
-        SearchEngineChoiceNotification.handleSearchEngineChoice(
-                mContext, mSnackbarManager, mSettingsLauncher);
+        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, mSnackbarManager);
 
         assertEquals(0,
-                RecordHistogram.getHistogramValueCountForTesting(
+                ShadowRecordHistogram.getHistogramValueCountForTesting(
                         "Android.SearchEngineChoice.Events",
                         SearchEngineChoiceMetrics.Events.SEARCH_ENGINE_CHANGED));
         assertEquals(0,
-                RecordHistogram.getHistogramValueCountForTesting(
+                ShadowRecordHistogram.getHistogramValueCountForTesting(
                         "Android.SearchEngineChoice.ChosenSearchEngine",
                         SearchEngineType.SEARCH_ENGINE_DUCKDUCKGO));
     }
@@ -284,8 +265,7 @@ public final class SearchEngineChoiceNotificationTest {
     @SmallTest
     public void reportSearchEngineChanged_onlyFirstTime() {
         SearchEngineChoiceNotification.receiveSearchEngineChoiceRequest();
-        SearchEngineChoiceNotification.handleSearchEngineChoice(
-                mContext, mSnackbarManager, mSettingsLauncher);
+        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, mSnackbarManager);
         verify(mSnackbarManager, times(1)).showSnackbar(mSnackbarArgument.capture());
         mSnackbarArgument.getValue().getController().onAction(null);
 
@@ -293,15 +273,14 @@ public final class SearchEngineChoiceNotificationTest {
         doReturn(mAlternativeSearchEngine)
                 .when(mTemplateUrlService)
                 .getDefaultSearchEngineTemplateUrl();
-        SearchEngineChoiceNotification.handleSearchEngineChoice(
-                mContext, mSnackbarManager, mSettingsLauncher);
+        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, mSnackbarManager);
 
         assertEquals("Event is recorded when search engine was changed.", 1,
-                RecordHistogram.getHistogramValueCountForTesting(
+                ShadowRecordHistogram.getHistogramValueCountForTesting(
                         "Android.SearchEngineChoice.Events",
                         SearchEngineChoiceMetrics.Events.SEARCH_ENGINE_CHANGED));
         assertEquals("Newly chosen search engine type should be recoreded.", 1,
-                RecordHistogram.getHistogramValueCountForTesting(
+                ShadowRecordHistogram.getHistogramValueCountForTesting(
                         "Android.SearchEngineChoice.ChosenSearchEngine",
                         SearchEngineType.SEARCH_ENGINE_DUCKDUCKGO));
 
@@ -310,16 +289,15 @@ public final class SearchEngineChoiceNotificationTest {
                 SharedPreferencesManager.getInstance().contains(
                         ChromePreferenceKeys.SEARCH_ENGINE_CHOICE_DEFAULT_TYPE_BEFORE));
 
-        SearchEngineChoiceNotification.handleSearchEngineChoice(
-                mContext, mSnackbarManager, mSettingsLauncher);
+        SearchEngineChoiceNotification.handleSearchEngineChoice(mContext, mSnackbarManager);
 
         assertEquals("Event should only be recorded once, therefore count should be still 1.", 1,
-                RecordHistogram.getHistogramValueCountForTesting(
+                ShadowRecordHistogram.getHistogramValueCountForTesting(
                         "Android.SearchEngineChoice.Events",
                         SearchEngineChoiceMetrics.Events.SEARCH_ENGINE_CHANGED));
         assertEquals("New Search Engine shoudl only be reported once, therefore count should be 1",
                 1,
-                RecordHistogram.getHistogramValueCountForTesting(
+                ShadowRecordHistogram.getHistogramValueCountForTesting(
                         "Android.SearchEngineChoice.ChosenSearchEngine",
                         SearchEngineType.SEARCH_ENGINE_DUCKDUCKGO));
     }

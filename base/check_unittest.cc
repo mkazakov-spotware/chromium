@@ -1,17 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <tuple>
-
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/check_deref.h"
 #include "base/logging.h"
 #include "base/strings/string_piece.h"
 #include "base/test/gtest_util.h"
 #include "base/test/scoped_feature_list.h"
-#include "build/build_config.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -58,9 +54,7 @@ class ScopedCheckExpectation {
 // Macro which expects a CHECK to fire with a certain message. If msg starts
 // with "=~", it's interpreted as a regular expression.
 // Example: EXPECT_CHECK("Check failed: false.", CHECK(false));
-//
-// Note: Please use the `CheckDeathTest` fixture when using this check.
-#if !CHECK_WILL_STREAM()
+#if defined(OFFICIAL_BUILD) && defined(NDEBUG)
 #define EXPECT_CHECK(msg, check_expr) \
   do {                                \
     EXPECT_CHECK_DEATH(check_expr);   \
@@ -71,11 +65,9 @@ class ScopedCheckExpectation {
     ScopedCheckExpectation check_exp(__FILE__, __LINE__, msg); \
     check_expr;                                                \
   } while (0)
-#endif  // !CHECK_WILL_STREAM()
+#endif
 
 // Macro which expects a DCHECK to fire if DCHECKs are enabled.
-//
-// Note: Please use the `CheckDeathTest` fixture when using this check.
 #define EXPECT_DCHECK(msg, check_expr)                                         \
   do {                                                                         \
     if (DCHECK_IS_ON() && logging::LOGGING_DCHECK == logging::LOGGING_FATAL) { \
@@ -86,7 +78,9 @@ class ScopedCheckExpectation {
     }                                                                          \
   } while (0)
 
-TEST(CheckDeathTest, Basics) {
+class CheckTest : public testing::Test {};
+
+TEST_F(CheckTest, Basics) {
   EXPECT_CHECK("Check failed: false. ", CHECK(false));
 
   EXPECT_CHECK("Check failed: false. foo", CHECK(false) << "foo");
@@ -94,13 +88,13 @@ TEST(CheckDeathTest, Basics) {
   double a = 2, b = 1;
   EXPECT_CHECK("Check failed: a < b (2.000000 vs. 1.000000)", CHECK_LT(a, b));
 
-  EXPECT_CHECK("Check failed: a < b (2.000000 vs. 1.000000)custom message",
-               CHECK_LT(a, b) << "custom message");
+  EXPECT_CHECK("Check failed: a < b (2.000000 vs. 1.000000)foo",
+               CHECK_LT(a, b) << "foo");
 }
 
-TEST(CheckDeathTest, PCheck) {
+TEST_F(CheckTest, PCheck) {
   const char file[] = "/nonexistentfile123";
-  std::ignore = fopen(file, "r");
+  ignore_result(fopen(file, "r"));
   std::string err =
       logging::SystemErrorCodeToString(logging::GetLastSystemErrorCode());
 
@@ -129,7 +123,7 @@ TEST(CheckDeathTest, PCheck) {
       DPCHECK(fopen(file, "r") != nullptr) << "foo");
 }
 
-TEST(CheckDeathTest, CheckOp) {
+TEST_F(CheckTest, CheckOp) {
   int a = 1, b = 2;
   // clang-format off
   EXPECT_CHECK("Check failed: a == b (1 vs. 2)", CHECK_EQ(a, b));
@@ -148,15 +142,13 @@ TEST(CheckDeathTest, CheckOp) {
   // clang-format on
 }
 
-TEST(CheckTest, CheckStreamsAreLazy) {
+TEST_F(CheckTest, CheckStreamsAreLazy) {
   int called_count = 0;
   int not_called_count = 0;
 
   auto Called = [&]() {
     ++called_count;
-    // This returns a non-constant because returning 42 here directly triggers a
-    // dead-code warning when streaming to *CHECK(Called()) << NotCalled();
-    return called_count >= 0;
+    return 42;
   };
   auto NotCalled = [&]() {
     ++not_called_count;
@@ -187,10 +179,10 @@ void DcheckEmptyFunction1() {
 }
 void DcheckEmptyFunction2() {}
 
-#if BUILDFLAG(DCHECK_IS_CONFIGURABLE)
+#if defined(DCHECK_IS_CONFIGURABLE)
 class ScopedDcheckSeverity {
  public:
-  explicit ScopedDcheckSeverity(logging::LogSeverity new_severity)
+  ScopedDcheckSeverity(logging::LogSeverity new_severity)
       : old_severity_(logging::LOGGING_DCHECK) {
     logging::LOGGING_DCHECK = new_severity;
   }
@@ -200,21 +192,21 @@ class ScopedDcheckSeverity {
  private:
   logging::LogSeverity old_severity_;
 };
-#endif  // BUILDFLAG(DCHECK_IS_CONFIGURABLE)
+#endif  // defined(DCHECK_IS_CONFIGURABLE)
 
 // https://crbug.com/709067 tracks test flakiness on iOS.
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 #define MAYBE_Dcheck DISABLED_Dcheck
 #else
 #define MAYBE_Dcheck Dcheck
 #endif
-TEST(CheckDeathTest, MAYBE_Dcheck) {
-#if BUILDFLAG(DCHECK_IS_CONFIGURABLE)
+TEST_F(CheckTest, MAYBE_Dcheck) {
+#if defined(DCHECK_IS_CONFIGURABLE)
   // DCHECKs are enabled, and LOGGING_DCHECK is mutable, but defaults to
   // non-fatal. Set it to LOGGING_FATAL to get the expected behavior from the
   // rest of this test.
   ScopedDcheckSeverity dcheck_severity(logging::LOGGING_FATAL);
-#endif  // BUILDFLAG(DCHECK_IS_CONFIGURABLE)
+#endif  // defined(DCHECK_IS_CONFIGURABLE)
 
 #if defined(NDEBUG) && !defined(DCHECK_ALWAYS_ON)
   // Release build.
@@ -273,7 +265,7 @@ TEST(CheckDeathTest, MAYBE_Dcheck) {
       DCHECK_EQ(mp2, &MemberFunctions::MemberFunction1));
 }
 
-TEST(CheckTest, DcheckReleaseBehavior) {
+TEST_F(CheckTest, DcheckReleaseBehavior) {
   int var1 = 1;
   int var2 = 2;
   int var3 = 3;
@@ -286,7 +278,7 @@ TEST(CheckTest, DcheckReleaseBehavior) {
   DCHECK_EQ(var1, 1) << var4;
 }
 
-TEST(CheckTest, DCheckEqStatements) {
+TEST_F(CheckTest, DCheckEqStatements) {
   bool reached = false;
   if (false)
     DCHECK_EQ(false, true);  // Unreached.
@@ -298,7 +290,7 @@ TEST(CheckTest, DCheckEqStatements) {
     DCHECK_EQ(false, true);  // Unreached.
 }
 
-TEST(CheckTest, CheckEqStatements) {
+TEST_F(CheckTest, CheckEqStatements) {
   bool reached = false;
   if (false)
     CHECK_EQ(false, true);  // Unreached.
@@ -310,8 +302,8 @@ TEST(CheckTest, CheckEqStatements) {
     CHECK_EQ(false, true);  // Unreached.
 }
 
-#if BUILDFLAG(DCHECK_IS_CONFIGURABLE)
-TEST(CheckDeathTest, ConfigurableDCheck) {
+#if defined(DCHECK_IS_CONFIGURABLE)
+TEST_F(CheckTest, ConfigurableDCheck) {
   // Verify that DCHECKs default to non-fatal in configurable-DCHECK builds.
   // Note that we require only that DCHECK is non-fatal by default, rather
   // than requiring that it be exactly INFO, ERROR, etc level.
@@ -329,7 +321,7 @@ TEST(CheckDeathTest, ConfigurableDCheck) {
   EXPECT_CHECK("Check failed: 1 == 2 (1 vs. 2)", DCHECK_EQ(1, 2));
 }
 
-TEST(CheckTest, ConfigurableDCheckFeature) {
+TEST_F(CheckTest, ConfigurableDCheckFeature) {
   // Initialize FeatureList with and without DcheckIsFatal, and verify the
   // value of LOGGING_DCHECK. Note that we don't require that DCHECK take a
   // specific value when the feature is off, only that it is non-fatal.
@@ -353,16 +345,16 @@ TEST(CheckTest, ConfigurableDCheckFeature) {
     EXPECT_LT(logging::LOGGING_DCHECK, logging::LOGGING_FATAL);
   }
 }
-#endif  // BUILDFLAG(DCHECK_IS_CONFIGURABLE)
+#endif  // defined(DCHECK_IS_CONFIGURABLE)
 
 struct StructWithOstream {
   bool operator==(const StructWithOstream& o) const { return &o == this; }
 };
-#if CHECK_WILL_STREAM()
+#if !(defined(OFFICIAL_BUILD) && defined(NDEBUG))
 std::ostream& operator<<(std::ostream& out, const StructWithOstream&) {
   return out << "ostream";
 }
-#endif  // CHECK_WILL_STREAM()
+#endif
 
 struct StructWithToString {
   bool operator==(const StructWithToString& o) const { return &o == this; }
@@ -375,12 +367,12 @@ struct StructWithToStringAndOstream {
   }
   std::string ToString() const { return "ToString"; }
 };
-#if CHECK_WILL_STREAM()
+#if !(defined(OFFICIAL_BUILD) && defined(NDEBUG))
 std::ostream& operator<<(std::ostream& out,
                          const StructWithToStringAndOstream&) {
   return out << "ostream";
 }
-#endif  // CHECK_WILL_STREAM()
+#endif
 
 struct StructWithToStringNotStdString {
   struct PseudoString {};
@@ -390,14 +382,14 @@ struct StructWithToStringNotStdString {
   }
   PseudoString ToString() const { return PseudoString(); }
 };
-#if CHECK_WILL_STREAM()
+#if !(defined(OFFICIAL_BUILD) && defined(NDEBUG))
 std::ostream& operator<<(std::ostream& out,
                          const StructWithToStringNotStdString::PseudoString&) {
   return out << "ToString+ostream";
 }
-#endif  // CHECK_WILL_STREAM()
+#endif
 
-TEST(CheckDeathTest, OstreamVsToString) {
+TEST_F(CheckTest, OstreamVsToString) {
   StructWithOstream a, b;
   EXPECT_CHECK("Check failed: a == b (ostream vs. ostream)", CHECK_EQ(a, b));
 
@@ -412,7 +404,7 @@ TEST(CheckDeathTest, OstreamVsToString) {
                CHECK_EQ(g, h));
 }
 
-#define EXPECT_LOG_ERROR(expected_line, expr, msg)                             \
+#define EXPECT_LOG_ERROR(msg, expr, expected_line)                             \
   do {                                                                         \
     static bool got_log_message = false;                                       \
     ASSERT_EQ(logging::GetLogMessageHandler(), nullptr);                       \
@@ -445,24 +437,23 @@ TEST(CheckDeathTest, OstreamVsToString) {
     logging::SetLogMessageHandler(nullptr);                                    \
   } while (0)
 
-TEST(CheckDeathTest, NotReached) {
-#if BUILDFLAG(ENABLE_LOG_ERROR_NOT_REACHED) && !DCHECK_IS_ON()
-  // Expect LOG(ERROR) that looks like CHECK(false) with streamed params intact.
-  EXPECT_LOG_ERROR(__LINE__, NOTREACHED() << "foo",
-                   "Check failed: false. foo\n");
+TEST_F(CheckTest, NotReached) {
+#if BUILDFLAG(ENABLE_LOG_ERROR_NOT_REACHED)
+  // Expect LOG(ERROR) without the streamed params.
+  EXPECT_LOG_ERROR("NOTREACHED() hit.\n", NOTREACHED() << "foo", __LINE__);
 #else
   // Expect a DCHECK with streamed params intact.
   EXPECT_DCHECK("Check failed: false. foo", NOTREACHED() << "foo");
 #endif
 }
 
-TEST(CheckTest, NotImplemented) {
+TEST_F(CheckTest, NotImplemented) {
   static const std::string expected_msg =
       std::string("Not implemented reached in ") + __PRETTY_FUNCTION__;
 
 #if DCHECK_IS_ON()
   // Expect LOG(ERROR) with streamed params intact.
-  EXPECT_LOG_ERROR(__LINE__, NOTIMPLEMENTED() << "foo", expected_msg + "foo\n");
+  EXPECT_LOG_ERROR(expected_msg + "foo\n", NOTIMPLEMENTED() << "foo", __LINE__);
 #else
   // Expect nothing.
   EXPECT_NO_LOG(NOTIMPLEMENTED() << "foo");
@@ -474,53 +465,17 @@ void NiLogOnce() {
   NOTIMPLEMENTED_LOG_ONCE() << "foo";
 }
 
-TEST(CheckTest, NotImplementedLogOnce) {
+TEST_F(CheckTest, NotImplementedLogOnce) {
   static const std::string expected_msg =
       "Not implemented reached in void (anonymous namespace)::NiLogOnce()\n";
 
 #if DCHECK_IS_ON()
-  EXPECT_LOG_ERROR(__LINE__ - 8, NiLogOnce(), expected_msg);
+  EXPECT_LOG_ERROR(expected_msg, NiLogOnce(), __LINE__ - 8);
   EXPECT_NO_LOG(NiLogOnce());
 #else
   EXPECT_NO_LOG(NiLogOnce());
   EXPECT_NO_LOG(NiLogOnce());
 #endif
-}
-
-// Test CHECK_DEREF of `T*`
-TEST(CheckTest, CheckDerefOfPointer) {
-  std::string pointee = "not-null";
-  std::string* value_pointer = &pointee;
-
-  auto& deref_result = CHECK_DEREF(value_pointer);
-  static_assert(std::is_lvalue_reference_v<decltype(deref_result)>);
-  // Compare the pointers to ensure they are the same object (and not a copy)
-  EXPECT_EQ(&deref_result, &pointee);
-  static_assert(std::is_same_v<decltype(deref_result), std::string&>);
-}
-
-TEST(CheckDeathTest, CheckDerefOfNullPointer) {
-  std::string* null_pointer = nullptr;
-  EXPECT_CHECK("Check failed: null_pointer != nullptr. ",
-               CHECK_DEREF(null_pointer));
-}
-
-// Test CHECK_DEREF of `const T*`
-TEST(CheckTest, CheckDerefOfConstPointer) {
-  std::string pointee = "not-null";
-  const std::string* const_value_pointer = &pointee;
-
-  auto& deref_result = CHECK_DEREF(const_value_pointer);
-  static_assert(std::is_lvalue_reference_v<decltype(deref_result)>);
-  // Compare the pointers to ensure they are the same object (and not a copy)
-  EXPECT_EQ(&deref_result, &pointee);
-  static_assert(std::is_same_v<decltype(deref_result), const std::string&>);
-}
-
-TEST(CheckDeathTest, CheckDerefOfConstNullPointer) {
-  std::string* const_null_pointer = nullptr;
-  EXPECT_CHECK("Check failed: const_null_pointer != nullptr. ",
-               CHECK_DEREF(const_null_pointer));
 }
 
 }  // namespace

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define UI_BASE_COCOA_WEAK_PTR_NSOBJECT_H_
 
 #include "base/component_export.h"
+#include "base/macros.h"
 
 #if defined(__OBJC__)
 @class WeakPtrNSObject;
@@ -39,10 +40,6 @@ template <class T>
 class WeakPtrNSObjectFactory : public internal::WeakPtrNSObjectFactoryBase {
  public:
   explicit WeakPtrNSObjectFactory(T* owner) : handle_(Create(owner)) {}
-
-  WeakPtrNSObjectFactory(const WeakPtrNSObjectFactory&) = delete;
-  WeakPtrNSObjectFactory& operator=(const WeakPtrNSObjectFactory&) = delete;
-
   ~WeakPtrNSObjectFactory() { InvalidateAndRelease(handle_); }
 
   // Gets the original owner, if it hasn't been destroyed.
@@ -54,6 +51,8 @@ class WeakPtrNSObjectFactory : public internal::WeakPtrNSObjectFactoryBase {
 
  private:
   WeakPtrNSObject* handle_;
+
+  DISALLOW_COPY_AND_ASSIGN(WeakPtrNSObjectFactory);
 };
 
 }  // namespace ui

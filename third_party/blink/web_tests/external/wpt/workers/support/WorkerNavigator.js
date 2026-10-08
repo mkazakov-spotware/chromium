@@ -8,18 +8,12 @@
   if (navigator.userAgentData) {
     obj.brands = navigator.userAgentData.brands;
     obj.mobile = navigator.userAgentData.mobile;
-    obj.platform = navigator.userAgentData.platform;
-    const highEntropyValues = await navigator.userAgentData.getHighEntropyValues([
-      "architecture", "bitness", "fullVersionList", "model",
-      "platformVersion", "uaFullVersion", "wow64"
-    ]);
-    obj.architecture = highEntropyValues.architecture;
-    obj.bitness = highEntropyValues.bitness;
-    obj.fullVersionList = highEntropyValues.fullVersionList;
-    obj.model = highEntropyValues.model;
+    const highEntropyValues = await navigator.userAgentData.getHighEntropyValues(["platform", "platformVersion", "architecture", "model", "uaFullVersion"]);
+    obj.platform = highEntropyValues.platform;
     obj.platformVersion = highEntropyValues.platformVersion;
+    obj.architecture = highEntropyValues.architecture;
+    obj.model = highEntropyValues.model;
     obj.uaFullVersion = highEntropyValues.uaFullVersion;
-    obj.wow64 = highEntropyValues.wow64;
     obj.NavigatorUADataExposed = (typeof self.NavigatorUAData != "undefined");
   }
   postMessage(obj);

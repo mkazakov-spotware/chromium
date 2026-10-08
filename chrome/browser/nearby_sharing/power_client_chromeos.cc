@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,6 +19,6 @@ void PowerClientChromeos::SuspendImminent(
   SetSuspended(true);
 }
 
-void PowerClientChromeos::SuspendDone(base::TimeDelta sleep_duration) {
+void PowerClientChromeos::SuspendDone(const base::TimeDelta& sleep_duration) {
   SetSuspended(false);
 }

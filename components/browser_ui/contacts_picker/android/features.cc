@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,7 @@
 
 namespace browser_ui {
 
-BASE_FEATURE(kContactsPickerSelectAll,
-             "ContactsPickerSelectAll",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kContactsPickerSelectAll{"ContactsPickerSelectAll",
+                                             base::FEATURE_DISABLED_BY_DEFAULT};
 
 }  // namespace browser_ui

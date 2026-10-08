@@ -27,8 +27,6 @@
 // on systems without case-sensitive file systems.
 
 #include <iosfwd>
-#include <type_traits>
-
 #include "base/containers/span.h"
 #include "build/build_config.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
@@ -37,13 +35,20 @@
 #include "third_party/blink/renderer/platform/wtf/text/string_view.h"
 #include "third_party/blink/renderer/platform/wtf/wtf_export.h"
 #include "third_party/blink/renderer/platform/wtf/wtf_size_t.h"
-#include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
 
 #ifdef __OBJC__
 #include <objc/objc.h>
 #endif
 
 namespace WTF {
+
+struct StringHash;
+
+enum UTF8ConversionMode {
+  kLenientUTF8Conversion,
+  kStrictUTF8Conversion,
+  kStrictUTF8ConversionReplacingUnpairedSurrogatesWithFFFD
+};
 
 #define DISPATCH_CASE_OP(caseSensitivity, op, args)     \
   ((caseSensitivity == kTextCaseSensitive)              \
@@ -75,25 +80,21 @@ class WTF_EXPORT String {
 
   // Construct a string with UTF-16 data, from a null-terminated source.
   String(const UChar*);
+  String(const char16_t* chars)
+      : String(reinterpret_cast<const UChar*>(chars)) {}
 
   // Construct a string with latin1 data.
   String(const LChar* characters, unsigned length);
   String(const char* characters, unsigned length);
-  explicit String(const std::string& s) : String(s.c_str(), s.length()) {}
 
 #if defined(ARCH_CPU_64_BITS)
-  // Only define size_t constructors if size_t is 64 bit otherwise
+  // Only define a size_t constructor if size_t is 64 bit otherwise
   // we'd have a duplicate define.
-  String(const UChar* characters, size_t length);
   String(const char* characters, size_t length);
 #endif  // defined(ARCH_CPU_64_BITS)
 
-  // Construct a string with latin1 data, from a null-terminated source. The
-  // `LChar` constructor is explicit to avoid misinterpreting byte arrays.
-  // If the conversion is implicit, functions with both `String` and
-  // `base::span<const uint8_t>` overloads become ambiguous when called on
-  // `uint8_t[N]`.
-  explicit String(const LChar* characters)
+  // Construct a string with latin1 data, from a null-terminated source.
+  String(const LChar* characters)
       : String(reinterpret_cast<const char*>(characters)) {}
   String(const char* characters)
       : String(characters, characters ? strlen(characters) : 0) {}
@@ -121,7 +122,7 @@ class WTF_EXPORT String {
 
   explicit operator bool() const { return !IsNull(); }
   bool IsNull() const { return !impl_; }
-  bool empty() const { return !impl_ || !impl_->length(); }
+  bool IsEmpty() const { return !impl_ || !impl_->length(); }
 
   StringImpl* Impl() const { return impl_.get(); }
   scoped_refptr<StringImpl> ReleaseImpl() { return std::move(impl_); }
@@ -173,14 +174,12 @@ class WTF_EXPORT String {
 
   bool Is8Bit() const { return impl_->Is8Bit(); }
 
-  [[nodiscard]] std::string Ascii() const;
-  [[nodiscard]] std::string Latin1() const;
-  [[nodiscard]] std::string Utf8(
-      UTF8ConversionMode mode = kLenientUTF8Conversion) const {
-    return StringView(*this).Utf8(mode);
-  }
+  std::string Ascii() const WARN_UNUSED_RESULT;
+  std::string Latin1() const WARN_UNUSED_RESULT;
+  std::string Utf8(UTF8ConversionMode = kLenientUTF8Conversion) const
+      WARN_UNUSED_RESULT;
 
-  UChar operator[](wtf_size_t index) const {
+  UChar operator[](unsigned index) const {
     if (!impl_ || index >= impl_->length())
       return 0;
     return (*impl_)[index];
@@ -192,27 +191,27 @@ class WTF_EXPORT String {
     return StringImpl::Create(converter.Characters8(), converter.length());
   }
 
-  [[nodiscard]] static String Number(float);
+  static String Number(float) WARN_UNUSED_RESULT;
 
-  [[nodiscard]] static String Number(double, unsigned precision = 6);
+  static String Number(double, unsigned precision = 6) WARN_UNUSED_RESULT;
 
   // Number to String conversion following the ECMAScript definition.
-  [[nodiscard]] static String NumberToStringECMAScript(double);
-  [[nodiscard]] static String NumberToStringFixedWidth(double,
-                                                       unsigned decimal_places);
+  static String NumberToStringECMAScript(double) WARN_UNUSED_RESULT;
+  static String NumberToStringFixedWidth(double, unsigned decimal_places)
+      WARN_UNUSED_RESULT;
 
   // Find characters.
-  wtf_size_t find(UChar c, wtf_size_t start = 0) const {
+  wtf_size_t find(UChar c, unsigned start = 0) const {
     return impl_ ? impl_->Find(c, start) : kNotFound;
   }
-  wtf_size_t find(LChar c, wtf_size_t start = 0) const {
+  wtf_size_t find(LChar c, unsigned start = 0) const {
     return impl_ ? impl_->Find(c, start) : kNotFound;
   }
-  wtf_size_t find(char c, wtf_size_t start = 0) const {
+  wtf_size_t find(char c, unsigned start = 0) const {
     return find(static_cast<LChar>(c), start);
   }
   wtf_size_t Find(CharacterMatchFunctionPtr match_function,
-                  wtf_size_t start = 0) const {
+                  unsigned start = 0) const {
     return impl_ ? impl_->Find(match_function, start) : kNotFound;
   }
   wtf_size_t Find(base::RepeatingCallback<bool(UChar)> match_callback,
@@ -221,7 +220,7 @@ class WTF_EXPORT String {
   // Find substrings.
   wtf_size_t Find(
       const StringView& value,
-      wtf_size_t start = 0,
+      unsigned start = 0,
       TextCaseSensitivity case_sensitivity = kTextCaseSensitive) const {
     return impl_
                ? DISPATCH_CASE_OP(case_sensitivity, impl_->Find, (value, start))
@@ -258,9 +257,6 @@ class WTF_EXPORT String {
     return impl_ ? impl_->ReverseFind(value, start) : kNotFound;
   }
 
-  // Returns the Unicode code point starting at the specified offset of this
-  // string. If the offset points an unpaired surrogate, this function returns
-  // 0.
   UChar32 CharacterStartingAt(unsigned) const;
 
   bool StartsWith(
@@ -268,13 +264,14 @@ class WTF_EXPORT String {
       TextCaseSensitivity case_sensitivity = kTextCaseSensitive) const {
     return impl_
                ? DISPATCH_CASE_OP(case_sensitivity, impl_->StartsWith, (prefix))
-               : prefix.empty();
+               : prefix.IsEmpty();
   }
   bool StartsWithIgnoringCase(const StringView& prefix) const {
-    return impl_ ? impl_->StartsWithIgnoringCase(prefix) : prefix.empty();
+    return impl_ ? impl_->StartsWithIgnoringCase(prefix) : prefix.IsEmpty();
   }
   bool StartsWithIgnoringASCIICase(const StringView& prefix) const {
-    return impl_ ? impl_->StartsWithIgnoringASCIICase(prefix) : prefix.empty();
+    return impl_ ? impl_->StartsWithIgnoringASCIICase(prefix)
+                 : prefix.IsEmpty();
   }
   bool StartsWith(UChar character) const {
     return impl_ ? impl_->StartsWith(character) : false;
@@ -284,13 +281,13 @@ class WTF_EXPORT String {
       const StringView& suffix,
       TextCaseSensitivity case_sensitivity = kTextCaseSensitive) const {
     return impl_ ? DISPATCH_CASE_OP(case_sensitivity, impl_->EndsWith, (suffix))
-                 : suffix.empty();
+                 : suffix.IsEmpty();
   }
   bool EndsWithIgnoringCase(const StringView& prefix) const {
-    return impl_ ? impl_->EndsWithIgnoringCase(prefix) : prefix.empty();
+    return impl_ ? impl_->EndsWithIgnoringCase(prefix) : prefix.IsEmpty();
   }
   bool EndsWithIgnoringASCIICase(const StringView& prefix) const {
-    return impl_ ? impl_->EndsWithIgnoringASCIICase(prefix) : prefix.empty();
+    return impl_ ? impl_->EndsWithIgnoringASCIICase(prefix) : prefix.IsEmpty();
   }
   bool EndsWith(UChar character) const {
     return impl_ ? impl_->EndsWith(character) : false;
@@ -331,9 +328,12 @@ class WTF_EXPORT String {
   void Truncate(unsigned length);
   void Remove(unsigned start, unsigned length = 1);
 
-  [[nodiscard]] String Substring(unsigned pos, unsigned len = UINT_MAX) const;
-  [[nodiscard]] String Left(unsigned len) const { return Substring(0, len); }
-  [[nodiscard]] String Right(unsigned len) const {
+  String Substring(unsigned pos,
+                   unsigned len = UINT_MAX) const WARN_UNUSED_RESULT;
+  String Left(unsigned len) const WARN_UNUSED_RESULT {
+    return Substring(0, len);
+  }
+  String Right(unsigned len) const WARN_UNUSED_RESULT {
     return Substring(length() - len, len);
   }
 
@@ -343,48 +343,48 @@ class WTF_EXPORT String {
   // This function is rarely used to implement web platform features. See
   // crbug.com/627682.
   // This function is deprecated. We should use LowerASCII() or CaseMap.
-  [[nodiscard]] String DeprecatedLower() const;
+  String DeprecatedLower() const WARN_UNUSED_RESULT;
 
   // Returns a lowercase version of the string.
   // This function converts ASCII characters only.
-  [[nodiscard]] String LowerASCII() const;
+  String LowerASCII() const WARN_UNUSED_RESULT;
   // Returns a uppercase version of the string.
   // This function converts ASCII characters only.
-  [[nodiscard]] String UpperASCII() const;
+  String UpperASCII() const WARN_UNUSED_RESULT;
 
-  [[nodiscard]] String StripWhiteSpace() const;
-  [[nodiscard]] String StripWhiteSpace(IsWhiteSpaceFunctionPtr) const;
-  [[nodiscard]] String SimplifyWhiteSpace(
-      StripBehavior = kStripExtraWhiteSpace) const;
-  [[nodiscard]] String SimplifyWhiteSpace(
-      IsWhiteSpaceFunctionPtr,
-      StripBehavior = kStripExtraWhiteSpace) const;
+  String StripWhiteSpace() const WARN_UNUSED_RESULT;
+  String StripWhiteSpace(IsWhiteSpaceFunctionPtr) const WARN_UNUSED_RESULT;
+  String SimplifyWhiteSpace(StripBehavior = kStripExtraWhiteSpace) const
+      WARN_UNUSED_RESULT;
+  String SimplifyWhiteSpace(IsWhiteSpaceFunctionPtr,
+                            StripBehavior = kStripExtraWhiteSpace) const
+      WARN_UNUSED_RESULT;
 
-  [[nodiscard]] String RemoveCharacters(CharacterMatchFunctionPtr) const;
+  String RemoveCharacters(CharacterMatchFunctionPtr) const WARN_UNUSED_RESULT;
   template <bool isSpecialCharacter(UChar)>
   bool IsAllSpecialCharacters() const;
 
   // Return the string with case folded for case insensitive comparison.
-  [[nodiscard]] String FoldCase() const;
+  String FoldCase() const WARN_UNUSED_RESULT;
 
   // Takes a printf format and args and prints into a String.
   // This function supports Latin-1 characters only.
-  [[nodiscard]] PRINTF_FORMAT(1, 2) static String
-      Format(const char* format, ...);
+  PRINTF_FORMAT(1, 2)
+  static String Format(const char* format, ...) WARN_UNUSED_RESULT;
 
   // Returns a version suitable for gtest and base/logging.*.  It prepends and
   // appends double-quotes, and escapes characters other than ASCII printables.
-  [[nodiscard]] String EncodeForDebugging() const;
+  String EncodeForDebugging() const WARN_UNUSED_RESULT;
 
   // Returns an uninitialized string. The characters needs to be written
   // into the buffer returned in data before the returned string is used.
   // Failure to do this will have unpredictable results.
-  [[nodiscard]] static String CreateUninitialized(unsigned length,
-                                                  UChar*& data) {
+  static String CreateUninitialized(unsigned length,
+                                    UChar*& data) WARN_UNUSED_RESULT {
     return StringImpl::CreateUninitialized(length, data);
   }
-  [[nodiscard]] static String CreateUninitialized(unsigned length,
-                                                  LChar*& data) {
+  static String CreateUninitialized(unsigned length,
+                                    LChar*& data) WARN_UNUSED_RESULT {
     return StringImpl::CreateUninitialized(length, data);
   }
 
@@ -482,6 +482,9 @@ class WTF_EXPORT String {
   double ToDouble(bool* ok = nullptr) const;
   float ToFloat(bool* ok = nullptr) const;
 
+  String IsolatedCopy() const WARN_UNUSED_RESULT;
+  bool IsSafeToSendToAnotherThread() const;
+
 #ifdef __OBJC__
   String(NSString*);
 
@@ -495,38 +498,39 @@ class WTF_EXPORT String {
   }
 #endif
 
-  [[nodiscard]] static String Make8BitFrom16BitSource(const UChar*, wtf_size_t);
+  static String Make8BitFrom16BitSource(const UChar*,
+                                        wtf_size_t) WARN_UNUSED_RESULT;
   template <wtf_size_t inlineCapacity>
-  [[nodiscard]] static String Make8BitFrom16BitSource(
-      const Vector<UChar, inlineCapacity>& buffer) {
+  static WARN_UNUSED_RESULT String
+  Make8BitFrom16BitSource(const Vector<UChar, inlineCapacity>& buffer) {
     return Make8BitFrom16BitSource(buffer.data(), buffer.size());
   }
 
-  [[nodiscard]] static String Make16BitFrom8BitSource(const LChar*, wtf_size_t);
+  static String Make16BitFrom8BitSource(const LChar*,
+                                        wtf_size_t) WARN_UNUSED_RESULT;
 
   // String::fromUTF8 will return a null string if
   // the input data contains invalid UTF-8 sequences.
   // Does not strip BOMs.
-  [[nodiscard]] static String FromUTF8(const LChar*, size_t);
-  [[nodiscard]] static String FromUTF8(const LChar*);
-  [[nodiscard]] static String FromUTF8(const char* s, size_t length) {
+  static String FromUTF8(const LChar*, size_t) WARN_UNUSED_RESULT;
+  static String FromUTF8(const LChar*) WARN_UNUSED_RESULT;
+  static String FromUTF8(const char* s, size_t length) WARN_UNUSED_RESULT {
     return FromUTF8(reinterpret_cast<const LChar*>(s), length);
   }
-  [[nodiscard]] static String FromUTF8(const char* s) {
+  static String FromUTF8(const char* s) WARN_UNUSED_RESULT {
     return FromUTF8(reinterpret_cast<const LChar*>(s));
   }
-  [[nodiscard]] static String FromUTF8(base::StringPiece);
+  static String FromUTF8(base::StringPiece) WARN_UNUSED_RESULT;
 
   // Tries to convert the passed in string to UTF-8, but will fall back to
   // Latin-1 if the string is not valid UTF-8.
-  [[nodiscard]] static String FromUTF8WithLatin1Fallback(const LChar*, size_t);
-  [[nodiscard]] static String FromUTF8WithLatin1Fallback(const char* s,
-                                                         size_t length) {
+  static String FromUTF8WithLatin1Fallback(const LChar*,
+                                           size_t) WARN_UNUSED_RESULT;
+  static String FromUTF8WithLatin1Fallback(const char* s,
+                                           size_t length) WARN_UNUSED_RESULT {
     return FromUTF8WithLatin1Fallback(reinterpret_cast<const LChar*>(s),
                                       length);
   }
-
-  bool IsLowerASCII() const { return !impl_ || impl_->IsLowerASCII(); }
 
   bool ContainsOnlyASCIIOrEmpty() const {
     return !impl_ || impl_->ContainsOnlyASCIIOrEmpty();
@@ -544,8 +548,6 @@ class WTF_EXPORT String {
   // For use in the debugger.
   void Show() const;
 #endif
-
-  void WriteIntoTrace(perfetto::TracedValue context) const;
 
  private:
   friend struct HashTraits<String>;
@@ -611,7 +613,7 @@ inline const UChar* String::GetCharacters<UChar>() const {
 }
 
 inline bool String::ContainsOnlyLatin1OrEmpty() const {
-  if (empty())
+  if (IsEmpty())
     return true;
 
   if (Is8Bit())
@@ -629,7 +631,7 @@ inline bool String::ContainsOnlyLatin1OrEmpty() const {
 // "nil if empty", so we try to maintain longstanding behavior for the sake of
 // entrenched clients
 inline NSString* NsStringNilIfEmpty(const String& str) {
-  return str.empty() ? nil : (NSString*)str;
+  return str.IsEmpty() ? nil : (NSString*)str;
 }
 #endif
 
@@ -642,11 +644,6 @@ inline bool CodeUnitCompareLessThan(const String& a, const String& b) {
 }
 
 WTF_EXPORT int CodeUnitCompareIgnoringASCIICase(const String&, const char*);
-
-inline bool CodeUnitCompareIgnoringASCIICaseLessThan(const String& a,
-                                                     const String& b) {
-  return CodeUnitCompareIgnoringASCIICase(a.Impl(), b.Impl()) < 0;
-}
 
 template <bool isSpecialCharacter(UChar)>
 inline bool String::IsAllSpecialCharacters() const {
@@ -671,11 +668,13 @@ void String::PrependTo(BufferType& result,
   impl_->PrependTo(result, position, length);
 }
 
+// StringHash is the default hash for String
 template <typename T>
 struct DefaultHash;
-// Defined in string_hash.h.
 template <>
-struct DefaultHash<String>;
+struct DefaultHash<String> {
+  typedef StringHash Hash;
+};
 
 // Shared global empty string.
 WTF_EXPORT extern const String& g_empty_string;
@@ -706,6 +705,7 @@ using WTF::g_empty_string;
 using WTF::g_empty_string16_bit;
 using WTF::Equal;
 using WTF::Find;
+using WTF::IsSpaceOrNewline;
 
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
 #endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_WTF_TEXT_WTF_STRING_H_

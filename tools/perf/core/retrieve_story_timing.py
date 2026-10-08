@@ -1,5 +1,5 @@
-#!/usr/bin/env vpython3
-# Copyright 2018 The Chromium Authors
+#!/usr/bin/env vpython
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -42,7 +42,6 @@ FROM (
     AND run.time != 0
     AND run.is_unexpected IS FALSE
     AND DATEDIFF(CURRENT_DATE(), DATE(start_time)) < {num_last_days}
-    AND _PARTITIONTIME > DATE_ADD(CURRENT_DATE(), -{num_last_days}, "DAY")
   GROUP BY
     name,
     start_time
@@ -70,7 +69,6 @@ FROM (
     AND run.time != 0
     AND run.is_unexpected IS FALSE
     AND DATEDIFF(CURRENT_DATE(), DATE(start_time)) < {num_last_days}
-    AND _PARTITIONTIME > DATE_ADD(CURRENT_DATE(), -{num_last_days}, "DAY")
   GROUP BY
     name,
     start_time
@@ -112,9 +110,10 @@ def _run_query(query):
   stdout, stderr = p.communicate()
   if p.returncode == 0:
     return json.loads(stdout)
-  raise RuntimeError(
-      'Error generating authentication token.\nStdout: %s\nStder:%s' %
-      (stdout, stderr))
+  else:
+    raise RuntimeError(
+        'Error generating authentication token.\nStdout: %s\nStder:%s' %
+        (stdout, stderr))
 
 
 def FetchStoryTimingDataForSingleBuild(configurations, build_number):

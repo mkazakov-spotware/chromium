@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,7 @@ import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
 import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat;
 
-import org.chromium.build.BuildConfig;
+import org.chromium.base.annotations.RemovableInRelease;
 import org.chromium.components.browser_ui.settings.ChromeImageViewPreference;
 import org.chromium.components.browser_ui.settings.ManagedPreferencesUtils;
 
@@ -62,7 +62,7 @@ public class ChosenObjectSettings extends SiteSettingsPreferenceFragment {
         setDivider(null);
         int contentSettingsType = getArguments().getInt(EXTRA_CATEGORY);
         mCategory = SiteSettingsCategory.createFromContentSettingsType(
-                getSiteSettingsDelegate().getBrowserContextHandle(), contentSettingsType);
+                getSiteSettingsClient().getBrowserContextHandle(), contentSettingsType);
         mObjectInfos =
                 (ArrayList<ChosenObjectInfo>) getArguments().getSerializable(EXTRA_OBJECT_INFOS);
         checkObjectConsistency();
@@ -82,12 +82,11 @@ public class ChosenObjectSettings extends SiteSettingsPreferenceFragment {
      * returns the same value. This must be true because this activity is displaying permissions
      * for a single object. Each instance varies only in which site it represents.
      */
+    @RemovableInRelease
     private void checkObjectConsistency() {
-        if (BuildConfig.ENABLE_ASSERTS) {
-            String exampleObject = mObjectInfos.get(0).getObject();
-            for (ChosenObjectInfo info : mObjectInfos) {
-                assert info.getObject().equals(exampleObject);
-            }
+        String exampleObject = mObjectInfos.get(0).getObject();
+        for (ChosenObjectInfo info : mObjectInfos) {
+            assert info.getObject().equals(exampleObject);
         }
     }
 
@@ -119,18 +118,20 @@ public class ChosenObjectSettings extends SiteSettingsPreferenceFragment {
         };
         mSearchView.setOnQueryTextListener(queryTextListener);
 
-        if (getSiteSettingsDelegate().isHelpAndFeedbackEnabled()) {
+        if (getSiteSettingsClient().getSiteSettingsHelpClient().isHelpAndFeedbackEnabled()) {
             MenuItem help = menu.add(
                     Menu.NONE, R.id.menu_id_site_settings_help, Menu.NONE, R.string.menu_help);
             help.setIcon(VectorDrawableCompat.create(
-                    getResources(), R.drawable.ic_help_and_feedback, getContext().getTheme()));
+                    getResources(), R.drawable.ic_help_and_feedback, getActivity().getTheme()));
         }
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == R.id.menu_id_site_settings_help) {
-            getSiteSettingsDelegate().launchSettingsHelpAndFeedbackActivity(getActivity());
+            getSiteSettingsClient()
+                    .getSiteSettingsHelpClient()
+                    .launchSettingsHelpAndFeedbackActivity(getActivity());
             return true;
         }
         return false;
@@ -158,14 +159,14 @@ public class ChosenObjectSettings extends SiteSettingsPreferenceFragment {
             if (info.isManaged()) {
                 hasManagedObject = true;
             } else {
-                info.revoke(getSiteSettingsDelegate().getBrowserContextHandle());
+                info.revoke(getSiteSettingsClient().getBrowserContextHandle());
             }
         }
 
         // Managed objects cannot be revoked, so finish the activity only if the list did not
         // contain managed objects.
         if (hasManagedObject) {
-            ManagedPreferencesUtils.showManagedSettingsCannotBeResetToast(getContext());
+            ManagedPreferencesUtils.showManagedSettingsCannotBeResetToast(getActivity());
         } else {
             getActivity().finish();
         }
@@ -218,7 +219,7 @@ public class ChosenObjectSettings extends SiteSettingsPreferenceFragment {
      */
     private void getInfo() {
         WebsitePermissionsFetcher fetcher =
-                new WebsitePermissionsFetcher(getSiteSettingsDelegate().getBrowserContextHandle());
+                new WebsitePermissionsFetcher(getSiteSettingsClient().getBrowserContextHandle());
         fetcher.fetchPreferencesForCategory(mCategory, new ResultsPopulator());
     }
 
@@ -239,8 +240,7 @@ public class ChosenObjectSettings extends SiteSettingsPreferenceFragment {
         header.setTitle(titleText);
         header.setImageView(R.drawable.ic_delete_white_24dp,
                 R.string.website_settings_revoke_all_permissions_for_device, (View view) -> {
-                    new AlertDialog
-                            .Builder(getContext(), R.style.ThemeOverlay_BrowserUI_AlertDialog)
+                    new AlertDialog.Builder(getActivity(), R.style.Theme_Chromium_AlertDialog)
                             .setTitle(R.string.reset)
                             .setMessage(dialogMsg)
                             .setPositiveButton(R.string.reset,
@@ -276,18 +276,18 @@ public class ChosenObjectSettings extends SiteSettingsPreferenceFragment {
             Website site = mSites.get(i);
             ChosenObjectInfo info = mObjectInfos.get(i);
             WebsitePreference preference = new WebsitePreference(
-                    getStyledContext(), getSiteSettingsDelegate(), site, mCategory);
+                    getStyledContext(), getSiteSettingsClient(), site, mCategory);
 
             preference.getExtras().putSerializable(SingleWebsiteSettings.EXTRA_SITE, site);
             preference.setFragment(SingleWebsiteSettings.class.getCanonicalName());
             preference.setImageView(R.drawable.ic_delete_white_24dp,
                     R.string.website_settings_revoke_device_permission, (View view) -> {
-                        info.revoke(getSiteSettingsDelegate().getBrowserContextHandle());
+                        info.revoke(getSiteSettingsClient().getBrowserContextHandle());
                         getInfo();
                     });
 
             preference.setManagedPreferenceDelegate(new ForwardingManagedPreferenceDelegate(
-                    getSiteSettingsDelegate().getManagedPreferenceDelegate()) {
+                    getSiteSettingsClient().getManagedPreferenceDelegate()) {
                 @Override
                 public boolean isPreferenceControlledByPolicy(Preference preference) {
                     return info.isManaged();

@@ -1,80 +1,80 @@
 function currentMonth() {
-    return internals.pageinternals.pagePopupWindow.global.picker.currentMonth().toString();
+    return popupWindow.global.picker.currentMonth().toString();
 }
 
 function availableDayCells() {
     skipAnimation();
-    return Array.prototype.map.call(internals.pageinternals.pagePopupWindow.document.querySelectorAll(".day-cell:not(.disabled):not(.hidden)"), function(element) {
+    return Array.prototype.map.call(popupWindow.document.querySelectorAll(".day-cell:not(.disabled):not(.hidden)"), function(element) {
         return element.$view.day.toString();
     }).sort().join();
 }
 
 function highlightedDayCells() {
     skipAnimation();
-    return Array.prototype.map.call(internals.pagePopupWindow.document.querySelectorAll(".day-cell.highlighted:not(.hidden)"), function(element) {
+    return Array.prototype.map.call(popupWindow.document.querySelectorAll(".day-cell.highlighted:not(.hidden)"), function(element) {
         return element.$view.day.toString();
     }).sort().join();
 }
 
 function selectedDayCells() {
     skipAnimation();
-    return Array.prototype.map.call(internals.pagePopupWindow.document.querySelectorAll(".day-cell.selected:not(.hidden)"), function(element) {
+    return Array.prototype.map.call(popupWindow.document.querySelectorAll(".day-cell.selected:not(.hidden)"), function(element) {
         return element.$view.day.toString();
     }).sort().join();
 }
 
 function availableWeekNumberCells() {
     skipAnimation();
-    return Array.prototype.map.call(internals.pagePopupWindow.document.querySelectorAll(".week-number-cell.highlighted:not(.hidden)"), function(element) {
+    return Array.prototype.map.call(popupWindow.document.querySelectorAll(".week-number-cell.highlighted:not(.hidden)"), function(element) {
         return element.$view.day.toString();
     }).sort().join();
 }
 
 function highlightedWeekNumberCells() {
     skipAnimation();
-    return Array.prototype.map.call(internals.pagePopupWindow.document.querySelectorAll(".week-number-cell.highlighted:not(.hidden)"), function(element) {
+    return Array.prototype.map.call(popupWindow.document.querySelectorAll(".week-number-cell.highlighted:not(.hidden)"), function(element) {
         return element.$view.day.toString();
     }).sort().join();
 }
 
 function selectedWeekNumberCells() {
     skipAnimation();
-    return Array.prototype.map.call(internals.pagePopupWindow.document.querySelectorAll(".week-number-cell.selected:not(.hidden)"), function(element) {
+    return Array.prototype.map.call(popupWindow.document.querySelectorAll(".week-number-cell.selected:not(.hidden)"), function(element) {
         return element.$view.day.toString();
     }).sort().join();
 }
 
 function highlightedValue() {
-    var highlight = internals.pagePopupWindow.global.picker.highlight();
+    var highlight = popupWindow.global.picker.highlight();
     if (highlight)
         return highlight.toString();
     return null;
 }
 
 function selectedValue() {
-    var selection = internals.pagePopupWindow.global.picker.selection();
+    var selection = popupWindow.global.picker.selection();
     if (selection)
         return selection.toString();
     return null;
 }
 
 function skipAnimation() {
-    internals.pagePopupWindow.AnimationManager.shared._animationFrameCallback(Infinity);
+    popupWindow.AnimationManager.shared._animationFrameCallback(Infinity);
 }
 
 function hoverOverDayCellAt(column, row) {
   skipAnimation();
-  const calendarTableView = internals.pagePopupWindow.global.picker.datePicker ?
-      internals.pagePopupWindow.global.picker.datePicker.calendarTableView :
-      internals.pagePopupWindow.global.picker.calendarTableView;
+  const calendarTableView = popupWindow.global.picker.datePicker ?
+      popupWindow.global.picker.datePicker.calendarTableView :
+      popupWindow.global.picker.calendarTableView;
   var offset = cumulativeOffset(calendarTableView.element);
   var x = offset[0];
   var y = offset[1];
   if (calendarTableView.hasWeekNumberColumn)
-    x += internals.pagePopupWindow.WeekNumberCell.Width;
-  x += (column + 0.5) * internals.pagePopupWindow.DayCell.GetWidth();
-  y += (row + 0.5) * internals.pagePopupWindow.DayCell.GetHeight() +
-      internals.pagePopupWindow.CalendarTableHeaderView.GetHeight();
+    x += popupWindow.WeekNumberCell.Width;
+  x += (column + 0.5) * popupWindow.DayCell.GetWidth();
+  y += (row + 0.5) * popupWindow.DayCell.GetHeight() +
+      popupWindow.CalendarTableHeaderView.GetHeight();
   eventSender.mouseMoveTo(x, y);
 };
 
@@ -89,9 +89,9 @@ function hoverOverTimeCellAt(column, row) {
   const timeCellHeight = 36;
 
   skipAnimation();
-  const timeColumns = internals.pagePopupWindow.global.picker.timePicker ?
-      internals.pagePopupWindow.global.picker.timePicker.timeColumns :
-      internals.pagePopupWindow.global.picker.timeColumns;
+  const timeColumns = popupWindow.global.picker.timePicker ?
+      popupWindow.global.picker.timePicker.timeColumns :
+      popupWindow.global.picker.timeColumns;
   var offset = cumulativeOffset(timeColumns);
   var x = offset[0];
   var y = offset[1];
@@ -108,17 +108,17 @@ function clickTimeCellAt(column, row) {
 
 function highlightedMonthButton() {
     skipAnimation();
-    var year = internals.pagePopupWindow.global.picker.monthPopupView.yearListView.selectedRow + 1;
-    return Array.prototype.map.call(internals.pagePopupWindow.document.querySelectorAll(".month-button.highlighted"), function(element) {
-        return new internals.pagePopupWindow.Month(year, Number(element.dataset.month)).toString();
+    var year = popupWindow.global.picker.monthPopupView.yearListView.selectedRow + 1;
+    return Array.prototype.map.call(popupWindow.document.querySelectorAll(".month-button.highlighted"), function(element) {
+        return new popupWindow.Month(year, Number(element.dataset.month)).toString();
     }).sort().join();
 }
 
 function skipAnimationAndGetPositionOfMonthPopupButton() {
     skipAnimation();
-    const calendarHeaderView = internals.pagePopupWindow.global.picker.datePicker ?
-        internals.pagePopupWindow.global.picker.datePicker.calendarHeaderView :
-        internals.pagePopupWindow.global.picker.calendarHeaderView;
+    const calendarHeaderView = popupWindow.global.picker.datePicker ?
+        popupWindow.global.picker.datePicker.calendarHeaderView :
+        popupWindow.global.picker.calendarHeaderView;
     var buttonElement = calendarHeaderView.monthPopupButton.element;
     var offset = cumulativeOffset(buttonElement);
     return {x: offset[0] + buttonElement.offsetWidth / 2, y: offset[1] + buttonElement.offsetHeight / 2};
@@ -137,10 +137,10 @@ function clickMonthPopupButton() {
 
 function skipAnimationAndGetPositionOfPrevNextMonthButton(buttonIndex) {
   skipAnimation();
-  var prevNextMonthButton = internals.pagePopupWindow.global.picker.element ?
-      internals.pagePopupWindow.global.picker.element.querySelectorAll(
+  var prevNextMonthButton = popupWindow.global.picker.element ?
+      popupWindow.global.picker.element.querySelectorAll(
           '.calendar-navigation-button')[buttonIndex] :
-      internals.pagePopupWindow.global.picker.querySelectorAll(
+      popupWindow.global.picker.querySelectorAll(
           '.calendar-navigation-button')[buttonIndex];
   prevNextMonthButton.foo;
   var offset = cumulativeOffset(prevNextMonthButton);
@@ -167,13 +167,13 @@ function clickNextMonthButton() {
   eventSender.mouseUp();
 }
 
-function skipAnimationAndGetPositionOfButton(selector) {
+function skipAnimationAndGetPositionOfTodayButton() {
   skipAnimation();
-  const calendarTableView = internals.pagePopupWindow.global.picker.datePicker ?
-      internals.pagePopupWindow.global.picker.datePicker.calendarTableView :
-      internals.pagePopupWindow.global.picker.calendarTableView;
+  const calendarTableView = popupWindow.global.picker.datePicker ?
+      popupWindow.global.picker.datePicker.calendarTableView :
+      popupWindow.global.picker.calendarTableView;
   var buttonElement =
-      calendarTableView.element.querySelector(selector);
+      calendarTableView.element.querySelector('.today-button-refresh');
   var offset = cumulativeOffset(buttonElement);
   return {
     x: offset[0] + buttonElement.offsetWidth / 2,
@@ -181,19 +181,8 @@ function skipAnimationAndGetPositionOfButton(selector) {
   };
 }
 
-function hoverOverClearButton() {
-  var position = skipAnimationAndGetPositionOfButton('.clear-button');
-  eventSender.mouseMoveTo(position.x, position.y);
-}
-
-function clickClearButton() {
-  hoverOverClearButton();
-  eventSender.mouseDown();
-  eventSender.mouseUp();
-}
-
 function hoverOverTodayButton() {
-  var position = skipAnimationAndGetPositionOfButton('.today-button');
+  var position = skipAnimationAndGetPositionOfTodayButton();
   eventSender.mouseMoveTo(position.x, position.y);
 }
 
@@ -203,9 +192,10 @@ function clickTodayButton() {
   eventSender.mouseUp();
 }
 
-function skipAnimationAndGetPositionOfGlobalPickerButton(selector) {
+function skipAnimationAndGetPositionOfThisMonthButton() {
   skipAnimation();
-  const button = internals.pagePopupWindow.global.picker.querySelector(selector);
+  const button =
+      popupWindow.global.picker.querySelector('.today-button-refresh');
   var offset = cumulativeOffset(button);
   return {
     x: offset[0] + button.offsetWidth / 2,
@@ -213,21 +203,8 @@ function skipAnimationAndGetPositionOfGlobalPickerButton(selector) {
   };
 }
 
-function hoverOverClearMonthButton() {
-  var position =
-      skipAnimationAndGetPositionOfGlobalPickerButton('.clear-button');
-  eventSender.mouseMoveTo(position.x, position.y);
-}
-
-function clickClearMonthButton() {
-  hoverOverClearMonthButton();
-  eventSender.mouseDown();
-  eventSender.mouseUp();
-}
-
 function hoverOverThisMonthButton() {
-  var position =
-      skipAnimationAndGetPositionOfGlobalPickerButton('.today-button');
+  var position = skipAnimationAndGetPositionOfThisMonthButton();
   eventSender.mouseMoveTo(position.x, position.y);
 }
 
@@ -240,13 +217,13 @@ function clickThisMonthButton() {
 function clickYearListCell(year) {
     skipAnimation();
     var row = year - 1;
-    var rowCell = internals.pagePopupWindow.global.picker.monthPopupView.yearListView.cellAtRow(row);
+    var rowCell = popupWindow.global.picker.monthPopupView.yearListView.cellAtRow(row);
 
-    var rowScrollOffset = internals.pagePopupWindow.global.picker.monthPopupView.yearListView.scrollOffsetForRow(row);
-    var scrollOffset = internals.pagePopupWindow.global.picker.monthPopupView.yearListView.scrollView.contentOffset();
+    var rowScrollOffset = popupWindow.global.picker.monthPopupView.yearListView.scrollOffsetForRow(row);
+    var scrollOffset = popupWindow.global.picker.monthPopupView.yearListView.scrollView.contentOffset();
     var rowOffsetFromViewportTop = rowScrollOffset - scrollOffset;
 
-    var scrollViewOffset = cumulativeOffset(internals.pagePopupWindow.global.picker.monthPopupView.yearListView.scrollView.element);
+    var scrollViewOffset = cumulativeOffset(popupWindow.global.picker.monthPopupView.yearListView.scrollView.element);
     var rowCellCenterX = scrollViewOffset[0] + rowCell.element.offsetWidth / 2;
     var rowCellCenterY = scrollViewOffset[1] + rowOffsetFromViewportTop + rowCell.element.offsetHeight / 2;
     eventSender.mouseMoveTo(rowCellCenterX, rowCellCenterY);
@@ -255,8 +232,8 @@ function clickYearListCell(year) {
 }
 
 function skipAnimationAndGetPositionOfMonthButton(year, month, inMonthPicker) {
-    let yearListView = inMonthPicker ? internals.pagePopupWindow.global.picker.yearListView_
-                                     : internals.pagePopupWindow.global.picker.monthPopupView.yearListView;
+    let yearListView = inMonthPicker ? popupWindow.global.picker.yearListView_
+                                     : popupWindow.global.picker.monthPopupView.yearListView;
     skipAnimation();
     var row = year - 1;
     var rowCell = yearListView.cellAtRow(row);
@@ -264,7 +241,7 @@ function skipAnimationAndGetPositionOfMonthButton(year, month, inMonthPicker) {
     var scrollOffset = yearListView.scrollView.contentOffset();
     var rowOffsetFromViewportTop = rowScrollOffset - scrollOffset;
 
-    var button = yearListView.buttonForMonth(new internals.pagePopupWindow.Month(year, month));
+    var button = yearListView.buttonForMonth(new popupWindow.Month(year, month));
     var buttonOffset = cumulativeOffset(button);
     var rowCellOffset = cumulativeOffset(rowCell.element);
     var buttonOffsetRelativeToRowCell = [buttonOffset[0] - rowCellOffset[0], buttonOffset[1] - rowCellOffset[1]];
@@ -294,23 +271,23 @@ function hoverOverMonthButtonForMonthPicker(year, month) {
 var lastYearListViewScrollOffset = NaN;
 function checkYearListViewScrollOffset() {
     skipAnimation();
-    var scrollOffset = internals.pagePopupWindow.global.picker.monthPopupView.yearListView.scrollView.contentOffset();
+    var scrollOffset = popupWindow.global.picker.monthPopupView.yearListView.scrollView.contentOffset();
     var change = lastYearListViewScrollOffset - scrollOffset;
     lastYearListViewScrollOffset = scrollOffset;
     return change;
 }
 
 function isCalendarTableScrollingWithAnimation() {
-    var animator = internals.pagePopupWindow.global.picker.calendarTableView.scrollView.scrollAnimator();
+    var animator = popupWindow.global.picker.calendarTableView.scrollView.scrollAnimator();
     if (!animator)
         return false;
     return animator.isRunning();
 }
 
 function removeCommitDelay() {
-    internals.pagePopupWindow.CalendarPicker.commitDelayMs = 0;
+    popupWindow.CalendarPicker.commitDelayMs = 0;
 }
 
 function setNoCloseOnCommit() {
-    internals.pagePopupWindow.CalendarPicker.commitDelayMs = -1;
+    popupWindow.CalendarPicker.commitDelayMs = -1;
 }

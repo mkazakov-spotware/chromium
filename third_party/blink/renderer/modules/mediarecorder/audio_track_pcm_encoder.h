@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "media/base/audio_bus.h"
 #include "media/base/audio_parameters.h"
 #include "third_party/blink/renderer/modules/mediarecorder/audio_track_encoder.h"
@@ -19,16 +20,14 @@ class AudioTrackPcmEncoder : public AudioTrackEncoder {
  public:
   explicit AudioTrackPcmEncoder(OnEncodedAudioCB on_encoded_audio_cb);
 
-  AudioTrackPcmEncoder(const AudioTrackPcmEncoder&) = delete;
-  AudioTrackPcmEncoder& operator=(const AudioTrackPcmEncoder&) = delete;
-
   void OnSetFormat(const media::AudioParameters& params) override;
   void EncodeAudio(std::unique_ptr<media::AudioBus> input_bus,
                    base::TimeTicks capture_time) override;
-  void Shutdown() override {}
 
  private:
   ~AudioTrackPcmEncoder() override {}
+
+  DISALLOW_COPY_AND_ASSIGN(AudioTrackPcmEncoder);
 };
 
 }  // namespace blink

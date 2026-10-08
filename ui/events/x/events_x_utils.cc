@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,11 @@
 
 #include <cmath>
 
-#include "base/cxx17_backports.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/singleton.h"
 #include "base/metrics/histogram_macros.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/events/base_event_utils.h"
@@ -22,9 +21,7 @@
 #include "ui/events/devices/x11/device_list_cache_x11.h"
 #include "ui/events/devices/x11/touch_factory_x11.h"
 #include "ui/events/devices/x11/xinput_util.h"
-#include "ui/events/event_constants.h"
 #include "ui/events/keycodes/keyboard_code_conversion_x.h"
-#include "ui/events/pointer_details.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/x/extension_manager.h"
@@ -33,10 +30,8 @@
 
 namespace {
 
-// Scroll amount for each wheelscroll event.  120 is what Chrome uses on
-// Windows, Fuchsia WHEEL_DELTA, and also it roughly matches Firefox on Linux.
-// See https://crbug.com/1270089 for the detailed reasoning.
-const int kWheelScrollAmount = 120;
+// Scroll amount for each wheelscroll event. 53 is also the value used for GTK+.
+const int kWheelScrollAmount = 53;
 
 const int kMinWheelButton = 4;
 const int kMaxWheelButton = 7;
@@ -49,9 +44,6 @@ class XModifierStateWatcher {
   static XModifierStateWatcher* GetInstance() {
     return base::Singleton<XModifierStateWatcher>::get();
   }
-
-  XModifierStateWatcher(const XModifierStateWatcher&) = delete;
-  XModifierStateWatcher& operator=(const XModifierStateWatcher&) = delete;
 
   x11::KeyButMask StateFromKeyboardCode(ui::KeyboardCode keyboard_code) {
     switch (keyboard_code) {
@@ -98,6 +90,8 @@ class XModifierStateWatcher {
   XModifierStateWatcher() = default;
 
   unsigned int state_{};
+
+  DISALLOW_COPY_AND_ASSIGN(XModifierStateWatcher);
 };
 
 // Detects if a touch event is a driver-generated 'special event'.
@@ -167,7 +161,7 @@ int GetEventFlagsFromXKeyEvent(const x11::Event& xev) {
   DCHECK(key);
   const auto state = static_cast<int>(key->state);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   const int ime_fabricated_flag = 0;
 #else
   // XIM fabricates key events for the character compositions by XK_Multi_key.
@@ -187,8 +181,8 @@ int GetEventFlagsFromXKeyEvent(const x11::Event& xev) {
       fabricated_by_xim ? ui::EF_IME_FABRICATED_KEY : 0;
 #endif
 
-  return GetEventFlagsFromXState(state) |
-         (xev.send_event() ? ui::EF_FINAL : 0) | ime_fabricated_flag;
+  return GetEventFlagsFromXState(state) | (key->send_event ? ui::EF_FINAL : 0) |
+         ime_fabricated_flag;
 }
 
 int GetEventFlagsFromXGenericEvent(const x11::Event& x11_event) {
@@ -197,7 +191,7 @@ int GetEventFlagsFromXGenericEvent(const x11::Event& x11_event) {
   DCHECK(xievent->opcode == x11::Input::DeviceEvent::KeyPress ||
          xievent->opcode == x11::Input::DeviceEvent::KeyRelease);
   return GetEventFlagsFromXState(xievent->mods.effective) |
-         (x11_event.send_event() ? ui::EF_FINAL : 0);
+         (xievent->send_event ? ui::EF_FINAL : 0);
 }
 
 // Get the event flag for the button in XButtonEvent. During a ButtonPress
@@ -284,9 +278,9 @@ ui::EventType GetTouchEventType(const x11::Event& x11_event) {
   return ui::ET_UNKNOWN;
 }
 
-double GetParamFromXEvent(const x11::Event& xev,
-                          ui::DeviceDataManagerX11::DataType val,
-                          double default_value) {
+double GetTouchParamFromXEvent(const x11::Event& xev,
+                               ui::DeviceDataManagerX11::DataType val,
+                               double default_value) {
   ui::DeviceDataManagerX11::GetInstance()->GetEventData(xev, val,
                                                         &default_value);
   return default_value;
@@ -339,7 +333,8 @@ base::TimeTicks TimeTicksFromXEventTime(x11::Time timestamp) {
 
   g_last_seen_timestamp_ms = timestamp64;
   if (!had_recent_rollover)
-    return base::TimeTicks() + base::Milliseconds(g_rollover_ms + timestamp32);
+    return base::TimeTicks() +
+           base::TimeDelta::FromMilliseconds(g_rollover_ms + timestamp32);
 
   DCHECK(timestamp64 <= UINT32_MAX)
       << "X11 Time does not roll over 32 bit, the below logic is likely wrong";
@@ -349,7 +344,7 @@ base::TimeTicks TimeTicksFromXEventTime(x11::Time timestamp) {
 
   g_rollover_ms = now_ms & ~static_cast<int64_t>(UINT32_MAX);
   uint32_t delta = static_cast<uint32_t>(now_ms - timestamp32);
-  return base::TimeTicks() + base::Milliseconds(now_ms - delta);
+  return base::TimeTicks() + base::TimeDelta::FromMilliseconds(now_ms - delta);
 }
 
 base::TimeTicks TimeTicksFromXEvent(const x11::Event& xev) {
@@ -568,7 +563,7 @@ gfx::Point EventLocationFromXEvent(const x11::Event& xev) {
   if (auto* xievent = xev.As<x11::Input::DeviceEvent>()) {
     float x = Fp1616ToDouble(xievent->event_x);
     float y = Fp1616ToDouble(xievent->event_y);
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
     switch (xievent->opcode) {
       case x11::Input::DeviceEvent::TouchBegin:
       case x11::Input::DeviceEvent::TouchUpdate:
@@ -579,7 +574,7 @@ gfx::Point EventLocationFromXEvent(const x11::Event& xev) {
       default:
         break;
     }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
     return gfx::Point(static_cast<int>(x), static_cast<int>(y));
   }
   return gfx::Point();
@@ -653,47 +648,6 @@ gfx::Vector2d GetMouseWheelOffsetFromXEvent(const x11::Event& xev) {
   }
 }
 
-float GetStylusForceFromXEvent(const x11::Event& x11_event) {
-  auto* event = x11_event.As<x11::Input::DeviceEvent>();
-  if (event->opcode == x11::Input::DeviceEvent::ButtonRelease)
-    return 0.0;
-  double force = GetParamFromXEvent(
-      x11_event, ui::DeviceDataManagerX11::DT_STYLUS_PRESSURE, 0.0);
-  auto deviceid = event->sourceid;
-  // Force is normalized to fall into [0, 1]
-  if (!ui::DeviceDataManagerX11::GetInstance()->NormalizeData(
-          deviceid, ui::DeviceDataManagerX11::DT_STYLUS_PRESSURE, &force)) {
-    force = 0.0;
-  }
-  return force;
-}
-
-float GetStylusTiltXFromXEvent(const x11::Event& x11_event) {
-  double tilt = GetParamFromXEvent(
-      x11_event, ui::DeviceDataManagerX11::DT_STYLUS_TILT_X, 0.0);
-  return base::clamp<float>(tilt, -90, 90);
-}
-
-float GetStylusTiltYFromXEvent(const x11::Event& x11_event) {
-  double tilt = GetParamFromXEvent(
-      x11_event, ui::DeviceDataManagerX11::DT_STYLUS_TILT_Y, 0.0);
-  return base::clamp<float>(tilt, -90, 90);
-}
-
-PointerDetails GetStylusPointerDetailsFromXEvent(const x11::Event& xev) {
-  if (!ui::DeviceDataManagerX11::HasInstance() ||
-      !ui::DeviceDataManagerX11::GetInstance()->IsStylusXInputEvent(xev)) {
-    // default: empty details with kMouse
-    return PointerDetails(EventPointerType::kMouse);
-  }
-  PointerDetails p(EventPointerType::kPen);
-  // NOTE: id is not set here
-  p.force = GetStylusForceFromXEvent(xev);
-  p.tilt_x = GetStylusTiltXFromXEvent(xev);
-  p.tilt_y = GetStylusTiltYFromXEvent(xev);
-  return p;
-}
-
 int GetTouchIdFromXEvent(const x11::Event& xev) {
   double slot = 0;
   ui::DeviceDataManagerX11* manager = ui::DeviceDataManagerX11::GetInstance();
@@ -709,24 +663,24 @@ int GetTouchIdFromXEvent(const x11::Event& xev) {
 }
 
 float GetTouchRadiusXFromXEvent(const x11::Event& xev) {
-  double radius =
-      GetParamFromXEvent(xev, ui::DeviceDataManagerX11::DT_TOUCH_MAJOR, 0.0) /
-      2.0;
+  double radius = GetTouchParamFromXEvent(
+                      xev, ui::DeviceDataManagerX11::DT_TOUCH_MAJOR, 0.0) /
+                  2.0;
   ScaleTouchRadius(xev, &radius);
   return radius;
 }
 
 float GetTouchRadiusYFromXEvent(const x11::Event& xev) {
-  double radius =
-      GetParamFromXEvent(xev, ui::DeviceDataManagerX11::DT_TOUCH_MINOR, 0.0) /
-      2.0;
+  double radius = GetTouchParamFromXEvent(
+                      xev, ui::DeviceDataManagerX11::DT_TOUCH_MINOR, 0.0) /
+                  2.0;
   ScaleTouchRadius(xev, &radius);
   return radius;
 }
 
 float GetTouchAngleFromXEvent(const x11::Event& xev) {
-  return GetParamFromXEvent(xev, ui::DeviceDataManagerX11::DT_TOUCH_ORIENTATION,
-                            0.0) /
+  return GetTouchParamFromXEvent(
+             xev, ui::DeviceDataManagerX11::DT_TOUCH_ORIENTATION, 0.0) /
          2.0;
 }
 
@@ -735,8 +689,8 @@ float GetTouchForceFromXEvent(const x11::Event& x11_event) {
   if (event->opcode == x11::Input::DeviceEvent::TouchEnd)
     return 0.0;
   double force = 0.0;
-  force = GetParamFromXEvent(x11_event,
-                             ui::DeviceDataManagerX11::DT_TOUCH_PRESSURE, 0.0);
+  force = GetTouchParamFromXEvent(
+      x11_event, ui::DeviceDataManagerX11::DT_TOUCH_PRESSURE, 0.0);
   auto deviceid = event->sourceid;
   // Force is normalized to fall into [0, 1]
   if (!ui::DeviceDataManagerX11::GetInstance()->NormalizeData(
@@ -746,17 +700,10 @@ float GetTouchForceFromXEvent(const x11::Event& x11_event) {
 }
 
 PointerDetails GetTouchPointerDetailsFromXEvent(const x11::Event& xev) {
-  auto* event = xev.As<x11::Input::DeviceEvent>();
-
-  // Use touch as the default pointer type if `event` is null.
-  EventPointerType pointer_type =
-      event ? ui::TouchFactory::GetInstance()->GetTouchDevicePointerType(
-                  event->sourceid)
-            : EventPointerType::kTouch;
   return PointerDetails(
-      pointer_type, GetTouchIdFromXEvent(xev), GetTouchRadiusXFromXEvent(xev),
-      GetTouchRadiusYFromXEvent(xev), GetTouchForceFromXEvent(xev),
-      GetTouchAngleFromXEvent(xev));
+      EventPointerType::kTouch, GetTouchIdFromXEvent(xev),
+      GetTouchRadiusXFromXEvent(xev), GetTouchRadiusYFromXEvent(xev),
+      GetTouchForceFromXEvent(xev), GetTouchAngleFromXEvent(xev));
 }
 
 bool GetScrollOffsetsFromXEvent(const x11::Event& xev,
@@ -789,11 +736,11 @@ bool GetScrollOffsetsFromXEvent(const x11::Event& xev,
 
   if (DeviceDataManagerX11::GetInstance()->GetScrollClassEventDetail(xev) !=
       SCROLL_TYPE_NO_SCROLL) {
-    double x_scroll_offset_dbl, y_scroll_offset_dbl;
+    double x_scroll_offset, y_scroll_offset;
     DeviceDataManagerX11::GetInstance()->GetScrollClassOffsets(
-        xev, &x_scroll_offset_dbl, &y_scroll_offset_dbl);
-    *x_offset = x_scroll_offset_dbl * kWheelScrollAmount;
-    *y_offset = y_scroll_offset_dbl * kWheelScrollAmount;
+        xev, &x_scroll_offset, &y_scroll_offset);
+    *x_offset = x_scroll_offset * kWheelScrollAmount;
+    *y_offset = y_scroll_offset * kWheelScrollAmount;
 
     if (DeviceDataManagerX11::GetInstance()->IsTouchpadXInputEvent(xev)) {
       *x_offset_ordinal = *x_offset;

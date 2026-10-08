@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -170,15 +170,6 @@ public class TemplateUrlService {
     public boolean isSearchByImageAvailable() {
         ThreadUtils.assertOnUiThread();
         return TemplateUrlServiceJni.get().isSearchByImageAvailable(
-                mNativeTemplateUrlServiceAndroid, TemplateUrlService.this);
-    }
-
-    /**
-     * @return Whether or not the default search engine has a logo image to show
-     *    on NTP or start surface.
-     */
-    public boolean doesDefaultSearchEngineHaveLogo() {
-        return TemplateUrlServiceJni.get().doesDefaultSearchEngineHaveLogo(
                 mNativeTemplateUrlServiceAndroid, TemplateUrlService.this);
     }
 
@@ -375,7 +366,7 @@ public class TemplateUrlService {
     }
 
     @NativeMethods
-    public interface Natives {
+    interface Natives {
         void load(long nativeTemplateUrlServiceAndroid, TemplateUrlService caller);
         boolean isLoaded(long nativeTemplateUrlServiceAndroid, TemplateUrlService caller);
         void setUserSelectedDefaultSearchProvider(long nativeTemplateUrlServiceAndroid,
@@ -385,8 +376,6 @@ public class TemplateUrlService {
         boolean isSearchResultsPageFromDefaultSearchProvider(
                 long nativeTemplateUrlServiceAndroid, TemplateUrlService caller, GURL url);
         boolean isSearchByImageAvailable(
-                long nativeTemplateUrlServiceAndroid, TemplateUrlService caller);
-        boolean doesDefaultSearchEngineHaveLogo(
                 long nativeTemplateUrlServiceAndroid, TemplateUrlService caller);
         boolean isDefaultSearchEngineGoogle(
                 long nativeTemplateUrlServiceAndroid, TemplateUrlService caller);

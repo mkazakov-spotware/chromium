@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,8 @@
 #include "base/files/scoped_temp_dir.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/current_thread.h"
-#include "components/exo/data_exchange_delegate.h"
 #include "components/exo/display.h"
+#include "components/exo/file_helper.h"
 #include "components/exo/input_method_surface_manager.h"
 #include "components/exo/notification_surface_manager.h"
 #include "components/exo/toast_surface_manager.h"
@@ -32,6 +32,31 @@ namespace exo {
 // The ui message loop for running the wayland server. If it is not provided, we
 // will use external wayland server.
 scoped_refptr<base::SingleThreadTaskRunner> ui_thread_task_runner_ = nullptr;
+
+class WaylandClientTestHelper::WaylandWatcher
+    : public base::MessagePumpLibevent::FdWatcher {
+ public:
+  explicit WaylandWatcher(exo::wayland::Server* server)
+      : controller_(FROM_HERE), server_(server) {
+    base::CurrentUIThread::Get()->WatchFileDescriptor(
+        server_->GetFileDescriptor(),
+        /*persistent=*/true, base::MessagePumpLibevent::WATCH_READ,
+        &controller_, this);
+  }
+
+  // base::MessagePumpLibevent::FdWatcher:
+  void OnFileCanReadWithoutBlocking(int fd) override {
+    server_->Dispatch(base::TimeDelta());
+    server_->Flush();
+  }
+  void OnFileCanWriteWithoutBlocking(int fd) override { NOTREACHED(); }
+
+ private:
+  base::MessagePumpLibevent::FdWatchController controller_;
+  exo::wayland::Server* const server_;
+
+  DISALLOW_COPY_AND_ASSIGN(WaylandWatcher);
+};
 
 // static
 void WaylandClientTestHelper::SetUIThreadTaskRunner(
@@ -89,15 +114,12 @@ void WaylandClientTestHelper::SetUpOnUIThread(base::WaitableEvent* event) {
   display_ = std::make_unique<Display>(nullptr, nullptr, nullptr, nullptr);
   wayland_server_ = exo::wayland::Server::Create(display_.get());
   DCHECK(wayland_server_);
-  wayland_server_->StartWithDefaultPath(base::BindOnce(
-      [](base::WaitableEvent* event, bool success, const base::FilePath& path) {
-        DCHECK(success);
-        event->Signal();
-      },
-      event));
+  wayland_watcher_ = std::make_unique<WaylandWatcher>(wayland_server_.get());
+  event->Signal();
 }
 
 void WaylandClientTestHelper::TearDownOnUIThread(base::WaitableEvent* event) {
+  wayland_watcher_.reset();
   wayland_server_.reset();
   display_.reset();
   wm_helper_.reset();

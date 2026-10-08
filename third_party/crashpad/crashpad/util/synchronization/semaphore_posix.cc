@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,12 +23,11 @@
 #include "base/check_op.h"
 #include "base/logging.h"
 #include "base/posix/eintr_wrapper.h"
-#include "build/build_config.h"
 #include "util/misc/time.h"
 
 namespace crashpad {
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 
 Semaphore::Semaphore(int value) : cv_(), mutex_(), value_(value) {}
 
@@ -64,7 +63,7 @@ void Semaphore::Signal() {
   cv_.notify_one();
 }
 
-#elif !BUILDFLAG(IS_APPLE)
+#elif !defined(OS_APPLE)
 
 Semaphore::Semaphore(int value) {
   PCHECK(sem_init(&semaphore_, 0, value) == 0) << "sem_init";
@@ -105,6 +104,6 @@ void Semaphore::Signal() {
   PCHECK(sem_post(&semaphore_) == 0) << "sem_post";
 }
 
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // OS_ANDROID
 
 }  // namespace crashpad

@@ -1,6 +1,9 @@
+# Copyright (c) 2010 Philip Taylor
+# Released under the BSD license and W3C Test Suite License: see LICENSE.txt
+
 # Current code status:
 #
-# This was originally written by Philip Taylor for use at
+# This was originally written for use at
 # http://philip.html5.org/tests/canvas/suite/tests/
 #
 # It has been adapted for use with the Web Platform Test Suite suite at
@@ -15,6 +18,8 @@
 # * Modify the tests*.yaml files.
 # 'name' is an arbitrary hierarchical name to help categorise tests.
 # 'desc' is a rough description of what behaviour the test aims to test.
+# 'testing' is a list of references to spec.yaml, to show which spec sentences
+# this test case is primarily testing.
 # 'code' is JavaScript code to execute, with some special commands starting with '@'
 # 'expected' is what the final canvas output should be: a string 'green' or 'clear'
 # (100x50 images in both cases), or a string 'size 100 50' (or any other size)
@@ -51,6 +56,9 @@ except ImportError:
 def genTestUtils(TESTOUTPUTDIR, IMAGEOUTPUTDIR, TEMPLATEFILE, NAME2DIRFILE, ISOFFSCREENCANVAS):
 
     MISCOUTPUTDIR = './output'
+    SPECOUTPUTDIR = '../'
+
+    SPECOUTPUTPATH = './' # relative to TESTOUTPUTDIR
 
     def simpleEscapeJS(str):
         return str.replace('\\', '\\\\').replace('"', '\\"')
@@ -115,8 +123,16 @@ def genTestUtils(TESTOUTPUTDIR, IMAGEOUTPUTDIR, TEMPLATEFILE, NAME2DIRFILE, ISOF
         doctest.testmod()
         sys.exit()
 
-    templates = yaml.safe_load(open(TEMPLATEFILE, "r").read())
-    name_mapping = yaml.safe_load(open(NAME2DIRFILE, "r").read())
+    templates = yaml.load(open(TEMPLATEFILE, "r").read())
+    name_mapping = yaml.load(open(NAME2DIRFILE, "r").read())
+
+    SPECFILE = 'spec.yaml'
+    spec_assertions = []
+    for s in yaml.load(open(SPECFILE, "r").read())['assertions']:
+        if 'meta' in s:
+            eval(compile(s['meta'], '<meta spec assertion>', 'exec'), {}, {'assertions':spec_assertions})
+        else:
+            spec_assertions.append(s)
 
     tests = []
     test_yaml_directory = "yaml/element"
@@ -125,7 +141,7 @@ def genTestUtils(TESTOUTPUTDIR, IMAGEOUTPUTDIR, TEMPLATEFILE, NAME2DIRFILE, ISOF
     TESTSFILES = [
         os.path.join(test_yaml_directory, f) for f in os.listdir(test_yaml_directory)
         if f.endswith(".yaml")]
-    for t in sum([ yaml.safe_load(open(f, "r").read()) for f in TESTSFILES], []):
+    for t in sum([ yaml.load(open(f, "r").read()) for f in TESTSFILES], []):
         if 'DISABLED' in t:
             continue
         if 'meta' in t:
@@ -136,6 +152,10 @@ def genTestUtils(TESTOUTPUTDIR, IMAGEOUTPUTDIR, TEMPLATEFILE, NAME2DIRFILE, ISOF
     category_names = []
     category_contents_direct = {}
     category_contents_all = {}
+
+    spec_ids = {}
+    for t in spec_assertions: spec_ids[t['id']] = True
+    spec_refs = {}
 
     def backref_html(name):
         backrefs = []
@@ -182,16 +202,31 @@ def genTestUtils(TESTOUTPUTDIR, IMAGEOUTPUTDIR, TEMPLATEFILE, NAME2DIRFILE, ISOF
     def expand_test_code(code):
         code = re.sub(r'@nonfinite ([^(]+)\(([^)]+)\)(.*)', lambda m: expand_nonfinite(m.group(1), m.group(2), m.group(3)), code) # must come before '@assert throws'
 
-        code = re.sub(r'@assert pixel (\d+,\d+) == (\d+,\d+,\d+,\d+);',
-                    r'_assertPixel(canvas, \1, \2);',
+        if ISOFFSCREENCANVAS:
+            code = re.sub(r'@assert pixel (\d+,\d+) == (\d+,\d+,\d+,\d+);',
+                    r'_assertPixel(offscreenCanvas, \1, \2, "\1", "\2");',
+                    code)
+        else:
+            code = re.sub(r'@assert pixel (\d+,\d+) == (\d+,\d+,\d+,\d+);',
+                    r'_assertPixel(canvas, \1, \2, "\1", "\2");',
                     code)
 
-        code = re.sub(r'@assert pixel (\d+,\d+) ==~ (\d+,\d+,\d+,\d+);',
-                    r'_assertPixelApprox(canvas, \1, \2, 2);',
+        if ISOFFSCREENCANVAS:
+            code = re.sub(r'@assert pixel (\d+,\d+) ==~ (\d+,\d+,\d+,\d+);',
+                    r'_assertPixelApprox(offscreenCanvas, \1, \2, "\1", "\2", 2);',
+                    code)
+        else:
+            code = re.sub(r'@assert pixel (\d+,\d+) ==~ (\d+,\d+,\d+,\d+);',
+                    r'_assertPixelApprox(canvas, \1, \2, "\1", "\2", 2);',
                     code)
 
-        code = re.sub(r'@assert pixel (\d+,\d+) ==~ (\d+,\d+,\d+,\d+) \+/- (\d+);',
-                    r'_assertPixelApprox(canvas, \1, \2, \3);',
+        if ISOFFSCREENCANVAS:
+            code = re.sub(r'@assert pixel (\d+,\d+) ==~ (\d+,\d+,\d+,\d+) \+/- (\d+);',
+                    r'_assertPixelApprox(offscreenCanvas, \1, \2, "\1", "\2", \3);',
+                    code)
+        else:
+            code = re.sub(r'@assert pixel (\d+,\d+) ==~ (\d+,\d+,\d+,\d+) \+/- (\d+);',
+                    r'_assertPixelApprox(canvas, \1, \2, "\1", "\2", \3);',
                     code)
 
         code = re.sub(r'@assert throws (\S+_ERR) (.*);',
@@ -258,6 +293,14 @@ def genTestUtils(TESTOUTPUTDIR, IMAGEOUTPUTDIR, TEMPLATEFILE, NAME2DIRFILE, ISOF
             category_contents_all.setdefault(cat_total, []).append(name)
         category_contents_direct.setdefault(cat_total, []).append(name)
 
+        for ref in test.get('testing', []):
+            if ref not in spec_ids:
+                print("Test %s uses nonexistent spec point %s" % (name, ref))
+            spec_refs.setdefault(ref, []).append(name)
+
+        if not test.get('testing', []):
+            print("Test %s doesn't refer to any spec points" % name)
+
         if test.get('expected', '') == 'green' and re.search(r'@assert pixel .* 0,0,0,0;', test['code']):
             print("Probable incorrect pixel test in %s" % name)
 
@@ -296,6 +339,8 @@ def genTestUtils(TESTOUTPUTDIR, IMAGEOUTPUTDIR, TEMPLATEFILE, NAME2DIRFILE, ISOF
         next = tests[i+1]['name'] if i != len(tests)-1 else 'index'
 
         name_wrapped = name.replace('.', '.&#8203;')
+
+        refs = ''.join('<li><a href="%s/annotated-spec.html#testrefs.%s">%s</a>\n' % (SPECOUTPUTPATH, n,n) for n in test.get('testing', []))
 
         notes = '<p class="notes">%s' % test['notes'] if 'notes' in test else ''
 
@@ -340,13 +385,6 @@ def genTestUtils(TESTOUTPUTDIR, IMAGEOUTPUTDIR, TEMPLATEFILE, NAME2DIRFILE, ISOF
         desc = test.get('desc', '')
         escaped_desc = simpleEscapeJS(desc)
 
-        attributes = test.get('attributes', '')
-        if attributes:
-            context_args = "'2d', %s" % attributes.strip()
-            attributes = ', ' + attributes.strip()
-        else:
-            context_args = "'2d'"
-
         for (variant, extra_script) in script_variants:
             name_variant = '' if not variant else '.' + variant
 
@@ -355,22 +393,76 @@ def genTestUtils(TESTOUTPUTDIR, IMAGEOUTPUTDIR, TEMPLATEFILE, NAME2DIRFILE, ISOF
                 'name_wrapped':name_wrapped, 'backrefs':backref_html(name),
                 'mapped_name':mapped_name,
                 'desc':desc, 'escaped_desc':escaped_desc,
-                'prev':prev, 'next':next, 'notes':notes, 'images':images,
+                'prev':prev, 'next':next, 'refs':refs, 'notes':notes, 'images':images,
                 'fonts':fonts, 'fonthack':fonthack, 'timeout': timeout,
                 'canvas':canvas, 'expected':expectation_html, 'code':code,
                 'scripts':scripts + extra_script,
-                'fallback':fallback, 'attributes':attributes,
-                'context_args': context_args
+                'fallback':fallback
             }
+
+            f = codecs.open('%s/%s%s.html' % (TESTOUTPUTDIR, mapped_name, name_variant), 'w', 'utf-8')
+            f.write(templates['w3c'] % template_params)
             if ISOFFSCREENCANVAS:
-                f = codecs.open('%s/%s%s.html' % (TESTOUTPUTDIR, mapped_name, name_variant), 'w', 'utf-8')
-                f.write(templates['w3coffscreencanvas'] % template_params)
-                timeout = '// META: timeout=%s\n' % test['timeout'] if 'timeout' in test else ''
-                template_params['timeout'] = timeout
                 f = codecs.open('%s/%s%s.worker.js' % (TESTOUTPUTDIR, mapped_name, name_variant), 'w', 'utf-8')
                 f.write(templates['w3cworker'] % template_params)
-            else:
-                f = codecs.open('%s/%s%s.html' % (TESTOUTPUTDIR, mapped_name, name_variant), 'w', 'utf-8')
-                f.write(templates['w3ccanvas'] % template_params)
 
     print()
+
+
+    def getNodeText(node):
+        t, offsets = '', []
+
+        # Skip over any previous annotations we added
+        if node.nodeType == node.ELEMENT_NODE and 'testrefs' in node.getAttribute('class').split(' '):
+            return t, offsets
+
+        if node.nodeType == node.TEXT_NODE:
+            val = node.nodeValue
+            val = val.replace(unichr(0xa0), ' ') # replace &nbsp;s
+            t += val
+            offsets += [ (node, len(node.nodeValue)) ]
+        for n in node.childNodes:
+            child_t, child_offsets = getNodeText(n)
+            t += child_t
+            offsets += child_offsets
+        return t, offsets
+
+    def htmlSerializer(element):
+        element.normalize()
+        rv = []
+        specialtext = ['style', 'script', 'xmp', 'iframe', 'noembed', 'noframes', 'noscript']
+        empty = ['area', 'base', 'basefont', 'bgsound', 'br', 'col', 'embed', 'frame',
+                 'hr', 'img', 'input', 'link', 'meta', 'param', 'spacer', 'wbr']
+
+        def serializeElement(element):
+            if element.nodeType == Node.DOCUMENT_TYPE_NODE:
+                rv.append("<!DOCTYPE %s>" % element.name)
+            elif element.nodeType == Node.DOCUMENT_NODE:
+                for child in element.childNodes:
+                    serializeElement(child)
+            elif element.nodeType == Node.COMMENT_NODE:
+                rv.append("<!--%s-->" % element.nodeValue)
+            elif element.nodeType == Node.TEXT_NODE:
+                unescaped = False
+                n = element.parentNode
+                while n is not None:
+                    if n.nodeName in specialtext:
+                        unescaped = True
+                        break
+                    n = n.parentNode
+                if unescaped:
+                    rv.append(element.nodeValue)
+                else:
+                    rv.append(escapeHTML(element.nodeValue))
+            else:
+                rv.append("<%s" % element.nodeName)
+                if element.hasAttributes():
+                    for name, value in element.attributes.items():
+                        rv.append(' %s="%s"' % (name, escapeHTML(value)))
+                rv.append(">")
+                if element.nodeName not in empty:
+                    for child in element.childNodes:
+                        serializeElement(child)
+                    rv.append("</%s>" % element.nodeName)
+        serializeElement(element)
+        return '<!DOCTYPE html>\n' + ''.join(rv)

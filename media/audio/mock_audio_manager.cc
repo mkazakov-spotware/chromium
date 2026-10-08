@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -132,18 +132,13 @@ void MockAudioManager::InitializeDebugRecording() {
   }
 
   DCHECK(!debug_recording_manager_);
-  debug_recording_manager_ = std::make_unique<MockAudioDebugRecordingManager>();
+  debug_recording_manager_ =
+      std::make_unique<MockAudioDebugRecordingManager>(GetTaskRunner());
 }
 
 AudioDebugRecordingManager* MockAudioManager::GetAudioDebugRecordingManager() {
   DCHECK(GetTaskRunner()->BelongsToCurrentThread());
   return debug_recording_manager_.get();
-}
-
-void MockAudioManager::SetAecDumpRecordingManager(
-    base::WeakPtr<AecdumpRecordingManager>) {
-  DCHECK(GetTaskRunner()->BelongsToCurrentThread());
-  // This is no-op by default.
 }
 
 const char* MockAudioManager::GetName() {

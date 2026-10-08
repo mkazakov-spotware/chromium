@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,6 +17,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/render_process_host.h"
+#include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_client.h"
 #include "media/base/android/media_service_throttler.h"
@@ -44,8 +45,10 @@ MediaPlayerRenderer::MediaPlayerRenderer(
       volume_(kDefaultVolume),
       renderer_extension_receiver_(this,
                                    std::move(renderer_extension_receiver)) {
-  DCHECK_EQ(WebContents::FromRenderFrameHost(
-                RenderFrameHost::FromID(process_id, routing_id)),
+  DCHECK_EQ(static_cast<RenderFrameHostImpl*>(
+                RenderFrameHost::FromID(process_id, routing_id))
+                ->delegate()
+                ->GetAsWebContents(),
             web_contents);
 
   WebContentsImpl* web_contents_impl =
@@ -113,12 +116,12 @@ void MediaPlayerRenderer::CreateMediaPlayer(
 
   const std::string user_agent = GetContentClient()->browser()->GetUserAgent();
 
-  media_player_ = std::make_unique<media::MediaPlayerBridge>(
+  media_player_.reset(new media::MediaPlayerBridge(
       url_params.media_url, url_params.site_for_cookies,
       url_params.top_frame_origin, user_agent,
       false,  // hide_url_log
       this,   // MediaPlayerBridge::Client
-      url_params.allow_credentials, url_params.is_hls);
+      url_params.allow_credentials, url_params.is_hls));
 
   media_player_->Initialize();
   UpdateVolume();
@@ -127,7 +130,7 @@ void MediaPlayerRenderer::CreateMediaPlayer(
 }
 
 void MediaPlayerRenderer::SetLatencyHint(
-    absl::optional<base::TimeDelta> latency_hint) {}
+    base::Optional<base::TimeDelta> latency_hint) {}
 
 void MediaPlayerRenderer::Flush(base::OnceClosure flush_cb) {
   DVLOG(3) << __func__;
@@ -164,9 +167,12 @@ void MediaPlayerRenderer::SetPlaybackRate(double playback_rate) {
   if (playback_rate == 0) {
     media_player_->Pause();
   } else {
-    media_player_->SetPlaybackRate(playback_rate);
     // MediaPlayerBridge's Start() is idempotent.
     media_player_->Start();
+
+    // TODO(tguilbert): MediaPlayer's interface allows variable playback rate,
+    // but is not currently exposed in the MediaPlayerBridge interface.
+    // Investigate wether or not we want to add variable playback speed.
   }
 }
 
@@ -206,10 +212,6 @@ base::TimeDelta MediaPlayerRenderer::GetMediaTime() {
   return media_player_->GetCurrentTime();
 }
 
-media::RendererType MediaPlayerRenderer::GetRendererType() {
-  return media::RendererType::kMediaPlayer;
-}
-
 media::MediaResourceGetter* MediaPlayerRenderer::GetMediaResourceGetter() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   if (!media_resource_getter_.get()) {
@@ -222,8 +224,11 @@ media::MediaResourceGetter* MediaPlayerRenderer::GetMediaResourceGetter() {
       return nullptr;
 
     BrowserContext* context = host->GetBrowserContext();
-    media_resource_getter_ = std::make_unique<MediaResourceGetterImpl>(
-        context, render_process_id_, routing_id_);
+    StoragePartition* partition = host->GetStoragePartition();
+    storage::FileSystemContext* file_system_context =
+        partition ? partition->GetFileSystemContext() : nullptr;
+    media_resource_getter_.reset(new MediaResourceGetterImpl(
+        context, file_system_context, render_process_id_, routing_id_));
   }
   return media_resource_getter_.get();
 }

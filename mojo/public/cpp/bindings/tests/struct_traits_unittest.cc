@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -160,7 +160,7 @@ class StructTraitsTest : public testing::Test,
   }
 
   void EchoNullableMoveOnlyStructWithTraits(
-      absl::optional<MoveOnlyStructWithTraitsImpl> s,
+      base::Optional<MoveOnlyStructWithTraitsImpl> s,
       EchoNullableMoveOnlyStructWithTraitsCallback callback) override {
     std::move(callback).Run(std::move(s));
   }
@@ -401,9 +401,9 @@ TEST_F(StructTraitsTest, EchoMoveOnlyStructWithTraits) {
 }
 
 void CaptureNullableMoveOnlyStructWithTraitsImpl(
-    absl::optional<MoveOnlyStructWithTraitsImpl>* storage,
+    base::Optional<MoveOnlyStructWithTraitsImpl>* storage,
     base::OnceClosure closure,
-    absl::optional<MoveOnlyStructWithTraitsImpl> passed) {
+    base::Optional<MoveOnlyStructWithTraitsImpl> passed) {
   *storage = std::move(passed);
   std::move(closure).Run();
 }
@@ -412,9 +412,9 @@ TEST_F(StructTraitsTest, EchoNullableMoveOnlyStructWithTraits) {
   base::RunLoop loop;
   Remote<TraitsTestService> proxy = GetTraitsTestProxy();
 
-  absl::optional<MoveOnlyStructWithTraitsImpl> received;
+  base::Optional<MoveOnlyStructWithTraitsImpl> received;
   proxy->EchoNullableMoveOnlyStructWithTraits(
-      absl::nullopt,
+      base::nullopt,
       base::BindOnce(&CaptureNullableMoveOnlyStructWithTraitsImpl, &received,
                      loop.QuitClosure()));
   loop.Run();

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,8 @@
 #include <tuple>
 #include <vector>
 
-#include "base/callback_forward.h"
 #include "base/containers/flat_map.h"
-#include "base/files/file_path.h"
 #include "base/memory/ref_counted.h"
-#include "components/update_client/buildflags.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class GURL;
 class PrefService;
@@ -33,10 +29,6 @@ class PatcherFactory;
 class ProtocolHandlerFactory;
 class UnzipperFactory;
 
-using UpdaterStateAttributes = base::flat_map<std::string, std::string>;
-using UpdaterStateProvider =
-    base::RepeatingCallback<UpdaterStateAttributes(bool is_machine)>;
-
 // Controls the component updater behavior.
 // TODO(sorin): this class will be split soon in two. One class controls
 // the behavior of the update client, and the other class controls the
@@ -44,7 +36,7 @@ using UpdaterStateProvider =
 class Configurator : public base::RefCountedThreadSafe<Configurator> {
  public:
   // Delay in seconds from calling Start() to the first update check.
-  virtual double InitialDelay() const = 0;
+  virtual int InitialDelay() const = 0;
 
   // Delay in seconds to every subsequent update check. 0 means don't check.
   virtual int NextCheckDelay() const = 0;
@@ -58,8 +50,7 @@ class Configurator : public base::RefCountedThreadSafe<Configurator> {
   virtual int UpdateDelay() const = 0;
 
   // The URLs for the update checks. The URLs are tried in order, the first one
-  // that succeeds wins. Since some components cannot be updated over HTTP,
-  // HTTPS URLs should appear first.
+  // that succeeds wins.
   virtual std::vector<GURL> UpdateUrl() const = 0;
 
   // The URLs for pings. Returns an empty vector if and only if pings are
@@ -78,6 +69,12 @@ class Configurator : public base::RefCountedThreadSafe<Configurator> {
   // parameters. Possible return values include: "canary", "dev", "beta", and
   // "stable".
   virtual std::string GetChannel() const = 0;
+
+  // Returns the brand code or distribution tag that has been assigned to
+  // a partner. A brand code is a 4-character string used to identify
+  // installations that took place as a result of partner deals or website
+  // promotions.
+  virtual std::string GetBrand() const = 0;
 
   // Returns the language for the present locale. Possible return values are
   // standard tags for languages, such as "en", "en-US", "de", "fr", "af", etc.
@@ -107,6 +104,12 @@ class Configurator : public base::RefCountedThreadSafe<Configurator> {
 
   // True means that this client can handle delta updates.
   virtual bool EnabledDeltas() const = 0;
+
+  // True if component updates are enabled. Updates for all components are
+  // enabled by default. This method allows enabling or disabling
+  // updates for certain components such as the plugins. Updates for some
+  // components are always enabled and can't be disabled programatically.
+  virtual bool EnabledComponentUpdates() const = 0;
 
   // True means that the background downloader can be used for downloading
   // non on-demand components.
@@ -142,21 +145,6 @@ class Configurator : public base::RefCountedThreadSafe<Configurator> {
   // serializer object instances.
   virtual std::unique_ptr<ProtocolHandlerFactory> GetProtocolHandlerFactory()
       const = 0;
-
-  // Returns true if Chrome is installed on a system managed by cloud or
-  // group policies, false if the system is not managed, or nullopt if the
-  // platform does not support client management at all.
-  virtual absl::optional<bool> IsMachineExternallyManaged() const = 0;
-
-  // Returns a callable to get the state of the platform updater, if the
-  // embedder includes an updater. Returns a null callback otherwise.
-  virtual UpdaterStateProvider GetUpdaterStateProvider() const = 0;
-
-#if BUILDFLAG(ENABLE_PUFFIN_PATCHES)
-  // Returns the FilePath specified for this specific UpdateClient, pointing
-  // to where the retained CRX's will be stored.
-  virtual absl::optional<base::FilePath> GetCrxCachePath() const = 0;
-#endif
 
  protected:
   friend class base::RefCountedThreadSafe<Configurator>;

@@ -24,7 +24,7 @@
 #include "third_party/blink/renderer/core/svg/svg_animated_string.h"
 #include "third_party/blink/renderer/core/svg/svg_enumeration_map.h"
 #include "third_party/blink/renderer/core/svg_names.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -90,8 +90,7 @@ bool SVGFEMorphologyElement::SetFilterEffectAttribute(
 }
 
 void SVGFEMorphologyElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  const QualifiedName& attr_name = params.name;
+    const QualifiedName& attr_name) {
   if (attr_name == svg_names::kOperatorAttr ||
       attr_name == svg_names::kRadiusAttr) {
     SVGElement::InvalidationGuard invalidation_guard(this);
@@ -105,7 +104,7 @@ void SVGFEMorphologyElement::SvgAttributeChanged(
     return;
   }
 
-  SVGFilterPrimitiveStandardAttributes::SvgAttributeChanged(params);
+  SVGFilterPrimitiveStandardAttributes::SvgAttributeChanged(attr_name);
 }
 
 FilterEffect* SVGFEMorphologyElement::Build(SVGFilterBuilder* filter_builder,

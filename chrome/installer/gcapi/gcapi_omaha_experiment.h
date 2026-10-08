@@ -1,12 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_INSTALLER_GCAPI_GCAPI_OMAHA_EXPERIMENT_H_
 #define CHROME_INSTALLER_GCAPI_GCAPI_OMAHA_EXPERIMENT_H_
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "base/time/time.h"
 
 namespace gcapi_internals {
@@ -16,13 +15,13 @@ extern const wchar_t kRelaunchLabel[];
 
 // Returns the full experiment label to be used by |label| (which is one of the
 // labels declared above) for |brand_code|.
-std::wstring GetGCAPIExperimentLabel(const wchar_t* brand_code,
-                                     const std::wstring& label);
+base::string16 GetGCAPIExperimentLabel(const wchar_t* brand_code,
+                                       const base::string16& label);
 
 }  // namespace gcapi_internals
 
 // The separator used to separate items in experiment labels.
-extern const wchar_t kExperimentLabelSeparator;
+extern const base::char16 kExperimentLabelSeparator;
 
 // Writes a reactivation brand code experiment label in the Chrome product and
 // binaries registry keys for |brand_code|. This experiment label will have a
@@ -42,6 +41,6 @@ bool SetRelaunchExperimentLabels(const wchar_t* brand_code, int shell_mode);
 
 // Constructs a date string in the format understood by Google Update for the
 // |current_time| plus one year.
-std::wstring BuildExperimentDateString(base::Time current_time);
+base::string16 BuildExperimentDateString(base::Time current_time);
 
 #endif  // CHROME_INSTALLER_GCAPI_GCAPI_OMAHA_EXPERIMENT_H_

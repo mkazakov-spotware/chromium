@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,8 +15,10 @@
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/memory/singleton.h"
+#include "base/memory/weak_ptr.h"
 #include "base/synchronization/lock.h"
 #include "base/threading/thread_checker.h"
+#include "base/values.h"
 #include "chrome/chrome_cleaner/logging/detailed_info_sampler.h"
 #include "chrome/chrome_cleaner/logging/logging_service_api.h"
 #include "chrome/chrome_cleaner/logging/message_builder.h"
@@ -48,9 +50,6 @@ class CleanerLoggingService : public LoggingServiceAPI {
  public:
   // Return the singleton instance which will get destroyed by the AtExitMgr.
   static CleanerLoggingService* GetInstance();
-
-  CleanerLoggingService(const CleanerLoggingService&) = delete;
-  CleanerLoggingService& operator=(const CleanerLoggingService&) = delete;
 
   // LoggingServiceAPI:
   void Initialize(RegistryLogger* registry_logger) override;
@@ -200,6 +199,8 @@ class CleanerLoggingService : public LoggingServiceAPI {
 
   // Sampler to choose which files to log detailed info for.
   DetailedInfoSampler sampler_;
+
+  DISALLOW_COPY_AND_ASSIGN(CleanerLoggingService);
 };
 
 }  // namespace chrome_cleaner

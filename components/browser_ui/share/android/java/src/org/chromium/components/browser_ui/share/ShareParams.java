@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,11 +29,8 @@ public class ShareParams {
     /** The text to be shared. */
     private final String mText;
 
-    /** A format to be used when sharing |mText|. */
-    private final String mTextFormat;
-
     /** The URL of the page to be shared. */
-    private String mUrl;
+    private final String mUrl;
 
     /** The common MIME type of the files to be shared. A wildcard if they have differing types. */
     private final String mFileContentType;
@@ -41,23 +38,11 @@ public class ShareParams {
     /** The list of Uris of the files to be shared. */
     private final ArrayList<Uri> mFileUris;
 
-    /** The alt-text for the shared files. */
-    private final ArrayList<String> mFileAltTexts;
-
     /** The Uri to the offline MHTML file to be shared. */
     private final Uri mOfflineUri;
 
     /** The Uri of the screenshot of the page to be shared. */
     private final Uri mScreenshotUri;
-
-    /** The boolean result of link to text generation. */
-    private final Boolean mLinkToTextSuccessful;
-
-    /** The sharing hub preview text. */
-    private final String mPreviewText;
-
-    /** A format to be used when sharing |mPreviewText|. */
-    private final String mPreviewTextFormat;
 
     /**
      * Optional callback to be called when user makes a choice. Will not be called if receiving a
@@ -65,26 +50,19 @@ public class ShareParams {
      */
     private TargetChosenCallback mCallback;
 
-    private ShareParams(WindowAndroid window, String title, String text, String textFormat,
-            String url, @Nullable String fileContentType, @Nullable ArrayList<Uri> fileUris,
-            @Nullable ArrayList<String> fileAltTexts, @Nullable Uri offlineUri,
-            @Nullable Uri screenshotUri, @Nullable TargetChosenCallback callback,
-            @Nullable Boolean linkToTextSuccessful, @Nullable String previewText,
-            String previewTextFormat) {
+    private ShareParams(WindowAndroid window, String title, String text, String url,
+            @Nullable String fileContentType, @Nullable ArrayList<Uri> fileUris,
+            @Nullable Uri offlineUri, @Nullable Uri screenshotUri,
+            @Nullable TargetChosenCallback callback) {
         mWindow = window;
         mTitle = title;
         mText = text;
-        mTextFormat = textFormat;
         mUrl = url;
         mFileContentType = fileContentType;
         mFileUris = fileUris;
-        mFileAltTexts = fileAltTexts;
         mOfflineUri = offlineUri;
         mScreenshotUri = screenshotUri;
         mCallback = callback;
-        mLinkToTextSuccessful = linkToTextSuccessful;
-        mPreviewText = previewText;
-        mPreviewTextFormat = previewTextFormat;
     }
 
     /**
@@ -105,30 +83,20 @@ public class ShareParams {
      * @return The text concatenated with the url.
      */
     public String getTextAndUrl() {
-        String text = getText();
-        String url = getUrl();
-
-        if (TextUtils.isEmpty(url)) {
-            return text;
+        if (TextUtils.isEmpty(mUrl)) {
+            return mText;
         }
-        if (TextUtils.isEmpty(text)) {
-            return url;
+        if (TextUtils.isEmpty(mText)) {
+            return mUrl;
         }
         // Concatenate text and URL with a space.
-        return text + " " + url;
+        return mText + " " + mUrl;
     }
 
     /**
-     * @return The text to be shared in the format it is meant to be shared.
+     * @return The text to be shared.
      */
     public String getText() {
-        return mTextFormat == null ? mText : String.format(mTextFormat, mText);
-    }
-
-    /**
-     * @return The text to be shared, but without additional formatting.
-     */
-    public String getRawText() {
         return mText;
     }
 
@@ -137,13 +105,6 @@ public class ShareParams {
      */
     public String getUrl() {
         return mUrl;
-    }
-
-    /**
-     * @param url set URL to be shared.
-     */
-    public void setUrl(String url) {
-        mUrl = url;
     }
 
     /**
@@ -160,14 +121,6 @@ public class ShareParams {
     @Nullable
     public ArrayList<Uri> getFileUris() {
         return mFileUris;
-    }
-
-    /**
-     * @return The alt-texts related to the files to be shared.
-     */
-    @Nullable
-    public ArrayList<String> getFileAltTexts() {
-        return mFileAltTexts;
     }
 
     /**
@@ -201,39 +154,17 @@ public class ShareParams {
         mCallback = callback;
     }
 
-    /**
-     * @return The boolean result of link to text generation.
-     */
-    @Nullable
-    public Boolean getLinkToTextSuccessful() {
-        return mLinkToTextSuccessful;
-    }
-
-    /**
-     * @return The text to be shared in the format it is meant to be shared.
-     */
-    @Nullable
-    public String getPreviewText() {
-        return mPreviewTextFormat == null ? mPreviewText
-                                          : String.format(mPreviewTextFormat, mPreviewText);
-    }
-
     /** The builder for {@link ShareParams} objects. */
     public static class Builder {
         private WindowAndroid mWindow;
         private String mTitle;
         private String mText;
-        private String mTextFormat;
         private String mUrl;
         private String mFileContentType;
         private ArrayList<Uri> mFileUris;
-        private ArrayList<String> mFileAltTexts;
         private Uri mOfflineUri;
         private Uri mScreenshotUri;
         private TargetChosenCallback mCallback;
-        private Boolean mLinkToTextSuccessful;
-        private String mPreviewText;
-        private String mPreviewTextFormat;
 
         public Builder(@NonNull WindowAndroid window, @NonNull String title, @NonNull String url) {
             mWindow = window;
@@ -250,23 +181,6 @@ public class ShareParams {
         }
 
         /**
-         * Sets the text to be shared and its format to be used before sharing it.
-         */
-        public Builder setText(@NonNull String text, @NonNull String format) {
-            mTextFormat = format;
-            return setText(text);
-        }
-
-        /**
-         * Sets the sharing hub preview text.
-         */
-        public Builder setPreviewText(@NonNull String previewText, @NonNull String format) {
-            mPreviewTextFormat = format;
-            mPreviewText = previewText;
-            return this;
-        }
-
-        /**
          * Sets the MIME type of the arbitrary files to be shared.
          */
         public Builder setFileContentType(@NonNull String fileContentType) {
@@ -279,14 +193,6 @@ public class ShareParams {
          */
         public Builder setFileUris(@Nullable ArrayList<Uri> fileUris) {
             mFileUris = fileUris;
-            return this;
-        }
-
-        /**
-         * Sets the alt-texts associated with the files to be shared.
-         */
-        public Builder setFileAltTexts(@Nullable ArrayList<String> fileAltTexts) {
-            mFileAltTexts = fileAltTexts;
             return this;
         }
 
@@ -314,22 +220,13 @@ public class ShareParams {
             return this;
         }
 
-        /**
-         * Sets the boolean result of link to text generation.
-         */
-        public Builder setLinkToTextSuccessful(@Nullable Boolean linkToTextSuccessful) {
-            mLinkToTextSuccessful = linkToTextSuccessful;
-            return this;
-        }
-
         /** @return A fully constructed {@link ShareParams} object. */
         public ShareParams build() {
             if (!TextUtils.isEmpty(mUrl)) {
                 mUrl = DomDistillerUrlUtils.getOriginalUrlFromDistillerUrl(mUrl);
             }
-            return new ShareParams(mWindow, mTitle, mText, mTextFormat, mUrl, mFileContentType,
-                    mFileUris, mFileAltTexts, mOfflineUri, mScreenshotUri, mCallback,
-                    mLinkToTextSuccessful, mPreviewText, mPreviewTextFormat);
+            return new ShareParams(mWindow, mTitle, mText, mUrl, mFileContentType, mFileUris,
+                    mOfflineUri, mScreenshotUri, mCallback);
         }
     }
 

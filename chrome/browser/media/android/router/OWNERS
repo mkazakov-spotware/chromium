@@ -1,1 +1,6 @@
-file://components/media_router/browser/android/OWNERS
+mfoltz@chromium.org
+mlamouri@chromium.org
+zqzhang@chromium.org
+
+# TEAM: media-dev@chromium.org
+# COMPONENT: Internals>Cast

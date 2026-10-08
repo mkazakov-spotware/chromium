@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "ui/gfx/geometry/size.h"
 
 namespace pwg_encoder {
@@ -36,16 +37,15 @@ struct PwgHeaderInfo {
 
 class PwgEncoder {
  public:
-  PwgEncoder() = delete;
-  PwgEncoder(const PwgEncoder&) = delete;
-  PwgEncoder& operator=(const PwgEncoder&) = delete;
-
   static std::string GetDocumentHeader();
 
   // Given an image, create a PWG of the image and put the compressed image data
   // in the returned string, or return an empty string on failure.
   static std::string EncodePage(const BitmapImage& image,
                                 const PwgHeaderInfo& pwg_header_info);
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(PwgEncoder);
 };
 
 }  // namespace pwg_encoder

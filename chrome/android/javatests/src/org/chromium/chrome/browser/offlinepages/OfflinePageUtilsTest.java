@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,6 @@ import androidx.test.filters.SmallTest;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -24,7 +23,6 @@ import org.junit.runner.RunWith;
 import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.task.PostTask;
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
@@ -39,7 +37,6 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager.SnackbarController;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.components.browser_ui.share.ShareParams;
 import org.chromium.components.offlinepages.SavePageResult;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
@@ -56,15 +53,9 @@ import java.util.concurrent.atomic.AtomicReference;
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.
 Add({"enable-features=OfflinePagesSharing", ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@Batch(Batch.PER_CLASS)
 public class OfflinePageUtilsTest {
-    @ClassRule
-    public static ChromeTabbedActivityTestRule sActivityTestRule =
-            new ChromeTabbedActivityTestRule();
-
     @Rule
-    public BlankCTATabInitialStateRule mInitialStateRule =
-            new BlankCTATabInitialStateRule(sActivityTestRule, true);
+    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
 
     private static final String TAG = "OfflinePageUtilsTest";
     private static final String TEST_PAGE = "/chrome/test/data/android/about.html";
@@ -103,6 +94,7 @@ public class OfflinePageUtilsTest {
 
     @Before
     public void setUp() throws Exception {
+        mActivityTestRule.startMainActivityOnBlankPage();
         final Semaphore semaphore = new Semaphore(0);
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             // Ensure we start in an online state.
@@ -137,7 +129,7 @@ public class OfflinePageUtilsTest {
     }
 
     Activity activity() {
-        return sActivityTestRule.getActivity();
+        return mActivityTestRule.getActivity();
     }
 
     /** We must turn off the server only once, since stopAndDestroyServer() assumes the server is
@@ -233,19 +225,19 @@ public class OfflinePageUtilsTest {
         TestThreadUtils.runOnUiThreadBlocking(
                 () -> { NetworkChangeNotifier.forceConnectivityState(false); });
         String testUrl = mTestServer.getURL(TEST_PAGE);
-        sActivityTestRule.loadUrl(testUrl);
+        mActivityTestRule.loadUrl(testUrl);
 
-        int tabId = sActivityTestRule.getActivity().getActivityTab().getId();
+        int tabId = mActivityTestRule.getActivity().getActivityTab().getId();
 
         // Act.  This needs to be called from the UI thread.
         PostTask.runOrPostTask(UiThreadTaskTraits.DEFAULT, () -> {
             OfflinePageTabObserver offlineObserver = new OfflinePageTabObserver(
-                    sActivityTestRule.getActivity().getTabModelSelector(),
-                    sActivityTestRule.getActivity().getSnackbarManager(), mockSnackbarController);
+                    mActivityTestRule.getActivity().getTabModelSelector(),
+                    mActivityTestRule.getActivity().getSnackbarManager(), mockSnackbarController);
             OfflinePageTabObserver.setObserverForTesting(
-                    sActivityTestRule.getActivity(), offlineObserver);
+                    mActivityTestRule.getActivity(), offlineObserver);
             OfflinePageUtils.showOfflineSnackbarIfNecessary(
-                    sActivityTestRule.getActivity().getActivityTab());
+                    mActivityTestRule.getActivity().getActivityTab());
 
             // Pretend that we went online, this should cause the snackbar to show.
             // This call will set the isConnected call to return true.
@@ -273,7 +265,7 @@ public class OfflinePageUtilsTest {
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             OfflinePageUtils.maybeShareOfflinePage(
-                    sActivityTestRule.getActivity().getActivityTab(), shareCallback);
+                    mActivityTestRule.getActivity().getActivityTab(), shareCallback);
         });
 
         // Wait for share callback to get called.
@@ -297,7 +289,7 @@ public class OfflinePageUtilsTest {
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             OfflinePageUtils.maybeShareOfflinePage(
-                    sActivityTestRule.getActivity().getActivityTab(), shareCallback);
+                    mActivityTestRule.getActivity().getActivityTab(), shareCallback);
         });
         // Wait for share callback to get called.
         Assert.assertTrue(semaphore.tryAcquire(TIMEOUT_MS, TimeUnit.MILLISECONDS));
@@ -313,7 +305,7 @@ public class OfflinePageUtilsTest {
                     namespace, PAGE_ID, TITLE, filePath, FILE_SIZE, 0, 0, 0, REQUEST_ORIGIN);
             OfflinePageBridge offlinePageBridge =
                     OfflinePageBridge.getForProfile(Profile.fromWebContents(
-                            sActivityTestRule.getActivity().getActivityTab().getWebContents()));
+                            mActivityTestRule.getActivity().getActivityTab().getWebContents()));
 
             boolean isSharable = OfflinePageUtils.isOfflinePageShareable(
                     offlinePageBridge, privateOfflinePageItem, Uri.parse(uriPath));
@@ -372,12 +364,12 @@ public class OfflinePageUtilsTest {
     @SmallTest
     public void testMhtmlPropertiesFromRenderer() {
         String testUrl = UrlUtils.getTestFileUrl("offline_pages/hello.mhtml");
-        sActivityTestRule.loadUrl(testUrl);
+        mActivityTestRule.loadUrl(testUrl);
 
         final AtomicReference<OfflinePageItem> offlinePageItem = new AtomicReference<>();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             offlinePageItem.set(OfflinePageUtils.getOfflinePage(
-                    sActivityTestRule.getActivity().getActivityTab().getWebContents()));
+                    mActivityTestRule.getActivity().getActivityTab().getWebContents()));
         });
 
         Assert.assertEquals("http://www.example.com/", offlinePageItem.get().getUrl());
@@ -413,12 +405,12 @@ public class OfflinePageUtilsTest {
         HistogramDelta histogramDelta = new HistogramDelta(
                 MHTML_LOAD_RESULT_UMA_NAME_UNTRUSTED, MhtmlLoadResult.MISSING_MAIN_RESOURCE);
         String testUrl = UrlUtils.getTestFileUrl("offline_pages/invalid_main_resource.mhtml");
-        sActivityTestRule.loadUrl(testUrl);
+        mActivityTestRule.loadUrl(testUrl);
 
         final AtomicReference<OfflinePageItem> offlinePageItem = new AtomicReference<>();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             offlinePageItem.set(OfflinePageUtils.getOfflinePage(
-                    sActivityTestRule.getActivity().getActivityTab().getWebContents()));
+                    mActivityTestRule.getActivity().getActivityTab().getWebContents()));
         });
 
         // The Offline Page Item will be empty because no data can be extracted from the renderer.
@@ -437,12 +429,12 @@ public class OfflinePageUtilsTest {
         HistogramDelta histogramDelta = new HistogramDelta(
                 MHTML_LOAD_RESULT_UMA_NAME_UNTRUSTED, MhtmlLoadResult.EMPTY_FILE);
         String testUrl = UrlUtils.getTestFileUrl("offline_pages/empty.mhtml");
-        sActivityTestRule.loadUrl(testUrl);
+        mActivityTestRule.loadUrl(testUrl);
 
         final AtomicReference<OfflinePageItem> offlinePageItem = new AtomicReference<>();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             offlinePageItem.set(OfflinePageUtils.getOfflinePage(
-                    sActivityTestRule.getActivity().getActivityTab().getWebContents()));
+                    mActivityTestRule.getActivity().getActivityTab().getWebContents()));
         });
 
         Assert.assertEquals(testUrl, offlinePageItem.get().getUrl());
@@ -459,12 +451,12 @@ public class OfflinePageUtilsTest {
         HistogramDelta histogramDelta = new HistogramDelta(
                 MHTML_LOAD_RESULT_UMA_NAME_UNTRUSTED, MhtmlLoadResult.INVALID_ARCHIVE);
         String testUrl = UrlUtils.getTestFileUrl("offline_pages/no_resources.mhtml");
-        sActivityTestRule.loadUrl(testUrl);
+        mActivityTestRule.loadUrl(testUrl);
 
         final AtomicReference<OfflinePageItem> offlinePageItem = new AtomicReference<>();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             offlinePageItem.set(OfflinePageUtils.getOfflinePage(
-                    sActivityTestRule.getActivity().getActivityTab().getWebContents()));
+                    mActivityTestRule.getActivity().getActivityTab().getWebContents()));
         });
 
         Assert.assertEquals(testUrl, offlinePageItem.get().getUrl());
@@ -473,7 +465,7 @@ public class OfflinePageUtilsTest {
 
     private void loadPageAndSave(ClientId clientId) throws Exception {
         mTestPage = mTestServer.getURL(TEST_PAGE);
-        sActivityTestRule.loadUrl(mTestPage);
+        mActivityTestRule.loadUrl(mTestPage);
         savePage(SavePageResult.SUCCESS, mTestPage, clientId);
     }
 
@@ -491,7 +483,7 @@ public class OfflinePageUtilsTest {
         // Verify that we are currently showing a trusted page.
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             Assert.assertTrue(OfflinePageUtils.isShowingTrustedOfflinePage(
-                    sActivityTestRule.getActivity().getActivityTab().getWebContents()));
+                    mActivityTestRule.getActivity().getActivityTab().getWebContents()));
         });
     }
 
@@ -509,7 +501,7 @@ public class OfflinePageUtilsTest {
 
         // Reload the page, which will cause the offline version to be loaded, since we are
         // now "offline".
-        sActivityTestRule.loadUrl(mTestPage);
+        mActivityTestRule.loadUrl(mTestPage);
     }
 
     // Save an offline copy of the current page in the tab.
@@ -518,7 +510,7 @@ public class OfflinePageUtilsTest {
         final Semaphore semaphore = new Semaphore(0);
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             mOfflinePageBridge.savePage(
-                    sActivityTestRule.getWebContents(), clientId, new SavePageCallback() {
+                    mActivityTestRule.getWebContents(), clientId, new SavePageCallback() {
                         @Override
                         public void onSavePageDone(int savePageResult, String url, long offlineId) {
                             Assert.assertEquals(

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "ash/root_window_controller.h"
 #include "ash/shell.h"
 #include "ash/wallpaper/wallpaper_view.h"
+#include "base/scoped_observer.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_observer.h"
 #include "ui/compositor/layer.h"
@@ -24,8 +25,11 @@
 
 namespace ash {
 
-WallpaperWidgetController::WallpaperWidgetController(aura::Window* root_window)
-    : root_window_(root_window) {}
+WallpaperWidgetController::WallpaperWidgetController(
+    aura::Window* root_window,
+    base::OnceClosure wallpaper_set_callback)
+    : root_window_(root_window),
+      wallpaper_set_callback_(std::move(wallpaper_set_callback)) {}
 
 WallpaperWidgetController::~WallpaperWidgetController() {
   widget_->CloseNow();
@@ -71,9 +75,6 @@ bool WallpaperWidgetController::Reparent(int container) {
 bool WallpaperWidgetController::SetWallpaperBlur(
     float blur,
     const base::TimeDelta& animation_duration) {
-  if (!widget_->GetNativeWindow())
-    return false;
-
   StopAnimating();
   bool blur_changed = wallpaper_view_->blur_sigma() != blur;
 
@@ -98,7 +99,7 @@ float WallpaperWidgetController::GetWallpaperBlur() const {
 void WallpaperWidgetController::OnImplicitAnimationsCompleted() {
   StopAnimating();
   wallpaper_view_->SetLockShieldEnabled(
-      wallpaper_view_->GetWidget()->GetNativeWindow()->parent()->GetId() ==
+      wallpaper_view_->GetWidget()->GetNativeWindow()->parent()->id() ==
       kShellWindowId_LockScreenWallpaperContainer);
   RunAnimationEndCallbacks();
 }

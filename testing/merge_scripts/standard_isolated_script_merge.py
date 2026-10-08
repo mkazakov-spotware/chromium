@@ -1,13 +1,11 @@
-#!/usr/bin/env python3
-# Copyright 2017 The Chromium Authors
+#!/usr/bin/env python
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-from __future__ import print_function
-
+import argparse
 import json
 import os
-import six
 import sys
 
 import merge_api
@@ -28,10 +26,9 @@ def StandardIsolatedScriptMerge(output_json, summary_json, jsons_to_merge):
     with open(summary_json) as f:
       summary = json.load(f)
   except (IOError, ValueError):
-    print((
+    print >> sys.stderr, (
         'summary.json is missing or can not be read',
-        'Something is seriously wrong with swarming client or the bot.'),
-        file=sys.stderr)
+        'Something is seriously wrong with swarming client or the bot.')
     return 1
 
   missing_shards = []
@@ -48,9 +45,8 @@ def StandardIsolatedScriptMerge(output_json, summary_json, jsons_to_merge):
     with open(output_path) as f:
       try:
         json_contents = json.load(f)
-      except ValueError as e:
-        six.raise_from(ValueError(
-              'Failed to parse JSON from %s' % output_path), e)
+      except ValueError:
+        raise ValueError('Failed to parse JSON from %s' % j)
       shard_results_list.append(json_contents)
 
   merged_results = results_merger.merge_test_results(shard_results_list)
@@ -85,10 +81,10 @@ def find_shard_output_path(index, task_id, jsons_to_merge):
            os.path.basename(os.path.dirname(j)) == task_id))]
 
   if not matching_json_files:
-    print('shard %s test output missing' % index, file=sys.stderr)
+    print >> sys.stderr, 'shard %s test output missing' % index
     return None
-  if len(matching_json_files) > 1:
-    print('duplicate test output for shard %s' % index, file=sys.stderr)
+  elif len(matching_json_files) > 1:
+    print >> sys.stderr, 'duplicate test output for shard %s' % index
     return None
 
   return matching_json_files[0]

@@ -3,11 +3,9 @@
 <head>
 <script src="../../../resources/testharness.js"></script>
 <script src="../../../resources/testharnessreport.js"></script>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
-<script src="../resources/common.js"></script>
-<script src="../resources/picker-common.js"></script>
-<script src="../calendar-picker/resources/calendar-picker-common.js"></script>
+<script src="../../../fast/forms/resources/common.js"></script>
+<script src="../../../fast/forms/resources/picker-common.js"></script>
+<script src="../../../fast/forms/calendar-picker/resources/calendar-picker-common.js"></script>
 </head>
 <body>
 <input type="time" id="time" value="14:15:00" step="1">
@@ -51,7 +49,7 @@ function selectValue() {
 }
 
 t.step(() => {
-  openPickerDeprecatedJsTest(document.getElementById('time'), t.step_func(selectValue));
+  openPicker(document.getElementById('time'), t.step_func(selectValue));
 });
 </script>
 </body>

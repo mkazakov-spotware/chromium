@@ -1,12 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/indexed_db/file_stream_reader_to_data_pipe.h"
 
 #include "base/bind.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/task/sequenced_task_runner.h"
 #include "net/base/net_errors.h"
 
 namespace content {
@@ -22,9 +20,9 @@ void FileStreamReaderToDataPipe::Start(
     base::OnceCallback<void(int)> completion_callback,
     uint64_t read_length) {
   DCHECK(!writable_handle_watcher_.has_value());
-  writable_handle_watcher_.emplace(
-      FROM_HERE, mojo::SimpleWatcher::ArmingPolicy::MANUAL,
-      base::SequencedTaskRunner::GetCurrentDefault());
+  writable_handle_watcher_.emplace(FROM_HERE,
+                                   mojo::SimpleWatcher::ArmingPolicy::MANUAL,
+                                   base::SequencedTaskRunnerHandle::Get());
   writable_handle_watcher_->Watch(
       dest_.get(), MOJO_HANDLE_SIGNAL_WRITABLE,
       base::BindRepeating(&FileStreamReaderToDataPipe::OnDataPipeWritable,
@@ -58,8 +56,8 @@ void FileStreamReaderToDataPipe::ReadMore() {
   uint64_t read_bytes = std::min(static_cast<uint64_t>(num_bytes),
                                  read_length_ - transferred_bytes_);
 
-  auto buffer =
-      base::MakeRefCounted<network::NetToMojoIOBuffer>(pending_write_.get());
+  scoped_refptr<net::IOBuffer> buffer(
+      new network::NetToMojoIOBuffer(pending_write_.get()));
   int result =
       reader_->Read(buffer.get(), base::checked_cast<int>(read_bytes),
                     base::BindOnce(&FileStreamReaderToDataPipe::DidRead,
@@ -88,7 +86,7 @@ void FileStreamReaderToDataPipe::DidRead(int result) {
 
   pending_write_ = nullptr;
 
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&FileStreamReaderToDataPipe::ReadMore,
                                 weak_factory_.GetWeakPtr()));
 }

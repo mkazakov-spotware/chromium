@@ -1,31 +1,36 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/recent_tabs/recent_tabs_mediator.h"
 
-#import "components/sessions/core/tab_restore_service.h"
-#import "components/sync_sessions/open_tabs_ui_delegate.h"
-#import "components/sync_sessions/session_sync_service.h"
-#import "components/sync_sessions/synced_session.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "components/sessions/core/tab_restore_service.h"
+#include "components/sync_sessions/open_tabs_ui_delegate.h"
+#include "components/sync_sessions/session_sync_service.h"
+#include "components/sync_sessions/synced_session.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/favicon/favicon_loader.h"
-#import "ios/chrome/browser/favicon/ios_chrome_favicon_loader_factory.h"
-#import "ios/chrome/browser/net/crurl.h"
-#import "ios/chrome/browser/sessions/ios_chrome_tab_restore_service_factory.h"
-#import "ios/chrome/browser/sync/session_sync_service_factory.h"
-#import "ios/chrome/browser/sync/sync_setup_service.h"
-#import "ios/chrome/browser/sync/sync_setup_service_factory.h"
+#include "ios/chrome/browser/favicon/ios_chrome_favicon_loader_factory.h"
+#include "ios/chrome/browser/sessions/ios_chrome_tab_restore_service_factory.h"
+#include "ios/chrome/browser/sync/session_sync_service_factory.h"
+#include "ios/chrome/browser/sync/sync_setup_service.h"
+#include "ios/chrome/browser/sync/sync_setup_service_factory.h"
 #import "ios/chrome/browser/ui/recent_tabs/recent_tabs_consumer.h"
 #import "ios/chrome/browser/ui/recent_tabs/sessions_sync_user_state.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/web_state_list/web_state_list_observer_bridge.h"
-#import "ios/chrome/common/ui/favicon/favicon_constants.h"
-#import "url/gurl.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
+
+namespace {
+// Desired width and height of favicon.
+const CGFloat kFaviconWidthHeight = 24;
+// Minimum favicon size to retrieve.
+const CGFloat kFaviconMinWidthHeight = 16;
+}  // namespace
 
 @interface RecentTabsMediator () <SyncedSessionsObserver,
                                   WebStateListObserving> {
@@ -39,7 +44,7 @@
 - (SessionsSyncUserState)userSignedInState;
 // Utility functions for -userSignedInState so these can be mocked out
 // easily for unit tests.
-- (BOOL)hasSyncConsent;
+- (BOOL)isSignedIn;
 - (BOOL)isSyncTabsEnabled;
 - (BOOL)hasForeignSessions;
 - (BOOL)isSyncCompleted;
@@ -149,20 +154,20 @@
   // A WebStateList batch operation can result in batch changes to the
   // TabRestoreService (e.g., closing or restoring all tabs). Individual
   // TabRestoreService updates are ignored between
-  // `-webStateListWillBeginBatchOperation:` and
-  // `-webStateListBatchOperationEnded:`. The consumer is updated once after the
+  // |-webStateListWillBeginBatchOperation:| and
+  // |-webStateListBatchOperationEnded:|. The consumer is updated once after the
   // batch operation is complete.
   [self.consumer refreshRecentlyClosedTabs];
 }
 
 #pragma mark - TableViewFaviconDataSource
 
-- (void)faviconForURL:(CrURL*)URL
+- (void)faviconForURL:(const GURL&)URL
            completion:(void (^)(FaviconAttributes*))completion {
   FaviconLoader* faviconLoader =
       IOSChromeFaviconLoaderFactory::GetForBrowserState(self.browserState);
   faviconLoader->FaviconForPageUrl(
-      URL.gurl, kDesiredSmallFaviconSizePt, kMinFaviconSizePt,
+      URL, kFaviconWidthHeight, kFaviconMinWidthHeight,
       /*fallback_to_google_server=*/false, ^(FaviconAttributes* attributes) {
         completion(attributes);
       });
@@ -182,12 +187,12 @@
 
 #pragma mark - Private
 
-- (BOOL)hasSyncConsent {
-  return _syncedSessionsObserver->HasSyncConsent();
+- (BOOL)isSignedIn {
+  return _syncedSessionsObserver->IsSignedIn();
 }
 
 - (BOOL)isSyncTabsEnabled {
-  DCHECK([self hasSyncConsent]);
+  DCHECK([self isSignedIn]);
   SyncSetupService* service =
       SyncSetupServiceFactory::GetForBrowserState(_browserState);
   return !service->UserActionIsRequiredToHaveTabSyncWork();
@@ -195,7 +200,7 @@
 
 // Returns whether this profile has any foreign sessions to sync.
 - (SessionsSyncUserState)userSignedInState {
-  if (![self hasSyncConsent])
+  if (![self isSignedIn])
     return SessionsSyncUserState::USER_SIGNED_OUT;
   if (![self isSyncTabsEnabled])
     return SessionsSyncUserState::USER_SIGNED_IN_SYNC_OFF;

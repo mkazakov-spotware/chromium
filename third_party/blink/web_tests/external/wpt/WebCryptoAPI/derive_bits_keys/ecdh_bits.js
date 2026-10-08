@@ -165,7 +165,7 @@ function define_tests() {
             promise_test(function(test) {
                 return subtle.generateKey({name: "AES-CBC", length: 128}, true, ["encrypt", "decrypt"])
                 .then(function(secretKey) {
-                    return subtle.deriveBits({name: "ECDH", public: secretKey}, privateKeys[namedCurve], 8 * sizes[namedCurve])
+                    subtle.deriveBits({name: "ECDH", public: secretKey}, privateKeys[namedCurve], 8 * sizes[namedCurve])
                     .then(function(derivation) {
                         assert_unreached("deriveBits succeeded but should have failed with InvalidAccessError");
                     }, function(err) {
@@ -199,8 +199,6 @@ function define_tests() {
                                             false, ["deriveBits", "deriveKey"])
                             .then(function(key) {
                                 privateKeys[namedCurve] = key;
-                            }, function (err) {
-                                privateKeys[namedCurve] = null;
                             });
             promises.push(operation);
         });
@@ -210,8 +208,6 @@ function define_tests() {
                                             false, ["deriveKey"])
                             .then(function(key) {
                                 noDeriveBitsKeys[namedCurve] = key;
-                            }, function (err) {
-                                noDeriveBitsKeys[namedCurve] = null;
                             });
             promises.push(operation);
         });
@@ -221,8 +217,6 @@ function define_tests() {
                                             false, [])
                             .then(function(key) {
                                 publicKeys[namedCurve] = key;
-                            }, function (err) {
-                                publicKeys[namedCurve] = null;
                             });
             promises.push(operation);
         });
@@ -230,8 +224,6 @@ function define_tests() {
             var operation = subtle.generateKey({name: "ECDSA", namedCurve: namedCurve}, false, ["sign", "verify"])
                             .then(function(keyPair) {
                                 ecdsaKeyPairs[namedCurve] = keyPair;
-                            }, function (err) {
-                                ecdsaKeyPairs[namedCurve] = null;
                             });
             promises.push(operation);
         });

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,19 +21,15 @@ import org.chromium.chrome.browser.browserservices.ui.controller.CurrentPageVeri
 import org.chromium.chrome.browser.browserservices.ui.controller.CurrentPageVerifier.VerificationStatus;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.NativeInitObserver;
-import org.chromium.chrome.browser.lifecycle.StartStopWithNativeObserver;
 
 /**
  * Contains common implementation between WebappDisclosureController and
  * TrustedWebActivityDisclosureController.
  */
 public abstract class DisclosureController
-        implements NativeInitObserver, TrustedWebActivityModel.DisclosureEventsCallback,
-                   StartStopWithNativeObserver {
+        implements NativeInitObserver, TrustedWebActivityModel.DisclosureEventsCallback {
     private final TrustedWebActivityModel mModel;
     private final CurrentPageVerifier mCurrentPageVerifier;
-
-    private boolean mPreviousShouldShowDisclosure;
 
     public DisclosureController(TrustedWebActivityModel model,
             ActivityLifecycleDispatcher lifecycleDispatcher,
@@ -60,7 +56,6 @@ public abstract class DisclosureController
 
     @Override
     public void onFinishNativeInitialization() {
-        mPreviousShouldShowDisclosure = shouldShowDisclosure();
         // We want to show disclosure ASAP, which is limited by SnackbarManager requiring
         // native.
         if (shouldShowInCurrentState()) {
@@ -108,7 +103,6 @@ public abstract class DisclosureController
             mModel.set(DISCLOSURE_STATE, DISCLOSURE_STATE_NOT_SHOWN);
         }
     }
-
     protected boolean isShowing() {
         return mModel.get(DISCLOSURE_STATE) == DISCLOSURE_STATE_SHOWN;
     }
@@ -116,23 +110,4 @@ public abstract class DisclosureController
     private void setDisclosureScope(@Nullable String scope) {
         mModel.set(DISCLOSURE_SCOPE, scope);
     }
-
-    @Override
-    public void onStopWithNative() {
-        // When the disclosure is accepted through a notification, we don't get the
-        // onDisclosureAccepted callback. We check for this case (through seeing if
-        // shouldShowDisclosure has been updated) and call it manually here.
-
-        // This is a bit ugly because there's no easy way for the broadcast receiver that catches
-        // the notification click to call `onDisclosureAccepted`.
-
-        if (mPreviousShouldShowDisclosure && !shouldShowDisclosure()) {
-            onDisclosureAccepted();
-
-            mPreviousShouldShowDisclosure = false;
-        }
-    }
-
-    @Override
-    public void onStartWithNative() {}
 }

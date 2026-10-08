@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,7 +39,6 @@ void AssociateParamsFromFieldTrialConfig(
     const FieldTrialTestingConfig& config,
     const VariationsSeedProcessor::UIStringOverrideCallback& callback,
     Study::Platform platform,
-    Study::FormFactor current_form_factor,
     base::FeatureList* feature_list);
 
 // Associates params and features to FieldTrial groups and forces the selection
@@ -48,7 +47,6 @@ void AssociateParamsFromFieldTrialConfig(
 void AssociateDefaultFieldTrialConfig(
     const VariationsSeedProcessor::UIStringOverrideCallback& callback,
     Study::Platform platform,
-    Study::FormFactor current_form_factor,
     base::FeatureList* feature_list);
 
 }  // namespace variations

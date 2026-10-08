@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,16 +16,13 @@ class SafeBrowsingPrivateGetReferrerChainFunction : public ExtensionFunction {
 
   SafeBrowsingPrivateGetReferrerChainFunction();
 
-  SafeBrowsingPrivateGetReferrerChainFunction(
-      const SafeBrowsingPrivateGetReferrerChainFunction&) = delete;
-  SafeBrowsingPrivateGetReferrerChainFunction& operator=(
-      const SafeBrowsingPrivateGetReferrerChainFunction&) = delete;
-
  protected:
   ~SafeBrowsingPrivateGetReferrerChainFunction() override;
 
   // ExtensionFunction:
   ResponseAction Run() override;
+
+  DISALLOW_COPY_AND_ASSIGN(SafeBrowsingPrivateGetReferrerChainFunction);
 };
 
 }  // namespace extensions

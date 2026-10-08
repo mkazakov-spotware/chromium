@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,6 @@ const char kMakeChromeDefault[] = "make_chrome_default";
 const char kMakeChromeDefaultForUser[] = "make_chrome_default_for_user";
 const char kMsi[] = "msi";
 const char kMsiProductId[] = "msi_product_id";
-const char kProgramFilesDir[] = "program_files_dir";
 const char kRequireEula[] = "require_eula";
 const char kSystemLevel[] = "system_level";
 const char kVerboseLogging[] = "verbose_logging";

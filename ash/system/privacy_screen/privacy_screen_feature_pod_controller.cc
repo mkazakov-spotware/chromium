@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,11 @@
 
 #include <utility>
 
-#include "ash/constants/quick_settings_catalogs.h"
 #include "ash/display/privacy_screen_controller.h"
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/shell.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/system/unified/feature_pod_button.h"
-#include "ash/system/unified/quick_settings_metrics_util.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/views/layout/box_layout.h"
 
@@ -29,22 +27,20 @@ PrivacyScreenFeaturePodController::~PrivacyScreenFeaturePodController() {
 FeaturePodButton* PrivacyScreenFeaturePodController::CreateButton() {
   DCHECK(!button_);
   button_ = new FeaturePodButton(this);
-  // Init the button with invisible state. The `UpdateButton` method will update
-  // the visibility based on the current condition.
-  button_->SetVisible(false);
   UpdateButton();
   return button_;
 }
 
-QsFeatureCatalogName PrivacyScreenFeaturePodController::GetCatalogName() {
-  return QsFeatureCatalogName::kPrivacyScreen;
+void PrivacyScreenFeaturePodController::OnIconPressed() {
+  TogglePrivacyScreen();
 }
 
-void PrivacyScreenFeaturePodController::OnIconPressed() {
-  TrackToggleUMA(/*target_toggle_state=*/!Shell::Get()
-                     ->privacy_screen_controller()
-                     ->GetEnabled());
+void PrivacyScreenFeaturePodController::OnLabelPressed() {
   TogglePrivacyScreen();
+}
+
+SystemTrayItemUmaType PrivacyScreenFeaturePodController::GetUmaType() const {
+  return SystemTrayItemUmaType::UMA_PRIVACY_SCREEN;
 }
 
 void PrivacyScreenFeaturePodController::TogglePrivacyScreen() {
@@ -60,11 +56,6 @@ void PrivacyScreenFeaturePodController::UpdateButton() {
   auto* privacy_screen_controller = Shell::Get()->privacy_screen_controller();
 
   bool is_supported = privacy_screen_controller->IsSupported();
-  // If the button's visibility changes from invisible to visible, log its
-  // visibility.
-  if (!button_->GetVisible() && is_supported)
-    TrackVisibilityUMA();
-
   button_->SetVisible(is_supported);
   if (!is_supported)
     return;
@@ -77,7 +68,7 @@ void PrivacyScreenFeaturePodController::UpdateButton() {
   button_->SetLabel(
       l10n_util::GetStringUTF16(IDS_ASH_STATUS_TRAY_PRIVACY_SCREEN_LABEL));
 
-  std::u16string tooltip_state;
+  base::string16 tooltip_state;
   if (is_enabled) {
     button_->SetSubLabel(l10n_util::GetStringUTF16(
         IDS_ASH_STATUS_TRAY_PRIVACY_SCREEN_ON_SUBLABEL));
@@ -100,10 +91,8 @@ void PrivacyScreenFeaturePodController::UpdateButton() {
 }
 
 void PrivacyScreenFeaturePodController::OnPrivacyScreenSettingChanged(
-    bool enabled,
-    bool notify_ui) {
-  if (notify_ui)
-    UpdateButton();
+    bool enabled) {
+  UpdateButton();
 }
 
 }  // namespace ash

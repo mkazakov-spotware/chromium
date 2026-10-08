@@ -1,21 +1,20 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #import "ios/chrome/browser/ui/bookmarks/bookmark_folder_editor_view_controller.h"
 
-#import <memory>
-#import <set>
+#include <memory>
+#include <set>
 
-#import "base/auto_reset.h"
-#import "base/check_op.h"
-#import "base/i18n/rtl.h"
-#import "base/mac/foundation_util.h"
-#import "base/notreached.h"
+#include "base/auto_reset.h"
+#include "base/check_op.h"
+#include "base/i18n/rtl.h"
+#include "base/mac/foundation_util.h"
+#include "base/notreached.h"
 
-#import "base/strings/sys_string_conversions.h"
-#import "components/bookmarks/browser/bookmark_model.h"
-#import "components/bookmarks/browser/bookmark_node.h"
-#import "components/bookmarks/common/bookmark_metrics.h"
+#include "base/strings/sys_string_conversions.h"
+#include "components/bookmarks/browser/bookmark_model.h"
+#include "components/bookmarks/browser/bookmark_node.h"
 #import "ios/chrome/browser/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/main/browser.h"
 #import "ios/chrome/browser/ui/alert_coordinator/action_sheet_coordinator.h"
@@ -25,15 +24,15 @@
 #import "ios/chrome/browser/ui/bookmarks/bookmark_utils_ios.h"
 #import "ios/chrome/browser/ui/bookmarks/cells/bookmark_parent_folder_item.h"
 #import "ios/chrome/browser/ui/bookmarks/cells/bookmark_text_field_item.h"
-#import "ios/chrome/browser/ui/commands/snackbar_commands.h"
+#import "ios/chrome/browser/ui/commands/browser_commands.h"
 #import "ios/chrome/browser/ui/icons/chrome_icon.h"
+#import "ios/chrome/browser/ui/material_components/utils.h"
 #import "ios/chrome/browser/ui/table_view/chrome_table_view_styler.h"
-#import "ios/chrome/browser/ui/table_view/table_view_utils.h"
-#import "ios/chrome/browser/ui/util/rtl_geometry.h"
+#include "ios/chrome/browser/ui/util/rtl_geometry.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ui/base/l10n/l10n_util.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -77,7 +76,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
 // The action sheet coordinator, if one is currently being shown.
 @property(nonatomic, strong) ActionSheetCoordinator* actionSheetCoordinator;
 
-// `bookmarkModel` must not be NULL and must be loaded.
+// |bookmarkModel| must not be NULL and must be loaded.
 - (instancetype)initWithBookmarkModel:(bookmarks::BookmarkModel*)bookmarkModel
     NS_DESIGNATED_INITIALIZER;
 
@@ -90,6 +89,9 @@ typedef NS_ENUM(NSInteger, ItemType) {
 // Bottom toolbar with DELETE button that only appears when the edited folder
 // allows deletion.
 - (void)addToolbar;
+
+// Dispatcher for this ViewController.
+@property(nonatomic, weak) id<BrowserCommands> dispatcher;
 
 @end
 
@@ -120,6 +122,10 @@ typedef NS_ENUM(NSInteger, ItemType) {
   folderCreator.folder = NULL;
   folderCreator.browser = browser;
   folderCreator.editingExistingFolder = NO;
+  // TODO(crbug.com/1045047): Use HandlerForProtocol after commands protocol
+  // clean up.
+  folderCreator.dispatcher =
+      static_cast<id<BrowserCommands>>(browser->GetCommandDispatcher());
   return folderCreator;
 }
 
@@ -138,6 +144,10 @@ typedef NS_ENUM(NSInteger, ItemType) {
   folderEditor.browserState =
       browser->GetBrowserState()->GetOriginalChromeBrowserState();
   folderEditor.editingExistingFolder = YES;
+  // TODO(crbug.com/1045047): Use HandlerForProtocol after commands protocol
+  // clean up.
+  folderEditor.dispatcher =
+      static_cast<id<BrowserCommands>>(browser->GetCommandDispatcher());
   return folderEditor;
 }
 
@@ -146,8 +156,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
 - (instancetype)initWithBookmarkModel:(bookmarks::BookmarkModel*)bookmarkModel {
   DCHECK(bookmarkModel);
   DCHECK(bookmarkModel->loaded());
-  UITableViewStyle style = ChromeTableViewStyle();
-  self = [super initWithStyle:style];
+  self = [super initWithStyle:UITableViewStylePlain];
   if (self) {
     _bookmarkModel = bookmarkModel;
 
@@ -178,9 +187,11 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
   // Add Done button.
   UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
-      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                           target:self
-                           action:@selector(saveFolder)];
+      initWithTitle:l10n_util::GetNSString(
+                        IDS_IOS_BOOKMARK_EDIT_MODE_EXIT_MOBILE)
+              style:UIBarButtonItemStylePlain
+             target:self
+             action:@selector(saveFolder)];
   doneItem.accessibilityIdentifier =
       kBookmarkFolderEditNavigationBarDoneButtonIdentifier;
   self.navigationItem.rightBarButtonItem = doneItem;
@@ -196,6 +207,16 @@ typedef NS_ENUM(NSInteger, ItemType) {
     self.navigationItem.leftBarButtonItem = cancelItem;
 
     [self addToolbar];
+  } else {
+    // Add Back button.
+    UIBarButtonItem* backItem =
+        [ChromeIcon templateBarButtonItemWithImage:[ChromeIcon backIcon]
+                                            target:self
+                                            action:@selector(dismiss)];
+    backItem.accessibilityLabel =
+        l10n_util::GetNSString(IDS_IOS_BOOKMARK_NEW_BACK_LABEL);
+    backItem.accessibilityIdentifier = @"Back";
+    self.navigationItem.leftBarButtonItem = backItem;
   }
   [self updateEditingState];
   [self setupCollectionViewModel];
@@ -236,7 +257,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
   DCHECK(self.folder);
   std::set<const BookmarkNode*> editedNodes;
   editedNodes.insert(self.folder);
-  [self.snackbarCommandsHandler
+  [self.dispatcher
       showSnackbarMessage:bookmark_utils_ios::DeleteBookmarksWithUndoToast(
                               editedNodes, self.bookmarkModel,
                               self.browserState)];
@@ -248,7 +269,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
   NSString* folderString = self.titleItem.text;
   DCHECK(folderString.length > 0);
-  std::u16string folderTitle = base::SysNSStringToUTF16(folderString);
+  base::string16 folderTitle = base::SysNSStringToUTF16(folderString);
 
   if (self.editingExistingFolder) {
     DCHECK(self.folder);
@@ -257,13 +278,12 @@ typedef NS_ENUM(NSInteger, ItemType) {
       [self.delegate bookmarkFolderEditorWillCommitTitleChange:self];
     }
 
-    self.bookmarkModel->SetTitle(self.folder, folderTitle,
-                                 bookmarks::metrics::BookmarkEditSource::kUser);
+    self.bookmarkModel->SetTitle(self.folder, folderTitle);
     if (self.folder->parent() != self.parentFolder) {
       base::AutoReset<BOOL> autoReset(&_ignoresOwnMove, YES);
       std::set<const BookmarkNode*> editedNodes;
       editedNodes.insert(self.folder);
-      [self.snackbarCommandsHandler
+      [self.dispatcher
           showSnackbarMessage:bookmark_utils_ios::MoveBookmarksWithUndoToast(
                                   editedNodes, self.bookmarkModel,
                                   self.parentFolder, self.browserState)];
@@ -290,8 +310,6 @@ typedef NS_ENUM(NSInteger, ItemType) {
                  selectedFolder:self.parentFolder
                         browser:_browser];
   folderViewController.delegate = self;
-  folderViewController.snackbarCommandsHandler = self.snackbarCommandsHandler;
-
   self.folderViewController = folderViewController;
 
   [self.navigationController pushViewController:folderViewController
@@ -375,7 +393,9 @@ typedef NS_ENUM(NSInteger, ItemType) {
 #pragma mark - BookmarkTextFieldItemDelegate
 
 - (void)textDidChangeForItem:(BookmarkTextFieldItem*)item {
-  self.modalInPresentation = YES;
+  if (@available(iOS 13, *)) {
+    self.modalInPresentation = YES;
+  }
   [self updateSaveButtonState];
 }
 
@@ -539,7 +559,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
                            target:nil
                            action:nil];
   deleteButton.tintColor = [UIColor colorNamed:kRedColor];
-
+  [self.navigationController.toolbar setShadowImage:[UIImage new]
+                                 forToolbarPosition:UIBarPositionAny];
   [self setToolbarItems:@[ spaceButton, deleteButton, spaceButton ]
                animated:NO];
 }

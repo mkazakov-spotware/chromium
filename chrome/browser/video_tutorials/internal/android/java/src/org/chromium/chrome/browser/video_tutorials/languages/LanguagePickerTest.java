@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@ import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
 import android.app.Activity;
+import android.support.test.rule.ActivityTestRule;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -25,15 +26,13 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import org.chromium.base.test.BaseActivityTestRule;
-import org.chromium.chrome.browser.video_tutorials.FeatureType;
 import org.chromium.chrome.browser.video_tutorials.LanguageInfoProvider;
 import org.chromium.chrome.browser.video_tutorials.R;
 import org.chromium.chrome.browser.video_tutorials.VideoTutorialService;
 import org.chromium.chrome.browser.video_tutorials.test.TestVideoTutorialService;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
-import org.chromium.ui.test.util.BlankUiTestActivity;
+import org.chromium.ui.test.util.DummyUiActivity;
 
 /**
  * Tests for {@link LanguagePickerCoordinator}.
@@ -41,8 +40,8 @@ import org.chromium.ui.test.util.BlankUiTestActivity;
 @RunWith(ChromeJUnit4ClassRunner.class)
 public class LanguagePickerTest {
     @Rule
-    public BaseActivityTestRule<BlankUiTestActivity> mActivityTestRule =
-            new BaseActivityTestRule<>(BlankUiTestActivity.class);
+    public ActivityTestRule<DummyUiActivity> mActivityTestRule =
+            new ActivityTestRule<>(DummyUiActivity.class);
 
     private Activity mActivity;
     private View mContentView;
@@ -59,7 +58,6 @@ public class LanguagePickerTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        mActivityTestRule.launchActivity(null);
         mActivity = mActivityTestRule.getActivity();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             FrameLayout parentView = new FrameLayout(mActivity);
@@ -72,8 +70,7 @@ public class LanguagePickerTest {
                     .thenReturn(TestVideoTutorialService.HINDI);
             mCoordinator = new LanguagePickerCoordinator(
                     mContentView, mVideoTutorialService, mLanguageProvider);
-            mCoordinator.showLanguagePicker(
-                    FeatureType.CHROME_INTRO, mWatchCallback, mCloseCallback);
+            mCoordinator.showLanguagePicker(mWatchCallback, mCloseCallback);
         });
     }
 

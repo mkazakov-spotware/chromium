@@ -1,14 +1,13 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_MEDIA_CONTROLS_MEDIA_CONTROLS_ROTATE_TO_FULLSCREEN_DELEGATE_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_MEDIA_CONTROLS_MEDIA_CONTROLS_ROTATE_TO_FULLSCREEN_DELEGATE_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "third_party/blink/renderer/core/dom/events/native_event_listener.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
 
 namespace blink {
 
@@ -55,7 +54,7 @@ class MediaControlsRotateToFullscreenDelegate final
   MODULES_EXPORT SimpleOrientation ComputeVideoOrientation() const;
   SimpleOrientation ComputeScreenOrientation() const;
 
-  absl::optional<bool> device_orientation_supported_;
+  base::Optional<bool> device_orientation_supported_;
 
   SimpleOrientation current_screen_orientation_ = SimpleOrientation::kUnknown;
 

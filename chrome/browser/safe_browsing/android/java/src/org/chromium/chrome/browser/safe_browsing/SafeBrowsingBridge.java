@@ -1,10 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.safe_browsing;
-
-import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
@@ -76,16 +74,8 @@ public final class SafeBrowsingBridge {
         return SafeBrowsingBridgeJni.get().hasAccountForLeakCheckRequest();
     }
 
-    /**
-     * @return Whether the Leak Detection for signed out users feature is enabled.
-     */
-    public static boolean isLeakDetectionUnauthenticatedEnabled() {
-        return SafeBrowsingBridgeJni.get().isLeakDetectionUnauthenticatedEnabled();
-    }
-
     @NativeMethods
-    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-    public interface Natives {
+    interface Natives {
         int umaValueForFile(String path);
         boolean getSafeBrowsingExtendedReportingEnabled();
         void setSafeBrowsingExtendedReportingEnabled(boolean enabled);
@@ -93,8 +83,7 @@ public final class SafeBrowsingBridge {
         @SafeBrowsingState
         int getSafeBrowsingState();
         void setSafeBrowsingState(@SafeBrowsingState int state);
-        boolean isSafeBrowsingManaged();
         boolean hasAccountForLeakCheckRequest();
-        boolean isLeakDetectionUnauthenticatedEnabled();
+        boolean isSafeBrowsingManaged();
     }
 }

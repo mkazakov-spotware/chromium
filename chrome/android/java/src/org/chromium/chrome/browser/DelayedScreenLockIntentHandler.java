@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -83,8 +83,7 @@ public class DelayedScreenLockIntentHandler extends BroadcastReceiver {
         mEnabled = value;
         Context applicationContext = ContextUtils.getApplicationContext();
         if (value) {
-            ContextUtils.registerProtectedBroadcastReceiver(
-                    applicationContext, this, new IntentFilter(Intent.ACTION_USER_PRESENT));
+            applicationContext.registerReceiver(this, new IntentFilter(Intent.ACTION_USER_PRESENT));
         } else {
             applicationContext.unregisterReceiver(this);
         }

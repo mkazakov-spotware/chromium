@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,22 +8,20 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
-
-import androidx.annotation.Nullable;
+import android.net.Uri;
+import android.webkit.URLUtil;
 
 import org.chromium.base.Log;
-import org.chromium.base.TraceEvent;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.Supplier;
-import org.chromium.chrome.browser.compositor.layouts.content.TabContentManager;
-import org.chromium.chrome.browser.tab.CurrentTabObserver;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.SadTab;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tab.TabCreationState;
 import org.chromium.chrome.browser.tab.TabHidingType;
+import org.chromium.chrome.browser.tab.TabLaunchType;
+import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tab.TabSelectionType;
-import org.chromium.components.embedder_support.util.UrlUtilities;
-import org.chromium.url.GURL;
+import org.chromium.chrome.browser.tabmodel.TabModelSelector;
+import org.chromium.chrome.browser.tabmodel.TabModelSelectorTabModelObserver;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -33,71 +31,104 @@ import java.lang.reflect.Method;
  * visited fully-qualified domain name (FQDN).
  */
 @SuppressLint("NewApi")
-public class PageViewObserver extends EmptyTabObserver {
+public class PageViewObserver {
     private static final String TAG = "PageViewObserver";
+    private static final String AMP_QUERY_PARAM = "amp_js_v";
 
     private final Activity mActivity;
-    private final CurrentTabObserver mCurrentTabObserver;
+    private final TabModelSelectorTabModelObserver mTabModelObserver;
+    private final TabModelSelector mTabModelSelector;
+    private final TabObserver mTabObserver;
     private final EventTracker mEventTracker;
     private final TokenTracker mTokenTracker;
     private final SuspensionTracker mSuspensionTracker;
-    private final Supplier<TabContentManager> mTabContentManagerSupplier;
 
     private Tab mCurrentTab;
     private String mLastFqdn;
 
-    PageViewObserver(Activity activity, ObservableSupplier<Tab> tabSupplier,
+    public PageViewObserver(Activity activity, TabModelSelector tabModelSelector,
             EventTracker eventTracker, TokenTracker tokenTracker,
-            SuspensionTracker suspensionTracker,
-            Supplier<TabContentManager> tabContentManagerSupplier) {
+            SuspensionTracker suspensionTracker) {
         mActivity = activity;
+        mTabModelSelector = tabModelSelector;
         mEventTracker = eventTracker;
         mTokenTracker = tokenTracker;
         mSuspensionTracker = suspensionTracker;
-        mTabContentManagerSupplier = tabContentManagerSupplier;
-        mCurrentTabObserver = new CurrentTabObserver(tabSupplier, this, this::activeTabChanged);
-        mCurrentTabObserver.triggerWithCurrentTab();
-    }
+        mTabObserver = new EmptyTabObserver() {
+            @Override
+            public void onShown(Tab tab, @TabSelectionType int type) {
+                if (!tab.isLoading() && !tab.isBeingRestored()) {
+                    updateUrl(tab.getUrlString());
+                }
+            }
 
-    @Override
-    public void onShown(Tab tab, @TabSelectionType int type) {
-        if (!tab.isLoading() && !tab.isBeingRestored()) {
-            updateUrl(tab.getUrl());
-        }
-    }
+            @Override
+            public void onHidden(Tab tab, @TabHidingType int type) {
+                updateUrl(null);
+            }
 
-    @Override
-    public void onHidden(Tab tab, @TabHidingType int type) {
-        updateUrl(null);
-    }
+            @Override
+            public void onUpdateUrl(Tab tab, String url) {
+                assert tab == mCurrentTab;
+                String newFqdn = getValidFqdnOrEmptyString(url);
+                // We don't call updateUrl() here to avoid reporting start events for domains
+                // that never paint, e.g. link shorteners. We still need to check the SuspendedTab
+                // state because a tab that's suspended can't paint, and the user could be
+                // navigating away from a suspended domain.
+                checkSuspendedTabState(mSuspensionTracker.isWebsiteSuspended(newFqdn), newFqdn);
+            }
 
-    @Override
-    public void onUpdateUrl(Tab tab, GURL url) {
-        assert tab == mCurrentTab;
-        String newFqdn = getValidFqdnOrEmptyString(url);
-        // We don't call updateUrl() here to avoid reporting start events for domains
-        // that never paint, e.g. link shorteners. We still need to check the SuspendedTab
-        // state because a tab that's suspended can't paint, and the user could be
-        // navigating away from a suspended domain.
-        checkSuspendedTabState(mSuspensionTracker.isWebsiteSuspended(newFqdn), newFqdn);
-    }
+            @Override
+            public void didFirstVisuallyNonEmptyPaint(Tab tab) {
+                assert tab == mCurrentTab;
 
-    @Override
-    public void didFirstVisuallyNonEmptyPaint(Tab tab) {
-        assert tab == mCurrentTab;
+                updateUrl(tab.getUrlString());
+            }
 
-        updateUrl(tab.getUrl());
-    }
+            @Override
+            public void onCrash(Tab tab) {
+                updateUrl(null);
+            }
+        };
 
-    @Override
-    public void onCrash(Tab tab) {
-        updateUrl(null);
+        mTabModelObserver = new TabModelSelectorTabModelObserver(tabModelSelector) {
+            @Override
+            public void didSelectTab(Tab tab, @TabSelectionType int type, int lastId) {
+                activeTabChanged(tab);
+            }
+
+            @Override
+            public void didAddTab(
+                    Tab tab, @TabLaunchType int type, @TabCreationState int creationState) {
+                activeTabChanged(tab);
+            }
+
+            @Override
+            public void willCloseTab(Tab tab, boolean animate) {
+                assert tab != null;
+                if (tab != mCurrentTab) return;
+
+                updateUrl(null);
+                switchObserverToTab(null);
+            }
+
+            @Override
+            public void tabRemoved(Tab tab) {
+                assert tab != null;
+                if (tab != mCurrentTab) return;
+
+                updateUrl(null);
+                switchObserverToTab(null);
+            }
+        };
+
+        activeTabChanged(tabModelSelector.getCurrentTab());
     }
 
     /** Notify PageViewObserver that {@code fqdn} was just suspended or un-suspended. */
     public void notifySiteSuspensionChanged(String fqdn, boolean isSuspended) {
         if (mCurrentTab == null || !mCurrentTab.isInitialized()) return;
-        SuspendedTab suspendedTab = SuspendedTab.from(mCurrentTab, mTabContentManagerSupplier);
+        SuspendedTab suspendedTab = SuspendedTab.from(mCurrentTab);
         if (fqdn.equals(mLastFqdn) || fqdn.equals(suspendedTab.getFqdn())) {
             if (checkSuspendedTabState(isSuspended, fqdn)) {
                 reportStop();
@@ -112,10 +143,10 @@ public class PageViewObserver extends EmptyTabObserver {
      * 2. Reporting a stop event for mLastFqdn.
      * 3. Reporting a start event for the fqdn of {@code newUrl}.
      */
-    private void updateUrl(@Nullable GURL newUrl) {
+    private void updateUrl(String newUrl) {
         String newFqdn = getValidFqdnOrEmptyString(newUrl);
         boolean isSameDomain = newFqdn.equals(mLastFqdn);
-        boolean isValidProtocol = newUrl != null && UrlUtilities.isHttpOrHttps(newUrl);
+        boolean isValidProtocol = URLUtil.isHttpUrl(newUrl) || URLUtil.isHttpsUrl(newUrl);
 
         boolean isSuspended = mSuspensionTracker.isWebsiteSuspended(newFqdn);
         boolean didSuspend = checkSuspendedTabState(isSuspended, newFqdn);
@@ -141,8 +172,7 @@ public class PageViewObserver extends EmptyTabObserver {
      * hidden, or it's hidden and should be shown.
      */
     private boolean checkSuspendedTabState(boolean isNewlySuspended, String fqdn) {
-        if (mCurrentTab == null) return false;
-        SuspendedTab suspendedTab = SuspendedTab.from(mCurrentTab, mTabContentManagerSupplier);
+        SuspendedTab suspendedTab = SuspendedTab.from(mCurrentTab);
         // We don't need to do anything in situations where the current state matches the desired;
         // i.e. either the suspended tab is already showing with the correct fqdn, or the suspended
         // tab is hidden and should be hidden.
@@ -169,24 +199,37 @@ public class PageViewObserver extends EmptyTabObserver {
     }
 
     private void activeTabChanged(Tab tab) {
+        if (tab == mCurrentTab || mTabModelSelector.getCurrentTab() != tab) return;
+
+        switchObserverToTab(tab);
+        // If the newly active tab is hidden, we don't want to check its URL yet; we'll wait until
+        // the onShown event fires.
+        if (mCurrentTab != null && !tab.isHidden()) {
+            updateUrl(tab.getUrlString());
+        }
+    }
+
+    private void switchObserverToTab(Tab tab) {
+        if (mCurrentTab != tab && mCurrentTab != null) {
+            mCurrentTab.removeObserver(mTabObserver);
+        }
+
+        if (tab != null && tab.isIncognito()) {
+            mCurrentTab = null;
+            return;
+        }
+
         mCurrentTab = tab;
-        if (mCurrentTab == null) {
-            updateUrl(null);
-        } else if (mCurrentTab.isIncognito()) {
-            updateUrl(null);
-            mCurrentTab.removeObserver(this);
-        } else if (!mCurrentTab.isHidden()) {
-            // If the newly active tab is hidden, we don't want to check its URL yet; we'll wait
-            // until the onShown event fires.
-            updateUrl(mCurrentTab.getUrl());
+        if (mCurrentTab != null) {
+            mCurrentTab.addObserver(mTabObserver);
         }
     }
 
     private void reportToPlatformIfDomainIsTracked(String reportMethodName, String fqdn) {
         mTokenTracker.getTokenForFqdn(fqdn).then((token) -> {
             if (token == null) return;
-            try (TraceEvent te = TraceEvent.scoped(
-                         "PageViewObserver.reportToPlatformIfDomainIsTracked")) {
+
+            try {
                 UsageStatsManager instance =
                         (UsageStatsManager) mActivity.getSystemService(Context.USAGE_STATS_SERVICE);
                 Method reportMethod = UsageStatsManager.class.getDeclaredMethod(
@@ -199,8 +242,9 @@ public class PageViewObserver extends EmptyTabObserver {
         });
     }
 
-    private static String getValidFqdnOrEmptyString(GURL url) {
-        if (GURL.isEmptyOrInvalid(url)) return "";
-        return url.getHost();
+    private static String getValidFqdnOrEmptyString(String url) {
+        if (url == null) return "";
+        String host = Uri.parse(url).getHost();
+        return host == null ? "" : host;
     }
 }

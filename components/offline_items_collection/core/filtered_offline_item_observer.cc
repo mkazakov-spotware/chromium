@@ -1,23 +1,20 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/offline_items_collection/core/filtered_offline_item_observer.h"
 #include <utility>
-#include "base/observer_list.h"
 
 namespace offline_items_collection {
 
 FilteredOfflineItemObserver::FilteredOfflineItemObserver(
     OfflineContentProvider* provider)
     : provider_(provider) {
-  observation_.Observe(provider_.get());
+  provider_->AddObserver(this);
 }
 
-FilteredOfflineItemObserver::~FilteredOfflineItemObserver() = default;
-
-void FilteredOfflineItemObserver::OnContentProviderGoingDown() {
-  observation_.Reset();
+FilteredOfflineItemObserver::~FilteredOfflineItemObserver() {
+  provider_->RemoveObserver(this);
 }
 
 void FilteredOfflineItemObserver::AddObserver(const ContentId& id,
@@ -36,7 +33,7 @@ void FilteredOfflineItemObserver::RemoveObserver(const ContentId& id,
 
   it->second->RemoveObserver(observer);
 
-  if (it->second->empty())
+  if (!it->second->might_have_observers())
     observers_.erase(it);
 }
 
@@ -54,7 +51,7 @@ void FilteredOfflineItemObserver::OnItemRemoved(const ContentId& id) {
 
 void FilteredOfflineItemObserver::OnItemUpdated(
     const OfflineItem& item,
-    const absl::optional<UpdateDelta>& update_delta) {
+    const base::Optional<UpdateDelta>& update_delta) {
   auto it = observers_.find(item.id);
   if (it == observers_.end())
     return;

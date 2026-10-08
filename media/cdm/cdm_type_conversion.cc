@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -107,6 +107,8 @@ cdm::SessionType ToCdmSessionType(CdmSessionType session_type) {
       return cdm::kTemporary;
     case CdmSessionType::kPersistentLicense:
       return cdm::kPersistentLicense;
+    case CdmSessionType::kPersistentUsageRecord:
+      return cdm::kPersistentUsageRecord;
   }
 
   NOTREACHED() << "Unexpected session type " << static_cast<int>(session_type);
@@ -119,10 +121,8 @@ CdmSessionType ToMediaSessionType(cdm::SessionType session_type) {
       return CdmSessionType::kTemporary;
     case cdm::kPersistentLicense:
       return CdmSessionType::kPersistentLicense;
-    // TODO(crbug.com/1181029): Remove after `kPersistentUsageRecord` is removed
-    // from the CDM interface.
     case cdm::kPersistentUsageRecord:
-      break;
+      return CdmSessionType::kPersistentUsageRecord;
   }
 
   NOTREACHED() << "Unexpected cdm::SessionType " << session_type;
@@ -318,9 +318,9 @@ Decryptor::Status ToMediaDecryptorStatus(cdm::Status status) {
 
 cdm::AudioCodec ToCdmAudioCodec(AudioCodec codec) {
   switch (codec) {
-    case AudioCodec::kVorbis:
+    case kCodecVorbis:
       return cdm::kCodecVorbis;
-    case AudioCodec::kAAC:
+    case kCodecAAC:
       return cdm::kCodecAac;
     default:
       DVLOG(1) << "Unsupported AudioCodec " << codec;
@@ -354,13 +354,13 @@ SampleFormat ToMediaSampleFormat(cdm::AudioFormat format) {
 
 cdm::VideoCodec ToCdmVideoCodec(VideoCodec codec) {
   switch (codec) {
-    case VideoCodec::kVP8:
+    case kCodecVP8:
       return cdm::kCodecVp8;
-    case VideoCodec::kH264:
+    case kCodecH264:
       return cdm::kCodecH264;
-    case VideoCodec::kVP9:
+    case kCodecVP9:
       return cdm::kCodecVp9;
-    case VideoCodec::kAV1:
+    case kCodecAV1:
       return cdm::kCodecAv1;
     default:
       DVLOG(1) << "Unsupported VideoCodec " << codec;
@@ -371,19 +371,19 @@ cdm::VideoCodec ToCdmVideoCodec(VideoCodec codec) {
 VideoCodec ToMediaVideoCodec(cdm::VideoCodec codec) {
   switch (codec) {
     case cdm::kUnknownVideoCodec:
-      return VideoCodec::kUnknown;
+      return kUnknownVideoCodec;
     case cdm::kCodecVp8:
-      return VideoCodec::kVP8;
+      return kCodecVP8;
     case cdm::kCodecH264:
-      return VideoCodec::kH264;
+      return kCodecH264;
     case cdm::kCodecVp9:
-      return VideoCodec::kVP9;
+      return kCodecVP9;
     case cdm::kCodecAv1:
-      return VideoCodec::kAV1;
+      return kCodecAV1;
   }
 
   NOTREACHED() << "Unexpected cdm::VideoCodec " << codec;
-  return VideoCodec::kUnknown;
+  return kUnknownVideoCodec;
 }
 
 cdm::VideoCodecProfile ToCdmVideoCodecProfile(VideoCodecProfile profile) {
@@ -588,7 +588,7 @@ void ToCdmInputBuffer(const DecoderBuffer& encrypted_buffer,
 
   const DecryptConfig* decrypt_config = encrypted_buffer.decrypt_config();
   if (!decrypt_config) {
-    DVLOG(3) << __func__ << ": Clear buffer.";
+    DVLOG(2) << __func__ << ": Clear buffer.";
     return;
   }
 

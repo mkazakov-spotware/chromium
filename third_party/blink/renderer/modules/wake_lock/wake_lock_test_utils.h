@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,12 @@
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WAKE_LOCK_WAKE_LOCK_TEST_UTILS_H_
 
 #include "base/callback.h"
+#include "base/optional.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
-#include "services/device/public/mojom/wake_lock.mojom-blink.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "services/device/public/mojom/wake_lock.mojom-blink-forward.h"
 #include "third_party/blink/public/mojom/permissions/permission.mojom-blink.h"
 #include "third_party/blink/public/mojom/wake_lock/wake_lock.mojom-blink.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_function.h"
@@ -19,7 +19,6 @@
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_testing.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/modules/wake_lock/wake_lock_type.h"
-#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "v8/include/v8.h"
 
 namespace blink {
@@ -77,7 +76,7 @@ class MockWakeLockService : public mojom::blink::WakeLockService {
 
   void BindRequest(mojo::ScopedMessagePipeHandle handle);
 
-  MockWakeLock& get_wake_lock(V8WakeLockType::Enum type);
+  MockWakeLock& get_wake_lock(WakeLockType type);
 
  private:
   // mojom::blink::WakeLockService implementation
@@ -87,7 +86,7 @@ class MockWakeLockService : public mojom::blink::WakeLockService {
       const String& description,
       mojo::PendingReceiver<device::mojom::blink::WakeLock> receiver) override;
 
-  MockWakeLock mock_wake_lock_[V8WakeLockType::kEnumSize];
+  MockWakeLock mock_wake_lock_[kWakeLockTypeCount];
   mojo::ReceiverSet<mojom::blink::WakeLockService> receivers_;
 };
 
@@ -101,15 +100,14 @@ class MockPermissionService final : public mojom::blink::PermissionService {
 
   void BindRequest(mojo::ScopedMessagePipeHandle handle);
 
-  void SetPermissionResponse(V8WakeLockType::Enum,
-                             mojom::blink::PermissionStatus);
+  void SetPermissionResponse(WakeLockType, mojom::blink::PermissionStatus);
 
-  void WaitForPermissionRequest(V8WakeLockType::Enum);
+  void WaitForPermissionRequest(WakeLockType);
 
  private:
   bool GetWakeLockTypeFromDescriptor(
       const mojom::blink::PermissionDescriptorPtr& descriptor,
-      V8WakeLockType::Enum* output);
+      WakeLockType* output);
 
   // mojom::blink::PermissionService implementation
   void HasPermission(mojom::blink::PermissionDescriptorPtr permission,
@@ -128,18 +126,14 @@ class MockPermissionService final : public mojom::blink::PermissionService {
       mojom::blink::PermissionStatus last_known_status,
       mojo::PendingRemote<mojom::blink::PermissionObserver>) override;
 
-  void NotifyEventListener(mojom::blink::PermissionDescriptorPtr permission,
-                           const String& event_type,
-                           bool is_added) override;
-
   void OnConnectionError();
 
   mojo::Receiver<mojom::blink::PermissionService> receiver_{this};
 
-  absl::optional<mojom::blink::PermissionStatus>
-      permission_responses_[V8WakeLockType::kEnumSize];
+  base::Optional<mojom::blink::PermissionStatus>
+      permission_responses_[kWakeLockTypeCount];
 
-  base::OnceClosure request_permission_callbacks_[V8WakeLockType::kEnumSize];
+  base::OnceClosure request_permission_callbacks_[kWakeLockTypeCount];
 };
 
 // Overrides requests for WakeLockService with MockWakeLockService instances.
@@ -166,7 +160,7 @@ class WakeLockTestingContext final {
   MockPermissionService& GetPermissionService();
 
   // Synchronously waits for |promise| to be fulfilled.
-  void WaitForPromiseFulfillment(ScriptPromise promise);
+  ScriptPromise WaitForPromiseFulfillment(ScriptPromise promise);
 
   // Synchronously waits for |promise| to be rejected.
   void WaitForPromiseRejection(ScriptPromise promise);

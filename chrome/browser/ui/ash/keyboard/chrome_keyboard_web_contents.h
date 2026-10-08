@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include <memory>
 
-#include "ash/style/ash_color_provider_source.h"
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "ui/aura/window_observer.h"
@@ -41,11 +41,6 @@ class ChromeKeyboardWebContents : public content::WebContentsObserver,
                             const GURL& url,
                             LoadCallback load_callback,
                             UnembedCallback unembed_callback);
-
-  ChromeKeyboardWebContents(const ChromeKeyboardWebContents&) = delete;
-  ChromeKeyboardWebContents& operator=(const ChromeKeyboardWebContents&) =
-      delete;
-
   ~ChromeKeyboardWebContents() override;
 
   // Updates the keyboard URL if |url| does not match the existing url.
@@ -63,9 +58,8 @@ class ChromeKeyboardWebContents : public content::WebContentsObserver,
 
  private:
   // content::WebContentsObserver overrides
-  void RenderFrameCreated(content::RenderFrameHost* frame_host) override;
+  void RenderViewCreated(content::RenderViewHost* render_view_host) override;
   void DidStopLoading() override;
-  void OnColorProviderChanged() override;
 
   // Loads the web contents for the given |url|.
   void LoadContents(const GURL& url);
@@ -75,8 +69,6 @@ class ChromeKeyboardWebContents : public content::WebContentsObserver,
                              const gfx::Rect& old_bounds,
                              const gfx::Rect& new_bounds,
                              ui::PropertyChangeReason reason) override;
-
-  ash::AshColorProviderSource color_provider_source_;
 
   std::unique_ptr<content::WebContents> web_contents_;
   std::unique_ptr<ChromeKeyboardBoundsObserver> window_bounds_observer_;
@@ -90,6 +82,8 @@ class ChromeKeyboardWebContents : public content::WebContentsObserver,
   gfx::Size contents_size_;
 
   base::WeakPtrFactory<ChromeKeyboardWebContents> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeKeyboardWebContents);
 };
 
 #endif  // CHROME_BROWSER_UI_ASH_KEYBOARD_CHROME_KEYBOARD_WEB_CONTENTS_H_

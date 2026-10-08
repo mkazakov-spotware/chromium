@@ -2,7 +2,7 @@ Tests that properties defining grid templates are correct.
 
 [expanded] 
 element.style { ()
-/-- overloaded --/     grid-template-areas:
+    grid-template-areas:
         'a a'
         'b b';
     grid-template: 'a a';

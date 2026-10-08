@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,23 +39,18 @@ namespace {
 class AttachTest : public Multiprocess {
  public:
   AttachTest() : Multiprocess() {}
-
-  AttachTest(const AttachTest&) = delete;
-  AttachTest& operator=(const AttachTest&) = delete;
-
   ~AttachTest() {}
 
  protected:
   const long kWord = 42;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AttachTest);
 };
 
 class AttachToChildTest : public AttachTest {
  public:
   AttachToChildTest() : AttachTest() {}
-
-  AttachToChildTest(const AttachToChildTest&) = delete;
-  AttachToChildTest& operator=(const AttachToChildTest&) = delete;
-
   ~AttachToChildTest() {}
 
  private:
@@ -87,6 +82,8 @@ class AttachToChildTest : public AttachTest {
 
     CheckedReadFileAtEOF(ReadPipeHandle());
   }
+
+  DISALLOW_COPY_AND_ASSIGN(AttachToChildTest);
 };
 
 TEST(ScopedPtraceAttach, AttachChild) {
@@ -97,10 +94,6 @@ TEST(ScopedPtraceAttach, AttachChild) {
 class AttachToParentResetTest : public AttachTest {
  public:
   AttachToParentResetTest() : AttachTest() {}
-
-  AttachToParentResetTest(const AttachToParentResetTest&) = delete;
-  AttachToParentResetTest& operator=(const AttachToParentResetTest&) = delete;
-
   ~AttachToParentResetTest() {}
 
  private:
@@ -131,6 +124,8 @@ class AttachToParentResetTest : public AttachTest {
     ASSERT_EQ(ptrace(PTRACE_PEEKDATA, pid, &kWord, nullptr), -1);
     EXPECT_EQ(errno, ESRCH) << ErrnoMessage("ptrace");
   }
+
+  DISALLOW_COPY_AND_ASSIGN(AttachToParentResetTest);
 };
 
 TEST(ScopedPtraceAttach, AttachParentReset) {
@@ -141,11 +136,6 @@ TEST(ScopedPtraceAttach, AttachParentReset) {
 class AttachToParentDestructorTest : public AttachTest {
  public:
   AttachToParentDestructorTest() : AttachTest() {}
-
-  AttachToParentDestructorTest(const AttachToParentDestructorTest&) = delete;
-  AttachToParentDestructorTest& operator=(const AttachToParentDestructorTest&) =
-      delete;
-
   ~AttachToParentDestructorTest() {}
 
  private:
@@ -174,6 +164,8 @@ class AttachToParentDestructorTest : public AttachTest {
     ASSERT_EQ(ptrace(PTRACE_PEEKDATA, pid, &kWord, nullptr), -1);
     EXPECT_EQ(errno, ESRCH) << ErrnoMessage("ptrace");
   }
+
+  DISALLOW_COPY_AND_ASSIGN(AttachToParentDestructorTest);
 };
 
 TEST(ScopedPtraceAttach, AttachParentDestructor) {

@@ -1,15 +1,21 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_EXTENSIONS_ACTIVE_TAB_PERMISSION_GRANTER_H_
 #define CHROME_BROWSER_EXTENSIONS_ACTIVE_TAB_PERMISSION_GRANTER_H_
 
-#include "base/scoped_observation.h"
+#include <memory>
+#include <set>
+#include <string>
+
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
 #include "extensions/common/extension_set.h"
+#include "extensions/common/url_pattern_set.h"
 
 class Profile;
 
@@ -27,15 +33,23 @@ class ActiveTabPermissionGranter
     : public content::WebContentsObserver,
       public extensions::ExtensionRegistryObserver {
  public:
+  // Platform specific delegate.
+  class Delegate {
+   public:
+    virtual ~Delegate() {}
+    // Platform specific check whether the activeTab permission is allowed.
+    virtual bool ShouldGrantActiveTabOrPrompt(
+        const Extension* extension,
+        content::WebContents* web_contents) = 0;
+  };
+
   ActiveTabPermissionGranter(content::WebContents* web_contents,
                              int tab_id,
                              Profile* profile);
-
-  ActiveTabPermissionGranter(const ActiveTabPermissionGranter&) = delete;
-  ActiveTabPermissionGranter& operator=(const ActiveTabPermissionGranter&) =
-      delete;
-
   ~ActiveTabPermissionGranter() override;
+
+  // Platform specific delegate should be set during startup.
+  static void SetPlatformDelegate(std::unique_ptr<Delegate> delegate);
 
   // If |extension| has the activeTab or tabCapture permission, grants
   // tab-specific permissions to it until the next page navigation or refresh.
@@ -45,9 +59,6 @@ class ActiveTabPermissionGranter
   void RevokeForTesting();
 
  private:
-  FRIEND_TEST_ALL_PREFIXES(ExtensionActionRunnerFencedFrameBrowserTest,
-                           FencedFrameDoesNotClearActiveExtensions);
-
   // content::WebContentsObserver implementation.
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override;
@@ -70,8 +81,10 @@ class ActiveTabPermissionGranter
   ExtensionSet granted_extensions_;
 
   // Listen to extension unloaded notifications.
-  base::ScopedObservation<ExtensionRegistry, ExtensionRegistryObserver>
-      extension_registry_observation_{this};
+  ScopedObserver<ExtensionRegistry, ExtensionRegistryObserver>
+      extension_registry_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ActiveTabPermissionGranter);
 };
 
 }  // namespace extensions

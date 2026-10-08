@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,10 @@
 
 #include "build/build_config.h"
 #include "components/sync/driver/sync_service_utils.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class Browser;
+class GURL;
 class Profile;
-class PrefService;
 
 namespace signin {
 class IdentityManager;
@@ -23,98 +22,90 @@ class SyncService;
 
 // Utility functions to gather current sync status information from the sync
 // service and constructs messages suitable for showing in UI.
+namespace sync_ui_util {
 
-enum class SyncStatusMessageType {
+enum MessageType {
   // User has not set up sync.
-  kPreSynced,
+  PRE_SYNCED,
   // We are synced and authenticated to a gmail account.
-  kSynced,
+  SYNCED,
   // A sync error (such as invalid credentials) has occurred.
-  kSyncError,
-  // Same as kSyncError but affecting passwords only.
-  kPasswordsOnlySyncError,
+  SYNC_ERROR,
+  // Same as SYNC_ERROR but affecting passwords only.
+  PASSWORDS_ONLY_SYNC_ERROR,
 };
 
 // The action associated with the sync status in settings.
-enum class SyncStatusActionType {
+enum ActionType {
   // No action to take.
-  kNoAction,
+  NO_ACTION,
   // User needs to reauthenticate.
-  kReauthenticate,
+  REAUTHENTICATE,
+  // User needs to sign out and sign in.
+  SIGNOUT_AND_SIGNIN,
   // User needs to upgrade the client.
-  kUpgradeClient,
+  UPGRADE_CLIENT,
   // User needs to enter their passphrase.
-  kEnterPassphrase,
+  ENTER_PASSPHRASE,
   // User needs to go through key retrieval.
-  kRetrieveTrustedVaultKeys,
+  RETRIEVE_TRUSTED_VAULT_KEYS,
   // User needs to confirm sync settings.
-  kConfirmSyncSettings,
+  CONFIRM_SYNC_SETTINGS,
 };
 
 // Sync errors that should be exposed to the user through the avatar button.
 enum AvatarSyncErrorType {
+  // No sync error.
+  NO_SYNC_ERROR,
   // Unrecoverable error for managed users.
-  kManagedUserUnrecoverableError,
+  MANAGED_USER_UNRECOVERABLE_ERROR,
   // Unrecoverable error for regular users.
-  kUnrecoverableError,
+  UNRECOVERABLE_ERROR,
   // Authentication error.
-  // TODO(crbug.com/1156584): Rename to SYNC_PAUSED. That's how it's treated by
-  // the UI, and it should eventually match SyncService::TransportState::PAUSED.
-  kAuthError,
+  AUTH_ERROR,
   // Out-of-date client error.
-  kUpgradeClientError,
+  UPGRADE_CLIENT_ERROR,
   // Sync passphrase error.
-  kPassphraseError,
+  PASSPHRASE_ERROR,
   // Trusted vault keys missing for all sync datatypes (encrypt everything is
   // enabled).
-  kTrustedVaultKeyMissingForEverythingError,
+  TRUSTED_VAULT_KEY_MISSING_FOR_EVERYTHING_ERROR,
   // Trusted vault keys missing for always-encrypted datatypes (passwords).
-  kTrustedVaultKeyMissingForPasswordsError,
+  TRUSTED_VAULT_KEY_MISSING_FOR_PASSWORDS_ERROR,
   // User needs to improve recoverability of the trusted vault (encrypt
   // everything is enabled).
-  kTrustedVaultRecoverabilityDegradedForEverythingError,
+  TRUSTED_VAULT_RECOVERABILITY_DEGRADED_FOR_EVERYTHING_ERROR,
   // User needs to improve recoverability of the trusted vault (passwords).
-  kTrustedVaultRecoverabilityDegradedForPasswordsError,
+  TRUSTED_VAULT_RECOVERABILITY_DEGRADED_FOR_PASSWORDS_ERROR,
   // Sync settings dialog not confirmed yet.
-  kSettingsUnconfirmedError,
+  SETTINGS_UNCONFIRMED_ERROR,
 };
 
-struct SyncStatusLabels {
-  SyncStatusMessageType message_type;
+struct StatusLabels {
+  MessageType message_type;
   int status_label_string_id;
   int button_string_id;
-  SyncStatusActionType action_type;
+  ActionType action_type;
 };
 
 // Returns the high-level sync status by querying |sync_service| and
 // |identity_manager|.
-SyncStatusLabels GetSyncStatusLabels(
-    syncer::SyncService* sync_service,
-    signin::IdentityManager* identity_manager,
-    bool is_user_clear_primary_account_allowed);
+StatusLabels GetStatusLabels(syncer::SyncService* sync_service,
+                             signin::IdentityManager* identity_manager,
+                             bool is_user_signout_allowed);
 
 // Returns the high-level sync status by querying |profile|. This is a
-// convenience version of GetSyncStatusLabels that use the |sync_service| and
+// convenience version of GetStatusLabels that use the |sync_service| and
 // |identity_manager| associated to |profile| via their respective factories.
-SyncStatusLabels GetSyncStatusLabels(Profile* profile);
+StatusLabels GetStatusLabels(Profile* profile);
 
-// Convenience version of GetSyncStatusLabels for when you're only interested in
-// the message type.
-SyncStatusMessageType GetSyncStatusMessageType(Profile* profile);
+// Convenience version of GetStatusLabels for when you're not interested in the
+// actual labels, only in the return value.
+MessageType GetStatus(Profile* profile);
 
-// Gets the error in the sync machinery (if any) that should be exposed to the
-// user through the titlebar avatar button. If absl::nullopt is returned, this
-// does NOT mean sync-the-feature/sync-the-transport is enabled, simply that
-// there's no error. Furthermore, an error may be returned even if only
-// sync-the-transport is running. One such case is when the user wishes to run
-// an encrypted data type on transport mode and must first go through a reauth.
-absl::optional<AvatarSyncErrorType> GetAvatarSyncErrorType(Profile* profile);
-
-// When |error| is present, this returns the string to be shown both as the
-// tooltip of the avatar button, and in the profile menu body (the menu opened
-// by clicking the avatar button).
-std::u16string GetAvatarSyncErrorDescription(AvatarSyncErrorType error,
-                                             bool is_sync_feature_enabled);
+// Gets the error type (if any) that should be exposed to the user through the
+// titlebar avatar button.
+AvatarSyncErrorType GetAvatarSyncErrorType(Profile* profile);
 
 // Whether sync is currently blocked from starting because the sync
 // confirmation dialog hasn't been shown. Note that once the dialog is
@@ -123,29 +114,27 @@ bool ShouldRequestSyncConfirmation(const syncer::SyncService* service);
 
 // Returns whether it makes sense to show a Sync passphrase error UI, i.e.
 // whether a missing passphrase is preventing Sync from fully starting up.
-bool ShouldShowSyncPassphraseError(const syncer::SyncService* service);
+bool ShouldShowPassphraseError(const syncer::SyncService* service);
 
 // Returns whether missing trusted vault keys is preventing sync from starting
 // up encrypted datatypes.
-bool ShouldShowSyncKeysMissingError(const syncer::SyncService* sync_service,
-                                    const PrefService* pref_service);
+bool ShouldShowSyncKeysMissingError(const syncer::SyncService* service);
 
 // Returns whether user action is required to improve the recoverability of the
 // trusted vault.
 bool ShouldShowTrustedVaultDegradedRecoverabilityError(
-    const syncer::SyncService* sync_service,
-    const PrefService* pref_service);
+    const syncer::SyncService* service);
 
-// Opens a tab for the purpose of retrieving the trusted vault keys, which
-// usually requires a reauth.
+// Opens a tab to trigger a reauth to retrieve the trusted vault keys.
 void OpenTabForSyncKeyRetrieval(
     Browser* browser,
-    syncer::TrustedVaultUserActionTriggerForUMA trigger);
+    syncer::KeyRetrievalTriggerForUMA key_retrieval_trigger);
 
-// Opens a tab for the purpose of improving the recoverability of the trusted
-// vault keys, which usually requires a reauth.
-void OpenTabForSyncKeyRecoverabilityDegraded(
-    Browser* browser,
-    syncer::TrustedVaultUserActionTriggerForUMA trigger);
+// Testing-only variant of the above which allows the caller to specify the
+// URL.
+void OpenTabForSyncKeyRetrievalWithURLForTesting(Browser* browser,
+                                                 const GURL& url);
+
+}  // namespace sync_ui_util
 
 #endif  // CHROME_BROWSER_SYNC_SYNC_UI_UTIL_H_

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,36 +8,36 @@
 #include "third_party/blink/renderer/core/layout/layout_inline.h"
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_resource_masker.h"
 #include "third_party/blink/renderer/core/layout/svg/svg_resources.h"
+#include "third_party/blink/renderer/core/layout/svg/svg_resources_cache.h"
 
 namespace blink {
 
-absl::optional<gfx::RectF> CSSMaskPainter::MaskBoundingBox(
+base::Optional<IntRect> CSSMaskPainter::MaskBoundingBox(
     const LayoutObject& object,
     const PhysicalOffset& paint_offset) {
   if (!object.IsBoxModelObject() && !object.IsSVGChild())
-    return absl::nullopt;
+    return base::nullopt;
 
-  const ComputedStyle& style = object.StyleRef();
   if (object.IsSVG()) {
-    if (SVGResourceClient* client = SVGResources::GetClient(object)) {
-      auto* masker = GetSVGResourceAsType<LayoutSVGResourceMasker>(
-          *client, style.MaskerResource());
-      if (masker) {
-        const gfx::RectF reference_box =
-            SVGResources::ReferenceBoxForEffects(object);
-        const float reference_box_zoom = object.IsSVGForeignObjectIncludingNG()
-                                             ? object.StyleRef().EffectiveZoom()
-                                             : 1;
-        return masker->ResourceBoundingBox(reference_box, reference_box_zoom);
-      }
+    SVGResources* resources =
+        SVGResourcesCache::CachedResourcesForLayoutObject(object);
+    LayoutSVGResourceMasker* masker = resources ? resources->Masker() : nullptr;
+    if (masker) {
+      const FloatRect reference_box =
+          SVGResources::ReferenceBoxForEffects(object);
+      const float reference_box_zoom =
+          object.IsSVGForeignObject() ? object.StyleRef().EffectiveZoom() : 1;
+      return EnclosingIntRect(
+          masker->ResourceBoundingBox(reference_box, reference_box_zoom));
     }
   }
 
-  if (object.IsSVGChild() && !object.IsSVGForeignObjectIncludingNG())
-    return absl::nullopt;
+  if (object.IsSVGChild() && !object.IsSVGForeignObject())
+    return base::nullopt;
 
+  const ComputedStyle& style = object.StyleRef();
   if (!style.HasMask())
-    return absl::nullopt;
+    return base::nullopt;
 
   PhysicalRect maximum_mask_region;
   // For HTML/CSS objects, the extent of the mask is known as "mask
@@ -55,7 +55,21 @@ absl::optional<gfx::RectF> CSSMaskPainter::MaskBoundingBox(
   if (style.HasMaskBoxImageOutsets())
     maximum_mask_region.Expand(style.MaskBoxImageOutsets());
   maximum_mask_region.offset += paint_offset;
-  return gfx::RectF(maximum_mask_region);
+  return PixelSnappedIntRect(maximum_mask_region);
+}
+
+ColorFilter CSSMaskPainter::MaskColorFilter(const LayoutObject& object) {
+  if (!object.IsSVGChild())
+    return kColorFilterNone;
+
+  SVGResources* resources =
+      SVGResourcesCache::CachedResourcesForLayoutObject(object);
+  LayoutSVGResourceMasker* masker = resources ? resources->Masker() : nullptr;
+  if (!masker)
+    return kColorFilterNone;
+  return masker->StyleRef().SvgStyle().MaskType() == MT_LUMINANCE
+             ? kColorFilterLuminanceToAlpha
+             : kColorFilterNone;
 }
 
 }  // namespace blink

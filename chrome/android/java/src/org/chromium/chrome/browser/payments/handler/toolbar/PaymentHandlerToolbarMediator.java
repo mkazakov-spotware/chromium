@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,10 @@ import android.os.Handler;
 import androidx.annotation.DrawableRes;
 
 import org.chromium.components.security_state.ConnectionSecurityLevel;
-import org.chromium.content_public.browser.GlobalRenderFrameHostId;
-import org.chromium.content_public.browser.LifecycleState;
 import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
 import org.chromium.ui.modelutil.PropertyModel;
-import org.chromium.url.GURL;
 
 /**
  * PaymentHandlerToolbar mediator, which is responsible for receiving events from the view and
@@ -73,9 +70,7 @@ import org.chromium.url.GURL;
 
     // WebContentsObserver:
     @Override
-    public void didFinishLoadInPrimaryMainFrame(GlobalRenderFrameHostId rfhId, GURL url,
-            boolean isKnownValid, @LifecycleState int rfhLifecycleState) {
-        if (rfhLifecycleState != LifecycleState.ACTIVE) return;
+    public void didFinishLoad(long frameId, String validatedUrl, boolean isMainFrame) {
         // Hides the Progress Bar after a delay to make sure it is rendered for at least
         // a few frames, otherwise its completion won't be visually noticeable.
         mHideProgressBarHandler = new Handler();
@@ -86,41 +81,21 @@ import org.chromium.url.GURL;
     }
 
     @Override
-    public void didFinishLoadNoop(GlobalRenderFrameHostId rfhId, GURL url, boolean isKnownValid,
-            boolean isInPrimaryMainFrame, @LifecycleState int rfhLifecycleState) {
-        // In case something goes wrong, we can enable NotifyJavaSpuriouslyToMeasurePerf so
-        // didFinishLoad has the same behavior as before.
-        didFinishLoadInPrimaryMainFrame(rfhId, url, isKnownValid, rfhLifecycleState);
-    }
-
-    @Override
-    public void didFailLoad(boolean isInPrimaryMainFrame, int errorCode, GURL failingUrl,
-            @LifecycleState int frameLifecycleState) {
-        if (frameLifecycleState != LifecycleState.ACTIVE) return;
+    public void didFailLoad(boolean isMainFrame, int errorCode, String failingUrl) {
         mModel.set(PaymentHandlerToolbarProperties.PROGRESS_VISIBLE, false);
     }
 
     @Override
-    public void didFinishNavigationInPrimaryMainFrame(NavigationHandle navigation) {
-        if (!navigation.hasCommitted()) return;
+    public void didFinishNavigation(NavigationHandle navigation) {
+        if (!navigation.hasCommitted() || !navigation.isInMainFrame()) return;
         mModel.set(PaymentHandlerToolbarProperties.URL, mWebContentsRef.getVisibleUrl());
         mModel.set(PaymentHandlerToolbarProperties.PROGRESS_VISIBLE, false);
     }
 
     @Override
-    public void didFinishNavigationNoop(NavigationHandle navigation) {
-        if (!navigation.isInPrimaryMainFrame()) return;
-    }
-
-    @Override
-    public void didStartNavigationInPrimaryMainFrame(NavigationHandle navigation) {
-        if (navigation.isSameDocument()) return;
+    public void didStartNavigation(NavigationHandle navigation) {
+        if (!navigation.isInMainFrame() || navigation.isSameDocument()) return;
         setSecurityState(ConnectionSecurityLevel.NONE);
-    }
-
-    @Override
-    public void didStartNavigationNoop(NavigationHandle navigation) {
-        if (!navigation.isInPrimaryMainFrame()) return;
     }
 
     @Override

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chromecast/media/audio/mixer_service/redirected_audio_connection.h"
 #include "chromecast/net/io_buffer_pool.h"
@@ -57,10 +58,6 @@ class AudioOutputRedirector {
   AudioOutputRedirector(StreamMixer* mixer,
                         std::unique_ptr<mixer_service::MixerSocket> socket,
                         const mixer_service::Generic& message);
-
-  AudioOutputRedirector(const AudioOutputRedirector&) = delete;
-  AudioOutputRedirector& operator=(const AudioOutputRedirector&) = delete;
-
   ~AudioOutputRedirector();
 
   int order() const { return config_.order; }
@@ -137,6 +134,8 @@ class AudioOutputRedirector {
   base::flat_set<MixerInput*> non_redirected_inputs_;
 
   base::WeakPtrFactory<AudioOutputRedirector> weak_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(AudioOutputRedirector);
 };
 
 }  // namespace media

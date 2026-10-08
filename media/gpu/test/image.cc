@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,7 @@ namespace {
 // Resolve the specified test file path to an absolute path. The path can be
 // either an absolute path, a path relative to the current directory, or a path
 // relative to the test data path.
-absl::optional<base::FilePath> ResolveFilePath(
+base::Optional<base::FilePath> ResolveFilePath(
     const base::FilePath& file_path) {
   base::FilePath resolved_path = file_path;
 
@@ -35,8 +35,8 @@ absl::optional<base::FilePath> ResolveFilePath(
   }
 
   return PathExists(resolved_path)
-             ? absl::optional<base::FilePath>(resolved_path)
-             : absl::nullopt;
+             ? base::Optional<base::FilePath>(resolved_path)
+             : base::nullopt;
 }
 
 // Converts the |pixel_format| string into a VideoPixelFormat.
@@ -51,10 +51,6 @@ VideoPixelFormat ConvertStringtoPixelFormat(const std::string& pixel_format) {
     return PIXEL_FORMAT_YV12;
   } else if (pixel_format == "RGBA") {
     return PIXEL_FORMAT_ABGR;
-  } else if (pixel_format == "I422") {
-    return PIXEL_FORMAT_I422;
-  } else if (pixel_format == "YUYV") {
-    return PIXEL_FORMAT_YUY2;
   } else {
     VLOG(2) << pixel_format << " is not supported.";
     return PIXEL_FORMAT_UNKNOWN;
@@ -75,7 +71,7 @@ bool Image::Load() {
   DCHECK(!file_path_.empty());
   DCHECK(!IsLoaded());
 
-  absl::optional<base::FilePath> resolved_path = ResolveFilePath(file_path_);
+  base::Optional<base::FilePath> resolved_path = ResolveFilePath(file_path_);
   if (!resolved_path) {
     LOG(ERROR) << "Image file not found: " << file_path_;
     return false;
@@ -114,7 +110,7 @@ bool Image::LoadMetadata() {
   }
 
   base::FilePath json_path = file_path_.AddExtension(kMetadataSuffix);
-  absl::optional<base::FilePath> resolved_path = ResolveFilePath(json_path);
+  base::Optional<base::FilePath> resolved_path = ResolveFilePath(json_path);
   if (!resolved_path) {
     LOG(ERROR) << "Image metadata file not found: " << json_path;
     return false;
@@ -134,46 +130,49 @@ bool Image::LoadMetadata() {
 
   auto metadata_result =
       base::JSONReader::ReadAndReturnValueWithError(json_data);
-  if (!metadata_result.has_value()) {
+  if (!metadata_result.value) {
     VLOGF(1) << "Failed to parse image metadata: " << json_path << ": "
-             << metadata_result.error().message;
+             << metadata_result.error_message;
     return false;
   }
-  const base::Value::Dict& metadata = metadata_result->GetDict();
+  base::Optional<base::Value> metadata = std::move(metadata_result.value);
 
   // Get the pixel format from the json data.
-  const std::string* pixel_format = metadata.FindString("pixel_format");
+  const base::Value* pixel_format =
+      metadata->FindKeyOfType("pixel_format", base::Value::Type::STRING);
   if (!pixel_format) {
     VLOGF(1) << "Key \"pixel_format\" is not found in " << json_path;
     return false;
   }
-  pixel_format_ = ConvertStringtoPixelFormat(*pixel_format);
+  pixel_format_ = ConvertStringtoPixelFormat(pixel_format->GetString());
   if (pixel_format_ == PIXEL_FORMAT_UNKNOWN) {
-    VLOGF(1) << *pixel_format << " is not supported";
+    VLOGF(1) << pixel_format->GetString() << " is not supported";
     return false;
   }
 
   // Get the image dimensions from the json data.
-  absl::optional<int> width = metadata.FindInt("width");
-  if (!width.has_value()) {
+  const base::Value* width =
+      metadata->FindKeyOfType("width", base::Value::Type::INTEGER);
+  if (!width) {
     VLOGF(1) << "Key \"width\" is not found in " << json_path;
     return false;
   }
-  absl::optional<int> height = metadata.FindInt("height");
+  const base::Value* height =
+      metadata->FindKeyOfType("height", base::Value::Type::INTEGER);
   if (!height) {
     VLOGF(1) << "Key \"height\" is not found in " << json_path;
     return false;
   }
-  size_ = gfx::Size(*width, *height);
+  size_ = gfx::Size(width->GetInt(), height->GetInt());
 
   // Try to get the visible rectangle of the image from the json data.
   // These values are not in json data if all the image data is in the visible
   // area.
   visible_rect_ = gfx::Rect(size_);
-  const base::Value::List* visible_rect_info =
-      metadata.FindList("visible_rect");
+  const base::Value* visible_rect_info =
+      metadata->FindKeyOfType("visible_rect", base::Value::Type::LIST);
   if (visible_rect_info) {
-    const base::Value::List& values = *visible_rect_info;
+    base::Value::ConstListView values = visible_rect_info->GetList();
     if (values.size() != 4) {
       VLOGF(1) << "unexpected json format for visible rectangle";
       return false;
@@ -187,12 +186,13 @@ bool Image::LoadMetadata() {
   }
 
   // Get the image rotation info from the json data.
-  absl::optional<int> rotation = metadata.FindInt("rotation");
-  if (!rotation.has_value()) {
+  const base::Value* rotation =
+      metadata->FindKeyOfType("rotation", base::Value::Type::INTEGER);
+  if (!rotation) {
     // Default rotation value is VIDEO_ROTATION_0
     rotation_ = VIDEO_ROTATION_0;
   } else {
-    switch (*rotation) {
+    switch (rotation->GetInt()) {
       case 0:
         rotation_ = VIDEO_ROTATION_0;
         break;
@@ -206,18 +206,19 @@ bool Image::LoadMetadata() {
         rotation_ = VIDEO_ROTATION_270;
         break;
       default:
-        VLOGF(1) << "Invalid rotation value: " << *rotation;
+        VLOGF(1) << "Invalid rotation value: " << rotation->GetInt();
         return false;
     };
   }
 
   // Get the image checksum from the json data.
-  const std::string* checksum = metadata.FindString("checksum");
+  const base::Value* checksum =
+      metadata->FindKeyOfType("checksum", base::Value::Type::STRING);
   if (!checksum) {
     VLOGF(1) << "Key \"checksum\" is not found in " << json_path;
     return false;
   }
-  checksum_ = *checksum;
+  checksum_ = checksum->GetString();
 
   return true;
 }

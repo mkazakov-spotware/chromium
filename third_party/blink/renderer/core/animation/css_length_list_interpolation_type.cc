@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@
 #include "third_party/blink/renderer/core/animation/underlying_length_checker.h"
 #include "third_party/blink/renderer/core/css/css_primitive_value.h"
 #include "third_party/blink/renderer/core/css/css_value_list.h"
-#include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver_state.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
@@ -46,7 +45,7 @@ InterpolationValue CSSLengthListInterpolationType::MaybeConvertNeutral(
 static InterpolationValue MaybeConvertLengthList(
     const Vector<Length>& length_list,
     float zoom) {
-  if (length_list.empty())
+  if (length_list.IsEmpty())
     return nullptr;
 
   return ListInterpolationFunctions::CreateList(
@@ -57,17 +56,16 @@ static InterpolationValue MaybeConvertLengthList(
 }
 
 InterpolationValue CSSLengthListInterpolationType::MaybeConvertInitial(
-    const StyleResolverState& state,
+    const StyleResolverState&,
     ConversionCheckers& conversion_checkers) const {
   Vector<Length> initial_length_list;
-  if (!LengthListPropertyFunctions::GetInitialLengthList(
-          CssProperty(), state.GetDocument().GetStyleResolver().InitialStyle(),
-          initial_length_list))
+  if (!LengthListPropertyFunctions::GetInitialLengthList(CssProperty(),
+                                                         initial_length_list))
     return nullptr;
   return MaybeConvertLengthList(initial_length_list, 1);
 }
 
-class InheritedLengthListChecker final
+class InheritedLengthListChecker
     : public CSSInterpolationType::CSSConversionChecker {
  public:
   InheritedLengthListChecker(const CSSProperty& property,
@@ -178,8 +176,8 @@ void CSSLengthListInterpolationType::ApplyStandardPropertyValue(
         To<InterpolableLength>(*interpolable_list.Get(i))
             .CreateLength(state.CssToLengthConversionData(), value_range_);
   }
-  LengthListPropertyFunctions::SetLengthList(
-      CssProperty(), state.StyleBuilder(), std::move(result));
+  LengthListPropertyFunctions::SetLengthList(CssProperty(), *state.Style(),
+                                             std::move(result));
 }
 
 }  // namespace blink

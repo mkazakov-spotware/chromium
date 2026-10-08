@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,7 @@
 #define CHROME_BROWSER_UI_AUTOFILL_PAYMENTS_LOCAL_CARD_MIGRATION_DIALOG_H_
 
 #include "base/callback.h"
-
-namespace content {
-class WebContents;
-}  // namespace content
+#include "base/macros.h"
 
 namespace autofill {
 
@@ -17,14 +14,15 @@ namespace autofill {
 // dialogs.
 class LocalCardMigrationDialog {
  public:
-  LocalCardMigrationDialog(const LocalCardMigrationDialog&) = delete;
-  LocalCardMigrationDialog& operator=(const LocalCardMigrationDialog&) = delete;
-  virtual void ShowDialog(content::WebContents& web_contents) = 0;
+  virtual void ShowDialog() = 0;
   virtual void CloseDialog() = 0;
 
  protected:
-  LocalCardMigrationDialog() = default;
-  virtual ~LocalCardMigrationDialog() = default;
+  LocalCardMigrationDialog() {}
+  virtual ~LocalCardMigrationDialog() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(LocalCardMigrationDialog);
 };
 
 }  // namespace autofill

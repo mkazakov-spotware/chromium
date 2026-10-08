@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@ import androidx.annotation.IntDef;
 
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.common.Referrer;
-import org.chromium.url.GURL;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -59,9 +58,11 @@ public interface ContextMenuItemDelegate {
     boolean isOpenInOtherWindowSupported();
 
     /**
-     * @return Whether Chrome can get itself into multi-window mode.
+     * Returns whether or not the Data Reduction Proxy is enabled for input url.
+     * @param url Input url to check for the Data Reduction Proxy setting.
+     * @return true if the Data Reduction Proxy is enabled for the url.
      */
-    boolean canEnterMultiWindowMode();
+    boolean isDataReductionProxyEnabledForURL(String url);
 
     /**
      * Called when the context menu is trying to start a download.
@@ -69,47 +70,50 @@ public interface ContextMenuItemDelegate {
      * @param isLink Whether or not the download is a link (as opposed to an image/video).
      * @return       Whether or not a download should actually be started.
      */
-    boolean startDownload(GURL url, boolean isLink);
+    boolean startDownload(String url, boolean isLink);
 
     /**
      * Called when the {@code url} should be opened in the other window with the same incognito
      * state as the current {@link Tab}.
      * @param url The URL to open.
      */
-    void onOpenInOtherWindow(GURL url, Referrer referrer);
+    void onOpenInOtherWindow(String url, Referrer referrer);
 
     /**
      * Called when the {@code url} should be opened in a new tab with the same incognito state as
      * the current {@link Tab}.
      * @param url The URL to open.
-     * @param navigateToTab Whether or not to navigate to the new tab.
      */
-    void onOpenInNewTab(GURL url, Referrer referrer, boolean navigateToTab);
-
-    /**
-     * Called when {@code url} should be opened in a new tab in the same group as the current
-     * {@link Tab}.
-     * @param url The URL to open.
-     */
-    void onOpenInNewTabInGroup(GURL url, Referrer referrer);
+    void onOpenInNewTab(String url, Referrer referrer);
 
     /**
      * Called when the {@code url} should be opened in a new incognito tab.
      * @param url The URL to open.
      */
-    void onOpenInNewIncognitoTab(GURL url);
+    void onOpenInNewIncognitoTab(String url);
 
     /**
      * Called when the {@code url} is of an image and should be opened in the same tab.
      * @param url The image URL to open.
      */
-    void onOpenImageUrl(GURL url, Referrer referrer);
+    void onOpenImageUrl(String url, Referrer referrer);
 
     /**
      * Called when the {@code url} is of an image and should be opened in a new tab.
      * @param url The image URL to open.
      */
-    void onOpenImageInNewTab(GURL url, Referrer referrer);
+    void onOpenImageInNewTab(String url, Referrer referrer);
+
+    /**
+     * Called when the original image should be loaded.
+     */
+    void onLoadOriginalImage();
+
+    /**
+     * Returns whether the load image has been requested on a Lo-Fi image for the current page load.
+     * @return true if load image has been requested for the current page load.
+     */
+    boolean wasLoadOriginalImageRequestedForPageLoad();
 
     /**
      * Called when the {@code text} should be saved to the clipboard.
@@ -133,7 +137,7 @@ public interface ContextMenuItemDelegate {
      * Called when the {@code url} should be parsed to call a phone number.
      * @param url The URL to be parsed to call a phone number.
      */
-    void onCall(GURL url);
+    void onCall(String url);
 
     /**
      * @return whether an activity is available to handle an intent to send an email.
@@ -144,7 +148,7 @@ public interface ContextMenuItemDelegate {
      * Called when the {@code url} should be parsed to send an email.
      * @param url The URL to be parsed to send an email.
      */
-    void onSendEmailMessage(GURL url);
+    void onSendEmailMessage(String url);
 
     /**
      * @return whether an activity is available to handle an intent to send a text message.
@@ -155,7 +159,7 @@ public interface ContextMenuItemDelegate {
      * Called when the {@code url} should be parsed to send a text message.
      * @param url The URL to be parsed to send a text message.
      */
-    void onSendTextMessage(GURL url);
+    void onSendTextMessage(String url);
 
     /**
      * Returns whether or not an activity is available to handle intent to add contacts.
@@ -167,26 +171,31 @@ public interface ContextMenuItemDelegate {
      * Called when the {@code url} should be parsed to add to contacts.
      * @param url The URL to be parsed to add to contacts.
      */
-    void onAddToContacts(GURL url);
+    void onAddToContacts(String url);
 
     /**
      * @return page url.
      */
-    GURL getPageUrl();
+    String getPageUrl();
 
     /**
      * Called when a link should be opened in the main Chrome browser.
      * @param linkUrl URL that should be opened.
      * @param pageUrl URL of the current page.
      */
-    void onOpenInChrome(GURL linkUrl, GURL pageUrl);
+    void onOpenInChrome(String linkUrl, String pageUrl);
+
+    /**
+     * Returns true if menu entries should be added for open in chrome.
+     */
+    boolean supportsOpenInChromeFromCct();
 
     /**
      * Called when the {@code url} should be opened in a new Chrome tab from CCT.
      * @param linkUrl The URL to open.
      * @param isIncognito true if the {@code url} should be opened in a new incognito tab.
      */
-    void onOpenInNewChromeTabFromCCT(GURL linkUrl, boolean isIncognito);
+    void onOpenInNewChromeTabFromCCT(String linkUrl, boolean isIncognito);
 
     /**
      * @return title of the context menu to open a page in external apps.
@@ -197,19 +206,19 @@ public interface ContextMenuItemDelegate {
      * Called when the current Chrome app is not the default to handle a View Intent.
      * @param url The URL to open.
      */
-    void onOpenInDefaultBrowser(GURL url);
+    void onOpenInDefaultBrowser(String url);
 
     /**
      * Called when the {@code url} should be opened in an ephemeral tab.
      * @param url The URL to open.
      * @param title The title text to show on top control.
      */
-    void onOpenInEphemeralTab(GURL url, String title);
+    void onOpenInEphemeralTab(String url, String title);
 
     /**
      * Called when Read Later was selected from the context menu.
      * @param url The URL to be saved to the reading list.
      * @param title The title text to be shown for this item in the reading list.
      */
-    void onReadLater(GURL url, String title);
+    void onReadLater(String url, String title);
 }

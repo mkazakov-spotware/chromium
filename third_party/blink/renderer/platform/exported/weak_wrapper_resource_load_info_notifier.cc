@@ -1,12 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/public/platform/weak_wrapper_resource_load_info_notifier.h"
-
-#include "build/build_config.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
-#include "third_party/blink/public/mojom/loader/resource_load_info.mojom.h"
 
 namespace blink {
 
@@ -25,7 +21,7 @@ void WeakWrapperResourceLoadInfoNotifier::NotifyResourceRedirectReceived(
       redirect_info, std::move(redirect_response));
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 void WeakWrapperResourceLoadInfoNotifier::
     NotifyUpdateUserGestureCarryoverInfo() {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
@@ -35,13 +31,14 @@ void WeakWrapperResourceLoadInfoNotifier::
 
 void WeakWrapperResourceLoadInfoNotifier::NotifyResourceResponseReceived(
     int64_t request_id,
-    const url::SchemeHostPort& final_response_url,
+    const GURL& final_url,
     network::mojom::URLResponseHeadPtr response_head,
-    network::mojom::RequestDestination request_destination) {
+    network::mojom::RequestDestination request_destination,
+    int32_t previews_state) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   resource_load_info_notifier_->NotifyResourceResponseReceived(
-      request_id, final_response_url, std::move(response_head),
-      request_destination);
+      request_id, final_url, std::move(response_head), request_destination,
+      previews_state);
 }
 
 void WeakWrapperResourceLoadInfoNotifier::NotifyResourceTransferSizeUpdated(

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <os/availability.h>
 #include <spawn.h>
 #include <string.h>
+#include <sys/syscall.h>
 #include <sys/wait.h>
 
 #include "base/command_line.h"
@@ -16,6 +17,7 @@
 #include "base/logging.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/process/environment_internal.h"
+#include "base/stl_util.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/trace_event/base_tracing.h"
@@ -33,6 +35,13 @@ int responsibility_spawnattrs_setdisclaim(posix_spawnattr_t attrs, int disclaim)
 }  // extern "C"
 
 namespace base {
+
+// Friend and derived class of ScopedAllowBaseSyncPrimitives which allows
+// GetAppOutputInternal() to join a process. GetAppOutputInternal() can't itself
+// be a friend of ScopedAllowBaseSyncPrimitives because it is in the anonymous
+// namespace.
+class GetAppOutputScopedAllowBaseSyncPrimitives
+    : public base::ScopedAllowBaseSyncPrimitives {};
 
 namespace {
 
@@ -63,9 +72,6 @@ class PosixSpawnFileActions {
     DPSXCHECK(posix_spawn_file_actions_init(&file_actions_));
   }
 
-  PosixSpawnFileActions(const PosixSpawnFileActions&) = delete;
-  PosixSpawnFileActions& operator=(const PosixSpawnFileActions&) = delete;
-
   ~PosixSpawnFileActions() {
     DPSXCHECK(posix_spawn_file_actions_destroy(&file_actions_));
   }
@@ -92,16 +98,26 @@ class PosixSpawnFileActions {
 
  private:
   posix_spawn_file_actions_t file_actions_;
+
+  DISALLOW_COPY_AND_ASSIGN(PosixSpawnFileActions);
 };
 
 int ChangeCurrentThreadDirectory(const char* path) {
-  return pthread_chdir_np(path);
+  if (__builtin_available(macOS 10.12, *)) {
+    return pthread_chdir_np(path);
+  } else {
+    return syscall(SYS___pthread_chdir, path);
+  }
 }
 
 // The recommended way to unset a per-thread cwd is to set a new value to an
 // invalid file descriptor, per libpthread-218.1.3/private/private.h.
 int ResetCurrentThreadDirectory() {
-  return pthread_fchdir_np(-1);
+  if (__builtin_available(macOS 10.12, *)) {
+    return pthread_fchdir_np(-1);
+  } else {
+    return syscall(SYS___pthread_fchdir, -1);
+  }
 }
 
 struct GetAppOutputOptions {
@@ -115,8 +131,6 @@ struct GetAppOutputOptions {
 
 bool GetAppOutputInternal(const std::vector<std::string>& argv,
                           GetAppOutputOptions* gao_options) {
-  TRACE_EVENT0("base", "GetAppOutput");
-
   ScopedFD read_fd, write_fd;
   {
     int pipefds[2];
@@ -153,15 +167,13 @@ bool GetAppOutputInternal(const std::vector<std::string>& argv,
     read_this_pass = HANDLE_EINTR(
         read(read_fd.get(), &(*output)[total_bytes_read], kBufferSize));
     if (read_this_pass >= 0) {
-      total_bytes_read += static_cast<size_t>(read_this_pass);
+      total_bytes_read += read_this_pass;
       output->resize(total_bytes_read);
     }
   } while (read_this_pass > 0);
 
-  // It is okay to allow this process to wait on the launched process as a
-  // process launched with GetAppOutput*() shouldn't wait back on the process
-  // that launched it.
-  internal::GetAppOutputScopedAllowBaseSyncPrimitives allow_wait;
+  // Reap the child process.
+  GetAppOutputScopedAllowBaseSyncPrimitives allow_wait;
   if (!process.WaitForExit(&gao_options->exit_code)) {
     return false;
   }
@@ -247,11 +259,13 @@ Process LaunchProcess(const std::vector<std::string>& argv,
                                     ? options.real_path.value().c_str()
                                     : argv_cstr[0];
 
-  if (__builtin_available(macOS 11.0, *)) {
-    if (options.enable_cpu_security_mitigations) {
-      DPSXCHECK(posix_spawnattr_set_csm_np(attr.get(), POSIX_SPAWN_NP_CSM_ALL));
-    }
+#if defined(ARCH_CPU_ARM64)
+  if (options.launch_x86_64) {
+    cpu_type_t cpu_types[] = {CPU_TYPE_X86_64};
+    DPSXCHECK(posix_spawnattr_setbinpref_np(attr.get(), base::size(cpu_types),
+                                            cpu_types, nullptr));
   }
+#endif  // ARCH_CPU_ARM64
 
   if (!options.current_directory.empty()) {
     const char* chdir_str = options.current_directory.value().c_str();

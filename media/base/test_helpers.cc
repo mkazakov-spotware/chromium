@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,9 @@
 
 #include <stdint.h>
 
-#include <memory>
-
 #include "base/bind.h"
 #include "base/check_op.h"
+#include "base/macros.h"
 #include "base/notreached.h"
 #include "base/pickle.h"
 #include "base/run_loop.h"
@@ -32,10 +31,6 @@ namespace media {
 class MockCallback : public base::RefCountedThreadSafe<MockCallback> {
  public:
   MockCallback();
-
-  MockCallback(const MockCallback&) = delete;
-  MockCallback& operator=(const MockCallback&) = delete;
-
   MOCK_METHOD0(Run, void());
   MOCK_METHOD1(RunWithBool, void(bool));
   MOCK_METHOD1(RunWithStatus, void(PipelineStatus));
@@ -43,6 +38,9 @@ class MockCallback : public base::RefCountedThreadSafe<MockCallback> {
  protected:
   friend class base::RefCountedThreadSafe<MockCallback>;
   virtual ~MockCallback();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockCallback);
 };
 
 MockCallback::MockCallback() = default;
@@ -100,7 +98,7 @@ void WaitableMessageLoopEvent::RunAndWaitForStatus(PipelineStatus expected) {
     return;
   }
 
-  run_loop_ = std::make_unique<base::RunLoop>();
+  run_loop_.reset(new base::RunLoop());
   base::OneShotTimer timer;
   timer.Start(FROM_HERE, timeout_,
               base::BindOnce(&WaitableMessageLoopEvent::OnTimeout,
@@ -146,24 +144,24 @@ static VideoDecoderConfig GetTestConfig(VideoCodec codec,
 
 static VideoCodecProfile MinProfile(VideoCodec codec) {
   switch (codec) {
-    case VideoCodec::kUnknown:
-    case VideoCodec::kVC1:
-    case VideoCodec::kMPEG2:
-    case VideoCodec::kMPEG4:
+    case kUnknownVideoCodec:
+    case kCodecVC1:
+    case kCodecMPEG2:
+    case kCodecMPEG4:
       return VIDEO_CODEC_PROFILE_UNKNOWN;
-    case VideoCodec::kH264:
+    case kCodecH264:
       return H264PROFILE_MIN;
-    case VideoCodec::kTheora:
+    case kCodecTheora:
       return THEORAPROFILE_MIN;
-    case VideoCodec::kVP8:
+    case kCodecVP8:
       return VP8PROFILE_MIN;
-    case VideoCodec::kVP9:
+    case kCodecVP9:
       return VP9PROFILE_MIN;
-    case VideoCodec::kHEVC:
+    case kCodecHEVC:
       return HEVCPROFILE_MIN;
-    case VideoCodec::kDolbyVision:
+    case kCodecDolbyVision:
       return DOLBYVISION_PROFILE0;
-    case VideoCodec::kAV1:
+    case kCodecAV1:
       return AV1PROFILE_MIN;
   }
 }
@@ -174,7 +172,7 @@ static const gfx::Size kExtraLargeSize(15360, 8640);
 
 // static
 VideoDecoderConfig TestVideoConfig::Invalid() {
-  return GetTestConfig(VideoCodec::kUnknown, VIDEO_CODEC_PROFILE_UNKNOWN,
+  return GetTestConfig(kUnknownVideoCodec, VIDEO_CODEC_PROFILE_UNKNOWN,
                        VideoColorSpace::JPEG(), VIDEO_ROTATION_0, kNormalSize,
                        false);
 }
@@ -195,7 +193,7 @@ VideoDecoderConfig TestVideoConfig::NormalWithColorSpace(
 
 // static
 VideoDecoderConfig TestVideoConfig::NormalH264(VideoCodecProfile config) {
-  return GetTestConfig(VideoCodec::kH264, MinProfile(VideoCodec::kH264),
+  return GetTestConfig(kCodecH264, MinProfile(kCodecH264),
                        VideoColorSpace::JPEG(), VIDEO_ROTATION_0, kNormalSize,
                        false);
 }
@@ -217,7 +215,7 @@ VideoDecoderConfig TestVideoConfig::NormalEncrypted(VideoCodec codec,
 
 // static
 VideoDecoderConfig TestVideoConfig::NormalRotated(VideoRotation rotation) {
-  return GetTestConfig(VideoCodec::kVP8, MinProfile(VideoCodec::kVP8),
+  return GetTestConfig(kCodecVP8, MinProfile(kCodecVP8),
                        VideoColorSpace::JPEG(), rotation, kNormalSize, false);
 }
 
@@ -274,25 +272,25 @@ gfx::Size TestVideoConfig::ExtraLargeCodedSize() {
 }
 
 AudioDecoderConfig TestAudioConfig::Normal() {
-  return AudioDecoderConfig(AudioCodec::kVorbis, kSampleFormatPlanarF32,
+  return AudioDecoderConfig(kCodecVorbis, kSampleFormatPlanarF32,
                             CHANNEL_LAYOUT_STEREO, NormalSampleRateValue(),
                             EmptyExtraData(), EncryptionScheme::kUnencrypted);
 }
 
 AudioDecoderConfig TestAudioConfig::NormalEncrypted() {
-  return AudioDecoderConfig(AudioCodec::kVorbis, kSampleFormatPlanarF32,
+  return AudioDecoderConfig(kCodecVorbis, kSampleFormatPlanarF32,
                             CHANNEL_LAYOUT_STEREO, NormalSampleRateValue(),
                             EmptyExtraData(), EncryptionScheme::kCenc);
 }
 
 AudioDecoderConfig TestAudioConfig::HighSampleRate() {
-  return AudioDecoderConfig(AudioCodec::kVorbis, kSampleFormatPlanarF32,
+  return AudioDecoderConfig(kCodecVorbis, kSampleFormatPlanarF32,
                             CHANNEL_LAYOUT_STEREO, HighSampleRateValue(),
                             EmptyExtraData(), EncryptionScheme::kUnencrypted);
 }
 
 AudioDecoderConfig TestAudioConfig::HighSampleRateEncrypted() {
-  return AudioDecoderConfig(AudioCodec::kVorbis, kSampleFormatPlanarF32,
+  return AudioDecoderConfig(kCodecVorbis, kSampleFormatPlanarF32,
                             CHANNEL_LAYOUT_STEREO, HighSampleRateValue(),
                             EmptyExtraData(), EncryptionScheme::kCenc);
 }
@@ -308,7 +306,7 @@ int TestAudioConfig::HighSampleRateValue() {
 // static
 AudioParameters TestAudioParameters::Normal() {
   return AudioParameters(AudioParameters::AUDIO_PCM_LOW_LATENCY,
-                         ChannelLayoutConfig::Stereo(), 48000, 2048);
+                         CHANNEL_LAYOUT_STEREO, 48000, 2048);
 }
 
 template <class T>
@@ -329,7 +327,8 @@ scoped_refptr<AudioBuffer> MakeAudioBuffer(SampleFormat format,
                                 static_cast<int>(frames));
   output->set_timestamp(timestamp);
 
-  const bool is_planar = IsPlanar(format);
+  const bool is_planar =
+      format == kSampleFormatPlanarS16 || format == kSampleFormatPlanarF32;
 
   // Values in channel 0 will be:
   //   start

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <mutex>
 
-#include "base/containers/contains.h"
+#include "base/stl_util.h"
 #include "chromecast/browser/webui/cast_resource_data_source.h"
 #include "chromecast/browser/webui/cast_webui.h"
 #include "chromecast/browser/webui/constants.h"
@@ -40,6 +40,12 @@ bool CastWebUiControllerFactory::UseWebUIForURL(
     content::BrowserContext* browser_context,
     const GURL& url) {
   return GetWebUIType(browser_context, url) != content::WebUI::kNoWebUI;
+}
+
+bool CastWebUiControllerFactory::UseWebUIBindingsForURL(
+    content::BrowserContext* browser_context,
+    const GURL& url) {
+  return UseWebUIForURL(browser_context, url);
 }
 
 std::unique_ptr<content::WebUIController>

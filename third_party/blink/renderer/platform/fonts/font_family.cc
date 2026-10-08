@@ -25,16 +25,12 @@
 
 #include "third_party/blink/renderer/platform/fonts/font_family.h"
 
-#include "third_party/blink/renderer/platform/font_family_names.h"
-#include "third_party/blink/renderer/platform/fonts/font_cache.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
 
 bool operator==(const FontFamily& a, const FontFamily& b) {
-  if (a.FamilyIsGeneric() != b.FamilyIsGeneric() ||
-      a.FamilyName() != b.FamilyName())
+  if (a.Family() != b.Family())
     return false;
   const FontFamily* ap;
   const FontFamily* bp;
@@ -42,51 +38,28 @@ bool operator==(const FontFamily& a, const FontFamily& b) {
        ap = ap->Next(), bp = bp->Next()) {
     if (!ap || !bp)
       return false;
-    if (ap->FamilyIsGeneric() != bp->FamilyIsGeneric() ||
-        ap->FamilyName() != bp->FamilyName())
+    if (ap->Family() != bp->Family())
       return false;
   }
   return true;
 }
 
-wtf_size_t FontFamily::CountNames() const {
-  wtf_size_t count = 0;
-  for (const FontFamily* font_family = this; font_family;
-       font_family = font_family->Next())
-    ++count;
-  return count;
-}
-
-void FontFamily::AppendFamily(AtomicString family_name, Type family_type) {
+void FontFamily::AppendFamily(AtomicString family) {
   scoped_refptr<SharedFontFamily> appended_family = SharedFontFamily::Create();
-  appended_family->SetFamily(family_name, family_type);
+  appended_family->SetFamily(family);
   AppendFamily(appended_family);
 }
 
 String FontFamily::ToString() const {
   StringBuilder builder;
-  builder.Append(family_name_);
+  builder.Append(family_);
   const FontFamily* current = Next();
   while (current) {
-    builder.Append(", ");
-    builder.Append(current->FamilyName());
+    builder.Append(",");
+    builder.Append(current->Family());
     current = current->Next();
   }
   return builder.ToString();
-}
-
-/*static*/ FontFamily::Type FontFamily::InferredTypeFor(
-    const AtomicString& family_name) {
-  return (family_name == font_family_names::kCursive ||
-          family_name == font_family_names::kFantasy ||
-          family_name == font_family_names::kMonospace ||
-          family_name == font_family_names::kSansSerif ||
-          family_name == font_family_names::kSerif ||
-          family_name == font_family_names::kSystemUi ||
-          (RuntimeEnabledFeatures::CSSFontFamilyMathEnabled() &&
-           family_name == font_family_names::kMath))
-             ? Type::kGenericFamily
-             : Type::kFamilyName;
 }
 
 }  // namespace blink

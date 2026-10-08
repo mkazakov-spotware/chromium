@@ -26,12 +26,12 @@
 #include "third_party/blink/renderer/core/layout/layout_table_cell.h"
 
 #include "third_party/blink/renderer/core/css/css_property_value_set.h"
-#include "third_party/blink/renderer/core/css/properties/longhands.h"
 #include "third_party/blink/renderer/core/editing/editing_utilities.h"
 #include "third_party/blink/renderer/core/html/html_table_cell_element.h"
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/layout/collapsed_border_value.h"
 #include "third_party/blink/renderer/core/layout/geometry/transform_state.h"
+#include "third_party/blink/renderer/core/layout/layout_analyzer.h"
 #include "third_party/blink/renderer/core/layout/layout_object_factory.h"
 #include "third_party/blink/renderer/core/layout/layout_table_col.h"
 #include "third_party/blink/renderer/core/layout/subtree_layout_scope.h"
@@ -39,8 +39,8 @@
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
 #include "third_party/blink/renderer/core/paint/table_cell_paint_invalidator.h"
 #include "third_party/blink/renderer/core/paint/table_cell_painter.h"
+#include "third_party/blink/renderer/platform/geometry/float_quad.h"
 #include "third_party/blink/renderer/platform/wtf/size_assertions.h"
-#include "ui/gfx/geometry/quad_f.h"
 
 namespace blink {
 
@@ -298,6 +298,7 @@ void LayoutTableCell::SetCellLogicalWidth(int table_layout_logical_width,
 void LayoutTableCell::UpdateLayout() {
   NOT_DESTROYED();
   DCHECK(NeedsLayout());
+  LayoutAnalyzer::Scope analyzer(*this);
 
   UpdateBlockLayout(CellChildrenNeedLayout());
 
@@ -442,7 +443,7 @@ OverflowClipAxes LayoutTableCell::ComputeOverflowClipAxes() const {
   NOT_DESTROYED();
   if (IsSpanningCollapsedRow() || IsSpanningCollapsedColumn())
     return kOverflowClipBothAxis;
-  return LayoutBlockFlow::ComputeOverflowClipAxes();
+  return LayoutBox::ComputeOverflowClipAxes();
 }
 
 LayoutUnit LayoutTableCell::CellBaselinePosition() const {
@@ -463,10 +464,11 @@ LayoutUnit LayoutTableCell::CellBaselinePosition() const {
 void LayoutTableCell::UpdateStyleWritingModeFromRow(const LayoutObject* row) {
   NOT_DESTROYED();
   DCHECK_NE(StyleRef().GetWritingMode(), row->StyleRef().GetWritingMode());
-  ComputedStyleBuilder new_style_builder(StyleRef());
-  new_style_builder.SetWritingMode(row->StyleRef().GetWritingMode());
-  new_style_builder.UpdateFontOrientation();
-  SetStyle(new_style_builder.TakeStyle(), LayoutObject::ApplyStyleChanges::kNo);
+  scoped_refptr<ComputedStyle> new_style = ComputedStyle::Clone(StyleRef());
+  new_style->SetWritingMode(row->StyleRef().GetWritingMode());
+  new_style->UpdateFontOrientation();
+  SetModifiedStyleOutsideStyleRecalc(new_style,
+                                     LayoutObject::ApplyStyleChanges::kNo);
   SetHorizontalWritingMode(StyleRef().IsHorizontalWritingMode());
   UnmarkOrthogonalWritingModeRoot();
 
@@ -577,10 +579,10 @@ CollapsedBorderValue LayoutTableCell::ComputeCollapsedStartBorder() const {
 
   // For the start border, we need to check, in order of precedence:
   // (1) Our start border.
-  const Longhand& start_color_property = To<Longhand>(
-      ResolveBorderProperty(GetCSSPropertyBorderInlineStartColor()));
-  const Longhand& end_color_property =
-      To<Longhand>(ResolveBorderProperty(GetCSSPropertyBorderInlineEndColor()));
+  const CSSProperty& start_color_property =
+      ResolveBorderProperty(GetCSSPropertyBorderInlineStartColor());
+  const CSSProperty& end_color_property =
+      ResolveBorderProperty(GetCSSPropertyBorderInlineEndColor());
   CollapsedBorderValue result(BorderStartInTableDirection(),
                               ResolveColor(start_color_property),
                               kBorderPrecedenceCell);
@@ -711,10 +713,10 @@ CollapsedBorderValue LayoutTableCell::ComputeCollapsedEndBorder() const {
 
   // For end border, we need to check, in order of precedence:
   // (1) Our end border.
-  const Longhand& start_color_property = To<Longhand>(
-      ResolveBorderProperty(GetCSSPropertyBorderInlineStartColor()));
-  const Longhand& end_color_property =
-      To<Longhand>(ResolveBorderProperty(GetCSSPropertyBorderInlineEndColor()));
+  const CSSProperty& start_color_property =
+      ResolveBorderProperty(GetCSSPropertyBorderInlineStartColor());
+  const CSSProperty& end_color_property =
+      ResolveBorderProperty(GetCSSPropertyBorderInlineEndColor());
   CollapsedBorderValue result = CollapsedBorderValue(
       BorderEndInTableDirection(), ResolveColor(end_color_property),
       kBorderPrecedenceCell);
@@ -837,10 +839,10 @@ CollapsedBorderValue LayoutTableCell::ComputeCollapsedBeforeBorder() const {
 
   // For before border, we need to check, in order of precedence:
   // (1) Our before border.
-  const Longhand& before_color_property = To<Longhand>(
-      ResolveBorderProperty(GetCSSPropertyBorderBlockStartColor()));
-  const Longhand& after_color_property =
-      To<Longhand>(ResolveBorderProperty(GetCSSPropertyBorderBlockEndColor()));
+  const CSSProperty& before_color_property =
+      ResolveBorderProperty(GetCSSPropertyBorderBlockStartColor());
+  const CSSProperty& after_color_property =
+      ResolveBorderProperty(GetCSSPropertyBorderBlockEndColor());
   CollapsedBorderValue result = CollapsedBorderValue(
       StyleRef().BorderBeforeStyle(), StyleRef().BorderBeforeWidth(),
       ResolveColor(before_color_property), kBorderPrecedenceCell);
@@ -969,10 +971,10 @@ CollapsedBorderValue LayoutTableCell::ComputeCollapsedAfterBorder() const {
 
   // For after border, we need to check, in order of precedence:
   // (1) Our after border.
-  const Longhand& before_color_property = To<Longhand>(
-      ResolveBorderProperty(GetCSSPropertyBorderBlockStartColor()));
-  const Longhand& after_color_property =
-      To<Longhand>(ResolveBorderProperty(GetCSSPropertyBorderBlockEndColor()));
+  const CSSProperty& before_color_property =
+      ResolveBorderProperty(GetCSSPropertyBorderBlockStartColor());
+  const CSSProperty& after_color_property =
+      ResolveBorderProperty(GetCSSPropertyBorderBlockEndColor());
   CollapsedBorderValue result = CollapsedBorderValue(
       StyleRef().BorderAfterStyle(), StyleRef().BorderAfterWidth(),
       ResolveColor(after_color_property), kBorderPrecedenceCell);
@@ -1158,7 +1160,7 @@ void LayoutTableCell::UpdateCollapsedBorderValues() const {
   auto row_span = ResolvedRowSpan();
   for (auto r = RowIndex(); r < RowIndex() + row_span; ++r) {
     if (auto* row = Section()->RowLayoutObjectAt(r))
-      row->SetShouldDoFullPaintInvalidation();
+      row->SetShouldDoFullPaintInvalidation(PaintInvalidationReason::kStyle);
   }
   collapsed_borders_need_paint_invalidation_ = false;
 }
@@ -1250,7 +1252,7 @@ bool LayoutTableCell::BackgroundIsKnownToBeOpaqueInRect(
 
 bool LayoutTableCell::HasLineIfEmpty() const {
   NOT_DESTROYED();
-  if (GetNode() && IsEditable(*GetNode()))
+  if (GetNode() && HasEditableStyle(*GetNode()))
     return true;
 
   return LayoutBlock::HasLineIfEmpty();

@@ -1,17 +1,17 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/vr/vr_gl_util.h"
 
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
 namespace vr {
 
 // This code is adapted from the GVR Treasure Hunt demo source.
 std::array<float, 16> MatrixToGLArray(const gfx::Transform& transform) {
   std::array<float, 16> result;
-  transform.GetColMajorF(result.data());
+  transform.matrix().asColMajorf(result.data());
   return result;
 }
 

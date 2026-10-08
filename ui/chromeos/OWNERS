@@ -5,5 +5,7 @@ oshima@chromium.org
 xiyuan@chromium.org
 
 per-file file_manager_strings.grdp=*
-# For adding or removing languages.
-per-file *.grd=claudiomagni@chromium.org
+# For input-related naming change
+per-file ui_chromeos_strings.grd=shend@chromium.org
+per-file ui_chromeos_strings.grd=myy@chromium.org
+# COMPONENT: UI

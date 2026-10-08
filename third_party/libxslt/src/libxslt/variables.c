@@ -123,7 +123,7 @@ xsltRegisterTmpRVT(xsltTransformContextPtr ctxt, xmlDocPtr RVT)
 	return(-1);
 
     RVT->prev = NULL;
-    RVT->compression = XSLT_RVT_LOCAL;
+    RVT->psvi = XSLT_RVT_LOCAL;
 
     /*
     * We'll restrict the lifetime of user-created fragments
@@ -163,7 +163,7 @@ xsltRegisterLocalRVT(xsltTransformContextPtr ctxt,
 	return(-1);
 
     RVT->prev = NULL;
-    RVT->compression = XSLT_RVT_LOCAL;
+    RVT->psvi = XSLT_RVT_LOCAL;
 
     /*
     * When evaluating "select" expressions of xsl:variable
@@ -255,7 +255,7 @@ xsltExtensionInstructionResultRegister(
  * Returns 0 in case of success and -1 in case of error.
  */
 int
-xsltFlagRVTs(xsltTransformContextPtr ctxt, xmlXPathObjectPtr obj, int val) {
+xsltFlagRVTs(xsltTransformContextPtr ctxt, xmlXPathObjectPtr obj, void *val) {
     int i;
     xmlNodePtr cur;
     xmlDocPtr doc;
@@ -302,36 +302,34 @@ xsltFlagRVTs(xsltTransformContextPtr ctxt, xmlXPathObjectPtr obj, int val) {
 	    return(-1);
 	}
 	if (doc->name && (doc->name[0] == ' ') &&
-            doc->compression != XSLT_RVT_GLOBAL) {
+            doc->psvi != XSLT_RVT_GLOBAL) {
 	    /*
 	    * This is a result tree fragment.
-	    * We store ownership information in the @compression field.
+	    * We store ownership information in the @psvi field.
 	    * TODO: How do we know if this is a doc acquired via the
 	    *  document() function?
 	    */
 #ifdef WITH_XSLT_DEBUG_VARIABLE
-            XSLT_TRACE(ctxt, XSLT_TRACE_VARIABLES,
-                       xsltGenericDebug(xsltGenericDebugContext,
-                       "Flagging RVT %p: %d -> %d\n",
-                       (void *) doc, doc->compression, val));
+            XSLT_TRACE(ctxt,XSLT_TRACE_VARIABLES,xsltGenericDebug(xsltGenericDebugContext,
+                "Flagging RVT %p: %p -> %p\n", doc, doc->psvi, val));
 #endif
 
             if (val == XSLT_RVT_LOCAL) {
-                if (doc->compression == XSLT_RVT_FUNC_RESULT)
-                    doc->compression = XSLT_RVT_LOCAL;
+                if (doc->psvi == XSLT_RVT_FUNC_RESULT)
+                    doc->psvi = XSLT_RVT_LOCAL;
             } else if (val == XSLT_RVT_GLOBAL) {
-                if (doc->compression != XSLT_RVT_LOCAL) {
+                if (doc->psvi != XSLT_RVT_LOCAL) {
 		    xmlGenericError(xmlGenericErrorContext,
-                            "xsltFlagRVTs: Invalid transition %d => GLOBAL\n",
-                            doc->compression);
-                    doc->compression = XSLT_RVT_GLOBAL;
+                            "xsltFlagRVTs: Invalid transition %p => GLOBAL\n",
+                            doc->psvi);
+                    doc->psvi = XSLT_RVT_GLOBAL;
                     return(-1);
                 }
 
                 /* Will be registered as persistant in xsltReleaseLocalRVTs. */
-                doc->compression = XSLT_RVT_GLOBAL;
+                doc->psvi = XSLT_RVT_GLOBAL;
             } else if (val == XSLT_RVT_FUNC_RESULT) {
-	        doc->compression = val;
+	        doc->psvi = val;
             }
 	}
     }
@@ -365,6 +363,7 @@ xsltReleaseRVT(xsltTransformContextPtr ctxt, xmlDocPtr RVT)
 	}
 	/*
 	* Clear the document tree.
+	* REVISIT TODO: Do we expect ID/IDREF tables to be existent?
 	*/
 	if (RVT->children != NULL) {
 	    xmlFreeNodeList(RVT->children);
@@ -375,11 +374,15 @@ xsltReleaseRVT(xsltTransformContextPtr ctxt, xmlDocPtr RVT)
 	    xmlFreeIDTable((xmlIDTablePtr) RVT->ids);
 	    RVT->ids = NULL;
 	}
+	if (RVT->refs != NULL) {
+	    xmlFreeRefTable((xmlRefTablePtr) RVT->refs);
+	    RVT->refs = NULL;
+	}
 
 	/*
 	* Reset the ownership information.
 	*/
-	RVT->compression = 0;
+	RVT->psvi = NULL;
 
 	RVT->next = (xmlNodePtr) ctxt->cache->RVT;
 	ctxt->cache->RVT = RVT;
@@ -418,7 +421,7 @@ xsltRegisterPersistRVT(xsltTransformContextPtr ctxt, xmlDocPtr RVT)
 {
     if ((ctxt == NULL) || (RVT == NULL)) return(-1);
 
-    RVT->compression = XSLT_RVT_GLOBAL;
+    RVT->psvi = XSLT_RVT_GLOBAL;
     RVT->prev = NULL;
     RVT->next = (xmlNodePtr) ctxt->persistRVT;
     if (ctxt->persistRVT != NULL)
@@ -577,15 +580,15 @@ xsltFreeStackElem(xsltStackElemPtr elem) {
 	    cur = elem->fragment;
 	    elem->fragment = (xmlDocPtr) cur->next;
 
-            if (cur->compression == XSLT_RVT_LOCAL) {
+            if (cur->psvi == XSLT_RVT_LOCAL) {
 		xsltReleaseRVT(elem->context, cur);
-            } else if (cur->compression == XSLT_RVT_FUNC_RESULT) {
+            } else if (cur->psvi == XSLT_RVT_FUNC_RESULT) {
                 xsltRegisterLocalRVT(elem->context, cur);
-                cur->compression = XSLT_RVT_FUNC_RESULT;
+                cur->psvi = XSLT_RVT_FUNC_RESULT;
             } else {
                 xmlGenericError(xmlGenericErrorContext,
-                        "xsltFreeStackElem: Unexpected RVT flag %d\n",
-                        cur->compression);
+                        "xsltFreeStackElem: Unexpected RVT flag %p\n",
+                        cur->psvi);
             }
 	}
     }
@@ -965,8 +968,6 @@ xsltEvalVariable(xsltTransformContextPtr ctxt, xsltStackElemPtr variable,
 		xmlDocPtr container;
 		xmlNodePtr oldInsert;
 		xmlDocPtr  oldOutput;
-                const xmlChar *oldLastText;
-                int oldLastTextSize, oldLastTextUse;
 		xsltStackElemPtr oldVar = ctxt->contextVariable;
 
 		/*
@@ -988,13 +989,10 @@ xsltEvalVariable(xsltTransformContextPtr ctxt, xsltStackElemPtr variable,
 		* the Result Tree Fragment.
 		*/
 		variable->fragment = container;
-                container->compression = XSLT_RVT_LOCAL;
+                container->psvi = XSLT_RVT_LOCAL;
 
 		oldOutput = ctxt->output;
 		oldInsert = ctxt->insert;
-                oldLastText = ctxt->lasttext;
-                oldLastTextSize = ctxt->lasttsize;
-                oldLastTextUse = ctxt->lasttuse;
 
 		ctxt->output = container;
 		ctxt->insert = (xmlNodePtr) container;
@@ -1009,9 +1007,6 @@ xsltEvalVariable(xsltTransformContextPtr ctxt, xsltStackElemPtr variable,
 		ctxt->contextVariable = oldVar;
 		ctxt->insert = oldInsert;
 		ctxt->output = oldOutput;
-                ctxt->lasttext = oldLastText;
-                ctxt->lasttsize = oldLastTextSize;
-                ctxt->lasttuse = oldLastTextUse;
 
 		result = xmlXPathNewValueTree((xmlNodePtr) container);
 	    }

@@ -1,12 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "chrome/browser/ui/cocoa/color_chooser_mac.h"
 
-#include "base/callback_helpers.h"
 #include "base/check_op.h"
-#include "base/memory/ptr_util.h"
 #include "chrome/browser/ui/color_chooser.h"
 #include "components/remote_cocoa/app_shim/color_panel_bridge.h"
 #include "components/remote_cocoa/browser/application_host.h"
@@ -20,26 +18,20 @@ ColorChooserMac* g_current_color_chooser = nullptr;
 }  // namespace
 
 // static
-std::unique_ptr<ColorChooserMac> ColorChooserMac::Create(
-    content::WebContents* web_contents,
-    SkColor initial_color,
-    remote_cocoa::ColorPanelBridge::ShowCallback callback) {
+ColorChooserMac* ColorChooserMac::Open(content::WebContents* web_contents,
+                                       SkColor initial_color) {
   if (g_current_color_chooser)
     g_current_color_chooser->End();
   DCHECK(!g_current_color_chooser);
   // Note that WebContentsImpl::ColorChooser ultimately takes ownership (and
   // deletes) the returned pointer.
-  g_current_color_chooser =
-      new ColorChooserMac(web_contents, initial_color, std::move(callback));
-  return base::WrapUnique(g_current_color_chooser);
+  g_current_color_chooser = new ColorChooserMac(web_contents, initial_color);
+  return g_current_color_chooser;
 }
 
-ColorChooserMac::ColorChooserMac(
-    content::WebContents* web_contents,
-    SkColor initial_color,
-    remote_cocoa::ColorPanelBridge::ShowCallback callback)
+ColorChooserMac::ColorChooserMac(content::WebContents* web_contents,
+                                 SkColor initial_color)
     : web_contents_(web_contents) {
-  // The application_host branch is used when running as a PWA.
   auto* application_host = remote_cocoa::ApplicationHost::GetForNativeView(
       web_contents ? web_contents->GetNativeView() : gfx::NativeView());
   if (application_host) {
@@ -52,7 +44,7 @@ ColorChooserMac::ColorChooserMac(
             mojo_host_receiver_.BindNewPipeAndPassRemote()),
         mojo_panel_remote_.BindNewPipeAndPassReceiver());
   }
-  mojo_panel_remote_->Show(initial_color, std::move(callback));
+  mojo_panel_remote_->Show(initial_color);
 }
 
 ColorChooserMac::~ColorChooserMac() {
@@ -80,20 +72,12 @@ void ColorChooserMac::End() {
 }
 
 void ColorChooserMac::SetSelectedColor(SkColor color) {
-  SetSelectedColor(color, base::DoNothing());
-}
-
-void ColorChooserMac::SetSelectedColor(
-    SkColor color,
-    remote_cocoa::ColorPanelBridge::SetSelectedColorCallback callback) {
-  mojo_panel_remote_->SetSelectedColor(color, std::move(callback));
+  mojo_panel_remote_->SetSelectedColor(color);
 }
 
 namespace chrome {
-std::unique_ptr<content::ColorChooser> ShowColorChooser(
-    content::WebContents* web_contents,
-    SkColor initial_color) {
-  return ColorChooserMac::Create(web_contents, initial_color,
-                                 base::DoNothing());
+content::ColorChooser* ShowColorChooser(content::WebContents* web_contents,
+                                        SkColor initial_color) {
+  return ColorChooserMac::Open(web_contents, initial_color);
 }
 }  // namepace chrome

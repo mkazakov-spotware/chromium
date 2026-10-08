@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,15 +25,14 @@ class EmbeddingTokenBrowserTest : public ContentBrowserTest {
   EmbeddingTokenBrowserTest() = default;
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
-    scoped_feature_list_.InitWithFeaturesAndParameters(
-        {{features::kBackForwardCache,
-          // Set a very long TTL before expiration (longer than the test
-          // timeout) so tests that are expecting deletion don't pass when
-          // they shouldn't.
-          {{"TimeToLiveInBackForwardCacheInSeconds", "3600"}}}},
-        // Allow BackForwardCache for all devices regardless of their memory.
-        {features::kBackForwardCacheMemoryControls});
-
+    scoped_feature_list_.InitAndEnableFeatureWithParameters(
+        features::kBackForwardCache,
+        {
+            // Set a very long TTL before expiration (longer than the test
+            // timeout) so tests that are expecting deletion don't pass when
+            // they shouldn't.
+            {"TimeToLiveInBackForwardCacheInSeconds", "3600"},
+        });
     ContentBrowserTest::SetUpCommandLine(command_line);
     IsolateAllSitesForTesting(command_line);
   }
@@ -47,8 +46,7 @@ class EmbeddingTokenBrowserTest : public ContentBrowserTest {
   WebContents* web_contents() { return shell()->web_contents(); }
 
   RenderFrameHostImpl* top_frame_host() {
-    return static_cast<RenderFrameHostImpl*>(
-        web_contents()->GetPrimaryMainFrame());
+    return static_cast<RenderFrameHostImpl*>(web_contents()->GetMainFrame());
   }
 
   EmbeddingTokenBrowserTest(const EmbeddingTokenBrowserTest&) = delete;

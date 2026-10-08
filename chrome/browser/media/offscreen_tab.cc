@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,7 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_destroyer.h"
 #include "components/media_router/browser/presentation/presentation_navigation_policy.h"
@@ -19,9 +18,9 @@
 #include "content/public/browser/presentation_receiver_flags.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
-#include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
 
 #if defined(USE_AURA)
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -35,8 +34,8 @@ namespace {
 
 // Time intervals used by the logic that detects when the capture of an
 // offscreen tab has stopped, to automatically tear it down and free resources.
-constexpr base::TimeDelta kMaxWaitForCapture = base::Minutes(1);
-constexpr base::TimeDelta kPollInterval = base::Seconds(1);
+constexpr base::TimeDelta kMaxWaitForCapture = base::TimeDelta::FromMinutes(1);
+constexpr base::TimeDelta kPollInterval = base::TimeDelta::FromSeconds(1);
 
 }  // namespace
 
@@ -59,9 +58,6 @@ class OffscreenTab::WindowAdoptionAgent final : protected aura::WindowObserver {
     }
   }
 
-  WindowAdoptionAgent(const WindowAdoptionAgent&) = delete;
-  WindowAdoptionAgent& operator=(const WindowAdoptionAgent&) = delete;
-
   ~WindowAdoptionAgent() final {
     if (content_window_)
       content_window_->RemoveObserver(this);
@@ -74,7 +70,7 @@ class OffscreenTab::WindowAdoptionAgent final : protected aura::WindowObserver {
     // Post a task to return to the event loop before finding a new parent, to
     // avoid clashing with the currently-in-progress window tree hierarchy
     // changes.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&WindowAdoptionAgent::FindNewParent,
                                   weak_ptr_factory_.GetWeakPtr()));
   }
@@ -118,16 +114,17 @@ class OffscreenTab::WindowAdoptionAgent final : protected aura::WindowObserver {
     }
   }
 
-  raw_ptr<aura::Window> content_window_;
+  aura::Window* content_window_;
   base::WeakPtrFactory<WindowAdoptionAgent> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(WindowAdoptionAgent);
 };
 #endif  // defined(USE_AURA)
 
 OffscreenTab::OffscreenTab(Owner* owner, content::BrowserContext* context)
     : owner_(owner),
       otr_profile_(Profile::FromBrowserContext(context)->GetOffTheRecordProfile(
-          Profile::OTRProfileID::CreateUniqueForMediaRouter(),
-          /*create_if_needed=*/true)),
+          Profile::OTRProfileID::CreateUniqueForMediaRouter())),
       content_capture_was_detected_(false),
       navigation_policy_(
           std::make_unique<media_router::DefaultNavigationPolicy>()) {
@@ -139,7 +136,7 @@ OffscreenTab::~OffscreenTab() {
   DVLOG(1) << "Destroying OffscreenTab for start_url=" << start_url_.spec();
   if (otr_profile_) {
     otr_profile_->RemoveObserver(this);
-    ProfileDestroyer::DestroyOTRProfileWhenAppropriate(otr_profile_);
+    ProfileDestroyer::DestroyProfileWhenAppropriate(otr_profile_);
   }
 }
 
@@ -247,7 +244,7 @@ void OffscreenTab::CanDownload(const GURL& url,
 }
 
 bool OffscreenTab::HandleContextMenu(
-    content::RenderFrameHost& render_frame_host,
+    content::RenderFrameHost* render_frame_host,
     const content::ContextMenuParams& params) {
   // Context menus should never be shown.  Do nothing, but indicate the context
   // menu was shown so that default implementation in libcontent does not
@@ -334,16 +331,18 @@ void OffscreenTab::RequestMediaAccessPermission(
     WebContents* contents,
     const content::MediaStreamRequest& request,
     content::MediaResponseCallback callback) {
-  std::move(callback).Run(blink::mojom::StreamDevicesSet(),
-                          blink::mojom::MediaStreamRequestResult::NOT_SUPPORTED,
-                          nullptr);
+  DCHECK_EQ(offscreen_tab_web_contents_.get(), contents);
+  owner_->RequestMediaAccessPermission(request, std::move(callback));
 }
 
 bool OffscreenTab::CheckMediaAccessPermission(
     content::RenderFrameHost* render_frame_host,
     const GURL& security_origin,
     blink::mojom::MediaStreamType type) {
-  return false;
+  DCHECK_EQ(offscreen_tab_web_contents_.get(),
+            content::WebContents::FromRenderFrameHost(render_frame_host));
+  return type == blink::mojom::MediaStreamType::GUM_TAB_AUDIO_CAPTURE ||
+         type == blink::mojom::MediaStreamType::GUM_TAB_VIDEO_CAPTURE;
 }
 
 void OffscreenTab::DidStartNavigation(

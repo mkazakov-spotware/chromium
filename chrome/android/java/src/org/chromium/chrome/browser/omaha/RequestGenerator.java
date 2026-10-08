@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@ import androidx.annotation.VisibleForTesting;
 import org.xmlpull.v1.XmlSerializer;
 
 import org.chromium.base.BuildInfo;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.uid.SettingsSecureBasedIdentificationGenerator;
 import org.chromium.chrome.browser.uid.UniqueIdentificationGeneratorFactory;
 import org.chromium.ui.base.DeviceFormFactor;
@@ -81,12 +80,8 @@ public abstract class RequestGenerator {
             serializer.attribute(null, "requestid", "{" + data.getRequestID() + "}");
             serializer.attribute(null, "sessionid", "{" + sessionID + "}");
             serializer.attribute(null, "installsource", data.getInstallSource());
-            if (ChromeFeatureList.sAnonymousUpdateChecks.isEnabled()) {
-                serializer.attribute(null, "dedup", "cr");
-            } else {
-                serializer.attribute(null, "userid", "{" + getDeviceID() + "}");
-                serializer.attribute(null, "dedup", "uid");
-            }
+            serializer.attribute(null, "userid", "{" + getDeviceID() + "}");
+            serializer.attribute(null, "dedup", "uid");
 
             // Set up <os platform="android"... />
             serializer.startTag(null, "os");
@@ -181,14 +176,9 @@ public abstract class RequestGenerator {
      * Return a device-specific ID.
      */
     public String getDeviceID() {
-        try {
-            return UniqueIdentificationGeneratorFactory
-                    .getInstance(SettingsSecureBasedIdentificationGenerator.GENERATOR_ID)
-                    .getUniqueId(SALT);
-        } catch (SecurityException unused) {
-            // In some cases the browser lacks permission to get the ID. Consult crbug.com/1158707.
-            return "";
-        }
+        return UniqueIdentificationGeneratorFactory
+                .getInstance(SettingsSecureBasedIdentificationGenerator.GENERATOR_ID)
+                .getUniqueId(SALT);
     }
 
     /**

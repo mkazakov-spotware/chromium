@@ -1,33 +1,33 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ntp/new_tab_page_tab_helper.h"
 
-#import <memory>
+#include <memory>
 
-#import "base/strings/sys_string_conversions.h"
-#import "base/test/task_environment.h"
-#import "components/strings/grit/components_strings.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state_manager.h"
-#import "ios/chrome/browser/favicon/ios_chrome_large_icon_service_factory.h"
-#import "ios/chrome/browser/ntp/new_tab_page_tab_helper_delegate.h"
-#import "ios/chrome/browser/ntp_snippets/ios_chrome_content_suggestions_service_factory.h"
-#import "ios/chrome/browser/search_engines/template_url_service_factory.h"
-#import "ios/chrome/browser/url/chrome_url_constants.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/test/task_environment.h"
+#include "components/strings/grit/components_strings.h"
+#include "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#include "ios/chrome/browser/browser_state/test_chrome_browser_state_manager.h"
+#include "ios/chrome/browser/chrome_url_constants.h"
+#include "ios/chrome/browser/favicon/ios_chrome_large_icon_service_factory.h"
+#include "ios/chrome/browser/ntp/new_tab_page_tab_helper_delegate.h"
+#include "ios/chrome/browser/ntp_snippets/ios_chrome_content_suggestions_service_factory.h"
+#include "ios/chrome/browser/search_engines/template_url_service_factory.h"
 #import "ios/chrome/browser/web_state_list/fake_web_state_list_delegate.h"
-#import "ios/chrome/browser/web_state_list/web_state_list.h"
-#import "ios/chrome/test/ios_chrome_scoped_testing_chrome_browser_state_manager.h"
+#include "ios/chrome/browser/web_state_list/web_state_list.h"
+#include "ios/chrome/test/ios_chrome_scoped_testing_chrome_browser_state_manager.h"
 #import "ios/web/public/test/fakes/fake_navigation_context.h"
-#import "ios/web/public/test/fakes/fake_navigation_manager.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "ios/web/public/test/web_task_environment.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "testing/gtest_mac.h"
-#import "testing/platform_test.h"
+#import "ios/web/public/test/fakes/test_navigation_manager.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "ios/web/public/test/web_task_environment.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "testing/gtest_mac.h"
+#include "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
-#import "ui/base/l10n/l10n_util.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -56,25 +56,25 @@ class NewTabPageTabHelperTest : public PlatformTest {
 
     chrome_browser_state_ = test_cbs_builder.Build();
 
-    auto fake_navigation_manager =
-        std::make_unique<web::FakeNavigationManager>();
-    fake_navigation_manager_ = fake_navigation_manager.get();
+    auto test_navigation_manager =
+        std::make_unique<web::TestNavigationManager>();
+    test_navigation_manager_ = test_navigation_manager.get();
     pending_item_ = web::NavigationItem::Create();
     pending_item_->SetURL(GURL(kChromeUIAboutNewTabURL));
-    fake_navigation_manager->SetPendingItem(pending_item_.get());
-    fake_web_state_.SetNavigationManager(std::move(fake_navigation_manager));
-    fake_web_state_.SetBrowserState(chrome_browser_state_.get());
+    test_navigation_manager->SetPendingItem(pending_item_.get());
+    test_web_state_.SetNavigationManager(std::move(test_navigation_manager));
+    test_web_state_.SetBrowserState(chrome_browser_state_.get());
 
     delegate_ = OCMProtocolMock(@protocol(NewTabPageTabHelperDelegate));
   }
 
   NewTabPageTabHelper* tab_helper() {
-    return NewTabPageTabHelper::FromWebState(&fake_web_state_);
+    return NewTabPageTabHelper::FromWebState(&test_web_state_);
   }
 
   void CreateTabHelper() {
-    NewTabPageTabHelper::CreateForWebState(&fake_web_state_);
-    NewTabPageTabHelper::FromWebState(&fake_web_state_)->SetDelegate(delegate_);
+    NewTabPageTabHelper::CreateForWebState(&test_web_state_);
+    NewTabPageTabHelper::FromWebState(&test_web_state_)->SetDelegate(delegate_);
   }
 
   id delegate_;
@@ -84,14 +84,14 @@ class NewTabPageTabHelperTest : public PlatformTest {
   std::unique_ptr<WebStateList> web_state_list_;
   FakeWebStateListDelegate web_state_list_delegate_;
   std::unique_ptr<web::NavigationItem> pending_item_;
-  web::FakeNavigationManager* fake_navigation_manager_;
-  web::FakeWebState fake_web_state_;
+  web::TestNavigationManager* test_navigation_manager_;
+  web::TestWebState test_web_state_;
 };
 
 // Tests a newly created NTP webstate.
 TEST_F(NewTabPageTabHelperTest, TestAlreadyNTP) {
   GURL url(kChromeUINewTabURL);
-  fake_web_state_.SetVisibleURL(url);
+  test_web_state_.SetVisibleURL(url);
   CreateTabHelper();
   EXPECT_TRUE(tab_helper()->IsActive());
   EXPECT_NSEQ(l10n_util::GetNSString(IDS_NEW_TAB_TITLE),
@@ -101,7 +101,7 @@ TEST_F(NewTabPageTabHelperTest, TestAlreadyNTP) {
 // Tests a newly created NTP webstate using about://newtab.
 TEST_F(NewTabPageTabHelperTest, TestAlreadyAboutNTP) {
   GURL url(kChromeUIAboutNewTabURL);
-  fake_web_state_.SetVisibleURL(url);
+  test_web_state_.SetVisibleURL(url);
   CreateTabHelper();
   EXPECT_TRUE(tab_helper()->IsActive());
   EXPECT_NSEQ(l10n_util::GetNSString(IDS_NEW_TAB_TITLE),
@@ -111,7 +111,7 @@ TEST_F(NewTabPageTabHelperTest, TestAlreadyAboutNTP) {
 // Tests a newly created non-NTP webstate.
 TEST_F(NewTabPageTabHelperTest, TestNotNTP) {
   GURL url(kTestURL);
-  fake_web_state_.SetVisibleURL(url);
+  test_web_state_.SetVisibleURL(url);
   CreateTabHelper();
   EXPECT_FALSE(tab_helper()->IsActive());
   EXPECT_NSEQ(@"", base::SysUTF16ToNSString(pending_item_->GetTitle()));
@@ -123,37 +123,37 @@ TEST_F(NewTabPageTabHelperTest, TestToggleToAndFromNTP) {
   EXPECT_FALSE(tab_helper()->IsActive());
 
   GURL url(kChromeUINewTabURL);
-  fake_web_state_.SetCurrentURL(url);
+  test_web_state_.SetCurrentURL(url);
   web::FakeNavigationContext context;
   context.SetUrl(url);
-  fake_navigation_manager_->SetLastCommittedItem(pending_item_.get());
-  fake_web_state_.OnNavigationFinished(&context);
+  test_navigation_manager_->SetLastCommittedItem(pending_item_.get());
+  test_web_state_.OnNavigationFinished(&context);
   EXPECT_TRUE(tab_helper()->IsActive());
 
   GURL not_ntp_url(kTestURL);
-  fake_web_state_.SetCurrentURL(not_ntp_url);
+  test_web_state_.SetCurrentURL(not_ntp_url);
   context.SetUrl(not_ntp_url);
   pending_item_->SetURL(not_ntp_url);
-  fake_web_state_.OnNavigationStarted(&context);
+  test_web_state_.OnNavigationStarted(&context);
   EXPECT_FALSE(tab_helper()->IsActive());
-  fake_navigation_manager_->SetLastCommittedItem(pending_item_.get());
-  fake_web_state_.OnNavigationFinished(&context);
+  test_navigation_manager_->SetLastCommittedItem(pending_item_.get());
+  test_web_state_.OnNavigationFinished(&context);
   EXPECT_FALSE(tab_helper()->IsActive());
 
   context.SetUrl(url);
   pending_item_->SetURL(url);
-  fake_web_state_.SetCurrentURL(url);
-  fake_navigation_manager_->SetLastCommittedItem(pending_item_.get());
-  fake_web_state_.OnNavigationFinished(&context);
+  test_web_state_.SetCurrentURL(url);
+  test_navigation_manager_->SetLastCommittedItem(pending_item_.get());
+  test_web_state_.OnNavigationFinished(&context);
   EXPECT_TRUE(tab_helper()->IsActive());
 
   context.SetUrl(not_ntp_url);
   pending_item_->SetURL(url);
-  fake_web_state_.SetCurrentURL(not_ntp_url);
-  fake_web_state_.OnNavigationStarted(&context);
+  test_web_state_.SetCurrentURL(not_ntp_url);
+  test_web_state_.OnNavigationStarted(&context);
   EXPECT_FALSE(tab_helper()->IsActive());
-  fake_navigation_manager_->SetLastCommittedItem(pending_item_.get());
-  fake_web_state_.OnNavigationFinished(&context);
+  test_navigation_manager_->SetLastCommittedItem(pending_item_.get());
+  test_web_state_.OnNavigationFinished(&context);
   EXPECT_FALSE(tab_helper()->IsActive());
 }
 
@@ -162,7 +162,7 @@ TEST_F(NewTabPageTabHelperTest, TestMismatchedPendingItem) {
   // Test an NTP url with a mismatched pending item.
   GURL url(kChromeUINewTabURL);
   GURL not_ntp_url(kTestURL);
-  fake_web_state_.SetCurrentURL(url);
+  test_web_state_.SetCurrentURL(url);
   pending_item_->SetURL(not_ntp_url);
   CreateTabHelper();
   // In this edge case, although the NTP is visible, the pending item is not
@@ -173,9 +173,9 @@ TEST_F(NewTabPageTabHelperTest, TestMismatchedPendingItem) {
   web::FakeNavigationContext context;
   context.SetUrl(not_ntp_url);
   pending_item_->SetURL(not_ntp_url);
-  fake_web_state_.SetCurrentURL(not_ntp_url);
-  fake_navigation_manager_->SetLastCommittedItem(pending_item_.get());
-  fake_web_state_.OnNavigationFinished(&context);
+  test_web_state_.SetCurrentURL(not_ntp_url);
+  test_navigation_manager_->SetLastCommittedItem(pending_item_.get());
+  test_web_state_.OnNavigationFinished(&context);
   EXPECT_FALSE(tab_helper()->IsActive());
   EXPECT_EQ(GURL(kTestURL), pending_item_->GetVirtualURL());
 }

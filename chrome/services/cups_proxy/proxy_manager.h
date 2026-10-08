@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,7 @@ class SocketManager;
 class ProxyManager : public mojom::CupsProxier {
  public:
   // Request rate limit per second.
-  static constexpr int kRateLimit = 40;
+  static constexpr int kRateLimit = 20;
 
   // Factory function.
   static std::unique_ptr<ProxyManager> Create(

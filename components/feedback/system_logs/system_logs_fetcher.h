@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,10 +13,9 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner.h"
-#include "build/chromeos_buildflags.h"
+#include "base/sequenced_task_runner.h"
 #include "components/feedback/feedback_common.h"
 #include "components/feedback/redaction_tool.h"
 #include "components/feedback/system_logs/system_logs_source.h"
@@ -50,10 +49,6 @@ class SystemLogsFetcher {
   // that value if it's OK to redact those URLs or they won't be present.
   explicit SystemLogsFetcher(bool scrub_data,
                              const char* const first_party_extension_ids[]);
-
-  SystemLogsFetcher(const SystemLogsFetcher&) = delete;
-  SystemLogsFetcher& operator=(const SystemLogsFetcher&) = delete;
-
   ~SystemLogsFetcher();
 
   // Adds a source to use when fetching.
@@ -75,18 +70,8 @@ class SystemLogsFetcher {
   void AddResponse(const std::string& source_name,
                    std::unique_ptr<SystemLogsResponse> response);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  // Merges the log entries of crash report ids of Ash and Lacros in
-  // |response_|, so that lacros crash ids could be processed by the feedback
-  // pre-processor at the server side in the same way it does for ash crash ids.
-  // See details in crbug.com/1129051.
-  void MergeAshAndLacrosCrashReportIdsInReponse();
-#endif
-
   // Runs the callback provided to Fetch and posts a task to delete |this|.
   void RunCallbackAndDeleteSoon();
-
-  SEQUENCE_CHECKER(sequence_checker_);
 
   std::vector<std::unique_ptr<SystemLogsSource>> data_sources_;
   SysLogsFetcherCallback callback_;
@@ -98,6 +83,8 @@ class SystemLogsFetcher {
   std::unique_ptr<feedback::RedactionTool> redactor_;
 
   base::WeakPtrFactory<SystemLogsFetcher> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SystemLogsFetcher);
 };
 
 }  // namespace system_logs

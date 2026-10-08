@@ -1,26 +1,21 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.content_public.browser;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.UserDataHost;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.base.supplier.Supplier;
 import org.chromium.content_public.browser.navigation_controller.LoadURLType;
 import org.chromium.content_public.browser.navigation_controller.UserAgentOverrideOption;
 import org.chromium.content_public.common.Referrer;
 import org.chromium.content_public.common.ResourceRequestBody;
 import org.chromium.ui.base.PageTransition;
-import org.chromium.url.GURL;
 import org.chromium.url.Origin;
 
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -32,28 +27,28 @@ import java.util.Map;
 @JNINamespace("content")
 public class LoadUrlParams {
     // Fields with counterparts in NavigationController::LoadURLParams.
-    private String mUrl;
-    private Origin mInitiatorOrigin;
-    private int mLoadUrlType;
-    private int mTransitionType;
-    private Referrer mReferrer;
+    // Package private so that NavigationController.loadUrl can pass them down to
+    // native code. Should not be accessed directly anywhere else outside of
+    // this class.
+    String mUrl;
+    Origin mInitiatorOrigin;
+    int mLoadUrlType;
+    int mTransitionType;
+    Referrer mReferrer;
     private Map<String, String> mExtraHeaders;
-    @Nullable
-    private UserDataHost mNavigationHandleUserDataHost;
     private String mVerbatimHeaders;
-    private int mUaOverrideOption;
-    private ResourceRequestBody mPostData;
-    private String mBaseUrlForDataUrl;
-    private String mVirtualUrlForDataUrl;
-    private String mDataUrlAsString;
-    private boolean mCanLoadLocalResources;
-    private boolean mIsRendererInitiated;
-    private boolean mShouldReplaceCurrentEntry;
-    private long mIntentReceivedTimestamp;
-    private long mInputStartTimestamp;
-    private boolean mHasUserGesture;
-    private boolean mShouldClearHistoryList;
-    private Supplier<Long> mNavigationUIDataSupplier;
+    int mUaOverrideOption;
+    ResourceRequestBody mPostData;
+    String mBaseUrlForDataUrl;
+    String mVirtualUrlForDataUrl;
+    String mDataUrlAsString;
+    boolean mCanLoadLocalResources;
+    boolean mIsRendererInitiated;
+    boolean mShouldReplaceCurrentEntry;
+    long mIntentReceivedTimestamp;
+    long mInputStartTimestamp;
+    boolean mHasUserGesture;
+    boolean mShouldClearHistoryList;
 
     /**
      * Creates an instance with default page transition type.
@@ -61,23 +56,6 @@ public class LoadUrlParams {
      */
     public LoadUrlParams(String url) {
         this(url, PageTransition.LINK);
-    }
-
-    /**
-     * Creates an instance with default page transition type.
-     * @param url the url to be loaded
-     */
-    public LoadUrlParams(GURL url) {
-        this(url.getSpec(), PageTransition.LINK);
-    }
-
-    /**
-     * Creates an instance with the given page transition type.
-     * @param url the url to be loaded
-     * @param transitionType the PageTransitionType constant corresponding to the load
-     */
-    public LoadUrlParams(GURL url, int transitionType) {
-        this(url.getSpec(), transitionType);
     }
 
     /**
@@ -97,39 +75,6 @@ public class LoadUrlParams {
         mBaseUrlForDataUrl = null;
         mVirtualUrlForDataUrl = null;
         mDataUrlAsString = null;
-    }
-
-    /**
-     * Creates a new LoadUrlParams that is a copy of {@code other}.
-     * The user data host is intentionally not copied.
-     */
-    public static LoadUrlParams copy(@NonNull LoadUrlParams other) {
-        LoadUrlParams copy = new LoadUrlParams(other.mUrl);
-        copy.mInitiatorOrigin = other.mInitiatorOrigin;
-        copy.mLoadUrlType = other.mLoadUrlType;
-        copy.mTransitionType = other.mTransitionType;
-        copy.mReferrer = other.mReferrer;
-        if (other.mExtraHeaders != null) {
-            copy.mExtraHeaders = new HashMap<>(other.mExtraHeaders);
-        }
-        // mNavigationHandleUserDataHost is intentionally not copied.  We don't want any user data
-        // from one navigation to potentially affect a different navigation, and UserHandleData
-        // does not support deep copy.
-
-        copy.mVerbatimHeaders = other.mVerbatimHeaders;
-        copy.mUaOverrideOption = other.mUaOverrideOption;
-        copy.mPostData = other.mPostData;
-        copy.mBaseUrlForDataUrl = other.mBaseUrlForDataUrl;
-        copy.mVirtualUrlForDataUrl = other.mVirtualUrlForDataUrl;
-        copy.mDataUrlAsString = other.mDataUrlAsString;
-        copy.mCanLoadLocalResources = other.mCanLoadLocalResources;
-        copy.mIsRendererInitiated = other.mIsRendererInitiated;
-        copy.mShouldReplaceCurrentEntry = other.mShouldReplaceCurrentEntry;
-        copy.mIntentReceivedTimestamp = other.mIntentReceivedTimestamp;
-        copy.mInputStartTimestamp = other.mInputStartTimestamp;
-        copy.mHasUserGesture = other.mHasUserGesture;
-        copy.mShouldClearHistoryList = other.mShouldClearHistoryList;
-        return copy;
     }
 
     /**
@@ -324,7 +269,6 @@ public class LoadUrlParams {
      */
     public void setExtraHeaders(Map<String, String> extraHeaders) {
         mExtraHeaders = extraHeaders;
-        verifyHeaders();
     }
 
     /**
@@ -334,27 +278,6 @@ public class LoadUrlParams {
         return mExtraHeaders;
     }
 
-    /**
-     * Returns the user data to be added to the navigation handle. Returns an empty but valid
-     * instance if there is no data.
-     */
-    public UserDataHost getNavigationHandleUserData() {
-        if (mNavigationHandleUserDataHost == null) {
-            mNavigationHandleUserDataHost = new UserDataHost();
-        }
-        return mNavigationHandleUserDataHost;
-    }
-
-    /**
-     * Returns the user data to be added to the navigation handle. Clears out the existing user data
-     * host on each call.  May return null if there is no data. This is not part of the content API.
-     */
-    @Nullable
-    public UserDataHost takeNavigationHandleUserData() {
-        UserDataHost returnValue = mNavigationHandleUserDataHost;
-        mNavigationHandleUserDataHost = null;
-        return returnValue;
-    }
     /**
      * Return the extra headers as a single String separated by "\n", or null if no extra header is
      * set. This form is suitable for passing to native
@@ -398,16 +321,6 @@ public class LoadUrlParams {
      */
     public void setVerbatimHeaders(String headers) {
         mVerbatimHeaders = headers;
-        verifyHeaders();
-    }
-
-    private void verifyHeaders() {
-        // TODO(https://crbug.com/1199393): Merge extra and verbatim headers internally, and only
-        // expose one way to get headers, so users of this class don't miss headers.
-        if (mExtraHeaders != null && mVerbatimHeaders != null) {
-            // If both header types are set, ensure they're the same.
-            assert mVerbatimHeaders.equalsIgnoreCase(getExtraHeadersString());
-        }
     }
 
     /**
@@ -434,12 +347,12 @@ public class LoadUrlParams {
     }
 
     /**
-     * Set the post data of this load, and if non-null, sets the load type to HTTP_POST.
+     * Set the post data of this load. This field is ignored unless load type is
+     * LoadURLType.HTTP_POST.
      * @param postData Post data for this http post load.
      */
     public void setPostData(ResourceRequestBody postData) {
         mPostData = postData;
-        if (postData != null) setLoadType(LoadURLType.HTTP_POST);
     }
 
     /**
@@ -547,8 +460,7 @@ public class LoadUrlParams {
 
     /**
      * @param intentReceivedTimestamp the timestamp at which Chrome received the intent that
-     *                                triggered this URL load, as returned by
-     *                                SystemClock.uptimeMillis.
+     *                                triggered this URL load, as returned by System.currentMillis.
      */
     public void setIntentReceivedTimestamp(long intentReceivedTimestamp) {
         mIntentReceivedTimestamp = intentReceivedTimestamp;
@@ -563,7 +475,7 @@ public class LoadUrlParams {
 
     /**
      * @param inputStartTimestamp the timestamp of the event in the location bar that triggered
-     *                            this URL load, as returned by SystemClock.uptimeMillis.
+     *                            this URL load, as returned by System.currentMillis.
      */
     public void setInputStartTimestamp(long inputStartTimestamp) {
         mInputStartTimestamp = inputStartTimestamp;
@@ -609,16 +521,6 @@ public class LoadUrlParams {
             return true;
         }
         return LoadUrlParamsJni.get().isDataScheme(mBaseUrlForDataUrl);
-    }
-
-    /** Set the {@link NavigationUIData}. */
-    public void setNavigationUIDataSupplier(Supplier<Long> navigationUIDataSupplier) {
-        mNavigationUIDataSupplier = navigationUIDataSupplier;
-    }
-
-    /** Returns the supplier for {@link NavigationUIData} or null. */
-    public Supplier<Long> getNavigationUIDataSupplier() {
-        return mNavigationUIDataSupplier;
     }
 
     @NativeMethods

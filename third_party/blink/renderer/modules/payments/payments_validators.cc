@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/payments/payments_validators.h"
 
-#include "services/network/public/cpp/is_potentially_trustworthy.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_regexp.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_address_errors.h"
@@ -27,9 +26,7 @@ static constexpr size_t kMaximumStringLength = 2 * 1024;
 bool PaymentsValidators::IsValidCurrencyCodeFormat(
     const String& code,
     String* optional_error_message) {
-  auto* regexp = MakeGarbageCollected<ScriptRegexp>(
-      "^[A-Z]{3}$", kTextCaseUnicodeInsensitive);
-  if (regexp->Match(code) == 0)
+  if (ScriptRegexp("^[A-Z]{3}$", kTextCaseUnicodeInsensitive).Match(code) == 0)
     return true;
 
   if (optional_error_message) {
@@ -44,9 +41,8 @@ bool PaymentsValidators::IsValidCurrencyCodeFormat(
 bool PaymentsValidators::IsValidAmountFormat(const String& amount,
                                              const String& item_name,
                                              String* optional_error_message) {
-  auto* regexp = MakeGarbageCollected<ScriptRegexp>("^-?[0-9]+(\\.[0-9]+)?$",
-                                                    kTextCaseSensitive);
-  if (regexp->Match(amount) == 0)
+  if (ScriptRegexp("^-?[0-9]+(\\.[0-9]+)?$", kTextCaseSensitive)
+          .Match(amount) == 0)
     return true;
 
   if (optional_error_message) {
@@ -60,9 +56,7 @@ bool PaymentsValidators::IsValidAmountFormat(const String& amount,
 bool PaymentsValidators::IsValidCountryCodeFormat(
     const String& code,
     String* optional_error_message) {
-  auto* regexp =
-      MakeGarbageCollected<ScriptRegexp>("^[A-Z]{2}$", kTextCaseSensitive);
-  if (regexp->Match(code) == 0)
+  if (ScriptRegexp("^[A-Z]{2}$", kTextCaseSensitive).Match(code) == 0)
     return true;
 
   if (optional_error_message)
@@ -153,19 +147,32 @@ bool PaymentsValidators::IsValidMethodFormat(const String& identifier) {
   if (!url.IsValid()) {
     // Syntax for a valid standardized PMI:
     // https://www.w3.org/TR/payment-method-id/#dfn-syntax-of-a-standardized-payment-method-identifier
-    auto* regexp = MakeGarbageCollected<ScriptRegexp>(
-        "^[a-z]+[0-9a-z]*(-[a-z]+[0-9a-z]*)*$", kTextCaseSensitive);
-    return regexp->Match(identifier) == 0;
+    return ScriptRegexp("^[a-z]+[0-9a-z]*(-[a-z]+[0-9a-z]*)*$",
+                        kTextCaseSensitive)
+               .Match(identifier) == 0;
   }
 
   // URL PMI validation rules:
   // https://www.w3.org/TR/payment-method-id/#dfn-validate-a-url-based-payment-method-identifier
-  if (!url.User().empty() || !url.Pass().empty())
+  if (!url.User().IsEmpty() || !url.Pass().IsEmpty())
     return false;
 
-  // TODO(http://crbug.com/1200225): Align this with the specification.
-  return url.ProtocolIsInHTTPFamily() &&
-         network::IsUrlPotentiallyTrustworthy(GURL(url));
+  if (url.Protocol() == "https")
+    return true;
+
+  if (url.Protocol() != "http")
+    return false;
+
+  // Allow http://localhost for local development.
+  if (SecurityOrigin::Create(url)->IsLocalhost())
+    return true;
+
+  // Allow http:// origins from
+  // --unsafely-treat-insecure-origin-as-secure=<origin> for local development.
+  if (SecurityPolicy::IsUrlTrustworthySafelisted(url))
+    return true;
+
+  return false;
 }
 
 void PaymentsValidators::ValidateAndStringifyObject(

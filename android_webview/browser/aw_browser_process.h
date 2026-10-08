@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,19 +7,17 @@
 #ifndef ANDROID_WEBVIEW_BROWSER_AW_BROWSER_PROCESS_H_
 #define ANDROID_WEBVIEW_BROWSER_AW_BROWSER_PROCESS_H_
 
-#include "android_webview/browser/aw_apk_type.h"
 #include "android_webview/browser/aw_browser_context.h"
-#include "android_webview/browser/aw_enterprise_authentication_app_link_manager.h"
 #include "android_webview/browser/aw_feature_list_creator.h"
 #include "android_webview/browser/lifecycle/aw_contents_lifecycle_notifier.h"
 #include "android_webview/browser/safe_browsing/aw_safe_browsing_allowlist_manager.h"
 #include "android_webview/browser/safe_browsing/aw_safe_browsing_ui_manager.h"
 #include "base/feature_list.h"
-#include "base/memory/raw_ptr.h"
+#include "components/power_metrics/android_battery_metrics.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/safe_browsing/android/remote_database_manager.h"
-#include "components/safe_browsing/content/browser/triggers/trigger_manager.h"
+#include "components/safe_browsing/core/triggers/trigger_manager.h"
 #include "content/public/browser/network_service_instance.h"
 #include "net/log/net_log.h"
 #include "services/network/network_service.h"
@@ -31,7 +29,6 @@ namespace prefs {
 // Used for Kerberos authentication.
 extern const char kAuthAndroidNegotiateAccountType[];
 extern const char kAuthServerAllowlist[];
-extern const char kEnterpriseAuthAppLinkPolicy[];
 
 }  // namespace prefs
 
@@ -41,10 +38,6 @@ class VisibilityMetricsLogger;
 class AwBrowserProcess {
  public:
   AwBrowserProcess(AwFeatureListCreator* aw_feature_list_creator);
-
-  AwBrowserProcess(const AwBrowserProcess&) = delete;
-  AwBrowserProcess& operator=(const AwBrowserProcess&) = delete;
-
   ~AwBrowserProcess();
 
   static AwBrowserProcess* GetInstance();
@@ -74,19 +67,12 @@ class AwBrowserProcess {
 
   static void RegisterNetworkContextLocalStatePrefs(
       PrefRegistrySimple* pref_registry);
-  static void RegisterEnterpriseAuthenticationAppLinkPolicyPref(
-      PrefRegistrySimple* pref_registry);
-
   // Constructs HttpAuthDynamicParams based on |local_state_|.
   network::mojom::HttpAuthDynamicParamsPtr CreateHttpAuthDynamicParams();
 
   void PreMainMessageLoopRun();
 
   static void TriggerMinidumpUploading();
-  static ApkType GetApkType();
-
-  EnterpriseAuthenticationAppLinkManager*
-  GetEnterpriseAuthenticationAppLinkManager();
 
  private:
   void CreateSafeBrowsingUIManager();
@@ -102,7 +88,7 @@ class AwBrowserProcess {
   // If non-null, this object holds a pref store that will be taken by
   // AwBrowserProcess to create the |local_state_|.
   // The AwFeatureListCreator is owned by AwMainDelegate.
-  raw_ptr<AwFeatureListCreator> aw_feature_list_creator_;
+  AwFeatureListCreator* aw_feature_list_creator_;
 
   std::unique_ptr<PrefService> local_state_;
 
@@ -125,8 +111,10 @@ class AwBrowserProcess {
       safe_browsing_allowlist_manager_;
 
   std::unique_ptr<VisibilityMetricsLogger> visibility_metrics_logger_;
+  std::unique_ptr<power_metrics::AndroidBatteryMetrics> battery_metrics_;
   std::unique_ptr<AwContentsLifecycleNotifier> aw_contents_lifecycle_notifier_;
-  std::unique_ptr<EnterpriseAuthenticationAppLinkManager> app_link_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(AwBrowserProcess);
 };
 
 }  // namespace android_webview

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,11 +18,8 @@
 namespace {
 class ScopedProcessTerminator {
  public:
-  explicit ScopedProcessTerminator(const PROCESS_INFORMATION& process_info)
+  ScopedProcessTerminator(const PROCESS_INFORMATION& process_info)
       : process_info_(process_info) {}
-
-  ScopedProcessTerminator(const ScopedProcessTerminator&) = delete;
-  ScopedProcessTerminator& operator=(const ScopedProcessTerminator&) = delete;
 
   ~ScopedProcessTerminator() {
     if (process_info_.IsValid())
@@ -31,6 +28,7 @@ class ScopedProcessTerminator {
 
  private:
   base::win::ScopedProcessInformation process_info_;
+  DISALLOW_COPY_AND_ASSIGN(ScopedProcessTerminator);
 };
 
 base::win::ScopedHandle CreateInheritedHandle() {
@@ -57,15 +55,15 @@ bool CheckInheritedHandle(HANDLE process, HANDLE check_handle) {
 // Verify that only the explicitly specified process handle is inherited.
 TEST(StartupInformationTest, InheritStdOut) {
   base::win::ScopedHandle handle_0 = CreateInheritedHandle();
-  ASSERT_TRUE(handle_0.is_valid());
+  ASSERT_TRUE(handle_0.IsValid());
   base::win::ScopedHandle handle_1 = CreateInheritedHandle();
-  ASSERT_TRUE(handle_1.is_valid());
-  ASSERT_NE(handle_0.get(), handle_1.get());
+  ASSERT_TRUE(handle_1.IsValid());
+  ASSERT_NE(handle_0.Get(), handle_1.Get());
 
   base::win::StartupInformation startup_info;
   ASSERT_TRUE(startup_info.InitializeProcThreadAttributeList(1));
 
-  HANDLE inherit_process = handle_0.get();
+  HANDLE inherit_process = handle_0.Get();
   ASSERT_TRUE(startup_info.UpdateProcThreadAttribute(
       PROC_THREAD_ATTRIBUTE_HANDLE_LIST, &inherit_process,
       sizeof(inherit_process)));
@@ -81,7 +79,7 @@ TEST(StartupInformationTest, InheritStdOut) {
       startup_info.startup_info(), &temp_process_info))
       << ::GetLastError();
   ScopedProcessTerminator process(temp_process_info);
-  EXPECT_TRUE(CheckInheritedHandle(temp_process_info.hProcess, handle_0.get()));
+  EXPECT_TRUE(CheckInheritedHandle(temp_process_info.hProcess, handle_0.Get()));
   EXPECT_FALSE(
-      CheckInheritedHandle(temp_process_info.hProcess, handle_1.get()));
+      CheckInheritedHandle(temp_process_info.hProcess, handle_1.Get()));
 }

@@ -1,4 +1,4 @@
-from cookies.resources.helpers import setNoCacheAndCORSHeaders
+from helpers import setNoCacheAndCORSHeaders
 
 def main(request, response):
     """Simple handler that causes redirection.

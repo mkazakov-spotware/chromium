@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,19 +12,24 @@
 #include <string>
 
 #include "base/bind.h"
-#include "base/containers/lru_cache.h"
+#include "base/containers/mru_cache.h"
+#include "base/macros.h"
 #include "base/memory/memory_pressure_monitor.h"
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
+#include "base/time/time.h"
+#include "base/trace_event/memory_dump_provider.h"
 #include "net/base/host_port_pair.h"
 #include "net/base/ip_address.h"
 #include "net/base/net_export.h"
-#include "net/base/network_anonymization_key.h"
+#include "net/base/network_isolation_key.h"
 #include "net/base/privacy_mode.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/boringssl/src/include/openssl/base.h"
 
 namespace base {
 class Clock;
+namespace trace_event {
+class ProcessMemoryDump;
+}
 }
 
 namespace net {
@@ -50,17 +55,13 @@ class NET_EXPORT SSLClientSessionCache {
     bool operator<(const Key& other) const;
 
     HostPortPair server;
-    absl::optional<IPAddress> dest_ip_addr;
-    NetworkAnonymizationKey network_anonymization_key;
+    base::Optional<IPAddress> dest_ip_addr;
+    NetworkIsolationKey network_isolation_key;
     PrivacyMode privacy_mode = PRIVACY_MODE_DISABLED;
     bool disable_legacy_crypto = false;
   };
 
   explicit SSLClientSessionCache(const Config& config);
-
-  SSLClientSessionCache(const SSLClientSessionCache&) = delete;
-  SSLClientSessionCache& operator=(const SSLClientSessionCache&) = delete;
-
   ~SSLClientSessionCache();
 
   // Returns true if |entry| is expired as of |now|.
@@ -90,6 +91,11 @@ class NET_EXPORT SSLClientSessionCache {
 
   void SetClockForTesting(base::Clock* clock);
 
+  // Dumps memory allocation stats. |pmd| is the ProcessMemoryDump of the
+  // browser process.
+  void DumpMemoryStats(base::trace_event::ProcessMemoryDump* pmd,
+                       const std::string& parent_absolute_name) const;
+
  private:
   struct Entry {
     Entry();
@@ -118,11 +124,13 @@ class NET_EXPORT SSLClientSessionCache {
   void OnMemoryPressure(
       base::MemoryPressureListener::MemoryPressureLevel memory_pressure_level);
 
-  raw_ptr<base::Clock> clock_;
+  base::Clock* clock_;
   Config config_;
-  base::LRUCache<Key, Entry> cache_;
-  size_t lookups_since_flush_ = 0;
+  base::MRUCache<Key, Entry> cache_;
+  size_t lookups_since_flush_;
   std::unique_ptr<base::MemoryPressureListener> memory_pressure_listener_;
+
+  DISALLOW_COPY_AND_ASSIGN(SSLClientSessionCache);
 };
 
 }  // namespace net

@@ -22,7 +22,6 @@
 #include <string.h>
 #include <cassert>
 #include <cstddef>
-#include "absl/base/config.h"
 #include "absl/base/internal/raw_logging.h"
 
 // From binutils/include/elf/common.h (this doesn't appear to be documented
@@ -44,11 +43,11 @@ namespace debugging_internal {
 
 namespace {
 
-#if __SIZEOF_POINTER__ == 4
+#if __WORDSIZE == 32
 const int kElfClass = ELFCLASS32;
 int ElfBind(const ElfW(Sym) *symbol) { return ELF32_ST_BIND(symbol->st_info); }
 int ElfType(const ElfW(Sym) *symbol) { return ELF32_ST_TYPE(symbol->st_info); }
-#elif __SIZEOF_POINTER__ == 8
+#elif __WORDSIZE == 64
 const int kElfClass = ELFCLASS64;
 int ElfBind(const ElfW(Sym) *symbol) { return ELF64_ST_BIND(symbol->st_info); }
 int ElfType(const ElfW(Sym) *symbol) { return ELF64_ST_TYPE(symbol->st_info); }
@@ -91,7 +90,7 @@ int ElfMemImage::GetNumSymbols() const {
     return 0;
   }
   // See http://www.caldera.com/developers/gabi/latest/ch5.dynamic.html#hash
-  return static_cast<int>(hash_[1]);
+  return hash_[1];
 }
 
 const ElfW(Sym) *ElfMemImage::GetDynsym(int index) const {
@@ -105,9 +104,11 @@ const ElfW(Versym) *ElfMemImage::GetVersym(int index) const {
 }
 
 const ElfW(Phdr) *ElfMemImage::GetPhdr(int index) const {
-  ABSL_RAW_CHECK(index >= 0 && index < ehdr_->e_phnum, "index out of range");
-  return GetTableElement<ElfW(Phdr)>(ehdr_, ehdr_->e_phoff, ehdr_->e_phentsize,
-                                     static_cast<size_t>(index));
+  ABSL_RAW_CHECK(index < ehdr_->e_phnum, "index out of range");
+  return GetTableElement<ElfW(Phdr)>(ehdr_,
+                                     ehdr_->e_phoff,
+                                     ehdr_->e_phentsize,
+                                     index);
 }
 
 const char *ElfMemImage::GetDynstr(ElfW(Word) offset) const {
@@ -157,8 +158,7 @@ void ElfMemImage::Init(const void *base) {
   hash_      = nullptr;
   strsize_   = 0;
   verdefnum_ = 0;
-  // Sentinel: PT_LOAD .p_vaddr can't possibly be this.
-  link_base_ = ~ElfW(Addr){0};  // NOLINT(readability/braces)
+  link_base_ = ~0L;  // Sentinel: PT_LOAD .p_vaddr can't possibly be this.
   if (!base) {
     return;
   }
@@ -175,17 +175,17 @@ void ElfMemImage::Init(const void *base) {
   }
   switch (base_as_char[EI_DATA]) {
     case ELFDATA2LSB: {
-#ifndef ABSL_IS_LITTLE_ENDIAN
-      assert(false);
-      return;
-#endif
+      if (__LITTLE_ENDIAN != __BYTE_ORDER) {
+        assert(false);
+        return;
+      }
       break;
     }
     case ELFDATA2MSB: {
-#ifndef ABSL_IS_BIG_ENDIAN
-      assert(false);
-      return;
-#endif
+      if (__BIG_ENDIAN != __BYTE_ORDER) {
+        assert(false);
+        return;
+      }
       break;
     }
     default: {
@@ -217,11 +217,11 @@ void ElfMemImage::Init(const void *base) {
   }
   ptrdiff_t relocation =
       base_as_char - reinterpret_cast<const char *>(link_base_);
-  ElfW(Dyn)* dynamic_entry = reinterpret_cast<ElfW(Dyn)*>(
-      static_cast<intptr_t>(dynamic_program_header->p_vaddr) + relocation);
+  ElfW(Dyn) *dynamic_entry =
+      reinterpret_cast<ElfW(Dyn) *>(dynamic_program_header->p_vaddr +
+                                    relocation);
   for (; dynamic_entry->d_tag != DT_NULL; ++dynamic_entry) {
-    const auto value =
-        static_cast<intptr_t>(dynamic_entry->d_un.d_val) + relocation;
+    const ElfW(Xword) value = dynamic_entry->d_un.d_val + relocation;
     switch (dynamic_entry->d_tag) {
       case DT_HASH:
         hash_ = reinterpret_cast<ElfW(Word) *>(value);
@@ -239,10 +239,10 @@ void ElfMemImage::Init(const void *base) {
         verdef_ = reinterpret_cast<ElfW(Verdef) *>(value);
         break;
       case DT_VERDEFNUM:
-        verdefnum_ = static_cast<size_t>(dynamic_entry->d_un.d_val);
+        verdefnum_ = dynamic_entry->d_un.d_val;
         break;
       case DT_STRSZ:
-        strsize_ = static_cast<size_t>(dynamic_entry->d_un.d_val);
+        strsize_ = dynamic_entry->d_un.d_val;
         break;
       default:
         // Unrecognized entries explicitly ignored.
@@ -350,11 +350,7 @@ void ElfMemImage::SymbolIterator::Update(int increment) {
   const ElfW(Versym) *version_symbol = image->GetVersym(index_);
   ABSL_RAW_CHECK(symbol && version_symbol, "");
   const char *const symbol_name = image->GetDynstr(symbol->st_name);
-#if defined(__NetBSD__)
-  const int version_index = version_symbol->vs_vers & VERSYM_VERSION;
-#else
   const ElfW(Versym) version_index = version_symbol[0] & VERSYM_VERSION;
-#endif
   const ElfW(Verdef) *version_definition = nullptr;
   const char *version_name = "";
   if (symbol->st_shndx == SHN_UNDEF) {

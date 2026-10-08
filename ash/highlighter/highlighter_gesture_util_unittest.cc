@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,10 +26,6 @@ float LinearInterpolate(float from, float to, int position, int range) {
 class HighlighterGestureUtilTest : public AshTestBase {
  public:
   HighlighterGestureUtilTest() : points_(base::TimeDelta()) {}
-
-  HighlighterGestureUtilTest(const HighlighterGestureUtilTest&) = delete;
-  HighlighterGestureUtilTest& operator=(const HighlighterGestureUtilTest&) =
-      delete;
 
   ~HighlighterGestureUtilTest() override = default;
 
@@ -76,6 +72,8 @@ class HighlighterGestureUtilTest : public AshTestBase {
   void AddPoint(float x, float y) {
     points_.AddPoint(gfx::PointF(x, y), base::TimeTicks());
   }
+
+  DISALLOW_COPY_AND_ASSIGN(HighlighterGestureUtilTest);
 };
 
 }  // namespace

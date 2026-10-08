@@ -1,19 +1,14 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/win/scoped_variant.h"
-#include "build/build_config.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/accessibility/uia_accessibility_event_waiter.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
-#include "components/autofill/content/browser/content_autofill_driver.h"
-#include "components/autofill/content/browser/test_autofill_manager_injector.h"
-#include "components/autofill/core/browser/browser_autofill_manager.h"
-#include "components/autofill/core/browser/test_autofill_manager_waiter.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/test/accessibility_notification_waiter.h"
 #include "content/public/test/browser_test.h"
@@ -40,37 +35,13 @@ class AutofillAccessibilityWinBrowserTest : public InProcessBrowserTest {
  public:
   AutofillAccessibilityWinBrowserTest() = default;
 
-  AutofillAccessibilityWinBrowserTest(
-      const AutofillAccessibilityWinBrowserTest&) = delete;
-  AutofillAccessibilityWinBrowserTest& operator=(
-      const AutofillAccessibilityWinBrowserTest&) = delete;
-
  protected:
-  class TestAutofillManager : public BrowserAutofillManager {
-   public:
-    TestAutofillManager(ContentAutofillDriver* driver, AutofillClient* client)
-        : BrowserAutofillManager(driver,
-                                 client,
-                                 "en-US",
-                                 EnableDownloadManager(false)) {}
-
-    testing::AssertionResult WaitForFormsSeen(int min_num_awaited_calls) {
-      return forms_seen_waiter_.Wait(min_num_awaited_calls);
-    }
-
-   private:
-    TestAutofillManagerWaiter forms_seen_waiter_{
-        *this,
-        {&AutofillManager::Observer::OnAfterFormsSeen}};
-  };
-
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
     ASSERT_TRUE(embedded_test_server()->Start());
-    GetWebContents()->SetAccessibilityMode(ui::kAXModeComplete);
-    autofill_manager_injector_ =
-        std::make_unique<TestAutofillManagerInjector<TestAutofillManager>>(
-            GetWebContents());
+
+    content::WebContents* web_contents = GetWebContents();
+    web_contents->SetAccessibilityMode(ui::kAXModeComplete);
   }
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
@@ -89,16 +60,6 @@ class AutofillAccessibilityWinBrowserTest : public InProcessBrowserTest {
         ->GetAcceleratedWidget();
   }
 
-  TestAutofillManager* GetAutofillManager() {
-    DCHECK(autofill_manager_injector_);
-    return autofill_manager_injector_->GetForPrimaryMainFrame();
-  }
-
-  void NavigateToAndWaitForForm(const GURL& url) {
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-    ASSERT_TRUE(GetAutofillManager()->WaitForFormsSeen(1));
-  }
-
   // Show drop down based on the element id.
   void ShowDropdown(const std::string& field_id) {
     std::string js("document.getElementById('" + field_id + "').focus();");
@@ -114,23 +75,17 @@ class AutofillAccessibilityWinBrowserTest : public InProcessBrowserTest {
   }
 
  private:
-  std::unique_ptr<TestAutofillManagerInjector<TestAutofillManager>>
-      autofill_manager_injector_;
+  DISALLOW_COPY_AND_ASSIGN(AutofillAccessibilityWinBrowserTest);
 };
 
-// The test is flaky on Windows. See https://crbug.com/1221273
-#if BUILDFLAG(IS_WIN)
-#define MAYBE_AutofillPopupControllerFor DISABLED_AutofillPopupControllerFor
-#else
-#define MAYBE_AutofillPopupControllerFor AutofillPopupControllerFor
-#endif
 IN_PROC_BROWSER_TEST_F(AutofillAccessibilityWinBrowserTest,
-                       MAYBE_AutofillPopupControllerFor) {
+                       AutofillPopupControllerFor) {
   content::AccessibilityNotificationWaiter waiter(
       GetWebContents(), ui::kAXModeComplete, ax::mojom::Event::kLoadComplete);
-  NavigateToAndWaitForForm(
+  ui_test_utils::NavigateToURL(
+      browser(),
       embedded_test_server()->GetURL("/accessibility/input_datalist.html"));
-  ASSERT_TRUE(waiter.WaitForNotification());
+  waiter.WaitForNotification();
 
   base::win::ScopedVariant result_variant;
 
@@ -145,8 +100,8 @@ IN_PROC_BROWSER_TEST_F(AutofillAccessibilityWinBrowserTest,
       FindAccessibilityNode(GetWebContents(), find_criteria), {"checkbox"});
 
   UiaAccessibilityWaiterInfo info = {
-      GetWebPageHwnd(), base::ASCIIToWide("combobox"),
-      base::ASCIIToWide("input"), ax::mojom::Event::kControlsChanged};
+      GetWebPageHwnd(), base::ASCIIToUTF16("combobox"),
+      base::ASCIIToUTF16("input"), ax::mojom::Event::kControlsChanged};
 
   std::unique_ptr<UiaAccessibilityEventWaiter> control_waiter =
       std::make_unique<UiaAccessibilityEventWaiter>(info);

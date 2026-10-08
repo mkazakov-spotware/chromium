@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <stddef.h>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "content/common/content_export.h"
 
 class SkFontMgr;
@@ -17,13 +18,13 @@ namespace content {
 
 class GdiFontPatchData {
  public:
-  GdiFontPatchData(const GdiFontPatchData&) = delete;
-  GdiFontPatchData& operator=(const GdiFontPatchData&) = delete;
-
   virtual ~GdiFontPatchData() {}
 
  protected:
   GdiFontPatchData() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(GdiFontPatchData);
 };
 
 // Hook a module's imported GDI font functions to reimplement font enumeration

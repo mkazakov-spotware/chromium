@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,11 @@
 #include <memory>
 
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "extensions/common/error_utils.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/manifest_constants.h"
-#include "media/base/limits.h"
 #include "ui/base/l10n/l10n_util.h"
 
 namespace extensions {
@@ -28,86 +26,83 @@ TtsVoice::TtsVoice() : remote(false) {}
 
 TtsVoice::TtsVoice(const TtsVoice& other) = default;
 
-TtsVoice::~TtsVoice() = default;
+TtsVoice::~TtsVoice() {}
 
-TtsVoices::TtsVoices() = default;
-TtsVoices::~TtsVoices() = default;
+TtsVoices::TtsVoices() {}
+TtsVoices::~TtsVoices() {}
 
 //  static
-bool TtsVoices::Parse(const base::Value::List& tts_voices,
+bool TtsVoices::Parse(const base::ListValue* tts_voices,
                       TtsVoices* out_voices,
-                      std::u16string* error,
+                      base::string16* error,
                       Extension* extension) {
   bool added_gender_warning = false;
-  for (const base::Value& one_tts_voice : tts_voices) {
-    if (!one_tts_voice.is_dict()) {
-      *error = errors::kInvalidTtsVoices;
+  for (size_t i = 0; i < tts_voices->GetSize(); i++) {
+    const base::DictionaryValue* one_tts_voice = nullptr;
+    if (!tts_voices->GetDictionary(i, &one_tts_voice)) {
+      *error = base::ASCIIToUTF16(errors::kInvalidTtsVoices);
       return false;
     }
 
     TtsVoice voice_data;
-    const base::Value* name = one_tts_voice.FindKey(keys::kTtsVoicesVoiceName);
-    if (name) {
-      if (!name->is_string()) {
-        *error = errors::kInvalidTtsVoicesVoiceName;
+    if (one_tts_voice->HasKey(keys::kTtsVoicesVoiceName)) {
+      if (!one_tts_voice->GetString(
+              keys::kTtsVoicesVoiceName, &voice_data.voice_name)) {
+        *error = base::ASCIIToUTF16(errors::kInvalidTtsVoicesVoiceName);
         return false;
       }
-      voice_data.voice_name = name->GetString();
     }
-
-    const base::Value* lang = one_tts_voice.FindKey(keys::kTtsVoicesLang);
-    if (lang) {
-      if (!lang->is_string() ||
-          !l10n_util::IsValidLocaleSyntax(lang->GetString())) {
-        *error = errors::kInvalidTtsVoicesLang;
+    if (one_tts_voice->HasKey(keys::kTtsVoicesLang)) {
+      if (!one_tts_voice->GetString(
+              keys::kTtsVoicesLang, &voice_data.lang) ||
+          !l10n_util::IsValidLocaleSyntax(voice_data.lang)) {
+        *error = base::ASCIIToUTF16(errors::kInvalidTtsVoicesLang);
         return false;
       }
-      voice_data.lang = lang->GetString();
     }
     // TODO(katie): After M73, consider deprecating this installation warning,
     // since the warning landed in M70 and gender was deprecated in M71.
-    if (one_tts_voice.FindKey(keys::kTtsVoicesGender) &&
+    if (one_tts_voice->HasKey(keys::kTtsVoicesGender) &&
         !added_gender_warning) {
       extension->AddInstallWarning(
           InstallWarning(errors::kTtsGenderIsDeprecated));
       // No need to add a warning for each voice, that's noisy.
       added_gender_warning = true;
     }
-
-    const base::Value* remote = one_tts_voice.FindKey(keys::kTtsVoicesRemote);
-    if (remote) {
-      if (!remote->is_bool()) {
-        *error = errors::kInvalidTtsVoicesRemote;
+    if (one_tts_voice->HasKey(keys::kTtsVoicesRemote)) {
+      if (!one_tts_voice->GetBoolean(
+              keys::kTtsVoicesRemote, &voice_data.remote)) {
+        *error = base::ASCIIToUTF16(errors::kInvalidTtsVoicesRemote);
         return false;
       }
-      voice_data.remote = remote->GetBool();
     }
-
-    const base::Value* event_types =
-        one_tts_voice.FindKey(keys::kTtsVoicesEventTypes);
-    if (event_types) {
-      if (!event_types->is_list()) {
-        *error = errors::kInvalidTtsVoicesEventTypes;
+    if (one_tts_voice->HasKey(keys::kTtsVoicesEventTypes)) {
+      const base::ListValue* event_types_list;
+      if (!one_tts_voice->GetList(
+              keys::kTtsVoicesEventTypes,
+              &event_types_list)) {
+        *error = base::ASCIIToUTF16(
+            errors::kInvalidTtsVoicesEventTypes);
         return false;
       }
-      for (const base::Value& event_type_val : event_types->GetList()) {
-        if (!event_type_val.is_string()) {
-          *error = errors::kInvalidTtsVoicesEventTypes;
+      for (size_t i = 0; i < event_types_list->GetSize(); i++) {
+        std::string event_type;
+        if (!event_types_list->GetString(i, &event_type)) {
+          *error = base::ASCIIToUTF16(errors::kInvalidTtsVoicesEventTypes);
           return false;
         }
-        const std::string& event_type = event_type_val.GetString();
         if (event_type != keys::kTtsVoicesEventTypeEnd &&
             event_type != keys::kTtsVoicesEventTypeError &&
             event_type != keys::kTtsVoicesEventTypeMarker &&
             event_type != keys::kTtsVoicesEventTypeSentence &&
             event_type != keys::kTtsVoicesEventTypeStart &&
             event_type != keys::kTtsVoicesEventTypeWord) {
-          *error = errors::kInvalidTtsVoicesEventTypes;
+          *error = base::ASCIIToUTF16(errors::kInvalidTtsVoicesEventTypes);
           return false;
         }
         if (voice_data.event_types.find(event_type) !=
             voice_data.event_types.end()) {
-          *error = errors::kInvalidTtsVoicesEventTypes;
+          *error = base::ASCIIToUTF16(errors::kInvalidTtsVoicesEventTypes);
           return false;
         }
         voice_data.event_types.insert(event_type);
@@ -121,86 +116,35 @@ bool TtsVoices::Parse(const base::Value::List& tts_voices,
 // static
 const std::vector<TtsVoice>* TtsVoices::GetTtsVoices(
     const Extension* extension) {
-  const TtsVoices* engine = TtsVoices::GetTtsEngineInfo(extension);
-  return engine ? &engine->voices : nullptr;
-}
-
-// static
-const TtsVoices* TtsVoices::GetTtsEngineInfo(const Extension* extension) {
   TtsVoices* info =
       static_cast<TtsVoices*>(extension->GetManifestData(keys::kTtsVoices));
-  return info;
+  return info ? &info->voices : nullptr;
 }
 
-TtsEngineManifestHandler::TtsEngineManifestHandler() = default;
+TtsEngineManifestHandler::TtsEngineManifestHandler() {}
 
-TtsEngineManifestHandler::~TtsEngineManifestHandler() = default;
+TtsEngineManifestHandler::~TtsEngineManifestHandler() {}
 
 bool TtsEngineManifestHandler::Parse(Extension* extension,
-                                     std::u16string* error) {
+                                     base::string16* error) {
   auto info = std::make_unique<TtsVoices>();
   const base::DictionaryValue* tts_dict = nullptr;
   if (!extension->manifest()->GetDictionary(keys::kTtsEngine, &tts_dict)) {
-    *error = errors::kInvalidTts;
+    *error = base::ASCIIToUTF16(errors::kInvalidTts);
     return false;
   }
 
-  const base::Value* tts_voices = tts_dict->FindKey(keys::kTtsVoices);
-  if (!tts_voices)
+  if (!tts_dict->HasKey(keys::kTtsVoices))
     return true;
 
-  if (!tts_voices->is_list()) {
-    *error = errors::kInvalidTtsVoices;
+  const base::ListValue* tts_voices = nullptr;
+  if (!tts_dict->GetList(keys::kTtsVoices, &tts_voices)) {
+    *error = base::ASCIIToUTF16(errors::kInvalidTtsVoices);
     return false;
   }
 
-  if (!TtsVoices::Parse(tts_voices->GetList(), info.get(), error, extension))
+  if (!TtsVoices::Parse(tts_voices, info.get(), error, extension))
     return false;
-
-  const base::Value* tts_engine_sample_rate =
-      tts_dict->FindKey(keys::kTtsEngineSampleRate);
-  if (tts_engine_sample_rate) {
-    if (!tts_engine_sample_rate->GetIfInt()) {
-      *error = errors::kInvalidTtsSampleRateFormat;
-      return false;
-    }
-
-    info->sample_rate = tts_engine_sample_rate->GetInt();
-    if (info->sample_rate < media::limits::kMinSampleRate ||
-        info->sample_rate > media::limits::kMaxSampleRate) {
-      *error = base::ASCIIToUTF16(base::StringPrintf(
-          errors::kInvalidTtsSampleRateRange, media::limits::kMinSampleRate,
-          media::limits::kMaxSampleRate));
-      return false;
-    }
-  }
-
-  const base::Value* tts_engine_buffer_size =
-      tts_dict->FindKey(keys::kTtsEngineBufferSize);
-  if (tts_engine_buffer_size) {
-    if (!tts_engine_buffer_size->GetIfInt()) {
-      *error = errors::kInvalidTtsBufferSizeFormat;
-      return false;
-    }
-
-    // The limits of the buffer size should match those of those found in
-    // AudioParameters::IsValid (as should the sample rate limits above).
-    constexpr int kMinBufferSize = 1;
-    info->buffer_size = tts_engine_buffer_size->GetInt();
-    if (info->buffer_size < kMinBufferSize ||
-        info->buffer_size > media::limits::kMaxSamplesPerPacket) {
-      *error = base::ASCIIToUTF16(
-          base::StringPrintf(errors::kInvalidTtsBufferSizeRange, kMinBufferSize,
-                             media::limits::kMaxSamplesPerPacket));
-      return false;
-    }
-  }
-
-  if ((!tts_engine_sample_rate && tts_engine_buffer_size) ||
-      (tts_engine_sample_rate && !tts_engine_buffer_size)) {
-    *error = errors::kInvalidTtsRequiresSampleRateAndBufferSize;
-    return false;
-  }
 
   extension->SetManifestData(keys::kTtsVoices, std::move(info));
   return true;

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,10 +24,10 @@ AddressEmailFormLabelFormatter::AddressEmailFormLabelFormatter(
 
 AddressEmailFormLabelFormatter::~AddressEmailFormLabelFormatter() {}
 
-std::u16string AddressEmailFormLabelFormatter::GetLabelForProfile(
+base::string16 AddressEmailFormLabelFormatter::GetLabelForProfile(
     const AutofillProfile& profile,
     FieldTypeGroup focused_group) const {
-  return focused_group == FieldTypeGroup::kAddressHome &&
+  return focused_group == ADDRESS_HOME &&
                  !IsStreetAddressPart(focused_field_type())
              ? GetLabelForProfileOnFocusedNonStreetAddress(
                    form_has_street_address_, profile, app_locale(),
@@ -40,27 +40,26 @@ std::u16string AddressEmailFormLabelFormatter::GetLabelForProfile(
 // Note that the order--name, address, and email--in which parts of the label
 // are added ensures that the label is formatted correctly for |focused_group|,
 // |focused_field_type_| and for this kind of formatter.
-std::u16string AddressEmailFormLabelFormatter::
+base::string16 AddressEmailFormLabelFormatter::
     GetLabelForProfileOnFocusedNameEmailOrStreetAddress(
         const AutofillProfile& profile,
         FieldTypeGroup focused_group) const {
-  std::vector<std::u16string> label_parts;
+  std::vector<base::string16> label_parts;
 
-  if (focused_group != FieldTypeGroup::kName &&
-      data_util::ContainsName(groups())) {
+  if (focused_group != NAME && data_util::ContainsName(groups())) {
     AddLabelPartIfNotEmpty(
         GetLabelName(field_types_for_labels(), profile, app_locale()),
         &label_parts);
   }
 
-  if (focused_group != FieldTypeGroup::kAddressHome) {
+  if (focused_group != ADDRESS_HOME) {
     AddLabelPartIfNotEmpty(
         GetLabelAddress(form_has_street_address_, profile, app_locale(),
                         field_types_for_labels()),
         &label_parts);
   }
 
-  if (focused_group != FieldTypeGroup::kEmail) {
+  if (focused_group != EMAIL) {
     AddLabelPartIfNotEmpty(GetLabelEmail(profile, app_locale()), &label_parts);
   }
 

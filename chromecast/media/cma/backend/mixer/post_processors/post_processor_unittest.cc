@@ -1,8 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chromecast/media/cma/backend/mixer/post_processors/post_processor_unittest.h"
+#include "chromecast/media/cma/backend/mixer/post_processors/post_processor_wrapper.h"
 
 #include <time.h>
 
@@ -12,9 +13,7 @@
 #include <cstring>
 #include <limits>
 
-#include "base/check_op.h"
 #include "base/logging.h"
-#include "chromecast/media/cma/backend/mixer/post_processors/post_processor_wrapper.h"
 
 namespace chromecast {
 namespace media {
@@ -22,10 +21,10 @@ namespace post_processor_test {
 
 namespace {
 
-const float kEpsilon = std::numeric_limits<float>::epsilon() * 2;
+const float kEpsilon = std::numeric_limits<float>::epsilon();
 
 // Benchmark parameters.
-const float kTestDurationSec = 10.0;
+const float kTestDurationSec = 1.0;
 
 }  // namespace
 
@@ -47,9 +46,9 @@ AlignedBuffer<float> LinearChirp(int frames,
   for (size_t ch = 0; ch < start_frequencies.size(); ++ch) {
     double angle = 0.0;
     for (int f = 0; f < frames; ++f) {
-      angle += (start_frequencies[ch] +
-                (end_frequencies[ch] - start_frequencies[ch]) * f / frames) *
-               M_PI;
+      angle +=
+          start_frequencies[ch] +
+          (end_frequencies[ch] - start_frequencies[ch]) * f * M_PI / frames;
       chirp[ch + f * start_frequencies.size()] = sin(angle);
     }
   }
@@ -167,10 +166,7 @@ void TestRingingTime(AudioPostProcessor2* pp,
   int frames_remaining = status.ringing_time_frames;
   int frames_to_process = std::min(frames_remaining, kNumFrames);
   while (frames_remaining > 0) {
-    // Make sure |frames_to_process| is an even multiple of 8.
     frames_to_process = std::min(frames_to_process, frames_remaining);
-    frames_to_process = (frames_to_process + 7);
-    frames_to_process -= frames_to_process % 8;
     data.assign(frames_to_process * num_input_channels, 0);
     pp->ProcessFrames(data.data(), frames_to_process, &metadata);
     frames_remaining -= frames_to_process;
@@ -257,8 +253,7 @@ void AudioProcessorBenchmark(AudioPostProcessor2* pp,
       ::testing::UnitTest::GetInstance()->current_test_info();
   LOG(INFO) << test_info->test_suite_name() << "." << test_info->name()
             << " At " << sample_rate
-            << " frames per second and channels number " << num_input_channels
-            << " CPU usage: " << std::defaultfloat
+            << " frames per second CPU usage: " << std::defaultfloat
             << 100.0 * (stop_clock - start_clock) /
                    (CLOCKS_PER_SEC * effective_duration)
             << "%";
@@ -348,8 +343,6 @@ PostProcessorTest::~PostProcessorTest() = default;
 INSTANTIATE_TEST_SUITE_P(SampleRates,
                          PostProcessorTest,
                          ::testing::Values(44100, 48000));
-
-GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(PostProcessorTest);
 
 }  // namespace post_processor_test
 }  // namespace media

@@ -5,17 +5,12 @@
 
   dp.Network.enable();
   session.protocol.Page.reload();
-  const [response, responseExtraInfo] = await Promise.all([
-    dp.Network.onceResponseReceived(),
-    dp.Network.onceResponseReceivedExtraInfo()]);
+  const response = (await dp.Network.onceResponseReceived()).params.response;
 
-  testRunner.log(`Response status: ${response.params.response.status} ${response.params.response.statusText}`);
-  testRunner.log(`ResponseExtraInfo status: ${responseExtraInfo.params.statusCode}`);
-  const headersText = responseExtraInfo.params.headersText;
-  testRunner.log(`ResponseExtraInfo status line: ${headersText.substring(0, headersText.indexOf('\r'))}`);
-  testRunner.log(`Response headers text present: ${!!headersText}`);
-  testRunner.log(`Content-Length present in blink headers: ${Object.keys(response.params.response.headers).indexOf('Content-Length') >= 0}`);
-  testRunner.log(`Content-Length present in ExtraInfo headers: ${Object.keys(responseExtraInfo.params.headers).indexOf('Content-Length') >= 0}`);
+  const haveContentLength = Object.keys(response.headers).indexOf('Content-Length') >= 0;
+  testRunner.log(`Response status: ${response.status} ${response.statusText}`);
+  testRunner.log(`Response headers text present: ${!!response.headersText.length}`);
+  testRunner.log(`Content-Length present: ${haveContentLength}`);
 
   testRunner.completeTest();
 })

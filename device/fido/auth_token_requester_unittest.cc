@@ -1,27 +1,24 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/fido/auth_token_requester.h"
 
-#include <list>
 #include <string>
 
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#include "base/containers/contains.h"
 #include "base/containers/span.h"
 #include "base/logging.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
-#include "base/strings/utf_string_conversions.h"
 #include "base/test/task_environment.h"
 #include "device/fido/fido_constants.h"
 #include "device/fido/fido_device_authenticator.h"
 #include "device/fido/pin.h"
 #include "device/fido/virtual_ctap2_device.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace device {
 namespace {
@@ -34,97 +31,69 @@ using UserVerificationAvailability =
     device::AuthenticatorSupportedOptions::UserVerificationAvailability;
 
 constexpr char kTestPIN[] = "1234";
-constexpr char16_t kTestPIN16[] = u"1234";
-constexpr char16_t kNewPIN[] = u"5678";
-
-struct TestExpectation {
-  pin::PINEntryReason reason;
-  pin::PINEntryError error = pin::PINEntryError::kNoError;
-  uint32_t min_pin_length = kMinPinLength;
-  int attempts = 8;
-  std::u16string pin = kTestPIN16;
-};
-
-struct TestCase {
-  ClientPinAvailability client_pin;
-  UserVerificationAvailability user_verification;
-  bool success;
-  std::list<TestExpectation> expectations;
-};
 
 class TestAuthTokenRequesterDelegate : public AuthTokenRequester::Delegate {
  public:
-  explicit TestAuthTokenRequesterDelegate(
-      std::list<TestExpectation> expectations)
-      : expectations_(std::move(expectations)) {}
+  explicit TestAuthTokenRequesterDelegate(std::string pin)
+      : pin_(std::move(pin)) {}
 
   void WaitForResult() { wait_for_result_loop_.Run(); }
-  absl::optional<AuthTokenRequester::Result>& result() { return result_; }
-  absl::optional<pin::TokenResponse>& response() { return response_; }
+  base::Optional<AuthTokenRequester::Result>& result() { return result_; }
+  base::Optional<pin::TokenResponse>& response() { return response_; }
+  bool pin_was_set() { return pin_was_set_; }
+  bool pin_was_collected() { return pin_was_collected_; }
   bool internal_uv_was_retried() { return internal_uv_num_retries_ > 0u; }
   size_t internal_uv_num_retries() { return internal_uv_num_retries_; }
-  std::list<TestExpectation> expectations() { return expectations_; }
-  void set_selectable(bool selectable) { selectable_ = selectable; }
+  bool internal_uv_was_locked() { return internal_uv_was_locked_; }
 
  private:
   // AuthTokenRequester::Delegate:
-  bool AuthenticatorSelectedForPINUVAuthToken(
-      FidoAuthenticator* authenticator) override {
-    DCHECK(!authenticator_selected_);
-    if (selectable_) {
-      authenticator_selected_ = true;
-    }
-    return selectable_;
+  void AuthenticatorSelectedForPINUVAuthToken(
+      FidoAuthenticator* authenticator) override {}
+  void CollectNewPIN(ProvidePINCallback provide_pin_cb) override {
+    DCHECK(!pin_.empty());
+    pin_was_set_ = true;
+    std::move(provide_pin_cb).Run(pin_);
   }
-  void CollectPIN(pin::PINEntryReason reason,
-                  pin::PINEntryError error,
-                  uint32_t min_pin_length,
-                  int attempts,
-                  ProvidePINCallback provide_pin_cb) override {
-    DCHECK(authenticator_selected_);
-
-    DCHECK_NE(expectations_.size(), 0u);
-    DCHECK_EQ(reason, expectations_.front().reason);
-    DCHECK_EQ(error, expectations_.front().error);
-    DCHECK_EQ(min_pin_length, expectations_.front().min_pin_length);
-    DCHECK_EQ(attempts, expectations_.front().attempts);
-
-    std::u16string pin = expectations_.front().pin;
-    expectations_.pop_front();
-    std::move(provide_pin_cb).Run(pin);
+  void CollectExistingPIN(int attempts,
+                          ProvidePINCallback provide_pin_cb) override {
+    DCHECK(!pin_.empty());
+    pin_was_collected_ = true;
+    std::move(provide_pin_cb).Run(pin_);
   }
   void PromptForInternalUVRetry(int attempts) override {
-    DCHECK(authenticator_selected_);
     internal_uv_num_retries_++;
+  }
+  void InternalUVLockedForAuthToken() override {
+    internal_uv_was_locked_ = true;
   }
   void HavePINUVAuthTokenResultForAuthenticator(
       FidoAuthenticator* authenticator,
       AuthTokenRequester::Result result,
-      absl::optional<pin::TokenResponse> response) override {
-    if (!base::Contains(
-            std::vector<AuthTokenRequester::Result>{
-                AuthTokenRequester::Result::
-                    kPreTouchAuthenticatorResponseInvalid,
-                AuthTokenRequester::Result::kPreTouchUnsatisfiableRequest},
-            result)) {
-      DCHECK(authenticator_selected_);
-    }
+      base::Optional<pin::TokenResponse> response) override {
     DCHECK(!result_);
     result_ = result;
     response_ = std::move(response);
     wait_for_result_loop_.Quit();
   }
 
-  std::list<TestExpectation> expectations_;
+  std::string pin_;
 
-  absl::optional<AuthTokenRequester::Result> result_;
-  absl::optional<pin::TokenResponse> response_;
+  base::Optional<AuthTokenRequester::Result> result_;
+  base::Optional<pin::TokenResponse> response_;
 
-  bool authenticator_selected_ = false;
+  bool pin_was_collected_ = false;
+  bool pin_was_set_ = false;
   size_t internal_uv_num_retries_ = 0u;
-  bool selectable_ = true;
+  bool internal_uv_was_locked_ = false;
 
   base::RunLoop wait_for_result_loop_;
+};
+
+struct TestCase {
+  ClientPinAvailability client_pin;
+  UserVerificationAvailability user_verification;
+  bool success;
 };
 
 class AuthTokenRequesterTest : public ::testing::Test {
@@ -168,8 +137,7 @@ class AuthTokenRequesterTest : public ::testing::Test {
     authenticator->InitializeAuthenticator(init_loop.QuitClosure());
     init_loop.Run();
 
-    delegate_ = std::make_unique<TestAuthTokenRequesterDelegate>(
-        std::move(test_case.expectations));
+    delegate_ = std::make_unique<TestAuthTokenRequesterDelegate>(kTestPIN);
     AuthTokenRequester::Options options;
     options.token_permissions = {pin::Permissions::kMakeCredential};
     options.rp_id = "foobar.com";
@@ -177,12 +145,6 @@ class AuthTokenRequesterTest : public ::testing::Test {
                                  std::move(options));
     requester.ObtainPINUVAuthToken();
     delegate_->WaitForResult();
-  }
-
-  void TearDown() override {
-    if (delegate_) {
-      EXPECT_EQ(delegate_->expectations().size(), 0u);
-    }
   }
 
   base::test::TaskEnvironment task_environment_{
@@ -193,7 +155,7 @@ class AuthTokenRequesterTest : public ::testing::Test {
 };
 
 TEST_F(AuthTokenRequesterTest, AuthenticatorWithoutUVTokenSupport) {
-  const TestCase kTestCases[]{
+  constexpr TestCase kTestCases[]{
       {
           ClientPinAvailability::kNotSupported,
           UserVerificationAvailability::kNotSupported,
@@ -213,37 +175,31 @@ TEST_F(AuthTokenRequesterTest, AuthenticatorWithoutUVTokenSupport) {
           ClientPinAvailability::kSupportedButPinNotSet,
           UserVerificationAvailability::kNotSupported,
           true,
-          {{.reason = pin::PINEntryReason::kSet, .attempts = 0}},
       },
       {
           ClientPinAvailability::kSupportedButPinNotSet,
           UserVerificationAvailability::kSupportedButNotConfigured,
           true,
-          {{.reason = pin::PINEntryReason::kSet, .attempts = 0}},
       },
       {
           ClientPinAvailability::kSupportedButPinNotSet,
           UserVerificationAvailability::kSupportedAndConfigured,
           true,
-          {{.reason = pin::PINEntryReason::kSet, .attempts = 0}},
       },
       {
           ClientPinAvailability::kSupportedAndPinSet,
           UserVerificationAvailability::kNotSupported,
           true,
-          {{pin::PINEntryReason::kChallenge}},
       },
       {
           ClientPinAvailability::kSupportedAndPinSet,
           UserVerificationAvailability::kSupportedButNotConfigured,
           true,
-          {{pin::PINEntryReason::kChallenge}},
       },
       {
           ClientPinAvailability::kSupportedAndPinSet,
           UserVerificationAvailability::kSupportedAndConfigured,
           true,
-          {{pin::PINEntryReason::kChallenge}},
       },
   };
 
@@ -259,17 +215,24 @@ TEST_F(AuthTokenRequesterTest, AuthenticatorWithoutUVTokenSupport) {
       EXPECT_EQ(*delegate_->result(), AuthTokenRequester::Result::kSuccess);
       EXPECT_THAT(delegate_->response()->token_for_testing(),
                   ElementsAreArray(state_->pin_token));
+      EXPECT_EQ(delegate_->pin_was_set(),
+                t.client_pin == ClientPinAvailability::kSupportedButPinNotSet);
+      EXPECT_EQ(delegate_->pin_was_collected(),
+                t.client_pin == ClientPinAvailability::kSupportedAndPinSet);
     } else {
       EXPECT_EQ(*delegate_->result(),
                 AuthTokenRequester::Result::kPreTouchUnsatisfiableRequest);
       EXPECT_FALSE(delegate_->response());
+      EXPECT_FALSE(delegate_->pin_was_set());
+      EXPECT_FALSE(delegate_->pin_was_collected());
     }
     EXPECT_FALSE(delegate_->internal_uv_was_retried());
+    EXPECT_FALSE(delegate_->internal_uv_was_locked());
   }
 }
 
 TEST_F(AuthTokenRequesterTest, AuthenticatorWithUVTokenSupport) {
-  const TestCase kTestCases[]{
+  constexpr TestCase kTestCases[]{
       {
           ClientPinAvailability::kNotSupported,
           UserVerificationAvailability::kNotSupported,
@@ -289,13 +252,11 @@ TEST_F(AuthTokenRequesterTest, AuthenticatorWithUVTokenSupport) {
           ClientPinAvailability::kSupportedButPinNotSet,
           UserVerificationAvailability::kNotSupported,
           true,
-          {{.reason = pin::PINEntryReason::kSet, .attempts = 0}},
       },
       {
           ClientPinAvailability::kSupportedButPinNotSet,
           UserVerificationAvailability::kSupportedButNotConfigured,
           true,
-          {{.reason = pin::PINEntryReason::kSet, .attempts = 0}},
       },
       {
           ClientPinAvailability::kSupportedButPinNotSet,
@@ -306,13 +267,11 @@ TEST_F(AuthTokenRequesterTest, AuthenticatorWithUVTokenSupport) {
           ClientPinAvailability::kSupportedAndPinSet,
           UserVerificationAvailability::kNotSupported,
           true,
-          {{pin::PINEntryReason::kChallenge}},
       },
       {
           ClientPinAvailability::kSupportedAndPinSet,
           UserVerificationAvailability::kSupportedButNotConfigured,
           true,
-          {{pin::PINEntryReason::kChallenge}},
       },
       {
           ClientPinAvailability::kSupportedAndPinSet,
@@ -339,12 +298,24 @@ TEST_F(AuthTokenRequesterTest, AuthenticatorWithUVTokenSupport) {
                 static_cast<uint8_t>(pin::Permissions::kMakeCredential));
       EXPECT_THAT(delegate_->response()->token_for_testing(),
                   ElementsAreArray(state_->pin_token));
+      EXPECT_EQ(delegate_->pin_was_set(),
+                t.client_pin == ClientPinAvailability::kSupportedButPinNotSet &&
+                    t.user_verification !=
+                        UserVerificationAvailability::kSupportedAndConfigured);
+      EXPECT_EQ(delegate_->pin_was_collected(),
+                t.client_pin == ClientPinAvailability::kSupportedAndPinSet &&
+                    t.user_verification !=
+                        UserVerificationAvailability::kSupportedAndConfigured);
       EXPECT_FALSE(delegate_->internal_uv_was_retried());
+      EXPECT_FALSE(delegate_->internal_uv_was_locked());
     } else {
       EXPECT_EQ(*delegate_->result(),
                 AuthTokenRequester::Result::kPreTouchUnsatisfiableRequest);
       EXPECT_FALSE(delegate_->response());
+      EXPECT_FALSE(delegate_->pin_was_set());
+      EXPECT_FALSE(delegate_->pin_was_collected());
       EXPECT_FALSE(delegate_->internal_uv_was_retried());
+      EXPECT_FALSE(delegate_->internal_uv_was_locked());
     }
   }
 }
@@ -358,15 +329,19 @@ TEST_F(AuthTokenRequesterTest, PINSoftLock) {
   state->soft_locked = true;
 
   RunTestCase(std::move(config), state,
-              TestCase{ClientPinAvailability::kSupportedAndPinSet,
-                       UserVerificationAvailability::kNotSupported,
-                       false,
-                       {{pin::PINEntryReason::kChallenge}}});
+              TestCase{
+                  ClientPinAvailability::kSupportedAndPinSet,
+                  UserVerificationAvailability::kNotSupported,
+                  false,
+              });
 
   EXPECT_EQ(*delegate_->result(),
             AuthTokenRequester::Result::kPostTouchAuthenticatorPINSoftLock);
   EXPECT_FALSE(delegate_->response());
+  EXPECT_FALSE(delegate_->pin_was_set());
+  EXPECT_TRUE(delegate_->pin_was_collected());
   EXPECT_FALSE(delegate_->internal_uv_was_retried());
+  EXPECT_FALSE(delegate_->internal_uv_was_locked());
 }
 
 TEST_F(AuthTokenRequesterTest, PINHardLock) {
@@ -387,40 +362,10 @@ TEST_F(AuthTokenRequesterTest, PINHardLock) {
   EXPECT_EQ(*delegate_->result(),
             AuthTokenRequester::Result::kPostTouchAuthenticatorPINHardLock);
   EXPECT_FALSE(delegate_->response());
+  EXPECT_FALSE(delegate_->pin_was_set());
+  EXPECT_FALSE(delegate_->pin_was_collected());
   EXPECT_FALSE(delegate_->internal_uv_was_retried());
-}
-
-TEST_F(AuthTokenRequesterTest, PINInvalid) {
-  VirtualCtap2Device::Config config;
-  config.pin_uv_auth_token_support = true;
-  config.ctap2_versions = {std::begin(kCtap2Versions2_1),
-                           std::end(kCtap2Versions2_1)};
-  auto state = base::MakeRefCounted<VirtualFidoDevice::State>();
-  RunTestCase(
-      std::move(config), state,
-      TestCase{ClientPinAvailability::kSupportedAndPinSet,
-               UserVerificationAvailability::kNotSupported,
-               true,
-               {{.reason = pin::PINEntryReason::kChallenge,
-                 .pin = std::u16string({0xd800, 0xd800, 0xd800, 0xd800})},
-                {pin::PINEntryReason::kChallenge,
-                 pin::PINEntryError::kInvalidCharacters}}});
-}
-
-TEST_F(AuthTokenRequesterTest, PINTooShort) {
-  VirtualCtap2Device::Config config;
-  config.pin_uv_auth_token_support = true;
-  config.ctap2_versions = {std::begin(kCtap2Versions2_1),
-                           std::end(kCtap2Versions2_1)};
-  auto state = base::MakeRefCounted<VirtualFidoDevice::State>();
-  RunTestCase(
-      std::move(config), state,
-      TestCase{
-          ClientPinAvailability::kSupportedAndPinSet,
-          UserVerificationAvailability::kNotSupported,
-          true,
-          {{.reason = pin::PINEntryReason::kChallenge, .pin = u"まどか"},
-           {pin::PINEntryReason::kChallenge, pin::PINEntryError::kTooShort}}});
+  EXPECT_FALSE(delegate_->internal_uv_was_locked());
 }
 
 TEST_F(AuthTokenRequesterTest, UVLockedPINFallback) {
@@ -433,118 +378,18 @@ TEST_F(AuthTokenRequesterTest, UVLockedPINFallback) {
   state->uv_retries = 3;
 
   RunTestCase(std::move(config), state,
-              TestCase{ClientPinAvailability::kSupportedAndPinSet,
-                       UserVerificationAvailability::kSupportedAndConfigured,
-                       true,
-                       {{pin::PINEntryReason::kChallenge,
-                         pin::PINEntryError::kInternalUvLocked}}});
+              TestCase{
+                  ClientPinAvailability::kSupportedAndPinSet,
+                  UserVerificationAvailability::kSupportedAndConfigured,
+                  true,
+              });
 
   EXPECT_EQ(*delegate_->result(), AuthTokenRequester::Result::kSuccess);
   EXPECT_TRUE(delegate_->response());
+  EXPECT_FALSE(delegate_->pin_was_set());
+  EXPECT_TRUE(delegate_->pin_was_collected());
   EXPECT_EQ(delegate_->internal_uv_num_retries(), 2u);
-}
-
-TEST_F(AuthTokenRequesterTest, UVAlreadyLockedPINFallback) {
-  VirtualCtap2Device::Config config;
-  config.pin_uv_auth_token_support = true;
-  config.ctap2_versions = {std::begin(kCtap2Versions2_1),
-                           std::end(kCtap2Versions2_1)};
-  config.user_verification_succeeds = false;
-  auto state = base::MakeRefCounted<VirtualFidoDevice::State>();
-  state->uv_retries = 0;
-
-  RunTestCase(std::move(config), state,
-              TestCase{ClientPinAvailability::kSupportedAndPinSet,
-                       UserVerificationAvailability::kSupportedAndConfigured,
-                       true,
-                       {{pin::PINEntryReason::kChallenge,
-                         pin::PINEntryError::kInternalUvLocked}}});
-
-  EXPECT_EQ(*delegate_->result(), AuthTokenRequester::Result::kSuccess);
-  EXPECT_TRUE(delegate_->response());
-  EXPECT_EQ(delegate_->internal_uv_num_retries(), 0u);
-}
-
-TEST_F(AuthTokenRequesterTest, ForcePINChange) {
-  VirtualCtap2Device::Config config;
-  config.pin_uv_auth_token_support = true;
-  config.ctap2_versions = {std::begin(kCtap2Versions2_1),
-                           std::end(kCtap2Versions2_1)};
-  config.min_pin_length_support = true;
-  auto state = base::MakeRefCounted<VirtualFidoDevice::State>();
-  state->force_pin_change = true;
-
-  RunTestCase(std::move(config), state,
-              TestCase{ClientPinAvailability::kSupportedAndPinSet,
-                       UserVerificationAvailability::kNotSupported,
-                       true,
-                       {{pin::PINEntryReason::kChallenge},
-                        {
-                            .reason = pin::PINEntryReason::kChange,
-                            .attempts = 0,
-                            .pin = kNewPIN,
-                        }}});
-
-  EXPECT_EQ(*delegate_->result(), AuthTokenRequester::Result::kSuccess);
-  EXPECT_TRUE(delegate_->response());
-}
-
-TEST_F(AuthTokenRequesterTest, ForcePINChangeSameAsCurrent) {
-  VirtualCtap2Device::Config config;
-  config.pin_uv_auth_token_support = true;
-  config.ctap2_versions = {std::begin(kCtap2Versions2_1),
-                           std::end(kCtap2Versions2_1)};
-  config.min_pin_length_support = true;
-  auto state = base::MakeRefCounted<VirtualFidoDevice::State>();
-  state->force_pin_change = true;
-
-  RunTestCase(std::move(config), state,
-              TestCase{ClientPinAvailability::kSupportedAndPinSet,
-                       UserVerificationAvailability::kNotSupported,
-                       true,
-                       {{pin::PINEntryReason::kChallenge},
-                        {
-                            .reason = pin::PINEntryReason::kChange,
-                            .attempts = 0,
-                        },
-                        {
-                            .reason = pin::PINEntryReason::kChange,
-                            .error = pin::PINEntryError::kSameAsCurrentPIN,
-                            .attempts = 0,
-                            .pin = kNewPIN,
-                        }}});
-
-  EXPECT_EQ(*delegate_->result(), AuthTokenRequester::Result::kSuccess);
-  EXPECT_TRUE(delegate_->response());
-}
-
-TEST_F(AuthTokenRequesterTest, NoCallsIfNotSelected) {
-  // Test that a failure to select an authenticator stops processing.
-
-  auto state = base::MakeRefCounted<VirtualFidoDevice::State>();
-  VirtualCtap2Device::Config config;
-
-  config.pin_support = true;
-  state->pin = kTestPIN;
-  config.internal_uv_support = true;
-  state->fingerprints_enrolled = true;
-
-  auto authenticator = std::make_unique<FidoDeviceAuthenticator>(
-      std::make_unique<VirtualCtap2Device>(state, std::move(config)));
-
-  base::RunLoop init_loop;
-  authenticator->InitializeAuthenticator(init_loop.QuitClosure());
-  init_loop.Run();
-
-  auto delegate = std::make_unique<TestAuthTokenRequesterDelegate>(
-      std::list<TestExpectation>());
-  delegate->set_selectable(false);
-  AuthTokenRequester::Options options;
-  options.token_permissions = {pin::Permissions::kMakeCredential};
-  options.rp_id = "foobar.com";
-  AuthTokenRequester requester(delegate.get(), authenticator.get(),
-                               std::move(options));
-  requester.ObtainPINUVAuthToken();
+  EXPECT_TRUE(delegate_->internal_uv_was_locked());
 }
 
 }  // namespace

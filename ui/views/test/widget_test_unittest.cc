@@ -1,26 +1,29 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/test/widget_test.h"
 
+#include <algorithm>
 #include <vector>
 
-#include "base/ranges/algorithm.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 #if defined(USE_AURA)
 #include "ui/aura/window.h"
 #endif
 
-namespace views::test {
+namespace views {
+namespace test {
 namespace {
 
 // Insert |widget| into |expected| and ensure it's reported by GetAllWidgets().
 void ExpectAdd(Widget::Widgets* expected, Widget* widget, const char* message) {
   SCOPED_TRACE(message);
   EXPECT_TRUE(expected->insert(widget).second);
-  EXPECT_TRUE(base::ranges::equal(*expected, WidgetTest::GetAllWidgets()));
+  Widget::Widgets actual = WidgetTest::GetAllWidgets();
+  EXPECT_EQ(expected->size(), actual.size());
+  EXPECT_TRUE(std::equal(expected->begin(), expected->end(), actual.begin()));
 }
 
 // Close |widgets[0]|, and expect all |widgets| to be removed.
@@ -31,7 +34,9 @@ void ExpectClose(Widget::Widgets* expected,
   for (Widget* widget : widgets)
     EXPECT_EQ(1u, expected->erase(widget));
   widgets[0]->CloseNow();
-  EXPECT_TRUE(base::ranges::equal(*expected, WidgetTest::GetAllWidgets()));
+  Widget::Widgets actual = WidgetTest::GetAllWidgets();
+  EXPECT_EQ(expected->size(), actual.size());
+  EXPECT_TRUE(std::equal(expected->begin(), expected->end(), actual.begin()));
 }
 
 }  // namespace
@@ -108,4 +113,5 @@ TEST_F(DesktopWidgetTestTest, GetAllWidgets) {
   ExpectClose(&expected, {frameless}, "frameless");
 }
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views

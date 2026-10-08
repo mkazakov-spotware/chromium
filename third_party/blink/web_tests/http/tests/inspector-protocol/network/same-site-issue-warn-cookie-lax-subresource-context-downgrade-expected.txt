@@ -2,9 +2,9 @@ Verifies that a subresource accessing a SameSite=Lax cookie across schemes trigg
 
 Inspector issue:{
     issue : {
-        code : CookieIssue
+        code : SameSiteCookieIssue
         details : {
-            cookieIssueDetails : {
+            sameSiteCookieIssueDetails : {
                 cookie : {
                     domain : cookie.test
                     name : name

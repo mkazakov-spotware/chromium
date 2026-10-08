@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,6 +16,7 @@
 #include "base/time/time.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/notification_database_data.h"
+#include "third_party/blink/public/mojom/permissions/permission_status.mojom.h"
 
 class GURL;
 
@@ -38,12 +39,10 @@ class CONTENT_EXPORT PlatformNotificationService {
                               bool /* supports synchronization */)>;
 
   // Displays the notification described in |notification_data| to the user.
-  // This method must be called on the UI thread. |document_url| is empty when
-  // the display notification originates from a worker.
+  // This method must be called on the UI thread.
   virtual void DisplayNotification(
       const std::string& notification_id,
       const GURL& origin,
-      const GURL& document_url,
       const blink::PlatformNotificationData& notification_data,
       const blink::NotificationResources& notification_resources) = 0;
 

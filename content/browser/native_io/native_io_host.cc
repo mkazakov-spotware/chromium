@@ -1,38 +1,29 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/native_io/native_io_host.h"
 
+#include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "base/bind.h"
-#include "base/files/file.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/ranges/algorithm.h"
-#include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
-#include "base/types/pass_key.h"
-#include "build/build_config.h"
+#include "base/task_runner.h"
+#include "content/browser/native_io/native_io_context.h"
 #include "content/browser/native_io/native_io_file_host.h"
-#include "content/browser/native_io/native_io_manager.h"
 #include "mojo/public/cpp/bindings/message.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
-#include "third_party/blink/public/common/native_io/native_io_utils.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "third_party/blink/public/mojom/native_io/native_io.mojom.h"
-
-using blink::mojom::NativeIOError;
-using blink::mojom::NativeIOErrorPtr;
-using blink::mojom::NativeIOErrorType;
 
 namespace content {
 
@@ -43,23 +34,16 @@ bool IsValidNativeIONameCharacter(char name_char) {
          name_char == '_';
 }
 
-// Maximum allowed filename length, inclusive.
-const int kMaximumFilenameLength = 100;
-
 bool IsValidNativeIOName(const std::string& name) {
   if (name.empty())
     return false;
 
-  if (name.length() > kMaximumFilenameLength)
-    return false;
-
-  return base::ranges::all_of(name, &IsValidNativeIONameCharacter);
+  return std::all_of(name.begin(), name.end(), &IsValidNativeIONameCharacter);
 }
 
 base::FilePath GetNativeIOFilePath(const base::FilePath& root_path,
                                    const std::string& name) {
   DCHECK(IsValidNativeIOName(name));
-  DCHECK(!root_path.empty());
 
   // This simple implementation assumes that the name doesn't have any special
   // meaning to the host operating system.
@@ -70,8 +54,8 @@ base::FilePath GetNativeIOFilePath(const base::FilePath& root_path,
 
 // Creates a task runner suitable for running file I/O tasks.
 scoped_refptr<base::TaskRunner> CreateFileTaskRunner() {
-  // We use a SequencedTaskRunner so that there is a global ordering to a
-  // storage key's directory operations.
+  // We use a SequencedTaskRunner so that there is a global ordering to an
+  // origin's directory operations.
   return base::ThreadPool::CreateSequencedTaskRunner({
       // Needed for file I/O.
       base::MayBlock(),
@@ -88,58 +72,29 @@ scoped_refptr<base::TaskRunner> CreateFileTaskRunner() {
 }
 
 // Performs the file I/O work in OpenFile().
-std::pair<base::File, int64_t> DoOpenFile(const base::FilePath& root_path,
-                                          const std::string& name) {
+base::File DoOpenFile(const base::FilePath& root_path,
+                      const std::string& name) {
   DCHECK(IsValidNativeIOName(name));
-  DCHECK(!root_path.empty());
 
-  // Lazily create the storage key's directory.
+  // Lazily create the origin's directory.
   base::File::Error error;
   if (!base::CreateDirectoryAndGetError(root_path, &error))
-    return {base::File(), /*file_length=*/0};
+    return base::File();
 
-  // SHARE_DELETE allows the browser to delete files even if a compromised
-  // renderer refuses to close its file handles.
-  int open_flags = base::File::FLAG_OPEN_ALWAYS | base::File::FLAG_READ |
-                   base::File::FLAG_WRITE | base::File::FLAG_WIN_SHARE_DELETE;
-  base::File file(GetNativeIOFilePath(root_path, name), open_flags);
-
-  int64_t file_length = file.IsValid() ? file.GetLength() : 0;
-
-  return {std::move(file), file_length};
+  return base::File(GetNativeIOFilePath(root_path, name),
+                    base::File::FLAG_OPEN_ALWAYS | base::File::FLAG_READ |
+                        base::File::FLAG_WRITE | base::File::FLAG_SHARE_DELETE);
 }
 
 // Performs the file I/O work in DeleteFile().
-std::pair<blink::mojom::NativeIOErrorPtr, int64_t> DoDeleteFile(
-    const base::FilePath& root_path,
-    const std::string& name) {
+bool DoDeleteFile(const base::FilePath& root_path, const std::string& name) {
   DCHECK(IsValidNativeIOName(name));
-  DCHECK(!root_path.empty());
 
-  // If the storage key's directory wasn't created yet, there's nothing to
-  // delete.
+  // If the origin's directory wasn't created yet, there's nothing to delete.
   if (!base::PathExists(root_path))
-    return {NativeIOError::New(NativeIOErrorType::kSuccess, ""),
-            /*deleted_file_length=*/0};
+    return true;
 
-  int64_t deleted_file_length;
-  base::FilePath file_path = GetNativeIOFilePath(root_path, name);
-  // If the file wasn't created yet, there's nothing to delete.
-  if (!base::PathExists(file_path))
-    return {NativeIOError::New(NativeIOErrorType::kSuccess, ""),
-            /*deleted_file_length=*/0};
-  if (!base::GetFileSize(file_path, &deleted_file_length))
-    return {NativeIOManager::FileErrorToNativeIOError(
-                base::File::GetLastFileError()),
-            /*deleted_file_length=*/0};
-
-  if (!base::DeleteFile(file_path))
-    return {NativeIOManager::FileErrorToNativeIOError(
-                base::File::GetLastFileError()),
-            /*deleted_file_length=*/0};
-
-  return {NativeIOError::New(NativeIOErrorType::kSuccess, ""),
-          deleted_file_length};
+  return base::DeleteFile(GetNativeIOFilePath(root_path, name));
 }
 
 using GetAllFileNamesResult =
@@ -147,12 +102,9 @@ using GetAllFileNamesResult =
 
 // Performs the file I/O work in GetAllFileNames().
 GetAllFileNamesResult DoGetAllFileNames(const base::FilePath& root_path) {
-  DCHECK(!root_path.empty());
-
   std::vector<std::string> result;
 
-  // If the storage key's directory wasn't created yet, there's no file to
-  // report.
+  // If the origin's directory wasn't created yet, there's no file to report.
   if (!base::PathExists(root_path))
     return {base::File::FILE_OK, std::move(result)};
 
@@ -194,68 +146,49 @@ GetAllFileNamesResult DoGetAllFileNames(const base::FilePath& root_path) {
   return {enumeration_error, std::move(result)};
 }
 
+// Reports the result of the file I/O work in GetAllFileNames().
+void DidGetAllFileNames(
+    blink::mojom::NativeIOHost::GetAllFileNamesCallback callback,
+    GetAllFileNamesResult result) {
+  std::move(callback).Run(result.first == base::File::FILE_OK,
+                          std::move(result.second));
+}
+
 // Performs the file I/O work in RenameFile().
-NativeIOErrorPtr DoRenameFile(const base::FilePath& root_path,
-                              const std::string& old_name,
-                              const std::string& new_name) {
-  DCHECK(!root_path.empty());
+bool DoRenameFile(const base::FilePath& root_path,
+                  const std::string& old_name,
+                  const std::string& new_name) {
   DCHECK(IsValidNativeIOName(old_name));
   DCHECK(IsValidNativeIOName(new_name));
 
-  base::File::Error error = base::File::FILE_OK;
-  // If the storage key's directory wasn't created yet, there's nothing to
-  // rename. This error cannot be used to determine the existence of files
-  // outside of the storage key's directory, as |old_name| is a valid NativeIO
-  // name.
-  if (!base::PathExists(root_path) ||
-      !base::PathExists(GetNativeIOFilePath(root_path, old_name))) {
-    return NativeIOError::New(NativeIOErrorType::kNotFound,
-                              "Source file does not exist");
-  }
+  // If the origin's directory wasn't created yet, there's nothing to rename.
+  if (!base::PathExists(root_path))
+    return false;
 
-  // Do not overwrite an existing file. This error cannot be used to determine
-  // the existence of files outside of the storage key's directory, as
-  // `new_name` is a valid NativeIO name.
+  // Do not overwrite an existing file.
   if (base::PathExists(GetNativeIOFilePath(root_path, new_name)))
-    return NativeIOError::New(NativeIOErrorType::kNoModificationAllowed,
-                              "Target file exists");
+    return false;
 
-  base::ReplaceFile(GetNativeIOFilePath(root_path, old_name),
-                    GetNativeIOFilePath(root_path, new_name), &error);
-  return NativeIOManager::FileErrorToNativeIOError(error);
-}
-
-// Performs the file I/O work in DeleteAllData().
-base::File::Error DoDeleteAllData(const base::FilePath& storage_key_dir) {
-  DCHECK(!storage_key_dir.empty());
-  CHECK(!storage_key_dir.ReferencesParent())
-      << "Removing a parent directory is disallowed.";
-  bool delete_success = base::DeletePathRecursively(storage_key_dir);
-  if (!delete_success) {
-    return base::File::GetLastFileError();
-  }
-  return base::File::FILE_OK;
+  // TODO(rstz): Report error.
+  base::File::Error error;
+  return base::ReplaceFile(GetNativeIOFilePath(root_path, old_name),
+                           GetNativeIOFilePath(root_path, new_name), &error);
 }
 
 }  // namespace
 
-NativeIOHost::NativeIOHost(const blink::StorageKey& storage_key,
-                           base::FilePath root_path,
-#if BUILDFLAG(IS_MAC)
-                           bool allow_set_length_ipc,
-#endif  // BUILDFLAG(IS_MAC)
-                           NativeIOManager* manager)
-    : storage_key_(storage_key),
-      root_path_(std::move(root_path)),
-#if BUILDFLAG(IS_MAC)
-      allow_set_length_ipc_(allow_set_length_ipc),
-#endif  // BUILDFLAG(IS_MAC)
-      manager_(manager),
+NativeIOHost::NativeIOHost(NativeIOContext* context,
+                           const url::Origin& origin,
+                           base::FilePath root_path)
+    : root_path_(std::move(root_path)),
+      context_(context),
+      origin_(origin),
       file_task_runner_(CreateFileTaskRunner()) {
-  DCHECK(manager != nullptr);
+  DCHECK(!root_path_.empty());
+  DCHECK(context != nullptr);
 
-  // base::Unretained is safe here because this NativeIOHost owns `receivers_`.
-  // So, the unretained NativeIOHost is guaranteed to outlive `receivers_` and
+  // base::Unretained is safe here because this NativeIOHost owns |receivers_|.
+  // So, the unretained NativeIOHost is guaranteed to outlive |receivers_| and
   // the closure that it uses.
   receivers_.set_disconnect_handler(base::BindRepeating(
       &NativeIOHost::OnReceiverDisconnect, base::Unretained(this)));
@@ -277,47 +210,24 @@ void NativeIOHost::OpenFile(
     mojo::PendingReceiver<blink::mojom::NativeIOFileHost> file_host_receiver,
     OpenFileCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(callback);
-
-  if (is_incognito_mode()) {
-    std::move(callback).Run(
-        base::File(), /*file_length=*/0,
-        NativeIOError::New(NativeIOErrorType::kInvalidState,
-                           "StorageFoundation unavailable for this host"));
-    return;
-  }
-
-  if (delete_all_data_in_progress()) {
-    std::move(callback).Run(
-        base::File(), /*file_length=*/0,
-        NativeIOError::New(NativeIOErrorType::kInvalidState,
-                           "Data removal pending on storage key"));
-    return;
-  }
 
   if (!IsValidNativeIOName(name)) {
     mojo::ReportBadMessage("Invalid file name");
-    std::move(callback).Run(
-        base::File(), /*file_length=*/0,
-        NativeIOError::New(NativeIOErrorType::kUnknown, "Invalid file name"));
+    std::move(callback).Run(base::File());
     return;
   }
 
   if (open_file_hosts_.find(name) != open_file_hosts_.end()) {
-    std::move(callback).Run(
-        base::File(), /*file_length=*/0,
-        NativeIOError::New(NativeIOErrorType::kNoModificationAllowed,
-                           "File is open"));
+    // TODO(pwnall): Report that the file is locked.
+    std::move(callback).Run(base::File());
     return;
   }
 
   auto insert_result = io_pending_files_.insert(name);
   bool insert_success = insert_result.second;
   if (!insert_success) {
-    std::move(callback).Run(
-        base::File(), /*file_length=*/0,
-        NativeIOError::New(NativeIOErrorType::kNoModificationAllowed,
-                           "Operation pending on file"));
+    // TODO(pwnall): Report that the file is locked.
+    std::move(callback).Run(base::File());
     return;
   }
 
@@ -330,55 +240,27 @@ void NativeIOHost::OpenFile(
 void NativeIOHost::DeleteFile(const std::string& name,
                               DeleteFileCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(callback);
-
-  if (is_incognito_mode()) {
-    std::move(callback).Run(
-        NativeIOError::New(NativeIOErrorType::kInvalidState,
-                           "StorageFoundation unavailable for this host"),
-        /*granted_capacity_delta=*/0);
-    return;
-  }
-
-  if (delete_all_data_in_progress()) {
-    std::move(callback).Run(
-        NativeIOError::New(NativeIOErrorType::kInvalidState,
-                           "Data removal pending on storage key"),
-        /*granted_capacity_delta=*/0);
-    return;
-  }
 
   if (!IsValidNativeIOName(name)) {
     mojo::ReportBadMessage("Invalid file name");
-    std::move(callback).Run(
-        NativeIOError::New(NativeIOErrorType::kUnknown, "Invalid file name"),
-        /*granted_capacity_delta=*/0);
+    std::move(callback).Run(false);
     return;
   }
 
   if (open_file_hosts_.find(name) != open_file_hosts_.end()) {
-    std::move(callback).Run(
-        NativeIOError::New(NativeIOErrorType::kNoModificationAllowed,
-                           "File is open"),
-        /*granted_capacity_delta=*/0);
+    // TODO(pwnall): Report that the file is locked.
+    std::move(callback).Run(false);
     return;
   }
 
   auto insert_result = io_pending_files_.insert(name);
   bool insert_success = insert_result.second;
   if (!insert_success) {
-    std::move(callback).Run(
-        NativeIOError::New(NativeIOErrorType::kNoModificationAllowed,
-                           "Operation pending on file"),
-        /*granted_capacity_delta=*/0);
+    // TODO(pwnall): Report that the file is locked.
+    std::move(callback).Run(false);
     return;
   }
 
-  manager_->quota_manager_proxy()->NotifyStorageAccessed(
-      storage_key(), blink::mojom::StorageType::kTemporary, base::Time::Now());
-
-  // The deletion task runs on the file_task_runner and is skipped on shutdown,
-  // as is ok for storage key data deletion.
   file_task_runner_->PostTaskAndReplyWithResult(
       FROM_HERE, base::BindOnce(&DoDeleteFile, root_path_, name),
       base::BindOnce(&NativeIOHost::DidDeleteFile, weak_factory_.GetWeakPtr(),
@@ -387,85 +269,39 @@ void NativeIOHost::DeleteFile(const std::string& name,
 
 void NativeIOHost::GetAllFileNames(GetAllFileNamesCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(callback);
-
-  if (is_incognito_mode()) {
-    std::move(callback).Run(false, {});
-    return;
-  }
-
-  if (delete_all_data_in_progress()) {
-    std::move(callback).Run(false, {});
-    return;
-  }
-
-  manager_->quota_manager_proxy()->NotifyStorageAccessed(
-      storage_key(), blink::mojom::StorageType::kTemporary, base::Time::Now());
 
   file_task_runner_->PostTaskAndReplyWithResult(
       FROM_HERE, base::BindOnce(&DoGetAllFileNames, root_path_),
-      base::BindOnce(
-          [](blink::mojom::NativeIOHost::GetAllFileNamesCallback callback,
-             GetAllFileNamesResult result) {
-            std::move(callback).Run(result.first == base::File::FILE_OK,
-                                    std::move(result.second));
-          },
-          std::move(callback)));
+      base::BindOnce(&DidGetAllFileNames, std::move(callback)));
 }
 
 void NativeIOHost::RenameFile(const std::string& old_name,
                               const std::string& new_name,
                               RenameFileCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(callback);
-
-  if (is_incognito_mode()) {
-    std::move(callback).Run(
-        NativeIOError::New(NativeIOErrorType::kInvalidState,
-                           "StorageFoundation unavailable for this host"));
-    return;
-  }
-
-  if (delete_all_data_in_progress()) {
-    std::move(callback).Run(
-        NativeIOError::New(NativeIOErrorType::kInvalidState,
-                           "Data removal pending on storage key"));
-    return;
-  }
 
   if (!IsValidNativeIOName(old_name) || !IsValidNativeIOName(new_name)) {
     mojo::ReportBadMessage("Invalid file name");
-    std::move(callback).Run(
-        NativeIOError::New(NativeIOErrorType::kUnknown, "Invalid file name"));
+    std::move(callback).Run(false);
     return;
   }
 
   if (open_file_hosts_.find(old_name) != open_file_hosts_.end() ||
       open_file_hosts_.find(new_name) != open_file_hosts_.end()) {
-    std::move(callback).Run(NativeIOError::New(
-        NativeIOErrorType::kNoModificationAllowed, "Source file is open"));
-    return;
-  }
-
-  if (open_file_hosts_.find(old_name) != open_file_hosts_.end()) {
-    std::move(callback).Run(NativeIOError::New(
-        NativeIOErrorType::kNoModificationAllowed, "Target file is open"));
+    // TODO(rstz): Report that the file is locked.
+    std::move(callback).Run(false);
     return;
   }
 
   auto old_iterator_and_success = io_pending_files_.insert(old_name);
   if (!old_iterator_and_success.second) {
-    std::move(callback).Run(
-        NativeIOError::New(NativeIOErrorType::kNoModificationAllowed,
-                           "Operation pending on source file"));
+    std::move(callback).Run(false);
     return;
   }
   auto new_iterator_and_success = io_pending_files_.insert(new_name);
   if (!new_iterator_and_success.second) {
     io_pending_files_.erase(old_iterator_and_success.first);
-    std::move(callback).Run(
-        NativeIOError::New(NativeIOErrorType::kNoModificationAllowed,
-                           "Operation pending on target file"));
+    std::move(callback).Run(false);
     return;
   }
 
@@ -475,163 +311,65 @@ void NativeIOHost::RenameFile(const std::string& old_name,
                      old_name, new_name, std::move(callback)));
 }
 
-void NativeIOHost::RequestCapacityChange(
-    int64_t capacity_delta,
-    RequestCapacityChangeCallback callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(callback);
-
-  if (is_incognito_mode()) {
-    std::move(callback).Run(0);
-    return;
-  }
-
-  // TODO(rstz): Implement quota limits.
-  constexpr int64_t kMaximumAllocation = int64_t{8} * 1024 * 1024 * 1024;
-  if (capacity_delta > kMaximumAllocation) {
-    std::move(callback).Run(0);
-    return;
-  }
-  std::move(callback).Run(capacity_delta);
-}
-
-void NativeIOHost::OnFileClose(NativeIOFileHost* file_host,
-                               base::PassKey<NativeIOFileHost>) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+void NativeIOHost::OnFileClose(NativeIOFileHost* file_host) {
   DCHECK(open_file_hosts_.count(file_host->file_name()) > 0);
   DCHECK_EQ(open_file_hosts_[file_host->file_name()].get(), file_host);
 
   open_file_hosts_.erase(file_host->file_name());
 }
 
-void NativeIOHost::DeleteAllData(DeleteAllDataCallback callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(callback);
-
-  delete_all_data_callbacks_.push_back(std::move(callback));
-  if (delete_all_data_callbacks_.size() > 1) {
-    return;
-  }
-
-  // Clearing open file hosts informs the renderer that the file handles should
-  // not be used any longer.
-  open_file_hosts_.clear();
-
-  file_task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE, base::BindOnce(&DoDeleteAllData, root_path_),
-      base::BindOnce(&NativeIOHost::DidDeleteAllData,
-                     weak_factory_.GetWeakPtr()));
-}
-
 void NativeIOHost::OnReceiverDisconnect() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  // May delete `this`.
-  manager_->OnHostReceiverDisconnect(this, base::PassKey<NativeIOHost>());
+  context_->OnHostReceiverDisconnect(this);
 }
 
 void NativeIOHost::DidOpenFile(
     const std::string& name,
     mojo::PendingReceiver<blink::mojom::NativeIOFileHost> file_host_receiver,
     OpenFileCallback callback,
-    std::pair<base::File, int64_t> result) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+    base::File file) {
   DCHECK(io_pending_files_.count(name));
   DCHECK(!open_file_hosts_.count(name));
-
-  base::File file = std::move(result.first);
-  int64_t length = result.second;
   io_pending_files_.erase(name);
 
-  base::File::Error open_error = file.error_details();
-
   if (!file.IsValid()) {
-    // Make sure an error is reported whenever the file is not valid.
-    open_error = open_error != base::File::FILE_OK
-                     ? open_error
-                     : base::File::FILE_ERROR_FAILED;
-    std::move(callback).Run(
-        std::move(file), length,
-        NativeIOManager::FileErrorToNativeIOError(open_error));
+    std::move(callback).Run(std::move(file));
     return;
   }
 
-  // DoOpenFile may create a file if none exists, which justifies
-  // NotifyStorageModified.
-  manager_->quota_manager_proxy()->NotifyStorageModified(
-      storage::QuotaClientType::kNativeIO, storage_key(),
-      blink::mojom::StorageType::kTemporary, 0, base::Time::Now(),
-      base::SequencedTaskRunner::GetCurrentDefault(), base::DoNothing());
+  open_file_hosts_.insert(
+      {name, std::make_unique<NativeIOFileHost>(std::move(file_host_receiver),
+                                                this, name)});
 
-  open_file_hosts_.insert({
-    name, std::make_unique<NativeIOFileHost>(this, name,
-#if BUILDFLAG(IS_MAC)
-                                             allow_set_length_ipc_,
-#endif  // BUILDFLAG(IS_MAC)
-                                             std::move(file_host_receiver))
-  });
-
-  std::move(callback).Run(
-      std::move(file), length,
-      NativeIOManager::FileErrorToNativeIOError(open_error));
+  std::move(callback).Run(std::move(file));
   return;
 }
 
-void NativeIOHost::DidDeleteFile(
-    const std::string& name,
-    DeleteFileCallback callback,
-    std::pair<blink::mojom::NativeIOErrorPtr, int64_t> delete_result) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+void NativeIOHost::DidDeleteFile(const std::string& name,
+                                 DeleteFileCallback callback,
+                                 bool success) {
   DCHECK(io_pending_files_.count(name));
   DCHECK(!open_file_hosts_.count(name));
-
   io_pending_files_.erase(name);
 
-  manager_->quota_manager_proxy()->NotifyStorageModified(
-      storage::QuotaClientType::kNativeIO, storage_key(),
-      blink::mojom::StorageType::kTemporary, 0, base::Time::Now(),
-      base::SequencedTaskRunner::GetCurrentDefault(), base::DoNothing());
-
-  std::move(callback).Run(std::move(delete_result.first), delete_result.second);
+  std::move(callback).Run(success);
   return;
 }
 
 void NativeIOHost::DidRenameFile(const std::string& old_name,
                                  const std::string& new_name,
                                  RenameFileCallback callback,
-                                 NativeIOErrorPtr rename_error) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+                                 bool success) {
   DCHECK(io_pending_files_.count(old_name));
   DCHECK(!open_file_hosts_.count(old_name));
   DCHECK(io_pending_files_.count(new_name));
   DCHECK(!open_file_hosts_.count(new_name));
-
   io_pending_files_.erase(old_name);
   io_pending_files_.erase(new_name);
 
-  manager_->quota_manager_proxy()->NotifyStorageModified(
-      storage::QuotaClientType::kNativeIO, storage_key(),
-      blink::mojom::StorageType::kTemporary, 0, base::Time::Now(),
-      base::SequencedTaskRunner::GetCurrentDefault(), base::DoNothing());
-
-  std::move(callback).Run(std::move(rename_error));
+  std::move(callback).Run(success);
   return;
-}
-
-void NativeIOHost::DidDeleteAllData(base::File::Error error) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  // Moving callbacks to a local variable to avoid race conditions if the vector
-  // is accessed during callback execution.
-  std::vector<DeleteAllDataCallback> callbacks =
-      std::move(delete_all_data_callbacks_);
-  delete_all_data_callbacks_.clear();
-  for (DeleteAllDataCallback& callback : callbacks) {
-    std::move(callback).Run(error);
-  }
-
-  // May delete `this`.
-  manager_->DidDeleteHostData(this, base::PassKey<NativeIOHost>());
 }
 
 }  // namespace content

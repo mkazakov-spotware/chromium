@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,10 @@
 #include "third_party/blink/renderer/core/css/parser/css_parser.h"
 #include "third_party/blink/renderer/core/css/parser/css_parser_context.h"
 #include "third_party/blink/renderer/core/css/threaded/multi_threaded_test_util.h"
-#include "third_party/blink/renderer/core/execution_context/security_context.h"
 #include "third_party/blink/renderer/core/style/filter_operation.h"
 #include "third_party/blink/renderer/platform/fonts/font.h"
 #include "third_party/blink/renderer/platform/fonts/font_description.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -29,7 +28,7 @@ TSAN_TEST(FilterOperationResolverThreadedTest, SimpleMatrixFilter) {
         FilterOperationResolver::CreateOffscreenFilterOperations(*value, font);
     ASSERT_EQ(fo.size(), 1ul);
     EXPECT_EQ(*fo.at(0), *MakeGarbageCollected<BasicColorMatrixFilterOperation>(
-                             0.5, FilterOperation::OperationType::kSepia));
+                             0.5, FilterOperation::SEPIA));
   });
 }
 
@@ -47,7 +46,7 @@ TSAN_TEST(FilterOperationResolverThreadedTest, SimpleTransferFilter) {
     ASSERT_EQ(fo.size(), 1ul);
     EXPECT_EQ(*fo.at(0),
               *MakeGarbageCollected<BasicComponentTransferFilterOperation>(
-                  0.5, FilterOperation::OperationType::kBrightness));
+                  0.5, FilterOperation::BRIGHTNESS));
   });
 }
 
@@ -82,7 +81,7 @@ TSAN_TEST(FilterOperationResolverThreadedTest, SimpleDropShadow) {
     ASSERT_EQ(fo.size(), 1ul);
     EXPECT_EQ(*fo.at(0),
               *MakeGarbageCollected<DropShadowFilterOperation>(
-                  ShadowData(gfx::PointF(10, 5), 1, 0, ShadowStyle::kNormal,
+                  ShadowData(FloatPoint(10, 5), 1, 0, ShadowStyle::kNormal,
                              StyleColor(Color::kBlack))));
   });
 }
@@ -101,10 +100,10 @@ TSAN_TEST(FilterOperationResolverThreadedTest, CompoundFilter) {
     EXPECT_FALSE(fo.IsEmpty());
     ASSERT_EQ(fo.size(), 2ul);
     EXPECT_EQ(*fo.at(0), *MakeGarbageCollected<BasicColorMatrixFilterOperation>(
-                             0.5, FilterOperation::OperationType::kSepia));
+                             0.5, FilterOperation::SEPIA));
     EXPECT_EQ(*fo.at(1),
               *MakeGarbageCollected<BasicComponentTransferFilterOperation>(
-                  0.5, FilterOperation::OperationType::kBrightness));
+                  0.5, FilterOperation::BRIGHTNESS));
   });
 }
 

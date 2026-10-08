@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "base/json/json_reader.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/values.h"
@@ -46,7 +47,7 @@ SnippetProto TestSnippetProto() {
   return proto;
 }
 
-base::Value::Dict TestSnippetJsonValue() {
+base::DictionaryValue TestSnippetJsonValue() {
   const char kJsonStr[] = R"(
     {
       "ids" : ["foo", "bar"],
@@ -70,13 +71,14 @@ base::Value::Dict TestSnippetJsonValue() {
 
   auto json_parsed = base::JSONReader::ReadAndReturnValueWithError(
       kJsonStr, base::JSON_PARSE_RFC);
-  CHECK(json_parsed.has_value())
-      << "error_message: " << json_parsed.error().message;
-  return std::move(*json_parsed).TakeDict();
+  CHECK(json_parsed.value) << "error_message: " << json_parsed.error_message;
+  auto dict = base::DictionaryValue::From(
+      std::make_unique<base::Value>(std::move(json_parsed).value.value()));
+  return std::move(*dict);
 }
 
 TEST(RemoteSuggestionTest, FromContentSuggestionsDictionary) {
-  base::Value::Dict snippet_dict = TestSnippetJsonValue();
+  base::DictionaryValue snippet_dict = TestSnippetJsonValue();
   const base::Time fetch_date = DeserializeTime(1466634774L);
   std::unique_ptr<RemoteSuggestion> snippet =
       RemoteSuggestion::CreateFromContentSuggestionsDictionary(
@@ -109,9 +111,9 @@ TEST(RemoteSuggestionTest, FromContentSuggestionsDictionary) {
 
 TEST(RemoteSuggestionTest,
      FromContentSuggestionsDictionaryWithoutImageOrSnippet) {
-  base::Value::Dict snippet_dict = TestSnippetJsonValue();
-  ASSERT_TRUE(snippet_dict.Remove("imageUrl"));
-  ASSERT_TRUE(snippet_dict.Remove("snippet"));
+  base::DictionaryValue snippet_dict = TestSnippetJsonValue();
+  ASSERT_TRUE(snippet_dict.RemovePath("imageUrl"));
+  ASSERT_TRUE(snippet_dict.RemovePath("snippet"));
   const base::Time fetch_date = DeserializeTime(1466634774L);
   std::unique_ptr<RemoteSuggestion> snippet =
       RemoteSuggestion::CreateFromContentSuggestionsDictionary(
@@ -179,8 +181,8 @@ TEST(RemoteSuggestionTest, CreateFromProtoIgnoreMissingSalientImageAndSnippet) {
 
 TEST(RemoteSuggestionTest, NotifcationInfoAllSpecified) {
   auto json = TestSnippetJsonValue();
-  json.SetByDottedPath("notificationInfo.shouldNotify", true);
-  json.SetByDottedPath("notificationInfo.deadline", "2016-06-30T13:01:37.000Z");
+  json.SetBoolean("notificationInfo.shouldNotify", true);
+  json.SetString("notificationInfo.deadline", "2016-06-30T13:01:37.000Z");
   auto snippet = RemoteSuggestion::CreateFromContentSuggestionsDictionary(
       json, 0, base::Time());
   EXPECT_TRUE(snippet->should_notify());
@@ -191,8 +193,8 @@ TEST(RemoteSuggestionTest, NotifcationInfoAllSpecified) {
 
 TEST(RemoteSuggestionTest, NotificationInfoDeadlineInvalid) {
   auto json = TestSnippetJsonValue();
-  json.SetByDottedPath("notificationInfo.shouldNotify", true);
-  json.SetByDottedPath("notificationInfo.deadline", "abcd");
+  json.SetBoolean("notificationInfo.shouldNotify", true);
+  json.SetString("notificationInfo.deadline", "abcd");
   auto snippet = RemoteSuggestion::CreateFromContentSuggestionsDictionary(
       json, 0, base::Time());
   EXPECT_TRUE(snippet->should_notify());
@@ -201,8 +203,8 @@ TEST(RemoteSuggestionTest, NotificationInfoDeadlineInvalid) {
 
 TEST(RemoteSuggestionTest, NotificationInfoDeadlineAbsent) {
   auto json = TestSnippetJsonValue();
-  json.SetByDottedPath("notificationInfo.shouldNotify", true);
-  json.RemoveByDottedPath("notificationInfo.deadline");
+  json.SetBoolean("notificationInfo.shouldNotify", true);
+  json.RemovePath("notificationInfo.deadline");
   auto snippet = RemoteSuggestion::CreateFromContentSuggestionsDictionary(
       json, 0, base::Time());
   EXPECT_TRUE(snippet->should_notify());
@@ -211,7 +213,7 @@ TEST(RemoteSuggestionTest, NotificationInfoDeadlineAbsent) {
 
 TEST(RemoteSuggestionTest, NotificationInfoShouldNotifyInvalid) {
   auto json = TestSnippetJsonValue();
-  json.SetByDottedPath("notificationInfo.shouldNotify", "non-bool");
+  json.SetString("notificationInfo.shouldNotify", "non-bool");
   auto snippet = RemoteSuggestion::CreateFromContentSuggestionsDictionary(
       json, 0, base::Time());
   EXPECT_FALSE(snippet->should_notify());
@@ -219,7 +221,7 @@ TEST(RemoteSuggestionTest, NotificationInfoShouldNotifyInvalid) {
 
 TEST(RemoteSuggestionTest, NotificationInfoAbsent) {
   auto json = TestSnippetJsonValue();
-  json.SetByDottedPath("notificationInfo.shouldNotify", false);
+  json.SetBoolean("notificationInfo.shouldNotify", false);
   auto snippet = RemoteSuggestion::CreateFromContentSuggestionsDictionary(
       json, 0, base::Time());
   EXPECT_FALSE(snippet->should_notify());
@@ -227,7 +229,7 @@ TEST(RemoteSuggestionTest, NotificationInfoAbsent) {
 
 TEST(RemoteSuggestionTest, ToContentSuggestionWithoutNotificationInfo) {
   auto json = TestSnippetJsonValue();
-  json.Remove("notificationInfo");
+  json.RemovePath("notificationInfo");
   const base::Time fetch_date = DeserializeTime(1466634774L);
   auto snippet = RemoteSuggestion::CreateFromContentSuggestionsDictionary(
       json, 0, fetch_date);
@@ -239,11 +241,12 @@ TEST(RemoteSuggestionTest, ToContentSuggestionWithoutNotificationInfo) {
               Eq(Category::FromKnownCategory(KnownCategories::ARTICLES)));
   EXPECT_THAT(sugg.id().id_within_category(), Eq("foo"));
   EXPECT_THAT(sugg.url(), Eq(GURL("http://cdn.ampproject.org/c/foo/")));
-  EXPECT_THAT(sugg.title(), Eq(u"a suggestion title"));
+  EXPECT_THAT(sugg.title(), Eq(base::UTF8ToUTF16("a suggestion title")));
   EXPECT_THAT(sugg.snippet_text(),
-              Eq(u"the snippet describing the suggestion."));
+              Eq(base::UTF8ToUTF16("the snippet describing the suggestion.")));
   EXPECT_THAT(sugg.publish_date().ToJavaTime(), Eq(1467284497000));
-  EXPECT_THAT(sugg.publisher_name(), Eq(u"Great Suggestions Inc."));
+  EXPECT_THAT(sugg.publisher_name(),
+              Eq(base::UTF8ToUTF16("Great Suggestions Inc.")));
   EXPECT_THAT(sugg.score(), Eq(1.5));
   EXPECT_THAT(sugg.salient_image_url(), Eq(GURL("http://google.com/logo/")));
   EXPECT_THAT(sugg.notification_extra(), IsNull());
@@ -262,11 +265,12 @@ TEST(RemoteSuggestionTest, ToContentSuggestionWithNotificationInfo) {
               Eq(Category::FromKnownCategory(KnownCategories::ARTICLES)));
   EXPECT_THAT(sugg.id().id_within_category(), Eq("foo"));
   EXPECT_THAT(sugg.url(), Eq(GURL("http://cdn.ampproject.org/c/foo/")));
-  EXPECT_THAT(sugg.title(), Eq(u"a suggestion title"));
+  EXPECT_THAT(sugg.title(), Eq(base::UTF8ToUTF16("a suggestion title")));
   EXPECT_THAT(sugg.snippet_text(),
-              Eq(u"the snippet describing the suggestion."));
+              Eq(base::UTF8ToUTF16("the snippet describing the suggestion.")));
   EXPECT_THAT(sugg.publish_date().ToJavaTime(), Eq(1467284497000));
-  EXPECT_THAT(sugg.publisher_name(), Eq(u"Great Suggestions Inc."));
+  EXPECT_THAT(sugg.publisher_name(),
+              Eq(base::UTF8ToUTF16("Great Suggestions Inc.")));
   EXPECT_THAT(sugg.score(), Eq(1.5));
   ASSERT_THAT(sugg.notification_extra(), NotNull());
   EXPECT_THAT(sugg.notification_extra()->deadline.ToJavaTime(),
@@ -275,7 +279,7 @@ TEST(RemoteSuggestionTest, ToContentSuggestionWithNotificationInfo) {
 
 TEST(RemoteSuggestionTest, ToContentSuggestionWithContentTypeVideo) {
   auto json = TestSnippetJsonValue();
-  json.Set("contentType", "VIDEO");
+  json.SetString("contentType", "VIDEO");
   auto snippet = RemoteSuggestion::CreateFromContentSuggestionsDictionary(
       json, 0, base::Time());
   ASSERT_THAT(snippet, NotNull());
@@ -287,7 +291,7 @@ TEST(RemoteSuggestionTest, ToContentSuggestionWithContentTypeVideo) {
 
 TEST(RemoteSuggestionTest, ToContentSuggestionWithContentTypeUnknown) {
   auto json = TestSnippetJsonValue();
-  json.Set("contentType", "UNKNOWN");
+  json.SetString("contentType", "UNKNOWN");
   auto snippet = RemoteSuggestion::CreateFromContentSuggestionsDictionary(
       json, 0, base::Time());
   ASSERT_THAT(snippet, NotNull());
@@ -312,7 +316,7 @@ TEST(RemoteSuggestionTest, ToContentSuggestionWithLargeImageDominantColor) {
   auto json = TestSnippetJsonValue();
   // JSON does not support unsigned types. As a result the value is parsed as
   // int if it fits and as double otherwise.
-  json.Set("imageDominantColor", 4289379276.);
+  json.SetDouble("imageDominantColor", 4289379276.);
   auto snippet = RemoteSuggestion::CreateFromContentSuggestionsDictionary(
       json, 0, base::Time());
   ASSERT_THAT(snippet, NotNull());
@@ -328,7 +332,7 @@ TEST(RemoteSuggestionTest, ToContentSuggestionWithSmallImageDominantColor) {
   auto json = TestSnippetJsonValue();
   // JSON does not support unsigned types. As a result the value is parsed as
   // int if it fits and as double otherwise.
-  json.Set("imageDominantColor", 16777216 /*=0x1000000*/);
+  json.SetInteger("imageDominantColor", 16777216 /*=0x1000000*/);
   auto snippet = RemoteSuggestion::CreateFromContentSuggestionsDictionary(
       json, 0, base::Time());
   ASSERT_THAT(snippet, NotNull());
@@ -342,7 +346,7 @@ TEST(RemoteSuggestionTest, ToContentSuggestionWithSmallImageDominantColor) {
 
 TEST(RemoteSuggestionTest, ToContentSuggestionWithoutImageDominantColor) {
   auto json = TestSnippetJsonValue();
-  json.Remove("imageDominantColor");
+  json.RemovePath("imageDominantColor");
   auto snippet = RemoteSuggestion::CreateFromContentSuggestionsDictionary(
       json, 0, base::Time());
   ASSERT_THAT(snippet, NotNull());

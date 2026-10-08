@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "base/strings/string_piece.h"
 #include "base/values.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 namespace {
@@ -20,8 +19,7 @@ namespace {
 // Very simple messages.
 struct SimpleMessage {
   enum SimpleEnum {
-    FOO,
-    BAR,
+    FOO, BAR,
   };
   int foo;
   std::string bar;
@@ -50,10 +48,7 @@ struct SimpleMessage {
   }
 
   static bool GetValueString(const base::Value* value, std::string* result) {
-    const Value::Dict* dict = value->GetIfDict();
-    if (!dict)
-      return false;
-    const std::string* str = dict->FindString("val");
+    const std::string* str = value->FindStringKey("val");
     if (!str)
       return false;
     if (result)
@@ -69,10 +64,13 @@ struct SimpleMessage {
     converter->RegisterCustomField<SimpleEnum>(
         "simple_enum", &SimpleMessage::simple_enum, &ParseSimpleEnum);
     converter->RegisterRepeatedInt("ints", &SimpleMessage::ints);
-    converter->RegisterCustomValueField<bool>(
-        "bstruct", &SimpleMessage::bstruct, &HasFieldPresent);
+    converter->RegisterCustomValueField<bool>("bstruct",
+                                              &SimpleMessage::bstruct,
+                                              &HasFieldPresent);
     converter->RegisterRepeatedCustomValue<std::string>(
-        "string_values", &SimpleMessage::string_values, &GetValueString);
+        "string_values",
+        &SimpleMessage::string_values,
+        &GetValueString);
   }
 };
 
@@ -106,7 +104,7 @@ TEST(JSONValueConverterTest, ParseSimpleMessage) {
       "  \"ints\": [1, 2]"
       "}\n";
 
-  absl::optional<Value> value = base::JSONReader::Read(normal_data);
+  Optional<Value> value = base::JSONReader::Read(normal_data);
   ASSERT_TRUE(value);
   SimpleMessage message;
   base::JSONValueConverter<SimpleMessage> converter;
@@ -149,7 +147,7 @@ TEST(JSONValueConverterTest, ParseNestedMessage) {
       "  }]\n"
       "}\n";
 
-  absl::optional<Value> value = base::JSONReader::Read(normal_data);
+  Optional<Value> value = base::JSONReader::Read(normal_data);
   ASSERT_TRUE(value);
   NestedMessage message;
   base::JSONValueConverter<NestedMessage> converter;
@@ -192,7 +190,7 @@ TEST(JSONValueConverterTest, ParseFailures) {
       "  \"ints\": [1, 2]"
       "}\n";
 
-  absl::optional<Value> value = base::JSONReader::Read(normal_data);
+  Optional<Value> value = base::JSONReader::Read(normal_data);
   ASSERT_TRUE(value);
   SimpleMessage message;
   base::JSONValueConverter<SimpleMessage> converter;
@@ -209,7 +207,7 @@ TEST(JSONValueConverterTest, ParseWithMissingFields) {
       "  \"ints\": [1, 2]"
       "}\n";
 
-  absl::optional<Value> value = base::JSONReader::Read(normal_data);
+  Optional<Value> value = base::JSONReader::Read(normal_data);
   ASSERT_TRUE(value);
   SimpleMessage message;
   base::JSONValueConverter<SimpleMessage> converter;
@@ -233,7 +231,7 @@ TEST(JSONValueConverterTest, EnumParserFails) {
       "  \"ints\": [1, 2]"
       "}\n";
 
-  absl::optional<Value> value = base::JSONReader::Read(normal_data);
+  Optional<Value> value = base::JSONReader::Read(normal_data);
   ASSERT_TRUE(value);
   SimpleMessage message;
   base::JSONValueConverter<SimpleMessage> converter;
@@ -251,7 +249,7 @@ TEST(JSONValueConverterTest, RepeatedValueErrorInTheMiddle) {
       "  \"ints\": [1, false]"
       "}\n";
 
-  absl::optional<Value> value = base::JSONReader::Read(normal_data);
+  Optional<Value> value = base::JSONReader::Read(normal_data);
   ASSERT_TRUE(value);
   SimpleMessage message;
   base::JSONValueConverter<SimpleMessage> converter;

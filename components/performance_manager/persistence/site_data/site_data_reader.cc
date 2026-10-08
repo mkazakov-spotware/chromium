@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,46 +12,41 @@
 
 namespace performance_manager {
 
-SiteDataReader::SiteDataReader() = default;
-SiteDataReader::~SiteDataReader() = default;
-
-SiteDataReaderImpl::SiteDataReaderImpl(
-    scoped_refptr<internal::SiteDataImpl> impl)
+SiteDataReader::SiteDataReader(scoped_refptr<internal::SiteDataImpl> impl)
     : impl_(std::move(impl)) {}
 
-SiteDataReaderImpl::~SiteDataReaderImpl() = default;
+SiteDataReader::~SiteDataReader() {}
 
 performance_manager::SiteFeatureUsage
-SiteDataReaderImpl::UpdatesFaviconInBackground() const {
+SiteDataReader::UpdatesFaviconInBackground() const {
   return impl_->UpdatesFaviconInBackground();
 }
 
-performance_manager::SiteFeatureUsage
-SiteDataReaderImpl::UpdatesTitleInBackground() const {
+performance_manager::SiteFeatureUsage SiteDataReader::UpdatesTitleInBackground()
+    const {
   return impl_->UpdatesTitleInBackground();
 }
 
-performance_manager::SiteFeatureUsage
-SiteDataReaderImpl::UsesAudioInBackground() const {
+performance_manager::SiteFeatureUsage SiteDataReader::UsesAudioInBackground()
+    const {
   return impl_->UsesAudioInBackground();
 }
 
-bool SiteDataReaderImpl::DataLoaded() const {
+bool SiteDataReader::DataLoaded() const {
   return impl_->DataLoaded();
 }
 
-void SiteDataReaderImpl::RegisterDataLoadedCallback(
-    base::OnceClosure&& callback) {
+void SiteDataReader::RegisterDataLoadedCallback(base::OnceClosure&& callback) {
   // Register a closure that is bound using a weak pointer to this instance.
   // In that way it won't be invoked by the underlying |impl_| after this
   // reader is destroyed.
-  base::OnceClosure closure(base::BindOnce(&SiteDataReaderImpl::RunClosure,
+  base::OnceClosure closure(base::BindOnce(&SiteDataReader::RunClosure,
                                            weak_factory_.GetWeakPtr(),
                                            std::move(callback)));
   impl_->RegisterDataLoadedCallback(std::move(closure));
 }
 
-void SiteDataReaderImpl::RunClosure(base::OnceClosure&& closure) {
+void SiteDataReader::RunClosure(base::OnceClosure&& closure) {
   std::move(closure).Run();
 }
 

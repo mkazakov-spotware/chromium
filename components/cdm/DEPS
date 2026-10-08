@@ -1,6 +1,5 @@
 include_rules = [
   "+ipc",
-  "+media/audio/android/audio_manager_android.h",
   "+media/base",
   "+media/cdm",
   "+media/media_buildflags.h",

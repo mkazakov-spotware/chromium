@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,11 +34,7 @@ URLLoader::URLLoader(const InstanceHandle& instance) {
       instance.pp_instance()));
 }
 
-URLLoader::URLLoader(const URLLoader& other) : Resource(other) {}
-
-URLLoader& URLLoader::operator=(const URLLoader& other) {
-  Resource::operator=(other);
-  return *this;
+URLLoader::URLLoader(const URLLoader& other) : Resource(other) {
 }
 
 int32_t URLLoader::Open(const URLRequestInfo& request_info,

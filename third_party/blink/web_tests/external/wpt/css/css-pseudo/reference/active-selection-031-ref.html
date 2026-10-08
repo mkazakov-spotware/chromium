@@ -6,9 +6,8 @@
 
   <link rel="author" title="Gérard Talbot" href="http://www.gtalbot.org/BrowserBugsSection/css21testsuite/">
 
-  <link rel="stylesheet" href="../support/highlights.css">
   <style>
-  div > div
+  div
     {
       color: green;
       float: left;
@@ -51,18 +50,14 @@
 
   <p>Test passes if each glyph of the 6 "Selected Text" is green and if there is <strong>no red</strong>.
 
-  <div class="highlight_reftest">
+  <div class="vrl mixed">Selected Text</div>
 
-    <div class="vrl mixed">Selected Text</div>
+  <div class="vrl sideways">Selected Text</div>
 
-    <div class="vrl sideways">Selected Text</div>
+  <div class="vrl upright"><span>Selected Text</span></div>
 
-    <div class="vrl upright"><span>Selected Text</span></div>
+  <div class="vlr mixed">Selected Text</div>
 
-    <div class="vlr mixed">Selected Text</div>
+  <div class="vlr sideways">Selected Text</div>
 
-    <div class="vlr sideways">Selected Text</div>
-
-    <div class="vlr upright"><span>Selected Text</span></div>
-
-  </div>
+  <div class="vlr upright"><span>Selected Text</span></div>

@@ -1,10 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/accessibility/ax_virtual_view_wrapper.h"
-
-#include <string>
 
 #include "ui/views/accessibility/ax_view_obj_wrapper.h"
 #include "ui/views/accessibility/ax_virtual_view.h"
@@ -13,13 +11,15 @@
 
 namespace views {
 
-AXVirtualViewWrapper::AXVirtualViewWrapper(AXAuraObjCache* cache,
-                                           AXVirtualView* virtual_view)
-    : AXAuraObjWrapper(cache), virtual_view_(virtual_view) {
-  virtual_view->set_cache(cache);
-}
+AXVirtualViewWrapper::AXVirtualViewWrapper(AXVirtualView* virtual_view,
+                                           AXAuraObjCache* cache)
+    : AXAuraObjWrapper(cache), virtual_view_(virtual_view) {}
 
 AXVirtualViewWrapper::~AXVirtualViewWrapper() = default;
+
+bool AXVirtualViewWrapper::IsIgnored() {
+  return false;
+}
 
 AXAuraObjWrapper* AXVirtualViewWrapper::GetParent() {
   if (virtual_view_->virtual_parent_view()) {
@@ -40,15 +40,9 @@ void AXVirtualViewWrapper::GetChildren(
 
 void AXVirtualViewWrapper::Serialize(ui::AXNodeData* out_node_data) {
   *out_node_data = virtual_view_->GetData();
-  View* owner_view = virtual_view_->GetOwnerView();
-  if (owner_view && owner_view->GetWidget()) {
-    gfx::Point offset;
-    View::ConvertPointToScreen(owner_view, &offset);
-    out_node_data->relative_bounds.bounds.Offset(offset.x(), offset.y());
-  }
 }
 
-ui::AXNodeID AXVirtualViewWrapper::GetUniqueId() const {
+int32_t AXVirtualViewWrapper::GetUniqueId() const {
   return virtual_view_->GetUniqueId().Get();
 }
 

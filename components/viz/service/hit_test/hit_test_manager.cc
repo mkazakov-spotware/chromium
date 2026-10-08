@@ -1,14 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "components/viz/service/hit_test/hit_test_manager.h"
-
-#include <utility>
-#include <vector>
+#include "components/viz/service/hit_test/hit_test_aggregator.h"
 
 #include "components/viz/common/hit_test/aggregated_hit_test_region.h"
-#include "components/viz/service/hit_test/hit_test_aggregator.h"
 #include "components/viz/service/surfaces/latest_local_surface_id_lookup_delegate.h"
 #include "components/viz/service/surfaces/surface.h"
 
@@ -29,6 +25,20 @@ bool FlagsAndAsyncReasonsMatch(uint32_t flags,
 }
 
 }  // namespace
+
+HitTestManager::HitTestAsyncQueriedDebugRegion::
+    HitTestAsyncQueriedDebugRegion() = default;
+HitTestManager::HitTestAsyncQueriedDebugRegion::HitTestAsyncQueriedDebugRegion(
+    base::flat_set<FrameSinkId> regions)
+    : regions(std::move(regions)) {}
+HitTestManager::HitTestAsyncQueriedDebugRegion::
+    ~HitTestAsyncQueriedDebugRegion() = default;
+
+HitTestManager::HitTestAsyncQueriedDebugRegion::HitTestAsyncQueriedDebugRegion(
+    HitTestAsyncQueriedDebugRegion&&) = default;
+HitTestManager::HitTestAsyncQueriedDebugRegion&
+HitTestManager::HitTestAsyncQueriedDebugRegion::operator=(
+    HitTestAsyncQueriedDebugRegion&&) = default;
 
 HitTestManager::HitTestManager(SurfaceManager* surface_manager)
     : surface_manager_(surface_manager) {}
@@ -67,7 +77,7 @@ void HitTestManager::OnSurfaceActivated(const SurfaceId& surface_id) {
 void HitTestManager::SubmitHitTestRegionList(
     const SurfaceId& surface_id,
     const uint64_t frame_index,
-    absl::optional<HitTestRegionList> hit_test_region_list) {
+    base::Optional<HitTestRegionList> hit_test_region_list) {
   if (!hit_test_region_list) {
     auto& frame_index_map = hit_test_region_lists_[surface_id];
     if (!frame_index_map.empty()) {
@@ -126,7 +136,27 @@ const HitTestRegionList* HitTestManager::GetActiveHitTestRegionList(
 
 int64_t HitTestManager::GetTraceId(const SurfaceId& id) const {
   Surface* surface = surface_manager_->GetSurfaceForId(id);
-  return surface->GetActiveFrameMetadata().begin_frame_ack.trace_id;
+  return surface->GetActiveFrame().metadata.begin_frame_ack.trace_id;
+}
+
+const base::flat_set<FrameSinkId>*
+HitTestManager::GetHitTestAsyncQueriedDebugRegions(
+    const FrameSinkId& root_frame_sink_id) const {
+  auto it = hit_test_async_queried_debug_regions_.find(root_frame_sink_id);
+  if (it == hit_test_async_queried_debug_regions_.end() ||
+      it->second.timer.Elapsed().InMilliseconds() > 2000) {
+    return nullptr;
+  }
+  return &it->second.regions;
+}
+
+void HitTestManager::SetHitTestAsyncQueriedDebugRegions(
+    const FrameSinkId& root_frame_sink_id,
+    const std::vector<FrameSinkId>& hit_test_async_queried_debug_queue) {
+  hit_test_async_queried_debug_regions_[root_frame_sink_id] =
+      HitTestAsyncQueriedDebugRegion(base::flat_set<FrameSinkId>(
+          hit_test_async_queried_debug_queue.begin(),
+          hit_test_async_queried_debug_queue.end()));
 }
 
 bool HitTestManager::ValidateHitTestRegionList(

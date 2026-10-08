@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <set>
 #include <string>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/api/api_resource.h"
@@ -35,12 +36,9 @@ class Webcam : public base::RefCounted<Webcam> {
 
   Webcam();
 
-  Webcam(const Webcam&) = delete;
-  Webcam& operator=(const Webcam&) = delete;
-
-  using GetPTZCompleteCallback = base::RepeatingCallback<
+  using GetPTZCompleteCallback = base::Callback<
       void(bool success, int value, int min_value, int max_value)>;
-  using SetPTZCompleteCallback = base::RepeatingCallback<void(bool success)>;
+  using SetPTZCompleteCallback = base::Callback<void(bool success)>;
 
   virtual void GetPan(const GetPTZCompleteCallback& callback) = 0;
   virtual void GetTilt(const GetPTZCompleteCallback& callback) = 0;
@@ -77,6 +75,9 @@ class Webcam : public base::RefCounted<Webcam> {
  protected:
   friend class base::RefCounted<Webcam>;
   virtual ~Webcam();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(Webcam);
 };
 
 class WebcamResource : public ApiResource {
@@ -84,10 +85,6 @@ class WebcamResource : public ApiResource {
   WebcamResource(const std::string& owner_extension_id,
                  Webcam* webcam,
                  const std::string& webcam_id);
-
-  WebcamResource(const WebcamResource&) = delete;
-  WebcamResource& operator=(const WebcamResource&) = delete;
-
   ~WebcamResource() override;
 
   static const content::BrowserThread::ID kThreadId =
@@ -102,6 +99,8 @@ class WebcamResource : public ApiResource {
  private:
   scoped_refptr<Webcam> webcam_;
   std::string webcam_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebcamResource);
 };
 
 }  // namespace extensions

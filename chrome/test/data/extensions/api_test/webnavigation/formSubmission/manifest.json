@@ -4,8 +4,7 @@
   "manifest_version": 2,
   "description": "Tests the webNavigation API events - formSubmission.",
   "background": {
-    "scripts": ["test_formSubmission.js"],
-    "persistent": true
+    "page": "test_formSubmission.html"
   },
   "permissions": ["webNavigation", "tabs"]
 }

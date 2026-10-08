@@ -1,20 +1,27 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SYNC_BASE_MODEL_TYPE_H_
 #define COMPONENTS_SYNC_BASE_MODEL_TYPE_H_
 
-#include <iosfwd>
 #include <map>
 #include <memory>
+#include <ostream>
+#include <set>
 #include <string>
 
-#include "base/containers/enum_set.h"
-#include "base/values.h"
+#include "base/logging.h"
+#include "components/sync/base/enum_set.h"
+
+namespace base {
+class ListValue;
+class Value;
+}
 
 namespace sync_pb {
 class EntitySpecifics;
+class SyncEntity;
 }
 
 namespace syncer {
@@ -31,13 +38,14 @@ namespace syncer {
 // update the |kModelTypeInfoMap| struct in model_type.cc and also the
 // SyncModelType histogram suffix in histograms.xml
 enum ModelType {
-  // Object type unknown. This may be used when:
-  // a) The client received *valid* data from a data type which this version
-  // is unaware of (only present in versions newer than this one, or present
-  // in older versions but removed since).
-  // b) The client received invalid data from the server due to some error.
-  // c) A data object was just created, in which case this is a temporary state.
+  // Object type unknown.  Objects may transition through
+  // the unknown state during their initial creation, before
+  // their properties are set.  After deletion, object types
+  // are generally preserved.
   UNSPECIFIED,
+  // A permanent folder whose children may be of mixed
+  // datatypes (e.g. the "Google Chrome" folder).
+  TOP_LEVEL_FOLDER,
 
   // ------------------------------------ Start of "real" model types.
   // The model types declared before here are somewhat special, as they
@@ -68,8 +76,6 @@ enum ModelType {
   // Offers and rewards from the user's account. These are read-only on the
   // client side.
   AUTOFILL_WALLET_OFFER,
-  // Autofill usage data of a payment method related to a specific merchant.
-  AUTOFILL_WALLET_USAGE,
   // A theme object.
   THEMES,
   // A typed_url object, i.e. a URL the user has typed into the Omnibox.
@@ -93,6 +99,10 @@ enum ModelType {
   HISTORY_DELETE_DIRECTIVES,
   // Custom spelling dictionary entries.
   DICTIONARY,
+  // Favicon images, including both the image URL and the actual pixels.
+  DEPRECATED_FAVICON_IMAGES,
+  // Favicon tracking information, i.e. metadata such as last visit date.
+  DEPRECATED_FAVICON_TRACKING,
   // Client-specific metadata, synced before other user types.
   DEVICE_INFO,
   // These preferences are synced before other user types and are never
@@ -102,18 +112,19 @@ enum ModelType {
   SUPERVISED_USER_SETTINGS,
   // App List items, used by the ChromeOS app launcher.
   APP_LIST,
+  // Supervised user allowlists. Each item contains a CRX ID (like an extension
+  // ID) and a name.
+  SUPERVISED_USER_ALLOWLISTS,
   // ARC package items, i.e. Android apps on ChromeOS.
   ARC_PACKAGE,
   // Printer device information. ChromeOS only.
   PRINTERS,
-  // Reading list items.
+  // Reading list items. iOS only.
   READING_LIST,
   // Commit only user events.
   USER_EVENTS,
   // Commit only user consents.
   USER_CONSENTS,
-  // Segmentation data.
-  SEGMENTATION,
   // Tabs sent between devices.
   SEND_TAB_TO_SELF,
   // Commit only security events.
@@ -128,29 +139,17 @@ enum ModelType {
   OS_PRIORITY_PREFERENCES,
   // Commit only sharing message object.
   SHARING_MESSAGE,
-  // A workspace desk saved by user. Chrome OS only.
-  WORKSPACE_DESK,
-  // WebAuthn credentials. Commented out because this type is currently only
-  // used by the server and Play Services, not Chrome itself.
-  // (crbug.com/1223853)
-  // WEBAUTHN_CREDENTIAL,
-  // Synced history. An entity roughly corresponds to a navigation.
-  HISTORY,
-  // Trusted Authorization Servers for printers. ChromeOS only.
-  PRINTERS_AUTHORIZATION_SERVERS,
-  // Contact information from the Google Address Storage.
-  CONTACT_INFO,
-  // A tab group saved by a user. Currently only supported on desktop platforms
-  // (Linux, Mac, Windows, ChromeOS).
-  SAVED_TAB_GROUP,
 
+  // ---- Proxy types ----
   // Proxy types are excluded from the sync protocol, but are still considered
   // real user types. By convention, we prefix them with 'PROXY_' to distinguish
   // them from normal protocol types.
-  //
+
   // Tab sync. This is a placeholder type, so that Sessions can be implicitly
   // enabled for history sync and tabs sync.
   PROXY_TABS,
+  FIRST_PROXY_TYPE = PROXY_TABS,
+  LAST_PROXY_TYPE = PROXY_TABS,
   LAST_USER_MODEL_TYPE = PROXY_TABS,
 
   // ---- Control Types ----
@@ -158,23 +157,17 @@ enum ModelType {
   NIGORI,
   LAST_REAL_MODEL_TYPE = NIGORI,
 
-  // NEW ENTRIES MUST BE ADDED ABOVE THIS.
-  LAST_ENTRY = LAST_REAL_MODEL_TYPE,
+  NUM_ENTRIES,
 };
 
 using ModelTypeSet =
-    base::EnumSet<ModelType, FIRST_REAL_MODEL_TYPE, LAST_REAL_MODEL_TYPE>;
-using FullModelTypeSet =
-    base::EnumSet<ModelType, UNSPECIFIED, LAST_REAL_MODEL_TYPE>;
+    EnumSet<ModelType, FIRST_REAL_MODEL_TYPE, LAST_REAL_MODEL_TYPE>;
+using FullModelTypeSet = EnumSet<ModelType, UNSPECIFIED, LAST_REAL_MODEL_TYPE>;
 using ModelTypeNameMap = std::map<ModelType, const char*>;
-
-constexpr int GetNumModelTypes() {
-  return static_cast<int>(ModelType::LAST_ENTRY) + 1;
-}
 
 inline ModelType ModelTypeFromInt(int i) {
   DCHECK_GE(i, 0);
-  DCHECK_LT(i, GetNumModelTypes());
+  DCHECK_LT(i, ModelType::NUM_ENTRIES);
   return static_cast<ModelType>(i);
 }
 
@@ -189,7 +182,7 @@ inline ModelType ModelTypeFromInt(int i) {
 // SyncModelType suffix in histograms.xml.
 enum class ModelTypeForHistograms {
   kUnspecified = 0,
-  // kTopLevelFolder = 1,
+  kTopLevelFolder = 1,
   kBookmarks = 2,
   kPreferences = 3,
   kPasswords = 4,
@@ -211,8 +204,8 @@ enum class ModelTypeForHistograms {
   // kDeprecatedSyncedNotifications = 20,
   kPriorityPreferences = 21,
   kDictionary = 22,
-  // kFaviconImages = 23,
-  // kFaviconTracking = 24,
+  kFaviconImages = 23,
+  kFaviconTracking = 24,
   kProxyTabs = 25,
   kSupervisedUserSettings = 26,
   // kDeprecatedSupervisedUsers = 27,
@@ -221,7 +214,7 @@ enum class ModelTypeForHistograms {
   // kDeprecatedSupervisedUserSharedSettings = 30,
   // kDeprecatedSyncedNotificationAppInfo = 31,
   // kDeprecatedWifiCredentials = 32,
-  kDeprecatedSupervisedUserAllowlists = 33,
+  kSupervisedUserAllowlists = 33,
   kAutofillWalletData = 34,
   kAutofillWalletMetadata = 35,
   kArcPackage = 36,
@@ -238,21 +231,21 @@ enum class ModelTypeForHistograms {
   kOsPriorityPreferences = 47,
   kSharingMessage = 48,
   kAutofillWalletOffer = 49,
-  kWorkspaceDesk = 50,
-  kHistory = 51,
-  kPrintersAuthorizationServers = 52,
-  kContactInfo = 53,
-  kAutofillWalletUsage = 54,
-  kSegmentation = 55,
-  kSavedTabGroups = 56,
-  kMaxValue = kSavedTabGroups
+  kMaxValue = kAutofillWalletOffer
 };
 
 // Used to mark the type of EntitySpecifics that has no actual data.
 void AddDefaultFieldValue(ModelType type, sync_pb::EntitySpecifics* specifics);
 
-// Extract the model type from an EntitySpecifics field. ModelType is a
-// local concept: the enum is not in the protocol.
+// Extract the model type of a SyncEntity protocol buffer.  ModelType is a
+// local concept: the enum is not in the protocol.  The SyncEntity's ModelType
+// is inferred from the presence of particular datatype field in the
+// entity specifics.
+ModelType GetModelType(const sync_pb::SyncEntity& sync_entity);
+
+// Extract the model type from an EntitySpecifics field.  Note that there
+// are some ModelTypes (like TOP_LEVEL_FOLDER) that can't be inferred this way;
+// prefer using GetModelType where possible.
 ModelType GetModelTypeFromSpecifics(const sync_pb::EntitySpecifics& specifics);
 
 // Protocol types are those types that have actual protocol buffer
@@ -262,14 +255,14 @@ constexpr ModelTypeSet ProtocolTypes() {
   return ModelTypeSet(
       BOOKMARKS, PREFERENCES, PASSWORDS, AUTOFILL_PROFILE, AUTOFILL,
       AUTOFILL_WALLET_DATA, AUTOFILL_WALLET_METADATA, AUTOFILL_WALLET_OFFER,
-      AUTOFILL_WALLET_USAGE, THEMES, TYPED_URLS, EXTENSIONS, SEARCH_ENGINES,
-      SESSIONS, APPS, APP_SETTINGS, EXTENSION_SETTINGS,
-      HISTORY_DELETE_DIRECTIVES, DICTIONARY, DEVICE_INFO, PRIORITY_PREFERENCES,
-      SUPERVISED_USER_SETTINGS, APP_LIST, ARC_PACKAGE, PRINTERS, READING_LIST,
+      THEMES, TYPED_URLS, EXTENSIONS, SEARCH_ENGINES, SESSIONS, APPS,
+      APP_SETTINGS, EXTENSION_SETTINGS, HISTORY_DELETE_DIRECTIVES, DICTIONARY,
+      DEPRECATED_FAVICON_IMAGES, DEPRECATED_FAVICON_TRACKING, DEVICE_INFO,
+      PRIORITY_PREFERENCES, SUPERVISED_USER_SETTINGS, APP_LIST,
+      SUPERVISED_USER_ALLOWLISTS, ARC_PACKAGE, PRINTERS, READING_LIST,
       USER_EVENTS, NIGORI, USER_CONSENTS, SEND_TAB_TO_SELF, SECURITY_EVENTS,
       WEB_APPS, WIFI_CONFIGURATIONS, OS_PREFERENCES, OS_PRIORITY_PREFERENCES,
-      SHARING_MESSAGE, WORKSPACE_DESK, HISTORY, PRINTERS_AUTHORIZATION_SERVERS,
-      CONTACT_INFO, SAVED_TAB_GROUP);
+      SHARING_MESSAGE);
 }
 
 // These are the normal user-controlled types. This is to distinguish from
@@ -279,10 +272,10 @@ constexpr ModelTypeSet UserTypes() {
   return ModelTypeSet::FromRange(FIRST_USER_MODEL_TYPE, LAST_USER_MODEL_TYPE);
 }
 
-// User types which are not user-controlled.
+// User types, which are not user-controlled.
 constexpr ModelTypeSet AlwaysPreferredUserTypes() {
   return ModelTypeSet(DEVICE_INFO, USER_CONSENTS, SECURITY_EVENTS,
-                      SEND_TAB_TO_SELF, SUPERVISED_USER_SETTINGS,
+                      SUPERVISED_USER_SETTINGS, SUPERVISED_USER_ALLOWLISTS,
                       SHARING_MESSAGE);
 }
 
@@ -299,14 +292,14 @@ constexpr ModelTypeSet AlwaysEncryptedUserTypes() {
 // This mostly matters during initial sync, since priority types can become
 // active before all the data for non-prio types has been downloaded (which may
 // be a lot of data).
-constexpr ModelTypeSet HighPriorityUserTypes() {
+constexpr ModelTypeSet PriorityUserTypes() {
   return ModelTypeSet(
       // The "Send to Your Devices" feature needs fast updating of the list of
       // your devices and also fast sending of the actual messages.
       DEVICE_INFO, SHARING_MESSAGE,
       // For supervised users, it is important to quickly deliver changes in
       // settings and in allowed sites to the supervised user.
-      SUPERVISED_USER_SETTINGS,
+      SUPERVISED_USER_SETTINGS, SUPERVISED_USER_ALLOWLISTS,
       // These are by definition preferences for which it is important that the
       // client picks them up quickly (also because these can get changed
       // server-side). For example, such a pref could control whether a
@@ -319,18 +312,11 @@ constexpr ModelTypeSet HighPriorityUserTypes() {
       THEMES);
 }
 
-// This is the subset of UserTypes() that have a *lower* priority than other
-// types. These types are synced only after all other user types (both for
-// get_updates and commits). This mostly matters during initial sync, since
-// high-priority and regular types can become active before all the data for
-// low-priority types has been downloaded (which may be a lot of data).
-constexpr ModelTypeSet LowPriorityUserTypes() {
-  return ModelTypeSet(
-      // Downloading History may take a while, but should not block the download
-      // of other data types.
-      HISTORY,
-      // User Events should not block or delay commits for other data types.
-      USER_EVENTS);
+// Proxy types are placeholder types for handling implicitly enabling real
+// types. They do not exist at the server, and are simply used for
+// UI/Configuration logic.
+constexpr ModelTypeSet ProxyTypes() {
+  return ModelTypeSet::FromRange(FIRST_PROXY_TYPE, LAST_PROXY_TYPE);
 }
 
 // Returns a list of all control types.
@@ -342,9 +328,16 @@ constexpr ModelTypeSet LowPriorityUserTypes() {
 // - They are always enabled.  Users may not disable these types.
 // - Their contents are not encrypted automatically.
 // - They support custom update application and conflict resolution logic.
-// - All change processing occurs on the sync thread.
+// - All change processing occurs on the sync thread (GROUP_PASSIVE).
 constexpr ModelTypeSet ControlTypes() {
   return ModelTypeSet(NIGORI);
+}
+
+// Returns true if this is a control type.
+//
+// See comment above for more information on what makes these types special.
+constexpr bool IsControlType(ModelType model_type) {
+  return ControlTypes().Has(model_type);
 }
 
 // Types that may commit data, but should never be included in a GetUpdates.
@@ -354,14 +347,6 @@ constexpr ModelTypeSet CommitOnlyTypes() {
                       SHARING_MESSAGE);
 }
 
-// Types for which downloaded updates are applied immediately, before all
-// updates are downloaded and the Sync cycle finishes.
-// For these types, ModelTypeSyncBridge::MergeSyncData() will never be called
-// (since without downloading all the data, no initial merge is possible).
-constexpr ModelTypeSet ApplyUpdatesImmediatelyTypes() {
-  return ModelTypeSet(HISTORY);
-}
-
 // User types that can be encrypted, which is a subset of UserTypes() and a
 // superset of AlwaysEncryptedUserTypes();
 ModelTypeSet EncryptableUserTypes();
@@ -369,27 +354,24 @@ ModelTypeSet EncryptableUserTypes();
 // Determine a model type from the field number of its associated
 // EntitySpecifics field.  Returns UNSPECIFIED if the field number is
 // not recognized.
+//
+// If you're putting the result in a ModelTypeSet, you should use the
+// following pattern:
+//
+//   ModelTypeSet model_types;
+//   // Say we're looping through a list of items, each of which has a
+//   // field number.
+//   for (...) {
+//     int field_number = ...;
+//     ModelType model_type =
+//         GetModelTypeFromSpecificsFieldNumber(field_number);
+//     if (!IsRealDataType(model_type)) {
+//       DLOG(WARNING) << "Unknown field number " << field_number;
+//       continue;
+//     }
+//     model_types.Put(model_type);
+//   }
 ModelType GetModelTypeFromSpecificsFieldNumber(int field_number);
-
-namespace internal {
-// Obtain model type from field_number and add to model_types if valid.
-void GetModelTypeSetFromSpecificsFieldNumberListHelper(
-    ModelTypeSet& model_types,
-    int field_number);
-}  // namespace internal
-
-// Build a ModelTypeSet from a list of field numbers. Any unknown field numbers
-// are ignored.
-template <typename ContainerT>
-ModelTypeSet GetModelTypeSetFromSpecificsFieldNumberList(
-    const ContainerT& field_numbers) {
-  ModelTypeSet model_types;
-  for (int field_number : field_numbers) {
-    internal::GetModelTypeSetFromSpecificsFieldNumberListHelper(model_types,
-                                                                field_number);
-  }
-  return model_types;
-}
 
 // Return the field number of the EntitySpecifics field associated with
 // a model type.
@@ -399,7 +381,7 @@ int GetSpecificsFieldNumberFromModelType(ModelType model_type);
 
 // Returns a string with application lifetime that represents the name of
 // |model_type|.
-const char* ModelTypeToDebugString(ModelType model_type);
+const char* ModelTypeToString(ModelType model_type);
 
 // Returns a string with application lifetime that is used as the histogram
 // suffix for |model_type|.
@@ -418,14 +400,20 @@ int ModelTypeToStableIdentifier(ModelType model_type);
 // Handles all model types, and not just real ones.
 std::unique_ptr<base::Value> ModelTypeToValue(ModelType model_type);
 
+// Returns the ModelType corresponding to the name |model_type_string|.
+ModelType ModelTypeFromString(const std::string& model_type_string);
+
 // Returns the comma-separated string representation of |model_types|.
-std::string ModelTypeSetToDebugString(ModelTypeSet model_types);
+std::string ModelTypeSetToString(ModelTypeSet model_types);
 
 // Necessary for compatibility with EXPECT_EQ and the like.
 std::ostream& operator<<(std::ostream& out, ModelTypeSet model_type_set);
 
-// Generates a base::Value::List from |model_types|.
-base::Value::List ModelTypeSetToValue(ModelTypeSet model_types);
+// Returns the set of comma-separated model types from |model_type_string|.
+ModelTypeSet ModelTypeSetFromString(const std::string& model_type_string);
+
+// Generates a base::ListValue from |model_types|.
+std::unique_ptr<base::ListValue> ModelTypeSetToValue(ModelTypeSet model_types);
 
 // Returns a string corresponding to the syncable tag for this datatype.
 std::string ModelTypeToRootTag(ModelType type);
@@ -445,12 +433,14 @@ bool RealModelTypeToNotificationType(ModelType model_type,
 // Converts a notification type to a real model type.  Returns true
 // iff |notification_type| was the notification type of a real model
 // type and |model_type| was filled in.
-[[nodiscard]] bool NotificationTypeToRealModelType(
-    const std::string& notification_type,
-    ModelType* model_type);
+bool NotificationTypeToRealModelType(const std::string& notification_type,
+                                     ModelType* model_type);
 
 // Returns true if |model_type| is a real datatype
 bool IsRealDataType(ModelType model_type);
+
+// Returns true if |model_type| is a proxy type
+bool IsProxyType(ModelType model_type);
 
 // Returns true if |model_type| is an act-once type. Act once types drop
 // entities after applying them. Drops are deletes that are not synced to other
@@ -465,6 +455,12 @@ bool IsTypeWithServerGeneratedRoot(ModelType model_type);
 // Returns true if root folder for |model_type| is created on the client when
 // that type is initially synced.
 bool IsTypeWithClientGeneratedRoot(ModelType model_type);
+
+// Returns true if |model_type| supports parent-child hierarchy or entries.
+bool TypeSupportsHierarchy(ModelType model_type);
+
+// Returns true if |model_type| supports ordering of sibling entries.
+bool TypeSupportsOrdering(ModelType model_type);
 
 }  // namespace syncer
 

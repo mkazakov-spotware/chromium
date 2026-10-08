@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <string>
 
 #include "base/compiler_specific.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/strings/string_piece.h"
 #include "net/base/io_buffer.h"
 #include "net/base/load_timing_info.h"
@@ -18,7 +18,9 @@
 #include "net/spdy/spdy_read_queue.h"
 #include "net/spdy/spdy_stream.h"
 
-namespace net::test {
+namespace net {
+
+namespace test {
 
 // Delegate that calls Close() on |stream_| on OnClose. Used by tests
 // to make sure that such an action is harmless.
@@ -28,7 +30,6 @@ class ClosingDelegate : public SpdyStream::Delegate {
   ~ClosingDelegate() override;
 
   // SpdyStream::Delegate implementation.
-  void OnEarlyHintsReceived(const spdy::Http2HeaderBlock& headers) override;
   void OnHeadersSent() override;
   void OnHeadersReceived(
       const spdy::Http2HeaderBlock& response_headers,
@@ -55,7 +56,6 @@ class StreamDelegateBase : public SpdyStream::Delegate {
   ~StreamDelegateBase() override;
 
   void OnHeadersSent() override;
-  void OnEarlyHintsReceived(const spdy::Http2HeaderBlock& headers) override;
   void OnHeadersReceived(
       const spdy::Http2HeaderBlock& response_headers,
       const spdy::Http2HeaderBlock* pushed_request_headers) override;
@@ -81,11 +81,6 @@ class StreamDelegateBase : public SpdyStream::Delegate {
   // returns the stream's ID when it was open.
   spdy::SpdyStreamId stream_id() const { return stream_id_; }
 
-  // Returns 103 Early Hints response headers.
-  const std::vector<spdy::Http2HeaderBlock>& early_hints() const {
-    return early_hints_;
-  }
-
   std::string GetResponseHeaderValue(const std::string& name) const;
   bool send_headers_completed() const { return send_headers_completed_; }
 
@@ -98,10 +93,9 @@ class StreamDelegateBase : public SpdyStream::Delegate {
 
  private:
   base::WeakPtr<SpdyStream> stream_;
-  spdy::SpdyStreamId stream_id_ = 0;
+  spdy::SpdyStreamId stream_id_;
   TestCompletionCallback callback_;
-  bool send_headers_completed_ = false;
-  std::vector<spdy::Http2HeaderBlock> early_hints_;
+  bool send_headers_completed_;
   spdy::Http2HeaderBlock response_headers_;
   SpdyReadQueue received_data_queue_;
   LoadTimingInfo load_timing_info_;
@@ -113,15 +107,6 @@ class StreamDelegateDoNothing : public StreamDelegateBase {
  public:
   explicit StreamDelegateDoNothing(const base::WeakPtr<SpdyStream>& stream);
   ~StreamDelegateDoNothing() override;
-};
-
-// Test delegate that consumes data as it arrives.
-class StreamDelegateConsumeData : public StreamDelegateBase {
- public:
-  explicit StreamDelegateConsumeData(const base::WeakPtr<SpdyStream>& stream);
-  ~StreamDelegateConsumeData() override;
-
-  void OnDataReceived(std::unique_ptr<SpdyBuffer> buffer) override;
 };
 
 // Test delegate that sends data immediately in OnHeadersReceived().
@@ -165,20 +150,8 @@ class StreamDelegateCloseOnHeaders : public StreamDelegateBase {
       const spdy::Http2HeaderBlock* pushed_request_headers) override;
 };
 
-// Test delegate that sets a flag when EOF is detected.
-class StreamDelegateDetectEOF : public StreamDelegateBase {
- public:
-  explicit StreamDelegateDetectEOF(const base::WeakPtr<SpdyStream>& stream);
-  ~StreamDelegateDetectEOF() override;
+}  // namespace test
 
-  void OnDataReceived(std::unique_ptr<SpdyBuffer> buffer) override;
-
-  bool eof_detected() const { return eof_detected_; }
-
- private:
-  bool eof_detected_ = false;
-};
-
-}  // namespace net::test
+}  // namespace net
 
 #endif  // NET_SPDY_SPDY_STREAM_TEST_UTIL_H_

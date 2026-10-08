@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,12 @@
 #import <Cocoa/Cocoa.h>
 
 #include "headless/lib/browser/headless_shell_application_mac.h"
-#include "services/device/public/cpp/geolocation/geolocation_manager_impl_mac.h"
 
 namespace headless {
 
-void HeadlessBrowserMainParts::PreCreateMainMessageLoop() {
+void HeadlessBrowserMainParts::PreMainMessageLoopStart() {
   // Force hide dock and menu bar.
   [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
-  if (!geolocation_manager_)
-    geolocation_manager_ = device::GeolocationManagerImpl::Create();
 }
 
 }  // namespace headless

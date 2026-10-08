@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,11 +45,8 @@
 
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 
-#include <ostream>
-
 #include "base/check_op.h"
 #include "base/notreached.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "net/base/lookup_string_in_fixed_set.h"
@@ -60,7 +57,8 @@
 #include "url/third_party/mozilla/url_parse.h"
 #include "url/url_util.h"
 
-namespace net::registry_controlled_domains {
+namespace net {
+namespace registry_controlled_domains {
 
 namespace {
 #include "net/base/registry_controlled_domains/effective_tld_names-reversed-inc.cc"
@@ -219,17 +217,18 @@ base::StringPiece GetDomainAndRegistryAsStringPiece(
 // These two functions append the given string as-is to the given output,
 // converting to UTF-8 if necessary.
 void AppendInvalidString(base::StringPiece str, url::CanonOutput* output) {
-  output->Append(str.data(), str.length());
+  output->Append(str.data(), static_cast<int>(str.length()));
 }
 void AppendInvalidString(base::StringPiece16 str, url::CanonOutput* output) {
   std::string utf8 = base::UTF16ToUTF8(str);
-  output->Append(utf8.data(), utf8.length());
+  output->Append(utf8.data(), static_cast<int>(utf8.length()));
 }
 
 // Backend for PermissiveGetHostRegistryLength that handles both UTF-8 and
-// UTF-16 input.
-template <typename T, typename CharT = typename T::value_type>
-size_t DoPermissiveGetHostRegistryLength(T host,
+// UTF-16 input. The template type is the std::string type to use (it makes the
+// typedefs easier than using the character type).
+template <typename Str>
+size_t DoPermissiveGetHostRegistryLength(base::BasicStringPiece<Str> host,
                                          UnknownRegistryFilter unknown_filter,
                                          PrivateRegistryFilter private_filter) {
   std::string canonical_host;  // Do not modify outside of canon_output.
@@ -249,7 +248,7 @@ size_t DoPermissiveGetHostRegistryLength(T host,
     MappedHostComponent mapping;
     mapping.original_begin = begin;
     mapping.original_end = current;
-    mapping.canonical_begin = canon_output.length();
+    mapping.canonical_begin = static_cast<size_t>(canon_output.length());
 
     // Try to append the canonicalized version of this component.
     int current_len = static_cast<int>(current - begin);
@@ -260,7 +259,7 @@ size_t DoPermissiveGetHostRegistryLength(T host,
       AppendInvalidString(host.substr(begin, current_len), &canon_output);
     }
 
-    mapping.canonical_end = canon_output.length();
+    mapping.canonical_end = static_cast<size_t>(canon_output.length());
     components.push_back(mapping);
 
     if (current < host.length())
@@ -339,7 +338,8 @@ bool SameDomainOrHost(base::StringPiece host1,
     return true;
 
   // Check for a domain and registry match.
-  base::StringPiece domain1 = GetDomainAndRegistryAsStringPiece(host1, filter);
+  const base::StringPiece& domain1 =
+      GetDomainAndRegistryAsStringPiece(host1, filter);
   return !domain1.empty() &&
          (domain1 == GetDomainAndRegistryAsStringPiece(host2, filter));
 }
@@ -348,13 +348,13 @@ bool SameDomainOrHost(base::StringPiece host1,
 
 std::string GetDomainAndRegistry(const GURL& gurl,
                                  PrivateRegistryFilter filter) {
-  return std::string(
-      GetDomainAndRegistryAsStringPiece(gurl.host_piece(), filter));
+  return GetDomainAndRegistryAsStringPiece(gurl.host_piece(), filter)
+      .as_string();
 }
 
 std::string GetDomainAndRegistry(const url::Origin& origin,
                                  PrivateRegistryFilter filter) {
-  return std::string(GetDomainAndRegistryAsStringPiece(origin.host(), filter));
+  return GetDomainAndRegistryAsStringPiece(origin.host(), filter).as_string();
 }
 
 std::string GetDomainAndRegistry(base::StringPiece host,
@@ -363,7 +363,7 @@ std::string GetDomainAndRegistry(base::StringPiece host,
   const std::string canon_host(CanonicalizeHost(host, &host_info));
   if (canon_host.empty() || host_info.IsIPAddress())
     return std::string();
-  return std::string(GetDomainAndRegistryImpl(canon_host, filter));
+  return GetDomainAndRegistryImpl(canon_host, filter).as_string();
 }
 
 bool SameDomainOrHost(
@@ -380,7 +380,7 @@ bool SameDomainOrHost(const url::Origin& origin1,
 }
 
 bool SameDomainOrHost(const url::Origin& origin1,
-                      const absl::optional<url::Origin>& origin2,
+                      const base::Optional<url::Origin>& origin2,
                       PrivateRegistryFilter filter) {
   return origin2.has_value() &&
          SameDomainOrHost(origin1, origin2.value(), filter);
@@ -444,27 +444,28 @@ size_t GetCanonicalHostRegistryLength(base::StringPiece canon_host,
 size_t PermissiveGetHostRegistryLength(base::StringPiece host,
                                        UnknownRegistryFilter unknown_filter,
                                        PrivateRegistryFilter private_filter) {
-  return DoPermissiveGetHostRegistryLength(host, unknown_filter,
-                                           private_filter);
+  return DoPermissiveGetHostRegistryLength<std::string>(host, unknown_filter,
+                                                        private_filter);
 }
 
 size_t PermissiveGetHostRegistryLength(base::StringPiece16 host,
                                        UnknownRegistryFilter unknown_filter,
                                        PrivateRegistryFilter private_filter) {
-  return DoPermissiveGetHostRegistryLength(host, unknown_filter,
-                                           private_filter);
+  return DoPermissiveGetHostRegistryLength<base::string16>(host, unknown_filter,
+                                                           private_filter);
 }
 
-void ResetFindDomainGraphForTesting() {
+void SetFindDomainGraph() {
   g_graph = kDafsa;
   g_graph_length = sizeof(kDafsa);
 }
 
-void SetFindDomainGraphForTesting(const unsigned char* domains, size_t length) {
+void SetFindDomainGraph(const unsigned char* domains, size_t length) {
   CHECK(domains);
   CHECK_NE(length, 0u);
   g_graph = domains;
   g_graph_length = length;
 }
 
-}  // namespace net::registry_controlled_domains
+}  // namespace registry_controlled_domains
+}  // namespace net

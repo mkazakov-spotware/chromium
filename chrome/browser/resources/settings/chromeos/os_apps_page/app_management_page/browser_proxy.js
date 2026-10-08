@@ -1,120 +1,124 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {App, PageCallbackRouter, PageHandlerRemote, PermissionType, TriState} from 'chrome://resources/cr_components/app_management/app_management.mojom-webui.js';
-import {BrowserProxy as ComponentBrowserProxy} from 'chrome://resources/cr_components/app_management/browser_proxy.js';
-import {AppType, InstallReason, OptionalBool} from 'chrome://resources/cr_components/app_management/constants.js';
+cr.define('app_management', function() {
+  class BrowserProxy {
+    constructor() {
+      /** @type {appManagement.mojom.PageCallbackRouter} */
+      this.callbackRouter = new appManagement.mojom.PageCallbackRouter();
 
-import {FakePageHandler} from './fake_page_handler.js';
+      /** @type {appManagement.mojom.PageHandlerRemote} */
+      this.handler = null;
 
-/** @type {?BrowserProxy} */
-let instance = null;
+      const urlParams = new URLSearchParams(window.location.search);
+      const arcSupported = urlParams.get('arcSupported');
+      const useFake = urlParams.get('fakeBackend');
 
-export class BrowserProxy {
-  /** @return {!BrowserProxy} */
-  static getInstance() {
-    return instance || (instance = new BrowserProxy());
-  }
+      if (useFake) {
+        if (arcSupported) {
+          loadTimeData.overrideValues({
+            'isSupportedArcVersion': arcSupported.toLowerCase() === 'true',
+          });
+        } else {
+          loadTimeData.overrideValues({
+            'isSupportedArcVersion': true,
+          });
+        }
 
-  /** @param {!BrowserProxy} obj */
-  static setInstanceForTesting(obj) {
-    instance = obj;
-  }
+        this.fakeHandler = new app_management.FakePageHandler(
+            this.callbackRouter.$.bindNewPipeAndPassRemote());
+        this.handler = this.fakeHandler.getRemote();
 
-  constructor() {
-    /** @type {PageCallbackRouter} */
-    this.callbackRouter = new PageCallbackRouter();
+        const permissionOptions = {};
+        permissionOptions[PwaPermissionType.GEOLOCATION] = {
+          permissionValue: TriState.kAllow,
+          isManaged: true,
+        };
+        permissionOptions[PwaPermissionType.MEDIASTREAM_CAMERA] = {
+          permissionValue: TriState.kBlock,
+          isManaged: true
+        };
 
-    /** @type {PageHandlerRemote} */
-    this.handler = null;
+        const /** @type {!Array<App>}*/ appList = [
+          app_management.FakePageHandler.createApp(
+              'blpcfgokakmgnkcojhhkbfblekacnbeo',
+              {
+                title: 'Built in app, not implemented',
+                type: AppType.kBuiltIn,
+                installSource: InstallSource.kSystem,
+              },
+              ),
+          app_management.FakePageHandler.createApp(
+              'aohghmighlieiainnegkcijnfilokake',
+              {
+                title: 'Arc app',
+                type: AppType.kArc,
+                installSource: InstallSource.kUser,
+              },
+              ),
+          app_management.FakePageHandler.createApp(
+              'blpcfgokakmgnkcojhhkbfbldkacnbeo',
+              {
+                title: 'Crostini app, not implemented',
+                type: AppType.kCrostini,
+                installSource: InstallSource.kUser,
+              },
+              ),
+          app_management.FakePageHandler.createApp(
+              'pjkljhegncpnkkknowihdijeoejaedia',
+              {
+                title: 'Chrome App',
+                type: AppType.kExtension,
+                description:
+                    'A Chrome App installed from the Chrome Web Store.',
+              },
+              ),
+          app_management.FakePageHandler.createApp(
+              'aapocclcdoekwnckovdopfmtonfmgok',
+              {
+                title: 'Web App',
+                type: AppType.kWeb,
+              },
+              ),
+          app_management.FakePageHandler.createApp(
+              'pjkljhegncpnkkknbcohdijeoejaedia',
+              {
+                title: 'Chrome App, OEM installed',
+                type: AppType.kExtension,
+                description: 'A Chrome App installed by an OEM.',
+                installSource: InstallSource.kOem,
+              },
+              ),
+          app_management.FakePageHandler.createApp(
+              'aapocclcgogkmnckokdopfmhonfmgok',
+              {
+                title: 'Web App, policy applied',
+                type: AppType.kWeb,
+                isPinned: apps.mojom.OptionalBool.kTrue,
+                isPolicyPinned: apps.mojom.OptionalBool.kTrue,
+                installSource: apps.mojom.InstallSource.kPolicy,
+                permissions:
+                    app_management.FakePageHandler.createWebPermissions(
+                        permissionOptions),
+              },
+              ),
+        ];
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const useFake = urlParams.get('fakeBackend');
+        this.fakeHandler.setApps(appList);
 
-    if (useFake) {
-      this.fakeHandler =
-          new FakePageHandler(this.callbackRouter.$.bindNewPipeAndPassRemote());
-      this.handler = this.fakeHandler.getRemote();
-
-      const permissionOptions = {};
-      permissionOptions[PermissionType.kLocation] = {
-        permissionValue: TriState.kAllow,
-        isManaged: true,
-      };
-      permissionOptions[PermissionType.kCamera] = {
-        permissionValue: TriState.kBlock,
-        isManaged: true,
-      };
-
-      const /** @type {!Array<App>}*/ appList = [
-        FakePageHandler.createApp(
-            'blpcfgokakmgnkcojhhkbfblekacnbeo',
-            {
-              title: 'Built in app, not implemented',
-              type: AppType.kBuiltIn,
-              installReason: InstallReason.kSystem,
-            },
-            ),
-        FakePageHandler.createApp(
-            'aohghmighlieiainnegkcijnfilokake',
-            {
-              title: 'Arc app',
-              type: AppType.kArc,
-              installReason: InstallReason.kUser,
-            },
-            ),
-        FakePageHandler.createApp(
-            'blpcfgokakmgnkcojhhkbfbldkacnbeo',
-            {
-              title: 'Crostini app, not implemented',
-              type: AppType.kCrostini,
-              installReason: InstallReason.kUser,
-            },
-            ),
-        FakePageHandler.createApp(
-            'pjkljhegncpnkkknowihdijeoejaedia',
-            {
-              title: 'Chrome App',
-              type: AppType.kChromeApp,
-              description: 'A Chrome App installed from the Chrome Web Store.',
-            },
-            ),
-        FakePageHandler.createApp(
-            'aapocclcdoekwnckovdopfmtonfmgok',
-            {
-              title: 'Web App',
-              type: AppType.kWeb,
-            },
-            ),
-        FakePageHandler.createApp(
-            'pjkljhegncpnkkknbcohdijeoejaedia',
-            {
-              title: 'Chrome App, OEM installed',
-              type: AppType.kChromeApp,
-              description: 'A Chrome App installed by an OEM.',
-              installReason: InstallReason.kOem,
-            },
-            ),
-        FakePageHandler.createApp(
-            'aapocclcgogkmnckokdopfmhonfmgok',
-            {
-              title: 'Web App, policy applied',
-              type: AppType.kWeb,
-              isPinned: OptionalBool.kTrue,
-              isPolicyPinned: OptionalBool.kTrue,
-              installReason: InstallReason.kPolicy,
-              permissions:
-                  FakePageHandler.createWebPermissions(permissionOptions),
-            },
-            ),
-      ];
-
-      this.fakeHandler.setApps(appList);
-
-    } else {
-      this.handler = ComponentBrowserProxy.getInstance().handler;
-      this.callbackRouter = ComponentBrowserProxy.getInstance().callbackRouter;
+      } else {
+        this.handler = new appManagement.mojom.PageHandlerRemote();
+        const factory = appManagement.mojom.PageHandlerFactory.getRemote();
+        factory.createPageHandler(
+            this.callbackRouter.$.bindNewPipeAndPassRemote(),
+            this.handler.$.bindNewPipeAndPassReceiver());
+      }
     }
   }
-}
+
+  cr.addSingletonGetter(BrowserProxy);
+
+  // #cr_define_end
+  return {BrowserProxy: BrowserProxy};
+});

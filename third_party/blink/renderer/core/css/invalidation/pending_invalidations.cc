@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 #include "third_party/blink/renderer/core/dom/shadow_root.h"
 #include "third_party/blink/renderer/core/html/html_slot_element.h"
 #include "third_party/blink/renderer/core/inspector/inspector_trace_events.h"
+#include "third_party/blink/renderer/core/layout/layout_object.h"
 
 namespace blink {
 
@@ -51,12 +52,13 @@ void PendingInvalidations::ScheduleInvalidationSetsForNode(
     }
     // No need to schedule descendant invalidations on display:none elements.
     if (requires_descendant_invalidation && !node.GetComputedStyle() &&
-        !node.IsShadowRoot()) {
+        node.CanParticipateInFlatTree()) {
       requires_descendant_invalidation = false;
     }
   }
 
-  if (!requires_descendant_invalidation && invalidation_lists.siblings.empty())
+  if (!requires_descendant_invalidation &&
+      invalidation_lists.siblings.IsEmpty())
     return;
 
   // For SiblingInvalidationSets we can skip scheduling if there is no
@@ -94,9 +96,9 @@ void PendingInvalidations::ScheduleInvalidationSetsForNode(
 void PendingInvalidations::ScheduleSiblingInvalidationsAsDescendants(
     const InvalidationLists& invalidation_lists,
     ContainerNode& scheduling_parent) {
-  DCHECK(invalidation_lists.descendants.empty());
+  DCHECK(invalidation_lists.descendants.IsEmpty());
 
-  if (invalidation_lists.siblings.empty())
+  if (invalidation_lists.siblings.IsEmpty())
     return;
 
   NodeInvalidationSets& pending_invalidations =
@@ -140,7 +142,7 @@ void PendingInvalidations::RescheduleSiblingInvalidationsAsDescendants(
   auto pending_invalidations_iterator =
       pending_invalidation_map_.find(&element);
   if (pending_invalidations_iterator == pending_invalidation_map_.end() ||
-      pending_invalidations_iterator->value.Siblings().empty())
+      pending_invalidations_iterator->value.Siblings().IsEmpty())
     return;
   NodeInvalidationSets& pending_invalidations =
       pending_invalidations_iterator->value;

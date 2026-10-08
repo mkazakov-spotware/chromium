@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 #define COMPONENTS_PERFORMANCE_MANAGER_WEB_CONTENTS_PROXY_IMPL_H_
 
 #include <cstdint>
+
+#include "base/macros.h"
 
 namespace content {
 class WebContents;
@@ -23,10 +25,6 @@ namespace performance_manager {
 class WebContentsProxyImpl {
  public:
   WebContentsProxyImpl();
-
-  WebContentsProxyImpl(const WebContentsProxyImpl&) = delete;
-  WebContentsProxyImpl& operator=(const WebContentsProxyImpl&) = delete;
-
   virtual ~WebContentsProxyImpl();
 
   // Allows resolving this proxy to the underlying WebContents. This must only
@@ -42,6 +40,9 @@ class WebContentsProxyImpl {
   // older or equal to "LastNavigationId". This must only be called on the UI
   // thread.
   virtual int64_t LastNewDocNavigationId() const = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WebContentsProxyImpl);
 };
 
 }  // namespace performance_manager

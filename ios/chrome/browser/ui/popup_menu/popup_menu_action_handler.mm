@@ -1,38 +1,31 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/popup_menu/popup_menu_action_handler.h"
 
-#import "base/bind.h"
-#import "base/check.h"
-#import "base/feature_list.h"
-#import "base/metrics/user_metrics.h"
-#import "base/metrics/user_metrics_action.h"
-#import "base/notreached.h"
-#import "base/strings/sys_string_conversions.h"
-#import "components/open_from_clipboard/clipboard_recent_content.h"
+#include "base/bind.h"
+#include "base/check.h"
+#include "base/feature_list.h"
+#include "base/metrics/user_metrics.h"
+#include "base/metrics/user_metrics_action.h"
+#include "base/notreached.h"
+#include "base/strings/sys_string_conversions.h"
+#include "components/open_from_clipboard/clipboard_recent_content.h"
+#include "ios/chrome/browser/chrome_url_constants.h"
 #import "ios/chrome/browser/ui/commands/application_commands.h"
-#import "ios/chrome/browser/ui/commands/bookmarks_commands.h"
 #import "ios/chrome/browser/ui/commands/browser_commands.h"
-#import "ios/chrome/browser/ui/commands/browser_coordinator_commands.h"
 #import "ios/chrome/browser/ui/commands/find_in_page_commands.h"
 #import "ios/chrome/browser/ui/commands/load_query_commands.h"
 #import "ios/chrome/browser/ui/commands/open_new_tab_command.h"
-#import "ios/chrome/browser/ui/commands/page_info_commands.h"
-#import "ios/chrome/browser/ui/commands/price_notifications_commands.h"
-#import "ios/chrome/browser/ui/commands/qr_scanner_commands.h"
 #import "ios/chrome/browser/ui/commands/text_zoom_commands.h"
-#import "ios/chrome/browser/ui/default_promo/default_browser_utils.h"
-#import "ios/chrome/browser/ui/popup_menu/popup_menu_action_handler_delegate.h"
+#import "ios/chrome/browser/ui/page_info/features.h"
+#import "ios/chrome/browser/ui/popup_menu/popup_menu_action_handler_commands.h"
 #import "ios/chrome/browser/ui/popup_menu/public/cells/popup_menu_item.h"
 #import "ios/chrome/browser/ui/popup_menu/public/popup_menu_table_view_controller.h"
 #import "ios/chrome/browser/ui/ui_feature_flags.h"
-#import "ios/chrome/browser/url/chrome_url_constants.h"
-#import "ios/chrome/browser/web/web_navigation_browser_agent.h"
 #import "ios/chrome/browser/window_activities/window_activity_helpers.h"
-#import "ios/web/public/web_state.h"
-#import "url/gurl.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -40,6 +33,12 @@
 
 using base::RecordAction;
 using base::UserMetricsAction;
+
+namespace {
+
+const char kManagementPageURL[] = "chrome://management";
+
+}  // namespace
 
 @implementation PopupMenuActionHandler
 
@@ -49,17 +48,17 @@ using base::UserMetricsAction;
                        didSelectItem:(TableViewItem<PopupMenuItem>*)item
                               origin:(CGPoint)origin {
   DCHECK(self.dispatcher);
-  DCHECK(self.delegate);
+  DCHECK(self.commandHandler);
 
   PopupMenuAction identifier = item.actionIdentifier;
   switch (identifier) {
     case PopupMenuActionReload:
       RecordAction(UserMetricsAction("MobileMenuReload"));
-      self.navigationAgent->Reload();
+      [self.dispatcher reload];
       break;
     case PopupMenuActionStop:
       RecordAction(UserMetricsAction("MobileMenuStop"));
-      self.navigationAgent->StopLoading();
+      [self.dispatcher stopLoading];
       break;
     case PopupMenuActionOpenNewTab:
       RecordAction(UserMetricsAction("MobileMenuNewTab"));
@@ -75,24 +74,15 @@ using base::UserMetricsAction;
       break;
     case PopupMenuActionReadLater:
       RecordAction(UserMetricsAction("MobileMenuReadLater"));
-      [self.delegate readPageLater];
+      [self.commandHandler readPageLater];
       break;
-    case PopupMenuActionPageBookmark: {
+    case PopupMenuActionPageBookmark:
       RecordAction(UserMetricsAction("MobileMenuAddToBookmarks"));
-      LogLikelyInterestedDefaultBrowserUserActivity(DefaultPromoTypeAllTabs);
-      web::WebState* currentWebState = self.delegate.currentWebState;
-      if (!currentWebState) {
-        return;
-      }
-      BookmarkAddCommand* command =
-          [[BookmarkAddCommand alloc] initWithWebState:currentWebState
-                                  presentFolderChooser:NO];
-      [self.bookmarksCommandsHandler bookmark:command];
+      [self.dispatcher bookmarkCurrentPage];
       break;
-    }
     case PopupMenuActionTranslate:
       base::RecordAction(UserMetricsAction("MobileMenuTranslate"));
-      [self.browserCoordinatorCommandsHandler showTranslate];
+      [self.dispatcher showTranslate];
       break;
     case PopupMenuActionFindInPage:
       RecordAction(UserMetricsAction("MobileMenuFindInPage"));
@@ -100,16 +90,21 @@ using base::UserMetricsAction;
       break;
     case PopupMenuActionRequestDesktop:
       RecordAction(UserMetricsAction("MobileMenuRequestDesktopSite"));
-      self.navigationAgent->RequestDesktopSite();
-      [self.browserCoordinatorCommandsHandler showDefaultSiteViewIPH];
+      [self.dispatcher requestDesktopSite];
       break;
     case PopupMenuActionRequestMobile:
       RecordAction(UserMetricsAction("MobileMenuRequestMobileSite"));
-      self.navigationAgent->RequestMobileSite();
+      [self.dispatcher requestMobileSite];
       break;
     case PopupMenuActionSiteInformation:
       RecordAction(UserMetricsAction("MobileMenuSiteInformation"));
-      [self.pageInfoCommandsHandler showPageInfo];
+      if (base::FeatureList::IsEnabled(kPageInfoRefactoring)) {
+        [self.dispatcher showPageInfo];
+      } else {
+        [self.dispatcher
+            legacyShowPageInfoForOriginPoint:self.baseViewController.view
+                                                 .center];
+      }
       break;
     case PopupMenuActionReportIssue:
       RecordAction(UserMetricsAction("MobileMenuReportAnIssue"));
@@ -118,17 +113,16 @@ using base::UserMetricsAction;
                                        sender:UserFeedbackSender::ToolsMenu];
       // Dismisses the popup menu without animation to allow the snapshot to be
       // taken without the menu presented.
-      [self.popupMenuCommandsHandler dismissPopupMenuAnimated:NO];
+      [self.dispatcher dismissPopupMenuAnimated:NO];
       break;
     case PopupMenuActionHelp:
       RecordAction(UserMetricsAction("MobileMenuHelp"));
-      [self.browserCoordinatorCommandsHandler showHelpPage];
+      [self.dispatcher showHelpPage];
       break;
     case PopupMenuActionOpenDownloads:
       RecordAction(
           UserMetricsAction("MobileDownloadFolderUIShownFromToolsMenu"));
-      [self.delegate recordDownloadsMetricsPerProfile];
-      [self.browserCoordinatorCommandsHandler showDownloadsFolder];
+      [self.dispatcher showDownloadsFolder];
       break;
     case PopupMenuActionTextZoom:
       RecordAction(UserMetricsAction("MobileMenuTextZoom"));
@@ -136,30 +130,25 @@ using base::UserMetricsAction;
       break;
 #if !defined(NDEBUG)
     case PopupMenuActionViewSource:
-      [self.browserCoordinatorCommandsHandler viewSource];
+      [self.dispatcher viewSource];
       break;
 #endif  // !defined(NDEBUG)
     case PopupMenuActionOpenNewWindow:
-      RecordAction(UserMetricsAction("MobileMenuNewWindow"));
       [self.dispatcher openNewWindowWithActivity:ActivityToLoadURL(
                                                      WindowActivityToolsOrigin,
                                                      GURL(kChromeUINewTabURL))];
       break;
-    case PopupMenuActionFollow:
-      [self.delegate toggleFollowed];
-      break;
     case PopupMenuActionBookmarks:
       RecordAction(UserMetricsAction("MobileMenuAllBookmarks"));
-      LogLikelyInterestedDefaultBrowserUserActivity(DefaultPromoTypeAllTabs);
-      [self.browserCoordinatorCommandsHandler showBookmarksManager];
+      [self.dispatcher showBookmarksManager];
       break;
     case PopupMenuActionReadingList:
       RecordAction(UserMetricsAction("MobileMenuReadingList"));
-      [self.browserCoordinatorCommandsHandler showReadingList];
+      [self.dispatcher showReadingList];
       break;
     case PopupMenuActionRecentTabs:
       RecordAction(UserMetricsAction("MobileMenuRecentTabs"));
-      [self.browserCoordinatorCommandsHandler showRecentTabs];
+      [self.dispatcher showRecentTabs];
       break;
     case PopupMenuActionHistory:
       RecordAction(UserMetricsAction("MobileMenuHistory"));
@@ -167,16 +156,15 @@ using base::UserMetricsAction;
       break;
     case PopupMenuActionSettings:
       RecordAction(UserMetricsAction("MobileMenuSettings"));
-      [self.delegate recordSettingsMetricsPerProfile];
       [self.dispatcher showSettingsFromViewController:self.baseViewController];
       break;
     case PopupMenuActionCloseTab:
       RecordAction(UserMetricsAction("MobileMenuCloseTab"));
-      [self.browserCoordinatorCommandsHandler closeCurrentTab];
+      [self.dispatcher closeCurrentTab];
       break;
     case PopupMenuActionNavigate:
       // No metrics for this item.
-      [self.delegate navigateToPageForItem:item];
+      [self.commandHandler navigateToPageForItem:item];
       break;
     case PopupMenuActionVoiceSearch:
       RecordAction(UserMetricsAction("MobileMenuVoiceSearch"));
@@ -198,16 +186,16 @@ using base::UserMetricsAction;
     }
     case PopupMenuActionQRCodeSearch:
       RecordAction(UserMetricsAction("MobileMenuScanQRCode"));
-      [self.qrScannerCommandsHandler showQRScanner];
+      [self.dispatcher showQRScanner];
       break;
     case PopupMenuActionSearchCopiedImage: {
       RecordAction(UserMetricsAction("MobileMenuSearchCopiedImage"));
-      [self.delegate searchCopiedImage];
-      break;
-    }
-    case PopupMenuActionLensCopiedImage: {
-      RecordAction(UserMetricsAction("MobileMenuLensCopiedImage"));
-      [self.delegate lensCopiedImage];
+      ClipboardRecentContent* clipboardRecentContent =
+          ClipboardRecentContent::GetInstance();
+      clipboardRecentContent->GetRecentImageFromClipboard(
+          base::BindOnce(^(base::Optional<gfx::Image> image) {
+            [self.dispatcher searchByImage:[image.value().ToUIImage() copy]];
+          }));
       break;
     }
     case PopupMenuActionSearchCopiedText: {
@@ -215,7 +203,7 @@ using base::UserMetricsAction;
       ClipboardRecentContent* clipboardRecentContent =
           ClipboardRecentContent::GetInstance();
       clipboardRecentContent->GetRecentTextFromClipboard(
-          base::BindOnce(^(absl::optional<std::u16string> optional_text) {
+          base::BindOnce(^(base::Optional<base::string16> optional_text) {
             if (!optional_text) {
               return;
             }
@@ -230,7 +218,7 @@ using base::UserMetricsAction;
       ClipboardRecentContent* clipboardRecentContent =
           ClipboardRecentContent::GetInstance();
       clipboardRecentContent->GetRecentURLFromClipboard(
-          base::BindOnce(^(absl::optional<GURL> optional_url) {
+          base::BindOnce(^(base::Optional<GURL> optional_url) {
             if (!optional_url) {
               return;
             }
@@ -243,11 +231,7 @@ using base::UserMetricsAction;
     case PopupMenuActionEnterpriseInfoMessage:
       [self.dispatcher
           openURLInNewTab:[OpenNewTabCommand commandWithURLFromChrome:
-                                                 GURL(kChromeUIManagementURL)]];
-      break;
-    case PopupMenuActionPriceNotifications:
-      RecordAction(UserMetricsAction("MobileMenuPriceNotifications"));
-      [self.dispatcher showPriceNotifications];
+                                                 GURL(kManagementPageURL)]];
       break;
     default:
       NOTREACHED() << "Unexpected identifier";
@@ -255,7 +239,7 @@ using base::UserMetricsAction;
   }
 
   // Close the tools menu.
-  [self.popupMenuCommandsHandler dismissPopupMenuAnimated:YES];
+  [self.dispatcher dismissPopupMenuAnimated:YES];
 }
 
 @end

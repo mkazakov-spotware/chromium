@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,6 @@ class HttpEquiv {
                       const AtomicString& equiv,
                       const AtomicString& content,
                       bool in_document_head_element,
-                      bool is_sync_parser,
                       Element*);
 
  private:
@@ -48,8 +47,9 @@ class HttpEquiv {
       LocalDOMWindow*,
       const AtomicString& equiv,
       const AtomicString& content);
+  static void ProcessHttpEquivAcceptCH(Document&, const AtomicString& content);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LOADER_HTTP_EQUIV_H_
+#endif

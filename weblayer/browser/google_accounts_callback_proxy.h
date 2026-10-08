@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <jni.h>
 
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
 #include "weblayer/public/google_accounts_delegate.h"
 
 namespace weblayer {
@@ -26,7 +25,7 @@ class GoogleAccountsCallbackProxy : public GoogleAccountsDelegate {
   std::string GetGaiaId() override;
 
  private:
-  raw_ptr<Tab> tab_;
+  Tab* tab_;
   base::android::ScopedJavaGlobalRef<jobject> java_impl_;
 };
 

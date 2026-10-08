@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SIGNIN_INTERNAL_IDENTITY_MANAGER_DIAGNOSTICS_PROVIDER_IMPL_H_
 #define COMPONENTS_SIGNIN_INTERNAL_IDENTITY_MANAGER_DIAGNOSTICS_PROVIDER_IMPL_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/signin/public/identity_manager/diagnostics_provider.h"
 
 class GaiaCookieManagerService;
@@ -19,10 +19,6 @@ class DiagnosticsProviderImpl final : public DiagnosticsProvider {
   DiagnosticsProviderImpl(
       ProfileOAuth2TokenService* profile_oauth2_token_service,
       GaiaCookieManagerService* gaia_cookie_manager_service);
-
-  DiagnosticsProviderImpl(const DiagnosticsProviderImpl&) = delete;
-  DiagnosticsProviderImpl& operator=(const DiagnosticsProviderImpl&) = delete;
-
   ~DiagnosticsProviderImpl() override;
 
   // Returns the state of the load credentials operation.
@@ -38,10 +34,10 @@ class DiagnosticsProviderImpl final : public DiagnosticsProvider {
   base::TimeDelta GetDelayBeforeMakingCookieRequests() const override;
 
  private:
-  raw_ptr<GaiaCookieManagerService, DanglingUntriaged>
-      gaia_cookie_manager_service_;
-  raw_ptr<ProfileOAuth2TokenService, DanglingUntriaged>
-      profile_oauth2_token_service_;
+  GaiaCookieManagerService* gaia_cookie_manager_service_;
+  ProfileOAuth2TokenService* profile_oauth2_token_service_;
+
+  DISALLOW_COPY_AND_ASSIGN(DiagnosticsProviderImpl);
 };
 
 }  // namespace signin

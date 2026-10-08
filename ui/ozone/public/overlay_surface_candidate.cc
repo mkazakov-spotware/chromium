@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,11 +28,10 @@ bool OverlaySurfaceCandidate::operator<(
   gfx::Rect rrect = gfx::ToNearestRect(param.display_rect);
 
   return std::tie(plane_z_order, format, lrect, lwidth, lheight, transform,
-                  crop_rect, is_opaque, opacity, native_pixmap_unique_id,
-                  color_space) <
+                  crop_rect, is_opaque, native_pixmap_unique_id) <
          std::tie(param.plane_z_order, param.format, rrect, rwidth, rheight,
                   param.transform, param.crop_rect, param.is_opaque,
-                  param.opacity, param.native_pixmap_unique_id, color_space);
+                  param.native_pixmap_unique_id);
 }
 
 }  // namespace ui

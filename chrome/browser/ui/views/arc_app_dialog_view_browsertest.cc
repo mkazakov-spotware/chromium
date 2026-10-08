@@ -1,22 +1,19 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/app_list/arc/arc_app_dialog.h"
 
-#include "ash/components/arc/mojom/app.mojom.h"
-#include "ash/components/arc/test/arc_util_test_support.h"
-#include "ash/components/arc/test/connection_holder_util.h"
-#include "ash/components/arc/test/fake_app_instance.h"
 #include "base/bind.h"
 #include "base/command_line.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
-#include "chrome/browser/ash/arc/arc_util.h"
-#include "chrome/browser/ash/arc/session/arc_session_manager.h"
+#include "chrome/browser/chromeos/arc/arc_util.h"
+#include "chrome/browser/chromeos/arc/session/arc_session_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/app_list/app_list_client_impl.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_list_prefs.h"
@@ -25,6 +22,10 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/test/base/in_process_browser_test.h"
+#include "components/arc/arc_util.h"
+#include "components/arc/mojom/app.mojom.h"
+#include "components/arc/test/connection_holder_util.h"
+#include "components/arc/test/fake_app_instance.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
 
@@ -33,11 +34,6 @@ namespace arc {
 class ArcAppUninstallDialogViewBrowserTest : public InProcessBrowserTest {
  public:
   ArcAppUninstallDialogViewBrowserTest() {}
-
-  ArcAppUninstallDialogViewBrowserTest(
-      const ArcAppUninstallDialogViewBrowserTest&) = delete;
-  ArcAppUninstallDialogViewBrowserTest& operator=(
-      const ArcAppUninstallDialogViewBrowserTest&) = delete;
 
   ~ArcAppUninstallDialogViewBrowserTest() override = default;
 
@@ -67,12 +63,12 @@ class ArcAppUninstallDialogViewBrowserTest : public InProcessBrowserTest {
     WaitForInstanceReady(arc_app_list_pref_->app_connection_holder());
 
     // In this setup, we have one app and one shortcut which share one package.
-    std::vector<mojom::AppInfoPtr> one_app;
-    one_app.emplace_back(mojom::AppInfo::New("Fake App 0", "fake.package.0",
-                                             "fake.app.0.activity",
-                                             false /* sticky */));
-
-    app_instance_->SendRefreshAppList(one_app);
+    mojom::AppInfo app;
+    app.name = "Fake App 0";
+    app.package_name = "fake.package.0";
+    app.activity = "fake.app.0.activity";
+    app.sticky = false;
+    app_instance_->SendRefreshAppList(std::vector<mojom::AppInfo>(1, app));
 
     mojom::ShortcutInfo shortcut;
     shortcut.name = "Fake Shortcut 0";
@@ -110,27 +106,24 @@ class ArcAppUninstallDialogViewBrowserTest : public InProcessBrowserTest {
   Profile* profile_ = nullptr;
 
   std::unique_ptr<arc::FakeAppInstance> app_instance_;
+
+  DISALLOW_COPY_AND_ASSIGN(ArcAppUninstallDialogViewBrowserTest);
 };
 
 class ArcAppPermissionDialogViewBrowserTest
     : public ArcAppUninstallDialogViewBrowserTest {
  public:
   ArcAppPermissionDialogViewBrowserTest() {}
-
-  ArcAppPermissionDialogViewBrowserTest(
-      const ArcAppPermissionDialogViewBrowserTest&) = delete;
-  ArcAppPermissionDialogViewBrowserTest& operator=(
-      const ArcAppPermissionDialogViewBrowserTest&) = delete;
-
   // InProcessBrowserTest:
   ~ArcAppPermissionDialogViewBrowserTest() override = default;
 
   void InstallExtraPackage(int id) {
-    mojom::AppInfoPtr app = mojom::AppInfo::New(
-        base::StringPrintf("Fake App %d", id),
-        base::StringPrintf("fake.package.%d", id),
-        base::StringPrintf("fake.app.%d.activity", id), false);
-    instance()->SendAppAdded(*app);
+    mojom::AppInfo app;
+    app.name = base::StringPrintf("Fake App %d", id);
+    app.package_name = base::StringPrintf("fake.package.%d", id);
+    app.activity = base::StringPrintf("fake.app.%d.activity", id);
+    app.sticky = false;
+    instance()->SendAppAdded(app);
 
     instance()->SendPackageAdded(arc::mojom::ArcPackageInfo::New(
         base::StringPrintf("fake.package.%d", id) /* package_name */,
@@ -141,6 +134,7 @@ class ArcAppPermissionDialogViewBrowserTest
     auto* app_service_proxy =
         apps::AppServiceProxyFactory::GetForProfile(profile());
     ASSERT_TRUE(app_service_proxy);
+    app_service_proxy->FlushMojoCallsForTesting();
   }
 
   void set_accepted(bool accepted) { accepted_ = accepted; }
@@ -171,7 +165,7 @@ class ArcAppPermissionDialogViewBrowserTest
   }
 
   const std::string& guid() const { return guid_; }
-  const std::u16string& serial_number() const { return serial_number_; }
+  const base::string16& serial_number() const { return serial_number_; }
   uint16_t vendor_id() const { return vendor_id_; }
   uint16_t product_id() const { return product_id_; }
 
@@ -182,14 +176,16 @@ class ArcAppPermissionDialogViewBrowserTest
 
   // USB flow test related.
   const std::string guid_ = "TestGuidXXXXXX";
-  const std::u16string serial_number_ = u"TestSerialNumber";
-  const std::u16string manufacturer_string_ = u"Factory";
-  const std::u16string product_string_ = u"Product";
+  const base::string16 serial_number_ = base::UTF8ToUTF16("TestSerialNumber");
+  const base::string16 manufacturer_string_ = base::UTF8ToUTF16("Factory");
+  const base::string16 product_string_ = base::UTF8ToUTF16("Product");
   uint16_t vendor_id_ = 123;
   uint16_t product_id_ = 456;
 
   base::WeakPtrFactory<ArcAppPermissionDialogViewBrowserTest> weak_ptr_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(ArcAppPermissionDialogViewBrowserTest);
 };
 
 // Basic flow of requesting scan device list or access permission.

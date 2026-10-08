@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,9 @@
 #include "base/bind.h"
 #include "base/logging.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/task/current_thread.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "ui/base/x/x11_pointer_grab.h"
 #include "ui/base/x/x11_util.h"
@@ -22,11 +23,11 @@
 #include "ui/events/keycodes/keyboard_code_conversion_x.h"
 #include "ui/events/platform/platform_event_source.h"
 #include "ui/events/platform/scoped_event_dispatcher.h"
+#include "ui/events/platform/x11/x11_event_source.h"
 #include "ui/events/x/events_x_utils.h"
-#include "ui/events/x/x11_event_translation.h"
+#include "ui/events/x/x11_window_event_manager.h"
 #include "ui/gfx/x/connection.h"
 #include "ui/gfx/x/keysyms/keysyms.h"
-#include "ui/gfx/x/x11_window_event_manager.h"
 #include "ui/gfx/x/xproto.h"
 
 namespace ui {
@@ -75,7 +76,27 @@ X11WholeScreenMoveLoop::~X11WholeScreenMoveLoop() {
   EndMoveLoop();
 }
 
+void X11WholeScreenMoveLoop::DispatchMouseMovement() {
+  if (!last_motion_in_screen_)
+    return;
+  delegate_->OnMouseMovement(last_motion_in_screen_->root_location(),
+                             last_motion_in_screen_->flags(),
+                             last_motion_in_screen_->time_stamp());
+  last_motion_in_screen_.reset();
+}
+
 void X11WholeScreenMoveLoop::PostDispatchIfNeeded(const ui::MouseEvent& event) {
+  bool dispatch_mouse_event = !last_motion_in_screen_;
+  last_motion_in_screen_ = std::make_unique<ui::MouseEvent>(event);
+  if (dispatch_mouse_event) {
+    // Post a task to dispatch mouse movement event when control returns to the
+    // message loop. This allows smoother dragging since the events are
+    // dispatched without waiting for the drag widget updates.
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
+        FROM_HERE,
+        base::BindOnce(&X11WholeScreenMoveLoop::DispatchMouseMovement,
+                       weak_factory_.GetWeakPtr()));
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,25 +116,14 @@ uint32_t X11WholeScreenMoveLoop::DispatchEvent(const ui::PlatformEvent& event) {
   switch (event->type()) {
     case ui::ET_MOUSE_MOVED:
     case ui::ET_MOUSE_DRAGGED: {
-      auto& current_xevent = *x11::Connection::Get()->dispatching_event();
-      x11::Event last_xevent;
-      std::unique_ptr<ui::Event> last_motion;
-      auto* mouse_event = event->AsMouseEvent();
-      if ((current_xevent.As<x11::MotionNotifyEvent>() ||
-           current_xevent.As<x11::Input::DeviceEvent>()) &&
-          ui::CoalescePendingMotionEvents(current_xevent, &last_xevent)) {
-        last_motion = ui::BuildEventFromXEvent(last_xevent);
-        mouse_event = last_motion->AsMouseEvent();
-      }
-      delegate_->OnMouseMovement(mouse_event->root_location(),
-                                 mouse_event->flags(),
-                                 mouse_event->time_stamp());
+      PostDispatchIfNeeded(*event->AsMouseEvent());
       return ui::POST_DISPATCH_NONE;
     }
     case ui::ET_MOUSE_RELEASED: {
       if (event->AsMouseEvent()->IsLeftMouseButton()) {
         // Assume that drags are being done with the left mouse button. Only
         // break the drag if the left mouse button was released.
+        DispatchMouseMovement();
         delegate_->OnMouseReleased();
 
         if (!grabbed_pointer_) {
@@ -148,8 +158,7 @@ bool X11WholeScreenMoveLoop::RunMoveLoop(
   // restored when the move loop finishes.
   initial_cursor_ = old_cursor;
 
-  auto* connection = x11::Connection::Get();
-  CreateDragInputWindow(connection);
+  CreateDragInputWindow(x11::Connection::Get());
 
   // Only grab mouse capture of |grab_input_window_| if |can_grab_pointer| is
   // true aka the source that initiated the move loop doesn't have explicit
@@ -198,6 +207,9 @@ void X11WholeScreenMoveLoop::UpdateCursor(scoped_refptr<ui::X11Cursor> cursor) {
 void X11WholeScreenMoveLoop::EndMoveLoop() {
   if (!in_move_loop_)
     return;
+
+  // Prevent DispatchMouseMovement from dispatching any posted motion event.
+  last_motion_in_screen_.reset();
 
   // TODO(erg): Is this ungrab the cause of having to click to give input focus
   // on drawn out windows? Not ungrabbing here screws the X server until I kill
@@ -265,7 +277,7 @@ void X11WholeScreenMoveLoop::CreateDragInputWindow(
       x11::EventMask::ButtonPress | x11::EventMask::ButtonRelease |
       x11::EventMask::PointerMotion | x11::EventMask::KeyPress |
       x11::EventMask::KeyRelease | x11::EventMask::StructureNotify;
-  grab_input_window_events_ = std::make_unique<x11::XScopedEventSelector>(
+  grab_input_window_events_ = std::make_unique<ui::XScopedEventSelector>(
       grab_input_window_, event_mask);
   connection->MapWindow({grab_input_window_});
   RaiseWindow(grab_input_window_);

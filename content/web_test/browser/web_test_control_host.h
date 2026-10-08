@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <map>
 #include <memory>
 #include <ostream>
-#include <queue>
 #include <set>
 #include <string>
 #include <utility>
@@ -17,9 +16,9 @@
 #include "base/cancelable_callback.h"
 #include "base/files/file_path.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_multi_source_observation.h"
+#include "base/scoped_observer.h"
 #include "base/sequence_checker.h"
 #include "base/synchronization/lock.h"
 #include "base/values.h"
@@ -34,7 +33,6 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "content/web_test/browser/leak_detector.h"
 #include "content/web_test/common/web_test.mojom.h"
-#include "content/web_test/common/web_test_runtime_flags.h"
 #include "mojo/public/cpp/bindings/associated_receiver_set.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "third_party/blink/public/common/web_preferences/web_preferences.h"
@@ -53,10 +51,6 @@ struct TestInfo;
 class WebTestResultPrinter {
  public:
   WebTestResultPrinter(std::ostream* output, std::ostream* error);
-
-  WebTestResultPrinter(const WebTestResultPrinter&) = delete;
-  WebTestResultPrinter& operator=(const WebTestResultPrinter&) = delete;
-
   ~WebTestResultPrinter() = default;
 
   void reset() { state_ = DURING_TEST; }
@@ -91,6 +85,8 @@ class WebTestResultPrinter {
   void StartStateDump();
 
  private:
+  void PrintEncodedBinaryData(const std::vector<unsigned char>& data);
+
   enum State {
     DURING_TEST,
     DURING_STATE_DUMP,
@@ -99,16 +95,15 @@ class WebTestResultPrinter {
     IN_IMAGE_BLOCK,
     AFTER_TEST
   };
+  State state_;
 
-  void PrintEncodedBinaryData(const std::vector<unsigned char>& data);
+  bool capture_text_only_;
+  bool encode_binary_data_;
 
-  const raw_ptr<std::ostream> output_;
-  const raw_ptr<std::ostream> error_;
+  std::ostream* output_;
+  std::ostream* error_;
 
-  State state_ = DURING_TEST;
-
-  bool capture_text_only_ = false;
-  bool encode_binary_data_ = false;
+  DISALLOW_COPY_AND_ASSIGN(WebTestResultPrinter);
 };
 
 class WebTestControlHost : public WebContentsObserver,
@@ -153,28 +148,6 @@ class WebTestControlHost : public WebContentsObserver,
       int render_process_id,
       mojo::PendingAssociatedReceiver<mojom::WebTestControlHost> receiver);
 
-  const WebTestRuntimeFlags& web_test_runtime_flags() const {
-    return web_test_runtime_flags_;
-  }
-
- private:
-  enum TestPhase { BETWEEN_TESTS, DURING_TEST, CLEAN_UP };
-
-  // Node structure to construct a RenderFrameHost tree.
-  struct Node {
-    explicit Node(RenderFrameHost* host);
-    ~Node();
-
-    Node(Node&& other);
-    Node& operator=(Node&& other);
-
-    raw_ptr<RenderFrameHost, DanglingUntriaged> render_frame_host = nullptr;
-    GlobalRenderFrameHostId render_frame_host_id;
-    std::vector<Node*> children;
-  };
-
-  class WebTestWindowObserver;
-
   // WebContentsObserver implementation.
   void PluginCrashed(const base::FilePath& plugin_path,
                      base::ProcessId plugin_pid) override;
@@ -189,8 +162,7 @@ class WebTestControlHost : public WebContentsObserver,
   void RenderViewHostChanged(RenderViewHost* old_host,
                              RenderViewHost* new_host) override;
   void RenderViewDeleted(RenderViewHost* render_view_host) override;
-  void ReadyToCommitNavigation(NavigationHandle* navigation_handle) override;
-  void DidFinishNavigation(NavigationHandle* navigation) override;
+  void DidFinishNavigation(NavigationHandle* navigation_handle) override;
 
   // RenderProcessHostObserver implementation.
   void RenderProcessHostDestroyed(
@@ -199,7 +171,32 @@ class WebTestControlHost : public WebContentsObserver,
                            const ChildProcessTerminationInfo& info) override;
 
   // GpuDataManagerObserver implementation.
-  void OnGpuProcessCrashed() override;
+  void OnGpuProcessCrashed(base::TerminationStatus exit_code) override;
+
+  const base::DictionaryValue& accumulated_web_test_runtime_flags_changes()
+      const {
+    return accumulated_web_test_runtime_flags_changes_;
+  }
+
+ private:
+  enum TestPhase { BETWEEN_TESTS, DURING_TEST, CLEAN_UP };
+
+  // Node structure to construct a RenderFrameHost tree.
+  struct Node {
+    explicit Node(RenderFrameHost* host);
+    ~Node();
+
+    Node(Node&& other);
+    Node& operator=(Node&& other);
+
+    RenderFrameHost* render_frame_host = nullptr;
+    GlobalFrameRoutingId render_frame_host_id;
+    std::vector<Node*> children;
+  };
+
+  class WebTestWindowObserver;
+
+  static WebTestControlHost* instance_;
 
   // WebTestControlHost implementation.
   void InitiateCaptureDump(
@@ -239,12 +236,12 @@ class WebTestControlHost : public WebContentsObserver,
   void SimulateWebNotificationClick(
       const std::string& title,
       int32_t action_index,
-      const absl::optional<std::u16string>& reply) override;
+      const base::Optional<base::string16>& reply) override;
   void SimulateWebNotificationClose(const std::string& title,
                                     bool by_user) override;
   void SimulateWebContentIndexDelete(const std::string& id) override;
   void WebTestRuntimeFlagsChanged(
-      base::Value::Dict changed_web_test_runtime_flags) override;
+      base::Value changed_web_test_runtime_flags) override;
   void RegisterIsolatedFileSystem(
       const std::vector<base::FilePath>& file_paths,
       RegisterIsolatedFileSystemCallback callback) override;
@@ -254,19 +251,10 @@ class WebTestControlHost : public WebContentsObserver,
   void AllowPointerLock() override;
   void WorkItemAdded(mojom::WorkItemPtr work_item) override;
   void RequestWorkItem() override;
-  void WorkQueueStatesChanged(
-      base::Value::Dict changed_work_queue_states) override;
-  void SetAcceptLanguages(const std::string& accept_languages) override;
-  void EnableAutoResize(const gfx::Size& min_size,
-                        const gfx::Size& max_size) override;
-  void DisableAutoResize(const gfx::Size& new_size) override;
+  void WorkQueueStatesChanged(base::Value changed_work_queue_states) override;
 
   void DiscardMainWindow();
-  // Closes all windows opened by the test. This is every window but the main
-  // window, since it is created by the test harness and reused between tests.
   void CloseTestOpenedWindows();
-  // Closes all windows, including the main window.
-  void CloseAllWindows();
 
   // Makes sure that the potentially new renderer associated with |frame| is 1)
   // initialized for the test, 2) kept up to date wrt test flags and 3)
@@ -284,15 +272,11 @@ class WebTestControlHost : public WebContentsObserver,
   void OnLeakDetectionDone(int pid,
                            const LeakDetector::LeakDetectionReport& report);
 
-  // In between two tests, do some cleanup. Navigate to about:blank and
-  // request blink to reset states.
-  //
-  // Note: If the current document had COOP:same-origin defined, the navigation
-  // to about:blank will have to happen in a different browsing context group.
-  // The process used might be a different one.
-  void PrepareRendererForNextWebTest();
-  void PrepareRendererForNextWebTestDone();
-
+  // At the end of the test, once browser-side cleanup is done, commence reset
+  // of the renderer process that will stick around.
+  void ResetRendererAfterWebTest();
+  // Callback for when the renderer completes its reset at the end of the test.
+  void ResetRendererAfterWebTestDone();
   void OnPixelDumpCaptured(const SkBitmap& snapshot);
   void ReportResults();
   void EnqueueSurfaceCopyRequest();
@@ -301,7 +285,7 @@ class WebTestControlHost : public WebContentsObserver,
   GetWebTestRenderFrameRemote(RenderFrameHost* frame);
   mojo::AssociatedRemote<mojom::WebTestRenderThread>&
   GetWebTestRenderThreadRemote(RenderProcessHost* process);
-  void HandleWebTestRenderFrameRemoteError(const GlobalRenderFrameHostId& key);
+  void HandleWebTestRenderFrameRemoteError(const GlobalFrameRoutingId& key);
   void HandleWebTestRenderThreadRemoteError(RenderProcessHost* key);
 
   // CompositeAllFramesThen() first builds a frame tree based on
@@ -314,50 +298,48 @@ class WebTestControlHost : public WebContentsObserver,
   // reentrancy problems.
   void CompositeAllFramesThen(base::OnceCallback<void()> callback);
 
+ private:
   Node* BuildFrameTree(WebContents* web_contents);
   void CompositeNodeQueueThen(base::OnceCallback<void()> callback);
   void BuildDepthFirstQueue(Node* node);
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // Bypasses system APIs to force a resize on the RenderWidgetHostView when in
   // headless web tests.
   static void PlatformResizeWindowMac(Shell* shell, const gfx::Size& size);
 #endif
 
-  static WebTestControlHost* instance_;
-
+ public:
   std::unique_ptr<WebTestResultPrinter> printer_;
 
   base::FilePath current_working_directory_;
   base::FilePath temp_path_;
 
-  raw_ptr<Shell> main_window_ = nullptr;
-  raw_ptr<Shell, DanglingUntriaged> secondary_window_ = nullptr;
+  Shell* main_window_;
+  Shell* secondary_window_;
 
   std::unique_ptr<WebTestDevToolsBindings> devtools_bindings_;
   std::unique_ptr<DevToolsProtocolTestBindings>
       devtools_protocol_test_bindings_;
 
   // What phase of running an individual test we are currently in.
-  TestPhase test_phase_ = BETWEEN_TESTS;
+  TestPhase test_phase_;
 
   // Per test config.
   std::string expected_pixel_hash_;
   GURL test_url_;
-  bool wpt_print_mode_;
-  bool protocol_mode_ = false;
+  bool protocol_mode_;
 
   // Stores the default test-adapted WebPreferences which is then used to fully
   // reset the main window's preferences if and when it is reused.
   blink::web_pref::WebPreferences default_prefs_;
-  std::string default_accept_languages_;
 
   // True if the WebPreferences of newly created RenderViewHost should be
   // overridden with prefs_.
-  bool should_override_prefs_ = false;
+  bool should_override_prefs_;
   blink::web_pref::WebPreferences prefs_;
 
-  bool crash_when_leak_found_ = false;
+  bool crash_when_leak_found_;
   std::unique_ptr<LeakDetector> leak_detector_;
 
   std::unique_ptr<WebTestBluetoothChooserFactory> bluetooth_chooser_factory_;
@@ -367,9 +349,8 @@ class WebTestControlHost : public WebContentsObserver,
       test_opened_window_observers_;
 
   // Renderer processes are observed to detect crashes.
-  base::ScopedMultiSourceObservation<RenderProcessHost,
-                                     RenderProcessHostObserver>
-      render_process_host_observations_{this};
+  ScopedObserver<RenderProcessHost, RenderProcessHostObserver>
+      render_process_host_observer_{this};
   std::set<RenderProcessHost*> all_observed_render_process_hosts_;
   std::set<RenderProcessHost*> main_window_render_process_hosts_;
   std::set<RenderViewHost*> main_window_render_view_hosts_;
@@ -377,22 +358,19 @@ class WebTestControlHost : public WebContentsObserver,
   // Changes reported by WebTestRuntimeFlagsChanged() that have accumulated
   // since PrepareForWebTest (i.e. changes that need to be sent to a fresh
   // renderer created while test is in progress).
-  base::Value::Dict accumulated_web_test_runtime_flags_changes_;
-
-  // A snasphot of the current runtime flags.
-  WebTestRuntimeFlags web_test_runtime_flags_;
+  base::DictionaryValue accumulated_web_test_runtime_flags_changes_;
 
   // Work items to be processed in the TestRunner on the renderer process
   // that hosts the main window's main frame.
   base::circular_deque<mojom::WorkItemPtr> work_queue_;
 
   // Properties of the work queue.
-  base::Value::Dict work_queue_states_;
+  base::DictionaryValue work_queue_states_;
 
   mojom::WebTestRendererDumpResultPtr renderer_dump_result_;
   std::string navigation_history_dump_;
-  absl::optional<SkBitmap> pixel_dump_;
-  absl::optional<std::string> layout_dump_;
+  base::Optional<SkBitmap> pixel_dump_;
+  base::Optional<std::string> layout_dump_;
   std::string actual_pixel_hash_;
   // By default a test that opens other windows will have them closed at the end
   // of the test before checking for leaks. It may specify that it has closed
@@ -409,7 +387,7 @@ class WebTestControlHost : public WebContentsObserver,
   std::queue<Node*> composite_all_frames_node_queue_;
 
   // Map from one frame to one mojo pipe.
-  std::map<GlobalRenderFrameHostId,
+  std::map<GlobalFrameRoutingId,
            mojo::AssociatedRemote<mojom::WebTestRenderFrame>>
       web_test_render_frame_map_;
 

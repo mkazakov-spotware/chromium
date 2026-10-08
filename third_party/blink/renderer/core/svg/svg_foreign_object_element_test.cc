@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/svg/svg_foreign_object_element.h"
 
-#include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/html/html_element.h"
 #include "third_party/blink/renderer/core/layout/layout_object.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
@@ -28,8 +27,7 @@ TEST_F(SVGForeignObjectElementTest, NoLayoutObjectInNonRendered) {
   Element* foreign_object = GetDocument().getElementById("fo");
   EXPECT_FALSE(foreign_object->GetLayoutObject());
 
-  scoped_refptr<ComputedStyle> style =
-      GetDocument().GetStyleResolver().CreateComputedStyle();
+  scoped_refptr<ComputedStyle> style = ComputedStyle::Create();
   LayoutObject* layout_object =
       foreign_object->CreateLayoutObject(*style, LegacyLayout::kAuto);
   EXPECT_FALSE(layout_object);

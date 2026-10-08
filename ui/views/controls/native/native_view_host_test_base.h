@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "ui/views/test/views_test_base.h"
 
 namespace views {
@@ -14,7 +15,6 @@ namespace views {
 class NativeViewHost;
 class NativeViewHostWrapper;
 class Widget;
-class WidgetDelegate;
 
 namespace test {
 
@@ -22,17 +22,13 @@ namespace test {
 class NativeViewHostTestBase : public ViewsTestBase {
  public:
   NativeViewHostTestBase();
-
-  NativeViewHostTestBase(const NativeViewHostTestBase&) = delete;
-  NativeViewHostTestBase& operator=(const NativeViewHostTestBase&) = delete;
-
   ~NativeViewHostTestBase() override;
 
   // testing::Test:
   void TearDown() override;
 
   // Create the |toplevel_| widget.
-  void CreateTopLevel(WidgetDelegate* widget_delegate = nullptr);
+  void CreateTopLevel();
 
   // Create a testing |host_| that tracks destructor calls.
   void CreateTestingHost();
@@ -59,16 +55,14 @@ class NativeViewHostTestBase : public ViewsTestBase {
 
   NativeViewHostWrapper* GetNativeWrapper();
 
- protected:
-  int on_mouse_pressed_called_count() { return on_mouse_pressed_called_count_; }
-
  private:
   class NativeViewHostTesting;
 
   std::unique_ptr<Widget> toplevel_;
   std::unique_ptr<NativeViewHost> host_;
   int host_destroyed_count_ = 0;
-  int on_mouse_pressed_called_count_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(NativeViewHostTestBase);
 };
 
 }  // namespace test

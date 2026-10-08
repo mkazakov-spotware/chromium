@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,9 +37,11 @@ message ClientFeatures {
 
   // Enum defining the client platforms.
   enum Platform {
-    PLATFORM_UNSPECIFIED = 0;
-    PLATFORM_MOBILE = 1;
-    PLATFORM_DESKTOP = 2;
+    PLATFORM_UNKNOWN = 0;
+    PLATFORM_ANDROID = 1;
+    PLATFORM_WINDOWS = 2;
+    PLATFORM_LINUX = 3;
+    PLATFORM_MAC_OS = 4;
   }
 
   // The platform run by the client that originated the suggestion request.
@@ -47,29 +49,13 @@ message ClientFeatures {
 
   // Enum defining gesture types.
   enum Gesture {
-    GESTURE_UNSPECIFIED = 0;
+    UNKNOWN_GESTURE = 0;
     NO_GESTURE = 1;
     GESTURE = 2;
   }
-
   // The type of gesture performed by the user on the page before the permission
   // prompt was shown.
   optional Gesture gesture = 3;
-
-  enum GestureEnum {
-    GESTURE_V2 = 0;
-    GESTURE_UNSPECIFIED_V2 = 1;
-  }
-
-  optional GestureEnum gesture_enum = 4;
-
-  enum PlatformEnum {
-    PLATFORM_MOBILE_V2 = 0;
-    PLATFORM_DESKTOP_V2 = 1;
-    PLATFORM_UNSPECIFIED_V2 = 3;
-  }
-
-  optional PlatformEnum platform_enum = 5;
 }
 
 // Features related to a specific permission type.
@@ -81,33 +67,21 @@ message PermissionFeatures {
   // Features related to the notification permission.
   message NotificationPermission {}
 
-  // Features related to the geolocation permission.
-  message GeolocationPermission {}
-
   // This field has two purposes:
   //   * it specifies the permission type
   //   * it contains the possible additional features for the specified type.
-  oneof permission_type {
-    NotificationPermission notification_permission = 2;
-    GeolocationPermission geolocation_permission = 3;
-  }
+  oneof permission_type { NotificationPermission notification_permission = 2; }
 }
 // Permission suggestion with the predicted likelihood that the user will grant
 // the permission prompt (more details at go/hedgehog-backend).
-message PermissionPrediction {
+message PermissionSuggestion {
   // Additional information regarding the notification suggestion.
-  message NotificationPrediction {}
-
-  // Additional information regarding the geolocation prediction.
-  message GeolocationPrediction {}
+  message NotificationSuggestion {}
 
   // This field has two purposes:
   //   * it specifies the permission type for which we generated the suggestion
   //   * it contains the possible additional information for the specified type.
-  oneof prediction_type {
-    NotificationPrediction notification_prediction = 1;
-    GeolocationPrediction geolocation_prediction = 3;
-  }
+  oneof suggestion_type { NotificationSuggestion notification_suggestion = 1; }
 
   // Information about how likely a user is to perform a specific action.
   message Likelihood {
@@ -116,7 +90,7 @@ message PermissionPrediction {
     // maps these floats to the discretized likelihood values in this enum using
     // thresholds that are defined in the implementation.
     enum DiscretizedLikelihood {
-      DISCRETIZED_LIKELIHOOD_UNSPECIFIED = 0;
+      UNKNOWN = 0;
       VERY_UNLIKELY = 1;
       UNLIKELY = 2;
       NEUTRAL = 3;
@@ -133,7 +107,7 @@ message PermissionPrediction {
 }
 
 // Message sent from the client to get suggestions for one or more permissions.
-message GeneratePredictionsRequest {
+message GetSuggestionsRequest {
   // Features representing the overall (not permission-specific) client state.
   optional ClientFeatures client_features = 1;
   // Features that depend on the site that the client was visiting when the
@@ -145,8 +119,8 @@ message GeneratePredictionsRequest {
 }
 // The response message returned by the ChromePermissionsSuggestionsService to
 // the Chrome client.
-message GeneratePredictionsResponse {
+message GetSuggestionsResponse {
   // One PermissionSuggestion is generated for each PermissionFeatures in the
   // request. The order is kept between the input and output lists.
-  repeated PermissionPrediction prediction = 1;
+  repeated PermissionSuggestion suggestion = 1;
 }

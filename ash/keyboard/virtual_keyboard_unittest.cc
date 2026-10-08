@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,10 +17,6 @@ namespace ash {
 class VirtualKeyboardTest : public AshTestBase {
  public:
   VirtualKeyboardTest() = default;
-
-  VirtualKeyboardTest(const VirtualKeyboardTest&) = delete;
-  VirtualKeyboardTest& operator=(const VirtualKeyboardTest&) = delete;
-
   ~VirtualKeyboardTest() override = default;
 
   void SetUp() override {
@@ -32,6 +28,9 @@ class VirtualKeyboardTest : public AshTestBase {
     SetVirtualKeyboardEnabled(false);
     AshTestBase::TearDown();
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(VirtualKeyboardTest);
 };
 
 TEST_F(VirtualKeyboardTest, EventsAreHandledBasedOnHitTestBounds) {

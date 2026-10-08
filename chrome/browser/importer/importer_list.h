@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,10 @@
 #include <vector>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
+#include "base/strings/string16.h"
 #include "chrome/common/importer/importer_data_types.h"
 
 // ImporterList detects installed browsers and profiles via
@@ -20,10 +22,6 @@
 class ImporterList {
  public:
   ImporterList();
-
-  ImporterList(const ImporterList&) = delete;
-  ImporterList& operator=(const ImporterList&) = delete;
-
   ~ImporterList();
 
   // Detects the installed browsers and their associated profiles, then stores
@@ -60,6 +58,8 @@ class ImporterList {
   SEQUENCE_CHECKER(sequence_checker_);
 
   base::WeakPtrFactory<ImporterList> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ImporterList);
 };
 
 #endif  // CHROME_BROWSER_IMPORTER_IMPORTER_LIST_H_

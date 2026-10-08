@@ -1,27 +1,20 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/location_bar/location_icon_view.h"
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/omnibox/browser/omnibox_edit_model.h"
 #include "content/public/test/browser_test.h"
-#include "ui/views/animation/ink_drop.h"
 #include "ui/views/animation/test/ink_drop_host_view_test_api.h"
 
 // TODO (spqchan): Refine tests. See crbug.com/770873.
 class LocationIconViewBrowserTest : public InProcessBrowserTest {
  public:
   LocationIconViewBrowserTest() {}
-
-  LocationIconViewBrowserTest(const LocationIconViewBrowserTest&) = delete;
-  LocationIconViewBrowserTest& operator=(const LocationIconViewBrowserTest&) =
-      delete;
-
   ~LocationIconViewBrowserTest() override {}
 
  protected:
@@ -39,9 +32,11 @@ class LocationIconViewBrowserTest : public InProcessBrowserTest {
   LocationIconView* icon_view() const { return icon_view_.get(); }
 
  private:
-  raw_ptr<LocationBarView, DanglingUntriaged> location_bar_;
+  LocationBarView* location_bar_;
 
   std::unique_ptr<LocationIconView> icon_view_;
+
+  DISALLOW_COPY_AND_ASSIGN(LocationIconViewBrowserTest);
 };
 
 // Check to see if the InkDropMode is off when the omnibox is editing.
@@ -51,14 +46,12 @@ IN_PROC_BROWSER_TEST_F(LocationIconViewBrowserTest, InkDropMode) {
   model->SetInputInProgress(true);
   icon_view()->Update(/*suppress_animations=*/true);
 
-  EXPECT_EQ(views::InkDropHost::InkDropMode::OFF,
-            views::test::InkDropHostTestApi(views::InkDrop::Get(icon_view()))
-                .ink_drop_mode());
+  EXPECT_EQ(IconLabelBubbleView::InkDropMode::OFF,
+            views::test::InkDropHostViewTestApi(icon_view()).ink_drop_mode());
 
   model->SetInputInProgress(false);
   icon_view()->Update(/*suppress_animations=*/true);
 
-  EXPECT_EQ(views::InkDropHost::InkDropMode::ON,
-            views::test::InkDropHostTestApi(views::InkDrop::Get(icon_view()))
-                .ink_drop_mode());
+  EXPECT_EQ(IconLabelBubbleView::InkDropMode::ON,
+            views::test::InkDropHostViewTestApi(icon_view()).ink_drop_mode());
 }

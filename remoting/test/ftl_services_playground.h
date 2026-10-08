@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "remoting/base/oauth_token_getter.h"
 #include "remoting/signaling/ftl_messaging_client.h"
@@ -30,10 +31,6 @@ class TestTokenStorage;
 class FtlServicesPlayground {
  public:
   FtlServicesPlayground();
-
-  FtlServicesPlayground(const FtlServicesPlayground&) = delete;
-  FtlServicesPlayground& operator=(const FtlServicesPlayground&) = delete;
-
   ~FtlServicesPlayground();
 
   bool ShouldPrintHelp();
@@ -48,6 +45,9 @@ class FtlServicesPlayground {
   void OnSignInGaiaResponse(base::OnceClosure on_done,
                             const ProtobufHttpStatus& status);
 
+  void PullMessages(base::OnceClosure on_done);
+  void OnPullMessagesResponse(base::OnceClosure on_done,
+                              const ProtobufHttpStatus& status);
   void SendMessage(base::OnceClosure on_done);
   void DoSendMessage(const std::string& receiver_id,
                      const std::string& registration_id,
@@ -75,11 +75,13 @@ class FtlServicesPlayground {
 
   // Subscription must be deleted before |messaging_client_|.
   std::unique_ptr<FtlMessagingClient> messaging_client_;
-  base::CallbackListSubscription message_subscription_;
+  std::unique_ptr<FtlMessagingClient::MessageCallbackSubscription>
+      message_subscription_;
 
   base::OnceClosure receive_messages_done_callback_;
 
   base::WeakPtrFactory<FtlServicesPlayground> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(FtlServicesPlayground);
 };
 
 }  // namespace remoting

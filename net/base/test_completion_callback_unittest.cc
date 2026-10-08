@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,9 @@
 #include "base/bind.h"
 #include "base/check_op.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
 #include "base/notreached.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/completion_once_callback.h"
 #include "net/test/test_with_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -65,11 +65,11 @@ class ExampleEmployer::ExampleWorker
   ~ExampleWorker() = default;
 
   // Only used on the origin thread (where DoSomething was called).
-  raw_ptr<ExampleEmployer> employer_;
+  ExampleEmployer* employer_;
   CompletionOnceCallback callback_;
   // Used to post ourselves onto the origin thread.
   const scoped_refptr<base::SingleThreadTaskRunner> origin_task_runner_ =
-      base::SingleThreadTaskRunner::GetCurrentDefault();
+      base::ThreadTaskRunnerHandle::Get();
 };
 
 void ExampleEmployer::ExampleWorker::DoWork() {
@@ -97,9 +97,9 @@ ExampleEmployer::~ExampleEmployer() = default;
 bool ExampleEmployer::DoSomething(CompletionOnceCallback callback) {
   DCHECK(!request_.get()) << "already in use";
 
-  request_ = base::MakeRefCounted<ExampleWorker>(this, std::move(callback));
+  request_ = new ExampleWorker(this, std::move(callback));
 
-  if (!base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  if (!base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(&ExampleWorker::DoWork, request_))) {
     NOTREACHED();
     request_ = nullptr;

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,13 @@
 #include <stdint.h>
 
 #include <cstdlib>
-#include <memory>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/sequenced_task_runner.h"
 #include "media/base/audio_buffer.h"
 #include "media/base/audio_decoder_config.h"
 #include "media/base/audio_timestamp_helper.h"
@@ -43,8 +42,8 @@ bool DecryptingAudioDecoder::SupportsDecryption() const {
   return true;
 }
 
-AudioDecoderType DecryptingAudioDecoder::GetDecoderType() const {
-  return AudioDecoderType::kDecrypting;
+std::string DecryptingAudioDecoder::GetDisplayName() const {
+  return "DecryptingAudioDecoder";
 }
 
 void DecryptingAudioDecoder::Initialize(const AudioDecoderConfig& config,
@@ -61,12 +60,12 @@ void DecryptingAudioDecoder::Initialize(const AudioDecoderConfig& config,
   if (!cdm_context) {
     // Once we have a CDM context, one should always be present.
     DCHECK(!support_clear_content_);
-    std::move(init_cb_).Run(DecoderStatus::Codes::kUnsupportedEncryptionMode);
+    std::move(init_cb_).Run(StatusCode::kDecoderMissingCdmForEncryptedContent);
     return;
   }
 
   if (!config.is_encrypted() && !support_clear_content_) {
-    std::move(init_cb_).Run(DecoderStatus::Codes::kUnsupportedEncryptionMode);
+    std::move(init_cb_).Run(StatusCode::kClearContentUnsupported);
     return;
   }
 
@@ -82,7 +81,7 @@ void DecryptingAudioDecoder::Initialize(const AudioDecoderConfig& config,
   // TODO(xhwang): We should be able to DCHECK config.IsValidConfig().
   if (!config.IsValidConfig()) {
     DLOG(ERROR) << "Invalid audio stream config.";
-    std::move(init_cb_).Run(DecoderStatus::Codes::kUnsupportedCodec);
+    std::move(init_cb_).Run(StatusCode::kDecoderUnsupportedCodec);
     return;
   }
 
@@ -91,7 +90,7 @@ void DecryptingAudioDecoder::Initialize(const AudioDecoderConfig& config,
   if (state_ == kUninitialized) {
     if (!cdm_context->GetDecryptor()) {
       DVLOG(1) << __func__ << ": no decryptor";
-      std::move(init_cb_).Run(DecoderStatus::Codes::kUnsupportedEncryptionMode);
+      std::move(init_cb_).Run(StatusCode::kDecoderFailedInitialization);
       return;
     }
 
@@ -121,7 +120,7 @@ void DecryptingAudioDecoder::Decode(scoped_refptr<DecoderBuffer> buffer,
   // Return empty (end-of-stream) frames if decoding has finished.
   if (state_ == kDecodeFinished) {
     output_cb_.Run(AudioBuffer::CreateEOSBuffer());
-    std::move(decode_cb_).Run(DecoderStatus::Codes::kOk);
+    std::move(decode_cb_).Run(DecodeStatus::OK);
     return;
   }
 
@@ -162,7 +161,7 @@ void DecryptingAudioDecoder::Reset(base::OnceClosure closure) {
   if (state_ == kWaitingForKey) {
     DCHECK(decode_cb_);
     pending_buffer_to_decode_.reset();
-    std::move(decode_cb_).Run(DecoderStatus::Codes::kAborted);
+    std::move(decode_cb_).Run(DecodeStatus::ABORTED);
   }
 
   DCHECK(!decode_cb_);
@@ -182,9 +181,9 @@ DecryptingAudioDecoder::~DecryptingAudioDecoder() {
   }
   pending_buffer_to_decode_.reset();
   if (init_cb_)
-    std::move(init_cb_).Run(DecoderStatus::Codes::kInterrupted);
+    std::move(init_cb_).Run(StatusCode::kDecoderInitializeNeverCompleted);
   if (decode_cb_)
-    std::move(decode_cb_).Run(DecoderStatus::Codes::kAborted);
+    std::move(decode_cb_).Run(DecodeStatus::ABORTED);
   if (reset_cb_)
     std::move(reset_cb_).Run();
 }
@@ -207,7 +206,7 @@ void DecryptingAudioDecoder::FinishInitialization(bool success) {
 
   if (!success) {
     DVLOG(1) << __func__ << ": failed to init audio decoder on decryptor";
-    std::move(init_cb_).Run(DecoderStatus::Codes::kFailedToCreateDecoder);
+    std::move(init_cb_).Run(StatusCode::kDecoderInitializeNeverCompleted);
     decryptor_ = nullptr;
     event_cb_registration_.reset();
     state_ = kError;
@@ -215,11 +214,11 @@ void DecryptingAudioDecoder::FinishInitialization(bool success) {
   }
 
   // Success!
-  timestamp_helper_ =
-      std::make_unique<AudioTimestampHelper>(config_.samples_per_second());
+  timestamp_helper_.reset(
+      new AudioTimestampHelper(config_.samples_per_second()));
 
   state_ = kIdle;
-  std::move(init_cb_).Run(DecoderStatus::Codes::kOk);
+  std::move(init_cb_).Run(OkStatus());
 }
 
 void DecryptingAudioDecoder::DecodePendingBuffer() {
@@ -254,7 +253,7 @@ void DecryptingAudioDecoder::DeliverFrame(
       std::move(pending_buffer_to_decode_);
 
   if (reset_cb_) {
-    std::move(decode_cb_).Run(DecoderStatus::Codes::kAborted);
+    std::move(decode_cb_).Run(DecodeStatus::ABORTED);
     DoReset();
     return;
   }
@@ -263,9 +262,9 @@ void DecryptingAudioDecoder::DeliverFrame(
 
   if (status == Decryptor::kError) {
     DVLOG(2) << "DeliverFrame() - kError";
-    MEDIA_LOG(ERROR, media_log_) << GetDecoderType() << ": decode error";
+    MEDIA_LOG(ERROR, media_log_) << GetDisplayName() << ": decode error";
     state_ = kDecodeFinished;  // TODO add kError state
-    std::move(decode_cb_).Run(DecoderStatus::Codes::kFailed);
+    std::move(decode_cb_).Run(DecodeStatus::DECODE_ERROR);
     return;
   }
 
@@ -276,7 +275,7 @@ void DecryptingAudioDecoder::DeliverFrame(
         "no key for key ID " + base::HexEncode(key_id.data(), key_id.size()) +
         "; will resume decoding after new usable key is available";
     DVLOG(1) << __func__ << ": " << log_message;
-    MEDIA_LOG(INFO, media_log_) << GetDecoderType() << ": " << log_message;
+    MEDIA_LOG(INFO, media_log_) << GetDisplayName() << ": " << log_message;
 
     // Set |pending_buffer_to_decode_| back as we need to try decoding the
     // pending buffer again when new key is added to the decryptor.
@@ -285,7 +284,7 @@ void DecryptingAudioDecoder::DeliverFrame(
     if (need_to_try_again_if_nokey_is_returned) {
       // The |state_| is still kPendingDecode.
       MEDIA_LOG(INFO, media_log_)
-          << GetDecoderType() << ": key was added, resuming decode";
+          << GetDisplayName() << ": key was added, resuming decode";
       DecodePendingBuffer();
       return;
     }
@@ -299,7 +298,7 @@ void DecryptingAudioDecoder::DeliverFrame(
     DVLOG(2) << "DeliverFrame() - kNeedMoreData";
     state_ = scoped_pending_buffer_to_decode->end_of_stream() ? kDecodeFinished
                                                               : kIdle;
-    std::move(decode_cb_).Run(DecoderStatus::Codes::kOk);
+    std::move(decode_cb_).Run(DecodeStatus::OK);
     return;
   }
 
@@ -316,7 +315,7 @@ void DecryptingAudioDecoder::DeliverFrame(
   }
 
   state_ = kIdle;
-  std::move(decode_cb_).Run(DecoderStatus::Codes::kOk);
+  std::move(decode_cb_).Run(DecodeStatus::OK);
 }
 
 void DecryptingAudioDecoder::OnCdmContextEvent(CdmContext::Event event) {
@@ -332,7 +331,7 @@ void DecryptingAudioDecoder::OnCdmContextEvent(CdmContext::Event event) {
 
   if (state_ == kWaitingForKey) {
     MEDIA_LOG(INFO, media_log_)
-        << GetDecoderType() << ": key added, resuming decode";
+        << GetDisplayName() << ": key added, resuming decode";
     state_ = kPendingDecode;
     DecodePendingBuffer();
   }

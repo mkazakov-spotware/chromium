@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,13 +42,11 @@ bool LookUpProxyForURLCallback(
     return false;
 
   SiteInstance* site_instance = render_frame_host->GetSiteInstance();
-  StoragePartition* storage_partition =
-      site_instance->GetBrowserContext()->GetStoragePartition(site_instance);
+  StoragePartition* storage_partition = BrowserContext::GetStoragePartition(
+      site_instance->GetBrowserContext(), site_instance);
 
   storage_partition->GetNetworkContext()->LookUpProxyForURL(
-      url,
-      render_frame_host->GetIsolationInfoForSubresources()
-          .network_anonymization_key(),
+      url, render_frame_host->GetNetworkIsolationKey(),
       std::move(proxy_lookup_client));
   return true;
 }
@@ -163,7 +161,7 @@ void PepperNetworkProxyHost::TryToSendUnsentRequests() {
 void PepperNetworkProxyHost::OnResolveProxyCompleted(
     ppapi::host::ReplyMessageContext context,
     PepperProxyLookupHelper* pending_request,
-    absl::optional<net::ProxyInfo> proxy_info) {
+    base::Optional<net::ProxyInfo> proxy_info) {
   auto it = pending_requests_.find(pending_request);
   DCHECK(it != pending_requests_.end());
   pending_requests_.erase(it);

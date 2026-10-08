@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,8 @@ namespace cast {
 bool RtpParser::ParseSsrc(const uint8_t* packet,
                           size_t length,
                           uint32_t* ssrc) {
-  base::BigEndianReader big_endian_reader(packet, length);
+  base::BigEndianReader big_endian_reader(
+      reinterpret_cast<const char*>(packet), length);
   return big_endian_reader.Skip(8) && big_endian_reader.ReadU32(ssrc);
 }
 
@@ -41,7 +42,7 @@ bool RtpParser::ParsePacket(const uint8_t* packet,
   if (length < (kRtpHeaderLength + kCastHeaderLength))
     return false;
 
-  base::BigEndianReader reader(packet, length);
+  base::BigEndianReader reader(reinterpret_cast<const char*>(packet), length);
 
   // Parse the RTP header.  See
   // http://en.wikipedia.org/wiki/Real-time_Transport_Protocol for an
@@ -103,10 +104,10 @@ bool RtpParser::ParsePacket(const uint8_t* packet,
     uint16_t type_and_size;
     if (!reader.ReadU16(&type_and_size))
       return false;
-    base::span<const uint8_t> tmp;
-    if (!reader.ReadSpan(&tmp, type_and_size & 0x3ff))
+    base::StringPiece tmp;
+    if (!reader.ReadPiece(&tmp, type_and_size & 0x3ff))
       return false;
-    base::BigEndianReader chunk(tmp);
+    base::BigEndianReader chunk(tmp.data(), tmp.size());
     switch (type_and_size >> 10) {
       case kCastRtpExtensionAdaptiveLatency:
         if (!chunk.ReadU16(&header->new_playout_delay_ms))

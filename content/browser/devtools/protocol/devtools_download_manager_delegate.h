@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,14 @@
 #include <string>
 
 #include "base/callback_forward.h"
+#include "base/compiler_specific.h"
+#include "base/files/file_util.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
+#include "base/memory/singleton.h"
+#include "base/memory/weak_ptr.h"
+#include "content/common/content_export.h"
 #include "content/public/browser/download_manager_delegate.h"
-
-namespace base {
-class FilePath;
-}
 
 namespace content {
 
@@ -22,7 +24,7 @@ class DownloadManager;
 
 namespace protocol {
 
-class DevToolsDownloadManagerDelegate
+class CONTENT_EXPORT DevToolsDownloadManagerDelegate
     : public base::SupportsUserData::Data,
       public content::DownloadManagerDelegate {
  public:
@@ -50,12 +52,6 @@ class DevToolsDownloadManagerDelegate
       content::BrowserContext* browser_Context);
   static DevToolsDownloadManagerDelegate* GetInstance(
       content::BrowserContext* browser_Context);
-
-  DevToolsDownloadManagerDelegate(const DevToolsDownloadManagerDelegate&) =
-      delete;
-  DevToolsDownloadManagerDelegate& operator=(
-      const DevToolsDownloadManagerDelegate&) = delete;
-
   ~DevToolsDownloadManagerDelegate() override = default;
 
   void set_download_behavior(DownloadBehavior behavior) {
@@ -72,7 +68,6 @@ class DevToolsDownloadManagerDelegate
       download::DownloadItem* item,
       content::DownloadOpenDelayedCallback callback) override;
   void GetNextId(content::DownloadIdCallback callback) override;
-  download::DownloadItem* GetDownloadByGuid(const std::string& guid) override;
 
  private:
   friend class base::RefCounted<DevToolsDownloadManagerDelegate>;
@@ -97,6 +92,8 @@ class DevToolsDownloadManagerDelegate
   content::DownloadManagerDelegate* original_download_delegate_;
   DownloadBehavior download_behavior_ = DownloadBehavior::DEFAULT;
   std::string download_path_;
+
+  DISALLOW_COPY_AND_ASSIGN(DevToolsDownloadManagerDelegate);
 };
 
 }  // namespace protocol

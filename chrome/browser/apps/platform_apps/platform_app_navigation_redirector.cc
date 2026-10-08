@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,13 @@
 #include "apps/launcher.h"
 #include "base/bind.h"
 #include "base/logging.h"
-#include "chrome/browser/preloading/prefetch/no_state_prefetch/chrome_no_state_prefetch_contents_delegate.h"
+#include "chrome/browser/prefetch/no_state_prefetch/chrome_prerender_contents_delegate.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/common/extensions/api/url_handlers/url_handlers_parser.h"
 #include "components/navigation_interception/intercept_navigation_throttle.h"
-#include "components/no_state_prefetch/browser/no_state_prefetch_contents.h"
+#include "components/navigation_interception/navigation_params.h"
+#include "components/no_state_prefetch/browser/prerender_contents.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
@@ -30,45 +31,35 @@ namespace {
 
 bool LaunchAppWithUrl(const scoped_refptr<const Extension> app,
                       const std::string& handler_id,
-                      content::NavigationHandle* navigation_handle) {
+                      content::WebContents* source,
+                      const navigation_interception::NavigationParams& params) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  DCHECK(navigation_handle->IsInMainFrame());
 
   // Redirect top-level navigations only. This excludes iframes and webviews
   // in particular.
-  if (navigation_handle->GetWebContents()->IsInnerWebContentsForGuest()) {
+  if (source->IsInnerWebContentsForGuest()) {
     DVLOG(1) << "Cancel redirection: source is a guest inner WebContents";
     return false;
   }
 
-  if (navigation_handle->IsInPrerenderedMainFrame()) {
-    // If it's from prerendering, don't launch the app but abort the navigation.
-    return true;
-  }
-
-  // If no-state prefetching, don't launch the app but abort the navigation.
-  prerender::NoStatePrefetchContents* no_state_prefetch_contents =
-      prerender::ChromeNoStatePrefetchContentsDelegate::FromWebContents(
-          navigation_handle->GetWebContents());
-  if (no_state_prefetch_contents) {
-    no_state_prefetch_contents->Destroy(
-        prerender::FINAL_STATUS_NAVIGATION_INTERCEPTED);
+  // If prerendering, don't launch the app but abort the navigation.
+  prerender::PrerenderContents* prerender_contents =
+      prerender::ChromePrerenderContentsDelegate::FromWebContents(source);
+  if (prerender_contents) {
+    prerender_contents->Destroy(prerender::FINAL_STATUS_NAVIGATION_INTERCEPTED);
     return true;
   }
 
   // These are guaranteed by MaybeCreateThrottleFor below.
-  DCHECK(UrlHandlers::CanPlatformAppHandleUrl(app.get(),
-                                              navigation_handle->GetURL()));
-  DCHECK(!navigation_handle->IsPost());
+  DCHECK(UrlHandlers::CanPlatformAppHandleUrl(app.get(), params.url()));
+  DCHECK(!params.is_post());
 
-  Profile* profile = Profile::FromBrowserContext(
-      navigation_handle->GetWebContents()->GetBrowserContext());
+  Profile* profile = Profile::FromBrowserContext(source->GetBrowserContext());
 
-  DVLOG(1) << "Launching app handler with URL: " << navigation_handle->GetURL()
+  DVLOG(1) << "Launching app handler with URL: " << params.url().spec()
            << " -> " << app->name() << "(" << app->id() << "):" << handler_id;
-  apps::LaunchPlatformAppWithUrl(profile, app.get(), handler_id,
-                                 navigation_handle->GetURL(),
-                                 navigation_handle->GetReferrer().url);
+  apps::LaunchPlatformAppWithUrl(profile, app.get(), handler_id, params.url(),
+                                 params.referrer().url);
 
   return true;
 }
@@ -86,11 +77,6 @@ PlatformAppNavigationRedirector::MaybeCreateThrottleFor(
       handle->GetWebContents()->GetBrowserContext();
   DCHECK(browser_context);
 
-  if (!handle->IsInOutermostMainFrame()) {
-    DVLOG(1) << "Skip redirection: navigation is from an iframe or inner page";
-    return nullptr;
-  }
-
   // Support only GET for now.
   if (handle->IsPost()) {
     DVLOG(1) << "Skip redirection: method is not GET";
@@ -106,7 +92,7 @@ PlatformAppNavigationRedirector::MaybeCreateThrottleFor(
   // supported in incognito and guest modes, but that may change in future.
   // See crbug.com/240879, which tracks incognito support for v2 apps.
   Profile* profile = Profile::FromBrowserContext(browser_context);
-  if (profile->IsOffTheRecord()) {
+  if (!profile->IsRegularProfile()) {
     DVLOG(1) << "Skip redirection: unsupported in incognito and guest modes";
     return nullptr;
   }

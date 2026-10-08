@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "chromeos/dbus/power/power_manager_client.h"
@@ -48,16 +49,14 @@ class GuestOsEngagementMetrics : public wm::ActivationChangeObserver,
                            WindowMatcher window_matcher,
                            const std::string& pref_prefix,
                            const std::string& uma_name);
-
-  GuestOsEngagementMetrics(const GuestOsEngagementMetrics&) = delete;
-  GuestOsEngagementMetrics& operator=(const GuestOsEngagementMetrics&) = delete;
-
   ~GuestOsEngagementMetrics() override;
 
   // Instead of using |window_matcher_|, we let consumers define when the Guest
   // OS is active in the background. This function should be called whenever
   // changes.
   void SetBackgroundActive(bool background_active);
+
+  void SetClocksForTesting(base::Clock* clock, base::TickClock* tick_clock);
 
   // wm::ActivationChangeObserver:
   void OnWindowActivated(wm::ActivationChangeObserver::ActivationReason reason,
@@ -71,23 +70,7 @@ class GuestOsEngagementMetrics : public wm::ActivationChangeObserver,
   void ScreenIdleStateChanged(
       const power_manager::ScreenIdleState& proto) override;
 
-  static std::unique_ptr<GuestOsEngagementMetrics>
-  GetEngagementMetricsForTesting(PrefService* pref_service,
-                                 WindowMatcher window_matcher,
-                                 const std::string& pref_prefix,
-                                 const std::string& uma_name,
-                                 const base::Clock* clock,
-                                 const base::TickClock* tick_clock);
-
  private:
-  // Private, for testing use only
-  GuestOsEngagementMetrics(PrefService* pref_service,
-                           WindowMatcher window_matcher,
-                           const std::string& pref_prefix,
-                           const std::string& uma_name,
-                           const base::Clock* clock,
-                           const base::TickClock* tick_clock);
-
   // Restores accumulated engagement time in previous sessions from profile
   // preferences.
   void RestoreEngagementTimeFromPrefs();
@@ -139,6 +122,8 @@ class GuestOsEngagementMetrics : public wm::ActivationChangeObserver,
   base::TimeDelta engagement_time_total_;
   base::TimeDelta engagement_time_foreground_;
   base::TimeDelta engagement_time_background_;
+
+  DISALLOW_COPY_AND_ASSIGN(GuestOsEngagementMetrics);
 };
 
 }  // namespace guest_os

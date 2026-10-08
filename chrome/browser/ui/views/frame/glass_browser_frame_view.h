@@ -1,27 +1,31 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_FRAME_GLASS_BROWSER_FRAME_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_FRAME_GLASS_BROWSER_FRAME_VIEW_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/win/scoped_gdi_object.h"
 #include "chrome/browser/ui/views/frame/browser_non_client_frame_view.h"
-#include "chrome/browser/ui/views/frame/windows_caption_button.h"
+#include "chrome/browser/ui/views/frame/windows_10_caption_button.h"
 #include "chrome/browser/ui/views/tab_icon_view.h"
 #include "chrome/browser/ui/views/tab_icon_view_model.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/window/non_client_view.h"
 
 class BrowserView;
-class TabSearchBubbleHost;
-class GlassBrowserCaptionButtonContainer;
 
 class GlassBrowserFrameView : public BrowserNonClientFrameView,
                               public TabIconViewModel {
  public:
-  METADATA_HEADER(GlassBrowserFrameView);
+  // Alpha to use for features in the titlebar (the window title and caption
+  // buttons) when the window is inactive. They are opaque when active.
+  static constexpr SkAlpha kInactiveTitlebarFeatureAlpha = 0x66;
+
+  static constexpr char kClassName[] = "GlassBrowserFrameView";
+
+  static SkColor GetReadableFeatureColor(SkColor background_color);
 
   // Constructs a non-client view for an BrowserFrame.
   GlassBrowserFrameView(BrowserFrame* frame, BrowserView* browser_view);
@@ -41,8 +45,6 @@ class GlassBrowserFrameView : public BrowserNonClientFrameView,
   SkColor GetCaptionColor(BrowserFrameActiveState active_state) const override;
   void UpdateThrobber(bool running) override;
   gfx::Size GetMinimumSize() const override;
-  void WindowControlsOverlayEnabledChanged() override;
-  TabSearchBubbleHost* GetTabSearchBubbleHost() override;
 
   // views::NonClientFrameView:
   gfx::Rect GetBoundsForClientView() const override;
@@ -57,7 +59,7 @@ class GlassBrowserFrameView : public BrowserNonClientFrameView,
 
   // TabIconViewModel:
   bool ShouldTabIconViewAnimate() const override;
-  ui::ImageModel GetFaviconForTabIconView() override;
+  gfx::ImageSkia GetFaviconForTabIconView() override;
 
   bool IsMaximized() const;
   bool IsWebUITabStrip() const;
@@ -69,16 +71,10 @@ class GlassBrowserFrameView : public BrowserNonClientFrameView,
   SkColor GetTitlebarColor() const;
 
   const views::Label* window_title_for_testing() const { return window_title_; }
-  const GlassBrowserCaptionButtonContainer*
-  caption_button_container_for_testing() const {
-    return caption_button_container_;
-  }
 
  protected:
-  // BrowserNonClientFrameView:
-  void PaintAsActiveChanged() override;
-
   // views::View:
+  const char* GetClassName() const override;
   void OnPaint(gfx::Canvas* canvas) override;
   void Layout() override;
 
@@ -142,7 +138,6 @@ class GlassBrowserFrameView : public BrowserNonClientFrameView,
   // Layout various sub-components of this view.
   void LayoutTitleBar();
   void LayoutCaptionButtons();
-  void LayoutWindowControlsOverlay();
   void LayoutClientView();
 
   // Returns the insets of the client area. If |restored| is true, this is
@@ -167,18 +162,21 @@ class GlassBrowserFrameView : public BrowserNonClientFrameView,
 
   // Icon and title. Only used when custom-drawing the titlebar for popups.
   TabIconView* window_icon_ = nullptr;
-  raw_ptr<views::Label> window_title_ = nullptr;
+  views::Label* window_title_ = nullptr;
 
   // The container holding the caption buttons (minimize, maximize, close, etc.)
   // May be null if the caption button container is destroyed before the frame
   // view. Always check for validity before using!
-  raw_ptr<GlassBrowserCaptionButtonContainer> caption_button_container_;
+  GlassBrowserCaptionButtonContainer* caption_button_container_;
 
   // Whether or not the window throbber is currently animating.
   bool throbber_running_ = false;
 
   // The index of the current frame of the throbber animation.
   int throbber_frame_ = 0;
+
+  // How much extra space to reserve in non-maximized windows for a drag handle.
+  int drag_handle_padding_;
 
   static const int kThrobberIconCount = 24;
   static HICON throbber_icons_[kThrobberIconCount];

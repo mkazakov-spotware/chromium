@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 
 #include "base/callback_forward.h"
 #include "base/containers/flat_map.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "components/enterprise/common/proto/connectors.pb.h"
@@ -80,10 +79,6 @@ class BinaryFCMService : public gcm::GCMAppHandler {
                           const std::string& message_id) override;
   bool CanHandle(const std::string& app_id) const override;
 
-  // Indicates if the underlying implementation is in a state allowing messages
-  // to be received and propagated to `message_token_map_` callbacks.
-  virtual bool Connected();
-
   static const char kInvalidId[];
 
   void SetQueuedOperationDelayForTesting(base::TimeDelta delay);
@@ -113,8 +108,8 @@ class BinaryFCMService : public gcm::GCMAppHandler {
 
   // References to the profile's GCMDriver and InstanceIDDriver. Both are
   // unowned.
-  raw_ptr<gcm::GCMDriver, DanglingUntriaged> gcm_driver_;
-  raw_ptr<instance_id::InstanceIDDriver, DanglingUntriaged> instance_id_driver_;
+  gcm::GCMDriver* gcm_driver_;
+  instance_id::InstanceIDDriver* instance_id_driver_;
 
   // Queue of pending GetToken calls.
   std::deque<base::OnceClosure> pending_token_calls_;
@@ -124,7 +119,8 @@ class BinaryFCMService : public gcm::GCMAppHandler {
 
   // Delay between attempts to dequeue pending operations. Not constant so we
   // can override it in tests.
-  base::TimeDelta delay_between_pending_attempts_ = base::Seconds(1);
+  base::TimeDelta delay_between_pending_attempts_ =
+      base::TimeDelta::FromSeconds(1);
 
   base::flat_map<std::string, OnMessageCallback> message_token_map_;
 

@@ -1,14 +1,17 @@
 # META: timeout=long
-from base64 import decodebytes
+import base64
 
 import pytest
 
+from six import ensure_binary
+
 from tests.support.asserts import assert_dialog_handled, assert_error, assert_success
+from tests.support.inline import inline
 from .printcmd import do_print, assert_pdf
 
 
 @pytest.fixture
-def check_user_prompt_closed_without_exception(session, create_dialog, inline):
+def check_user_prompt_closed_without_exception(session, create_dialog):
     def check_user_prompt_closed_without_exception(dialog_type, retval):
         session.url = inline("<input/>")
 
@@ -17,7 +20,7 @@ def check_user_prompt_closed_without_exception(session, create_dialog, inline):
         response = do_print(session, {})
         value = assert_success(response)
 
-        pdf = decodebytes(value.encode())
+        pdf = base64.decodestring(ensure_binary(value))
         assert_dialog_handled(session, expected_text=dialog_type, expected_retval=retval)
 
         assert_pdf(pdf)
@@ -26,7 +29,7 @@ def check_user_prompt_closed_without_exception(session, create_dialog, inline):
 
 
 @pytest.fixture
-def check_user_prompt_closed_with_exception(session, create_dialog, inline):
+def check_user_prompt_closed_with_exception(session, create_dialog):
     def check_user_prompt_closed_with_exception(dialog_type, retval):
         session.url = inline("<input/>")
 
@@ -41,7 +44,7 @@ def check_user_prompt_closed_with_exception(session, create_dialog, inline):
 
 
 @pytest.fixture
-def check_user_prompt_not_closed_but_exception(session, create_dialog, inline):
+def check_user_prompt_not_closed_but_exception(session, create_dialog):
     def check_user_prompt_not_closed_but_exception(dialog_type):
         session.url = inline("<input/>")
 

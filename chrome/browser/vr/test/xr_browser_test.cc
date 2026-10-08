@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,19 +53,19 @@ XrBrowserTestBase::XrBrowserTestBase() : env_(base::Environment::Create()) {
 XrBrowserTestBase::~XrBrowserTestBase() = default;
 
 base::FilePath::StringType UTF8ToWideIfNecessary(std::string input) {
-#if BUILDFLAG(IS_WIN)
+#ifdef OS_WIN
   return base::UTF8ToWide(input);
 #else
   return input;
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 }
 
 std::string WideToUTF8IfNecessary(base::FilePath::StringType input) {
-#if BUILDFLAG(IS_WIN)
+#ifdef OS_WIN
   return base::WideToUTF8(input);
 #else
   return input;
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_Win
 }
 
 // Returns an std::string consisting of the given path relative to the test
@@ -183,16 +183,16 @@ content::WebContents* XrBrowserTestBase::GetCurrentWebContents() {
 void XrBrowserTestBase::LoadFileAndAwaitInitialization(
     const std::string& test_name) {
   GURL url = GetUrlForFile(test_name);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
   ASSERT_TRUE(PollJavaScriptBoolean("isInitializationComplete()",
                                     kPollTimeoutMedium,
                                     GetCurrentWebContents()))
       << "Timed out waiting for JavaScript test initialization.";
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Now that the browser is opened and has focus, keep track of this window so
   // that we can restore the proper focus after entering each session. This is
-  // required for tests that create multiple sessions to work properly.
+  // required for WMR tests that create multiple sessions to work properly.
   hwnd_ = GetForegroundWindow();
 #endif
 }
@@ -217,7 +217,7 @@ bool XrBrowserTestBase::RunJavaScriptAndExtractBoolOrFail(
     return false;
   }
 
-  bool result = false;
+  bool result;
   DLOG(INFO) << "Run JavaScript: " << js_expression;
   EXPECT_TRUE(content::ExecuteScriptAndExtractBool(
       web_contents,
@@ -288,7 +288,7 @@ void XrBrowserTestBase::BlockOnCondition(
     }
     // In the case where the condition is met fast enough that the given
     // RunLoop hasn't started yet, spin until it's available.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&XrBrowserTestBase::BlockOnCondition,
                        base::Unretained(this), std::move(condition),
@@ -303,7 +303,7 @@ void XrBrowserTestBase::BlockOnCondition(
     return;
   }
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&XrBrowserTestBase::BlockOnCondition,
                      base::Unretained(this), std::move(condition),
@@ -400,8 +400,10 @@ void XrBrowserTestBase::EndTest(content::WebContents* web_contents) {
       FAIL() << "JavaScript testharness failed with reason: "
              << RunJavaScriptAndExtractStringOrFail("resultString",
                                                     web_contents);
+      break;
     case XrBrowserTestBase::TestStatus::STATUS_RUNNING:
       FAIL() << "Attempted to end test in C++ without finishing in JavaScript.";
+      break;
     default:
       FAIL() << "Received unknown test status.";
   }

@@ -1,23 +1,16 @@
-// META: timeout=long
-
 promise_test(() => {
   // Don't load generated-mime-types.json as none of them are navigable
   return fetch("resources/mime-types.json").then(res => res.json().then(runTests));
 }, "Loading data…");
 
 function isByteCompatible(str) {
-  // see https://fetch.spec.whatwg.org/#concept-header-value-normalize
-  if(/^[\u0009\u0020\u000A\u000D]+|[\u0009\u0020\u000A\u000D]+$/.test(str)) {
-    return "header-value-incompatible";
-  }
-
   for(let i = 0; i < str.length; i++) {
     const charCode = str.charCodeAt(i);
     // See https://fetch.spec.whatwg.org/#concept-header-value
     if(charCode > 0xFF) {
       return "incompatible";
     } else if(charCode === 0x00 || charCode === 0x0A || charCode === 0x0D) {
-      return "header-value-error";
+      return "header-value-incompatible";
     }
   }
   return "compatible";

@@ -1,8 +1,6 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {ImageRequestTask} from './image_request_task.js';
 
 /**
  * Scheduler for ImageRequestTask objects. Fetches tasks from a queue and
@@ -10,7 +8,7 @@ import {ImageRequestTask} from './image_request_task.js';
  * priority is 0.
  * @constructor
  */
-export function Scheduler() {
+function Scheduler() {
   /**
    * List of tasks waiting to be checked. If these items are available in
    * cache, then they are processed immediately after starting the scheduler.

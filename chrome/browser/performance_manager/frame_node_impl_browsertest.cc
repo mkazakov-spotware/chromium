@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -91,7 +91,7 @@ class ViewportIntersectionChangedObserver
 }  // namespace
 
 IN_PROC_BROWSER_TEST_F(FrameNodeImplBrowserTest,
-                       DISABLED_ViewportIntersection_OutOfView) {
+                       ViewportIntersection_OutOfView) {
   ASSERT_TRUE(embedded_test_server()->Start());
   EXPECT_EQ(1, browser()->tab_strip_model()->count());
 
@@ -122,8 +122,7 @@ IN_PROC_BROWSER_TEST_F(FrameNodeImplBrowserTest,
   run_loop.Run();
 }
 
-IN_PROC_BROWSER_TEST_F(FrameNodeImplBrowserTest,
-                       DISABLED_ViewportIntersection_Hidden) {
+IN_PROC_BROWSER_TEST_F(FrameNodeImplBrowserTest, ViewportIntersection_Hidden) {
   ASSERT_TRUE(embedded_test_server()->Start());
   EXPECT_EQ(1, browser()->tab_strip_model()->count());
 
@@ -155,7 +154,7 @@ IN_PROC_BROWSER_TEST_F(FrameNodeImplBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(FrameNodeImplBrowserTest,
-                       DISABLED_ViewportIntersection_PartiallyVisible) {
+                       ViewportIntersection_PartiallyVisible) {
   ASSERT_TRUE(embedded_test_server()->Start());
   EXPECT_EQ(1, browser()->tab_strip_model()->count());
 
@@ -188,8 +187,7 @@ IN_PROC_BROWSER_TEST_F(FrameNodeImplBrowserTest,
   run_loop.Run();
 }
 
-IN_PROC_BROWSER_TEST_F(FrameNodeImplBrowserTest,
-                       DISABLED_ViewportIntersection_Scaled) {
+IN_PROC_BROWSER_TEST_F(FrameNodeImplBrowserTest, ViewportIntersection_Scaled) {
   ASSERT_TRUE(embedded_test_server()->Start());
   EXPECT_EQ(1, browser()->tab_strip_model()->count());
 
@@ -234,8 +232,7 @@ IN_PROC_BROWSER_TEST_F(FrameNodeImplBrowserTest,
   run_loop.Run();
 }
 
-IN_PROC_BROWSER_TEST_F(FrameNodeImplBrowserTest,
-                       DISABLED_ViewportIntersection_Rotated) {
+IN_PROC_BROWSER_TEST_F(FrameNodeImplBrowserTest, ViewportIntersection_Rotated) {
   ASSERT_TRUE(embedded_test_server()->Start());
   EXPECT_EQ(1, browser()->tab_strip_model()->count());
 

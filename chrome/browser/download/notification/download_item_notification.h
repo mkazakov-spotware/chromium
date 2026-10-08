@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/download/download_commands.h"
 #include "chrome/browser/download/download_ui_model.h"
 #include "chrome/browser/image_decoder/image_decoder.h"
@@ -33,14 +33,13 @@ class Notification;
 // Handles the notification on ChromeOS for one download item.
 class DownloadItemNotification : public ImageDecoder::ImageRequest,
                                  public message_center::NotificationObserver,
-                                 public DownloadUIModel::Delegate {
+                                 public DownloadUIModel::Observer {
  public:
+  using DownloadItemNotificationPtr =
+      std::unique_ptr<DownloadItemNotification, base::OnTaskRunnerDeleter>;
+
   DownloadItemNotification(Profile* profile,
                            DownloadUIModel::DownloadUIModelPtr item);
-
-  DownloadItemNotification(const DownloadItemNotification&) = delete;
-  DownloadItemNotification& operator=(const DownloadItemNotification&) = delete;
-
   ~DownloadItemNotification() override;
 
   // Observer for this notification.
@@ -54,24 +53,30 @@ class DownloadItemNotification : public ImageDecoder::ImageRequest,
 
   DownloadUIModel* GetDownload();
 
-  // DownloadUIModel::Delegate overrides.
+  // DownloadUIModel::Observer overrides.
   void OnDownloadUpdated() override;
-  void OnDownloadDestroyed(const ContentId& id) override;
+  void OnDownloadDestroyed() override;
 
   // Disables popup by setting low priority.
   void DisablePopup();
 
   // NotificationObserver:
   void Close(bool by_user) override;
-  void Click(const absl::optional<int>& button_index,
-             const absl::optional<std::u16string>& reply) override;
+  void Click(const base::Optional<int>& button_index,
+             const base::Optional<base::string16>& reply) override;
+
+  void ShutDown();
 
  private:
   friend class test::DownloadItemNotificationTest;
 
   enum ImageDecodeStatus { NOT_STARTED, IN_PROGRESS, DONE, FAILED, NOT_IMAGE };
 
-  enum NotificationUpdateType { ADD, UPDATE, UPDATE_AND_POPUP };
+  enum NotificationUpdateType {
+    ADD,
+    UPDATE,
+    UPDATE_AND_POPUP
+  };
 
   std::string GetNotificationId() const;
 
@@ -81,7 +86,7 @@ class DownloadItemNotification : public ImageDecoder::ImageRequest,
   SkColor GetNotificationIconColor();
 
   // Set preview image of the notification. Must be called on IO thread.
-  void OnImageLoaded(std::string image_data);
+  void OnImageLoaded(const std::string& image_data);
   void OnImageCropped(const SkBitmap& image);
 
   // ImageDecoder::ImageRequest overrides:
@@ -89,30 +94,28 @@ class DownloadItemNotification : public ImageDecoder::ImageRequest,
   void OnDecodeImageFailed() override;
 
   // Returns a short one-line status string for the download.
-  std::u16string GetTitle() const;
+  base::string16 GetTitle() const;
 
   // Returns a short one-line status string for a download command.
-  std::u16string GetCommandLabel(DownloadCommands::Command command) const;
+  base::string16 GetCommandLabel(DownloadCommands::Command command) const;
 
   // Get the warning text to notify a dangerous download. Should only be called
   // if IsDangerous() is true.
-  std::u16string GetWarningStatusString() const;
+  base::string16 GetWarningStatusString() const;
 
   // Get the sub status text of the current in-progress download status. Should
   // be called only for downloads in progress.
-  std::u16string GetInProgressSubStatusString() const;
+  base::string16 GetInProgressSubStatusString() const;
 
   // Get the sub status text. Can be called for downloads in all states.
   // If the state does not have sub status string, it returns empty string.
-  std::u16string GetSubStatusString() const;
+  base::string16 GetSubStatusString() const;
 
   // Get the status text.
-  std::u16string GetStatusString() const;
+  base::string16 GetStatusString() const;
 
   bool IsScanning() const;
   bool AllowedToOpenWhileScanning() const;
-
-  bool IsGalleryAppPdfEditNotificationEligible() const;
 
   Browser* GetBrowser() const;
   Profile* profile() const;
@@ -122,10 +125,10 @@ class DownloadItemNotification : public ImageDecoder::ImageRequest,
       const;
 
   // The profile associated with this notification.
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   // Observer of this notification.
-  raw_ptr<Observer> observer_;
+  Observer* observer_;
 
   // Flag to show the notification on next update. If true, the notification
   // goes visible. The initial value is true so it gets shown on initial update.
@@ -134,18 +137,6 @@ class DownloadItemNotification : public ImageDecoder::ImageRequest,
   // Flag if the notification has been closed or not. Setting this flag
   // prevents updates after close.
   bool closed_ = false;
-
-  // Flag if the notification has been suppressed or not. A notification being
-  // suppressed means that there is some special restriction imposed which is
-  // preventing a notification that would otherwise display from doing so, e.g.
-  // holding space in-progress downloads integration causes suppression of most
-  // download in-progress notifications.
-  bool suppressed_ = false;
-
-  // Flag to indicate that a review dialog is open for the user to accept or
-  // bypass an enterprise warning on the download. If this is true, the "Review"
-  // button should be removed from the notification.
-  bool in_review_ = false;
 
   download::DownloadItem::DownloadState previous_download_state_ =
       download::DownloadItem::MAX_DOWNLOAD_STATE;  // As uninitialized state
@@ -160,6 +151,8 @@ class DownloadItemNotification : public ImageDecoder::ImageRequest,
   ImageDecodeStatus image_decode_status_ = NOT_STARTED;
 
   base::WeakPtrFactory<DownloadItemNotification> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DownloadItemNotification);
 };
 
 #endif  // CHROME_BROWSER_DOWNLOAD_NOTIFICATION_DOWNLOAD_ITEM_NOTIFICATION_H_

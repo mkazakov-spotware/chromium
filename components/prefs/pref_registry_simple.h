@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,13 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "base/time/time.h"
-#include "base/values.h"
 #include "components/prefs/pref_registry.h"
 #include "components/prefs/prefs_export.h"
 
 namespace base {
+class Value;
 class FilePath;
 }
 
@@ -23,9 +24,6 @@ class FilePath;
 class COMPONENTS_PREFS_EXPORT PrefRegistrySimple : public PrefRegistry {
  public:
   PrefRegistrySimple();
-
-  PrefRegistrySimple(const PrefRegistrySimple&) = delete;
-  PrefRegistrySimple& operator=(const PrefRegistrySimple&) = delete;
 
   // For each of these registration methods, |flags| is an optional bitmask of
   // PrefRegistrationFlags.
@@ -56,19 +54,11 @@ class COMPONENTS_PREFS_EXPORT PrefRegistrySimple : public PrefRegistry {
                         base::Value default_value,
                         uint32_t flags = NO_REGISTRATION_FLAGS);
 
-  void RegisterListPref(const std::string& path,
-                        base::Value::List default_value,
-                        uint32_t flags = NO_REGISTRATION_FLAGS);
-
   void RegisterDictionaryPref(const std::string& path,
                               uint32_t flags = NO_REGISTRATION_FLAGS);
 
   void RegisterDictionaryPref(const std::string& path,
                               base::Value default_value,
-                              uint32_t flags = NO_REGISTRATION_FLAGS);
-
-  void RegisterDictionaryPref(const std::string& path,
-                              base::Value::Dict default_value,
                               uint32_t flags = NO_REGISTRATION_FLAGS);
 
   void RegisterInt64Pref(const std::string& path,
@@ -89,6 +79,9 @@ class COMPONENTS_PREFS_EXPORT PrefRegistrySimple : public PrefRegistry {
 
  protected:
   ~PrefRegistrySimple() override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PrefRegistrySimple);
 };
 
 #endif  // COMPONENTS_PREFS_PREF_REGISTRY_SIMPLE_H_

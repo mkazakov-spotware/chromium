@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,7 @@
 
 #include "base/containers/flat_set.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
-#include "base/time/time.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
 #include "chrome/browser/notifications/muted_notification_handler.h"
 #include "chrome/browser/notifications/notification_blocker.h"
@@ -19,9 +17,6 @@ class WebContents;
 }  // namespace content
 
 class NotificationDisplayService;
-
-// To share with unit tests.
-extern const char kMuteNotificationId[];
 
 // This notification blocker listens to the events when the user starts
 // capturing a display. It will block notifications while such a capture is
@@ -60,7 +55,7 @@ class ScreenCaptureNotificationBlocker
   FRIEND_TEST_ALL_PREFIXES(ScreenCaptureNotificationBlockerTest,
                            ObservesMediaStreamCaptureIndicator);
 
-  void ReportSessionMetrics(bool revealed);
+  void ReportSessionMetrics();
   void ReportMuteNotificationAction(MutedNotificationHandler::Action action);
   void DisplayMuteNotification();
   void CloseMuteNotification();
@@ -70,8 +65,6 @@ class ScreenCaptureNotificationBlocker
     kNotifyMuted,
     // The user clicked on "Show" and we show all notifications as usual.
     kShowAll,
-    // The user clicked on "Snooze" to snooze all notifications in this session.
-    kSnooze,
   };
 
   NotifyState state_ = NotifyState::kNotifyMuted;
@@ -82,22 +75,16 @@ class ScreenCaptureNotificationBlocker
   int replaced_notification_count_ = 0;
   // Number of notifications closed during the current screen capture session.
   int closed_notification_count_ = 0;
-  // Number of notifications prevented from showing while we're snoozing.
-  int snoozed_notification_count_ = 0;
   // Flag if metrics have been reported for the current screen capture session.
   bool reported_session_metrics_ = false;
-  // Timestamp of when the last "muted" notification got shown.
-  base::TimeTicks last_mute_notification_time_;
-  // Timestamp of when the last screen capture session started.
-  base::TimeTicks last_screen_capture_session_start_time_;
 
   // The |notification_display_service_| owns a NotificationDisplayQueue which
   // owns |this| so a raw pointer is safe here.
-  raw_ptr<NotificationDisplayService> notification_display_service_;
+  NotificationDisplayService* notification_display_service_;
 
-  base::ScopedObservation<MediaStreamCaptureIndicator,
-                          MediaStreamCaptureIndicator::Observer>
-      observation_{this};
+  ScopedObserver<MediaStreamCaptureIndicator,
+                 MediaStreamCaptureIndicator::Observer>
+      observer_{this};
 
   // Storing raw pointers here is fine because MediaStreamCaptureIndicator
   // notifies us before the WebContents is destroyed.

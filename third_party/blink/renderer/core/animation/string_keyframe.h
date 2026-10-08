@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,12 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_ANIMATION_STRING_KEYFRAME_H_
 
 #include "third_party/blink/renderer/core/animation/keyframe.h"
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/css_property_value_set.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
 
 namespace blink {
 
-class CSSPropertyName;
 class StyleSheetContents;
 
 // An implementation of Keyframe used for CSS Animations, web-animations, and
@@ -44,7 +41,7 @@ class CORE_EXPORT StringKeyframe : public Keyframe {
       const String& value,
       SecureContextMode,
       StyleSheetContents*);
-  void SetCSSPropertyValue(const CSSPropertyName&, const CSSValue&);
+  void SetCSSPropertyValue(const CSSProperty&, const CSSValue&);
   void RemoveCustomCSSProperty(const PropertyHandle& property);
 
   void SetPresentationAttributeValue(const CSSProperty&,
@@ -122,7 +119,6 @@ class CORE_EXPORT StringKeyframe : public Keyframe {
 
     bool IsNeutral() const final { return !value_; }
     bool IsRevert() const final;
-    bool IsRevertLayer() const final;
     Keyframe::PropertySpecificKeyframe* NeutralKeyframe(
         double offset,
         scoped_refptr<TimingFunction> easing) const final;
@@ -160,7 +156,6 @@ class CORE_EXPORT StringKeyframe : public Keyframe {
 
     bool IsNeutral() const final { return value_.IsNull(); }
     bool IsRevert() const final { return false; }
-    bool IsRevertLayer() const final { return false; }
     PropertySpecificKeyframe* NeutralKeyframe(
         double offset,
         scoped_refptr<TimingFunction> easing) const final;
@@ -240,7 +235,7 @@ class CORE_EXPORT StringKeyframe : public Keyframe {
   // resolving longhand name collisions.  The resolver also knows how to
   // create serialized text for a shorthand, which is required for getKeyframes
   // calls.
-  // See: https://w3.org/TR/web-animations-1/#keyframes-section
+  // See: https://drafts.csswg.org/web-animations/#keyframes-section
   HeapHashMap<PropertyHandle, Member<PropertyResolver>> input_properties_;
 
   // The resolved properties are computed from unresolved ones applying these
@@ -290,4 +285,4 @@ struct DowncastTraits<SVGPropertySpecificKeyframe> {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_ANIMATION_STRING_KEYFRAME_H_
+#endif

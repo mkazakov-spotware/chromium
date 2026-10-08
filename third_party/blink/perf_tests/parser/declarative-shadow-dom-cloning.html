@@ -4,6 +4,8 @@
 <script src="../resources/runner.js"></script>
 <script>
 
+const hostChildren = 100;
+
 function createDeepShadowTemplateContent(levels, slotted) {
   const nestedContent = levels > 0 ? createDeepShadowTemplateContent(levels-1) : '<span>End</span>';
   if (slotted) {
@@ -13,38 +15,16 @@ function createDeepShadowTemplateContent(levels, slotted) {
   }
 }
 
-function setInnerHTML(el,content) {
-  const fragment = (new DOMParser()).parseFromString(`<pre>${content}</pre>`, 'text/html', {includeShadowRoots: true});
-  (el instanceof HTMLTemplateElement ? el.content : el).replaceChildren(...fragment.body.firstChild.childNodes);
-}
-
-const hostChildren = 100;
-
-// Make sure the clone operation works
-function testClone(template) {
-  const wrapper = document.createElement('div');
-  document.body.appendChild(wrapper);
-  wrapper.appendChild(template.content.cloneNode(true));
-  const templateHtml = template.getInnerHTML({includeShadowRoots: true});
-  const clonedHtml = wrapper.getInnerHTML({includeShadowRoots: true});
-  if (templateHtml !== clonedHtml) {
-    PerfTestRunner.logFatalError('Cloned template does not match original!');
-  }
-  wrapper.remove();
-}
-
-function buildTemplate(slotted) {
-  const template = document.createElement('template');
-  document.body.appendChild(template);
-  const html = createDeepShadowTemplateContent(hostChildren, slotted);
-  setInnerHTML(template,html);
-  testClone(template);
-  return template;
-}
-
 // Build templates once
-const templateSlotted = buildTemplate(true);
-const templateNested = buildTemplate(false);
+const templateSlotted = document.createElement('template');
+document.body.appendChild(templateSlotted);
+templateSlotted.content.allowDeclarativeShadowDom = true;
+templateSlotted.innerHTML = createDeepShadowTemplateContent(hostChildren, true);
+
+const templateNested = document.createElement('template');
+document.body.appendChild(templateNested);
+templateNested.content.allowDeclarativeShadowDom = true;
+templateNested.innerHTML = createDeepShadowTemplateContent(hostChildren, false);
 
 if (!templateSlotted.content.firstChild.shadowRoot) {
   PerfTestRunner.logFatalError("Declarative Shadow DOM must be enabled for this test.");

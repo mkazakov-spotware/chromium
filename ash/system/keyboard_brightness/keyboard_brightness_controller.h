@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 
 #include "ash/ash_export.h"
 #include "ash/system/keyboard_brightness_control_delegate.h"
-
-class PrefRegistrySimple;
+#include "base/macros.h"
 
 namespace ash {
 
@@ -17,23 +16,16 @@ namespace ash {
 class ASH_EXPORT KeyboardBrightnessController
     : public KeyboardBrightnessControlDelegate {
  public:
-  KeyboardBrightnessController() = default;
-
-  // Register the pref to store keyboard brightness in the given registry.
-  static void RegisterPrefs(PrefRegistrySimple* registry);
-
-  // Disallow copy and move.
-  KeyboardBrightnessController(const KeyboardBrightnessController&) = delete;
-  KeyboardBrightnessController& operator=(const KeyboardBrightnessController&) =
-      delete;
-
-  ~KeyboardBrightnessController() override = default;
+  KeyboardBrightnessController();
+  ~KeyboardBrightnessController() override;
 
  private:
   // Overridden from KeyboardBrightnessControlDelegate:
-  void HandleKeyboardBrightnessDown() override;
-  void HandleKeyboardBrightnessUp() override;
-  void HandleToggleKeyboardBacklight() override;
+  void HandleKeyboardBrightnessDown(
+      const ui::Accelerator& accelerator) override;
+  void HandleKeyboardBrightnessUp(const ui::Accelerator& accelerator) override;
+
+  DISALLOW_COPY_AND_ASSIGN(KeyboardBrightnessController);
 };
 
 }  // namespace ash

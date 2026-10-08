@@ -20,12 +20,11 @@ dictionary MediaEncodingConfiguration : MediaConfiguration {
 enum MediaDecodingType {
   "file",
   "media-source",
-  "webrtc"
 };
 
 enum MediaEncodingType {
   "record",
-  "webrtc"
+  "transmission"
 };
 
 dictionary VideoConfiguration {
@@ -38,8 +37,6 @@ dictionary VideoConfiguration {
   HdrMetadataType hdrMetadataType;
   ColorGamut colorGamut;
   TransferFunction transferFunction;
-  DOMString scalabilityMode;
-  boolean spatialScalability;
 };
 
 enum HdrMetadataType {
@@ -69,19 +66,19 @@ dictionary AudioConfiguration {
 };
 
 dictionary MediaCapabilitiesKeySystemConfiguration {
-  required DOMString keySystem;
-  DOMString initDataType = "";
-  MediaKeysRequirement distinctiveIdentifier = "optional";
-  MediaKeysRequirement persistentState = "optional";
-  sequence<DOMString> sessionTypes;
-  KeySystemTrackConfiguration audio;
-  KeySystemTrackConfiguration video;
-};
+    required DOMString keySystem;
+    DOMString initDataType = "";
+    MediaKeysRequirement distinctiveIdentifier = "optional";
+    MediaKeysRequirement persistentState = "optional";
+    sequence<DOMString> sessionTypes;
+    KeySystemTrackConfiguration audio;
+    KeySystemTrackConfiguration video;
+  };
 
 dictionary KeySystemTrackConfiguration {
-  DOMString robustness = "";
-  DOMString? encryptionScheme = null;
-};
+    DOMString robustness = "";
+    DOMString? encryptionScheme = null;
+  };
 
 dictionary MediaCapabilitiesInfo {
   required boolean supported;

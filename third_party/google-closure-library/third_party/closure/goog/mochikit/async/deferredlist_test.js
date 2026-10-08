@@ -1,7 +1,6 @@
 /**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
+ * Copyright 2009 The Closure Library Authors. All Rights Reserved.
+ * Author: brenneman@google.com (Shawn Brenneman)
  */
 
 goog.module('goog.async.deferredListTest');
@@ -13,15 +12,14 @@ const testSuite = goog.require('goog.testing.testSuite');
 
 
 // Re-throw (after a timeout) any errors not handled in an errback.
-/** Use a computed property to avoid the compiler check on this define  */
-Deferred['STRICT_ERRORS'] = true;
+Deferred.STRICT_ERRORS = true;
 
 
 /**
  * A list of unhandled errors.
  * @type {Array.<Error>}
  */
-const storedErrors = [];
+var storedErrors = [];
 
 
 /**
@@ -31,7 +29,7 @@ const storedErrors = [];
  * @param {...Deferred} var_args A list of deferred objects.
  */
 function addCatchAll(var_args) {
-  for (let i = 0, d; d = arguments[i]; i++) {
+  for (var i = 0, d; d = arguments[i]; i++) {
     d.addErrback(function(res) {
       storedErrors.push(res);
     });
@@ -43,7 +41,7 @@ function addCatchAll(var_args) {
  * Checks storedErrors for unhandled errors. If found, the error is rethrown.
  */
 function checkCatchAll() {
-  const err = storedErrors.shift();
+  var err = storedErrors.shift();
   googArray.clear(storedErrors);
 
   if (err) {
@@ -64,8 +62,8 @@ testSuite({
   },
 
   testNoInputs() {
-    let count = 0;
-    const d = new DeferredList([]);
+    var count = 0;
+    var d = new DeferredList([]);
 
     d.addCallback(function(res) {
       assertArrayEquals([], res);
@@ -80,8 +78,8 @@ testSuite({
   },
 
   testNoInputsAndFireOnOneCallback() {
-    let count = 0;
-    const d = new DeferredList([], true);
+    var count = 0;
+    var d = new DeferredList([], true);
 
     d.addCallback(function(res) {
       assertArrayEquals([], res);
@@ -99,13 +97,13 @@ testSuite({
   },
 
   testDeferredList() {
-    let count = 0;
+    var count = 0;
 
-    const a = new Deferred();
-    const b = new Deferred();
-    const c = new Deferred();
+    var a = new Deferred();
+    var b = new Deferred();
+    var c = new Deferred();
 
-    const dl = new DeferredList([a, b, c]);
+    var dl = new DeferredList([a, b, c]);
 
     dl.addCallback(function(res) {
       assertEquals('Expected 3 Deferred results.', 3, res.length);
@@ -137,11 +135,11 @@ testSuite({
   },
 
   testFireOnFirstCallback() {
-    const a = new Deferred();
-    const b = new Deferred();
-    const c = new Deferred();
+    var a = new Deferred();
+    var b = new Deferred();
+    var c = new Deferred();
 
-    const dl = new DeferredList([a, b, c], true);
+    var dl = new DeferredList([a, b, c], true);
 
     dl.addCallback(function(res) {
       assertEquals('Should be the deferred index in this mode.', 1, res[0]);
@@ -159,11 +157,11 @@ testSuite({
   },
 
   testFireOnFirstErrback() {
-    const a = new Deferred();
-    const b = new Deferred();
-    const c = new Deferred();
+    var a = new Deferred();
+    var b = new Deferred();
+    var c = new Deferred();
 
-    const dl = new DeferredList([a, b, c], false, true);
+    var dl = new DeferredList([a, b, c], false, true);
 
     dl.addCallback(neverHappen);
     dl.addErrback(function(res) {
@@ -191,10 +189,10 @@ testSuite({
   },
 
   testNoConsumeErrors() {
-    let count = 0;
+    var count = 0;
 
-    const a = new Deferred();
-    const dl = new DeferredList([a]);
+    var a = new Deferred();
+    var dl = new DeferredList([a]);
 
     a.addErrback(function(res) {
       count++;
@@ -208,10 +206,10 @@ testSuite({
   },
 
   testConsumeErrors() {
-    const count = 0;
+    var count = 0;
 
-    const a = new Deferred();
-    const dl = new DeferredList([a], false, false, true);
+    var a = new Deferred();
+    var dl = new DeferredList([a], false, false, true);
 
     a.addErrback(neverHappen);
 
@@ -237,23 +235,23 @@ testSuite({
           .join('');
     }
 
-    const a = new Deferred();
-    const b = new Deferred();
-    const c = new Deferred();
-    const d = new Deferred();
+    var a = new Deferred();
+    var b = new Deferred();
+    var c = new Deferred();
+    var d = new Deferred();
 
     a.addCallback(upperCase);
     b.addCallback(upperCase);
     c.addCallback(upperCase);
     d.addCallback(upperCase);
 
-    const dl1 = new DeferredList([a, b]);
-    const dl2 = new DeferredList([c, d]);
+    var dl1 = new DeferredList([a, b]);
+    var dl2 = new DeferredList([c, d]);
 
     dl1.addCallback(combine);
     dl2.addCallback(combine);
 
-    const dl3 = new DeferredList([dl1, dl2]);
+    var dl3 = new DeferredList([dl1, dl2]);
     dl3.addCallback(combine);
     dl3.addCallback(function(res) {
       assertEquals('AbCd', res);
@@ -268,11 +266,11 @@ testSuite({
   },
 
   testGatherResults() {
-    const a = new Deferred();
-    const b = new Deferred();
-    const c = new Deferred();
+    var a = new Deferred();
+    var b = new Deferred();
+    var c = new Deferred();
 
-    const dl = DeferredList.gatherResults([a, b, c]);
+    var dl = DeferredList.gatherResults([a, b, c]);
 
     dl.addCallback(function(res) {
       assertArrayEquals(['A', 'B', 'C'], res);
@@ -286,14 +284,14 @@ testSuite({
   },
 
   testGatherResultsFailure() {
-    const a = new Deferred();
-    const b = new Deferred();
-    const c = new Deferred();
+    var a = new Deferred();
+    var b = new Deferred();
+    var c = new Deferred();
 
-    const dl = DeferredList.gatherResults([a, b, c]);
+    var dl = DeferredList.gatherResults([a, b, c]);
 
-    let firedErrback = false;
-    let firedCallback = false;
+    var firedErrback = false;
+    var firedCallback = false;
     dl.addCallback(function() {
       firedCallback = true;
     });
@@ -313,21 +311,21 @@ testSuite({
   },
 
   testGatherResults_cancelCancelsChildren() {
-    const canceled = [];
-    const a = new Deferred(function() {
+    var canceled = [];
+    var a = new Deferred(function() {
       canceled.push('a');
     });
-    const b = new Deferred(function() {
+    var b = new Deferred(function() {
       canceled.push('b');
     });
-    const c = new Deferred(function() {
+    var c = new Deferred(function() {
       canceled.push('c');
     });
 
-    const dl = new DeferredList([a, b, c]);
+    var dl = new DeferredList([a, b, c]);
 
-    let firedErrback = false;
-    let firedCallback = false;
+    var firedErrback = false;
+    var firedCallback = false;
     dl.addCallback(function() {
       firedCallback = true;
     });
@@ -347,21 +345,21 @@ testSuite({
   },
 
   testErrorCancelsPendingChildrenWhenFireOnFirstError() {
-    const canceled = [];
-    const a = new Deferred(function() {
+    var canceled = [];
+    var a = new Deferred(function() {
       canceled.push('a');
     });
-    const b = new Deferred(function() {
+    var b = new Deferred(function() {
       canceled.push('b');
     });
-    const c = new Deferred(function() {
+    var c = new Deferred(function() {
       canceled.push('c');
     });
 
-    const dl = new DeferredList([a, b, c], false, true);
+    var dl = new DeferredList([a, b, c], false, true);
 
-    let firedErrback = false;
-    let firedCallback = false;
+    var firedErrback = false;
+    var firedCallback = false;
     dl.addCallback(function() {
       firedCallback = true;
     });
@@ -382,21 +380,21 @@ testSuite({
   },
 
   testErrorDoesNotCancelPendingChildrenForVanillaLists() {
-    const canceled = [];
-    const a = new Deferred(function() {
+    var canceled = [];
+    var a = new Deferred(function() {
       canceled.push('a');
     });
-    const b = new Deferred(function() {
+    var b = new Deferred(function() {
       canceled.push('b');
     });
-    const c = new Deferred(function() {
+    var c = new Deferred(function() {
       canceled.push('c');
     });
 
-    const dl = new DeferredList([a, b, c]);
+    var dl = new DeferredList([a, b, c]);
 
-    let firedErrback = false;
-    let firedCallback = false;
+    var firedErrback = false;
+    var firedCallback = false;
     dl.addCallback(function() {
       firedCallback = true;
     });
@@ -417,22 +415,22 @@ testSuite({
   },
 
   testInputDeferredsStillUsable() {
-    const increment = function(res) {
+    var increment = function(res) {
       return res + 1;
     };
-    const incrementErrback = function(res) {
+    var incrementErrback = function(res) {
       throw res + 1;
     };
 
-    let aComplete = false;
-    let bComplete = false;
-    let hadListCallback = false;
+    var aComplete = false;
+    var bComplete = false;
+    var hadListCallback = false;
 
-    const a = new Deferred().addCallback(increment);
-    const b = new Deferred().addErrback(incrementErrback);
-    const c = new Deferred();
+    var a = new Deferred().addCallback(increment);
+    var b = new Deferred().addErrback(incrementErrback);
+    var c = new Deferred();
 
-    const dl = new DeferredList([a, b, c]);
+    var dl = new DeferredList([a, b, c]);
 
     a.callback(0);
     a.addCallback(increment);
@@ -461,9 +459,9 @@ testSuite({
     dl.addCallback(function(results) {
       hadListCallback = true;
 
-      const aResult = results[0];
-      const bResult = results[1];
-      const cResult = results[2];
+      var aResult = results[0];
+      var bResult = results[1];
+      var cResult = results[2];
 
       assertTrue(aResult[0]);
       assertEquals(

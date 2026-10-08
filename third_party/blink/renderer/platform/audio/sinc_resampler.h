@@ -29,15 +29,17 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_AUDIO_SINC_RESAMPLER_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_AUDIO_SINC_RESAMPLER_H_
 
+#include "base/macros.h"
 #include "third_party/blink/renderer/platform/audio/audio_array.h"
 #include "third_party/blink/renderer/platform/audio/audio_source_provider.h"
+#include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
 
 // SincResampler is a high-quality sample-rate converter.
 
-class SincResampler {
+class PLATFORM_EXPORT SincResampler {
   USING_FAST_MALLOC(SincResampler);
 
  public:
@@ -45,18 +47,15 @@ class SincResampler {
   // kernelSize can be adjusted for quality (higher is better)
   // numberOfKernelOffsets is used for interpolation and is the number of
   // sub-sample kernel shifts.
-  explicit SincResampler(double scale_factor,
-                         unsigned kernel_size = 32,
-                         unsigned number_of_kernel_offsets = 32);
-
-  SincResampler(const SincResampler&) = delete;
-  SincResampler& operator=(const SincResampler&) = delete;
+  SincResampler(double scale_factor,
+                unsigned kernel_size = 32,
+                unsigned number_of_kernel_offsets = 32);
 
   // Processes numberOfSourceFrames from source to produce numberOfSourceFrames
   // / scaleFactor frames in destination.
   void Process(const float* source,
                float* destination,
-               int number_of_source_frames);
+               unsigned number_of_source_frames);
 
   // Process with input source callback function for streaming applications.
   void Process(AudioSourceProvider*,
@@ -96,6 +95,9 @@ class SincResampler {
 
   // The buffer is primed once at the very beginning of processing.
   bool is_buffer_primed_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SincResampler);
 };
 
 }  // namespace blink

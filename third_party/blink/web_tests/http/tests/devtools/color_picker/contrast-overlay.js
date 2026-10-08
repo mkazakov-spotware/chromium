@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
   TestRunner.addResult(`Tests that the contrast line algorithm produces good results and terminates.\n`);
 
 
-  await TestRunner.loadLegacyModule('color_picker');
+  await self.runtime.loadModulePromise('color_picker');
 
   var colorPairs = [
     // Boring black on white

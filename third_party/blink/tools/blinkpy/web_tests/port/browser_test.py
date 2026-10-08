@@ -27,6 +27,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from blinkpy.common import exit_codes
+from blinkpy.web_tests.models import test_run_results
 from blinkpy.web_tests.port import browser_test_driver
 from blinkpy.web_tests.port import linux
 from blinkpy.web_tests.port import mac

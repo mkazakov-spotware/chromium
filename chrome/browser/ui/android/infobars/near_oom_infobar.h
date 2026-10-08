@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/infobars/android/infobar_android.h"
 
 namespace content {
@@ -21,9 +21,6 @@ class InterventionDelegate;
 // NearOomMessageDelegate for behavior specifics.
 class NearOomInfoBar : public infobars::InfoBarAndroid {
  public:
-  NearOomInfoBar(const NearOomInfoBar&) = delete;
-  NearOomInfoBar& operator=(const NearOomInfoBar&) = delete;
-
   ~NearOomInfoBar() override;
 
   // |delegate| must remain alive while showing this info bar.
@@ -35,13 +32,13 @@ class NearOomInfoBar : public infobars::InfoBarAndroid {
 
   // infobars::InfoBarAndroid:
   base::android::ScopedJavaLocalRef<jobject> CreateRenderInfoBar(
-      JNIEnv* env,
-      const ResourceIdMapper& resource_id_mapper) override;
+      JNIEnv* env) override;
   void OnLinkClicked(JNIEnv* env,
                      const base::android::JavaParamRef<jobject>& obj) override;
   void ProcessButton(int action) override;
 
-  raw_ptr<InterventionDelegate> delegate_;
+  InterventionDelegate* delegate_;
+  DISALLOW_COPY_AND_ASSIGN(NearOomInfoBar);
 };
 
 #endif  // CHROME_BROWSER_UI_ANDROID_INFOBARS_NEAR_OOM_INFOBAR_H_

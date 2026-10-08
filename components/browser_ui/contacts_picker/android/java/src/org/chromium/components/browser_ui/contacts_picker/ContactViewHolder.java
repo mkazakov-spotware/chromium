@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,9 +34,6 @@ public class ContactViewHolder
     // A worker task for asynchronously retrieving icons off the main thread.
     private FetchIconWorkerTask mWorkerTask;
 
-    // The size the contact icon will be displayed at (one side of a square).
-    private final int mIconSize;
-
     // The icon to use when testing.
     private static Bitmap sIconForTest;
 
@@ -45,15 +42,13 @@ public class ContactViewHolder
      * @param itemView The {@link ContactView} for the contact.
      * @param categoryView The {@link PickerCategoryView} showing the contacts.
      * @param contentResolver The {@link ContentResolver} to use for the lookup.
-     * @param iconSize The size the contact icon will be displayed at (one side of a square).
      */
     public ContactViewHolder(ContactView itemView, PickerCategoryView categoryView,
-            ContentResolver contentResolver, int iconSize) {
+            ContentResolver contentResolver) {
         super(itemView);
         mCategoryView = categoryView;
         mContentResolver = contentResolver;
         mItemView = itemView;
-        mIconSize = iconSize;
     }
 
     /**
@@ -78,7 +73,6 @@ public class ContactViewHolder
             Bitmap icon = mCategoryView.getIconCache().getBitmap(mContact.getId());
             if (icon == null && !contact.getId().equals(ContactDetails.SELF_CONTACT_ID)) {
                 mWorkerTask = new FetchIconWorkerTask(mContact.getId(), mContentResolver, this);
-                mWorkerTask.setDesiredIconSize(mIconSize);
                 mWorkerTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
             }
             mItemView.initialize(contact, icon);

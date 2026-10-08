@@ -1,11 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/input/event_handling_util.h"
 
 #include "third_party/blink/public/common/input/web_mouse_event.h"
-#include "third_party/blink/renderer/core/dom/flat_tree_traversal.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/frame/web_feature.h"
@@ -14,6 +13,7 @@
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
 #include "third_party/blink/renderer/core/paint/paint_layer_scrollable_area.h"
 #include "third_party/blink/renderer/core/scroll/scrollable_area.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
 namespace event_handling_util {
@@ -101,17 +101,28 @@ ScrollableArea* AssociatedScrollableArea(const PaintLayer* layer) {
   return nullptr;
 }
 
+ContainerNode* ParentForClickEventInteractiveElementSensitive(
+    const Node& node) {
+  // IE doesn't dispatch click events for mousedown/mouseup events across form
+  // controls.
+  auto* html_element = DynamicTo<HTMLElement>(node);
+  if (html_element && html_element->IsInteractiveContent())
+    return nullptr;
+
+  return FlatTreeTraversal::Parent(node);
+}
+
 ContainerNode* ParentForClickEvent(const Node& node) {
   return FlatTreeTraversal::Parent(node);
 }
 
 PhysicalOffset ContentPointFromRootFrame(
     LocalFrame* frame,
-    const gfx::PointF& point_in_root_frame) {
+    const FloatPoint& point_in_root_frame) {
   LocalFrameView* view = frame->View();
   // FIXME: Is it really OK to use the wrong coordinates here when view is 0?
   // Historically the code would just crash; this is clearly no worse than that.
-  return PhysicalOffset::FromPointFRound(
+  return PhysicalOffset::FromFloatPointRound(
       view ? view->ConvertFromRootFrame(point_in_root_frame)
            : point_in_root_frame);
 }
@@ -124,7 +135,8 @@ MouseEventWithHitTestResults PerformMouseEventHitTest(
   DCHECK(frame->GetDocument());
 
   return frame->GetDocument()->PerformMouseEventHitTest(
-      request, ContentPointFromRootFrame(frame, mev.PositionInRootFrame()),
+      request,
+      ContentPointFromRootFrame(frame, FloatPoint(mev.PositionInRootFrame())),
       mev);
 }
 
@@ -132,13 +144,12 @@ bool ShouldDiscardEventTargetingFrame(const WebInputEvent& event,
                                       const LocalFrame& frame) {
   // There are two different mechanisms for tracking whether an iframe has moved
   // recently, for OOPIF and in-process iframes. For OOPIF's, frame movement is
-  // tracked in the browser process using hit test data, and it's propagated in
-  // event.GetModifiers(). For in-process iframes, frame movement is tracked
+  // tracked in the browser process using hit test data, and it's propagated
+  // in event.GetModifiers(). For in-process iframes, frame movement is tracked
   // during lifecycle updates, in FrameView::UpdateViewportIntersection, and
   // propagated via FrameView::RectInParentIsStable.
   bool should_discard = false;
-  if (frame.NeedsOcclusionTracking() &&
-      frame.IsCrossOriginToOutermostMainFrame()) {
+  if (frame.NeedsOcclusionTracking() && frame.IsCrossOriginToMainFrame()) {
     should_discard =
         (event.GetModifiers() & WebInputEvent::kTargetFrameMovedRecently) ||
         !frame.View()->RectInParentIsStable(event.TimeStamp());
@@ -184,7 +195,6 @@ LocalFrame* GetTargetSubframe(
 void PointerEventTarget::Trace(Visitor* visitor) const {
   visitor->Trace(target_element);
   visitor->Trace(target_frame);
-  visitor->Trace(scrollbar);
 }
 
 }  // namespace event_handling_util

@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -108,9 +108,10 @@ def ComputeTBMv3Metrics(test_result,
     return
 
   start = time.time()
-  histograms = trace_processor.RunMetrics(
-      trace_processor_path, artifacts[CONCATENATED_PROTO_NAME]['filePath'],
-      metrics, fetch_power_profile)
-  test_result['_histograms'].Merge(histograms)
+  for metric in metrics:
+    histograms = trace_processor.RunMetric(
+        trace_processor_path, artifacts[CONCATENATED_PROTO_NAME]['filePath'],
+        metric, fetch_power_profile)
+    test_result['_histograms'].Merge(histograms)
   logging.info('%s: Computing TBMv3 metrics took %.3f seconds.' % (
       test_result['testPath'], time.time() - start))

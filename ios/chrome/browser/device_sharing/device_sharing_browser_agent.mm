@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,7 +50,6 @@ void DeviceSharingBrowserAgent::UpdateForActiveWebState() {
       browser_->GetWebStateList()->GetActiveWebState();
   if (active_web_state) {
     manager->UpdateActiveUrl(browser_, active_web_state->GetVisibleURL());
-    manager->UpdateActiveTitle(browser_, active_web_state->GetTitle());
     return;
   }
 
@@ -87,9 +86,5 @@ void DeviceSharingBrowserAgent::BrowserDestroyed(Browser* browser) {
 void DeviceSharingBrowserAgent::DidFinishNavigation(
     web::WebState* web_state,
     web::NavigationContext* navigation_context) {
-  UpdateForActiveWebState();
-}
-
-void DeviceSharingBrowserAgent::TitleWasSet(web::WebState* web_state) {
   UpdateForActiveWebState();
 }

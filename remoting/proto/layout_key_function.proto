@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@ package remoting.protocol;
 // to include functions typically assigned to the standard keyboard keys on
 // common keyboard layouts.
 
-// Next ID: 64
+// Next ID: 63
 enum LayoutKeyFunction {
   // The key action is a function whose type is not recognized.
   UNKNOWN = 0;
@@ -37,9 +37,6 @@ enum LayoutKeyFunction {
   // shortcuts like option+command+B.
   OPTION = 61;
   COMMAND = 62;
-  // Chrome OS specific keys.
-  // The search key on Chrome OS (aka the 'Launcher' or 'Everything' key).
-  SEARCH = 63;
 
   // Locks
   NUM_LOCK = 8;

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,14 +15,15 @@ namespace ash {
 
 DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(RootWindowSettings,
                                    kRootWindowSettingsKey,
-                                   nullptr)
+                                   NULL)
 
 RootWindowSettings::RootWindowSettings()
-    : display_id(display::kInvalidDisplayId), controller(nullptr) {}
+    : display_id(display::kInvalidDisplayId), controller(NULL) {}
 
 RootWindowSettings* InitRootWindowSettings(aura::Window* root) {
-  return root->SetProperty(kRootWindowSettingsKey,
-                           std::make_unique<RootWindowSettings>());
+  RootWindowSettings* settings = new RootWindowSettings();
+  root->SetProperty(kRootWindowSettingsKey, settings);
+  return settings;
 }
 
 RootWindowSettings* GetRootWindowSettings(aura::Window* root) {

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,7 @@ class TestRenderFrameHostTest : public RenderViewHostImplTestHarness,
  public:
   void SetUp() override {
     RenderViewHostImplTestHarness::SetUp();
-    contents()->GetPrimaryMainFrame()->InitializeRenderFrameIfNeeded();
+    contents()->GetMainFrame()->InitializeRenderFrameIfNeeded();
     Observe(RenderViewHostImplTestHarness::web_contents());
   }
 
@@ -39,12 +39,12 @@ class TestRenderFrameHostTest : public RenderViewHostImplTestHarness,
 
   void DidStopLoading() override { events_.push_back("DidStopLoading"); }
 
-  void PrimaryMainDocumentElementAvailable() override {
-    events_.push_back("PrimaryMainDocumentElementAvailable");
+  void DocumentAvailableInMainFrame() override {
+    events_.push_back("DocumentAvailableInMainFrame");
   }
 
-  void DocumentOnLoadCompletedInPrimaryMainFrame() override {
-    events_.push_back("DocumentOnLoadCompletedInPrimaryMainFrame");
+  void DocumentOnLoadCompletedInMainFrame() override {
+    events_.push_back("DocumentOnLoadCompletedInMainFrame");
   }
 
   void DOMContentLoaded(RenderFrameHost* render_frame_host) override {
@@ -79,12 +79,11 @@ TEST_F(TestRenderFrameHostTest, LoadingCallbacksOrder_CrossDocument) {
   simulator->Commit();
 
   EXPECT_THAT(Events(),
-              testing::ElementsAre("DidStartLoading", "DidStartNavigation",
-                                   "DidFinishNavigation",
-                                   "PrimaryMainDocumentElementAvailable",
-                                   "DOMContentLoaded",
-                                   "DocumentOnLoadCompletedInPrimaryMainFrame",
-                                   "DidFinishLoad", "DidStopLoading"));
+              testing::ElementsAre(
+                  "DidStartLoading", "DidStartNavigation",
+                  "DidFinishNavigation", "DocumentAvailableInMainFrame",
+                  "DOMContentLoaded", "DocumentOnLoadCompletedInMainFrame",
+                  "DidFinishLoad", "DidStopLoading"));
 }
 
 TEST_F(TestRenderFrameHostTest, LoadingCallbacksOrder_SameDocument) {

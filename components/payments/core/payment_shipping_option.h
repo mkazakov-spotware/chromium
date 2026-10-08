@@ -1,12 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_PAYMENTS_CORE_PAYMENT_SHIPPING_OPTION_H_
 #define COMPONENTS_PAYMENTS_CORE_PAYMENT_SHIPPING_OPTION_H_
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "components/payments/core/payment_currency_amount.h"
 
 // C++ bindings for the PaymentRequest API PaymentShippingOption. Conforms to
@@ -14,7 +13,7 @@
 // https://w3c.github.io/browser-payment-api/#dom-paymentshippingoption
 
 namespace base {
-class Value;
+class DictionaryValue;
 }
 
 namespace payments {
@@ -30,9 +29,9 @@ class PaymentShippingOption {
   bool operator!=(const PaymentShippingOption& other) const;
   PaymentShippingOption& operator=(const PaymentShippingOption& other);
 
-  // Populates the properties of this PaymentShippingOption from |dict|.
+  // Populates the properties of this PaymentShippingOption from |value|.
   // Returns true if the required values are present.
-  bool FromValueDict(const base::Value::Dict& dict);
+  bool FromDictionaryValue(const base::DictionaryValue& value);
 
   // An identifier used to reference this PaymentShippingOption. It is unique
   // for a given PaymentRequest.

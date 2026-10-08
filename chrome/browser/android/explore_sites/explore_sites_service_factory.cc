@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 #include <utility>
 
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/singleton.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/time/default_clock.h"
 
@@ -22,6 +22,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/chrome_constants.h"
 #include "components/history/core/browser/history_service.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "content/public/browser/browser_context.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
@@ -34,20 +35,20 @@ class URLLoaderFactoryGetterImpl
  public:
   explicit URLLoaderFactoryGetterImpl(Profile* profile) : profile_(profile) {}
 
-  URLLoaderFactoryGetterImpl(const URLLoaderFactoryGetterImpl&) = delete;
-  URLLoaderFactoryGetterImpl& operator=(const URLLoaderFactoryGetterImpl&) =
-      delete;
-
   scoped_refptr<network::SharedURLLoaderFactory> GetFactory() override {
     return profile_->GetURLLoaderFactory();
   }
 
  private:
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
+
+  DISALLOW_COPY_AND_ASSIGN(URLLoaderFactoryGetterImpl);
 };
 
 ExploreSitesServiceFactory::ExploreSitesServiceFactory()
-    : ProfileKeyedServiceFactory("ExploreSitesService") {
+    : BrowserContextKeyedServiceFactory(
+          "ExploreSitesService",
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(HistoryServiceFactory::GetInstance());
 }
 ExploreSitesServiceFactory::~ExploreSitesServiceFactory() = default;

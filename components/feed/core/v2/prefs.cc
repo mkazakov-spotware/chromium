@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,29 +9,17 @@
 #include "base/token.h"
 #include "base/values.h"
 #include "components/feed/core/common/pref_names.h"
-#include "components/feed/core/v2/public/types.h"
 #include "components/feed/core/v2/scheduling.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
 
 namespace feed {
 namespace prefs {
-namespace {
 
-const char* RequestSchedulePrefName(RefreshTaskId task_id) {
-  switch (task_id) {
-    case feed::RefreshTaskId::kRefreshForYouFeed:
-      return kRequestSchedule;
-    case feed::RefreshTaskId::kRefreshWebFeed:
-      return kWebFeedsRequestSchedule;
-  }
-}
-
-}  // namespace
 std::vector<int> GetThrottlerRequestCounts(PrefService& pref_service) {
   std::vector<int> result;
   const auto& value_list =
-      pref_service.GetList(kThrottlerRequestCountListPrefName);
+      pref_service.GetList(kThrottlerRequestCountListPrefName)->GetList();
   for (const base::Value& value : value_list) {
     result.push_back(value.is_int() ? value.GetInt() : 0);
   }
@@ -40,13 +28,13 @@ std::vector<int> GetThrottlerRequestCounts(PrefService& pref_service) {
 
 void SetThrottlerRequestCounts(std::vector<int> request_counts,
                                PrefService& pref_service) {
-  base::Value::List value_list;
+  std::vector<base::Value> value_list;
   for (int count : request_counts) {
-    value_list.Append(count);
+    value_list.push_back(base::Value(count));
   }
 
-  pref_service.SetList(kThrottlerRequestCountListPrefName,
-                       std::move(value_list));
+  pref_service.Set(kThrottlerRequestCountListPrefName,
+                   base::Value(std::move(value_list)));
 }
 
 base::Time GetLastRequestTime(PrefService& pref_service) {
@@ -67,26 +55,22 @@ void SetDebugStreamData(const DebugStreamData& data,
   pref_service.SetString(kDebugStreamData, SerializeDebugStreamData(data));
 }
 
-void SetRequestSchedule(RefreshTaskId task_id,
-                        const RequestSchedule& schedule,
+void SetRequestSchedule(const RequestSchedule& schedule,
                         PrefService& pref_service) {
-  pref_service.SetDict(RequestSchedulePrefName(task_id),
-                       RequestScheduleToDict(schedule));
+  pref_service.Set(kRequestSchedule, RequestScheduleToValue(schedule));
 }
 
-RequestSchedule GetRequestSchedule(RefreshTaskId task_id,
-                                   PrefService& pref_service) {
-  return RequestScheduleFromDict(
-      pref_service.GetDict(RequestSchedulePrefName(task_id)));
+RequestSchedule GetRequestSchedule(PrefService& pref_service) {
+  return RequestScheduleFromValue(*pref_service.Get(kRequestSchedule));
 }
 
 void SetPersistentMetricsData(const PersistentMetricsData& data,
                               PrefService& pref_service) {
-  pref_service.SetDict(kMetricsData, PersistentMetricsDataToDict(data));
+  pref_service.Set(kMetricsData, PersistentMetricsDataToValue(data));
 }
 
 PersistentMetricsData GetPersistentMetricsData(PrefService& pref_service) {
-  return PersistentMetricsDataFromDict(pref_service.GetDict(kMetricsData));
+  return PersistentMetricsDataFromValue(*pref_service.Get(kMetricsData));
 }
 
 std::string GetClientInstanceId(PrefService& pref_service) {
@@ -102,48 +86,42 @@ void ClearClientInstanceId(PrefService& pref_service) {
   pref_service.ClearPref(feed::prefs::kClientInstanceId);
 }
 
-void SetExperiments(const Experiments& experiments, PrefService& pref_service) {
-  base::Value::Dict dict;
-  for (const auto& exp : experiments) {
-    base::Value::List list;
-    for (auto elem : exp.second) {
-      list.Append(elem);
-    }
-    dict.Set(exp.first, std::move(list));
-  }
-  pref_service.SetDict(kExperimentsV2, std::move(dict));
+void SetLastFetchHadNoticeCard(PrefService& pref_service, bool value) {
+  pref_service.SetBoolean(feed::prefs::kLastFetchHadNoticeCard, value);
 }
 
-Experiments GetExperiments(PrefService& pref_service) {
-  const auto& dict = pref_service.GetDict(kExperimentsV2);
-  Experiments experiments;
-  for (auto kv : dict) {
-    std::vector<std::string> vect;
-    for (const auto& v : kv.second.GetList()) {
-      vect.push_back(v.GetString());
-    }
-    experiments[kv.first] = vect;
-  }
-  return experiments;
+bool GetLastFetchHadNoticeCard(const PrefService& pref_service) {
+  return pref_service.GetBoolean(feed::prefs::kLastFetchHadNoticeCard);
 }
 
-void SetWebFeedContentOrder(PrefService& pref_service,
-                            ContentOrder content_order) {
-  pref_service.SetInteger(feed::prefs::kWebFeedContentOrder,
-                          static_cast<int>(content_order));
+void SetHasReachedClickAndViewActionsUploadConditions(PrefService& pref_service,
+                                                      bool value) {
+  pref_service.SetBoolean(
+      feed::prefs::kHasReachedClickAndViewActionsUploadConditions, value);
 }
 
-ContentOrder GetWebFeedContentOrder(const PrefService& pref_service) {
-  int order = pref_service.GetInteger(feed::prefs::kWebFeedContentOrder);
-  switch (order) {
-    case static_cast<int>(ContentOrder::kReverseChron):
-      return ContentOrder::kReverseChron;
-    case static_cast<int>(ContentOrder::kGrouped):
-      return ContentOrder::kGrouped;
-    default:
-      // Note: we need to handle invalid values gracefully.
-      return ContentOrder::kUnspecified;
-  }
+bool GetHasReachedClickAndViewActionsUploadConditions(
+    const PrefService& pref_service) {
+  return pref_service.GetBoolean(
+      feed::prefs::kHasReachedClickAndViewActionsUploadConditions);
+}
+
+void IncrementNoticeCardViewsCount(PrefService& pref_service) {
+  int count = pref_service.GetInteger(feed::prefs::kNoticeCardViewsCount);
+  pref_service.SetInteger(feed::prefs::kNoticeCardViewsCount, count + 1);
+}
+
+int GetNoticeCardViewsCount(const PrefService& pref_service) {
+  return pref_service.GetInteger(feed::prefs::kNoticeCardViewsCount);
+}
+
+void IncrementNoticeCardClicksCount(PrefService& pref_service) {
+  int count = pref_service.GetInteger(feed::prefs::kNoticeCardClicksCount);
+  pref_service.SetInteger(feed::prefs::kNoticeCardClicksCount, count + 1);
+}
+
+int GetNoticeCardClicksCount(const PrefService& pref_service) {
+  return pref_service.GetInteger(feed::prefs::kNoticeCardClicksCount);
 }
 
 }  // namespace prefs

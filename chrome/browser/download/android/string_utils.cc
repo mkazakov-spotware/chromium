@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@ using base::android::ScopedJavaLocalRef;
 static ScopedJavaLocalRef<jstring> JNI_StringUtils_GetFailStateMessage(
     JNIEnv* env,
     jint fail_state) {
-  std::u16string message = OfflineItemUtils::GetFailStateMessage(
+  base::string16 message = OfflineItemUtils::GetFailStateMessage(
       static_cast<offline_items_collection::FailState>(fail_state));
   l10n_util::GetStringFUTF16(IDS_DOWNLOAD_STATUS_INTERRUPTED, message);
   return ConvertUTF16ToJavaString(env, message);

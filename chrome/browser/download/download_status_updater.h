@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,22 +8,16 @@
 #include <memory>
 #include <set>
 
+#include "base/macros.h"
 #include "components/download/content/public/all_download_item_notifier.h"
 #include "components/download/public/common/download_item.h"
 #include "content/public/browser/download_manager.h"
-
-class Profile;
-class ScopedProfileKeepAlive;
 
 // Keeps track of download progress for the entire browser.
 class DownloadStatusUpdater
     : public download::AllDownloadItemNotifier::Observer {
  public:
   DownloadStatusUpdater();
-
-  DownloadStatusUpdater(const DownloadStatusUpdater&) = delete;
-  DownloadStatusUpdater& operator=(const DownloadStatusUpdater&) = delete;
-
   ~DownloadStatusUpdater() override;
 
   // Fills in |*download_count| with the number of currently active downloads.
@@ -40,7 +34,6 @@ class DownloadStatusUpdater
   void AddManager(content::DownloadManager* manager);
 
   // AllDownloadItemNotifier::Observer
-  void OnManagerGoingDown(content::DownloadManager* manager) override;
   void OnDownloadCreated(content::DownloadManager* manager,
                          download::DownloadItem* item) override;
   void OnDownloadUpdated(content::DownloadManager* manager,
@@ -53,22 +46,10 @@ class DownloadStatusUpdater
   // Virtual to be overridable for testing.
   virtual void UpdateAppIconDownloadProgress(download::DownloadItem* download);
 
-  // Updates the ScopedProfileKeepAlive for the profile tied to |manager|. If
-  // there are in-progress downloads, it will acquire a keepalive. Otherwise, it
-  // will release it.
-  //
-  // This prevents deleting the Profile* too early when there are still
-  // in-progress downloads, and the browser is not tearing down yet.
-  void UpdateProfileKeepAlive(content::DownloadManager* manager);
-
-  // Updates the download prefs when downloads are updated.
-  void UpdatePrefsOnDownloadUpdated(content::DownloadManager* manager,
-                                    download::DownloadItem* download);
-
  private:
   std::vector<std::unique_ptr<download::AllDownloadItemNotifier>> notifiers_;
-  std::map<Profile*, std::unique_ptr<ScopedProfileKeepAlive>>
-      profile_keep_alives_;
+
+  DISALLOW_COPY_AND_ASSIGN(DownloadStatusUpdater);
 };
 
 #endif  // CHROME_BROWSER_DOWNLOAD_DOWNLOAD_STATUS_UPDATER_H_

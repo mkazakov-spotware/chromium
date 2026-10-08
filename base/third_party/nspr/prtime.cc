@@ -73,7 +73,6 @@
 #include <ctype.h>
 #include <errno.h>  /* for EINVAL */
 #include <limits.h>
-#include <stddef.h>
 #include <string.h>
 #include <time.h>
 
@@ -97,7 +96,7 @@
 #define DAYS_BETWEEN_YEARS(A, B) (COUNT_DAYS(B) - COUNT_DAYS(A))
 
 /* Implements the Unix localtime_r() function for windows */
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 static void localtime_r(const time_t* secs, struct tm* time) {
   (void) localtime_s(time, secs);
 }
@@ -791,7 +790,7 @@ PR_ParseTimeString(
                                           tmp_usec = tmp_usec * 10 + *end - '0';
                                         end++;
                                       }
-                                    ptrdiff_t ndigits = end - rest;
+                                    int ndigits = end - rest;
                                     while (ndigits++ < 6)
                                       tmp_usec *= 10;
                                     rest = end;
@@ -1165,9 +1164,9 @@ PR_ParseTimeString(
 #endif
                   if (secs != (time_t) -1)
                     {
-                    *result_imploded = secs * (PRTime)PR_USEC_PER_SEC;
-                    *result_imploded += result->tm_usec;
-                    return PR_SUCCESS;
+                      *result_imploded = (PRInt64)secs * PR_USEC_PER_SEC;
+                      *result_imploded += result->tm_usec;
+                      return PR_SUCCESS;
                     }
                 }
 

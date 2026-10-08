@@ -1,16 +1,17 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/alert_view/alert_view_controller.h"
 
-#import <ostream>
+#include <ostream>
 
-#import "base/notreached.h"
+#include "base/notreached.h"
 #import "ios/chrome/browser/ui/alert_view/alert_action.h"
 #import "ios/chrome/browser/ui/elements/gray_highlight_button.h"
 #import "ios/chrome/browser/ui/elements/text_field_configuration.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
+#import "ios/chrome/common/ui/colors/UIColor+cr_semantic_colors.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 
@@ -68,7 +69,7 @@ constexpr NSUInteger kUIViewAnimationCurveToOptionsShift = 16;
 @interface AlertViewController () <UITextFieldDelegate,
                                    UIGestureRecognizerDelegate>
 
-// The actions for to this alert. `copy` for safety against mutable objects.
+// The actions for to this alert. |copy| for safety against mutable objects.
 @property(nonatomic, copy) NSArray<AlertAction*>* actions;
 
 // This maps UIButtons' tags with AlertActions' uniqueIdentifiers.
@@ -83,7 +84,7 @@ constexpr NSUInteger kUIViewAnimationCurveToOptionsShift = 16;
 @property(nonatomic, copy) NSString* message;
 
 // Text field configurations for this alert. One text field will be created for
-// each `TextFieldConfiguration`. `copy` for safety against mutable objects.
+// each |TextFieldConfiguration|. |copy| for safety against mutable objects.
 @property(nonatomic, copy)
     NSArray<TextFieldConfiguration*>* textFieldConfigurations;
 
@@ -101,7 +102,7 @@ constexpr NSUInteger kUIViewAnimationCurveToOptionsShift = 16;
 @property(nonatomic, strong) UISwipeGestureRecognizer* swipeRecognizer;
 
 // This is the last focused text field, the gestures to dismiss the keyboard
-// will end up calling `resignFirstResponder` on this.
+// will end up calling |resignFirstResponder| on this.
 @property(nonatomic, weak) UITextField* lastFocusedTextField;
 
 // This holds the text field stack view. A reference is needed because its
@@ -118,11 +119,13 @@ constexpr NSUInteger kUIViewAnimationCurveToOptionsShift = 16;
 - (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection {
   [super traitCollectionDidChange:previousTraitCollection];
 
-  if ([self.traitCollection
-          hasDifferentColorAppearanceComparedToTraitCollection:
-              previousTraitCollection]) {
-    self.textFieldStackHolder.layer.borderColor =
-        [UIColor colorNamed:kSeparatorColor].CGColor;
+  if (@available(iOS 13, *)) {
+    if ([self.traitCollection
+            hasDifferentColorAppearanceComparedToTraitCollection:
+                previousTraitCollection]) {
+      self.textFieldStackHolder.layer.borderColor =
+          UIColor.cr_separatorColor.CGColor;
+    }
   }
 }
 
@@ -141,8 +144,7 @@ constexpr NSUInteger kUIViewAnimationCurveToOptionsShift = 16;
   self.contentView = [[UIView alloc] init];
   self.contentView.accessibilityIdentifier = self.alertAccessibilityIdentifier;
   self.contentView.clipsToBounds = YES;
-  self.contentView.backgroundColor =
-      [UIColor colorNamed:kPrimaryBackgroundColor];
+  self.contentView.backgroundColor = UIColor.cr_systemBackgroundColor;
   self.contentView.layer.cornerRadius = kCornerRadius;
   self.contentView.layer.shadowOffset =
       CGSizeMake(kShadowOffsetX, kShadowOffsetY);
@@ -227,7 +229,8 @@ constexpr NSUInteger kUIViewAnimationCurveToOptionsShift = 16;
   [scrollView addSubview:stackView];
 
   NSLayoutConstraint* heightConstraint = [scrollView.heightAnchor
-      constraintEqualToAnchor:scrollView.contentLayoutGuide.heightAnchor];
+      constraintEqualToAnchor:scrollView.contentLayoutGuide.heightAnchor
+                   multiplier:1];
   // UILayoutPriorityDefaultHigh is the default priority for content
   // compression. Setting this lower avoids compressing the content of the
   // scroll view.
@@ -277,22 +280,21 @@ constexpr NSUInteger kUIViewAnimationCurveToOptionsShift = 16;
   }
 
   if (self.textFieldConfigurations.count) {
-    // `stackHolder` has the background, border and round corners of the stacked
+    // |stackHolder| has the background, border and round corners of the stacked
     // fields.
     UIView* stackHolder = [[UIView alloc] init];
     stackHolder.layer.cornerRadius = kTextFieldCornerRadius;
-    stackHolder.layer.borderColor =
-        [UIColor colorNamed:kSeparatorColor].CGColor;
-    // Use performAsCurrentTraitCollection to get the correct CGColor for the
-    // given dynamic color and current userInterfaceStyle.
-    [self.traitCollection performAsCurrentTraitCollection:^{
-      stackHolder.layer.borderColor =
-          [UIColor colorNamed:kSeparatorColor].CGColor;
-    }];
+    stackHolder.layer.borderColor = UIColor.cr_separatorColor.CGColor;
+    if (@available(iOS 13, *)) {
+      // Use performAsCurrentTraitCollection to get the correct CGColor for the
+      // given dynamic color and current userInterfaceStyle.
+      [self.traitCollection performAsCurrentTraitCollection:^{
+        stackHolder.layer.borderColor = UIColor.cr_separatorColor.CGColor;
+      }];
+    }
     stackHolder.layer.borderWidth = 1.0 / [UIScreen mainScreen].scale;
     stackHolder.clipsToBounds = YES;
-    stackHolder.backgroundColor =
-        [UIColor colorNamed:kSecondaryBackgroundColor];
+    stackHolder.backgroundColor = UIColor.cr_secondarySystemBackgroundColor;
     stackHolder.translatesAutoresizingMaskIntoConstraints = NO;
     self.textFieldStackHolder = stackHolder;
 
@@ -336,7 +338,7 @@ constexpr NSUInteger kUIViewAnimationCurveToOptionsShift = 16;
       if (textFieldConfiguration !=
           [self.textFieldConfigurations firstObject]) {
         UIView* hairline = [[UIView alloc] init];
-        hairline.backgroundColor = [UIColor colorNamed:kSeparatorColor];
+        hairline.backgroundColor = UIColor.cr_separatorColor;
         hairline.translatesAutoresizingMaskIntoConstraints = NO;
         [fieldStack addArrangedSubview:hairline];
         CGFloat pixelHeight = 1.0 / [UIScreen mainScreen].scale;
@@ -349,8 +351,6 @@ constexpr NSUInteger kUIViewAnimationCurveToOptionsShift = 16;
       UITextField* textField = [[UITextField alloc] init];
       textField.text = textFieldConfiguration.text;
       textField.placeholder = textFieldConfiguration.placeholder;
-      textField.autocapitalizationType =
-          textFieldConfiguration.autocapitalizationType;
       textField.secureTextEntry = textFieldConfiguration.secureTextEntry;
       textField.accessibilityIdentifier =
           textFieldConfiguration.accessibilityIdentifier;
@@ -379,7 +379,7 @@ constexpr NSUInteger kUIViewAnimationCurveToOptionsShift = 16;
   self.buttonAlertActionsDictionary = [[NSMutableDictionary alloc] init];
   for (AlertAction* action in self.actions) {
     UIView* hairline = [[UIView alloc] init];
-    hairline.backgroundColor = [UIColor colorNamed:kSeparatorColor];
+    hairline.backgroundColor = UIColor.cr_separatorColor;
     hairline.translatesAutoresizingMaskIntoConstraints = NO;
     [stackView addArrangedSubview:hairline];
 

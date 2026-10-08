@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,10 @@
 
 #include "base/bind.h"
 #include "base/memory/ptr_util.h"
+#include "base/sequenced_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_util.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "components/device_event_log/device_event_log.h"
 #include "services/device/usb/usb_device_handle_win.h"
 #include "services/device/usb/webusb_descriptors.h"
@@ -46,13 +47,11 @@ void UsbDeviceWin::Open(OpenCallback callback) {
     handles().push_back(device_handle.get());
   }
 
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), std::move(device_handle)));
 }
 
-void UsbDeviceWin::ReadDescriptors(
-    scoped_refptr<base::SequencedTaskRunner> blocking_task_runner,
-    base::OnceCallback<void(bool)> callback) {
+void UsbDeviceWin::ReadDescriptors(base::OnceCallback<void(bool)> callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   scoped_refptr<UsbDeviceHandle> device_handle;
@@ -60,8 +59,7 @@ void UsbDeviceWin::ReadDescriptors(
       CreateFile(hub_path_.c_str(), GENERIC_WRITE, FILE_SHARE_WRITE, nullptr,
                  OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr));
   if (handle.IsValid()) {
-    device_handle = new UsbDeviceHandleWin(this, std::move(handle),
-                                           std::move(blocking_task_runner));
+    device_handle = new UsbDeviceHandleWin(this, std::move(handle));
   } else {
     USB_PLOG(ERROR) << "Failed to open " << hub_path_;
     std::move(callback).Run(false);
@@ -75,7 +73,7 @@ void UsbDeviceWin::ReadDescriptors(
 
 void UsbDeviceWin::UpdateFunction(int interface_number,
                                   const FunctionInfo& function_info) {
-  functions_[interface_number] = function_info;
+  functions_.insert({interface_number, function_info});
 
   for (UsbDeviceHandle* handle : handles()) {
     // This is safe because only this class only adds instance of
@@ -105,12 +103,10 @@ void UsbDeviceWin::OnReadDescriptors(
   descriptor->device_info->port_number = device_info_->port_number,
   device_info_ = std::move(descriptor->device_info);
 
-  // The active configuration was set after reading the node connection info
-  // from the hub driver. If it wasn't valid, assume the first configuration.
-  if (!GetActiveConfiguration() && !configurations().empty())
-    ActiveConfigurationChanged(configurations()[0]->configuration_value);
+  // WinUSB only supports the configuration 1.
+  ActiveConfigurationChanged(1);
 
-  auto string_map = std::make_unique<std::map<uint8_t, std::u16string>>();
+  auto string_map = std::make_unique<std::map<uint8_t, base::string16>>();
   if (descriptor->i_manufacturer)
     (*string_map)[descriptor->i_manufacturer];
   if (descriptor->i_product)
@@ -132,7 +128,7 @@ void UsbDeviceWin::OnReadStringDescriptors(
     uint8_t i_manufacturer,
     uint8_t i_product,
     uint8_t i_serial_number,
-    std::unique_ptr<std::map<uint8_t, std::u16string>> string_map) {
+    std::unique_ptr<std::map<uint8_t, base::string16>> string_map) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (i_manufacturer)
@@ -156,7 +152,7 @@ void UsbDeviceWin::OnReadStringDescriptors(
 void UsbDeviceWin::OnReadWebUsbCapabilityDescriptor(
     base::OnceCallback<void(bool)> callback,
     scoped_refptr<UsbDeviceHandle> device_handle,
-    const absl::optional<WebUsbPlatformCapabilityDescriptor>& descriptor) {
+    const base::Optional<WebUsbPlatformCapabilityDescriptor>& descriptor) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   device_handle->Close();
 

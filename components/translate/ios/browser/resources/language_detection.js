@@ -1,10 +1,13 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
  * @fileoverview Installs Language Detection management functions on the
  * __gCrWeb object.
+ *
+ * TODO(crbug.com/659442): Enable checkTypes error for this file.
+ * @suppress {checkTypes}
  */
 
 __gCrWeb.languageDetection = {};
@@ -14,6 +17,7 @@ __gCrWeb.languageDetection = {};
 // the minification.
 __gCrWeb['languageDetection'] = __gCrWeb.languageDetection;
 
+(function() {
 /**
  * The cache of the text content that was extracted from the page
  */
@@ -28,20 +32,21 @@ __gCrWeb.languageDetection.bufferedTextContent = null;
 __gCrWeb.languageDetection.activeRequests = 0;
 
 /**
- * Searches page elements for "notranslate" meta tag.
- * @return {boolean} true if "notranslate" meta tag is defined.
+ * Returns true if translation of the page is allowed.
+ * Translation is not allowed when a "notranslate" meta tag is defined.
+ * @return {boolean} true if translation of the page is allowed.
  */
-__gCrWeb.languageDetection['hasNoTranslate'] = function() {
+__gCrWeb.languageDetection['translationAllowed'] = function() {
   const metaTags = document.getElementsByTagName('meta');
   for (let i = 0; i < metaTags.length; ++i) {
     if (metaTags[i].name === 'google') {
       if (metaTags[i].content === 'notranslate' ||
           metaTags[i].getAttribute('value') === 'notranslate') {
-        return true;
+        return false;
       }
     }
   }
-  return false;
+  return true;
 };
 
 /**
@@ -67,7 +72,7 @@ __gCrWeb.languageDetection['nonTextNodeNames'] = {
   'NOSCRIPT': 1,
   'STYLE': 1,
   'EMBED': 1,
-  'OBJECT': 1,
+  'OBJECT': 1
 };
 
 /**
@@ -120,40 +125,43 @@ __gCrWeb.languageDetection['getTextContent'] = function(node, maxLen) {
 /**
  * Detects if a page has content that needs translation and informs the native
  * side. The text content of a page is cached in
- * |__gCrWeb.languageDetection.bufferedTextContent| and retrieved at a later
- * time directly from the Obj-C side. This is to avoid using |invokeOnHost|.
+ * |__gCrWeb.languageDetection.bufferedTextContent| and retrived at a later time
+ * retrived at a later time directly from the Obj-C side. This is to avoid
+ * using |invokeOnHost|.
  */
 __gCrWeb.languageDetection['detectLanguage'] = function() {
-  // Constant for the maximum length of the extracted text returned by
-  // |-detectLanguage| to the native side.
-  // Matches desktop implementation.
-  // Note: This should stay in sync with the constant in
-  // ios_language_detection_tab_helper.mm .
-  const kMaxIndexChars = 65535;
-  const captureBeginTime = new Date();
-  __gCrWeb.languageDetection.activeRequests += 1;
-  __gCrWeb.languageDetection.bufferedTextContent =
-      __gCrWeb.languageDetection.getTextContent(document.body, kMaxIndexChars);
-  const captureTextTime =
-      (new Date()).getMilliseconds() - captureBeginTime.getMilliseconds();
-  const httpContentLanguage =
-      __gCrWeb.languageDetection.getMetaContentByHttpEquiv('content-language');
-  const textCapturedCommand = {
-    'command': 'languageDetection.textCaptured',
-    'hasNoTranslate': false,
-    'captureTextTime': captureTextTime,
-    'htmlLang': document.documentElement.lang,
-    'httpContentLanguage': httpContentLanguage,
-  };
-
-  if (__gCrWeb.languageDetection.hasNoTranslate()) {
-    textCapturedCommand['hasNoTranslate'] = true;
+  if (!__gCrWeb.languageDetection.translationAllowed()) {
+    __gCrWeb.message.invokeOnHost({
+        'command': 'languageDetection.textCaptured',
+        'translationAllowed': false});
+  } else {
+    // Constant for the maximum length of the extracted text returned by
+    // |-detectLanguage| to the native side.
+    // Matches desktop implementation.
+    // Note: This should stay in sync with the constant in
+    // js_language_detection_manager.mm .
+    const kMaxIndexChars = 65535;
+    const captureBeginTime = new Date();
+    __gCrWeb.languageDetection.activeRequests += 1;
+    __gCrWeb.languageDetection.bufferedTextContent =
+        __gCrWeb.languageDetection.getTextContent(document.body,
+            kMaxIndexChars);
+    const captureTextTime =
+        (new Date()).getMilliseconds() - captureBeginTime.getMilliseconds();
+    const httpContentLanguage =
+        __gCrWeb.languageDetection.getMetaContentByHttpEquiv(
+            'content-language');
+    __gCrWeb.message.invokeOnHost({
+        'command': 'languageDetection.textCaptured',
+        'translationAllowed': true,
+        'captureTextTime': captureTextTime,
+        'htmlLang': document.documentElement.lang,
+        'httpContentLanguage': httpContentLanguage});
   }
-  __gCrWeb.message.invokeOnHost(textCapturedCommand);
 };
 
 /**
- * Retrieves the cached text content of a page. Returns it and then purges the
+ * Retrives the cached text content of a page. Returns it and then purges the
  * cache.
  */
 __gCrWeb.languageDetection['retrieveBufferedTextContent'] = function() {
@@ -164,3 +172,4 @@ __gCrWeb.languageDetection['retrieveBufferedTextContent'] = function() {
   }
   return textContent;
 };
+}());  // End of anonymous function.

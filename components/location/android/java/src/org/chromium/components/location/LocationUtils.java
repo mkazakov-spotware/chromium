@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@ import android.content.pm.PackageManager;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Process;
-import android.os.UserManager;
 import android.provider.Settings;
 
 import org.chromium.base.ApiCompatibilityUtils;
@@ -59,8 +58,8 @@ public class LocationUtils {
     /**
      * Returns true if Chromium has permission to access location.
      *
-     * Callers should check both hasAndroidLocationPermission() and isSystemLocationSettingEnabled()
-     * to determine if Chromium's location requests will return results.
+     * Check both hasAndroidLocationPermission() and isSystemLocationSettingEnabled() to determine
+     * if Chromium's location requests will return results.
      */
     public boolean hasAndroidLocationPermission() {
         return hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -74,12 +73,6 @@ public class LocationUtils {
     @SuppressWarnings("deprecation")
     public boolean isSystemLocationSettingEnabled() {
         Context context = ContextUtils.getApplicationContext();
-
-        UserManager userManager = (UserManager) context.getSystemService(Context.USER_SERVICE);
-        if (userManager.hasUserRestriction(UserManager.DISALLOW_SHARE_LOCATION)) {
-            return false;
-        }
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             LocationManager locationManager =
                     (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
@@ -89,6 +82,26 @@ public class LocationUtils {
         return Settings.Secure.getInt(context.getContentResolver(), Settings.Secure.LOCATION_MODE,
                        Settings.Secure.LOCATION_MODE_OFF)
                 != Settings.Secure.LOCATION_MODE_OFF;
+    }
+
+    /**
+     * Returns whether location services are enabled in sensors-only mode, i.e. when network
+     * location services are disabled but GPS and other sensors are enabled.
+     */
+    @SuppressWarnings("deprecation")
+    public boolean isSystemLocationSettingSensorsOnly() {
+        Context context = ContextUtils.getApplicationContext();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            LocationManager locationManager =
+                    (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
+            return locationManager != null && ApiHelperForP.isLocationEnabled(locationManager)
+                    && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+                    && !locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+        }
+
+        return Settings.Secure.getInt(context.getContentResolver(), Settings.Secure.LOCATION_MODE,
+                       Settings.Secure.LOCATION_MODE_OFF)
+                == Settings.Secure.LOCATION_MODE_SENSORS_ONLY;
     }
 
     /**

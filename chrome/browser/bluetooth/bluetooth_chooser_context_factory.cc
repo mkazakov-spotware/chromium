@@ -1,13 +1,14 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/bluetooth/bluetooth_chooser_context_factory.h"
 
-#include "base/no_destructor.h"
+#include "chrome/browser/bluetooth/bluetooth_chooser_context.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
+#include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
-#include "components/permissions/contexts/bluetooth_chooser_context.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 
 // static
 BluetoothChooserContextFactory* BluetoothChooserContextFactory::GetInstance() {
@@ -16,23 +17,16 @@ BluetoothChooserContextFactory* BluetoothChooserContextFactory::GetInstance() {
 }
 
 // static
-permissions::BluetoothChooserContext*
-BluetoothChooserContextFactory::GetForProfile(Profile* profile) {
-  return static_cast<permissions::BluetoothChooserContext*>(
+BluetoothChooserContext* BluetoothChooserContextFactory::GetForProfile(
+    Profile* profile) {
+  return static_cast<BluetoothChooserContext*>(
       GetInstance()->GetServiceForBrowserContext(profile, /*create=*/true));
 }
 
-// static
-permissions::BluetoothChooserContext*
-BluetoothChooserContextFactory::GetForProfileIfExists(Profile* profile) {
-  return static_cast<permissions::BluetoothChooserContext*>(
-      GetInstance()->GetServiceForBrowserContext(profile, /*create=*/false));
-}
-
 BluetoothChooserContextFactory::BluetoothChooserContextFactory()
-    : ProfileKeyedServiceFactory(
+    : BrowserContextKeyedServiceFactory(
           "BluetoothChooserContext",
-          ProfileSelections::BuildForRegularAndIncognito()) {
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(HostContentSettingsMapFactory::GetInstance());
 }
 
@@ -40,13 +34,10 @@ BluetoothChooserContextFactory::~BluetoothChooserContextFactory() = default;
 
 KeyedService* BluetoothChooserContextFactory::BuildServiceInstanceFor(
     content::BrowserContext* context) const {
-  return new permissions::BluetoothChooserContext(context);
+  return new BluetoothChooserContext(Profile::FromBrowserContext(context));
 }
 
-void BluetoothChooserContextFactory::BrowserContextShutdown(
-    content::BrowserContext* context) {
-  auto* bluetooth_chooser_context =
-      GetForProfileIfExists(Profile::FromBrowserContext(context));
-  if (bluetooth_chooser_context)
-    bluetooth_chooser_context->FlushScheduledSaveSettingsCalls();
+content::BrowserContext* BluetoothChooserContextFactory::GetBrowserContextToUse(
+    content::BrowserContext* context) const {
+  return chrome::GetBrowserContextOwnInstanceInIncognito(context);
 }

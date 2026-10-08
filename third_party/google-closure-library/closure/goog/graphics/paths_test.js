@@ -1,8 +1,5 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2010 The Closure Library Authors. All Rights Reserved.
+// Use of this source code is governed by the Apache License, Version 2.0.
 
 goog.module('goog.graphics.pathsTest');
 goog.setTestOnly();
@@ -28,7 +25,7 @@ function assertArrayRoughlyEquals(expected, actual, delta) {
 }
 
 function $coord(x, y) {
-  return new Coordinate(x, y);
+  return new goog.math.Coordinate(x, y);
 }
 
 testSuite({
@@ -36,7 +33,6 @@ testSuite({
     dom.removeChildren(dom.getElement('root'));
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testSquare() {
     const square = regularNGon($coord(10, 10), $coord(0, 10), 4);
     assertArrayRoughlyEquals(

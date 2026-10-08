@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,16 @@ namespace page_load_metrics {
 
 mojom::PageLoadTimingPtr CreatePageLoadTiming() {
   return mojom::PageLoadTiming::New(
-      base::Time(), absl::optional<base::TimeDelta>(),
+      base::Time(), base::Optional<base::TimeDelta>(),
       mojom::DocumentTiming::New(), mojom::InteractiveTiming::New(),
-      mojom::PaintTiming::New(absl::nullopt, absl::nullopt, absl::nullopt,
-                              absl::nullopt,
+      mojom::PaintTiming::New(base::nullopt, base::nullopt, base::nullopt,
+                              base::nullopt,
                               mojom::LargestContentfulPaintTiming::New(),
                               mojom::LargestContentfulPaintTiming::New(),
-                              absl::nullopt, absl::nullopt, absl::nullopt),
+                              base::nullopt, base::nullopt, base::nullopt),
       mojom::ParseTiming::New(),
       std::vector<mojo::StructPtr<mojom::BackForwardCacheTiming>>{},
-      absl::optional<base::TimeDelta>(), absl::optional<base::TimeDelta>(),
-      absl::optional<base::TimeDelta>(), absl::optional<base::TimeDelta>(),
-      absl::optional<base::TimeDelta>());
+      base::Optional<base::TimeDelta>());
 }
 
 bool IsEmpty(const page_load_metrics::mojom::DocumentTiming& timing) {
@@ -67,10 +65,7 @@ bool IsEmpty(const page_load_metrics::mojom::PageLoadTiming& timing) {
           page_load_metrics::IsEmpty(*timing.paint_timing)) &&
          (!timing.parse_timing ||
           page_load_metrics::IsEmpty(*timing.parse_timing)) &&
-         timing.back_forward_cache_timings.empty() &&
-         !timing.user_timing_mark_fully_loaded &&
-         !timing.user_timing_mark_fully_visible &&
-         !timing.user_timing_mark_interactive;
+         timing.back_forward_cache_timings.empty();
 }
 
 void InitPageLoadTimingForTest(mojom::PageLoadTiming* timing) {

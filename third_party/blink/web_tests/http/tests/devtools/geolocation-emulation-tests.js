@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that geolocation emulation with latitude and longitude works as expected.\n`);
 
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.navigatePromise('https://devtools.test:8443/devtools/network/resources/empty.html');
   await TestRunner.BrowserAgent.invoke_grantPermissions({
     origin: 'https://devtools.test:8443',

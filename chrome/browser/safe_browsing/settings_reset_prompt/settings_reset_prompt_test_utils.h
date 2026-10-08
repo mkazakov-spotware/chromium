@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,12 +40,12 @@ class MockProfileResetter : public ProfileResetter {
   // After the call to |MockReset()|, will call |callback.Run()| to simulate the
   // real |ProfileResetter|'s behaviour.
   void Reset(ProfileResetter::ResettableFlags resettable_flags,
-             std::unique_ptr<BrandcodedDefaultSettings> main_settings,
+             std::unique_ptr<BrandcodedDefaultSettings> master_settings,
              base::OnceClosure callback) override;
 
   MOCK_METHOD3(MockReset,
                void(ProfileResetter::ResettableFlags resettable_flags,
-                    BrandcodedDefaultSettings* main_settings,
+                    BrandcodedDefaultSettings* master_settings,
                     base::OnceClosure callback));
   MOCK_CONST_METHOD0(IsActive, bool());
 };

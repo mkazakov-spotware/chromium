@@ -49,7 +49,7 @@ function onVisibilityChange() {
 function startTest() {
     if (window.testRunner) {
         testRunner.waitUntilDone();
-        testRunner.setPopupBlockingEnabled(false);
+        testRunner.setCanOpenWindows();
     }
 
     debug("Window 1 Loaded");

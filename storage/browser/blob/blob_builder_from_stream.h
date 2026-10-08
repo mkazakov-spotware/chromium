@@ -1,9 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef STORAGE_BROWSER_BLOB_BLOB_BUILDER_FROM_STREAM_H_
-#define STORAGE_BROWSER_BLOB_BLOB_BUILDER_FROM_STREAM_H_
+#ifndef STORAGE_BROWSER_BLOB_BLOB_BUILDER_FROM_STREAM_H
+#define STORAGE_BROWSER_BLOB_BLOB_BUILDER_FROM_STREAM_H
 
 #include "base/component_export.h"
 #include "base/containers/queue.h"
@@ -137,6 +137,7 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) BlobBuilderFromStream {
 
   void OnError(Result result);
   void OnSuccess();
+  void RecordResult(Result result);
 
   bool ShouldStoreNextBlockOnDisk(uint64_t length_hint);
 
@@ -167,4 +168,4 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) BlobBuilderFromStream {
 
 }  // namespace storage
 
-#endif  // STORAGE_BROWSER_BLOB_BLOB_BUILDER_FROM_STREAM_H_
+#endif  // STORAGE_BROWSER_BLOB_BLOB_BUILDER_FROM_STREAM_H

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "base/files/scoped_temp_dir.h"
-#include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/common/signatures.h"
@@ -34,8 +33,8 @@ class FieldInfoTableTest : public testing::Test {
   void ReloadDatabase() {
     base::FilePath file = temp_dir_.GetPath().AppendASCII("TestDatabase");
     field_info_table_ = std::make_unique<FieldInfoTable>();
-    db_ = std::make_unique<sql::Database>(sql::DatabaseOptions{
-        .exclusive_locking = true, .page_size = 4096, .cache_size = 500});
+    db_ = std::make_unique<sql::Database>();
+    db_->set_exclusive_locking();
     ASSERT_TRUE(db_->Open(file));
     field_info_table_->Init(db_.get());
     ASSERT_TRUE(field_info_table_->CreateTableIfNecessary());
@@ -57,7 +56,7 @@ class FieldInfoTableTest : public testing::Test {
   std::vector<FieldInfo> test_data_;
 };
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 TEST_F(FieldInfoTableTest, AddRow) {
   EXPECT_TRUE(field_info_table_->AddRow(test_data_[0]));
   EXPECT_EQ(test_data_[0], field_info_table_->GetAllRows()[0]);
@@ -121,7 +120,7 @@ TEST_F(FieldInfoTableTest, AddRowNoOp) {
   EXPECT_TRUE(field_info_table_->GetAllRows().empty());
 }
 
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
 }  // namespace
 }  // namespace password_manager

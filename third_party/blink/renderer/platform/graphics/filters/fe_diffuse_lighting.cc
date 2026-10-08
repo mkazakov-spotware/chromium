@@ -43,6 +43,28 @@ FEDiffuseLighting::FEDiffuseLighting(Filter* filter,
 
 FEDiffuseLighting::~FEDiffuseLighting() = default;
 
+Color FEDiffuseLighting::LightingColor() const {
+  return lighting_color_;
+}
+
+bool FEDiffuseLighting::SetLightingColor(const Color& lighting_color) {
+  if (lighting_color_ == lighting_color)
+    return false;
+  lighting_color_ = lighting_color;
+  return true;
+}
+
+float FEDiffuseLighting::SurfaceScale() const {
+  return surface_scale_;
+}
+
+bool FEDiffuseLighting::SetSurfaceScale(float surface_scale) {
+  if (surface_scale_ == surface_scale)
+    return false;
+  surface_scale_ = surface_scale;
+  return true;
+}
+
 float FEDiffuseLighting::DiffuseConstant() const {
   return diffuse_constant_;
 }
@@ -53,6 +75,15 @@ bool FEDiffuseLighting::SetDiffuseConstant(float diffuse_constant) {
     return false;
   diffuse_constant_ = diffuse_constant;
   return true;
+}
+
+const LightSource* FEDiffuseLighting::GetLightSource() const {
+  return light_source_.get();
+}
+
+void FEDiffuseLighting::SetLightSource(
+    scoped_refptr<LightSource> light_source) {
+  light_source_ = std::move(light_source);
 }
 
 WTF::TextStream& FEDiffuseLighting::ExternalRepresentation(WTF::TextStream& ts,

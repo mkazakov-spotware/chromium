@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-Copyright 2016 The Chromium Authors
-Use of this source code is governed by a BSD-style license that can be
-found in the LICENSE file.
--->
+<!-- Copyright 2016 The Chromium Authors. All rights reserved.
+     Use of this source code is governed by a BSD-style license that can be
+     found in the LICENSE file. -->
 
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -12,7 +10,7 @@ found in the LICENSE file.
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginTop="@dimen/editor_dialog_section_small_spacing"
-    android:layout_marginBottom="@dimen/editor_dialog_textview_margin_bottom">
+    android:layout_marginBottom="@dimen/editor_dialog_section_small_spacing">
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/text_input_layout"
@@ -26,7 +24,6 @@ found in the LICENSE file.
             android:id="@+id/text_view"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:minHeight="@dimen/editor_dialog_textview_min_height"
             android:singleLine="true"
             android:imeOptions="flagNoExtractUi" />
     </com.google.android.material.textfield.TextInputLayout>

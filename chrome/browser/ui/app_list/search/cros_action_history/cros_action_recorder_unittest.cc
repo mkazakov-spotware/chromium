@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 #include "ash/public/cpp/app_list/app_list_switches.h"
 #include "base/command_line.h"
 #include "base/files/file_util.h"
+#include "base/files/scoped_temp_dir.h"
+#include "base/metrics/metrics_hashes.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/scoped_mock_clock_override.h"
 #include "chrome/browser/download/download_prefs.h"
@@ -15,7 +17,7 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace app_list::test {
+namespace app_list {
 namespace {
 
 constexpr int kSecondsPerDay = 86400;
@@ -43,7 +45,7 @@ class CrOSActionRecorderTest : public testing::Test {
 
     save_internal_secs_ = CrOSActionRecorder::kSaveInternal.InSeconds();
     // Set time_ to be base::Time::UnixEpoch().
-    time_.Advance(base::Seconds(11612937600));
+    time_.Advance(base::TimeDelta::FromSeconds(11612937600));
   }
 
   void TearDown() override {
@@ -169,7 +171,7 @@ TEST_F(CrOSActionRecorderTest, DisableHashToLogExplicitly) {
 // Check a new file is written every day for expected values.
 TEST_F(CrOSActionRecorderTest, WriteToNewFileEveryDay) {
   SetLogWithHash();
-  time_.Advance(base::Seconds(save_internal_secs_));
+  time_.Advance(base::TimeDelta::FromSeconds(save_internal_secs_));
   recorder_->RecordAction({actions_[0]}, {{conditions_[0], kConditionValue}});
   Wait();
 
@@ -181,7 +183,7 @@ TEST_F(CrOSActionRecorderTest, WriteToNewFileEveryDay) {
   ExpectCrOSAction(action_history_0.actions(0), 0, save_internal_secs_);
 
   // Advance for 1 day.
-  time_.Advance(base::Seconds(kSecondsPerDay));
+  time_.Advance(base::TimeDelta::FromSeconds(kSecondsPerDay));
   recorder_->RecordAction({actions_[1]},
                           {{conditions_[1], kConditionValue + 1}});
   Wait();
@@ -198,7 +200,7 @@ TEST_F(CrOSActionRecorderTest, WriteToNewFileEveryDay) {
 // Check that the result is appended to previous log within a day.
 TEST_F(CrOSActionRecorderTest, AppendToFileEverySaveInAday) {
   SetLogWithHash();
-  time_.Advance(base::Seconds(save_internal_secs_));
+  time_.Advance(base::TimeDelta::FromSeconds(save_internal_secs_));
   recorder_->RecordAction({actions_[0]}, {{conditions_[0], kConditionValue}});
   Wait();
 
@@ -210,7 +212,7 @@ TEST_F(CrOSActionRecorderTest, AppendToFileEverySaveInAday) {
   ExpectCrOSAction(action_history_0.actions(0), 0, save_internal_secs_);
 
   // Advance for 1 kSaveInternal.
-  time_.Advance(base::Seconds(save_internal_secs_));
+  time_.Advance(base::TimeDelta::FromSeconds(save_internal_secs_));
   recorder_->RecordAction({actions_[1]},
                           {{conditions_[1], kConditionValue + 1}});
   Wait();
@@ -224,7 +226,7 @@ TEST_F(CrOSActionRecorderTest, AppendToFileEverySaveInAday) {
   ExpectCrOSAction(action_history_1.actions(1), 1, save_internal_secs_ * 2);
 
   // Advance for 3 kSaveInternal.
-  time_.Advance(base::Seconds(save_internal_secs_ * 3));
+  time_.Advance(base::TimeDelta::FromSeconds(save_internal_secs_ * 3));
   recorder_->RecordAction({actions_[2]},
                           {{conditions_[2], kConditionValue + 2}});
   Wait();
@@ -310,4 +312,4 @@ TEST_F(CrOSActionRecorderTest, DisableRemovesEverything) {
   EXPECT_TRUE(GetCrOSActionHistory().actions().empty());
 }
 
-}  // namespace app_list::test
+}  // namespace app_list

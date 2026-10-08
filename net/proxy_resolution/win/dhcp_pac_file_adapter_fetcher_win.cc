@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,10 @@
 #include "base/memory/free_deleter.h"
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
-#include "base/task/task_runner.h"
+#include "base/task_runner.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "base/time/time.h"
+#include "net/base/net_errors.h"
 #include "net/proxy_resolution/pac_file_fetcher_impl.h"
 #include "net/proxy_resolution/win/dhcpcsvc_init_win.h"
 #include "net/url_request/url_request_context.h"
@@ -34,7 +35,10 @@ namespace net {
 DhcpPacFileAdapterFetcher::DhcpPacFileAdapterFetcher(
     URLRequestContext* url_request_context,
     scoped_refptr<base::TaskRunner> task_runner)
-    : task_runner_(task_runner), url_request_context_(url_request_context) {
+    : task_runner_(task_runner),
+      state_(STATE_START),
+      result_(ERR_IO_PENDING),
+      url_request_context_(url_request_context) {
   DCHECK(url_request_context_);
 }
 
@@ -50,7 +54,7 @@ void DhcpPacFileAdapterFetcher::Fetch(
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   DCHECK_EQ(state_, STATE_START);
   result_ = ERR_IO_PENDING;
-  pac_script_ = std::u16string();
+  pac_script_ = base::string16();
   state_ = STATE_WAIT_DHCP;
   callback_ = std::move(callback);
 
@@ -100,7 +104,7 @@ int DhcpPacFileAdapterFetcher::GetResult() const {
   return result_;
 }
 
-std::u16string DhcpPacFileAdapterFetcher::GetPacScript() const {
+base::string16 DhcpPacFileAdapterFetcher::GetPacScript() const {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   return pac_script_;
 }
@@ -110,7 +114,7 @@ GURL DhcpPacFileAdapterFetcher::GetPacURL() const {
   return pac_url_;
 }
 
-DhcpPacFileAdapterFetcher::DhcpQuery::DhcpQuery() = default;
+DhcpPacFileAdapterFetcher::DhcpQuery::DhcpQuery() {}
 
 void DhcpPacFileAdapterFetcher::DhcpQuery::GetPacURLForAdapter(
     const std::string& adapter_name) {
@@ -126,7 +130,7 @@ std::string DhcpPacFileAdapterFetcher::DhcpQuery::ImplGetPacURLFromDhcp(
   return DhcpPacFileAdapterFetcher::GetPacURLFromDhcp(adapter_name);
 }
 
-DhcpPacFileAdapterFetcher::DhcpQuery::~DhcpQuery() = default;
+DhcpPacFileAdapterFetcher::DhcpQuery::~DhcpQuery() {}
 
 void DhcpPacFileAdapterFetcher::OnDhcpQueryDone(
     scoped_refptr<DhcpQuery> dhcp_query,
@@ -194,13 +198,13 @@ DhcpPacFileAdapterFetcher::ImplCreateScriptFetcher() {
   return PacFileFetcherImpl::Create(url_request_context_);
 }
 
-scoped_refptr<DhcpPacFileAdapterFetcher::DhcpQuery>
+DhcpPacFileAdapterFetcher::DhcpQuery*
 DhcpPacFileAdapterFetcher::ImplCreateDhcpQuery() {
-  return base::MakeRefCounted<DhcpQuery>();
+  return new DhcpQuery();
 }
 
 base::TimeDelta DhcpPacFileAdapterFetcher::ImplGetTimeout() const {
-  return base::Milliseconds(kTimeoutMs);
+  return base::TimeDelta::FromMilliseconds(kTimeoutMs);
 }
 
 // static

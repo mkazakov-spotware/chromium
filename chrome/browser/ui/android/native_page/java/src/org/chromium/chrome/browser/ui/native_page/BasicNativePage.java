@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,8 @@ public abstract class BasicNativePage implements NativePage {
 
     protected BasicNativePage(NativePageHost host) {
         mHost = host;
-        mBackgroundColor = ChromeColors.getPrimaryBackgroundColor(host.getContext(), false);
+        mBackgroundColor =
+                ChromeColors.getPrimaryBackgroundColor(host.getContext().getResources(), false);
     }
 
     /**

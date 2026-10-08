@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,8 +32,9 @@ class TestInfoBar : public infobars::InfoBarAndroid {
   // infobars::InfoBarAndroid overrides.
   void ProcessButton(int action) override;
   base::android::ScopedJavaLocalRef<jobject> CreateRenderInfoBar(
-      JNIEnv* env,
-      const ResourceIdMapper& resource_id_mapper) override;
+      JNIEnv* env) override;
+
+ private:
 };
 
 }  // namespace weblayer

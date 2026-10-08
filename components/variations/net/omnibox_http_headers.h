@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "base/component_export.h"
 #include "base/feature_list.h"
@@ -24,7 +25,7 @@ COMPONENT_EXPORT(OMNIBOX_HTTP_HEADERS)
 extern const char kOmniboxOnDeviceSuggestionsHeader[];
 
 COMPONENT_EXPORT(OMNIBOX_HTTP_HEADERS)
-BASE_DECLARE_FEATURE(kReportOmniboxOnDeviceSuggestionsHeader);
+extern const base::Feature kReportOmniboxOnDeviceSuggestionsHeader;
 
 // Returns the value to set for the header. Returns an empty string if the
 // provider is not explicitly enabled nor disabled via a field trial, i.e. the

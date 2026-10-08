@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,15 +47,6 @@
 - (void)presentViewController:(UIViewController*)viewController
                      animated:(BOOL)animated
                    completion:(ProceduralBlock)completion;
-
-// Indicates the account of the user was registered for user policy. `dmToken`
-// is empty when registration failed.
-- (void)didRegisterForUserPolicyWithDMToken:(NSString*)dmToken
-                                   clientID:(NSString*)clientID;
-
-// Indicates that user policies were fetched. `success` is true when the fetch
-// was successful.
-- (void)didFetchUserPolicyWithSuccess:(BOOL)success;
 
 @end
 

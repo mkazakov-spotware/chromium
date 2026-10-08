@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,16 +27,10 @@ class PLATFORM_EXPORT WebAudioMediaStreamSource final
       public WebAudioDestinationConsumer {
  public:
   WebAudioMediaStreamSource(
+      MediaStreamSource* media_stream_source,
       scoped_refptr<base::SingleThreadTaskRunner> task_runner);
-  WebAudioMediaStreamSource(const WebAudioMediaStreamSource&) = delete;
-  WebAudioMediaStreamSource& operator=(const WebAudioMediaStreamSource&) =
-      delete;
 
   ~WebAudioMediaStreamSource() override;
-
-  void SetMediaStreamSource(MediaStreamSource* media_stream_source) {
-    media_stream_source_ = media_stream_source;
-  }
 
  private:
   // WebAudioDestinationConsumer implementation.
@@ -44,9 +38,9 @@ class PLATFORM_EXPORT WebAudioMediaStreamSource final
   // Note: Blink ensures setFormat() and consumeAudio() are not called
   // concurrently across threads, but these methods could be called on any
   // thread.
-  void SetFormat(int number_of_channels, float sample_rate) override;
+  void SetFormat(size_t number_of_channels, float sample_rate) override;
   void ConsumeAudio(const Vector<const float*>& audio_data,
-                    int number_of_frames) override;
+                    size_t number_of_frames) override;
 
   // Called by AudioPushFifo zero or more times during the call to
   // consumeAudio().  Delivers audio data with the required buffer size to the
@@ -82,6 +76,8 @@ class PLATFORM_EXPORT WebAudioMediaStreamSource final
   // This object registers with a MediaStreamSource. We keep track of
   // that in order to be able to deregister before stopping this source.
   Persistent<MediaStreamSource> media_stream_source_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebAudioMediaStreamSource);
 };
 
 }  // namespace blink

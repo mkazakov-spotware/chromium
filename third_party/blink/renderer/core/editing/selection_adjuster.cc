@@ -43,6 +43,11 @@ template <typename Strategy>
 SelectionTemplate<Strategy> ComputeAdjustedSelection(
     const SelectionTemplate<Strategy> selection,
     const EphemeralRangeTemplate<Strategy>& range) {
+  if (selection.ComputeRange() == range) {
+    // To pass "editing/deleting/delete_after_block_image.html", we need to
+    // return original selection.
+    return selection;
+  }
   if (range.StartPosition().CompareTo(range.EndPosition()) == 0) {
     return typename SelectionTemplate<Strategy>::Builder()
         .Collapse(selection.IsBaseFirst() ? range.StartPosition()
@@ -127,7 +132,8 @@ class GranularityAdjuster final {
         return CreateVisiblePosition(word_start).DeepEquivalent();
       }
       case TextGranularity::kSentence:
-        return StartOfSentencePosition(passed_start.GetPosition());
+        return StartOfSentence(CreateVisiblePosition(passed_start))
+            .DeepEquivalent();
       case TextGranularity::kLine:
         return StartOfLine(CreateVisiblePosition(passed_start))
             .DeepEquivalent();
@@ -142,14 +148,14 @@ class GranularityAdjuster final {
         return StartOfParagraph(pos).DeepEquivalent();
       }
       case TextGranularity::kDocumentBoundary:
-        return CreateVisiblePosition(
-                   StartOfDocument(passed_start.GetPosition()))
+        return StartOfDocument(CreateVisiblePosition(passed_start))
             .DeepEquivalent();
       case TextGranularity::kParagraphBoundary:
         return StartOfParagraph(CreateVisiblePosition(passed_start))
             .DeepEquivalent();
       case TextGranularity::kSentenceBoundary:
-        return StartOfSentencePosition(passed_start.GetPosition());
+        return StartOfSentence(CreateVisiblePosition(passed_start))
+            .DeepEquivalent();
     }
 
     NOTREACHED();
@@ -225,7 +231,7 @@ class GranularityAdjuster final {
             .DeepEquivalent();
       case TextGranularity::kLine: {
         const VisiblePositionTemplate<Strategy> end =
-            CreateVisiblePosition(EndOfLine(passed_end));
+            EndOfLine(CreateVisiblePosition(passed_end));
         if (!IsEndOfParagraph(end))
           return end.DeepEquivalent();
         // If the end of this line is at the end of a paragraph, include the
@@ -236,7 +242,7 @@ class GranularityAdjuster final {
         return next.DeepEquivalent();
       }
       case TextGranularity::kLineBoundary:
-        return EndOfLine(passed_end).GetPosition();
+        return EndOfLine(CreateVisiblePosition(passed_end)).DeepEquivalent();
       case TextGranularity::kParagraph: {
         const VisiblePositionTemplate<Strategy> visible_paragraph_end =
             EndOfParagraph(CreateVisiblePosition(passed_end));
@@ -379,21 +385,16 @@ class ShadowBoundaryAdjuster final {
     const EphemeralRangeTemplate<Strategy> expanded_range =
         selection.ComputeRange();
 
-    if (selection.IsBaseFirst()) {
-      PositionTemplate<Strategy> adjusted_end =
-          AdjustSelectionEndToAvoidCrossingShadowBoundaries(expanded_range);
-      if (adjusted_end.IsNull())
-        adjusted_end = expanded_range.StartPosition();
-      const EphemeralRangeTemplate<Strategy> shadow_adjusted_range(
-          expanded_range.StartPosition(), adjusted_end);
-      return ComputeAdjustedSelection(selection, shadow_adjusted_range);
-    }
-    PositionTemplate<Strategy> adjusted_start =
-        AdjustSelectionStartToAvoidCrossingShadowBoundaries(expanded_range);
-    if (adjusted_start.IsNull())
-      adjusted_start = expanded_range.EndPosition();
-    const EphemeralRangeTemplate<Strategy> shadow_adjusted_range(
-        adjusted_start, expanded_range.EndPosition());
+    const EphemeralRangeTemplate<Strategy> shadow_adjusted_range =
+        selection.IsBaseFirst()
+            ? EphemeralRangeTemplate<Strategy>(
+                  expanded_range.StartPosition(),
+                  AdjustSelectionEndToAvoidCrossingShadowBoundaries(
+                      expanded_range))
+            : EphemeralRangeTemplate<Strategy>(
+                  AdjustSelectionStartToAvoidCrossingShadowBoundaries(
+                      expanded_range),
+                  expanded_range.EndPosition());
     return ComputeAdjustedSelection(selection, shadow_adjusted_range);
   }
 
@@ -417,6 +418,11 @@ class ShadowBoundaryAdjuster final {
     return FlatTreeTraversal::IsDescendantOf(*anchor_node, node);
   }
 
+  static bool IsSelectionBoundary(const Node& node) {
+    return IsA<HTMLTextAreaElement>(node) || IsA<HTMLInputElement>(node) ||
+           IsA<HTMLSelectElement>(node);
+  }
+
   static Node* EnclosingShadowHostForStart(const PositionInFlatTree& position) {
     Node* node = position.NodeAsRangeFirstNode();
     if (!node)
@@ -426,7 +432,7 @@ class ShadowBoundaryAdjuster final {
       return nullptr;
     if (!IsEnclosedBy(position, *shadow_host))
       return nullptr;
-    return IsUserSelectContain(*shadow_host) ? shadow_host : nullptr;
+    return IsSelectionBoundary(*shadow_host) ? shadow_host : nullptr;
   }
 
   static Node* EnclosingShadowHostForEnd(const PositionInFlatTree& position) {
@@ -438,7 +444,7 @@ class ShadowBoundaryAdjuster final {
       return nullptr;
     if (!IsEnclosedBy(position, *shadow_host))
       return nullptr;
-    return IsUserSelectContain(*shadow_host) ? shadow_host : nullptr;
+    return IsSelectionBoundary(*shadow_host) ? shadow_host : nullptr;
   }
 
   static PositionInFlatTree AdjustPositionInFlatTreeForStart(
@@ -608,19 +614,19 @@ class EditingBoundaryAdjuster final {
   static bool IsEditingBoundary(const Node& node,
                                 const Node& previous_node,
                                 bool is_previous_node_editable) {
-    return IsEditable(node) != is_previous_node_editable;
+    return HasEditableStyle(node) != is_previous_node_editable;
   }
 
   // Returns the highest ancestor of |start| along the parent chain, so that
   // all node in between them including the ancestor have the same
-  // IsEditable() bit with |start|. Note that it only consider the <body>
+  // HasEditableStyle() bit with |start|. Note that it only consider the <body>
   // subtree.
   template <typename Strategy>
   static const Node& RootBoundaryElementOf(const Node& start) {
     if (IsA<HTMLBodyElement>(start))
       return start;
 
-    const bool is_editable = IsEditable(start);
+    const bool is_editable = HasEditableStyle(start);
     const Node* result = &start;
     for (const Node& ancestor : Strategy::AncestorsOf(start)) {
       if (IsEditingBoundary<Strategy>(ancestor, *result, is_editable))
@@ -672,7 +678,7 @@ class EditingBoundaryAdjuster final {
     // extent in |base_rbe| subtree that RBE(ancestor) != |base_rbe|.
     const Node* boundary = &extent_rbe;
     const Node* previous_ancestor = &extent_rbe;
-    bool previous_editable = IsEditable(extent_rbe);
+    bool previous_editable = HasEditableStyle(extent_rbe);
     for (const Node& ancestor : Strategy::AncestorsOf(extent_rbe)) {
       if (IsEditingBoundary<Strategy>(ancestor, *previous_ancestor,
                                       previous_editable))
@@ -680,7 +686,7 @@ class EditingBoundaryAdjuster final {
 
       if (ancestor == base_rbe || IsA<HTMLBodyElement>(ancestor))
         break;
-      previous_editable = IsEditable(ancestor);
+      previous_editable = HasEditableStyle(ancestor);
       previous_ancestor = &ancestor;
     }
 
@@ -701,7 +707,7 @@ EditingBoundaryAdjuster::IsEditingBoundary<EditingInFlatTreeStrategy>(
   if (IsShadowHost(&node) && is_previous_node_editable &&
       previous_node.OwnerShadowHost() == &node)
     return true;
-  return IsEditable(node) != is_previous_node_editable;
+  return HasEditableStyle(node) != is_previous_node_editable;
 }
 
 SelectionInDOMTree
@@ -745,7 +751,7 @@ class SelectionTypeAdjuster final {
     const EphemeralRangeTemplate<Strategy> minimal_range(
         MostForwardCaretPosition(range.StartPosition()),
         MostBackwardCaretPosition(range.EndPosition()));
-    if (minimal_range.IsCollapsed() || selection.IsBaseFirst()) {
+    if (selection.IsBaseFirst()) {
       return typename SelectionTemplate<Strategy>::Builder()
           .SetAsForwardSelection(minimal_range)
           .Build();

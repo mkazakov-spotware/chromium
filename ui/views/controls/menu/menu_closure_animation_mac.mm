@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "base/bind.h"
 #include "base/check_op.h"
 #include "base/notreached.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "ui/gfx/animation/linear_animation.h"
 #include "ui/views/controls/menu/menu_item_view.h"
 #include "ui/views/controls/menu/submenu_view.h"
@@ -24,7 +24,10 @@ namespace views {
 MenuClosureAnimationMac::MenuClosureAnimationMac(MenuItemView* item,
                                                  SubmenuView* menu,
                                                  base::OnceClosure callback)
-    : callback_(std::move(callback)), item_(item), menu_(menu) {}
+    : callback_(std::move(callback)),
+      item_(item),
+      menu_(menu),
+      step_(AnimationStep::kStart) {}
 
 MenuClosureAnimationMac::~MenuClosureAnimationMac() = default;
 
@@ -35,7 +38,7 @@ void MenuClosureAnimationMac::Start() {
     // accept callback will happen after a runloop cycle by skipping to the end
     // of the animation.
     step_ = AnimationStep::kFading;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&MenuClosureAnimationMac::AdvanceAnimation,
                                   AsWeakPtr()));
     return;
@@ -65,12 +68,12 @@ void MenuClosureAnimationMac::AdvanceAnimation() {
   if (step_ == AnimationStep::kUnselected ||
       step_ == AnimationStep::kSelected) {
     item_->SetForcedVisualSelection(step_ == AnimationStep::kSelected);
-    timer_.Start(FROM_HERE, base::Milliseconds(80),
+    timer_.Start(FROM_HERE, base::TimeDelta::FromMilliseconds(80),
                  base::BindRepeating(&MenuClosureAnimationMac::AdvanceAnimation,
                                      base::Unretained(this)));
   } else if (step_ == AnimationStep::kFading) {
     auto fade = std::make_unique<gfx::LinearAnimation>(this);
-    fade->SetDuration(base::Milliseconds(200));
+    fade->SetDuration(base::TimeDelta::FromMilliseconds(200));
     fade_animation_ = std::move(fade);
     fade_animation_->Start();
   } else if (step_ == AnimationStep::kFinish) {

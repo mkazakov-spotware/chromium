@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,148 +7,51 @@
  * onboarding flow. It is embedded in chrome://os-settings, chrome://settings
  * and as a standalone dialog via chrome://nearby.
  */
+Polymer({
+  is: 'nearby-onboarding-page',
 
-import 'chrome://resources/cr_elements/cr_shared_style.css.js';
-import 'chrome://resources/cr_elements/cr_icons.css.js';
-import 'chrome://resources/cr_elements/cr_input/cr_input.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
-import 'chrome://resources/polymer/v3_0/iron-media-query/iron-media-query.js';
-import './nearby_page_template.js';
+  behaviors: [I18nBehavior],
 
-import {I18nBehavior, I18nBehaviorInterface} from 'chrome://resources/ash/common/i18n_behavior.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+  properties: {
+    /** @type {?nearby_share.NearbySettings} */
+    settings: {
+      type: Object,
+    },
 
-import {NearbyShareOnboardingFinalState, processOnboardingCancelledMetrics, processOnboardingInitiatedMetrics} from './nearby_metrics_logger.js';
-import {getTemplate} from './nearby_onboarding_page.html.js';
-import {getNearbyShareSettings} from './nearby_share_settings.js';
-import {NearbySettings} from './nearby_share_settings_behavior.js';
+    /** @type {string} */
+    errorMessage: {
+      type: String,
+      value: '',
+    },
+  },
 
-/**
- * @type {string}
- */
-const ONBOARDING_SPLASH_LIGHT_ICON =
-    'nearby-images:nearby-onboarding-splash-light';
-
-/**
- * @type {string}
- */
-const ONBOARDING_SPLASH_DARK_ICON =
-    'nearby-images:nearby-onboarding-splash-dark';
-
-/**
- * @constructor
- * @extends {PolymerElement}
- * @implements {I18nBehaviorInterface}
- */
-const NearbyOnboardingPageElementBase =
-    mixinBehaviors([I18nBehavior], PolymerElement);
-
-/** @polymer */
-export class NearbyOnboardingPageElement extends
-    NearbyOnboardingPageElementBase {
-  static get is() {
-    return 'nearby-onboarding-page';
-  }
-
-  static get template() {
-    return getTemplate();
-  }
-
-  static get properties() {
-    return {
-      /** @type {?NearbySettings} */
-      settings: {
-        type: Object,
-      },
-
-      /** @type {string} */
-      errorMessage: {
-        type: String,
-        value: '',
-      },
-
-      /**
-       * Whether the onboarding page is being rendered in dark mode.
-       * @private {boolean}
-       */
-      isDarkModeActive_: {
-        type: Boolean,
-        value: false,
-      },
-
-    };
-  }
-
-  ready() {
-    super.ready();
-
-    this.addEventListener('next', this.onNext_);
-    this.addEventListener('close', this.onClose_);
-    this.addEventListener('keydown', (event) => {
-      this.onKeydown_(/** @type {!KeyboardEvent} */ (event));
-    });
-    this.addEventListener('view-enter-start', this.onViewEnterStart_);
-  }
-
-  /** @private */
-  onNext_() {
-    this.submitDeviceNameInput_();
-  }
-
-  /** @private */
-  onClose_() {
-    processOnboardingCancelledMetrics(
-        NearbyShareOnboardingFinalState.DEVICE_NAME_PAGE);
-    const onboardingCancelledEvent = new CustomEvent('onboarding-cancelled', {
-      bubbles: true,
-      composed: true,
-    });
-    this.dispatchEvent(onboardingCancelledEvent);
-  }
+  listeners: {
+    'next': 'onNext_',
+  },
 
   /**
-   * @param {!KeyboardEvent} e Event containing the key
    * @private
    */
-  onKeydown_(e) {
-    e.stopPropagation();
-    if (e.key === 'Enter') {
-      this.submitDeviceNameInput_();
-      e.preventDefault();
-    }
-  }
-
-  /** @private */
-  onViewEnterStart_() {
-    this.shadowRoot.querySelector('#deviceName').focus();
-    processOnboardingInitiatedMetrics(new URL(document.URL));
-  }
-
-
-  /** @private */
-  onDeviceNameInput_() {
-    getNearbyShareSettings()
-        .validateDeviceName(this.$.deviceName.value)
-        .then((result) => {
-          this.updateErrorMessage_(result.result);
-        });
-  }
-
-  /** @private */
-  submitDeviceNameInput_() {
-    getNearbyShareSettings()
+  onNext_() {
+    nearby_share.getNearbyShareSettings()
         .setDeviceName(this.$.deviceName.value)
         .then((result) => {
           this.updateErrorMessage_(result.result);
           if (result.result ===
               nearbyShare.mojom.DeviceNameValidationResult.kValid) {
-            const changePageEvent = new CustomEvent(
-                'change-page',
-                {bubbles: true, composed: true, detail: {page: 'visibility'}});
-            this.dispatchEvent(changePageEvent);
+            this.fire('change-page', {page: 'visibility'});
           }
         });
-  }
+  },
+
+  /** @private */
+  onDeviceNameInput_() {
+    nearby_share.getNearbyShareSettings()
+        .validateDeviceName(this.$.deviceName.value)
+        .then((result) => {
+          this.updateErrorMessage_(result.result);
+        });
+  },
 
   /**
    * @private
@@ -172,7 +75,7 @@ export class NearbyOnboardingPageElement extends
         this.errorMessage = '';
         break;
     }
-  }
+  },
 
   /**
    * @private
@@ -183,16 +86,4 @@ export class NearbyOnboardingPageElement extends
   hasErrorMessage_(errorMessage) {
     return errorMessage !== '';
   }
-
-  /**
-   * Returns the icon based on Light/Dark mode.
-   * @return {string}
-   */
-  getOnboardingSplashIcon_() {
-    return this.isDarkModeActive_ ? ONBOARDING_SPLASH_DARK_ICON :
-                                    ONBOARDING_SPLASH_LIGHT_ICON;
-  }
-}
-
-customElements.define(
-    NearbyOnboardingPageElement.is, NearbyOnboardingPageElement);
+});

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,10 +16,10 @@
 namespace mojo {
 
 template <typename T>
-struct CloneTraits<WTF::Vector<T>> {
+struct CloneTraits<WTF::Vector<T>, false> {
   static WTF::Vector<T> Clone(const WTF::Vector<T>& input) {
     WTF::Vector<T> result;
-    result.reserve(input.size());
+    result.ReserveCapacity(input.size());
     for (const auto& element : input)
       result.push_back(mojo::Clone(element));
 
@@ -28,7 +28,7 @@ struct CloneTraits<WTF::Vector<T>> {
 };
 
 template <typename K, typename V>
-struct CloneTraits<WTF::HashMap<K, V>> {
+struct CloneTraits<WTF::HashMap<K, V>, false> {
   static WTF::HashMap<K, V> Clone(const WTF::HashMap<K, V>& input) {
     WTF::HashMap<K, V> result;
     for (const auto& element : input)
@@ -39,7 +39,7 @@ struct CloneTraits<WTF::HashMap<K, V>> {
 };
 
 template <typename T>
-struct EqualsTraits<WTF::Vector<T>> {
+struct EqualsTraits<WTF::Vector<T>, false> {
   static bool Equals(const WTF::Vector<T>& a, const WTF::Vector<T>& b) {
     if (a.size() != b.size())
       return false;
@@ -52,7 +52,7 @@ struct EqualsTraits<WTF::Vector<T>> {
 };
 
 template <typename K, typename V>
-struct EqualsTraits<WTF::HashMap<K, V>> {
+struct EqualsTraits<WTF::HashMap<K, V>, false> {
   static bool Equals(const WTF::HashMap<K, V>& a, const WTF::HashMap<K, V>& b) {
     if (a.size() != b.size())
       return false;

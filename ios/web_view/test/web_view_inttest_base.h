@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <memory>
 #include <string>
 
-#include "components/variations/scoped_variations_ids_provider.h"
 #include "testing/platform_test.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -56,9 +55,6 @@ class WebViewInttestBase : public PlatformTest {
   //
   // Call ASSERT_TRUE(test_server_->Start()) before accessing the returned URL.
   GURL GetUrlForPageWithHtml(const std::string& html);
-
-  variations::ScopedVariationsIdsProvider scoped_variations_ids_provider_{
-      variations::VariationsIdsProvider::Mode::kUseSignedInState};
 
   // CWVWebView created with default configuration and frame equal to screen
   // bounds.

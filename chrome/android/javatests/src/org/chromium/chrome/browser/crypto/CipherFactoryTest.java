@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.ByteArrayGenerator;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
-import org.chromium.base.test.util.Batch;
+import org.chromium.chrome.browser.crypto.CipherFactory.CipherDataObserver;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.util.Arrays;
@@ -30,7 +29,6 @@ import javax.crypto.Cipher;
  * throughout the class to simulate artificial blockages.
  */
 @RunWith(BaseJUnit4ClassRunner.class)
-@Batch(Batch.UNIT_TESTS)
 public class CipherFactoryTest {
     private static final byte[] INPUT_DATA = {1, 16, 84};
 
@@ -56,16 +54,16 @@ public class CipherFactoryTest {
         }
     }
 
-    /** A test implementation to verify callback is correctly notified. */
-    private static class TestCipherDataCallback implements Runnable {
+    /** A test implementation to verify observer is correctly notified. */
+    private static class TestCipherDataObserver implements CipherDataObserver {
         private int mDataObserverNotifiedCount;
 
         @Override
-        public void run() {
+        public void onCipherDataGenerated() {
             mDataObserverNotifiedCount++;
         }
 
-        /** Whether the cipher data callback has been notified that cipher data is generated. */
+        /** Whether the cipher data observer has been notified that cipher data is generated. */
         public int getTimesNotified() {
             return mDataObserverNotifiedCount;
         }
@@ -86,7 +84,6 @@ public class CipherFactoryTest {
      */
     @Before
     public void setUp() {
-        CipherFactory.resetInstanceForTesting();
         mNumberProvider = new DeterministicParameterGenerator();
         CipherFactory.getInstance().setRandomNumberProviderForTests(mNumberProvider);
     }
@@ -256,44 +253,43 @@ public class CipherFactoryTest {
     }
 
     /**
-     * Checks that an callback is notified when cipher data is created.
+     * Checks that an observer is notified when cipher data is created.
      */
     @Test
     @MediumTest
-    public void testCipherFactoryCallback() {
-        TestCipherDataCallback callback = new TestCipherDataCallback();
-        CipherFactory.getInstance().setTestCipherDataGeneratedCallback(callback);
-        Assert.assertEquals(0, callback.getTimesNotified());
+    public void testCipherFactoryObserver() {
+        TestCipherDataObserver observer = new TestCipherDataObserver();
+        CipherFactory.getInstance().addCipherDataObserver(observer);
+        Assert.assertEquals(0, observer.getTimesNotified());
         CipherFactory.getInstance().getCipher(Cipher.DECRYPT_MODE);
         TestThreadUtils.runOnUiThreadBlocking(mEmptyRunnable);
-        Assert.assertEquals(1, callback.getTimesNotified());
+        Assert.assertEquals(1, observer.getTimesNotified());
         CipherFactory.getInstance().getCipher(Cipher.DECRYPT_MODE);
         TestThreadUtils.runOnUiThreadBlocking(mEmptyRunnable);
-        Assert.assertEquals(1, callback.getTimesNotified());
+        Assert.assertEquals(1, observer.getTimesNotified());
         CipherFactory.getInstance().getCipher(Cipher.ENCRYPT_MODE);
         TestThreadUtils.runOnUiThreadBlocking(mEmptyRunnable);
-        Assert.assertEquals(1, callback.getTimesNotified());
-        CipherFactory.getInstance().setTestCipherDataGeneratedCallback(null);
+        Assert.assertEquals(1, observer.getTimesNotified());
+        CipherFactory.getInstance().removeCipherDataObserver(observer);
     }
 
     /**
-     * Verifies that if the callback is attached after cipher data has already been
-     * created the callback doesn't fire.
+     * Verifies that if the observer is attached after cipher data has already been
+     * created the observer doesn't fire.
      */
     @Test
     @MediumTest
-    public void testCipherFactoryCallbackTooLate() {
+    public void testCipherFactoryObserverTooLate() {
         CipherFactory.getInstance().getCipher(Cipher.DECRYPT_MODE);
         // Ensures that cipher finishes initializing before running the rest of the test.
         TestThreadUtils.runOnUiThreadBlocking(mEmptyRunnable);
-        TestCipherDataCallback callback = new TestCipherDataCallback();
-        CipherFactory.getInstance().setTestCipherDataGeneratedCallback(callback);
+        TestCipherDataObserver observer = new TestCipherDataObserver();
+        CipherFactory.getInstance().addCipherDataObserver(observer);
         TestThreadUtils.runOnUiThreadBlocking(mEmptyRunnable);
-        Assert.assertEquals(0, callback.getTimesNotified());
+        Assert.assertEquals(0, observer.getTimesNotified());
         CipherFactory.getInstance().getCipher(Cipher.DECRYPT_MODE);
         TestThreadUtils.runOnUiThreadBlocking(mEmptyRunnable);
-        Assert.assertEquals(0, callback.getTimesNotified());
-        CipherFactory.getInstance().setTestCipherDataGeneratedCallback(null);
+        Assert.assertEquals(0, observer.getTimesNotified());
     }
 
     /**

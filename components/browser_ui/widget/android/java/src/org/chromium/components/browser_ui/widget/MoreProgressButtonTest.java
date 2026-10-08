@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,70 +17,54 @@ import androidx.test.filters.MediumTest;
 import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.components.browser_ui.widget.MoreProgressButton.State;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
-import org.chromium.ui.test.util.BlankUiTestActivity;
-import org.chromium.ui.test.util.DisableAnimationsTestRule;
+import org.chromium.ui.test.util.DummyUiActivityTestCase;
 
 /**
  * Tests for {@link MoreProgressButton}.
  */
 @RunWith(BaseJUnit4ClassRunner.class)
-@Batch(Batch.UNIT_TESTS)
-public class MoreProgressButtonTest {
-    @ClassRule
-    public static DisableAnimationsTestRule disableAnimationsRule = new DisableAnimationsTestRule();
-    @ClassRule
-    public static BaseActivityTestRule<BlankUiTestActivity> activityTestRule =
-            new BaseActivityTestRule<>(BlankUiTestActivity.class);
-
-    private static Activity sActivity;
-    private static FrameLayout sContentView;
-
+public class MoreProgressButtonTest extends DummyUiActivityTestCase {
+    private FrameLayout mContentView;
     private MoreProgressButton mMoreProgressButton;
     private TextView mCustomTextView;
+    private Activity mActivity;
 
     private int mIdTextView;
     private int mIdMoreProgressButton;
 
-    @BeforeClass
-    public static void setupSuite() {
-        activityTestRule.launchActivity(null);
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            sActivity = activityTestRule.getActivity();
-            sContentView = new FrameLayout(sActivity);
-            sActivity.setContentView(sContentView);
-        });
+    @Override
+    public void setUpTest() throws Exception {
+        super.setUpTest();
+        mActivity = getActivity();
+
+        setUpViews();
     }
 
-    @Before
-    public void setupTest() {
+    private void setUpViews() {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            sContentView.removeAllViews();
+            mContentView = new FrameLayout(mActivity);
+            mActivity.setContentView(mContentView);
 
             mIdTextView = View.generateViewId();
             mIdMoreProgressButton = View.generateViewId();
 
             mMoreProgressButton =
-                    (MoreProgressButton) LayoutInflater.from(sContentView.getContext())
+                    (MoreProgressButton) LayoutInflater.from(mContentView.getContext())
                             .inflate(R.layout.more_progress_button, null);
             mMoreProgressButton.setId(mIdMoreProgressButton);
-            sContentView.addView(mMoreProgressButton, MATCH_PARENT, WRAP_CONTENT);
+            mContentView.addView(mMoreProgressButton, MATCH_PARENT, WRAP_CONTENT);
 
-            mCustomTextView = new TextView(sActivity);
+            mCustomTextView = new TextView(mActivity);
             mCustomTextView.setText("");
             mCustomTextView.setId(mIdTextView);
-            sContentView.addView(mCustomTextView, MATCH_PARENT, WRAP_CONTENT);
+            mContentView.addView(mCustomTextView, MATCH_PARENT, WRAP_CONTENT);
         });
     }
 
@@ -95,9 +79,9 @@ public class MoreProgressButtonTest {
         // Verify the default status for the views are correct
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             Assert.assertFalse("Button should not be shown after init",
-                    sActivity.findViewById(R.id.action_button).isShown());
+                    mActivity.findViewById(R.id.action_button).isShown());
             Assert.assertFalse("Spinner should not be shown after init",
-                    sActivity.findViewById(R.id.progress_spinner).isShown());
+                    mActivity.findViewById(R.id.progress_spinner).isShown());
         });
     }
 
@@ -109,9 +93,9 @@ public class MoreProgressButtonTest {
             mMoreProgressButton.setState(State.BUTTON);
 
             Assert.assertTrue("Button should be shown with State.BUTTON",
-                    sActivity.findViewById(R.id.action_button).isShown());
+                    mActivity.findViewById(R.id.action_button).isShown());
             Assert.assertFalse("Spinner should not be shown with State.BUTTON",
-                    sActivity.findViewById(R.id.progress_spinner).isShown());
+                    mActivity.findViewById(R.id.progress_spinner).isShown());
         });
     }
 
@@ -123,9 +107,9 @@ public class MoreProgressButtonTest {
             mMoreProgressButton.setState(State.LOADING);
 
             Assert.assertFalse("Button should not be shown with State.LOADING",
-                    sActivity.findViewById(R.id.action_button).isShown());
+                    mActivity.findViewById(R.id.action_button).isShown());
             Assert.assertTrue("Spinner should be shown with State.LOADING",
-                    sActivity.findViewById(R.id.progress_spinner).isShown());
+                    mActivity.findViewById(R.id.progress_spinner).isShown());
         });
     }
 
@@ -139,9 +123,9 @@ public class MoreProgressButtonTest {
             mMoreProgressButton.setState(State.HIDDEN);
 
             Assert.assertFalse("Button should not be shown with State.HIDDEN",
-                    sActivity.findViewById(R.id.action_button).isShown());
+                    mActivity.findViewById(R.id.action_button).isShown());
             Assert.assertFalse("Spinner should not be shown with State.HIDDEN",
-                    sActivity.findViewById(R.id.progress_spinner).isShown());
+                    mActivity.findViewById(R.id.progress_spinner).isShown());
         });
     }
 
@@ -150,15 +134,15 @@ public class MoreProgressButtonTest {
     @Feature({"MoreProgressButton"})
     public void testStateAfterBindAction() {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            boolean buttonShownBefore = sActivity.findViewById(R.id.action_button).isShown();
-            boolean spinnerShownBefore = sActivity.findViewById(R.id.progress_spinner).isShown();
+            boolean buttonShownBefore = mActivity.findViewById(R.id.action_button).isShown();
+            boolean spinnerShownBefore = mActivity.findViewById(R.id.progress_spinner).isShown();
 
             mMoreProgressButton.setOnClickRunnable(() -> changeTextView(""));
 
             Assert.assertEquals("Button should stays same visibility before/after bind action",
-                    buttonShownBefore, sActivity.findViewById(R.id.action_button).isShown());
+                    buttonShownBefore, mActivity.findViewById(R.id.action_button).isShown());
             Assert.assertEquals("spinner should stays same visibility before/after bind action",
-                    spinnerShownBefore, sActivity.findViewById(R.id.progress_spinner).isShown());
+                    spinnerShownBefore, mActivity.findViewById(R.id.progress_spinner).isShown());
         });
     }
 
@@ -170,20 +154,20 @@ public class MoreProgressButtonTest {
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             String textViewStr =
-                    ((TextView) sActivity.findViewById(mIdTextView)).getText().toString();
+                    ((TextView) mActivity.findViewById(mIdTextView)).getText().toString();
             Assert.assertNotEquals(str, textViewStr);
 
             mMoreProgressButton.setOnClickRunnable(() -> changeTextView(str));
             mMoreProgressButton.setState(State.BUTTON);
 
-            Assert.assertTrue(sActivity.findViewById(R.id.action_button).isClickable());
+            Assert.assertTrue(mActivity.findViewById(R.id.action_button).isClickable());
 
-            sActivity.findViewById(R.id.action_button).performClick();
+            mActivity.findViewById(R.id.action_button).performClick();
 
-            Assert.assertFalse(sActivity.findViewById(R.id.action_button).isShown());
-            Assert.assertTrue(sActivity.findViewById(R.id.progress_spinner).isShown());
+            Assert.assertFalse(mActivity.findViewById(R.id.action_button).isShown());
+            Assert.assertTrue(mActivity.findViewById(R.id.progress_spinner).isShown());
 
-            textViewStr = ((TextView) sActivity.findViewById(mIdTextView)).getText().toString();
+            textViewStr = ((TextView) mActivity.findViewById(mIdTextView)).getText().toString();
             Assert.assertEquals(str, textViewStr);
         });
     }

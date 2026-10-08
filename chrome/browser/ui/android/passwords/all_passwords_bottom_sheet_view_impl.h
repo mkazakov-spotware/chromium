@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/android/passwords/all_passwords_bottom_sheet_view.h"
 #include "components/autofill/core/common/mojom/autofill_types.mojom-forward.h"
 
@@ -40,8 +39,7 @@ class AllPasswordsBottomSheetViewImpl : public AllPasswordsBottomSheetView {
   void OnCredentialSelected(
       JNIEnv* env,
       const base::android::JavaParamRef<jstring>& username,
-      const base::android::JavaParamRef<jstring>& password,
-      jboolean requests_to_fill_password);
+      const base::android::JavaParamRef<jstring>& password);
 
   // Called from Java bridge when user dismisses the BottomSheet.
   // Redirects the call to the controller.
@@ -55,7 +53,7 @@ class AllPasswordsBottomSheetViewImpl : public AllPasswordsBottomSheetView {
   base::android::ScopedJavaGlobalRef<jobject> GetOrCreateJavaObject();
 
   base::android::ScopedJavaGlobalRef<jobject> java_object_internal_;
-  raw_ptr<AllPasswordsBottomSheetController> controller_;
+  AllPasswordsBottomSheetController* controller_;
 };
 
 #endif  // CHROME_BROWSER_UI_ANDROID_PASSWORDS_ALL_PASSWORDS_BOTTOM_SHEET_VIEW_IMPL_H_

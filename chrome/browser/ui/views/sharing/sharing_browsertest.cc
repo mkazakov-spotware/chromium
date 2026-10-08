@@ -1,10 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/sharing/sharing_browsertest.h"
-
-#include <map>
 
 #include "base/bind.h"
 #include "base/memory/ptr_util.h"
@@ -24,17 +22,18 @@
 #include "chrome/browser/sharing/sharing_service_factory.h"
 #include "chrome/browser/sharing/sharing_utils.h"
 #include "chrome/browser/sync/device_info_sync_service_factory.h"
+#include "chrome/browser/sync/profile_sync_service_factory.h"
 #include "chrome/browser/sync/test/integration/sessions_helper.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 #include "components/gcm_driver/fake_gcm_profile_service.h"
-#include "components/sync/model/client_tag_based_model_type_processor.h"
-#include "components/sync/protocol/sync_enums.pb.h"
+#include "components/sync/driver/profile_sync_service.h"
+#include "components/sync/model_impl/client_tag_based_model_type_processor.h"
 #include "components/sync_device_info/device_info.h"
 #include "content/public/test/browser_test_utils.h"
 #include "net/dns/mock_host_resolver.h"
-#include "third_party/blink/public/mojom/context_menu/context_menu.mojom.h"
+#include "third_party/blink/public/common/context_menu_data/media_type.h"
 
 void FakeWebPushSender::SendMessage(const std::string& fcm_token,
                                     crypto::ECPrivateKey* vapid_key,
@@ -49,9 +48,9 @@ void FakeSharingMessageBridge::SendSharingMessage(
     std::unique_ptr<sync_pb::SharingMessageSpecifics> specifics,
     CommitFinishedCallback on_commit_callback) {
   specifics_ = std::move(*specifics);
-  sync_pb::SharingMessageCommitError commit_error;
-  commit_error.set_error_code(sync_pb::SharingMessageCommitError::NONE);
-  std::move(on_commit_callback).Run(commit_error);
+  sync_pb::SharingMessageCommitError commit_erorr;
+  commit_erorr.set_error_code(sync_pb::SharingMessageCommitError::NONE);
+  std::move(on_commit_callback).Run(commit_erorr);
 }
 
 base::WeakPtr<syncer::ModelTypeControllerDelegate>
@@ -92,7 +91,7 @@ void SharingBrowserTest::Init(
       sharing_service_->GetMessageSenderForTesting()->GetFCMSenderForTesting();
   fake_web_push_sender_ = new FakeWebPushSender();
   sharing_fcm_sender->SetWebPushSenderForTesting(
-      base::WrapUnique(fake_web_push_sender_.get()));
+      base::WrapUnique(fake_web_push_sender_));
   sharing_fcm_sender->SetSharingMessageBridgeForTesting(
       &fake_sharing_message_bridge_);
 
@@ -116,12 +115,7 @@ void SharingBrowserTest::SetUpDevices(
 
   for (size_t i = 0; i < original_devices.size(); i++)
     AddDeviceInfo(*original_devices[i], i);
-  const std::map<syncer::DeviceInfo::FormFactor, int> device_count_by_type =
-      fake_device_info_tracker_.CountActiveDevicesByType();
-  int total = 0;
-  for (const auto& type_and_count : device_count_by_type)
-    total += type_and_count.second;
-  ASSERT_EQ(2, total);
+  ASSERT_EQ(2, fake_device_info_tracker_.CountActiveDevices());
 }
 
 void SharingBrowserTest::RegisterDevice(
@@ -152,15 +146,13 @@ void SharingBrowserTest::AddDeviceInfo(
           base::StrCat(
               {"testing_device_", base::NumberToString(fake_device_id)}),
           original_device.chrome_version(), original_device.sync_user_agent(),
-          original_device.device_type(), original_device.os_type(),
-          original_device.form_factor(),
+          original_device.device_type(),
           original_device.signin_scoped_device_id(), "Google",
           base::StrCat({"model", base::NumberToString(fake_device_id)}),
-          original_device.full_hardware_class(),
           original_device.last_updated_timestamp(),
           original_device.pulse_interval(),
           original_device.send_tab_to_self_receiving_enabled(),
-          original_device.sharing_info(), original_device.paask_info(),
+          original_device.sharing_info(),
           original_device.fcm_registration_token(),
           original_device.interested_data_types());
   fake_device_info_tracker_.Add(fake_device.get());
@@ -173,20 +165,20 @@ std::unique_ptr<TestRenderViewContextMenu> SharingBrowserTest::InitContextMenu(
     base::StringPiece selection_text) {
   content::ContextMenuParams params;
   params.selection_text = base::ASCIIToUTF16(selection_text);
-  params.media_type = blink::mojom::ContextMenuDataMediaType::kNone;
+  params.media_type = blink::ContextMenuDataMediaType::kNone;
   params.unfiltered_link_url = url;
   params.link_url = url;
   params.src_url = url;
   params.link_text = base::ASCIIToUTF16(link_text);
   params.page_url = web_contents_->GetVisibleURL();
   params.source_type = ui::MenuSourceType::MENU_SOURCE_MOUSE;
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   params.writing_direction_default = 0;
   params.writing_direction_left_to_right = 0;
   params.writing_direction_right_to_left = 0;
 #endif
   auto menu = std::make_unique<TestRenderViewContextMenu>(
-      *web_contents_->GetPrimaryMainFrame(), params);
+      web_contents_->GetMainFrame(), params);
   menu->Init();
   return menu;
 }

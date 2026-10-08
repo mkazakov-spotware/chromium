@@ -1,14 +1,13 @@
-// Copyright 2006-2008 The Chromium Authors
+// Copyright (c) 2006-2008 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef SANDBOX_WIN_SRC_SHAREDMEM_IPC_CLIENT_H_
-#define SANDBOX_WIN_SRC_SHAREDMEM_IPC_CLIENT_H_
+#ifndef SANDBOX_SRC_SHAREDMEM_IPC_CLIENT_H__
+#define SANDBOX_SRC_SHAREDMEM_IPC_CLIENT_H__
 
 #include <stddef.h>
 #include <stdint.h>
 
-#include "base/memory/raw_ptr.h"
 #include "sandbox/win/src/crosscall_params.h"
 #include "sandbox/win/src/ipc_tags.h"
 #include "sandbox/win/src/sandbox.h"
@@ -131,11 +130,11 @@ class SharedMemIPCClient {
   size_t LockFreeChannel(bool* severe_failure);
   // Return the channel index given the address of the buffer.
   size_t ChannelIndexFromBuffer(const void* buffer);
-  raw_ptr<IPCControl> control_;
+  IPCControl* control_;
   // point to the first channel base
-  raw_ptr<char> first_base_;
+  char* first_base_;
 };
 
 }  // namespace sandbox
 
-#endif  // SANDBOX_WIN_SRC_SHAREDMEM_IPC_CLIENT_H_
+#endif  // SANDBOX_SRC_SHAREDMEM_IPC_CLIENT_H__

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,8 @@
 #include <utility>
 #include <vector>
 
+#include "ash/home_screen/home_launcher_gesture_handler.h"
+#include "ash/home_screen/home_screen_controller.h"
 #include "ash/public/cpp/metrics_util.h"
 #include "ash/public/cpp/window_animation_types.h"
 #include "ash/shelf/shelf.h"
@@ -16,20 +18,19 @@
 #include "ash/wm/pip/pip_positioner.h"
 #include "ash/wm/window_util.h"
 #include "ash/wm/workspace_controller.h"
-#include "base/bind.h"
 #include "base/check.h"
 #include "base/i18n/rtl.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
+#include "base/optional.h"
+#include "base/stl_util.h"
 #include "base/time/time.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_observer.h"
 #include "ui/base/class_property.h"
 #include "ui/compositor/animation_throughput_reporter.h"
-#include "ui/compositor/compositor.h"
 #include "ui/compositor/compositor_observer.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_observer.h"
@@ -39,9 +40,8 @@
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
-#include "ui/gfx/geometry/transform.h"
-#include "ui/gfx/geometry/transform_util.h"
 #include "ui/gfx/interpolated_transform.h"
+#include "ui/gfx/transform.h"
 #include "ui/wm/core/coordinate_conversion.h"
 #include "ui/wm/core/window_util.h"
 
@@ -51,9 +51,11 @@ namespace {
 const int kLayerAnimationsForMinimizeDurationMS = 200;
 
 // Amount of time for the cross fade animation.
-constexpr base::TimeDelta kCrossFadeDuration = base::Milliseconds(200);
+constexpr base::TimeDelta kCrossFadeDuration =
+    base::TimeDelta::FromMilliseconds(200);
 
-constexpr base::TimeDelta kCrossFadeMaxDuration = base::Milliseconds(400);
+constexpr base::TimeDelta kCrossFadeMaxDuration =
+    base::TimeDelta::FromMilliseconds(400);
 
 // Durations for the brightness/grayscale fade animation, in milliseconds.
 const int kBrightnessGrayscaleFadeDurationMs = 1000;
@@ -69,7 +71,8 @@ const float kWindowAnimation_HideOpacity = 0.f;
 const float kWindowAnimation_ShowOpacity = 1.f;
 
 // Duration for gfx::Tween::ZERO animation of showing window.
-constexpr base::TimeDelta kZeroAnimationMs = base::Milliseconds(300);
+constexpr base::TimeDelta kZeroAnimationMs =
+    base::TimeDelta::FromMilliseconds(300);
 
 constexpr char kCrossFadeSmoothness[] =
     "Ash.Window.AnimationSmoothness.CrossFade";
@@ -107,7 +110,7 @@ class CrossFadeObserver : public aura::WindowObserver,
   // Takes ownership of |layer_owner| and its child layers.
   CrossFadeObserver(aura::Window* window,
                     std::unique_ptr<ui::LayerTreeOwner> layer_owner,
-                    absl::optional<std::string> histogram_name)
+                    base::Optional<std::string> histogram_name)
       : window_(window),
         layer_(window->layer()),
         layer_owner_(std::move(layer_owner)) {
@@ -116,10 +119,11 @@ class CrossFadeObserver : public aura::WindowObserver,
     smoothness_tracker_ =
         layer_->GetCompositor()->RequestNewThroughputTracker();
     smoothness_tracker_->Start(metrics_util::ForSmoothness(base::BindRepeating(
-        [](const absl::optional<std::string>& histogram_name, int smoothness) {
+        [](const base::Optional<std::string>& histogram_name, int smoothness) {
           if (histogram_name) {
             DCHECK(!histogram_name->empty());
-            base::UmaHistogramPercentage(*histogram_name, smoothness);
+            base::UmaHistogramPercentageObsoleteDoNotUse(*histogram_name,
+                                                         smoothness);
           } else {
             UMA_HISTOGRAM_PERCENTAGE(kCrossFadeSmoothness, smoothness);
           }
@@ -174,7 +178,7 @@ class CrossFadeObserver : public aura::WindowObserver,
 
   std::unique_ptr<ui::LayerTreeOwner> layer_owner_;
 
-  absl::optional<ui::ThroughputTracker> smoothness_tracker_;
+  base::Optional<ui::ThroughputTracker> smoothness_tracker_;
 };
 
 // A version of CrossFadeObserver which updates its transform to match the
@@ -187,7 +191,7 @@ class CrossFadeUpdateTransformObserver
   CrossFadeUpdateTransformObserver(
       aura::Window* window,
       std::unique_ptr<ui::LayerTreeOwner> layer_owner,
-      absl::optional<std::string> histogram_name)
+      base::Optional<std::string> histogram_name)
       : CrossFadeObserver(window, std::move(layer_owner), histogram_name) {
     compositor_ = window->layer()->GetCompositor();
     compositor_->AddAnimationObserver(this);
@@ -223,9 +227,10 @@ class CrossFadeUpdateTransformObserver
     // Apply the transform on the bounds to get the location of |window_|.
     // Transforms are calculated in a way where scale does not affect position,
     // so use the same logic here.
-    gfx::RectF effective_bounds =
-        new_transform.MapRect(gfx::RectF(new_bounds.size()));
-    effective_bounds.Offset(new_bounds.OffsetFromOrigin());
+    gfx::RectF effective_bounds(new_bounds.size());
+    new_transform.TransformRect(&effective_bounds);
+    effective_bounds.set_x(effective_bounds.x() + new_bounds.x());
+    effective_bounds.set_y(effective_bounds.y() + new_bounds.y());
 
     const gfx::Transform old_transform =
         gfx::TransformBetweenRects(old_bounds, effective_bounds);
@@ -249,22 +254,22 @@ void CrossFadeAnimationInternal(
     aura::Window* window,
     std::unique_ptr<ui::LayerTreeOwner> old_layer_owner,
     bool animate_old_layer_transform,
-    absl::optional<base::TimeDelta> duration,
-    absl::optional<gfx::Tween::Type> tween_type,
-    absl::optional<std::string> histogram_name) {
+    base::Optional<base::TimeDelta> duration,
+    base::Optional<gfx::Tween::Type> tween_type,
+    base::Optional<std::string> histogram_name) {
   ui::Layer* old_layer = old_layer_owner->root();
   ui::Layer* new_layer = window->layer();
 
   DCHECK(old_layer);
-  const gfx::Rect old_bounds(old_layer->bounds());
+  const gfx::Rect old_bounds(old_layer_owner->root()->bounds());
 
-  gfx::Transform old_transform(old_layer->transform());
+  gfx::RectF old_transformed_bounds(old_bounds);
+  gfx::Transform old_transform(old_layer_owner->root()->transform());
   gfx::Transform old_transform_in_root;
   old_transform_in_root.Translate(old_bounds.x(), old_bounds.y());
-  old_transform_in_root.PreConcat(old_transform);
+  old_transform_in_root.PreconcatTransform(old_transform);
   old_transform_in_root.Translate(-old_bounds.x(), -old_bounds.y());
-  gfx::RectF old_transformed_bounds =
-      old_transform_in_root.MapRect(gfx::RectF(old_bounds));
+  old_transform_in_root.TransformRect(&old_transformed_bounds);
   const gfx::Rect new_bounds(window->bounds());
   const bool old_on_top = (old_bounds.width() > new_bounds.width());
 
@@ -282,17 +287,8 @@ void CrossFadeAnimationInternal(
 
   // Scale up the old layer while translating to new position.
   {
+    ui::Layer* old_layer = old_layer_owner->root();
     old_layer->GetAnimator()->StopAnimating();
-    // If Overview exit animation is in the sequence, stopping animation may
-    // trigger `OverviewController::OnEndingAnimationComplete` which may finally
-    // start the frame animation.
-    // 'FrameHeader::FrameAnimatorView::StartAnimation' recreates the window
-    // layer such that the `new_layer` is no longer the window's current layer.
-    // Therefore, we should update the `new_layer`. Refer to
-    // https://crbug.com/1313977.
-    // TODO(zxdan): find a way to change the window state after exiting Overview
-    // or avoid frame animation when setting bounds.
-    new_layer = window->layer();
     old_layer->SetTransform(old_transform);
     ui::ScopedLayerAnimationSettings settings(old_layer->GetAnimator());
     settings.SetTransitionDuration(animation_duration);
@@ -455,14 +451,8 @@ void AddLayerAnimationsForMinimize(aura::Window* window, bool show) {
 void AnimateShowWindow_Minimize(aura::Window* window) {
   window->layer()->SetOpacity(kWindowAnimation_HideOpacity);
   ui::ScopedLayerAnimationSettings settings(window->layer()->GetAnimator());
-  ui::AnimationThroughputReporter reporter(
-      settings.GetAnimator(),
-      metrics_util::ForSmoothness(
-          base::BindRepeating(static_cast<void (*)(const char*, int)>(
-                                  &base::UmaHistogramPercentage),
-                              "Ash.Window.AnimationSmoothness.Unminimize")));
   base::TimeDelta duration =
-      base::Milliseconds(kLayerAnimationsForMinimizeDurationMS);
+      base::TimeDelta::FromMilliseconds(kLayerAnimationsForMinimizeDurationMS);
   settings.SetTransitionDuration(duration);
   AddLayerAnimationsForMinimize(window, true);
 
@@ -475,16 +465,8 @@ void AnimateShowWindow_Minimize(aura::Window* window) {
 void AnimateHideWindow_Minimize(aura::Window* window) {
   // Property sets within this scope will be implicitly animated.
   ::wm::ScopedHidingAnimationSettings hiding_settings(window);
-  // Report animation smoothness for animations created within this scope.
-  ui::AnimationThroughputReporter reporter(
-      hiding_settings.layer_animation_settings()->GetAnimator(),
-      metrics_util::ForSmoothness(
-          base::BindRepeating(static_cast<void (*)(const char*, int)>(
-                                  &base::UmaHistogramPercentage),
-                              "Ash.Window.AnimationSmoothness.Minimize")));
-
   base::TimeDelta duration =
-      base::Milliseconds(kLayerAnimationsForMinimizeDurationMS);
+      base::TimeDelta::FromMilliseconds(kLayerAnimationsForMinimizeDurationMS);
   hiding_settings.layer_animation_settings()->SetTransitionDuration(duration);
   window->layer()->SetVisible(false);
 
@@ -510,7 +492,7 @@ void AnimateShowHideWindowCommon_BrightnessGrayscale(aura::Window* window,
   }
 
   base::TimeDelta duration =
-      base::Milliseconds(kBrightnessGrayscaleFadeDurationMs);
+      base::TimeDelta::FromMilliseconds(kBrightnessGrayscaleFadeDurationMs);
 
   if (show) {
     ui::ScopedLayerAnimationSettings settings(window->layer()->GetAnimator());
@@ -533,7 +515,8 @@ void AnimateShowWindow_BrightnessGrayscale(aura::Window* window) {
 void AnimateShowWindow_FadeIn(aura::Window* window) {
   window->layer()->SetOpacity(kWindowAnimation_HideOpacity);
   ui::ScopedLayerAnimationSettings settings(window->layer()->GetAnimator());
-  settings.SetTransitionDuration(base::Milliseconds(kFadeInAnimationMs));
+  settings.SetTransitionDuration(
+      base::TimeDelta::FromMilliseconds(kFadeInAnimationMs));
   window->layer()->SetVisible(true);
   window->layer()->SetOpacity(kWindowAnimation_ShowOpacity);
 }
@@ -544,7 +527,7 @@ void AnimateHideWindow_BrightnessGrayscale(aura::Window* window) {
 
 void AnimateHideWindow_SlideOut(aura::Window* window) {
   base::TimeDelta duration =
-      base::Milliseconds(PipPositioner::kPipDismissTimeMs);
+      base::TimeDelta::FromMilliseconds(PipPositioner::kPipDismissTimeMs);
 
   ::wm::ScopedHidingAnimationSettings settings(window);
   settings.layer_animation_settings()->SetTransitionDuration(duration);
@@ -629,8 +612,8 @@ void CrossFadeAnimation(aura::Window* window,
                         std::unique_ptr<ui::LayerTreeOwner> old_layer_owner) {
   CrossFadeAnimationInternal(
       window, std::move(old_layer_owner), /*animate_old_layer=*/true,
-      /*duration=*/absl::nullopt, /*tween_type=*/absl::nullopt,
-      /*histogram_name=*/absl::nullopt);
+      /*duration=*/base::nullopt, /*tween_type=*/base::nullopt,
+      /*histogram_name=*/base::nullopt);
 }
 
 void CrossFadeAnimationAnimateNewLayerOnly(aura::Window* window,

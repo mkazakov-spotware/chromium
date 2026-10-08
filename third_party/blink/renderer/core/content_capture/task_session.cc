@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,12 +30,9 @@ TaskSession::DocumentSession::~DocumentSession() {
 }
 
 bool TaskSession::DocumentSession::AddDetachedNode(const Node& node) {
-  // Only notify the detachment of visible node which shall be in |sent_nodes|
-  // or |changed_nodes|.
-  // Take the node out of |sent_nodes| or |changed_nodes|, otherwise, the |node|
-  // would be found invisible in next capturing and be reported as the removed
-  // node again.
-  if (sent_nodes_.Take(&node) || changed_nodes_.Take(&node)) {
+  // Take the node out of |sent_nodes|, otherwise, the |node| would be found
+  // invisible in next capturing and be reported as the removed node again.
+  if (sent_nodes_.Take(&node)) {
     detached_nodes_.emplace_back(reinterpret_cast<int64_t>(&node));
     return true;
   }
@@ -47,7 +44,7 @@ WebVector<int64_t> TaskSession::DocumentSession::MoveDetachedNodes() {
 }
 
 ContentHolder* TaskSession::DocumentSession::GetNextUnsentNode() {
-  while (!captured_content_.empty()) {
+  while (!captured_content_.IsEmpty()) {
     auto node = captured_content_.begin()->key;
     const gfx::Rect rect = captured_content_.Take(node);
     if (node && node->GetLayoutObject() && !sent_nodes_.Contains(node)) {
@@ -60,11 +57,10 @@ ContentHolder* TaskSession::DocumentSession::GetNextUnsentNode() {
 }
 
 ContentHolder* TaskSession::DocumentSession::GetNextChangedNode() {
-  while (!changed_content_.empty()) {
+  while (!changed_content_.IsEmpty()) {
     auto node = changed_content_.begin()->key;
     const gfx::Rect rect = changed_content_.Take(node);
     if (node.Get() && node->GetLayoutObject()) {
-      sent_nodes_.insert(WeakMember<const Node>(node));
       total_sent_nodes_++;
       return MakeGarbageCollected<ContentHolder>(node, rect);
     }
@@ -76,7 +72,7 @@ bool TaskSession::DocumentSession::AddChangedNode(Node& node) {
   // No need to save the node that hasn't been sent because it will be captured
   // once being on screen.
   if (sent_nodes_.Contains(&node)) {
-    changed_nodes_.insert(WeakMember<const Node>(&node));
+    changed_nodes_.insert(WeakMember<Node>(&node));
     return true;
   }
   return false;
@@ -87,8 +83,6 @@ void TaskSession::DocumentSession::OnContentCaptured(
     const gfx::Rect& visual_rect) {
   if (changed_nodes_.Take(&node)) {
     changed_content_.Set(WeakMember<Node>(&node), visual_rect);
-    if (IsConstantStreamingEnabled())
-      sent_nodes_.Take(&node);
   } else {
     if (IsConstantStreamingEnabled()) {
       if (auto value = sent_nodes_.Take(&node))
@@ -152,7 +146,7 @@ TaskSession::DocumentSession* TaskSession::GetNextUnsentDocumentSession() {
 void TaskSession::SetCapturedContent(
     const Vector<cc::NodeInfo>& captured_content) {
   DCHECK(!HasUnsentData());
-  DCHECK(!captured_content.empty());
+  DCHECK(!captured_content.IsEmpty());
   GroupCapturedContentByDocument(captured_content);
   has_unsent_data_ = true;
 }

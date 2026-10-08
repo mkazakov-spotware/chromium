@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 
 #include "base/bind.h"
 #include "base/hash/hash.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/trace_event.h"
 #include "components/favicon/core/favicon_client.h"
@@ -205,7 +205,7 @@ void FaviconServiceImpl::SetImportedFavicons(
 
 void FaviconServiceImpl::AddPageNoVisitForBookmark(
     const GURL& url,
-    const std::u16string& title) {
+    const base::string16& title) {
   history_service_->AddPageNoVisitForBookmark(url, title);
 }
 

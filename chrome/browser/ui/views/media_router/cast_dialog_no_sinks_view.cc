@@ -1,14 +1,15 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/media_router/cast_dialog_no_sinks_view.h"
 
 #include <memory>
-#include <string>
 #include <utility>
 
 #include "base/bind.h"
+#include "base/strings/string16.h"
+#include "base/task/post_task.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "chrome/app/vector_icons/vector_icons.h"
@@ -16,7 +17,7 @@
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
-#include "chrome/browser/ui/views/controls/hover_button.h"
+#include "chrome/browser/ui/views/hover_button.h"
 #include "chrome/browser/ui/views/media_router/cast_dialog_helper.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/generated_resources.h"
@@ -24,12 +25,9 @@
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/paint_vector_icon.h"
-#include "ui/views/animation/ink_drop.h"
-#include "ui/views/border.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/button/image_button_factory.h"
 #include "ui/views/controls/image_view.h"
@@ -55,7 +53,7 @@ CastDialogNoSinksView::CastDialogNoSinksView(Profile* profile)
 
   auto* layout_manager = SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kHorizontal,
-      gfx::Insets::VH(0, horizontal_padding), icon_label_spacing));
+      gfx::Insets(0, horizontal_padding), icon_label_spacing));
   layout_manager->set_cross_axis_alignment(
       views::BoxLayout::CrossAxisAlignment::kCenter);
 
@@ -72,7 +70,7 @@ CastDialogNoSinksView::~CastDialogNoSinksView() = default;
 
 void CastDialogNoSinksView::SetHelpIconView() {
   // Replace the throbber with the help icon.
-  RemoveChildViewT(icon_.get());
+  RemoveChildViewT(icon_);
   const auto navigate = [](Profile* profile) {
     NavigateParams params(profile, GURL(chrome::kCastNoDestinationFoundURL),
                           ui::PAGE_TRANSITION_LINK);
@@ -86,14 +84,11 @@ void CastDialogNoSinksView::SetHelpIconView() {
   icon->SetBorder(views::CreateEmptyBorder(media_router::kPrimaryIconBorder));
   icon->SetAccessibleName(
       l10n_util::GetStringUTF16(IDS_MEDIA_ROUTER_NO_DEVICES_FOUND_BUTTON));
-  views::InkDrop::Get(icon)->SetMode(views::InkDropHost::InkDropMode::OFF);
+  icon->SetInkDropMode(views::InkDropHostView::InkDropMode::OFF);
   icon_ = icon;
 
   label_->SetText(
       l10n_util::GetStringUTF16(IDS_MEDIA_ROUTER_STATUS_NO_DEVICES_FOUND));
 }
-
-BEGIN_METADATA(CastDialogNoSinksView, views::View)
-END_METADATA
 
 }  // namespace media_router

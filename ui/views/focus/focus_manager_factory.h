@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,11 +25,11 @@ class VIEWS_EXPORT FocusManagerFactory {
   // to the default factory which creates plain FocusManager.
   static void Install(FocusManagerFactory* factory);
 
-  FocusManagerFactory(const FocusManagerFactory&) = delete;
-  FocusManagerFactory& operator=(const FocusManagerFactory&) = delete;
-
  protected:
   FocusManagerFactory();
+
+  FocusManagerFactory(const FocusManagerFactory&) = delete;
+  FocusManagerFactory& operator=(const FocusManagerFactory&) = delete;
   virtual ~FocusManagerFactory();
 
   // Create a FocusManager for the given |widget|.

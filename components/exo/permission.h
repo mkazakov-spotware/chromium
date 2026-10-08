@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,19 +6,14 @@
 #define COMPONENTS_EXO_PERMISSION_H_
 
 #include "base/time/time.h"
-#include "ui/base/class_property.h"
 
 namespace exo {
 
-// An aura::Window property that adds a capability to a window.
 class Permission {
  public:
   enum class Capability {
     kActivate,
   };
-
-  // Creates a permission with a |capability| that never expires.
-  explicit Permission(Capability capability);
 
   // Create a permission with the given |capability| until |timeout| elapses.
   Permission(Capability capability, base::TimeDelta timeout);
@@ -29,7 +24,7 @@ class Permission {
   Permission& operator=(const Permission& other) = delete;
   Permission& operator=(Permission&& other) = delete;
 
-  virtual ~Permission();
+  virtual ~Permission() = default;
 
   // Prevent this permission from returning true on subsequent Check()s.
   void Revoke();
@@ -43,8 +38,6 @@ class Permission {
 
   base::Time expiry_;
 };
-
-extern const ui::ClassProperty<Permission*>* const kPermissionKey;
 
 }  // namespace exo
 

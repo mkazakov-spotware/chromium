@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -149,15 +149,19 @@ bool XmlReader::GetAllDeclaredNamespaces(
 }
 
 bool XmlReader::GetTextIfTextElement(std::string* content) {
-  return GetTextFromNodeIfType(XML_READER_TYPE_TEXT, content);
+  if (NodeType() != XML_READER_TYPE_TEXT)
+    return false;
+
+  *content = XmlStringToStdString(xmlTextReaderConstValue(reader_));
+  return true;
 }
 
 bool XmlReader::GetTextIfCDataElement(std::string* content) {
-  return GetTextFromNodeIfType(XML_READER_TYPE_CDATA, content);
-}
+  if (NodeType() != XML_READER_TYPE_CDATA)
+    return false;
 
-bool XmlReader::GetTextIfSignificantWhitespaceElement(std::string* content) {
-  return GetTextFromNodeIfType(XML_READER_TYPE_SIGNIFICANT_WHITESPACE, content);
+  *content = XmlStringToStdString(xmlTextReaderConstValue(reader_));
+  return true;
 }
 
 bool XmlReader::IsElement() {
@@ -221,12 +225,4 @@ bool XmlReader::SkipToElement() {
 
 int XmlReader::NodeType() {
   return xmlTextReaderNodeType(reader_);
-}
-
-bool XmlReader::GetTextFromNodeIfType(int node_type, std::string* content) {
-  if (NodeType() != node_type)
-    return false;
-
-  *content = XmlStringToStdString(xmlTextReaderConstValue(reader_));
-  return true;
 }

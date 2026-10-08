@@ -1,4 +1,4 @@
-// Copyright 2010 The Chromium Authors
+// Copyright (c) 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -327,10 +327,10 @@ HRESULT GetPendingMovesValue(std::vector<PendingMove>* pending_moves) {
 bool MatchPendingDeletePath(const base::FilePath& short_form_needle,
                             const base::FilePath& reg_path) {
   // Stores the path stored in each entry.
-  std::wstring match_path(reg_path.value());
+  base::string16 match_path(reg_path.value());
 
   // First chomp the prefix since that will mess up GetShortPathName.
-  base::WStringPiece prefix(L"\\??\\");
+  base::StringPiece16 prefix(L"\\??\\");
   if (base::StartsWith(match_path, prefix, base::CompareCase::SENSITIVE))
     match_path = match_path.substr(prefix.size());
 

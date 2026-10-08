@@ -1,4 +1,20 @@
-    <style include="cr-actionable-row-style">
+<link rel="import" href="../../html/polymer.html">
+
+<link rel="import" href="../../html/cr/ui/focus_without_ink.html">
+<link rel="import" href="../cr_icon_button/cr_icon_button.html">
+<link rel="import" href="../icons.html">
+<link rel="import" href="../shared_vars_css.html">
+
+<dom-module id="cr-expand-button">
+  <template>
+    <style>
+      :host {
+        align-items: center;
+        cursor: pointer;
+        display: flex;
+        outline: none;
+      }
+
       :host([disabled]) {
         opacity: 0.65;
         pointer-events: none;
@@ -14,7 +30,6 @@
       }
 
       cr-icon-button {
-        --cr-icon-button-icon-size: var(--cr-expand-button-icon-size, 20px);
         --cr-icon-button-size: var(--cr-expand-button-size, 36px);
       }
     </style>
@@ -22,3 +37,6 @@
     <div id="label" aria-hidden="true"><slot></slot></div>
     <cr-icon-button id="icon" aria-labelledby="label" disabled="[[disabled]]"
         tabindex="[[tabIndex]]"></cr-icon-button>
+  </template>
+  <script src="cr_expand_button.js"></script>
+</dom-module>

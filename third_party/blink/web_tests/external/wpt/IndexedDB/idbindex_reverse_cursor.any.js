@@ -1,5 +1,5 @@
 // META: title=Reverse Cursor Validity
-// META: script=resources/support-promises.js
+// META: script=support-promises.js
 
 async function iterateAndReturnAllCursorResult(testCase, cursor) {
   return new Promise((resolve, reject) => {

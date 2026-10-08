@@ -2,11 +2,6 @@
 :host {
   --tabstrip-tab-group-title-height: 22px;
   --tabstrip-tab-group-title-margin: var(--tabstrip-tab-spacing);
-  --tab-thumbnail-height-in-group: calc(var(--tabstrip-tab-thumbnail-height) -
-      var(--tabstrip-tab-group-title-height) -
-      var(--tabstrip-tab-group-title-margin));
-  --tab-thumbnail-width-in-group: calc(var(--tab-thumbnail-height-in-group) *
-      var(--tabstrip-tab-thumbnail-aspect-ratio));
 }
 
 :host(:empty:not([dragging])) {
@@ -26,7 +21,6 @@
 
 #chipContainer {
   min-width: 100%;
-  position: relative;
   width: 0;
 }
 
@@ -64,32 +58,27 @@
 }
 
 #chip:focus #title {
-  box-shadow: 0 0 0 2px var(--color-web-ui-tab-strip-focus-outline);
+  box-shadow: 0 0 0 2px var(--tabstrip-focus-outline-color);
   outline: none;
 }
 
-/*
- * When the drag starts, the tab group will shrink and the tabs will stack
- * together. If the touch position is outside the draggable element the drag
- * will be cancelled. In order to prevent that, the dragHandle is set to the
- * width of the thumbnail to make sure it's still under touch position after
- * the tab group shrinks.
- */
-#dragHandle {
-  height: 100%;
-  position: absolute;
-  top: 0;
-  width: var(--tab-thumbnail-width-in-group);
-}
-
 #tabs {
+  /* Cached CSS variable so the children could use them and override the
+   * original values. */
+  --ungrouped-tab-thumbnail-height: var(--tabstrip-tab-thumbnail-height);
+
   display: flex;
   min-width: fit-content;
 }
 
 :host ::slotted(tabstrip-tab) {
-  --tabstrip-tab-thumbnail-height: var(--tab-thumbnail-height-in-group);
-  --tabstrip-tab-thumbnail-width: var(--tab-thumbnail-width-in-group);
+  --tabstrip-tab-thumbnail-height: calc(
+      var(--ungrouped-tab-thumbnail-height) -
+      var(--tabstrip-tab-group-title-height) -
+      var(--tabstrip-tab-group-title-margin));
+  --tabstrip-tab-thumbnail-width: calc(
+      var(--tabstrip-tab-thumbnail-height) *
+      var(--tabstrip-tab-thumbnail-aspect-ratio));
 
   /* Recalculate tab heights and widths off new thumbnail sizes. */
   --tabstrip-tab-height: calc(var(--tabstrip-tab-title-height) +
@@ -115,7 +104,7 @@
 }
 
 :host([getting-drag-image_]) #tabGroup {
-  background: var(--color-web-ui-tab-strip-background);
+  background: var(--tabstrip-background-color);
   border-radius: var(--tabstrip-tab-border-radius);
   box-shadow: var(--tabstrip-tab-dragging-shadow);
   height: var(--tabstrip-tab-height);
@@ -124,8 +113,7 @@
 }
 
 :host([getting-drag-image_]) ::slotted(tabstrip-tab) {
-  --tabstrip-tab-active-border-color:
-      var(--color-web-ui-tab-strip-tab-separator);
+  --tabstrip-tab-active-border-color: var(--tabstrip-tab-separator-color);
 }
 
 :host([getting-drag-image_]) ::slotted(tabstrip-tab:first-child) {
@@ -166,7 +154,7 @@
 }
 
 :host([dragging]) #dragPlaceholder {
-  background: var(--color-web-ui-tab-strip-tab-background);
+  background: var(--tabstrip-tab-background-color);
   border-radius: var(--tabstrip-tab-border-radius);
   height: var(--tabstrip-tab-height);
   opacity: 0.5;
@@ -178,12 +166,6 @@
   position: absolute;
   top: calc(100vh + var(--drag-image-padding));
 }
-
-:host([touch_pressed_]) #dragImage {
-  transform: scale(1.1);
-  transform-origin: center;
-  transition-duration: 300ms;
-}
 </style>
 
 <div id="dragPlaceholder"></div>
@@ -191,10 +173,9 @@
 <div id="dragImage">
   <div id="tabGroup">
     <div id="chipContainer">
-      <div id="chip" tabindex="0" role="button"
+      <div id="chip" draggable="true" tabindex="0" role="button"
          aria-describedby="tabs">
         <div id="title"></div>
-        <div id="dragHandle" draggable="true"></div>
       </div>
     </div>
     <div id="tabs">

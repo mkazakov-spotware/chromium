@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,7 @@
 #include "third_party/blink/renderer/core/workers/worker_global_scope.h"
 #include "third_party/blink/renderer/core/workers/worker_thread.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
-#include "third_party/blink/renderer/platform/wtf/cross_thread_copier_mojo.h"
+#include "third_party/blink/renderer/platform/wtf/cross_thread_copier.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace WTF {
@@ -62,10 +62,6 @@ DevToolsAgent* DevToolsAgentFromContext(ExecutionContext* execution_context) {
 
 }  // namespace
 
-// Used by the DevToolsAgent class to bind the passed |receiver| on the IO
-// thread. Lives on the IO thread and posts to |inspector_task_runner| to do
-// actual work. This class is used when DevToolsAgent runs on a worker so we
-// don't block its execution.
 class DevToolsAgent::IOAgent : public mojom::blink::DevToolsAgent {
  public:
   IOAgent(scoped_refptr<base::SingleThreadTaskRunner> io_task_runner,
@@ -86,16 +82,11 @@ class DevToolsAgent::IOAgent : public mojom::blink::DevToolsAgent {
                             CrossThreadUnretained(this), std::move(receiver)));
   }
 
-  IOAgent(const IOAgent&) = delete;
-  IOAgent& operator=(const IOAgent&) = delete;
-
   void BindInterface(
       mojo::PendingReceiver<mojom::blink::DevToolsAgent> receiver) {
-    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
     receiver_.Bind(std::move(receiver), io_task_runner_);
   }
 
-  // May be called from any thread.
   void DeleteSoon() { io_task_runner_->DeleteSoon(FROM_HERE, this); }
 
   ~IOAgent() override = default;
@@ -108,16 +99,13 @@ class DevToolsAgent::IOAgent : public mojom::blink::DevToolsAgent {
       mojo::PendingReceiver<mojom::blink::DevToolsSession> io_session,
       mojom::blink::DevToolsSessionStatePtr reattach_session_state,
       bool client_expects_binary_responses,
-      bool client_is_trusted,
-      const WTF::String& session_id,
-      bool session_waits_for_debugger) override {
-    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
+      const WTF::String& session_id) override {
     DCHECK(receiver_.is_bound());
     inspector_task_runner_->AppendTask(CrossThreadBindOnce(
         &::blink::DevToolsAgent::AttachDevToolsSessionImpl, agent_,
         std::move(host), std::move(main_session), std::move(io_session),
         std::move(reattach_session_state), client_expects_binary_responses,
-        client_is_trusted, session_id, session_waits_for_debugger));
+        session_id));
   }
 
   void InspectElement(const gfx::Point& point) override {
@@ -125,33 +113,13 @@ class DevToolsAgent::IOAgent : public mojom::blink::DevToolsAgent {
     NOTREACHED();
   }
 
-  void ReportChildTargets(bool report,
+  void ReportChildWorkers(bool report,
                           bool wait_for_debugger,
                           base::OnceClosure callback) override {
-    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
     DCHECK(receiver_.is_bound());
-
-    // Splitting the mojo callback so we don't drop it if the
-    // inspector_task_runner_ has been disposed already.
-    auto split_callback = base::SplitOnceCallback(std::move(callback));
-    bool did_append_task =
-        inspector_task_runner_->AppendTask(CrossThreadBindOnce(
-            &blink::DevToolsAgent::ReportChildTargetsPostCallbackToIO, agent_,
-            report, wait_for_debugger,
-            CrossThreadBindOnce(std::move(split_callback.first))));
-
-    if (!did_append_task) {
-      // If the task runner is no longer processing tasks (typically during
-      // shutdown after InspectorTaskRunner::Dispose() has been called), `this`
-      // is expected to be destroyed shortly after by a task posted to the IO
-      // thread in DeleteSoon(). Until that task runs and tears down the Mojo
-      // endpoint, Mojo expects all reply callbacks to be properly handled and
-      // not simply dropped on the floor, so just invoke `callback` even though
-      // it's somewhat pointless. Note that even if InspectorTaskRunner did
-      // successfully append a task it's not guaranteed that it'll be executed
-      // but it also won't simply be dropped.
-      std::move(split_callback.second).Run();
-    }
+    inspector_task_runner_->AppendTask(CrossThreadBindOnce(
+        &::blink::DevToolsAgent::ReportChildWorkersPostCallbackToIO, agent_,
+        report, wait_for_debugger, CrossThreadBindOnce(std::move(callback))));
   }
 
  private:
@@ -159,6 +127,8 @@ class DevToolsAgent::IOAgent : public mojom::blink::DevToolsAgent {
   scoped_refptr<InspectorTaskRunner> inspector_task_runner_;
   CrossThreadWeakPersistent<::blink::DevToolsAgent> agent_;
   mojo::Receiver<mojom::blink::DevToolsAgent> receiver_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(IOAgent);
 };
 
 DevToolsAgent::DevToolsAgent(
@@ -198,8 +168,8 @@ void DevToolsAgent::BindReceiverForWorker(
   DCHECK(!associated_receiver_.is_bound());
 
   host_remote_.Bind(std::move(host_remote), std::move(task_runner));
-  host_remote_.set_disconnect_handler(WTF::BindOnce(
-      &DevToolsAgent::CleanupConnection, WrapWeakPersistent(this)));
+  host_remote_.set_disconnect_handler(
+      WTF::Bind(&DevToolsAgent::CleanupConnection, WrapWeakPersistent(this)));
 
   io_agent_ =
       new IOAgent(io_task_runner_, inspector_task_runner_,
@@ -213,8 +183,8 @@ void DevToolsAgent::BindReceiver(
   DCHECK(!associated_receiver_.is_bound());
   associated_receiver_.Bind(std::move(receiver), task_runner);
   associated_host_remote_.Bind(std::move(host_remote), task_runner);
-  associated_host_remote_.set_disconnect_handler(WTF::BindOnce(
-      &DevToolsAgent::CleanupConnection, WrapWeakPersistent(this)));
+  associated_host_remote_.set_disconnect_handler(
+      WTF::Bind(&DevToolsAgent::CleanupConnection, WrapWeakPersistent(this)));
 }
 
 void DevToolsAgent::AttachDevToolsSessionImpl(
@@ -224,16 +194,13 @@ void DevToolsAgent::AttachDevToolsSessionImpl(
     mojo::PendingReceiver<mojom::blink::DevToolsSession> io_session_receiver,
     mojom::blink::DevToolsSessionStatePtr reattach_session_state,
     bool client_expects_binary_responses,
-    bool client_is_trusted,
-    const WTF::String& session_id,
-    bool session_waits_for_debugger) {
+    const WTF::String& session_id) {
   TRACE_EVENT0("devtools", "Agent::AttachDevToolsSessionImpl");
   client_->DebuggerTaskStarted();
   DevToolsSession* session = MakeGarbageCollected<DevToolsSession>(
       this, std::move(host), std::move(session_receiver),
       std::move(io_session_receiver), std::move(reattach_session_state),
-      client_expects_binary_responses, client_is_trusted, session_id,
-      session_waits_for_debugger,
+      client_expects_binary_responses, session_id,
       inspector_task_runner_->isolate_task_runner());
   sessions_.insert(session);
   client_->DebuggerTaskFinished();
@@ -246,24 +213,18 @@ void DevToolsAgent::AttachDevToolsSession(
     mojo::PendingReceiver<mojom::blink::DevToolsSession> io_session_receiver,
     mojom::blink::DevToolsSessionStatePtr reattach_session_state,
     bool client_expects_binary_responses,
-    bool client_is_trusted,
-    const WTF::String& session_id,
-    bool session_waits_for_debugger) {
+    const WTF::String& session_id) {
   TRACE_EVENT0("devtools", "Agent::AttachDevToolsSession");
   if (associated_receiver_.is_bound()) {
-    // Discard `session_waits_for_debugger` for regular pages, this is rather
-    // handled by the navigation throttles machinery on the browser side.
-    AttachDevToolsSessionImpl(
-        std::move(host), std::move(session_receiver),
-        std::move(io_session_receiver), std::move(reattach_session_state),
-        client_expects_binary_responses, client_is_trusted, session_id,
-        /* session_waits_for_debugger */ false);
+    AttachDevToolsSessionImpl(std::move(host), std::move(session_receiver),
+                              std::move(io_session_receiver),
+                              std::move(reattach_session_state),
+                              client_expects_binary_responses, session_id);
   } else {
     io_agent_->AttachDevToolsSession(
         std::move(host), std::move(session_receiver),
         std::move(io_session_receiver), std::move(reattach_session_state),
-        client_expects_binary_responses, client_is_trusted, session_id,
-        session_waits_for_debugger);
+        client_expects_binary_responses, session_id);
   }
 }
 
@@ -285,42 +246,42 @@ void DevToolsAgent::FlushProtocolNotifications() {
     session->FlushProtocolNotifications();
 }
 
-void DevToolsAgent::ReportChildTargetsPostCallbackToIO(
+void DevToolsAgent::ReportChildWorkersPostCallbackToIO(
     bool report,
     bool wait_for_debugger,
     CrossThreadOnceClosure callback) {
-  TRACE_EVENT0("devtools", "Agent::ReportChildTargetsPostCallbackToIO");
-  ReportChildTargetsImpl(report, wait_for_debugger, base::DoNothing());
+  TRACE_EVENT0("devtools", "Agent::ReportChildWorkersPostCallbackToIO");
+  ReportChildWorkersImpl(report, wait_for_debugger, base::DoNothing());
   // This message originally came from the IOAgent for a worker which means the
   // response needs to be sent on the IO thread as well, so we post the callback
   // task back there to be run. In the non-IO case, this callback would be run
-  // synchronously at the end of ReportChildTargetsImpl, so the ordering between
-  // ReportChildTargets and running the callback is preserved.
+  // synchronously at the end of ReportChildWorkersImpl, so the ordering between
+  // ReportChildWorkers and running the callback is preserved.
   PostCrossThreadTask(*io_task_runner_, FROM_HERE, std::move(callback));
 }
 
-void DevToolsAgent::ReportChildTargetsImpl(bool report,
+void DevToolsAgent::ReportChildWorkersImpl(bool report,
                                            bool wait_for_debugger,
                                            base::OnceClosure callback) {
-  TRACE_EVENT0("devtools", "Agent::ReportChildTargetsImpl");
+  TRACE_EVENT0("devtools", "Agent::ReportChildWorkersImpl");
   report_child_workers_ = report;
   pause_child_workers_on_start_ = wait_for_debugger;
   if (report_child_workers_) {
     auto workers = std::move(unreported_child_worker_threads_);
     for (auto& it : workers)
-      ReportChildTarget(std::move(it.value));
+      ReportChildWorker(std::move(it.value));
   }
   std::move(callback).Run();
 }
 
-void DevToolsAgent::ReportChildTargets(bool report,
+void DevToolsAgent::ReportChildWorkers(bool report,
                                        bool wait_for_debugger,
                                        base::OnceClosure callback) {
-  TRACE_EVENT0("devtools", "Agent::ReportChildTargets");
+  TRACE_EVENT0("devtools", "Agent::ReportChildWorkers");
   if (associated_receiver_.is_bound()) {
-    ReportChildTargetsImpl(report, wait_for_debugger, std::move(callback));
+    ReportChildWorkersImpl(report, wait_for_debugger, std::move(callback));
   } else {
-    io_agent_->ReportChildTargets(report, wait_for_debugger,
+    io_agent_->ReportChildWorkers(report, wait_for_debugger,
                                   std::move(callback));
   }
 }
@@ -331,7 +292,7 @@ std::unique_ptr<WorkerDevToolsParams> DevToolsAgent::WorkerThreadCreated(
     WorkerThread* worker_thread,
     const KURL& url,
     const String& global_scope_name,
-    const absl::optional<const blink::DedicatedWorkerToken>& token) {
+    const base::Optional<const blink::DedicatedWorkerToken>& token) {
   auto result = std::make_unique<WorkerDevToolsParams>();
   base::UnguessableToken devtools_worker_token =
       token.has_value() ? token.value().value()
@@ -342,11 +303,6 @@ std::unique_ptr<WorkerDevToolsParams> DevToolsAgent::WorkerThreadCreated(
   if (!agent)
     return result;
 
-  mojom::blink::DevToolsExecutionContextType context_type =
-      token.has_value()
-          ? mojom::blink::DevToolsExecutionContextType::kDedicatedWorker
-          : mojom::blink::DevToolsExecutionContextType::kWorklet;
-
   auto data = std::make_unique<WorkerData>();
   data->url = url;
   result->agent_receiver = data->agent_remote.InitWithNewPipeAndPassReceiver();
@@ -355,11 +311,10 @@ std::unique_ptr<WorkerDevToolsParams> DevToolsAgent::WorkerThreadCreated(
   data->devtools_worker_token = result->devtools_worker_token;
   data->waiting_for_debugger = agent->pause_child_workers_on_start_;
   data->name = global_scope_name;
-  data->context_type = context_type;
   result->wait_for_debugger = agent->pause_child_workers_on_start_;
 
   if (agent->report_child_workers_) {
-    agent->ReportChildTarget(std::move(data));
+    agent->ReportChildWorker(std::move(data));
   } else {
     agent->unreported_child_worker_threads_.insert(worker_thread,
                                                    std::move(data));
@@ -374,19 +329,17 @@ void DevToolsAgent::WorkerThreadTerminated(ExecutionContext* parent_context,
     agent->unreported_child_worker_threads_.erase(worker_thread);
 }
 
-void DevToolsAgent::ReportChildTarget(std::unique_ptr<WorkerData> data) {
+void DevToolsAgent::ReportChildWorker(std::unique_ptr<WorkerData> data) {
   if (host_remote_.is_bound()) {
-    host_remote_->ChildTargetCreated(
+    host_remote_->ChildWorkerCreated(
         std::move(data->agent_remote), std::move(data->host_receiver),
         std::move(data->url), std::move(data->name),
-        data->devtools_worker_token, data->waiting_for_debugger,
-        data->context_type);
+        data->devtools_worker_token, data->waiting_for_debugger);
   } else if (associated_host_remote_.is_bound()) {
-    associated_host_remote_->ChildTargetCreated(
+    associated_host_remote_->ChildWorkerCreated(
         std::move(data->agent_remote), std::move(data->host_receiver),
         std::move(data->url), std::move(data->name),
-        data->devtools_worker_token, data->waiting_for_debugger,
-        data->context_type);
+        data->devtools_worker_token, data->waiting_for_debugger);
   }
 }
 

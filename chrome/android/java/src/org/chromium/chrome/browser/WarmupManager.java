@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package org.chromium.chrome.browser;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.net.Uri;
+import android.os.SystemClock;
 import android.view.ContextThemeWrapper;
 import android.view.InflateException;
 import android.view.View;
@@ -14,6 +15,7 @@ import android.view.ViewGroup;
 import android.view.ViewStub;
 import android.widget.FrameLayout;
 
+import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Log;
@@ -21,9 +23,10 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.TraceEvent;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.library_loader.LibraryLoader;
+import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.AsyncTask;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.crash.ChromePureJavaExceptionReporter;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.toolbar.ControlContainer;
 import org.chromium.components.embedder_support.util.UrlConstants;
@@ -31,6 +34,8 @@ import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
 import org.chromium.ui.LayoutInflaterUtils;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -49,12 +54,39 @@ import java.util.Set;
 public class WarmupManager {
     private static final String TAG = "WarmupManager";
 
+    @VisibleForTesting
+    static final String WEBCONTENTS_STATUS_HISTOGRAM = "CustomTabs.SpareWebContents.Status2";
+
+    public static final boolean FOR_CCT = true;
+
+    // See CustomTabs.SpareWebContentsStatus histogram. Append-only.
+    @IntDef({WebContentsStatus.CREATED, WebContentsStatus.USED, WebContentsStatus.KILLED,
+            WebContentsStatus.DESTROYED, WebContentsStatus.STOLEN})
+    @Retention(RetentionPolicy.SOURCE)
+    @interface WebContentsStatus {
+        @VisibleForTesting
+        int CREATED = 0;
+        @VisibleForTesting
+        int USED = 1;
+        @VisibleForTesting
+        int KILLED = 2;
+        @VisibleForTesting
+        int DESTROYED = 3;
+        @VisibleForTesting
+        int STOLEN = 4;
+        int NUM_ENTRIES = 5;
+    }
+
     /**
      * Observes spare WebContents deaths. In case of death, records stats, and cleanup the objects.
      */
     private class RenderProcessGoneObserver extends WebContentsObserver {
         @Override
-        public void renderProcessGone() {
+        public void renderProcessGone(boolean wasOomProtected) {
+            long elapsed = SystemClock.elapsedRealtime() - mWebContentsCreationTimeMs;
+            RecordHistogram.recordLongTimesHistogram(
+                    "CustomTabs.SpareWebContents.TimeBeforeDeath", elapsed);
+            recordWebContentsStatus(WebContentsStatus.KILLED);
             destroySpareWebContentsInternal();
         }
     }
@@ -69,7 +101,9 @@ public class WarmupManager {
     private ViewGroup mMainView;
     @VisibleForTesting
     WebContents mSpareWebContents;
+    private long mWebContentsCreationTimeMs;
     private RenderProcessGoneObserver mObserver;
+    private boolean mWebContentsCreatedForCCT;
 
     /**
      * @return The singleton instance for the WarmupManager, creating one if necessary.
@@ -110,11 +144,11 @@ public class WarmupManager {
             Context baseContext, int toolbarContainerId, int toolbarId) {
         try (TraceEvent e = TraceEvent.scoped("WarmupManager.inflateViewHierarchy")) {
             ContextThemeWrapper context =
-                    new ContextThemeWrapper(baseContext, ActivityUtils.getThemeId());
+                    new ContextThemeWrapper(baseContext, ChromeActivity.getThemeId());
             FrameLayout contentHolder = new FrameLayout(context);
             ViewGroup mainView =
                     (ViewGroup) LayoutInflaterUtils.inflate(context, R.layout.main, contentHolder);
-            if (toolbarContainerId != ActivityUtils.NO_RESOURCE_ID) {
+            if (toolbarContainerId != ChromeActivity.NO_CONTROL_CONTAINER) {
                 ViewStub stub = (ViewStub) mainView.findViewById(R.id.control_container_stub);
                 stub.setLayoutResource(toolbarContainerId);
                 stub.inflate();
@@ -124,20 +158,13 @@ public class WarmupManager {
             ControlContainer controlContainer =
                     (ControlContainer) mainView.findViewById(R.id.control_container);
 
-            if (toolbarId != ActivityUtils.NO_RESOURCE_ID && controlContainer != null) {
+            if (toolbarId != ChromeActivity.NO_TOOLBAR_LAYOUT && controlContainer != null) {
                 controlContainer.initWithToolbar(toolbarId);
             }
             return mainView;
         } catch (InflateException e) {
-            // Warmup manager is only a performance improvement. If inflation failed, it will be
-            // redone when the CCT is actually launched using an activity context. So, swallow
-            // exceptions here to improve resilience. See https://crbug.com/606715.
+            // See https://crbug.com/606715.
             Log.e(TAG, "Inflation exception.", e);
-            // An exception caught here may indicate a real bug in production code. We report the
-            // exceptions to monitor any spikes or stacks that point to Chrome code.
-            Throwable throwable = new Throwable(
-                    "This is not a crash. See https://crbug.com/1259276 for details.", e);
-            ChromePureJavaExceptionReporter.reportJavaException(throwable);
             return null;
         }
     }
@@ -243,6 +270,22 @@ public class WarmupManager {
         WarmupManagerJni.get().startPreconnectPredictorInitialization(profile);
     }
 
+    /**
+     * Reports to WarmupManager on the next set of URLs that the user is expected to navigate to
+     * next. The set of URLs are reported by an external Android app.
+     *
+     * @param profile The profile to use.
+     * @param packagesName Possible names of the external Android apps that may have reported the
+     *         set of URLs.
+     * @param urls Ordered list of URLs that the user is expected to navigate to next. The URLs are
+     *         ordered in non-increasing probability of navigation.
+     */
+    public static void reportNextLikelyNavigationsOnUiThread(
+            Profile profile, String[] packagesName, String[] urls) {
+        ThreadUtils.assertOnUiThread();
+        WarmupManagerJni.get().reportNextLikelyNavigations(profile, packagesName, urls);
+    }
+
     /** Asynchronously preconnects to a given URL if the data reduction proxy is not in use.
      *
      * @param profile The profile to use for the preconnection.
@@ -276,19 +319,43 @@ public class WarmupManager {
     }
 
     /**
+     * Warms up a spare, empty RenderProcessHost that may be used for subsequent navigations.
+     *
+     * The spare RenderProcessHost will be used automatically in subsequent navigations.
+     * There is nothing further the WarmupManager needs to do to enable that use.
+     *
+     * This uses a different mechanism than createSpareWebContents, below, and is subject
+     * to fewer restrictions.
+     *
+     * This must be called from the UI thread.
+     */
+    public void createSpareRenderProcessHost(Profile profile) {
+        ThreadUtils.assertOnUiThread();
+        if (!LibraryLoader.getInstance().isInitialized()) return;
+
+        destroySpareWebContents();
+        WarmupManagerJni.get().warmupSpareRenderer(profile);
+    }
+
+    /**
      * Creates and initializes a spare WebContents, to be used in a subsequent navigation.
      *
      * This creates a renderer that is suitable for any navigation. It can be picked up by any tab.
      * Can be called multiple times, and must be called from the UI thread.
+     *
+     * @param forCCT Whether this WebContents is being created for CCT.
      */
-    public void createSpareWebContents() {
+    public void createSpareWebContents(boolean forCCT) {
         ThreadUtils.assertOnUiThread();
         if (!LibraryLoader.getInstance().isInitialized() || mSpareWebContents != null) return;
 
+        mWebContentsCreatedForCCT = forCCT;
         mSpareWebContents = new WebContentsFactory().createWebContentsWithWarmRenderer(
                 Profile.getLastUsedRegularProfile(), true /* initiallyHidden */);
         mObserver = new RenderProcessGoneObserver();
         mSpareWebContents.addObserver(mObserver);
+        mWebContentsCreationTimeMs = SystemClock.elapsedRealtime();
+        recordWebContentsStatus(WebContentsStatus.CREATED);
     }
 
     /**
@@ -297,6 +364,7 @@ public class WarmupManager {
     public void destroySpareWebContents() {
         ThreadUtils.assertOnUiThread();
         if (mSpareWebContents == null) return;
+        recordWebContentsStatus(WebContentsStatus.DESTROYED);
         destroySpareWebContentsInternal();
     }
 
@@ -308,7 +376,8 @@ public class WarmupManager {
      *
      * @return a WebContents, or null.
      */
-    public WebContents takeSpareWebContents(boolean incognito, boolean initiallyHidden) {
+    public WebContents takeSpareWebContents(
+            boolean incognito, boolean initiallyHidden, boolean forCCT) {
         ThreadUtils.assertOnUiThread();
         if (incognito) return null;
         WebContents result = mSpareWebContents;
@@ -317,6 +386,8 @@ public class WarmupManager {
         result.removeObserver(mObserver);
         mObserver = null;
         if (!initiallyHidden) result.onShow();
+        recordWebContentsStatus(mWebContentsCreatedForCCT == forCCT ? WebContentsStatus.USED
+                                                                    : WebContentsStatus.STOLEN);
         return result;
     }
 
@@ -334,9 +405,17 @@ public class WarmupManager {
         mObserver = null;
     }
 
+    private void recordWebContentsStatus(@WebContentsStatus int status) {
+        if (!mWebContentsCreatedForCCT) return;
+        RecordHistogram.recordEnumeratedHistogram(
+                WEBCONTENTS_STATUS_HISTOGRAM, status, WebContentsStatus.NUM_ENTRIES);
+    }
+
     @NativeMethods
     interface Natives {
         void startPreconnectPredictorInitialization(Profile profile);
         void preconnectUrlAndSubresources(Profile profile, String url);
+        void warmupSpareRenderer(Profile profile);
+        void reportNextLikelyNavigations(Profile profile, String[] packagesName, String[] urls);
     }
 }

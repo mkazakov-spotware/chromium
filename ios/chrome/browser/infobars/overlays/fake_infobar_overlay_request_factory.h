@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,19 @@
 
 #import "ios/chrome/browser/infobars/overlays/infobar_overlay_request_factory.h"
 
-// Fake InfobarOverlayRequestFactory that only creates OverlayRequests that
-// are configured with an InfobarOverlayRequestConfig.
-std::unique_ptr<OverlayRequest> FakeInfobarOverlayRequestFactory(
-    InfoBarIOS* infobar_ios,
-    InfobarOverlayType overlay_type);
+class OverlayRequest;
+
+// Fake version of InfobarOverlayRequestFactory.  Creates OverlayRequests that
+// are only configured with an InfobarOverlayRequestConfig.
+class FakeInfobarOverlayRequestFactory : public InfobarOverlayRequestFactory {
+ public:
+  FakeInfobarOverlayRequestFactory();
+  ~FakeInfobarOverlayRequestFactory() override;
+
+  // InfobarOverlayRequestFactory:
+  std::unique_ptr<OverlayRequest> CreateInfobarRequest(
+      infobars::InfoBar* infobar,
+      InfobarOverlayType type) override;
+};
 
 #endif  // IOS_CHROME_BROWSER_INFOBARS_OVERLAYS_FAKE_INFOBAR_OVERLAY_REQUEST_FACTORY_H_

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #import <Foundation/Foundation.h>
@@ -451,9 +451,11 @@ int main(int argc, char* const argv[]) {
       case 'l':
         PrintSupportedDevices(simctl_list);
         exit(kExitSuccess);
+        break;
       case 'h':
         PrintUsage();
         exit(kExitSuccess);
+        break;
       default:
         PrintUsage();
         exit(kExitInvalidArguments);
@@ -496,22 +498,22 @@ int main(int argc, char* const argv[]) {
   // There should be at least one arg left, specifying the app path. Any
   // additional args are passed as arguments to the app.
   if (optind < argc) {
-    NSString* unresolved_app_path = [[NSFileManager defaultManager]
+    NSString* unresolved_path = [[NSFileManager defaultManager]
         stringWithFileSystemRepresentation:argv[optind]
                                     length:strlen(argv[optind])];
-    app_path = ResolvePath(unresolved_app_path);
+    app_path = ResolvePath(unresolved_path);
     if (!app_path) {
-      LogError(@"Unable to resolve app_path %@", unresolved_app_path);
+      LogError(@"Unable to resolve app_path %@", unresolved_path);
       exit(kExitInvalidArguments);
     }
 
     if (++optind < argc) {
-      NSString* unresolved_xctest_path = [[NSFileManager defaultManager]
+      NSString* unresolved_path = [[NSFileManager defaultManager]
           stringWithFileSystemRepresentation:argv[optind]
                                       length:strlen(argv[optind])];
-      xctest_path = ResolvePath(unresolved_xctest_path);
+      xctest_path = ResolvePath(unresolved_path);
       if (!xctest_path) {
-        LogError(@"Unable to resolve xctest_path %@", unresolved_xctest_path);
+        LogError(@"Unable to resolve xctest_path %@", unresolved_path);
         exit(kExitInvalidArguments);
       }
     }

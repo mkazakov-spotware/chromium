@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,14 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "device/fido/fido_authenticator.h"
 #include "device/fido/fido_device.h"
 #include "device/fido/fido_device_authenticator.h"
 
 namespace device {
 
+FidoDeviceDiscovery::BLEObserver::~BLEObserver() = default;
 FidoDeviceDiscovery::Observer::~Observer() = default;
 
 FidoDeviceDiscovery::FidoDeviceDiscovery(FidoTransportProtocol transport)
@@ -27,7 +28,7 @@ void FidoDeviceDiscovery::Start() {
 
   // To ensure that that NotifyStarted() is never invoked synchronously,
   // post task asynchronously.
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&FidoDeviceDiscovery::StartInternal,
                                 weak_factory_.GetWeakPtr()));
 }
@@ -95,15 +96,11 @@ FidoDeviceAuthenticator* FidoDeviceDiscovery::GetAuthenticator(
 }
 
 bool FidoDeviceDiscovery::AddDevice(std::unique_ptr<FidoDevice> device) {
-  return AddAuthenticator(
-      std::make_unique<FidoDeviceAuthenticator>(std::move(device)));
-}
-
-bool FidoDeviceDiscovery::AddAuthenticator(
-    std::unique_ptr<FidoDeviceAuthenticator> authenticator) {
   if (state_ == State::kStopped)
     return false;
 
+  auto authenticator =
+      std::make_unique<FidoDeviceAuthenticator>(std::move(device));
   std::string authenticator_id = authenticator->GetId();
   const auto result = authenticators_.emplace(std::move(authenticator_id),
                                               std::move(authenticator));

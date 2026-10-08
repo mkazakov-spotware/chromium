@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 
 #include "base/callback_forward.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "components/gcm_driver/crypto/proto/gcm_encryption_data.pb.h"
@@ -42,10 +43,6 @@ class GCMKeyStore {
   GCMKeyStore(
       const base::FilePath& key_store_path,
       const scoped_refptr<base::SequencedTaskRunner>& blocking_task_runner);
-
-  GCMKeyStore(const GCMKeyStore&) = delete;
-  GCMKeyStore& operator=(const GCMKeyStore&) = delete;
-
   ~GCMKeyStore();
 
   // Retrieves the public/private key-pair associated with the |app_id| +
@@ -143,6 +140,8 @@ class GCMKeyStore {
       key_data_;
 
   base::WeakPtrFactory<GCMKeyStore> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(GCMKeyStore);
 };
 
 }  // namespace gcm

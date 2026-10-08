@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,11 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "components/image_fetcher/core/cache/image_store_types.h"
 #include "components/image_fetcher/core/cache/proto/cached_image_metadata.pb.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class PrefRegistrySimple;
 class PrefService;
@@ -22,7 +21,6 @@ class PrefService;
 namespace base {
 class Clock;
 class SequencedTaskRunner;
-class TimeTicks;
 }  // namespace base
 
 namespace image_fetcher {
@@ -43,9 +41,6 @@ class ImageCache : public base::RefCounted<ImageCache> {
              PrefService* pref_service,
              base::Clock* clock,
              scoped_refptr<base::SequencedTaskRunner> task_runner);
-
-  ImageCache(const ImageCache&) = delete;
-  ImageCache& operator=(const ImageCache&) = delete;
 
   // Adds or updates the image data for the |url|. If the class hasn't been
   // initialized yet, the call is queued.
@@ -92,7 +87,7 @@ class ImageCache : public base::RefCounted<ImageCache> {
       const std::string& key,
       ImageDataCallback callback,
       base::TimeTicks start_time,
-      absl::optional<CachedImageMetadataProto> metadata);
+      base::Optional<CachedImageMetadataProto> metadata);
   // Deletes the data for |url|.
   void DeleteImageImpl(const std::string& url);
 
@@ -119,14 +114,16 @@ class ImageCache : public base::RefCounted<ImageCache> {
 
   std::unique_ptr<ImageDataStore> data_store_;
   std::unique_ptr<ImageMetadataStore> metadata_store_;
-  raw_ptr<PrefService> pref_service_;
+  PrefService* pref_service_;
 
   // Owned by the service which instantiates this.
-  raw_ptr<base::Clock> clock_;
+  base::Clock* clock_;
 
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
 
   base::WeakPtrFactory<ImageCache> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ImageCache);
 };
 
 }  // namespace image_fetcher

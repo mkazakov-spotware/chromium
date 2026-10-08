@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,7 @@ void TestCookieManager::SetCanonicalCookie(
 
 void TestCookieManager::AddCookieChangeListener(
     const GURL& url,
-    const absl::optional<std::string>& name,
+    const base::Optional<std::string>& name,
     mojo::PendingRemote<network::mojom::CookieChangeListener> listener) {
   mojo::Remote<network::mojom::CookieChangeListener> listener_remote(
       std::move(listener));

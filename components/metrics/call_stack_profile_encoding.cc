@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,23 +9,23 @@ namespace metrics {
 
 Process ToExecutionContextProcess(CallStackProfileParams::Process process) {
   switch (process) {
-    case CallStackProfileParams::Process::kUnknown:
+    case CallStackProfileParams::UNKNOWN_PROCESS:
       return UNKNOWN_PROCESS;
-    case CallStackProfileParams::Process::kBrowser:
+    case CallStackProfileParams::BROWSER_PROCESS:
       return BROWSER_PROCESS;
-    case CallStackProfileParams::Process::kRenderer:
+    case CallStackProfileParams::RENDERER_PROCESS:
       return RENDERER_PROCESS;
-    case CallStackProfileParams::Process::kGpu:
+    case CallStackProfileParams::GPU_PROCESS:
       return GPU_PROCESS;
-    case CallStackProfileParams::Process::kUtility:
+    case CallStackProfileParams::UTILITY_PROCESS:
       return UTILITY_PROCESS;
-    case CallStackProfileParams::Process::kNetworkService:
+    case CallStackProfileParams::NETWORK_SERVICE_PROCESS:
       return NETWORK_SERVICE_PROCESS;
-    case CallStackProfileParams::Process::kZygote:
+    case CallStackProfileParams::ZYGOTE_PROCESS:
       return ZYGOTE_PROCESS;
-    case CallStackProfileParams::Process::kSandboxHelper:
+    case CallStackProfileParams::SANDBOX_HELPER_PROCESS:
       return SANDBOX_HELPER_PROCESS;
-    case CallStackProfileParams::Process::kPpapiPlugin:
+    case CallStackProfileParams::PPAPI_PLUGIN_PROCESS:
       return PPAPI_PLUGIN_PROCESS;
   }
   NOTREACHED();
@@ -34,15 +34,15 @@ Process ToExecutionContextProcess(CallStackProfileParams::Process process) {
 
 Thread ToExecutionContextThread(CallStackProfileParams::Thread thread) {
   switch (thread) {
-    case CallStackProfileParams::Thread::kUnknown:
+    case CallStackProfileParams::UNKNOWN_THREAD:
       return UNKNOWN_THREAD;
-    case CallStackProfileParams::Thread::kMain:
+    case CallStackProfileParams::MAIN_THREAD:
       return MAIN_THREAD;
-    case CallStackProfileParams::Thread::kIo:
+    case CallStackProfileParams::IO_THREAD:
       return IO_THREAD;
-    case CallStackProfileParams::Thread::kCompositor:
+    case CallStackProfileParams::COMPOSITOR_THREAD:
       return COMPOSITOR_THREAD;
-    case CallStackProfileParams::Thread::kServiceWorker:
+    case CallStackProfileParams::SERVICE_WORKER_THREAD:
       return SERVICE_WORKER_THREAD;
   }
   NOTREACHED();
@@ -52,17 +52,17 @@ Thread ToExecutionContextThread(CallStackProfileParams::Thread thread) {
 SampledProfile::TriggerEvent ToSampledProfileTriggerEvent(
     CallStackProfileParams::Trigger trigger) {
   switch (trigger) {
-    case CallStackProfileParams::Trigger::kUnknown:
+    case CallStackProfileParams::UNKNOWN:
       return SampledProfile::UNKNOWN_TRIGGER_EVENT;
-    case CallStackProfileParams::Trigger::kProcessStartup:
+    case CallStackProfileParams::PROCESS_STARTUP:
       return SampledProfile::PROCESS_STARTUP;
-    case CallStackProfileParams::Trigger::kJankyTask:
+    case CallStackProfileParams::JANKY_TASK:
       return SampledProfile::JANKY_TASK;
-    case CallStackProfileParams::Trigger::kThreadHung:
+    case CallStackProfileParams::THREAD_HUNG:
       return SampledProfile::THREAD_HUNG;
-    case CallStackProfileParams::Trigger::kPeriodicCollection:
+    case CallStackProfileParams::PERIODIC_COLLECTION:
       return SampledProfile::PERIODIC_COLLECTION;
-    case CallStackProfileParams::Trigger::kPeriodicHeapCollection:
+    case CallStackProfileParams::PERIODIC_HEAP_COLLECTION:
       return SampledProfile::PERIODIC_HEAP_COLLECTION;
   }
   NOTREACHED();

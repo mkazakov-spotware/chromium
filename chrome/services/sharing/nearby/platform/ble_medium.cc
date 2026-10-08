@@ -1,41 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/services/sharing/nearby/platform/ble_medium.h"
 
-#include "base/containers/contains.h"
-#include "base/metrics/histogram_functions.h"
 #include "chrome/services/sharing/nearby/platform/bluetooth_device.h"
 
 namespace location {
 namespace nearby {
 namespace chrome {
-
-namespace {
-// Client name for logging in BLE scanning.
-constexpr char kScanClientName[] = "Nearby Connections";
-
-void LogStartAdvertisingResult(bool success) {
-  base::UmaHistogramBoolean(
-      "Nearby.Connections.Bluetooth.LEMedium.StartAdvertising.Result", success);
-}
-
-void LogStopAdvertisingResult(bool success) {
-  base::UmaHistogramBoolean(
-      "Nearby.Connections.Bluetooth.LEMedium.StopAdvertising.Result", success);
-}
-
-void LogStartScanningResult(bool success) {
-  base::UmaHistogramBoolean(
-      "Nearby.Connections.Bluetooth.LEMedium.StartScanning.Result", success);
-}
-
-void LogStopScanningResult(bool success) {
-  base::UmaHistogramBoolean(
-      "Nearby.Connections.Bluetooth.LEMedium.StopScanning.Result", success);
-}
-}  // namespace
 
 BleMedium::BleMedium(
     const mojo::SharedRemote<bluetooth::mojom::Adapter>& adapter)
@@ -69,10 +42,8 @@ bool BleMedium::StartAdvertising(
                            advertisement.data() + advertisement.size()),
       /*use_scan_data=*/true, &pending_advertisement);
 
-  if (!success || !pending_advertisement.is_valid()) {
-    LogStartAdvertisingResult(false);
+  if (!success || !pending_advertisement.is_valid())
     return false;
-  }
 
   registered_service_id_to_fast_advertisement_service_uuid_map_.emplace(
       service_id, service_uuid);
@@ -84,7 +55,6 @@ bool BleMedium::StartAdvertising(
   remote_advertisement.set_disconnect_handler(base::BindOnce(
       &BleMedium::AdvertisementReleased, base::Unretained(this), service_uuid));
 
-  LogStartAdvertisingResult(true);
   return true;
 }
 
@@ -94,22 +64,18 @@ bool BleMedium::StopAdvertising(const std::string& service_id) {
           service_id);
   if (uuid_it ==
       registered_service_id_to_fast_advertisement_service_uuid_map_.end()) {
-    LogStopAdvertisingResult(true);
     return true;
   }
 
   auto advertisement_it = registered_advertisements_map_.find(uuid_it->second);
   registered_service_id_to_fast_advertisement_service_uuid_map_.erase(uuid_it);
 
-  if (advertisement_it == registered_advertisements_map_.end()) {
-    LogStopAdvertisingResult(true);
+  if (advertisement_it == registered_advertisements_map_.end())
     return true;
-  }
 
   bool success = advertisement_it->second->Unregister();
   registered_advertisements_map_.erase(advertisement_it);
 
-  LogStopAdvertisingResult(success);
   return success;
 }
 
@@ -129,7 +95,6 @@ bool BleMedium::StartScanning(
 
   if (IsScanning() &&
       base::Contains(discovered_peripheral_callbacks_map_, service_uuid)) {
-    LogStartScanningResult(true);
     return true;
   }
 
@@ -146,17 +111,14 @@ bool BleMedium::StartScanning(
         adapter_->AddObserver(adapter_observer_.BindNewPipeAndPassRemote());
     if (!success) {
       adapter_observer_.reset();
-      LogStartScanningResult(false);
       return false;
     }
 
     mojo::PendingRemote<bluetooth::mojom::DiscoverySession> discovery_session;
-    success =
-        adapter_->StartDiscoverySession(kScanClientName, &discovery_session);
+    success = adapter_->StartDiscoverySession(&discovery_session);
 
     if (!success || !discovery_session.is_valid()) {
       adapter_observer_.reset();
-      LogStartScanningResult(false);
       return false;
     }
 
@@ -178,7 +140,6 @@ bool BleMedium::StartScanning(
         discovery_service_id_to_fast_advertisement_service_uuid_map_);
   }
 
-  LogStartScanningResult(true);
   return true;
 }
 
@@ -202,10 +163,8 @@ bool BleMedium::StopScanning(const std::string& service_id) {
       discovered_peripheral_callbacks_map_.empty(),
       discovery_service_id_to_fast_advertisement_service_uuid_map_.empty());
 
-  if (!discovered_peripheral_callbacks_map_.empty()) {
-    LogStopScanningResult(true);
+  if (!discovered_peripheral_callbacks_map_.empty())
     return true;
-  }
 
   bool stop_discovery_success = true;
   if (discovery_session_) {
@@ -216,7 +175,6 @@ bool BleMedium::StopScanning(const std::string& service_id) {
   adapter_observer_.reset();
   discovery_session_.reset();
 
-  LogStopScanningResult(stop_discovery_success);
   return stop_discovery_success;
 }
 
@@ -238,8 +196,7 @@ bool BleMedium::StopAcceptingConnections(const std::string& service_id) {
 
 std::unique_ptr<api::BleSocket> BleMedium::Connect(
     api::BlePeripheral& ble_peripheral,
-    const std::string& service_id,
-    CancellationFlag* cancellation_flag) {
+    const std::string& service_id) {
   // Do nothing. BLE connections are not yet supported in Chrome Nearby.
   return nullptr;
 }
@@ -289,10 +246,10 @@ void BleMedium::DeviceAdded(bluetooth::mojom::DeviceInfoPtr device) {
   // BlePeripherals are passed by reference to NearbyConnections, if a
   // BlePeripheral already exists with the given address, the reference should
   // not be invalidated, the update functions should be called instead.
-  const std::string address = device->address;
-  auto* existing_ble_peripheral = GetDiscoveredBlePeripheral(address);
-  if (existing_ble_peripheral) {
-    existing_ble_peripheral->UpdateDeviceInfo(std::move(device));
+  std::string address = device->address;
+  auto* ble_peripheral = GetDiscoveredBlePeripheral(address);
+  if (ble_peripheral) {
+    ble_peripheral->UpdateDeviceInfo(std::move(device));
   } else {
     discovered_ble_peripherals_map_.emplace(
         address,
@@ -314,9 +271,8 @@ void BleMedium::DeviceAdded(bluetooth::mojom::DeviceInfoPtr device) {
     if (it == discovered_peripheral_callbacks_map_.end())
       continue;
 
-    // Fetch the BlePeripheral with the same `address` again because
-    // previously fetched pointers may have been invalidated while iterating
-    // through the IDs.
+    // Fetch |ble_peripheral| again because it might have since been invalidated
+    // while we were iterating through IDs.
     auto* ble_peripheral = GetDiscoveredBlePeripheral(address);
     if (!ble_peripheral)
       continue;

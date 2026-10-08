@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include "remoting/host/policy_watcher.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -16,10 +15,9 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/policy/core/common/async_policy_loader.h"
 #include "components/policy/core/common/async_policy_provider.h"
 #include "components/policy/core/common/policy_namespace.h"
@@ -34,12 +32,12 @@
 #include "base/json/json_reader.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "components/policy/core/common/policy_loader_win.h"
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
 #include "components/policy/core/common/policy_loader_mac.h"
 #include "components/policy/core/common/preferences_mac.h"
-#elif BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID)
+#elif defined(OS_POSIX) && !defined(OS_ANDROID)
 #include "components/policy/core/common/config_dir_policy_loader.h"
 #endif
 
@@ -49,25 +47,23 @@ namespace key = ::policy::key;
 
 namespace {
 
-#if BUILDFLAG(IS_WIN)
-constexpr wchar_t kChromePolicyKey[] = L"SOFTWARE\\Policies\\Google\\Chrome";
-#endif
-
 // Copies all policy values from one dictionary to another, using values from
 // |default_values| if they are not set in |from|.
-base::Value::Dict CopyValuesAndAddDefaults(
-    const base::Value::Dict& from,
-    const base::Value::Dict& default_values) {
-  base::Value::Dict to(default_values.Clone());
-  for (auto i : default_values) {
+std::unique_ptr<base::DictionaryValue> CopyValuesAndAddDefaults(
+    const base::DictionaryValue& from,
+    const base::DictionaryValue& default_values) {
+  std::unique_ptr<base::DictionaryValue> to(default_values.CreateDeepCopy());
+  for (base::DictionaryValue::Iterator i(default_values); !i.IsAtEnd();
+       i.Advance()) {
+    const base::Value* value = nullptr;
+
     // If the policy isn't in |from|, use the default.
-    const base::Value* value = from.FindByDottedPath(i.first);
-    if (!value) {
+    if (!from.Get(i.key(), &value)) {
       continue;
     }
 
-    CHECK(value->type() == i.second.type());
-    to.Set(i.first, value->Clone());
+    CHECK(value->type() == i.value().type());
+    to->Set(i.key(), value->CreateDeepCopy());
   }
 
   return to;
@@ -89,21 +85,21 @@ std::unique_ptr<policy::SchemaRegistry> CreateSchemaRegistry() {
   return schema_registry;
 }
 
-base::Value::Dict CopyChromotingPoliciesIntoDictionary(
+std::unique_ptr<base::DictionaryValue> CopyChromotingPoliciesIntoDictionary(
     const policy::PolicyMap& current) {
   const char kPolicyNameSubstring[] = "RemoteAccessHost";
-  base::Value::Dict policy_dict;
+  std::unique_ptr<base::DictionaryValue> policy_dict(
+      new base::DictionaryValue());
   for (const auto& entry : current) {
     const std::string& key = entry.first;
-    // |value_unsafe| is used due to multiple policy types being handled.
-    const base::Value* value = entry.second.value_unsafe();
+    const base::Value* value = entry.second.value();
 
     // Copying only Chromoting-specific policies helps avoid false alarms
     // raised by NormalizePolicies below (such alarms shutdown the host).
     // TODO(lukasza): Removing this somewhat brittle filtering will be possible
     //                after having separate, Chromoting-specific schema.
     if (key.find(kPolicyNameSubstring) != std::string::npos) {
-      policy_dict.Set(key, value->Clone());
+      policy_dict->Set(key, value->CreateDeepCopy());
     }
   }
 
@@ -112,7 +108,7 @@ base::Value::Dict CopyChromotingPoliciesIntoDictionary(
 
 // Takes a dictionary containing only 1) recognized policy names and 2)
 // well-typed policy values and further verifies policy contents.
-bool VerifyWellformedness(const base::Value::Dict& changed_policies) {
+bool VerifyWellformedness(const base::DictionaryValue& changed_policies) {
   // Verify ThirdPartyAuthConfig policy.
   ThirdPartyAuthConfig not_used;
   switch (ThirdPartyAuthConfig::Parse(changed_policies, &not_used)) {
@@ -127,11 +123,11 @@ bool VerifyWellformedness(const base::Value::Dict& changed_policies) {
   }
 
   // Verify UdpPortRange policy.
-  const std::string* udp_port_range_string =
-      changed_policies.FindString(policy::key::kRemoteAccessHostUdpPortRange);
+  std::string udp_port_range_string;
   PortRange udp_port_range;
-  if (udp_port_range_string) {
-    if (!PortRange::Parse(*udp_port_range_string, &udp_port_range)) {
+  if (changed_policies.GetString(policy::key::kRemoteAccessHostUdpPortRange,
+                                 &udp_port_range_string)) {
+    if (!PortRange::Parse(udp_port_range_string, &udp_port_range)) {
       return false;
     }
   }
@@ -162,48 +158,38 @@ void PolicyWatcher::StartWatching(
   }
 }
 
-base::Value::Dict PolicyWatcher::GetEffectivePolicies() {
-  return effective_policies_.Clone();
+std::unique_ptr<base::DictionaryValue> PolicyWatcher::GetCurrentPolicies() {
+  return old_policies_->CreateDeepCopy();
 }
 
-base::Value::Dict PolicyWatcher::GetPlatformPolicies() {
-  return platform_policies_.Clone();
-}
-
-base::Value::Dict PolicyWatcher::GetDefaultPolicies() {
-  base::Value::Dict result;
-  result.Set(key::kRemoteAccessHostFirewallTraversal, true);
-  result.Set(key::kRemoteAccessHostClientDomainList, base::Value::List());
-  result.Set(key::kRemoteAccessHostDomainList, base::Value::List());
-  result.Set(key::kRemoteAccessHostAllowRelayedConnection, true);
-  result.Set(key::kRemoteAccessHostUdpPortRange, "");
-  result.Set(key::kRemoteAccessHostClipboardSizeBytes, -1);
-  result.Set(key::kRemoteAccessHostAllowRemoteSupportConnections, true);
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
-  result.Set(key::kRemoteAccessHostMatchUsername, false);
-#endif
-#if !BUILDFLAG(IS_CHROMEOS)
-  result.Set(key::kRemoteAccessHostRequireCurtain, false);
-  result.Set(key::kRemoteAccessHostTokenUrl, std::string());
-  result.Set(key::kRemoteAccessHostTokenValidationUrl, std::string());
-  result.Set(key::kRemoteAccessHostTokenValidationCertificateIssuer,
-             std::string());
-  result.Set(key::kRemoteAccessHostAllowClientPairing, true);
-  result.Set(key::kRemoteAccessHostAllowGnubbyAuth, true);
-  result.Set(key::kRemoteAccessHostAllowFileTransfer, true);
-  result.Set(key::kRemoteAccessHostEnableUserInterface, true);
-  result.Set(key::kRemoteAccessHostAllowRemoteAccessConnections, true);
-  result.Set(key::kRemoteAccessHostMaximumSessionDurationMinutes, 0);
-#endif
-#if BUILDFLAG(IS_WIN)
-  result.Set(key::kRemoteAccessHostAllowUiAccessForRemoteAssistance, false);
+std::unique_ptr<base::DictionaryValue> PolicyWatcher::GetDefaultPolicies() {
+  auto result = std::make_unique<base::DictionaryValue>();
+  result->SetBoolean(key::kRemoteAccessHostFirewallTraversal, true);
+  result->SetBoolean(key::kRemoteAccessHostRequireCurtain, false);
+  result->SetBoolean(key::kRemoteAccessHostMatchUsername, false);
+  result->Set(key::kRemoteAccessHostClientDomainList,
+              std::make_unique<base::ListValue>());
+  result->Set(key::kRemoteAccessHostDomainList,
+              std::make_unique<base::ListValue>());
+  result->SetString(key::kRemoteAccessHostTokenUrl, std::string());
+  result->SetString(key::kRemoteAccessHostTokenValidationUrl, std::string());
+  result->SetString(key::kRemoteAccessHostTokenValidationCertificateIssuer,
+                    std::string());
+  result->SetBoolean(key::kRemoteAccessHostAllowClientPairing, true);
+  result->SetBoolean(key::kRemoteAccessHostAllowGnubbyAuth, true);
+  result->SetBoolean(key::kRemoteAccessHostAllowRelayedConnection, true);
+  result->SetString(key::kRemoteAccessHostUdpPortRange, "");
+  result->SetBoolean(key::kRemoteAccessHostAllowUiAccessForRemoteAssistance,
+                     false);
+#if !defined(OS_CHROMEOS)
+  result->SetBoolean(key::kRemoteAccessHostAllowFileTransfer, true);
+  result->SetBoolean(key::kRemoteAccessHostEnableUserInterface, true);
 #endif
   return result;
 }
 
 void PolicyWatcher::SignalPolicyError() {
-  effective_policies_.clear();
-  platform_policies_.clear();
+  old_policies_->Clear();
   policy_error_callback_.Run();
 }
 
@@ -212,7 +198,8 @@ PolicyWatcher::PolicyWatcher(
     std::unique_ptr<policy::PolicyService> owned_policy_service,
     std::unique_ptr<policy::ConfigurationPolicyProvider> owned_policy_provider,
     std::unique_ptr<policy::SchemaRegistry> owned_schema_registry)
-    : default_values_(GetDefaultPolicies()),
+    : old_policies_(new base::DictionaryValue()),
+      default_values_(GetDefaultPolicies()),
       policy_service_(policy_service),
       owned_schema_registry_(std::move(owned_schema_registry)),
       owned_policy_provider_(std::move(owned_policy_provider)),
@@ -237,7 +224,7 @@ const policy::Schema* PolicyWatcher::GetPolicySchema() const {
   return owned_schema_registry_->schema_map()->GetSchema(GetPolicyNamespace());
 }
 
-bool PolicyWatcher::NormalizePolicies(base::Value* policy_dict) {
+bool PolicyWatcher::NormalizePolicies(base::DictionaryValue* policy_dict) {
   // Allowing unrecognized policy names allows presence of
   // 1) comments (i.e. JSON of the form: { "_comment": "blah", ... }),
   // 2) policies intended for future/newer versions of the host,
@@ -246,98 +233,96 @@ bool PolicyWatcher::NormalizePolicies(base::Value* policy_dict) {
   //    schema for this policy on this particular platform).
   auto strategy = policy::SCHEMA_ALLOW_UNKNOWN;
 
-  DCHECK(policy_dict->GetIfDict());
-
-  policy::PolicyErrorPath path;
+  std::string path;
   std::string error;
   bool changed = false;
   const policy::Schema* schema = GetPolicySchema();
   if (schema->Normalize(policy_dict, strategy, &path, &error, &changed)) {
     if (changed) {
-      LOG(WARNING) << "Unknown (unrecognized or unsupported) policy at: "
-                   << policy::ErrorPathToString("toplevel", path) << ": "
-                   << error;
+      LOG(WARNING) << "Unknown (unrecognized or unsupported) policy: " << path
+                   << ": " << error;
     }
-    HandleDeprecatedPolicies(&policy_dict->GetDict());
+    HandleDeprecatedPolicies(policy_dict);
     return true;
   } else {
-    LOG(ERROR) << "Invalid policy contents at: "
-               << policy::ErrorPathToString("toplevel", path) << ": " << error;
+    LOG(ERROR) << "Invalid policy contents: " << path << ": " << error;
     return false;
   }
 }
 
-void PolicyWatcher::HandleDeprecatedPolicies(base::Value::Dict* dict) {
+void PolicyWatcher::HandleDeprecatedPolicies(base::DictionaryValue* dict) {
   // RemoteAccessHostDomain
-  if (dict->Find(policy::key::kRemoteAccessHostDomain)) {
-    if (!dict->Find(policy::key::kRemoteAccessHostDomainList)) {
-      const std::string* domain =
-          dict->FindString(policy::key::kRemoteAccessHostDomain);
-      if (domain && !domain->empty()) {
-        base::Value::List list;
-        list.Append(*domain);
+  if (dict->HasKey(policy::key::kRemoteAccessHostDomain)) {
+    if (!dict->HasKey(policy::key::kRemoteAccessHostDomainList)) {
+      std::string domain;
+      dict->GetString(policy::key::kRemoteAccessHostDomain, &domain);
+      if (!domain.empty()) {
+        auto list = std::make_unique<base::ListValue>();
+        list->AppendString(domain);
         dict->Set(policy::key::kRemoteAccessHostDomainList, std::move(list));
       }
     }
-    dict->Remove(policy::key::kRemoteAccessHostDomain);
+    dict->Remove(policy::key::kRemoteAccessHostDomain, nullptr);
   }
 
   // RemoteAccessHostClientDomain
-  if (const std::string* domain =
-          dict->FindString(policy::key::kRemoteAccessHostClientDomain)) {
-    if (!dict->Find(policy::key::kRemoteAccessHostClientDomainList)) {
-      if (!domain->empty()) {
-        base::Value::List list;
-        list.Append(*domain);
+  if (dict->HasKey(policy::key::kRemoteAccessHostClientDomain)) {
+    if (!dict->HasKey(policy::key::kRemoteAccessHostClientDomainList)) {
+      std::string domain;
+      dict->GetString(policy::key::kRemoteAccessHostClientDomain, &domain);
+      if (!domain.empty()) {
+        auto list = std::make_unique<base::ListValue>();
+        list->AppendString(domain);
         dict->Set(policy::key::kRemoteAccessHostClientDomainList,
                   std::move(list));
       }
     }
-    dict->Remove(policy::key::kRemoteAccessHostClientDomain);
+    dict->Remove(policy::key::kRemoteAccessHostClientDomain, nullptr);
   }
 }
 
-#if !BUILDFLAG(IS_CHROMEOS)
 namespace {
-void CopyDictionaryValue(const base::Value::Dict& from,
-                         base::Value::Dict& to,
+void CopyDictionaryValue(const base::DictionaryValue& from,
+                         base::DictionaryValue& to,
                          std::string key) {
-  const base::Value* value = from.Find(key);
-  if (value) {
-    to.Set(key, value->Clone());
+  const base::Value* value;
+  if (from.Get(key, &value)) {
+    to.Set(key, value->CreateDeepCopy());
   }
 }
 }  // namespace
-#endif
 
-base::Value::Dict PolicyWatcher::StoreNewAndReturnChangedPolicies(
-    base::Value::Dict new_policies) {
+std::unique_ptr<base::DictionaryValue>
+PolicyWatcher::StoreNewAndReturnChangedPolicies(
+    std::unique_ptr<base::DictionaryValue> new_policies) {
   // Find the changed policies.
-  base::Value::Dict changed_policies;
-  for (auto iter : new_policies) {
-    base::Value* old_policy = effective_policies_.FindByDottedPath(iter.first);
-    if (!old_policy || *old_policy != iter.second) {
-      changed_policies.Set(iter.first, iter.second.Clone());
+  std::unique_ptr<base::DictionaryValue> changed_policies(
+      new base::DictionaryValue());
+  base::DictionaryValue::Iterator iter(*new_policies);
+  while (!iter.IsAtEnd()) {
+    base::Value* old_policy;
+    if (!(old_policies_->Get(iter.key(), &old_policy) &&
+          old_policy->Equals(&iter.value()))) {
+      changed_policies->Set(iter.key(), iter.value().CreateDeepCopy());
     }
+    iter.Advance();
   }
 
-#if !BUILDFLAG(IS_CHROMEOS)
   // If one of ThirdPartyAuthConfig policies changed, we need to include all.
-  if (changed_policies.Find(key::kRemoteAccessHostTokenUrl) ||
-      changed_policies.Find(key::kRemoteAccessHostTokenValidationUrl) ||
-      changed_policies.Find(
+  if (changed_policies->HasKey(key::kRemoteAccessHostTokenUrl) ||
+      changed_policies->HasKey(key::kRemoteAccessHostTokenValidationUrl) ||
+      changed_policies->HasKey(
           key::kRemoteAccessHostTokenValidationCertificateIssuer)) {
-    CopyDictionaryValue(new_policies, changed_policies,
+    CopyDictionaryValue(*new_policies, *changed_policies,
                         key::kRemoteAccessHostTokenUrl);
-    CopyDictionaryValue(new_policies, changed_policies,
+    CopyDictionaryValue(*new_policies, *changed_policies,
                         key::kRemoteAccessHostTokenValidationUrl);
-    CopyDictionaryValue(new_policies, changed_policies,
+    CopyDictionaryValue(*new_policies, *changed_policies,
                         key::kRemoteAccessHostTokenValidationCertificateIssuer);
   }
-#endif
 
   // Save the new policies.
-  std::swap(effective_policies_, new_policies);
+  old_policies_.swap(new_policies);
 
   return changed_policies;
 }
@@ -345,29 +330,28 @@ base::Value::Dict PolicyWatcher::StoreNewAndReturnChangedPolicies(
 void PolicyWatcher::OnPolicyUpdated(const policy::PolicyNamespace& ns,
                                     const policy::PolicyMap& previous,
                                     const policy::PolicyMap& current) {
-  base::Value new_policies(CopyChromotingPoliciesIntoDictionary(current));
+  std::unique_ptr<base::DictionaryValue> new_policies =
+      CopyChromotingPoliciesIntoDictionary(current);
 
   // Check for mistyped values and get rid of unknown policies.
-  if (!NormalizePolicies(&new_policies)) {
+  if (!NormalizePolicies(new_policies.get())) {
     SignalPolicyError();
     return;
   }
 
-  platform_policies_ = new_policies.GetDict().Clone();
-
   // Use default values for any missing policies.
-  base::Value::Dict filled_policies =
-      CopyValuesAndAddDefaults(new_policies.GetDict(), default_values_);
+  std::unique_ptr<base::DictionaryValue> filled_policies =
+      CopyValuesAndAddDefaults(*new_policies, *default_values_);
 
   // Limit reporting to only the policies that were changed.
-  base::Value::Dict changed_policies =
+  std::unique_ptr<base::DictionaryValue> changed_policies =
       StoreNewAndReturnChangedPolicies(std::move(filled_policies));
-  if (changed_policies.empty()) {
+  if (changed_policies->empty()) {
     return;
   }
 
   // Verify that we are calling the callback with valid policies.
-  if (!VerifyWellformedness(changed_policies)) {
+  if (!VerifyWellformedness(*changed_policies)) {
     SignalPolicyError();
     return;
   }
@@ -380,10 +364,6 @@ void PolicyWatcher::OnPolicyServiceInitialized(policy::PolicyDomain domain) {
   policy::PolicyNamespace ns = GetPolicyNamespace();
   const policy::PolicyMap& current = policy_service_->GetPolicies(ns);
   OnPolicyUpdated(ns, current, current);
-
-#if BUILDFLAG(IS_WIN)
-  WatchForRegistryChanges();
-#endif
 }
 
 std::unique_ptr<PolicyWatcher> PolicyWatcher::CreateFromPolicyLoader(
@@ -413,56 +393,27 @@ std::unique_ptr<PolicyWatcher> PolicyWatcher::CreateWithPolicyService(
                                             CreateSchemaRegistry()));
 }
 
-#if BUILDFLAG(IS_WIN)
-void PolicyWatcher::WatchForRegistryChanges() {
-  if (!policy_key_.Valid()) {
-    auto open_result =
-        policy_key_.Open(HKEY_LOCAL_MACHINE, kChromePolicyKey, KEY_NOTIFY);
-    if (open_result != ERROR_SUCCESS) {
-      LOG(WARNING) << "Failed to open Chrome policy registry key due to error: "
-                   << open_result;
-      return;
-    }
-  }
-
-  // base::Unretained is sound as |policy_key_| is destroyed before we start
-  // tearing down the various policy service members. Once the PolicyService has
-  // finished refreshing the policy list, we need to set up our watcher again as
-  // it only fires once.
-  auto watch_result = policy_key_.StartWatching(
-      base::BindOnce(&policy::PolicyService::RefreshPolicies,
-                     base::Unretained(policy_service_),
-                     base::BindOnce(&PolicyWatcher::WatchForRegistryChanges,
-                                    base::Unretained(this))));
-  if (!watch_result) {
-    LOG(WARNING) << "Failed to register for Chrome policy registry key changes";
-    policy_key_.Close();
-  }
-}
-#endif
-
 std::unique_ptr<PolicyWatcher> PolicyWatcher::CreateWithTaskRunner(
-    const scoped_refptr<base::SingleThreadTaskRunner>& file_task_runner,
-    policy::ManagementService* management_service) {
+    const scoped_refptr<base::SingleThreadTaskRunner>& file_task_runner) {
   // Create platform-specific PolicyLoader. Always read the Chrome policies
   // (even on Chromium) so that policy enforcement can't be bypassed by running
   // Chromium.
   std::unique_ptr<policy::AsyncPolicyLoader> policy_loader;
-#if BUILDFLAG(IS_WIN)
-  policy_loader = std::make_unique<policy::PolicyLoaderWin>(
-      file_task_runner, management_service, kChromePolicyKey);
-#elif BUILDFLAG(IS_APPLE)
+#if defined(OS_WIN)
+  policy_loader.reset(new policy::PolicyLoaderWin(
+      file_task_runner, L"SOFTWARE\\Policies\\Google\\Chrome"));
+#elif defined(OS_APPLE)
   CFStringRef bundle_id = CFSTR("com.google.Chrome");
-  policy_loader = std::make_unique<policy::PolicyLoaderMac>(
+  policy_loader.reset(new policy::PolicyLoaderMac(
       file_task_runner,
       policy::PolicyLoaderMac::GetManagedPolicyPath(bundle_id),
-      new MacPreferences(), bundle_id);
-#elif BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID)
-  policy_loader = std::make_unique<policy::ConfigDirPolicyLoader>(
+      new MacPreferences(), bundle_id));
+#elif defined(OS_POSIX) && !defined(OS_ANDROID)
+  policy_loader.reset(new policy::ConfigDirPolicyLoader(
       file_task_runner,
       base::FilePath(FILE_PATH_LITERAL("/etc/opt/chrome/policies")),
-      policy::POLICY_SCOPE_MACHINE);
-#elif BUILDFLAG(IS_ANDROID)
+      policy::POLICY_SCOPE_MACHINE));
+#elif defined(OS_ANDROID)
   NOTIMPLEMENTED();
   policy::PolicyServiceImpl::Providers providers;
   std::unique_ptr<policy::PolicyService> owned_policy_service(
@@ -470,7 +421,7 @@ std::unique_ptr<PolicyWatcher> PolicyWatcher::CreateWithTaskRunner(
   return base::WrapUnique(new PolicyWatcher(
       owned_policy_service.get(), std::move(owned_policy_service), nullptr,
       CreateSchemaRegistry()));
-#elif BUILDFLAG(IS_CHROMEOS_ASH)
+#elif defined(OS_CHROMEOS)
   NOTREACHED() << "CreateWithPolicyService() should be used on ChromeOS.";
   return nullptr;
 #else

@@ -1,19 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/browser/js_communication/web_message_host_factory_wrapper.h"
 
-#include <string>
-
-#include "base/memory/raw_ptr.h"
 #include "components/js_injection/browser/web_message.h"
 #include "components/js_injection/browser/web_message_host.h"
 #include "components/js_injection/browser/web_message_reply_proxy.h"
-#include "components/js_injection/common/interfaces.mojom.h"
-#include "content/public/browser/page.h"
-#include "content/public/browser/render_frame_host.h"
-#include "weblayer/browser/page_impl.h"
 #include "weblayer/public/js_communication/web_message.h"
 #include "weblayer/public/js_communication/web_message_host.h"
 #include "weblayer/public/js_communication/web_message_host_factory.h"
@@ -39,41 +32,20 @@ class WebMessageHostWrapper : public js_injection::WebMessageHost,
   void OnPostMessage(
       std::unique_ptr<js_injection::WebMessage> message) override {
     std::unique_ptr<WebMessage> m = std::make_unique<WebMessage>();
-    auto& payload = message->message;
-    if (!payload->is_string_value()) {
-      // Ignore non-string messages, not supported by weblayer.
-      return;
-    }
-    m->message = std::move(payload->get_string_value());
+    m->message = message->message;
     connection_->OnPostMessage(std::move(m));
-  }
-  void OnBackForwardCacheStateChanged() override {
-    connection_->OnBackForwardCacheStateChanged();
   }
 
   // WebMessageReplyProxy:
-  void PostWebMessage(std::unique_ptr<WebMessage> message) override {
-    js_injection::mojom::JsWebMessagePtr js_message =
-        js_injection::mojom::JsWebMessage::NewStringValue(
-            std::move(message->message));
-    proxy_->PostWebMessage(std::move(js_message));
-  }
-  bool IsInBackForwardCache() override {
-    return proxy_->IsInBackForwardCache();
-  }
-  Page& GetPage() override {
-    // In general WebLayer avoids exposing child frames. As such, GetPage()
-    // returns the Page of the main frame.
-    PageImpl* page =
-        PageImpl::GetForPage(proxy_->GetPage().GetMainDocument().GetPage());
-    // NavigationControllerImpl creates the PageImpl when navigation finishes so
-    // that by the time this is called the Page should have been created.
-    DCHECK(page);
-    return *page;
+  void PostMessage(std::unique_ptr<WebMessage> message) override {
+    std::unique_ptr<js_injection::WebMessage> w =
+        std::make_unique<js_injection::WebMessage>();
+    w->message = std::move(message->message);
+    proxy_->PostMessage(std::move(w));
   }
 
  private:
-  raw_ptr<js_injection::WebMessageReplyProxy> proxy_;
+  js_injection::WebMessageReplyProxy* proxy_;
   std::unique_ptr<weblayer::WebMessageHost> connection_;
 };
 

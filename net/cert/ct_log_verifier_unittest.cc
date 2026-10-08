@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
 #include "crypto/secure_hash.h"
@@ -256,7 +258,7 @@ void CheckVerifyAuditProof(const CTLogVerifier& log,
   }
 
   wrong_proof = proof;
-  wrong_proof.emplace_back();
+  wrong_proof.push_back(std::string());
   EXPECT_FALSE(
       VerifyAuditProof(log, leaf, tree_size, wrong_proof, root_hash, leaf_hash))
       << "proof passed verification with an empty node appended";
@@ -275,7 +277,7 @@ void CheckVerifyAuditProof(const CTLogVerifier& log,
   }
 
   wrong_proof.clear();
-  wrong_proof.emplace_back();
+  wrong_proof.push_back(std::string());
   wrong_proof.insert(wrong_proof.end(), proof.begin(), proof.end());
   EXPECT_FALSE(
       VerifyAuditProof(log, leaf, tree_size, wrong_proof, root_hash, leaf_hash))
@@ -355,7 +357,7 @@ void CheckVerifyConsistencyProof(const CTLogVerifier& log,
   }
 
   wrong_proof = proof;
-  wrong_proof.emplace_back();
+  wrong_proof.push_back(std::string());
   EXPECT_FALSE(VerifyConsistencyProof(log, old_tree_size, old_root,
                                       new_tree_size, new_root, wrong_proof))
       << "proof passed verification with empty node appended";
@@ -372,7 +374,7 @@ void CheckVerifyConsistencyProof(const CTLogVerifier& log,
       << "proof passed verification with last node missing";
 
   wrong_proof.clear();
-  wrong_proof.emplace_back();
+  wrong_proof.push_back(std::string());
   wrong_proof.insert(wrong_proof.end(), proof.begin(), proof.end());
   EXPECT_FALSE(VerifyConsistencyProof(log, old_tree_size, old_root,
                                       new_tree_size, new_root, wrong_proof))
@@ -541,7 +543,7 @@ TEST_P(CTLogVerifierConsistencyProofTest, VerifiesValidConsistencyProof) {
 INSTANTIATE_TEST_SUITE_P(KnownGoodProofs,
                          CTLogVerifierConsistencyProofTest,
                          ::testing::Range(size_t(0),
-                                          std::size(kConsistencyProofs)));
+                                          base::size(kConsistencyProofs)));
 
 class CTLogVerifierAuditProofTest
     : public CTLogVerifierTest,
@@ -560,7 +562,7 @@ TEST_P(CTLogVerifierAuditProofTest, VerifiesValidAuditProofs) {
 
 INSTANTIATE_TEST_SUITE_P(KnownGoodProofs,
                          CTLogVerifierAuditProofTest,
-                         ::testing::Range(size_t(0), std::size(kAuditProofs)));
+                         ::testing::Range(size_t(0), base::size(kAuditProofs)));
 
 TEST_F(CTLogVerifierTest, VerifiesAuditProofEdgeCases_InvalidLeafIndex) {
   std::vector<std::string> proof;

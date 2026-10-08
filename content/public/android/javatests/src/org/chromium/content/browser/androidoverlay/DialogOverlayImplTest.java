@@ -1,13 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.content.browser.androidoverlay;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-import android.content.Context;
 
 import androidx.test.filters.SmallTest;
 
@@ -20,8 +15,6 @@ import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Feature;
 import org.chromium.content.browser.androidoverlay.DialogOverlayImplTestRule.Client;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
-import org.chromium.ui.base.ImmutableWeakReference;
-import org.chromium.ui.base.WindowAndroid;
 
 /**
  * Tests for DialogOverlayImpl.
@@ -153,19 +146,5 @@ public class DialogOverlayImplTest {
             mActivityTestRule.getClient().injectMarkerEvent();
         });
         Assert.assertEquals(Client.TEST_MARKER, mActivityTestRule.getClient().nextEvent().which);
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"AndroidOverlay"})
-    public void testEmptyWindowAndroidDoesntCrash() {
-        // Test that receiving a WindowAndroid that doesn't have activity donesn't cause crash.
-        ImmutableWeakReference<Context> nullContextWeakRef = new ImmutableWeakReference<>(null);
-        WindowAndroid mockWindowAndroid = mock(WindowAndroid.class);
-        when(mockWindowAndroid.getContext()).thenReturn(nullContextWeakRef);
-        final DialogOverlayImpl overlay = mActivityTestRule.createOverlay(0, 0, 10, 10);
-
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> { overlay.onWindowAndroid(mockWindowAndroid); });
     }
 }

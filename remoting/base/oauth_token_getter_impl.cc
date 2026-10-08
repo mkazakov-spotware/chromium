@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/base/oauth_token_getter_impl.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -26,7 +25,8 @@ const int kMaxRetries = 3;
 const int kTokenUpdateTimeBeforeExpirySeconds = 120;
 
 // Max time we wait for the response before giving up.
-constexpr base::TimeDelta kResponseTimeoutDuration = base::Seconds(30);
+constexpr base::TimeDelta kResponseTimeoutDuration =
+    base::TimeDelta::FromSeconds(30);
 
 }  // namespace
 
@@ -40,7 +40,7 @@ OAuthTokenGetterImpl::OAuthTokenGetterImpl(
       gaia_oauth_client_(new gaia::GaiaOAuthClient(url_loader_factory)),
       credentials_updated_callback_(on_credentials_update) {
   if (auto_refresh) {
-    refresh_timer_ = std::make_unique<base::OneShotTimer>();
+    refresh_timer_.reset(new base::OneShotTimer());
   }
 }
 
@@ -52,7 +52,7 @@ OAuthTokenGetterImpl::OAuthTokenGetterImpl(
       authorization_credentials_(std::move(authorization_credentials)),
       gaia_oauth_client_(new gaia::GaiaOAuthClient(url_loader_factory)) {
   if (auto_refresh) {
-    refresh_timer_ = std::make_unique<base::OneShotTimer>();
+    refresh_timer_.reset(new base::OneShotTimer());
   }
 }
 
@@ -71,11 +71,10 @@ void OAuthTokenGetterImpl::OnGetTokensResponse(const std::string& refresh_token,
   UpdateAccessToken(access_token, expires_seconds);
 
   // Keep the refresh token in the authorization_credentials.
-  authorization_credentials_ =
-      std::make_unique<OAuthTokenGetter::OAuthAuthorizationCredentials>(
-
+  authorization_credentials_.reset(
+      new OAuthTokenGetter::OAuthAuthorizationCredentials(
           std::string(), refresh_token,
-          intermediate_credentials_->is_service_account);
+          intermediate_credentials_->is_service_account));
 
   // Clear out the one time use token.
   intermediate_credentials_.reset();
@@ -132,8 +131,8 @@ void OAuthTokenGetterImpl::UpdateAccessToken(const std::string& access_token,
                                              int expires_seconds) {
   oauth_access_token_ = access_token;
   base::TimeDelta token_expiration =
-      base::Seconds(expires_seconds) -
-      base::Seconds(kTokenUpdateTimeBeforeExpirySeconds);
+      base::TimeDelta::FromSeconds(expires_seconds) -
+      base::TimeDelta::FromSeconds(kTokenUpdateTimeBeforeExpirySeconds);
   access_token_expiry_time_ = base::Time::Now() + token_expiration;
 
   if (refresh_timer_) {

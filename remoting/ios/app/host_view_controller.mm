@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -529,11 +529,8 @@ static NSString* const kFeedbackContext = @"InSessionFeedbackContext";
                  handler:switchInputModeHandler];
 
   void (^disconnectHandler)() = ^{
-    HostViewController* strongSelf = weakSelf;
-    if (strongSelf) {
-      [strongSelf disconnectFromHost];
-      [strongSelf.navigationController popToRootViewControllerAnimated:YES];
-    }
+    [weakSelf disconnectFromHost];
+    [weakSelf.navigationController popToRootViewControllerAnimated:YES];
   };
   [self addActionToAlert:alert
                    title:IDS_DISCONNECT_MYSELF_BUTTON
@@ -542,20 +539,15 @@ static NSString* const kFeedbackContext = @"InSessionFeedbackContext";
                  handler:disconnectHandler];
 
   void (^settingsHandler)() = ^{
-    HostViewController* strongSelf = weakSelf;
-    if (strongSelf) {
-      RemotingSettingsViewController* settingsViewController =
-          [[RemotingSettingsViewController alloc] init];
-      settingsViewController.delegate = strongSelf;
-      settingsViewController.inputMode = currentInputMode;
-      settingsViewController.shouldResizeHostToFit =
-          strongSelf->_settings.shouldResizeHostToFit;
-      UINavigationController* navController = [[UINavigationController alloc]
-          initWithRootViewController:settingsViewController];
-      [strongSelf presentViewController:navController
-                               animated:YES
-                             completion:nil];
-    }
+    RemotingSettingsViewController* settingsViewController =
+        [[RemotingSettingsViewController alloc] init];
+    settingsViewController.delegate = weakSelf;
+    settingsViewController.inputMode = currentInputMode;
+    settingsViewController.shouldResizeHostToFit =
+        _settings.shouldResizeHostToFit;
+    UINavigationController* navController = [[UINavigationController alloc]
+        initWithRootViewController:settingsViewController];
+    [weakSelf presentViewController:navController animated:YES completion:nil];
   };
   // Don't restore keyboard since the settings view will be show immediately.
   [self addActionToAlert:alert
@@ -610,16 +602,14 @@ static NSString* const kFeedbackContext = @"InSessionFeedbackContext";
                        actionWithTitle:l10n_util::GetNSString(titleMessageId)
                                  style:style
                                handler:^(UIAlertAction*) {
-                                 self->_blocksKeyboard = NO;
+                                 _blocksKeyboard = NO;
                                  if (isKeyboardActive && restoresKeyboard) {
-                                   self->_clientKeyboard.showsSoftKeyboard =
-                                       YES;
+                                   _clientKeyboard.showsSoftKeyboard = YES;
                                  }
                                  if (handler) {
                                    handler();
                                  }
-                                 [self->_actionImageView setActive:NO
-                                                          animated:YES];
+                                 [_actionImageView setActive:NO animated:YES];
                                }]];
 }
 

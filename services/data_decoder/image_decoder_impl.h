@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "services/data_decoder/public/mojom/image_decoder.mojom.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -15,10 +16,6 @@ namespace data_decoder {
 class ImageDecoderImpl : public mojom::ImageDecoder {
  public:
   ImageDecoderImpl();
-
-  ImageDecoderImpl(const ImageDecoderImpl&) = delete;
-  ImageDecoderImpl& operator=(const ImageDecoderImpl&) = delete;
-
   ~ImageDecoderImpl() override;
 
   // Overridden from mojom::ImageDecoder:
@@ -32,6 +29,9 @@ class ImageDecoderImpl : public mojom::ImageDecoder {
                        bool shrink_to_fit,
                        int64_t max_size_in_bytes,
                        DecodeAnimationCallback callback) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ImageDecoderImpl);
 };
 
 }  // namespace data_decoder

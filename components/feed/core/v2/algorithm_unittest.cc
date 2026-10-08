@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "testing/gtest/include/gtest/gtest.h"
 namespace feed {
 class ResultAggregator {
@@ -20,7 +19,7 @@ class ResultAggregator {
   }
 
  private:
-  raw_ptr<std::vector<std::pair<int, int>>> results_;
+  std::vector<std::pair<int, int>>* results_;
 };
 
 TEST(DiffSortedRange, LeftEmpty) {

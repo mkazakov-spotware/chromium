@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "components/zoom/zoom_controller.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/events/event.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -22,8 +21,7 @@ ZoomView::ZoomView(IconLabelBubbleView::Delegate* icon_label_bubble_delegate,
     : PageActionIconView(nullptr,
                          0,
                          icon_label_bubble_delegate,
-                         page_action_icon_delegate,
-                         "Zoom"),
+                         page_action_icon_delegate),
       icon_(&kZoomMinusIcon) {
   SetVisible(false);
 }
@@ -77,7 +75,8 @@ void ZoomView::ZoomChangedForActiveTab(bool can_show_bubble) {
                                    zoom::ZoomController::ZOOM_BELOW_DEFAULT_ZOOM
                 ? &kZoomMinusIcon
                 : &kZoomPlusIcon;
-    UpdateIconImage();
+    if (GetNativeTheme())
+      UpdateIconImage();
 
     // Visibility must be enabled before the bubble is shown to ensure the
     // bubble anchors correctly.
@@ -109,10 +108,11 @@ const gfx::VectorIcon& ZoomView::GetVectorIcon() const {
   return *icon_;
 }
 
-std::u16string ZoomView::GetTextForTooltipAndAccessibleName() const {
+base::string16 ZoomView::GetTextForTooltipAndAccessibleName() const {
   return l10n_util::GetStringFUTF16(IDS_TOOLTIP_ZOOM,
                                     base::FormatPercent(current_zoom_percent_));
 }
 
-BEGIN_METADATA(ZoomView, PageActionIconView)
-END_METADATA
+const char* ZoomView::GetClassName() const {
+  return "ZoomView";
+}

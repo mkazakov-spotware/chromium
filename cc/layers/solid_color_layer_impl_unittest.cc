@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <stddef.h>
 
-#include <utility>
 #include <vector>
 
 #include "cc/animation/animation_host.h"
@@ -33,7 +32,7 @@ TEST_F(SolidColorLayerImplTest, VerifyTilingCompleteAndNoOverlap) {
   auto* layer = AddLayer<SolidColorLayerImpl>();
   layer->SetBounds(layer_size);
   layer->SetDrawsContent(true);
-  layer->SetBackgroundColor(SkColors::kRed);
+  layer->SetBackgroundColor(SK_ColorRED);
   CopyProperties(root_layer(), layer);
   CreateEffectNode(layer).render_surface_reason = RenderSurfaceReason::kTest;
   UpdateActiveTreeDrawProperties();
@@ -44,10 +43,7 @@ TEST_F(SolidColorLayerImplTest, VerifyTilingCompleteAndNoOverlap) {
 }
 
 TEST_F(SolidColorLayerImplTest, VerifyCorrectBackgroundColorInQuad) {
-  // TODO(crbug.com/1308932): Somewhere along the path this gets cast to an int
-  // so the test fails if the values are not x/255. This should not be the case
-  // when the SkColor4f project is completed.
-  SkColor4f test_color{165.0f / 255.0f, 90.0f / 255.0f, 1.0f, 1.0f};
+  SkColor test_color = 0xFFA55AFF;
   auto render_pass = viz::CompositorRenderPass::Create();
   gfx::Size layer_size = gfx::Size(100, 100);
   gfx::Rect visible_layer_rect = gfx::Rect(layer_size);
@@ -81,7 +77,7 @@ TEST_F(SolidColorLayerImplTest, VerifyCorrectOpacityInQuad) {
   auto* layer = AddLayer<SolidColorLayerImpl>();
   layer->SetDrawsContent(true);
   layer->SetBounds(layer_size);
-  layer->SetBackgroundColor(SkColors::kRed);
+  layer->SetBackgroundColor(SK_ColorRED);
   CopyProperties(root_layer(), layer);
   auto& effect_node = CreateEffectNode(layer);
   effect_node.opacity = opacity;
@@ -107,7 +103,7 @@ TEST_F(SolidColorLayerImplTest, VerifyCorrectRenderSurfaceOpacityInQuad) {
   auto* layer = AddLayer<SolidColorLayerImpl>();
   layer->SetDrawsContent(true);
   layer->SetBounds(layer_size);
-  layer->SetBackgroundColor(SkColors::kRed);
+  layer->SetBackgroundColor(SK_ColorRED);
   CopyProperties(root_layer(), layer);
   auto& effect_node = CreateEffectNode(layer);
   effect_node.render_surface_reason = RenderSurfaceReason::kTest;
@@ -129,7 +125,7 @@ TEST_F(SolidColorLayerImplTest, VerifyCorrectRenderSurfaceOpacityInQuad) {
 }
 
 TEST_F(SolidColorLayerImplTest, VerifyEliminateTransparentAlpha) {
-  SkColor4f test_color = SkColors::kTransparent;
+  SkColor test_color = 0;
   auto render_pass = viz::CompositorRenderPass::Create();
   gfx::Size layer_size = gfx::Size(100, 100);
 
@@ -147,7 +143,7 @@ TEST_F(SolidColorLayerImplTest, VerifyEliminateTransparentAlpha) {
 }
 
 TEST_F(SolidColorLayerImplTest, VerifyEliminateTransparentOpacity) {
-  SkColor4f test_color{0.5f, 0.8f, 1.0f, 1.0f};
+  SkColor test_color = 0xFFA55AFF;
   auto render_pass = viz::CompositorRenderPass::Create();
   gfx::Size layer_size = gfx::Size(100, 100);
 
@@ -187,18 +183,11 @@ TEST_F(SolidColorLayerImplTest, VerifyNeedsBlending) {
   UpdateDrawProperties(host.get());
 
   EXPECT_FALSE(layer->contents_opaque());
-  layer->SetBackgroundColor({0.2f, 0.3f, 0.4f, 1.0f});
+  layer->SetBackgroundColor(SkColorSetARGB(255, 10, 20, 30));
   EXPECT_TRUE(layer->contents_opaque());
-
-  auto& unsafe_state = host->GetUnsafeStateForCommit();
-  auto completion_event_ptr = std::make_unique<CompletionEvent>(
-      base::WaitableEvent::ResetPolicy::MANUAL);
-  auto* completion_event = completion_event_ptr.get();
-  std::unique_ptr<CommitState> commit_state =
-      host->WillCommit(std::move(completion_event_ptr), /*has_updates=*/true);
   {
     DebugScopedSetImplThread scoped_impl_thread(host->GetTaskRunnerProvider());
-    host->host_impl()->FinishCommit(*commit_state, unsafe_state);
+    host->FinishCommitOnImplThread(host->host_impl());
     LayerImpl* layer_impl =
         host->host_impl()->active_tree()->LayerById(layer->id());
 
@@ -218,23 +207,14 @@ TEST_F(SolidColorLayerImplTest, VerifyNeedsBlending) {
     EXPECT_FALSE(render_pass->quad_list.front()->needs_blending);
     EXPECT_TRUE(
         render_pass->quad_list.front()->shared_quad_state->are_contents_opaque);
-    completion_event->Signal();
   }
-  host->CommitComplete({base::TimeTicks(), base::TimeTicks::Now()});
 
   EXPECT_TRUE(layer->contents_opaque());
-  layer->SetBackgroundColor({0.2f, 0.3f, 0.4f, 0.9f});
+  layer->SetBackgroundColor(SkColorSetARGB(254, 10, 20, 30));
   EXPECT_FALSE(layer->contents_opaque());
-
-  completion_event_ptr = std::make_unique<CompletionEvent>(
-      base::WaitableEvent::ResetPolicy::MANUAL);
-  completion_event = completion_event_ptr.get();
-  commit_state =
-      host->WillCommit(std::move(completion_event_ptr), /*has_updates=*/true);
   {
     DebugScopedSetImplThread scoped_impl_thread(host->GetTaskRunnerProvider());
-    host->host_impl()->FinishCommit(*commit_state, unsafe_state);
-    completion_event->Signal();
+    host->FinishCommitOnImplThread(host->host_impl());
     LayerImpl* layer_impl =
         host->host_impl()->active_tree()->LayerById(layer->id());
 
@@ -255,7 +235,6 @@ TEST_F(SolidColorLayerImplTest, VerifyNeedsBlending) {
     EXPECT_FALSE(
         render_pass->quad_list.front()->shared_quad_state->are_contents_opaque);
   }
-  host->CommitComplete({base::TimeTicks(), base::TimeTicks::Now()});
 }
 
 TEST_F(SolidColorLayerImplTest, Occlusion) {
@@ -263,7 +242,7 @@ TEST_F(SolidColorLayerImplTest, Occlusion) {
   gfx::Size viewport_size(1000, 1000);
 
   auto* solid_color_layer_impl = AddLayer<SolidColorLayerImpl>();
-  solid_color_layer_impl->SetBackgroundColor({0.1f, 0.2f, 0.3f, 1.0f});
+  solid_color_layer_impl->SetBackgroundColor(SkColorSetARGB(255, 10, 20, 30));
   solid_color_layer_impl->SetBounds(layer_size);
   solid_color_layer_impl->SetDrawsContent(true);
   CopyProperties(root_layer(), solid_color_layer_impl);

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,13 @@
 
 #include <memory>
 
-#include "base/base_export.h"
 #include "base/environment.h"
 #include "build/build_config.h"
 
 namespace base {
 namespace internal {
 
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
 // Returns a modified environment vector constructed from the given environment
 // and the list of changes given in |changes|. Each key in the environment is
 // matched against the first element of the pairs. In the event of a match, the
@@ -32,7 +31,7 @@ namespace internal {
 BASE_EXPORT std::unique_ptr<char*[]> AlterEnvironment(
     const char* const* env,
     const EnvironmentMap& changes);
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 // Returns a modified environment vector constructed from the given environment
 // and the list of changes given in |changes|. Each key in the environment is
 // matched against the first element of the pairs. In the event of a match, the

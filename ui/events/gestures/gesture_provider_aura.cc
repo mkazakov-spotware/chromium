@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/auto_reset.h"
 #include "base/check.h"
-#include "build/chromeos_buildflags.h"
 #include "ui/events/event.h"
 #include "ui/events/event_utils.h"
 #include "ui/events/gesture_detection/gesture_configuration.h"
@@ -19,11 +18,11 @@ namespace ui {
 
 namespace {
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 constexpr bool kDoubleTapPlatformSupport = true;
 #else
 constexpr bool kDoubleTapPlatformSupport = false;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
 }  // namespace
 
@@ -39,9 +38,7 @@ GestureProviderAura::GestureProviderAura(GestureConsumer* consumer,
       kDoubleTapPlatformSupport);
 }
 
-GestureProviderAura::~GestureProviderAura() {
-  client_->OnGestureProviderAuraWillBeDestroyed(this);
-}
+GestureProviderAura::~GestureProviderAura() {}
 
 bool GestureProviderAura::OnTouchEvent(TouchEvent* event) {
   if (!pointer_state_.OnTouch(*event))
@@ -71,10 +68,6 @@ void GestureProviderAura::OnTouchEventAck(
 
 void GestureProviderAura::ResetGestureHandlingState() {
   filtered_gesture_provider_.ResetGestureHandlingState();
-}
-
-void GestureProviderAura::SendSynthesizedEndEvents() {
-  filtered_gesture_provider_.SendSynthesizedEndEvents();
 }
 
 void GestureProviderAura::OnGestureEvent(const GestureEventData& gesture) {
@@ -116,4 +109,4 @@ void GestureProviderAura::OnTouchEnter(int pointer_id, float x, float y) {
                   false /* is_source_touch_event_set_blocking */);
 }
 
-}  // namespace ui
+}  // namespace content

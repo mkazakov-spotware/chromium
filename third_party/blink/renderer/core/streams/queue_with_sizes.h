@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,16 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_STREAMS_QUEUE_WITH_SIZES_H_
 
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_deque.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
+#include "third_party/blink/renderer/platform/heap/heap_allocator.h"
 #include "third_party/blink/renderer/platform/heap/member.h"
-#include "third_party/blink/renderer/platform/heap/visitor.h"
 #include "v8/include/v8.h"
 
 namespace blink {
 
 class ExceptionState;
+class Visitor;
 
 // Implementation of the "Queue-with-sizes" operations from the standard. Unlike
 // the standard, these operations do not operate polymorphically on the
@@ -42,7 +43,7 @@ class CORE_EXPORT QueueWithSizes final
   double TotalSize() { return queue_total_size_; }
 
   // Not part of the standard.
-  bool IsEmpty() { return queue_.empty(); }
+  bool IsEmpty() { return queue_.IsEmpty(); }
 
   // https://streams.spec.whatwg.org/#reset-queue
   void ResetQueue();

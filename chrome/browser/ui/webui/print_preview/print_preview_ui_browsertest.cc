@@ -1,10 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/task_manager/task_manager_browsertest_util.h"
@@ -26,7 +25,7 @@
 #include "printing/buildflags/buildflags.h"
 #include "url/url_constants.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "ui/aura/window.h"
 #include "ui/aura/window_tree_host.h"
 #endif
@@ -44,7 +43,7 @@ class PrintPreviewBrowserTest : public InProcessBrowserTest {
   PrintPreviewBrowserTest() {}
 
   void Print() {
-    content::TestNavigationObserver nav_observer(nullptr);
+    content::TestNavigationObserver nav_observer(NULL);
     nav_observer.StartWatchingNewWebContents();
     chrome::ExecuteCommand(browser(), IDC_PRINT);
     nav_observer.Wait();
@@ -59,9 +58,9 @@ IN_PROC_BROWSER_TEST_F(PrintPreviewBrowserTest, PrintCommands) {
 
   ASSERT_TRUE(chrome::IsCommandEnabled(browser(), IDC_PRINT));
 
-#if BUILDFLAG(ENABLE_PRINTING) && !BUILDFLAG(IS_CHROMEOS)
-  // This is analogous to ENABLE_BASIC_PRINT_DIALOG but helps to verify that it
-  // is defined as expected.
+#if BUILDFLAG(ENABLE_PRINTING) && !defined(OS_CHROMEOS)
+  // This is analagous to ENABLE_BASIC_PRINT_DIALOG but helps to verify
+  // that it is defined as expected.
   bool is_basic_print_expected = true;
 #else
   bool is_basic_print_expected = false;
@@ -90,7 +89,7 @@ IN_PROC_BROWSER_TEST_F(PrintPreviewBrowserTest, PrintCommands) {
 }
 
 // Disable the test for mac, see http://crbug/367665.
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_MAC) || defined(OS_LINUX) || defined(OS_CHROMEOS)
 #define MAYBE_TaskManagerNewPrintPreview DISABLED_TaskManagerNewPrintPreview
 #else
 #define MAYBE_TaskManagerNewPrintPreview TaskManagerNewPrintPreview
@@ -128,7 +127,7 @@ IN_PROC_BROWSER_TEST_F(PrintPreviewBrowserTest,
       WaitForTaskManagerRows(1, MatchPrint(url::kAboutBlankURL)));
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // http://crbug.com/396360
 IN_PROC_BROWSER_TEST_F(PrintPreviewBrowserTest,
                        DISABLED_NoCrashOnCloseWithOtherTabs) {
@@ -140,16 +139,14 @@ IN_PROC_BROWSER_TEST_F(PrintPreviewBrowserTest,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
 
   browser()->tab_strip_model()->ActivateTabAt(
-      0, TabStripUserGestureDetails(
-             TabStripUserGestureDetails::GestureType::kOther));
+      0, {TabStripModel::GestureType::kOther});
 
   // Navigate main tab to hide print preview.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
+  ui_test_utils::NavigateToURL(browser(), GURL("about:blank"));
 
   browser()->tab_strip_model()->ActivateTabAt(
-      1, TabStripUserGestureDetails(
-             TabStripUserGestureDetails::GestureType::kOther));
+      1, {TabStripModel::GestureType::kOther});
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace

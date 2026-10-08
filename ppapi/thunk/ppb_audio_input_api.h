@@ -1,13 +1,15 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef PPAPI_THUNK_PPB_AUDIO_INPUT_API_H_
-#define PPAPI_THUNK_PPB_AUDIO_INPUT_API_H_
+#ifndef PPAPI_THUNK_AUDIO_INPUT_API_H_
+#define PPAPI_THUNK_AUDIO_INPUT_API_H_
 
 #include <stdint.h>
 
-#include "base/memory/scoped_refptr.h"
+#include <string>
+
+#include "base/memory/ref_counted.h"
 #include "ppapi/c/dev/ppb_audio_input_dev.h"
 
 namespace ppapi {
@@ -43,4 +45,4 @@ class PPB_AudioInput_API {
 }  // namespace thunk
 }  // namespace ppapi
 
-#endif  // PPAPI_THUNK_PPB_AUDIO_INPUT_API_H_
+#endif  // PPAPI_THUNK_AUDIO_INPUT_API_H_

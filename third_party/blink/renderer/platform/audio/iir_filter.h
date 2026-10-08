@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,9 +32,7 @@ class PLATFORM_EXPORT IIRFilter final {
                             float* phase_response);
 
   // Compute the tail time of the IIR filter
-  double TailTime(double sample_rate,
-                  bool is_filter_stable,
-                  unsigned render_quantum_frames);
+  double TailTime(double sample_rate, bool is_filter_stable);
 
   // Reset the internal state of the IIR filter to the initial state.
   void ResetState();

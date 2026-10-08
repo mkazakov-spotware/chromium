@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,11 +13,13 @@
 #include "remoting/protocol/message_pipe.h"
 #include "remoting/protocol/transport.h"
 
-namespace remoting {
+namespace webrtc {
 class DesktopCapturer;
-}  // namespace remoting
+}  // namespace webrtc
 
-namespace remoting::protocol {
+namespace remoting {
+
+namespace protocol {
 
 class AudioSource;
 class AudioStream;
@@ -87,8 +89,7 @@ class ConnectionToClient {
   // Start video stream that sends screen content from |desktop_capturer| to the
   // client.
   virtual std::unique_ptr<VideoStream> StartVideoStream(
-      const std::string& stream_name,
-      std::unique_ptr<DesktopCapturer> desktop_capturer) = 0;
+      std::unique_ptr<webrtc::DesktopCapturer> desktop_capturer) = 0;
 
   // Starts an audio stream. Returns nullptr if audio is not supported by the
   // client.
@@ -121,6 +122,7 @@ class ConnectionToClient {
   virtual WebrtcEventLogData* rtc_event_log() = 0;
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_CONNECTION_TO_CLIENT_H_

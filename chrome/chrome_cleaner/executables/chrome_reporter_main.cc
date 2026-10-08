@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,10 +21,11 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/message_loop/message_pump_type.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/string_util.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_executor.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/win/registry.h"
 #include "base/win/scoped_com_initializer.h"
 #include "base/win/scoped_handle.h"
@@ -256,7 +257,8 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, wchar_t*, int) {
     interface_log_file = command_line->GetSwitchValueNative(
         chrome_cleaner::kLogInterfaceCallsToSwitch);
     base::FilePath passed_name(interface_log_file);
-    std::vector<std::wstring> components = passed_name.GetComponents();
+    std::vector<std::wstring> components;
+    passed_name.GetComponents(&components);
     if (components.size() != 1) {
       LOG(ERROR) << "Invalid file name passed for logging!";
       return FinalizeWithResultCode(chrome_cleaner::RESULT_CODE_FAILED,
@@ -266,7 +268,7 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, wchar_t*, int) {
 
   auto sandbox_connection_error_callback =
       base::BindRepeating(CallTerminateOnSandboxConnectionError,
-                          base::SequencedTaskRunner::GetCurrentDefault(),
+                          base::SequencedTaskRunnerHandle::Get(),
                           registry_logger_weak_factory.GetWeakPtr());
 
   std::unique_ptr<chrome_cleaner::InterfaceLogService> interface_log_service =
@@ -304,8 +306,7 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, wchar_t*, int) {
   std::unique_ptr<chrome_cleaner::ScannerController> scanner_controller =
       std::make_unique<chrome_cleaner::ScannerControllerImpl>(
           shutdown_sequence.engine_client.get(), &registry_logger,
-          base::SequencedTaskRunner::GetCurrentDefault(),
-          shortcut_parser.get());
+          base::SequencedTaskRunnerHandle::Get(), shortcut_parser.get());
 
   if (command_line->HasSwitch(chrome_cleaner::kCrashSwitch)) {
     int* crash_me = nullptr;

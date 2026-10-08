@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,8 @@ std::vector<InteractionsStats> StatementToInteractionsStats(sql::Statement* s) {
     results.back().origin_domain = GURL(s->ColumnString(COLUMN_ORIGIN_DOMAIN));
     results.back().username_value = s->ColumnString16(COLUMN_USERNAME);
     results.back().dismissal_count = s->ColumnInt(COLUMN_DISMISSALS);
-    results.back().update_time = s->ColumnTime(COLUMN_DATE);
+    results.back().update_time =
+        base::Time::FromInternalValue(s->ColumnInt64(COLUMN_DATE));
   }
 
   return results;
@@ -47,7 +48,8 @@ bool operator==(const InteractionsStats& lhs, const InteractionsStats& rhs) {
          lhs.update_time == rhs.update_time;
 }
 
-StatisticsTable::StatisticsTable() = default;
+StatisticsTable::StatisticsTable() : db_(nullptr) {
+}
 
 StatisticsTable::~StatisticsTable() = default;
 
@@ -92,7 +94,7 @@ bool StatisticsTable::AddRow(const InteractionsStats& stats) {
   s.BindString(COLUMN_ORIGIN_DOMAIN, stats.origin_domain.spec());
   s.BindString16(COLUMN_USERNAME, stats.username_value);
   s.BindInt(COLUMN_DISMISSALS, stats.dismissal_count);
-  s.BindTime(COLUMN_DATE, stats.update_time);
+  s.BindInt64(COLUMN_DATE, stats.update_time.ToInternalValue());
   return s.Run();
 }
 
@@ -104,6 +106,14 @@ bool StatisticsTable::RemoveRow(const GURL& domain) {
                                            "origin_domain = ? "));
   s.BindString(0, domain.spec());
   return s.Run();
+}
+
+std::vector<InteractionsStats> StatisticsTable::GetAllRows() {
+  static constexpr char query[] =
+      "SELECT origin_domain, username_value, "
+      "dismissal_count, update_time FROM stats";
+  sql::Statement s(db_->GetCachedStatement(SQL_FROM_HERE, query));
+  return StatementToInteractionsStats(&s);
 }
 
 std::vector<InteractionsStats> StatisticsTable::GetRows(const GURL& domain) {
@@ -129,8 +139,8 @@ bool StatisticsTable::RemoveStatsByOriginAndTime(
     sql::Statement delete_statement(db_->GetCachedStatement(
         SQL_FROM_HERE,
         "DELETE FROM stats WHERE update_time >= ? AND update_time < ?"));
-    delete_statement.BindTime(0, delete_begin);
-    delete_statement.BindTime(1, delete_end);
+    delete_statement.BindInt64(0, delete_begin.ToInternalValue());
+    delete_statement.BindInt64(1, delete_end.ToInternalValue());
 
     return delete_statement.Run();
   }
@@ -140,8 +150,8 @@ bool StatisticsTable::RemoveStatsByOriginAndTime(
       db_->GetCachedStatement(SQL_FROM_HERE,
                               "SELECT origin_domain FROM stats "
                               "WHERE update_time >= ? AND update_time < ?"));
-  select_statement.BindTime(0, delete_begin);
-  select_statement.BindTime(1, delete_end);
+  select_statement.BindInt64(0, delete_begin.ToInternalValue());
+  select_statement.BindInt64(1, delete_end.ToInternalValue());
 
   std::set<std::string> origins;
   while (select_statement.Step()) {
@@ -159,8 +169,8 @@ bool StatisticsTable::RemoveStatsByOriginAndTime(
         "DELETE FROM stats "
         "WHERE origin_domain = ? AND update_time >= ? AND update_time < ?"));
     origin_delete_statement.BindString(0, origin);
-    origin_delete_statement.BindTime(1, delete_begin);
-    origin_delete_statement.BindTime(2, delete_end);
+    origin_delete_statement.BindInt64(1, delete_begin.ToInternalValue());
+    origin_delete_statement.BindInt64(2, delete_end.ToInternalValue());
     success = success && origin_delete_statement.Run();
   }
 
@@ -171,14 +181,6 @@ int StatisticsTable::GetNumAccounts() {
   sql::Statement select_statement(
       db_->GetCachedStatement(SQL_FROM_HERE, "SELECT COUNT(1) FROM stats"));
   return select_statement.Step() ? select_statement.ColumnInt(0) : 0u;
-}
-
-std::vector<InteractionsStats> StatisticsTable::GetAllRowsForTest() {
-  static constexpr char query[] =
-      "SELECT origin_domain, username_value, "
-      "dismissal_count, update_time FROM stats";
-  sql::Statement s(db_->GetCachedStatement(SQL_FROM_HERE, query));
-  return StatementToInteractionsStats(&s);
 }
 
 }  // namespace password_manager

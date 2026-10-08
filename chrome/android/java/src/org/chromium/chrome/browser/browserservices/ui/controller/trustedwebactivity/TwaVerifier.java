@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,15 @@ import androidx.annotation.Nullable;
 import androidx.browser.customtabs.CustomTabsService;
 
 import org.chromium.base.Promise;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
+import org.chromium.chrome.browser.browserservices.OriginVerifier;
 import org.chromium.chrome.browser.browserservices.ui.controller.Verifier;
-import org.chromium.chrome.browser.browserservices.verification.ChromeOriginVerifier;
-import org.chromium.chrome.browser.browserservices.verification.ChromeOriginVerifierFactory;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabProvider;
 import org.chromium.chrome.browser.dependency_injection.ActivityScope;
+import org.chromium.chrome.browser.externalauth.ExternalAuthUtils;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
-import org.chromium.chrome.browser.lifecycle.DestroyObserver;
+import org.chromium.chrome.browser.lifecycle.Destroyable;
 import org.chromium.components.embedder_support.util.Origin;
-import org.chromium.components.externalauth.ExternalAuthUtils;
 import org.chromium.content_public.browser.WebContents;
 
 import java.util.HashSet;
@@ -30,12 +29,12 @@ import javax.inject.Inject;
  * Provides Trusted Web Activity specific behaviour for the {@link CurrentPageVerifier}.
  */
 @ActivityScope
-public class TwaVerifier implements Verifier, DestroyObserver {
+public class TwaVerifier implements Verifier, Destroyable {
     /** The Digital Asset Link relationship used for Trusted Web Activities. */
     private static final int RELATIONSHIP = CustomTabsService.RELATION_HANDLE_ALL_URLS;
 
     private final BrowserServicesIntentDataProvider mIntentDataProvider;
-    private final ChromeOriginVerifier mOriginVerifier;
+    private final OriginVerifier mOriginVerifier;
 
     /**
      * Origins that we have yet to call OriginVerifier#start on.
@@ -55,8 +54,7 @@ public class TwaVerifier implements Verifier, DestroyObserver {
     @Inject
     public TwaVerifier(ActivityLifecycleDispatcher lifecycleDispatcher,
             BrowserServicesIntentDataProvider intentDataProvider,
-            ChromeOriginVerifierFactory originVerifierFactory,
-            CustomTabActivityTabProvider tabProvider,
+            OriginVerifier.Factory originVerifierFactory, CustomTabActivityTabProvider tabProvider,
             ClientPackageNameProvider clientPackageNameProvider,
             ExternalAuthUtils externalAuthUtils) {
         mIntentDataProvider = intentDataProvider;
@@ -71,7 +69,7 @@ public class TwaVerifier implements Verifier, DestroyObserver {
     }
 
     @Override
-    public void onDestroy() {
+    public void destroy() {
         mDestroyed = true;
     }
 

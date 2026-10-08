@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_util.h"
 #include "chrome/browser/ui/views/status_icons/status_tray_win.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/gfx/geometry/point.h"
@@ -103,12 +102,12 @@ void StatusIconWin::SetImage(const gfx::ImageSkia& image) {
     LOG(WARNING) << "Error setting status tray icon image";
 }
 
-void StatusIconWin::SetToolTip(const std::u16string& tool_tip) {
+void StatusIconWin::SetToolTip(const base::string16& tool_tip) {
   // Create the icon.
   NOTIFYICONDATA icon_data;
   InitIconData(&icon_data);
   icon_data.uFlags = NIF_TIP;
-  wcscpy_s(icon_data.szTip, base::as_wcstr(tool_tip));
+  wcscpy_s(icon_data.szTip, tool_tip.c_str());
   BOOL result = Shell_NotifyIcon(NIM_MODIFY, &icon_data);
   if (!result)
     LOG(WARNING) << "Unable to set tooltip for status tray icon";
@@ -116,15 +115,15 @@ void StatusIconWin::SetToolTip(const std::u16string& tool_tip) {
 
 void StatusIconWin::DisplayBalloon(
     const gfx::ImageSkia& icon,
-    const std::u16string& title,
-    const std::u16string& contents,
+    const base::string16& title,
+    const base::string16& contents,
     const message_center::NotifierId& notifier_id) {
   NOTIFYICONDATA icon_data;
   InitIconData(&icon_data);
   icon_data.uFlags = NIF_INFO;
   icon_data.dwInfoFlags = NIIF_INFO;
-  wcscpy_s(icon_data.szInfoTitle, base::as_wcstr(title));
-  wcscpy_s(icon_data.szInfo, base::as_wcstr(contents));
+  wcscpy_s(icon_data.szInfoTitle, title.c_str());
+  wcscpy_s(icon_data.szInfo, contents.c_str());
   icon_data.uTimeout = 0;
 
   if (!icon.isNull()) {

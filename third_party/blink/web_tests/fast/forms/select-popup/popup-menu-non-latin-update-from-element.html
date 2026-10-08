@@ -3,8 +3,6 @@
 <head>
 <meta charset="utf-8">
 <script src="../../../resources/js-test.js"></script>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
 <script src="../resources/common.js"></script>
 <script src="../resources/picker-common.js"></script>
 </head>
@@ -20,7 +18,7 @@ function openPickerErrorCallback() {
     testFailed('picker didn\'t open')
     finishJSTest();
 }
-openPickerDeprecatedJsTest(menu, test1, openPickerErrorCallback);
+openPicker(menu, test1, openPickerErrorCallback);
 
 function test1() {
     picker = internals.pagePopupWindow.global.picker;
@@ -29,7 +27,7 @@ function test1() {
 
     picker.on("didUpdate", function () {
         setTimeout(function() {
-            shouldBeEqualToString('picker.selectElement_.options[0].label', 'いろはにほへと');
+            shouldBeEqualToString('picker._selectElement.options[0].label', 'いろはにほへと');
             finishJSTest();
         }, 0);
     });

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,11 +26,6 @@ class ASH_PUBLIC_EXPORT NearbyShareDelegate {
 
   // Gets the current high visibility state from the NearbySharingService.
   virtual bool IsHighVisibilityOn() = 0;
-
-  // Returns true if EnableHighVisibility() has been called but
-  // NearbyShareDelegate has not yet been informed that the request has
-  // concluded.
-  virtual bool IsEnableHighVisibilityRequestActive() const = 0;
 
   // If high visibility is on, returns the time when the delegate
   // will turn it off. May return any value if high visibility is off.

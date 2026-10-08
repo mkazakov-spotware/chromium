@@ -1,19 +1,16 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_INDEXEDDB_IDB_REQUEST_QUEUE_ITEM_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_INDEXEDDB_IDB_REQUEST_QUEUE_ITEM_H_
 
-#include <cstdint>
 #include <memory>
 
 #include "base/callback.h"
-#include "base/dcheck_is_on.h"
 #include "third_party/blink/public/mojom/indexeddb/indexeddb.mojom-blink.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
-#include "third_party/blink/renderer/platform/wtf/deque.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace blink {
@@ -67,10 +64,6 @@ class IDBRequestQueueItem {
                       base::OnceClosure on_load_complete);
   IDBRequestQueueItem(IDBRequest*,
                       Vector<std::unique_ptr<IDBValue>>,
-                      bool attach_loader,
-                      base::OnceClosure on_result_load_complete);
-  IDBRequestQueueItem(IDBRequest*,
-                      Vector<Vector<std::unique_ptr<IDBValue>>>,
                       bool attach_loader,
                       base::OnceClosure on_result_load_complete);
   IDBRequestQueueItem(IDBRequest*,
@@ -139,7 +132,6 @@ class IDBRequestQueueItem {
     kKeyPrimaryKeyValue,
     kValue,
     kValueArray,
-    kValueArrayArray,
     kVoid,
   };
 
@@ -163,9 +155,6 @@ class IDBRequestQueueItem {
 
   // All the values that will be passed back to the IDBRequest.
   Vector<std::unique_ptr<IDBValue>> values_;
-
-  // Intermediate array to reconstruct all_values_ after IDBRequestLoader.
-  Vector<wtf_size_t> all_values_size_info_;
 
   // The cursor argument to the IDBRequest callback.
   std::unique_ptr<WebIDBCursor> cursor_;

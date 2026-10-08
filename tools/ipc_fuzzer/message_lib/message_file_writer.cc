@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/files/file.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "tools/ipc_fuzzer/message_lib/message_file.h"
 #include "tools/ipc_fuzzer/message_lib/message_file_format.h"
 #include "tools/ipc_fuzzer/message_lib/message_names.h"
@@ -21,10 +22,6 @@ namespace {
 class Writer {
  public:
   Writer(const base::FilePath& path);
-
-  Writer(const Writer&) = delete;
-  Writer& operator=(const Writer&) = delete;
-
   ~Writer() {}
   bool Write(const MessageVector& messages);
 
@@ -52,6 +49,8 @@ class Writer {
   base::File file_;
   const MessageVector* messages_;
   TypesSet types_;
+
+  DISALLOW_COPY_AND_ASSIGN(Writer);
 };
 
 Writer::Writer(const base::FilePath& path) : path_(path), messages_(NULL) {

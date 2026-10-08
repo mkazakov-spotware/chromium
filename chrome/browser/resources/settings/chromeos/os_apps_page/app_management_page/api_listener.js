@@ -1,61 +1,65 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+cr.define('app_management.apiListener', function() {
+  let initialized = false;
 
-import {Action} from 'chrome://resources/ash/common/store/store.js';
-import {App} from 'chrome://resources/cr_components/app_management/app_management.mojom-webui.js';
-import {createInitialState} from 'chrome://resources/cr_components/app_management/util.js';
-import {assert} from 'chrome://resources/js/assert.js';
+  async function init() {
+    assert(!initialized);
 
-import {addApp, changeApp, removeApp} from './actions.js';
-import {BrowserProxy} from './browser_proxy.js';
-import {AppManagementStore} from './store.js';
+    const {apps: initialApps} =
+        await app_management.BrowserProxy.getInstance().handler.getApps();
+    const initialState = app_management.util.createInitialState(initialApps);
+    app_management.Store.getInstance().init(initialState);
 
-let initialized = false;
+    const callbackRouter =
+        app_management.BrowserProxy.getInstance().callbackRouter;
 
-async function init() {
-  assert(!initialized);
+    callbackRouter.onAppAdded.addListener(onAppAdded);
+    callbackRouter.onAppChanged.addListener(onAppChanged);
+    callbackRouter.onAppRemoved.addListener(onAppRemoved);
+    callbackRouter.onArcSupportChanged.addListener(onArcSupportChanged);
 
-  const {apps: initialApps} =
-      await BrowserProxy.getInstance().handler.getApps();
-  const initialState = createInitialState(initialApps);
-  AppManagementStore.getInstance().init(initialState);
+    initialized = true;
+  }
 
-  const callbackRouter = BrowserProxy.getInstance().callbackRouter;
+  /**
+   * @param {cr.ui.Action} action
+   */
+  function dispatch(action) {
+    app_management.Store.getInstance().dispatch(action);
+  }
 
-  callbackRouter.onAppAdded.addListener(onAppAdded);
-  callbackRouter.onAppChanged.addListener(onAppChanged);
-  callbackRouter.onAppRemoved.addListener(onAppRemoved);
+  /**
+   * @param {App} app
+   */
+  function onAppAdded(app) {
+    dispatch(app_management.actions.addApp(app));
+  }
 
-  initialized = true;
-}
+  /**
+   * @param {App} app
+   */
+  function onAppChanged(app) {
+    dispatch(app_management.actions.changeApp(app));
+  }
 
-/**
- * @param {Action} action
- */
-function dispatch(action) {
-  AppManagementStore.getInstance().dispatch(action);
-}
+  /**
+   * @param {string} appId
+   */
+  function onAppRemoved(appId) {
+    dispatch(app_management.actions.removeApp(appId));
+  }
 
-/**
- * @param {App} app
- */
-function onAppAdded(app) {
-  dispatch(addApp(app));
-}
+  /**
+   * @param {boolean} isSupported
+   */
+  function onArcSupportChanged(isSupported) {
+    dispatch(app_management.actions.updateArcSupported(isSupported));
+  }
 
-/**
- * @param {App} app
- */
-function onAppChanged(app) {
-  dispatch(changeApp(app));
-}
+  init();
 
-/**
- * @param {string} appId
- */
-function onAppRemoved(appId) {
-  dispatch(removeApp(appId));
-}
-
-init();
+  // #cr_define_end
+  return {};
+});

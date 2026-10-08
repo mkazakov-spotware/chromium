@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_SAFE_BROWSING_CLOUD_CONTENT_SCANNING_DEEP_SCANNING_BROWSERTEST_BASE_H_
 #define CHROME_BROWSER_SAFE_BROWSING_CLOUD_CONTENT_SCANNING_DEEP_SCANNING_BROWSERTEST_BASE_H_
 
-#include "chrome/browser/enterprise/connectors/analysis/content_analysis_delegate.h"
+#include "chrome/browser/enterprise/connectors/content_analysis_delegate.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
 
@@ -18,6 +18,7 @@ class DeepScanningBrowserTestBase : public InProcessBrowserTest {
   DeepScanningBrowserTestBase();
   ~DeepScanningBrowserTestBase() override;
 
+  void SetUpOnMainThread() override;
   void TearDownOnMainThread() override;
 
   // Sets up a FakeContentAnalysisDelegate to use this class's StatusCallback
@@ -38,8 +39,8 @@ class DeepScanningBrowserTestBase : public InProcessBrowserTest {
 
   // Callbacks used to set up the fake delegate factory.
   enterprise_connectors::ContentAnalysisResponse StatusCallback(
-      const std::string& contents,
       const base::FilePath& path);
+  bool EncryptionStatusCallback(const base::FilePath& path);
 
   // Creates temporary files for testing in |temp_dir_|, and add them to |data|.
   void CreateFilesForTest(
@@ -49,10 +50,8 @@ class DeepScanningBrowserTestBase : public InProcessBrowserTest {
 
   const std::vector<base::FilePath>& created_file_paths() const;
 
- protected:
-  base::test::ScopedFeatureList scoped_feature_list_;
-
  private:
+  base::test::ScopedFeatureList scoped_feature_list_;
   base::RepeatingClosure quit_closure_;
   enterprise_connectors::ContentAnalysisResponse
       connector_status_callback_response_;

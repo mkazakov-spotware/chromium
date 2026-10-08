@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@ namespace webshare {
 
 TEST(FakeUriRuntimeClassFactoryTest, CreateUri) {
   if (!base::win::ScopedHString::ResolveCoreWinRTStringDelayload())
-    GTEST_SKIP();
+    return;
 
   auto factory = Make<FakeUriRuntimeClassFactory>();
 
@@ -35,7 +35,7 @@ TEST(FakeUriRuntimeClassFactoryTest, CreateUri) {
 
 TEST(FakeUriRuntimeClassFactoryTest, CreateUri_Invalid) {
   if (!base::win::ScopedHString::ResolveCoreWinRTStringDelayload())
-    GTEST_SKIP();
+    return;
 
   auto factory = Make<FakeUriRuntimeClassFactory>();
 

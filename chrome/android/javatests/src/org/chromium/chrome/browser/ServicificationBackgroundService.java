@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,15 +18,15 @@ import org.chromium.content_public.browser.BrowserStartupController;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 /**
- * Class for launching the minimal browser mode for tests.
+ * Class for launching the service manager only mode for tests.
  */
 public class ServicificationBackgroundService extends ChromeBackgroundServiceImpl {
     private boolean mLaunchBrowserCalled;
     private boolean mNativeLoaded;
-    private boolean mSupportsMinimalBrowser;
+    private boolean mSupportsServiceManagerOnly;
 
-    public ServicificationBackgroundService(boolean supportsMinimalBrowser) {
-        mSupportsMinimalBrowser = supportsMinimalBrowser;
+    public ServicificationBackgroundService(boolean supportsServiceManagerOnly) {
+        mSupportsServiceManagerOnly = supportsServiceManagerOnly;
     }
 
     @Override
@@ -47,12 +47,12 @@ public class ServicificationBackgroundService extends ChromeBackgroundServiceImp
             }
 
             @Override
-            public boolean startMinimalBrowser() {
-                return mSupportsMinimalBrowser;
+            public boolean startServiceManagerOnly() {
+                return mSupportsServiceManagerOnly;
             }
         };
 
-        ChromeBrowserInitializer.getInstance().handlePreNativeStartupAndLoadLibraries(parts);
+        ChromeBrowserInitializer.getInstance().handlePreNativeStartup(parts);
         ChromeBrowserInitializer.getInstance().handlePostNativeStartup(true, parts);
     }
 
@@ -65,14 +65,14 @@ public class ServicificationBackgroundService extends ChromeBackgroundServiceImp
 
     public void waitForNativeLoaded() {
         CriteriaHelper.pollUiThread(
-                () -> mNativeLoaded, "Failed while waiting for starting minimal browser.");
+                () -> mNativeLoaded, "Failed while waiting for starting Service Manager.");
     }
 
-    public void setSupportsMinimalBrowser(boolean supportsMinimalBrowser) {
-        mSupportsMinimalBrowser = supportsMinimalBrowser;
+    public void setSupportsServiceManagerOnly(boolean supportsServiceManagerOnly) {
+        mSupportsServiceManagerOnly = supportsServiceManagerOnly;
     }
 
-    public static void assertMinimalBrowserStarted() {
+    public static void assertOnlyServiceManagerStarted() {
         // This task will always be queued and executed after
         // the BrowserStartupControllerImpl#browserStartupComplete() is called on the UI thread when
         // the full browser starts. So we can use it to checks whether the
@@ -80,7 +80,7 @@ public class ServicificationBackgroundService extends ChromeBackgroundServiceImp
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             Assert.assertTrue("Native has not been started.",
                     BrowserStartupController.getInstance().isNativeStarted());
-            Assert.assertFalse("The full browser is started instead of a minimal browser.",
+            Assert.assertFalse("The full browser is started instead of ServiceManager only.",
                     BrowserStartupController.getInstance().isFullBrowserStarted());
         });
     }

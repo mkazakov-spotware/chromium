@@ -1,21 +1,21 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SYNC_ENGINE_SYNC_ENGINE_H_
 #define COMPONENTS_SYNC_ENGINE_SYNC_ENGINE_H_
 
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "base/callback_forward.h"
+#include "base/callback.h"
+#include "base/compiler_specific.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/time/time.h"
-#include "base/values.h"
-#include "components/signin/public/identity_manager/account_info.h"
 #include "components/sync/base/extensions_activity.h"
 #include "components/sync/base/model_type.h"
 #include "components/sync/base/weak_handle.h"
@@ -32,8 +32,7 @@ namespace syncer {
 
 class EngineComponentsFactory;
 class HttpPostProviderFactory;
-class KeyDerivationParams;
-class Nigori;
+class JsEventHandler;
 class SyncEngineHost;
 struct SyncStatus;
 
@@ -44,39 +43,45 @@ struct SyncStatus;
 class SyncEngine : public ModelTypeConfigurer {
  public:
   using AllNodesCallback =
-      base::OnceCallback<void(ModelType, base::Value::List)>;
+      base::OnceCallback<void(ModelType, std::unique_ptr<base::ListValue>)>;
   using HttpPostProviderFactoryGetter =
       base::OnceCallback<std::unique_ptr<HttpPostProviderFactory>()>;
 
   // Utility struct for holding initialization options.
   struct InitParams {
     InitParams();
-
-    InitParams(const InitParams&) = delete;
-    InitParams& operator=(const InitParams&) = delete;
-
     InitParams(InitParams&& other);
-
     ~InitParams();
 
-    raw_ptr<SyncEngineHost, DanglingUntriaged> host = nullptr;
+    SyncEngineHost* host = nullptr;
     std::unique_ptr<SyncEncryptionHandler::Observer> encryption_observer_proxy;
     scoped_refptr<ExtensionsActivity> extensions_activity;
+    WeakHandle<JsEventHandler> event_handler;
     GURL service_url;
     SyncEngine::HttpPostProviderFactoryGetter http_factory_getter;
-    CoreAccountInfo authenticated_account_info;
+    CoreAccountId authenticated_account_id;
     std::string invalidator_client_id;
     std::unique_ptr<SyncManagerFactory> sync_manager_factory;
     bool enable_local_sync_backend = false;
     base::FilePath local_sync_backend_folder;
+    std::string restored_key_for_bootstrapping;
+    std::string restored_keystore_key_for_bootstrapping;
     std::unique_ptr<EngineComponentsFactory> engine_components_factory;
+    std::map<ModelType, int64_t> invalidation_versions;
+
+    // Initial authoritative values (usually read from prefs).
+    std::string cache_guid;
+    std::string birthday;
+    std::string bag_of_chips;
+
+    // Define the polling interval. Must not be zero.
+    base::TimeDelta poll_interval;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(InitParams);
   };
 
   SyncEngine();
-
-  SyncEngine(const SyncEngine&) = delete;
-  SyncEngine& operator=(const SyncEngine&) = delete;
-
   ~SyncEngine() override;
 
   // Kicks off asynchronous initialization. Optionally deletes sync data during
@@ -100,11 +105,6 @@ class SyncEngine : public ModelTypeConfigurer {
   // Invalidates the SyncCredentials.
   virtual void InvalidateCredentials() = 0;
 
-  // Transport metadata getters.
-  virtual std::string GetCacheGuid() const = 0;
-  virtual std::string GetBirthday() const = 0;
-  virtual base::Time GetLastSyncedTimeForDebugging() const = 0;
-
   // Switches sync engine into configuration mode. In this mode only initial
   // data for newly enabled types is downloaded from server. No local changes
   // are committed to server.
@@ -115,26 +115,19 @@ class SyncEngine : public ModelTypeConfigurer {
   // browser from the cloud / sync servers.
   virtual void StartSyncingWithServer() = 0;
 
-  // Starts handling incoming standalone invalidations. This method must be
-  // called when data types are configured.
-  virtual void StartHandlingInvalidations() = 0;
-
   // Asynchronously set a new passphrase for encryption. Note that it is an
   // error to call SetEncryptionPassphrase under the following circumstances:
   // - An explicit passphrase has already been set
   // - We have pending keys.
-  virtual void SetEncryptionPassphrase(
-      const std::string& passphrase,
-      const KeyDerivationParams& key_derivation_params) = 0;
+  virtual void SetEncryptionPassphrase(const std::string& passphrase) = 0;
 
-  // Use the provided decryption key to asynchronously attempt decryption. If
-  // new encrypted keys arrive during the asynchronous call,
-  // OnPassphraseRequired may be triggered at a later time. It is an error to
-  // call this when there are no pending keys.
-  virtual void SetExplicitPassphraseDecryptionKey(
-      std::unique_ptr<Nigori> key) = 0;
+  // Use the provided passphrase to asynchronously attempt decryption. If new
+  // encrypted keys arrive during the asynchronous call, OnPassphraseRequired
+  // may be triggered at a later time. It is an error to call this when there
+  // are no pending keys.
+  virtual void SetDecryptionPassphrase(const std::string& passphrase) = 0;
 
-  // Analogous to SetExplicitPassphraseDecryptionKey() but specifically for
+  // Analogous to SetDecryptionPassphrase but specifically for
   // TRUSTED_VAULT_PASSPHRASE: it provides new decryption keys that could
   // allow decrypting pending Nigori keys. Notifies observers of the result of
   // the operation via OnTrustedVaultKeyAccepted if the provided keys
@@ -161,9 +154,6 @@ class SyncEngine : public ModelTypeConfigurer {
   virtual void HasUnsyncedItemsForTest(
       base::OnceCallback<void(bool)> cb) const = 0;
 
-  // Returns datatypes that are currently throttled.
-  virtual void GetThrottledDataTypesForTest(
-      base::OnceCallback<void(ModelTypeSet)> cb) const = 0;
 
   // Requests that the backend forward to the fronent any protocol events in
   // its buffer and begin forwarding automatically from now on.  Repeated calls
@@ -177,13 +167,17 @@ class SyncEngine : public ModelTypeConfigurer {
   // Notify the syncer that the cookie jar has changed.
   // See SyncManager::OnCookieJarChanged.
   virtual void OnCookieJarChanged(bool account_mismatch,
+                                  bool empty_jar,
                                   base::OnceClosure callback) = 0;
 
   // Enables/Disables invalidations for session sync related datatypes.
   virtual void SetInvalidationsForSessionsEnabled(bool enabled) = 0;
 
-  // Returns a Value::List representing Nigori node.
+  // Returns a ListValue representing Nigori node.
   virtual void GetNigoriNodeForDebugging(AllNodesCallback callback) = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SyncEngine);
 };
 
 }  // namespace syncer

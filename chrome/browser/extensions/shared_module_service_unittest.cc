@@ -1,14 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/shared_module_service.h"
 
 #include <memory>
-#include <string>
 #include <utility>
 
 #include "base/memory/ref_counted.h"
+#include "base/strings/string16.h"
 #include "base/values.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
@@ -39,8 +39,8 @@ scoped_refptr<const Extension> CreateExtensionImportingModules(
          .Set("manifest_version", 2);
   if (!import_ids.empty()) {
     ListBuilder import_list;
-    for (const std::string& import_id : import_ids)
-      import_list.Append(DictionaryBuilder().Set("id", import_id).Build());
+    for (const std::string& id : import_ids)
+      import_list.Append(DictionaryBuilder().Set("id", id).Build());
     builder.Set("import", import_list.Build());
   }
   return ExtensionBuilder()
@@ -159,7 +159,7 @@ TEST_F(SharedModuleServiceUnitTest, PruneSharedModulesOnUninstall) {
   EXPECT_TRUE(InstallExtension(importing_extension.get(), false));
 
   // Uninstall the extension that imports our module.
-  std::u16string error;
+  base::string16 error;
   service()->UninstallExtension(importing_extension->id(),
                                 extensions::UNINSTALL_REASON_FOR_TESTING,
                                 &error);
@@ -296,7 +296,7 @@ TEST_F(SharedModuleServiceUnitTest, PruneMultipleSharedModules) {
   EXPECT_TRUE(InstallExtension(importing_extension.get(), false));
 
   // Uninstall the extension that imports our modules.
-  std::u16string error;
+  base::string16 error;
   service()->UninstallExtension(importing_extension->id(),
                                 extensions::UNINSTALL_REASON_FOR_TESTING,
                                 &error);

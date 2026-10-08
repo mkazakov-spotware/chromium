@@ -1,30 +1,21 @@
 # UI DevTools Overview
 
-UI DevTools allows UI developers to inspect the Chrome desktop UI system like
-a webpage using the frontend DevTools Inspector. It is
-currently supported on all desktop platforms including Linux, Windows, Mac,
-and ChromeOS.
+UI DevTools allows UI developers to inspect the Chrome desktop UI system like a webpage using the frontend DevTools Inspector. It is
+currently supported on Linux, Windows, Mac, and ChromeOS.
+
+* [Old Ash Doc](https://www.chromium.org/developers/how-tos/inspecting-ash)
+* [Backend Source Code](https://cs.chromium.org/chromium/src/components/ui_devtools/)
+* [Inspector Frontend Source Code](https://chromium.googlesource.com/devtools/devtools-frontend)
 
 ## How to run
 
-There are two ways to enable UI DevTools:
+1. Run Chromium with default port 9223 and start Chromium with UI DevTools flag:
 
-1. Run Chromium with default port 9223 and start Chromium with UI DevTools
-   command line flag:
+        $ out/Default/chrome --enable-ui-devtools
 
-   ```shell
-   $ out/Default/chrome --enable-ui-devtools
-   ```
-
-    * If you want to use a different port, add the port number in the flag
-    `--enable-ui-devtools=<port>`.
-
-2. Enable `ui-debug-tools` feature flag from `chrome://flags`
-
-Once enabled, go to `chrome://inspect#native-ui` and click the `Inspect Native UI`
-button to launch the DevTools front-end in a separate tab.
-
-![launch UIDevTools]
+    * If you want to use different port, add port in the flag `--enable-ui-devtools=<port>`.
+2. In the Chrome Omnibox, go to chrome://inspect#other and click `inspect` under UIDevToolsClient.
+    * Direct link is devtools://devtools/bundled/inspector.html?ws=localhost:9223/0.
 
 
 ## How to Use
@@ -121,7 +112,6 @@ key word 'style:' must be typed in the search bar.
 
 ![search style]
 
-[launch UIDevTools]: images/launch_tools.png
 [expand elements]: images/expand_elements.gif
 [browser frame properties]: images/browser_frame_properties.png
 [image view properties]: images/image_view_properties.png
@@ -136,9 +126,3 @@ key word 'style:' must be typed in the search bar.
 [lock and inspect bubble]: images/lock_and_inspect_bubble.gif
 [ui element tree search]: images/ui_element_tree_search.gif
 [search style]: images/search_style.png
-
-### References
-
-* [Old Ash Doc](https://www.chromium.org/developers/how-tos/inspecting-ash) (obsolete)
-* [Backend Source Code](https://cs.chromium.org/chromium/src/components/ui_devtools/)
-* [Inspector Frontend Source Code](https://chromium.googlesource.com/devtools/devtools-frontend)

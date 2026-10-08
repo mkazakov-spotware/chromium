@@ -1,17 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/fullscreen/fullscreen_web_view_resizer.h"
 
-#import "base/test/scoped_feature_list.h"
+#include "base/test/scoped_feature_list.h"
 #import "ios/chrome/browser/ui/fullscreen/fullscreen_model.h"
 #import "ios/chrome/browser/ui/fullscreen/test/fullscreen_model_test_util.h"
-#import "ios/web/common/features.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "testing/gmock/include/gmock/gmock.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "testing/platform_test.h"
+#include "ios/web/common/features.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "testing/gmock/include/gmock/gmock.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -53,7 +53,7 @@ class FullscreenWebViewResizerTest : public PlatformTest {
   FullscreenModel _model;
   UIView* _webStateSuperview;
   UIView* _webStateView;
-  web::FakeWebState _webState;
+  web::TestWebState _webState;
 };
 
 // Tests that updating the resizer works as expected.
@@ -101,7 +101,7 @@ TEST_F(FullscreenWebViewResizerTest, WebStateNoSuperview) {
   UIView* webStateView = [[UIView alloc] initWithFrame:webViewFrame];
 
   // WebState setup.
-  web::FakeWebState webState;
+  web::TestWebState webState;
   webState.SetView(webStateView);
 
   FullscreenWebViewResizer* resizer =

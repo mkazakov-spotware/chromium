@@ -1,22 +1,25 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_BASE_MATH_UTIL_H_
 #define CC_BASE_MATH_UTIL_H_
 
-#include <cmath>
 #include <limits>
+#include <memory>
+#include <vector>
 
 #include "base/check.h"
-#include "base/cxx17_backports.h"
+#include "base/numerics/ranges.h"
 #include "build/build_config.h"
 #include "cc/base/base_export.h"
-#include "third_party/skia/include/core/SkM44.h"
-#include "third_party/skia/include/core/SkScalar.h"
 #include "ui/gfx/geometry/box_f.h"
 #include "ui/gfx/geometry/point3_f.h"
 #include "ui/gfx/geometry/point_f.h"
+#include "ui/gfx/geometry/rounded_corners_f.h"
+#include "ui/gfx/geometry/scroll_offset.h"
+#include "ui/gfx/geometry/size.h"
+#include "ui/gfx/transform.h"
 
 namespace base {
 class Value;
@@ -30,13 +33,11 @@ class QuadF;
 class Rect;
 class RectF;
 class RRectF;
-class Size;
 class SizeF;
 class Transform;
 class Vector2dF;
 class Vector2d;
 class Vector3dF;
-class LinearGradient;
 }  // namespace gfx
 
 namespace cc {
@@ -69,10 +70,10 @@ struct HomogeneousCoordinate {
     SkScalar inv_w = SK_Scalar1 / w();
     // However, w may be close to 0 and we lose precision on our geometry
     // calculations if we allow scaling to extremely large values.
-    return gfx::PointF(base::clamp(x() * inv_w, -kInfiniteCoordinate,
-                                   float{kInfiniteCoordinate}),
-                       base::clamp(y() * inv_w, -kInfiniteCoordinate,
-                                   float{kInfiniteCoordinate}));
+    return gfx::PointF(base::ClampToRange(x() * inv_w, -kInfiniteCoordinate,
+                                          float{kInfiniteCoordinate}),
+                       base::ClampToRange(y() * inv_w, -kInfiniteCoordinate,
+                                          float{kInfiniteCoordinate}));
   }
 
   gfx::Point3F CartesianPoint3d() const {
@@ -85,25 +86,12 @@ struct HomogeneousCoordinate {
     SkScalar inv_w = SK_Scalar1 / w();
     // However, w may be close to 0 and we lose precision on our geometry
     // calculations if we allow scaling to extremely large values.
-    return gfx::Point3F(base::clamp(x() * inv_w, -kInfiniteCoordinate,
-                                    float{kInfiniteCoordinate}),
-                        base::clamp(y() * inv_w, -kInfiniteCoordinate,
-                                    float{kInfiniteCoordinate}),
-                        base::clamp(z() * inv_w, -kInfiniteCoordinate,
-                                    float{kInfiniteCoordinate}));
-  }
-
-  gfx::Point3F CartesianPoint3dUnclamped() const {
-    if (w() == SK_Scalar1)
-      return gfx::Point3F(x(), y(), z());
-
-    // For now, because this code is used privately only by MathUtil, it should
-    // never be called when w == 0, and we do not yet need to handle that case.
-    DCHECK(w());
-    SkScalar inv_w = SK_Scalar1 / w();
-    // However, w may be close to 0 and we lose precision on our geometry
-    // calculations if we allow scaling to extremely large values.
-    return gfx::Point3F(x() * inv_w, y() * inv_w, z() * inv_w);
+    return gfx::Point3F(base::ClampToRange(x() * inv_w, -kInfiniteCoordinate,
+                                           float{kInfiniteCoordinate}),
+                        base::ClampToRange(y() * inv_w, -kInfiniteCoordinate,
+                                           float{kInfiniteCoordinate}),
+                        base::ClampToRange(z() * inv_w, -kInfiniteCoordinate,
+                                           float{kInfiniteCoordinate}));
   }
 
   SkScalar x() const { return vec[0]; }
@@ -246,6 +234,13 @@ class CC_BASE_EXPORT MathUtil {
                                      const gfx::PointF& point,
                                      bool* clipped);
 
+  static gfx::Vector2dF ComputeTransform2dScaleComponents(const gfx::Transform&,
+                                                          float fallbackValue);
+  // Returns an approximate max scale value of the transform even if it has
+  // perspective. Prefer to use ComputeTransform2dScaleComponents if there is no
+  // perspective, since it can produce more accurate results.
+  static float ComputeApproximateMaxScale(const gfx::Transform& transform);
+
   // Makes a rect that has the same relationship to input_outer_rect as
   // scale_inner_rect has to scale_outer_rect. scale_inner_rect should be
   // contained within scale_outer_rect, and likewise the rectangle that is
@@ -292,6 +287,9 @@ class CC_BASE_EXPORT MathUtil {
                                const gfx::Vector2dF& v,
                                base::trace_event::TracedValue* res);
   static void AddToTracedValue(const char* name,
+                               const gfx::ScrollOffset& v,
+                               base::trace_event::TracedValue* res);
+  static void AddToTracedValue(const char* name,
                                const gfx::QuadF& q,
                                base::trace_event::TracedValue* res);
   static void AddToTracedValue(const char* name,
@@ -309,9 +307,6 @@ class CC_BASE_EXPORT MathUtil {
   static void AddCornerRadiiToTracedValue(const char* name,
                                           const gfx::RRectF& rect,
                                           base::trace_event::TracedValue* res);
-  static void AddToTracedValue(const char* name,
-                               const gfx::LinearGradient& gradient,
-                               base::trace_event::TracedValue* res);
 
   // Returns a base::Value representation of the floating point value.
   // If the value is inf, returns max double/float representation.
@@ -329,12 +324,6 @@ class CC_BASE_EXPORT MathUtil {
                                         const gfx::PointF& r);
   static bool IsNearlyTheSameForTesting(const gfx::Point3F& l,
                                         const gfx::Point3F& r);
-
-  // Helper functions for migration from SkMatrix->SkM44. It may make sense to
-  // move these to skia itself at some point.
-  static bool SkM44HasPerspective(const SkM44& m);
-  static bool SkM44Is2D(const SkM44& m);
-  static bool SkM44Preserves2DAxisAlignment(const SkM44& m);
 
  private:
   template <typename T>

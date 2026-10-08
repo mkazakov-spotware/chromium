@@ -1,14 +1,20 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_POLICY_CORE_COMMON_POLICY_LOADER_WIN_H_
 #define COMPONENTS_POLICY_CORE_COMMON_POLICY_LOADER_WIN_H_
 
-#include <memory>
-#include <string>
+#include <windows.h>
 
+#include <userenv.h>
+
+#include <memory>
+
+#include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
+#include "base/strings/string16.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/win/object_watcher.h"
 #include "components/policy/core/common/async_policy_loader.h"
@@ -31,21 +37,17 @@ class POLICY_EXPORT PolicyLoaderWin
       public base::win::ObjectWatcher::Delegate {
  public:
   PolicyLoaderWin(scoped_refptr<base::SequencedTaskRunner> task_runner,
-                  ManagementService* management_service,
-                  const std::wstring& chrome_policy_key);
-  PolicyLoaderWin(const PolicyLoaderWin&) = delete;
-  PolicyLoaderWin& operator=(const PolicyLoaderWin&) = delete;
+                  const base::string16& chrome_policy_key);
   ~PolicyLoaderWin() override;
 
   // Creates a policy loader that uses the Registry to access GPO.
   static std::unique_ptr<PolicyLoaderWin> Create(
       scoped_refptr<base::SequencedTaskRunner> task_runner,
-      ManagementService* management_service,
-      const std::wstring& chrome_policy_key);
+      const base::string16& chrome_policy_key);
 
   // AsyncPolicyLoader implementation.
   void InitOnBackgroundThread() override;
-  PolicyBundle Load() override;
+  std::unique_ptr<PolicyBundle> Load() override;
 
  private:
   // Parses Chrome policy from |gpo_dict| for the given |scope| and |level| and
@@ -67,7 +69,7 @@ class POLICY_EXPORT PolicyLoaderWin
   void OnObjectSignaled(HANDLE object) override;
 
   bool is_initialized_;
-  const std::wstring chrome_policy_key_;
+  const base::string16 chrome_policy_key_;
 
   base::WaitableEvent user_policy_changed_event_;
   base::WaitableEvent machine_policy_changed_event_;
@@ -75,6 +77,8 @@ class POLICY_EXPORT PolicyLoaderWin
   base::win::ObjectWatcher machine_policy_watcher_;
   bool user_policy_watcher_failed_;
   bool machine_policy_watcher_failed_;
+
+  DISALLOW_COPY_AND_ASSIGN(PolicyLoaderWin);
 };
 
 }  // namespace policy

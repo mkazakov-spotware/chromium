@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,10 +17,11 @@
 
 namespace {
 
-const char kStartOnboardingQueryParam[] = "onboarding";
 const char kStartReceivingQueryParam[] = "receive";
 
-constexpr base::TimeDelta kShutoffTimeout = base::Minutes(5);
+constexpr base::TimeDelta kShutoffTimeout = base::TimeDelta::FromMinutes(5);
+constexpr base::TimeDelta kOnboardingWaitTimeout =
+    base::TimeDelta::FromMinutes(5);
 
 std::string GetTimestampString() {
   return base::NumberToString(
@@ -37,7 +38,10 @@ NearbyShareDelegateImpl::NearbyShareDelegateImpl(
           FROM_HERE,
           kShutoffTimeout,
           base::BindRepeating(&NearbyShareDelegateImpl::DisableHighVisibility,
-                              base::Unretained(this))) {
+                              base::Unretained(this))),
+      onboarding_wait_timer_(FROM_HERE,
+                             kOnboardingWaitTimeout,
+                             base::BindRepeating([]() {})) {
   ash::SessionController::Get()->AddObserver(this);
 }
 
@@ -48,16 +52,11 @@ NearbyShareDelegateImpl::~NearbyShareDelegateImpl() {
 }
 
 bool NearbyShareDelegateImpl::IsPodButtonVisible() {
-  return nearby_share_service_ != nullptr &&
-         !nearby_share_service_->GetSettings()->IsDisabledByPolicy();
+  return nearby_share_service_ != nullptr;
 }
 
 bool NearbyShareDelegateImpl::IsHighVisibilityOn() {
   return nearby_share_service_ && nearby_share_service_->IsInHighVisibility();
-}
-
-bool NearbyShareDelegateImpl::IsEnableHighVisibilityRequestActive() const {
-  return is_enable_high_visibility_request_active_;
 }
 
 base::TimeTicks NearbyShareDelegateImpl::HighVisibilityShutoffTime() const {
@@ -70,7 +69,9 @@ void NearbyShareDelegateImpl::EnableHighVisibility() {
 
   settings_opener_->ShowSettingsPage(kStartReceivingQueryParam);
 
-  is_enable_high_visibility_request_active_ = true;
+  if (!nearby_share_service_->GetSettings()->GetEnabled()) {
+    onboarding_wait_timer_.Reset();
+  }
 }
 
 void NearbyShareDelegateImpl::DisableHighVisibility() {
@@ -105,22 +106,27 @@ void NearbyShareDelegateImpl::SetNearbyShareServiceForTest(
 void NearbyShareDelegateImpl::AddNearbyShareServiceObservers() {
   DCHECK(nearby_share_service_);
   DCHECK(!nearby_share_service_->HasObserver(this));
+  DCHECK(!settings_receiver_.is_bound());
   nearby_share_service_->AddObserver(this);
+  nearby_share_service_->GetSettings()->AddSettingsObserver(
+      settings_receiver_.BindNewPipeAndPassRemote());
 }
 
 void NearbyShareDelegateImpl::RemoveNearbyShareServiceObservers() {
   DCHECK(nearby_share_service_);
   DCHECK(nearby_share_service_->HasObserver(this));
   nearby_share_service_->RemoveObserver(this);
+  settings_receiver_.reset();
 }
 
-void NearbyShareDelegateImpl::OnHighVisibilityChangeRequested() {
-  is_enable_high_visibility_request_active_ = true;
+void NearbyShareDelegateImpl::OnEnabledChanged(bool enabled) {
+  if (enabled && onboarding_wait_timer_.IsRunning()) {
+    onboarding_wait_timer_.Stop();
+    EnableHighVisibility();
+  }
 }
 
 void NearbyShareDelegateImpl::OnHighVisibilityChanged(bool high_visibility_on) {
-  is_enable_high_visibility_request_active_ = false;
-
   if (high_visibility_on) {
     shutoff_time_ = base::TimeTicks::Now() + kShutoffTimeout;
     shutoff_timer_.Reset();
@@ -139,13 +145,7 @@ void NearbyShareDelegateImpl::OnShutdown() {
 }
 
 void NearbyShareDelegateImpl::ShowNearbyShareSettings() const {
-  DCHECK(nearby_share_service_);
-
-  std::string query_param =
-      nearby_share_service_->GetSettings()->IsOnboardingComplete()
-          ? std::string()  // Show settings subpage without dialog.
-          : kStartOnboardingQueryParam;  // Show onboarding dialog.
-  settings_opener_->ShowSettingsPage(query_param);
+  settings_opener_->ShowSettingsPage("");
 }
 
 void NearbyShareDelegateImpl::SettingsOpener::ShowSettingsPage(
@@ -155,12 +155,6 @@ void NearbyShareDelegateImpl::SettingsOpener::ShowSettingsPage(
     // Append a timestamp to make the url unique per-call. Otherwise, settings
     // will not respond to successive calls if the url does not change.
     query_string += "?" + sub_page + "&time=" + GetTimestampString();
-
-    if (sub_page == kStartReceivingQueryParam) {
-      // Attach high visibility shutoff timeout for display in webui.
-      query_string +=
-          "&timeout=" + base::NumberToString(kShutoffTimeout.InSeconds());
-    }
   }
 
   chrome::SettingsWindowManager::GetInstance()->ShowOSSettings(

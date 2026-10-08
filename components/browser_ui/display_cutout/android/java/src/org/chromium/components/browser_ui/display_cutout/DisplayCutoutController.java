@@ -1,9 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.browser_ui.display_cutout;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.graphics.Rect;
 import android.os.Build;
@@ -11,11 +12,8 @@ import android.view.Window;
 import android.view.WindowManager.LayoutParams;
 
 import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.Callback;
-import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.blink.mojom.ViewportFit;
 import org.chromium.components.browser_ui.widget.InsetObserverView;
 import org.chromium.content_public.browser.WebContents;
@@ -43,17 +41,6 @@ public class DisplayCutoutController implements InsetObserverView.WindowInsetObs
      */
     private @Nullable InsetObserverView mInsetObserverView;
 
-    /**
-     * Provides the activity-specific (vs tab-specific) cutout mode. The activity-specific
-     * cutout mode takes precedence over the tab-specific cutout mode.
-     */
-    private @Nullable ObservableSupplier<Integer> mBrowserCutoutModeSupplier;
-
-    /**
-     * Observes {@link mBrowserCutoutModeSupplier}.
-     */
-    private @Nullable Callback<Integer> mBrowserCutoutModeObserver;
-
     /** An interface for providing embedder-specific behavior to the controller. */
     public interface Delegate {
         /** Returns the activity this controller is associated with, if there is one. */
@@ -73,73 +60,37 @@ public class DisplayCutoutController implements InsetObserverView.WindowInsetObs
 
         /** Returns whether the user can interact with the associated WebContents/UI element. */
         boolean isInteractable();
-
-        /**
-         * Returns the activity-specific (vs tab-specific) cutout mode. The activity-specific
-         * cutout mode takes precedence over the tab-specific cutout mode.
-         */
-        ObservableSupplier<Integer> getBrowserDisplayCutoutModeSupplier();
-
-        /** Whether the activity is in browser (not-HTML) fullscreen. */
-        boolean isInBrowserFullscreen();
     }
     private final Delegate mDelegate;
 
     public DisplayCutoutController(Delegate delegate) {
         mDelegate = delegate;
-        maybeAddObservers();
+        maybeAddInsetObserver();
     }
 
-    /**
-     * Add observers to {@link InsetObserverView} and the browser display cutout mode supplier if we
-     * have not added them.
-     */
-    void maybeAddObservers() {
+    /** Add an observer to {@link InsetObserverView} if we have not already added one. */
+    void maybeAddInsetObserver() {
         Activity activity = mDelegate.getAttachedActivity();
-        if (activity == null) return;
+        if (mInsetObserverView != null || activity == null) return;
 
-        updateInsetObserver(mDelegate.getInsetObserverView());
-        updateBrowserCutoutObserver(mDelegate.getBrowserDisplayCutoutModeSupplier());
+        mInsetObserverView = mDelegate.getInsetObserverView();
+
+        if (mInsetObserverView == null) return;
+        mInsetObserverView.addObserver(this);
         mWindow = activity.getWindow();
     }
 
-    /** Remove observers added by {@link #maybeAddObservers()}. */
-    void removeObservers() {
-        updateInsetObserver(null);
-        updateBrowserCutoutObserver(null);
+    /** Remove the observer added to {@link InsetObserverView} if we have added one. */
+    void maybeRemoveInsetObserver() {
+        if (mInsetObserverView == null) return;
+
+        mInsetObserverView.removeObserver(this);
+        mInsetObserverView = null;
         mWindow = null;
     }
 
-    private void updateInsetObserver(InsetObserverView observer) {
-        if (mInsetObserverView == observer) return;
-
-        if (mInsetObserverView != null) {
-            mInsetObserverView.removeObserver(this);
-        }
-        mInsetObserverView = observer;
-        if (mInsetObserverView != null) {
-            mInsetObserverView.addObserver(this);
-        }
-    }
-
-    private void updateBrowserCutoutObserver(ObservableSupplier<Integer> supplier) {
-        if (mBrowserCutoutModeSupplier == supplier) return;
-
-        if (mBrowserCutoutModeObserver != null) {
-            mBrowserCutoutModeSupplier.removeObserver(mBrowserCutoutModeObserver);
-        }
-        mBrowserCutoutModeSupplier = supplier;
-        mBrowserCutoutModeObserver = null;
-        if (mBrowserCutoutModeSupplier != null) {
-            mBrowserCutoutModeObserver = (browserDisplayCutoutMode) -> {
-                maybeUpdateLayout();
-            };
-            mBrowserCutoutModeSupplier.addObserver(mBrowserCutoutModeObserver);
-        }
-    }
-
     public void destroy() {
-        removeObservers();
+        maybeRemoveInsetObserver();
     }
 
     /**
@@ -148,8 +99,7 @@ public class DisplayCutoutController implements InsetObserverView.WindowInsetObs
      */
     public void setViewportFit(@WebContentsObserver.ViewportFitType int value) {
         if (value != ViewportFit.AUTO) {
-            assert mDelegate.getWebContents().isFullscreenForCurrentTab()
-                    || mDelegate.isInBrowserFullscreen();
+            assert mDelegate.getWebContents().isFullscreenForCurrentTab();
         }
 
         if (value == mViewportFit) return;
@@ -196,18 +146,11 @@ public class DisplayCutoutController implements InsetObserverView.WindowInsetObs
      *     equivalent value.
      */
     @VisibleForTesting
-    @RequiresApi(Build.VERSION_CODES.P)
-    public int computeDisplayCutoutMode() {
+    @TargetApi(Build.VERSION_CODES.P)
+    public int getDisplayCutoutMode() {
         // If we are not interactable then force the default mode.
         if (!mDelegate.isInteractable()) {
             return LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT;
-        }
-
-        if (mBrowserCutoutModeSupplier != null) {
-            int browserCutoutMode = mBrowserCutoutModeSupplier.get();
-            if (browserCutoutMode != LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT) {
-                return browserCutoutMode;
-            }
         }
 
         switch (mViewportFit) {
@@ -239,7 +182,7 @@ public class DisplayCutoutController implements InsetObserverView.WindowInsetObs
         LayoutParams attributes = getWindowAttributes();
         if (attributes == null) return;
 
-        final int displayCutoutMode = computeDisplayCutoutMode();
+        final int displayCutoutMode = getDisplayCutoutMode();
         if (attributes.layoutInDisplayCutoutMode == displayCutoutMode) return;
 
         attributes.layoutInDisplayCutoutMode = displayCutoutMode;
@@ -249,9 +192,9 @@ public class DisplayCutoutController implements InsetObserverView.WindowInsetObs
     /** Should be called when the associated UI surface is attached or detached to an activity. */
     public void onActivityAttachmentChanged(@Nullable WindowAndroid window) {
         if (window == null) {
-            removeObservers();
+            maybeRemoveInsetObserver();
         } else {
-            maybeAddObservers();
+            maybeAddInsetObserver();
         }
     }
 }

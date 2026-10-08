@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,6 @@
 #include "third_party/blink/renderer/modules/xr/xr_rigid_transform.h"
 #include "third_party/blink/renderer/modules/xr/xr_session.h"
 #include "third_party/blink/renderer/modules/xr/xr_space.h"
-#include "third_party/blink/renderer/platform/bindings/exception_code.h"
-#include "third_party/blink/renderer/platform/bindings/exception_state.h"
 
 namespace blink {
 
@@ -22,23 +20,15 @@ XRHitTestResult::XRHitTestResult(
     : session_(session),
       mojo_from_this_(hit_result.mojo_from_result),
       plane_id_(hit_result.plane_id != 0
-                    ? absl::optional<uint64_t>(hit_result.plane_id)
-                    : absl::nullopt) {}
+                    ? base::Optional<uint64_t>(hit_result.plane_id)
+                    : base::nullopt) {}
 
-XRPose* XRHitTestResult::getPose(XRSpace* other,
-                                 ExceptionState& exception_state) {
-  if (!session_->CanReportPoses()) {
-    DVLOG(3) << __func__ << ": cannot report poses";
-    exception_state.ThrowSecurityError(XRSession::kCannotReportPoses);
-    return nullptr;
-  }
-
+XRPose* XRHitTestResult::getPose(XRSpace* other) {
   auto maybe_other_space_native_from_mojo = other->NativeFromMojo();
-  if (!maybe_other_space_native_from_mojo) {
-    return nullptr;
-  }
+  DCHECK(maybe_other_space_native_from_mojo);
 
-  auto mojo_from_this = mojo_from_this_.ToTransform();
+  blink::TransformationMatrix mojo_from_this =
+      mojo_from_this_.ToTransform().matrix();
 
   auto other_native_from_mojo = *maybe_other_space_native_from_mojo;
   auto other_offset_from_other_native = other->OffsetFromNativeMatrix();
@@ -70,7 +60,7 @@ ScriptPromise XRHitTestResult::createAnchor(ScriptState* script_state,
   // (their poses may change dramatically on a frame-by-frame basis). Grab an
   // information about reference space that is well-suited for anchor creation
   // from session:
-  absl::optional<XRSession::ReferenceSpaceInformation>
+  base::Optional<XRSession::ReferenceSpaceInformation>
       reference_space_information = session_->GetStationaryReferenceSpace();
 
   if (!reference_space_information) {
@@ -80,13 +70,33 @@ ScriptPromise XRHitTestResult::createAnchor(ScriptState* script_state,
     return {};
   }
 
-  auto space_from_mojo =
-      reference_space_information->mojo_from_space.GetCheckedInverse();
-  auto space_from_anchor = space_from_mojo * mojo_from_this_.ToTransform();
+  const TransformationMatrix& mojo_from_space =
+      reference_space_information->mojo_from_space;
 
-  return session_->CreateAnchorHelper(
-      script_state, space_from_anchor,
-      reference_space_information->native_origin, plane_id_, exception_state);
+  DCHECK(mojo_from_space.IsInvertible());
+
+  auto space_from_mojo = mojo_from_space.Inverse();
+  auto space_from_anchor =
+      space_from_mojo * (mojo_from_this_.ToTransform().matrix());
+
+  if (plane_id_) {
+    DVLOG(2) << __func__
+             << ": hit test result's entity is a plane, creating "
+                "plane-attached anchor";
+    return session_->CreatePlaneAnchorHelper(
+        script_state, space_from_anchor,
+        reference_space_information->native_origin, *plane_id_,
+        exception_state);
+  } else {
+    DVLOG(2) << __func__
+             << ": hit test result's entity is unavailable, creating "
+                "free-floating anchor ";
+
+    // Let's create free-floating anchor since plane is unavailable.
+    return session_->CreateAnchorHelper(
+        script_state, space_from_anchor,
+        reference_space_information->native_origin, exception_state);
+  }
 }
 
 void XRHitTestResult::Trace(Visitor* visitor) const {

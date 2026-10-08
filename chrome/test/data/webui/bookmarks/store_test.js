@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {removeBookmark, Store, StoreClientMixin} from 'chrome://bookmarks/bookmarks.js';
-import {flush, html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-import {TestStore} from './test_store.js';
-import {createFolder, createItem, getAllFoldersOpenState, replaceBody, testTree} from './test_util.js';
+import {removeBookmark, Store, StoreClient} from 'chrome://bookmarks/bookmarks.js';
+import {flush, html, Polymer} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {TestStore} from 'chrome://test/bookmarks/test_store.js';
+import {createFolder, createItem, getAllFoldersOpenState, replaceBody, testTree} from 'chrome://test/bookmarks/test_util.js';
 
 suite('bookmarks.Store', function() {
   let store;
@@ -45,7 +45,7 @@ suite('bookmarks.Store', function() {
   });
 });
 
-suite('bookmarks.StoreClientMixin', function() {
+suite('bookmarks.StoreClient', function() {
   let store;
   let client;
 
@@ -60,49 +60,45 @@ suite('bookmarks.StoreClientMixin', function() {
   }
 
   suiteSetup(function() {
-    const TestStoreClientBase = StoreClientMixin(PolymerElement);
-    class TestStoreClient extends TestStoreClientBase {
-      static get template() {
-        return html`
-          <template is="dom-repeat" items="[[items]]">
-            <div class="item">[[item]]</div>
-          </template>
-        `;
-      }
+    Polymer({
+      is: 'test-store-client',
 
-      static get properties() {
-        return {
-          items: {
-            type: Array,
-            observer: 'itemsChanged_',
-          },
-        };
-      }
+      _template: html`
+        <template is="dom-repeat" items="[[items]]">
+          <div class="item">[[item]]</div>
+        </template>
+      `,
 
-      connectedCallback() {
-        super.connectedCallback();
+      behaviors: [StoreClient],
+
+      properties: {
+        items: {
+          type: Array,
+          observer: 'itemsChanged_',
+        },
+      },
+
+      attached: function() {
         this.hasChanged = false;
         this.watch('items', function(state) {
           return state.items;
         });
         this.updateFromStore();
-      }
+      },
 
-      itemsChanged_(newItems, oldItems) {
+      itemsChanged_: function(newItems, oldItems) {
         if (oldItems) {
           this.hasChanged = true;
         }
-      }
-    }
-
-    customElements.define('test-store-client', TestStoreClient);
+      },
+    });
   });
 
   setup(function() {
-    document.body.innerHTML = window.trustedTypes.emptyHTML;
+    document.body.innerHTML = '';
 
     // Reset store instance:
-    Store.setInstance(new Store());
+    Store.instance_ = new Store();
     store = Store.getInstance();
     store.init({
       items: ['apple', 'banana', 'cantaloupe'],

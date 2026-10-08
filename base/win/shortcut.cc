@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,11 @@
 
 #include <objbase.h>
 #include <propkey.h>
+#include <shellapi.h>
 #include <shlobj.h>
 #include <wrl/client.h>
 
 #include "base/files/file_util.h"
-#include "base/logging.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/scoped_blocking_call.h"
@@ -60,26 +60,13 @@ ShortcutProperties::ShortcutProperties(const ShortcutProperties& other) =
 
 ShortcutProperties::~ShortcutProperties() = default;
 
-void ShortcutProperties::set_description(const std::wstring& description_in) {
-  // Size restriction as per MSDN at http://goo.gl/OdNQq.
-  DCHECK_LE(description_in.size(), static_cast<size_t>(INFOTIPSIZE));
-  description = description_in;
-  options |= PROPERTIES_DESCRIPTION;
-}
-
 bool CreateOrUpdateShortcutLink(const FilePath& shortcut_path,
                                 const ShortcutProperties& properties,
                                 ShortcutOperation operation) {
   ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
 
-  // Make sure the parent directories exist when creating the shortcut.
-  if (operation == ShortcutOperation::kCreateAlways &&
-      !base::CreateDirectory(shortcut_path.DirName())) {
-    DLOG(ERROR) << "CreateDirectory " << shortcut_path.DirName() << " failed";
-    return false;
-  }
-  // A target is required unless |operation| is kUpdateExisting.
-  if (operation != ShortcutOperation::kUpdateExisting &&
+  // A target is required unless |operation| is SHORTCUT_UPDATE_EXISTING.
+  if (operation != SHORTCUT_UPDATE_EXISTING &&
       !(properties.options & ShortcutProperties::PROPERTIES_TARGET)) {
     NOTREACHED();
     return false;
@@ -95,14 +82,14 @@ bool CreateOrUpdateShortcutLink(const FilePath& shortcut_path,
   ComPtr<IShellLink> i_shell_link;
   ComPtr<IPersistFile> i_persist_file;
   switch (operation) {
-    case ShortcutOperation::kCreateAlways:
+    case SHORTCUT_CREATE_ALWAYS:
       InitializeShortcutInterfaces(nullptr, &i_shell_link, &i_persist_file);
       break;
-    case ShortcutOperation::kUpdateExisting:
+    case SHORTCUT_UPDATE_EXISTING:
       InitializeShortcutInterfaces(shortcut_path.value().c_str(), &i_shell_link,
                                    &i_persist_file);
       break;
-    case ShortcutOperation::kReplaceExisting:
+    case SHORTCUT_REPLACE_EXISTING:
       InitializeShortcutInterfaces(shortcut_path.value().c_str(),
                                    &old_i_shell_link, &old_i_persist_file);
       // Confirm |shortcut_path| exists and is a shortcut by verifying
@@ -196,14 +183,19 @@ bool CreateOrUpdateShortcutLink(const FilePath& shortcut_path,
 
   // If we successfully created/updated the icon, notify the shell that we have
   // done so.
-  if (!SUCCEEDED(result))
-    return false;
+  const bool succeeded = SUCCEEDED(result);
+  if (succeeded) {
+    if (shortcut_existed) {
+      // TODO(gab): SHCNE_UPDATEITEM might be sufficient here; further testing
+      // required.
+      SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
+    } else {
+      SHChangeNotify(SHCNE_CREATE, SHCNF_PATH, shortcut_path.value().c_str(),
+                     nullptr);
+    }
+  }
 
-  SHChangeNotify(shortcut_existed ? SHCNE_UPDATEITEM : SHCNE_CREATE,
-                 SHCNF_PATH | SHCNF_FLUSH, shortcut_path.value().c_str(),
-                 nullptr);
-
-  return true;
+  return succeeded;
 }
 
 bool ResolveShortcutProperties(const FilePath& shortcut_path,
@@ -361,6 +353,28 @@ bool ResolveShortcut(const FilePath& shortcut_path,
   if (args)
     *args = properties.arguments;
   return true;
+}
+
+bool CanPinShortcutToTaskbar() {
+  // "Pin to taskbar" stopped being supported in Windows 10.
+  return GetVersion() < Version::WIN10;
+}
+
+bool PinShortcutToTaskbar(const FilePath& shortcut) {
+  ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
+  DCHECK(CanPinShortcutToTaskbar());
+
+  intptr_t result = reinterpret_cast<intptr_t>(ShellExecute(
+      nullptr, L"taskbarpin", shortcut.value().c_str(), nullptr, nullptr, 0));
+  return result > 32;
+}
+
+bool UnpinShortcutFromTaskbar(const FilePath& shortcut) {
+  ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
+
+  intptr_t result = reinterpret_cast<intptr_t>(ShellExecute(
+      nullptr, L"taskbarunpin", shortcut.value().c_str(), nullptr, nullptr, 0));
+  return result > 32;
 }
 
 }  // namespace win

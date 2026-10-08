@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -82,11 +82,11 @@ TEST_F(ThreadPoolJobTaskSourceTest, RunTasks) {
 
     std::move(task.task).Run();
     EXPECT_EQ(0U, task_source->GetRemainingConcurrency());
-    EXPECT_TRUE(task_source->IsActive());
+    EXPECT_FALSE(task_source->IsCompleted());
     // Returns false because the task source is out of tasks.
     EXPECT_FALSE(registered_task_source.DidProcessTask());
     EXPECT_EQ(0U, task_source->GetWorkerCount());
-    EXPECT_FALSE(task_source->IsActive());
+    EXPECT_TRUE(task_source->IsCompleted());
   }
 }
 
@@ -348,13 +348,13 @@ TEST_F(ThreadPoolJobTaskSourceTest, RunJoinTaskInParallel) {
   auto worker_task = registered_task_source.TakeTask();
 
   EXPECT_TRUE(task_source->WillJoin());
-  EXPECT_TRUE(task_source->IsActive());
+  EXPECT_FALSE(task_source->IsCompleted());
 
   std::move(worker_task.task).Run();
   EXPECT_FALSE(registered_task_source.DidProcessTask());
 
   EXPECT_FALSE(task_source->RunJoinTask());
-  EXPECT_FALSE(task_source->IsActive());
+  EXPECT_TRUE(task_source->IsCompleted());
 }
 
 // Verifies that a call to NotifyConcurrencyIncrease() calls the delegate

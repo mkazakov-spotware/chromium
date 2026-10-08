@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
-#include "build/build_config.h"
 #include "chrome/browser/ssl/cert_verifier_browser_test.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -19,12 +18,6 @@
 class SignedExchangePolicyBrowserTest : public CertVerifierBrowserTest {
  public:
   SignedExchangePolicyBrowserTest() = default;
-
-  SignedExchangePolicyBrowserTest(const SignedExchangePolicyBrowserTest&) =
-      delete;
-  SignedExchangePolicyBrowserTest& operator=(
-      const SignedExchangePolicyBrowserTest&) = delete;
-
   ~SignedExchangePolicyBrowserTest() override = default;
 
  protected:
@@ -36,14 +29,13 @@ class SignedExchangePolicyBrowserTest : public CertVerifierBrowserTest {
 
   void SetUpInProcessBrowserTestFixture() override {
     CertVerifierBrowserTest::SetUpInProcessBrowserTestFixture();
-    policy_provider_.SetDefaultReturns(
-        /*is_initialization_complete_return=*/true,
-        /*is_first_policy_load_complete_return=*/true);
+    EXPECT_CALL(policy_provider_, IsInitializationComplete(testing::_))
+        .WillRepeatedly(testing::Return(true));
     policy::BrowserPolicyConnector::SetPolicyProviderForTesting(
         &policy_provider_);
   }
 
-  testing::NiceMock<policy::MockConfigurationPolicyProvider> policy_provider_;
+  policy::MockConfigurationPolicyProvider policy_provider_;
 
  private:
   void SetUp() override {
@@ -56,9 +48,11 @@ class SignedExchangePolicyBrowserTest : public CertVerifierBrowserTest {
   }
 
   content::SignedExchangeBrowserTestHelper sxg_test_helper_;
+
+  DISALLOW_COPY_AND_ASSIGN(SignedExchangePolicyBrowserTest);
 };
 
-IN_PROC_BROWSER_TEST_F(SignedExchangePolicyBrowserTest, BlockList) {
+IN_PROC_BROWSER_TEST_F(SignedExchangePolicyBrowserTest, BlackList) {
   embedded_test_server()->ServeFilesFromSourceDirectory("content/test/data");
   ASSERT_TRUE(embedded_test_server()->Start());
 
@@ -66,36 +60,36 @@ IN_PROC_BROWSER_TEST_F(SignedExchangePolicyBrowserTest, BlockList) {
   const GURL url =
       embedded_test_server()->GetURL("/sxg/test.example.org_test.sxg");
 
-  std::u16string expected_title(base::UTF8ToUTF16(inner_url.spec()));
+  base::string16 expected_title(base::UTF8ToUTF16(inner_url.spec()));
   content::WebContents* contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   content::TitleWatcher title_watcher(contents, expected_title);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
   EXPECT_EQ(expected_title, title_watcher.WaitAndGetTitle());
 
-  base::Value::List blocklist;
-  blocklist.Append("test.example.org");
+  base::ListValue blacklist;
+  blacklist.AppendString("test.example.org");
   policy::PolicyMap policies;
-  policies.Set(policy::key::kURLBlocklist, policy::POLICY_LEVEL_MANDATORY,
+  policies.Set(policy::key::kURLBlacklist, policy::POLICY_LEVEL_MANDATORY,
                policy::POLICY_SCOPE_USER, policy::POLICY_SOURCE_CLOUD,
-               base::Value(std::move(blocklist)), nullptr);
+               blacklist.Clone(), nullptr);
 
-#if BUILDFLAG(IS_CHROMEOS)
-  policy::SetEnterpriseUsersProfileDefaults(&policies);
+#if defined(OS_CHROMEOS)
+  policy::SetEnterpriseUsersDefaults(&policies);
 #endif
   policy_provider_.UpdateChromePolicy(policies);
   base::RunLoop loop;
   loop.RunUntilIdle();
 
-  // Updates of the URLBlocklist are done on IO, after building the blocklist
+  // Updates of the URLBlacklist are done on IO, after building the blacklist
   // on the blocking pool, which is initiated from IO.
   content::RunAllPendingInMessageLoop(content::BrowserThread::IO);
   content::RunAllTasksUntilIdle();
   content::RunAllPendingInMessageLoop(content::BrowserThread::IO);
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
 
-  std::u16string blocked_page_title(u"test.example.org");
+  base::string16 blocked_page_title(base::UTF8ToUTF16("test.example.org"));
   EXPECT_EQ(blocked_page_title, contents->GetTitle());
 
   // Verify that the expected error page is being displayed.

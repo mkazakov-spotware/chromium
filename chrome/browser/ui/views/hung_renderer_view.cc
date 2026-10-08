@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,9 @@
 #include <vector>
 
 #include "base/i18n/rtl.h"
-#include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/supports_user_data.h"
 #include "build/build_config.h"
 #include "chrome/browser/hang_monitor/hang_crash_dump.h"
 #include "chrome/browser/platform_util.h"
@@ -37,17 +35,29 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/result_codes.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/canvas.h"
 #include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/scroll_view.h"
-#include "ui/views/layout/box_layout.h"
+#include "ui/views/layout/grid_layout.h"
 #include "ui/views/widget/widget.h"
 
+#if defined(OS_WIN)
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/shell_integration_win.h"
+#include "ui/base/win/shell.h"
+#include "ui/views/win/hwnd_util.h"
+#endif
+
+#if defined(USE_AURA)
+#include "ui/aura/window.h"
+#endif
+
 using content::WebContents;
+
+HungRendererDialogView* HungRendererDialogView::g_instance_ = nullptr;
 
 ///////////////////////////////////////////////////////////////////////////////
 // HungPagesTableModel, public:
@@ -55,7 +65,7 @@ using content::WebContents;
 HungPagesTableModel::HungPagesTableModel(Delegate* delegate)
     : delegate_(delegate) {}
 
-HungPagesTableModel::~HungPagesTableModel() = default;
+HungPagesTableModel::~HungPagesTableModel() {}
 
 content::RenderWidgetHost* HungPagesTableModel::GetRenderWidgetHost() {
   return render_widget_host_;
@@ -70,6 +80,8 @@ void HungPagesTableModel::InitForWebContents(
   DCHECK(!hang_monitor_restarter.is_null());
 
   DCHECK(!render_widget_host_);
+  DCHECK(!process_observer_.IsObservingSources());
+  DCHECK(!widget_observer_.IsObservingSources());
   DCHECK(tab_observers_.empty());
 
   render_widget_host_ = render_widget_host;
@@ -81,8 +93,8 @@ void HungPagesTableModel::InitForWebContents(
         std::make_unique<WebContentsObserverImpl>(this, hung_contents));
   }
 
-  process_observation_.Observe(render_widget_host_->GetProcess());
-  widget_observation_.Observe(render_widget_host_.get());
+  process_observer_.Add(render_widget_host_->GetProcess());
+  widget_observer_.Add(render_widget_host_);
 
   // The world is different.
   if (observer_)
@@ -90,8 +102,8 @@ void HungPagesTableModel::InitForWebContents(
 }
 
 void HungPagesTableModel::Reset() {
-  process_observation_.Reset();
-  widget_observation_.Reset();
+  process_observer_.RemoveAll();
+  widget_observer_.RemoveAll();
   tab_observers_.clear();
   render_widget_host_ = nullptr;
 
@@ -108,22 +120,22 @@ void HungPagesTableModel::RestartHangMonitorTimeout() {
 ///////////////////////////////////////////////////////////////////////////////
 // HungPagesTableModel, ui::TableModel implementation:
 
-size_t HungPagesTableModel::RowCount() {
-  return tab_observers_.size();
+int HungPagesTableModel::RowCount() {
+  return static_cast<int>(tab_observers_.size());
 }
 
-std::u16string HungPagesTableModel::GetText(size_t row, int column_id) {
-  DCHECK(row < RowCount());
+base::string16 HungPagesTableModel::GetText(int row, int column_id) {
+  DCHECK(row >= 0 && row < RowCount());
   return GetHungWebContentsTitle(tab_observers_[row]->web_contents(),
                                  render_widget_host_->GetProcess());
 }
 
-ui::ImageModel HungPagesTableModel::GetIcon(size_t row) {
-  DCHECK(row < RowCount());
-  return ui::ImageModel::FromImage(
-      favicon::ContentFaviconDriver::FromWebContents(
-          tab_observers_[row]->web_contents())
-          ->GetFavicon());
+gfx::ImageSkia HungPagesTableModel::GetIcon(int row) {
+  DCHECK(row >= 0 && row < RowCount());
+  return favicon::ContentFaviconDriver::FromWebContents(
+             tab_observers_[row]->web_contents())
+      ->GetFavicon()
+      .AsImageSkia();
 }
 
 void HungPagesTableModel::SetObserver(ui::TableModelObserver* observer) {
@@ -146,10 +158,6 @@ void HungPagesTableModel::RenderProcessExited(
 
 void HungPagesTableModel::RenderWidgetHostDestroyed(
     content::RenderWidgetHost* widget_host) {
-  DCHECK(widget_observation_.IsObservingSource(render_widget_host_.get()));
-  widget_observation_.Reset();
-  render_widget_host_ = nullptr;
-
   // Notify the delegate.
   delegate_->TabDestroyed();
   // WARNING: we've likely been deleted.
@@ -165,7 +173,7 @@ void HungPagesTableModel::TabDestroyed(WebContentsObserverImpl* tab) {
   DCHECK(index < tab_observers_.size());
   tab_observers_.erase(tab_observers_.begin() + index);
   if (observer_)
-    observer_->OnItemsRemoved(index, 1);
+    observer_->OnItemsRemoved(static_cast<int>(index), 1);
 
   // Notify the delegate.
   delegate_->TabDestroyed();
@@ -177,9 +185,10 @@ void HungPagesTableModel::TabUpdated(WebContentsObserverImpl* tab) {
 }
 
 HungPagesTableModel::WebContentsObserverImpl::WebContentsObserverImpl(
-    HungPagesTableModel* model,
-    WebContents* tab)
-    : content::WebContentsObserver(tab), model_(model) {}
+    HungPagesTableModel* model, WebContents* tab)
+    : content::WebContentsObserver(tab),
+      model_(model) {
+}
 
 void HungPagesTableModel::WebContentsObserverImpl::RenderViewHostChanged(
     content::RenderViewHost* old_host,
@@ -210,19 +219,20 @@ constexpr int kTableViewHeight = 80;
 ///////////////////////////////////////////////////////////////////////////////
 // HungRendererDialogView, public:
 
-namespace {
+// static
+HungRendererDialogView* HungRendererDialogView::Create(
+    gfx::NativeWindow context) {
+  if (!g_instance_) {
+    g_instance_ = new HungRendererDialogView;
+    views::DialogDelegate::CreateDialogWidget(g_instance_, context, nullptr);
+  }
+  return g_instance_;
+}
 
-constexpr int kDialogHolderUserDataKey = 0;
-
-struct DialogHolder : public base::SupportsUserData::Data {
-  explicit DialogHolder(HungRendererDialogView* dialog) : dialog(dialog) {}
-
-  const raw_ptr<HungRendererDialogView> dialog = nullptr;
-};
-
-static bool g_bypass_active_browser_requirement = false;
-
-}  // namespace
+// static
+HungRendererDialogView* HungRendererDialogView::GetInstance() {
+  return g_instance_;
+}
 
 // static
 void HungRendererDialogView::Show(
@@ -232,54 +242,46 @@ void HungRendererDialogView::Show(
   if (logging::DialogsAreSuppressed())
     return;
 
-  if (IsShowingForWebContents(contents))
+  gfx::NativeWindow window =
+      platform_util::GetTopLevel(contents->GetNativeView());
+#if defined(USE_AURA)
+  // Don't show the dialog if there is no root window for the renderer, because
+  // it's invisible to the user (happens when the renderer is for prerendering
+  // for example).
+  if (!window->GetRootWindow())
     return;
-
-  // Only show for WebContents in a browser window.
-  if (!chrome::FindBrowserWithWebContents(contents))
-    return;
-
-  // Don't show the warning unless the foreground window is the frame. If the
-  // user has another window or application selected, activating ourselves is
-  // rude. Restart the hang monitor so that if that window comes to the
-  // foreground, the hang dialog will eventually show for it.
-  if (!platform_util::IsWindowActive(
-          platform_util::GetTopLevel(contents->GetNativeView())) &&
-      !g_bypass_active_browser_requirement) {
-    hang_monitor_restarter.Run();
-    return;
-  }
-
-  HungRendererDialogView* view = CreateInstance(
-      contents, platform_util::GetTopLevel(contents->GetNativeView()));
-  view->ShowDialog(render_widget_host, std::move(hang_monitor_restarter));
+#endif
+  HungRendererDialogView* view = HungRendererDialogView::Create(window);
+  view->ShowForWebContents(contents, render_widget_host,
+                           std::move(hang_monitor_restarter));
 }
 
 // static
 void HungRendererDialogView::Hide(
     WebContents* contents,
     content::RenderWidgetHost* render_widget_host) {
-  if (logging::DialogsAreSuppressed())
-    return;
-
-  DialogHolder* dialog_holder = static_cast<DialogHolder*>(
-      contents->GetUserData(&kDialogHolderUserDataKey));
-  if (dialog_holder)
-    dialog_holder->dialog->EndDialog(render_widget_host);
+  if (!logging::DialogsAreSuppressed() && HungRendererDialogView::GetInstance())
+    HungRendererDialogView::GetInstance()->EndForWebContents(
+        contents, render_widget_host);
 }
 
 // static
-bool HungRendererDialogView::IsShowingForWebContents(WebContents* contents) {
-  return contents->GetUserData(&kDialogHolderUserDataKey) != nullptr;
+bool HungRendererDialogView::IsFrameActive(WebContents* contents) {
+  gfx::NativeWindow window =
+      platform_util::GetTopLevel(contents->GetNativeView());
+  return platform_util::IsWindowActive(window);
 }
 
-HungRendererDialogView::HungRendererDialogView(WebContents* web_contents)
-    : web_contents_(web_contents) {
-  SetModalType(ui::MODAL_TYPE_CHILD);
+HungRendererDialogView::HungRendererDialogView() {
+#if defined(OS_WIN)
+  // Never use the custom frame when Aero Glass is disabled. See
+  // https://crbug.com/323278
+  set_use_custom_frame(ui::win::IsAeroGlassEnabled());
+#endif
   set_margins(ChromeLayoutProvider::Get()->GetDialogInsetsForContentType(
-      views::DialogContentType::kText, views::DialogContentType::kControl));
+      views::TEXT, views::CONTROL));
   auto info_label = std::make_unique<views::Label>(
-      std::u16string(), views::style::CONTEXT_DIALOG_BODY_TEXT,
+      base::string16(), views::style::CONTEXT_DIALOG_BODY_TEXT,
       views::style::STYLE_SECONDARY);
   info_label->SetMultiLine(true);
   info_label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
@@ -303,61 +305,92 @@ HungRendererDialogView::HungRendererDialogView(WebContents* web_contents)
 
   DialogModelChanged();
 
+  views::GridLayout* layout =
+      SetLayoutManager(std::make_unique<views::GridLayout>());
   ChromeLayoutProvider* provider = ChromeLayoutProvider::Get();
-  SetLayoutManager(std::make_unique<views::BoxLayout>(
-      views::BoxLayout::Orientation::kVertical, gfx::Insets(),
-      provider->GetDistanceMetric(views::DISTANCE_UNRELATED_CONTROL_VERTICAL)));
 
-  info_label_ = AddChildView(std::move(info_label));
+  constexpr int kColumnSetId = 0;
+  views::ColumnSet* column_set = layout->AddColumnSet(kColumnSetId);
+  column_set->AddColumn(views::GridLayout::FILL, views::GridLayout::FILL, 1.0,
+                        views::GridLayout::ColumnSize::kUsePreferred, 0, 0);
 
-  AddChildView(
-      views::TableView::CreateScrollViewWithTable(std::move(hung_pages_table)))
-      ->SetPreferredSize(gfx::Size(kTableViewWidth, kTableViewHeight));
+  layout->StartRow(views::GridLayout::kFixedSize, kColumnSetId);
+  info_label_ = layout->AddView(std::move(info_label));
+
+  layout->AddPaddingRow(
+      views::GridLayout::kFixedSize,
+      provider->GetDistanceMetric(views::DISTANCE_UNRELATED_CONTROL_VERTICAL));
+
+  layout->StartRow(1.0, kColumnSetId);
+  layout->AddView(
+      views::TableView::CreateScrollViewWithTable(std::move(hung_pages_table)),
+      1, 1, views::GridLayout::FILL, views::GridLayout::FILL, kTableViewWidth,
+      kTableViewHeight);
+
+  chrome::RecordDialogCreation(chrome::DialogIdentifier::HUNG_RENDERER);
 }
 
 HungRendererDialogView::~HungRendererDialogView() {
   hung_pages_table_->SetModel(nullptr);
 }
 
-// static
-HungRendererDialogView* HungRendererDialogView::CreateInstance(
+void HungRendererDialogView::ShowForWebContents(
     WebContents* contents,
-    gfx::NativeWindow window) {
-  HungRendererDialogView* view = new HungRendererDialogView(contents);
-  constrained_window::CreateWebModalDialogViews(view, contents);
-  contents->SetUserData(&kDialogHolderUserDataKey,
-                        std::make_unique<DialogHolder>(view));
-
-  return view;
-}
-
-// static
-HungRendererDialogView*
-HungRendererDialogView::GetInstanceForWebContentsForTests(
-    WebContents* contents) {
-  DialogHolder* dialog_holder = static_cast<DialogHolder*>(
-      contents->GetUserData(&kDialogHolderUserDataKey));
-  if (dialog_holder)
-    return dialog_holder->dialog;
-  return nullptr;
-}
-
-void HungRendererDialogView::ShowDialog(
     content::RenderWidgetHost* render_widget_host,
     base::RepeatingClosure hang_monitor_restarter) {
-  DCHECK(GetWidget());
+  DCHECK(contents && GetWidget());
 
-  hung_pages_table_model_->InitForWebContents(
-      web_contents_, render_widget_host, std::move(hang_monitor_restarter));
+  // Don't show the warning unless the foreground window is the frame, or this
+  // window (but still invisible). If the user has another window or
+  // application selected, activating ourselves is rude.
+  if (!IsFrameActive(contents) &&
+      !platform_util::IsWindowActive(GetWidget()->GetNativeWindow()))
+    return;
 
-  UpdateLabels();
+  if (!GetWidget()->IsActive()) {
+    // Place the dialog over content's browser window, similar to modal dialogs.
+    Browser* browser = chrome::FindBrowserWithWebContents(contents);
+    if (browser) {
+      ChromeWebModalDialogManagerDelegate* manager = browser;
+      constrained_window::UpdateWidgetModalDialogPosition(
+          GetWidget(), manager->GetWebContentsModalDialogHost());
+    }
 
-  constrained_window::ShowModalDialog(GetWidget()->GetNativeWindow(),
-                                      web_contents_);
+    gfx::NativeWindow window =
+        platform_util::GetTopLevel(contents->GetNativeView());
+    views::Widget* insert_after =
+        views::Widget::GetWidgetForNativeWindow(window);
+    if (insert_after)
+      GetWidget()->StackAboveWidget(insert_after);
+
+#if defined(OS_WIN)
+    // Group the hung renderer dialog with the browsers with the same profile.
+    Profile* profile =
+        Profile::FromBrowserContext(contents->GetBrowserContext());
+    ui::win::SetAppIdForWindow(
+        shell_integration::win::GetAppUserModelIdForBrowser(profile->GetPath()),
+        views::HWNDForWidget(GetWidget()));
+#endif
+
+    // We only do this if the window isn't active (i.e. hasn't been shown yet,
+    // or is currently shown but deactivated for another WebContents). This is
+    // because this window is a singleton, and it's possible another active
+    // renderer may hang while this one is showing, and we don't want to reset
+    // the list of hung pages for a potentially unrelated renderer while this
+    // one is showing.
+    hung_pages_table_model_->InitForWebContents(
+        contents, render_widget_host, std::move(hang_monitor_restarter));
+
+    UpdateLabels();
+
+    GetWidget()->Show();
+  }
 }
 
-void HungRendererDialogView::EndDialog(
+void HungRendererDialogView::EndForWebContents(
+    WebContents* contents,
     content::RenderWidgetHost* render_widget_host) {
+  DCHECK(contents);
   if (hung_pages_table_model_->RowCount() == 0 ||
       hung_pages_table_model_->GetRenderWidgetHost() == render_widget_host) {
     CloseDialogWithNoAction();
@@ -367,7 +400,7 @@ void HungRendererDialogView::EndDialog(
 ///////////////////////////////////////////////////////////////////////////////
 // HungRendererDialogView, views::DialogDelegate implementation:
 
-std::u16string HungRendererDialogView::GetWindowTitle() const {
+base::string16 HungRendererDialogView::GetWindowTitle() const {
   return l10n_util::GetPluralStringFUTF16(
       IDS_BROWSER_HANGMONITOR_RENDERER_TITLE,
       hung_pages_table_model_->RowCount());
@@ -375,6 +408,33 @@ std::u16string HungRendererDialogView::GetWindowTitle() const {
 
 bool HungRendererDialogView::ShouldShowCloseButton() const {
   return false;
+}
+
+void HungRendererDialogView::WindowClosing() {
+  // We are going to be deleted soon, so make sure our instance is destroyed.
+  g_instance_ = nullptr;
+}
+
+void HungRendererDialogView::ForceCrashHungRenderer() {
+  auto* render_widget_host = hung_pages_table_model_->GetRenderWidgetHost();
+  bool currently_unresponsive =
+      render_widget_host && render_widget_host->IsCurrentlyUnresponsive();
+  UMA_HISTOGRAM_BOOLEAN("Stability.RendererUnresponsiveBeforeTermination",
+                        currently_unresponsive);
+
+  content::RenderProcessHost* rph =
+      hung_pages_table_model_->GetRenderWidgetHost()->GetProcess();
+  if (rph) {
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+    // A generic |CrashDumpHungChildProcess()| is not implemented for Linux.
+    // Instead we send an explicit IPC to crash on the renderer's IO thread.
+    rph->ForceCrash();
+#else
+    // Try to generate a crash report for the hung process.
+    CrashDumpHungChildProcess(rph->GetProcess().Handle());
+    rph->Shutdown(content::RESULT_CODE_HUNG);
+#endif
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -389,33 +449,14 @@ void HungRendererDialogView::TabDestroyed() {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// HungRendererDialogView, views::View overrides:
+
+///////////////////////////////////////////////////////////////////////////////
 // HungRendererDialogView, private:
 
 void HungRendererDialogView::RestartHangTimer() {
   // Start waiting again for responsiveness.
   hung_pages_table_model_->RestartHangMonitorTimeout();
-  ResetWebContentsAssociation();
-}
-
-void HungRendererDialogView::ForceCrashHungRenderer() {
-  content::RenderProcessHost* rph =
-      hung_pages_table_model_->GetRenderWidgetHost()->GetProcess();
-  if (rph) {
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-    // A generic |CrashDumpHungChildProcess()| is not implemented for Linux.
-    // Instead we send an explicit IPC to crash on the renderer's IO thread.
-    rph->ForceCrash();
-#else
-    // Try to generate a crash report for the hung process.
-    CrashDumpHungChildProcess(rph->GetProcess().Handle());
-    rph->Shutdown(content::RESULT_CODE_HUNG);
-#endif
-  }
-  ResetWebContentsAssociation();
-}
-
-void HungRendererDialogView::ResetWebContentsAssociation() {
-  web_contents_->RemoveUserData(&kDialogHolderUserDataKey);
 }
 
 void HungRendererDialogView::UpdateLabels() {
@@ -434,14 +475,5 @@ void HungRendererDialogView::CloseDialogWithNoAction() {
   // - While the dialog is active, [X] maps to restarting the hang timer, but
   //   while closing we don't want that action.
   hung_pages_table_model_->Reset();
-  ResetWebContentsAssociation();
   GetWidget()->Close();
 }
-
-// static
-void HungRendererDialogView::BypassActiveBrowserRequirementForTests() {
-  g_bypass_active_browser_requirement = true;
-}
-
-BEGIN_METADATA(HungRendererDialogView, views::DialogDelegateView)
-END_METADATA

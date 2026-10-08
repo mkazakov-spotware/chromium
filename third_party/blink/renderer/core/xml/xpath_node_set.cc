@@ -155,7 +155,7 @@ static void SortBlock(unsigned from,
     }
   }
 
-  DCHECK(parent_nodes.empty());
+  DCHECK(parent_nodes.IsEmpty());
 }
 
 void NodeSet::Sort() const {
@@ -249,7 +249,7 @@ void NodeSet::TraversalSort() const {
 }
 
 void NodeSet::Reverse() {
-  if (nodes_.empty())
+  if (nodes_.IsEmpty())
     return;
 
   unsigned from = 0;

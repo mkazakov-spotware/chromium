@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,8 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/trace_event.h"
-#include "ui/gfx/color_space.h"
 #include "ui/gfx/gpu_fence.h"
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/gl_context.h"
@@ -67,21 +66,19 @@ void GlRenderer::RenderFrame() {
         base::BindOnce(&GlRenderer::PostRenderFrameTask,
                        weak_ptr_factory_.GetWeakPtr()),
         base::BindOnce(&GlRenderer::OnPresentation,
-                       weak_ptr_factory_.GetWeakPtr()),
-        gl::FrameData());
+                       weak_ptr_factory_.GetWeakPtr()));
   } else {
-    PostRenderFrameTask(gfx::SwapCompletionResult(
-        gl_surface_->SwapBuffers(base::BindOnce(&GlRenderer::OnPresentation,
-                                                weak_ptr_factory_.GetWeakPtr()),
-                                 gl::FrameData())));
+    PostRenderFrameTask(
+        gfx::SwapCompletionResult(gl_surface_->SwapBuffers(base::BindOnce(
+            &GlRenderer::OnPresentation, weak_ptr_factory_.GetWeakPtr()))));
   }
 }
 
 void GlRenderer::PostRenderFrameTask(gfx::SwapCompletionResult result) {
-  if (!result.release_fence.is_null())
-    gfx::GpuFence(std::move(result.release_fence)).Wait();
+  if (result.gpu_fence)
+    result.gpu_fence->Wait();
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&GlRenderer::RenderFrame, weak_ptr_factory_.GetWeakPtr()));
 }

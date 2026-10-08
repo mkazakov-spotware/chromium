@@ -1,29 +1,27 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/apps/app_service/app_launch_params.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/apps/app_service/app_service_test.h"
 #include "chrome/browser/apps/app_service/browser_app_launcher.h"
+#include "chrome/browser/installable/installable_metrics.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/web_applications/web_app_browser_controller.h"
-#include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
-#include "chrome/browser/web_applications/user_display_mode.h"
-#include "chrome/browser/web_applications/web_app_command_scheduler.h"
-#include "chrome/browser/web_applications/web_app_icon_generator.h"
-#include "chrome/browser/web_applications/web_app_install_info.h"
-#include "chrome/browser/web_applications/web_app_install_utils.h"
-#include "chrome/browser/web_applications/web_app_provider.h"
+#include "chrome/browser/web_applications/components/install_manager.h"
+#include "chrome/browser/web_applications/components/web_app_constants.h"
+#include "chrome/browser/web_applications/components/web_app_icon_generator.h"
+#include "chrome/browser/web_applications/components/web_app_install_utils.h"
+#include "chrome/browser/web_applications/components/web_app_provider_base.h"
+#include "chrome/browser/web_applications/components/web_application_info.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/in_process_browser_test.h"
-#include "components/services/app_service/public/cpp/app_launch_util.h"
-#include "components/webapps/browser/install_result_code.h"
-#include "components/webapps/browser/installable/installable_metrics.h"
+#include "components/services/app_service/public/mojom/types.mojom.h"
 #include "content/public/test/browser_test.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "third_party/skia/include/core/SkBitmap.h"
@@ -47,9 +45,7 @@ class WebAppIconManagerBrowserTest : public InProcessBrowserTest {
   net::EmbeddedTestServer* https_server() { return &https_server_; }
 
   void SetUpOnMainThread() override {
-    Profile* profile = browser()->profile();
-    app_service_test_.SetUp(profile);
-    web_app::test::WaitUntilReady(WebAppProvider::GetForTest(profile));
+    app_service_test_.SetUp(browser()->profile());
   }
 
   // InProcessBrowserTest:
@@ -63,6 +59,7 @@ class WebAppIconManagerBrowserTest : public InProcessBrowserTest {
  private:
   net::EmbeddedTestServer https_server_;
   apps::AppServiceTest app_service_test_;
+
 };
 
 IN_PROC_BROWSER_TEST_F(WebAppIconManagerBrowserTest, SingleIcon) {
@@ -72,31 +69,33 @@ IN_PROC_BROWSER_TEST_F(WebAppIconManagerBrowserTest, SingleIcon) {
 
   AppId app_id;
   {
-    std::unique_ptr<WebAppInstallInfo> install_info =
-        std::make_unique<WebAppInstallInfo>();
-    install_info->start_url = start_url;
-    install_info->scope = start_url.GetWithoutFilename();
-    install_info->title = u"App Name";
-    install_info->user_display_mode = UserDisplayMode::kStandalone;
+    std::unique_ptr<WebApplicationInfo> web_application_info =
+        std::make_unique<WebApplicationInfo>();
+    web_application_info->start_url = start_url;
+    web_application_info->scope = start_url.GetWithoutFilename();
+    web_application_info->title = base::ASCIIToUTF16("App Name");
+    web_application_info->open_as_window = true;
 
     {
       SkBitmap bitmap;
       bitmap.allocN32Pixels(icon_size::k32, icon_size::k32, true);
       bitmap.eraseColor(SK_ColorBLUE);
-      install_info->icon_bitmaps.any[icon_size::k32] = std::move(bitmap);
+      web_application_info->icon_bitmaps_any[icon_size::k32] =
+          std::move(bitmap);
     }
 
-    base::RunLoop run_loop;
+    InstallManager& install_manager =
+        WebAppProviderBase::GetProviderBase(browser()->profile())
+            ->install_manager();
 
-    auto* provider = WebAppProvider::GetForTest(browser()->profile());
-    provider->scheduler().InstallFromInfo(
-        std::move(install_info),
-        /*overwrite_existing_manifest_fields=*/false,
-        webapps::WebappInstallSource::OMNIBOX_INSTALL_ICON,
+    base::RunLoop run_loop;
+    install_manager.InstallWebAppFromInfo(
+        std::move(web_application_info), ForInstallableSite::kYes,
+        WebappInstallSource::OMNIBOX_INSTALL_ICON,
         base::BindLambdaForTesting(
             [&app_id, &run_loop](const AppId& installed_app_id,
-                                 webapps::InstallResultCode code) {
-              EXPECT_EQ(webapps::InstallResultCode::kSuccessNewInstall, code);
+                                 InstallResultCode code) {
+              EXPECT_EQ(InstallResultCode::kSuccessNewInstall, code);
               app_id = installed_app_id;
               run_loop.Quit();
             }));
@@ -104,21 +103,25 @@ IN_PROC_BROWSER_TEST_F(WebAppIconManagerBrowserTest, SingleIcon) {
     run_loop.Run();
   }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   gfx::ImageSkia image_skia;
-  image_skia = app_service_test().LoadAppIconBlocking(apps::AppType::kWeb,
-                                                      app_id, kWebAppIconSmall);
+  if (base::FeatureList::IsEnabled(features::kAppServiceAdaptiveIcon)) {
+    app_service_test().FlushMojoCalls();
+    image_skia = app_service_test().LoadAppIconBlocking(
+        apps::mojom::AppType::kWeb, app_id, web_app::kWebAppIconSmall);
+  }
 #endif
 
   WebAppBrowserController* controller;
   {
     apps::AppLaunchParams params(
-        app_id, apps::LaunchContainer::kLaunchContainerWindow,
-        WindowOpenDisposition::NEW_WINDOW, apps::LaunchSource::kFromTest);
+        app_id, apps::mojom::LaunchContainer::kLaunchContainerWindow,
+        WindowOpenDisposition::NEW_WINDOW,
+        apps::mojom::AppLaunchSource::kSourceTest);
     content::WebContents* contents =
         apps::AppServiceProxyFactory::GetForProfile(browser()->profile())
             ->BrowserAppLauncher()
-            ->LaunchAppWithParamsForTesting(std::move(params));
+            ->LaunchAppWithParams(std::move(params));
     controller = chrome::FindBrowserWithWebContents(contents)
                      ->app_controller()
                      ->AsWebAppBrowserController();
@@ -126,19 +129,22 @@ IN_PROC_BROWSER_TEST_F(WebAppIconManagerBrowserTest, SingleIcon) {
 
   base::RunLoop run_loop;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  controller->SetReadIconCallbackForTesting(
-      base::BindLambdaForTesting([controller, &image_skia, &run_loop, this]() {
-        EXPECT_TRUE(app_service_test().AreIconImageEqual(
-            image_skia, controller->GetWindowAppIcon().Rasterize(nullptr)));
-        run_loop.Quit();
-      }));
-  run_loop.Run();
-#else
+#if defined(OS_CHROMEOS)
+  if (base::FeatureList::IsEnabled(features::kAppServiceAdaptiveIcon)) {
+    controller->SetReadIconCallbackForTesting(base::BindLambdaForTesting(
+        [controller, &image_skia, &run_loop, this]() {
+          EXPECT_TRUE(app_service_test().AreIconImageEqual(
+              image_skia, controller->GetWindowAppIcon()));
+          run_loop.Quit();
+        }));
+    run_loop.Run();
+    return;
+  }
+#endif
+
   controller->SetReadIconCallbackForTesting(
       base::BindLambdaForTesting([controller, &run_loop]() {
-        const SkBitmap* bitmap =
-            controller->GetWindowAppIcon().Rasterize(nullptr).bitmap();
+        const SkBitmap* bitmap = controller->GetWindowAppIcon().bitmap();
         EXPECT_EQ(SK_ColorBLUE, bitmap->getColor(0, 0));
         EXPECT_EQ(32, bitmap->width());
         EXPECT_EQ(32, bitmap->height());
@@ -146,7 +152,6 @@ IN_PROC_BROWSER_TEST_F(WebAppIconManagerBrowserTest, SingleIcon) {
       }));
 
   run_loop.Run();
-#endif
 }
 
 }  // namespace web_app

@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/exo/vsync_timing_manager.h"
 
-#include "base/containers/cxx20_erase.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/stl_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "components/viz/common/frame_sinks/begin_frame_args.h"
 
 namespace exo {
@@ -50,7 +50,7 @@ void VSyncTimingManager::OnUpdateVSyncParameters(base::TimeTicks timebase,
 void VSyncTimingManager::OnThrottlingStarted(
     const std::vector<aura::Window*>& windows,
     uint8_t fps) {
-  throttled_interval_ = base::Hertz(fps);
+  throttled_interval_ = base::TimeDelta::FromSeconds(1) / fps;
   OnUpdateVSyncParameters(last_timebase_, last_interval_);
 }
 
@@ -85,11 +85,11 @@ void VSyncTimingManager::OnConnectionError() {
   // Try to add a new observer after a short delay. If adding a new observer
   // fails we'll retry again until successful. The delay avoids spamming
   // retries.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&VSyncTimingManager::MaybeInitializeConnection,
                      weak_ptr_factory_.GetWeakPtr()),
-      base::Milliseconds(250));
+      base::TimeDelta::FromMilliseconds(250));
 }
 
 }  // namespace exo

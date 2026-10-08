@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "base/threading/thread_checker.h"
 #include "components/drive/service/drive_service_interface.h"
@@ -23,7 +24,7 @@ class AboutResource;
 class ChangeResource;
 class FileResource;
 class TeamDriveResource;
-}  // namespace google_apis
+}
 
 namespace drive {
 
@@ -42,10 +43,6 @@ class FakeDriveService : public DriveServiceInterface {
   };
 
   FakeDriveService();
-
-  FakeDriveService(const FakeDriveService&) = delete;
-  FakeDriveService& operator=(const FakeDriveService&) = delete;
-
   ~FakeDriveService() override;
 
   // Adds a Team Drive to the Team Drive resource list.
@@ -56,7 +53,7 @@ class FakeDriveService : public DriveServiceInterface {
                     const std::string& name,
                     const std::string& start_page_token);
 
-  // Changes the offline state. All functions fail with NO_CONNECTION
+  // Changes the offline state. All functions fail with DRIVE_NO_CONNECTION
   // when offline. By default the offline state is false.
   void set_offline(bool offline) { offline_ = offline; }
 
@@ -103,7 +100,9 @@ class FakeDriveService : public DriveServiceInterface {
 
   // Returns the number of times the about resource is successfully loaded
   // by GetAboutResource().
-  int about_resource_load_count() const { return about_resource_load_count_; }
+  int about_resource_load_count() const {
+    return about_resource_load_count_;
+  }
 
   // Returns the number of times GetAllFileList are blocked due to
   // set_never_return_all_file_list().
@@ -144,57 +143,57 @@ class FakeDriveService : public DriveServiceInterface {
       google_apis::FileListCallback callback) override;
   // See the comment for EntryMatchWidthQuery() in .cc file for details about
   // the supported search query types.
-  google_apis::CancelCallbackOnce Search(
+  google_apis::CancelCallback Search(
       const std::string& search_query,
       google_apis::FileListCallback callback) override;
   google_apis::CancelCallbackOnce SearchByTitle(
       const std::string& title,
       const std::string& directory_resource_id,
       google_apis::FileListCallback callback) override;
-  google_apis::CancelCallbackOnce GetChangeList(
+  google_apis::CancelCallback GetChangeList(
       int64_t start_changestamp,
       google_apis::ChangeListCallback callback) override;
-  google_apis::CancelCallbackOnce GetChangeListByToken(
+  google_apis::CancelCallback GetChangeListByToken(
       const std::string& team_drive_id,
       const std::string& start_page_token,
       google_apis::ChangeListCallback callback) override;
   google_apis::CancelCallbackOnce GetRemainingChangeList(
       const GURL& next_link,
       google_apis::ChangeListCallback callback) override;
-  google_apis::CancelCallbackOnce GetRemainingTeamDriveList(
+  google_apis::CancelCallback GetRemainingTeamDriveList(
       const std::string& page_token,
       google_apis::TeamDriveListCallback callback) override;
   google_apis::CancelCallbackOnce GetRemainingFileList(
       const GURL& next_link,
       google_apis::FileListCallback callback) override;
-  google_apis::CancelCallbackOnce GetFileResource(
+  google_apis::CancelCallback GetFileResource(
       const std::string& resource_id,
       google_apis::FileResourceCallback callback) override;
-  google_apis::CancelCallbackOnce GetAboutResource(
+  google_apis::CancelCallback GetAboutResource(
       google_apis::AboutResourceCallback callback) override;
-  google_apis::CancelCallbackOnce GetStartPageToken(
+  google_apis::CancelCallback GetStartPageToken(
       const std::string& team_drive_id,
       google_apis::StartPageTokenCallback callback) override;
-  google_apis::CancelCallbackOnce DeleteResource(
+  google_apis::CancelCallback DeleteResource(
       const std::string& resource_id,
       const std::string& etag,
       google_apis::EntryActionCallback callback) override;
-  google_apis::CancelCallbackOnce TrashResource(
+  google_apis::CancelCallback TrashResource(
       const std::string& resource_id,
       google_apis::EntryActionCallback callback) override;
   google_apis::CancelCallbackOnce DownloadFile(
       const base::FilePath& local_cache_path,
       const std::string& resource_id,
-      google_apis::DownloadActionCallback download_action_callback,
+      const google_apis::DownloadActionCallback& download_action_callback,
       const google_apis::GetContentCallback& get_content_callback,
       google_apis::ProgressCallback progress_callback) override;
-  google_apis::CancelCallbackOnce CopyResource(
+  google_apis::CancelCallback CopyResource(
       const std::string& resource_id,
       const std::string& parent_resource_id,
       const std::string& new_title,
       const base::Time& last_modified,
       google_apis::FileResourceCallback callback) override;
-  google_apis::CancelCallbackOnce UpdateResource(
+  google_apis::CancelCallback UpdateResource(
       const std::string& resource_id,
       const std::string& parent_resource_id,
       const std::string& new_title,
@@ -202,7 +201,7 @@ class FakeDriveService : public DriveServiceInterface {
       const base::Time& last_viewed_by_me,
       const google_apis::drive::Properties& properties,
       google_apis::FileResourceCallback callback) override;
-  google_apis::CancelCallbackOnce AddResourceToDirectory(
+  google_apis::CancelCallback AddResourceToDirectory(
       const std::string& parent_resource_id,
       const std::string& resource_id,
       google_apis::EntryActionCallback callback) override;
@@ -215,20 +214,20 @@ class FakeDriveService : public DriveServiceInterface {
       const std::string& directory_title,
       const AddNewDirectoryOptions& options,
       google_apis::FileResourceCallback callback) override;
-  google_apis::CancelCallbackOnce InitiateUploadNewFile(
+  google_apis::CancelCallback InitiateUploadNewFile(
       const std::string& content_type,
       int64_t content_length,
       const std::string& parent_resource_id,
       const std::string& title,
       const UploadNewFileOptions& options,
-      google_apis::InitiateUploadCallback callback) override;
-  google_apis::CancelCallbackOnce InitiateUploadExistingFile(
+      const google_apis::InitiateUploadCallback& callback) override;
+  google_apis::CancelCallback InitiateUploadExistingFile(
       const std::string& content_type,
       int64_t content_length,
       const std::string& resource_id,
       const UploadExistingFileOptions& options,
-      google_apis::InitiateUploadCallback callback) override;
-  google_apis::CancelCallbackOnce ResumeUpload(
+      const google_apis::InitiateUploadCallback& callback) override;
+  google_apis::CancelCallback ResumeUpload(
       const GURL& upload_url,
       int64_t start_position,
       int64_t end_position,
@@ -237,11 +236,11 @@ class FakeDriveService : public DriveServiceInterface {
       const base::FilePath& local_file_path,
       google_apis::drive::UploadRangeCallback callback,
       google_apis::ProgressCallback progress_callback) override;
-  google_apis::CancelCallbackOnce GetUploadStatus(
+  google_apis::CancelCallback GetUploadStatus(
       const GURL& upload_url,
       int64_t content_length,
       google_apis::drive::UploadRangeCallback callback) override;
-  google_apis::CancelCallbackOnce MultipartUploadNewFile(
+  google_apis::CancelCallback MultipartUploadNewFile(
       const std::string& content_type,
       int64_t content_length,
       const std::string& parent_resource_id,
@@ -250,7 +249,7 @@ class FakeDriveService : public DriveServiceInterface {
       const UploadNewFileOptions& options,
       google_apis::FileResourceCallback callback,
       google_apis::ProgressCallback progress_callback) override;
-  google_apis::CancelCallbackOnce MultipartUploadExistingFile(
+  google_apis::CancelCallback MultipartUploadExistingFile(
       const std::string& content_type,
       int64_t content_length,
       const std::string& resource_id,
@@ -258,7 +257,7 @@ class FakeDriveService : public DriveServiceInterface {
       const UploadExistingFileOptions& options,
       google_apis::FileResourceCallback callback,
       google_apis::ProgressCallback progress_callback) override;
-  google_apis::CancelCallbackOnce AddPermission(
+  google_apis::CancelCallback AddPermission(
       const std::string& resource_id,
       const std::string& email,
       google_apis::drive::PermissionRole role,
@@ -319,18 +318,18 @@ class FakeDriveService : public DriveServiceInterface {
       const google_apis::TeamDriveCapabilities& capabilities);
 
   // Sets the user's permission for an entry specified by |resource_id|.
-  google_apis::ApiErrorCode SetUserPermission(
+  google_apis::DriveApiErrorCode SetUserPermission(
       const std::string& resource_id,
       google_apis::drive::PermissionRole user_permission);
 
-  google_apis::ApiErrorCode SetFileVisibility(
+  google_apis::DriveApiErrorCode SetFileVisibility(
       const std::string& resource_id,
       google_apis::drive::FileVisibility visibility);
-  google_apis::ApiErrorCode GetFileVisibility(
+  google_apis::DriveApiErrorCode GetFileVisibility(
       const std::string& resource_id,
       google_apis::drive::FileVisibility* visibility);
 
-  google_apis::ApiErrorCode SetFileAsSharedWithMe(
+  google_apis::DriveApiErrorCode SetFileAsSharedWithMe(
       const std::string& resource_id);
 
   void AddChangeObserver(ChangeObserver* observer);
@@ -362,12 +361,13 @@ class FakeDriveService : public DriveServiceInterface {
   // Adds a new entry based on the given parameters.
   // |resource_id| can be empty, in the case, the id is automatically generated.
   // Returns a pointer to the newly added entry, or NULL if failed.
-  const EntryInfo* AddNewEntry(const std::string& resource_id,
-                               const std::string& content_type,
-                               const std::string& content_data,
-                               const std::string& parent_resource_id,
-                               const std::string& title,
-                               bool shared_with_me);
+  const EntryInfo* AddNewEntry(
+      const std::string& resource_id,
+      const std::string& content_type,
+      const std::string& content_data,
+      const std::string& parent_resource_id,
+      const std::string& title,
+      bool shared_with_me);
 
   // Adds a new entry for a team drive.
   // Returns a pointer to the newly added entry, or NULL if failed.
@@ -430,6 +430,8 @@ class FakeDriveService : public DriveServiceInterface {
   base::ObserverList<ChangeObserver>::Unchecked change_observers_;
 
   base::WeakPtrFactory<FakeDriveService> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FakeDriveService);
 };
 
 }  // namespace drive

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,6 @@
 
 #include "base/auto_reset.h"
 #include "base/bind.h"
-#include "base/numerics/checked_math.h"
-#include "base/task/sequenced_task_runner.h"
 #include "net/base/io_buffer.h"
 
 namespace network {
@@ -20,7 +18,7 @@ DataPipeToSourceStream::DataPipeToSourceStream(
       body_(std::move(body)),
       handle_watcher_(FROM_HERE,
                       mojo::SimpleWatcher::ArmingPolicy::MANUAL,
-                      base::SequencedTaskRunner::GetCurrentDefault()) {
+                      base::SequencedTaskRunnerHandle::Get()) {
   handle_watcher_.Watch(
       body_.get(), MOJO_HANDLE_SIGNAL_READABLE | MOJO_HANDLE_SIGNAL_PEER_CLOSED,
       base::BindRepeating(&DataPipeToSourceStream::OnReadable,

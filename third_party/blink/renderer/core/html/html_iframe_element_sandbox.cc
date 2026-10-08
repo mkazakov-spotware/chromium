@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,6 +33,10 @@ const char* const kSupportedSandboxTokens[] = {
 constexpr char kStorageAccessAPISandboxToken[] =
     "allow-storage-access-by-user-activation";
 
+// TODO(crbug.com/1042130): move this into |kSupportedSandboxTokens| when the
+// feature flag is enabled by default.
+constexpr char kDeclarativeShadowDom[] = "allow-declarative-shadow-dom";
+
 bool IsTokenSupported(const AtomicString& token) {
   for (const char* supported_token : kSupportedSandboxTokens) {
     if (token == supported_token)
@@ -44,6 +48,14 @@ bool IsTokenSupported(const AtomicString& token) {
   // the feature is enabled.
   if (RuntimeEnabledFeatures::StorageAccessAPIEnabled() &&
       (token == kStorageAccessAPISandboxToken)) {
+    return true;
+  }
+
+  // If Declarative Shadow DOM is enabled, allow the sandbox flag.
+  // TODO(crbug.com/1145605): This won't work for origin trial enabled iframe
+  // documents, because there's no ExecutionContext here.
+  if (RuntimeEnabledFeatures::DeclarativeShadowDOMEnabledByRuntimeFlag() &&
+      (token == kDeclarativeShadowDom)) {
     return true;
   }
 

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include <string>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/macros.h"
+#include "base/sequenced_task_runner.h"
 #include "components/policy/core/common/cloud/cloud_external_data_manager.h"
 #include "components/policy/core/common/cloud/dm_token.h"
 #include "components/policy/core/common/cloud/machine_level_user_cloud_policy_store.h"
@@ -28,7 +28,7 @@ class MockMachineLevelUserCloudPolicyStore
             base::FilePath(),
             base::FilePath(),
             base::FilePath(),
-            base::FilePath(),
+            /* cloud_policy_has_priority= */ false,
             scoped_refptr<base::SequencedTaskRunner>()) {}
 
   MOCK_METHOD0(LoadImmediately, void(void));
@@ -36,11 +36,7 @@ class MockMachineLevelUserCloudPolicyStore
 
 class MachineLevelUserCloudPolicyManagerTest : public ::testing::Test {
  public:
-  MachineLevelUserCloudPolicyManagerTest() = default;
-  MachineLevelUserCloudPolicyManagerTest(
-      const MachineLevelUserCloudPolicyManagerTest&) = delete;
-  MachineLevelUserCloudPolicyManagerTest& operator=(
-      const MachineLevelUserCloudPolicyManagerTest&) = delete;
+  MachineLevelUserCloudPolicyManagerTest() {}
   ~MachineLevelUserCloudPolicyManagerTest() override { manager_->Shutdown(); }
 
   void SetUp() override {
@@ -53,8 +49,11 @@ class MachineLevelUserCloudPolicyManagerTest : public ::testing::Test {
   }
 
   SchemaRegistry schema_registry_;
-  raw_ptr<MockMachineLevelUserCloudPolicyStore> store_ = nullptr;
+  MockMachineLevelUserCloudPolicyStore* store_ = nullptr;
   std::unique_ptr<MachineLevelUserCloudPolicyManager> manager_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MachineLevelUserCloudPolicyManagerTest);
 };
 
 TEST_F(MachineLevelUserCloudPolicyManagerTest, InitManager) {

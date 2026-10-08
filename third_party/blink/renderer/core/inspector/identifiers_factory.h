@@ -34,7 +34,6 @@
 namespace blink {
 
 class DocumentLoader;
-class ExecutionContext;
 class Frame;
 class LocalFrame;
 class Node;
@@ -46,14 +45,8 @@ class CORE_EXPORT IdentifiersFactory {
  public:
   static String CreateIdentifier();
 
-  static String RequestId(ExecutionContext*, uint64_t identifier);
-
-  // Same as above, but used when it's inconvenient to get the ExecutionContext
-  // or it does not exist. Prefer using RequestId with ExecutionContext. (See
-  // above.)
   static String RequestId(DocumentLoader*, uint64_t identifier);
-
-  // Same as RequestId, but can only be used on reuquests that are guaranteed
+  // Same as above, but can only be used on reuquests that are guaranteed
   // to be subresources, not main resource.
   static String SubresourceRequestId(uint64_t identifier);
 

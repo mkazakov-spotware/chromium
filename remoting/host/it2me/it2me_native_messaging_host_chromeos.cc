@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "base/lazy_instance.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "remoting/base/auto_thread_task_runner.h"
@@ -18,13 +19,13 @@ namespace remoting {
 
 std::unique_ptr<extensions::NativeMessageHost>
 CreateIt2MeNativeMessagingHostForChromeOS(
-    scoped_refptr<base::SingleThreadTaskRunner> io_runner,
-    scoped_refptr<base::SingleThreadTaskRunner> ui_runner,
+    scoped_refptr<base::SingleThreadTaskRunner> io_runnner,
+    scoped_refptr<base::SingleThreadTaskRunner> ui_runnner,
     policy::PolicyService* policy_service) {
   std::unique_ptr<It2MeHostFactory> host_factory(new It2MeHostFactory());
   std::unique_ptr<ChromotingHostContext> context =
       ChromotingHostContext::CreateForChromeOS(
-          io_runner, ui_runner,
+          io_runnner, ui_runnner,
           base::ThreadPool::CreateSingleThreadTaskRunner(
               {base::MayBlock(), base::TaskPriority::BEST_EFFORT}));
   std::unique_ptr<PolicyWatcher> policy_watcher =

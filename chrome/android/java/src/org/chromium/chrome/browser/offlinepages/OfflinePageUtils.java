@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,6 +26,7 @@ import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.FileProviderHelper;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
@@ -51,7 +52,6 @@ import org.chromium.content_public.browser.WebContents;
 import org.chromium.net.NetworkChangeNotifier;
 import org.chromium.ui.base.PageTransition;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.url.GURL;
 
 import java.io.File;
 import java.lang.annotation.Retention;
@@ -87,19 +87,19 @@ public class OfflinePageUtils {
     private static Internal sInstance;
 
     /**
-     * Tracks the observers of each Activity's TabModelSelectors. This is weak so the activity can
+     * Tracks the observers of ChromeActivity's TabModelSelectors. This is weak so the activity can
      * be garbage collected without worrying about this map.  The RecentTabTracker is held here so
-     * that it can be destroyed when the Activity gets a new TabModelSelector.
+     * that it can be destroyed when the ChromeActivity gets a new TabModelSelector.
      */
-    private static Map<Activity, RecentTabTracker> sTabModelObservers = new HashMap<>();
+    private static Map<ChromeActivity, RecentTabTracker> sTabModelObservers = new HashMap<>();
 
     /**
      * Interface for implementation of offline page utilities, that can be implemented for testing.
      * We are using an internal interface, so that instance methods can have the same names as
      * static methods.
      */
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    public interface Internal {
+    @VisibleForTesting
+    interface Internal {
         /** Returns offline page bridge for specified profile. */
         OfflinePageBridge getOfflinePageBridge(Profile profile);
 
@@ -442,7 +442,7 @@ public class OfflinePageUtils {
         boolean isPageTemporary =
                 offlinePageBridge.isTemporaryNamespace(offlinePage.getClientId().getNamespace());
         String tabTitle = tab.getTitle();
-        getOfflinePageUriForSharing(tab.getUrl().getSpec(), isPageTemporary, offlinePath,
+        getOfflinePageUriForSharing(tab.getUrlString(), isPageTemporary, offlinePath,
                 (Uri uri)
                         -> maybeShareOfflinePageWithUri(tabTitle, webContents, offlinePageBridge,
                                 offlinePage, isPageTemporary, shareCallback, uri));
@@ -771,9 +771,8 @@ public class OfflinePageUtils {
         if (OfflinePageUtils.isShowingTrustedOfflinePage(webContents) || offlinePage == null) {
             // TODO(crbug.com/1033178): dedupe the
             // DomDistillerUrlUtils#getOriginalUrlFromDistillerUrl() calls.
-            String distilledUrl =
-                    DomDistillerUrlUtils.getOriginalUrlFromDistillerUrl(webContents.getVisibleUrl())
-                            .getSpec();
+            String distilledUrl = DomDistillerUrlUtils.getOriginalUrlFromDistillerUrl(
+                    webContents.getVisibleUrlString());
             // If current page is an offline page, reload it with custom behavior defined in extra
             // header respected.
             LoadUrlParams params = new LoadUrlParams(distilledUrl, transitionTypeForReload);
@@ -812,7 +811,7 @@ public class OfflinePageUtils {
         }
 
         @Override
-        public void willCloseTab(Tab tab, boolean animate, boolean didCloseAlone) {
+        public void willCloseTab(Tab tab, boolean animate) {
             Profile profile = mTabModelSelector.getModel(tab.isIncognito()).getProfile();
             OfflinePageBridge bridge = OfflinePageBridge.getForProfile(profile);
             if (bridge == null) return;
@@ -822,8 +821,8 @@ public class OfflinePageUtils {
         }
 
         @Override
-        public void onFinishingTabClosure(Tab tab) {
-            Profile profile = mTabModelSelector.getModel(tab.isIncognito()).getProfile();
+        public void didCloseTab(int tabId, boolean incognito) {
+            Profile profile = mTabModelSelector.getModel(incognito).getProfile();
             OfflinePageBridge bridge = OfflinePageBridge.getForProfile(profile);
             if (bridge == null) return;
 
@@ -831,7 +830,7 @@ public class OfflinePageUtils {
             // the UI will no longer show the page, and the page would also be cleaned up by GC
             // given enough time.
             ClientId clientId =
-                    new ClientId(OfflinePageBridge.LAST_N_NAMESPACE, Integer.toString(tab.getId()));
+                    new ClientId(OfflinePageBridge.LAST_N_NAMESPACE, Integer.toString(tabId));
             List<ClientId> clientIds = new ArrayList<>();
             clientIds.add(clientId);
 
@@ -849,7 +848,7 @@ public class OfflinePageUtils {
      * destroying obsolete observers as necessary.
      */
     public static void observeTabModelSelector(
-            Activity activity, TabModelSelector tabModelSelector) {
+            ChromeActivity activity, TabModelSelector tabModelSelector) {
         RecentTabTracker previousObserver =
                 sTabModelObservers.put(activity, new RecentTabTracker(tabModelSelector));
         if (previousObserver != null) {
@@ -876,7 +875,7 @@ public class OfflinePageUtils {
          * contents.
          */
         @Override
-        public void onPageLoadFinished(Tab tab, GURL url) {
+        public void onPageLoadFinished(Tab tab, String url) {
             if (!tab.isBeingRestored()) return;
 
             // We first compute the bitwise tab restore context.
@@ -888,7 +887,7 @@ public class OfflinePageUtils {
                 if (page.getClientId().getNamespace().equals(OfflinePageBridge.LAST_N_NAMESPACE)) {
                     tabRestoreContext |= BIT_LAST_N;
                 }
-            } else if (!OfflinePageBridge.canSavePage(tab.getUrl()) || tab.isIncognito()) {
+            } else if (!OfflinePageBridge.canSavePage(tab.getUrlString()) || tab.isIncognito()) {
                 tabRestoreContext |= BIT_CANT_SAVE_OFFLINE;
             }
 
@@ -923,7 +922,7 @@ public class OfflinePageUtils {
                     assert false;
                     return;
             }
-            recordTabRestoreHistogram(tabRestoreType, tab.getUrl().getSpec());
+            recordTabRestoreHistogram(tabRestoreType, tab.getUrlString());
         }
 
         /**
@@ -949,8 +948,8 @@ public class OfflinePageUtils {
                 "OfflinePages.TabRestore", tabRestoreType, TabRestoreType.NUM_ENTRIES);
     }
 
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    public static void setInstanceForTesting(Internal instance) {
+    @VisibleForTesting
+    static void setInstanceForTesting(Internal instance) {
         sInstance = instance;
     }
 

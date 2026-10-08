@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,7 +42,7 @@ chrome.test.getConfig(config => chrome.test.runTests([
 
     await new Promise(resolve =>
         chrome.debugger.sendCommand(subframeDebuggee, 'Page.navigate', {
-            url: 'blob:chrome://non-existent/'}, resolve));
+            url: 'filesystem:chrome://version/non-existent/'}, resolve));
 
     chrome.test.assertLastError(DETACHED_WHILE_HANDLING);
 

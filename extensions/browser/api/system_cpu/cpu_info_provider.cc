@@ -1,15 +1,15 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/browser/api/system_cpu/cpu_info_provider.h"
 
 #include "base/system/sys_info.h"
-#include "build/build_config.h"
+#include "build/chromeos_buildflags.h"
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS_ASH)
 #include "chromeos/system/cpu_temperature_reader.h"
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 namespace extensions {
 
@@ -27,7 +27,7 @@ CpuInfoProvider::~CpuInfoProvider() {
 
 void CpuInfoProvider::InitializeForTesting(
     scoped_refptr<CpuInfoProvider> provider) {
-  DCHECK(provider.get() != nullptr);
+  DCHECK(provider.get() != NULL);
   provider_.Get() = provider;
 }
 
@@ -45,7 +45,7 @@ bool CpuInfoProvider::QueryInfo() {
   if (!QueryCpuTimePerProcessor(&info_.processors))
     info_.processors.clear();
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS_ASH)
   using CPUTemperatureInfo =
       chromeos::system::CPUTemperatureReader::CPUTemperatureInfo;
   std::vector<CPUTemperatureInfo> cpu_temp_info =
@@ -55,7 +55,7 @@ bool CpuInfoProvider::QueryInfo() {
   for (const CPUTemperatureInfo& info : cpu_temp_info) {
     info_.temperatures.push_back(info.temp_celsius);
   }
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
   return true;
 }
@@ -84,7 +84,7 @@ std::vector<std::string> CpuInfoProvider::GetFeatures() const {
 
 // static
 CpuInfoProvider* CpuInfoProvider::Get() {
-  if (provider_.Get().get() == nullptr)
+  if (provider_.Get().get() == NULL)
     provider_.Get() = new CpuInfoProvider();
   return provider_.Get().get();
 }

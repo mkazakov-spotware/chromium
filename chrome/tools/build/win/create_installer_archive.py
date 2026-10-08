@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 
 """
 
-import configparser
+import ConfigParser
 import fnmatch
 import glob
 import optparse
@@ -34,7 +34,7 @@ CHROME_PATCH_FILE_SUFFIX = "_patch"  # prefixed by options.output_name
 COMPRESSED_ARCHIVE_SUFFIX = ".packed.7z"
 
 COMPRESSED_FILE_EXT = ".packed.7z"     # extension of patch archive file
-COURGETTE_EXEC = "courgette64.exe"
+COURGETTE_EXEC = "courgette.exe"
 MINI_INSTALLER_INPUT_FILE = "packed_files.txt"
 PATCH_FILE_EXT = '.diff'
 SETUP_EXEC = "setup.exe"
@@ -46,7 +46,7 @@ VERSION_FILE = "VERSION"
 g_archive_inputs = []
 
 
-def BuildVersion():
+def BuildVersion(build_dir):
   """Returns the full build version string constructed from information in
   VERSION_FILE.  Any segment not found in that file will default to '0'.
   """
@@ -54,10 +54,7 @@ def BuildVersion():
   minor = 0
   build = 0
   patch = 0
-  # The version file is located at the directory ${CHROMIUM_SRC}/chrome.
-  version_file_path = os.path.join(
-      os.path.dirname(__file__), '../../..', VERSION_FILE)
-  for line in open(version_file_path, 'r'):
+  for line in open(os.path.join(build_dir, '../../chrome', VERSION_FILE), 'r'):
     line = line.rstrip()
     if line.startswith('MAJOR='):
       major = line[6:]
@@ -125,7 +122,7 @@ def CopyAllFilesToStagingDir(config, distribution, staging_dir, build_dir,
     CopySectionFilesToStagingDir(config, 'FFMPEG', staging_dir, build_dir,
                                  verbose)
 
-# The 'ConfigParser' makes all strings lowercase - which works fine on
+# The 'SafeConfigParser' makes all strings lowercase - which works fine on
 # a cases-insensitive NTFS partition, but makes no sense when trying to build
 # mini_installer.exe on a linux box. This function can be used to make glob
 # matches case insensitive to bypass this issue.
@@ -171,12 +168,12 @@ def GenerateDiffPatch(options, orig_file, new_file, patch_file):
   RunSystemCommand(cmd, options.verbose)
 
 def GetLZMAExec(build_dir):
-  executable = '7za'
   if sys.platform == 'win32':
-    executable += '.exe'
-
-  return os.path.join(build_dir, "..", "..", "third_party", "lzma_sdk", "bin",
-                      "host_platform", executable)
+    lzma_exec = os.path.join(build_dir, "..", "..", "third_party",
+                             "lzma_sdk", "Executable", "7za.exe")
+  else:
+    lzma_exec = '7zr'  # Use system 7zr.
+  return lzma_exec
 
 def GetPrevVersion(build_dir, temp_dir, last_chrome_installer, output_name):
   if not last_chrome_installer:
@@ -212,7 +209,7 @@ def Readconfig(input_file, current_version):
   variables['ChromeDir'] = CHROME_DIR
   variables['VersionDir'] = os.path.join(variables['ChromeDir'],
                                           current_version)
-  config = configparser.ConfigParser(variables)
+  config = ConfigParser.SafeConfigParser(variables)
   config.read(input_file)
   return config
 
@@ -276,10 +273,9 @@ def CreateArchiveFile(options, staging_dir, current_version, prev_version):
 
     # Finally, write the depfile referencing the inputs.
     with open(options.depfile, 'wb') as f:
-      f.write((path_fixup(os.path.relpath(archive_file, options.build_dir)) +
-              ': \\\n').encode())
-      f.write(('  ' + ' \\\n  '.join(path_fixup(x)
-              for x in g_archive_inputs)).encode())
+      f.write(path_fixup(os.path.relpath(archive_file, options.build_dir)) +
+              ': \\\n')
+      f.write('  ' + ' \\\n  '.join(path_fixup(x) for x in g_archive_inputs))
 
   # It is important to use abspath to create the path to the directory because
   # if you use a relative path without any .. sequences then 7za.exe uses the
@@ -423,7 +419,7 @@ def CopyAndAugmentManifest(build_dir, output_dir, manifest_name,
 
   insert_line = -1
   insert_pos = -1
-  for i in range(len(manifest_lines)):
+  for i in xrange(len(manifest_lines)):
     insert_pos = manifest_lines[i].find(insert_before)
     if insert_pos != -1:
       insert_line = i
@@ -532,7 +528,7 @@ def main(options):
   """Main method that reads input file, creates archive file and writes
   resource input file.
   """
-  current_version = BuildVersion()
+  current_version = BuildVersion(options.build_dir)
 
   config = Readconfig(options.input_file, current_version)
 
@@ -599,7 +595,7 @@ def _ParseOptions():
   parser.add_option('-l', '--last_chrome_installer',
       help='Generate differential installer. The value of this parameter '
            'specifies the directory that contains base versions of '
-           'setup.exe, courgette64.exe (if --diff_algorithm is COURGETTE) '
+           'setup.exe, courgette.exe (if --diff_algorithm is COURGETTE) '
            '& chrome.7z.')
   parser.add_option('-f', '--setup_exe_format', default='COMPRESSED',
       help='How setup.exe should be included {COMPRESSED|DIFF|FULL}.')

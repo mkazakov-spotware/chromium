@@ -1,11 +1,13 @@
-#!/usr/bin/env vpython3
-# Copyright 2017 The Chromium Authors
+#!/usr/bin/env vpython
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+import itertools
 import json
 import os
 import shutil
+import sys
 import tempfile
 import unittest
 
@@ -35,11 +37,9 @@ class StandardIsolatedScriptMergeTest(unittest.TestCase):
     self.test_files = []
     self.summary = None
 
-  # pylint: disable=super-with-arguments
   def tearDown(self):
     shutil.rmtree(self.temp_dir)
     super(StandardIsolatedScriptMergeTest, self).tearDown()
-  # pylint: enable=super-with-arguments
 
   def _write_temp_file(self, path, content):
     abs_path = os.path.join(self.temp_dir, path.replace('/', os.sep))
@@ -55,7 +55,7 @@ class StandardIsolatedScriptMergeTest(unittest.TestCase):
 
   def _stage(self, summary, files):
     self.summary = self._write_temp_file('summary.json', summary)
-    for path, content in files.items():
+    for path, content in files.iteritems():
       abs_path = self._write_temp_file(path, content)
       self.test_files.append(abs_path)
 
@@ -105,7 +105,6 @@ class OutputTest(StandardIsolatedScriptMergeTest):
       self.assertEquals(results['missing_shards'], [1])
 
 class InputParsingTest(StandardIsolatedScriptMergeTest):
-  # pylint: disable=super-with-arguments
   def setUp(self):
     super(InputParsingTest, self).setUp()
 
@@ -124,7 +123,6 @@ class InputParsingTest(StandardIsolatedScriptMergeTest):
       side_effect=mock_merge_test_results)
     m.start()
     self.addCleanup(m.stop)
-  # pylint: enable=super-with-arguments
 
   def test_simple(self):
     self._stage(TWO_COMPLETED_SHARDS,
@@ -177,11 +175,9 @@ class InputParsingTest(StandardIsolatedScriptMergeTest):
 
 class CommandLineTest(common_merge_script_tests.CommandLineTest):
 
-  # pylint: disable=super-with-arguments
   def __init__(self, methodName='runTest'):
     super(CommandLineTest, self).__init__(
         methodName, standard_isolated_script_merge)
-  # pylint: enable=super-with-arguments
 
 
 if __name__ == '__main__':

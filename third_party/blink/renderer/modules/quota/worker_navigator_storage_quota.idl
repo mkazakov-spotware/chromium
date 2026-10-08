@@ -18,7 +18,7 @@
  */
 
 [
-    ImplementedAs=NavigatorStorageQuota
+    ImplementedAs=WorkerNavigatorStorageQuota
 ] partial interface WorkerNavigator {
     // https://storage.spec.whatwg.org/#api
     [SecureContext] readonly attribute StorageManager storage;

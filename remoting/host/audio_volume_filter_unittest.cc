@@ -1,9 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/host/audio_volume_filter.h"
 
+#include "base/stl_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace remoting {
@@ -36,7 +37,7 @@ TEST(AudioVolumeFilterTest, TwoChannels) {
   // After applying the audio volume, the |samples| should still pass the
   // AudioSilenceDetector, AudioVolumeFilter::Apply() returns true under this
   // condition. Ditto.
-  ASSERT_TRUE(filter.Apply(samples, std::size(samples) / 2));
+  ASSERT_TRUE(filter.Apply(samples, base::size(samples) / 2));
 }
 
 TEST(AudioVolumeFilterTest, ThreeChannels) {
@@ -45,7 +46,7 @@ TEST(AudioVolumeFilterTest, ThreeChannels) {
   FakeAudioVolumeFilter filter(0);
   filter.set_audio_level(0.5f);
   filter.Initialize(6, 3);
-  ASSERT_TRUE(filter.Apply(samples, std::size(samples) / 3));
+  ASSERT_TRUE(filter.Apply(samples, base::size(samples) / 3));
 }
 
 TEST(AudioVolumeFilterTest, SilentSamples) {
@@ -54,7 +55,7 @@ TEST(AudioVolumeFilterTest, SilentSamples) {
   FakeAudioVolumeFilter filter(0);
   filter.set_audio_level(0.5f);
   filter.Initialize(9, 2);
-  ASSERT_FALSE(filter.Apply(samples, std::size(samples) / 2));
+  ASSERT_FALSE(filter.Apply(samples, base::size(samples) / 2));
 }
 
 TEST(AudioVolumeFilterTest, AudioLevel0) {
@@ -63,7 +64,7 @@ TEST(AudioVolumeFilterTest, AudioLevel0) {
   FakeAudioVolumeFilter filter(0);
   filter.set_audio_level(0);
   filter.Initialize(9, 2);
-  ASSERT_FALSE(filter.Apply(samples, std::size(samples) / 2));
+  ASSERT_FALSE(filter.Apply(samples, base::size(samples) / 2));
 }
 
 TEST(AudioVolumeFilterTest, SilentAfterApplying) {
@@ -72,7 +73,7 @@ TEST(AudioVolumeFilterTest, SilentAfterApplying) {
   FakeAudioVolumeFilter filter(0);
   filter.set_audio_level(0.9f);
   filter.Initialize(9, 2);
-  ASSERT_TRUE(filter.Apply(samples, std::size(samples) / 2));
+  ASSERT_TRUE(filter.Apply(samples, base::size(samples) / 2));
 }
 
 }  // namespace remoting

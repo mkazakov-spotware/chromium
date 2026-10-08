@@ -1,9 +1,9 @@
-/* Copyright 2012 The Chromium Authors
+/* Copyright 2012 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file. */
 
-#ifndef LIBRARIES_PPAPI_SIMPLE_PS_MAIN_H_
-#define LIBRARIES_PPAPI_SIMPLE_PS_MAIN_H_
+#ifndef PPAPI_SIMPLE_PS_MAIN_H_
+#define PPAPI_SIMPLE_PS_MAIN_H_
 
 #include "ppapi_simple/ps.h"
 #include "ppapi_simple/ps_event.h"
@@ -35,4 +35,4 @@ PSMainFunc_t PSUserMainGet();
 
 EXTERN_C_END
 
-#endif  // LIBRARIES_PPAPI_SIMPLE_PS_MAIN_H_
+#endif  /* PPAPI_SIMPLE_PS_MAIN_H_ */

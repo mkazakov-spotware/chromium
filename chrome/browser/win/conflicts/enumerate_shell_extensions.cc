@@ -1,20 +1,22 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/win/conflicts/enumerate_shell_extensions.h"
 
-#include <string>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/files/file_path.h"
 #include "base/memory/ref_counted.h"
+#include "base/sequenced_task_runner.h"
+#include "base/strings/string16.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/scoped_blocking_call.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/win/registry.h"
 #include "chrome/browser/win/conflicts/module_info_util.h"
 
@@ -41,15 +43,15 @@ constexpr wchar_t kPrinters[] = L"Printers";
 
 // Retrieves the path to the registry key that contains all the shell extensions
 // of type |shell_extension_type| that apply to |shell_object_type|.
-std::wstring GetShellExtensionTypePath(const wchar_t* shell_extension_type,
-                                       const wchar_t* shell_object_type) {
+base::string16 GetShellExtensionTypePath(const wchar_t* shell_extension_type,
+                                         const wchar_t* shell_object_type) {
   return base::StringPrintf(L"%ls\\shellex\\%ls", shell_object_type,
                             shell_extension_type);
 }
 
 // Returns the path to the DLL for an InProcServer32 registration.
 base::FilePath GetInProcServerPath(const wchar_t* guid) {
-  std::wstring key = base::StringPrintf(kClassIdRegistryKeyFormat, guid);
+  base::string16 key = base::StringPrintf(kClassIdRegistryKeyFormat, guid);
 
   base::win::RegKey clsid;
   if (clsid.Open(HKEY_CLASSES_ROOT, key.c_str(), KEY_QUERY_VALUE) !=
@@ -57,7 +59,7 @@ base::FilePath GetInProcServerPath(const wchar_t* guid) {
     return base::FilePath();
   }
 
-  std::wstring dll_path;
+  base::string16 dll_path;
   if (clsid.ReadValue(L"", &dll_path) != ERROR_SUCCESS)
     return base::FilePath();
 
@@ -70,15 +72,15 @@ void ReadShellExtensions(
     const wchar_t* shell_extension_type,
     const wchar_t* shell_object_type,
     const base::RepeatingCallback<void(const base::FilePath&)>& callback) {
-  std::wstring path =
+  base::string16 path =
       GetShellExtensionTypePath(shell_extension_type, shell_object_type);
 
   DCHECK_NE(path.back(), L'\\');
 
-  std::wstring guid;
+  base::string16 guid;
   for (base::win::RegistryKeyIterator iter(HKEY_CLASSES_ROOT, path.c_str());
        iter.Valid(); ++iter) {
-    std::wstring shell_extension_reg_path = path + L"\\" + iter.Name();
+    base::string16 shell_extension_reg_path = path + L"\\" + iter.Name();
     base::win::RegKey reg_key(
         HKEY_CLASSES_ROOT, shell_extension_reg_path.c_str(), KEY_QUERY_VALUE);
     if (!reg_key.Valid())
@@ -224,7 +226,7 @@ void EnumerateShellExtensions(
       {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
        base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN},
       base::BindOnce(&EnumerateShellExtensionsOnBlockingSequence,
-                     base::SequencedTaskRunner::GetCurrentDefault(),
+                     base::SequencedTaskRunnerHandle::Get(),
                      std::move(on_shell_extension_enumerated),
                      std::move(on_enumeration_finished)));
 }

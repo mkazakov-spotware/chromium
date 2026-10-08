@@ -1,5 +1,4 @@
 include_rules = [
-  "+components/power_scheduler",
   "+mojo/public/cpp/bindings",
   "+services/viz/public/mojom/compositing",
 ]

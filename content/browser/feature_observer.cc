@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 namespace content {
 
 FeatureObserver::FeatureObserver(FeatureObserverClient* client,
-                                 GlobalRenderFrameHostId id)
+                                 GlobalFrameRoutingId id)
     : client_(client), id_(id) {
   DCHECK(client_);
 
@@ -20,7 +20,7 @@ FeatureObserver::FeatureObserver(FeatureObserverClient* client,
        ++i) {
     features_by_type_[i].set_disconnect_handler(base::BindRepeating(
         [](mojo::ReceiverSet<blink::mojom::ObservedFeature>* set,
-           FeatureObserverClient* client, GlobalRenderFrameHostId id,
+           FeatureObserverClient* client, GlobalFrameRoutingId id,
            blink::mojom::ObservedFeatureType type) {
           if (!set->empty())
             return;

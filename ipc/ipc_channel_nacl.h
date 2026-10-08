@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "base/containers/circular_deque.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/process/process.h"
 #include "base/threading/simple_thread.h"
@@ -35,16 +36,10 @@ struct MessageContents;
 class ChannelNacl : public Channel,
                     public internal::ChannelReader {
  public:
-  ChannelNacl() = delete;
-
   // Mirror methods of Channel, see ipc_channel.h for description.
   ChannelNacl(const IPC::ChannelHandle& channel_handle,
               Mode mode,
               Listener* listener);
-
-  ChannelNacl(const ChannelNacl&) = delete;
-  ChannelNacl& operator=(const ChannelNacl&) = delete;
-
   ~ChannelNacl() override;
 
   // Channel implementation.
@@ -110,6 +105,8 @@ class ChannelNacl : public Channel,
   base::circular_deque<std::unique_ptr<Message>> output_queue_;
 
   base::WeakPtrFactory<ChannelNacl> weak_ptr_factory_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ChannelNacl);
 };
 
 }  // namespace IPC

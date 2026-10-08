@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,7 @@ namespace {
 
 // On Fuchsia NativePixmap depends on Vulkan, which is not initialized in tests.
 // See crbug.com/957700
-#if BUILDFLAG(IS_FUCHSIA)
-GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(GpuMemoryBufferFactoryTest);
-#else
+#if !defined(OS_FUCHSIA)
 INSTANTIATE_TYPED_TEST_SUITE_P(GpuMemoryBufferFactoryNativePixmap,
                                GpuMemoryBufferFactoryTest,
                                GpuMemoryBufferFactoryNativePixmap);

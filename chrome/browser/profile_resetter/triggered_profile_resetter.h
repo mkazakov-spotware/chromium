@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 
 #include <stddef.h>
 
-#include <string>
-
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "build/build_config.h"
 #include "components/keyed_service/core/keyed_service.h"
 
@@ -47,10 +46,6 @@ class TriggeredProfileResetter : public KeyedService {
   enum : size_t { kMaxToolNameLength = 100 };
 
   explicit TriggeredProfileResetter(Profile* profile);
-
-  TriggeredProfileResetter(const TriggeredProfileResetter&) = delete;
-  TriggeredProfileResetter& operator=(const TriggeredProfileResetter&) = delete;
-
   ~TriggeredProfileResetter() override;
 
   // Causes the TriggeredProfileResetter to look for the presence of a trigger.
@@ -70,17 +65,19 @@ class TriggeredProfileResetter : public KeyedService {
 
   // Returns the name of the tool that performed the reset. This string will be
   // truncated to a length of |kMaxToolNameLength|.
-  virtual std::u16string GetResetToolName();
+  virtual base::string16 GetResetToolName();
 
  private:
-#if BUILDFLAG(IS_WIN)
-  raw_ptr<Profile> profile_;
-#endif  // BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
+  Profile* profile_;
+#endif  // defined(OS_WIN)
 
   bool has_reset_trigger_ = false;
   bool activate_called_ = false;
 
-  std::u16string tool_name_;
+  base::string16 tool_name_;
+
+  DISALLOW_COPY_AND_ASSIGN(TriggeredProfileResetter);
 };
 
 // Exposed for testing.

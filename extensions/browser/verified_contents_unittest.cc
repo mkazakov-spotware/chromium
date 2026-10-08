@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/path_service.h"
+#include "base/stl_util.h"
 #include "build/build_config.h"
 #include "extensions/browser/content_verifier/content_verifier_utils.h"
 #include "extensions/browser/verified_contents.h"
@@ -69,8 +70,8 @@ std::unique_ptr<VerifiedContents> CreateTestVerifiedContents(
 
   base::FilePath verified_contents_path =
       path.AppendASCII(verified_contents_filename);
-  return VerifiedContents::CreateFromFile(
-      base::as_bytes(base::make_span(public_key)), verified_contents_path);
+  return VerifiedContents::Create(base::as_bytes(base::make_span(public_key)),
+                                  verified_contents_path);
 }
 
 }  // namespace

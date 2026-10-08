@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "snapshot/win/process_subrange_reader.h"
 #include "util/misc/initialization_state_dcheck.h"
 #include "util/misc/uuid.h"
@@ -62,10 +63,6 @@ struct CrashpadInfo {
 class PEImageReader {
  public:
   PEImageReader();
-
-  PEImageReader(const PEImageReader&) = delete;
-  PEImageReader& operator=(const PEImageReader&) = delete;
-
   ~PEImageReader();
 
   //! \brief Initializes the reader.
@@ -197,6 +194,8 @@ class PEImageReader {
 
   ProcessSubrangeReader module_subrange_reader_;
   InitializationStateDcheck initialized_;
+
+  DISALLOW_COPY_AND_ASSIGN(PEImageReader);
 };
 
 }  // namespace crashpad

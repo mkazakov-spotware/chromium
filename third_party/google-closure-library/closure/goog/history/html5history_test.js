@@ -1,11 +1,23 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2010 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.history.Html5HistoryTest');
 goog.setTestOnly();
+
+// Delay running the tests after page load. This test has some asynchronous
+// behavior that interacts with page load detection.
+goog.testing.jsunit.AUTO_RUN_DELAY_IN_MS = 500;
 
 const EventType = goog.require('goog.events.EventType');
 const HistoryEventType = goog.require('goog.history.EventType');
@@ -13,15 +25,9 @@ const Html5History = goog.require('goog.history.Html5History');
 const MockControl = goog.require('goog.testing.MockControl');
 const Timer = goog.require('goog.Timer');
 const events = goog.require('goog.events');
-const jsunit = goog.require('goog.testing.jsunit');
 const mockmatchers = goog.require('goog.testing.mockmatchers');
 const recordFunction = goog.require('goog.testing.recordFunction');
 const testSuite = goog.require('goog.testing.testSuite');
-
-// Delay running the tests after page load. This test has some asynchronous
-// behavior that interacts with page load detection.
-/** @suppress {constantProperty} suppression added to enable type checking */
-jsunit.AUTO_RUN_DELAY_IN_MS = 500;
 
 let mockControl;
 let mockWindow;
@@ -33,7 +39,6 @@ let html5History;
 // Regression test for b/18663922.
 
 testSuite({
-  /** @suppress {checkTypes} suppression added to enable type checking */
   setUp() {
     mockControl = new MockControl();
 
@@ -59,7 +64,6 @@ testSuite({
     mockWindow.location.pathname = '/test/something';
 
     mockControl.$replayAll();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     html5History = new Html5History(mockWindow);
     html5History.setUseFragment(false);
 
@@ -71,7 +75,6 @@ testSuite({
     mockWindow.location.pathname = '/test/something';
 
     mockControl.$replayAll();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     html5History = new Html5History(mockWindow);
     html5History.setUseFragment(false);
     html5History.setPathPrefix('/test/');
@@ -87,7 +90,6 @@ testSuite({
     mockTransformer.retrieveToken('/', mockWindow.location).$returns('abc/1');
 
     mockControl.$replayAll();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     html5History = new Html5History(mockWindow, mockTransformer);
     html5History.setUseFragment(false);
 
@@ -103,7 +105,6 @@ testSuite({
         .$returns('abc/1');
 
     mockControl.$replayAll();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     html5History = new Html5History(mockWindow, mockTransformer);
     html5History.setUseFragment(false);
     html5History.setPathPrefix('/test/');
@@ -112,12 +113,10 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testGetUrlWithoutUsingFragment() {
     mockWindow.location.search = '?q=something';
 
     mockControl.$replayAll();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     html5History = new Html5History(mockWindow);
     html5History.setUseFragment(false);
 
@@ -125,12 +124,10 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testGetUrlWithoutUsingFragmentWithCustomPathPrefix() {
     mockWindow.location.search = '?q=something';
 
     mockControl.$replayAll();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     html5History = new Html5History(mockWindow);
     html5History.setUseFragment(false);
     html5History.setPathPrefix('/test/');
@@ -140,7 +137,6 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testGetUrlWithoutUsingFragmentWithCustomTransformer() {
     mockWindow.location.search = '?q=something';
     const mockTransformer =
@@ -149,7 +145,6 @@ testSuite({
         .$returns('/something/else/?different');
 
     mockControl.$replayAll();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     html5History = new Html5History(mockWindow, mockTransformer);
     html5History.setUseFragment(false);
 
@@ -158,7 +153,6 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testGetUrlWithoutUsingFragmentWithCustomTransformerAndPrefix() {
     mockWindow.location.search = '?q=something';
     const mockTransformer =
@@ -167,7 +161,6 @@ testSuite({
         .$returns('/something/else/?different');
 
     mockControl.$replayAll();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     html5History = new Html5History(mockWindow, mockTransformer);
     html5History.setUseFragment(false);
     html5History.setPathPrefix('/test/');
@@ -184,31 +177,20 @@ testSuite({
     history.listen(HistoryEventType.NAVIGATE, onNavigate);
 
     // Simulate that the user navigates in the history.
-    /**
-     * @suppress {checkTypes,const} suppression added to enable type checking
-     */
-    location = '#' + Date.now();
+    location = '#' + goog.now();
 
-    return Timer.promise(0)
-        .then(/**
-                 @suppress {strictMissingProperties}
-                 suppression added to enable type checking
-               */
-              () => {
-                // NAVIGATE should fire once with
-                // isNavigation=true.
-                onNavigate.assertCallCount(1);
-                assertTrue(
-                    onNavigate.getLastCall().getArgument(0).isNavigation);
-                return Timer.promise(0).then(() => {
-                  // NAVIGATE should not fire again after the
-                  // current JS execution context.
-                  onNavigate.assertCallCount(1);
-                });
-              });
+    return Timer.promise(0).then(() => {
+      // NAVIGATE should fire once with isNavigation=true.
+      onNavigate.assertCallCount(1);
+      assertTrue(onNavigate.getLastCall().getArgument(0).isNavigation);
+      return Timer.promise(0).then(() => {
+        // NAVIGATE should not fire again after the current JS execution
+        // context.
+        onNavigate.assertCallCount(1);
+      });
+    });
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testNavigateFiresOnceWithoutPopstate() {
     const history = new Html5History;
     const onNavigate = recordFunction();
@@ -221,27 +203,17 @@ testSuite({
         window, EventType.POPSTATE, history.onHistoryEvent_, false, history));
 
     // Simulate that the user navigates in the history.
-    /**
-     * @suppress {checkTypes,const} suppression added to enable type checking
-     */
-    location = '#' + Date.now();
+    location = '#' + goog.now();
 
-    return Timer.promise(0)
-        .then(/**
-                 @suppress {strictMissingProperties}
-                 suppression added to enable type checking
-               */
-              () => {
-                // NAVIGATE should fire once with
-                // isNavigation=true.
-                onNavigate.assertCallCount(1);
-                assertTrue(
-                    onNavigate.getLastCall().getArgument(0).isNavigation);
-                return Timer.promise(0).then(() => {
-                  // NAVIGATE should not fire again after the
-                  // current JS execution context.
-                  onNavigate.assertCallCount(1);
-                });
-              });
+    return Timer.promise(0).then(() => {
+      // NAVIGATE should fire once with isNavigation=true.
+      onNavigate.assertCallCount(1);
+      assertTrue(onNavigate.getLastCall().getArgument(0).isNavigation);
+      return Timer.promise(0).then(() => {
+        // NAVIGATE should not fire again after the current JS execution
+        // context.
+        onNavigate.assertCallCount(1);
+      });
+    });
   },
 });

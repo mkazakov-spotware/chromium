@@ -15,15 +15,11 @@
 #ifndef THIRD_PARTY_PRIVATE_MEMBERSHIP_SRC_PRIVATE_MEMBERSHIP_RLWE_CLIENT_H_
 #define THIRD_PARTY_PRIVATE_MEMBERSHIP_SRC_PRIVATE_MEMBERSHIP_RLWE_CLIENT_H_
 
-#include <optional>
-#include <string>
-
 #include "third_party/private-join-and-compute/src/crypto/ec_commutative_cipher.h"
 #include "third_party/private_membership/src/private_membership.pb.h"
-#include "third_party/private_membership/base/private_membership_export.h"
+#include "third_party/private_membership/src/membership_response_map.h"
 #include "third_party/private_membership/src/private_membership_rlwe.pb.h"
 #include "third_party/private_membership/src/internal/constants.h"
-#include "absl/container/flat_hash_map.h"
 #include "third_party/shell-encryption/src/montgomery.h"
 #include "third_party/shell-encryption/src/statusor.h"
 #include "third_party/shell-encryption/src/symmetric_encryption.h"
@@ -34,14 +30,14 @@ namespace rlwe {
 namespace internal {
 
 // PRNG seed generator which supports deterministic seed generation.
-class PRIVATE_MEMBERSHIP_EXPORT PrngSeedGenerator {
+class PrngSeedGenerator {
  public:
   // Creates a non deterministic PRNG seed generator.
   static std::unique_ptr<PrngSeedGenerator> Create();
 
   // Creates a deterministic PRNG seed generator.
   static ::rlwe::StatusOr<std::unique_ptr<PrngSeedGenerator>>
-  CreateDeterministic(absl::string_view seed);
+  CreateDeterministic(const std::string& seed);
 
   // Generates a PRNG seed.
   ::rlwe::StatusOr<std::string> GeneratePrngSeed() const;
@@ -52,13 +48,13 @@ class PRIVATE_MEMBERSHIP_EXPORT PrngSeedGenerator {
   explicit PrngSeedGenerator(
       std::unique_ptr<SingleThreadPrng> prng_seed_generator);
 
-  const std::optional<std::unique_ptr<SingleThreadPrng>>
+  const absl::optional<std::unique_ptr<SingleThreadPrng>>
       deterministic_prng_seed_generator_;
 };
 
 // Lightweight wrapper for processing PIR related requests and responses.
 // Thread safe.
-class PRIVATE_MEMBERSHIP_EXPORT PirClient {
+class PirClient {
  public:
   virtual ~PirClient() = default;
 
@@ -83,7 +79,7 @@ class PRIVATE_MEMBERSHIP_EXPORT PirClient {
 
 // Thread safe.
 template <typename ModularInt>
-class PRIVATE_MEMBERSHIP_EXPORT PirClientImpl : public PirClient {
+class PirClientImpl : public PirClient {
  public:
   static ::rlwe::StatusOr<std::unique_ptr<PirClientImpl<ModularInt>>> Create(
       const RlweParameters& rlwe_params, int total_entry_count,
@@ -115,9 +111,6 @@ class PRIVATE_MEMBERSHIP_EXPORT PirClientImpl : public PirClient {
   // Maximum allowed levels of recursion.
   static constexpr int kMaxLevelsOfRecursion = 100;
 
-  // Maximum number of entries in request.
-  static constexpr int kMaxRequestEntries = 10000000;
-
   // Parameters for protocol.
   const RlweParameters rlwe_params_;
 
@@ -146,7 +139,7 @@ class PRIVATE_MEMBERSHIP_EXPORT PirClientImpl : public PirClient {
 }  // namespace internal
 
 // Client for the Private Membership RLWE protocol.
-class PRIVATE_MEMBERSHIP_EXPORT PrivateMembershipRlweClient {
+class PrivateMembershipRlweClient {
  public:
   // PrivateMembershipRlweClient is neither copyable nor copy assignable.
   PrivateMembershipRlweClient(const PrivateMembershipRlweClient&) = delete;
@@ -169,7 +162,7 @@ class PRIVATE_MEMBERSHIP_EXPORT PrivateMembershipRlweClient {
   static ::rlwe::StatusOr<std::unique_ptr<PrivateMembershipRlweClient>>
   CreateForTesting(private_membership::rlwe::RlweUseCase use_case,
                    const std::vector<RlwePlaintextId>& plaintext_ids,
-                   absl::string_view ec_cipher_key, absl::string_view seed);
+                   const std::string& ec_cipher_key, const std::string& seed);
 
   // Creates a request proto for the first phase of the protocol.
   ::rlwe::StatusOr<private_membership::rlwe::PrivateMembershipRlweOprfRequest>
@@ -184,9 +177,9 @@ class PRIVATE_MEMBERSHIP_EXPORT PrivateMembershipRlweClient {
   // Processes the query response from the server and returns the membership
   // response map.
   //
-  // Keys of the returned map match the original plaintext ids supplied to the
-  // client when it was created.
-  ::rlwe::StatusOr<RlweMembershipResponses> ProcessQueryResponse(
+  // Keys of the returned map corresponds to the original plaintext ids supplied
+  // to the client when it was created.
+  ::rlwe::StatusOr<MembershipResponseMap> ProcessResponse(
       const private_membership::rlwe::PrivateMembershipRlweQueryResponse&
           query_response);
 
@@ -195,7 +188,7 @@ class PRIVATE_MEMBERSHIP_EXPORT PrivateMembershipRlweClient {
   CreateInternal(
       private_membership::rlwe::RlweUseCase use_case,
       const std::vector<RlwePlaintextId>& plaintext_ids,
-      std::optional<std::string> ec_cipher_key,
+      absl::optional<std::string> ec_cipher_key,
       std::unique_ptr<internal::PrngSeedGenerator> prng_seed_generator);
 
   PrivateMembershipRlweClient(
@@ -207,18 +200,8 @@ class PRIVATE_MEMBERSHIP_EXPORT PrivateMembershipRlweClient {
   // Checks whether the id corresponding to the `server_encrypted_id` is in the
   // encrypted bucket and if so, returns an associated value if there is one.
   ::rlwe::StatusOr<private_membership::MembershipResponse> CheckMembership(
-      absl::string_view server_encrypted_id,
+      const std::string& server_encrypted_id,
       const private_membership::rlwe::EncryptedBucket& encrypted_bucket);
-
-  // Checks whether the OPRF response is valid.
-  absl::Status ValidateOprfResponse(
-      const private_membership::rlwe::PrivateMembershipRlweOprfResponse&
-          oprf_response) const;
-
-  // Checks whether the query response is valid.
-  absl::Status ValidateQueryResponse(
-      const private_membership::rlwe::PrivateMembershipRlweQueryResponse&
-          query_response) const;
 
   // Maximum encrypted bucket ID length.
   static constexpr int kMaxEncryptedBucketIdLength = 26;

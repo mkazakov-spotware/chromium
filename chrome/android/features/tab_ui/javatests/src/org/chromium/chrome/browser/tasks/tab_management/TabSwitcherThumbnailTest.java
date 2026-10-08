@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,7 @@ package org.chromium.chrome.browser.tasks.tab_management;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.contrib.RecyclerViewActions.scrollToPosition;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
-import static androidx.test.espresso.matcher.ViewMatchers.withParent;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
@@ -28,7 +26,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
@@ -36,7 +33,6 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.util.browser.Features.EnableFeatures;
-import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.ui.test.util.UiRestriction;
 import org.chromium.ui.widget.ViewLookupCachingFrameLayout;
 
@@ -49,8 +45,7 @@ import org.chromium.ui.widget.ViewLookupCachingFrameLayout;
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE,
     "force-fieldtrials=Study/Group"})
 @EnableFeatures({ChromeFeatureList.TAB_GRID_LAYOUT_ANDROID + "<Study",
-    ChromeFeatureList.TAB_TO_GTS_ANIMATION + "<Study",
-    ChromeFeatureList.TAB_GROUPS_CONTINUATION_ANDROID + "<Study"})
+    ChromeFeatureList.TAB_TO_GTS_ANIMATION + "<Study"})
 @Restriction(
     {UiRestriction.RESTRICTION_TYPE_PHONE, Restriction.RESTRICTION_TYPE_NON_LOW_END_DEVICE})
 public class TabSwitcherThumbnailTest {
@@ -63,14 +58,13 @@ public class TabSwitcherThumbnailTest {
     public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
 
     private TabListMediator.ThumbnailFetcher mNullThumbnailProvider =
-            new TabListMediator.ThumbnailFetcher(
-                    (tabId, thumbnailSize, callback, forceUpdate, writeToCache, isSelected)
-                            -> callback.onResult(null),
+            new TabListMediator.ThumbnailFetcher((tabId, callback, forceUpdate, writeToCache)
+                                                         -> callback.onResult(null),
                     Tab.INVALID_TAB_ID, false, false);
 
     @Before
     public void setUp() {
-        mActivityTestRule.startMainActivityWithURL(UrlConstants.NTP_URL);
+        mActivityTestRule.startMainActivityFromLauncher();
         TabGridViewBinder.setThumbnailFeatureForTesting(mNullThumbnailProvider);
     }
 
@@ -81,7 +75,7 @@ public class TabSwitcherThumbnailTest {
 
     @Test
     @MediumTest
-    @CommandLineFlags.Add({BASE_PARAMS + "/thumbnail_aspect_ratio/1.0"})
+    @CommandLineFlags.Add({BASE_PARAMS})
     public void testThumbnailAspectRatio_one() {
         int tabCounts = 11;
         TabUiTestHelper.prepareTabsWithThumbnail(mActivityTestRule, tabCounts, 0, "about:blank");
@@ -96,7 +90,7 @@ public class TabSwitcherThumbnailTest {
 
     @Test
     @MediumTest
-    @CommandLineFlags.Add({BASE_PARAMS})
+    @CommandLineFlags.Add({BASE_PARAMS + "/thumbnail_aspect_ratio/0.85"})
     public void testThumbnailAspectRatio_point85() {
         int tabCounts = 11;
         TabUiTestHelper.prepareTabsWithThumbnail(mActivityTestRule, tabCounts, 0, "about:blank");
@@ -107,12 +101,11 @@ public class TabSwitcherThumbnailTest {
     @Test
     @MediumTest
     @CommandLineFlags.Add({BASE_PARAMS + "/cleanup-delay/10000"})
-    @DisabledTest(message = "https://crbug.com/1382858")
     public void testThumbnail_withSoftCleanup() {
         int tabCounts = 11;
         TabUiTestHelper.prepareTabsWithThumbnail(mActivityTestRule, tabCounts, 0, "about:blank");
         TabUiTestHelper.enterTabSwitcher(mActivityTestRule.getActivity());
-        verifyAllThumbnailHeightWithAspectRatio(tabCounts, .85f);
+        verifyAllThumbnailHeightWithAspectRatio(tabCounts, 1.f);
 
         // With soft cleanup.
         TabUiTestHelper.leaveTabSwitcher(mActivityTestRule.getActivity());
@@ -120,7 +113,7 @@ public class TabSwitcherThumbnailTest {
         // There is a chance this will fail without the current changes. Soft cleanup sets the
         // fetcher to null, which triggers TabGridViewBinder#releaseThumbnail. If the view still
         // under measuring, then its height can be zero after measurement.
-        verifyAllThumbnailHeightWithAspectRatio(tabCounts, .85f);
+        verifyAllThumbnailHeightWithAspectRatio(tabCounts, 1.f);
     }
 
     private void verifyAllThumbnailHeightWithAspectRatio(int tabCounts, float ratio) {
@@ -128,9 +121,7 @@ public class TabSwitcherThumbnailTest {
         // There is a higher chance for the test to fail with backward counting, because after the
         // view being recycled, its height might have the correct measurement.
         for (int i = tabCounts - 1; i >= 0; i--) {
-            onView(allOf(withParent(withId(TabUiTestHelper.getTabSwitcherParentId(
-                                 mActivityTestRule.getActivity()))),
-                           withId(org.chromium.chrome.tab_ui.R.id.tab_list_view)))
+            onView(withId(org.chromium.chrome.tab_ui.R.id.tab_list_view))
                     .perform(scrollToPosition(i))
                     .check(ThumbnailHeightAssertion.notZeroAt(i))
                     .check(ThumbnailAspectRatioAssertion.havingAspectRatioAt(ratio, i));

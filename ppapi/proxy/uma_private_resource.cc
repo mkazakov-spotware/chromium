@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -91,9 +91,10 @@ int32_t UMAPrivateResource::IsCrashReportingEnabled(
     return PP_ERROR_INPROGRESS;
   pending_callback_ = callback;
   Call<PpapiPluginMsg_UMA_IsCrashReportingEnabledReply>(
-      RENDERER, PpapiHostMsg_UMA_IsCrashReportingEnabled(),
-      base::BindOnce(&UMAPrivateResource::OnPluginMsgIsCrashReportingEnabled,
-                     this));
+      RENDERER,
+      PpapiHostMsg_UMA_IsCrashReportingEnabled(),
+      base::Bind(&UMAPrivateResource::OnPluginMsgIsCrashReportingEnabled,
+          this));
   return PP_OK_COMPLETIONPENDING;
 }
 

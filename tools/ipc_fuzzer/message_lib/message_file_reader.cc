@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "base/files/file_path.h"
 #include "base/files/memory_mapped_file.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/string_piece.h"
 #include "ipc/ipc_message.h"
@@ -26,10 +27,6 @@ namespace {
 class Reader {
  public:
   Reader(const base::FilePath& path);
-
-  Reader(const Reader&) = delete;
-  Reader& operator=(const Reader&) = delete;
-
   bool Read(MessageVector* messages);
 
  private:
@@ -64,6 +61,8 @@ class Reader {
   const FileHeader* header_;
   MessageVector* messages_;
   MessageNames name_map_;
+
+  DISALLOW_COPY_AND_ASSIGN(Reader);
 };
 
 Reader::Reader(const base::FilePath& path)

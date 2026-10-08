@@ -30,7 +30,6 @@ import base64
 import logging
 import re
 import shlex
-import six
 import time
 
 from blinkpy.common.system import path
@@ -99,11 +98,10 @@ def coalesce_repeated_switches(cmd):
 
 
 class DriverInput(object):
-    def __init__(self, test_name, timeout, image_hash, wpt_print_mode, args):
+    def __init__(self, test_name, timeout, image_hash, args):
         self.test_name = test_name
         self.timeout = timeout  # in ms
         self.image_hash = image_hash
-        self.wpt_print_mode = wpt_print_mode
         self.args = args
 
 
@@ -121,21 +119,19 @@ class DriverOutput(object):
                  test_time=0,
                  measurements=None,
                  timeout=False,
-                 error=b'',
+                 error='',
                  crashed_process_name='??',
                  crashed_pid=None,
                  crash_log=None,
                  crash_site=None,
                  leak=False,
                  leak_log=None,
-                 pid=None,
-                 command=None):
+                 pid=None):
         # FIXME: Args could be renamed to better clarify what they do.
         self.text = text
         self.image = image  # May be empty-string if the test crashes.
         self.image_hash = image_hash
         self.image_diff = None  # image_diff gets filled in after construction.
-        self.image_diff_stats = None  # Number of changed pixels, etc.
         self.audio = audio  # Binary format is port-dependent.
         self.crash = crash
         self.crashed_process_name = crashed_process_name
@@ -149,7 +145,6 @@ class DriverOutput(object):
         self.timeout = timeout
         self.error = error  # stderr output
         self.pid = pid
-        self.command = command
 
     def has_stderr(self):
         return bool(self.error)
@@ -198,7 +193,7 @@ class Driver(object):
         # stderr output, as well as if we've seen #EOF on this driver instance.
         # FIXME: We should probably remove _read_first_block and _read_optional_image_block and
         # instead scope these locally in run_test.
-        self.error_from_test = bytearray()
+        self.error_from_test = str()
         self.err_seen_eof = False
         self._server_process = None
         self._current_cmd_line = None
@@ -229,22 +224,15 @@ class Driver(object):
         """
         start_time = time.time()
         stdin_deadline = start_time + int(driver_input.timeout) / 2000.0
-        ok, startup_output = self.start(driver_input.args, stdin_deadline)
-        if not ok:
-            return startup_output
-
-        return self._run_one_input(driver_input, start_time)
-
-    def _run_one_input(self, driver_input, start_time):
+        self.start(driver_input.args, stdin_deadline)
         test_begin_time = time.time()
-        self.error_from_test = bytearray()
+        self.error_from_test = str()
         self.err_seen_eof = False
 
-        test_command = self._command_from_driver_input(driver_input)
-        server_process_command = self._server_process.cmd()
-
+        command = self._command_from_driver_input(driver_input)
         deadline = test_begin_time + int(driver_input.timeout) / 1000.0
-        self._server_process.write(test_command.encode('utf8', 'replace'))
+
+        self._server_process.write(command)
         # First block is either text or audio
         text, audio = self._read_first_block(deadline)
         # The second (optional) block is image data.
@@ -259,9 +247,8 @@ class Driver(object):
             sanitizer = self._port.output_contains_sanitizer_messages(
                 self.error_from_test)
             if sanitizer:
-                self.error_from_test = b'OUTPUT CONTAINS "sanitizer",' + \
-                    b' so we are treating this test as if it crashed, even though it did not.\n\n' + \
-                    self.error_from_test
+                self.error_from_test = 'OUTPUT CONTAINS "' + sanitizer + \
+                    '", so we are treating this test as if it crashed, even though it did not.\n\n' + self.error_from_test
                 crashed = True
                 self._crashed_process_name = 'unknown process name'
                 self._crashed_pid = 0
@@ -298,28 +285,24 @@ class Driver(object):
                 if self.error_from_test:
                     crash_log += '\nstdout:\n%s\nstderr:\n%s\n' % (
                         text, self.error_from_test)
-        command = ("%s %s" %
-                   (" ".join(server_process_command), test_command)).encode(
-                       'ascii', 'replace')
-        if actual_image_hash:
-            actual_image_hash = actual_image_hash.decode('utf8', 'replace')
-        return DriverOutput(text,
-                            image,
-                            actual_image_hash,
-                            audio,
-                            crash=crashed,
-                            test_time=time.time() - test_begin_time,
-                            measurements=self._measurements,
-                            timeout=timed_out,
-                            error=self.error_from_test,
-                            crashed_process_name=self._crashed_process_name,
-                            crashed_pid=self._crashed_pid,
-                            crash_log=crash_log,
-                            crash_site=crash_site,
-                            leak=leaked,
-                            leak_log=self._leak_log,
-                            pid=pid,
-                            command=command)
+
+        return DriverOutput(
+            text,
+            image,
+            actual_image_hash,
+            audio,
+            crash=crashed,
+            test_time=time.time() - test_begin_time,
+            measurements=self._measurements,
+            timeout=timed_out,
+            error=self.error_from_test,
+            crashed_process_name=self._crashed_process_name,
+            crashed_pid=self._crashed_pid,
+            crash_log=crash_log,
+            crash_site=crash_site,
+            leak=leaked,
+            leak_log=self._leak_log,
+            pid=pid)
 
     def _get_crash_log(self, stdout, stderr, newer_than):
         # pylint: disable=protected-access
@@ -341,7 +324,6 @@ class Driver(object):
     HTTP_LOCAL_DIR = 'http/tests/local/'
     HTTP_HOST_AND_PORTS = ('127.0.0.1', 8000, 8443)
     WPT_HOST_AND_PORTS = ('web-platform.test', 8001, 8444)
-    WPT_H2_PORT = 9000
 
     def is_http_test(self, test_name):
         return (test_name.startswith(self.HTTP_DIR)
@@ -377,10 +359,6 @@ class Driver(object):
                 test_dir_prefix = 'external/wpt/'
                 test_url_prefix = '/'
             hostname, insecure_port, secure_port = self.WPT_HOST_AND_PORTS
-            if '.www.' in test_name:
-                hostname = "www.%s" % hostname
-            if '.h2.' in test_name:
-                secure_port = self.WPT_H2_PORT
         else:
             test_dir_prefix = self.HTTP_DIR
             test_url_prefix = '/'
@@ -388,9 +366,7 @@ class Driver(object):
 
         relative_path = test_name[len(test_dir_prefix):]
 
-        if ('/https/' in test_name or '.https.' in test_name
-                or '.h2.' in test_name or '.serviceworker.' in test_name
-                or '.serviceworker-module.' in test_name):
+        if '/https/' in test_name or '.https.' in test_name or '.serviceworker.' in test_name:
             return 'https://%s:%d%s%s' % (hostname, secure_port,
                                           test_url_prefix, relative_path)
         return 'http://%s:%d%s%s' % (hostname, insecure_port, test_url_prefix,
@@ -441,31 +417,17 @@ class Driver(object):
         return False
 
     def start(self, per_test_args, deadline):
-        """Returns a tuple of (whether driver was started, optional startup test result)."""
         new_cmd_line = self.cmd_line(per_test_args)
         if not self._server_process or new_cmd_line != self._current_cmd_line:
-            started, output = self._start(per_test_args)
-            if started:
-                self._run_post_start_tasks()
-            return started, output
-        return True, None
+            self._start(per_test_args)
+            self._run_post_start_tasks()
 
     def _setup_environ_for_driver(self, environment):
         if self._profiler:
             environment = self._profiler.adjusted_environment(environment)
         return environment
 
-    def _initialize_server_process(self, server_name, cmd_line, environment):
-        self._server_process = self._port.server_process_constructor(
-            self._port,
-            server_name,
-            cmd_line,
-            environment,
-            more_logging=self._port.get_option('driver_logging'))
-
     def _start(self, per_test_args, wait_for_ready=True):
-        """Returns a tuple of (whether driver was started, optional startup test result)."""
-
         self.stop()
         self._driver_tempdir = self._port.host.filesystem.mkdtemp(
             prefix='%s-' % self._port.driver_name())
@@ -476,53 +438,23 @@ class Driver(object):
         self._crashed_pid = None
         self._leaked = False
         cmd_line = self.cmd_line(per_test_args)
-        self._initialize_server_process(server_name, cmd_line, environment)
+        self._server_process = self._port.server_process_constructor(
+            self._port,
+            server_name,
+            cmd_line,
+            environment,
+            more_logging=self._port.get_option('driver_logging'))
         self._server_process.start()
         self._current_cmd_line = cmd_line
 
         if wait_for_ready:
             deadline = time.time() + DRIVER_START_TIMEOUT_SECS
             if not self._wait_for_server_process_output(
-                    self._server_process, deadline, b'#READY'):
+                    self._server_process, deadline, '#READY'):
                 _log.error('%s took too long to startup.' % server_name)
-                # Even though the server hasn't started up, we pretend it has
-                # so that the rest of the error-handling code can deal with
-                # this as if the test has simply crashed.
-
-        if self._port.get_option(
-                'initialize_webgpu_adapter_at_startup_timeout_ms'):
-            return self._initialize_webgpu_adapter_at_startup(per_test_args)
-        return True, None
-
-    def _initialize_webgpu_adapter_at_startup(self, per_test_args):
-        # TODO(crbug.com/953991) - Apparently content_shell isn't
-        # "really" ready when it signals #READY; in some WebGPU cases
-        # there are intermittent additional delays that we haven't
-        # been able to diagnose yet, but that running this particular
-        # test seems to address. We should figure out what is going on
-        # and remove this workaround, which causes every content shell
-        # startup to be slower (if the workaround is triggered via the
-        # --initialize-webgpu-adapter-at-startup flag, right above in the
-        # code in _start()).
-        init_timeout = self._port.get_option(
-            'initialize_webgpu_adapter_at_startup_timeout_ms')
-        startup_input = DriverInput(
-            "wpt_internal/webgpu/000_run_me_first.https.html",
-            timeout=init_timeout,
-            image_hash=None,
-            wpt_print_mode=None,
-            args=per_test_args)
-        output = self._run_one_input(startup_input, start_time=time.time())
-        if output.text and b'PASS 000_run_me_first' in output.text:
-            return True, None
-
-        output.text = (b'Failed to initialize WebGPU adapter at startup via '
-                       b'wpt_internal_webgpu/000_run_me_first.https.html:\n' +
-                       output.text)
-        return False, output
 
     def _wait_for_server_process_output(self, server_process, deadline, text):
-        output = b''
+        output = ''
         line = server_process.read_stdout_line(deadline)
         output += server_process.pop_all_buffered_stderr()
         while (not server_process.timed_out
@@ -580,6 +512,7 @@ class Driver(object):
         cmd.extend(self._port.additional_driver_flags())
         if self._port.get_option('enable_leak_detection'):
             cmd.append('--enable-leak-detection')
+
         cmd.extend(per_test_args)
         cmd = coalesce_repeated_switches(cmd)
         cmd.append('-')
@@ -609,7 +542,7 @@ class Driver(object):
                 self._port.sample_process(self._crashed_process_name,
                                           self._crashed_pid)
                 # We want to show this since it's not a regular crash and probably we don't have a crash log.
-                self.error_from_test += error_line.encode('utf-8')
+                self.error_from_test += error_line
             return True
         return self.has_crashed()
 
@@ -617,7 +550,7 @@ class Driver(object):
         if error_line.startswith('#LEAK - '):
             self._leaked = True
             match = re.match(r'#LEAK - (\S+) pid (\d+) (.+)\n', error_line)
-            self._leak_log = (match.group(3)).encode('utf-8')
+            self._leak_log = match.group(3)
         return self._leaked
 
     def _command_from_driver_input(self, driver_input):
@@ -631,15 +564,12 @@ class Driver(object):
             command = self.test_to_uri(driver_input.test_name)
         else:
             command = self._port.abspath_for_test(driver_input.test_name)
+
         # ' is the separator between arguments.
         if self._port.supports_per_test_timeout():
             command += "'--timeout'%s" % driver_input.timeout
         if driver_input.image_hash:
             command += "'" + driver_input.image_hash
-        if driver_input.wpt_print_mode:
-            if not driver_input.image_hash:
-                command += "'"
-            command += "'print"
         return command + '\n'
 
     def _read_first_block(self, deadline):
@@ -649,14 +579,14 @@ class Driver(object):
             self._measurements['Malloc'] = float(block.malloc)
         if block.js_heap:
             self._measurements['JSHeap'] = float(block.js_heap)
-        if block.content_type == b'audio/wav':
+        if block.content_type == 'audio/wav':
             return (None, block.decoded_content)
         return (block.decoded_content, None)
 
     def _read_optional_image_block(self, deadline):
         # returns (image, actual_image_hash)
         block = self._read_block(deadline, wait_for_stderr_eof=True)
-        if block.content and block.content_type == b'image/png':
+        if block.content and block.content_type == 'image/png':
             return (block.decoded_content, block.content_hash)
         return (None, block.content_hash)
 
@@ -676,24 +606,24 @@ class Driver(object):
         return False
 
     def _process_stdout_line(self, block, line):
-        if (self._read_header(block, line, b'Content-Type: ', 'content_type')
-                or self._read_header(
-                    block, line, b'Content-Transfer-Encoding: ', 'encoding')
-                or self._read_header(block, line, b'Content-Length: ',
+        if (self._read_header(block, line, 'Content-Type: ', 'content_type')
+                or self._read_header(block, line,
+                                     'Content-Transfer-Encoding: ', 'encoding')
+                or self._read_header(block, line, 'Content-Length: ',
                                      '_content_length', int) or
-                self._read_header(block, line, b'ActualHash: ', 'content_hash')
-                or self._read_header(block, line, b'DumpMalloc: ', 'malloc')
-                or self._read_header(block, line, b'DumpJSHeap: ', 'js_heap')
-                or self._read_header(block, line, b'StdinPath', 'stdin_path')):
+                self._read_header(block, line, 'ActualHash: ', 'content_hash')
+                or self._read_header(block, line, 'DumpMalloc: ', 'malloc')
+                or self._read_header(block, line, 'DumpJSHeap: ', 'js_heap')
+                or self._read_header(block, line, 'StdinPath', 'stdin_path')):
             return
         # Note, we're not reading ExpectedHash: here, but we could.
         # If the line wasn't a header, we just append it to the content.
         block.content += line
 
     def _strip_eof(self, line):
-        if line and line.endswith(b'#EOF\n'):
+        if line and line.endswith('#EOF\n'):
             return line[:-5], True
-        if line and line.endswith(b'#EOF\r\n'):
+        if line and line.endswith('#EOF\r\n'):
             _log.error('Got a CRLF-terminated #EOF - this is a driver bug.')
             return line[:-6], True
         return line, False
@@ -725,8 +655,9 @@ class Driver(object):
             if err_line:
                 assert not self.err_seen_eof
                 err_line, self.err_seen_eof = self._strip_eof(err_line)
+
             if out_line:
-                if not out_line.endswith(b'\n'):
+                if out_line[-1] != '\n':
                     _log.error(
                         'Last character read from DRT stdout line was not a newline!  This indicates either a NRWT or DRT bug.'
                     )
@@ -745,10 +676,9 @@ class Driver(object):
                             block.content_type, self._server_process.name())
 
             if err_line:
-                if self._check_for_driver_crash(
-                        err_line.decode('utf8', 'replace')):
+                if self._check_for_driver_crash(err_line):
                     break
-                if self._check_for_leak(err_line.decode('utf8', 'replace')):
+                if self._check_for_leak(err_line):
                     break
                 self.error_from_test += err_line
 
@@ -764,19 +694,14 @@ class ContentBlock(object):
         self._content_length = None
         # Content is treated as binary data even though the text output is usually UTF-8.
         # FIXME: Should be bytearray() once we require Python 2.6.
-        # TODO(crbug/1197331): Keeping PY2 as str() for now, as diffing modules
-        # need to be looked into for PY3 unified_diff.py and html_diff.py
-        if six.PY2:
-            self.content = str()
-        else:
-            self.content = bytearray()
+        self.content = str()
         self.decoded_content = None
         self.malloc = None
         self.js_heap = None
         self.stdin_path = None
 
     def decode_content(self):
-        if self.encoding == b'base64' and self.content is not None:
+        if self.encoding == 'base64' and self.content is not None:
             self.decoded_content = base64.b64decode(self.content)
         else:
             self.decoded_content = self.content

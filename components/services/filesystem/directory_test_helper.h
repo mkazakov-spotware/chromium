@@ -1,10 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SERVICES_FILESYSTEM_DIRECTORY_TEST_HELPER_H_
 #define COMPONENTS_SERVICES_FILESYSTEM_DIRECTORY_TEST_HELPER_H_
 
+#include "base/macros.h"
 #include "base/threading/sequence_bound.h"
 #include "components/services/filesystem/public/mojom/directory.mojom.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -17,10 +18,6 @@ namespace filesystem {
 class DirectoryTestHelper {
  public:
   DirectoryTestHelper();
-
-  DirectoryTestHelper(const DirectoryTestHelper&) = delete;
-  DirectoryTestHelper& operator=(const DirectoryTestHelper&) = delete;
-
   ~DirectoryTestHelper();
 
   mojo::Remote<mojom::Directory> CreateTempDir();
@@ -29,6 +26,8 @@ class DirectoryTestHelper {
   class BlockingState;
 
   base::SequenceBound<BlockingState> blocking_state_;
+
+  DISALLOW_COPY_AND_ASSIGN(DirectoryTestHelper);
 };
 
 }  // namespace filesystem

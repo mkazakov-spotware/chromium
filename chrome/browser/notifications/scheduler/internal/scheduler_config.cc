@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <string>
 
 #include "base/metrics/field_trial_params.h"
-#include "base/numerics/clamped_math.h"
 #include "base/strings/string_number_conversions.h"
 #include "chrome/browser/notifications/scheduler/public/features.h"
 
@@ -38,20 +37,25 @@ constexpr int kDefaultInitialDailyShownPerType = 2;
 constexpr int kDefaultDismissCount = 3;
 
 // The notification data is hold for one week.
-constexpr base::TimeDelta kDefaultNotificationExpiration = base::Days(20);
+constexpr base::TimeDelta kDefaultNotificationExpiration =
+    base::TimeDelta::FromDays(7);
 
 // The impression history is hold for 4 weeks.
-constexpr base::TimeDelta kDefaultImpressionExpiration = base::Days(28);
+constexpr base::TimeDelta kDefaultImpressionExpiration =
+    base::TimeDelta::FromDays(28);
 
 // The suppression lasts 8 weeks.
-constexpr base::TimeDelta kDefaultSuppressionDuration = base::Days(56);
+constexpr base::TimeDelta kDefaultSuppressionDuration =
+    base::TimeDelta::FromDays(56);
 
 // Check consecutive notification dismisses in this duration to generate a
 // dismiss event.
-constexpr base::TimeDelta kDefaultDismissDuration = base::Days(7);
+constexpr base::TimeDelta kDefaultDismissDuration =
+    base::TimeDelta::FromDays(7);
 
 // Default background task time window duration.
-constexpr base::TimeDelta kDefaultBackgroundTaskWindowDuration = base::Hours(1);
+constexpr base::TimeDelta kDefaultBackgroundTaskWindowDuration =
+    base::TimeDelta::FromHours(1);
 
 // static
 std::unique_ptr<SchedulerConfig> SchedulerConfig::Create() {
@@ -69,22 +73,23 @@ std::unique_ptr<SchedulerConfig> SchedulerConfig::CreateFromFinch() {
   config->initial_daily_shown_per_type =
       base::saturated_cast<int>(GetFinchConfigUInt(
           kInitialDailyShownPerTypeConfig, kDefaultInitialDailyShownPerType));
-  config->notification_expiration = base::Days(base::saturated_cast<int>(
-      GetFinchConfigUInt(kNotificationExpirationConfig,
-                         kDefaultNotificationExpiration.InDays())));
+  config->notification_expiration =
+      base::TimeDelta::FromDays(base::saturated_cast<int>(
+          GetFinchConfigUInt(kNotificationExpirationConfig,
+                             kDefaultNotificationExpiration.InDays())));
   config->impression_expiration =
-      base::Days(base::saturated_cast<int>(GetFinchConfigUInt(
+      base::TimeDelta::FromDays(base::saturated_cast<int>(GetFinchConfigUInt(
           kImpressionExpirationConfig, kDefaultImpressionExpiration.InDays())));
   config->suppression_duration =
-      base::Days(base::saturated_cast<int>(GetFinchConfigUInt(
+      base::TimeDelta::FromDays(base::saturated_cast<int>(GetFinchConfigUInt(
           kSuppressionDurationConfig, kDefaultSuppressionDuration.InDays())));
   config->dismiss_count = base::saturated_cast<int>(
       GetFinchConfigUInt(kDismissCountConfig, kDefaultDismissCount));
   config->dismiss_duration =
-      base::Days(base::saturated_cast<int>(GetFinchConfigUInt(
+      base::TimeDelta::FromDays(base::saturated_cast<int>(GetFinchConfigUInt(
           kDismissDurationConfig, kDefaultDismissDuration.InDays())));
   config->background_task_window_duration =
-      base::Hours(base::saturated_cast<int>(
+      base::TimeDelta::FromHours(base::saturated_cast<int>(
           GetFinchConfigUInt(kBackgroundTaskWindowDurationConfig,
                              kDefaultBackgroundTaskWindowDuration.InHours())));
   return config;

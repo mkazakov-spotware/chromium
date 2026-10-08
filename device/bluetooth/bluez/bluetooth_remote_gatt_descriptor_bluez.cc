@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,12 @@
 #include <iterator>
 #include <ostream>
 
-#include <base/callback_helpers.h>
 #include "base/bind.h"
 #include "base/callback.h"
+#include "base/callback_forward.h"
 #include "base/logging.h"
 #include "base/strings/stringprintf.h"
 #include "dbus/property.h"
-#include "device/bluetooth/bluetooth_gatt_service.h"
 #include "device/bluetooth/bluetooth_remote_gatt_characteristic.h"
 #include "device/bluetooth/bluez/bluetooth_gatt_characteristic_bluez.h"
 #include "device/bluetooth/bluez/bluetooth_gatt_descriptor_bluez.h"
@@ -82,17 +81,17 @@ BluetoothRemoteGattDescriptorBlueZ::GetPermissions() const {
 }
 
 void BluetoothRemoteGattDescriptorBlueZ::ReadRemoteDescriptor(
-    ValueCallback callback) {
+    ValueCallback callback,
+    ErrorCallback error_callback) {
   DVLOG(1) << "Sending GATT characteristic descriptor read request to "
            << "descriptor: " << GetIdentifier()
            << ", UUID: " << GetUUID().canonical_value();
 
-  auto split_callback = base::SplitOnceCallback(std::move(callback));
   bluez::BluezDBusManager::Get()->GetBluetoothGattDescriptorClient()->ReadValue(
-      object_path(), std::move(split_callback.first),
-      base::BindOnce(&BluetoothRemoteGattDescriptorBlueZ::OnReadError,
+      object_path(), std::move(callback),
+      base::BindOnce(&BluetoothRemoteGattDescriptorBlueZ::OnError,
                      weak_ptr_factory_.GetWeakPtr(),
-                     std::move(split_callback.second)));
+                     std::move(error_callback)));
 }
 
 void BluetoothRemoteGattDescriptorBlueZ::WriteRemoteDescriptor(
@@ -110,18 +109,6 @@ void BluetoothRemoteGattDescriptorBlueZ::WriteRemoteDescriptor(
                    base::BindOnce(&BluetoothRemoteGattDescriptorBlueZ::OnError,
                                   weak_ptr_factory_.GetWeakPtr(),
                                   std::move(error_callback)));
-}
-
-void BluetoothRemoteGattDescriptorBlueZ::OnReadError(
-    ValueCallback callback,
-    const std::string& error_name,
-    const std::string& error_message) {
-  DVLOG(1) << "Operation failed: " << error_name
-           << ", message: " << error_message;
-
-  std::move(callback).Run(
-      BluetoothGattServiceBlueZ::DBusErrorToServiceError(error_name),
-      /*value=*/std::vector<uint8_t>());
 }
 
 void BluetoothRemoteGattDescriptorBlueZ::OnError(

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,12 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
-#include "chromecast/browser/system_connector.h"
+#include "base/task/post_task.h"
 #include "chromecast/common/mojom/constants.mojom.h"
 #include "chromecast/common/mojom/multiroom.mojom.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/system_connector.h"
 
 namespace chromecast {
 
@@ -52,8 +53,8 @@ void ServiceConnector::BindReceiver(
     ServiceConnectorClientId client_id,
     mojo::PendingReceiver<mojom::ServiceConnector> receiver) {
   if (!content::BrowserThread::CurrentlyOn(content::BrowserThread::UI)) {
-    content::GetUIThreadTaskRunner({})->PostTask(
-        FROM_HERE, base::BindOnce(&ServiceConnector::BindReceiver, client_id,
+    base::PostTask(FROM_HERE, content::BrowserThread::UI,
+                   base::BindOnce(&ServiceConnector::BindReceiver, client_id,
                                   std::move(receiver)));
     return;
   }
@@ -73,9 +74,9 @@ void ServiceConnector::Connect(const std::string& service_name,
   // Manager. The browser generally has access unfettered to everything.
   if (client_id == kBrowserProcessClientId) {
     auto interface_name = *receiver.interface_name();
-    GetSystemConnector()->BindInterface(
-        service_manager::ServiceFilter::ByName(service_name), interface_name,
-        receiver.PassPipe());
+    content::GetSystemConnector()->BindInterface(
+        service_manager::ServiceFilter::ByName(service_name),
+        interface_name, receiver.PassPipe());
     return;
   }
 
@@ -91,7 +92,7 @@ void ServiceConnector::Connect(const std::string& service_name,
   }
 
   if (auto r = receiver.As<mojom::MultiroomManager>()) {
-    GetSystemConnector()->BindInterface(service_name, std::move(r));
+    content::GetSystemConnector()->BindInterface(service_name, std::move(r));
     return;
   }
 

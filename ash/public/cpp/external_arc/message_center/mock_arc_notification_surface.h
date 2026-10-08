@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,6 @@ namespace ash {
 class MockArcNotificationSurface : public ArcNotificationSurface {
  public:
   explicit MockArcNotificationSurface(const std::string& notification_key);
-
-  MockArcNotificationSurface(const MockArcNotificationSurface&) = delete;
-  MockArcNotificationSurface& operator=(const MockArcNotificationSurface&) =
-      delete;
-
   ~MockArcNotificationSurface() override;
 
   gfx::Size GetSize() const override;
@@ -37,6 +32,8 @@ class MockArcNotificationSurface : public ArcNotificationSurface {
   views::NativeViewHost* native_view_host_;
   const std::unique_ptr<aura::Window> window_;
   const std::unique_ptr<aura::Window> content_window_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockArcNotificationSurface);
 };
 
 }  // namespace ash

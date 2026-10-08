@@ -1,10 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.password_manager.settings;
-
-import static org.chromium.chrome.browser.password_manager.settings.PasswordAccessReauthenticationHelper.SETTINGS_REAUTHENTICATION_HISTOGRAM;
 
 import android.app.Activity;
 import android.app.KeyguardManager;
@@ -15,9 +13,6 @@ import android.os.Bundle;
 import androidx.annotation.VisibleForTesting;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
-
-import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.chrome.browser.password_manager.ReauthResult;
 
 /** Show the lock screen confirmation and lock the screen. */
 public class PasswordReauthenticationFragment extends Fragment {
@@ -67,13 +62,9 @@ public class PasswordReauthenticationFragment extends Fragment {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == CONFIRM_DEVICE_CREDENTIAL_REQUEST_CODE) {
             if (resultCode == Activity.RESULT_OK) {
-                RecordHistogram.recordEnumeratedHistogram(SETTINGS_REAUTHENTICATION_HISTOGRAM,
-                        ReauthResult.SUCCESS, ReauthResult.MAX_VALUE + 1);
                 ReauthenticationManager.recordLastReauth(
                         System.currentTimeMillis(), getArguments().getInt(SCOPE_ID));
             } else {
-                RecordHistogram.recordEnumeratedHistogram(SETTINGS_REAUTHENTICATION_HISTOGRAM,
-                        ReauthResult.FAILURE, ReauthResult.MAX_VALUE + 1);
                 ReauthenticationManager.resetLastReauth();
             }
             mFragmentManager.popBackStack();

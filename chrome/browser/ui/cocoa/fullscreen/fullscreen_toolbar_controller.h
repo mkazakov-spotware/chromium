@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,7 +53,7 @@ enum class FullscreenToolbarStyle {
     : NSObject <FullscreenToolbarContextDelegate>
 
 // Designated initializer.
-- (instancetype)initWithBrowserView:(BrowserView*)browserView;
+- (id)initWithBrowserView:(BrowserView*)browserView;
 
 // Informs the controller that the browser has entered or exited fullscreen
 // mode. |-enterFullscreenMode| should be called when the window is about to

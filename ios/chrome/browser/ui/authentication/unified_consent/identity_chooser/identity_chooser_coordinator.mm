@@ -1,20 +1,20 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/authentication/unified_consent/identity_chooser/identity_chooser_coordinator.h"
 
-#import <ostream>
+#include <ostream>
 
-#import "base/check_op.h"
-#import "base/notreached.h"
-#import "ios/chrome/browser/main/browser.h"
-#import "ios/chrome/browser/signin/chrome_account_manager_service_factory.h"
+#include "base/check_op.h"
+#include "base/notreached.h"
 #import "ios/chrome/browser/ui/authentication/unified_consent/identity_chooser/identity_chooser_coordinator_delegate.h"
 #import "ios/chrome/browser/ui/authentication/unified_consent/identity_chooser/identity_chooser_mediator.h"
 #import "ios/chrome/browser/ui/authentication/unified_consent/identity_chooser/identity_chooser_transition_delegate.h"
 #import "ios/chrome/browser/ui/authentication/unified_consent/identity_chooser/identity_chooser_view_controller.h"
 #import "ios/chrome/browser/ui/authentication/unified_consent/identity_chooser/identity_chooser_view_controller_presentation_delegate.h"
+#import "ios/public/provider/chrome/browser/chrome_browser_provider.h"
+#import "ios/public/provider/chrome/browser/signin/chrome_identity_service.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -65,6 +65,9 @@ typedef NS_ENUM(NSInteger, IdentityChooserCoordinatorState) {
 
 - (void)start {
   [super start];
+  ios::ChromeIdentityService* chromeIdentityService =
+      ios::GetChromeBrowserProvider()->GetChromeIdentityService();
+  chromeIdentityService->WaitUntilCacheIsPopulated();
   DCHECK_EQ(IdentityChooserCoordinatorStateNotStarted, self.state);
   self.state = IdentityChooserCoordinatorStateStarted;
   // Creates the controller.
@@ -80,11 +83,7 @@ typedef NS_ENUM(NSInteger, IdentityChooserCoordinatorState) {
       UIModalPresentationCustom;
 
   // Creates the mediator.
-  self.identityChooserMediator = [[IdentityChooserMediator alloc]
-      initWithAccountManagerService:ChromeAccountManagerServiceFactory::
-                                        GetForBrowserState(
-                                            self.browser->GetBrowserState())];
-
+  self.identityChooserMediator = [[IdentityChooserMediator alloc] init];
   self.identityChooserMediator.consumer = self.identityChooserViewController;
   // Setups.
   self.identityChooserViewController.presentationDelegate = self;
@@ -96,19 +95,13 @@ typedef NS_ENUM(NSInteger, IdentityChooserCoordinatorState) {
                  completion:nil];
 }
 
-- (void)stop {
-  [super stop];
-  [self.identityChooserMediator disconnect];
-  self.identityChooserMediator = nil;
-}
-
 #pragma mark - Setters/Getters
 
-- (void)setSelectedIdentity:(id<SystemIdentity>)selectedIdentity {
+- (void)setSelectedIdentity:(ChromeIdentity*)selectedIdentity {
   self.identityChooserMediator.selectedIdentity = selectedIdentity;
 }
 
-- (id<SystemIdentity>)selectedIdentity {
+- (ChromeIdentity*)selectedIdentity {
   return self.identityChooserMediator.selectedIdentity;
 }
 
@@ -155,11 +148,7 @@ typedef NS_ENUM(NSInteger, IdentityChooserCoordinatorState) {
   DCHECK_EQ(self.identityChooserViewController, viewController);
   DCHECK_EQ(IdentityChooserCoordinatorStateStarted, self.state);
   [self.identityChooserMediator selectIdentityWithGaiaID:gaiaID];
-  // If the account refresh token is invalidated during this
-  // operation then `identity` will be nil.
-  if (self.selectedIdentity) {
-    self.state = IdentityChooserCoordinatorStateClosedBySelectingIdentity;
-  }
+  self.state = IdentityChooserCoordinatorStateClosedBySelectingIdentity;
   [self.identityChooserViewController dismissViewControllerAnimated:YES
                                                          completion:nil];
 }

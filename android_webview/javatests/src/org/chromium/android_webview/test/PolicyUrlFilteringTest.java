@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,6 @@ import org.junit.runner.RunWith;
 import org.chromium.android_webview.AwContents;
 import org.chromium.android_webview.WebviewErrorCode;
 import org.chromium.android_webview.policy.AwPolicyProvider;
-import org.chromium.android_webview.test.TestAwContentsClient.OnReceivedErrorHelper;
 import org.chromium.base.test.util.Feature;
 import org.chromium.components.policy.AbstractAppRestrictionsProvider;
 import org.chromium.components.policy.CombinedPolicyProvider;
@@ -90,7 +89,7 @@ public class PolicyUrlFilteringTest {
 
         navigateAndCheckOutcome(mFooTestUrl, 0 /* error count before */, 1 /* error count after */);
         Assert.assertEquals(WebviewErrorCode.ERROR_CONNECT,
-                mContentsClient.getOnReceivedErrorHelper().getError().errorCode);
+                mContentsClient.getOnReceivedErrorHelper().getErrorCode());
     }
 
     // Tests getting a successful navigation with an allowlist.
@@ -109,7 +108,7 @@ public class PolicyUrlFilteringTest {
         // Make sure it goes through the blocklist
         navigateAndCheckOutcome(mBarTestUrl, 0 /* error count before */, 1 /* error count after */);
         Assert.assertEquals(WebviewErrorCode.ERROR_CONNECT,
-                mContentsClient.getOnReceivedErrorHelper().getError().errorCode);
+                mContentsClient.getOnReceivedErrorHelper().getErrorCode());
     }
     // clang-format on
 
@@ -134,7 +133,8 @@ public class PolicyUrlFilteringTest {
             throw new IllegalArgumentException(
                     "The navigation error count can't decrease over time");
         }
-        OnReceivedErrorHelper onReceivedErrorHelper = mContentsClient.getOnReceivedErrorHelper();
+        TestCallbackHelperContainer.OnReceivedErrorHelper onReceivedErrorHelper =
+                mContentsClient.getOnReceivedErrorHelper();
         TestCallbackHelperContainer.OnPageFinishedHelper onPageFinishedHelper =
                 mContentsClient.getOnPageFinishedHelper();
 

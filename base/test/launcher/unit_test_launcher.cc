@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,15 +18,16 @@
 #include "base/format_macros.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/sequence_checker.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/system/sys_info.h"
 #include "base/task/single_thread_task_executor.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/test/allow_check_is_test_for_testing.h"
 #include "base/test/launcher/test_launcher.h"
 #include "base/test/test_switches.h"
 #include "base/test/test_timeouts.h"
@@ -35,7 +36,7 @@
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include "base/files/file_descriptor_watcher_posix.h"
 #endif
 
@@ -46,7 +47,7 @@ namespace {
 // This constant controls how many tests are run in a single batch by default.
 const size_t kDefaultTestBatchLimit = 10;
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 void PrintUsage() {
   fprintf(
       stdout,
@@ -86,16 +87,16 @@ void PrintUsage() {
       "\n"
       "  --test-launcher-retry-limit=N\n"
       "    Sets the limit of test retries on failures to N.\n"
-      "  --gtest_repeat=N\n"
+      "  --gtest-repeat=N\n"
       "    Forces the launcher to run every test N times. -1 is a special"
       "    value, causing the infinite amount of iterations."
       "    Repeated tests are run in parallel, unless the number of"
-      "    iterations is infinite or --gtest_break_on_failure is specified"
+      "    iterations is infinite or --gtest-break-on-failure is specified"
       "    (see below)."
       "    Consider using --test_launcher-jobs flag to speed up the"
       "    parallel execution."
       "\n"
-      "  --gtest_break_on_failure\n"
+      "  --gtest-break-on-failure\n"
       "    Stop running repeated tests as soon as one repeat of the test fails."
       "    This flag forces sequential repeats and prevents parallelised"
       "    execution."
@@ -147,11 +148,8 @@ int LaunchUnitTestsInternal(RunTestSuiteCallback run_test_suite,
                             int default_batch_limit,
                             size_t retry_limit,
                             bool use_job_objects,
-                            RepeatingClosure timeout_callback,
                             OnceClosure gtest_init) {
-  base::test::AllowCheckIsTestForTesting();
-
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // We can't easily fork on Android, just run the test suite directly.
   return std::move(run_test_suite).Run();
 #else
@@ -203,7 +201,7 @@ int LaunchUnitTestsInternal(RunTestSuiteCallback run_test_suite,
   fflush(stdout);
 
   base::SingleThreadTaskExecutor executor(base::MessagePumpType::IO);
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   FileDescriptorWatcher file_descriptor_watcher(executor.task_runner());
 #endif
   use_job_objects =
@@ -212,7 +210,7 @@ int LaunchUnitTestsInternal(RunTestSuiteCallback run_test_suite,
 
   DefaultUnitTestPlatformDelegate platform_delegate;
   UnitTestLauncherDelegate delegate(&platform_delegate, batch_limit,
-                                    use_job_objects, timeout_callback);
+                                    use_job_objects);
   TestLauncher launcher(&delegate, parallel_jobs, retry_limit);
   bool success = launcher.Run();
 
@@ -228,42 +226,21 @@ void InitGoogleTestChar(int* argc, char** argv) {
   testing::InitGoogleTest(argc, argv);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void InitGoogleTestWChar(int* argc, wchar_t** argv) {
   testing::InitGoogleTest(argc, argv);
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace
 
 // Flag to avoid using job objects
 const char kDontUseJobObjectFlag[] = "dont-use-job-objects";
 
-MergeTestFilterSwitchHandler::~MergeTestFilterSwitchHandler() = default;
-void MergeTestFilterSwitchHandler::ResolveDuplicate(
-    base::StringPiece key,
-    CommandLine::StringPieceType new_value,
-    CommandLine::StringType& out_value) {
-  if (key != switches::kTestLauncherFilterFile) {
-    out_value = CommandLine::StringType(new_value);
-    return;
-  }
-  if (!out_value.empty()) {
-#if BUILDFLAG(IS_WIN)
-    StrAppend(&out_value, {L";"});
-#else
-    StrAppend(&out_value, {";"});
-#endif
-  }
-  StrAppend(&out_value, {new_value});
-}
-
 int LaunchUnitTests(int argc,
                     char** argv,
                     RunTestSuiteCallback run_test_suite,
                     size_t retry_limit) {
-  CommandLine::SetDuplicateSwitchHandler(
-      std::make_unique<MergeTestFilterSwitchHandler>());
   CommandLine::Init(argc, argv);
   size_t parallel_jobs = NumParallelJobs(/*cores_per_job=*/1);
   if (parallel_jobs == 0U) {
@@ -271,7 +248,6 @@ int LaunchUnitTests(int argc,
   }
   return LaunchUnitTestsInternal(std::move(run_test_suite), parallel_jobs,
                                  kDefaultTestBatchLimit, retry_limit, true,
-                                 DoNothing(),
                                  BindOnce(&InitGoogleTestChar, &argc, argv));
 }
 
@@ -280,7 +256,7 @@ int LaunchUnitTestsSerially(int argc,
                             RunTestSuiteCallback run_test_suite) {
   CommandLine::Init(argc, argv);
   return LaunchUnitTestsInternal(std::move(run_test_suite), 1U,
-                                 kDefaultTestBatchLimit, 1U, true, DoNothing(),
+                                 kDefaultTestBatchLimit, 1U, true,
                                  BindOnce(&InitGoogleTestChar, &argc, argv));
 }
 
@@ -289,16 +265,14 @@ int LaunchUnitTestsWithOptions(int argc,
                                size_t parallel_jobs,
                                int default_batch_limit,
                                bool use_job_objects,
-                               RepeatingClosure timeout_callback,
                                RunTestSuiteCallback run_test_suite) {
   CommandLine::Init(argc, argv);
   return LaunchUnitTestsInternal(std::move(run_test_suite), parallel_jobs,
                                  default_batch_limit, 1U, use_job_objects,
-                                 timeout_callback,
                                  BindOnce(&InitGoogleTestChar, &argc, argv));
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 int LaunchUnitTests(int argc,
                     wchar_t** argv,
                     bool use_job_objects,
@@ -311,10 +285,9 @@ int LaunchUnitTests(int argc,
   }
   return LaunchUnitTestsInternal(std::move(run_test_suite), parallel_jobs,
                                  kDefaultTestBatchLimit, 1U, use_job_objects,
-                                 DoNothing(),
                                  BindOnce(&InitGoogleTestWChar, &argc, argv));
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 DefaultUnitTestPlatformDelegate::DefaultUnitTestPlatformDelegate() = default;
 
@@ -367,12 +340,10 @@ std::string DefaultUnitTestPlatformDelegate::GetWrapperForChildGTestProcess() {
 UnitTestLauncherDelegate::UnitTestLauncherDelegate(
     UnitTestPlatformDelegate* platform_delegate,
     size_t batch_limit,
-    bool use_job_objects,
-    RepeatingClosure timeout_callback)
+    bool use_job_objects)
     : platform_delegate_(platform_delegate),
       batch_limit_(batch_limit),
-      use_job_objects_(use_job_objects),
-      timeout_callback_(timeout_callback) {}
+      use_job_objects_(use_job_objects) {}
 
 UnitTestLauncherDelegate::~UnitTestLauncherDelegate() {
   DCHECK(thread_checker_.CalledOnValidThread());
@@ -414,10 +385,6 @@ TimeDelta UnitTestLauncherDelegate::GetTimeout() {
 
 size_t UnitTestLauncherDelegate::GetBatchSize() {
   return batch_limit_;
-}
-
-void UnitTestLauncherDelegate::OnTestTimedOut(const CommandLine& cmd_line) {
-  timeout_callback_.Run();
 }
 
 }  // namespace base

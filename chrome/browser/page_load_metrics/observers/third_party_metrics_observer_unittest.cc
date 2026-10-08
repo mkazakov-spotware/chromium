@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,16 +31,10 @@ using content::NavigationSimulator;
 using content::RenderFrameHost;
 using content::RenderFrameHostTester;
 
-class ThirdPartyMetricsObserverTestBase
+class ThirdPartyMetricsObserverTest
     : public page_load_metrics::PageLoadMetricsObserverTestHarness {
- public:
-  ThirdPartyMetricsObserverTestBase(const ThirdPartyMetricsObserverTestBase&) =
-      delete;
-  ThirdPartyMetricsObserverTestBase& operator=(
-      const ThirdPartyMetricsObserverTestBase&) = delete;
-
  protected:
-  ThirdPartyMetricsObserverTestBase() = default;
+  ThirdPartyMetricsObserverTest() {}
 
   void RegisterObservers(page_load_metrics::PageLoadTracker* tracker) override {
     tracker->AddObserver(base::WrapUnique(new ThirdPartyMetricsObserver()));
@@ -57,58 +51,51 @@ class ThirdPartyMetricsObserverTestBase
 
   // Returns the final RenderFrameHost after navigation commits.
   content::RenderFrameHost* NavigateMainFrame(const std::string& url) {
-    return NavigateFrame(url, web_contents()->GetPrimaryMainFrame());
-  }
-
-  RenderFrameHost* AppendChildFrame(content::RenderFrameHost* parent) {
-    if (WithFencedFrames())
-      return content::RenderFrameHostTester::For(parent)->AppendFencedFrame();
-    return content::RenderFrameHostTester::For(parent)->AppendChild("iframe");
+    return NavigateFrame(url, web_contents()->GetMainFrame());
   }
 
   // Returns the final RenderFrameHost after navigation commits.
   RenderFrameHost* CreateAndNavigateSubFrame(const std::string& url,
                                              content::RenderFrameHost* parent) {
-    return NavigateFrame(url, AppendChildFrame(parent));
+    RenderFrameHost* subframe =
+        RenderFrameHostTester::For(parent)->AppendChild("frame_name");
+    auto navigation_simulator =
+        NavigationSimulator::CreateRendererInitiated(GURL(url), subframe);
+    navigation_simulator->Commit();
+
+    return navigation_simulator->GetFinalRenderFrameHost();
   }
 
-  virtual bool WithFencedFrames() = 0;
-};
-
-class ThirdPartyMetricsObserverTest : public ThirdPartyMetricsObserverTestBase,
-                                      public testing::WithParamInterface<bool> {
  private:
-  bool WithFencedFrames() override { return GetParam(); }
+  DISALLOW_COPY_AND_ASSIGN(ThirdPartyMetricsObserverTest);
 };
 
-INSTANTIATE_TEST_SUITE_P(All, ThirdPartyMetricsObserverTest, testing::Bool());
-
-TEST_P(ThirdPartyMetricsObserverTest, NoThirdPartyFrame_NoneRecorded) {
+TEST_F(ThirdPartyMetricsObserverTest, NoThirdPartyFrame_NoneRecorded) {
   RenderFrameHost* main_frame = NavigateMainFrame("https://top.com");
   RenderFrameHost* sub_frame =
       CreateAndNavigateSubFrame("https://a.top.com/foo", main_frame);
 
   page_load_metrics::mojom::PageLoadTiming timing;
   page_load_metrics::InitPageLoadTimingForTest(&timing);
-  timing.paint_timing->first_contentful_paint = base::Seconds(1);
+  timing.paint_timing->first_contentful_paint = base::TimeDelta::FromSeconds(1);
   tester()->SimulateTimingUpdate(timing, sub_frame);
   tester()->histogram_tester().ExpectTotalCount(kSubframeFCPHistogram, 0);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest, OneThirdPartyFrame_OneRecorded) {
+TEST_F(ThirdPartyMetricsObserverTest, OneThirdPartyFrame_OneRecorded) {
   RenderFrameHost* main_frame = NavigateMainFrame("https://top.com");
   RenderFrameHost* sub_frame =
       CreateAndNavigateSubFrame("https://x-origin.com", main_frame);
 
   page_load_metrics::mojom::PageLoadTiming timing;
   page_load_metrics::InitPageLoadTimingForTest(&timing);
-  timing.paint_timing->first_contentful_paint = base::Seconds(1);
+  timing.paint_timing->first_contentful_paint = base::TimeDelta::FromSeconds(1);
   tester()->SimulateTimingUpdate(timing, sub_frame);
   tester()->histogram_tester().ExpectUniqueSample(kSubframeFCPHistogram, 1000,
                                                   1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest,
+TEST_F(ThirdPartyMetricsObserverTest,
        OneThirdPartyFrameWithTwoSameUpdates_OneRecorded) {
   RenderFrameHost* main_frame = NavigateMainFrame("https://top.com");
   RenderFrameHost* sub_frame =
@@ -116,14 +103,14 @@ TEST_P(ThirdPartyMetricsObserverTest,
 
   page_load_metrics::mojom::PageLoadTiming timing;
   page_load_metrics::InitPageLoadTimingForTest(&timing);
-  timing.paint_timing->first_contentful_paint = base::Seconds(1);
+  timing.paint_timing->first_contentful_paint = base::TimeDelta::FromSeconds(1);
   tester()->SimulateTimingUpdate(timing, sub_frame);
   tester()->SimulateTimingUpdate(timing, sub_frame);
   tester()->histogram_tester().ExpectUniqueSample(kSubframeFCPHistogram, 1000,
                                                   1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest, SixtyFrames_FiftyRecorded) {
+TEST_F(ThirdPartyMetricsObserverTest, SixtyFrames_FiftyRecorded) {
   RenderFrameHost* main_frame = NavigateMainFrame("https://top.com");
 
   // Add more frames than we're supposed to track.
@@ -133,7 +120,8 @@ TEST_P(ThirdPartyMetricsObserverTest, SixtyFrames_FiftyRecorded) {
 
     page_load_metrics::mojom::PageLoadTiming timing;
     page_load_metrics::InitPageLoadTimingForTest(&timing);
-    timing.paint_timing->first_contentful_paint = base::Seconds(1);
+    timing.paint_timing->first_contentful_paint =
+        base::TimeDelta::FromSeconds(1);
     tester()->SimulateTimingUpdate(timing, sub_frame);
   }
 
@@ -141,7 +129,7 @@ TEST_P(ThirdPartyMetricsObserverTest, SixtyFrames_FiftyRecorded) {
   tester()->histogram_tester().ExpectTotalCount(kSubframeFCPHistogram, 50);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest, ThreeThirdPartyFrames_ThreeRecorded) {
+TEST_F(ThirdPartyMetricsObserverTest, ThreeThirdPartyFrames_ThreeRecorded) {
   RenderFrameHost* main_frame = NavigateMainFrame("https://top.com");
 
   // Create three third-party frames.
@@ -158,35 +146,35 @@ TEST_P(ThirdPartyMetricsObserverTest, ThreeThirdPartyFrames_ThreeRecorded) {
 
   page_load_metrics::mojom::PageLoadTiming timing;
   page_load_metrics::InitPageLoadTimingForTest(&timing);
-  timing.paint_timing->first_contentful_paint = base::Seconds(1);
+  timing.paint_timing->first_contentful_paint = base::TimeDelta::FromSeconds(1);
   tester()->SimulateTimingUpdate(timing, sub_frame_a);
 
-  timing.paint_timing->first_contentful_paint = base::Seconds(2);
+  timing.paint_timing->first_contentful_paint = base::TimeDelta::FromSeconds(2);
   tester()->SimulateTimingUpdate(timing, sub_frame_b);
 
-  timing.paint_timing->first_contentful_paint = base::Seconds(3);
+  timing.paint_timing->first_contentful_paint = base::TimeDelta::FromSeconds(3);
   tester()->SimulateTimingUpdate(timing, sub_frame_c);
 
-  timing.paint_timing->first_contentful_paint = base::Seconds(4);
+  timing.paint_timing->first_contentful_paint = base::TimeDelta::FromSeconds(4);
   tester()->SimulateTimingUpdate(timing, sub_frame_d);
 
   tester()->histogram_tester().ExpectTotalCount(kSubframeFCPHistogram, 3);
-  tester()->histogram_tester().ExpectTimeBucketCount(kSubframeFCPHistogram,
-                                                     base::Seconds(1), 1);
-  tester()->histogram_tester().ExpectTimeBucketCount(kSubframeFCPHistogram,
-                                                     base::Seconds(2), 1);
-  tester()->histogram_tester().ExpectTimeBucketCount(kSubframeFCPHistogram,
-                                                     base::Seconds(3), 1);
+  tester()->histogram_tester().ExpectTimeBucketCount(
+      kSubframeFCPHistogram, base::TimeDelta::FromSeconds(1), 1);
+  tester()->histogram_tester().ExpectTimeBucketCount(
+      kSubframeFCPHistogram, base::TimeDelta::FromSeconds(2), 1);
+  tester()->histogram_tester().ExpectTimeBucketCount(
+      kSubframeFCPHistogram, base::TimeDelta::FromSeconds(3), 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest, NoCookiesRead_NoneRecorded) {
+TEST_F(ThirdPartyMetricsObserverTest, NoCookiesRead_NoneRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
   tester()->NavigateToUntrackedUrl();
 
   tester()->histogram_tester().ExpectUniqueSample(kReadCookieHistogram, 0, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest, BlockedCookiesRead_NotRecorded) {
+TEST_F(ThirdPartyMetricsObserverTest, BlockedCookiesRead_NotRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
   // If there are any blocked_by_policy reads, nothing should be recorded. Even
@@ -207,7 +195,7 @@ TEST_P(ThirdPartyMetricsObserverTest, BlockedCookiesRead_NotRecorded) {
   tester()->histogram_tester().ExpectTotalCount(kReadCookieHistogram, 0);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest,
+TEST_F(ThirdPartyMetricsObserverTest,
        NoRegistrableDomainNoHostCookiesRead_NoneRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
@@ -223,7 +211,7 @@ TEST_P(ThirdPartyMetricsObserverTest,
   tester()->histogram_tester().ExpectUniqueSample(kReadCookieHistogram, 0, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest,
+TEST_F(ThirdPartyMetricsObserverTest,
        NoRegistrableDomainWithHostCookiesRead_OneRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
@@ -239,7 +227,7 @@ TEST_P(ThirdPartyMetricsObserverTest,
   tester()->histogram_tester().ExpectUniqueSample(kReadCookieHistogram, 1, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest,
+TEST_F(ThirdPartyMetricsObserverTest,
        DifferentSchemeSameRegistrableDomain_OneRecorded) {
   NavigateAndCommit(GURL("http://top.com"));
 
@@ -253,7 +241,7 @@ TEST_P(ThirdPartyMetricsObserverTest,
   tester()->histogram_tester().ExpectUniqueSample(kReadCookieHistogram, 1, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest, OnlyFirstPartyCookiesRead_NotRecorded) {
+TEST_F(ThirdPartyMetricsObserverTest, OnlyFirstPartyCookiesRead_NotRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
   tester()->SimulateCookieAccess({content::CookieAccessDetails::Type::kRead,
@@ -266,7 +254,7 @@ TEST_P(ThirdPartyMetricsObserverTest, OnlyFirstPartyCookiesRead_NotRecorded) {
   tester()->histogram_tester().ExpectUniqueSample(kReadCookieHistogram, 0, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest, OneCookieRead_OneRecorded) {
+TEST_F(ThirdPartyMetricsObserverTest, OneCookieRead_OneRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
   tester()->SimulateCookieAccess({content::CookieAccessDetails::Type::kRead,
@@ -280,7 +268,7 @@ TEST_P(ThirdPartyMetricsObserverTest, OneCookieRead_OneRecorded) {
   tester()->histogram_tester().ExpectUniqueSample(kWriteCookieHistogram, 0, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest,
+TEST_F(ThirdPartyMetricsObserverTest,
        ThreeCookiesReadSameThirdParty_OneRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
@@ -305,7 +293,7 @@ TEST_P(ThirdPartyMetricsObserverTest,
   tester()->histogram_tester().ExpectUniqueSample(kReadCookieHistogram, 1, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest,
+TEST_F(ThirdPartyMetricsObserverTest,
        CookiesReadMultipleThirdParties_MultipleRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
@@ -330,14 +318,14 @@ TEST_P(ThirdPartyMetricsObserverTest,
   tester()->histogram_tester().ExpectUniqueSample(kReadCookieHistogram, 2, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest, NoCookiesChanged_NoneRecorded) {
+TEST_F(ThirdPartyMetricsObserverTest, NoCookiesChanged_NoneRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
   tester()->NavigateToUntrackedUrl();
 
   tester()->histogram_tester().ExpectUniqueSample(kWriteCookieHistogram, 0, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest, BlockedCookiesChanged_NotRecorded) {
+TEST_F(ThirdPartyMetricsObserverTest, BlockedCookiesChanged_NotRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
   // If there are any blocked_by_policy writes, nothing should be recorded. Even
@@ -356,7 +344,7 @@ TEST_P(ThirdPartyMetricsObserverTest, BlockedCookiesChanged_NotRecorded) {
   tester()->histogram_tester().ExpectTotalCount(kWriteCookieHistogram, 0);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest,
+TEST_F(ThirdPartyMetricsObserverTest,
        NoRegistrableDomainNoHostCookiesChanged_NoneRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
@@ -371,7 +359,7 @@ TEST_P(ThirdPartyMetricsObserverTest,
   tester()->histogram_tester().ExpectUniqueSample(kWriteCookieHistogram, 0, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest,
+TEST_F(ThirdPartyMetricsObserverTest,
        NoRegistrableDomainWithHostCookiesChanged_OneRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
@@ -386,7 +374,7 @@ TEST_P(ThirdPartyMetricsObserverTest,
   tester()->histogram_tester().ExpectUniqueSample(kWriteCookieHistogram, 1, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest,
+TEST_F(ThirdPartyMetricsObserverTest,
        OnlyFirstPartyCookiesChanged_NotRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
@@ -400,7 +388,7 @@ TEST_P(ThirdPartyMetricsObserverTest,
   tester()->histogram_tester().ExpectUniqueSample(kWriteCookieHistogram, 0, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest, OneCookieChanged_OneRecorded) {
+TEST_F(ThirdPartyMetricsObserverTest, OneCookieChanged_OneRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
   tester()->SimulateCookieAccess({content::CookieAccessDetails::Type::kChange,
@@ -414,7 +402,7 @@ TEST_P(ThirdPartyMetricsObserverTest, OneCookieChanged_OneRecorded) {
   tester()->histogram_tester().ExpectUniqueSample(kReadCookieHistogram, 0, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest,
+TEST_F(ThirdPartyMetricsObserverTest,
        TwoCookiesChangeSameThirdParty_OneRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
@@ -433,7 +421,7 @@ TEST_P(ThirdPartyMetricsObserverTest,
   tester()->histogram_tester().ExpectUniqueSample(kWriteCookieHistogram, 1, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest,
+TEST_F(ThirdPartyMetricsObserverTest,
        CookiesChangeMultipleThirdParties_MultipleRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
@@ -458,7 +446,7 @@ TEST_P(ThirdPartyMetricsObserverTest,
   tester()->histogram_tester().ExpectUniqueSample(kWriteCookieHistogram, 2, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest, ReadAndChangeCookies_BothRecorded) {
+TEST_F(ThirdPartyMetricsObserverTest, ReadAndChangeCookies_BothRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
   // Simulate third-party cookie reads from two different origins.
@@ -478,7 +466,7 @@ TEST_P(ThirdPartyMetricsObserverTest, ReadAndChangeCookies_BothRecorded) {
   tester()->histogram_tester().ExpectUniqueSample(kWriteCookieHistogram, 1, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest, NoDomStorageAccess_NoneRecorded) {
+TEST_F(ThirdPartyMetricsObserverTest, NoDomStorageAccess_NoneRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
   tester()->NavigateToUntrackedUrl();
 
@@ -488,7 +476,7 @@ TEST_P(ThirdPartyMetricsObserverTest, NoDomStorageAccess_NoneRecorded) {
       kAccessSessionStorageHistogram, 0, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest,
+TEST_F(ThirdPartyMetricsObserverTest,
        LocalAndSessionStorageAccess_BothRecorded) {
   NavigateAndCommit(GURL("https://top.com"));
 
@@ -508,7 +496,7 @@ TEST_P(ThirdPartyMetricsObserverTest,
       kAccessSessionStorageHistogram, 1, 1);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest,
+TEST_F(ThirdPartyMetricsObserverTest,
        LargestContentfulPaint_HasThirdPartyFont) {
   page_load_metrics::mojom::PageLoadTiming timing;
   page_load_metrics::InitPageLoadTimingForTest(&timing);
@@ -519,7 +507,7 @@ TEST_P(ThirdPartyMetricsObserverTest,
       100u;
 
   timing.paint_timing->largest_contentful_paint->largest_text_paint =
-      base::Milliseconds(4780);
+      base::TimeDelta::FromMilliseconds(4780);
   timing.paint_timing->largest_contentful_paint->largest_text_paint_size = 120u;
 
   PopulateRequiredTimingFields(&timing);
@@ -529,9 +517,10 @@ TEST_P(ThirdPartyMetricsObserverTest,
 
   int frame_tree_node_id = main_rfh()->GetFrameTreeNodeId();
   tester()->SimulateLoadedResource(
-      {url::SchemeHostPort(GURL("https://bar.test")), net::IPEndPoint(),
+      {url::Origin::Create(GURL("https://bar.test")), net::IPEndPoint(),
        frame_tree_node_id, false /* was_cached */,
        1024 * 20 /* raw_body_bytes */, 0 /* original_network_content_length */,
+       nullptr /* data_reduction_proxy_data */,
        network::mojom::RequestDestination::kFont, 0,
        nullptr /* load_timing_info */},
       content::GlobalRequestID());
@@ -545,7 +534,7 @@ TEST_P(ThirdPartyMetricsObserverTest,
               testing::ElementsAre(base::Bucket(4780, 1)));
 }
 
-TEST_P(ThirdPartyMetricsObserverTest,
+TEST_F(ThirdPartyMetricsObserverTest,
        NoLargestContentfulPaint_HasThirdPartyFont) {
   page_load_metrics::mojom::PageLoadTiming timing;
   page_load_metrics::InitPageLoadTimingForTest(&timing);
@@ -556,7 +545,7 @@ TEST_P(ThirdPartyMetricsObserverTest,
       100u;
 
   timing.paint_timing->largest_contentful_paint->largest_text_paint =
-      base::Milliseconds(4780);
+      base::TimeDelta::FromMilliseconds(4780);
   timing.paint_timing->largest_contentful_paint->largest_text_paint_size = 120u;
 
   PopulateRequiredTimingFields(&timing);
@@ -567,9 +556,10 @@ TEST_P(ThirdPartyMetricsObserverTest,
   // Load a same-site font, the histogram should not be recorded.
   int frame_tree_node_id = main_rfh()->GetFrameTreeNodeId();
   tester()->SimulateLoadedResource(
-      {url::SchemeHostPort(GURL("http://b.foo.test")), net::IPEndPoint(),
+      {url::Origin::Create(GURL("http://b.foo.test")), net::IPEndPoint(),
        frame_tree_node_id, false /* was_cached */,
        1024 * 20 /* raw_body_bytes */, 0 /* original_network_content_length */,
+       nullptr /* data_reduction_proxy_data */,
        network::mojom::RequestDestination::kFont, 0,
        nullptr /* load_timing_info */},
       content::GlobalRequestID());
@@ -583,13 +573,13 @@ TEST_P(ThirdPartyMetricsObserverTest,
       0);
 }
 
-TEST_P(ThirdPartyMetricsObserverTest,
+TEST_F(ThirdPartyMetricsObserverTest,
        NoTextLargestContentfulPaint_HasThirdPartyFont) {
   page_load_metrics::mojom::PageLoadTiming timing;
   page_load_metrics::InitPageLoadTimingForTest(&timing);
   timing.navigation_start = base::Time::FromDoubleT(1);
   timing.paint_timing->largest_contentful_paint->largest_image_paint =
-      base::Milliseconds(4780);
+      base::TimeDelta::FromMilliseconds(4780);
   timing.paint_timing->largest_contentful_paint->largest_image_paint_size =
       120u;
 
@@ -600,9 +590,10 @@ TEST_P(ThirdPartyMetricsObserverTest,
 
   int frame_tree_node_id = main_rfh()->GetFrameTreeNodeId();
   tester()->SimulateLoadedResource(
-      {url::SchemeHostPort(GURL("https://bar.test")), net::IPEndPoint(),
+      {url::Origin::Create(GURL("https://bar.test")), net::IPEndPoint(),
        frame_tree_node_id, false /* was_cached */,
        1024 * 20 /* raw_body_bytes */, 0 /* original_network_content_length */,
+       nullptr /* data_reduction_proxy_data */,
        network::mojom::RequestDestination::kFont, 0,
        nullptr /* load_timing_info */},
       content::GlobalRequestID());
@@ -618,22 +609,11 @@ TEST_P(ThirdPartyMetricsObserverTest,
       0);
 }
 
-enum class TestType {
-  LocalWithIframes,
-  LocalWithFencedFrames,
-  NotLocalWithIframes,
-  NotLocalWithFencedFrames,
-};
-
 class ThirdPartyDomStorageAccessMetricsObserverTest
-    : public ThirdPartyMetricsObserverTestBase,
-      public ::testing::WithParamInterface<enum TestType> {
+    : public ThirdPartyMetricsObserverTest,
+      public ::testing::WithParamInterface<bool /* is_local_access */> {
  public:
-  bool IsLocal() const {
-    auto test_type = GetParam();
-    return test_type == TestType::LocalWithIframes ||
-           test_type == TestType::LocalWithFencedFrames;
-  }
+  bool IsLocal() const { return GetParam(); }
 
   page_load_metrics::StorageType StorageType() const {
     return IsLocal() ? page_load_metrics::StorageType::kLocalStorage
@@ -643,14 +623,6 @@ class ThirdPartyDomStorageAccessMetricsObserverTest
   const char* DomStorageHistogramName() const {
     return IsLocal() ? kAccessLocalStorageHistogram
                      : kAccessSessionStorageHistogram;
-  }
-
- private:
-  // Implements ThirdPartyMetricsObserverTestBase.
-  bool WithFencedFrames() override {
-    auto test_type = GetParam();
-    return test_type == TestType::LocalWithFencedFrames ||
-           test_type == TestType::NotLocalWithFencedFrames;
   }
 };
 
@@ -774,9 +746,7 @@ TEST_P(ThirdPartyDomStorageAccessMetricsObserverTest,
                                                   1);
 }
 
-INSTANTIATE_TEST_SUITE_P(All,
-                         ThirdPartyDomStorageAccessMetricsObserverTest,
-                         ::testing::Values(TestType::LocalWithIframes,
-                                           TestType::LocalWithFencedFrames,
-                                           TestType::NotLocalWithIframes,
-                                           TestType::NotLocalWithFencedFrames));
+INSTANTIATE_TEST_SUITE_P(
+    All,
+    ThirdPartyDomStorageAccessMetricsObserverTest,
+    ::testing::Values(false, true));

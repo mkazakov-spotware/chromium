@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include "base/format_macros.h"
+#include "base/strings/stringprintf.h"
 #include "base/trace_event/memory_allocator_dump_guid.h"
 #include "base/trace_event/memory_dump_provider.h"
 #include "base/trace_event/process_memory_dump.h"
@@ -150,8 +151,8 @@ TEST(MemoryAllocatorDumpTest, MovingAnEntry) {
 }
 
 // DEATH tests are not supported in Android/iOS/Fuchsia.
-#if !defined(NDEBUG) && !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS) && \
-    !BUILDFLAG(IS_FUCHSIA)
+#if !defined(NDEBUG) && !defined(OS_ANDROID) && !defined(OS_IOS) && \
+    !defined(OS_FUCHSIA)
 TEST(MemoryAllocatorDumpTest, ForbidDuplicatesDeathTest) {
   FakeMemoryAllocatorDumpProvider fmadp;
   MemoryDumpArgs dump_args = {MemoryDumpLevelOfDetail::DETAILED};

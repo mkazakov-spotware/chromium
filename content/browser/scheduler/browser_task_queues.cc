@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,10 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/check.h"
 #include "base/feature_list.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/sequenced_task_runner.h"
 #include "base/task/sequence_manager/sequence_manager.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/common/content_features.h"
@@ -20,83 +19,72 @@
 namespace content {
 namespace {
 
-// (crbug/1375174): Make kServiceWorkerStorageControlResponse queue use high
-// priority.
-BASE_FEATURE(kServiceWorkerStorageControlResponseUseHighPriority,
-             "ServiceWorkerStorageControlResponseUseHighPriority",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
 using QueuePriority = ::base::sequence_manager::TaskQueue::QueuePriority;
-using QueueName = ::perfetto::protos::pbzero::SequenceManagerTask::QueueName;
 using InsertFencePosition =
     ::base::sequence_manager::TaskQueue::InsertFencePosition;
 
-QueueName GetControlTaskQueueName(BrowserThread::ID thread_id) {
+const char* GetControlTaskQueueName(BrowserThread::ID thread_id) {
   switch (thread_id) {
     case BrowserThread::UI:
-      return QueueName::UI_CONTROL_TQ;
+      return "ui_control_tq";
     case BrowserThread::IO:
-      return QueueName::IO_CONTROL_TQ;
+      return "io_control_tq";
     case BrowserThread::ID_COUNT:
       break;
   }
   NOTREACHED();
-  return QueueName::UNKNOWN_TQ;
+  return "";
 }
 
-QueueName GetRunAllPendingTaskQueueName(BrowserThread::ID thread_id) {
+const char* GetRunAllPendingTaskQueueName(BrowserThread::ID thread_id) {
   switch (thread_id) {
     case BrowserThread::UI:
-      return QueueName::UI_RUN_ALL_PENDING_TQ;
+      return "ui_run_all_pending_tq";
     case BrowserThread::IO:
-      return QueueName::IO_RUN_ALL_PENDING_TQ;
+      return "io_run_all_pending_tq";
     case BrowserThread::ID_COUNT:
       break;
   }
   NOTREACHED();
-  return QueueName::UNKNOWN_TQ;
+  return "";
 }
 
-QueueName GetUITaskQueueName(BrowserTaskQueues::QueueType queue_type) {
+const char* GetUITaskQueueName(BrowserTaskQueues::QueueType queue_type) {
   switch (queue_type) {
     case BrowserTaskQueues::QueueType::kBestEffort:
-      return QueueName::UI_BEST_EFFORT_TQ;
+      return "ui_best_effort_tq";
+    case BrowserTaskQueues::QueueType::kBootstrap:
+      return "ui_bootstrap_tq";
+    case BrowserTaskQueues::QueueType::kPreconnection:
+      return "ui_preconnection_tq";
     case BrowserTaskQueues::QueueType::kDefault:
-      return QueueName::UI_DEFAULT_TQ;
+      return "ui_default_tq";
     case BrowserTaskQueues::QueueType::kUserBlocking:
-      return QueueName::UI_USER_BLOCKING_TQ;
+      return "ui_user_blocking_tq";
     case BrowserTaskQueues::QueueType::kUserVisible:
-      return QueueName::UI_USER_VISIBLE_TQ;
-    case BrowserTaskQueues::QueueType::kUserInput:
-      return QueueName::UI_USER_INPUT_TQ;
-    case BrowserTaskQueues::QueueType::kNavigationNetworkResponse:
-      return QueueName::UI_NAVIGATION_NETWORK_RESPONSE_TQ;
-    case BrowserTaskQueues::QueueType::kServiceWorkerStorageControlResponse:
-      return QueueName::UI_SERVICE_WORKER_STORAGE_CONTROL_RESPONSE_TQ;
+      return "ui_user_visible_tq";
   }
 }
 
-QueueName GetIOTaskQueueName(BrowserTaskQueues::QueueType queue_type) {
+const char* GetIOTaskQueueName(BrowserTaskQueues::QueueType queue_type) {
   switch (queue_type) {
     case BrowserTaskQueues::QueueType::kBestEffort:
-      return QueueName::IO_BEST_EFFORT_TQ;
+      return "io_best_effort_tq";
+    case BrowserTaskQueues::QueueType::kBootstrap:
+      return "io_bootstrap_tq";
+    case BrowserTaskQueues::QueueType::kPreconnection:
+      return "io_preconnection_tq";
     case BrowserTaskQueues::QueueType::kDefault:
-      return QueueName::IO_DEFAULT_TQ;
+      return "io_default_tq";
     case BrowserTaskQueues::QueueType::kUserBlocking:
-      return QueueName::IO_USER_BLOCKING_TQ;
+      return "io_user_blocking_tq";
     case BrowserTaskQueues::QueueType::kUserVisible:
-      return QueueName::IO_USER_VISIBLE_TQ;
-    case BrowserTaskQueues::QueueType::kUserInput:
-      return QueueName::IO_USER_INPUT_TQ;
-    case BrowserTaskQueues::QueueType::kNavigationNetworkResponse:
-      return QueueName::IO_NAVIGATION_NETWORK_RESPONSE_TQ;
-    case BrowserTaskQueues::QueueType::kServiceWorkerStorageControlResponse:
-      return QueueName::IO_SERVICE_WORKER_STORAGE_CONTROL_RESPONSE_TQ;
+      return "io_user_visible_tq";
   }
 }
 
-QueueName GetTaskQueueName(BrowserThread::ID thread_id,
-                           BrowserTaskQueues::QueueType queue_type) {
+const char* GetTaskQueueName(BrowserThread::ID thread_id,
+                             BrowserTaskQueues::QueueType queue_type) {
   switch (thread_id) {
     case BrowserThread::UI:
       return GetUITaskQueueName(queue_type);
@@ -106,20 +94,20 @@ QueueName GetTaskQueueName(BrowserThread::ID thread_id,
       break;
   }
   NOTREACHED();
-  return QueueName::UNKNOWN_TQ;
+  return "";
 }
 
-QueueName GetDefaultQueueName(BrowserThread::ID thread_id) {
+const char* GetDefaultQueueName(BrowserThread::ID thread_id) {
   switch (thread_id) {
     case BrowserThread::UI:
-      return QueueName::UI_THREAD_TQ;
+      return "ui_thread_tq";
     case BrowserThread::IO:
-      return QueueName::IO_THREAD_TQ;
+      return "io_thread_tq";
     case BrowserThread::ID_COUNT:
       break;
   }
   NOTREACHED();
-  return QueueName::UNKNOWN_TQ;
+  return "";
 }
 
 }  // namespace
@@ -132,9 +120,16 @@ BrowserTaskQueues::Handle::Handle(BrowserTaskQueues* outer)
       default_task_runner_(outer_->default_task_queue_->task_runner()),
       browser_task_runners_(outer_->CreateBrowserTaskRunners()) {}
 
-void BrowserTaskQueues::Handle::OnStartupComplete() {
+void BrowserTaskQueues::Handle::PostFeatureListInitializationSetup() {
   control_task_runner_->PostTask(
-      FROM_HERE, base::BindOnce(&BrowserTaskQueues::OnStartupComplete,
+      FROM_HERE,
+      base::BindOnce(&BrowserTaskQueues::PostFeatureListInitializationSetup,
+                     base::Unretained(outer_)));
+}
+
+void BrowserTaskQueues::Handle::EnableAllQueues() {
+  control_task_runner_->PostTask(
+      FROM_HERE, base::BindOnce(&BrowserTaskQueues::EnableAllQueues,
                                 base::Unretained(outer_)));
 }
 
@@ -160,18 +155,21 @@ BrowserTaskQueues::QueueData::~QueueData() = default;
 
 BrowserTaskQueues::BrowserTaskQueues(
     BrowserThread::ID thread_id,
-    base::sequence_manager::SequenceManager* sequence_manager) {
+    base::sequence_manager::SequenceManager* sequence_manager,
+    base::sequence_manager::TimeDomain* time_domain) {
   for (size_t i = 0; i < queue_data_.size(); ++i) {
     queue_data_[i].task_queue = sequence_manager->CreateTaskQueue(
         base::sequence_manager::TaskQueue::Spec(
-            GetTaskQueueName(thread_id, static_cast<QueueType>(i))));
+            GetTaskQueueName(thread_id, static_cast<QueueType>(i)))
+            .SetTimeDomain(time_domain));
     queue_data_[i].voter = queue_data_[i].task_queue->CreateQueueEnabledVoter();
     queue_data_[i].voter->SetVoteToEnable(false);
   }
 
   // Default task queue
   default_task_queue_ = sequence_manager->CreateTaskQueue(
-      base::sequence_manager::TaskQueue::Spec(GetDefaultQueueName(thread_id)));
+      base::sequence_manager::TaskQueue::Spec(GetDefaultQueueName(thread_id))
+          .SetTimeDomain(time_domain));
 
   GetBrowserTaskQueue(QueueType::kUserVisible)
       ->SetQueuePriority(QueuePriority::kLowPriority);
@@ -180,26 +178,18 @@ BrowserTaskQueues::BrowserTaskQueues(
   GetBrowserTaskQueue(QueueType::kBestEffort)
       ->SetQueuePriority(QueuePriority::kBestEffortPriority);
 
-  // User Input queue
-  GetBrowserTaskQueue(QueueType::kUserInput)
-      ->SetQueuePriority(QueuePriority::kHighestPriority);
-
-  GetBrowserTaskQueue(QueueType::kNavigationNetworkResponse)
-      ->SetQueuePriority(QueuePriority::kHighPriority);
-
-  GetBrowserTaskQueue(QueueType::kServiceWorkerStorageControlResponse)
-      ->SetQueuePriority(QueuePriority::kHighestPriority);
-
   // Control queue
   control_queue_ =
       sequence_manager->CreateTaskQueue(base::sequence_manager::TaskQueue::Spec(
-          GetControlTaskQueueName(thread_id)));
+                                            GetControlTaskQueueName(thread_id))
+                                            .SetTimeDomain(time_domain));
   control_queue_->SetQueuePriority(QueuePriority::kControlPriority);
 
   // Run all pending queue
-  run_all_pending_tasks_queue_ =
-      sequence_manager->CreateTaskQueue(base::sequence_manager::TaskQueue::Spec(
-          GetRunAllPendingTaskQueueName(thread_id)));
+  run_all_pending_tasks_queue_ = sequence_manager->CreateTaskQueue(
+      base::sequence_manager::TaskQueue::Spec(
+          GetRunAllPendingTaskQueueName(thread_id))
+          .SetTimeDomain(time_domain));
   run_all_pending_tasks_queue_->SetQueuePriority(
       QueuePriority::kBestEffortPriority);
 
@@ -226,22 +216,22 @@ BrowserTaskQueues::CreateBrowserTaskRunners() const {
   return task_runners;
 }
 
-void BrowserTaskQueues::OnStartupComplete() {
-  // Enable all queues
-  for (const auto& queue : queue_data_) {
-    queue.voter->SetVoteToEnable(true);
-  }
+void BrowserTaskQueues::PostFeatureListInitializationSetup() {
+  if (base::FeatureList::IsEnabled(features::kPrioritizeBootstrapTasks)) {
+    GetBrowserTaskQueue(QueueType::kBootstrap)
+        ->SetQueuePriority(QueuePriority::kHighestPriority);
 
-  // Update ServiceWorker task queue priority.
-  DCHECK_EQ(GetBrowserTaskQueue(QueueType::kServiceWorkerStorageControlResponse)
-                ->GetQueuePriority(),
-            QueuePriority::kHighestPriority);
-  GetBrowserTaskQueue(QueueType::kServiceWorkerStorageControlResponse)
-      ->SetQueuePriority(
-          base::FeatureList::IsEnabled(
-              kServiceWorkerStorageControlResponseUseHighPriority)
-              ? QueuePriority::kHighPriority
-              : QueuePriority::kNormalPriority);
+    // Navigation and preconnection tasks are also important during startup so
+    // prioritize them too.
+    GetBrowserTaskQueue(QueueType::kPreconnection)
+        ->SetQueuePriority(QueuePriority::kHighPriority);
+  }
+}
+
+void BrowserTaskQueues::EnableAllQueues() {
+  for (size_t i = 0; i < queue_data_.size(); ++i) {
+    queue_data_[i].voter->SetVoteToEnable(true);
+  }
 }
 
 void BrowserTaskQueues::EnableAllExceptBestEffortQueues() {

@@ -1,10 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/loader/fetch/cached_metadata.h"
 
-#include "third_party/blink/renderer/platform/loader/fetch/url_loader/cached_metadata_handler.h"
+#include "third_party/blink/renderer/platform/loader/fetch/cached_metadata_handler.h"
 
 namespace blink {
 
@@ -47,7 +47,7 @@ scoped_refptr<CachedMetadata> CachedMetadata::CreateFromSerializedData(
 CachedMetadata::CachedMetadata(Vector<uint8_t> data) {
   // Serialized metadata should have non-empty data.
   DCHECK_GT(data.size(), kCachedMetaDataStart);
-  DCHECK(!data.empty());
+  DCHECK(!data.IsEmpty());
   // Make sure that the first int in the data is the single entry marker.
   CHECK_EQ(*reinterpret_cast<const uint32_t*>(data.data()),
            CachedMetadataHandler::kSingleEntry);
@@ -62,7 +62,11 @@ CachedMetadata::CachedMetadata(uint32_t data_type_id,
   DCHECK(data_type_id);
   DCHECK(data);
 
-  vector_ = CachedMetadata::GetSerializedDataHeader(data_type_id, size);
+  vector_.ReserveInitialCapacity(kCachedMetaDataStart + size);
+  uint32_t marker = CachedMetadataHandler::kSingleEntry;
+  vector_.Append(reinterpret_cast<const uint8_t*>(&marker), sizeof(uint32_t));
+  vector_.Append(reinterpret_cast<const uint8_t*>(&data_type_id),
+                 sizeof(uint32_t));
   vector_.Append(data, size);
 }
 

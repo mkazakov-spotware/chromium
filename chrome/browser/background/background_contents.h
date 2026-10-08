@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,7 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ref.h"
+#include "base/macros.h"
 #include "content/public/browser/site_instance.h"
 #include "content/public/browser/web_contents_delegate.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -46,7 +45,7 @@ class BackgroundContents : public extensions::DeferredStartRenderHost,
         std::unique_ptr<content::WebContents> new_contents,
         const GURL& target_url,
         WindowOpenDisposition disposition,
-        const blink::mojom::WindowFeatures& window_features,
+        const gfx::Rect& initial_rect,
         bool* was_blocked) = 0;
 
     // Informs the delegate of lifetime events.
@@ -65,38 +64,31 @@ class BackgroundContents : public extensions::DeferredStartRenderHost,
       content::RenderFrameHost* opener,
       bool is_new_browsing_instance,
       Delegate* delegate,
-      const content::StoragePartitionConfig& partition_config,
+      const std::string& partition_id,
       content::SessionStorageNamespace* session_storage_namespace);
-
-  BackgroundContents(const BackgroundContents&) = delete;
-  BackgroundContents& operator=(const BackgroundContents&) = delete;
-
   ~BackgroundContents() override;
 
   content::WebContents* web_contents() const { return web_contents_.get(); }
   virtual const GURL& GetURL() const;
 
-  // Adds this BackgroundContents to the queue of renderer main frames to create
-  // and navigate.
-  void CreateRendererSoon(const GURL& url);
+  // Adds this BackgroundContents to the queue of RenderViews to create.
+  void CreateRenderViewSoon(const GURL& url);
 
   // content::WebContentsDelegate implementation:
   void CloseContents(content::WebContents* source) override;
   bool ShouldSuppressDialogs(content::WebContents* source) override;
-  void DidNavigatePrimaryMainFramePostCommit(
-      content::WebContents* tab) override;
+  void DidNavigateMainFramePostCommit(content::WebContents* tab) override;
   void AddNewContents(content::WebContents* source,
                       std::unique_ptr<content::WebContents> new_contents,
                       const GURL& target_url,
                       WindowOpenDisposition disposition,
-                      const blink::mojom::WindowFeatures& window_features,
+                      const gfx::Rect& initial_rect,
                       bool user_gesture,
                       bool* was_blocked) override;
   bool IsNeverComposited(content::WebContents* web_contents) override;
 
   // content::WebContentsObserver implementation:
-  void PrimaryMainFrameRenderProcessGone(
-      base::TerminationStatus status) override;
+  void RenderProcessGone(base::TerminationStatus status) override;
 
  protected:
   // Exposed for testing.
@@ -104,31 +96,33 @@ class BackgroundContents : public extensions::DeferredStartRenderHost,
 
  private:
   // extensions::DeferredStartRenderHost implementation:
-  void CreateRendererNow() override;
+  void CreateRenderViewNow() override;
 
   // The delegate for this BackgroundContents.
-  raw_ptr<Delegate> delegate_;
+  Delegate* delegate_;
 
   // Delegate for choosing an ExtensionHostQueue.
   std::unique_ptr<extensions::ExtensionHostDelegate> extension_host_delegate_;
 
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
   std::unique_ptr<content::WebContents> web_contents_;
 
   // The initial URL to load.
   GURL initial_url_;
+
+  DISALLOW_COPY_AND_ASSIGN(BackgroundContents);
 };
 
 // This is the data sent out as the details with BACKGROUND_CONTENTS_OPENED.
 struct BackgroundContentsOpenedDetails {
   // The BackgroundContents object that has just been opened.
-  raw_ptr<BackgroundContents, DanglingUntriaged> contents;
+  BackgroundContents* contents;
 
   // The name of the parent frame for these contents.
-  const raw_ref<const std::string> frame_name;
+  const std::string& frame_name;
 
   // The ID of the parent application (if any).
-  const raw_ref<const std::string> application_id;
+  const std::string& application_id;
 };
 
 #endif  // CHROME_BROWSER_BACKGROUND_BACKGROUND_CONTENTS_H_

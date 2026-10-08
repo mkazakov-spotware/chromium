@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define CHROME_BROWSER_UI_EXTENSIONS_APPLICATION_LAUNCH_H_
 
 #include "chrome/browser/apps/app_service/app_launch_params.h"
-#include "components/services/app_service/public/cpp/app_launch_util.h"
 #include "url/gurl.h"
 
 class Browser;
@@ -32,7 +31,6 @@ void OpenApplicationWithReenablePrompt(Profile* profile,
                                        apps::AppLaunchParams&& params);
 
 // Open the application in a way specified by |params|.
-// Result may be nullptr if Navigate() fails.
 content::WebContents* OpenApplication(Profile* profile,
                                       apps::AppLaunchParams&& params);
 
@@ -40,7 +38,8 @@ content::WebContents* OpenApplication(Profile* profile,
 // delaying activating and showing it.
 Browser* CreateApplicationWindow(Profile* profile,
                                  const apps::AppLaunchParams& params,
-                                 const GURL& url);
+                                 const GURL& url,
+                                 bool can_resize = true);
 
 // Navigate application window to application url, but do not show it yet.
 content::WebContents* NavigateApplicationWindow(
@@ -50,7 +49,6 @@ content::WebContents* NavigateApplicationWindow(
     WindowOpenDisposition disposition);
 
 // Open the application in a way specified by |params| in a new window.
-// Returns nullptr if a browser window cannot be opened.
 content::WebContents* OpenApplicationWindow(Profile* profile,
                                             const apps::AppLaunchParams& params,
                                             const GURL& url);
@@ -77,13 +75,7 @@ void LaunchAppWithCallback(
     const std::string& app_id,
     const base::CommandLine& command_line,
     const base::FilePath& current_directory,
-    base::OnceCallback<void(Browser* browser, apps::LaunchContainer container)>
-        callback);
-
-// Shows the browser for |profile| if existent, otherwise attempts to open it.
-// Returns true if browser window already exists or if it was successfully
-// launched.
-bool ShowBrowserForProfile(Profile* profile,
-                           const apps::AppLaunchParams& params);
+    base::OnceCallback<void(Browser* browser,
+                            apps::mojom::LaunchContainer container)> callback);
 
 #endif  // CHROME_BROWSER_UI_EXTENSIONS_APPLICATION_LAUNCH_H_

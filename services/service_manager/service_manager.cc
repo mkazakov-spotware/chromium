@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "base/path_service.h"
 #include "base/process/process.h"
@@ -19,7 +20,7 @@
 #include "base/token.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
-#include "sandbox/policy/mojom/sandbox.mojom.h"
+#include "sandbox/policy/sandbox_type.h"
 #include "services/service_manager/public/cpp/connector.h"
 #include "services/service_manager/public/cpp/constants.h"
 #include "services/service_manager/public/cpp/manifest_builder.h"
@@ -31,7 +32,7 @@
 #include "services/service_manager/service_instance.h"
 #include "services/service_manager/service_process_host.h"
 
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
 #include "services/service_manager/service_process_launcher.h"
 #endif
 
@@ -41,14 +42,14 @@ namespace {
 
 const char kCapability_ServiceManager[] = "service_manager:service_manager";
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 const char kServiceExecutableExtension[] = ".service.exe";
-#elif !BUILDFLAG(IS_IOS)
+#elif !defined(OS_IOS)
 const char kServiceExecutableExtension[] = ".service";
 #endif
 
 base::ProcessId GetCurrentPid() {
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   // iOS does not support base::Process.
   return 0;
 #else
@@ -68,37 +69,35 @@ const Identity& GetServiceManagerInstanceIdentity() {
 class DefaultServiceProcessHost : public ServiceProcessHost {
  public:
   explicit DefaultServiceProcessHost(const base::FilePath& executable_path)
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
       : launcher_(nullptr, executable_path)
 #endif
   {
   }
 
-  DefaultServiceProcessHost(const DefaultServiceProcessHost&) = delete;
-  DefaultServiceProcessHost& operator=(const DefaultServiceProcessHost&) =
-      delete;
-
   ~DefaultServiceProcessHost() override = default;
 
   mojo::PendingRemote<mojom::Service> Launch(
       const Identity& identity,
-      sandbox::mojom::Sandbox sandbox_type,
-      const std::u16string& display_name,
+      sandbox::policy::SandboxType sandbox_type,
+      const base::string16& display_name,
       LaunchCallback callback) override {
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
     return mojo::NullRemote();
 #else
     // TODO(https://crbug.com/781334): Support sandboxing.
-    CHECK_EQ(sandbox_type, sandbox::mojom::Sandbox::kNoSandbox);
-    return launcher_.Start(identity, sandbox::mojom::Sandbox::kNoSandbox,
+    CHECK_EQ(sandbox_type, sandbox::policy::SandboxType::kNoSandbox);
+    return launcher_.Start(identity, sandbox::policy::SandboxType::kNoSandbox,
                            std::move(callback));
-#endif  // BUILDFLAG(IS_IOS)
+#endif  // defined(OS_IOS)
   }
 
  private:
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
   ServiceProcessLauncher launcher_;
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(DefaultServiceProcessHost);
 };
 
 // Default ServiceManager::Delegate implementation. This supports launching only
@@ -111,11 +110,6 @@ class DefaultServiceManagerDelegate : public ServiceManager::Delegate {
   explicit DefaultServiceManagerDelegate(
       ServiceManager::ServiceExecutablePolicy service_executable_policy)
       : service_executable_policy_(service_executable_policy) {}
-
-  DefaultServiceManagerDelegate(const DefaultServiceManagerDelegate&) = delete;
-  DefaultServiceManagerDelegate& operator=(
-      const DefaultServiceManagerDelegate&) = delete;
-
   ~DefaultServiceManagerDelegate() override = default;
 
   bool RunBuiltinServiceInstanceInCurrentProcess(
@@ -144,6 +138,8 @@ class DefaultServiceManagerDelegate : public ServiceManager::Delegate {
 
  private:
   const ServiceManager::ServiceExecutablePolicy service_executable_policy_;
+
+  DISALLOW_COPY_AND_ASSIGN(DefaultServiceManagerDelegate);
 };
 
 }  // namespace
@@ -192,6 +188,11 @@ ServiceManager::~ServiceManager() {
   }
   service_manager_instance_->Stop();
   instances_.clear();
+}
+
+void ServiceManager::SetInstanceQuitCallback(
+    base::OnceCallback<void(const Identity&)> callback) {
+  instance_quit_callback_ = std::move(callback);
 }
 
 ServiceInstance* ServiceManager::FindOrCreateMatchingTargetInstance(
@@ -304,7 +305,7 @@ ServiceInstance* ServiceManager::FindOrCreateMatchingTargetInstance(
       break;
     }
 
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
     case Manifest::ExecutionMode::kOutOfProcessBuiltin: {
       auto process_host = delegate_->CreateProcessHostForBuiltinServiceInstance(
           target_instance->identity());
@@ -333,11 +334,11 @@ ServiceInstance* ServiceManager::FindOrCreateMatchingTargetInstance(
       }
       break;
     }
-#else   // !BUILDFLAG(IS_IOS)
+#else   // !defined(OS_IOS)
     default:
       NOTREACHED();
       return nullptr;
-#endif  // !BUILDFLAG(IS_IOS)
+#endif  // !defined(OS_IOS)
   }
 
   return target_instance;
@@ -403,6 +404,9 @@ void ServiceManager::OnInstanceStopped(const Identity& identity) {
   for (auto& listener : listeners_) {
     listener->OnServiceStopped(identity);
   }
+
+  if (!instance_quit_callback_.is_null())
+    std::move(instance_quit_callback_).Run(identity);
 }
 
 ServiceInstance* ServiceManager::GetExistingInstance(

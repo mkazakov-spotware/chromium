@@ -1,11 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/sync/engine/sync_string_conversions.h"
 
 #include "base/notreached.h"
-#include "components/sync/base/passphrase_enums.h"
 
 #define ENUM_CASE(x) \
   case x:            \
@@ -36,6 +35,27 @@ const char* PassphraseTypeToString(PassphraseType type) {
 
   NOTREACHED();
   return "INVALID_PASSPHRASE_TYPE";
+}
+
+const char* BootstrapTokenTypeToString(BootstrapTokenType type) {
+  switch (type) {
+    ENUM_CASE(PASSPHRASE_BOOTSTRAP_TOKEN);
+    ENUM_CASE(KEYSTORE_BOOTSTRAP_TOKEN);
+  }
+
+  NOTREACHED();
+  return "INVALID_BOOTSTRAP_TOKEN_TYPE";
+}
+
+const char* KeyDerivationMethodToString(KeyDerivationMethod method) {
+  switch (method) {
+    ENUM_CASE(KeyDerivationMethod::PBKDF2_HMAC_SHA1_1003);
+    ENUM_CASE(KeyDerivationMethod::SCRYPT_8192_8_11);
+    ENUM_CASE(KeyDerivationMethod::UNSUPPORTED);
+  }
+
+  NOTREACHED();
+  return "INVALID_KEY_DERIVATION_METHOD";
 }
 
 #undef ENUM_CASE

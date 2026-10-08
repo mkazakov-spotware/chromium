@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@ package org.chromium.android_webview.test;
 
 import static org.chromium.android_webview.test.OnlyRunIn.ProcessMode.MULTI_PROCESS;
 
-import android.os.SystemClock;
 import android.view.KeyEvent;
 import android.webkit.JavascriptInterface;
 
@@ -59,12 +58,11 @@ public class AwContentsClientOnRendererUnresponsiveTest {
         @JavascriptInterface
         public void block() throws Exception {
             mThreadWasBlockedLatch.countDown();
-            mBlockingLatch.await(AwActivityTestRule.SCALED_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            mBlockingLatch.await(AwActivityTestRule.WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         }
 
         public void waitUntilBlocked() throws Exception {
-            mThreadWasBlockedLatch.await(
-                    AwActivityTestRule.SCALED_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            mThreadWasBlockedLatch.await(AwActivityTestRule.WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -166,14 +164,11 @@ public class AwContentsClientOnRendererUnresponsiveTest {
 
     private void sendInputEvent(final AwContents awContents) {
         PostTask.runOrPostTask(UiThreadTaskTraits.DEFAULT, () -> {
-            long eventTime = SystemClock.uptimeMillis();
-            awContents.dispatchKeyEvent(new KeyEvent(
-                    eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER, 0));
+            awContents.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
         });
     }
 
-    private void addJsBlockerInterface(final AwContents awContents, final JSBlocker blocker)
-            throws Exception {
+    private void addJsBlockerInterface(final AwContents awContents, final JSBlocker blocker) {
         AwActivityTestRule.addJavascriptInterfaceOnUiThread(awContents, blocker, "blocker");
     }
 

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include <wrl/client.h>
 
 #include "base/containers/flat_set.h"
-#include "base/power_monitor/power_observer.h"
 #include "base/threading/thread.h"
 #include "ui/gl/gl_export.h"
 #include "ui/gl/vsync_provider_win.h"
@@ -27,16 +26,9 @@ class VSyncObserver;
 // can be added or removed on the main thread, and the vsync thread goes to
 // sleep if there are no observers. This is used by DirectCompositionSurfaceWin
 // to plumb vsync signal back to the display compositor's BeginFrameSource.
-class GL_EXPORT VSyncThreadWin final : public base::PowerSuspendObserver {
+class GL_EXPORT VSyncThreadWin {
  public:
   static VSyncThreadWin* GetInstance();
-
-  VSyncThreadWin(const VSyncThreadWin&) = delete;
-  VSyncThreadWin& operator=(const VSyncThreadWin&) = delete;
-
-  // Implementation of base::PowerSuspendObserver
-  void OnSuspend() final;
-  void OnResume() final;
 
   // These methods are not rentrancy safe, and shouldn't be called inside
   // VSyncObserver::OnVSync.  It's safe to assume that these can be called only
@@ -50,9 +42,8 @@ class GL_EXPORT VSyncThreadWin final : public base::PowerSuspendObserver {
   friend struct base::DefaultSingletonTraits<VSyncThreadWin>;
 
   VSyncThreadWin();
-  ~VSyncThreadWin() final;
+  ~VSyncThreadWin();
 
-  void PostTaskIfNeeded();
   void WaitForVSync();
 
   base::Thread vsync_thread_;
@@ -64,9 +55,10 @@ class GL_EXPORT VSyncThreadWin final : public base::PowerSuspendObserver {
   Microsoft::WRL::ComPtr<IDXGIOutput> primary_output_;
 
   base::Lock lock_;
-  bool GUARDED_BY(lock_) is_vsync_task_posted_ = false;
-  bool GUARDED_BY(lock_) is_suspended_ = false;
+  bool GUARDED_BY(lock_) is_idle_ = true;
   base::flat_set<VSyncObserver*> GUARDED_BY(lock_) observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(VSyncThreadWin);
 };
 }  // namespace gl
 

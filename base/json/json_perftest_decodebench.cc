@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -71,12 +71,11 @@ int main(int argc, char* argv[]) {
 
       if (i == 0) {
         if (average) {
-          error_message =
-              !v.has_value() ? std::move(v.error().message) : std::string();
+          error_message = std::move(v.error_message);
         } else {
           std::cout << "# " << filename;
-          if (!v.has_value() && !v.error().message.empty()) {
-            std::cout << ": " << v.error().message;
+          if (!v.error_message.empty()) {
+            std::cout << ": " << v.error_message;
           }
           std::cout << std::endl;
         }

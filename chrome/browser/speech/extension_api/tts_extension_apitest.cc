@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,45 +7,38 @@
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/single_thread_task_runner.h"
-#include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/extensions/component_loader.h"
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/speech/extension_api/tts_engine_extension_api.h"
 #include "chrome/browser/speech/extension_api/tts_extension_api.h"
 #include "chrome/common/chrome_switches.h"
+#include "content/public/browser/notification_service.h"
 #include "content/public/browser/tts_controller.h"
 #include "content/public/browser/tts_platform.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
 #include "extensions/browser/event_router.h"
-#include "extensions/browser/extension_host.h"
-#include "extensions/browser/extension_host_test_helper.h"
 #include "extensions/browser/extension_system.h"
-#include "extensions/common/mojom/view_type.mojom.h"
+#include "extensions/browser/notification_types.h"
 #include "net/base/network_change_notifier.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/speech/extension_api/tts_engine_extension_observer_chromeos.h"
-#include "chromeos/services/tts/tts_service.h"
-#endif  // IS_CHROMEOS_ASH
-
-using ::testing::_;
 using ::testing::AnyNumber;
 using ::testing::DoAll;
-using ::testing::InSequence;
 using ::testing::Invoke;
+using ::testing::InSequence;
 using ::testing::InvokeWithoutArgs;
 using ::testing::Return;
 using ::testing::SaveArg;
 using ::testing::SetArgPointee;
 using ::testing::StrictMock;
+using ::testing::_;
 
 namespace {
 int g_saved_utterance_id;
@@ -57,20 +50,15 @@ class MockTtsPlatformImpl : public content::TtsPlatform {
  public:
   MockTtsPlatformImpl() : should_fake_get_voices_(false) {}
 
-  bool PlatformImplSupported() override {
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-    return false;
-#else
-    return true;
-#endif
-  }
+  bool PlatformImplSupported() override { return true; }
   bool PlatformImplInitialized() override { return true; }
 
   void WillSpeakUtteranceWithVoice(
       content::TtsUtterance* utterance,
       const content::VoiceData& voice_data) override {}
 
-  void LoadBuiltInTtsEngine(content::BrowserContext* browser_context) override {
+  bool LoadBuiltInTtsEngine(content::BrowserContext* browser_context) override {
+    return false;
   }
 
   void ClearError() override { error_ = ""; }
@@ -131,25 +119,12 @@ class MockTtsPlatformImpl : public content::TtsPlatform {
 
   void Shutdown() override {}
 
-  void FinalizeVoiceOrdering(std::vector<content::VoiceData>& voices) override {
-    // Prefer non-native voices.
-    std::stable_partition(
-        voices.begin(), voices.end(),
-        [](const content::VoiceData& voice) { return !voice.native; });
-  }
-
-  void RefreshVoices() override {}
-
-  content::ExternalPlatformDelegate* GetExternalPlatformDelegate() override {
-    return nullptr;
-  }
-
   void set_should_fake_get_voices(bool val) { should_fake_get_voices_ = val; }
 
   void SetErrorToEpicFail() { SetError("epic fail"); }
 
   void SendEndEventOnSavedUtteranceId() {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&MockTtsPlatformImpl::SendEvent,
                        ptr_factory_.GetWeakPtr(), false, g_saved_utterance_id,
@@ -162,7 +137,7 @@ class MockTtsPlatformImpl : public content::TtsPlatform {
                     const std::string& lang,
                     const content::VoiceData& voice,
                     const content::UtteranceContinuousParameters& params) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&MockTtsPlatformImpl::SendEvent,
                        ptr_factory_.GetWeakPtr(), false, utterance_id,
@@ -177,7 +152,7 @@ class MockTtsPlatformImpl : public content::TtsPlatform {
       const std::string& lang,
       const content::VoiceData& voice,
       const content::UtteranceContinuousParameters& params) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&MockTtsPlatformImpl::SendEvent,
                        ptr_factory_.GetWeakPtr(), true, utterance_id,
@@ -193,7 +168,7 @@ class MockTtsPlatformImpl : public content::TtsPlatform {
                       const content::UtteranceContinuousParameters& params) {
     for (int i = 0; i < static_cast<int>(utterance.size()); i++) {
       if (i == 0 || utterance[i - 1] == ' ') {
-        base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
             FROM_HERE,
             base::BindOnce(&MockTtsPlatformImpl::SendEvent,
                            ptr_factory_.GetWeakPtr(), false, utterance_id,
@@ -212,12 +187,12 @@ class MockTtsPlatformImpl : public content::TtsPlatform {
     content::TtsController* tts_controller =
         content::TtsController::GetInstance();
     if (wait_for_non_empty_queue && tts_controller->QueueSize() == 0) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
           FROM_HERE,
           base::BindOnce(&MockTtsPlatformImpl::SendEvent,
                          ptr_factory_.GetWeakPtr(), true, utterance_id,
                          event_type, char_index, length, message),
-          base::Milliseconds(100));
+          base::TimeDelta::FromMilliseconds(100));
       return;
     }
 
@@ -238,20 +213,17 @@ class MockTtsPlatformImpl : public content::TtsPlatform {
 class FakeNetworkOnlineStateForTest : public net::NetworkChangeNotifier {
  public:
   explicit FakeNetworkOnlineStateForTest(bool online) : online_(online) {}
-
-  FakeNetworkOnlineStateForTest(const FakeNetworkOnlineStateForTest&) = delete;
-  FakeNetworkOnlineStateForTest& operator=(
-      const FakeNetworkOnlineStateForTest&) = delete;
-
   ~FakeNetworkOnlineStateForTest() override {}
 
   ConnectionType GetCurrentConnectionType() const override {
-    return online_ ? net::NetworkChangeNotifier::CONNECTION_ETHERNET
-                   : net::NetworkChangeNotifier::CONNECTION_NONE;
+    return online_ ?
+        net::NetworkChangeNotifier::CONNECTION_ETHERNET :
+        net::NetworkChangeNotifier::CONNECTION_NONE;
   }
 
  private:
   bool online_;
+  DISALLOW_COPY_AND_ASSIGN(FakeNetworkOnlineStateForTest);
 };
 
 class EventRouterAddListenerWaiter : public EventRouter::Observer {
@@ -261,10 +233,6 @@ class EventRouterAddListenerWaiter : public EventRouter::Observer {
     DCHECK(profile);
     event_router_->RegisterObserver(this, event_name);
   }
-
-  EventRouterAddListenerWaiter(const EventRouterAddListenerWaiter&) = delete;
-  EventRouterAddListenerWaiter& operator=(const EventRouterAddListenerWaiter&) =
-      delete;
 
   ~EventRouterAddListenerWaiter() override {
     event_router_->UnregisterObserver(this);
@@ -278,39 +246,38 @@ class EventRouterAddListenerWaiter : public EventRouter::Observer {
   }
 
  private:
-  const raw_ptr<EventRouter> event_router_;
+  EventRouter* const event_router_;
   base::RunLoop loop_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(EventRouterAddListenerWaiter);
 };
 
 class TtsApiTest : public ExtensionApiTest {
  public:
   void SetUpInProcessBrowserTestFixture() override {
     ExtensionApiTest::SetUpInProcessBrowserTestFixture();
-    content::TtsController::SkipAddNetworkChangeObserverForTests(true);
     content::TtsController* tts_controller =
         content::TtsController::GetInstance();
     tts_controller->SetTtsPlatform(&mock_platform_impl_);
-    TtsExtensionEngine::GetInstance()->DisableBuiltInTTSEngineForTesting();
     tts_controller->SetTtsEngineDelegate(TtsExtensionEngine::GetInstance());
   }
 
   void AddNetworkSpeechSynthesisExtension() {
-    ExtensionHostTestHelper host_helper(profile());
-    host_helper.RestrictToType(mojom::ViewType::kExtensionBackgroundPage);
+    content::WindowedNotificationObserver observer(
+        NOTIFICATION_EXTENSION_BACKGROUND_PAGE_READY,
+        content::NotificationService::AllSources());
     ExtensionService* service =
         extensions::ExtensionSystem::Get(profile())->extension_service();
     service->component_loader()->AddNetworkSpeechSynthesisExtension();
-    const ExtensionHost* extension_host =
-        host_helper.WaitForDocumentElementAvailable();
-    ASSERT_EQ(mojom::ManifestLocation::kComponent,
-              extension_host->extension()->location());
+    observer.Wait();
+    ASSERT_EQ(Manifest::COMPONENT,
+              content::Source<const Extension>(observer.source())->location());
   }
 
  protected:
   bool HasVoiceWithName(const std::string& name) {
     std::vector<content::VoiceData> voices;
-    content::TtsController::GetInstance()->GetVoices(profile(), GURL(),
-                                                     &voices);
+    content::TtsController::GetInstance()->GetVoices(profile(), &voices);
     for (auto& voice : voices) {
       if (voice.name == name)
         return true;
@@ -322,36 +289,37 @@ class TtsApiTest : public ExtensionApiTest {
   StrictMock<MockTtsPlatformImpl> mock_platform_impl_;
 };
 
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
 IN_PROC_BROWSER_TEST_F(TtsApiTest, PlatformSpeakOptionalArgs) {
   EXPECT_CALL(mock_platform_impl_, IsSpeaking());
 
   InSequence s;
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillOnce(Return(true));
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "", _, _, _)).WillOnce(Return());
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillOnce(Return(true));
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "Alpha", _, _, _))
       .WillOnce(Return());
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillOnce(Return(true));
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "Bravo", _, _, _))
       .WillOnce(Return());
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillOnce(Return(true));
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "Charlie", _, _, _))
       .WillOnce(Return());
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillOnce(Return(true));
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "Echo", _, _, _))
       .WillOnce(Return());
-
-  // Called when the extension unloads.
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(false));
-
   ASSERT_TRUE(RunExtensionTest("tts/optional_args")) << message_;
 }
 
 IN_PROC_BROWSER_TEST_F(TtsApiTest, PlatformSpeakFinishesImmediately) {
   InSequence s;
   EXPECT_CALL(mock_platform_impl_, IsSpeaking());
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillOnce(Return(true));
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, _, _, _, _))
       .WillOnce(DoAll(
           Invoke(&mock_platform_impl_, &MockTtsPlatformImpl::SendEndEvent),
@@ -364,11 +332,13 @@ IN_PROC_BROWSER_TEST_F(TtsApiTest, PlatformSpeakInterrupt) {
 
   // One utterance starts speaking, and then a second interrupts.
   InSequence s;
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillOnce(Return(true));
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "text 1", _, _, _))
       .WillOnce(Return());
   // Expect the second utterance and allow it to finish.
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillOnce(Return(true));
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "text 2", _, _, _))
       .WillOnce(DoAll(
           Invoke(&mock_platform_impl_, &MockTtsPlatformImpl::SendEndEvent),
@@ -382,13 +352,15 @@ IN_PROC_BROWSER_TEST_F(TtsApiTest, PlatformSpeakQueueInterrupt) {
   // In this test, two utterances are queued, and then a third
   // interrupts. Speak(, _) never gets called on the second utterance.
   InSequence s;
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillOnce(Return(true));
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "text 1", _, _, _))
       .WillOnce(Return());
   // Don't expect the second utterance, because it's queued up and the
   // first never finishes.
   // Expect the third utterance and allow it to finish successfully.
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillOnce(Return(true));
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "text 3", _, _, _))
       .WillOnce(DoAll(
           Invoke(&mock_platform_impl_, &MockTtsPlatformImpl::SendEndEvent),
@@ -400,7 +372,8 @@ IN_PROC_BROWSER_TEST_F(TtsApiTest, PlatformSpeakEnqueue) {
   EXPECT_CALL(mock_platform_impl_, IsSpeaking());
 
   InSequence s;
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillOnce(Return(true));
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "text 1", _, _, _))
       .WillOnce(
           DoAll(Invoke(&mock_platform_impl_,
@@ -414,18 +387,21 @@ IN_PROC_BROWSER_TEST_F(TtsApiTest, PlatformSpeakEnqueue) {
 }
 
 IN_PROC_BROWSER_TEST_F(TtsApiTest, PlatformSpeakError) {
-  EXPECT_CALL(mock_platform_impl_, IsSpeaking()).Times(AnyNumber());
+  EXPECT_CALL(mock_platform_impl_, IsSpeaking())
+      .Times(AnyNumber());
 
   mock_platform_impl_.SetSpeakErrorTest(true);
 
   InSequence s;
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillOnce(Return(true));
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "first try", _, _, _))
       .WillOnce(
           DoAll(InvokeWithoutArgs(&mock_platform_impl_,
                                   &MockTtsPlatformImpl::SetErrorToEpicFail),
                 Return()));
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillOnce(Return(true));
 
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "second try", _, _, _))
       .WillOnce(DoAll(
@@ -438,7 +414,8 @@ IN_PROC_BROWSER_TEST_F(TtsApiTest, PlatformWordCallbacks) {
   EXPECT_CALL(mock_platform_impl_, IsSpeaking());
 
   InSequence s;
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillOnce(Return(true));
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "one two three", _, _, _))
       .WillOnce(DoAll(
           Invoke(&mock_platform_impl_, &MockTtsPlatformImpl::SendWordEvents),
@@ -448,31 +425,32 @@ IN_PROC_BROWSER_TEST_F(TtsApiTest, PlatformWordCallbacks) {
 }
 
 IN_PROC_BROWSER_TEST_F(TtsApiTest, PlatformPauseResume) {
-  EXPECT_CALL(mock_platform_impl_, IsSpeaking()).Times(AnyNumber());
+  EXPECT_CALL(mock_platform_impl_, IsSpeaking())
+      .Times(AnyNumber());
 
   InSequence s;
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "test 1", _, _, _))
       .WillOnce(DoAll(
           Invoke(&mock_platform_impl_, &MockTtsPlatformImpl::SendEndEvent),
           Return()));
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillOnce(Return(true));
   EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "test 2", _, _, _))
       .WillOnce(DoAll(SaveArg<0>(&g_saved_utterance_id), Return()));
   EXPECT_CALL(mock_platform_impl_, Pause());
   EXPECT_CALL(mock_platform_impl_, Resume())
-      .WillOnce(InvokeWithoutArgs(
-          &mock_platform_impl_,
-          &MockTtsPlatformImpl::SendEndEventOnSavedUtteranceId));
+      .WillOnce(
+          InvokeWithoutArgs(
+              &mock_platform_impl_,
+              &MockTtsPlatformImpl::SendEndEventOnSavedUtteranceId));
   ASSERT_TRUE(RunExtensionTest("tts/pause_resume")) << message_;
 }
 
 IN_PROC_BROWSER_TEST_F(TtsApiTest, PlatformPauseSpeakNoEnqueue) {
   // While paused, one utterance is enqueued, and then a second utterance that
-  // cannot be enqueued cancels only the first.
+  // cannot be enqueued cancels both.
   InSequence s;
   EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(true));
-  EXPECT_CALL(mock_platform_impl_, DoSpeak(_, "text 2", _, _, _));
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillOnce(Return(false));
   ASSERT_TRUE(RunExtensionTest("tts/pause_speak_no_enqueue")) << message_;
 }
 
@@ -483,8 +461,10 @@ IN_PROC_BROWSER_TEST_F(TtsApiTest, PlatformPauseSpeakNoEnqueue) {
 IN_PROC_BROWSER_TEST_F(TtsApiTest, RegisterEngine) {
   mock_platform_impl_.set_should_fake_get_voices(true);
 
-  EXPECT_CALL(mock_platform_impl_, IsSpeaking()).Times(AnyNumber());
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillRepeatedly(Return(true));
+  EXPECT_CALL(mock_platform_impl_, IsSpeaking())
+      .Times(AnyNumber());
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillRepeatedly(Return(true));
 
   {
     InSequence s;
@@ -504,40 +484,40 @@ IN_PROC_BROWSER_TEST_F(TtsApiTest, RegisterEngine) {
 
   // TODO(katie): Expect the deprecated gender warning rather than ignoring
   // warnings.
-  ASSERT_TRUE(RunExtensionTest("tts_engine/register_engine", {},
-                               {.ignore_manifest_warnings = true}))
+  ASSERT_TRUE(RunExtensionTestWithFlags("tts_engine/register_engine",
+                                        kFlagIgnoreManifestWarnings, kFlagNone))
       << message_;
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
 
 // https://crbug.com/709115 tracks test flakiness.
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #define MAYBE_EngineError DISABLED_EngineError
 #else
 #define MAYBE_EngineError EngineError
 #endif
 IN_PROC_BROWSER_TEST_F(TtsApiTest, MAYBE_EngineError) {
   EXPECT_CALL(mock_platform_impl_, IsSpeaking());
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillRepeatedly(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillRepeatedly(Return(true));
 
   ASSERT_TRUE(RunExtensionTest("tts_engine/engine_error")) << message_;
 }
 
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
 IN_PROC_BROWSER_TEST_F(TtsApiTest, EngineWordCallbacks) {
   EXPECT_CALL(mock_platform_impl_, IsSpeaking());
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillRepeatedly(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillRepeatedly(Return(true));
 
   ASSERT_TRUE(RunExtensionTest("tts_engine/engine_word_callbacks")) << message_;
 }
 
 IN_PROC_BROWSER_TEST_F(TtsApiTest, LangMatching) {
   EXPECT_CALL(mock_platform_impl_, IsSpeaking());
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillRepeatedly(Return(true));
+  EXPECT_CALL(mock_platform_impl_, StopSpeaking())
+      .WillRepeatedly(Return(true));
 
   ASSERT_TRUE(RunExtensionTest("tts_engine/lang_matching")) << message_;
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
 
 IN_PROC_BROWSER_TEST_F(TtsApiTest, NetworkSpeechEngine) {
   // Simulate online network state.
@@ -588,40 +568,5 @@ IN_PROC_BROWSER_TEST_F(TtsApiTest, VoicesAreCached) {
     waiter.Wait();
   }
 }
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-IN_PROC_BROWSER_TEST_F(TtsApiTest, OnSpeakWithAudioStream) {
-  TtsExtensionEngine::GetInstance()->DisableBuiltInTTSEngineForTesting();
-  TtsEngineExtensionObserverChromeOS* engine_observer =
-      TtsEngineExtensionObserverChromeOS::GetInstance(profile());
-  mojo::Remote<chromeos::tts::mojom::TtsService>* tts_service_remote =
-      engine_observer->tts_service_for_testing();
-  chromeos::tts::TtsService tts_service(
-      tts_service_remote->BindNewPipeAndPassReceiver());
-
-  EXPECT_CALL(mock_platform_impl_, IsSpeaking()).Times(AnyNumber());
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillRepeatedly(Return(true));
-
-  ASSERT_TRUE(RunExtensionTest("tts_engine/on_speak_with_audio_stream"))
-      << message_;
-}
-
-IN_PROC_BROWSER_TEST_F(TtsApiTest, OnSpeakWithAudioStreamAudioOptions) {
-  TtsExtensionEngine::GetInstance()->DisableBuiltInTTSEngineForTesting();
-  TtsEngineExtensionObserverChromeOS* engine_observer =
-      TtsEngineExtensionObserverChromeOS::GetInstance(profile());
-  mojo::Remote<chromeos::tts::mojom::TtsService>* tts_service_remote =
-      engine_observer->tts_service_for_testing();
-  chromeos::tts::TtsService tts_service(
-      tts_service_remote->BindNewPipeAndPassReceiver());
-
-  EXPECT_CALL(mock_platform_impl_, IsSpeaking()).Times(AnyNumber());
-  EXPECT_CALL(mock_platform_impl_, StopSpeaking()).WillRepeatedly(Return(true));
-
-  ASSERT_TRUE(RunExtensionTest(
-      "tts_engine/on_speak_with_audio_stream_using_audio_options"))
-      << message_;
-}
-#endif  // IS_CHROMEOS_ASH
 
 }  // namespace extensions

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,10 @@
 #include "base/containers/circular_deque.h"
 #include "cc/cc_export.h"
 #include "cc/metrics/average_lag_tracker.h"
-#include "cc/metrics/event_metrics.h"
+
+namespace ui {
+class LatencyInfo;
+}  // namespace ui
 
 namespace viz {
 struct FrameTimingDetails;
@@ -19,7 +22,7 @@ struct FrameTimingDetails;
 
 namespace cc {
 
-// A helper to decouple the `EventMetrics` and the `AverageLagTracker`.
+// A helper to decouple the LatencyInfos and the AverageLagTracker
 class CC_EXPORT AverageLagTrackingManager {
  public:
   AverageLagTrackingManager();
@@ -33,7 +36,7 @@ class CC_EXPORT AverageLagTrackingManager {
   // Adds all the eligible events in the collection |infos| to the |frame_token|
   // wait list.
   void CollectScrollEventsFromFrame(uint32_t frame_token,
-                                    const EventMetricsSet& events_metrics);
+                                    const std::vector<ui::LatencyInfo>& infos);
 
   // Sends all pending events in the |frame_token| list to the
   // AverageLagTracker, given its |frame_details|.
@@ -45,10 +48,17 @@ class CC_EXPORT AverageLagTrackingManager {
   void Clear();
 
  private:
+  // TODO(https://crbug.com/1101005): Remove GpuSwap implementation after M86.
+  // Tracker for the AverageLag metrics that uses the gpu swap begin timing as
+  // an approximation for the time the users sees the frame on the screen.
+  AverageLagTracker lag_tracker_gpu_swap_{
+      AverageLagTracker::FinishTimeType::GpuSwapBegin};
+
   // Tracker for the AverageLagPresentation metrics that uses the presentation
   // feedback time as an approximation for the time the users sees the frame on
   // the screen.
-  AverageLagTracker lag_tracker_;
+  AverageLagTracker lag_tracker_presentation_{
+      AverageLagTracker::FinishTimeType::PresentationFeedback};
 
   // List of events (vector) per frame (uint32_t |frame_token|) to submit to the
   // lag trackers when DidPresentCompositorFrame is called for a |frame_token|.

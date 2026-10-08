@@ -31,6 +31,7 @@
 #include "third_party/blink/public/platform/web_crypto.h"
 
 #include "third_party/blink/renderer/platform/crypto_result.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 

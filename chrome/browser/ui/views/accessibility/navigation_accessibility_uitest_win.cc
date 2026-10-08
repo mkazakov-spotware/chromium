@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #include <wrl/client.h>
 
 #include "base/containers/circular_deque.h"
+#include "base/macros.h"
 #include "base/strings/string_util.h"
 #include "base/win/scoped_bstr.h"
 #include "base/win/scoped_com_initializer.h"
@@ -34,11 +35,6 @@
 class WinAccessibilityEventMonitor {
  public:
   WinAccessibilityEventMonitor(UINT event_min, UINT event_max);
-
-  WinAccessibilityEventMonitor(const WinAccessibilityEventMonitor&) = delete;
-  WinAccessibilityEventMonitor& operator=(const WinAccessibilityEventMonitor&) =
-      delete;
-
   ~WinAccessibilityEventMonitor();
 
   // Blocks until the next event is received. When it's received, it
@@ -80,6 +76,8 @@ class WinAccessibilityEventMonitor {
   scoped_refptr<content::MessageLoopRunner> loop_runner_;
   HWINEVENTHOOK win_event_hook_handle_;
   static WinAccessibilityEventMonitor* instance_;
+
+  DISALLOW_COPY_AND_ASSIGN(WinAccessibilityEventMonitor);
 };
 
 // static
@@ -143,7 +141,7 @@ void WinAccessibilityEventMonitor::WaitForNextEvent(
   base::win::ScopedBstr name_bstr;
   HRESULT hr = acc_obj->get_accName(child_variant, name_bstr.Receive());
   if (S_OK == hr)
-    *out_name = base::WideToUTF8(name_bstr.Get());
+    *out_name = base::UTF16ToUTF8(base::string16(name_bstr.Get()));
   else
     *out_name = "";
 }
@@ -182,11 +180,6 @@ void CALLBACK WinAccessibilityEventMonitor::WinEventHookThunk(
 }
 
 class NavigationAccessibilityTest : public InProcessBrowserTest {
- public:
-  NavigationAccessibilityTest(const NavigationAccessibilityTest&) = delete;
-  NavigationAccessibilityTest& operator=(const NavigationAccessibilityTest&) =
-      delete;
-
  protected:
   NavigationAccessibilityTest() {}
   ~NavigationAccessibilityTest() override {}
@@ -205,6 +198,8 @@ class NavigationAccessibilityTest : public InProcessBrowserTest {
 
  private:
   base::win::ScopedCOMInitializer com_initializer_;
+
+  DISALLOW_COPY_AND_ASSIGN(NavigationAccessibilityTest);
 };
 
 // Tests that when focus is in the omnibox and the user types a url and
@@ -215,9 +210,9 @@ IN_PROC_BROWSER_TEST_F(NavigationAccessibilityTest,
                        DISABLED_TestNavigateToNewUrl) {
   content::BrowserAccessibilityState::GetInstance()->EnableAccessibility();
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), GURL("data:text/html;charset=utf-8,"
-                      "<head><title>First Page</title></head>")));
+  ui_test_utils::NavigateToURL(browser(),
+                               GURL("data:text/html;charset=utf-8,"
+                                    "<head><title>First Page</title></head>"));
 
   chrome::ExecuteCommand(browser(), IDC_FOCUS_LOCATION);
 

@@ -1,23 +1,22 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/app_list/model/folder_image.h"
 
-#include <algorithm>
 #include <memory>
-#include <utility>
 #include <vector>
 
 #include "ash/app_list/model/app_list_item.h"
 #include "ash/app_list/model/app_list_item_list.h"
 #include "ash/public/cpp/app_list/app_list_config.h"
 #include "ash/public/cpp/app_list/app_list_config_provider.h"
-#include "base/i18n/rtl.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/point.h"
+#include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/image/canvas_image_source.h"
@@ -43,10 +42,6 @@ class FolderImageSource : public gfx::CanvasImageSource {
   FolderImageSource(const AppListConfig& app_list_config,
                     const Icons& icons,
                     const gfx::Size& size);
-
-  FolderImageSource(const FolderImageSource&) = delete;
-  FolderImageSource& operator=(const FolderImageSource&) = delete;
-
   ~FolderImageSource() override;
 
  private:
@@ -62,6 +57,8 @@ class FolderImageSource : public gfx::CanvasImageSource {
   const AppListConfig& app_list_config_;
   Icons icons_;
   gfx::Size size_;
+
+  DISALLOW_COPY_AND_ASSIGN(FolderImageSource);
 };
 
 FolderImageSource::FolderImageSource(const AppListConfig& app_list_config,
@@ -112,6 +109,17 @@ void FolderImageSource::DrawIcon(gfx::Canvas* canvas,
 }
 
 void FolderImageSource::Draw(gfx::Canvas* canvas) {
+  gfx::PointF bubble_center(size().width() / 2, size().height() / 2);
+  bubble_center.Offset(0, -app_list_config_.folder_bubble_y_offset());
+
+  // Draw circle for folder bubble.
+  cc::PaintFlags flags;
+  flags.setStyle(cc::PaintFlags::kFill_Style);
+  flags.setAntiAlias(true);
+  flags.setColor(app_list_config_.folder_bubble_color());
+  canvas->DrawCircle(bubble_center, app_list_config_.folder_bubble_radius(),
+                     flags);
+
   if (icons_.size() == 0)
     return;
 
@@ -180,8 +188,10 @@ std::vector<gfx::Rect> FolderImage::GetTopIconsBounds(
   std::vector<gfx::Rect> top_icon_bounds;
 
   const AppListConfig& base_config =
-      *AppListConfigProvider::Get().GetConfigForType(app_list_config.type(),
-                                                     true /*can_create*/);
+      app_list_config.type() == AppListConfigType::kShared
+          ? AppListConfig::instance()
+          : *AppListConfigProvider::Get().GetConfigForType(
+                app_list_config.type(), true /*can_create*/);
 
   // The folder icons are generated as unclipped icons for default app list
   // config, and then scaled down to the required unclipped folder size as
@@ -236,15 +246,11 @@ std::vector<gfx::Rect> FolderImage::GetTopIconsBounds(
     // Left icon bounds.
     gfx::Rect left_rect = center_rect;
     left_rect.Offset(-origin_offset, 0);
+    top_icon_bounds.emplace_back(scale_and_translate_bounds(left_rect));
 
     // Right icon bounds.
     gfx::Rect right_rect = center_rect;
     right_rect.Offset(origin_offset, 0);
-
-    if (base::i18n::IsRTL())
-      std::swap(left_rect, right_rect);
-
-    top_icon_bounds.emplace_back(scale_and_translate_bounds(left_rect));
     top_icon_bounds.emplace_back(scale_and_translate_bounds(right_rect));
     return top_icon_bounds;
   }
@@ -252,15 +258,11 @@ std::vector<gfx::Rect> FolderImage::GetTopIconsBounds(
   // Top left icon bounds.
   gfx::Rect top_left_rect = center_rect;
   top_left_rect.Offset(-origin_offset, -origin_offset);
+  top_icon_bounds.emplace_back(scale_and_translate_bounds(top_left_rect));
 
   // Top right icon bounds.
   gfx::Rect top_right_rect = center_rect;
   top_right_rect.Offset(origin_offset, -origin_offset);
-
-  if (base::i18n::IsRTL())
-    std::swap(top_left_rect, top_right_rect);
-
-  top_icon_bounds.emplace_back(scale_and_translate_bounds(top_left_rect));
   top_icon_bounds.emplace_back(scale_and_translate_bounds(top_right_rect));
 
   if (num_items == 3) {
@@ -274,15 +276,11 @@ std::vector<gfx::Rect> FolderImage::GetTopIconsBounds(
   // Bottom left icon bounds.
   gfx::Rect bottom_left_rect = center_rect;
   bottom_left_rect.Offset(-origin_offset, origin_offset);
+  top_icon_bounds.emplace_back(scale_and_translate_bounds(bottom_left_rect));
 
   // Bottom right icon bounds.
   gfx::Rect bottom_right_rect = center_rect;
   bottom_right_rect.Offset(origin_offset, origin_offset);
-
-  if (base::i18n::IsRTL())
-    std::swap(bottom_left_rect, bottom_right_rect);
-
-  top_icon_bounds.emplace_back(scale_and_translate_bounds(bottom_left_rect));
   top_icon_bounds.emplace_back(scale_and_translate_bounds(bottom_right_rect));
   return top_icon_bounds;
 }
@@ -314,8 +312,10 @@ void FolderImage::RemoveObserver(FolderImageObserver* observer) {
 }
 
 void FolderImage::ItemIconChanged(AppListConfigType config_type) {
-  if (config_type != app_list_config_->type())
+  if (config_type != AppListConfigType::kShared &&
+      config_type != app_list_config_->type()) {
     return;
+  }
 
   // Note: Must update the image only (cannot simply call UpdateIcon), because
   // UpdateIcon removes and re-adds the FolderImage as an observer of the

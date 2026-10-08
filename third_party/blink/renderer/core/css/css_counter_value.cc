@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,24 +13,24 @@ namespace cssvalue {
 
 String CSSCounterValue::CustomCSSText() const {
   StringBuilder result;
-  if (Separator().empty())
+  if (Separator().IsEmpty())
     result.Append("counter(");
   else
     result.Append("counters(");
 
   result.Append(Identifier());
-  if (!Separator().empty()) {
+  if (!Separator().IsEmpty()) {
     result.Append(", ");
     result.Append(separator_->CssText());
   }
-  bool is_default_list_style = ListStyle() == "decimal";
+  bool is_default_list_style = ListStyle() == CSSValueID::kDecimal;
   if (!is_default_list_style) {
     result.Append(", ");
     result.Append(list_style_->CssText());
   }
   result.Append(')');
 
-  return result.ReleaseString();
+  return result.ToString();
 }
 
 void CSSCounterValue::TraceAfterDispatch(blink::Visitor* visitor) const {

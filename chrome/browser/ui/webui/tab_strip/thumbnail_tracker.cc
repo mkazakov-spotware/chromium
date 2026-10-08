@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,29 +7,23 @@
 #include <memory>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/thumbnails/thumbnail_tab_helper.h"
 #include "content/public/browser/web_contents_observer.h"
 
 // Handles requests for a given tab's thumbnail and watches for thumbnail
 // updates for the lifetime of the tab.
-class ThumbnailTracker::ContentsData : public content::WebContentsObserver {
+class ThumbnailTracker::ContentsData : public content::WebContentsObserver,
+                                       public ThumbnailImage::Observer {
  public:
   ContentsData(ThumbnailTracker* parent, content::WebContents* contents)
       : content::WebContentsObserver(contents), parent_(parent) {
     thumbnail_ = parent_->thumbnail_getter_.Run(contents);
-    if (!thumbnail_)
-      return;
-
-    subscription_ = thumbnail_->Subscribe();
-    subscription_->SetCompressedImageCallback(base::BindRepeating(
-        &ContentsData::ThumbnailImageCallback, base::Unretained(this)));
+    if (thumbnail_)
+      observer_.Add(thumbnail_.get());
   }
-
-  ContentsData(const ContentsData&) = delete;
-  ContentsData& operator=(const ContentsData&) = delete;
 
   void RequestThumbnail() {
     if (thumbnail_)
@@ -41,7 +35,7 @@ class ThumbnailTracker::ContentsData : public content::WebContentsObserver {
     // We must un-observe each ThumbnailImage when the WebContents it came from
     // closes.
     if (thumbnail_) {
-      subscription_.reset();
+      observer_.Remove(thumbnail_.get());
       thumbnail_.reset();
     }
 
@@ -49,19 +43,23 @@ class ThumbnailTracker::ContentsData : public content::WebContentsObserver {
     parent_->ContentsClosed(web_contents());
   }
 
- private:
-  void ThumbnailImageCallback(CompressedThumbnailData image) {
-    parent_->ThumbnailUpdated(web_contents(), image);
+  // ThumbnailImage::Observer:
+  void OnCompressedThumbnailDataAvailable(
+      CompressedThumbnailData thumbnail_image) override {
+    parent_->ThumbnailUpdated(web_contents(), thumbnail_image);
   }
 
-  raw_ptr<ThumbnailTracker> parent_;
+ private:
+  ThumbnailTracker* parent_;
   scoped_refptr<ThumbnailImage> thumbnail_;
-  std::unique_ptr<ThumbnailImage::Subscription> subscription_;
+  ScopedObserver<ThumbnailImage, ThumbnailImage::Observer> observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ContentsData);
 };
 
 ThumbnailTracker::ThumbnailTracker(ThumbnailUpdatedCallback callback)
     : ThumbnailTracker(std::move(callback),
-                       base::BindRepeating(GetThumbnailFromTabHelper)) {}
+                       base::Bind(GetThumbnailFromTabHelper)) {}
 
 ThumbnailTracker::ThumbnailTracker(ThumbnailUpdatedCallback callback,
                                    GetThumbnailCallback thumbnail_getter)

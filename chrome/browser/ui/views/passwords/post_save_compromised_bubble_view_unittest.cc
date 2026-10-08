@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/passwords/post_save_compromised_bubble_view.h"
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/views/passwords/password_bubble_view_test_base.h"
 
 namespace {
@@ -20,7 +19,7 @@ class PostSaveCompromisedBubbleViewTest : public PasswordBubbleViewTestBase {
   void TearDown() override;
 
  protected:
-  raw_ptr<PostSaveCompromisedBubbleView> view_;
+  PostSaveCompromisedBubbleView* view_;
 };
 
 void PostSaveCompromisedBubbleViewTest::CreateViewAndShow(
@@ -47,6 +46,15 @@ TEST_F(PostSaveCompromisedBubbleViewTest, SafeState) {
 
 TEST_F(PostSaveCompromisedBubbleViewTest, MoreToFixState) {
   CreateViewAndShow(password_manager::ui::PASSWORD_UPDATED_MORE_TO_FIX);
+  EXPECT_TRUE(view_->GetOkButton());
+  EXPECT_FALSE(view_->GetCancelButton());
+
+  EXPECT_CALL(*model_delegate_mock(), NavigateToPasswordCheckup);
+  view_->AcceptDialog();
+}
+
+TEST_F(PostSaveCompromisedBubbleViewTest, UnsafeState) {
+  CreateViewAndShow(password_manager::ui::PASSWORD_UPDATED_UNSAFE_STATE);
   EXPECT_TRUE(view_->GetOkButton());
   EXPECT_FALSE(view_->GetCancelButton());
 

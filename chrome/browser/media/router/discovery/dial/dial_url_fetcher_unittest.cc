@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/test/task_environment.h"
 #include "chrome/browser/media/router/discovery/dial/dial_url_fetcher.h"
@@ -19,7 +18,6 @@
 #include "net/base/load_flags.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_status_code.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "services/network/test/test_url_loader_factory.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -27,18 +25,15 @@
 
 using testing::_;
 using testing::HasSubstr;
-using testing::NiceMock;
 
 namespace media_router {
 
 class DialURLFetcherTest : public testing::Test {
  public:
   DialURLFetcherTest() : url_("http://127.0.0.1/app/Youtube") {}
-  DialURLFetcherTest(DialURLFetcherTest&) = delete;
-  DialURLFetcherTest& operator=(DialURLFetcherTest&) = delete;
 
   void StartGetRequest() {
-    fetcher_ = std::make_unique<NiceMock<TestDialURLFetcher>>(
+    fetcher_ = std::make_unique<TestDialURLFetcher>(
         base::BindOnce(&DialURLFetcherTest::OnSuccess, base::Unretained(this)),
         base::BindOnce(&DialURLFetcherTest::OnError, base::Unretained(this)),
         &loader_factory_);
@@ -48,14 +43,17 @@ class DialURLFetcherTest : public testing::Test {
   }
 
  protected:
-  MOCK_METHOD(void, OnSuccess, (const std::string&));
-  MOCK_METHOD(void, OnError, (const std::string&, absl::optional<int>));
+  MOCK_METHOD1(OnSuccess, void(const std::string&));
+  MOCK_METHOD2(OnError, void(int, const std::string&));
 
   base::test::TaskEnvironment environment_;
   network::TestURLLoaderFactory loader_factory_;
   const GURL url_;
   std::unique_ptr<TestDialURLFetcher> fetcher_;
   network::ResourceRequest request_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DialURLFetcherTest);
 };
 
 TEST_F(DialURLFetcherTest, FetchSuccessful) {
@@ -79,30 +77,22 @@ TEST_F(DialURLFetcherTest, FetchSuccessful) {
 }
 
 TEST_F(DialURLFetcherTest, FetchFailsOnMissingAppInfo) {
-  auto head = network::mojom::URLResponseHead::New();
-  head->headers =
-      base::MakeRefCounted<net::HttpResponseHeaders>("HTTP/1.1 404 Not Found");
-  ASSERT_EQ(404, head->headers->response_code());
-
-  EXPECT_CALL(*this, OnError(HasSubstr(base::NumberToString(
-                                 net::ERR_HTTP_RESPONSE_CODE_FAILURE)),
-                             absl::optional<int>(404)));
+  EXPECT_CALL(*this, OnError(404, HasSubstr("404")));
   loader_factory_.AddResponse(
-      url_, std::move(head), "",
-      network::URLLoaderCompletionStatus(net::ERR_HTTP_RESPONSE_CODE_FAILURE),
-      {}, network::TestURLLoaderFactory::kSendHeadersOnNetworkError);
+      url_, network::mojom::URLResponseHead::New(), "",
+      network::URLLoaderCompletionStatus(net::HTTP_NOT_FOUND));
   StartGetRequest();
 }
 
 TEST_F(DialURLFetcherTest, FetchFailsOnEmptyAppInfo) {
-  EXPECT_CALL(*this, OnError(HasSubstr("Missing or empty response"), _));
+  EXPECT_CALL(*this, OnError(_, HasSubstr("Missing or empty response")));
   loader_factory_.AddResponse(url_, network::mojom::URLResponseHead::New(), "",
                               network::URLLoaderCompletionStatus());
   StartGetRequest();
 }
 
 TEST_F(DialURLFetcherTest, FetchFailsOnBadAppInfo) {
-  EXPECT_CALL(*this, OnError("Invalid response encoding", _));
+  EXPECT_CALL(*this, OnError(_, "Invalid response encoding"));
   std::string body("\xfc\x9c\xbf\x80\xbf\x80");
   network::URLLoaderCompletionStatus status;
   status.decoded_body_length = body.size();

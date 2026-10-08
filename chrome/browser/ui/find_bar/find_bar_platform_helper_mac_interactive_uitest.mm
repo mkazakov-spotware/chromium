@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <Cocoa/Cocoa.h>
 
-#include <string>
-
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -36,12 +36,6 @@ GURL GetURL(const std::string& filename) {
 class FindBarPlatformHelperMacInteractiveUITest : public InProcessBrowserTest {
  public:
   FindBarPlatformHelperMacInteractiveUITest() {}
-
-  FindBarPlatformHelperMacInteractiveUITest(
-      const FindBarPlatformHelperMacInteractiveUITest&) = delete;
-  FindBarPlatformHelperMacInteractiveUITest& operator=(
-      const FindBarPlatformHelperMacInteractiveUITest&) = delete;
-
   ~FindBarPlatformHelperMacInteractiveUITest() override = default;
 
   void SetUpOnMainThread() override {
@@ -56,6 +50,8 @@ class FindBarPlatformHelperMacInteractiveUITest : public InProcessBrowserTest {
 
  private:
   NSString* old_find_text_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(FindBarPlatformHelperMacInteractiveUITest);
 };
 
 // Tests that the pasteboard is updated when the find bar is changed.
@@ -64,7 +60,7 @@ IN_PROC_BROWSER_TEST_F(FindBarPlatformHelperMacInteractiveUITest,
   FindBarController* find_bar_controller = browser()->GetFindBarController();
   ASSERT_NE(nullptr, find_bar_controller);
 
-  const std::u16string empty_string;
+  const base::string16 empty_string;
   find_bar_controller->SetText(empty_string);
 
   chrome::Find(browser());
@@ -80,10 +76,10 @@ IN_PROC_BROWSER_TEST_F(FindBarPlatformHelperMacInteractiveUITest,
   ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_F, false,
                                               false, false, false));
 
-  std::u16string find_bar_string =
+  base::string16 find_bar_string =
       find_bar_controller->find_bar()->GetFindText();
 
-  ASSERT_EQ(u"asdf", find_bar_string);
+  ASSERT_EQ(base::ASCIIToUTF16("asdf"), find_bar_string);
   EXPECT_EQ(find_bar_string, base::SysNSStringToUTF16(
                                  [[FindPasteboard sharedInstance] findText]));
 }
@@ -96,7 +92,7 @@ IN_PROC_BROWSER_TEST_F(FindBarPlatformHelperMacInteractiveUITest,
       browser_incognito->GetFindBarController();
   ASSERT_NE(nullptr, find_bar_controller);
 
-  const std::u16string empty_string;
+  const base::string16 empty_string;
   find_bar_controller->SetText(empty_string);
 
   chrome::Find(browser_incognito);
@@ -116,10 +112,10 @@ IN_PROC_BROWSER_TEST_F(FindBarPlatformHelperMacInteractiveUITest,
   ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_T, false,
                                               false, false, false));
 
-  std::u16string find_bar_string =
+  base::string16 find_bar_string =
       find_bar_controller->find_bar()->GetFindText();
 
-  ASSERT_EQ(u"secret", find_bar_string);
+  ASSERT_EQ(base::ASCIIToUTF16("secret"), find_bar_string);
   EXPECT_NE(find_bar_string, base::SysNSStringToUTF16(
                                  [[FindPasteboard sharedInstance] findText]));
 }
@@ -134,9 +130,9 @@ IN_PROC_BROWSER_TEST_F(FindBarPlatformHelperMacInteractiveUITest,
   ASSERT_NE(nullptr, find_bar_controller);
 
   GURL url = GetURL(kSimple);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
 
-  const std::u16string empty_string;
+  const base::string16 empty_string;
   find_bar_controller->SetText(empty_string);
 
   chrome::Find(browser());
@@ -152,12 +148,12 @@ IN_PROC_BROWSER_TEST_F(FindBarPlatformHelperMacInteractiveUITest,
   ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_E, false,
                                               false, false, false));
 
-  EXPECT_EQ(u"1/1", find_bar_controller->find_bar()
-                        ->GetFindBarTesting()
-                        ->GetMatchCountText());
+  EXPECT_EQ(base::ASCIIToUTF16("1/1"), find_bar_controller->find_bar()
+                                           ->GetFindBarTesting()
+                                           ->GetMatchCountText());
 
   chrome::AddTabAt(browser(), GURL(url::kAboutBlankURL), -1, true);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
   chrome::Find(browser());
 
   ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_T, false,
@@ -169,15 +165,15 @@ IN_PROC_BROWSER_TEST_F(FindBarPlatformHelperMacInteractiveUITest,
   ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_T, false,
                                               false, false, false));
 
-  EXPECT_EQ(u"1/1", find_bar_controller->find_bar()
-                        ->GetFindBarTesting()
-                        ->GetMatchCountText());
+  EXPECT_EQ(base::ASCIIToUTF16("1/1"), find_bar_controller->find_bar()
+                                           ->GetFindBarTesting()
+                                           ->GetMatchCountText());
 
   // Go back to the first tab and verify that the match text is cleared.
   browser()->tab_strip_model()->ActivateTabAt(0);
-  EXPECT_EQ(u"", find_bar_controller->find_bar()
-                     ->GetFindBarTesting()
-                     ->GetMatchCountText());
+  EXPECT_EQ(base::ASCIIToUTF16(""), find_bar_controller->find_bar()
+                                        ->GetFindBarTesting()
+                                        ->GetMatchCountText());
 }
 
 // Equivalent to browser_tests
@@ -197,8 +193,7 @@ IN_PROC_BROWSER_TEST_F(FindBarPlatformHelperMacInteractiveUITest,
                                               false, false, false));
 
   Browser* browser_incognito = CreateIncognitoBrowser();
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser_incognito,
-                                           GURL("data:text/plain,bar")));
+  ui_test_utils::NavigateToURL(browser_incognito, GURL("data:text/plain,bar"));
 
   ASSERT_TRUE(chrome::ExecuteCommand(browser_incognito, IDC_FIND_NEXT));
   content::WebContents* web_contents_incognito =
@@ -208,7 +203,8 @@ IN_PROC_BROWSER_TEST_F(FindBarPlatformHelperMacInteractiveUITest,
   FindBarController* find_bar_controller =
       browser_incognito->GetFindBarController();
   ASSERT_NE(nullptr, find_bar_controller);
-  EXPECT_EQ(u"bar", find_bar_controller->find_bar()->GetFindText());
+  EXPECT_EQ(base::ASCIIToUTF16("bar"),
+            find_bar_controller->find_bar()->GetFindText());
 }
 
 // Equivalent to browser_tests
@@ -220,12 +216,12 @@ IN_PROC_BROWSER_TEST_F(FindBarPlatformHelperMacInteractiveUITest,
   ASSERT_NE(nullptr, find_bar_controller);
 
   GURL url = GetURL(kSimple);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
 
   content::WebContents* first_active_web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
 
-  const std::u16string empty_string;
+  const base::string16 empty_string;
   find_bar_controller->SetText(empty_string);
 
   chrome::Find(browser());
@@ -242,7 +238,7 @@ IN_PROC_BROWSER_TEST_F(FindBarPlatformHelperMacInteractiveUITest,
                                               false, false, false));
 
   chrome::AddTabAt(browser(), GURL(url::kAboutBlankURL), -1, true);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
   ASSERT_NE(first_active_web_contents,
             browser()->tab_strip_model()->GetActiveWebContents());
 
@@ -264,7 +260,8 @@ IN_PROC_BROWSER_TEST_F(FindBarPlatformHelperMacInteractiveUITest,
                                       find_in_page::ResultAction::kKeep);
   // Simulate F3.
   browser()->GetFindBarController()->Show(true /*find_next*/);
-  EXPECT_EQ(u"given", find_in_page::FindTabHelper::FromWebContents(
-                          first_active_web_contents)
-                          ->find_text());
+  EXPECT_EQ(
+      base::ASCIIToUTF16("given"),
+      find_in_page::FindTabHelper::FromWebContents(first_active_web_contents)
+          ->find_text());
 }

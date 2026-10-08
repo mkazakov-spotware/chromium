@@ -1,20 +1,25 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_EXECUTION_CONTEXT_WINDOW_AGENT_FACTORY_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_EXECUTION_CONTEXT_WINDOW_AGENT_FACTORY_H_
 
+#include <utility>
+
 #include "base/memory/scoped_refptr.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
+#include "third_party/blink/renderer/platform/heap/heap_allocator.h"
 #include "third_party/blink/renderer/platform/heap/member.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin_hash.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
+namespace v8 {
+class Isolate;
+}
+
 namespace blink {
 
-class AgentGroupScheduler;
 class SecurityOrigin;
 class WindowAgent;
 
@@ -29,16 +34,13 @@ class WindowAgent;
 // https://html.spec.whatwg.org/C#auxiliary-browsing-context
 class WindowAgentFactory final : public GarbageCollected<WindowAgentFactory> {
  public:
-  explicit WindowAgentFactory(AgentGroupScheduler& agent_group_scheduler);
+  WindowAgentFactory();
 
   // Returns an instance of WindowAgent for |origin|.
   // This returns the same instance for origin A and origin B if either:
   //  - |has_potential_universal_access_privilege| is true,
   //  - both A and B have `file:` scheme,
   //  - or, they have the same scheme and the same registrable origin.
-  // If |is_origin_agent_cluster| is true though, then the same instance will
-  // only return the same instance for an exact match (scheme, host, port) to
-  // |origin|.
   //
   // Set |has_potential_universal_access_privilege| if an agent may be able to
   // access all other agents synchronously.
@@ -47,9 +49,8 @@ class WindowAgentFactory final : public GarbageCollected<WindowAgentFactory> {
   //   * --run-web-tests is set,
   //   * or, the Blink instance is running for Android WebView.
   WindowAgent* GetAgentForOrigin(bool has_potential_universal_access_privilege,
-                                 const SecurityOrigin* origin,
-                                 bool is_origin_agent_cluster,
-                                 bool origin_agent_cluster_left_as_default);
+                                 v8::Isolate* isolate,
+                                 const SecurityOrigin* origin);
 
   void Trace(Visitor*) const;
 
@@ -97,22 +98,12 @@ class WindowAgentFactory final : public GarbageCollected<WindowAgentFactory> {
               SecurityOriginHash>
       opaque_origin_agents_;
 
-  // Use the SecurityOrigin itself as the key for origin-keyed origins.
-  // TODO(wjmaclean,domenic): In future when logical cross-origin-isolation
-  // (COI) is implemented, we should unify it with logical-OAC so that all the
-  // origin-keyed isolation relies on a single mechanism.
-  HeapHashMap<scoped_refptr<const SecurityOrigin>,
-              WeakMember<WindowAgent>,
-              SecurityOriginHash>
-      origin_keyed_agent_cluster_agents_;
-
   // Use registerable domain as the key for general tuple origins.
   using TupleOriginAgents = HeapHashMap<SchemeAndRegistrableDomain,
                                         WeakMember<WindowAgent>,
                                         SchemeAndRegistrableDomainHash,
                                         SchemeAndRegistrableDomainTraits>;
   TupleOriginAgents tuple_origin_agents_;
-  Member<AgentGroupScheduler> agent_group_scheduler_;
 };
 
 }  // namespace blink

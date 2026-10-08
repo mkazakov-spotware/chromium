@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@
 #include "components/invalidation/public/ack_handler.h"
 #include "components/invalidation/public/invalidation_util.h"
 
-namespace invalidation {
+namespace syncer {
 
 namespace {
 
@@ -26,13 +26,14 @@ const char kVersionKey[] = "version";
 const char kPayloadKey[] = "payload";
 const int64_t kInvalidVersion = -1;
 
-// Fills base::Value::Dict as if legacy ObjectID still would be in use.
+// Fills base::DictionaryValue as if legacy ObjectID still would be in use.
 // Used to provide values for chrome://invalidations page.
-base::Value::Dict TopicToObjectIDValue(const Topic& topic) {
-  base::Value::Dict value;
+std::unique_ptr<base::DictionaryValue> TopicToObjectIDValue(
+    const Topic& topic) {
+  auto value = std::make_unique<base::DictionaryValue>();
   // Source has been deprecated, pass 0 instead.
-  value.Set("source", 0);
-  value.Set("name", topic);
+  value->SetInteger("source", 0);
+  value->SetString("name", topic);
   return value;
 }
 
@@ -114,24 +115,24 @@ void Invalidation::Drop() {
   }
 }
 
-bool Invalidation::operator==(const Invalidation& other) const {
+bool Invalidation::Equals(const Invalidation& other) const {
   return topic_ == other.topic_ &&
          is_unknown_version_ == other.is_unknown_version_ &&
          version_ == other.version_ && payload_ == other.payload_;
 }
 
-base::Value::Dict Invalidation::ToValue() const {
-  base::Value::Dict value;
+std::unique_ptr<base::DictionaryValue> Invalidation::ToValue() const {
+  auto value = std::make_unique<base::DictionaryValue>();
   // TODO(crbug.com/1056181): ObjectID has been deprecated, but the value here
   // used in the js counterpart (chrome://invalidations). Replace ObjectID with
   // Topic here together with js counterpart update.
-  value.Set(kObjectIdKey, TopicToObjectIDValue(topic_));
+  value->Set(kObjectIdKey, TopicToObjectIDValue(topic_));
   if (is_unknown_version_) {
-    value.Set(kIsUnknownVersionKey, true);
+    value->SetBoolean(kIsUnknownVersionKey, true);
   } else {
-    value.Set(kIsUnknownVersionKey, false);
-    value.Set(kVersionKey, base::NumberToString(version_));
-    value.Set(kPayloadKey, payload_);
+    value->SetBoolean(kIsUnknownVersionKey, false);
+    value->SetString(kVersionKey, base::NumberToString(version_));
+    value->SetString(kPayloadKey, payload_);
   }
   return value;
 }
@@ -140,7 +141,7 @@ std::string Invalidation::ToString() const {
   std::string output;
   JSONStringValueSerializer serializer(&output);
   serializer.set_pretty_print(true);
-  serializer.Serialize(ToValue());
+  serializer.Serialize(*ToValue());
   return output;
 }
 
@@ -155,4 +156,4 @@ Invalidation::Invalidation(const Topic& topic,
       payload_(payload),
       ack_handle_(ack_handle) {}
 
-}  // namespace invalidation
+}  // namespace syncer

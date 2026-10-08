@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,7 +35,7 @@ void SetPINRequestHandler::ProvidePIN(const std::string& old_pin,
                                       const std::string& new_pin) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(my_sequence_checker_);
   DCHECK_EQ(State::kWaitingForPIN, state_);
-  DCHECK_EQ(pin::ValidatePIN(new_pin), pin::PINEntryError::kNoError);
+  DCHECK(pin::IsValid(new_pin));
 
   if (authenticator_ == nullptr) {
     // Authenticator was detached.
@@ -107,16 +107,14 @@ void SetPINRequestHandler::OnTouch(FidoAuthenticator* authenticator) {
         kSupportedButPinNotSet:
       state_ = State::kWaitingForPIN;
       CancelActiveAuthenticators(authenticator->GetId());
-      std::move(get_pin_callback_)
-          .Run(authenticator->CurrentMinPINLength(),
-               authenticator->NewMinPINLength(), absl::nullopt);
+      std::move(get_pin_callback_).Run(base::nullopt);
       break;
   }
 }
 
 void SetPINRequestHandler::OnRetriesResponse(
     CtapDeviceResponseCode status,
-    absl::optional<pin::RetriesResponse> response) {
+    base::Optional<pin::RetriesResponse> response) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(my_sequence_checker_);
   DCHECK_EQ(state_, State::kGettingRetries);
 
@@ -127,14 +125,12 @@ void SetPINRequestHandler::OnRetriesResponse(
   }
 
   state_ = State::kWaitingForPIN;
-  std::move(get_pin_callback_)
-      .Run(authenticator_->CurrentMinPINLength(),
-           authenticator_->NewMinPINLength(), response->retries);
+  std::move(get_pin_callback_).Run(response->retries);
 }
 
 void SetPINRequestHandler::OnSetPINComplete(
     CtapDeviceResponseCode status,
-    absl::optional<pin::EmptyResponse> response) {
+    base::Optional<pin::EmptyResponse> response) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(my_sequence_checker_);
   DCHECK_EQ(state_, State::kSettingPIN);
 

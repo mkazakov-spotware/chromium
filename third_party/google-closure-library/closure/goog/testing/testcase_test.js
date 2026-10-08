@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2014 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.testing.TestCaseTest');
 goog.setTestOnly();
@@ -150,16 +158,13 @@ let testDoneRuntime = {};
 /**
  * @param {TestCase} test
  * @param {Array<string>} errors
- * @suppress {missingProperties} suppression added to enable type checking
  */
 function storeCallsAndErrors(test, errors) {
   testDoneTestsSeen.push(test.name);
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testDoneErrorsSeen[test.name] = [];
   for (let i = 0; i < errors.length; i++) {
     testDoneErrorsSeen[test.name].push(errors[i].split('\n')[0]);
   }
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testDoneRuntime[test.name] = test.getElapsedTime();
 }
 /**
@@ -177,25 +182,8 @@ function assertStoreCallsAndErrors(expectedTests, expectedErrors) {
 
 /**
  * A global test function used by `testInitializeTestCase`.
- * @suppress {strictMissingProperties} suppression added to enable type checking
  */
-globalThis.mockTestName = function() {
-  return failGoogPromise();
-};
-
-/**
- * A variable with the same autodiscovery prefix, used by
- * `testInitializeTestCase`. TestCase does not support auto-discovering tests
- * within Arrays, either as functions added to the array object or as a value
- * within the array (as it never recurses into the content of the array).
- * @suppress {strictMissingProperties} suppression added to enable type checking
- */
-globalThis.mockTestNameValues = ['hello', 'world'];
-/**
- * @return {!GoogPromise<?>}
- * @suppress {strictMissingProperties} suppression added to enable type checking
- */
-globalThis.mockTestNameValues.mockTestNameTestShouldNotBeRun = function() {
+goog.global.mockTestName = function() {
   return failGoogPromise();
 };
 
@@ -216,7 +204,6 @@ testSuite({
     assertEquals(0, result.errors.length);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testCompletedCallbacks() {
     const callback = FunctionMock('completed');
     const testCase = new TestCase();
@@ -287,7 +274,7 @@ testSuite({
   },
 
   testTestCaseReturningPromise_PromiseResolve() {
-    if (!('Promise' in globalThis)) {
+    if (!('Promise' in goog.global)) {
       return;
     }
     const testCase = new TestCase();
@@ -301,7 +288,6 @@ testSuite({
     });
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testTestCase_DoubleFailure() {
     let doneCount = 0;
     const testCase = new TestCase();
@@ -326,13 +312,12 @@ testSuite({
     assertNotContains('testcase.js', result.errors[0].toString());
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testTestCase_RepeatedFailure() {
     const stubs = new PropertyReplacer();
     // Prevent the mock from the inner test from forcibly failing the outer
     // test.
     stubs.replace(
-        globalThis, 'G_testRunner', null, true /* opt_allowNullOrUndefined */);
+        goog.global, 'G_testRunner', null, true /* opt_allowNullOrUndefined */);
 
     let doneCount;
     let testCase;
@@ -345,23 +330,17 @@ testSuite({
       });
 
       const mock = FunctionMock();
-      testCase.addNewTest(
-          'foo', /**
-                    @suppress {checkTypes} suppression added to enable type
-                    checking
-                  */
-          () => {
-            mock(1).$once();
-            mock.$replay();
-            // This throws a bad-parameter exception immediately.
-            mock(2);
-          },
-          null, [{
-            // This throws the recorded exception again.
-            // Calling this in tearDown is a common pattern (eg, in
-            // Environment).
-            tearDown: goog.bind(mock.$verify, mock),
-          }]);
+      testCase.addNewTest('foo', () => {
+        mock(1).$once();
+        mock.$replay();
+        // This throws a bad-parameter exception immediately.
+        mock(2);
+      }, null, [{
+                  // This throws the recorded exception again.
+                  // Calling this in tearDown is a common pattern (eg, in
+                  // Environment).
+                  tearDown: goog.bind(mock.$verify, mock),
+                          }]);
       testCase.runTests();
     } finally {
       stubs.reset();
@@ -380,7 +359,6 @@ testSuite({
     assertNotContains('testcase.js', result.errors[0].toString());
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testTestCase_SyncFailure() {
     const testCase = new TestCase();
     testCase.addNewTest('foo', fail);
@@ -398,7 +376,6 @@ testSuite({
     assertNotContains('testcase.js', result.errors[0].toString());
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testTestCaseReturningPromise_SyncFailure() {
     const testCase = new TestCase();
     testCase.addNewTest('foo', fail);
@@ -464,7 +441,7 @@ testSuite({
   },
 
   testTestCaseReturningPromise_PromiseReject() {
-    if (!('Promise' in globalThis)) {
+    if (!('Promise' in goog.global)) {
       return;
     }
     const testCase = new TestCase();
@@ -481,7 +458,7 @@ testSuite({
   },
 
   testTestCaseReturningPromise_PromiseTimeout() {
-    if (!('Promise' in globalThis)) {
+    if (!('Promise' in goog.global)) {
       return;
     }
     const testCase = new TestCase();
@@ -512,7 +489,6 @@ testSuite({
     });
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testTestCase_SyncSuccess_SyncFailure() {
     const testCase = new TestCase();
     testCase.addNewTest('foo', ok);
@@ -528,7 +504,6 @@ testSuite({
     assertEquals('bar', result.errors[0].source);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testTestCaseReturningPromise_SyncSuccess_SyncFailure() {
     const testCase = new TestCase();
     testCase.addNewTest('foo', ok);
@@ -561,7 +536,7 @@ testSuite({
   },
 
   testTestCaseReturningPromise_PromiseResolve_PromiseReject() {
-    if (!('Promise' in globalThis)) {
+    if (!('Promise' in goog.global)) {
       return;
     }
     const testCase = new TestCase();
@@ -578,7 +553,7 @@ testSuite({
   },
 
   testTestCaseReturningPromise_PromiseResolve_GoogPromiseReject() {
-    if (!('Promise' in globalThis)) {
+    if (!('Promise' in goog.global)) {
       return;
     }
     const testCase = new TestCase();
@@ -595,7 +570,7 @@ testSuite({
   },
 
   testTestCaseReturningPromise_GoogPromiseResolve_PromiseReject() {
-    if (!('Promise' in globalThis)) {
+    if (!('Promise' in goog.global)) {
       return;
     }
     const testCase = new TestCase();
@@ -612,35 +587,28 @@ testSuite({
   },
 
   testTestCaseReturningPromise_PromisesInSetUpAndTest() {
-    if (!('Promise' in globalThis)) {
+    if (!('Promise' in goog.global)) {
       return;
     }
     const testCase = new TestCase();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     testCase.setUpPage = () => {
       event('setUpPage-called')();
       return Timer.promise().then(() => {
         event('setUpPage-promiseFinished')();
       });
     };
-    /** @suppress {checkTypes} suppression added to enable type checking */
     testCase.setUp = () => {
       event('setUp-called')();
       return Timer.promise().then(() => {
         event('setUp-promiseFinished')();
       });
     };
-    testCase.addNewTest(
-        'foo', /**
-                  @suppress {checkTypes} suppression added to enable type
-                  checking
-                */
-        () => {
-          event('foo-called')();
-          return Timer.promise().then(() => {
-            event('foo-promiseFinished')();
-          });
-        });
+    testCase.addNewTest('foo', () => {
+      event('foo-called')();
+      return Timer.promise().then(() => {
+        event('foo-promiseFinished')();
+      });
+    });
 
     // Initially only setUpPage should have been called.
     return testCase.runTestsReturningPromise().then((result) => {
@@ -663,7 +631,6 @@ testSuite({
     });
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testTestCaseNeverRun() {
     const testCase = new TestCase();
     testCase.addNewTest('foo', fail);
@@ -676,17 +643,14 @@ testSuite({
     assertEquals(0, result.errors.length);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testParseRunTests() {
-    assertNull(TestCase.parseRunTests_('file://hello.html'));
-    assertNull(TestCase.parseRunTests_('https://example.com?runTests='));
+    assertNull(TestCase.parseRunTests_(''));
+    assertNull(TestCase.parseRunTests_('?runTests='));
     assertObjectEquals(
-        {'testOne': true},
-        TestCase.parseRunTests_('https://example.com?runTests=testOne'));
+        {'testOne': true}, TestCase.parseRunTests_('?runTests=testOne'));
     assertObjectEquals(
         {'testOne': true, 'testTwo': true},
-        TestCase.parseRunTests_(
-            'https://example.com?foo=bar&runTests=testOne,testTwo'));
+        TestCase.parseRunTests_('?foo=bar&runTests=testOne,testTwo'));
     assertObjectEquals(
         {
           '1': true,
@@ -695,14 +659,9 @@ testSuite({
           'testShouting': true,
           'TESTSHOUTING': true,
         },
-        TestCase.parseRunTests_(
-            'https://example.com?RUNTESTS=testShouting,TESTSHOUTING,1,2,3'));
+        TestCase.parseRunTests_('?RUNTESTS=testShouting,TESTSHOUTING,1,2,3'));
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testSortOrder_natural() {
     const testCase = new TestCase();
     testCase.setOrder('natural');
@@ -728,10 +687,6 @@ testSuite({
     assertEquals(0, result.errors.length);
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testSortOrder_random() {
     const testCase = new TestCase();
     testCase.setOrder('random');
@@ -767,10 +722,6 @@ testSuite({
     assertEquals(0, result.errors.length);
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testSortOrder_sorted() {
     const testCase = new TestCase();
     testCase.setOrder('sorted');
@@ -796,7 +747,6 @@ testSuite({
     assertEquals(0, result.errors.length);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testRunTests() {
     const testCase = new TestCase();
     testCase.setTestsToRun({'test_a': true, 'test_c': true});
@@ -819,7 +769,6 @@ testSuite({
     assertEquals(0, result.errors.length);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testRunTests_byIndex() {
     const testCase = new TestCase();
     testCase.setTestsToRun({'0': true, '2': true});
@@ -919,63 +868,43 @@ testSuite({
   },
 
   testFailOnUnreportedAsserts_SwallowedException() {
-    return verifyTestOutcomeForFailOnUnreportedAssertsFlag(
-        false, /**
-                  @suppress {missingReturn} suppression added to enable type
-                  checking
-                */
-        () => {
-          try {
-            assertTrue(false);
-          } catch (e) {
-            // Swallow the exception generated by the assertion.
-          }
-        });
+    return verifyTestOutcomeForFailOnUnreportedAssertsFlag(false, () => {
+      try {
+        assertTrue(false);
+      } catch (e) {
+        // Swallow the exception generated by the assertion.
+      }
+    });
   },
 
   testFailOnUnreportedAsserts_SwallowedFail() {
-    return verifyTestOutcomeForFailOnUnreportedAssertsFlag(
-        false, /**
-                  @suppress {missingReturn,checkTypes} suppression added to
-                  enable type checking
-                */
-        () => {
-          try {
-            fail();
-          } catch (e) {
-            // Swallow the exception generated by fail.
-          }
-        });
+    return verifyTestOutcomeForFailOnUnreportedAssertsFlag(false, () => {
+      try {
+        fail();
+      } catch (e) {
+        // Swallow the exception generated by fail.
+      }
+    });
   },
 
   testFailOnUnreportedAsserts_SwallowedAssertThrowsException() {
-    return verifyTestOutcomeForFailOnUnreportedAssertsFlag(
-        false, /**
-                  @suppress {missingReturn} suppression added to enable type
-                  checking
-                */
-        () => {
-          try {
-            assertThrows(goog.nullFunction);
-          } catch (e) {
-            // Swallow the exception generated by assertThrows.
-          }
-        });
+    return verifyTestOutcomeForFailOnUnreportedAssertsFlag(false, () => {
+      try {
+        assertThrows(goog.nullFunction);
+      } catch (e) {
+        // Swallow the exception generated by assertThrows.
+      }
+    });
   },
 
   testFailOnUnreportedAsserts_SwallowedAssertNotThrowsException() {
-    return verifyTestOutcomeForFailOnUnreportedAssertsFlag(
-        false, /**
-                  @suppress {missingReturn,checkTypes} suppression added to
-                  enable type checking
-                */
-        () => {
-          try {
-            assertNotThrows(functions.error());
-          } catch (e) {
-            // Swallow the exception generated by assertNotThrows.
-          }
-        });
+    return verifyTestOutcomeForFailOnUnreportedAssertsFlag(false, () => {
+      try {
+        assertNotThrows(functions.error());
+      } catch (e) {
+        // Swallow the exception generated by assertNotThrows.
+      }
+    });
   },
 
   testFailOnUnreportedAsserts_SwallowedExceptionViaPromise() {
@@ -992,39 +921,25 @@ testSuite({
   },
 
   testFailOnUnreportedAsserts_NotForAssertThrowsJsUnitException() {
-    return verifyTestOutcomeForFailOnUnreportedAssertsFlag(
-        true, /**
-                 @suppress {missingReturn} suppression added to enable type
-                 checking
-               */
-        () => {
-          assertThrowsJsUnitException(() => {
-            assertTrue(false);
-          });
-        });
+    return verifyTestOutcomeForFailOnUnreportedAssertsFlag(true, () => {
+      assertThrowsJsUnitException(() => {
+        assertTrue(false);
+      });
+    });
   },
 
   testFailOnUnreportedAsserts_NotForExpectedFailures() {
-    return verifyTestOutcomeForFailOnUnreportedAssertsFlag(
-        true, /**
-                 @suppress {missingReturn} suppression added to enable type
-                 checking
-               */
-        () => {
-          const expectedFailures = new ExpectedFailures();
-          expectedFailures.expectFailureFor(true);
-          try {
-            assertTrue(false);
-          } catch (e) {
-            expectedFailures.handleException(e);
-          }
-        });
+    return verifyTestOutcomeForFailOnUnreportedAssertsFlag(true, () => {
+      const expectedFailures = new ExpectedFailures();
+      expectedFailures.expectFailureFor(true);
+      try {
+        assertTrue(false);
+      } catch (e) {
+        expectedFailures.handleException(e);
+      }
+    });
   },
 
-  /**
-     @suppress {checkTypes,visibility,missingProperties} suppression added to
-     enable type checking
-   */
   testFailOnUnreportedAsserts_ReportUnpropagatedAssertionExceptions() {
     const testCase = new TestCase();
 
@@ -1039,7 +954,6 @@ testSuite({
     testCase.thrownAssertionExceptions_.push(e1);
     testCase.thrownAssertionExceptions_.push(e2);
 
-    /** @suppress {visibility} suppression added to enable type checking */
     const exception = testCase.reportUnpropagatedAssertionExceptions_('test');
     assertContains('One or more assertions were', exception.toString());
 
@@ -1047,7 +961,6 @@ testSuite({
     mockRecordError.$tearDown();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testUnreportedAsserts_failedTest() {
     const testCase = new TestCase();
     testCase.addNewTest('testFailSync', () => {
@@ -1129,7 +1042,7 @@ testSuite({
       },
       testNestedIgnoreTests: {
         shouldRunTests() {
-          event('testNestedIgnoreTests_ShouldRunTests')();
+          event('shouldRunTests')();
           return false;
         },
 
@@ -1164,18 +1077,11 @@ testSuite({
           testC: event('testNestedSuite_SuperNestedSuite_C'),
           tearDown: event('tearDown4'),
         },
-        testSuperNestedIgnoreTests: {
-          shouldRunTests() {
-            event('testNestedSuite_SuperNestedIgnoreTests_ShouldRunTests')();
-            return false;
-          },
-          testShouldNotRun: event('SHOULD NEVER HAPPEN SUPER NESTED'),
-        },
         tearDown: event('tearDown3'),
       },
       tearDown: event('tearDown1'),
     });
-    assertEquals(12, testCase.getCount());
+    assertEquals(11, testCase.getCount());
     const tests = testCase.getTests();
     const names = [];
     for (let i = 0; i < tests.length; i++) {
@@ -1194,7 +1100,6 @@ testSuite({
           'testNestedSuite_A',
           'testNestedSuite_B',
           'testNestedSuite_SuperNestedSuite_C',
-          'testNestedSuite_SuperNestedIgnoreTests_ShouldNotRun',
         ],
         names);
     await testCase.runTestsReturningPromise();
@@ -1208,7 +1113,7 @@ testSuite({
           'testNested',
           'tearDown2',
           'tearDown1',
-          'testNestedIgnoreTests_ShouldRunTests',
+          'shouldRunTests',
           'throw shouldRunTests',
           'setUp1',
           'setUp3',
@@ -1227,7 +1132,6 @@ testSuite({
           'tearDown4',
           'tearDown3',
           'tearDown1',
-          'testNestedSuite_SuperNestedIgnoreTests_ShouldRunTests',
         ],
         events);
   },
@@ -1302,7 +1206,6 @@ testSuite({
     });
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testCallbackToTestDoneOk() {
     testDoneTestsSeen = [];
     testDoneErrorsSeen = {};
@@ -1315,7 +1218,6 @@ testSuite({
     });
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testCallbackToTestDoneFail() {
     testDoneTestsSeen = [];
     testDoneErrorsSeen = [];
@@ -1328,17 +1230,16 @@ testSuite({
     });
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testInitializeTestCase() {
     testDoneTestsSeen = [];
     testDoneErrorsSeen = [];
     const testCase = new TestCase('fooCase');
     testCase.getAutoDiscoveryPrefix = () => 'mockTestName';
     const outerTestCase = TestCase.getActiveTestCase();
-    globalThis['G_testRunner'].testCase = null;
+    goog.global['G_testRunner'].testCase = null;
     TestCase.initializeTestCase(testCase, storeCallsAndErrors);
     const checkAfterInitialize = TestCase.getActiveTestCase();
-    globalThis['G_testRunner'].testCase = outerTestCase;
+    goog.global['G_testRunner'].testCase = outerTestCase;
     // This asserts require G_testRunner to be set.
     assertEquals(checkAfterInitialize, testCase);
     assertEquals(TestCase.getActiveTestCase(), outerTestCase);
@@ -1362,53 +1263,4 @@ testSuite({
       assertArrayEquals(['setUp1', 'setUp2', 'tearDown2', 'tearDown1'], events);
     });
   },
-
-  testShouldRunTests_inconsistentResult() {
-    const testCase = new TestCase('fooTest');
-    let timesShouldRunTestsCalled = 0;
-    testCase.setTestObj({
-      shouldRunTests() {
-        return (++timesShouldRunTestsCalled) <= 2;
-      },
-
-      testFoo() {},
-      testBar() {},
-      testBuzz() {},
-    });
-
-    testCase.runTests();
-
-    assertTrue(testCase.isSuccess());
-    const result = testCase.getResult();
-    assertEquals(3, result.totalCount);
-    assertEquals(3, result.runCount);
-    assertEquals(3, result.successCount);
-    assertEquals(0, result.errors.length);
-    assertEquals(2, timesShouldRunTestsCalled);
-  },
-
-  testShouldRunTests_marksTestsAsSkipped() {
-    const testCase = new TestCase('fooCase');
-    let timesShouldSkipTestsCalled = 0;
-    testCase.setTestObj({
-      shouldRunTests() {
-        // Let it pass once so that we don't exit early before processing any of
-        // the test cases.
-        return ++timesShouldSkipTestsCalled <= 1;
-      },
-      testFoo() {},
-      testBar() {},
-      testBuzz() {},
-    });
-
-    testCase.runTests();
-
-    assertTrue(testCase.isSuccess());
-    const result = testCase.getResult();
-    assertEquals(3, result.totalCount);
-    assertEquals(3, result.skipCount);
-    assertEquals(0, result.runCount);
-    assertEquals(0, result.successCount);
-    assertEquals(0, result.errors.length);
-  }
 });

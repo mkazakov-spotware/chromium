@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,14 @@
 #include <mfapi.h>
 #include <mfidl.h>
 #include <wrl.h>
-
-#include <memory>
 #include <queue>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/sequenced_task_runner.h"
 #include "base/synchronization/lock.h"
-#include "base/task/sequenced_task_runner.h"
 #include "media/base/decoder_buffer.h"
 #include "media/base/demuxer_stream.h"
-#include "media/base/media_log.h"
 
 namespace media {
 
@@ -51,14 +47,12 @@ class MediaFoundationStreamWrapper
   static HRESULT Create(int stream_id,
                         IMFMediaSource* parent_source,
                         DemuxerStream* demuxer_stream,
-                        std::unique_ptr<MediaLog> media_log,
                         scoped_refptr<base::SequencedTaskRunner> task_runner,
                         MediaFoundationStreamWrapper** stream_out);
 
   HRESULT RuntimeClassInitialize(int stream_id,
                                  IMFMediaSource* parent_source,
-                                 DemuxerStream* demuxer_stream,
-                                 std::unique_ptr<MediaLog> media_log);
+                                 DemuxerStream* demuxer_stream);
   void SetTaskRunner(scoped_refptr<base::SequencedTaskRunner> task_runner);
   void DetachParent();
   void DetachDemuxerStream();
@@ -122,8 +116,6 @@ class MediaFoundationStreamWrapper
   bool ServicePostFlushSampleRequest();
   virtual HRESULT GetMediaType(IMFMediaType** media_type_out) = 0;
 
-  void ReportEncryptionType(const scoped_refptr<DecoderBuffer>& buffer);
-
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
   enum class State {
     kInitialized,
@@ -131,10 +123,8 @@ class MediaFoundationStreamWrapper
     kStopped,
     kPaused
   } state_ = State::kInitialized;
-  raw_ptr<DemuxerStream> demuxer_stream_ = nullptr;
+  DemuxerStream* demuxer_stream_ = nullptr;
   DemuxerStream::Type stream_type_ = DemuxerStream::Type::UNKNOWN;
-
-  std::unique_ptr<MediaLog> media_log_;
 
   // Need exclusive access to some members between calls from MF threadpool
   // thread and calling thread from Chromium media stack.
@@ -175,8 +165,6 @@ class MediaFoundationStreamWrapper
   // progress of a flush operation.
   std::queue<scoped_refptr<DecoderBuffer>> post_flush_buffers_
       GUARDED_BY(lock_);
-
-  bool encryption_type_reported_ = false;
 
   // NOTE: Weak pointers must be invalidated before all other member variables.
   base::WeakPtrFactory<MediaFoundationStreamWrapper> weak_factory_{this};

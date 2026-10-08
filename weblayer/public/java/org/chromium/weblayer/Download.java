@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,10 @@ import java.io.File;
 
 /**
  * Contains information about a single download that's in progress.
+ *
+ * @since 81
  */
-class Download extends IClientDownload.Stub {
+public class Download extends IClientDownload.Stub {
     private final IDownload mDownloadImpl;
 
     // Constructor for test mocking.
@@ -128,10 +130,15 @@ class Download extends IClientDownload.Stub {
 
     /**
      * Returns the file name for the download that should be displayed to the user.
+     *
+     * @since 86
      */
     @NonNull
     public File getFileNameToReportToUser() {
         ThreadCheck.ensureOnUiThread();
+        if (WebLayer.getSupportedMajorVersionInternal() < 86) {
+            throw new UnsupportedOperationException();
+        }
         try {
             return new File(mDownloadImpl.getFileNameToReportToUser());
         } catch (RemoteException e) {

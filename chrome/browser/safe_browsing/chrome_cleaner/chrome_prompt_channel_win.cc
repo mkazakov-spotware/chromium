@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,17 +18,20 @@
 #include "base/files/file_path.h"
 #include "base/logging.h"
 #include "base/metrics/sparse_histogram.h"
+#include "base/optional.h"
 #include "base/strings/strcat.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/unguessable_token.h"
 #include "base/win/win_util.h"
 #include "base/win/windows_types.h"
 #include "components/chrome_cleaner/public/constants/constants.h"
 #include "components/chrome_cleaner/public/constants/result_codes.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "extensions/browser/extension_system.h"
 
 namespace safe_browsing {
 
@@ -91,7 +94,7 @@ std::pair<ScopedHandle, ScopedHandle> CreateMessagePipe(
   // Handles to inherit will be added to the LaunchOptions explicitly.
   security_attributes.bInheritHandle = false;
 
-  std::wstring pipe_name = base::UTF8ToWide(
+  base::string16 pipe_name = base::UTF8ToUTF16(
       base::StrCat({"\\\\.\\pipe\\chrome-cleaner-",
                     base::UnguessableToken::Create().ToString()}));
 
@@ -296,11 +299,12 @@ void ServiceChromePromptRequests(
                            channel, chrome_prompt_request.prompt_user()));
         break;
       case ChromePromptRequest::kRemoveExtensions:
-        LOG(ERROR) << "Received deprecated RemoveExtensions request";
-        WriteStatusErrorCodeToHistogram(ErrorCategory::kCustomError,
-                                        CustomErrors::kDeprecatedRequest);
-        return;
-      case ChromePromptRequest::kCloseConnection:
+        task_runner->PostTask(
+            FROM_HERE,
+            base::BindOnce(&ChromePromptChannel::HandleRemoveExtensionsRequest,
+                           channel, chrome_prompt_request.remove_extensions()));
+        break;
+      case ChromePromptRequest::kCloseConnection: {
         // Normal exit: do not kill the cleaner. OnConnectionClosed will still
         // be called.
         kill_cleaner_on_error.ReplaceClosure(base::DoNothing());
@@ -311,6 +315,7 @@ void ServiceChromePromptRequests(
             FROM_HERE,
             base::BindOnce(&ChromePromptChannel::CloseHandles, channel));
         return;
+      }
       default:
         LOG(ERROR) << "Read unknown request";
 
@@ -481,41 +486,52 @@ void ChromePromptChannel::HandlePromptUserRequest(
   std::vector<base::FilePath> files_to_delete;
   files_to_delete.reserve(request.files_to_delete_size());
   for (const std::string& file_path : request.files_to_delete()) {
-    std::wstring file_path_wide;
-    if (!base::UTF8ToWide(file_path.c_str(), file_path.size(),
-                          &file_path_wide)) {
+    base::string16 file_path_utf16;
+    if (!base::UTF8ToUTF16(file_path.c_str(), file_path.size(),
+                           &file_path_utf16)) {
       LOG(ERROR) << "Undisplayable file path in PromptUserRequest.";
       WriteStatusErrorCodeToHistogram(ErrorCategory::kCustomError,
                                       CustomErrors::kUndisplayableFilePath);
       return;
     }
-    files_to_delete.push_back(base::FilePath(file_path_wide));
+    files_to_delete.push_back(base::FilePath(file_path_utf16));
   }
 
-  absl::optional<std::vector<std::wstring>> optional_registry_keys;
+  base::Optional<std::vector<base::string16>> optional_registry_keys;
   if (request.registry_keys_size()) {
-    std::vector<std::wstring> registry_keys;
+    std::vector<base::string16> registry_keys;
     registry_keys.reserve(request.registry_keys_size());
     for (const std::string& registry_key : request.registry_keys()) {
-      std::wstring registry_key_wide;
-      if (!base::UTF8ToWide(registry_key.c_str(), registry_key.size(),
-                            &registry_key_wide)) {
+      base::string16 registry_key_utf16;
+      if (!base::UTF8ToUTF16(registry_key.c_str(), registry_key.size(),
+                             &registry_key_utf16)) {
         LOG(ERROR) << "Undisplayable registry key in PromptUserRequest.";
         WriteStatusErrorCodeToHistogram(
             ErrorCategory::kCustomError,
             CustomErrors::kUndisplayableRegistryKey);
         return;
       }
-      registry_keys.push_back(registry_key_wide);
+      registry_keys.push_back(registry_key_utf16);
     }
     optional_registry_keys = registry_keys;
   }
 
+  base::Optional<std::vector<base::string16>> optional_extension_ids;
   if (request.extension_ids_size()) {
-    LOG(ERROR) << "PromptUserRequest included deprecated extension_ids.";
-    WriteStatusErrorCodeToHistogram(ErrorCategory::kCustomError,
-                                    CustomErrors::kDeprecatedFieldInRequest);
-    return;
+    std::vector<base::string16> extension_ids;
+    extension_ids.reserve(request.extension_ids_size());
+    for (const std::string& extension_id : request.extension_ids()) {
+      base::string16 extension_id_utf16;
+      if (!base::UTF8ToUTF16(extension_id.c_str(), extension_id.size(),
+                             &extension_id_utf16)) {
+        LOG(ERROR) << "Undisplayable extension id in PromptUserRequest.";
+        WriteStatusErrorCodeToHistogram(ErrorCategory::kCustomError,
+                                        CustomErrors::kUndisplayableExtension);
+        return;
+      }
+      extension_ids.push_back(extension_id_utf16);
+    }
+    optional_extension_ids = extension_ids;
   }
 
   // No error occurred.
@@ -533,7 +549,39 @@ void ChromePromptChannel::HandlePromptUserRequest(
       },
       task_runner_, weak_factory_.GetWeakPtr());
   actions_->PromptUser(files_to_delete, optional_registry_keys,
-                       std::move(response_callback));
+                       optional_extension_ids, std::move(response_callback));
+}
+
+void ChromePromptChannel::HandleRemoveExtensionsRequest(
+    const chrome_cleaner::RemoveExtensionsRequest& request) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  base::ScopedClosureRunner error_handler(base::BindOnce(
+      &ChromePromptChannel::CloseHandles, base::Unretained(this)));
+
+  // extension_ids are mandatory.
+  if (!request.extension_ids_size()) {
+    LOG(ERROR) << "Bad RemoveExtensionsRequest";
+    return;
+  }
+
+  std::vector<base::string16> extension_ids;
+  extension_ids.reserve(request.extension_ids_size());
+  for (const std::string& extension_id : request.extension_ids()) {
+    base::string16 extension_id_utf16;
+    if (!base::UTF8ToUTF16(extension_id.c_str(), extension_id.size(),
+                           &extension_id_utf16)) {
+      LOG(ERROR) << "Unusable extension id in RemoveExtensionsReqest.";
+      return;
+    }
+    extension_ids.push_back(extension_id_utf16);
+  }
+
+  // No error occurred.
+  error_handler.ReplaceClosure(base::DoNothing());
+
+  chrome_cleaner::RemoveExtensionsResponse response;
+  response.set_success(actions_->DisableExtensions(extension_ids));
+  WriteResponseMessage(response);
 }
 
 void ChromePromptChannel::SendPromptUserResponse(

@@ -1,10 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/offline_pages/core/prefetch/prefetch_downloader_impl.h"
 
-#include <memory>
 #include <vector>
 
 #include "base/strings/strcat.h"
@@ -44,7 +43,7 @@ class PrefetchDownloaderImplTest : public PrefetchRequestTestBase {
   void SetUp() override {
     PrefetchRequestTestBase::SetUp();
 
-    prefetch_service_taco_ = std::make_unique<PrefetchServiceTestTaco>();
+    prefetch_service_taco_.reset(new PrefetchServiceTestTaco);
 
     auto downloader = std::make_unique<PrefetchDownloaderImpl>(
         &download_service_, kTestChannel,
@@ -76,7 +75,7 @@ class PrefetchDownloaderImplTest : public PrefetchRequestTestBase {
                                          operation_name);
   }
 
-  const absl::optional<download::DownloadParams>& GetDownload(
+  base::Optional<download::DownloadParams> GetDownload(
       const std::string& guid) const {
     return download_service_.GetDownload(guid);
   }
@@ -109,8 +108,7 @@ TEST_F(PrefetchDownloaderImplTest, DownloadParams) {
   clock()->SetNow(epoch);
 
   StartDownload(kDownloadId, kDownloadLocation, kOperationName);
-  const absl::optional<download::DownloadParams>& params =
-      GetDownload(kDownloadId);
+  base::Optional<download::DownloadParams> params = GetDownload(kDownloadId);
   ASSERT_TRUE(params.has_value());
   EXPECT_EQ(kDownloadId, params->guid);
   EXPECT_EQ(download::DownloadClient::OFFLINE_PAGE_PREFETCH, params->client);
@@ -128,7 +126,8 @@ TEST_F(PrefetchDownloaderImplTest, DownloadParams) {
                           "\r\n\r\n"}),
             params->request_params.request_headers.ToString());
 
-  EXPECT_EQ(base::Days(2), params->scheduling_params.cancel_time - epoch);
+  EXPECT_EQ(base::TimeDelta::FromDays(2),
+            params->scheduling_params.cancel_time - epoch);
   RunUntilIdle();
 }
 
@@ -137,8 +136,7 @@ TEST_F(PrefetchDownloaderImplTest, ExperimentHeaderInDownloadParams) {
   SetUpExperimentOption();
 
   StartDownload(kDownloadId, kDownloadLocation, kOperationName);
-  const absl::optional<download::DownloadParams>& params =
-      GetDownload(kDownloadId);
+  base::Optional<download::DownloadParams> params = GetDownload(kDownloadId);
   ASSERT_TRUE(params.has_value());
   std::string header_value;
   EXPECT_TRUE(params->request_params.request_headers.GetHeader(

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 #define CHROME_SERVICES_FILE_UTIL_FILE_UTIL_SERVICE_H_
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
-#include "chrome/services/file_util/buildflags.h"
 #include "chrome/services/file_util/public/mojom/file_util_service.mojom.h"
 #include "components/safe_browsing/buildflags.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -17,15 +15,11 @@ class FileUtilService : public chrome::mojom::FileUtilService {
  public:
   explicit FileUtilService(
       mojo::PendingReceiver<chrome::mojom::FileUtilService> receiver);
-
-  FileUtilService(const FileUtilService&) = delete;
-  FileUtilService& operator=(const FileUtilService&) = delete;
-
   ~FileUtilService() override;
 
  private:
   // chrome::mojom::FileUtilService implementation:
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   void BindZipFileCreator(
       mojo::PendingReceiver<chrome::mojom::ZipFileCreator> receiver) override;
 #endif
@@ -36,16 +30,9 @@ class FileUtilService : public chrome::mojom::FileUtilService {
       override;
 #endif
 
-#if BUILDFLAG(ENABLE_EXTRACTORS)
-  void BindSingleFileTarXzFileExtractor(
-      mojo::PendingReceiver<chrome::mojom::SingleFileExtractor> receiver)
-      override;
-  void BindSingleFileTarFileExtractor(
-      mojo::PendingReceiver<chrome::mojom::SingleFileExtractor> receiver)
-      override;
-#endif
-
   mojo::Receiver<chrome::mojom::FileUtilService> receiver_;
+
+  DISALLOW_COPY_AND_ASSIGN(FileUtilService);
 };
 
 #endif  // CHROME_SERVICES_FILE_UTIL_FILE_UTIL_SERVICE_H_

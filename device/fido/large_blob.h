@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "base/component_export.h"
 #include "device/fido/fido_constants.h"
 #include "device/fido/pin.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace device {
 
@@ -45,28 +44,11 @@ constexpr size_t kLargeBlobReadEncodingOverhead = 64;
 constexpr size_t kLargeBlobArrayNonceLength = 12;
 constexpr std::array<uint8_t, 2> kLargeBlobPinPrefix = {0x0c, 0x00};
 
-// A complete but still compressed large blob.
-struct COMPONENT_EXPORT(DEVICE_FIDO) LargeBlob {
-  LargeBlob(std::vector<uint8_t> compressed_data, uint64_t original_size);
-  ~LargeBlob();
-  LargeBlob(const LargeBlob&);
-  LargeBlob& operator=(const LargeBlob&);
-  LargeBlob(LargeBlob&&);
-  LargeBlob& operator=(LargeBlob&&);
-  bool operator==(const LargeBlob&) const;
-
-  // The DEFLATEd large blob bytes.
-  std::vector<uint8_t> compressed_data;
-
-  // Uncompressed, original size of the large blob.
-  uint64_t original_size;
-};
-
 struct COMPONENT_EXPORT(DEVICE_FIDO) LargeBlobArrayFragment {
   LargeBlobArrayFragment(std::vector<uint8_t> bytes, size_t offset);
   ~LargeBlobArrayFragment();
   LargeBlobArrayFragment(const LargeBlobArrayFragment&) = delete;
-  LargeBlobArrayFragment& operator=(const LargeBlobArrayFragment&) = delete;
+  LargeBlobArrayFragment operator=(const LargeBlobArrayFragment&) = delete;
   LargeBlobArrayFragment(LargeBlobArrayFragment&&);
   const std::vector<uint8_t> bytes;
   const size_t offset;
@@ -79,7 +61,7 @@ class LargeBlobsRequest {
  public:
   ~LargeBlobsRequest();
   LargeBlobsRequest(const LargeBlobsRequest&) = delete;
-  LargeBlobsRequest& operator=(const LargeBlobsRequest&) = delete;
+  LargeBlobsRequest operator=(const LargeBlobsRequest&) = delete;
   LargeBlobsRequest(LargeBlobsRequest&& other);
 
   static LargeBlobsRequest ForRead(size_t bytes, size_t offset);
@@ -88,58 +70,58 @@ class LargeBlobsRequest {
 
   void SetPinParam(const pin::TokenResponse& pin_uv_auth_token);
 
-  friend std::pair<CtapRequestCommand, absl::optional<cbor::Value>>
+  friend std::pair<CtapRequestCommand, base::Optional<cbor::Value>>
   AsCTAPRequestValuePair(const LargeBlobsRequest& request);
 
  private:
   LargeBlobsRequest();
 
-  absl::optional<int64_t> get_;
-  absl::optional<std::vector<uint8_t>> set_;
+  base::Optional<int64_t> get_;
+  base::Optional<std::vector<uint8_t>> set_;
   int64_t offset_ = 0;
-  absl::optional<int64_t> length_;
-  absl::optional<std::vector<uint8_t>> pin_uv_auth_param_;
-  absl::optional<PINUVAuthProtocol> pin_uv_auth_protocol_;
+  base::Optional<int64_t> length_;
+  base::Optional<std::vector<uint8_t>> pin_uv_auth_param_;
+  base::Optional<PINUVAuthProtocol> pin_uv_auth_protocol_;
 };
 
 class LargeBlobsResponse {
  public:
   LargeBlobsResponse(const LargeBlobsResponse&) = delete;
-  LargeBlobsResponse& operator=(const LargeBlobsResponse&) = delete;
+  LargeBlobsResponse operator=(const LargeBlobsResponse&) = delete;
   LargeBlobsResponse(LargeBlobsResponse&& other);
   LargeBlobsResponse& operator=(LargeBlobsResponse&&);
   ~LargeBlobsResponse();
 
-  static absl::optional<LargeBlobsResponse> ParseForRead(
+  static base::Optional<LargeBlobsResponse> ParseForRead(
       size_t bytes_to_read,
-      const absl::optional<cbor::Value>& cbor_response);
-  static absl::optional<LargeBlobsResponse> ParseForWrite(
-      const absl::optional<cbor::Value>& cbor_response);
+      const base::Optional<cbor::Value>& cbor_response);
+  static base::Optional<LargeBlobsResponse> ParseForWrite(
+      const base::Optional<cbor::Value>& cbor_response);
 
-  absl::optional<std::vector<uint8_t>> config() { return config_; }
+  base::Optional<std::vector<uint8_t>> config() { return config_; }
 
  private:
   explicit LargeBlobsResponse(
-      absl::optional<std::vector<uint8_t>> config = absl::nullopt);
+      base::Optional<std::vector<uint8_t>> config = base::nullopt);
 
-  absl::optional<std::vector<uint8_t>> config_;
+  base::Optional<std::vector<uint8_t>> config_;
 };
 
 // Represents the large-blob map structure
 // https://drafts.fidoalliance.org/fido-2/stable-links-to-latest/fido-client-to-authenticator-protocol.html#large-blob
 class COMPONENT_EXPORT(DEVICE_FIDO) LargeBlobData {
  public:
-  static absl::optional<LargeBlobData> Parse(const cbor::Value& cbor_response);
+  static base::Optional<LargeBlobData> Parse(const cbor::Value& cbor_response);
 
-  LargeBlobData(LargeBlobKey key, LargeBlob large_blob);
+  LargeBlobData(LargeBlobKey key, base::span<const uint8_t> blob);
   LargeBlobData(const LargeBlobData&) = delete;
-  LargeBlobData& operator=(const LargeBlobData&) = delete;
+  LargeBlobData operator=(const LargeBlobData&) = delete;
   LargeBlobData(LargeBlobData&&);
   LargeBlobData& operator=(LargeBlobData&&);
   ~LargeBlobData();
   bool operator==(const LargeBlobData&) const;
 
-  absl::optional<LargeBlob> Decrypt(LargeBlobKey key) const;
+  base::Optional<std::vector<uint8_t>> Decrypt(LargeBlobKey key) const;
   cbor::Value::MapValue AsCBOR() const;
 
  private:
@@ -157,7 +139,7 @@ class COMPONENT_EXPORT(DEVICE_FIDO) LargeBlobArrayReader {
  public:
   LargeBlobArrayReader();
   LargeBlobArrayReader(const LargeBlobArrayReader&) = delete;
-  LargeBlobArrayReader& operator=(const LargeBlobArrayReader&) = delete;
+  LargeBlobArrayReader operator=(const LargeBlobArrayReader&) = delete;
   LargeBlobArrayReader(LargeBlobArrayReader&&);
   ~LargeBlobArrayReader();
 
@@ -167,7 +149,7 @@ class COMPONENT_EXPORT(DEVICE_FIDO) LargeBlobArrayReader {
   // Verifies the integrity of the large blob array. This should be called after
   // all fragments have been |Append|ed.
   // If successful, parses and returns the array.
-  absl::optional<std::vector<LargeBlobData>> Materialize();
+  base::Optional<std::vector<LargeBlobData>> Materialize();
 
   // Returns the current size of the array fragments.
   size_t size() const { return bytes_.size(); }
@@ -183,7 +165,7 @@ class COMPONENT_EXPORT(DEVICE_FIDO) LargeBlobArrayWriter {
   explicit LargeBlobArrayWriter(
       const std::vector<LargeBlobData>& large_blob_array);
   LargeBlobArrayWriter(const LargeBlobArrayWriter&) = delete;
-  LargeBlobArrayWriter& operator=(const LargeBlobArrayWriter&) = delete;
+  LargeBlobArrayWriter operator=(const LargeBlobArrayWriter&) = delete;
   LargeBlobArrayWriter(LargeBlobArrayWriter&&);
   ~LargeBlobArrayWriter();
 
@@ -207,7 +189,7 @@ class COMPONENT_EXPORT(DEVICE_FIDO) LargeBlobArrayWriter {
   size_t offset_ = 0;
 };
 
-std::pair<CtapRequestCommand, absl::optional<cbor::Value>>
+std::pair<CtapRequestCommand, base::Optional<cbor::Value>>
 AsCTAPRequestValuePair(const LargeBlobsRequest& request);
 
 }  // namespace device

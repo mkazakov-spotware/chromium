@@ -1,10 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.offlinepages;
 
+import android.app.Notification;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -157,30 +159,26 @@ public class AutoFetchNotifier {
                 R.plurals.offline_pages_auto_fetch_in_progress_notification_text, inProgressCount);
 
         // Create the notification.
-        NotificationMetadata metadata = new NotificationMetadata(
-                NotificationUmaTracker.SystemNotificationType.OFFLINE_PAGES,
-                IN_PROGRESS_NOTIFICATION_TAG, /*notificationId=*/0);
         NotificationWrapperBuilder builder =
                 NotificationWrapperBuilderFactory
-                        .createNotificationWrapperBuilder(
-                                ChromeChannelDefinitions.ChannelId.DOWNLOADS, metadata)
+                        .createNotificationWrapperBuilder(true /* preferCompat */,
+                                ChromeChannelDefinitions.ChannelId.DOWNLOADS)
                         .setContentTitle(title)
                         .setGroup(COMPLETE_NOTIFICATION_TAG)
                         .setPriorityBeforeO(NotificationCompat.PRIORITY_LOW)
                         .setSmallIcon(R.drawable.ic_chrome)
                         .addAction(0 /* icon */, context.getString(R.string.cancel),
-                                PendingIntentProvider.getBroadcast(context, 0 /* requestCode */,
-                                        cancelButtonIntent, 0 /* flags */),
-                                NotificationUmaTracker.ActionType.AUTO_FETCH_CANCEL)
-                        .setDeleteIntent(PendingIntentProvider.getBroadcast(
+                                PendingIntent.getBroadcast(context, 0 /* requestCode */,
+                                        cancelButtonIntent, 0 /* flags */))
+                        .setDeleteIntent(PendingIntent.getBroadcast(
                                 context, 0 /* requestCode */, deleteIntent, 0 /* flags */));
 
-        NotificationManagerProxy manager = new NotificationManagerProxyImpl(context);
-        NotificationWrapper notification = builder.buildNotificationWrapper();
-        manager.notify(notification);
+        NotificationManager manager =
+                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        Notification notification = builder.build();
+        manager.notify(IN_PROGRESS_NOTIFICATION_TAG, 0, notification);
         NotificationUmaTracker.getInstance().onNotificationShown(
-                NotificationUmaTracker.SystemNotificationType.OFFLINE_PAGES,
-                notification.getNotification());
+                NotificationUmaTracker.SystemNotificationType.OFFLINE_PAGES, notification);
         reportInProgressNotificationAction(NotificationAction.SHOWN);
         if (mTestHooks != null) {
             mTestHooks.inProgressNotificationShown(cancelButtonIntent, deleteIntent);
@@ -316,8 +314,9 @@ public class AutoFetchNotifier {
                 COMPLETE_NOTIFICATION_TAG, notificationId);
         NotificationWrapperBuilder builder =
                 NotificationWrapperBuilderFactory
-                        .createNotificationWrapperBuilder(
-                                ChromeChannelDefinitions.ChannelId.DOWNLOADS, metadata)
+                        .createNotificationWrapperBuilder(true /* preferCompat */,
+                                ChromeChannelDefinitions.ChannelId.DOWNLOADS,
+                                null /* remoteAppPackageName */, metadata)
                         .setAutoCancel(true)
                         .setContentIntent(pendingClickIntent)
                         .setContentTitle(pageTitle)

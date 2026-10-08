@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <sstream>
-#include <utility>
 
 #include "base/bind.h"
 #include "base/callback.h"
@@ -18,7 +17,8 @@
 #include "remoting/protocol/channel_authenticator.h"
 #include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 
@@ -103,9 +103,9 @@ void NegotiatingAuthenticatorBase::ProcessMessageInternal(
     // give it to the underlying authenticator to process.
     // |current_authenticator_| is owned, so Unretained() is safe here.
     current_authenticator_->ProcessMessage(
-        message,
-        base::BindOnce(&NegotiatingAuthenticatorBase::UpdateState,
-                       base::Unretained(this), std::move(resume_callback)));
+        message, base::BindOnce(&NegotiatingAuthenticatorBase::UpdateState,
+                                base::Unretained(this),
+                                base::Passed(std::move(resume_callback))));
   } else {
     // Otherwise, just discard the message.
     UpdateState(std::move(resume_callback));
@@ -164,4 +164,5 @@ NegotiatingAuthenticatorBase::CreateChannelAuthenticator() const {
   return current_authenticator_->CreateChannelAuthenticator();
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

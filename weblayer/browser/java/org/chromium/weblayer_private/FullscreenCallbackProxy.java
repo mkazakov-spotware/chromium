@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,9 +27,6 @@ public final class FullscreenCallbackProxy {
     private IFullscreenCallbackClient mClient;
     private TabImpl mTab;
     private FullscreenToast mToast;
-    private boolean mIsNotifyingClientOfEnter;
-    // Used so that only the most recent callback supplied to the client is acted on.
-    private int mNextFullscreenId;
 
     FullscreenCallbackProxy(TabImpl tab, long nativeTab, IFullscreenCallbackClient client) {
         assert client != null;
@@ -65,21 +62,12 @@ public final class FullscreenCallbackProxy {
 
     @CalledByNative
     private void enterFullscreen() throws RemoteException {
-        final int id = ++mNextFullscreenId;
         ValueCallback<Void> exitFullscreenCallback = new ValueCallback<Void>() {
             @Override
             public void onReceiveValue(Void result) {
                 ThreadUtils.assertOnUiThread();
-                if (id != mNextFullscreenId) {
-                    // This is an old fullscreen request. Ignore it.
-                    return;
-                }
                 if (mNativeFullscreenCallbackProxy == 0) {
                     throw new IllegalStateException("Called after destroy()");
-                }
-                if (mIsNotifyingClientOfEnter) {
-                    throw new IllegalStateException(
-                            "Fullscreen callback must not be called synchronously");
                 }
                 destroyToast();
                 FullscreenCallbackProxyJni.get().doExitFullscreen(mNativeFullscreenCallbackProxy);
@@ -87,12 +75,7 @@ public final class FullscreenCallbackProxy {
         };
         destroyToast();
         mToast = new FullscreenToast(mTab);
-        mIsNotifyingClientOfEnter = true;
-        try {
-            mClient.enterFullscreen(ObjectWrapper.wrap(exitFullscreenCallback));
-        } finally {
-            mIsNotifyingClientOfEnter = false;
-        }
+        mClient.enterFullscreen(ObjectWrapper.wrap(exitFullscreenCallback));
     }
 
     @CalledByNative

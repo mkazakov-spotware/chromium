@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "components/component_updater/component_installer.h"
 
 namespace base {
@@ -22,12 +23,6 @@ class ComponentUpdateService;
 class CrowdDenyComponentInstallerPolicy : public ComponentInstallerPolicy {
  public:
   CrowdDenyComponentInstallerPolicy() = default;
-
-  CrowdDenyComponentInstallerPolicy(const CrowdDenyComponentInstallerPolicy&) =
-      delete;
-  CrowdDenyComponentInstallerPolicy& operator=(
-      const CrowdDenyComponentInstallerPolicy&) = delete;
-
   ~CrowdDenyComponentInstallerPolicy() override = default;
 
  private:
@@ -35,20 +30,23 @@ class CrowdDenyComponentInstallerPolicy : public ComponentInstallerPolicy {
 
   // ComponentInstallerPolicy:
   bool SupportsGroupPolicyEnabledComponentUpdates() const override;
-  bool VerifyInstallation(const base::Value& manifest,
+  bool VerifyInstallation(const base::DictionaryValue& manifest,
                           const base::FilePath& install_dir) const override;
   bool RequiresNetworkEncryption() const override;
   update_client::CrxInstaller::Result OnCustomInstall(
-      const base::Value& manifest,
+      const base::DictionaryValue& manifest,
       const base::FilePath& install_dir) override;
   void OnCustomUninstall() override;
   void ComponentReady(const base::Version& version,
                       const base::FilePath& install_dir,
-                      base::Value manifest) override;
+                      std::unique_ptr<base::DictionaryValue> manifest) override;
   base::FilePath GetRelativeInstallDir() const override;
   void GetHash(std::vector<uint8_t>* hash) const override;
   std::string GetName() const override;
+  std::vector<std::string> GetMimeTypes() const override;
   update_client::InstallerAttributes GetInstallerAttributes() const override;
+
+  DISALLOW_COPY_AND_ASSIGN(CrowdDenyComponentInstallerPolicy);
 };
 
 // Call once during startup to make the component update service aware of the

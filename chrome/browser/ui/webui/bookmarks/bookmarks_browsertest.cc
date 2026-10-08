@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,17 +33,16 @@ void BookmarksBrowserTest::SetupExtensionAPITest() {
       ManagedBookmarkServiceFactory::GetForProfile(profile);
   bookmarks::test::WaitForBookmarkModelToLoad(model);
 
-  base::Value::List list;
-  base::Value::Dict node;
-  node.Set("name", "Managed Bookmark");
-  node.Set("url", "http://www.chromium.org");
-  list.Append(node.Clone());
-  node.clear();
-  node.Set("name", "Managed Folder");
-  node.Set("children", base::Value::List());
+  base::ListValue list;
+  std::unique_ptr<base::DictionaryValue> node(new base::DictionaryValue());
+  node->SetString("name", "Managed Bookmark");
+  node->SetString("url", "http://www.chromium.org");
   list.Append(std::move(node));
-  profile->GetPrefs()->Set(bookmarks::prefs::kManagedBookmarks,
-                           base::Value(std::move(list)));
+  node = std::make_unique<base::DictionaryValue>();
+  node->SetString("name", "Managed Folder");
+  node->Set("children", std::make_unique<base::ListValue>());
+  list.Append(std::move(node));
+  profile->GetPrefs()->Set(bookmarks::prefs::kManagedBookmarks, list);
   ASSERT_EQ(2u, managed->managed_node()->children().size());
 }
 
@@ -56,9 +55,12 @@ void BookmarksBrowserTest::SetupExtensionAPIEditDisabledTest() {
       BookmarkModelFactory::GetForBrowserContext(profile);
   bookmarks::test::WaitForBookmarkModelToLoad(model);
   const bookmarks::BookmarkNode* bar = model->bookmark_bar_node();
-  const bookmarks::BookmarkNode* folder = model->AddFolder(bar, 0, u"Folder");
-  model->AddURL(bar, 1, u"AAA", GURL("http://aaa.example.com"));
-  model->AddURL(folder, 0, u"BBB", GURL("http://bbb.example.com"));
+  const bookmarks::BookmarkNode* folder =
+      model->AddFolder(bar, 0, base::ASCIIToUTF16("Folder"));
+  model->AddURL(bar, 1, base::ASCIIToUTF16("AAA"),
+                GURL("http://aaa.example.com"));
+  model->AddURL(folder, 0, base::ASCIIToUTF16("BBB"),
+                GURL("http://bbb.example.com"));
 
   PrefService* prefs = user_prefs::UserPrefs::Get(profile);
   prefs->SetBoolean(bookmarks::prefs::kEditBookmarksEnabled, false);

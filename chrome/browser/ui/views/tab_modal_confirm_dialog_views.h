@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "chrome/browser/ui/tab_modal_confirm_dialog.h"
 #include "ui/gfx/native_widget_types.h"
 #include "ui/views/window/dialog_delegate.h"
@@ -33,16 +34,13 @@ class TabModalConfirmDialogViews : public TabModalConfirmDialog,
       std::unique_ptr<TabModalConfirmDialogDelegate> delegate,
       content::WebContents* web_contents);
 
-  TabModalConfirmDialogViews(const TabModalConfirmDialogViews&) = delete;
-  TabModalConfirmDialogViews& operator=(const TabModalConfirmDialogViews&) =
-      delete;
-
   // views::DialogDelegate:
-  std::u16string GetWindowTitle() const override;
+  base::string16 GetWindowTitle() const override;
   bool ShouldShowCloseButton() const override;
   views::View* GetContentsView() override;
   views::Widget* GetWidget() override;
   const views::Widget* GetWidget() const override;
+  ui::ModalType GetModalType() const override;
 
  private:
   ~TabModalConfirmDialogViews() override;
@@ -59,7 +57,9 @@ class TabModalConfirmDialogViews : public TabModalConfirmDialog,
   std::unique_ptr<TabModalConfirmDialogDelegate> delegate_;
 
   // The message box view whose commands we handle.
-  raw_ptr<views::MessageBoxView> message_box_view_ = nullptr;
+  views::MessageBoxView* message_box_view_;
+
+  DISALLOW_COPY_AND_ASSIGN(TabModalConfirmDialogViews);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_TAB_MODAL_CONFIRM_DIALOG_VIEWS_H_

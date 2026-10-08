@@ -1,15 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/updater/win/ui/yes_no_dialog.h"
 
 #include "base/logging.h"
-#include "chrome/updater/win/ui/l10n_util.h"
-#include "chrome/updater/win/ui/resources/updater_installer_strings.h"
+#include "chrome/updater/win/ui/constants.h"
 #include "chrome/updater/win/ui/ui.h"
-#include "chrome/updater/win/ui/ui_constants.h"
-#include "chrome/updater/win/ui/ui_util.h"
+#include "chrome/updater/win/ui/util.h"
 
 namespace updater {
 namespace ui {
@@ -27,8 +25,8 @@ BOOL YesNoDialog::PreTranslateMessage(MSG* msg) {
   return CWindow::IsDialogMessage(msg);
 }
 
-HRESULT YesNoDialog::Initialize(const std::wstring& yes_no_title,
-                                const std::wstring& yes_no_text) {
+HRESULT YesNoDialog::Initialize(const base::string16& yes_no_title,
+                                const base::string16& yes_no_text) {
   DCHECK(!IsWindow());
 
   if (!Create(parent_))
@@ -39,10 +37,13 @@ HRESULT YesNoDialog::Initialize(const std::wstring& yes_no_title,
   SetWindowText(yes_no_title.c_str());
   SetDlgItemText(IDC_YES_NO_TEXT, yes_no_text.c_str());
 
-  // TODO(crbug.com/1314812) yes no dialog is not utilized. Adding a
-  // placeholder for IDS_YES_BASE and IDS_NO_BASE.
-  SetDlgItemText(IDOK, L"");
-  SetDlgItemText(IDCANCEL, L"");
+  base::string16 text_yes;
+  LoadString(IDS_YES, &text_yes);
+  SetDlgItemText(IDOK, text_yes.c_str());
+
+  base::string16 text_no;
+  LoadString(IDS_NO, &text_no);
+  SetDlgItemText(IDCANCEL, text_no.c_str());
 
   HRESULT hr =
       SetWindowIcon(m_hWnd, IDI_APP,

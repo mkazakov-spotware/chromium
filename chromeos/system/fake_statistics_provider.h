@@ -1,16 +1,16 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROMEOS_SYSTEM_FAKE_STATISTICS_PROVIDER_H_
 #define CHROMEOS_SYSTEM_FAKE_STATISTICS_PROVIDER_H_
 
+#include <map>
 #include <string>
 
 #include "base/callback.h"
 #include "base/component_export.h"
-#include "base/containers/flat_map.h"
-#include "base/strings/string_piece.h"
+#include "base/macros.h"
 #include "chromeos/system/statistics_provider.h"
 
 namespace chromeos {
@@ -21,37 +21,27 @@ class COMPONENT_EXPORT(CHROMEOS_SYSTEM) FakeStatisticsProvider
     : public StatisticsProvider {
  public:
   FakeStatisticsProvider();
-
-  FakeStatisticsProvider(const FakeStatisticsProvider&) = delete;
-  FakeStatisticsProvider& operator=(const FakeStatisticsProvider&) = delete;
-
   ~FakeStatisticsProvider() override;
 
   // StatisticsProvider implementation:
   void ScheduleOnMachineStatisticsLoaded(base::OnceClosure callback) override;
   void StartLoadingMachineStatistics(bool load_oem_manifest) override;
-  absl::optional<base::StringPiece> GetMachineStatistic(
-      base::StringPiece name) override;
-  FlagValue GetMachineFlag(base::StringPiece name) override;
+  bool GetMachineStatistic(const std::string& name,
+                           std::string* result) override;
+  bool GetMachineFlag(const std::string& name, bool* result) override;
   void Shutdown() override;
   bool IsRunningOnVm() override;
-  VpdStatus GetVpdStatus() const override;
-
-  // TODO(b/213325251): Remove old getters once migration is completed.
-  using StatisticsProvider::GetMachineFlag;
-  using StatisticsProvider::GetMachineStatistic;
 
   void SetMachineStatistic(const std::string& key, const std::string& value);
-  void ClearMachineStatistic(base::StringPiece key);
+  void ClearMachineStatistic(const std::string& key);
   void SetMachineFlag(const std::string& key, bool value);
-  void ClearMachineFlag(base::StringPiece key);
-  void SetVpdStatus(VpdStatus new_status);
+  void ClearMachineFlag(const std::string& key);
 
  private:
-  base::flat_map<std::string, std::string> machine_statistics_;
-  base::flat_map<std::string, bool> machine_flags_;
+  std::map<std::string, std::string> machine_statistics_;
+  std::map<std::string, bool> machine_flags_;
 
-  VpdStatus vpd_status_{VpdStatus::kUnknown};
+  DISALLOW_COPY_AND_ASSIGN(FakeStatisticsProvider);
 };
 
 // A convenience subclass that automatically registers itself as the test
@@ -60,23 +50,13 @@ class COMPONENT_EXPORT(CHROMEOS_SYSTEM) ScopedFakeStatisticsProvider
     : public FakeStatisticsProvider {
  public:
   ScopedFakeStatisticsProvider();
-
-  ScopedFakeStatisticsProvider(const ScopedFakeStatisticsProvider&) = delete;
-  ScopedFakeStatisticsProvider& operator=(const ScopedFakeStatisticsProvider&) =
-      delete;
-
   ~ScopedFakeStatisticsProvider() override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ScopedFakeStatisticsProvider);
 };
 
 }  // namespace system
 }  // namespace chromeos
-
-// TODO(https://crbug.com/1164001): remove after the //chrome/browser/chromeos
-// source migration is finished.
-namespace ash {
-namespace system {
-using ::chromeos::system::ScopedFakeStatisticsProvider;
-}
-}  // namespace ash
 
 #endif  // CHROMEOS_SYSTEM_FAKE_STATISTICS_PROVIDER_H_

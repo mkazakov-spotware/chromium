@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 namespace ui {
 
 TEST(CompositionTextTest, CopyTest) {
-  const std::u16string kSampleText = u"Sample Text";
+  const base::string16 kSampleText = base::UTF8ToUTF16("Sample Text");
   const ImeTextSpan kSampleUnderline1(
       ImeTextSpan::Type::kComposition, 10, 20, ImeTextSpan::Thickness::kThin,
       ImeTextSpan::UnderlineStyle::kSolid, SK_ColorTRANSPARENT);

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 
 namespace leveldb_proto {
 
@@ -29,8 +30,8 @@ void MigrationDelegate::OnLoadKeysAndEntries(
     bool success,
     std::unique_ptr<KeyValueMap> keys_entries) {
   if (!success) {
-    DCHECK(base::SequencedTaskRunner::HasCurrentDefault());
-    auto current_task_runner = base::SequencedTaskRunner::GetCurrentDefault();
+    DCHECK(base::SequencedTaskRunnerHandle::IsSet());
+    auto current_task_runner = base::SequencedTaskRunnerHandle::Get();
     current_task_runner->PostTask(FROM_HERE,
                                   base::BindOnce(std::move(callback), false));
     return;
@@ -51,8 +52,8 @@ void MigrationDelegate::OnLoadKeysAndEntries(
 
 void MigrationDelegate::OnUpdateEntries(MigrationCallback callback,
                                         bool success) {
-  DCHECK(base::SequencedTaskRunner::HasCurrentDefault());
-  auto current_task_runner = base::SequencedTaskRunner::GetCurrentDefault();
+  DCHECK(base::SequencedTaskRunnerHandle::IsSet());
+  auto current_task_runner = base::SequencedTaskRunnerHandle::Get();
   current_task_runner->PostTask(FROM_HERE,
                                 base::BindOnce(std::move(callback), success));
   // TODO (thildebr): For additional insurance, verify the entries match,

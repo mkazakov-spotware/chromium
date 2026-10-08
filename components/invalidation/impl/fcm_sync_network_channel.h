@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "base/values.h"
 #include "components/invalidation/impl/channels_states.h"
 
-namespace invalidation {
+namespace syncer {
 
 // FCMSyncNetworkChannel implements common tasks needed from the network by
 // client:
@@ -65,7 +65,8 @@ class FCMSyncNetworkChannel {
   // Subclass should implement RequestDetailedStatus to provide debugging
   // information.
   virtual void RequestDetailedStatus(
-      const base::RepeatingCallback<void(base::Value::Dict)>& callback) = 0;
+      const base::RepeatingCallback<void(const base::DictionaryValue&)>&
+          callback) = 0;
 
  protected:
   // Subclass should notify about connection state through
@@ -95,7 +96,6 @@ class FCMSyncNetworkChannel {
 
   base::ObserverList<Observer>::Unchecked observers_;
 };
-
-}  // namespace invalidation
+}  // namespace syncer
 
 #endif  // COMPONENTS_INVALIDATION_IMPL_FCM_SYNC_NETWORK_CHANNEL_H_

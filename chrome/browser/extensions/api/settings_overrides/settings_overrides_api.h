@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,8 @@
 #include <set>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "components/search_engines/template_url_service.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
 #include "extensions/browser/extension_registry.h"
@@ -24,10 +24,6 @@ class SettingsOverridesAPI : public BrowserContextKeyedAPI,
                              public ExtensionRegistryObserver {
  public:
   explicit SettingsOverridesAPI(content::BrowserContext* context);
-
-  SettingsOverridesAPI(const SettingsOverridesAPI&) = delete;
-  SettingsOverridesAPI& operator=(const SettingsOverridesAPI&) = delete;
-
   ~SettingsOverridesAPI() override;
 
   // BrowserContextKeyedAPI implementation.
@@ -40,7 +36,7 @@ class SettingsOverridesAPI : public BrowserContextKeyedAPI,
   // Wrappers around PreferenceAPI.
   void SetPref(const std::string& extension_id,
                const std::string& pref_key,
-               base::Value value) const;
+               std::unique_ptr<base::Value> value) const;
   void UnsetPref(const std::string& extension_id,
                  const std::string& pref_key) const;
 
@@ -55,12 +51,14 @@ class SettingsOverridesAPI : public BrowserContextKeyedAPI,
   // BrowserContextKeyedAPI implementation.
   static const char* service_name() { return "SettingsOverridesAPI"; }
 
-  raw_ptr<Profile> profile_;
-  raw_ptr<TemplateURLService> url_service_;
+  Profile* profile_;
+  TemplateURLService* url_service_;
 
   // Listen to extension load, unloaded notifications.
-  base::ScopedObservation<ExtensionRegistry, ExtensionRegistryObserver>
-      extension_registry_observation_{this};
+  ScopedObserver<ExtensionRegistry, ExtensionRegistryObserver>
+      extension_registry_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SettingsOverridesAPI);
 };
 
 template <>

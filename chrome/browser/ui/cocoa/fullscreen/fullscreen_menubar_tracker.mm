@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <QuartzCore/QuartzCore.h>
 
 #include "base/mac/mac_util.h"
+#include "base/stl_util.h"
 #import "chrome/browser/ui/cocoa/fullscreen/fullscreen_toolbar_controller.h"
 #include "ui/base/cocoa/appkit_utils.h"
 
@@ -85,7 +86,7 @@ OSStatus MenuBarRevealHandler(EventHandlerCallRef handler,
     eventSpecs[2].eventKind = kEventMenuBarHidden;
 
     InstallApplicationEventHandler(NewEventHandlerUPP(&MenuBarRevealHandler),
-                                   std::size(eventSpecs), eventSpecs, self,
+                                   base::size(eventSpecs), eventSpecs, self,
                                    &_menubarTrackingHandler);
 
     // Register for Active Space change notifications.

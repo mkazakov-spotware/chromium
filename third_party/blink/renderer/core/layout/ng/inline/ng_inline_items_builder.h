@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,9 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_INLINE_NG_INLINE_ITEMS_BUILDER_H_
 
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/layout/layout_block_flow.h"
 #include "third_party/blink/renderer/core/layout/ng/inline/empty_offset_mapping_builder.h"
 #include "third_party/blink/renderer/core/layout/ng/inline/ng_inline_item.h"
 #include "third_party/blink/renderer/core/layout/ng/inline/ng_offset_mapping_builder.h"
-#include "third_party/blink/renderer/core/layout/ng/svg/svg_inline_node_data.h"
 #include "third_party/blink/renderer/platform/fonts/font_height.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
@@ -46,14 +44,9 @@ class NGInlineItemsBuilderTemplate {
 
  public:
   // Create a builder that appends items to |items|.
-  NGInlineItemsBuilderTemplate(
-      LayoutBlockFlow* block_flow,
-      HeapVector<NGInlineItem>* items,
-      const SvgTextChunkOffsets* chunk_offsets = nullptr)
-      : block_flow_(block_flow),
-        items_(items),
-        text_chunk_offsets_(chunk_offsets),
-        is_text_combine_(block_flow_->IsLayoutNGTextCombine()) {}
+  NGInlineItemsBuilderTemplate(LayoutBlockFlow* block_flow,
+                               Vector<NGInlineItem>* items)
+      : block_flow_(block_flow), items_(items) {}
   ~NGInlineItemsBuilderTemplate();
 
   LayoutBlockFlow* GetLayoutBlockFlow() const { return block_flow_; }
@@ -62,6 +55,10 @@ class NGInlineItemsBuilderTemplate {
 
   // Returns whether the items contain any Bidi controls.
   bool HasBidiControls() const { return has_bidi_controls_; }
+
+  // Returns if the inline node has no content. For example:
+  // <span></span> or <span><float></float></span>.
+  bool IsEmptyInline() const { return is_empty_inline_; }
 
   bool IsBlockLevel() const { return is_block_level_; }
 
@@ -101,7 +98,6 @@ class NGInlineItemsBuilderTemplate {
   // Append a unicode "object replacement character" for an atomic inline,
   // signaling the presence of a non-text object to the unicode bidi algorithm.
   void AppendAtomicInline(LayoutObject* layout_object);
-  void AppendBlockInInline(LayoutObject* layout_object);
 
   // Append floats and positioned objects in the same way as atomic inlines.
   // Because these objects need positions, they will be handled in
@@ -139,34 +135,20 @@ class NGInlineItemsBuilderTemplate {
 
   OffsetMappingBuilder& GetOffsetMappingBuilder() { return mapping_builder_; }
 
-  void SetHasInititialLetterBox();
   void SetIsSymbolMarker();
 
   bool ShouldAbort() const { return false; }
 
   // Functions change |LayoutObject| states.
-  bool ShouldUpdateLayoutObject() const;
   void ClearInlineFragment(LayoutObject*);
   void ClearNeedsLayout(LayoutObject*);
   void UpdateShouldCreateBoxFragment(LayoutInline*);
-
-  // In public to modify VectorTraits<BidiContext> in WTF namespace.
-  struct BidiContext {
-    DISALLOW_NEW();
-
-   public:
-    void Trace(Visitor*) const;
-
-    Member<LayoutObject> node;
-    UChar enter;
-    UChar exit;
-  };
 
  private:
   static bool NeedsBoxInfo();
 
   LayoutBlockFlow* const block_flow_;
-  HeapVector<NGInlineItem>* items_;
+  Vector<NGInlineItem>* items_;
   StringBuilder text_;
 
   // |mapping_builder_| builds the whitespace-collapsed offset mapping
@@ -178,25 +160,27 @@ class NGInlineItemsBuilderTemplate {
   struct BoxInfo {
     DISALLOW_NEW();
 
-    const ComputedStyle& style;
     unsigned item_index;
     bool should_create_box_fragment;
+    bool may_have_margin_;
     FontHeight text_metrics;
 
     BoxInfo(unsigned item_index, const NGInlineItem& item);
     bool ShouldCreateBoxFragmentForChild(const BoxInfo& child) const;
-    void SetShouldCreateBoxFragment(HeapVector<NGInlineItem>* items);
+    void SetShouldCreateBoxFragment(Vector<NGInlineItem>* items);
   };
   Vector<BoxInfo> boxes_;
 
-  HeapVector<BidiContext> bidi_context_;
+  struct BidiContext {
+    LayoutObject* node;
+    UChar enter;
+    UChar exit;
+  };
+  Vector<BidiContext> bidi_context_;
 
-  const SvgTextChunkOffsets* text_chunk_offsets_;
-
-  const bool is_text_combine_;
   bool has_bidi_controls_ = false;
-  bool has_initial_letter_box_ = false;
   bool has_ruby_ = false;
+  bool is_empty_inline_ = true;
   bool is_block_level_ = true;
   bool has_unicode_bidi_plain_text_ = false;
 
@@ -218,9 +202,6 @@ class NGInlineItemsBuilderTemplate {
 
   void AppendForcedBreakCollapseWhitespace(LayoutObject*);
   void AppendForcedBreak(LayoutObject*);
-  bool AppendTextChunks(const String& string, LayoutText& layout_text);
-  void ExitAndEnterSvgTextChunk(LayoutText& layout_text);
-  void EnterSvgTextChunk(const ComputedStyle* style);
 
   void RemoveTrailingCollapsibleSpaceIfExists();
   void RemoveTrailingCollapsibleSpace(NGInlineItem*);
@@ -259,10 +240,6 @@ NGInlineItemsBuilderTemplate<NGOffsetMappingBuilder>::AppendTextReusing(
     LayoutText*);
 
 template <>
-CORE_EXPORT bool NGInlineItemsBuilderTemplate<
-    NGOffsetMappingBuilder>::ShouldUpdateLayoutObject() const;
-
-template <>
 CORE_EXPORT void
 NGInlineItemsBuilderTemplate<NGOffsetMappingBuilder>::ClearInlineFragment(
     LayoutObject*);
@@ -287,10 +264,5 @@ using NGInlineItemsBuilderForOffsetMapping =
     NGInlineItemsBuilderTemplate<NGOffsetMappingBuilder>;
 
 }  // namespace blink
-
-WTF_ALLOW_CLEAR_UNUSED_SLOTS_WITH_MEM_FUNCTIONS(
-    blink::NGInlineItemsBuilder::BidiContext)
-WTF_ALLOW_CLEAR_UNUSED_SLOTS_WITH_MEM_FUNCTIONS(
-    blink::NGInlineItemsBuilderForOffsetMapping::BidiContext)
 
 #endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_INLINE_NG_INLINE_ITEMS_BUILDER_H_

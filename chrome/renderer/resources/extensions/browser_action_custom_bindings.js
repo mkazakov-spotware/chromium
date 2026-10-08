@@ -1,20 +1,27 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // Custom binding for the browserAction API.
 
-var getSetIconHandler = require('setIcon').getSetIconHandler;
+var setIcon = require('setIcon').setIcon;
 var getExtensionViews = requireNative('runtime').GetExtensionViews;
 
 apiBridge.registerCustomHook(function(bindingsAPI) {
   var apiFunctions = bindingsAPI.apiFunctions;
 
-  apiFunctions.setHandleRequest(
-      'setIcon', getSetIconHandler('browserAction.setIcon'));
+  apiFunctions.setHandleRequest('setIcon', function(details, callback) {
+    setIcon(details, function(args) {
+      bindingUtil.sendRequest(
+          'browserAction.setIcon', [args, callback], undefined);
+    }.bind(this), function (errorMessage) {
+      // Propagate the error message.
+      bindingUtil.runCallbackWithLastError(errorMessage, callback);
+    }.bind(this));
+  });
 
   apiFunctions.setCustomCallback('openPopup',
-      function(callback, response) {
+      function(name, request, callback, response) {
     if (!callback)
       return;
 

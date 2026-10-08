@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,9 @@
 
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_mock_time_task_runner.h"
 #include "base/test/test_simple_task_runner.h"
@@ -25,8 +24,6 @@
 #include "components/password_manager/core/browser/android_affiliation/facet_manager.h"
 #include "components/password_manager/core/browser/android_affiliation/fake_affiliation_api.h"
 #include "components/password_manager/core/browser/android_affiliation/mock_affiliation_consumer.h"
-#include "components/password_manager/core/common/password_manager_features.h"
-#include "components/variations/scoped_variations_ids_provider.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
 #include "services/network/test/test_network_connection_tracker.h"
@@ -39,15 +36,6 @@ namespace password_manager {
 namespace {
 
 using StrategyOnCacheMiss = AffiliationBackend::StrategyOnCacheMiss;
-
-// Creates matcher for a given GroupedFacets.
-auto ExpectGroup(const GroupedFacets& group) {
-  return AllOf(
-      testing::Field(&GroupedFacets::branding_info,
-                     testing::Eq(group.branding_info)),
-      testing::Field(&GroupedFacets::facets,
-                     testing::UnorderedElementsAreArray(group.facets)));
-}
 
 // Mock fetch throttler that has some extra logic to accurately portray the real
 // AffiliationFetchThrottler in how it ignores SignalNetworkRequestNeeded()
@@ -65,10 +53,6 @@ class MockAffiliationFetchThrottler : public AffiliationFetchThrottler {
         signaled_network_request_needed_(false) {
     EXPECT_CALL(*this, OnInformOfNetworkRequestComplete(testing::_)).Times(0);
   }
-
-  MockAffiliationFetchThrottler(const MockAffiliationFetchThrottler&) = delete;
-  MockAffiliationFetchThrottler& operator=(
-      const MockAffiliationFetchThrottler&) = delete;
 
   ~MockAffiliationFetchThrottler() override {
     EXPECT_FALSE(signaled_network_request_needed_);
@@ -118,6 +102,8 @@ class MockAffiliationFetchThrottler : public AffiliationFetchThrottler {
   }
 
   bool signaled_network_request_needed_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockAffiliationFetchThrottler);
 };
 
 const char kTestFacetURIAlpha1[] = "https://one.alpha.example.com";
@@ -153,52 +139,28 @@ AffiliatedFacets GetTestEquivalenceClassGamma() {
   };
 }
 
-GroupedFacets GetTestGropingAlpha() {
-  GroupedFacets group;
-  group.facets = {{FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1)},
-                  {FacetURI::FromCanonicalSpec(kTestFacetURIAlpha2)},
-                  {FacetURI::FromCanonicalSpec(kTestFacetURIAlpha3)},
-                  {FacetURI::FromCanonicalSpec(kTestFacetURIAlpha4)},
-                  {FacetURI::FromCanonicalSpec(kTestFacetURIGamma1)}};
-  group.branding_info =
-      FacetBrandingInfo{kTestFacetNameAlpha4, GURL(kTestFacetIconURLAlpha4)};
-  return group;
-}
-
-GroupedFacets GetTestGropingBeta() {
-  GroupedFacets group;
-  group.facets = {
-      {FacetURI::FromCanonicalSpec(kTestFacetURIBeta1)},
-      {FacetURI::FromCanonicalSpec(kTestFacetURIBeta2)},
-  };
-  return group;
-}
-
 base::TimeDelta GetCacheHardExpiryPeriod() {
-  return base::Hours(FacetManager::kCacheHardExpiryInHours);
+  return base::TimeDelta::FromHours(FacetManager::kCacheHardExpiryInHours);
 }
 
 base::TimeDelta GetCacheSoftExpiryPeriod() {
-  return base::Hours(FacetManager::kCacheSoftExpiryInHours);
+  return base::TimeDelta::FromHours(FacetManager::kCacheSoftExpiryInHours);
 }
 
 base::TimeDelta GetShortTestPeriod() {
-  return base::Hours(1);
+  return base::TimeDelta::FromHours(1);
 }
 
 // Returns a smallest time difference that this test cares about.
 base::TimeDelta Epsilon() {
-  return base::Microseconds(1);
+  return base::TimeDelta::FromMicroseconds(1);
 }
 
 }  // namespace
 
-class AffiliationBackendTest : public testing::TestWithParam<bool> {
+class AffiliationBackendTest : public testing::Test {
  public:
   AffiliationBackendTest() = default;
-
-  AffiliationBackendTest(const AffiliationBackendTest&) = delete;
-  AffiliationBackendTest& operator=(const AffiliationBackendTest&) = delete;
 
  protected:
   void GetAffiliationsAndBranding(MockAffiliationConsumer* consumer,
@@ -369,10 +331,6 @@ class AffiliationBackendTest : public testing::TestWithParam<bool> {
     return mock_fetch_throttler_;
   }
 
-  bool IsGroupingEnabled() {
-    return GetParam();
-  }
-
  private:
   // testing::Test:
   void SetUp() override {
@@ -401,25 +359,13 @@ class AffiliationBackendTest : public testing::TestWithParam<bool> {
         GetTestEquivalenceClassBeta());
     fake_affiliation_api_.AddTestEquivalenceClass(
         GetTestEquivalenceClassGamma());
-    fake_affiliation_api_.AddTestGrouping(GetTestGropingAlpha());
-    fake_affiliation_api_.AddTestGrouping(GetTestGropingBeta());
-    fake_affiliation_api_.AddTestGrouping(GetTestGropingAlpha());
-
-    if (GetParam()) {
-      feature_list.InitAndEnableFeature(features::kPasswordsGrouping);
-    } else {
-      feature_list.InitAndDisableFeature(features::kPasswordsGrouping);
-    }
   }
 
-  base::test::ScopedFeatureList feature_list;
   base::test::TaskEnvironment task_environment_;
   scoped_refptr<base::TestMockTimeTaskRunner> backend_task_runner_ =
       base::MakeRefCounted<base::TestMockTimeTaskRunner>();
   scoped_refptr<base::TestSimpleTaskRunner> consumer_task_runner_ =
       base::MakeRefCounted<base::TestSimpleTaskRunner>();
-  variations::ScopedVariationsIdsProvider scoped_variations_ids_provider_{
-      variations::VariationsIdsProvider::Mode::kUseSignedInState};
 
   base::FilePath db_path_;
   std::unique_ptr<AffiliationBackend> backend_;
@@ -427,10 +373,12 @@ class AffiliationBackendTest : public testing::TestWithParam<bool> {
   MockAffiliationConsumer mock_consumer_;
   network::TestURLLoaderFactory test_url_loader_factory_;
   // Owned by |backend_|.
-  raw_ptr<MockAffiliationFetchThrottler> mock_fetch_throttler_ = nullptr;
+  MockAffiliationFetchThrottler* mock_fetch_throttler_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(AffiliationBackendTest);
 };
 
-TEST_P(AffiliationBackendTest, OnDemandRequestSucceedsWithFetch) {
+TEST_F(AffiliationBackendTest, OnDemandRequestSucceedsWithFetch) {
   ASSERT_NO_FATAL_FAILURE(GetAffiliationsAndBrandingAndExpectFetchAndThenResult(
       FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1),
       GetTestEquivalenceClassAlpha()));
@@ -443,19 +391,19 @@ TEST_P(AffiliationBackendTest, OnDemandRequestSucceedsWithFetch) {
 }
 
 // This test also verifies that the FacetManager is immediately discarded.
-TEST_P(AffiliationBackendTest, CachedOnlyRequestFailsDueToCacheMiss) {
+TEST_F(AffiliationBackendTest, CachedOnlyRequestFailsDueToCacheMiss) {
   GetAffiliationsAndBrandingAndExpectFailureWithoutFetch(
       FacetURI::FromCanonicalSpec(kTestFacetURIAlpha2));
   EXPECT_EQ(0u, backend_facet_manager_count());
 }
 
-TEST_P(AffiliationBackendTest, PrefetchTriggersInitialFetch) {
+TEST_F(AffiliationBackendTest, PrefetchTriggersInitialFetch) {
   ASSERT_NO_FATAL_FAILURE(PrefetchAndExpectFetch(
       FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1), base::Time::Max()));
 }
 
 // This test also verifies that the FacetManager is immediately discarded.
-TEST_P(AffiliationBackendTest, ExpiredPrefetchTriggersNoInitialFetch) {
+TEST_F(AffiliationBackendTest, ExpiredPrefetchTriggersNoInitialFetch) {
   // Prefetch intervals are open from the right, thus intervals ending Now() are
   // already expired.
   Prefetch(FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1),
@@ -474,7 +422,7 @@ TEST_P(AffiliationBackendTest, ExpiredPrefetchTriggersNoInitialFetch) {
 // other requests arrive. As there should be no simultaneous requests, the
 // additional facets should be queried together in a second fetch after the
 // first fetch completes.
-TEST_P(AffiliationBackendTest, ConcurrentUnrelatedRequests) {
+TEST_F(AffiliationBackendTest, ConcurrentUnrelatedRequests) {
   FacetURI facet_uri_alpha(FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1));
   FacetURI facet_uri_beta(FacetURI::FromCanonicalSpec(kTestFacetURIBeta1));
   FacetURI facet_uri_gamma(FacetURI::FromCanonicalSpec(kTestFacetURIGamma1));
@@ -509,7 +457,7 @@ TEST_P(AffiliationBackendTest, ConcurrentUnrelatedRequests) {
 // Now suppose that the first fetch is somewhat delayed (e.g., because network
 // requests are throttled), so the other requests arrive before it is actually
 // issued. In this case, all facet URIs should be queried together in one fetch.
-TEST_P(AffiliationBackendTest, ConcurrentUnrelatedRequests2) {
+TEST_F(AffiliationBackendTest, ConcurrentUnrelatedRequests2) {
   FacetURI facet_uri_alpha(FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1));
   FacetURI facet_uri_beta(FacetURI::FromCanonicalSpec(kTestFacetURIBeta1));
   FacetURI facet_uri_gamma(FacetURI::FromCanonicalSpec(kTestFacetURIGamma1));
@@ -540,7 +488,7 @@ TEST_P(AffiliationBackendTest, ConcurrentUnrelatedRequests2) {
   EXPECT_GE(1u, backend_facet_manager_count());
 }
 
-TEST_P(AffiliationBackendTest, RetryIsMadeOnFailedFetch) {
+TEST_F(AffiliationBackendTest, RetryIsMadeOnFailedFetch) {
   FacetURI facet_uri(FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1));
 
   GetAffiliationsAndBranding(mock_consumer(), facet_uri,
@@ -561,7 +509,7 @@ TEST_P(AffiliationBackendTest, RetryIsMadeOnFailedFetch) {
 
 // The Prefetch() request expires before fetching corresponding affiliation
 // information would be allowed. The fetch should be abandoned.
-TEST_P(AffiliationBackendTest, FetchIsNoLongerNeededOnceAllowed) {
+TEST_F(AffiliationBackendTest, FetchIsNoLongerNeededOnceAllowed) {
   Prefetch(FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1),
            backend_task_runner()->Now() + GetShortTestPeriod());
   ASSERT_TRUE(mock_fetch_throttler()->has_signaled_network_request_needed());
@@ -575,7 +523,7 @@ TEST_P(AffiliationBackendTest, FetchIsNoLongerNeededOnceAllowed) {
   EXPECT_EQ(0u, backend_facet_manager_count());
 }
 
-TEST_P(AffiliationBackendTest, CacheServesSubsequentRequestForSameFacet) {
+TEST_F(AffiliationBackendTest, CacheServesSubsequentRequestForSameFacet) {
   ASSERT_NO_FATAL_FAILURE(GetAffiliationsAndBrandingAndExpectFetchAndThenResult(
       FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1),
       GetTestEquivalenceClassAlpha()));
@@ -591,7 +539,7 @@ TEST_P(AffiliationBackendTest, CacheServesSubsequentRequestForSameFacet) {
   EXPECT_EQ(0u, backend_facet_manager_count());
 }
 
-TEST_P(AffiliationBackendTest, CacheServesSubsequentRequestForAffiliatedFacet) {
+TEST_F(AffiliationBackendTest, CacheServesSubsequentRequestForAffiliatedFacet) {
   ASSERT_NO_FATAL_FAILURE(GetAffiliationsAndBrandingAndExpectFetchAndThenResult(
       FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1),
       GetTestEquivalenceClassAlpha()));
@@ -602,7 +550,7 @@ TEST_P(AffiliationBackendTest, CacheServesSubsequentRequestForAffiliatedFacet) {
   EXPECT_EQ(0u, backend_facet_manager_count());
 }
 
-TEST_P(AffiliationBackendTest, CacheServesRequestsForPrefetchedFacets) {
+TEST_F(AffiliationBackendTest, CacheServesRequestsForPrefetchedFacets) {
   ASSERT_NO_FATAL_FAILURE(PrefetchAndExpectFetch(
       FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1), base::Time::Max()));
 
@@ -615,7 +563,7 @@ TEST_P(AffiliationBackendTest, CacheServesRequestsForPrefetchedFacets) {
       StrategyOnCacheMiss::FAIL, GetTestEquivalenceClassAlpha()));
 }
 
-TEST_P(AffiliationBackendTest,
+TEST_F(AffiliationBackendTest,
        CacheServesRequestsForFacetsAffiliatedWithPrefetchedFacets) {
   ASSERT_NO_FATAL_FAILURE(PrefetchAndExpectFetch(
       FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1), base::Time::Max()));
@@ -630,7 +578,7 @@ TEST_P(AffiliationBackendTest,
 //
 // There should be no simultaneous requests, and once the fetch completes, all
 // three requests should be served without further fetches (they have the data).
-TEST_P(AffiliationBackendTest,
+TEST_F(AffiliationBackendTest,
        CacheServesConcurrentRequestsForAffiliatedFacets) {
   FacetURI facet_uri1(FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1));
   FacetURI facet_uri2(FacetURI::FromCanonicalSpec(kTestFacetURIAlpha2));
@@ -663,7 +611,7 @@ TEST_P(AffiliationBackendTest,
 //
 // There should be no simultaneous requests, and once the fetch completes, there
 // should be no further initial fetches as the data needed is already there.
-TEST_P(AffiliationBackendTest,
+TEST_F(AffiliationBackendTest,
        CacheServesConcurrentPrefetchesForAffiliatedFacets) {
   FacetURI facet_uri1(FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1));
   FacetURI facet_uri2(FacetURI::FromCanonicalSpec(kTestFacetURIAlpha2));
@@ -680,7 +628,7 @@ TEST_P(AffiliationBackendTest,
       GetTestEquivalenceClassAlpha()));
 }
 
-TEST_P(AffiliationBackendTest, SimpleCacheExpiryWithoutPrefetches) {
+TEST_F(AffiliationBackendTest, SimpleCacheExpiryWithoutPrefetches) {
   ASSERT_NO_FATAL_FAILURE(GetAffiliationsAndBrandingAndExpectFetchAndThenResult(
       FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1),
       GetTestEquivalenceClassAlpha()));
@@ -714,7 +662,7 @@ TEST_P(AffiliationBackendTest, SimpleCacheExpiryWithoutPrefetches) {
 // A Prefetch() request for a finite period. It should trigger an initial fetch
 // and exactly one refetch, as the Prefetch() request expires exactly when the
 // cached data obtained with the refetch expires.
-TEST_P(AffiliationBackendTest,
+TEST_F(AffiliationBackendTest,
        PrefetchTriggersOneInitialFetchAndOneRefetchBeforeExpiring) {
   ASSERT_NO_FATAL_FAILURE(PrefetchAndExpectFetch(
       FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1),
@@ -769,7 +717,7 @@ TEST_P(AffiliationBackendTest,
 // Affiliation data for prefetched facets should be automatically refetched once
 // every 23 hours, and GetAffiliationsAndBranding() requests regarding
 // affiliated facets should be continuously served from cache.
-TEST_P(AffiliationBackendTest, PrefetchTriggersPeriodicRefetch) {
+TEST_F(AffiliationBackendTest, PrefetchTriggersPeriodicRefetch) {
   ASSERT_NO_FATAL_FAILURE(PrefetchAndExpectFetch(
       FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1), base::Time::Max()));
 
@@ -798,7 +746,7 @@ TEST_P(AffiliationBackendTest, PrefetchTriggersPeriodicRefetch) {
   }
 }
 
-TEST_P(AffiliationBackendTest,
+TEST_F(AffiliationBackendTest,
        PrefetchTriggersNoInitialFetchIfDataIsAlreadyFresh) {
   ASSERT_NO_FATAL_FAILURE(GetAffiliationsAndBrandingAndExpectFetchAndThenResult(
       FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1),
@@ -813,7 +761,7 @@ TEST_P(AffiliationBackendTest,
       GetTestEquivalenceClassAlpha()));
 }
 
-TEST_P(AffiliationBackendTest, CancelPrefetch) {
+TEST_F(AffiliationBackendTest, CancelPrefetch) {
   ASSERT_NO_FATAL_FAILURE(PrefetchAndExpectFetch(
       FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1), base::Time::Max()));
 
@@ -841,7 +789,7 @@ TEST_P(AffiliationBackendTest, CancelPrefetch) {
           FacetURI::FromCanonicalSpec(kTestFacetURIAlpha2)));
 }
 
-TEST_P(AffiliationBackendTest, CancelDuplicatePrefetch) {
+TEST_F(AffiliationBackendTest, CancelDuplicatePrefetch) {
   ASSERT_NO_FATAL_FAILURE(PrefetchAndExpectFetch(
       FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1), base::Time::Max()));
   Prefetch(FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1), base::Time::Max());
@@ -872,9 +820,9 @@ TEST_P(AffiliationBackendTest, CancelDuplicatePrefetch) {
 }
 
 // Canceling a non-existing prefetch request for a non-prefetched facet.
-TEST_P(AffiliationBackendTest, CancelingNonExistingPrefetchIsSilentlyIgnored) {
+TEST_F(AffiliationBackendTest, CancelingNonExistingPrefetchIsSilentlyIgnored) {
   CancelPrefetch(FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1),
-                 backend_task_runner()->Now() + base::Hours(24));
+                 backend_task_runner()->Now() + base::TimeDelta::FromHours(24));
   ASSERT_NO_FATAL_FAILURE(ExpectNoFetchNeeded());
   EXPECT_EQ(0u, backend_facet_manager_count());
   EXPECT_FALSE(backend_task_runner()->HasPendingTask());
@@ -882,7 +830,7 @@ TEST_P(AffiliationBackendTest, CancelingNonExistingPrefetchIsSilentlyIgnored) {
 
 // Verify that TrimCacheForFacetURI() only removes the equivalence class for the
 // given facet, and preserves others (even if they could be discarded).
-TEST_P(AffiliationBackendTest,
+TEST_F(AffiliationBackendTest,
        TrimCacheForFacetURIOnlyRemovesDataForTheGivenFacet) {
   FacetURI preserved_facet_uri(FacetURI::FromCanonicalSpec(kTestFacetURIBeta1));
   ASSERT_NO_FATAL_FAILURE(GetAffiliationsAndBrandingAndExpectFetchAndThenResult(
@@ -909,7 +857,7 @@ TEST_P(AffiliationBackendTest,
           preserved_facet_uri));
 }
 
-TEST_P(AffiliationBackendTest, NothingExplodesWhenShutDownDuringFetch) {
+TEST_F(AffiliationBackendTest, NothingExplodesWhenShutDownDuringFetch) {
   GetAffiliationsAndBranding(mock_consumer(),
                              FacetURI::FromCanonicalSpec(kTestFacetURIAlpha2),
                              StrategyOnCacheMiss::FETCH_OVER_NETWORK);
@@ -918,7 +866,7 @@ TEST_P(AffiliationBackendTest, NothingExplodesWhenShutDownDuringFetch) {
   DestroyBackend();
 }
 
-TEST_P(AffiliationBackendTest,
+TEST_F(AffiliationBackendTest,
        FailureCallbacksAreCalledIfBackendIsDestroyedWithPendingRequest) {
   GetAffiliationsAndBranding(mock_consumer(),
                              FacetURI::FromCanonicalSpec(kTestFacetURIAlpha2),
@@ -934,78 +882,11 @@ TEST_P(AffiliationBackendTest,
   testing::Mock::VerifyAndClearExpectations(mock_consumer());
 }
 
-TEST_P(AffiliationBackendTest, DeleteCache) {
+TEST_F(AffiliationBackendTest, DeleteCache) {
   DestroyBackend();
   ASSERT_TRUE(base::PathExists(db_path()));
   AffiliationBackend::DeleteCache(db_path());
   ASSERT_FALSE(base::PathExists(db_path()));
 }
-
-TEST_P(AffiliationBackendTest, KeepPrefetchForFacets) {
-  // Have {kTestFacetURIAlpha1, kTestFacetURIAlpha1, kTestFacetURIBeta1} as a
-  // list of actively fetching facets.
-  ASSERT_NO_FATAL_FAILURE(PrefetchAndExpectFetch(
-      FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1), base::Time::Max()));
-  ASSERT_NO_FATAL_FAILURE(PrefetchAndExpectFetch(
-      FacetURI::FromCanonicalSpec(kTestFacetURIBeta1), base::Time::Max()));
-  Prefetch(FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1), base::Time::Max());
-  EXPECT_EQ(2u, backend_facet_manager_count());
-  EXPECT_EQ(2u, GetNumOfEquivalenceClassInDatabase());
-
-  AdvanceTime(GetCacheSoftExpiryPeriod() - Epsilon());
-
-  backend()->KeepPrefetchForFacets(
-      {FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1),
-       FacetURI::FromCanonicalSpec(kTestFacetURIGamma1)});
-  ASSERT_NO_FATAL_FAILURE(ExpectNeedForFetchAndLetItBeSent());
-  ASSERT_NO_FATAL_FAILURE(
-      ExpectAndCompleteFetch(FacetURI::FromCanonicalSpec(kTestFacetURIGamma1)));
-  EXPECT_EQ(2u, backend_facet_manager_count());
-  EXPECT_EQ(2u, GetNumOfEquivalenceClassInDatabase());
-
-  consumer_task_runner()->RunUntilIdle();
-  testing::Mock::VerifyAndClearExpectations(mock_consumer());
-}
-
-TEST_P(AffiliationBackendTest, GetGrouping) {
-  std::vector<FacetURI> fetched_uris;
-  fetched_uris.push_back(FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1));
-  fetched_uris.push_back(FacetURI::FromCanonicalSpec(kTestFacetURIBeta1));
-  fetched_uris.push_back(FacetURI::FromCanonicalSpec(kTestFacetURIGamma1));
-
-  backend()->KeepPrefetchForFacets(fetched_uris);
-  ASSERT_NO_FATAL_FAILURE(ExpectNeedForFetchAndLetItBeSent());
-  ASSERT_NO_FATAL_FAILURE(ExpectAndCompleteFetch(fetched_uris));
-
-  if (IsGroupingEnabled()) {
-    EXPECT_THAT(
-        backend()->GetAllGroups(),
-        testing::UnorderedElementsAre(ExpectGroup(GetTestGropingAlpha()),
-                                      ExpectGroup(GetTestGropingAlpha()),
-                                      ExpectGroup(GetTestGropingBeta())));
-  } else {
-    EXPECT_EQ(0u, backend()->GetAllGroups().size());
-  }
-}
-
-TEST_P(AffiliationBackendTest, SingleGroupForAffiliatedFacets) {
-  std::vector<FacetURI> fetched_uris;
-  fetched_uris.push_back(FacetURI::FromCanonicalSpec(kTestFacetURIAlpha1));
-  fetched_uris.push_back(FacetURI::FromCanonicalSpec(kTestFacetURIAlpha2));
-
-  backend()->KeepPrefetchForFacets(fetched_uris);
-  ASSERT_NO_FATAL_FAILURE(ExpectNeedForFetchAndLetItBeSent());
-  ASSERT_NO_FATAL_FAILURE(ExpectAndCompleteFetch(fetched_uris));
-
-  if (IsGroupingEnabled()) {
-    EXPECT_THAT(
-        backend()->GetAllGroups(),
-        testing::UnorderedElementsAre(ExpectGroup(GetTestGropingAlpha())));
-  } else {
-    EXPECT_EQ(0u, backend()->GetAllGroups().size());
-  }
-}
-
-INSTANTIATE_TEST_SUITE_P(, AffiliationBackendTest, testing::Bool());
 
 }  // namespace password_manager

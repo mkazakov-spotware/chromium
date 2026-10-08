@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,13 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/memory/read_only_shared_memory_region.h"
-#include "media/mojo/common/input_error_code_converter.h"
 #include "media/mojo/mojom/audio_data_pipe.mojom.h"
-#include "media/mojo/mojom/audio_processing.mojom.h"
 #include "mojo/public/cpp/bindings/remote.h"
 
 namespace audio {
 
 InputIPC::InputIPC(
-    mojo::PendingRemote<media::mojom::AudioStreamFactory> stream_factory,
+    mojo::PendingRemote<audio::mojom::StreamFactory> stream_factory,
     const std::string& device_id,
     mojo::PendingRemote<media::mojom::AudioLog> log)
     : device_id_(device_id),
@@ -45,8 +43,7 @@ void InputIPC::CreateStream(media::AudioInputIPCDelegate* delegate,
 
   // Unretained is safe because we own the receiver.
   stream_client_receiver_.set_disconnect_handler(
-      base::BindOnce(&InputIPC::OnError, base::Unretained(this),
-                     media::mojom::InputStreamErrorCode::kUnknown));
+      base::BindOnce(&InputIPC::OnError, base::Unretained(this)));
 
   // For now we don't care about key presses, so we pass a invalid buffer.
   base::ReadOnlySharedMemoryRegion invalid_key_press_count_buffer;
@@ -54,24 +51,22 @@ void InputIPC::CreateStream(media::AudioInputIPCDelegate* delegate,
   mojo::PendingRemote<media::mojom::AudioLog> log;
   if (log_)
     log = log_.Unbind();
-
   stream_factory_->CreateInputStream(
       stream_.BindNewPipeAndPassReceiver(), std::move(client), {},
       std::move(log), device_id_, params, total_segments,
       automatic_gain_control, std::move(invalid_key_press_count_buffer),
-      /*processing_config=*/nullptr,
       base::BindOnce(&InputIPC::StreamCreated, weak_factory_.GetWeakPtr()));
 }
 
 void InputIPC::StreamCreated(
     media::mojom::ReadOnlyAudioDataPipePtr data_pipe,
     bool initially_muted,
-    const absl::optional<base::UnguessableToken>& stream_id) {
+    const base::Optional<base::UnguessableToken>& stream_id) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(delegate_);
 
   if (data_pipe.is_null()) {
-    OnError(media::mojom::InputStreamErrorCode::kUnknown);
+    OnError();
     return;
   }
 
@@ -122,11 +117,10 @@ void InputIPC::CloseStream() {
   weak_factory_.InvalidateWeakPtrs();
 }
 
-void InputIPC::OnError(media::mojom::InputStreamErrorCode code) {
+void InputIPC::OnError() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(delegate_);
-
-  delegate_->OnError(media::ConvertToCaptureCallbackCode(code));
+  delegate_->OnError();
 }
 
 void InputIPC::OnMutedStateChanged(bool is_muted) {

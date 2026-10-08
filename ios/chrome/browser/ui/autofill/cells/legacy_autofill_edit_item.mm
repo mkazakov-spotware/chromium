@@ -1,12 +1,15 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/autofill/cells/legacy_autofill_edit_item.h"
 
-#import "ios/chrome/browser/ui/collection_view/cells/collection_view_cell_constants.h"
+#import <MaterialComponents/MaterialTypography.h>
+
+#include "ios/chrome/browser/ui/collection_view/cells/collection_view_cell_constants.h"
 #import "ios/chrome/browser/ui/util/rtl_geometry.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
+#import "ios/chrome/common/ui/colors/UIColor+cr_semantic_colors.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 
@@ -169,12 +172,11 @@ const CGFloat kLabelAndFieldGap = 5;
 
 - (void)updateWithFontScaling:(BOOL)withFontScaling {
   MaybeSetUILabelScaledFont(withFontScaling, self.textLabel,
-                            [UIFont systemFontOfSize:14
-                                              weight:UIFontWeightMedium]);
+                            [[MDCTypography fontLoader] mediumFontOfSize:14]);
   self.textLabel.textColor = [UIColor colorNamed:kTextPrimaryColor];
-  MaybeSetUITextFieldScaledFont(withFontScaling, self.textField,
-                                [UIFont systemFontOfSize:16
-                                                  weight:UIFontWeightLight]);
+  MaybeSetUITextFieldScaledFont(
+      withFontScaling, self.textField,
+      [[MDCTypography fontLoader] lightFontOfSize:16]);
   self.textField.textColor = [UIColor colorNamed:kTextSecondaryColor];
 }
 

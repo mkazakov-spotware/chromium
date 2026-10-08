@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@ import androidx.annotation.Nullable;
 
 import org.chromium.components.content_settings.ContentSettingValues;
 import org.chromium.components.content_settings.ContentSettingsType;
-import org.chromium.content_public.browser.BrowserContextHandle;
+import org.chromium.components.embedder_support.browser_context.BrowserContextHandle;
 
 import java.io.Serializable;
 
@@ -60,7 +60,7 @@ public class PermissionInfo implements Serializable {
      */
     public @ContentSettingValues @Nullable Integer getContentSetting(
             BrowserContextHandle browserContextHandle) {
-        return WebsitePreferenceBridgeJni.get().getPermissionSettingForOrigin(
+        return WebsitePreferenceBridgeJni.get().getSettingForOrigin(
                 browserContextHandle, mContentSettingsType, mOrigin, getEmbedderSafe());
     }
 
@@ -69,7 +69,7 @@ public class PermissionInfo implements Serializable {
      */
     public void setContentSetting(
             BrowserContextHandle browserContextHandle, @ContentSettingValues int value) {
-        WebsitePreferenceBridgeJni.get().setPermissionSettingForOrigin(
+        WebsitePreferenceBridgeJni.get().setSettingForOrigin(
                 browserContextHandle, mContentSettingsType, mOrigin, getEmbedderSafe(), value);
     }
 }

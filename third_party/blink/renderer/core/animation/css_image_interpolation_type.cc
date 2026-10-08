@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "base/memory/ptr_util.h"
-#include "base/memory/values_equivalent.h"
 #include "third_party/blink/renderer/core/css/css_crossfade_value.h"
 #include "third_party/blink/renderer/core/css/css_numeric_literal_value.h"
 #include "third_party/blink/renderer/core/css/css_primitive_value.h"
@@ -35,7 +34,7 @@ const StyleImage* GetStyleImage(const CSSProperty& property,
 }
 }  // namespace
 
-class CSSImageNonInterpolableValue final : public NonInterpolableValue {
+class CSSImageNonInterpolableValue : public NonInterpolableValue {
  public:
   ~CSSImageNonInterpolableValue() final = default;
 
@@ -46,8 +45,8 @@ class CSSImageNonInterpolableValue final : public NonInterpolableValue {
 
   bool IsSingle() const { return is_single_; }
   bool Equals(const CSSImageNonInterpolableValue& other) const {
-    return base::ValuesEquivalent(start_, other.start_) &&
-           base::ValuesEquivalent(end_, other.end_);
+    return DataEquivalent(start_, other.start_) &&
+           DataEquivalent(end_, other.end_);
   }
 
   static scoped_refptr<CSSImageNonInterpolableValue> Merge(
@@ -166,7 +165,7 @@ bool CSSImageInterpolationType::EqualNonInterpolableValues(
       To<CSSImageNonInterpolableValue>(*b));
 }
 
-class UnderlyingImageChecker final
+class UnderlyingImageChecker
     : public CSSInterpolationType::CSSConversionChecker {
  public:
   UnderlyingImageChecker(const InterpolationValue& underlying)
@@ -204,7 +203,7 @@ InterpolationValue CSSImageInterpolationType::MaybeConvertInitial(
   return nullptr;
 }
 
-class InheritedImageChecker final
+class InheritedImageChecker
     : public CSSInterpolationType::CSSConversionChecker {
  public:
   InheritedImageChecker(const CSSProperty& property,
@@ -271,13 +270,13 @@ void CSSImageInterpolationType::ApplyStandardPropertyValue(
                                         non_interpolable_value, state);
   switch (CssProperty().PropertyID()) {
     case CSSPropertyID::kBorderImageSource:
-      state.StyleBuilder().SetBorderImageSource(image);
+      state.Style()->SetBorderImageSource(image);
       break;
     case CSSPropertyID::kListStyleImage:
-      state.StyleBuilder().SetListStyleImage(image);
+      state.Style()->SetListStyleImage(image);
       break;
     case CSSPropertyID::kWebkitMaskBoxImageSource:
-      state.StyleBuilder().SetMaskBoxImageSource(image);
+      state.Style()->SetMaskBoxImageSource(image);
       break;
     default:
       NOTREACHED();

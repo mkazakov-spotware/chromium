@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,8 @@
 #include <stddef.h>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
 #include "base/metrics/user_metrics.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "base/time/time.h"
 #include "chrome/browser/metrics/desktop_session_duration/desktop_session_duration_tracker.h"
 #include "chrome/browser/profiles/profile.h"
@@ -52,17 +51,17 @@ class ProfileActivityMetricsRecorder
   void OnUserAction(const std::string& action, base::TimeTicks action_time);
 
   // The profile of the last active window.
-  raw_ptr<Profile, DanglingUntriaged> last_active_profile_ = nullptr;
+  Profile* last_active_profile_ = nullptr;
 
   // Profile of the currently running session, if there is any. Reset after
   // inactivity.
-  raw_ptr<Profile, DanglingUntriaged> running_session_profile_ = nullptr;
+  Profile* running_session_profile_ = nullptr;
   base::TimeTicks running_session_start_;
   base::TimeTicks last_session_end_;
 
   base::ActionCallback action_callback_;
 
-  base::ScopedObservation<Profile, ProfileObserver> profile_observation_{this};
+  ScopedObserver<Profile, ProfileObserver> profile_observer_{this};
 };
 
 #endif  // CHROME_BROWSER_PROFILES_PROFILE_ACTIVITY_METRICS_RECORDER_H_

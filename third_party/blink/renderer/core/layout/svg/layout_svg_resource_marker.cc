@@ -53,21 +53,16 @@ void LayoutSVGResourceMarker::UpdateLayout() {
   ClearInvalidationMask();
 }
 
-bool LayoutSVGResourceMarker::FindCycleFromSelf() const {
-  NOT_DESTROYED();
-  return FindCycleInSubtree(*this);
-}
-
 void LayoutSVGResourceMarker::RemoveAllClientsFromCache() {
   NOT_DESTROYED();
-  MarkAllClientsForInvalidation(kLayoutInvalidation | kBoundariesInvalidation);
+  MarkAllClientsForInvalidation(SVGResourceClient::kLayoutInvalidation |
+                                SVGResourceClient::kBoundariesInvalidation);
 }
 
-gfx::RectF LayoutSVGResourceMarker::MarkerBoundaries(
+FloatRect LayoutSVGResourceMarker::MarkerBoundaries(
     const AffineTransform& marker_transformation) const {
   NOT_DESTROYED();
-  gfx::RectF coordinates =
-      LayoutSVGContainer::VisualRectInLocalSVGCoordinates();
+  FloatRect coordinates = LayoutSVGContainer::VisualRectInLocalSVGCoordinates();
 
   // Map visual rect into parent coordinate space, in which the marker
   // boundaries have to be evaluated.
@@ -76,14 +71,14 @@ gfx::RectF LayoutSVGResourceMarker::MarkerBoundaries(
   return marker_transformation.MapRect(coordinates);
 }
 
-gfx::PointF LayoutSVGResourceMarker::ReferencePoint() const {
+FloatPoint LayoutSVGResourceMarker::ReferencePoint() const {
   NOT_DESTROYED();
   auto* marker = To<SVGMarkerElement>(GetElement());
   DCHECK(marker);
 
   SVGLengthContext length_context(marker);
-  return gfx::PointF(marker->refX()->CurrentValue()->Value(length_context),
-                     marker->refY()->CurrentValue()->Value(length_context));
+  return FloatPoint(marker->refX()->CurrentValue()->Value(length_context),
+                    marker->refY()->CurrentValue()->Value(length_context));
 }
 
 float LayoutSVGResourceMarker::Angle() const {
@@ -122,15 +117,15 @@ AffineTransform LayoutSVGResourceMarker::MarkerTransformation(
   }
 
   AffineTransform transform;
-  transform.Translate(position.origin.x(), position.origin.y());
+  transform.Translate(position.origin.X(), position.origin.Y());
   transform.Rotate(computed_angle);
   transform.Scale(marker_scale);
 
   // The reference point (refX, refY) is in the coordinate space of the marker's
   // contents so we include the value in each marker's transform.
-  gfx::PointF mapped_reference_point =
+  FloatPoint mapped_reference_point =
       LocalToSVGParentTransform().MapPoint(ReferencePoint());
-  transform.Translate(-mapped_reference_point.x(), -mapped_reference_point.y());
+  transform.Translate(-mapped_reference_point.X(), -mapped_reference_point.Y());
   return transform;
 }
 
@@ -139,8 +134,9 @@ bool LayoutSVGResourceMarker::ShouldPaint() const {
   // An empty viewBox disables rendering.
   auto* marker = To<SVGMarkerElement>(GetElement());
   DCHECK(marker);
-  return !marker->HasValidViewBox() ||
-         !marker->viewBox()->CurrentValue()->Rect().IsEmpty();
+  return !marker->viewBox()->IsSpecified() ||
+         !marker->viewBox()->CurrentValue()->IsValid() ||
+         !marker->viewBox()->CurrentValue()->Value().IsEmpty();
 }
 
 void LayoutSVGResourceMarker::SetNeedsTransformUpdate() {
@@ -163,7 +159,7 @@ SVGTransformChange LayoutSVGResourceMarker::CalculateLocalTransform(
   SVGLengthContext length_context(marker);
   float width = marker->markerWidth()->CurrentValue()->Value(length_context);
   float height = marker->markerHeight()->CurrentValue()->Value(length_context);
-  viewport_size_.SetSize(width, height);
+  viewport_size_ = FloatSize(width, height);
 
   SVGTransformChangeDetector change_detector(local_to_parent_transform_);
   local_to_parent_transform_ = marker->ViewBoxToViewTransform(viewport_size_);

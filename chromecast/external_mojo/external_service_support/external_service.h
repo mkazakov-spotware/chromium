@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
 #include "chromecast/external_mojo/public/mojom/connector.mojom.h"
 #include "chromecast/mojo/interface_bundle.h"
@@ -25,10 +26,6 @@ namespace external_service_support {
 class ExternalService : public external_mojo::mojom::ExternalService {
  public:
   ExternalService();
-
-  ExternalService(const ExternalService&) = delete;
-  ExternalService& operator=(const ExternalService&) = delete;
-
   ~ExternalService() override;
 
   // Returns the Mojo receiver for this service.
@@ -63,8 +60,6 @@ class ExternalService : public external_mojo::mojom::ExternalService {
     bundle_.RemoveInterface<Interface>();
   }
 
-  InterfaceBundle* bundle() { return &bundle_; }
-
  private:
   // external_mojo::mojom::ExternalService implementation:
   void OnBindInterface(const std::string& interface_name,
@@ -74,6 +69,8 @@ class ExternalService : public external_mojo::mojom::ExternalService {
   mojo::Receiver<external_mojo::mojom::ExternalService> service_receiver_{this};
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(ExternalService);
 };
 
 }  // namespace external_service_support

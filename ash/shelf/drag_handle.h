@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,36 +6,32 @@
 #define ASH_SHELF_DRAG_HANDLE_H_
 
 #include "ash/ash_export.h"
-#include "ash/controls/contextual_nudge.h"
-#include "ash/controls/contextual_tooltip.h"
+#include "ash/shelf/contextual_nudge.h"
+#include "ash/shelf/contextual_nudge_status_tracker.h"
 #include "ash/shelf/shelf.h"
+#include "ash/shell.h"
 #include "ash/shell_observer.h"
+#include "ash/wm/overview/overview_controller.h"
 #include "ash/wm/overview/overview_observer.h"
 #include "ash/wm/splitview/split_view_controller.h"
 #include "ash/wm/splitview/split_view_observer.h"
-#include "base/functional/callback_helpers.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "base/timer/timer.h"
 #include "ui/compositor/layer_animator.h"
-#include "ui/views/controls/button/button.h"
+#include "ui/views/view.h"
 #include "ui/views/view_targeter_delegate.h"
 
 namespace ash {
 
-class OverviewController;
-class Shell;
-
-class ASH_EXPORT DragHandle : public views::Button,
+class ASH_EXPORT DragHandle : public views::View,
                               public views::ViewTargeterDelegate,
-                              public AccessibilityObserver,
                               public OverviewObserver,
                               public ShellObserver,
                               public ui::ImplicitAnimationObserver,
-                              public SplitViewObserver,
-                              public ShelfObserver {
+                              public SplitViewObserver {
  public:
-  DragHandle(float drag_handle_corner_radius, Shelf* shelf);
+  DragHandle(int drag_handle_corner_radius, Shelf* shelf);
   DragHandle(const DragHandle&) = delete;
   ~DragHandle() override;
 
@@ -71,8 +67,6 @@ class ASH_EXPORT DragHandle : public views::Button,
   // views::View:
   void OnGestureEvent(ui::GestureEvent* event) override;
   gfx::Rect GetAnchorBoundsInScreen() const override;
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
-  void OnThemeChanged() override;
 
   // OverviewObserver:
   void OnOverviewModeStarting() override;
@@ -83,10 +77,6 @@ class ASH_EXPORT DragHandle : public views::Button,
   // SplitViewObserver:
   void OnSplitViewStateChanged(SplitViewController::State previous_state,
                                SplitViewController::State state) override;
-
-  // ShelfObserver:
-  void OnHotseatStateChanged(HotseatState old_state,
-                             HotseatState new_state) override;
 
   ContextualNudge* drag_handle_nudge() { return drag_handle_nudge_; }
 
@@ -115,13 +105,6 @@ class ASH_EXPORT DragHandle : public views::Button,
   }
 
  private:
-  // AccessibilityObserver:
-  void OnAccessibilityStatusChanged() override;
-
-  // Show/hide hotseat in tablet mode. This is only available when spoken
-  // feedback is enabled.
-  void ButtonPressed();
-
   // ui::ImplicitAnimationObserver:
   void OnImplicitAnimationsCompleted() override;
 
@@ -178,15 +161,16 @@ class ASH_EXPORT DragHandle : public views::Button,
 
   std::unique_ptr<Shelf::ScopedAutoHideLock> auto_hide_lock_;
 
-  base::ScopedClosureRunner force_show_hotseat_resetter_;
+  ScopedObserver<SplitViewController, SplitViewObserver> split_view_observer_{
+      this};
 
-  base::ScopedObservation<SplitViewController, SplitViewObserver>
-      split_view_observation_{this};
+  ScopedObserver<OverviewController, OverviewObserver> overview_observer_{this};
 
-  base::ScopedObservation<OverviewController, OverviewObserver>
-      overview_observation_{this};
-
-  base::ScopedObservation<Shell, ShellObserver> shell_observation_{this};
+  ScopedObserver<Shell,
+                 ShellObserver,
+                 &Shell::AddShellObserver,
+                 &Shell::RemoveShellObserver>
+      shell_observer_{this};
 
   base::WeakPtrFactory<DragHandle> weak_factory_{this};
 };

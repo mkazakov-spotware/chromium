@@ -1,10 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/test/base/chrome_render_view_test.h"
-
-#include <memory>
 
 #include "base/debug/leak_annotations.h"
 #include "base/run_loop.h"
@@ -20,6 +18,7 @@
 #include "components/spellcheck/renderer/spellcheck.h"
 #include "components/spellcheck/spellcheck_buildflags.h"
 #include "content/public/browser/native_web_keyboard_event.h"
+#include "content/public/renderer/render_view.h"
 #include "extensions/buildflags/buildflags.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
@@ -76,7 +75,7 @@ class MockAutofillAgent : public AutofillAgent {
 
   void WaitForAutofillDidAssociateFormControl() {
     DCHECK(run_loop_ == nullptr);
-    run_loop_ = std::make_unique<base::RunLoop>();
+    run_loop_.reset(new base::RunLoop);
     run_loop_->Run();
     run_loop_.reset();
   }
@@ -100,6 +99,9 @@ void ChromeRenderViewTest::SetUp() {
   ChromeUnitTestSuite::InitializeProviders();
   ChromeUnitTestSuite::InitializeResourceBundle();
 
+  chrome_render_thread_ = new ChromeMockRenderThread();
+  render_thread_.reset(chrome_render_thread_);
+
   registry_ = std::make_unique<service_manager::BinderRegistry>();
 
   // TODO(crbug/862989): Before this SetUp, the test agents defined at the end
@@ -113,14 +115,15 @@ void ChromeRenderViewTest::SetUp() {
   // store them directly (they're stored as RenderFrameObserver*).  So just
   // create another set.
   password_autofill_agent_ = new autofill::TestPasswordAutofillAgent(
-      GetMainRenderFrame(), &associated_interfaces_);
+      view_->GetMainRenderFrame(), &associated_interfaces_);
   password_generation_ = new autofill::PasswordGenerationAgent(
-      GetMainRenderFrame(), password_autofill_agent_, &associated_interfaces_);
+      view_->GetMainRenderFrame(), password_autofill_agent_,
+      &associated_interfaces_);
   autofill_assistant_agent_ =
-      new autofill::AutofillAssistantAgent(GetMainRenderFrame());
+      new autofill::AutofillAssistantAgent(view_->GetMainRenderFrame());
   autofill_agent_ = new NiceMock<MockAutofillAgent>(
-      GetMainRenderFrame(), password_autofill_agent_, password_generation_,
-      autofill_assistant_agent_, &associated_interfaces_);
+      view_->GetMainRenderFrame(), password_autofill_agent_,
+      password_generation_, autofill_assistant_agent_, &associated_interfaces_);
 }
 
 void ChromeRenderViewTest::TearDown() {

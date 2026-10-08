@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,9 +17,8 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import org.chromium.base.metrics.UmaRecorderHolder;
+import org.chromium.base.metrics.test.ShadowRecordHistogram;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.chrome.browser.video_tutorials.FeatureType;
 import org.chromium.chrome.browser.video_tutorials.LanguageInfoProvider;
 import org.chromium.chrome.browser.video_tutorials.test.TestVideoTutorialService;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
@@ -46,7 +45,7 @@ public class LanguagePickerMediatorUnitTest {
 
     @Before
     public void setUp() {
-        UmaRecorderHolder.resetForTesting();
+        ShadowRecordHistogram.reset();
         MockitoAnnotations.initMocks(this);
 
         mModel = new PropertyModel(LanguagePickerProperties.ALL_KEYS);
@@ -60,7 +59,7 @@ public class LanguagePickerMediatorUnitTest {
 
     @Test
     public void checkCallbacks() {
-        mMediator.showLanguagePicker(FeatureType.CHROME_INTRO, () -> {}, () -> {});
+        mMediator.showLanguagePicker(() -> {}, () -> {});
         verify(mPropertyObserver)
                 .onPropertyChanged(mModel, LanguagePickerProperties.CLOSE_CALLBACK);
         verify(mPropertyObserver)
@@ -76,7 +75,7 @@ public class LanguagePickerMediatorUnitTest {
         Mockito.when(mLanguageProvider.getLanguageInfo("en"))
                 .thenReturn(TestVideoTutorialService.ENGLISH);
 
-        mMediator.showLanguagePicker(FeatureType.CHROME_INTRO, () -> {}, () -> {});
+        mMediator.showLanguagePicker(() -> {}, () -> {});
 
         assertThat(mListModel.size(), equalTo(mTestVideoTutorialService.getTestLanguages().size()));
         ListItem listItem = mListModel.get(0);

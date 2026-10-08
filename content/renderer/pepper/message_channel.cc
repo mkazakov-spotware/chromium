@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,8 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "content/renderer/pepper/pepper_plugin_instance_impl.h"
 #include "content/renderer/pepper/pepper_try_catch.h"
 #include "content/renderer/pepper/plugin_module.h"
@@ -26,9 +27,7 @@
 #include "ppapi/shared_impl/var_tracker.h"
 #include "third_party/blink/public/web/web_dom_message_event.h"
 #include "third_party/blink/public/web/web_plugin_container.h"
-#include "v8/include/v8-context.h"
-#include "v8/include/v8-object.h"
-#include "v8/include/v8-template.h"
+#include "v8/include/v8.h"
 
 using ppapi::PpapiGlobals;
 using ppapi::ScopedPPVar;
@@ -449,7 +448,7 @@ void MessageChannel::DrainJSMessageQueueSoon() {
   if (drain_js_message_queue_scheduled_)
     return;
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&MessageChannel::DrainJSMessageQueue,
                                 weak_ptr_factory_.GetWeakPtr()));
   drain_js_message_queue_scheduled_ = true;

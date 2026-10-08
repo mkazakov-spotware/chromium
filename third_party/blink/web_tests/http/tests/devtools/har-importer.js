@@ -1,12 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(
       'Verifies that imported HAR files create matching NetworkRequests');
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('application_test_runner');
-  await TestRunner.loadTestModule('network_test_runner');
+  await TestRunner.loadModule('application_test_runner');
+  await TestRunner.loadModule('network_test_runner');
   const harRoot = new HARImporter.HARRoot(harJson);
   const requests = HARImporter.Importer.requestsFromHARLog(harRoot.log);
   const formattedRequests = await Promise.all(requests.map(async request => {

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@ class LinkManifest final : public LinkResource {
   ~LinkManifest() override;
 
   // LinkResource
-  void Process(LinkLoadParameters::Reason reason) override;
+  void Process() override;
   LinkResourceType GetType() const override { return kManifest; }
   bool HasLoaded() const override;
   void OwnerRemoved() override;

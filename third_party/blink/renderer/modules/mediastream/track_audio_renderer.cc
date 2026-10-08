@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <utility>
 
-#include "base/callback_helpers.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
@@ -23,7 +22,6 @@
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/platform/mediastream/media_stream_audio_track.h"
 #include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
-#include "third_party/blink/renderer/platform/wtf/cross_thread_copier_base.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
 
 namespace WTF {
@@ -54,47 +52,19 @@ base::TimeDelta ComputeTotalElapsedRenderTime(
     int64_t num_samples_rendered,
     int sample_rate) {
   return prior_elapsed_render_time +
-         base::Microseconds(num_samples_rendered *
-                            base::Time::kMicrosecondsPerSecond / sample_rate);
+         base::TimeDelta::FromMicroseconds(num_samples_rendered *
+                                           base::Time::kMicrosecondsPerSecond /
+                                           sample_rate);
 }
 
 WebLocalFrame* ToWebLocalFrame(LocalFrame* frame) {
   if (!frame)
     return nullptr;
 
-  return static_cast<WebLocalFrame*>(WebFrame::FromCoreFrame(frame));
-}
-
-bool RequiresSinkReconfig(const media::AudioParameters& old_format,
-                          const media::AudioParameters& new_format) {
-  // Always favor |new_format| if our current params are invalid. This avoids
-  // the edge case where |current_params| is valid except for 0
-  // frames_per_buffer(), and never gets replaced by an almost identical
-  // |new_format| with a valid frames_per_buffer().
-  if (!old_format.IsValid())
-    return true;
-
-  // Ignore frames_per_buffer(), since the AudioRendererSink and the
-  // AudioShifter handle those variations adequately.
-  media::AudioParameters new_format_copy = new_format;
-  new_format_copy.set_frames_per_buffer(old_format.frames_per_buffer());
-
-  return !old_format.Equals(new_format_copy);
+  return static_cast<WebLocalFrame*>(WebFrame::FromFrame(frame));
 }
 
 }  // namespace
-
-TrackAudioRenderer::PendingData::PendingData(const media::AudioBus& audio_bus,
-                                             base::TimeTicks ref_time)
-    : reference_time(ref_time),
-      audio(media::AudioBus::Create(audio_bus.channels(), audio_bus.frames())) {
-  audio_bus.CopyTo(audio.get());
-}
-
-TrackAudioRenderer::PendingReconfig::PendingReconfig(
-    const media::AudioParameters& format,
-    int reconfig_number)
-    : reconfig_number(reconfig_number), format(format) {}
 
 // media::AudioRendererSink::RenderCallback implementation
 int TrackAudioRenderer::Render(base::TimeDelta delay,
@@ -111,7 +81,10 @@ int TrackAudioRenderer::Render(base::TimeDelta delay,
     return 0;
   }
 
-  const base::TimeTicks playout_time = delay_timestamp + delay;
+  // TODO(miu): Plumbing is needed to determine the actual playout timestamp
+  // of the audio, instead of just snapshotting TimeTicks::Now(), for proper
+  // audio/video sync. https://crbug.com/335335
+  const base::TimeTicks playout_time = base::TimeTicks::Now() + delay;
   DVLOG(2) << "Pulling audio out of shifter to be played "
            << delay.InMilliseconds() << " ms from now.";
   audio_shifter_->Pull(audio_bus, playout_time);
@@ -137,19 +110,12 @@ void TrackAudioRenderer::OnRenderError() {
 // WebMediaStreamAudioSink implementation
 void TrackAudioRenderer::OnData(const media::AudioBus& audio_bus,
                                 base::TimeTicks reference_time) {
+  DCHECK(!reference_time.is_null());
+
   TRACE_EVENT1("audio", "TrackAudioRenderer::OnData", "reference time (ms)",
                (reference_time - base::TimeTicks()).InMillisecondsF());
 
   base::AutoLock auto_lock(thread_lock_);
-
-  // There is a pending ReconfigureSink() call. Copy |audio_bus| so it can be
-  // pushed in to the |audio_shifter_| (or dropped later).
-  if (!pending_reconfigs_.empty()) {
-    // Copies |audio_bus| internally.
-    pending_reconfigs_.back().data.emplace_back(audio_bus, reference_time);
-    return;
-  }
-
   if (!audio_shifter_)
     return;
 
@@ -162,54 +128,47 @@ void TrackAudioRenderer::OnData(const media::AudioBus& audio_bus,
   // point-in-time at which the first audio sample was captured in the past.  In
   // either case, AudioShifter will auto-detect and do the right thing when
   // audio is pulled from it.
-  PushDataIntoShifter_Locked(std::move(audio_data), reference_time);
+  audio_shifter_->Push(std::move(audio_data), reference_time);
 }
 
 void TrackAudioRenderer::OnSetFormat(const media::AudioParameters& params) {
   DVLOG(1) << "TrackAudioRenderer::OnSetFormat: "
            << params.AsHumanReadableString();
-
-  // Don't attempt call ReconfigureSink() if the |last_reconfig_format_|
-  // is compatible (e.g. identical, or varies only by frames_per_buffer()).
-  if (!RequiresSinkReconfig(last_reconfig_format_, params))
-    return;
-
-  int reconfig_number;
+  // If the parameters changed, the audio in the AudioShifter is invalid and
+  // should be dropped.
   {
-    base::AutoLock lock(thread_lock_);
-    // Keep track of how many ReconfigureSink() calls we have made. This allows
-    // us to drop all but the latest ReconfigureSink() calls on the main thread.
-    reconfig_number = ++sink_reconfig_count_;
-
-    // As long as there is an entry in |pending_reconfigs_|, we save data
-    // instead of dropping it, or pushing it into |audio_shifter_|. This queue
-    // entry is popped in ReconfigureSink().
-    pending_reconfigs_.push_back(PendingReconfig(params, reconfig_number));
+    base::AutoLock auto_lock(thread_lock_);
+    if (audio_shifter_ &&
+        (audio_shifter_->sample_rate() != params.sample_rate() ||
+         audio_shifter_->channels() != params.channels())) {
+      HaltAudioFlowWhileLockHeld();
+    }
   }
 
   // Post a task on the main render thread to reconfigure the |sink_| with the
   // new format.
-  PostCrossThreadTask(
-      *task_runner_, FROM_HERE,
-      CrossThreadBindOnce(&TrackAudioRenderer::ReconfigureSink,
-                          WrapRefCounted(this), params, reconfig_number));
-
-  last_reconfig_format_ = params;
+  PostCrossThreadTask(*task_runner_, FROM_HERE,
+                      CrossThreadBindOnce(&TrackAudioRenderer::ReconfigureSink,
+                                          WrapRefCounted(this), params));
 }
 
 TrackAudioRenderer::TrackAudioRenderer(
     MediaStreamComponent* audio_component,
-    LocalFrame& playout_frame,
+    LocalFrame* playout_frame,
     const base::UnguessableToken& session_id,
     const String& device_id,
-    base::RepeatingClosure on_render_error_callback)
+    base::RepeatingCallback<void()> on_render_error_callback)
     : audio_component_(audio_component),
       playout_frame_(playout_frame),
       session_id_(session_id),
       task_runner_(
-          playout_frame.GetTaskRunner(blink::TaskType::kInternalMedia)),
+          playout_frame->GetTaskRunner(blink::TaskType::kInternalMedia)),
+      num_samples_rendered_(0),
       on_render_error_callback_(std::move(on_render_error_callback)),
-      output_device_id_(device_id) {
+      playing_(false),
+      output_device_id_(device_id),
+      volume_(0.0),
+      sink_started_(false) {
   DCHECK(MediaStreamAudioTrack::From(audio_component_.Get()));
   DCHECK(task_runner_->BelongsToCurrentThread());
   DVLOG(1) << "TrackAudioRenderer::TrackAudioRenderer()";
@@ -287,7 +246,7 @@ void TrackAudioRenderer::Pause() {
   playing_ = false;
 
   base::AutoLock auto_lock(thread_lock_);
-  HaltAudioFlow_Locked();
+  HaltAudioFlowWhileLockHeld();
 }
 
 void TrackAudioRenderer::SetVolume(float volume) {
@@ -325,7 +284,7 @@ void TrackAudioRenderer::SwitchOutputDevice(
 
   {
     base::AutoLock auto_lock(thread_lock_);
-    HaltAudioFlow_Locked();
+    HaltAudioFlowWhileLockHeld();
   }
 
   scoped_refptr<media::AudioRendererSink> new_sink =
@@ -358,18 +317,19 @@ void TrackAudioRenderer::SwitchOutputDevice(
   std::move(callback).Run(media::OUTPUT_DEVICE_STATUS_OK);
 }
 
-void TrackAudioRenderer::MaybeStartSink(bool reconfiguring) {
+void TrackAudioRenderer::MaybeStartSink() {
   DCHECK(task_runner_->BelongsToCurrentThread());
   DVLOG(1) << "TrackAudioRenderer::MaybeStartSink()";
 
-  if (!sink_ || !source_params_.IsValid() || !playing_)
+  if (!sink_ || !source_params_.IsValid() || !playing_) {
     return;
+  }
 
   // Re-create the AudioShifter to drop old audio data and reset to a starting
   // state.  MaybeStartSink() is always called in a situation where either the
   // source or sink has changed somehow and so all of AudioShifter's internal
   // time-sync state is invalid.
-  CreateAudioShifter(reconfiguring);
+  CreateAudioShifter();
 
   if (sink_started_)
     return;
@@ -385,12 +345,13 @@ void TrackAudioRenderer::MaybeStartSink(bool reconfiguring) {
   // source, but having the buffer duration preferred by the hardware.
   const media::AudioParameters& hardware_params = device_info.output_params();
   media::AudioParameters sink_params(
-      hardware_params.format(), source_params_.channel_layout_config(),
+      hardware_params.format(), source_params_.channel_layout(),
       source_params_.sample_rate(),
       media::AudioLatency::GetRtcBufferSize(
           source_params_.sample_rate(), hardware_params.frames_per_buffer()));
   if (sink_params.channel_layout() == media::CHANNEL_LAYOUT_DISCRETE) {
     DCHECK_LE(source_params_.channels(), 2);
+    sink_params.set_channels_for_discrete(source_params_.channels());
   }
   DVLOG(1) << ("TrackAudioRenderer::MaybeStartSink() -- Starting sink.  "
                "source_params={")
@@ -413,51 +374,12 @@ void TrackAudioRenderer::MaybeStartSink(bool reconfiguring) {
   }
 }
 
-void TrackAudioRenderer::ReconfigureSink(
-    const media::AudioParameters new_format,
-    int reconfig_number) {
+void TrackAudioRenderer::ReconfigureSink(const media::AudioParameters& params) {
   DCHECK(task_runner_->BelongsToCurrentThread());
 
-  {
-    base::AutoLock lock(thread_lock_);
-    DCHECK(!pending_reconfigs_.empty());
-    DCHECK_EQ(pending_reconfigs_.front().reconfig_number, reconfig_number);
-
-    // ReconfigureSink() is only posted by OnSetFormat() when an incoming format
-    // is incompatible with |last_reconfig_format_|. A mismatch between
-    // |reconfig_number| and |sink_reconfig_count_| means there is at least
-    // one more pending ReconfigureSink() call, which is definitively
-    // incompatible with |new_format|. If so, ignore this reconfiguration, to
-    // avoid creating a sink which would be immediately destroyed by the next
-    // ReconfigureSink() call.
-    if (reconfig_number != sink_reconfig_count_) {
-      // Drop any pending data for this |reconfig_number|, as we won't have
-      // an |audio_shifter_| or a |sink_| configured to ingest this data.
-      pending_reconfigs_.pop_front();
-      return;
-    }
-
-    // The |new_format| is compatible with the existing one. Skip this
-    // reconfiguration.
-    if (!RequiresSinkReconfig(source_params_, new_format)) {
-      // Push pending data into |audio_shifter_|, if we have one, or clear
-      // the entry corresponding to this |reconfig_number|.
-      if (audio_shifter_)
-        ConsumePendingReconfigsFront_Locked();
-      else
-        pending_reconfigs_.pop_front();
-
-      return;
-    }
-
-    // If we need to reconfigure, drop all existing |audio_shifter_| data, as it
-    // won't be compatible with the new shifter and data in
-    // |pending_reconfigs_.front()|.
-    if (audio_shifter_)
-      HaltAudioFlow_Locked();
-  }
-
-  source_params_ = new_format;
+  if (source_params_.Equals(params))
+    return;
+  source_params_ = params;
 
   if (!sink_)
     return;  // TrackAudioRenderer has not yet been started.
@@ -469,19 +391,10 @@ void TrackAudioRenderer::ReconfigureSink(
   sink_ = Platform::Current()->NewAudioRendererSink(
       WebAudioDeviceSourceType::kNonRtcAudioTrack,
       ToWebLocalFrame(playout_frame_), {session_id_, output_device_id_.Utf8()});
-  MaybeStartSink(/*reconfiguring=*/true);
-
-  {
-    base::AutoLock lock(thread_lock_);
-    // We may have never created |audio_shifter_| (e.g. if the sink isn't
-    // playing). Clear the corresponding |pending_reconfigs_| entry, so
-    // we start dropping incoming data in OnData().
-    if (!audio_shifter_)
-      pending_reconfigs_.pop_front();
-  }
+  MaybeStartSink();
 }
 
-void TrackAudioRenderer::CreateAudioShifter(bool reconfiguring) {
+void TrackAudioRenderer::CreateAudioShifter() {
   DCHECK(task_runner_->BelongsToCurrentThread());
 
   // Note 1: The max buffer is fairly large to cover the case where
@@ -495,18 +408,15 @@ void TrackAudioRenderer::CreateAudioShifter(bool reconfiguring) {
   // ~15ms on Windows machines without a working high-resolution clock.  See
   // comments in base/time/time.h for details.
   media::AudioShifter* const new_shifter = new media::AudioShifter(
-      base::Seconds(5), base::Milliseconds(20), base::Seconds(20),
-      source_params_.sample_rate(), source_params_.channels());
+      base::TimeDelta::FromSeconds(5), base::TimeDelta::FromMilliseconds(20),
+      base::TimeDelta::FromSeconds(20), source_params_.sample_rate(),
+      source_params_.channels());
 
   base::AutoLock auto_lock(thread_lock_);
   audio_shifter_.reset(new_shifter);
-
-  // There might be pending data that needs to be pushed into |audio_shifter_|.
-  if (reconfiguring)
-    ConsumePendingReconfigsFront_Locked();
 }
 
-void TrackAudioRenderer::HaltAudioFlow_Locked() {
+void TrackAudioRenderer::HaltAudioFlowWhileLockHeld() {
   thread_lock_.AssertAcquired();
 
   audio_shifter_.reset();
@@ -517,42 +427,6 @@ void TrackAudioRenderer::HaltAudioFlow_Locked() {
         source_params_.sample_rate());
     num_samples_rendered_ = 0;
   }
-}
-
-void TrackAudioRenderer::ConsumePendingReconfigsFront_Locked() {
-  thread_lock_.AssertAcquired();
-  DCHECK(audio_shifter_);
-
-  PendingReconfig& current_reconfig = pending_reconfigs_.front();
-  DCHECK(!RequiresSinkReconfig(source_params_, current_reconfig.format));
-
-  auto& pending_data = current_reconfig.data;
-  for (auto& data : pending_data)
-    PushDataIntoShifter_Locked(std::move(data.audio), data.reference_time);
-
-  // Once |pending_reconfigs_| is empty, new data will be pushed directly
-  // into |audio_shifter_|. If it isn't empty, there is another
-  // ReconfigureSink() in flight.
-  pending_reconfigs_.pop_front();
-}
-
-void TrackAudioRenderer::PushDataIntoShifter_Locked(
-    std::unique_ptr<media::AudioBus> data,
-    base::TimeTicks reference_time) {
-  thread_lock_.AssertAcquired();
-  DCHECK(audio_shifter_);
-  total_frames_pushed_for_testing_ += data->frames();
-  audio_shifter_->Push(std::move(data), reference_time);
-}
-
-int TrackAudioRenderer::TotalFramesPushedForTesting() const {
-  base::AutoLock auto_lock(thread_lock_);
-  return total_frames_pushed_for_testing_;
-}
-
-int TrackAudioRenderer::FramesInAudioShifterForTesting() const {
-  base::AutoLock auto_lock(thread_lock_);
-  return audio_shifter_ ? audio_shifter_->frames_pushed_for_testing() : 0;
 }
 
 }  // namespace blink

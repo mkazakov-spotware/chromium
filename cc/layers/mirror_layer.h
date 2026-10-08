@@ -1,11 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_LAYERS_MIRROR_LAYER_H_
 #define CC_LAYERS_MIRROR_LAYER_H_
-
-#include <memory>
 
 #include "base/memory/scoped_refptr.h"
 #include "cc/cc_export.h"
@@ -24,11 +22,8 @@ class CC_EXPORT MirrorLayer : public Layer {
   Layer* mirrored_layer() const { return mirrored_layer_.get(); }
 
   // Layer overrides.
-  std::unique_ptr<LayerImpl> CreateLayerImpl(
-      LayerTreeImpl* tree_impl) const override;
-  void PushPropertiesTo(LayerImpl* layer,
-                        const CommitState& commit_state,
-                        const ThreadUnsafeCommitState& unsafe_state) override;
+  std::unique_ptr<LayerImpl> CreateLayerImpl(LayerTreeImpl* tree_impl) override;
+  void PushPropertiesTo(LayerImpl* layer) override;
   void SetLayerTreeHost(LayerTreeHost* host) override;
 
  protected:
@@ -39,7 +34,7 @@ class CC_EXPORT MirrorLayer : public Layer {
 
   // A reference to a layer that is mirrored by this layer. |mirrored_layer_|
   // cannot be an ancestor of |this|.
-  const scoped_refptr<Layer> mirrored_layer_;
+  scoped_refptr<Layer> mirrored_layer_;
 };
 
 }  // namespace cc

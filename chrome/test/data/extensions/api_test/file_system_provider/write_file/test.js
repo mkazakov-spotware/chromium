@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -96,19 +96,18 @@ function onWriteFileRequested(options, onSuccess, onError) {
     return;
   }
 
-  // Create an array with enough space for new data.
-  const oldArray = new TextEncoder().encode(fileContents[filePath] || '');
-  const newLength =
-      Math.max(oldArray.length, options.offset + options.data.byteLength);
-  const newArray = new Uint8Array(new ArrayBuffer(newLength));
-  // Write existing data and new data.
-  newArray.set(oldArray, 0);
-  newArray.set(new Uint8Array(options.data), options.offset);
-  // Save the new file as text.
-  const newContents = new TextDecoder().decode(newArray);
-  fileContents[filePath] = newContents;
-  metadata.size = newContents.length;
-  onSuccess();
+  // Convert ArrayBuffer to string.
+  var reader = new FileReader();
+  reader.onloadend = function(e) {
+    var oldContents = fileContents[filePath] || '';
+    var newContents = oldContents.substr(0, options.offset) + reader.result +
+        oldContents.substr(options.offset + reader.result.length);
+    metadata.size = newContents.length;
+    fileContents[filePath] = newContents;
+    onSuccess();
+  };
+
+  reader.readAsText(new Blob([options.data]));
 }
 
 /**
@@ -344,15 +343,21 @@ function runTests() {
           TESTING_CHOCOLATE_FILE_NAME,
           {create: false, exclusive: false},
           function(fileEntry) {
+            var hadAbort = false;
             fileEntry.createWriter(function(fileWriter) {
               fileWriter.onwriteend = function(e) {
-                if (fileWriter.error) {
-                  chrome.test.assertEq(
-                      'AbortError', fileWriter.error.name);
-                } else {
+                if (!hadAbort) {
                   chrome.test.fail(
-                      'Unexpectedly succeeded writing, despite aborting.');
+                      'Unexpectedly finished writing, despite aborting.');
+                  return;
                 }
+              };
+              fileWriter.onerror = function(e) {
+                chrome.test.assertEq(
+                    'AbortError', fileWriter.error.name);
+              };
+              fileWriter.onabort = function(e) {
+                hadAbort = true;
               };
               writeFileRequestedCallbacks.push(
                   function(filePath) {

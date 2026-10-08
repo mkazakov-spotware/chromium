@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,7 +41,6 @@
 }
 
 - (void)reset {
-  _semaphores = [NSMutableDictionary dictionaryWithCapacity:0];
   _responseDataPerTask = [NSMutableDictionary dictionaryWithCapacity:0];
   _errorPerTask = [NSMutableDictionary dictionaryWithCapacity:0];
   _totalBytesReceivedPerTask = [NSMutableDictionary dictionaryWithCapacity:0];
@@ -108,12 +107,11 @@
 // nanoseconds, a value of 0 or less means do not ever time out.
 - (BOOL)waitForDone:(NSURLSessionDataTask*)task
         withTimeout:(int64_t)timeout_ns {
-  BOOL request_completed = NO;
-  dispatch_semaphore_t semaphore = [self getSemaphoreForTask:task];
+  dispatch_semaphore_t _semaphore = [self getSemaphoreForTask:task];
   if (timeout_ns > 0) {
-    request_completed =
+    BOOL request_completed =
         dispatch_semaphore_wait(
-            semaphore, dispatch_time(DISPATCH_TIME_NOW, timeout_ns)) == 0;
+            _semaphore, dispatch_time(DISPATCH_TIME_NOW, timeout_ns)) == 0;
     if (!request_completed) {
       // Cancel the pending request; otherwise, the request is still active and
       // may invoke the delegate methods later.
@@ -122,18 +120,11 @@
       // Give the canceled request some time to execute didCompleteWithError
       // method with NSURLErrorCancelled error code.
       dispatch_semaphore_wait(
-          semaphore, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+          _semaphore, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
     }
-  } else {
-    request_completed =
-        dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER) == 0;
+    return request_completed;
   }
-  @synchronized(_semaphores) {
-    if (request_completed) {
-      [_semaphores removeObjectForKey:task];
-    }
-  }
-  return request_completed;
+  return dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER) == 0;
 }
 
 - (void)URLSession:(NSURLSession*)session

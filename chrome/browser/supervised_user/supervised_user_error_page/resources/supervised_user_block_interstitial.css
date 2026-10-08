@@ -1,19 +1,14 @@
-/* Copyright 2014 The Chromium Authors
+/* Copyright 2014 The Chromium Authors. All rights reserved.
    Use of this source code is governed by a BSD-style license that can be
    found in the LICENSE file. */
-
-/* This is the stylesheet for the interstitial when the
-   "WebFilterInterstitialRefresh" flag is disabled. */
 
 body {
   --avatar-stroke-color: var(--google-gray-50);
   --custodian-name-color: #333333;
   --custodian-email-color: #5f6368;
   --focused-details-button-border: rgba(26, 115, 232, 0.4);
-  --header-color: var(--google-gray-900);
-  --paragraph-color: var(--google-gray-700);
-  --callout-text-color: var(--google-gray-900);
-  --callout-bg-color: var(--google-gray-100);
+  --header-color:  #202124;
+  --paragraph-color: #5f6368;
   font-family: "Roboto", sans-serif;
   padding: 24px 24px 20px 24px;
 }
@@ -34,10 +29,18 @@ button {
 }
 
 button:active {
-  background: var(--primary-button-fill-color-active);
+  background: var(--primary-button-fill-color-active)
 }
 
 [dir='rtl'] button {
+  float: left;
+}
+
+.ask-permission-button {
+  float: right;
+}
+
+.go-back-button {
   float: left;
 }
 
@@ -64,7 +67,7 @@ button:active {
 .details-button:active {
   background: var(--google-gray-50);
   box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3),
-    0 2px 6px 2px rgba(60, 64, 67, 0.15);
+              0 2px 6px 2px rgba(60, 64, 67, 0.15);
 }
 
 .details-button:focus {
@@ -82,7 +85,7 @@ h1 {
   color: var(--header-color);
   font-size: 24px;
   font-weight: normal;
-  margin: 0 0 16px;
+  margin-bottom: 16px;
 }
 
 html {
@@ -93,12 +96,6 @@ html {
 p {
   color: var(--paragraph-color);
   font-size: 15px;
-  margin-bottom: 0;
-}
-
-.message-container {
-  display: flex;
-  flex-direction: column;
 }
 
 .icon {
@@ -106,13 +103,10 @@ p {
 }
 
 #family-link-kite {
-  content: -webkit-image-set(url(../../resources/supervised_user_icon.png) 1x);
+  content: -webkit-image-set(
+      url(../../resources/supervised_user_icon.png) 1x);
   height: 72px;
   width: 72px;
-}
-
-.illustration {
-  display: none;
 }
 
 .frame-blocked {
@@ -132,7 +126,7 @@ p {
   margin-top: 40px;
 }
 
-.remote-approvals-button {
+.ask-permission-button {
   float: right;
 }
 
@@ -152,7 +146,8 @@ p {
 .avatar-img {
   border: 1px solid var(--avatar-stroke-color);
   border-radius: 50%;
-  content: -webkit-image-set(url(default_100_percent/logo_avatar_circle_blue_color.png) 1x,
+  content: -webkit-image-set(
+      url(default_100_percent/logo_avatar_circle_blue_color.png) 1x,
       url(default_200_percent/logo_avatar_circle_blue_color.png) 2x);
   float: left;
   height: 40px;
@@ -162,9 +157,7 @@ p {
 }
 
 .custodian-contact {
-  display: flex;
-  flex-direction: column;
-  height: 40px;
+  display: inline-block
   overflow: visible;
 }
 
@@ -172,16 +165,12 @@ p {
   color: var(--custodian-name-color);
   font-size: 15px;
   font-weight: bold;
-  margin-bottom: 4px;
 }
 
 .custodian-email {
   color: var(--custodian-email-color);
-  display: flex;
-  flex-direction: column;
   font-size: 15px;
-  height: 100%;
-  justify-content: center;
+  margin-top: 4px;
 }
 
 #details {
@@ -190,36 +179,6 @@ p {
 
 #details-header {
   font-weight: bold;
-}
-
-picture {
-  margin: auto;
-}
-
-/* Local approvals button is only shown when the local web approvals flag
-is enabled. */
-.local-approvals-button {
-  float: right;
-  margin-left: 24px;
-}
-
-.local-approvals-button:active {
-  background: var(--primary-button-fill-color-active);
-}
-
-/* Remove focus-visible outline styles, because forced focus is used for
-screen reader and chrome vox provides its own focus style. */
-.frame-blocked:focus-visible,
-button:focus-visible {
-  outline: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  body.supervised-user-block {
-    --avatar-stroke-color: var(--google-blue-100);
-    --custodian-email-color: var(--google-gray-500);
-    --custodian-name-color: var(--google-gray-500);
-  }
 }
 
 /* If the height is smaller than min-height, set top and bottom
@@ -231,7 +190,6 @@ margin to 0. This will be useful for subframes. */
 }
 
 @media (max-width: 420px) {
-
   button,
   [dir='rtl'] button,
   .small-link {
@@ -241,5 +199,13 @@ margin to 0. This will be useful for subframes. */
 
   .details-button {
     margin-top: 20px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  body.supervised-user-block {
+    --avatar-stroke-color: var(--google-blue-100);
+    --custodian-email-color: var(--google-gray-500);
+    --custodian-name-color: var(--google-gray-500);
   }
 }

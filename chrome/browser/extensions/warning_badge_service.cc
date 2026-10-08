@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,7 @@
 
 #include <memory>
 
-#include "base/containers/contains.h"
-#include "base/memory/raw_ptr.h"
+#include "base/stl_util.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/extensions/warning_badge_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
@@ -37,7 +36,7 @@ class ErrorBadge : public GlobalError {
   // Implementation for GlobalError:
   bool HasMenuItem() override;
   int MenuItemCommandID() override;
-  std::u16string MenuItemLabel() override;
+  base::string16 MenuItemLabel() override;
   void ExecuteMenuItem(Browser* browser) override;
 
   bool HasBubbleView() override;
@@ -48,7 +47,7 @@ class ErrorBadge : public GlobalError {
   static int GetMenuItemCommandID();
 
  private:
-  raw_ptr<WarningBadgeService, DanglingUntriaged> badge_service_;
+  WarningBadgeService* badge_service_;
 };
 
 ErrorBadge::ErrorBadge(WarningBadgeService* badge_service)
@@ -66,7 +65,7 @@ int ErrorBadge::MenuItemCommandID() {
   return GetMenuItemCommandID();
 }
 
-std::u16string ErrorBadge::MenuItemLabel() {
+base::string16 ErrorBadge::MenuItemLabel() {
   return l10n_util::GetStringUTF16(IDS_EXTENSION_WARNINGS_WRENCH_MENU_ITEM);
 }
 
@@ -91,7 +90,7 @@ void ErrorBadge::ShowBubbleView(Browser* browser) {
 }
 
 GlobalErrorBubbleViewBase* ErrorBadge::GetBubbleView() {
-  return nullptr;
+  return NULL;
 }
 
 // static
@@ -101,9 +100,10 @@ int ErrorBadge::GetMenuItemCommandID() {
 
 }  // namespace
 
-WarningBadgeService::WarningBadgeService(Profile* profile) : profile_(profile) {
+WarningBadgeService::WarningBadgeService(Profile* profile)
+    : profile_(profile), warning_service_observer_(this) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  warning_service_observation_.Observe(WarningService::Get(profile_));
+  warning_service_observer_.Add(WarningService::Get(profile_));
 }
 
 WarningBadgeService::~WarningBadgeService() {

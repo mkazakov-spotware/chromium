@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,9 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/threading/sequence_bound.h"
-#include "chromecast/external_mojo/public/mojom/connector.mojom.h"
-#include "chromecast/mojo/interface_bundle.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "services/service_manager/public/cpp/manifest.h"
 #include "services/service_manager/public/cpp/service.h"
@@ -23,10 +22,6 @@ class SequencedTaskRunner;
 class Thread;
 }  // namespace base
 
-namespace service_manager {
-class Connector;
-}  // namespace service_manager
-
 namespace chromecast {
 namespace external_mojo {
 class ExternalMojoBroker;
@@ -36,10 +31,6 @@ class ExternalMojoBroker;
 // processes to interoperate with the Mojo services within cast_shell.
 class BrokerService : public ::service_manager::Service {
  public:
-  static BrokerService* GetInstance();
-  static void ServiceRequestHandler(
-      mojo::PendingReceiver<service_manager::mojom::Service> receiver);
-
   static constexpr char const* kServiceName = "external_mojo_broker";
 
   // Adds a manifest for an external Mojo service (ie, one that is running in
@@ -54,36 +45,19 @@ class BrokerService : public ::service_manager::Service {
   // Returns the manifest for this service.
   static const service_manager::Manifest& GetManifest();
 
-  explicit BrokerService(service_manager::Connector* connector);
-
-  BrokerService(const BrokerService&) = delete;
-  BrokerService& operator=(const BrokerService&) = delete;
-
+  explicit BrokerService(
+      mojo::PendingReceiver<service_manager::mojom::Service> receiver);
   ~BrokerService() override;
 
-  // ::service_manager::Service implementation:
-  void OnConnect(const service_manager::BindSourceInfo& source,
-                 const std::string& interface_name,
-                 mojo::ScopedMessagePipeHandle interface_pipe) override;
-
-  // Dispenses a connector for use in a remote process. The remote process must
-  // already belong to the same process network as the BrokerService.
-  mojo::PendingRemote<mojom::ExternalConnector> CreateConnector();
-
  private:
-  void BindServiceRequest(
-      mojo::PendingReceiver<service_manager::mojom::Service> receiver);
-
-  void BindConnector(mojo::PendingReceiver<mojom::ExternalConnector> receiver);
-
-  service_manager::ServiceReceiver service_receiver_{this};
+  service_manager::ServiceReceiver service_receiver_;
 
   std::unique_ptr<base::Thread> io_thread_;
   scoped_refptr<base::SequencedTaskRunner> io_task_runner_;
 
-  InterfaceBundle bundle_;
-
   base::SequenceBound<ExternalMojoBroker> broker_;
+
+  DISALLOW_COPY_AND_ASSIGN(BrokerService);
 };
 
 }  // namespace external_mojo

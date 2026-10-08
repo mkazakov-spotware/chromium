@@ -1,15 +1,15 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/process/memory.h"
+#include "base/stl_util.h"
 
 #include <windows.h>  // Must be in front of other Windows header files.
 
 #include <new.h>
 #include <psapi.h>
 #include <stddef.h>
-#include <stdlib.h>
 
 #if defined(__clang__)
 // This global constructor is trivial and non-racy (per being const).
@@ -45,11 +45,22 @@ int ReleaseReservationOrTerminate(size_t size) {
   constexpr int kRetryAllocation = 1;
   if (internal::ReleaseAddressSpaceReservation())
     return kRetryAllocation;
-  TerminateBecauseOutOfMemory(size);
+  internal::OnNoMemoryInternal(size);
+  return 0;
+}
+
+// TODO(crbug.com/1062949): Remove the NOINLINE once the crash servers handle
+// the |OnNoMemoryInternal()| signature..
+NOINLINE int OnNoMemory(size_t size) {
+  internal::OnNoMemoryInternal(size);
   return 0;
 }
 
 }  // namespace
+
+void TerminateBecauseOutOfMemory(size_t size) {
+  OnNoMemory(size);
+}
 
 void EnableTerminationOnHeapCorruption() {
   // Ignore the result code. Supported on XP SP3 and Vista.
@@ -66,10 +77,6 @@ void EnableTerminationOnOutOfMemory() {
 bool UncheckedMalloc(size_t size, void** result) {
   *result = malloc_unchecked(size);
   return *result != NULL;
-}
-
-void UncheckedFree(void* ptr) {
-  free(ptr);
 }
 
 }  // namespace base

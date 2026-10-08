@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media/router/discovery/dial/dial_media_sink_service.h"
 
 #include "base/bind.h"
-#include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/media/router/discovery/dial/dial_media_sink_service_impl.h"
 #include "components/media_router/common/media_source.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -27,7 +26,7 @@ void DialMediaSinkService::Start(
 
   OnSinksDiscoveredCallback sink_discovery_cb_impl = base::BindRepeating(
       &RunSinksDiscoveredCallbackOnSequence,
-      base::SequencedTaskRunner::GetCurrentDefault(),
+      base::SequencedTaskRunnerHandle::Get(),
       base::BindRepeating(&DialMediaSinkService::RunSinksDiscoveredCallback,
                           weak_ptr_factory_.GetWeakPtr(), sink_discovery_cb));
 
@@ -35,15 +34,6 @@ void DialMediaSinkService::Start(
 
   impl_->task_runner()->PostTask(
       FROM_HERE, base::BindOnce(&DialMediaSinkServiceImpl::Start,
-                                base::Unretained(impl_.get())));
-}
-
-void DialMediaSinkService::OnUserGesture() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(impl_);
-
-  impl_->task_runner()->PostTask(
-      FROM_HERE, base::BindOnce(&DialMediaSinkServiceImpl::OnUserGesture,
                                 base::Unretained(impl_.get())));
 }
 
@@ -63,6 +53,14 @@ void DialMediaSinkService::RunSinksDiscoveredCallback(
     const OnSinksDiscoveredCallback& sinks_discovered_cb,
     std::vector<MediaSinkInternal> sinks) {
   sinks_discovered_cb.Run(std::move(sinks));
+}
+
+void DialMediaSinkService::BindLogger(
+    mojo::PendingRemote<mojom::Logger> pending_remote) {
+  impl_->task_runner()->PostTask(
+      FROM_HERE,
+      base::BindOnce(&DialMediaSinkServiceImpl::BindLogger,
+                     base::Unretained(impl_.get()), std::move(pending_remote)));
 }
 
 }  // namespace media_router

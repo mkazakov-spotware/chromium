@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,9 +27,13 @@ SavePaymentIconView::SavePaymentIconView(
     : PageActionIconView(command_updater,
                          IDC_SAVE_CREDIT_CARD_FOR_PAGE,
                          icon_label_bubble_delegate,
-                         page_action_icon_delegate,
-                         "SaveCard") {
+                         page_action_icon_delegate) {
   SetID(VIEW_ID_SAVE_CREDIT_CARD_BUTTON);
+
+  if (base::FeatureList::IsEnabled(
+          features::kAutofillCreditCardUploadFeedback)) {
+    InstallLoadingIndicator();
+  }
   SetUpForInOutAnimation();
 }
 
@@ -87,8 +91,8 @@ const char* SavePaymentIconView::GetClassName() const {
   return "SavePaymentIconView";
 }
 
-std::u16string SavePaymentIconView::GetTextForTooltipAndAccessibleName() const {
-  std::u16string text;
+base::string16 SavePaymentIconView::GetTextForTooltipAndAccessibleName() const {
+  base::string16 text;
 
   SavePaymentIconController* const controller = GetController();
   if (controller)

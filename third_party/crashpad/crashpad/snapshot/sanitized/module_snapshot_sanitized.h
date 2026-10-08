@@ -1,4 +1,4 @@
-// Copyright 2018 The Crashpad Authors
+// Copyright 2018 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "snapshot/module_snapshot.h"
 
 namespace crashpad {
@@ -35,10 +36,6 @@ class ModuleSnapshotSanitized final : public ModuleSnapshot {
   //!     `nullptr`, all annotations will be returned.
   ModuleSnapshotSanitized(const ModuleSnapshot* snapshot,
                           const std::vector<std::string>* allowed_annotations);
-
-  ModuleSnapshotSanitized(const ModuleSnapshotSanitized&) = delete;
-  ModuleSnapshotSanitized& operator=(const ModuleSnapshotSanitized&) = delete;
-
   ~ModuleSnapshotSanitized() override;
 
   // ModuleSnapshot:
@@ -68,6 +65,8 @@ class ModuleSnapshotSanitized final : public ModuleSnapshot {
  private:
   const ModuleSnapshot* snapshot_;
   const std::vector<std::string>* allowed_annotations_;
+
+  DISALLOW_COPY_AND_ASSIGN(ModuleSnapshotSanitized);
 };
 
 }  // namespace internal

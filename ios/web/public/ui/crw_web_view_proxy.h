@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #import <UIKit/UIKit.h>
 
-@class CRWContextMenuItem;
 @class CRWWebViewScrollViewProxy;
 
 // Provides an interface for embedders to access the WebState's web view in a
@@ -51,7 +50,7 @@
 - (void)removeGestureRecognizer:(UIGestureRecognizer*)gestureRecognizer;
 
 // Whether or not the content view should use the content inset when setting
-// `contentInset`. Implementations may or may not respect the setting of this
+// |contentInset|. Implementations may or may not respect the setting of this
 // property.
 @property(nonatomic, assign) BOOL shouldUseViewContentInset;
 
@@ -69,15 +68,6 @@
 
 // Wrapper around the becomeFirstResponder method of the webview.
 - (BOOL)becomeFirstResponder;
-
-// Notifies the web view controller that the surface size has changed due to
-// multiwindow action or orientation change.
-- (void)surfaceSizeChanged;
-
-// Shows a custom iOS context menu with the given `items` for options targeted
-// to the data visible in given window `rect`.
-- (void)showMenuWithItems:(NSArray<CRWContextMenuItem*>*)items
-                     rect:(CGRect)rect;
 
 @end
 

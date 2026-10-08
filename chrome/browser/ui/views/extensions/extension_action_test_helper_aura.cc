@@ -1,8 +1,7 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/extensions/extension_action_test_helper.h"
 
 #include "base/check.h"
@@ -16,7 +15,7 @@ namespace {
 
 aura::Window* GetPopupAuraWindow(aura::Window* current) {
   DCHECK(current);
-  while (current && (current->GetType() != aura::client::WINDOW_TYPE_POPUP))
+  while (current && (current->type() != aura::client::WINDOW_TYPE_POPUP))
     current = current->parent();
   return current;
 }
@@ -35,8 +34,8 @@ class AuraWindowObserver : public aura::WindowObserver {
   }
 
  private:
-  const raw_ptr<const aura::Window> popup_window_;
-  const raw_ptr<base::RunLoop> run_loop_;
+  const aura::Window* const popup_window_;
+  base::RunLoop* const run_loop_;
 };
 
 }  // namespace

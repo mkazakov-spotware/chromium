@@ -16,11 +16,15 @@
 
 #ifdef LIBXML_HTTP_ENABLED
 #include <string.h>
-#include <stdlib.h>
-#include <errno.h>
 
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
 #endif
 #ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
@@ -34,8 +38,17 @@
 #ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
+#ifdef HAVE_RESOLV_H
+#ifdef HAVE_ARPA_NAMESER_H
+#include <arpa/nameser.h>
+#endif
+#include <resolv.h>
+#endif
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>
+#endif
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
 #endif
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
@@ -47,6 +60,9 @@
 #else
 #include <poll.h>
 #endif
+#ifdef HAVE_STRINGS_H
+#include <strings.h>
+#endif
 #ifdef LIBXML_ZLIB_ENABLED
 #include <zlib.h>
 #endif
@@ -57,7 +73,7 @@
 #define XML_SOCKLEN_T unsigned int
 #endif
 
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(__CYGWIN__)
 #include <wsockcompat.h>
 #endif
 
@@ -69,24 +85,26 @@
 #include <libxml/globals.h>
 #include <libxml/uri.h>
 
-#include "private/error.h"
-#include "private/io.h"
-
 /**
  * A couple portability macros
  */
 #ifndef _WINSOCKAPI_
+#if !defined(__BEOS__) || defined(__HAIKU__)
 #define closesocket(s) close(s)
+#endif
 #define SOCKET int
 #define INVALID_SOCKET (-1)
+#endif
+
+#ifdef __BEOS__
+#ifndef PF_INET
+#define PF_INET AF_INET
+#endif
 #endif
 
 #ifndef XML_SOCKLEN_T
 #define XML_SOCKLEN_T unsigned int
 #endif
-
-#define GETHOSTBYNAME_ARG_CAST (char *)
-#define SEND_ARG2_CAST (char *)
 
 #ifdef STANDALONE
 #define DEBUG_HTTP
@@ -176,6 +194,20 @@ static int socket_errno(void) {
     return(errno);
 #endif
 }
+
+#ifdef SUPPORT_IP6
+static
+int have_ipv6(void) {
+    SOCKET s;
+
+    s = socket (AF_INET6, SOCK_STREAM, 0);
+    if (s != INVALID_SOCKET) {
+	close (s);
+	return (1);
+    }
+    return (0);
+}
+#endif
 
 /**
  * xmlNanoHTTPInit:
@@ -510,7 +542,7 @@ xmlNanoHTTPRecv(xmlNanoHTTPCtxtPtr ctxt)
 
     while (ctxt->state & XML_NANO_HTTP_READ) {
         if (ctxt->in == NULL) {
-            ctxt->in = (char *) xmlMallocAtomic(65000);
+            ctxt->in = (char *) xmlMallocAtomic(65000 * sizeof(char));
             if (ctxt->in == NULL) {
                 xmlHTTPErrMemory("allocating input");
                 ctxt->last = -1;
@@ -871,6 +903,15 @@ xmlNanoHTTPConnectAttempt(struct sockaddr *addr)
         status = ioctl(s, FIONBIO, &enable);
     }
 #else /* VMS */
+#if defined(__BEOS__) && !defined(__HAIKU__)
+    {
+        bool noblock = true;
+
+        status =
+            setsockopt(s, SOL_SOCKET, SO_NONBLOCK, &noblock,
+                       sizeof(noblock));
+    }
+#else /* __BEOS__ */
     if ((status = fcntl(s, F_GETFL, 0)) != -1) {
 #ifdef O_NONBLOCK
         status |= O_NONBLOCK;
@@ -889,6 +930,7 @@ xmlNanoHTTPConnectAttempt(struct sockaddr *addr)
         closesocket(s);
         return INVALID_SOCKET;
     }
+#endif /* !__BEOS__ */
 #endif /* !VMS */
 #endif /* !_WINSOCKAPI_ */
 
@@ -1007,18 +1049,32 @@ xmlNanoHTTPConnectHost(const char *host, int port)
     struct sockaddr_in sockin;
 
 #ifdef SUPPORT_IP6
+    struct in6_addr ia6;
     struct sockaddr_in6 sockin6;
 #endif
     SOCKET s;
 
     memset (&sockin, 0, sizeof(sockin));
+#ifdef SUPPORT_IP6
+    memset (&sockin6, 0, sizeof(sockin6));
+#endif
 
-#if defined(SUPPORT_IP6)
+#if !defined(HAVE_GETADDRINFO) && defined(SUPPORT_IP6) && defined(RES_USE_INET6)
+    if (have_ipv6 ())
+    {
+	if (!(_res.options & RES_INIT))
+	    res_init();
+	_res.options |= RES_USE_INET6;
+    }
+#endif
+
+#if defined(HAVE_GETADDRINFO) && defined(SUPPORT_IP6) && !defined(_WIN32)
+    if (have_ipv6 ())
+#endif
+#if defined(HAVE_GETADDRINFO) && (defined(SUPPORT_IP6) || defined(_WIN32))
     {
 	int status;
 	struct addrinfo hints, *res, *result;
-
-        memset (&sockin6, 0, sizeof(sockin6));
 
 	result = NULL;
 	memset (&hints, 0,sizeof(hints));
@@ -1040,7 +1096,8 @@ xmlNanoHTTPConnectHost(const char *host, int port)
 		memcpy (&sockin, res->ai_addr, res->ai_addrlen);
 		sockin.sin_port = htons (port);
 		addr = (struct sockaddr *)&sockin;
-	    } else if (res->ai_family == AF_INET6) {
+#ifdef SUPPORT_IP6
+	    } else if (have_ipv6 () && (res->ai_family == AF_INET6)) {
 		if ((size_t)res->ai_addrlen > sizeof(sockin6)) {
 		    __xmlIOErr(XML_FROM_HTTP, 0, "address size mismatch\n");
 		    freeaddrinfo (result);
@@ -1049,6 +1106,7 @@ xmlNanoHTTPConnectHost(const char *host, int port)
 		memcpy (&sockin6, res->ai_addr, res->ai_addrlen);
 		sockin6.sin6_port = htons (port);
 		addr = (struct sockaddr *)&sockin6;
+#endif
 	    } else
 		continue;              /* for */
 
@@ -1062,7 +1120,11 @@ xmlNanoHTTPConnectHost(const char *host, int port)
 	if (result)
 	    freeaddrinfo (result);
     }
-#else
+#endif
+#if defined(HAVE_GETADDRINFO) && defined(SUPPORT_IP6) && !defined(_WIN32)
+    else
+#endif
+#if !defined(HAVE_GETADDRINFO) || !defined(_WIN32)
     {
         struct hostent *h;
         struct in_addr ia;
@@ -1124,6 +1186,19 @@ xmlNanoHTTPConnectHost(const char *host, int port)
 		sockin.sin_addr = ia;
 		sockin.sin_port = (unsigned short)htons ((unsigned short)port);
 		addr = (struct sockaddr *) &sockin;
+#ifdef SUPPORT_IP6
+	    } else if (have_ipv6 () && (h->h_addrtype == AF_INET6)) {
+		/* AAAA records (IPv6) */
+		if ((unsigned int) h->h_length > sizeof(ia6)) {
+		    __xmlIOErr(XML_FROM_HTTP, 0, "address size mismatch\n");
+		    return INVALID_SOCKET;
+		}
+		memcpy (&ia6, h->h_addr_list[i], h->h_length);
+		sockin6.sin6_family = h->h_addrtype;
+		sockin6.sin6_addr = ia6;
+		sockin6.sin6_port = htons (port);
+		addr = (struct sockaddr *) &sockin6;
+#endif
 	    } else
 		break;              /* for */
 
@@ -1820,3 +1895,5 @@ int main(int argc, char **argv) {
 }
 #endif /* STANDALONE */
 #endif /* LIBXML_HTTP_ENABLED */
+#define bottom_nanohttp
+#include "elfgcchack.h"

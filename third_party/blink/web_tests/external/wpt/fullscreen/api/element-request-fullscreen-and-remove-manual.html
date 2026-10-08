@@ -16,10 +16,7 @@ async_test(t => {
   });
 
   trusted_click(t, () => {
-    target.requestFullscreen().then(t.unreached_func("promise should be rejected"),
-    () => {
-      assert_true(true, "promise is rejected correctly");
-    });
+    target.requestFullscreen();
     target.remove();
   }, document.body);
 });

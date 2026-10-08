@@ -27,9 +27,11 @@
 // This requires some gymnastics below, to explicitly forward-declare the
 // required types without reference to the generator output headers.
 
+#include <utility>
+
+#include "base/optional.h"
 #include "base/time/time.h"
 #include "mojo/public/cpp/bindings/struct_traits.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
@@ -57,7 +59,7 @@ class PLATFORM_EXPORT FormDataElement final {
       const String& filename,
       int64_t file_start,
       int64_t file_length,
-      const absl::optional<base::Time>& expected_file_modification_time);
+      const base::Optional<base::Time>& expected_file_modification_time);
   FormDataElement(const String& blob_uuid,
                   scoped_refptr<BlobDataHandle> optional_handle);
   explicit FormDataElement(scoped_refptr<WrappedDataPipeGetter>);
@@ -70,6 +72,8 @@ class PLATFORM_EXPORT FormDataElement final {
   FormDataElement& operator=(const FormDataElement&);
   FormDataElement& operator=(FormDataElement&&);
 
+  bool IsSafeToSendToAnotherThread() const;
+
   enum Type { kData, kEncodedFile, kEncodedBlob, kDataPipe } type_;
   Vector<char> data_;
   String filename_;
@@ -77,7 +81,7 @@ class PLATFORM_EXPORT FormDataElement final {
   scoped_refptr<BlobDataHandle> optional_blob_data_handle_;
   int64_t file_start_;
   int64_t file_length_;
-  absl::optional<base::Time> expected_file_modification_time_;
+  base::Optional<base::Time> expected_file_modification_time_;
   scoped_refptr<WrappedDataPipeGetter> data_pipe_getter_;
 };
 
@@ -101,18 +105,19 @@ class PLATFORM_EXPORT EncodedFormData : public RefCounted<EncodedFormData> {
   static scoped_refptr<EncodedFormData> Create();
   static scoped_refptr<EncodedFormData> Create(const void*, wtf_size_t);
   static scoped_refptr<EncodedFormData> Create(base::span<const char>);
+  static scoped_refptr<EncodedFormData> Create(const Vector<char>&);
   scoped_refptr<EncodedFormData> Copy() const;
   scoped_refptr<EncodedFormData> DeepCopy() const;
   ~EncodedFormData();
 
   void AppendData(const void* data, wtf_size_t);
   void AppendFile(const String& file_path,
-                  const absl::optional<base::Time>& expected_modification_time);
+                  const base::Optional<base::Time>& expected_modification_time);
   void AppendFileRange(
       const String& filename,
       int64_t start,
       int64_t length,
-      const absl::optional<base::Time>& expected_modification_time);
+      const base::Optional<base::Time>& expected_modification_time);
   void AppendBlob(const String& blob_uuid,
                   scoped_refptr<BlobDataHandle> optional_handle);
   void AppendDataPipe(scoped_refptr<WrappedDataPipeGetter> handle);
@@ -120,7 +125,7 @@ class PLATFORM_EXPORT EncodedFormData : public RefCounted<EncodedFormData> {
   void Flatten(Vector<char>&) const;  // omits files
   String FlattenToString() const;     // omits files
 
-  bool IsEmpty() const { return elements_.empty(); }
+  bool IsEmpty() const { return elements_.IsEmpty(); }
   const Vector<FormDataElement>& Elements() const { return elements_; }
   Vector<FormDataElement>& MutableElements() { return elements_; }
 

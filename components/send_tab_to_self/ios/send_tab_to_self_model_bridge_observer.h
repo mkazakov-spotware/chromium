@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #import <Foundation/Foundation.h>
 
+#include "base/macros.h"
 #include "components/send_tab_to_self/send_tab_to_self_model.h"
 #include "components/send_tab_to_self/send_tab_to_self_model_observer.h"
 
@@ -40,10 +41,6 @@ class SendTabToSelfModelBridge : public SendTabToSelfModelObserver {
   explicit SendTabToSelfModelBridge(
       id<SendTabToSelfModelBridgeObserver> observer,
       SendTabToSelfModel* model);
-
-  SendTabToSelfModelBridge(const SendTabToSelfModelBridge&) = delete;
-  SendTabToSelfModelBridge& operator=(const SendTabToSelfModelBridge&) = delete;
-
   ~SendTabToSelfModelBridge() override;
 
  private:
@@ -55,6 +52,8 @@ class SendTabToSelfModelBridge : public SendTabToSelfModelObserver {
   __weak id<SendTabToSelfModelBridgeObserver> observer_;
 
   SendTabToSelfModel* model_;  // weak
+
+  DISALLOW_COPY_AND_ASSIGN(SendTabToSelfModelBridge);
 };
 
 }  // namespace send_tab_to_self

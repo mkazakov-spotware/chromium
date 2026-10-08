@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,16 @@
 #include <utility>
 
 #include "base/bind.h"
+#include "base/callback_helpers.h"
 #include "base/check.h"
 #include "base/feature_list.h"
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
 #include "base/notreached.h"
+#include "base/sequenced_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/stl_util.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/win/windows_version.h"
 #include "device/base/features.h"
 #include "device/bluetooth/bluetooth_adapter_winrt.h"
@@ -284,11 +286,11 @@ bool BluetoothAdapterWin::SetPoweredImpl(bool powered) {
 void BluetoothAdapterWin::UpdateFilter(
     std::unique_ptr<BluetoothDiscoveryFilter> discovery_filter,
     DiscoverySessionResultCallback callback) {
+  auto copyable_callback = base::AdaptCallbackForRepeating(std::move(callback));
   DCHECK(discovery_status_ == DISCOVERING ||
          discovery_status_ == DISCOVERY_STARTING);
   if (discovery_status_ == DISCOVERING) {
-    std::move(callback).Run(false,
-                            UMABluetoothDiscoverySessionOutcome::SUCCESS);
+    copyable_callback.Run(false, UMABluetoothDiscoverySessionOutcome::SUCCESS);
     return;
   }
 }
@@ -312,7 +314,7 @@ void BluetoothAdapterWin::StopScan(DiscoverySessionResultCallback callback) {
 
 void BluetoothAdapterWin::Initialize(base::OnceClosure init_callback) {
   init_callback_ = std::move(init_callback);
-  ui_task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+  ui_task_runner_ = base::ThreadTaskRunnerHandle::Get();
   socket_thread_ = BluetoothSocketThread::Get();
   task_manager_ =
       base::MakeRefCounted<BluetoothTaskManagerWin>(ui_task_runner_);
@@ -329,7 +331,7 @@ void BluetoothAdapterWin::InitForTest(
   init_callback_ = std::move(init_callback);
   ui_task_runner_ = ui_task_runner;
   if (!ui_task_runner_)
-    ui_task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+    ui_task_runner_ = base::ThreadTaskRunnerHandle::Get();
   task_manager_ = BluetoothTaskManagerWin::CreateForTesting(
       std::move(classic_wrapper), std::move(le_wrapper), ui_task_runner_);
   task_manager_->AddObserver(this);

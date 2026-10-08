@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "chrome/browser/extensions/extension_keybinding_registry.h"
 #include "ui/base/accelerators/accelerator.h"
 
@@ -35,12 +36,6 @@ class ExtensionKeybindingRegistryViews
                                    views::FocusManager* focus_manager,
                                    ExtensionFilter extension_filter,
                                    Delegate* delegate);
-
-  ExtensionKeybindingRegistryViews(const ExtensionKeybindingRegistryViews&) =
-      delete;
-  ExtensionKeybindingRegistryViews& operator=(
-      const ExtensionKeybindingRegistryViews&) = delete;
-
   ~ExtensionKeybindingRegistryViews() override;
 
   // Overridden from ui::AcceleratorTarget.
@@ -56,11 +51,13 @@ class ExtensionKeybindingRegistryViews
   void OnShortcutHandlingSuspended(bool suspended) override;
 
   // Weak pointer to the our profile. Not owned by us.
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   // Weak pointer back to the focus manager to use to register and unregister
   // accelerators with. Not owned by us.
-  raw_ptr<views::FocusManager> focus_manager_;
+  views::FocusManager* focus_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionKeybindingRegistryViews);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_EXTENSIONS_EXTENSION_KEYBINDING_REGISTRY_VIEWS_H_

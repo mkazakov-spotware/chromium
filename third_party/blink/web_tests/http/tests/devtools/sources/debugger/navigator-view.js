@@ -1,17 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests scripts panel file selectors.\n`);
-  await TestRunner.loadLegacyModule('sources'); await TestRunner.loadTestModule('sources_test_runner');
-  await TestRunner.loadTestModule('sdk_test_runner');
+  await TestRunner.loadModule('sources_test_runner');
+  await TestRunner.loadModule('sdk_test_runner');
   await TestRunner.showPanel('sources');
   await TestRunner.addIframe(
       'resources/post-message-listener.html', {name: 'childframe'});
 
-  Bindings.debuggerWorkspaceBinding.resetForTest(TestRunner.mainTarget);
-  Bindings.resourceMapping.resetForTest(TestRunner.mainTarget);
+  Bindings.debuggerWorkspaceBinding._resetForTest(TestRunner.mainTarget);
+  Bindings.resourceMapping._resetForTest(TestRunner.mainTarget);
 
   var subframe = TestRunner.mainFrame().childFrames[0];
 
@@ -153,7 +153,7 @@
   TestRunner.addResult('Removing all resources:');
   for (const target of SDK.targetManager.targets()) {
     if (target !== TestRunner.mainTarget)
-      Bindings.debuggerWorkspaceBinding.resetForTest(target);
+      Bindings.debuggerWorkspaceBinding._resetForTest(target);
   }
   SourcesTestRunner.dumpNavigatorViewInAllModes(sourcesNavigatorView);
   SourcesTestRunner.dumpNavigatorViewInAllModes(contentScriptsNavigatorView);

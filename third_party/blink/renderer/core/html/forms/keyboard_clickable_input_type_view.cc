@@ -31,7 +31,6 @@
 
 #include "third_party/blink/renderer/core/html/forms/keyboard_clickable_input_type_view.h"
 
-#include "third_party/blink/renderer/core/dom/events/simulated_click_options.h"
 #include "third_party/blink/renderer/core/events/keyboard_event.h"
 #include "third_party/blink/renderer/core/html/forms/html_input_element.h"
 
@@ -68,10 +67,10 @@ void KeyboardClickableInputTypeView::HandleKeyupEvent(KeyboardEvent& event) {
 
 // FIXME: Could share this with BaseCheckableInputType and RangeInputType if we
 // had a common base class.
-void KeyboardClickableInputTypeView::AccessKeyAction(
-    SimulatedClickCreationScope creation_scope) {
-  InputTypeView::AccessKeyAction(creation_scope);
-  GetElement().DispatchSimulatedClick(nullptr, creation_scope);
+void KeyboardClickableInputTypeView::AccessKeyAction(bool send_mouse_events) {
+  InputTypeView::AccessKeyAction(send_mouse_events);
+  GetElement().DispatchSimulatedClick(
+      nullptr, send_mouse_events ? kSendMouseUpDownEvents : kSendNoEvents);
 }
 
 }  // namespace blink

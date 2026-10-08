@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@
 #include <wrl/client.h>
 
 #include <memory>
-#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -25,10 +24,14 @@
 #include "base/callback.h"
 #include "base/callback_helpers.h"
 #include "base/logging.h"
+#include "base/no_destructor.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
+#include "base/task_runner_util.h"
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "base/win/registry.h"
 #include "base/win/scoped_bstr.h"
@@ -58,25 +61,27 @@ void ConfigureProxyBlanket(IUnknown* interface_pointer) {
 }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
+bool StoreDMTokenInRegistry(const std::string& token) {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-Microsoft::WRL::ComPtr<IAppCommandWeb> GetUpdaterAppCommand(
-    const std::wstring& command_name) {
+  if (token.empty())
+    return false;
+
   Microsoft::WRL::ComPtr<IGoogleUpdate3Web> google_update;
   HRESULT hr = ::CoCreateInstance(CLSID_GoogleUpdate3WebServiceClass, nullptr,
                                   CLSCTX_ALL, IID_PPV_ARGS(&google_update));
   if (FAILED(hr))
-    return nullptr;
+    return false;
 
   ConfigureProxyBlanket(google_update.Get());
   Microsoft::WRL::ComPtr<IDispatch> dispatch;
   hr = google_update->createAppBundleWeb(&dispatch);
   if (FAILED(hr))
-    return nullptr;
+    return false;
 
   Microsoft::WRL::ComPtr<IAppBundleWeb> app_bundle;
   hr = dispatch.As(&app_bundle);
   if (FAILED(hr))
-    return nullptr;
+    return false;
 
   dispatch.Reset();
   ConfigureProxyBlanket(app_bundle.Get());
@@ -84,72 +89,37 @@ Microsoft::WRL::ComPtr<IAppCommandWeb> GetUpdaterAppCommand(
   const wchar_t* app_guid = install_static::GetAppGuid();
   hr = app_bundle->createInstalledApp(base::win::ScopedBstr(app_guid).Get());
   if (FAILED(hr))
-    return nullptr;
+    return false;
 
   hr = app_bundle->get_appWeb(0, &dispatch);
   if (FAILED(hr))
-    return nullptr;
+    return false;
 
   Microsoft::WRL::ComPtr<IAppWeb> app;
   hr = dispatch.As(&app);
   if (FAILED(hr))
-    return nullptr;
+    return false;
 
   dispatch.Reset();
   ConfigureProxyBlanket(app.Get());
-
-  hr = app->get_command(base::win::ScopedBstr(command_name).Get(), &dispatch);
+  hr = app->get_command(
+      base::win::ScopedBstr(installer::kCmdStoreDMToken).Get(), &dispatch);
   if (FAILED(hr) || !dispatch)
-    return nullptr;
+    return false;
 
   Microsoft::WRL::ComPtr<IAppCommandWeb> app_command;
   hr = dispatch.As(&app_command);
   if (FAILED(hr))
-    return nullptr;
+    return false;
 
   ConfigureProxyBlanket(app_command.Get());
-  return app_command;
-}
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
-
-bool StoreDMTokenInRegistry(const std::string& token) {
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-  if (token.empty())
-    return false;
-
-  Microsoft::WRL::ComPtr<IAppCommandWeb> app_command =
-      GetUpdaterAppCommand(installer::kCmdStoreDMToken);
-  if (!app_command)
-    return false;
-
   std::string token_base64;
   base::Base64Encode(token, &token_base64);
   VARIANT var;
   VariantInit(&var);
   _variant_t token_var = token_base64.c_str();
-  if (FAILED(app_command->execute(token_var, var, var, var, var, var, var, var,
-                                  var)))
-    return false;
-
-  // TODO(crbug.com/823515): Get the status of the app command execution and
-  // return a corresponding value for |success|. For now, assume that the call
-  // to setup.exe succeeds.
-  return true;
-#else
-  return false;
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
-}
-
-bool DeleteDMTokenFromRegistry() {
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-  Microsoft::WRL::ComPtr<IAppCommandWeb> app_command =
-      GetUpdaterAppCommand(installer::kCmdDeleteDMToken);
-  if (!app_command)
-    return false;
-
-  VARIANT var;
-  VariantInit(&var);
-  if (FAILED(app_command->execute(var, var, var, var, var, var, var, var, var)))
+  hr = app_command->execute(token_var, var, var, var, var, var, var, var, var);
+  if (FAILED(hr))
     return false;
 
   // TODO(crbug.com/823515): Get the status of the app command execution and
@@ -164,6 +134,7 @@ bool DeleteDMTokenFromRegistry() {
 
 std::string BrowserDMTokenStorageWin::InitClientId() {
   // For the client id, use the Windows machine GUID.
+  // TODO(crbug.com/821977): Need a backup plan if machine GUID doesn't exist.
   base::win::RegKey key;
   LSTATUS status =
       key.Open(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Cryptography",
@@ -171,7 +142,7 @@ std::string BrowserDMTokenStorageWin::InitClientId() {
   if (status != ERROR_SUCCESS)
     return std::string();
 
-  std::wstring value;
+  base::string16 value;
   status = key.ReadValue(L"MachineGuid", &value);
   if (status != ERROR_SUCCESS)
     return std::string();
@@ -194,7 +165,7 @@ std::string BrowserDMTokenStorageWin::InitDMToken() {
   constexpr size_t kInitialDMTokenSize = 512;
 
   base::win::RegKey key;
-  std::wstring dm_token_value_name;
+  base::string16 dm_token_value_name;
   std::vector<char> raw_value(kInitialDMTokenSize);
 
   // Prefer the app-neutral location over the browser's to match Google Update's
@@ -208,7 +179,7 @@ std::string BrowserDMTokenStorageWin::InitDMToken() {
       continue;
 
     DWORD dtype = REG_NONE;
-    DWORD size = static_cast<DWORD>(raw_value.size());
+    DWORD size = DWORD{raw_value.size()};
     auto result = key.ReadValue(dm_token_value_name.c_str(), raw_value.data(),
                                 &size, &dtype);
     if (result == ERROR_MORE_DATA && size <= installer::kMaxDMTokenLength) {
@@ -220,8 +191,9 @@ std::string BrowserDMTokenStorageWin::InitDMToken() {
       continue;
 
     DCHECK_LE(size, installer::kMaxDMTokenLength);
-    return std::string(base::TrimWhitespaceASCII(
-        base::StringPiece(raw_value.data(), size), base::TRIM_ALL));
+    return base::TrimWhitespaceASCII(base::StringPiece(raw_value.data(), size),
+                                     base::TRIM_ALL)
+        .as_string();
   }
 
   DVLOG(1) << "Failed to get DMToken from Registry.";
@@ -236,11 +208,6 @@ BrowserDMTokenStorage::StoreTask BrowserDMTokenStorageWin::SaveDMTokenTask(
     const std::string& token,
     const std::string& client_id) {
   return base::BindOnce(&StoreDMTokenInRegistry, token);
-}
-
-BrowserDMTokenStorage::StoreTask BrowserDMTokenStorageWin::DeleteDMTokenTask(
-    const std::string& client_id) {
-  return base::BindOnce(&DeleteDMTokenFromRegistry);
 }
 
 scoped_refptr<base::TaskRunner>

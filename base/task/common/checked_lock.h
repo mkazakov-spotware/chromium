@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 
 #include <memory>
 
-#include "base/check_op.h"
-#include "base/dcheck_is_on.h"
-#include "base/memory/raw_ref.h"
+#include "base/base_export.h"
+#include "base/macros.h"
 #include "base/synchronization/condition_variable.h"
 #include "base/synchronization/lock.h"
 #include "base/task/common/checked_lock_impl.h"
@@ -126,19 +125,16 @@ class SCOPED_LOCKABLE AnnotateAcquiredLockAlias {
       EXCLUSIVE_LOCK_FUNCTION(lock_alias)
       : acquired_lock_(acquired_lock) {
     DCHECK_EQ(&acquired_lock, &lock_alias);
-    acquired_lock_->AssertAcquired();
+    acquired_lock_.AssertAcquired();
   }
-
-  AnnotateAcquiredLockAlias(const AnnotateAcquiredLockAlias&) = delete;
-  AnnotateAcquiredLockAlias& operator=(const AnnotateAcquiredLockAlias&) =
-      delete;
-
   ~AnnotateAcquiredLockAlias() UNLOCK_FUNCTION() {
-    acquired_lock_->AssertAcquired();
+    acquired_lock_.AssertAcquired();
   }
 
  private:
-  const raw_ref<const CheckedLock> acquired_lock_;
+  const CheckedLock& acquired_lock_;
+
+  DISALLOW_COPY_AND_ASSIGN(AnnotateAcquiredLockAlias);
 };
 
 }  // namespace internal

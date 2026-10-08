@@ -1,14 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_FRAME_TOP_CONTAINER_LOADING_BAR_H_
 #define CHROME_BROWSER_UI_VIEWS_FRAME_TOP_CONTAINER_LOADING_BAR_H_
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/tabs/tab_network_state.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/gfx/animation/animation_delegate.h"
 #include "ui/gfx/animation/linear_animation.h"
 #include "ui/views/view.h"
@@ -17,7 +15,6 @@ class Browser;
 
 class LoadingBarView : public views::View, public gfx::AnimationDelegate {
  public:
-  METADATA_HEADER(LoadingBarView);
   LoadingBarView();
   LoadingBarView(const LoadingBarView&) = delete;
   LoadingBarView& operator=(const LoadingBarView&) = delete;
@@ -49,7 +46,6 @@ class LoadingBarView : public views::View, public gfx::AnimationDelegate {
 class TopContainerLoadingBar : public LoadingBarView,
                                public content::WebContentsObserver {
  public:
-  METADATA_HEADER(TopContainerLoadingBar);
   explicit TopContainerLoadingBar(Browser*);
   TopContainerLoadingBar(const TopContainerLoadingBar&) = delete;
   TopContainerLoadingBar& operator=(const TopContainerLoadingBar&) = delete;
@@ -58,12 +54,12 @@ class TopContainerLoadingBar : public LoadingBarView,
 
  private:
   void UpdateLoadingProgress();
-  double GetLoadingProgress() const;
+  double GetLoadingProgress();
 
   // content::WebContentsObserver:
   void LoadProgressChanged(double progress) override;
 
-  raw_ptr<Browser> browser_;
+  Browser* browser_;
   TabNetworkState network_state_ = TabNetworkState::kNone;
 };
 

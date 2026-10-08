@@ -1,10 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import { addSingletonGetter } from 'chrome://resources/ash/common/cr_deprecated.js';
+import {addSingletonGetter} from 'chrome://resources/js/cr.m.js';
 
-import { BrowserTabsModel, CameraRollManager, FeatureStatus, FindMyDeviceStatus, Notification, PhoneStatusModel, TetherStatus } from './types.js';
+import {BrowserTabsModel, FeatureStatus, FindMyDeviceStatus, Notification, PhoneStatusModel, TetherStatus} from './types.js';
 
 /**
  * JavaScript hooks into the native WebUI handler for Phonehub tab.
@@ -111,25 +111,8 @@ export class MultidevicePhoneHubBrowserProxy {
    * Resets notification setup UI to not having been dismissed for the real
    * PhoneHubManager.
    */
-  resetHasMultideviceFeatureSetupUiBeenDismissed() {
-    chrome.send('resetHasMultideviceFeatureSetupUiBeenDismissed');
-  }
-
-  /**
-   * Resets Recent Photos onboarding UI to not having been dismissed for the
-   * real PhoneHubManager.
-   */
-  resetCameraRollOnboardingUiDismissed() {
-    chrome.send('resetCameraRollOnboardingUiDismissed');
-  }
-
-  /**
-   * Sets the fake Camera Roll manager.
-   * @param {!CameraRollManager} cameraRollManager The camera roll with fake
-   *     values.
-   */
-  setFakeCameraRoll(cameraRollManager) {
-    chrome.send('setFakeCameraRoll', [cameraRollManager]);
+  resetHasNotificationSetupUiBeenDismissed() {
+    chrome.send('resetHasNotificationSetupUiBeenDismissed');
   }
 }
 

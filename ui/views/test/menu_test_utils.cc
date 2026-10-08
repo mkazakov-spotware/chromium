@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,14 @@
 
 #include "base/run_loop.h"
 #include "build/build_config.h"
-#include "ui/base/dragdrop/drag_drop_types.h"
-#include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
 #include "ui/views/controls/menu/menu_controller.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_APPLE)
 #include "ui/views/controls/menu/menu_closure_animation_mac.h"
 #endif
 
-namespace views::test {
+namespace views {
+namespace test {
 
 // TestMenuDelegate -----------------------------------------------------------
 
@@ -40,11 +39,11 @@ void TestMenuDelegate::OnMenuClosed(MenuItemView* menu) {
   on_menu_closed_menu_ = menu;
 }
 
-views::View::DropCallback TestMenuDelegate::GetDropCallback(
-    MenuItemView* menu,
-    DropPosition position,
-    const ui::DropTargetEvent& event) {
-  return base::BindOnce(&TestMenuDelegate::PerformDrop, base::Unretained(this));
+int TestMenuDelegate::OnPerformDrop(MenuItemView* menu,
+                                    DropPosition position,
+                                    const ui::DropTargetEvent& event) {
+  on_perform_drop_called_ = true;
+  return ui::DragDropTypes::DRAG_COPY;
 }
 
 int TestMenuDelegate::GetDragOperations(MenuItemView* sender) {
@@ -57,18 +56,6 @@ void TestMenuDelegate::WriteDragData(MenuItemView* sender,
 void TestMenuDelegate::WillHideMenu(MenuItemView* menu) {
   will_hide_menu_count_++;
   will_hide_menu_ = menu;
-}
-
-bool TestMenuDelegate::ShouldExecuteCommandWithoutClosingMenu(
-    int id,
-    const ui::Event& e) {
-  return should_execute_command_without_closing_menu_;
-}
-
-void TestMenuDelegate::PerformDrop(const ui::DropTargetEvent& event,
-                                   ui::mojom::DragOperation& output_drag_op) {
-  is_drop_performed_ = true;
-  output_drag_op = ui::mojom::DragOperation::kCopy;
 }
 
 // MenuControllerTestApi ------------------------------------------------------
@@ -91,13 +78,13 @@ void MenuControllerTestApi::SetShowing(bool showing) {
 }
 
 void DisableMenuClosureAnimations() {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_APPLE)
   MenuClosureAnimationMac::DisableAnimationsForTesting();
 #endif
 }
 
 void WaitForMenuClosureAnimation() {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_APPLE)
   // TODO(https://crbug.com/982815): Replace this with Quit+Run.
   base::RunLoop().RunUntilIdle();
 #endif
@@ -114,4 +101,5 @@ void ReleaseRefTestViewsDelegate::ReleaseRef() {
     release_ref_callback_.Run();
 }
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views

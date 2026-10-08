@@ -28,15 +28,14 @@
 
 #include <memory>
 
-#include "base/time/time.h"
-#include "mojo/public/cpp/bindings/pending_associated_receiver.h"
 #include "third_party/blink/public/mojom/feature_observer/feature_observer.mojom-blink.h"
-#include "third_party/blink/public/mojom/indexeddb/indexeddb.mojom-blink.h"
 #include "third_party/blink/renderer/modules/indexeddb/idb_request.h"
 #include "third_party/blink/renderer/modules/indexeddb/web_idb_database.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 
 namespace blink {
+
+class IDBDatabaseCallbacks;
 
 class MODULES_EXPORT IDBOpenDBRequest final : public IDBRequest {
   DEFINE_WRAPPERTYPEINFO();
@@ -44,8 +43,7 @@ class MODULES_EXPORT IDBOpenDBRequest final : public IDBRequest {
  public:
   IDBOpenDBRequest(
       ScriptState*,
-      mojo::PendingAssociatedReceiver<mojom::blink::IDBDatabaseCallbacks>
-          callbacks_receiver,
+      IDBDatabaseCallbacks*,
       std::unique_ptr<WebIDBTransaction> transaction_backend,
       int64_t transaction_id,
       int64_t version,
@@ -82,8 +80,7 @@ class MODULES_EXPORT IDBOpenDBRequest final : public IDBRequest {
   DispatchEventResult DispatchEventInternal(Event&) override;
 
  private:
-  mojo::PendingAssociatedReceiver<mojom::blink::IDBDatabaseCallbacks>
-      callbacks_receiver_;
+  Member<IDBDatabaseCallbacks> database_callbacks_;
   std::unique_ptr<WebIDBTransaction> transaction_backend_;
   const int64_t transaction_id_;
   int64_t version_;

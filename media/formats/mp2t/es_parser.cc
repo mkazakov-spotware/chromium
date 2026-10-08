@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/formats/mp2t/es_parser.h"
 
-#include "media/base/stream_parser_buffer.h"
 #include "media/base/timestamp_constants.h"
 #include "media/formats/common/offset_byte_queue.h"
 
@@ -12,7 +11,7 @@ namespace media {
 namespace mp2t {
 
 EsParser::TimingDesc::TimingDesc()
-    : dts(kNoDecodeTimestamp), pts(kNoTimestamp) {}
+    : dts(kNoDecodeTimestamp()), pts(kNoTimestamp) {}
 
 EsParser::TimingDesc::TimingDesc(
     DecodeTimestamp dts_in, base::TimeDelta pts_in)

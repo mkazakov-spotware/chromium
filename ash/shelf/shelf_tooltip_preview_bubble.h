@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,12 +26,8 @@ class ASH_EXPORT ShelfTooltipPreviewBubble : public ShelfBubble,
   ShelfTooltipPreviewBubble(views::View* anchor,
                             const std::vector<aura::Window*>& windows,
                             ShelfTooltipManager* manager,
-                            ShelfAlignment alignment);
-
-  ShelfTooltipPreviewBubble(const ShelfTooltipPreviewBubble&) = delete;
-  ShelfTooltipPreviewBubble& operator=(const ShelfTooltipPreviewBubble&) =
-      delete;
-
+                            ShelfAlignment alignment,
+                            SkColor background_color);
   ~ShelfTooltipPreviewBubble() override;
 
  private:
@@ -39,6 +35,7 @@ class ASH_EXPORT ShelfTooltipPreviewBubble : public ShelfBubble,
   void RemovePreview(WindowPreview* preview);
 
   // BubbleDialogDelegateView overrides:
+  gfx::Rect GetBubbleBounds() override;
   void OnMouseExited(const ui::MouseEvent& event) override;
 
   // ShelfBubble:
@@ -57,6 +54,10 @@ class ASH_EXPORT ShelfTooltipPreviewBubble : public ShelfBubble,
 
   ShelfTooltipManager* manager_;
   base::OneShotTimer dismiss_timer_;
+
+  const ShelfAlignment shelf_alignment_;
+
+  DISALLOW_COPY_AND_ASSIGN(ShelfTooltipPreviewBubble);
 };
 
 }  // namespace ash

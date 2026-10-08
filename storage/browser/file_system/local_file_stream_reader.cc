@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,18 +6,15 @@
 
 #include <stdint.h>
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/check_op.h"
 #include "base/files/file_util.h"
 #include "base/location.h"
-#include "base/task/bind_post_task.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/task_runner.h"
-#include "base/types/pass_key.h"
-#include "components/file_access/scoped_file_access_delegate.h"
+#include "base/memory/ptr_util.h"
+#include "base/task_runner.h"
+#include "base/task_runner_util.h"
 #include "net/base/file_stream.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
@@ -29,14 +26,14 @@ namespace {
 const int kOpenFlagsForRead =
     base::File::FLAG_OPEN | base::File::FLAG_READ | base::File::FLAG_ASYNC;
 
-base::FileErrorOr<base::File::Info> DoGetFileInfo(const base::FilePath& path) {
+FileErrorOr<base::File::Info> DoGetFileInfo(const base::FilePath& path) {
   if (!base::PathExists(path))
-    return base::unexpected(base::File::FILE_ERROR_NOT_FOUND);
+    return base::File::FILE_ERROR_NOT_FOUND;
 
   base::File::Info info;
   bool success = base::GetFileInfo(path, &info);
   if (!success)
-    return base::unexpected(base::File::FILE_ERROR_FAILED);
+    return base::File::FILE_ERROR_FAILED;
   return info;
 }
 
@@ -47,9 +44,9 @@ std::unique_ptr<FileStreamReader> FileStreamReader::CreateForLocalFile(
     const base::FilePath& file_path,
     int64_t initial_offset,
     const base::Time& expected_modification_time) {
-  return std::make_unique<LocalFileStreamReader>(
-      std::move(task_runner), file_path, initial_offset,
-      expected_modification_time, base::PassKey<FileStreamReader>());
+  return base::WrapUnique(
+      new LocalFileStreamReader(std::move(task_runner), file_path,
+                                initial_offset, expected_modification_time));
 }
 
 LocalFileStreamReader::~LocalFileStreamReader() = default;
@@ -71,8 +68,8 @@ int LocalFileStreamReader::Read(net::IOBuffer* buf,
 
 int64_t LocalFileStreamReader::GetLength(
     net::Int64CompletionOnceCallback callback) {
-  bool posted = task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE, base::BindOnce(&DoGetFileInfo, file_path_),
+  bool posted = base::PostTaskAndReplyWithResult(
+      task_runner_.get(), FROM_HERE, base::BindOnce(&DoGetFileInfo, file_path_),
       base::BindOnce(&LocalFileStreamReader::DidGetFileInfoForGetLength,
                      weak_factory_.GetWeakPtr(), std::move(callback)));
   DCHECK(posted);
@@ -83,8 +80,7 @@ LocalFileStreamReader::LocalFileStreamReader(
     scoped_refptr<base::TaskRunner> task_runner,
     const base::FilePath& file_path,
     int64_t initial_offset,
-    const base::Time& expected_modification_time,
-    base::PassKey<FileStreamReader> /*pass_key*/)
+    const base::Time& expected_modification_time)
     : task_runner_(std::move(task_runner)),
       file_path_(file_path),
       initial_offset_(initial_offset),
@@ -95,60 +91,33 @@ void LocalFileStreamReader::Open(net::CompletionOnceCallback callback) {
   DCHECK(!stream_impl_.get());
   has_pending_open_ = true;
 
-  if (!file_access::ScopedFileAccessDelegate::Get()) {
-    OnScopedFileAccessRequested(std::move(callback),
-                                file_access::ScopedFileAccess::Allowed());
-    return;
-  }
-
-  base::OnceCallback<void(file_access::ScopedFileAccess)> open_cb =
-      base::BindOnce(&LocalFileStreamReader::OnScopedFileAccessRequested,
-                     weak_factory_.GetWeakPtr(), std::move(callback));
-  auto current_task_runner = base::SequencedTaskRunner::GetCurrentDefault();
-  auto task = base::BindPostTask(current_task_runner, std::move(open_cb));
-
-  // TODO(crbug.com/1354502): Replace this with actual destination URLs.
-  file_access::ScopedFileAccessDelegate::Get()->RequestFilesAccessForSystem(
-      {file_path_}, std::move(task));
-}
-
-void LocalFileStreamReader::OnScopedFileAccessRequested(
-    net::CompletionOnceCallback callback,
-    file_access::ScopedFileAccess scoped_file_access) {
-  if (!scoped_file_access.is_allowed()) {
-    std::move(callback).Run(net::ERR_ACCESS_DENIED);
-    return;
-  }
-
-  int64_t verify_result = GetLength(base::BindOnce(
-      &LocalFileStreamReader::DidVerifyForOpen, weak_factory_.GetWeakPtr(),
-      std::move(callback), std::move(scoped_file_access)));
+  // Call GetLength first to make it perform last-modified-time verification,
+  // and then call DidVerifyForOpen to do the rest.
+  int64_t verify_result = GetLength(
+      base::BindOnce(&LocalFileStreamReader::DidVerifyForOpen,
+                     weak_factory_.GetWeakPtr(), std::move(callback)));
   DCHECK_EQ(verify_result, net::ERR_IO_PENDING);
 }
 
 void LocalFileStreamReader::DidVerifyForOpen(
     net::CompletionOnceCallback callback,
-    file_access::ScopedFileAccess scoped_file_access,
     int64_t get_length_result) {
   if (get_length_result < 0) {
     std::move(callback).Run(static_cast<int>(get_length_result));
     return;
   }
 
-  stream_impl_ = std::make_unique<net::FileStream>(task_runner_);
+  stream_impl_.reset(new net::FileStream(task_runner_));
   callback_ = std::move(callback);
   const int result = stream_impl_->Open(
       file_path_, kOpenFlagsForRead,
       base::BindOnce(&LocalFileStreamReader::DidOpenFileStream,
-                     weak_factory_.GetWeakPtr(),
-                     std::move(scoped_file_access)));
+                     weak_factory_.GetWeakPtr()));
   if (result != net::ERR_IO_PENDING)
     std::move(callback_).Run(result);
 }
 
-void LocalFileStreamReader::DidOpenFileStream(
-    file_access::ScopedFileAccess /*scoped_file_access*/,
-    int result) {
+void LocalFileStreamReader::DidOpenFileStream(int result) {
   if (result != net::OK) {
     std::move(callback_).Run(result);
     return;
@@ -197,8 +166,8 @@ void LocalFileStreamReader::DidOpenForRead(net::IOBuffer* buf,
 
 void LocalFileStreamReader::DidGetFileInfoForGetLength(
     net::Int64CompletionOnceCallback callback,
-    base::FileErrorOr<base::File::Info> result) {
-  if (!result.has_value()) {
+    FileErrorOr<base::File::Info> result) {
+  if (result.is_error()) {
     std::move(callback).Run(net::FileErrorToNetError(result.error()));
     return;
   }

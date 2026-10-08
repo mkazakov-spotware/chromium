@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,23 +7,22 @@
 #include <memory>
 #include <utility>
 
-#include "base/numerics/safe_conversions.h"
+#include "base/optional.h"
 #include "mojo/public/cpp/system/simple_watcher.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/mojom/blob/blob_registry.mojom-blink.h"
 #include "third_party/blink/renderer/core/fetch/multipart_parser.h"
 #include "third_party/blink/renderer/core/fileapi/file.h"
 #include "third_party/blink/renderer/core/html/forms/form_data.h"
 #include "third_party/blink/renderer/core/html/parser/text_resource_decoder.h"
 #include "third_party/blink/renderer/platform/file_metadata.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/prefinalizer.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/loader/fetch/bytes_consumer.h"
 #include "third_party/blink/renderer/platform/loader/fetch/text_resource_decoder_options.h"
 #include "third_party/blink/renderer/platform/network/http_names.h"
 #include "third_party/blink/renderer/platform/network/parsed_content_disposition.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 #include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
+#include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_utf8_adaptor.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
@@ -70,11 +69,7 @@ class FetchDataLoaderAsBlobHandle final : public FetchDataLoader,
     data_pipe_loader_->Start(consumer_, this);
   }
 
-  void Cancel() override {
-    load_canceled_ = true;
-    blob_handle_.reset();
-    consumer_->Cancel();
-  }
+  void Cancel() override { consumer_->Cancel(); }
 
   void DidFetchDataStartedDataPipe(
       mojo::ScopedDataPipeConsumerHandle handle) override {
@@ -83,9 +78,8 @@ class FetchDataLoaderAsBlobHandle final : public FetchDataLoader,
         mime_type_ ? mime_type_ : "", /*content_disposition=*/"",
         /*length_hint=*/0, std::move(handle),
         mojo::PendingAssociatedRemote<mojom::blink::ProgressClient>(),
-        WTF::BindOnce(
-            &FetchDataLoaderAsBlobHandle::FinishedCreatingFromDataPipe,
-            WrapWeakPersistent(this)));
+        WTF::Bind(&FetchDataLoaderAsBlobHandle::FinishedCreatingFromDataPipe,
+                  WrapWeakPersistent(this)));
   }
 
   void DidFetchDataLoadedDataPipe() override {
@@ -110,8 +104,6 @@ class FetchDataLoaderAsBlobHandle final : public FetchDataLoader,
  private:
   void FinishedCreatingFromDataPipe(
       const scoped_refptr<BlobDataHandle>& blob_handle) {
-    if (load_canceled_)
-      return;
     if (!blob_handle) {
       DidFetchDataLoadFailed();
       return;
@@ -131,7 +123,6 @@ class FetchDataLoaderAsBlobHandle final : public FetchDataLoader,
   const scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
   scoped_refptr<BlobDataHandle> blob_handle_;
   bool load_complete_ = false;
-  bool load_canceled_ = false;
 };
 
 class FetchDataLoaderAsArrayBuffer final : public FetchDataLoader,
@@ -160,9 +151,10 @@ class FetchDataLoaderAsArrayBuffer final : public FetchDataLoader,
         return;
       if (result == BytesConsumer::Result::kOk) {
         if (available > 0) {
-          bool ok = Append(buffer, base::checked_cast<wtf_size_t>(available));
+          bool ok = Append(buffer, SafeCast<wtf_size_t>(available));
           if (!ok) {
-            [[maybe_unused]] auto unused = consumer_->EndRead(0);
+            auto unused = consumer_->EndRead(0);
+            ALLOW_UNUSED_LOCAL(unused);
             consumer_->Cancel();
             client_->DidFetchDataLoadFailed();
             return;
@@ -216,7 +208,7 @@ class FetchDataLoaderAsArrayBuffer final : public FetchDataLoader,
   // Builds a DOMArrayBuffer from the received bytes.
   DOMArrayBuffer* BuildArrayBuffer() {
     DOMArrayBuffer* result = DOMArrayBuffer::CreateUninitializedOrNull(
-        base::checked_cast<unsigned>(buffer_->size()), 1);
+        SafeCast<unsigned>(buffer_->size()), 1);
     // Handle a failed allocation.
     if (!result) {
       return result;
@@ -410,7 +402,7 @@ class FetchDataLoaderAsFormData final : public FetchDataLoader,
           string_decoder_ = std::make_unique<TextResourceDecoder>(
               TextResourceDecoderOptions::CreateUTF8DecodeWithoutBOM());
         }
-        string_builder_ = std::make_unique<StringBuilder>();
+        string_builder_.reset(new StringBuilder);
       }
       return true;
     }
@@ -431,7 +423,7 @@ class FetchDataLoaderAsFormData final : public FetchDataLoader,
         DCHECK(!string_builder_);
         const auto size = blob_data_->length();
         auto* file = MakeGarbageCollected<File>(
-            filename_, absl::nullopt,
+            filename_, base::nullopt,
             BlobDataHandle::Create(std::move(blob_data_), size));
         form_data->append(name_, file, filename_);
         return true;
@@ -538,11 +530,8 @@ class FetchDataLoaderAsDataPipe final : public FetchDataLoader,
       scoped_refptr<base::SingleThreadTaskRunner> task_runner)
       : data_pipe_watcher_(FROM_HERE,
                            mojo::SimpleWatcher::ArmingPolicy::MANUAL,
-                           task_runner),
-        data_pipe_close_watcher_(FROM_HERE,
-                                 mojo::SimpleWatcher::ArmingPolicy::AUTOMATIC,
-                                 std::move(task_runner)) {}
-  ~FetchDataLoaderAsDataPipe() override = default;
+                           std::move(task_runner)) {}
+  ~FetchDataLoaderAsDataPipe() override {}
 
   void Start(BytesConsumer* consumer,
              FetchDataLoader::Client* client) override {
@@ -570,7 +559,7 @@ class FetchDataLoaderAsDataPipe final : public FetchDataLoader,
       options.capacity_num_bytes = 0;
 
       MojoResult rv =
-          mojo::CreateDataPipe(&options, out_data_pipe_, pipe_consumer);
+          mojo::CreateDataPipe(&options, &out_data_pipe_, &pipe_consumer);
       if (rv != MOJO_RESULT_OK) {
         StopInternal();
         client_->DidFetchDataLoadFailed();
@@ -582,14 +571,8 @@ class FetchDataLoaderAsDataPipe final : public FetchDataLoader,
           out_data_pipe_.get(), MOJO_HANDLE_SIGNAL_WRITABLE,
           WTF::BindRepeating(&FetchDataLoaderAsDataPipe::OnWritable,
                              WrapWeakPersistent(this)));
-      data_pipe_close_watcher_.Watch(
-          out_data_pipe_.get(), MOJO_HANDLE_SIGNAL_PEER_CLOSED,
-          MOJO_TRIGGER_CONDITION_SIGNALS_SATISFIED,
-          WTF::BindRepeating(&FetchDataLoaderAsDataPipe::OnPeerClosed,
-                             WrapWeakPersistent(this)));
 
       data_pipe_watcher_.ArmOrNotify();
-      data_pipe_close_watcher_.ArmOrNotify();
     }
 
     // Give the resulting pipe consumer handle to the client.
@@ -602,11 +585,6 @@ class FetchDataLoaderAsDataPipe final : public FetchDataLoader,
     if (consumer->GetPublicState() !=
         BytesConsumer::PublicState::kReadableOrWaiting)
       OnStateChange();
-  }
-
-  void OnPeerClosed(MojoResult result, const mojo::HandleSignalsState& state) {
-    StopInternal();
-    client_->DidFetchDataLoadFailed();
   }
 
   void OnWritable(MojoResult) { OnStateChange(); }
@@ -624,7 +602,7 @@ class FetchDataLoaderAsDataPipe final : public FetchDataLoader,
         if (available == 0) {
           result = consumer_->EndRead(0);
         } else {
-          uint32_t num_bytes = base::checked_cast<uint32_t>(available);
+          uint32_t num_bytes = SafeCast<uint32_t>(available);
           MojoResult mojo_result = out_data_pipe_->WriteData(
               buffer, &num_bytes, MOJO_WRITE_DATA_FLAG_NONE);
           if (mojo_result == MOJO_RESULT_OK) {
@@ -673,21 +651,17 @@ class FetchDataLoaderAsDataPipe final : public FetchDataLoader,
  private:
   void StopInternal() {
     consumer_->Cancel();
-    Dispose();
-  }
-
-  void Dispose() {
     data_pipe_watcher_.Cancel();
-    data_pipe_close_watcher_.Cancel();
     out_data_pipe_.reset();
   }
+
+  void Dispose() { data_pipe_watcher_.Cancel(); }
 
   Member<BytesConsumer> consumer_;
   Member<FetchDataLoader::Client> client_;
 
   mojo::ScopedDataPipeProducerHandle out_data_pipe_;
   mojo::SimpleWatcher data_pipe_watcher_;
-  mojo::SimpleWatcher data_pipe_close_watcher_;
 };
 
 }  // namespace

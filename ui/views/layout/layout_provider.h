@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_VIEWS_LAYOUT_LAYOUT_PROVIDER_H_
 #define UI_VIEWS_LAYOUT_LAYOUT_PROVIDER_H_
 
+#include "base/macros.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/shadow_value.h"
@@ -113,36 +114,30 @@ enum DistanceMetric {
   VIEWS_DISTANCE_MAX = 0x2000
 };
 
-// The type of a dialog content element. kText should be used for Labels or
-// other elements that only show text. Otherwise kControl should be used.
-enum class DialogContentType { kControl, kText };
+// The type of a dialog content element. TEXT should be used for Labels or other
+// elements that only show text. Otherwise CONTROL should be used.
+enum DialogContentType { CONTROL, TEXT };
 
-enum class Emphasis {
+enum EmphasisMetric {
   // No emphasis needed for shadows, corner radius, etc.
-  kNone,
+  EMPHASIS_NONE,
   // Use this to indicate low-emphasis interactive elements such as buttons and
   // text fields.
-  kLow,
+  EMPHASIS_LOW,
   // Use this for components with medium emphasis, such the autofill dropdown.
-  kMedium,
+  EMPHASIS_MEDIUM,
   // High-emphasis components, such as tabs or dialogs.
-  kHigh,
+  EMPHASIS_HIGH,
   // Maximum emphasis components like the omnibox or rich suggestions.
-  kMaximum,
+  EMPHASIS_MAXIMUM,
 };
 
 class VIEWS_EXPORT LayoutProvider {
  public:
   LayoutProvider();
-
-  LayoutProvider(const LayoutProvider&) = delete;
-  LayoutProvider& operator=(const LayoutProvider&) = delete;
-
   virtual ~LayoutProvider();
 
   // This should never return nullptr.
-  // TODO(crbug.com/1200584): Replace callers of this with
-  // View::GetLayoutProvider().
   static LayoutProvider* Get();
 
   // Calculates the control height based on the |font|'s reported glyph height,
@@ -175,12 +170,17 @@ class VIEWS_EXPORT LayoutProvider {
   // TODO(https://crbug.com/822000): Possibly combine the following two
   // functions into a single function returning a struct.
 
-  // Returns the corner radius specific to the given emphasis.
-  virtual int GetCornerRadiusMetric(Emphasis emphasis,
+  // Returns the corner radius specific to the given emphasis metric.
+  virtual int GetCornerRadiusMetric(EmphasisMetric emphasis_metric,
                                     const gfx::Size& size = gfx::Size()) const;
 
   // Returns the shadow elevation metric for the given emphasis.
-  virtual int GetShadowElevationMetric(Emphasis emphasis) const;
+  virtual int GetShadowElevationMetric(EmphasisMetric emphasis_metric) const;
+
+  // Creates shadows for the given elevation. Use GetShadowElevationMetric for
+  // the appropriate elevation.
+  virtual gfx::ShadowValues MakeShadowValues(int elevation,
+                                             SkColor color) const;
 
  protected:
   static constexpr int kSmallDialogWidth = 320;
@@ -189,6 +189,8 @@ class VIEWS_EXPORT LayoutProvider {
 
  private:
   TypographyProvider typography_provider_;
+
+  DISALLOW_COPY_AND_ASSIGN(LayoutProvider);
 };
 
 }  // namespace views

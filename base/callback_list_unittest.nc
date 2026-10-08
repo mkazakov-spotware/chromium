@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,8 +43,8 @@ class FooListener {
 // first callback has been run.
 void WontCompile() {
   FooListener f;
-  RepeatingCallbackList<void(std::unique_ptr<Foo>)> c1;
-  CallbackListSubscription sub =
+  CallbackList<void(std::unique_ptr<Foo>)> c1;
+  std::unique_ptr<CallbackList<void(std::unique_ptr<Foo>)>::Subscription> sub =
       c1.Add(BindRepeating(&FooListener::GotAScopedFoo, Unretained(&f)));
   c1.Notify(std::unique_ptr<Foo>(new Foo()));
 }

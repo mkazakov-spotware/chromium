@@ -1,26 +1,24 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/browser/media_capture_util.h"
 
+#include <algorithm>
 #include <string>
 #include <utility>
 
 #include "base/callback.h"
 #include "base/check.h"
-#include "base/ranges/algorithm.h"
 #include "content/public/browser/media_capture_devices.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/permissions/permissions_data.h"
 #include "third_party/blink/public/mojom/mediastream/media_stream.mojom-shared.h"
-#include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
 
 using blink::MediaStreamDevice;
 using blink::MediaStreamDevices;
 using content::MediaCaptureDevices;
 using content::MediaStreamUI;
-using extensions::mojom::APIPermissionID;
 
 namespace extensions {
 
@@ -30,8 +28,11 @@ const MediaStreamDevice* GetRequestedDeviceOrDefault(
     const MediaStreamDevices& devices,
     const std::string& requested_device_id) {
   if (!requested_device_id.empty()) {
-    auto it = base::ranges::find(devices, requested_device_id,
-                                 &MediaStreamDevice::id);
+    auto it =
+        std::find_if(devices.begin(), devices.end(),
+                     [requested_device_id](const MediaStreamDevice& device) {
+                       return device.id == requested_device_id;
+                     });
     return it != devices.end() ? &(*it) : nullptr;
   }
 
@@ -56,11 +57,7 @@ void GrantMediaStreamRequest(content::WebContents* web_contents,
          request.video_type ==
              blink::mojom::MediaStreamType::DEVICE_VIDEO_CAPTURE);
 
-  // TOOD(crbug.com/1300883): Generalize to multiple streams.
-  blink::mojom::StreamDevicesSet stream_devices_set;
-  stream_devices_set.stream_devices.emplace_back(
-      blink::mojom::StreamDevices::New());
-  blink::mojom::StreamDevices& devices = *stream_devices_set.stream_devices[0];
+  MediaStreamDevices devices;
 
   if (request.audio_type ==
       blink::mojom::MediaStreamType::DEVICE_AUDIO_CAPTURE) {
@@ -69,7 +66,7 @@ void GrantMediaStreamRequest(content::WebContents* web_contents,
         MediaCaptureDevices::GetInstance()->GetAudioCaptureDevices(),
         request.requested_audio_device_id);
     if (device)
-      devices.audio_device = *device;
+      devices.push_back(*device);
   }
 
   if (request.video_type ==
@@ -79,16 +76,15 @@ void GrantMediaStreamRequest(content::WebContents* web_contents,
         MediaCaptureDevices::GetInstance()->GetVideoCaptureDevices(),
         request.requested_video_device_id);
     if (device)
-      devices.video_device = *device;
+      devices.push_back(*device);
   }
 
   // TODO(jamescook): Should we show a recording icon somewhere? If so, where?
   std::unique_ptr<MediaStreamUI> ui;
   std::move(callback).Run(
-      stream_devices_set,
-      (devices.audio_device.has_value() || devices.video_device.has_value())
-          ? blink::mojom::MediaStreamRequestResult::OK
-          : blink::mojom::MediaStreamRequestResult::INVALID_STATE,
+      devices,
+      devices.empty() ? blink::mojom::MediaStreamRequestResult::INVALID_STATE
+                      : blink::mojom::MediaStreamRequestResult::OK,
       std::move(ui));
 }
 
@@ -98,11 +94,11 @@ void VerifyMediaAccessPermission(blink::mojom::MediaStreamType type,
   if (type == blink::mojom::MediaStreamType::DEVICE_AUDIO_CAPTURE) {
     // app_shell has no UI surface to show an error, and on an embedded device
     // it's better to crash than to have a feature not work.
-    CHECK(permissions_data->HasAPIPermission(APIPermissionID::kAudioCapture))
+    CHECK(permissions_data->HasAPIPermission(APIPermission::kAudioCapture))
         << "Audio capture request but no audioCapture permission in manifest.";
   } else {
     DCHECK(type == blink::mojom::MediaStreamType::DEVICE_VIDEO_CAPTURE);
-    CHECK(permissions_data->HasAPIPermission(APIPermissionID::kVideoCapture))
+    CHECK(permissions_data->HasAPIPermission(APIPermission::kVideoCapture))
         << "Video capture request but no videoCapture permission in manifest.";
   }
 }
@@ -111,10 +107,10 @@ bool CheckMediaAccessPermission(blink::mojom::MediaStreamType type,
                                 const Extension* extension) {
   const PermissionsData* permissions_data = extension->permissions_data();
   if (type == blink::mojom::MediaStreamType::DEVICE_AUDIO_CAPTURE) {
-    return permissions_data->HasAPIPermission(APIPermissionID::kAudioCapture);
+    return permissions_data->HasAPIPermission(APIPermission::kAudioCapture);
   }
   DCHECK(type == blink::mojom::MediaStreamType::DEVICE_VIDEO_CAPTURE);
-  return permissions_data->HasAPIPermission(APIPermissionID::kVideoCapture);
+  return permissions_data->HasAPIPermission(APIPermission::kVideoCapture);
 }
 
 }  // namespace media_capture_util

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,8 +25,6 @@ import org.chromium.base.ObserverList;
  * @param <E> The type of the wrapped object.
  */
 public class ObservableSupplierImpl<E> implements ObservableSupplier<E> {
-    private static boolean sIgnoreThreadChecksForTesting;
-
     private final Thread mThread = Thread.currentThread();
     private final Handler mHandler = new Handler();
 
@@ -78,14 +76,8 @@ public class ObservableSupplierImpl<E> implements ObservableSupplier<E> {
     }
 
     private void checkThread() {
-        assert sIgnoreThreadChecksForTesting
-                || mThread
-                        == Thread.currentThread()
+        assert mThread
+                == Thread.currentThread()
             : "ObservableSupplierImpl must only be used on a single Thread.";
-    }
-
-    /** Used to allow developers to access supplier values on the instrumentation thread. */
-    public static void setIgnoreThreadChecksForTesting(boolean ignoreThreadChecks) {
-        sIgnoreThreadChecksForTesting = ignoreThreadChecks;
     }
 }

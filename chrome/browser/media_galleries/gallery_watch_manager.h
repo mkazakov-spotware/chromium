@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "base/callback_forward.h"
 #include "base/files/file_path.h"
 #include "base/files/file_path_watcher.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
@@ -51,10 +51,6 @@ class GalleryWatchManager
   static const char kCouldNotWatchGalleryError[];
 
   GalleryWatchManager();
-
-  GalleryWatchManager(const GalleryWatchManager&) = delete;
-  GalleryWatchManager& operator=(const GalleryWatchManager&) = delete;
-
   ~GalleryWatchManager() override;
 
   // Add or remove observer of change events - this is the only way to
@@ -96,7 +92,7 @@ class GalleryWatchManager
                const std::string& extension_id,
                MediaGalleryPrefId gallery_id);
 
-    raw_ptr<content::BrowserContext> browser_context;
+    content::BrowserContext* browser_context;
     const std::string extension_id;
     MediaGalleryPrefId gallery_id;
 
@@ -118,7 +114,8 @@ class GalleryWatchManager
   typedef std::map<base::FilePath, NotificationInfo> WatchedPaths;
   typedef std::map<content::BrowserContext*, GalleryWatchManagerObserver*>
       ObserverMap;
-  typedef std::map<content::BrowserContext*, base::CallbackListSubscription>
+  typedef std::map<content::BrowserContext*,
+                   std::unique_ptr<KeyedServiceShutdownNotifier::Subscription>>
       BrowserContextSubscriptionMap;
 
   // Ensure there is a subscription to shutdown notifications for
@@ -177,6 +174,8 @@ class GalleryWatchManager
   BrowserContextSubscriptionMap browser_context_subscription_map_;
 
   base::WeakPtrFactory<GalleryWatchManager> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(GalleryWatchManager);
 };
 
 #endif  // CHROME_BROWSER_MEDIA_GALLERIES_GALLERY_WATCH_MANAGER_H_

@@ -1,19 +1,18 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/predictors/resource_prefetch_predictor_tables.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/stringprintf.h"
 #include "base/trace_event/trace_event.h"
 #include "chrome/browser/predictors/predictors_features.h"
 #include "sql/statement.h"
-#include "sql/transaction.h"
 
 namespace {
 
@@ -67,8 +66,10 @@ void ResourcePrefetchPredictorTables::SortOrigins(
     OriginData* data,
     const std::string& main_frame_origin) {
   auto* origins = data->mutable_origins();
-  auto it =
-      base::ranges::find(*origins, main_frame_origin, &OriginStat::origin);
+  auto it = std::find_if(origins->begin(), origins->end(),
+                         [&main_frame_origin](const OriginStat& x) {
+                           return x.origin() == main_frame_origin;
+                         });
   int iterator_offset = 0;
   if (it != origins->end()) {
     origins->SwapElements(0, it - origins->begin());
@@ -197,20 +198,14 @@ bool ResourcePrefetchPredictorTables::SetDatabaseVersion(sql::Database* db,
   return statement.Run();
 }
 
-void ResourcePrefetchPredictorTables::CreateOrClearTablesIfNecessary() {
-  // TODO(crbug.com/1229370): This method's logic is almost identical to
-  // sqlite_proto::ProtoTableManager::CreateOrClearTablesIfNecessary, so the two
-  // classes could probably share a common implementation wrapping
-  // sql::MetaTable.
-
+void ResourcePrefetchPredictorTables::CreateTablesIfNonExistent() {
   DCHECK(GetTaskRunner()->RunsTasksInCurrentSequence());
   if (CantAccessDatabase())
     return;
 
   // Database initialization is all-or-nothing.
   sql::Database* db = DB();
-  sql::Transaction transaction(db);
-  bool success = transaction.Begin();
+  bool success = db->BeginTransaction();
   success = success && DropTablesIfOutdated(db);
 
   for (const char* table_name : {kHostRedirectTableName, kOriginTableName}) {
@@ -221,11 +216,10 @@ void ResourcePrefetchPredictorTables::CreateOrClearTablesIfNecessary() {
                                .c_str()));
   }
 
-  if (success) {
-    success = transaction.Commit();
-  } else {
-    transaction.Rollback();
-  }
+  if (success)
+    success = db->CommitTransaction();
+  else
+    db->RollbackTransaction();
 
   if (!success)
     ResetDB();

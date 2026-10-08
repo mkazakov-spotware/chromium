@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,9 +17,6 @@ namespace blink {
 namespace scheduler {
 
 using base::sequence_manager::TaskQueue;
-
-// static
-constexpr base::TimeDelta IdleHelper::kMaximumIdlePeriod;
 
 IdleHelper::IdleHelper(
     SchedulerHelper* helper,
@@ -43,7 +40,7 @@ IdleHelper::IdleHelper(
   idle_task_runner_ = base::MakeRefCounted<SingleThreadIdleTaskRunner>(
       idle_queue_->CreateTaskRunner(
           static_cast<int>(TaskType::kMainThreadTaskQueueIdle)),
-      helper_->ControlTaskRunner(), this);
+      this);
 
   // This fence will block any idle tasks from running.
   idle_queue_->InsertFence(TaskQueue::InsertFencePosition::kBeginningOfTime);
@@ -70,6 +67,7 @@ IdleHelper::Delegate::Delegate() = default;
 IdleHelper::Delegate::~Delegate() = default;
 
 scoped_refptr<SingleThreadIdleTaskRunner> IdleHelper::IdleTaskRunner() {
+  helper_->CheckOnValidThread();
   return idle_task_runner_;
 }
 
@@ -83,30 +81,34 @@ IdleHelper::IdlePeriodState IdleHelper::ComputeNewLongIdlePeriodState(
     return IdlePeriodState::kNotInIdlePeriod;
   }
 
-  auto wake_up = helper_->GetNextWakeUp();
+  base::sequence_manager::LazyNow lazy_now(now);
+  base::Optional<base::TimeDelta> delay_till_next_task =
+      helper_->real_time_domain()->DelayTillNextTask(&lazy_now);
 
+  base::TimeDelta max_long_idle_period_duration =
+      base::TimeDelta::FromMilliseconds(kMaximumIdlePeriodMillis);
   base::TimeDelta long_idle_period_duration;
 
-  if (wake_up) {
+  if (delay_till_next_task) {
     // Limit the idle period duration to be before the next pending task.
     long_idle_period_duration =
-        std::min(wake_up->time - now, kMaximumIdlePeriod);
+        std::min(*delay_till_next_task, max_long_idle_period_duration);
   } else {
-    long_idle_period_duration = kMaximumIdlePeriod;
+    long_idle_period_duration = max_long_idle_period_duration;
   }
 
   if (long_idle_period_duration >=
-      base::Milliseconds(kMinimumIdlePeriodDurationMillis)) {
+      base::TimeDelta::FromMilliseconds(kMinimumIdlePeriodDurationMillis)) {
     *next_long_idle_period_delay_out = long_idle_period_duration;
-    if (!idle_queue_->HasTaskToRunImmediatelyOrReadyDelayedTask())
+    if (!idle_queue_->HasTaskToRunImmediately())
       return IdlePeriodState::kInLongIdlePeriodPaused;
-    if (long_idle_period_duration == kMaximumIdlePeriod)
+    if (long_idle_period_duration == max_long_idle_period_duration)
       return IdlePeriodState::kInLongIdlePeriodWithMaxDeadline;
     return IdlePeriodState::kInLongIdlePeriod;
   } else {
     // If we can't start the idle period yet then try again after wake-up.
-    *next_long_idle_period_delay_out =
-        base::Milliseconds(kRetryEnableLongIdlePeriodDelayMillis);
+    *next_long_idle_period_delay_out = base::TimeDelta::FromMilliseconds(
+        kRetryEnableLongIdlePeriodDelayMillis);
     return IdlePeriodState::kNotInIdlePeriod;
   }
 }
@@ -172,7 +174,7 @@ void IdleHelper::StartIdlePeriod(IdlePeriodState new_state,
 
   base::TimeDelta idle_period_duration(idle_period_deadline - now);
   if (idle_period_duration <
-      base::Milliseconds(kMinimumIdlePeriodDurationMillis)) {
+      base::TimeDelta::FromMilliseconds(kMinimumIdlePeriodDurationMillis)) {
     TRACE_EVENT1(TRACE_DISABLED_BY_DEFAULT("renderer.scheduler"),
                  "NotStartingIdlePeriodBecauseDeadlineIsTooClose",
                  "idle_period_duration_ms",
@@ -246,7 +248,7 @@ void IdleHelper::UpdateLongIdlePeriodStateAfterIdleTask() {
   TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("renderer.scheduler"),
                "UpdateLongIdlePeriodStateAfterIdleTask");
 
-  if (!idle_queue_->HasTaskToRunImmediatelyOrReadyDelayedTask()) {
+  if (!idle_queue_->HasTaskToRunImmediately()) {
     // If there are no more idle tasks then pause long idle period ticks until a
     // new idle task is posted.
     state_.UpdateState(IdlePeriodState::kInLongIdlePeriodPaused,

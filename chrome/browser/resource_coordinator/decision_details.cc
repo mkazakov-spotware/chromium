@@ -1,9 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/resource_coordinator/decision_details.h"
 
+#include "base/stl_util.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 
 namespace resource_coordinator {
@@ -39,7 +40,7 @@ const char* kDecisionFailureReasonStrings[] = {
     "Tab has notification permission ",
     "Tab is a web application window",
 };
-static_assert(std::size(kDecisionFailureReasonStrings) ==
+static_assert(base::size(kDecisionFailureReasonStrings) ==
                   static_cast<size_t>(DecisionFailureReason::MAX),
               "kDecisionFailureReasonStrings not up to date with enum");
 
@@ -48,7 +49,7 @@ const char* kDecisionSuccessReasonStrings[] = {
     "Origin is in global allowlist",
     "Origin has locally been observed to be safe via heuristic logic",
 };
-static_assert(std::size(kDecisionSuccessReasonStrings) ==
+static_assert(base::size(kDecisionSuccessReasonStrings) ==
                   static_cast<size_t>(DecisionSuccessReason::MAX),
               "kDecisionSuccessReasonStrings not up to date with enum");
 

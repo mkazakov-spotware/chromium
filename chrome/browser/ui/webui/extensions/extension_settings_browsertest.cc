@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,6 @@
 #include "chrome/browser/extensions/unpacked_installer.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
@@ -110,12 +109,6 @@ void ExtensionSettingsUIBrowserTest::ShrinkWebContentsView() {
   web_contents->Resize(gfx::Rect(0, 0, 400, 400));
 }
 
-void ExtensionSettingsUIBrowserTest::
-    SetSilenceDeprecatedManifestVersionWarnings(bool silence) {
-  Extension::set_silence_deprecated_manifest_version_warnings_for_testing(
-      silence);
-}
-
 const Extension* ExtensionSettingsUIBrowserTest::InstallExtension(
     const base::FilePath& path) {
   extensions::ChromeTestExtensionLoader loader(browser()->profile());
@@ -133,7 +126,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionSettingsUIBrowserTest, ViewSource) {
   content::WebContents* options_contents = nullptr;
   {
     content::WebContentsAddedObserver options_contents_added_observer;
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), options_url));
+    ui_test_utils::NavigateToURL(browser(), options_url);
     options_contents = options_contents_added_observer.GetWebContents();
   }
   ASSERT_TRUE(options_contents);
@@ -144,7 +137,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionSettingsUIBrowserTest, ViewSource) {
   // Open the view-source of the options page.
   int old_tabs_count = browser()->tab_strip_model()->count();
   content::WebContentsAddedObserver view_source_contents_added_observer;
-  options_contents->GetPrimaryMainFrame()->ViewSource();
+  options_contents->GetMainFrame()->ViewSource();
   content::WebContents* view_source_contents =
       view_source_contents_added_observer.GetWebContents();
   ASSERT_TRUE(view_source_contents);
@@ -214,7 +207,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionSettingsUIBrowserTest, ListenerRegistration) {
 
   TabStripModel* tab_strip = browser()->tab_strip_model();
   tab_strip->CloseWebContentsAt(tab_strip->active_index(),
-                                TabCloseTypes::CLOSE_NONE);
+                                TabStripModel::CLOSE_NONE);
   base::RunLoop().RunUntilIdle();
   content::RunAllTasksUntilIdle();
 
@@ -229,7 +222,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionSettingsUIBrowserTest,
   // Navigate to chrome://extensions which is a allowlisted URL for the
   // chrome.activityLogPrivate API.
   GURL extensions_url("chrome://extensions");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), extensions_url));
+  ui_test_utils::NavigateToURL(browser(), extensions_url);
   content::WebContents* page_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(page_contents);
@@ -263,13 +256,13 @@ IN_PROC_BROWSER_TEST_F(ExtensionsActivityLogTest, TestActivityLogVisible) {
   test_data_dir = test_data_dir.AppendASCII("extensions");
   extensions::ChromeTestExtensionLoader loader(browser()->profile());
 
-  ExtensionTestMessageListener listener("ready");
+  ExtensionTestMessageListener listener("ready", false);
   scoped_refptr<const extensions::Extension> extension = loader.LoadExtension(
       test_data_dir.AppendASCII("activity_log/simple_call"));
   ASSERT_TRUE(listener.WaitUntilSatisfied());
 
   GURL activity_log_url("chrome://extensions/?activity=" + extension->id());
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), activity_log_url));
+  ui_test_utils::NavigateToURL(browser(), activity_log_url);
   content::WebContents* activity_log_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(activity_log_contents);

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/read_only_shared_memory_region.h"
 #include "chrome/services/printing/public/mojom/pdf_nup_converter.mojom.h"
 
@@ -15,10 +16,6 @@ namespace printing {
 class PdfNupConverter : public printing::mojom::PdfNupConverter {
  public:
   PdfNupConverter();
-
-  PdfNupConverter(const PdfNupConverter&) = delete;
-  PdfNupConverter& operator=(const PdfNupConverter&) = delete;
-
   ~PdfNupConverter() override;
 
   // printing::mojom::PdfNupConverter
@@ -34,6 +31,9 @@ class PdfNupConverter : public printing::mojom::PdfNupConverter {
                           base::ReadOnlySharedMemoryRegion src_pdf_region,
                           NupDocumentConvertCallback callback) override;
   void SetWebContentsURL(const GURL& url) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PdfNupConverter);
 };
 
 }  // namespace printing

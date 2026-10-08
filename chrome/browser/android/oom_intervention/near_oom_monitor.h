@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,8 @@
 #include "base/callback.h"
 #include "base/callback_list.h"
 #include "base/process/process_metrics.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/time/time.h"
 
 // NearOomMonitor tracks memory stats to estimate whether we are in "near-OOM"
@@ -24,20 +24,18 @@ class NearOomMonitor {
   // OomInterventionConfig::is_swap_monitor_enabled().
   static NearOomMonitor* GetInstance();
 
-  NearOomMonitor(const NearOomMonitor&) = delete;
-  NearOomMonitor& operator=(const NearOomMonitor&) = delete;
-
   virtual ~NearOomMonitor();
 
   base::TimeDelta GetMonitoringInterval() const { return monitoring_interval_; }
   base::TimeDelta GetCooldownInterval() const { return cooldown_interval_; }
 
-  using CallbackList = base::RepeatingClosureList;
+  using CallbackList = base::CallbackList<void()>;
+  using Subscription = CallbackList::Subscription;
 
   // Registers a callback which is invoked when this monitor detects near-OOM
   // situation. The callback will be called on the task runner on which this
-  // monitor is running. Destroy the returned subscription to unregister.
-  base::CallbackListSubscription RegisterCallback(
+  // monitor is running. Destroy the returned Subscription to unregister.
+  std::unique_ptr<Subscription> RegisterCallback(
       base::RepeatingClosure callback);
 
   void OnLowMemory(JNIEnv* env,
@@ -81,6 +79,8 @@ class NearOomMonitor {
 
   bool component_callback_is_enabled_;
   base::android::ScopedJavaGlobalRef<jobject> j_object_;
+
+  DISALLOW_COPY_AND_ASSIGN(NearOomMonitor);
 };
 
 #endif  // CHROME_BROWSER_ANDROID_OOM_INTERVENTION_NEAR_OOM_MONITOR_H_

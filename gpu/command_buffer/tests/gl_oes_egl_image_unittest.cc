@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@
 #include "ui/gl/gl_image.h"
 #include "ui/gl/init/gl_factory.h"
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "ui/gl/gl_image_native_pixmap.h"
 #endif
 
@@ -43,7 +43,7 @@ class GpuOESEGLImageTest : public testing::Test,
   bool egl_initialized_{false};
 };
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 // TODO(crbug.com/835072): re-enable this test on ASAN once bugs are fixed.
 #if !defined(ADDRESS_SANITIZER)
 
@@ -132,12 +132,8 @@ TEST_F(GpuOESEGLImageTest, EGLImageToTexture) {
       texture_id, 0 /* level */, image->GetInternalFormat(), size.width(),
       size.height(), 1 /* depth */, image->GetDataFormat(),
       image->GetDataType(), gfx::Rect(size));
-
-  // TODO(crbug.com/1323341): This call is likely unnecessary, but it's not
-  // currently possible to actually run the test to completion to verify. See
-  // https://chromium-review.googlesource.com/c/chromium/src/+/4055269/comment/e8eed809_ffcdfc9c/.
-  gl_.decoder()->AttachImageToTextureWithClientBinding(
-      texture_id, GL_TEXTURE_2D, image.get());
+  gl_.decoder()->BindImage(texture_id, GL_TEXTURE_2D, image.get(),
+                           true /* can_bind_to_sampler */);
 
   // Build program, buffers and draw the texture.
   GLuint vertex_shader =
@@ -168,11 +164,8 @@ TEST_F(GpuOESEGLImageTest, EGLImageToTexture) {
   EXPECT_TRUE(GL_NO_ERROR == glGetError());
 
   // Release the image.
-  // TODO(crbug.com/1323341): This call is likely unnecessary, but it's not
-  // currently possible to actually run the test to completion to verify. See
-  // https://chromium-review.googlesource.com/c/chromium/src/+/4055269/comment/e8eed809_ffcdfc9c/.
-  gl_.decoder()->AttachImageToTextureWithClientBinding(
-      texture_id, GL_TEXTURE_2D, image.get());
+  gl_.decoder()->BindImage(texture_id, GL_TEXTURE_2D, image.get(),
+                           false /* can_bind_to_sampler */);
   image->ReleaseTexImage(GL_TEXTURE_2D);
 
   // Clean up.
@@ -183,6 +176,6 @@ TEST_F(GpuOESEGLImageTest, EGLImageToTexture) {
   glDeleteTextures(1, &texture_id);
 }
 #endif  // !defined(ADDRESS_SANITIZER)
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 
 }  // namespace

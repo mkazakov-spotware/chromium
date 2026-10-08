@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define CONTENT_PUBLIC_BROWSER_LOGIN_DELEGATE_H_
 
 #include "content/common/content_export.h"
-#include "net/base/auth.h"
 
 namespace content {
 
@@ -16,10 +15,7 @@ namespace content {
 // has been canceled and the callback should not be called.
 class CONTENT_EXPORT LoginDelegate {
  public:
-  using LoginAuthRequiredCallback =
-      base::OnceCallback<void(const absl::optional<net::AuthCredentials>&)>;
-
-  virtual ~LoginDelegate() = default;
+  virtual ~LoginDelegate() {}
 };
 
 }  // namespace content

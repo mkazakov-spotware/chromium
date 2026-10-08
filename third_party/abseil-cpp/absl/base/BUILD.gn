@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -35,7 +35,6 @@ absl_source_set("raw_logging_internal") {
     ":atomic_hook",
     ":config",
     ":core_headers",
-    ":errno_saver",
     ":log_severity",
   ]
   visibility = [ "//third_party/abseil-cpp/absl/*" ]
@@ -63,18 +62,6 @@ absl_source_set("config") {
     "config.h",
     "options.h",
     "policy_checks.h",
-  ]
-}
-
-absl_source_set("cycleclock_internal") {
-  public = [
-    "internal/cycleclock_config.h",
-    "internal/unscaledcycleclock_config.h",
-  ]
-  visibility = [ "//third_party/abseil-cpp/absl/*" ]
-  deps = [
-    ":base_internal",
-    ":config",
   ]
 }
 
@@ -162,7 +149,6 @@ absl_source_set("base") {
     ":base_internal",
     ":config",
     ":core_headers",
-    ":cycleclock_internal",
     ":dynamic_annotations",
     ":log_severity",
     ":raw_logging_internal",
@@ -239,9 +225,36 @@ absl_source_set("endian") {
     "internal/unaligned_access.h",
   ]
   public_deps = [
-    ":base",
     ":config",
     ":core_headers",
+  ]
+}
+
+absl_source_set("bits") {
+  public = [ "internal/bits.h" ]
+  public_deps = [
+    ":config",
+    ":core_headers",
+  ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+absl_source_set("exponential_biased") {
+  sources = [ "internal/exponential_biased.cc" ]
+  public = [ "internal/exponential_biased.h" ]
+  public_deps = [
+    ":config",
+    ":core_headers",
+  ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+absl_source_set("periodic_sampler") {
+  sources = [ "internal/periodic_sampler.cc" ]
+  public = [ "internal/periodic_sampler.h" ]
+  public_deps = [
+    ":core_headers",
+    ":exponential_biased",
   ]
 }
 
@@ -249,15 +262,21 @@ absl_source_set("scoped_set_env") {
   testonly = true
   public = [ "internal/scoped_set_env.h" ]
   sources = [ "internal/scoped_set_env.cc" ]
-  public_deps = [ ":config" ]
-  deps = [ ":raw_logging_internal" ]
+  public_deps = [
+    ":config",
+  ]
+  deps = [
+    ":raw_logging_internal",
+  ]
   visibility = [ "//third_party/abseil-cpp/absl/*" ]
 }
 
 absl_source_set("strerror") {
   sources = [ "internal/strerror.cc" ]
   public = [ "internal/strerror.h" ]
-  public_deps = [ ":config" ]
+  public_deps = [
+    ":config",
+  ]
   deps = [
     ":core_headers",
     ":errno_saver",
@@ -271,21 +290,12 @@ absl_source_set("fast_type_id") {
   visibility = [ "//third_party/abseil-cpp/absl/*" ]
 }
 
-absl_source_set("prefetch") {
-  public = [ "internal/prefetch.h" ]
-  deps = [ ":config" ]
-  visibility = [ "//third_party/abseil-cpp/absl/*" ]
-}
-
-absl_test("prefetch_test") {
-  sources = [ "internal/prefetch_test.cc" ]
-  deps = [ ":prefetch" ]
-}
-
-absl_test("config_test") {
+absl_source_set("config_test") {
+  testonly = true
   sources = [ "config_test.cc" ]
   deps = [
     ":config",
     "//third_party/abseil-cpp/absl/synchronization:thread_pool",
+    "//third_party/googletest:gtest",
   ]
 }

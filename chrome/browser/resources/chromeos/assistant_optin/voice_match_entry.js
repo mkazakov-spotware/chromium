@@ -1,40 +1,21 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-/* #js_imports_placeholder */
+Polymer({
+  is: 'voice-match-entry',
 
-/**
- * @constructor
- * @extends {PolymerElement}
- */
- const VoiceMatchEntryBase = Polymer.mixinBehaviors(
-  [OobeI18nBehavior],
-  Polymer.Element);
+  behaviors: [OobeI18nBehavior],
 
-/**
- * @polymer
- */
-class VoiceMatchEntry extends VoiceMatchEntryBase {
-  static get is() {
-    return 'voice-match-entry';
-  }
+  properties: {
+    active: {
+      type: Boolean,
+      value: false,
+    },
 
-  /* #html_template_placeholder */
-
-  static get properties() {
-    return {
-      active: {
-        type: Boolean,
-        value: false,
-      },
-
-      completed: {
-        type: Boolean,
-        value: false,
-      },
-    };
-  }
-}
-
-customElements.define(VoiceMatchEntry.is, VoiceMatchEntry);
+    completed: {
+      type: Boolean,
+      value: false,
+    },
+  },
+});

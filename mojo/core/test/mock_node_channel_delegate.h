@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,8 +54,7 @@ class MockNodeChannelDelegate
               OnAcceptBrokerClient,
               (const NodeName& from_node,
                const NodeName& broker_name,
-               PlatformHandle broker_channel,
-               const uint64_t capabilities),
+               PlatformHandle broker_channel),
               (override));
   MOCK_METHOD(void,
               OnEventMessage,
@@ -75,14 +74,13 @@ class MockNodeChannelDelegate
               OnIntroduce,
               (const NodeName& from_node,
                const NodeName& name,
-               PlatformHandle channel_handle,
-               const uint64_t remote_capabilites),
+               PlatformHandle channel_handle),
               (override));
   MOCK_METHOD(void,
               OnBroadcast,
               (const NodeName& from_node, Channel::MessagePtr message),
               (override));
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   MOCK_METHOD(void,
               OnRelayEventMessage,
               (const NodeName& from_node,

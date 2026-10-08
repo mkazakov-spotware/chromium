@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,8 +52,7 @@ void NGConstraintSpaceBuilder::SetPercentageResolutionSize(
           percentage_resolution_size.block_size;
     }
   } else {
-    if (adjust_inline_size_if_needed_)
-      AdjustInlineSizeIfNeeded(&percentage_resolution_size.block_size);
+    AdjustInlineSizeIfNeeded(&percentage_resolution_size.block_size);
 
     space_.bitfields_.percentage_inline_storage =
         GetPercentageStorage(percentage_resolution_size.block_size,

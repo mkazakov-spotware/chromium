@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,18 +16,14 @@
 #include <utility>
 #include <vector>
 
-#include "base/component_export.h"
-#include "base/strings/string_split.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/skia/include/core/SkColor.h"
+#include "base/optional.h"
 #include "ui/accessibility/ax_clipping_behavior.h"
 #include "ui/accessibility/ax_coordinate_system.h"
 #include "ui/accessibility/ax_enums.mojom-forward.h"
-#include "ui/accessibility/ax_node.h"
+#include "ui/accessibility/ax_export.h"
 #include "ui/accessibility/ax_node_position.h"
 #include "ui/accessibility/ax_offscreen_result.h"
 #include "ui/accessibility/ax_position.h"
-#include "ui/accessibility/ax_text_attributes.h"
 #include "ui/accessibility/ax_text_utils.h"
 #include "ui/accessibility/ax_tree.h"
 #include "ui/accessibility/ax_tree_id.h"
@@ -69,111 +65,18 @@ using TextAttributeMap = std::map<int, TextAttributeList>;
 // and GetFocus all return a gfx::NativeViewAccessible - so you can return a
 // native accessible if necessary, and AXPlatformNode::GetNativeViewAccessible
 // otherwise.
-class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegate {
+class AX_EXPORT AXPlatformNodeDelegate {
  public:
-  using AXPosition = ui::AXNodePosition::AXPositionInstance;
-  using SerializedPosition = ui::AXNodePosition::SerializedPosition;
-  using AXRange = ui::AXRange<AXPosition::element_type>;
-
-  AXPlatformNodeDelegate(const AXPlatformNodeDelegate&) = delete;
-  AXPlatformNodeDelegate& operator=(const AXPlatformNodeDelegate&) = delete;
-
   virtual ~AXPlatformNodeDelegate() = default;
 
-  const AXNode* node() const { return node_; }
-  AXNode* node() { return node_; }
-  void SetNode(AXNode& node);
-  AXTreeManager* GetTreeManager() const;
-
-  // Returns the AXNodeID of the AXNode that this delegate encapsulates (if
-  // any), otherwise returns kInvalidAXNodeID
-  AXNodeID GetId() const;
-
-  // Get the accessibility data that should be exposed for this node. This data
-  // is readonly and comes directly from the accessibility tree's source, e.g.
-  // Blink.
-  //
-  // Virtually all of the information could be obtained from this structure
-  // (role, state, name, cursor position, etc.) However, please prefer using
-  // specific accessor methods, such as `GetStringAttribute` or
-  // `GetTableCellRowIndex`, instead of directly accessing this structure,
-  // because any attributes that could automatically be computed in the browser
-  // process would also be returned. The browser process would try to correct
-  // missing or erroneous information too.
+  // Get the accessibility data that should be exposed for this node.
+  // Virtually all of the information is obtained from this structure
+  // (role, state, name, cursor position, etc.) - the rest of this interface
+  // is mostly to implement support for walking the accessibility tree.
   virtual const AXNodeData& GetData() const = 0;
 
-  // Get some extra data about the accessibility tree that contains this node.
-  virtual const AXTreeData& GetTreeData() const;
-
-  // Accessing accessibility attributes:
-  //
-  // There are dozens of possible attributes for an accessibility node,
-  // but only a few tend to apply to any one object, so we store them
-  // in sparse arrays of <attribute id, attribute value> pairs, organized
-  // by type (bool, int, float, string, int list).
-  //
-  // There are three accessors for each type of attribute: one that returns
-  // true if the attribute is present and false if not, one that takes a
-  // pointer argument and returns true if the attribute is present (if you
-  // need to distinguish between the default value and a missing attribute),
-  // and another that returns the default value for that type if the
-  // attribute is not present. In addition, strings can be returned as
-  // either std::string or std::u16string, for convenience.
-
-  ax::mojom::Role GetRole() const;
-  bool HasBoolAttribute(ax::mojom::BoolAttribute attribute) const;
-  bool GetBoolAttribute(ax::mojom::BoolAttribute attribute) const;
-  bool GetBoolAttribute(ax::mojom::BoolAttribute attribute, bool* value) const;
-  bool HasFloatAttribute(ax::mojom::FloatAttribute attribute) const;
-  float GetFloatAttribute(ax::mojom::FloatAttribute attribute) const;
-  bool GetFloatAttribute(ax::mojom::FloatAttribute attribute,
-                         float* value) const;
-  const std::vector<std::pair<ax::mojom::IntAttribute, int32_t>>&
-  GetIntAttributes() const;
-  bool HasIntAttribute(ax::mojom::IntAttribute attribute) const;
-  int GetIntAttribute(ax::mojom::IntAttribute attribute) const;
-  bool GetIntAttribute(ax::mojom::IntAttribute attribute, int* value) const;
-  const std::vector<std::pair<ax::mojom::StringAttribute, std::string>>&
-  GetStringAttributes() const;
-  bool HasStringAttribute(ax::mojom::StringAttribute attribute) const;
-  const std::string& GetStringAttribute(
-      ax::mojom::StringAttribute attribute) const;
-  bool GetStringAttribute(ax::mojom::StringAttribute attribute,
-                          std::string* value) const;
-  std::u16string GetString16Attribute(
-      ax::mojom::StringAttribute attribute) const;
-  bool GetString16Attribute(ax::mojom::StringAttribute attribute,
-                            std::u16string* value) const;
-  const std::string& GetInheritedStringAttribute(
-      ax::mojom::StringAttribute attribute) const;
-  std::u16string GetInheritedString16Attribute(
-      ax::mojom::StringAttribute attribute) const;
-  const std::vector<
-      std::pair<ax::mojom::IntListAttribute, std::vector<int32_t>>>&
-  GetIntListAttributes() const;
-  bool HasIntListAttribute(ax::mojom::IntListAttribute attribute) const;
-  const std::vector<int32_t>& GetIntListAttribute(
-      ax::mojom::IntListAttribute attribute) const;
-  bool GetIntListAttribute(ax::mojom::IntListAttribute attribute,
-                           std::vector<int32_t>* value) const;
-  bool HasStringListAttribute(ax::mojom::StringListAttribute attribute) const;
-  const std::vector<std::string>& GetStringListAttribute(
-      ax::mojom::StringListAttribute attribute) const;
-  bool GetStringListAttribute(ax::mojom::StringListAttribute attribute,
-                              std::vector<std::string>* value) const;
-  bool HasHtmlAttribute(const char* attribute) const;
-  const base::StringPairs& GetHtmlAttributes() const;
-  bool GetHtmlAttribute(const char* attribute, std::string* value) const;
-  bool GetHtmlAttribute(const char* attribute, std::u16string* value) const;
-  AXTextAttributes GetTextAttributes() const;
-  bool HasState(ax::mojom::State state) const;
-  ax::mojom::State GetState() const;
-  bool HasAction(ax::mojom::Action action) const;
-  bool HasDefaultActionVerb() const;
-  std::vector<ax::mojom::Action> GetSupportedActions() const;
-  bool HasTextStyle(ax::mojom::TextStyle text_style) const;
-  ax::mojom::NameFrom GetNameFrom() const;
-  ax::mojom::DescriptionFrom GetDescriptionFrom() const;
+  // Get the accessibility tree data for this node.
+  virtual const AXTreeData& GetTreeData() const = 0;
 
   // Returns the text of this node and all descendant nodes; including text
   // found in embedded objects.
@@ -181,30 +84,21 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegate {
   // Only text displayed on screen is included. Text from ARIA and HTML
   // attributes that is either not displayed on screen, or outside this node,
   // e.g. aria-label and HTML title, is not returned.
-  virtual std::u16string GetTextContentUTF16() const = 0;
+  virtual base::string16 GetInnerText() const = 0;
 
   // Returns the value of a control such as a text field, a slider, a <select>
   // element, a date picker or an ARIA combo box. In order to minimize
   // cross-process communication between the renderer and the browser, may
   // compute the value from the control's inner text in the case of a text
   // field.
-  virtual std::u16string GetValueForControl() const = 0;
+  virtual base::string16 GetValueForControl() const = 0;
 
-  // See `AXNode::GetUnignoredSelection`.
-  virtual const AXSelection GetUnignoredSelection() const;
-
-  // Creates a text position rooted at this object if it's a leaf node, or a
-  // tree position otherwise.
-  virtual AXNodePosition::AXPositionInstance CreatePositionAt(
-      int offset,
-      ax::mojom::TextAffinity affinity =
-          ax::mojom::TextAffinity::kDownstream) const = 0;
+  // Get the unignored selection from the tree
+  virtual const AXTree::Selection GetUnignoredSelection() const = 0;
 
   // Creates a text position rooted at this object.
   virtual AXNodePosition::AXPositionInstance CreateTextPositionAt(
-      int offset,
-      ax::mojom::TextAffinity affinity =
-          ax::mojom::TextAffinity::kDownstream) const = 0;
+      int offset) const = 0;
 
   // Get the accessibility node for the NSWindow the node is contained in. This
   // method is only meaningful on macOS.
@@ -216,28 +110,17 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegate {
 
   // Get the parent of the node, which may be an AXPlatformNode or it may
   // be a native accessible object implemented by another class.
-  virtual gfx::NativeViewAccessible GetParent() const = 0;
+  virtual gfx::NativeViewAccessible GetParent() = 0;
 
   // Get the index in parent. Typically this is the AXNode's index_in_parent_.
-  // This should return nullopt if the index in parent is unknown.
-  virtual absl::optional<size_t> GetIndexInParent() = 0;
+  // This should return -1 if the index in parent is unknown.
+  virtual int GetIndexInParent() = 0;
 
   // Get the number of children of this node.
-  //
-  // Note that for accessibility trees that have ignored nodes, this method
-  // should return the number of unignored children. All ignored nodes are
-  // recursively removed from the children count. (An ignored node means that
-  // the node should not be exposed to platform APIs: See
-  // `IsIgnored`.)
-  virtual size_t GetChildCount() const = 0;
+  virtual int GetChildCount() const = 0;
 
-  // Get a child of a node given a 0-based index.
-  //
-  // Note that for accessibility trees that have ignored nodes, this method
-  // returns only unignored children. All ignored nodes are recursively removed.
-  // (An ignored node means that the node should not be exposed to platform
-  // APIs: See `IsIgnored`.)
-  virtual gfx::NativeViewAccessible ChildAtIndex(size_t index) = 0;
+  // Get the child of a node given a 0-based index.
+  virtual gfx::NativeViewAccessible ChildAtIndex(int index) = 0;
 
   // Returns true if it has a modal dialog.
   virtual bool HasModalDialog() const = 0;
@@ -260,38 +143,14 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegate {
   // platform's accessibility layer.
   virtual bool IsChildOfLeaf() const = 0;
 
-  // Returns true if this node is either an atomic text field , or one of its
-  // ancestors is. An atomic text field does not expose its internal
-  // implementation to assistive software, appearing as a single leaf node in
-  // the accessibility tree. It includes <input>, <textarea> and Views-based
-  // text fields.
-  virtual bool IsDescendantOfAtomicTextField() const = 0;
-
-  // Returns true if this object is at the root of what most accessibility APIs
-  // consider to be a document, such as the root of a webpage, an iframe, or a
-  // PDF.
-  virtual bool IsPlatformDocument() const = 0;
-
-  // Returns true if this node is ignored and should be hidden from the
-  // accessibility tree. Methods that are used to navigate the accessibility
-  // tree, such as "ChildAtIndex", "GetParent", and "GetChildCount", among
-  // others, also skip ignored nodes. This does not impact the node's
-  // descendants.
-  //
-  // Only relevant for accessibility trees that support ignored nodes.)
-  virtual bool IsIgnored() const = 0;
+  // Returns true if this current node is editable and the root editable node is
+  // a plain text field.
+  virtual bool IsDescendantOfPlainTextField() const = 0;
 
   // Returns true if this is a leaf node, meaning all its
   // children should not be exposed to any platform's native accessibility
   // layer.
-  virtual bool IsLeaf() const;
-
-  // Returns true if this node is invisible or ignored. (Only relevant for
-  // accessibility trees that support ignored nodes.)
-  virtual bool IsInvisibleOrIgnored() const;
-
-  // Returns true if this node is focused.
-  virtual bool IsFocused() const = 0;
+  virtual bool IsLeaf() const = 0;
 
   // Returns true if this is a top-level browser window that doesn't have a
   // parent accessible node, or its parent is the application accessible node on
@@ -299,41 +158,21 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegate {
   virtual bool IsToplevelBrowserWindow() = 0;
 
   // If this object is exposed to the platform's accessibility layer, returns
-  // this object. Otherwise, returns the platform leaf or lowest unignored
-  // ancestor under which this object is found.
-  //
-  // (An ignored node means that the node should not be exposed to platform
-  // APIs: See `IsIgnored`.)
-  virtual gfx::NativeViewAccessible GetLowestPlatformAncestor() const = 0;
-
-  // If this node is within an editable region, returns the node that is at the
-  // root of that editable region, otherwise returns nullptr. In accessibility,
-  // an editable region is synonymous to a node with the kTextField role, or a
-  // contenteditable without the role, (see `AXNodeData::IsTextField()`).
-  virtual gfx::NativeViewAccessible GetTextFieldAncestor() const = 0;
-
-  // If this node is within a container (or widget) that supports either single
-  // or multiple selection, returns the node that represents the container.
-  virtual gfx::NativeViewAccessible GetSelectionContainer() const = 0;
-
-  // If within a table, returns the node representing the table.
-  virtual gfx::NativeViewAccessible GetTableAncestor() const = 0;
+  // this object. Otherwise, returns the platform leaf under which this object
+  // is found.
+  virtual gfx::NativeViewAccessible GetClosestPlatformObject() const = 0;
 
   class ChildIterator {
    public:
     virtual ~ChildIterator() = default;
-    bool operator==(const ChildIterator& rhs) const {
-      return GetIndexInParent() == rhs.GetIndexInParent();
-    }
-    bool operator!=(const ChildIterator& rhs) const {
-      return GetIndexInParent() != rhs.GetIndexInParent();
-    }
-    virtual ChildIterator& operator++() = 0;
-    virtual ChildIterator& operator++(int) = 0;
-    virtual ChildIterator& operator--() = 0;
-    virtual ChildIterator& operator--(int) = 0;
+    virtual bool operator==(const ChildIterator& rhs) const = 0;
+    virtual bool operator!=(const ChildIterator& rhs) const = 0;
+    virtual void operator++() = 0;
+    virtual void operator++(int) = 0;
+    virtual void operator--() = 0;
+    virtual void operator--(int) = 0;
     virtual gfx::NativeViewAccessible GetNativeViewAccessible() const = 0;
-    virtual absl::optional<size_t> GetIndexInParent() const = 0;
+    virtual int GetIndexInParent() const = 0;
     virtual AXPlatformNodeDelegate& operator*() const = 0;
     virtual AXPlatformNodeDelegate* operator->() const = 0;
   };
@@ -342,26 +181,13 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegate {
   virtual std::unique_ptr<AXPlatformNodeDelegate::ChildIterator>
   ChildrenEnd() = 0;
 
-  // Returns the accessible name for this node. This could either be derived
-  // from visible text, such as the node's contents or an associated label, or
-  // be manually set by the node's owner, e.g. via an aria-label in HTML.
-  const std::string& GetName() const;
-
-  // Returns the accessible description for the node.
-  // An accessible description gives more information about the node in
-  // contrast to the accessible name which is a shorter label for the node.
-  virtual const std::string& GetDescription() const = 0;
+  // Returns the accessible name for the node.
+  virtual std::string GetName() const = 0;
 
   // Returns the text of this node and represent the text of descendant nodes
   // with a special character in place of every embedded object. This represents
   // the concept of text in ATK and IA2 APIs.
-  virtual std::u16string GetHypertext() const = 0;
-  // Temporary accessor method until hypertext is fully migrated to `AXNode`
-  // from `AXPlatformNodeBase`.
-  // TODO(nektar): Remove this once selection handling is fully migrated to
-  // `AXNode`.
-  virtual const std::map<int, int>& GetHypertextOffsetToHyperlinkChildIndex()
-      const = 0;
+  virtual base::string16 GetHypertext() const = 0;
 
   // Set the selection in the hypertext of this node. Depending on the
   // implementation, this may mean the new selection will span multiple nodes.
@@ -388,19 +214,8 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegate {
       const AXClippingBehavior clipping_behavior,
       AXOffscreenResult* offscreen_result = nullptr) const = 0;
 
-  // Derivative utils for AXPlatformNodeDelegate::GetBoundsRect
-  gfx::Rect GetClippedScreenBoundsRect(
-      AXOffscreenResult* offscreen_result = nullptr) const;
-  gfx::Rect GetUnclippedScreenBoundsRect(
-      AXOffscreenResult* offscreen_result = nullptr) const;
-  gfx::Rect GetClippedRootFrameBoundsRect(
-      ui::AXOffscreenResult* offscreen_result = nullptr) const;
-  gfx::Rect GetUnclippedRootFrameBoundsRect(
-      ui::AXOffscreenResult* offscreen_result = nullptr) const;
-  gfx::Rect GetClippedFrameBoundsRect(
-      ui::AXOffscreenResult* offscreen_result = nullptr) const;
-  gfx::Rect GetUnclippedFrameBoundsRect(
-      ui::AXOffscreenResult* offscreen_result = nullptr) const;
+  virtual gfx::Rect GetClippedScreenBoundsRect(
+      AXOffscreenResult* offscreen_result = nullptr) const = 0;
 
   // Return the bounds of the text range given by text offsets relative to
   // GetHypertext in the coordinate system indicated. If the clipping behavior
@@ -444,7 +259,7 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegate {
   // Return the node within this node's subtree (inclusive) that currently has
   // focus, or return nullptr if this subtree is not connected to the top
   // document through its ancestry chain.
-  virtual gfx::NativeViewAccessible GetFocus() const = 0;
+  virtual gfx::NativeViewAccessible GetFocus() = 0;
 
   // Get whether this node is offscreen.
   virtual bool IsOffscreen() const = 0;
@@ -458,13 +273,7 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegate {
   // Get whether this node is in web content.
   virtual bool IsWebContent() const = 0;
 
-  // Get whether this node can be marked as read-only.
-  virtual bool IsReadOnlySupported() const;
-
-  // Get whether this node is marked as read-only or is disabled.
-  virtual bool IsReadOnlyOrDisabled() const;
-
-  // See `AXNode::HasVisibleCaretOrSelection`.
+  // Returns true if the caret or selection is visible on this object.
   virtual bool HasVisibleCaretOrSelection() const = 0;
 
   // Get another node from this same tree.
@@ -505,15 +314,29 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegate {
   // any instance of the application, regardless of locale. The author ID should
   // be unique among sibling accessibility nodes and is best if unique across
   // the application, however, not meeting this requirement is non-fatal.
-  virtual std::u16string GetAuthorUniqueId() const = 0;
+  virtual base::string16 GetAuthorUniqueId() const = 0;
 
   virtual const AXUniqueId& GetUniqueId() const = 0;
 
+  // Finds the previous or next offset from the provided offset, that matches
+  // the provided boundary type.
+  //
+  // This method finds text boundaries in the text used for platform text APIs.
+  // Implementations may use side-channel data such as line or word indices to
+  // produce appropriate results. It may optionally return no value, indicating
+  // that the delegate does not have all the information required to calculate
+  // this value and it is the responsibility of the AXPlatformNode itself to
+  // to calculate it.
+  virtual base::Optional<int> FindTextBoundary(
+      ax::mojom::TextBoundary boundary,
+      int offset,
+      ax::mojom::MoveDirection direction,
+      ax::mojom::TextAffinity affinity) const = 0;
+
   // Return a vector of all the descendants of this delegate's node. This method
   // is only meaningful for Windows UIA.
-  virtual const std::vector<gfx::NativeViewAccessible>
-  GetUIADirectChildrenInRange(ui::AXPlatformNodeDelegate* start,
-                              ui::AXPlatformNodeDelegate* end) = 0;
+  virtual const std::vector<gfx::NativeViewAccessible> GetUIADescendants()
+      const = 0;
 
   // Return a string representing the language code.
   //
@@ -524,61 +347,51 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegate {
   //
   // Returns empty string if no appropriate language was found or if this node
   // uses the default interface language.
-  std::string GetLanguage() const;
+  virtual std::string GetLanguage() const = 0;
 
   //
-  // Tables. All of these should be called on a node that has a table-like
+  // Tables. All of these should be called on a node that's a table-like
   // role, otherwise they return nullopt.
   //
-  bool IsTable() const;
-  virtual absl::optional<int> GetTableColCount() const;
-  virtual absl::optional<int> GetTableRowCount() const;
-  virtual absl::optional<int> GetTableAriaColCount() const = 0;
-  virtual absl::optional<int> GetTableAriaRowCount() const = 0;
-  virtual absl::optional<int> GetTableCellCount() const;
-  virtual absl::optional<bool> GetTableHasColumnOrRowHeaderNode() const;
-  virtual std::vector<int32_t> GetColHeaderNodeIds() const;
-  virtual std::vector<int32_t> GetColHeaderNodeIds(int col_index) const;
-  virtual std::vector<int32_t> GetRowHeaderNodeIds() const;
-  virtual std::vector<int32_t> GetRowHeaderNodeIds(int row_index) const;
+  virtual bool IsTable() const = 0;
+  virtual base::Optional<int> GetTableColCount() const = 0;
+  virtual base::Optional<int> GetTableRowCount() const = 0;
+  virtual base::Optional<int> GetTableAriaColCount() const = 0;
+  virtual base::Optional<int> GetTableAriaRowCount() const = 0;
+  virtual base::Optional<int> GetTableCellCount() const = 0;
+  virtual base::Optional<bool> GetTableHasColumnOrRowHeaderNode() const = 0;
+  virtual std::vector<int32_t> GetColHeaderNodeIds() const = 0;
+  virtual std::vector<int32_t> GetColHeaderNodeIds(int col_index) const = 0;
+  virtual std::vector<int32_t> GetRowHeaderNodeIds() const = 0;
+  virtual std::vector<int32_t> GetRowHeaderNodeIds(int row_index) const = 0;
   virtual AXPlatformNode* GetTableCaption() const = 0;
 
-  //
-  // Nodes with a table row-like role.
-  //
-  virtual bool IsTableRow() const;
-  virtual absl::optional<int> GetTableRowRowIndex() const;
+  // Table row-like nodes.
+  virtual bool IsTableRow() const = 0;
+  virtual base::Optional<int> GetTableRowRowIndex() const = 0;
 
-  //
-  // Nodes with a table cell-like role.
-  //
-  virtual bool IsTableCellOrHeader() const;
-  virtual absl::optional<int> GetTableCellIndex() const;
-  virtual absl::optional<int> GetTableCellColIndex() const;
-  virtual absl::optional<int> GetTableCellRowIndex() const;
-  virtual absl::optional<int> GetTableCellColSpan() const;
-  virtual absl::optional<int> GetTableCellRowSpan() const;
-  virtual absl::optional<int> GetTableCellAriaColIndex() const;
-  virtual absl::optional<int> GetTableCellAriaRowIndex() const;
-  virtual absl::optional<int32_t> GetCellId(int row_index, int col_index) const;
-  virtual absl::optional<int32_t> CellIndexToId(int cell_index) const;
+  // Table cell-like nodes.
+  virtual bool IsTableCellOrHeader() const = 0;
+  virtual base::Optional<int> GetTableCellIndex() const = 0;
+  virtual base::Optional<int> GetTableCellColIndex() const = 0;
+  virtual base::Optional<int> GetTableCellRowIndex() const = 0;
+  virtual base::Optional<int> GetTableCellColSpan() const = 0;
+  virtual base::Optional<int> GetTableCellRowSpan() const = 0;
+  virtual base::Optional<int> GetTableCellAriaColIndex() const = 0;
+  virtual base::Optional<int> GetTableCellAriaRowIndex() const = 0;
+  virtual base::Optional<int32_t> GetCellId(int row_index,
+                                            int col_index) const = 0;
+  virtual base::Optional<int32_t> CellIndexToId(int cell_index) const = 0;
 
-  // Returns true if this node is a cell or a row/column header in an ARIA grid
-  // or treegrid.
-  virtual bool IsCellOrHeaderOfAriaGrid() const;
-
-  // See `AXNode::IsRootWebAreaForPresentationalIframe()`.
-  virtual bool IsRootWebAreaForPresentationalIframe() const = 0;
+  // Helper methods to check if a cell is an ARIA-1.1+ 'cell' or 'gridcell'
+  virtual bool IsCellOrHeaderOfARIATable() const = 0;
+  virtual bool IsCellOrHeaderOfARIAGrid() const = 0;
 
   // Ordered-set-like and item-like nodes.
-  virtual bool IsOrderedSetItem() const;
-  virtual bool IsOrderedSet() const;
-  virtual absl::optional<int> GetPosInSet() const = 0;
-  virtual absl::optional<int> GetSetSize() const = 0;
-
-  // Computed colors, taking blending into account.
-  virtual SkColor GetColor() const;
-  virtual SkColor GetBackgroundColor() const;
+  virtual bool IsOrderedSetItem() const = 0;
+  virtual bool IsOrderedSet() const = 0;
+  virtual base::Optional<int> GetPosInSet() const = 0;
+  virtual base::Optional<int> GetSetSize() const = 0;
 
   //
   // Events.
@@ -600,13 +413,13 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegate {
   // Localized strings.
   //
 
-  virtual std::u16string GetLocalizedRoleDescriptionForUnlabeledImage()
+  virtual base::string16 GetLocalizedRoleDescriptionForUnlabeledImage()
       const = 0;
-  virtual std::u16string GetLocalizedStringForImageAnnotationStatus(
+  virtual base::string16 GetLocalizedStringForImageAnnotationStatus(
       ax::mojom::ImageAnnotationStatus status) const = 0;
-  virtual std::u16string GetLocalizedStringForLandmarkType() const = 0;
-  virtual std::u16string GetLocalizedStringForRoleDescription() const = 0;
-  virtual std::u16string GetStyleNameAttributeAsLocalizedString() const = 0;
+  virtual base::string16 GetLocalizedStringForLandmarkType() const = 0;
+  virtual base::string16 GetLocalizedStringForRoleDescription() const = 0;
+  virtual base::string16 GetStyleNameAttributeAsLocalizedString() const = 0;
 
   //
   // Testing.
@@ -619,33 +432,24 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeDelegate {
   virtual bool ShouldIgnoreHoveredStateForTesting() = 0;
 
   // Creates a string representation of this delegate's data.
-  std::string ToString() const { return GetData().ToString(); }
+  std::string ToString() { return GetData().ToString(); }
 
   // Returns a string representation of the subtree of delegates rooted at this
   // delegate.
   std::string SubtreeToString() { return SubtreeToStringHelper(0u); }
 
   friend std::ostream& operator<<(std::ostream& stream,
-                                  const AXPlatformNodeDelegate& delegate) {
+                                  AXPlatformNodeDelegate& delegate) {
     return stream << delegate.ToString();
   }
 
  protected:
-  AXPlatformNodeDelegate();
-  explicit AXPlatformNodeDelegate(AXNode* node);
+  AXPlatformNodeDelegate() = default;
 
   virtual std::string SubtreeToStringHelper(size_t level) = 0;
 
-  virtual void NotifyAccessibilityApiUsage() const {}
-
  private:
-  // The underlying node. This could change during the lifetime of this object
-  // if this object has been reparented, i.e. moved to another part of the tree.
-  // In this case, a new `AXNode` would be created by `AXTree`, which would
-  // however reuse the same `AXNodeID`.
-  //
-  // Weak, `AXTree` owns this.
-  raw_ptr<AXNode, DanglingUntriaged> node_;
+  DISALLOW_COPY_AND_ASSIGN(AXPlatformNodeDelegate);
 };
 
 }  // namespace ui

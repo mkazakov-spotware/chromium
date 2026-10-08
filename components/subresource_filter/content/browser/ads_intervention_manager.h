@@ -1,15 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SUBRESOURCE_FILTER_CONTENT_BROWSER_ADS_INTERVENTION_MANAGER_H_
 #define COMPONENTS_SUBRESOURCE_FILTER_CONTENT_BROWSER_ADS_INTERVENTION_MANAGER_H_
 
-#include "base/memory/raw_ptr.h"
-#include "base/time/time.h"
+#include <memory>
+
+#include "base/optional.h"
 #include "components/subresource_filter/content/browser/subresource_filter_content_settings_manager.h"
 #include "components/subresource_filter/core/mojom/subresource_filter.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class GURL;
 
@@ -64,10 +64,6 @@ class AdsInterventionManager {
     mojom::AdsViolation ads_violation;
   };
 
-  // Gets the duration for the |violation| given, as different violations may
-  // have different durations associated with them.
-  static base::TimeDelta GetInterventionDuration(mojom::AdsViolation violation);
-
   // The content_settings_manager should outlive the ads intervention manager.
   // This is satisfied as the SubresourceFilterContentSettingsManager and the
   // AdsInterventionManager are both bound to the profile.
@@ -86,10 +82,10 @@ class AdsInterventionManager {
       mojom::AdsViolation ads_violation);
 
   // Returns the last active ads intervention written to metadata,
-  // otherwise absl::nullopt is returned. When retrieving ads interventions
+  // otherwise base::nullopt is returned. When retrieving ads interventions
   // for a navigation, should_record_metrics should be true to record
   // per-navigation ads intervention metrics.
-  absl::optional<LastAdsIntervention> GetLastAdsIntervention(
+  base::Optional<LastAdsIntervention> GetLastAdsIntervention(
       const GURL& url) const;
 
   // Returns whether the subresource filter should activate for
@@ -103,10 +99,9 @@ class AdsInterventionManager {
  private:
   // The SubresourceFilterContentSettingsManager is guaranteed to outlive the
   // AdsInterventionManager. Both are bound to the profile.
-  raw_ptr<SubresourceFilterContentSettingsManager, DanglingUntriaged>
-      settings_manager_ = nullptr;
+  SubresourceFilterContentSettingsManager* settings_manager_ = nullptr;
 
-  raw_ptr<base::Clock, DanglingUntriaged> clock_;
+  base::Clock* clock_;
 };
 
 }  // namespace subresource_filter

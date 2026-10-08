@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,24 +37,22 @@ void OffsetAdjuster::AdjustOffset(const Adjustments& adjustments,
                                   size_t* offset,
                                   size_t limit) {
   DCHECK(offset);
-  if (*offset == std::u16string::npos)
+  if (*offset == string16::npos)
     return;
-  size_t original_lengths = 0;
-  size_t output_lengths = 0;
+  int adjustment = 0;
   for (const auto& i : adjustments) {
     if (*offset <= i.original_offset)
       break;
     if (*offset < (i.original_offset + i.original_length)) {
-      *offset = std::u16string::npos;
+      *offset = string16::npos;
       return;
     }
-    original_lengths += i.original_length;
-    output_lengths += i.output_length;
+    adjustment += static_cast<int>(i.original_length - i.output_length);
   }
-  *offset += output_lengths - original_lengths;
+  *offset -= adjustment;
 
   if (*offset > limit)
-    *offset = std::u16string::npos;
+    *offset = string16::npos;
 }
 
 // static
@@ -70,22 +68,19 @@ void OffsetAdjuster::UnadjustOffsets(
 // static
 void OffsetAdjuster::UnadjustOffset(const Adjustments& adjustments,
                                     size_t* offset) {
-  if (*offset == std::u16string::npos)
+  if (*offset == string16::npos)
     return;
-  size_t original_lengths = 0;
-  size_t output_lengths = 0;
+  int adjustment = 0;
   for (const auto& i : adjustments) {
-    if (*offset + original_lengths - output_lengths <= i.original_offset)
+    if (*offset + adjustment <= i.original_offset)
       break;
-    original_lengths += i.original_length;
-    output_lengths += i.output_length;
-    if ((*offset + original_lengths - output_lengths) <
-        (i.original_offset + i.original_length)) {
-      *offset = std::u16string::npos;
+    adjustment += static_cast<int>(i.original_length - i.output_length);
+    if ((*offset + adjustment) < (i.original_offset + i.original_length)) {
+      *offset = string16::npos;
       return;
     }
   }
-  *offset += original_lengths - output_lengths;
+  *offset += adjustment;
 }
 
 // static
@@ -154,15 +149,15 @@ void OffsetAdjuster::MergeSequentialAdjustments(
       //   <=
       //   adjusted_iter->original_offset + shift +
       //       adjusted_iter->original_length
+
       // Modify the current |adjusted_iter| to include whatever collapsing
       // happened in |first_iter|, then advance to the next |first_adjustments|
       // because we dealt with the current one.
-
+      const int collapse = static_cast<int>(first_iter->original_length) -
+          static_cast<int>(first_iter->output_length);
       // This function does not know how to deal with a string that expands and
       // then gets modified, only strings that collapse and then get modified.
-      DCHECK_GT(first_iter->original_length, first_iter->output_length);
-      const size_t collapse =
-          first_iter->original_length - first_iter->output_length;
+      DCHECK_GT(collapse, 0);
       adjusted_iter->original_length += collapse;
       currently_collapsing += collapse;
       ++first_iter;
@@ -193,12 +188,14 @@ bool ConvertUnicode(const SrcChar* src,
                     OffsetAdjuster::Adjustments* adjustments) {
   if (adjustments)
     adjustments->clear();
+  // ICU requires 32-bit numbers.
   bool success = true;
-  for (size_t i = 0; i < src_len; i++) {
-    base_icu::UChar32 code_point;
+  int32_t src_len32 = static_cast<int32_t>(src_len);
+  for (int32_t i = 0; i < src_len32; i++) {
+    uint32_t code_point;
     size_t original_i = i;
     size_t chars_written = 0;
-    if (ReadUnicodeCharacter(src, src_len, &i, &code_point)) {
+    if (ReadUnicodeCharacter(src, src_len32, &i, &code_point)) {
       chars_written = WriteUnicodeCharacter(code_point, output);
     } else {
       chars_written = WriteUnicodeCharacter(0xFFFD, output);
@@ -222,29 +219,29 @@ bool ConvertUnicode(const SrcChar* src,
 bool UTF8ToUTF16WithAdjustments(
     const char* src,
     size_t src_len,
-    std::u16string* output,
+    string16* output,
     base::OffsetAdjuster::Adjustments* adjustments) {
   PrepareForUTF16Or32Output(src, src_len, output);
   return ConvertUnicode(src, src_len, output, adjustments);
 }
 
-std::u16string UTF8ToUTF16WithAdjustments(
+string16 UTF8ToUTF16WithAdjustments(
     const base::StringPiece& utf8,
     base::OffsetAdjuster::Adjustments* adjustments) {
-  std::u16string result;
+  string16 result;
   UTF8ToUTF16WithAdjustments(utf8.data(), utf8.length(), &result, adjustments);
   return result;
 }
 
-std::u16string UTF8ToUTF16AndAdjustOffsets(
+string16 UTF8ToUTF16AndAdjustOffsets(
     const base::StringPiece& utf8,
     std::vector<size_t>* offsets_for_adjustment) {
   for (size_t& offset : *offsets_for_adjustment) {
     if (offset > utf8.length())
-      offset = std::u16string::npos;
+      offset = string16::npos;
   }
   OffsetAdjuster::Adjustments adjustments;
-  std::u16string result = UTF8ToUTF16WithAdjustments(utf8, &adjustments);
+  string16 result = UTF8ToUTF16WithAdjustments(utf8, &adjustments);
   OffsetAdjuster::AdjustOffsets(adjustments, offsets_for_adjustment);
   return result;
 }
@@ -254,7 +251,7 @@ std::string UTF16ToUTF8AndAdjustOffsets(
     std::vector<size_t>* offsets_for_adjustment) {
   for (size_t& offset : *offsets_for_adjustment) {
     if (offset > utf16.length())
-      offset = std::u16string::npos;
+      offset = string16::npos;
   }
   std::string result;
   PrepareForUTF8Output(utf16.data(), utf16.length(), &result);

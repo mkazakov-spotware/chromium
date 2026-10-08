@@ -1,4 +1,4 @@
-# Copyright 2015 The Chromium Authors
+# Copyright (c) 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -33,20 +33,19 @@ class Identity(object):
 
 def ListIdentities():
   return subprocess.check_output([
-      'xcrun',
-      'security',
-      'find-identity',
-      '-v',
-      '-p',
-      'codesigning',
-  ]).decode('utf8')
+    'xcrun',
+    'security',
+    'find-identity',
+    '-v',
+    '-p',
+    'codesigning',
+  ])
 
 
 def FindValidIdentity(pattern):
   """Find all identities matching the pattern."""
-  lines = list(l.strip() for l in ListIdentities().splitlines())
-  # Look for something like
-  # 1) 123ABC123ABC123ABC****** "iPhone Developer: DeveloperName (Team)"
+  lines = list(map(str.strip, ListIdentities().splitlines()))
+  # Look for something like "2) XYZ "iPhone Developer: Name (ABC)""
   regex = re.compile('[0-9]+\) ([A-F0-9]+) "([^"(]*) \(([^)"]*)\)"')
 
   result = []
@@ -54,9 +53,8 @@ def FindValidIdentity(pattern):
     res = regex.match(line)
     if res is None:
       continue
-    identifier, developer_name, team = res.groups()
-    if pattern is None or pattern in '%s (%s)' % (developer_name, team):
-      result.append(Identity(identifier, developer_name, team))
+    if pattern is None or pattern in res.group(2):
+      result.append(Identity(*res.groups()))
   return result
 
 

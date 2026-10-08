@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,12 @@
 
 #include "ash/app_menu/app_menu_export.h"
 #include "ash/app_menu/notification_menu_view.h"
+#include "base/strings/string16.h"
 #include "ui/views/animation/slide_out_controller_delegate.h"
 #include "ui/views/view.h"
 
 namespace gfx {
+class Image;
 class Size;
 }  // namespace gfx
 
@@ -26,10 +28,6 @@ class Label;
 class SlideOutController;
 }
 
-namespace ui {
-class ImageModel;
-}
-
 namespace ash {
 
 // The view which contains the details of a notification.
@@ -38,20 +36,17 @@ class APP_MENU_EXPORT NotificationItemView : public views::View {
   NotificationItemView(
       NotificationMenuView::Delegate* delegate,
       views::SlideOutControllerDelegate* slide_out_controller_delegate,
-      const std::u16string& title,
-      const std::u16string& message,
-      const ui::ImageModel& icon,
+      const base::string16& title,
+      const base::string16& message,
+      const gfx::Image& icon,
       const std::string& notification_id);
-
-  NotificationItemView(const NotificationItemView&) = delete;
-  NotificationItemView& operator=(const NotificationItemView&) = delete;
 
   ~NotificationItemView() override;
 
   // Updates the contents of the view.
-  void UpdateContents(const std::u16string& title,
-                      const std::u16string& message,
-                      const ui::ImageModel& icon);
+  void UpdateContents(const base::string16& title,
+                      const base::string16& message,
+                      const gfx::Image& icon);
 
   // views::View overrides:
   gfx::Size CalculatePreferredSize() const override;
@@ -62,8 +57,8 @@ class APP_MENU_EXPORT NotificationItemView : public views::View {
   void OnGestureEvent(ui::GestureEvent* event) override;
 
   const std::string& notification_id() const { return notification_id_; }
-  const std::u16string& title() const { return title_; }
-  const std::u16string& message() const { return message_; }
+  const base::string16& title() const { return title_; }
+  const base::string16& message() const { return message_; }
   const message_center::ProportionalImageView& proportional_image_view() const {
     return *proportional_icon_view_;
   }
@@ -88,11 +83,13 @@ class APP_MENU_EXPORT NotificationItemView : public views::View {
   std::unique_ptr<views::SlideOutController> slide_out_controller_;
 
   // Notification properties.
-  std::u16string title_;
-  std::u16string message_;
+  base::string16 title_;
+  base::string16 message_;
 
   // The identifier used by MessageCenter to identify this notification.
   const std::string notification_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(NotificationItemView);
 };
 
 }  // namespace ash

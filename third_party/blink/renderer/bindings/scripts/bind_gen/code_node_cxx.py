@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """
@@ -261,7 +261,7 @@ class CxxFuncDeclNode(CompositeNode):
                  override=False,
                  default=False,
                  delete=False,
-                 nodiscard=False):
+                 warn_unused_result=False):
         """
         Args:
             name: Function name.
@@ -275,7 +275,7 @@ class CxxFuncDeclNode(CompositeNode):
             override: True makes this an overriding function.
             default: True makes this have the default implementation.
             delete: True makes this function be deleted.
-            nodiscard: True adds [[nodiscard]] attribute.
+            warn_unused_result: True adds WARN_UNUSED_RESULT annotation.
         """
         assert isinstance(name, str)
         assert isinstance(static, bool)
@@ -286,16 +286,16 @@ class CxxFuncDeclNode(CompositeNode):
         assert isinstance(default, bool)
         assert isinstance(delete, bool)
         assert not (default and delete)
-        assert isinstance(nodiscard, bool)
+        assert isinstance(warn_unused_result, bool)
 
         template_format = ("{template}"
-                           "{nodiscard_result}"
                            "{static}{explicit}{constexpr}"
                            "{return_type} "
                            "{name}({arg_decls})"
                            "{const}"
                            "{override}"
                            "{default_or_delete}"
+                           "{warn_unused_result}"
                            ";")
 
         if template_params is None:
@@ -313,7 +313,8 @@ class CxxFuncDeclNode(CompositeNode):
             default_or_delete = " = delete"
         else:
             default_or_delete = ""
-        nodiscard_result = ("[[nodiscard]] " if nodiscard else "")
+        warn_unused_result = (" WARN_UNUSED_RESULT"
+                              if warn_unused_result else "")
 
         CompositeNode.__init__(self,
                                template_format,
@@ -329,7 +330,7 @@ class CxxFuncDeclNode(CompositeNode):
                                const=const,
                                override=override,
                                default_or_delete=default_or_delete,
-                               nodiscard_result=nodiscard_result)
+                               warn_unused_result=warn_unused_result)
 
 
 class CxxFuncDefNode(CompositeNode):

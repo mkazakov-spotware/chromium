@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_CLIPBOARD_CLIPBOARD_HISTORY_RESOURCE_MANAGER_H_
 #define ASH_CLIPBOARD_CLIPBOARD_HISTORY_RESOURCE_MANAGER_H_
 
-#include <string>
 #include <vector>
 
 #include "ash/ash_export.h"
@@ -13,6 +12,7 @@
 #include "ash/clipboard/clipboard_history_item.h"
 #include "base/observer_list.h"
 #include "base/observer_list_types.h"
+#include "base/strings/string16.h"
 #include "base/unguessable_token.h"
 #include "ui/base/models/image_model.h"
 
@@ -41,7 +41,7 @@ class ASH_EXPORT ClipboardHistoryResourceManager
   ui::ImageModel GetImageModel(const ClipboardHistoryItem& item) const;
 
   // Returns the label to display for the specified clipboard history |item|.
-  std::u16string GetLabel(const ClipboardHistoryItem& item) const;
+  base::string16 GetLabel(const ClipboardHistoryItem& item) const;
 
   void AddObserver(Observer* observer) const;
   void RemoveObserver(Observer* observer) const;
@@ -76,8 +76,7 @@ class ASH_EXPORT ClipboardHistoryResourceManager
   void CancelUnfinishedRequests();
 
   // ClipboardHistory::Observer:
-  void OnClipboardHistoryItemAdded(const ClipboardHistoryItem& item,
-                                   bool is_duplicate) override;
+  void OnClipboardHistoryItemAdded(const ClipboardHistoryItem& item) override;
   void OnClipboardHistoryItemRemoved(const ClipboardHistoryItem& item) override;
   void OnClipboardHistoryCleared() override;
 

@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2006 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview A utility class for representing two-dimensional positions.
@@ -23,7 +31,6 @@ goog.require('goog.math');
  * @constructor
  */
 goog.math.Coordinate = function(opt_x, opt_y) {
-  'use strict';
   /**
    * X-value
    * @type {number}
@@ -43,7 +50,6 @@ goog.math.Coordinate = function(opt_x, opt_y) {
  * @return {!goog.math.Coordinate} A clone of this coordinate.
  */
 goog.math.Coordinate.prototype.clone = function() {
-  'use strict';
   return new goog.math.Coordinate(this.x, this.y);
 };
 
@@ -55,7 +61,6 @@ if (goog.DEBUG) {
    * @override
    */
   goog.math.Coordinate.prototype.toString = function() {
-    'use strict';
     return '(' + this.x + ', ' + this.y + ')';
   };
 }
@@ -67,7 +72,6 @@ if (goog.DEBUG) {
  * @return {boolean} Whether the specified value is equal to this coordinate.
  */
 goog.math.Coordinate.prototype.equals = function(other) {
-  'use strict';
   return other instanceof goog.math.Coordinate &&
       goog.math.Coordinate.equals(this, other);
 };
@@ -80,7 +84,6 @@ goog.math.Coordinate.prototype.equals = function(other) {
  * @return {boolean} True iff the coordinates are equal, or if both are null.
  */
 goog.math.Coordinate.equals = function(a, b) {
-  'use strict';
   if (a == b) {
     return true;
   }
@@ -98,7 +101,6 @@ goog.math.Coordinate.equals = function(a, b) {
  * @return {number} The distance between `a` and `b`.
  */
 goog.math.Coordinate.distance = function(a, b) {
-  'use strict';
   var dx = a.x - b.x;
   var dy = a.y - b.y;
   return Math.sqrt(dx * dx + dy * dy);
@@ -111,7 +113,6 @@ goog.math.Coordinate.distance = function(a, b) {
  * @return {number} The distance between the origin and `a`.
  */
 goog.math.Coordinate.magnitude = function(a) {
-  'use strict';
   return Math.sqrt(a.x * a.x + a.y * a.y);
 };
 
@@ -123,7 +124,6 @@ goog.math.Coordinate.magnitude = function(a) {
  *     axis to `a`.
  */
 goog.math.Coordinate.azimuth = function(a) {
-  'use strict';
   return goog.math.angle(0, 0, a.x, a.y);
 };
 
@@ -141,7 +141,6 @@ goog.math.Coordinate.azimuth = function(a) {
  * @return {number} The squared distance between `a` and `b`.
  */
 goog.math.Coordinate.squaredDistance = function(a, b) {
-  'use strict';
   var dx = a.x - b.x;
   var dy = a.y - b.y;
   return dx * dx + dy * dy;
@@ -157,7 +156,6 @@ goog.math.Coordinate.squaredDistance = function(a, b) {
  *     between `a` and `b`.
  */
 goog.math.Coordinate.difference = function(a, b) {
-  'use strict';
   return new goog.math.Coordinate(a.x - b.x, a.y - b.y);
 };
 
@@ -170,7 +168,6 @@ goog.math.Coordinate.difference = function(a, b) {
  *     coordinates.
  */
 goog.math.Coordinate.sum = function(a, b) {
-  'use strict';
   return new goog.math.Coordinate(a.x + b.x, a.y + b.y);
 };
 
@@ -180,7 +177,6 @@ goog.math.Coordinate.sum = function(a, b) {
  * @return {!goog.math.Coordinate} This coordinate with ceil'd fields.
  */
 goog.math.Coordinate.prototype.ceil = function() {
-  'use strict';
   this.x = Math.ceil(this.x);
   this.y = Math.ceil(this.y);
   return this;
@@ -192,7 +188,6 @@ goog.math.Coordinate.prototype.ceil = function() {
  * @return {!goog.math.Coordinate} This coordinate with floored fields.
  */
 goog.math.Coordinate.prototype.floor = function() {
-  'use strict';
   this.x = Math.floor(this.x);
   this.y = Math.floor(this.y);
   return this;
@@ -204,7 +199,6 @@ goog.math.Coordinate.prototype.floor = function() {
  * @return {!goog.math.Coordinate} This coordinate with rounded fields.
  */
 goog.math.Coordinate.prototype.round = function() {
-  'use strict';
   this.x = Math.round(this.x);
   this.y = Math.round(this.y);
   return this;
@@ -222,7 +216,6 @@ goog.math.Coordinate.prototype.round = function() {
  * @return {!goog.math.Coordinate} This coordinate after translating.
  */
 goog.math.Coordinate.prototype.translate = function(tx, opt_ty) {
-  'use strict';
   if (tx instanceof goog.math.Coordinate) {
     this.x += tx.x;
     this.y += tx.y;
@@ -245,7 +238,6 @@ goog.math.Coordinate.prototype.translate = function(tx, opt_ty) {
  * @return {!goog.math.Coordinate} This coordinate after scaling.
  */
 goog.math.Coordinate.prototype.scale = function(sx, opt_sy) {
-  'use strict';
   var sy = (typeof opt_sy === 'number') ? opt_sy : sx;
   this.x *= sx;
   this.y *= sy;
@@ -262,7 +254,6 @@ goog.math.Coordinate.prototype.scale = function(sx, opt_sy) {
  *     to (0, 0) if not given.
  */
 goog.math.Coordinate.prototype.rotateRadians = function(radians, opt_center) {
-  'use strict';
   var center = opt_center || new goog.math.Coordinate(0, 0);
 
   var x = this.x;
@@ -284,6 +275,5 @@ goog.math.Coordinate.prototype.rotateRadians = function(radians, opt_center) {
  *     to (0, 0) if not given.
  */
 goog.math.Coordinate.prototype.rotateDegrees = function(degrees, opt_center) {
-  'use strict';
   this.rotateRadians(goog.math.toRadians(degrees), opt_center);
 };

@@ -1,40 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_elements/cr_toggle/cr_toggle.js';
-import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
-import 'chrome://resources/cr_components/localized_link/localized_link.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
-import '../../settings_shared.css.js';
-
-import {assert} from 'chrome://resources/js/assert.js';
-import {I18nBehavior, I18nBehaviorInterface} from 'chrome://resources/ash/common/i18n_behavior.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {WebUIListenerBehavior, WebUIListenerBehaviorInterface} from 'chrome://resources/ash/common/web_ui_listener_behavior.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-
-import {Setting} from '../../mojom-webui/setting.mojom-webui.js';
-import {Route} from '../../router.js';
-import {DeepLinkingBehavior, DeepLinkingBehaviorInterface} from '../deep_linking_behavior.js';
-import {routes} from '../os_route.js';
-import {RouteObserverBehavior, RouteObserverBehaviorInterface} from '../route_observer_behavior.js';
-
-import {OsSyncBrowserProxy, OsSyncBrowserProxyImpl, OsSyncPrefs} from './os_sync_browser_proxy.js';
-
-/**
- * Names of the radio buttons which allow the user to choose their data sync
- * mechanism.
- * @enum {string}
- */
-const RadioButtonNames = {
-  SYNC_EVERYTHING: 'sync-everything',
-  CUSTOMIZE_SYNC: 'customize-sync',
-};
+(function() {
 
 /**
  * Names of the individual data type properties to be cached from
- * OsSyncPrefs when the user checks 'Sync All'.
+ * settings.OsSyncPrefs when the user checks 'Sync All'.
  * @type {!Array<string>}
  */
 const SyncPrefsIndividualDataTypes = [
@@ -48,152 +20,238 @@ const SyncPrefsIndividualDataTypes = [
 ];
 
 /**
- * TODO(https://crbug.com/1294178): Consider merging this with sync_controls.
  * @fileoverview
  * 'os-sync-controls' contains all OS sync data type controls.
  */
+Polymer({
+  is: 'os-sync-controls',
 
-/**
- * @constructor
- * @extends {PolymerElement}
- * @implements {DeepLinkingBehaviorInterface}
- * @implements {I18nBehaviorInterface}
- * @implements {RouteObserverBehaviorInterface}
- * @implements {WebUIListenerBehaviorInterface}
- */
-const OsSyncControlsElementBase = mixinBehaviors(
-    [
-      DeepLinkingBehavior,
-      I18nBehavior,
-      RouteObserverBehavior,
-      WebUIListenerBehavior,
-    ],
-    PolymerElement);
+  behaviors: [
+    DeepLinkingBehavior,
+    I18nBehavior,
+    settings.RouteObserverBehavior,
+    WebUIListenerBehavior,
+  ],
 
-/** @polymer */
-class OsSyncControlsElement extends OsSyncControlsElementBase {
-  static get is() {
-    return 'os-sync-controls';
-  }
-
-  static get template() {
-    return html`{__html_template__}`;
-  }
-
-  static get properties() {
-    return {
-      hidden: {
-        type: Boolean,
-        value: true,
-        computed: 'syncControlsHidden_(osSyncPrefs)',
-        reflectToAttribute: true,
-      },
-
-      /**
-       * The current OS sync preferences. Cached so we can restore individual
-       * toggle state when turning "sync everything" on and off, without
-       * affecting the underlying chrome prefs.
-       * @type {OsSyncPrefs|undefined}
-       */
-      osSyncPrefs: Object,
-
-      /** @private */
-      areDataTypeTogglesDisabled_: {
-        type: Boolean,
-        value: true,
-        computed: `computeDataTypeTogglesDisabled_(osSyncPrefs.syncAllOsTypes)`,
-      },
-
-      /**
-       * Whether to show apps checkbox sublabel, which contains disclaimer about
-       * Web apps and relevant if checkbox value is shared with Lacros.
-       */
-      showAppsCheckboxSublabel_: {
-        type: Boolean,
-        value: loadTimeData.getBoolean('appsToggleSharingEnabled'),
-      },
-
-      /**
-       * Used by DeepLinkingBehavior to focus this page's deep links.
-       * @type {!Set<!Setting>}
-       */
-      supportedSettingIds: {
-        type: Object,
-        value: () => new Set([Setting.kSplitSyncOnOff]),
-      },
-    };
-  }
-
-  /** @override */
-  constructor() {
-    super();
-
-    /** @private {!OsSyncBrowserProxy} */
-    this.browserProxy_ = OsSyncBrowserProxyImpl.getInstance();
+  properties: {
+    hidden: {
+      type: Boolean,
+      value: true,
+      computed: 'syncControlsHidden_(osSyncPrefs)',
+      reflectToAttribute: true,
+    },
 
     /**
-     * Caches the individually selected synced data types. This is used to
-     * be able to restore the selections after checking and unchecking Sync All.
-     * @private {?Object}
+     * Injected sync system status. Undefined until the parent component injects
+     * the value.
+     * @type {settings.SyncStatus|undefined}
      */
-    this.cachedOsSyncPrefs_ = null;
-  }
+    syncStatus: Object,
 
-  /** @override */
-  connectedCallback() {
-    super.connectedCallback();
+    /**
+     * Injected profile icon URL, usually a data:image/png URL.
+     * @private
+     */
+    profileIconUrl: String,
 
-    this.addWebUIListener(
-        'os-sync-prefs-changed', this.handleOsSyncPrefsChanged_.bind(this));
-  }
+    /**
+     * Injected profile name, e.g. "John Cena".
+     * @private
+     */
+    profileName: String,
+
+    /**
+     * Injected profile email address, e.g. "john.cena@gmail.com".
+     * @private
+     */
+    profileEmail: String,
+
+    /**
+     * Whether the OS sync feature is enabled. This object does not directly
+     * manipulate prefs so we can defer turning on OS sync until the user
+     * navigates away from the page.
+     */
+    osSyncFeatureEnabled: Boolean,
+
+    /**
+     * The current OS sync preferences. Cached so we can restore individual
+     * toggle state when turning "sync everything" on and off, without affecting
+     * the underlying chrome prefs.
+     * @type {settings.OsSyncPrefs|undefined}
+     */
+    osSyncPrefs: Object,
+
+    /** @private */
+    areDataTypeTogglesDisabled_: {
+      type: Boolean,
+      value: true,
+      computed: `computeDataTypeTogglesDisabled_(osSyncFeatureEnabled,
+          osSyncPrefs.syncAllOsTypes)`,
+    },
+
+    /**
+     * Used by DeepLinkingBehavior to focus this page's deep links.
+     * @type {!Set<!chromeos.settings.mojom.Setting>}
+     */
+    supportedSettingIds: {
+      type: Object,
+      value: () => new Set([chromeos.settings.mojom.Setting.kSplitSyncOnOff]),
+    },
+  },
+
+  /** @private {?settings.OsSyncBrowserProxy} */
+  browserProxy_: null,
 
   /**
-   * RouteObserverBehavior
-   * @param {!Route} newRoute
-   * @param {!Route=} oldRoute
+   * Caches the individually selected synced data types. This is used to
+   * be able to restore the selections after checking and unchecking Sync All.
+   * @private {?Object}
+   */
+  cachedOsSyncPrefs_: null,
+
+  /** @override */
+  created() {
+    this.browserProxy_ = settings.OsSyncBrowserProxyImpl.getInstance();
+  },
+
+  /** @override */
+  attached() {
+    this.addWebUIListener(
+        'os-sync-prefs-changed', this.handleOsSyncPrefsChanged_.bind(this));
+  },
+
+  /**
+   * settings.RouteObserverBehavior
+   * @param {!settings.Route|undefined} newRoute
+   * @param {!settings.Route|undefined} oldRoute
    * @protected
    */
   currentRouteChanged(newRoute, oldRoute) {
-    if (newRoute === routes.OS_SYNC) {
+    if (newRoute === settings.routes.OS_SYNC) {
       this.browserProxy_.didNavigateToOsSyncPage();
       this.attemptDeepLink();
     }
-    if (oldRoute === routes.OS_SYNC) {
+    if (oldRoute === settings.routes.OS_SYNC) {
       this.browserProxy_.didNavigateAwayFromOsSyncPage();
     }
-  }
+  },
+
+  /**
+   * @return {string} The top label for the account row.
+   * @private
+   */
+  getAccountTitle_() {
+    if (!this.syncStatus) {
+      return '';
+    }
+    return this.syncStatus.hasError ? this.i18n('syncNotWorking') :
+                                      this.profileName;
+  },
+
+  /**
+   * @return {string} The bottom label for the account row.
+   * @private
+   */
+  getAccountSubtitle_() {
+    if (!this.syncStatus) {
+      return '';
+    }
+    return this.osSyncFeatureEnabled && !this.syncStatus.hasError ?
+        this.i18n('syncingTo', this.profileEmail) :
+        this.profileEmail;
+  },
+
+  /**
+   * @return {string}
+   * @private
+   */
+  getSyncOnOffButtonLabel_() {
+    if (!this.osSyncFeatureEnabled) {
+      return this.i18n('osSyncTurnOn');
+    }
+    return this.i18n('osSyncTurnOff');
+  },
+
+  /**
+   * Returns the CSS class for the sync status icon.
+   * @return {string}
+   * @private
+   */
+  getSyncIconStyle_() {
+    if (!this.syncStatus) {
+      return 'sync';
+    }
+    if (this.syncStatus.disabled) {
+      return 'sync-disabled';
+    }
+    if (!this.syncStatus.hasError) {
+      return 'sync';
+    }
+    // Specific error cases below.
+    if (this.syncStatus.hasUnrecoverableError) {
+      return 'sync-problem';
+    }
+    if (this.syncStatus.statusAction === settings.StatusAction.REAUTHENTICATE) {
+      return 'sync-paused';
+    }
+    return 'sync-problem';
+  },
+
+  /**
+   * Returns the image to use for the sync status icon. The value must match
+   * one of iron-icon's settings:(*) icon names.
+   * @return {string}
+   * @private
+   */
+  getSyncIcon_() {
+    switch (this.getSyncIconStyle_()) {
+      case 'sync-problem':
+        return 'settings:sync-problem';
+      case 'sync-paused':
+        return 'settings:sync-disabled';
+      default:
+        return 'cr:sync';
+    }
+  },
 
   /**
    * Handler for when the sync preferences are updated.
    * @private
    */
-  handleOsSyncPrefsChanged_(osSyncPrefs) {
+  handleOsSyncPrefsChanged_(osSyncFeatureEnabled, osSyncPrefs) {
+    this.osSyncFeatureEnabled = osSyncFeatureEnabled;
     this.osSyncPrefs = osSyncPrefs;
 
+    // If the feature is disabled the checkboxes appear toggled off, regardless
+    // of the underlying chrome pref.
+    if (!this.osSyncFeatureEnabled) {
+      this.set('osSyncPrefs.syncAllOsTypes', false);
+      for (const dataType of SyncPrefsIndividualDataTypes) {
+        this.set(['osSyncPrefs', dataType], false);
+      }
+    }
+
     // If apps are not registered or synced, force wallpaper off.
-    if (!this.osSyncPrefs.osPreferencesSynced) {
+    if (!this.osSyncPrefs.osAppsRegistered || !this.osSyncPrefs.osAppsSynced) {
       this.set('osSyncPrefs.wallpaperEnabled', false);
     }
-  }
+  },
+
+  /** @private */
+  onSyncOnOffButtonClick_() {
+    this.browserProxy_.setOsSyncFeatureEnabled(!this.osSyncFeatureEnabled);
+    settings.recordSettingChange();
+  },
 
   /**
-   * Computed binding returning the selected sync data radio button.
+   * Handler for when the sync all data types checkbox is changed.
+   * @param {!Event} event
    * @private
    */
-  selectedSyncDataRadio_() {
-    return this.osSyncPrefs.syncAllOsTypes ? RadioButtonNames.SYNC_EVERYTHING :
-                                             RadioButtonNames.CUSTOMIZE_SYNC;
-  }
+  onSyncAllOsTypesChanged_(event) {
+    if (event.target.checked) {
+      this.set('osSyncPrefs.syncAllOsTypes', true);
 
-  /**
-   * Called when the sync data radio button selection changes.
-   * @private
-   */
-  onSyncDataRadioSelectionChanged_(event) {
-    const syncAllDataTypes =
-        event.detail.value === RadioButtonNames.SYNC_EVERYTHING;
-    this.set('osSyncPrefs.syncAllOsTypes', syncAllDataTypes);
-    if (syncAllDataTypes) {
       // Cache the previously selected preference before checking every box.
       this.cachedOsSyncPrefs_ = {};
       for (const dataType of SyncPrefsIndividualDataTypes) {
@@ -210,7 +268,7 @@ class OsSyncControlsElement extends OsSyncControlsElementBase {
     }
 
     this.sendOsSyncDatatypes_();
-  }
+  },
 
   /**
    * Handler for when any sync data type checkbox is changed.
@@ -218,20 +276,19 @@ class OsSyncControlsElement extends OsSyncControlsElementBase {
    */
   onSingleSyncDataTypeChanged_() {
     this.sendOsSyncDatatypes_();
-  }
+  },
 
   /**
-   * Handler for changes to the settings sync state; settings have a special
-   * handler instead of relying on onSingleSyncDataTypeChanged_() because
-   * wallpaper has a dependency on it.
+   * Handler for changes to the apps sync state; apps have a special handler
+   * instead of relying on onSingleSyncDataTypeChanged_() because wallpaper has
+   * a dependency on apps.
    * @private
    */
-  onSettingsSyncedChanged_() {
-    this.set(
-        'osSyncPrefs.wallpaperEnabled', this.osSyncPrefs.osPreferencesSynced);
+  onAppsSyncedChanged_() {
+    this.set('osSyncPrefs.wallpaperEnabled', this.osSyncPrefs.osAppsSynced);
 
     this.onSingleSyncDataTypeChanged_();
-  }
+  },
 
   /**
    * Sends the osSyncPrefs dictionary back to the C++ handler.
@@ -240,15 +297,16 @@ class OsSyncControlsElement extends OsSyncControlsElementBase {
   sendOsSyncDatatypes_() {
     assert(this.osSyncPrefs);
     this.browserProxy_.setOsSyncDatatypes(this.osSyncPrefs);
-  }
+  },
 
   /**
    * @return {boolean} Whether the sync data type toggles should be disabled.
    * @private
    */
   computeDataTypeTogglesDisabled_() {
-    return this.osSyncPrefs !== undefined && this.osSyncPrefs.syncAllOsTypes;
-  }
+    return !this.osSyncFeatureEnabled ||
+        (this.osSyncPrefs !== undefined && this.osSyncPrefs.syncAllOsTypes);
+  },
 
   /**
    * @return {boolean} Whether the sync controls are hidden.
@@ -258,7 +316,7 @@ class OsSyncControlsElement extends OsSyncControlsElementBase {
     // Hide everything until the initial prefs are received from C++,
     // otherwise there is a visible layout reshuffle on first load.
     return !this.osSyncPrefs;
-  }
+  },
 
   /**
    * @return {boolean} Whether the wallpaper checkbox and label should be
@@ -267,8 +325,7 @@ class OsSyncControlsElement extends OsSyncControlsElementBase {
    */
   shouldWallpaperSyncSectionBeDisabled_() {
     return this.areDataTypeTogglesDisabled_ || !this.osSyncPrefs ||
-        !this.osSyncPrefs.osPreferencesSynced;
-  }
-}
-
-customElements.define(OsSyncControlsElement.is, OsSyncControlsElement);
+        !this.osSyncPrefs.osAppsSynced;
+  },
+});
+})();

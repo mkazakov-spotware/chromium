@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "android_webview/browser/permission/permission_request_handler.h"
 
-#include <memory>
 #include <utility>
 
 #include "android_webview/browser/permission/aw_permission_request.h"
@@ -12,7 +11,6 @@
 #include "android_webview/browser/permission/permission_request_handler_client.h"
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace android_webview {
@@ -94,7 +92,7 @@ class TestPermissionRequestHandlerClient
 
  private:
   base::android::ScopedJavaLocalRef<jobject> java_request_;
-  raw_ptr<AwPermissionRequest> request_;
+  AwPermissionRequest* request_;
   Permission requested_permission_;
   Permission canceled_permission_;
 };
@@ -123,10 +121,10 @@ class PermissionRequestHandlerTest : public testing::Test {
     origin_ = GURL("http://www.google.com");
     resources_ =
         AwPermissionRequest::VideoCapture | AwPermissionRequest::AudioCapture;
-    delegate_ = std::make_unique<TestAwPermissionRequestDelegate>(
+    delegate_.reset(new TestAwPermissionRequestDelegate(
         origin_, resources_,
         base::BindRepeating(&PermissionRequestHandlerTest::NotifyRequestResult,
-                            base::Unretained(this)));
+                            base::Unretained(this))));
   }
 
   const GURL& origin() { return origin_; }
@@ -197,10 +195,10 @@ TEST_F(PermissionRequestHandlerTest, TestMultiplePermissionRequest) {
   int64_t resources1 = AwPermissionRequest::Geolocation;
 
   std::unique_ptr<AwPermissionRequestDelegate> delegate1;
-  delegate1 = std::make_unique<TestAwPermissionRequestDelegate>(
+  delegate1.reset(new TestAwPermissionRequestDelegate(
       origin1, resources1,
       base::BindRepeating(&PermissionRequestHandlerTest::NotifyRequestResult,
-                          base::Unretained(this)));
+                          base::Unretained(this))));
 
   // Send 1st request
   handler()->SendRequest(delegate());
@@ -225,10 +223,10 @@ TEST_F(PermissionRequestHandlerTest, TestMultiplePermissionRequest) {
   EXPECT_EQ(resources1, client()->request()->GetResources());
 
   // Send 3rd request which has same origin and resources as first one.
-  delegate1 = std::make_unique<TestAwPermissionRequestDelegate>(
+  delegate1.reset(new TestAwPermissionRequestDelegate(
       origin(), resources(),
       base::BindRepeating(&PermissionRequestHandlerTest::NotifyRequestResult,
-                          base::Unretained(this)));
+                          base::Unretained(this))));
   handler()->SendRequest(std::move(delegate1));
   // Verify Handler store the request correctly.
   ASSERT_EQ(3u, handler()->requests().size());
@@ -265,10 +263,10 @@ TEST_F(PermissionRequestHandlerTest, TestPreauthorizePermission) {
   // Only ask one preauthorized resource, permission should granted
   // without asking PermissionRequestHandlerClient.
   std::unique_ptr<AwPermissionRequestDelegate> delegate;
-  delegate = std::make_unique<TestAwPermissionRequestDelegate>(
+  delegate.reset(new TestAwPermissionRequestDelegate(
       origin(), AwPermissionRequest::AudioCapture,
       base::BindRepeating(&PermissionRequestHandlerTest::NotifyRequestResult,
-                          base::Unretained(this)));
+                          base::Unretained(this))));
   client()->Reset();
   handler()->SendRequest(std::move(delegate));
   EXPECT_TRUE(allowed());
@@ -282,10 +280,10 @@ TEST_F(PermissionRequestHandlerTest, TestOriginNotPreauthorized) {
   GURL origin("http://a.google.com/a/b");
   std::unique_ptr<AwPermissionRequestDelegate> delegate;
   int64_t requested_resources = AwPermissionRequest::AudioCapture;
-  delegate = std::make_unique<TestAwPermissionRequestDelegate>(
+  delegate.reset(new TestAwPermissionRequestDelegate(
       origin, requested_resources,
       base::BindRepeating(&PermissionRequestHandlerTest::NotifyRequestResult,
-                          base::Unretained(this)));
+                          base::Unretained(this))));
   handler()->SendRequest(std::move(delegate));
   EXPECT_EQ(origin, handler()->requests()[0]->GetOrigin());
   EXPECT_EQ(requested_resources, handler()->requests()[0]->GetResources());
@@ -300,10 +298,10 @@ TEST_F(PermissionRequestHandlerTest, TestResourcesNotPreauthorized) {
   std::unique_ptr<AwPermissionRequestDelegate> delegate;
   int64_t requested_resources =
       AwPermissionRequest::AudioCapture | AwPermissionRequest::Geolocation;
-  delegate = std::make_unique<TestAwPermissionRequestDelegate>(
+  delegate.reset(new TestAwPermissionRequestDelegate(
       origin(), requested_resources,
       base::BindRepeating(&PermissionRequestHandlerTest::NotifyRequestResult,
-                          base::Unretained(this)));
+                          base::Unretained(this))));
 
   handler()->SendRequest(std::move(delegate));
   EXPECT_EQ(origin(), handler()->requests()[0]->GetOrigin());
@@ -319,10 +317,10 @@ TEST_F(PermissionRequestHandlerTest, TestPreauthorizeMultiplePermission) {
   handler()->PreauthorizePermission(origin, AwPermissionRequest::Geolocation);
   GURL origin_hostname("http://a.google.com/");
   std::unique_ptr<AwPermissionRequestDelegate> delegate;
-  delegate = std::make_unique<TestAwPermissionRequestDelegate>(
+  delegate.reset(new TestAwPermissionRequestDelegate(
       origin_hostname, AwPermissionRequest::Geolocation,
       base::BindRepeating(&PermissionRequestHandlerTest::NotifyRequestResult,
-                          base::Unretained(this)));
+                          base::Unretained(this))));
   handler()->SendRequest(std::move(delegate));
   EXPECT_TRUE(allowed());
   EXPECT_EQ(nullptr, client()->request());

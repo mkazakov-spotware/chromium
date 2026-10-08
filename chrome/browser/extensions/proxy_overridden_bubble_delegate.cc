@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -77,12 +77,12 @@ void ProxyOverriddenBubbleDelegate::PerformAction(const ExtensionIdList& list) {
     service()->DisableExtension(list[i], disable_reason::DISABLE_USER_ACTION);
 }
 
-std::u16string ProxyOverriddenBubbleDelegate::GetTitle() const {
+base::string16 ProxyOverriddenBubbleDelegate::GetTitle() const {
   return l10n_util::GetStringUTF16(
       IDS_EXTENSIONS_PROXY_CONTROLLED_TITLE_HOME_PAGE_BUBBLE);
 }
 
-std::u16string ProxyOverriddenBubbleDelegate::GetMessageBody(
+base::string16 ProxyOverriddenBubbleDelegate::GetMessageBody(
     bool anchored_to_browser_action,
     int extension_count) const {
   if (anchored_to_browser_action) {
@@ -99,26 +99,30 @@ std::u16string ProxyOverriddenBubbleDelegate::GetMessageBody(
   }
 }
 
-std::u16string ProxyOverriddenBubbleDelegate::GetOverflowText(
-    const std::u16string& overflow_count) const {
+base::string16 ProxyOverriddenBubbleDelegate::GetOverflowText(
+    const base::string16& overflow_count) const {
   // Does not have more than one extension in the list at a time.
   NOTREACHED();
-  return std::u16string();
+  return base::string16();
 }
 
 GURL ProxyOverriddenBubbleDelegate::GetLearnMoreUrl() const {
   return GURL(chrome::kExtensionControlledSettingLearnMoreURL);
 }
 
-std::u16string ProxyOverriddenBubbleDelegate::GetActionButtonLabel() const {
+base::string16 ProxyOverriddenBubbleDelegate::GetActionButtonLabel() const {
   return l10n_util::GetStringUTF16(IDS_EXTENSION_CONTROLLED_RESTORE_SETTINGS);
 }
 
-std::u16string ProxyOverriddenBubbleDelegate::GetDismissButtonLabel() const {
+base::string16 ProxyOverriddenBubbleDelegate::GetDismissButtonLabel() const {
   return l10n_util::GetStringUTF16(IDS_EXTENSION_CONTROLLED_KEEP_CHANGES);
 }
 
 bool ProxyOverriddenBubbleDelegate::ShouldCloseOnDeactivate() const {
+  return false;
+}
+
+bool ProxyOverriddenBubbleDelegate::ShouldAcknowledgeOnDeactivate() const {
   return false;
 }
 
@@ -150,8 +154,22 @@ bool ProxyOverriddenBubbleDelegate::ShouldShowExtensionList() const {
   return false;
 }
 
+bool ProxyOverriddenBubbleDelegate::ShouldHighlightExtensions() const {
+  return true;
+}
+
 bool ProxyOverriddenBubbleDelegate::ShouldLimitToEnabledExtensions() const {
   return true;
+}
+
+void ProxyOverriddenBubbleDelegate::LogExtensionCount(size_t count) {
+}
+
+void ProxyOverriddenBubbleDelegate::LogAction(
+    ExtensionMessageBubbleController::BubbleAction action) {
+  UMA_HISTOGRAM_ENUMERATION("ProxyOverriddenBubble.UserSelection",
+                            action,
+                            ExtensionMessageBubbleController::ACTION_BOUNDARY);
 }
 
 bool ProxyOverriddenBubbleDelegate::SupportsPolicyIndicator() {

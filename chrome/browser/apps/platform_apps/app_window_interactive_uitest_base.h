@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,9 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "build/build_config.h"
+#include "base/macros.h"
 #include "chrome/browser/apps/platform_apps/app_browsertest_util.h"
 #include "ui/events/keycodes/keyboard_codes.h"
-
-#if BUILDFLAG(IS_MAC)
-#include "ui/base/test/scoped_fake_nswindow_fullscreen.h"
-#endif
 
 namespace extensions {
 class NativeAppWindow;
@@ -25,14 +20,14 @@ class NativeAppWindow;
 class FullscreenChangeWaiter {
  public:
   explicit FullscreenChangeWaiter(extensions::NativeAppWindow* window);
-  FullscreenChangeWaiter(const FullscreenChangeWaiter&) = delete;
-  FullscreenChangeWaiter& operator=(const FullscreenChangeWaiter&) = delete;
 
   void Wait();
 
  private:
-  raw_ptr<extensions::NativeAppWindow> window_;
+  extensions::NativeAppWindow* window_;
   bool initial_fullscreen_state_;
+
+  DISALLOW_COPY_AND_ASSIGN(FullscreenChangeWaiter);
 };
 
 // Interactive test class for testing app windows (fullscreen, show, hide,
@@ -41,8 +36,6 @@ class FullscreenChangeWaiter {
 class AppWindowInteractiveTest : public extensions::PlatformAppBrowserTest {
  public:
   AppWindowInteractiveTest() = default;
-  AppWindowInteractiveTest(const AppWindowInteractiveTest&) = delete;
-  AppWindowInteractiveTest& operator=(const AppWindowInteractiveTest&) = delete;
 
   bool RunAppWindowInteractiveTest(const char* testName);
 
@@ -55,9 +48,7 @@ class AppWindowInteractiveTest : public extensions::PlatformAppBrowserTest {
   void TestOuterBoundsHelper(const std::string& frame_type);
 
  private:
-#if BUILDFLAG(IS_MAC)
-  ui::test::ScopedFakeNSWindowFullscreen fake_fullscreen_;
-#endif
+  DISALLOW_COPY_AND_ASSIGN(AppWindowInteractiveTest);
 };
 
 #endif  // CHROME_BROWSER_APPS_PLATFORM_APPS_APP_WINDOW_INTERACTIVE_UITEST_BASE_H_

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,21 +33,21 @@ bool HostIsInSet(const std::string& host, const std::set<std::string>& set) {
 
 }  // namespace
 
-bool IsExtensionOrSharedModuleAllowed(
+bool IsExtensionOrSharedModuleWhitelisted(
     const GURL& url,
     const extensions::ExtensionSet* extension_set,
-    const std::set<std::string>& allowlist) {
+    const std::set<std::string>& whitelist) {
   if (!url.is_valid() || !url.SchemeIs(extensions::kExtensionScheme))
     return false;
 
   const std::string host = url.host();
-  if (HostIsInSet(host, allowlist))
+  if (HostIsInSet(host, whitelist))
     return true;
 
   // Check the modules that are imported by this extension to see if any of them
-  // is allowed.
-  const Extension* extension =
-      extension_set ? extension_set->GetByID(host) : nullptr;
+  // is whitelisted.
+  const Extension* extension = extension_set ? extension_set->GetByID(host)
+                                             : NULL;
   if (!extension)
     return false;
 
@@ -58,7 +58,7 @@ bool IsExtensionOrSharedModuleAllowed(
         extension_set->GetByID(it->extension_id);
     if (imported_extension &&
         SharedModuleInfo::IsSharedModule(imported_extension) &&
-        HostIsInSet(it->extension_id, allowlist)) {
+        HostIsInSet(it->extension_id, whitelist)) {
       return true;
     }
   }
@@ -93,7 +93,7 @@ bool IsHostAllowedByCommandLine(const GURL& url,
 
   base::StringTokenizer t(allowed_list, ",");
   while (t.GetNext()) {
-    if (t.token_piece() == host)
+    if (t.token() == host)
       return true;
   }
 

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -61,9 +61,8 @@ class AudioFocusDelegateDefaultBrowserTest : public ContentBrowserTest {
   void Run(WebContents* start_contents,
            WebContents* interrupt_contents,
            bool use_separate_group_id) {
-    std::unique_ptr<MockMediaSessionPlayerObserver> player_observer(
-        new MockMediaSessionPlayerObserver(
-            nullptr, media::MediaContentType::Persistent));
+    std::unique_ptr<MockMediaSessionPlayerObserver>
+        player_observer(new MockMediaSessionPlayerObserver);
 
     MediaSessionImpl* media_session = MediaSessionImpl::Get(start_contents);
     EXPECT_TRUE(media_session);
@@ -80,7 +79,8 @@ class AudioFocusDelegateDefaultBrowserTest : public ContentBrowserTest {
 
     {
       std::unique_ptr<TestAudioFocusObserver> observer = CreateObserver();
-      media_session->AddPlayer(player_observer.get(), 0);
+      media_session->AddPlayer(player_observer.get(), 0,
+                               media::MediaContentType::Persistent);
       observer->WaitForGainedEvent();
     }
 
@@ -104,7 +104,8 @@ class AudioFocusDelegateDefaultBrowserTest : public ContentBrowserTest {
 
     {
       std::unique_ptr<TestAudioFocusObserver> observer = CreateObserver();
-      other_media_session->AddPlayer(player_observer.get(), 1);
+      other_media_session->AddPlayer(player_observer.get(), 1,
+                                     media::MediaContentType::Persistent);
       observer->WaitForGainedEvent();
     }
 

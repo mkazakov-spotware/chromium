@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "base/unguessable_token.h"
 #include "components/viz/common/surfaces/local_surface_id.h"
 #include "components/viz/common/surfaces/surface_id.h"
@@ -24,10 +25,6 @@ class VIZ_COMMON_EXPORT ChildLocalSurfaceIdAllocator {
  public:
   ChildLocalSurfaceIdAllocator();
 
-  ChildLocalSurfaceIdAllocator(const ChildLocalSurfaceIdAllocator&) = delete;
-  ChildLocalSurfaceIdAllocator& operator=(const ChildLocalSurfaceIdAllocator&) =
-      delete;
-
   ~ChildLocalSurfaceIdAllocator() = default;
 
   // When a parent-allocated LocalSurfaceId arrives in the child, the child
@@ -44,6 +41,8 @@ class VIZ_COMMON_EXPORT ChildLocalSurfaceIdAllocator {
 
  private:
   LocalSurfaceId current_local_surface_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(ChildLocalSurfaceIdAllocator);
 };
 
 }  // namespace viz

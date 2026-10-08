@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "components/drive/drive.pb.h"
 #include "components/drive/file_errors.h"
@@ -45,10 +46,6 @@ class ResourceMetadataStorage {
   class Iterator {
    public:
     explicit Iterator(std::unique_ptr<leveldb::Iterator> it);
-
-    Iterator(const Iterator&) = delete;
-    Iterator& operator=(const Iterator&) = delete;
-
     ~Iterator();
 
     // Returns true if this iterator cannot advance any more and does not point
@@ -70,6 +67,8 @@ class ResourceMetadataStorage {
    private:
     ResourceEntry entry_;
     std::unique_ptr<leveldb::Iterator> it_;
+
+    DISALLOW_COPY_AND_ASSIGN(Iterator);
   };
 
   // Cache information recovered from trashed DB.
@@ -88,9 +87,6 @@ class ResourceMetadataStorage {
 
   ResourceMetadataStorage(const base::FilePath& directory_path,
                           base::SequencedTaskRunner* blocking_task_runner);
-
-  ResourceMetadataStorage(const ResourceMetadataStorage&) = delete;
-  ResourceMetadataStorage& operator=(const ResourceMetadataStorage&) = delete;
 
   const base::FilePath& directory_path() const { return directory_path_; }
 
@@ -174,6 +170,8 @@ class ResourceMetadataStorage {
   std::unique_ptr<leveldb::DB> resource_map_;
 
   scoped_refptr<base::SequencedTaskRunner> blocking_task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(ResourceMetadataStorage);
 };
 
 }  // namespace internal

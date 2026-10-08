@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,16 +16,14 @@ class SaveCardFailureBubbleViews : public SaveCardBubbleViews {
                              content::WebContents* web_contents,
                              SaveCardBubbleController* controller);
 
-  SaveCardFailureBubbleViews(const SaveCardFailureBubbleViews&) = delete;
-  SaveCardFailureBubbleViews& operator=(const SaveCardFailureBubbleViews&) =
-      delete;
-
  protected:
   ~SaveCardFailureBubbleViews() override = default;
 
  private:
   // SaveCardBubbleViews:
   std::unique_ptr<views::View> CreateMainContentView() override;
+
+  DISALLOW_COPY_AND_ASSIGN(SaveCardFailureBubbleViews);
 };
 
 }  // namespace autofill

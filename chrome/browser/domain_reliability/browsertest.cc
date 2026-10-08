@@ -1,10 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/json/json_reader.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/test/values_test_util.h"
 #include "chrome/browser/domain_reliability/service_factory.h"
@@ -17,7 +18,6 @@
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/test/browser_test.h"
-#include "mojo/public/cpp/bindings/sync_call_restrictions.h"
 #include "net/base/net_errors.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/embedded_test_server/http_request.h"
@@ -35,10 +35,6 @@ class DomainReliabilityBrowserTest : public InProcessBrowserTest {
       : test_server_(net::EmbeddedTestServer::TYPE_HTTPS) {
     net::URLRequestFailedJob::AddUrlHandler();
   }
-
-  DomainReliabilityBrowserTest(const DomainReliabilityBrowserTest&) = delete;
-  DomainReliabilityBrowserTest& operator=(const DomainReliabilityBrowserTest&) =
-      delete;
 
   ~DomainReliabilityBrowserTest() override {}
 
@@ -63,9 +59,8 @@ class DomainReliabilityBrowserTest : public InProcessBrowserTest {
   }
 
   network::mojom::NetworkContext* GetNetworkContext() {
-    return browser()
-        ->profile()
-        ->GetDefaultStoragePartition()
+    return content::BrowserContext::GetDefaultStoragePartition(
+               browser()->profile())
         ->GetNetworkContext();
   }
 
@@ -73,16 +68,12 @@ class DomainReliabilityBrowserTest : public InProcessBrowserTest {
 
  private:
   net::EmbeddedTestServer test_server_;
+
+  DISALLOW_COPY_AND_ASSIGN(DomainReliabilityBrowserTest);
 };
 
 class DomainReliabilityDisabledBrowserTest
     : public DomainReliabilityBrowserTest {
- public:
-  DomainReliabilityDisabledBrowserTest(
-      const DomainReliabilityDisabledBrowserTest&) = delete;
-  DomainReliabilityDisabledBrowserTest& operator=(
-      const DomainReliabilityDisabledBrowserTest&) = delete;
-
  protected:
   DomainReliabilityDisabledBrowserTest() {}
 
@@ -91,6 +82,9 @@ class DomainReliabilityDisabledBrowserTest
   void SetUpCommandLine(base::CommandLine* command_line) override {
     command_line->AppendSwitch(switches::kDisableDomainReliability);
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DomainReliabilityDisabledBrowserTest);
 };
 
 IN_PROC_BROWSER_TEST_F(DomainReliabilityDisabledBrowserTest,
@@ -112,7 +106,7 @@ std::unique_ptr<net::test_server::HttpResponse> TestRequestHandler(
     const base::RepeatingClosure& quit_closure,
     const net::test_server::HttpRequest& request) {
   if (request.relative_url != kUploadPath)
-    return nullptr;
+    return std::unique_ptr<net::test_server::HttpResponse>();
 
   ++*request_count_out;
   *last_request_content_out = request.has_content ? request.content : "";
@@ -145,13 +139,13 @@ IN_PROC_BROWSER_TEST_F(DomainReliabilityBrowserTest, Upload) {
 
   {
     mojo::ScopedAllowSyncCallForTesting allow_sync_call;
-    GetNetworkContext()->AddDomainReliabilityContextForTesting(  // IN-TEST
-        test_server()->GetOrigin(), upload_url);
+    GetNetworkContext()->AddDomainReliabilityContextForTesting(
+        test_server()->base_url().GetOrigin(), upload_url);
   }
 
   // Trigger an error.
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), error_url));
+  ui_test_utils::NavigateToURL(browser(), error_url);
 
   {
     mojo::ScopedAllowSyncCallForTesting allow_sync_call;
@@ -163,20 +157,22 @@ IN_PROC_BROWSER_TEST_F(DomainReliabilityBrowserTest, Upload) {
   EXPECT_EQ(1, request_count);
   EXPECT_NE("", last_request_content);
 
-  auto body = base::JSONReader::Read(last_request_content);
+  auto body = base::JSONReader::ReadDeprecated(last_request_content);
   ASSERT_TRUE(body);
-  ASSERT_TRUE(body->is_dict());
 
-  const base::Value::Dict& dict = body->GetDict();
+  const base::DictionaryValue* dict;
+  ASSERT_TRUE(body->GetAsDictionary(&dict));
 
-  const base::Value::List* entries = dict.FindList("entries");
-  ASSERT_TRUE(entries);
-  ASSERT_EQ(1u, entries->size());
+  const base::ListValue* entries;
+  ASSERT_TRUE(dict->GetList("entries", &entries));
+  ASSERT_EQ(1u, entries->GetSize());
 
-  const base::Value& entry = (*entries)[0u];
-  ASSERT_TRUE(entry.is_dict());
-  ASSERT_TRUE(entry.GetDict().FindString("url"));
-  EXPECT_EQ(*(entry.GetDict().FindString("url")), error_url);
+  const base::DictionaryValue* entry;
+  ASSERT_TRUE(entries->GetDictionary(0u, &entry));
+
+  std::string url;
+  ASSERT_TRUE(entry->GetString("url", &url));
+  EXPECT_EQ(url, error_url);
 }
 
 IN_PROC_BROWSER_TEST_F(DomainReliabilityBrowserTest, UploadAtShutdown) {
@@ -185,12 +181,11 @@ IN_PROC_BROWSER_TEST_F(DomainReliabilityBrowserTest, UploadAtShutdown) {
   GURL upload_url = test_server()->GetURL("/hung");
   {
     mojo::ScopedAllowSyncCallForTesting allow_sync_call;
-    GetNetworkContext()->AddDomainReliabilityContextForTesting(  // IN-TEST
-        url::Origin::Create(GURL("https://localhost/")), upload_url);
+    GetNetworkContext()->AddDomainReliabilityContextForTesting(
+        GURL("https://localhost/"), upload_url);
   }
 
-  ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser(), GURL("https://localhost/")));
+  ui_test_utils::NavigateToURL(browser(), GURL("https://localhost/"));
 
   {
     mojo::ScopedAllowSyncCallForTesting allow_sync_call;
@@ -211,8 +206,8 @@ IN_PROC_BROWSER_TEST_F(DomainReliabilityBrowserTest, RequestAtShutdown) {
   GURL hung_url = test_server()->GetURL("/hung");
   {
     mojo::ScopedAllowSyncCallForTesting allow_sync_call;
-    GetNetworkContext()->AddDomainReliabilityContextForTesting(  // IN-TEST
-        url::Origin::Create(hung_url), hung_url);
+    GetNetworkContext()->AddDomainReliabilityContextForTesting(hung_url,
+                                                               hung_url);
   }
 
   // Use a SimpleURLLoader so we can leak the mojo pipe, ensuring that URLLoader
@@ -221,7 +216,8 @@ IN_PROC_BROWSER_TEST_F(DomainReliabilityBrowserTest, RequestAtShutdown) {
   resource_request->url = hung_url;
   auto simple_loader = network::SimpleURLLoader::Create(
       std::move(resource_request), TRAFFIC_ANNOTATION_FOR_TESTS);
-  auto* storage_partition = browser()->profile()->GetDefaultStoragePartition();
+  auto* storage_partition =
+      content::BrowserContext::GetDefaultStoragePartition(browser()->profile());
   simple_loader->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
       storage_partition->GetURLLoaderFactoryForBrowserProcess().get(),
       base::BindOnce([](std::unique_ptr<std::string> body) {}));

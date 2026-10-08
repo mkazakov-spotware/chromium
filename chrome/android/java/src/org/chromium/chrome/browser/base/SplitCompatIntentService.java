@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,6 @@ import android.content.Context;
 import android.content.Intent;
 
 import androidx.annotation.VisibleForTesting;
-
-import org.chromium.base.BundleUtils;
 
 /**
  * IntentService base class which will call through to the given {@link Impl}. This class must be
@@ -27,8 +25,8 @@ public class SplitCompatIntentService extends IntentService {
 
     @Override
     protected void attachBaseContext(Context context) {
-        context = SplitCompatApplication.createChromeContext(context);
-        mImpl = (Impl) BundleUtils.newInstance(context, mServiceClassName);
+        context = SplitCompatUtils.createChromeContext(context);
+        mImpl = (Impl) SplitCompatUtils.newInstance(context, mServiceClassName);
         mImpl.setService(this);
         super.attachBaseContext(context);
     }

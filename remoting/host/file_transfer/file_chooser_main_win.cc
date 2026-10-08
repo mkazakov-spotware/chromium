@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,15 +13,18 @@
 #include "base/files/file_path.h"
 #include "base/logging.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/no_destructor.h"
+#include "base/pickle.h"
 #include "base/run_loop.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/timer/timer.h"
 #include "base/win/scoped_co_mem.h"
 #include "base/win/scoped_com_initializer.h"
-#include "mojo/public/cpp/bindings/message.h"
+#include "ipc/ipc_message_utils.h"
+#include "remoting/host/chromoting_param_traits.h"
+#include "remoting/host/chromoting_param_traits_impl.h"
 #include "remoting/host/file_transfer/file_chooser.h"
 #include "remoting/host/file_transfer/file_chooser_common_win.h"
-#include "remoting/host/mojom/desktop_session.mojom.h"
 #include "remoting/host/win/core_resource.h"
 #include "remoting/protocol/file_transfer_helpers.h"
 
@@ -46,7 +49,8 @@ protocol::FileTransfer_Error LogFailedHrAndMakeError(base::Location from_here,
 }
 
 // Loads an embedded string resource from the specified module.
-protocol::FileTransferResult<std::wstring> LoadStringResource(int resource_id) {
+protocol::FileTransferResult<base::string16> LoadStringResource(
+    int resource_id) {
   // GetModuleHandle doesn't increment the ref count, so the handle doesn't need
   // to be freed.
   HMODULE resource_module = GetModuleHandle(L"remoting_core.dll");
@@ -72,7 +76,7 @@ protocol::FileTransferResult<std::wstring> LoadStringResource(int resource_id) {
         GetLastError());
   }
 
-  return std::wstring(string_resource, string_length);
+  return base::string16(string_resource, string_length);
 }
 
 FileChooser::Result ShowFileChooser() {
@@ -85,7 +89,7 @@ FileChooser::Result ShowFileChooser() {
     return LogFailedHrAndMakeError(FROM_HERE, "create", hr);
   }
 
-  protocol::FileTransferResult<std::wstring> title =
+  protocol::FileTransferResult<base::string16> title =
       LoadStringResource(IDS_DOWNLOAD_FILE_DIALOG_TITLE);
   if (!title) {
     return title.error();
@@ -136,15 +140,16 @@ int FileChooserMain() {
 
   FileChooser::Result result = ShowFileChooser();
 
-  mojo::Message serialized_message =
-      mojom::FileChooserResult::SerializeAsMessage(&result);
+  base::Pickle pickle;
+  IPC::WriteParam(&pickle, result);
 
   // Highly unlikely, but we want to know if it happens.
-  if (serialized_message.data_num_bytes() > kFileChooserPipeBufferSize) {
-    FileChooser::Result error_result(protocol::MakeFileTransferError(
-        FROM_HERE, protocol::FileTransfer_Error_Type_UNEXPECTED_ERROR));
-    serialized_message =
-        mojom::FileChooserResult::SerializeAsMessage(&error_result);
+  if (pickle.size() > kFileChooserPipeBufferSize) {
+    pickle = base::Pickle();
+    IPC::WriteParam(
+        &pickle,
+        protocol::MakeFileTransferError(
+            FROM_HERE, protocol::FileTransfer_Error_Type_UNEXPECTED_ERROR));
   }
 
   HANDLE stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -154,8 +159,7 @@ int FileChooserMain() {
   }
 
   DWORD bytes_written;
-  if (!WriteFile(stdout_handle, serialized_message.data(),
-                 serialized_message.data_num_bytes(), &bytes_written,
+  if (!WriteFile(stdout_handle, pickle.data(), pickle.size(), &bytes_written,
                  nullptr)) {
     PLOG(ERROR) << "Failed to write file chooser result";
   }
@@ -165,10 +169,9 @@ int FileChooserMain() {
   // in case. Check that all bytes were written successfully, and return an
   // error code if not to signal the parent that it shouldn't try to parse the
   // output.
-  if (bytes_written != serialized_message.data_num_bytes()) {
+  if (bytes_written != pickle.size()) {
     LOG(ERROR) << "Failed to write all bytes to pipe. (Buffer full?) Expected: "
-               << serialized_message.data_num_bytes()
-               << " Actual: " << bytes_written;
+               << pickle.size() << " Actual: " << bytes_written;
     return EXIT_FAILURE;
   }
 

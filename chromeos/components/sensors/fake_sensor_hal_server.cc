@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,8 @@ FakeSensorHalServer::~FakeSensorHalServer() = default;
 
 void FakeSensorHalServer::CreateChannel(
     mojo::PendingReceiver<mojom::SensorService> sensor_service_receiver) {
-  sensor_service_->AddReceiver(std::move(sensor_service_receiver));
+  DCHECK(!sensor_service_->is_bound());
+  sensor_service_->Bind(std::move(sensor_service_receiver));
 }
 
 mojo::PendingRemote<mojom::SensorHalServer> FakeSensorHalServer::PassRemote() {

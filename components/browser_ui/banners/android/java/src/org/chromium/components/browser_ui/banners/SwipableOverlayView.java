@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,6 @@ import android.view.animation.Interpolator;
 import android.widget.FrameLayout;
 
 import androidx.annotation.IntDef;
-import androidx.annotation.Nullable;
 
 import org.chromium.base.MathUtils;
 import org.chromium.content_public.browser.GestureListenerManager;
@@ -59,8 +58,7 @@ public abstract class SwipableOverlayView extends FrameLayout {
     private static final long ANIMATION_DURATION_MS = 250;
 
     /** Detects when the user is dragging the WebContents. */
-    @Nullable
-    protected final GestureStateListenerWithScroll mGestureStateListener;
+    private final GestureStateListenerWithScroll mGestureStateListener;
 
     /** Listens for changes in the layout. */
     private final View.OnLayoutChangeListener mLayoutChangeListener;
@@ -95,19 +93,8 @@ public abstract class SwipableOverlayView extends FrameLayout {
      * @param attrs Attributes from the XML layout inflation.
      */
     public SwipableOverlayView(Context context, AttributeSet attrs) {
-        this(context, attrs, true);
-    }
-
-    /**
-     * Creates a SwipableOverlayView.
-     * @param context Context for acquiring resources.
-     * @param attrs Attributes from the XML layout inflation.
-     * @param hideOnScroll Whether this view should observe user's gesture and then auto-hide when
-     *                     page is scrolled down.
-     */
-    public SwipableOverlayView(Context context, AttributeSet attrs, boolean hideOnScroll) {
         super(context, attrs);
-        mGestureStateListener = hideOnScroll ? createGestureStateListener() : null;
+        mGestureStateListener = createGestureStateListener();
         mGestureState = Gesture.NONE;
         mLayoutChangeListener = createLayoutChangeListener();
         mInterpolator = new DecelerateInterpolator(1.0f);
@@ -134,10 +121,6 @@ public abstract class SwipableOverlayView extends FrameLayout {
 
     public WebContents getWebContents() {
         return mWebContents;
-    }
-
-    protected int getTotalHeight() {
-        return mTotalHeight;
     }
 
     protected void addToParentView(ViewGroup parentView) {
@@ -219,7 +202,7 @@ public abstract class SwipableOverlayView extends FrameLayout {
 
         // Adding a listener to GestureListenerManager results in extra IPCs on every frame, which
         // is very costly. Only attach the listener if needed.
-        if (mWebContents != null && mGestureStateListener != null) {
+        if (mWebContents != null) {
             if (mTotalHeight > 0) {
                 GestureListenerManager.fromWebContents(mWebContents)
                         .addListener(mGestureStateListener);
@@ -249,8 +232,7 @@ public abstract class SwipableOverlayView extends FrameLayout {
             private float mInitialExtentY;
 
             @Override
-            public void onFlingStartGesture(
-                    int scrollOffsetY, int scrollExtentY, boolean isDirectionUp) {
+            public void onFlingStartGesture(int scrollOffsetY, int scrollExtentY) {
                 if (!isAllowedToAutoHide() || !cancelCurrentAnimation()) return;
                 resetInternalScrollState(scrollOffsetY, scrollExtentY);
                 mGestureState = Gesture.FLINGING;
@@ -278,8 +260,7 @@ public abstract class SwipableOverlayView extends FrameLayout {
             }
 
             @Override
-            public void onScrollStarted(
-                    int scrollOffsetY, int scrollExtentY, boolean isDirectionUp) {
+            public void onScrollStarted(int scrollOffsetY, int scrollExtentY) {
                 if (!isAllowedToAutoHide() || !cancelCurrentAnimation()) return;
                 resetInternalScrollState(scrollOffsetY, scrollExtentY);
                 mLastScrollOffsetY = scrollOffsetY;
@@ -444,8 +425,6 @@ public abstract class SwipableOverlayView extends FrameLayout {
      * this ensures no child animation within this view's layout will be clipped by a SurfaceView.
      */
     @Override
-    // TODO(crbug.com/1231201): work out why this is causing a lint error
-    @SuppressWarnings("Override")
     public boolean gatherTransparentRegion(Region region) {
         float translationY = getTranslationY();
         setTranslationY(0);

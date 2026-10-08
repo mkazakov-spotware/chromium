@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
 #include "net/base/io_buffer.h"
 #include "net/base/test_completion_callback.h"
 #include "net/filter/mock_source_stream.h"
@@ -158,7 +157,7 @@ class I18nSourceStreamTest : public ::testing::TestWithParam<I18nTestParam> {
   scoped_refptr<net::IOBuffer> output_buffer_;
   const int output_buffer_size_;
 
-  raw_ptr<net::MockSourceStream> source_;
+  net::MockSourceStream* source_;
   std::unique_ptr<I18nSourceStream> stream_;
 
   TemplateReplacements replacements_;

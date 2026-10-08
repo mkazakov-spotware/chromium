@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,32 +21,29 @@ std::string ReferrerHeaderValueForNavigation(const GURL& destination,
     case ReferrerPolicyNever:
       return std::string();
     case ReferrerPolicyOrigin:
-      return referrer.url.DeprecatedGetOriginAsURL().spec();
+      return referrer.url.GetOrigin().spec();
     case ReferrerPolicyDefault:
     case ReferrerPolicyNoReferrerWhenDowngrade:
       if (is_downgrade)
         return std::string();
       return referrer.url.GetAsReferrer().spec();
     case ReferrerPolicyOriginWhenCrossOrigin:
-      if (referrer.url.DeprecatedGetOriginAsURL() !=
-          destination.DeprecatedGetOriginAsURL())
-        return referrer.url.DeprecatedGetOriginAsURL().spec();
+      if (referrer.url.GetOrigin() != destination.GetOrigin())
+        return referrer.url.GetOrigin().spec();
       return referrer.url.GetAsReferrer().spec();
     case ReferrerPolicySameOrigin:
-      if (referrer.url.DeprecatedGetOriginAsURL() !=
-          destination.DeprecatedGetOriginAsURL())
+      if (referrer.url.GetOrigin() != destination.GetOrigin())
         return std::string();
       return referrer.url.GetAsReferrer().spec();
     case ReferrerPolicyStrictOrigin:
       if (is_downgrade)
         return std::string();
-      return referrer.url.DeprecatedGetOriginAsURL().spec();
+      return referrer.url.GetOrigin().spec();
     case ReferrerPolicyStrictOriginWhenCrossOrigin:
       if (is_downgrade)
         return std::string();
-      if (referrer.url.DeprecatedGetOriginAsURL() !=
-          destination.DeprecatedGetOriginAsURL())
-        return referrer.url.DeprecatedGetOriginAsURL().spec();
+      if (referrer.url.GetOrigin() != destination.GetOrigin())
+        return referrer.url.GetOrigin().spec();
       return referrer.url.GetAsReferrer().spec();
   }
   NOTREACHED();

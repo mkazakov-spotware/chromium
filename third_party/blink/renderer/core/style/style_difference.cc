@@ -1,10 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/style/style_difference.h"
-
-#include <ostream>
 
 #include "base/notreached.h"
 
@@ -31,6 +29,7 @@ std::ostream& operator<<(std::ostream& out, const StyleDifference& diff) {
   out << ", reshape=" << diff.needs_reshape_;
   out << ", paintInvalidation=" << diff.needs_paint_invalidation_;
   out << ", recomputeVisualOverflow=" << diff.recompute_visual_overflow_;
+  out << ", visualRectUpdate=" << diff.visual_rect_update_;
 
   out << ", propertySpecificDifferences=";
   int diff_count = 0;
@@ -40,11 +39,8 @@ std::ostream& operator<<(std::ostream& out, const StyleDifference& diff) {
       if (diff_count++ > 0)
         out << "|";
       switch (bit_test) {
-        case StyleDifference::kTransformPropertyChanged:
-          out << "TransformPropertyChanged";
-          break;
-        case StyleDifference::kOtherTransformPropertyChanged:
-          out << "OtherTransformPropertyChanged";
+        case StyleDifference::kTransformChanged:
+          out << "TransformChanged";
           break;
         case StyleDifference::kOpacityChanged:
           out << "OpacityChanged";

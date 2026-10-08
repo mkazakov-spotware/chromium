@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,12 +41,6 @@ namespace {
 const char kHostname[] = "example.com";
 const char kLogDescription[] = "somelog";
 
-class DoNothingLogProvider : public MultiLogCTVerifier::CTLogProvider {
- public:
-  DoNothingLogProvider() = default;
-  ~DoNothingLogProvider() = default;
-};
-
 class MultiLogCTVerifierTest : public ::testing::Test {
  public:
   void SetUp() override {
@@ -55,12 +49,12 @@ class MultiLogCTVerifierTest : public ::testing::Test {
     ASSERT_TRUE(log);
     log_verifiers_.push_back(log);
 
-    DoNothingLogProvider notifier;
-    verifier_ = std::make_unique<MultiLogCTVerifier>(&notifier);
-    verifier_->SetLogs(log_verifiers_);
+    verifier_.reset(new MultiLogCTVerifier());
+    verifier_->AddLogs(log_verifiers_);
     std::string der_test_cert(ct::GetDerEncodedX509Cert());
     chain_ = X509Certificate::CreateFromBytes(
-        base::as_bytes(base::make_span(der_test_cert)));
+        der_test_cert.data(),
+        der_test_cert.length());
     ASSERT_TRUE(chain_.get());
 
     embedded_sct_chain_ =
@@ -70,9 +64,8 @@ class MultiLogCTVerifierTest : public ::testing::Test {
     ASSERT_TRUE(embedded_sct_chain_.get());
   }
 
-  bool CheckForEmbeddedSCTInNetLog(
-      const RecordingNetLogObserver& net_log_observer) {
-    auto entries = net_log_observer.GetEntries();
+  bool CheckForEmbeddedSCTInNetLog(const RecordingTestNetLog& net_log) {
+    auto entries = net_log.GetEntries();
     if (entries.size() != 2)
       return false;
 
@@ -82,24 +75,26 @@ class MultiLogCTVerifierTest : public ::testing::Test {
       return false;
 
     const NetLogEntry& parsed = entries[1];
-    if (!parsed.params.is_dict())
+    const base::ListValue* scts;
+    if (!GetListValueFromParams(parsed, "scts", &scts) ||
+        scts->GetSize() != 1) {
+      return false;
+    }
+
+    const base::DictionaryValue* the_sct;
+    if (!scts->GetDictionary(0, &the_sct))
       return false;
 
-    const base::Value::List* scts = parsed.params.GetDict().FindList("scts");
-    if (!scts || scts->size() != 1)
+    std::string origin;
+    if (!the_sct->GetString("origin", &origin))
+      return false;
+    if (origin != "Embedded in certificate")
       return false;
 
-    const base::Value& the_sct = (*scts)[0];
-    if (!the_sct.is_dict())
+    std::string verification_status;
+    if (!the_sct->GetString("verification_status", &verification_status))
       return false;
-
-    const std::string* origin = the_sct.FindStringPath("origin");
-    if (!origin || *origin != "Embedded in certificate")
-      return false;
-
-    const std::string* verification_status =
-        the_sct.FindStringPath("verification_status");
-    if (!verification_status || *verification_status != "Verified")
+    if (verification_status != "Verified")
       return false;
 
     return true;
@@ -119,15 +114,15 @@ class MultiLogCTVerifierTest : public ::testing::Test {
   // |kLogDescription|.
   bool CheckPrecertificateVerification(scoped_refptr<X509Certificate> chain) {
     SignedCertificateTimestampAndStatusList scts;
-    RecordingNetLogObserver net_log_observer(NetLogCaptureMode::kDefault);
+    RecordingTestNetLog test_net_log;
     NetLogWithSource net_log = NetLogWithSource::Make(
-        NetLog::Get(), NetLogSourceType::SSL_CONNECT_JOB);
+        &test_net_log, NetLogSourceType::SSL_CONNECT_JOB);
     verifier_->Verify(kHostname, chain.get(), base::StringPiece(),
                       base::StringPiece(), &scts, net_log);
     return ct::CheckForSingleVerifiedSCTInResult(scts, kLogDescription) &&
            ct::CheckForSCTOrigin(
                scts, ct::SignedCertificateTimestamp::SCT_EMBEDDED) &&
-           CheckForEmbeddedSCTInNetLog(net_log_observer);
+           CheckForEmbeddedSCTInNetLog(test_net_log);
   }
 
   // Histogram-related helper methods
@@ -244,29 +239,6 @@ TEST_F(MultiLogCTVerifierTest, CountsSingleEmbeddedSCTInOriginsHistogram) {
   int old_embedded_count = NumEmbeddedSCTsInHistogram();
   ASSERT_TRUE(CheckPrecertificateVerification(embedded_sct_chain_));
   EXPECT_EQ(old_embedded_count + 1, NumEmbeddedSCTsInHistogram());
-}
-
-TEST_F(MultiLogCTVerifierTest, SetLogsRemovesOldLogs) {
-  log_verifiers_.clear();
-  verifier_->SetLogs(log_verifiers_);
-  // Log list is now empty so verification should fail.
-  ASSERT_FALSE(CheckPrecertificateVerification(embedded_sct_chain_));
-}
-
-TEST_F(MultiLogCTVerifierTest, SetLogsAddsNewLogs) {
-  // Clear the log list.
-  log_verifiers_.clear();
-  verifier_->SetLogs(log_verifiers_);
-
-  // Add valid log again via SetLogs
-  scoped_refptr<const CTLogVerifier> log(
-      CTLogVerifier::Create(ct::GetTestPublicKey(), kLogDescription));
-  ASSERT_TRUE(log);
-  log_verifiers_.push_back(log);
-  verifier_->SetLogs(log_verifiers_);
-
-  // Verification should now succeed.
-  ASSERT_TRUE(CheckPrecertificateVerification(embedded_sct_chain_));
 }
 
 }  // namespace

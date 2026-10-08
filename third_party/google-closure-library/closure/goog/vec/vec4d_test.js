@@ -1,8 +1,5 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2013 The Closure Library Authors. All Rights Reserved.
+// Use of this source code is governed by the Apache License, Version 2.0.
 
 ////////////////////////// NOTE ABOUT EDITING THIS FILE ///////////////////////
 //                                                                           //
@@ -104,7 +101,6 @@ testSuite({
     assertElementsEquals([1, 2, 3, 4], v0);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testScale() {
     const v0 = vec4d.setFromArray(vec4d.create(), [1, 2, 3, 4]);
     const v1 = vec4d.create();
@@ -128,7 +124,6 @@ testSuite({
     assertEquals(Math.sqrt(30), vec4d.magnitude(v0));
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testNormalize() {
     const v0 = vec4d.setFromArray(vec4d.create(), [2, 3, 4, 5]);
     const v1 = vec4d.create();

@@ -1,22 +1,20 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {util} from '../../../common/js/util.js';
-
-import {AlertDialog} from './dialogs.js';
 
 /**
  * Alert dialog.
  */
-export class FilesAlertDialog extends AlertDialog {
+class FilesAlertDialog extends cr.ui.dialogs.AlertDialog {
   /**
    * @param {!HTMLElement} parentNode
    */
   constructor(parentNode) {
     super(parentNode);
 
-    this.container.classList.add('files-ng');
+    if (util.isFilesNg()) {
+      this.container.classList.add('files-ng');
+    }
   }
 
   /**
@@ -25,30 +23,7 @@ export class FilesAlertDialog extends AlertDialog {
    */
   initDom() {
     super.initDom();
-    super.hasModalContainer = true;
-
     this.frame.classList.add('files-alert-dialog');
-  }
-
-  /**
-   * @override
-   * @suppress {accessControls}
-   */
-  show_(...args) {
-    this.parentNode_ = util.getFilesAppModalDialogInstance();
-
-    super.show_(...args);
-
-    this.parentNode_.showModal();
-  }
-
-  /**
-   * @override
-   */
-  hide(...args) {
-    this.parentNode_.close();
-
-    super.hide(...args);
   }
 
   /**
@@ -65,14 +40,5 @@ export class FilesAlertDialog extends AlertDialog {
   showHtml(title, message, ...args) {
     this.frame.classList.toggle('no-title', !title);
     super.showHtml(title, message, ...args);
-  }
-
-  /**
-   * Async version of show().
-   * @param {string} title
-   * @returns {!Promise<void>} Resolves when dismissed.
-   */
-  showAsync(title) {
-    return new Promise(resolve => this.show(title, resolve));
   }
 }

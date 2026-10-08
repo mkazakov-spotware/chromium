@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,52 +12,71 @@
 namespace download {
 namespace features {
 
+// The Finch parameter for download later feature to function only on cellular
+// network.
+constexpr char kDownloadLaterRequireCellular[] = "require_cellular";
+
+// The Finch parameter for download later feature to enable only in lite
+// mode(data saver).
+constexpr char kDownloadLaterRequireLiteMode[] = "require_lite_mode";
+
 // Whether offline content provider should be used for the downloads UI..
-COMPONENTS_DOWNLOAD_EXPORT BASE_DECLARE_FEATURE(
-    kUseDownloadOfflineContentProvider);
+COMPONENTS_DOWNLOAD_EXPORT extern const base::Feature
+    kUseDownloadOfflineContentProvider;
 
 // Whether download auto-resumptions are enabled in native.
-COMPONENTS_DOWNLOAD_EXPORT BASE_DECLARE_FEATURE(kDownloadAutoResumptionNative);
+COMPONENTS_DOWNLOAD_EXPORT extern const base::Feature
+    kDownloadAutoResumptionNative;
 
 // Whether a download can be handled by parallel jobs.
-COMPONENTS_DOWNLOAD_EXPORT BASE_DECLARE_FEATURE(kParallelDownloading);
+COMPONENTS_DOWNLOAD_EXPORT extern const base::Feature kParallelDownloading;
 
-#if BUILDFLAG(IS_ANDROID)
+// Whether to enable download later feature.
+COMPONENTS_DOWNLOAD_EXPORT extern const base::Feature kDownloadLater;
+
+#if defined(OS_ANDROID)
 // Whether download expiration date will be refreshed on resumption.
-COMPONENTS_DOWNLOAD_EXPORT BASE_DECLARE_FEATURE(kRefreshExpirationDate);
+COMPONENTS_DOWNLOAD_EXPORT extern const base::Feature kRefreshExpirationDate;
 
 // Whether to enable smart suggestion for large downloads
-COMPONENTS_DOWNLOAD_EXPORT BASE_DECLARE_FEATURE(
-    kSmartSuggestionForLargeDownloads);
+COMPONENTS_DOWNLOAD_EXPORT extern const base::Feature
+    kSmartSuggestionForLargeDownloads;
 #endif
 
 // Whether in-progress download manager will be used to initialize download
 // service.
-COMPONENTS_DOWNLOAD_EXPORT BASE_DECLARE_FEATURE(
-    kUseInProgressDownloadManagerForDownloadService);
+COMPONENTS_DOWNLOAD_EXPORT extern const base::Feature
+    kUseInProgressDownloadManagerForDownloadService;
 
 // Whether download resumption is allowed when there are no strong validators.
-COMPONENTS_DOWNLOAD_EXPORT BASE_DECLARE_FEATURE(
-    kAllowDownloadResumptionWithoutStrongValidators);
+COMPONENTS_DOWNLOAD_EXPORT extern const base::Feature
+    kAllowDownloadResumptionWithoutStrongValidators;
+
+// Whether parallel requests are used if server response doesn't reveal range
+// support.
+COMPONENTS_DOWNLOAD_EXPORT extern const base::Feature
+    kUseParallelRequestsForUnknwonRangeSupport;
 
 // Whether parallel download is used for HTTP2 connections.
-COMPONENTS_DOWNLOAD_EXPORT BASE_DECLARE_FEATURE(kUseParallelRequestsForHTTP2);
+COMPONENTS_DOWNLOAD_EXPORT extern const base::Feature
+    kUseParallelRequestsForHTTP2;
 
 // Whether parallel download is used for QUIC connections.
-COMPONENTS_DOWNLOAD_EXPORT BASE_DECLARE_FEATURE(kUseParallelRequestsForQUIC);
+COMPONENTS_DOWNLOAD_EXPORT extern const base::Feature
+    kUseParallelRequestsForQUIC;
 
 // Whether to delete expired download.
-COMPONENTS_DOWNLOAD_EXPORT BASE_DECLARE_FEATURE(kDeleteExpiredDownloads);
+COMPONENTS_DOWNLOAD_EXPORT extern const base::Feature kDeleteExpiredDownloads;
 
-// Whether to delete downloads that are overwritten by others.
-COMPONENTS_DOWNLOAD_EXPORT BASE_DECLARE_FEATURE(kDeleteOverwrittenDownloads);
-
-// Whether to allow changing the size of file buffer.
-COMPONENTS_DOWNLOAD_EXPORT BASE_DECLARE_FEATURE(kAllowFileBufferSizeControl);
-
-// Arbitrary range request support for download system.
-COMPONENTS_DOWNLOAD_EXPORT BASE_DECLARE_FEATURE(kDownloadRange);
 }  // namespace features
+
+namespace switches {
+
+// If set, show the download later dialog without the requirement of being on
+// cellular network.
+COMPONENTS_DOWNLOAD_EXPORT extern const char kDownloadLaterDebugOnWifi[];
+
+}  // namespace switches
 
 }  // namespace download
 

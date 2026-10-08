@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,11 @@ class CrostiniAppRestartDialogTest : public ChromeViewsTestBase {
   ~CrostiniAppRestartDialogTest() override = default;
 
   views::test::WidgetTest::WidgetAutoclosePtr ShowDialog() {
+    // TODO(ellyjones): the class name being "View" is kind of awkward. It
+    // should be possible to set the class name even when there is no actual
+    // class...
     views::NamedWidgetShownWaiter waiter(views::test::AnyWidgetTestPasskey{},
-                                         "CrostiniAppRestart");
+                                         "View");
     crostini::ShowAppRestartDialogForTesting(GetContext());
     return views::test::WidgetTest::WidgetAutoclosePtr(
         waiter.WaitIfNeededAndGet());

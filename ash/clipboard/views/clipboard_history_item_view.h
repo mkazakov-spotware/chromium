@@ -1,13 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_CLIPBOARD_VIEWS_CLIPBOARD_HISTORY_ITEM_VIEW_H_
 #define ASH_CLIPBOARD_VIEWS_CLIPBOARD_HISTORY_ITEM_VIEW_H_
 
-#include "ash/ash_export.h"
 #include "ash/clipboard/clipboard_history_util.h"
-#include "ui/views/view.h"
+#include "ui/views/controls/button/image_button.h"
 #include "ui/views/view_targeter_delegate.h"
 
 namespace views {
@@ -15,13 +14,11 @@ class MenuItemView;
 }  // namespace views
 
 namespace ash {
-class ClipboardHistoryDeleteButton;
 class ClipboardHistoryItem;
-class ClipboardHistoryMainButton;
 class ClipboardHistoryResourceManager;
 
 // The base class for menu items of the clipboard history menu.
-class ASH_EXPORT ClipboardHistoryItemView : public views::View {
+class ClipboardHistoryItemView : public views::View {
  public:
   static std::unique_ptr<ClipboardHistoryItemView>
   CreateFromClipboardHistoryItem(
@@ -34,40 +31,43 @@ class ASH_EXPORT ClipboardHistoryItemView : public views::View {
       delete;
   ~ClipboardHistoryItemView() override;
 
-  // Advances the pseudo focus (backward if reverse is true). Returns whether
-  // the view still keeps the pseudo focus.
-  bool AdvancePseudoFocus(bool reverse);
-
-  void HandleDeleteButtonPressEvent(const ui::Event& event);
-
-  void HandleMainButtonPressEvent(const ui::Event& event);
-
   // Initializes the menu item.
   void Init();
-
-  // Attempts to handle the gesture event redirected from `main_button_`.
-  void MaybeHandleGestureEventFromMainButton(ui::GestureEvent* event);
 
   // Called when the selection state has changed.
   void OnSelectionChanged();
 
-  // Returns whether the item's main button has pseudo focus, meaning the item's
-  // contents will be pasted if the user presses Enter. An item's background is
-  // highlighted when its main button has pseudo focus.
-  bool IsMainButtonPseudoFocused() const;
+  // Advances the pseudo focus (backward if reverse is true). Returns whether
+  // the view still keeps the pseudo focus.
+  bool AdvancePseudoFocus(bool reverse);
 
-  // Returns whether the item's delete button has pseudo focus, meaning the item
-  // will be removed from clipboard history if the user presses Enter. An item's
-  // background is not highlighted when its delete button has pseudo focus.
-  bool IsDeleteButtonPseudoFocused() const;
+  ClipboardHistoryUtil::Action action() const { return action_; }
 
-  // Called when the mouse click on descendants (such as the main button or
-  // the delete button) gets canceled.
-  void OnMouseClickOnDescendantCanceled();
+  views::View* delete_button_for_test() {
+    return contents_view_->delete_button();
+  }
 
-  clipboard_history_util::Action action() const { return action_; }
+  const views::View* delete_button_for_test() const {
+    return contents_view_->delete_button();
+  }
 
  protected:
+  class MainButton;
+
+  // The button to delete the menu item and its corresponding clipboard data.
+  class DeleteButton : public views::ImageButton {
+   public:
+    explicit DeleteButton(ClipboardHistoryItemView* listener);
+    DeleteButton(const DeleteButton& rhs) = delete;
+    DeleteButton& operator=(const DeleteButton& rhs) = delete;
+    ~DeleteButton() override;
+
+   private:
+    // views::ImageButton:
+    const char* GetClassName() const override;
+    void OnThemeChanged() override;
+  };
+
   // Used by subclasses to draw contents, such as text or bitmaps.
   class ContentsView : public views::View, public views::ViewTargeterDelegate {
    public:
@@ -79,15 +79,11 @@ class ASH_EXPORT ClipboardHistoryItemView : public views::View {
     // Install DeleteButton on the contents view.
     void InstallDeleteButton();
 
-    void OnHostPseudoFocusUpdated();
-
-    ClipboardHistoryDeleteButton* delete_button() { return delete_button_; }
-    const ClipboardHistoryDeleteButton* delete_button() const {
-      return delete_button_;
-    }
+    views::View* delete_button() { return delete_button_; }
+    const views::View* delete_button() const { return delete_button_; }
 
    protected:
-    virtual ClipboardHistoryDeleteButton* CreateDeleteButton() = 0;
+    virtual DeleteButton* CreateDeleteButton() = 0;
 
     ClipboardHistoryItemView* container() { return container_; }
 
@@ -100,7 +96,7 @@ class ASH_EXPORT ClipboardHistoryItemView : public views::View {
                            const gfx::Rect& rect) const override;
 
     // Owned by the view hierarchy.
-    ClipboardHistoryDeleteButton* delete_button_ = nullptr;
+    DeleteButton* delete_button_ = nullptr;
 
     // The parent of ContentsView.
     ClipboardHistoryItemView* const container_;
@@ -109,16 +105,20 @@ class ASH_EXPORT ClipboardHistoryItemView : public views::View {
   ClipboardHistoryItemView(const ClipboardHistoryItem* clipboard_history_item,
                            views::MenuItemView* container);
 
-  // Maybe record histograms after the button is pressed.
-  void MaybeRecordButtonPressedHistogram() const;
+  // Records histograms after the button is pressed.
+  void RecordButtonPressedHistogram() const;
 
   // Creates the contents view.
   virtual std::unique_ptr<ContentsView> CreateContentsView() = 0;
 
   // Returns the name of the accessible node.
-  virtual std::u16string GetAccessibleName() const = 0;
+  virtual base::string16 GetAccessibleName() const = 0;
 
-  const ClipboardHistoryItem* clipboard_history_item() const {
+  // Returns whether the item view is enabled. The item view is disabled when
+  // it is not allowed to read clipboard data.
+  bool IsItemEnabled() const;
+
+  const ClipboardHistoryItem* clipboard_history_item() {
     return clipboard_history_item_;
   }
 
@@ -147,10 +147,13 @@ class ASH_EXPORT ClipboardHistoryItemView : public views::View {
   void GetAccessibleNodeData(ui::AXNodeData* data) override;
 
   // Activates the menu item with the specified action and event flags.
-  void Activate(clipboard_history_util::Action action, int event_flags);
+  void Activate(ClipboardHistoryUtil::Action action, int event_flags);
 
   // Calculates the action type when `main_button_` is clicked.
-  clipboard_history_util::Action CalculateActionForMainButtonClick() const;
+  ClipboardHistoryUtil::Action CalculateActionForMainButtonClick() const;
+
+  // Returns whether the highlight background should show.
+  bool ShouldHighlight() const;
 
   bool ShouldShowDeleteButton() const;
 
@@ -160,6 +163,9 @@ class ASH_EXPORT ClipboardHistoryItemView : public views::View {
   // Updates `pseudo_focus_` and children visibility.
   void SetPseudoFocus(PseudoFocus new_pseudo_focus);
 
+  // Attempts to handle the gesture event redirected from `main_button_`.
+  void MaybeHandleGestureEventFromMainButton(ui::GestureEvent* event);
+
   // Owned by ClipboardHistoryMenuModelAdapter.
   const ClipboardHistoryItem* const clipboard_history_item_;
 
@@ -167,7 +173,7 @@ class ASH_EXPORT ClipboardHistoryItemView : public views::View {
 
   ContentsView* contents_view_ = nullptr;
 
-  ClipboardHistoryMainButton* main_button_ = nullptr;
+  MainButton* main_button_ = nullptr;
 
   PseudoFocus pseudo_focus_ = PseudoFocus::kEmpty;
 
@@ -176,10 +182,9 @@ class ASH_EXPORT ClipboardHistoryItemView : public views::View {
 
   // Indicates the action to take. It is set when the menu item is activated
   // through `main_button_` or the delete button.
-  clipboard_history_util::Action action_ =
-      clipboard_history_util::Action::kEmpty;
+  ClipboardHistoryUtil::Action action_ = ClipboardHistoryUtil::Action::kEmpty;
 
-  base::CallbackListSubscription subscription_;
+  views::PropertyChangedSubscription subscription_;
 };
 
 }  // namespace ash

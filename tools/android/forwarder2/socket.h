@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,8 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
+
 namespace forwarder2 {
 
 // Wrapper class around unix socket api.  Can be used to create, bind or
@@ -22,10 +24,6 @@ namespace forwarder2 {
 class Socket {
  public:
   Socket();
-
-  Socket(const Socket&) = delete;
-  Socket& operator=(const Socket&) = delete;
-
   ~Socket();
 
   bool BindUnix(const std::string& path);
@@ -151,6 +149,8 @@ class Socket {
   // Used to listen for external events (e.g. process received a SIGTERM) while
   // blocking on I/O operations.
   std::vector<Event> events_;
+
+  DISALLOW_COPY_AND_ASSIGN(Socket);
 };
 
 }  // namespace forwarder

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.ContextMenu;
@@ -61,7 +62,7 @@ public class Chromoting extends AppCompatActivity
     private static final String ACCOUNT_TYPE = "com.google";
 
     /** Scope to use when fetching the OAuth token. */
-    // To use these scopes in a debug build, your development account will need to be allowlisted.
+    // To use these scopes in a debug build, your development account will need to be whitelisted.
     private static final String TOKEN_SCOPE =
             "oauth2:https://www.googleapis.com/auth/chromoting.directory "
             + "https://www.googleapis.com/auth/tachyon";
@@ -624,9 +625,11 @@ public class Chromoting extends AppCompatActivity
 
     @Override
     public void onAccountSelected(String accountName) {
-        String logInAnnouncement =
-                getString(R.string.log_in_account_accessibility_description, accountName);
-        mAccountSwitcher.getView().announceForAccessibility(logInAnnouncement);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+            String logInAnnouncement =
+                    getString(R.string.log_in_account_accessibility_description, accountName);
+            mAccountSwitcher.getView().announceForAccessibility(logInAnnouncement);
+        }
         mAccount = accountName;
         JniOAuthTokenGetter.setAccount(accountName);
         mNotificationPresenter.presentIfNecessary(accountName);

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,21 +8,19 @@
 #include "ui/gfx/x/xproto.h"
 #include "ui/gfx/x/xproto_util.h"
 #include "ui/gl/egl_util.h"
-#include "ui/gl/gl_bindings.h"
 
 using ui::GetLastEGLErrorString;
+using ui::X11EventSource;
 
 namespace gl {
 
 NativeViewGLSurfaceEGLX11GLES2::NativeViewGLSurfaceEGLX11GLES2(
-    gl::GLDisplayEGL* display,
     x11::Window window)
-    : NativeViewGLSurfaceEGLX11(display, x11::Window::None),
-      parent_window_(window) {}
+    : NativeViewGLSurfaceEGLX11(x11::Window::None), parent_window_(window) {}
 
 bool NativeViewGLSurfaceEGLX11GLES2::InitializeNativeWindow() {
   auto* connection = GetXNativeConnection();
-  auto geometry = connection->GetGeometry(parent_window_).Sync();
+  auto geometry = connection->GetGeometry({parent_window_}).Sync();
   if (!geometry) {
     LOG(ERROR) << "GetGeometry failed for window "
                << static_cast<uint32_t>(parent_window_) << ".";
@@ -39,8 +37,8 @@ bool NativeViewGLSurfaceEGLX11GLES2::InitializeNativeWindow() {
   connection->CreateWindow(x11::CreateWindowRequest{
       .wid = window(),
       .parent = parent_window_,
-      .width = static_cast<uint16_t>(size_.width()),
-      .height = static_cast<uint16_t>(size_.height()),
+      .width = size_.width(),
+      .height = size_.height(),
       .c_class = x11::WindowClass::InputOutput,
       .background_pixmap = x11::Pixmap::None,
       .bit_gravity = x11::Gravity::NorthWest,
@@ -68,7 +66,7 @@ EGLConfig NativeViewGLSurfaceEGLX11GLES2::GetConfig() {
     // Get a config compatible with the window
     DCHECK(window_);
     auto* connection = GetXNativeConnection();
-    auto geometry = connection->GetGeometry(window()).Sync();
+    auto geometry = connection->GetGeometry({window()}).Sync();
     if (!geometry)
       return nullptr;
 
@@ -94,45 +92,25 @@ EGLConfig NativeViewGLSurfaceEGLX11GLES2::GetConfig() {
                                EGL_NONE};
     config_attribs[kBufferSizeOffset] = geometry->depth;
 
-    EGLDisplay display = GLSurfaceEGL::GetGLDisplayEGL()->GetDisplay();
-    x11::VisualId visual_id;
-    ui::XVisualManager::GetInstance()->ChooseVisualForWindow(
-        true, &visual_id, nullptr, nullptr, nullptr);
+    EGLDisplay display = GetHardwareDisplay();
     EGLint num_configs;
-    if (!eglChooseConfig(display, config_attribs, nullptr, 0, &num_configs)) {
+    if (!eglChooseConfig(display, config_attribs, &config_, 1, &num_configs)) {
       LOG(ERROR) << "eglChooseConfig failed with error "
                  << GetLastEGLErrorString();
       return nullptr;
     }
-    std::vector<EGLConfig> configs(num_configs);
 
     if (num_configs) {
-      if (!eglChooseConfig(display, config_attribs, &configs.front(),
-                           num_configs, &num_configs)) {
-        LOG(ERROR) << "eglChooseConfig failed with error "
+      EGLint config_depth;
+      if (!eglGetConfigAttrib(display, config_, EGL_BUFFER_SIZE,
+                              &config_depth)) {
+        LOG(ERROR) << "eglGetConfigAttrib failed with error "
                    << GetLastEGLErrorString();
         return nullptr;
       }
-      for (EGLConfig config : configs) {
-        EGLint config_depth;
-        if (!eglGetConfigAttrib(display, config, EGL_BUFFER_SIZE,
-                                &config_depth)) {
-          LOG(ERROR) << "eglGetConfigAttrib failed with error "
-                     << GetLastEGLErrorString();
-          return nullptr;
-        }
-        EGLint config_visual_id;
-        if (!eglGetConfigAttrib(display, config, EGL_NATIVE_VISUAL_ID,
-                                &config_visual_id)) {
-          LOG(ERROR) << "eglGetConfigAttrib failed with error "
-                     << GetLastEGLErrorString();
-          return nullptr;
-        }
-        if (config_depth == geometry->depth &&
-            config_visual_id == static_cast<EGLint>(visual_id)) {
-          config_ = config;
-          return config_;
-        }
+
+      if (config_depth == geometry->depth) {
+        return config_;
       }
     }
 
@@ -174,16 +152,17 @@ bool NativeViewGLSurfaceEGLX11GLES2::Resize(const gfx::Size& size,
   return true;
 }
 
-void NativeViewGLSurfaceEGLX11GLES2::OnEvent(const x11::Event& x11_event) {
-  auto* expose = x11_event.As<x11::ExposeEvent>();
+bool NativeViewGLSurfaceEGLX11GLES2::DispatchXEvent(x11::Event* x11_event) {
+  auto* expose = x11_event->As<x11::ExposeEvent>();
   auto window = static_cast<x11::Window>(window_);
   if (!expose || expose->window != window)
-    return;
+    return false;
 
   auto expose_copy = *expose;
   expose_copy.window = parent_window_;
   x11::SendEvent(expose_copy, parent_window_, x11::EventMask::Exposure);
   x11::Connection::Get()->Flush();
+  return true;
 }
 
 NativeViewGLSurfaceEGLX11GLES2::~NativeViewGLSurfaceEGLX11GLES2() {

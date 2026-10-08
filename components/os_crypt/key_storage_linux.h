@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 #include <string>
 
 #include "base/component_export.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "components/os_crypt/key_storage_util_linux.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 class SequencedTaskRunner;
@@ -26,10 +27,6 @@ struct Config;
 class COMPONENT_EXPORT(OS_CRYPT) KeyStorageLinux {
  public:
   KeyStorageLinux() = default;
-
-  KeyStorageLinux(const KeyStorageLinux&) = delete;
-  KeyStorageLinux& operator=(const KeyStorageLinux&) = delete;
-
   virtual ~KeyStorageLinux() = default;
 
   // Tries to load the appropriate key storage. Returns null if none succeed.
@@ -39,7 +36,7 @@ class COMPONENT_EXPORT(OS_CRYPT) KeyStorageLinux {
 
   // Gets the encryption key from the OS password-managing library. If a key is
   // not found, a new key will be generated, stored and returned.
-  absl::optional<std::string> GetKey();
+  base::Optional<std::string> GetKey();
 
  protected:
   // Get the backend's favourite task runner, or nullptr for no preference.
@@ -51,7 +48,7 @@ class COMPONENT_EXPORT(OS_CRYPT) KeyStorageLinux {
 
   // The implementation of GetKey() for a specific backend. This will be called
   // on the backend's preferred thread.
-  virtual absl::optional<std::string> GetKeyImpl() = 0;
+  virtual base::Optional<std::string> GetKeyImpl() = 0;
 
   // The name of the group, if any, containing the key.
   static const char kFolderName[];
@@ -73,11 +70,13 @@ class COMPONENT_EXPORT(OS_CRYPT) KeyStorageLinux {
   // Perform the blocking calls to the backend to get the Key. Store it in
   // |password| and signal completion on |on_password_received|.
   void BlockOnGetKeyImplThenSignal(base::WaitableEvent* on_password_received,
-                                   absl::optional<std::string>* password);
+                                   base::Optional<std::string>* password);
 
   // Perform the blocking calls to the backend to initialise. Store the
   // initialisation result in |success| and signal completion on |on_inited|.
   void BlockOnInitThenSignal(base::WaitableEvent* on_inited, bool* success);
+
+  DISALLOW_COPY_AND_ASSIGN(KeyStorageLinux);
 };
 
 #endif  // COMPONENTS_OS_CRYPT_KEY_STORAGE_LINUX_H_

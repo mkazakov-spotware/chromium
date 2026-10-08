@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,13 +43,12 @@ class KalmanPredictorTest : public InputPredictorTest {
  public:
   explicit KalmanPredictorTest() {}
 
-  KalmanPredictorTest(const KalmanPredictorTest&) = delete;
-  KalmanPredictorTest& operator=(const KalmanPredictorTest&) = delete;
-
   void SetUp() override {
     predictor_ = std::make_unique<KalmanPredictor>(
         KalmanPredictor::PredictionOptions::kNone);
   }
+
+  DISALLOW_COPY_AND_ASSIGN(KalmanPredictorTest);
 };
 
 // Test the a single axle kalman filter behavior with preset datas.
@@ -143,7 +142,7 @@ TEST_F(KalmanPredictorTest, TimeInterval) {
     predictor_->Update(data);
   }
   EXPECT_EQ(predictor_->TimeInterval().InMillisecondsF(),
-            base::Milliseconds(7).InMillisecondsF());
+            base::TimeDelta::FromMilliseconds(7).InMillisecondsF());
 }
 
 // Test the benefit from the heuristic approach on noisy data.

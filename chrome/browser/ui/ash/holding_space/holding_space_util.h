@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,9 @@
 #include <memory>
 #include <vector>
 
-#include "ash/public/cpp/holding_space/holding_space_image.h"
 #include "ash/public/cpp/holding_space/holding_space_item.h"
 #include "base/callback_forward.h"
 #include "base/time/time.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class GURL;
 class Profile;
@@ -24,7 +22,7 @@ class FilePath;
 namespace ash {
 
 class HoldingSpaceImage;
-class ThumbnailLoader;
+class HoldingSpaceThumbnailLoader;
 
 // A utility for holding space.
 namespace holding_space_util {
@@ -34,7 +32,7 @@ struct ValidityRequirement {
   ValidityRequirement(const ValidityRequirement& other);
   ValidityRequirement(ValidityRequirement&& other);
   bool must_exist = true;
-  absl::optional<base::TimeDelta> must_be_newer_than = absl::nullopt;
+  base::Optional<base::TimeDelta> must_be_newer_than = base::nullopt;
 };
 
 using FilePathList = std::vector<base::FilePath>;
@@ -70,23 +68,13 @@ void PartitionFilePathsByValidity(Profile*,
 // Resolves the file system URL associated with the specified `file_path`.
 GURL ResolveFileSystemUrl(Profile* profile, const base::FilePath& file_path);
 
-// Resolves the image associated with the specified `file_path` using the
-// default placeholder resolver which creates a placeholder corresponding to the
-// associated file type when a thumbnail cannot be generated.
+// Resolves the image associated with the specified `file_path`.
 std::unique_ptr<HoldingSpaceImage> ResolveImage(
-    ThumbnailLoader* thumbnail_loader,
+    HoldingSpaceThumbnailLoader* thumbnail_loader,
     HoldingSpaceItem::Type type,
     const base::FilePath& file_path);
 
-// Resolves the image associated with the specified `file_path`using the
-// specified `placeholder_image_skia_resolver` to create a placeholder when a
-// thumbnail cannot be generated.
-std::unique_ptr<HoldingSpaceImage> ResolveImageWithPlaceholderImageSkiaResolver(
-    ThumbnailLoader* thumbnail_loader,
-    HoldingSpaceImage::PlaceholderImageSkiaResolver
-        placeholder_image_skia_resolver,
-    HoldingSpaceItem::Type type,
-    const base::FilePath& file_path);
+void SetNowForTesting(base::Optional<base::Time> now);
 
 }  // namespace holding_space_util
 }  // namespace ash

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,7 @@
 #include "content/child/dwrite_font_proxy/font_fallback_win.h"
 #include "content/child/font_warmup_win.h"
 #include "content/public/child/child_thread.h"
+#include "content/public/common/service_names.mojom.h"
 #include "skia/ext/fontmgr_default.h"
 #include "third_party/blink/public/web/win/web_font_rendering.h"
 #include "third_party/skia/include/core/SkFontMgr.h"
@@ -75,12 +76,20 @@ void InitializeDWriteFontProxy() {
   sk_sp<SkFontMgr> skia_font_manager = SkFontMgr_New_DirectWrite(
       factory.Get(), g_font_collection, g_font_fallback);
   blink::WebFontRendering::SetSkiaFontManager(skia_font_manager);
-  blink::WebFontRendering::SetFontRenderingClient(g_font_collection);
 
   skia::OverrideDefaultSkFontMgr(std::move(skia_font_manager));
 
-  DCHECK(g_font_fallback);
-  blink::WebFontRendering::SetUseSkiaFontFallback(true);
+  // When IDWriteFontFallback is not available (prior to Win8.1) Skia will
+  // still attempt to use DirectWrite to determine fallback fonts (in
+  // SkFontMgr_DirectWrite::onMatchFamilyStyleCharacter), which will likely
+  // result in trying to load the system font collection. To avoid that and
+  // instead fall back on WebKit's fallback logic, we don't use Skia's font
+  // fallback if IDWriteFontFallback is not available.
+  // This flag can be removed when Win8.0 and earlier are no longer supported.
+  bool fallback_available = g_font_fallback != nullptr;
+  DCHECK_EQ(fallback_available,
+            base::win::GetVersion() > base::win::Version::WIN8);
+  blink::WebFontRendering::SetUseSkiaFontFallback(fallback_available);
 }
 
 void UninitializeDWriteFontProxy() {

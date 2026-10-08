@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/crash/content/browser/error_reporting/mock_crash_endpoint.h"
 
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "build/build_config.h"
@@ -31,7 +30,7 @@ class MockCrashEndpoint::Client : public crash_reporter::CrashReporterClient {
         FROM_HERE, base::BlockingType::MAY_BLOCK);
     return owner_->consented_;
   }
-#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_MAC)
+#if defined(OS_POSIX) && !defined(OS_MAC)
   void GetProductNameAndVersion(std::string* product_name,
                                 std::string* version,
                                 std::string* channel) override {
@@ -41,7 +40,7 @@ class MockCrashEndpoint::Client : public crash_reporter::CrashReporterClient {
   }
 #endif
  private:
-  raw_ptr<MockCrashEndpoint> owner_;
+  MockCrashEndpoint* owner_;
 };
 
 MockCrashEndpoint::Report::Report(std::string query_value,
@@ -81,27 +80,18 @@ MockCrashEndpoint::Report MockCrashEndpoint::WaitForReport() {
 std::unique_ptr<net::test_server::HttpResponse>
 MockCrashEndpoint::HandleRequest(const net::test_server::HttpRequest& request) {
   GURL absolute_url = test_server_->GetURL(request.relative_url);
-  LOG(INFO) << "MockCrashEndpoint::HandleRequest(" << absolute_url.spec()
-            << ")";
   if (absolute_url.path() != kTestCrashEndpoint) {
     return nullptr;
   }
 
   ++report_count_;
   last_report_ = Report(absolute_url.query(), request.content);
-  all_reports_.push_back(*last_report_);
   auto http_response = std::make_unique<net::test_server::BasicHttpResponse>();
-  http_response->set_code(response_code_);
-  http_response->set_content(response_content_);
+  http_response->set_code(net::HTTP_OK);
+  http_response->set_content("123");
   http_response->set_content_type("text/plain");
   if (on_report_) {
     on_report_.Run();
   }
   return http_response;
-}
-
-std::ostream& operator<<(std::ostream& out,
-                         const MockCrashEndpoint::Report& report) {
-  out << "query: " << report.query << "\ncontent: " << report.content;
-  return out;
 }

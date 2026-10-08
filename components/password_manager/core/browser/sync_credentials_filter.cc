@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <algorithm>
 
 #include "base/feature_list.h"
+#include "base/macros.h"
 #include "base/metrics/user_metrics.h"
 #include "components/password_manager/core/browser/password_form_manager.h"
 #include "components/password_manager/core/browser/password_manager_util.h"
@@ -46,7 +47,7 @@ bool SyncCredentialsFilter::ShouldSave(const PasswordForm& form) const {
     // not know about the account yet.
     if (sync_util::IsGaiaCredentialPage(form.signon_realm)) {
       CoreAccountInfo primary_account = identity_manager->GetPrimaryAccountInfo(
-          signin::ConsentLevel::kSignin);
+          signin::ConsentLevel::kNotRequired);
       if (primary_account.IsEmpty() ||
           gaia::AreEmailsSame(base::UTF16ToUTF8(form.username_value),
                               primary_account.email)) {
@@ -56,8 +57,8 @@ bool SyncCredentialsFilter::ShouldSave(const PasswordForm& form) const {
   } else {
     // If kEnablePasswordsAccountStorage is NOT enabled, then don't allow saving
     // the password for the sync account specifically.
-    if (sync_util::IsSyncAccountCredential(form.url, form.username_value,
-                                           sync_service, identity_manager)) {
+    if (sync_util::IsSyncAccountCredential(form, sync_service,
+                                           identity_manager)) {
       return false;
     }
   }
@@ -67,11 +68,12 @@ bool SyncCredentialsFilter::ShouldSave(const PasswordForm& form) const {
 
 bool SyncCredentialsFilter::ShouldSaveGaiaPasswordHash(
     const PasswordForm& form) const {
-  if (base::FeatureList::IsEnabled(features::kPasswordReuseDetectionEnabled)) {
-    return !client_->IsIncognito() &&
-           sync_util::IsGaiaCredentialPage(form.signon_realm);
-  }
+#if defined(PASSWORD_REUSE_DETECTION_ENABLED)
+  return !client_->IsIncognito() &&
+         sync_util::IsGaiaCredentialPage(form.signon_realm);
+#else
   return false;
+#endif  // PASSWORD_REUSE_DETECTION_ENABLED
 }
 
 bool SyncCredentialsFilter::ShouldSaveEnterprisePasswordHash(
@@ -87,9 +89,8 @@ bool SyncCredentialsFilter::IsSyncAccountEmail(
 
 void SyncCredentialsFilter::ReportFormLoginSuccess(
     const PasswordFormManager& form_manager) const {
-  const PasswordForm& form = form_manager.GetPendingCredentials();
   if (!form_manager.IsNewLogin() &&
-      sync_util::IsSyncAccountCredential(form.url, form.username_value,
+      sync_util::IsSyncAccountCredential(form_manager.GetPendingCredentials(),
                                          sync_service_factory_function_.Run(),
                                          client_->GetIdentityManager())) {
     base::RecordAction(base::UserMetricsAction(

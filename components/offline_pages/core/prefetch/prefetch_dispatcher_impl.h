@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/offline_pages/core/offline_page_types.h"
 #include "components/offline_pages/core/prefetch/prefetch_dispatcher.h"
@@ -32,10 +32,6 @@ class PrefetchDispatcherImpl : public PrefetchDispatcher,
                                public TaskQueue::Delegate {
  public:
   explicit PrefetchDispatcherImpl(PrefService* pref_service);
-
-  PrefetchDispatcherImpl(const PrefetchDispatcherImpl&) = delete;
-  PrefetchDispatcherImpl& operator=(const PrefetchDispatcherImpl&) = delete;
-
   ~PrefetchDispatcherImpl() override;
 
   // PrefetchDispatcher implementation:
@@ -142,13 +138,15 @@ class PrefetchDispatcherImpl : public PrefetchDispatcher,
                             bool is_first_attempt,
                             const std::string& favicon_data);
 
-  raw_ptr<PrefService> pref_service_;
-  raw_ptr<PrefetchService> service_;
+  PrefService* pref_service_;
+  PrefetchService* service_;
   TaskQueue task_queue_;
   bool needs_pipeline_processing_ = false;
   bool suspended_ = false;
   std::unique_ptr<PrefetchBackgroundTask> background_task_;
   base::WeakPtrFactory<PrefetchDispatcherImpl> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PrefetchDispatcherImpl);
 };
 
 }  // namespace offline_pages

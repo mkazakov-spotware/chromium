@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -70,7 +70,7 @@ TEST_F(WebDragDestTest, URL) {
   NSString* url = nil;
   NSString* title = nil;
   GURL result_url;
-  std::u16string result_title;
+  base::string16 result_title;
 
   // Put a URL on the pasteboard and check it.
   scoped_refptr<ui::UniquePasteboard> pboard = new ui::UniquePasteboard;

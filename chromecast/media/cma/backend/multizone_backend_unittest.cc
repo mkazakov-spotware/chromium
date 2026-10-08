@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,12 +14,11 @@
 #include "base/callback_helpers.h"
 #include "base/check.h"
 #include "base/command_line.h"
-#include "base/logging.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread_checker.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "chromecast/base/task_runner_impl.h"
 #include "chromecast/media/cma/base/decoder_buffer_adapter.h"
@@ -43,10 +42,10 @@ class MultizoneBackendTest;
 namespace {
 
 // Total length of test, in microseconds.
-const int64_t kPushTimeUs = 4 * base::Time::kMicrosecondsPerSecond;
+const int64_t kPushTimeUs = 2 * base::Time::kMicrosecondsPerSecond;
 const int64_t kStartPts = 0;
 const int64_t kMaxRenderingDelayErrorUs = 200;
-const int kNumEffectsStreams = 0;
+const int kNumEffectsStreams = 1;
 const int64_t kNoTimestamp = std::numeric_limits<int64_t>::min();
 
 void IgnoreEos() {}
@@ -56,16 +55,11 @@ class BufferFeeder : public MediaPipelineBackend::Decoder::Delegate {
   BufferFeeder(const AudioConfig& config,
                bool effects_only,
                base::OnceClosure eos_cb,
-               double* rate_change_sequence,
-               int num_rate_changes);
-
-  BufferFeeder(const BufferFeeder&) = delete;
-  BufferFeeder& operator=(const BufferFeeder&) = delete;
-
+               int playback_rate_change_count);
   ~BufferFeeder() override {}
 
   void Initialize();
-  void Start();
+  void Start(float playback_rate);
   void Stop();
 
   int64_t GetMaxRenderingDelayErrorUs() {
@@ -107,9 +101,9 @@ class BufferFeeder : public MediaPipelineBackend::Decoder::Delegate {
   const bool effects_only_;
   base::OnceClosure eos_cb_;
   const int64_t push_limit_us_;
-  double* const rate_change_sequence_;
-  const int num_rate_changes_;
+  const int playback_rate_change_count_;
   const int64_t playback_rate_change_interval_us_;
+  float original_playback_rate_;
   float playback_rate_;
   std::vector<int64_t> errors_;
   bool feeding_completed_;
@@ -122,25 +116,19 @@ class BufferFeeder : public MediaPipelineBackend::Decoder::Delegate {
   int64_t next_push_playback_timestamp_;
   scoped_refptr<DecoderBufferBase> pending_buffer_;
   base::ThreadChecker thread_checker_;
-  int current_rate_index_ = 0;
-};
 
-double kTestRateSequence1[] = {0.5, 0.7, 0.99, 1.0, 1.01, 1.3, 2.0};
-double kTestRateSequence2[] = {2.0, 1.3, 1.01, 1.0, 0.99, 0.7, 0.5};
-double kTestRateSequence3[] = {1.0, 0.6, 0.7, 1.0, 1.3, 1.6, 1.0};
-double kTestRateSequence4[] = {2.0, 1.3, 1.0, 0.7, 0.6, 1.0, 0.5};
+  DISALLOW_COPY_AND_ASSIGN(BufferFeeder);
+};
 
 }  // namespace
 
-using TestParams = std::tuple<int /* sample rate */, double* /* sequence */>;
+using TestParams = std::tuple<int /* sample rate */,
+                              float /* playback rate */,
+                              bool /* change_playback_rate */>;
 
 class MultizoneBackendTest : public testing::TestWithParam<TestParams> {
  public:
   MultizoneBackendTest();
-
-  MultizoneBackendTest(const MultizoneBackendTest&) = delete;
-  MultizoneBackendTest& operator=(const MultizoneBackendTest&) = delete;
-
   ~MultizoneBackendTest() override;
 
   void SetUp() override {
@@ -159,16 +147,16 @@ class MultizoneBackendTest : public testing::TestWithParam<TestParams> {
 
   void AddEffectsStreams();
 
-  void Initialize(int sample_rate,
-                  double* rate_change_sequence,
-                  int num_rate_changes);
-  void Start();
+  void Initialize(int sample_rate, int playback_rate_change_count);
+  void Start(float playback_rate);
   void OnEndOfStream();
 
  private:
   base::test::TaskEnvironment task_environment_;
   std::vector<std::unique_ptr<BufferFeeder>> effects_feeders_;
   std::unique_ptr<BufferFeeder> audio_feeder_;
+
+  DISALLOW_COPY_AND_ASSIGN(MultizoneBackendTest);
 };
 
 namespace {
@@ -176,16 +164,15 @@ namespace {
 BufferFeeder::BufferFeeder(const AudioConfig& config,
                            bool effects_only,
                            base::OnceClosure eos_cb,
-                           double* rate_change_sequence,
-                           int num_rate_changes)
+                           int playback_rate_change_count)
     : config_(config),
       effects_only_(effects_only),
       eos_cb_(std::move(eos_cb)),
       push_limit_us_(effects_only_ ? 0 : kPushTimeUs),
-      rate_change_sequence_(rate_change_sequence),
-      num_rate_changes_(num_rate_changes),
+      playback_rate_change_count_(playback_rate_change_count),
       playback_rate_change_interval_us_(push_limit_us_ /
-                                        (num_rate_changes_ + 1)),
+                                        (playback_rate_change_count + 1)),
+      original_playback_rate_(1.0f),
       playback_rate_(1.0f),
       feeding_completed_(false),
       decoder_(nullptr),
@@ -194,9 +181,6 @@ BufferFeeder::BufferFeeder(const AudioConfig& config,
       pushed_us_when_rate_changed_(0),
       next_push_playback_timestamp_(kNoTimestamp) {
   CHECK(eos_cb_);
-  if (num_rate_changes_ > 0) {
-    CHECK(rate_change_sequence_);
-  }
 }
 
 void BufferFeeder::Initialize() {
@@ -217,16 +201,14 @@ void BufferFeeder::Initialize() {
   ASSERT_TRUE(backend_->Initialize());
 }
 
-void BufferFeeder::Start() {
-  if (num_rate_changes_ > 0) {
-    playback_rate_ = rate_change_sequence_[0];
-  }
+void BufferFeeder::Start(float playback_rate) {
   // AMP devices only support playback rates between 0.5 and 2.0.
-  ASSERT_GE(playback_rate_, 0.5f);
-  ASSERT_LE(playback_rate_, 2.0f);
+  ASSERT_GE(playback_rate, 0.5f);
+  ASSERT_LE(playback_rate, 2.0f);
+  original_playback_rate_ = playback_rate_ = playback_rate;
   ASSERT_TRUE(backend_->Start(kStartPts));
-  ASSERT_TRUE(backend_->SetPlaybackRate(playback_rate_));
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  ASSERT_TRUE(backend_->SetPlaybackRate(playback_rate));
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&BufferFeeder::FeedBuffer, base::Unretained(this)));
 }
@@ -241,13 +223,17 @@ void BufferFeeder::FeedBuffer() {
   if (feeding_completed_)
     return;
 
-  if (current_rate_index_ < num_rate_changes_ - 1 && !effects_only_ &&
+  if (playback_rate_change_count_ > 1 && !effects_only_ &&
       pushed_us_ >
           pushed_us_when_rate_changed_ + playback_rate_change_interval_us_) {
     pushed_us_when_rate_changed_ = pushed_us_;
-    ++current_rate_index_;
-    playback_rate_ = rate_change_sequence_[current_rate_index_];
-    LOG(INFO) << "Change playback rate to " << playback_rate_;
+    if (playback_rate_ != original_playback_rate_) {
+      playback_rate_ = original_playback_rate_;
+    } else if (original_playback_rate_ < 1.0) {
+      playback_rate_ = original_playback_rate_ * 2;
+    } else {
+      playback_rate_ = original_playback_rate_ / 2;
+    }
     ASSERT_TRUE(backend_->SetPlaybackRate(playback_rate_));
     // Changing the playback rate will change the rendering delay on devices
     // where playback rate changes apply to audio that has already been pushed.
@@ -270,7 +256,8 @@ void BufferFeeder::FeedBuffer() {
         new ::media::DecoderBuffer(size_bytes));
     memset(silence_buffer->writable_data(), 0, silence_buffer->data_size());
     pending_buffer_ = new media::DecoderBufferAdapter(silence_buffer);
-    pending_buffer_->set_timestamp(base::Microseconds(pushed_us_));
+    pending_buffer_->set_timestamp(
+        base::TimeDelta::FromMicroseconds(pushed_us_));
   }
   BufferStatus status = decoder_->PushBuffer(pending_buffer_.get());
   ASSERT_NE(status, MediaPipelineBackend::kBufferFailed);
@@ -307,9 +294,6 @@ void BufferFeeder::OnPushBufferComplete(BufferStatus status) {
             delay.timestamp_microseconds + delay.delay_microseconds;
         error = next_push_playback_timestamp_ -
                 expected_next_push_playback_timestamp;
-        DVLOG(2) << "expected " << expected_next_push_playback_timestamp
-                 << ", got " << next_push_playback_timestamp_
-                 << ", error = " << error;
       }
     }
     errors_.push_back(error);
@@ -319,7 +303,7 @@ void BufferFeeder::OnPushBufferComplete(BufferStatus status) {
   if (feeding_completed_)
     return;
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&BufferFeeder::FeedBuffer, base::Unretained(this)));
 }
@@ -332,8 +316,7 @@ MultizoneBackendTest::MultizoneBackendTest()
 MultizoneBackendTest::~MultizoneBackendTest() {}
 
 void MultizoneBackendTest::Initialize(int sample_rate,
-                                      double* rate_change_sequence,
-                                      int num_rate_changes) {
+                                      int playback_rate_change_count) {
   AudioConfig config;
   config.codec = kCodecPCM;
   config.channel_layout = ChannelLayout::STEREO;
@@ -346,7 +329,7 @@ void MultizoneBackendTest::Initialize(int sample_rate,
       config, false /* effects_only */,
       base::BindOnce(&MultizoneBackendTest::OnEndOfStream,
                      base::Unretained(this)),
-      rate_change_sequence, num_rate_changes);
+      playback_rate_change_count);
   audio_feeder_->Initialize();
 }
 
@@ -360,19 +343,18 @@ void MultizoneBackendTest::AddEffectsStreams() {
   effects_config.samples_per_second = 48000;
 
   for (int i = 0; i < kNumEffectsStreams; ++i) {
-    auto feeder =
-        std::make_unique<BufferFeeder>(effects_config, true /* effects_only */,
-                                       base::BindOnce(&IgnoreEos), nullptr, 0);
+    auto feeder = std::make_unique<BufferFeeder>(
+        effects_config, true /* effects_only */, base::BindOnce(&IgnoreEos), 0);
     feeder->Initialize();
     effects_feeders_.push_back(std::move(feeder));
   }
 }
 
-void MultizoneBackendTest::Start() {
+void MultizoneBackendTest::Start(float playback_rate) {
   for (auto& feeder : effects_feeders_)
-    feeder->Start();
+    feeder->Start(1.0f);
   CHECK(audio_feeder_);
-  audio_feeder_->Start();
+  audio_feeder_->Start(playback_rate);
   base::RunLoop().Run();
 }
 
@@ -387,23 +369,45 @@ void MultizoneBackendTest::OnEndOfStream() {
             kMaxRenderingDelayErrorUs);
 }
 
-TEST_P(MultizoneBackendTest, RateChanges) {
+TEST_P(MultizoneBackendTest, RenderingDelay) {
   const TestParams& params = GetParam();
   int sample_rate = testing::get<0>(params);
-  double* sequence = testing::get<1>(params);
-  Initialize(sample_rate, sequence, std::size(kTestRateSequence1));
+  float playback_rate = testing::get<1>(params);
+  bool change_playback_rate = testing::get<2>(params);
+  int playback_rate_change_count = (change_playback_rate ? 1 : 0);
+
+  Initialize(sample_rate, playback_rate_change_count);
   AddEffectsStreams();
-  Start();
+  Start(playback_rate);
+}
+
+TEST_F(MultizoneBackendTest, RenderingDelayWithMultipleRateChanges) {
+  Initialize(48000 /* sample_rate */, 10 /* playback_rate_change_count */);
+  AddEffectsStreams();
+  Start(1.0f /* playback_rate */);
 }
 
 INSTANTIATE_TEST_SUITE_P(
     Required,
     MultizoneBackendTest,
-    testing::Combine(::testing::Values(44100, 48000),
-                     ::testing::Values(kTestRateSequence1,
-                                       kTestRateSequence2,
-                                       kTestRateSequence3,
-                                       kTestRateSequence4)));
+    testing::Combine(::testing::Values(8000,
+                                       11025,
+                                       12000,
+                                       16000,
+                                       22050,
+                                       24000,
+                                       32000,
+                                       44100,
+                                       48000),
+                     ::testing::Values(0.5f, 0.99f, 1.0f, 1.01f, 2.0f),
+                     ::testing::Values(true)));
+
+INSTANTIATE_TEST_SUITE_P(
+    Optional,
+    MultizoneBackendTest,
+    testing::Combine(::testing::Values(64000, 88200, 96000),
+                     ::testing::Values(1.0f),
+                     ::testing::Values(false)));
 
 }  // namespace media
 }  // namespace chromecast

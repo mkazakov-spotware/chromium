@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,21 +11,21 @@ void InterceptingCanvasBase::UnrollDrawPicture(
     const SkMatrix* matrix,
     const SkPaint* paint,
     SkPicture::AbortCallback* abort_callback) {
-  int save_count = getSaveCount();
+  int save_count = this->getSaveCount();
   if (paint) {
     SkRect new_bounds = picture->cullRect();
     if (matrix)
       matrix->mapRect(&new_bounds);
-    saveLayer(&new_bounds, paint);
+    this->saveLayer(&new_bounds, paint);
   } else if (matrix) {
-    save();
+    this->save();
   }
   if (matrix)
-    concat(*matrix);
+    this->concat(*matrix);
 
   picture->playback(this, abort_callback);
 
-  restoreToCount(save_count);
+  this->restoreToCount(save_count);
 }
 
 }  // namespace blink

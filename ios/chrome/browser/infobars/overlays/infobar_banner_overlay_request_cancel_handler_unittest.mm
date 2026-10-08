@@ -1,23 +1,23 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/infobars/overlays/infobar_banner_overlay_request_cancel_handler.h"
 
-#import "components/infobars/core/infobar.h"
-#import "ios/chrome/browser/infobars/infobar_manager_impl.h"
+#include "components/infobars/core/infobar.h"
+#include "ios/chrome/browser/infobars/infobar_manager_impl.h"
 #import "ios/chrome/browser/infobars/overlays/fake_infobar_overlay_request_factory.h"
 #import "ios/chrome/browser/infobars/overlays/infobar_overlay_request_inserter.h"
-#import "ios/chrome/browser/infobars/overlays/infobar_overlay_util.h"
-#import "ios/chrome/browser/infobars/test/fake_infobar_delegate.h"
+#include "ios/chrome/browser/infobars/overlays/infobar_overlay_util.h"
+#include "ios/chrome/browser/infobars/test/fake_infobar_delegate.h"
 #import "ios/chrome/browser/infobars/test/fake_infobar_ios.h"
 #import "ios/chrome/browser/overlays/public/common/infobars/infobar_overlay_request_config.h"
-#import "ios/chrome/browser/overlays/public/overlay_request.h"
-#import "ios/chrome/browser/overlays/public/overlay_request_queue.h"
-#import "ios/chrome/browser/overlays/test/fake_overlay_user_data.h"
-#import "ios/web/public/test/fakes/fake_navigation_manager.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "testing/platform_test.h"
+#include "ios/chrome/browser/overlays/public/overlay_request.h"
+#include "ios/chrome/browser/overlays/public/overlay_request_queue.h"
+#include "ios/chrome/browser/overlays/test/fake_overlay_user_data.h"
+#import "ios/web/public/test/fakes/test_navigation_manager.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -32,9 +32,9 @@ class InfobarBannerOverlayRequestCancelHandlerTest : public PlatformTest {
   InfobarBannerOverlayRequestCancelHandlerTest() {
     // Set up WebState and InfoBarManager.
     web_state_.SetNavigationManager(
-        std::make_unique<web::FakeNavigationManager>());
+        std::make_unique<web::TestNavigationManager>());
     InfobarOverlayRequestInserter::CreateForWebState(
-        &web_state_, &FakeInfobarOverlayRequestFactory);
+        &web_state_, std::make_unique<FakeInfobarOverlayRequestFactory>());
     InfoBarManagerImpl::CreateForWebState(&web_state_);
   }
 
@@ -56,7 +56,7 @@ class InfobarBannerOverlayRequestCancelHandlerTest : public PlatformTest {
   }
 
  protected:
-  web::FakeWebState web_state_;
+  web::TestWebState web_state_;
 };
 
 // Tests that the request is replaced if its corresponding InfoBar is replaced

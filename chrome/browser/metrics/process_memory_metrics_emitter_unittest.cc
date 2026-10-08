@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,11 @@
 #include <utility>
 
 #include "base/containers/flat_map.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/process/process_handle.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "build/build_config.h"
+#include "chrome/browser/metrics/renderer_uptime_tracker.h"
 #include "components/services/paint_preview_compositor/public/mojom/paint_preview_compositor.mojom.h"
 #include "components/ukm/test_ukm_recorder.h"
 #include "content/public/test/browser_task_environment.h"
@@ -40,9 +40,14 @@ using UkmEntry = ukm::builders::Memory_Experimental;
 using MetricMap = base::flat_map<const char*, int64_t>;
 
 int GetResidentValue(const MetricMap& metric_map) {
+#if defined(OS_MAC)
+  // Resident set is not populated on Mac.
+  return 0;
+#else
   auto it = metric_map.find("Resident");
   EXPECT_NE(it, metric_map.end());
   return it->second;
+#endif
 }
 
 // Provide fake to surface ReceivedMemoryDump and ReceivedProcessInfos to public
@@ -54,11 +59,6 @@ class ProcessMemoryMetricsEmitterFake : public ProcessMemoryMetricsEmitter {
       : ukm_recorder_(&test_ukm_recorder) {
     MarkServiceRequestsInProgress();
   }
-
-  ProcessMemoryMetricsEmitterFake(const ProcessMemoryMetricsEmitterFake&) =
-      delete;
-  ProcessMemoryMetricsEmitterFake& operator=(
-      const ProcessMemoryMetricsEmitterFake&) = delete;
 
   void ReceivedMemoryDump(bool success,
                           std::unique_ptr<GlobalMemoryDump> ptr) override {
@@ -80,21 +80,22 @@ class ProcessMemoryMetricsEmitterFake : public ProcessMemoryMetricsEmitter {
     }
   }
 
-  absl::optional<base::TimeDelta> GetProcessUptime(
-      base::TimeTicks now,
+  base::Optional<base::TimeDelta> GetProcessUptime(
+      const base::Time& now,
       base::ProcessId pid) override {
     switch (pid) {
       case 401:
-        return base::Seconds(21);
+        return base::TimeDelta::FromSeconds(21);
       default:
-        return base::Seconds(42);
+        return base::TimeDelta::FromSeconds(42);
     }
   }
 
  private:
   ~ProcessMemoryMetricsEmitterFake() override {}
 
-  raw_ptr<ukm::UkmRecorder> ukm_recorder_;
+  ukm::UkmRecorder* ukm_recorder_;
+  DISALLOW_COPY_AND_ASSIGN(ProcessMemoryMetricsEmitterFake);
 };
 
 void SetAllocatorDumpMetric(ProcessMemoryDumpPtr& pmd,
@@ -116,7 +117,7 @@ void SetAllocatorDumpMetric(ProcessMemoryDumpPtr& pmd,
 OSMemDumpPtr GetFakeOSMemDump(uint32_t resident_set_kb,
                               uint32_t private_footprint_kb,
                               uint32_t shared_footprint_kb
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
                               ,
                               uint32_t private_swap_footprint_kb
 #endif
@@ -127,7 +128,7 @@ OSMemDumpPtr GetFakeOSMemDump(uint32_t resident_set_kb,
       resident_set_kb, resident_set_kb /* peak_resident_set_kb */,
       true /* is_peak_rss_resettable */, private_footprint_kb,
       shared_footprint_kb
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
       ,
       private_swap_footprint_kb
 #endif
@@ -158,7 +159,7 @@ void PopulateBrowserMetrics(GlobalMemoryDumpPtr& global_dump,
   OSMemDumpPtr os_dump =
       GetFakeOSMemDump(GetResidentValue(metrics_mb) * 1024,
                        metrics_mb["PrivateMemoryFootprint"] * 1024,
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
                        // accessing PrivateSwapFootprint on other OSes will
                        // modify metrics_mb to create the value, which leads to
                        // expectation failures.
@@ -175,10 +176,13 @@ void PopulateBrowserMetrics(GlobalMemoryDumpPtr& global_dump,
 MetricMap GetExpectedBrowserMetrics() {
   return MetricMap({
     {"ProcessType", static_cast<int64_t>(ProcessType::BROWSER)},
-        {"Resident", 10}, {"Malloc", 20}, {"PrivateMemoryFootprint", 30},
+#if !defined(OS_MAC)
+        {"Resident", 10},
+#endif
+        {"Malloc", 20}, {"PrivateMemoryFootprint", 30},
         {"SharedMemoryFootprint", 35}, {"Uptime", 42},
         {"GpuMemory", kGpuTotalMemory * 1024 * 1024},
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
         {"PrivateSwapFootprint", 50},
 #endif
   });
@@ -192,9 +196,6 @@ void PopulateRendererMetrics(GlobalMemoryDumpPtr& global_dump,
   pmd->process_type = ProcessType::RENDERER;
   SetAllocatorDumpMetric(pmd, "malloc", "effective_size",
                          metrics_mb_or_count["Malloc"] * 1024 * 1024);
-  SetAllocatorDumpMetric(
-      pmd, "malloc/allocated_objects", "effective_size",
-      metrics_mb_or_count["Malloc.AllocatedObjects"] * 1024 * 1024);
   SetAllocatorDumpMetric(pmd, "partition_alloc", "effective_size",
                          metrics_mb_or_count["PartitionAlloc"] * 1024 * 1024);
   SetAllocatorDumpMetric(pmd, "blink_gc", "effective_size",
@@ -213,10 +214,6 @@ void PopulateRendererMetrics(GlobalMemoryDumpPtr& global_dump,
   SetAllocatorDumpMetric(
       pmd, "v8/main/global_handles", "effective_size",
       metrics_mb_or_count["V8.Main.GlobalHandles"] * 1024 * 1024);
-  SetAllocatorDumpMetric(
-      pmd, "v8/main/global_handles", "allocated_objects_size",
-      metrics_mb_or_count["V8.Main.GlobalHandles.AllocatedObjects"] * 1024 *
-          1024);
 
   SetAllocatorDumpMetric(pmd, "v8/main/heap", "effective_size",
                          metrics_mb_or_count["V8.Main.Heap"] * 1024 * 1024);
@@ -319,14 +316,14 @@ void PopulateRendererMetrics(GlobalMemoryDumpPtr& global_dump,
   OSMemDumpPtr os_dump =
       GetFakeOSMemDump(GetResidentValue(metrics_mb_or_count) * 1024,
                        metrics_mb_or_count["PrivateMemoryFootprint"] * 1024,
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
                        // accessing PrivateSwapFootprint on other OSes will
                        // modify metrics_mb_or_count to create the value, which
                        // leads to expectation failures.
                        metrics_mb_or_count["SharedMemoryFootprint"] * 1024,
                        metrics_mb_or_count["PrivateSwapFootprint"] * 1024
 #else
-                       metrics_mb_or_count["SharedMemoryFootprint"] * 1024
+      metrics_mb_or_count["SharedMemoryFootprint"] * 1024
 #endif
       );
   pmd->os_dump = std::move(os_dump);
@@ -335,12 +332,15 @@ void PopulateRendererMetrics(GlobalMemoryDumpPtr& global_dump,
 }
 
 constexpr int kTestRendererPrivateMemoryFootprint = 130;
-constexpr int kTestRendererMalloc = 120;
 constexpr int kTestRendererSharedMemoryFootprint = 135;
 constexpr int kNativeLibraryResidentMemoryFootprint = 27560;
 constexpr int kNativeLibraryResidentNotOrderedCodeFootprint = 12345;
 constexpr int kNativeLibraryNotResidentOrderedCodeFootprint = 23456;
+
+#if !defined(OS_MAC)
 constexpr int kTestRendererResidentSet = 110;
+#endif
+
 constexpr base::ProcessId kTestRendererPid201 = 201;
 constexpr base::ProcessId kTestRendererPid202 = 202;
 constexpr base::ProcessId kTestRendererPid203 = 203;
@@ -348,15 +348,17 @@ constexpr base::ProcessId kTestRendererPid203 = 203;
 MetricMap GetExpectedRendererMetrics() {
   return MetricMap({
     {"ProcessType", static_cast<int64_t>(ProcessType::RENDERER)},
-        {"Resident", kTestRendererResidentSet}, {"Malloc", kTestRendererMalloc},
+#if !defined(OS_MAC)
+        {"Resident", kTestRendererResidentSet},
+#endif
+        {"Malloc", 120},
         {"PrivateMemoryFootprint", kTestRendererPrivateMemoryFootprint},
         {"SharedMemoryFootprint", kTestRendererSharedMemoryFootprint},
         {"PartitionAlloc", 140}, {"BlinkGC", 150}, {"V8", 160},
         {"V8.AllocatedObjects", 70}, {"V8.Main", 100},
         {"V8.Main.AllocatedObjects", 30}, {"V8.Main.Heap", 98},
-        {"V8.Main.GlobalHandles", 3},
-        {"V8.Main.GlobalHandles.AllocatedObjects", 2},
-        {"V8.Main.Heap.AllocatedObjects", 28}, {"V8.Main.Heap.CodeSpace", 11},
+        {"V8.Main.GlobalHandles", 3}, {"V8.Main.Heap.AllocatedObjects", 28},
+        {"V8.Main.Heap.CodeSpace", 11},
         {"V8.Main.Heap.CodeSpace.AllocatedObjects", 1},
         {"V8.Main.Heap.LargeObjectSpace", 12},
         {"V8.Main.Heap.LargeObjectSpace.AllocatedObjects", 2},
@@ -373,7 +375,7 @@ MetricMap GetExpectedRendererMetrics() {
         {"V8.Main.Malloc", 2}, {"V8.Workers", 60},
         {"V8.Workers.AllocatedObjects", 40}, {"NumberOfExtensions", 0},
         {"Uptime", 42},
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
         {"PrivateSwapFootprint", 50},
 #endif
         {"NumberOfAdSubframes", 28}, {"NumberOfDetachedScriptStates", 11},
@@ -407,7 +409,7 @@ void PopulateGpuMetrics(GlobalMemoryDumpPtr& global_dump,
   OSMemDumpPtr os_dump =
       GetFakeOSMemDump(GetResidentValue(metrics_mb) * 1024,
                        metrics_mb["PrivateMemoryFootprint"] * 1024,
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
                        // accessing PrivateSwapFootprint on other OSes will
                        // modify metrics_mb to create the value, which leads to
                        // expectation failures.
@@ -423,11 +425,14 @@ void PopulateGpuMetrics(GlobalMemoryDumpPtr& global_dump,
 
 MetricMap GetExpectedGpuMetrics() {
   return MetricMap({
-    {"ProcessType", static_cast<int64_t>(ProcessType::GPU)}, {"Resident", 210},
+    {"ProcessType", static_cast<int64_t>(ProcessType::GPU)},
+#if !defined(OS_MAC)
+        {"Resident", 210},
+#endif
         {"Malloc", 220}, {"PrivateMemoryFootprint", 230},
         {"SharedMemoryFootprint", 235}, {"CommandBuffer", kGpuCommandBufferMB},
         {"Uptime", 42}, {"GpuMemory", kGpuTotalMemory * 1024 * 1024},
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
         {"PrivateSwapFootprint", 50},
 #endif
   });
@@ -443,7 +448,7 @@ void PopulateAudioServiceMetrics(GlobalMemoryDumpPtr& global_dump,
   OSMemDumpPtr os_dump =
       GetFakeOSMemDump(GetResidentValue(metrics_mb) * 1024,
                        metrics_mb["PrivateMemoryFootprint"] * 1024,
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
                        // accessing PrivateSwapFootprint on other OSes will
                        // modify metrics_mb to create the value, which leads to
                        // expectation failures.
@@ -460,9 +465,12 @@ void PopulateAudioServiceMetrics(GlobalMemoryDumpPtr& global_dump,
 MetricMap GetExpectedAudioServiceMetrics() {
   return MetricMap({
     {"ProcessType", static_cast<int64_t>(ProcessType::UTILITY)},
-        {"Resident", 10}, {"Malloc", 20}, {"PrivateMemoryFootprint", 30},
+#if !defined(OS_MAC)
+        {"Resident", 10},
+#endif
+        {"Malloc", 20}, {"PrivateMemoryFootprint", 30},
         {"SharedMemoryFootprint", 35}, {"Uptime", 42},
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
         {"PrivateSwapFootprint", 50},
 #endif
   });
@@ -480,7 +488,7 @@ void PopulatePaintPreviewCompositorMetrics(GlobalMemoryDumpPtr& global_dump,
       GetFakeOSMemDump(GetResidentValue(metrics_mb) * 1024,
                        metrics_mb["PrivateMemoryFootprint"] * 1024,
                        metrics_mb["SharedMemoryFootprint"] * 1024
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
                        // accessing PrivateSwapFootprint on other OSes will
                        // modify metrics_mb to create the value, which leads to
                        // expectation failures.
@@ -495,9 +503,11 @@ void PopulatePaintPreviewCompositorMetrics(GlobalMemoryDumpPtr& global_dump,
 MetricMap GetExpectedPaintPreviewCompositorMetrics() {
   return MetricMap({
     {"ProcessType", static_cast<int64_t>(ProcessType::UTILITY)},
-        {"Resident", 10}, {"PrivateMemoryFootprint", 30},
-        {"SharedMemoryFootprint", 35},
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if !defined(OS_MAC)
+        {"Resident", 10},
+#endif
+        {"PrivateMemoryFootprint", 30}, {"SharedMemoryFootprint", 35},
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
         {"PrivateSwapFootprint", 50},
 #endif
   });
@@ -578,8 +588,9 @@ ProcessInfoVector GetProcessInfo(ukm::TestUkmRecorder& ukm_recorder) {
     page_info.tab_id = 201;
     page_info.hosts_main_frame = true;
     page_info.is_visible = true;
-    page_info.time_since_last_visibility_change = base::Seconds(15);
-    page_info.time_since_last_navigation = base::Seconds(20);
+    page_info.time_since_last_visibility_change =
+        base::TimeDelta::FromSeconds(15);
+    page_info.time_since_last_navigation = base::TimeDelta::FromSeconds(20);
     process_info.page_infos.push_back(page_info);
     process_infos.push_back(std::move(process_info));
   }
@@ -598,14 +609,16 @@ ProcessInfoVector GetProcessInfo(ukm::TestUkmRecorder& ukm_recorder) {
     page_info1.ukm_source_id = first_source_id;
     page_info1.tab_id = 2021;
     page_info1.hosts_main_frame = true;
-    page_info1.time_since_last_visibility_change = base::Seconds(11);
-    page_info1.time_since_last_navigation = base::Seconds(21);
+    page_info1.time_since_last_visibility_change =
+        base::TimeDelta::FromSeconds(11);
+    page_info1.time_since_last_navigation = base::TimeDelta::FromSeconds(21);
     PageInfo page_info2;
     page_info2.ukm_source_id = second_source_id;
     page_info2.tab_id = 2022;
     page_info2.hosts_main_frame = true;
-    page_info2.time_since_last_visibility_change = base::Seconds(12);
-    page_info2.time_since_last_navigation = base::Seconds(22);
+    page_info2.time_since_last_visibility_change =
+        base::TimeDelta::FromSeconds(12);
+    page_info2.time_since_last_navigation = base::TimeDelta::FromSeconds(22);
     process_info.page_infos.push_back(std::move(page_info1));
     process_info.page_infos.push_back(std::move(page_info2));
 
@@ -620,12 +633,6 @@ class ProcessMemoryMetricsEmitterTest
     : public testing::TestWithParam<HistogramProcessType> {
  public:
   ProcessMemoryMetricsEmitterTest() {}
-
-  ProcessMemoryMetricsEmitterTest(const ProcessMemoryMetricsEmitterTest&) =
-      delete;
-  ProcessMemoryMetricsEmitterTest& operator=(
-      const ProcessMemoryMetricsEmitterTest&) = delete;
-
   ~ProcessMemoryMetricsEmitterTest() override {}
 
  protected:
@@ -655,6 +662,9 @@ class ProcessMemoryMetricsEmitterTest
 
   content::BrowserTaskEnvironment task_environment_;
   ukm::TestAutoSetUkmRecorder test_ukm_recorder_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ProcessMemoryMetricsEmitterTest);
 };
 
 TEST_P(ProcessMemoryMetricsEmitterTest, CollectsSingleProcessUKMs) {
@@ -897,13 +907,6 @@ TEST_F(ProcessMemoryMetricsEmitterTest, RendererAndTotalHistogramsAreRecorded) {
   MetricMap expected_metrics = GetExpectedRendererMetrics();
   PopulateRendererMetrics(global_dump, expected_metrics, kTestRendererPid201);
   PopulateRendererMetrics(global_dump, expected_metrics, kTestRendererPid202);
-
-  constexpr uint64_t kMiB = 1024 * 1024;
-  SetAllocatorDumpMetric(global_dump->process_dumps[0], "cc/tile_memory",
-                         "size", 12 * kMiB);
-  SetAllocatorDumpMetric(global_dump->process_dumps[1], "cc/tile_memory",
-                         "size", 22 * kMiB);
-
   global_dump->aggregated_metrics->native_library_resident_kb =
       kNativeLibraryResidentMemoryFootprint;
   global_dump->aggregated_metrics->native_library_not_resident_ordered_kb =
@@ -918,7 +921,6 @@ TEST_F(ProcessMemoryMetricsEmitterTest, RendererAndTotalHistogramsAreRecorded) {
 
   histograms.ExpectTotalCount("Memory.Total.PrivateMemoryFootprint", 0);
   histograms.ExpectTotalCount("Memory.Total.RendererPrivateMemoryFootprint", 0);
-  histograms.ExpectTotalCount("Memory.Total.RendererMalloc", 0);
   histograms.ExpectTotalCount("Memory.Total.SharedMemoryFootprint", 0);
   histograms.ExpectTotalCount("Memory.Total.ResidentSet", 0);
   histograms.ExpectTotalCount(
@@ -927,16 +929,6 @@ TEST_F(ProcessMemoryMetricsEmitterTest, RendererAndTotalHistogramsAreRecorded) {
       "Memory.NativeLibrary.NotResidentOrderedCodeMemoryFootprint", 0);
   histograms.ExpectTotalCount(
       "Memory.NativeLibrary.ResidentNotOrderedCodeMemoryFootprint", 0);
-#if BUILDFLAG(IS_ANDROID)
-  histograms.ExpectTotalCount(
-      "Memory.Total.PrivateMemoryFootprintExcludingWaivedRenderers", 0);
-  histograms.ExpectTotalCount(
-      "Memory.Total.RendererPrivateMemoryFootprintExcludingWaived", 0);
-  histograms.ExpectTotalCount(
-      "Memory.Total.PrivateMemoryFootprintVisibleOrHigherPriorityRenderers", 0);
-  histograms.ExpectTotalCount(
-      "Memory.Total.RendererPrivateMemoryFootprintVisibleOrHigherPriority", 0);
-#endif
 
   // Simulate some metrics emission.
   scoped_refptr<ProcessMemoryMetricsEmitterFake> emitter =
@@ -950,22 +942,25 @@ TEST_F(ProcessMemoryMetricsEmitterTest, RendererAndTotalHistogramsAreRecorded) {
                                 kTestRendererPrivateMemoryFootprint, 2);
   histograms.ExpectUniqueSample("Memory.Renderer.SharedMemoryFootprint",
                                 kTestRendererSharedMemoryFootprint, 2);
+#if defined(OS_MAC)
+  histograms.ExpectTotalCount("Memory.Renderer.ResidentSet", 0);
+#else
   histograms.ExpectUniqueSample("Memory.Renderer.ResidentSet",
                                 kTestRendererResidentSet, 2);
+#endif
 
   histograms.ExpectUniqueSample("Memory.Total.PrivateMemoryFootprint",
                                 2 * kTestRendererPrivateMemoryFootprint, 1);
   histograms.ExpectUniqueSample("Memory.Total.RendererPrivateMemoryFootprint",
                                 2 * kTestRendererPrivateMemoryFootprint, 1);
-  histograms.ExpectUniqueSample("Memory.Total.RendererMalloc",
-                                2 * kTestRendererMalloc, 1);
   histograms.ExpectUniqueSample("Memory.Total.SharedMemoryFootprint",
                                 2 * kTestRendererSharedMemoryFootprint, 1);
+#if defined(OS_MAC)
+  histograms.ExpectTotalCount("Memory.Total.ResidentSet", 0);
+#else
   histograms.ExpectUniqueSample("Memory.Total.ResidentSet",
                                 2 * kTestRendererResidentSet, 1);
-
-  histograms.ExpectUniqueSample("Memory.Total.TileMemory", 12 + 22, 1);
-
+#endif
   histograms.ExpectUniqueSample(
       "Memory.NativeLibrary.MappedAndResidentMemoryFootprint3",
       kNativeLibraryResidentMemoryFootprint, 1);
@@ -975,20 +970,6 @@ TEST_F(ProcessMemoryMetricsEmitterTest, RendererAndTotalHistogramsAreRecorded) {
   histograms.ExpectUniqueSample(
       "Memory.NativeLibrary.ResidentNotOrderedCodeMemoryFootprint",
       kNativeLibraryResidentNotOrderedCodeFootprint, 1);
-#if BUILDFLAG(IS_ANDROID)
-  // Expect values of 0 as the Renderer is not in the list of active processes
-  // and is therefore considered UNBOUND and will not emit these values.
-  histograms.ExpectUniqueSample(
-      "Memory.Total.PrivateMemoryFootprintExcludingWaivedRenderers", 0, 1);
-  histograms.ExpectUniqueSample(
-      "Memory.Total.RendererPrivateMemoryFootprintExcludingWaived", 0, 1);
-  histograms.ExpectUniqueSample(
-      "Memory.Total.PrivateMemoryFootprintVisibleOrHigherPriorityRenderers", 0,
-      1);
-  histograms.ExpectUniqueSample(
-      "Memory.Total.RendererPrivateMemoryFootprintVisibleOrHigherPriority", 0,
-      1);
-#endif
 }
 
 TEST_F(ProcessMemoryMetricsEmitterTest, MainFramePMFEmitted) {

@@ -1,13 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_COMMANDER_COMMANDER_VIEW_MODEL_H_
 #define CHROME_BROWSER_UI_COMMANDER_COMMANDER_VIEW_MODEL_H_
 
-#include <string>
 #include <vector>
 
+#include "base/strings/string16.h"
 #include "chrome/browser/ui/commander/command_source.h"
 #include "ui/gfx/range/range.h"
 
@@ -17,15 +17,15 @@ namespace commander {
 struct CommandItemViewModel {
  public:
   CommandItemViewModel(
-      const std::u16string& title,
+      const base::string16& title,
       const std::vector<gfx::Range>& matched_ranges,
       CommandItem::Entity entity_type = CommandItem::Entity::kCommand,
-      const std::u16string& annotation = std::u16string());
+      const base::string16& annotation = base::string16());
   explicit CommandItemViewModel(const CommandItem& item);
   ~CommandItemViewModel();
   CommandItemViewModel(const CommandItemViewModel& other);
   // The displayed title of the command.
-  std::u16string title;
+  base::string16 title;
   // The locations of spans in |title| that should be emphasised to
   // indicate to the user why the command was surfaced for their input.
   std::vector<gfx::Range> matched_ranges;
@@ -33,7 +33,7 @@ struct CommandItemViewModel {
   CommandItem::Entity entity_type;
   // Optional secondary text for the command. Typically used to display a
   // hotkey.
-  std::u16string annotation;
+  base::string16 annotation;
 };
 
 // A view model for a set of results to be presented by the commander UI.
@@ -61,7 +61,7 @@ struct CommanderViewModel {
   std::vector<CommandItemViewModel> items;
   // Prompt text to be shown when entering a composite command. Should only
   // be populated if and only if `action` is kPrompt.
-  std::u16string prompt_text;
+  base::string16 prompt_text;
   // The action the view should take in response to receiving this view model.
   Action action;
 };

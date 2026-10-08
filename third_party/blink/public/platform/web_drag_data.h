@@ -33,9 +33,8 @@
 
 #include "base/memory/scoped_refptr.h"
 #include "services/network/public/mojom/referrer_policy.mojom-shared.h"
-#include "third_party/blink/public/mojom/file_system_access/file_system_access_data_transfer_token.mojom-shared.h"
+#include "third_party/blink/public/mojom/file_system_access/native_file_system_drag_drop_token.mojom-shared.h"
 #include "third_party/blink/public/platform/cross_variant_mojo_util.h"
-#include "third_party/blink/public/platform/web_blob_info.h"
 #include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/platform/web_data.h"
 #include "third_party/blink/public/platform/web_string.h"
@@ -46,13 +45,13 @@ namespace blink {
 template <typename T>
 class WebVector;
 
-using FileSystemAccessDropData =
+using NativeFileSystemDropData =
     base::RefCountedData<blink::CrossVariantMojoRemote<
-        mojom::FileSystemAccessDataTransferTokenInterfaceBase>>;
+        mojom::NativeFileSystemDragDropTokenInterfaceBase>>;
 
 // Holds data that may be exchanged through a drag-n-drop operation. It is
 // inexpensive to copy a WebDragData object.
-class BLINK_PLATFORM_EXPORT WebDragData {
+class WebDragData {
  public:
   struct Item {
     enum StorageType {
@@ -85,11 +84,10 @@ class BLINK_PLATFORM_EXPORT WebDragData {
     // Only valid when storage_type == kStorageTypeFilename.
     WebString filename_data;
     WebString display_name_data;
-    scoped_refptr<FileSystemAccessDropData> file_system_access_entry;
+    scoped_refptr<NativeFileSystemDropData> native_file_system_entry;
 
     // Only valid when storage_type == kStorageTypeBinaryData.
     WebData binary_data;
-    bool binary_data_image_accessible;
     WebURL binary_data_source_url;
     WebString binary_data_filename_extension;
     WebString binary_data_content_disposition;
@@ -98,7 +96,6 @@ class BLINK_PLATFORM_EXPORT WebDragData {
     WebURL file_system_url;
     int64_t file_system_file_size;
     WebString file_system_id;
-    WebBlobInfo file_system_blob_info;
   };
 
   WebDragData() = default;
@@ -111,12 +108,12 @@ class BLINK_PLATFORM_EXPORT WebDragData {
 
   WebVector<Item> Items() const { return item_list_; }
 
-  void SetItems(WebVector<Item> item_list);
+  BLINK_PLATFORM_EXPORT void SetItems(WebVector<Item> item_list);
   // FIXME: SetItems is slow because SetItems copies WebVector.
   // Instead, use SwapItems.
   void SwapItems(WebVector<Item>& item_list) { item_list_.Swap(item_list); }
 
-  void AddItem(const Item&);
+  BLINK_PLATFORM_EXPORT void AddItem(const Item&);
 
   WebString FilesystemId() const { return filesystem_id_; }
 
@@ -146,4 +143,4 @@ class BLINK_PLATFORM_EXPORT WebDragData {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_DRAG_DATA_H_
+#endif

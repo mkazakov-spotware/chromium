@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,44 +6,17 @@
 #define COMPONENTS_TRANSLATE_CORE_BROWSER_TRANSLATE_DRIVER_H_
 
 #include <string>
-
-#include "base/observer_list.h"
-#include "base/scoped_observation_traits.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
 
 class GURL;
 
 namespace translate {
 
-struct LanguageDetectionDetails;
-
 // Interface that allows Translate core code to interact with its driver (i.e.,
 // obtain information from it and give information to it). A concrete
 // implementation must be provided by the driver.
 class TranslateDriver {
  public:
-  class LanguageDetectionObserver : public base::CheckedObserver {
-   public:
-    // Called when the observed instance is being destroyed so that observers
-    // can reset their pointers to the TranslateDriver.
-    virtual void OnTranslateDriverDestroyed(TranslateDriver* driver) {}
-
-    // Called when the page language has been detected.
-    virtual void OnLanguageDetermined(
-        const translate::LanguageDetectionDetails& details) {}
-  };
-
-  TranslateDriver();
-  TranslateDriver(TranslateDriver&&) = delete;
-  TranslateDriver& operator=(TranslateDriver&&) = delete;
-  TranslateDriver(const TranslateDriver&) = delete;
-  TranslateDriver& operator=(const TranslateDriver&) = delete;
-  virtual ~TranslateDriver();
-
-  // Adds or removes observers.
-  void AddLanguageDetectionObserver(LanguageDetectionObserver* observer);
-  void RemoveLanguageDetectionObserver(LanguageDetectionObserver* observer);
-
   // Returns true if the current page was navigated through a link.
   virtual bool IsLinkNavigation() = 0;
 
@@ -52,13 +25,6 @@ class TranslateDriver {
 
   // Called when the page is "translated" state of the page changed.
   virtual void OnIsPageTranslatedChanged() = 0;
-
-  // Called when a translation starts. The driver can do preparation work by
-  // overriding this method.
-  virtual void PrepareToTranslatePage(int page_seq_no,
-                                      const std::string& original_source_lang,
-                                      const std::string& target_lang,
-                                      bool triggered_from_menu) {}
 
   // Translates the page contents from |source_lang| to |target_lang|.
   virtual void TranslatePage(int page_seq_no,
@@ -90,38 +56,8 @@ class TranslateDriver {
 
   // Opens |url| in a new tab.
   virtual void OpenUrlInNewTab(const GURL& url) = 0;
-
- protected:
-  const base::ObserverList<LanguageDetectionObserver, true>&
-  language_detection_observers() const {
-    return language_detection_observers_;
-  }
-
- private:
-  base::ObserverList<LanguageDetectionObserver, true>
-      language_detection_observers_;
 };
 
 }  // namespace translate
-
-namespace base {
-
-template <>
-struct ScopedObservationTraits<
-    translate::TranslateDriver,
-    translate::TranslateDriver::LanguageDetectionObserver> {
-  static void AddObserver(
-      translate::TranslateDriver* source,
-      translate::TranslateDriver::LanguageDetectionObserver* observer) {
-    source->AddLanguageDetectionObserver(observer);
-  }
-  static void RemoveObserver(
-      translate::TranslateDriver* source,
-      translate::TranslateDriver::LanguageDetectionObserver* observer) {
-    source->RemoveLanguageDetectionObserver(observer);
-  }
-};
-
-}  // namespace base
 
 #endif  // COMPONENTS_TRANSLATE_CORE_BROWSER_TRANSLATE_DRIVER_H_

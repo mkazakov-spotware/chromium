@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 
 #include <string>
 
-#include "build/build_config.h"
-#include "media/cdm/cdm_type.h"
 #include "media/media_buildflags.h"
 
 namespace media {
@@ -15,17 +13,16 @@ namespace media {
 // Name of the ClearKey CDM library.
 const char kClearKeyCdmLibraryName[] = "clearkeycdm";
 
-const char kClearKeyCdmBaseDirectory[] =
-#if BUILDFLAG(IS_FUCHSIA)
-    "lib/"
-#endif
-    "ClearKeyCdm";
-
+const char kClearKeyCdmBaseDirectory[] = "ClearKeyCdm";
 const char kClearKeyCdmDisplayName[] = "Clear Key CDM";
+const base::Token kClearKeyCdmGuid{0x3a2e0fadde4bd1b7ull,
+                                   0xcb90df3e240d1694ull};
+const base::Token kClearKeyCdmDifferentGuid{0xc3914773474bdb02ull,
+                                            0x8e8de4d84d3ca030ull};
 
-const CdmType kClearKeyCdmType{0x3a2e0fadde4bd1b7ull, 0xcb90df3e240d1694ull};
-const CdmType kClearKeyCdmDifferentCdmType{0xc3914773474bdb02ull,
-                                           0x8e8de4d84d3ca030ull};
+// As the file system was initially used by the CDM running as a pepper plugin,
+// this ID is based on the pepper plugin MIME type.
+const char kClearKeyCdmFileSystemId[] = "application_x-ppapi-clearkey-cdm";
 
 base::FilePath GetPlatformSpecificDirectory(
     const base::FilePath& cdm_base_path) {
@@ -41,14 +38,5 @@ base::FilePath GetPlatformSpecificDirectory(const std::string& cdm_base_path) {
   return GetPlatformSpecificDirectory(
       base::FilePath::FromUTF8Unsafe(cdm_base_path));
 }
-
-#if BUILDFLAG(IS_WIN)
-base::FilePath GetCdmStorePath(const base::FilePath& cdm_store_path_root,
-                               const base::UnguessableToken& cdm_origin_id,
-                               const std::string& key_system) {
-  return cdm_store_path_root.AppendASCII(cdm_origin_id.ToString())
-      .AppendASCII(key_system);
-}
-#endif  // BUILDFLAG(IS_WIN)
 
 }  // namespace media

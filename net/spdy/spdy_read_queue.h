@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "base/containers/circular_deque.h"
+#include "base/macros.h"
 #include "net/base/net_export.h"
 
 namespace net {
@@ -20,10 +21,6 @@ class SpdyBuffer;
 class NET_EXPORT_PRIVATE SpdyReadQueue {
  public:
   SpdyReadQueue();
-
-  SpdyReadQueue(const SpdyReadQueue&) = delete;
-  SpdyReadQueue& operator=(const SpdyReadQueue&) = delete;
-
   ~SpdyReadQueue();
 
   // Returns whether there's anything in the queue.
@@ -46,7 +43,9 @@ class NET_EXPORT_PRIVATE SpdyReadQueue {
   // Class invariant:
   // |total_size_| is the sum of GetRemainingSize() of |queue_|'s elements.
   base::circular_deque<std::unique_ptr<SpdyBuffer>> queue_;
-  size_t total_size_ = 0;
+  size_t total_size_;
+
+  DISALLOW_COPY_AND_ASSIGN(SpdyReadQueue);
 };
 
 }  // namespace net

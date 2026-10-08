@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -14,8 +14,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-
-USE_PYTHON3 = True
 
 _INCOMPATIBLE_API_ERROR_STRING = """You have made an incompatible API change.
 Generally this means one of the following:
@@ -40,7 +38,7 @@ class AidlFile:
     self.file_name = os.path.basename(self.path_in_repo)
     current_dir = self.path_in_repo
     packages = []
-    while current_dir != '':
+    while current_dir is not '':
       dir_name, base_name = os.path.split(current_dir)
       packages.append(base_name)
       if base_name == 'org':
@@ -72,10 +70,6 @@ class AidlFile:
 def _CompareApiDumpForFiles(input_api, output_api, aidl_files):
   if len(aidl_files) == 0:
     return []
-  # These tests fail to run on Windows (devil_chromium needs some non-standard
-  # Windows modules) and given the Android dependencies this is reasonable.
-  if input_api.is_windows:
-    return []
 
   repo_root = input_api.change.RepositoryRoot()
   build_android_dir = os.path.join(repo_root, 'build', 'android')
@@ -85,14 +79,7 @@ def _CompareApiDumpForFiles(input_api, output_api, aidl_files):
   from devil.android.sdk import build_tools
   devil_chromium.Initialize()
 
-  try:
-    aidl_tool_path = build_tools.GetPath('aidl')
-  except Exception as e:
-    if input_api.no_diffs:
-      # If we are running presubmits with --all or --files and the 'aidl' tool
-      # cannot be found then that probably means that target_os = 'android' is
-      # missing from .gclient and the failure is not interesting.
-      return []
+  aidl_tool_path = build_tools.GetPath('aidl')
   if not os.path.exists(aidl_tool_path):
     return [output_api.PresubmitError(
         'Android sdk does not contain aidl command ' + aidl_tool_path)]

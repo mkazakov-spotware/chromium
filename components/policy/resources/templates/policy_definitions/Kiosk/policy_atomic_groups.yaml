@@ -1,8 +1,0 @@
-Kiosk:
-  caption: Kiosk settings
-  policies:
-  - DeviceLocalAccounts
-  - DeviceLocalAccountAutoLoginId
-  - DeviceLocalAccountAutoLoginDelay
-  - DeviceLocalAccountAutoLoginBailoutEnabled
-  - DeviceLocalAccountPromptForNetworkWhenOffline

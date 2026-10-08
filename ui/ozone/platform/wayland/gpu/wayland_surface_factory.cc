@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,9 @@
 #include <memory>
 
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "ui/gfx/linux/client_native_pixmap_dmabuf.h"
-#include "ui/gl/gl_bindings.h"
-#include "ui/gl/gl_surface_egl.h"
 #include "ui/ozone/common/egl_util.h"
 #include "ui/ozone/common/gl_ozone_egl.h"
-#include "ui/ozone/common/native_pixmap_egl_binding.h"
 #include "ui/ozone/platform/wayland/common/wayland_object.h"
 #include "ui/ozone/platform/wayland/gpu/gl_surface_egl_readback_wayland.h"
 #include "ui/ozone/platform/wayland/gpu/gl_surface_wayland.h"
@@ -42,72 +38,30 @@ class GLOzoneEGLWayland : public GLOzoneEGL {
   GLOzoneEGLWayland(WaylandConnection* connection,
                     WaylandBufferManagerGpu* buffer_manager)
       : connection_(connection), buffer_manager_(buffer_manager) {}
-
-  GLOzoneEGLWayland(const GLOzoneEGLWayland&) = delete;
-  GLOzoneEGLWayland& operator=(const GLOzoneEGLWayland&) = delete;
-
   ~GLOzoneEGLWayland() override {}
 
-  bool CanImportNativePixmap() override;
-
-  std::unique_ptr<NativePixmapGLBinding> ImportNativePixmap(
-      scoped_refptr<gfx::NativePixmap> pixmap,
-      gfx::BufferFormat plane_format,
-      gfx::BufferPlane plane,
-      gfx::Size plane_size,
-      const gfx::ColorSpace& color_space,
-      GLenum target,
-      GLuint texture_id) override;
-
   scoped_refptr<gl::GLSurface> CreateViewGLSurface(
-      gl::GLDisplay* display,
       gfx::AcceleratedWidget widget) override;
 
   scoped_refptr<gl::GLSurface> CreateSurfacelessViewGLSurface(
-      gl::GLDisplay* display,
       gfx::AcceleratedWidget window) override;
 
   scoped_refptr<gl::GLSurface> CreateOffscreenGLSurface(
-      gl::GLDisplay* display,
       const gfx::Size& size) override;
 
  protected:
   gl::EGLDisplayPlatform GetNativeDisplay() override;
-  bool LoadGLES2Bindings(const gl::GLImplementationParts& impl) override;
+  bool LoadGLES2Bindings(gl::GLImplementation impl) override;
 
  private:
-  const raw_ptr<WaylandConnection> connection_;
-  const raw_ptr<WaylandBufferManagerGpu> buffer_manager_;
+  WaylandConnection* const connection_;
+  WaylandBufferManagerGpu* const buffer_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(GLOzoneEGLWayland);
 };
 
-bool GLOzoneEGLWayland::CanImportNativePixmap() {
-  return gl::GLSurfaceEGL::GetGLDisplayEGL()
-      ->ext->b_EGL_EXT_image_dma_buf_import;
-}
-
-std::unique_ptr<NativePixmapGLBinding> GLOzoneEGLWayland::ImportNativePixmap(
-    scoped_refptr<gfx::NativePixmap> pixmap,
-    gfx::BufferFormat plane_format,
-    gfx::BufferPlane plane,
-    gfx::Size plane_size,
-    const gfx::ColorSpace& color_space,
-    GLenum target,
-    GLuint texture_id) {
-  return NativePixmapEGLBinding::Create(pixmap, plane_format, plane, plane_size,
-                                        color_space, target, texture_id);
-}
-
 scoped_refptr<gl::GLSurface> GLOzoneEGLWayland::CreateViewGLSurface(
-    gl::GLDisplay* display,
     gfx::AcceleratedWidget widget) {
-  // If we run with software GL implementation, use GLSurface which will read
-  // pixels back and present via shared memory.
-  if (gl::IsSoftwareGLImplementation(gl::GetGLImplementationParts())) {
-    return gl::InitializeGLSurface(
-        base::MakeRefCounted<GLSurfaceEglReadbackWayland>(
-            display->GetAs<gl::GLDisplayEGL>(), widget, buffer_manager_));
-  }
-
   // Only EGLGLES2 is supported with surfaceless view gl.
   if ((gl::GetGLImplementation() != gl::kGLImplementationEGLGLES2) ||
       !connection_)
@@ -123,22 +77,22 @@ scoped_refptr<gl::GLSurface> GLOzoneEGLWayland::CreateViewGLSurface(
   auto egl_window = CreateWaylandEglWindow(window);
   if (!egl_window)
     return nullptr;
-  return gl::InitializeGLSurface(new GLSurfaceWayland(
-      display->GetAs<gl::GLDisplayEGL>(), std::move(egl_window), window));
+  return gl::InitializeGLSurface(new GLSurfaceWayland(std::move(egl_window)));
 }
 
 scoped_refptr<gl::GLSurface> GLOzoneEGLWayland::CreateSurfacelessViewGLSurface(
-    gl::GLDisplay* display,
     gfx::AcceleratedWidget window) {
-  if (gl::IsSoftwareGLImplementation(gl::GetGLImplementationParts())) {
-    return nullptr;
+  if (gl::GetGLImplementation() == gl::kGLImplementationSwiftShaderGL) {
+    return gl::InitializeGLSurface(
+        base::MakeRefCounted<GLSurfaceEglReadbackWayland>(window,
+                                                          buffer_manager_));
   } else {
 #if defined(WAYLAND_GBM)
   // If there is a gbm device available, use surfaceless gl surface.
-  if (!buffer_manager_->GetGbmDevice())
+  if (!buffer_manager_->gbm_device())
     return nullptr;
-  return gl::InitializeGLSurface(new GbmSurfacelessWayland(
-      display->GetAs<gl::GLDisplayEGL>(), buffer_manager_, window));
+  return gl::InitializeGLSurface(
+      new GbmSurfacelessWayland(buffer_manager_, window));
 #else
   return nullptr;
 #endif
@@ -146,15 +100,12 @@ scoped_refptr<gl::GLSurface> GLOzoneEGLWayland::CreateSurfacelessViewGLSurface(
 }
 
 scoped_refptr<gl::GLSurface> GLOzoneEGLWayland::CreateOffscreenGLSurface(
-    gl::GLDisplay* display,
     const gfx::Size& size) {
-  if (display->GetAs<gl::GLDisplayEGL>()->IsEGLSurfacelessContextSupported() &&
+  if (gl::GLSurfaceEGL::IsEGLSurfacelessContextSupported() &&
       size.width() == 0 && size.height() == 0) {
-    return gl::InitializeGLSurface(
-        new gl::SurfacelessEGL(display->GetAs<gl::GLDisplayEGL>(), size));
+    return gl::InitializeGLSurface(new gl::SurfacelessEGL(size));
   } else {
-    return gl::InitializeGLSurface(
-        new gl::PbufferGLSurfaceEGL(display->GetAs<gl::GLDisplayEGL>(), size));
+    return gl::InitializeGLSurface(new gl::PbufferGLSurfaceEGL(size));
   }
 }
 
@@ -165,8 +116,7 @@ gl::EGLDisplayPlatform GLOzoneEGLWayland::GetNativeDisplay() {
   return gl::EGLDisplayPlatform(EGL_DEFAULT_DISPLAY);
 }
 
-bool GLOzoneEGLWayland::LoadGLES2Bindings(
-    const gl::GLImplementationParts& impl) {
+bool GLOzoneEGLWayland::LoadGLES2Bindings(gl::GLImplementation impl) {
   // TODO: It may not be necessary to set this environment variable when using
   // swiftshader.
   setenv("EGL_PLATFORM", "wayland", 0);
@@ -190,23 +140,21 @@ WaylandSurfaceFactory::CreateCanvasForWidget(gfx::AcceleratedWidget widget) {
   return std::make_unique<WaylandCanvasSurface>(buffer_manager_, widget);
 }
 
-std::vector<gl::GLImplementationParts>
+std::vector<gl::GLImplementation>
 WaylandSurfaceFactory::GetAllowedGLImplementations() {
-  std::vector<gl::GLImplementationParts> impls;
+  std::vector<gl::GLImplementation> impls;
   if (egl_implementation_) {
-    impls.emplace_back(
-        gl::GLImplementationParts(gl::kGLImplementationEGLGLES2));
-    impls.emplace_back(
-        gl::GLImplementationParts(gl::ANGLEImplementation::kSwiftShader));
+    impls.push_back(gl::kGLImplementationEGLGLES2);
+    impls.push_back(gl::kGLImplementationSwiftShaderGL);
   }
   return impls;
 }
 
 GLOzone* WaylandSurfaceFactory::GetGLOzone(
-    const gl::GLImplementationParts& implementation) {
-  switch (implementation.gl) {
+    gl::GLImplementation implementation) {
+  switch (implementation) {
     case gl::kGLImplementationEGLGLES2:
-    case gl::kGLImplementationEGLANGLE:
+    case gl::kGLImplementationSwiftShaderGL:
       return egl_implementation_.get();
     default:
       return nullptr;
@@ -215,28 +163,29 @@ GLOzone* WaylandSurfaceFactory::GetGLOzone(
 
 #if BUILDFLAG(ENABLE_VULKAN)
 std::unique_ptr<gpu::VulkanImplementation>
-WaylandSurfaceFactory::CreateVulkanImplementation(bool use_swiftshader,
-                                                  bool allow_protected_memory) {
-  return std::make_unique<VulkanImplementationWayland>(use_swiftshader);
+WaylandSurfaceFactory::CreateVulkanImplementation(
+    bool allow_protected_memory,
+    bool enforce_protected_memory) {
+  return std::make_unique<VulkanImplementationWayland>();
 }
 #endif
 
 scoped_refptr<gfx::NativePixmap> WaylandSurfaceFactory::CreateNativePixmap(
     gfx::AcceleratedWidget widget,
-    gpu::VulkanDeviceQueue* device_queue,
+    VkDevice vk_device,
     gfx::Size size,
     gfx::BufferFormat format,
     gfx::BufferUsage usage,
-    absl::optional<gfx::Size> framebuffer_size) {
-  if (framebuffer_size &&
-      !gfx::Rect(size).Contains(gfx::Rect(*framebuffer_size))) {
-    return nullptr;
-  }
+    base::Optional<gfx::Size> framebuffer_size) {
+  DCHECK(!framebuffer_size || framebuffer_size == size);
 #if defined(WAYLAND_GBM)
   scoped_refptr<GbmPixmapWayland> pixmap =
       base::MakeRefCounted<GbmPixmapWayland>(buffer_manager_);
 
-  if (!pixmap->InitializeBuffer(widget, size, format, usage, framebuffer_size))
+  if (widget != gfx::kNullAcceleratedWidget)
+    pixmap->SetAcceleratedWiget(widget);
+
+  if (!pixmap->InitializeBuffer(size, format, usage))
     return nullptr;
   return pixmap;
 #else
@@ -246,7 +195,7 @@ scoped_refptr<gfx::NativePixmap> WaylandSurfaceFactory::CreateNativePixmap(
 
 void WaylandSurfaceFactory::CreateNativePixmapAsync(
     gfx::AcceleratedWidget widget,
-    gpu::VulkanDeviceQueue* device_queue,
+    VkDevice vk_device,
     gfx::Size size,
     gfx::BufferFormat format,
     gfx::BufferUsage usage,
@@ -254,7 +203,7 @@ void WaylandSurfaceFactory::CreateNativePixmapAsync(
   // CreateNativePixmap is non-blocking operation. Thus, it is safe to call it
   // and return the result with the provided callback.
   std::move(callback).Run(
-      CreateNativePixmap(widget, device_queue, size, format, usage));
+      CreateNativePixmap(widget, vk_device, size, format, usage));
 }
 
 scoped_refptr<gfx::NativePixmap>
@@ -263,36 +212,8 @@ WaylandSurfaceFactory::CreateNativePixmapFromHandle(
     gfx::Size size,
     gfx::BufferFormat format,
     gfx::NativePixmapHandle handle) {
-#if defined(WAYLAND_GBM)
-  scoped_refptr<GbmPixmapWayland> pixmap =
-      base::MakeRefCounted<GbmPixmapWayland>(buffer_manager_);
-
-  if (!pixmap->InitializeBufferFromHandle(widget, size, format,
-                                          std::move(handle)))
-    return nullptr;
-  return pixmap;
-#else
+  NOTIMPLEMENTED();
   return nullptr;
-#endif
-}
-
-bool WaylandSurfaceFactory::SupportsNativePixmaps() const {
-  bool supports_native_pixmaps = false;
-#if defined(WAYLAND_GBM)
-  supports_native_pixmaps = buffer_manager_->GetGbmDevice() != nullptr;
-#endif
-  // Native pixmaps are not supported with swiftshader.
-  if (gl::IsSoftwareGLImplementation(gl::GetGLImplementationParts())) {
-    supports_native_pixmaps = false;
-  }
-  return supports_native_pixmaps;
-}
-
-absl::optional<gfx::BufferFormat>
-WaylandSurfaceFactory::GetPreferredFormatForSolidColor() const {
-  if (!buffer_manager_->SupportsFormat(gfx::BufferFormat::RGBA_8888))
-    return gfx::BufferFormat::BGRA_8888;
-  return gfx::BufferFormat::RGBA_8888;
 }
 
 }  // namespace ui

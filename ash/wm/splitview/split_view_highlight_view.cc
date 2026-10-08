@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,31 +6,25 @@
 
 #include "ash/display/screen_orientation_controller.h"
 #include "ash/shell.h"
-#include "ash/style/ash_color_provider.h"
+#include "ash/style/default_color_constants.h"
+#include "ash/style/default_colors.h"
 #include "ash/wm/splitview/split_view_controller.h"
-#include "base/i18n/rtl.h"
-#include "ui/compositor/layer.h"
-#include "ui/compositor/layer_type.h"
-#include "ui/gfx/geometry/rounded_corners_f.h"
-#include "ui/views/background.h"
-#include "ui/views/highlight_border.h"
 #include "ui/views/view.h"
 #include "ui/views/view_observer.h"
-#include "ui/views/widget/widget.h"
 
 namespace ash {
 
 namespace {
 
 // The amount of round applied to the corners of the highlight views.
-constexpr int kHighlightScreenRoundRectRadius = 4;
+constexpr gfx::RoundedCornersF kHighlightScreenRoundRectRadii(4.f);
 
 // Self deleting animation observer that removes clipping on View's layer and
 // optionally sets bounds after the animation ends.
 class ClippingObserver : public ui::ImplicitAnimationObserver,
                          public views::ViewObserver {
  public:
-  ClippingObserver(views::View* view, absl::optional<gfx::Rect> bounds)
+  ClippingObserver(views::View* view, base::Optional<gfx::Rect> bounds)
       : view_(view), bounds_(bounds) {
     view_->AddObserver(this);
   }
@@ -52,40 +46,26 @@ class ClippingObserver : public ui::ImplicitAnimationObserver,
 
  private:
   views::View* const view_;
-  absl::optional<gfx::Rect> bounds_;
+  base::Optional<gfx::Rect> bounds_;
 };
 
 }  // namespace
 
 SplitViewHighlightView::SplitViewHighlightView(bool is_right_or_bottom)
     : is_right_or_bottom_(is_right_or_bottom) {
-  SetPaintToLayer(ui::LAYER_TEXTURED);
-  SetBackground(views::CreateRoundedRectBackground(
-      AshColorProvider::Get()->GetBackgroundColor(),
-      kHighlightScreenRoundRectRadius));
+  SetPaintToLayer(ui::LAYER_SOLID_COLOR);
   layer()->SetFillsBoundsOpaquely(false);
-  layer()->SetRoundedCornerRadius(
-      gfx::RoundedCornersF{kHighlightScreenRoundRectRadius});
+  layer()->SetColor(
+      DeprecatedGetBackgroundColor(kSplitviewHighlightViewBackgroundColor));
+  layer()->SetRoundedCornerRadius(kHighlightScreenRoundRectRadii);
   layer()->SetIsFastRoundedCorner(true);
 }
 
 SplitViewHighlightView::~SplitViewHighlightView() = default;
 
-void SplitViewHighlightView::OnThemeChanged() {
-  views::View::OnThemeChanged();
-  background()->SetNativeControlColor(
-      AshColorProvider::Get()->GetBackgroundColor());
-  if (chromeos::features::IsDarkLightModeEnabled()) {
-    SetBorder(std::make_unique<views::HighlightBorder>(
-        kHighlightScreenRoundRectRadius,
-        views::HighlightBorder::Type::kHighlightBorder1,
-        /*use_light_colors=*/false));
-  }
-}
-
 void SplitViewHighlightView::SetBounds(
     const gfx::Rect& bounds,
-    const absl::optional<SplitviewAnimationType>& animation_type) {
+    const base::Optional<SplitviewAnimationType>& animation_type) {
   if (bounds == this->bounds())
     return;
 
@@ -115,16 +95,13 @@ void SplitViewHighlightView::SetBounds(
       *animation_type == SPLITVIEW_ANIMATION_PREVIEW_AREA_NIX_INSET;
   if (is_right_or_bottom_ || nix_animation) {
     gfx::Vector2d clip_offset = bounds.origin() - old_bounds.origin();
-    // Make sure a widget exists because the test might not add it.
-    DCHECK(GetWidget());
+
     // RTL is a special case since for the right highlight we will receive a
     // mirrored rect whose origin will not change. In this case the clip rect
     // offset should be the change in width. Portrait mode does not care since
     // it is unaffected by RTL and the nix inset animation will supply the
     // current bounds offset.
-    if (base::i18n::IsRTL() &&
-        SplitViewController::IsLayoutHorizontal(
-            GetWidget()->GetNativeWindow()) &&
+    if (base::i18n::IsRTL() && SplitViewController::IsLayoutHorizontal() &&
         !nix_animation) {
       clip_offset = gfx::Vector2d(bounds.width() - old_bounds.width(), 0);
     }
@@ -141,7 +118,7 @@ void SplitViewHighlightView::SetBounds(
   DoSplitviewClipRectAnimation(
       layer(), *animation_type, gfx::Rect(end_origin, bounds.size()),
       std::make_unique<ClippingObserver>(
-          this, grows ? absl::nullopt : absl::make_optional(bounds)));
+          this, grows ? base::nullopt : base::make_optional(bounds)));
 }
 
 void SplitViewHighlightView::OnWindowDraggingStateChanged(
@@ -168,47 +145,41 @@ void SplitViewHighlightView::OnWindowDraggingStateChanged(
   const SplitViewController::SnapPosition previous_preview_position =
       SplitViewDragIndicators::GetSnapPosition(previous_window_dragging_state);
 
-  aura::Window* window = GetWidget()->GetNativeWindow();
-
   if (window_dragging_state ==
       SplitViewDragIndicators::WindowDraggingState::kNoDrag) {
-    if (previous_preview_position == SplitViewController::SnapPosition::kNone) {
+    if (previous_preview_position == SplitViewController::NONE) {
       DoSplitviewOpacityAnimation(layer(),
                                   SPLITVIEW_ANIMATION_HIGHLIGHT_FADE_OUT);
       return;
     }
-    if (is_right_or_bottom_ != SplitViewController::IsPhysicalLeftOrTop(
-                                   previous_preview_position, window)) {
+    if (is_right_or_bottom_ !=
+        SplitViewController::IsPhysicalLeftOrTop(previous_preview_position)) {
       DoSplitviewOpacityAnimation(layer(),
                                   SPLITVIEW_ANIMATION_PREVIEW_AREA_FADE_OUT);
     }
     return;
   }
 
-  background()->SetNativeControlColor(
-      AshColorProvider::Get()->GetBackgroundColor());
-  if (chromeos::features::IsDarkLightModeEnabled()) {
-    SetBorder(std::make_unique<views::HighlightBorder>(
-        kHighlightScreenRoundRectRadius,
-        views::HighlightBorder::Type::kHighlightBorder1,
-        /*use_light_colors=*/false));
-  }
+  layer()->SetColor(DeprecatedGetBackgroundColor(
+      can_dragged_window_be_snapped
+          ? kSplitviewHighlightViewBackgroundColor
+          : kSplitviewHighlightViewBackgroundCannotSnapColor));
 
-  if (preview_position != SplitViewController::SnapPosition::kNone) {
+  if (preview_position != SplitViewController::NONE) {
     DoSplitviewOpacityAnimation(
         layer(),
-        is_right_or_bottom_ != SplitViewController::IsPhysicalLeftOrTop(
-                                   preview_position, window)
+        is_right_or_bottom_ !=
+                SplitViewController::IsPhysicalLeftOrTop(preview_position)
             ? SPLITVIEW_ANIMATION_PREVIEW_AREA_FADE_IN
             : SPLITVIEW_ANIMATION_OTHER_HIGHLIGHT_FADE_OUT);
     return;
   }
 
-  if (previous_preview_position != SplitViewController::SnapPosition::kNone) {
+  if (previous_preview_position != SplitViewController::NONE) {
     // There was a snap preview showing, but now the user has dragged away from
     // the edge of the screen, so that the preview should go away.
-    if (is_right_or_bottom_ != SplitViewController::IsPhysicalLeftOrTop(
-                                   previous_preview_position, window)) {
+    if (is_right_or_bottom_ !=
+        SplitViewController::IsPhysicalLeftOrTop(previous_preview_position)) {
       // This code is for the preview. If |previews_only|, just fade out. Else
       // fade in from |kPreviewAreaHighlightOpacity| to |kHighlightOpacity|.
       DoSplitviewOpacityAnimation(

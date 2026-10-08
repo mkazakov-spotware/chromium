@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,13 @@
 #include <memory>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/fuchsia/fuchsia_logging.h"
 #include "base/fuchsia/process_context.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "gpu/vulkan/vulkan_device_queue.h"
 #include "third_party/angle/src/common/fuchsia_egl/fuchsia_egl.h"
-#include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/gfx/native_pixmap.h"
+#include "ui/gfx/skia_util.h"
 #include "ui/gfx/vsync_provider.h"
 #include "ui/gl/gl_surface_egl.h"
 #include "ui/ozone/common/egl_util.h"
@@ -27,47 +26,92 @@
 #include "ui/ozone/platform/scenic/scenic_window_canvas.h"
 #include "ui/ozone/platform/scenic/scenic_window_manager.h"
 #include "ui/ozone/platform/scenic/sysmem_buffer_collection.h"
+
+#if BUILDFLAG(ENABLE_VULKAN)
 #include "ui/ozone/platform/scenic/vulkan_implementation_scenic.h"
+#endif
 
 namespace ui {
 
 namespace {
+
+struct FuchsiaEGLWindowDeleter {
+  void operator()(fuchsia_egl_window* egl_window) {
+    fuchsia_egl_window_destroy(egl_window);
+  }
+};
 
 fuchsia::ui::scenic::ScenicPtr ConnectToScenic() {
   fuchsia::ui::scenic::ScenicPtr scenic =
       base::ComponentContextForProcess()
           ->svc()
           ->Connect<fuchsia::ui::scenic::Scenic>();
-  scenic.set_error_handler(
-      base::LogFidlErrorAndExitProcess(FROM_HERE, "fuchsia.ui.scenic.Scenic"));
+  scenic.set_error_handler([](zx_status_t status) {
+    ZX_LOG(FATAL, status) << "Scenic connection failed";
+  });
   return scenic;
 }
 
+class GLSurfaceFuchsiaImagePipe : public gl::NativeViewGLSurfaceEGL {
+ public:
+  explicit GLSurfaceFuchsiaImagePipe(
+      ScenicSurfaceFactory* scenic_surface_factory,
+      gfx::AcceleratedWidget widget)
+      : NativeViewGLSurfaceEGL(0, nullptr),
+        scenic_surface_factory_(scenic_surface_factory),
+        widget_(widget) {}
+  GLSurfaceFuchsiaImagePipe(const GLSurfaceFuchsiaImagePipe&) = delete;
+  GLSurfaceFuchsiaImagePipe& operator=(const GLSurfaceFuchsiaImagePipe&) =
+      delete;
+
+  // gl::NativeViewGLSurfaceEGL:
+  bool InitializeNativeWindow() override {
+    fuchsia::images::ImagePipe2Ptr image_pipe;
+    ScenicSurface* scenic_surface =
+        scenic_surface_factory_->GetSurface(widget_);
+    scenic_surface->SetTextureToNewImagePipe(image_pipe.NewRequest());
+    egl_window_.reset(
+        fuchsia_egl_window_create(image_pipe.Unbind().TakeChannel().release(),
+                                  size_.width(), size_.height()));
+    window_ = reinterpret_cast<EGLNativeWindowType>(egl_window_.get());
+    return true;
+  }
+
+  bool Resize(const gfx::Size& size,
+              float scale_factor,
+              const gfx::ColorSpace& color_space,
+              bool has_alpha) override {
+    fuchsia_egl_window_resize(egl_window_.get(), size.width(), size.height());
+    return gl::NativeViewGLSurfaceEGL::Resize(size, scale_factor, color_space,
+                                              has_alpha);
+  }
+
+ private:
+  ~GLSurfaceFuchsiaImagePipe() override {}
+
+  ScenicSurfaceFactory* const scenic_surface_factory_;
+  gfx::AcceleratedWidget widget_ = gfx::kNullAcceleratedWidget;
+  std::unique_ptr<fuchsia_egl_window, FuchsiaEGLWindowDeleter> egl_window_;
+};
+
 class GLOzoneEGLScenic : public GLOzoneEGL {
  public:
-  GLOzoneEGLScenic() {}
-
-  GLOzoneEGLScenic(const GLOzoneEGLScenic&) = delete;
-  GLOzoneEGLScenic& operator=(const GLOzoneEGLScenic&) = delete;
-
+  explicit GLOzoneEGLScenic(ScenicSurfaceFactory* scenic_surface_factory)
+      : scenic_surface_factory_(scenic_surface_factory) {}
   ~GLOzoneEGLScenic() override = default;
 
   // GLOzone:
   scoped_refptr<gl::GLSurface> CreateViewGLSurface(
-      gl::GLDisplay* display,
       gfx::AcceleratedWidget window) override {
-    // GL rendering to Flatland views is not supported. This function is
-    // used only for unittests. Return an off-screen surface, so the tests pass.
-    // TODO(crbug.com/1271760): Use Vulkan in unittests and remove this hack.
-    return gl::InitializeGLSurface(base::MakeRefCounted<gl::SurfacelessEGL>(
-        display->GetAs<gl::GLDisplayEGL>(), gfx::Size(100, 100)));
+    return gl::InitializeGLSurface(
+        base::MakeRefCounted<GLSurfaceFuchsiaImagePipe>(scenic_surface_factory_,
+                                                        window));
   }
 
   scoped_refptr<gl::GLSurface> CreateOffscreenGLSurface(
-      gl::GLDisplay* display,
       const gfx::Size& size) override {
-    return gl::InitializeGLSurface(base::MakeRefCounted<gl::SurfacelessEGL>(
-        display->GetAs<gl::GLDisplayEGL>(), size));
+    return gl::InitializeGLSurface(
+        base::MakeRefCounted<gl::PbufferGLSurfaceEGL>(size));
   }
 
   gl::EGLDisplayPlatform GetNativeDisplay() override {
@@ -75,10 +119,13 @@ class GLOzoneEGLScenic : public GLOzoneEGL {
   }
 
  protected:
-  bool LoadGLES2Bindings(
-      const gl::GLImplementationParts& implementation) override {
+  bool LoadGLES2Bindings(gl::GLImplementation implementation) override {
     return LoadDefaultEGLGLES2Bindings(implementation);
   }
+
+ private:
+  ScenicSurfaceFactory* const scenic_surface_factory_;
+  DISALLOW_COPY_AND_ASSIGN(GLOzoneEGLScenic);
 };
 
 fuchsia::sysmem::AllocatorHandle ConnectSysmemAllocator() {
@@ -90,7 +137,7 @@ fuchsia::sysmem::AllocatorHandle ConnectSysmemAllocator() {
 }  // namespace
 
 ScenicSurfaceFactory::ScenicSurfaceFactory()
-    : egl_implementation_(std::make_unique<GLOzoneEGLScenic>()),
+    : egl_implementation_(std::make_unique<GLOzoneEGLScenic>(this)),
       sysmem_buffer_manager_(this),
       weak_ptr_factory_(this) {}
 
@@ -104,7 +151,7 @@ void ScenicSurfaceFactory::Initialize(
   base::AutoLock lock(surface_lock_);
   DCHECK(surface_map_.empty());
 
-  main_thread_task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+  main_thread_task_runner_ = base::ThreadTaskRunnerHandle::Get();
   DCHECK(main_thread_task_runner_);
 
   DCHECK(!gpu_host_);
@@ -126,19 +173,19 @@ void ScenicSurfaceFactory::Shutdown() {
   scenic_ = nullptr;
 }
 
-std::vector<gl::GLImplementationParts>
+std::vector<gl::GLImplementation>
 ScenicSurfaceFactory::GetAllowedGLImplementations() {
-  return std::vector<gl::GLImplementationParts>{
-      gl::GLImplementationParts(gl::kGLImplementationEGLANGLE),
-      gl::GLImplementationParts(gl::ANGLEImplementation::kSwiftShader),
-      gl::GLImplementationParts(gl::kGLImplementationEGLGLES2),
-      gl::GLImplementationParts(gl::kGLImplementationStubGL),
+  return std::vector<gl::GLImplementation>{
+      gl::kGLImplementationEGLANGLE,
+      gl::kGLImplementationSwiftShaderGL,
+      gl::kGLImplementationEGLGLES2,
+      gl::kGLImplementationStubGL,
   };
 }
 
-GLOzone* ScenicSurfaceFactory::GetGLOzone(
-    const gl::GLImplementationParts& implementation) {
-  switch (implementation.gl) {
+GLOzone* ScenicSurfaceFactory::GetGLOzone(gl::GLImplementation implementation) {
+  switch (implementation) {
+    case gl::kGLImplementationSwiftShaderGL:
     case gl::kGLImplementationEGLGLES2:
     case gl::kGLImplementationEGLANGLE:
       return egl_implementation_.get();
@@ -151,8 +198,8 @@ std::unique_ptr<PlatformWindowSurface>
 ScenicSurfaceFactory::CreatePlatformWindowSurface(
     gfx::AcceleratedWidget window) {
   DCHECK_NE(window, gfx::kNullAcceleratedWidget);
-  auto surface = std::make_unique<ScenicSurface>(this, &sysmem_buffer_manager_,
-                                                 window, CreateScenicSession());
+  auto surface =
+      std::make_unique<ScenicSurface>(this, window, CreateScenicSession());
   main_thread_task_runner_->PostTask(
       FROM_HERE, base::BindOnce(&ScenicSurfaceFactory::AttachSurfaceToWindow,
                                 weak_ptr_factory_.GetWeakPtr(), window,
@@ -168,57 +215,41 @@ std::unique_ptr<SurfaceOzoneCanvas> ScenicSurfaceFactory::CreateCanvasForWidget(
 
 scoped_refptr<gfx::NativePixmap> ScenicSurfaceFactory::CreateNativePixmap(
     gfx::AcceleratedWidget widget,
-    gpu::VulkanDeviceQueue* device_queue,
+    VkDevice vk_device,
     gfx::Size size,
     gfx::BufferFormat format,
     gfx::BufferUsage usage,
-    absl::optional<gfx::Size> framebuffer_size) {
+    base::Optional<gfx::Size> framebuffer_size) {
   DCHECK(!framebuffer_size || framebuffer_size == size);
+  auto collection = sysmem_buffer_manager_.CreateCollection(vk_device, size,
+                                                            format, usage, 1);
+  if (!collection)
+    return nullptr;
 
-  VkDevice vk_device = device_queue->GetVulkanDevice();
-  if (widget != gfx::kNullAcceleratedWidget &&
-      usage == gfx::BufferUsage::SCANOUT) {
-    // The usage SCANOUT is for a primary plane buffer.
-    auto* surface = GetSurface(widget);
-    CHECK(surface);
-    return surface->AllocatePrimaryPlanePixmap(vk_device, size, format);
-  }
-
-  return sysmem_buffer_manager_.CreateNativePixmap(vk_device, size, format,
-                                                   usage);
+  return collection->CreateNativePixmap(0);
 }
 
 void ScenicSurfaceFactory::CreateNativePixmapAsync(
     gfx::AcceleratedWidget widget,
-    gpu::VulkanDeviceQueue* device_queue,
+    VkDevice vk_device,
     gfx::Size size,
     gfx::BufferFormat format,
     gfx::BufferUsage usage,
     NativePixmapCallback callback) {
   std::move(callback).Run(
-      CreateNativePixmap(widget, device_queue, size, format, usage));
+      CreateNativePixmap(widget, vk_device, size, format, usage));
 }
 
-scoped_refptr<gfx::NativePixmap>
-ScenicSurfaceFactory::CreateNativePixmapFromHandle(
-    gfx::AcceleratedWidget widget,
-    gfx::Size size,
-    gfx::BufferFormat format,
-    gfx::NativePixmapHandle handle) {
-  auto collection = sysmem_buffer_manager_.GetCollectionByHandle(
-      handle.buffer_collection_handle);
-  if (!collection)
-    return nullptr;
-
-  return collection->CreateNativePixmap(std::move(handle), size);
-}
-
+#if BUILDFLAG(ENABLE_VULKAN)
 std::unique_ptr<gpu::VulkanImplementation>
-ScenicSurfaceFactory::CreateVulkanImplementation(bool use_swiftshader,
-                                                 bool allow_protected_memory) {
+ScenicSurfaceFactory::CreateVulkanImplementation(
+    bool allow_protected_memory,
+    bool enforce_protected_memory) {
   return std::make_unique<ui::VulkanImplementationScenic>(
-      this, &sysmem_buffer_manager_, use_swiftshader, allow_protected_memory);
+      this, &sysmem_buffer_manager_, allow_protected_memory,
+      enforce_protected_memory);
 }
+#endif
 
 void ScenicSurfaceFactory::AddSurface(gfx::AcceleratedWidget widget,
                                       ScenicSurface* surface) {

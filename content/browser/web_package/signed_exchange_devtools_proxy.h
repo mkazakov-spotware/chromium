@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,12 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "base/unguessable_token.h"
 #include "content/browser/web_package/signed_exchange_error.h"
 #include "content/common/content_export.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class GURL;
 
@@ -48,18 +49,13 @@ class CONTENT_EXPORT SignedExchangeDevToolsProxy {
       const GURL& outer_request_url,
       network::mojom::URLResponseHeadPtr outer_response_head,
       int frame_tree_node_id,
-      absl::optional<const base::UnguessableToken> devtools_navigation_token,
+      base::Optional<const base::UnguessableToken> devtools_navigation_token,
       bool report_raw_headers);
-
-  SignedExchangeDevToolsProxy(const SignedExchangeDevToolsProxy&) = delete;
-  SignedExchangeDevToolsProxy& operator=(const SignedExchangeDevToolsProxy&) =
-      delete;
-
   ~SignedExchangeDevToolsProxy();
 
   void ReportError(
       const std::string& message,
-      absl::optional<SignedExchangeError::FieldIndexPair> error_field);
+      base::Optional<SignedExchangeError::FieldIndexPair> error_field);
 
   void CertificateRequestSent(const base::UnguessableToken& request_id,
                               const network::ResourceRequest& request);
@@ -71,17 +67,19 @@ class CONTENT_EXPORT SignedExchangeDevToolsProxy {
       const network::URLLoaderCompletionStatus& status);
 
   void OnSignedExchangeReceived(
-      const absl::optional<SignedExchangeEnvelope>& envelope,
+      const base::Optional<SignedExchangeEnvelope>& envelope,
       const scoped_refptr<net::X509Certificate>& certificate,
-      const absl::optional<net::SSLInfo>& ssl_info);
+      const net::SSLInfo* ssl_info);
 
  private:
   const GURL outer_request_url_;
   const network::mojom::URLResponseHeadPtr outer_response_;
   const int frame_tree_node_id_;
-  const absl::optional<const base::UnguessableToken> devtools_navigation_token_;
+  const base::Optional<const base::UnguessableToken> devtools_navigation_token_;
   const bool devtools_enabled_;
   std::vector<SignedExchangeError> errors_;
+
+  DISALLOW_COPY_AND_ASSIGN(SignedExchangeDevToolsProxy);
 };
 
 }  // namespace content

@@ -1,14 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/exo/surface_tree_host.h"
 
-#include <algorithm>
 #include <utility>
 #include <vector>
 
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "cc/trees/layer_tree_frame_sink.h"
 #include "components/exo/layer_tree_frame_sink_holder.h"
 #include "components/exo/shell_surface_base.h"
@@ -17,11 +17,9 @@
 #include "components/exo/wm_helper.h"
 #include "components/viz/common/gpu/context_provider.h"
 #include "components/viz/common/quads/compositor_frame.h"
-#include "components/viz/common/quads/compositor_frame_metadata.h"
 #include "components/viz/common/quads/compositor_render_pass.h"
 #include "components/viz/common/quads/shared_quad_state.h"
 #include "components/viz/common/quads/solid_color_draw_quad.h"
-#include "components/viz/common/resources/transferable_resource.h"
 #include "gpu/command_buffer/client/gles2_interface.h"
 #include "third_party/skia/include/core/SkPath.h"
 #include "ui/aura/client/aura_constants.h"
@@ -33,16 +31,10 @@
 #include "ui/aura/window_targeter.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/base/cursor/cursor.h"
-#include "ui/compositor/compositor.h"
-#include "ui/compositor/layer.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
-#include "ui/gfx/color_space.h"
-#include "ui/gfx/display_color_spaces.h"
 #include "ui/gfx/geometry/dip_util.h"
-#include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/size_conversions.h"
-#include "ui/gfx/geometry/size_f.h"
 #include "ui/gfx/presentation_feedback.h"
 
 namespace exo {
@@ -53,10 +45,6 @@ class CustomWindowTargeter : public aura::WindowTargeter {
  public:
   explicit CustomWindowTargeter(SurfaceTreeHost* surface_tree_host)
       : surface_tree_host_(surface_tree_host) {}
-
-  CustomWindowTargeter(const CustomWindowTargeter&) = delete;
-  CustomWindowTargeter& operator=(const CustomWindowTargeter&) = delete;
-
   ~CustomWindowTargeter() override = default;
 
   // Overridden from aura::WindowTargeter:
@@ -69,9 +57,11 @@ class CustomWindowTargeter : public aura::WindowTargeter {
     if (!surface)
       return false;
 
-    gfx::Point local_point =
-        ConvertEventLocationToWindowCoordinates(window, event);
+    gfx::Point local_point = event.location();
 
+    if (window->parent())
+      aura::Window::ConvertPointToTarget(window->parent(), window,
+                                         &local_point);
     aura::Window::ConvertPointToTarget(window, surface->window(), &local_point);
     return surface->HitTest(local_point);
   }
@@ -89,6 +79,8 @@ class CustomWindowTargeter : public aura::WindowTargeter {
 
  private:
   SurfaceTreeHost* const surface_tree_host_;
+
+  DISALLOW_COPY_AND_ASSIGN(CustomWindowTargeter);
 };
 
 }  // namespace
@@ -115,9 +107,11 @@ SurfaceTreeHost::SurfaceTreeHost(const std::string& window_name)
                           ->SharedMainThreadContextProvider();
   DCHECK(context_provider_);
   context_provider_->AddObserver(this);
+  display::Screen::GetScreen()->AddObserver(this);
 }
 
 SurfaceTreeHost::~SurfaceTreeHost() {
+  display::Screen::GetScreen()->RemoveObserver(this);
   context_provider_->RemoveObserver(this);
 
   SetRootSurface(nullptr);
@@ -197,15 +191,6 @@ void SurfaceTreeHost::DidPresentCompositorFrame(
   active_presentation_callbacks_.erase(it);
 }
 
-void SurfaceTreeHost::SetScaleFactor(float scale_factor) {
-  pending_scale_factor_ = scale_factor;
-}
-
-void SurfaceTreeHost::SetSecurityDelegate(SecurityDelegate* security_delegate) {
-  DCHECK(security_delegate_ == nullptr);
-  security_delegate_ = security_delegate;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // SurfaceDelegate overrides:
 
@@ -229,11 +214,6 @@ void SurfaceTreeHost::OnNewOutputAdded() {
   UpdateDisplayOnTree();
 }
 
-SecurityDelegate* SurfaceTreeHost::GetSecurityDelegate() {
-  DCHECK(security_delegate_);
-  return security_delegate_;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // display::DisplayObserver:
 void SurfaceTreeHost::OnDisplayMetricsChanged(const display::Display& display,
@@ -249,7 +229,7 @@ void SurfaceTreeHost::OnDisplayMetricsChanged(const display::Display& display,
 void SurfaceTreeHost::OnContextLost() {
   // Handle context loss in a new stack frame to avoid bugs from re-entrant
   // code.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&SurfaceTreeHost::HandleContextLost,
                                 weak_ptr_factory_.GetWeakPtr()));
 }
@@ -262,20 +242,10 @@ void SurfaceTreeHost::UpdateDisplayOnTree() {
       display::Screen::GetScreen()->GetDisplayNearestWindow(host_window());
   if (display_id_ != display.id()) {
     if (root_surface_) {
-      if (root_surface_->UpdateDisplay(display_id_, display.id())) {
-        display_id_ = display.id();
-      } else {
-        // The surface failed to update to the new display.
-        // Invalidate cached display id, so the surface always gets updated
-        // next time, even when it gets updated back to the previous display.
-        display_id_ = display::kInvalidDisplayId;
-      }
+      root_surface_->UpdateDisplay(display_id_, display.id());
+      display_id_ = display.id();
     }
   }
-}
-
-void SurfaceTreeHost::DidCommit() {
-  scale_factor_ = pending_scale_factor_;
 }
 
 void SurfaceTreeHost::SubmitCompositorFrame() {
@@ -307,7 +277,7 @@ void SurfaceTreeHost::SubmitCompositorFrame() {
   }
 
   root_surface_->AppendSurfaceHierarchyContentsToFrame(
-      gfx::PointF(root_surface_origin_), GetScaleFactor(),
+      root_surface_origin_, host_window()->layer()->device_scale_factor(),
       layer_tree_frame_sink_holder_->resource_manager(), &frame);
 
   std::vector<GLbyte*> sync_tokens;
@@ -315,15 +285,6 @@ void SurfaceTreeHost::SubmitCompositorFrame() {
     sync_tokens.push_back(resource.mailbox_holder.sync_token.GetData());
   gpu::gles2::GLES2Interface* gles2 = context_provider_->ContextGL();
   gles2->VerifySyncTokensCHROMIUM(sync_tokens.data(), sync_tokens.size());
-
-  frame.metadata.content_color_usage = gfx::ContentColorUsage::kSRGB;
-  for (auto& resource : frame.resource_list) {
-    frame.metadata.content_color_usage =
-        std::max(frame.metadata.content_color_usage,
-                 resource.color_space.GetContentColorUsage());
-  }
-
-  frame.metadata.may_contain_video = root_surface_->ContainsVideo();
 
   layer_tree_frame_sink_holder_->SubmitCompositorFrame(std::move(frame));
 }
@@ -338,14 +299,14 @@ void SurfaceTreeHost::SubmitEmptyCompositorFrame() {
       render_pass->CreateAndAppendSharedQuadState();
   quad_state->SetAll(
       gfx::Transform(), /*quad_layer_rect=*/quad_rect,
-      /*visible_layer_rect=*/quad_rect,
-      /*mask_filter_info=*/gfx::MaskFilterInfo(), /*clip_rect=*/absl::nullopt,
-      /*are_contents_opaque=*/true, /*opacity=*/1.f,
+      /*visible_quad_layer_rect=*/quad_rect,
+      /*mask_filter_info=*/gfx::MaskFilterInfo(), /*clip_rect=*/gfx::Rect(),
+      /*is_clipped=*/false, /*are_contents_opaque=*/true, /*opacity=*/1.f,
       /*blend_mode=*/SkBlendMode::kSrcOver, /*sorting_context_id=*/0);
 
   viz::SolidColorDrawQuad* solid_quad =
       render_pass->CreateAndAppendDrawQuad<viz::SolidColorDrawQuad>();
-  solid_quad->SetNew(quad_state, quad_rect, quad_rect, SkColors::kBlack,
+  solid_quad->SetNew(quad_state, quad_rect, quad_rect, SK_ColorBLACK,
                      /*force_anti_aliasing_off=*/false);
   layer_tree_frame_sink_holder_->SubmitCompositorFrame(std::move(frame));
 }
@@ -356,31 +317,17 @@ void SurfaceTreeHost::UpdateHostWindowBounds() {
   // applied.
   aura::WindowOcclusionTracker::ScopedPause pause_occlusion;
 
-  const gfx::Rect& bounds = root_surface_->surface_hierarchy_content_bounds();
-  if (bounds != host_window_->bounds())
-    host_window_->SetBounds({host_window_->bounds().origin(), bounds.size()});
-
-  // TODO(yjliu): a) consolidate with ClientControlledShellSurface. b) use the
-  // scale factor the buffer is created for to set the transform for
-  // synchronization.
-  if (client_submits_surfaces_in_pixel_coordinates_) {
-    gfx::Transform tr;
-    float scale = GetScaleFactor();
-    tr.Scale(1.0f / scale, 1.0f / scale);
-    if (host_window_->transform() != tr)
-      host_window_->SetTransform(tr);
-  }
+  gfx::Rect bounds = root_surface_->surface_hierarchy_content_bounds();
+  host_window_->SetBounds(
+      gfx::Rect(host_window_->bounds().origin(), bounds.size()));
   const bool fills_bounds_opaquely =
-      gfx::SizeF(bounds.size()) == root_surface_->content_size() &&
+      bounds.size() == root_surface_->content_size() &&
       root_surface_->FillsBoundsOpaquely();
   host_window_->SetTransparent(!fills_bounds_opaquely);
 
   root_surface_origin_ = gfx::Point() - bounds.OffsetFromOrigin();
-  const gfx::Rect& window_bounds = root_surface_->window()->bounds();
-  if (root_surface_origin_ != window_bounds.origin()) {
-    gfx::Rect updated_bounds(root_surface_origin_, window_bounds.size());
-    root_surface_->window()->SetBounds(updated_bounds);
-  }
+  root_surface_->window()->SetBounds(gfx::Rect(
+      root_surface_origin_, root_surface_->window()->bounds().size()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -417,7 +364,8 @@ viz::CompositorFrame SurfaceTreeHost::PrepareToSubmitCompositorFrame() {
   // compositor frame, otherwise we may set the Surface created by Viz to be the
   // wrong size. Then, trying to submit a regular compositor frame will fail
   // because  the size is different.
-  const float device_scale_factor = GetScaleFactor();
+  const float device_scale_factor =
+      host_window()->layer()->device_scale_factor();
   // TODO(crbug.com/1131628): Should this be ceil? Why do we choose floor?
   gfx::Size output_surface_size_in_pixels =
       gfx::ToFlooredSize(gfx::ConvertSizeToPixels(host_window_->bounds().size(),
@@ -450,12 +398,6 @@ void SurfaceTreeHost::HandleContextLost() {
 
   root_surface_->SurfaceHierarchyResourcesLost();
   SubmitCompositorFrame();
-}
-
-float SurfaceTreeHost::GetScaleFactor() {
-  if (scale_factor_)
-    return scale_factor_.value();
-  return host_window_->layer()->device_scale_factor();
 }
 
 }  // namespace exo

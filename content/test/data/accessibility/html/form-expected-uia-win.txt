@@ -1,5 +1,3 @@
 Document
-++Group
-++++Button Name='Submit'
-++Group Name='Name'
+++Group IsControlElement=false
 ++++Button Name='Submit'

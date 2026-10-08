@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,11 @@
 #include <memory>
 #include <string>
 
-#include "base/bind.h"
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
-#include "base/time/time.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/macros.h"
+#include "base/optional.h"
+#include "base/scoped_observer.h"
+#include "base/strings/string16.h"
 #include "third_party/skia/include/core/SkPath.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/pointer/touch_ui_controller.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/size.h"
@@ -43,8 +41,6 @@ class ImageView;
 class IconLabelBubbleView : public views::InkDropObserver,
                             public views::LabelButton {
  public:
-  METADATA_HEADER(IconLabelBubbleView);
-
   static constexpr int kTrailingPaddingPreMd = 2;
 
   class Delegate {
@@ -62,31 +58,7 @@ class IconLabelBubbleView : public views::InkDropObserver,
     virtual SkColor GetIconLabelBubbleBackgroundColor() const = 0;
   };
 
-  // A view that draws the separator.
-  class SeparatorView : public views::View {
-   public:
-    METADATA_HEADER(SeparatorView);
-    explicit SeparatorView(IconLabelBubbleView* owner);
-    SeparatorView(const SeparatorView&) = delete;
-    SeparatorView& operator=(const SeparatorView&) = delete;
-
-    // views::View:
-    void OnPaint(gfx::Canvas* canvas) override;
-    void OnThemeChanged() override;
-
-    // Updates the opacity based on the ink drop's state.
-    void UpdateOpacity();
-
-   private:
-    // Weak.
-    raw_ptr<IconLabelBubbleView> owner_;
-  };
-
   IconLabelBubbleView(const gfx::FontList& font_list, Delegate* delegate);
-
-  IconLabelBubbleView(const IconLabelBubbleView&) = delete;
-  IconLabelBubbleView& operator=(const IconLabelBubbleView&) = delete;
-
   ~IconLabelBubbleView() override;
 
   // views::InkDropObserver:
@@ -96,11 +68,7 @@ class IconLabelBubbleView : public views::InkDropObserver,
   // Returns true when the label should be visible.
   virtual bool ShouldShowLabel() const;
 
-  // Call to have the icon label paint over a solid background when the label
-  // text is shown.
-  void SetPaintLabelOverSolidBackground(bool paint_label_over_solid_backround);
-
-  void SetLabel(const std::u16string& label);
+  void SetLabel(const base::string16& label);
   void SetFontList(const gfx::FontList& font_list);
 
   const views::ImageView* GetImageView() const { return image(); }
@@ -133,9 +101,6 @@ class IconLabelBubbleView : public views::InkDropObserver,
   // Sets the label text and background colors.
   void UpdateLabelColors();
 
-  // Update the icon label's background if necessary.
-  void UpdateBackground();
-
   // Returns true when the separator should be visible.
   virtual bool ShouldShowSeparator() const;
 
@@ -161,6 +126,8 @@ class IconLabelBubbleView : public views::InkDropObserver,
   void Layout() override;
   bool OnMousePressed(const ui::MouseEvent& event) override;
   void OnThemeChanged() override;
+  std::unique_ptr<views::InkDrop> CreateInkDrop() override;
+  SkColor GetInkDropBaseColor() const override;
   bool IsTriggerableEvent(const ui::Event& event) override;
   bool ShouldUpdateInkDropOnClickCanceled() const override;
   void NotifyClick(const ui::Event& event) override;
@@ -182,18 +149,15 @@ class IconLabelBubbleView : public views::InkDropObserver,
   void SetUpForAnimation();
 
   // Set up for icons that animate their labels in and then automatically out
-  // after a period of time. The duration of the slide includes the just the
-  // time when the label is fully expanded, it does not include the time to
-  // animate in and out.
-  void SetUpForInOutAnimation(
-      base::TimeDelta duration = base::Milliseconds(1800));
+  // after a period of time.
+  void SetUpForInOutAnimation();
 
   // Animates the view in and disables highlighting for hover and focus. If a
   // |string_id| is provided it also sets/changes the label to that string.
   // TODO(bruthig): See https://crbug.com/669253. Since the ink drop highlight
   // currently cannot handle host resizes, the highlight needs to be disabled
   // when the animation is running.
-  void AnimateIn(absl::optional<int> string_id);
+  void AnimateIn(base::Optional<int> string_id);
 
   // Animates the view out.
   void AnimateOut();
@@ -208,11 +172,34 @@ class IconLabelBubbleView : public views::InkDropObserver,
   // the animation is set to fully shown or fully hidden.
   void ResetSlideAnimation(bool show);
 
+  // Returns true iff the slide animation has started, has not ended and is
+  // currently paused.
+  bool is_animation_paused() const { return is_animation_paused_; }
+
   // Slide animation for label.
   gfx::SlideAnimation slide_animation_{this};
 
  private:
   class HighlightPathGenerator;
+
+  // A view that draws the separator.
+  class SeparatorView : public views::View {
+   public:
+    explicit SeparatorView(IconLabelBubbleView* owner);
+
+    // views::View:
+    void OnPaint(gfx::Canvas* canvas) override;
+    void OnThemeChanged() override;
+
+    // Updates the opacity based on the ink drop's state.
+    void UpdateOpacity();
+
+   private:
+    // Weak.
+    IconLabelBubbleView* owner_;
+
+    DISALLOW_COPY_AND_ASSIGN(SeparatorView);
+  };
 
   // Spacing between the image and the label.
   int GetInternalSpacing() const;
@@ -231,6 +218,9 @@ class IconLabelBubbleView : public views::InkDropObserver,
   // separator width.
   int GetEndPaddingWithSeparator() const;
 
+  // views::View:
+  const char* GetClassName() const override;
+
   // Disables highlights and calls Show on the slide animation, should not be
   // called directly, use AnimateIn() instead, which handles label visibility.
   void ShowAnimation();
@@ -246,10 +236,10 @@ class IconLabelBubbleView : public views::InkDropObserver,
   // Sets the border padding around this view.
   void UpdateBorder();
 
-  raw_ptr<Delegate, DanglingUntriaged> delegate_;
+  Delegate* delegate_;
 
   // The contents of the bubble.
-  raw_ptr<SeparatorView> separator_view_;
+  SeparatorView* separator_view_;
 
   // The padding of the element that will be displayed after |this|. This value
   // is relevant for calculating the amount of space to reserve after the
@@ -270,20 +260,16 @@ class IconLabelBubbleView : public views::InkDropObserver,
   // icon). Set before animation begins in AnimateIn().
   int grow_animation_starting_width_ = 0;
 
-  // Controls whether the icon label should be painted over a solid background
-  // when the label text is showing.
-  // TODO(tluk): Remove the opt-in after UX has conslusively decided how icon
-  // labels should be painted when the label text is shown.
-  bool paint_label_over_solid_backround_ = false;
-
   // Virtual view, used for announcing changes to the state of this view. A
   // virtual child of this view.
-  raw_ptr<views::AXVirtualView> alert_virtual_view_;
+  views::AXVirtualView* alert_virtual_view_;
 
-  base::CallbackListSubscription subscription_ =
+  std::unique_ptr<ui::TouchUiController::Subscription> subscription_ =
       ui::TouchUiController::Get()->RegisterCallback(
           base::BindRepeating(&IconLabelBubbleView::OnTouchUiChanged,
                               base::Unretained(this)));
+
+  DISALLOW_COPY_AND_ASSIGN(IconLabelBubbleView);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_LOCATION_BAR_ICON_LABEL_BUBBLE_VIEW_H_

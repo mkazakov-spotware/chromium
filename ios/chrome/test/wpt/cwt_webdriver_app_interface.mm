@@ -1,34 +1,28 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/test/wpt/cwt_webdriver_app_interface.h"
 
-#import <signal.h>
-
-#import "base/files/file.h"
-#import "base/files/file_path.h"
-#import "base/json/json_writer.h"
-#import "base/strings/stringprintf.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
+#include "base/json/json_writer.h"
+#include "base/strings/stringprintf.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "base/values.h"
+#include "base/values.h"
 #import "ios/chrome/app/main_controller.h"
 #import "ios/chrome/browser/main/browser.h"
+#import "ios/chrome/browser/web/tab_id_tab_helper.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
 #import "ios/chrome/test/app/chrome_test_util.h"
 #import "ios/chrome/test/app/settings_test_util.h"
 #import "ios/chrome/test/app/tab_test_util.h"
-#import "ios/chrome/test/wpt/cwt_stderr_logger.h"
+#import "ios/testing/earl_grey/earl_grey_app.h"
 #import "ios/testing/nserror_util.h"
-#import "ios/web/public/js_messaging/web_frame.h"
-#import "ios/web/public/js_messaging/web_frame_util.h"
 #import "ios/web/public/test/navigation_test_util.h"
 #import "ios/web/public/ui/crw_web_view_proxy.h"
-#import "ios/web/public/web_state.h"
-#import "ui/gfx/geometry/rect_f.h"
-#import "ui/gfx/image/image.h"
+#include "ui/gfx/geometry/rect_f.h"
+#include "ui/gfx/image/image.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -39,7 +33,8 @@ using base::test::ios::WaitUntilConditionOrTimeout;
 namespace {
 
 NSString* GetIdForWebState(web::WebState* web_state) {
-  return web_state->GetStableIdentifier();
+  TabIdTabHelper::CreateForWebState(web_state);
+  return TabIdTabHelper::FromWebState(web_state)->tab_id();
 }
 
 WebStateList* GetCurrentWebStateList() {
@@ -64,40 +59,15 @@ int GetIndexOfWebStateWithId(NSString* tab_id) {
   return web_state_list->GetIndexOfWebState(GetWebStateWithId(tab_id));
 }
 
-void DispatchSyncOnMainThread(void (^block)(void)) {
-  if ([NSThread isMainThread]) {
-    block();
-  } else {
-    dispatch_semaphore_t waitForBlock = dispatch_semaphore_create(0);
-    CFRunLoopPerformBlock(CFRunLoopGetMain(), kCFRunLoopDefaultMode, ^{
-      block();
-      dispatch_semaphore_signal(waitForBlock);
-    });
-    // CFRunLoopPerformBlock does not wake up the main queue.
-    CFRunLoopWakeUp(CFRunLoopGetMain());
-    // Waits until block is executed and semaphore is signalled.
-    dispatch_semaphore_wait(waitForBlock, DISPATCH_TIME_FOREVER);
-  }
-}
-
 }  // namespace
 
 @implementation CWTWebDriverAppInterface
 
-- (instancetype)init {
-  self = [super init];
-  if (self) {
-    _executingQueue = dispatch_queue_create("com.google.chrome.cwt.background",
-                                            DISPATCH_QUEUE_SERIAL);
-  }
-  return self;
-}
-
 + (NSError*)loadURL:(NSString*)URL
-              inTab:(NSString*)tabID
-            timeout:(base::TimeDelta)timeout {
+               inTab:(NSString*)tabID
+    timeoutInSeconds:(NSTimeInterval)timeout {
   __block web::WebState* webState = nullptr;
-  DispatchSyncOnMainThread(^{
+  grey_dispatch_sync_on_main_thread(^{
     webState = GetWebStateWithId(tabID);
     if (webState)
       web::test::LoadUrl(webState, GURL(base::SysNSStringToUTF8(URL)));
@@ -108,7 +78,7 @@ void DispatchSyncOnMainThread(void (^block)(void)) {
 
   bool success = WaitUntilConditionOrTimeout(timeout, ^bool {
     __block BOOL isLoading = NO;
-    DispatchSyncOnMainThread(^{
+    grey_dispatch_sync_on_main_thread(^{
       isLoading = webState->IsLoading();
     });
     return !isLoading;
@@ -122,7 +92,7 @@ void DispatchSyncOnMainThread(void (^block)(void)) {
 
 + (NSString*)currentTabID {
   __block NSString* tabID = nil;
-  DispatchSyncOnMainThread(^{
+  grey_dispatch_sync_on_main_thread(^{
     web::WebState* webState = chrome_test_util::GetCurrentWebState();
     if (webState)
       tabID = GetIdForWebState(webState);
@@ -133,7 +103,7 @@ void DispatchSyncOnMainThread(void (^block)(void)) {
 
 + (NSArray*)tabIDs {
   __block NSMutableArray* tabIDs;
-  DispatchSyncOnMainThread(^{
+  grey_dispatch_sync_on_main_thread(^{
     DCHECK(!chrome_test_util::IsIncognitoMode());
     WebStateList* webStateList = GetCurrentWebStateList();
     tabIDs = [NSMutableArray arrayWithCapacity:webStateList->count()];
@@ -149,7 +119,7 @@ void DispatchSyncOnMainThread(void (^block)(void)) {
 
 + (NSError*)closeTabWithID:(NSString*)ID {
   __block NSError* error = nil;
-  DispatchSyncOnMainThread(^{
+  grey_dispatch_sync_on_main_thread(^{
     int webStateIndex = GetIndexOfWebStateWithId(ID);
     if (webStateIndex != WebStateList::kInvalidIndex) {
       WebStateList* webStateList = GetCurrentWebStateList();
@@ -163,19 +133,9 @@ void DispatchSyncOnMainThread(void (^block)(void)) {
   return error;
 }
 
-+ (NSString*)openNewTab {
-  __block NSString* tabID = nil;
-  DispatchSyncOnMainThread(^{
-    chrome_test_util::OpenNewTab();
-    tabID = GetIdForWebState(chrome_test_util::GetCurrentWebState());
-  });
-
-  return tabID;
-}
-
 + (NSError*)switchToTabWithID:(NSString*)ID {
   __block NSError* error = nil;
-  DispatchSyncOnMainThread(^{
+  grey_dispatch_sync_on_main_thread(^{
     DCHECK(!chrome_test_util::IsIncognitoMode());
     int webStateIndex = GetIndexOfWebStateWithId(ID);
     if (webStateIndex != WebStateList::kInvalidIndex) {
@@ -191,7 +151,7 @@ void DispatchSyncOnMainThread(void (^block)(void)) {
 
 + (NSString*)executeAsyncJavaScriptFunction:(NSString*)function
                                       inTab:(NSString*)tabID
-                                    timeout:(base::TimeDelta)timeout {
+                           timeoutInSeconds:(NSTimeInterval)timeout {
   const std::string kMessageResultKey("result");
 
   // Use a distinct messageID value for each invocation of this method to
@@ -208,21 +168,21 @@ void DispatchSyncOnMainThread(void (^block)(void)) {
                          "'%s.result', %s: value}); }",
                          command.c_str(), kMessageResultKey.c_str());
 
-  // Construct a script that calls the given `function` with
-  // `scriptCompletionHandler` as an argument.
+  // Construct a script that calls the given |function| with
+  // |scriptCompletionHandler| as an argument.
   std::string scriptFunctionWithCompletionHandler = base::StringPrintf(
       "(%s).call(null, %s)", base::SysNSStringToUTF8(function).c_str(),
       scriptCompletionHandler.c_str());
 
-  __block absl::optional<base::Value> messageValue;
+  __block base::Optional<base::Value> messageValue;
   const web::WebState::ScriptCommandCallback callback =
-      base::BindRepeating(^(const base::Value& value, const GURL&,
+      base::BindRepeating(^(const base::DictionaryValue& value, const GURL&,
                             /*interacted*/ bool,
                             /*sender_frame*/ web::WebFrame*) {
         const base::Value* result = value.FindKey(kMessageResultKey);
 
-        // `result` will be null when the computed result in JavaScript is
-        // `undefined`. This happens, for example, when injecting a script that
+        // |result| will be null when the computed result in JavaScript is
+        // |undefined|. This happens, for example, when injecting a script that
         // performs some action (like setting the document's title) but doesn't
         // return any value.
         if (result)
@@ -232,15 +192,15 @@ void DispatchSyncOnMainThread(void (^block)(void)) {
       });
 
   __block BOOL webStateFound = NO;
-  __block base::CallbackListSubscription subscription;
-  DispatchSyncOnMainThread(^{
+  __block std::unique_ptr<web::WebState::ScriptCommandSubscription>
+      subscription;
+  grey_dispatch_sync_on_main_thread(^{
     web::WebState* webState = GetWebStateWithId(tabID);
     if (!webState)
       return;
     webStateFound = YES;
     subscription = webState->AddScriptCommandCallback(callback, command);
-    web::WebFrame* main_frame = web::GetMainFrame(webState);
-    main_frame->ExecuteJavaScript(
+    webState->ExecuteJavaScript(
         base::UTF8ToUTF16(scriptFunctionWithCompletionHandler));
   });
 
@@ -249,7 +209,7 @@ void DispatchSyncOnMainThread(void (^block)(void)) {
 
   bool success = WaitUntilConditionOrTimeout(timeout, ^bool {
     __block BOOL scriptExecutionComplete = NO;
-    DispatchSyncOnMainThread(^{
+    grey_dispatch_sync_on_main_thread(^{
       scriptExecutionComplete = messageValue.has_value();
     });
     return scriptExecutionComplete;
@@ -264,14 +224,14 @@ void DispatchSyncOnMainThread(void (^block)(void)) {
 }
 
 + (void)enablePopups {
-  DispatchSyncOnMainThread(^{
+  grey_dispatch_sync_on_main_thread(^{
     chrome_test_util::SetContentSettingsBlockPopups(CONTENT_SETTING_ALLOW);
   });
 }
 
 + (NSString*)takeSnapshotOfTabWithID:(NSString*)ID {
   __block web::WebState* webState;
-  DispatchSyncOnMainThread(^{
+  grey_dispatch_sync_on_main_thread(^{
     webState = GetWebStateWithId(ID);
   });
 
@@ -279,7 +239,7 @@ void DispatchSyncOnMainThread(void (^block)(void)) {
     return nil;
 
   __block UIImage* snapshot = nil;
-  DispatchSyncOnMainThread(^{
+  grey_dispatch_sync_on_main_thread(^{
     CGRect bounds = webState->GetWebViewProxy().bounds;
     UIEdgeInsets insets = webState->GetWebViewProxy().contentInset;
     CGRect adjustedBounds = UIEdgeInsetsInsetRect(bounds, insets);
@@ -290,10 +250,10 @@ void DispatchSyncOnMainThread(void (^block)(void)) {
                            }));
   });
 
-  constexpr base::TimeDelta kSnapshotTimeout = base::Seconds(100);
-  bool success = WaitUntilConditionOrTimeout(kSnapshotTimeout, ^bool {
+  const NSTimeInterval kSnapshotTimeoutSeconds = 100;
+  bool success = WaitUntilConditionOrTimeout(kSnapshotTimeoutSeconds, ^bool {
     __block BOOL snapshotComplete = NO;
-    DispatchSyncOnMainThread(^{
+    grey_dispatch_sync_on_main_thread(^{
       if (snapshot != nil)
         snapshotComplete = YES;
     });
@@ -305,21 +265,6 @@ void DispatchSyncOnMainThread(void (^block)(void)) {
 
   NSData* snapshotAsPNG = UIImagePNGRepresentation(snapshot);
   return [snapshotAsPNG base64EncodedStringWithOptions:0];
-}
-
-+ (void)logStderrToFilePath:(NSString*)filePath {
-  base::FilePath stderrPath(base::SysNSStringToUTF8(filePath));
-  CWTStderrLogger::GetInstance()->StartRedirectingToFile(stderrPath);
-}
-
-+ (void)stopLoggingStderr {
-  CWTStderrLogger::GetInstance()->StopRedirectingToFile();
-}
-
-+ (void)installCleanExitHandlerForAbortSignal {
-  struct sigaction sa {};
-  sa.sa_handler = [](int) { exit(0); };
-  sigaction(SIGABRT, &sa, nullptr);
 }
 
 @end

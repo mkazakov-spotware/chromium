@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,11 @@
 #include "cc/input/browser_controls_state.h"
 #include "cc/trees/browser_controls_params.h"
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/scroll/scroll_types.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 class Page;
+class FloatSize;
 
 // This class encapsulate data and logic required to show/hide browser controls
 // duplicating cc::BrowserControlsOffsetManager behaviour.  Browser controls'
@@ -63,7 +62,7 @@ class CORE_EXPORT BrowserControls final
 
   // Scrolls browser controls vertically if possible and returns the remaining
   // scroll amount.
-  ScrollOffset ScrollBy(ScrollOffset scroll_delta);
+  FloatSize ScrollBy(FloatSize scroll_delta);
 
   void ScrollEnd();
 

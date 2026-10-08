@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,9 @@
 #include "base/process/process.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
+#include "base/task_runner_util.h"
 #include "components/dbus/menu/menu.h"
 #include "components/dbus/properties/dbus_properties.h"
 #include "components/dbus/properties/success_barrier_callback.h"
@@ -40,7 +42,7 @@
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/image/image_skia.h"
-#include "ui/linux/status_icon_linux.h"
+#include "ui/views/linux_ui/status_icon_linux.h"
 
 namespace {
 
@@ -150,14 +152,11 @@ bool ShouldWriteIconToFile() {
       return true;
     case base::nix::DESKTOP_ENVIRONMENT_OTHER:
     case base::nix::DESKTOP_ENVIRONMENT_CINNAMON:
-    case base::nix::DESKTOP_ENVIRONMENT_DEEPIN:
     case base::nix::DESKTOP_ENVIRONMENT_KDE3:
     case base::nix::DESKTOP_ENVIRONMENT_KDE4:
     case base::nix::DESKTOP_ENVIRONMENT_KDE5:
-    case base::nix::DESKTOP_ENVIRONMENT_UKUI:
     case base::nix::DESKTOP_ENVIRONMENT_UNITY:
     case base::nix::DESKTOP_ENVIRONMENT_XFCE:
-    case base::nix::DESKTOP_ENVIRONMENT_LXQT:
       return false;
   }
   NOTREACHED();
@@ -204,7 +203,7 @@ void StatusIconLinuxDbus::SetIcon(const gfx::ImageSkia& image) {
   SetIconImpl(image, true);
 }
 
-void StatusIconLinuxDbus::SetToolTip(const std::u16string& tool_tip) {
+void StatusIconLinuxDbus::SetToolTip(const base::string16& tool_tip) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (!properties_)
     return;
@@ -320,11 +319,11 @@ void StatusIconLinuxDbus::OnOwnership(const std::string& service_name,
       {kMethodSecondaryActivate, &StatusIconLinuxDbus::OnSecondaryActivate},
   };
 
-  // The barrier requires std::size(methods) + 2 calls.  std::size(methods)
+  // The barrier requires base::size(methods) + 2 calls.  base::size(methods)
   // for each method exported, 1 for |properties_| initialization, and 1 for
   // |menu_| initialization.
   barrier_ =
-      SuccessBarrierCallback(std::size(methods) + 2,
+      SuccessBarrierCallback(base::size(methods) + 2,
                              base::BindOnce(&StatusIconLinuxDbus::OnInitialized,
                                             weak_factory_.GetWeakPtr()));
 
@@ -475,8 +474,8 @@ void StatusIconLinuxDbus::SetIconImpl(const gfx::ImageSkia& image,
     return;
 
   if (should_write_icon_to_file_) {
-    icon_task_runner_->PostTaskAndReplyWithResult(
-        FROM_HERE,
+    base::PostTaskAndReplyWithResult(
+        icon_task_runner_.get(), FROM_HERE,
         base::BindOnce(WriteIconFile, icon_file_id_++,
                        gfx::Image(image).As1xPNGBytes()),
         base::BindOnce(&StatusIconLinuxDbus::OnIconFileWritten, this));
@@ -516,7 +515,7 @@ void StatusIconLinuxDbus::CleanupIconFile() {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (!icon_file_.empty()) {
     icon_task_runner_->PostTask(
-        FROM_HERE,
-        (base::GetDeletePathRecursivelyCallback(icon_file_.DirName())));
+        FROM_HERE, (base::BindOnce(base::GetDeletePathRecursivelyCallback(),
+                                   icon_file_.DirName())));
   }
 }

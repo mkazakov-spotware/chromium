@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@
 
 #import "ios/web/navigation/navigation_item_impl.h"
 #import "ios/web/public/session/crw_navigation_item_storage.h"
-#import "testing/gtest/include/gtest/gtest.h"
+#include "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
-#import "testing/platform_test.h"
-#import "url/gurl.h"
+#include "testing/platform_test.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -20,6 +20,7 @@ using NavigationItemStorageBuilderTest = PlatformTest;
 namespace web {
 
 TEST_F(NavigationItemStorageBuilderTest, DecodeDifferentScheme) {
+  NavigationItemStorageBuilder item_storage_builder;
   CRWNavigationItemStorage* item_storage =
       [[CRWNavigationItemStorage alloc] init];
 
@@ -30,7 +31,7 @@ TEST_F(NavigationItemStorageBuilderTest, DecodeDifferentScheme) {
   ASSERT_NE(item_storage.URL, item_storage.virtualURL);
 
   std::unique_ptr<NavigationItemImpl> navigation_item =
-      NavigationItemStorageBuilder::BuildNavigationItemImpl(item_storage);
+      item_storage_builder.BuildNavigationItemImpl(item_storage);
   ASSERT_EQ(item_storage.URL, navigation_item->GetURL());
   ASSERT_EQ(item_storage.virtualURL, navigation_item->GetVirtualURL());
 
@@ -39,8 +40,7 @@ TEST_F(NavigationItemStorageBuilderTest, DecodeDifferentScheme) {
 
   ASSERT_NE(item_storage.URL, item_storage.virtualURL);
 
-  navigation_item =
-      NavigationItemStorageBuilder::BuildNavigationItemImpl(item_storage);
+  navigation_item = item_storage_builder.BuildNavigationItemImpl(item_storage);
   ASSERT_EQ(item_storage.virtualURL, navigation_item->GetURL());
   ASSERT_EQ(item_storage.virtualURL, navigation_item->GetVirtualURL());
 
@@ -49,8 +49,7 @@ TEST_F(NavigationItemStorageBuilderTest, DecodeDifferentScheme) {
 
   ASSERT_NE(item_storage.URL, item_storage.virtualURL);
 
-  navigation_item =
-      NavigationItemStorageBuilder::BuildNavigationItemImpl(item_storage);
+  navigation_item = item_storage_builder.BuildNavigationItemImpl(item_storage);
   ASSERT_EQ(item_storage.virtualURL, navigation_item->GetURL());
   ASSERT_EQ(item_storage.virtualURL, navigation_item->GetVirtualURL());
 }

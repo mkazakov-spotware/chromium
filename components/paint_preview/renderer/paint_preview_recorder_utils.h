@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,13 +21,10 @@ namespace paint_preview {
 
 class PaintPreviewTracker;
 
-// Pre processes the PaintOpBuffer prior to conversion to SkPicture.
-// 1. Walks |buffer| to extract all the glyphs from its text blobs and links.
-//    The extracted data is written to `tracker`.
-// 2. Tracks geometry changes for frames and saves them to `tracker`.
-// 3. Unaccelerates GPU accelerated PaintImages.
-void PreProcessPaintOpBuffer(const cc::PaintOpBuffer* buffer,
-                             PaintPreviewTracker* tracker);
+// Walks |buffer| to extract all the glyphs from its text blobs and links. The
+// extracted data is written to to |tracker|.
+void ParseGlyphsAndLinks(const cc::PaintOpBuffer* buffer,
+                         PaintPreviewTracker* tracker);
 
 // Convert |recording| into an SkPicture, tracking embedded content. Will return
 // |nullptr| if the resulting picture failed or zero sized.
@@ -38,7 +35,8 @@ sk_sp<const SkPicture> PaintRecordToSkPicture(
 
 // NOTE: |tracker| is effectively const here despite being passed by pointer.
 void BuildResponse(PaintPreviewTracker* tracker,
-                   mojom::PaintPreviewCaptureResponse* response);
+                   mojom::PaintPreviewCaptureResponse* response,
+                   bool log = false);
 
 }  // namespace paint_preview
 

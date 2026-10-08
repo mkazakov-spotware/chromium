@@ -29,11 +29,8 @@ test(function() {
 
 test(function() {
     var url = new URL('http://www.domain.com/');
-    var expected = 'http://www.domain.com';
-    assert_equals(url.origin, expected);
-
-    assert_throws_js(TypeError, () => { url.href = 'invalid'; });
-    assert_equals(url.origin, expected);
+    url.href = 'invalid';
+    assert_equals(url.origin, '');
 }, 'origin property invalid URL');
 
 </script>

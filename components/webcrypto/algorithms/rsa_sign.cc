@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "components/webcrypto/algorithms/rsa_sign.h"
 #include "components/webcrypto/algorithms/util.h"
 #include "components/webcrypto/blink_key_handle.h"
+#include "components/webcrypto/crypto_data.h"
 #include "components/webcrypto/status.h"
 #include "crypto/openssl_util.h"
 #include "third_party/blink/public/platform/web_crypto_key_algorithm.h"
@@ -70,12 +71,14 @@ Status ApplyRsaPssOptions(const blink::WebCryptoKey& key,
 
 Status RsaSign(const blink::WebCryptoKey& key,
                unsigned int pss_salt_length_bytes,
-               base::span<const uint8_t> data,
+               const CryptoData& data,
                std::vector<uint8_t>* buffer) {
   if (key.GetType() != blink::kWebCryptoKeyTypePrivate)
     return Status::ErrorUnexpectedKeyType();
 
   crypto::OpenSSLErrStackTracer err_tracer(FROM_HERE);
+  bssl::ScopedEVP_MD_CTX ctx;
+  EVP_PKEY_CTX* pctx = nullptr;  // Owned by |ctx|.
 
   EVP_PKEY* private_key = nullptr;
   const EVP_MD* digest = nullptr;
@@ -83,11 +86,9 @@ Status RsaSign(const blink::WebCryptoKey& key,
   if (status.IsError())
     return status;
 
-  // NOTE: A call to EVP_DigestSign() with a NULL second parameter returns a
-  // maximum allocation size, while the call without a NULL returns the real
-  // one, which may be smaller.
-  bssl::ScopedEVP_MD_CTX ctx;
-  EVP_PKEY_CTX* pctx = nullptr;  // Owned by |ctx|.
+  // NOTE: A call to EVP_DigestSignFinal() with a NULL second parameter
+  // returns a maximum allocation size, while the call without a NULL returns
+  // the real one, which may be smaller.
   size_t sig_len = 0;
   if (!EVP_DigestSignInit(ctx.get(), &pctx, digest, nullptr, private_key)) {
     return Status::OperationError();
@@ -98,15 +99,14 @@ Status RsaSign(const blink::WebCryptoKey& key,
   if (status.IsError())
     return status;
 
-  if (!EVP_DigestSign(ctx.get(), nullptr, &sig_len, data.data(), data.size())) {
+  if (!EVP_DigestSignUpdate(ctx.get(), data.bytes(), data.byte_length()) ||
+      !EVP_DigestSignFinal(ctx.get(), nullptr, &sig_len)) {
     return Status::OperationError();
   }
 
   buffer->resize(sig_len);
-  if (!EVP_DigestSign(ctx.get(), buffer->data(), &sig_len, data.data(),
-                      data.size())) {
+  if (!EVP_DigestSignFinal(ctx.get(), buffer->data(), &sig_len))
     return Status::OperationError();
-  }
 
   buffer->resize(sig_len);
   return Status::Success();
@@ -114,13 +114,15 @@ Status RsaSign(const blink::WebCryptoKey& key,
 
 Status RsaVerify(const blink::WebCryptoKey& key,
                  unsigned int pss_salt_length_bytes,
-                 base::span<const uint8_t> signature,
-                 base::span<const uint8_t> data,
+                 const CryptoData& signature,
+                 const CryptoData& data,
                  bool* signature_match) {
   if (key.GetType() != blink::kWebCryptoKeyTypePublic)
     return Status::ErrorUnexpectedKeyType();
 
   crypto::OpenSSLErrStackTracer err_tracer(FROM_HERE);
+  bssl::ScopedEVP_MD_CTX ctx;
+  EVP_PKEY_CTX* pctx = nullptr;  // Owned by |ctx|.
 
   EVP_PKEY* public_key = nullptr;
   const EVP_MD* digest = nullptr;
@@ -128,8 +130,6 @@ Status RsaVerify(const blink::WebCryptoKey& key,
   if (status.IsError())
     return status;
 
-  bssl::ScopedEVP_MD_CTX ctx;
-  EVP_PKEY_CTX* pctx = nullptr;  // Owned by |ctx|.
   if (!EVP_DigestVerifyInit(ctx.get(), &pctx, digest, nullptr, public_key))
     return Status::OperationError();
 
@@ -138,9 +138,11 @@ Status RsaVerify(const blink::WebCryptoKey& key,
   if (status.IsError())
     return status;
 
-  *signature_match =
-      1 == EVP_DigestVerify(ctx.get(), signature.data(), signature.size(),
-                            data.data(), data.size());
+  if (!EVP_DigestVerifyUpdate(ctx.get(), data.bytes(), data.byte_length()))
+    return Status::OperationError();
+
+  *signature_match = 1 == EVP_DigestVerifyFinal(ctx.get(), signature.bytes(),
+                                                signature.byte_length());
   return Status::Success();
 }
 

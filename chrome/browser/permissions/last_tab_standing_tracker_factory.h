@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_PERMISSIONS_LAST_TAB_STANDING_TRACKER_FACTORY_H_
 #define CHROME_BROWSER_PERMISSIONS_LAST_TAB_STANDING_TRACKER_FACTORY_H_
 
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 namespace base {
 template <typename T>
@@ -13,7 +13,7 @@ struct DefaultSingletonTraits;
 }
 class LastTabStandingTracker;
 
-class LastTabStandingTrackerFactory : public ProfileKeyedServiceFactory {
+class LastTabStandingTrackerFactory : public BrowserContextKeyedServiceFactory {
  public:
   LastTabStandingTrackerFactory(const LastTabStandingTrackerFactory&) = delete;
   LastTabStandingTrackerFactory& operator=(
@@ -34,6 +34,8 @@ class LastTabStandingTrackerFactory : public ProfileKeyedServiceFactory {
 
   // BrowserContextKeyedServiceFactory:
   KeyedService* BuildServiceInstanceFor(
+      content::BrowserContext* context) const override;
+  content::BrowserContext* GetBrowserContextToUse(
       content::BrowserContext* context) const override;
 };
 

@@ -1,13 +1,15 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "apps/app_lifetime_monitor.h"
 
-#include "base/observer_list.h"
 #include "content/public/browser/browser_context.h"
+#include "content/public/browser/notification_details.h"
+#include "content/public/browser/notification_service.h"
 #include "extensions/browser/app_window/app_window.h"
 #include "extensions/browser/extension_host.h"
+#include "extensions/browser/notification_types.h"
 #include "extensions/common/extension.h"
 
 namespace apps {
@@ -19,8 +21,12 @@ using extensions::ExtensionHost;
 
 AppLifetimeMonitor::AppLifetimeMonitor(content::BrowserContext* context)
     : context_(context) {
-  extension_host_registry_observation_.Observe(
-      extensions::ExtensionHostRegistry::Get(context_));
+  registrar_.Add(this,
+                 extensions::NOTIFICATION_EXTENSION_HOST_DID_STOP_FIRST_LOAD,
+                 content::NotificationService::AllSources());
+  registrar_.Add(this,
+                 extensions::NOTIFICATION_EXTENSION_HOST_DESTROYED,
+                 content::NotificationService::AllSources());
 
   AppWindowRegistry* app_window_registry =
       AppWindowRegistry::Factory::GetForBrowserContext(context_,
@@ -39,24 +45,30 @@ void AppLifetimeMonitor::RemoveObserver(Observer* observer) {
   observers_.RemoveObserver(observer);
 }
 
-void AppLifetimeMonitor::OnExtensionHostCompletedFirstLoad(
-    content::BrowserContext* browser_context,
-    ExtensionHost* host) {
-  const Extension* extension = host->extension();
-  if (!extension || !extension->is_platform_app())
-    return;
+void AppLifetimeMonitor::Observe(int type,
+                                const content::NotificationSource& source,
+                                const content::NotificationDetails& details) {
+  switch (type) {
+    case extensions::NOTIFICATION_EXTENSION_HOST_DID_STOP_FIRST_LOAD: {
+      ExtensionHost* host = content::Details<ExtensionHost>(details).ptr();
+      const Extension* extension = host->extension();
+      if (!extension || !extension->is_platform_app())
+        return;
 
-  NotifyAppStart(extension->id());
-}
+      NotifyAppStart(extension->id());
+      break;
+    }
 
-void AppLifetimeMonitor::OnExtensionHostDestroyed(
-    content::BrowserContext* browser_context,
-    extensions::ExtensionHost* host) {
-  const Extension* extension = host->extension();
-  if (!extension || !extension->is_platform_app())
-    return;
+    case extensions::NOTIFICATION_EXTENSION_HOST_DESTROYED: {
+      ExtensionHost* host = content::Details<ExtensionHost>(details).ptr();
+      const Extension* extension = host->extension();
+      if (!extension || !extension->is_platform_app())
+        return;
 
-  NotifyAppStop(extension->id());
+      NotifyAppStop(extension->id());
+      break;
+    }
+  }
 }
 
 void AppLifetimeMonitor::OnAppWindowRemoved(AppWindow* app_window) {

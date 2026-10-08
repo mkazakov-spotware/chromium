@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "base/containers/flat_set.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "components/favicon/core/favicon_types.h"
 #include "components/favicon_base/favicon_types.h"
@@ -116,10 +115,6 @@ class FaviconBackend {
       const favicon_base::IconTypeSet& icon_types,
       const base::flat_set<GURL>& page_urls_to_write);
 
-  // Returns all icon URLs associated with the given `page_url`. In case there
-  // are multiple, they're ordered in descending order of IconType.
-  std::vector<GURL> GetFaviconUrlsForUrl(const GURL& page_url);
-
   // See function of same name in HistoryService for details.
   SetFaviconsResult SetOnDemandFavicons(const GURL& page_url,
                                         favicon_base::IconType icon_type,
@@ -134,10 +129,6 @@ class FaviconBackend {
   // if the mapping was updated, false if |page_url| has no icons associated
   // with it.
   bool SetFaviconsOutOfDateForPage(const GURL& page_url);
-
-  // Mark all favicons as out of date that have been modified at or after
-  // |begin| and before |end|.
-  bool SetFaviconsOutOfDateBetween(base::Time begin, base::Time end);
 
   // See function of same name in HistoryService for details.
   void TouchOnDemandFavicon(const GURL& icon_url);
@@ -219,7 +210,7 @@ class FaviconBackend {
                                  favicon_base::FaviconID icon_id);
 
   std::unique_ptr<FaviconDatabase> db_;
-  raw_ptr<FaviconBackendDelegate> delegate_;
+  FaviconBackendDelegate* delegate_;
 };
 
 }  // namespace favicon

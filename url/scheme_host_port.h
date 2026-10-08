@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -133,10 +133,7 @@ class COMPONENT_EXPORT(URL) SchemeHostPort {
   std::string Serialize() const;
 
   // Efficiently returns what GURL(Serialize()) would return, without needing to
-  // re-parse the URL. Note: this still performs allocations to copy data into
-  // GURL, so please avoid using this method if you only need to work on
-  // schemes, hosts, or ports individually.
-  // For example, see crrev.com/c/3637099/comments/782360d0_e14757be.
+  // re-parse the URL.
   GURL GetURL() const;
 
   // Two SchemeHostPort objects are "equal" iff their schemes, hosts, and ports

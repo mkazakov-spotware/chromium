@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,16 +7,17 @@
 #include <memory>
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
-#include "chrome/browser/device_identity/device_oauth2_token_service.h"
-#include "content/public/browser/browser_thread.h"
-#include "services/network/public/cpp/shared_url_loader_factory.h"
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#include "chrome/browser/chromeos/settings/token_encryptor.h"
+#if defined(OS_CHROMEOS)
 #include "chrome/browser/device_identity/chromeos/device_oauth2_token_store_chromeos.h"
 #else
 #include "chrome/browser/device_identity/device_oauth2_token_store_desktop.h"
 #endif
+#include "chrome/browser/device_identity/device_oauth2_token_service.h"
+#include "chromeos/cryptohome/system_salt_getter.h"
+#include "components/policy/core/common/features.h"
+#include "content/public/browser/browser_thread.h"
+#include "services/network/public/cpp/shared_url_loader_factory.h"
 
 namespace {
 
@@ -24,11 +25,12 @@ static DeviceOAuth2TokenService* g_device_oauth2_token_service_ = nullptr;
 
 std::unique_ptr<DeviceOAuth2TokenStore> CreatePlatformTokenStore(
     PrefService* local_state) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   return std::make_unique<chromeos::DeviceOAuth2TokenStoreChromeOS>(
       local_state);
-#elif BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_FUCHSIA) || \
-    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
+#elif defined(OS_WIN) || defined(OS_MAC) || defined(OS_LINUX)
+  DCHECK(
+      base::FeatureList::IsEnabled(policy::features::kCBCMPolicyInvalidations));
   return std::make_unique<DeviceOAuth2TokenStoreDesktop>(local_state);
 #else
   NOTREACHED();

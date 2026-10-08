@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,10 @@
 
 #include "base/bind.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/signin/signin_error_controller_factory.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "ash/shell.h"
 #endif
 
@@ -27,7 +26,7 @@ TestingProfile* ChromeRenderViewHostTestHarness::profile() {
 
 void ChromeRenderViewHostTestHarness::TearDown() {
   RenderViewHostTestHarness::TearDown();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   ash::Shell::DeleteInstance();
 #endif
 }
@@ -38,15 +37,8 @@ ChromeRenderViewHostTestHarness::GetTestingFactories() const {
 }
 
 std::unique_ptr<TestingProfile>
-ChromeRenderViewHostTestHarness::CreateTestingProfile(
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-    bool is_main_profile
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
-) {
+ChromeRenderViewHostTestHarness::CreateTestingProfile() {
   TestingProfile::Builder builder;
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  builder.SetIsMainProfile(is_main_profile);
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
   for (auto& pair : GetTestingFactories())
     builder.AddTestingFactory(pair.first, pair.second);
@@ -56,9 +48,5 @@ ChromeRenderViewHostTestHarness::CreateTestingProfile(
 
 std::unique_ptr<content::BrowserContext>
 ChromeRenderViewHostTestHarness::CreateBrowserContext() {
-  return CreateTestingProfile(
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-      /*is_main_profile=*/true
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
-  );
+  return CreateTestingProfile();
 }

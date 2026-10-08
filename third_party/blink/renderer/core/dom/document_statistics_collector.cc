@@ -1,10 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/dom/document_statistics_collector.h"
 
-#include "base/trace_event/trace_event.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/platform/web_distillability.h"
 #include "third_party/blink/renderer/core/dom/element_traversal.h"
@@ -82,7 +81,7 @@ bool MatchAttributes(const Element& element, const Vector<String>& words) {
 bool IsGoodForScoring(const WebDistillabilityFeatures& features,
                       const Element& element) {
   DEFINE_STATIC_LOCAL(Vector<String>, unlikely_candidates, ());
-  if (unlikely_candidates.empty()) {
+  if (unlikely_candidates.IsEmpty()) {
     auto words = {
         "banner",  "combx",      "comment", "community",  "disqus",  "extra",
         "foot",    "header",     "menu",    "related",    "remark",  "rss",
@@ -93,7 +92,7 @@ bool IsGoodForScoring(const WebDistillabilityFeatures& features,
     }
   }
   DEFINE_STATIC_LOCAL(Vector<String>, highly_likely_candidates, ());
-  if (highly_likely_candidates.empty()) {
+  if (highly_likely_candidates.IsEmpty()) {
     auto words = {"and", "article", "body", "column", "main", "shadow"};
     for (auto* word : words) {
       highly_likely_candidates.push_back(word);
@@ -192,7 +191,7 @@ WebDistillabilityFeatures DocumentStatisticsCollector::CollectStatistics(
 
   WebDistillabilityFeatures features = WebDistillabilityFeatures();
 
-  if (!document.GetFrame() || !document.GetFrame()->IsOutermostMainFrame())
+  if (!document.GetFrame() || !document.GetFrame()->IsMainFrame())
     return features;
 
   DCHECK(document.HasFinishedParsing());

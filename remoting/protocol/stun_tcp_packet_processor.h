@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,8 @@
 #include "base/memory/scoped_refptr.h"
 #include "remoting/protocol/stream_packet_processor.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 // StreamPacketSocket implementation for data that has already been packed in
 // STUN/TURN's TCP packet. It won't add any extra header to the data but will
@@ -39,6 +40,7 @@ class StunTcpPacketProcessor final : public StreamPacketProcessor {
       const rtc::PacketTimeUpdateParams& packet_time_params) const override;
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_STUN_TCP_PACKET_PROCESSOR_H_

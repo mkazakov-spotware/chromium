@@ -1,9 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/exported/web_input_method_controller_impl.h"
 
+#include "third_party/blink/public/platform/web_rect.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_vector.h"
 #include "third_party/blink/public/web/web_plugin.h"
@@ -90,7 +91,7 @@ bool WebInputMethodControllerImpl::SetComposition(
   if (range.IsNotNull()) {
     Node* node = range.StartPosition().ComputeContainerNode();
     GetFrame()->GetDocument()->UpdateStyleAndLayoutTree();
-    if (!node || !IsEditable(*node))
+    if (!node || !HasEditableStyle(*node))
       return false;
   }
 
@@ -186,9 +187,8 @@ WebTextInputType WebInputMethodControllerImpl::TextInputType() {
   return GetFrame()->GetInputMethodController().TextInputType();
 }
 
-void WebInputMethodControllerImpl::GetLayoutBounds(
-    gfx::Rect* control_bounds,
-    gfx::Rect* selection_bounds) {
+void WebInputMethodControllerImpl::GetLayoutBounds(WebRect* control_bounds,
+                                                   WebRect* selection_bounds) {
   GetInputMethodController().GetLayoutBounds(control_bounds, selection_bounds);
 }
 
@@ -223,27 +223,24 @@ WebRange WebInputMethodControllerImpl::CompositionRange() {
 }
 
 bool WebInputMethodControllerImpl::GetCompositionCharacterBounds(
-    WebVector<gfx::Rect>& bounds) {
-  if (IsEditContextActive()) {
-    return GetInputMethodController()
-        .GetActiveEditContext()
-        ->GetCompositionCharacterBounds(bounds);
-  }
+    WebVector<WebRect>& bounds) {
+  if (IsEditContextActive())
+    return false;
 
   WebRange range = CompositionRange();
   if (range.IsEmpty())
     return false;
 
-  int character_count = range.length();
-  int offset = range.StartOffset();
-  WebVector<gfx::Rect> result(static_cast<size_t>(character_count));
-  gfx::Rect rect;
-  for (int i = 0; i < character_count; ++i) {
-    if (!web_frame_->FirstRectForCharacterRange(offset + i, 1, rect)) {
+  size_t character_count = range.length();
+  size_t offset = range.StartOffset();
+  WebVector<WebRect> result(character_count);
+  WebRect webrect;
+  for (size_t i = 0; i < character_count; ++i) {
+    if (!web_frame_->FirstRectForCharacterRange(offset + i, 1, webrect)) {
       DLOG(ERROR) << "Could not retrieve character rectangle at " << i;
       return false;
     }
-    result[i] = rect;
+    result[i] = webrect;
   }
 
   bounds.Swap(result);

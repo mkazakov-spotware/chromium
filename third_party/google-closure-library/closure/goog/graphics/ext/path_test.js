@@ -1,8 +1,5 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+// Use of this source code is governed by the Apache License, Version 2.0.
 
 goog.module('goog.graphics.ext.PathTest');
 goog.setTestOnly();
@@ -24,10 +21,6 @@ testSuite({
     assertTrue('Cloned path is a goog.graphics.ext.Path', path instanceof Path);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testBoundingBox() {
     const path =
         new Path().moveTo(0, 0).lineTo(1, 1).curveTo(2, 2, 3, 3, 4, 4).close();
@@ -36,10 +29,6 @@ testSuite({
         GoogRect.equals(path.getBoundingBox(), new GoogRect(0, 0, 4, 4)));
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testModifyBounds() {
     const path1 =
         new Path().moveTo(0, 0).lineTo(1, 1).curveTo(2, 2, 3, 3, 4, 4).close();

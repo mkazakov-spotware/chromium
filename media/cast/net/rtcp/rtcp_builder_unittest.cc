@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "media/cast/cast_environment.h"
 #include "media/cast/net/cast_transport_config.h"
@@ -16,7 +17,7 @@
 #include "media/cast/net/pacing/paced_sender.h"
 #include "media/cast/net/rtcp/receiver_rtcp_event_subscriber.h"
 #include "media/cast/net/rtcp/rtcp_utility.h"
-#include "media/cast/test/test_rtcp_packet_builder.h"
+#include "media/cast/net/rtcp/test_rtcp_packet_builder.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
 namespace media {
@@ -25,7 +26,8 @@ namespace cast {
 namespace {
 static const uint32_t kSendingSsrc = 0x12345678;
 static const uint32_t kMediaSsrc = 0x87654321;
-static const base::TimeDelta kDefaultDelay = base::Milliseconds(100);
+static const base::TimeDelta kDefaultDelay =
+    base::TimeDelta::FromMilliseconds(100);
 
 RtcpReportBlock GetReportBlock() {
   RtcpReportBlock report_block;
@@ -45,10 +47,6 @@ RtcpReportBlock GetReportBlock() {
 
 
 class RtcpBuilderTest : public ::testing::Test {
- public:
-  RtcpBuilderTest(const RtcpBuilderTest&) = delete;
-  RtcpBuilderTest& operator=(const RtcpBuilderTest&) = delete;
-
  protected:
   RtcpBuilderTest()
       : rtcp_builder_(new RtcpBuilder(kSendingSsrc)) {}
@@ -96,6 +94,8 @@ class RtcpBuilderTest : public ::testing::Test {
   }
 
   std::unique_ptr<RtcpBuilder> rtcp_builder_;
+
+  DISALLOW_COPY_AND_ASSIGN(RtcpBuilderTest);
 };
 
 TEST_F(RtcpBuilderTest, RtcpReceiverReport) {
@@ -227,7 +227,7 @@ TEST_F(RtcpBuilderTest, RtcpReceiverReportWithRrtrCastMessageAndLog) {
                                        nullptr, &rtcp_events, kDefaultDelay));
 
   base::SimpleTestTickClock testing_clock;
-  testing_clock.Advance(base::Milliseconds(kTimeBaseMs));
+  testing_clock.Advance(base::TimeDelta::FromMilliseconds(kTimeBaseMs));
 
   p.AddReceiverLog(kSendingSsrc);
   p.AddReceiverFrameLog(test_rtp_timestamp().lower_32_bits(), 2, kTimeBaseMs);
@@ -240,7 +240,7 @@ TEST_F(RtcpBuilderTest, RtcpReceiverReportWithRrtrCastMessageAndLog) {
   frame_event.media_type = VIDEO_EVENT;
   frame_event.timestamp = testing_clock.NowTicks();
   event_subscriber.OnReceiveFrameEvent(frame_event);
-  testing_clock.Advance(base::Milliseconds(kTimeDelayMs));
+  testing_clock.Advance(base::TimeDelta::FromMilliseconds(kTimeDelayMs));
 
   PacketEvent packet_event;
   packet_event.rtp_timestamp = test_rtp_timestamp();
@@ -268,7 +268,7 @@ TEST_F(RtcpBuilderTest, RtcpReceiverReportWithOversizedFrameLog) {
   RtcpReportBlock report_block = GetReportBlock();
 
   base::SimpleTestTickClock testing_clock;
-  testing_clock.Advance(base::Milliseconds(kTimeBaseMs));
+  testing_clock.Advance(base::TimeDelta::FromMilliseconds(kTimeBaseMs));
 
   p.AddReceiverLog(kSendingSsrc);
 
@@ -296,7 +296,7 @@ TEST_F(RtcpBuilderTest, RtcpReceiverReportWithOversizedFrameLog) {
     packet_event.timestamp = testing_clock.NowTicks();
     packet_event.packet_id = kLostPacketId1;
     event_subscriber.OnReceivePacketEvent(packet_event);
-    testing_clock.Advance(base::Milliseconds(kTimeDelayMs));
+    testing_clock.Advance(base::TimeDelta::FromMilliseconds(kTimeDelayMs));
   }
 
   ReceiverRtcpEventSubscriber::RtcpEvents rtcp_events;
@@ -318,7 +318,7 @@ TEST_F(RtcpBuilderTest, RtcpReceiverReportWithTooManyLogFrames) {
   RtcpReportBlock report_block = GetReportBlock();
 
   base::SimpleTestTickClock testing_clock;
-  testing_clock.Advance(base::Milliseconds(kTimeBaseMs));
+  testing_clock.Advance(base::TimeDelta::FromMilliseconds(kTimeBaseMs));
 
   p.AddReceiverLog(kSendingSsrc);
 
@@ -341,7 +341,7 @@ TEST_F(RtcpBuilderTest, RtcpReceiverReportWithTooManyLogFrames) {
     frame_event.media_type = VIDEO_EVENT;
     frame_event.timestamp = testing_clock.NowTicks();
     event_subscriber.OnReceiveFrameEvent(frame_event);
-    testing_clock.Advance(base::Milliseconds(kTimeDelayMs));
+    testing_clock.Advance(base::TimeDelta::FromMilliseconds(kTimeDelayMs));
   }
 
   ReceiverRtcpEventSubscriber::RtcpEvents rtcp_events;
@@ -362,7 +362,7 @@ TEST_F(RtcpBuilderTest, RtcpReceiverReportWithOldLogFrames) {
   RtcpReportBlock report_block = GetReportBlock();
 
   base::SimpleTestTickClock testing_clock;
-  testing_clock.Advance(base::Milliseconds(kTimeBaseMs));
+  testing_clock.Advance(base::TimeDelta::FromMilliseconds(kTimeBaseMs));
 
   p.AddReceiverLog(kSendingSsrc);
 
@@ -384,7 +384,8 @@ TEST_F(RtcpBuilderTest, RtcpReceiverReportWithOldLogFrames) {
     frame_event.media_type = VIDEO_EVENT;
     frame_event.timestamp = testing_clock.NowTicks();
     event_subscriber.OnReceiveFrameEvent(frame_event);
-    testing_clock.Advance(base::Milliseconds(kTimeBetweenEventsMs));
+    testing_clock.Advance(
+        base::TimeDelta::FromMilliseconds(kTimeBetweenEventsMs));
   }
 
   ReceiverRtcpEventSubscriber::RtcpEvents rtcp_events;
@@ -402,7 +403,7 @@ TEST_F(RtcpBuilderTest, RtcpReceiverReportRedundancy) {
   RtcpReportBlock report_block = GetReportBlock();
 
   base::SimpleTestTickClock testing_clock;
-  testing_clock.Advance(base::Milliseconds(time_base_ms));
+  testing_clock.Advance(base::TimeDelta::FromMilliseconds(time_base_ms));
 
   ReceiverRtcpEventSubscriber event_subscriber(500, VIDEO_EVENT);
   size_t packet_count = kNumResends * kResendDelay + 10;
@@ -418,9 +419,9 @@ TEST_F(RtcpBuilderTest, RtcpReceiverReportRedundancy) {
     p.AddReceiverFrameLog(test_rtp_timestamp().lower_32_bits(), num_events,
         time_base_ms - (num_events - 1) * kResendDelay *
         kTimeBetweenEventsMs);
-    for (int event = 0; event < num_events; event++) {
+    for (int i = 0; i < num_events; i++) {
       p.AddReceiverEventLog(0, FRAME_ACK_SENT,
-                            base::checked_cast<uint16_t>(event * kResendDelay *
+                            base::checked_cast<uint16_t>(i * kResendDelay *
                                                          kTimeBetweenEventsMs));
     }
 
@@ -438,7 +439,8 @@ TEST_F(RtcpBuilderTest, RtcpReceiverReportRedundancy) {
                    BuildRtcpFromReceiver(&report_block, nullptr, nullptr,
                                          nullptr, &rtcp_events, kDefaultDelay));
 
-    testing_clock.Advance(base::Milliseconds(kTimeBetweenEventsMs));
+    testing_clock.Advance(
+        base::TimeDelta::FromMilliseconds(kTimeBetweenEventsMs));
     time_base_ms += kTimeBetweenEventsMs;
   }
 }

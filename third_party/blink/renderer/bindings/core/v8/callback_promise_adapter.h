@@ -34,6 +34,7 @@
 #include <memory>
 #include <utility>
 
+#include "base/macros.h"
 #include "third_party/blink/public/platform/web_callbacks.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/platform/wtf/type_traits.h"
@@ -200,8 +201,8 @@ class CallbackPromiseAdapterInternal {
     explicit CallbackPromiseAdapter(ScriptPromiseResolver* resolver)
         : OnErrorAdapter<WebTypeHolder<S>, WebTypeHolder<T>>(resolver) {}
 
-    CallbackPromiseAdapter(const CallbackPromiseAdapter&) = delete;
-    CallbackPromiseAdapter& operator=(const CallbackPromiseAdapter&) = delete;
+   private:
+    DISALLOW_COPY_AND_ASSIGN(CallbackPromiseAdapter);
   };
 };
 
@@ -213,4 +214,4 @@ using CallbackPromiseAdapter =
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_BINDINGS_CORE_V8_CALLBACK_PROMISE_ADAPTER_H_
+#endif

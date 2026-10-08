@@ -1,33 +1,6 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import 'chrome://resources/cr_elements/cr_button/cr_button.js';
-import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
-import 'chrome://resources/cr_elements/cr_input/cr_input.js';
-import 'chrome://resources/cr_elements/icons.html.js';
-import 'chrome://resources/cr_elements/policy/cr_tooltip_icon.js';
-import 'chrome://resources/cr_components/localized_link/localized_link.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
-import 'chrome://resources/polymer/v3_0/iron-list/iron-list.js';
-import 'chrome://resources/polymer/v3_0/paper-ripple/paper-ripple.js';
-import './setup_fingerprint_dialog.js';
-import '../../settings_shared.css.js';
-
-import {focusWithoutInk} from 'chrome://resources/ash/common/focus_without_ink_js.js';
-import {I18nBehavior, I18nBehaviorInterface} from 'chrome://resources/ash/common/i18n_behavior.js';
-import {WebUIListenerBehavior, WebUIListenerBehaviorInterface} from 'chrome://resources/ash/common/web_ui_listener_behavior.js';
-import {assert} from 'chrome://resources/js/assert.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-
-import {Setting} from '../../mojom-webui/setting.mojom-webui.js';
-import {Route, Router} from '../../router.js';
-import {DeepLinkingBehavior, DeepLinkingBehaviorInterface} from '../deep_linking_behavior.js';
-import {recordSettingChange} from '../metrics_recorder.js';
-import {routes} from '../os_route.js';
-import {RouteObserverBehavior, RouteObserverBehaviorInterface} from '../route_observer_behavior.js';
-
-import {FingerprintBrowserProxy, FingerprintBrowserProxyImpl, FingerprintInfo} from './fingerprint_browser_proxy.js';
 
 /**
  * The duration in ms of a background flash when a user touches the fingerprint
@@ -36,123 +9,113 @@ import {FingerprintBrowserProxy, FingerprintBrowserProxyImpl, FingerprintInfo} f
  */
 const FLASH_DURATION_MS = 500;
 
-/**
- * @constructor
- * @extends {PolymerElement}
- * @implements {DeepLinkingBehaviorInterface}
- * @implements {I18nBehaviorInterface}
- * @implements {WebUIListenerBehaviorInterface}
- * @implements {RouteObserverBehaviorInterface}
- */
-const SettingsFingerprintListElementBase = mixinBehaviors(
-    [
-      DeepLinkingBehavior,
-      I18nBehavior,
-      WebUIListenerBehavior,
-      RouteObserverBehavior,
-    ],
-    PolymerElement);
+Polymer({
+  is: 'settings-fingerprint-list',
 
-/** @polymer */
-class SettingsFingerprintListElement extends
-    SettingsFingerprintListElementBase {
-  static get is() {
-    return 'settings-fingerprint-list';
-  }
+  behaviors: [
+    DeepLinkingBehavior,
+    I18nBehavior,
+    WebUIListenerBehavior,
+    settings.RouteObserverBehavior,
+  ],
 
-  static get template() {
-    return html`{__html_template__}`;
-  }
+  properties: {
+    /**
+     * Authentication token provided by settings-people-page.
+     */
+    authToken: {
+      type: String,
+      value: '',
+      observer: 'onAuthTokenChanged_',
+    },
 
-  static get properties() {
-    return {
-      /**
-       * Authentication token provided by settings-people-page.
-       */
-      authToken: {
-        type: String,
-        value: '',
-        observer: 'onAuthTokenChanged_',
-      },
+    /**
+     * The list of fingerprint objects.
+     * @private {!Array<string>}
+     */
+    fingerprints_: {
+      type: Array,
+      value() {
+        return [];
+      }
+    },
 
-      /**
-       * The list of fingerprint objects.
-       * @private {!Array<string>}
-       */
-      fingerprints_: {
-        type: Array,
-        value() {
-          return [];
-        },
-      },
+    /** @private */
+    showSetupFingerprintDialog_: Boolean,
 
-      /** @private */
-      showSetupFingerprintDialog_: Boolean,
+    /**
+     * Whether add another finger is allowed.
+     * @type {boolean}
+     * @private
+     */
+    allowAddAnotherFinger_: {
+      type: Boolean,
+      value: true,
+    },
 
-      /**
-       * Whether add another finger is allowed.
-       * @type {boolean}
-       * @private
-       */
-      allowAddAnotherFinger_: {
-        type: Boolean,
-        value: true,
-      },
+    /**
+     * Used by DeepLinkingBehavior to focus this page's deep links.
+     * @type {!Set<!chromeos.settings.mojom.Setting>}
+     */
+    supportedSettingIds: {
+      type: Object,
+      value: () => new Set([
+        chromeos.settings.mojom.Setting.kAddFingerprint,
+        chromeos.settings.mojom.Setting.kRemoveFingerprint,
+      ]),
+    },
+  },
 
-      /**
-       * Used by DeepLinkingBehavior to focus this page's deep links.
-       * @type {!Set<!Setting>}
-       */
-      supportedSettingIds: {
-        type: Object,
-        value: () => new Set([
-          Setting.kAddFingerprintV2,
-          Setting.kRemoveFingerprintV2,
-        ]),
-      },
-    };
-  }
-
-  constructor() {
-    super();
-
-    /** @private {!FingerprintBrowserProxy} */
-    this.browserProxy_ = FingerprintBrowserProxyImpl.getInstance();
-  }
+  /** @private {?settings.FingerprintBrowserProxy} */
+  browserProxy_: null,
 
   /** @override */
-  connectedCallback() {
-    super.connectedCallback();
-
+  attached() {
+    this.addWebUIListener(
+        'on-fingerprint-attempt-received', this.onAttemptReceived_.bind(this));
     this.addWebUIListener('on-screen-locked', this.onScreenLocked_.bind(this));
+    this.browserProxy_ = settings.FingerprintBrowserProxyImpl.getInstance();
+    this.browserProxy_.startAuthentication();
     this.updateFingerprintsList_();
-  }
+  },
+
+  /** @override */
+  detached() {
+    this.browserProxy_.endCurrentAuthentication();
+  },
 
   /**
    * @return {boolean} Whether an event was fired to show the password dialog.
    * @private
    */
   requestPasswordIfApplicable_() {
-    const currentRoute = Router.getInstance().getCurrentRoute();
-    if (currentRoute === routes.FINGERPRINT && !this.authToken) {
-      const event = new CustomEvent(
-          'password-requested', {bubbles: true, composed: true});
-      this.dispatchEvent(event);
+    const currentRoute = settings.Router.getInstance().getCurrentRoute();
+    if (currentRoute === settings.routes.FINGERPRINT && !this.authToken) {
+      this.fire('password-requested');
       return true;
     }
     return false;
-  }
+  },
 
   /**
-   * Overridden from RouteObserverBehavior.
-   * @param {!Route} newRoute
-   * @param {!Route=} oldRoute
+   * Overridden from settings.RouteObserverBehavior.
+   * @param {!settings.Route} newRoute
+   * @param {!settings.Route} oldRoute
    * @protected
    */
   currentRouteChanged(newRoute, oldRoute) {
-    if (newRoute !== routes.FINGERPRINT) {
+    if (newRoute !== settings.routes.FINGERPRINT) {
+      if (this.browserProxy_) {
+        this.browserProxy_.endCurrentAuthentication();
+      }
       this.showSetupFingerprintDialog_ = false;
       return;
+    }
+
+    if (oldRoute === settings.routes.LOCK_SCREEN) {
+      // Start fingerprint authentication when going from LOCK_SCREEN to
+      // FINGERPRINT page.
+      this.browserProxy_.startAuthentication();
     }
 
     if (this.requestPasswordIfApplicable_()) {
@@ -160,25 +123,59 @@ class SettingsFingerprintListElement extends
     }
 
     this.attemptDeepLink();
-  }
+  },
+
+  /**
+   * Sends a ripple when the user taps the sensor with a registered fingerprint.
+   * @param {!settings.FingerprintAttempt} fingerprintAttempt
+   * @private
+   */
+  onAttemptReceived_(fingerprintAttempt) {
+    /** @type {NodeList<!HTMLElement>} */ const listItems =
+        /** @type {NodeList<!HTMLElement>} */
+        (this.$.fingerprintsList.querySelectorAll('.list-item'));
+    /** @type {Array<number>} */ const filteredIndexes =
+        fingerprintAttempt.indexes.filter(function(index) {
+          return index >= 0 && index < listItems.length;
+        });
+
+    // Flash the background and produce a ripple for each list item that
+    // corresponds to the attempted finger.
+    filteredIndexes.forEach(function(index) {
+      const listItem = listItems[index];
+      const ripple = listItem.querySelector('paper-ripple');
+
+      // Activate the ripple.
+      if (ripple) {
+        ripple.simulatedRipple();
+      }
+
+      // Flash the background.
+      listItem.animate(
+          [
+            {backgroundColor: ['var(--google-grey-300)']},
+            {backgroundColor: ['white']}
+          ],
+          FLASH_DURATION_MS);
+    });
+  },
 
   /** @private */
   updateFingerprintsList_() {
     this.browserProxy_.getFingerprintsList().then(
         this.onFingerprintsChanged_.bind(this));
-  }
+  },
 
   /**
-   * @param {!FingerprintInfo} fingerprintInfo
+   * @param {!settings.FingerprintInfo} fingerprintInfo
    * @private
    */
   onFingerprintsChanged_(fingerprintInfo) {
     // Update iron-list.
     this.fingerprints_ = fingerprintInfo.fingerprintsList.slice();
-    this.shadowRoot.querySelector('.action-button').disabled =
-        fingerprintInfo.isMaxed;
+    this.$$('.action-button').disabled = fingerprintInfo.isMaxed;
     this.allowAddAnotherFinger_ = !fingerprintInfo.isMaxed;
-  }
+  },
 
   /**
    * Deletes a fingerprint from |fingerprints_|.
@@ -186,14 +183,13 @@ class SettingsFingerprintListElement extends
    * @private
    */
   onFingerprintDeleteTapped_(e) {
-    this.browserProxy_.removeEnrollment(e.model.index, this.authToken)
-        .then(success => {
-          if (success) {
-            recordSettingChange();
-            this.updateFingerprintsList_();
-          }
-        });
-  }
+    this.browserProxy_.removeEnrollment(e.model.index).then(success => {
+      if (success) {
+        settings.recordSettingChange();
+        this.updateFingerprintsList_();
+      }
+    });
+  },
 
   /**
    * @param {!{model: !{index: !number, item: !string}}} e
@@ -206,7 +202,7 @@ class SettingsFingerprintListElement extends
             this.updateFingerprintsList_();
           }
         });
-  }
+  },
 
   /**
    * Opens the setup fingerprint dialog.
@@ -214,13 +210,14 @@ class SettingsFingerprintListElement extends
    */
   openAddFingerprintDialog_() {
     this.showSetupFingerprintDialog_ = true;
-  }
+  },
 
   /** @private */
   onSetupFingerprintDialogClose_() {
     this.showSetupFingerprintDialog_ = false;
-    focusWithoutInk(assert(this.shadowRoot.querySelector('#addFingerprint')));
-  }
+    cr.ui.focusWithoutInk(assert(this.$$('#addFingerprint')));
+    this.browserProxy_.startAuthentication();
+  },
 
   /**
    * Close the setup fingerprint dialog when the screen is unlocked.
@@ -229,10 +226,11 @@ class SettingsFingerprintListElement extends
    */
   onScreenLocked_(screenIsLocked) {
     if (!screenIsLocked &&
-        Router.getInstance().getCurrentRoute() === routes.FINGERPRINT) {
+        settings.Router.getInstance().getCurrentRoute() ===
+            settings.routes.FINGERPRINT) {
       this.onSetupFingerprintDialogClose_();
     }
-  }
+  },
 
   /** @private */
   onAuthTokenChanged_() {
@@ -241,11 +239,12 @@ class SettingsFingerprintListElement extends
       return;
     }
 
-    if (Router.getInstance().getCurrentRoute() === routes.FINGERPRINT) {
+    if (settings.Router.getInstance().getCurrentRoute() ===
+        settings.routes.FINGERPRINT) {
       // Show deep links again if the user authentication dialog just closed.
       this.attemptDeepLink();
     }
-  }
+  },
 
   /**
    * @param {string} item
@@ -254,8 +253,5 @@ class SettingsFingerprintListElement extends
    */
   getButtonAriaLabel_(item) {
     return this.i18n('lockScreenDeleteFingerprintLabel', item);
-  }
-}
-
-customElements.define(
-    SettingsFingerprintListElement.is, SettingsFingerprintListElement);
+  },
+});

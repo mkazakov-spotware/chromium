@@ -1,12 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/safe_browsing/client_side_detection_service_factory.h"
 
 #include "base/command_line.h"
+#include "chrome/browser/safe_browsing/client_side_detection_service.h"
+#include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/testing_profile.h"
-#include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace safe_browsing {
@@ -16,19 +17,18 @@ class ClientSideDetectionServiceFactoryTest : public testing::Test {
   ClientSideDetectionServiceFactoryTest() = default;
   ~ClientSideDetectionServiceFactoryTest() override = default;
 
-  Profile* profile() { return &profile_; }
+  Profile* profile() { return profile_.get(); }
 
  private:
-  content::BrowserTaskEnvironment task_environment_;
-  TestingProfile profile_;
+  std::unique_ptr<TestingProfile> profile_;
 };
 
-TEST_F(ClientSideDetectionServiceFactoryTest, DisabledIncognito) {
-  auto otr_profile_id = Profile::OTRProfileID::CreateUniqueForTesting();
-  auto* otr_profile = profile()->GetOffTheRecordProfile(
-      otr_profile_id, /*create_if_needed=*/true);
+TEST_F(ClientSideDetectionServiceFactoryTest,
+       TestGetForProfileWithCommandLineFlag) {
+  base::CommandLine::ForCurrentProcess()->AppendSwitch(
+      ::switches::kDisableClientSidePhishingDetection);
   EXPECT_EQ(nullptr,
-            ClientSideDetectionServiceFactory::GetForProfile(otr_profile));
+            ClientSideDetectionServiceFactory::GetForProfile(profile()));
 }
 
 }  // namespace safe_browsing

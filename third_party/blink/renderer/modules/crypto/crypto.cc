@@ -31,13 +31,12 @@
 #include "crypto/random.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer_view.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/wtf/uuid.h"
 
 namespace blink {
 
 namespace {
 
-bool IsIntegerArray(NotShared<DOMArrayBufferView> array) {
+bool IsIntegerArray(DOMArrayBufferView* array) {
   DOMArrayBufferView::ViewType type = array->GetType();
   return type == DOMArrayBufferView::kTypeInt8 ||
          type == DOMArrayBufferView::kTypeUint8 ||
@@ -45,9 +44,7 @@ bool IsIntegerArray(NotShared<DOMArrayBufferView> array) {
          type == DOMArrayBufferView::kTypeInt16 ||
          type == DOMArrayBufferView::kTypeUint16 ||
          type == DOMArrayBufferView::kTypeInt32 ||
-         type == DOMArrayBufferView::kTypeUint32 ||
-         type == DOMArrayBufferView::kTypeBigInt64 ||
-         type == DOMArrayBufferView::kTypeBigUint64;
+         type == DOMArrayBufferView::kTypeUint32;
 }
 
 }  // namespace
@@ -56,29 +53,25 @@ NotShared<DOMArrayBufferView> Crypto::getRandomValues(
     NotShared<DOMArrayBufferView> array,
     ExceptionState& exception_state) {
   DCHECK(array);
-  if (!IsIntegerArray(array)) {
+  if (!IsIntegerArray(array.View())) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kTypeMismatchError,
         String::Format("The provided ArrayBufferView is of type '%s', which is "
                        "not an integer array type.",
-                       array->TypeName()));
+                       array.View()->TypeName()));
     return NotShared<DOMArrayBufferView>(nullptr);
   }
-  if (array->byteLength() > 65536) {
+  if (array.View()->byteLength() > 65536) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kQuotaExceededError,
         String::Format("The ArrayBufferView's byte length (%zu) exceeds the "
                        "number of bytes of entropy available via this API "
                        "(65536).",
-                       array->byteLength()));
+                       array.View()->byteLength()));
     return NotShared<DOMArrayBufferView>(nullptr);
   }
-  crypto::RandBytes(array->BaseAddress(), array->byteLength());
+  crypto::RandBytes(array.View()->BaseAddress(), array.View()->byteLength());
   return array;
-}
-
-String Crypto::randomUUID() {
-  return WTF::CreateCanonicalUUIDString();
 }
 
 SubtleCrypto* Crypto::subtle() {

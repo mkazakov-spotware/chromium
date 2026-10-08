@@ -1,11 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/status_icons/status_icon_menu_model.h"
 
 #include "base/bind.h"
-#include "base/observer_list.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/gfx/image/image.h"
 
@@ -20,7 +19,7 @@ struct StatusIconMenuModel::ItemState {
   bool visible;
   bool is_dynamic;
   ui::Accelerator accelerator;
-  std::u16string label;
+  base::string16 label;
   gfx::Image icon;
 };
 
@@ -56,7 +55,7 @@ void StatusIconMenuModel::SetAcceleratorForCommandId(
 }
 
 void StatusIconMenuModel::ChangeLabelForCommandId(int command_id,
-                                                  const std::u16string& label) {
+                                                  const base::string16& label) {
   item_states_[command_id].is_dynamic = true;
   item_states_[command_id].label = label;
   NotifyMenuStateChanged();
@@ -116,11 +115,11 @@ bool StatusIconMenuModel::IsItemForCommandIdDynamic(int command_id) const {
   return false;
 }
 
-std::u16string StatusIconMenuModel::GetLabelForCommandId(int command_id) const {
+base::string16 StatusIconMenuModel::GetLabelForCommandId(int command_id) const {
   auto iter = item_states_.find(command_id);
   if (iter != item_states_.end())
     return iter->second.label;
-  return std::u16string();
+  return base::string16();
 }
 
 ui::ImageModel StatusIconMenuModel::GetIconForCommandId(int command_id) const {

@@ -1,30 +1,38 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import <memory>
+#include <memory>
 
-#import "base/mac/foundation_util.h"
-#import "base/run_loop.h"
-#import "base/strings/stringprintf.h"
-#import "base/synchronization/condition_variable.h"
+#include "base/mac/foundation_util.h"
+#include "base/run_loop.h"
+#include "base/strings/stringprintf.h"
+#include "base/synchronization/condition_variable.h"
+#include "base/task/post_task.h"
 #import "base/test/ios/wait_util.h"
-#import "base/threading/thread_restrictions.h"
-#import "base/time/time.h"
+#include "base/threading/thread_restrictions.h"
+#include "base/time/time.h"
 #import "ios/chrome/browser/web/progress_indicator_app_interface.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
 #import "ios/chrome/test/earl_grey/web_http_server_chrome_test_case.h"
-#import "ios/chrome/test/scoped_eg_synchronization_disabler.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
-#import "ios/web/public/test/http_server/html_response_provider.h"
+#include "ios/web/public/test/http_server/html_response_provider.h"
 #import "ios/web/public/test/http_server/http_server.h"
 #import "ios/web/public/test/http_server/http_server_util.h"
-#import "url/gurl.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
+
+// TODO(crbug.com/1015113) The EG2 macro is breaking indexing for some reason
+// without the trailing semicolon.  For now, disable the extra semi warning
+// so Xcode indexing works for the egtest.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc++98-compat-extra-semi"
+GREY_STUB_CLASS_IN_APP_MAIN_QUEUE(ProgressIndicatorAppInterface);
+#pragma clang diagnostic pop
 
 namespace {
 
@@ -43,7 +51,7 @@ const char kFormURL[] = "http://form";
 // URL string for an infinite pending page.
 const char kInfinitePendingPageURL[] = "http://infinite";
 
-// URL string for a simple page containing `kPageText`.
+// URL string for a simple page containing |kPageText|.
 const char kSimplePageURL[] = "http://simplepage";
 
 // Matcher for progress view.
@@ -78,7 +86,7 @@ class InfinitePendingResponseProvider : public HtmlResponseProvider {
           base::AutoLock auto_lock(lock_);
           return terminated_.load(std::memory_order_acquire);
         },
-        false, base::Seconds(10));
+        false, base::TimeDelta::FromSeconds(10));
   }
 
   // HtmlResponseProvider overrides:
@@ -111,7 +119,7 @@ class InfinitePendingResponseProvider : public HtmlResponseProvider {
   GURL GetInfinitePendingResponseUrl() const {
     GURL::Replacements replacements;
     replacements.SetPathStr("resource");
-    return url_.DeprecatedGetOriginAsURL().ReplaceComponents(replacements);
+    return url_.GetOrigin().ReplaceComponents(replacements);
   }
 
   // Main page URL that never finish loading.
@@ -133,7 +141,7 @@ class InfinitePendingResponseProvider : public HtmlResponseProvider {
 @implementation ProgressIndicatorTestCase
 
 // Returns an HTML string for a form with the submission action set to
-// `submitURL`.
+// |submitURL|.
 - (std::string)formPageHTMLWithFormSubmitURL:(GURL)submitURL {
   return base::StringPrintf(
       "<p>%s</p><form id='%s' method='post' action='%s'>"
@@ -164,11 +172,6 @@ class InfinitePendingResponseProvider : public HtmlResponseProvider {
   InfinitePendingResponseProvider* infinitePendingProvider =
       uniqueInfinitePendingProvider.get();
   web::test::SetUpHttpServer(std::move(uniqueInfinitePendingProvider));
-
-  // EG synchronizes with WKWebView. Disable synchronization for EG interation
-  // during when page is loading.
-  ScopedSynchronizationDisabler disabler;
-
   // The page being loaded never completes, so call the LoadUrl helper that
   // does not wait for the page to complete loading.
   [ChromeEarlGrey loadURL:infinitePendingURL waitForCompletion:NO];
@@ -207,10 +210,6 @@ class InfinitePendingResponseProvider : public HtmlResponseProvider {
   InfinitePendingResponseProvider* infinitePendingProvider =
       uniqueInfinitePendingProvider.get();
   web::test::AddResponseProvider(std::move(uniqueInfinitePendingProvider));
-
-  // EG synchronizes with WKWebView. Disable synchronization for EG interation
-  // during when page is loading.
-  ScopedSynchronizationDisabler disabler;
 
   // Load form first.
   [ChromeEarlGrey loadURL:formURL];

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -76,10 +76,8 @@ UrlLoadParams::UrlLoadParams()
       append_to(kLastTab),
       origin_point(CGPointZero),
       from_chrome(false),
-      from_external(false),
       user_initiated(true),
       should_focus_omnibox(false),
-      inherit_opener(false),
       load_strategy(UrlLoadStrategy::NORMAL) {}
 
 UrlLoadParams::UrlLoadParams(const UrlLoadParams& other)
@@ -89,10 +87,8 @@ UrlLoadParams::UrlLoadParams(const UrlLoadParams& other)
       append_to(other.append_to),
       origin_point(other.origin_point),
       from_chrome(other.from_chrome),
-      from_external(other.from_external),
       user_initiated(other.user_initiated),
       should_focus_omnibox(other.should_focus_omnibox),
-      inherit_opener(other.inherit_opener),
       load_strategy(other.load_strategy) {}
 
 UrlLoadParams& UrlLoadParams::operator=(const UrlLoadParams& other) {
@@ -102,10 +98,8 @@ UrlLoadParams& UrlLoadParams::operator=(const UrlLoadParams& other) {
   append_to = other.append_to;
   origin_point = other.origin_point;
   from_chrome = other.from_chrome;
-  from_external = other.from_external;
   user_initiated = other.user_initiated;
   should_focus_omnibox = other.should_focus_omnibox;
-  inherit_opener = other.inherit_opener;
   load_strategy = other.load_strategy;
   return *this;
 }

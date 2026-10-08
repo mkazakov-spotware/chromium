@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ namespace ntp_tiles {
 // The source where the displayed title of an NTP tile originates from.
 //
 // These values must stay in sync with the NTPTileTitleSource enums in
-// enums.xml.
+// enums.xml AND in chrome/browser/resources/local_ntp/most_visited_single.js.
 //
 // A Java counterpart will be generated for this enum.
 // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.suggestions.tile

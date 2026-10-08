@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,11 +33,15 @@ bool ScaledDepthAdjuster::OnBeginFrame(const gfx::Transform& head_pose) {
   gfx::Transform inherited;
   for (UiElement* anc = parent(); anc; anc = anc->parent()) {
     if (anc->type() == kTypeScaledDepthAdjuster) {
-      inherited.PostConcat(anc->LocalTransform());
+      inherited.ConcatTransform(anc->LocalTransform());
     }
   }
-  transform_ = inherited.GetCheckedInverse();
-  gfx::Point3F o = inherited.MapPoint(gfx::Point3F());
+  bool success = inherited.GetInverse(&transform_);
+  DCHECK(success);
+  if (!success)
+    return false;
+  gfx::Point3F o;
+  inherited.TransformPoint(&o);
   float z = -o.z() + delta_z_;
   transform_.Scale3d(z, z, z);
   transform_.Translate3d(0, 0, -1);
@@ -51,6 +55,9 @@ void ScaledDepthAdjuster::OnSetType() {
 
 #ifndef NDEBUG
 void ScaledDepthAdjuster::DumpGeometry(std::ostringstream* os) const {
+  gfx::Transform t = world_space_transform();
+  gfx::Point3F o;
+  t.TransformPoint(&o);
   *os << "tz(" << delta_z_ << ") ";
 }
 #endif

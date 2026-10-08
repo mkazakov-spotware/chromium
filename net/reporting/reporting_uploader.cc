@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,12 @@
 #include <vector>
 
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "net/base/elements_upload_data_stream.h"
 #include "net/base/isolation_info.h"
 #include "net/base/load_flags.h"
-#include "net/base/network_anonymization_key.h"
+#include "net/base/network_isolation_key.h"
 #include "net/base/upload_bytes_element_reader.h"
 #include "net/http/http_response_headers.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
@@ -82,13 +81,14 @@ struct PendingUpload {
 
   PendingUpload(const url::Origin& report_origin,
                 const GURL& url,
-                const IsolationInfo& isolation_info,
+                const NetworkIsolationKey& network_isolation_key,
                 const std::string& json,
                 int max_depth,
                 ReportingUploader::UploadCallback callback)
-      : report_origin(report_origin),
+      : state(CREATED),
+        report_origin(report_origin),
         url(url),
-        isolation_info(isolation_info),
+        network_isolation_key(network_isolation_key),
         payload_reader(UploadOwnedBytesElementReader::CreateWithString(json)),
         max_depth(max_depth),
         callback(std::move(callback)) {}
@@ -97,10 +97,10 @@ struct PendingUpload {
     std::move(callback).Run(outcome);
   }
 
-  State state = CREATED;
+  State state;
   const url::Origin report_origin;
   const GURL url;
-  const IsolationInfo isolation_info;
+  const NetworkIsolationKey network_isolation_key;
   std::unique_ptr<UploadElementReader> payload_reader;
   int max_depth;
   ReportingUploader::UploadCallback callback;
@@ -109,8 +109,7 @@ struct PendingUpload {
 
 class ReportingUploaderImpl : public ReportingUploader, URLRequest::Delegate {
  public:
-  explicit ReportingUploaderImpl(const URLRequestContext* context)
-      : context_(context) {
+  ReportingUploaderImpl(const URLRequestContext* context) : context_(context) {
     DCHECK(context_);
   }
 
@@ -123,19 +122,18 @@ class ReportingUploaderImpl : public ReportingUploader, URLRequest::Delegate {
 
   void StartUpload(const url::Origin& report_origin,
                    const GURL& url,
-                   const IsolationInfo& isolation_info,
+                   const NetworkIsolationKey& network_isolation_key,
                    const std::string& json,
                    int max_depth,
-                   bool eligible_for_credentials,
                    UploadCallback callback) override {
-    auto upload =
-        std::make_unique<PendingUpload>(report_origin, url, isolation_info,
-                                        json, max_depth, std::move(callback));
+    auto upload = std::make_unique<PendingUpload>(
+        report_origin, url, network_isolation_key, json, max_depth,
+        std::move(callback));
     auto collector_origin = url::Origin::Create(url);
     if (collector_origin == report_origin) {
       // Skip the preflight check if the reports are being sent to the same
       // origin as the requests they describe.
-      StartPayloadRequest(std::move(upload), eligible_for_credentials);
+      StartPayloadRequest(std::move(upload));
     } else {
       StartPreflightRequest(std::move(upload));
     }
@@ -157,7 +155,8 @@ class ReportingUploaderImpl : public ReportingUploader, URLRequest::Delegate {
 
     upload->request->SetLoadFlags(LOAD_DISABLE_CACHE);
     upload->request->set_allow_credentials(false);
-    upload->request->set_isolation_info(upload->isolation_info);
+    upload->request->set_isolation_info(IsolationInfo::CreatePartial(
+        IsolationInfo::RequestType::kOther, upload->network_isolation_key));
 
     upload->request->SetExtraRequestHeaderByName(
         HttpRequestHeaders::kOrigin, upload->report_origin.Serialize(), true);
@@ -177,8 +176,7 @@ class ReportingUploaderImpl : public ReportingUploader, URLRequest::Delegate {
     raw_request->Start();
   }
 
-  void StartPayloadRequest(std::unique_ptr<PendingUpload> upload,
-                           bool eligible_for_credentials) {
+  void StartPayloadRequest(std::unique_ptr<PendingUpload> upload) {
     DCHECK(upload->state == PendingUpload::CREATED ||
            upload->state == PendingUpload::SENDING_PREFLIGHT);
 
@@ -188,26 +186,9 @@ class ReportingUploaderImpl : public ReportingUploader, URLRequest::Delegate {
     upload->request->set_method("POST");
 
     upload->request->SetLoadFlags(LOAD_DISABLE_CACHE);
-
-    // Credentials are sent for V1 reports, if the endpoint is same-origin with
-    // the site generating the report (this will be set to false either by the
-    // delivery agent determining that this is a V0 report, or by `StartUpload`
-    // determining that this is a cross-origin case, and taking the CORS
-    // preflight path).
-    upload->request->set_allow_credentials(eligible_for_credentials);
-    // The site for cookies is taken from the reporting source's IsolationInfo,
-    // in the case of V1 reporting endpoints, and will be null for V0 reports.
-    upload->request->set_site_for_cookies(
-        upload->isolation_info.site_for_cookies());
-    // Prior to using `isolation_info` directly here we built the
-    // `upload->network_anonymization_key` to create the set the
-    // `isolation_info`. As experiments roll out to determine whether network
-    // partitions should be double or triple keyed the isolation_info might have
-    // a null value for `frame_origin`. Thus we should again get it from
-    // `network_anonymization_key` until we can trust
-    // `isolation_info::frame_origin`.
-    upload->request->set_initiator(upload->report_origin);
-    upload->request->set_isolation_info(upload->isolation_info);
+    upload->request->set_allow_credentials(false);
+    upload->request->set_isolation_info(IsolationInfo::CreatePartial(
+        IsolationInfo::RequestType::kOther, upload->network_isolation_key));
 
     upload->request->SetExtraRequestHeaderByName(
         HttpRequestHeaders::kContentType, kUploadContentType, true);
@@ -290,25 +271,23 @@ class ReportingUploaderImpl : public ReportingUploader, URLRequest::Delegate {
     // Check that the preflight succeeded: it must have an HTTP OK status code,
     // with the following headers:
     // - Access-Control-Allow-Origin: * or the report origin
-    // - Access-Control-Allow-Headers: * or Content-Type
-    // Note that * is allowed here as the credentials mode is never 'include'.
-    // Access-Control-Allow-Methods is not checked, as the preflight is always
-    // for a POST method, which is safelisted.
+    // - Access-Control-Allow-Methods: POST
+    // - Access-Control-Allow-Headers: Content-Type
     URLRequest* request = upload->request.get();
     bool preflight_succeeded =
         (response_code >= 200 && response_code <= 299) &&
         HasHeaderValues(
             request, "Access-Control-Allow-Origin",
             {"*", base::ToLowerASCII(upload->report_origin.Serialize())}) &&
+        HasHeaderValues(request, "Access-Control-Allow-Methods", {"post"}) &&
         HasHeaderValues(request, "Access-Control-Allow-Headers",
-                        {"*", "content-type"});
+                        {"content-type"});
     if (!preflight_succeeded) {
       upload->RunCallback(ReportingUploader::Outcome::FAILURE);
       return;
     }
-    // Any upload which required CORS should not receive credentials, as they
-    // are sent to same-origin endpoints only.
-    StartPayloadRequest(std::move(upload), /*eligible_for_credentials=*/false);
+
+    StartPayloadRequest(std::move(upload));
   }
 
   void HandlePayloadResponse(std::unique_ptr<PendingUpload> upload,
@@ -327,7 +306,7 @@ class ReportingUploaderImpl : public ReportingUploader, URLRequest::Delegate {
   }
 
  private:
-  raw_ptr<const URLRequestContext> context_;
+  const URLRequestContext* context_;
   std::map<const URLRequest*, std::unique_ptr<PendingUpload>> uploads_;
 };
 

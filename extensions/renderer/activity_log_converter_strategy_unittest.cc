@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,7 @@ class ActivityLogConverterStrategyTest : public testing::Test {
  protected:
   void SetUp() override {
     converter_ = content::V8ValueConverter::Create();
-    strategy_ = std::make_unique<ActivityLogConverterStrategy>();
+    strategy_.reset(new ActivityLogConverterStrategy());
     converter_->SetFunctionAllowed(true);
     converter_->SetStrategy(strategy_.get());
   }
@@ -38,36 +38,40 @@ class ActivityLogConverterStrategyTest : public testing::Test {
 
   testing::AssertionResult VerifyBoolean(v8::Local<v8::Value> v8_value,
                                          bool expected) {
+    bool out;
     std::unique_ptr<base::Value> value(
         converter_->FromV8Value(v8_value, context()));
-    if (value->is_bool() && value->GetBool() == expected)
+    if (value->is_bool() && value->GetAsBoolean(&out) && out == expected)
       return testing::AssertionSuccess();
     return testing::AssertionFailure();
   }
 
   testing::AssertionResult VerifyInteger(v8::Local<v8::Value> v8_value,
                                          int expected) {
+    int out;
     std::unique_ptr<base::Value> value(
         converter_->FromV8Value(v8_value, context()));
-    if (value->is_int() && value->GetInt() == expected)
+    if (value->is_int() && value->GetAsInteger(&out) && out == expected)
       return testing::AssertionSuccess();
     return testing::AssertionFailure();
   }
 
   testing::AssertionResult VerifyDouble(v8::Local<v8::Value> v8_value,
                                         double expected) {
+    double out;
     std::unique_ptr<base::Value> value(
         converter_->FromV8Value(v8_value, context()));
-    if (value->is_double() && value->GetDouble() == expected)
+    if (value->is_double() && value->GetAsDouble(&out) && out == expected)
       return testing::AssertionSuccess();
     return testing::AssertionFailure();
   }
 
   testing::AssertionResult VerifyString(v8::Local<v8::Value> v8_value,
                                         const std::string& expected) {
+    std::string out;
     std::unique_ptr<base::Value> value(
         converter_->FromV8Value(v8_value, context()));
-    if (value->is_string() && value->GetString() == expected)
+    if (value->is_string() && value->GetAsString(&out) && out == expected)
       return testing::AssertionSuccess();
     return testing::AssertionFailure();
   }

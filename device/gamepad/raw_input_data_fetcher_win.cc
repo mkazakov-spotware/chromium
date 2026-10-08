@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,9 @@
 
 #include <stddef.h>
 
-#include <memory>
-
 #include "base/bind.h"
+#include "base/stl_util.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/trace_event/trace_event.h"
 #include "device/gamepad/gamepad_standard_mappings.h"
@@ -40,8 +40,13 @@ GamepadSource RawInputDataFetcher::source() {
   return Factory::static_source();
 }
 
+void RawInputDataFetcher::OnAddedToProvider() {
+  hid_functions_ = std::make_unique<HidDllFunctionsWin>();
+  rawinput_available_ = hid_functions_->IsValid();
+}
+
 RAWINPUTDEVICE* RawInputDataFetcher::GetRawInputDevices(DWORD flags) {
-  size_t usage_count = std::size(DeviceUsages);
+  size_t usage_count = base::size(DeviceUsages);
   std::unique_ptr<RAWINPUTDEVICE[]> devices(new RAWINPUTDEVICE[usage_count]);
   for (size_t i = 0; i < usage_count; ++i) {
     devices[i].dwFlags = flags;
@@ -60,11 +65,11 @@ void RawInputDataFetcher::PauseHint(bool pause) {
 }
 
 void RawInputDataFetcher::StartMonitor() {
-  if (events_monitored_)
+  if (!rawinput_available_ || events_monitored_)
     return;
 
   if (!window_) {
-    window_ = std::make_unique<base::win::MessageWindow>();
+    window_.reset(new base::win::MessageWindow());
     if (!window_->Create(base::BindRepeating(
             &RawInputDataFetcher::HandleMessage, base::Unretained(this)))) {
       PLOG(ERROR) << "Failed to create the raw input window";
@@ -76,7 +81,7 @@ void RawInputDataFetcher::StartMonitor() {
   // Register to receive raw HID input.
   std::unique_ptr<RAWINPUTDEVICE[]> devices(
       GetRawInputDevices(RIDEV_INPUTSINK));
-  if (!::RegisterRawInputDevices(devices.get(), std::size(DeviceUsages),
+  if (!::RegisterRawInputDevices(devices.get(), base::size(DeviceUsages),
                                  sizeof(RAWINPUTDEVICE))) {
     PLOG(ERROR) << "RegisterRawInputDevices() failed for RIDEV_INPUTSINK";
     window_.reset();
@@ -87,14 +92,14 @@ void RawInputDataFetcher::StartMonitor() {
 }
 
 void RawInputDataFetcher::StopMonitor() {
-  if (!events_monitored_)
+  if (!rawinput_available_ || !events_monitored_)
     return;
 
   // Stop receiving raw input.
   DCHECK(window_);
   std::unique_ptr<RAWINPUTDEVICE[]> devices(GetRawInputDevices(RIDEV_REMOVE));
 
-  if (!::RegisterRawInputDevices(devices.get(), std::size(DeviceUsages),
+  if (!::RegisterRawInputDevices(devices.get(), base::size(DeviceUsages),
                                  sizeof(RAWINPUTDEVICE))) {
     PLOG(INFO) << "RegisterRawInputDevices() failed for RIDEV_REMOVE";
   }
@@ -121,6 +126,9 @@ void RawInputDataFetcher::ClearControllers() {
 }
 
 void RawInputDataFetcher::GetGamepadData(bool devices_changed_hint) {
+  if (!rawinput_available_)
+    return;
+
   if (devices_changed_hint)
     EnumerateDevices();
 
@@ -166,7 +174,7 @@ void RawInputDataFetcher::EnumerateDevices() {
       } else {
         int source_id = ++last_source_id_;
         auto new_device = std::make_unique<RawInputGamepadDeviceWin>(
-            device_handle, source_id);
+            device_handle, source_id, hid_functions_.get());
         if (!new_device->IsValid()) {
           new_device->Shutdown();
           continue;

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <string>
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "components/omnibox/browser/autocomplete_provider.h"
 #include "components/omnibox/browser/shortcuts_backend.h"
 
@@ -35,6 +34,7 @@ class ShortcutsProvider : public AutocompleteProvider,
   friend class ClassifyTest;
   friend class ShortcutsProviderExtensionTest;
   friend class ShortcutsProviderTest;
+  FRIEND_TEST_ALL_PREFIXES(ShortcutsProviderTest, CalculateScore);
 
   ~ShortcutsProvider() override;
 
@@ -53,29 +53,23 @@ class ShortcutsProvider : public AutocompleteProvider,
       const ShortcutsDatabase::Shortcut& shortcut,
       int relevance,
       const AutocompleteInput& input,
-      const std::u16string& fixed_up_input_text,
-      const std::u16string term_string);
+      const base::string16& fixed_up_input_text,
+      const base::string16 term_string);
 
   // Returns iterator to first item in |shortcuts_map_| matching |keyword|.
   // Returns shortcuts_map_.end() if there are no matches.
   ShortcutsBackend::ShortcutMap::const_iterator FindFirstMatch(
-      const std::u16string& keyword,
+      const base::string16& keyword,
       ShortcutsBackend* backend);
 
-  // Aggregates the scoring factors from a vector of `shortcuts`. Specifically:
-  // - Considers the shortest shortcut when computing fraction typed.
-  // - Considers the most recent shortcut when considering last visit.
-  // - Considers the sum of `number_of_hits`.
-  // Returns the relevance score and summed `number_of_hits`.
-  std::pair<int, int> CalculateAggregateScore(
-      const std::u16string& terms,
-      const std::vector<const ShortcutsDatabase::Shortcut*>& shortcuts,
-      int max_relevance);
+  int CalculateScore(const base::string16& terms,
+                     const ShortcutsDatabase::Shortcut& shortcut,
+                     int max_relevance);
 
   // The default max relevance unless overridden by a field trial.
   static const int kShortcutsProviderDefaultMaxRelevance;
 
-  raw_ptr<AutocompleteProviderClient> client_;
+  AutocompleteProviderClient* client_;
   bool initialized_;
 };
 

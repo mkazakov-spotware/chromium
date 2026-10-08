@@ -1,14 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include <memory>
 
 #include "content/browser/xr/metrics/session_metrics_helper.h"
 
 #include "base/logging.h"
-#include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "content/browser/xr/metrics/session_timer.h"
 #include "content/browser/xr/metrics/webxr_session_tracker.h"
@@ -25,30 +21,31 @@ const void* const kSessionMetricsHelperDataKey = &kSessionMetricsHelperDataKey;
 
 // minimum duration: 7 seconds for video, no minimum for headset/vr modes
 // maximum gap: 7 seconds between videos.  no gap for headset/vr-modes
-constexpr base::TimeDelta kMinimumVideoSessionDuration(base::Seconds(7));
-constexpr base::TimeDelta kMaximumVideoSessionGap(base::Seconds(7));
+constexpr base::TimeDelta kMinimumVideoSessionDuration(
+    base::TimeDelta::FromSecondsD(7));
+constexpr base::TimeDelta kMaximumVideoSessionGap(
+    base::TimeDelta::FromSecondsD(7));
 
-constexpr base::TimeDelta kMinimumHeadsetSessionDuration(base::Seconds(0));
-constexpr base::TimeDelta kMaximumHeadsetSessionGap(base::Seconds(0));
+constexpr base::TimeDelta kMinimumHeadsetSessionDuration(
+    base::TimeDelta::FromSecondsD(0));
+constexpr base::TimeDelta kMaximumHeadsetSessionGap(
+    base::TimeDelta::FromSecondsD(0));
 
 // Handles the lifetime of the helper which is attached to a WebContents.
 class SessionMetricsHelperData : public base::SupportsUserData::Data {
  public:
-  SessionMetricsHelperData() = delete;
-
   explicit SessionMetricsHelperData(
-      std::unique_ptr<SessionMetricsHelper> session_metrics_helper)
-      : session_metrics_helper_(std::move(session_metrics_helper)) {}
+      SessionMetricsHelper* session_metrics_helper)
+      : session_metrics_helper_(session_metrics_helper) {}
 
-  SessionMetricsHelperData(const SessionMetricsHelperData&) = delete;
-  SessionMetricsHelperData& operator=(const SessionMetricsHelperData&) = delete;
+  ~SessionMetricsHelperData() override { delete session_metrics_helper_; }
 
-  ~SessionMetricsHelperData() override = default;
-
-  SessionMetricsHelper* get() const { return session_metrics_helper_.get(); }
+  SessionMetricsHelper* get() const { return session_metrics_helper_; }
 
  private:
-  std::unique_ptr<SessionMetricsHelper> session_metrics_helper_;
+  SessionMetricsHelper* session_metrics_helper_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(SessionMetricsHelperData);
 };
 
 // Helper method to log out both the mode and the initially requested features
@@ -86,12 +83,7 @@ SessionMetricsHelper* SessionMetricsHelper::CreateForWebContents(
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   // This is not leaked as the SessionMetricsHelperData will clean it up.
-  std::unique_ptr<SessionMetricsHelper> helper =
-      base::WrapUnique(new SessionMetricsHelper(contents));
-  contents->SetUserData(
-      kSessionMetricsHelperDataKey,
-      std::make_unique<SessionMetricsHelperData>(std::move(helper)));
-  return FromWebContents(contents);
+  return new SessionMetricsHelper(contents);
 }
 
 SessionMetricsHelper::SessionMetricsHelper(content::WebContents* contents) {
@@ -102,6 +94,8 @@ SessionMetricsHelper::SessionMetricsHelper(content::WebContents* contents) {
   num_videos_playing_ = contents->GetCurrentlyPlayingVideoCount();
 
   Observe(contents);
+  contents->SetUserData(kSessionMetricsHelperDataKey,
+                        std::make_unique<SessionMetricsHelperData>(this));
 }
 
 SessionMetricsHelper::~SessionMetricsHelper() {
@@ -126,7 +120,7 @@ SessionMetricsHelper::StartInlineSession(
       session_id,
       std::make_unique<WebXRSessionTracker>(
           std::make_unique<ukm::builders::XR_WebXR_Session>(
-              web_contents()->GetPrimaryMainFrame()->GetPageUkmSourceId())));
+              web_contents()->GetMainFrame()->GetPageUkmSourceId())));
   auto* tracker = result.first->second.get();
 
   ReportInitialSessionData(tracker, session_options, enabled_features);
@@ -165,7 +159,7 @@ SessionMetricsHelper::StartImmersiveSession(
   // Plumb explicit RenderFrameHost reference from VRSessionImpl.
   webxr_immersive_session_tracker_ = std::make_unique<WebXRSessionTracker>(
       std::make_unique<ukm::builders::XR_WebXR_Session>(
-          web_contents()->GetPrimaryMainFrame()->GetPageUkmSourceId()));
+          web_contents()->GetMainFrame()->GetPageUkmSourceId()));
 
   // TODO(https://crbug.com/1056930): Consider renaming the timers to something
   // that indicates both that these also record AR, and that these are no longer
@@ -257,21 +251,26 @@ void SessionMetricsHelper::MediaStoppedPlaying(
   }
 }
 
-void SessionMetricsHelper::PrimaryPageChanged(content::Page& page) {
+void SessionMetricsHelper::DidStartNavigation(
+    content::NavigationHandle* handle) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  // All sessions are terminated on navigations, so to ensure that we log
-  // everything that we have, cleanup any outstanding session trackers now.
-  if (webxr_immersive_session_tracker_)
-    StopAndRecordImmersiveSession();
 
-  for (auto& inline_session_tracker : webxr_inline_session_trackers_) {
-    inline_session_tracker.second->SetSessionEnd(base::Time::Now());
-    inline_session_tracker.second->ukm_entry()->SetDuration(
-        inline_session_tracker.second->GetRoundedDurationInSeconds());
-    inline_session_tracker.second->RecordEntry();
+  if (handle && handle->IsInMainFrame() && !handle->IsSameDocument()) {
+    // All sessions are terminated on navigations, so to ensure that we log
+    // everything that we have, cleanup any outstanding session trackers now.
+    if (webxr_immersive_session_tracker_) {
+      StopAndRecordImmersiveSession();
+    }
+
+    for (auto& inline_session_tracker : webxr_inline_session_trackers_) {
+      inline_session_tracker.second->SetSessionEnd(base::Time::Now());
+      inline_session_tracker.second->ukm_entry()->SetDuration(
+          inline_session_tracker.second->GetRoundedDurationInSeconds());
+      inline_session_tracker.second->RecordEntry();
+    }
+
+    webxr_inline_session_trackers_.clear();
   }
-
-  webxr_inline_session_trackers_.clear();
 }
 
 }  // namespace content

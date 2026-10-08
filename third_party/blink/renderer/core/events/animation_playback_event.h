@@ -1,13 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_EVENTS_ANIMATION_PLAYBACK_EVENT_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_EVENTS_ANIMATION_PLAYBACK_EVENT_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_typedefs.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_union_cssnumericvalue_double.h"
+#include "base/optional.h"
 #include "third_party/blink/renderer/core/dom/events/event.h"
 
 namespace blink {
@@ -25,22 +23,22 @@ class AnimationPlaybackEvent final : public Event {
   }
 
   AnimationPlaybackEvent(const AtomicString& type,
-                         V8CSSNumberish* current_time,
-                         V8CSSNumberish* timeline_time);
+                         base::Optional<double> current_time,
+                         base::Optional<double> timeline_time);
   AnimationPlaybackEvent(const AtomicString&,
                          const AnimationPlaybackEventInit*);
   ~AnimationPlaybackEvent() override;
 
-  V8CSSNumberish* currentTime() const { return current_time_; }
-  V8CSSNumberish* timelineTime() const { return timeline_time_; }
+  base::Optional<double> currentTime() const { return current_time_; }
+  base::Optional<double> timelineTime() const { return timeline_time_; }
 
   const AtomicString& InterfaceName() const override;
 
   void Trace(Visitor*) const override;
 
  private:
-  Member<V8CSSNumberish> current_time_;
-  Member<V8CSSNumberish> timeline_time_;
+  base::Optional<double> current_time_;
+  base::Optional<double> timeline_time_;
 };
 
 }  // namespace blink

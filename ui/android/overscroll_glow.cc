@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,7 +44,6 @@ OverscrollGlow::OverscrollGlow(OverscrollGlowClient* client)
 
 OverscrollGlow::~OverscrollGlow() {
   Detach();
-  client_ = nullptr;
 }
 
 void OverscrollGlow::Reset() {
@@ -137,9 +136,10 @@ bool OverscrollGlow::Animate(base::TimeTicks current_time,
   return CheckNeedsAnimate();
 }
 
-void OverscrollGlow::OnFrameUpdated(const gfx::SizeF& viewport_size,
-                                    const gfx::SizeF& content_size,
-                                    const gfx::PointF& content_scroll_offset) {
+void OverscrollGlow::OnFrameUpdated(
+    const gfx::SizeF& viewport_size,
+    const gfx::SizeF& content_size,
+    const gfx::Vector2dF& content_scroll_offset) {
   viewport_size_ = viewport_size;
   edge_offsets_[EdgeEffect::EDGE_TOP] = -content_scroll_offset.y();
   edge_offsets_[EdgeEffect::EDGE_LEFT] = -content_scroll_offset.x();
@@ -192,9 +192,6 @@ void OverscrollGlow::Detach() {
 bool OverscrollGlow::InitializeIfNecessary() {
   if (initialized_)
     return true;
-
-  if (client_ == nullptr)
-    return false;
 
   DCHECK(!root_layer_.get());
   root_layer_ = cc::Layer::Create();

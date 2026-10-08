@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <mach/mach.h>
 
 #include "base/base_export.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "base/process/process_handle.h"
 #include "base/synchronization/lock.h"
@@ -20,10 +21,6 @@ namespace base {
 class BASE_EXPORT PortProvider {
  public:
   PortProvider();
-
-  PortProvider(const PortProvider&) = delete;
-  PortProvider& operator=(const PortProvider&) = delete;
-
   virtual ~PortProvider();
 
   class Observer {
@@ -55,12 +52,8 @@ class BASE_EXPORT PortProvider {
   // |observer_list_|.
   base::Lock lock_;
   base::ObserverList<Observer>::Unchecked observer_list_;
-};
 
-// Port provider that returns the calling process's task port, ignoring its
-// argument.
-class BASE_EXPORT SelfPortProvider : public base::PortProvider {
-  mach_port_t TaskForPid(base::ProcessHandle process) const override;
+  DISALLOW_COPY_AND_ASSIGN(PortProvider);
 };
 
 }  // namespace base

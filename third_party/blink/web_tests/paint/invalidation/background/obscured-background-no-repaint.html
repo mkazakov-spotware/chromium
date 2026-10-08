@@ -52,21 +52,11 @@
         var invalidatedObjects = {};
         for (var layer of JSON.parse(layerTree).layers) {
             if (layer.invalidations) {
-                for (var invalidation of layer.invalidations) {
-                    // We don't check no-repeat for background obscuration.
-                    if (invalidation.object.includes("id='target2'"))
-                        continue;
-                    // Ok to invalidate the IFC of block-in-inline.
-                    // See |LayoutBox::ForegroundIsKnownToBeOpaqueInRect|.
-                    if (invalidation.object.includes("id='target4'") ||
-                        invalidation.object.includes("id='imgInBlockInInline'"))
-                        continue;
+                for (var invalidation of layer.invalidations)
                     invalidatedObjects[invalidation.object] = true;
-                }
             }
         }
-        // Passes if there is no invalidations other than imgForAdvanceImageAnimation
-        // (which ensures we are running the image animation).
+        // Passes if there is no invalidations other than imgForAdvanceImageAnimation.
         if (Object.keys(invalidatedObjects).length != 1 ||
             !Object.keys(invalidatedObjects)[0].includes('imgForAdvanceImageAnimation'))
             output.textContent = 'FAIL: Unexpected paint invalidations: ' + JSON.stringify(invalidatedObjects) + '\n' + layerTree;
@@ -116,7 +106,7 @@
         <a>
             <div></div>
             <div>
-                <img id="imgInBlockInInline" src="../resources/apple.jpg">
+                <img src="../resources/apple.jpg">
             </div>
         </a>
     </div>

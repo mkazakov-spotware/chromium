@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,33 +7,21 @@
 
 #include "chrome/browser/ui/views/webauthn/authenticator_select_account_sheet_view.h"
 #include "chrome/browser/ui/views/webauthn/hover_list_view.h"
-#include "chrome/browser/ui/views/webauthn/passkey_detail_view.h"
-#include "device/fido/discoverable_credential_metadata.h"
 
 AuthenticatorSelectAccountSheetView::AuthenticatorSelectAccountSheetView(
     std::unique_ptr<AuthenticatorSelectAccountSheetModel> sheet_model)
     : AuthenticatorRequestSheetView(std::move(sheet_model)) {}
 
-AuthenticatorSelectAccountSheetView::~AuthenticatorSelectAccountSheetView() =
-    default;
+AuthenticatorSelectAccountSheetView::~AuthenticatorSelectAccountSheetView() {}
 
-std::pair<std::unique_ptr<views::View>,
-          AuthenticatorRequestSheetView::AutoFocus>
+std::unique_ptr<views::View>
 AuthenticatorSelectAccountSheetView::BuildStepSpecificContent() {
-  switch (model()->selection_type()) {
-    case AuthenticatorSelectAccountSheetModel::kMultipleAccounts:
-      return std::make_pair(std::make_unique<HoverListView>(
-                                std::make_unique<AccountHoverListModel>(
-                                    model()->dialog_model()->creds(), this)),
-                            AutoFocus::kYes);
-    case AuthenticatorSelectAccountSheetModel::kSingleAccount:
-      return std::make_pair(
-          std::make_unique<PasskeyDetailView>(model()->SingleCredential().user),
-          AutoFocus::kNo);
-  }
+  return std::make_unique<HoverListView>(
+      std::make_unique<AccountHoverListModel>(
+          &model()->dialog_model()->responses(), this));
 }
 
-void AuthenticatorSelectAccountSheetView::CredentialSelected(size_t index) {
+void AuthenticatorSelectAccountSheetView::OnItemSelected(int index) {
   auto* sheet_model =
       static_cast<AuthenticatorSelectAccountSheetModel*>(model());
   sheet_model->SetCurrentSelection(index);

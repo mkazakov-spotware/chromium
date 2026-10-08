@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,20 +6,26 @@
  * @fileoverview ChromeVox utilities for the automation extension API.
  */
 
-import {AutomationPredicate} from './automation_predicate.js';
-import {constants} from './constants.js';
-import {AutomationTreeWalker, AutomationTreeWalkerRestriction} from './tree_walker.js';
+goog.provide('AutomationUtil');
 
+goog.require('AutomationPredicate');
+goog.require('AutomationTreeWalker');
+goog.require('constants');
+
+goog.scope(function() {
 const AutomationNode = chrome.automation.AutomationNode;
+const Dir = constants.Dir;
 const RoleType = chrome.automation.RoleType;
 
-export class AutomationUtil {
+AutomationUtil = class {
+  constructor() {}
+
   /**
    * Find a node in subtree of |cur| satisfying |pred| using pre-order
    * traversal.
    * @param {AutomationNode} cur Node to begin the search
    *     from.
-   * @param {constants.Dir} dir
+   * @param {Dir} dir
    * @param {AutomationPredicate.Unary} pred A predicate to apply
    *     to a candidate node.
    * @return {AutomationNode}
@@ -33,14 +39,13 @@ export class AutomationUtil {
       return cur;
     }
 
-    let child = dir === constants.Dir.BACKWARD ? cur.lastChild : cur.firstChild;
+    let child = dir === Dir.BACKWARD ? cur.lastChild : cur.firstChild;
     while (child) {
       const ret = AutomationUtil.findNodePre(child, dir, pred);
       if (ret) {
         return ret;
       }
-      child = dir === constants.Dir.BACKWARD ? child.previousSibling :
-                                               child.nextSibling;
+      child = dir === Dir.BACKWARD ? child.previousSibling : child.nextSibling;
     }
     return null;
   }
@@ -50,7 +55,7 @@ export class AutomationUtil {
    * traversal.
    * @param {AutomationNode} cur Node to begin the search
    *     from.
-   * @param {constants.Dir} dir
+   * @param {Dir} dir
    * @param {AutomationPredicate.Unary} pred A predicate to apply
    *     to a candidate node.
    * @return {AutomationNode}
@@ -60,14 +65,13 @@ export class AutomationUtil {
       return null;
     }
 
-    let child = dir === constants.Dir.BACKWARD ? cur.lastChild : cur.firstChild;
+    let child = dir === Dir.BACKWARD ? cur.lastChild : cur.firstChild;
     while (child) {
       const ret = AutomationUtil.findNodePost(child, dir, pred);
       if (ret) {
         return ret;
       }
-      child = dir === constants.Dir.BACKWARD ? child.previousSibling :
-                                               child.nextSibling;
+      child = dir === Dir.BACKWARD ? child.previousSibling : child.nextSibling;
     }
 
     if (pred(cur) && !AutomationPredicate.shouldIgnoreNode(cur)) {
@@ -88,59 +92,44 @@ export class AutomationUtil {
    * from F.
    * @param {!AutomationNode} cur Node to begin the search
    *     from.
-   * @param {constants.Dir} dir
+   * @param {Dir} dir
    * @param {AutomationPredicate.Unary} pred A predicate to apply
    *     to a candidate node.
    * @param {AutomationTreeWalkerRestriction=} opt_restrictions |leaf|, |root|,
    *     |skipInitialAncestry|, and |skipInitialSubtree| are valid restrictions
    *     used when finding the next node.
    *     By default:
-   *        the root predicate gets set to |AutomationPredicate.root|.
+   *        the root predicate ges set to |AutomationPredicate.root|.
    *        |skipInitialSubtree| is false if |cur| is a container or matches
    *        |pred|. This alleviates the caller from syncing forwards.
-   *        Leaves are nodes matched by |pred| which are not also containers.
+   *        Leaves are nodes matched by |prred| which are not also containers.
    *        This takes care of syncing backwards.
    * @return {AutomationNode}
    */
   static findNextNode(cur, dir, pred, opt_restrictions) {
-    const walker = createWalker(cur, dir, pred, opt_restrictions);
-    return walker.next().node;
-  }
+    const restrictions = {};
+    opt_restrictions = opt_restrictions || {
+      leaf: undefined,
+      root: undefined,
+      visit: undefined,
+      skipInitialSubtree: !AutomationPredicate.container(cur) && pred(cur)
+    };
 
-  /**
-   * Finds all nodes in the given direction in depth first order.
-   *
-   * Let D be the dfs linearization of |cur.root|. Then, let F be the list after
-   * applying |pred| as a filter to D. This method will return the directed next
-   * node of |cur| in F.
-   * The restrictions option will further filter F. For example,
-   * |skipInitialSubtree| will remove any |pred| matches in the subtree of |cur|
-   * from F.
-   * @param {!AutomationNode} cur Node to begin the search
-   *     from.
-   * @param {constants.Dir} dir
-   * @param {AutomationPredicate.Unary} pred A predicate to apply
-   *     to a candidate node.
-   * @param {AutomationTreeWalkerRestriction=} opt_restrictions |leaf|, |root|,
-   *     |skipInitialAncestry|, and |skipInitialSubtree| are valid restrictions
-   *     used when finding the next node.
-   *     By default:
-   *        the root predicate gets set to |AutomationPredicate.root|.
-   *        |skipInitialSubtree| is false if |cur| is a container or matches
-   *        |pred|. This alleviates the caller from syncing forwards.
-   *        Leaves are nodes matched by |pred| which are not also containers.
-   *        This takes care of syncing backwards.
-   * @return {!Array<!AutomationNode>}
-   */
-  static findAllNodes(cur, dir, pred, opt_restrictions) {
-    const walker = createWalker(cur, dir, pred, opt_restrictions);
-    const nodes = [];
-    let currentNode = walker.next().node;
-    while (currentNode) {
-      nodes.push(currentNode);
-      currentNode = walker.next().node;
-    }
-    return nodes;
+    restrictions.root = opt_restrictions.root || AutomationPredicate.root;
+    restrictions.leaf = opt_restrictions.leaf || function(node) {
+      // Treat nodes matched by |pred| as leaves except for containers.
+      return !AutomationPredicate.container(node) && pred(node);
+    };
+
+    restrictions.skipInitialSubtree = opt_restrictions.skipInitialSubtree;
+    restrictions.skipInitialAncestry = opt_restrictions.skipInitialAncestry;
+
+    restrictions.visit = function(node) {
+      return pred(node) && !AutomationPredicate.shouldIgnoreNode(node);
+    };
+
+    const walker = new AutomationTreeWalker(cur, dir, restrictions);
+    return walker.next().node;
   }
 
   /**
@@ -148,7 +137,7 @@ export class AutomationUtil {
    * |pred| to a_i and a_(i - 1) until |pred| is satisfied.  Returns a_(i - 1)
    * or a_i (depending on opt_before) or null if no match was found.
    * @param {!AutomationNode} cur
-   * @param {constants.Dir} dir
+   * @param {Dir} dir
    * @param {AutomationPredicate.Binary} pred
    * @param {boolean=} opt_before True to return a_(i - 1); a_i otherwise.
    *                              Defaults to false.
@@ -234,16 +223,16 @@ export class AutomationUtil {
    * document.
    * @param {!AutomationNode} nodeA
    * @param {!AutomationNode} nodeB
-   * @return {constants.Dir}
+   * @return {Dir}
    */
   static getDirection(nodeA, nodeB) {
     const ancestorsA = AutomationUtil.getAncestors(nodeA);
     const ancestorsB = AutomationUtil.getAncestors(nodeB);
     const divergence = AutomationUtil.getDivergence(ancestorsA, ancestorsB);
 
-    // Default to constants.Dir.FORWARD.
+    // Default to Dir.FORWARD.
     if (divergence === -1) {
-      return constants.Dir.FORWARD;
+      return Dir.FORWARD;
     }
 
     const divA = ancestorsA[divergence];
@@ -254,20 +243,20 @@ export class AutomationUtil {
     // nodeB. nodeA > nodeB if nodeB is a descendant of nodeA.
 
     if (!divA) {
-      return constants.Dir.FORWARD;
+      return Dir.FORWARD;
     }
     if (!divB) {
-      return constants.Dir.BACKWARD;
+      return Dir.BACKWARD;
     }
     if (divA.parent === nodeB) {
-      return constants.Dir.BACKWARD;
+      return Dir.BACKWARD;
     }
     if (divB.parent === nodeA) {
-      return constants.Dir.FORWARD;
+      return Dir.FORWARD;
     }
 
-    return divA.indexInParent <= divB.indexInParent ? constants.Dir.FORWARD :
-                                                      constants.Dir.BACKWARD;
+    return divA.indexInParent <= divB.indexInParent ? Dir.FORWARD :
+                                                      Dir.BACKWARD;
   }
 
   /**
@@ -449,46 +438,9 @@ export class AutomationUtil {
       if (shallowest) {
         return shallowest;
       }
-    } while (
-        node = AutomationUtil.findNextNode(node, constants.Dir.BACKWARD, pred));
+    } while (node = AutomationUtil.findNextNode(node, Dir.BACKWARD, pred));
 
     return null;
   }
-}
-
-/**
- * @param {!AutomationNode} cur Node to begin the search
- *     from.
- * @param {constants.Dir} dir
- * @param {AutomationPredicate.Unary} pred A predicate to apply
- *     to a candidate node.
- * @param {AutomationTreeWalkerRestriction=} opt_restrictions |leaf|, |root|,
- *     |skipInitialAncestry|, and |skipInitialSubtree| are valid restrictions
- *     used when finding the next node.
- * @return {!AutomationTreeWalker} Instance of tree walker initialized with
- *    given parameters.
- */
-function createWalker(cur, dir, pred, opt_restrictions) {
-  const restrictions = {};
-  opt_restrictions = opt_restrictions || {
-    leaf: undefined,
-    root: undefined,
-    visit: undefined,
-    skipInitialSubtree: !AutomationPredicate.container(cur) && pred(cur),
-  };
-
-  restrictions.root = opt_restrictions.root || AutomationPredicate.root;
-  restrictions.leaf = opt_restrictions.leaf || function(node) {
-    // Treat nodes matched by |pred| as leaves except for containers.
-    return !AutomationPredicate.container(node) && pred(node);
-  };
-
-  restrictions.skipInitialSubtree = opt_restrictions.skipInitialSubtree;
-  restrictions.skipInitialAncestry = opt_restrictions.skipInitialAncestry;
-
-  restrictions.visit = function(node) {
-    return pred(node) && !AutomationPredicate.shouldIgnoreNode(node);
-  };
-
-  return new AutomationTreeWalker(cur, dir, restrictions);
-}
+};
+});  // goog.scope

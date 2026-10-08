@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef CHROMECAST_MEDIA_BASE_VIDEO_PLANE_CONTROLLER_H_
-#define CHROMECAST_MEDIA_BASE_VIDEO_PLANE_CONTROLLER_H_
+#ifndef CHROMECAST_MEDIA_VIDEO_PLANE_CONTROLLER_H_
+#define CHROMECAST_MEDIA_VIDEO_PLANE_CONTROLLER_H_
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/singleton.h"
 #include "base/threading/thread_checker.h"
@@ -15,15 +16,7 @@
 
 namespace base {
 class SingleThreadTaskRunner;
-}  // namespace base
-
-namespace gfx {
-class Rect;
-}  // namespace gfx
-
-namespace media {
-struct VideoTransformation;
-}  // namespace media
+}
 
 namespace chromecast {
 namespace media {
@@ -44,10 +37,6 @@ class VideoPlaneController {
   VideoPlaneController(
       const Size& graphics_resolution,
       scoped_refptr<base::SingleThreadTaskRunner> media_task_runner);
-
-  VideoPlaneController(const VideoPlaneController&) = delete;
-  VideoPlaneController& operator=(const VideoPlaneController&) = delete;
-
   ~VideoPlaneController();
 
   // Sets the video plane geometry in *graphics plane coordinates*. If there is
@@ -55,8 +44,6 @@ class VideoPlaneController {
   // is a no-op.
   void SetGeometry(const gfx::RectF& display_rect,
                    gfx::OverlayTransform transform);
-  void SetGeometryFromMediaType(const gfx::Rect& display_rect,
-                                const ::media::VideoTransformation& transform);
 
   // Sets physical screen resolution. This must be called at least once when
   // the final output resolution (HDMI signal or panel resolution) is known,
@@ -80,9 +67,6 @@ class VideoPlaneController {
  private:
   class RateLimitedSetVideoPlaneGeometry;
   friend struct base::DefaultSingletonTraits<VideoPlaneController>;
-
-  void SetGeometryInternal(const gfx::RectF& display_rect,
-                           VideoPlane::Transform transform);
 
   // Check if HaveDataForSetGeometry. If not, this method is a no-op. Otherwise
   // it scales the display rect from graphics to device resolution coordinates.
@@ -111,9 +95,11 @@ class VideoPlaneController {
   scoped_refptr<RateLimitedSetVideoPlaneGeometry> video_plane_wrapper_;
 
   base::ThreadChecker thread_checker_;
+
+  DISALLOW_COPY_AND_ASSIGN(VideoPlaneController);
 };
 
 }  // namespace media
 }  // namespace chromecast
 
-#endif  // CHROMECAST_MEDIA_BASE_VIDEO_PLANE_CONTROLLER_H_
+#endif  // CHROMECAST_MEDIA_VIDEO_PLANE_CONTROLLER_H_

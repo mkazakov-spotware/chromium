@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <utility>
 
 #include "base/location.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "components/sync/base/bind_to_task_runner.h"
 #include "components/sync/trusted_vault/trusted_vault_access_token_fetcher_frontend.h"
 
@@ -22,7 +22,7 @@ void FetchAccessTokenOnUIThread(
     const CoreAccountId& account_id,
     TrustedVaultAccessTokenFetcher::TokenCallback callback) {
   if (!frontend) {
-    std::move(callback).Run(absl::nullopt);
+    std::move(callback).Run(base::nullopt);
   } else {
     frontend->FetchAccessToken(account_id, std::move(callback));
   }
@@ -33,8 +33,8 @@ void FetchAccessTokenOnUIThread(
 TrustedVaultAccessTokenFetcherImpl::TrustedVaultAccessTokenFetcherImpl(
     base::WeakPtr<TrustedVaultAccessTokenFetcherFrontend> frontend)
     : frontend_(frontend) {
-  DCHECK(base::SequencedTaskRunner::HasCurrentDefault());
-  ui_thread_task_runner_ = base::SequencedTaskRunner::GetCurrentDefault();
+  DCHECK(base::SequencedTaskRunnerHandle::IsSet());
+  ui_thread_task_runner_ = base::SequencedTaskRunnerHandle::Get();
 }
 
 TrustedVaultAccessTokenFetcherImpl::~TrustedVaultAccessTokenFetcherImpl() =

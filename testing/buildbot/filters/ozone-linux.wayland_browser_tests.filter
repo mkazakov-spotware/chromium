@@ -1,48 +1,37 @@
-# These tests cannot work on Wayland because the platform does not allow clients
-# to position top level windows, activate them, and set focus.
--All/HostedOrWebAppTest.CtrlClickLink/HostedApp
--All/HostedOrWebAppTest.CtrlClickLink/WebApp
+# TODO(https://crbug.com/1084469): fix these tests.
+
+# Failed:
 -All/PopupBrowserTest.MoveClampedToCurrentDisplay/0
 -All/PopupBrowserTest.MoveClampedToCurrentDisplay/1
 -AutomationManagerAuraBrowserTest.EventFromAction
 -AutomationManagerAuraBrowserTest.TransientFocusChangesAreSuppressed
+-BrowserActionApiTest.BrowserActionOpenPopupOnPopup
 -BrowserViewTest.F6CyclesThroughCaptionBubbleToo
 -BrowserViewTest.GetAccessibleTabModalDialogTitle
 -ChromeSitePerProcessTest.PopupWindowFocus
+-ClipboardApiTest.Extension
+-DesktopCaptureApiTest.ChooseDesktopMedia
+-ExtensionDialogTest.TextInputViaKeyEvent
 -ExternalProtocolDialogBrowserTest.TestFocus
 -FolderUploadConfirmationViewTest.InitiallyFocusesCancel
--JavaScriptTabModalDialogViewViewsBrowserTest.AlertDialogAccessibleNameDescriptionAndRole
--JavaScriptTabModalDialogViewViewsBrowserTest.AlertDialogCloseButtonAccessibilityIgnored
--PreservedWindowPlacement.Test
--ProfileHelperTest.OpenNewWindowForProfile
-
-# Screen capture on Wayland is tricky.
--All/WebRtcScreenCaptureBrowserTestWithPicker.ScreenCaptureVideo/1
--All/WebRtcScreenCaptureBrowserTestWithPicker.ScreenCaptureVideo/5
--All/WebRtcScreenCaptureBrowserTestWithPicker.ScreenCaptureVideoAndAudio/1
--All/WebRtcScreenCaptureBrowserTestWithPicker.ScreenCaptureVideoAndAudio/5
--WebRtcDesktopCaptureBrowserTest.RunsScreenshareFromOneTabToAnother
-
-# Fail on the bot, pass locally.
--BackForwardCachePageLoadMetricsObserverBrowserTest.CumulativeLayoutShiftAfterBackForwardCacheRestore
--DesktopCaptureApiTest.ChooseDesktopMedia
--IconLoaderBrowserTest.LoadGroup
-
-# TODO(https://crbug.com/1084469): fix these tests.
-
-# Failed:
--BrowserViewTest.GetAccessibleTabModalDialogTree
 -OmniboxPopupContentsViewTest.ClickOmnibox
 -OmniboxPopupContentsViewTest.PopupMatchesLocationBarBackground
+-OutOfProcessPPAPITest.FlashClipboard
 -PageInfoBubbleViewBrowserTest.FocusDoesNotReturnToContentsOnReloadPrompt
 -PageInfoBubbleViewBrowserTest.FocusReturnsToContentOnClose
+-PaymentRequestCreditCardEditorTest.EditingExpiredCard
+-PaymentRequestShippingAddressEditorTest.FocusFirstField_Name
+-PaymentRequestShippingAddressEditorTest.FocusFirstInvalidField_NotName
+-PreservedWindowPlacement.Test
+-ProfileHelperTest.OpenNewWindowForProfile
+-SessionRestoreTest.RestoreMinimizedWindow
+-TabGroupEditorBubbleViewDialogBrowserTest.InvokeUi_default
+-TabHoverCardBubbleViewBrowserTest.WidgetNotVisibleOnMousePressAfterTabFocus
+-TabHoverCardBubbleViewBrowserTest.WidgetVisibleOnKeyPressAfterTabFocus
+-WebRtcDesktopCaptureBrowserTest.RunsScreenshareFromOneTabToAnother
+-WebRtcGetDisplayMediaBrowserTestWithPicker.GetDisplayMediaVideo
+-WebRtcGetDisplayMediaBrowserTestWithPicker.GetDisplayMediaVideoAndAudio
+-BrowserViewTest.GetAccessibleTabModalDialogTree
+-IconLoaderBrowserTest.LoadGroup
 -PrintBrowserTest.PDFPluginNotKeyboardFocusable
-
-# #TODO (b/235882005): These tests fail due to a NOT_IMPLEMENTED_LOG_ONCE()
-# within the  wayland_surface.cc implementation. This causes our focused
-# dialog object to instantly close and causes these tests to fail. Until a
-# solution is introduced with wayland support or a workaround can be discovered
-# in the browser tests, simply disable them.
--AccessCodeCastDialogBrowserTest.*
--AccessCodeCastHandlerBrowserTest.*
--AccessCodeCastSinkServiceBrowserTest.*
+-LocalNTPTest.EmbeddedSearchAPIOnlyAvailableOnNTP

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 #include <limits>
 #include <memory>
 
-#include "base/containers/contains.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/stl_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "cc/raster/raster_buffer.h"
 #include "cc/raster/synchronous_task_graph_runner.h"
 #include "cc/test/fake_raster_buffer_provider.h"
@@ -37,16 +37,18 @@ FakeRasterBufferProviderImpl* GetGlobalRasterBufferProvider() {
 FakeTileManager::FakeTileManager(TileManagerClient* client,
                                  ResourcePool* resource_pool)
     : TileManager(client,
-                  base::SingleThreadTaskRunner::GetCurrentDefault().get(),
+                  base::ThreadTaskRunnerHandle::Get().get(),
                   nullptr,
                   std::numeric_limits<size_t>::max(),
                   TileManagerSettings()),
       image_decode_cache_(
           kN32_SkColorType,
-          LayerTreeSettings().decoded_image_working_set_budget_bytes) {
+          LayerTreeSettings().decoded_image_working_set_budget_bytes,
+          PaintImage::kDefaultGeneratorClientId) {
   SetResources(resource_pool, &image_decode_cache_, GetGlobalTaskGraphRunner(),
                GetGlobalRasterBufferProvider(),
-               /*use_gpu_rasterization=*/false, nullptr);
+               false /* use_gpu_rasterization */,
+               false /* use_oop_rasterization */);
   SetTileTaskManagerForTesting(std::make_unique<FakeTileTaskManagerImpl>());
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/task/current_thread.h"
 #include "content/public/browser/browser_thread.h"
@@ -59,16 +59,15 @@ class UserData : public base::SupportsUserData::Data {
       return NULL;
     UserData* data = static_cast<UserData*>(
         web_contents->GetUserData(kAwContentsClientBridge));
-    return data ? data->contents_.get() : NULL;
+    return data ? data->contents_ : NULL;
   }
 
   explicit UserData(AwContentsClientBridge* ptr) : contents_(ptr) {}
 
-  UserData(const UserData&) = delete;
-  UserData& operator=(const UserData&) = delete;
-
  private:
-  raw_ptr<AwContentsClientBridge> contents_;
+  AwContentsClientBridge* contents_;
+
+  DISALLOW_COPY_AND_ASSIGN(UserData);
 };
 
 }  // namespace
@@ -92,6 +91,25 @@ void AwContentsClientBridge::Dissociate(WebContents* web_contents) {
 // static
 AwContentsClientBridge* AwContentsClientBridge::FromWebContents(
     WebContents* web_contents) {
+  return UserData::GetContents(web_contents);
+}
+
+// static
+AwContentsClientBridge* AwContentsClientBridge::FromWebContentsGetter(
+    const content::WebContents::Getter& web_contents_getter) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  WebContents* web_contents = web_contents_getter.Run();
+  return UserData::GetContents(web_contents);
+}
+
+// static
+AwContentsClientBridge* AwContentsClientBridge::FromID(int render_process_id,
+                                                       int render_frame_id) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  content::RenderFrameHost* rfh =
+      content::RenderFrameHost::FromID(render_process_id, render_frame_id);
+  content::WebContents* web_contents =
+      content::WebContents::FromRenderFrameHost(rfh);
   return UserData::GetContents(web_contents);
 }
 
@@ -275,15 +293,15 @@ void AwContentsClientBridge::ProvideClientCertificateResponse(
 void AwContentsClientBridge::RunJavaScriptDialog(
     content::JavaScriptDialogType dialog_type,
     const GURL& origin_url,
-    const std::u16string& message_text,
-    const std::u16string& default_prompt_text,
+    const base::string16& message_text,
+    const base::string16& default_prompt_text,
     content::JavaScriptDialogManager::DialogClosedCallback callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   JNIEnv* env = AttachCurrentThread();
 
   ScopedJavaLocalRef<jobject> obj = java_ref_.get(env);
   if (!obj) {
-    std::move(callback).Run(false, std::u16string());
+    std::move(callback).Run(false, base::string16());
     return;
   }
 
@@ -329,11 +347,11 @@ void AwContentsClientBridge::RunBeforeUnloadDialog(
 
   ScopedJavaLocalRef<jobject> obj = java_ref_.get(env);
   if (!obj) {
-    std::move(callback).Run(false, std::u16string());
+    std::move(callback).Run(false, base::string16());
     return;
   }
 
-  const std::u16string message_text =
+  const base::string16 message_text =
       l10n_util::GetStringUTF16(IDS_BEFOREUNLOAD_MESSAGEBOX_MESSAGE);
 
   int callback_id = pending_js_dialog_callbacks_.Add(
@@ -349,12 +367,11 @@ void AwContentsClientBridge::RunBeforeUnloadDialog(
                                                    callback_id);
 }
 
-bool AwContentsClientBridge::ShouldOverrideUrlLoading(
-    const std::u16string& url,
-    bool has_user_gesture,
-    bool is_redirect,
-    bool is_outermost_main_frame,
-    bool* ignore_navigation) {
+bool AwContentsClientBridge::ShouldOverrideUrlLoading(const base::string16& url,
+                                                      bool has_user_gesture,
+                                                      bool is_redirect,
+                                                      bool is_main_frame,
+                                                      bool* ignore_navigation) {
   *ignore_navigation = false;
   JNIEnv* env = AttachCurrentThread();
   ScopedJavaLocalRef<jobject> obj = java_ref_.get(env);
@@ -364,7 +381,7 @@ bool AwContentsClientBridge::ShouldOverrideUrlLoading(
   devtools_instrumentation::ScopedEmbedderCallbackTask(
       "shouldOverrideUrlLoading");
   *ignore_navigation = Java_AwContentsClientBridge_shouldOverrideUrlLoading(
-      env, obj, jurl, has_user_gesture, is_redirect, is_outermost_main_frame);
+      env, obj, jurl, has_user_gesture, is_redirect, is_main_frame);
   if (HasException(env)) {
     // Tell the chromium message loop to not perform any tasks after the current
     // one - we want to make sure we return to Java cleanly without first making
@@ -375,15 +392,6 @@ bool AwContentsClientBridge::ShouldOverrideUrlLoading(
     return false;
   }
   return true;
-}
-
-bool AwContentsClientBridge::SendBrowseIntent(const std::u16string& url) {
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = java_ref_.get(env);
-  if (!obj)
-    return false;
-  ScopedJavaLocalRef<jstring> jurl = ConvertUTF16ToJavaString(env, url);
-  return Java_AwContentsClientBridge_sendBrowseIntent(env, obj, jurl);
 }
 
 void AwContentsClientBridge::NewDownload(const GURL& url,
@@ -449,7 +457,7 @@ void AwContentsClientBridge::OnReceivedError(
   AwWebResourceRequest::AwJavaWebResourceRequest java_web_resource_request;
   AwWebResourceRequest::ConvertToJava(env, request, &java_web_resource_request);
   Java_AwContentsClientBridge_onReceivedError(
-      env, obj, java_web_resource_request.jurl, request.is_outermost_main_frame,
+      env, obj, java_web_resource_request.jurl, request.is_main_frame,
       request.has_user_gesture, *request.is_renderer_initiated,
       java_web_resource_request.jmethod,
       java_web_resource_request.jheader_names,
@@ -473,7 +481,7 @@ void AwContentsClientBridge::OnSafeBrowsingHit(
   AwWebResourceRequest::AwJavaWebResourceRequest java_web_resource_request;
   AwWebResourceRequest::ConvertToJava(env, request, &java_web_resource_request);
   Java_AwContentsClientBridge_onSafeBrowsingHit(
-      env, obj, java_web_resource_request.jurl, request.is_outermost_main_frame,
+      env, obj, java_web_resource_request.jurl, request.is_main_frame,
       request.has_user_gesture, java_web_resource_request.jmethod,
       java_web_resource_request.jheader_names,
       java_web_resource_request.jheader_values, static_cast<int>(threat_type),
@@ -504,7 +512,7 @@ void AwContentsClientBridge::OnReceivedHttpError(
       ToJavaArrayOfStrings(env, http_error_info->response_header_values);
 
   Java_AwContentsClientBridge_onReceivedHttpError(
-      env, obj, java_web_resource_request.jurl, request.is_outermost_main_frame,
+      env, obj, java_web_resource_request.jurl, request.is_main_frame,
       request.has_user_gesture, java_web_resource_request.jmethod,
       java_web_resource_request.jheader_names,
       java_web_resource_request.jheader_values, jstring_mime_type,
@@ -545,7 +553,7 @@ void AwContentsClientBridge::ConfirmJsResult(JNIEnv* env,
     LOG(WARNING) << "Unexpected JS dialog confirm. " << id;
     return;
   }
-  std::u16string prompt_text;
+  base::string16 prompt_text;
   if (prompt) {
     prompt_text = ConvertJavaStringToUTF16(env, prompt);
   }
@@ -580,7 +588,7 @@ void AwContentsClientBridge::CancelJsResult(JNIEnv*,
     LOG(WARNING) << "Unexpected JS dialog cancel. " << id;
     return;
   }
-  std::move(*callback).Run(false, std::u16string());
+  std::move(*callback).Run(false, base::string16());
   pending_js_dialog_callbacks_.Remove(id);
 }
 

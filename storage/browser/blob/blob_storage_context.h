@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,8 @@
 #include "base/component_export.h"
 #include "base/files/file_path.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/trace_event/memory_dump_provider.h"
 #include "components/services/storage/public/mojom/blob_storage_context.mojom.h"
@@ -64,10 +65,6 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) BlobStorageContext
   BlobStorageContext(const base::FilePath& profile_directory,
                      const base::FilePath& blob_storage_directory,
                      scoped_refptr<base::TaskRunner> file_runner);
-
-  BlobStorageContext(const BlobStorageContext&) = delete;
-  BlobStorageContext& operator=(const BlobStorageContext&) = delete;
-
   ~BlobStorageContext() override;
 
   // The following three methods all lookup a BlobDataHandle based on some
@@ -254,7 +251,7 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) BlobStorageContext
   void WriteBlobToFile(mojo::PendingRemote<::blink::mojom::Blob> blob,
                        const base::FilePath& path,
                        bool flush_on_write,
-                       absl::optional<base::Time> last_modified,
+                       base::Optional<base::Time> last_modified,
                        WriteBlobToFileCallback callback) override;
 
   base::FilePath profile_directory_;
@@ -262,6 +259,8 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) BlobStorageContext
   BlobMemoryController memory_controller_;
   mojo::ReceiverSet<mojom::BlobStorageContext> receivers_;
   base::WeakPtrFactory<BlobStorageContext> ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(BlobStorageContext);
 };
 
 }  // namespace storage

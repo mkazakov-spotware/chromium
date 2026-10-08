@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,11 @@
 #include <stdint.h>
 #include <sys/time.h>
 #include <time.h>
+#if defined(OS_ANDROID) && !defined(__LP64__)
+#include <time64.h>
+#endif
 #include <unistd.h>
+
 #include <limits>
 
 #include "base/no_destructor.h"
@@ -16,10 +20,7 @@
 #include "build/build_config.h"
 #include "build/chromecast_buildflags.h"
 
-#if BUILDFLAG(IS_ANDROID) && !defined(__LP64__)
-#include <time64.h>
-#endif
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL)
 #include "base/os_compat_nacl.h"
 #endif
 
@@ -35,7 +36,7 @@ base::Lock* GetSysTimeToTimeStructLock() {
 // Define a system-specific SysTime that wraps either to a time_t or
 // a time64_t depending on the host system, and associated convertion.
 // See crbug.com/162007
-#if BUILDFLAG(IS_ANDROID) && !defined(__LP64__)
+#if defined(OS_ANDROID) && !defined(__LP64__)
 
 typedef time64_t SysTime;
 
@@ -55,7 +56,7 @@ void SysTimeToTimeStruct(SysTime t, struct tm* timestruct, bool is_local) {
     gmtime64_r(&t, timestruct);
 }
 
-#elif BUILDFLAG(IS_AIX)
+#elif defined(OS_AIX)
 
 // The function timegm is not available on AIX.
 time_t aix_timegm(struct tm* tm) {
@@ -114,7 +115,7 @@ void SysTimeToTimeStruct(SysTime t, struct tm* timestruct, bool is_local) {
     gmtime_r(&t, timestruct);
 }
 
-#endif  // BUILDFLAG(IS_ANDROID) && !defined(__LP64__)
+#endif  // defined(OS_ANDROID) && !defined(__LP64__)
 
 }  // namespace
 
@@ -128,10 +129,10 @@ void Time::Explode(bool is_local, Exploded* exploded) const {
   if (sizeof(SysTime) < 8) {
 // TODO(b/167763382) Find an alternate solution for Chromecast devices, since
 // adding the icui18n dep significantly increases the binary size.
-#if !BUILDFLAG(IS_CASTOS) && !BUILDFLAG(IS_CAST_ANDROID)
+#if !BUILDFLAG(IS_CHROMECAST)
     ExplodeUsingIcu(millis_since_unix_epoch, is_local, exploded);
     return;
-#endif  // !BUILDFLAG(IS_CASTOS) && !BUILDFLAG(IS_CAST_ANDROID)
+#endif  // !BUILDFLAG(IS_CHROMECAST)
   }
 
   // Split the |millis_since_unix_epoch| into separate seconds and millisecond
@@ -156,7 +157,7 @@ void Time::Explode(bool is_local, Exploded* exploded) const {
   exploded->hour = timestruct.tm_hour;
   exploded->minute = timestruct.tm_min;
   exploded->second = timestruct.tm_sec;
-  exploded->millisecond = static_cast<int>(millisecond);
+  exploded->millisecond = millisecond;
 }
 
 // static
@@ -180,12 +181,12 @@ bool Time::FromExploded(bool is_local, const Exploded& exploded, Time* time) {
   timestruct.tm_wday = exploded.day_of_week;  // mktime/timegm ignore this
   timestruct.tm_yday = 0;                     // mktime/timegm ignore this
   timestruct.tm_isdst = -1;                   // attempt to figure it out
-#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_SOLARIS) && !BUILDFLAG(IS_AIX)
+#if !defined(OS_NACL) && !defined(OS_SOLARIS) && !defined(OS_AIX)
   timestruct.tm_gmtoff = 0;   // not a POSIX field, so mktime/timegm ignore
   timestruct.tm_zone = nullptr;  // not a POSIX field, so mktime/timegm ignore
 #endif
 
-  int64_t seconds;
+  SysTime seconds;
 
   // Certain exploded dates do not really exist due to daylight saving times,
   // and this causes mktime() to return implementation-defined values when

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "ui/ozone/demo/renderer_base.h"
 
@@ -26,10 +26,6 @@ class SoftwareRenderer : public RendererBase {
   SoftwareRenderer(gfx::AcceleratedWidget widget,
                    std::unique_ptr<PlatformWindowSurface> window_surface,
                    const gfx::Size& size);
-
-  SoftwareRenderer(const SoftwareRenderer&) = delete;
-  SoftwareRenderer& operator=(const SoftwareRenderer&) = delete;
-
   ~SoftwareRenderer() override;
 
   // Renderer:
@@ -53,6 +49,8 @@ class SoftwareRenderer : public RendererBase {
   base::TimeDelta vsync_period_;
 
   base::WeakPtrFactory<SoftwareRenderer> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SoftwareRenderer);
 };
 
 }  // namespace ui

@@ -1,11 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_METRICS_DESKTOP_SESSION_DURATION_TOUCH_MODE_STATS_TRACKER_H_
 #define CHROME_BROWSER_METRICS_DESKTOP_SESSION_DURATION_TOUCH_MODE_STATS_TRACKER_H_
 
-#include "base/memory/raw_ptr.h"
+#include <memory>
+
 #include "base/time/time.h"
 #include "chrome/browser/metrics/desktop_session_duration/desktop_session_duration_tracker.h"
 #include "ui/base/pointer/touch_ui_controller.h"
@@ -39,9 +40,10 @@ class TouchModeStatsTracker
   void OnSessionEnded(base::TimeDelta session_length,
                       base::TimeTicks session_end) override;
 
-  const raw_ptr<ui::TouchUiController> touch_ui_controller_;
+  ui::TouchUiController* const touch_ui_controller_;
 
-  base::CallbackListSubscription mode_change_subscription_;
+  std::unique_ptr<ui::TouchUiController::Subscription>
+      mode_change_subscription_;
 
   // The time passed by OnSessionStarted() if there is an ongoing
   // session, or 0 otherwise.

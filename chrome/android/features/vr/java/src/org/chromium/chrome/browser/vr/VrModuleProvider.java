@@ -1,10 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.vr;
-
-import android.content.Context;
 
 import org.chromium.base.BundleUtils;
 import org.chromium.base.annotations.CalledByNative;
@@ -14,7 +12,6 @@ import org.chromium.chrome.R;
 import org.chromium.chrome.browser.modules.ModuleInstallUi;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.components.module_installer.engine.InstallListener;
-import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.vr.VrModeObserver;
 
 import java.util.ArrayList;
@@ -106,7 +103,7 @@ public class VrModuleProvider implements ModuleInstallUi.FailureUiListener {
 
     // TODO(crbug.com/870055): JNI should be registered in the shared VR library's JNI_OnLoad
     // function. Do this once we have a shared VR library.
-    public static void registerJni() {
+    /* package */ static void registerJni() {
         VrModuleProviderJni.get().registerJni();
     }
 
@@ -154,20 +151,7 @@ public class VrModuleProvider implements ModuleInstallUi.FailureUiListener {
     @CalledByNative
     private void installModule(Tab tab) {
         mTab = tab;
-        ModuleInstallUi.Delegate moduleInstallUiDelegate = new ModuleInstallUi.Delegate() {
-            @Override
-            public WindowAndroid getWindowAndroid() {
-                return mTab.getWindowAndroid();
-            }
-
-            @Override
-            public Context getContext() {
-                return mTab.getWindowAndroid() != null ? mTab.getWindowAndroid().getActivity().get()
-                                                       : null;
-            }
-        };
-        ModuleInstallUi ui =
-                new ModuleInstallUi(moduleInstallUiDelegate, R.string.vr_module_title, this);
+        ModuleInstallUi ui = new ModuleInstallUi(mTab, R.string.vr_module_title, this);
         ui.showInstallStartUi();
         installModule((success) -> {
             if (mNativeVrModuleProvider != 0) {

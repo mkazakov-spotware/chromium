@@ -1,10 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.device.bluetooth;
 
-import android.Manifest;
+import android.annotation.TargetApi;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanSettings;
@@ -12,8 +12,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.PackageManager;
-import android.os.Handler;
+import android.os.Build;
 import android.os.ParcelUuid;
 import android.test.mock.MockContext;
 import android.util.SparseArray;
@@ -40,6 +39,7 @@ import java.util.UUID;
  * each of these classes.
  */
 @JNINamespace("device")
+@TargetApi(Build.VERSION_CODES.M)
 class Fakes {
     private static final String TAG = "Bluetooth";
 
@@ -50,14 +50,21 @@ class Fakes {
 
     /**
      * Sets the factory for LocationUtils to return an instance whose
-     * isSystemLocationSettingEnabled method returns |isEnabled|.
+     * hasAndroidLocationPermission and isSystemLocationSettingEnabled return
+     * values depend on |hasPermission| and |isEnabled| respectively.
      */
     @CalledByNative
-    public static void setLocationServicesState(final boolean isEnabled) {
+    public static void setLocationServicesState(
+            final boolean hasPermission, final boolean isEnabled) {
         LocationUtils.setFactory(new LocationUtils.Factory() {
             @Override
             public LocationUtils create() {
                 return new LocationUtils() {
+                    @Override
+                    public boolean hasAndroidLocationPermission() {
+                        return hasPermission;
+                    }
+
                     @Override
                     public boolean isSystemLocationSettingEnabled() {
                         return isEnabled;
@@ -118,11 +125,6 @@ class Fakes {
             mNativeBluetoothTestAndroid = nativeBluetoothTestAndroid;
             mFakeContext = (FakeContext) mContext;
             mFakeScanner = new FakeBluetoothLeScanner();
-        }
-
-        @CalledByNative("FakeBluetoothAdapter")
-        public void setFakeContextLocationPermission(boolean enabled) {
-            mFakeContext.setLocationPermission(enabled);
         }
 
         /**
@@ -307,41 +309,17 @@ class Fakes {
      * Fakes android.content.Context by extending MockContext.
      */
     static class FakeContext extends MockContext {
-        private boolean mLocationPermission;
-
         public FakeContext() {
             super();
-            mLocationPermission = true;
-        }
-
-        public void setLocationPermission(boolean enabled) {
-            mLocationPermission = enabled;
         }
 
         @Override
-        public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter,
-                String permission, Handler scheduler) {
-            return null;
-        }
-
-        @Override
-        public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter,
-                String permission, Handler scheduler, int flags) {
+        public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter) {
             return null;
         }
 
         @Override
         public void unregisterReceiver(BroadcastReceiver receiver) {}
-
-        @Override
-        public int checkCallingOrSelfPermission(String permission) {
-            if (permission.equals(Manifest.permission.ACCESS_FINE_LOCATION)
-                    || permission.equals(Manifest.permission.ACCESS_COARSE_LOCATION)) {
-                return mLocationPermission ? PackageManager.PERMISSION_GRANTED
-                                           : PackageManager.PERMISSION_DENIED;
-            }
-            return PackageManager.PERMISSION_DENIED;
-        }
     }
 
     /**
@@ -582,11 +560,6 @@ class Fakes {
         @Override
         public void close() {
             nativeOnFakeBluetoothGattClose(mDevice.mAdapter.mNativeBluetoothTestAndroid);
-        }
-
-        @Override
-        public boolean requestMtu(int mtu) {
-            return false;
         }
 
         @Override

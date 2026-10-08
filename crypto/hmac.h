@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,9 @@
 #include <memory>
 #include <vector>
 
+#include "base/compiler_specific.h"
 #include "base/containers/span.h"
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "crypto/crypto_export.h"
 
@@ -33,10 +35,6 @@ class CRYPTO_EXPORT HMAC {
   };
 
   explicit HMAC(HashAlgorithm hash_alg);
-
-  HMAC(const HMAC&) = delete;
-  HMAC& operator=(const HMAC&) = delete;
-
   ~HMAC();
 
   // Returns the length of digest that this HMAC will create.
@@ -54,21 +52,21 @@ class CRYPTO_EXPORT HMAC {
   // this requirement is gone.  But a system crypto library may still enforce
   // this old requirement.  If the key is shorter than this recommended value,
   // Init() may fail.
-  [[nodiscard]] bool Init(const unsigned char* key, size_t key_length);
+  bool Init(const unsigned char* key, size_t key_length) WARN_UNUSED_RESULT;
 
   // Initializes this instance using |key|. Call Init
   // only once. It returns false on the second or later calls.
-  [[nodiscard]] bool Init(const SymmetricKey* key);
+  bool Init(const SymmetricKey* key) WARN_UNUSED_RESULT;
 
   // Initializes this instance using |key|. Call Init only once. It returns
   // false on the second or later calls.
-  [[nodiscard]] bool Init(base::StringPiece key) {
+  bool Init(base::StringPiece key) WARN_UNUSED_RESULT {
     return Init(base::as_bytes(base::make_span(key)));
   }
 
   // Initializes this instance using |key|. Call Init only once. It returns
   // false on the second or later calls.
-  [[nodiscard]] bool Init(base::span<const uint8_t> key) {
+  bool Init(base::span<const uint8_t> key) WARN_UNUSED_RESULT {
     return Init(key.data(), key.size());
   }
 
@@ -77,11 +75,11 @@ class CRYPTO_EXPORT HMAC {
   // returned in |digest|, which has |digest_length| bytes of storage available.
   // If |digest_length| is smaller than DigestLength(), the output will be
   // truncated. If it is larger, this method will fail.
-  [[nodiscard]] bool Sign(base::StringPiece data,
-                          unsigned char* digest,
-                          size_t digest_length) const;
-  [[nodiscard]] bool Sign(base::span<const uint8_t> data,
-                          base::span<uint8_t> digest) const;
+  bool Sign(base::StringPiece data,
+            unsigned char* digest,
+            size_t digest_length) const WARN_UNUSED_RESULT;
+  bool Sign(base::span<const uint8_t> data,
+            base::span<uint8_t> digest) const WARN_UNUSED_RESULT;
 
   // Verifies that the HMAC for the message in |data| equals the HMAC provided
   // in |digest|, using the algorithm supplied to the constructor and the key
@@ -90,22 +88,25 @@ class CRYPTO_EXPORT HMAC {
   // comparisons may result in side-channel disclosures, such as timing, that
   // undermine the cryptographic integrity. |digest| must be exactly
   // |DigestLength()| bytes long.
-  [[nodiscard]] bool Verify(base::StringPiece data,
-                            base::StringPiece digest) const;
-  [[nodiscard]] bool Verify(base::span<const uint8_t> data,
-                            base::span<const uint8_t> digest) const;
+  bool Verify(base::StringPiece data,
+              base::StringPiece digest) const WARN_UNUSED_RESULT;
+  bool Verify(base::span<const uint8_t> data,
+              base::span<const uint8_t> digest) const WARN_UNUSED_RESULT;
 
   // Verifies a truncated HMAC, behaving identical to Verify(), except
   // that |digest| is allowed to be smaller than |DigestLength()|.
-  [[nodiscard]] bool VerifyTruncated(base::StringPiece data,
-                                     base::StringPiece digest) const;
-  [[nodiscard]] bool VerifyTruncated(base::span<const uint8_t> data,
-                                     base::span<const uint8_t> digest) const;
+  bool VerifyTruncated(base::StringPiece data,
+                       base::StringPiece digest) const WARN_UNUSED_RESULT;
+  bool VerifyTruncated(base::span<const uint8_t> data,
+                       base::span<const uint8_t> digest) const
+      WARN_UNUSED_RESULT;
 
  private:
   HashAlgorithm hash_alg_;
   bool initialized_;
   std::vector<unsigned char> key_;
+
+  DISALLOW_COPY_AND_ASSIGN(HMAC);
 };
 
 }  // namespace crypto

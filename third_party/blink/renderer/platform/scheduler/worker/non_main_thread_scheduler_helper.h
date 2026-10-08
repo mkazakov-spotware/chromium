@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 namespace blink {
 namespace scheduler {
 
-class NonMainThreadSchedulerBase;
+class NonMainThreadSchedulerImpl;
 
 // TODO(carlscab): This class is not really needed and should be removed
 class PLATFORM_EXPORT NonMainThreadSchedulerHelper : public SchedulerHelper {
@@ -23,33 +23,30 @@ class PLATFORM_EXPORT NonMainThreadSchedulerHelper : public SchedulerHelper {
   // entire lifetime of this object.
   NonMainThreadSchedulerHelper(
       base::sequence_manager::SequenceManager* manager,
-      NonMainThreadSchedulerBase* non_main_thread_scheduler,
+      NonMainThreadSchedulerImpl* non_main_thread_scheduler,
       TaskType default_task_type);
-  NonMainThreadSchedulerHelper(const NonMainThreadSchedulerHelper&) = delete;
-  NonMainThreadSchedulerHelper& operator=(const NonMainThreadSchedulerHelper&) =
-      delete;
   ~NonMainThreadSchedulerHelper() override;
 
   scoped_refptr<NonMainThreadTaskQueue> NewTaskQueue(
-      const base::sequence_manager::TaskQueue::Spec& spec,
-      bool can_be_throttled = false);
+      const base::sequence_manager::TaskQueue::Spec& spec);
 
   scoped_refptr<NonMainThreadTaskQueue> DefaultNonMainThreadTaskQueue();
   scoped_refptr<NonMainThreadTaskQueue> ControlNonMainThreadTaskQueue();
 
+  const scoped_refptr<base::SingleThreadTaskRunner>& DefaultTaskRunner()
+      override;
   const scoped_refptr<base::SingleThreadTaskRunner>& ControlTaskRunner()
       override;
-
-  const scoped_refptr<base::SingleThreadTaskRunner>& InputTaskRunner();
 
  protected:
   void ShutdownAllQueues() override;
 
  private:
-  NonMainThreadSchedulerBase* non_main_thread_scheduler_;  // NOT OWNED
+  NonMainThreadSchedulerImpl* non_main_thread_scheduler_;  // NOT OWNED
   const scoped_refptr<NonMainThreadTaskQueue> default_task_queue_;
-  const scoped_refptr<NonMainThreadTaskQueue> input_task_queue_;
   const scoped_refptr<NonMainThreadTaskQueue> control_task_queue_;
+
+  DISALLOW_COPY_AND_ASSIGN(NonMainThreadSchedulerHelper);
 };
 
 }  // namespace scheduler

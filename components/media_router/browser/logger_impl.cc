@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,7 @@
 
 #include "base/i18n/time_formatting.h"
 #include "base/json/json_string_value_serializer.h"
-#include "base/strings/string_piece.h"
 #include "base/values.h"
-#include "components/media_router/browser/log_util.h"
 #include "components/media_router/common/media_source.h"
 #include "components/media_router/common/mojom/logger.mojom-shared.h"
 #include "url/gurl.h"
@@ -20,7 +18,7 @@ namespace {
 constexpr size_t kEntriesCapacity = 1000;
 
 constexpr size_t kComponentMaxLength = 64;
-constexpr size_t kMessageMaxLength = 1024;
+constexpr size_t kMessageMaxLength = 256;
 constexpr size_t kSourceMaxLength = 64;
 
 const char* AsString(LoggerImpl::Severity severity) {
@@ -55,13 +53,17 @@ base::StringPiece TruncateMessage(base::StringPiece message) {
   return message.substr(0, kMessageMaxLength);
 }
 
+// Gets the last four characters of an ID string.
+base::StringPiece TruncateId(base::StringPiece id) {
+  if (id.size() <= 4)
+    return id;
+  return id.substr(id.size() - 4);
+}
+
 }  // namespace
 
 LoggerImpl::LoggerImpl() : capacity_(kEntriesCapacity) {}
-
-LoggerImpl::~LoggerImpl() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-}
+LoggerImpl::~LoggerImpl() = default;
 
 void LoggerImpl::LogInfo(mojom::LogCategory category,
                          const std::string& component,
@@ -69,7 +71,6 @@ void LoggerImpl::LogInfo(mojom::LogCategory category,
                          const std::string& sink_id,
                          const std::string& media_source,
                          const std::string& session_id) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   Log(Severity::kInfo, category, base::Time::Now(), component, message, sink_id,
       media_source, session_id);
 }
@@ -80,7 +81,6 @@ void LoggerImpl::LogWarning(mojom::LogCategory category,
                             const std::string& sink_id,
                             const std::string& media_source,
                             const std::string& session_id) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   Log(Severity::kWarning, category, base::Time::Now(), component, message,
       sink_id, media_source, session_id);
 }
@@ -91,32 +91,12 @@ void LoggerImpl::LogError(mojom::LogCategory category,
                           const std::string& sink_id,
                           const std::string& media_source,
                           const std::string& session_id) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   Log(Severity::kError, category, base::Time::Now(), component, message,
       sink_id, media_source, session_id);
 }
 
-void LoggerImpl::BindReceiver(mojo::PendingReceiver<mojom::Logger> receiver) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+void LoggerImpl::Bind(mojo::PendingReceiver<mojom::Logger> receiver) {
   receivers_.Add(this, std::move(receiver));
-}
-
-void LoggerImpl::Log(Severity severity,
-                     mojom::LogCategory category,
-                     base::Time time,
-                     const std::string& component,
-                     const std::string& message,
-                     const std::string& sink_id,
-                     const std::string& media_source,
-                     const std::string& session_id) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  entries_.emplace_back(
-      severity, category, time, TruncateComponent(component),
-      TruncateMessage(message), log_util::TruncateId(sink_id),
-      MediaSource(media_source).TruncateForLogging(kSourceMaxLength),
-      log_util::TruncateId(session_id));
-  if (entries_.size() > capacity_)
-    entries_.pop_front();
 }
 
 std::string LoggerImpl::GetLogsAsJson() const {
@@ -148,11 +128,11 @@ LoggerImpl::Entry::Entry(Severity severity,
     : severity(severity),
       category(category),
       time(time),
-      component(component),
-      message(message),
-      sink_id(sink_id),
+      component(component.as_string()),
+      message(message.as_string()),
+      sink_id(sink_id.as_string()),
       media_source(std::move(media_source)),
-      session_id(session_id) {}
+      session_id(session_id.as_string()) {}
 
 LoggerImpl::Entry::Entry(Entry&& other)
     : severity(other.severity),
@@ -165,6 +145,23 @@ LoggerImpl::Entry::Entry(Entry&& other)
       session_id(std::move(other.session_id)) {}
 
 LoggerImpl::Entry::~Entry() = default;
+
+void LoggerImpl::Log(Severity severity,
+                     mojom::LogCategory category,
+                     base::Time time,
+                     const std::string& component,
+                     const std::string& message,
+                     const std::string& sink_id,
+                     const std::string& media_source,
+                     const std::string& session_id) {
+  entries_.emplace_back(
+      severity, category, time, TruncateComponent(component),
+      TruncateMessage(message), TruncateId(sink_id),
+      MediaSource(media_source).TruncateForLogging(kSourceMaxLength),
+      TruncateId(session_id));
+  if (entries_.size() > capacity_)
+    entries_.pop_front();
+}
 
 // static
 base::Value LoggerImpl::AsValue(const LoggerImpl::Entry& entry) {

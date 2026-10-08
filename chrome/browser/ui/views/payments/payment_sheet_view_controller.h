@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/views/payments/payment_request_sheet_controller.h"
 #include "components/payments/content/payment_request_spec.h"
@@ -28,11 +29,6 @@ class PaymentSheetViewController : public PaymentRequestSheetController,
   PaymentSheetViewController(base::WeakPtr<PaymentRequestSpec> spec,
                              base::WeakPtr<PaymentRequestState> state,
                              base::WeakPtr<PaymentRequestDialogView> dialog);
-
-  PaymentSheetViewController(const PaymentSheetViewController&) = delete;
-  PaymentSheetViewController& operator=(const PaymentSheetViewController&) =
-      delete;
-
   ~PaymentSheetViewController() override;
 
   // PaymentRequestSpec::Observer:
@@ -46,9 +42,9 @@ class PaymentSheetViewController : public PaymentRequestSheetController,
 
  private:
   // PaymentRequestSheetController:
-  std::u16string GetSecondaryButtonLabel() override;
+  base::string16 GetSecondaryButtonLabel() override;
   bool ShouldShowHeaderBackArrow() override;
-  std::u16string GetSheetTitle() override;
+  base::string16 GetSheetTitle() override;
   void FillContentView(views::View* content_view) override;
   std::unique_ptr<views::View> CreateExtraFooterView() override;
 
@@ -56,18 +52,21 @@ class PaymentSheetViewController : public PaymentRequestSheetController,
   // Where applicable, they also populate |accessible_content|, which shouldn't
   // be null, with the screen reader string that represents their contents.
   std::unique_ptr<views::View> CreateShippingSectionContent(
-      std::u16string* accessible_content);
+      base::string16* accessible_content);
   std::unique_ptr<PaymentRequestRowView> CreateShippingRow();
   std::unique_ptr<PaymentRequestRowView> CreatePaymentSheetSummaryRow();
   std::unique_ptr<PaymentRequestRowView> CreatePaymentMethodRow();
   std::unique_ptr<views::View> CreateContactInfoSectionContent(
-      std::u16string* accessible_content);
+      base::string16* accessible_content);
   std::unique_ptr<PaymentRequestRowView> CreateContactInfoRow();
   std::unique_ptr<PaymentRequestRowView> CreateShippingOptionRow();
   std::unique_ptr<views::View> CreateDataSourceRow();
 
   void AddShippingButtonPressed();
+  void AddPaymentMethodButtonPressed();
   void AddContactInfoButtonPressed();
+
+  DISALLOW_COPY_AND_ASSIGN(PaymentSheetViewController);
 };
 
 }  // namespace payments

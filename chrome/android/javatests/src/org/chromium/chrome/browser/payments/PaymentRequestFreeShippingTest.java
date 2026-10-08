@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -18,8 +19,8 @@ import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.test.params.ParameterAnnotations;
 import org.chromium.base.test.params.ParameterizedRunner;
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
+import org.chromium.base.test.util.FlakyTest;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.autofill.AutofillTestHelper;
 import org.chromium.chrome.browser.autofill.PersonalDataManager.AutofillProfile;
@@ -31,6 +32,7 @@ import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
 import org.chromium.components.payments.Event;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modaldialog.ModalDialogProperties;
+import org.chromium.ui.test.util.DisableAnimationsTestRule;
 import org.chromium.ui.test.util.NightModeTestUtils;
 import org.chromium.ui.test.util.RenderTestRule;
 
@@ -43,21 +45,16 @@ import java.util.concurrent.TimeoutException;
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class PaymentRequestFreeShippingTest implements MainActivityStartCallback {
+    // Disable animations to reduce flakiness.
+    @ClassRule
+    public static DisableAnimationsTestRule sNoAnimationsRule = new DisableAnimationsTestRule();
+
     @Rule
     public PaymentRequestTestRule mPaymentRequestTestRule =
             new PaymentRequestTestRule("payment_request_free_shipping_test.html", this, true);
 
-    private static final int RENDER_TEST_REVISION = 1;
-    private static final String RENDER_TEST_REVISION_DESCRIPTION =
-            "Updated EditText hint color for a11y";
-
     @Rule
-    public RenderTestRule mRenderTestRule =
-            RenderTestRule.Builder.withPublicCorpus()
-                    .setRevision(RENDER_TEST_REVISION)
-                    .setDescription(RENDER_TEST_REVISION_DESCRIPTION)
-                    .setBugComponent(RenderTestRule.Component.BLINK_PAYMENTS)
-                    .build();
+    public RenderTestRule mRenderTestRule = RenderTestRule.Builder.withPublicCorpus().build();
 
     @BeforeClass
     public static void setUpBeforeActivityLaunched() {
@@ -95,7 +92,6 @@ public class PaymentRequestFreeShippingTest implements MainActivityStartCallback
     /** Submit the shipping address to the merchant when the user clicks "Pay." */
     @Test
     @MediumTest
-    @DisabledTest(message = "crbug.com/1182234")
     @Feature({"Payments", "RenderTest"})
     @ParameterAnnotations.UseMethodParameter(NightModeTestUtils.NightModeParams.class)
     public void testPayWithRender(boolean nightModeEnabled) throws Throwable {
@@ -116,7 +112,7 @@ public class PaymentRequestFreeShippingTest implements MainActivityStartCallback
     /** Attempt to add an invalid address and cancel the transaction. */
     @Test
     @MediumTest
-    @DisabledTest(message = "crbug.com/673371")
+    @FlakyTest(message = "crbug.com/673371")
     @Feature({"Payments"})
     public void testAddInvalidAddressAndCancel() throws TimeoutException {
         mPaymentRequestTestRule.triggerUIAndWait(mPaymentRequestTestRule.getReadyToPay());
@@ -137,7 +133,6 @@ public class PaymentRequestFreeShippingTest implements MainActivityStartCallback
     /** Add a valid address and complete the transaction. */
     @Test
     @MediumTest
-    @DisabledTest(message = "crbug.com/1182234")
     @Feature({"Payments"})
     public void testAddAddressAndPay() throws TimeoutException {
         mPaymentRequestTestRule.triggerUIAndWait(mPaymentRequestTestRule.getReadyToPay());
@@ -164,7 +159,6 @@ public class PaymentRequestFreeShippingTest implements MainActivityStartCallback
     /** Change the country in the spinner, add a valid address, and complete the transaction. */
     @Test
     @MediumTest
-    @DisabledTest(message = "crbug.com/1182234")
     @Feature({"Payments"})
     public void testChangeCountryAddAddressAndPay() throws TimeoutException {
         mPaymentRequestTestRule.triggerUIAndWait(mPaymentRequestTestRule.getReadyToPay());
@@ -193,7 +187,6 @@ public class PaymentRequestFreeShippingTest implements MainActivityStartCallback
     /** Quickly pressing on "add address" and then [X] should not crash. */
     @Test
     @MediumTest
-    @DisabledTest(message = "crbug.com/1182234")
     @Feature({"Payments"})
     public void testQuickAddAddressAndCloseShouldNotCrash() throws TimeoutException {
         mPaymentRequestTestRule.triggerUIAndWait(mPaymentRequestTestRule.getReadyToPay());
@@ -225,7 +218,6 @@ public class PaymentRequestFreeShippingTest implements MainActivityStartCallback
     /** Quickly pressing on [X] and then "add address" should not crash. */
     @Test
     @MediumTest
-    @DisabledTest(message = "crbug.com/1182234")
     @Feature({"Payments"})
     public void testQuickCloseAndAddAddressShouldNotCrash() throws TimeoutException {
         mPaymentRequestTestRule.triggerUIAndWait(mPaymentRequestTestRule.getReadyToPay());
@@ -253,7 +245,7 @@ public class PaymentRequestFreeShippingTest implements MainActivityStartCallback
     /** Quickly pressing on "add address" and then "cancel" should not crash. */
     @Test
     @MediumTest
-    @DisabledTest(message = "crbug.com/673371")
+    @FlakyTest(message = "crbug.com/673371")
     @Feature({"Payments"})
     public void testQuickAddAddressAndCancelShouldNotCrash() throws TimeoutException {
         mPaymentRequestTestRule.triggerUIAndWait(mPaymentRequestTestRule.getReadyToPay());
@@ -285,7 +277,6 @@ public class PaymentRequestFreeShippingTest implements MainActivityStartCallback
     /** Quickly pressing on "cancel" and then "add address" should not crash. */
     @Test
     @MediumTest
-    @DisabledTest(message = "crbug.com/1182234")
     @Feature({"Payments"})
     public void testQuickCancelAndAddAddressShouldNotCrash() throws TimeoutException {
         mPaymentRequestTestRule.triggerUIAndWait(mPaymentRequestTestRule.getReadyToPay());
@@ -316,7 +307,6 @@ public class PaymentRequestFreeShippingTest implements MainActivityStartCallback
      */
     @Test
     @MediumTest
-    @DisabledTest(message = "crbug.com/1182234")
     @Feature({"Payments"})
     public void testPaymentRequestEventsMetric() throws TimeoutException {
         // Start and abort the Payment Request.

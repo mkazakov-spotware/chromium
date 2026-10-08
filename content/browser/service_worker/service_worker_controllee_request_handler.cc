@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,7 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/feature_list.h"
-#include "base/metrics/histogram_functions.h"
-#include "base/no_destructor.h"
-#include "base/strings/string_split.h"
+#include "base/optional.h"
 #include "base/trace_event/trace_event.h"
 #include "components/offline_pages/buildflags/buildflags.h"
 #include "content/browser/loader/navigation_url_loader_impl.h"
@@ -21,21 +18,19 @@
 #include "content/browser/service_worker/service_worker_context_wrapper.h"
 #include "content/browser/service_worker/service_worker_main_resource_loader.h"
 #include "content/browser/service_worker/service_worker_metrics.h"
+#include "content/browser/service_worker/service_worker_object_host.h"
 #include "content/browser/service_worker/service_worker_registration.h"
+#include "content/common/service_worker/service_worker_utils.h"
 #include "content/public/browser/allow_service_worker_result.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_client.h"
-#include "content/public/common/content_features.h"
 #include "net/base/load_flags.h"
 #include "net/base/url_util.h"
 #include "services/network/public/cpp/resource_request_body.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/loader/resource_type_util.h"
-#include "third_party/blink/public/common/service_worker/service_worker_loader_helpers.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 
 #if BUILDFLAG(ENABLE_OFFLINE_PAGES)
 #include "components/offline_pages/core/request_header/offline_page_header.h"
@@ -67,62 +62,6 @@ bool ShouldFallbackToLoadOfflinePage(
 }
 #endif  // BUILDFLAG(ENABLE_OFFLINE_PAGES)
 
-void RecordSkipReason(
-    ServiceWorkerControlleeRequestHandler::FetchHandlerSkipReason skip_reason) {
-  base::UmaHistogramEnumeration("ServiceWorker.FetchHandler.SkipReason",
-                                skip_reason);
-}
-
-const char* FetchHandlerTypeToString(
-    ServiceWorkerVersion::FetchHandlerType type) {
-  switch (type) {
-    case ServiceWorkerVersion::FetchHandlerType::kNoHandler:
-      return "no handler";
-    case ServiceWorkerVersion::FetchHandlerType::kNotSkippable:
-      return "not skippable";
-    case ServiceWorkerVersion::FetchHandlerType::kEmptyFetchHandler:
-      return "empty fetch handler";
-  }
-}
-
-// Returns the list of origins in which fetch handlers are bypassed.
-const std::vector<url::Origin> FetchHandlerBypassedOrigins() {
-  std::vector<url::Origin> origins;
-  std::vector<std::string> parsed_params = base::SplitString(
-      features::kServiceWorkerBypassFetchHandlerBypassedOrigins.Get(), ",",
-      base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
-  for (const auto& it : parsed_params) {
-    const GURL url = GURL(it);
-    if (url.is_valid()) {
-      origins.push_back(url::Origin::Create(url));
-    }
-  }
-
-  return origins;
-}
-
-bool ShouldBypassFetchHandlerForMainResource(const GURL& stripped_url) {
-  // If the feature is enabled, the main resource request bypasses ServiceWorker
-  // and starts the worker in parallel for subsequent subresources.
-  if (base::FeatureList::IsEnabled(
-          features::kServiceWorkerBypassFetchHandler) &&
-      features::kServiceWorkerBypassFetchHandlerTarget.Get() ==
-          features::ServiceWorkerBypassFetchHandlerTarget::kMainResource) {
-    // When the url is in the allowlist, fetch handlers for the main resource
-    // are bypassed.
-    const static base::NoDestructor<std::vector<url::Origin>> bypassed_origins(
-        FetchHandlerBypassedOrigins());
-    for (const auto& it : *bypassed_origins) {
-      // Skip comparing port numbers because some tests run the mock HTTP server
-      // with a random port number.
-      if (it.scheme() == stripped_url.scheme() &&
-          it.host() == stripped_url.host())
-        return true;
-    }
-  }
-  return false;
-}
-
 }  // namespace
 
 ServiceWorkerControlleeRequestHandler::ServiceWorkerControlleeRequestHandler(
@@ -130,18 +69,15 @@ ServiceWorkerControlleeRequestHandler::ServiceWorkerControlleeRequestHandler(
     base::WeakPtr<ServiceWorkerContainerHost> container_host,
     network::mojom::RequestDestination destination,
     bool skip_service_worker,
-    int frame_tree_node_id,
     ServiceWorkerAccessedCallback service_worker_accessed_callback)
     : context_(std::move(context)),
       container_host_(std::move(container_host)),
       destination_(destination),
       skip_service_worker_(skip_service_worker),
       force_update_started_(false),
-      frame_tree_node_id_(frame_tree_node_id),
       service_worker_accessed_callback_(
           std::move(service_worker_accessed_callback)) {
-  DCHECK(
-      blink::ServiceWorkerLoaderHelpers::IsMainRequestDestination(destination));
+  DCHECK(ServiceWorkerUtils::IsMainRequestDestination(destination));
   TRACE_EVENT_WITH_FLOW0("ServiceWorker",
                          "ServiceWorkerControlleeRequestHandler::"
                          "ServiceWorkerControlleeRequestHandler",
@@ -180,30 +116,25 @@ void ServiceWorkerControlleeRequestHandler::MaybeScheduleUpdate() {
 
 void ServiceWorkerControlleeRequestHandler::MaybeCreateLoader(
     const network::ResourceRequest& tentative_resource_request,
-    const blink::StorageKey& storage_key,
     BrowserContext* browser_context,
-    NavigationLoaderInterceptor::LoaderCallback loader_callback,
+    ServiceWorkerLoaderCallback callback,
     NavigationLoaderInterceptor::FallbackCallback fallback_callback) {
-  if (!container_host_) {
+  // InitializeContainerHost() will update the host. This is important to do
+  // before falling back to network below, so service worker APIs still work
+  // even if the service worker is bypassed for request interception.
+  if (!InitializeContainerHost(tentative_resource_request)) {
     // We can't do anything other than to fall back to network.
-    std::move(loader_callback).Run({});
+    std::move(callback).Run({});
     return;
   }
-
-  // Update the host. This is important to do before falling back to network
-  // below, so service worker APIs still work even if the service worker is
-  // bypassed for request interception.
-  InitializeContainerHost(tentative_resource_request, storage_key);
 
   // Fall back to network if we were instructed to bypass the service worker for
   // request interception, or if the context is gone so we have to bypass
   // anyway.
   if (skip_service_worker_ || !context_) {
-    ServiceWorkerMetrics::RecordSkipServiceWorkerOnNavigation(true);
-    std::move(loader_callback).Run({});
+    std::move(callback).Run({});
     return;
   }
-  ServiceWorkerMetrics::RecordSkipServiceWorkerOnNavigation(false);
 
 #if BUILDFLAG(ENABLE_OFFLINE_PAGES)
   // Fall back for the subsequent offline page interceptor to load the offline
@@ -215,7 +146,7 @@ void ServiceWorkerControlleeRequestHandler::MaybeCreateLoader(
   // headers between now and when the request handler passed to
   // |loader_callback_| is invoked.
   if (ShouldFallbackToLoadOfflinePage(tentative_resource_request.headers)) {
-    std::move(loader_callback).Run({});
+    std::move(callback).Run({});
     return;
   }
 #endif  // BUILDFLAG(ENABLE_OFFLINE_PAGES)
@@ -230,48 +161,89 @@ void ServiceWorkerControlleeRequestHandler::MaybeCreateLoader(
       TRACE_EVENT_FLAG_FLOW_IN | TRACE_EVENT_FLAG_FLOW_OUT, "URL",
       tentative_resource_request.url.spec());
 
-  loader_callback_ = std::move(loader_callback);
+  loader_callback_ = std::move(callback);
   fallback_callback_ = std::move(fallback_callback);
+  registration_lookup_start_time_ = base::TimeTicks::Now();
   browser_context_ = browser_context;
 
   // Look up a registration.
   context_->registry()->FindRegistrationForClientUrl(
-      stripped_url_, storage_key_,
+      stripped_url_,
       base::BindOnce(
           &ServiceWorkerControlleeRequestHandler::ContinueWithRegistration,
-          weak_factory_.GetWeakPtr(), base::TimeTicks::Now()));
+          weak_factory_.GetWeakPtr()));
 }
 
-void ServiceWorkerControlleeRequestHandler::InitializeContainerHost(
-    const network::ResourceRequest& tentative_resource_request,
-    const blink::StorageKey& storage_key) {
+base::Optional<SubresourceLoaderParams>
+ServiceWorkerControlleeRequestHandler::MaybeCreateSubresourceLoaderParams() {
+  // ContinueWithRegistration() for the request didn't find a matching service
+  // worker for this request, and
+  // ServiceWorkerContainerHost::SetControllerRegistration() was not called.
+  if (!container_host_ || !container_host_->controller())
+    return base::nullopt;
+
+  // Otherwise let's send the controller service worker information along
+  // with the navigation commit.
+  SubresourceLoaderParams params;
+  auto controller_info = blink::mojom::ControllerServiceWorkerInfo::New();
+  controller_info->mode = container_host_->GetControllerMode();
+  // Note that |controller_info->remote_controller| is null if the controller
+  // has no fetch event handler. In that case the renderer frame won't get the
+  // controller pointer upon the navigation commit, and subresource loading will
+  // not be intercepted. (It might get intercepted later if the controller
+  // changes due to skipWaiting() so SetController is sent.)
+  mojo::Remote<blink::mojom::ControllerServiceWorker> remote =
+      container_host_->GetRemoteControllerServiceWorker();
+  if (remote.is_bound()) {
+    controller_info->remote_controller = remote.Unbind();
+  }
+
+  controller_info->client_id = container_host_->client_uuid();
+  if (container_host_->fetch_request_window_id()) {
+    controller_info->fetch_request_window_id =
+        base::make_optional(container_host_->fetch_request_window_id());
+  }
+  base::WeakPtr<ServiceWorkerObjectHost> object_host =
+      container_host_->GetOrCreateServiceWorkerObjectHost(
+          container_host_->controller());
+  if (object_host) {
+    params.controller_service_worker_object_host = object_host;
+    controller_info->object_info = object_host->CreateIncompleteObjectInfo();
+  }
+  for (const auto feature : container_host_->controller()->used_features()) {
+    controller_info->used_features.push_back(feature);
+  }
+  params.controller_service_worker_info = std::move(controller_info);
+  return base::Optional<SubresourceLoaderParams>(std::move(params));
+}
+
+bool ServiceWorkerControlleeRequestHandler::InitializeContainerHost(
+    const network::ResourceRequest& tentative_resource_request) {
+  ClearJob();
+
+  if (!container_host_) {
+    return false;
+  }
+
   // Update the container host with this request, clearing old controller state
   // if this is a redirect.
   container_host_->SetControllerRegistration(nullptr,
                                              /*notify_controllerchange=*/false);
   stripped_url_ = net::SimplifyUrlForRequest(tentative_resource_request.url);
-
-  storage_key_ = storage_key;
-
   container_host_->UpdateUrls(stripped_url_,
-                              // TODO(1199077): Use top_frame_origin from
-                              // `storage_key_` instead, since that is populated
-                              // also for workers.
+                              tentative_resource_request.site_for_cookies,
                               tentative_resource_request.trusted_params
                                   ? tentative_resource_request.trusted_params
                                         ->isolation_info.top_frame_origin()
-                                  : absl::nullopt,
-                              storage_key_);
+                                  : base::nullopt);
+  return true;
 }
 
 void ServiceWorkerControlleeRequestHandler::ContinueWithRegistration(
-    base::TimeTicks start_time,
     blink::ServiceWorkerStatusCode status,
     scoped_refptr<ServiceWorkerRegistration> registration) {
-  if (!start_time.is_null()) {
-    ServiceWorkerMetrics::RecordFindRegistrationForClientUrlTime(
-        base::TimeTicks::Now() - start_time);
-  }
+  ServiceWorkerMetrics::RecordLookupRegistrationTime(
+      status, base::TimeTicks::Now() - registration_lookup_start_time_);
 
   if (status != blink::ServiceWorkerStatusCode::kOk) {
     TRACE_EVENT_WITH_FLOW1(
@@ -310,12 +282,15 @@ void ServiceWorkerControlleeRequestHandler::ContinueWithRegistration(
 
   AllowServiceWorkerResult allow_service_worker =
       GetContentClient()->browser()->AllowServiceWorker(
-          registration->scope(), container_host_->site_for_cookies(),
+          registration->scope(),
+          container_host_->site_for_cookies().RepresentativeUrl(),
           container_host_->top_frame_origin(), /*script_url=*/GURL(),
           browser_context_);
 
-  service_worker_accessed_callback_.Run(registration->scope(),
-                                        allow_service_worker);
+  RunOrPostTaskOnThread(
+      FROM_HERE, BrowserThread::UI,
+      base::BindOnce(service_worker_accessed_callback_, registration->scope(),
+                     allow_service_worker));
 
   if (!allow_service_worker) {
     TRACE_EVENT_WITH_FLOW1(
@@ -462,73 +437,22 @@ void ServiceWorkerControlleeRequestHandler::ContinueWithActivatedVersion(
   DCHECK_EQ(active_version, container_host_->controller());
   DCHECK_NE(active_version->fetch_handler_existence(),
             ServiceWorkerVersion::FetchHandlerExistence::UNKNOWN);
-
-  base::UmaHistogramEnumeration(
-      "ServiceWorker.FetchHandler."
-      "TypeAtContinueWithActivatedVersion",
-      active_version->fetch_handler_type());
+  ServiceWorkerMetrics::CountControlledPageLoad(
+      active_version->site_for_uma(),
+      destination_ == network::mojom::RequestDestination::kDocument);
 
   if (blink::IsRequestDestinationFrame(destination_))
     container_host_->AddServiceWorkerToUpdate(active_version);
 
-  switch (active_version->EffectiveFetchHandlerType()) {
-    case ServiceWorkerVersion::FetchHandlerType::kNoHandler: {
-      RecordSkipReason(FetchHandlerSkipReason::kNoFetchHandler);
-      TRACE_EVENT_WITH_FLOW1(
-          "ServiceWorker",
-          "ServiceWorkerControlleeRequestHandler::ContinueWithActivatedVersion",
-          TRACE_ID_LOCAL(this),
-          TRACE_EVENT_FLAG_FLOW_IN | TRACE_EVENT_FLAG_FLOW_OUT, "Info",
-          "Skipping the ServiceWorker which has no fetch handler");
-      CompleteWithoutLoader();
-      return;
-    }
-    case ServiceWorkerVersion::FetchHandlerType::kEmptyFetchHandler: {
-      RecordSkipReason(FetchHandlerSkipReason::kSkippedForEmptyFetchHandler);
-      TRACE_EVENT_WITH_FLOW2(
-          "ServiceWorker",
-          "ServiceWorkerControlleeRequestHandler::ContinueWithActivatedVersion",
-          TRACE_ID_LOCAL(this),
-          TRACE_EVENT_FLAG_FLOW_IN | TRACE_EVENT_FLAG_FLOW_OUT, "Info",
-          "The fetch handler is skippable. Falling back to network",
-          "FetchHandlerType",
-          FetchHandlerTypeToString(
-              active_version->EffectiveFetchHandlerType()));
-      registration->active_version()->CountFeature(
-          blink::mojom::WebFeature::kServiceWorkerSkippedForEmptyFetchHandler);
-      CompleteWithoutLoader();
-      return;
-    }
-    case ServiceWorkerVersion::FetchHandlerType::kNotSkippable: {
-      RecordSkipReason(FetchHandlerSkipReason::kNotSkipped);
-      TRACE_EVENT_WITH_FLOW1(
-          "ServiceWorker",
-          "ServiceWorkerControlleeRequestHandler::ContinueWithActivatedVersion",
-          TRACE_ID_LOCAL(this),
-          TRACE_EVENT_FLAG_FLOW_IN | TRACE_EVENT_FLAG_FLOW_OUT, "Info",
-          "Forwarding to the ServiceWorker");
-      break;
-    }
-  }
-
-  // If the feature is enabled, the main resource request bypasses ServiceWorker
-  // and starts the worker in parallel for subsequent subresources.
-  if (ShouldBypassFetchHandlerForMainResource(stripped_url_)) {
-    registration->active_version()->CountFeature(
-        blink::mojom::WebFeature::
-            kServiceWorkerBypassFetchHandlerForMainResource);
+  if (active_version->fetch_handler_existence() !=
+      ServiceWorkerVersion::FetchHandlerExistence::EXISTS) {
+    TRACE_EVENT_WITH_FLOW1(
+        "ServiceWorker",
+        "ServiceWorkerControlleeRequestHandler::ContinueWithActivatedVersion",
+        TRACE_ID_LOCAL(this),
+        TRACE_EVENT_FLAG_FLOW_IN | TRACE_EVENT_FLAG_FLOW_OUT, "Info",
+        "Skipped the ServiceWorker which has no fetch handler");
     CompleteWithoutLoader();
-    if (registration->active_version()->running_status() ==
-            EmbeddedWorkerStatus::STARTING ||
-        registration->active_version()->running_status() ==
-            EmbeddedWorkerStatus::RUNNING) {
-      return;
-    }
-    registration->active_version()->StartWorker(
-        ServiceWorkerMetrics::EventType::BYPASS_MAIN_RESOURCE,
-        base::BindOnce(&ServiceWorkerControlleeRequestHandler::
-                           DidStartWorkerForSubresources,
-                       weak_factory_.GetWeakPtr()));
     return;
   }
 
@@ -536,22 +460,18 @@ void ServiceWorkerControlleeRequestHandler::ContinueWithActivatedVersion(
   // ServiceWorkerMainResourceLoader which does that work.
   loader_wrapper_ = std::make_unique<ServiceWorkerMainResourceLoaderWrapper>(
       std::make_unique<ServiceWorkerMainResourceLoader>(
-          std::move(fallback_callback_), container_host_, frame_tree_node_id_));
+          std::move(fallback_callback_), container_host_,
+          base::WrapRefCounted(context_->loader_factory_getter())));
 
-  std::move(loader_callback_)
-      .Run(base::MakeRefCounted<SingleRequestURLLoaderFactory>(
-          base::BindOnce(&ServiceWorkerMainResourceLoader::StartRequest,
-                         loader_wrapper_->get()->AsWeakPtr())));
-}
-
-void ServiceWorkerControlleeRequestHandler::DidStartWorkerForSubresources(
-    blink::ServiceWorkerStatusCode status) {
   TRACE_EVENT_WITH_FLOW1(
       "ServiceWorker",
-      "ServiceWorkerControlleeRequestHandler::DidStartWorkerForSubresources",
+      "ServiceWorkerControlleeRequestHandler::ContinueWithActivatedVersion",
       TRACE_ID_LOCAL(this),
-      TRACE_EVENT_FLAG_FLOW_IN | TRACE_EVENT_FLAG_FLOW_OUT, "Status",
-      blink::ServiceWorkerStatusToString(status));
+      TRACE_EVENT_FLAG_FLOW_IN | TRACE_EVENT_FLAG_FLOW_OUT, "Info",
+      "Forwarded to the ServiceWorker");
+  std::move(loader_callback_)
+      .Run(base::BindOnce(&ServiceWorkerMainResourceLoader::StartRequest,
+                          loader_wrapper_->get()->AsWeakPtr()));
 }
 
 void ServiceWorkerControlleeRequestHandler::DidUpdateRegistration(
@@ -576,10 +496,10 @@ void ServiceWorkerControlleeRequestHandler::DidUpdateRegistration(
     // Update failed. Look up the registration again since the original
     // registration was possibly unregistered in the meantime.
     context_->registry()->FindRegistrationForClientUrl(
-        stripped_url_, storage_key_,
+        stripped_url_,
         base::BindOnce(
             &ServiceWorkerControlleeRequestHandler::ContinueWithRegistration,
-            weak_factory_.GetWeakPtr(), base::TimeTicks()));
+            weak_factory_.GetWeakPtr()));
     TRACE_EVENT_WITH_FLOW1(
         "ServiceWorker",
         "ServiceWorkerControlleeRequestHandler::DidUpdateRegistration",
@@ -632,15 +552,25 @@ void ServiceWorkerControlleeRequestHandler::OnUpdatedVersionStatusChanged(
     // continue with the incumbent version.
     // In case unregister job may have run, look up the registration again.
     context_->registry()->FindRegistrationForClientUrl(
-        stripped_url_, storage_key_,
+        stripped_url_,
         base::BindOnce(
             &ServiceWorkerControlleeRequestHandler::ContinueWithRegistration,
-            weak_factory_.GetWeakPtr(), base::TimeTicks()));
+            weak_factory_.GetWeakPtr()));
     return;
   }
   version->RegisterStatusChangeCallback(base::BindOnce(
       &ServiceWorkerControlleeRequestHandler::OnUpdatedVersionStatusChanged,
       weak_factory_.GetWeakPtr(), std::move(registration), version));
+}
+
+void ServiceWorkerControlleeRequestHandler::ClearJob() {
+  // Invalidate weak pointers to cancel RegisterStatusChangeCallback().
+  // Otherwise we may end up calling ForwardToServiceWorer()
+  // or FallbackToNetwork() twice on the same |loader()|.
+  // TODO(bashi): Consider not to reuse this handler when restarting the
+  // request after S13nServiceWorker is shipped.
+  weak_factory_.InvalidateWeakPtrs();
+  loader_wrapper_.reset();
 }
 
 void ServiceWorkerControlleeRequestHandler::CompleteWithoutLoader() {

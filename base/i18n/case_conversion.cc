@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,8 @@
 
 #include <stdint.h>
 
-#include <string>
-
 #include "base/numerics/safe_conversions.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "third_party/icu/source/common/unicode/uchar.h"
 #include "third_party/icu/source/common/unicode/unistr.h"
@@ -46,10 +45,9 @@ int32_t FoldCaseMapper(UChar* dest, int32_t dest_capacity,
                        U_FOLD_CASE_DEFAULT, error);
 }
 
-// Provides similar functionality as UnicodeString::caseMap but on
-// std::u16string.
-std::u16string CaseMap(StringPiece16 string, CaseMapperFunction case_mapper) {
-  std::u16string dest;
+// Provides similar functionality as UnicodeString::caseMap but on string16.
+string16 CaseMap(StringPiece16 string, CaseMapperFunction case_mapper) {
+  string16 dest;
   if (string.empty())
     return dest;
 
@@ -66,8 +64,9 @@ std::u16string CaseMap(StringPiece16 string, CaseMapperFunction case_mapper) {
     // terminator, but will otherwise. So we don't need to save room for that.
     // Don't use WriteInto, which assumes null terminators.
     int32_t new_length = case_mapper(
-        &dest[0], saturated_cast<int32_t>(dest.size()), string.data(),
-        saturated_cast<int32_t>(string.size()), &error);
+        &dest[0], saturated_cast<int32_t>(dest.size()),
+        string.data(), saturated_cast<int32_t>(string.size()),
+        &error);
     dest.resize(new_length);
   } while (error == U_BUFFER_OVERFLOW_ERROR);
   return dest;
@@ -75,15 +74,15 @@ std::u16string CaseMap(StringPiece16 string, CaseMapperFunction case_mapper) {
 
 }  // namespace
 
-std::u16string ToLower(StringPiece16 string) {
+string16 ToLower(StringPiece16 string) {
   return CaseMap(string, &ToLowerMapper);
 }
 
-std::u16string ToUpper(StringPiece16 string) {
+string16 ToUpper(StringPiece16 string) {
   return CaseMap(string, &ToUpperMapper);
 }
 
-std::u16string FoldCase(StringPiece16 string) {
+string16 FoldCase(StringPiece16 string) {
   return CaseMap(string, &FoldCaseMapper);
 }
 

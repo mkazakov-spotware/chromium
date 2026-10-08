@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,10 @@
 
 namespace cc {
 namespace {
+
+gfx::ColorSpace DefaultColorSpace() {
+  return gfx::ColorSpace::CreateSRGB();
+}
 
 std::unique_ptr<FakeRecordingSource> CreateRecordingSource(
     const gfx::Rect& viewport) {
@@ -43,6 +47,12 @@ TEST(RecordingSourceTest, DiscardableImagesWithTransform) {
   rotate_transform.Translate(112, 112);
   rotate_transform.Rotate(45);
   discardable_image[1][1] = CreateDiscardablePaintImage(gfx::Size(32, 32));
+
+  gfx::RectF rect(0, 0, 32, 32);
+  gfx::RectF translate_rect = rect;
+  translate_transform.TransformRect(&translate_rect);
+  gfx::RectF rotate_rect = rect;
+  rotate_transform.TransformRect(&rotate_rect);
 
   recording_source->add_draw_image_with_transform(discardable_image[0][0],
                                                   identity_transform);
@@ -101,7 +111,7 @@ TEST(RecordingSourceTest, DiscardableImagesWithTransform) {
     raster_source->GetDiscardableImagesInRect(gfx::Rect(130, 0, 128, 128),
                                               &images);
     DrawImage image(*images[0], scale, PaintImage::kDefaultFrameIndex,
-                    TargetColorParams());
+                    DefaultColorSpace());
     EXPECT_EQ(1u, images.size());
     EXPECT_FLOAT_EQ(scale, image.scale().width());
     EXPECT_FLOAT_EQ(scale, image.scale().height());
@@ -330,10 +340,10 @@ TEST(RecordingSourceTest, AnalyzeIsSolid) {
     recording_source->SetRecordingScaleFactor(recording_scale);
 
     PaintFlags solid_flags;
-    SkColor4f solid_color{0.1f, 0.2f, 0.3f, 1.0f};
+    SkColor solid_color = SkColorSetARGB(255, 12, 23, 34);
     solid_flags.setColor(solid_color);
 
-    SkColor4f non_solid_color{0.2f, 0.3f, 0.4f, 0.5f};
+    SkColor non_solid_color = SkColorSetARGB(128, 45, 56, 67);
     PaintFlags non_solid_flags;
     non_solid_flags.setColor(non_solid_color);
 

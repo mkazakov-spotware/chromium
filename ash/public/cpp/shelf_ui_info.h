@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,11 +35,8 @@ struct ASH_PUBLIC_EXPORT ScrollableShelfInfo {
   // Bounds of the right arrow in screen.
   gfx::Rect right_arrow_bounds;
 
-  // Indicates whether scrollable shelf is under scroll animation.
+  // Indicates whether scrollable shelf is animating.
   bool is_animating = false;
-
-  // Indicates whether there is any shelf icon under bounds animation.
-  bool icons_under_animation = false;
 
   // Indicates whether scrollable shelf is in overflow mode.
   bool is_overflow = false;
@@ -74,9 +71,6 @@ struct ASH_PUBLIC_EXPORT HotseatInfo {
 
   // The current hotseat state.
   HotseatState hotseat_state = HotseatState::kHidden;
-
-  // Indicates whether the hotseat is being autohidden.
-  bool is_auto_hidden = false;
 };
 
 }  // namespace ash

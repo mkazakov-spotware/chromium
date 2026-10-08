@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,6 @@ import static org.chromium.net.CronetTestRule.SERVER_KEY_PKCS8_PEM;
 import static org.chromium.net.CronetTestRule.assertContains;
 import static org.chromium.net.CronetTestRule.getContext;
 
-import android.os.Build;
 import android.os.ConditionVariable;
 import android.os.Process;
 import android.support.test.runner.AndroidJUnit4;
@@ -34,7 +33,6 @@ import org.chromium.base.Log;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
-import org.chromium.net.CronetTestRule.RequiresMinAndroidApi;
 import org.chromium.net.CronetTestRule.RequiresMinApi;
 import org.chromium.net.MetricsTestUtil.TestRequestFinishedListener;
 import org.chromium.net.TestBidirectionalStreamCallback.FailureType;
@@ -205,10 +203,8 @@ public class BidirectionalStreamTest {
     private void runBuilderCheckJavaImpl() {
         try {
             TestBidirectionalStreamCallback callback = new TestBidirectionalStreamCallback();
-            CronetTestRule.createJavaEngineBuilder(CronetTestRule.getContext())
-                    .build()
-                    .newBidirectionalStreamBuilder(
-                            Http2TestServer.getServerUrl(), callback, callback.getExecutor());
+            mTestRule.createJavaEngineBuilder().build().newBidirectionalStreamBuilder(
+                    Http2TestServer.getServerUrl(), callback, callback.getExecutor());
             fail("JavaCronetEngine doesn't support BidirectionalStream."
                     + " Expected UnsupportedOperationException");
         } catch (UnsupportedOperationException e) {
@@ -1156,8 +1152,6 @@ public class BidirectionalStreamTest {
     @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testSimpleGetBufferUpdates() throws Exception {
-        TestRequestFinishedListener requestFinishedListener = new TestRequestFinishedListener();
-        mCronetEngine.addRequestFinishedListener(requestFinishedListener);
         TestBidirectionalStreamCallback callback = new TestBidirectionalStreamCallback();
         callback.setAutoAdvance(false);
         // Since the method is "GET", the expected response body is also "GET".
@@ -1238,12 +1232,6 @@ public class BidirectionalStreamTest {
         assertEquals(5, readBuffer.limit());
 
         assertEquals(ResponseStep.ON_SUCCEEDED, callback.mResponseStep);
-
-        // TestRequestFinishedListener expects a single call to onRequestFinished. Here we
-        // explicitly wait for the call to happen to avoid a race condition with the other
-        // TestRequestFinishedListener created within runSimpleGetWithExpectedReceivedByteCount.
-        requestFinishedListener.blockUntilDone();
-        mCronetEngine.removeRequestFinishedListener(requestFinishedListener);
 
         // Make sure there are no other pending messages, which would trigger
         // asserts in TestBidirectionalCallback.
@@ -1628,7 +1616,6 @@ public class BidirectionalStreamTest {
     @Feature({"Cronet"})
     @OnlyRunNativeCronet
     @RequiresMinApi(10) // Tagging support added in API level 10: crrev.com/c/chromium/src/+/937583
-    @RequiresMinAndroidApi(Build.VERSION_CODES.M) // crbug/1301957
     public void testTagging() throws Exception {
         if (!CronetTestUtil.nativeCanGetTaggedBytes()) {
             Log.i(TAG, "Skipping test - GetTaggedBytes unsupported.");

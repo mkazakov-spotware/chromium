@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,17 +40,17 @@ class MEDIA_EXPORT OffloadingVideoEncoder final : public VideoEncoder {
   void Initialize(VideoCodecProfile profile,
                   const Options& options,
                   OutputCB output_cb,
-                  EncoderStatusCB done_cb) override;
+                  StatusCB done_cb) override;
 
   void Encode(scoped_refptr<VideoFrame> frame,
               bool key_frame,
-              EncoderStatusCB done_cb) override;
+              StatusCB done_cb) override;
 
   void ChangeOptions(const Options& options,
                      OutputCB output_cb,
-                     EncoderStatusCB done_cb) override;
+                     StatusCB done_cb) override;
 
-  void Flush(EncoderStatusCB done_cb) override;
+  void Flush(StatusCB done_cb) override;
 
  private:
   template <class T>

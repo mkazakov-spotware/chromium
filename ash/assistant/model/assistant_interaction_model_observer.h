@@ -1,11 +1,16 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_ASSISTANT_MODEL_ASSISTANT_INTERACTION_MODEL_OBSERVER_H_
 #define ASH_ASSISTANT_MODEL_ASSISTANT_INTERACTION_MODEL_OBSERVER_H_
 
+#include <map>
+#include <string>
+#include <vector>
+
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/observer_list_types.h"
 
@@ -22,11 +27,6 @@ enum class MicState;
 class COMPONENT_EXPORT(ASSISTANT_MODEL) AssistantInteractionModelObserver
     : public base::CheckedObserver {
  public:
-  AssistantInteractionModelObserver(const AssistantInteractionModelObserver&) =
-      delete;
-  AssistantInteractionModelObserver& operator=(
-      const AssistantInteractionModelObserver&) = delete;
-
   // Invoked when the interaction state is changed.
   virtual void OnInteractionStateChanged(InteractionState interaction_state) {}
 
@@ -64,6 +64,8 @@ class COMPONENT_EXPORT(ASSISTANT_MODEL) AssistantInteractionModelObserver
  protected:
   AssistantInteractionModelObserver() = default;
   ~AssistantInteractionModelObserver() override = default;
+
+  DISALLOW_COPY_AND_ASSIGN(AssistantInteractionModelObserver);
 };
 
 }  // namespace ash

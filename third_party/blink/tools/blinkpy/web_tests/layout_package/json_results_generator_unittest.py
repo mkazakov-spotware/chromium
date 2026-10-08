@@ -51,7 +51,7 @@ class JSONGeneratorTest(unittest.TestCase):
         self._fixable_count = 0
 
     def test_strip_json_wrapper(self):
-        json = b"['contents']"
+        json = "['contents']"
         self.assertEqual(
             json_results_generator.
             strip_json_wrapper(json_results_generator._JSON_PREFIX + json +
@@ -77,5 +77,4 @@ class JSONGeneratorTest(unittest.TestCase):
             }
         }
 
-        self.assertEqual(json.dumps(sorted(trie.keys())),
-                         json.dumps(sorted(expected_trie.keys())))
+        self.assertEqual(json.dumps(trie), json.dumps(expected_trie))

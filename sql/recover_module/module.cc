@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -60,7 +59,7 @@ int ModuleCreate(sqlite3* sqlite_db,
   DCHECK(sqlite_db != nullptr);
   if (argc <= kFirstColumnArgument) {
     // The recovery module needs at least one column specification.
-    return SQLITE_ERROR;
+    return SQLITE_MISUSE;
   }
   DCHECK(argv != nullptr);
   DCHECK(result_sqlite_table != nullptr);
@@ -76,7 +75,7 @@ int ModuleCreate(sqlite3* sqlite_db,
     // temporary database (ATTACH '' AS other_temp). However, there is no easy
     // way to determine if an attachment point corresponds to a temporary
     // database, and "temp" is sufficient for Chrome's purposes.
-    return SQLITE_ERROR;
+    return SQLITE_MISUSE;
   }
 
   base::StringPiece table_name(argv[kVirtualTableNameArgument]);
@@ -84,7 +83,7 @@ int ModuleCreate(sqlite3* sqlite_db,
     // In the future, we may deploy UMA metrics that use the virtual table name
     // to attribute recovery events to Chrome features. In preparation for that
     // future, require all recovery table names to start with "recover_".
-    return SQLITE_ERROR;
+    return SQLITE_MISUSE;
   }
 
   TargetTableSpec backing_table_spec =
@@ -92,16 +91,18 @@ int ModuleCreate(sqlite3* sqlite_db,
   if (!backing_table_spec.IsValid()) {
     // The parser concluded that the string specifying the backing table is
     // invalid. This is definitely an error in the SQL using the virtual table.
-    return SQLITE_ERROR;
+    return SQLITE_MISUSE;
   }
 
   std::vector<RecoveredColumnSpec> column_specs = ParseColumnSpecs(argc, argv);
   if (column_specs.empty()) {
     // The column specifications were invalid.
-    return SQLITE_ERROR;
+    return SQLITE_MISUSE;
   }
 
-  auto [sqlite_status, table] = VirtualTable::Create(
+  int sqlite_status;
+  std::unique_ptr<VirtualTable> table;
+  std::tie(sqlite_status, table) = VirtualTable::Create(
       sqlite_db, std::move(backing_table_spec), std::move(column_specs));
   if (sqlite_status != SQLITE_OK)
     return sqlite_status;

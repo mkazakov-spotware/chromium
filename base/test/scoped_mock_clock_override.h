@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "base/time/time_override.h"
 
@@ -32,10 +33,6 @@ namespace base {
 class ScopedMockClockOverride {
  public:
   ScopedMockClockOverride();
-
-  ScopedMockClockOverride(const ScopedMockClockOverride&) = delete;
-  ScopedMockClockOverride& operator=(const ScopedMockClockOverride&) = delete;
-
   ~ScopedMockClockOverride();
 
   static Time Now();
@@ -48,6 +45,8 @@ class ScopedMockClockOverride {
   std::unique_ptr<base::subtle::ScopedTimeClockOverrides> time_clock_overrides_;
   TimeDelta offset_;
   static ScopedMockClockOverride* scoped_mock_clock_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedMockClockOverride);
 };
 
 }  // namespace base

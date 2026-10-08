@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 
 #include "base/callback_forward.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 
 namespace base {
@@ -18,7 +18,7 @@ class SingleThreadTaskRunner;
 namespace remoting {
 
 // Monitors the local input to notify about keyboard hotkeys. If implemented for
-// the platform, catches the disconnection keyboard shortcut (Ctrl-Alt-Esc) and
+// the platform, catches the disconnection keyboard shortcut (Ctlr-Alt-Esc) and
 // invokes |disconnect_callback| when this key combination is pressed.
 class LocalHotkeyInputMonitor {
  public:

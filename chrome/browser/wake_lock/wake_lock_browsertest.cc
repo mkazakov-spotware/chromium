@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -64,13 +64,13 @@ class WakeLockBrowserTest : public InProcessBrowserTest {
 
 void WakeLockBrowserTest::SetUpCommandLine(base::CommandLine* command_line) {
   command_line->AppendSwitchASCII(switches::kEnableBlinkFeatures,
-                                  "SystemWakeLock");
+                                  "ScreenWakeLock,SystemWakeLock");
 }
 
 void WakeLockBrowserTest::NavigateToSimplePage() {
   ASSERT_TRUE(embedded_test_server()->Start());
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), embedded_test_server()->GetURL("/simple.html")));
+  ui_test_utils::NavigateToURL(browser(),
+                               embedded_test_server()->GetURL("/simple.html"));
 }
 
 void WakeLockBrowserTest::NavigateToAndRespondWithScript(
@@ -80,8 +80,7 @@ void WakeLockBrowserTest::NavigateToAndRespondWithScript(
   embedded_test_server()->RegisterRequestHandler(base::BindRepeating(
       &RespondWithJS, "/js-response", script, loop.QuitClosure()));
   ASSERT_TRUE(embedded_test_server()->Start());
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), embedded_test_server()->GetURL(path)));
+  ui_test_utils::NavigateToURL(browser(), embedded_test_server()->GetURL(path));
   loop.Run();
 }
 

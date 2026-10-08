@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,10 @@
 
 #include "ash/ash_export.h"
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
+#include "base/strings/string16.h"
+#include "base/time/time.h"
 
 namespace ash {
 
@@ -17,7 +20,7 @@ class IMEObserver;
 class NetworkObserver;
 class ScreenCaptureObserver;
 class ScreenShareObserver;
-class SystemTrayObserver;
+class SystemTrayFocusObserver;
 class VirtualKeyboardObserver;
 
 namespace mojom {
@@ -28,10 +31,6 @@ enum class UpdateSeverity;
 class ASH_EXPORT SystemTrayNotifier {
  public:
   SystemTrayNotifier();
-
-  SystemTrayNotifier(const SystemTrayNotifier&) = delete;
-  SystemTrayNotifier& operator=(const SystemTrayNotifier&) = delete;
-
   ~SystemTrayNotifier();
 
   // Input methods.
@@ -50,21 +49,20 @@ class ASH_EXPORT SystemTrayNotifier {
   void RemoveScreenCaptureObserver(ScreenCaptureObserver* observer);
   void NotifyScreenCaptureStart(base::RepeatingClosure stop_callback,
                                 base::RepeatingClosure source_callback,
-                                const std::u16string& sharing_app_name);
+                                const base::string16& sharing_app_name);
   void NotifyScreenCaptureStop();
 
   // Screen share.
   void AddScreenShareObserver(ScreenShareObserver* observer);
   void RemoveScreenShareObserver(ScreenShareObserver* observer);
   void NotifyScreenShareStart(base::RepeatingClosure stop_callback,
-                              const std::u16string& helper_name);
+                              const base::string16& helper_name);
   void NotifyScreenShareStop();
 
   // System tray focus.
-  void AddSystemTrayObserver(SystemTrayObserver* observer);
-  void RemoveSystemTrayObserver(SystemTrayObserver* observer);
+  void AddSystemTrayFocusObserver(SystemTrayFocusObserver* observer);
+  void RemoveSystemTrayFocusObserver(SystemTrayFocusObserver* observer);
   void NotifyFocusOut(bool reverse);
-  void NotifySystemTrayBubbleShown();
 
   // Virtual keyboard.
   void AddVirtualKeyboardObserver(VirtualKeyboardObserver* observer);
@@ -77,9 +75,12 @@ class ASH_EXPORT SystemTrayNotifier {
   base::ObserverList<ScreenCaptureObserver>::Unchecked
       screen_capture_observers_;
   base::ObserverList<ScreenShareObserver>::Unchecked screen_share_observers_;
-  base::ObserverList<SystemTrayObserver>::Unchecked system_tray_observers_;
+  base::ObserverList<SystemTrayFocusObserver>::Unchecked
+      system_tray_focus_observers_;
   base::ObserverList<VirtualKeyboardObserver>::Unchecked
       virtual_keyboard_observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(SystemTrayNotifier);
 };
 
 }  // namespace ash

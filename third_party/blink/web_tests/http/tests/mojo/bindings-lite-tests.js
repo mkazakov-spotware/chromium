@@ -214,24 +214,6 @@ promise_test(() => {
   });
 }, 'can use generated flushForTesting API for synchronization in tests');
 
-promise_test(async () => {
-  let clientRouter = new liteJsTest.mojom.SubinterfaceClientCallbackRouter;
-  let clientRemote = clientRouter.$.bindNewPipeAndPassRemote();
-
-  let actualDidFlushes = 0;
-  clientRouter.didFlush.addListener(values => {
-    actualDidFlushes++;
-  });
-
-  const kExpectedDidFlushes = 1000;
-  for (let i = 0; i < kExpectedDidFlushes; i++) {
-    clientRemote.didFlush([]);
-  }
-
-  await clientRouter.$.flush();
-  assert_equals(actualDidFlushes, kExpectedDidFlushes);
-}, 'can use generated flush API of callbackrouter/receiver for synchronization');
-
 promise_test(async(t) => {
   const impl = new TargetImpl;
   const remote = impl.target.$.bindNewPipeAndPassRemote();
@@ -249,8 +231,12 @@ promise_test(() => {
 }, 'InterfaceTarget connection error handler runs when set on an InterfaceCallbackRouter object');
 
 function getMojoEchoRemote() {
+  // content.mojom.MojoEchoRemote.getRemote() only works for frame interfaces
+  // and MojoEcho is a process interface.
   let remote = new content.mojom.MojoEchoRemote;
-  remote.$.bindNewPipeAndPassReceiver().bindInBrowser('process');
+  Mojo.bindInterface(content.mojom.MojoEcho.$interfaceName,
+                     remote.$.bindNewPipeAndPassReceiver().handle,
+                     'process');
   return remote;
 }
 

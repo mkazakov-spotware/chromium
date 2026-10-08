@@ -1,11 +1,13 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/browser/api/system_storage/system_storage_api.h"
 
 #include "base/bind.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
+#include "base/task_runner_util.h"
 #include "content/public/browser/browser_thread.h"
 
 using storage_monitor::StorageMonitor;
@@ -23,7 +25,7 @@ SystemStorageGetInfoFunction::~SystemStorageGetInfoFunction() {
 }
 
 ExtensionFunction::ResponseAction SystemStorageGetInfoFunction::Run() {
-  StorageInfoProvider::Get()->StartQueryInfo(base::BindOnce(
+  StorageInfoProvider::Get()->StartQueryInfo(base::Bind(
       &SystemStorageGetInfoFunction::OnGetStorageInfoCompleted, this));
   return RespondLater();
 }
@@ -44,7 +46,7 @@ ExtensionFunction::ResponseAction SystemStorageEjectDeviceFunction::Run() {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   std::unique_ptr<EjectDevice::Params> params(
-      EjectDevice::Params::Create(args()));
+      EjectDevice::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params.get());
 
   StorageMonitor::GetInstance()->EnsureInitialized(
@@ -107,7 +109,7 @@ SystemStorageGetAvailableCapacityFunction::Run() {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   std::unique_ptr<GetAvailableCapacity::Params> params(
-      GetAvailableCapacity::Params::Create(args()));
+      GetAvailableCapacity::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params.get());
 
   StorageMonitor::GetInstance()->EnsureInitialized(base::BindOnce(
@@ -118,8 +120,8 @@ SystemStorageGetAvailableCapacityFunction::Run() {
 
 void SystemStorageGetAvailableCapacityFunction::OnStorageMonitorInit(
     const std::string& transient_id) {
-  query_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  base::PostTaskAndReplyWithResult(
+      query_runner_.get(), FROM_HERE,
       base::BindOnce(
           &StorageInfoProvider::GetStorageFreeSpaceFromTransientIdAsync,
           StorageInfoProvider::Get(), transient_id),
@@ -136,7 +138,7 @@ void SystemStorageGetAvailableCapacityFunction::OnQueryCompleted(
     api::system_storage::StorageAvailableCapacityInfo result;
     result.id = transient_id;
     result.available_capacity = available_capacity;
-    Respond(OneArgument(base::Value(result.ToValue())));
+    Respond(OneArgument(base::Value::FromUniquePtrValue(result.ToValue())));
   } else {
     Respond(Error("Error occurred when querying available capacity."));
   }

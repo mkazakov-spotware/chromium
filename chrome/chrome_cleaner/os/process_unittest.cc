@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,9 @@
 
 #include <ctype.h>
 
+#include <algorithm>
+
 #include "base/base_paths.h"
-#include "base/containers/contains.h"
 #include "base/path_service.h"
 #include "base/process/process_handle.h"
 #include "base/strings/string_util.h"
@@ -22,8 +23,11 @@ namespace {
 
 bool PathIsInSet(const base::FilePath& path,
                  const std::set<std::wstring>& path_set) {
-  std::wstring (*to_lower)(base::WStringPiece) = &base::ToLowerASCII;
-  return base::Contains(path_set, base::ToLowerASCII(path.value()), to_lower);
+  const std::wstring lower_case_path = base::ToLowerASCII(path.value());
+  return std::find_if(path_set.begin(), path_set.end(),
+                      [&lower_case_path](const std::wstring& name) {
+                        return lower_case_path == base::ToLowerASCII(name);
+                      }) != path_set.end();
 }
 
 }  // namespace

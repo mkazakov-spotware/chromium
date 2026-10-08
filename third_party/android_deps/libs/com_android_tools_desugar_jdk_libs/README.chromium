@@ -1,10 +1,9 @@
 Name: Small subset of OpenJDK libraries
 Short Name: desugar_jdk_libs
 URL: https://github.com/google/desugar_jdk_libs
-Version: 1.1.5
-License: GPL v2 with the classpath exception
+Version: 1.0.10
+License: GNU General Public License, version 2, with the Classpath Exception
 License File: LICENSE
-CPEPrefix: unknown
 Security Critical: yes
 
 Description:

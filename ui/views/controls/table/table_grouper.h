@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 namespace views {
 
 struct VIEWS_EXPORT GroupRange {
-  size_t start;
-  size_t length;
+  int start;
+  int length;
 };
 
 // TableGrouper is used by TableView to group a set of rows and treat them
@@ -19,7 +19,7 @@ struct VIEWS_EXPORT GroupRange {
 // together.
 class VIEWS_EXPORT TableGrouper {
  public:
-  virtual void GetGroupRange(size_t model_index, GroupRange* range) = 0;
+  virtual void GetGroupRange(int model_index, GroupRange* range) = 0;
 
  protected:
   virtual ~TableGrouper() = default;

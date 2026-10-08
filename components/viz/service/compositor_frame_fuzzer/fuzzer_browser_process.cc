@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@
 #include "components/viz/common/resources/bitmap_allocation.h"
 #include "components/viz/common/surfaces/surface_range.h"
 #include "mojo/public/cpp/bindings/remote.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace viz {
 
@@ -32,12 +31,10 @@ constexpr FrameSinkId kRootFrameSinkId(1, 1);
 }  // namespace
 
 FuzzerBrowserProcess::FuzzerBrowserProcess(
-    absl::optional<base::FilePath> png_dir_path)
+    base::Optional<base::FilePath> png_dir_path)
     : root_local_surface_id_(1, 1, base::UnguessableToken::Create()),
       output_surface_provider_(std::move(png_dir_path)),
-      frame_sink_manager_(
-          FrameSinkManagerImpl::InitParams(&shared_bitmap_manager_,
-                                           &output_surface_provider_)) {
+      frame_sink_manager_(&shared_bitmap_manager_, &output_surface_provider_) {
   frame_sink_manager_.RegisterFrameSinkId(kEmbeddedFrameSinkId,
                                           /*report_activation=*/false);
   frame_sink_manager_.RegisterFrameSinkId(kRootFrameSinkId,
@@ -59,8 +56,7 @@ void FuzzerBrowserProcess::EmbedFuzzedCompositorFrame(
   mojo::Remote<mojom::CompositorFrameSink> sink_remote;
   FakeCompositorFrameSinkClient sink_client;
   frame_sink_manager_.CreateCompositorFrameSink(
-      kEmbeddedFrameSinkId, /*bundle_id=*/absl::nullopt,
-      sink_remote.BindNewPipeAndPassReceiver(),
+      kEmbeddedFrameSinkId, sink_remote.BindNewPipeAndPassReceiver(),
       sink_client.BindInterfaceRemote());
 
   for (auto& fuzzed_bitmap : allocated_bitmaps) {
@@ -72,12 +68,12 @@ void FuzzerBrowserProcess::EmbedFuzzedCompositorFrame(
   SurfaceId embedded_surface_id(kEmbeddedFrameSinkId,
                                 lsi_allocator_.GetCurrentLocalSurfaceId());
   sink_remote->SubmitCompositorFrame(embedded_surface_id.local_surface_id(),
-                                     std::move(fuzzed_frame), absl::nullopt, 0);
+                                     std::move(fuzzed_frame), base::nullopt, 0);
 
   CompositorFrame browser_frame =
       BuildBrowserUICompositorFrame(embedded_surface_id);
   root_compositor_frame_sink_remote_->SubmitCompositorFrame(
-      root_local_surface_id_, std::move(browser_frame), absl::nullopt, 0);
+      root_local_surface_id_, std::move(browser_frame), base::nullopt, 0);
 
   // run queued messages (memory allocation and frame submission)
   base::RunLoop().RunUntilIdle();
@@ -124,36 +120,37 @@ CompositorFrame FuzzerBrowserProcess::BuildBrowserUICompositorFrame(
       BeginFrameArgs::kManualSourceId, BeginFrameArgs::kStartingFrameNumber);
   frame.metadata.device_scale_factor = 1;
   frame.metadata.referenced_surfaces.push_back(
-      SurfaceRange(absl::nullopt, renderer_surface_id));
+      SurfaceRange(base::nullopt, renderer_surface_id));
 
   auto pass = CompositorRenderPass::Create();
   pass->SetNew(CompositorRenderPassId{1}, gfx::Rect(kBrowserSize),
                gfx::Rect(kBrowserSize), gfx::Transform());
 
   auto* renderer_sqs = pass->CreateAndAppendSharedQuadState();
-  renderer_sqs->SetAll(gfx::Transform::MakeTranslation(0, 80),
+  renderer_sqs->SetAll(gfx::Transform(1.0, 0.0, 0.0, 1.0, 0, 80),
                        gfx::Rect(kRendererFrameSize),
                        gfx::Rect(kRendererFrameSize),
                        /*mask_filter_info=*/gfx::MaskFilterInfo(),
-                       /*clip_rect=*/absl::nullopt,
+                       gfx::Rect(kRendererFrameSize), /*is_clipped=*/false,
                        /*are_contents_opaque=*/false, /*opacity=*/1,
                        SkBlendMode::kSrcOver, /*sorting_context_id=*/0);
   auto* surface_quad = pass->CreateAndAppendDrawQuad<SurfaceDrawQuad>();
   surface_quad->SetNew(renderer_sqs, gfx::Rect(kRendererFrameSize),
                        gfx::Rect(kRendererFrameSize),
-                       SurfaceRange(absl::nullopt, renderer_surface_id),
-                       SkColors::kWhite,
+                       SurfaceRange(base::nullopt, renderer_surface_id),
+                       SK_ColorWHITE,
                        /*stretch_content_to_fill_bounds=*/false);
 
   auto* toolbar_sqs = pass->CreateAndAppendSharedQuadState();
   toolbar_sqs->SetAll(
       gfx::Transform(), gfx::Rect(kTopBarSize), gfx::Rect(kTopBarSize),
-      /*mask_filter_info=*/gfx::MaskFilterInfo(), /*clip_rect=*/absl::nullopt,
-      /*are_contents_opaque=*/false, /*opacity=*/1, SkBlendMode::kSrcOver,
+      /*mask_filter_info=*/gfx::MaskFilterInfo(), gfx::Rect(kTopBarSize),
+      /*is_clipped=*/false, /*are_contents_opaque=*/false,
+      /*opacity=*/1, SkBlendMode::kSrcOver,
       /*sorting_context_id=*/0);
   auto* color_quad = pass->CreateAndAppendDrawQuad<SolidColorDrawQuad>();
   color_quad->SetNew(toolbar_sqs, gfx::Rect(kTopBarSize),
-                     gfx::Rect(kTopBarSize), SkColors::kLtGray,
+                     gfx::Rect(kTopBarSize), SK_ColorLTGRAY,
                      /*force_antialiasing_off=*/false);
   frame.render_pass_list.push_back(std::move(pass));
 

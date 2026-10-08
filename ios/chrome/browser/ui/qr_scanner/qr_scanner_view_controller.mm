@@ -1,23 +1,21 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/qr_scanner/qr_scanner_view_controller.h"
 
-#import "base/logging.h"
-#import "base/metrics/user_metrics.h"
-#import "base/metrics/user_metrics_action.h"
-#import "base/strings/sys_string_conversions.h"
-#import "ios/chrome/browser/ui/commands/load_query_commands.h"
+#include "base/logging.h"
+#include "base/metrics/user_metrics.h"
+#include "base/metrics/user_metrics_action.h"
+#include "ios/chrome/browser/ui/commands/load_query_commands.h"
 #import "ios/chrome/browser/ui/qr_scanner/qr_scanner_camera_controller.h"
-#import "ios/chrome/browser/ui/qr_scanner/qr_scanner_view.h"
-#import "ios/chrome/browser/ui/scanner/scanner_alerts.h"
-#import "ios/chrome/browser/ui/scanner/scanner_presenting.h"
-#import "ios/chrome/browser/ui/scanner/scanner_transitioning_delegate.h"
-#import "ios/chrome/browser/ui/scanner/scanner_view.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ui/base/l10n/l10n_util.h"
-#import "url/gurl.h"
+#include "ios/chrome/browser/ui/qr_scanner/qr_scanner_view.h"
+#include "ios/chrome/browser/ui/scanner/scanner_alerts.h"
+#include "ios/chrome/browser/ui/scanner/scanner_presenting.h"
+#include "ios/chrome/browser/ui/scanner/scanner_transitioning_delegate.h"
+#include "ios/chrome/browser/ui/scanner/scanner_view.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -84,16 +82,6 @@ using base::UserMetricsAction;
 #pragma mark - QRScannerCameraControllerDelegate
 
 - (void)receiveQRScannerResult:(NSString*)result loadImmediately:(BOOL)load {
-  result = [self sanitizedStringWithString:result];
-
-  GURL url = GURL(base::SysNSStringToUTF8(result));
-  if (url.is_valid() && !url.SchemeIsHTTPOrHTTPS()) {
-    // Only HTTP(S) URLs are supported.
-    // For other URLs, add quotes so they are considered as search terms instead
-    // of URLs.
-    result = [NSString stringWithFormat:@"\"%@\"", result];
-  }
-
   if ([self isVoiceOverActive]) {
     // Post a notification announcing that a code was scanned. QR scanner will
     // be dismissed when the UIAccessibilityAnnouncementDidFinishNotification is
@@ -136,20 +124,6 @@ using base::UserMetricsAction;
 // Returns whether voice over is active.
 - (BOOL)isVoiceOverActive {
   return UIAccessibilityIsVoiceOverRunning() || self.voiceOverCheckOverridden;
-}
-
-// Remove characters that might confuse users when originating from a QR code.
-- (NSString*)sanitizedStringWithString:(NSString*)string {
-  NSMutableCharacterSet* badCharacters =
-      [NSMutableCharacterSet controlCharacterSet];
-  [badCharacters
-      formUnionWithCharacterSet:[NSCharacterSet newlineCharacterSet]];
-  [badCharacters
-      formUnionWithCharacterSet:[NSCharacterSet nonBaseCharacterSet]];
-  [badCharacters
-      formUnionWithCharacterSet:[NSCharacterSet illegalCharacterSet]];
-  return [[string componentsSeparatedByCharactersInSet:badCharacters]
-      componentsJoinedByString:@""];
 }
 
 #pragma mark - Testing Additions

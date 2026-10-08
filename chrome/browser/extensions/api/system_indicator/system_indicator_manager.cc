@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,8 @@
 
 #include <utility>
 
-#include "base/containers/contains.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/status_icons/status_icon.h"
@@ -39,10 +38,6 @@ class ExtensionIndicatorIcon : public StatusIconObserver,
       const ExtensionIconSet& icon_set,
       Profile* profile,
       StatusTray* status_tray);
-
-  ExtensionIndicatorIcon(const ExtensionIndicatorIcon&) = delete;
-  ExtensionIndicatorIcon& operator=(const ExtensionIndicatorIcon&) = delete;
-
   ~ExtensionIndicatorIcon() override;
 
   // Sets the dynamic icon for the indicator.
@@ -60,12 +55,14 @@ class ExtensionIndicatorIcon : public StatusIconObserver,
   // IconImage::Observer:
   void OnExtensionIconImageChanged(IconImage* image) override;
 
-  raw_ptr<const Extension> extension_;
-  raw_ptr<StatusTray> status_tray_;
-  raw_ptr<StatusIcon, DanglingUntriaged> status_icon_;
-  raw_ptr<Profile> profile_;
+  const Extension* extension_;
+  StatusTray* status_tray_;
+  StatusIcon* status_icon_;
+  Profile* profile_;
   IconImage manifest_icon_;
   gfx::Image dynamic_icon_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionIndicatorIcon);
 };
 
 std::unique_ptr<ExtensionIndicatorIcon> ExtensionIndicatorIcon::Create(
@@ -98,7 +95,8 @@ void ExtensionIndicatorIcon::SetDynamicIcon(gfx::Image dynamic_icon) {
 }
 
 void ExtensionIndicatorIcon::OnStatusIconClicked() {
-  auto params(api::system_indicator::OnClicked::Create());
+  std::unique_ptr<base::ListValue> params(
+      api::system_indicator::OnClicked::Create());
 
   EventRouter* event_router = EventRouter::Get(profile_);
   std::unique_ptr<Event> event(new Event(
@@ -130,7 +128,7 @@ ExtensionIndicatorIcon::ExtensionIndicatorIcon(
   // Get the icon image and tool tip for the status icon. The extension name is
   // used as the tool tip.
   gfx::ImageSkia icon_skia = manifest_icon_.image().AsImageSkia();
-  std::u16string tool_tip = base::UTF8ToUTF16(extension_->name());
+  base::string16 tool_tip = base::UTF8ToUTF16(extension_->name());
 
   status_icon_ = status_tray_->CreateStatusIcon(StatusTray::OTHER_ICON,
                                                 icon_skia, tool_tip);
@@ -144,7 +142,7 @@ SystemIndicatorManager::SystemIndicator::~SystemIndicator() = default;
 SystemIndicatorManager::SystemIndicatorManager(Profile* profile,
                                                StatusTray* status_tray)
     : profile_(profile), status_tray_(status_tray) {
-  extension_registry_observation_.Observe(ExtensionRegistry::Get(profile_));
+  extension_registry_observer_.Add(ExtensionRegistry::Get(profile_));
 }
 
 SystemIndicatorManager::~SystemIndicatorManager() {

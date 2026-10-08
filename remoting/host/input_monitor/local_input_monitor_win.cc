@@ -1,19 +1,20 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/host/input_monitor/local_input_monitor_win.h"
 
 #include <cstdint>
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/compiler_specific.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/strings/stringprintf.h"
 #include "base/win/message_window.h"
 
 namespace remoting {
@@ -26,10 +27,6 @@ class LocalInputMonitorWinImpl : public LocalInputMonitorWin {
       scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner,
       scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner,
       std::unique_ptr<RawInputHandler> raw_input_handler);
-
-  LocalInputMonitorWinImpl(const LocalInputMonitorWinImpl&) = delete;
-  LocalInputMonitorWinImpl& operator=(const LocalInputMonitorWinImpl&) = delete;
-
   ~LocalInputMonitorWinImpl() override;
 
  private:
@@ -39,9 +36,6 @@ class LocalInputMonitorWinImpl : public LocalInputMonitorWin {
     Core(scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner,
          scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner,
          std::unique_ptr<RawInputHandler> raw_input_handler);
-
-    Core(const Core&) = delete;
-    Core& operator=(const Core&) = delete;
 
     void Start();
     void Stop();
@@ -72,11 +66,15 @@ class LocalInputMonitorWinImpl : public LocalInputMonitorWin {
     std::unique_ptr<base::win::MessageWindow> window_;
 
     std::unique_ptr<RawInputHandler> raw_input_handler_;
+
+    DISALLOW_COPY_AND_ASSIGN(Core);
   };
 
   scoped_refptr<Core> core_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(LocalInputMonitorWinImpl);
 };
 
 LocalInputMonitorWinImpl::LocalInputMonitorWinImpl(
@@ -123,7 +121,7 @@ LocalInputMonitorWinImpl::Core::~Core() {
 void LocalInputMonitorWinImpl::Core::StartOnUiThread() {
   DCHECK(ui_task_runner_->BelongsToCurrentThread());
 
-  window_ = std::make_unique<base::win::MessageWindow>();
+  window_.reset(new base::win::MessageWindow());
   if (!window_->Create(
           base::BindRepeating(&Core::HandleMessage, base::Unretained(this)))) {
     PLOG(ERROR) << "Failed to create the raw input window";

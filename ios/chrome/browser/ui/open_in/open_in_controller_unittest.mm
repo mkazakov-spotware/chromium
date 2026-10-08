@@ -1,30 +1,32 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <Foundation/Foundation.h>
 
-#import <memory>
+#include <memory>
 
-#import "base/files/file_util.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/test/metrics/histogram_tester.h"
-#import "base/test/task_environment.h"
+#include "base/files/file_util.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/test/metrics/histogram_tester.h"
+#include "base/test/task_environment.h"
 #import "ios/chrome/browser/ui/open_in/open_in_controller.h"
 #import "ios/chrome/browser/ui/open_in/open_in_controller_testing.h"
-#import "ios/chrome/browser/ui/open_in/open_in_histograms.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
-#import "services/network/test/test_url_loader_factory.h"
-#import "testing/platform_test.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "ios/web/public/test/test_web_thread.h"
+#include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
+#include "services/network/test/test_url_loader_factory.h"
+#include "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
-#import "third_party/ocmock/gtest_support.h"
+#include "third_party/ocmock/gtest_support.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
 namespace {
+
+const char kOpenInDownloadResultHistogram[] = "IOS.OpenIn.DownloadResult";
 
 class OpenInControllerTest : public PlatformTest {
  public:
@@ -50,12 +52,10 @@ class OpenInControllerTest : public PlatformTest {
     }
 
     GURL documentURL = GURL("http://www.test.com/doc.pdf");
-    base_view_controller = [[UIViewController alloc] init];
+    parent_view_ = [[UIView alloc] init];
     open_in_controller_ = [[OpenInController alloc]
-        initWithBaseViewController:base_view_controller
-                  URLLoaderFactory:test_shared_url_loader_factory_
-                          webState:&web_state_
-                           browser:nullptr];
+        initWithURLLoaderFactory:test_shared_url_loader_factory_
+                        webState:&web_state_];
     [open_in_controller_ enableWithDocumentURL:documentURL
                              suggestedFilename:@"doc.pdf"];
   }
@@ -77,27 +77,23 @@ class OpenInControllerTest : public PlatformTest {
       test_shared_url_loader_factory_;
 
   OpenInController* open_in_controller_;
-  UIViewController* base_view_controller;
+  UIView* parent_view_;
   base::HistogramTester histogram_tester_;
-  web::FakeWebState web_state_;
+  web::TestWebState web_state_;
 };
 
 TEST_F(OpenInControllerTest, TestDisplayOpenInMenu) {
-  histogram_tester_.ExpectTotalCount(kOpenInDownloadHistogram, 0);
-
-  id vc_partial_mock = OCMPartialMock(base_view_controller);
-  [[vc_partial_mock expect]
-      presentViewController:[OCMArg checkWithBlock:^BOOL(
-                                        UIViewController* viewController) {
-        if ([viewController isKindOfClass:[UIActivityViewController class]]) {
-          return YES;
-        }
-        return NO;
-      }]
-                   animated:YES
-                 completion:nil];
-
+  histogram_tester_.ExpectTotalCount(kOpenInDownloadResultHistogram, 0);
+  id document_controller =
+      [OCMockObject niceMockForClass:[UIDocumentInteractionController class]];
+  id classMock = OCMClassMock([UIDocumentInteractionController class]);
+  OCMStub([classMock interactionControllerWithURL:[OCMArg any]])
+      .andReturn(document_controller);
   [open_in_controller_ startDownload];
+  [[[document_controller expect] andReturnValue:@YES]
+      presentOpenInMenuFromRect:CGRectZero
+                         inView:OCMOCK_ANY
+                       animated:YES];
 
   auto* pending_request = test_url_loader_factory_.GetPendingRequest(0);
   ASSERT_TRUE(pending_request);
@@ -105,25 +101,27 @@ TEST_F(OpenInControllerTest, TestDisplayOpenInMenu) {
   test_url_loader_factory_.SimulateResponseForPendingRequest(
       pending_request->request.url.spec(), pdf_str);
   task_environment_.RunUntilIdle();
-  histogram_tester_.ExpectBucketCount(kOpenInDownloadHistogram,
+  histogram_tester_.ExpectBucketCount(kOpenInDownloadResultHistogram,
                                       static_cast<base::HistogramBase::Sample>(
                                           OpenInDownloadResult::kSucceeded),
                                       1);
-  histogram_tester_.ExpectTotalCount(kOpenInDownloadHistogram, 1);
-
-  EXPECT_OCMOCK_VERIFY(vc_partial_mock);
+  histogram_tester_.ExpectTotalCount(kOpenInDownloadResultHistogram, 1);
+  EXPECT_OCMOCK_VERIFY(document_controller);
 }
 
 TEST_F(OpenInControllerTest, TestCorruptedPDFDownload) {
-  histogram_tester_.ExpectTotalCount(kOpenInDownloadHistogram, 0);
+  histogram_tester_.ExpectTotalCount(kOpenInDownloadResultHistogram, 0);
 
-  id vc_partial_mock = OCMPartialMock(base_view_controller);
-  [[vc_partial_mock reject] presentViewController:[OCMArg any]
-                                         animated:YES
-                                       completion:nil];
-
+  id document_controller =
+      [OCMockObject niceMockForClass:[UIDocumentInteractionController class]];
+  id classMock = OCMClassMock([UIDocumentInteractionController class]);
+  OCMStub([classMock interactionControllerWithURL:[OCMArg any]])
+      .andReturn(document_controller);
   [open_in_controller_ startDownload];
-
+  [[[document_controller reject] andReturnValue:@YES]
+      presentOpenInMenuFromRect:CGRectZero
+                         inView:OCMOCK_ANY
+                       animated:YES];
   auto* pending_request = test_url_loader_factory_.GetPendingRequest(0);
   ASSERT_TRUE(pending_request);
   std::string pdf_str = CreatePdfString();
@@ -132,11 +130,11 @@ TEST_F(OpenInControllerTest, TestCorruptedPDFDownload) {
       pending_request->request.url.spec(), pdf_str.substr(pdf_str.size() / 2));
   task_environment_.RunUntilIdle();
   histogram_tester_.ExpectBucketCount(
-      kOpenInDownloadHistogram,
+      kOpenInDownloadResultHistogram,
       static_cast<base::HistogramBase::Sample>(OpenInDownloadResult::kFailed),
       1);
-  histogram_tester_.ExpectTotalCount(kOpenInDownloadHistogram, 1);
-  EXPECT_OCMOCK_VERIFY(vc_partial_mock);
+  histogram_tester_.ExpectTotalCount(kOpenInDownloadResultHistogram, 1);
+  EXPECT_OCMOCK_VERIFY(document_controller);
 }
 
 }  // namespace

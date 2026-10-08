@@ -7,7 +7,7 @@
 
 idl_test(
   ['mediastream-recording'],
-  ['mediacapture-streams', 'FileAPI', 'html', 'dom', 'webidl'],
+  ['mediacapture-streams', 'FileAPI', 'html', 'dom', 'WebIDL'],
   idl_array => {
     // Ignored errors will be surfaced in idlharness.js's test_object below.
     let recorder, blob, error;

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "base/barrier_closure.h"
 #include "base/bind.h"
 #include "base/callback_helpers.h"
+#include "base/stl_util.h"
 
 namespace ash {
 
@@ -29,15 +30,12 @@ const SessionStateAnimator::Container
 class TestSessionStateAnimator::AnimationSequence
     : public SessionStateAnimator::AnimationSequence {
  public:
-  AnimationSequence(AnimationCallback callback,
+  AnimationSequence(base::OnceClosure callback,
                     TestSessionStateAnimator* animator)
       : SessionStateAnimator::AnimationSequence(std::move(callback)),
         sequence_count_(0),
         sequence_aborted_(false),
         animator_(animator) {}
-
-  AnimationSequence(const AnimationSequence&) = delete;
-  AnimationSequence& operator=(const AnimationSequence&) = delete;
 
   ~AnimationSequence() override = default;
 
@@ -72,6 +70,8 @@ class TestSessionStateAnimator::AnimationSequence
 
   // The TestSessionAnimator that created this.  Not owned.
   TestSessionStateAnimator* animator_;
+
+  DISALLOW_COPY_AND_ASSIGN(AnimationSequence);
 };
 
 TestSessionStateAnimator::ActiveAnimation::ActiveAnimation(
@@ -120,15 +120,8 @@ void TestSessionStateAnimator::Advance(const base::TimeDelta& duration) {
       ActiveAnimation& active_animation = *animation_iter;
       active_animation.remaining_duration -= duration;
       if (active_animation.remaining_duration <= base::TimeDelta()) {
-        // Save callback and erase animation, then run the callback afterwards
-        // to avoid running the callback twice for animations that start other
-        // animations on their same container. This is because the second
-        // animation will call the first's animation callback when being added
-        // to the animations list by aborting it, as we don't support 2
-        // animations on the same container in this object.
-        auto success_callback = std::move(active_animation.success_callback);
+        std::move(active_animation.success_callback).Run();
         animation_iter = (*container_iter).second.erase(animation_iter);
-        std::move(success_callback).Run();
       } else {
         ++animation_iter;
       }
@@ -182,7 +175,7 @@ bool TestSessionStateAnimator::IsContainerAnimated(
 bool TestSessionStateAnimator::AreContainersAnimated(
     int container_mask,
     SessionStateAnimator::AnimationType type) const {
-  for (size_t i = 0; i < std::size(kAllContainers); ++i) {
+  for (size_t i = 0; i < base::size(kAllContainers); ++i) {
     if (container_mask & kAllContainers[i] &&
         !IsContainerAnimated(kAllContainers[i], type)) {
       return false;
@@ -205,7 +198,7 @@ void TestSessionStateAnimator::StartAnimation(int container_mask,
                                               AnimationType type,
                                               AnimationSpeed speed) {
   ++last_animation_epoch_;
-  for (size_t i = 0; i < std::size(kAllContainers); ++i) {
+  for (size_t i = 0; i < base::size(kAllContainers); ++i) {
     if (container_mask & kAllContainers[i]) {
       AddAnimation(kAllContainers[i], type, speed, base::DoNothing(),
                    base::DoNothing());
@@ -221,14 +214,14 @@ void TestSessionStateAnimator::StartAnimationWithCallback(
   ++last_animation_epoch_;
 
   int container_count = 0;
-  for (size_t i = 0; i < std::size(kAllContainers); ++i) {
+  for (size_t i = 0; i < base::size(kAllContainers); ++i) {
     if (container_mask & kAllContainers[i])
       ++container_count;
   }
 
   base::RepeatingClosure completion_callback =
       base::BarrierClosure(container_count, std::move(callback));
-  for (size_t i = 0; i < std::size(kAllContainers); ++i) {
+  for (size_t i = 0; i < base::size(kAllContainers); ++i) {
     if (container_mask & kAllContainers[i]) {
       // ash::SessionStateAnimatorImpl invokes the callback whether or not the
       // animation was completed successfully or not.
@@ -239,7 +232,7 @@ void TestSessionStateAnimator::StartAnimationWithCallback(
 }
 
 SessionStateAnimator::AnimationSequence*
-TestSessionStateAnimator::BeginAnimationSequence(AnimationCallback callback) {
+TestSessionStateAnimator::BeginAnimationSequence(base::OnceClosure callback) {
   return new AnimationSequence(std::move(callback), this);
 }
 
@@ -255,20 +248,13 @@ void TestSessionStateAnimator::HideWallpaper() {
   is_wallpaper_hidden_ = true;
 }
 
-void TestSessionStateAnimator::AbortAnimations(int container_mask) {
-  for (size_t i = 0; i < std::size(kAllContainers); ++i) {
-    if (container_mask & kAllContainers[i])
-      AbortAnimation(kAllContainers[i]);
-  }
-}
-
 void TestSessionStateAnimator::StartAnimationInSequence(
     int container_mask,
     AnimationType type,
     AnimationSpeed speed,
     AnimationSequence* animation_sequence) {
   ++last_animation_epoch_;
-  for (size_t i = 0; i < std::size(kAllContainers); ++i) {
+  for (size_t i = 0; i < base::size(kAllContainers); ++i) {
     if (container_mask & kAllContainers[i]) {
       base::OnceClosure success_callback =
           base::BindOnce(&AnimationSequence::SequenceFinished,

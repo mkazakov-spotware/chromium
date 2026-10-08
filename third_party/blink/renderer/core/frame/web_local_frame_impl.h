@@ -35,74 +35,59 @@
 #include <set>
 #include <utility>
 
-#include "base/dcheck_is_on.h"
-#include "base/observer_list.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/types/pass_key.h"
-#include "build/build_config.h"
+#include "base/single_thread_task_runner.h"
+#include "base/util/type_safety/pass_key.h"
 #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
 #include "mojo/public/cpp/bindings/pending_associated_remote.h"
 #include "services/network/public/mojom/web_sandbox_flags.mojom-blink.h"
-#include "third_party/blink/public/common/context_menu_data/context_menu_data.h"
-#include "third_party/blink/public/common/tokens/tokens.h"
-#include "third_party/blink/public/mojom/back_forward_cache_not_restored_reasons.mojom.h"
+#include "third_party/blink/public/mojom/ad_tagging/ad_frame.mojom-blink-forward.h"
 #include "third_party/blink/public/mojom/blob/blob_url_store.mojom-blink-forward.h"
-#include "third_party/blink/public/mojom/context_menu/context_menu.mojom-blink.h"
 #include "third_party/blink/public/mojom/devtools/devtools_agent.mojom-blink-forward.h"
-#include "third_party/blink/public/mojom/fenced_frame/fenced_frame.mojom-blink-forward.h"
 #include "third_party/blink/public/mojom/frame/find_in_page.mojom-blink-forward.h"
 #include "third_party/blink/public/mojom/frame/lifecycle.mojom-blink-forward.h"
 #include "third_party/blink/public/mojom/frame/tree_scope_type.mojom-blink.h"
-#include "third_party/blink/public/mojom/input/input_handler.mojom-blink-forward.h"
-#include "third_party/blink/public/mojom/page/widget.mojom-blink.h"
 #include "third_party/blink/public/mojom/portal/portal.mojom-blink-forward.h"
-#include "third_party/blink/public/mojom/script/script_evaluation_params.mojom-blink-forward.h"
 #include "third_party/blink/public/platform/web_file_system_type.h"
 #include "third_party/blink/public/web/web_history_commit_type.h"
 #include "third_party/blink/public/web/web_local_frame.h"
-#include "third_party/blink/public/web/web_local_frame_observer.h"
 #include "third_party/blink/public/web/web_navigation_control.h"
-#include "third_party/blink/public/web/web_performance_metrics_for_nested_contexts.h"
-#include "third_party/blink/public/web/web_performance_metrics_for_reporting.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/editing/forward.h"
 #include "third_party/blink/renderer/core/exported/web_input_method_controller_impl.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/web_remote_frame_impl.h"
+#include "third_party/blink/renderer/platform/geometry/float_rect.h"
 #include "third_party/blink/renderer/platform/heap/self_keep_alive.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
-#include "ui/gfx/geometry/rect_f.h"
 
 namespace blink {
 
 class ChromePrintContext;
 class FindInPage;
-class HTMLFencedFrameElement;
 class HTMLPortalElement;
+class IntSize;
 class LocalFrameClientImpl;
 class ResourceError;
 class ScrollableArea;
-class StorageKey;
 class TextFinder;
 class WebAssociatedURLLoader;
+struct WebAssociatedURLLoaderOptions;
 class WebAutofillClient;
 class WebContentSettingsClient;
 class WebDevToolsAgentImpl;
-class WebFrameWidgetImpl;
 class WebLocalFrameClient;
+class WebFrameWidgetBase;
 class WebNode;
-class WebPerformanceMetricsForNestedContexts;
-class WebPerformanceMetricsForReporting;
+class WebPerformance;
 class WebRemoteFrameImpl;
+class WebScriptExecutionCallback;
 class WebSpellCheckPanelHostClient;
 class WebView;
 class WebViewImpl;
-class WindowAgentFactory;
 enum class WebFrameLoadType;
-struct ContextMenuData;
-struct WebAssociatedURLLoaderOptions;
 struct WebPrintParams;
+class WindowAgentFactory;
 
 template <typename T>
 class WebVector;
@@ -122,8 +107,8 @@ class CORE_EXPORT WebLocalFrameImpl final
   WebLocalFrameImpl* CreateLocalChild(
       mojom::blink::TreeScopeType,
       WebLocalFrameClient*,
-      InterfaceRegistry*,
-      const LocalFrameToken& frame_token) override;
+      blink::InterfaceRegistry*,
+      const base::UnguessableToken& frame_token) override;
   WebLocalFrameClient* Client() const override { return client_; }
   void SetAutofillClient(WebAutofillClient*) override;
   WebAutofillClient* AutofillClient() override;
@@ -139,12 +124,11 @@ class CORE_EXPORT WebLocalFrameImpl final
   WebFrame* FindFrameByName(const WebString& name) override;
   void SetEmbeddingToken(
       const base::UnguessableToken& embedding_token) override;
-  const absl::optional<base::UnguessableToken>& GetEmbeddingToken()
+  const base::Optional<base::UnguessableToken>& GetEmbeddingToken()
       const override;
-  bool IsInFencedFrameTree() const override;
   void SendPings(const WebURL& destination_url) override;
   void StartReload(WebFrameLoadType) override;
-  void ClearActiveFindMatchForTesting() override;
+  void StartNavigation(const WebURLRequest&) override;
   void EnableViewSourceMode(bool enable) override;
   bool IsViewSourceModeEnabled() const override;
   WebDocumentLoader* GetDocumentLoader() const override;
@@ -155,14 +139,11 @@ class CORE_EXPORT WebLocalFrameImpl final
   void GetPageDescription(uint32_t page_index,
                           WebPrintPageDescription*) override;
   void ExecuteScript(const WebScriptSource&) override;
-  void ExecuteScriptInIsolatedWorld(
-      int32_t world_id,
-      const WebScriptSource&,
-      BackForwardCacheAware back_forward_cache_aware) override;
-  [[nodiscard]] v8::Local<v8::Value> ExecuteScriptInIsolatedWorldAndReturnValue(
-      int32_t world_id,
-      const WebScriptSource&,
-      BackForwardCacheAware back_forward_cache_aware) override;
+  void ExecuteScriptInIsolatedWorld(int32_t world_id,
+                                    const WebScriptSource&) override;
+  WARN_UNUSED_RESULT v8::Local<v8::Value>
+  ExecuteScriptInIsolatedWorldAndReturnValue(int32_t world_id,
+                                             const WebScriptSource&) override;
   void ClearIsolatedWorldCSPForTesting(int32_t world_id) override;
   v8::Local<v8::Value> ExecuteScriptAndReturnValue(
       const WebScriptSource&) override;
@@ -180,36 +161,38 @@ class CORE_EXPORT WebLocalFrameImpl final
   v8::Local<v8::Context> MainWorldScriptContext() const override;
   int32_t GetScriptContextWorldId(
       v8::Local<v8::Context> script_context) const override;
-  v8::Local<v8::Context> GetScriptContextFromWorldId(
-      v8::Isolate* isolate,
-      int world_id) const override;
+  void RequestExecuteScriptAndReturnValue(const WebScriptSource&,
+                                          bool user_gesture,
+                                          WebScriptExecutionCallback*) override;
   void RequestExecuteV8Function(v8::Local<v8::Context>,
                                 v8::Local<v8::Function>,
                                 v8::Local<v8::Value> receiver,
                                 int argc,
                                 v8::Local<v8::Value> argv[],
-                                WebScriptExecutionCallback) override;
-  void RequestExecuteScript(int32_t world_id,
-                            base::span<const WebScriptSource> sources,
-                            mojom::blink::UserActivationOption,
-                            mojom::blink::EvaluationTiming,
-                            mojom::blink::LoadEventBlockingOption,
-                            WebScriptExecutionCallback,
-                            BackForwardCacheAware back_forward_cache_aware,
-                            mojom::blink::WantResultOption,
-                            mojom::blink::PromiseResultOption) override;
+                                WebScriptExecutionCallback*) override;
+  void RequestExecuteScriptInIsolatedWorld(
+      int32_t world_id,
+      const WebScriptSource* source_in,
+      unsigned num_sources,
+      bool user_gesture,
+      ScriptExecutionType,
+      WebScriptExecutionCallback*) override;
   void Alert(const WebString& message) override;
   bool Confirm(const WebString& message) override;
   WebString Prompt(const WebString& message,
                    const WebString& default_value) override;
-  void GenerateInterventionReport(const WebString& message_id,
-                                  const WebString& message) override;
+  void BindDevToolsAgent(CrossVariantMojoAssociatedRemote<
+                             mojom::blink::DevToolsAgentHostInterfaceBase>
+                             devtools_agent_host_remote,
+                         CrossVariantMojoAssociatedReceiver<
+                             mojom::blink::DevToolsAgentInterfaceBase>
+                             devtools_agent_receiver) override;
   void UnmarkText() override;
   bool HasMarkedText() const override;
   WebRange MarkedRange() const override;
-  bool FirstRectForCharacterRange(uint32_t location,
-                                  uint32_t length,
-                                  gfx::Rect&) const override;
+  bool FirstRectForCharacterRange(unsigned location,
+                                  unsigned length,
+                                  WebRect&) const override;
   bool ExecuteCommand(const WebString&) override;
   bool ExecuteCommand(const WebString&, const WebString& value) override;
   bool IsCommandEnabled(const WebString&) const override;
@@ -224,10 +207,7 @@ class CORE_EXPORT WebLocalFrameImpl final
   void TextSelectionChanged(const WebString& selection_text,
                             uint32_t offset,
                             const gfx::Range& range) override;
-  bool SelectAroundCaret(mojom::blink::SelectionGranularity granularity,
-                         bool should_show_handle,
-                         bool should_show_context_menu);
-  EphemeralRange GetWordSelectionRangeAroundCaret() const;
+  bool SelectWordAroundCaret() override;
   void SelectRange(const gfx::Point& base, const gfx::Point& extent) override;
   void SelectRange(const WebRange&,
                    HandleVisibilityBehavior,
@@ -255,6 +235,10 @@ class CORE_EXPORT WebLocalFrameImpl final
   void ReplaceSelection(const WebString&) override;
   void DeleteSurroundingText(int before, int after) override;
   void DeleteSurroundingTextInCodePoints(int before, int after) override;
+  void ExtractSmartClipData(WebRect rect_in_viewport,
+                            WebString& clip_text,
+                            WebString& clip_html,
+                            WebRect& clip_rect) override;
   void SetTextCheckClient(WebTextCheckClient*) override;
   void SetSpellCheckPanelHostClient(WebSpellCheckPanelHostClient*) override;
   WebSpellCheckPanelHostClient* SpellCheckPanelHostClient() const override {
@@ -264,11 +248,9 @@ class CORE_EXPORT WebLocalFrameImpl final
   void RemoveSpellingMarkers() override;
   void RemoveSpellingMarkersUnderWords(
       const WebVector<WebString>& words) override;
-  WebContentSettingsClient* GetContentSettingsClient() const override;
   void SetContentSettingsClient(WebContentSettingsClient*) override;
   void ReloadImage(const WebNode&) override;
   bool IsAllowedToDownload() const override;
-  bool IsCrossOriginToOutermostMainFrame() const override;
   bool FindForTesting(int identifier,
                       const WebString& search_text,
                       bool match_case,
@@ -278,15 +260,9 @@ class CORE_EXPORT WebLocalFrameImpl final
                       bool wrap_within_frame,
                       bool async) override;
   void SetTickmarks(const WebElement& target,
-                    const WebVector<gfx::Rect>& tickmarks) override;
-  WebNode ContextMenuImageNode() const override;
+                    const WebVector<WebRect>& tickmarks) override;
   WebNode ContextMenuNode() const override;
   void CopyImageAtForTesting(const gfx::Point&) override;
-  void ShowContextMenuFromExternal(
-      const UntrustworthyContextMenuParams& params,
-      CrossVariantMojoAssociatedRemote<
-          mojom::blink::ContextMenuClientInterfaceBase> context_menu_client)
-      override;
   void UsageCountChromeLoadTimes(const WebString& metric) override;
   bool DispatchedPagehideAndStillHidden() const override;
   FrameScheduler* Scheduler() const override;
@@ -296,48 +272,35 @@ class CORE_EXPORT WebLocalFrameImpl final
   std::unique_ptr<WebAssociatedURLLoader> CreateAssociatedURLLoader(
       const WebAssociatedURLLoaderOptions&) override;
   void DeprecatedStopLoading() override;
-  gfx::PointF GetScrollOffset() const override;
-  void SetScrollOffset(const gfx::PointF&) override;
-  gfx::Size DocumentSize() const override;
+  WebSize GetScrollOffset() const override;
+  void SetScrollOffset(const WebSize&) override;
+  WebSize DocumentSize() const override;
   bool HasVisibleContent() const override;
-  gfx::Rect VisibleContentRect() const override;
+  WebRect VisibleContentRect() const override;
   void DispatchBeforePrintEvent(
       base::WeakPtr<WebPrintClient> print_client) override;
   WebPlugin* GetPluginToPrint(const WebNode& constrain_to_node) override;
   uint32_t PrintBegin(const WebPrintParams&,
                       const WebNode& constrain_to_node) override;
-  bool WillPrintSoon() override;
   float GetPrintPageShrink(uint32_t page) override;
   float PrintPage(uint32_t page_to_print, cc::PaintCanvas*) override;
   void PrintEnd() override;
   void DispatchAfterPrintEvent() override;
   bool GetPrintPresetOptionsForPlugin(const WebNode&,
                                       WebPrintPresetOptions*) override;
-  bool CapturePaintPreview(const gfx::Rect& bounds,
+  bool CapturePaintPreview(const WebRect& bounds,
                            cc::PaintCanvas* canvas,
-                           bool include_linked_destinations,
-                           bool skip_accelerated_content) override;
+                           bool include_linked_destinations) override;
   bool ShouldSuppressKeyboardForFocusedElement() override;
-  WebPerformanceMetricsForReporting PerformanceMetricsForReporting()
-      const override;
-  WebPerformanceMetricsForNestedContexts PerformanceMetricsForNestedContexts()
-      const override;
-  bool IsAdFrame() const override;
-  bool IsAdScriptInStack() const override;
-  void SetAdEvidence(const FrameAdEvidence& ad_evidence) override;
-  const absl::optional<blink::FrameAdEvidence>& AdEvidence() override;
-  bool IsFrameCreatedByAdScript() override;
-  gfx::Size SpoolSizeInPixelsForTesting(
-      const gfx::Size& page_size_in_pixels,
-      const WebVector<uint32_t>& pages) override;
-  gfx::Size SpoolSizeInPixelsForTesting(const gfx::Size& page_size_in_pixels,
-                                        uint32_t page_count) override;
-  void PrintPagesForTesting(
-      cc::PaintCanvas*,
-      const gfx::Size& page_size_in_pixels,
-      const gfx::Size& spool_size_in_pixels,
-      const WebVector<uint32_t>* pages = nullptr) override;
-  gfx::Rect GetSelectionBoundsRectForTesting() const override;
+  WebPerformance Performance() const override;
+  bool IsAdSubframe() const override;
+  void SetIsAdSubframe(blink::mojom::AdFrameType ad_frame_type) override;
+  WebSize SpoolSizeInPixelsForTesting(const WebSize& page_size_in_pixels,
+                                      uint32_t page_count) override;
+  void PrintPagesForTesting(cc::PaintCanvas*,
+                            const WebSize& page_size_in_pixels,
+                            const WebSize& spool_size_in_pixels) override;
+  WebRect GetSelectionBoundsRectForTesting() const override;
   gfx::Point GetPositionInViewportForTesting() const override;
   void WasHidden() override;
   void WasShown() override;
@@ -347,22 +310,7 @@ class CORE_EXPORT WebLocalFrameImpl final
   bool HasStickyUserActivation() override;
   bool HasTransientUserActivation() override;
   bool ConsumeTransientUserActivation(UserActivationUpdateSource) override;
-  bool LastActivationWasRestricted() const override;
-#if BUILDFLAG(IS_WIN)
-  WebFontFamilyNames GetWebFontFamilyNames() const override;
-#endif
-  void SetTargetToCurrentHistoryItem(const WebString& target) override;
-  void UpdateCurrentHistoryItem() override;
-  PageState CurrentHistoryItemToPageState() override;
-  const WebHistoryItem& GetCurrentHistoryItem() const override;
-  void SetLocalStorageArea(
-      CrossVariantMojoRemote<mojom::StorageAreaInterfaceBase>
-          local_storage_area) override;
-  void SetSessionStorageArea(
-      CrossVariantMojoRemote<mojom::StorageAreaInterfaceBase>
-          session_storage_area) override;
-  void AddHitTestOnTouchStartCallback(
-      base::RepeatingCallback<void(const WebHitTestResult&)> callback) override;
+  void SetOptimizationGuideHints(const WebOptimizationGuideHints&) override;
 
   // WebNavigationControl overrides:
   bool DispatchBeforeUnloadEvent(bool) override;
@@ -374,15 +322,12 @@ class CORE_EXPORT WebLocalFrameImpl final
       WebFrameLoadType,
       const WebHistoryItem&,
       bool is_client_redirect,
-      bool has_transient_user_activation,
-      const WebSecurityOrigin& initiator_origin,
-      bool is_browser_initiated,
-      absl::optional<scheduler::TaskAttributionId>
-          soft_navigation_heuristics_task_id) override;
-  void SetIsNotOnInitialEmptyDocument() override;
-  bool IsOnInitialEmptyDocument() override;
-  void WillPotentiallyStartOutermostMainFrameNavigation(
-      const WebURL&) const override;
+      std::unique_ptr<WebDocumentLoader::ExtraData> extra_data) override;
+  void LoadJavaScriptURL(const WebURL&) override;
+  FallbackContentResult MaybeRenderFallbackContent(
+      const WebURLError&) const override;
+  void SetCommittedFirstRealLoad() override;
+  bool HasCommittedFirstRealLoad() override;
   bool WillStartNavigation(const WebNavigationInfo&) override;
   void DidDropNavigation() override;
   void DownloadURL(
@@ -390,12 +335,6 @@ class CORE_EXPORT WebLocalFrameImpl final
       network::mojom::blink::RedirectMode cross_origin_redirect_behavior,
       CrossVariantMojoRemote<mojom::blink::BlobURLTokenInterfaceBase>
           blob_url_token) override;
-
-  void SetNotRestoredReasons(
-      const mojom::BackForwardCacheNotRestoredReasonsPtr&) override;
-
-  const mojom::blink::BackForwardCacheNotRestoredReasonsPtr&
-  GetNotRestoredReasons();
 
   void InitializeCoreFrame(
       Page&,
@@ -406,11 +345,11 @@ class CORE_EXPORT WebLocalFrameImpl final
       const AtomicString& name,
       WindowAgentFactory*,
       WebFrame* opener,
-      const DocumentToken& document_token,
       std::unique_ptr<blink::WebPolicyContainer> policy_container,
-      const StorageKey& storage_key,
       network::mojom::blink::WebSandboxFlags sandbox_flags =
-          network::mojom::blink::WebSandboxFlags::kNone);
+          network::mojom::blink::WebSandboxFlags::kNone,
+      const FeaturePolicyFeatureState& opener_feature_state =
+          FeaturePolicyFeatureState());
   LocalFrame* GetFrame() const { return frame_.Get(); }
 
   void WillBeDetached();
@@ -421,31 +360,30 @@ class CORE_EXPORT WebLocalFrameImpl final
       WebView*,
       WebLocalFrameClient*,
       InterfaceRegistry*,
-      const LocalFrameToken& frame_token,
+      const base::UnguessableToken& frame_token,
       WebFrame* opener,
       const WebString& name,
       network::mojom::blink::WebSandboxFlags,
-      const DocumentToken& document_token,
-      std::unique_ptr<WebPolicyContainer>);
+      std::unique_ptr<blink::WebPolicyContainer>,
+      const FeaturePolicyFeatureState&);
   static WebLocalFrameImpl* CreateProvisional(
       WebLocalFrameClient*,
       InterfaceRegistry*,
-      const LocalFrameToken& frame_token,
-      WebFrame* previous_frame,
+      const base::UnguessableToken& frame_token,
+      WebFrame*,
       const FramePolicy&,
-      const WebString& name,
-      WebView* web_view);
+      const WebString& name);
 
-  WebLocalFrameImpl(base::PassKey<WebLocalFrameImpl>,
+  WebLocalFrameImpl(util::PassKey<WebLocalFrameImpl>,
                     mojom::blink::TreeScopeType,
                     WebLocalFrameClient*,
-                    InterfaceRegistry*,
-                    const LocalFrameToken& frame_token);
-  WebLocalFrameImpl(base::PassKey<WebRemoteFrameImpl>,
+                    blink::InterfaceRegistry*,
+                    const base::UnguessableToken& frame_token);
+  WebLocalFrameImpl(util::PassKey<WebRemoteFrameImpl>,
                     mojom::blink::TreeScopeType,
                     WebLocalFrameClient*,
-                    InterfaceRegistry*,
-                    const LocalFrameToken& frame_token);
+                    blink::InterfaceRegistry*,
+                    const base::UnguessableToken& frame_token);
   ~WebLocalFrameImpl() override;
 
   LocalFrame* CreateChildFrame(const AtomicString& name,
@@ -456,16 +394,11 @@ class CORE_EXPORT WebLocalFrameImpl final
       mojo::PendingAssociatedRemote<mojom::blink::PortalClient>);
   RemoteFrame* AdoptPortal(HTMLPortalElement*);
 
-  RemoteFrame* CreateFencedFrame(
-      HTMLFencedFrameElement*,
-      mojo::PendingAssociatedReceiver<mojom::blink::FencedFrameOwnerHost>,
-      mojom::blink::FencedFrameMode);
-
-  void DidChangeContentsSize(const gfx::Size&);
+  void DidChangeContentsSize(const IntSize&);
 
   bool HasDevToolsOverlays() const;
   void UpdateDevToolsOverlaysPrePaint();
-  void PaintDevToolsOverlays(GraphicsContext&);
+  void PaintDevToolsOverlays(GraphicsContext&);  // For CompositeAfterPaint.
 
   void CreateFrameView();
 
@@ -475,8 +408,6 @@ class CORE_EXPORT WebLocalFrameImpl final
   // So note that FromFrame may return nullptr even for non-null frames.
   static WebLocalFrameImpl* FromFrame(LocalFrame*);
   static WebLocalFrameImpl* FromFrame(LocalFrame&);
-  // TODO(https://crbug.com/1139104): Remove this.
-  static std::string GetNullFrameReasonForBug1139104(LocalFrame* frame);
 
   WebViewImpl* ViewImpl() const;
 
@@ -504,11 +435,14 @@ class CORE_EXPORT WebLocalFrameImpl final
 
   void DidFailLoad(const ResourceError&, WebHistoryCommitType);
   void DidFinish();
-  void DidFinishLoadForPrinting();
 
   void SetClient(WebLocalFrameClient* client) { client_ = client; }
 
-  WebFrameWidgetImpl* FrameWidgetImpl() { return frame_widget_; }
+  WebFrameWidgetBase* FrameWidgetImpl() { return frame_widget_; }
+
+  WebContentSettingsClient* GetContentSettingsClient() {
+    return content_settings_client_;
+  }
 
   WebTextCheckClient* GetTextCheckerClient() const {
     return text_check_client_;
@@ -521,13 +455,11 @@ class CORE_EXPORT WebLocalFrameImpl final
   // Otherwise creates it and then returns.
   TextFinder& EnsureTextFinder();
 
+  void SetFrameWidget(WebFrameWidgetBase*);
+
   // TODO(dcheng): Remove this and make |FrameWidget()| always return something
   // useful.
-  WebFrameWidgetImpl* LocalRootFrameWidget();
-
-  // Scroll the focused editable element into the view.
-  void ScrollFocusedEditableElementIntoView();
-  void ResetHasScrolledFocusedEditableIntoView();
+  WebFrameWidgetBase* LocalRootFrameWidget();
 
   // Returns true if the frame is focused.
   bool IsFocused() const;
@@ -538,20 +470,7 @@ class CORE_EXPORT WebLocalFrameImpl final
   // Copy the current selection to the pboard.
   void CopyToFindPboard();
 
-  // Shows a context menu with commands relevant to a specific element on
-  // the given frame. Additional context data and location are supplied.
-  void ShowContextMenu(
-      mojo::PendingAssociatedRemote<mojom::blink::ContextMenuClient> client,
-      const ContextMenuData& data,
-      const absl::optional<gfx::Point>& host_context_menu_location);
-
   virtual void Trace(Visitor*) const;
-
-  // Functions to add and remove observers for this object.
-  void AddObserver(WebLocalFrameObserver* observer);
-  void RemoveObserver(WebLocalFrameObserver* observer);
-
-  void WillSendSubmitEvent(const WebFormElement& form);
 
  protected:
   // WebLocalFrame protected overrides:
@@ -570,26 +489,10 @@ class CORE_EXPORT WebLocalFrameImpl final
   // to call these on a WebLocalFrameImpl.
   bool IsWebLocalFrame() const override;
   WebLocalFrame* ToWebLocalFrame() override;
-  const WebLocalFrame* ToWebLocalFrame() const override;
   bool IsWebRemoteFrame() const override;
   WebRemoteFrame* ToWebRemoteFrame() override;
-  const WebRemoteFrame* ToWebRemoteFrame() const override;
-  void CreateFrameWidgetInternal(
-      base::PassKey<WebLocalFrame> pass_key,
-      CrossVariantMojoAssociatedRemote<
-          mojom::blink::FrameWidgetHostInterfaceBase> mojo_frame_widget_host,
-      CrossVariantMojoAssociatedReceiver<mojom::blink::FrameWidgetInterfaceBase>
-          mojo_frame_widget,
-      CrossVariantMojoAssociatedRemote<mojom::blink::WidgetHostInterfaceBase>
-          mojo_widget_host,
-      CrossVariantMojoAssociatedReceiver<mojom::blink::WidgetInterfaceBase>
-          mojo_widget,
-      const viz::FrameSinkId& frame_sink_id,
-      bool is_for_nested_main_frame,
-      bool is_for_scalable_page,
-      bool hidden) override;
 
-  HitTestResult HitTestResultForVisualViewportPos(const gfx::Point&);
+  HitTestResult HitTestResultForVisualViewportPos(const IntPoint&);
 
   WebPlugin* FocusedPluginIfInputMethodSupported();
   ScrollableArea* LayoutViewport() const;
@@ -600,7 +503,6 @@ class CORE_EXPORT WebLocalFrameImpl final
   WebPluginContainerImpl* GetPluginToPrintHelper(
       const WebNode& constrain_to_node);
 
-  Node* ContextMenuImageNodeInner() const;
   Node* ContextMenuNodeInner() const;
 
   void InitializeCoreFrameInternal(
@@ -612,17 +514,11 @@ class CORE_EXPORT WebLocalFrameImpl final
       const AtomicString& name,
       WindowAgentFactory*,
       WebFrame* opener,
-      const DocumentToken& document_token,
       std::unique_ptr<PolicyContainer> policy_container,
-      const StorageKey& storage_key,
-      ukm::SourceId document_ukm_source_id,
       network::mojom::blink::WebSandboxFlags sandbox_flags =
-          network::mojom::blink::WebSandboxFlags::kNone);
-
-  // This function converts mojom::BackForwardCacheNotRestoredReasonsPtr to
-  // mojom::blink::BackForwardCacheNotRestoredReasonsPtr.
-  mojom::blink::BackForwardCacheNotRestoredReasonsPtr ConvertNotRestoredReasons(
-      const mojom::BackForwardCacheNotRestoredReasonsPtr& reasons_struct);
+          network::mojom::blink::WebSandboxFlags::kNone,
+      const FeaturePolicyFeatureState& opener_feature_state =
+          FeaturePolicyFeatureState());
 
   WebLocalFrameClient* client_;
 
@@ -636,7 +532,7 @@ class CORE_EXPORT WebLocalFrameImpl final
 
   // This is set if the frame is the root of a local frame tree, and requires a
   // widget for layout.
-  Member<WebFrameWidgetImpl> frame_widget_;
+  Member<WebFrameWidgetBase> frame_widget_;
 
   Member<WebDevToolsAgentImpl> dev_tools_agent_;
 
@@ -657,7 +553,7 @@ class CORE_EXPORT WebLocalFrameImpl final
   Member<ChromePrintContext> print_context_;
 
   // Borrowed pointers to Mojo objects.
-  InterfaceRegistry* interface_registry_;
+  blink::InterfaceRegistry* interface_registry_;
 
   WebInputMethodControllerImpl input_method_controller_;
 
@@ -665,27 +561,16 @@ class CORE_EXPORT WebLocalFrameImpl final
 
   WebSpellCheckPanelHostClient* spell_check_panel_host_client_;
 
-  mojom::BackForwardCacheNotRestoredReasonsPtr not_restored_reasons_;
-
   // Oilpan: WebLocalFrameImpl must remain alive until close() is called.
   // Accomplish that by keeping a self-referential Persistent<>. It is
   // cleared upon close().
-  SelfKeepAlive<WebLocalFrameImpl> self_keep_alive_{this};
+  SelfKeepAlive<WebLocalFrameImpl> self_keep_alive_;
 
 #if DCHECK_IS_ON()
   // True if DispatchBeforePrintEvent() was called, and
   // DispatchAfterPrintEvent() is not called yet.
   bool is_in_printing_ = false;
 #endif
-
-  // Bookkeeping to suppress redundant scroll and focus requests for an already
-  // scrolled and focused editable node.
-  bool has_scrolled_focused_editable_node_into_rect_ = false;
-
-  WebHistoryItem current_history_item_;
-
-  // All the registered observers.
-  base::ObserverList<WebLocalFrameObserver, true> observers_;
 };
 
 template <>

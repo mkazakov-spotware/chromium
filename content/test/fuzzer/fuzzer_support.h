@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,9 +19,6 @@ class RenderViewTestAdapter : public RenderViewTest {
  public:
   RenderViewTestAdapter();
 
-  RenderViewTestAdapter(const RenderViewTestAdapter&) = delete;
-  RenderViewTestAdapter& operator=(const RenderViewTestAdapter&) = delete;
-
   void TestBody() override {}
   // make SetUp visible.
   void SetUp() override;
@@ -34,6 +31,8 @@ class RenderViewTestAdapter : public RenderViewTest {
 
  private:
   const base::test::ScopedRunLoopTimeout increased_timeout_;
+
+  DISALLOW_COPY_AND_ASSIGN(RenderViewTestAdapter);
 };
 
 // Static environment. Initialized only once.

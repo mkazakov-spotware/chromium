@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,8 +44,7 @@ class EncodingEventSubscriberTest : public ::testing::Test {
 
   void Init(EventMediaType event_media_type) {
     DCHECK(!event_subscriber_);
-    event_subscriber_ =
-        std::make_unique<EncodingEventSubscriber>(event_media_type, 10);
+    event_subscriber_.reset(new EncodingEventSubscriber(event_media_type, 10));
     cast_environment_->logger()->Subscribe(event_subscriber_.get());
   }
 
@@ -80,7 +79,7 @@ TEST_F(EncodingEventSubscriberTest, FrameEventTruncating) {
   int width = 320;
   int height = 180;
   for (int i = 0; i < 11; i++) {
-    auto capture_begin_event = std::make_unique<FrameEvent>();
+    std::unique_ptr<FrameEvent> capture_begin_event(new FrameEvent());
     capture_begin_event->timestamp = now;
     capture_begin_event->type = FRAME_CAPTURE_BEGIN;
     capture_begin_event->media_type = VIDEO_EVENT;
@@ -89,7 +88,7 @@ TEST_F(EncodingEventSubscriberTest, FrameEventTruncating) {
     cast_environment_->logger()->DispatchFrameEvent(
         std::move(capture_begin_event));
 
-    auto capture_end_event = std::make_unique<FrameEvent>();
+    std::unique_ptr<FrameEvent> capture_end_event(new FrameEvent());
     capture_end_event->timestamp = now;
     capture_end_event->type = FRAME_CAPTURE_END;
     capture_end_event->media_type = VIDEO_EVENT;
@@ -99,7 +98,7 @@ TEST_F(EncodingEventSubscriberTest, FrameEventTruncating) {
     cast_environment_->logger()->DispatchFrameEvent(
         std::move(capture_end_event));
 
-    auto decoded_event = std::make_unique<FrameEvent>();
+    std::unique_ptr<FrameEvent> decoded_event(new FrameEvent());
     decoded_event->timestamp = now;
     decoded_event->type = FRAME_DECODED;
     decoded_event->media_type = VIDEO_EVENT;
@@ -133,7 +132,7 @@ TEST_F(EncodingEventSubscriberTest, PacketEventTruncating) {
 
   // Entry with RTP timestamp 0 should get dropped.
   for (int i = 0; i < 11; i++) {
-    auto receive_event = std::make_unique<PacketEvent>();
+    std::unique_ptr<PacketEvent> receive_event(new PacketEvent());
     receive_event->timestamp = now;
     receive_event->type = PACKET_RECEIVED;
     receive_event->media_type = AUDIO_EVENT;
@@ -160,7 +159,7 @@ TEST_F(EncodingEventSubscriberTest, TooManyProtos) {
 
   for (size_t i = 0; i < num_frame_event_protos; i++) {
     for (int j = 0; j < kMaxEventsPerProto; j++) {
-      auto capture_begin_event = std::make_unique<FrameEvent>();
+      std::unique_ptr<FrameEvent> capture_begin_event(new FrameEvent());
       capture_begin_event->timestamp = now;
       capture_begin_event->type = FRAME_CAPTURE_BEGIN;
       capture_begin_event->media_type = VIDEO_EVENT;
@@ -172,7 +171,7 @@ TEST_F(EncodingEventSubscriberTest, TooManyProtos) {
 
   for (size_t i = 0; i < num_packet_event_protos; i++) {
     for (int j = 0; j < kMaxEventsPerProto; j++) {
-      auto receive_event = std::make_unique<PacketEvent>();
+      std::unique_ptr<PacketEvent> receive_event(new PacketEvent());
       receive_event->timestamp = now;
       receive_event->type = PACKET_RECEIVED;
       receive_event->media_type = VIDEO_EVENT;
@@ -186,7 +185,7 @@ TEST_F(EncodingEventSubscriberTest, TooManyProtos) {
     }
   }
 
-  auto capture_begin_event = std::make_unique<FrameEvent>();
+  std::unique_ptr<FrameEvent> capture_begin_event(new FrameEvent());
   capture_begin_event->timestamp = now;
   capture_begin_event->type = FRAME_CAPTURE_BEGIN;
   capture_begin_event->media_type = VIDEO_EVENT;
@@ -204,7 +203,7 @@ TEST_F(EncodingEventSubscriberTest, EventFiltering) {
 
   base::TimeTicks now(testing_clock_.NowTicks());
   RtpTimeTicks rtp_timestamp = RtpTimeTicks().Expand(UINT32_C(100));
-  auto video_event = std::make_unique<FrameEvent>();
+  std::unique_ptr<FrameEvent> video_event(new FrameEvent());
   video_event->timestamp = now;
   video_event->type = FRAME_DECODED;
   video_event->media_type = VIDEO_EVENT;
@@ -213,7 +212,7 @@ TEST_F(EncodingEventSubscriberTest, EventFiltering) {
   cast_environment_->logger()->DispatchFrameEvent(std::move(video_event));
 
   // This is an AUDIO_EVENT and shouldn't be processed by the subscriber.
-  auto audio_event = std::make_unique<FrameEvent>();
+  std::unique_ptr<FrameEvent> audio_event(new FrameEvent());
   audio_event->timestamp = now;
   audio_event->type = FRAME_DECODED;
   audio_event->media_type = AUDIO_EVENT;
@@ -241,7 +240,7 @@ TEST_F(EncodingEventSubscriberTest, FrameEvent) {
   Init(VIDEO_EVENT);
   base::TimeTicks now(testing_clock_.NowTicks());
   RtpTimeTicks rtp_timestamp = RtpTimeTicks().Expand(UINT32_C(100));
-  auto decode_event = std::make_unique<FrameEvent>();
+  std::unique_ptr<FrameEvent> decode_event(new FrameEvent());
   decode_event->timestamp = now;
   decode_event->type = FRAME_DECODED;
   decode_event->media_type = VIDEO_EVENT;
@@ -277,13 +276,13 @@ TEST_F(EncodingEventSubscriberTest, FrameEventDelay) {
   base::TimeTicks now(testing_clock_.NowTicks());
   RtpTimeTicks rtp_timestamp = RtpTimeTicks().Expand(UINT32_C(100));
   int delay_ms = 100;
-  auto playout_event = std::make_unique<FrameEvent>();
+  std::unique_ptr<FrameEvent> playout_event(new FrameEvent());
   playout_event->timestamp = now;
   playout_event->type = FRAME_PLAYOUT;
   playout_event->media_type = AUDIO_EVENT;
   playout_event->rtp_timestamp = rtp_timestamp;
   playout_event->frame_id = FrameId::first();
-  playout_event->delay_delta = base::Milliseconds(delay_ms);
+  playout_event->delay_delta = base::TimeDelta::FromMilliseconds(delay_ms);
   cast_environment_->logger()->DispatchFrameEvent(std::move(playout_event));
 
   GetEventsAndReset();
@@ -316,7 +315,7 @@ TEST_F(EncodingEventSubscriberTest, FrameEventSize) {
   int target_bitrate = 1024;
   double encoder_cpu_utilization = 0.90;
   double idealized_bitrate_utilization = 0.42;
-  auto encode_event = std::make_unique<FrameEvent>();
+  std::unique_ptr<FrameEvent> encode_event(new FrameEvent());
   encode_event->timestamp = now;
   encode_event->type = FRAME_ENCODED;
   encode_event->media_type = VIDEO_EVENT;
@@ -359,18 +358,18 @@ TEST_F(EncodingEventSubscriberTest, MultipleFrameEvents) {
   RtpTimeTicks rtp_timestamp1 = RtpTimeTicks().Expand(UINT32_C(100));
   RtpTimeTicks rtp_timestamp2 = rtp_timestamp1.Expand(UINT32_C(200));
   base::TimeTicks now1(testing_clock_.NowTicks());
-  auto playout_event = std::make_unique<FrameEvent>();
+  std::unique_ptr<FrameEvent> playout_event(new FrameEvent());
   playout_event->timestamp = now1;
   playout_event->type = FRAME_PLAYOUT;
   playout_event->media_type = AUDIO_EVENT;
   playout_event->rtp_timestamp = rtp_timestamp1;
   playout_event->frame_id = FrameId::first();
-  playout_event->delay_delta = base::Milliseconds(100);
+  playout_event->delay_delta = base::TimeDelta::FromMilliseconds(100);
   cast_environment_->logger()->DispatchFrameEvent(std::move(playout_event));
 
-  task_runner_->Sleep(base::Milliseconds(20));
+  task_runner_->Sleep(base::TimeDelta::FromMilliseconds(20));
   base::TimeTicks now2(testing_clock_.NowTicks());
-  auto encode_event = std::make_unique<FrameEvent>();
+  std::unique_ptr<FrameEvent> encode_event(new FrameEvent());
   encode_event->timestamp = now2;
   encode_event->type = FRAME_ENCODED;
   encode_event->media_type = AUDIO_EVENT;
@@ -381,9 +380,9 @@ TEST_F(EncodingEventSubscriberTest, MultipleFrameEvents) {
   encode_event->idealized_bitrate_utilization = 0.55;
   cast_environment_->logger()->DispatchFrameEvent(std::move(encode_event));
 
-  task_runner_->Sleep(base::Milliseconds(20));
+  task_runner_->Sleep(base::TimeDelta::FromMilliseconds(20));
   base::TimeTicks now3(testing_clock_.NowTicks());
-  auto decode_event = std::make_unique<FrameEvent>();
+  std::unique_ptr<FrameEvent> decode_event(new FrameEvent());
   decode_event->timestamp = now3;
   decode_event->type = FRAME_DECODED;
   decode_event->media_type = AUDIO_EVENT;
@@ -440,8 +439,7 @@ TEST_F(EncodingEventSubscriberTest, PacketEvent) {
   RtpTimeTicks rtp_timestamp = RtpTimeTicks().Expand(UINT32_C(100));
   int packet_id = 2;
   int size = 100;
-  auto receive_event = std::make_unique<PacketEvent>();
-  ;
+  std::unique_ptr<PacketEvent> receive_event(new PacketEvent());
   receive_event->timestamp = now;
   receive_event->type = PACKET_RECEIVED;
   receive_event->media_type = AUDIO_EVENT;
@@ -483,7 +481,7 @@ TEST_F(EncodingEventSubscriberTest, MultiplePacketEventsForPacket) {
   RtpTimeTicks rtp_timestamp = RtpTimeTicks().Expand(UINT32_C(100));
   int packet_id = 2;
   int size = 100;
-  auto send_event = std::make_unique<PacketEvent>();
+  std::unique_ptr<PacketEvent> send_event(new PacketEvent());
   send_event->timestamp = now1;
   send_event->type = PACKET_SENT_TO_NETWORK;
   send_event->media_type = VIDEO_EVENT;
@@ -494,9 +492,9 @@ TEST_F(EncodingEventSubscriberTest, MultiplePacketEventsForPacket) {
   send_event->size = size;
   cast_environment_->logger()->DispatchPacketEvent(std::move(send_event));
 
-  task_runner_->Sleep(base::Milliseconds(20));
+  task_runner_->Sleep(base::TimeDelta::FromMilliseconds(20));
   base::TimeTicks now2(testing_clock_.NowTicks());
-  auto retransmit_event = std::make_unique<PacketEvent>();
+  std::unique_ptr<PacketEvent> retransmit_event(new PacketEvent());
   retransmit_event->timestamp = now2;
   retransmit_event->type = PACKET_RETRANSMITTED;
   retransmit_event->media_type = VIDEO_EVENT;
@@ -538,7 +536,7 @@ TEST_F(EncodingEventSubscriberTest, MultiplePacketEventsForFrame) {
   int packet_id_1 = 2;
   int packet_id_2 = 3;
   int size = 100;
-  auto send_event = std::make_unique<PacketEvent>();
+  std::unique_ptr<PacketEvent> send_event(new PacketEvent());
   send_event->timestamp = now1;
   send_event->type = PACKET_SENT_TO_NETWORK;
   send_event->media_type = VIDEO_EVENT;
@@ -549,9 +547,9 @@ TEST_F(EncodingEventSubscriberTest, MultiplePacketEventsForFrame) {
   send_event->size = size;
   cast_environment_->logger()->DispatchPacketEvent(std::move(send_event));
 
-  task_runner_->Sleep(base::Milliseconds(20));
+  task_runner_->Sleep(base::TimeDelta::FromMilliseconds(20));
   base::TimeTicks now2(testing_clock_.NowTicks());
-  auto retransmit_event = std::make_unique<PacketEvent>();
+  std::unique_ptr<PacketEvent> retransmit_event(new PacketEvent());
   retransmit_event->timestamp = now2;
   retransmit_event->type = PACKET_RETRANSMITTED;
   retransmit_event->media_type = VIDEO_EVENT;
@@ -599,7 +597,7 @@ TEST_F(EncodingEventSubscriberTest, MultiplePacketEvents) {
   int packet_id_1 = 2;
   int packet_id_2 = 3;
   int size = 100;
-  auto send_event = std::make_unique<PacketEvent>();
+  std::unique_ptr<PacketEvent> send_event(new PacketEvent());
   send_event->timestamp = now1;
   send_event->type = PACKET_SENT_TO_NETWORK;
   send_event->media_type = VIDEO_EVENT;
@@ -610,9 +608,9 @@ TEST_F(EncodingEventSubscriberTest, MultiplePacketEvents) {
   send_event->size = size;
   cast_environment_->logger()->DispatchPacketEvent(std::move(send_event));
 
-  task_runner_->Sleep(base::Milliseconds(20));
+  task_runner_->Sleep(base::TimeDelta::FromMilliseconds(20));
   base::TimeTicks now2(testing_clock_.NowTicks());
-  auto retransmit_event = std::make_unique<PacketEvent>();
+  std::unique_ptr<PacketEvent> retransmit_event(new PacketEvent());
   retransmit_event->timestamp = now2;
   retransmit_event->type = PACKET_RETRANSMITTED;
   retransmit_event->media_type = VIDEO_EVENT;
@@ -670,7 +668,7 @@ TEST_F(EncodingEventSubscriberTest, FirstRtpTimeTicks) {
   RtpTimeTicks rtp_timestamp = RtpTimeTicks().Expand(UINT32_C(12345));
   base::TimeTicks now(testing_clock_.NowTicks());
 
-  auto capture_begin_event = std::make_unique<FrameEvent>();
+  std::unique_ptr<FrameEvent> capture_begin_event(new FrameEvent());
   capture_begin_event->timestamp = now;
   capture_begin_event->type = FRAME_CAPTURE_BEGIN;
   capture_begin_event->media_type = VIDEO_EVENT;
@@ -678,7 +676,7 @@ TEST_F(EncodingEventSubscriberTest, FirstRtpTimeTicks) {
   cast_environment_->logger()->DispatchFrameEvent(
       std::move(capture_begin_event));
 
-  auto capture_end_event = std::make_unique<FrameEvent>();
+  std::unique_ptr<FrameEvent> capture_end_event(new FrameEvent());
   capture_end_event->timestamp = now;
   capture_end_event->type = FRAME_CAPTURE_END;
   capture_end_event->media_type = VIDEO_EVENT;
@@ -703,7 +701,7 @@ TEST_F(EncodingEventSubscriberTest, FirstRtpTimeTicks) {
 
   rtp_timestamp = rtp_timestamp.Expand(UINT32_C(67890));
 
-  capture_begin_event = std::make_unique<FrameEvent>();
+  capture_begin_event.reset(new FrameEvent());
   capture_begin_event->timestamp = now;
   capture_begin_event->type = FRAME_CAPTURE_BEGIN;
   capture_begin_event->media_type = VIDEO_EVENT;
@@ -721,8 +719,7 @@ TEST_F(EncodingEventSubscriberTest, RelativeRtpTimeTicksWrapAround) {
   RtpTimeTicks rtp_timestamp = RtpTimeTicks() - RtpTimeDelta::FromTicks(20);
   base::TimeTicks now(testing_clock_.NowTicks());
 
-  auto capture_begin_event = std::make_unique<FrameEvent>();
-  ;
+  std::unique_ptr<FrameEvent> capture_begin_event(new FrameEvent());
   capture_begin_event->timestamp = now;
   capture_begin_event->type = FRAME_CAPTURE_BEGIN;
   capture_begin_event->media_type = VIDEO_EVENT;
@@ -731,7 +728,7 @@ TEST_F(EncodingEventSubscriberTest, RelativeRtpTimeTicksWrapAround) {
       std::move(capture_begin_event));
 
   // RtpTimeTicks has now wrapped around.
-  auto capture_end_event = std::make_unique<FrameEvent>();
+  std::unique_ptr<FrameEvent> capture_end_event(new FrameEvent());
   capture_end_event->timestamp = now;
   capture_end_event->type = FRAME_CAPTURE_END;
   capture_end_event->media_type = VIDEO_EVENT;
@@ -758,7 +755,7 @@ TEST_F(EncodingEventSubscriberTest, MaxEventsPerProto) {
   Init(VIDEO_EVENT);
   RtpTimeTicks rtp_timestamp = RtpTimeTicks().Expand(UINT32_C(100));
   for (int i = 0; i < kMaxEventsPerProto + 1; i++) {
-    auto ack_event = std::make_unique<FrameEvent>();
+    std::unique_ptr<FrameEvent> ack_event(new FrameEvent());
     ack_event->timestamp = testing_clock_.NowTicks();
     ack_event->type = FRAME_ACK_RECEIVED;
     ack_event->media_type = VIDEO_EVENT;
@@ -766,7 +763,7 @@ TEST_F(EncodingEventSubscriberTest, MaxEventsPerProto) {
     ack_event->frame_id = FrameId::first();
     cast_environment_->logger()->DispatchFrameEvent(std::move(ack_event));
 
-    task_runner_->Sleep(base::Milliseconds(30));
+    task_runner_->Sleep(base::TimeDelta::FromMilliseconds(30));
   }
 
   GetEventsAndReset();
@@ -780,7 +777,7 @@ TEST_F(EncodingEventSubscriberTest, MaxEventsPerProto) {
   EXPECT_EQ(kMaxEventsPerProto, frame_event->event_type_size());
 
   for (int i = 0; i < kMaxPacketsPerFrame + 1; i++) {
-    auto send_event = std::make_unique<PacketEvent>();
+    std::unique_ptr<PacketEvent> send_event(new PacketEvent());
     send_event->timestamp = testing_clock_.NowTicks();
     send_event->type = PACKET_SENT_TO_NETWORK;
     send_event->media_type = VIDEO_EVENT;
@@ -791,7 +788,7 @@ TEST_F(EncodingEventSubscriberTest, MaxEventsPerProto) {
     send_event->size = 123;
     cast_environment_->logger()->DispatchPacketEvent(std::move(send_event));
 
-    task_runner_->Sleep(base::Milliseconds(30));
+    task_runner_->Sleep(base::TimeDelta::FromMilliseconds(30));
   }
 
   GetEventsAndReset();
@@ -814,7 +811,7 @@ TEST_F(EncodingEventSubscriberTest, MaxEventsPerProto) {
   }
 
   for (int j = 0; j < kMaxEventsPerProto + 1; j++) {
-    auto send_event = std::make_unique<PacketEvent>();
+    std::unique_ptr<PacketEvent> send_event(new PacketEvent());
     send_event->timestamp = testing_clock_.NowTicks();
     send_event->type = PACKET_SENT_TO_NETWORK;
     send_event->media_type = VIDEO_EVENT;
@@ -825,7 +822,7 @@ TEST_F(EncodingEventSubscriberTest, MaxEventsPerProto) {
     send_event->size = 123;
     cast_environment_->logger()->DispatchPacketEvent(std::move(send_event));
 
-    task_runner_->Sleep(base::Milliseconds(30));
+    task_runner_->Sleep(base::TimeDelta::FromMilliseconds(30));
   }
 
   GetEventsAndReset();

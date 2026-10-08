@@ -1,6 +1,6 @@
 <!--
 @BLINK-ALLOW:location=(8, 70)
-@BLINK-WAIT-FOR:done
+@WAIT-FOR:done
 -->
 <!DOCTYPE html>
 <html>
@@ -36,16 +36,14 @@
 <div id="statusDiv"></div>
 <script>
 function onLoad() {
-  window.requestAnimationFrame(() => {
+  window.setTimeout(() => {
     window.onscroll = function() {
       window.requestAnimationFrame(() => {
         statusDiv.innerText = "done";
       });
     };
-    window.requestAnimationFrame(() => {
-      document.querySelector('button').click();
-    });
-  });
+    document.querySelector('button').click();
+  }, 100);
 }
 
 function clicked() {

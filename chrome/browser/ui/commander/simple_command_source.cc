@@ -1,15 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/commander/simple_command_source.h"
 
 #include "base/bind.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/i18n/case_conversion.h"
+#include "base/strings/utf_string_conversions.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/accelerator_utils.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/commander/fuzzy_finder.h"
 #include "chrome/grit/generated_resources.h"
@@ -25,7 +24,7 @@ SimpleCommandSource::SimpleCommandSource() {
 SimpleCommandSource::~SimpleCommandSource() = default;
 
 CommandSource::CommandResults SimpleCommandSource::GetCommands(
-    const std::u16string& input,
+    const base::string16& input,
     Browser* browser) const {
   // TODO(lgrey): Temporarily using hardcoded English titles instead of
   // translated strings so we can experiment without adding translation load.
@@ -33,58 +32,56 @@ CommandSource::CommandResults SimpleCommandSource::GetCommands(
   // ship.
   const struct {
     int id;
-    std::u16string title;
+    base::string16 title;
   } command_map[] = {
       {IDC_FIND, l10n_util::GetStringUTF16(IDS_FIND)},
       {IDC_SAVE_PAGE, l10n_util::GetStringUTF16(IDS_SAVE_PAGE)},
       {IDC_PRINT, l10n_util::GetStringUTF16(IDS_PRINT)},
-      {IDC_SHOW_HISTORY, u"Show history"},
-      {IDC_RELOAD, u"Reload"},
-      {IDC_NEW_TAB, u"Create new tab"},
-      {IDC_RESTORE_TAB, u"Open recently closed tab"},
-      {IDC_NEW_WINDOW, u"Create new window"},
-      {IDC_NEW_INCOGNITO_WINDOW, u"Create new incognito window"},
-      {IDC_BOOKMARK_THIS_TAB, u"Bookmark this tab"},
-      {IDC_BOOKMARK_ALL_TABS, u"Bookmark all tabs"},
-      {IDC_BACK, u"Back"},
-      {IDC_FORWARD, u"Forward"},
-      {IDC_ZOOM_PLUS, u"Zoom in"},
-      {IDC_ZOOM_MINUS, u"Zoom out"},
-      {IDC_ZOOM_NORMAL, u"Reset zoom"},
-      {IDC_VIEW_SOURCE, u"View page source"},
-      {IDC_EXIT, u"Quit"},
-      {IDC_EMAIL_PAGE_LOCATION, u"Email page location"},
-      {IDC_FOCUS_LOCATION, u"Focus location bar"},
-      {IDC_FOCUS_TOOLBAR, u"Focus toolbar"},
-      {IDC_OPEN_FILE, u"Open file"},
-      {IDC_TASK_MANAGER, u"Show task manager"},
-      {IDC_SHOW_BOOKMARK_MANAGER, u"Show bookmark manager"},
-      {IDC_SHOW_DOWNLOADS, u"Show downloads"},
-      {IDC_CLEAR_BROWSING_DATA, u"Clear browsing data"},
-      {IDC_OPTIONS, u"Show settings"},
-      {IDC_SHOW_AVATAR_MENU, u"Switch profile"},
-      {IDC_DEV_TOOLS_TOGGLE, u"Toggle developer tools"},
-      {IDC_MANAGE_EXTENSIONS, l10n_util::GetStringUTF16(IDS_MANAGE_EXTENSIONS)},
-      {IDC_TAB_SEARCH, u"Search tabs..."},
-      {IDC_SELECT_NEXT_TAB, u"Next tab"},
-      {IDC_SELECT_PREVIOUS_TAB, u"Previous tab"},
-      {IDC_MOVE_TAB_NEXT, u"Move tab forward"},
-      {IDC_MOVE_TAB_PREVIOUS, u"Move tab backward"},
-      {IDC_QRCODE_GENERATOR, u"Create QR code"},
+      {IDC_SHOW_HISTORY, base::ASCIIToUTF16("Show history")},
+      {IDC_RELOAD, base::ASCIIToUTF16("Reload")},
+      {IDC_NEW_TAB, base::ASCIIToUTF16("Create new tab")},
+      {IDC_RESTORE_TAB, base::ASCIIToUTF16("Open recently closed tab")},
+      {IDC_NEW_WINDOW, base::ASCIIToUTF16("Create new window")},
+      {IDC_NEW_INCOGNITO_WINDOW,
+       base::ASCIIToUTF16("Create new incognito window")},
+      {IDC_BOOKMARK_THIS_TAB, base::ASCIIToUTF16("Bookmark this tab")},
+      {IDC_BOOKMARK_ALL_TABS, base::ASCIIToUTF16("Bookmark all tabs")},
+      {IDC_BACK, base::ASCIIToUTF16("Back")},
+      {IDC_FORWARD, base::ASCIIToUTF16("Forward")},
+      {IDC_ZOOM_PLUS, base::ASCIIToUTF16("Zoom in")},
+      {IDC_ZOOM_MINUS, base::ASCIIToUTF16("Zoom out")},
+      {IDC_ZOOM_NORMAL, base::ASCIIToUTF16("Reset zoom")},
+      {IDC_VIEW_SOURCE, base::ASCIIToUTF16("View page source")},
+      {IDC_EXIT, base::ASCIIToUTF16("Quit")},
+      {IDC_EMAIL_PAGE_LOCATION, base::ASCIIToUTF16("Email page location")},
+      {IDC_FOCUS_LOCATION, base::ASCIIToUTF16("Focus location bar")},
+      {IDC_FOCUS_TOOLBAR, base::ASCIIToUTF16("Focus toolbar")},
+      {IDC_OPEN_FILE, base::ASCIIToUTF16("Open file")},
+      {IDC_TASK_MANAGER, base::ASCIIToUTF16("Show task manager")},
+      {IDC_SHOW_BOOKMARK_MANAGER, base::ASCIIToUTF16("Show bookmark manager")},
+      {IDC_SHOW_DOWNLOADS, base::ASCIIToUTF16("Show downloads")},
+      {IDC_CLEAR_BROWSING_DATA, base::ASCIIToUTF16("Clear browsing data")},
+      {IDC_OPTIONS, base::ASCIIToUTF16("Show settings")},
+      {IDC_SHOW_AVATAR_MENU, base::ASCIIToUTF16("Switch profile")},
+      {IDC_DEV_TOOLS_TOGGLE, base::ASCIIToUTF16("Toggle developer tools")},
   };
   CommandSource::CommandResults results;
-  FuzzyFinder finder(input);
+  const base::string16& folded_input = base::i18n::FoldCase(input);
   std::vector<gfx::Range> ranges;
   for (const auto& command_spec : command_map) {
     if (!chrome::IsCommandEnabled(browser, command_spec.id))
       continue;
-    std::u16string title = command_spec.title;
+    base::string16 title = command_spec.title;
     base::Erase(title, '&');
-    double score = finder.Find(title, &ranges);
+    double score = FuzzyFind(folded_input, title, &ranges);
     if (score == 0)
       continue;
 
-    auto item = std::make_unique<CommandItem>(title, score, ranges);
+    auto item = std::make_unique<CommandItem>();
+    item->title = title;
+    item->score = score;
+    item->matched_ranges = ranges;
+
     ui::Accelerator accelerator;
     ui::AcceleratorProvider* provider =
         chrome::AcceleratorProviderForBrowser(browser);

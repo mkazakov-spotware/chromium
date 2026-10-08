@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <memory>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
 #include "base/sync_socket.h"
 #include "base/test/mock_callback.h"
 #include "content/public/test/browser_task_environment.h"
@@ -21,7 +20,6 @@
 #include "services/audio/public/cpp/fake_stream_factory.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/utility/utility.h"
 
 using ::testing::_;
 using ::testing::Test;
@@ -45,10 +43,6 @@ media::AudioParameters TestParams() {
 class MockSource : public AudioStreamBroker::LoopbackSource {
  public:
   MockSource() : group_id_(base::UnguessableToken::Create()) {}
-
-  MockSource(const MockSource&) = delete;
-  MockSource& operator=(const MockSource&) = delete;
-
   ~MockSource() override {}
 
   // AudioStreamBrokerFactory::LoopbackSource mocking.
@@ -58,6 +52,7 @@ class MockSource : public AudioStreamBroker::LoopbackSource {
 
  private:
   base::UnguessableToken group_id_;
+  DISALLOW_COPY_AND_ASSIGN(MockSource);
 };
 
 using MockDeleterCallback = StrictMock<
@@ -82,7 +77,7 @@ class MockRendererAudioInputStreamFactoryClient
           client_receiver,
       media::mojom::ReadOnlyAudioDataPipePtr data_pipe,
       bool initially_muted,
-      const absl::optional<base::UnguessableToken>& stream_id) override {
+      const base::Optional<base::UnguessableToken>& stream_id) override {
     // Loopback streams have no stream ids.
     EXPECT_FALSE(stream_id.has_value());
     input_stream_.Bind(std::move(input_stream));
@@ -99,14 +94,10 @@ class MockRendererAudioInputStreamFactoryClient
   mojo::PendingReceiver<media::mojom::AudioInputStreamClient> client_receiver_;
 };
 
-class MockStreamFactory final : public audio::FakeStreamFactory {
+class MockStreamFactory : public audio::FakeStreamFactory {
  public:
-  MockStreamFactory() = default;
-
-  MockStreamFactory(const MockStreamFactory&) = delete;
-  MockStreamFactory& operator=(const MockStreamFactory&) = delete;
-
-  ~MockStreamFactory() override = default;
+  MockStreamFactory() {}
+  ~MockStreamFactory() final {}
 
   // State of an expected stream creation. |device_id| and |params| are set
   // ahead of time and verified during request. The other fields are filled in
@@ -125,7 +116,7 @@ class MockStreamFactory final : public audio::FakeStreamFactory {
     base::UnguessableToken group_id;
     mojo::ScopedSharedBufferHandle key_press_count_buffer;
     CreateLoopbackStreamCallback created_callback;
-    mojo::PendingAssociatedReceiver<media::mojom::LocalMuter> muter_receiver;
+    mojo::PendingAssociatedReceiver<audio::mojom::LocalMuter> muter_receiver;
   };
 
   void ExpectStreamCreation(StreamRequestData* ex) {
@@ -142,7 +133,7 @@ class MockStreamFactory final : public audio::FakeStreamFactory {
       const media::AudioParameters& params,
       uint32_t shared_memory_count,
       const base::UnguessableToken& group_id,
-      CreateLoopbackStreamCallback created_callback) override {
+      CreateLoopbackStreamCallback created_callback) final {
     // No way to cleanly exit the test here in case of failure, so use CHECK.
     CHECK(stream_request_data_);
     EXPECT_EQ(stream_request_data_->group_id, group_id);
@@ -156,13 +147,15 @@ class MockStreamFactory final : public audio::FakeStreamFactory {
   }
 
   void BindMuter(
-      mojo::PendingAssociatedReceiver<media::mojom::LocalMuter> receiver,
-      const base::UnguessableToken& group_id) override {
+      mojo::PendingAssociatedReceiver<audio::mojom::LocalMuter> receiver,
+      const base::UnguessableToken& group_id) final {
     stream_request_data_->muter_receiver = std::move(receiver);
     IsMuting(group_id);
   }
 
-  raw_ptr<StreamRequestData> stream_request_data_;
+  StreamRequestData* stream_request_data_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockStreamFactory);
 };
 
 const bool kMuteSource = true;
@@ -185,7 +178,7 @@ struct TestEnvironment {
   StrictMock<MockRendererAudioInputStreamFactoryClient> renderer_factory_client;
   std::unique_ptr<AudioLoopbackStreamBroker> broker;
   MockStreamFactory stream_factory;
-  mojo::Remote<media::mojom::AudioStreamFactory> factory_ptr{
+  mojo::Remote<audio::mojom::StreamFactory> factory_ptr{
       stream_factory.MakeRemote()};
 };
 
@@ -228,7 +221,7 @@ TEST(AudioLoopbackStreamBrokerTest, StreamCreationSuccess_Propagates) {
   base::SyncSocket socket1, socket2;
   base::SyncSocket::CreatePair(&socket1, &socket2);
   std::move(stream_request_data.created_callback)
-      .Run({absl::in_place,
+      .Run({base::in_place,
             base::ReadOnlySharedMemoryRegion::Create(shmem_size).region,
             mojo::PlatformHandle(socket1.Take())});
 
@@ -258,7 +251,7 @@ TEST(AudioLoopbackStreamBrokerTest, MutedStreamCreation_Mutes) {
   base::SyncSocket socket1, socket2;
   base::SyncSocket::CreatePair(&socket1, &socket2);
   std::move(stream_request_data.created_callback)
-      .Run({absl::in_place,
+      .Run({base::in_place,
             base::ReadOnlySharedMemoryRegion::Create(shmem_size).region,
             mojo::PlatformHandle(socket1.Take())});
 
@@ -288,7 +281,7 @@ TEST(AudioLoopbackStreamBrokerTest, SourceGone_CallsDeleter) {
   base::SyncSocket socket1, socket2;
   base::SyncSocket::CreatePair(&socket1, &socket2);
   std::move(stream_request_data.created_callback)
-      .Run({absl::in_place,
+      .Run({base::in_place,
             base::ReadOnlySharedMemoryRegion::Create(shmem_size).region,
             mojo::PlatformHandle(socket1.Take())});
 

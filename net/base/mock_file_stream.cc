@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,27 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 
-namespace net::testing {
+namespace net {
+
+namespace testing {
 
 MockFileStream::MockFileStream(
     const scoped_refptr<base::TaskRunner>& task_runner)
-    : FileStream(task_runner) {}
+    : FileStream(task_runner),
+      forced_error_(OK),
+      async_error_(false),
+      throttled_(false) {}
 
 MockFileStream::MockFileStream(
     base::File file,
     const scoped_refptr<base::TaskRunner>& task_runner)
-    : FileStream(std::move(file), task_runner) {}
+    : FileStream(std::move(file), task_runner),
+      forced_error_(OK),
+      async_error_(false),
+      throttled_(false) {}
 
 MockFileStream::~MockFileStream() = default;
 
@@ -73,8 +82,8 @@ void MockFileStream::ReleaseCallbacks() {
   throttled_ = false;
 
   if (!throttled_task_.is_null()) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, std::move(throttled_task_));
+    base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                  std::move(throttled_task_));
   }
 }
 
@@ -100,7 +109,7 @@ void MockFileStream::DoCallback64(Int64CompletionOnceCallback callback,
 int MockFileStream::ErrorCallback(CompletionOnceCallback callback) {
   CHECK_NE(OK, forced_error_);
   if (async_error_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), forced_error_));
     clear_forced_error();
     return ERR_IO_PENDING;
@@ -113,7 +122,7 @@ int MockFileStream::ErrorCallback(CompletionOnceCallback callback) {
 int64_t MockFileStream::ErrorCallback64(Int64CompletionOnceCallback callback) {
   CHECK_NE(OK, forced_error_);
   if (async_error_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), forced_error_));
     clear_forced_error();
     return ERR_IO_PENDING;
@@ -123,4 +132,6 @@ int64_t MockFileStream::ErrorCallback64(Int64CompletionOnceCallback callback) {
   return ret;
 }
 
-}  // namespace net::testing
+}  // namespace testing
+
+}  // namespace net

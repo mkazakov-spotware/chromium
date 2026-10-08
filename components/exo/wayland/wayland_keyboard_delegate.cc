@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,8 @@
 #include <wayland-server-protocol-core.h>
 
 #include "base/containers/flat_map.h"
-#include "base/memory/unsafe_shared_memory_region.h"
-#include "base/numerics/safe_conversions.h"
 #include "components/exo/wayland/serial_tracker.h"
 #include "ui/events/keycodes/dom/dom_code.h"
-#include "ui/events/keycodes/dom/keycode_converter.h"
 
 #if BUILDFLAG(USE_XKBCOMMON)
 #include <xkbcommon/xkbcommon.h>
@@ -42,7 +39,7 @@ bool WaylandKeyboardDelegate::CanAcceptKeyboardEventsForSurface(
 
 void WaylandKeyboardDelegate::OnKeyboardEnter(
     Surface* surface,
-    const base::flat_map<ui::DomCode, KeyState>& pressed_keys) {
+    const base::flat_map<ui::DomCode, ui::DomCode>& pressed_keys) {
   wl_resource* surface_resource = GetSurfaceResource(surface);
   DCHECK(surface_resource);
   wl_array keys;
@@ -51,7 +48,7 @@ void WaylandKeyboardDelegate::OnKeyboardEnter(
     uint32_t* value =
         static_cast<uint32_t*>(wl_array_add(&keys, sizeof(uint32_t)));
     DCHECK(value);
-    *value = ui::KeycodeConverter::DomCodeToEvdevCode(entry.second.code);
+    *value = DomCodeToKey(entry.second);
   }
   wl_keyboard_send_enter(
       keyboard_resource_,
@@ -72,20 +69,20 @@ void WaylandKeyboardDelegate::OnKeyboardLeave(Surface* surface) {
 }
 
 uint32_t WaylandKeyboardDelegate::OnKeyboardKey(base::TimeTicks time_stamp,
-                                                ui::DomCode code,
+                                                ui::DomCode key,
                                                 bool pressed) {
-  uint32_t serial = serial_tracker_->MaybeNextKeySerial();
-  serial_tracker_->ResetKeySerial();
+  uint32_t serial =
+      serial_tracker_->GetNextSerial(SerialTracker::EventType::OTHER_EVENT);
   SendTimestamp(time_stamp);
   wl_keyboard_send_key(
       keyboard_resource_, serial, TimeTicksToMilliseconds(time_stamp),
-      ui::KeycodeConverter::DomCodeToEvdevCode(code),
+      DomCodeToKey(key),
       pressed ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED);
   // Unlike normal wayland clients, the X11 server tries to maintain its own
   // modifier state, which it updates based on key events. To prevent numlock
   // presses from allowing numpad keys to be interpreted as directions, we
   // re-send the modifier state after a numlock press.
-  if (code == ui::DomCode::NUM_LOCK)
+  if (key == ui::DomCode::NUM_LOCK)
     SendKeyboardModifiers();
   wl_client_flush(client());
   return serial;
@@ -120,6 +117,16 @@ void WaylandKeyboardDelegate::OnKeyboardLayoutUpdated(
   wl_client_flush(client());
 }
 
+uint32_t WaylandKeyboardDelegate::DomCodeToKey(ui::DomCode code) const {
+  // This assumes KeycodeConverter has been built with evdev/xkb codes.
+  xkb_keycode_t xkb_keycode = static_cast<xkb_keycode_t>(
+      ui::KeycodeConverter::DomCodeToNativeKeycode(code));
+
+  // Keycodes are offset by 8 in Xkb.
+  DCHECK_GE(xkb_keycode, 8u);
+  return xkb_keycode - 8;
+}
+
 void WaylandKeyboardDelegate::SendKeyboardModifiers() {
   wl_keyboard_send_modifiers(
       keyboard_resource_,
@@ -140,7 +147,7 @@ int32_t GetWaylandRepeatRate(bool enabled, base::TimeDelta interval) {
   if (enabled) {
     // Most of ChromeOS's interval options divide perfectly into 1000,
     // but a few do need rounding.
-    rate = base::ClampRound<int32_t>(interval.ToHz());
+    rate = int32_t{std::lround(1000.0 / interval.InMillisecondsF())};
 
     // Avoid disabling key repeat if the interval is >2000ms.
     rate = std::max(1, rate);
@@ -167,7 +174,7 @@ void WaylandKeyboardDelegate::OnKeyRepeatSettingsChanged(
   if (version >= WL_KEYBOARD_REPEAT_INFO_SINCE_VERSION) {
     wl_keyboard_send_repeat_info(keyboard_resource_,
                                  GetWaylandRepeatRate(enabled, interval),
-                                 static_cast<int32_t>(delay.InMilliseconds()));
+                                 int32_t{delay.InMilliseconds()});
   }
 }
 

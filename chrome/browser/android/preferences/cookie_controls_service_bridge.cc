@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,10 +20,9 @@ CookieControlsServiceBridge::CookieControlsServiceBridge(
     : jobject_(obj) {}
 
 void CookieControlsServiceBridge::UpdateServiceIfNecessary() {
-  // This class is only for the incognito NTP, so it is safe to always use the
-  // primary OTR profile.
-  Profile* profile = ProfileManager::GetLastUsedProfile()->GetPrimaryOTRProfile(
-      /*create_if_needed=*/true);
+  // TODO(https://crbug.com/1060940): Update to cover all OTR profiles.
+  Profile* profile =
+      ProfileManager::GetLastUsedProfile()->GetPrimaryOTRProfile();
   CookieControlsService* new_service =
       CookieControlsServiceFactory::GetForProfile(profile);
   // Update the service only if it is for a new profile

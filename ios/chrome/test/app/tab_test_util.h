@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 #define IOS_CHROME_TEST_APP_TAB_TEST_UTIL_H_
 
 #import <Foundation/Foundation.h>
+
+#include "base/compiler_specific.h"
 
 namespace web {
 class WebState;
@@ -16,8 +18,9 @@ namespace chrome_test_util {
 // Opens a new tab, and does not wait for animations to complete.
 void OpenNewTab();
 
-// Simulates opening `URL` from another application.
-void SimulateExternalAppURLOpeningWithURL(NSURL* URL);
+// Simulates opening http://www.example.com/ from another application.
+// Returns the opened URL.
+NSURL* SimulateExternalAppURLOpening();
 
 // Simulates opening the add account sign-in flow from the web.
 void SimulateAddAccountFromWeb();
@@ -41,7 +44,7 @@ NSString* GetCurrentTabTitle();
 NSString* GetNextTabTitle();
 
 // Gets the WebState with the given index in the current mode (incognito or
-// normal). Returns nullptr if less than `index` + 1 tabs are open.
+// normal). Returns nullptr if less than |index| + 1 tabs are open.
 web::WebState* GetWebStateAtIndexInCurrentMode(int index);
 
 // Closes current tab.
@@ -82,14 +85,17 @@ BOOL SetCurrentTabsToBeColdStartTabs();
 // Simulates a backgrounding. Return YES on success.
 BOOL SimulateTabsBackgrounding();
 
+// Persists the current list of tabs to disk immediately.
+void SaveSessionImmediately();
+
 // Evicts the tabs associated with the non-current browser mode.
-void EvictOtherBrowserTabs();
+void EvictOtherTabModelTabs();
 
 // Closes all normal (non-incognito) tabs. Return YES on success.
-[[nodiscard]] BOOL CloseAllNormalTabs();
+BOOL CloseAllNormalTabs() WARN_UNUSED_RESULT;
 
 // Closes all incognito tabs. Return YES on success.
-[[nodiscard]] BOOL CloseAllIncognitoTabs();
+BOOL CloseAllIncognitoTabs() WARN_UNUSED_RESULT;
 
 // Returns the number of main tabs currently evicted.
 NSUInteger GetEvictedMainTabCount();

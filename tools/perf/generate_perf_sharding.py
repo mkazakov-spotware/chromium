@@ -1,5 +1,5 @@
-#!/usr/bin/env vpython3
-# Copyright 2018 The Chromium Authors
+#!/usr/bin/env vpython
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -15,10 +15,6 @@ import shutil
 import sys
 import tempfile
 import textwrap
-import six
-from six.moves import input  # pylint: disable=redefined-builtin
-
-import cross_device_test_config
 
 from core import path_util
 path_util.AddTelemetryToPath()
@@ -47,14 +43,7 @@ files may not match with the true state of world.
 def GetParser():
   parser = argparse.ArgumentParser(
       description=_SCRIPT_USAGE, formatter_class=argparse.RawTextHelpFormatter)
-
-  if six.PY2:
-    subparsers = parser.add_subparsers()
-  else:
-    # Python 3 needs required=True in order to issue an error when subcommand is
-    # missing. Without metavar, argparse would crash while issuing error (bug?).
-    subparsers = parser.add_subparsers(
-        required=True, metavar='{update,update-timing,deschedule,validate}')
+  subparsers = parser.add_subparsers()
 
   parser_update = subparsers.add_parser(
       'update',
@@ -119,9 +108,7 @@ def _AddBuilderPlatformSelectionArgs(parser):
 
 
 def _DumpJson(data, output_path):
-  with open(output_path, 'w',
-            newline='') if sys.version_info.major == 3 else open(
-                output_path, 'wb') as output_file:
+  with open(output_path, 'w') as output_file:
     json.dump(data, output_file, indent=4, separators=(',', ': '))
 
 
@@ -130,10 +117,10 @@ def _LoadTimingData(args):
   data = retrieve_story_timing.FetchAverageStoryTimingData(
       configurations=[builder.name], num_last_days=5)
   for executable in builder.executables:
-    data.append({
-        'duration': str(float(executable.estimated_runtime)),
-        'name': executable.name + '/' + bot_platforms.GTEST_STORY_NAME
-    })
+    data.append({unicode('duration'): unicode(
+                    float(executable.estimated_runtime)),
+                 unicode('name'): unicode(
+                     executable.name + '/' + bot_platforms.GTEST_STORY_NAME)})
   _DumpJson(data, timing_file_path)
   print('Finished retrieving story timing data for %s' % repr(builder.name))
 
@@ -142,25 +129,18 @@ def _source_filepath(posix_path):
   return os.path.join(path_util.GetChromiumSrcDir(), *posix_path.split('/'))
 
 
-def GenerateShardMap(builder, num_of_shards, debug=False):
+def _GenerateShardMap(
+    builder, num_of_shards, output_path, debug):
   timing_data = []
   if builder:
     with open(builder.timing_file_path) as f:
       timing_data = json.load(f)
   benchmarks_to_shard = (
       list(builder.benchmark_configs) + list(builder.executables))
-  repeat_config = cross_device_test_config.TARGET_DEVICES.get(builder.name, {})
   sharding_map = sharding_map_generator.generate_sharding_map(
-      benchmarks_to_shard,
-      timing_data,
+      benchmarks_to_shard, timing_data,
       num_shards=num_of_shards,
-      debug=debug,
-      repeat_config=repeat_config)
-  return sharding_map
-
-
-def _GenerateShardMapJson(builder, num_of_shards, output_path, debug):
-  sharding_map = GenerateShardMap(builder, num_of_shards, debug)
+      debug=debug)
   _DumpJson(sharding_map, output_path)
 
 
@@ -178,7 +158,7 @@ def _PromptWarning():
              'false regressions in your CL '
              'description')
   print(textwrap.fill(message, 70), '\n')
-  answer = input("Enter 'y' to continue: ")
+  answer = raw_input("Enter 'y' to continue: ")
   if answer != 'y':
     print('Abort updating shard maps for benchmarks on perf waterfall')
     sys.exit(0)
@@ -228,13 +208,12 @@ def _GetBuilderPlatforms(builders, waterfall):
   if builders:
     return {b for b in bot_platforms.ALL_PLATFORMS if b.name in
                 builders}
-  if waterfall == 'perf':
-    platforms = bot_platforms.OFFICIAL_PLATFORMS
+  elif waterfall == 'perf':
+    return bot_platforms.OFFICIAL_PLATFORMS
   elif waterfall == 'perf-fyi':
-    platforms = bot_platforms.FYI_PLATFORMS
+    return bot_platforms.FYI_PLATFORMS
   else:
-    platforms = bot_platforms.ALL_PLATFORMS
-  return {p for p in platforms if not p.pinpoint_only}
+    return bot_platforms.ALL_PLATFORMS
 
 
 def _UpdateShardsForBuilders(args):
@@ -243,7 +222,8 @@ def _UpdateShardsForBuilders(args):
   if not args.use_existing_timing_data:
     _UpdateTimingData(builders)
   for b in builders:
-    _GenerateShardMapJson(b, b.num_shards, b.shards_map_file_path, args.debug)
+    _GenerateShardMap(
+        b, b.num_shards, b.shards_map_file_path, args.debug)
     print('Updated sharding map for %s' % repr(b.name))
 
 
@@ -263,7 +243,7 @@ def _DescheduleBenchmark(args):
         if shard == 'extra_infos':
           break
         benchmarks = shard_map.get('benchmarks', dict())
-        for benchmark in list(benchmarks.keys()):
+        for benchmark in benchmarks.keys():
           if benchmark not in benchmarks_to_keep:
             del benchmarks[benchmark]
         executables = shard_map.get('executables', dict())
@@ -282,7 +262,7 @@ def _ParseBenchmarks(shard_map_path):
   all_benchmarks = set()
   with open(shard_map_path) as f:
     shard_map = json.load(f)
-  for shard, benchmarks_in_shard in shard_map.items():
+  for shard, benchmarks_in_shard in shard_map.iteritems():
     if "extra_infos" in shard:
       continue
     if benchmarks_in_shard.get('benchmarks'):
@@ -314,8 +294,6 @@ def _ValidateShardMaps(args):
 
   # Check that bot_platforms.py matches the actual shard maps
   for platform in bot_platforms.ALL_PLATFORMS:
-    if platform.pinpoint_only:
-      continue
     platform_benchmark_names = set(
         b.name for b in platform.benchmark_configs) | set(
             e.name for e in platform.executables)
@@ -346,8 +324,6 @@ def _ValidateShardMaps(args):
   # to make it clear that a benchmark is not running.
   scheduled_benchmarks = set()
   for platform in bot_platforms.ALL_PLATFORMS:
-    if platform.pinpoint_only:
-      continue
     scheduled_benchmarks = scheduled_benchmarks | _ParseBenchmarks(
         platform.shards_map_file_path)
   for benchmark in (
@@ -358,7 +334,7 @@ def _ValidateShardMaps(args):
         'UNSCHEDULED_{benchmark}'.format(benchmark=benchmark))
 
   for error in errors:
-    print('*', error, '\n', file=sys.stderr)
+    print('*', textwrap.fill(error, 70), '\n', file=sys.stderr)
   if errors:
     return 1
   return 0

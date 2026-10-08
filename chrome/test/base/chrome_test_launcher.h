@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,17 +8,8 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "content/public/test/test_launcher.h"
-
-#if BUILDFLAG(IS_ANDROID)
-#include "chrome/app/android/chrome_main_delegate_android.h"
-#else
-#include "chrome/app/chrome_main_delegate.h"
-#endif
-
-class ChromeTestSuite;
 
 // Allows a test suite to override the TestSuite class used. By default it is an
 // instance of ChromeTestSuite.
@@ -30,32 +21,6 @@ class ChromeTestSuiteRunner {
   virtual ~ChromeTestSuiteRunner() = default;
 
   virtual int RunTestSuite(int argc, char** argv);
-
- protected:
-  static int RunTestSuiteInternal(ChromeTestSuite* test_suite);
-};
-
-// Acts like normal ChromeMainDelegate but injects behaviour for browser tests.
-class ChromeTestChromeMainDelegate
-#if BUILDFLAG(IS_ANDROID)
-    : public ChromeMainDelegateAndroid {
-#else
-    : public ChromeMainDelegate {
-#endif
- public:
-#if BUILDFLAG(IS_ANDROID)
-  ChromeTestChromeMainDelegate() : ChromeMainDelegateAndroid() {}
-#else
-  explicit ChromeTestChromeMainDelegate(base::TimeTicks time)
-      : ChromeMainDelegate(time) {}
-#endif
-
-  // ChromeMainDelegateOverrides.
-  content::ContentBrowserClient* CreateContentBrowserClient() override;
-  content::ContentUtilityClient* CreateContentUtilityClient() override;
-#if BUILDFLAG(IS_WIN)
-  bool ShouldHandleConsoleControlEvents() override;
-#endif
 };
 
 // Delegate used for setting up and running chrome browser tests.
@@ -72,20 +37,20 @@ class ChromeTestLauncherDelegate : public content::TestLauncherDelegate {
   // content::TestLauncherDelegate:
   int RunTestSuite(int argc, char** argv) override;
   std::string GetUserDataDirectoryCommandLineSwitch() override;
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   content::ContentMainDelegate* CreateContentMainDelegate() override;
 #endif
   void PreSharding() override;
   void OnDoneRunningTests() override;
 
  private:
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   class ScopedFirewallRules;
 
   std::unique_ptr<ScopedFirewallRules> firewall_rules_;
 #endif
 
-  raw_ptr<ChromeTestSuiteRunner> runner_;
+  ChromeTestSuiteRunner* runner_;
 };
 
 // Launches Chrome browser tests. |parallel_jobs| is number of test jobs to be

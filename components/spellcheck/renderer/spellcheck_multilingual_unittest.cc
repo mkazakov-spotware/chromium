@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "base/path_service.h"
+#include "base/stl_util.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
@@ -52,8 +53,8 @@ class MultilingualSpellCheckTest : public testing::Test {
 
   void ReinitializeSpellCheck(const std::string& unsplit_languages) {
     spellcheck_ = new SpellCheck(&embedder_provider_);
-    provider_ = std::make_unique<TestingSpellCheckProvider>(
-        spellcheck_, &embedder_provider_);
+    provider_.reset(
+        new TestingSpellCheckProvider(spellcheck_, &embedder_provider_));
     InitializeSpellCheck(unsplit_languages);
   }
 
@@ -98,7 +99,7 @@ class MultilingualSpellCheckTest : public testing::Test {
   }
 
   void ExpectSpellCheckParagraphResults(
-      const std::u16string& input,
+      const base::string16& input,
       const std::vector<SpellCheckResult>& expected) {
     blink::WebVector<blink::WebTextCheckingResult> results;
     spellcheck_->SpellCheckParagraph(input, &results);
@@ -149,7 +150,7 @@ TEST_F(MultilingualSpellCheckTest, MultilingualSpellCheckWord) {
   do {
     std::string reordered_languages = base::JoinString(permuted_languages, ",");
     ExpectSpellCheckWordResults(reordered_languages, kTestCases,
-                                std::size(kTestCases));
+                                base::size(kTestCases));
   } while (std::next_permutation(permuted_languages.begin(),
                                  permuted_languages.end()));
 }
@@ -180,7 +181,8 @@ TEST_F(MultilingualSpellCheckTest, MultilingualSpellCheckWordEnglishSpanish) {
       {L"hola sand hola sand hola sand", 0, 0},
       {L"hola:legs", 0, 9},
       {L"legs:hola", 0, 9}};
-  ExpectSpellCheckWordResults("en-US,es-ES", kTestCases, std::size(kTestCases));
+  ExpectSpellCheckWordResults("en-US,es-ES", kTestCases,
+                              base::size(kTestCases));
 }
 
 // If there are no spellcheck languages, no text should be marked as misspelled.
@@ -189,7 +191,7 @@ TEST_F(MultilingualSpellCheckTest, MultilingualSpellCheckParagraphBlank) {
 
   ExpectSpellCheckParagraphResults(
       // English, German, Spanish, and a misspelled word.
-      u"rocket Schwarzkommando destruyan pcnyhon",
+      base::UTF8ToUTF16("rocket Schwarzkommando destruyan pcnyhon"),
       std::vector<SpellCheckResult>());
 }
 
@@ -200,7 +202,8 @@ TEST_F(MultilingualSpellCheckTest, MultilingualSpellCheckParagraphCorrect) {
 
   ExpectSpellCheckParagraphResults(
       // English, German, and Spanish words, all spelled correctly.
-      u"rocket Schwarzkommando destruyan", std::vector<SpellCheckResult>());
+      base::UTF8ToUTF16("rocket Schwarzkommando destruyan"),
+      std::vector<SpellCheckResult>());
 }
 
 // Make sure that all the misspellings in the text are found.
@@ -212,7 +215,7 @@ TEST_F(MultilingualSpellCheckTest, MultilingualSpellCheckParagraph) {
 
   ExpectSpellCheckParagraphResults(
       // English, German, Spanish, and a misspelled word.
-      u"rocket Schwarzkommando destruyan pcnyhon", expected);
+      base::UTF8ToUTF16("rocket Schwarzkommando destruyan pcnyhon"), expected);
 }
 
 // Ensure that suggestions are handled properly for multiple languages.
@@ -235,7 +238,7 @@ TEST_F(MultilingualSpellCheckTest, MultilingualSpellCheckSuggestions) {
       {L"asdne", 0, 5, L"sadness,desasne"},
   };
 
-  for (size_t i = 0; i < std::size(kTestCases); ++i) {
+  for (size_t i = 0; i < base::size(kTestCases); ++i) {
     blink::WebVector<blink::WebString> suggestions;
     size_t misspelling_start;
     size_t misspelling_length;
@@ -251,9 +254,9 @@ TEST_F(MultilingualSpellCheckTest, MultilingualSpellCheckSuggestions) {
       continue;
     }
 
-    std::vector<std::u16string> expected_suggestions = base::SplitString(
+    std::vector<base::string16> expected_suggestions = base::SplitString(
         base::WideToUTF16(kTestCases[i].expected_suggestions),
-        std::u16string(1, ','), base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
+        base::string16(1, ','), base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
 
     EXPECT_EQ(expected_suggestions.size(), suggestions.size());
     for (size_t j = 0;

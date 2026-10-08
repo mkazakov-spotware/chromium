@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,8 +28,6 @@ namespace blink {
 
 namespace web_pref {
 
-using blink::mojom::EffectiveConnectionType;
-
 // "Zyyy" is the ISO 15924 script code for undetermined script aka Common.
 const char kCommonScript[] = "Zyyy";
 
@@ -39,7 +37,7 @@ WebPreferences::WebPreferences()
       minimum_font_size(0),
       minimum_logical_font_size(6),
       default_encoding("ISO-8859-1"),
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
       context_menu_on_mouse_up(true),
 #else
       context_menu_on_mouse_up(false),
@@ -55,10 +53,13 @@ WebPreferences::WebPreferences()
       allow_scripts_to_close_windows(false),
       remote_fonts_enabled(true),
       javascript_can_access_clipboard(false),
+      xslt_enabled(true),
       dns_prefetching_enabled(true),
       data_saver_enabled(false),
+      data_saver_holdback_web_api_enabled(false),
       local_storage_enabled(false),
       databases_enabled(false),
+      application_cache_enabled(false),
       tabs_to_links(true),
       disable_ipc_flooding_protection(false),
       hyperlink_auditing_enabled(true),
@@ -67,6 +68,9 @@ WebPreferences::WebPreferences()
       webgl1_enabled(true),
       webgl2_enabled(true),
       pepper_3d_enabled(false),
+      flash_3d_enabled(true),
+      flash_stage3d_enabled(false),
+      flash_stage3d_baseline_enabled(false),
       privileged_webgl_extensions_enabled(false),
       webgl_errors_to_console_enabled(true),
       hide_scrollbars(false),
@@ -92,56 +96,54 @@ WebPreferences::WebPreferences()
       touch_event_feature_detection_enabled(false),
       pointer_events_max_touch_points(0),
       available_pointer_types(0),
-      primary_pointer_type(blink::mojom::PointerType::kPointerNone),
+      primary_pointer_type(ui::POINTER_TYPE_NONE),
       available_hover_types(0),
-      primary_hover_type(blink::mojom::HoverType::kHoverNone),
+      primary_hover_type(ui::HOVER_TYPE_NONE),
       dont_send_key_events_to_javascript(false),
       sync_xhr_in_documents_enabled(true),
       number_of_cpu_cores(1),
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
       editing_behavior(mojom::EditingBehavior::kEditingMacBehavior),
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
       editing_behavior(mojom::EditingBehavior::kEditingWindowsBehavior),
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
       editing_behavior(mojom::EditingBehavior::kEditingAndroidBehavior),
-#elif BUILDFLAG(IS_CHROMEOS)
-      editing_behavior(mojom::EditingBehavior::kEditingChromeOSBehavior),
-#elif BUILDFLAG(IS_POSIX)
+#elif BUILDFLAG(IS_ASH)
+      editing_behavior(
+          base::FeatureList::IsEnabled(blink::features::kCrOSAutoSelect)
+              ? mojom::EditingBehavior::kEditingChromeOSBehavior
+              : mojom::EditingBehavior::kEditingUnixBehavior),
+#elif defined(OS_POSIX)
       editing_behavior(mojom::EditingBehavior::kEditingUnixBehavior),
 #else
       editing_behavior(mojom::EditingBehavior::kEditingMacBehavior),
 #endif
       supports_multiple_windows(true),
       viewport_enabled(false),
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
       viewport_meta_enabled(true),
-      auto_zoom_focused_editable_to_legible_scale(true),
       shrinks_viewport_contents_to_fit(true),
       viewport_style(mojom::ViewportStyle::kMobile),
       always_show_context_menu_on_touch(false),
       smooth_scroll_for_find_enabled(true),
-      main_frame_resizes_are_orientation_changes(true),
 #else
       viewport_meta_enabled(false),
-      auto_zoom_focused_editable_to_legible_scale(false),
       shrinks_viewport_contents_to_fit(false),
       viewport_style(mojom::ViewportStyle::kDefault),
       always_show_context_menu_on_touch(true),
       smooth_scroll_for_find_enabled(false),
-      main_frame_resizes_are_orientation_changes(false),
 #endif
+      main_frame_resizes_are_orientation_changes(false),
       initialize_at_minimum_page_scale(true),
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
       smart_insert_delete_enabled(true),
 #else
       smart_insert_delete_enabled(false),
 #endif
       spatial_navigation_enabled(false),
       navigate_on_drag_drop(true),
-      fake_no_alloc_direct_call_for_testing_enabled(false),
       v8_cache_options(blink::mojom::V8CacheOptions::kDefault),
       record_whole_document(false),
-      stylus_handwriting_enabled(false),
       cookie_enabled(true),
       accelerated_video_decode_enabled(false),
       animation_policy(
@@ -150,13 +152,13 @@ WebPreferences::WebPreferences()
       text_tracks_enabled(false),
       text_track_margin_percentage(0.0f),
       immersive_mode_enabled(false),
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_MAC)
+#if defined(OS_ANDROID) || defined(OS_MAC)
       double_tap_to_zoom_enabled(true),
 #else
       double_tap_to_zoom_enabled(false),
 #endif
       fullscreen_supported(true),
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
       text_autosizing_enabled(false),
 #else
       text_autosizing_enabled(true),
@@ -181,12 +183,13 @@ WebPreferences::WebPreferences()
       embedded_media_experience_enabled(false),
       css_hex_alpha_color_enabled(true),
       scroll_top_left_interop_enabled(true),
+      disable_features_depending_on_viz(false),
       disable_accelerated_small_canvases(false),
-#endif  // BUILDFLAG(IS_ANDROID)
-#if BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
+#if defined(OS_ANDROID)
       default_minimum_page_scale_factor(0.25f),
       default_maximum_page_scale_factor(5.f),
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
       default_minimum_page_scale_factor(1.f),
       default_maximum_page_scale_factor(3.f),
 #else
@@ -199,28 +202,28 @@ WebPreferences::WebPreferences()
       do_not_update_selection_on_mutating_selection_range(false),
       autoplay_policy(
           blink::mojom::AutoplayPolicy::kDocumentUserActivationRequired),
-      low_priority_iframes_threshold(
-          EffectiveConnectionType::kEffectiveConnectionUnknownType),
+      low_priority_iframes_threshold(net::EFFECTIVE_CONNECTION_TYPE_UNKNOWN),
       picture_in_picture_enabled(true),
       translate_service_available(false),
       network_quality_estimator_web_holdback(
-          EffectiveConnectionType::kEffectiveConnectionUnknownType),
+          net::EFFECTIVE_CONNECTION_TYPE_UNKNOWN),
       allow_mixed_content_upgrades(true),
       always_show_focus(false),
       touch_drag_drop_enabled(IsTouchDragDropEnabled()) {
-  standard_font_family_map[web_pref::kCommonScript] = u"Times New Roman";
-  fixed_font_family_map[web_pref::kCommonScript] = u"Courier New";
-  serif_font_family_map[web_pref::kCommonScript] = u"Times New Roman";
-  sans_serif_font_family_map[web_pref::kCommonScript] = u"Arial";
-  cursive_font_family_map[web_pref::kCommonScript] = u"Script";
-  fantasy_font_family_map[web_pref::kCommonScript] = u"Impact";
-  // Latin Modern Math is an open source font available in LaTeX distributions,
-  // and consequently other installable system packages. It provides the default
-  // "Computer Modern" style that math people are used to and contains an
-  // OpenType MATH table for math layout. It is thus a good default choice which
-  // may be refined via resource files for the Chrome profile, in order to take
-  // into account platform-specific availability of math fonts.
-  math_font_family_map[web_pref::kCommonScript] = u"Latin Modern Math";
+  standard_font_family_map[web_pref::kCommonScript] =
+      base::ASCIIToUTF16("Times New Roman");
+  fixed_font_family_map[web_pref::kCommonScript] =
+      base::ASCIIToUTF16("Courier New");
+  serif_font_family_map[web_pref::kCommonScript] =
+      base::ASCIIToUTF16("Times New Roman");
+  sans_serif_font_family_map[web_pref::kCommonScript] =
+      base::ASCIIToUTF16("Arial");
+  cursive_font_family_map[web_pref::kCommonScript] =
+      base::ASCIIToUTF16("Script");
+  fantasy_font_family_map[web_pref::kCommonScript] =
+      base::ASCIIToUTF16("Impact");
+  pictograph_font_family_map[web_pref::kCommonScript] =
+      base::ASCIIToUTF16("Times New Roman");
 }
 
 WebPreferences::WebPreferences(const WebPreferences& other) = default;

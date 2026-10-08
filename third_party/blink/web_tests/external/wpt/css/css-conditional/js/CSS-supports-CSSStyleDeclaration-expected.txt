@@ -1,5 +1,5 @@
 This is a testharness.js-based test.
-Found 1507 tests; 1487 PASS, 20 FAIL, 0 TIMEOUT, 0 NOTRUN.
+Found 1520 tests; 1495 PASS, 25 FAIL, 0 TIMEOUT, 0 NOTRUN.
 PASS -apple-color-filter: _camel_cased_attribute v. CSS.supports
 PASS -apple-color-filter: _webkit_cased_attribute must only exist for -webkit-
 PASS -apple-color-filter: _dashed_attribute v. CSS.supports
@@ -195,6 +195,21 @@ PASS -moz-orient: _dashed_attribute v. CSS.supports
 PASS -moz-osx-font-smoothing: _camel_cased_attribute v. CSS.supports
 PASS -moz-osx-font-smoothing: _webkit_cased_attribute must only exist for -webkit-
 PASS -moz-osx-font-smoothing: _dashed_attribute v. CSS.supports
+PASS -moz-outline-radius: _camel_cased_attribute v. CSS.supports
+PASS -moz-outline-radius: _webkit_cased_attribute must only exist for -webkit-
+PASS -moz-outline-radius: _dashed_attribute v. CSS.supports
+PASS -moz-outline-radius-bottomleft: _camel_cased_attribute v. CSS.supports
+PASS -moz-outline-radius-bottomleft: _webkit_cased_attribute must only exist for -webkit-
+PASS -moz-outline-radius-bottomleft: _dashed_attribute v. CSS.supports
+PASS -moz-outline-radius-bottomright: _camel_cased_attribute v. CSS.supports
+PASS -moz-outline-radius-bottomright: _webkit_cased_attribute must only exist for -webkit-
+PASS -moz-outline-radius-bottomright: _dashed_attribute v. CSS.supports
+PASS -moz-outline-radius-topleft: _camel_cased_attribute v. CSS.supports
+PASS -moz-outline-radius-topleft: _webkit_cased_attribute must only exist for -webkit-
+PASS -moz-outline-radius-topleft: _dashed_attribute v. CSS.supports
+PASS -moz-outline-radius-topright: _camel_cased_attribute v. CSS.supports
+PASS -moz-outline-radius-topright: _webkit_cased_attribute must only exist for -webkit-
+PASS -moz-outline-radius-topright: _dashed_attribute v. CSS.supports
 PASS -moz-padding-end: _camel_cased_attribute v. CSS.supports
 PASS -moz-padding-end: _webkit_cased_attribute must only exist for -webkit-
 PASS -moz-padding-end: _dashed_attribute v. CSS.supports
@@ -1098,8 +1113,8 @@ PASS max-inline-size: _camel_cased_attribute v. CSS.supports
 PASS max-inline-size: _dashed_attribute v. CSS.supports
 PASS max-width: _camel_cased_attribute v. CSS.supports
 PASS max-width: _dashed_attribute v. CSS.supports
-PASS max-zoom: _camel_cased_attribute v. CSS.supports
-PASS max-zoom: _dashed_attribute v. CSS.supports
+FAIL max-zoom: _camel_cased_attribute v. CSS.supports assert_equals: expected true but got false
+FAIL max-zoom: _dashed_attribute v. CSS.supports assert_equals: expected true but got false
 PASS min-block-size: _camel_cased_attribute v. CSS.supports
 PASS min-block-size: _dashed_attribute v. CSS.supports
 PASS min-height: _camel_cased_attribute v. CSS.supports
@@ -1108,8 +1123,8 @@ PASS min-inline-size: _camel_cased_attribute v. CSS.supports
 PASS min-inline-size: _dashed_attribute v. CSS.supports
 PASS min-width: _camel_cased_attribute v. CSS.supports
 PASS min-width: _dashed_attribute v. CSS.supports
-PASS min-zoom: _camel_cased_attribute v. CSS.supports
-PASS min-zoom: _dashed_attribute v. CSS.supports
+FAIL min-zoom: _camel_cased_attribute v. CSS.supports assert_equals: expected true but got false
+FAIL min-zoom: _dashed_attribute v. CSS.supports assert_equals: expected true but got false
 PASS mix-blend-mode: _camel_cased_attribute v. CSS.supports
 PASS mix-blend-mode: _dashed_attribute v. CSS.supports
 PASS motion: _camel_cased_attribute v. CSS.supports
@@ -1144,7 +1159,7 @@ PASS offset-rotation: _camel_cased_attribute v. CSS.supports
 PASS offset-rotation: _dashed_attribute v. CSS.supports
 PASS opacity: _camel_cased_attribute v. CSS.supports
 PASS order: _camel_cased_attribute v. CSS.supports
-PASS orientation: _camel_cased_attribute v. CSS.supports
+FAIL orientation: _camel_cased_attribute v. CSS.supports assert_equals: expected true but got false
 PASS orphans: _camel_cased_attribute v. CSS.supports
 PASS outline: _camel_cased_attribute v. CSS.supports
 PASS outline-color: _camel_cased_attribute v. CSS.supports
@@ -1332,8 +1347,6 @@ PASS shape-rendering: _camel_cased_attribute v. CSS.supports
 PASS shape-rendering: _dashed_attribute v. CSS.supports
 PASS size: _camel_cased_attribute v. CSS.supports
 PASS speak: _camel_cased_attribute v. CSS.supports
-FAIL speak-as: _camel_cased_attribute v. CSS.supports assert_equals: expected true but got false
-FAIL speak-as: _dashed_attribute v. CSS.supports assert_equals: expected true but got false
 FAIL src: _camel_cased_attribute v. CSS.supports assert_equals: expected true but got false
 PASS stop-color: _camel_cased_attribute v. CSS.supports
 PASS stop-color: _dashed_attribute v. CSS.supports
@@ -1479,8 +1492,8 @@ FAIL unicode-range: _camel_cased_attribute v. CSS.supports assert_equals: expect
 FAIL unicode-range: _dashed_attribute v. CSS.supports assert_equals: expected true but got false
 PASS user-select: _camel_cased_attribute v. CSS.supports
 PASS user-select: _dashed_attribute v. CSS.supports
-PASS user-zoom: _camel_cased_attribute v. CSS.supports
-PASS user-zoom: _dashed_attribute v. CSS.supports
+FAIL user-zoom: _camel_cased_attribute v. CSS.supports assert_equals: expected true but got false
+FAIL user-zoom: _dashed_attribute v. CSS.supports assert_equals: expected true but got false
 PASS vector-effect: _camel_cased_attribute v. CSS.supports
 PASS vector-effect: _dashed_attribute v. CSS.supports
 PASS vertical-align: _camel_cased_attribute v. CSS.supports

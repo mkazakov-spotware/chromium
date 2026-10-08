@@ -1,9 +1,8 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 """Basic .ini encoding and decoding."""
-
 
 import contextlib
 import os
@@ -28,7 +27,7 @@ def load(fp):
 
 def dumps(obj):
   ret = ''
-  for k, v in sorted(obj.items()):
+  for k, v in sorted(obj.iteritems()):
     ret += '%s = %s\n' % (k, str(v))
   return ret
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,15 @@
 
 #include <string>
 
-#include "base/values.h"
+#include "base/macros.h"
 #include "extensions/renderer/bindings/argument_spec.h"
 #include "gin/wrappable.h"
-#include "v8/include/v8-forward.h"
+#include "v8/include/v8.h"
+
+namespace base {
+class DictionaryValue;
+class ListValue;
+}
 
 namespace gin {
 class Arguments;
@@ -25,16 +30,13 @@ class BindingAccessChecker;
 // to APIs.
 class ContentSetting final : public gin::Wrappable<ContentSetting> {
  public:
-  ContentSetting(const ContentSetting&) = delete;
-  ContentSetting& operator=(const ContentSetting&) = delete;
-
   ~ContentSetting() override;
 
   // Creates a ContentSetting object for the given property.
   static v8::Local<v8::Object> Create(
       v8::Isolate* isolate,
       const std::string& property_name,
-      const base::Value::List* property_values,
+      const base::ListValue* property_values,
       APIRequestHandler* request_handler,
       APIEventHandler* event_handler,
       APITypeReferenceMap* type_refs,
@@ -76,6 +78,8 @@ class ContentSetting final : public gin::Wrappable<ContentSetting> {
   // (since different settings can take a different type of argument depending
   // on the preference it manages).
   ArgumentSpec argument_spec_;
+
+  DISALLOW_COPY_AND_ASSIGN(ContentSetting);
 };
 
 }  // namespace extensions

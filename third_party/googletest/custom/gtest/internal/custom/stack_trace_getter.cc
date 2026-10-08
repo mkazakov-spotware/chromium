@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,17 @@
 #include <algorithm>
 #include <iterator>
 
+#include "base/check.h"
+
 std::string StackTraceGetter::CurrentStackTrace(int max_depth, int skip_count) {
+  DCHECK(stack_trace_upon_leaving_gtest_)
+      << "Missing call to UponLeavingGTest. Are you using GoogleTest's "
+         "RUN_ALL_TESTS()?";
   base::debug::StackTrace stack_trace;
 
   size_t departure_frame_count = 0;
   const void* const* departure_addresses =
-      stack_trace_upon_leaving_gtest_.has_value()
-          ? stack_trace_upon_leaving_gtest_->Addresses(&departure_frame_count)
-          : nullptr;
+      stack_trace_upon_leaving_gtest_->Addresses(&departure_frame_count);
 
   size_t current_frame_count = 0;
   const void* const* current_addresses =

@@ -1,4 +1,5 @@
 AutomationFocusChanged on role=combobox
+AutomationFocusChanged on role=combobox
 === Start Continuation ===
 AriaProperties changed on role=combobox
 SelectionItemIsSelected changed on role=combobox

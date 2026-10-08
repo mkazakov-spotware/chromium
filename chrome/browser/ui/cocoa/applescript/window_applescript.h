@@ -1,11 +1,9 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_COCOA_APPLESCRIPT_WINDOW_APPLESCRIPT_H_
 #define CHROME_BROWSER_UI_COCOA_APPLESCRIPT_WINDOW_APPLESCRIPT_H_
-
-#include "base/memory/raw_ptr.h"
 
 #import <Cocoa/Cocoa.h>
 
@@ -18,25 +16,21 @@ class Profile;
 // Represents a window class.
 @interface WindowAppleScript : ElementAppleScript {
  @private
-  raw_ptr<Browser> _browser;  // weak.
+  Browser* _browser;  // weak.
 }
 
 // Creates a new window, returns nil if there is an error.
-- (instancetype)init;
+- (id)init;
 
 // Creates a new window with a particular profile.
-- (instancetype)initWithProfile:(Profile*)aProfile;
+- (id)initWithProfile:(Profile*)aProfile;
 
 // Does not create a new window but uses an existing one.
-- (instancetype)initWithBrowser:(Browser*)aBrowser;
+- (id)initWithBrowser:(Browser*)aBrowser;
 
 // Sets and gets the index of the currently selected tab.
 - (NSNumber*)activeTabIndex;
 - (void)setActiveTabIndex:(NSNumber*)anActiveTabIndex;
-
-// Sets and get the given name of a window.
-- (NSString*)givenName;
-- (void)setGivenName:(NSString*)name;
 
 // Mode refers to whether a window is a normal window or an incognito window
 // it can be set only once while creating the window.
@@ -65,8 +59,7 @@ class Profile;
 // before calling directly.
 - (void)removeFromTabsAtIndex:(int)index;
 
-// The index of the window, windows are ordered front to back.
-- (NSNumber*)orderedIndex;
+// Set the index of a window.
 - (void)setOrderedIndex:(NSNumber*)anIndex;
 
 // Used to sort windows by index.
@@ -79,6 +72,9 @@ class Profile;
 
 // Used to close window.
 - (void)handlesCloseScriptCommand:(NSCloseCommand*)command;
+
+// The index of the window, windows are ordered front to back.
+- (NSNumber*)orderedIndex;
 
 @end
 

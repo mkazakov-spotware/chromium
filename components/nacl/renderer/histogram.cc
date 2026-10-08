@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <algorithm>
 
 #include "base/metrics/histogram.h"
-#include "build/build_config.h"
 
 namespace nacl {
 
@@ -69,11 +68,11 @@ void HistogramEnumerateOsArch(const std::string& sandbox_isa) {
   };
 
   NaClOSArch os_arch = kNaClOSArchMax;
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   os_arch = kNaClLinux32;
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
   os_arch = kNaClMac32;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   os_arch = kNaClWin32;
 #endif
 
@@ -92,10 +91,13 @@ void HistogramTimeSmall(const std::string& name, int64_t sample) {
   if (sample < 0)
     sample = 0;
   base::HistogramBase* counter = base::Histogram::FactoryTimeGet(
-      name, base::Milliseconds(1), base::Milliseconds(20000), 100,
+      name,
+      base::TimeDelta::FromMilliseconds(1),
+      base::TimeDelta::FromMilliseconds(20000),
+      100,
       base::HistogramBase::kUmaTargetedHistogramFlag);
   if (counter)
-    counter->AddTime(base::Milliseconds(sample));
+    counter->AddTime(base::TimeDelta::FromMilliseconds(sample));
 }
 
 // Records values up to 3 minutes, 20 seconds.
@@ -103,10 +105,13 @@ void HistogramTimeMedium(const std::string& name, int64_t sample) {
   if (sample < 0)
     sample = 0;
   base::HistogramBase* counter = base::Histogram::FactoryTimeGet(
-      name, base::Milliseconds(10), base::Milliseconds(200000), 100,
+      name,
+      base::TimeDelta::FromMilliseconds(10),
+      base::TimeDelta::FromMilliseconds(200000),
+      100,
       base::HistogramBase::kUmaTargetedHistogramFlag);
   if (counter)
-    counter->AddTime(base::Milliseconds(sample));
+    counter->AddTime(base::TimeDelta::FromMilliseconds(sample));
 }
 
 // Records values up to 33 minutes.
@@ -114,10 +119,13 @@ void HistogramTimeLarge(const std::string& name, int64_t sample) {
   if (sample < 0)
     sample = 0;
   base::HistogramBase* counter = base::Histogram::FactoryTimeGet(
-      name, base::Milliseconds(100), base::Milliseconds(2000000), 100,
+      name,
+      base::TimeDelta::FromMilliseconds(100),
+      base::TimeDelta::FromMilliseconds(2000000),
+      100,
       base::HistogramBase::kUmaTargetedHistogramFlag);
   if (counter)
-    counter->AddTime(base::Milliseconds(sample));
+    counter->AddTime(base::TimeDelta::FromMilliseconds(sample));
 }
 
 // Records values up to 12 minutes.
@@ -125,10 +133,13 @@ void HistogramTimeTranslation(const std::string& name, int64_t sample_ms) {
   if (sample_ms < 0)
     sample_ms = 0;
   base::HistogramBase* counter = base::Histogram::FactoryTimeGet(
-      name, base::Milliseconds(10), base::Milliseconds(720000), 100,
+      name,
+      base::TimeDelta::FromMilliseconds(10),
+      base::TimeDelta::FromMilliseconds(720000),
+      100,
       base::HistogramBase::kUmaTargetedHistogramFlag);
   if (counter)
-    counter->AddTime(base::Milliseconds(sample_ms));
+    counter->AddTime(base::TimeDelta::FromMilliseconds(sample_ms));
 }
 
 void HistogramStartupTimeSmall(const std::string& name,

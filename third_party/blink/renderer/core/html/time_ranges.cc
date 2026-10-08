@@ -25,10 +25,9 @@
 
 #include "third_party/blink/renderer/core/html/time_ranges.h"
 
-#include "base/numerics/safe_conversions.h"
 #include "third_party/blink/renderer/platform/bindings/exception_messages.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -37,7 +36,7 @@ TimeRanges::TimeRanges(double start, double end) {
 }
 
 TimeRanges::TimeRanges(const blink::WebTimeRanges& web_ranges) {
-  wtf_size_t size = base::checked_cast<wtf_size_t>(web_ranges.size());
+  wtf_size_t size = SafeCast<wtf_size_t>(web_ranges.size());
   for (wtf_size_t i = 0; i < size; ++i)
     Add(web_ranges[i].start, web_ranges[i].end);
 }
@@ -68,7 +67,7 @@ double TimeRanges::start(unsigned index,
         ExceptionMessages::IndexExceedsMaximumBound("index", index, length()));
     return 0;
   }
-  return ranges_[index].start;
+  return ranges_.Data()[index].start;
 }
 
 double TimeRanges::end(unsigned index, ExceptionState& exception_state) const {
@@ -78,7 +77,7 @@ double TimeRanges::end(unsigned index, ExceptionState& exception_state) const {
         ExceptionMessages::IndexExceedsMaximumBound("index", index, length()));
     return 0;
   }
-  return ranges_[index].end;
+  return ranges_.Data()[index].end;
 }
 
 void TimeRanges::Add(double start, double end) {

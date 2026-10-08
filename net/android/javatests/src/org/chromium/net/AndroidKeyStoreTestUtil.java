@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,7 @@ public class AndroidKeyStoreTestUtil {
     /**
      * Called from native code to create a PrivateKey object from its
      * encoded PKCS#8 representation.
-     * @param type The key type, according to PrivateKeyType.
+     * @param type The key type, accoding to PrivateKeyType.
      * @return new PrivateKey handle, or null in case of error.
      */
     @CalledByNative

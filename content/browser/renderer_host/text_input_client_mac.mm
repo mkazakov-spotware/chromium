@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,12 +23,18 @@ namespace {
 
 RenderFrameHostImpl* GetFocusedRenderFrameHostImpl(RenderWidgetHost* widget) {
   RenderWidgetHostImpl* rwhi = RenderWidgetHostImpl::From(widget);
-  FrameTree* tree = rwhi->frame_tree();
+  FrameTree* tree = rwhi->delegate()->GetFrameTree();
   FrameTreeNode* focused_node = tree->GetFocusedFrame();
   return focused_node ? focused_node->current_frame_host() : nullptr;
 }
 
 }  // namespace
+
+// The amount of time in milliseconds that the browser process will wait for a
+// response from the renderer.
+// TODO(rsesek): Using the histogram data, find the best upper-bound for this
+// value.
+const float kWaitTimeout = 1500;
 
 TextInputClientMac::TextInputClientMac()
     : character_index_(UINT32_MAX), lock_(), condition_(&lock_) {}
@@ -82,7 +88,7 @@ uint32_t TextInputClientMac::GetCharacterIndexAtPoint(RenderWidgetHost* rwh,
 
   // http://crbug.com/121917
   base::ScopedAllowBaseSyncPrimitivesOutsideBlockingScope allow_wait;
-  condition_.TimedWait(wait_timeout_);
+  condition_.TimedWait(base::TimeDelta::FromMilliseconds(kWaitTimeout));
   AfterRequest();
 
   base::TimeDelta delta(base::TimeTicks::Now() - start);
@@ -106,18 +112,14 @@ gfx::Rect TextInputClientMac::GetFirstRectForRange(RenderWidgetHost* rwh,
 
   // http://crbug.com/121917
   base::ScopedAllowBaseSyncPrimitivesOutsideBlockingScope allow_wait;
-  condition_.TimedWait(wait_timeout_);
+  condition_.TimedWait(base::TimeDelta::FromMilliseconds(kWaitTimeout));
   AfterRequest();
 
   base::TimeDelta delta(base::TimeTicks::Now() - start);
   UMA_HISTOGRAM_LONG_TIMES("TextInputClient.FirstRect",
                            delta * base::Time::kMicrosecondsPerMillisecond);
 
-  // `first_rect_` is in (child) frame coordinate and needs to be transformed to
-  // the root frame coordinate.
-  return gfx::Rect(
-      rwh->GetView()->TransformPointToRootCoordSpace(first_rect_.origin()),
-      first_rect_.size());
+  return first_rect_;
 }
 
 void TextInputClientMac::SetCharacterIndexAndSignal(uint32_t index) {

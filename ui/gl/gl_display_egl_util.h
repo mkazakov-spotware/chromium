@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@
 
 #include <vector>
 
-#include "base/scoped_environment_variable_override.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/khronos/EGL/egl.h"
 #include "ui/gl/gl_export.h"
 #include "ui/gl/gl_surface_egl.h"
@@ -39,11 +37,6 @@ class GL_EXPORT GLDisplayEglUtil {
   // values are not modified.
   virtual void ChoosePlatformCustomAlphaAndBufferSize(EGLint* alpha_size,
                                                       EGLint* buffer_size) = 0;
-
-  // X11 specific; returns scoped unset display env variable if vulkan surface
-  // is not supported.
-  virtual absl::optional<base::ScopedEnvironmentVariableOverride>
-  MaybeGetScopedDisplayUnsetForVulkan() = 0;
 
  protected:
   virtual ~GLDisplayEglUtil() = default;

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,12 @@
 
 #include <map>
 #include <memory>
+#include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "media/base/media_export.h"
 #include "media/base/media_track.h"
-#include "media/base/stream_parser.h"
 
 namespace media {
 
@@ -22,14 +23,7 @@ class MEDIA_EXPORT MediaTracks {
  public:
   using MediaTracksCollection = std::vector<std::unique_ptr<MediaTrack>>;
 
-  template <typename T>
-  using ConfigMap = std::map<StreamParser::TrackId, T>;
-
   MediaTracks();
-
-  MediaTracks(const MediaTracks&) = delete;
-  MediaTracks& operator=(const MediaTracks&) = delete;
-
   ~MediaTracks();
 
   // Adds a new audio track. The |bytestreamTrackId| must uniquely identify the
@@ -49,13 +43,6 @@ class MEDIA_EXPORT MediaTracks {
 
   const MediaTracksCollection& tracks() const { return tracks_; }
 
-  const ConfigMap<AudioDecoderConfig>& GetAudioConfigs() const {
-    return audio_configs_;
-  }
-  const ConfigMap<VideoDecoderConfig>& GetVideoConfigs() const {
-    return video_configs_;
-  }
-
   const AudioDecoderConfig& getAudioConfig(
       StreamParser::TrackId bytestream_track_id) const;
   const VideoDecoderConfig& getVideoConfig(
@@ -63,8 +50,10 @@ class MEDIA_EXPORT MediaTracks {
 
  private:
   MediaTracksCollection tracks_;
-  ConfigMap<AudioDecoderConfig> audio_configs_;
-  ConfigMap<VideoDecoderConfig> video_configs_;
+  std::map<StreamParser::TrackId, AudioDecoderConfig> audio_configs_;
+  std::map<StreamParser::TrackId, VideoDecoderConfig> video_configs_;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaTracks);
 };
 
 }  // namespace media

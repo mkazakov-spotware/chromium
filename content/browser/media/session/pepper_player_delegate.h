@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "content/browser/media/session/media_session_player_observer.h"
 
 namespace content {
@@ -20,13 +20,7 @@ class PepperPlayerDelegate : public MediaSessionPlayerObserver {
   // it can be used elsewhere.
   static const int kPlayerId;
 
-  PepperPlayerDelegate(RenderFrameHost* render_frame_host,
-                       int32_t pp_instance,
-                       media::MediaContentType media_content_type);
-
-  PepperPlayerDelegate(const PepperPlayerDelegate&) = delete;
-  PepperPlayerDelegate& operator=(const PepperPlayerDelegate&) = delete;
-
+  PepperPlayerDelegate(RenderFrameHost* render_frame_host, int32_t pp_instance);
   ~PepperPlayerDelegate() override;
 
   // MediaSessionPlayerObserver implementation.
@@ -34,30 +28,26 @@ class PepperPlayerDelegate : public MediaSessionPlayerObserver {
   void OnResume(int player_id) override;
   void OnSeekForward(int player_id, base::TimeDelta seek_time) override;
   void OnSeekBackward(int player_id, base::TimeDelta seek_time) override;
-  void OnSeekTo(int player_id, base::TimeDelta seek_time) override;
   void OnSetVolumeMultiplier(int player_id, double volume_multiplier) override;
   void OnEnterPictureInPicture(int player_id) override;
   void OnExitPictureInPicture(int player_id) override;
   void OnSetAudioSinkId(int player_id,
                         const std::string& raw_device_id) override;
-  void OnSetMute(int player_id, bool mute) override;
-  void OnRequestMediaRemoting(int player_id) override {}
-  absl::optional<media_session::MediaPosition> GetPosition(
+  base::Optional<media_session::MediaPosition> GetPosition(
       int player_id) const override;
   bool IsPictureInPictureAvailable(int player_id) const override;
   RenderFrameHost* render_frame_host() const override;
-  bool HasAudio(int player_id) const override;
   bool HasVideo(int player_id) const override;
   std::string GetAudioOutputSinkId(int player_id) const override;
   bool SupportsAudioOutputDeviceSwitching(int player_id) const override;
-  media::MediaContentType GetMediaContentType() const override;
 
  private:
   void SetVolume(int player_id, double volume);
 
-  raw_ptr<RenderFrameHost> render_frame_host_;
+  RenderFrameHost* render_frame_host_;
   int32_t pp_instance_;
-  const media::MediaContentType media_content_type_;
+
+  DISALLOW_COPY_AND_ASSIGN(PepperPlayerDelegate);
 };
 
 }  // namespace content

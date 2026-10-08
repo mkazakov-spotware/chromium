@@ -1,22 +1,16 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-from __future__ import print_function
-
-import os
 import sys
-from typing import Any, List
-import unittest
+import os
 
-from gpu_tests import common_typing as ct
 from gpu_tests import gpu_integration_test
 
 test_harness_script = r"""
   function VerifyHardwareAccelerated(feature) {
     feature += ': '
-    var list = document.querySelector('info-view').shadowRoot.querySelector(
-        '.feature-status-list');
+    var list = document.querySelector('.feature-status-list');
     for (var i=0; i < list.childElementCount; i++) {
       var span_list = list.children[i].getElementsByTagName('span');
       var feature_str = span_list[0].textContent;
@@ -31,7 +25,7 @@ test_harness_script = r"""
 """
 
 
-def safe_feature_name(feature: str) -> str:
+def safe_feature_name(feature):
   return feature.lower().replace(' ', '_')
 
 
@@ -40,18 +34,18 @@ class HardwareAcceleratedFeatureIntegrationTest(
   """Tests GPU acceleration is reported as active for various features."""
 
   @classmethod
-  def Name(cls) -> str:
+  def Name(cls):
     """The name by which this test is invoked on the command line."""
     return 'hardware_accelerated_feature'
 
   @classmethod
-  def SetUpProcess(cls) -> None:
+  def SetUpProcess(cls):
     super(cls, HardwareAcceleratedFeatureIntegrationTest).SetUpProcess()
     cls.CustomizeBrowserArgs([])
     cls.StartBrowser()
     cls.SetStaticServerDirs([])
 
-  def _Navigate(self, url: str) -> None:
+  def _Navigate(self, url):
     # It's crucial to use the action_runner, rather than the tab's
     # Navigate method directly. It waits for the document ready state
     # to become interactive or better, avoiding critical race
@@ -60,25 +54,24 @@ class HardwareAcceleratedFeatureIntegrationTest(
         url, script_to_evaluate_on_commit=test_harness_script)
 
   @classmethod
-  def GenerateGpuTests(cls, options: ct.ParsedCmdArgs) -> ct.TestGenerator:
+  def GenerateGpuTests(cls, options):
     tests = ('WebGL', 'Canvas')
     for feature in tests:
       yield ('HardwareAcceleratedFeature_%s_accelerated' %
-             safe_feature_name(feature), 'chrome://gpu', [feature])
+             safe_feature_name(feature), 'chrome://gpu', (feature))
 
-  def RunActualGpuTest(self, test_path: str, args: ct.TestArgs) -> None:
+  def RunActualGpuTest(self, test_path, *args):
     feature = args[0]
     self._Navigate(test_path)
     tab = self.tab
-    tab.WaitForJavaScriptCondition('window.gpuPagePopulated', timeout=30)
     if not tab.EvaluateJavaScript(
         'VerifyHardwareAccelerated({{ feature }})', feature=feature):
-      print('Test failed. Printing page contents:')
-      print(tab.EvaluateJavaScript('document.body.innerHTML'))
+      print 'Test failed. Printing page contents:'
+      print tab.EvaluateJavaScript('document.body.innerHTML')
       self.fail('%s not hardware accelerated' % feature)
 
   @classmethod
-  def ExpectationsFiles(cls) -> List[str]:
+  def ExpectationsFiles(cls):
     return [
         os.path.join(
             os.path.dirname(os.path.abspath(__file__)), 'test_expectations',
@@ -86,7 +79,6 @@ class HardwareAcceleratedFeatureIntegrationTest(
     ]
 
 
-def load_tests(loader: unittest.TestLoader, tests: Any,
-               pattern: Any) -> unittest.TestSuite:
+def load_tests(loader, tests, pattern):
   del loader, tests, pattern  # Unused.
   return gpu_integration_test.LoadAllTestsInModule(sys.modules[__name__])

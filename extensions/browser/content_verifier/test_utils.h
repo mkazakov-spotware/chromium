@@ -1,20 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_BROWSER_CONTENT_VERIFIER_TEST_UTILS_H_
 #define EXTENSIONS_BROWSER_CONTENT_VERIFIER_TEST_UTILS_H_
 
-#include <list>
-#include <memory>
-#include <set>
-#include <string>
-#include <utility>
-#include <vector>
-
 #include "base/files/file_path.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/test/test_utils.h"
 #include "crypto/rsa_private_key.h"
@@ -25,7 +19,6 @@
 #include "extensions/browser/content_verify_job.h"
 #include "extensions/common/extension_id.h"
 #include "extensions/test/test_extension_dir.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace extensions {
 
@@ -46,7 +39,7 @@ class TestContentVerifySingleJobObserver {
       const TestContentVerifySingleJobObserver&) = delete;
 
   // Waits for a ContentVerifyJob to finish and returns job's status.
-  [[nodiscard]] ContentVerifyJob::FailureReason WaitForJobFinished();
+  ContentVerifyJob::FailureReason WaitForJobFinished() WARN_UNUSED_RESULT;
 
   // Waits for ContentVerifyJob to finish the attempt to read content hashes.
   ContentHashReader::InitStatus WaitForOnHashesReady();
@@ -71,7 +64,7 @@ class TestContentVerifySingleJobObserver {
                        const ContentHashReader& hash_reader) override;
 
     // Passed methods from ContentVerifySingleJobObserver:
-    [[nodiscard]] ContentVerifyJob::FailureReason WaitForJobFinished();
+    ContentVerifyJob::FailureReason WaitForJobFinished() WARN_UNUSED_RESULT;
     ContentHashReader::InitStatus WaitForOnHashesReady();
 
    private:
@@ -89,7 +82,7 @@ class TestContentVerifySingleJobObserver {
 
     ExtensionId extension_id_;
     base::FilePath relative_path_;
-    absl::optional<ContentVerifyJob::FailureReason> failure_reason_;
+    base::Optional<ContentVerifyJob::FailureReason> failure_reason_;
     bool seen_on_hashes_ready_ = false;
     ContentHashReader::InitStatus hashes_status_;
   };
@@ -171,11 +164,6 @@ class TestContentVerifyJobObserver {
 class MockContentVerifierDelegate : public ContentVerifierDelegate {
  public:
   MockContentVerifierDelegate();
-
-  MockContentVerifierDelegate(const MockContentVerifierDelegate&) = delete;
-  MockContentVerifierDelegate& operator=(const MockContentVerifierDelegate&) =
-      delete;
-
   ~MockContentVerifierDelegate() override;
 
   // ContentVerifierDelegate:
@@ -191,21 +179,17 @@ class MockContentVerifierDelegate : public ContentVerifierDelegate {
 
   // Modifier.
   void SetVerifierSourceType(VerifierSourceType type);
-  void SetVerifierKey(std::vector<uint8_t> key);
 
  private:
   VerifierSourceType verifier_source_type_ = VerifierSourceType::SIGNED_HASHES;
-  std::vector<uint8_t> verifier_key_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockContentVerifierDelegate);
 };
 
 // Observes ContentVerifier::OnFetchComplete of a particular extension.
 class VerifierObserver : public ContentVerifier::TestObserver {
  public:
   VerifierObserver();
-
-  VerifierObserver(const VerifierObserver&) = delete;
-  VerifierObserver& operator=(const VerifierObserver&) = delete;
-
   virtual ~VerifierObserver();
 
   const std::set<base::FilePath>& hash_mismatch_unix_paths() {
@@ -231,6 +215,8 @@ class VerifierObserver : public ContentVerifier::TestObserver {
   // Created and accessed on |creation_thread_|.
   scoped_refptr<content::MessageLoopRunner> loop_runner_;
   content::BrowserThread::ID creation_thread_;
+
+  DISALLOW_COPY_AND_ASSIGN(VerifierObserver);
 };
 
 // Used to hold the result of a callback from the ContentHash creation.
@@ -252,10 +238,6 @@ struct ContentHashResult {
 class ContentHashWaiter {
  public:
   ContentHashWaiter();
-
-  ContentHashWaiter(const ContentHashWaiter&) = delete;
-  ContentHashWaiter& operator=(const ContentHashWaiter&) = delete;
-
   ~ContentHashWaiter();
 
   std::unique_ptr<ContentHashResult> CreateAndWaitForCallback(
@@ -273,6 +255,8 @@ class ContentHashWaiter {
   scoped_refptr<base::SequencedTaskRunner> reply_task_runner_;
   base::RunLoop run_loop_;
   std::unique_ptr<ContentHashResult> result_;
+
+  DISALLOW_COPY_AND_ASSIGN(ContentHashWaiter);
 };
 
 namespace content_verifier_test_utils {
@@ -287,19 +271,12 @@ class TestExtensionBuilder {
   TestExtensionBuilder(const TestExtensionBuilder&) = delete;
   TestExtensionBuilder& operator=(const TestExtensionBuilder&) = delete;
 
-  // Accept parameters by values since we'll store them.
-  void AddResource(base::FilePath::StringType relative_path,
-                   std::string contents);
-
   void WriteManifest();
 
-  // Accept parameters by values since we'll store them.
   void WriteResource(base::FilePath::StringType relative_path,
                      std::string contents);
 
   void WriteComputedHashes();
-
-  std::string CreateVerifiedContents() const;
 
   void WriteVerifiedContents();
 
@@ -320,7 +297,7 @@ class TestExtensionBuilder {
     std::string contents;
   };
 
-  std::unique_ptr<base::Value> CreateVerifiedContentsPayload() const;
+  std::unique_ptr<base::Value> CreateVerifiedContents();
 
   std::unique_ptr<crypto::RSAPrivateKey> test_content_verifier_key_;
   ExtensionId extension_id_;

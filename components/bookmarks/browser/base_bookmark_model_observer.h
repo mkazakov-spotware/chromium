@@ -1,10 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_BOOKMARKS_BROWSER_BASE_BOOKMARK_MODEL_OBSERVER_H_
 #define COMPONENTS_BOOKMARKS_BROWSER_BASE_BOOKMARK_MODEL_OBSERVER_H_
 
+#include "base/macros.h"
 #include "components/bookmarks/browser/bookmark_model_observer.h"
 
 namespace bookmarks {
@@ -14,10 +15,6 @@ namespace bookmarks {
 class BaseBookmarkModelObserver : public BookmarkModelObserver {
  public:
   BaseBookmarkModelObserver() {}
-
-  BaseBookmarkModelObserver(const BaseBookmarkModelObserver&) = delete;
-  BaseBookmarkModelObserver& operator=(const BaseBookmarkModelObserver&) =
-      delete;
 
   virtual void BookmarkModelChanged() = 0;
 
@@ -31,8 +28,7 @@ class BaseBookmarkModelObserver : public BookmarkModelObserver {
                          size_t new_index) override;
   void BookmarkNodeAdded(BookmarkModel* model,
                          const BookmarkNode* parent,
-                         size_t index,
-                         bool added_by_user) override;
+                         size_t index) override;
   void BookmarkNodeRemoved(BookmarkModel* model,
                            const BookmarkNode* parent,
                            size_t old_index,
@@ -49,6 +45,9 @@ class BaseBookmarkModelObserver : public BookmarkModelObserver {
 
  protected:
   ~BaseBookmarkModelObserver() override {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BaseBookmarkModelObserver);
 };
 
 }  // namespace bookmarks

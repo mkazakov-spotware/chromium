@@ -1,10 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.share.qrcode.share_tab;
 
 import android.Manifest.permission;
+import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -17,25 +18,26 @@ import android.text.TextUtils;
 import android.text.TextUtils.TruncateAt;
 import android.view.View;
 
-import org.chromium.base.BuildInfo;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.download.FileAccessPermissionHelper;
+import org.chromium.chrome.browser.download.DownloadController;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.share.BitmapDownloadRequest;
 import org.chromium.chrome.browser.share.qrcode.QRCodeGenerationRequest;
-import org.chromium.ui.base.WindowAndroid;
+import org.chromium.ui.base.ActivityAndroidPermissionDelegate;
+import org.chromium.ui.base.AndroidPermissionDelegate;
 import org.chromium.ui.modelutil.PropertyModel;
+
+import java.lang.ref.WeakReference;
 
 /**
  * QrCodeShareMediator is in charge of calculating and setting values for QrCodeShareViewProperties.
  */
 class QrCodeShareMediator {
-    private static final int MAX_URL_LENGTH = 122;
-
     private final Context mContext;
     private final PropertyModel mPropertyModel;
-    private WindowAndroid mWindowAndroid;
+    private final AndroidPermissionDelegate mPermissionDelegate;
 
     // The number of times the user has attempted to download the QR code in this dialog.
     private int mNumDownloads;
@@ -50,17 +52,17 @@ class QrCodeShareMediator {
      * @param propertyModel The property model to use to communicate with views.
      * @param closeDialog The {@link Runnable} to close the dialog.
      * @param url The url to create the QRCode.
-     * @param permissionDelegate The delegate to help with downloading QRCode.
      */
-    QrCodeShareMediator(Context context, PropertyModel propertyModel, Runnable closeDialog,
-            String url, WindowAndroid windowAndroid) {
+    QrCodeShareMediator(
+            Context context, PropertyModel propertyModel, Runnable closeDialog, String url) {
         mContext = context;
         mPropertyModel = propertyModel;
         mCloseDialog = closeDialog;
         mUrl = url;
         ChromeBrowserInitializer.getInstance().runNowOrAfterFullBrowserStarted(
                 () -> refreshQrCode(mUrl));
-        mWindowAndroid = windowAndroid;
+        mPermissionDelegate = new ActivityAndroidPermissionDelegate(
+                new WeakReference<Activity>((Activity) mContext));
         updatePermissionSettings();
     }
 
@@ -83,10 +85,13 @@ class QrCodeShareMediator {
                             mPropertyModel.set(QrCodeShareViewProperties.QRCODE_BITMAP, bitmap);
                             return;
                         }
+                        int maxUrlLength = ChromeFeatureList.getFieldTrialParamByFeatureAsInt(
+                                ChromeFeatureList.CHROME_SHARE_QRCODE, "max_url_length",
+                                /*defaultValue=*/122);
                         String errorMessage;
-                        if (data != null && data.length() > MAX_URL_LENGTH) {
+                        if (data != null && data.length() > maxUrlLength) {
                             errorMessage = mContext.getResources().getString(
-                                    R.string.qr_code_error_too_long, MAX_URL_LENGTH);
+                                    R.string.qr_code_error_too_long, maxUrlLength);
                         } else {
                             errorMessage = mContext.getResources().getString(
                                     R.string.qr_code_error_unknown);
@@ -101,9 +106,8 @@ class QrCodeShareMediator {
     protected void downloadQrCode(View view) {
         logDownload();
         Bitmap qrcodeBitmap = mPropertyModel.get(QrCodeShareViewProperties.QRCODE_BITMAP);
-        if (qrcodeBitmap != null && !mIsDownloadInProgress && mWindowAndroid != null) {
-            FileAccessPermissionHelper.requestFileAccessPermission(
-                    mWindowAndroid, this::finishDownloadWithPermission);
+        if (qrcodeBitmap != null && !mIsDownloadInProgress) {
+            DownloadController.requestFileAccessPermission(this::finishDownloadWithPermission);
             return;
         }
     }
@@ -120,15 +124,8 @@ class QrCodeShareMediator {
         }
     }
 
-    /** Returns whether we need to explicitly request a storage permission. */
-    private Boolean requiresAdditionalStoragePermission() {
-        return !BuildInfo.isAtLeastT();
-    }
-
     /** Returns whether the user has granted storage permissions. */
     private Boolean hasStoragePermission() {
-        // Not needed for newer SDKs; treat as granted implicitly.
-        if (!requiresAdditionalStoragePermission()) return true;
         return mContext.checkPermission(
                        permission.WRITE_EXTERNAL_STORAGE, Process.myPid(), Process.myUid())
                 == PackageManager.PERMISSION_GRANTED;
@@ -136,9 +133,7 @@ class QrCodeShareMediator {
 
     /** Returns whether the user can be prompted for storage permissions. */
     private Boolean canPromptForPermission() {
-        if (!requiresAdditionalStoragePermission()) return false;
-        if (mWindowAndroid == null) return false;
-        return mWindowAndroid.canRequestPermission(permission.WRITE_EXTERNAL_STORAGE);
+        return mPermissionDelegate.canRequestPermission(permission.WRITE_EXTERNAL_STORAGE);
     }
 
     /** Updates the permission settings with the latest values. */
@@ -149,10 +144,6 @@ class QrCodeShareMediator {
                 QrCodeShareViewProperties.HAS_STORAGE_PERMISSION, hasStoragePermission());
     }
 
-    public void updatePermissions(WindowAndroid windowAndroid) {
-        mWindowAndroid = windowAndroid;
-        updatePermissionSettings();
-    }
     /**
      * Sets whether QrCode UI is on foreground.
      *

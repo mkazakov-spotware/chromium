@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "chrome/browser/media/router/discovery/mdns/dns_sd_delegate.h"
-#include "components/media_router/common/mojom/media_router.mojom.h"
-#include "components/media_router/common/providers/cast/channel/cast_socket.h"
+#include "components/cast_channel/cast_socket.h"
 #include "net/base/host_port_pair.h"
 #include "net/base/ip_address.h"
 #include "net/base/url_util.h"
@@ -52,6 +51,9 @@ CreateCastMediaSinkResult CreateCastMediaSink(const DnsSdService& service,
     service_data[key] = val;
   }
 
+  // When use this "sink" within browser, please note it will have a different
+  // ID when it is sent to the extension, because it derives a different sink ID
+  // using the given sink ID.
   std::string unique_id = service_data["id"];
   if (unique_id.empty())
     return CreateCastMediaSinkResult::kMissingID;
@@ -70,10 +72,10 @@ CreateCastMediaSinkResult CreateCastMediaSink(const DnsSdService& service,
     extra_data.capabilities = capacities;
 
   std::string processed_uuid = MediaSinkInternal::ProcessDeviceUUID(unique_id);
-  std::string sink_id = base::StringPrintf("cast:%s", processed_uuid.c_str());
+  std::string sink_id = base::StringPrintf("cast:<%s>", processed_uuid.c_str());
   MediaSink sink(sink_id, friendly_name,
                  GetCastSinkIconType(extra_data.capabilities),
-                 mojom::MediaRouteProviderId::CAST);
+                 MediaRouteProviderId::CAST);
 
   cast_sink->set_sink(sink);
   cast_sink->set_cast_data(extra_data);

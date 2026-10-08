@@ -1,11 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_LAYERS_TILE_SIZE_CALCULATOR_H_
 #define CC_LAYERS_TILE_SIZE_CALCULATOR_H_
 
-#include "base/memory/raw_ptr.h"
 #include "cc/cc_export.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -33,16 +32,14 @@ class CC_EXPORT TileSizeCalculator {
     gfx::Size default_tile_size;
     gfx::Size layer_content_bounds;
 
-    bool operator==(const AffectingParams& other) const;
+    bool operator==(const AffectingParams& other);
   };
 
   PictureLayerImpl* layer_impl() const { return layer_impl_; }
   AffectingParams GetAffectingParams();
   bool IsAffectingParamsChanged();
 
-  raw_ptr<PictureLayerImpl> layer_impl_;
-  const bool is_using_raw_draw_;
-  const double raw_draw_tile_size_factor_;
+  PictureLayerImpl* layer_impl_;
 
   AffectingParams affecting_params_;
 

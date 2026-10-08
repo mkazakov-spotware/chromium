@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,13 +12,6 @@ WindowStateDelegate::~WindowStateDelegate() = default;
 
 bool WindowStateDelegate::ToggleFullscreen(WindowState* window_state) {
   return false;
-}
-
-void WindowStateDelegate::ToggleLockedFullscreen(WindowState* window_state) {}
-
-std::unique_ptr<PresentationTimeRecorder> WindowStateDelegate::OnDragStarted(
-    int component) {
-  return nullptr;
 }
 
 }  // namespace ash

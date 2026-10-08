@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 // Note(slan): This file is needed by internal targets which cannot depend on
 // "//base". Amend this include with a comment so gn check ignores it.
+#include "base/macros.h"  // nogncheck
 #include "chromecast/public/cast_sys_info.h"
 
 namespace chromecast {
@@ -18,10 +19,6 @@ class CastSysInfoDummy : public CastSysInfo {
  public:
   CastSysInfoDummy();
   CastSysInfoDummy(const std::string& sys_info_file);
-
-  CastSysInfoDummy(const CastSysInfoDummy&) = delete;
-  CastSysInfoDummy& operator=(const CastSysInfoDummy&) = delete;
-
   ~CastSysInfoDummy() override;
 
   // CastSysInfo implementation:
@@ -38,7 +35,6 @@ class CastSysInfoDummy : public CastSysInfo {
   std::vector<std::string> GetFactoryLocaleList() override;
   std::string GetWifiInterface() override;
   std::string GetApInterface() override;
-  std::string GetProductSsidSuffix() override;
 
   void SetBuildTypeForTesting(BuildType build_type);
   void SetSystemReleaseChannelForTesting(
@@ -55,7 +51,6 @@ class CastSysInfoDummy : public CastSysInfo {
       const std::vector<std::string>& factory_locale_list);
   void SetWifiInterfaceForTesting(const std::string& wifi_interface);
   void SetApInterfaceForTesting(const std::string& ap_interface);
-  void SetProductSsidSuffixForTesting(const std::string& ssid_suffix);
 
  private:
   BuildType build_type_;
@@ -71,7 +66,8 @@ class CastSysInfoDummy : public CastSysInfo {
   std::vector<std::string> factory_locale_list_;
   std::string wifi_interface_;
   std::string ap_interface_;
-  std::string ssid_suffix_;
+
+  DISALLOW_COPY_AND_ASSIGN(CastSysInfoDummy);
 };
 
 }  // namespace chromecast

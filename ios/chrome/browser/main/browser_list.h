@@ -1,12 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_BROWSER_MAIN_BROWSER_LIST_H_
 #define IOS_CHROME_BROWSER_MAIN_BROWSER_LIST_H_
 
-#include <set>
-
+#include "base/macros.h"
+#include "base/observer_list.h"
 #include "components/keyed_service/core/keyed_service.h"
 
 class BrowserListObserver;
@@ -26,9 +26,6 @@ class Browser;
 class BrowserList : public KeyedService {
  public:
   explicit BrowserList() = default;
-
-  BrowserList(const BrowserList&) = delete;
-  BrowserList& operator=(const BrowserList&) = delete;
 
   // Adds a regular browser to the list. It's an error to add an incognito
   // browser with this method.
@@ -61,8 +58,8 @@ class BrowserList : public KeyedService {
   // when it is destroyed.
   virtual void RemoveObserver(BrowserListObserver* observer) = 0;
 
-  // true if this service has been shut down.
-  virtual bool IsShutdown() = 0;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BrowserList);
 };
 
 #endif  // IOS_CHROME_BROWSER_MAIN_BROWSER_LIST_H_

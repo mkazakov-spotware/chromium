@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,13 @@
 
 #include <memory>
 
+#include "third_party/blink/renderer/bindings/core/v8/callback_promise_adapter.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_capture_latency.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_presentation_source.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_union_presentationsource_usvstring.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
+#include "third_party/blink/renderer/core/frame/deprecation.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
-#include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/settings.h"
 #include "third_party/blink/renderer/core/loader/mixed_content_checker.h"
 #include "third_party/blink/renderer/modules/event_target_modules.h"
@@ -24,8 +22,9 @@
 #include "third_party/blink/renderer/modules/presentation/presentation_connection.h"
 #include "third_party/blink/renderer/modules/presentation/presentation_connection_callbacks.h"
 #include "third_party/blink/renderer/modules/presentation/presentation_controller.h"
+#include "third_party/blink/renderer/modules/presentation/presentation_error.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 
 namespace blink {
@@ -37,50 +36,6 @@ bool IsKnownProtocolForPresentationUrl(const KURL& url) {
          url.ProtocolIs("cast-dial");
 }
 
-int GetPlayoutDelay(const PresentationSource& source) {
-  if (!source.hasLatencyHint() || !source.latencyHint()) {
-    return 400;
-  }
-  switch (source.latencyHint()->AsEnum()) {
-    case V8CaptureLatency::Enum::kLow:
-      return 200;
-    case V8CaptureLatency::Enum::kDefault:
-      return 400;
-    case V8CaptureLatency::Enum::kHigh:
-      return 800;
-  }
-}
-
-KURL CreateMirroringUrl(const PresentationSource& source) {
-  int capture_audio = !source.hasAudioPlayback() || !source.audioPlayback() ||
-                              (source.audioPlayback()->AsEnum() ==
-                               V8AudioPlaybackDestination::Enum::kReceiver)
-                          ? 1
-                          : 0;
-  int playout_delay = GetPlayoutDelay(source);
-  // TODO(crbug.com/1267372): Instead of converting a mirroring source into a
-  // URL with a hardcoded Cast receiver app ID, pass the source object directly
-  // to the embedder.
-  return KURL(
-      String::Format("cast:0F5096E8?streamingCaptureAudio=%d&"
-                     "streamingTargetPlayoutDelayMillis=%d",
-                     capture_audio, playout_delay));
-}
-
-KURL CreateUrlFromSource(const ExecutionContext& execution_context,
-                         const PresentationSource& source) {
-  if (!source.hasType()) {
-    return KURL();
-  }
-  switch (source.type().AsEnum()) {
-    case V8PresentationSourceType::Enum::kUrl:
-      return source.hasUrl() ? KURL(execution_context.Url(), source.url())
-                             : KURL();
-    case V8PresentationSourceType::Enum::kMirroring:
-      return CreateMirroringUrl(source);
-  }
-}
-
 }  // anonymous namespace
 
 // static
@@ -88,50 +43,24 @@ PresentationRequest* PresentationRequest::Create(
     ExecutionContext* execution_context,
     const String& url,
     ExceptionState& exception_state) {
-  HeapVector<Member<V8UnionPresentationSourceOrUSVString>> urls(1);
-  urls[0] = MakeGarbageCollected<V8UnionPresentationSourceOrUSVString>(url);
+  Vector<String> urls(1);
+  urls[0] = url;
   return Create(execution_context, urls, exception_state);
 }
 
-// static
 PresentationRequest* PresentationRequest::Create(
     ExecutionContext* execution_context,
-    const HeapVector<Member<V8UnionPresentationSourceOrUSVString>>& sources,
+    const Vector<String>& urls,
     ExceptionState& exception_state) {
   if (execution_context->IsSandboxed(
           network::mojom::blink::WebSandboxFlags::kPresentationController)) {
     exception_state.ThrowSecurityError(
-        DynamicTo<LocalDOMWindow>(execution_context)
-                ->GetFrame()
-                ->IsInFencedFrameTree()
-            ? "PresentationRequest is not supported in a fenced frame tree."
-            : "The document is sandboxed and lacks the 'allow-presentation' "
-              "flag.");
+        "The document is sandboxed and lacks the 'allow-presentation' flag.");
     return nullptr;
   }
 
   Vector<KURL> parsed_urls;
-  for (const auto& source : sources) {
-    if (source->IsPresentationSource()) {
-      if (!RuntimeEnabledFeatures::SiteInitiatedMirroringEnabled()) {
-        exception_state.ThrowDOMException(
-            DOMExceptionCode::kNotSupportedError,
-            "You must pass in valid URL strings.");
-        return nullptr;
-      }
-      const KURL source_url = CreateUrlFromSource(
-          *execution_context, *source->GetAsPresentationSource());
-      if (!source_url.IsValid()) {
-        exception_state.ThrowDOMException(
-            DOMExceptionCode::kNotSupportedError,
-            "You must pass in valid presentation sources.");
-        return nullptr;
-      }
-      parsed_urls.push_back(source_url);
-      continue;
-    }
-    DCHECK(source->IsUSVString());
-    const String& url = source->GetAsUSVString();
+  for (const auto& url : urls) {
     const KURL& parsed_url = KURL(execution_context->Url(), url);
 
     if (!parsed_url.IsValid()) {
@@ -154,10 +83,9 @@ PresentationRequest* PresentationRequest::Create(
       parsed_urls.push_back(parsed_url);
   }
 
-  if (parsed_urls.empty()) {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kNotSupportedError,
-        "An empty sequence of URLs is not supported.");
+  if (parsed_urls.IsEmpty()) {
+    exception_state.ThrowDOMException(DOMExceptionCode::kNotSupportedError,
+                                      "Do not support empty sequence of URLs.");
     return nullptr;
   }
 
@@ -222,7 +150,7 @@ ScriptPromise PresentationRequest::start(ScriptState* script_state,
 
   controller->GetPresentationService()->StartPresentation(
       urls_,
-      WTF::BindOnce(
+      WTF::Bind(
           &PresentationConnectionCallbacks::HandlePresentationResponse,
           std::make_unique<PresentationConnectionCallbacks>(resolver, this)));
   return resolver->Promise();
@@ -247,14 +175,13 @@ ScriptPromise PresentationRequest::reconnect(ScriptState* script_state,
   if (existing_connection) {
     controller->GetPresentationService()->ReconnectPresentation(
         urls_, id,
-        WTF::BindOnce(
-            &PresentationConnectionCallbacks::HandlePresentationResponse,
-            std::make_unique<PresentationConnectionCallbacks>(
-                resolver, existing_connection)));
+        WTF::Bind(&PresentationConnectionCallbacks::HandlePresentationResponse,
+                  std::make_unique<PresentationConnectionCallbacks>(
+                      resolver, existing_connection)));
   } else {
     controller->GetPresentationService()->ReconnectPresentation(
         urls_, id,
-        WTF::BindOnce(
+        WTF::Bind(
             &PresentationConnectionCallbacks::HandlePresentationResponse,
             std::make_unique<PresentationConnectionCallbacks>(resolver, this)));
   }

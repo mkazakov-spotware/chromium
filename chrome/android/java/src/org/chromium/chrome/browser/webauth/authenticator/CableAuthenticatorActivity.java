@@ -1,19 +1,24 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.webauth.authenticator;
 
+import android.annotation.SuppressLint;
+import android.app.ActivityManager;
 import android.content.Intent;
+import android.content.res.Resources;
+import android.graphics.BitmapFactory;
 import android.hardware.usb.UsbAccessory;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
-import android.util.Base64;
 
 import androidx.fragment.app.Fragment;
 
-import org.chromium.base.Log;
+import org.chromium.base.ApiCompatibilityUtils;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeBaseAppCompatActivity;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.webauthn.CableAuthenticatorModuleProvider;
 
@@ -23,28 +28,22 @@ import org.chromium.chrome.browser.webauthn.CableAuthenticatorModuleProvider;
  * This activity lives in the main APK and is the target for:
  *   1. Notifications triggered by cloud messages telling us that an authentication
  *      is pending.
- *   2. Intents from Play Services when a FIDO QR code has been scanned.
- *   3. Intents from Play Services when accounts.google.com is doing a security key operation.
+ *   2. A USB host telling the device that it wishes to speak CTAP2 over AOA.
+ *      (See https://source.android.com/devices/accessories/aoa.)
  *
  * It hosts the {@link Fragment} that drives the security key process, which
  * pulls in the dynamic feature module containing the needed code.
-
- * Note: it does *not* handle USB intents when a computer is connected via USB
- * cable. See {@link CableAuthenticatorUSBActivity}.
  */
 public class CableAuthenticatorActivity extends ChromeBaseAppCompatActivity {
-    private static final String TAG = "CableAuthenticatorActivity";
     static final String EXTRA_SHOW_FRAGMENT_ARGUMENTS = "show_fragment_args";
     // See https://developer.android.com/guide/topics/connectivity/usb/accessory#java
     static final String USB_ACCESSORY_ATTACHED =
             "android.hardware.usb.action.USB_ACCESSORY_ATTACHED";
-    static final String SERVER_LINK_EXTRA =
-            "org.chromium.chrome.browser.webauth.authenticator.ServerLink";
-    static final String QR_EXTRA = "org.chromium.chrome.browser.webauth.authenticator.QR";
 
     @Override
+    @SuppressLint("SetTextI18n") // TODO(BUG=1002262): translate
     protected void onCreate(Bundle savedInstanceState) {
-        setTitle(getResources().getString(org.chromium.chrome.R.string.cablev2_paask_title));
+        setTitle("Phone as a Security Key");
 
         // Ensure that the full browser is running since this activity may be
         // triggered by a USB message.
@@ -52,13 +51,13 @@ public class CableAuthenticatorActivity extends ChromeBaseAppCompatActivity {
 
         super.onCreate(savedInstanceState);
 
-        onNewIntent(getIntent());
-    }
+        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.WEB_AUTH_PHONE_SUPPORT)) {
+            // Ensure that connected USB devices cannot trigger this logic prior
+            // to launch review completion.
+            return;
+        }
 
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-
+        final Intent intent = getIntent();
         Bundle arguments;
         if (intent.getAction() != null && intent.getAction().equals(USB_ACCESSORY_ATTACHED)) {
             // This can be triggered by an implicit intent if a desktop
@@ -72,26 +71,10 @@ public class CableAuthenticatorActivity extends ChromeBaseAppCompatActivity {
             // is untrusted.
             arguments = new Bundle();
             arguments.putParcelable(UsbManager.EXTRA_ACCESSORY, accessory);
-        } else if (intent.getAction() != null && intent.getAction().equals(Intent.ACTION_VIEW)
-                && intent.getData() != null) {
-            // This is from Play Services and contains a FIDO URL scanned from a
-            // QR code.
-            arguments = new Bundle();
-            arguments.putParcelable(QR_EXTRA, intent.getData());
-        } else if (intent.hasExtra(SERVER_LINK_EXTRA)) {
-            // This Intent comes from GMSCore when it's triggering a server-linked connection.
-            final String serverLinkBase64 = intent.getStringExtra(SERVER_LINK_EXTRA);
-            arguments = new Bundle();
-            try {
-                final byte[] serverLink = Base64.decode(serverLinkBase64, Base64.DEFAULT);
-                arguments.putByteArray(SERVER_LINK_EXTRA, serverLink);
-            } catch (IllegalArgumentException e) {
-                Log.i(TAG, "Invalid base64 in ServerLink argument");
-                return;
-            }
         } else {
-            // Since this Activity is not otherwise exported, this only happens when a notification
-            // is tapped and |EXTRA_SHOW_FRAGMENT_ARGUMENTS| thus comes from our own PendingIntent.
+            // Since this Activity is not exported, this only happens when a
+            // notification is tapped and |EXTRA_SHOW_FRAGMENT_ARGUMENTS| thus
+            // comes from our own PendingIntent.
             arguments = intent.getBundleExtra(EXTRA_SHOW_FRAGMENT_ARGUMENTS);
         }
 
@@ -102,5 +85,10 @@ public class CableAuthenticatorActivity extends ChromeBaseAppCompatActivity {
                 .beginTransaction()
                 .replace(android.R.id.content, fragment)
                 .commit();
+
+        Resources res = getResources();
+        setTaskDescription(new ActivityManager.TaskDescription(res.getString(R.string.app_name),
+                BitmapFactory.decodeResource(res, R.mipmap.app_icon),
+                ApiCompatibilityUtils.getColor(res, R.color.default_primary_color)));
     }
 }

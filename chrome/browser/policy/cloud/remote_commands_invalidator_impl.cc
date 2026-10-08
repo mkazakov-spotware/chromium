@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "base/notreached.h"
 #include "base/time/clock.h"
 #include "chrome/browser/policy/cloud/policy_invalidation_util.h"
+#include "chrome/common/chrome_features.h"
 #include "components/invalidation/public/invalidation.h"
 #include "components/policy/core/common/cloud/enterprise_metrics.h"
 #include "components/policy/core/common/remote_commands/remote_commands_service.h"
@@ -33,6 +34,10 @@ const char* GetInvalidationMetricName(PolicyInvalidationScope scope) {
 }
 
 std::string ComposeOwnerName(PolicyInvalidationScope scope) {
+  if (!base::FeatureList::IsEnabled(features::kInvalidatorUniqueOwnerName)) {
+    return "RemoteCommands";
+  }
+
   switch (scope) {
     case PolicyInvalidationScope::kUser:
       return "RemoteCommands.User";
@@ -80,7 +85,7 @@ void RemoteCommandsInvalidatorImpl::OnStop() {
 }
 
 void RemoteCommandsInvalidatorImpl::DoRemoteCommandsFetch(
-    const invalidation::Invalidation& invalidation) {
+    const syncer::Invalidation& invalidation) {
   DCHECK(core_->remote_commands_service());
 
   RecordInvalidationMetric(invalidation);
@@ -109,7 +114,7 @@ void RemoteCommandsInvalidatorImpl::OnStoreLoaded(CloudPolicyStore* core) {
 void RemoteCommandsInvalidatorImpl::OnStoreError(CloudPolicyStore* core) {}
 
 void RemoteCommandsInvalidatorImpl::RecordInvalidationMetric(
-    const invalidation::Invalidation& invalidation) const {
+    const syncer::Invalidation& invalidation) const {
   const auto last_fetch_time =
       base::Time::FromJavaTime(core_->store()->policy()->timestamp());
   const auto current_time = clock_->Now();

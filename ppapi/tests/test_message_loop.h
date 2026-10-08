@@ -1,9 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef PPAPI_TESTS_TEST_MESSAGE_LOOP_H_
-#define PPAPI_TESTS_TEST_MESSAGE_LOOP_H_
+#ifndef PAPPI_TESTS_TEST_MESSAGE_LOOP_H_
+#define PAPPI_TESTS_TEST_MESSAGE_LOOP_H_
 
 #include <string>
 
@@ -40,4 +40,4 @@ class TestMessageLoop : public TestCase {
   NestedEvent main_loop_task_ran_;
 };
 
-#endif  // PPAPI_TESTS_TEST_MESSAGE_LOOP_H_
+#endif  // PAPPI_TESTS_TEST_MESSAGE_LOOP_H_

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -119,16 +119,11 @@ public class PickerBitmapView extends SelectableItemViewBase<PickerBitmap> {
         mContext = context;
     }
 
-    @SuppressWarnings("WrongViewCast") // Android lint gets confused: https://crbug.com/1315709
-    private void assignScrim() {
-        mScrim = findViewById(R.id.scrim);
-    }
-
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
-        assignScrim();
         mIconView = findViewById(R.id.bitmap_view);
+        mScrim = findViewById(R.id.scrim);
         mSelectedView = findViewById(R.id.selected);
         mUnselectedView = findViewById(R.id.unselected);
         mSpecialTile = findViewById(R.id.special_tile);
@@ -494,17 +489,15 @@ public class PickerBitmapView extends SelectableItemViewBase<PickerBitmap> {
             setEnabled(!anySelection);
         }
 
-        mBackgroundColor = mContext.getColor(bgColorId);
+        mBackgroundColor = ApiCompatibilityUtils.getColor(resources, bgColorId);
         setBackgroundColor(mCategoryView.isZoomSwitchingInEffect() && !special ? Color.TRANSPARENT
                                                                                : mBackgroundColor);
 
+        // The visibility of the unselected toggle for multi-selection mode is a little more complex
+        // because we don't want to show it when nothing is selected and also not on a blank canvas.
         boolean isSelected = mSelectionDelegate.isItemSelected(mBitmapDetails);
         mSelectedView.setVisibility(!special && isSelected ? View.VISIBLE : View.GONE);
-        // The visibility of the unselected toggle for multi-selection mode is a little more complex
-        // because we don't want to show it when nothing is selected (unless in magnifying mode) and
-        // also not on a blank canvas.
-        boolean showUnselectedToggle = !special && !isSelected && mImageLoaded
-                && (anySelection || mCategoryView.isInMagnifyingMode())
+        boolean showUnselectedToggle = !special && !isSelected && anySelection && mImageLoaded
                 && mCategoryView.isMultiSelectAllowed();
         mUnselectedView.setVisibility(showUnselectedToggle ? View.VISIBLE : View.GONE);
         mScrim.setVisibility(showUnselectedToggle ? View.VISIBLE : View.GONE);

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "ash/wm/splitview/split_view_controller.h"
 #include "ash/wm/window_state.h"
+#include "base/macros.h"
 #include "ui/gfx/geometry/rect.h"
 
 namespace ash {
@@ -20,6 +21,9 @@ class TabletModeWindowManager;
 // centered within the workspace.
 class TabletModeWindowState : public WindowState::State {
  public:
+  // Called when the window position might need to be updated.
+  static void UpdateWindowPosition(WindowState* window_state, bool animate);
+
   // The |window|'s state object will be modified to use this new window mode
   // state handler. |snap| is for carrying over a snapped state from clamshell
   // mode to tablet mode. If |snap| is false, then the window will be maximized,
@@ -34,23 +38,21 @@ class TabletModeWindowState : public WindowState::State {
                         bool snap,
                         bool animate_bounds_on_attach,
                         bool entering_tablet_mode);
-
-  TabletModeWindowState(const TabletModeWindowState&) = delete;
-  TabletModeWindowState& operator=(const TabletModeWindowState&) = delete;
-
   ~TabletModeWindowState() override;
 
-  // Called when the window position might need to be updated.
-  // TODO(sammiequon): Consolidate with `UpdateBounds`.
-  static void UpdateWindowPosition(
-      WindowState* window_state,
-      WindowState::BoundsChangeAnimationType animation_type);
+  void set_ignore_wm_events(bool ignore) { ignore_wm_events_ = ignore; }
 
   // Leaves the tablet mode by reverting to previous state object.
   void LeaveTabletMode(WindowState* window_state, bool was_in_overview);
 
-  // WindowState::State:
+  // Handles Alt+[ if |snap_position| is |SplitViewController::LEFT|; handles
+  // Alt+] if |snap_position| is |SplitViewController::RIGHT|.
+  void CycleTabletSnap(WindowState* window_state,
+                       SplitViewController::SnapPosition snap_position);
+
+  // WindowState::State overrides:
   void OnWMEvent(WindowState* window_state, const WMEvent* event) override;
+
   chromeos::WindowStateType GetType() const override;
   void AttachState(WindowState* window_state,
                    WindowState::State* previous_state) override;
@@ -60,48 +62,32 @@ class TabletModeWindowState : public WindowState::State {
     return old_window_bounds_in_screen_;
   }
   WindowState::State* old_state() { return old_state_.get(); }
-  void set_ignore_wm_events(bool ignore) { ignore_wm_events_ = ignore; }
 
  private:
-  // Updates the window to `new_state_type` and resulting bounds:
+  // Updates the window to |new_state_type| and resulting bounds:
   // Either full screen, maximized centered or minimized. If the state does not
-  // change, only the bounds will be changed. If `animate` is set, the bound
-  // change get animated. If `new_snap_ratio` is set, uses it to update snapped
-  // window bounds.
+  // change, only the bounds will be changed. If |animate| is set, the bound
+  // change get animated.
   void UpdateWindow(WindowState* window_state,
                     chromeos::WindowStateType new_state_type,
-                    bool animate,
-                    absl::optional<float> new_snap_ratio);
+                    bool animate);
 
-  // If `target_state` is PRIMARY/SECONDARY_SNAPPED and the window can be
-  // snapped, returns `target_state`. Otherwise depending on the capabilities
-  // of the window either returns `WindowStateType::kMaximized` or
-  // `WindowStateType::kNormal`.
+  // Depending on the capabilities of the window we either return
+  // |WindowStateType::kMaximized| or |WindowStateType::kNormal|.
+  chromeos::WindowStateType GetMaximizedOrCenteredWindowType(
+      WindowState* window_state);
+
+  // If |target_state| is LEFT/RIGHT_SNAPPED and the window can be snapped,
+  // returns |target_state|. Otherwise depending on the capabilities of the
+  // window either returns |WindowStateType::kMaximized| or
+  // |WindowStateType::kNormal|.
   chromeos::WindowStateType GetSnappedWindowStateType(
       WindowState* window_state,
       chromeos::WindowStateType target_state);
 
   // Updates the bounds to the maximum possible bounds according to the current
-  // window state. If `animate` is set we animate the change. If
-  // `new_snap_ratio` is set, uses it to update snapped window bounds.
-  void UpdateBounds(WindowState* window_state,
-                    bool animate,
-                    absl::optional<float> new_snap_ratio);
-
-  // Handles Alt+[ if `snap_position` is
-  // `SplitViewController::SnapPosition::kPrimary`; handles // Alt+] if
-  // `snap_position` is `SplitViewController::SnapPosition::kSecondary`.
-  void CycleTabletSnap(WindowState* window_state,
-                       SplitViewController::SnapPosition snap_position);
-
-  // Snap the window in tablet split view if it can be snapped.
-  void DoTabletSnap(WindowState* window_state,
-                    WMEventType snap_event_type,
-                    absl::optional<float> new_snap_ratio);
-
-  // Called by `WM_EVENT_RESTORE`, or a `WM_EVENT_NORMAL` that is restoring.
-  // Restores to the state in `window_states`'s restore history.
-  void DoRestore(WindowState* window_state);
+  // window state. If |animated| is set we animate the change.
+  void UpdateBounds(WindowState* window_state, bool animated);
 
   // The original bounds and state object of the window.
   gfx::Rect old_window_bounds_in_screen_;
@@ -128,6 +114,8 @@ class TabletModeWindowState : public WindowState::State {
 
   // If true, the state will not process events.
   bool ignore_wm_events_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(TabletModeWindowState);
 };
 
 }  // namespace ash

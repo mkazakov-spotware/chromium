@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,22 +10,15 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
-#include "base/time/time.h"
-#include "chrome/browser/web_applications/web_app_id.h"
+#include "base/macros.h"
+#include "base/optional.h"
+#include "chrome/browser/web_applications/components/web_app_id.h"
 #include "components/keyed_service/core/keyed_service.h"
-#include "content/public/browser/service_worker_version_base_info.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/mojom/badging/badging.mojom.h"
-#include "third_party/blink/public/mojom/service_worker/service_worker_ancestor_frame_type.mojom.h"
 #include "url/gurl.h"
 
 class Profile;
-
-namespace base {
-class Clock;
-}  // namespace base
 
 namespace content {
 class RenderFrameHost;
@@ -34,11 +27,7 @@ class RenderProcessHost;
 
 namespace ukm {
 class UkmRecorder;
-}  // namespace ukm
-
-namespace web_app {
-class WebAppSyncBridge;
-}  // namespace web_app
+}
 
 namespace badging {
 class BadgeManagerDelegate;
@@ -59,62 +48,38 @@ enum UpdateBadgeType {
 // The maximum value of badge contents before saturation occurs.
 constexpr uint64_t kMaxBadgeContent = 99u;
 
-// We don't show a badge in response to notifications if the
-// Badging API has been used recently.
-constexpr base::TimeDelta kBadgingOverrideLifetime = base::Days(14);
-
-// We record when the Badging API was last used, but rate limit
-// our updates to minimize load on the Web App database,
-constexpr base::TimeDelta kBadgingMinimumUpdateInterval = base::Hours(2);
-
 // Maintains a record of badge contents and dispatches badge changes to a
 // delegate.
 class BadgeManager : public KeyedService, public blink::mojom::BadgeService {
  public:
   // The badge being applied to a document URL or service worker scope. If the
-  // optional is |absl::nullopt| then the badge is "flag". Otherwise the badge
+  // optional is |base::nullopt| then the badge is "flag". Otherwise the badge
   // is a non-zero integer.
-  using BadgeValue = absl::optional<uint64_t>;
+  using BadgeValue = base::Optional<uint64_t>;
 
   explicit BadgeManager(Profile* profile);
-
-  BadgeManager(const BadgeManager&) = delete;
-  BadgeManager& operator=(const BadgeManager&) = delete;
-
   ~BadgeManager() override;
 
   // Sets the delegate used for setting/clearing badges.
   void SetDelegate(std::unique_ptr<BadgeManagerDelegate> delegate);
 
-  static void BindFrameReceiverIfAllowed(
+  static void BindFrameReceiver(
       content::RenderFrameHost* frame,
       mojo::PendingReceiver<blink::mojom::BadgeService> receiver);
-
-  // Binds a remote ServiceWorkerGlobalScope to a badge service.  After
-  // receiving a badge update from a ServiceWorkerGlobalScope, the badge
-  // service must update the badge for each app under `service_worker_scope`.
-  static void BindServiceWorkerReceiverIfAllowed(
+  static void BindServiceWorkerReceiver(
       content::RenderProcessHost* service_worker_process_host,
-      const content::ServiceWorkerVersionBaseInfo& info,
+      const GURL& service_worker_scope,
       mojo::PendingReceiver<blink::mojom::BadgeService> receiver);
 
-  // Gets the badge for |app_id|. This will be absl::nullopt if the app is not
+  // Gets the badge for |app_id|. This will be base::nullopt if the app is not
   // badged.
-  absl::optional<BadgeValue> GetBadgeValue(const web_app::AppId& app_id);
-
-  bool HasRecentApiUsage(const web_app::AppId& app_id) const;
+  base::Optional<BadgeValue> GetBadgeValue(const web_app::AppId& app_id);
 
   void SetBadgeForTesting(const web_app::AppId& app_id,
                           BadgeValue value,
                           ukm::UkmRecorder* test_recorder);
   void ClearBadgeForTesting(const web_app::AppId& app_id,
                             ukm::UkmRecorder* test_recorder);
-  const base::Clock* SetClockForTesting(const base::Clock* clock);
-  void SetSyncBridgeForTesting(web_app::WebAppSyncBridge* sync_bridge);
-
- protected:
-  // Protected for tests.
-  BadgeManager(Profile* profile, web_app::WebAppSyncBridge* sync_bridge);
 
  private:
   // The BindingContext of a mojo request. Allows mojo calls to be tied back
@@ -166,22 +131,16 @@ class BadgeManager : public KeyedService, public blink::mojom::BadgeService {
     GURL scope_;
   };
 
-  // Updates the badge for |app_id| to be |value|, if it is not absl::nullopt.
-  // If value is |absl::nullopt| then this clears the badge.
+  // Updates the badge for |app_id| to be |value|, if it is not base::nullopt.
+  // If value is |base::nullopt| then this clears the badge.
   void UpdateBadge(const web_app::AppId& app_id,
-                   absl::optional<BadgeValue> value);
+                   base::Optional<BadgeValue> value);
 
   // blink::mojom::BadgeService:
   // Note: These are private to stop them being called outside of mojo as they
   // require a mojo binding context.
   void SetBadge(blink::mojom::BadgeValuePtr value) override;
   void ClearBadge() override;
-
-  const raw_ptr<Profile> profile_;
-
-  raw_ptr<const base::Clock> clock_;
-
-  raw_ptr<web_app::WebAppSyncBridge> sync_bridge_;
 
   // All the mojo receivers for the BadgeManager. Keeps track of the
   // render_frame the binding is associated with, so as to not have to rely
@@ -190,11 +149,13 @@ class BadgeManager : public KeyedService, public blink::mojom::BadgeService {
       receivers_;
 
   // Delegate which handles actual setting and clearing of the badge.
-  // Note: This is currently set on Windows, MacOS and Chrome OS.
+  // Note: This is currently only set on Windows and MacOS.
   std::unique_ptr<BadgeManagerDelegate> delegate_;
 
   // Maps app_id to badge contents.
   std::map<web_app::AppId, BadgeValue> badged_apps_;
+
+  DISALLOW_COPY_AND_ASSIGN(BadgeManager);
 };
 
 // Determines the text to put on the badge based on some badge_content.

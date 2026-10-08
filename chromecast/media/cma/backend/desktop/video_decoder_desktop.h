@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "chromecast/public/media/media_pipeline_backend.h"
 
@@ -18,10 +19,6 @@ class MediaSinkDesktop;
 class VideoDecoderDesktop : public MediaPipelineBackend::VideoDecoder {
  public:
   VideoDecoderDesktop();
-
-  VideoDecoderDesktop(const VideoDecoderDesktop&) = delete;
-  VideoDecoderDesktop& operator=(const VideoDecoderDesktop&) = delete;
-
   ~VideoDecoderDesktop() override;
 
   void Start(base::TimeDelta start_pts);
@@ -39,6 +36,7 @@ class VideoDecoderDesktop : public MediaPipelineBackend::VideoDecoder {
  private:
   Delegate* delegate_;
   std::unique_ptr<MediaSinkDesktop> sink_;
+  DISALLOW_COPY_AND_ASSIGN(VideoDecoderDesktop);
 };
 
 }  // namespace media

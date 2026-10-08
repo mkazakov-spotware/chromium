@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,13 +18,13 @@
 
 namespace content {
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 class ZygoteCommunication;
 using ZygoteHandle = ZygoteCommunication*;
 #else
 // Perhaps other ports may USE_ZYGOTE_HANDLE here somdeday.
 #error "Can not use zygote handles on this platform"
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // defined(OS_POSIX)
 
 // Gets the generic global zygote used to launch sandboxed children.
 CONTENT_EXPORT ZygoteHandle GetGenericZygote();

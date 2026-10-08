@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Test timeline aggregated details.\n`);
-  await TestRunner.loadLegacyModule('timeline'); await TestRunner.loadTestModule('performance_test_runner');
-  await TestRunner.loadTestModule('network_test_runner');
+  await TestRunner.loadModule('performance_test_runner');
+  await TestRunner.loadModule('network_test_runner');
   await TestRunner.showPanel('timeline');
 
   TestRunner.addResult('');
@@ -14,7 +14,7 @@
   var rawTraceEvents = [
     {
       'args': {'name': 'Renderer'},
-      'cat': 'metadata',
+      'cat': '__metadata',
       'name': 'process_name',
       'ph': 'M',
       'pid': 17851,
@@ -23,7 +23,7 @@
     },
     {
       'args': {'name': 'CrRendererMain'},
-      'cat': 'metadata',
+      'cat': '__metadata',
       'name': 'thread_name',
       'ph': 'M',
       'pid': 17851,
@@ -560,7 +560,7 @@
   ];
 
   var timeline = UI.panels.timeline;
-  timeline.setModel(await PerformanceTestRunner.createPerformanceModelWithEvents(rawTraceEvents));
+  timeline._setModel(PerformanceTestRunner.createPerformanceModelWithEvents(rawTraceEvents));
 
   var groupByEnum = Timeline.AggregatedTimelineTreeView.GroupBy;
   for (var grouping of Object.values(groupByEnum)) {
@@ -571,12 +571,12 @@
   TestRunner.completeTest();
 
   function getTreeView(type) {
-    if (timeline.tabbedPane) {
-      timeline.tabbedPane.selectTab(type, true);
-      return timeline.flameChart.treeView;
+    if (timeline._tabbedPane) {
+      timeline._tabbedPane.selectTab(type, true);
+      return timeline._flameChart._treeView;
     }
-    timeline.flameChart.detailsView.tabbedPane.selectTab(type, true);
-    return timeline.flameChart.detailsView.tabbedPane.visibleView;
+    timeline._flameChart._detailsView._tabbedPane.selectTab(type, true);
+    return timeline._flameChart._detailsView._tabbedPane.visibleView;
   }
 
   function testEventTree(type, grouping) {
@@ -584,19 +584,19 @@
     var tree = getTreeView(type);
     if (grouping) {
       TestRunner.addResult(type + '  Group by: ' + grouping);
-      tree.groupBySetting.set(grouping);
+      tree._groupBySetting.set(grouping);
     } else {
       TestRunner.addResult(type);
     }
     var rootNode = tree.dataGrid.rootNode();
     for (var node of rootNode.children)
-      printEventTree(1, node.profileNode, node.treeView);
+      printEventTree(1, node._profileNode, node._treeView);
   }
 
   function printEventTree(padding, node, treeView) {
     var name;
     if (node.isGroupNode()) {
-      name = treeView.displayInfoForGroupNode(node).name;
+      name = treeView._displayInfoForGroupNode(node).name;
     } else {
       name = node.event.name === TimelineModel.TimelineModel.RecordType.JSFrame ?
           UI.beautifyFunctionName(node.event.args['data']['functionName']) :

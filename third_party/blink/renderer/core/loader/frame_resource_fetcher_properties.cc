@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,9 +23,8 @@ namespace blink {
 namespace {
 
 // Feature for throttling field trial.
-BASE_FEATURE(kResourceLoadThrottlingTrial,
-             "ResourceLoadScheduler",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kResourceLoadThrottlingTrial{
+    "ResourceLoadScheduler", base::FEATURE_DISABLED_BY_DEFAULT};
 
 // Field trial parameters.
 // Note: bg_limit is supported on m61+, but bg_sub_limit is only on m63+.
@@ -55,10 +54,10 @@ void FrameResourceFetcherProperties::Trace(Visitor* visitor) const {
   ResourceFetcherProperties::Trace(visitor);
 }
 
-bool FrameResourceFetcherProperties::IsOutermostMainFrame() const {
+bool FrameResourceFetcherProperties::IsMainFrame() const {
   LocalFrame* frame = document_->GetFrame();
   DCHECK(frame);
-  return frame->IsOutermostMainFrame();
+  return frame->IsMainFrame();
 }
 
 mojom::ControllerServiceWorkerMode
@@ -85,10 +84,16 @@ bool FrameResourceFetcherProperties::IsPaused() const {
   return frame->GetPage()->Paused();
 }
 
-LoaderFreezeMode FrameResourceFetcherProperties::FreezeMode() const {
+WebURLLoader::DeferType FrameResourceFetcherProperties::DeferType() const {
   LocalFrame* frame = document_->GetFrame();
   DCHECK(frame);
-  return frame->GetLoaderFreezeMode();
+  return frame->GetLoadDeferType();
+}
+
+bool FrameResourceFetcherProperties::IsLoadDeferred() const {
+  LocalFrame* frame = document_->GetFrame();
+  DCHECK(frame);
+  return frame->IsLoadDeferred();
 }
 
 bool FrameResourceFetcherProperties::IsLoadComplete() const {
@@ -146,7 +151,7 @@ int FrameResourceFetcherProperties::GetOutstandingThrottledLimit() const {
   static const int sub_frame_limit =
       kOutstandingLimitForBackgroundSubFrame.Get();
 
-  return IsOutermostMainFrame() ? main_frame_limit : sub_frame_limit;
+  return IsMainFrame() ? main_frame_limit : sub_frame_limit;
 }
 
 }  // namespace blink

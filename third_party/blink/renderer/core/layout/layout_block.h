@@ -24,13 +24,11 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LAYOUT_BLOCK_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LAYOUT_BLOCK_H_
 
-#include "base/check_op.h"
-#include "base/dcheck_is_on.h"
+#include <memory>
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/layout_box.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
-#include "third_party/blink/renderer/platform/wtf/linked_hash_set.h"
+#include "third_party/blink/renderer/platform/wtf/list_hash_set.h"
 
 namespace blink {
 
@@ -39,12 +37,11 @@ class LineLayoutBox;
 class NGBlockNode;
 class WordMeasurement;
 
-typedef HeapLinkedHashSet<Member<LayoutBox>> TrackedLayoutBoxLinkedHashSet;
-typedef HeapHashMap<WeakMember<const LayoutBlock>,
-                    Member<TrackedLayoutBoxLinkedHashSet>>
+typedef WTF::ListHashSet<LayoutBox*, 16> TrackedLayoutBoxListHashSet;
+typedef WTF::HashMap<const LayoutBlock*,
+                     std::unique_ptr<TrackedLayoutBoxListHashSet>>
     TrackedDescendantsMap;
-typedef HeapHashMap<WeakMember<const LayoutBox>, Member<LayoutBlock>>
-    TrackedContainerMap;
+typedef WTF::HashMap<const LayoutBox*, LayoutBlock*> TrackedContainerMap;
 typedef Vector<WordMeasurement, 64> WordMeasurements;
 
 enum ContainingBlockState { kNewContainingBlock, kSameContainingBlock };
@@ -52,13 +49,13 @@ enum ContainingBlockState { kNewContainingBlock, kSameContainingBlock };
 // LayoutBlock is the class that is used by any LayoutObject
 // that is a containing block.
 // http://www.w3.org/TR/CSS2/visuren.html#containing-block
-// See also LayoutObject::ContainingBlock() that is the function
+// See also LayoutObject::containingBlock() that is the function
 // used to get the containing block of a LayoutObject.
 //
 // CSS is inconsistent and allows inline elements (LayoutInline) to be
 // containing blocks, even though they are not blocks. Our
 // implementation is as confused with inlines. See e.g.
-// LayoutObject::ContainingBlock() vs LayoutObject::Container().
+// LayoutObject::containingBlock() vs LayoutObject::container().
 //
 // Containing blocks are a central concept for layout, in
 // particular to the layout of out-of-flow positioned
@@ -66,9 +63,9 @@ enum ContainingBlockState { kNewContainingBlock, kSameContainingBlock };
 // as the positioning of the LayoutObjects.
 //
 // LayoutBlock is the class that handles out-of-flow positioned elements in
-// Blink, in particular for layout (see LayoutPositionedObjects()). That's why
-// LayoutBlock keeps track of them through |GetPositionedDescendantsMap()| (see
-// layout_block.cc).
+// Blink, in particular for layout (see layoutPositionedObjects()). That's why
+// LayoutBlock keeps track of them through |gPositionedDescendantsMap| (see
+// LayoutBlock.cpp).
 // Note that this is a design decision made in Blink that doesn't reflect CSS:
 // CSS allows relatively positioned inlines (LayoutInline) to be containing
 // blocks, but they don't have the logic to handle out-of-flow positioned
@@ -79,40 +76,39 @@ enum ContainingBlockState { kNewContainingBlock, kSameContainingBlock };
 //
 // ***** WHO LAYS OUT OUT-OF-FLOW POSITIONED OBJECTS? *****
 // A positioned object gets inserted into an enclosing LayoutBlock's positioned
-// map. This is determined by LayoutObject::ContainingBlock().
+// map. This is determined by LayoutObject::containingBlock().
 //
 //
 // ***** HANDLING OUT-OF-FLOW POSITIONED OBJECTS *****
 // Care should be taken to handle out-of-flow positioned objects during
-// certain tree walks (e.g. Layout()). The rule is that anything that
+// certain tree walks (e.g. layout()). The rule is that anything that
 // cares about containing blocks should skip the out-of-flow elements
 // in the normal tree walk and do an optional follow-up pass for them
-// using LayoutBlock::PositionedObjects().
+// using LayoutBlock::positionedObjects().
 // Not doing so will result in passing the wrong containing
 // block as tree walks will always pass the parent as the
 // containing block.
 //
 // Sample code of how to handle positioned objects in LayoutBlock:
 //
-// for (LayoutObject* child = FirstChild(); child; child = child->NextSibling())
+// for (LayoutObject* child = firstChild(); child; child = child->nextSibling())
 // {
-//     if (child->IsOutOfFlowPositioned())
+//     if (child->isOutOfFlowPositioned())
 //         continue;
 //
 //     // Handle normal flow children.
 //     ...
 // }
-// for (LayoutBox* positioned_object : PositionedObjects()) {
+// for (LayoutBox* positionedObject : positionedObjects()) {
 //     // Handle out-of-flow positioned objects.
 //     ...
 // }
 class CORE_EXPORT LayoutBlock : public LayoutBox {
  protected:
   explicit LayoutBlock(ContainerNode*);
+  ~LayoutBlock() override;
 
  public:
-  void Trace(Visitor*) const override;
-
   LayoutObject* FirstChild() const {
     NOT_DESTROYED();
     DCHECK_EQ(Children(), VirtualChildren());
@@ -124,7 +120,7 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
     return Children()->LastChild();
   }
 
-  // If you have a LayoutBlock, use FirstChild or LastChild instead.
+  // If you have a LayoutBlock, use firstChild or lastChild instead.
   void SlowFirstChild() const = delete;
   void SlowLastChild() const = delete;
 
@@ -154,10 +150,15 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
 
   const char* GetName() const override;
 
+  virtual const NGPhysicalBoxFragment* CurrentFragment() const {
+    NOT_DESTROYED();
+    return nullptr;
+  }
+
  protected:
-  // Insert a child correctly into the tree when |before_descendant| isn't a
+  // Insert a child correctly into the tree when |beforeDescendant| isn't a
   // direct child of |this|. This happens e.g. when there's an anonymous block
-  // child of |this| and |before_descendant| has been reparented into that one.
+  // child of |this| and |beforeDescendant| has been reparented into that one.
   // Such things are invisible to the DOM, and addChild() is typically called
   // with the DOM tree (and not the layout tree) in mind.
   void AddChildBeforeDescendant(LayoutObject* new_child,
@@ -174,7 +175,7 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
   void RemovePositionedObjects(LayoutObject*,
                                ContainingBlockState = kSameContainingBlock);
 
-  TrackedLayoutBoxLinkedHashSet* PositionedObjects() const {
+  TrackedLayoutBoxListHashSet* PositionedObjects() const {
     NOT_DESTROYED();
     return UNLIKELY(HasPositionedObjects()) ? PositionedObjectsInternal()
                                             : nullptr;
@@ -182,7 +183,7 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
   bool HasPositionedObjects() const {
     NOT_DESTROYED();
     DCHECK(has_positioned_objects_ ? (PositionedObjectsInternal() &&
-                                      !PositionedObjectsInternal()->empty())
+                                      !PositionedObjectsInternal()->IsEmpty())
                                    : !PositionedObjectsInternal());
     return has_positioned_objects_;
   }
@@ -195,7 +196,7 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
            PercentHeightDescendantsInternal()->Contains(o);
   }
 
-  TrackedLayoutBoxLinkedHashSet* PercentHeightDescendants() const {
+  TrackedLayoutBoxListHashSet* PercentHeightDescendants() const {
     NOT_DESTROYED();
     return HasPercentHeightDescendants() ? PercentHeightDescendantsInternal()
                                          : nullptr;
@@ -204,13 +205,10 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
     NOT_DESTROYED();
     DCHECK(has_percent_height_descendants_
                ? (PercentHeightDescendantsInternal() &&
-                  !PercentHeightDescendantsInternal()->empty())
+                  !PercentHeightDescendantsInternal()->IsEmpty())
                : !PercentHeightDescendantsInternal());
     return has_percent_height_descendants_;
   }
-
-  void AddSvgTextDescendant(LayoutBox& svg_text);
-  void RemoveSvgTextDescendant(LayoutBox& svg_text);
 
   void NotifyScrollbarThicknessChanged() {
     NOT_DESTROYED();
@@ -380,11 +378,12 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
 
  protected:
   RecalcLayoutOverflowResult RecalcPositionedDescendantsLayoutOverflow();
+  void RecalcPositionedDescendantsVisualOverflow();
   bool RecalcSelfLayoutOverflow();
   void RecalcSelfVisualOverflow();
 
  public:
-  virtual RecalcLayoutOverflowResult RecalcChildLayoutOverflow();
+  RecalcLayoutOverflowResult RecalcChildLayoutOverflow();
   RecalcLayoutOverflowResult RecalcLayoutOverflow() override;
   void RecalcChildVisualOverflow();
   void RecalcVisualOverflow() override;
@@ -401,10 +400,9 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
   //   </div>
   // </div>
 
-  // Return the parent LayoutObject if it can contribute to our ::first-line
-  // style.
-  const LayoutBlock* FirstLineStyleParentBlock() const;
-
+  // Returns the nearest enclosing block (including this block) that contributes
+  // a first-line style to our first line.
+  const LayoutBlock* EnclosingFirstLineStyleBlock() const;
   // Returns this block or the nearest inner block containing the actual first
   // line.
   LayoutBlockFlow* NearestInnerBlockWithFirstLine();
@@ -453,19 +451,20 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
                            const PhysicalOffset& paint_offset) const;
   virtual void PaintChildren(const PaintInfo&,
                              const PhysicalOffset& paint_offset) const;
+  void UpdateAfterLayout() override;
   MinMaxSizes PreferredLogicalWidths() const override;
 
   virtual bool HasLineIfEmpty() const;
   // Returns baseline offset if we can get |SimpleFontData| from primary font.
   // Or returns no value if we can't get font data.
-  absl::optional<LayoutUnit> BaselineForEmptyLine(
+  base::Optional<LayoutUnit> BaselineForEmptyLine(
       LineDirectionMode line_direction) const;
 
  protected:
   virtual void AdjustInlineDirectionLineBounds(
-      unsigned /* expansion_opportunity_count */,
-      LayoutUnit& /* logical_left */,
-      LayoutUnit& /* logical_width */) const {
+      unsigned /* expansionOpportunityCount */,
+      LayoutUnit& /* logicalLeft */,
+      LayoutUnit& /* logicalWidth */) const {
     NOT_DESTROYED();
   }
 
@@ -477,19 +476,28 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
 
   LayoutUnit FirstLineBoxBaseline() const override;
   LayoutUnit InlineBlockBaseline(LineDirectionMode) const override;
-  absl::optional<LayoutUnit> FirstLineBoxBaselineOverride() const;
-  absl::optional<LayoutUnit> InlineBlockBaselineOverride(
+  base::Optional<LayoutUnit> FirstLineBoxBaselineOverride() const;
+  base::Optional<LayoutUnit> InlineBlockBaselineOverride(
       LineDirectionMode) const;
 
+  bool HitTestOverflowControl(
+      HitTestResult&,
+      const HitTestLocation&,
+      const PhysicalOffset& adjusted_location) const override;
   bool HitTestChildren(HitTestResult&,
                        const HitTestLocation&,
                        const PhysicalOffset& accumulated_offset,
-                       HitTestPhase) override;
+                       HitTestAction) override;
 
   void StyleWillChange(StyleDifference,
                        const ComputedStyle& new_style) override;
   void StyleDidChange(StyleDifference, const ComputedStyle* old_style) override;
-  bool RespectsCSSOverflow() const override;
+  void UpdateFromStyle() override;
+
+  // Returns true if non-visible overflow should be respected. Otherwise
+  // HasNonVisibleOverflow() will be false and we won't create scrollable area
+  // for this object even if overflow is non-visible.
+  virtual bool AllowsNonVisibleOverflow() const;
 
   bool SimplifiedLayout();
   virtual void SimplifiedNormalFlowLayout();
@@ -509,7 +517,6 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
   virtual void AddVisualOverflowFromBlockChildren();
 
   void AddOutlineRects(Vector<PhysicalRect>&,
-                       OutlineInfo*,
                        const PhysicalOffset& additional_offset,
                        NGOutlineType) const override;
 
@@ -519,7 +526,7 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
   // TODO(jchaffraix): We should rename this function as inline-flex and
   // inline-grid as also covered.
   // Alternatively it should be removed as we clarify the meaning of
-  // IsAtomicInlineLevel to imply isInline.
+  // isAtomicInlineLevel to imply isInline.
   bool IsInlineBlockOrInlineTable() const final {
     NOT_DESTROYED();
     return IsInline() && IsAtomicInlineLevel();
@@ -527,9 +534,10 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
 
   bool NeedsPreferredWidthsRecalculation() const override;
 
-  bool IsInSelfHitTestingPhase(HitTestPhase phase) const final {
+  bool IsInSelfHitTestingPhase(HitTestAction hit_test_action) const final {
     NOT_DESTROYED();
-    return phase == HitTestPhase::kSelfBlockBackground;
+    return hit_test_action == kHitTestBlockBackground ||
+           hit_test_action == kHitTestChildBlockBackground;
   }
 
   // Returns baseline offset of this block if is empty editable or having
@@ -554,14 +562,26 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
 
   virtual void RemoveLeftoverAnonymousBlock(LayoutBlock* child);
 
-  TrackedLayoutBoxLinkedHashSet* PositionedObjectsInternal() const;
-  TrackedLayoutBoxLinkedHashSet* PercentHeightDescendantsInternal() const;
+  TrackedLayoutBoxListHashSet* PositionedObjectsInternal() const;
+  TrackedLayoutBoxListHashSet* PercentHeightDescendantsInternal() const;
 
   // Returns true if the positioned movement-only layout succeeded.
   bool TryLayoutDoingPositionedMovementOnly();
 
+  bool IsPointInOverflowControl(HitTestResult&,
+                                const PhysicalOffset&,
+                                const PhysicalOffset& accumulated_offset) const;
+
   void ComputeBlockPreferredLogicalWidths(LayoutUnit& min_logical_width,
                                           LayoutUnit& max_logical_width) const;
+
+ public:
+  bool ShouldPaintCursorCaret() const;
+  bool ShouldPaintDragCaret() const;
+  bool ShouldPaintCarets() const {
+    NOT_DESTROYED();
+    return ShouldPaintCursorCaret() || ShouldPaintDragCaret();
+  }
 
  protected:
   void InvalidatePaint(const PaintInvalidatorContext&) const override;
@@ -584,8 +604,8 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
 
  protected:
   // Paginated content inside this block was laid out.
-  // |logical_bottom_offset_after_pagination| is the logical bottom offset of
-  // the child content after applying any forced or unforced breaks as needed.
+  // |logicalBottomOffsetAfterPagination| is the logical bottom offset of the
+  // child content after applying any forced or unforced breaks as needed.
   void PaginatedContentWasLaidOut(
       LayoutUnit logical_bottom_offset_after_pagination);
 
@@ -603,20 +623,20 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
 
   LayoutObjectChildList children_;
 
-  // Note these quirk values can't be put in LayoutBlockRareData since they are
-  // set too frequently.
-  unsigned has_margin_before_quirk_ : 1;
+  unsigned
+      has_margin_before_quirk_ : 1;  // Note these quirk values can't be put
+                                     // in LayoutBlockRareData since they are
+                                     // set too frequently.
   unsigned has_margin_after_quirk_ : 1;
   unsigned has_markup_truncation_ : 1;
   unsigned width_available_to_children_changed_ : 1;
   unsigned height_available_to_children_changed_ : 1;
-  // True if margin-before and margin-after are adjoining.
-  unsigned is_self_collapsing_ : 1;
+  unsigned is_self_collapsing_ : 1;  // True if margin-before and margin-after
+                                     // are adjoining.
   unsigned descendants_with_floats_marked_for_layout_ : 1;
 
   unsigned has_positioned_objects_ : 1;
   unsigned has_percent_height_descendants_ : 1;
-  unsigned has_svg_text_descendants_ : 1;
 
   // When an object ceases to establish a fragmentation context (e.g. the
   // LayoutView when we're no longer printing), we need a deep layout

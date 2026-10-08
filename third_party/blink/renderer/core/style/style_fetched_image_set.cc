@@ -26,7 +26,6 @@
 #include "third_party/blink/renderer/core/style/style_fetched_image_set.h"
 
 #include "third_party/blink/renderer/core/css/css_image_set_value.h"
-#include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/loader/resource/image_resource_content.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/core/svg/graphics/svg_image_for_container.h"
@@ -49,8 +48,8 @@ StyleFetchedImageSet::StyleFetchedImageSet(ImageResourceContent* image,
 
 StyleFetchedImageSet::~StyleFetchedImageSet() = default;
 
-void StyleFetchedImageSet::Prefinalize() {
-  best_fit_image_->DidRemoveObserver();
+void StyleFetchedImageSet::Dispose() {
+  best_fit_image_->RemoveObserver(this);
   best_fit_image_ = nullptr;
 }
 
@@ -94,33 +93,23 @@ bool StyleFetchedImageSet::ErrorOccurred() const {
   return best_fit_image_->ErrorOccurred();
 }
 
-bool StyleFetchedImageSet::IsAccessAllowed(String& failing_url) const {
-  DCHECK(best_fit_image_->IsLoaded());
-  if (best_fit_image_->IsAccessAllowed())
-    return true;
-  failing_url = best_fit_image_->Url().ElidedString();
-  return false;
-}
-
-gfx::SizeF StyleFetchedImageSet::ImageSize(
+FloatSize StyleFetchedImageSet::ImageSize(
+    const Document&,
     float multiplier,
-    const gfx::SizeF& default_object_size,
+    const FloatSize& default_object_size,
     RespectImageOrientationEnum respect_orientation) const {
   Image* image = best_fit_image_->GetImage();
   if (auto* svg_image = DynamicTo<SVGImage>(image)) {
-    return ImageSizeForSVGImage(*svg_image, multiplier, default_object_size);
+    return ImageSizeForSVGImage(svg_image, multiplier, default_object_size);
   }
-  respect_orientation = ForceOrientationIfNecessary(respect_orientation);
-  gfx::SizeF natural_size(image->Size(respect_orientation));
-  gfx::SizeF scaled_image_size(ApplyZoom(natural_size, multiplier));
-  return gfx::ScaleSize(scaled_image_size, 1 / image_scale_factor_);
+  FloatSize natural_size(image->Size(respect_orientation));
+  FloatSize scaled_image_size(ApplyZoom(natural_size, multiplier));
+  scaled_image_size.Scale(1 / image_scale_factor_);
+  return scaled_image_size;
 }
 
 bool StyleFetchedImageSet::HasIntrinsicSize() const {
-  const Image& image = *best_fit_image_->GetImage();
-  if (auto* svg_image = DynamicTo<SVGImage>(image))
-    return HasIntrinsicDimensionsForSVGImage(*svg_image);
-  return image.HasIntrinsicSize();
+  return best_fit_image_->GetImage()->HasIntrinsicSize();
 }
 
 void StyleFetchedImageSet::AddClient(ImageResourceObserver* observer) {
@@ -133,9 +122,9 @@ void StyleFetchedImageSet::RemoveClient(ImageResourceObserver* observer) {
 
 scoped_refptr<Image> StyleFetchedImageSet::GetImage(
     const ImageResourceObserver&,
-    const Document& document,
+    const Document&,
     const ComputedStyle& style,
-    const gfx::SizeF& target_size) const {
+    const FloatSize& target_size) const {
   Image* image = best_fit_image_->GetImage();
   if (image->IsPlaceholderImage()) {
     static_cast<PlaceholderImage*>(image)->SetIconAndTextScaleFactor(
@@ -146,8 +135,7 @@ scoped_refptr<Image> StyleFetchedImageSet::GetImage(
   if (!svg_image)
     return image;
   return SVGImageForContainer::Create(svg_image, target_size,
-                                      style.EffectiveZoom(), url_,
-                                      document.GetPreferredColorScheme());
+                                      style.EffectiveZoom(), url_);
 }
 
 bool StyleFetchedImageSet::KnownToBeOpaque(const Document&,
@@ -155,24 +143,10 @@ bool StyleFetchedImageSet::KnownToBeOpaque(const Document&,
   return best_fit_image_->GetImage()->CurrentFrameKnownToBeOpaque();
 }
 
-RespectImageOrientationEnum StyleFetchedImageSet::ForceOrientationIfNecessary(
-    RespectImageOrientationEnum default_orientation) const {
-  // SVG Images don't have orientation and assert on loading when
-  // IsAccessAllowed is called.
-  if (best_fit_image_->GetImage()->IsSVGImage())
-    return default_orientation;
-  // Cross-origin images must always respect orientation to prevent
-  // potentially private data leakage.
-  if (!best_fit_image_->IsAccessAllowed())
-    return kRespectImageOrientation;
-  return default_orientation;
-}
-
 void StyleFetchedImageSet::Trace(Visitor* visitor) const {
   visitor->Trace(best_fit_image_);
   visitor->Trace(image_set_value_);
   StyleImage::Trace(visitor);
-  ImageResourceObserver::Trace(visitor);
 }
 
 }  // namespace blink

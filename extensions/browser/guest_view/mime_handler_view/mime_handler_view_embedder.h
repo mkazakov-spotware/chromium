@@ -1,11 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_BROWSER_GUEST_VIEW_MIME_HANDLER_VIEW_MIME_HANDLER_VIEW_EMBEDDER_H_
 #define EXTENSIONS_BROWSER_GUEST_VIEW_MIME_HANDLER_VIEW_MIME_HANDLER_VIEW_EMBEDDER_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -19,10 +18,6 @@ namespace content {
 class NavigationHandle;
 class RenderFrameHost;
 }  // namespace content
-
-namespace guest_view {
-class GuestViewBase;
-}  // namespace guest_view
 
 namespace extensions {
 
@@ -39,22 +34,21 @@ namespace extensions {
 //.  - the embedder or the <iframe> are removed from DOM.
 class MimeHandlerViewEmbedder : public content::WebContentsObserver {
  public:
-  // Returns the instance associated with an ongoing navigation in a frame
-  // identified by |frame_tree_node_id| if it exists.
+  // Returns the instances associated with an ongoing navigation in a frame
+  // identified by |frame_tree_node_id|.
   static MimeHandlerViewEmbedder* Get(int32_t frame_tree_node_id);
 
   static void Create(int32_t frame_tree_node_id,
                      const GURL& resource_url,
+                     const std::string& mime_type,
                      const std::string& stream_id,
                      const std::string& internal_id);
 
   ~MimeHandlerViewEmbedder() override;
-  MimeHandlerViewEmbedder(const MimeHandlerViewEmbedder&) = delete;
-  MimeHandlerViewEmbedder& operator=(const MimeHandlerViewEmbedder&) = delete;
 
   // content::WebContentsObserver overrides.
   void RenderFrameCreated(content::RenderFrameHost* render_frame_host) override;
-  void FrameDeleted(int frame_tree_node_id) override;
+  void FrameDeleted(content::RenderFrameHost* render_frame_host) override;
   void DidStartNavigation(content::NavigationHandle* handle) override;
   void ReadyToCommitNavigation(content::NavigationHandle* handle) override;
   void DidFinishNavigation(content::NavigationHandle* handle) override;
@@ -69,37 +63,47 @@ class MimeHandlerViewEmbedder : public content::WebContentsObserver {
  private:
   MimeHandlerViewEmbedder(int32_t frame_tree_node_id,
                           const GURL& resource_url,
+                          const std::string& mime_type,
                           const std::string& stream_id,
                           const std::string& internal_id);
-  void DestroySelf();
   void CreateMimeHandlerViewGuest(
       mojo::PendingRemote<mime_handler::BeforeUnloadControl>
           before_unload_control_remote);
-  void DidCreateMimeHandlerViewGuest(
-      mojo::PendingRemote<mime_handler::BeforeUnloadControl>
-          before_unload_control_remote,
-      std::unique_ptr<guest_view::GuestViewBase> guest);
+  void DidCreateMimeHandlerViewGuest(content::WebContents* guest_web_contents);
   // Returns null before |render_frame_host_| is known.
   mojom::MimeHandlerViewContainerManager* GetContainerManager();
 
   // The ID for the embedder frame of MimeHandlerViewGuest.
-  const int32_t frame_tree_node_id_;
+  int32_t frame_tree_node_id_;
   const GURL resource_url_;
+  const std::string mime_type_;
   const std::string stream_id_;
-  const std::string internal_id_;
-
+  // This will be initialized to the RenderFrameHost corresponding to the
+  // <iframe> in the HTML page.
+  int32_t outer_contents_frame_tree_node_id_ =
+      content::RenderFrameHost::kNoFrameTreeNodeId;
   // The frame associated with |frame_tree_node_id_|. Known to MHVE after the
   // navigation commits.
-  raw_ptr<content::RenderFrameHost> render_frame_host_ = nullptr;
+  content::RenderFrameHost* render_frame_host_ = nullptr;
+  // Used in attaching the GuestView. Will be initialized to the routing ID of
+  // the child frame which will be used to attach the GuestView to its outer
+  // WebContents.
+  int32_t element_instance_id_ = -1;
+  // Initialized before creating MimeHandlerViewGuest and will be passed on to
+  // to after it is created.
+  mojo::PendingRemote<mime_handler::BeforeUnloadControl>
+      pending_before_unload_control_;
+
   mojo::AssociatedRemote<mojom::MimeHandlerViewContainerManager>
       container_manager_;
 
-  // The child frame of the template page at which we attach the guest contents.
-  raw_ptr<content::RenderFrameHost> outer_contents_rfh_ = nullptr;
+  const std::string internal_id_;
 
   bool ready_to_create_mime_handler_view_ = false;
 
   base::WeakPtrFactory<MimeHandlerViewEmbedder> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MimeHandlerViewEmbedder);
 };
 
 }  // namespace extensions

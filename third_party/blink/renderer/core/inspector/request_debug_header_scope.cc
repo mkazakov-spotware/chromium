@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/inspector/main_thread_debugger.h"
+#include "third_party/blink/renderer/core/inspector/protocol/Protocol.h"
 #include "third_party/blink/renderer/core/inspector/v8_inspector_string.h"
 #include "third_party/blink/renderer/core/inspector/worker_thread_debugger.h"
 #include "third_party/blink/renderer/core/workers/worker_global_scope.h"
@@ -30,7 +31,7 @@ String RequestDebugHeaderScope::CaptureStackIdForCurrentLocation(
 
 RequestDebugHeaderScope::RequestDebugHeaderScope(ExecutionContext* context,
                                                  const String& header) {
-  if (header.empty())
+  if (header.IsEmpty())
     return;
   stack_trace_id_ =
       v8_inspector::V8StackTraceId(ToV8InspectorStringView(header));

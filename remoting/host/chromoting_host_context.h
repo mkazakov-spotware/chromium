@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,9 @@
 
 #include <memory>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
-#include "components/policy/core/common/management/platform_management_service.h"
 
 namespace base {
 class SingleThreadTaskRunner;
@@ -40,7 +39,7 @@ class ChromotingHostContext {
   static std::unique_ptr<ChromotingHostContext> Create(
       scoped_refptr<AutoThreadTaskRunner> ui_task_runner);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // Attaches task runners to the relevant browser threads for the chromoting
   // host.  Must be called on the UI thread of the browser process.
   // remoting::UrlRequestContextGetter returns ContainerURLRequestContext under
@@ -54,10 +53,7 @@ class ChromotingHostContext {
       scoped_refptr<base::SingleThreadTaskRunner> io_task_runner,
       scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner,
       scoped_refptr<base::SingleThreadTaskRunner> file_task_runner);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-  ChromotingHostContext(const ChromotingHostContext&) = delete;
-  ChromotingHostContext& operator=(const ChromotingHostContext&) = delete;
+#endif  // defined(OS_CHROMEOS)
 
   ~ChromotingHostContext();
 
@@ -97,8 +93,6 @@ class ChromotingHostContext {
 
   scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory();
 
-  policy::ManagementService* management_service();
-
  private:
   ChromotingHostContext(
       scoped_refptr<AutoThreadTaskRunner> ui_task_runner,
@@ -137,6 +131,8 @@ class ChromotingHostContext {
   // Makes a SharedURLLoaderFactory out of |url_request_context_getter_|
   std::unique_ptr<network::TransitionalURLLoaderFactoryOwner>
       url_loader_factory_owner_;
+
+  DISALLOW_COPY_AND_ASSIGN(ChromotingHostContext);
 };
 
 }  // namespace remoting

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/synchronization/atomic_flag.h"
 #include "base/synchronization/lock.h"
 #include "base/task/task_traits.h"
@@ -27,12 +26,12 @@
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 
 #include "base/win/com_init_util.h"
 #include "base/win/current_module.h"
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 namespace base {
 namespace internal {
@@ -65,7 +64,7 @@ class PooledSingleThreadTaskRunnerManagerTest : public testing::Test {
   }
 
   virtual void StartSingleThreadTaskRunnerManagerFromSetUp() {
-    single_thread_task_runner_manager_->Start(service_thread_.task_runner());
+    single_thread_task_runner_manager_->Start();
   }
 
   virtual void TearDownSingleThreadTaskRunnerManager() {
@@ -74,7 +73,7 @@ class PooledSingleThreadTaskRunnerManagerTest : public testing::Test {
   }
 
   Thread service_thread_{"ThreadPoolServiceThread"};
-  TaskTracker task_tracker_;
+  TaskTracker task_tracker_{"Test"};
   DelayedTaskManager delayed_task_manager_;
   std::unique_ptr<PooledSingleThreadTaskRunnerManager>
       single_thread_task_runner_manager_;
@@ -241,29 +240,29 @@ class PooledSingleThreadTaskRunnerManagerCommonTest
 
 }  // namespace
 
-TEST_P(PooledSingleThreadTaskRunnerManagerCommonTest, ThreadTypeSetCorrectly) {
+TEST_P(PooledSingleThreadTaskRunnerManagerCommonTest, PrioritySetCorrectly) {
   const struct {
     TaskTraits traits;
-    ThreadType expected_thread_type;
+    ThreadPriority expected_thread_priority;
   } test_cases[] = {
       {{TaskPriority::BEST_EFFORT},
-       CanUseBackgroundThreadTypeForWorkerThread() ? ThreadType::kBackground
-                                                   : ThreadType::kDefault},
+       CanUseBackgroundPriorityForWorkerThread() ? ThreadPriority::BACKGROUND
+                                                 : ThreadPriority::NORMAL},
       {{TaskPriority::BEST_EFFORT, ThreadPolicy::PREFER_BACKGROUND},
-       CanUseBackgroundThreadTypeForWorkerThread() ? ThreadType::kBackground
-                                                   : ThreadType::kDefault},
+       CanUseBackgroundPriorityForWorkerThread() ? ThreadPriority::BACKGROUND
+                                                 : ThreadPriority::NORMAL},
       {{TaskPriority::BEST_EFFORT, ThreadPolicy::MUST_USE_FOREGROUND},
-       ThreadType::kDefault},
-      {{TaskPriority::USER_VISIBLE}, ThreadType::kDefault},
+       ThreadPriority::NORMAL},
+      {{TaskPriority::USER_VISIBLE}, ThreadPriority::NORMAL},
       {{TaskPriority::USER_VISIBLE, ThreadPolicy::PREFER_BACKGROUND},
-       ThreadType::kDefault},
+       ThreadPriority::NORMAL},
       {{TaskPriority::USER_VISIBLE, ThreadPolicy::MUST_USE_FOREGROUND},
-       ThreadType::kDefault},
-      {{TaskPriority::USER_BLOCKING}, ThreadType::kDefault},
+       ThreadPriority::NORMAL},
+      {{TaskPriority::USER_BLOCKING}, ThreadPriority::NORMAL},
       {{TaskPriority::USER_BLOCKING, ThreadPolicy::PREFER_BACKGROUND},
-       ThreadType::kDefault},
+       ThreadPriority::NORMAL},
       {{TaskPriority::USER_BLOCKING, ThreadPolicy::MUST_USE_FOREGROUND},
-       ThreadType::kDefault}};
+       ThreadPriority::NORMAL}};
 
   // Why are events used here instead of the task tracker?
   // Shutting down can cause priorities to get raised. This means we have to use
@@ -272,8 +271,8 @@ TEST_P(PooledSingleThreadTaskRunnerManagerCommonTest, ThreadTypeSetCorrectly) {
     TestWaitableEvent event;
     CreateTaskRunner(test_case.traits)
         ->PostTask(FROM_HERE, BindLambdaForTesting([&]() {
-                     EXPECT_EQ(test_case.expected_thread_type,
-                               PlatformThread::GetCurrentThreadType());
+                     EXPECT_EQ(test_case.expected_thread_priority,
+                               PlatformThread::GetCurrentThreadPriority());
                      event.Signal();
                    }));
     event.Wait();
@@ -299,9 +298,9 @@ TEST_P(PooledSingleThreadTaskRunnerManagerCommonTest, ThreadNamesSet) {
   } test_cases[] = {
       // Non-MayBlock()
       {{TaskPriority::BEST_EFFORT},
-       CanUseBackgroundThreadTypeForWorkerThread() ? background : foreground},
+       CanUseBackgroundPriorityForWorkerThread() ? background : foreground},
       {{TaskPriority::BEST_EFFORT, ThreadPolicy::PREFER_BACKGROUND},
-       CanUseBackgroundThreadTypeForWorkerThread() ? background : foreground},
+       CanUseBackgroundPriorityForWorkerThread() ? background : foreground},
       {{TaskPriority::BEST_EFFORT, ThreadPolicy::MUST_USE_FOREGROUND},
        foreground},
       {{TaskPriority::USER_VISIBLE}, foreground},
@@ -317,11 +316,11 @@ TEST_P(PooledSingleThreadTaskRunnerManagerCommonTest, ThreadNamesSet) {
 
       // MayBlock()
       {{TaskPriority::BEST_EFFORT, MayBlock()},
-       CanUseBackgroundThreadTypeForWorkerThread() ? background_blocking
-                                                   : foreground_blocking},
+       CanUseBackgroundPriorityForWorkerThread() ? background_blocking
+                                                 : foreground_blocking},
       {{TaskPriority::BEST_EFFORT, ThreadPolicy::PREFER_BACKGROUND, MayBlock()},
-       CanUseBackgroundThreadTypeForWorkerThread() ? background_blocking
-                                                   : foreground_blocking},
+       CanUseBackgroundPriorityForWorkerThread() ? background_blocking
+                                                 : foreground_blocking},
       {{TaskPriority::BEST_EFFORT, ThreadPolicy::MUST_USE_FOREGROUND,
         MayBlock()},
        foreground_blocking},
@@ -451,7 +450,7 @@ class CallJoinFromDifferentThread : public SimpleThread {
   void WaitForRunToStart() { run_started_event_.Wait(); }
 
  private:
-  const raw_ptr<PooledSingleThreadTaskRunnerManager> manager_to_join_;
+  PooledSingleThreadTaskRunnerManager* const manager_to_join_;
   TestWaitableEvent run_started_event_;
 };
 
@@ -532,7 +531,7 @@ TEST_F(PooledSingleThreadTaskRunnerManagerJoinTest,
   join_from_different_thread.Join();
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 TEST_P(PooledSingleThreadTaskRunnerManagerCommonTest, COMSTAInitialized) {
   scoped_refptr<SingleThreadTaskRunner> com_task_runner =
@@ -644,7 +643,7 @@ TEST_F(PooledSingleThreadTaskRunnerManagerTestWin, PumpsMessages) {
   test::ShutdownTaskTracker(&task_tracker_);
 }
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 namespace {
 
@@ -688,7 +687,7 @@ TEST_F(PooledSingleThreadTaskRunnerManagerStartTest, PostTaskBeforeStart) {
   // flaky if the tested code allows that to happen.
   PlatformThread::Sleep(TestTimeouts::tiny_timeout());
   manager_started.Set();
-  single_thread_task_runner_manager_->Start(service_thread_.task_runner());
+  single_thread_task_runner_manager_->Start();
 
   // Wait for the task to complete to keep |manager_started| alive.
   task_finished.Wait();

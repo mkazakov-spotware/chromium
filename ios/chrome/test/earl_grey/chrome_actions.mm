@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,14 @@
 
 #import "base/mac/foundation_util.h"
 #import "ios/chrome/test/earl_grey/chrome_actions_app_interface.h"
-#import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
 #import "ios/web/public/test/element_selector.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
+
+GREY_STUB_CLASS_IN_APP_MAIN_QUEUE(ChromeActionsAppInterface)
 
 namespace chrome_test_util {
 
@@ -26,8 +27,8 @@ id<GREYAction> ScrollElementToVisible(ElementSelector* selector) {
   return [ChromeActionsAppInterface scrollElementToVisible:selector];
 }
 
-id<GREYAction> TurnTableViewSwitchOn(BOOL on) {
-  return [ChromeActionsAppInterface turnTableViewSwitchOn:on];
+id<GREYAction> TurnSettingsSwitchOn(BOOL on) {
+  return [ChromeActionsAppInterface turnSettingsSwitchOn:on];
 }
 
 id<GREYAction> TurnSyncSwitchOn(BOOL on) {
@@ -52,17 +53,6 @@ id<GREYAction> TapWebElementWithIdInFrame(const std::string& element_id,
 
 id<GREYAction> ScrollToTop() {
   return [ChromeActionsAppInterface scrollToTop];
-}
-
-id<GREYAction> TapAtPointPercentage(CGFloat xOriginStartPercentage,
-                                    CGFloat yOriginStartPercentage) {
-  return [ChromeActionsAppInterface
-      tapAtPointAtxOriginStartPercentage:xOriginStartPercentage
-                  yOriginStartPercentage:yOriginStartPercentage];
-}
-
-id<GREYAction> SwipeToShowDeleteButton() {
-  return [ChromeActionsAppInterface swipeToShowDeleteButton];
 }
 
 }  // namespace chrome_test_util

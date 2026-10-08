@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -45,8 +45,6 @@ The copies of the script can be out of sync so make sure that a newer version is
 compatible with the older ones when updating the script.
 """
 
-from __future__ import print_function
-
 import copy
 import json
 from optparse import OptionParser
@@ -65,8 +63,8 @@ def UnpackZip(target, source):
     target_file = os.path.normpath(os.path.join(target, f))
     # Sanity check to make sure .zip uses relative paths.
     if os.path.commonprefix([target_file, target]) != target:
-      print("Failed to unpack '%s': '%s' is not under '%s'" % (
-          source, target_file, target))
+      print "Failed to unpack '%s': '%s' is not under '%s'" % (
+          source, target_file, target)
       return 1
 
     # Create intermediate directories.
@@ -95,7 +93,7 @@ def Merge(left, right):
   if isinstance(left, dict):
     if isinstance(right, dict):
       retval = copy.copy(left)
-      for key, value in right.items():
+      for key, value in right.iteritems():
         if key in retval:
           retval[key] = Merge(retval[key], value)
         else:
@@ -161,7 +159,7 @@ def GenerateCommandLine(tool, source, dest, parameters):
   switches = [os.path.join(wix_path, tool), '-nologo']
 
   # Append the list of defines and extensions to the command line switches.
-  for name, value in params.get('defines', {}).items():
+  for name, value in params.get('defines', {}).iteritems():
     switches.append('-d%s=%s' % (name, value))
 
   for ext in params.get('extensions', []):
@@ -185,10 +183,10 @@ def Run(args):
       command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
   out, _ = popen.communicate()
   if popen.returncode:
-    print(command)
+    print command
     for line in out.splitlines():
-      print(line)
-    print('%s returned %d' % (args[0], popen.returncode))
+      print line
+    print '%s returned %d' % (args[0], popen.returncode)
   return popen.returncode
 
 
@@ -216,11 +214,11 @@ def GenerateMsi(target, source, parameters):
   f.close()
 
   if 'source' not in parameters:
-    print('The source .wxs is not specified')
+    print 'The source .wxs is not specified'
     return 1
 
   if 'bind_path' not in parameters:
-    print('The binding path is not specified')
+    print 'The binding path is not specified'
     return 1
 
   wxs = os.path.join(source_dir, parameters['source'])
@@ -235,7 +233,7 @@ def GenerateMsi(target, source, parameters):
   elif target_arch == 'x64':
     arch_param = 'x64'
   else:
-    print('Invalid target_arch parameter value')
+    print 'Invalid target_arch parameter value'
     return 1
 
   # Add the architecture to candle-specific parameters.

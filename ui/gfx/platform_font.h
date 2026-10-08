@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include <string>
 
 #include "base/memory/ref_counted.h"
+#include "base/optional.h"
 #include "build/build_config.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
 #include "third_party/skia/include/core/SkTypeface.h"
 #include "ui/gfx/font.h"
@@ -25,7 +25,7 @@ class GFX_EXPORT PlatformFont : public base::RefCounted<PlatformFont> {
 // configuration. This allows UI that wants to target a particular size of font
 // to obtain that size for the majority of users, while still compensating for a
 // user preference for a larger or smaller font.
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   static constexpr int kDefaultBaseFontSize = 13;
 #else
   static constexpr int kDefaultBaseFontSize = 12;
@@ -33,7 +33,7 @@ class GFX_EXPORT PlatformFont : public base::RefCounted<PlatformFont> {
 
   // Creates an appropriate PlatformFont implementation.
   static PlatformFont* CreateDefault();
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   static PlatformFont* CreateFromNativeFont(NativeFont native_font);
 #endif
   // Creates a PlatformFont implementation with the specified |font_name|
@@ -49,7 +49,7 @@ class GFX_EXPORT PlatformFont : public base::RefCounted<PlatformFont> {
   static PlatformFont* CreateFromSkTypeface(
       sk_sp<SkTypeface> typeface,
       int font_size,
-      const absl::optional<FontRenderParams>& params);
+      const base::Optional<FontRenderParams>& params);
 
   // Returns a new Font derived from the existing font.
   // |size_delta| is the size in pixels to add to the current font.
@@ -96,7 +96,7 @@ class GFX_EXPORT PlatformFont : public base::RefCounted<PlatformFont> {
   // Returns an object describing how the font should be rendered.
   virtual const FontRenderParams& GetFontRenderParams() = 0;
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   // Returns the native font handle.
   virtual NativeFont GetNativeFont() const = 0;
 #endif

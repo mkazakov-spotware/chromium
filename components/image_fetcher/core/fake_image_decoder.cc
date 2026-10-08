@@ -1,10 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/image_fetcher/core/fake_image_decoder.h"
 
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/image/image_unittest_util.h"
@@ -25,7 +25,6 @@ FakeImageDecoder::~FakeImageDecoder() = default;
 void FakeImageDecoder::DecodeImage(
     const std::string& image_data,
     const gfx::Size& desired_image_frame_size,
-    data_decoder::DataDecoder* data_decoder,
     image_fetcher::ImageDecodedCallback callback) {
   ASSERT_TRUE(enabled_);
   gfx::Image image;
@@ -34,11 +33,11 @@ void FakeImageDecoder::DecodeImage(
   }
 
   if (before_image_decoded_) {
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, before_image_decoded_);
+    base::SequencedTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                     before_image_decoded_);
   }
 
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), decoded_image_));
 }
 

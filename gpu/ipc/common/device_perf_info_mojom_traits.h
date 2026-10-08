@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,23 +9,21 @@
 
 #include "build/build_config.h"
 #include "gpu/config/device_perf_info.h"
-#include "gpu/gpu_export.h"
 
 namespace mojo {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 template <>
-struct GPU_EXPORT
-    EnumTraits<gpu::mojom::Direct3DFeatureLevel, D3D_FEATURE_LEVEL> {
+struct EnumTraits<gpu::mojom::Direct3DFeatureLevel, D3D_FEATURE_LEVEL> {
   static gpu::mojom::Direct3DFeatureLevel ToMojom(
       D3D_FEATURE_LEVEL d3d_feature_level);
   static bool FromMojom(gpu::mojom::Direct3DFeatureLevel input,
                         D3D_FEATURE_LEVEL* out);
 };
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
 template <>
-struct GPU_EXPORT EnumTraits<gpu::mojom::HasDiscreteGpu, gpu::HasDiscreteGpu> {
+struct EnumTraits<gpu::mojom::HasDiscreteGpu, gpu::HasDiscreteGpu> {
   static gpu::mojom::HasDiscreteGpu ToMojom(
       gpu::HasDiscreteGpu has_discrete_gpu);
   static bool FromMojom(gpu::mojom::HasDiscreteGpu input,
@@ -33,8 +31,7 @@ struct GPU_EXPORT EnumTraits<gpu::mojom::HasDiscreteGpu, gpu::HasDiscreteGpu> {
 };
 
 template <>
-struct GPU_EXPORT
-    StructTraits<gpu::mojom::DevicePerfInfoDataView, gpu::DevicePerfInfo> {
+struct StructTraits<gpu::mojom::DevicePerfInfoDataView, gpu::DevicePerfInfo> {
   static bool Read(gpu::mojom::DevicePerfInfoDataView data,
                    gpu::DevicePerfInfo* out);
 
@@ -50,7 +47,7 @@ struct GPU_EXPORT
     return info.hardware_concurrency;
   }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   static uint32_t system_commit_limit_mb(const gpu::DevicePerfInfo& info) {
     return info.system_commit_limit_mb;
   }

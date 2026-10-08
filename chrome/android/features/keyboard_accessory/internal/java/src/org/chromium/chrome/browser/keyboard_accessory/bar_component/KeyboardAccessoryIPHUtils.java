@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.keyboard_accessory.bar_component;
 
 import android.view.View;
 
-import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
@@ -42,8 +41,6 @@ class KeyboardAccessoryIPHUtils {
                 tracker.notifyEvent(EventConstants.KEYBOARD_ACCESSORY_PASSWORD_AUTOFILLED);
                 return;
             case FeatureConstants.KEYBOARD_ACCESSORY_PAYMENT_FILLING_FEATURE:
-            case FeatureConstants.KEYBOARD_ACCESSORY_PAYMENT_OFFER_FEATURE:
-            case FeatureConstants.KEYBOARD_ACCESSORY_PAYMENT_VIRTUAL_CARD_FEATURE:
                 tracker.notifyEvent(EventConstants.KEYBOARD_ACCESSORY_PAYMENT_AUTOFILLED);
                 return;
         }
@@ -77,6 +74,25 @@ class KeyboardAccessoryIPHUtils {
     }
 
     /**
+     * Shows a help bubble pointing to the given view. It contains an appropriate text for the given
+     * feature. The help bubble will not be shown if the {@link Tracker} doesn't allow it anymore.
+     * This may happen for example: if it was shown too often, too many IPH were triggered this
+     * session or other config restrictions apply.
+     * @param feature A String identifying the IPH feature and its appropriate help text.
+     * @param view The {@link View} providing context and the Rect to which the bubble will point.
+     * @param rootView The {@link View} used to determine the maximal dimensions for the bubble.
+     */
+    static void showHelpBubble(String feature, View view, View rootView) {
+        TextBubble helpBubble = createBubble(feature, new ViewRectProvider(view), rootView);
+        if (helpBubble == null) return;
+        // To emphasize which chip is pointed to, set selected to true for the built-in highlight.
+        // Prefer ViewHighlighter for views without a LayerDrawable background.
+        view.setSelected(true);
+        helpBubble.addOnDismissListener(() -> { view.setSelected(false); });
+        helpBubble.show();
+    }
+
+    /**
      * Shows a help bubble pointing to the given rect. It contains an appropriate text for the given
      * feature. The help bubble will not be shown if the {@link Tracker} doesn't allow it anymore.
      * This may happen for example: if it was shown too often, too many IPH were triggered this
@@ -86,66 +102,19 @@ class KeyboardAccessoryIPHUtils {
      * @param rootView The {@link View} used to determine the maximal dimensions for the bubble.
      */
     static void showHelpBubble(String feature, RectProvider rectProvider, View rootView) {
-        TextBubble helpBubble = createBubble(feature, rectProvider, rootView, null);
+        TextBubble helpBubble = createBubble(feature, rectProvider, rootView);
         if (helpBubble != null) helpBubble.show();
-    }
-
-    /**
-     * Shows a help bubble pointing to the given view. It contains an appropriate text for the given
-     * feature. The help bubble will not be shown if the {@link Tracker} doesn't allow it anymore.
-     * This may happen for example: if it was shown too often, too many IPH were triggered this
-     * session or other config restrictions apply.
-     * @param feature A String identifying the IPH feature and its appropriate help text.
-     * @param helpText String that should be displayed within the IPH bubble.
-     * @param rectProvider The {@link RectProvider} providing bounds to which the bubble will point.
-     * @param rootView The {@link View} used to determine the maximal dimensions for the bubble.
-     */
-    static void showHelpBubble(
-            String feature, RectProvider rectProvider, View rootView, @Nullable String helpText) {
-        TextBubble helpBubble = createBubble(feature, rectProvider, rootView, helpText);
-        if (helpBubble != null) helpBubble.show();
-    }
-
-    /**
-     * Shows a help bubble pointing to the given view. It contains an appropriate text for the given
-     * feature. The help bubble will not be shown if the {@link Tracker} doesn't allow it anymore.
-     * This may happen for example: if it was shown too often, too many IPH were triggered this
-     * session or other config restrictions apply.
-     * @param feature A String identifying the IPH feature and its appropriate help text.
-     * @param helpText String that should be displayed within the IPH bubble.
-     * @param view The {@link View} providing context and the Rect to which the bubble will point.
-     * @param rootView The {@link View} used to determine the maximal dimensions for the bubble.
-     */
-    static void showHelpBubble(
-            String feature, View view, View rootView, @Nullable String helpText) {
-        TextBubble helpBubble =
-                createBubble(feature, new ViewRectProvider(view), rootView, helpText);
-        if (helpBubble == null) return;
-        // To emphasize which chip is pointed to, set selected to true for the built-in highlight.
-        // Prefer ViewHighlighter for views without a LayerDrawable background.
-        view.setSelected(true);
-        helpBubble.addOnDismissListener(() -> { view.setSelected(false); });
-        helpBubble.show();
     }
 
     private static TextBubble createBubble(
-            String feature, RectProvider rectProvider, View rootView, @Nullable String helpText) {
+            String feature, RectProvider rectProvider, View rootView) {
         final Tracker tracker = getTrackerFromProfile();
         if (tracker == null) return null;
         if (!tracker.shouldTriggerHelpUI(feature)) return null; // This call records the IPH intent.
-        TextBubble helpBubble;
-        // If the help text is provided, then use it directly to generate the text bubble.
-        if (helpText != null && !helpText.isEmpty()) {
-            helpBubble = new TextBubble(rootView.getContext(), rootView, helpText, helpText,
-                    /* showArrow= */ true, rectProvider,
-                    ChromeAccessibilityUtil.get().isAccessibilityEnabled());
-        } else {
-            @StringRes
-            int helpTextResourceId = getHelpTextForFeature(feature);
-            helpBubble = new TextBubble(rootView.getContext(), rootView, helpTextResourceId,
-                    helpTextResourceId, rectProvider,
-                    ChromeAccessibilityUtil.get().isAccessibilityEnabled());
-        }
+        @StringRes
+        int helpText = getHelpTextForFeature(feature);
+        TextBubble helpBubble = new TextBubble(rootView.getContext(), rootView, helpText, helpText,
+                rectProvider, ChromeAccessibilityUtil.get().isAccessibilityEnabled());
         helpBubble.setDismissOnTouchInteraction(true);
         helpBubble.addOnDismissListener(() -> { tracker.dismissed(feature); });
         return helpBubble;
@@ -174,10 +143,6 @@ class KeyboardAccessoryIPHUtils {
                 return R.string.iph_keyboard_accessory_fill_with_chrome;
             case FeatureConstants.KEYBOARD_ACCESSORY_BAR_SWIPING_FEATURE:
                 return R.string.iph_keyboard_accessory_swipe_for_more;
-            case FeatureConstants.KEYBOARD_ACCESSORY_PAYMENT_VIRTUAL_CARD_FEATURE:
-                return R.string.iph_keyboard_accessory_payment_virtual_cards;
-            case FeatureConstants.KEYBOARD_ACCESSORY_PAYMENT_OFFER_FEATURE:
-                return R.string.iph_keyboard_accessory_payment_offer;
         }
         assert false : "Unknown help text for feature: " + feature;
         return 0;

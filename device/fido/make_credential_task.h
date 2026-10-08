@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,9 @@
 
 #include "base/callback.h"
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "device/fido/authenticator_get_assertion_response.h"
 #include "device/fido/authenticator_make_credential_response.h"
 #include "device/fido/ctap_get_assertion_request.h"
@@ -20,7 +22,6 @@
 #include "device/fido/device_operation.h"
 #include "device/fido/fido_constants.h"
 #include "device/fido/fido_task.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace device {
 
@@ -30,7 +31,7 @@ class COMPONENT_EXPORT(DEVICE_FIDO) MakeCredentialTask : public FidoTask {
  public:
   using MakeCredentialTaskCallback = base::OnceCallback<void(
       CtapDeviceResponseCode,
-      absl::optional<AuthenticatorMakeCredentialResponse>)>;
+      base::Optional<AuthenticatorMakeCredentialResponse>)>;
   using SignOperation = DeviceOperation<CtapGetAssertionRequest,
                                         AuthenticatorGetAssertionResponse>;
   using RegisterOperation =
@@ -39,23 +40,12 @@ class COMPONENT_EXPORT(DEVICE_FIDO) MakeCredentialTask : public FidoTask {
 
   MakeCredentialTask(FidoDevice* device,
                      CtapMakeCredentialRequest request,
-                     MakeCredentialOptions options,
                      MakeCredentialTaskCallback callback);
-
-  MakeCredentialTask(const MakeCredentialTask&) = delete;
-  MakeCredentialTask& operator=(const MakeCredentialTask&) = delete;
-
   ~MakeCredentialTask() override;
 
   // GetTouchRequest returns a request that will cause a device to flash and
   // wait for a touch.
   static CtapMakeCredentialRequest GetTouchRequest(const FidoDevice* device);
-
-  // WillUseCTAP2 returns true iff |MakeCredentialTask| will use the CTAP2
-  // protocol to satisfy the given |request|.
-  static bool WillUseCTAP2(const FidoDevice* device,
-                           const CtapMakeCredentialRequest& request,
-                           const MakeCredentialOptions& options);
 
   // FidoTask:
   void Cancel() override;
@@ -68,18 +58,17 @@ class COMPONENT_EXPORT(DEVICE_FIDO) MakeCredentialTask : public FidoTask {
   CtapGetAssertionRequest NextSilentRequest();
   void HandleResponseToSilentSignRequest(
       CtapDeviceResponseCode response_code,
-      absl::optional<AuthenticatorGetAssertionResponse> response_data);
+      base::Optional<AuthenticatorGetAssertionResponse> response_data);
   void HandleResponseToDummyTouch(
       CtapDeviceResponseCode response_code,
-      absl::optional<AuthenticatorMakeCredentialResponse> response_data);
+      base::Optional<AuthenticatorMakeCredentialResponse> response_data);
 
   void U2fRegister();
   void MaybeRevertU2fFallback(
       CtapDeviceResponseCode status,
-      absl::optional<AuthenticatorMakeCredentialResponse> response);
+      base::Optional<AuthenticatorMakeCredentialResponse> response);
 
   CtapMakeCredentialRequest request_;
-  MakeCredentialOptions options_;
   std::vector<std::vector<PublicKeyCredentialDescriptor>> exclude_list_batches_;
   size_t current_exclude_list_batch_ = 0;
 
@@ -87,9 +76,15 @@ class COMPONENT_EXPORT(DEVICE_FIDO) MakeCredentialTask : public FidoTask {
   std::unique_ptr<SignOperation> silent_sign_operation_;
   MakeCredentialTaskCallback callback_;
 
+  // probing_alternative_rp_id_ is true if |app_id| is set in |request_| and
+  // thus the exclude list is being probed a second time with the alternative RP
+  // ID.
+  bool probing_alternative_rp_id_ = false;
   bool canceled_ = false;
 
   base::WeakPtrFactory<MakeCredentialTask> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MakeCredentialTask);
 };
 
 // FilterAndBatchCredentialDescriptors splits a list of

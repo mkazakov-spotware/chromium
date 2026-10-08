@@ -1,13 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/media/media_tray.h"
 
-#include "ash/constants/tray_background_view_catalog.h"
+#include "ash/public/cpp/media_notification_provider.h"
 #include "ash/shelf/shelf.h"
-#include "ash/shell.h"
-#include "ash/system/media/media_notification_provider.h"
 #include "ash/system/status_area_widget.h"
 #include "ash/system/status_area_widget_test_helper.h"
 #include "ash/system/tray/tray_bubble_wrapper.h"
@@ -27,8 +25,7 @@ constexpr gfx::Size kMockTraySize = gfx::Size(48, 48);
 
 class MockMediaNotificationProvider : public MediaNotificationProvider {
  public:
-  MockMediaNotificationProvider()
-      : old_provider_(MediaNotificationProvider::Get()) {
+  MockMediaNotificationProvider() {
     MediaNotificationProvider::Set(this);
 
     ON_CALL(*this, GetMediaNotificationListView(_)).WillByDefault([](auto) {
@@ -37,7 +34,7 @@ class MockMediaNotificationProvider : public MediaNotificationProvider {
   }
 
   ~MockMediaNotificationProvider() override {
-    MediaNotificationProvider::Set(old_provider_);
+    MediaNotificationProvider::Set(nullptr);
   }
 
   // Medianotificationprovider implementations.
@@ -62,22 +59,21 @@ class MockMediaNotificationProvider : public MediaNotificationProvider {
  private:
   bool has_active_notifications_ = false;
   bool has_frozen_notifications_ = false;
-  MediaNotificationProvider* const old_provider_;
 };
 
 // Mock tray button used to test media tray bubble's anchor update.
 class MockTrayBackgroundView : public ash::TrayBackgroundView {
  public:
-  explicit MockTrayBackgroundView(Shelf* shelf)
-      : TrayBackgroundView(shelf,
-                           TrayBackgroundViewCatalogName::kTestCatalogName) {
+  MockTrayBackgroundView(Shelf* shelf) : TrayBackgroundView(shelf) {
     SetSize(kMockTraySize);
   }
 
   ~MockTrayBackgroundView() override = default;
 
   // TrayBackgroundview implementations
-  std::u16string GetAccessibleNameForTray() override { return u""; }
+  base::string16 GetAccessibleNameForTray() override {
+    return base::ASCIIToUTF16("");
+  }
   void HandleLocaleChange() override {}
   void HideBubbleWithView(const TrayBubbleView* bubble_view) override {}
   void ClickedOutsideBubble() override {}
@@ -92,17 +88,16 @@ class MediaTrayTest : public AshTestBase {
 
   void SetUp() override {
     feature_list_.InitAndEnableFeature(media::kGlobalMediaControlsForChromeOS);
-    AshTestBase::SetUp();
-
     provider_ = std::make_unique<MockMediaNotificationProvider>();
+    AshTestBase::SetUp();
 
     media_tray_ = status_area_widget()->media_tray();
     ASSERT_TRUE(MediaTray::IsPinnedToShelf());
   }
 
   void TearDown() override {
-    mock_tray_.reset();
     provider_.reset();
+    mock_tray_.reset();
     AshTestBase::TearDown();
   }
 
@@ -295,12 +290,7 @@ TEST_F(MediaTrayTest, PinToShelfDefaultBehavior) {
 }
 
 TEST_F(MediaTrayTest, BubbleGetsFocusWhenOpenWithKeyboard) {
-  media_tray()->ShowBubble();
-
-  // Generate a tab key press.
-  ui::test::EventGenerator generator(Shell::GetPrimaryRootWindow());
-  generator.PressKey(ui::KeyboardCode::VKEY_TAB, ui::EF_NONE);
-
+  media_tray()->ShowBubble(false /* show_by_click */);
   EXPECT_TRUE(GetBubbleWrapper()->GetBubbleWidget()->IsActive());
 }
 
@@ -406,7 +396,7 @@ class MediaTrayPinnedParamTest : public AshTestBase {
 };
 
 TEST_F(MediaTrayPinnedParamTest, PinParamTest) {
-  UpdateDisplay("200x100");
+  UpdateDisplay("100x100");
   EXPECT_TRUE(MediaTray::IsPinnedToShelf());
 }
 

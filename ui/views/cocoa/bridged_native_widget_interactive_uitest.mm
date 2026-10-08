@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 #import <Cocoa/Cocoa.h>
 
 #import "base/mac/mac_util.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#import "ui/base/cocoa/nswindow_test_util.h"
 #include "ui/base/hit_test.h"
+#import "ui/base/test/nswindow_fullscreen_notification_waiter.h"
 #include "ui/base/test/ui_controls.h"
 #import "ui/base/test/windowed_nsnotification_observer.h"
 #import "ui/events/test/cocoa_test_event_utils.h"
@@ -18,15 +19,12 @@
 #include "ui/views/widget/native_widget_mac.h"
 #include "ui/views/window/native_frame_view.h"
 
-namespace views::test {
+namespace views {
+namespace test {
 
 class BridgedNativeWidgetUITest : public WidgetTest {
  public:
   BridgedNativeWidgetUITest() = default;
-
-  BridgedNativeWidgetUITest(const BridgedNativeWidgetUITest&) = delete;
-  BridgedNativeWidgetUITest& operator=(const BridgedNativeWidgetUITest&) =
-      delete;
 
   // testing::Test:
   void SetUp() override {
@@ -40,9 +38,9 @@ class BridgedNativeWidgetUITest : public WidgetTest {
     init_params.delegate = new views::WidgetDelegate;
     init_params.delegate->SetOwnedByWidget(true);
 
-    // Provide a resizable Widget by default, as macOS doesn't correctly restore
-    // the window size when coming out of fullscreen if the window is not
-    // user-sizable.
+    // Provide a resizable Widget by default. Starting in 10.11, OSX doesn't
+    // correctly restore the window size when coming out of fullscreen if the
+    // window is not user-sizable.
     init_params.delegate->SetCanResize(true);
 
     widget_ = std::make_unique<Widget>();
@@ -62,6 +60,9 @@ class BridgedNativeWidgetUITest : public WidgetTest {
 
  protected:
   std::unique_ptr<Widget> widget_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BridgedNativeWidgetUITest);
 };
 
 // Tests for correct fullscreen tracking, regardless of whether it is initiated
@@ -74,7 +75,9 @@ TEST_F(BridgedNativeWidgetUITest, FullscreenSynchronousState) {
       setCollectionBehavior:[test_window() collectionBehavior] |
                             NSWindowCollectionBehaviorFullScreenPrimary];
 
-  ui::NSWindowFullscreenNotificationWaiter waiter(widget_->GetNativeWindow());
+  base::scoped_nsobject<NSWindowFullscreenNotificationWaiter> waiter(
+      [[NSWindowFullscreenNotificationWaiter alloc]
+          initWithWindow:test_window()]);
   const gfx::Rect restored_bounds = widget_->GetRestoredBounds();
 
   // First show the widget. A user shouldn't be able to initiate fullscreen
@@ -112,17 +115,17 @@ TEST_F(BridgedNativeWidgetUITest, FullscreenSynchronousState) {
   // the NSWindowDelegate is removed, and the pending request to take out of
   // fullscreen is lost. Since a message loop has not yet spun up in this test
   // we can reliably say there will be one enter and one exit, despite all the
-  // toggling above. Wait only for the exit notification (the enter
-  // notification will be swallowed, because the exit will have been requested
-  // before the enter completes).
-  waiter.WaitForEnterAndExitCount(0, 1);
+  // toggling above.
+  [waiter waitForEnterCount:1 exitCount:1];
   EXPECT_EQ(restored_bounds, widget_->GetRestoredBounds());
 }
 
 // Test fullscreen without overlapping calls and without changing collection
 // behavior on the test window.
 TEST_F(BridgedNativeWidgetUITest, FullscreenEnterAndExit) {
-  ui::NSWindowFullscreenNotificationWaiter waiter(widget_->GetNativeWindow());
+  base::scoped_nsobject<NSWindowFullscreenNotificationWaiter> waiter(
+      [[NSWindowFullscreenNotificationWaiter alloc]
+          initWithWindow:test_window()]);
 
   EXPECT_FALSE(widget_->IsFullscreen());
   const gfx::Rect restored_bounds = widget_->GetRestoredBounds();
@@ -138,12 +141,12 @@ TEST_F(BridgedNativeWidgetUITest, FullscreenEnterAndExit) {
   EXPECT_EQ(restored_bounds, widget_->GetRestoredBounds());
 
   // Should be zero until the runloop spins.
-  EXPECT_EQ(0, waiter.enter_count());
-  waiter.WaitForEnterAndExitCount(1, 0);
+  EXPECT_EQ(0, [waiter enterCount]);
+  [waiter waitForEnterCount:1 exitCount:0];
 
   // Verify it hasn't exceeded.
-  EXPECT_EQ(1, waiter.enter_count());
-  EXPECT_EQ(0, waiter.exit_count());
+  EXPECT_EQ(1, [waiter enterCount]);
+  EXPECT_EQ(0, [waiter exitCount]);
   EXPECT_TRUE(widget_->IsFullscreen());
   EXPECT_EQ(restored_bounds, widget_->GetRestoredBounds());
 
@@ -151,15 +154,17 @@ TEST_F(BridgedNativeWidgetUITest, FullscreenEnterAndExit) {
   EXPECT_FALSE(widget_->IsFullscreen());
   EXPECT_EQ(restored_bounds, widget_->GetRestoredBounds());
 
-  waiter.WaitForEnterAndExitCount(1, 1);
-  EXPECT_EQ(1, waiter.enter_count());
-  EXPECT_EQ(1, waiter.exit_count());
+  [waiter waitForEnterCount:1 exitCount:1];
+  EXPECT_EQ(1, [waiter enterCount]);
+  EXPECT_EQ(1, [waiter exitCount]);
   EXPECT_EQ(restored_bounds, widget_->GetRestoredBounds());
 }
 
 // Test that Widget::Restore exits fullscreen.
 TEST_F(BridgedNativeWidgetUITest, FullscreenRestore) {
-  ui::NSWindowFullscreenNotificationWaiter waiter(widget_->GetNativeWindow());
+  base::scoped_nsobject<NSWindowFullscreenNotificationWaiter> waiter(
+      [[NSWindowFullscreenNotificationWaiter alloc]
+          initWithWindow:test_window()]);
 
   EXPECT_FALSE(widget_->IsFullscreen());
   const gfx::Rect restored_bounds = widget_->GetRestoredBounds();
@@ -167,12 +172,13 @@ TEST_F(BridgedNativeWidgetUITest, FullscreenRestore) {
 
   widget_->SetFullscreen(true);
   EXPECT_TRUE(widget_->IsFullscreen());
-  waiter.WaitForEnterAndExitCount(1, 0);
+  [waiter waitForEnterCount:1 exitCount:0];
 
   widget_->Restore();
   EXPECT_FALSE(widget_->IsFullscreen());
-  waiter.WaitForEnterAndExitCount(1, 1);
+  [waiter waitForEnterCount:1 exitCount:1];
   EXPECT_EQ(restored_bounds, widget_->GetRestoredBounds());
 }
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views

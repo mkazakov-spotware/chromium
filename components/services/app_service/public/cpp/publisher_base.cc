@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,7 @@
 
 #include <vector>
 
-#include "base/notreached.h"
 #include "base/time/time.h"
-#include "components/services/app_service/public/cpp/features.h"
 
 namespace apps {
 
@@ -22,7 +20,7 @@ apps::mojom::AppPtr PublisherBase::MakeApp(
     std::string app_id,
     apps::mojom::Readiness readiness,
     const std::string& name,
-    apps::mojom::InstallReason install_reason) {
+    apps::mojom::InstallSource install_source) {
   apps::mojom::AppPtr app = apps::mojom::App::New();
 
   app->app_type = app_type;
@@ -34,8 +32,7 @@ apps::mojom::AppPtr PublisherBase::MakeApp(
   app->last_launch_time = base::Time();
   app->install_time = base::Time();
 
-  app->install_reason = install_reason;
-  app->install_source = apps::mojom::InstallSource::kUnknown;
+  app->install_source = install_source;
 
   app->is_platform_app = apps::mojom::OptionalBool::kFalse;
   app->recommendable = apps::mojom::OptionalBool::kTrue;
@@ -54,10 +51,8 @@ void PublisherBase::FlushMojoCallsForTesting() {
 void PublisherBase::Initialize(
     const mojo::Remote<apps::mojom::AppService>& app_service,
     apps::mojom::AppType app_type) {
-  if (!base::FeatureList::IsEnabled(kStopMojomAppService)) {
-    app_service->RegisterPublisher(receiver_.BindNewPipeAndPassRemote(),
-                                   app_type);
-  }
+  app_service->RegisterPublisher(receiver_.BindNewPipeAndPassRemote(),
+                                 app_type);
 }
 
 void PublisherBase::Publish(
@@ -66,47 +61,43 @@ void PublisherBase::Publish(
   for (auto& subscriber : subscribers) {
     std::vector<apps::mojom::AppPtr> apps;
     apps.push_back(app.Clone());
-    subscriber->OnApps(std::move(apps), apps::mojom::AppType::kUnknown,
-                       false /* should_notify_initialized */);
+    subscriber->OnApps(std::move(apps));
   }
 }
 
-void PublisherBase::ModifyCapabilityAccess(
-    const mojo::RemoteSet<apps::mojom::Subscriber>& subscribers,
-    const std::string& app_id,
-    absl::optional<bool> accessing_camera,
-    absl::optional<bool> accessing_microphone) {
-  if (!accessing_camera.has_value() && !accessing_microphone.has_value()) {
-    return;
-  }
+void PublisherBase::LaunchAppWithFiles(const std::string& app_id,
+                                       apps::mojom::LaunchContainer container,
+                                       int32_t event_flags,
+                                       apps::mojom::LaunchSource launch_source,
+                                       apps::mojom::FilePathsPtr file_paths) {
+  NOTIMPLEMENTED();
+}
 
-  for (auto& subscriber : subscribers) {
-    std::vector<apps::mojom::CapabilityAccessPtr> capability_accesses;
-    auto capability_access = apps::mojom::CapabilityAccess::New();
-    capability_access->app_id = app_id;
+void PublisherBase::LaunchAppWithIntent(const std::string& app_id,
+                                        int32_t event_flags,
+                                        apps::mojom::IntentPtr intent,
+                                        apps::mojom::LaunchSource launch_source,
+                                        int64_t display_id) {
+  NOTIMPLEMENTED();
+}
 
-    if (accessing_camera.has_value()) {
-      capability_access->camera = accessing_camera.value()
-                                      ? apps::mojom::OptionalBool::kTrue
-                                      : apps::mojom::OptionalBool::kFalse;
-    }
+void PublisherBase::SetPermission(const std::string& app_id,
+                                  apps::mojom::PermissionPtr permission) {
+  NOTIMPLEMENTED();
+}
 
-    if (accessing_microphone.has_value()) {
-      capability_access->microphone = accessing_microphone.value()
-                                          ? apps::mojom::OptionalBool::kTrue
-                                          : apps::mojom::OptionalBool::kFalse;
-    }
-
-    capability_accesses.push_back(std::move(capability_access));
-    subscriber->OnCapabilityAccesses(std::move(capability_accesses));
-  }
+void PublisherBase::Uninstall(const std::string& app_id,
+                              apps::mojom::UninstallSource uninstall_source,
+                              bool clear_site_data,
+                              bool report_abuse) {
+  LOG(ERROR) << "Uninstall failed, could not remove the app with id " << app_id;
 }
 
 void PublisherBase::PauseApp(const std::string& app_id) {
   NOTIMPLEMENTED();
 }
 
-void PublisherBase::UnpauseApp(const std::string& app_id) {
+void PublisherBase::UnpauseApps(const std::string& app_id) {
   NOTIMPLEMENTED();
 }
 
@@ -132,13 +123,11 @@ void PublisherBase::OpenNativeSettings(const std::string& app_id) {
   NOTIMPLEMENTED();
 }
 
-void PublisherBase::SetResizeLocked(const std::string& app_id,
-                                    apps::mojom::OptionalBool locked) {
-  NOTIMPLEMENTED();
-}
-
-void PublisherBase::SetWindowMode(const std::string& app_id,
-                                  apps::mojom::WindowMode window_mode) {
+void PublisherBase::OnPreferredAppSet(
+    const std::string& app_id,
+    apps::mojom::IntentFilterPtr intent_filter,
+    apps::mojom::IntentPtr intent,
+    apps::mojom::ReplacedAppPreferencesPtr replaced_app_preferences) {
   NOTIMPLEMENTED();
 }
 

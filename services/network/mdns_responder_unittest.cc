@@ -1,15 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "services/network/mdns_responder.h"
-
-#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "services/network/mdns_responder.h"
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
@@ -33,14 +32,12 @@
 #include "services/network/public/mojom/mdns_responder.mojom.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace network {
 namespace {
 
 using ::testing::_;
 using ::testing::AnyNumber;
-using ::testing::AtLeast;
 using ::testing::Invoke;
 using ::testing::NiceMock;
 using ::testing::Return;
@@ -52,7 +49,7 @@ const net::IPAddress kPublicAddrsIpv6[2] = {
     net::IPAddress(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16),
     net::IPAddress(16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1)};
 
-const base::TimeDelta kDefaultTtl = base::Seconds(120);
+const base::TimeDelta kDefaultTtl = base::TimeDelta::FromSeconds(120);
 
 const int kNumAnnouncementsPerInterface = 2;
 const int kNumMaxRetriesPerResponse = 2;
@@ -70,10 +67,9 @@ const char kMdnsNameGeneratorServiceInstanceName[] =
 std::string CreateMdnsQuery(uint16_t query_id,
                             const std::string& dotted_name,
                             uint16_t qtype = net::dns_protocol::kTypeA) {
-  absl::optional<std::vector<uint8_t>> qname =
-      net::DNSDomainFromUnrestrictedDot(dotted_name);
-  CHECK(qname.has_value());
-  net::DnsQuery query(query_id, qname.value(), qtype);
+  std::string qname;
+  net::DNSDomainFromDot(dotted_name, &qname);
+  net::DnsQuery query(query_id, qname, qtype);
   return std::string(query.io_buffer()->data(), query.io_buffer()->size());
 }
 
@@ -124,13 +120,10 @@ std::string CreateResponseToMdnsNameGeneratorServiceQueryWithCacheFlush(
   const std::string owned_rdata(txt_record.rdata);
   txt_record.SetOwnedRdata(owned_rdata);
   std::vector<net::DnsResourceRecord> answers(1, txt_record);
-  net::DnsResponse response_cache_flush(
-      /*id=*/0, /*is_authoritative=*/true, answers, /*authority_records=*/{},
-      /*additional_records=*/{},
-      /*query=*/absl::nullopt,
-      /*rcode=*/net::dns_protocol::kRcodeNOERROR,
-      /*validate_records=*/true,
-      /*validate_names_as_internet_hostnames=*/false);
+  net::DnsResponse response_cache_flush(0 /* id */, true /* is_authoritative */,
+                                        answers, {} /* authority_records */,
+                                        {} /* additional_records */,
+                                        base::nullopt /* query */);
   DCHECK(response_cache_flush.io_buffer() != nullptr);
   buf = base::MakeRefCounted<net::IOBufferWithSize>(
       response_cache_flush.io_buffer_size());
@@ -158,9 +151,13 @@ class MockFailingMdnsSocketFactory : public net::MDnsSocketFactory {
   // primitive but failed sending;
   int FailToSend(const std::string& packet,
                  const std::string& address,
-                 net::CompletionOnceCallback callback) {
+                 net::CompletionRepeatingCallback callback) {
     OnSendTo(packet);
-    task_runner_->PostTask(FROM_HERE, base::BindOnce(std::move(callback), -1));
+    task_runner_->PostTask(
+        FROM_HERE,
+        base::BindOnce(
+            [](net::CompletionRepeatingCallback callback) { callback.Run(-1); },
+            callback));
     return -1;
   }
 
@@ -169,14 +166,17 @@ class MockFailingMdnsSocketFactory : public net::MDnsSocketFactory {
   // called.
   int MaybeBlockSend(const std::string& packet,
                      const std::string& address,
-                     net::CompletionOnceCallback callback) {
+                     net::CompletionRepeatingCallback callback) {
     OnSendTo(packet);
     if (block_send_) {
       blocked_packet_size_ = packet.size();
       blocked_send_callback_ = std::move(callback);
     } else {
       task_runner_->PostTask(
-          FROM_HERE, base::BindOnce(std::move(callback), packet.size()));
+          FROM_HERE,
+          base::BindOnce([](net::CompletionRepeatingCallback callback,
+                            size_t packet_size) { callback.Run(packet_size); },
+                         callback, packet.size()));
     }
     return -1;
   }
@@ -189,7 +189,7 @@ class MockFailingMdnsSocketFactory : public net::MDnsSocketFactory {
   void ResumeSend() {
     DCHECK(block_send_);
     block_send_ = false;
-    std::move(blocked_send_callback_).Run(blocked_packet_size_);
+    blocked_send_callback_.Run(blocked_packet_size_);
   }
 
   // Emulates the asynchronous contract of invoking |callback| in the RecvFrom
@@ -197,16 +197,20 @@ class MockFailingMdnsSocketFactory : public net::MDnsSocketFactory {
   int FailToRecv(net::IOBuffer* buffer,
                  int size,
                  net::IPEndPoint* address,
-                 net::CompletionOnceCallback callback) {
-    task_runner_->PostTask(
-        FROM_HERE, base::BindOnce(std::move(callback), net::ERR_FAILED));
+                 net::CompletionRepeatingCallback callback) {
+    task_runner_->PostTask(FROM_HERE,
+                           base::BindOnce(
+                               [](net::CompletionRepeatingCallback callback) {
+                                 callback.Run(net::ERR_FAILED);
+                               },
+                               callback));
     return net::ERR_IO_PENDING;
   }
 
  private:
   bool block_send_ = false;
   size_t blocked_packet_size_ = 0;
-  net::CompletionOnceCallback blocked_send_callback_;
+  net::CompletionRepeatingCallback blocked_send_callback_;
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 };
 
@@ -218,7 +222,7 @@ class MockFailingMdnsSocketFactory : public net::MDnsSocketFactory {
 // the NSEC records are placed in the Answer section with the address records in
 // the Answer section.
 TEST(CreateMdnsResponseTest, SingleARecordAnswer) {
-  const uint8_t response_data[]{
+  const char response_data[]{
       0x00, 0x00,  // mDNS response ID mus be zero.
       0x84, 0x00,  // flags, response with authoritative answer
       0x00, 0x00,  // number of questions
@@ -246,8 +250,7 @@ TEST(CreateMdnsResponseTest, SingleARecordAnswer) {
                                // length 1, bitmap with bit 1 set
   };
 
-  std::string expected_response(reinterpret_cast<const char*>(response_data),
-                                sizeof(response_data));
+  std::string expected_response(response_data, sizeof(response_data));
   std::string actual_response = CreateResolutionResponse(
       kDefaultTtl,
       {{"www.example.com", net::IPAddress(0xc0, 0xa8, 0x00, 0x01)}});
@@ -255,7 +258,7 @@ TEST(CreateMdnsResponseTest, SingleARecordAnswer) {
 }
 
 TEST(CreateMdnsResponseTest, SingleARecordGoodbye) {
-  const uint8_t response_data[]{
+  const char response_data[]{
       0x00, 0x00,  // mDNS response ID mus be zero.
       0x84, 0x00,  // flags, response with authoritative answer
       0x00, 0x00,  // number of questions
@@ -272,8 +275,7 @@ TEST(CreateMdnsResponseTest, SingleARecordGoodbye) {
       0xc0, 0xa8, 0x00, 0x01,  // 192.168.0.1
   };
 
-  std::string expected_response(reinterpret_cast<const char*>(response_data),
-                                sizeof(response_data));
+  std::string expected_response(response_data, sizeof(response_data));
   std::string actual_response = CreateResolutionResponse(
       base::TimeDelta(),
       {{"www.example.com", net::IPAddress(0xc0, 0xa8, 0x00, 0x01)}});
@@ -281,7 +283,7 @@ TEST(CreateMdnsResponseTest, SingleARecordGoodbye) {
 }
 
 TEST(CreateMdnsResponseTest, SingleQuadARecordAnswer) {
-  const uint8_t response_data[] = {
+  const char response_data[] = {
       0x00, 0x00,  // mDNS response ID mus be zero.
       0x84, 0x00,  // flags, response with authoritative answer
       0x00, 0x00,  // number of questions
@@ -308,8 +310,7 @@ TEST(CreateMdnsResponseTest, SingleQuadARecordAnswer) {
       0x08,  // type bit map of type AAAA: window block 0, bitmap
              // length 4, bitmap with bit 28 set
   };
-  std::string expected_response(reinterpret_cast<const char*>(response_data),
-                                sizeof(response_data));
+  std::string expected_response(response_data, sizeof(response_data));
   std::string actual_response = CreateResolutionResponse(
       kDefaultTtl,
       {{"example.org",
@@ -319,7 +320,7 @@ TEST(CreateMdnsResponseTest, SingleQuadARecordAnswer) {
 }
 
 TEST(CreateMdnsResponseTest, SingleNsecRecordAnswer) {
-  const uint8_t response_data[] = {
+  const char response_data[] = {
       0x00, 0x00,  // mDNS response ID mus be zero.
       0x84, 0x00,  // flags, response with authoritative answer
       0x00, 0x00,  // number of questions
@@ -346,8 +347,7 @@ TEST(CreateMdnsResponseTest, SingleNsecRecordAnswer) {
       0x00, 0x04,              // rdlength, 32 bits
       0xc0, 0xa8, 0x00, 0x01,  // 192.168.0.1
   };
-  std::string expected_response(reinterpret_cast<const char*>(response_data),
-                                sizeof(response_data));
+  std::string expected_response(response_data, sizeof(response_data));
   std::string actual_response = CreateNegativeResponse(
       {{"www.example.com", net::IPAddress(0xc0, 0xa8, 0x00, 0x01)}});
   EXPECT_EQ(expected_response, actual_response);
@@ -355,7 +355,7 @@ TEST(CreateMdnsResponseTest, SingleNsecRecordAnswer) {
 
 TEST(CreateMdnsResponseTest,
      SingleTxtRecordAnswerToMdnsNameGeneratorServiceQuery) {
-  const uint8_t response_data[] = {
+  const char response_data[] = {
       0x00, 0x00,  // mDNS response ID mus be zero.
       0x84, 0x00,  // flags, response with authoritative answer
       0x00, 0x00,  // number of questions
@@ -375,8 +375,7 @@ TEST(CreateMdnsResponseTest,
       'a',  'l',  0x15, 'n',  'a',  'm', 'e',  '1', '=', 'w', 'w', 'w',
       '.',  'e',  'x',  'a',  'm',  'p', 'l',  'e', '.', 'c', 'o', 'm',
       0x09, 't',  'x',  't',  'v',  'e', 'r',  's', '=', '1'};
-  std::string expected_response(reinterpret_cast<const char*>(response_data),
-                                sizeof(response_data));
+  std::string expected_response(response_data, sizeof(response_data));
   std::string actual_response = CreateResponseToMdnsNameGeneratorServiceQuery(
       kDefaultTtl, {"1.local", "www.example.com"});
   EXPECT_EQ(expected_response, actual_response);
@@ -402,7 +401,7 @@ class MdnsResponderTest : public testing::Test {
     Reset();
   }
 
-  ~MdnsResponderTest() override {
+  ~MdnsResponderTest() {
     // Goodbye messages are scheduled when the responder service |host_manager_|
     // is destroyed and can be synchronously sent if the rate limiting permits.
     // See ResponseScheduler::DispatchPendingPackets().
@@ -852,7 +851,7 @@ TEST_F(MdnsResponderTest,
       reinterpret_cast<const uint8_t*>(query.data()), query.size());
   socket_factory_.SimulateReceive(
       reinterpret_cast<const uint8_t*>(query.data()), query.size());
-  RunFor(base::Milliseconds(900));
+  RunFor(base::TimeDelta::FromMilliseconds(900));
 
   // Receive a conflicting response.
   const std::string conflicting_response =
@@ -880,7 +879,7 @@ TEST_F(MdnsResponderTest,
   EXPECT_CALL(socket_factory_, OnSendTo(expected_response)).Times(1);
   socket_factory_.SimulateReceive(
       reinterpret_cast<const uint8_t*>(query.data()), query.size());
-  RunFor(base::Milliseconds(1000));
+  RunFor(base::TimeDelta::FromMilliseconds(1000));
 
   // Goodbye on both interfaces.
   const std::string expected_goodbye =
@@ -924,10 +923,9 @@ TEST_F(MdnsResponderTest, ResponderHostDoesCleanUpAfterMojoConnectionError) {
 }
 
 // Test that the host generates a Mojo connection error when no socket handler
-// is successfully started, and subsequent retry attempts are throttled.
+// is successfully started.
 TEST_F(MdnsResponderTest, ClosesBindingWhenNoSocketHanlderStarted) {
-  // Expect only one attempt to create sockets before start throttling prevents
-  // further attempts.
+  base::HistogramTester tester;
   EXPECT_CALL(failing_socket_factory_, CreateSockets(_)).WillOnce(Return());
   Reset(true /* use_failing_socket_factory */);
   RunUntilNoTasksRemain();
@@ -935,54 +933,11 @@ TEST_F(MdnsResponderTest, ClosesBindingWhenNoSocketHanlderStarted) {
   EXPECT_FALSE(client_[0].is_bound());
   EXPECT_FALSE(client_[1].is_bound());
 
-  // Little extra fudge around throttle delays as it is not essential for it to
-  // be precise, and don't need the test to be too restrictive.
-  const base::TimeDelta kThrottleFudge = base::Milliseconds(2);
-
-  // Expect socket creation to not be attempted again too soon.
-  EXPECT_CALL(failing_socket_factory_, CreateSockets(_)).Times(0);
-  RunFor(MdnsResponderManager::kManagerStartThrottleDelay - kThrottleFudge);
-  CreateMdnsResponders();
-  RunUntilNoTasksRemain();
-  EXPECT_FALSE(client_[0].is_bound());
-  EXPECT_FALSE(client_[1].is_bound());
-
-  // Expect no change for subsequent responder creation attempts if socket
-  // creation still fails.
-  EXPECT_CALL(failing_socket_factory_, CreateSockets(_)).WillOnce(Return());
-  RunFor(2 * kThrottleFudge);
-  CreateMdnsResponders();
-  RunUntilNoTasksRemain();
-  EXPECT_FALSE(client_[0].is_bound());
-  EXPECT_FALSE(client_[1].is_bound());
-
-  // Expect socket creation to not be attempted again too soon.
-  EXPECT_CALL(failing_socket_factory_, CreateSockets(_)).Times(0);
-  RunFor(MdnsResponderManager::kManagerStartThrottleDelay - kThrottleFudge);
-  CreateMdnsResponders();
-  RunUntilNoTasksRemain();
-  EXPECT_FALSE(client_[0].is_bound());
-  EXPECT_FALSE(client_[1].is_bound());
-
-  // Simulate socket creation fixing itself, and expect responder creation
-  // should be able to succeed through retry.
-  EXPECT_CALL(failing_socket_factory_, CreateSockets(_))
-      .WillOnce(
-          Invoke(&socket_factory_, &net::MockMDnsSocketFactory::CreateSockets));
-  RunFor(2 * kThrottleFudge);
-  CreateMdnsResponders();
-  RunUntilNoTasksRemain();
-  EXPECT_TRUE(client_[0].is_bound());
-  EXPECT_TRUE(client_[1].is_bound());
-
-  // After success, new responders can be created without repeating socket
-  // creation.
-  EXPECT_CALL(failing_socket_factory_, CreateSockets(_)).Times(0);
-  RunFor(MdnsResponderManager::kManagerStartThrottleDelay + kThrottleFudge);
-  mojo::Remote<mojom::MdnsResponder> responder;
-  host_manager_->CreateMdnsResponder(responder.BindNewPipeAndPassReceiver());
-  RunUntilNoTasksRemain();
-  EXPECT_TRUE(responder.is_bound());
+  tester.ExpectBucketCount(kServiceErrorHistogram,
+                           ServiceError::kFailToStartManager, 1);
+  tester.ExpectBucketCount(kServiceErrorHistogram,
+                           ServiceError::kFailToCreateResponder, 2);
+  tester.ExpectTotalCount(kServiceErrorHistogram, 3);
 }
 
 // Test that an announcement is retried after send failure.
@@ -996,7 +951,8 @@ TEST_F(MdnsResponderTest, AnnouncementRetriedAfterSendFailure) {
         ON_CALL(*socket, SendToInternal(_, _, _))
             .WillByDefault(Invoke(&failing_socket_factory_,
                                   &MockFailingMdnsSocketFactory::FailToSend));
-        ON_CALL(*socket, RecvFrom(_, _, _, _)).WillByDefault(Return(-1));
+        ON_CALL(*socket, RecvFromInternal(_, _, _, _))
+            .WillByDefault(Return(-1));
 
         sockets->push_back(std::move(socket));
       };
@@ -1029,13 +985,13 @@ TEST_F(MdnsResponderTest, AnnouncementsAreRateLimitedPerResponse) {
   client_[0]->CreateNameForAddress(addr1, base::DoNothing());
   client_[0]->CreateNameForAddress(addr2, base::DoNothing());
 
-  RunFor(base::Milliseconds(900));
+  RunFor(base::TimeDelta::FromMilliseconds(900));
   // Second announcement for 0.local.
   EXPECT_CALL(socket_factory_, OnSendTo(expected_announcement1)).Times(2);
-  RunFor(base::Seconds(1));
+  RunFor(base::TimeDelta::FromSeconds(1));
   // First announcement for 1.local.
   EXPECT_CALL(socket_factory_, OnSendTo(expected_announcement2)).Times(2);
-  RunFor(base::Seconds(1));
+  RunFor(base::TimeDelta::FromSeconds(1));
   // Second announcement for 1.local.
   EXPECT_CALL(socket_factory_, OnSendTo(expected_announcement2)).Times(2);
   RunUntilNoTasksRemain();
@@ -1062,7 +1018,7 @@ TEST_F(MdnsResponderTest, GoodbyesAreRateLimitedPerResponse) {
   RemoveNameForAddressAndExpectDone(0, addr1);
   RemoveNameForAddressAndExpectDone(0, addr2);
 
-  RunFor(base::Milliseconds(900));
+  RunFor(base::TimeDelta::FromMilliseconds(900));
   // Goodbye for 1.local.
   EXPECT_CALL(socket_factory_, OnSendTo(expected_goodbye2)).Times(2);
   RunUntilNoTasksRemain();
@@ -1092,19 +1048,19 @@ TEST_F(MdnsResponderTest, AnnouncementsAndGoodbyesAreRateLimitedPerResponse) {
   client_[0]->CreateNameForAddress(addr2, base::DoNothing());
   RemoveNameForAddressAndExpectDone(0, addr2);
 
-  RunFor(base::Milliseconds(900));
+  RunFor(base::TimeDelta::FromMilliseconds(900));
   // Second announcement for 0.local.
   EXPECT_CALL(socket_factory_, OnSendTo(expected_announcement1)).Times(2);
-  RunFor(base::Seconds(1));
+  RunFor(base::TimeDelta::FromSeconds(1));
   // Goodbye for 0.local.
   EXPECT_CALL(socket_factory_, OnSendTo(expected_goodbye1)).Times(2);
-  RunFor(base::Seconds(1));
+  RunFor(base::TimeDelta::FromSeconds(1));
   // First announcement for 1.local.
   EXPECT_CALL(socket_factory_, OnSendTo(expected_announcement2)).Times(2);
-  RunFor(base::Seconds(1));
+  RunFor(base::TimeDelta::FromSeconds(1));
   // Second announcement for 1.local.
   EXPECT_CALL(socket_factory_, OnSendTo(expected_announcement2)).Times(2);
-  RunFor(base::Seconds(1));
+  RunFor(base::TimeDelta::FromSeconds(1));
   // Goodbye for 1.local.
   EXPECT_CALL(socket_factory_, OnSendTo(expected_goodbye2)).Times(2);
   RunUntilNoTasksRemain();
@@ -1136,7 +1092,7 @@ TEST_F(MdnsResponderTest,
 
   // Response to the second received query will be delayed for another one
   // second plus an extra delay of 20-120ms.
-  RunFor(base::Milliseconds(1015));
+  RunFor(base::TimeDelta::FromMilliseconds(1015));
   EXPECT_CALL(socket_factory_, OnSendTo(expected_response)).Times(1);
 
   RunUntilNoTasksRemain();
@@ -1168,7 +1124,7 @@ TEST_F(MdnsResponderTest, ResolutionResponsesAreRateLimitedPerRecord) {
       reinterpret_cast<const uint8_t*>(query2.data()), query2.size());
   socket_factory_.SimulateReceive(
       reinterpret_cast<const uint8_t*>(query1.data()), query1.size());
-  RunFor(base::Milliseconds(900));
+  RunFor(base::TimeDelta::FromMilliseconds(900));
   // Resolution for name1 for the second query about it.
   EXPECT_CALL(socket_factory_, OnSendTo(expected_response1)).Times(1);
   RunUntilNoTasksRemain();
@@ -1200,7 +1156,7 @@ TEST_F(MdnsResponderTest, NegativeResponsesAreRateLimitedPerRecord) {
       reinterpret_cast<const uint8_t*>(query2.data()), query2.size());
   socket_factory_.SimulateReceive(
       reinterpret_cast<const uint8_t*>(query1.data()), query1.size());
-  RunFor(base::Milliseconds(900));
+  RunFor(base::TimeDelta::FromMilliseconds(900));
   // Negative response for name1 for the second query about it.
   EXPECT_CALL(socket_factory_, OnSendTo(expected_response1)).Times(1);
   RunUntilNoTasksRemain();
@@ -1225,7 +1181,7 @@ TEST_F(MdnsResponderTest,
       reinterpret_cast<const uint8_t*>(query_a.data()), query_a.size());
   socket_factory_.SimulateReceive(
       reinterpret_cast<const uint8_t*>(query_aaaa.data()), query_aaaa.size());
-  RunFor(base::Milliseconds(900));
+  RunFor(base::TimeDelta::FromMilliseconds(900));
 
   EXPECT_CALL(socket_factory_, OnSendTo(expected_negative_resp)).Times(1);
   RunUntilNoTasksRemain();
@@ -1252,7 +1208,7 @@ TEST_F(MdnsResponderTest, ResponsesToProbesAreNotRateLimited) {
       reinterpret_cast<const uint8_t*>(query.data()), query.size());
   socket_factory_.SimulateReceive(
       reinterpret_cast<const uint8_t*>(query.data()), query.size());
-  RunFor(base::Milliseconds(500));
+  RunFor(base::TimeDelta::FromMilliseconds(500));
 }
 
 // Test that different rate limit schemes effectively form different queues of
@@ -1310,18 +1266,18 @@ TEST_F(MdnsResponderTest, RateLimitSchemesDoNotInterfere) {
   client_[0]->CreateNameForAddress(
       addr2, base::BindOnce(do_sequence_after_name_created, &socket_factory_,
                             query2_a, query2_aaaa, query2_any));
-  RunFor(base::Milliseconds(900));
+  RunFor(base::TimeDelta::FromMilliseconds(900));
 
   // 2 second announcements for name1 from 2 interfaces, and 1 response to
   // query1_aaaa (per-record limit).
   EXPECT_CALL(socket_factory_, OnSendTo(expected_resolution1)).Times(3);
   // 1 response to query2_aaaa (per-record limit).
   EXPECT_CALL(socket_factory_, OnSendTo(expected_resolution2)).Times(1);
-  RunFor(base::Seconds(1));
+  RunFor(base::TimeDelta::FromSeconds(1));
 
   // 2 first announcements for name2 from 2 interfaces.
   EXPECT_CALL(socket_factory_, OnSendTo(expected_resolution2)).Times(2);
-  RunFor(base::Seconds(1));
+  RunFor(base::TimeDelta::FromSeconds(1));
 
   // 2 second announcements for name2 from 2 interfaces.
   EXPECT_CALL(socket_factory_, OnSendTo(expected_resolution2)).Times(2);
@@ -1371,7 +1327,7 @@ TEST_F(MdnsResponderTest, ManagerCanRestartAfterAllSocketHandlersFailToRead) {
                 net::ADDRESS_FAMILY_IPV4);
 
         ON_CALL(*socket, SendToInternal(_, _, _)).WillByDefault(Return(0));
-        ON_CALL(*socket, RecvFrom(_, _, _, _))
+        ON_CALL(*socket, RecvFromInternal(_, _, _, _))
             .WillByDefault(Invoke(&failing_socket_factory_,
                                   &MockFailingMdnsSocketFactory::FailToRecv));
 
@@ -1405,7 +1361,8 @@ TEST_F(MdnsResponderTest, IncompleteSendBlocksFollowingSends) {
             .WillByDefault(
                 Invoke(&failing_socket_factory_,
                        &MockFailingMdnsSocketFactory::MaybeBlockSend));
-        ON_CALL(*socket, RecvFrom(_, _, _, _)).WillByDefault(Return(-1));
+        ON_CALL(*socket, RecvFromInternal(_, _, _, _))
+            .WillByDefault(Return(-1));
 
         sockets->push_back(std::move(socket));
       };

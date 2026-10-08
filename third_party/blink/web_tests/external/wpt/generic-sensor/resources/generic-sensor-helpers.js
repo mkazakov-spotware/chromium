@@ -9,9 +9,15 @@
 //
 //   --enable-blink-features=MojoJS,MojoJSTest
 async function loadChromiumResources() {
+  const chromiumResources = [
+    '/gen/mojo/public/mojom/base/string16.mojom.js',
+    '/gen/services/device/public/mojom/sensor.mojom.js',
+    '/gen/services/device/public/mojom/sensor_provider.mojom.js',
+  ];
+  await loadMojoResources(chromiumResources);
   await loadScript('/resources/testdriver.js');
   await loadScript('/resources/testdriver-vendor.js');
-  await import('/resources/chromium/generic_sensor_mocks.js');
+  await loadScript('/resources/chromium/generic_sensor_mocks.js');
 }
 
 async function initialize_generic_sensor_tests() {
@@ -85,57 +91,4 @@ function verifyGeoSensorReading(pattern, {latitude, longitude, altitude,
 
 function verifyProximitySensorReading(pattern, {distance, max, near, timestamp}, isNull) {
   return verifySensorReading(pattern, [distance, max, near], timestamp, isNull);
-}
-
-// Assert that two Sensor objects have the same properties and values.
-//
-// Verifies that ``actual`` and ``expected`` have the same sensor properties
-// and, if so, that their values are the same.
-//
-// @param {Sensor} actual - Test value.
-// @param {Sensor} expected - Expected value.
-function assert_sensor_equals(actual, expected) {
-  assert_true(
-      actual instanceof Sensor,
-      'assert_sensor_equals: actual must be a Sensor');
-  assert_true(
-      expected instanceof Sensor,
-      'assert_sensor_equals: expected must be a Sensor');
-
-  // These properties vary per sensor type.
-  const CUSTOM_PROPERTIES = [
-    ['illuminance'], ['quaternion'], ['x', 'y', 'z'],
-    [
-      'latitude', 'longitude', 'altitude', 'accuracy', 'altitudeAccuracy',
-      'heading', 'speed'
-    ]
-  ];
-
-  // These properties are present on all objects derived from Sensor.
-  const GENERAL_PROPERTIES = ['timestamp'];
-
-  for (let customProperties of CUSTOM_PROPERTIES) {
-    if (customProperties.every(p => p in actual) &&
-        customProperties.every(p => p in expected)) {
-      customProperties.forEach(p => {
-        if (customProperties == 'quaternion') {
-          assert_array_equals(
-              actual[p], expected[p],
-              `assert_sensor_equals: property '${p}' does not match`);
-        } else {
-          assert_equals(
-              actual[p], expected[p],
-              `assert_sensor_equals: property '${p}' does not match`);
-        }
-      });
-      GENERAL_PROPERTIES.forEach(p => {
-        assert_equals(
-            actual[p], expected[p],
-            `assert_sensor_equals: property '${p}' does not match`);
-      });
-      return;
-    }
-  }
-
-  assert_true(false, 'assert_sensor_equals: sensors have different attributes');
 }

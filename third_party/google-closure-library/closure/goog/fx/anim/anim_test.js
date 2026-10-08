@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.fx.animTest');
 goog.setTestOnly();
@@ -26,7 +34,6 @@ let replacer;
 /**
  * @param {!Function} delayType The constructor for Delay or AnimationDelay.
  *     The methods will be mocked out.
- * @suppress {checkTypes,visibility} suppression added to enable type checking
  */
 function registerAndUnregisterAnimationWithMocks(delayType) {
   let timerCount = 0;
@@ -113,10 +120,10 @@ testSuite({
     registerAndUnregisterAnimationWithMocks(AnimationDelay);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testRegisterAndUnregisterAnimationWithRequestAnimationFrameGecko() {
     // Only FF4 onwards support requestAnimationFrame.
-    if (!userAgent.GECKO || userAgent.isVersionOrHigher('17')) {
+    if (!userAgent.GECKO || !userAgent.isVersionOrHigher('2.0') ||
+        userAgent.isVersionOrHigher('17')) {
       return;
     }
 
@@ -169,7 +176,6 @@ testSuite({
     fxAnim.setAnimationWindow(null);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testRegisterUnregisterAnimation() {
     const anim = new Animation([0], [1], 1000);
 
@@ -194,7 +200,6 @@ testSuite({
     anim.dispose();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testCycleWithMockClock() {
     fxAnim.setAnimationWindow(null);
     const anim = new Animation([0], [1], 1000);
@@ -206,7 +211,6 @@ testSuite({
     assertEquals(1, anim.onAnimationFrame.getCallCount());
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testCycleWithMockClockAndAnimationWindow() {
     fxAnim.setAnimationWindow(window);
     const anim = new Animation([0], [1], 1000);

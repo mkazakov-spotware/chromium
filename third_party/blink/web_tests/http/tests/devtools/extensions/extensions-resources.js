@@ -1,21 +1,20 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests resource-related methods of WebInspector extension API\n`);
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
-  await TestRunner.loadTestModule('extensions_test_runner');
-  await TestRunner.loadLegacyModule('sources'); await TestRunner.loadTestModule('sources_test_runner');
-  await TestRunner.loadLegacyModule('components');
+  await TestRunner.loadModule('console_test_runner');
+  await TestRunner.loadModule('extensions_test_runner');
+  await TestRunner.loadModule('sources_test_runner');
 
   TestRunner.clickOnURL = async function() {
     await UI.viewManager.showView("console").then(() => {
-      Console.ConsoleView.instance().updateMessageList();
+      Console.ConsoleView.instance()._updateMessageList();
 
       // Trigger link creation so we can properly await pending live location updates. Needed so we can
       // click the link in the first place.
-      for (const messageView of Console.ConsoleView.instance().visibleViewMessages) messageView.element();
+      for (const messageView of Console.ConsoleView.instance()._visibleViewMessages) messageView.element();
       TestRunner.waitForPendingLiveLocationUpdates().then(() => {
         var xpathResult = document.evaluate("//span[@class='devtools-link' and starts-with(., 'test-script.js')]",
                                             Console.ConsoleView.instance().element, null, XPathResult.ANY_UNORDERED_NODE_TYPE, null);
@@ -28,7 +27,7 @@
   }
 
   TestRunner.waitForStyleSheetChangedEvent = function(reply) {
-    TestRunner.addSniffer(SDK.CSSModel.prototype, "fireStyleSheetChanged", reply);
+    TestRunner.addSniffer(SDK.CSSModel.prototype, "_fireStyleSheetChanged", reply);
   }
 
   await TestRunner.evaluateInPageAnonymously(`
@@ -110,11 +109,14 @@
       extension_runWithResource(/audits-style1\.css$/, function(resource) {
         resource.setContent("div.test { width: 140px; height: 42px; }", false);
       });
-      extension_runWithResource(/abe\.png$/, function(resource) {
-        resource.setContent("", true);
-      });
-      extension_runWithResource(/audits-style1\.css$/, function(resource) {
-        resource.setContent(expected_content, true);
+      // The next step is going to produce a console message that will be logged, so synchronize the output now.
+      evaluateOnFrontend("TestRunner.deprecatedRunAfterPendingDispatches(reply)", function() {
+        extension_runWithResource(/abe\.png$/, function(resource) {
+          resource.setContent("", true);
+        });
+        extension_runWithResource(/audits-style1\.css$/, function(resource) {
+          resource.setContent(expected_content, true);
+        });
       });
 
       function onContentCommitted(resource, content) {
@@ -160,7 +162,7 @@
       webInspector.panels.setOpenResourceHandler(handleOpenResource);
       webInspector.inspectedWindow.eval("logMessage()", function() {
         evaluateOnFrontend("TestRunner.clickOnURL();");
-        evaluateOnFrontend("Components.Linkifier.linkHandlerSetting().set('test extension'); TestRunner.clickOnURL();");
+        evaluateOnFrontend("Components.Linkifier._linkHandlerSetting().set('test extension'); TestRunner.clickOnURL();");
       });
     },
   ]);

@@ -1,11 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/sync_file_system/local/root_delete_helper.h"
 
 #include "base/bind.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "chrome/browser/sync_file_system/local/local_file_change_tracker.h"
 #include "chrome/browser/sync_file_system/local/local_file_sync_status.h"
 #include "chrome/browser/sync_file_system/local/sync_file_system_backend.h"
@@ -39,10 +39,10 @@ RootDeleteHelper::RootDeleteHelper(
     storage::FileSystemContext* file_system_context,
     LocalFileSyncStatus* sync_status,
     const storage::FileSystemURL& url,
-    FileStatusCallback callback)
+    const FileStatusCallback& callback)
     : file_system_context_(file_system_context),
       url_(url),
-      callback_(std::move(callback)),
+      callback_(callback),
       sync_status_(sync_status) {
   DCHECK(file_system_context_.get());
   DCHECK(url_.is_valid());
@@ -61,7 +61,7 @@ void RootDeleteHelper::Run() {
             "%s", url_.DebugString().c_str());
 
   file_system_context_->DeleteFileSystem(
-      url_.storage_key(), url_.type(),
+      url_.origin(), url_.type(),
       base::BindOnce(&RootDeleteHelper::DidDeleteFileSystem,
                      weak_factory_.GetWeakPtr()));
 }
@@ -90,7 +90,7 @@ void RootDeleteHelper::DidResetFileChangeTracker() {
 
   // Reopening the filesystem.
   file_system_context_->sandbox_delegate()->OpenFileSystem(
-      url_.storage_key(), url_.bucket(), url_.type(),
+      url_.origin(), url_.type(),
       storage::OPEN_FILE_SYSTEM_CREATE_IF_NONEXISTENT,
       base::BindOnce(&RootDeleteHelper::DidOpenFileSystem,
                      weak_factory_.GetWeakPtr()),
@@ -100,7 +100,8 @@ void RootDeleteHelper::DidResetFileChangeTracker() {
 void RootDeleteHelper::DidOpenFileSystem(const GURL& /* root */,
                                          const std::string& /* name */,
                                          base::File::Error error) {
-  std::move(callback_).Run(error);
+  FileStatusCallback callback = callback_;
+  callback.Run(error);
 }
 
 }  // namespace sync_file_system

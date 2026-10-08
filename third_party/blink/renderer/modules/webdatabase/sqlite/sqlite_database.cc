@@ -46,8 +46,8 @@ std::tuple<int, sqlite3*> OpenDatabase(const String& filename) {
                               /*make_default=*/false);
 
   sqlite3* connection;
-  constexpr int open_flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE |
-                             SQLITE_OPEN_EXRESCODE | SQLITE_OPEN_PRIVATECACHE;
+  constexpr int open_flags =
+      SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_PRIVATECACHE;
   int status = sqlite3_open_v2(filename.Utf8().c_str(), &connection, open_flags,
                                kSqliteVfsName);
   if (status != SQLITE_OK) {
@@ -71,7 +71,15 @@ const int kSQLResultConstraint = SQLITE_CONSTRAINT;
 
 static const char kNotOpenErrorMessage[] = "database is not open";
 
-SQLiteDatabase::SQLiteDatabase() : open_error_(SQLITE_ERROR) {}
+SQLiteDatabase::SQLiteDatabase()
+    : db_(nullptr),
+      page_size_(-1),
+      transaction_in_progress_(false),
+      opening_thread_(0),
+      open_error_(SQLITE_ERROR),
+      open_error_message_(),
+      last_changes_count_(0) {
+}
 
 SQLiteDatabase::~SQLiteDatabase() {
   Close();
@@ -97,6 +105,16 @@ bool SQLiteDatabase::Open(const String& filename) {
 
   if (!db_) {
     open_error_message_ = "sqlite_open returned null";
+    return false;
+  }
+
+  open_error_ = sqlite3_extended_result_codes(db_, 1);
+  if (open_error_ != SQLITE_OK) {
+    open_error_message_ = sqlite3_errmsg(db_);
+    DLOG(ERROR) << "SQLite database error when enabling extended errors - "
+                << open_error_message_.data();
+    sqlite3_close(db_);
+    db_ = nullptr;
     return false;
   }
 
@@ -136,7 +154,7 @@ void SQLiteDatabase::Close() {
     // DCHECK_EQ(currentThread(), m_openingThread);
     sqlite3* db = db_;
     {
-      base::AutoLock locker(database_closing_mutex_);
+      MutexLocker locker(database_closing_mutex_);
       db_ = nullptr;
     }
     sqlite3_close(db);
@@ -156,7 +174,7 @@ void SQLiteDatabase::SetMaximumSize(int64_t size) {
   DCHECK(current_page_size || !db_);
   int64_t new_max_page_count = current_page_size ? size / current_page_size : 0;
 
-  base::AutoLock locker(authorizer_lock_);
+  MutexLocker locker(authorizer_lock_);
   EnableAuthorizer(false);
 
   SQLiteStatement statement(
@@ -173,7 +191,7 @@ int SQLiteDatabase::PageSize() {
   // Since the page size of a database is locked in at creation and therefore
   // cannot be dynamic, we can cache the value for future use.
   if (page_size_ == -1) {
-    base::AutoLock locker(authorizer_lock_);
+    MutexLocker locker(authorizer_lock_);
     EnableAuthorizer(false);
 
     SQLiteStatement statement(*this, "PRAGMA page_size");
@@ -189,7 +207,7 @@ int64_t SQLiteDatabase::FreeSpaceSize() {
   int64_t freelist_count = 0;
 
   {
-    base::AutoLock locker(authorizer_lock_);
+    MutexLocker locker(authorizer_lock_);
     EnableAuthorizer(false);
     // Note: freelist_count was added in SQLite 3.4.1.
     SQLiteStatement statement(*this, "PRAGMA freelist_count");
@@ -204,7 +222,7 @@ int64_t SQLiteDatabase::TotalSize() {
   int64_t page_count = 0;
 
   {
-    base::AutoLock locker(authorizer_lock_);
+    MutexLocker locker(authorizer_lock_);
     EnableAuthorizer(false);
     SQLiteStatement statement(*this, "PRAGMA page_count");
     page_count = statement.GetColumnInt64(0);
@@ -245,7 +263,7 @@ int SQLiteDatabase::RunVacuumCommand() {
 }
 
 int SQLiteDatabase::RunIncrementalVacuumCommand() {
-  base::AutoLock locker(authorizer_lock_);
+  MutexLocker locker(authorizer_lock_);
   EnableAuthorizer(false);
 
   if (!ExecuteCommand("PRAGMA incremental_vacuum"))
@@ -265,18 +283,18 @@ void SQLiteDatabase::UpdateLastChangesCount() {
   if (!db_)
     return;
 
-  last_changes_count_ = sqlite3_total_changes64(db_);
+  last_changes_count_ = sqlite3_total_changes(db_);
 }
 
-int64_t SQLiteDatabase::LastChanges() {
+int SQLiteDatabase::LastChanges() {
   if (!db_)
     return 0;
 
-  return sqlite3_total_changes64(db_) - last_changes_count_;
+  return sqlite3_total_changes(db_) - last_changes_count_;
 }
 
 int SQLiteDatabase::LastError() {
-  return db_ ? sqlite3_extended_errcode(db_) : open_error_;
+  return db_ ? sqlite3_errcode(db_) : open_error_;
 }
 
 const char* SQLiteDatabase::LastErrorMsg() {
@@ -373,7 +391,7 @@ void SQLiteDatabase::SetAuthorizer(DatabaseAuthorizer* authorizer) {
     return;
   }
 
-  base::AutoLock locker(authorizer_lock_);
+  MutexLocker locker(authorizer_lock_);
 
   authorizer_ = authorizer;
 

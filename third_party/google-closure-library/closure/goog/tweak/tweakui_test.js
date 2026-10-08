@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2013 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.tweak.TweakUiTest');
 goog.setTestOnly();
@@ -26,14 +34,12 @@ function createUi(collapsible) {
   root.appendChild(tweakUiElem);
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function getAllEntryDivs() {
   return dom.getElementsByTagNameAndClass(
       TagName.DIV, TweakUi.ENTRY_CSS_CLASS_);
 }
 
 function getEntryDiv(entry) {
-  /** @suppress {visibility} suppression added to enable type checking */
   const label = TweakUi.getNamespacedLabel_(entry);
   const allDivs = getAllEntryDivs();
   let ret;
@@ -74,7 +80,6 @@ testSuite({
   },
 
   tearDown() {
-    /** @suppress {visibility} suppression added to enable type checking */
     tweak.activeBooleanGroup_ = null;
     // When debugging a single test, don't clear out the DOM.
     if (window.location.search.indexOf('runTests') == -1) {
@@ -98,17 +103,14 @@ testSuite({
         'Creates a new tweak. Meant ' +
             'to simulate a tweak being registered in a lazy-loaded module.',
         () => {
-          // use computed properties to avoid compiler checks of tweak
-          tweak['registerBoolean'](
-              'Lazy' + ++entryCounter, 'Lazy-loaded tweak.');
+          tweak.registerBoolean('Lazy' + ++entryCounter, 'Lazy-loaded tweak.');
         });
     tweak.registerButton(
         'CreateNewTweakInNamespace1',
         'Creates a new tweak within a namespace. Meant to simulate a tweak ' +
             'being registered in a lazy-loaded module.',
         () => {
-          // use computed properties to avoid compiler checks of tweak
-          tweak['registerString'](
+          tweak.registerString(
               'foo.bar.Lazy' + ++entryCounter, 'Lazy-loaded tweak.');
         });
     tweak.registerButton(
@@ -116,8 +118,7 @@ testSuite({
         'Creates a new tweak within a namespace. Meant to simulate a tweak ' +
             'being registered in a lazy-loaded module.',
         () => {
-          // use computed properties to avoid compiler checks of tweak
-          tweak['registerNumber'](
+          tweak.registerNumber(
               'foo.bar.baz.Lazy' + ++entryCounter, 'Lazy combo', 3,
               {validValues: [1, 2, 3], label: 'Lazy!'});
         });
@@ -150,10 +151,6 @@ testSuite({
     assertTrue('Enum2 label is wrong', html.indexOf('second&amp;') > -1);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testToggleBooleanSetting() {
     boolEntry.setValue(true);
     createUi(false);
@@ -165,10 +162,6 @@ testSuite({
         'checkbox should not be checked 1', getEntryInput(boolEntry).checked);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testToggleStringSetting() {
     strEntry.setValue('val1');
     createUi(false);
@@ -181,10 +174,6 @@ testSuite({
         'Textbox has wrong value 2', 'val2', getEntryInput(strEntry).value);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testToggleStringEnumSetting() {
     strEnumEntry.setValue('B');
     createUi(false);
@@ -195,10 +184,6 @@ testSuite({
     assertEquals('wrong value 2', 'C', getEntryInput(strEnumEntry).value);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testToggleNumericSetting() {
     numEntry.setValue(3);
     createUi(false);
@@ -209,10 +194,6 @@ testSuite({
     assertEquals('wrong value 2', '4', getEntryInput(numEntry).value);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testToggleNumericEnumSetting() {
     numEnumEntry.setValue(2);
     createUi(false);
@@ -223,10 +204,6 @@ testSuite({
     assertEquals('wrong value 2', '3', getEntryInput(numEnumEntry).value);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testClickBooleanSetting() {
     createUi(false);
 
@@ -239,18 +216,9 @@ testSuite({
     assertFalse('setting should be false', boolEntry.getNewValue());
   },
 
-  /**
-     @suppress {checkTypes,strictMissingProperties} suppression added to enable
-     type checking
-   */
   testToggleDescriptions() {
     createUi(false);
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const toggleLink = dom.getElementsByTagName(TagName.A, root)[0];
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const heightBefore = root.offsetHeight;
     toggleLink.onclick();
     assertTrue(
@@ -264,13 +232,12 @@ testSuite({
 
   testAddEntry() {
     createUi(false);
-    // use computed properties to avoid compiler checks of tweak
-    tweak['registerBoolean']('Lazy1', 'Lazy-loaded tweak.');
-    tweak['registerBoolean'](
+    tweak.registerBoolean('Lazy1', 'Lazy-loaded tweak.');
+    tweak.registerBoolean(
         'Lazy2', 'Lazy-loaded tweak.',
         /* defaultValue */ false, {restartRequired: false});
     tweak.beginBooleanGroup('LazyGroup', 'Lazy-loaded tweak.');
-    tweak['registerBoolean']('Lazy3', 'Lazy-loaded tweak.');
+    tweak.registerBoolean('Lazy3', 'Lazy-loaded tweak.');
     tweak.endBooleanGroup();
 
     assertEquals(
@@ -285,11 +252,10 @@ testSuite({
   testAddNamespacedEntries() {
     createUi(false);
     tweak.beginBooleanGroup('NS.LazyGroup', 'Lazy-loaded tweak.');
-    // use computed properties to avoid compiler checks of tweak
-    tweak['registerBoolean']('NS.InGroup', 'Lazy-loaded tweak.');
+    tweak.registerBoolean('NS.InGroup', 'Lazy-loaded tweak.');
     tweak.endBooleanGroup();
-    tweak['registerBoolean']('NS.Banana', 'Lazy-loaded tweak.');
-    tweak['registerBoolean']('NS.Apple', 'Lazy-loaded tweak.');
+    tweak.registerBoolean('NS.Banana', 'Lazy-loaded tweak.');
+    tweak.registerBoolean('NS.Apple', 'Lazy-loaded tweak.');
 
     assertEquals(
         'Wrong number of entry divs.', EXPECTED_ENTRIES_COUNT + 5,
@@ -303,7 +269,6 @@ testSuite({
     if (document.createEvent) {
       createUi(true);
       assertEquals('Expected no entry divs.', 0, getAllEntryDivs().length);
-      /** @suppress {checkTypes} suppression added to enable type checking */
       const showLink = dom.getElementsByTagName(TagName.A, root)[0];
       const event = document.createEvent('MouseEvents');
       event.initMouseEvent(

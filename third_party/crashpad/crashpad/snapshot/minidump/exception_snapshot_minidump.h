@@ -1,4 +1,4 @@
-// Copyright 2019 The Crashpad Authors
+// Copyright 2019 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,11 +32,6 @@ namespace internal {
 class ExceptionSnapshotMinidump final : public ExceptionSnapshot {
  public:
   ExceptionSnapshotMinidump();
-
-  ExceptionSnapshotMinidump(const ExceptionSnapshotMinidump&) = delete;
-  ExceptionSnapshotMinidump& operator=(const ExceptionSnapshotMinidump&) =
-      delete;
-
   ~ExceptionSnapshotMinidump() override;
 
   //! \brief Initializes the object.
@@ -71,6 +66,8 @@ class ExceptionSnapshotMinidump final : public ExceptionSnapshot {
   MinidumpContextConverter context_;
   std::vector<uint64_t> exception_information_;
   InitializationState initialized_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExceptionSnapshotMinidump);
 };
 
 }  // namespace internal

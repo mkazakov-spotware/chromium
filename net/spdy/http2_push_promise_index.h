@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,13 @@
 
 #include <set>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "net/base/net_export.h"
 #include "net/http/http_request_info.h"
 #include "net/spdy/spdy_session_key.h"
-#include "net/third_party/quiche/src/quiche/spdy/core/spdy_protocol.h"
+#include "net/third_party/quiche/src/spdy/core/spdy_protocol.h"
 #include "url/gurl.h"
 
 namespace net {
@@ -40,12 +41,8 @@ class NET_EXPORT Http2PushPromiseIndex {
   // claimed, and generating SpdySession weak pointer.
   class NET_EXPORT Delegate {
    public:
-    Delegate() = default;
-
-    Delegate(const Delegate&) = delete;
-    Delegate& operator=(const Delegate&) = delete;
-
-    virtual ~Delegate() = default;
+    Delegate() {}
+    virtual ~Delegate() {}
 
     // Return true if a pushed stream with |url| can be used for a request with
     // |key|.
@@ -57,13 +54,12 @@ class NET_EXPORT Http2PushPromiseIndex {
     // Generate weak pointer.  Guaranateed to be called synchronously after
     // ValidatePushedStream() is called and returns true.
     virtual base::WeakPtr<SpdySession> GetWeakPtrToSession() = 0;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Delegate);
   };
 
   Http2PushPromiseIndex();
-
-  Http2PushPromiseIndex(const Http2PushPromiseIndex&) = delete;
-  Http2PushPromiseIndex& operator=(const Http2PushPromiseIndex&) = delete;
-
   ~Http2PushPromiseIndex();
 
   // Tries to register a Delegate with an unclaimed pushed stream for |url|.
@@ -71,17 +67,16 @@ class NET_EXPORT Http2PushPromiseIndex {
   // same entry before |delegate| is destroyed.
   // Returns true if there is no unclaimed pushed stream with the same URL for
   // the same Delegate, in which case the stream is registered.
-  [[nodiscard]] bool RegisterUnclaimedPushedStream(const GURL& url,
-                                                   spdy::SpdyStreamId stream_id,
-                                                   Delegate* delegate);
+  bool RegisterUnclaimedPushedStream(const GURL& url,
+                                     spdy::SpdyStreamId stream_id,
+                                     Delegate* delegate) WARN_UNUSED_RESULT;
 
   // Tries to unregister a Delegate with an unclaimed pushed stream for |url|
   // with given |stream_id|.
   // Returns true if this exact entry is found, in which case it is removed.
-  [[nodiscard]] bool UnregisterUnclaimedPushedStream(
-      const GURL& url,
-      spdy::SpdyStreamId stream_id,
-      Delegate* delegate);
+  bool UnregisterUnclaimedPushedStream(const GURL& url,
+                                       spdy::SpdyStreamId stream_id,
+                                       Delegate* delegate) WARN_UNUSED_RESULT;
 
   // Returns the number of pushed streams registered for |delegate|.
   size_t CountStreamsForSession(const Delegate* delegate) const;
@@ -103,14 +98,18 @@ class NET_EXPORT Http2PushPromiseIndex {
                          base::WeakPtr<SpdySession>* session,
                          spdy::SpdyStreamId* stream_id);
 
+  // Return the estimate of dynamically allocated memory in bytes.
+  size_t EstimateMemoryUsage() const;
+
  private:
   friend test::Http2PushPromiseIndexPeer;
 
   // An unclaimed pushed stream entry.
   struct NET_EXPORT UnclaimedPushedStream {
     GURL url;
-    raw_ptr<Delegate> delegate;
+    Delegate* delegate;
     spdy::SpdyStreamId stream_id;
+    size_t EstimateMemoryUsage() const;
   };
 
   // Function object satisfying the requirements of "Compare", see
@@ -129,6 +128,8 @@ class NET_EXPORT Http2PushPromiseIndex {
   // Delegate can have pushed streams for different URLs, and different
   // Delegates can have pushed streams for the same GURL).
   std::set<UnclaimedPushedStream, CompareByUrl> unclaimed_pushed_streams_;
+
+  DISALLOW_COPY_AND_ASSIGN(Http2PushPromiseIndex);
 };
 
 }  // namespace net

@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "net/base/completion_once_callback.h"
 #include "net/base/net_export.h"
 
@@ -21,10 +22,6 @@ class StreamSocket;
 class NET_EXPORT ServerSocket {
  public:
   ServerSocket();
-
-  ServerSocket(const ServerSocket&) = delete;
-  ServerSocket& operator=(const ServerSocket&) = delete;
-
   virtual ~ServerSocket();
 
   // Binds the socket and starts listening. Destroys the socket to stop
@@ -51,6 +48,9 @@ class NET_EXPORT ServerSocket {
   virtual int Accept(std::unique_ptr<StreamSocket>* socket,
                      CompletionOnceCallback callback,
                      IPEndPoint* peer_address);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ServerSocket);
 };
 
 }  // namespace net

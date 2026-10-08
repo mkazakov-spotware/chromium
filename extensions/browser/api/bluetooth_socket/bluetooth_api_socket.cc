@@ -1,11 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/browser/api/bluetooth_socket/bluetooth_api_socket.h"
 
 #include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/lazy_instance.h"
 #include "device/bluetooth/bluetooth_socket.h"
 #include "net/base/io_buffer.h"
@@ -59,7 +58,7 @@ BluetoothApiSocket::BluetoothApiSocket(
 BluetoothApiSocket::~BluetoothApiSocket() {
   DCHECK_CURRENTLY_ON(kThreadId);
   if (socket_.get())
-    socket_->Disconnect(base::DoNothing());
+    socket_->Close();
 }
 
 void BluetoothApiSocket::AdoptConnectedSocket(
@@ -69,7 +68,7 @@ void BluetoothApiSocket::AdoptConnectedSocket(
   DCHECK_CURRENTLY_ON(kThreadId);
 
   if (socket_.get())
-    socket_->Disconnect(base::DoNothing());
+    socket_->Close();
 
   socket_ = socket;
   device_address_ = device_address;
@@ -83,7 +82,7 @@ void BluetoothApiSocket::AdoptListeningSocket(
   DCHECK_CURRENTLY_ON(kThreadId);
 
   if (socket_.get())
-    socket_->Disconnect(base::DoNothing());
+    socket_->Close();
 
   socket_ = socket;
   device_address_ = "";
@@ -91,17 +90,16 @@ void BluetoothApiSocket::AdoptListeningSocket(
   connected_ = false;
 }
 
-void BluetoothApiSocket::Disconnect(base::OnceClosure callback) {
+void BluetoothApiSocket::Disconnect(const base::Closure& callback) {
   DCHECK_CURRENTLY_ON(kThreadId);
 
   if (!socket_.get()) {
-    std::move(callback).Run();
+    callback.Run();
     return;
   }
 
   connected_ = false;
-  socket_->Disconnect(std::move(callback));
-  socket_.reset();
+  socket_->Disconnect(callback);
 }
 
 bool BluetoothApiSocket::IsPersistent() const {
@@ -109,25 +107,26 @@ bool BluetoothApiSocket::IsPersistent() const {
   return persistent_;
 }
 
-void BluetoothApiSocket::Receive(int count,
-                                 ReceiveCompletionCallback success_callback,
-                                 ErrorCompletionCallback error_callback) {
+void BluetoothApiSocket::Receive(
+    int count,
+    const ReceiveCompletionCallback& success_callback,
+    const ErrorCompletionCallback& error_callback) {
   DCHECK_CURRENTLY_ON(kThreadId);
 
   if (!socket_.get() || !IsConnected()) {
-    std::move(error_callback)
-        .Run(BluetoothApiSocket::kNotConnected, kSocketNotConnectedError);
+    error_callback.Run(BluetoothApiSocket::kNotConnected,
+                       kSocketNotConnectedError);
     return;
   }
 
-  socket_->Receive(
-      count, std::move(success_callback),
-      base::BindOnce(&OnSocketReceiveError, std::move(error_callback)));
+  socket_->Receive(count,
+                   success_callback,
+                   base::Bind(&OnSocketReceiveError, error_callback));
 }
 
 // static
 void BluetoothApiSocket::OnSocketReceiveError(
-    ErrorCompletionCallback error_callback,
+    const ErrorCompletionCallback& error_callback,
     device::BluetoothSocket::ErrorReason reason,
     const std::string& message) {
   DCHECK_CURRENTLY_ON(kThreadId);
@@ -144,54 +143,56 @@ void BluetoothApiSocket::OnSocketReceiveError(
       error_reason = BluetoothApiSocket::kSystemError;
       break;
   }
-  std::move(error_callback).Run(error_reason, message);
+  error_callback.Run(error_reason, message);
 }
 
 void BluetoothApiSocket::Send(scoped_refptr<net::IOBuffer> buffer,
                               int buffer_size,
-                              SendCompletionCallback success_callback,
-                              ErrorCompletionCallback error_callback) {
+                              const SendCompletionCallback& success_callback,
+                              const ErrorCompletionCallback& error_callback) {
   DCHECK_CURRENTLY_ON(kThreadId);
 
   if (!socket_.get() || !IsConnected()) {
-    std::move(error_callback)
-        .Run(BluetoothApiSocket::kNotConnected, kSocketNotConnectedError);
+    error_callback.Run(BluetoothApiSocket::kNotConnected,
+                       kSocketNotConnectedError);
     return;
   }
 
-  socket_->Send(buffer, buffer_size, std::move(success_callback),
-                base::BindOnce(&OnSocketSendError, std::move(error_callback)));
+  socket_->Send(buffer,
+                buffer_size,
+                success_callback,
+                base::Bind(&OnSocketSendError, error_callback));
 }
 
 // static
 void BluetoothApiSocket::OnSocketSendError(
-    ErrorCompletionCallback error_callback,
+    const ErrorCompletionCallback& error_callback,
     const std::string& message) {
   DCHECK_CURRENTLY_ON(kThreadId);
-  std::move(error_callback).Run(BluetoothApiSocket::kSystemError, message);
+  error_callback.Run(BluetoothApiSocket::kSystemError, message);
 }
 
-void BluetoothApiSocket::Accept(AcceptCompletionCallback success_callback,
-                                ErrorCompletionCallback error_callback) {
+void BluetoothApiSocket::Accept(
+    const AcceptCompletionCallback& success_callback,
+    const ErrorCompletionCallback& error_callback) {
   DCHECK_CURRENTLY_ON(kThreadId);
 
   if (!socket_.get() || IsConnected()) {
-    std::move(error_callback)
-        .Run(BluetoothApiSocket::kNotListening, kSocketNotListeningError);
+    error_callback.Run(BluetoothApiSocket::kNotListening,
+                       kSocketNotListeningError);
     return;
   }
 
-  socket_->Accept(
-      std::move(success_callback),
-      base::BindOnce(&OnSocketAcceptError, std::move(error_callback)));
+  socket_->Accept(success_callback,
+                  base::Bind(&OnSocketAcceptError, error_callback));
 }
 
 // static
 void BluetoothApiSocket::OnSocketAcceptError(
-    ErrorCompletionCallback error_callback,
+    const ErrorCompletionCallback& error_callback,
     const std::string& message) {
   DCHECK_CURRENTLY_ON(kThreadId);
-  std::move(error_callback).Run(BluetoothApiSocket::kSystemError, message);
+  error_callback.Run(BluetoothApiSocket::kSystemError, message);
 }
 
 }  // namespace extensions

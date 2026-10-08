@@ -1,1 +1,4 @@
-file://chrome/browser/android/signin/OWNERS
+bsazonov@chromium.org
+aliceywang@chromium.org
+
+# COMPONENT: Services>SignIn

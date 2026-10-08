@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <stdint.h>
 
 #include "base/containers/circular_deque.h"
-#include "base/memory/raw_ptr.h"
 #include "base/time/default_tick_clock.h"
 #include "base/time/time.h"
 #include "net/base/net_export.h"
@@ -27,12 +26,13 @@ namespace net {
 // conclusions about it.
 class NET_EXPORT_PRIVATE DnsUdpTracker {
  public:
-  static constexpr base::TimeDelta kMaxAge = base::Minutes(10);
+  static constexpr base::TimeDelta kMaxAge = base::TimeDelta::FromMinutes(10);
   static constexpr size_t kMaxRecordedQueries = 256;
 
   // How recently an ID needs to be recorded in a recent query to be considered
   // "recognized".
-  static constexpr base::TimeDelta kMaxRecognizedIdAge = base::Seconds(15);
+  static constexpr base::TimeDelta kMaxRecognizedIdAge =
+      base::TimeDelta::FromSeconds(15);
 
   // Numbers of ID mismatches required to set the |low_entropy_| flag. Also
   // serves as the max number of mismatches to be recorded, as no more entries
@@ -77,8 +77,7 @@ class NET_EXPORT_PRIVATE DnsUdpTracker {
   base::circular_deque<base::TimeTicks> recent_unrecognized_id_hits_;
   base::circular_deque<base::TimeTicks> recent_recognized_id_hits_;
 
-  raw_ptr<const base::TickClock> tick_clock_ =
-      base::DefaultTickClock::GetInstance();
+  const base::TickClock* tick_clock_ = base::DefaultTickClock::GetInstance();
 };
 
 }  // namespace net

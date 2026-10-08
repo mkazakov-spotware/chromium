@@ -1,15 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_SYSTEM_UNIFIED_UNIFIED_SYSTEM_TRAY_VIEW_H_
 #define ASH_SYSTEM_UNIFIED_UNIFIED_SYSTEM_TRAY_VIEW_H_
 
-#include <memory>
-
 #include "ash/ash_export.h"
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/view.h"
+
+// namespace views {
+// class FocusSearch;
+// }
 
 namespace ash {
 
@@ -19,6 +21,7 @@ class TopShortcutsView;
 class UnifiedMediaControlsContainer;
 class NotificationHiddenView;
 class PageIndicatorView;
+class UnifiedManagedDeviceView;
 class UnifiedSystemInfoView;
 class UnifiedSystemTrayController;
 
@@ -28,11 +31,6 @@ class UnifiedSystemTrayController;
 class UnifiedSlidersContainerView : public views::View {
  public:
   explicit UnifiedSlidersContainerView(bool initially_expanded);
-
-  UnifiedSlidersContainerView(const UnifiedSlidersContainerView&) = delete;
-  UnifiedSlidersContainerView& operator=(const UnifiedSlidersContainerView&) =
-      delete;
-
   ~UnifiedSlidersContainerView() override;
 
   // Change the expanded state. 0.0 if collapsed, and 1.0 if expanded.
@@ -52,6 +50,8 @@ class UnifiedSlidersContainerView : public views::View {
 
  private:
   double expanded_amount_;
+
+  DISALLOW_COPY_AND_ASSIGN(UnifiedSlidersContainerView);
 };
 
 // View class of the main bubble in UnifiedSystemTray.
@@ -67,10 +67,6 @@ class ASH_EXPORT UnifiedSystemTrayView : public views::View,
  public:
   UnifiedSystemTrayView(UnifiedSystemTrayController* controller,
                         bool initially_expanded);
-
-  UnifiedSystemTrayView(const UnifiedSystemTrayView&) = delete;
-  UnifiedSystemTrayView& operator=(const UnifiedSystemTrayView&) = delete;
-
   ~UnifiedSystemTrayView() override;
 
   // Set the maximum height that the view can take.
@@ -86,7 +82,7 @@ class ASH_EXPORT UnifiedSystemTrayView : public views::View,
   void AddMediaControlsView(views::View* media_controls);
 
   // Hide the main view and show the given |detailed_view|.
-  void SetDetailedView(std::unique_ptr<views::View> detailed_view);
+  void SetDetailedView(views::View* detailed_view);
 
   // Remove the detailed view set by SetDetailedView, and show the main view.
   // It deletes |detailed_view| and children.
@@ -103,8 +99,7 @@ class ASH_EXPORT UnifiedSystemTrayView : public views::View,
   void FocusEntered(bool reverse);
 
   // Change the expanded state. 0.0 if collapsed, and 1.0 if expanded.
-  // Otherwise, it shows intermediate state. This is triggered during the
-  // progress of expand/collapse animation, updating the children accordingly.
+  // Otherwise, it shows intermediate state.
   void SetExpandedAmount(double expanded_amount);
 
   // Get height of the system tray (excluding the message center) when
@@ -126,7 +121,7 @@ class ASH_EXPORT UnifiedSystemTrayView : public views::View,
   int GetVisibleFeaturePodCount() const;
 
   // Get the accessible name for the currently shown detailed view.
-  std::u16string GetDetailedViewAccessibleName() const;
+  base::string16 GetDetailedViewAccessibleName() const;
 
   // Returns true if a detailed view is being shown in the tray. (e.g Bluetooth
   // Settings).
@@ -199,6 +194,9 @@ class ASH_EXPORT UnifiedSystemTrayView : public views::View,
   // Null if media::kGlobalMediaControlsForChromeOS is disabled.
   UnifiedMediaControlsContainer* media_controls_container_ = nullptr;
 
+  // Null if kManagedDeviceUIRedesign is disabled.
+  UnifiedManagedDeviceView* managed_device_view_ = nullptr;
+
   // The maximum height available to the view.
   int max_height_ = 0;
 
@@ -210,6 +208,8 @@ class ASH_EXPORT UnifiedSystemTrayView : public views::View,
   views::FocusManager* focus_manager_ = nullptr;
 
   const std::unique_ptr<ui::EventHandler> interacted_by_tap_recorder_;
+
+  DISALLOW_COPY_AND_ASSIGN(UnifiedSystemTrayView);
 };
 
 }  // namespace ash

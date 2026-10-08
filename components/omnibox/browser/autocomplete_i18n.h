@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_OMNIBOX_BROWSER_AUTOCOMPLETE_I18N_H_
 #define COMPONENTS_OMNIBOX_BROWSER_AUTOCOMPLETE_I18N_H_
 
+#include "base/strings/string16.h"
 #include "third_party/icu/source/common/unicode/uchar.h"
 
 // Functor for a simple 16-bit Unicode case-insensitive comparison. This is
@@ -32,7 +33,7 @@
 // characters will be compared case-sensitively.
 struct SimpleCaseInsensitiveCompareUCS2 {
  public:
-  bool operator()(char16_t x, char16_t y) const {
+  bool operator()(base::char16 x, base::char16 y) const {
     return u_tolower(x) == u_tolower(y);
   }
 };

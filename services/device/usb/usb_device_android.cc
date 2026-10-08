@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "base/android/jni_string.h"
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "services/device/usb/jni_headers/ChromeUsbDevice_jni.h"
 #include "services/device/usb/usb_configuration_android.h"
 #include "services/device/usb/usb_descriptors.h"
@@ -37,13 +37,17 @@ scoped_refptr<UsbDeviceAndroid> UsbDeviceAndroid::Create(
   ScopedJavaLocalRef<jobject> wrapper =
       Java_ChromeUsbDevice_create(env, usb_device);
 
-  std::u16string manufacturer_string;
+  uint16_t device_version = 0;
+  if (build_info->sdk_int() >= base::android::SDK_VERSION_MARSHMALLOW)
+    device_version = Java_ChromeUsbDevice_getDeviceVersion(env, wrapper);
+
+  base::string16 manufacturer_string;
   ScopedJavaLocalRef<jstring> manufacturer_jstring =
       Java_ChromeUsbDevice_getManufacturerName(env, wrapper);
   if (!manufacturer_jstring.is_null())
     manufacturer_string = ConvertJavaStringToUTF16(env, manufacturer_jstring);
 
-  std::u16string product_string;
+  base::string16 product_string;
   ScopedJavaLocalRef<jstring> product_jstring =
       Java_ChromeUsbDevice_getProductName(env, wrapper);
   if (!product_jstring.is_null())
@@ -51,9 +55,8 @@ scoped_refptr<UsbDeviceAndroid> UsbDeviceAndroid::Create(
 
   // Reading the serial number requires device access permission when
   // targeting the Q SDK.
-  std::u16string serial_number;
-  if (service->HasDevicePermission(wrapper) ||
-      build_info->sdk_int() < base::android::SDK_VERSION_Q) {
+  base::string16 serial_number;
+  if (service->HasDevicePermission(wrapper) || !build_info->is_at_least_q()) {
     ScopedJavaLocalRef<jstring> serial_jstring =
         Java_ChromeUsbDevice_getSerialNumber(env, wrapper);
     if (!serial_jstring.is_null())
@@ -67,8 +70,7 @@ scoped_refptr<UsbDeviceAndroid> UsbDeviceAndroid::Create(
       Java_ChromeUsbDevice_getDeviceSubclass(env, wrapper),
       Java_ChromeUsbDevice_getDeviceProtocol(env, wrapper),
       Java_ChromeUsbDevice_getVendorId(env, wrapper),
-      Java_ChromeUsbDevice_getProductId(env, wrapper),
-      Java_ChromeUsbDevice_getDeviceVersion(env, wrapper),
+      Java_ChromeUsbDevice_getProductId(env, wrapper), device_version,
       manufacturer_string, product_string, serial_number, wrapper));
 }
 
@@ -77,7 +79,7 @@ void UsbDeviceAndroid::RequestPermission(ResultCallback callback) {
     request_permission_callbacks_.push_back(std::move(callback));
     service_->RequestDevicePermission(j_object_);
   } else {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), permission_granted_));
   }
 }
@@ -93,7 +95,7 @@ void UsbDeviceAndroid::Open(OpenCallback callback) {
       handles().push_back(device_handle.get());
     }
   }
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), device_handle));
 }
 
@@ -110,9 +112,9 @@ UsbDeviceAndroid::UsbDeviceAndroid(JNIEnv* env,
                                    uint16_t vendor_id,
                                    uint16_t product_id,
                                    uint16_t device_version,
-                                   const std::u16string& manufacturer_string,
-                                   const std::u16string& product_string,
-                                   const std::u16string& serial_number,
+                                   const base::string16& manufacturer_string,
+                                   const base::string16& product_string,
+                                   const base::string16& serial_number,
                                    const JavaRef<jobject>& wrapper)
     : UsbDevice(usb_version,
                 device_class,

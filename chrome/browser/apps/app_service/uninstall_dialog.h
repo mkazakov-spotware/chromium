@@ -1,20 +1,16 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_APPS_APP_SERVICE_UNINSTALL_DIALOG_H_
 #define CHROME_BROWSER_APPS_APP_SERVICE_UNINSTALL_DIALOG_H_
 
-#include <memory>
-#include <string>
-
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "components/services/app_service/public/cpp/app_types.h"
-#include "components/services/app_service/public/cpp/icon_types.h"
+#include "base/observer_list.h"
+#include "components/services/app_service/public/mojom/types.mojom.h"
 #include "ui/gfx/native_widget_types.h"
-#include "ui/views/widget/widget.h"
 
 class NativeWindowTracker;
 class Profile;
@@ -53,22 +49,22 @@ class UninstallDialog {
     explicit UiBase(UninstallDialog* uninstall_dialog)
         : uninstall_dialog_(uninstall_dialog) {}
 
-    UiBase(const UiBase&) = delete;
-    UiBase& operator=(const UiBase&) = delete;
     virtual ~UiBase() = default;
 
-    static views::Widget* Create(Profile* profile,
-                                 apps::AppType app_type,
-                                 const std::string& app_id,
-                                 const std::string& app_name,
-                                 gfx::ImageSkia image,
-                                 gfx::NativeWindow parent_window,
-                                 UninstallDialog* uninstall_dialog);
+    static void Create(Profile* profile,
+                       apps::mojom::AppType app_type,
+                       const std::string& app_id,
+                       const std::string& app_name,
+                       gfx::ImageSkia image,
+                       gfx::NativeWindow parent_window,
+                       UninstallDialog* uninstall_dialog);
 
     UninstallDialog* uninstall_dialog() const { return uninstall_dialog_; }
 
    private:
-    raw_ptr<UninstallDialog, DanglingUntriaged> uninstall_dialog_;
+    UninstallDialog* uninstall_dialog_;
+
+    DISALLOW_COPY_AND_ASSIGN(UiBase);
   };
 
   // Called when the dialog closes after the user has made a decision about
@@ -82,50 +78,41 @@ class UninstallDialog {
                               bool report_rebuse,
                               UninstallDialog* uninstall_dialog)>;
 
-  using OnUninstallForTestingCallback = base::OnceCallback<void(bool)>;
-
   UninstallDialog(Profile* profile,
-                  apps::AppType app_type,
+                  apps::mojom::AppType app_type,
                   const std::string& app_id,
                   const std::string& app_name,
+                  apps::mojom::IconKeyPtr icon_key,
+                  IconLoader* icon_loader,
                   gfx::NativeWindow parent_window,
                   UninstallCallback uninstall_callback);
-  UninstallDialog(const UninstallDialog&) = delete;
-  UninstallDialog& operator=(const UninstallDialog&) = delete;
   ~UninstallDialog();
-
-  // Loads the app icon to show the icon in the uninstall dialog before creating
-  // the dialog view.
-  void PrepareToShow(IconKey icon_key, apps::IconLoader* icon_loader);
-
-  views::Widget* GetWidget();
 
   // Called when the uninstall dialog is closing to process uninstall or cancel
   // the uninstall.
   void OnDialogClosed(bool uninstall, bool clear_site_data, bool report_abuse);
 
-  void SetDialogCreatedCallbackForTesting(
-      OnUninstallForTestingCallback callback);
+  void SetDialogCreatedCallbackForTesting(base::OnceClosure callback);
 
  private:
   // Callback invoked when the icon is loaded.
-  void OnLoadIcon(IconValuePtr icon_value);
+  void OnLoadIcon(apps::mojom::IconValuePtr icon_value);
 
-  const raw_ptr<Profile> profile_;
-  const apps::AppType app_type_;
+  Profile* const profile_;
+  const apps::mojom::AppType app_type_;
   const std::string app_id_;
   const std::string app_name_;
   gfx::NativeWindow parent_window_;
   UninstallCallback uninstall_callback_;
 
-  OnUninstallForTestingCallback uninstall_dialog_created_callback_;
-
-  raw_ptr<views::Widget, DanglingUntriaged> widget_ = nullptr;
+  base::OnceClosure dialog_created_callback_;
 
   // Tracks whether |parent_window_| got destroyed.
   std::unique_ptr<NativeWindowTracker> parent_window_tracker_;
 
   base::WeakPtrFactory<UninstallDialog> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(UninstallDialog);
 };
 
 }  // namespace apps

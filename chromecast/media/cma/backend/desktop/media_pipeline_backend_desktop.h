@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "chromecast/public/media/media_pipeline_backend.h"
 
 namespace chromecast {
@@ -20,11 +21,6 @@ class VideoDecoderDesktop;
 class MediaPipelineBackendDesktop : public MediaPipelineBackend {
  public:
   MediaPipelineBackendDesktop();
-
-  MediaPipelineBackendDesktop(const MediaPipelineBackendDesktop&) = delete;
-  MediaPipelineBackendDesktop& operator=(const MediaPipelineBackendDesktop&) =
-      delete;
-
   ~MediaPipelineBackendDesktop() override;
 
   const AudioDecoderDesktop* audio_decoder() const {
@@ -56,6 +52,8 @@ class MediaPipelineBackendDesktop : public MediaPipelineBackend {
   float rate_;
   std::unique_ptr<AudioDecoderDesktop> audio_decoder_;
   std::unique_ptr<VideoDecoderDesktop> video_decoder_;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaPipelineBackendDesktop);
 };
 
 }  // namespace media

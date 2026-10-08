@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,18 +7,18 @@
 #include <algorithm>
 
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
-#include "ui/gfx/geometry/transform.h"
-#include "ui/views/animation/animation_builder.h"
+#include "ui/gfx/transform.h"
 #include "ui/views/animation/slide_out_controller_delegate.h"
 
 namespace views {
 
 namespace {
 
-constexpr base::TimeDelta kSwipeRestoreDuration = base::Milliseconds(150);
+constexpr base::TimeDelta kSwipeRestoreDuration =
+    base::TimeDelta::FromMilliseconds(150);
 constexpr int kSwipeOutTotalDurationMs = 150;
 gfx::Tween::Type kSwipeTweenType = gfx::Tween::EASE_IN;
 
@@ -37,7 +37,7 @@ SlideOutController::~SlideOutController() = default;
 void SlideOutController::CaptureControlOpenState() {
   if (!has_swipe_control_)
     return;
-  if ((mode_ == SlideMode::kFull || mode_ == SlideMode::kPartial) &&
+  if (mode_ == SlideMode::kFull &&
       fabs(gesture_amount_) >= swipe_control_width_) {
     control_open_state_ = gesture_amount_ < 0
                               ? SwipeControlOpenState::kOpenOnRight
@@ -164,8 +164,8 @@ void SlideOutController::SlideOutAndClose(int direction) {
 
   int swipe_out_duration = kSwipeOutTotalDurationMs * opacity_;
   SetOpacityIfNecessary(0.f);
-  SetTransformWithAnimationIfNecessary(transform,
-                                       base::Milliseconds(swipe_out_duration));
+  SetTransformWithAnimationIfNecessary(
+      transform, base::TimeDelta::FromMilliseconds(swipe_out_duration));
 }
 
 void SlideOutController::SetOpacityIfNecessary(float opacity) {
@@ -179,17 +179,18 @@ void SlideOutController::SetTransformWithAnimationIfNecessary(
     base::TimeDelta animation_duration) {
   ui::Layer* layer = delegate_->GetSlideOutLayer();
   if (layer->transform() != transform) {
+    ui::ScopedLayerAnimationSettings settings(layer->GetAnimator());
+    settings.SetTransitionDuration(animation_duration);
+    settings.SetTweenType(kSwipeTweenType);
+    settings.AddObserver(this);
+
+    // An animation starts. OnImplicitAnimationsCompleted will be called just
+    // after the animation finishes.
+    layer->SetTransform(transform);
+
     // Notify slide changed with inprogress=true, since the element will slide
     // with animation. OnSlideChanged(false) will be called after animation.
     delegate_->OnSlideChanged(true);
-    // An animation starts. OnAnimationsCompleted will be called just
-    // after the animation finishes.
-    AnimationBuilder()
-        .OnEnded(base::BindOnce(&SlideOutController::OnAnimationsCompleted,
-                                weak_ptr_factory_.GetWeakPtr()))
-        .Once()
-        .SetDuration(animation_duration)
-        .SetTransform(layer, transform, kSwipeTweenType);
   } else {
     // Notify slide changed after the animation finishes.
     // The argument in_progress is true if the target view is back at the
@@ -201,7 +202,7 @@ void SlideOutController::SetTransformWithAnimationIfNecessary(
   }
 }
 
-void SlideOutController::OnAnimationsCompleted() {
+void SlideOutController::OnImplicitAnimationsCompleted() {
   // Here the situation is either of:
   // 1) Notification is slided out and is about to be removed
   //      => |in_progress| is false, calling OnSlideOut
@@ -223,7 +224,7 @@ void SlideOutController::OnAnimationsCompleted() {
   // OnImplicitAnimationsCompleted is called from BeginMainFrame, so we should
   // delay operation that might result in deletion of LayerTreeHost.
   // https://crbug.com/895883
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&SlideOutController::OnSlideOut,
                                 weak_ptr_factory_.GetWeakPtr()));
 }

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #import <UIKit/UIKit.h>
 
-#import "base/check.h"
+#include "base/check.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -168,18 +168,16 @@ void AddSameConstraintsToSidesWithInsets(id<EdgeLayoutGuideProvider> innerView,
   [NSLayoutConstraint activateConstraints:constraints];
 }
 
-NSArray<NSLayoutConstraint*>* AddOptionalVerticalPadding(
-    id<EdgeLayoutGuideProvider> outerView,
-    id<EdgeLayoutGuideProvider> innerView,
-    CGFloat padding) {
-  return AddOptionalVerticalPadding(outerView, innerView, innerView, padding);
+void AddOptionalVerticalPadding(id<EdgeLayoutGuideProvider> outerView,
+                                id<EdgeLayoutGuideProvider> innerView,
+                                CGFloat padding) {
+  AddOptionalVerticalPadding(outerView, innerView, innerView, padding);
 }
 
-NSArray<NSLayoutConstraint*>* AddOptionalVerticalPadding(
-    id<EdgeLayoutGuideProvider> outerView,
-    id<EdgeLayoutGuideProvider> topInnerView,
-    id<EdgeLayoutGuideProvider> bottomInnerView,
-    CGFloat padding) {
+void AddOptionalVerticalPadding(id<EdgeLayoutGuideProvider> outerView,
+                                id<EdgeLayoutGuideProvider> topInnerView,
+                                id<EdgeLayoutGuideProvider> bottomInnerView,
+                                CGFloat padding) {
   NSLayoutConstraint* topPaddingConstraint = [topInnerView.topAnchor
       constraintGreaterThanOrEqualToAnchor:outerView.topAnchor
                                   constant:padding];
@@ -188,19 +186,7 @@ NSArray<NSLayoutConstraint*>* AddOptionalVerticalPadding(
       constraintLessThanOrEqualToAnchor:outerView.bottomAnchor
                                constant:-padding];
   bottomPaddingConstraint.priority = UILayoutPriorityDefaultLow;
-  NSArray<NSLayoutConstraint*>* contraints =
-      @[ topPaddingConstraint, bottomPaddingConstraint ];
-  [NSLayoutConstraint activateConstraints:contraints];
-  return contraints;
-}
 
-NSLayoutConstraint* VerticalConstraintsWithInset(UIView* innerView,
-                                                 UIView* outerView,
-                                                 CGFloat inset) {
-  NSLayoutConstraint* heightConstraint =
-      [outerView.heightAnchor constraintEqualToAnchor:innerView.heightAnchor
-                                             constant:inset];
-  heightConstraint.priority = UILayoutPriorityDefaultLow;
-  heightConstraint.active = YES;
-  return heightConstraint;
+  [NSLayoutConstraint
+      activateConstraints:@[ topPaddingConstraint, bottomPaddingConstraint ]];
 }

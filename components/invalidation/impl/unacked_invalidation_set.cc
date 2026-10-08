@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,12 @@
 #include "components/invalidation/public/ack_handle.h"
 #include "components/invalidation/public/topic_invalidation_map.h"
 
-namespace invalidation {
+namespace syncer {
 
 const size_t UnackedInvalidationSet::kMaxBufferedInvalidations = 5;
 
 UnackedInvalidationSet::UnackedInvalidationSet(const Topic& topic)
-    : topic_(topic) {}
+    : registered_(false), topic_(topic) {}
 
 UnackedInvalidationSet::UnackedInvalidationSet(
     const UnackedInvalidationSet& other) = default;
@@ -26,16 +26,18 @@ const Topic& UnackedInvalidationSet::topic() const {
 
 void UnackedInvalidationSet::Add(
     const Invalidation& invalidation) {
-  SingleTopicInvalidationSet set;
+  SingleObjectInvalidationSet set;
   set.Insert(invalidation);
   AddSet(set);
-  Truncate(kMaxBufferedInvalidations);
+  if (!registered_)
+    Truncate(kMaxBufferedInvalidations);
 }
 
 void UnackedInvalidationSet::AddSet(
-    const SingleTopicInvalidationSet& invalidations) {
+    const SingleObjectInvalidationSet& invalidations) {
   invalidations_.insert(invalidations.begin(), invalidations.end());
-  Truncate(kMaxBufferedInvalidations);
+  if (!registered_)
+    Truncate(kMaxBufferedInvalidations);
 }
 
 void UnackedInvalidationSet::ExportInvalidations(
@@ -50,9 +52,22 @@ void UnackedInvalidationSet::ExportInvalidations(
   }
 }
 
+void UnackedInvalidationSet::Clear() {
+  invalidations_.clear();
+}
+
+void UnackedInvalidationSet::SetHandlerIsRegistered() {
+  registered_ = true;
+}
+
+void UnackedInvalidationSet::SetHandlerIsUnregistered() {
+  registered_ = false;
+  Truncate(kMaxBufferedInvalidations);
+}
+
 // Removes the matching ack handle from the list.
 void UnackedInvalidationSet::Acknowledge(const AckHandle& handle) {
-  [[maybe_unused]] bool handle_found = false;
+  bool handle_found = false;
   for (auto it = invalidations_.begin(); it != invalidations_.end(); ++it) {
     if (it->ack_handle().Equals(handle)) {
       invalidations_.erase(*it);
@@ -61,6 +76,7 @@ void UnackedInvalidationSet::Acknowledge(const AckHandle& handle) {
     }
   }
   DLOG_IF(WARNING, !handle_found) << "Unrecognized to ack for topic " << topic_;
+  (void)handle_found;  // Silence unused variable warning in release builds.
 }
 
 // Erase the invalidation with matching ack handle from the list.  Also creates
@@ -68,7 +84,7 @@ void UnackedInvalidationSet::Acknowledge(const AckHandle& handle) {
 // the beginning of the list.  If an unknown version invalidation currently
 // exists, it is replaced.
 void UnackedInvalidationSet::Drop(const AckHandle& handle) {
-  SingleTopicInvalidationSet::const_iterator it;
+  SingleObjectInvalidationSet::const_iterator it;
   for (it = invalidations_.begin(); it != invalidations_.end(); ++it) {
     if (it->ack_handle().Equals(handle)) {
       break;
@@ -112,4 +128,4 @@ void UnackedInvalidationSet::Truncate(size_t max_size) {
   invalidations_.insert(unknown_version);
 }
 
-}  // namespace invalidation
+}  // namespace syncer

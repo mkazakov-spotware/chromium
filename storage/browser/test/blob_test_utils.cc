@@ -1,9 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "storage/browser/test/blob_test_utils.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "mojo/public/cpp/system/data_pipe_drainer.h"
 
@@ -24,7 +23,7 @@ class DataPipeDrainerClient : public mojo::DataPipeDrainer::Client {
 
  private:
   base::RunLoop run_loop_;
-  raw_ptr<std::string> output_;
+  std::string* output_;
 };
 
 }  // namespace
@@ -34,7 +33,7 @@ std::string BlobToString(blink::mojom::Blob* blob) {
   mojo::ScopedDataPipeProducerHandle producer;
   mojo::ScopedDataPipeConsumerHandle consumer;
   CHECK_EQ(MOJO_RESULT_OK,
-           mojo::CreateDataPipe(/*options=*/nullptr, producer, consumer));
+           mojo::CreateDataPipe(/*options=*/nullptr, &producer, &consumer));
   blob->ReadAll(std::move(producer), mojo::NullRemote());
   DataPipeDrainerClient client(&output);
   mojo::DataPipeDrainer drainer(&client, std::move(consumer));

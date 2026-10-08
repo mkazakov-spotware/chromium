@@ -1,15 +1,13 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/push_messaging/push_manager.h"
 
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_union_arraybuffer_arraybufferview_string.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_push_subscription_options_init.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer.h"
 #include "third_party/blink/renderer/modules/push_messaging/push_subscription_options.h"
-#include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/wtf/text/base64.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
@@ -51,7 +49,7 @@ void IsApplicationServerKeyValid(PushSubscriptionOptions* output) {
 TEST(PushManagerTest, ValidSenderKey) {
   PushSubscriptionOptionsInit* options = PushSubscriptionOptionsInit::Create();
   options->setApplicationServerKey(
-      MakeGarbageCollected<V8UnionArrayBufferOrArrayBufferViewOrString>(
+      ArrayBufferOrArrayBufferViewOrString::FromArrayBuffer(
           DOMArrayBuffer::Create(kApplicationServerKey,
                                  kApplicationServerKeyLength)));
 
@@ -77,8 +75,7 @@ TEST(PushManagerTest, ValidBase64URLWithoutPaddingSenderKey) {
                            kApplicationServerKeyLength);
   base64_url = base64_url.RemoveCharacters(RemovePad);
   options->setApplicationServerKey(
-      MakeGarbageCollected<V8UnionArrayBufferOrArrayBufferViewOrString>(
-          base64_url));
+      ArrayBufferOrArrayBufferViewOrString::FromString(base64_url));
 
   DummyExceptionStateForTesting exception_state;
   PushSubscriptionOptions* output =
@@ -93,7 +90,7 @@ TEST(PushManagerTest, InvalidSenderKeyLength) {
   memset(sender_key, 0, sizeof(sender_key));
   PushSubscriptionOptionsInit* options = PushSubscriptionOptionsInit::Create();
   options->setApplicationServerKey(
-      MakeGarbageCollected<V8UnionArrayBufferOrArrayBufferViewOrString>(
+      ArrayBufferOrArrayBufferViewOrString::FromArrayBuffer(
           DOMArrayBuffer::Create(sender_key, kMaxKeyLength + 1)));
 
   DummyExceptionStateForTesting exception_state;
@@ -109,7 +106,7 @@ TEST(PushManagerTest, InvalidBase64SenderKey) {
   PushSubscriptionOptionsInit* options =
       MakeGarbageCollected<PushSubscriptionOptionsInit>();
   options->setApplicationServerKey(
-      MakeGarbageCollected<V8UnionArrayBufferOrArrayBufferViewOrString>(
+      ArrayBufferOrArrayBufferViewOrString::FromString(
           Base64Encode(kApplicationServerKey)));
 
   DummyExceptionStateForTesting exception_state;
@@ -126,10 +123,9 @@ TEST(PushManagerTest, InvalidBase64URLWithPaddingSenderKey) {
   PushSubscriptionOptionsInit* options =
       MakeGarbageCollected<PushSubscriptionOptionsInit>();
   options->setApplicationServerKey(
-      MakeGarbageCollected<V8UnionArrayBufferOrArrayBufferViewOrString>(
-          WTF::Base64URLEncode(
-              reinterpret_cast<const char*>(kApplicationServerKey),
-              kApplicationServerKeyLength)));
+      ArrayBufferOrArrayBufferViewOrString::FromString(WTF::Base64URLEncode(
+          reinterpret_cast<const char*>(kApplicationServerKey),
+          kApplicationServerKeyLength)));
 
   DummyExceptionStateForTesting exception_state;
   PushSubscriptionOptions* output =

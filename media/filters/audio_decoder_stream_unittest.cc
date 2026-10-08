@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,10 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/test/gmock_callback_support.h"
 #include "base/test/task_environment.h"
-#include "base/time/time.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "media/base/media_util.h"
 #include "media/base/mock_filters.h"
 #include "media/filters/decoder_stream.h"
@@ -50,19 +48,14 @@ class AudioDecoderStreamTest : public testing::Test {
       : audio_decoder_stream_(
             std::make_unique<AudioDecoderStream::StreamTraits>(
                 &media_log_,
-                CHANNEL_LAYOUT_STEREO,
-                kSampleFormatPlanarF32),
+                CHANNEL_LAYOUT_STEREO),
             task_environment_.GetMainThreadTaskRunner(),
             base::BindRepeating(&AudioDecoderStreamTest::CreateMockAudioDecoder,
                                 base::Unretained(this)),
             &media_log_) {
     // Any valid config will do.
-    demuxer_stream_.set_audio_decoder_config({AudioCodec::kAAC,
-                                              kSampleFormatS16,
-                                              CHANNEL_LAYOUT_STEREO,
-                                              44100,
-                                              {},
-                                              {}});
+    demuxer_stream_.set_audio_decoder_config(
+        {kCodecAAC, kSampleFormatS16, CHANNEL_LAYOUT_STEREO, 44100, {}, {}});
     EXPECT_CALL(demuxer_stream_, SupportsConfigChanges())
         .WillRepeatedly(Return(true));
 
@@ -74,9 +67,6 @@ class AudioDecoderStreamTest : public testing::Test {
         nullptr, base::DoNothing(), base::DoNothing());
     run_loop.Run();
   }
-
-  AudioDecoderStreamTest(const AudioDecoderStreamTest&) = delete;
-  AudioDecoderStreamTest& operator=(const AudioDecoderStreamTest&) = delete;
 
   MockDemuxerStream* demuxer_stream() { return &demuxer_stream_; }
   MockAudioDecoder* decoder() { return decoder_; }
@@ -90,18 +80,17 @@ class AudioDecoderStreamTest : public testing::Test {
   void ProduceDecoderOutput(scoped_refptr<DecoderBuffer> buffer,
                             AudioDecoder::DecodeCB decode_cb) {
     // Make sure successive AudioBuffers have increasing timestamps.
-    last_timestamp_ += base::Milliseconds(27);
+    last_timestamp_ += base::TimeDelta::FromMilliseconds(27);
     const auto& config = demuxer_stream_.audio_decoder_config();
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+    base::SequencedTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(
             decoder_output_cb_,
             AudioBuffer::CreateEmptyBuffer(
                 config.channel_layout(), config.channels(),
                 config.samples_per_second(), 1221, last_timestamp_)));
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE,
-        base::BindOnce(std::move(decode_cb), DecoderStatus::Codes::kOk));
+    base::SequencedTaskRunnerHandle::Get()->PostTask(
+        FROM_HERE, base::BindOnce(std::move(decode_cb), DecodeStatus::OK));
   }
 
   void RunUntilIdle() { task_environment_.RunUntilIdle(); }
@@ -112,7 +101,7 @@ class AudioDecoderStreamTest : public testing::Test {
     EXPECT_CALL(*decoder, Initialize_(_, _, _, _, _))
         .Times(AnyNumber())
         .WillRepeatedly(DoAll(SaveArg<3>(&decoder_output_cb_),
-                              RunOnceCallback<2>(DecoderStatus::Codes::kOk)));
+                              RunOnceCallback<2>(OkStatus())));
     decoder_ = decoder.get();
 
     std::vector<std::unique_ptr<AudioDecoder>> result;
@@ -121,7 +110,8 @@ class AudioDecoderStreamTest : public testing::Test {
   }
 
   void OnAudioBufferReadDone(base::OnceClosure closure,
-                             AudioDecoderStream::ReadResult result) {
+                             AudioDecoderStream::ReadStatus status,
+                             scoped_refptr<AudioBuffer> audio_buffer) {
     std::move(closure).Run();
   }
 
@@ -130,9 +120,11 @@ class AudioDecoderStreamTest : public testing::Test {
   testing::NiceMock<MockDemuxerStream> demuxer_stream_{DemuxerStream::AUDIO};
   AudioDecoderStream audio_decoder_stream_;
 
-  raw_ptr<MockAudioDecoder> decoder_ = nullptr;
+  MockAudioDecoder* decoder_ = nullptr;
   AudioDecoder::OutputCB decoder_output_cb_;
   base::TimeDelta last_timestamp_;
+
+  DISALLOW_COPY_AND_ASSIGN(AudioDecoderStreamTest);
 };
 
 TEST_F(AudioDecoderStreamTest, FlushOnConfigChange) {

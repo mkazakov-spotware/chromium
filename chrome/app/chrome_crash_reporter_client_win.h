@@ -1,10 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_APP_CHROME_CRASH_REPORTER_CLIENT_WIN_H_
 #define CHROME_APP_CHROME_CRASH_REPORTER_CLIENT_WIN_H_
 
+#include "base/macros.h"
 #include "components/crash/core/app/crash_reporter_client.h"
 
 class ChromeCrashReporterClient : public crash_reporter::CrashReporterClient {
@@ -17,30 +18,25 @@ class ChromeCrashReporterClient : public crash_reporter::CrashReporterClient {
 #endif  // !defined(NACL_WIN64)
 
   ChromeCrashReporterClient();
-
-  ChromeCrashReporterClient(const ChromeCrashReporterClient&) = delete;
-  ChromeCrashReporterClient& operator=(const ChromeCrashReporterClient&) =
-      delete;
-
   ~ChromeCrashReporterClient() override;
 
   // crash_reporter::CrashReporterClient implementation.
-  bool GetAlternativeCrashDumpLocation(std::wstring* crash_dir) override;
-  void GetProductNameAndVersion(const std::wstring& exe_path,
-                                std::wstring* product_name,
-                                std::wstring* version,
-                                std::wstring* special_build,
-                                std::wstring* channel_name) override;
-  bool ShouldShowRestartDialog(std::wstring* title,
-                               std::wstring* message,
+  bool GetAlternativeCrashDumpLocation(base::string16* crash_dir) override;
+  void GetProductNameAndVersion(const base::string16& exe_path,
+                                base::string16* product_name,
+                                base::string16* version,
+                                base::string16* special_build,
+                                base::string16* channel_name) override;
+  bool ShouldShowRestartDialog(base::string16* title,
+                               base::string16* message,
                                bool* is_rtl_locale) override;
   bool AboutToRestart() override;
   bool GetIsPerUserInstall() override;
   bool GetShouldDumpLargerDumps() override;
   int GetResultCodeRespawnFailed() override;
 
-  bool GetCrashDumpLocation(std::wstring* crash_dir) override;
-  bool GetCrashMetricsLocation(std::wstring* metrics_dir) override;
+  bool GetCrashDumpLocation(base::string16* crash_dir) override;
+  bool GetCrashMetricsLocation(base::string16* metrics_dir) override;
 
   bool IsRunningUnattended() override;
 
@@ -54,7 +50,8 @@ class ChromeCrashReporterClient : public crash_reporter::CrashReporterClient {
 
   bool EnableBreakpadForProcess(const std::string& process_type) override;
 
-  std::wstring GetWerRuntimeExceptionModule() override;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ChromeCrashReporterClient);
 };
 
 #endif  // CHROME_APP_CHROME_CRASH_REPORTER_CLIENT_WIN_H_

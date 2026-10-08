@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,31 +9,23 @@
 
 #include <commctrl.h>
 
-#include <string>
-
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "base/win/scoped_gdi_object.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/views/corewm/tooltip.h"
 
-namespace wm {
-class TooltipObserver;
-}
-
-namespace views::corewm {
+namespace views {
+namespace corewm {
 
 // Implementation of Tooltip that uses the native win32 control for showing the
 // tooltip.
 class VIEWS_EXPORT TooltipWin : public Tooltip {
  public:
   explicit TooltipWin(HWND parent);
-
-  TooltipWin(const TooltipWin&) = delete;
-  TooltipWin& operator=(const TooltipWin&) = delete;
-
   ~TooltipWin() override;
-
-  void AddObserver(wm::TooltipObserver* observer) override {}
-  void RemoveObserver(wm::TooltipObserver* observer) override {}
 
   // HandleNotify() is forwarded from DesktopWindowTreeHostWin to keep the
   // native tooltip in sync.
@@ -52,10 +44,9 @@ class VIEWS_EXPORT TooltipWin : public Tooltip {
 
   // Tooltip:
   int GetMaxWidth(const gfx::Point& location) const override;
-  void Update(aura::Window* window,
-              const std::u16string& tooltip_text,
-              const gfx::Point& position,
-              const TooltipTrigger trigger) override;
+  void SetText(aura::Window* window,
+               const base::string16& tooltip_text,
+               const gfx::Point& location) override;
   void Show() override;
   void Hide() override;
   bool IsVisible() override;
@@ -76,17 +67,19 @@ class VIEWS_EXPORT TooltipWin : public Tooltip {
   // Is the tooltip showing?
   bool showing_;
 
-  // In order to position the tooltip we need to know the size. The size is only
-  // available from TTN_SHOW, so we have to cache `anchor_point_` and `trigger_`
-  // which are required to calculate its position.
-  gfx::Point anchor_point_;
-  TooltipTrigger trigger_ = TooltipTrigger::kCursor;
+  // Location to show the tooltip at. In order to position the tooltip we need
+  // to know the size. The size is only available from TTN_SHOW, so we have to
+  // cache it.
+  gfx::Point location_;
 
   // What the scale was the last time we overrode the font, to see if we can
   // re-use our previous override.
   float override_scale_ = 0.0f;
+
+  DISALLOW_COPY_AND_ASSIGN(TooltipWin);
 };
 
-}  // namespace views::corewm
+}  // namespace corewm
+}  // namespace views
 
 #endif  // UI_VIEWS_COREWM_TOOLTIP_WIN_H_

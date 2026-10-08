@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "base/containers/queue.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "net/base/completion_once_callback.h"
 #include "net/base/io_buffer.h"
@@ -18,10 +19,6 @@ class ReadaheadFileStreamReader : public storage::FileStreamReader {
  public:
   // Takes ownership of |source|.
   explicit ReadaheadFileStreamReader(storage::FileStreamReader* source);
-
-  ReadaheadFileStreamReader(const ReadaheadFileStreamReader&) = delete;
-  ReadaheadFileStreamReader& operator=(const ReadaheadFileStreamReader&) =
-      delete;
 
   ~ReadaheadFileStreamReader() override;
 
@@ -60,6 +57,8 @@ class ReadaheadFileStreamReader : public storage::FileStreamReader {
   net::CompletionOnceCallback pending_read_callback_;
 
   base::WeakPtrFactory<ReadaheadFileStreamReader> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ReadaheadFileStreamReader);
 };
 
 #endif  // CHROME_BROWSER_MEDIA_GALLERIES_FILEAPI_READAHEAD_FILE_STREAM_READER_H_

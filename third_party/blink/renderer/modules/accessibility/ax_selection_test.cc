@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <string>
 
-#include "base/logging.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_focus_options.h"
 #include "third_party/blink/renderer/core/dom/document.h"
@@ -29,6 +28,7 @@
 #include "third_party/blink/renderer/modules/accessibility/ax_object.h"
 #include "third_party/blink/renderer/modules/accessibility/ax_position.h"
 #include "third_party/blink/renderer/modules/accessibility/testing/accessibility_selection_test.h"
+#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
@@ -435,11 +435,6 @@ TEST_F(AccessibilitySelectionTest, SetSelectionInDisplayNone) {
   ASSERT_EQ(ax::mojom::Role::kParagraph, ax_hidden1->RoleValue());
   ASSERT_TRUE(ax_hidden1->AccessibilityIsIgnored());
   ASSERT_TRUE(ax_hidden1->AccessibilityIsIncludedInTree());
-  const AXObject* ax_hidden1_text = ax_hidden1->FirstChildIncludingIgnored();
-  ASSERT_NE(nullptr, ax_hidden1_text);
-  ASSERT_EQ(ax::mojom::Role::kStaticText, ax_hidden1_text->RoleValue());
-  ASSERT_TRUE(ax_hidden1_text->AccessibilityIsIgnored());
-  ASSERT_TRUE(ax_hidden1_text->AccessibilityIsIncludedInTree());
   const AXObject* ax_between = GetAXObjectByElementId("betweenHidden");
   ASSERT_NE(nullptr, ax_between);
   ASSERT_EQ(ax::mojom::Role::kParagraph, ax_between->RoleValue());
@@ -448,11 +443,6 @@ TEST_F(AccessibilitySelectionTest, SetSelectionInDisplayNone) {
   ASSERT_EQ(ax::mojom::Role::kParagraph, ax_hidden2->RoleValue());
   ASSERT_TRUE(ax_hidden2->AccessibilityIsIgnored());
   ASSERT_TRUE(ax_hidden2->AccessibilityIsIncludedInTree());
-  const AXObject* ax_hidden2_text = ax_hidden2->FirstChildIncludingIgnored();
-  ASSERT_NE(nullptr, ax_hidden2_text);
-  ASSERT_EQ(ax::mojom::Role::kStaticText, ax_hidden2_text->RoleValue());
-  ASSERT_TRUE(ax_hidden2_text->AccessibilityIsIgnored());
-  ASSERT_TRUE(ax_hidden2_text->AccessibilityIsIncludedInTree());
   const AXObject* ax_after = GetAXObjectByElementId("afterHidden");
   ASSERT_NE(nullptr, ax_after);
   ASSERT_EQ(ax::mojom::Role::kParagraph, ax_after->RoleValue());
@@ -469,27 +459,26 @@ TEST_F(AccessibilitySelectionTest, SetSelectionInDisplayNone) {
       selection, AXSelectionBehavior::kExtendToValidRange);
 
   // The "display: none" content is included in the AXTree as an ignored node,
-  // so shrunk selection should include those AXObjects. The tree in the browser
-  // process also includes those ignored nodes, and the position will be
-  // adjusted according to AXPosition rules; in particular, a position anchored
-  // before a text node is explicitly moved to before the first character of the
-  // text object.
-  ASSERT_TRUE(ax_selection_shrink.Base().IsTextPosition());
-  EXPECT_EQ(ax_hidden1_text, ax_selection_shrink.Base().ContainerObject());
-  EXPECT_EQ(0, ax_selection_shrink.Base().TextOffset());
-  ASSERT_TRUE(ax_selection_shrink.Extent().IsTextPosition());
-  EXPECT_EQ(ax_hidden2_text, ax_selection_shrink.Extent().ContainerObject());
-  EXPECT_EQ(0, ax_selection_shrink.Extent().TextOffset());
+  // so shrunk selection should include those AXObjects. Note that the browser
+  // process will adjust the position to only encompass the |AXObject| between
+  // the two "display: none" elements, since they are ignored nodes.
+  ASSERT_FALSE(ax_selection_shrink.Base().IsTextPosition());
+  EXPECT_EQ(ax_hidden1, ax_selection_shrink.Base().ContainerObject());
+  EXPECT_EQ(0, ax_selection_shrink.Base().ChildIndex());
+  ASSERT_FALSE(ax_selection_shrink.Extent().IsTextPosition());
+  EXPECT_EQ(ax_hidden2, ax_selection_shrink.Extent().ContainerObject());
+  EXPECT_EQ(0, ax_selection_shrink.Extent().ChildIndex());
 
   // The extended selection should start in the "display: none" content because
-  // they are included in the AXTree. Similarly to above, the position will be
-  // adjusted to point to the first character of the text object.
-  ASSERT_TRUE(ax_selection_extend.Base().IsTextPosition());
-  EXPECT_EQ(ax_hidden1_text, ax_selection_extend.Base().ContainerObject());
-  EXPECT_EQ(0, ax_selection_extend.Base().TextOffset());
-  ASSERT_TRUE(ax_selection_extend.Extent().IsTextPosition());
-  EXPECT_EQ(ax_hidden2_text, ax_selection_extend.Extent().ContainerObject());
-  EXPECT_EQ(0, ax_selection_extend.Extent().TextOffset());
+  // they are included in the AXTree. The browser process will adjust ignored
+  // positions so that in this case it would only encompass the paragraph
+  // between the "display: none" nodes.
+  ASSERT_FALSE(ax_selection_extend.Base().IsTextPosition());
+  EXPECT_EQ(ax_hidden1, ax_selection_extend.Base().ContainerObject());
+  EXPECT_EQ(0, ax_selection_extend.Base().ChildIndex());
+  ASSERT_FALSE(ax_selection_extend.Extent().IsTextPosition());
+  EXPECT_EQ(ax_hidden2, ax_selection_extend.Extent().ContainerObject());
+  EXPECT_EQ(0, ax_selection_extend.Extent().ChildIndex());
 
   // Even though the two AX selections have different anchors and foci, the text
   // selected in the accessibility tree should not differ, because any
@@ -503,12 +492,10 @@ TEST_F(AccessibilitySelectionTest, SetSelectionInDisplayNone) {
       "++++++++<Paragraph>\n"
       "++++++++++<StaticText: Before display:none.>\n"
       "++++++++<Paragraph>\n"
-      "^++++++++++<StaticText: ^Display:none 1.>\n"
-      "++++++++<Paragraph>\n"
+      "^++++++++<Paragraph>\n"
       "++++++++++<StaticText: In between two display:none elements.>\n"
       "++++++++<Paragraph>\n"
-      "|++++++++++<StaticText: |Display:none 2.>\n"
-      "++++++++<Paragraph>\n"
+      "|++++++++<Paragraph>\n"
       "++++++++++<StaticText: After display:none.>\n");
   EXPECT_EQ(selection_text, GetSelectionText(ax_selection_shrink));
   EXPECT_EQ(selection_text, GetSelectionText(ax_selection_extend));
@@ -745,7 +732,7 @@ TEST_F(AccessibilitySelectionTest, FromCurrentSelectionInTextareaWithAffinity) {
   // get an upstream affinity is to send the "end" key which might be unreliable
   // on certain platforms, so we modify the selection using Blink internal
   // functions instead.
-  textarea->Focus();
+  textarea->focus();
   Selection().Modify(SelectionModifyAlteration::kMove,
                      SelectionModifyDirection::kBackward,
                      TextGranularity::kDocumentBoundary, SetSelectionBy::kUser);
@@ -774,6 +761,9 @@ TEST_F(AccessibilitySelectionTest, FromCurrentSelectionInTextareaWithAffinity) {
 
 TEST_F(AccessibilitySelectionTest,
        FromCurrentSelectionInTextareaWithCollapsedSelectionAndAffinity) {
+  // TODO(crbug.com/1140302): This test fails with LayoutNGTextControl.
+  ScopedLayoutNGTextControlForTest scope(false);
+
   SetBodyInnerHTML(R"HTML(
       <textarea id="textarea"
           rows="2" cols="15"
@@ -795,7 +785,7 @@ TEST_F(AccessibilitySelectionTest,
   // get an upstream affinity is to send the "end" key which might be unreliable
   // on certain platforms, so we modify the selection using Blink internal
   // functions instead.
-  textarea->Focus();
+  textarea->focus();
   Selection().Modify(SelectionModifyAlteration::kMove,
                      SelectionModifyDirection::kBackward,
                      TextGranularity::kDocumentBoundary, SetSelectionBy::kUser);
@@ -879,7 +869,7 @@ TEST_F(AccessibilitySelectionTest,
   ASSERT_TRUE(ax_selection.Extent().IsTextPosition());
   EXPECT_EQ(ax_static_text, ax_selection.Extent().ContainerObject());
   EXPECT_EQ(ax_static_text->ComputedName().length(),
-            static_cast<unsigned>(ax_selection.Extent().TextOffset()));
+            unsigned{ax_selection.Extent().TextOffset()});
 }
 
 TEST_F(AccessibilitySelectionTest,
@@ -1068,7 +1058,7 @@ TEST_F(AccessibilitySelectionTest, ForwardSelectionInTextField) {
   Element* const input = GetDocument().QuerySelector("input");
   ASSERT_NE(nullptr, input);
   ASSERT_TRUE(IsTextControl(input));
-  input->Focus(FocusOptions::Create());
+  input->focus(FocusOptions::Create());
   ASSERT_TRUE(input->IsFocusedElementInDocument());
 
   const AXObject* ax_input = GetAXObjectByElementId("input");
@@ -1103,7 +1093,7 @@ TEST_F(AccessibilitySelectionTest, BackwardSelectionInTextField) {
   Element* const input = GetDocument().QuerySelector("input");
   ASSERT_NE(nullptr, input);
   ASSERT_TRUE(IsTextControl(input));
-  input->Focus(FocusOptions::Create());
+  input->focus(FocusOptions::Create());
   ASSERT_TRUE(input->IsFocusedElementInDocument());
 
   const AXObject* ax_input = GetAXObjectByElementId("input");
@@ -1201,8 +1191,8 @@ TEST_F(AccessibilitySelectionTest, SelectEachConsecutiveCharacterInTextField) {
 
     testing::Message message;
     message << "While selecting forward character "
-            << static_cast<char>(text_control.InnerEditorValue()[i])
-            << " at position " << i << " in text field.";
+            << char{text_control.InnerEditorValue()[i]} << " at position " << i
+            << " in text field.";
     SCOPED_TRACE(message);
     EXPECT_TRUE(ax_selection.Select());
 
@@ -1220,8 +1210,8 @@ TEST_F(AccessibilitySelectionTest, SelectEachConsecutiveCharacterInTextField) {
 
     testing::Message message;
     message << "While selecting backward character "
-            << static_cast<char>(text_control.InnerEditorValue()[i])
-            << " at position " << i << " in text field.";
+            << char{text_control.InnerEditorValue()[i]} << " at position " << i
+            << " in text field.";
     SCOPED_TRACE(message);
     EXPECT_TRUE(ax_selection.Select());
 
@@ -1259,7 +1249,7 @@ TEST_F(AccessibilitySelectionTest,
   ASSERT_TRUE(IsTextControl(input));
   TextControlElement& text_control = ToTextControl(*input);
   // The "value" attribute should not contain the extra spaces.
-  ASSERT_EQ(valid_email.length(), text_control.Value().length());
+  ASSERT_EQ(valid_email.length(), text_control.value().length());
 
   const AXObject* ax_input = GetAXObjectByElementId("input");
   ASSERT_NE(nullptr, ax_input);
@@ -1277,8 +1267,8 @@ TEST_F(AccessibilitySelectionTest,
 
     testing::Message message;
     message << "While selecting forward character "
-            << static_cast<char>(text_control.InnerEditorValue()[i])
-            << " at position " << i << " in text field.";
+            << char{text_control.InnerEditorValue()[i]} << " at position " << i
+            << " in text field.";
     SCOPED_TRACE(message);
     EXPECT_TRUE(ax_selection.Select());
 
@@ -1296,8 +1286,8 @@ TEST_F(AccessibilitySelectionTest,
 
     testing::Message message;
     message << "While selecting backward character "
-            << static_cast<char>(text_control.InnerEditorValue()[i])
-            << " at position " << i << " in text field.";
+            << char{text_control.InnerEditorValue()[i]} << " at position " << i
+            << " in text field.";
     SCOPED_TRACE(message);
     EXPECT_TRUE(ax_selection.Select());
 
@@ -1379,7 +1369,7 @@ TEST_F(AccessibilitySelectionTest, ForwardSelectionInTextarea) {
   Element* const textarea = GetDocument().QuerySelector("textarea");
   ASSERT_NE(nullptr, textarea);
   ASSERT_TRUE(IsTextControl(textarea));
-  textarea->Focus(FocusOptions::Create());
+  textarea->focus(FocusOptions::Create());
   ASSERT_TRUE(textarea->IsFocusedElementInDocument());
 
   const AXObject* ax_textarea = GetAXObjectByElementId("textarea");
@@ -1418,7 +1408,7 @@ TEST_F(AccessibilitySelectionTest, BackwardSelectionInTextarea) {
   Element* const textarea = GetDocument().QuerySelector("textarea");
   ASSERT_NE(nullptr, textarea);
   ASSERT_TRUE(IsTextControl(textarea));
-  textarea->Focus(FocusOptions::Create());
+  textarea->focus(FocusOptions::Create());
   ASSERT_TRUE(textarea->IsFocusedElementInDocument());
 
   const AXObject* ax_textarea = GetAXObjectByElementId("textarea");
@@ -1508,13 +1498,13 @@ TEST_F(AccessibilitySelectionTest, SelectEachConsecutiveCharacterInTextarea) {
   ASSERT_NE(nullptr, textarea);
   ASSERT_TRUE(IsTextControl(textarea));
   TextControlElement& text_control = ToTextControl(*textarea);
-  ASSERT_LE(1u, text_control.Value().length());
+  ASSERT_LE(1u, text_control.value().length());
 
   const AXObject* ax_textarea = GetAXObjectByElementId("textarea");
   ASSERT_NE(nullptr, ax_textarea);
   ASSERT_EQ(ax::mojom::Role::kTextField, ax_textarea->RoleValue());
 
-  for (unsigned int i = 0; i < text_control.Value().length() - 1; ++i) {
+  for (unsigned int i = 0; i < text_control.value().length() - 1; ++i) {
     AXSelection::Builder builder;
     AXSelection ax_selection =
         builder.SetBase(AXPosition::CreatePositionInTextObject(*ax_textarea, i))
@@ -1524,8 +1514,8 @@ TEST_F(AccessibilitySelectionTest, SelectEachConsecutiveCharacterInTextarea) {
 
     testing::Message message;
     message << "While selecting forward character "
-            << static_cast<char>(text_control.Value()[i]) << " at position "
-            << i << " in textarea.";
+            << char{text_control.value()[i]} << " at position " << i
+            << " in textarea.";
     SCOPED_TRACE(message);
     EXPECT_TRUE(ax_selection.Select());
 
@@ -1534,7 +1524,7 @@ TEST_F(AccessibilitySelectionTest, SelectEachConsecutiveCharacterInTextarea) {
     EXPECT_EQ("forward", text_control.selectionDirection());
   }
 
-  for (unsigned int i = text_control.Value().length(); i > 0; --i) {
+  for (unsigned int i = text_control.value().length(); i > 0; --i) {
     AXSelection::Builder builder;
     AXSelection ax_selection =
         builder.SetBase(AXPosition::CreatePositionInTextObject(*ax_textarea, i))
@@ -1544,8 +1534,8 @@ TEST_F(AccessibilitySelectionTest, SelectEachConsecutiveCharacterInTextarea) {
 
     testing::Message message;
     message << "While selecting backward character "
-            << static_cast<char>(text_control.Value()[i]) << " at position "
-            << i << " in textarea.";
+            << char{text_control.value()[i]} << " at position " << i
+            << " in textarea.";
     SCOPED_TRACE(message);
     EXPECT_TRUE(ax_selection.Select());
 
@@ -1640,7 +1630,7 @@ TEST_F(AccessibilitySelectionTest,
   // get an upstream affinity is to send the "end" key which might be unreliable
   // on certain platforms, so we modify the selection using Blink internal
   // functions instead.
-  contenteditable->Focus();
+  contenteditable->focus();
   Selection().Modify(SelectionModifyAlteration::kMove,
                      SelectionModifyDirection::kBackward,
                      TextGranularity::kDocumentBoundary, SetSelectionBy::kUser);
@@ -1665,13 +1655,13 @@ TEST_F(AccessibilitySelectionTest,
   EXPECT_TRUE(ax_selection.Base().IsTextPosition());
   EXPECT_EQ(ax_text, ax_selection.Base().ContainerObject());
   EXPECT_LE(15, ax_selection.Base().TextOffset());
-  EXPECT_GT(static_cast<int>(ax_text->ComputedName().length()),
+  EXPECT_GT(int{ax_text->ComputedName().length()},
             ax_selection.Base().TextOffset());
   EXPECT_EQ(TextAffinity::kUpstream, ax_selection.Base().Affinity());
   EXPECT_TRUE(ax_selection.Extent().IsTextPosition());
   EXPECT_EQ(ax_text, ax_selection.Extent().ContainerObject());
   EXPECT_LE(15, ax_selection.Extent().TextOffset());
-  EXPECT_GT(static_cast<int>(ax_text->ComputedName().length()),
+  EXPECT_GT(int{ax_text->ComputedName().length()},
             ax_selection.Extent().TextOffset());
   EXPECT_EQ(TextAffinity::kUpstream, ax_selection.Extent().Affinity());
 }
@@ -1714,9 +1704,8 @@ TEST_F(AccessibilitySelectionTest,
             .Build();
 
     testing::Message message;
-    message << "While selecting forward character "
-            << std::u16string(1, computed_name[i]) << " at position " << i
-            << " in contenteditable.";
+    message << "While selecting forward character " << computed_name[i]
+            << " at position " << i << " in contenteditable.";
     SCOPED_TRACE(message);
     EXPECT_TRUE(ax_selection.Select());
 
@@ -1727,10 +1716,8 @@ TEST_F(AccessibilitySelectionTest,
     // The discrepancy between DOM and AX text offsets is due to the fact that
     // there is some white space in the DOM that is compressed in the
     // accessibility tree.
-    EXPECT_EQ(static_cast<int>(i + 9),
-              dom_selection.Base().OffsetInContainerNode());
-    EXPECT_EQ(static_cast<int>(i + 10),
-              dom_selection.Extent().OffsetInContainerNode());
+    EXPECT_EQ(int{i + 9}, dom_selection.Base().OffsetInContainerNode());
+    EXPECT_EQ(int{i + 10}, dom_selection.Extent().OffsetInContainerNode());
   }
 
   for (unsigned int i = computed_name.length(); i > 0; --i) {
@@ -1743,9 +1730,8 @@ TEST_F(AccessibilitySelectionTest,
             .Build();
 
     testing::Message message;
-    message << "While selecting backward character "
-            << std::u16string(1, computed_name[i]) << " at position " << i
-            << " in contenteditable.";
+    message << "While selecting backward character " << computed_name[i]
+            << " at position " << i << " in contenteditable.";
     SCOPED_TRACE(message);
     EXPECT_TRUE(ax_selection.Select());
 
@@ -1756,10 +1742,8 @@ TEST_F(AccessibilitySelectionTest,
     // The discrepancy between DOM and AX text offsets is due to the fact that
     // there is some white space in the DOM that is compressed in the
     // accessibility tree.
-    EXPECT_EQ(static_cast<int>(i + 9),
-              dom_selection.Base().OffsetInContainerNode());
-    EXPECT_EQ(static_cast<int>(i + 8),
-              dom_selection.Extent().OffsetInContainerNode());
+    EXPECT_EQ(int{i + 9}, dom_selection.Base().OffsetInContainerNode());
+    EXPECT_EQ(int{i + 8}, dom_selection.Extent().OffsetInContainerNode());
   }
 }
 

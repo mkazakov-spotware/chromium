@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <utility>
 
-#include "base/logging.h"
 #include "chromecast/browser/cast_renderer_block_data.h"
 #include "components/media_control/mojom/media_playback_options.mojom.h"
 #include "content/public/browser/media_session.h"
@@ -150,10 +149,11 @@ void CastMediaBlocker::OnRenderFrameCreated(
 void CastMediaBlocker::UpdateBackgroundVideoPlaybackState() {
   if (!web_contents())
     return;
-  web_contents()->ForEachRenderFrameHost(
-      [this](content::RenderFrameHost* frame) {
-        UpdateRenderFrameBackgroundVideoPlaybackState(frame);
-      });
+  const std::vector<content::RenderFrameHost*> frames =
+      web_contents()->GetAllFrames();
+  for (content::RenderFrameHost* frame : frames) {
+    UpdateRenderFrameBackgroundVideoPlaybackState(frame);
+  }
 }
 
 void CastMediaBlocker::UpdateRenderFrameBackgroundVideoPlaybackState(

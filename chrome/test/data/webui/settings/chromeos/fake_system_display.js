@@ -1,44 +1,38 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
  * @fileoverview Fake implementation of chrome.system.display for testing.
  */
-
-import {assert} from 'chrome://resources/js/assert.js';
-import {PromiseResolver} from 'chrome://resources/js/promise_resolver.js';
-
-import {FakeChromeEvent} from 'chrome://webui-test/fake_chrome_event.js';
-
-/**
- * Fake of the chrome.settings.display API.
- * @constructor
- * @implements {SystemDisplay}
- */
-export function FakeSystemDisplay() {
-  /** @type {!Array<!chrome.system.display.DisplayUnitInfo>} */
-  this.fakeDisplays = [];
-  this.fakeLayouts = [];
-  this.getInfoCalled = new PromiseResolver();
-  this.getLayoutCalled = new PromiseResolver();
-}
-
-FakeSystemDisplay.prototype = {
-  // Public testing methods.
+cr.define('settings', function() {
   /**
-   * @param {!chrome.system.display.DisplayUnitInfo>} display
+   * Fake of the chrome.settings.display API.
+   * @constructor
+   * @implements {SystemDisplay}
    */
-  addDisplayForTest(display) {
-    this.fakeDisplays.push(display);
-    this.updateLayouts_();
-  },
+  function FakeSystemDisplay() {
+    /** @type {!Array<!chrome.system.display.DisplayUnitInfo>} */
+    this.fakeDisplays = [];
+    this.fakeLayouts = [];
+    this.getInfoCalled = new PromiseResolver();
+    this.getLayoutCalled = new PromiseResolver();
+  }
 
-  // SystemDisplay overrides.
-  /** @override */
-  getInfo(flags) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
+  FakeSystemDisplay.prototype = {
+    // Public testing methods.
+    /**
+     * @param {!chrome.system.display.DisplayUnitInfo>} display
+     */
+    addDisplayForTest: function(display) {
+      this.fakeDisplays.push(display);
+      this.updateLayouts_();
+    },
+
+    // SystemDisplay overrides.
+    /** @override */
+    getInfo: function(flags, callback) {
+      setTimeout(function() {
         // Create a shallow copy to trigger Polymer data binding updates.
         let displays;
         if (this.fakeDisplays.length > 0 &&
@@ -52,116 +46,115 @@ FakeSystemDisplay.prototype = {
         } else {
           displays = this.fakeDisplays.slice();
         }
-        resolve(displays);
+        callback(displays);
         this.getInfoCalled.resolve();
         // Reset the promise resolver.
         this.getInfoCalled = new PromiseResolver();
-      });
-    });
-  },
+      }.bind(this));
+    },
 
-  /** @override */
-  setDisplayProperties(id, info) {
-    const display = this.getFakeDisplay_(id);
-    if (!display) {
-      chrome.runtime.lastError = 'Display not found.';
-      return Promise.reject();
-    }
-
-    if (info.mirroringSourceId !== undefined) {
-      for (const d of this.fakeDisplays) {
-        d.mirroringSourceId = info.mirroringSourceId;
+    /** @override */
+    setDisplayProperties: function(id, info, callback) {
+      const display = this.getFakeDisplay_(id);
+      if (!display) {
+        chrome.runtime.lastError = 'Display not found.';
+        callback();
       }
-    }
 
-    if (info.isPrimary !== undefined) {
-      let havePrimary = info.isPrimary;
-      for (const d of this.fakeDisplays) {
-        if (d.id === id) {
-          d.isPrimary = info.isPrimary;
-        } else if (havePrimary) {
-          d.isPrimary = false;
-        } else {
-          d.isPrimary = true;
-          havePrimary = true;
+      if (info.mirroringSourceId !== undefined) {
+        for (const d of this.fakeDisplays) {
+          d.mirroringSourceId = info.mirroringSourceId;
         }
       }
-      this.updateLayouts_();
-    }
-    if (info.rotation !== undefined) {
-      display.rotation = info.rotation;
-    }
-    return Promise.resolve();
-  },
 
-  /** @override */
-  getDisplayLayout() {
-    return new Promise((resolve) => {
-      setTimeout(() => {
+      if (info.isPrimary !== undefined) {
+        let havePrimary = info.isPrimary;
+        for (const d of this.fakeDisplays) {
+          if (d.id === id) {
+            d.isPrimary = info.isPrimary;
+          } else if (havePrimary) {
+            d.isPrimary = false;
+          } else {
+            d.isPrimary = true;
+            havePrimary = true;
+          }
+        }
+        this.updateLayouts_();
+      }
+      if (info.rotation !== undefined) {
+        display.rotation = info.rotation;
+      }
+    },
+
+    /** @override */
+    getDisplayLayout(callback) {
+      setTimeout(function() {
         // Create a shallow copy to trigger Polymer data binding updates.
-        resolve(this.fakeLayouts.slice());
+        callback(this.fakeLayouts.slice());
         this.getLayoutCalled.resolve();
         // Reset the promise resolver.
         this.getLayoutCalled = new PromiseResolver();
+      }.bind(this));
+    },
+
+    /** @override */
+    setDisplayLayout(layouts, callback) {
+      this.fakeLayouts = layouts;
+      callback();
+    },
+
+    /** @override */
+    setMirrorMode(info, callback) {
+      let mirroringSourceId = '';
+      if (info.mode === chrome.system.display.MirrorMode.NORMAL) {
+        // Select the primary display as the mirroring source.
+        for (const d of this.fakeDisplays) {
+          if (d.isPrimary) {
+            mirroringSourceId = d.id;
+            break;
+          }
+        }
+      }
+      for (const d of this.fakeDisplays) {
+        d.mirroringSourceId = mirroringSourceId;
+      }
+      callback();
+    },
+
+    /** @override */
+    onDisplayChanged: new FakeChromeEvent(),
+
+    /** @private */
+    getFakeDisplay_(id) {
+      const idx = this.fakeDisplays.findIndex(function(display) {
+        return display.id === id;
       });
-    });
-  },
+      if (idx >= 0) {
+        return this.fakeDisplays[idx];
+      }
+      return undefined;
+    },
 
-  /** @override */
-  setDisplayLayout(layouts) {
-    this.fakeLayouts = layouts;
-    return Promise.resolve();
-  },
-
-  /** @override */
-  setMirrorMode(info) {
-    let mirroringSourceId = '';
-    if (info.mode === chrome.system.display.MirrorMode.NORMAL) {
-      // Select the primary display as the mirroring source.
+    /** @private */
+    updateLayouts_() {
+      this.fakeLayouts = [];
+      let primaryId = '';
       for (const d of this.fakeDisplays) {
         if (d.isPrimary) {
-          mirroringSourceId = d.id;
+          primaryId = d.id;
           break;
         }
       }
-    }
-    for (const d of this.fakeDisplays) {
-      d.mirroringSourceId = mirroringSourceId;
-    }
-    return Promise.resolve();
-  },
-
-  /** @override */
-  onDisplayChanged: new FakeChromeEvent(),
-
-  /** @private */
-  getFakeDisplay_(id) {
-    const idx = this.fakeDisplays.findIndex(function(display) {
-      return display.id === id;
-    });
-    if (idx >= 0) {
-      return this.fakeDisplays[idx];
-    }
-    return undefined;
-  },
-
-  /** @private */
-  updateLayouts_() {
-    this.fakeLayouts = [];
-    let primaryId = '';
-    for (const d of this.fakeDisplays) {
-      if (d.isPrimary) {
-        primaryId = d.id;
-        break;
+      for (const d of this.fakeDisplays) {
+        this.fakeLayouts.push({
+          id: d.id,
+          parentId: d.isPrimary ? '' : primaryId,
+          position: chrome.system.display.LayoutPosition.RIGHT,
+          offset: 0
+        });
       }
     }
-    for (const d of this.fakeDisplays) {
-      this.fakeLayouts.push({
-        id: d.id,
-        parentId: d.isPrimary ? '' : primaryId,
-        position: chrome.system.display.LayoutPosition.RIGHT,
-        offset: 0,
-      });
-    }
-  },
-};
+  };
+
+  return {FakeSystemDisplay: FakeSystemDisplay};
+});

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <iterator>
 
-#include "base/observer_list.h"
 #include "base/strings/stringprintf.h"
 #include "base/trace_event/trace_event.h"
 #include "cc/animation/animation_id_provider.h"
@@ -19,7 +18,7 @@ namespace ui {
 
 LayerAnimationSequence::LayerAnimationSequence()
     : properties_(LayerAnimationElement::UNKNOWN),
-      is_repeating_(false),
+      is_cyclic_(false),
       last_element_(0),
       waiting_for_group_start_(false),
       animation_group_id_(0),
@@ -28,7 +27,7 @@ LayerAnimationSequence::LayerAnimationSequence()
 LayerAnimationSequence::LayerAnimationSequence(
     std::unique_ptr<LayerAnimationElement> element)
     : properties_(LayerAnimationElement::UNKNOWN),
-      is_repeating_(false),
+      is_cyclic_(false),
       last_element_(0),
       waiting_for_group_start_(false),
       animation_group_id_(0),
@@ -67,9 +66,8 @@ void LayerAnimationSequence::Progress(base::TimeTicks now,
     last_start_ = start_time_;
 
   size_t current_index = last_element_ % elements_.size();
-  bool just_completed_sequence = false;
   base::TimeDelta element_duration;
-  while (is_repeating_ || last_element_ < elements_.size()) {
+  while (is_cyclic_ || last_element_ < elements_.size()) {
     elements_[current_index]->set_requested_start_time(last_start_);
     if (!elements_[current_index]->IsFinished(now, &element_duration))
       break;
@@ -82,11 +80,9 @@ void LayerAnimationSequence::Progress(base::TimeTicks now,
     last_progressed_fraction_ =
         elements_[current_index]->last_progressed_fraction();
     current_index = last_element_ % elements_.size();
-    DCHECK_GT(last_element_, 0u);
-    just_completed_sequence = current_index == 0;
   }
 
-  if (is_repeating_ || last_element_ < elements_.size()) {
+  if (is_cyclic_ || last_element_ < elements_.size()) {
     if (!elements_[current_index]->Started()) {
       animation_group_id_ = cc::AnimationIdProvider::NextGroupId();
       elements_[current_index]->Start(delegate, animation_group_id_);
@@ -105,20 +101,16 @@ void LayerAnimationSequence::Progress(base::TimeTicks now,
   if (redraw_required)
     delegate->ScheduleDrawForAnimation();
 
-  if (just_completed_sequence) {
-    if (!is_repeating_) {
-      last_element_ = 0;
-      waiting_for_group_start_ = false;
-      animation_group_id_ = 0;
-      NotifyEnded();
-    } else {
-      NotifyWillRepeat();
-    }
+  if (!is_cyclic_ && last_element_ == elements_.size()) {
+    last_element_ = 0;
+    waiting_for_group_start_ = false;
+    animation_group_id_ = 0;
+    NotifyEnded();
   }
 }
 
 bool LayerAnimationSequence::IsFinished(base::TimeTicks time) {
-  if (is_repeating_ || waiting_for_group_start_)
+  if (is_cyclic_ || waiting_for_group_start_)
     return false;
 
   if (elements_.empty())
@@ -161,19 +153,17 @@ void LayerAnimationSequence::ProgressToEnd(LayerAnimationDelegate* delegate) {
   if (redraw_required)
     delegate->ScheduleDrawForAnimation();
 
-  if (!is_repeating_) {
+  if (!is_cyclic_) {
     last_element_ = 0;
     waiting_for_group_start_ = false;
     animation_group_id_ = 0;
     NotifyEnded();
-  } else {
-    NotifyWillRepeat();
   }
 }
 
 void LayerAnimationSequence::GetTargetValue(
     LayerAnimationElement::TargetValue* target) const {
-  if (is_repeating_)
+  if (is_cyclic_)
     return;
 
   for (size_t i = last_element_; i < elements_.size(); ++i)
@@ -290,11 +280,6 @@ void LayerAnimationSequence::NotifyEnded() {
     observer.OnLayerAnimationEnded(this);
 }
 
-void LayerAnimationSequence::NotifyWillRepeat() {
-  for (auto& observer : observers_)
-    observer.OnLayerAnimationWillRepeat(this);
-}
-
 void LayerAnimationSequence::NotifyAborted() {
   for (auto& observer : observers_)
     observer.OnLayerAnimationAborted(this);
@@ -321,10 +306,10 @@ std::string LayerAnimationSequence::ElementsToString() const {
 std::string LayerAnimationSequence::ToString() const {
   return base::StringPrintf(
       "LayerAnimationSequence{size=%zu, properties=%s, "
-      "elements=[%s], is_repeating=%d, group_id=%d}",
+      "elements=[%s], is_cyclic=%d, group_id=%d}",
       size(),
       LayerAnimationElement::AnimatablePropertiesToString(properties_).c_str(),
-      ElementsToString().c_str(), is_repeating_, animation_group_id_);
+      ElementsToString().c_str(), is_cyclic_, animation_group_id_);
 }
 
 }  // namespace ui

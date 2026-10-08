@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/logging.h"
 #include "base/metrics/histogram.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_attributes_entry.h"
@@ -28,23 +27,17 @@ ProfileActivityMetricsRecorder* g_profile_activity_metrics_recorder = nullptr;
 constexpr int kMaxProfileBucket = 100;
 
 // Long time of inactivity that is treated as if user starts the browser anew.
-constexpr base::TimeDelta kLongTimeOfInactivity = base::Minutes(30);
+constexpr base::TimeDelta kLongTimeOfInactivity =
+    base::TimeDelta::FromMinutes(30);
 
 int GetMetricsBucketIndex(const Profile* profile) {
-  if (profile->IsGuestSession())
+  if (profile->IsGuestSession() || profile->IsEphemeralGuestProfile())
     return 0;
 
-  if (!g_browser_process->profile_manager()) {
-    VLOG(1) << "Failed to read profile bucket index because profile manager "
-               "doesn't exist.";
-    return -1;
-  }
-
-  ProfileAttributesEntry* entry =
-      g_browser_process->profile_manager()
-          ->GetProfileAttributesStorage()
-          .GetProfileAttributesWithPath(profile->GetPath());
-  if (!entry) {
+  ProfileAttributesEntry* entry;
+  if (!g_browser_process->profile_manager()
+           ->GetProfileAttributesStorage()
+           .GetProfileAttributesWithPath(profile->GetPath(), &entry)) {
     // This can happen if the profile is deleted.
     VLOG(1) << "Failed to read profile bucket index because attributes entry "
                "doesn't exist.";
@@ -106,11 +99,10 @@ void RecordProfilesState() {
 void RecordAccountMetrics(const Profile* profile) {
   DCHECK(profile);
 
-  ProfileAttributesEntry* entry =
-      g_browser_process->profile_manager()
-          ->GetProfileAttributesStorage()
-          .GetProfileAttributesWithPath(profile->GetPath());
-  if (!entry) {
+  ProfileAttributesEntry* entry;
+  if (!g_browser_process->profile_manager()
+           ->GetProfileAttributesStorage()
+           .GetProfileAttributesWithPath(profile->GetPath(), &entry)) {
     // This can happen if the profile is deleted / for guest profile.
     return;
   }
@@ -147,8 +139,8 @@ void ProfileActivityMetricsRecorder::OnBrowserSetLastActive(Browser* browser) {
 
     running_session_profile_ = active_profile;
     running_session_start_ = base::TimeTicks::Now();
-    profile_observation_.Reset();
-    profile_observation_.Observe(running_session_profile_.get());
+    profile_observer_.RemoveAll();
+    profile_observer_.Add(running_session_profile_);
 
     // Record state at startup (when |last_session_end_| is 0) and whenever the
     // user starts browsing after a longer time of inactivity. Do it
@@ -157,7 +149,7 @@ void ProfileActivityMetricsRecorder::OnBrowserSetLastActive(Browser* browser) {
     // we have no guarantee if this happens before or after this function call.
     if (last_session_end_.is_null() ||
         (running_session_start_ - last_session_end_ > kLongTimeOfInactivity)) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(&RecordProfilesState));
     }
   }
@@ -184,9 +176,7 @@ void ProfileActivityMetricsRecorder::OnSessionEnded(
   // profiles.
   RecordProfileSessionDuration(running_session_profile_,
                                session_end - running_session_start_);
-  DCHECK(
-      profile_observation_.IsObservingSource(running_session_profile_.get()));
-  profile_observation_.Reset();
+  profile_observer_.Remove(running_session_profile_);
   running_session_profile_ = nullptr;
   last_session_end_ = base::TimeTicks::Now();
 }
@@ -201,9 +191,7 @@ void ProfileActivityMetricsRecorder::OnProfileWillBeDestroyed(
   // TODO(crbug.com/1096145): explore having
   // DesktopSessionDurationTracker call OnSessionEnded() when the
   // profile is destroyed. Remove this workaround if this is done.
-  DCHECK(
-      profile_observation_.IsObservingSource(running_session_profile_.get()));
-  profile_observation_.Reset();
+  profile_observer_.Remove(running_session_profile_);
   running_session_profile_ = nullptr;
   last_active_profile_ = nullptr;
   last_session_end_ = base::TimeTicks::Now();
@@ -212,8 +200,8 @@ void ProfileActivityMetricsRecorder::OnProfileWillBeDestroyed(
 ProfileActivityMetricsRecorder::ProfileActivityMetricsRecorder() {
   BrowserList::AddObserver(this);
   metrics::DesktopSessionDurationTracker::Get()->AddObserver(this);
-  action_callback_ = base::BindRepeating(
-      &ProfileActivityMetricsRecorder::OnUserAction, base::Unretained(this));
+  action_callback_ = base::Bind(&ProfileActivityMetricsRecorder::OnUserAction,
+                                base::Unretained(this));
   base::AddActionCallback(action_callback_);
 }
 

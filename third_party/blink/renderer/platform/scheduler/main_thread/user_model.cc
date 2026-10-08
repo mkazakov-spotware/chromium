@@ -1,11 +1,8 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/scheduler/main_thread/user_model.h"
-
-#include "base/trace_event/trace_event.h"
-#include "third_party/perfetto/include/perfetto/tracing/traced_value.h"
 
 namespace blink {
 namespace scheduler {
@@ -64,7 +61,7 @@ void UserModel::DidFinishProcessingInputEvent(const base::TimeTicks now) {
 
 base::TimeDelta UserModel::TimeLeftInUserGesture(base::TimeTicks now) const {
   base::TimeDelta escalated_priority_duration =
-      base::Milliseconds(kGestureEstimationLimitMillis);
+      base::TimeDelta::FromMilliseconds(kGestureEstimationLimitMillis);
 
   // If the input event is still pending, go into input prioritized policy and
   // check again later.
@@ -98,12 +95,12 @@ bool UserModel::IsGestureExpectedSoonImpl(
     if (IsGestureExpectedToContinue(now, prediction_valid_duration))
       return false;
     *prediction_valid_duration =
-        base::Milliseconds(kExpectSubsequentGestureMillis);
+        base::TimeDelta::FromMilliseconds(kExpectSubsequentGestureMillis);
     return true;
   } else {
     // If we have finished a gesture then a subsequent gesture is deemed likely.
     base::TimeDelta expect_subsequent_gesture_for =
-        base::Milliseconds(kExpectSubsequentGestureMillis);
+        base::TimeDelta::FromMilliseconds(kExpectSubsequentGestureMillis);
     if (last_continuous_gesture_time_.is_null() ||
         last_continuous_gesture_time_ + expect_subsequent_gesture_for <= now) {
       return false;
@@ -121,7 +118,7 @@ bool UserModel::IsGestureExpectedToContinue(
     return false;
 
   base::TimeDelta median_gesture_duration =
-      base::Milliseconds(kMedianGestureDurationMillis);
+      base::TimeDelta::FromMilliseconds(kMedianGestureDurationMillis);
   base::TimeTicks expected_gesture_end_time =
       last_gesture_start_time_ + median_gesture_duration;
 
@@ -143,17 +140,25 @@ void UserModel::Reset(base::TimeTicks now) {
   pending_input_event_count_ = 0;
 }
 
-void UserModel::WriteIntoTrace(perfetto::TracedValue context) const {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("pending_input_event_count", pending_input_event_count_);
-  dict.Add("last_input_signal_time", last_input_signal_time_);
-  dict.Add("last_gesture_start_time", last_gesture_start_time_);
-  dict.Add("last_continuous_gesture_time", last_continuous_gesture_time_);
-  dict.Add("last_gesture_expected_start_time",
-           last_gesture_expected_start_time_);
-  dict.Add("last_reset_time", last_reset_time_);
-  dict.Add("is_gesture_expected", is_gesture_expected_);
-  dict.Add("is_gesture_active", is_gesture_active_);
+void UserModel::AsValueInto(base::trace_event::TracedValue* state) const {
+  auto dictionary_scope = state->BeginDictionaryScoped("user_model");
+  state->SetInteger("pending_input_event_count", pending_input_event_count_);
+  state->SetDouble(
+      "last_input_signal_time",
+      (last_input_signal_time_ - base::TimeTicks()).InMillisecondsF());
+  state->SetDouble(
+      "last_gesture_start_time",
+      (last_gesture_start_time_ - base::TimeTicks()).InMillisecondsF());
+  state->SetDouble(
+      "last_continuous_gesture_time",
+      (last_continuous_gesture_time_ - base::TimeTicks()).InMillisecondsF());
+  state->SetDouble("last_gesture_expected_start_time",
+                   (last_gesture_expected_start_time_ - base::TimeTicks())
+                       .InMillisecondsF());
+  state->SetDouble("last_reset_time",
+                   (last_reset_time_ - base::TimeTicks()).InMillisecondsF());
+  state->SetBoolean("is_gesture_expected", is_gesture_expected_);
+  state->SetBoolean("is_gesture_active", is_gesture_active_);
 }
 
 }  // namespace scheduler

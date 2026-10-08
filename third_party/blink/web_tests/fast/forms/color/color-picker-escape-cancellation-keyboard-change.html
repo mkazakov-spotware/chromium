@@ -3,8 +3,6 @@
 <head>
 <script src='../../../resources/testharness.js'></script>
 <script src='../../../resources/testharnessreport.js'></script>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
 <script src='../../../fast/forms/resources/picker-common.js'></script>
 </head>
 <body>
@@ -14,7 +12,7 @@
 
 promise_test(() => {
   let colorControl = document.getElementById('color');
-  return openPicker(colorControl)
+  return openPickerWithPromise(colorControl)
   .then(() => {
     internals.pagePopupWindow.focus();
     const popupDocument = internals.pagePopupWindow.document;
@@ -25,9 +23,9 @@ promise_test(() => {
     eventSender.mouseDown();
     eventSender.mouseUp();
     assert_equals(rValueContainer.value, '128');
-    eventSender.keyDown('5');
-    assert_equals(rValueContainer.value, '5');
-    assert_equals(colorControl.value, '#05d9ff', 'Expected color value to change from manualinput.');
+    eventSender.keyDown('Delete');
+    assert_equals(rValueContainer.value, '28');
+    assert_equals(colorControl.value, '#1cd9ff', 'Expected color value to change from manualinput.');
     eventSender.keyDown('Escape');
     assert_equals(colorControl.value, '#80d9ff', 'Color control value should have reverted back after pressing escape.');
     assert_equals(rValueContainer.value, '128');

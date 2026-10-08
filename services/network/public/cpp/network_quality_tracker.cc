@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 
 #include "base/bind.h"
 #include "base/check_op.h"
-#include "base/observer_list.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "services/network/public/mojom/network_service.mojom.h"
 
@@ -120,9 +119,9 @@ void NetworkQualityTracker::OnNetworkQualityChanged(
     return;
 
   // If the RTT values are unavailable, set them to value 0.
-  if (http_rtt.is_negative())
+  if (http_rtt < base::TimeDelta())
     http_rtt = base::TimeDelta();
-  if (transport_rtt.is_negative())
+  if (transport_rtt < base::TimeDelta())
     transport_rtt = base::TimeDelta();
 
   // If the bandwidth value is unavailable, set it to the maximum possible

@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Idle Timer.
@@ -21,7 +29,6 @@ goog.require('goog.events');
 goog.require('goog.events.EventTarget');
 goog.require('goog.structs.Set');
 goog.require('goog.ui.ActivityMonitor');
-goog.requireType('goog.events.Event');
 
 
 
@@ -41,7 +48,6 @@ goog.requireType('goog.events.Event');
  * @final
  */
 goog.ui.IdleTimer = function(idleThreshold, opt_activityMonitor) {
-  'use strict';
   goog.events.EventTarget.call(this);
 
   var activityMonitor =
@@ -135,7 +141,6 @@ goog.ui.IdleTimer.Event = {
  * @private
  */
 goog.ui.IdleTimer.prototype.getDefaultActivityMonitor_ = function() {
-  'use strict';
   goog.ui.IdleTimer.defaultActivityMonitorReferences_.add(this);
   if (goog.ui.IdleTimer.defaultActivityMonitor_ == null) {
     goog.ui.IdleTimer.defaultActivityMonitor_ = new goog.ui.ActivityMonitor();
@@ -150,10 +155,9 @@ goog.ui.IdleTimer.prototype.getDefaultActivityMonitor_ = function() {
  * @private
  */
 goog.ui.IdleTimer.prototype.maybeDisposeDefaultActivityMonitor_ = function() {
-  'use strict';
   goog.ui.IdleTimer.defaultActivityMonitorReferences_.remove(this);
   if (goog.ui.IdleTimer.defaultActivityMonitor_ != null &&
-      goog.ui.IdleTimer.defaultActivityMonitorReferences_.size === 0) {
+      goog.ui.IdleTimer.defaultActivityMonitorReferences_.isEmpty()) {
     goog.ui.IdleTimer.defaultActivityMonitor_.dispose();
     goog.ui.IdleTimer.defaultActivityMonitor_ = null;
   }
@@ -166,11 +170,10 @@ goog.ui.IdleTimer.prototype.maybeDisposeDefaultActivityMonitor_ = function() {
  * @private
  */
 goog.ui.IdleTimer.prototype.maybeStillActive_ = function() {
-  'use strict';
   // See how long before the user would go idle. The user is considered idle
   // after the idle time has passed, not exactly when the idle time arrives.
   var remainingIdleThreshold = this.idleThreshold_ + 1 -
-      (Date.now() - this.activityMonitor_.getLastEventTime());
+      (goog.now() - this.activityMonitor_.getLastEventTime());
   if (remainingIdleThreshold > 0) {
     // The user is still active. Check again later.
     this.onActivityTimerId_ =
@@ -187,7 +190,6 @@ goog.ui.IdleTimer.prototype.maybeStillActive_ = function() {
  * @private
  */
 goog.ui.IdleTimer.prototype.onActivityTick_ = function() {
-  'use strict';
   // The timer has fired.
   this.onActivityTimerId_ = null;
 
@@ -201,7 +203,6 @@ goog.ui.IdleTimer.prototype.onActivityTick_ = function() {
  * @private
  */
 goog.ui.IdleTimer.prototype.becomeIdle_ = function() {
-  'use strict';
   this.isIdle_ = true;
 
   // The idle timer will send notification when the user does something
@@ -222,7 +223,6 @@ goog.ui.IdleTimer.prototype.becomeIdle_ = function() {
  * @private
  */
 goog.ui.IdleTimer.prototype.onActivity_ = function(e) {
-  'use strict';
   this.becomeActive_();
 };
 
@@ -232,7 +232,6 @@ goog.ui.IdleTimer.prototype.onActivity_ = function(e) {
  * @private
  */
 goog.ui.IdleTimer.prototype.becomeActive_ = function() {
-  'use strict';
   this.isIdle_ = false;
 
   // Stop listening to every interactive event.
@@ -251,7 +250,6 @@ goog.ui.IdleTimer.prototype.becomeActive_ = function() {
  * @private
  */
 goog.ui.IdleTimer.prototype.removeActivityListener_ = function() {
-  'use strict';
   if (this.hasActivityListener_) {
     goog.events.unlisten(
         this.activityMonitor_, goog.ui.ActivityMonitor.Event.ACTIVITY,
@@ -263,7 +261,6 @@ goog.ui.IdleTimer.prototype.removeActivityListener_ = function() {
 
 /** @override */
 goog.ui.IdleTimer.prototype.disposeInternal = function() {
-  'use strict';
   this.removeActivityListener_();
   if (this.onActivityTimerId_ != null) {
     goog.global.clearTimeout(this.onActivityTimerId_);
@@ -279,7 +276,6 @@ goog.ui.IdleTimer.prototype.disposeInternal = function() {
  *     idle in ms.
  */
 goog.ui.IdleTimer.prototype.getIdleThreshold = function() {
-  'use strict';
   return this.idleThreshold_;
 };
 
@@ -289,7 +285,6 @@ goog.ui.IdleTimer.prototype.getIdleThreshold = function() {
  *     interaction.
  */
 goog.ui.IdleTimer.prototype.getActivityMonitor = function() {
-  'use strict';
   return this.activityMonitor_;
 };
 
@@ -300,6 +295,5 @@ goog.ui.IdleTimer.prototype.getActivityMonitor = function() {
  * @return {boolean} true if the user is idle, false otherwise.
  */
 goog.ui.IdleTimer.prototype.isIdle = function() {
-  'use strict';
   return this.isIdle_;
 };

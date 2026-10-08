@@ -67,31 +67,24 @@ HTMLImageElement* HTMLMapElement::ImageElement() {
         image_element.FastGetAttribute(html_names::kUsemapAttr)
             .GetString()
             .Substring(1);
-    if (RuntimeEnabledFeatures::HTMLMapToImgMatchingByNameAndIdEnabled()) {
-      if (!use_map_name.empty() &&
-          (use_map_name == name_ || use_map_name == GetIdAttribute()))
-        return &image_element;
-    } else {
-      if (use_map_name == name_) {
-        return &image_element;
-      }
-    }
+    if (use_map_name == name_)
+      return &image_element;
   }
 
   return nullptr;
 }
 
 void HTMLMapElement::ParseAttribute(const AttributeModificationParams& params) {
-  // To return the first image that matches usemap on name or id attributes, we
-  // need to track their values in the TreeScope.
-  // https://html.spec.whatwg.org/multipage/#image-map-processing-model
+  // FIXME: This logic seems wrong for XML documents.
+  // Either the id or name will be used depending on the order the attributes
+  // are parsed.
+
   if (params.name == html_names::kIdAttr ||
       params.name == html_names::kNameAttr) {
     if (params.name == html_names::kIdAttr) {
       // Call base class so that hasID bit gets set.
       HTMLElement::ParseAttribute(params);
-      if (!RuntimeEnabledFeatures::HTMLMapToImgMatchingByNameAndIdEnabled() &&
-          IsA<HTMLDocument>(GetDocument()))
+      if (IsA<HTMLDocument>(GetDocument()))
         return;
     }
     if (isConnected())
@@ -99,13 +92,7 @@ void HTMLMapElement::ParseAttribute(const AttributeModificationParams& params) {
     String map_name = params.new_value;
     if (map_name[0] == '#')
       map_name = map_name.Substring(1);
-    if (RuntimeEnabledFeatures::HTMLMapToImgMatchingByNameAndIdEnabled()) {
-      // name_ is the parsed name attribute value that is not empty.
-      if (!map_name.empty() && params.name == html_names::kNameAttr)
-        name_ = AtomicString(map_name);
-    } else {
-      name_ = AtomicString(map_name);
-    }
+    name_ = AtomicString(map_name);
     if (isConnected())
       GetTreeScope().AddImageMap(*this);
 

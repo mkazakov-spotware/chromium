@@ -1,25 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {assert} from 'chrome://resources/js/assert.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-
-import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
-import {Crostini} from '../../externs/background/crostini.js';
-import {VolumeManager} from '../../externs/volume_manager.js';
 
 /**
  * Implementation of Crostini shared path state handler.
  *
  * @implements {Crostini}
  */
-export class CrostiniImpl {
+class CrostiniImpl {
   constructor() {
     /**
-     * Map of VM name to container name to if it's enabled. False or undefined
-     * means not enabled.
-     * @private {!Object<!Object<boolean>>}
+     * True if VM is enabled.
+     * @private {Object<boolean>}
      */
     this.enabled_ = {};
 
@@ -28,24 +20,21 @@ export class CrostiniImpl {
      * Keyed by entry.toURL(), maps to list of VMs.
      * @private @dict {!Object<!Array<string>>}
      */
-    this.sharedPaths_ = {};
+    this.shared_paths_ = {};
 
     /** @private {?VolumeManager} */
     this.volumeManager_ = null;
   }
 
   /**
-   * Initialize enabled settings and register for any shared path changes.
+   * Initialize enabled settings.
    * Must be done after loadTimeData is available.
    */
   initEnabled() {
-    const guests = /** @type {!Array<!Object<string>>} */ (
-        loadTimeData.getValue('VMS_FOR_SHARING'));
-    for (const guest of guests) {
-      this.setEnabled(guest.vmName, guest.containerName, true);
-    }
-    chrome.fileManagerPrivate.onCrostiniChanged.addListener(
-        this.onCrostiniChanged_.bind(this));
+    this.enabled_[CrostiniImpl.DEFAULT_VM] =
+        loadTimeData.getBoolean('CROSTINI_ENABLED');
+    this.enabled_[CrostiniImpl.PLUGIN_VM] =
+        loadTimeData.getBoolean('PLUGIN_VM_ENABLED');
   }
 
   /**
@@ -57,26 +46,29 @@ export class CrostiniImpl {
   }
 
   /**
-   * Set whether the specified Guest is enabled.
-   * @param {string} vmName
-   * @param {string} containerName
-   * @param {boolean} enabled
+   * Register for any shared path changes.
    */
-  setEnabled(vmName, containerName, enabled) {
-    if (!this.enabled_[vmName]) {
-      this.enabled_[vmName] = {};
-    }
-    this.enabled_[vmName][containerName] = enabled;
+  listen() {
+    chrome.fileManagerPrivate.onCrostiniChanged.addListener(
+        this.onCrostiniChanged_.bind(this));
   }
 
   /**
-   * Returns true if the specified VM is enabled.
+   * Set whether the specified VM is enabled.
+   * @param {string} vmName
+   * @param {boolean} enabled
+   */
+  setEnabled(vmName, enabled) {
+    this.enabled_[vmName] = enabled;
+  }
+
+  /**
+   * Returns true if crostini is enabled.
    * @param {string} vmName
    * @return {boolean}
    */
   isEnabled(vmName) {
-    return (!!this.enabled_[vmName]) &&
-        Object.values(this.enabled_[vmName]).includes(true);
+    return this.enabled_[vmName];
   }
 
   /**
@@ -101,16 +93,16 @@ export class CrostiniImpl {
     // These paths will still be shared as a result of a parent path being
     // shared, but if the parent is unshared in the future, these children
     // paths should not remain.
-    for (const [path, vms] of Object.entries(this.sharedPaths_)) {
+    for (const [path, vms] of Object.entries(this.shared_paths_)) {
       if (path.startsWith(url)) {
         this.unregisterSharedPath_(vmName, path);
       }
     }
-    const vms = this.sharedPaths_[url];
-    if (this.sharedPaths_[url]) {
-      this.sharedPaths_[url].push(vmName);
+    const vms = this.shared_paths_[url];
+    if (this.shared_paths_[url]) {
+      this.shared_paths_[url].push(vmName);
     } else {
-      this.sharedPaths_[url] = [vmName];
+      this.shared_paths_[url] = [vmName];
     }
   }
 
@@ -121,13 +113,13 @@ export class CrostiniImpl {
    * @private
    */
   unregisterSharedPath_(vmName, path) {
-    const vms = this.sharedPaths_[path];
+    const vms = this.shared_paths_[path];
     if (vms) {
       const newVms = vms.filter(vm => vm != vmName);
       if (newVms.length > 0) {
-        this.sharedPaths_[path] = newVms;
+        this.shared_paths_[path] = newVms;
       } else {
-        delete this.sharedPaths_[path];
+        delete this.shared_paths_[path];
       }
     }
   }
@@ -149,10 +141,10 @@ export class CrostiniImpl {
   onCrostiniChanged_(event) {
     switch (event.eventType) {
       case chrome.fileManagerPrivate.CrostiniEventType.ENABLE:
-        this.setEnabled(event.vmName, event.containerName, true);
+        this.setEnabled(event.vmName, true);
         break;
       case chrome.fileManagerPrivate.CrostiniEventType.DISABLE:
-        this.setEnabled(event.vmName, event.containerName, false);
+        this.setEnabled(event.vmName, false);
         break;
       case chrome.fileManagerPrivate.CrostiniEventType.SHARE:
         for (const entry of event.entries) {
@@ -183,13 +175,13 @@ export class CrostiniImpl {
     }
 
     while (path.length > root.length) {
-      const vms = this.sharedPaths_[path];
+      const vms = this.shared_paths_[path];
       if (vms && vms.includes(vmName)) {
         return true;
       }
       path = path.substring(0, path.lastIndexOf('/'));
     }
-    const rootVms = this.sharedPaths_[root];
+    const rootVms = this.shared_paths_[root];
     return !!rootVms && rootVms.includes(vmName);
   }
 
@@ -198,10 +190,9 @@ export class CrostiniImpl {
    * @param {string} vmName
    * @param {!Entry} entry
    * @param {boolean} persist If path is to be persisted.
-   * @return {boolean}
    */
   canSharePath(vmName, entry, persist) {
-    if (!this.isEnabled(vmName)) {
+    if (!this.enabled_[vmName]) {
       return false;
     }
 
@@ -241,13 +232,6 @@ export class CrostiniImpl {
       return false;
     }
 
-    // Cannot share root of Shared with me since it represents 2 dirs:
-    // `.files-by-id` and `.shortcut-targets-by-id`.
-    if (root === VolumeManagerCommon.RootType.DRIVE_SHARED_WITH_ME &&
-        entry.fullPath === '/') {
-      return false;
-    }
-
     return CrostiniImpl.VALID_ROOT_TYPES_FOR_SHARE.has(root);
   }
 }
@@ -277,9 +261,7 @@ CrostiniImpl.VALID_ROOT_TYPES_FOR_SHARE = new Map([
   [VolumeManagerCommon.RootType.DRIVE, 'MyDrive'],
   [VolumeManagerCommon.RootType.SHARED_DRIVES_GRAND_ROOT, 'TeamDrive'],
   [VolumeManagerCommon.RootType.SHARED_DRIVE, 'TeamDrive'],
-  [VolumeManagerCommon.RootType.DRIVE_SHARED_WITH_ME, 'SharedWithMe'],
   [VolumeManagerCommon.RootType.CROSTINI, 'Crostini'],
-  [VolumeManagerCommon.RootType.GUEST_OS, 'GuestOs'],
   [VolumeManagerCommon.RootType.ARCHIVE, 'Archive'],
   [VolumeManagerCommon.RootType.SMB, 'SMB'],
 ]);

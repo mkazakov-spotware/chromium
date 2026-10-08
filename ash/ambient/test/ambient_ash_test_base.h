@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,20 +7,13 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "ash/ambient/ambient_access_token_controller.h"
 #include "ash/ambient/ambient_controller.h"
 #include "ash/ambient/test/test_ambient_client.h"
 #include "ash/ambient/ui/ambient_background_image_view.h"
-#include "ash/constants/ambient_animation_theme.h"
-#include "ash/public/cpp/ambient/proto/photo_cache_entry.pb.h"
-#include "ash/public/cpp/test/test_image_downloader.h"
 #include "ash/test/ash_test_base.h"
-#include "base/callback.h"
-#include "base/time/time.h"
 #include "services/media_session/public/mojom/media_session.mojom.h"
-#include "ui/views/view.h"
 #include "ui/views/widget/widget.h"
 
 namespace views {
@@ -48,13 +41,6 @@ class AmbientAshTestBase : public AshTestBase {
   // Enables/disables ambient mode for the currently active user session.
   void SetAmbientModeEnabled(bool enabled);
 
-  // Sets the AmbientAnimationTheme to use when ShowAmbientScreen() is called.
-  // To reflect real world usage, the incoming |theme| does not take effect
-  // immediately if the test is currently displaying the ambient screen. In that
-  // case, the ambient screen must be closed, and the new |theme| will take
-  // effect with the next call to ShowAmbientScreen().
-  void SetAmbientAnimationTheme(AmbientAnimationTheme theme);
-
   // Creates ambient screen in its own widget.
   void ShowAmbientScreen();
 
@@ -78,16 +64,8 @@ class AmbientAshTestBase : public AshTestBase {
   void SimulateSystemSuspendAndWait(
       power_manager::SuspendImminent::Reason reason);
 
-  // Return all media string view text containers. There is one per display.
-  std::vector<views::View*> GetMediaStringViewTextContainers();
-  // Return the media string view text container for the ambient mode container
-  // on the default display.
   views::View* GetMediaStringViewTextContainer();
 
-  // Return all media string view text labels. There is one per display.
-  std::vector<views::Label*> GetMediaStringViewTextLabels();
-  // Return the media string view text label for the ambient mode container on
-  // the default display.
   views::Label* GetMediaStringViewTextLabel();
 
   // Simulates the system starting to resume.
@@ -98,17 +76,16 @@ class AmbientAshTestBase : public AshTestBase {
   // Wait until the event has been processed.
   void SetScreenIdleStateAndWait(bool is_screen_dimmed, bool is_off);
 
+  // Simulates a screen brightness changed event.
+  void SetScreenBrightnessAndWait(double percent);
+
   void SimulateMediaMetadataChanged(media_session::MediaMetadata metadata);
 
   void SimulateMediaPlaybackStateChanged(
       media_session::mojom::MediaPlaybackState state);
 
   // Set the size of the next image that will be loaded.
-  void SetDecodedPhotoSize(int width, int height);
-
-  void SetPhotoOrientation(bool portrait);
-
-  void SetPhotoTopicType(::ambient::TopicType topic_type);
+  void SetPhotoViewImageSize(int width, int height);
 
   // Advance the task environment timer to expire the lock screen inactivity
   // timer.
@@ -125,52 +102,35 @@ class AmbientAshTestBase : public AshTestBase {
   void FastForwardToRefreshWeather();
 
   // Advance the task environment timer to ambient mode lock screen delay.
-  void FastForwardToBackgroundLockScreenTimeout();
+  void FastForwardToLockScreen();
   void FastForwardHalfLockScreenDelay();
 
   void SetPowerStateCharging();
   void SetPowerStateDischarging();
   void SetPowerStateFull();
-  void SetExternalPowerConnected();
-  void SetExternalPowerDisconnected();
-  void SetBatteryPercent(double percent);
 
   // Returns the number of active wake locks of type |type|.
   int GetNumOfActiveWakeLocks(device::mojom::WakeLockType type);
 
   // Simulate to issue an |access_token|.
-  // If |is_empty| is true, will return an empty access token.
-  void IssueAccessToken(bool is_empty);
+  // If |with_error| is true, will return an empty access token.
+  void IssueAccessToken(const std::string& access_token, bool with_error);
 
   bool IsAccessTokenRequestPending();
 
   base::TimeDelta GetRefreshTokenDelay();
 
-  // Returns the ambient image view for each display.
-  std::vector<AmbientBackgroundImageView*> GetAmbientBackgroundImageViews();
-  // Returns the AmbientBackgroundImageView for the default display.
   AmbientBackgroundImageView* GetAmbientBackgroundImageView();
 
-  // Returns the media string views for displaying ongoing media info.
-  std::vector<MediaStringView*> GetMediaStringViews();
-  // Returns the media string view for the default display.
+  // Returns the media string view for displaying ongoing media info.
   MediaStringView* GetMediaStringView();
-
-  const std::map<int, ::ambient::PhotoCacheEntry>& GetCachedFiles();
-  const std::map<int, ::ambient::PhotoCacheEntry>& GetBackupCachedFiles();
 
   AmbientController* ambient_controller();
 
   AmbientPhotoController* photo_controller();
 
-  AmbientPhotoCache* photo_cache();
-
-  AmbientWeatherController* weather_controller();
-
-  // Returns the top-level views which contains all the ambient components.
-  std::vector<AmbientContainerView*> GetContainerViews();
-  // Returns the top level ambient container view for the primary root window.
-  AmbientContainerView* GetContainerView();
+  // Returns the top-level view which contains all the ambient components.
+  AmbientContainerView* container_view();
 
   AmbientAccessTokenController* token_controller();
 
@@ -182,25 +142,12 @@ class AmbientAshTestBase : public AshTestBase {
 
   void FetchBackupImages();
 
-  void SetDownloadPhotoData(std::string data);
+  void SetUrlLoaderData(std::unique_ptr<std::string> data);
 
-  void ClearDownloadPhotoData();
-
-  void SetBackupDownloadPhotoData(std::string data);
-
-  void ClearBackupDownloadPhotoData();
-
-  void SetDecodePhotoImage(const gfx::ImageSkia& image);
-
-  void SetPhotoDownloadDelay(base::TimeDelta delay);
+  void SetImageDecoderImage(const gfx::ImageSkia& image);
 
  private:
-  void SpinWaitForAmbientViewAvailable(
-      const base::RepeatingClosure& quit_closure);
-
   std::unique_ptr<views::Widget> widget_;
-  power_manager::PowerSupplyProperties proto_;
-  TestImageDownloader image_downloader_;
 };
 
 }  // namespace ash

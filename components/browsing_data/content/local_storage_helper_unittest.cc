@@ -1,15 +1,14 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/browsing_data/content/local_storage_helper.h"
 
 #include "base/callback_helpers.h"
-#include "base/memory/scoped_refptr.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_browser_context.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
+#include "url/gurl.h"
 
 namespace browsing_data {
 
@@ -22,13 +21,13 @@ class CannedLocalStorageTest : public testing::Test {
 TEST_F(CannedLocalStorageTest, Empty) {
   content::TestBrowserContext context;
 
-  const blink::StorageKey storage_key =
-      blink::StorageKey::CreateFromStringForTesting("http://host1:1/");
+  const GURL origin("http://host1:1/");
 
-  auto helper = base::MakeRefCounted<CannedLocalStorageHelper>(&context);
+  scoped_refptr<CannedLocalStorageHelper> helper(
+      new CannedLocalStorageHelper(&context));
 
   ASSERT_TRUE(helper->empty());
-  helper->Add(storage_key);
+  helper->Add(url::Origin::Create(origin));
   ASSERT_FALSE(helper->empty());
   helper->Reset();
   ASSERT_TRUE(helper->empty());
@@ -37,42 +36,37 @@ TEST_F(CannedLocalStorageTest, Empty) {
 TEST_F(CannedLocalStorageTest, Delete) {
   content::TestBrowserContext context;
 
-  const blink::StorageKey storage_key1 =
-      blink::StorageKey::CreateFromStringForTesting("http://host1:9000");
-  const blink::StorageKey storage_key2 =
-      blink::StorageKey::CreateFromStringForTesting("http://example.com");
-  const blink::StorageKey storage_key3 =
-      blink::StorageKey::CreateFromStringForTesting("http://foo.example.com");
+  const GURL origin1("http://host1:9000");
+  const GURL origin2("http://example.com");
+  const GURL origin3("http://foo.example.com");
 
-  auto helper = base::MakeRefCounted<CannedLocalStorageHelper>(&context);
+  scoped_refptr<CannedLocalStorageHelper> helper(
+      new CannedLocalStorageHelper(&context));
 
   EXPECT_TRUE(helper->empty());
-  helper->Add(storage_key1);
-  helper->Add(storage_key2);
-  helper->Add(storage_key3);
+  helper->Add(url::Origin::Create(origin1));
+  helper->Add(url::Origin::Create(origin2));
+  helper->Add(url::Origin::Create(origin3));
   EXPECT_EQ(3u, helper->GetCount());
-  helper->DeleteStorageKey(storage_key2, base::DoNothing());
+  helper->DeleteOrigin(url::Origin::Create(origin2), base::DoNothing());
   EXPECT_EQ(2u, helper->GetCount());
-  helper->DeleteStorageKey(storage_key1, base::DoNothing());
+  helper->DeleteOrigin(url::Origin::Create(origin1), base::DoNothing());
   EXPECT_EQ(1u, helper->GetCount());
 }
 
 TEST_F(CannedLocalStorageTest, IgnoreExtensionsAndDevTools) {
   content::TestBrowserContext context;
 
-  const blink::StorageKey storage_key1 =
-      blink::StorageKey::CreateFromStringForTesting(
-          "chrome-extension://abcdefghijklmnopqrstuvwxyz/");
-  const blink::StorageKey storage_key2 =
-      blink::StorageKey::CreateFromStringForTesting(
-          "devtools://abcdefghijklmnopqrstuvwxyz/");
+  const GURL origin1("chrome-extension://abcdefghijklmnopqrstuvwxyz/");
+  const GURL origin2("devtools://abcdefghijklmnopqrstuvwxyz/");
 
-  auto helper = base::MakeRefCounted<CannedLocalStorageHelper>(&context);
+  scoped_refptr<CannedLocalStorageHelper> helper(
+      new CannedLocalStorageHelper(&context));
 
   ASSERT_TRUE(helper->empty());
-  helper->Add(storage_key1);
+  helper->Add(url::Origin::Create(origin1));
   ASSERT_TRUE(helper->empty());
-  helper->Add(storage_key2);
+  helper->Add(url::Origin::Create(origin2));
   ASSERT_TRUE(helper->empty());
 }
 

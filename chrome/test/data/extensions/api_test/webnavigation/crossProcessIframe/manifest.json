@@ -4,8 +4,7 @@
   "manifest_version": 2,
   "description": "Tests the webNavigation API events - crossProcessIframe.",
   "background": {
-    "scripts": ["test_crossProcessIframe.js"],
-    "persistent": true
+    "page": "test_crossProcessIframe.html"
   },
   "permissions": ["webNavigation", "tabs"]
 }

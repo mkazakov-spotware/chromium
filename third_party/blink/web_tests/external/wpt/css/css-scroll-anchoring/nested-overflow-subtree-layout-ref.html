@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<html class="reftest-wait">
 <head>
   <link rel="author" title="Chris Harrelson" href="mailto:chrishtr@chromium.org">
   <link rel="help" href="https://drafts.csswg.org/css-scroll-anchoring/">
@@ -37,7 +36,7 @@ onload = () => {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       outer.scrollTo(0, 70);
-      takeScreenshot();
+      document.documentElement.removeAttribute("class");
     });
   });
 };

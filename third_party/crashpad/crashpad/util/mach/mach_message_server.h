@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #include <set>
 
+#include "base/macros.h"
 
 namespace crashpad {
 
@@ -124,10 +125,6 @@ class MachMessageServer {
     kReceiveLargeResize,
   };
 
-  MachMessageServer() = delete;
-  MachMessageServer(const MachMessageServer&) = delete;
-  MachMessageServer& operator=(const MachMessageServer&) = delete;
-
   //! \brief Runs a Mach message server to handle a Mach RPC request for MIG
   //!     servers.
   //!
@@ -176,6 +173,9 @@ class MachMessageServer {
                                Persistent persistent,
                                ReceiveLarge receive_large,
                                mach_msg_timeout_t timeout_ms);
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(MachMessageServer);
 };
 
 }  // namespace crashpad

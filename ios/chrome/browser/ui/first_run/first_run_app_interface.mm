@@ -1,17 +1,17 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/first_run/first_run_app_interface.h"
 
-#import "components/metrics/metrics_pref_names.h"
-#import "components/metrics/metrics_reporting_default_state.h"
-#import "components/prefs/pref_service.h"
+#include "components/metrics/metrics_pref_names.h"
+#include "components/metrics/metrics_reporting_default_state.h"
+#include "components/prefs/pref_service.h"
 #import "ios/chrome/app/main_controller.h"
-#import "ios/chrome/app/main_controller_private.h"
-#import "ios/chrome/browser/application_context/application_context.h"
-#import "ios/chrome/browser/sync/sync_setup_service.h"
-#import "ios/chrome/browser/sync/sync_setup_service_factory.h"
+#include "ios/chrome/browser/application_context.h"
+#include "ios/chrome/browser/sync/sync_setup_service.h"
+#include "ios/chrome/browser/sync/sync_setup_service_factory.h"
+#include "ios/chrome/browser/ui/first_run/welcome_to_chrome_view_controller.h"
 #import "ios/chrome/browser/ui/main/scene_controller.h"
 #import "ios/chrome/browser/ui/main/scene_controller_testing.h"
 #import "ios/chrome/test/app/chrome_test_util.h"
@@ -21,6 +21,10 @@
 #endif
 
 @implementation FirstRunAppInterface
+
++ (void)showFirstRunUI {
+  [chrome_test_util::GetForegroundActiveSceneController() showFirstRunUI];
+}
 
 + (void)setUMACollectionEnabled:(BOOL)enabled {
   GetApplicationContext()->GetLocalState()->SetBoolean(
@@ -36,6 +40,10 @@
   GetApplicationContext()->GetLocalState()->SetInteger(
       metrics::prefs::kMetricsDefaultOptIn,
       metrics::EnableMetricsDefault::DEFAULT_UNKNOWN);
+}
+
++ (BOOL)isUMACollectionEnabledByDefault {
+  return [WelcomeToChromeViewController defaultStatsCheckboxValue];
 }
 
 + (BOOL)isSyncFirstSetupComplete {

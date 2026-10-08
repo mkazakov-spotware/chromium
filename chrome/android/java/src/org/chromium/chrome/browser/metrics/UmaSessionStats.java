@@ -1,31 +1,31 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.metrics;
 
-import android.Manifest;
 import android.content.ComponentCallbacks;
 import android.content.Context;
 import android.content.res.Configuration;
+import android.text.TextUtils;
 
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.Log;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.base.task.PostTask;
+import org.chromium.base.task.TaskTraits;
 import org.chromium.chrome.browser.DefaultBrowserInfo;
-import org.chromium.chrome.browser.omnibox.voice.VoiceRecognitionHandler.AudioPermissionState;
-import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManagerImpl;
+import org.chromium.chrome.browser.instantapps.InstantAppsHandler;
+import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManager;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorTabObserver;
-import org.chromium.components.variations.SyntheticTrialAnnotationMode;
+import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.content_public.browser.BrowserStartupController;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.ui.permissions.AndroidPermissionDelegate;
-import org.chromium.url.GURL;
 
 /**
  * Mainly sets up session stats for chrome. A session is defined as the duration when the
@@ -61,6 +61,16 @@ public class UmaSessionStats {
             UmaSessionStatsJni.get().recordPageLoadedWithKeyboard();
         }
 
+        String url = tab.getUrlString();
+        if (!TextUtils.isEmpty(url) && UrlUtilities.isHttpOrHttps(url)) {
+            PostTask.postTask(TaskTraits.BEST_EFFORT_MAY_BLOCK, () -> {
+                boolean isEligible =
+                        InstantAppsHandler.getInstance().getInstantAppIntentForUrl(url) != null;
+                RecordHistogram.recordBooleanHistogram(
+                        "Android.InstantApps.EligiblePageLoaded", isEligible);
+            });
+        }
+
         // If the session has ended (i.e. chrome is in the background), escape early. Ideally we
         // could track this number as part of either the previous or next session but this isn't
         // possible since the TabSelector is needed to figure out the current number of open tabs.
@@ -77,12 +87,9 @@ public class UmaSessionStats {
     /**
      * Starts a new session for logging.
      * @param tabModelSelector A TabModelSelector instance for recording tab counts on page loads.
-     *        If null, UmaSessionStats does not record page loads and tab counts.
-     * @param permissionDelegate The AndroidPermissionDelegate used for querying permission status.
-     *        If null, UmaSessionStats will not record permission status.
+     * If null, UmaSessionStats does not record page loads and tab counts.
      */
-    public void startNewSession(
-            TabModelSelector tabModelSelector, AndroidPermissionDelegate permissionDelegate) {
+    public void startNewSession(TabModelSelector tabModelSelector) {
         ensureNativeInitialized();
 
         mTabModelSelector = tabModelSelector;
@@ -103,7 +110,7 @@ public class UmaSessionStats {
                     .keyboard != Configuration.KEYBOARD_NOKEYS;
             mTabModelSelectorTabObserver = new TabModelSelectorTabObserver(mTabModelSelector) {
                 @Override
-                public void onPageLoadFinished(Tab tab, GURL url) {
+                public void onPageLoadFinished(Tab tab, String url) {
                     recordPageLoadStats(tab);
                 }
             };
@@ -113,24 +120,6 @@ public class UmaSessionStats {
         updatePreferences();
         updateMetricsServiceState();
         DefaultBrowserInfo.logDefaultBrowserStats();
-        if (permissionDelegate != null) {
-            recordAudioPermissionState(permissionDelegate);
-        }
-    }
-
-    private void recordAudioPermissionState(AndroidPermissionDelegate permissionDelegate) {
-        @AudioPermissionState
-        int permissionState;
-        if (permissionDelegate.hasPermission(Manifest.permission.RECORD_AUDIO)) {
-            permissionState = AudioPermissionState.GRANTED;
-        } else if (permissionDelegate.canRequestPermission(Manifest.permission.RECORD_AUDIO)) {
-            permissionState = AudioPermissionState.DENIED_CAN_ASK_AGAIN;
-        } else {
-            permissionState = AudioPermissionState.DENIED_CANNOT_ASK_AGAIN;
-        }
-        RecordHistogram.recordEnumeratedHistogram(
-                "VoiceInteraction.AudioPermissionEvent.SessionStart", permissionState,
-                AudioPermissionState.NUM_ENTRIES);
     }
 
     private static void ensureNativeInitialized() {
@@ -159,7 +148,7 @@ public class UmaSessionStats {
      * flow, and when the user changes their preferences.
      */
     public static void changeMetricsReportingConsent(boolean consent) {
-        PrivacyPreferencesManagerImpl privacyManager = PrivacyPreferencesManagerImpl.getInstance();
+        PrivacyPreferencesManager privacyManager = PrivacyPreferencesManager.getInstance();
         // Update the metrics reporting preference.
         privacyManager.setUsageAndCrashReporting(consent);
 
@@ -194,7 +183,7 @@ public class UmaSessionStats {
      * Updates the state of MetricsService to account for the user's preferences.
      */
     public static void updateMetricsServiceState() {
-        PrivacyPreferencesManagerImpl privacyManager = PrivacyPreferencesManagerImpl.getInstance();
+        PrivacyPreferencesManager privacyManager = PrivacyPreferencesManager.getInstance();
 
         // Ensure Android and Chrome local state prefs are in sync.
         privacyManager.syncUsageAndCrashReportingPrefs();
@@ -209,7 +198,7 @@ public class UmaSessionStats {
      * Updates relevant Android and native preferences.
      */
     private void updatePreferences() {
-        PrivacyPreferencesManagerImpl prefManager = PrivacyPreferencesManagerImpl.getInstance();
+        PrivacyPreferencesManager prefManager = PrivacyPreferencesManager.getInstance();
 
         // Update the metrics sampling state so it's available before the native feature list is
         // available.
@@ -233,22 +222,9 @@ public class UmaSessionStats {
     }
 
     public static void registerSyntheticFieldTrial(String trialName, String groupName) {
-        registerSyntheticFieldTrial(trialName, groupName, SyntheticTrialAnnotationMode.NEXT_LOG);
-    }
-
-    /**
-     * Registers a synthetic field trial with the given trial name, group name, and annotation mode.
-     * If {@code annotationMode} is set to {@link SyntheticTrialAnnotationMode#CURRENT_LOG}, the
-     * metrics logs that are open at the time this method is called (if any) will be annotated with
-     * the synthetic trial. Otherwise, only logs that opened after the registration of the synthetic
-     * trial will be annotated. See C++ SyntheticTrialRegistry::RegisterSyntheticFieldTrial() for
-     * more details.
-     */
-    public static void registerSyntheticFieldTrial(
-            String trialName, String groupName, @SyntheticTrialAnnotationMode int annotationMode) {
-        Log.d(TAG, "registerSyntheticFieldTrial(%s, %s, %d)", trialName, groupName, annotationMode);
+        Log.d(TAG, "registerSyntheticFieldTrial(%s, %s)", trialName, groupName);
         assert isMetricsServiceAvailable();
-        UmaSessionStatsJni.get().registerSyntheticFieldTrial(trialName, groupName, annotationMode);
+        UmaSessionStatsJni.get().registerSyntheticFieldTrial(trialName, groupName);
     }
 
     /**
@@ -280,8 +256,7 @@ public class UmaSessionStats {
         void umaEndSession(long nativeUmaSessionStats, UmaSessionStats caller);
         void registerExternalExperiment(
                 String studyName, int[] experimentIds, boolean overrideExistingIds);
-        void registerSyntheticFieldTrial(String trialName, String groupName,
-                @SyntheticTrialAnnotationMode int annotationMode);
+        void registerSyntheticFieldTrial(String trialName, String groupName);
         void recordTabCountPerLoad(int numTabsOpen);
         void recordPageLoaded(boolean isDesktopUserAgent);
         void recordPageLoadedWithKeyboard();

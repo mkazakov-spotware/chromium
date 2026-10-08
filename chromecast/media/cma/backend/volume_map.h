@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/synchronization/lock.h"
 #include "chromecast/media/cma/backend/cast_audio_json.h"
 
@@ -26,9 +27,6 @@ class VolumeMap {
 
   // For testing.
   VolumeMap(std::unique_ptr<CastAudioJsonProvider> config_provider);
-
-  VolumeMap(const VolumeMap&) = delete;
-  VolumeMap& operator=(const VolumeMap&) = delete;
 
   ~VolumeMap();
 
@@ -52,6 +50,8 @@ class VolumeMap {
   std::vector<LevelToDb> volume_map_;
 
   std::unique_ptr<CastAudioJsonProvider> config_provider_;
+
+  DISALLOW_COPY_AND_ASSIGN(VolumeMap);
 };
 
 }  // namespace media

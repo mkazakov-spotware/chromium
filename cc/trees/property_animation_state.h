@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include "cc/cc_export.h"
 #include "cc/trees/target_property.h"
-#include "ui/gfx/animation/keyframe/target_property.h"
 
 namespace cc {
 
@@ -16,8 +15,8 @@ struct CC_EXPORT PropertyAnimationState {
   PropertyAnimationState(const PropertyAnimationState& rhs);
   ~PropertyAnimationState();
 
-  gfx::TargetProperties currently_running;
-  gfx::TargetProperties potentially_animating;
+  TargetProperties currently_running;
+  TargetProperties potentially_animating;
 
   bool operator==(const PropertyAnimationState& other) const;
   bool operator!=(const PropertyAnimationState& other) const;

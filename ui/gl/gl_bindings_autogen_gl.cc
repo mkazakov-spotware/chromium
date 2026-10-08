@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -309,10 +309,6 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
       gfx::HasExtension(extensions, "GL_ANGLE_texture_external_update");
   ext.b_GL_ANGLE_translated_shader_source =
       gfx::HasExtension(extensions, "GL_ANGLE_translated_shader_source");
-  ext.b_GL_ANGLE_vulkan_image =
-      gfx::HasExtension(extensions, "GL_ANGLE_vulkan_image");
-  ext.b_GL_ANGLE_webgl_compatibility =
-      gfx::HasExtension(extensions, "GL_ANGLE_webgl_compatibility");
   ext.b_GL_APPLE_fence = gfx::HasExtension(extensions, "GL_APPLE_fence");
   ext.b_GL_APPLE_sync = gfx::HasExtension(extensions, "GL_APPLE_sync");
   ext.b_GL_APPLE_vertex_array_object =
@@ -452,8 +448,6 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
   ext.b_GL_NV_blend_equation_advanced =
       gfx::HasExtension(extensions, "GL_NV_blend_equation_advanced");
   ext.b_GL_NV_fence = gfx::HasExtension(extensions, "GL_NV_fence");
-  ext.b_GL_NV_framebuffer_blit =
-      gfx::HasExtension(extensions, "GL_NV_framebuffer_blit");
   ext.b_GL_NV_framebuffer_mixed_samples =
       gfx::HasExtension(extensions, "GL_NV_framebuffer_mixed_samples");
   ext.b_GL_NV_internalformat_sample_query =
@@ -476,11 +470,6 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
   ext.b_GL_OVR_multiview2 = gfx::HasExtension(extensions, "GL_OVR_multiview2");
   ext.b_GL_QCOM_tiled_rendering =
       gfx::HasExtension(extensions, "GL_QCOM_tiled_rendering");
-
-  if (ext.b_GL_ANGLE_vulkan_image) {
-    fn.glAcquireTexturesANGLEFn = reinterpret_cast<glAcquireTexturesANGLEProc>(
-        GetGLProcAddress("glAcquireTexturesANGLE"));
-  }
 
   if (ver->IsAtLeastGL(4u, 1u) || ver->IsAtLeastGLES(3u, 1u)) {
     fn.glActiveShaderProgramFn = reinterpret_cast<glActiveShaderProgramProc>(
@@ -528,7 +517,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
   if (ver->IsAtLeastGL(3u, 0u) || ext.b_GL_ARB_blend_func_extended) {
     fn.glBindFragDataLocationFn = reinterpret_cast<glBindFragDataLocationProc>(
         GetGLProcAddress("glBindFragDataLocation"));
-  } else if (ext.b_GL_EXT_blend_func_extended || ext.b_GL_EXT_gpu_shader4) {
+  } else if (ext.b_GL_EXT_gpu_shader4 || ext.b_GL_EXT_blend_func_extended) {
     fn.glBindFragDataLocationFn = reinterpret_cast<glBindFragDataLocationProc>(
         GetGLProcAddress("glBindFragDataLocationEXT"));
   }
@@ -585,7 +574,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
         reinterpret_cast<glBindSamplerProc>(GetGLProcAddress("glBindSampler"));
   }
 
-  if (ver->IsAtLeastGL(4u, 0u) || ver->IsAtLeastGLES(3u, 0u) ||
+  if (ver->IsAtLeastGLES(3u, 0u) || ver->IsAtLeastGL(4u, 0u) ||
       ext.b_GL_ARB_transform_feedback2) {
     fn.glBindTransformFeedbackFn =
         reinterpret_cast<glBindTransformFeedbackProc>(
@@ -623,7 +612,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
         GetGLProcAddress("glBlendBarrierKHR"));
   }
 
-  if (ver->IsAtLeastGL(4u, 0u) || ver->IsAtLeastGLES(3u, 2u)) {
+  if (ver->IsAtLeastGLES(3u, 2u) || ver->IsAtLeastGL(4u, 0u)) {
     fn.glBlendEquationiOESFn = reinterpret_cast<glBlendEquationiOESProc>(
         GetGLProcAddress("glBlendEquationi"));
   } else if (ext.b_GL_OES_draw_buffers_indexed) {
@@ -631,7 +620,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
         GetGLProcAddress("glBlendEquationiOES"));
   }
 
-  if (ver->IsAtLeastGL(4u, 0u) || ver->IsAtLeastGLES(3u, 2u)) {
+  if (ver->IsAtLeastGLES(3u, 2u) || ver->IsAtLeastGL(4u, 0u)) {
     fn.glBlendEquationSeparateiOESFn =
         reinterpret_cast<glBlendEquationSeparateiOESProc>(
             GetGLProcAddress("glBlendEquationSeparatei"));
@@ -641,7 +630,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
             GetGLProcAddress("glBlendEquationSeparateiOES"));
   }
 
-  if (ver->IsAtLeastGL(4u, 0u) || ver->IsAtLeastGLES(3u, 2u)) {
+  if (ver->IsAtLeastGLES(3u, 2u) || ver->IsAtLeastGL(4u, 0u)) {
     fn.glBlendFunciOESFn =
         reinterpret_cast<glBlendFunciOESProc>(GetGLProcAddress("glBlendFunci"));
   } else if (ext.b_GL_OES_draw_buffers_indexed) {
@@ -649,7 +638,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
         GetGLProcAddress("glBlendFunciOES"));
   }
 
-  if (ver->IsAtLeastGL(4u, 0u) || ver->IsAtLeastGLES(3u, 2u)) {
+  if (ver->IsAtLeastGLES(3u, 2u) || ver->IsAtLeastGL(4u, 0u)) {
     fn.glBlendFuncSeparateiOESFn =
         reinterpret_cast<glBlendFuncSeparateiOESProc>(
             GetGLProcAddress("glBlendFuncSeparatei"));
@@ -663,9 +652,6 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
       ext.b_GL_ARB_framebuffer_object) {
     fn.glBlitFramebufferFn = reinterpret_cast<glBlitFramebufferProc>(
         GetGLProcAddress("glBlitFramebuffer"));
-  } else if (ext.b_GL_NV_framebuffer_blit) {
-    fn.glBlitFramebufferFn = reinterpret_cast<glBlitFramebufferProc>(
-        GetGLProcAddress("glBlitFramebufferNV"));
   } else if (ext.b_GL_ANGLE_framebuffer_blit) {
     fn.glBlitFramebufferFn = reinterpret_cast<glBlitFramebufferProc>(
         GetGLProcAddress("glBlitFramebufferANGLE"));
@@ -779,7 +765,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
             GetGLProcAddress("glCompressedTexSubImage3DRobustANGLE"));
   }
 
-  if (ver->IsAtLeastGL(3u, 1u) || ver->IsAtLeastGLES(3u, 0u)) {
+  if (ver->IsAtLeastGLES(3u, 0u) || ver->IsAtLeastGL(3u, 1u)) {
     fn.glCopyBufferSubDataFn = reinterpret_cast<glCopyBufferSubDataProc>(
         GetGLProcAddress("glCopyBufferSubData"));
   }
@@ -963,7 +949,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
         GetGLProcAddress("glDeleteSyncAPPLE"));
   }
 
-  if (ver->IsAtLeastGL(4u, 0u) || ver->IsAtLeastGLES(3u, 0u) ||
+  if (ver->IsAtLeastGLES(3u, 0u) || ver->IsAtLeastGL(4u, 0u) ||
       ext.b_GL_ARB_transform_feedback2) {
     fn.glDeleteTransformFeedbacksFn =
         reinterpret_cast<glDeleteTransformFeedbacksProc>(
@@ -1021,12 +1007,12 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
             GetGLProcAddress("glDispatchComputeIndirect"));
   }
 
-  if (ver->IsAtLeastGL(4u, 0u) || ver->IsAtLeastGLES(3u, 1u)) {
+  if (ver->IsAtLeastGLES(3u, 1u) || ver->IsAtLeastGL(4u, 0u)) {
     fn.glDrawArraysIndirectFn = reinterpret_cast<glDrawArraysIndirectProc>(
         GetGLProcAddress("glDrawArraysIndirect"));
   }
 
-  if (ver->IsAtLeastGL(3u, 1u) || ver->IsAtLeastGLES(3u, 0u)) {
+  if (ver->IsAtLeastGLES(3u, 0u) || ver->IsAtLeastGL(3u, 1u)) {
     fn.glDrawArraysInstancedANGLEFn =
         reinterpret_cast<glDrawArraysInstancedANGLEProc>(
             GetGLProcAddress("glDrawArraysInstanced"));
@@ -1070,12 +1056,12 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
         GetGLProcAddress("glDrawBuffersEXT"));
   }
 
-  if (ver->IsAtLeastGL(4u, 0u) || ver->IsAtLeastGLES(3u, 1u)) {
+  if (ver->IsAtLeastGLES(3u, 1u) || ver->IsAtLeastGL(4u, 0u)) {
     fn.glDrawElementsIndirectFn = reinterpret_cast<glDrawElementsIndirectProc>(
         GetGLProcAddress("glDrawElementsIndirect"));
   }
 
-  if (ver->IsAtLeastGL(3u, 1u) || ver->IsAtLeastGLES(3u, 0u)) {
+  if (ver->IsAtLeastGLES(3u, 0u) || ver->IsAtLeastGL(3u, 1u)) {
     fn.glDrawElementsInstancedANGLEFn =
         reinterpret_cast<glDrawElementsInstancedANGLEProc>(
             GetGLProcAddress("glDrawElementsInstanced"));
@@ -1231,7 +1217,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
             GetGLProcAddress("glFramebufferTextureLayer"));
   }
 
-  if (ext.b_GL_OVR_multiview || ext.b_GL_OVR_multiview2) {
+  if (ext.b_GL_OVR_multiview2 || ext.b_GL_OVR_multiview) {
     fn.glFramebufferTextureMultiviewOVRFn =
         reinterpret_cast<glFramebufferTextureMultiviewOVRProc>(
             GetGLProcAddress("glFramebufferTextureMultiviewOVR"));
@@ -1307,7 +1293,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
         GetGLProcAddress("glGenSemaphoresEXT"));
   }
 
-  if (ver->IsAtLeastGL(4u, 0u) || ver->IsAtLeastGLES(3u, 0u) ||
+  if (ver->IsAtLeastGLES(3u, 0u) || ver->IsAtLeastGL(4u, 0u) ||
       ext.b_GL_ARB_transform_feedback2) {
     fn.glGenTransformFeedbacksFn =
         reinterpret_cast<glGenTransformFeedbacksProc>(
@@ -1326,7 +1312,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
         GetGLProcAddress("glGenVertexArraysAPPLE"));
   }
 
-  if (ver->IsAtLeastGL(3u, 1u) || ver->IsAtLeastGLES(3u, 0u)) {
+  if (ver->IsAtLeastGLES(3u, 0u) || ver->IsAtLeastGL(3u, 1u)) {
     fn.glGetActiveUniformBlockivFn =
         reinterpret_cast<glGetActiveUniformBlockivProc>(
             GetGLProcAddress("glGetActiveUniformBlockiv"));
@@ -1338,13 +1324,13 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
             GetGLProcAddress("glGetActiveUniformBlockivRobustANGLE"));
   }
 
-  if (ver->IsAtLeastGL(3u, 1u) || ver->IsAtLeastGLES(3u, 0u)) {
+  if (ver->IsAtLeastGLES(3u, 0u) || ver->IsAtLeastGL(3u, 1u)) {
     fn.glGetActiveUniformBlockNameFn =
         reinterpret_cast<glGetActiveUniformBlockNameProc>(
             GetGLProcAddress("glGetActiveUniformBlockName"));
   }
 
-  if (ver->IsAtLeastGL(3u, 1u) || ver->IsAtLeastGLES(3u, 0u)) {
+  if (ver->IsAtLeastGLES(3u, 0u) || ver->IsAtLeastGL(3u, 1u)) {
     fn.glGetActiveUniformsivFn = reinterpret_cast<glGetActiveUniformsivProc>(
         GetGLProcAddress("glGetActiveUniformsiv"));
   }
@@ -1666,7 +1652,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
   if (ver->IsAtLeastGL(3u, 3u) || ext.b_GL_ARB_timer_query) {
     fn.glGetQueryObjecti64vFn = reinterpret_cast<glGetQueryObjecti64vProc>(
         GetGLProcAddress("glGetQueryObjecti64v"));
-  } else if (ext.b_GL_EXT_disjoint_timer_query || ext.b_GL_EXT_timer_query) {
+  } else if (ext.b_GL_EXT_timer_query || ext.b_GL_EXT_disjoint_timer_query) {
     fn.glGetQueryObjecti64vFn = reinterpret_cast<glGetQueryObjecti64vProc>(
         GetGLProcAddress("glGetQueryObjecti64vEXT"));
   }
@@ -1697,7 +1683,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
   if (ver->IsAtLeastGL(3u, 3u) || ext.b_GL_ARB_timer_query) {
     fn.glGetQueryObjectui64vFn = reinterpret_cast<glGetQueryObjectui64vProc>(
         GetGLProcAddress("glGetQueryObjectui64v"));
-  } else if (ext.b_GL_EXT_disjoint_timer_query || ext.b_GL_EXT_timer_query) {
+  } else if (ext.b_GL_EXT_timer_query || ext.b_GL_EXT_disjoint_timer_query) {
     fn.glGetQueryObjectui64vFn = reinterpret_cast<glGetQueryObjectui64vProc>(
         GetGLProcAddress("glGetQueryObjectui64vEXT"));
   }
@@ -1871,7 +1857,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
             GetGLProcAddress("glGetTranslatedShaderSourceANGLE"));
   }
 
-  if (ver->IsAtLeastGL(3u, 1u) || ver->IsAtLeastGLES(3u, 0u)) {
+  if (ver->IsAtLeastGLES(3u, 0u) || ver->IsAtLeastGL(3u, 1u)) {
     fn.glGetUniformBlockIndexFn = reinterpret_cast<glGetUniformBlockIndexProc>(
         GetGLProcAddress("glGetUniformBlockIndex"));
   }
@@ -1882,7 +1868,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
             GetGLProcAddress("glGetUniformfvRobustANGLE"));
   }
 
-  if (ver->IsAtLeastGL(3u, 1u) || ver->IsAtLeastGLES(3u, 0u)) {
+  if (ver->IsAtLeastGLES(3u, 0u) || ver->IsAtLeastGL(3u, 1u)) {
     fn.glGetUniformIndicesFn = reinterpret_cast<glGetUniformIndicesProc>(
         GetGLProcAddress("glGetUniformIndices"));
   }
@@ -2067,7 +2053,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
         reinterpret_cast<glIsSyncAPPLEProc>(GetGLProcAddress("glIsSyncAPPLE"));
   }
 
-  if (ver->IsAtLeastGL(4u, 0u) || ver->IsAtLeastGLES(3u, 0u) ||
+  if (ver->IsAtLeastGLES(3u, 0u) || ver->IsAtLeastGL(4u, 0u) ||
       ext.b_GL_ARB_transform_feedback2) {
     fn.glIsTransformFeedbackFn = reinterpret_cast<glIsTransformFeedbackProc>(
         GetGLProcAddress("glIsTransformFeedback"));
@@ -2126,7 +2112,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
             GetGLProcAddress("glMaxShaderCompilerThreadsKHR"));
   }
 
-  if (ver->IsAtLeastGL(4u, 5u) || ver->IsAtLeastGLES(3u, 1u)) {
+  if (ver->IsAtLeastGLES(3u, 1u) || ver->IsAtLeastGL(4u, 5u)) {
     fn.glMemoryBarrierByRegionFn =
         reinterpret_cast<glMemoryBarrierByRegionProc>(
             GetGLProcAddress("glMemoryBarrierByRegion"));
@@ -2147,7 +2133,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
             GetGLProcAddress("glMemoryObjectParameterivEXT"));
   }
 
-  if (ver->IsAtLeastGL(4u, 0u) || ver->IsAtLeastGLES(3u, 2u)) {
+  if (ver->IsAtLeastGLES(3u, 2u) || ver->IsAtLeastGL(4u, 0u)) {
     fn.glMinSampleShadingFn = reinterpret_cast<glMinSampleShadingProc>(
         GetGLProcAddress("glMinSampleShading"));
   }
@@ -2205,7 +2191,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
         GetGLProcAddress("glObjectPtrLabelKHR"));
   }
 
-  if (ver->IsAtLeastGL(4u, 0u) || ver->IsAtLeastGLES(3u, 2u) ||
+  if (ver->IsAtLeastGLES(3u, 2u) || ver->IsAtLeastGL(4u, 0u) ||
       ext.b_GL_ARB_tessellation_shader) {
     fn.glPatchParameteriFn = reinterpret_cast<glPatchParameteriProc>(
         GetGLProcAddress("glPatchParameteri"));
@@ -2246,7 +2232,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
         GetGLProcAddress("glPathStencilFuncCHROMIUM"));
   }
 
-  if (ver->IsAtLeastGL(4u, 0u) || ver->IsAtLeastGLES(3u, 0u) ||
+  if (ver->IsAtLeastGLES(3u, 0u) || ver->IsAtLeastGL(4u, 0u) ||
       ext.b_GL_ARB_transform_feedback2) {
     fn.glPauseTransformFeedbackFn =
         reinterpret_cast<glPauseTransformFeedbackProc>(
@@ -2525,11 +2511,6 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
             GetGLProcAddress("glReleaseShaderCompiler"));
   }
 
-  if (ext.b_GL_ANGLE_vulkan_image) {
-    fn.glReleaseTexturesANGLEFn = reinterpret_cast<glReleaseTexturesANGLEProc>(
-        GetGLProcAddress("glReleaseTexturesANGLE"));
-  }
-
   if (ver->IsAtLeastGL(3u, 0u) || ver->is_es) {
     fn.glRenderbufferStorageEXTFn =
         reinterpret_cast<glRenderbufferStorageEXTProc>(
@@ -2577,7 +2558,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
             GetGLProcAddress("glRequestExtensionANGLE"));
   }
 
-  if (ver->IsAtLeastGL(4u, 0u) || ver->IsAtLeastGLES(3u, 0u) ||
+  if (ver->IsAtLeastGLES(3u, 0u) || ver->IsAtLeastGL(4u, 0u) ||
       ext.b_GL_ARB_transform_feedback2) {
     fn.glResumeTransformFeedbackFn =
         reinterpret_cast<glResumeTransformFeedbackProc>(
@@ -2748,14 +2729,14 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
         reinterpret_cast<glTestFenceNVProc>(GetGLProcAddress("glTestFenceNV"));
   }
 
-  if (ver->IsAtLeastGL(3u, 1u) || ver->IsAtLeastGLES(3u, 2u)) {
+  if (ver->IsAtLeastGLES(3u, 2u) || ver->IsAtLeastGL(3u, 1u)) {
     fn.glTexBufferFn =
         reinterpret_cast<glTexBufferProc>(GetGLProcAddress("glTexBuffer"));
   } else if (ext.b_GL_OES_texture_buffer) {
     fn.glTexBufferFn =
         reinterpret_cast<glTexBufferProc>(GetGLProcAddress("glTexBufferOES"));
-  } else if (ext.b_GL_EXT_texture_buffer ||
-             ext.b_GL_EXT_texture_buffer_object) {
+  } else if (ext.b_GL_EXT_texture_buffer_object ||
+             ext.b_GL_EXT_texture_buffer) {
     fn.glTexBufferFn =
         reinterpret_cast<glTexBufferProc>(GetGLProcAddress("glTexBufferEXT"));
   }
@@ -2917,7 +2898,7 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
         reinterpret_cast<glUniform4uivProc>(GetGLProcAddress("glUniform4uiv"));
   }
 
-  if (ver->IsAtLeastGL(3u, 1u) || ver->IsAtLeastGLES(3u, 0u)) {
+  if (ver->IsAtLeastGLES(3u, 0u) || ver->IsAtLeastGL(3u, 1u)) {
     fn.glUniformBlockBindingFn = reinterpret_cast<glUniformBlockBindingProc>(
         GetGLProcAddress("glUniformBlockBinding"));
   }
@@ -3058,12 +3039,6 @@ void DriverGL::InitializeDynamicBindings(const GLVersionInfo* ver,
 
 void DriverGL::ClearBindings() {
   memset(this, 0, sizeof(*this));
-}
-
-void GLApiBase::glAcquireTexturesANGLEFn(GLuint numTextures,
-                                         const GLuint* textures,
-                                         const GLenum* layouts) {
-  driver_->fn.glAcquireTexturesANGLEFn(numTextures, textures, layouts);
 }
 
 void GLApiBase::glActiveShaderProgramFn(GLuint pipeline, GLuint program) {
@@ -5540,12 +5515,6 @@ void GLApiBase::glReleaseShaderCompilerFn(void) {
   driver_->fn.glReleaseShaderCompilerFn();
 }
 
-void GLApiBase::glReleaseTexturesANGLEFn(GLuint numTextures,
-                                         const GLuint* textures,
-                                         GLenum* layouts) {
-  driver_->fn.glReleaseTexturesANGLEFn(numTextures, textures, layouts);
-}
-
 void GLApiBase::glRenderbufferStorageEXTFn(GLenum target,
                                            GLenum internalformat,
                                            GLsizei width,
@@ -5991,20 +5960,18 @@ void GLApiBase::glTexStorageMem2DEXTFn(GLenum target,
                                      height, memory, offset);
 }
 
-void GLApiBase::glTexStorageMemFlags2DANGLEFn(
-    GLenum target,
-    GLsizei levels,
-    GLenum internalFormat,
-    GLsizei width,
-    GLsizei height,
-    GLuint memory,
-    GLuint64 offset,
-    GLbitfield createFlags,
-    GLbitfield usageFlags,
-    const void* imageCreateInfoPNext) {
-  driver_->fn.glTexStorageMemFlags2DANGLEFn(
-      target, levels, internalFormat, width, height, memory, offset,
-      createFlags, usageFlags, imageCreateInfoPNext);
+void GLApiBase::glTexStorageMemFlags2DANGLEFn(GLenum target,
+                                              GLsizei levels,
+                                              GLenum internalFormat,
+                                              GLsizei width,
+                                              GLsizei height,
+                                              GLuint memory,
+                                              GLuint64 offset,
+                                              GLbitfield createFlags,
+                                              GLbitfield usageFlags) {
+  driver_->fn.glTexStorageMemFlags2DANGLEFn(target, levels, internalFormat,
+                                            width, height, memory, offset,
+                                            createFlags, usageFlags);
 }
 
 void GLApiBase::glTexSubImage2DFn(GLenum target,
@@ -6434,54 +6401,47 @@ void GLApiBase::glWindowRectanglesEXTFn(GLenum mode,
   driver_->fn.glWindowRectanglesEXTFn(mode, n, box);
 }
 
-void TraceGLApi::glAcquireTexturesANGLEFn(GLuint numTextures,
-                                          const GLuint* textures,
-                                          const GLenum* layouts) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glAcquireTexturesANGLE");
-  gl_api_->glAcquireTexturesANGLEFn(numTextures, textures, layouts);
-}
-
 void TraceGLApi::glActiveShaderProgramFn(GLuint pipeline, GLuint program) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glActiveShaderProgram");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glActiveShaderProgram")
   gl_api_->glActiveShaderProgramFn(pipeline, program);
 }
 
 void TraceGLApi::glActiveTextureFn(GLenum texture) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glActiveTexture");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glActiveTexture")
   gl_api_->glActiveTextureFn(texture);
 }
 
 void TraceGLApi::glAttachShaderFn(GLuint program, GLuint shader) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glAttachShader");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glAttachShader")
   gl_api_->glAttachShaderFn(program, shader);
 }
 
 void TraceGLApi::glBeginQueryFn(GLenum target, GLuint id) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBeginQuery");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBeginQuery")
   gl_api_->glBeginQueryFn(target, id);
 }
 
 void TraceGLApi::glBeginTransformFeedbackFn(GLenum primitiveMode) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBeginTransformFeedback");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBeginTransformFeedback")
   gl_api_->glBeginTransformFeedbackFn(primitiveMode);
 }
 
 void TraceGLApi::glBindAttribLocationFn(GLuint program,
                                         GLuint index,
                                         const char* name) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindAttribLocation");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindAttribLocation")
   gl_api_->glBindAttribLocationFn(program, index, name);
 }
 
 void TraceGLApi::glBindBufferFn(GLenum target, GLuint buffer) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindBuffer");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindBuffer")
   gl_api_->glBindBufferFn(target, buffer);
 }
 
 void TraceGLApi::glBindBufferBaseFn(GLenum target,
                                     GLuint index,
                                     GLuint buffer) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindBufferBase");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindBufferBase")
   gl_api_->glBindBufferBaseFn(target, index, buffer);
 }
 
@@ -6490,14 +6450,14 @@ void TraceGLApi::glBindBufferRangeFn(GLenum target,
                                      GLuint buffer,
                                      GLintptr offset,
                                      GLsizeiptr size) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindBufferRange");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindBufferRange")
   gl_api_->glBindBufferRangeFn(target, index, buffer, offset, size);
 }
 
 void TraceGLApi::glBindFragDataLocationFn(GLuint program,
                                           GLuint colorNumber,
                                           const char* name) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindFragDataLocation");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindFragDataLocation")
   gl_api_->glBindFragDataLocationFn(program, colorNumber, name);
 }
 
@@ -6506,7 +6466,7 @@ void TraceGLApi::glBindFragDataLocationIndexedFn(GLuint program,
                                                  GLuint index,
                                                  const char* name) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glBindFragDataLocationIndexed");
+                                "TraceGLAPI::glBindFragDataLocationIndexed")
   gl_api_->glBindFragDataLocationIndexedFn(program, colorNumber, index, name);
 }
 
@@ -6514,12 +6474,12 @@ void TraceGLApi::glBindFragmentInputLocationCHROMIUMFn(GLuint program,
                                                        GLint location,
                                                        const char* name) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glBindFragmentInputLocationCHROMIUM");
+      "gpu", "TraceGLAPI::glBindFragmentInputLocationCHROMIUM")
   gl_api_->glBindFragmentInputLocationCHROMIUMFn(program, location, name);
 }
 
 void TraceGLApi::glBindFramebufferEXTFn(GLenum target, GLuint framebuffer) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindFramebufferEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindFramebufferEXT")
   gl_api_->glBindFramebufferEXTFn(target, framebuffer);
 }
 
@@ -6530,33 +6490,33 @@ void TraceGLApi::glBindImageTextureEXTFn(GLuint index,
                                          GLint layer,
                                          GLenum access,
                                          GLint format) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindImageTextureEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindImageTextureEXT")
   gl_api_->glBindImageTextureEXTFn(index, texture, level, layered, layer,
                                    access, format);
 }
 
 void TraceGLApi::glBindProgramPipelineFn(GLuint pipeline) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindProgramPipeline");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindProgramPipeline")
   gl_api_->glBindProgramPipelineFn(pipeline);
 }
 
 void TraceGLApi::glBindRenderbufferEXTFn(GLenum target, GLuint renderbuffer) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindRenderbufferEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindRenderbufferEXT")
   gl_api_->glBindRenderbufferEXTFn(target, renderbuffer);
 }
 
 void TraceGLApi::glBindSamplerFn(GLuint unit, GLuint sampler) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindSampler");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindSampler")
   gl_api_->glBindSamplerFn(unit, sampler);
 }
 
 void TraceGLApi::glBindTextureFn(GLenum target, GLuint texture) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindTexture");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindTexture")
   gl_api_->glBindTextureFn(target, texture);
 }
 
 void TraceGLApi::glBindTransformFeedbackFn(GLenum target, GLuint id) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindTransformFeedback");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindTransformFeedback")
   gl_api_->glBindTransformFeedbackFn(target, id);
 }
 
@@ -6564,12 +6524,12 @@ void TraceGLApi::glBindUniformLocationCHROMIUMFn(GLuint program,
                                                  GLint location,
                                                  const char* name) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glBindUniformLocationCHROMIUM");
+                                "TraceGLAPI::glBindUniformLocationCHROMIUM")
   gl_api_->glBindUniformLocationCHROMIUMFn(program, location, name);
 }
 
 void TraceGLApi::glBindVertexArrayOESFn(GLuint array) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindVertexArrayOES");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindVertexArrayOES")
   gl_api_->glBindVertexArrayOESFn(array);
 }
 
@@ -6577,12 +6537,12 @@ void TraceGLApi::glBindVertexBufferFn(GLuint bindingindex,
                                       GLuint buffer,
                                       GLintptr offset,
                                       GLsizei stride) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindVertexBuffer");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBindVertexBuffer")
   gl_api_->glBindVertexBufferFn(bindingindex, buffer, offset, stride);
 }
 
 void TraceGLApi::glBlendBarrierKHRFn(void) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendBarrierKHR");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendBarrierKHR")
   gl_api_->glBlendBarrierKHRFn();
 }
 
@@ -6590,22 +6550,22 @@ void TraceGLApi::glBlendColorFn(GLclampf red,
                                 GLclampf green,
                                 GLclampf blue,
                                 GLclampf alpha) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendColor");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendColor")
   gl_api_->glBlendColorFn(red, green, blue, alpha);
 }
 
 void TraceGLApi::glBlendEquationFn(GLenum mode) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendEquation");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendEquation")
   gl_api_->glBlendEquationFn(mode);
 }
 
 void TraceGLApi::glBlendEquationiOESFn(GLuint buf, GLenum mode) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendEquationiOES");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendEquationiOES")
   gl_api_->glBlendEquationiOESFn(buf, mode);
 }
 
 void TraceGLApi::glBlendEquationSeparateFn(GLenum modeRGB, GLenum modeAlpha) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendEquationSeparate");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendEquationSeparate")
   gl_api_->glBlendEquationSeparateFn(modeRGB, modeAlpha);
 }
 
@@ -6613,17 +6573,17 @@ void TraceGLApi::glBlendEquationSeparateiOESFn(GLuint buf,
                                                GLenum modeRGB,
                                                GLenum modeAlpha) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glBlendEquationSeparateiOES");
+                                "TraceGLAPI::glBlendEquationSeparateiOES")
   gl_api_->glBlendEquationSeparateiOESFn(buf, modeRGB, modeAlpha);
 }
 
 void TraceGLApi::glBlendFuncFn(GLenum sfactor, GLenum dfactor) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendFunc");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendFunc")
   gl_api_->glBlendFuncFn(sfactor, dfactor);
 }
 
 void TraceGLApi::glBlendFunciOESFn(GLuint buf, GLenum sfactor, GLenum dfactor) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendFunciOES");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendFunciOES")
   gl_api_->glBlendFunciOESFn(buf, sfactor, dfactor);
 }
 
@@ -6631,7 +6591,7 @@ void TraceGLApi::glBlendFuncSeparateFn(GLenum srcRGB,
                                        GLenum dstRGB,
                                        GLenum srcAlpha,
                                        GLenum dstAlpha) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendFuncSeparate");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendFuncSeparate")
   gl_api_->glBlendFuncSeparateFn(srcRGB, dstRGB, srcAlpha, dstAlpha);
 }
 
@@ -6640,7 +6600,7 @@ void TraceGLApi::glBlendFuncSeparateiOESFn(GLuint buf,
                                            GLenum dstRGB,
                                            GLenum srcAlpha,
                                            GLenum dstAlpha) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendFuncSeparateiOES");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlendFuncSeparateiOES")
   gl_api_->glBlendFuncSeparateiOESFn(buf, srcRGB, dstRGB, srcAlpha, dstAlpha);
 }
 
@@ -6654,7 +6614,7 @@ void TraceGLApi::glBlitFramebufferFn(GLint srcX0,
                                      GLint dstY1,
                                      GLbitfield mask,
                                      GLenum filter) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlitFramebuffer");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBlitFramebuffer")
   gl_api_->glBlitFramebufferFn(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1,
                                dstY1, mask, filter);
 }
@@ -6663,7 +6623,7 @@ void TraceGLApi::glBufferDataFn(GLenum target,
                                 GLsizeiptr size,
                                 const void* data,
                                 GLenum usage) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBufferData");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBufferData")
   gl_api_->glBufferDataFn(target, size, data, usage);
 }
 
@@ -6671,18 +6631,18 @@ void TraceGLApi::glBufferSubDataFn(GLenum target,
                                    GLintptr offset,
                                    GLsizeiptr size,
                                    const void* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBufferSubData");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glBufferSubData")
   gl_api_->glBufferSubDataFn(target, offset, size, data);
 }
 
 GLenum TraceGLApi::glCheckFramebufferStatusEXTFn(GLenum target) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glCheckFramebufferStatusEXT");
+                                "TraceGLAPI::glCheckFramebufferStatusEXT")
   return gl_api_->glCheckFramebufferStatusEXTFn(target);
 }
 
 void TraceGLApi::glClearFn(GLbitfield mask) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClear");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClear")
   gl_api_->glClearFn(mask);
 }
 
@@ -6690,28 +6650,28 @@ void TraceGLApi::glClearBufferfiFn(GLenum buffer,
                                    GLint drawbuffer,
                                    const GLfloat depth,
                                    GLint stencil) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearBufferfi");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearBufferfi")
   gl_api_->glClearBufferfiFn(buffer, drawbuffer, depth, stencil);
 }
 
 void TraceGLApi::glClearBufferfvFn(GLenum buffer,
                                    GLint drawbuffer,
                                    const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearBufferfv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearBufferfv")
   gl_api_->glClearBufferfvFn(buffer, drawbuffer, value);
 }
 
 void TraceGLApi::glClearBufferivFn(GLenum buffer,
                                    GLint drawbuffer,
                                    const GLint* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearBufferiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearBufferiv")
   gl_api_->glClearBufferivFn(buffer, drawbuffer, value);
 }
 
 void TraceGLApi::glClearBufferuivFn(GLenum buffer,
                                     GLint drawbuffer,
                                     const GLuint* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearBufferuiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearBufferuiv")
   gl_api_->glClearBufferuivFn(buffer, drawbuffer, value);
 }
 
@@ -6719,22 +6679,22 @@ void TraceGLApi::glClearColorFn(GLclampf red,
                                 GLclampf green,
                                 GLclampf blue,
                                 GLclampf alpha) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearColor");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearColor")
   gl_api_->glClearColorFn(red, green, blue, alpha);
 }
 
 void TraceGLApi::glClearDepthFn(GLclampd depth) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearDepth");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearDepth")
   gl_api_->glClearDepthFn(depth);
 }
 
 void TraceGLApi::glClearDepthfFn(GLclampf depth) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearDepthf");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearDepthf")
   gl_api_->glClearDepthfFn(depth);
 }
 
 void TraceGLApi::glClearStencilFn(GLint s) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearStencil");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearStencil")
   gl_api_->glClearStencilFn(s);
 }
 
@@ -6743,7 +6703,7 @@ void TraceGLApi::glClearTexImageFn(GLuint texture,
                                    GLenum format,
                                    GLenum type,
                                    const GLvoid* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearTexImage");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearTexImage")
   gl_api_->glClearTexImageFn(texture, level, format, type, data);
 }
 
@@ -6758,7 +6718,7 @@ void TraceGLApi::glClearTexSubImageFn(GLuint texture,
                                       GLenum format,
                                       GLenum type,
                                       const GLvoid* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearTexSubImage");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClearTexSubImage")
   gl_api_->glClearTexSubImageFn(texture, level, xoffset, yoffset, zoffset,
                                 width, height, depth, format, type, data);
 }
@@ -6766,14 +6726,14 @@ void TraceGLApi::glClearTexSubImageFn(GLuint texture,
 GLenum TraceGLApi::glClientWaitSyncFn(GLsync sync,
                                       GLbitfield flags,
                                       GLuint64 timeout) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClientWaitSync");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClientWaitSync")
   return gl_api_->glClientWaitSyncFn(sync, flags, timeout);
 }
 
 GLenum TraceGLApi::glClientWaitSyncAPPLEFn(GLsync sync,
                                            GLbitfield flags,
                                            GLuint64 timeout) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClientWaitSyncAPPLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glClientWaitSyncAPPLE")
   return gl_api_->glClientWaitSyncAPPLEFn(sync, flags, timeout);
 }
 
@@ -6781,7 +6741,7 @@ void TraceGLApi::glColorMaskFn(GLboolean red,
                                GLboolean green,
                                GLboolean blue,
                                GLboolean alpha) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glColorMask");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glColorMask")
   gl_api_->glColorMaskFn(red, green, blue, alpha);
 }
 
@@ -6790,12 +6750,12 @@ void TraceGLApi::glColorMaskiOESFn(GLuint buf,
                                    GLboolean green,
                                    GLboolean blue,
                                    GLboolean alpha) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glColorMaskiOES");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glColorMaskiOES")
   gl_api_->glColorMaskiOESFn(buf, red, green, blue, alpha);
 }
 
 void TraceGLApi::glCompileShaderFn(GLuint shader) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCompileShader");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCompileShader")
   gl_api_->glCompileShaderFn(shader);
 }
 
@@ -6807,7 +6767,7 @@ void TraceGLApi::glCompressedTexImage2DFn(GLenum target,
                                           GLint border,
                                           GLsizei imageSize,
                                           const void* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCompressedTexImage2D");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCompressedTexImage2D")
   gl_api_->glCompressedTexImage2DFn(target, level, internalformat, width,
                                     height, border, imageSize, data);
 }
@@ -6821,8 +6781,8 @@ void TraceGLApi::glCompressedTexImage2DRobustANGLEFn(GLenum target,
                                                      GLsizei imageSize,
                                                      GLsizei dataSize,
                                                      const void* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glCompressedTexImage2DRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
+                                "TraceGLAPI::glCompressedTexImage2DRobustANGLE")
   gl_api_->glCompressedTexImage2DRobustANGLEFn(target, level, internalformat,
                                                width, height, border, imageSize,
                                                dataSize, data);
@@ -6837,7 +6797,7 @@ void TraceGLApi::glCompressedTexImage3DFn(GLenum target,
                                           GLint border,
                                           GLsizei imageSize,
                                           const void* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCompressedTexImage3D");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCompressedTexImage3D")
   gl_api_->glCompressedTexImage3DFn(target, level, internalformat, width,
                                     height, depth, border, imageSize, data);
 }
@@ -6852,8 +6812,8 @@ void TraceGLApi::glCompressedTexImage3DRobustANGLEFn(GLenum target,
                                                      GLsizei imageSize,
                                                      GLsizei dataSize,
                                                      const void* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glCompressedTexImage3DRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
+                                "TraceGLAPI::glCompressedTexImage3DRobustANGLE")
   gl_api_->glCompressedTexImage3DRobustANGLEFn(target, level, internalformat,
                                                width, height, depth, border,
                                                imageSize, dataSize, data);
@@ -6868,7 +6828,7 @@ void TraceGLApi::glCompressedTexSubImage2DFn(GLenum target,
                                              GLenum format,
                                              GLsizei imageSize,
                                              const void* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCompressedTexSubImage2D");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCompressedTexSubImage2D")
   gl_api_->glCompressedTexSubImage2DFn(target, level, xoffset, yoffset, width,
                                        height, format, imageSize, data);
 }
@@ -6884,7 +6844,7 @@ void TraceGLApi::glCompressedTexSubImage2DRobustANGLEFn(GLenum target,
                                                         GLsizei dataSize,
                                                         const void* data) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glCompressedTexSubImage2DRobustANGLE");
+      "gpu", "TraceGLAPI::glCompressedTexSubImage2DRobustANGLE")
   gl_api_->glCompressedTexSubImage2DRobustANGLEFn(
       target, level, xoffset, yoffset, width, height, format, imageSize,
       dataSize, data);
@@ -6901,7 +6861,7 @@ void TraceGLApi::glCompressedTexSubImage3DFn(GLenum target,
                                              GLenum format,
                                              GLsizei imageSize,
                                              const void* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCompressedTexSubImage3D");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCompressedTexSubImage3D")
   gl_api_->glCompressedTexSubImage3DFn(target, level, xoffset, yoffset, zoffset,
                                        width, height, depth, format, imageSize,
                                        data);
@@ -6920,7 +6880,7 @@ void TraceGLApi::glCompressedTexSubImage3DRobustANGLEFn(GLenum target,
                                                         GLsizei dataSize,
                                                         const void* data) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glCompressedTexSubImage3DRobustANGLE");
+      "gpu", "TraceGLAPI::glCompressedTexSubImage3DRobustANGLE")
   gl_api_->glCompressedTexSubImage3DRobustANGLEFn(
       target, level, xoffset, yoffset, zoffset, width, height, depth, format,
       imageSize, dataSize, data);
@@ -6931,7 +6891,7 @@ void TraceGLApi::glCopyBufferSubDataFn(GLenum readTarget,
                                        GLintptr readOffset,
                                        GLintptr writeOffset,
                                        GLsizeiptr size) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCopyBufferSubData");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCopyBufferSubData")
   gl_api_->glCopyBufferSubDataFn(readTarget, writeTarget, readOffset,
                                  writeOffset, size);
 }
@@ -6950,7 +6910,7 @@ void TraceGLApi::glCopySubTextureCHROMIUMFn(GLuint sourceId,
                                             GLboolean unpackFlipY,
                                             GLboolean unpackPremultiplyAlpha,
                                             GLboolean unpackUnmultiplyAlpha) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCopySubTextureCHROMIUM");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCopySubTextureCHROMIUM")
   gl_api_->glCopySubTextureCHROMIUMFn(
       sourceId, sourceLevel, destTarget, destId, destLevel, xoffset, yoffset, x,
       y, width, height, unpackFlipY, unpackPremultiplyAlpha,
@@ -6965,7 +6925,7 @@ void TraceGLApi::glCopyTexImage2DFn(GLenum target,
                                     GLsizei width,
                                     GLsizei height,
                                     GLint border) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCopyTexImage2D");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCopyTexImage2D")
   gl_api_->glCopyTexImage2DFn(target, level, internalformat, x, y, width,
                               height, border);
 }
@@ -6978,7 +6938,7 @@ void TraceGLApi::glCopyTexSubImage2DFn(GLenum target,
                                        GLint y,
                                        GLsizei width,
                                        GLsizei height) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCopyTexSubImage2D");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCopyTexSubImage2D")
   gl_api_->glCopyTexSubImage2DFn(target, level, xoffset, yoffset, x, y, width,
                                  height);
 }
@@ -6992,7 +6952,7 @@ void TraceGLApi::glCopyTexSubImage3DFn(GLenum target,
                                        GLint y,
                                        GLsizei width,
                                        GLsizei height) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCopyTexSubImage3D");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCopyTexSubImage3D")
   gl_api_->glCopyTexSubImage3DFn(target, level, xoffset, yoffset, zoffset, x, y,
                                  width, height);
 }
@@ -7007,14 +6967,14 @@ void TraceGLApi::glCopyTextureCHROMIUMFn(GLuint sourceId,
                                          GLboolean unpackFlipY,
                                          GLboolean unpackPremultiplyAlpha,
                                          GLboolean unpackUnmultiplyAlpha) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCopyTextureCHROMIUM");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCopyTextureCHROMIUM")
   gl_api_->glCopyTextureCHROMIUMFn(
       sourceId, sourceLevel, destTarget, destId, destLevel, internalFormat,
       destType, unpackFlipY, unpackPremultiplyAlpha, unpackUnmultiplyAlpha);
 }
 
 void TraceGLApi::glCoverageModulationNVFn(GLenum components) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCoverageModulationNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCoverageModulationNV")
   gl_api_->glCoverageModulationNVFn(components);
 }
 
@@ -7025,15 +6985,14 @@ void TraceGLApi::glCoverFillPathInstancedNVFn(GLsizei numPaths,
                                               GLenum coverMode,
                                               GLenum transformType,
                                               const GLfloat* transformValues) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glCoverFillPathInstancedNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCoverFillPathInstancedNV")
   gl_api_->glCoverFillPathInstancedNVFn(numPaths, pathNameType, paths, pathBase,
                                         coverMode, transformType,
                                         transformValues);
 }
 
 void TraceGLApi::glCoverFillPathNVFn(GLuint path, GLenum coverMode) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCoverFillPathNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCoverFillPathNV")
   gl_api_->glCoverFillPathNVFn(path, coverMode);
 }
 
@@ -7046,47 +7005,47 @@ void TraceGLApi::glCoverStrokePathInstancedNVFn(
     GLenum transformType,
     const GLfloat* transformValues) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glCoverStrokePathInstancedNV");
+                                "TraceGLAPI::glCoverStrokePathInstancedNV")
   gl_api_->glCoverStrokePathInstancedNVFn(numPaths, pathNameType, paths,
                                           pathBase, coverMode, transformType,
                                           transformValues);
 }
 
 void TraceGLApi::glCoverStrokePathNVFn(GLuint name, GLenum coverMode) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCoverStrokePathNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCoverStrokePathNV")
   gl_api_->glCoverStrokePathNVFn(name, coverMode);
 }
 
 void TraceGLApi::glCreateMemoryObjectsEXTFn(GLsizei n, GLuint* memoryObjects) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCreateMemoryObjectsEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCreateMemoryObjectsEXT")
   gl_api_->glCreateMemoryObjectsEXTFn(n, memoryObjects);
 }
 
 GLuint TraceGLApi::glCreateProgramFn(void) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCreateProgram");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCreateProgram")
   return gl_api_->glCreateProgramFn();
 }
 
 GLuint TraceGLApi::glCreateShaderFn(GLenum type) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCreateShader");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCreateShader")
   return gl_api_->glCreateShaderFn(type);
 }
 
 GLuint TraceGLApi::glCreateShaderProgramvFn(GLenum type,
                                             GLsizei count,
                                             const char* const* strings) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCreateShaderProgramv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCreateShaderProgramv")
   return gl_api_->glCreateShaderProgramvFn(type, count, strings);
 }
 
 void TraceGLApi::glCullFaceFn(GLenum mode) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCullFace");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glCullFace")
   gl_api_->glCullFaceFn(mode);
 }
 
 void TraceGLApi::glDebugMessageCallbackFn(GLDEBUGPROC callback,
                                           const void* userParam) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDebugMessageCallback");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDebugMessageCallback")
   gl_api_->glDebugMessageCallbackFn(callback, userParam);
 }
 
@@ -7096,7 +7055,7 @@ void TraceGLApi::glDebugMessageControlFn(GLenum source,
                                          GLsizei count,
                                          const GLuint* ids,
                                          GLboolean enabled) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDebugMessageControl");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDebugMessageControl")
   gl_api_->glDebugMessageControlFn(source, type, severity, count, ids, enabled);
 }
 
@@ -7106,177 +7065,175 @@ void TraceGLApi::glDebugMessageInsertFn(GLenum source,
                                         GLenum severity,
                                         GLsizei length,
                                         const char* buf) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDebugMessageInsert");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDebugMessageInsert")
   gl_api_->glDebugMessageInsertFn(source, type, id, severity, length, buf);
 }
 
 void TraceGLApi::glDeleteBuffersARBFn(GLsizei n, const GLuint* buffers) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteBuffersARB");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteBuffersARB")
   gl_api_->glDeleteBuffersARBFn(n, buffers);
 }
 
 void TraceGLApi::glDeleteFencesAPPLEFn(GLsizei n, const GLuint* fences) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteFencesAPPLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteFencesAPPLE")
   gl_api_->glDeleteFencesAPPLEFn(n, fences);
 }
 
 void TraceGLApi::glDeleteFencesNVFn(GLsizei n, const GLuint* fences) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteFencesNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteFencesNV")
   gl_api_->glDeleteFencesNVFn(n, fences);
 }
 
 void TraceGLApi::glDeleteFramebuffersEXTFn(GLsizei n,
                                            const GLuint* framebuffers) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteFramebuffersEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteFramebuffersEXT")
   gl_api_->glDeleteFramebuffersEXTFn(n, framebuffers);
 }
 
 void TraceGLApi::glDeleteMemoryObjectsEXTFn(GLsizei n,
                                             const GLuint* memoryObjects) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteMemoryObjectsEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteMemoryObjectsEXT")
   gl_api_->glDeleteMemoryObjectsEXTFn(n, memoryObjects);
 }
 
 void TraceGLApi::glDeletePathsNVFn(GLuint path, GLsizei range) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeletePathsNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeletePathsNV")
   gl_api_->glDeletePathsNVFn(path, range);
 }
 
 void TraceGLApi::glDeleteProgramFn(GLuint program) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteProgram");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteProgram")
   gl_api_->glDeleteProgramFn(program);
 }
 
 void TraceGLApi::glDeleteProgramPipelinesFn(GLsizei n,
                                             const GLuint* pipelines) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteProgramPipelines");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteProgramPipelines")
   gl_api_->glDeleteProgramPipelinesFn(n, pipelines);
 }
 
 void TraceGLApi::glDeleteQueriesFn(GLsizei n, const GLuint* ids) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteQueries");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteQueries")
   gl_api_->glDeleteQueriesFn(n, ids);
 }
 
 void TraceGLApi::glDeleteRenderbuffersEXTFn(GLsizei n,
                                             const GLuint* renderbuffers) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteRenderbuffersEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteRenderbuffersEXT")
   gl_api_->glDeleteRenderbuffersEXTFn(n, renderbuffers);
 }
 
 void TraceGLApi::glDeleteSamplersFn(GLsizei n, const GLuint* samplers) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteSamplers");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteSamplers")
   gl_api_->glDeleteSamplersFn(n, samplers);
 }
 
 void TraceGLApi::glDeleteSemaphoresEXTFn(GLsizei n, const GLuint* semaphores) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteSemaphoresEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteSemaphoresEXT")
   gl_api_->glDeleteSemaphoresEXTFn(n, semaphores);
 }
 
 void TraceGLApi::glDeleteShaderFn(GLuint shader) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteShader");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteShader")
   gl_api_->glDeleteShaderFn(shader);
 }
 
 void TraceGLApi::glDeleteSyncFn(GLsync sync) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteSync");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteSync")
   gl_api_->glDeleteSyncFn(sync);
 }
 
 void TraceGLApi::glDeleteSyncAPPLEFn(GLsync sync) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteSyncAPPLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteSyncAPPLE")
   gl_api_->glDeleteSyncAPPLEFn(sync);
 }
 
 void TraceGLApi::glDeleteTexturesFn(GLsizei n, const GLuint* textures) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteTextures");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteTextures")
   gl_api_->glDeleteTexturesFn(n, textures);
 }
 
 void TraceGLApi::glDeleteTransformFeedbacksFn(GLsizei n, const GLuint* ids) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glDeleteTransformFeedbacks");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteTransformFeedbacks")
   gl_api_->glDeleteTransformFeedbacksFn(n, ids);
 }
 
 void TraceGLApi::glDeleteVertexArraysOESFn(GLsizei n, const GLuint* arrays) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteVertexArraysOES");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDeleteVertexArraysOES")
   gl_api_->glDeleteVertexArraysOESFn(n, arrays);
 }
 
 void TraceGLApi::glDepthFuncFn(GLenum func) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDepthFunc");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDepthFunc")
   gl_api_->glDepthFuncFn(func);
 }
 
 void TraceGLApi::glDepthMaskFn(GLboolean flag) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDepthMask");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDepthMask")
   gl_api_->glDepthMaskFn(flag);
 }
 
 void TraceGLApi::glDepthRangeFn(GLclampd zNear, GLclampd zFar) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDepthRange");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDepthRange")
   gl_api_->glDepthRangeFn(zNear, zFar);
 }
 
 void TraceGLApi::glDepthRangefFn(GLclampf zNear, GLclampf zFar) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDepthRangef");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDepthRangef")
   gl_api_->glDepthRangefFn(zNear, zFar);
 }
 
 void TraceGLApi::glDetachShaderFn(GLuint program, GLuint shader) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDetachShader");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDetachShader")
   gl_api_->glDetachShaderFn(program, shader);
 }
 
 void TraceGLApi::glDisableFn(GLenum cap) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDisable");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDisable")
   gl_api_->glDisableFn(cap);
 }
 
 void TraceGLApi::glDisableExtensionANGLEFn(const char* name) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDisableExtensionANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDisableExtensionANGLE")
   gl_api_->glDisableExtensionANGLEFn(name);
 }
 
 void TraceGLApi::glDisableiOESFn(GLenum target, GLuint index) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDisableiOES");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDisableiOES")
   gl_api_->glDisableiOESFn(target, index);
 }
 
 void TraceGLApi::glDisableVertexAttribArrayFn(GLuint index) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glDisableVertexAttribArray");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDisableVertexAttribArray")
   gl_api_->glDisableVertexAttribArrayFn(index);
 }
 
 void TraceGLApi::glDiscardFramebufferEXTFn(GLenum target,
                                            GLsizei numAttachments,
                                            const GLenum* attachments) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDiscardFramebufferEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDiscardFramebufferEXT")
   gl_api_->glDiscardFramebufferEXTFn(target, numAttachments, attachments);
 }
 
 void TraceGLApi::glDispatchComputeFn(GLuint numGroupsX,
                                      GLuint numGroupsY,
                                      GLuint numGroupsZ) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDispatchCompute");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDispatchCompute")
   gl_api_->glDispatchComputeFn(numGroupsX, numGroupsY, numGroupsZ);
 }
 
 void TraceGLApi::glDispatchComputeIndirectFn(GLintptr indirect) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDispatchComputeIndirect");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDispatchComputeIndirect")
   gl_api_->glDispatchComputeIndirectFn(indirect);
 }
 
 void TraceGLApi::glDrawArraysFn(GLenum mode, GLint first, GLsizei count) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDrawArrays");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDrawArrays")
   gl_api_->glDrawArraysFn(mode, first, count);
 }
 
 void TraceGLApi::glDrawArraysIndirectFn(GLenum mode, const void* indirect) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDrawArraysIndirect");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDrawArraysIndirect")
   gl_api_->glDrawArraysIndirectFn(mode, indirect);
 }
 
@@ -7284,8 +7241,7 @@ void TraceGLApi::glDrawArraysInstancedANGLEFn(GLenum mode,
                                               GLint first,
                                               GLsizei count,
                                               GLsizei primcount) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glDrawArraysInstancedANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDrawArraysInstancedANGLE")
   gl_api_->glDrawArraysInstancedANGLEFn(mode, first, count, primcount);
 }
 
@@ -7295,18 +7251,18 @@ void TraceGLApi::glDrawArraysInstancedBaseInstanceANGLEFn(GLenum mode,
                                                           GLsizei primcount,
                                                           GLuint baseinstance) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glDrawArraysInstancedBaseInstanceANGLE");
+      "gpu", "TraceGLAPI::glDrawArraysInstancedBaseInstanceANGLE")
   gl_api_->glDrawArraysInstancedBaseInstanceANGLEFn(mode, first, count,
                                                     primcount, baseinstance);
 }
 
 void TraceGLApi::glDrawBufferFn(GLenum mode) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDrawBuffer");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDrawBuffer")
   gl_api_->glDrawBufferFn(mode);
 }
 
 void TraceGLApi::glDrawBuffersARBFn(GLsizei n, const GLenum* bufs) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDrawBuffersARB");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDrawBuffersARB")
   gl_api_->glDrawBuffersARBFn(n, bufs);
 }
 
@@ -7314,14 +7270,14 @@ void TraceGLApi::glDrawElementsFn(GLenum mode,
                                   GLsizei count,
                                   GLenum type,
                                   const void* indices) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDrawElements");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDrawElements")
   gl_api_->glDrawElementsFn(mode, count, type, indices);
 }
 
 void TraceGLApi::glDrawElementsIndirectFn(GLenum mode,
                                           GLenum type,
                                           const void* indirect) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDrawElementsIndirect");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDrawElementsIndirect")
   gl_api_->glDrawElementsIndirectFn(mode, type, indirect);
 }
 
@@ -7331,7 +7287,7 @@ void TraceGLApi::glDrawElementsInstancedANGLEFn(GLenum mode,
                                                 const void* indices,
                                                 GLsizei primcount) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glDrawElementsInstancedANGLE");
+                                "TraceGLAPI::glDrawElementsInstancedANGLE")
   gl_api_->glDrawElementsInstancedANGLEFn(mode, count, type, indices,
                                           primcount);
 }
@@ -7345,7 +7301,7 @@ void TraceGLApi::glDrawElementsInstancedBaseVertexBaseInstanceANGLEFn(
     GLint baseVertex,
     GLuint baseInstance) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glDrawElementsInstancedBaseVertexBaseInstanceANGLE");
+      "gpu", "TraceGLAPI::glDrawElementsInstancedBaseVertexBaseInstanceANGLE")
   gl_api_->glDrawElementsInstancedBaseVertexBaseInstanceANGLEFn(
       mode, count, type, indices, primcount, baseVertex, baseInstance);
 }
@@ -7356,95 +7312,95 @@ void TraceGLApi::glDrawRangeElementsFn(GLenum mode,
                                        GLsizei count,
                                        GLenum type,
                                        const void* indices) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDrawRangeElements");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glDrawRangeElements")
   gl_api_->glDrawRangeElementsFn(mode, start, end, count, type, indices);
 }
 
 void TraceGLApi::glEGLImageTargetRenderbufferStorageOESFn(GLenum target,
                                                           GLeglImageOES image) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glEGLImageTargetRenderbufferStorageOES");
+      "gpu", "TraceGLAPI::glEGLImageTargetRenderbufferStorageOES")
   gl_api_->glEGLImageTargetRenderbufferStorageOESFn(target, image);
 }
 
 void TraceGLApi::glEGLImageTargetTexture2DOESFn(GLenum target,
                                                 GLeglImageOES image) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glEGLImageTargetTexture2DOES");
+                                "TraceGLAPI::glEGLImageTargetTexture2DOES")
   gl_api_->glEGLImageTargetTexture2DOESFn(target, image);
 }
 
 void TraceGLApi::glEnableFn(GLenum cap) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glEnable");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glEnable")
   gl_api_->glEnableFn(cap);
 }
 
 void TraceGLApi::glEnableiOESFn(GLenum target, GLuint index) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glEnableiOES");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glEnableiOES")
   gl_api_->glEnableiOESFn(target, index);
 }
 
 void TraceGLApi::glEnableVertexAttribArrayFn(GLuint index) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glEnableVertexAttribArray");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glEnableVertexAttribArray")
   gl_api_->glEnableVertexAttribArrayFn(index);
 }
 
 void TraceGLApi::glEndQueryFn(GLenum target) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glEndQuery");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glEndQuery")
   gl_api_->glEndQueryFn(target);
 }
 
 void TraceGLApi::glEndTilingQCOMFn(GLbitfield preserveMask) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glEndTilingQCOM");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glEndTilingQCOM")
   gl_api_->glEndTilingQCOMFn(preserveMask);
 }
 
 void TraceGLApi::glEndTransformFeedbackFn(void) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glEndTransformFeedback");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glEndTransformFeedback")
   gl_api_->glEndTransformFeedbackFn();
 }
 
 GLsync TraceGLApi::glFenceSyncFn(GLenum condition, GLbitfield flags) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFenceSync");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFenceSync")
   return gl_api_->glFenceSyncFn(condition, flags);
 }
 
 GLsync TraceGLApi::glFenceSyncAPPLEFn(GLenum condition, GLbitfield flags) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFenceSyncAPPLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFenceSyncAPPLE")
   return gl_api_->glFenceSyncAPPLEFn(condition, flags);
 }
 
 void TraceGLApi::glFinishFn(void) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFinish");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFinish")
   gl_api_->glFinishFn();
 }
 
 void TraceGLApi::glFinishFenceAPPLEFn(GLuint fence) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFinishFenceAPPLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFinishFenceAPPLE")
   gl_api_->glFinishFenceAPPLEFn(fence);
 }
 
 void TraceGLApi::glFinishFenceNVFn(GLuint fence) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFinishFenceNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFinishFenceNV")
   gl_api_->glFinishFenceNVFn(fence);
 }
 
 void TraceGLApi::glFlushFn(void) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFlush");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFlush")
   gl_api_->glFlushFn();
 }
 
 void TraceGLApi::glFlushMappedBufferRangeFn(GLenum target,
                                             GLintptr offset,
                                             GLsizeiptr length) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFlushMappedBufferRange");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFlushMappedBufferRange")
   gl_api_->glFlushMappedBufferRangeFn(target, offset, length);
 }
 
 void TraceGLApi::glFramebufferParameteriFn(GLenum target,
                                            GLenum pname,
                                            GLint param) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFramebufferParameteri");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFramebufferParameteri")
   gl_api_->glFramebufferParameteriFn(target, pname, param);
 }
 
@@ -7453,7 +7409,7 @@ void TraceGLApi::glFramebufferRenderbufferEXTFn(GLenum target,
                                                 GLenum renderbuffertarget,
                                                 GLuint renderbuffer) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glFramebufferRenderbufferEXT");
+                                "TraceGLAPI::glFramebufferRenderbufferEXT")
   gl_api_->glFramebufferRenderbufferEXTFn(target, attachment,
                                           renderbuffertarget, renderbuffer);
 }
@@ -7463,7 +7419,7 @@ void TraceGLApi::glFramebufferTexture2DEXTFn(GLenum target,
                                              GLenum textarget,
                                              GLuint texture,
                                              GLint level) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFramebufferTexture2DEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFramebufferTexture2DEXT")
   gl_api_->glFramebufferTexture2DEXTFn(target, attachment, textarget, texture,
                                        level);
 }
@@ -7475,7 +7431,7 @@ void TraceGLApi::glFramebufferTexture2DMultisampleEXTFn(GLenum target,
                                                         GLint level,
                                                         GLsizei samples) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glFramebufferTexture2DMultisampleEXT");
+      "gpu", "TraceGLAPI::glFramebufferTexture2DMultisampleEXT")
   gl_api_->glFramebufferTexture2DMultisampleEXTFn(target, attachment, textarget,
                                                   texture, level, samples);
 }
@@ -7485,7 +7441,7 @@ void TraceGLApi::glFramebufferTextureLayerFn(GLenum target,
                                              GLuint texture,
                                              GLint level,
                                              GLint layer) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFramebufferTextureLayer");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFramebufferTextureLayer")
   gl_api_->glFramebufferTextureLayerFn(target, attachment, texture, level,
                                        layer);
 }
@@ -7497,83 +7453,83 @@ void TraceGLApi::glFramebufferTextureMultiviewOVRFn(GLenum target,
                                                     GLint baseViewIndex,
                                                     GLsizei numViews) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glFramebufferTextureMultiviewOVR");
+                                "TraceGLAPI::glFramebufferTextureMultiviewOVR")
   gl_api_->glFramebufferTextureMultiviewOVRFn(target, attachment, texture,
                                               level, baseViewIndex, numViews);
 }
 
 void TraceGLApi::glFrontFaceFn(GLenum mode) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFrontFace");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glFrontFace")
   gl_api_->glFrontFaceFn(mode);
 }
 
 void TraceGLApi::glGenBuffersARBFn(GLsizei n, GLuint* buffers) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenBuffersARB");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenBuffersARB")
   gl_api_->glGenBuffersARBFn(n, buffers);
 }
 
 void TraceGLApi::glGenerateMipmapEXTFn(GLenum target) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenerateMipmapEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenerateMipmapEXT")
   gl_api_->glGenerateMipmapEXTFn(target);
 }
 
 void TraceGLApi::glGenFencesAPPLEFn(GLsizei n, GLuint* fences) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenFencesAPPLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenFencesAPPLE")
   gl_api_->glGenFencesAPPLEFn(n, fences);
 }
 
 void TraceGLApi::glGenFencesNVFn(GLsizei n, GLuint* fences) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenFencesNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenFencesNV")
   gl_api_->glGenFencesNVFn(n, fences);
 }
 
 void TraceGLApi::glGenFramebuffersEXTFn(GLsizei n, GLuint* framebuffers) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenFramebuffersEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenFramebuffersEXT")
   gl_api_->glGenFramebuffersEXTFn(n, framebuffers);
 }
 
 GLuint TraceGLApi::glGenPathsNVFn(GLsizei range) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenPathsNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenPathsNV")
   return gl_api_->glGenPathsNVFn(range);
 }
 
 GLuint TraceGLApi::glGenProgramPipelinesFn(GLsizei n, GLuint* pipelines) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenProgramPipelines");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenProgramPipelines")
   return gl_api_->glGenProgramPipelinesFn(n, pipelines);
 }
 
 void TraceGLApi::glGenQueriesFn(GLsizei n, GLuint* ids) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenQueries");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenQueries")
   gl_api_->glGenQueriesFn(n, ids);
 }
 
 void TraceGLApi::glGenRenderbuffersEXTFn(GLsizei n, GLuint* renderbuffers) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenRenderbuffersEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenRenderbuffersEXT")
   gl_api_->glGenRenderbuffersEXTFn(n, renderbuffers);
 }
 
 void TraceGLApi::glGenSamplersFn(GLsizei n, GLuint* samplers) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenSamplers");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenSamplers")
   gl_api_->glGenSamplersFn(n, samplers);
 }
 
 void TraceGLApi::glGenSemaphoresEXTFn(GLsizei n, GLuint* semaphores) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenSemaphoresEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenSemaphoresEXT")
   gl_api_->glGenSemaphoresEXTFn(n, semaphores);
 }
 
 void TraceGLApi::glGenTexturesFn(GLsizei n, GLuint* textures) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenTextures");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenTextures")
   gl_api_->glGenTexturesFn(n, textures);
 }
 
 void TraceGLApi::glGenTransformFeedbacksFn(GLsizei n, GLuint* ids) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenTransformFeedbacks");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenTransformFeedbacks")
   gl_api_->glGenTransformFeedbacksFn(n, ids);
 }
 
 void TraceGLApi::glGenVertexArraysOESFn(GLsizei n, GLuint* arrays) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenVertexArraysOES");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGenVertexArraysOES")
   gl_api_->glGenVertexArraysOESFn(n, arrays);
 }
 
@@ -7584,7 +7540,7 @@ void TraceGLApi::glGetActiveAttribFn(GLuint program,
                                      GLint* size,
                                      GLenum* type,
                                      char* name) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetActiveAttrib");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetActiveAttrib")
   gl_api_->glGetActiveAttribFn(program, index, bufsize, length, size, type,
                                name);
 }
@@ -7596,7 +7552,7 @@ void TraceGLApi::glGetActiveUniformFn(GLuint program,
                                       GLint* size,
                                       GLenum* type,
                                       char* name) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetActiveUniform");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetActiveUniform")
   gl_api_->glGetActiveUniformFn(program, index, bufsize, length, size, type,
                                 name);
 }
@@ -7605,7 +7561,7 @@ void TraceGLApi::glGetActiveUniformBlockivFn(GLuint program,
                                              GLuint uniformBlockIndex,
                                              GLenum pname,
                                              GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetActiveUniformBlockiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetActiveUniformBlockiv")
   gl_api_->glGetActiveUniformBlockivFn(program, uniformBlockIndex, pname,
                                        params);
 }
@@ -7618,7 +7574,7 @@ void TraceGLApi::glGetActiveUniformBlockivRobustANGLEFn(
     GLsizei* length,
     GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetActiveUniformBlockivRobustANGLE");
+      "gpu", "TraceGLAPI::glGetActiveUniformBlockivRobustANGLE")
   gl_api_->glGetActiveUniformBlockivRobustANGLEFn(
       program, uniformBlockIndex, pname, bufSize, length, params);
 }
@@ -7629,7 +7585,7 @@ void TraceGLApi::glGetActiveUniformBlockNameFn(GLuint program,
                                                GLsizei* length,
                                                char* uniformBlockName) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetActiveUniformBlockName");
+                                "TraceGLAPI::glGetActiveUniformBlockName")
   gl_api_->glGetActiveUniformBlockNameFn(program, uniformBlockIndex, bufSize,
                                          length, uniformBlockName);
 }
@@ -7639,7 +7595,7 @@ void TraceGLApi::glGetActiveUniformsivFn(GLuint program,
                                          const GLuint* uniformIndices,
                                          GLenum pname,
                                          GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetActiveUniformsiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetActiveUniformsiv")
   gl_api_->glGetActiveUniformsivFn(program, uniformCount, uniformIndices, pname,
                                    params);
 }
@@ -7648,19 +7604,19 @@ void TraceGLApi::glGetAttachedShadersFn(GLuint program,
                                         GLsizei maxcount,
                                         GLsizei* count,
                                         GLuint* shaders) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetAttachedShaders");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetAttachedShaders")
   gl_api_->glGetAttachedShadersFn(program, maxcount, count, shaders);
 }
 
 GLint TraceGLApi::glGetAttribLocationFn(GLuint program, const char* name) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetAttribLocation");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetAttribLocation")
   return gl_api_->glGetAttribLocationFn(program, name);
 }
 
 void TraceGLApi::glGetBooleani_vFn(GLenum target,
                                    GLuint index,
                                    GLboolean* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetBooleani_v");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetBooleani_v")
   gl_api_->glGetBooleani_vFn(target, index, data);
 }
 
@@ -7669,13 +7625,12 @@ void TraceGLApi::glGetBooleani_vRobustANGLEFn(GLenum target,
                                               GLsizei bufSize,
                                               GLsizei* length,
                                               GLboolean* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetBooleani_vRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetBooleani_vRobustANGLE")
   gl_api_->glGetBooleani_vRobustANGLEFn(target, index, bufSize, length, data);
 }
 
 void TraceGLApi::glGetBooleanvFn(GLenum pname, GLboolean* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetBooleanv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetBooleanv")
   gl_api_->glGetBooleanvFn(pname, params);
 }
 
@@ -7683,7 +7638,7 @@ void TraceGLApi::glGetBooleanvRobustANGLEFn(GLenum pname,
                                             GLsizei bufSize,
                                             GLsizei* length,
                                             GLboolean* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetBooleanvRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetBooleanvRobustANGLE")
   gl_api_->glGetBooleanvRobustANGLEFn(pname, bufSize, length, data);
 }
 
@@ -7693,7 +7648,7 @@ void TraceGLApi::glGetBufferParameteri64vRobustANGLEFn(GLenum target,
                                                        GLsizei* length,
                                                        GLint64* params) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetBufferParameteri64vRobustANGLE");
+      "gpu", "TraceGLAPI::glGetBufferParameteri64vRobustANGLE")
   gl_api_->glGetBufferParameteri64vRobustANGLEFn(target, pname, bufSize, length,
                                                  params);
 }
@@ -7701,7 +7656,7 @@ void TraceGLApi::glGetBufferParameteri64vRobustANGLEFn(GLenum target,
 void TraceGLApi::glGetBufferParameterivFn(GLenum target,
                                           GLenum pname,
                                           GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetBufferParameteriv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetBufferParameteriv")
   gl_api_->glGetBufferParameterivFn(target, pname, params);
 }
 
@@ -7710,8 +7665,8 @@ void TraceGLApi::glGetBufferParameterivRobustANGLEFn(GLenum target,
                                                      GLsizei bufSize,
                                                      GLsizei* length,
                                                      GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetBufferParameterivRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
+                                "TraceGLAPI::glGetBufferParameterivRobustANGLE")
   gl_api_->glGetBufferParameterivRobustANGLEFn(target, pname, bufSize, length,
                                                params);
 }
@@ -7722,7 +7677,7 @@ void TraceGLApi::glGetBufferPointervRobustANGLEFn(GLenum target,
                                                   GLsizei* length,
                                                   void** params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetBufferPointervRobustANGLE");
+                                "TraceGLAPI::glGetBufferPointervRobustANGLE")
   gl_api_->glGetBufferPointervRobustANGLEFn(target, pname, bufSize, length,
                                             params);
 }
@@ -7735,23 +7690,23 @@ GLuint TraceGLApi::glGetDebugMessageLogFn(GLuint count,
                                           GLenum* severities,
                                           GLsizei* lengths,
                                           char* messageLog) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetDebugMessageLog");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetDebugMessageLog")
   return gl_api_->glGetDebugMessageLogFn(count, bufSize, sources, types, ids,
                                          severities, lengths, messageLog);
 }
 
 GLenum TraceGLApi::glGetErrorFn(void) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetError");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetError")
   return gl_api_->glGetErrorFn();
 }
 
 void TraceGLApi::glGetFenceivNVFn(GLuint fence, GLenum pname, GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetFenceivNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetFenceivNV")
   gl_api_->glGetFenceivNVFn(fence, pname, params);
 }
 
 void TraceGLApi::glGetFloatvFn(GLenum pname, GLfloat* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetFloatv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetFloatv")
   gl_api_->glGetFloatvFn(pname, params);
 }
 
@@ -7759,17 +7714,17 @@ void TraceGLApi::glGetFloatvRobustANGLEFn(GLenum pname,
                                           GLsizei bufSize,
                                           GLsizei* length,
                                           GLfloat* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetFloatvRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetFloatvRobustANGLE")
   gl_api_->glGetFloatvRobustANGLEFn(pname, bufSize, length, data);
 }
 
 GLint TraceGLApi::glGetFragDataIndexFn(GLuint program, const char* name) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetFragDataIndex");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetFragDataIndex")
   return gl_api_->glGetFragDataIndexFn(program, name);
 }
 
 GLint TraceGLApi::glGetFragDataLocationFn(GLuint program, const char* name) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetFragDataLocation");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetFragDataLocation")
   return gl_api_->glGetFragDataLocationFn(program, name);
 }
 
@@ -7778,7 +7733,7 @@ void TraceGLApi::glGetFramebufferAttachmentParameterivEXTFn(GLenum target,
                                                             GLenum pname,
                                                             GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetFramebufferAttachmentParameterivEXT");
+      "gpu", "TraceGLAPI::glGetFramebufferAttachmentParameterivEXT")
   gl_api_->glGetFramebufferAttachmentParameterivEXTFn(target, attachment, pname,
                                                       params);
 }
@@ -7791,7 +7746,7 @@ void TraceGLApi::glGetFramebufferAttachmentParameterivRobustANGLEFn(
     GLsizei* length,
     GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetFramebufferAttachmentParameterivRobustANGLE");
+      "gpu", "TraceGLAPI::glGetFramebufferAttachmentParameterivRobustANGLE")
   gl_api_->glGetFramebufferAttachmentParameterivRobustANGLEFn(
       target, attachment, pname, bufSize, length, params);
 }
@@ -7800,7 +7755,7 @@ void TraceGLApi::glGetFramebufferParameterivFn(GLenum target,
                                                GLenum pname,
                                                GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetFramebufferParameteriv");
+                                "TraceGLAPI::glGetFramebufferParameteriv")
   gl_api_->glGetFramebufferParameterivFn(target, pname, params);
 }
 
@@ -7810,21 +7765,21 @@ void TraceGLApi::glGetFramebufferParameterivRobustANGLEFn(GLenum target,
                                                           GLsizei* length,
                                                           GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetFramebufferParameterivRobustANGLE");
+      "gpu", "TraceGLAPI::glGetFramebufferParameterivRobustANGLE")
   gl_api_->glGetFramebufferParameterivRobustANGLEFn(target, pname, bufSize,
                                                     length, params);
 }
 
 GLenum TraceGLApi::glGetGraphicsResetStatusARBFn(void) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetGraphicsResetStatusARB");
+                                "TraceGLAPI::glGetGraphicsResetStatusARB")
   return gl_api_->glGetGraphicsResetStatusARBFn();
 }
 
 void TraceGLApi::glGetInteger64i_vFn(GLenum target,
                                      GLuint index,
                                      GLint64* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetInteger64i_v");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetInteger64i_v")
   gl_api_->glGetInteger64i_vFn(target, index, data);
 }
 
@@ -7834,12 +7789,12 @@ void TraceGLApi::glGetInteger64i_vRobustANGLEFn(GLenum target,
                                                 GLsizei* length,
                                                 GLint64* data) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetInteger64i_vRobustANGLE");
+                                "TraceGLAPI::glGetInteger64i_vRobustANGLE")
   gl_api_->glGetInteger64i_vRobustANGLEFn(target, index, bufSize, length, data);
 }
 
 void TraceGLApi::glGetInteger64vFn(GLenum pname, GLint64* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetInteger64v");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetInteger64v")
   gl_api_->glGetInteger64vFn(pname, params);
 }
 
@@ -7847,13 +7802,12 @@ void TraceGLApi::glGetInteger64vRobustANGLEFn(GLenum pname,
                                               GLsizei bufSize,
                                               GLsizei* length,
                                               GLint64* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetInteger64vRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetInteger64vRobustANGLE")
   gl_api_->glGetInteger64vRobustANGLEFn(pname, bufSize, length, data);
 }
 
 void TraceGLApi::glGetIntegeri_vFn(GLenum target, GLuint index, GLint* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetIntegeri_v");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetIntegeri_v")
   gl_api_->glGetIntegeri_vFn(target, index, data);
 }
 
@@ -7862,13 +7816,12 @@ void TraceGLApi::glGetIntegeri_vRobustANGLEFn(GLenum target,
                                               GLsizei bufSize,
                                               GLsizei* length,
                                               GLint* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetIntegeri_vRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetIntegeri_vRobustANGLE")
   gl_api_->glGetIntegeri_vRobustANGLEFn(target, index, bufSize, length, data);
 }
 
 void TraceGLApi::glGetIntegervFn(GLenum pname, GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetIntegerv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetIntegerv")
   gl_api_->glGetIntegervFn(pname, params);
 }
 
@@ -7876,7 +7829,7 @@ void TraceGLApi::glGetIntegervRobustANGLEFn(GLenum pname,
                                             GLsizei bufSize,
                                             GLsizei* length,
                                             GLint* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetIntegervRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetIntegervRobustANGLE")
   gl_api_->glGetIntegervRobustANGLEFn(pname, bufSize, length, data);
 }
 
@@ -7885,7 +7838,7 @@ void TraceGLApi::glGetInternalformativFn(GLenum target,
                                          GLenum pname,
                                          GLsizei bufSize,
                                          GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetInternalformativ");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetInternalformativ")
   gl_api_->glGetInternalformativFn(target, internalformat, pname, bufSize,
                                    params);
 }
@@ -7897,7 +7850,7 @@ void TraceGLApi::glGetInternalformativRobustANGLEFn(GLenum target,
                                                     GLsizei* length,
                                                     GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetInternalformativRobustANGLE");
+                                "TraceGLAPI::glGetInternalformativRobustANGLE")
   gl_api_->glGetInternalformativRobustANGLEFn(target, internalformat, pname,
                                               bufSize, length, params);
 }
@@ -7909,7 +7862,7 @@ void TraceGLApi::glGetInternalformatSampleivNVFn(GLenum target,
                                                  GLsizei bufSize,
                                                  GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetInternalformatSampleivNV");
+                                "TraceGLAPI::glGetInternalformatSampleivNV")
   gl_api_->glGetInternalformatSampleivNVFn(target, internalformat, samples,
                                            pname, bufSize, params);
 }
@@ -7917,7 +7870,7 @@ void TraceGLApi::glGetInternalformatSampleivNVFn(GLenum target,
 void TraceGLApi::glGetMultisamplefvFn(GLenum pname,
                                       GLuint index,
                                       GLfloat* val) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetMultisamplefv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetMultisamplefv")
   gl_api_->glGetMultisamplefvFn(pname, index, val);
 }
 
@@ -7927,7 +7880,7 @@ void TraceGLApi::glGetMultisamplefvRobustANGLEFn(GLenum pname,
                                                  GLsizei* length,
                                                  GLfloat* val) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetMultisamplefvRobustANGLE");
+                                "TraceGLAPI::glGetMultisamplefvRobustANGLE")
   gl_api_->glGetMultisamplefvRobustANGLEFn(pname, index, bufSize, length, val);
 }
 
@@ -7936,8 +7889,7 @@ void TraceGLApi::glGetnUniformfvRobustANGLEFn(GLuint program,
                                               GLsizei bufSize,
                                               GLsizei* length,
                                               GLfloat* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetnUniformfvRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetnUniformfvRobustANGLE")
   gl_api_->glGetnUniformfvRobustANGLEFn(program, location, bufSize, length,
                                         params);
 }
@@ -7947,8 +7899,7 @@ void TraceGLApi::glGetnUniformivRobustANGLEFn(GLuint program,
                                               GLsizei bufSize,
                                               GLsizei* length,
                                               GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetnUniformivRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetnUniformivRobustANGLE")
   gl_api_->glGetnUniformivRobustANGLEFn(program, location, bufSize, length,
                                         params);
 }
@@ -7959,7 +7910,7 @@ void TraceGLApi::glGetnUniformuivRobustANGLEFn(GLuint program,
                                                GLsizei* length,
                                                GLuint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetnUniformuivRobustANGLE");
+                                "TraceGLAPI::glGetnUniformuivRobustANGLE")
   gl_api_->glGetnUniformuivRobustANGLEFn(program, location, bufSize, length,
                                          params);
 }
@@ -7969,7 +7920,7 @@ void TraceGLApi::glGetObjectLabelFn(GLenum identifier,
                                     GLsizei bufSize,
                                     GLsizei* length,
                                     char* label) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetObjectLabel");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetObjectLabel")
   gl_api_->glGetObjectLabelFn(identifier, name, bufSize, length, label);
 }
 
@@ -7977,12 +7928,12 @@ void TraceGLApi::glGetObjectPtrLabelFn(void* ptr,
                                        GLsizei bufSize,
                                        GLsizei* length,
                                        char* label) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetObjectPtrLabel");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetObjectPtrLabel")
   gl_api_->glGetObjectPtrLabelFn(ptr, bufSize, length, label);
 }
 
 void TraceGLApi::glGetPointervFn(GLenum pname, void** params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetPointerv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetPointerv")
   gl_api_->glGetPointervFn(pname, params);
 }
 
@@ -7991,7 +7942,7 @@ void TraceGLApi::glGetPointervRobustANGLERobustANGLEFn(GLenum pname,
                                                        GLsizei* length,
                                                        void** params) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetPointervRobustANGLERobustANGLE");
+      "gpu", "TraceGLAPI::glGetPointervRobustANGLERobustANGLE")
   gl_api_->glGetPointervRobustANGLERobustANGLEFn(pname, bufSize, length,
                                                  params);
 }
@@ -8001,7 +7952,7 @@ void TraceGLApi::glGetProgramBinaryFn(GLuint program,
                                       GLsizei* length,
                                       GLenum* binaryFormat,
                                       GLvoid* binary) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramBinary");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramBinary")
   gl_api_->glGetProgramBinaryFn(program, bufSize, length, binaryFormat, binary);
 }
 
@@ -8009,7 +7960,7 @@ void TraceGLApi::glGetProgramInfoLogFn(GLuint program,
                                        GLsizei bufsize,
                                        GLsizei* length,
                                        char* infolog) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramInfoLog");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramInfoLog")
   gl_api_->glGetProgramInfoLogFn(program, bufsize, length, infolog);
 }
 
@@ -8017,7 +7968,7 @@ void TraceGLApi::glGetProgramInterfaceivFn(GLuint program,
                                            GLenum programInterface,
                                            GLenum pname,
                                            GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramInterfaceiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramInterfaceiv")
   gl_api_->glGetProgramInterfaceivFn(program, programInterface, pname, params);
 }
 
@@ -8028,13 +7979,13 @@ void TraceGLApi::glGetProgramInterfaceivRobustANGLEFn(GLuint program,
                                                       GLsizei* length,
                                                       GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetProgramInterfaceivRobustANGLE");
+      "gpu", "TraceGLAPI::glGetProgramInterfaceivRobustANGLE")
   gl_api_->glGetProgramInterfaceivRobustANGLEFn(program, programInterface,
                                                 pname, bufSize, length, params);
 }
 
 void TraceGLApi::glGetProgramivFn(GLuint program, GLenum pname, GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramiv")
   gl_api_->glGetProgramivFn(program, pname, params);
 }
 
@@ -8043,7 +7994,7 @@ void TraceGLApi::glGetProgramivRobustANGLEFn(GLuint program,
                                              GLsizei bufSize,
                                              GLsizei* length,
                                              GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramivRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramivRobustANGLE")
   gl_api_->glGetProgramivRobustANGLEFn(program, pname, bufSize, length, params);
 }
 
@@ -8052,21 +8003,21 @@ void TraceGLApi::glGetProgramPipelineInfoLogFn(GLuint pipeline,
                                                GLsizei* length,
                                                GLchar* infoLog) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetProgramPipelineInfoLog");
+                                "TraceGLAPI::glGetProgramPipelineInfoLog")
   gl_api_->glGetProgramPipelineInfoLogFn(pipeline, bufSize, length, infoLog);
 }
 
 void TraceGLApi::glGetProgramPipelineivFn(GLuint pipeline,
                                           GLenum pname,
                                           GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramPipelineiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramPipelineiv")
   gl_api_->glGetProgramPipelineivFn(pipeline, pname, params);
 }
 
 GLuint TraceGLApi::glGetProgramResourceIndexFn(GLuint program,
                                                GLenum programInterface,
                                                const GLchar* name) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramResourceIndex");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramResourceIndex")
   return gl_api_->glGetProgramResourceIndexFn(program, programInterface, name);
 }
 
@@ -8078,7 +8029,7 @@ void TraceGLApi::glGetProgramResourceivFn(GLuint program,
                                           GLsizei bufSize,
                                           GLsizei* length,
                                           GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramResourceiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramResourceiv")
   gl_api_->glGetProgramResourceivFn(program, programInterface, index, propCount,
                                     props, bufSize, length, params);
 }
@@ -8087,7 +8038,7 @@ GLint TraceGLApi::glGetProgramResourceLocationFn(GLuint program,
                                                  GLenum programInterface,
                                                  const char* name) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetProgramResourceLocation");
+                                "TraceGLAPI::glGetProgramResourceLocation")
   return gl_api_->glGetProgramResourceLocationFn(program, programInterface,
                                                  name);
 }
@@ -8098,13 +8049,13 @@ void TraceGLApi::glGetProgramResourceNameFn(GLuint program,
                                             GLsizei bufSize,
                                             GLsizei* length,
                                             GLchar* name) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramResourceName");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetProgramResourceName")
   gl_api_->glGetProgramResourceNameFn(program, programInterface, index, bufSize,
                                       length, name);
 }
 
 void TraceGLApi::glGetQueryivFn(GLenum target, GLenum pname, GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetQueryiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetQueryiv")
   gl_api_->glGetQueryivFn(target, pname, params);
 }
 
@@ -8113,14 +8064,14 @@ void TraceGLApi::glGetQueryivRobustANGLEFn(GLenum target,
                                            GLsizei bufSize,
                                            GLsizei* length,
                                            GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetQueryivRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetQueryivRobustANGLE")
   gl_api_->glGetQueryivRobustANGLEFn(target, pname, bufSize, length, params);
 }
 
 void TraceGLApi::glGetQueryObjecti64vFn(GLuint id,
                                         GLenum pname,
                                         GLint64* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetQueryObjecti64v");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetQueryObjecti64v")
   gl_api_->glGetQueryObjecti64vFn(id, pname, params);
 }
 
@@ -8130,13 +8081,13 @@ void TraceGLApi::glGetQueryObjecti64vRobustANGLEFn(GLuint id,
                                                    GLsizei* length,
                                                    GLint64* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetQueryObjecti64vRobustANGLE");
+                                "TraceGLAPI::glGetQueryObjecti64vRobustANGLE")
   gl_api_->glGetQueryObjecti64vRobustANGLEFn(id, pname, bufSize, length,
                                              params);
 }
 
 void TraceGLApi::glGetQueryObjectivFn(GLuint id, GLenum pname, GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetQueryObjectiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetQueryObjectiv")
   gl_api_->glGetQueryObjectivFn(id, pname, params);
 }
 
@@ -8146,14 +8097,14 @@ void TraceGLApi::glGetQueryObjectivRobustANGLEFn(GLuint id,
                                                  GLsizei* length,
                                                  GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetQueryObjectivRobustANGLE");
+                                "TraceGLAPI::glGetQueryObjectivRobustANGLE")
   gl_api_->glGetQueryObjectivRobustANGLEFn(id, pname, bufSize, length, params);
 }
 
 void TraceGLApi::glGetQueryObjectui64vFn(GLuint id,
                                          GLenum pname,
                                          GLuint64* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetQueryObjectui64v");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetQueryObjectui64v")
   gl_api_->glGetQueryObjectui64vFn(id, pname, params);
 }
 
@@ -8163,7 +8114,7 @@ void TraceGLApi::glGetQueryObjectui64vRobustANGLEFn(GLuint id,
                                                     GLsizei* length,
                                                     GLuint64* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetQueryObjectui64vRobustANGLE");
+                                "TraceGLAPI::glGetQueryObjectui64vRobustANGLE")
   gl_api_->glGetQueryObjectui64vRobustANGLEFn(id, pname, bufSize, length,
                                               params);
 }
@@ -8171,7 +8122,7 @@ void TraceGLApi::glGetQueryObjectui64vRobustANGLEFn(GLuint id,
 void TraceGLApi::glGetQueryObjectuivFn(GLuint id,
                                        GLenum pname,
                                        GLuint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetQueryObjectuiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetQueryObjectuiv")
   gl_api_->glGetQueryObjectuivFn(id, pname, params);
 }
 
@@ -8181,7 +8132,7 @@ void TraceGLApi::glGetQueryObjectuivRobustANGLEFn(GLuint id,
                                                   GLsizei* length,
                                                   GLuint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetQueryObjectuivRobustANGLE");
+                                "TraceGLAPI::glGetQueryObjectuivRobustANGLE")
   gl_api_->glGetQueryObjectuivRobustANGLEFn(id, pname, bufSize, length, params);
 }
 
@@ -8189,7 +8140,7 @@ void TraceGLApi::glGetRenderbufferParameterivEXTFn(GLenum target,
                                                    GLenum pname,
                                                    GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetRenderbufferParameterivEXT");
+                                "TraceGLAPI::glGetRenderbufferParameterivEXT")
   gl_api_->glGetRenderbufferParameterivEXTFn(target, pname, params);
 }
 
@@ -8199,7 +8150,7 @@ void TraceGLApi::glGetRenderbufferParameterivRobustANGLEFn(GLenum target,
                                                            GLsizei* length,
                                                            GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetRenderbufferParameterivRobustANGLE");
+      "gpu", "TraceGLAPI::glGetRenderbufferParameterivRobustANGLE")
   gl_api_->glGetRenderbufferParameterivRobustANGLEFn(target, pname, bufSize,
                                                      length, params);
 }
@@ -8207,7 +8158,7 @@ void TraceGLApi::glGetRenderbufferParameterivRobustANGLEFn(GLenum target,
 void TraceGLApi::glGetSamplerParameterfvFn(GLuint sampler,
                                            GLenum pname,
                                            GLfloat* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetSamplerParameterfv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetSamplerParameterfv")
   gl_api_->glGetSamplerParameterfvFn(sampler, pname, params);
 }
 
@@ -8217,7 +8168,7 @@ void TraceGLApi::glGetSamplerParameterfvRobustANGLEFn(GLuint sampler,
                                                       GLsizei* length,
                                                       GLfloat* params) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetSamplerParameterfvRobustANGLE");
+      "gpu", "TraceGLAPI::glGetSamplerParameterfvRobustANGLE")
   gl_api_->glGetSamplerParameterfvRobustANGLEFn(sampler, pname, bufSize, length,
                                                 params);
 }
@@ -8228,7 +8179,7 @@ void TraceGLApi::glGetSamplerParameterIivRobustANGLEFn(GLuint sampler,
                                                        GLsizei* length,
                                                        GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetSamplerParameterIivRobustANGLE");
+      "gpu", "TraceGLAPI::glGetSamplerParameterIivRobustANGLE")
   gl_api_->glGetSamplerParameterIivRobustANGLEFn(sampler, pname, bufSize,
                                                  length, params);
 }
@@ -8239,7 +8190,7 @@ void TraceGLApi::glGetSamplerParameterIuivRobustANGLEFn(GLuint sampler,
                                                         GLsizei* length,
                                                         GLuint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetSamplerParameterIuivRobustANGLE");
+      "gpu", "TraceGLAPI::glGetSamplerParameterIuivRobustANGLE")
   gl_api_->glGetSamplerParameterIuivRobustANGLEFn(sampler, pname, bufSize,
                                                   length, params);
 }
@@ -8247,7 +8198,7 @@ void TraceGLApi::glGetSamplerParameterIuivRobustANGLEFn(GLuint sampler,
 void TraceGLApi::glGetSamplerParameterivFn(GLuint sampler,
                                            GLenum pname,
                                            GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetSamplerParameteriv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetSamplerParameteriv")
   gl_api_->glGetSamplerParameterivFn(sampler, pname, params);
 }
 
@@ -8257,7 +8208,7 @@ void TraceGLApi::glGetSamplerParameterivRobustANGLEFn(GLuint sampler,
                                                       GLsizei* length,
                                                       GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetSamplerParameterivRobustANGLE");
+      "gpu", "TraceGLAPI::glGetSamplerParameterivRobustANGLE")
   gl_api_->glGetSamplerParameterivRobustANGLEFn(sampler, pname, bufSize, length,
                                                 params);
 }
@@ -8266,12 +8217,12 @@ void TraceGLApi::glGetShaderInfoLogFn(GLuint shader,
                                       GLsizei bufsize,
                                       GLsizei* length,
                                       char* infolog) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetShaderInfoLog");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetShaderInfoLog")
   gl_api_->glGetShaderInfoLogFn(shader, bufsize, length, infolog);
 }
 
 void TraceGLApi::glGetShaderivFn(GLuint shader, GLenum pname, GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetShaderiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetShaderiv")
   gl_api_->glGetShaderivFn(shader, pname, params);
 }
 
@@ -8280,7 +8231,7 @@ void TraceGLApi::glGetShaderivRobustANGLEFn(GLuint shader,
                                             GLsizei bufSize,
                                             GLsizei* length,
                                             GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetShaderivRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetShaderivRobustANGLE")
   gl_api_->glGetShaderivRobustANGLEFn(shader, pname, bufSize, length, params);
 }
 
@@ -8288,8 +8239,7 @@ void TraceGLApi::glGetShaderPrecisionFormatFn(GLenum shadertype,
                                               GLenum precisiontype,
                                               GLint* range,
                                               GLint* precision) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetShaderPrecisionFormat");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetShaderPrecisionFormat")
   gl_api_->glGetShaderPrecisionFormatFn(shadertype, precisiontype, range,
                                         precision);
 }
@@ -8298,17 +8248,17 @@ void TraceGLApi::glGetShaderSourceFn(GLuint shader,
                                      GLsizei bufsize,
                                      GLsizei* length,
                                      char* source) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetShaderSource");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetShaderSource")
   gl_api_->glGetShaderSourceFn(shader, bufsize, length, source);
 }
 
 const GLubyte* TraceGLApi::glGetStringFn(GLenum name) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetString");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetString")
   return gl_api_->glGetStringFn(name);
 }
 
 const GLubyte* TraceGLApi::glGetStringiFn(GLenum name, GLuint index) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetStringi");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetStringi")
   return gl_api_->glGetStringiFn(name, index);
 }
 
@@ -8317,7 +8267,7 @@ void TraceGLApi::glGetSyncivFn(GLsync sync,
                                GLsizei bufSize,
                                GLsizei* length,
                                GLint* values) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetSynciv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetSynciv")
   gl_api_->glGetSyncivFn(sync, pname, bufSize, length, values);
 }
 
@@ -8325,7 +8275,7 @@ void TraceGLApi::glGetTexLevelParameterfvFn(GLenum target,
                                             GLint level,
                                             GLenum pname,
                                             GLfloat* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetTexLevelParameterfv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetTexLevelParameterfv")
   gl_api_->glGetTexLevelParameterfvFn(target, level, pname, params);
 }
 
@@ -8336,7 +8286,7 @@ void TraceGLApi::glGetTexLevelParameterfvRobustANGLEFn(GLenum target,
                                                        GLsizei* length,
                                                        GLfloat* params) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetTexLevelParameterfvRobustANGLE");
+      "gpu", "TraceGLAPI::glGetTexLevelParameterfvRobustANGLE")
   gl_api_->glGetTexLevelParameterfvRobustANGLEFn(target, level, pname, bufSize,
                                                  length, params);
 }
@@ -8345,7 +8295,7 @@ void TraceGLApi::glGetTexLevelParameterivFn(GLenum target,
                                             GLint level,
                                             GLenum pname,
                                             GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetTexLevelParameteriv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetTexLevelParameteriv")
   gl_api_->glGetTexLevelParameterivFn(target, level, pname, params);
 }
 
@@ -8356,7 +8306,7 @@ void TraceGLApi::glGetTexLevelParameterivRobustANGLEFn(GLenum target,
                                                        GLsizei* length,
                                                        GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetTexLevelParameterivRobustANGLE");
+      "gpu", "TraceGLAPI::glGetTexLevelParameterivRobustANGLE")
   gl_api_->glGetTexLevelParameterivRobustANGLEFn(target, level, pname, bufSize,
                                                  length, params);
 }
@@ -8364,7 +8314,7 @@ void TraceGLApi::glGetTexLevelParameterivRobustANGLEFn(GLenum target,
 void TraceGLApi::glGetTexParameterfvFn(GLenum target,
                                        GLenum pname,
                                        GLfloat* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetTexParameterfv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetTexParameterfv")
   gl_api_->glGetTexParameterfvFn(target, pname, params);
 }
 
@@ -8374,7 +8324,7 @@ void TraceGLApi::glGetTexParameterfvRobustANGLEFn(GLenum target,
                                                   GLsizei* length,
                                                   GLfloat* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetTexParameterfvRobustANGLE");
+                                "TraceGLAPI::glGetTexParameterfvRobustANGLE")
   gl_api_->glGetTexParameterfvRobustANGLEFn(target, pname, bufSize, length,
                                             params);
 }
@@ -8385,7 +8335,7 @@ void TraceGLApi::glGetTexParameterIivRobustANGLEFn(GLenum target,
                                                    GLsizei* length,
                                                    GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetTexParameterIivRobustANGLE");
+                                "TraceGLAPI::glGetTexParameterIivRobustANGLE")
   gl_api_->glGetTexParameterIivRobustANGLEFn(target, pname, bufSize, length,
                                              params);
 }
@@ -8396,7 +8346,7 @@ void TraceGLApi::glGetTexParameterIuivRobustANGLEFn(GLenum target,
                                                     GLsizei* length,
                                                     GLuint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetTexParameterIuivRobustANGLE");
+                                "TraceGLAPI::glGetTexParameterIuivRobustANGLE")
   gl_api_->glGetTexParameterIuivRobustANGLEFn(target, pname, bufSize, length,
                                               params);
 }
@@ -8404,7 +8354,7 @@ void TraceGLApi::glGetTexParameterIuivRobustANGLEFn(GLenum target,
 void TraceGLApi::glGetTexParameterivFn(GLenum target,
                                        GLenum pname,
                                        GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetTexParameteriv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetTexParameteriv")
   gl_api_->glGetTexParameterivFn(target, pname, params);
 }
 
@@ -8414,7 +8364,7 @@ void TraceGLApi::glGetTexParameterivRobustANGLEFn(GLenum target,
                                                   GLsizei* length,
                                                   GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetTexParameterivRobustANGLE");
+                                "TraceGLAPI::glGetTexParameterivRobustANGLE")
   gl_api_->glGetTexParameterivRobustANGLEFn(target, pname, bufSize, length,
                                             params);
 }
@@ -8427,7 +8377,7 @@ void TraceGLApi::glGetTransformFeedbackVaryingFn(GLuint program,
                                                  GLenum* type,
                                                  char* name) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetTransformFeedbackVarying");
+                                "TraceGLAPI::glGetTransformFeedbackVarying")
   gl_api_->glGetTransformFeedbackVaryingFn(program, index, bufSize, length,
                                            size, type, name);
 }
@@ -8437,20 +8387,20 @@ void TraceGLApi::glGetTranslatedShaderSourceANGLEFn(GLuint shader,
                                                     GLsizei* length,
                                                     char* source) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetTranslatedShaderSourceANGLE");
+                                "TraceGLAPI::glGetTranslatedShaderSourceANGLE")
   gl_api_->glGetTranslatedShaderSourceANGLEFn(shader, bufsize, length, source);
 }
 
 GLuint TraceGLApi::glGetUniformBlockIndexFn(GLuint program,
                                             const char* uniformBlockName) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformBlockIndex");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformBlockIndex")
   return gl_api_->glGetUniformBlockIndexFn(program, uniformBlockName);
 }
 
 void TraceGLApi::glGetUniformfvFn(GLuint program,
                                   GLint location,
                                   GLfloat* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformfv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformfv")
   gl_api_->glGetUniformfvFn(program, location, params);
 }
 
@@ -8459,7 +8409,7 @@ void TraceGLApi::glGetUniformfvRobustANGLEFn(GLuint program,
                                              GLsizei bufSize,
                                              GLsizei* length,
                                              GLfloat* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformfvRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformfvRobustANGLE")
   gl_api_->glGetUniformfvRobustANGLEFn(program, location, bufSize, length,
                                        params);
 }
@@ -8468,7 +8418,7 @@ void TraceGLApi::glGetUniformIndicesFn(GLuint program,
                                        GLsizei uniformCount,
                                        const char* const* uniformNames,
                                        GLuint* uniformIndices) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformIndices");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformIndices")
   gl_api_->glGetUniformIndicesFn(program, uniformCount, uniformNames,
                                  uniformIndices);
 }
@@ -8476,7 +8426,7 @@ void TraceGLApi::glGetUniformIndicesFn(GLuint program,
 void TraceGLApi::glGetUniformivFn(GLuint program,
                                   GLint location,
                                   GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformiv")
   gl_api_->glGetUniformivFn(program, location, params);
 }
 
@@ -8485,20 +8435,20 @@ void TraceGLApi::glGetUniformivRobustANGLEFn(GLuint program,
                                              GLsizei bufSize,
                                              GLsizei* length,
                                              GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformivRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformivRobustANGLE")
   gl_api_->glGetUniformivRobustANGLEFn(program, location, bufSize, length,
                                        params);
 }
 
 GLint TraceGLApi::glGetUniformLocationFn(GLuint program, const char* name) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformLocation");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformLocation")
   return gl_api_->glGetUniformLocationFn(program, name);
 }
 
 void TraceGLApi::glGetUniformuivFn(GLuint program,
                                    GLint location,
                                    GLuint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformuiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformuiv")
   gl_api_->glGetUniformuivFn(program, location, params);
 }
 
@@ -8507,8 +8457,7 @@ void TraceGLApi::glGetUniformuivRobustANGLEFn(GLuint program,
                                               GLsizei bufSize,
                                               GLsizei* length,
                                               GLuint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetUniformuivRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetUniformuivRobustANGLE")
   gl_api_->glGetUniformuivRobustANGLEFn(program, location, bufSize, length,
                                         params);
 }
@@ -8516,7 +8465,7 @@ void TraceGLApi::glGetUniformuivRobustANGLEFn(GLuint program,
 void TraceGLApi::glGetVertexAttribfvFn(GLuint index,
                                        GLenum pname,
                                        GLfloat* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetVertexAttribfv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetVertexAttribfv")
   gl_api_->glGetVertexAttribfvFn(index, pname, params);
 }
 
@@ -8526,7 +8475,7 @@ void TraceGLApi::glGetVertexAttribfvRobustANGLEFn(GLuint index,
                                                   GLsizei* length,
                                                   GLfloat* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetVertexAttribfvRobustANGLE");
+                                "TraceGLAPI::glGetVertexAttribfvRobustANGLE")
   gl_api_->glGetVertexAttribfvRobustANGLEFn(index, pname, bufSize, length,
                                             params);
 }
@@ -8537,7 +8486,7 @@ void TraceGLApi::glGetVertexAttribIivRobustANGLEFn(GLuint index,
                                                    GLsizei* length,
                                                    GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetVertexAttribIivRobustANGLE");
+                                "TraceGLAPI::glGetVertexAttribIivRobustANGLE")
   gl_api_->glGetVertexAttribIivRobustANGLEFn(index, pname, bufSize, length,
                                              params);
 }
@@ -8548,7 +8497,7 @@ void TraceGLApi::glGetVertexAttribIuivRobustANGLEFn(GLuint index,
                                                     GLsizei* length,
                                                     GLuint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetVertexAttribIuivRobustANGLE");
+                                "TraceGLAPI::glGetVertexAttribIuivRobustANGLE")
   gl_api_->glGetVertexAttribIuivRobustANGLEFn(index, pname, bufSize, length,
                                               params);
 }
@@ -8556,7 +8505,7 @@ void TraceGLApi::glGetVertexAttribIuivRobustANGLEFn(GLuint index,
 void TraceGLApi::glGetVertexAttribivFn(GLuint index,
                                        GLenum pname,
                                        GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetVertexAttribiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetVertexAttribiv")
   gl_api_->glGetVertexAttribivFn(index, pname, params);
 }
 
@@ -8566,7 +8515,7 @@ void TraceGLApi::glGetVertexAttribivRobustANGLEFn(GLuint index,
                                                   GLsizei* length,
                                                   GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glGetVertexAttribivRobustANGLE");
+                                "TraceGLAPI::glGetVertexAttribivRobustANGLE")
   gl_api_->glGetVertexAttribivRobustANGLEFn(index, pname, bufSize, length,
                                             params);
 }
@@ -8574,7 +8523,7 @@ void TraceGLApi::glGetVertexAttribivRobustANGLEFn(GLuint index,
 void TraceGLApi::glGetVertexAttribPointervFn(GLuint index,
                                              GLenum pname,
                                              void** pointer) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetVertexAttribPointerv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glGetVertexAttribPointerv")
   gl_api_->glGetVertexAttribPointervFn(index, pname, pointer);
 }
 
@@ -8584,13 +8533,13 @@ void TraceGLApi::glGetVertexAttribPointervRobustANGLEFn(GLuint index,
                                                         GLsizei* length,
                                                         void** pointer) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glGetVertexAttribPointervRobustANGLE");
+      "gpu", "TraceGLAPI::glGetVertexAttribPointervRobustANGLE")
   gl_api_->glGetVertexAttribPointervRobustANGLEFn(index, pname, bufSize, length,
                                                   pointer);
 }
 
 void TraceGLApi::glHintFn(GLenum target, GLenum mode) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glHint");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glHint")
   gl_api_->glHintFn(target, mode);
 }
 
@@ -8598,7 +8547,7 @@ void TraceGLApi::glImportMemoryFdEXTFn(GLuint memory,
                                        GLuint64 size,
                                        GLenum handleType,
                                        GLint fd) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glImportMemoryFdEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glImportMemoryFdEXT")
   gl_api_->glImportMemoryFdEXTFn(memory, size, handleType, fd);
 }
 
@@ -8607,7 +8556,7 @@ void TraceGLApi::glImportMemoryWin32HandleEXTFn(GLuint memory,
                                                 GLenum handleType,
                                                 void* handle) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glImportMemoryWin32HandleEXT");
+                                "TraceGLAPI::glImportMemoryWin32HandleEXT")
   gl_api_->glImportMemoryWin32HandleEXTFn(memory, size, handleType, handle);
 }
 
@@ -8616,14 +8565,14 @@ void TraceGLApi::glImportMemoryZirconHandleANGLEFn(GLuint memory,
                                                    GLenum handleType,
                                                    GLuint handle) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glImportMemoryZirconHandleANGLE");
+                                "TraceGLAPI::glImportMemoryZirconHandleANGLE")
   gl_api_->glImportMemoryZirconHandleANGLEFn(memory, size, handleType, handle);
 }
 
 void TraceGLApi::glImportSemaphoreFdEXTFn(GLuint semaphore,
                                           GLenum handleType,
                                           GLint fd) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glImportSemaphoreFdEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glImportSemaphoreFdEXT")
   gl_api_->glImportSemaphoreFdEXTFn(semaphore, handleType, fd);
 }
 
@@ -8631,7 +8580,7 @@ void TraceGLApi::glImportSemaphoreWin32HandleEXTFn(GLuint semaphore,
                                                    GLenum handleType,
                                                    void* handle) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glImportSemaphoreWin32HandleEXT");
+                                "TraceGLAPI::glImportSemaphoreWin32HandleEXT")
   gl_api_->glImportSemaphoreWin32HandleEXTFn(semaphore, handleType, handle);
 }
 
@@ -8639,19 +8588,19 @@ void TraceGLApi::glImportSemaphoreZirconHandleANGLEFn(GLuint semaphore,
                                                       GLenum handleType,
                                                       GLuint handle) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glImportSemaphoreZirconHandleANGLE");
+      "gpu", "TraceGLAPI::glImportSemaphoreZirconHandleANGLE")
   gl_api_->glImportSemaphoreZirconHandleANGLEFn(semaphore, handleType, handle);
 }
 
 void TraceGLApi::glInsertEventMarkerEXTFn(GLsizei length, const char* marker) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glInsertEventMarkerEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glInsertEventMarkerEXT")
   gl_api_->glInsertEventMarkerEXTFn(length, marker);
 }
 
 void TraceGLApi::glInvalidateFramebufferFn(GLenum target,
                                            GLsizei numAttachments,
                                            const GLenum* attachments) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glInvalidateFramebuffer");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glInvalidateFramebuffer")
   gl_api_->glInvalidateFramebufferFn(target, numAttachments, attachments);
 }
 
@@ -8662,119 +8611,118 @@ void TraceGLApi::glInvalidateSubFramebufferFn(GLenum target,
                                               GLint y,
                                               GLint width,
                                               GLint height) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glInvalidateSubFramebuffer");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glInvalidateSubFramebuffer")
   gl_api_->glInvalidateSubFramebufferFn(target, numAttachments, attachments, x,
                                         y, width, height);
 }
 
 void TraceGLApi::glInvalidateTextureANGLEFn(GLenum target) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glInvalidateTextureANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glInvalidateTextureANGLE")
   gl_api_->glInvalidateTextureANGLEFn(target);
 }
 
 GLboolean TraceGLApi::glIsBufferFn(GLuint buffer) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsBuffer");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsBuffer")
   return gl_api_->glIsBufferFn(buffer);
 }
 
 GLboolean TraceGLApi::glIsEnabledFn(GLenum cap) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsEnabled");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsEnabled")
   return gl_api_->glIsEnabledFn(cap);
 }
 
 GLboolean TraceGLApi::glIsEnablediOESFn(GLenum target, GLuint index) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsEnablediOES");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsEnablediOES")
   return gl_api_->glIsEnablediOESFn(target, index);
 }
 
 GLboolean TraceGLApi::glIsFenceAPPLEFn(GLuint fence) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsFenceAPPLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsFenceAPPLE")
   return gl_api_->glIsFenceAPPLEFn(fence);
 }
 
 GLboolean TraceGLApi::glIsFenceNVFn(GLuint fence) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsFenceNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsFenceNV")
   return gl_api_->glIsFenceNVFn(fence);
 }
 
 GLboolean TraceGLApi::glIsFramebufferEXTFn(GLuint framebuffer) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsFramebufferEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsFramebufferEXT")
   return gl_api_->glIsFramebufferEXTFn(framebuffer);
 }
 
 GLboolean TraceGLApi::glIsPathNVFn(GLuint path) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsPathNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsPathNV")
   return gl_api_->glIsPathNVFn(path);
 }
 
 GLboolean TraceGLApi::glIsProgramFn(GLuint program) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsProgram");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsProgram")
   return gl_api_->glIsProgramFn(program);
 }
 
 GLboolean TraceGLApi::glIsProgramPipelineFn(GLuint pipeline) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsProgramPipeline");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsProgramPipeline")
   return gl_api_->glIsProgramPipelineFn(pipeline);
 }
 
 GLboolean TraceGLApi::glIsQueryFn(GLuint query) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsQuery");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsQuery")
   return gl_api_->glIsQueryFn(query);
 }
 
 GLboolean TraceGLApi::glIsRenderbufferEXTFn(GLuint renderbuffer) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsRenderbufferEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsRenderbufferEXT")
   return gl_api_->glIsRenderbufferEXTFn(renderbuffer);
 }
 
 GLboolean TraceGLApi::glIsSamplerFn(GLuint sampler) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsSampler");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsSampler")
   return gl_api_->glIsSamplerFn(sampler);
 }
 
 GLboolean TraceGLApi::glIsShaderFn(GLuint shader) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsShader");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsShader")
   return gl_api_->glIsShaderFn(shader);
 }
 
 GLboolean TraceGLApi::glIsSyncFn(GLsync sync) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsSync");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsSync")
   return gl_api_->glIsSyncFn(sync);
 }
 
 GLboolean TraceGLApi::glIsSyncAPPLEFn(GLsync sync) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsSyncAPPLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsSyncAPPLE")
   return gl_api_->glIsSyncAPPLEFn(sync);
 }
 
 GLboolean TraceGLApi::glIsTextureFn(GLuint texture) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsTexture");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsTexture")
   return gl_api_->glIsTextureFn(texture);
 }
 
 GLboolean TraceGLApi::glIsTransformFeedbackFn(GLuint id) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsTransformFeedback");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsTransformFeedback")
   return gl_api_->glIsTransformFeedbackFn(id);
 }
 
 GLboolean TraceGLApi::glIsVertexArrayOESFn(GLuint array) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsVertexArrayOES");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glIsVertexArrayOES")
   return gl_api_->glIsVertexArrayOESFn(array);
 }
 
 void TraceGLApi::glLineWidthFn(GLfloat width) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glLineWidth");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glLineWidth")
   gl_api_->glLineWidthFn(width);
 }
 
 void TraceGLApi::glLinkProgramFn(GLuint program) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glLinkProgram");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glLinkProgram")
   gl_api_->glLinkProgramFn(program);
 }
 
 void* TraceGLApi::glMapBufferFn(GLenum target, GLenum access) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMapBuffer");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMapBuffer")
   return gl_api_->glMapBufferFn(target, access);
 }
 
@@ -8782,33 +8730,33 @@ void* TraceGLApi::glMapBufferRangeFn(GLenum target,
                                      GLintptr offset,
                                      GLsizeiptr length,
                                      GLbitfield access) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMapBufferRange");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMapBufferRange")
   return gl_api_->glMapBufferRangeFn(target, offset, length, access);
 }
 
 void TraceGLApi::glMatrixLoadfEXTFn(GLenum matrixMode, const GLfloat* m) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMatrixLoadfEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMatrixLoadfEXT")
   gl_api_->glMatrixLoadfEXTFn(matrixMode, m);
 }
 
 void TraceGLApi::glMatrixLoadIdentityEXTFn(GLenum matrixMode) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMatrixLoadIdentityEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMatrixLoadIdentityEXT")
   gl_api_->glMatrixLoadIdentityEXTFn(matrixMode);
 }
 
 void TraceGLApi::glMaxShaderCompilerThreadsKHRFn(GLuint count) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glMaxShaderCompilerThreadsKHR");
+                                "TraceGLAPI::glMaxShaderCompilerThreadsKHR")
   gl_api_->glMaxShaderCompilerThreadsKHRFn(count);
 }
 
 void TraceGLApi::glMemoryBarrierByRegionFn(GLbitfield barriers) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMemoryBarrierByRegion");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMemoryBarrierByRegion")
   gl_api_->glMemoryBarrierByRegionFn(barriers);
 }
 
 void TraceGLApi::glMemoryBarrierEXTFn(GLbitfield barriers) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMemoryBarrierEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMemoryBarrierEXT")
   gl_api_->glMemoryBarrierEXTFn(barriers);
 }
 
@@ -8816,12 +8764,12 @@ void TraceGLApi::glMemoryObjectParameterivEXTFn(GLuint memoryObject,
                                                 GLenum pname,
                                                 const GLint* param) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glMemoryObjectParameterivEXT");
+                                "TraceGLAPI::glMemoryObjectParameterivEXT")
   gl_api_->glMemoryObjectParameterivEXTFn(memoryObject, pname, param);
 }
 
 void TraceGLApi::glMinSampleShadingFn(GLfloat value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMinSampleShading");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMinSampleShading")
   gl_api_->glMinSampleShadingFn(value);
 }
 
@@ -8829,7 +8777,7 @@ void TraceGLApi::glMultiDrawArraysANGLEFn(GLenum mode,
                                           const GLint* firsts,
                                           const GLsizei* counts,
                                           GLsizei drawcount) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMultiDrawArraysANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMultiDrawArraysANGLE")
   gl_api_->glMultiDrawArraysANGLEFn(mode, firsts, counts, drawcount);
 }
 
@@ -8840,7 +8788,7 @@ void TraceGLApi::glMultiDrawArraysInstancedANGLEFn(
     const GLsizei* instanceCounts,
     GLsizei drawcount) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glMultiDrawArraysInstancedANGLE");
+                                "TraceGLAPI::glMultiDrawArraysInstancedANGLE")
   gl_api_->glMultiDrawArraysInstancedANGLEFn(mode, firsts, counts,
                                              instanceCounts, drawcount);
 }
@@ -8853,7 +8801,7 @@ void TraceGLApi::glMultiDrawArraysInstancedBaseInstanceANGLEFn(
     const GLuint* baseInstances,
     GLsizei drawcount) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glMultiDrawArraysInstancedBaseInstanceANGLE");
+      "gpu", "TraceGLAPI::glMultiDrawArraysInstancedBaseInstanceANGLE")
   gl_api_->glMultiDrawArraysInstancedBaseInstanceANGLEFn(
       mode, firsts, counts, instanceCounts, baseInstances, drawcount);
 }
@@ -8863,7 +8811,7 @@ void TraceGLApi::glMultiDrawElementsANGLEFn(GLenum mode,
                                             GLenum type,
                                             const GLvoid* const* indices,
                                             GLsizei drawcount) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMultiDrawElementsANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glMultiDrawElementsANGLE")
   gl_api_->glMultiDrawElementsANGLEFn(mode, counts, type, indices, drawcount);
 }
 
@@ -8874,8 +8822,8 @@ void TraceGLApi::glMultiDrawElementsInstancedANGLEFn(
     const GLvoid* const* indices,
     const GLsizei* instanceCounts,
     GLsizei drawcount) {
-  TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glMultiDrawElementsInstancedANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
+                                "TraceGLAPI::glMultiDrawElementsInstancedANGLE")
   gl_api_->glMultiDrawElementsInstancedANGLEFn(mode, counts, type, indices,
                                                instanceCounts, drawcount);
 }
@@ -8891,7 +8839,7 @@ void TraceGLApi::glMultiDrawElementsInstancedBaseVertexBaseInstanceANGLEFn(
     GLsizei drawcount) {
   TRACE_EVENT_BINARY_EFFICIENT0(
       "gpu",
-      "TraceGLAPI::glMultiDrawElementsInstancedBaseVertexBaseInstanceANGLE");
+      "TraceGLAPI::glMultiDrawElementsInstancedBaseVertexBaseInstanceANGLE")
   gl_api_->glMultiDrawElementsInstancedBaseVertexBaseInstanceANGLEFn(
       mode, counts, type, indices, instanceCounts, baseVertices, baseInstances,
       drawcount);
@@ -8901,19 +8849,19 @@ void TraceGLApi::glObjectLabelFn(GLenum identifier,
                                  GLuint name,
                                  GLsizei length,
                                  const char* label) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glObjectLabel");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glObjectLabel")
   gl_api_->glObjectLabelFn(identifier, name, length, label);
 }
 
 void TraceGLApi::glObjectPtrLabelFn(void* ptr,
                                     GLsizei length,
                                     const char* label) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glObjectPtrLabel");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glObjectPtrLabel")
   gl_api_->glObjectPtrLabelFn(ptr, length, label);
 }
 
 void TraceGLApi::glPatchParameteriFn(GLenum pname, GLint value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPatchParameteri");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPatchParameteri")
   gl_api_->glPatchParameteriFn(pname, value);
 }
 
@@ -8923,7 +8871,7 @@ void TraceGLApi::glPathCommandsNVFn(GLuint path,
                                     GLsizei numCoords,
                                     GLenum coordType,
                                     const GLvoid* coords) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPathCommandsNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPathCommandsNV")
   gl_api_->glPathCommandsNVFn(path, numCommands, commands, numCoords, coordType,
                               coords);
 }
@@ -8931,57 +8879,57 @@ void TraceGLApi::glPathCommandsNVFn(GLuint path,
 void TraceGLApi::glPathParameterfNVFn(GLuint path,
                                       GLenum pname,
                                       GLfloat value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPathParameterfNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPathParameterfNV")
   gl_api_->glPathParameterfNVFn(path, pname, value);
 }
 
 void TraceGLApi::glPathParameteriNVFn(GLuint path, GLenum pname, GLint value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPathParameteriNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPathParameteriNV")
   gl_api_->glPathParameteriNVFn(path, pname, value);
 }
 
 void TraceGLApi::glPathStencilFuncNVFn(GLenum func, GLint ref, GLuint mask) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPathStencilFuncNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPathStencilFuncNV")
   gl_api_->glPathStencilFuncNVFn(func, ref, mask);
 }
 
 void TraceGLApi::glPauseTransformFeedbackFn(void) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPauseTransformFeedback");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPauseTransformFeedback")
   gl_api_->glPauseTransformFeedbackFn();
 }
 
 void TraceGLApi::glPixelStoreiFn(GLenum pname, GLint param) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPixelStorei");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPixelStorei")
   gl_api_->glPixelStoreiFn(pname, param);
 }
 
 void TraceGLApi::glPointParameteriFn(GLenum pname, GLint param) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPointParameteri");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPointParameteri")
   gl_api_->glPointParameteriFn(pname, param);
 }
 
 void TraceGLApi::glPolygonModeFn(GLenum face, GLenum mode) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPolygonMode");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPolygonMode")
   gl_api_->glPolygonModeFn(face, mode);
 }
 
 void TraceGLApi::glPolygonOffsetFn(GLfloat factor, GLfloat units) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPolygonOffset");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPolygonOffset")
   gl_api_->glPolygonOffsetFn(factor, units);
 }
 
 void TraceGLApi::glPopDebugGroupFn() {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPopDebugGroup");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPopDebugGroup")
   gl_api_->glPopDebugGroupFn();
 }
 
 void TraceGLApi::glPopGroupMarkerEXTFn(void) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPopGroupMarkerEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPopGroupMarkerEXT")
   gl_api_->glPopGroupMarkerEXTFn();
 }
 
 void TraceGLApi::glPrimitiveRestartIndexFn(GLuint index) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPrimitiveRestartIndex");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPrimitiveRestartIndex")
   gl_api_->glPrimitiveRestartIndexFn(index);
 }
 
@@ -8989,14 +8937,14 @@ void TraceGLApi::glProgramBinaryFn(GLuint program,
                                    GLenum binaryFormat,
                                    const GLvoid* binary,
                                    GLsizei length) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramBinary");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramBinary")
   gl_api_->glProgramBinaryFn(program, binaryFormat, binary, length);
 }
 
 void TraceGLApi::glProgramParameteriFn(GLuint program,
                                        GLenum pname,
                                        GLint value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramParameteri");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramParameteri")
   gl_api_->glProgramParameteriFn(program, pname, value);
 }
 
@@ -9006,7 +8954,7 @@ void TraceGLApi::glProgramPathFragmentInputGenNVFn(GLuint program,
                                                    GLint components,
                                                    const GLfloat* coeffs) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glProgramPathFragmentInputGenNV");
+                                "TraceGLAPI::glProgramPathFragmentInputGenNV")
   gl_api_->glProgramPathFragmentInputGenNVFn(program, location, genMode,
                                              components, coeffs);
 }
@@ -9014,7 +8962,7 @@ void TraceGLApi::glProgramPathFragmentInputGenNVFn(GLuint program,
 void TraceGLApi::glProgramUniform1fFn(GLuint program,
                                       GLint location,
                                       GLfloat v0) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform1f");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform1f")
   gl_api_->glProgramUniform1fFn(program, location, v0);
 }
 
@@ -9022,14 +8970,14 @@ void TraceGLApi::glProgramUniform1fvFn(GLuint program,
                                        GLint location,
                                        GLsizei count,
                                        const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform1fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform1fv")
   gl_api_->glProgramUniform1fvFn(program, location, count, value);
 }
 
 void TraceGLApi::glProgramUniform1iFn(GLuint program,
                                       GLint location,
                                       GLint v0) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform1i");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform1i")
   gl_api_->glProgramUniform1iFn(program, location, v0);
 }
 
@@ -9037,14 +8985,14 @@ void TraceGLApi::glProgramUniform1ivFn(GLuint program,
                                        GLint location,
                                        GLsizei count,
                                        const GLint* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform1iv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform1iv")
   gl_api_->glProgramUniform1ivFn(program, location, count, value);
 }
 
 void TraceGLApi::glProgramUniform1uiFn(GLuint program,
                                        GLint location,
                                        GLuint v0) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform1ui");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform1ui")
   gl_api_->glProgramUniform1uiFn(program, location, v0);
 }
 
@@ -9052,7 +9000,7 @@ void TraceGLApi::glProgramUniform1uivFn(GLuint program,
                                         GLint location,
                                         GLsizei count,
                                         const GLuint* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform1uiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform1uiv")
   gl_api_->glProgramUniform1uivFn(program, location, count, value);
 }
 
@@ -9060,7 +9008,7 @@ void TraceGLApi::glProgramUniform2fFn(GLuint program,
                                       GLint location,
                                       GLfloat v0,
                                       GLfloat v1) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform2f");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform2f")
   gl_api_->glProgramUniform2fFn(program, location, v0, v1);
 }
 
@@ -9068,7 +9016,7 @@ void TraceGLApi::glProgramUniform2fvFn(GLuint program,
                                        GLint location,
                                        GLsizei count,
                                        const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform2fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform2fv")
   gl_api_->glProgramUniform2fvFn(program, location, count, value);
 }
 
@@ -9076,7 +9024,7 @@ void TraceGLApi::glProgramUniform2iFn(GLuint program,
                                       GLint location,
                                       GLint v0,
                                       GLint v1) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform2i");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform2i")
   gl_api_->glProgramUniform2iFn(program, location, v0, v1);
 }
 
@@ -9084,7 +9032,7 @@ void TraceGLApi::glProgramUniform2ivFn(GLuint program,
                                        GLint location,
                                        GLsizei count,
                                        const GLint* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform2iv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform2iv")
   gl_api_->glProgramUniform2ivFn(program, location, count, value);
 }
 
@@ -9092,7 +9040,7 @@ void TraceGLApi::glProgramUniform2uiFn(GLuint program,
                                        GLint location,
                                        GLuint v0,
                                        GLuint v1) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform2ui");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform2ui")
   gl_api_->glProgramUniform2uiFn(program, location, v0, v1);
 }
 
@@ -9100,7 +9048,7 @@ void TraceGLApi::glProgramUniform2uivFn(GLuint program,
                                         GLint location,
                                         GLsizei count,
                                         const GLuint* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform2uiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform2uiv")
   gl_api_->glProgramUniform2uivFn(program, location, count, value);
 }
 
@@ -9109,7 +9057,7 @@ void TraceGLApi::glProgramUniform3fFn(GLuint program,
                                       GLfloat v0,
                                       GLfloat v1,
                                       GLfloat v2) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform3f");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform3f")
   gl_api_->glProgramUniform3fFn(program, location, v0, v1, v2);
 }
 
@@ -9117,7 +9065,7 @@ void TraceGLApi::glProgramUniform3fvFn(GLuint program,
                                        GLint location,
                                        GLsizei count,
                                        const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform3fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform3fv")
   gl_api_->glProgramUniform3fvFn(program, location, count, value);
 }
 
@@ -9126,7 +9074,7 @@ void TraceGLApi::glProgramUniform3iFn(GLuint program,
                                       GLint v0,
                                       GLint v1,
                                       GLint v2) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform3i");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform3i")
   gl_api_->glProgramUniform3iFn(program, location, v0, v1, v2);
 }
 
@@ -9134,7 +9082,7 @@ void TraceGLApi::glProgramUniform3ivFn(GLuint program,
                                        GLint location,
                                        GLsizei count,
                                        const GLint* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform3iv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform3iv")
   gl_api_->glProgramUniform3ivFn(program, location, count, value);
 }
 
@@ -9143,7 +9091,7 @@ void TraceGLApi::glProgramUniform3uiFn(GLuint program,
                                        GLuint v0,
                                        GLuint v1,
                                        GLuint v2) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform3ui");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform3ui")
   gl_api_->glProgramUniform3uiFn(program, location, v0, v1, v2);
 }
 
@@ -9151,7 +9099,7 @@ void TraceGLApi::glProgramUniform3uivFn(GLuint program,
                                         GLint location,
                                         GLsizei count,
                                         const GLuint* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform3uiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform3uiv")
   gl_api_->glProgramUniform3uivFn(program, location, count, value);
 }
 
@@ -9161,7 +9109,7 @@ void TraceGLApi::glProgramUniform4fFn(GLuint program,
                                       GLfloat v1,
                                       GLfloat v2,
                                       GLfloat v3) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform4f");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform4f")
   gl_api_->glProgramUniform4fFn(program, location, v0, v1, v2, v3);
 }
 
@@ -9169,7 +9117,7 @@ void TraceGLApi::glProgramUniform4fvFn(GLuint program,
                                        GLint location,
                                        GLsizei count,
                                        const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform4fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform4fv")
   gl_api_->glProgramUniform4fvFn(program, location, count, value);
 }
 
@@ -9179,7 +9127,7 @@ void TraceGLApi::glProgramUniform4iFn(GLuint program,
                                       GLint v1,
                                       GLint v2,
                                       GLint v3) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform4i");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform4i")
   gl_api_->glProgramUniform4iFn(program, location, v0, v1, v2, v3);
 }
 
@@ -9187,7 +9135,7 @@ void TraceGLApi::glProgramUniform4ivFn(GLuint program,
                                        GLint location,
                                        GLsizei count,
                                        const GLint* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform4iv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform4iv")
   gl_api_->glProgramUniform4ivFn(program, location, count, value);
 }
 
@@ -9197,7 +9145,7 @@ void TraceGLApi::glProgramUniform4uiFn(GLuint program,
                                        GLuint v1,
                                        GLuint v2,
                                        GLuint v3) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform4ui");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform4ui")
   gl_api_->glProgramUniform4uiFn(program, location, v0, v1, v2, v3);
 }
 
@@ -9205,7 +9153,7 @@ void TraceGLApi::glProgramUniform4uivFn(GLuint program,
                                         GLint location,
                                         GLsizei count,
                                         const GLuint* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform4uiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniform4uiv")
   gl_api_->glProgramUniform4uivFn(program, location, count, value);
 }
 
@@ -9214,7 +9162,7 @@ void TraceGLApi::glProgramUniformMatrix2fvFn(GLuint program,
                                              GLsizei count,
                                              GLboolean transpose,
                                              const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniformMatrix2fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniformMatrix2fv")
   gl_api_->glProgramUniformMatrix2fvFn(program, location, count, transpose,
                                        value);
 }
@@ -9225,7 +9173,7 @@ void TraceGLApi::glProgramUniformMatrix2x3fvFn(GLuint program,
                                                GLboolean transpose,
                                                const GLfloat* value) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glProgramUniformMatrix2x3fv");
+                                "TraceGLAPI::glProgramUniformMatrix2x3fv")
   gl_api_->glProgramUniformMatrix2x3fvFn(program, location, count, transpose,
                                          value);
 }
@@ -9236,7 +9184,7 @@ void TraceGLApi::glProgramUniformMatrix2x4fvFn(GLuint program,
                                                GLboolean transpose,
                                                const GLfloat* value) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glProgramUniformMatrix2x4fv");
+                                "TraceGLAPI::glProgramUniformMatrix2x4fv")
   gl_api_->glProgramUniformMatrix2x4fvFn(program, location, count, transpose,
                                          value);
 }
@@ -9246,7 +9194,7 @@ void TraceGLApi::glProgramUniformMatrix3fvFn(GLuint program,
                                              GLsizei count,
                                              GLboolean transpose,
                                              const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniformMatrix3fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniformMatrix3fv")
   gl_api_->glProgramUniformMatrix3fvFn(program, location, count, transpose,
                                        value);
 }
@@ -9257,7 +9205,7 @@ void TraceGLApi::glProgramUniformMatrix3x2fvFn(GLuint program,
                                                GLboolean transpose,
                                                const GLfloat* value) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glProgramUniformMatrix3x2fv");
+                                "TraceGLAPI::glProgramUniformMatrix3x2fv")
   gl_api_->glProgramUniformMatrix3x2fvFn(program, location, count, transpose,
                                          value);
 }
@@ -9268,7 +9216,7 @@ void TraceGLApi::glProgramUniformMatrix3x4fvFn(GLuint program,
                                                GLboolean transpose,
                                                const GLfloat* value) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glProgramUniformMatrix3x4fv");
+                                "TraceGLAPI::glProgramUniformMatrix3x4fv")
   gl_api_->glProgramUniformMatrix3x4fvFn(program, location, count, transpose,
                                          value);
 }
@@ -9278,7 +9226,7 @@ void TraceGLApi::glProgramUniformMatrix4fvFn(GLuint program,
                                              GLsizei count,
                                              GLboolean transpose,
                                              const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniformMatrix4fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glProgramUniformMatrix4fv")
   gl_api_->glProgramUniformMatrix4fvFn(program, location, count, transpose,
                                        value);
 }
@@ -9289,7 +9237,7 @@ void TraceGLApi::glProgramUniformMatrix4x2fvFn(GLuint program,
                                                GLboolean transpose,
                                                const GLfloat* value) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glProgramUniformMatrix4x2fv");
+                                "TraceGLAPI::glProgramUniformMatrix4x2fv")
   gl_api_->glProgramUniformMatrix4x2fvFn(program, location, count, transpose,
                                          value);
 }
@@ -9300,7 +9248,7 @@ void TraceGLApi::glProgramUniformMatrix4x3fvFn(GLuint program,
                                                GLboolean transpose,
                                                const GLfloat* value) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glProgramUniformMatrix4x3fv");
+                                "TraceGLAPI::glProgramUniformMatrix4x3fv")
   gl_api_->glProgramUniformMatrix4x3fvFn(program, location, count, transpose,
                                          value);
 }
@@ -9309,22 +9257,22 @@ void TraceGLApi::glPushDebugGroupFn(GLenum source,
                                     GLuint id,
                                     GLsizei length,
                                     const char* message) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPushDebugGroup");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPushDebugGroup")
   gl_api_->glPushDebugGroupFn(source, id, length, message);
 }
 
 void TraceGLApi::glPushGroupMarkerEXTFn(GLsizei length, const char* marker) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPushGroupMarkerEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glPushGroupMarkerEXT")
   gl_api_->glPushGroupMarkerEXTFn(length, marker);
 }
 
 void TraceGLApi::glQueryCounterFn(GLuint id, GLenum target) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glQueryCounter");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glQueryCounter")
   gl_api_->glQueryCounterFn(id, target);
 }
 
 void TraceGLApi::glReadBufferFn(GLenum src) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glReadBuffer");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glReadBuffer")
   gl_api_->glReadBufferFn(src);
 }
 
@@ -9339,7 +9287,7 @@ void TraceGLApi::glReadnPixelsRobustANGLEFn(GLint x,
                                             GLsizei* columns,
                                             GLsizei* rows,
                                             void* data) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glReadnPixelsRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glReadnPixelsRobustANGLE")
   gl_api_->glReadnPixelsRobustANGLEFn(x, y, width, height, format, type,
                                       bufSize, length, columns, rows, data);
 }
@@ -9351,7 +9299,7 @@ void TraceGLApi::glReadPixelsFn(GLint x,
                                 GLenum format,
                                 GLenum type,
                                 void* pixels) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glReadPixels");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glReadPixels")
   gl_api_->glReadPixelsFn(x, y, width, height, format, type, pixels);
 }
 
@@ -9366,28 +9314,21 @@ void TraceGLApi::glReadPixelsRobustANGLEFn(GLint x,
                                            GLsizei* columns,
                                            GLsizei* rows,
                                            void* pixels) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glReadPixelsRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glReadPixelsRobustANGLE")
   gl_api_->glReadPixelsRobustANGLEFn(x, y, width, height, format, type, bufSize,
                                      length, columns, rows, pixels);
 }
 
 void TraceGLApi::glReleaseShaderCompilerFn(void) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glReleaseShaderCompiler");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glReleaseShaderCompiler")
   gl_api_->glReleaseShaderCompilerFn();
-}
-
-void TraceGLApi::glReleaseTexturesANGLEFn(GLuint numTextures,
-                                          const GLuint* textures,
-                                          GLenum* layouts) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glReleaseTexturesANGLE");
-  gl_api_->glReleaseTexturesANGLEFn(numTextures, textures, layouts);
 }
 
 void TraceGLApi::glRenderbufferStorageEXTFn(GLenum target,
                                             GLenum internalformat,
                                             GLsizei width,
                                             GLsizei height) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glRenderbufferStorageEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glRenderbufferStorageEXT")
   gl_api_->glRenderbufferStorageEXTFn(target, internalformat, width, height);
 }
 
@@ -9397,7 +9338,7 @@ void TraceGLApi::glRenderbufferStorageMultisampleFn(GLenum target,
                                                     GLsizei width,
                                                     GLsizei height) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glRenderbufferStorageMultisample");
+                                "TraceGLAPI::glRenderbufferStorageMultisample")
   gl_api_->glRenderbufferStorageMultisampleFn(target, samples, internalformat,
                                               width, height);
 }
@@ -9410,7 +9351,7 @@ void TraceGLApi::glRenderbufferStorageMultisampleAdvancedAMDFn(
     GLsizei width,
     GLsizei height) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glRenderbufferStorageMultisampleAdvancedAMD");
+      "gpu", "TraceGLAPI::glRenderbufferStorageMultisampleAdvancedAMD")
   gl_api_->glRenderbufferStorageMultisampleAdvancedAMDFn(
       target, samples, storageSamples, internalformat, width, height);
 }
@@ -9421,42 +9362,42 @@ void TraceGLApi::glRenderbufferStorageMultisampleEXTFn(GLenum target,
                                                        GLsizei width,
                                                        GLsizei height) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glRenderbufferStorageMultisampleEXT");
+      "gpu", "TraceGLAPI::glRenderbufferStorageMultisampleEXT")
   gl_api_->glRenderbufferStorageMultisampleEXTFn(target, samples,
                                                  internalformat, width, height);
 }
 
 void TraceGLApi::glRequestExtensionANGLEFn(const char* name) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glRequestExtensionANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glRequestExtensionANGLE")
   gl_api_->glRequestExtensionANGLEFn(name);
 }
 
 void TraceGLApi::glResumeTransformFeedbackFn(void) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glResumeTransformFeedback");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glResumeTransformFeedback")
   gl_api_->glResumeTransformFeedbackFn();
 }
 
 void TraceGLApi::glSampleCoverageFn(GLclampf value, GLboolean invert) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSampleCoverage");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSampleCoverage")
   gl_api_->glSampleCoverageFn(value, invert);
 }
 
 void TraceGLApi::glSampleMaskiFn(GLuint maskNumber, GLbitfield mask) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSampleMaski");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSampleMaski")
   gl_api_->glSampleMaskiFn(maskNumber, mask);
 }
 
 void TraceGLApi::glSamplerParameterfFn(GLuint sampler,
                                        GLenum pname,
                                        GLfloat param) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSamplerParameterf");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSamplerParameterf")
   gl_api_->glSamplerParameterfFn(sampler, pname, param);
 }
 
 void TraceGLApi::glSamplerParameterfvFn(GLuint sampler,
                                         GLenum pname,
                                         const GLfloat* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSamplerParameterfv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSamplerParameterfv")
   gl_api_->glSamplerParameterfvFn(sampler, pname, params);
 }
 
@@ -9465,14 +9406,14 @@ void TraceGLApi::glSamplerParameterfvRobustANGLEFn(GLuint sampler,
                                                    GLsizei bufSize,
                                                    const GLfloat* param) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glSamplerParameterfvRobustANGLE");
+                                "TraceGLAPI::glSamplerParameterfvRobustANGLE")
   gl_api_->glSamplerParameterfvRobustANGLEFn(sampler, pname, bufSize, param);
 }
 
 void TraceGLApi::glSamplerParameteriFn(GLuint sampler,
                                        GLenum pname,
                                        GLint param) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSamplerParameteri");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSamplerParameteri")
   gl_api_->glSamplerParameteriFn(sampler, pname, param);
 }
 
@@ -9481,7 +9422,7 @@ void TraceGLApi::glSamplerParameterIivRobustANGLEFn(GLuint sampler,
                                                     GLsizei bufSize,
                                                     const GLint* param) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glSamplerParameterIivRobustANGLE");
+                                "TraceGLAPI::glSamplerParameterIivRobustANGLE")
   gl_api_->glSamplerParameterIivRobustANGLEFn(sampler, pname, bufSize, param);
 }
 
@@ -9489,15 +9430,15 @@ void TraceGLApi::glSamplerParameterIuivRobustANGLEFn(GLuint sampler,
                                                      GLenum pname,
                                                      GLsizei bufSize,
                                                      const GLuint* param) {
-  TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glSamplerParameterIuivRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
+                                "TraceGLAPI::glSamplerParameterIuivRobustANGLE")
   gl_api_->glSamplerParameterIuivRobustANGLEFn(sampler, pname, bufSize, param);
 }
 
 void TraceGLApi::glSamplerParameterivFn(GLuint sampler,
                                         GLenum pname,
                                         const GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSamplerParameteriv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSamplerParameteriv")
   gl_api_->glSamplerParameterivFn(sampler, pname, params);
 }
 
@@ -9506,22 +9447,22 @@ void TraceGLApi::glSamplerParameterivRobustANGLEFn(GLuint sampler,
                                                    GLsizei bufSize,
                                                    const GLint* param) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glSamplerParameterivRobustANGLE");
+                                "TraceGLAPI::glSamplerParameterivRobustANGLE")
   gl_api_->glSamplerParameterivRobustANGLEFn(sampler, pname, bufSize, param);
 }
 
 void TraceGLApi::glScissorFn(GLint x, GLint y, GLsizei width, GLsizei height) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glScissor");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glScissor")
   gl_api_->glScissorFn(x, y, width, height);
 }
 
 void TraceGLApi::glSetFenceAPPLEFn(GLuint fence) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSetFenceAPPLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSetFenceAPPLE")
   gl_api_->glSetFenceAPPLEFn(fence);
 }
 
 void TraceGLApi::glSetFenceNVFn(GLuint fence, GLenum condition) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSetFenceNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSetFenceNV")
   gl_api_->glSetFenceNVFn(fence, condition);
 }
 
@@ -9530,7 +9471,7 @@ void TraceGLApi::glShaderBinaryFn(GLsizei n,
                                   GLenum binaryformat,
                                   const void* binary,
                                   GLsizei length) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glShaderBinary");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glShaderBinary")
   gl_api_->glShaderBinaryFn(n, shaders, binaryformat, binary, length);
 }
 
@@ -9538,7 +9479,7 @@ void TraceGLApi::glShaderSourceFn(GLuint shader,
                                   GLsizei count,
                                   const char* const* str,
                                   const GLint* length) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glShaderSource");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glShaderSource")
   gl_api_->glShaderSourceFn(shader, count, str, length);
 }
 
@@ -9548,7 +9489,7 @@ void TraceGLApi::glSignalSemaphoreEXTFn(GLuint semaphore,
                                         GLuint numTextureBarriers,
                                         const GLuint* textures,
                                         const GLenum* dstLayouts) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSignalSemaphoreEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glSignalSemaphoreEXT")
   gl_api_->glSignalSemaphoreEXTFn(semaphore, numBufferBarriers, buffers,
                                   numTextureBarriers, textures, dstLayouts);
 }
@@ -9558,7 +9499,7 @@ void TraceGLApi::glStartTilingQCOMFn(GLuint x,
                                      GLuint width,
                                      GLuint height,
                                      GLbitfield preserveMask) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStartTilingQCOM");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStartTilingQCOM")
   gl_api_->glStartTilingQCOMFn(x, y, width, height, preserveMask);
 }
 
@@ -9572,7 +9513,7 @@ void TraceGLApi::glStencilFillPathInstancedNVFn(
     GLenum transformType,
     const GLfloat* transformValues) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glStencilFillPathInstancedNV");
+                                "TraceGLAPI::glStencilFillPathInstancedNV")
   gl_api_->glStencilFillPathInstancedNVFn(numPaths, pathNameType, paths,
                                           pathBase, fillMode, mask,
                                           transformType, transformValues);
@@ -9581,12 +9522,12 @@ void TraceGLApi::glStencilFillPathInstancedNVFn(
 void TraceGLApi::glStencilFillPathNVFn(GLuint path,
                                        GLenum fillMode,
                                        GLuint mask) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilFillPathNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilFillPathNV")
   gl_api_->glStencilFillPathNVFn(path, fillMode, mask);
 }
 
 void TraceGLApi::glStencilFuncFn(GLenum func, GLint ref, GLuint mask) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilFunc");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilFunc")
   gl_api_->glStencilFuncFn(func, ref, mask);
 }
 
@@ -9594,22 +9535,22 @@ void TraceGLApi::glStencilFuncSeparateFn(GLenum face,
                                          GLenum func,
                                          GLint ref,
                                          GLuint mask) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilFuncSeparate");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilFuncSeparate")
   gl_api_->glStencilFuncSeparateFn(face, func, ref, mask);
 }
 
 void TraceGLApi::glStencilMaskFn(GLuint mask) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilMask");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilMask")
   gl_api_->glStencilMaskFn(mask);
 }
 
 void TraceGLApi::glStencilMaskSeparateFn(GLenum face, GLuint mask) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilMaskSeparate");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilMaskSeparate")
   gl_api_->glStencilMaskSeparateFn(face, mask);
 }
 
 void TraceGLApi::glStencilOpFn(GLenum fail, GLenum zfail, GLenum zpass) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilOp");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilOp")
   gl_api_->glStencilOpFn(fail, zfail, zpass);
 }
 
@@ -9617,7 +9558,7 @@ void TraceGLApi::glStencilOpSeparateFn(GLenum face,
                                        GLenum fail,
                                        GLenum zfail,
                                        GLenum zpass) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilOpSeparate");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilOpSeparate")
   gl_api_->glStencilOpSeparateFn(face, fail, zfail, zpass);
 }
 
@@ -9631,7 +9572,7 @@ void TraceGLApi::glStencilStrokePathInstancedNVFn(
     GLenum transformType,
     const GLfloat* transformValues) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glStencilStrokePathInstancedNV");
+                                "TraceGLAPI::glStencilStrokePathInstancedNV")
   gl_api_->glStencilStrokePathInstancedNVFn(numPaths, pathNameType, paths,
                                             pathBase, ref, mask, transformType,
                                             transformValues);
@@ -9640,7 +9581,7 @@ void TraceGLApi::glStencilStrokePathInstancedNVFn(
 void TraceGLApi::glStencilStrokePathNVFn(GLuint path,
                                          GLint reference,
                                          GLuint mask) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilStrokePathNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glStencilStrokePathNV")
   gl_api_->glStencilStrokePathNVFn(path, reference, mask);
 }
 
@@ -9655,7 +9596,7 @@ void TraceGLApi::glStencilThenCoverFillPathInstancedNVFn(
     GLenum transformType,
     const GLfloat* transformValues) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glStencilThenCoverFillPathInstancedNV");
+      "gpu", "TraceGLAPI::glStencilThenCoverFillPathInstancedNV")
   gl_api_->glStencilThenCoverFillPathInstancedNVFn(
       numPaths, pathNameType, paths, pathBase, fillMode, mask, coverMode,
       transformType, transformValues);
@@ -9666,7 +9607,7 @@ void TraceGLApi::glStencilThenCoverFillPathNVFn(GLuint path,
                                                 GLuint mask,
                                                 GLenum coverMode) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glStencilThenCoverFillPathNV");
+                                "TraceGLAPI::glStencilThenCoverFillPathNV")
   gl_api_->glStencilThenCoverFillPathNVFn(path, fillMode, mask, coverMode);
 }
 
@@ -9681,7 +9622,7 @@ void TraceGLApi::glStencilThenCoverStrokePathInstancedNVFn(
     GLenum transformType,
     const GLfloat* transformValues) {
   TRACE_EVENT_BINARY_EFFICIENT0(
-      "gpu", "TraceGLAPI::glStencilThenCoverStrokePathInstancedNV");
+      "gpu", "TraceGLAPI::glStencilThenCoverStrokePathInstancedNV")
   gl_api_->glStencilThenCoverStrokePathInstancedNVFn(
       numPaths, pathNameType, paths, pathBase, ref, mask, coverMode,
       transformType, transformValues);
@@ -9692,24 +9633,24 @@ void TraceGLApi::glStencilThenCoverStrokePathNVFn(GLuint path,
                                                   GLuint mask,
                                                   GLenum coverMode) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glStencilThenCoverStrokePathNV");
+                                "TraceGLAPI::glStencilThenCoverStrokePathNV")
   gl_api_->glStencilThenCoverStrokePathNVFn(path, reference, mask, coverMode);
 }
 
 GLboolean TraceGLApi::glTestFenceAPPLEFn(GLuint fence) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTestFenceAPPLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTestFenceAPPLE")
   return gl_api_->glTestFenceAPPLEFn(fence);
 }
 
 GLboolean TraceGLApi::glTestFenceNVFn(GLuint fence) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTestFenceNV");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTestFenceNV")
   return gl_api_->glTestFenceNVFn(fence);
 }
 
 void TraceGLApi::glTexBufferFn(GLenum target,
                                GLenum internalformat,
                                GLuint buffer) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexBuffer");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexBuffer")
   gl_api_->glTexBufferFn(target, internalformat, buffer);
 }
 
@@ -9718,7 +9659,7 @@ void TraceGLApi::glTexBufferRangeFn(GLenum target,
                                     GLuint buffer,
                                     GLintptr offset,
                                     GLsizeiptr size) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexBufferRange");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexBufferRange")
   gl_api_->glTexBufferRangeFn(target, internalformat, buffer, offset, size);
 }
 
@@ -9731,7 +9672,7 @@ void TraceGLApi::glTexImage2DFn(GLenum target,
                                 GLenum format,
                                 GLenum type,
                                 const void* pixels) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexImage2D");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexImage2D")
   gl_api_->glTexImage2DFn(target, level, internalformat, width, height, border,
                           format, type, pixels);
 }
@@ -9744,7 +9685,7 @@ void TraceGLApi::glTexImage2DExternalANGLEFn(GLenum target,
                                              GLint border,
                                              GLenum format,
                                              GLenum type) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexImage2DExternalANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexImage2DExternalANGLE")
   gl_api_->glTexImage2DExternalANGLEFn(target, level, internalformat, width,
                                        height, border, format, type);
 }
@@ -9759,7 +9700,7 @@ void TraceGLApi::glTexImage2DRobustANGLEFn(GLenum target,
                                            GLenum type,
                                            GLsizei bufSize,
                                            const void* pixels) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexImage2DRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexImage2DRobustANGLE")
   gl_api_->glTexImage2DRobustANGLEFn(target, level, internalformat, width,
                                      height, border, format, type, bufSize,
                                      pixels);
@@ -9775,7 +9716,7 @@ void TraceGLApi::glTexImage3DFn(GLenum target,
                                 GLenum format,
                                 GLenum type,
                                 const void* pixels) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexImage3D");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexImage3D")
   gl_api_->glTexImage3DFn(target, level, internalformat, width, height, depth,
                           border, format, type, pixels);
 }
@@ -9791,21 +9732,21 @@ void TraceGLApi::glTexImage3DRobustANGLEFn(GLenum target,
                                            GLenum type,
                                            GLsizei bufSize,
                                            const void* pixels) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexImage3DRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexImage3DRobustANGLE")
   gl_api_->glTexImage3DRobustANGLEFn(target, level, internalformat, width,
                                      height, depth, border, format, type,
                                      bufSize, pixels);
 }
 
 void TraceGLApi::glTexParameterfFn(GLenum target, GLenum pname, GLfloat param) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexParameterf");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexParameterf")
   gl_api_->glTexParameterfFn(target, pname, param);
 }
 
 void TraceGLApi::glTexParameterfvFn(GLenum target,
                                     GLenum pname,
                                     const GLfloat* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexParameterfv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexParameterfv")
   gl_api_->glTexParameterfvFn(target, pname, params);
 }
 
@@ -9814,12 +9755,12 @@ void TraceGLApi::glTexParameterfvRobustANGLEFn(GLenum target,
                                                GLsizei bufSize,
                                                const GLfloat* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glTexParameterfvRobustANGLE");
+                                "TraceGLAPI::glTexParameterfvRobustANGLE")
   gl_api_->glTexParameterfvRobustANGLEFn(target, pname, bufSize, params);
 }
 
 void TraceGLApi::glTexParameteriFn(GLenum target, GLenum pname, GLint param) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexParameteri");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexParameteri")
   gl_api_->glTexParameteriFn(target, pname, param);
 }
 
@@ -9828,7 +9769,7 @@ void TraceGLApi::glTexParameterIivRobustANGLEFn(GLenum target,
                                                 GLsizei bufSize,
                                                 const GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glTexParameterIivRobustANGLE");
+                                "TraceGLAPI::glTexParameterIivRobustANGLE")
   gl_api_->glTexParameterIivRobustANGLEFn(target, pname, bufSize, params);
 }
 
@@ -9837,14 +9778,14 @@ void TraceGLApi::glTexParameterIuivRobustANGLEFn(GLenum target,
                                                  GLsizei bufSize,
                                                  const GLuint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glTexParameterIuivRobustANGLE");
+                                "TraceGLAPI::glTexParameterIuivRobustANGLE")
   gl_api_->glTexParameterIuivRobustANGLEFn(target, pname, bufSize, params);
 }
 
 void TraceGLApi::glTexParameterivFn(GLenum target,
                                     GLenum pname,
                                     const GLint* params) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexParameteriv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexParameteriv")
   gl_api_->glTexParameterivFn(target, pname, params);
 }
 
@@ -9853,7 +9794,7 @@ void TraceGLApi::glTexParameterivRobustANGLEFn(GLenum target,
                                                GLsizei bufSize,
                                                const GLint* params) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glTexParameterivRobustANGLE");
+                                "TraceGLAPI::glTexParameterivRobustANGLE")
   gl_api_->glTexParameterivRobustANGLEFn(target, pname, bufSize, params);
 }
 
@@ -9862,7 +9803,7 @@ void TraceGLApi::glTexStorage2DEXTFn(GLenum target,
                                      GLenum internalformat,
                                      GLsizei width,
                                      GLsizei height) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexStorage2DEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexStorage2DEXT")
   gl_api_->glTexStorage2DEXTFn(target, levels, internalformat, width, height);
 }
 
@@ -9872,7 +9813,7 @@ void TraceGLApi::glTexStorage2DMultisampleFn(GLenum target,
                                              GLsizei width,
                                              GLsizei height,
                                              GLboolean fixedsamplelocations) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexStorage2DMultisample");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexStorage2DMultisample")
   gl_api_->glTexStorage2DMultisampleFn(target, samples, internalformat, width,
                                        height, fixedsamplelocations);
 }
@@ -9883,7 +9824,7 @@ void TraceGLApi::glTexStorage3DFn(GLenum target,
                                   GLsizei width,
                                   GLsizei height,
                                   GLsizei depth) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexStorage3D");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexStorage3D")
   gl_api_->glTexStorage3DFn(target, levels, internalformat, width, height,
                             depth);
 }
@@ -9895,27 +9836,25 @@ void TraceGLApi::glTexStorageMem2DEXTFn(GLenum target,
                                         GLsizei height,
                                         GLuint memory,
                                         GLuint64 offset) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexStorageMem2DEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexStorageMem2DEXT")
   gl_api_->glTexStorageMem2DEXTFn(target, levels, internalFormat, width, height,
                                   memory, offset);
 }
 
-void TraceGLApi::glTexStorageMemFlags2DANGLEFn(
-    GLenum target,
-    GLsizei levels,
-    GLenum internalFormat,
-    GLsizei width,
-    GLsizei height,
-    GLuint memory,
-    GLuint64 offset,
-    GLbitfield createFlags,
-    GLbitfield usageFlags,
-    const void* imageCreateInfoPNext) {
+void TraceGLApi::glTexStorageMemFlags2DANGLEFn(GLenum target,
+                                               GLsizei levels,
+                                               GLenum internalFormat,
+                                               GLsizei width,
+                                               GLsizei height,
+                                               GLuint memory,
+                                               GLuint64 offset,
+                                               GLbitfield createFlags,
+                                               GLbitfield usageFlags) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glTexStorageMemFlags2DANGLE");
+                                "TraceGLAPI::glTexStorageMemFlags2DANGLE")
   gl_api_->glTexStorageMemFlags2DANGLEFn(target, levels, internalFormat, width,
                                          height, memory, offset, createFlags,
-                                         usageFlags, imageCreateInfoPNext);
+                                         usageFlags);
 }
 
 void TraceGLApi::glTexSubImage2DFn(GLenum target,
@@ -9927,7 +9866,7 @@ void TraceGLApi::glTexSubImage2DFn(GLenum target,
                                    GLenum format,
                                    GLenum type,
                                    const void* pixels) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexSubImage2D");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexSubImage2D")
   gl_api_->glTexSubImage2DFn(target, level, xoffset, yoffset, width, height,
                              format, type, pixels);
 }
@@ -9942,8 +9881,7 @@ void TraceGLApi::glTexSubImage2DRobustANGLEFn(GLenum target,
                                               GLenum type,
                                               GLsizei bufSize,
                                               const void* pixels) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glTexSubImage2DRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexSubImage2DRobustANGLE")
   gl_api_->glTexSubImage2DRobustANGLEFn(target, level, xoffset, yoffset, width,
                                         height, format, type, bufSize, pixels);
 }
@@ -9959,7 +9897,7 @@ void TraceGLApi::glTexSubImage3DFn(GLenum target,
                                    GLenum format,
                                    GLenum type,
                                    const void* pixels) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexSubImage3D");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexSubImage3D")
   gl_api_->glTexSubImage3DFn(target, level, xoffset, yoffset, zoffset, width,
                              height, depth, format, type, pixels);
 }
@@ -9976,8 +9914,7 @@ void TraceGLApi::glTexSubImage3DRobustANGLEFn(GLenum target,
                                               GLenum type,
                                               GLsizei bufSize,
                                               const void* pixels) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glTexSubImage3DRobustANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glTexSubImage3DRobustANGLE")
   gl_api_->glTexSubImage3DRobustANGLEFn(target, level, xoffset, yoffset,
                                         zoffset, width, height, depth, format,
                                         type, bufSize, pixels);
@@ -9988,75 +9925,75 @@ void TraceGLApi::glTransformFeedbackVaryingsFn(GLuint program,
                                                const char* const* varyings,
                                                GLenum bufferMode) {
   TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glTransformFeedbackVaryings");
+                                "TraceGLAPI::glTransformFeedbackVaryings")
   gl_api_->glTransformFeedbackVaryingsFn(program, count, varyings, bufferMode);
 }
 
 void TraceGLApi::glUniform1fFn(GLint location, GLfloat x) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform1f");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform1f")
   gl_api_->glUniform1fFn(location, x);
 }
 
 void TraceGLApi::glUniform1fvFn(GLint location,
                                 GLsizei count,
                                 const GLfloat* v) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform1fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform1fv")
   gl_api_->glUniform1fvFn(location, count, v);
 }
 
 void TraceGLApi::glUniform1iFn(GLint location, GLint x) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform1i");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform1i")
   gl_api_->glUniform1iFn(location, x);
 }
 
 void TraceGLApi::glUniform1ivFn(GLint location, GLsizei count, const GLint* v) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform1iv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform1iv")
   gl_api_->glUniform1ivFn(location, count, v);
 }
 
 void TraceGLApi::glUniform1uiFn(GLint location, GLuint v0) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform1ui");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform1ui")
   gl_api_->glUniform1uiFn(location, v0);
 }
 
 void TraceGLApi::glUniform1uivFn(GLint location,
                                  GLsizei count,
                                  const GLuint* v) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform1uiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform1uiv")
   gl_api_->glUniform1uivFn(location, count, v);
 }
 
 void TraceGLApi::glUniform2fFn(GLint location, GLfloat x, GLfloat y) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform2f");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform2f")
   gl_api_->glUniform2fFn(location, x, y);
 }
 
 void TraceGLApi::glUniform2fvFn(GLint location,
                                 GLsizei count,
                                 const GLfloat* v) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform2fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform2fv")
   gl_api_->glUniform2fvFn(location, count, v);
 }
 
 void TraceGLApi::glUniform2iFn(GLint location, GLint x, GLint y) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform2i");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform2i")
   gl_api_->glUniform2iFn(location, x, y);
 }
 
 void TraceGLApi::glUniform2ivFn(GLint location, GLsizei count, const GLint* v) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform2iv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform2iv")
   gl_api_->glUniform2ivFn(location, count, v);
 }
 
 void TraceGLApi::glUniform2uiFn(GLint location, GLuint v0, GLuint v1) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform2ui");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform2ui")
   gl_api_->glUniform2uiFn(location, v0, v1);
 }
 
 void TraceGLApi::glUniform2uivFn(GLint location,
                                  GLsizei count,
                                  const GLuint* v) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform2uiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform2uiv")
   gl_api_->glUniform2uivFn(location, count, v);
 }
 
@@ -10064,24 +10001,24 @@ void TraceGLApi::glUniform3fFn(GLint location,
                                GLfloat x,
                                GLfloat y,
                                GLfloat z) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform3f");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform3f")
   gl_api_->glUniform3fFn(location, x, y, z);
 }
 
 void TraceGLApi::glUniform3fvFn(GLint location,
                                 GLsizei count,
                                 const GLfloat* v) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform3fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform3fv")
   gl_api_->glUniform3fvFn(location, count, v);
 }
 
 void TraceGLApi::glUniform3iFn(GLint location, GLint x, GLint y, GLint z) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform3i");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform3i")
   gl_api_->glUniform3iFn(location, x, y, z);
 }
 
 void TraceGLApi::glUniform3ivFn(GLint location, GLsizei count, const GLint* v) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform3iv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform3iv")
   gl_api_->glUniform3ivFn(location, count, v);
 }
 
@@ -10089,14 +10026,14 @@ void TraceGLApi::glUniform3uiFn(GLint location,
                                 GLuint v0,
                                 GLuint v1,
                                 GLuint v2) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform3ui");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform3ui")
   gl_api_->glUniform3uiFn(location, v0, v1, v2);
 }
 
 void TraceGLApi::glUniform3uivFn(GLint location,
                                  GLsizei count,
                                  const GLuint* v) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform3uiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform3uiv")
   gl_api_->glUniform3uivFn(location, count, v);
 }
 
@@ -10105,14 +10042,14 @@ void TraceGLApi::glUniform4fFn(GLint location,
                                GLfloat y,
                                GLfloat z,
                                GLfloat w) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform4f");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform4f")
   gl_api_->glUniform4fFn(location, x, y, z, w);
 }
 
 void TraceGLApi::glUniform4fvFn(GLint location,
                                 GLsizei count,
                                 const GLfloat* v) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform4fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform4fv")
   gl_api_->glUniform4fvFn(location, count, v);
 }
 
@@ -10121,12 +10058,12 @@ void TraceGLApi::glUniform4iFn(GLint location,
                                GLint y,
                                GLint z,
                                GLint w) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform4i");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform4i")
   gl_api_->glUniform4iFn(location, x, y, z, w);
 }
 
 void TraceGLApi::glUniform4ivFn(GLint location, GLsizei count, const GLint* v) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform4iv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform4iv")
   gl_api_->glUniform4ivFn(location, count, v);
 }
 
@@ -10135,21 +10072,21 @@ void TraceGLApi::glUniform4uiFn(GLint location,
                                 GLuint v1,
                                 GLuint v2,
                                 GLuint v3) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform4ui");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform4ui")
   gl_api_->glUniform4uiFn(location, v0, v1, v2, v3);
 }
 
 void TraceGLApi::glUniform4uivFn(GLint location,
                                  GLsizei count,
                                  const GLuint* v) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform4uiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniform4uiv")
   gl_api_->glUniform4uivFn(location, count, v);
 }
 
 void TraceGLApi::glUniformBlockBindingFn(GLuint program,
                                          GLuint uniformBlockIndex,
                                          GLuint uniformBlockBinding) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformBlockBinding");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformBlockBinding")
   gl_api_->glUniformBlockBindingFn(program, uniformBlockIndex,
                                    uniformBlockBinding);
 }
@@ -10158,7 +10095,7 @@ void TraceGLApi::glUniformMatrix2fvFn(GLint location,
                                       GLsizei count,
                                       GLboolean transpose,
                                       const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix2fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix2fv")
   gl_api_->glUniformMatrix2fvFn(location, count, transpose, value);
 }
 
@@ -10166,7 +10103,7 @@ void TraceGLApi::glUniformMatrix2x3fvFn(GLint location,
                                         GLsizei count,
                                         GLboolean transpose,
                                         const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix2x3fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix2x3fv")
   gl_api_->glUniformMatrix2x3fvFn(location, count, transpose, value);
 }
 
@@ -10174,7 +10111,7 @@ void TraceGLApi::glUniformMatrix2x4fvFn(GLint location,
                                         GLsizei count,
                                         GLboolean transpose,
                                         const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix2x4fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix2x4fv")
   gl_api_->glUniformMatrix2x4fvFn(location, count, transpose, value);
 }
 
@@ -10182,7 +10119,7 @@ void TraceGLApi::glUniformMatrix3fvFn(GLint location,
                                       GLsizei count,
                                       GLboolean transpose,
                                       const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix3fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix3fv")
   gl_api_->glUniformMatrix3fvFn(location, count, transpose, value);
 }
 
@@ -10190,7 +10127,7 @@ void TraceGLApi::glUniformMatrix3x2fvFn(GLint location,
                                         GLsizei count,
                                         GLboolean transpose,
                                         const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix3x2fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix3x2fv")
   gl_api_->glUniformMatrix3x2fvFn(location, count, transpose, value);
 }
 
@@ -10198,7 +10135,7 @@ void TraceGLApi::glUniformMatrix3x4fvFn(GLint location,
                                         GLsizei count,
                                         GLboolean transpose,
                                         const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix3x4fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix3x4fv")
   gl_api_->glUniformMatrix3x4fvFn(location, count, transpose, value);
 }
 
@@ -10206,7 +10143,7 @@ void TraceGLApi::glUniformMatrix4fvFn(GLint location,
                                       GLsizei count,
                                       GLboolean transpose,
                                       const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix4fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix4fv")
   gl_api_->glUniformMatrix4fvFn(location, count, transpose, value);
 }
 
@@ -10214,7 +10151,7 @@ void TraceGLApi::glUniformMatrix4x2fvFn(GLint location,
                                         GLsizei count,
                                         GLboolean transpose,
                                         const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix4x2fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix4x2fv")
   gl_api_->glUniformMatrix4x2fvFn(location, count, transpose, value);
 }
 
@@ -10222,54 +10159,54 @@ void TraceGLApi::glUniformMatrix4x3fvFn(GLint location,
                                         GLsizei count,
                                         GLboolean transpose,
                                         const GLfloat* value) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix4x3fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUniformMatrix4x3fv")
   gl_api_->glUniformMatrix4x3fvFn(location, count, transpose, value);
 }
 
 GLboolean TraceGLApi::glUnmapBufferFn(GLenum target) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUnmapBuffer");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUnmapBuffer")
   return gl_api_->glUnmapBufferFn(target);
 }
 
 void TraceGLApi::glUseProgramFn(GLuint program) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUseProgram");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUseProgram")
   gl_api_->glUseProgramFn(program);
 }
 
 void TraceGLApi::glUseProgramStagesFn(GLuint pipeline,
                                       GLbitfield stages,
                                       GLuint program) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUseProgramStages");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glUseProgramStages")
   gl_api_->glUseProgramStagesFn(pipeline, stages, program);
 }
 
 void TraceGLApi::glValidateProgramFn(GLuint program) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glValidateProgram");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glValidateProgram")
   gl_api_->glValidateProgramFn(program);
 }
 
 void TraceGLApi::glValidateProgramPipelineFn(GLuint pipeline) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glValidateProgramPipeline");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glValidateProgramPipeline")
   gl_api_->glValidateProgramPipelineFn(pipeline);
 }
 
 void TraceGLApi::glVertexAttrib1fFn(GLuint indx, GLfloat x) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib1f");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib1f")
   gl_api_->glVertexAttrib1fFn(indx, x);
 }
 
 void TraceGLApi::glVertexAttrib1fvFn(GLuint indx, const GLfloat* values) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib1fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib1fv")
   gl_api_->glVertexAttrib1fvFn(indx, values);
 }
 
 void TraceGLApi::glVertexAttrib2fFn(GLuint indx, GLfloat x, GLfloat y) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib2f");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib2f")
   gl_api_->glVertexAttrib2fFn(indx, x, y);
 }
 
 void TraceGLApi::glVertexAttrib2fvFn(GLuint indx, const GLfloat* values) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib2fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib2fv")
   gl_api_->glVertexAttrib2fvFn(indx, values);
 }
 
@@ -10277,12 +10214,12 @@ void TraceGLApi::glVertexAttrib3fFn(GLuint indx,
                                     GLfloat x,
                                     GLfloat y,
                                     GLfloat z) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib3f");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib3f")
   gl_api_->glVertexAttrib3fFn(indx, x, y, z);
 }
 
 void TraceGLApi::glVertexAttrib3fvFn(GLuint indx, const GLfloat* values) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib3fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib3fv")
   gl_api_->glVertexAttrib3fvFn(indx, values);
 }
 
@@ -10291,24 +10228,23 @@ void TraceGLApi::glVertexAttrib4fFn(GLuint indx,
                                     GLfloat y,
                                     GLfloat z,
                                     GLfloat w) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib4f");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib4f")
   gl_api_->glVertexAttrib4fFn(indx, x, y, z, w);
 }
 
 void TraceGLApi::glVertexAttrib4fvFn(GLuint indx, const GLfloat* values) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib4fv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttrib4fv")
   gl_api_->glVertexAttrib4fvFn(indx, values);
 }
 
 void TraceGLApi::glVertexAttribBindingFn(GLuint attribindex,
                                          GLuint bindingindex) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribBinding");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribBinding")
   gl_api_->glVertexAttribBindingFn(attribindex, bindingindex);
 }
 
 void TraceGLApi::glVertexAttribDivisorANGLEFn(GLuint index, GLuint divisor) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu",
-                                "TraceGLAPI::glVertexAttribDivisorANGLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribDivisorANGLE")
   gl_api_->glVertexAttribDivisorANGLEFn(index, divisor);
 }
 
@@ -10317,7 +10253,7 @@ void TraceGLApi::glVertexAttribFormatFn(GLuint attribindex,
                                         GLenum type,
                                         GLboolean normalized,
                                         GLuint relativeoffset) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribFormat");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribFormat")
   gl_api_->glVertexAttribFormatFn(attribindex, size, type, normalized,
                                   relativeoffset);
 }
@@ -10327,12 +10263,12 @@ void TraceGLApi::glVertexAttribI4iFn(GLuint indx,
                                      GLint y,
                                      GLint z,
                                      GLint w) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribI4i");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribI4i")
   gl_api_->glVertexAttribI4iFn(indx, x, y, z, w);
 }
 
 void TraceGLApi::glVertexAttribI4ivFn(GLuint indx, const GLint* values) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribI4iv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribI4iv")
   gl_api_->glVertexAttribI4ivFn(indx, values);
 }
 
@@ -10341,12 +10277,12 @@ void TraceGLApi::glVertexAttribI4uiFn(GLuint indx,
                                       GLuint y,
                                       GLuint z,
                                       GLuint w) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribI4ui");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribI4ui")
   gl_api_->glVertexAttribI4uiFn(indx, x, y, z, w);
 }
 
 void TraceGLApi::glVertexAttribI4uivFn(GLuint indx, const GLuint* values) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribI4uiv");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribI4uiv")
   gl_api_->glVertexAttribI4uivFn(indx, values);
 }
 
@@ -10354,7 +10290,7 @@ void TraceGLApi::glVertexAttribIFormatFn(GLuint attribindex,
                                          GLint size,
                                          GLenum type,
                                          GLuint relativeoffset) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribIFormat");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribIFormat")
   gl_api_->glVertexAttribIFormatFn(attribindex, size, type, relativeoffset);
 }
 
@@ -10363,7 +10299,7 @@ void TraceGLApi::glVertexAttribIPointerFn(GLuint indx,
                                           GLenum type,
                                           GLsizei stride,
                                           const void* ptr) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribIPointer");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribIPointer")
   gl_api_->glVertexAttribIPointerFn(indx, size, type, stride, ptr);
 }
 
@@ -10373,17 +10309,17 @@ void TraceGLApi::glVertexAttribPointerFn(GLuint indx,
                                          GLboolean normalized,
                                          GLsizei stride,
                                          const void* ptr) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribPointer");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexAttribPointer")
   gl_api_->glVertexAttribPointerFn(indx, size, type, normalized, stride, ptr);
 }
 
 void TraceGLApi::glVertexBindingDivisorFn(GLuint bindingindex, GLuint divisor) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexBindingDivisor");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glVertexBindingDivisor")
   gl_api_->glVertexBindingDivisorFn(bindingindex, divisor);
 }
 
 void TraceGLApi::glViewportFn(GLint x, GLint y, GLsizei width, GLsizei height) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glViewport");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glViewport")
   gl_api_->glViewportFn(x, y, width, height);
 }
 
@@ -10393,38 +10329,28 @@ void TraceGLApi::glWaitSemaphoreEXTFn(GLuint semaphore,
                                       GLuint numTextureBarriers,
                                       const GLuint* textures,
                                       const GLenum* srcLayouts) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glWaitSemaphoreEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glWaitSemaphoreEXT")
   gl_api_->glWaitSemaphoreEXTFn(semaphore, numBufferBarriers, buffers,
                                 numTextureBarriers, textures, srcLayouts);
 }
 
 void TraceGLApi::glWaitSyncFn(GLsync sync, GLbitfield flags, GLuint64 timeout) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glWaitSync");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glWaitSync")
   gl_api_->glWaitSyncFn(sync, flags, timeout);
 }
 
 void TraceGLApi::glWaitSyncAPPLEFn(GLsync sync,
                                    GLbitfield flags,
                                    GLuint64 timeout) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glWaitSyncAPPLE");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glWaitSyncAPPLE")
   gl_api_->glWaitSyncAPPLEFn(sync, flags, timeout);
 }
 
 void TraceGLApi::glWindowRectanglesEXTFn(GLenum mode,
                                          GLsizei n,
                                          const GLint* box) {
-  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glWindowRectanglesEXT");
+  TRACE_EVENT_BINARY_EFFICIENT0("gpu", "TraceGLAPI::glWindowRectanglesEXT")
   gl_api_->glWindowRectanglesEXTFn(mode, n, box);
-}
-
-void LogGLApi::glAcquireTexturesANGLEFn(GLuint numTextures,
-                                        const GLuint* textures,
-                                        const GLenum* layouts) {
-  GL_SERVICE_LOG("glAcquireTexturesANGLE"
-                 << "(" << numTextures << ", "
-                 << static_cast<const void*>(textures) << ", "
-                 << static_cast<const void*>(layouts) << ")");
-  gl_api_->glAcquireTexturesANGLEFn(numTextures, textures, layouts);
 }
 
 void LogGLApi::glActiveShaderProgramFn(GLuint pipeline, GLuint program) {
@@ -14256,16 +14182,6 @@ void LogGLApi::glReleaseShaderCompilerFn(void) {
   gl_api_->glReleaseShaderCompilerFn();
 }
 
-void LogGLApi::glReleaseTexturesANGLEFn(GLuint numTextures,
-                                        const GLuint* textures,
-                                        GLenum* layouts) {
-  GL_SERVICE_LOG("glReleaseTexturesANGLE"
-                 << "(" << numTextures << ", "
-                 << static_cast<const void*>(textures) << ", "
-                 << static_cast<const void*>(layouts) << ")");
-  gl_api_->glReleaseTexturesANGLEFn(numTextures, textures, layouts);
-}
-
 void LogGLApi::glRenderbufferStorageEXTFn(GLenum target,
                                           GLenum internalformat,
                                           GLsizei width,
@@ -14965,17 +14881,15 @@ void LogGLApi::glTexStorageMemFlags2DANGLEFn(GLenum target,
                                              GLuint memory,
                                              GLuint64 offset,
                                              GLbitfield createFlags,
-                                             GLbitfield usageFlags,
-                                             const void* imageCreateInfoPNext) {
+                                             GLbitfield usageFlags) {
   GL_SERVICE_LOG("glTexStorageMemFlags2DANGLE"
                  << "(" << GLEnums::GetStringEnum(target) << ", " << levels
                  << ", " << GLEnums::GetStringEnum(internalFormat) << ", "
                  << width << ", " << height << ", " << memory << ", " << offset
-                 << ", " << createFlags << ", " << usageFlags << ", "
-                 << static_cast<const void*>(imageCreateInfoPNext) << ")");
+                 << ", " << createFlags << ", " << usageFlags << ")");
   gl_api_->glTexStorageMemFlags2DANGLEFn(target, levels, internalFormat, width,
                                          height, memory, offset, createFlags,
-                                         usageFlags, imageCreateInfoPNext);
+                                         usageFlags);
 }
 
 void LogGLApi::glTexSubImage2DFn(GLenum target,
@@ -15612,12 +15526,6 @@ void NoContextHelper(const char* method_name) {
              << " without current GL context";
 }
 }  // namespace
-
-void NoContextGLApi::glAcquireTexturesANGLEFn(GLuint numTextures,
-                                              const GLuint* textures,
-                                              const GLenum* layouts) {
-  NoContextHelper("glAcquireTexturesANGLE");
-}
 
 void NoContextGLApi::glActiveShaderProgramFn(GLuint pipeline, GLuint program) {
   NoContextHelper("glActiveShaderProgram");
@@ -18059,12 +17967,6 @@ void NoContextGLApi::glReleaseShaderCompilerFn(void) {
   NoContextHelper("glReleaseShaderCompiler");
 }
 
-void NoContextGLApi::glReleaseTexturesANGLEFn(GLuint numTextures,
-                                              const GLuint* textures,
-                                              GLenum* layouts) {
-  NoContextHelper("glReleaseTexturesANGLE");
-}
-
 void NoContextGLApi::glRenderbufferStorageEXTFn(GLenum target,
                                                 GLenum internalformat,
                                                 GLsizei width,
@@ -18496,17 +18398,15 @@ void NoContextGLApi::glTexStorageMem2DEXTFn(GLenum target,
   NoContextHelper("glTexStorageMem2DEXT");
 }
 
-void NoContextGLApi::glTexStorageMemFlags2DANGLEFn(
-    GLenum target,
-    GLsizei levels,
-    GLenum internalFormat,
-    GLsizei width,
-    GLsizei height,
-    GLuint memory,
-    GLuint64 offset,
-    GLbitfield createFlags,
-    GLbitfield usageFlags,
-    const void* imageCreateInfoPNext) {
+void NoContextGLApi::glTexStorageMemFlags2DANGLEFn(GLenum target,
+                                                   GLsizei levels,
+                                                   GLenum internalFormat,
+                                                   GLsizei width,
+                                                   GLsizei height,
+                                                   GLuint memory,
+                                                   GLuint64 offset,
+                                                   GLbitfield createFlags,
+                                                   GLbitfield usageFlags) {
   NoContextHelper("glTexStorageMemFlags2DANGLE");
 }
 

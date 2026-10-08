@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,12 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "gpu/vulkan/buildflags.h"
 #include "ui/ozone/demo/renderer_factory.h"
 
 #if BUILDFLAG(ENABLE_VULKAN)
 #include "gpu/vulkan/vulkan_implementation.h"
 #endif
-
-namespace gl {
-class GLDisplay;
-}
 
 namespace ui {
 
@@ -32,10 +27,6 @@ class SimpleRendererFactory : public RendererFactory {
   };
 
   SimpleRendererFactory();
-
-  SimpleRendererFactory(const SimpleRendererFactory&) = delete;
-  SimpleRendererFactory& operator=(const SimpleRendererFactory&) = delete;
-
   ~SimpleRendererFactory() override;
 
   bool Initialize() override;
@@ -48,7 +39,8 @@ class SimpleRendererFactory : public RendererFactory {
 #endif
 
   RendererType type_ = SOFTWARE;
-  raw_ptr<gl::GLDisplay> display_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(SimpleRendererFactory);
 };
 
 }  // namespace ui

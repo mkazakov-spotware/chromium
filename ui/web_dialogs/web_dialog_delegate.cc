@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 namespace ui {
 
-std::u16string WebDialogDelegate::GetAccessibleDialogTitle() const {
+base::string16 WebDialogDelegate::GetAccessibleDialogTitle() const {
   return GetDialogTitle();
 }
 
@@ -25,6 +25,10 @@ bool WebDialogDelegate::CanMaximizeDialog() const {
 }
 
 bool WebDialogDelegate::OnDialogCloseRequested() {
+  return true;
+}
+
+bool WebDialogDelegate::DeprecatedOnDialogCloseRequested() {
   return true;
 }
 
@@ -46,7 +50,7 @@ void WebDialogDelegate::OnDialogCloseFromWebUI(
 }
 
 bool WebDialogDelegate::HandleContextMenu(
-    content::RenderFrameHost& render_frame_host,
+    content::RenderFrameHost* render_frame_host,
     const content::ContextMenuParams& params) {
   return false;
 }

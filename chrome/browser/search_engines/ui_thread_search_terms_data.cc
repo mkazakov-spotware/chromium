@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,12 +47,12 @@ std::string UIThreadSearchTermsData::GetApplicationLocale() const {
 }
 
 // Android implementations are in ui_thread_search_terms_data_android.cc.
-#if !BUILDFLAG(IS_ANDROID)
-std::u16string UIThreadSearchTermsData::GetRlzParameterValue(
+#if !defined(OS_ANDROID)
+base::string16 UIThreadSearchTermsData::GetRlzParameterValue(
     bool from_app_list) const {
   DCHECK(!BrowserThread::IsThreadInitialized(BrowserThread::UI) ||
       BrowserThread::CurrentlyOn(BrowserThread::UI));
-  std::u16string rlz_string;
+  base::string16 rlz_string;
 #if BUILDFLAG(ENABLE_RLZ)
   // For organic brandcodes do not use rlz at all. Empty brandcode usually
   // means a chromium install. This is ok.
@@ -80,29 +80,25 @@ std::string UIThreadSearchTermsData::GetSearchClient() const {
 }
 #endif
 
-std::string UIThreadSearchTermsData::GetSuggestClient(
-    bool non_searchbox_ntp) const {
+std::string UIThreadSearchTermsData::GetSuggestClient(bool from_ntp) const {
   DCHECK(!BrowserThread::IsThreadInitialized(BrowserThread::UI) ||
       BrowserThread::CurrentlyOn(BrowserThread::UI));
-#if BUILDFLAG(IS_ANDROID)
-  if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_PHONE) {
-    return non_searchbox_ntp ? "chrome-android-search-resumption-module"
-                             : "chrome";
-  }
-  return "chrome-omni";
+#if defined(OS_ANDROID)
+  // Android does not send non-searchbox suggest requests from NTP at this time.
+  DCHECK(!from_ntp);
+  return ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_PHONE ?
+      "chrome" : "chrome-omni";
 #else
-  return "chrome-omni";
+  return from_ntp ? "chrome-ntp" : "chrome-omni";
 #endif
 }
 
-std::string UIThreadSearchTermsData::GetSuggestRequestIdentifier(
-    bool non_searchbox_ntp) const {
+std::string UIThreadSearchTermsData::GetSuggestRequestIdentifier() const {
   DCHECK(!BrowserThread::IsThreadInitialized(BrowserThread::UI) ||
       BrowserThread::CurrentlyOn(BrowserThread::UI));
-#if BUILDFLAG(IS_ANDROID)
-  if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_PHONE) {
-    return non_searchbox_ntp ? std::string() : "chrome-mobile-ext-ansg";
-  }
+#if defined(OS_ANDROID)
+  if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_PHONE)
+    return "chrome-mobile-ext-ansg";
 #endif
   return "chrome-ext-ansg";
 }
@@ -116,9 +112,7 @@ std::string UIThreadSearchTermsData::GoogleImageSearchSource() const {
   if (version_info::IsOfficialBuild())
     version += " (Official)";
   version += " " + version_info::GetOSType();
-  // Do not distinguish extended from regular stable in image search queries.
-  std::string modifier(
-      chrome::GetChannelName(chrome::WithExtendedStable(false)));
+  std::string modifier(chrome::GetChannelName());
   if (!modifier.empty())
     version += " " + modifier;
   return version;

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,8 @@
 #include <string>
 
 #include "ash/ash_export.h"
-#include "chromeos/crosapi/mojom/cros_display_config.mojom.h"
+#include "ash/public/mojom/cros_display_config.mojom.h"
+#include "base/macros.h"
 #include "mojo/public/cpp/bindings/pending_associated_remote.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
@@ -22,42 +23,35 @@ class OverscanCalibrator;
 class TouchCalibratorController;
 
 // ASH_EXPORT for use in chrome unit_tests for DisplayInfoProviderChromeOS.
-class ASH_EXPORT CrosDisplayConfig
-    : public crosapi::mojom::CrosDisplayConfigController {
+class ASH_EXPORT CrosDisplayConfig : public mojom::CrosDisplayConfigController {
  public:
   CrosDisplayConfig();
-
-  CrosDisplayConfig(const CrosDisplayConfig&) = delete;
-  CrosDisplayConfig& operator=(const CrosDisplayConfig&) = delete;
-
   ~CrosDisplayConfig() override;
 
   void BindReceiver(
-      mojo::PendingReceiver<crosapi::mojom::CrosDisplayConfigController>
-          receiver);
+      mojo::PendingReceiver<mojom::CrosDisplayConfigController> receiver);
 
-  // crosapi::mojom::CrosDisplayConfigController:
+  // mojom::CrosDisplayConfigController:
   void AddObserver(
-      mojo::PendingAssociatedRemote<crosapi::mojom::CrosDisplayConfigObserver>
-          observer) override;
+      mojo::PendingAssociatedRemote<mojom::CrosDisplayConfigObserver> observer)
+      override;
   void GetDisplayLayoutInfo(GetDisplayLayoutInfoCallback callback) override;
-  void SetDisplayLayoutInfo(crosapi::mojom::DisplayLayoutInfoPtr info,
+  void SetDisplayLayoutInfo(mojom::DisplayLayoutInfoPtr info,
                             SetDisplayLayoutInfoCallback callback) override;
   void GetDisplayUnitInfoList(bool single_unified,
                               GetDisplayUnitInfoListCallback callback) override;
-  void SetDisplayProperties(
-      const std::string& id,
-      crosapi::mojom::DisplayConfigPropertiesPtr properties,
-      crosapi::mojom::DisplayConfigSource source,
-      SetDisplayPropertiesCallback callback) override;
+  void SetDisplayProperties(const std::string& id,
+                            mojom::DisplayConfigPropertiesPtr properties,
+                            mojom::DisplayConfigSource source,
+                            SetDisplayPropertiesCallback callback) override;
   void SetUnifiedDesktopEnabled(bool enabled) override;
   void OverscanCalibration(const std::string& display_id,
-                           crosapi::mojom::DisplayConfigOperation op,
-                           const absl::optional<gfx::Insets>& delta,
+                           mojom::DisplayConfigOperation op,
+                           const base::Optional<gfx::Insets>& delta,
                            OverscanCalibrationCallback callback) override;
   void TouchCalibration(const std::string& display_id,
-                        crosapi::mojom::DisplayConfigOperation op,
-                        crosapi::mojom::TouchCalibrationPtr calibration,
+                        mojom::DisplayConfigOperation op,
+                        mojom::TouchCalibrationPtr calibration,
                         TouchCalibrationCallback callback) override;
   void HighlightDisplay(int64_t display_id) override;
   void DragDisplayDelta(int64_t display_id,
@@ -75,10 +69,12 @@ class ASH_EXPORT CrosDisplayConfig
   OverscanCalibrator* GetOverscanCalibrator(const std::string& id);
 
   std::unique_ptr<ObserverImpl> observer_impl_;
-  mojo::ReceiverSet<crosapi::mojom::CrosDisplayConfigController> receivers_;
+  mojo::ReceiverSet<mojom::CrosDisplayConfigController> receivers_;
   std::map<std::string, std::unique_ptr<OverscanCalibrator>>
       overscan_calibrators_;
   std::unique_ptr<TouchCalibratorController> touch_calibrator_;
+
+  DISALLOW_COPY_AND_ASSIGN(CrosDisplayConfig);
 };
 
 }  // namespace ash

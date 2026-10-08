@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,9 +50,6 @@ class SessionLockedObserver {
                                 base::Unretained(this))),
         screen_locked_(IsSessionLocked()) {}
 
-  SessionLockedObserver(const SessionLockedObserver&) = delete;
-  SessionLockedObserver& operator=(const SessionLockedObserver&) = delete;
-
   bool IsLocked() const { return screen_locked_; }
 
  private:
@@ -66,6 +63,8 @@ class SessionLockedObserver {
   }
   SessionChangeObserver session_change_observer_;
   bool screen_locked_;
+
+  DISALLOW_COPY_AND_ASSIGN(SessionLockedObserver);
 };
 
 }  // namespace

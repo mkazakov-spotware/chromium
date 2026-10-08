@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,25 +8,21 @@
 #include <string>
 #include <vector>
 
+#include "base/strings/string16.h"
 #include "chrome/common/search/omnibox.mojom-forward.h"
 
 class AutocompleteResult;
 class PrefService;
 
-namespace bookmarks {
-class BookmarkModel;
-}  // namespace bookmarks
-
 namespace gfx {
 struct VectorIcon;
-}  // namespace gfx
+}
 
 namespace omnibox {
 
 extern const char kGoogleGIconResourceName[];
 extern const char kBookmarkIconResourceName[];
 extern const char kCalculatorIconResourceName[];
-extern const char kChromeProductIconResourceName[];
 extern const char kClockIconResourceName[];
 extern const char kDriveDocsIconResourceName[];
 extern const char kDriveFolderIconResourceName[];
@@ -46,13 +42,11 @@ std::string AutocompleteMatchVectorIconToResourceName(
     const gfx::VectorIcon& icon);
 
 std::vector<search::mojom::AutocompleteMatchPtr> CreateAutocompleteMatches(
-    const AutocompleteResult& result,
-    bookmarks::BookmarkModel* bookmark_model);
+    const AutocompleteResult& result);
 
 search::mojom::AutocompleteResultPtr CreateAutocompleteResult(
-    const std::u16string& input,
+    const base::string16& input,
     const AutocompleteResult& result,
-    bookmarks::BookmarkModel* bookmark_model,
     PrefService* prefs);
 
 }  // namespace omnibox

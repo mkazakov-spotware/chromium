@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -117,9 +117,6 @@ public class SplitAvailabilityLogger {
      * @param status The install status.
      */
     public void storeModuleInstalled(String moduleName, int status) {
-        if (!mInstallTimesMap.containsKey(moduleName)) {
-            return;
-        }
         InstallTimes times = mInstallTimesMap.get(moduleName);
         times.mInstallTimes.put(status, SystemClock.uptimeMillis());
     }
@@ -144,9 +141,7 @@ public class SplitAvailabilityLogger {
 
     private void recordInstallTime(
             String moduleName, String histogramSubname, int startKey, int endKey) {
-        if (!mInstallTimesMap.containsKey(moduleName)) {
-            return;
-        }
+        assert mInstallTimesMap.containsKey(moduleName);
 
         InstallTimes installTimes = mInstallTimesMap.get(moduleName);
         long startTime = installTimes.mInstallTimes.get(startKey);

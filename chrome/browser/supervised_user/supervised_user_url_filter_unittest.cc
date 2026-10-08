@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/supervised_user/supervised_user_url_filter.h"
 
-#include <map>
 #include <memory>
 
 #include "base/bind.h"
@@ -12,8 +11,8 @@
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/test/metrics/histogram_tester.h"
 #include "base/test/task_environment.h"
+#include "chrome/browser/supervised_user/supervised_user_site_list.h"
 #include "extensions/buildflags/buildflags.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
@@ -87,11 +86,11 @@ class SupervisedUserURLFilterTest : public ::testing::Test,
 };
 
 TEST_F(SupervisedUserURLFilterTest, Basic) {
-  std::map<std::string, bool> hosts;
-  hosts["*.google.com"] = true;
-
-  filter_.SetManualHosts(std::move(hosts));
-  filter_.SetDefaultFilteringBehavior(SupervisedUserURLFilter::BLOCK);
+  std::vector<std::string> list;
+  // Allow domain and all subdomains, for any filtered scheme.
+  list.push_back("google.com");
+  filter_.SetFromPatternsForTesting(list);
+  run_loop_.Run();
 
   EXPECT_TRUE(IsURLAllowlisted("http://google.com"));
   EXPECT_TRUE(IsURLAllowlisted("http://google.com/"));
@@ -112,11 +111,11 @@ TEST_F(SupervisedUserURLFilterTest, Basic) {
 }
 
 TEST_F(SupervisedUserURLFilterTest, EffectiveURL) {
-  std::map<std::string, bool> hosts;
-  hosts["example.com"] = true;
-
-  filter_.SetManualHosts(std::move(hosts));
-  filter_.SetDefaultFilteringBehavior(SupervisedUserURLFilter::BLOCK);
+  std::vector<std::string> list;
+  // Allow domain and all subdomains, for any filtered scheme.
+  list.push_back("example.com");
+  filter_.SetFromPatternsForTesting(list);
+  run_loop_.Run();
 
   ASSERT_TRUE(IsURLAllowlisted("http://example.com"));
   ASSERT_TRUE(IsURLAllowlisted("https://example.com"));
@@ -190,22 +189,86 @@ TEST_F(SupervisedUserURLFilterTest, EffectiveURL) {
 
 TEST_F(SupervisedUserURLFilterTest, Inactive) {
   filter_.SetDefaultFilteringBehavior(SupervisedUserURLFilter::ALLOW);
-  std::map<std::string, bool> hosts;
-  hosts["google.com"] = true;
 
-  filter_.SetManualHosts(std::move(hosts));
+  std::vector<std::string> list;
+  list.push_back("google.com");
+  filter_.SetFromPatternsForTesting(list);
+  run_loop_.Run();
 
   // If the filter is inactive, every URL should be allowed.
   EXPECT_TRUE(IsURLAllowlisted("http://google.com"));
   EXPECT_TRUE(IsURLAllowlisted("https://www.example.com"));
 }
 
-TEST_F(SupervisedUserURLFilterTest, IPAddress) {
-  std::map<std::string, bool> hosts;
-  hosts["123.123.123.123"] = true;
+TEST_F(SupervisedUserURLFilterTest, Scheme) {
+  std::vector<std::string> list;
+  // Filter only http, ftp and ws schemes.
+  list.push_back("http://secure.com");
+  list.push_back("ftp://secure.com");
+  list.push_back("ws://secure.com");
+  filter_.SetFromPatternsForTesting(list);
+  run_loop_.Run();
 
-  filter_.SetManualHosts(std::move(hosts));
-  filter_.SetDefaultFilteringBehavior(SupervisedUserURLFilter::BLOCK);
+  EXPECT_TRUE(IsURLAllowlisted("http://secure.com"));
+  EXPECT_TRUE(IsURLAllowlisted("http://secure.com/whatever"));
+  EXPECT_TRUE(IsURLAllowlisted("ftp://secure.com/"));
+  EXPECT_TRUE(IsURLAllowlisted("ws://secure.com"));
+  EXPECT_FALSE(IsURLAllowlisted("https://secure.com/"));
+  EXPECT_FALSE(IsURLAllowlisted("wss://secure.com"));
+  EXPECT_TRUE(IsURLAllowlisted("http://www.secure.com"));
+  EXPECT_FALSE(IsURLAllowlisted("https://www.secure.com"));
+  EXPECT_FALSE(IsURLAllowlisted("wss://www.secure.com"));
+}
+
+TEST_F(SupervisedUserURLFilterTest, Path) {
+  std::vector<std::string> list;
+  // Filter only a certain path prefix.
+  list.push_back("path.to/ruin");
+  filter_.SetFromPatternsForTesting(list);
+  run_loop_.Run();
+
+  EXPECT_TRUE(IsURLAllowlisted("http://path.to/ruin"));
+  EXPECT_TRUE(IsURLAllowlisted("https://path.to/ruin"));
+  EXPECT_TRUE(IsURLAllowlisted("http://path.to/ruins"));
+  EXPECT_TRUE(IsURLAllowlisted("http://path.to/ruin/signup"));
+  EXPECT_TRUE(IsURLAllowlisted("http://www.path.to/ruin"));
+  EXPECT_FALSE(IsURLAllowlisted("http://path.to/fortune"));
+}
+
+TEST_F(SupervisedUserURLFilterTest, PathAndScheme) {
+  std::vector<std::string> list;
+  // Filter only a certain path prefix and scheme.
+  list.push_back("https://s.aaa.com/path");
+  filter_.SetFromPatternsForTesting(list);
+  run_loop_.Run();
+
+  EXPECT_TRUE(IsURLAllowlisted("https://s.aaa.com/path"));
+  EXPECT_TRUE(IsURLAllowlisted("https://s.aaa.com/path/bbb"));
+  EXPECT_FALSE(IsURLAllowlisted("http://s.aaa.com/path"));
+  EXPECT_FALSE(IsURLAllowlisted("https://aaa.com/path"));
+  EXPECT_FALSE(IsURLAllowlisted("https://x.aaa.com/path"));
+  EXPECT_FALSE(IsURLAllowlisted("https://s.aaa.com/bbb"));
+  EXPECT_FALSE(IsURLAllowlisted("https://s.aaa.com/"));
+}
+
+TEST_F(SupervisedUserURLFilterTest, Host) {
+  std::vector<std::string> list;
+  // Filter only a certain hostname, without subdomains.
+  list.push_back(".www.example.com");
+  filter_.SetFromPatternsForTesting(list);
+  run_loop_.Run();
+
+  EXPECT_TRUE(IsURLAllowlisted("http://www.example.com"));
+  EXPECT_FALSE(IsURLAllowlisted("http://example.com"));
+  EXPECT_FALSE(IsURLAllowlisted("http://subdomain.example.com"));
+}
+
+TEST_F(SupervisedUserURLFilterTest, IPAddress) {
+  std::vector<std::string> list;
+  // Filter an ip address.
+  list.push_back("123.123.123.123");
+  filter_.SetFromPatternsForTesting(list);
+  run_loop_.Run();
 
   EXPECT_TRUE(IsURLAllowlisted("http://123.123.123.123/"));
   EXPECT_FALSE(IsURLAllowlisted("http://123.123.123.124/"));
@@ -248,20 +311,29 @@ TEST_F(SupervisedUserURLFilterTest, Canonicalization) {
   EXPECT_TRUE(IsURLAllowlisted("http://www.example.com/foo/?bar=baz#ref"));
 }
 
-TEST_F(SupervisedUserURLFilterTest, UrlWithNonStandardUrlSchemeAllowed) {
-  // Non-standard url scheme.
-  EXPECT_TRUE(IsURLAllowlisted("file://example.com"));
-  EXPECT_TRUE(IsURLAllowlisted("filesystem://80cols.com"));
-  EXPECT_TRUE(IsURLAllowlisted("chrome://example.com"));
-  EXPECT_TRUE(IsURLAllowlisted("wtf://example.com"));
-  EXPECT_TRUE(IsURLAllowlisted("gopher://example.com"));
+TEST_F(SupervisedUserURLFilterTest, HasFilteredScheme) {
+  EXPECT_TRUE(
+      SupervisedUserURLFilter::HasFilteredScheme(GURL("http://example.com")));
+  EXPECT_TRUE(
+      SupervisedUserURLFilter::HasFilteredScheme(GURL("https://example.com")));
+  EXPECT_TRUE(
+      SupervisedUserURLFilter::HasFilteredScheme(GURL("ftp://example.com")));
+  EXPECT_TRUE(
+      SupervisedUserURLFilter::HasFilteredScheme(GURL("ws://example.com")));
+  EXPECT_TRUE(
+      SupervisedUserURLFilter::HasFilteredScheme(GURL("wss://example.com")));
 
-  // Standard url scheme.
-  EXPECT_FALSE(IsURLAllowlisted(("http://example.com")));
-  EXPECT_FALSE(IsURLAllowlisted("https://example.com"));
-  EXPECT_FALSE(IsURLAllowlisted("ftp://example.com"));
-  EXPECT_FALSE(IsURLAllowlisted("ws://example.com"));
-  EXPECT_FALSE(IsURLAllowlisted("wss://example.com"));
+  EXPECT_FALSE(
+      SupervisedUserURLFilter::HasFilteredScheme(GURL("file://example.com")));
+  EXPECT_FALSE(
+      SupervisedUserURLFilter::HasFilteredScheme(
+          GURL("filesystem://80cols.com")));
+  EXPECT_FALSE(
+      SupervisedUserURLFilter::HasFilteredScheme(GURL("chrome://example.com")));
+  EXPECT_FALSE(
+      SupervisedUserURLFilter::HasFilteredScheme(GURL("wtf://example.com")));
+  EXPECT_FALSE(
+      SupervisedUserURLFilter::HasFilteredScheme(GURL("gopher://example.com")));
 }
 
 TEST_F(SupervisedUserURLFilterTest, HostMatchesPattern) {
@@ -299,8 +371,9 @@ TEST_F(SupervisedUserURLFilterTest, HostMatchesPattern) {
   EXPECT_FALSE(
       SupervisedUserURLFilter::HostMatchesPattern("www.google",
                                                   "www.google.*"));
-  EXPECT_TRUE(SupervisedUserURLFilter::HostMatchesPattern("google.com",
-                                                          "www.google.*"));
+  EXPECT_FALSE(
+      SupervisedUserURLFilter::HostMatchesPattern("google.com",
+                                                  "www.google.*"));
   EXPECT_FALSE(
       SupervisedUserURLFilter::HostMatchesPattern("mail.google.com",
                                                   "www.google.*"));
@@ -378,34 +451,32 @@ TEST_F(SupervisedUserURLFilterTest, PatternsWithoutConflicts) {
   // The third rule is redundant with the first, but it's not a conflict
   // since they have the same value (allow).
   hosts["*.google.com"] = true;
-  hosts["calendar.google.com"] = false;
+  hosts["accounts.google.com"] = false;
   hosts["mail.google.com"] = true;
 
   filter_.SetManualHosts(std::move(hosts));
   filter_.SetDefaultFilteringBehavior(SupervisedUserURLFilter::BLOCK);
 
   EXPECT_TRUE(IsURLAllowlisted("http://www.google.com/foo/"));
-  EXPECT_FALSE(IsURLAllowlisted("http://calendar.google.com/bar/"));
+  EXPECT_FALSE(IsURLAllowlisted("http://accounts.google.com/bar/"));
   EXPECT_TRUE(IsURLAllowlisted("http://mail.google.com/moose/"));
   EXPECT_FALSE(IsURLAllowlisted("http://www.google.co.uk/blurp/"));
 
   filter_.SetDefaultFilteringBehavior(SupervisedUserURLFilter::ALLOW);
 
   EXPECT_TRUE(IsURLAllowlisted("http://www.google.com/foo/"));
-  EXPECT_FALSE(IsURLAllowlisted("http://calendar.google.com/bar/"));
+  EXPECT_FALSE(IsURLAllowlisted("http://accounts.google.com/bar/"));
   EXPECT_TRUE(IsURLAllowlisted("http://mail.google.com/moose/"));
   EXPECT_TRUE(IsURLAllowlisted("http://www.google.co.uk/blurp/"));
 }
 
 TEST_F(SupervisedUserURLFilterTest, PatternsWithConflicts) {
   std::map<std::string, bool> hosts;
-  base::HistogramTester histogram_tester;
 
-  // First and second rule always conflicting.
   // The fourth rule conflicts with the first for "www.google.com" host.
   // Blocking then takes precedence.
   hosts["*.google.com"] = true;
-  hosts["calendar.google.com"] = false;
+  hosts["accounts.google.com"] = false;
   hosts["mail.google.com"] = true;
   hosts["www.google.*"] = false;
 
@@ -413,45 +484,16 @@ TEST_F(SupervisedUserURLFilterTest, PatternsWithConflicts) {
   filter_.SetDefaultFilteringBehavior(SupervisedUserURLFilter::BLOCK);
 
   EXPECT_FALSE(IsURLAllowlisted("http://www.google.com/foo/"));
-  histogram_tester.ExpectBucketCount(
-      SupervisedUserURLFilter::GetManagedSiteListConflictHistogramNameForTest(),
-      1, 1);
-  // Match with conflicting first and second rule.
-  EXPECT_FALSE(IsURLAllowlisted("http://calendar.google.com/bar/"));
-  histogram_tester.ExpectBucketCount(
-      SupervisedUserURLFilter::GetManagedSiteListConflictHistogramNameForTest(),
-      1, 2);
-
-  // Match with first and third rule both allowed, no conflict.
+  EXPECT_FALSE(IsURLAllowlisted("http://accounts.google.com/bar/"));
   EXPECT_TRUE(IsURLAllowlisted("http://mail.google.com/moose/"));
-  histogram_tester.ExpectBucketCount(
-      SupervisedUserURLFilter::GetManagedSiteListConflictHistogramNameForTest(),
-      0, 1);
-
-  // Match with fourth rule.
   EXPECT_FALSE(IsURLAllowlisted("http://www.google.co.uk/blurp/"));
-  histogram_tester.ExpectBucketCount(
-      SupervisedUserURLFilter::GetManagedSiteListConflictHistogramNameForTest(),
-      0, 2);
 
   filter_.SetDefaultFilteringBehavior(SupervisedUserURLFilter::ALLOW);
 
   EXPECT_FALSE(IsURLAllowlisted("http://www.google.com/foo/"));
-  EXPECT_FALSE(IsURLAllowlisted("http://calendar.google.com/bar/"));
+  EXPECT_FALSE(IsURLAllowlisted("http://accounts.google.com/bar/"));
   EXPECT_TRUE(IsURLAllowlisted("http://mail.google.com/moose/"));
   EXPECT_FALSE(IsURLAllowlisted("http://www.google.co.uk/blurp/"));
-  histogram_tester.ExpectBucketCount(
-      SupervisedUserURLFilter::GetManagedSiteListConflictHistogramNameForTest(),
-      1, 4);
-  histogram_tester.ExpectBucketCount(
-      SupervisedUserURLFilter::GetManagedSiteListConflictHistogramNameForTest(),
-      0, 4);
-
-  // No known rule, the metric is not recorded.
-  EXPECT_TRUE(IsURLAllowlisted("https://youtube.com"));
-  histogram_tester.ExpectTotalCount(
-      SupervisedUserURLFilter::GetManagedSiteListConflictHistogramNameForTest(),
-      8);
 }
 
 TEST_F(SupervisedUserURLFilterTest, Reason) {
@@ -484,8 +526,116 @@ TEST_F(SupervisedUserURLFilterTest, Reason) {
   ExpectURLInManualDenylist("https://google.co.uk/robots.txt");
 }
 
+TEST_F(SupervisedUserURLFilterTest, AllowlistsPatterns) {
+  std::vector<std::string> patterns1;
+  patterns1.push_back("google.com");
+  patterns1.push_back("example.com");
+
+  std::vector<std::string> patterns2;
+  patterns2.push_back("secure.com");
+  patterns2.push_back("example.com");
+
+  const std::string id1 = "ID1";
+  const std::string id2 = "ID2";
+  const base::string16 title1 = base::ASCIIToUTF16("Title 1");
+  const base::string16 title2 = base::ASCIIToUTF16("Title 2");
+  const std::vector<std::string> hostname_hashes;
+  const GURL entry_point("https://entry.com");
+
+  scoped_refptr<SupervisedUserSiteList> site_list1 = base::WrapRefCounted(
+      new SupervisedUserSiteList(id1, title1, entry_point, base::FilePath(),
+                                 patterns1, hostname_hashes));
+  scoped_refptr<SupervisedUserSiteList> site_list2 = base::WrapRefCounted(
+      new SupervisedUserSiteList(id2, title2, entry_point, base::FilePath(),
+                                 patterns2, hostname_hashes));
+
+  std::vector<scoped_refptr<SupervisedUserSiteList>> site_lists;
+  site_lists.push_back(site_list1);
+  site_lists.push_back(site_list2);
+
+  filter_.SetFromSiteListsForTesting(site_lists);
+  filter_.SetDefaultFilteringBehavior(SupervisedUserURLFilter::BLOCK);
+  run_loop_.Run();
+
+  std::map<std::string, base::string16> expected_allowlists;
+  expected_allowlists[id1] = title1;
+  expected_allowlists[id2] = title2;
+
+  std::map<std::string, base::string16> actual_allowlists =
+      filter_.GetMatchingAllowlistTitles(GURL("https://example.com"));
+  ASSERT_EQ(expected_allowlists, actual_allowlists);
+
+  expected_allowlists.erase(id2);
+
+  actual_allowlists =
+      filter_.GetMatchingAllowlistTitles(GURL("https://google.com"));
+  ASSERT_EQ(expected_allowlists, actual_allowlists);
+}
+
+TEST_F(SupervisedUserURLFilterTest, AllowlistsHostnameHashes) {
+  std::vector<std::string> patterns1;
+  patterns1.push_back("google.com");
+  patterns1.push_back("example.com");
+
+  std::vector<std::string> patterns2;
+  patterns2.push_back("secure.com");
+  patterns2.push_back("example.com");
+
+  std::vector<std::string> patterns3;
+
+  std::vector<std::string> hostname_hashes1;
+  std::vector<std::string> hostname_hashes2;
+  std::vector<std::string> hostname_hashes3;
+  // example.com
+  hostname_hashes3.push_back("0caaf24ab1a0c33440c06afe99df986365b0781f");
+  // secure.com
+  hostname_hashes3.push_back("529597fa818be828ffc7b59763fb2b185f419fc5");
+
+  const std::string id1 = "ID1";
+  const std::string id2 = "ID2";
+  const std::string id3 = "ID3";
+  const base::string16 title1 = base::ASCIIToUTF16("Title 1");
+  const base::string16 title2 = base::ASCIIToUTF16("Title 2");
+  const base::string16 title3 = base::ASCIIToUTF16("Title 3");
+  const GURL entry_point("https://entry.com");
+
+  scoped_refptr<SupervisedUserSiteList> site_list1 = base::WrapRefCounted(
+      new SupervisedUserSiteList(id1, title1, entry_point, base::FilePath(),
+                                 patterns1, hostname_hashes1));
+  scoped_refptr<SupervisedUserSiteList> site_list2 = base::WrapRefCounted(
+      new SupervisedUserSiteList(id2, title2, entry_point, base::FilePath(),
+                                 patterns2, hostname_hashes2));
+  scoped_refptr<SupervisedUserSiteList> site_list3 = base::WrapRefCounted(
+      new SupervisedUserSiteList(id3, title3, entry_point, base::FilePath(),
+                                 patterns3, hostname_hashes3));
+
+  std::vector<scoped_refptr<SupervisedUserSiteList>> site_lists;
+  site_lists.push_back(site_list1);
+  site_lists.push_back(site_list2);
+  site_lists.push_back(site_list3);
+
+  filter_.SetFromSiteListsForTesting(site_lists);
+  filter_.SetDefaultFilteringBehavior(SupervisedUserURLFilter::BLOCK);
+  run_loop_.Run();
+
+  std::map<std::string, base::string16> expected_allowlists;
+  expected_allowlists[id1] = title1;
+  expected_allowlists[id2] = title2;
+  expected_allowlists[id3] = title3;
+
+  std::map<std::string, base::string16> actual_allowlists =
+      filter_.GetMatchingAllowlistTitles(GURL("http://example.com"));
+  ASSERT_EQ(expected_allowlists, actual_allowlists);
+
+  expected_allowlists.erase(id1);
+
+  actual_allowlists =
+      filter_.GetMatchingAllowlistTitles(GURL("https://secure.com"));
+  ASSERT_EQ(expected_allowlists, actual_allowlists);
+}
+
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-TEST_F(SupervisedUserURLFilterTest, ChromeWebstoreURLsAreAlwaysAllowed) {
+TEST_F(SupervisedUserURLFilterTest, ChromeWebstoreDownloadsAreAlwaysAllowed) {
   // When installing an extension from Chrome Webstore, it tries to download the
   // crx file from "https://clients2.google.com/service/update2/", which
   // redirects to "https://clients2.googleusercontent.com/crx/blobs/"
@@ -507,10 +657,6 @@ TEST_F(SupervisedUserURLFilterTest, ChromeWebstoreURLsAreAlwaysAllowed) {
       "QgAAAC6zw0qH2DJtnXe8Z7rUJP1iCQF099oik9f2ErAYeFAX7_"
       "CIyrNH5qBru1lUSBNvzmjILCGwUjcIBaJqxgegSNy2melYqfodngLxKtHsGBehAMZSmuWSg6"
       "FupAcPS3Ih6NSVCOB9KNh6Mw/extension_2_0.crx");
-  // The actual Webstore URLs should also be allowed regardless of filtering
-  // behavior,
-  GURL webstore_url("https://chrome.google.com/webstore");
-  GURL new_webstore_url("https://chromewebstore.google.com/");
 
   filter_.SetDefaultFilteringBehavior(SupervisedUserURLFilter::BLOCK);
   EXPECT_EQ(SupervisedUserURLFilter::ALLOW,
@@ -519,18 +665,12 @@ TEST_F(SupervisedUserURLFilterTest, ChromeWebstoreURLsAreAlwaysAllowed) {
             filter_.GetFilteringBehaviorForURL(crx_download_url2));
   EXPECT_EQ(SupervisedUserURLFilter::ALLOW,
             filter_.GetFilteringBehaviorForURL(crx_download_url3));
-  EXPECT_EQ(SupervisedUserURLFilter::ALLOW,
-            filter_.GetFilteringBehaviorForURL(webstore_url));
-  EXPECT_EQ(SupervisedUserURLFilter::ALLOW,
-            filter_.GetFilteringBehaviorForURL(new_webstore_url));
 
   // Set explicit host rules to block those website, and make sure the
-  // URLs still work.
+  // update URLs still work.
   std::map<std::string, bool> hosts;
   hosts["clients2.google.com"] = false;
   hosts["clients2.googleusercontent.com"] = false;
-  hosts["chrome.google.com"] = false;
-  hosts["chromewebstore.google.com"] = false;
   filter_.SetManualHosts(std::move(hosts));
   filter_.SetDefaultFilteringBehavior(SupervisedUserURLFilter::ALLOW);
   EXPECT_EQ(SupervisedUserURLFilter::ALLOW,
@@ -539,32 +679,17 @@ TEST_F(SupervisedUserURLFilterTest, ChromeWebstoreURLsAreAlwaysAllowed) {
             filter_.GetFilteringBehaviorForURL(crx_download_url2));
   EXPECT_EQ(SupervisedUserURLFilter::ALLOW,
             filter_.GetFilteringBehaviorForURL(crx_download_url3));
-  EXPECT_EQ(SupervisedUserURLFilter::ALLOW,
-            filter_.GetFilteringBehaviorForURL(webstore_url));
-  EXPECT_EQ(SupervisedUserURLFilter::ALLOW,
-            filter_.GetFilteringBehaviorForURL(new_webstore_url));
 }
 #endif
 
-TEST_F(SupervisedUserURLFilterTest, UrlsNotRequiringGuardianApprovalAllowed) {
+TEST_F(SupervisedUserURLFilterTest, GoogleFamiliesAlwaysAllowed) {
   filter_.SetDefaultFilteringBehavior(SupervisedUserURLFilter::BLOCK);
   EXPECT_TRUE(IsURLAllowlisted("https://families.google.com/"));
   EXPECT_TRUE(IsURLAllowlisted("https://families.google.com"));
   EXPECT_TRUE(IsURLAllowlisted("https://families.google.com/something"));
   EXPECT_TRUE(IsURLAllowlisted("http://families.google.com/"));
+  EXPECT_FALSE(IsURLAllowlisted("https://families.google.com:8080/"));
   EXPECT_FALSE(IsURLAllowlisted("https://subdomain.families.google.com/"));
-  EXPECT_TRUE(IsURLAllowlisted("https://myaccount.google.com/"));
-  EXPECT_TRUE(IsURLAllowlisted("https://accounts.google.com/"));
-  EXPECT_TRUE(IsURLAllowlisted("https://familylink.google.com/"));
-  EXPECT_TRUE(IsURLAllowlisted("https://policies.google.com/"));
-  EXPECT_TRUE(IsURLAllowlisted("https://support.google.com/"));
-
-  // Chrome sync dashboard URLs (base initial URL, plus the version with locale
-  // appended, and the redirect URL with locale appended).
-  EXPECT_TRUE(IsURLAllowlisted("https://www.google.com/settings/chrome/sync"));
-  EXPECT_TRUE(
-      IsURLAllowlisted("https://www.google.com/settings/chrome/sync?hl=en-US"));
-  EXPECT_TRUE(IsURLAllowlisted("https://chrome.google.com/sync?hl=en-US"));
 }
 
 TEST_F(SupervisedUserURLFilterTest, PlayTermsAlwaysAllowed) {

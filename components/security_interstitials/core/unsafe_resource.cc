@@ -1,22 +1,19 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/security_interstitials/core/unsafe_resource.h"
 
-#include "components/safe_browsing/core/browser/db/util.h"
+#include "components/safe_browsing/core/db/util.h"
 
 namespace security_interstitials {
-
-constexpr UnsafeResource::RenderProcessId UnsafeResource::kNoRenderProcessId;
-constexpr UnsafeResource::RenderFrameId UnsafeResource::kNoRenderFrameId;
-constexpr UnsafeResource::FrameTreeNodeId UnsafeResource::kNoFrameTreeNodeId;
 
 UnsafeResource::UnsafeResource()
     : is_subresource(false),
       is_subframe(false),
       threat_type(safe_browsing::SB_THREAT_TYPE_SAFE),
-      request_destination(network::mojom::RequestDestination::kDocument),
+      resource_type(safe_browsing::ResourceType::kMainFrame),
+      threat_source(safe_browsing::ThreatSource::UNKNOWN),
       is_delayed_warning(false) {}
 
 UnsafeResource::UnsafeResource(const UnsafeResource& other) = default;
@@ -59,17 +56,6 @@ bool UnsafeResource::IsMainPageLoadBlocked() const {
   }
 
   return true;
-}
-
-void UnsafeResource::DispatchCallback(const base::Location& from_here,
-                                      bool proceed,
-                                      bool showed_interstitial) const {
-  if (callback.is_null())
-    return;
-
-  DCHECK(callback_sequence);
-  callback_sequence->PostTask(
-      from_here, base::BindOnce(callback, proceed, showed_interstitial));
 }
 
 }  // namespace security_interstitials

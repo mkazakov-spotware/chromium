@@ -1,19 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/browser/autofill_client_impl.h"
 
-#include <utility>
-
-#include "build/build_config.h"
-#include "components/autofill/core/browser/data_model/autofill_profile.h"
 #include "components/autofill/core/browser/ui/suggestion.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/ssl_status.h"
 #include "content/public/browser/web_contents.h"
-#include "services/metrics/public/cpp/ukm_recorder.h"
-#include "weblayer/browser/translate_client_impl.h"
 
 namespace weblayer {
 
@@ -31,10 +25,6 @@ AutofillClientImpl::GetAutocompleteHistoryManager() {
 }
 
 PrefService* AutofillClientImpl::GetPrefs() {
-  return const_cast<PrefService*>(std::as_const(*this).GetPrefs());
-}
-
-const PrefService* AutofillClientImpl::GetPrefs() const {
   NOTREACHED();
   return nullptr;
 }
@@ -65,12 +55,12 @@ autofill::StrikeDatabase* AutofillClientImpl::GetStrikeDatabase() {
 }
 
 ukm::UkmRecorder* AutofillClientImpl::GetUkmRecorder() {
-  // TODO(crbug.com/1181141): Enable the autofill UKM.
+  NOTREACHED();
   return nullptr;
 }
 
 ukm::SourceId AutofillClientImpl::GetUkmSourceId() {
-  // TODO(crbug.com/1181141): Enable the autofill UKM.
+  NOTREACHED();
   return ukm::kInvalidSourceId;
 }
 
@@ -79,14 +69,9 @@ autofill::AddressNormalizer* AutofillClientImpl::GetAddressNormalizer() {
   return nullptr;
 }
 
-const GURL& AutofillClientImpl::GetLastCommittedPrimaryMainFrameURL() const {
+const GURL& AutofillClientImpl::GetLastCommittedURL() {
   NOTREACHED();
   return GURL::EmptyGURL();
-}
-
-url::Origin AutofillClientImpl::GetLastCommittedPrimaryMainFrameOrigin() const {
-  NOTREACHED();
-  return url::Origin();
 }
 
 security_state::SecurityLevel
@@ -99,22 +84,13 @@ const translate::LanguageState* AutofillClientImpl::GetLanguageState() {
   return nullptr;
 }
 
-translate::TranslateDriver* AutofillClientImpl::GetTranslateDriver() {
-  // The TranslateDriver is used by AutofillManager to observe the page language
-  // and run the type-prediction heuristics with language-dependent regexps.
-  auto* translate_client = TranslateClientImpl::FromWebContents(web_contents());
-  if (translate_client)
-    return translate_client->translate_driver();
-  return nullptr;
-}
-
 void AutofillClientImpl::ShowAutofillSettings(bool show_credit_card_settings) {
   NOTREACHED();
 }
 
 void AutofillClientImpl::ShowUnmaskPrompt(
     const autofill::CreditCard& card,
-    const autofill::CardUnmaskPromptOptions& card_unmask_prompt_options,
+    UnmaskCardReason reason,
     base::WeakPtr<autofill::CardUnmaskDelegate> delegate) {
   NOTREACHED();
 }
@@ -123,7 +99,7 @@ void AutofillClientImpl::OnUnmaskVerificationResult(PaymentsRpcResult result) {
   NOTREACHED();
 }
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 std::vector<std::string>
 AutofillClientImpl::GetAllowedMerchantsForVirtualCards() {
   NOTREACHED();
@@ -151,7 +127,7 @@ void AutofillClientImpl::ConfirmMigrateLocalCardToCloud(
 
 void AutofillClientImpl::ShowLocalCardMigrationResults(
     const bool has_server_error,
-    const std::u16string& tip_message,
+    const base::string16& tip_message,
     const std::vector<autofill::MigratableCreditCard>& migratable_credit_cards,
     MigrationDeleteCardCallback delete_local_card_callback) {
   NOTREACHED();
@@ -188,15 +164,15 @@ void AutofillClientImpl::OfferVirtualCardOptions(
   NOTREACHED();
 }
 
-#else  // !BUILDFLAG(IS_ANDROID)
+#else  // defined(OS_ANDROID)
 void AutofillClientImpl::ConfirmAccountNameFixFlow(
-    base::OnceCallback<void(const std::u16string&)> callback) {
+    base::OnceCallback<void(const base::string16&)> callback) {
   NOTREACHED();
 }
 
 void AutofillClientImpl::ConfirmExpirationDateFixFlow(
     const autofill::CreditCard& card,
-    base::OnceCallback<void(const std::u16string&, const std::u16string&)>
+    base::OnceCallback<void(const base::string16&, const base::string16&)>
         callback) {
   NOTREACHED();
 }
@@ -227,55 +203,12 @@ void AutofillClientImpl::ConfirmCreditCardFillAssist(
   NOTREACHED();
 }
 
-void AutofillClientImpl::ConfirmSaveAddressProfile(
-    const autofill::AutofillProfile& profile,
-    const autofill::AutofillProfile* original_profile,
-    SaveAddressProfilePromptOptions options,
-    AddressProfileSavePromptCallback callback) {
-  NOTREACHED();
-}
-
 bool AutofillClientImpl::HasCreditCardScanFeature() {
   NOTREACHED();
   return false;
 }
 
 void AutofillClientImpl::ScanCreditCard(CreditCardScanCallback callback) {
-  NOTREACHED();
-}
-
-bool AutofillClientImpl::IsFastCheckoutSupported() {
-  return false;
-}
-
-bool AutofillClientImpl::IsFastCheckoutTriggerForm(
-    const autofill::FormData& form,
-    const autofill::FormFieldData& field) {
-  return false;
-}
-
-bool AutofillClientImpl::ShowFastCheckout(
-    base::WeakPtr<autofill::FastCheckoutDelegate> delegate) {
-  NOTREACHED();
-  return false;
-}
-
-void AutofillClientImpl::HideFastCheckout() {
-  NOTREACHED();
-}
-
-bool AutofillClientImpl::IsTouchToFillCreditCardSupported() {
-  return false;
-}
-
-bool AutofillClientImpl::ShowTouchToFillCreditCard(
-    base::WeakPtr<autofill::TouchToFillDelegate> delegate,
-    base::span<const autofill::CreditCard* const> cards_to_suggest) {
-  NOTREACHED();
-  return false;
-}
-
-void AutofillClientImpl::HideTouchToFillCreditCard() {
   NOTREACHED();
 }
 
@@ -286,8 +219,8 @@ void AutofillClientImpl::ShowAutofillPopup(
 }
 
 void AutofillClientImpl::UpdateAutofillPopupDataListValues(
-    const std::vector<std::u16string>& values,
-    const std::vector<std::u16string>& labels) {
+    const std::vector<base::string16>& values,
+    const std::vector<base::string16>& labels) {
   NOTREACHED();
 }
 
@@ -320,31 +253,24 @@ void AutofillClientImpl::UpdatePopup(
   NOTREACHED();
 }
 
-bool AutofillClientImpl::IsAutocompleteEnabled() const {
-  NOTREACHED();
-  return false;
-}
-
-bool AutofillClientImpl::IsPasswordManagerEnabled() {
-  // This function is currently only used by the BrowserAutofillManager,
-  // but not by the AndroidAutofillManager. See crbug.com/1293341 for context.
+bool AutofillClientImpl::IsAutocompleteEnabled() {
   NOTREACHED();
   return false;
 }
 
 void AutofillClientImpl::PropagateAutofillPredictions(
-    autofill::AutofillDriver* driver,
+    content::RenderFrameHost* rfh,
     const std::vector<autofill::FormStructure*>& forms) {
   NOTREACHED();
 }
 
 void AutofillClientImpl::DidFillOrPreviewField(
-    const std::u16string& autofilled_value,
-    const std::u16string& profile_full_name) {
+    const base::string16& autofilled_value,
+    const base::string16& profile_full_name) {
   NOTREACHED();
 }
 
-bool AutofillClientImpl::IsContextSecure() const {
+bool AutofillClientImpl::IsContextSecure() {
   NOTREACHED();
   return false;
 }
@@ -354,7 +280,7 @@ bool AutofillClientImpl::ShouldShowSigninPromo() {
   return false;
 }
 
-bool AutofillClientImpl::AreServerCardsSupported() const {
+bool AutofillClientImpl::AreServerCardsSupported() {
   NOTREACHED();
   return false;
 }
@@ -363,26 +289,13 @@ void AutofillClientImpl::ExecuteCommand(int id) {
   NOTREACHED();
 }
 
-void AutofillClientImpl::OpenPromoCodeOfferDetailsURL(const GURL& url) {
-  NOTREACHED();
-}
-
-autofill::FormInteractionsFlowId
-AutofillClientImpl::GetCurrentFormInteractionsFlowId() {
-  // Currently not in use here. See `ChromeAutofillClient` for a proper
-  // implementation.
-  return {};
-}
-
 void AutofillClientImpl::LoadRiskData(
     base::OnceCallback<void(const std::string&)> callback) {
   NOTREACHED();
 }
 
-AutofillClientImpl::AutofillClientImpl(content::WebContents* web_contents)
-    : content::WebContentsUserData<AutofillClientImpl>(*web_contents),
-      content::WebContentsObserver(web_contents) {}
+AutofillClientImpl::AutofillClientImpl(content::WebContents* web_contents) {}
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(AutofillClientImpl);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(AutofillClientImpl)
 
 }  // namespace weblayer

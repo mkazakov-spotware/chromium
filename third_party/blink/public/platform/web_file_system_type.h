@@ -46,4 +46,4 @@ enum WebFileSystemType {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_FILE_SYSTEM_TYPE_H_
+#endif

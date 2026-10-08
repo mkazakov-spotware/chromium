@@ -1,14 +1,14 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_APPS_PLATFORM_APPS_API_SYNC_FILE_SYSTEM_EXTENSION_SYNC_EVENT_OBSERVER_H_
 #define CHROME_BROWSER_APPS_PLATFORM_APPS_API_SYNC_FILE_SYSTEM_EXTENSION_SYNC_EVENT_OBSERVER_H_
 
-#include <string>
-#include <vector>
+#include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/values.h"
 #include "chrome/browser/sync_file_system/sync_event_observer.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
@@ -33,9 +33,6 @@ class ExtensionSyncEventObserver : public sync_file_system::SyncEventObserver,
   GetFactoryInstance();
 
   explicit ExtensionSyncEventObserver(content::BrowserContext* context);
-  ExtensionSyncEventObserver(const ExtensionSyncEventObserver&) = delete;
-  ExtensionSyncEventObserver& operator=(const ExtensionSyncEventObserver&) =
-      delete;
   ~ExtensionSyncEventObserver() override;
 
   void InitializeForService(
@@ -67,16 +64,18 @@ class ExtensionSyncEventObserver : public sync_file_system::SyncEventObserver,
   static const char* service_name() { return "ExtensionSyncEventObserver"; }
   static const bool kServiceIsCreatedWithBrowserContext = false;
 
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
 
   // Not owned. If not null, then this is registered to SyncFileSystemService.
-  raw_ptr<sync_file_system::SyncFileSystemService> sync_service_;
+  sync_file_system::SyncFileSystemService* sync_service_;
 
   void BroadcastOrDispatchEvent(
       const GURL& app_origin,
       extensions::events::HistogramValue histogram_value,
       const std::string& event_name,
-      base::Value::List value);
+      std::unique_ptr<base::ListValue> value);
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionSyncEventObserver);
 };
 
 }  // namespace api

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -54,10 +54,6 @@ class ThreatDOMDetails : public content::RenderFrameObserver,
 
   static ThreatDOMDetails* Create(content::RenderFrame* render_frame,
                                   service_manager::BinderRegistry* registry);
-
-  ThreatDOMDetails(const ThreatDOMDetails&) = delete;
-  ThreatDOMDetails& operator=(const ThreatDOMDetails&) = delete;
-
   ~ThreatDOMDetails() override;
 
   // Begins extracting resource urls for the page currently loaded in
@@ -89,6 +85,8 @@ class ThreatDOMDetails : public content::RenderFrameObserver,
   // A list of tag names and associates attributes, used to determine which
   // elements need to be collected.
   std::vector<TagAndAttributesItem> tag_and_attributes_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(ThreatDOMDetails);
 };
 
 }  // namespace safe_browsing

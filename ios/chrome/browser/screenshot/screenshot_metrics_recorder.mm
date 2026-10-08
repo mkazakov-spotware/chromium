@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 
 #import <UIKit/UIKit.h>
 
-#import "base/metrics/user_metrics.h"
-#import "base/metrics/user_metrics_action.h"
+#include "base/metrics/user_metrics.h"
+#include "base/metrics/user_metrics_action.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -39,9 +39,11 @@ char const* kSingleScreenUserActionName = "MobileSingleScreenScreenshot";
   // there is a single window in the foreground.
   UIApplication* sharedApplication = [UIApplication sharedApplication];
   NSInteger countForegroundScenes = 1;
-  if (sharedApplication.supportsMultipleScenes) {
-    countForegroundScenes =
-        [self countForegroundScenes:[sharedApplication connectedScenes]];
+  if (@available(iOS 13, *)) {
+    if (sharedApplication.supportsMultipleScenes) {
+      countForegroundScenes =
+          [self countForegroundScenes:[sharedApplication connectedScenes]];
+    }
   }
 
   // Only register screenshots taken of chrome in a single screen in the

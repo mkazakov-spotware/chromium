@@ -71,37 +71,16 @@
 //     - At this point, observer.takeRecords will get the second batch of
 //       notifications.
 function waitForNotification(t, f) {
-  return new Promise(resolve => {
-    requestAnimationFrame(function() {
-      requestAnimationFrame(function() {
-        let callback = function() {
-          resolve();
-          if (f) {
-            f();
-          }
-        };
-        if (t) {
-          t.step_timeout(callback);
-        } else {
-          setTimeout(callback);
-        }
-      });
-    });
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() { t.step_timeout(f, 0); });
   });
 }
 
 // If you need to wait until the IntersectionObserver algorithm has a chance
 // to run, but don't need to wait for delivery of the notifications...
 function waitForFrame(t, f) {
-  return new Promise(resolve => {
-    requestAnimationFrame(function() {
-      t.step_timeout(function() {
-        resolve();
-        if (f) {
-          f();
-        }
-      });
-    });
+  requestAnimationFrame(function() {
+    t.step_timeout(f, 0);
   });
 }
 

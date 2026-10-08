@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "ppapi/proxy/ppapi_proxy_export.h"
 #include "ppapi/shared_impl/media_stream_buffer.h"
 #include "ppapi/shared_impl/resource.h"
@@ -22,9 +23,6 @@ class PPAPI_PROXY_EXPORT VideoFrameResource : public Resource,
   VideoFrameResource(PP_Instance instance,
                      int32_t index,
                      MediaStreamBuffer* buffer);
-
-  VideoFrameResource(const VideoFrameResource&) = delete;
-  VideoFrameResource& operator=(const VideoFrameResource&) = delete;
 
   ~VideoFrameResource() override;
 
@@ -46,6 +44,8 @@ class PPAPI_PROXY_EXPORT VideoFrameResource : public Resource,
   int32_t index_;
 
   MediaStreamBuffer* buffer_;
+
+  DISALLOW_COPY_AND_ASSIGN(VideoFrameResource);
 };
 
 }  // namespace proxy

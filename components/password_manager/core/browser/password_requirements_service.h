@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <memory>
 #include <utility>
 
-#include "base/containers/lru_cache.h"
+#include "base/containers/mru_cache.h"
+#include "base/macros.h"
 #include "components/autofill/core/browser/proto/password_requirements.pb.h"
 #include "components/autofill/core/common/signatures.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -32,11 +33,6 @@ class PasswordRequirementsService : public KeyedService {
   // If |fetcher| is a nullptr, no network requests happen.
   explicit PasswordRequirementsService(
       std::unique_ptr<autofill::PasswordRequirementsSpecFetcher> fetcher);
-
-  PasswordRequirementsService(const PasswordRequirementsService&) = delete;
-  PasswordRequirementsService& operator=(const PasswordRequirementsService&) =
-      delete;
-
   ~PasswordRequirementsService() override;
 
   // Returns the password requirements for a field that appears on a site
@@ -76,11 +72,13 @@ class PasswordRequirementsService : public KeyedService {
 
   using FullSignature =
       std::pair<autofill::FormSignature, autofill::FieldSignature>;
-  base::LRUCache<GURL, autofill::PasswordRequirementsSpec> specs_for_domains_;
-  base::LRUCache<FullSignature, autofill::PasswordRequirementsSpec>
+  base::MRUCache<GURL, autofill::PasswordRequirementsSpec> specs_for_domains_;
+  base::MRUCache<FullSignature, autofill::PasswordRequirementsSpec>
       specs_for_signatures_;
   // May be a nullptr.
   std::unique_ptr<autofill::PasswordRequirementsSpecFetcher> fetcher_;
+
+  DISALLOW_COPY_AND_ASSIGN(PasswordRequirementsService);
 };
 
 std::unique_ptr<PasswordRequirementsService> CreatePasswordRequirementsService(

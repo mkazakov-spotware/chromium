@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@ WorkletModulatorImpl::WorkletModulatorImpl(ScriptState* script_state)
 
 ModuleScriptFetcher* WorkletModulatorImpl::CreateModuleScriptFetcher(
     ModuleScriptCustomFetchType custom_fetch_type,
-    base::PassKey<ModuleScriptLoader> pass_key) {
+    util::PassKey<ModuleScriptLoader> pass_key) {
   DCHECK_EQ(ModuleScriptCustomFetchType::kWorkletAddModule, custom_fetch_type);
   WorkletGlobalScope* global_scope =
       To<WorkletGlobalScope>(GetExecutionContext());
@@ -25,6 +25,11 @@ ModuleScriptFetcher* WorkletModulatorImpl::CreateModuleScriptFetcher(
 bool WorkletModulatorImpl::IsDynamicImportForbidden(String* reason) {
   *reason = "import() is disallowed on WorkletGlobalScope.";
   return true;
+}
+
+mojom::blink::V8CacheOptions WorkletModulatorImpl::GetV8CacheOptions() const {
+  auto* scope = To<WorkletGlobalScope>(GetExecutionContext());
+  return scope->GetV8CacheOptions();
 }
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 {
@@ -13,11 +13,11 @@
     "contexts": ["blessed_extension"],
     "extension_types": ["extension", "platform_app"],
     "location": "component",
-    "allowlist": [
+    "whitelist": [
       "ABCDEF0123456789ABCDEF0123456789ABCDEF01",
       "10FEDCBA9876543210FEDCBA9876543210FEDCBA"
     ],
-    "blocklist": [
+    "blacklist": [
       "0123456789ABCDEF0123456789ABCDEF01234567",
       "76543210FEDCBA9876543210FEDCBA9876543210"
     ],
@@ -32,13 +32,13 @@
     "internal": true
   },
   "gamma.child": {
-    "allowlist": ["0123456789ABCDEF0123456789ABCDEF01234567"],
+    "whitelist": ["0123456789ABCDEF0123456789ABCDEF01234567"],
     "dependencies": [],
     "platforms": ["linux"]
   },
   "gamma.unparented": {
     "channel": "dev",
-    "blocklist": ["0123456789ABCDEF0123456789ABCDEF01234567"],
+    "blacklist": ["0123456789ABCDEF0123456789ABCDEF01234567"],
     "contexts": ["unblessed_extension"],
     "noparent": true
   },
@@ -66,8 +66,7 @@
     "channel": "beta",
     "contexts": ["blessed_extension"],
     "extension_types": ["extension"],
-    "allowlist": ["0123456789ABCDEF0123456789ABCDEF01234567"],
-    "developer_mode_only": false,
+    "whitelist": ["0123456789ABCDEF0123456789ABCDEF01234567"],
     "disallow_for_service_workers": false
   }, {
     "channel": "stable",

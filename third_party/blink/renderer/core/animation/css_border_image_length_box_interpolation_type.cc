@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@
 #include "third_party/blink/renderer/core/css/css_identifier_value.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/css/css_quad_value.h"
-#include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver_state.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
 
@@ -42,25 +41,27 @@ const BorderImageLengthBox& GetBorderImageLengthBox(
       return style.MaskBoxImageWidth();
     default:
       NOTREACHED();
-      return style.BorderImageOutset();
+      return GetBorderImageLengthBox(
+          CSSProperty::Get(CSSPropertyID::kBorderImageOutset),
+          ComputedStyle::InitialStyle());
   }
 }
 
 void SetBorderImageLengthBox(const CSSProperty& property,
-                             ComputedStyleBuilder& builder,
+                             ComputedStyle& style,
                              const BorderImageLengthBox& box) {
   switch (property.PropertyID()) {
     case CSSPropertyID::kBorderImageOutset:
-      builder.SetBorderImageOutset(box);
+      style.SetBorderImageOutset(box);
       break;
     case CSSPropertyID::kWebkitMaskBoxImageOutset:
-      builder.SetMaskBoxImageOutset(box);
+      style.SetMaskBoxImageOutset(box);
       break;
     case CSSPropertyID::kBorderImageWidth:
-      builder.SetBorderImageWidth(box);
+      style.SetBorderImageWidth(box);
       break;
     case CSSPropertyID::kWebkitMaskBoxImageWidth:
-      builder.SetMaskBoxImageWidth(box);
+      style.SetMaskBoxImageWidth(box);
       break;
     default:
       NOTREACHED();
@@ -291,12 +292,10 @@ CSSBorderImageLengthBoxInterpolationType::MaybeConvertNeutral(
 
 InterpolationValue
 CSSBorderImageLengthBoxInterpolationType::MaybeConvertInitial(
-    const StyleResolverState& state,
+    const StyleResolverState&,
     ConversionCheckers&) const {
   return ConvertBorderImageLengthBox(
-      GetBorderImageLengthBox(
-          CssProperty(), state.GetDocument().GetStyleResolver().InitialStyle()),
-      1);
+      GetBorderImageLengthBox(CssProperty(), ComputedStyle::InitialStyle()), 1);
 }
 
 InterpolationValue
@@ -393,14 +392,14 @@ void CSSBorderImageLengthBoxInterpolationType::ApplyStandardPropertyValue(
                               &state](wtf_size_t index) -> BorderImageLength {
     switch (GetSideType(non_interpolable_list.Get(index))) {
       case SideType::kNumber:
-        return ClampTo<double>(To<InterpolableNumber>(list.Get(index))->Value(),
+        return clampTo<double>(To<InterpolableNumber>(list.Get(index))->Value(),
                                0);
       case SideType::kAuto:
         return Length::Auto();
       case SideType::kLength:
         return To<InterpolableLength>(*list.Get(index))
             .CreateLength(state.CssToLengthConversionData(),
-                          Length::ValueRange::kNonNegative);
+                          kValueRangeNonNegative);
       default:
         NOTREACHED();
         return Length::Auto();
@@ -408,7 +407,7 @@ void CSSBorderImageLengthBoxInterpolationType::ApplyStandardPropertyValue(
   };
   BorderImageLengthBox box(convert_side(kSideTop), convert_side(kSideRight),
                            convert_side(kSideBottom), convert_side(kSideLeft));
-  SetBorderImageLengthBox(CssProperty(), state.StyleBuilder(), box);
+  SetBorderImageLengthBox(CssProperty(), *state.Style(), box);
 }
 
 }  // namespace blink

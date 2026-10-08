@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,17 +16,14 @@
 #include "remoting/protocol/message_serialization.h"
 #include "remoting/protocol/video_stats_stub.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 HostVideoStatsDispatcher::HostVideoStatsDispatcher(
     const std::string& stream_name)
     : ChannelDispatcherBase(kVideoStatsChannelNamePrefix + stream_name) {}
 
 HostVideoStatsDispatcher::~HostVideoStatsDispatcher() = default;
-
-base::WeakPtr<HostVideoStatsDispatcher> HostVideoStatsDispatcher::GetWeakPtr() {
-  return weak_factory_.GetWeakPtr();
-}
 
 void HostVideoStatsDispatcher::OnVideoFrameStats(uint32_t frame_id,
                                                  const HostFrameStats& stats) {
@@ -39,4 +36,5 @@ void HostVideoStatsDispatcher::OnVideoFrameStats(uint32_t frame_id,
 void HostVideoStatsDispatcher::OnIncomingMessage(
     std::unique_ptr<CompoundBuffer> message) {}
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

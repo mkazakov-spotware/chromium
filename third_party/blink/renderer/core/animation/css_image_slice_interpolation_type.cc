@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "third_party/blink/renderer/core/animation/image_slice_property_functions.h"
 #include "third_party/blink/renderer/core/animation/side_index.h"
 #include "third_party/blink/renderer/core/css/css_border_image_slice_value.h"
-#include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver_state.h"
 
 namespace blink {
@@ -179,12 +178,10 @@ InterpolationValue CSSImageSliceInterpolationType::MaybeConvertNeutral(
 }
 
 InterpolationValue CSSImageSliceInterpolationType::MaybeConvertInitial(
-    const StyleResolverState& state,
+    const StyleResolverState&,
     ConversionCheckers& conversion_checkers) const {
   return ConvertImageSlice(
-      ImageSlicePropertyFunctions::GetInitialImageSlice(
-          CssProperty(), state.GetDocument().GetStyleResolver().InitialStyle()),
-      1);
+      ImageSlicePropertyFunctions::GetInitialImageSlice(CssProperty()), 1);
 }
 
 InterpolationValue CSSImageSliceInterpolationType::MaybeConvertInherit(
@@ -276,20 +273,19 @@ void CSSImageSliceInterpolationType::ApplyStandardPropertyValue(
     const InterpolableValue& interpolable_value,
     const NonInterpolableValue* non_interpolable_value,
     StyleResolverState& state) const {
-  ComputedStyleBuilder& builder = state.StyleBuilder();
+  ComputedStyle& style = *state.Style();
   const auto& list = To<InterpolableList>(interpolable_value);
   const auto& types =
       To<CSSImageSliceNonInterpolableValue>(non_interpolable_value)->Types();
-  const auto& convert_side = [&types, &list, &builder](wtf_size_t index) {
+  const auto& convert_side = [&types, &list, &style](wtf_size_t index) {
     float value =
-        ClampTo<float>(To<InterpolableNumber>(list.Get(index))->Value(), 0);
-    return types.is_number[index]
-               ? Length::Fixed(value * builder.EffectiveZoom())
-               : Length::Percent(value);
+        clampTo<float>(To<InterpolableNumber>(list.Get(index))->Value(), 0);
+    return types.is_number[index] ? Length::Fixed(value * style.EffectiveZoom())
+                                  : Length::Percent(value);
   };
   LengthBox box(convert_side(kSideTop), convert_side(kSideRight),
                 convert_side(kSideBottom), convert_side(kSideLeft));
-  ImageSlicePropertyFunctions::SetImageSlice(CssProperty(), builder,
+  ImageSlicePropertyFunctions::SetImageSlice(CssProperty(), style,
                                              ImageSlice(box, types.fill));
 }
 

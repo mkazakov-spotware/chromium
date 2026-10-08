@@ -24,7 +24,7 @@
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_ellipse.h"
 #include "third_party/blink/renderer/core/svg/svg_animated_length.h"
 #include "third_party/blink/renderer/core/svg/svg_length.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -66,12 +66,15 @@ Path SVGCircleElement::AsPath() const {
   SVGLengthContext length_context(this);
   const ComputedStyle& style = ComputedStyleRef();
 
-  float r =
-      length_context.ValueForLength(style.R(), style, SVGLengthMode::kOther);
+  const SVGComputedStyle& svg_style = style.SvgStyle();
+
+  float r = length_context.ValueForLength(svg_style.R(), style,
+                                          SVGLengthMode::kOther);
   if (r > 0) {
-    gfx::PointF center = gfx::PointAtOffsetFromOrigin(
-        length_context.ResolveLengthPair(style.Cx(), style.Cy(), style));
-    path.AddEllipse(center, r, r);
+    FloatPoint center(length_context.ResolveLengthPair(svg_style.Cx(),
+                                                       svg_style.Cy(), style));
+    FloatSize radii(r, r);
+    path.AddEllipse(FloatRect(center - radii, radii.ScaledBy(2)));
   }
   return path;
 }
@@ -96,9 +99,7 @@ void SVGCircleElement::CollectStyleForPresentationAttribute(
   }
 }
 
-void SVGCircleElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  const QualifiedName& attr_name = params.name;
+void SVGCircleElement::SvgAttributeChanged(const QualifiedName& attr_name) {
   if (attr_name == svg_names::kRAttr || attr_name == svg_names::kCxAttr ||
       attr_name == svg_names::kCyAttr) {
     UpdateRelativeLengthsInformation();
@@ -106,7 +107,7 @@ void SVGCircleElement::SvgAttributeChanged(
     return;
   }
 
-  SVGGeometryElement::SvgAttributeChanged(params);
+  SVGGraphicsElement::SvgAttributeChanged(attr_name);
 }
 
 bool SVGCircleElement::SelfHasRelativeLengths() const {
@@ -116,7 +117,7 @@ bool SVGCircleElement::SelfHasRelativeLengths() const {
 
 LayoutObject* SVGCircleElement::CreateLayoutObject(const ComputedStyle&,
                                                    LegacyLayout) {
-  return MakeGarbageCollected<LayoutSVGEllipse>(this);
+  return new LayoutSVGEllipse(this);
 }
 
 }  // namespace blink

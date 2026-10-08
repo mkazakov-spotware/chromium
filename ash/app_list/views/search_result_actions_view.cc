@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,23 +9,17 @@
 #include <algorithm>
 #include <memory>
 
-#include "ash/app_list/app_list_util.h"
 #include "ash/app_list/views/search_result_actions_view_delegate.h"
 #include "ash/app_list/views/search_result_view.h"
-#include "ash/constants/ash_features.h"
 #include "ash/public/cpp/app_list/app_list_color_provider.h"
 #include "ash/public/cpp/app_list/app_list_config.h"
-#include "ash/public/cpp/app_list/vector_icons/vector_icons.h"
-#include "ash/public/cpp/style/scoped_light_mode_as_default.h"
-#include "ash/style/icon_button.h"
-#include "base/bind.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/numerics/ranges.h"
+#include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/image/image_skia_operations.h"
 #include "ui/views/animation/flood_fill_ink_drop_ripple.h"
-#include "ui/views/animation/ink_drop.h"
 #include "ui/views/animation/ink_drop_highlight.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/button/image_button.h"
@@ -37,65 +31,73 @@ namespace ash {
 
 namespace {
 
+// Image buttons.
+constexpr int kImageButtonSizeDip = 40;
 constexpr int kActionButtonBetweenSpacing = 8;
 
 }  // namespace
 
-// SearchResultActionButton renders the button defined by SearchResult::Action.
-class SearchResultActionButton : public IconButton {
+// SearchResultImageButton renders the button defined by SearchResult::Action.
+class SearchResultImageButton : public views::ImageButton {
  public:
-  SearchResultActionButton(SearchResultActionsView* parent,
-                           const SearchResult::Action& action,
-                           PressedCallback callback,
-                           Type type,
-                           const gfx::VectorIcon* icon,
-                           const std::u16string& accessible_name);
+  SearchResultImageButton(SearchResultActionsView* parent,
+                          const SearchResult::Action& action);
+  ~SearchResultImageButton() override {}
 
-  SearchResultActionButton(const SearchResultActionButton&) = delete;
-  SearchResultActionButton& operator=(const SearchResultActionButton&) = delete;
-
-  ~SearchResultActionButton() override {}
-
-  // IconButton:
+  // ui::EventHandler:
   void OnGestureEvent(ui::GestureEvent* event) override;
-  void OnThemeChanged() override;
+
+  // views::InkDropHostView:
+  std::unique_ptr<views::InkDropRipple> CreateInkDropRipple() const override;
+  std::unique_ptr<views::InkDropHighlight> CreateInkDropHighlight()
+      const override;
 
   // Updates the button visibility upon state change of the button or the
   // search result view associated with it.
   void UpdateOnStateChanged();
 
  private:
-  // views::ImageButton:
+  // views::View overrides:
   void OnPaintBackground(gfx::Canvas* canvas) override;
 
-  int GetButtonRadius() const;
+  void SetButtonImage(const gfx::ImageSkia& source, int icon_dimension);
+
+  int GetInkDropRadius() const;
   const char* GetClassName() const override;
 
   SearchResultActionsView* parent_;
   const bool visible_on_hover_;
   bool to_be_activate_by_long_press_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(SearchResultImageButton);
 };
 
-SearchResultActionButton::SearchResultActionButton(
+SearchResultImageButton::SearchResultImageButton(
     SearchResultActionsView* parent,
-    const SearchResult::Action& action,
-    PressedCallback callback,
-    Type type,
-    const gfx::VectorIcon* icon,
-    const std::u16string& accessible_name)
-    : IconButton(callback,
-                 type,
-                 icon,
-                 action.tooltip_text,
-                 /*is_togglable=*/false,
-                 /*has_border=*/false),
-      parent_(parent),
-      visible_on_hover_(action.visible_on_hover) {
+    const SearchResult::Action& action)
+    : parent_(parent), visible_on_hover_(action.visible_on_hover) {
   SetFocusBehavior(FocusBehavior::ALWAYS);
+  // Avoid drawing default dashed focus and draw customized focus in
+  // OnPaintBackground();
+  SetFocusPainter(nullptr);
+  SetInkDropMode(InkDropMode::ON);
+
+  SetPreferredSize({kImageButtonSizeDip, kImageButtonSizeDip});
+  SetImageHorizontalAlignment(views::ImageButton::ALIGN_CENTER);
+  SetImageVerticalAlignment(views::ImageButton::ALIGN_MIDDLE);
+
+  SetButtonImage(action.image,
+                 AppListConfig::instance().search_list_icon_dimension());
+
+  SetAccessibleName(action.tooltip_text);
+
+  SetTooltipText(action.tooltip_text);
+
   SetVisible(!visible_on_hover_);
+  views::InstallCircleHighlightPathGenerator(this);
 }
 
-void SearchResultActionButton::OnGestureEvent(ui::GestureEvent* event) {
+void SearchResultImageButton::OnGestureEvent(ui::GestureEvent* event) {
   switch (event->type()) {
     case ui::ET_GESTURE_LONG_PRESS:
       to_be_activate_by_long_press_ = true;
@@ -116,35 +118,62 @@ void SearchResultActionButton::OnGestureEvent(ui::GestureEvent* event) {
     Button::OnGestureEvent(event);
 }
 
-void SearchResultActionButton::OnThemeChanged() {
-  absl::optional<ScopedLightModeAsDefault> default_light_mode;
-  // Non-productivity launcher search UI has light background.
-  if (!features::IsProductivityLauncherEnabled())
-    default_light_mode.emplace();
-
-  IconButton::OnThemeChanged();
+std::unique_ptr<views::InkDropRipple>
+SearchResultImageButton::CreateInkDropRipple() const {
+  const gfx::Point center = GetLocalBounds().CenterPoint();
+  const int ripple_radius = GetInkDropRadius();
+  gfx::Rect bounds(center.x() - ripple_radius, center.y() - ripple_radius,
+                   2 * ripple_radius, 2 * ripple_radius);
+  SkColor ripple_color =
+      AppListColorProvider::Get()->GetSearchResultViewInkDropColor();
+  return std::make_unique<views::FloodFillInkDropRipple>(
+      size(), GetLocalBounds().InsetsFrom(bounds),
+      GetInkDropCenterBasedOnLastEvent(), ripple_color, 1.0f);
 }
 
-void SearchResultActionButton::UpdateOnStateChanged() {
+std::unique_ptr<views::InkDropHighlight>
+SearchResultImageButton::CreateInkDropHighlight() const {
+  SkColor ripple_color =
+      AppListColorProvider::Get()->GetSearchResultViewHighlightColor();
+  auto highlight = std::make_unique<views::InkDropHighlight>(gfx::SizeF(size()),
+                                                             ripple_color);
+  highlight->set_visible_opacity(1.f);
+  return highlight;
+}
+
+void SearchResultImageButton::UpdateOnStateChanged() {
   // Show button if the associated result row is hovered or selected, or one
   // of the action buttons is selected.
   if (visible_on_hover_)
     SetVisible(parent_->IsSearchResultHoveredOrSelected());
 }
 
-void SearchResultActionButton::OnPaintBackground(gfx::Canvas* canvas) {
+void SearchResultImageButton::OnPaintBackground(gfx::Canvas* canvas) {
   if (HasFocus() || parent_->GetSelectedAction() == tag()) {
-    PaintFocusRing(canvas, GetLocalBounds().CenterPoint(), GetButtonRadius(),
-                   GetWidget());
+    cc::PaintFlags circle_flags;
+    circle_flags.setAntiAlias(true);
+    circle_flags.setColor(
+        AppListColorProvider::Get()->GetSearchResultViewHighlightColor());
+    circle_flags.setStyle(cc::PaintFlags::kFill_Style);
+    canvas->DrawCircle(GetLocalBounds().CenterPoint(), GetInkDropRadius(),
+                       circle_flags);
   }
 }
 
-int SearchResultActionButton::GetButtonRadius() const {
+void SearchResultImageButton::SetButtonImage(const gfx::ImageSkia& source,
+                                             int icon_dimension) {
+  SetImage(views::ImageButton::STATE_NORMAL,
+           gfx::ImageSkiaOperations::CreateResizedImage(
+               source, skia::ImageOperations::RESIZE_BEST,
+               gfx::Size(icon_dimension, icon_dimension)));
+}
+
+int SearchResultImageButton::GetInkDropRadius() const {
   return width() / 2;
 }
 
-const char* SearchResultActionButton::GetClassName() const {
-  return "SearchResultActionButton";
+const char* SearchResultImageButton::GetClassName() const {
+  return "SearchResultImageButton";
 }
 
 SearchResultActionsView::SearchResultActionsView(
@@ -162,7 +191,7 @@ void SearchResultActionsView::SetActions(const SearchResult::Actions& actions) {
   if (selected_action_.has_value())
     selected_action_.reset();
   subscriptions_.clear();
-  RemoveAllChildViews();
+  RemoveAllChildViews(true);
 
   for (size_t i = 0; i < actions.size(); ++i)
     CreateImageButton(actions[i], i);
@@ -177,14 +206,9 @@ bool SearchResultActionsView::IsSearchResultHoveredOrSelected() const {
   return delegate_->IsSearchResultHoveredOrSelected();
 }
 
-void SearchResultActionsView::HideActions() {
-  for (views::View* child : children())
-    child->SetVisible(false);
-}
-
 void SearchResultActionsView::UpdateButtonsOnStateChanged() {
   for (views::View* child : children())
-    static_cast<SearchResultActionButton*>(child)->UpdateOnStateChanged();
+    static_cast<SearchResultImageButton*>(child)->UpdateOnStateChanged();
 }
 
 const char* SearchResultActionsView::GetClassName() const {
@@ -257,29 +281,11 @@ bool SearchResultActionsView::HasSelectedAction() const {
 void SearchResultActionsView::CreateImageButton(
     const SearchResult::Action& action,
     int action_index) {
-  const gfx::VectorIcon* icon = nullptr;
-  switch (action.type) {
-    case SearchResultActionType::kRemove:
-      icon = &ash::kSearchResultRemoveIcon;
-      break;
-    case ash::SearchResultActionType::kAppend:
-      icon = &ash::kSearchResultAppendIcon;
-      break;
-    case ash::SearchResultActionType::kSearchResultActionTypeMax:
-      NOTREACHED();
-  }
-
-  DCHECK(icon);
-
-  auto* const button = AddChildView(std::make_unique<SearchResultActionButton>(
-      this, action,
-      base::BindRepeating(
-          &SearchResultActionsViewDelegate::OnSearchResultActionActivated,
-          base::Unretained(delegate_), action_index),
-      features::IsProductivityLauncherEnabled()
-          ? IconButton::Type::kMediumFloating
-          : IconButton::Type::kLargeFloating,
-      icon, action.tooltip_text));
+  auto* const button =
+      AddChildView(std::make_unique<SearchResultImageButton>(this, action));
+  button->SetCallback(base::BindRepeating(
+      &SearchResultActionsViewDelegate::OnSearchResultActionActivated,
+      base::Unretained(delegate_), action_index));
   button->set_tag(action_index);
   subscriptions_.push_back(button->AddStateChangedCallback(
       base::BindRepeating(&SearchResultActionsView::UpdateButtonsOnStateChanged,

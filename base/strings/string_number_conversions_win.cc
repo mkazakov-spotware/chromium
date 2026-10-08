@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,6 +39,7 @@ std::wstring NumberToWString(double value) {
   return internal::DoubleToStringT<std::wstring>(value);
 }
 
+#if defined(BASE_STRING16_IS_STD_U16STRING)
 namespace internal {
 
 template <>
@@ -73,5 +74,6 @@ bool StringToDouble(WStringPiece input, double* output) {
   return internal::StringToDoubleImpl(
       input, reinterpret_cast<const uint16_t*>(input.data()), *output);
 }
+#endif  // defined(BASE_STRING16_IS_STD_U16STRING)
 
 }  // namespace base

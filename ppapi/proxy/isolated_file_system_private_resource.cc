@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,10 +46,10 @@ int32_t IsolatedFileSystemPrivateResource::Open(
   if (!file_system_resource)
     return PP_ERROR_BADARGUMENT;
 
-  Call<PpapiPluginMsg_IsolatedFileSystem_BrowserOpenReply>(
-      BROWSER, PpapiHostMsg_IsolatedFileSystem_BrowserOpen(type),
-      base::BindOnce(&IsolatedFileSystemPrivateResource::OnBrowserOpenComplete,
-                     this, type, file_system_resource, callback));
+  Call<PpapiPluginMsg_IsolatedFileSystem_BrowserOpenReply>(BROWSER,
+      PpapiHostMsg_IsolatedFileSystem_BrowserOpen(type),
+      base::Bind(&IsolatedFileSystemPrivateResource::OnBrowserOpenComplete,
+                 this, type, file_system_resource, callback));
   return PP_OK_COMPLETIONPENDING;
 }
 
@@ -72,8 +72,8 @@ void IsolatedFileSystemPrivateResource::OnBrowserOpenComplete(
   *file_system_resource = fs->GetReference();
   if (*file_system_resource == 0)
     callback->Run(PP_ERROR_FAILED);
-  fs->InitIsolatedFileSystem(fsid, type,
-                             base::BindOnce(&RunTrackedCallback, callback));
+  fs->InitIsolatedFileSystem(
+      fsid, type, base::Bind(&RunTrackedCallback, callback));
 }
 
 }  // namespace proxy

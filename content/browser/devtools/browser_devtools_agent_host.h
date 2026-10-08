@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_DEVTOOLS_BROWSER_DEVTOOLS_AGENT_HOST_H_
 #define CONTENT_BROWSER_DEVTOOLS_BROWSER_DEVTOOLS_AGENT_HOST_H_
 
+#include "base/containers/flat_map.h"
 #include "content/browser/devtools/devtools_agent_host_impl.h"
 
 namespace content {
@@ -16,8 +17,6 @@ class BrowserDevToolsAgentHost : public DevToolsAgentHostImpl {
 
  private:
   friend class DevToolsAgentHost;
-  class BrowserAutoAttacher;
-
   BrowserDevToolsAgentHost(
       scoped_refptr<base::SingleThreadTaskRunner> tethering_task_runner,
       const CreateServerSocketCallback& socket_callback,
@@ -27,7 +26,6 @@ class BrowserDevToolsAgentHost : public DevToolsAgentHostImpl {
   // DevToolsAgentHostImpl overrides.
   bool AttachSession(DevToolsSession* session, bool acquire_wake_lock) override;
   void DetachSession(DevToolsSession* session) override;
-  protocol::TargetAutoAttacher* auto_attacher() override;
 
   // DevToolsAgentHost implementation.
   std::string GetType() override;
@@ -37,7 +35,6 @@ class BrowserDevToolsAgentHost : public DevToolsAgentHostImpl {
   void Reload() override;
   bool Close() override;
 
-  std::unique_ptr<BrowserAutoAttacher> auto_attacher_;
   scoped_refptr<base::SingleThreadTaskRunner> tethering_task_runner_;
   CreateServerSocketCallback socket_callback_;
   bool only_discovery_;

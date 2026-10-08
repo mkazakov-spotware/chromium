@@ -28,9 +28,10 @@ async_test(
 function(t) {
   let iframe = document.querySelector("iframe");
 
-  // When an iframe is cross-origin, as in this test, it will not run
-  // lifecycle updates while it's not visible. In that case, we can't use
-  // requestAnimationFrame to wait for IntersectionObserver to run.
+  // When an iframe is OOP, it will not run lifecycle updates while it's not
+  // visible. In that case, we can't use requestAnimationFrame to wait for
+  // IntersectionObserver to run.
+  let iframeIsOOP = false;
 
   function step0(event) {
     assert_equals(event.data,"");
@@ -42,8 +43,7 @@ function(t) {
     assert_equals(JSON.stringify(event.data),
                   JSON.stringify([true]),
                   'First notification');
-    // No raf for cross-origin iframe.
-    this.properties.raf = false;
+    this.properties.raf = !iframeIsOOP;
   }
 
   function step2(event) {
@@ -59,8 +59,7 @@ function(t) {
     assert_equals(JSON.stringify(event.data),
                   JSON.stringify([true]),
                   'iframe.style.display = ""');
-    // No raf for cross-origin iframe.
-    this.properties.raf = false;
+    this.properties.raf = !iframeIsOOP;
   }
 
   function step4(event) {
@@ -73,6 +72,10 @@ function(t) {
   let steps = [step0, step1, step2, step3, step4];
 
   window.addEventListener("message", event => {
+    if (self.internals) {
+      iframeIsOOP = internals.isSiteIsolated(iframe);
+    }
+
     if (steps.length) {
       t.step(steps.shift().bind(t, event));
       waitForFrame(t, () => {

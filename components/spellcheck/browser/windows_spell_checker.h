@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,18 +47,18 @@ class WindowsSpellChecker : public PlatformSpellChecker {
 
   void RequestTextCheck(
       int document_tag,
-      const std::u16string& text,
+      const base::string16& text,
       spellcheck_platform::TextCheckCompleteCallback callback) override;
 
   void GetPerLanguageSuggestions(
-      const std::u16string& word,
+      const base::string16& word,
       spellcheck_platform::GetSuggestionsCallback callback);
 
-  void AddWordForAllLanguages(const std::u16string& word);
+  void AddWordForAllLanguages(const base::string16& word);
 
-  void RemoveWordForAllLanguages(const std::u16string& word);
+  void RemoveWordForAllLanguages(const base::string16& word);
 
-  void IgnoreWordForAllLanguages(const std::u16string& word);
+  void IgnoreWordForAllLanguages(const base::string16& word);
 
   void RecordChromeLocalesStats(const std::vector<std::string> chrome_locales,
                                 SpellCheckHostMetrics* metrics);

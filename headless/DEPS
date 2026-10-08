@@ -1,7 +1,8 @@
 include_rules = [
   "+components/cookie_config",
   "+components/crash/content/browser",
-  "+components/crash/core",
+  "+components/crash/core/app",
+  "+components/crash/core/common/crash_key.h",
   "+components/os_crypt",
   "+components/services/print_compositor/public",
   "+content/public/app",

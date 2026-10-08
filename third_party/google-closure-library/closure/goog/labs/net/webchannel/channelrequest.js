@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2006 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Definition of the ChannelRequest class. The request
@@ -11,16 +19,15 @@
  * the logic for the two types of transports we use:
  * XMLHTTP and Image request. It provides timeout detection. More transports
  * to be added in future, such as Fetch, WebSocket.
- *
  */
 
 
 goog.provide('goog.labs.net.webChannel.ChannelRequest');
 
+goog.forwardDeclare('goog.Uri');
+goog.forwardDeclare('goog.net.XhrIo');
 goog.require('goog.Timer');
-goog.require('goog.asserts');
 goog.require('goog.async.Throttle');
-goog.require('goog.dispose');
 goog.require('goog.events.EventHandler');
 goog.require('goog.labs.net.webChannel.Channel');
 goog.require('goog.labs.net.webChannel.WebChannelDebug');
@@ -33,10 +40,6 @@ goog.require('goog.net.XmlHttp');
 goog.require('goog.object');
 goog.require('goog.string');
 goog.require('goog.userAgent');
-goog.requireType('goog.Uri');
-goog.requireType('goog.events.Event');
-goog.requireType('goog.labs.net.webChannel.Wire.QueuedMap');
-goog.requireType('goog.net.XhrIo');
 
 
 
@@ -56,7 +59,6 @@ goog.requireType('goog.net.XhrIo');
  */
 goog.labs.net.webChannel.ChannelRequest = function(
     channel, channelDebug, opt_sessionId, opt_requestId, opt_retryId) {
-  'use strict';
   /**
    * The channel object that owns the request.
    * @private {goog.labs.net.webChannel.Channel}
@@ -248,58 +250,17 @@ goog.labs.net.webChannel.ChannelRequest = function(
    * @private {boolean}
    */
   this.initialResponseDecoded_ = false;
-
-  /**
-   * Whether the first byte of response body has arrived, for a successful
-   * response.
-   * @private {boolean}
-   */
-  this.firstByteReceived_ = false;
-
-  /**
-   * The current state of fetch responses if webchannel is using WHATWG
-   * fetch/streams.
-   * @private {!goog.labs.net.webChannel.FetchResponseState}
-   */
-  this.fetchResponseState_ = new goog.labs.net.webChannel.FetchResponseState();
-};
-
-/**
- * A collection of fetch/stream properties.
- * @struct
- * @constructor
- */
-goog.labs.net.webChannel.FetchResponseState = function() {
-  'use strict';
-  /**
-   * The TextDecoder for decoding Uint8Array responses from fetch request.
-   * @type {?goog.global.TextDecoder}
-   */
-  this.textDecoder = null;
-
-  /**
-   * The unconsumed response text from the fetch requests.
-   * @type {string}
-   */
-  this.responseBuffer = '';
-
-  /**
-   * Whether or not the response body has arrived.
-   * @type {boolean}
-   */
-  this.responseArrivedForFetch = false;
 };
 
 
 goog.scope(function() {
-'use strict';
-const WebChannel = goog.net.WebChannel;
-const Channel = goog.labs.net.webChannel.Channel;
-const ChannelRequest = goog.labs.net.webChannel.ChannelRequest;
-const FetchResponseState = goog.labs.net.webChannel.FetchResponseState;
-const requestStats = goog.labs.net.webChannel.requestStats;
-const WebChannelDebug = goog.labs.net.webChannel.WebChannelDebug;
-const environment = goog.labs.net.webChannel.environment;
+var WebChannel = goog.net.WebChannel;
+var Channel = goog.labs.net.webChannel.Channel;
+var ChannelRequest = goog.labs.net.webChannel.ChannelRequest;
+var requestStats = goog.labs.net.webChannel.requestStats;
+var WebChannelDebug = goog.labs.net.webChannel.WebChannelDebug;
+var environment = goog.labs.net.webChannel.environment;
+
 
 /**
  * Default timeout in MS for a request. The server must return data within this
@@ -377,7 +338,6 @@ ChannelRequest.Error = {
  * @return {string} The error string for the given code combination.
  */
 ChannelRequest.errorStringFromCode = function(errorCode, statusCode) {
-  'use strict';
   switch (errorCode) {
     case ChannelRequest.Error.STATUS:
       return 'Non-200 return code (' + statusCode + ')';
@@ -393,7 +353,7 @@ ChannelRequest.errorStringFromCode = function(errorCode, statusCode) {
 
 /**
  * Sentinel value used to indicate an invalid chunk in a multi-chunk response.
- * @private {!Object}
+ * @private {Object}
  */
 ChannelRequest.INVALID_CHUNK_ = {};
 
@@ -401,7 +361,7 @@ ChannelRequest.INVALID_CHUNK_ = {};
 /**
  * Sentinel value used to indicate an incomplete chunk in a multi-chunk
  * response.
- * @private {!Object}
+ * @private {Object}
  */
 ChannelRequest.INCOMPLETE_CHUNK_ = {};
 
@@ -413,7 +373,6 @@ ChannelRequest.INCOMPLETE_CHUNK_ = {};
  * @see http://code.google.com/p/closure-library/issues/detail?id=346
  */
 ChannelRequest.supportsXhrStreaming = function() {
-  'use strict';
   return !goog.userAgent.IE || goog.userAgent.isDocumentModeOrHigher(10);
 };
 
@@ -424,7 +383,6 @@ ChannelRequest.supportsXhrStreaming = function() {
  * @param {Object} extraHeaders The HTTP headers.
  */
 ChannelRequest.prototype.setExtraHeaders = function(extraHeaders) {
-  'use strict';
   this.extraHeaders_ = extraHeaders;
 };
 
@@ -435,7 +393,6 @@ ChannelRequest.prototype.setExtraHeaders = function(extraHeaders) {
  * @param {string} verb The HTTP method
  */
 ChannelRequest.prototype.setVerb = function(verb) {
-  'use strict';
   this.verb_ = verb;
 };
 
@@ -446,7 +403,6 @@ ChannelRequest.prototype.setVerb = function(verb) {
  * @param {number} timeout   The timeout in MS for when we fail the request.
  */
 ChannelRequest.prototype.setTimeout = function(timeout) {
-  'use strict';
   this.timeout_ = timeout;
 };
 
@@ -458,7 +414,6 @@ ChannelRequest.prototype.setTimeout = function(timeout) {
  *     no throttle.
  */
 ChannelRequest.prototype.setReadyStateChangeThrottle = function(throttle) {
-  'use strict';
   this.readyStateChangeThrottleMs_ = throttle;
 };
 
@@ -470,7 +425,6 @@ ChannelRequest.prototype.setReadyStateChangeThrottle = function(throttle) {
  *     The pending messages for this request.
  */
 ChannelRequest.prototype.setPendingMessages = function(pendingMessages) {
-  'use strict';
   this.pendingMessages_ = pendingMessages;
 };
 
@@ -482,7 +436,6 @@ ChannelRequest.prototype.setPendingMessages = function(pendingMessages) {
  *     messages for this request.
  */
 ChannelRequest.prototype.getPendingMessages = function() {
-  'use strict';
   return this.pendingMessages_;
 };
 
@@ -496,7 +449,6 @@ ChannelRequest.prototype.getPendingMessages = function() {
  *     encoded for chunking and thus requires decoding.
  */
 ChannelRequest.prototype.xmlHttpPost = function(uri, postData, decodeChunks) {
-  'use strict';
   this.type_ = ChannelRequest.Type_.XML_HTTP;
   this.baseUri_ = uri.clone().makeUnique();
   this.postData_ = postData;
@@ -516,7 +468,6 @@ ChannelRequest.prototype.xmlHttpPost = function(uri, postData, decodeChunks) {
  *     won't cause it to be added to the URL.
  */
 ChannelRequest.prototype.xmlHttpGet = function(uri, decodeChunks, hostPrefix) {
-  'use strict';
   this.type_ = ChannelRequest.Type_.XML_HTTP;
   this.baseUri_ = uri.clone().makeUnique();
   this.postData_ = null;
@@ -535,8 +486,7 @@ ChannelRequest.prototype.xmlHttpGet = function(uri, decodeChunks, hostPrefix) {
  * @private
  */
 ChannelRequest.prototype.sendXmlHttp_ = function(hostPrefix) {
-  'use strict';
-  this.requestStartTime_ = Date.now();
+  this.requestStartTime_ = goog.now();
   this.ensureWatchDogTimer_();
 
   // clone the base URI to create the request URI. The request uri has the
@@ -546,14 +496,9 @@ ChannelRequest.prototype.sendXmlHttp_ = function(hostPrefix) {
 
   // send the request either as a POST or GET
   this.xmlHttpChunkStart_ = 0;
-  const useSecondaryDomains = this.channel_.shouldUseSecondaryDomains();
-  this.fetchResponseState_ = new FetchResponseState();
-  // If the request is a GET request, start a backchannel to transfer streaming
-  // data. Note that WebChannel GET request can also be used for closing the
-  // channel as in method ChannelRequest#sendCloseRequest.
-  // The second parameter of Channel#createXhrIo is JS only.
-  this.xmlHttp_ = this.channel_.createXhrIo(
-      useSecondaryDomains ? hostPrefix : null, !this.postData_);
+  var useSecondaryDomains = this.channel_.shouldUseSecondaryDomains();
+  this.xmlHttp_ =
+      this.channel_.createXhrIo(useSecondaryDomains ? hostPrefix : null);
 
   if (this.readyStateChangeThrottleMs_ > 0) {
     this.readyStateChangeThrottle_ = new goog.async.Throttle(
@@ -565,8 +510,7 @@ ChannelRequest.prototype.sendXmlHttp_ = function(hostPrefix) {
       this.xmlHttp_, goog.net.EventType.READY_STATE_CHANGE,
       this.readyStateChangeHandler_);
 
-  const headers =
-      this.extraHeaders_ ? goog.object.clone(this.extraHeaders_) : {};
+  var headers = this.extraHeaders_ ? goog.object.clone(this.extraHeaders_) : {};
   if (this.postData_) {
     if (!this.verb_) {
       this.verb_ = 'POST';
@@ -590,9 +534,8 @@ ChannelRequest.prototype.sendXmlHttp_ = function(hostPrefix) {
  * @private
  */
 ChannelRequest.prototype.readyStateChangeHandler_ = function(evt) {
-  'use strict';
-  const xhr = /** @type {goog.net.XhrIo} */ (evt.target);
-  const throttle = this.readyStateChangeThrottle_;
+  var xhr = /** @type {goog.net.XhrIo} */ (evt.target);
+  var throttle = this.readyStateChangeThrottle_;
   if (throttle &&
       xhr.getReadyState() == goog.net.XmlHttp.ReadyState.INTERACTIVE) {
     // Only throttle in the partial data case.
@@ -611,8 +554,8 @@ ChannelRequest.prototype.readyStateChangeHandler_ = function(evt) {
  * @private
  */
 ChannelRequest.prototype.xmlHttpHandler_ = function(xmlhttp) {
-  'use strict';
   requestStats.onStartExecution();
+
 
   try {
     if (xmlhttp == this.xmlHttp_) {
@@ -624,10 +567,9 @@ ChannelRequest.prototype.xmlHttpHandler_ = function(xmlhttp) {
     }
   } catch (ex) {
     this.channelDebug_.debug('Failed call to OnXmlHttpReadyStateChanged_');
-    if (this.hasResponseBody_()) {
-      const channelRequest = this;
+    if (this.xmlHttp_ && this.xmlHttp_.getResponseText()) {
+      var channelRequest = this;
       this.channelDebug_.dumpException(ex, function() {
-        'use strict';
         return 'ResponseText: ' + channelRequest.xmlHttp_.getResponseText();
       });
     } else {
@@ -645,10 +587,9 @@ ChannelRequest.prototype.xmlHttpHandler_ = function(xmlhttp) {
  * @private
  */
 ChannelRequest.prototype.onXmlHttpReadyStateChanged_ = function() {
-  'use strict';
-  const readyState = this.xmlHttp_.getReadyState();
-  const errorCode = this.xmlHttp_.getLastErrorCode();
-  const statusCode = this.xmlHttp_.getStatus();
+  var readyState = this.xmlHttp_.getReadyState();
+  var errorCode = this.xmlHttp_.getLastErrorCode();
+  var statusCode = this.xmlHttp_.getStatus();
 
   // we get partial results in browsers that support ready state interactive.
   // We also make sure that getResponseText is not null in interactive mode
@@ -656,7 +597,7 @@ ChannelRequest.prototype.onXmlHttpReadyStateChanged_ = function() {
   if (readyState < goog.net.XmlHttp.ReadyState.INTERACTIVE ||
       (readyState == goog.net.XmlHttp.ReadyState.INTERACTIVE &&
        !environment.isPollingRequired() &&  // otherwise, go on to startPolling
-       !this.hasResponseBody_())) {
+       !this.xmlHttp_.getResponseText())) {
     return;  // not yet ready
   }
 
@@ -677,14 +618,12 @@ ChannelRequest.prototype.onXmlHttpReadyStateChanged_ = function() {
   // got some data so cancel the watchdog timer
   this.cancelWatchDogTimer_();
 
-  const status = this.xmlHttp_.getStatus();
+  var status = this.xmlHttp_.getStatus();
   this.lastStatusCode_ = status;
-  const responseText = this.decodeXmlHttpResponse_();
-
-  if (!this.hasResponseBody_()) {
-    const channelRequest = this;
+  var responseText = this.xmlHttp_.getResponseText();
+  if (!responseText) {
+    var channelRequest = this;
     this.channelDebug_.debug(function() {
-      'use strict';
       return 'No response text for uri ' + channelRequest.requestUri_ +
           ' status ' + status;
     });
@@ -717,7 +656,7 @@ ChannelRequest.prototype.onXmlHttpReadyStateChanged_ = function() {
   }
 
   if (this.shouldCheckInitialResponse_()) {
-    const initialResponse = this.getInitialResponse_();
+    var initialResponse = this.getInitialResponse_();
     if (initialResponse) {
       this.channelDebug_.xmlHttpChannelResponseText(
           this.rid_, initialResponse,
@@ -781,7 +720,6 @@ ChannelRequest.prototype.onXmlHttpReadyStateChanged_ = function() {
  * @private
  */
 ChannelRequest.prototype.shouldCheckInitialResponse_ = function() {
-  'use strict';
   return this.decodeInitialResponse_ && !this.initialResponseDecoded_;
 };
 
@@ -793,9 +731,8 @@ ChannelRequest.prototype.shouldCheckInitialResponse_ = function() {
  * @private
  */
 ChannelRequest.prototype.getInitialResponse_ = function() {
-  'use strict';
   if (this.xmlHttp_) {
-    const value = this.xmlHttp_.getStreamingResponseHeader(
+    var value = this.xmlHttp_.getStreamingResponseHeader(
         WebChannel.X_HTTP_INITIAL_RESPONSE);
     if (value && !goog.string.isEmptyOrWhitespace(value)) {
       return value;
@@ -812,7 +749,6 @@ ChannelRequest.prototype.getInitialResponse_ = function() {
  * @return {boolean} true if X_HTTP_INITIAL_RESPONSE has been handled.
  */
 ChannelRequest.prototype.isInitialResponseDecoded = function() {
-  'use strict';
   return this.initialResponseDecoded_;
 };
 
@@ -821,96 +757,7 @@ ChannelRequest.prototype.isInitialResponseDecoded = function() {
  * Decodes X_HTTP_INITIAL_RESPONSE if present.
  */
 ChannelRequest.prototype.setDecodeInitialResponse = function() {
-  'use strict';
   this.decodeInitialResponse_ = true;
-};
-
-
-
-/**
- * Decodes the responses from XhrIo object.
- * @returns {string} responseText
- * @private
- */
-ChannelRequest.prototype.decodeXmlHttpResponse_ = function() {
-  'use strict';
-  if (!this.useFetchStreamsForResponse_()) {
-    return this.xmlHttp_.getResponseText();
-  }
-  const responseChunks =
-      /** @type {!Array<!Uint8Array>} */ (this.xmlHttp_.getResponse());
-  let responseText = '';
-  const responseLength = responseChunks.length;
-  const requestCompleted =
-      this.xmlHttp_.getReadyState() == goog.net.XmlHttp.ReadyState.COMPLETE;
-  if (!this.fetchResponseState_.textDecoder) {
-    if (typeof TextDecoder === 'undefined') {
-      this.channelDebug_.severe(
-          'TextDecoder is not supported by this browser.');
-      this.cleanup_();
-      this.dispatchFailure_();
-      return '';
-    }
-    this.fetchResponseState_.textDecoder = new goog.global.TextDecoder();
-  }
-  for (let i = 0; i < responseLength; i++) {
-    this.fetchResponseState_.responseArrivedForFetch = true;
-    const isLastChunk = requestCompleted && i == responseLength - 1;
-    responseText += this.fetchResponseState_.textDecoder.decode(
-        responseChunks[i], {stream: isLastChunk});
-  }
-  responseChunks.splice(0, responseLength);
-  this.fetchResponseState_.responseBuffer += responseText;
-  this.xmlHttpChunkStart_ = 0;
-  return this.fetchResponseState_.responseBuffer;
-};
-
-
-/**
- * Whether or not the response has response body.
- * @private
- * @returns {boolean}
- */
-ChannelRequest.prototype.hasResponseBody_ = function() {
-  'use strict';
-  if (!this.xmlHttp_) {
-    return false;
-  }
-  if (this.fetchResponseState_.responseArrivedForFetch) {
-    return true;
-  }
-  return !(!this.xmlHttp_.getResponseText() && !this.xmlHttp_.getResponse());
-};
-
-/**
- * Whether or not the response body is streamed.
- * @private
- * @returns {boolean}
- */
-ChannelRequest.prototype.useFetchStreamsForResponse_ = function() {
-  'use strict';
-  if (!this.xmlHttp_) {
-    return false;
-  }
-  return (
-      this.verb_ == 'GET' && this.type_ != ChannelRequest.Type_.CLOSE_REQUEST &&
-      this.channel_.usesFetchStreams());
-};
-
-
-/**
- * Resets the response buffer if the saved chunk has been processed.
- * @private
- * @param {string|!Object|undefined} chunkText
- */
-ChannelRequest.prototype.maybeResetBuffer_ = function(chunkText) {
-  'use strict';
-  if (this.useFetchStreamsForResponse_() &&
-      chunkText != ChannelRequest.INCOMPLETE_CHUNK_ &&
-      chunkText != ChannelRequest.INVALID_CHUNK_) {
-    this.fetchResponseState_.responseBuffer = '';
-    this.xmlHttpChunkStart_ = 0;
-  }
 };
 
 
@@ -922,12 +769,9 @@ ChannelRequest.prototype.maybeResetBuffer_ = function(chunkText) {
  */
 ChannelRequest.prototype.decodeNextChunks_ = function(
     readyState, responseText) {
-  'use strict';
-  let decodeNextChunksSuccessful = true;
-
-  let chunkText;
+  var decodeNextChunksSuccessful = true;
   while (!this.cancelled_ && this.xmlHttpChunkStart_ < responseText.length) {
-    chunkText = this.getNextChunk_(responseText);
+    var chunkText = this.getNextChunk_(responseText);
     if (chunkText == ChannelRequest.INCOMPLETE_CHUNK_) {
       if (readyState == goog.net.XmlHttp.ReadyState.COMPLETE) {
         // should have consumed entire response when the request is done
@@ -951,31 +795,20 @@ ChannelRequest.prototype.decodeNextChunks_ = function(
       this.safeOnRequestData_(/** @type {string} */ (chunkText));
     }
   }
-
-  this.maybeResetBuffer_(chunkText);
-
   if (readyState == goog.net.XmlHttp.ReadyState.COMPLETE &&
-      responseText.length == 0 &&
-      !this.fetchResponseState_.responseArrivedForFetch) {
+      responseText.length == 0) {
     // also an error if we didn't get any response
     this.lastError_ = ChannelRequest.Error.NO_DATA;
     requestStats.notifyStatEvent(requestStats.Stat.REQUEST_NO_DATA);
     decodeNextChunksSuccessful = false;
   }
-
   this.successful_ = this.successful_ && decodeNextChunksSuccessful;
-
   if (!decodeNextChunksSuccessful) {
     // malformed response - we make this trigger retry logic
     this.channelDebug_.xmlHttpChannelResponseText(
         this.rid_, responseText, '[Invalid Chunked Response]');
     this.cleanup_();
     this.dispatchFailure_();
-  } else {
-    if (responseText.length > 0 && !this.firstByteReceived_) {
-      this.firstByteReceived_ = true;
-      this.channel_.onFirstByteReceived(this, responseText);
-    }
   }
 };
 
@@ -985,12 +818,11 @@ ChannelRequest.prototype.decodeNextChunks_ = function(
  * @private
  */
 ChannelRequest.prototype.pollResponse_ = function() {
-  'use strict';
   if (!this.xmlHttp_) {
     return;  // already closed
   }
-  const readyState = this.xmlHttp_.getReadyState();
-  const responseText = this.xmlHttp_.getResponseText();
+  var readyState = this.xmlHttp_.getReadyState();
+  var responseText = this.xmlHttp_.getResponseText();
   if (this.xmlHttpChunkStart_ < responseText.length) {
     this.cancelWatchDogTimer_();
     this.decodeNextChunks_(readyState, responseText);
@@ -1010,7 +842,6 @@ ChannelRequest.prototype.pollResponse_ = function() {
  * @private
  */
 ChannelRequest.prototype.startPolling_ = function() {
-  'use strict';
   this.eventHandler_.listen(
       this.pollingTimer_, goog.Timer.TICK, this.pollResponse_);
   this.pollingTimer_.start();
@@ -1028,30 +859,29 @@ ChannelRequest.prototype.startPolling_ = function() {
  * by a newline followed by the data.
  *
  * @param {string} responseText The response text from the XMLHTTP response.
- * @return {string|!Object} The next chunk string or a sentinel object
+ * @return {string|Object} The next chunk string or a sentinel object
  *                         indicating a special condition.
  * @private
  */
 ChannelRequest.prototype.getNextChunk_ = function(responseText) {
-  'use strict';
-  const sizeStartIndex = this.xmlHttpChunkStart_;
-  const sizeEndIndex = responseText.indexOf('\n', sizeStartIndex);
+  var sizeStartIndex = this.xmlHttpChunkStart_;
+  var sizeEndIndex = responseText.indexOf('\n', sizeStartIndex);
   if (sizeEndIndex == -1) {
     return ChannelRequest.INCOMPLETE_CHUNK_;
   }
 
-  const sizeAsString = responseText.substring(sizeStartIndex, sizeEndIndex);
-  const size = Number(sizeAsString);
+  var sizeAsString = responseText.substring(sizeStartIndex, sizeEndIndex);
+  var size = Number(sizeAsString);
   if (isNaN(size)) {
     return ChannelRequest.INVALID_CHUNK_;
   }
 
-  const chunkStartIndex = sizeEndIndex + 1;
+  var chunkStartIndex = sizeEndIndex + 1;
   if (chunkStartIndex + size > responseText.length) {
     return ChannelRequest.INCOMPLETE_CHUNK_;
   }
 
-  const chunkText = responseText.substr(chunkStartIndex, size);
+  var chunkText = responseText.substr(chunkStartIndex, size);
   this.xmlHttpChunkStart_ = chunkStartIndex + size;
   return chunkText;
 };
@@ -1077,11 +907,10 @@ ChannelRequest.prototype.getNextChunk_ = function(responseText) {
  * @param {goog.Uri} uri The uri to send a request to.
  */
 ChannelRequest.prototype.sendCloseRequest = function(uri) {
-  'use strict';
   this.type_ = ChannelRequest.Type_.CLOSE_REQUEST;
   this.baseUri_ = uri.clone().makeUnique();
 
-  let requestSent = false;
+  var requestSent = false;
 
   if (goog.global.navigator && goog.global.navigator.sendBeacon) {
     // empty string body to avoid 413 error on chrome < 41
@@ -1090,7 +919,7 @@ ChannelRequest.prototype.sendCloseRequest = function(uri) {
   }
 
   if (!requestSent && goog.global.Image) {
-    const eltImg = new Image();
+    var eltImg = new Image();
     eltImg.src = this.baseUri_;
     requestSent = true;
   }
@@ -1101,7 +930,7 @@ ChannelRequest.prototype.sendCloseRequest = function(uri) {
     this.xmlHttp_.send(this.baseUri_);
   }
 
-  this.requestStartTime_ = Date.now();
+  this.requestStartTime_ = goog.now();
   this.ensureWatchDogTimer_();
 };
 
@@ -1110,7 +939,6 @@ ChannelRequest.prototype.sendCloseRequest = function(uri) {
  * Cancels the request no matter what the underlying transport is.
  */
 ChannelRequest.prototype.cancel = function() {
-  'use strict';
   this.cancelled_ = true;
   this.cleanup_();
 };
@@ -1122,7 +950,6 @@ ChannelRequest.prototype.cancel = function() {
  * @param {number=} opt_timeout The new timeout
  */
 ChannelRequest.prototype.resetTimeout = function(opt_timeout) {
-  'use strict';
   if (opt_timeout) {
     this.setTimeout(opt_timeout);
   }
@@ -1141,8 +968,7 @@ ChannelRequest.prototype.resetTimeout = function(opt_timeout) {
  * @private
  */
 ChannelRequest.prototype.ensureWatchDogTimer_ = function() {
-  'use strict';
-  this.watchDogTimeoutTime_ = Date.now() + this.timeout_;
+  this.watchDogTimeoutTime_ = goog.now() + this.timeout_;
   this.startWatchDogTimer_(this.timeout_);
 };
 
@@ -1154,7 +980,6 @@ ChannelRequest.prototype.ensureWatchDogTimer_ = function() {
  * @private
  */
 ChannelRequest.prototype.startWatchDogTimer_ = function(time) {
-  'use strict';
   if (this.watchDogTimerId_ != null) {
     // assertion
     throw new Error('WatchDog timer not null');
@@ -1170,7 +995,6 @@ ChannelRequest.prototype.startWatchDogTimer_ = function(time) {
  * @private
  */
 ChannelRequest.prototype.cancelWatchDogTimer_ = function() {
-  'use strict';
   if (this.watchDogTimerId_) {
     goog.global.clearTimeout(this.watchDogTimerId_);
     this.watchDogTimerId_ = null;
@@ -1186,11 +1010,8 @@ ChannelRequest.prototype.cancelWatchDogTimer_ = function() {
  * @private
  */
 ChannelRequest.prototype.onWatchDogTimeout_ = function() {
-  'use strict';
   this.watchDogTimerId_ = null;
-  const now = Date.now();
-  goog.asserts.assert(
-      this.watchDogTimeoutTime_, 'WatchDog timeout time missing?');
+  var now = goog.now();
   if (now - this.watchDogTimeoutTime_ >= 0) {
     this.handleTimeout_();
   } else {
@@ -1208,7 +1029,6 @@ ChannelRequest.prototype.onWatchDogTimeout_ = function() {
  * @private
  */
 ChannelRequest.prototype.handleTimeout_ = function() {
-  'use strict';
   if (this.successful_) {
     // Should never happen.
     this.channelDebug_.severe(
@@ -1239,7 +1059,6 @@ ChannelRequest.prototype.handleTimeout_ = function() {
  * @private
  */
 ChannelRequest.prototype.dispatchFailure_ = function() {
-  'use strict';
   if (this.channel_.isClosed() || this.cancelled_) {
     return;
   }
@@ -1255,7 +1074,6 @@ ChannelRequest.prototype.dispatchFailure_ = function() {
  * @private
  */
 ChannelRequest.prototype.cleanup_ = function() {
-  'use strict';
   this.cancelWatchDogTimer_();
 
   goog.dispose(this.readyStateChangeThrottle_);
@@ -1270,7 +1088,7 @@ ChannelRequest.prototype.cleanup_ = function() {
   if (this.xmlHttp_) {
     // clear out this.xmlHttp_ before aborting so we handle getting reentered
     // inside abort
-    const xmlhttp = this.xmlHttp_;
+    var xmlhttp = this.xmlHttp_;
     this.xmlHttp_ = null;
     xmlhttp.abort();
     xmlhttp.dispose();
@@ -1285,7 +1103,6 @@ ChannelRequest.prototype.cleanup_ = function() {
  * @return {boolean} True if the request succeeded.
  */
 ChannelRequest.prototype.getSuccess = function() {
-  'use strict';
   return this.successful_;
 };
 
@@ -1296,7 +1113,6 @@ ChannelRequest.prototype.getSuccess = function() {
  * @return {?ChannelRequest.Error}  The last error.
  */
 ChannelRequest.prototype.getLastError = function() {
-  'use strict';
   return this.lastError_;
 };
 
@@ -1306,7 +1122,6 @@ ChannelRequest.prototype.getLastError = function() {
  * @return {number} The status code of the last request.
  */
 ChannelRequest.prototype.getLastStatusCode = function() {
-  'use strict';
   return this.lastStatusCode_;
 };
 
@@ -1317,7 +1132,6 @@ ChannelRequest.prototype.getLastStatusCode = function() {
  * @return {string|undefined} The session ID.
  */
 ChannelRequest.prototype.getSessionId = function() {
-  'use strict';
   return this.sid_;
 };
 
@@ -1329,7 +1143,6 @@ ChannelRequest.prototype.getSessionId = function() {
  * @return {string|number|undefined} The request ID.
  */
 ChannelRequest.prototype.getRequestId = function() {
-  'use strict';
   return this.rid_;
 };
 
@@ -1340,7 +1153,6 @@ ChannelRequest.prototype.getRequestId = function() {
  * @return {?string} The POST data provided by the request initiator.
  */
 ChannelRequest.prototype.getPostData = function() {
-  'use strict';
   return this.postData_;
 };
 
@@ -1351,7 +1163,6 @@ ChannelRequest.prototype.getPostData = function() {
  * @return {?goog.net.XhrIo} Any XhrIo request created for this object.
  */
 ChannelRequest.prototype.getXhr = function() {
-  'use strict';
   return this.xmlHttp_;
 };
 
@@ -1359,10 +1170,9 @@ ChannelRequest.prototype.getXhr = function() {
 /**
  * Returns the time that the request started, if it has started.
  *
- * @return {?number} The time the request started, as returned by Date.now().
+ * @return {?number} The time the request started, as returned by goog.now().
  */
 ChannelRequest.prototype.getRequestStartTime = function() {
-  'use strict';
   return this.requestStartTime_;
 };
 
@@ -1374,10 +1184,9 @@ ChannelRequest.prototype.getRequestStartTime = function() {
  * @private
  */
 ChannelRequest.prototype.safeOnRequestData_ = function(data) {
-  'use strict';
   try {
     this.channel_.onRequestData(this, data);
-    const stats = requestStats.ServerReachability;
+    var stats = requestStats.ServerReachability;
     requestStats.notifyServerReachabilityEvent(stats.BACK_CHANNEL_ACTIVITY);
   } catch (e) {
     // Dump debug info, but keep going without closing the channel.
@@ -1398,7 +1207,6 @@ ChannelRequest.prototype.safeOnRequestData_ = function(data) {
  */
 ChannelRequest.createChannelRequest = function(
     channel, channelDebug, opt_sessionId, opt_requestId, opt_retryId) {
-  'use strict';
   return new ChannelRequest(
       channel, channelDebug, opt_sessionId, opt_requestId, opt_retryId);
 };

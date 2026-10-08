@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,10 +21,7 @@ enum MediaSessionAction {
   "seekforward",
   "skipad",
   "stop",
-  "seekto",
-  "togglemicrophone",
-  "togglecamera",
-  "hangup"
+  "seekto"
 };
 
 callback MediaSessionActionHandler = void (MediaSessionActionDetails details);
@@ -39,12 +36,6 @@ callback MediaSessionActionHandler = void (MediaSessionActionDetails details);
     [Measure, RaisesException] void setActionHandler(MediaSessionAction action,
                                     MediaSessionActionHandler? handler);
 
-    [Measure, RaisesException]
+    [Measure, RaisesException, RuntimeEnabled=MediaSessionPosition]
     void setPositionState(optional MediaPositionState state = {});
-
-    [Measure]
-    void setMicrophoneActive(boolean active);
-
-    [Measure]
-    void setCameraActive(boolean active);
 };

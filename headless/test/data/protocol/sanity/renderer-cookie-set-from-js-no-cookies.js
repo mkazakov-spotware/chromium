@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,12 +24,15 @@
 
   await dp.Emulation.setDocumentCookieDisabled({disabled: true});
 
-  await virtualTimeController.initialize(1000);
-  await frameNavigationHelper.navigate('http://www.example.com/');
-  await virtualTimeController.grantTime(5000);
+  await virtualTimeController.grantInitialTime(5000, 1000,
+    null,
+    async () => {
+      const cookieIndex =
+          await session.evaluate(`document.cookie.indexOf('SessionID')`);
+      testRunner.log(cookieIndex < 0 ? 'pass' : 'FAIL');
+      testRunner.completeTest();
+    }
+  );
 
-  const cookieIndex =
-      await session.evaluate(`document.cookie.indexOf('SessionID')`);
-  testRunner.log(cookieIndex < 0 ? 'pass' : 'FAIL');
-  testRunner.completeTest();
+  await frameNavigationHelper.navigate('http://www.example.com/');
 })

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,16 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "base/test/values_test_util.h"
+#include "components/media_router/browser/issue_manager.h"
+#include "components/media_router/browser/issues_observer.h"
 #include "components/media_router/browser/media_routes_observer.h"
 #include "components/media_router/browser/media_sinks_observer.h"
 #include "components/media_router/common/mojom/logger.mojom.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "third_party/blink/public/mojom/presentation/presentation.mojom.h"
-
-#if !BUILDFLAG(IS_ANDROID)
-#include "components/media_router/browser/issue_manager.h"
-#include "components/media_router/browser/issues_observer.h"
-#endif  // !BUILDFALG(IS_ANDROID)
 
 namespace media_router {
 
@@ -33,7 +31,6 @@ MATCHER_P(StateChangeInfoEquals, other, "") {
          arg.message == other.message;
 }
 
-#if !BUILDFLAG(IS_ANDROID)
 class MockIssuesObserver : public IssuesObserver {
  public:
   explicit MockIssuesObserver(IssueManager* issue_manager);
@@ -42,7 +39,6 @@ class MockIssuesObserver : public IssuesObserver {
   MOCK_METHOD1(OnIssue, void(const Issue& issue));
   MOCK_METHOD0(OnIssuesCleared, void());
 };
-#endif  // !BUILDFLAG(IS_ANDROID)
 
 class MockMediaSinksObserver : public MediaSinksObserver {
  public:
@@ -56,10 +52,14 @@ class MockMediaSinksObserver : public MediaSinksObserver {
 
 class MockMediaRoutesObserver : public MediaRoutesObserver {
  public:
-  explicit MockMediaRoutesObserver(MediaRouter* router);
+  explicit MockMediaRoutesObserver(
+      MediaRouter* router,
+      const MediaSource::Id source_id = std::string());
   ~MockMediaRoutesObserver() override;
 
-  MOCK_METHOD1(OnRoutesUpdated, void(const std::vector<MediaRoute>& routes));
+  MOCK_METHOD2(OnRoutesUpdated,
+               void(const std::vector<MediaRoute>& routes,
+                    const std::vector<MediaRoute::Id>& joinable_route_ids));
 };
 
 class MockPresentationConnectionProxy

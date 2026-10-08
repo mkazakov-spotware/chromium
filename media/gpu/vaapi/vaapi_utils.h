@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include "base/callback_forward.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/thread_annotations.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -24,8 +24,7 @@ struct VAContextAndScopedVASurfaceDeleter;
 struct Vp8FrameHeader;
 
 // Class to map a given VABuffer, identified by |buffer_id|, for its lifetime.
-// The |lock_| might be null depending on the user of this class. If |lock_| is
-// not null, this class must operate under |lock_| acquired.
+// This class must operate under |lock_| acquired.
 class ScopedVABufferMapping {
  public:
   // |release_callback| will be called if the mapping of the buffer failed.
@@ -34,18 +33,10 @@ class ScopedVABufferMapping {
                         VABufferID buffer_id,
                         base::OnceCallback<void(VABufferID)> release_callback =
                             base::NullCallback());
-
-  ScopedVABufferMapping(const ScopedVABufferMapping&) = delete;
-  ScopedVABufferMapping& operator=(const ScopedVABufferMapping&) = delete;
-
   ~ScopedVABufferMapping();
-  bool IsValid() const {
-    CHECK(sequence_checker_.CalledOnValidSequence());
-    return !!va_buffer_data_;
-  }
+  bool IsValid() const { return !!va_buffer_data_; }
   void* data() const {
     DCHECK(IsValid());
-    CHECK(sequence_checker_.CalledOnValidSequence());
     return va_buffer_data_;
   }
   // Explicit destruction method, to retrieve the success/error result. It is
@@ -53,20 +44,19 @@ class ScopedVABufferMapping {
   VAStatus Unmap();
 
  private:
-  raw_ptr<const base::Lock> lock_;  // Only for AssertAcquired() calls.
+  const base::Lock* lock_;  // Only for AssertAcquired() calls.
   const VADisplay va_display_;
   const VABufferID buffer_id_;
 
-  base::SequenceCheckerImpl sequence_checker_;
-
   void* va_buffer_data_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedVABufferMapping);
 };
 
 // This class tracks the VABuffer life cycle from vaCreateBuffer() to
 // vaDestroyBuffer(). Users of this class are responsible for mapping and
-// unmapping the buffer as needed. The |lock_| might be null depending on the
-// user of this class. If |lock_| is not null, |lock_| is acquired for
-// destruction purposes.
+// unmapping the buffer as needed. The destructor acquires |lock|, but the user
+// of this class must acquire the lock prior to construction.
 class ScopedVABuffer {
  public:
   // Creates ScopedVABuffer. Returns nullptr if creating the va buffer fails.
@@ -81,18 +71,9 @@ class ScopedVABuffer {
   ScopedVABuffer& operator=(const ScopedVABuffer&) = delete;
   ~ScopedVABuffer();
 
-  VABufferID id() const {
-    CHECK(sequence_checker_.CalledOnValidSequence());
-    return va_buffer_id_;
-  }
-  VABufferType type() const {
-    CHECK(sequence_checker_.CalledOnValidSequence());
-    return va_buffer_type_;
-  }
-  size_t size() const {
-    CHECK(sequence_checker_.CalledOnValidSequence());
-    return size_;
-  }
+  VABufferID id() const { return va_buffer_id_; }
+  VABufferType type() const { return va_buffer_type_; }
+  size_t size() const { return size_; }
 
  private:
   ScopedVABuffer(base::Lock* lock,
@@ -101,10 +82,8 @@ class ScopedVABuffer {
                  VABufferType va_buffer_type,
                  size_t size);
 
-  const raw_ptr<base::Lock> lock_;
+  base::Lock* const lock_;
   const VADisplay va_display_ GUARDED_BY(lock_);
-
-  base::SequenceCheckerImpl sequence_checker_;
 
   const VABufferID va_buffer_id_;
   const VABufferType va_buffer_type_;
@@ -114,9 +93,8 @@ class ScopedVABuffer {
 // This class tracks the VAImage life cycle from vaCreateImage() - vaGetImage()
 // to vaDestroyImage(). In between creation and destruction, image()->buf  will
 // try to be be mapped on user space using a ScopedVABufferMapping. All
-// resources will be cleaned up appropriately. The |lock_| might be null
-// depending on the user of this class. If |lock_| is not null, |lock_| is
-// acquired for destruction purposes.
+// resources will be cleaned up appropriately. |lock| is acquired for
+// destruction purposes.
 class ScopedVAImage {
  public:
   ScopedVAImage(base::Lock* lock,
@@ -124,31 +102,23 @@ class ScopedVAImage {
                 VASurfaceID va_surface_id,
                 VAImageFormat* format /* Needs to be a pointer for libva */,
                 const gfx::Size& size);
-
-  ScopedVAImage(const ScopedVAImage&) = delete;
-  ScopedVAImage& operator=(const ScopedVAImage&) = delete;
-
   ~ScopedVAImage();
 
   bool IsValid() const { return va_buffer_ && va_buffer_->IsValid(); }
 
-  const VAImage* image() const {
-    CHECK(sequence_checker_.CalledOnValidSequence());
-    return image_.get();
-  }
+  const VAImage* image() const { return image_.get(); }
   const ScopedVABufferMapping* va_buffer() const {
     DCHECK(IsValid());
-    CHECK(sequence_checker_.CalledOnValidSequence());
     return va_buffer_.get();
   }
 
  private:
-  raw_ptr<base::Lock> lock_;
+  base::Lock* lock_;
   const VADisplay va_display_ GUARDED_BY(lock_);
   std::unique_ptr<VAImage> image_;
   std::unique_ptr<ScopedVABufferMapping> va_buffer_;
 
-  base::SequenceCheckerImpl sequence_checker_;
+  DISALLOW_COPY_AND_ASSIGN(ScopedVAImage);
 };
 
 // A VA-API-specific surface used by video/image codec accelerators to work on.
@@ -159,10 +129,6 @@ class ScopedVASurface {
                   VASurfaceID va_surface_id,
                   const gfx::Size& size,
                   unsigned int va_rt_format);
-
-  ScopedVASurface(const ScopedVASurface&) = delete;
-  ScopedVASurface& operator=(const ScopedVASurface&) = delete;
-
   ~ScopedVASurface();
 
   bool IsValid() const;
@@ -176,6 +142,8 @@ class ScopedVASurface {
   const VASurfaceID va_surface_id_;
   const gfx::Size size_;
   const unsigned int va_rt_format_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedVASurface);
 };
 
 // A combination of a numeric ID |id| and a callback to release it. This class
@@ -213,9 +181,6 @@ void FillVP8DataStructures(const Vp8FrameHeader& frame_header,
                            VAProbabilityDataBufferVP8* prob_buf,
                            VAPictureParameterBufferVP8* pic_param,
                            VASliceParameterBufferVP8* slice_param);
-
-bool IsValidVABufferType(VABufferType type);
-
 }  // namespace media
 
 #endif  // MEDIA_GPU_VAAPI_VAAPI_UTILS_H_

@@ -1,15 +1,28 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("//build/config/chromeos/ui_mode.gni")
 import("//extensions/buildflags/buildflags.gni")
 
 assert(enable_extensions)
 
-# TODO(crbug.com/1065748): Delete web_applications/extensions/ directory.
 source_set("extensions") {
   sources = [
+    "bookmark_app_file_handler_manager.cc",
+    "bookmark_app_file_handler_manager.h",
+    "bookmark_app_finalizer_utils.cc",
+    "bookmark_app_finalizer_utils.h",
+    "bookmark_app_icon_manager.cc",
+    "bookmark_app_icon_manager.h",
+    "bookmark_app_install_finalizer.cc",
+    "bookmark_app_install_finalizer.h",
+    "bookmark_app_provider.cc",
+    "bookmark_app_registrar.cc",
+    "bookmark_app_registrar.h",
+    "bookmark_app_registry_controller.cc",
+    "bookmark_app_registry_controller.h",
+    "bookmark_app_shortcut_manager.cc",
+    "bookmark_app_shortcut_manager.h",
     "bookmark_app_util.cc",
     "bookmark_app_util.h",
     "extension_status_utils.cc",
@@ -17,26 +30,20 @@ source_set("extensions") {
     "web_app_extension_shortcut.h",
   ]
   if (is_mac) {
-    sources += [ "web_app_extension_shortcut_mac.mm" ]
+    sources += [
+      "web_app_extension_shortcut_mac.h",
+      "web_app_extension_shortcut_mac.mm",
+    ]
   }
-
-  # Enable the "exit_time_destructors" warning here to avoid accidentally
-  # adding exit time destructors and because the flag is not enabled by default.
-  # TODO(http://crbug.com/101600):  Remove once exit_time_destructors is enabled
-  # by default.
-  configs += [ "//build/config/compiler:wexit_time_destructors" ]
 
   deps = [
     "//base",
-    "//chrome/browser:browser_process",
-    "//chrome/browser/profiles:profile",
     "//chrome/browser/web_applications",
+    "//chrome/browser/web_applications:web_app_group",
+    "//chrome/browser/web_applications/components",
     "//chrome/common",
     "//components/pref_registry",
-    "//components/services/app_service/public/cpp:app_types",
-    "//components/services/app_service/public/mojom",
-    "//components/sync/model",
-    "//components/webapps/browser:browser",
+    "//components/sync:rest_of_sync",
     "//content/public/browser",
     "//extensions/browser",
     "//skia",
@@ -47,20 +54,26 @@ source_set("unit_tests") {
   testonly = true
 
   sources = [
+    "bookmark_app_install_finalizer_unittest.cc",
     "bookmark_app_util_unittest.cc",
-    "externally_managed_app_install_task_unittest.cc",
+    "externally_installed_web_app_prefs_unittest.cc",
+    "pending_app_install_task_unittest.cc",
     "web_app_policy_manager_unittest.cc",
+    "web_app_provider_unittest.cc",
   ]
 
   deps = [
     ":extensions",
-    "//build:chromeos_buildflags",
+    "//chrome/browser",
+    "//chrome/browser/web_applications:web_app_test_group",
     "//chrome/browser/web_applications:web_applications",
+    "//chrome/browser/web_applications:web_applications_on_extensions",
+    "//chrome/browser/web_applications:web_applications_on_extensions_test_support",
     "//chrome/browser/web_applications:web_applications_test_support",
+    "//chrome/browser/web_applications/components",
     "//chrome/common",
     "//chrome/test:test_support",
     "//components/crx_file:crx_file",
-    "//components/webapps/browser:browser",
     "//content/public/browser",
     "//content/test:test_support",
     "//extensions/browser/install",
@@ -68,18 +81,4 @@ source_set("unit_tests") {
     "//skia",
     "//testing/gtest",
   ]
-
-  if (is_chromeos) {
-    deps += [
-      "//chrome/browser",
-      "//components/policy/core/common:common_constants",
-    ]
-  }
-
-  if (is_chromeos_ash) {
-    deps += [
-      "//ash/constants",
-      "//chrome/browser/ash/system_web_apps/test_support",
-    ]
-  }
 }

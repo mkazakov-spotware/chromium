@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_GFX_PLATFORM_FONT_IOS_H_
 #define UI_GFX_PLATFORM_FONT_IOS_H_
 
+#include "base/macros.h"
 #include "ui/gfx/platform_font.h"
 
 namespace gfx {
@@ -15,9 +16,6 @@ class PlatformFontIOS : public PlatformFont {
   explicit PlatformFontIOS(NativeFont native_font);
   PlatformFontIOS(const std::string& font_name,
                   int font_size);
-
-  PlatformFontIOS(const PlatformFontIOS&) = delete;
-  PlatformFontIOS& operator=(const PlatformFontIOS&) = delete;
 
   // Overridden from PlatformFont:
   Font DeriveFont(int size_delta,
@@ -62,6 +60,8 @@ class PlatformFontIOS : public PlatformFont {
   int ascent_;
   int cap_height_;
   int average_width_;
+
+  DISALLOW_COPY_AND_ASSIGN(PlatformFontIOS);
 };
 
 }  // namespace gfx

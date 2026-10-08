@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,16 +10,16 @@
 class GURL;
 
 namespace content {
-class Page;
+class NavigationHandle;
 }
 
 namespace embedder_support {
 
-BASE_DECLARE_FEATURE(kShowTrustedPublisherURL);
+extern const base::Feature kShowTrustedPublisherURL;
 
-// This should be called from content::WebContentsObserver::PrimaryPageChanged
+// This should be called from content::WebContentsObserver::DidFinishNavigation
 // to get a publisher url for the committed navigation, else an empty GURL().
-GURL GetPublisherURL(content::Page& page);
+GURL GetPublisherURL(content::NavigationHandle* navigation_handle);
 
 }  // namespace embedder_support
 

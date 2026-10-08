@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,50 +8,41 @@ import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.doesNotExist;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
-import static androidx.test.espresso.matcher.RootMatchers.withDecorView;
 import static androidx.test.espresso.matcher.ViewMatchers.isCompletelyDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
-import static androidx.test.espresso.matcher.ViewMatchers.withClassName;
 import static androidx.test.espresso.matcher.ViewMatchers.withContentDescription;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 import static org.chromium.base.test.util.CriteriaHelper.DEFAULT_MAX_TIME_TO_POLL;
-import static org.chromium.chrome.browser.autofill_assistant.AutofillAssistantUiTestUtil.createDefaultTriggerScriptUI;
-import static org.chromium.chrome.browser.autofill_assistant.AutofillAssistantUiTestUtil.startAutofillAssistantWithParams;
 import static org.chromium.chrome.browser.autofill_assistant.AutofillAssistantUiTestUtil.tapElement;
-import static org.chromium.chrome.browser.autofill_assistant.AutofillAssistantUiTestUtil.waitUntilKeyboardMatchesCondition;
 import static org.chromium.chrome.browser.autofill_assistant.AutofillAssistantUiTestUtil.waitUntilViewAssertionTrue;
 import static org.chromium.chrome.browser.autofill_assistant.AutofillAssistantUiTestUtil.waitUntilViewMatchesCondition;
-import static org.chromium.chrome.browser.autofill_assistant.ProtoTestUtil.toCssSelector;
 
 import android.os.Build.VERSION_CODES;
+import android.support.test.InstrumentationRegistry;
+import android.util.Base64;
 
 import androidx.test.espresso.Espresso;
 import androidx.test.filters.MediumTest;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Batch;
-import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisableIf;
-import org.chromium.base.test.util.DisabledTest;
+import org.chromium.chrome.autofill_assistant.R;
 import org.chromium.chrome.browser.autofill_assistant.proto.ActionProto;
+import org.chromium.chrome.browser.autofill_assistant.proto.ChipIcon;
 import org.chromium.chrome.browser.autofill_assistant.proto.ChipProto;
+import org.chromium.chrome.browser.autofill_assistant.proto.ChipType;
+import org.chromium.chrome.browser.autofill_assistant.proto.DrawableProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.Empty;
 import org.chromium.chrome.browser.autofill_assistant.proto.GetTriggerScriptsResponseProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.PromptProto;
@@ -61,48 +52,39 @@ import org.chromium.chrome.browser.autofill_assistant.proto.SupportedScriptProto
 import org.chromium.chrome.browser.autofill_assistant.proto.TriggerScriptConditionProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.TriggerScriptConditionsProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.TriggerScriptProto;
+import org.chromium.chrome.browser.autofill_assistant.proto.TriggerScriptProto.TriggerScriptAction;
+import org.chromium.chrome.browser.autofill_assistant.proto.TriggerScriptUIProto;
+import org.chromium.chrome.browser.autofill_assistant.proto.TriggerScriptUIProto.TriggerChip;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
-import org.chromium.chrome.browser.preferences.Pref;
-import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.chrome.browser.signin.services.UnifiedConsentServiceBridge;
+import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
+import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
+import org.chromium.chrome.browser.signin.UnifiedConsentServiceBridge;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.util.browser.Features.DisableFeatures;
-import org.chromium.chrome.test.util.browser.Features.EnableFeatures;
-import org.chromium.components.autofill_assistant.AssistantFeatures;
-import org.chromium.components.autofill_assistant.R;
-import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
-import org.chromium.components.prefs.PrefService;
-import org.chromium.components.user_prefs.UserPrefs;
-import org.chromium.content_public.browser.GestureListenerManager;
-import org.chromium.content_public.browser.GestureStateListener;
-import org.chromium.content_public.browser.WebContents;
+import org.chromium.chrome.test.util.browser.Features;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
-import org.chromium.content_public.browser.test.util.TouchCommon;
+import org.chromium.net.test.EmbeddedTestServer;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Integration tests for trigger scripts. */
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@Batch(Batch.PER_CLASS)
 @RunWith(ChromeJUnit4ClassRunner.class)
 public class AutofillAssistantTriggerScriptIntegrationTest {
+    @Rule
+    public ChromeTabbedActivityTestRule mTestRule = new ChromeTabbedActivityTestRule();
+
+    private static final String HTML_DIRECTORY = "/components/test/data/autofill_assistant/html/";
     private static final String TEST_PAGE_A = "autofill_assistant_target_website.html";
 
-    private final ChromeTabbedActivityTestRule mTestRule = new ChromeTabbedActivityTestRule();
-    private final AutofillAssistantChromeTabTestRule mTabTestRule =
-            new AutofillAssistantChromeTabTestRule(mTestRule, TEST_PAGE_A);
-
-    @Rule
-    public final TestRule mRulesChain = RuleChain.outerRule(mTestRule).around(mTabTestRule);
+    private EmbeddedTestServer mTestServer;
 
     private String getURL(String page) {
-        return mTabTestRule.getURL(page);
+        return mTestServer.getURL(HTML_DIRECTORY + page);
     }
 
     private AutofillAssistantTestServiceRequestSender setupTriggerScripts(
@@ -127,53 +109,102 @@ public class AutofillAssistantTriggerScriptIntegrationTest {
 
     private void startAutofillAssistantOnTabWithParams(
             String pageToLoad, Map<String, Object> scriptParameters) {
-        HashMap<String, Object> parameters = new HashMap(scriptParameters);
-        parameters.put("START_IMMEDIATELY", false);
-
-        startAutofillAssistantWithParams(mTestRule.getActivity(), getURL(pageToLoad), parameters);
-    }
-
-    /** Returns the value of a boolean pref in the {@link PrefService} attached to the profile. */
-    private boolean getBooleanPref(String preference) {
-        AtomicBoolean result = new AtomicBoolean();
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            PrefService prefService = UserPrefs.get(Profile.getLastUsedRegularProfile());
-            result.set(prefService.getBoolean(preference));
-        });
-        return result.get();
-    }
-
-    /** Sets the value of @param preference to @param value. */
-    private void setBooleanPref(String preference, boolean value) {
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            PrefService prefService = UserPrefs.get(Profile.getLastUsedRegularProfile());
-            prefService.setBoolean(preference, value);
-        });
+        AutofillAssistantArguments.Builder argsBuilder =
+                AutofillAssistantArguments.newBuilder().fromBundle(null).withInitialUrl(
+                        getURL(pageToLoad));
+        for (Map.Entry<String, Object> param : scriptParameters.entrySet()) {
+            argsBuilder.addParameter(param.getKey(), param.getValue());
+        }
+        argsBuilder.addParameter(AutofillAssistantArguments.PARAMETER_START_IMMEDIATELY, false);
+        TestThreadUtils.runOnUiThreadBlocking(
+                () -> AutofillAssistantFacade.start(mTestRule.getActivity(), argsBuilder.build()));
     }
 
     @Before
     public void setUp() {
-        // Prefs are already cleared properly by the {@link AutofillAssistantTestRule}.
+        mTestServer = EmbeddedTestServer.createAndStartServer(InstrumentationRegistry.getContext());
+        AutofillAssistantPreferencesUtil.setInitialPreferences(true);
+        mTestRule.startMainActivityWithURL(getURL(TEST_PAGE_A));
+
         // Enable MSBB.
         TestThreadUtils.runOnUiThreadBlocking(
                 ()
                         -> UnifiedConsentServiceBridge.setUrlKeyedAnonymizedDataCollectionEnabled(
-                                Profile.getLastUsedRegularProfile(), true));
+                                AutofillAssistantUiController.getProfile(), true));
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        mTestServer.stopAndDestroyServer();
+    }
+
+    /**
+     * Creates a default UI, similar to the intended experience. It comprises three chips:
+     * 'Preferences', 'Not now', 'Continue'. 'Preferences' opens the cancel popup containing 'Not
+     * for this session' and 'Never show again'. Optionally, a blue message bubble and a default
+     * progress bar are shown.
+     */
+    private TriggerScriptUIProto.Builder createDefaultUI(
+            String statusMessage, String bubbleMessage, boolean withProgressBar) {
+        TriggerScriptUIProto.Builder builder =
+                TriggerScriptUIProto.newBuilder()
+                        .setStatusMessage(statusMessage)
+                        .setCalloutMessage(bubbleMessage)
+                        .addLeftAlignedChips(
+                                TriggerChip.newBuilder()
+                                        .setChip(ChipProto.newBuilder()
+                                                         .setType(ChipType.NORMAL_ACTION)
+                                                         .setIcon(ChipIcon.ICON_OVERFLOW))
+                                        .setAction(TriggerScriptAction.SHOW_CANCEL_POPUP))
+                        .addRightAlignedChips(
+                                TriggerChip.newBuilder()
+                                        .setChip(ChipProto.newBuilder()
+                                                         .setType(ChipType.NORMAL_ACTION)
+                                                         .setText("Not now"))
+                                        .setAction(TriggerScriptAction.NOT_NOW))
+                        .addRightAlignedChips(
+                                TriggerChip.newBuilder()
+                                        .setChip(ChipProto.newBuilder()
+                                                         .setType(ChipType.HIGHLIGHTED_ACTION)
+                                                         .setText("Continue"))
+                                        .setAction(TriggerScriptAction.ACCEPT))
+                        .setCancelPopup(
+                                TriggerScriptUIProto.Popup.newBuilder()
+                                        .addChoices(
+                                                TriggerScriptUIProto.Popup.Choice.newBuilder()
+                                                        .setText("Not for this session")
+                                                        .setAction(
+                                                                TriggerScriptAction.CANCEL_SESSION))
+                                        .addChoices(TriggerScriptUIProto.Popup.Choice.newBuilder()
+                                                            .setText("Never show again")
+                                                            .setAction(TriggerScriptAction
+                                                                               .CANCEL_FOREVER)));
+        if (withProgressBar) {
+            builder.setProgressBar(
+                    TriggerScriptUIProto.ProgressBar.newBuilder()
+                            .addStepIcons(DrawableProto.newBuilder().setIcon(
+                                    DrawableProto.Icon.PROGRESSBAR_DEFAULT_INITIAL_STEP))
+                            .addStepIcons(DrawableProto.newBuilder().setIcon(
+                                    DrawableProto.Icon.PROGRESSBAR_DEFAULT_DATA_COLLECTION))
+                            .addStepIcons(DrawableProto.newBuilder().setIcon(
+                                    DrawableProto.Icon.PROGRESSBAR_DEFAULT_PAYMENT))
+                            .addStepIcons(DrawableProto.newBuilder().setIcon(
+                                    DrawableProto.Icon.PROGRESSBAR_DEFAULT_FINAL_STEP))
+                            .setActiveStep(1));
+        }
+        return builder;
     }
 
     @Test
     @MediumTest
-    @EnableFeatures(AssistantFeatures.AUTOFILL_ASSISTANT_PROACTIVE_HELP_NAME)
-    @DisableIf.
-    Build(message = "See https://crbug.com/1199849", sdk_is_greater_than = VERSION_CODES.O_MR1)
-    @DisabledTest(message = "crbug.com/1199416")
+    @Features.EnableFeatures(ChromeFeatureList.AUTOFILL_ASSISTANT_PROACTIVE_HELP)
     public void setReturningUserFlag() {
         TriggerScriptProto.Builder firstTimeTriggerScript =
                 TriggerScriptProto.newBuilder()
                         .setTriggerCondition(
                                 TriggerScriptConditionProto.newBuilder().setIsFirstTimeUser(
                                         Empty.newBuilder()))
-                        .setUserInterface(createDefaultTriggerScriptUI("First time user",
+                        .setUserInterface(createDefaultUI("First time user",
                                 /* bubbleMessage = */ "First time message",
                                 /* withProgressBar = */ true));
 
@@ -183,21 +214,22 @@ public class AutofillAssistantTriggerScriptIntegrationTest {
                                 TriggerScriptConditionsProto.newBuilder().addConditions(
                                         TriggerScriptConditionProto.newBuilder().setIsFirstTimeUser(
                                                 Empty.newBuilder()))))
-                        .setUserInterface(createDefaultTriggerScriptUI("Returning user",
+                        .setUserInterface(createDefaultUI("Returning user",
                                 /* bubbleMessage = */ "",
                                 /* withProgressBar = */ false));
         GetTriggerScriptsResponseProto triggerScripts =
-                GetTriggerScriptsResponseProto.newBuilder()
+                (GetTriggerScriptsResponseProto) GetTriggerScriptsResponseProto.newBuilder()
                         .addTriggerScripts(firstTimeTriggerScript)
                         .addTriggerScripts(returningUserTriggerScript)
                         .build();
-
-        assertTrue(getBooleanPref(Pref.AUTOFILL_ASSISTANT_TRIGGER_SCRIPTS_IS_FIRST_TIME_USER));
         setupTriggerScripts(triggerScripts);
         startAutofillAssistantOnTab(TEST_PAGE_A);
 
+        Assert.assertTrue(
+                AutofillAssistantPreferencesUtil.isAutofillAssistantFirstTimeLiteScriptUser());
         waitUntilViewMatchesCondition(withText("First time user"), isCompletelyDisplayed());
-        assertFalse(getBooleanPref(Pref.AUTOFILL_ASSISTANT_TRIGGER_SCRIPTS_IS_FIRST_TIME_USER));
+        Assert.assertFalse(
+                AutofillAssistantPreferencesUtil.isAutofillAssistantFirstTimeLiteScriptUser());
 
         onView(withText("Not now")).perform(click());
         waitUntilViewMatchesCondition(withText("Returning user"), isCompletelyDisplayed());
@@ -205,48 +237,48 @@ public class AutofillAssistantTriggerScriptIntegrationTest {
 
     @Test
     @MediumTest
-    @EnableFeatures(AssistantFeatures.AUTOFILL_ASSISTANT_PROACTIVE_HELP_NAME)
+    @Features.EnableFeatures(ChromeFeatureList.AUTOFILL_ASSISTANT_PROACTIVE_HELP)
     public void setCancelForeverFlag() {
         TriggerScriptProto.Builder triggerScript =
                 TriggerScriptProto
                         .newBuilder()
                         /* no trigger condition */
-                        .setUserInterface(createDefaultTriggerScriptUI("Hello world",
+                        .setUserInterface(createDefaultUI("Hello world",
                                 /* bubbleMessage = */ "",
-                                /* withProgressBar = */ false));
-        GetTriggerScriptsResponseProto triggerScripts = GetTriggerScriptsResponseProto.newBuilder()
-                                                                .addTriggerScripts(triggerScript)
-                                                                .build();
+                                /* withProgressBar = */ true));
+        GetTriggerScriptsResponseProto triggerScripts =
+                (GetTriggerScriptsResponseProto) GetTriggerScriptsResponseProto.newBuilder()
+                        .addTriggerScripts(triggerScript)
+                        .build();
         setupTriggerScripts(triggerScripts);
         startAutofillAssistantOnTab(TEST_PAGE_A);
 
-        assertTrue(getBooleanPref(Pref.AUTOFILL_ASSISTANT_TRIGGER_SCRIPTS_ENABLED));
+        Assert.assertTrue(AutofillAssistantPreferencesUtil.isProactiveHelpSwitchOn());
         waitUntilViewMatchesCondition(
                 withContentDescription(R.string.autofill_assistant_overflow_options),
                 isCompletelyDisplayed());
         onView(withContentDescription(R.string.autofill_assistant_overflow_options))
                 .perform(click());
         waitUntilViewMatchesCondition(withText("Never show again"), isCompletelyDisplayed());
-        onView(withText("Never show again"))
-                .inRoot(withDecorView(withClassName(containsString("Popup"))))
-                .perform(click());
+        onView(withText("Never show again")).perform(click());
         waitUntilViewAssertionTrue(
                 withText("Hello world"), doesNotExist(), DEFAULT_MAX_TIME_TO_POLL);
-        assertFalse(getBooleanPref(Pref.AUTOFILL_ASSISTANT_TRIGGER_SCRIPTS_ENABLED));
+        Assert.assertFalse(AutofillAssistantPreferencesUtil.isProactiveHelpSwitchOn());
     }
 
     @Test
     @MediumTest
-    @EnableFeatures(AssistantFeatures.AUTOFILL_ASSISTANT_PROACTIVE_HELP_NAME)
+    @Features.EnableFeatures(ChromeFeatureList.AUTOFILL_ASSISTANT_PROACTIVE_HELP)
     // Disable translate to prevent the popup from covering part of the website.
-    @DisableFeatures("Translate")
+    @Features.DisableFeatures("Translate")
     public void elementCondition() throws Exception {
-        SelectorProto touch_area_four = toCssSelector("#touch_area_one");
+        SelectorProto.Builder touch_area_four = SelectorProto.newBuilder().addFilters(
+                SelectorProto.Filter.newBuilder().setCssSelector("#touch_area_one"));
         TriggerScriptProto.Builder buttonVisibleTriggerScript =
                 TriggerScriptProto.newBuilder()
                         .setTriggerCondition(TriggerScriptConditionProto.newBuilder().setSelector(
                                 touch_area_four))
-                        .setUserInterface(createDefaultTriggerScriptUI("Area visible",
+                        .setUserInterface(createDefaultUI("Area visible",
                                 /* bubbleMessage = */ "",
                                 /* withProgressBar = */ true));
 
@@ -256,11 +288,11 @@ public class AutofillAssistantTriggerScriptIntegrationTest {
                                 TriggerScriptConditionsProto.newBuilder().addConditions(
                                         TriggerScriptConditionProto.newBuilder().setSelector(
                                                 touch_area_four))))
-                        .setUserInterface(createDefaultTriggerScriptUI("Area invisible",
+                        .setUserInterface(createDefaultUI("Area invisible",
                                 /* bubbleMessage = */ "",
                                 /* withProgressBar = */ false));
         GetTriggerScriptsResponseProto triggerScripts =
-                GetTriggerScriptsResponseProto.newBuilder()
+                (GetTriggerScriptsResponseProto) GetTriggerScriptsResponseProto.newBuilder()
                         .addTriggerScripts(buttonVisibleTriggerScript)
                         .addTriggerScripts(buttonInvisibleTriggerScript)
                         .build();
@@ -268,16 +300,18 @@ public class AutofillAssistantTriggerScriptIntegrationTest {
         startAutofillAssistantOnTab(TEST_PAGE_A);
 
         waitUntilViewMatchesCondition(withText("Area visible"), isCompletelyDisplayed());
+        onView(withId(R.id.progress_bar)).check(matches(not(isDisplayed())));
         onView(withId(R.id.step_progress_bar)).check(matches(isDisplayed()));
 
         tapElement(mTestRule, "touch_area_one");
         waitUntilViewMatchesCondition(withText("Area invisible"), isCompletelyDisplayed());
+        onView(withId(R.id.progress_bar)).check(matches(not(isDisplayed())));
         onView(withId(R.id.step_progress_bar)).check(matches(not(isDisplayed())));
     }
 
     @Test
     @MediumTest
-    @EnableFeatures(AssistantFeatures.AUTOFILL_ASSISTANT_PROACTIVE_HELP_NAME)
+    @Features.EnableFeatures(ChromeFeatureList.AUTOFILL_ASSISTANT_PROACTIVE_HELP)
     @DisableIf.Build(message = "Flaky on Android P, see https://crbug.com/1154682",
             sdk_is_greater_than = VERSION_CODES.O_MR1, sdk_is_less_than = VERSION_CODES.Q)
     public void
@@ -286,31 +320,35 @@ public class AutofillAssistantTriggerScriptIntegrationTest {
                 TriggerScriptProto
                         .newBuilder()
                         /* no trigger condition */
-                        .setUserInterface(createDefaultTriggerScriptUI("Trigger script",
+                        .setUserInterface(createDefaultUI("Trigger script",
                                 /* bubbleMessage = */ "",
                                 /* withProgressBar = */ true)
                                                   .setRegularScriptLoadingStatusMessage(
                                                           "Loading regular script"));
 
-        GetTriggerScriptsResponseProto triggerScripts = GetTriggerScriptsResponseProto.newBuilder()
-                                                                .addTriggerScripts(triggerScript)
-                                                                .build();
+        GetTriggerScriptsResponseProto triggerScripts =
+                (GetTriggerScriptsResponseProto) GetTriggerScriptsResponseProto.newBuilder()
+                        .addTriggerScripts(triggerScript)
+                        .build();
         setupTriggerScripts(triggerScripts);
-        setBooleanPref(Pref.AUTOFILL_ASSISTANT_CONSENT, false);
+        AutofillAssistantPreferencesUtil.setInitialPreferences(true);
+        SharedPreferencesManager.getInstance().writeBoolean(
+                ChromePreferenceKeys.AUTOFILL_ASSISTANT_ONBOARDING_ACCEPTED, false);
         startAutofillAssistantOnTab(TEST_PAGE_A);
 
         waitUntilViewMatchesCondition(withText("Trigger script"), isCompletelyDisplayed());
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setPrompt(PromptProto.newBuilder().addChoices(
                                  PromptProto.Choice.newBuilder().setChip(
                                          ChipProto.newBuilder().setText("Done"))))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath(TEST_PAGE_A)
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Done")))
                         .build(),
                 list);
         setupRegularScripts(script);
@@ -322,43 +360,47 @@ public class AutofillAssistantTriggerScriptIntegrationTest {
         onView(withId(R.id.button_init_ok)).perform(click());
         waitUntilViewMatchesCondition(withText("Done"), isCompletelyDisplayed());
         onView(withText("Loading regular script")).check(matches(isDisplayed()));
+        onView(withId(R.id.progress_bar)).check(matches(not(isDisplayed())));
         onView(withId(R.id.step_progress_bar)).check(matches(isDisplayed()));
-        assertTrue(getBooleanPref(Pref.AUTOFILL_ASSISTANT_CONSENT));
-        assertTrue(getBooleanPref(Pref.AUTOFILL_ASSISTANT_ENABLED));
     }
 
     @Test
     @MediumTest
-    @EnableFeatures(AssistantFeatures.AUTOFILL_ASSISTANT_PROACTIVE_HELP_NAME)
+    @Features.EnableFeatures(ChromeFeatureList.AUTOFILL_ASSISTANT_PROACTIVE_HELP)
     public void transitionToRegularScriptWithoutOnboarding() throws Exception {
         TriggerScriptProto.Builder triggerScript =
                 TriggerScriptProto
                         .newBuilder()
                         /* no trigger condition */
-                        .setUserInterface(createDefaultTriggerScriptUI("Trigger script",
+                        .setUserInterface(createDefaultUI("Trigger script",
                                 /* bubbleMessage = */ "",
                                 /* withProgressBar = */ false)
                                                   .setRegularScriptLoadingStatusMessage(
                                                           "Loading regular script"));
 
-        GetTriggerScriptsResponseProto triggerScripts = GetTriggerScriptsResponseProto.newBuilder()
-                                                                .addTriggerScripts(triggerScript)
-                                                                .build();
+        GetTriggerScriptsResponseProto triggerScripts =
+                (GetTriggerScriptsResponseProto) GetTriggerScriptsResponseProto.newBuilder()
+                        .addTriggerScripts(triggerScript)
+                        .build();
         setupTriggerScripts(triggerScripts);
+        AutofillAssistantPreferencesUtil.setInitialPreferences(true);
+        SharedPreferencesManager.getInstance().writeBoolean(
+                ChromePreferenceKeys.AUTOFILL_ASSISTANT_ONBOARDING_ACCEPTED, true);
         startAutofillAssistantOnTab(TEST_PAGE_A);
 
         waitUntilViewMatchesCondition(withText("Trigger script"), isCompletelyDisplayed());
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setPrompt(PromptProto.newBuilder().addChoices(
                                  PromptProto.Choice.newBuilder().setChip(
                                          ChipProto.newBuilder().setText("Done"))))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath(TEST_PAGE_A)
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Done")))
                         .build(),
                 list);
         setupRegularScripts(script);
@@ -370,40 +412,76 @@ public class AutofillAssistantTriggerScriptIntegrationTest {
 
     @Test
     @MediumTest
-    @EnableFeatures(AssistantFeatures.AUTOFILL_ASSISTANT_PROACTIVE_HELP_NAME)
+    @Features.EnableFeatures(ChromeFeatureList.AUTOFILL_ASSISTANT_PROACTIVE_HELP)
+    public void base64TriggerScriptsDontRequireMSBB() {
+        TestThreadUtils.runOnUiThreadBlocking(
+                ()
+                        -> UnifiedConsentServiceBridge.setUrlKeyedAnonymizedDataCollectionEnabled(
+                                AutofillAssistantUiController.getProfile(), false));
+        AutofillAssistantPreferencesUtil.setInitialPreferences(true);
+
+        TriggerScriptProto.Builder triggerScript =
+                TriggerScriptProto
+                        .newBuilder()
+                        /* no trigger condition */
+                        .setUserInterface(createDefaultUI("Trigger script",
+                                /* bubbleMessage = */ "",
+                                /* withProgressBar = */ false));
+        GetTriggerScriptsResponseProto triggerScripts =
+                (GetTriggerScriptsResponseProto) GetTriggerScriptsResponseProto.newBuilder()
+                        .addTriggerScripts(triggerScript)
+                        .build();
+        byte[] triggerScriptsResponse = triggerScripts.toByteArray();
+        String base64Response = Base64.encodeToString(triggerScriptsResponse, /* offset = */ 0,
+                triggerScriptsResponse.length, Base64.URL_SAFE | Base64.NO_WRAP);
+        Assert.assertEquals(0, base64Response.length() % 4);
+        startAutofillAssistantOnTabWithParams(
+                TEST_PAGE_A, Collections.singletonMap("TRIGGER_SCRIPTS_BASE64", base64Response));
+
+        waitUntilViewMatchesCondition(withText("Trigger script"), isCompletelyDisplayed());
+    }
+
+    @Test
+    @MediumTest
+    @Features.EnableFeatures(ChromeFeatureList.AUTOFILL_ASSISTANT_PROACTIVE_HELP)
     public void dontShowOnboardingIfAcceptedInDifferentTab() {
         TriggerScriptProto.Builder triggerScript =
                 TriggerScriptProto
                         .newBuilder()
                         /* no trigger condition */
-                        .setUserInterface(createDefaultTriggerScriptUI("Trigger script",
+                        .setUserInterface(createDefaultUI("Trigger script",
                                 /* bubbleMessage = */ "",
                                 /* withProgressBar = */ true)
                                                   .setRegularScriptLoadingStatusMessage(
                                                           "Loading regular script"));
 
-        GetTriggerScriptsResponseProto triggerScripts = GetTriggerScriptsResponseProto.newBuilder()
-                                                                .addTriggerScripts(triggerScript)
-                                                                .build();
+        GetTriggerScriptsResponseProto triggerScripts =
+                (GetTriggerScriptsResponseProto) GetTriggerScriptsResponseProto.newBuilder()
+                        .addTriggerScripts(triggerScript)
+                        .build();
         setupTriggerScripts(triggerScripts);
-        setBooleanPref(Pref.AUTOFILL_ASSISTANT_CONSENT, false);
+        AutofillAssistantPreferencesUtil.setInitialPreferences(true);
+        SharedPreferencesManager.getInstance().writeBoolean(
+                ChromePreferenceKeys.AUTOFILL_ASSISTANT_ONBOARDING_ACCEPTED, false);
         startAutofillAssistantOnTab(TEST_PAGE_A);
 
         waitUntilViewMatchesCondition(withText("Trigger script"), isCompletelyDisplayed());
 
         // Simulate the user accepting the onboarding in a different tab.
-        setBooleanPref(Pref.AUTOFILL_ASSISTANT_CONSENT, true);
+        SharedPreferencesManager.getInstance().writeBoolean(
+                ChromePreferenceKeys.AUTOFILL_ASSISTANT_ONBOARDING_ACCEPTED, true);
 
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setPrompt(PromptProto.newBuilder().addChoices(
                                  PromptProto.Choice.newBuilder().setChip(
                                          ChipProto.newBuilder().setText("Done"))))
                          .build());
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath(TEST_PAGE_A)
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Done")))
                         .build(),
                 list);
         setupRegularScripts(script);
@@ -415,19 +493,20 @@ public class AutofillAssistantTriggerScriptIntegrationTest {
 
     @Test
     @MediumTest
-    @EnableFeatures(AssistantFeatures.AUTOFILL_ASSISTANT_PROACTIVE_HELP_NAME)
+    @Features.EnableFeatures(ChromeFeatureList.AUTOFILL_ASSISTANT_PROACTIVE_HELP)
     public void switchToNewTabAndThenBack() {
         TriggerScriptProto.Builder triggerScript =
                 TriggerScriptProto
                         .newBuilder()
                         /* no trigger condition */
-                        .setUserInterface(createDefaultTriggerScriptUI("Hello world",
+                        .setUserInterface(createDefaultUI("Hello world",
                                 /* bubbleMessage = */ "",
                                 /* withProgressBar = */ false));
 
-        GetTriggerScriptsResponseProto triggerScripts = GetTriggerScriptsResponseProto.newBuilder()
-                                                                .addTriggerScripts(triggerScript)
-                                                                .build();
+        GetTriggerScriptsResponseProto triggerScripts =
+                (GetTriggerScriptsResponseProto) GetTriggerScriptsResponseProto.newBuilder()
+                        .addTriggerScripts(triggerScript)
+                        .build();
         AutofillAssistantTestServiceRequestSender testServiceRequestSender =
                 setupTriggerScripts(triggerScripts);
         startAutofillAssistantOnTab(TEST_PAGE_A);
@@ -440,224 +519,6 @@ public class AutofillAssistantTriggerScriptIntegrationTest {
         // Upon returning to the original tab, trigger scripts will be fetched again and restarted.
         testServiceRequestSender.setNextResponse(/* httpStatus = */ 200, triggerScripts);
         Espresso.pressBack();
-        waitUntilViewMatchesCondition(withText("Hello world"), isCompletelyDisplayed());
-    }
-
-    @Test
-    @MediumTest
-    @EnableFeatures(AssistantFeatures.AUTOFILL_ASSISTANT_PROACTIVE_HELP_NAME)
-    @DisabledTest(message = "https://crbug.com/1232703")
-    public void
-    testScrollToHide() throws Exception {
-        GetTriggerScriptsResponseProto triggerScripts =
-                GetTriggerScriptsResponseProto.newBuilder()
-                        .addTriggerScripts(
-                                TriggerScriptProto
-                                        .newBuilder()
-                                        /* no trigger condition */
-                                        .setUserInterface(
-                                                createDefaultTriggerScriptUI("Trigger script",
-                                                        /* bubbleMessage = */ "",
-                                                        /* withProgressBar = */ false)
-                                                        .setScrollToHide(true)))
-                        .build();
-
-        setupTriggerScripts(triggerScripts);
-        startAutofillAssistantOnTab(TEST_PAGE_A);
-
-        waitUntilViewMatchesCondition(withText("Trigger script"), isCompletelyDisplayed());
-
-        BottomSheetController bottomSheetController =
-                AutofillAssistantUiTestUtil.getBottomSheetController(mTestRule.getActivity());
-
-        CallbackHelper waitForScroll = new CallbackHelper();
-        WebContents webContents = mTestRule.getWebContents();
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            GestureListenerManager.fromWebContents(webContents)
-                    .addListener(new GestureStateListener() {
-                        @Override
-                        public void onScrollEnded(int scrollOffsetY, int scrollExtentY) {
-                            waitForScroll.notifyCalled();
-                        }
-                    });
-        });
-        int webContentX = TestThreadUtils.runOnUiThreadBlocking(
-                () -> webContents.getViewAndroidDelegate().getContainerView().getWidth() / 2);
-        int webContentY = TestThreadUtils.runOnUiThreadBlocking(
-                () -> webContents.getViewAndroidDelegate().getContainerView().getHeight() / 3);
-
-        int offsetBeforeScroll = TestThreadUtils.runOnUiThreadBlocking(
-                () -> bottomSheetController.getCurrentOffset());
-        assertThat(offsetBeforeScroll, greaterThan(0));
-
-        // Scroll more than the bottom sheet height, to be sure it's going to be completely hidden
-        // or shown due to the scroll.
-        int scrollDistance = (int) (bottomSheetController.getCurrentOffset() * 1.5f);
-        TouchCommon.performDrag(mTestRule.getActivity(), webContentX, webContentX, webContentY,
-                webContentY - scrollDistance,
-                /* stepCount*/ 10, /* duration in ms */ 250);
-        waitForScroll.waitForCallback("scroll down expected", /* currentCallCount= */ 0);
-
-        // After scroll down, the bottom sheet is completely hidden.
-        int offsetAfterScrollDown = TestThreadUtils.runOnUiThreadBlocking(
-                () -> bottomSheetController.getCurrentOffset());
-        Assert.assertEquals(0, offsetAfterScrollDown);
-
-        TouchCommon.performDrag(mTestRule.getActivity(), webContentX, webContentX, webContentY,
-                webContentY + scrollDistance, /* stepCount*/ 10, /* duration in ms */ 250);
-
-        waitForScroll.waitForCallback("scroll up expected", /* currentCallCount= */ 1);
-
-        // Wait until the bottom sheet is fully back on the screen again before capturing one last
-        // offset.
-        waitUntilViewMatchesCondition(withText("Trigger script"), isCompletelyDisplayed());
-
-        int offsetAfterScrollUp = TestThreadUtils.runOnUiThreadBlocking(
-                () -> bottomSheetController.getCurrentOffset());
-
-        // After scroll up, the bottom sheet is visible again.
-        Assert.assertEquals(offsetBeforeScroll, offsetAfterScrollUp);
-    }
-
-    @Test
-    @MediumTest
-    @EnableFeatures({AssistantFeatures.AUTOFILL_ASSISTANT_PROACTIVE_HELP_NAME,
-            "AutofillAssistantDialogOnboarding"})
-    @DisableIf.Build(message = "Flaky on Android P, see https://crbug.com/1154682",
-            sdk_is_greater_than = VERSION_CODES.O_MR1, sdk_is_less_than = VERSION_CODES.Q)
-    public void
-    triggerScriptsPersistsForDialogOnboarding() throws Exception {
-        TriggerScriptProto.Builder triggerScript =
-                TriggerScriptProto
-                        .newBuilder()
-                        /* no trigger condition */
-                        .setUserInterface(createDefaultTriggerScriptUI("Trigger script",
-                                /* bubbleMessage = */ "",
-                                /* withProgressBar = */ true)
-                                                  .setRegularScriptLoadingStatusMessage(
-                                                          "Loading regular script"));
-
-        GetTriggerScriptsResponseProto triggerScripts = GetTriggerScriptsResponseProto.newBuilder()
-                                                                .addTriggerScripts(triggerScript)
-                                                                .build();
-        setupTriggerScripts(triggerScripts);
-        setBooleanPref(Pref.AUTOFILL_ASSISTANT_CONSENT, false);
-        startAutofillAssistantOnTab(TEST_PAGE_A);
-
-        waitUntilViewMatchesCondition(withText("Trigger script"), isCompletelyDisplayed());
-
-        ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
-                         .setPrompt(PromptProto.newBuilder().addChoices(
-                                 PromptProto.Choice.newBuilder().setChip(
-                                         ChipProto.newBuilder().setText("Done"))))
-                         .build());
-        AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
-                        .setPath(TEST_PAGE_A)
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
-                        .build(),
-                list);
-        setupRegularScripts(script);
-
-        onView(withText("Continue")).perform(click());
-        // Wait for onboarding.
-        waitUntilViewMatchesCondition(withId(R.id.button_init_not_ok), isCompletelyDisplayed());
-        onView(withId(R.id.button_init_not_ok))
-                .check(matches(withContentDescription(R.string.cancel)));
-        onView(withId(R.id.button_init_ok))
-                .check(matches(withContentDescription(R.string.init_ok)));
-        // Cancel onboarding.
-        onView(withId(R.id.button_init_not_ok)).perform(click());
-        onView(withText("Continue")).perform(click());
-        // Wait for onboarding.
-        waitUntilViewMatchesCondition(withId(R.id.button_init_ok), isCompletelyDisplayed());
-        // Accept onboarding.
-        onView(withId(R.id.button_init_ok)).perform(click());
-        waitUntilViewMatchesCondition(withText("Done"), isCompletelyDisplayed());
-        onView(withText("Loading regular script")).check(matches(isDisplayed()));
-        assertTrue(getBooleanPref(Pref.AUTOFILL_ASSISTANT_CONSENT));
-        assertTrue(getBooleanPref(Pref.AUTOFILL_ASSISTANT_ENABLED));
-    }
-
-    @Test
-    @MediumTest
-    @EnableFeatures(AssistantFeatures.AUTOFILL_ASSISTANT_PROACTIVE_HELP_NAME)
-    @DisableFeatures("AutofillAssistantDialogOnboarding")
-    @DisableIf.Build(message = "Flaky on Android P, see https://crbug.com/1154682",
-            sdk_is_greater_than = VERSION_CODES.O_MR1, sdk_is_less_than = VERSION_CODES.Q)
-    public void
-    triggerScriptsDoesNotPersistsAfterCancellingBottomSheetOnboarding() throws Exception {
-        TriggerScriptProto.Builder triggerScript =
-                TriggerScriptProto
-                        .newBuilder()
-                        /* no trigger condition */
-                        .setUserInterface(createDefaultTriggerScriptUI("Trigger script",
-                                /* bubbleMessage = */ "",
-                                /* withProgressBar = */ true)
-                                                  .setRegularScriptLoadingStatusMessage(
-                                                          "Loading regular script"));
-
-        GetTriggerScriptsResponseProto triggerScripts = GetTriggerScriptsResponseProto.newBuilder()
-                                                                .addTriggerScripts(triggerScript)
-                                                                .build();
-        setupTriggerScripts(triggerScripts);
-        setBooleanPref(Pref.AUTOFILL_ASSISTANT_CONSENT, false);
-        startAutofillAssistantOnTab(TEST_PAGE_A);
-
-        waitUntilViewMatchesCondition(withText("Trigger script"), isCompletelyDisplayed());
-
-        ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
-                         .setPrompt(PromptProto.newBuilder().addChoices(
-                                 PromptProto.Choice.newBuilder().setChip(
-                                         ChipProto.newBuilder().setText("Done"))))
-                         .build());
-        AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
-                        .setPath(TEST_PAGE_A)
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
-                        .build(),
-                list);
-        setupRegularScripts(script);
-
-        onView(withText("Continue")).perform(click());
-        // Wait for onboarding.
-        waitUntilViewMatchesCondition(withId(R.id.button_init_not_ok), isCompletelyDisplayed());
-        // Cancel onboarding.
-        onView(withId(R.id.button_init_not_ok)).perform(click());
-        waitUntilViewAssertionTrue(withText("Continue"), doesNotExist(), DEFAULT_MAX_TIME_TO_POLL);
-        assertFalse(getBooleanPref(Pref.AUTOFILL_ASSISTANT_CONSENT));
-    }
-
-    @Test
-    @MediumTest
-    @EnableFeatures(AssistantFeatures.AUTOFILL_ASSISTANT_PROACTIVE_HELP_NAME)
-    public void triggerScriptHidesAndShowsForKeyboard() throws Exception {
-        TriggerScriptProto.Builder triggerScript =
-                TriggerScriptProto.newBuilder()
-                        .setTriggerCondition(
-                                TriggerScriptConditionProto.newBuilder().setKeyboardHidden(
-                                        Empty.newBuilder()))
-                        .setUserInterface(createDefaultTriggerScriptUI("Hello world",
-                                /* bubbleMessage = */ "",
-                                /* withProgressBar = */ false));
-
-        GetTriggerScriptsResponseProto triggerScripts = GetTriggerScriptsResponseProto.newBuilder()
-                                                                .addTriggerScripts(triggerScript)
-                                                                .build();
-        AutofillAssistantTestServiceRequestSender testServiceRequestSender =
-                setupTriggerScripts(triggerScripts);
-        startAutofillAssistantOnTab(TEST_PAGE_A);
-        waitUntilViewMatchesCondition(withText("Hello world"), isCompletelyDisplayed());
-
-        tapElement(mTestRule, "trigger-keyboard");
-        waitUntilKeyboardMatchesCondition(mTestRule, /* isShowing= */ true);
-        waitUntilViewAssertionTrue(
-                withText("Hello World"), doesNotExist(), DEFAULT_MAX_TIME_TO_POLL);
-
-        Espresso.closeSoftKeyboard();
-        waitUntilKeyboardMatchesCondition(mTestRule, /* isShowing= */ false);
         waitUntilViewMatchesCondition(withText("Hello world"), isCompletelyDisplayed());
     }
 }

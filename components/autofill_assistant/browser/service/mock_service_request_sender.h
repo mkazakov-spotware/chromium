@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,22 +20,14 @@ class MockServiceRequestSender : public ServiceRequestSender {
 
   void SendRequest(const GURL& url,
                    const std::string& request_body,
-                   ServiceRequestSender::AuthMode auth_mode,
-                   ResponseCallback callback,
-                   RpcType rpc_type) override {
-    OnSendRequest(url, request_body, callback, rpc_type);
+                   ResponseCallback callback) override {
+    OnSendRequest(url, request_body, callback);
   }
 
-  MOCK_METHOD4(OnSendRequest,
+  MOCK_METHOD3(OnSendRequest,
                void(const GURL& url,
                     const std::string& request_body,
-                    ResponseCallback& callback,
-                    RpcType rpc_type));
-
-  MOCK_METHOD(void,
-              SetDisableRpcSigning,
-              (bool disable_rpc_signing),
-              (override));
+                    ResponseCallback& callback));
 };
 
 }  // namespace autofill_assistant

@@ -1,10 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/media/unified_media_controls_container.h"
-
-#include <memory>
 
 #include "ash/system/media/media_tray.h"
 #include "ash/system/status_area_widget.h"
@@ -33,7 +31,7 @@ class UnifiedMediaControlsContainerTest : public AshTestBase {
 
     StatusAreaWidgetTestHelper::GetStatusAreaWidget()
         ->unified_system_tray()
-        ->ShowBubble();
+        ->ShowBubble(false /* show_by_click */);
   }
 
   UnifiedSystemTrayView* system_tray_view() {
@@ -53,7 +51,7 @@ class UnifiedMediaControlsContainerTest : public AshTestBase {
 
 TEST_F(UnifiedMediaControlsContainerTest, DoNotShowControlsWhenInDetailedView) {
   // Navigate to a dummy detailed view.
-  system_tray_view()->SetDetailedView(std::make_unique<views::View>());
+  system_tray_view()->SetDetailedView(new views::View());
 
   // Simulate media playing, container should still be hidden.
   system_tray_view()->ShowMediaControls();

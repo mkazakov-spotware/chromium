@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "base/test/values_test_util.h"
 #include "base/values.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -32,41 +33,46 @@ const uint8_t kTestData[] = {
 };
 
 // Returns a dict with some sample data in it.
-base::Value::Dict CreateTestIncidentsSentPref() {
+std::unique_ptr<base::DictionaryValue> CreateTestIncidentsSentPref() {
   static const char kData[] =
       "{"
       "\"2\":{\"spam\":\"1234\",\"blorf\":\"5\"},"
       "\"0\":{\"whaa\":\"0\",\"wha?\":\"9876\"}"
       "}";
-  return base::test::ParseJsonDict(kData);
+  return base::DictionaryValue::From(
+      base::Value::ToUniquePtrValue(base::test::ParseJson(kData)));
 }
 
 }  // namespace
 
 // Tests that DeserializeIncidentsSent handles an empty payload properly.
 TEST(PlatformStateStoreTest, DeserializeEmpty) {
-  base::Value::Dict deserialized;
+  std::unique_ptr<base::DictionaryValue> deserialized(
+      new base::DictionaryValue);
   PlatformStateStoreLoadResult load_result =
-      DeserializeIncidentsSent(std::string(), deserialized);
+      DeserializeIncidentsSent(std::string(), deserialized.get());
   ASSERT_EQ(PlatformStateStoreLoadResult::SUCCESS, load_result);
-  ASSERT_TRUE(deserialized.empty());
+  ASSERT_TRUE(deserialized->empty());
 }
 
 // Tests that serialize followed by deserialize doesn't lose data.
 TEST(PlatformStateStoreTest, RoundTrip) {
-  base::Value::Dict incidents_sent = CreateTestIncidentsSentPref();
+  std::unique_ptr<base::DictionaryValue> incidents_sent =
+      CreateTestIncidentsSentPref();
+  ASSERT_TRUE(incidents_sent);
   std::string data;
-  SerializeIncidentsSent(incidents_sent, &data);
+  SerializeIncidentsSent(incidents_sent.get(), &data);
 
   // Make sure the serialized data matches expectations to ensure compatibility.
   ASSERT_EQ(std::string(reinterpret_cast<const char*>(&kTestData[0]),
                         sizeof(kTestData)), data);
 
-  base::Value::Dict deserialized;
+  std::unique_ptr<base::DictionaryValue> deserialized(
+      new base::DictionaryValue);
   PlatformStateStoreLoadResult load_result =
-      DeserializeIncidentsSent(data, deserialized);
+      DeserializeIncidentsSent(data, deserialized.get());
   ASSERT_EQ(PlatformStateStoreLoadResult::SUCCESS, load_result);
-  EXPECT_EQ(incidents_sent, deserialized);
+  ASSERT_TRUE(deserialized->Equals(incidents_sent.get()));
 }
 
 }  // namespace platform_state_store

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,29 +27,27 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.robolectric.annotation.Config;
-import org.robolectric.annotation.LooperMode;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.browserservices.TrustedWebActivityClient;
-import org.chromium.url.GURL;
-import org.chromium.url.JUnitTestGURLs;
-import org.chromium.url.ShadowGURL;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.test.util.browser.Features.EnableFeatures;
+import org.chromium.components.embedder_support.util.Origin;
 
 /**
  * Tests for {@link InstalledWebappGeolocationBridge}.
  */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE, shadows = {ShadowGURL.class})
-@LooperMode(LooperMode.Mode.LEGACY)
+@Config(manifest = Config.NONE)
+@EnableFeatures(ChromeFeatureList.TRUSTED_WEB_ACTIVITY_LOCATION_DELEGATION)
 public class InstalledWebappGeolocationBridgeTest {
+    private static final Origin ORIGIN = Origin.create("https://www.website.com");
+    private static final Origin OTHER_ORIGIN = Origin.create("https://www.other.website.com");
     private static final String EXTRA_CALLBACK = "extraCallback";
 
     private static final long NATIVE_POINTER = 12;
-
-    private GURL mScope;
-    private GURL mOtherScope;
 
     @Rule
     public JniMocker mocker = new JniMocker();
@@ -68,17 +66,14 @@ public class InstalledWebappGeolocationBridgeTest {
         MockitoAnnotations.initMocks(this);
         mocker.mock(InstalledWebappGeolocationBridgeJni.TEST_HOOKS, mNativeMock);
 
-        mScope = new GURL(JUnitTestGURLs.URL_1);
-        mOtherScope = new GURL(JUnitTestGURLs.URL_2);
-
         mGeolocation = new InstalledWebappGeolocationBridge(
-                NATIVE_POINTER, mScope, mTrustedWebActivityClient);
+                NATIVE_POINTER, ORIGIN, mTrustedWebActivityClient);
     }
 
     @Test
     @Feature("TrustedWebActivities")
     public void getLocationError_whenClientDoesntHaveService() {
-        uninstallTrustedWebActivityService(mScope);
+        uninstallTrustedWebActivityService(ORIGIN);
         mGeolocation.start(false /* HighAccuracy */);
         verifyGetLocationError();
     }
@@ -86,7 +81,7 @@ public class InstalledWebappGeolocationBridgeTest {
     @Test
     @Feature("TrustedWebActivities")
     public void getLocationUpdate_afterStartListening() {
-        installTrustedWebActivityService(mScope);
+        installTrustedWebActivityService(ORIGIN);
         mGeolocation.start(false /* HighAccuracy */);
         verifyGetLocationUpdate();
     }
@@ -94,7 +89,7 @@ public class InstalledWebappGeolocationBridgeTest {
     @Test
     @Feature("TrustedWebActivities")
     public void noLocationUpdate_stopBeforeStart() {
-        installTrustedWebActivityService(mScope);
+        installTrustedWebActivityService(ORIGIN);
         mGeolocation.stopAndDestroy();
         mGeolocation.start(false /* HighAccuracy */);
         verifyNoLocationUpdate();
@@ -103,8 +98,8 @@ public class InstalledWebappGeolocationBridgeTest {
     @Test
     @Feature("TrustedWebActivities")
     public void getLocationError_whenOnlytherClientHasService() {
-        installTrustedWebActivityService(mOtherScope);
-        uninstallTrustedWebActivityService(mScope);
+        installTrustedWebActivityService(OTHER_ORIGIN);
+        uninstallTrustedWebActivityService(ORIGIN);
         mGeolocation.start(false /* HighAccuracy */);
         verifyGetLocationError();
         verifyNoLocationUpdate();
@@ -113,16 +108,16 @@ public class InstalledWebappGeolocationBridgeTest {
     @Test
     @Feature("TrustedWebActivities")
     public void changeHighAccuracyAfterStart() {
-        installTrustedWebActivityService(mScope);
+        installTrustedWebActivityService(ORIGIN);
         mGeolocation.start(false /* HighAccuracy */);
         assertFalse(mIsHighAccuracy);
         mGeolocation.start(true /* HighAccuracy */);
         assertTrue(mIsHighAccuracy);
     }
 
-    /** "Installs" a Trusted Web Activity Service for the scope. */
+    /** "Installs" a Trusted Web Activity Service for the origin. */
     @SuppressWarnings("unchecked")
-    private void installTrustedWebActivityService(GURL scope) {
+    private void installTrustedWebActivityService(Origin origin) {
         doAnswer(invocation -> {
             TrustedWebActivityCallback callback = invocation.getArgument(2);
             mIsHighAccuracy = invocation.getArgument(1);
@@ -143,10 +138,10 @@ public class InstalledWebappGeolocationBridgeTest {
             return true;
         })
                 .when(mTrustedWebActivityClient)
-                .startListeningLocationUpdates(eq(scope.getSpec()), anyBoolean(), any());
+                .startListeningLocationUpdates(eq(origin), anyBoolean(), any());
     }
 
-    private void uninstallTrustedWebActivityService(GURL scope) {
+    private void uninstallTrustedWebActivityService(Origin origin) {
         doAnswer(invocation -> {
             TrustedWebActivityCallback callback = invocation.getArgument(2);
             Bundle error = new Bundle();
@@ -156,7 +151,7 @@ public class InstalledWebappGeolocationBridgeTest {
             return true;
         })
                 .when(mTrustedWebActivityClient)
-                .startListeningLocationUpdates(eq(scope.getSpec()), anyBoolean(), any());
+                .startListeningLocationUpdates(eq(origin), anyBoolean(), any());
     }
 
     // Verify native gets location update with correct value.

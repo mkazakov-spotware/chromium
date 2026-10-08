@@ -28,6 +28,7 @@
 
 #include <memory>
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 #include "third_party/blink/renderer/platform/wtf/wtf_export.h"
@@ -49,9 +50,7 @@ class OrdinalNumber final {
   static OrdinalNumber FromOneBasedInt(int one_based_int) {
     return OrdinalNumber(one_based_int - 1);
   }
-
-  // Use First() instead.
-  OrdinalNumber() = delete;
+  OrdinalNumber() : zero_based_value_(0) {}
 
   int ZeroBasedInt() const { return zero_based_value_; }
   int OneBasedInt() const { return zero_based_value_ + 1; }
@@ -78,10 +77,7 @@ class TextPosition final {
  public:
   TextPosition(OrdinalNumber line, OrdinalNumber column)
       : line_(line), column_(column) {}
-
-  // Use MinimumPosition() instead.
-  TextPosition() = delete;
-
+  TextPosition() = default;
   bool operator==(const TextPosition& other) const {
     return line_ == other.line_ && column_ == other.column_;
   }

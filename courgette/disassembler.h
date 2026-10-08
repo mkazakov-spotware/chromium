@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ref.h"
+#include "base/macros.h"
 #include "courgette/courgette.h"
 #include "courgette/image_utils.h"
 #include "courgette/instruction_utils.h"
@@ -27,17 +27,15 @@ class Disassembler : public AddressTranslator {
    public:
     RvaVisitor_Abs32(const std::vector<RVA>& rva_locations,
                      const AddressTranslator& translator);
-
-    RvaVisitor_Abs32(const RvaVisitor_Abs32&) = delete;
-    RvaVisitor_Abs32& operator=(const RvaVisitor_Abs32&) = delete;
-
     ~RvaVisitor_Abs32() override { }
 
     // VectorRvaVisitor<RVA> interfaces.
     RVA Get() const override;
 
    private:
-    const raw_ref<const AddressTranslator> translator_;
+    const AddressTranslator& translator_;
+
+    DISALLOW_COPY_AND_ASSIGN(RvaVisitor_Abs32);
   };
 
   // Visitor/adaptor to translate RVA to target RVA for rel32.
@@ -45,21 +43,16 @@ class Disassembler : public AddressTranslator {
    public:
     RvaVisitor_Rel32(const std::vector<RVA>& rva_locations,
                      const AddressTranslator& translator);
-
-    RvaVisitor_Rel32(const RvaVisitor_Rel32&) = delete;
-    RvaVisitor_Rel32& operator=(const RvaVisitor_Rel32&) = delete;
-
     ~RvaVisitor_Rel32() override { }
 
     // VectorRvaVisitor<RVA> interfaces.
     RVA Get() const override;
 
    private:
-    const raw_ref<const AddressTranslator> translator_;
-  };
+    const AddressTranslator& translator_;
 
-  Disassembler(const Disassembler&) = delete;
-  Disassembler& operator=(const Disassembler&) = delete;
+    DISALLOW_COPY_AND_ASSIGN(RvaVisitor_Rel32);
+  };
 
   virtual ~Disassembler();
 
@@ -155,6 +148,8 @@ class Disassembler : public AddressTranslator {
   size_t length_;         // In current memory.
   const uint8_t* start_;  // In current memory, base for 'file offsets'.
   const uint8_t* end_;    // In current memory.
+
+  DISALLOW_COPY_AND_ASSIGN(Disassembler);
 };
 
 }  // namespace courgette

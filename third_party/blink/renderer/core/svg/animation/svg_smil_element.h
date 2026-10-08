@@ -32,8 +32,8 @@
 #include "third_party/blink/renderer/core/svg/svg_element.h"
 #include "third_party/blink/renderer/core/svg/svg_tests.h"
 #include "third_party/blink/renderer/core/svg_names.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/wtf/hash_set.h"
 
 namespace blink {
 
@@ -51,7 +51,7 @@ class CORE_EXPORT SMILInstanceTimeList {
   SMILTime NextAfter(SMILTime) const;
 
   wtf_size_t size() const { return instance_times_.size(); }
-  bool IsEmpty() const { return instance_times_.empty(); }
+  bool IsEmpty() const { return instance_times_.IsEmpty(); }
 
   using const_iterator = typename Vector<SMILTimeWithOrigin>::const_iterator;
   const_iterator begin() const { return instance_times_.begin(); }
@@ -82,6 +82,7 @@ class CORE_EXPORT SVGSMILElement : public SVGElement, public SVGTests {
   ~SVGSMILElement() override;
 
   void ParseAttribute(const AttributeModificationParams&) override;
+  void SvgAttributeChanged(const QualifiedName&) override;
   InsertionNotificationRequest InsertedInto(ContainerNode&) override;
   void RemovedFrom(ContainerNode&) override;
 
@@ -166,10 +167,6 @@ class CORE_EXPORT SVGSMILElement : public SVGElement, public SVGTests {
 
  private:
   bool IsPresentationAttribute(const QualifiedName&) const override;
-  void CollectStyleForPresentationAttribute(
-      const QualifiedName&,
-      const AtomicString&,
-      MutableCSSPropertyValueSet*) override;
 
   void AddedEventListener(const AtomicString& event_type,
                           RegisteredEventListener&) final;

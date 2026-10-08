@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,16 +14,14 @@
 #include "base/callback_forward.h"
 #include "base/files/file.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/macros.h"
 #include "base/observer_list_threadsafe.h"
 #include "chrome/browser/sync_file_system/local/local_file_sync_status.h"
 #include "chrome/browser/sync_file_system/sync_status_code.h"
 #include "storage/browser/blob/blob_data_handle.h"
 #include "storage/browser/file_system/file_system_operation.h"
 #include "storage/browser/file_system/file_system_url.h"
-#include "storage/browser/file_system/file_system_util.h"
 #include "storage/browser/quota/quota_callbacks.h"
-#include "storage/browser/test/mock_quota_manager.h"
-#include "storage/browser/test/mock_quota_manager_proxy.h"
 #include "storage/common/file_system/file_system_types.h"
 #include "storage/common/file_system/file_system_util.h"
 #include "third_party/blink/public/mojom/quota/quota_types.mojom-forward.h"
@@ -38,6 +36,10 @@ class FileSystemOperationRunner;
 class FileSystemURL;
 }
 
+namespace storage {
+class QuotaManager;
+}
+
 namespace sync_file_system {
 
 class FileChangeList;
@@ -50,27 +52,27 @@ class SyncFileSystemBackend;
 class CannedSyncableFileSystem
     : public LocalFileSyncStatus::Observer {
  public:
-  typedef base::OnceCallback<void(const storage::FileSystemURL& root,
-                                  const std::string& name,
-                                  base::File::Error result)>
+  typedef base::OnceCallback<
+      void(const GURL& root, const std::string& name, base::File::Error result)>
       OpenFileSystemCallback;
-  typedef base::OnceCallback<void(base::File::Error)> StatusCallback;
-  typedef base::RepeatingCallback<void(int64_t)> WriteCallback;
+  typedef base::Callback<void(base::File::Error)> StatusCallback;
+  typedef base::Callback<void(int64_t)> WriteCallback;
   typedef storage::FileSystemOperation::FileEntryList FileEntryList;
+
+  enum QuotaMode {
+    QUOTA_ENABLED,
+    QUOTA_DISABLED,
+  };
 
   CannedSyncableFileSystem(
       const GURL& origin,
       bool in_memory_file_system,
       const scoped_refptr<base::SingleThreadTaskRunner>& io_task_runner,
       const scoped_refptr<base::SingleThreadTaskRunner>& file_task_runner);
-
-  CannedSyncableFileSystem(const CannedSyncableFileSystem&) = delete;
-  CannedSyncableFileSystem& operator=(const CannedSyncableFileSystem&) = delete;
-
   ~CannedSyncableFileSystem() override;
 
   // SetUp must be called before using this instance.
-  void SetUp();
+  void SetUp(QuotaMode quota_mode);
 
   // TearDown must be called before destructing this instance.
   void TearDown();
@@ -96,7 +98,7 @@ class CannedSyncableFileSystem
   storage::FileSystemContext* file_system_context() {
     return file_system_context_.get();
   }
-  storage::MockQuotaManager* quota_manager() { return quota_manager_.get(); }
+  storage::QuotaManager* quota_manager() { return quota_manager_.get(); }
   GURL origin() const { return origin_; }
   storage::FileSystemType type() const { return type_; }
   blink::mojom::StorageType storage_type() const {
@@ -160,43 +162,45 @@ class CannedSyncableFileSystem
   // They can be also called directly if the caller is already on IO thread.
   void DoOpenFileSystem(OpenFileSystemCallback callback);
   void DoCreateDirectory(const storage::FileSystemURL& url,
-                         StatusCallback callback);
-  void DoCreateFile(const storage::FileSystemURL& url, StatusCallback callback);
+                         const StatusCallback& callback);
+  void DoCreateFile(const storage::FileSystemURL& url,
+                    const StatusCallback& callback);
   void DoCopy(const storage::FileSystemURL& src_url,
               const storage::FileSystemURL& dest_url,
-              StatusCallback callback);
+              const StatusCallback& callback);
   void DoMove(const storage::FileSystemURL& src_url,
               const storage::FileSystemURL& dest_url,
-              StatusCallback callback);
+              const StatusCallback& callback);
   void DoTruncateFile(const storage::FileSystemURL& url,
                       int64_t size,
-                      StatusCallback callback);
+                      const StatusCallback& callback);
   void DoTouchFile(const storage::FileSystemURL& url,
                    const base::Time& last_access_time,
                    const base::Time& last_modified_time,
-                   StatusCallback callback);
+                   const StatusCallback& callback);
   void DoRemove(const storage::FileSystemURL& url,
                 bool recursive,
-                StatusCallback callback);
-  void DoFileExists(const storage::FileSystemURL& url, StatusCallback callback);
+                const StatusCallback& callback);
+  void DoFileExists(const storage::FileSystemURL& url,
+                    const StatusCallback& callback);
   void DoDirectoryExists(const storage::FileSystemURL& url,
-                         StatusCallback callback);
+                         const StatusCallback& callback);
   void DoVerifyFile(const storage::FileSystemURL& url,
                     const std::string& expected_data,
-                    StatusCallback callback);
+                    const StatusCallback& callback);
   void DoGetMetadataAndPlatformPath(const storage::FileSystemURL& url,
                                     base::File::Info* info,
                                     base::FilePath* platform_path,
-                                    StatusCallback callback);
+                                    const StatusCallback& callback);
   void DoReadDirectory(const storage::FileSystemURL& url,
                        FileEntryList* entries,
-                       StatusCallback callback);
+                       const StatusCallback& callback);
   void DoWrite(const storage::FileSystemURL& url,
                std::unique_ptr<storage::BlobDataHandle> blob_data_handle,
-               WriteCallback callback);
+               const WriteCallback& callback);
   void DoWriteString(const storage::FileSystemURL& url,
                      const std::string& data,
-                     WriteCallback callback);
+                     const WriteCallback& callback);
   void DoGetUsageAndQuota(int64_t* usage,
                           int64_t* quota,
                           storage::StatusCallback callback);
@@ -207,11 +211,11 @@ class CannedSyncableFileSystem
 
   // Callbacks.
   void DidOpenFileSystem(base::SingleThreadTaskRunner* original_task_runner,
-                         base::OnceClosure quit_closure,
-                         const storage::FileSystemURL& root,
+                         const base::Closure& quit_closure,
+                         const GURL& root,
                          const std::string& name,
                          base::File::Error result);
-  void DidInitializeFileSystemContext(base::OnceClosure quit_closure,
+  void DidInitializeFileSystemContext(const base::Closure& quit_closure,
                                       sync_file_system::SyncStatusCode status);
 
   void InitializeSyncStatusObserver();
@@ -219,8 +223,7 @@ class CannedSyncableFileSystem
   base::ScopedTempDir data_dir_;
   const std::string service_name_;
 
-  scoped_refptr<storage::MockQuotaManager> quota_manager_;
-  scoped_refptr<storage::MockQuotaManagerProxy> quota_manager_proxy_;
+  scoped_refptr<storage::QuotaManager> quota_manager_;
   scoped_refptr<storage::FileSystemContext> file_system_context_;
   const GURL origin_;
   const storage::FileSystemType type_;
@@ -237,6 +240,8 @@ class CannedSyncableFileSystem
   bool is_filesystem_opened_;  // Should be accessed only on the IO thread.
 
   scoped_refptr<ObserverList> sync_status_observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(CannedSyncableFileSystem);
 };
 
 }  // namespace sync_file_system

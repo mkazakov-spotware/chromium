@@ -1,90 +1,45 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_WEB_APPLICATIONS_TEST_WEB_APP_BROWSERTEST_UTIL_H_
 #define CHROME_BROWSER_UI_WEB_APPLICATIONS_TEST_WEB_APP_BROWSERTEST_UTIL_H_
 
-#include "base/callback.h"
-#include "base/memory/raw_ptr.h"
-#include "base/run_loop.h"
-#include "base/scoped_observation.h"
-#include "base/strings/string_piece_forward.h"
-#include "chrome/browser/ui/browser_list_observer.h"
-#include "chrome/browser/web_applications/externally_managed_app_manager.h"
-#include "chrome/browser/web_applications/web_app_constants.h"
-#include "chrome/browser/web_applications/web_app_id.h"
-#include "chrome/browser/web_applications/web_app_install_manager.h"
-#include "chrome/browser/web_applications/web_app_install_manager_observer.h"
-#include "third_party/skia/include/core/SkColor.h"
-#include "ui/base/window_open_disposition.h"
+#include <memory>
+
+#include "chrome/browser/web_applications/components/web_app_id.h"
+#include "chrome/browser/web_applications/components/web_application_info.h"
+#include "url/gurl.h"
 
 class Browser;
-class GURL;
 class Profile;
-
-namespace base {
-class FilePath;
-}
-
-namespace webapps {
-enum class InstallResultCode;
-}
+struct WebApplicationInfo;
 
 namespace web_app {
 
 struct ExternalInstallOptions;
-class WebAppInstallManager;
+enum class InstallResultCode;
 
-// For InstallWebAppFromInfo see web_app_install_test_utils.h
-
-// Reads an icon file (.ico/.png/.icns) and returns the color at the
-// top left color.
-SkColor GetIconTopLeftColor(const base::FilePath& shortcut_path);
-
-// Navigates to |app_url| and installs app without any installability checks.
-// Always selects to open app in its own window.
-AppId InstallWebAppFromPage(Browser* browser, const GURL& app_url);
-
-// Same as InstallWebAppFromPage() but waits for the app browser window to
-// appear and closes it.
-AppId InstallWebAppFromPageAndCloseAppBrowser(Browser* browser,
-                                              const GURL& app_url);
+// Synchronous version of InstallManager::InstallWebAppFromInfo.
+AppId InstallWebApp(Profile* profile, std::unique_ptr<WebApplicationInfo>);
 
 // Navigates to |app_url|, verifies WebApp installability, and installs app.
 AppId InstallWebAppFromManifest(Browser* browser, const GURL& app_url);
 
-// Launches a new app window for |app| in |profile| with specified
-// |disposition|.
-Browser* LaunchWebAppBrowser(
-    Profile*,
-    const AppId&,
-    WindowOpenDisposition disposition = WindowOpenDisposition::CURRENT_TAB);
+// Launches a new app window for |app| in |profile|.
+Browser* LaunchWebAppBrowser(Profile*, const AppId&);
 
 // Launches the app, waits for the app url to load.
-Browser* LaunchWebAppBrowserAndWait(
-    Profile*,
-    const AppId&,
-    WindowOpenDisposition disposition = WindowOpenDisposition::CURRENT_TAB);
+Browser* LaunchWebAppBrowserAndWait(Profile*, const AppId&);
 
 // Launches a new tab for |app| in |profile|.
 Browser* LaunchBrowserForWebAppInTab(Profile*, const AppId&);
 
-// Launches the web app to the given URL.
-Browser* LaunchWebAppToURL(Profile* profile,
-                           const AppId& app_id,
-                           const GURL& url);
-
 // Return |ExternalInstallOptions| with OS shortcut creation disabled.
-ExternalInstallOptions CreateInstallOptions(
-    const GURL& url,
-    const ExternalInstallSource& source =
-        ExternalInstallSource::kInternalDefault);
+ExternalInstallOptions CreateInstallOptions(const GURL& url);
 
-// Synchronous version of ExternallyManagedAppManager::Install.
-ExternallyManagedAppManager::InstallResult ExternallyManagedAppManagerInstall(
-    Profile*,
-    ExternalInstallOptions);
+// Synchronous version of PendingAppManager::Install.
+InstallResultCode PendingAppManagerInstall(Profile*, ExternalInstallOptions);
 
 // If |proceed_through_interstitial| is true, asserts that a security
 // interstitial is shown, and clicks through it, before returning.
@@ -108,61 +63,19 @@ enum AppMenuCommandState {
 // For a non-app browser, determines if the command is enabled/disabled/absent.
 AppMenuCommandState GetAppMenuCommandState(int command_id, Browser* browser);
 
-// Searches for a Browser window for a given |app_id|. browser->app_name() must
-// be defined.
-Browser* FindWebAppBrowser(Profile* profile, const AppId& app_id);
-
 void CloseAndWait(Browser* browser);
 
 bool IsBrowserOpen(const Browser* test_browser);
 
-// Helper class that lets you await one Browser added and one Browser removed
-// event. Optionally filters to a specific Browser with |filter|. Useful for
-// closing the web app window that appears after installation from page.
-class BrowserWaiter : public BrowserListObserver {
- public:
-  explicit BrowserWaiter(Browser* filter = nullptr);
-  ~BrowserWaiter() override;
+// Launches the app for |app| in |profile|.
+void UninstallWebApp(Profile* profile, const AppId& app_id);
 
-  Browser* AwaitAdded();
-  Browser* AwaitRemoved();
-
-  // BrowserListObserver:
-  void OnBrowserAdded(Browser* browser) override;
-  void OnBrowserRemoved(Browser* browser) override;
-
- private:
-  const raw_ptr<Browser, DanglingUntriaged> filter_ = nullptr;
-
-  base::RunLoop added_run_loop_;
-  raw_ptr<Browser, DanglingUntriaged> added_browser_ = nullptr;
-
-  base::RunLoop removed_run_loop_;
-  // TODO(crbug.com/1298696): browser_tests breaks with MTECheckedPtr
-  // enabled. Triage.
-  raw_ptr<Browser, DanglingUntriagedDegradeToNoOpWhenMTE> removed_browser_ =
-      nullptr;
-};
-
-class UpdateAwaiter : public WebAppInstallManagerObserver {
- public:
-  explicit UpdateAwaiter(WebAppInstallManager& install_manager);
-  ~UpdateAwaiter() override;
-  void AwaitUpdate();
-
-  // WebAppInstallManagerObserver:
-  void OnWebAppManifestUpdated(const AppId& app_id,
-                               base::StringPiece old_name) override;
-  void OnWebAppInstallManagerDestroyed() override;
-
- private:
-  base::RunLoop run_loop_;
-  base::ScopedObservation<WebAppInstallManager, WebAppInstallManagerObserver>
-      scoped_observation_{this};
-};
-
-// Creates a temporary file with the |extension|.
-base::FilePath CreateTestFileWithExtension(base::StringPiece extension);
+// Synchronous read of an app icon pixel.
+SkColor ReadAppIconPixel(Profile* profile,
+                         const AppId& app_id,
+                         SquareSizePx size,
+                         int x,
+                         int y);
 
 }  // namespace web_app
 

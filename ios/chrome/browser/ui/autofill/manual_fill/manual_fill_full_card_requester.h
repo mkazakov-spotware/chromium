@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 #define IOS_CHROME_BROWSER_UI_AUTOFILL_MANUAL_FILL_MANUAL_FILL_FULL_CARD_REQUESTER_H_
 
 #import <UIKit/UIKit.h>
+
+#include "base/memory/ref_counted.h"
 
 namespace autofill {
 class CreditCard;
@@ -20,7 +22,7 @@ class WebStateList;
 // let user 'unlock' server side credit card by input correct CVC.
 @interface ManualFillFullCardRequester : NSObject
 
-// Inits the requests with required parameters and the `delegate` to receive the
+// Inits the requests with required parameters and the |delegate| to receive the
 // success/failure state of the request.
 - (instancetype)initWithBrowserState:(ChromeBrowserState*)browserState
                         webStateList:(WebStateList*)webStateList

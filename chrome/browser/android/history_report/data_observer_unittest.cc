@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -59,9 +59,6 @@ class DataObserverTest : public testing::Test {
  public:
   DataObserverTest() {}
 
-  DataObserverTest(const DataObserverTest&) = delete;
-  DataObserverTest& operator=(const DataObserverTest&) = delete;
-
   void SetUp() override {
     // Make unique temp directory.
     EXPECT_TRUE(temp_dir_.CreateUniqueTempDir());
@@ -82,9 +79,6 @@ class DataObserverTest : public testing::Test {
     delta_file_service_.reset();
     usage_report_service_.reset();
     bookmark_model_.reset();
-    // As this code does not call HistoryService::Init(), HistoryService
-    // doesn't call HistoryServiceBeingDeleted().
-    data_observer_->HistoryServiceBeingDeleted(history_service_.get());
     history_service_.reset();
     data_observer_.reset();
   }
@@ -99,16 +93,18 @@ class DataObserverTest : public testing::Test {
   std::unique_ptr<BookmarkModel> bookmark_model_;
   std::unique_ptr<HistoryService> history_service_;
   std::unique_ptr<DataObserver> data_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(DataObserverTest);
 };
 
 TEST_F(DataObserverTest, VisitLinkShouldBeLogged) {
   EXPECT_CALL(*(delta_file_service_.get()), PageAdded(GURL()));
   EXPECT_CALL(*(usage_report_service_.get()), AddVisit(_, _, _));
 
-  auto visit_row = history::VisitRow();
-  visit_row.transition = ui::PageTransition::PAGE_TRANSITION_LINK;
-  data_observer_->OnURLVisited(history_service_.get(), history::URLRow(GURL()),
-                               visit_row);
+  data_observer_->OnURLVisited(
+      history_service_.get(),
+      ui::PageTransition::PAGE_TRANSITION_LINK,
+      history::URLRow(GURL()), history::RedirectList(), Time::Now());
 }
 
 TEST_F(DataObserverTest, VisitRedirectShouldNotBeLogged) {
@@ -116,10 +112,10 @@ TEST_F(DataObserverTest, VisitRedirectShouldNotBeLogged) {
   EXPECT_CALL(*(delta_file_service_.get()), PageAdded(_)).Times(0);
   EXPECT_CALL(*(usage_report_service_.get()), AddVisit(_, _, _)).Times(0);
 
-  auto visit_row = history::VisitRow();
-  visit_row.transition = ui::PageTransition::PAGE_TRANSITION_CLIENT_REDIRECT;
-  data_observer_->OnURLVisited(history_service_.get(), history::URLRow(GURL()),
-                               visit_row);
+  data_observer_->OnURLVisited(
+      history_service_.get(),
+      ui::PageTransition::PAGE_TRANSITION_CLIENT_REDIRECT,
+      history::URLRow(GURL()), history::RedirectList(), Time::Now());
 }
 
 }  // namespace history_report

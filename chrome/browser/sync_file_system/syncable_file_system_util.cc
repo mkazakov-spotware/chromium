@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,13 @@
 
 #include "base/command_line.h"
 #include "base/location.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "storage/browser/file_system/external_mount_points.h"
 #include "storage/browser/file_system/file_observers.h"
 #include "storage/browser/file_system/file_system_context.h"
 #include "storage/common/file_system/file_system_util.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
-#include "url/gurl.h"
 #include "url/origin.h"
 
 using storage::ExternalMountPoints;
@@ -63,15 +62,14 @@ FileSystemURL CreateSyncableFileSystemURL(const GURL& origin,
     path_for_url = base::FilePath(path.value().substr(1));
 
   return ExternalMountPoints::GetSystemInstance()->CreateExternalFileSystemURL(
-      blink::StorageKey(url::Origin::Create(origin)), kSyncableMountName,
-      path_for_url);
+      url::Origin::Create(origin), kSyncableMountName, path_for_url);
 }
 
 FileSystemURL CreateSyncableFileSystemURLForSync(
     storage::FileSystemContext* file_system_context,
     const FileSystemURL& syncable_url) {
   return ExternalMountPoints::GetSystemInstance()->CreateExternalFileSystemURL(
-      syncable_url.storage_key(), kSyncableMountNameForInternalSync,
+      syncable_url.origin(), kSyncableMountNameForInternalSync,
       syncable_url.path());
 }
 
@@ -90,10 +88,8 @@ bool DeserializeSyncableFileSystemURL(const std::string& serialized_url,
   DCHECK(serialized_url.find('\\') == std::string::npos);
 #endif  // FILE_PATH_USES_WIN_SEPARATORS
 
-  const GURL gurl(serialized_url);
   FileSystemURL deserialized =
-      ExternalMountPoints::GetSystemInstance()->CrackURL(
-          gurl, blink::StorageKey(url::Origin::Create(gurl)));
+      ExternalMountPoints::GetSystemInstance()->CrackURL(GURL(serialized_url));
   if (!deserialized.is_valid() ||
       deserialized.type() != storage::kFileSystemTypeSyncable) {
     return false;
@@ -107,9 +103,8 @@ base::FilePath GetSyncFileSystemDir(const base::FilePath& profile_base_dir) {
   return profile_base_dir.Append(kSyncFileSystemDir);
 }
 
-void RunSoon(const base::Location& from_here, base::OnceClosure callback) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      from_here, std::move(callback));
+void RunSoon(const base::Location& from_here, const base::Closure& callback) {
+  base::ThreadTaskRunnerHandle::Get()->PostTask(from_here, callback);
 }
 
 }  // namespace sync_file_system

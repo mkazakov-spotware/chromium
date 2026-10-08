@@ -1,34 +1,36 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/keyboard_brightness/keyboard_brightness_controller.h"
 
-#include "ash/constants/ash_pref_names.h"
+#include "base/metrics/user_metrics.h"
 #include "chromeos/dbus/power/power_manager_client.h"
-#include "chromeos/dbus/power_manager/backlight.pb.h"
-#include "components/prefs/pref_registry_simple.h"
+#include "ui/base/accelerators/accelerator.h"
+
+using base::RecordAction;
+using base::UserMetricsAction;
 
 namespace ash {
 
-static constexpr int kDefaultKeyboardBrightness = 60;
+KeyboardBrightnessController::KeyboardBrightnessController() = default;
 
-// static
-void KeyboardBrightnessController::RegisterPrefs(PrefRegistrySimple* registry) {
-  registry->RegisterIntegerPref(prefs::kPersonalizationKeyboardBrightness,
-                                kDefaultKeyboardBrightness);
-}
+KeyboardBrightnessController::~KeyboardBrightnessController() = default;
 
-void KeyboardBrightnessController::HandleKeyboardBrightnessDown() {
+void KeyboardBrightnessController::HandleKeyboardBrightnessDown(
+    const ui::Accelerator& accelerator) {
+  if (accelerator.key_code() == ui::VKEY_BRIGHTNESS_DOWN)
+    RecordAction(UserMetricsAction("Accel_KeyboardBrightnessDown_F6"));
+
   chromeos::PowerManagerClient::Get()->DecreaseKeyboardBrightness();
 }
 
-void KeyboardBrightnessController::HandleKeyboardBrightnessUp() {
-  chromeos::PowerManagerClient::Get()->IncreaseKeyboardBrightness();
-}
+void KeyboardBrightnessController::HandleKeyboardBrightnessUp(
+    const ui::Accelerator& accelerator) {
+  if (accelerator.key_code() == ui::VKEY_BRIGHTNESS_UP)
+    RecordAction(UserMetricsAction("Accel_KeyboardBrightnessUp_F7"));
 
-void KeyboardBrightnessController::HandleToggleKeyboardBacklight() {
-  chromeos::PowerManagerClient::Get()->ToggleKeyboardBacklight();
+  chromeos::PowerManagerClient::Get()->IncreaseKeyboardBrightness();
 }
 
 }  // namespace ash

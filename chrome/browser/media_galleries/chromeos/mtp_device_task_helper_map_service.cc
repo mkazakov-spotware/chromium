@@ -1,11 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media_galleries/chromeos/mtp_device_task_helper_map_service.h"
 
 #include "base/check_op.h"
-#include "base/containers/contains.h"
+#include "base/stl_util.h"
 #include "chrome/browser/media_galleries/chromeos/mtp_device_task_helper.h"
 #include "content/public/browser/browser_thread.h"
 

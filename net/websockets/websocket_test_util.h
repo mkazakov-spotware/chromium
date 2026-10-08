@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,16 +12,17 @@
 #include <utility>
 #include <vector>
 
+#include "base/macros.h"
+#include "base/optional.h"
 #include "net/http/http_basic_state.h"
 #include "net/http/http_request_headers.h"
 #include "net/http/http_stream_parser.h"
 #include "net/socket/client_socket_handle.h"
-#include "net/third_party/quiche/src/quiche/spdy/core/http2_header_block.h"
+#include "net/third_party/quiche/src/spdy/core/spdy_header_block.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
 #include "net/url_request/url_request_test_util.h"
 #include "net/websockets/websocket_handshake_stream_create_helper.h"
 #include "net/websockets/websocket_stream.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace url {
 class Origin;
@@ -33,6 +34,7 @@ using WebSocketExtraHeaders = std::vector<std::pair<std::string, std::string>>;
 
 class MockClientSocketFactory;
 class WebSocketBasicHandshakeStream;
+class ProxyResolutionService;
 class SequencedSocketData;
 class IPEndPoint;
 struct SSLSocketDataProvider;
@@ -54,24 +56,25 @@ HttpRequestHeaders WebSocketExtraHeadersToHttpRequestHeaders(
     const WebSocketExtraHeaders& headers);
 
 // Generates a standard WebSocket handshake request. The challenge key used is
-// "dGhlIHNhbXBsZSBub25jZQ==".
+// "dGhlIHNhbXBsZSBub25jZQ==". Each header in |extra_headers| must be terminated
+// with "\r\n".
 std::string WebSocketStandardRequest(
     const std::string& path,
     const std::string& host,
     const url::Origin& origin,
-    const WebSocketExtraHeaders& send_additional_request_headers,
-    const WebSocketExtraHeaders& extra_headers);
+    const std::string& send_additional_request_headers,
+    const std::string& extra_headers);
 
 // Generates a standard WebSocket handshake request. The challenge key used is
 // "dGhlIHNhbXBsZSBub25jZQ==". |cookies| must be empty or terminated with
-// "\r\n".
+// "\r\n". Each header in |extra_headers| must be terminated with "\r\n".
 std::string WebSocketStandardRequestWithCookies(
     const std::string& path,
     const std::string& host,
     const url::Origin& origin,
-    const WebSocketExtraHeaders& cookies,
-    const WebSocketExtraHeaders& send_additional_request_headers,
-    const WebSocketExtraHeaders& extra_headers);
+    const std::string& cookies,
+    const std::string& send_additional_request_headers,
+    const std::string& extra_headers);
 
 // A response with the appropriate accept header to match the above
 // challenge key. Each header in |extra_headers| must be terminated with
@@ -100,12 +103,6 @@ spdy::Http2HeaderBlock WebSocketHttp2Response(
 class WebSocketMockClientSocketFactoryMaker {
  public:
   WebSocketMockClientSocketFactoryMaker();
-
-  WebSocketMockClientSocketFactoryMaker(
-      const WebSocketMockClientSocketFactoryMaker&) = delete;
-  WebSocketMockClientSocketFactoryMaker& operator=(
-      const WebSocketMockClientSocketFactoryMaker&) = delete;
-
   ~WebSocketMockClientSocketFactoryMaker();
 
   // Tell the factory to create a socket which expects |expect_written| to be
@@ -135,20 +132,16 @@ class WebSocketMockClientSocketFactoryMaker {
  private:
   struct Detail;
   std::unique_ptr<Detail> detail_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebSocketMockClientSocketFactoryMaker);
 };
 
 // This class encapsulates the details of creating a
-// URLRequestContext that returns mock ClientSocketHandles that do what is
+// TestURLRequestContext that returns mock ClientSocketHandles that do what is
 // required by the tests.
 struct WebSocketTestURLRequestContextHost {
  public:
   WebSocketTestURLRequestContextHost();
-
-  WebSocketTestURLRequestContextHost(
-      const WebSocketTestURLRequestContextHost&) = delete;
-  WebSocketTestURLRequestContextHost& operator=(
-      const WebSocketTestURLRequestContextHost&) = delete;
-
   ~WebSocketTestURLRequestContextHost();
 
   void SetExpectations(const std::string& expect_written,
@@ -170,20 +163,20 @@ struct WebSocketTestURLRequestContextHost {
 
   // Call after calling one of SetExpections() or AddRawExpectations(). The
   // returned pointer remains owned by this object.
-  URLRequestContext* GetURLRequestContext();
+  TestURLRequestContext* GetURLRequestContext();
 
   const TestNetworkDelegate& network_delegate() const {
-    // This is safe because we set a TestNetworkDelegate on
-    // `url_request_context_` creation.
-    return *static_cast<TestNetworkDelegate*>(
-        url_request_context_->network_delegate());
+    return network_delegate_;
   }
 
  private:
   WebSocketMockClientSocketFactoryMaker maker_;
-  std::unique_ptr<URLRequestContextBuilder> url_request_context_builder_;
-  std::unique_ptr<URLRequestContext> url_request_context_;
+  TestURLRequestContext url_request_context_;
   TestNetworkDelegate network_delegate_;
+  std::unique_ptr<ProxyResolutionService> proxy_resolution_service_;
+  bool url_request_context_initialized_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebSocketTestURLRequestContextHost);
 };
 
 // WebSocketStream::ConnectDelegate implementation that does nothing.
@@ -197,7 +190,7 @@ class DummyConnectDelegate : public WebSocketStream::ConnectDelegate {
       std::unique_ptr<WebSocketHandshakeResponseInfo> response) override {}
   void OnFailure(const std::string& message,
                  int net_error,
-                 absl::optional<int> response_code) override {}
+                 base::Optional<int> response_code) override {}
   void OnStartOpeningHandshake(
       std::unique_ptr<WebSocketHandshakeRequestInfo> request) override {}
   void OnSSLCertificateError(
@@ -210,7 +203,7 @@ class DummyConnectDelegate : public WebSocketStream::ConnectDelegate {
                      scoped_refptr<HttpResponseHeaders> response_headers,
                      const IPEndPoint& remote_endpoint,
                      base::OnceCallback<void(const AuthCredentials*)> callback,
-                     absl::optional<AuthCredentials>* credentials) override;
+                     base::Optional<AuthCredentials>* credentials) override;
 };
 
 // WebSocketStreamRequestAPI implementation that sets the value of
@@ -225,7 +218,7 @@ class TestWebSocketStreamRequestAPI : public WebSocketStreamRequestAPI {
       WebSocketHttp2HandshakeStream* handshake_stream) override;
   void OnFailure(const std::string& message,
                  int net_error,
-                 absl::optional<int> response_code) override {}
+                 base::Optional<int> response_code) override {}
 };
 
 // A sub-class of WebSocketHandshakeStreamCreateHelper which sets a
@@ -240,16 +233,13 @@ class TestWebSocketHandshakeStreamCreateHelper
                                              /* requested_subprotocols = */ {},
                                              &request_) {}
 
-  TestWebSocketHandshakeStreamCreateHelper(
-      const TestWebSocketHandshakeStreamCreateHelper&) = delete;
-  TestWebSocketHandshakeStreamCreateHelper& operator=(
-      const TestWebSocketHandshakeStreamCreateHelper&) = delete;
-
   ~TestWebSocketHandshakeStreamCreateHelper() override = default;
 
  private:
   DummyConnectDelegate connect_delegate_;
   TestWebSocketStreamRequestAPI request_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestWebSocketHandshakeStreamCreateHelper);
 };
 
 }  // namespace net

@@ -1,7 +1,7 @@
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [785, 1016],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF"
@@ -14,23 +14,17 @@
       "transform": 1
     },
     {
-      "name": "LayoutNGBlockFlow (positioned) DIV",
-      "position": [8, 0],
-      "bounds": [100, 500],
-      "contentsOpaqueForText": true,
-      "drawsContent": false
-    },
-    {
-      "name": "LayoutNGBlockFlow (positioned) DIV",
-      "position": [8, 500],
-      "bounds": [300, 154],
+      "name": "Squashing Layer (first squashed layer: LayoutNGBlockFlow (positioned) DIV)",
+      "position": [0, -8],
+      "bounds": [300, 654],
       "invalidations": [
-        [8, 8, 31, 18],
-        [285, 0, 15, 150]
-      ]
+        [8, 508, 31, 18],
+        [285, 500, 15, 150]
+      ],
+      "transform": 1
     },
     {
-      "name": "VerticalScrollbar",
+      "name": "ContentsLayer for Vertical Scrollbar Layer",
       "position": [785, 0],
       "bounds": [15, 600],
       "contentsOpaque": true

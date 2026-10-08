@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -153,7 +153,7 @@ class PolicyBlocklistNavigationThrottleTest
   void SetBlocklistUrlPattern(const std::string& pattern) {
     auto value = std::make_unique<base::Value>(base::Value::Type::LIST);
     value->Append(base::Value(pattern));
-    pref_service_.SetManagedPref(policy::policy_prefs::kUrlBlocklist,
+    pref_service_.SetManagedPref(policy::policy_prefs::kUrlBlacklist,
                                  std::move(value));
     task_environment()->RunUntilIdle();
   }
@@ -161,7 +161,7 @@ class PolicyBlocklistNavigationThrottleTest
   void SetAllowlistUrlPattern(const std::string& pattern) {
     auto value = std::make_unique<base::Value>(base::Value::Type::LIST);
     value->Append(base::Value(pattern));
-    pref_service_.SetManagedPref(policy::policy_prefs::kUrlAllowlist,
+    pref_service_.SetManagedPref(policy::policy_prefs::kUrlWhitelist,
                                  std::move(value));
     task_environment()->RunUntilIdle();
   }
@@ -281,7 +281,7 @@ TEST_F(PolicyBlocklistNavigationThrottleTest, SafeSites_PolicyChange) {
   }
 }
 
-TEST_F(PolicyBlocklistNavigationThrottleTest, SafeSites_Failure) {
+TEST_F(PolicyBlocklistNavigationThrottleTest, DISABLED_SafeSites_Failure) {
   SetSafeSitesFilterBehavior(SafeSitesFilterBehavior::kSafeSitesFilterEnabled);
   stub_url_checker_.SetUpFailedResponse();
 

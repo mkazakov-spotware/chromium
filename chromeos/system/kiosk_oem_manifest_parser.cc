@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "base/json/json_file_value_serializer.h"
+#include "base/strings/stringprintf.h"
 #include "base/values.h"
 
 namespace chromeos {
@@ -33,26 +34,16 @@ bool KioskOemManifestParser::Load(const base::FilePath& kiosk_oem_file,
       new JSONFileValueDeserializer(kiosk_oem_file));
   std::unique_ptr<base::Value> value =
       deserializer->Deserialize(&error_code, &error_msg);
-  if (error_code != JSONFileValueDeserializer::JSON_NO_ERROR || !value ||
-      !value->is_dict())
-    return false;
-
-  if (auto* v = value->GetDict().FindString(kDeviceRequisition))
-    manifest->device_requisition = *v;
-
-  if (absl::optional<bool> v = value->GetDict().FindBool(kKeyboardDrivenOobe)) {
-    manifest->keyboard_driven_oobe = *v;
-  }
-
-  if (absl::optional<bool> v = value->GetDict().FindBool(kEnterpriseManaged)) {
-    manifest->enterprise_managed = *v;
-  } else {
+  base::DictionaryValue* dict = NULL;
+  if (error_code != JSONFileValueDeserializer::JSON_NO_ERROR || !value.get() ||
+      !value->GetAsDictionary(&dict)) {
     return false;
   }
 
-  if (absl::optional<bool> v = value->GetDict().FindBool(kAllowReset)) {
-    manifest->can_exit_enrollment = *v;
-  } else {
+  dict->GetString(kDeviceRequisition, &manifest->device_requisition);
+  dict->GetBoolean(kKeyboardDrivenOobe, &manifest->keyboard_driven_oobe);
+  if (!dict->GetBoolean(kEnterpriseManaged, &manifest->enterprise_managed) ||
+      !dict->GetBoolean(kAllowReset, &manifest->can_exit_enrollment)) {
     return false;
   }
 

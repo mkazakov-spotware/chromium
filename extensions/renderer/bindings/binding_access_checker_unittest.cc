@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -62,7 +62,7 @@ TEST_F(BindingAccessCheckerTest, TestHasAccessOrThrowError) {
 
 TEST_F(BindingAccessCheckerTest, TestHasPromiseAccess) {
   bool context_allows_promises = true;
-  auto promises_available = base::BindRepeating(
+  auto promises_available = base::Bind(
       [](bool* flag, v8::Local<v8::Context> context) { return *flag; },
       &context_allows_promises);
 

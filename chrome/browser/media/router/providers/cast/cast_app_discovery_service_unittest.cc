@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,9 @@
 #include "base/test/task_environment.h"
 #include "base/test/test_simple_task_runner.h"
 #include "chrome/browser/media/router/test/provider_test_helpers.h"
+#include "components/cast_channel/cast_test_util.h"
 #include "components/media_router/common/discovery/media_sink_service_base.h"
 #include "components/media_router/common/providers/cast/cast_media_source.h"
-#include "components/media_router/common/providers/cast/channel/cast_test_util.h"
 #include "components/media_router/common/test/test_helper.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -40,14 +40,10 @@ class CastAppDiscoveryServiceTest : public testing::Test {
             *CastMediaSource::FromMediaSourceId("cast:AAAAAAAA?clientId=2")),
         source_b_1_(
             *CastMediaSource::FromMediaSourceId("cast:BBBBBBBB?clientId=1")) {
-    ON_CALL(socket_service_, GetSocket(testing::Matcher<int>(_)))
+    ON_CALL(socket_service_, GetSocket(_))
         .WillByDefault(testing::Return(&socket_));
     task_runner_->RunPendingTasks();
   }
-
-  CastAppDiscoveryServiceTest(const CastAppDiscoveryServiceTest&) = delete;
-  CastAppDiscoveryServiceTest& operator=(const CastAppDiscoveryServiceTest&) =
-      delete;
 
   ~CastAppDiscoveryServiceTest() override { task_runner_->RunPendingTasks(); }
 
@@ -63,7 +59,7 @@ class CastAppDiscoveryServiceTest : public testing::Test {
     media_sink_service_.RemoveSink(sink);
   }
 
-  base::CallbackListSubscription StartObservingMediaSinksInitially(
+  CastAppDiscoveryService::Subscription StartObservingMediaSinksInitially(
       const CastMediaSource& source) {
     auto subscription = app_discovery_service_->StartObservingMediaSinks(
         source,
@@ -85,6 +81,9 @@ class CastAppDiscoveryServiceTest : public testing::Test {
   CastMediaSource source_a_1_;
   CastMediaSource source_a_2_;
   CastMediaSource source_b_1_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CastAppDiscoveryServiceTest);
 };
 
 TEST_F(CastAppDiscoveryServiceTest, StartObservingMediaSinks) {
@@ -115,7 +114,7 @@ TEST_F(CastAppDiscoveryServiceTest, StartObservingMediaSinks) {
   std::move(cb).Run("AAAAAAAA", GetAppAvailabilityResult::kAvailable);
 
   // No more updates for |source_a_1_|.
-  subscription1 = {};
+  subscription1.reset();
   EXPECT_CALL(*this, OnSinkQueryUpdated(source_a_1_.source_id(), _)).Times(0);
   EXPECT_CALL(*this,
               OnSinkQueryUpdated(source_a_2_.source_id(), testing::IsEmpty()));
@@ -141,7 +140,7 @@ TEST_F(CastAppDiscoveryServiceTest, ReAddSinkQueryUsesCachedValue) {
   EXPECT_CALL(*this, OnSinkQueryUpdated(source_a_1_.source_id(), sinks_1));
   std::move(cb).Run("AAAAAAAA", GetAppAvailabilityResult::kAvailable);
 
-  subscription1 = {};
+  subscription1.reset();
 
   // Request not re-sent; cached kAvailable value is used.
   EXPECT_CALL(message_handler_, RequestAppAvailability(_, _, _)).Times(0);
@@ -203,7 +202,7 @@ TEST_F(CastAppDiscoveryServiceTest, Refresh) {
   EXPECT_CALL(message_handler_, RequestAppAvailability(_, "BBBBBBBB", _));
   AddOrUpdateSink(sink2);
 
-  clock_.Advance(base::Seconds(30));
+  clock_.Advance(base::TimeDelta::FromSeconds(30));
 
   // Request app availability for app B for both sinks.
   // App A on |sink2| is not requested due to timing threshold.
@@ -218,7 +217,7 @@ TEST_F(CastAppDiscoveryServiceTest, Refresh) {
       });
   app_discovery_service_->Refresh();
 
-  clock_.Advance(base::Seconds(31));
+  clock_.Advance(base::TimeDelta::FromSeconds(31));
 
   EXPECT_CALL(message_handler_, RequestAppAvailability(_, "AAAAAAAA", _));
   app_discovery_service_->Refresh();

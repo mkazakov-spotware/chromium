@@ -18,12 +18,7 @@ RUNNING TEST: extension_testAPI
         reload : <function>
     }
     languageServices : {
-        getWasmGlobal : <function>
-        getWasmLinearMemory : <function>
-        getWasmLocal : <function>
-        getWasmOp : <function>
         registerLanguageExtensionPlugin : <function>
-        unregisterLanguageExtensionPlugin : <function>
     }
     network : {
         addRequestHeaders : <function>
@@ -59,7 +54,6 @@ RUNNING TEST: extension_testAPI
         }
         openResource : <function>
         setOpenResourceHandler : <function>
-        setThemeChangeHandler : <function>
         sources : {
             createSidebarPane : <function>
             onSelectionChanged : {
@@ -68,10 +62,6 @@ RUNNING TEST: extension_testAPI
             }
         }
         themeName : "themeNameForTest"
-    }
-    recorder : {
-        registerRecorderExtensionPlugin : <function>
-        unregisterRecorderExtensionPlugin : <function>
     }
     resources : {
         addRequestHeaders : <function>

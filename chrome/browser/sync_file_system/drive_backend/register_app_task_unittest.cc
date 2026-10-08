@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,16 +7,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <memory>
 #include <utility>
 #include <vector>
 
 #include "base/files/scoped_temp_dir.h"
 #include "base/format_macros.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/sync_file_system/drive_backend/drive_backend_constants.h"
 #include "chrome/browser/sync_file_system/drive_backend/drive_backend_util.h"
 #include "chrome/browser/sync_file_system/drive_backend/fake_drive_service_helper.h"
@@ -47,10 +47,6 @@ class RegisterAppTaskTest : public testing::Test {
   RegisterAppTaskTest()
       : next_file_id_(1000),
         next_tracker_id_(10000) {}
-
-  RegisterAppTaskTest(const RegisterAppTaskTest&) = delete;
-  RegisterAppTaskTest& operator=(const RegisterAppTaskTest&) = delete;
-
   ~RegisterAppTaskTest() override {}
 
   void SetUp() override {
@@ -60,19 +56,18 @@ class RegisterAppTaskTest : public testing::Test {
     std::unique_ptr<drive::FakeDriveService> fake_drive_service(
         new drive::FakeDriveService);
     std::unique_ptr<drive::DriveUploaderInterface> drive_uploader(
-        new drive::DriveUploader(
-            fake_drive_service.get(),
-            base::SingleThreadTaskRunner::GetCurrentDefault(),
-            mojo::NullRemote()));
+        new drive::DriveUploader(fake_drive_service.get(),
+                                 base::ThreadTaskRunnerHandle::Get(),
+                                 mojo::NullRemote()));
 
-    fake_drive_service_helper_ = std::make_unique<FakeDriveServiceHelper>(
-        fake_drive_service.get(), drive_uploader.get(), kSyncRootFolderTitle);
+    fake_drive_service_helper_.reset(new FakeDriveServiceHelper(
+        fake_drive_service.get(), drive_uploader.get(),
+        kSyncRootFolderTitle));
 
-    context_ = std::make_unique<SyncEngineContext>(
+    context_.reset(new SyncEngineContext(
         std::move(fake_drive_service), std::move(drive_uploader),
-        nullptr /* task_logger */,
-        base::SingleThreadTaskRunner::GetCurrentDefault(),
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+        nullptr /* task_logger */, base::ThreadTaskRunnerHandle::Get(),
+        base::ThreadTaskRunnerHandle::Get()));
 
     ASSERT_EQ(google_apis::HTTP_CREATED,
               fake_drive_service_helper_->AddOrphanedFolder(
@@ -278,6 +273,8 @@ class RegisterAppTaskTest : public testing::Test {
 
   std::unique_ptr<SyncEngineContext> context_;
   std::unique_ptr<FakeDriveServiceHelper> fake_drive_service_helper_;
+
+  DISALLOW_COPY_AND_ASSIGN(RegisterAppTaskTest);
 };
 
 TEST_F(RegisterAppTaskTest, AlreadyRegistered) {

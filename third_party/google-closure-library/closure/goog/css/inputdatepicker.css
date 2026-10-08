@@ -5,10 +5,8 @@
  * See the COPYING file for details.
  */
 
+/* Author: arv@google.com (Erik Arvidsson) */
+
 /* goog.ui.InputDatePicker */
-
-@provide 'goog.css.inputdatepicker';
-
-@require './popupdatepicker';
 
 @import url(popupdatepicker.css);

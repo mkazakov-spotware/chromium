@@ -1,26 +1,23 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/scheduler/test/fake_task_runner.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "base/callback.h"
-#include "base/ranges/algorithm.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "third_party/blink/renderer/platform/wtf/ref_counted.h"
 #include "third_party/blink/renderer/platform/wtf/thread_safe_ref_counted.h"
 
 namespace blink {
 namespace scheduler {
 
-class FakeTaskRunner::Data : public WTF::ThreadSafeRefCounted<Data>,
-                             public base::TickClock {
+class FakeTaskRunner::Data : public WTF::ThreadSafeRefCounted<Data> {
  public:
   Data() = default;
-  Data(const Data&) = delete;
-  Data& operator=(const Data&) = delete;
 
   void PostDelayedTask(base::OnceClosure task, base::TimeDelta delay) {
     task_queue_.emplace_back(std::move(task), time_ + delay);
@@ -29,25 +26,20 @@ class FakeTaskRunner::Data : public WTF::ThreadSafeRefCounted<Data>,
   using PendingTask = FakeTaskRunner::PendingTask;
   Deque<PendingTask>::iterator FindRunnableTask() {
     // TODO(tkent): This should return an item which has the minimum |second|.
-    // TODO(pkasting): If this is ordered by increasing time, the call below can
-    // be changed to `lower_bound()`, which achieves tkent's TODO above and is
-    // more efficient to boot.
-    return base::ranges::find_if(task_queue_, [&](const PendingTask& item) {
-      return item.second <= time_;
-    });
+    return std::find_if(
+        task_queue_.begin(), task_queue_.end(),
+        [&](const PendingTask& item) { return item.second <= time_; });
   }
-
-  // base::TickClock:
-  base::TimeTicks NowTicks() const override { return time_; }
 
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
   Deque<PendingTask> task_queue_;
   base::TimeTicks time_;
 
  private:
-  ~Data() override = default;
+  ~Data() = default;
 
   friend ThreadSafeRefCounted<Data>;
+  DISALLOW_COPY_AND_ASSIGN(Data);
 };
 
 FakeTaskRunner::FakeTaskRunner() : data_(base::AdoptRef(new Data)) {}
@@ -85,10 +77,6 @@ void FakeTaskRunner::AdvanceTimeAndRun(base::TimeDelta delta) {
   }
 }
 
-const base::TickClock* FakeTaskRunner::GetMockTickClock() const {
-  return data_.get();
-}
-
 Deque<std::pair<base::OnceClosure, base::TimeTicks>>
 FakeTaskRunner::TakePendingTasksForTesting() {
   return std::move(data_->task_queue_);
@@ -99,18 +87,6 @@ bool FakeTaskRunner::PostDelayedTask(const base::Location& location,
                                      base::TimeDelta delay) {
   data_->PostDelayedTask(std::move(task), delay);
   return true;
-}
-
-bool FakeTaskRunner::PostDelayedTaskAt(
-    base::subtle::PostDelayedTaskPassKey,
-    const base::Location& from_here,
-    base::OnceClosure task,
-    base::TimeTicks delayed_run_time,
-    base::subtle::DelayPolicy deadline_policy) {
-  return PostDelayedTask(from_here, std::move(task),
-                         delayed_run_time.is_null()
-                             ? base::TimeDelta()
-                             : delayed_run_time - data_->NowTicks());
 }
 
 bool FakeTaskRunner::PostNonNestableDelayedTask(const base::Location& location,

@@ -2,12 +2,9 @@
 <grit-part>
   <include name="IDR_SIGNIN_INTERNALS_INDEX_HTML"
     file="../signin/core/browser/resources/signin_index.html"
-    type="BINDATA" />
-  <include name="IDR_SIGNIN_INTERNALS_INDEX_CSS"
-    file="../signin/core/browser/resources/signin_index.css"
+    flattenhtml="true" allowexternalscript="true"
     type="BINDATA" />
   <include name="IDR_SIGNIN_INTERNALS_INDEX_JS"
     file="../signin/core/browser/resources/signin_internals.js"
-    preprocess="true"
     type="BINDATA" />
 </grit-part>

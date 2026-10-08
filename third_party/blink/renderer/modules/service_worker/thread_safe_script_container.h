@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,6 @@
 #include <memory>
 #include <utility>
 
-#include "base/synchronization/condition_variable.h"
-#include "base/synchronization/lock.h"
-#include "base/thread_annotations.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/network/http_header_map.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
@@ -18,6 +15,7 @@
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "third_party/blink/renderer/platform/wtf/thread_safe_ref_counted.h"
+#include "third_party/blink/renderer/platform/wtf/threading_primitives.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace blink {
@@ -120,15 +118,17 @@ class MODULES_EXPORT ThreadSafeScriptContainer
   friend class WTF::ThreadSafeRefCounted<ThreadSafeScriptContainer>;
   ~ThreadSafeScriptContainer();
 
-  base::Lock lock_;
+  // |mutex_| protects |waiting_cv_|, |script_data_|, |waiting_url_| and
+  // |are_all_data_added_|.
+  Mutex mutex_;
   // |waiting_cv_| is signaled when a script whose url matches to |waiting_url|
   // is added, or OnAllDataAdded is called. The worker thread waits on this, and
   // the IO thread signals it.
-  base::ConditionVariable waiting_cv_ GUARDED_BY(lock_);
+  ThreadCondition waiting_cv_;
   HashMap<KURL, std::pair<ScriptStatus, std::unique_ptr<RawScriptData>>>
-      script_data_ GUARDED_BY(lock_);
-  KURL waiting_url_ GUARDED_BY(lock_);
-  bool are_all_data_added_ GUARDED_BY(lock_);
+      script_data_;
+  KURL waiting_url_;
+  bool are_all_data_added_;
 };
 
 }  // namespace blink

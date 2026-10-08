@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,8 @@
 
 #include <inttypes.h>
 
-#include <ostream>  // Needed to compile NOTREACHED() with operator <<.
-#include <string>
-
 #include "base/strings/stringprintf.h"
-#include "base/synchronization/lock.h"
-#include "base/trace_event/memory_dump_request_args.h"
 #include "base/trace_event/process_memory_dump.h"
-#include "sql/sqlite_result_code.h"
-#include "sql/sqlite_result_code_values.h"
 #include "third_party/sqlite/sqlite3.h"
 
 namespace sql {
@@ -36,92 +29,71 @@ bool DatabaseMemoryDumpProvider::OnMemoryDump(
   if (args.level_of_detail == base::trace_event::MemoryDumpLevelOfDetail::LIGHT)
     return true;
 
-  MemoryUsageResult memory_usage = GetDbMemoryUsage();
-  if (!memory_usage.is_valid)
+  int cache_size = 0;
+  int schema_size = 0;
+  int statement_size = 0;
+  if (!GetDbMemoryUsage(&cache_size, &schema_size, &statement_size)) {
     return false;
+  }
 
   base::trace_event::MemoryAllocatorDump* dump =
       pmd->CreateAllocatorDump(FormatDumpName());
   dump->AddScalar(base::trace_event::MemoryAllocatorDump::kNameSize,
                   base::trace_event::MemoryAllocatorDump::kUnitsBytes,
-                  memory_usage.cache_size + memory_usage.schema_size +
-                      memory_usage.statement_size);
+                  cache_size + schema_size + statement_size);
   dump->AddScalar("cache_size",
                   base::trace_event::MemoryAllocatorDump::kUnitsBytes,
-                  memory_usage.cache_size);
+                  cache_size);
   dump->AddScalar("schema_size",
                   base::trace_event::MemoryAllocatorDump::kUnitsBytes,
-                  memory_usage.schema_size);
+                  schema_size);
   dump->AddScalar("statement_size",
                   base::trace_event::MemoryAllocatorDump::kUnitsBytes,
-                  memory_usage.statement_size);
+                  statement_size);
   return true;
 }
 
 bool DatabaseMemoryDumpProvider::ReportMemoryUsage(
     base::trace_event::ProcessMemoryDump* pmd,
     const std::string& dump_name) {
-  MemoryUsageResult memory_usage = GetDbMemoryUsage();
-  if (!memory_usage.is_valid)
+  int cache_size = 0;
+  int schema_size = 0;
+  int statement_size = 0;
+  if (!GetDbMemoryUsage(&cache_size, &schema_size, &statement_size))
     return false;
 
   auto* mad = pmd->CreateAllocatorDump(dump_name);
   mad->AddScalar(base::trace_event::MemoryAllocatorDump::kNameSize,
                  base::trace_event::MemoryAllocatorDump::kUnitsBytes,
-                 memory_usage.cache_size + memory_usage.schema_size +
-                     memory_usage.statement_size);
+                 cache_size + schema_size + statement_size);
   pmd->AddSuballocation(mad->guid(), FormatDumpName());
 
   return true;
 }
 
-DatabaseMemoryDumpProvider::MemoryUsageResult
-DatabaseMemoryDumpProvider::GetDbMemoryUsage() {
-  MemoryUsageResult result;
-
+bool DatabaseMemoryDumpProvider::GetDbMemoryUsage(int* cache_size,
+                                                  int* schema_size,
+                                                  int* statement_size) {
   // Lock is acquired here so that db_ is not reset in ResetDatabase when
   // collecting stats.
   base::AutoLock lock(lock_);
   if (!db_) {
-    DCHECK_EQ(result.is_valid, false);
-    return result;
+    return false;
   }
 
-  // The following calls all set the high watermark to zero.
-  // See /https://www.sqlite.org/c3ref/c_dbstatus_options.html
-  int high_watermark = 0;
+  // The high water mark is not tracked for the following usages.
+  int dummy_int;
+  int status = sqlite3_db_status(db_, SQLITE_DBSTATUS_CACHE_USED, cache_size,
+                                 &dummy_int, 0 /* resetFlag */);
+  DCHECK_EQ(SQLITE_OK, status);
+  status = sqlite3_db_status(db_, SQLITE_DBSTATUS_SCHEMA_USED, schema_size,
+                             &dummy_int, 0 /* resetFlag */);
+  DCHECK_EQ(SQLITE_OK, status);
+  status = sqlite3_db_status(db_, SQLITE_DBSTATUS_STMT_USED, statement_size,
+                             &dummy_int, 0 /* resetFlag */);
+  DCHECK_EQ(SQLITE_OK, status);
 
-  auto sqlite_result_code = ToSqliteResultCode(sqlite3_db_status(
-      db_, SQLITE_DBSTATUS_CACHE_USED, &result.cache_size, &high_watermark,
-      /*resetFlg=*/0));
-  DCHECK_EQ(sqlite_result_code, SqliteResultCode::kOk)
-      << "sqlite3_db_status(SQLITE_DBSTATUS_CACHE_USED) failed";
-
-#if DCHECK_IS_ON()
-  int shared_cache_size = 0;
-  sqlite_result_code = ToSqliteResultCode(
-      sqlite3_db_status(db_, SQLITE_DBSTATUS_CACHE_USED_SHARED,
-                        &shared_cache_size, &high_watermark, /*resetFlg=*/0));
-  DCHECK_EQ(sqlite_result_code, SqliteResultCode::kOk)
-      << "sqlite3_db_status(SQLITE_DBSTATUS_CACHE_USED_SHARED) failed";
-  DCHECK_EQ(shared_cache_size, result.cache_size)
-      << "Memory counting assumes that each database uses a private page cache";
-#endif  // DCHECK_IS_ON()
-
-  sqlite_result_code = ToSqliteResultCode(sqlite3_db_status(
-      db_, SQLITE_DBSTATUS_SCHEMA_USED, &result.schema_size, &high_watermark,
-      /*resetFlg=*/0));
-  DCHECK_EQ(sqlite_result_code, SqliteResultCode::kOk)
-      << "sqlite3_db_status(SQLITE_DBSTATUS_SCHEMA_USED) failed";
-
-  sqlite_result_code = ToSqliteResultCode(sqlite3_db_status(
-      db_, SQLITE_DBSTATUS_STMT_USED, &result.statement_size, &high_watermark,
-      /*resetFlg=*/0));
-  DCHECK_EQ(sqlite_result_code, SqliteResultCode::kOk)
-      << "sqlite3_db_status(SQLITE_DBSTATUS_STMT_USED) failed";
-
-  result.is_valid = true;
-  return result;
+  return true;
 }
 
 std::string DatabaseMemoryDumpProvider::FormatDumpName() const {

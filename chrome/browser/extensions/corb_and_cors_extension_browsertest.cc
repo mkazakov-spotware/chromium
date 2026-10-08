@@ -1,27 +1,26 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <string>
 #include <vector>
 
 #include "base/bind.h"
 #include "base/files/file_path.h"
 #include "base/json/json_reader.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
-#include "base/scoped_observation.h"
+#include "base/strings/string16.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "chrome/browser/apps/platform_apps/app_browsertest_util.h"
-#include "chrome/browser/extensions/api/permissions/permissions_api.h"
+#include "chrome/browser/apps/app_service/app_launch_params.h"
+#include "chrome/browser/apps/app_service/app_service_proxy.h"
+#include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
+#include "chrome/browser/apps/app_service/browser_app_launcher.h"
 #include "chrome/browser/extensions/api/tabs/tabs_api.h"
 #include "chrome/browser/extensions/chrome_content_browser_client_extensions_part.h"
-#include "chrome/browser/extensions/extension_action_runner.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "chrome/browser/extensions/extension_function_test_utils.h"
 #include "chrome/browser/extensions/extension_management_test_util.h"
@@ -32,8 +31,6 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_navigator_params.h"
-#include "chrome/browser/ui/browser_tabstrip.h"
-#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/embedder_support/switches.h"
@@ -42,11 +39,9 @@
 #include "components/policy/core/common/mock_configuration_policy_provider.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/console_message.h"
-#include "content/public/browser/notification_types.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/service_worker_context.h"
 #include "content/public/browser/service_worker_context_observer.h"
-#include "content/public/browser/shared_cors_origin_access_list.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_client.h"
@@ -56,25 +51,19 @@
 #include "content/public/test/test_navigation_observer.h"
 #include "content/public/test/url_loader_interceptor.h"
 #include "extensions/browser/browsertest_util.h"
-#include "extensions/browser/permissions_manager.h"
 #include "extensions/browser/url_loader_factory_manager.h"
 #include "extensions/common/extension_features.h"
-#include "extensions/common/manifest_handlers/incognito_info.h"
-#include "extensions/test/extension_test_message_listener.h"
-#include "extensions/test/permissions_manager_waiter.h"
 #include "extensions/test/test_extension_dir.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/controllable_http_response.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/embedded_test_server/http_request.h"
-#include "services/network/public/cpp/corb/corb_impl.h"
-#include "services/network/public/cpp/cors/origin_access_list.h"
+#include "services/network/public/cpp/cross_origin_read_blocking.h"
 #include "services/network/public/cpp/features.h"
 #include "services/network/public/mojom/network_context.mojom-shared.h"
 #include "services/network/public/mojom/trust_tokens.mojom-shared.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -82,42 +71,43 @@ namespace extensions {
 
 namespace {
 
+enum TestParam {
+  // Whether the extension under test is "allowlisted" (see
+  // GetExtensionsAllowlist in
+  // //extensions/browser/url_loader_factory_manager.cc).
+  kAllowlisted = 1 << 0,
+
+  // Whether network::features::
+  // kDeriveOriginFromUrlForNeitherGetNorHeadRequestWhenHavingSpecialAccess is
+  // enabled.
+  kDeriveOriginFromUrl = 1 << 2,
+};
+
 const char kCorsErrorWhenFetching[] = "error: TypeError: Failed to fetch";
+
+// The manifest.json used by tests uses |kExpectedKey| that will result in the
+// hash of extension id that is captured in |kExpectedHashedExtensionId|.
+// Knowing the hash constant helps with simulating distributing the hash via
+// field trial param (e.g. via kCorbCorsAllowlistParamName).
+const char kExtensionKey[] =
+    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjzv7dI7Ygyh67VHE1DdidudpYf8PFf"
+    "v8iucWvzO+3xpF/"
+    "Dm5xNo7aQhPNiEaNfHwJQ7lsp4gc+C+4bbaVewBFspTruoSJhZc5uEfqxwovJwN+v1/"
+    "SUFXTXQmQBv6gs0qZB4gBbl4caNQBlqrFwAMNisnu1V6UROna8rOJQ90D7Nv7TCwoVPKBfVshp"
+    "FjdDOTeBg4iLctO3S/"
+    "06QYqaTDrwVceSyHkVkvzBY6tc6mnYX0RZu78J9iL8bdqwfllOhs69cqoHHgrLdI6JdOyiuh6p"
+    "BP6vxMlzSKWJ3YTNjaQTPwfOYaLMuzdl0v+YdzafIzV9zwe4Xiskk+5JNGt8b2rQIDAQAB";
+const char kExpectedHashedExtensionId[] =
+    "14B587526D9AC6ADCACAA8A4AAE3DB281CA2AB53";
 
 // This is the public key of tools/origin_trials/eftest.key, used to validate
 // origin trial tokens generated by tools/origin_trials/generate_token.py.
 constexpr char kOriginTrialPublicKeyForTesting[] =
     "dRCs+TocuKkocNKa0AtZ4awrt9XKH2SQCI6o4FY6BNA=";
 
-std::string CreateFetchScript(
-    const GURL& resource,
-    absl::optional<base::Value> request_init = absl::nullopt) {
-  CHECK(request_init == absl::nullopt || request_init->is_dict());
-
-  const char kFetchScriptTemplate[] = R"(
-    fetch($1, $2)
-      .then(response => response.text())
-      .then(text => domAutomationController.send(text))
-      .catch(err => domAutomationController.send('error: ' + err));
-  )";
-  return content::JsReplace(kFetchScriptTemplate, resource,
-                            request_init
-                                ? std::move(*request_init)
-                                : base::Value(base::Value::Type::DICTIONARY));
-}
-
-std::string PopString(content::DOMMessageQueue* message_queue) {
-  std::string json;
-  EXPECT_TRUE(message_queue->WaitForMessage(&json));
-  absl::optional<base::Value> value =
-      base::JSONReader::Read(json, base::JSON_ALLOW_TRAILING_COMMAS);
-  EXPECT_TRUE(value->is_string());
-  return value->GetString();
-}
-
 }  // namespace
 
-using CORBAction = network::corb::CrossOriginReadBlocking::Action;
+using CORBAction = network::CrossOriginReadBlocking::Action;
 using ::testing::HasSubstr;
 
 class CorbAndCorsExtensionTestBase : public ExtensionBrowserTest {
@@ -137,6 +127,33 @@ class CorbAndCorsExtensionTestBase : public ExtensionBrowserTest {
     content::SetupCrossSiteRedirector(embedded_test_server());
   }
 
+  std::string CreateFetchScript(
+      const GURL& resource,
+      base::Optional<base::Value> request_init = base::nullopt) {
+    CHECK(request_init == base::nullopt || request_init->is_dict());
+
+    const char kFetchScriptTemplate[] = R"(
+      fetch($1, $2)
+        .then(response => response.text())
+        .then(text => domAutomationController.send(text))
+        .catch(err => domAutomationController.send('error: ' + err));
+    )";
+    return content::JsReplace(kFetchScriptTemplate, resource,
+                              request_init
+                                  ? std::move(*request_init)
+                                  : base::Value(base::Value::Type::DICTIONARY));
+  }
+
+  std::string PopString(content::DOMMessageQueue* message_queue) {
+    std::string json;
+    EXPECT_TRUE(message_queue->WaitForMessage(&json));
+    base::Optional<base::Value> value =
+        base::JSONReader::Read(json, base::JSON_ALLOW_TRAILING_COMMAS);
+    std::string result;
+    EXPECT_TRUE(value->GetAsString(&result));
+    return result;
+  }
+
  protected:
   TestExtensionDir dir_;
 };
@@ -145,10 +162,11 @@ class ServiceWorkerConsoleObserver
     : public content::ServiceWorkerContextObserver {
  public:
   explicit ServiceWorkerConsoleObserver(
-      content::BrowserContext* browser_context) {
+      content::BrowserContext* browser_context)
+      : scoped_observer_(this) {
     content::StoragePartition* partition =
-        browser_context->GetDefaultStoragePartition();
-    scoped_observation_.Observe(partition->GetServiceWorkerContext());
+        content::BrowserContext::GetDefaultStoragePartition(browser_context);
+    scoped_observer_.Add(partition->GetServiceWorkerContext());
   }
   ~ServiceWorkerConsoleObserver() override = default;
 
@@ -172,27 +190,60 @@ class ServiceWorkerConsoleObserver
 
   base::RunLoop run_loop_;
   std::vector<Message> messages_;
-  base::ScopedObservation<content::ServiceWorkerContext,
-                          content::ServiceWorkerContextObserver>
-      scoped_observation_{this};
+  ScopedObserver<content::ServiceWorkerContext,
+                 content::ServiceWorkerContextObserver>
+      scoped_observer_;
 };
 
-class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
+class CorbAndCorsExtensionBrowserTest
+    : public CorbAndCorsExtensionTestBase,
+      public ::testing::WithParamInterface<TestParam> {
  public:
-  CorbAndCorsExtensionBrowserTest() = default;
+  using Base = CorbAndCorsExtensionTestBase;
 
-  CorbAndCorsExtensionBrowserTest(const CorbAndCorsExtensionBrowserTest&) =
-      delete;
-  CorbAndCorsExtensionBrowserTest& operator=(
-      const CorbAndCorsExtensionBrowserTest&) = delete;
+  CorbAndCorsExtensionBrowserTest() {
+    std::vector<base::Feature> disabled_features;
+    std::vector<base::test::ScopedFeatureList::FeatureAndParams>
+        enabled_features;
+
+    if (DeriveOriginFromUrl()) {
+      enabled_features.emplace_back(
+          network::features::
+              kDeriveOriginFromUrlForNeitherGetNorHeadRequestWhenHavingSpecialAccess,
+          base::FieldTrialParams());
+    } else {
+      disabled_features.push_back(
+          network::features::
+              kDeriveOriginFromUrlForNeitherGetNorHeadRequestWhenHavingSpecialAccess);
+    }
+
+    if (IsExtensionAllowlisted()) {
+      base::FieldTrialParams field_trial_params;
+      field_trial_params.emplace(
+          extensions_features::kCorbCorsAllowlistParamName,
+          kExpectedHashedExtensionId);
+      enabled_features.emplace_back(extensions_features::kCorbCorsAllowlist,
+                                    field_trial_params);
+    }
+
+    scoped_feature_list_.InitWithFeaturesAndParameters(enabled_features,
+                                                       disabled_features);
+  }
 
   void SetUpInProcessBrowserTestFixture() override {
-    policy_provider_.SetDefaultReturns(
-        /*is_initialization_complete_return=*/true,
-        /*is_first_policy_load_complete_return=*/true);
+    EXPECT_CALL(policy_provider_, IsInitializationComplete(testing::_))
+        .WillRepeatedly(testing::Return(true));
     policy_provider_.SetAutoRefresh();
     policy::BrowserPolicyConnector::SetPolicyProviderForTesting(
         &policy_provider_);
+  }
+
+  bool IsExtensionAllowlisted() {
+    return (GetParam() & TestParam::kAllowlisted) != 0;
+  }
+
+  bool DeriveOriginFromUrl() {
+    return (GetParam() & TestParam::kDeriveOriginFromUrl) != 0;
   }
 
   const Extension* InstallExtension(
@@ -207,15 +258,19 @@ class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
             "js": ["content_script.js"]
           }],
     )";
+
+    // Note that the hardcoded "key" below matches kExpectedHashedExtensionId
+    // (used by the test suite for allowlisting the extension as needed).
     const char kManifestTemplate[] = R"(
         {
           "name": "CrossOriginReadBlockingTest - Extension",
+          "key": "%s",
           "version": "1.0",
           "manifest_version": 2,
           "permissions": [
               "tabs",
               "*://fetch-initiator.com/*",
-              "*://127.0.0.1/*",
+              "*://127.0.0.1/*",  // Initiator in AppCache tests.
               "*://cross-site.com/*",
               "*://*.subdomain.com/*",
               "*://other-with-permission.com/*"
@@ -223,11 +278,10 @@ class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
               // other-without-permission.com.
           ],
           %s
-          "background": {"scripts": ["background_script.js"]},
-          "web_accessible_resources": [ "page.html" ]
+          "background": {"scripts": ["background_script.js"]}
         } )";
     dir_.WriteManifest(base::StringPrintf(
-        kManifestTemplate,
+        kManifestTemplate, kExtensionKey,
         use_declarative_content_script ? kContentScriptManifestEntry : ""));
 
     dir_.WriteFile(FILE_PATH_LITERAL("background_script.js"), "");
@@ -238,11 +292,18 @@ class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
           FILE_PATH_LITERAL("content_script.js"),
           CreateFetchScript(resource_to_fetch_from_declarative_content_script));
     }
-    extension_ =
-        LoadExtension(dir_.UnpackedPath(), {.allow_in_incognito = true});
+    extension_ = LoadExtension(dir_.UnpackedPath());
     DCHECK(extension_);
 
     return extension_;
+  }
+
+  bool AreContentScriptFetchesExpectedToBeBlocked() {
+    return !IsExtensionAllowlisted();
+  }
+
+  bool IsCorbExpectedToBeTurnedOffAltogether() {
+    return IsExtensionAllowlisted();
   }
 
   // Verifies that |console_observer| has captured a console message indicating
@@ -271,10 +332,18 @@ class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
                               "has been blocked by CORS policy")));
   }
 
-  void VerifyFetchWasBlockedByCorb(const base::HistogramTester& histograms) {
+  void VerifyFetchFromContentScriptWasBlockedByCorb(
+      const base::HistogramTester& histograms) {
     // Make sure that histograms logged in other processes (e.g. in
     // NetworkService process) get synced.
     metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
+
+    if (IsCorbExpectedToBeTurnedOffAltogether()) {
+      EXPECT_EQ(0u,
+                histograms.GetTotalCountsForPrefix("SiteIsolation.XSD.Browser")
+                    .size());
+      return;
+    }
 
     histograms.ExpectBucketCount("SiteIsolation.XSD.Browser.Action",
                                  CORBAction::kResponseStarted, 1);
@@ -282,11 +351,19 @@ class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
                                  CORBAction::kBlockedWithoutSniffing, 1);
   }
 
-  void VerifyFetchWasAllowedByCorb(const base::HistogramTester& histograms,
-                                   bool expecting_sniffing = false) {
+  void VerifyFetchFromContentScriptWasAllowedByCorb(
+      const base::HistogramTester& histograms,
+      bool expecting_sniffing = false) {
     // Make sure that histograms logged in other processes (e.g. in
     // NetworkService process) get synced.
     metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
+
+    if (IsCorbExpectedToBeTurnedOffAltogether()) {
+      EXPECT_EQ(0u,
+                histograms.GetTotalCountsForPrefix("SiteIsolation.XSD.Browser")
+                    .size());
+      return;
+    }
 
     histograms.ExpectBucketCount("SiteIsolation.XSD.Browser.Action",
                                  CORBAction::kResponseStarted, 1);
@@ -297,17 +374,12 @@ class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
                                  1);
   }
 
-  void VerifyCorbWasDisabled(const base::HistogramTester& histograms) {
-    // Make sure that histograms logged in other processes (e.g. in
-    // NetworkService process) get synced.
-    metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
-
-    EXPECT_THAT(histograms.GetTotalCountsForPrefix("SiteIsolation.XSD.Browser"),
-                ::testing::IsEmpty());
-  }
-
-  // Verifies that fetching a CORB-eligible resource from a content script will
-  // be blocked by CORS.
+  // Verifies results of fetching a CORB-eligible resource from a content
+  // script.  Expectations differ depending on the following:
+  // 1. Allowlisted extension: Fetches from content scripts
+  //                           should not be blocked
+  // 2. Other extension: Fetches from content scripts should be blocked by
+  //    either: only CORB or CORS+CORB.
   //
   // This verification helper might not work for non-CORB-eligible resources
   // like MIME types not covered by CORB (e.g. application/octet-stream) or
@@ -319,18 +391,24 @@ class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
       const std::string& expected_fetch_result) {
     metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
 
-    // Verify the fetch was blocked by CORS.
-    EXPECT_EQ(kCorsErrorWhenFetching, actual_fetch_result);
-    VerifyFetchWasBlockedByCors(console_observer);
+    if (AreContentScriptFetchesExpectedToBeBlocked()) {
+      // Verify the fetch was blocked by CORS.
+      EXPECT_EQ(kCorsErrorWhenFetching, actual_fetch_result);
+      VerifyFetchWasBlockedByCors(console_observer);
 
-    // No verification if the request was blocked by CORB, because
-    // 1) once request_initiator is trustworthy, CORB should only
-    //    apply to no-cors requests
-    // 2) some CORS-blocked requests may not reach CORB/response-started
-    //    stage at all (e.g. if CORS blocks a redirect).
+      // No verification if the request was blocked by CORB, because
+      // 1) once request_initiator is trustworthy, CORB should only
+      //    apply to no-cors requests
+      // 2) some CORS-blocked requests may not reach CORB/response-started
+      //    stage at all (e.g. if CORS blocks a redirect).
 
-    // TODO(lukasza): Verify that the request was made in CORS mode (e.g.
-    // included an Origin header).
+      // TODO(lukasza): Verify that the request was made in CORS mode (e.g.
+      // included an Origin header).
+    } else {
+      // Verify the fetch was allowed.
+      EXPECT_EQ(expected_fetch_result, actual_fetch_result);
+      VerifyFetchFromContentScriptWasAllowedByCorb(histograms);
+    }
   }
 
   void VerifyNonCorbElligibleFetchFromContentScript(
@@ -338,41 +416,40 @@ class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
       const content::WebContentsConsoleObserver& console_observer,
       const std::string& actual_fetch_result,
       const std::string& expected_fetch_result_prefix) {
-    // Verify that CORB allowed the response.
-    VerifyFetchWasAllowedByCorb(histograms, false /* expecting_sniffing */);
+    // Verify that CORB sniffing allowed the response.
+    VerifyFetchFromContentScriptWasAllowedByCorb(histograms,
+                                                 true /* expecting_sniffing */);
 
-    // Verify that the response body was blocked by CORS.
-    EXPECT_EQ(kCorsErrorWhenFetching, actual_fetch_result);
-    VerifyFetchWasBlockedByCors(console_observer);
+    if (AreContentScriptFetchesExpectedToBeBlocked()) {
+      // Verify that the response body was blocked by CORS.
+      EXPECT_EQ(kCorsErrorWhenFetching, actual_fetch_result);
+      VerifyFetchWasBlockedByCors(console_observer);
+    } else {
+      // Verify that the response body was not blocked by either CORB nor CORS.
+      EXPECT_THAT(actual_fetch_result,
+                  ::testing::StartsWith(expected_fetch_result_prefix));
+    }
   }
 
   content::WebContents* active_web_contents() {
     return browser()->tab_strip_model()->GetActiveWebContents();
   }
 
-  const Extension* InstallExtensionWithManifest(base::StringPiece manifest) {
-    dir_.WriteManifest(manifest);
-    dir_.WriteFile(FILE_PATH_LITERAL("background_script.js"), "");
-    dir_.WriteFile(FILE_PATH_LITERAL("page.html"), "");
-
-    extension_ = LoadExtension(dir_.UnpackedPath());
-    return extension_;
-  }
-
-  const Extension* InstallExtensionWithPermissionToAllUrls(
-      bool enable_file_access = false) {
+  const Extension* InstallExtensionWithPermissionToAllUrls() {
+    // Note that the hardcoded "key" below matches kExpectedHashedExtensionId
+    // (used by the test suite for allowlisting the extension as needed).
     const char kManifestTemplate[] = R"(
         {
           "name": "CrossOriginReadBlockingTest - Extension/AllUrls",
+          "key": "%s",
           "version": "1.0",
           "manifest_version": 2,
           "permissions": [ "tabs", "<all_urls>" ],
           "background": {"scripts": ["background_script.js"]}
         } )";
-    dir_.WriteManifest(kManifestTemplate);
+    dir_.WriteManifest(base::StringPrintf(kManifestTemplate, kExtensionKey));
     dir_.WriteFile(FILE_PATH_LITERAL("background_script.js"), "");
-    extension_ = LoadExtension(dir_.UnpackedPath(),
-                               {.allow_file_access = enable_file_access});
+    extension_ = LoadExtension(dir_.UnpackedPath());
     DCHECK(extension_);
 
     return extension_;
@@ -381,7 +458,7 @@ class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
   bool RegisterServiceWorkerForExtension(
       const std::string& service_worker_script) {
     const char kServiceWorkerPath[] = "service_worker.js";
-    dir_.WriteFile(base::FilePath::FromASCII(kServiceWorkerPath).value(),
+    dir_.WriteFile(base::FilePath::FromUTF8Unsafe(kServiceWorkerPath).value(),
                    service_worker_script);
 
     const char kRegistrationScript[] = R"(
@@ -415,38 +492,28 @@ class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
   std::string FetchViaContentScript(const GURL& url,
                                     content::WebContents* web_contents) {
     return FetchHelper(
-        url, web_contents,
+        url,
         base::BindOnce(&CorbAndCorsExtensionBrowserTest::ExecuteContentScript,
                        base::Unretained(this), base::Unretained(web_contents)));
   }
 
   // Performs a fetch of |url| from the background page of the test extension.
   // Returns the body of the response.
-  std::string FetchViaBackgroundPage(const GURL& url,
-                                     const Extension* extension,
-                                     Browser* browser) {
-    content::WebContents* background_web_contents =
-        ProcessManager::Get(browser->profile())
-            ->GetBackgroundHostForExtension(extension->id())
-            ->host_contents();
-    return FetchViaFrame(url, background_web_contents);
-  }
   std::string FetchViaBackgroundPage(const GURL& url) {
-    return FetchViaBackgroundPage(url, extension_, browser());
+    return FetchHelper(
+        url, base::BindOnce(
+                 &browsertest_util::ExecuteScriptInBackgroundPageNoWait,
+                 base::Unretained(browser()->profile()), extension_->id()));
   }
 
-  // Performs a fetch of `url` from `execution_target` (directly, without going
+  // Performs a fetch of |url| from |web_contents| (directly, without going
   // through content scripts).  Returns the body of the response.
-  std::string FetchViaFrame(
-      const GURL& url,
-      const content::ToRenderFrameHost& execution_target) {
+  std::string FetchViaWebContents(const GURL& url,
+                                  content::WebContents* web_contents) {
     return FetchHelper(
         url,
-        content::WebContents::FromRenderFrameHost(
-            execution_target.render_frame_host()),
         base::BindOnce(&CorbAndCorsExtensionBrowserTest::ExecuteRegularScript,
-                       base::Unretained(this),
-                       execution_target.render_frame_host()));
+                       base::Unretained(this), base::Unretained(web_contents)));
   }
 
   // Performs a fetch of |url| from a srcdoc subframe added to |parent_frame|
@@ -454,7 +521,7 @@ class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
   std::string FetchViaSrcDocFrame(GURL url,
                                   content::RenderFrameHost* parent_frame) {
     return FetchHelper(
-        url, content::WebContents::FromRenderFrameHost(parent_frame),
+        url,
         base::BindOnce(&CorbAndCorsExtensionBrowserTest::ExecuteInSrcDocFrame,
                        base::Unretained(this), base::Unretained(parent_frame)));
   }
@@ -463,7 +530,9 @@ class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
     return extension_->GetResourceURL(relative_path);
   }
 
-  url::Origin GetExtensionOrigin() { return extension_->origin(); }
+  url::Origin GetExtensionOrigin() {
+    return url::Origin::Create(extension_->url());
+  }
 
   GURL GetTestPageUrl(const std::string& hostname) {
     // Using the page below avoids a network fetch of /favicon.ico which helps
@@ -488,16 +557,16 @@ class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
   }
 
  protected:
-  testing::NiceMock<policy::MockConfigurationPolicyProvider> policy_provider_;
+  policy::MockConfigurationPolicyProvider policy_provider_;
 
  private:
   // Executes |regular_script| in |web_contents|.
   //
   // This is an implementation of FetchCallback.
   // Returns true if the script execution started succeessfully.
-  bool ExecuteRegularScript(content::RenderFrameHost* frame,
+  bool ExecuteRegularScript(content::WebContents* web_contents,
                             const std::string& regular_script) {
-    content::ExecuteScriptAsync(frame, regular_script);
+    content::ExecuteScriptAsync(web_contents, regular_script);
 
     // Report artificial success to meet FetchCallback's requirements.
     return true;
@@ -553,10 +622,8 @@ class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
       base::OnceCallback<bool(const std::string& fetch_script)>;
 
   // Returns response body of a fetch of |url| initiated via |fetch_callback|.
-  std::string FetchHelper(const GURL& url,
-                          content::WebContents* web_contents,
-                          FetchCallback fetch_callback) {
-    content::DOMMessageQueue message_queue(web_contents);
+  std::string FetchHelper(const GURL& url, FetchCallback fetch_callback) {
+    content::DOMMessageQueue message_queue;
 
     // Inject a content script that performs a cross-origin fetch to
     // cross-site.com.
@@ -566,10 +633,13 @@ class CorbAndCorsExtensionBrowserTest : public CorbAndCorsExtensionTestBase {
     return PopString(&message_queue);
   }
 
-  raw_ptr<const Extension, DanglingUntriaged> extension_ = nullptr;
+  const Extension* extension_ = nullptr;
+  base::test::ScopedFeatureList scoped_feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(CorbAndCorsExtensionBrowserTest);
 };
 
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        FromDeclarativeContentScript_NoSniffXml) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL cross_site_resource(
@@ -583,18 +653,16 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
     // Monitor CORB behavior + result of the fetch.
     base::HistogramTester histograms;
     content::WebContentsConsoleObserver console_observer(active_web_contents());
-    content::DOMMessageQueue message_queue(active_web_contents());
+    content::DOMMessageQueue message_queue;
 
     // Navigate to a fetch-initiator.com page - this should trigger execution of
     // the |content_script| declared in the extension manifest.
     GURL page_url = GetTestPageUrl("fetch-initiator.com");
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-    EXPECT_EQ(
-        page_url,
-        active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-    EXPECT_EQ(
-        url::Origin::Create(page_url),
-        active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+    ui_test_utils::NavigateToURL(browser(), page_url);
+    EXPECT_EQ(page_url,
+              active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+    EXPECT_EQ(url::Origin::Create(page_url),
+              active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
     // Extract results of the fetch done in the declarative content script.
     std::string fetch_result = PopString(&message_queue);
@@ -612,7 +680,7 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
     // Monitor CORB behavior + result of the fetch.
     base::HistogramTester histograms;
     content::WebContentsConsoleObserver console_observer(active_web_contents());
-    content::DOMMessageQueue message_queue(active_web_contents());
+    content::DOMMessageQueue message_queue;
 
     // Inject an about:blank subframe - this should trigger execution of the
     // |content_script| declared in the extension manifest.
@@ -637,20 +705,18 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 // behavior) where a content script injected by an extension can bypass
 // CORS (and CORB) for any hosts the extension has access to.
 // See also https://crbug.com/846346.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        FromProgrammaticContentScript_NoSniffXml) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtension());
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that performs a cross-origin fetch to
   // cross-site.com.
@@ -670,7 +736,7 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 
 // Tests that extension permission to bypass CORS is revoked after the extension
 // is unloaded.  See also https://crbug.com/843381.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        FromProgrammaticContentScript_UnloadedExtension) {
   ASSERT_TRUE(embedded_test_server()->Start());
   const extensions::Extension* extension = InstallExtension();
@@ -678,13 +744,11 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that adds a link that initiates a fetch from
   // cross-site.com.
@@ -707,7 +771,7 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
         document.body.appendChild(link);
         domAutomationController.send('READY');
     )";
-    content::DOMMessageQueue queue(active_web_contents());
+    content::DOMMessageQueue queue;
     ASSERT_TRUE(ExecuteContentScript(
         active_web_contents(),
         base::StringPrintf(kNewButtonScriptTemplate,
@@ -715,7 +779,7 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
     ASSERT_EQ("READY", PopString(&queue));
   }
 
-  // Click the button - the fetch should be blocked.
+  // Click the button - the fetch should work if the extension is allowlisted.
   //
   // Clicking the button will execute the 'click' handler belonging to the
   // content script (i.e. the `startFetch` method defined in the
@@ -730,7 +794,7 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
     base::HistogramTester histograms;
     content::WebContentsConsoleObserver console_observer(active_web_contents());
 
-    content::DOMMessageQueue queue(active_web_contents());
+    content::DOMMessageQueue queue;
     content::ExecuteScriptAsync(active_web_contents(), kFetchInitiatingScript);
     std::string fetch_result = PopString(&queue);
 
@@ -750,20 +814,26 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
     base::HistogramTester histograms;
     content::WebContentsConsoleObserver console_observer(active_web_contents());
 
-    content::DOMMessageQueue queue(active_web_contents());
+    content::DOMMessageQueue queue;
     content::ExecuteScriptAsync(active_web_contents(), kFetchInitiatingScript);
     std::string fetch_result = PopString(&queue);
 
-    // Verify that the fetch was blocked by CORS.  (CORB only applies to
-    // `no-cors` requests.)
-    EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-    VerifyFetchWasBlockedByCors(console_observer);
-    VerifyFetchWasAllowedByCorb(histograms, false /* expecting_sniffing */);
+    if (IsExtensionAllowlisted()) {
+      // TODO(lukasza): https://crbug.com/1062043: Revoking of extension
+      // permissions doesn't cover
+      // URLLoaderFactoryParams::factory_bound_access_patterns.
+      EXPECT_EQ("nosniff.xml - body\n", fetch_result);
+      VerifyFetchFromContentScriptWasAllowedByCorb(histograms);
+    } else {
+      EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
+      VerifyFetchFromContentScriptWasBlockedByCorb(histograms);
+      VerifyFetchWasBlockedByCors(console_observer);
+    }
   }
 }
 
 // Test that <all_urls> permission does not apply to hosts blocked by policy.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        ContentScriptVsHostBlockedByPolicy_NoSniffXml) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtensionWithPermissionToAllUrls());
@@ -775,13 +845,11 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Test fetch from a host allowed by the policy (and allowed by the extension
   // permissions).
@@ -812,16 +880,15 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
     std::string fetch_result =
         FetchViaContentScript(cross_site_resource, active_web_contents());
 
-    // Verify that the fetch was blocked by CORS.  (CORB only applies to
-    // `no-cors` requests.)
+    // Verify that the fetch was blocked by CORS.
     EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
+    VerifyFetchFromContentScriptWasBlockedByCorb(histograms);
     VerifyFetchWasBlockedByCors(console_observer);
-    VerifyFetchWasAllowedByCorb(histograms, false /* expecting_sniffing */);
   }
 }
 
 // Test that <all_urls> permission does not apply to hosts blocked by policy.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        ContentScriptVsHostBlockedByPolicy_AllowedTextResource) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtensionWithPermissionToAllUrls());
@@ -833,13 +900,11 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Test fetch from a host allowed by the policy (and allowed by the extension
   // permissions).
@@ -872,80 +937,24 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 
     // Verify that the fetch was blocked by CORS.
     EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-    VerifyFetchWasAllowedByCorb(histograms, false /* expecting_sniffing */);
+    VerifyFetchFromContentScriptWasAllowedByCorb(histograms,
+                                                 true /* expecting_sniffing */);
     VerifyFetchWasBlockedByCors(console_observer);
   }
 }
 
-class CorbAndCorsUserHostRestrictionsBrowserTest
-    : public CorbAndCorsExtensionBrowserTest {
- public:
-  CorbAndCorsUserHostRestrictionsBrowserTest() {
-    scoped_feature_list_.InitAndEnableFeature(
-        extensions_features::kExtensionsMenuAccessControl);
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(CorbAndCorsUserHostRestrictionsBrowserTest,
-                       PolicyVsUserHostRestrictions) {
-  ASSERT_TRUE(embedded_test_server()->Start());
-  ASSERT_TRUE(InstallExtensionWithPermissionToAllUrls());
-  {
-    ExtensionManagementPolicyUpdater pref(&policy_provider_);
-    pref.AddPolicyBlockedHost("*", "*://*.example.com");
-    pref.AddPolicyAllowedHost("*", "*://public.example.com");
-  }
-
-  GURL policy_allowed_resource =
-      embedded_test_server()->GetURL("public.example.com", "/nosniff.xml");
-  GURL policy_restricted_resource =
-      embedded_test_server()->GetURL("restricted.example.com", "/nosniff.xml");
-
-  // Now, add user settings that are in the inverse of the policy ones:
-  // Blocked on public.example.com, but allowed on restricted.example.com.
-
-  PermissionsManager* permissions_manager = PermissionsManager::Get(profile());
-  {
-    PermissionsManagerWaiter waiter(permissions_manager);
-    permissions_manager->AddUserRestrictedSite(
-        url::Origin::Create(policy_allowed_resource));
-    waiter.WaitForUserPermissionsSettingsChange();
-  }
-  {
-    PermissionsManagerWaiter waiter(permissions_manager);
-    permissions_manager->AddUserPermittedSite(
-        url::Origin::Create(policy_restricted_resource));
-    waiter.WaitForUserPermissionsSettingsChange();
-  }
-
-  {
-    std::string fetch_result = FetchViaBackgroundPage(policy_allowed_resource);
-    EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-  }
-  {
-    std::string fetch_result =
-        FetchViaBackgroundPage(policy_restricted_resource);
-    EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-  }
-}
-
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        FromProgrammaticContentScript_PermissionToAllUrls) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtensionWithPermissionToAllUrls());
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that performs a cross-origin fetch to
   // cross-site.com.
@@ -964,17 +973,17 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 }
 
 // Verification that granting file access to extensions doesn't relax CORS in
-// case of requests to file: URLs (even from content scripts of extensions with
-// <all_urls> permission).  See also https://crbug.com/1049604#c14.
-IN_PROC_BROWSER_TEST_F(
+// case of requests to file: URLs (even from content scripts of allowlisted
+// extensions with <all_urls> permission).  See also
+// https://crbug.com/1049604#c14.
+IN_PROC_BROWSER_TEST_P(
     CorbAndCorsExtensionBrowserTest,
     FromProgrammaticContentScript_PermissionToAllUrls_FileUrls) {
   // Install the extension and verify that the extension has access to file URLs
   // (<all_urls> permission is not sufficient - the extension has to be
-  // additionally granted file access by setting LoadOptions.allow_file_access
-  // to true in ExtensionBrowserTest::LoadExtension).
-  const Extension* extension =
-      InstallExtensionWithPermissionToAllUrls(/*enable_file_access=*/true);
+  // additionally granted file access by passing kFlagEnableFileAccess in
+  // ExtensionBrowserTest::LoadExtension).
+  const Extension* extension = InstallExtensionWithPermissionToAllUrls();
   ASSERT_TRUE(extension);
   ASSERT_TRUE(util::AllowFileAccess(
       extension->id(), active_web_contents()->GetBrowserContext()));
@@ -988,10 +997,9 @@ IN_PROC_BROWSER_TEST_F(
   ASSERT_EQ(url::kFileScheme, same_dir_resource.scheme());
 
   // Navigate to a file:// test page.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
   const char kScriptTemplate[] = R"(
       const url = $1;
       const xhr = new XMLHttpRequest();
@@ -1009,7 +1017,7 @@ IN_PROC_BROWSER_TEST_F(
   {
     base::HistogramTester histograms;
     content::WebContentsConsoleObserver console_observer(active_web_contents());
-    content::DOMMessageQueue queue(active_web_contents());
+    content::DOMMessageQueue queue;
     ExecuteScriptAsync(active_web_contents(), script);
     std::string xhr_result = PopString(&queue);
 
@@ -1039,7 +1047,7 @@ IN_PROC_BROWSER_TEST_F(
   {
     base::HistogramTester histograms;
     content::WebContentsConsoleObserver console_observer(active_web_contents());
-    content::DOMMessageQueue queue(active_web_contents());
+    content::DOMMessageQueue queue;
     ExecuteContentScript(active_web_contents(), script);
     std::string xhr_result = PopString(&queue);
 
@@ -1060,20 +1068,18 @@ IN_PROC_BROWSER_TEST_F(
 
 // Coverage of *.subdomain.com extension permissions for CORB-eligible fetches
 // (via nosniff.xml).
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        FromProgrammaticContentScript_SubdomainPermissions) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtension());
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Verify behavior for fetching URLs covered by extension permissions.
   GURL kAllowedUrls[] = {
@@ -1100,20 +1106,18 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 // behavior) where a content script injected by an extension can bypass
 // CORS (and CORB) for any hosts the extension has access to.
 // See also https://crbug.com/1034408 and https://crbug.com/846346.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        FromProgrammaticContentScript_RedirectToNoSniffXml) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtension());
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that performs a cross-origin fetch to
   // cross-site.com.
@@ -1136,20 +1140,18 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 
 // Test that verifies CORS-allowed fetches work for targets that are not
 // covered by the extension permissions.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        ContentScript_CorsAllowedByServer_NoPermissionToTarget) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtension());
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that performs a cross-origin fetch to
   // other-without-permission.com.
@@ -1162,25 +1164,23 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
   // Verify that the fetch succeeded (because of the server's
   // Access-Control-Allow-Origin response header).
   EXPECT_EQ("cors-ok.txt - body\n", fetch_result);
-  VerifyFetchWasAllowedByCorb(histograms);
+  VerifyFetchFromContentScriptWasAllowedByCorb(histograms);
 }
 
 // Test that verifies that CORS blocks non-CORB-eligible fetches for targets
 // that are not covered by the extension permissions.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        ContentScript_CorsIgnoredByServer_NoPermissionToTarget) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtension());
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that performs a cross-origin fetch to
   // other-without-permission.com.
@@ -1197,28 +1197,27 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
   EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
   VerifyFetchWasBlockedByCors(console_observer);
 
-  // Verify that the fetch was allowed by CORB (because CORB doesn't apply to
-  // CORS requests).
-  VerifyFetchWasAllowedByCorb(histograms, false /* expecting_sniffing */);
+  // Verify that the fetch was allowed by CORB (because the response sniffed as
+  // didn't sniff as html/xml/json).
+  VerifyFetchFromContentScriptWasAllowedByCorb(histograms,
+                                               true /* expecting_sniffing */);
 }
 
 // Tests that same-origin fetches (same-origin relative to the webpage the
 // content script is injected into) are allowed.  See also
 // https://crbug.com/918660.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        FromProgrammaticContentScript_SameOrigin) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtension());
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that performs a same-origin fetch to
   // fetch-initiator.com.
@@ -1230,25 +1229,24 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 
   // Verify that no blocking occurred.
   EXPECT_THAT(fetch_result, ::testing::StartsWith("nosniff.xml - body"));
-  VerifyFetchWasAllowedByCorb(histograms, false /* expecting_sniffing */);
+  VerifyFetchFromContentScriptWasAllowedByCorb(histograms,
+                                               false /* expecting_sniffing */);
 }
 
 // Test that responses that would have been allowed by CORB anyway are not
 // reported to LogInitiatorSchemeBypassingDocumentBlocking.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        FromProgrammaticContentScript_AllowedTextResource) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtension());
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that performs a cross-origin fetch to
   // cross-site.com.
@@ -1266,7 +1264,7 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
       "text-object.txt: ae52dd09-9746-4b7e-86a6-6ada5e2680c2");
 }
 
-// The trust-token-redemption Permissions Policy feature, which is enabled by
+// The trust-token-redemption Feature Policy feature, which is enabled by
 // default, is required in order to execute a Trust Tokens
 // (https://github.com/wicg/trust-token-api) redemption operation alongside a
 // subresource request. To enforce this requirement, the browser binds the
@@ -1280,19 +1278,18 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 class TrustTokenExtensionBrowserTest : public CorbAndCorsExtensionBrowserTest {
  public:
   TrustTokenExtensionBrowserTest() {
-    scoped_feature_list_.InitAndEnableFeature(
-        network::features::kPrivateStateTokens);
+    scoped_feature_list_.InitAndEnableFeature(network::features::kTrustTokens);
   }
 
  protected:
   base::test::ScopedFeatureList scoped_feature_list_;
 };
-
-// TODO(crbug.com/1315215): Have trust tokens handle the existence, or not, of
-// PrivacySandboxSettings3.
-IN_PROC_BROWSER_TEST_F(
+INSTANTIATE_TEST_SUITE_P(Allowlisted_AllowlistForCors,
+                         TrustTokenExtensionBrowserTest,
+                         ::testing::Values(TestParam::kAllowlisted));
+IN_PROC_BROWSER_TEST_P(
     TrustTokenExtensionBrowserTest,
-    DISABLED_FromProgrammaticContentScript_TrustTokenRedemptionAllowed) {
+    FromProgrammaticContentScript_TrustTokenRedemptionAllowed) {
   // Trust Tokens operations only work on secure origins - set up a https test
   // server to help with this. One alternative would be using a localhost URL
   // from |embedded_test_server|, but this would require modifying the extension
@@ -1306,14 +1303,14 @@ IN_PROC_BROWSER_TEST_F(
   ASSERT_TRUE(InstallExtension());
 
   GURL page_url = https_server.GetURL("/title1.html");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
+  ui_test_utils::NavigateToURL(browser(), page_url);
 
   // This doesn't need to exist; we expect the fetch to fail during precondition
   // checking.
   GURL resource("/fake-trust-token-page");
 
   {
-    content::DOMMessageQueue message_queue(active_web_contents());
+    content::DOMMessageQueue message_queue;
 
     base::Value request_init(base::Value::Type::DICTIONARY);
     request_init.SetStringPath("trustToken.type", "token-redemption");
@@ -1333,10 +1330,10 @@ IN_PROC_BROWSER_TEST_F(
     return;
   SimulateNetworkServiceCrash();
   active_web_contents()
-      ->GetPrimaryMainFrame()
+      ->GetMainFrame()
       ->FlushNetworkAndNavigationInterfacesForTesting();
   {
-    content::DOMMessageQueue message_queue(active_web_contents());
+    content::DOMMessageQueue message_queue;
 
     base::Value request_init(base::Value::Type::DICTIONARY);
     request_init.SetStringPath("trustToken.type", "token-redemption");
@@ -1353,7 +1350,7 @@ IN_PROC_BROWSER_TEST_F(
 
 // Coverage of *.subdomain.com extension permissions for non-CORB eligible
 // fetches (via save_page/text.txt).
-IN_PROC_BROWSER_TEST_F(
+IN_PROC_BROWSER_TEST_P(
     CorbAndCorsExtensionBrowserTest,
     FromProgrammaticContentScript_AllowedTextResource_SubdomainPermissions) {
   ASSERT_TRUE(embedded_test_server()->Start());
@@ -1361,13 +1358,11 @@ IN_PROC_BROWSER_TEST_F(
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Verify behavior for fetching URLs covered by extension permissions.
   GURL kAllowedUrls[] = {
@@ -1393,20 +1388,18 @@ IN_PROC_BROWSER_TEST_F(
 
 // Test that responses that would have been allowed by CORB after sniffing are
 // included in the AllowedByCorbButNotCors UMA.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        FromProgrammaticContentScript_AllowedAfterSniffing) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtension());
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that performs a cross-origin fetch to
   // cross-site.com (to a PNG image that is incorrectly labelled as
@@ -1425,20 +1418,18 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 
 // Test that responses are blocked by CORB, but have empty response body are not
 // reported to LogInitiatorSchemeBypassingDocumentBlocking.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        FromProgrammaticContentScript_EmptyAndBlocked) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtension());
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that performs a cross-origin fetch to
   // cross-site.com.
@@ -1457,361 +1448,43 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
                                            "" /* expected_response_body */);
 }
 
-// Test that requests from an extension background page use relaxed CORS
-// processing.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+// Test that LogInitiatorSchemeBypassingDocumentBlocking exits early for
+// requests that aren't from content scripts.
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        FromBackgroundPage_NoSniffXml) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtension());
 
-  // This test covers the default incognito mode (spanning mode) where there is
-  // only a single background page (i.e. no separate incognito background page).
-  EXPECT_FALSE(IncognitoInfo::IsSplitMode(extension()));
-
   // Performs a cross-origin fetch from the background page.
-  {
-    base::HistogramTester histograms;
-    GURL cross_site_resource(
-        embedded_test_server()->GetURL("cross-site.com", "/nosniff.xml"));
-    std::string fetch_result = FetchViaBackgroundPage(cross_site_resource);
-
-    // Verify that no blocking occurred.
-    EXPECT_EQ("nosniff.xml - body\n", fetch_result);
-    VerifyCorbWasDisabled(histograms);
-  }
-}
-
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
-                       FromBackgroundPage_NoSniffXml_OriginAccessList) {
-  ASSERT_TRUE(embedded_test_server()->Start());
-  ASSERT_TRUE(InstallExtension());
-  content::WebContents* background_web_contents =
-      ProcessManager::Get(browser()->profile())
-          ->GetBackgroundHostForExtension(extension()->id())
-          ->host_contents();
-
-  // The extension manifest has */cross-site.com in it's permissions array.
+  base::HistogramTester histograms;
   GURL cross_site_resource(
       embedded_test_server()->GetURL("cross-site.com", "/nosniff.xml"));
-  ASSERT_EQ(background_web_contents->GetBrowserContext()
-                ->GetSharedCorsOriginAccessList()
-                ->GetOriginAccessList()
-                .CheckAccessState(GetExtensionOrigin(), cross_site_resource),
-            network::cors::OriginAccessList::AccessState::kAllowed);
+  std::string fetch_result = FetchViaBackgroundPage(cross_site_resource);
 
-  // This url is intentionally left out of the `permissions` array in the
-  // extensions manifest.
-  GURL cross_site_without_permission_resource("other-without-permission.com");
-  ASSERT_NE(background_web_contents->GetBrowserContext()
-                ->GetSharedCorsOriginAccessList()
-                ->GetOriginAccessList()
-                .CheckAccessState(GetExtensionOrigin(),
-                                  cross_site_without_permission_resource),
-            network::cors::OriginAccessList::AccessState::kAllowed);
-}
-
-// Test that requests from an extension background page use relaxed CORB
-// processing in `no-cors` mode.  See also https://crbug.com/1252173.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
-                       FromBackgroundPage_NoSniffXml_NoCors) {
-  ASSERT_TRUE(embedded_test_server()->Start());
-  ASSERT_TRUE(InstallExtension());
-
-  // This test covers the default incognito mode (spanning mode) where there is
-  // only a single background page (i.e. no separate incognito background page).
-  EXPECT_FALSE(IncognitoInfo::IsSplitMode(extension()));
-
-  // Performs a cross-origin fetch from the background page in "no-cors" mode.
-  GURL cross_site_resource(
-      embedded_test_server()->GetURL("cross-site.com", "/nosniff.xml"));
-  base::Value request_init(base::Value::Type::DICTIONARY);
-  request_init.SetStringPath("mode", "no-cors");
-  std::string script =
-      CreateFetchScript(cross_site_resource, std::move(request_init));
-  content::WebContents* background_web_contents =
-      ProcessManager::Get(browser()->profile())
-          ->GetBackgroundHostForExtension(extension()->id())
-          ->host_contents();
-  content::DOMMessageQueue message_queue(background_web_contents);
-  content::ExecuteScriptAsync(background_web_contents, script);
-  std::string fetch_result = PopString(&message_queue);
-
-  // Verify that no blocking occurred (this is a bit unusual, as "no-cors"
-  // responses are normally "opaque" - their body is normally not exposed to
-  // Javascript).  See also https://crbug.com/1252173.
+  // Verify that no blocking occurred.
   EXPECT_EQ("nosniff.xml - body\n", fetch_result);
 }
 
-// Test that requests from an extension background page use relaxed CORB
-// processing.  This test covers split-mode extensions - see:
-// https://developer.chrome.com/docs/extensions/mv2/manifest/incognito/#split)
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
-                       FromBackgroundPage_IncognitoSplitMode) {
-  ASSERT_TRUE(embedded_test_server()->Start());
-
-  // Install a split-mode extension with permission to cross-site.com.
-  TestExtensionDir extension_dir;
-  constexpr char kManifest[] = R"(
-      {
-        "name": "Split-mode CORS-testing extension",
-        "version": "1.0",
-        "manifest_version": 2,
-        "incognito": "split",
-        "permissions": [ "*://cross-site.com/*" ],
-        "background": {
-          "scripts": ["bg_script.js"]
-        }
-      } )";
-  extension_dir.WriteManifest(kManifest);
-  extension_dir.WriteFile(FILE_PATH_LITERAL("bg_script.js"), R"(
-      if (chrome.extension.inIncognitoContext) {
-          chrome.test.sendMessage('Ready: incognito');
-      } else {
-          chrome.test.sendMessage('Ready: not incognito');
-      } )");
-  const Extension* extension = nullptr;
-  {
-    ExtensionTestMessageListener listener("Ready: not incognito");
-    extension = LoadExtension(extension_dir.UnpackedPath(),
-                              {.allow_in_incognito = true});
-    ASSERT_TRUE(extension);
-    ASSERT_TRUE(listener.WaitUntilSatisfied());
-  }
-
-  // This test covers the split-mode incognito mode where there is a separate
-  // background page for the regular profile and a separate background page for
-  // the incognito profile.
-  EXPECT_TRUE(IncognitoInfo::IsSplitMode(extension));
-
-  // Open an incognito window.  (The incognito-specific background host for the
-  // extension will be created after creating a window.)
-  Browser* incognito_browser = nullptr;
-  {
-    ExtensionTestMessageListener listener("Ready: incognito");
-    incognito_browser = CreateIncognitoBrowser();
-    ASSERT_TRUE(listener.WaitUntilSatisfied());
-  }
-
-  // Both the regular and the incognito background pages should be able to
-  // bypass CORS for accessing the `cross_site_resource`.
-  GURL cross_site_resource(
-      embedded_test_server()->GetURL("cross-site.com", "/nosniff.xml"));
-  {
-    SCOPED_TRACE("Regular profile's background page");
-    std::string fetch_result =
-        FetchViaBackgroundPage(cross_site_resource, extension, browser());
-    EXPECT_EQ("nosniff.xml - body\n", fetch_result);
-  }
-  {
-    SCOPED_TRACE("Incognito profile's background page");
-    std::string fetch_result = FetchViaBackgroundPage(
-        cross_site_resource, extension, incognito_browser);
-    EXPECT_EQ("nosniff.xml - body\n", fetch_result);
-  }
-}
-
-// Test that CORB+CORS are enforced for extensions with no permissions to
-// http/https origins.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
-                       ExtensionWithNoHttpPermissions) {
-  ASSERT_TRUE(embedded_test_server()->Start());
-
-  // "permission" entry in the manifest below mimics the PDF extension which
-  // has no permissions to http/https origins (and therefore doesn't care
-  // about relaxed CORB and/or CORS).
-  const char kManifest[] = R"(
-      {
-        "name": "CrossOriginReadBlockingTest - Extension",
-        "version": "1.0",
-        "manifest_version": 2,
-        "permissions": [ "contentSettings" ],
-        "background": {"scripts": ["background_script.js"]}
-      } )";
-  ASSERT_TRUE(InstallExtensionWithManifest(kManifest));
-
-  // Perform a cross-origin CORS fetch from the background page.
-  {
-    base::HistogramTester histograms;
-    GURL cross_site_resource1(
-        embedded_test_server()->GetURL("cross-site.com", "/nosniff.empty"));
-    std::string fetch_result = FetchViaBackgroundPage(cross_site_resource1);
-
-    // Verify that the fetch was blocked by CORS.
-    //
-    // This behavior verification is a bit important, but here it mostly tests
-    // the test setup, rather than the behavior this test was created for.
-    EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-
-    // CORB only applies to `no-cors` requests.
-    VerifyFetchWasAllowedByCorb(histograms, false /* expecting_sniffing */);
-  }
-
-  // Perform a cross-origin `no-cors` request from the background page.
-  {
-    // Use a slightly different URL to avoid having to think what effect the
-    // network cache might have on test results.
-    GURL cross_site_resource2(
-        embedded_test_server()->GetURL("cross-site.com", "/nosniff.xml"));
-
-    base::Value request_init(base::Value::Type::DICTIONARY);
-    request_init.SetStringPath("method", "GET");
-    request_init.SetStringPath("mode", "no-cors");
-
-    content::WebContents* background_web_contents =
-        ProcessManager::Get(browser()->profile())
-            ->GetBackgroundHostForExtension(extension()->id())
-            ->host_contents();
-
-    base::HistogramTester histograms;
-    content::DOMMessageQueue queue(background_web_contents);
-    content::ExecuteScriptAsync(
-        background_web_contents,
-        CreateFetchScript(cross_site_resource2, std::move(request_init)));
-    std::string fetch_result = PopString(&queue);
-
-    // Verify that the fetch was blocked by CORB.
-    //
-    // This is the main verification in the test.  This verifies that the
-    // extension background page uses a URLLoaderFactory created with
-    // URLLoaderFactoryParams::is_corb_enabled set to the default, secure value
-    // of `true`.
-    EXPECT_EQ("", fetch_result);  // `no-cors` = empty, opaque response.
-    VerifyFetchWasBlockedByCorb(histograms);
-  }
-}
-
-// Test that CORB+CORS are enforced for extensions with optional permissions to
-// http/https origins.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
-                       ExtensionWithOptionalHttpPermissions) {
-  ASSERT_TRUE(embedded_test_server()->Start());
-
-  // There are only *optional* HTTP permissions declared in the manifest below -
-  // they will be granted later, at runtime (but not at the extension
-  // installation time).
-  const char kManifest[] = R"(
-      {
-        "name": "CrossOriginReadBlockingTest - Extension",
-        "version": "1.0",
-        "manifest_version": 2,
-        "optional_permissions": [ "<all_urls>", "http://example.com/" ],
-        "background": {"scripts": ["background_script.js"]}
-      } )";
-  ASSERT_TRUE(InstallExtensionWithManifest(kManifest));
-
-  // Navigate a tab to the extension origin.
-  GURL extension_resource = GetExtensionResource("page.html");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), extension_resource));
-  content::RenderFrameHost* test_frame = browser()
-                                             ->tab_strip_model()
-                                             ->GetActiveWebContents()
-                                             ->GetPrimaryMainFrame();
-  ASSERT_EQ(GetExtensionOrigin(), test_frame->GetLastCommittedOrigin());
-
-  // Perform a cross-origin fetch from an extension frame and verify that it got
-  // blocked by CORS.
-  GURL cross_site_url(
-      embedded_test_server()->GetURL("cross-site.com", "/nosniff.xml"));
-  url::Origin cross_site_origin = url::Origin::Create(cross_site_url);
-  {
-    base::HistogramTester histograms;
-    std::string fetch_result = FetchViaFrame(cross_site_url, test_frame);
-    EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-
-    // In presence of optional HTTP permissions CORB is disabled.
-    VerifyCorbWasDisabled(histograms);
-  }
-
-  // Grant the optional permissions to the extension.
-  {
-    PermissionsRequestFunction::SetAutoConfirmForTests(true);
-    const char kPermissionGrantingScriptTemplate[] = R"(
-        chrome.permissions.request(
-            { origins: [$1] },
-            granted => { domAutomationController.send(granted); });
-    )";
-    bool has_permission_been_granted = false;
-    std::string script = content::JsReplace(kPermissionGrantingScriptTemplate,
-                                            cross_site_origin.GetURL());
-    ASSERT_TRUE(content::ExecuteScriptAndExtractBool(
-        test_frame, script, &has_permission_been_granted));
-    ASSERT_TRUE(has_permission_been_granted);
-    PermissionsRequestFunction::SetAutoConfirmForTests(false);
-  }
-
-  // Performs a cross-origin fetch from the background page and verify that it
-  // didn't get blocked by CORS.
-  {
-    base::HistogramTester histograms;
-    std::string fetch_result = FetchViaFrame(cross_site_url, test_frame);
-    EXPECT_EQ("nosniff.xml - body\n", fetch_result);
-
-    // In presence of optional HTTP permissions CORB is disabled.
-    VerifyCorbWasDisabled(histograms);
-  }
-}
-
-// Test that requests from an extension page hosted in a foreground tab use
+// Test that requests from a extension page hosted in a foreground tab use
 // relaxed CORB processing.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        FromForegroundPage_NoSniffXml) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtension());
 
-  // This test covers the default incognito mode (spanning mode) where there is
-  // only a single background page (i.e. no separate incognito background page),
-  // but multiple processes (one per profile) for extension frames.
-  EXPECT_FALSE(IncognitoInfo::IsSplitMode(extension()));
+  // Navigate a tab to an extension page.
+  ui_test_utils::NavigateToURL(browser(), GetExtensionResource("page.html"));
+  ASSERT_EQ(GetExtensionOrigin(),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
-  // Open an extension frame both in the regular window and in a new incognito
-  // window.
-  GURL extension_resource = GetExtensionResource("page.html");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), extension_resource));
-  content::WebContents* incognito_contents = nullptr;
+  // Test case #1: Fetch from a chrome-extension://... main frame.
   {
-    GURL http_test_page = GetTestPageUrl("fetch-initiator.com");
-    Browser* incognito_browser =
-        OpenURLOffTheRecord(browser()->profile(), http_test_page);
-    incognito_contents =
-        incognito_browser->tab_strip_model()->GetActiveWebContents();
-    ASSERT_EQ(http_test_page, incognito_contents->GetLastCommittedURL());
-
-    // Open an extension *subframe*.  Spanning-mode extensions cannot load in
-    // main frames of incognito tabs as enforced by ExtensionCanLoadInIncognito
-    // in //extensions/browser/extension_protocols.cc and described in
-    // https://developer.chrome.com/docs/extensions/mv2/manifest/incognito/#spanning
-    const char kScriptTemplate[] = R"(
-        var iframe = document.createElement('iframe');
-        iframe.src = $1;
-        document.body.appendChild(iframe);
-    )";
-    {
-      content::TestNavigationObserver navigation_observer(incognito_contents);
-      content::ExecuteScriptAsync(
-          incognito_contents,
-          content::JsReplace(kScriptTemplate, extension_resource));
-      navigation_observer.Wait();
-      ASSERT_TRUE(navigation_observer.last_navigation_succeeded());
-      ASSERT_EQ(extension_resource, navigation_observer.last_navigation_url());
-    }
-  }
-  content::RenderFrameHost* regular_frame = browser()
-                                                ->tab_strip_model()
-                                                ->GetActiveWebContents()
-                                                ->GetPrimaryMainFrame();
-  ASSERT_EQ(GetExtensionOrigin(), regular_frame->GetLastCommittedOrigin());
-  content::RenderFrameHost* incognito_frame =
-      content::ChildFrameAt(incognito_contents->GetPrimaryMainFrame(), 0);
-  ASSERT_TRUE(incognito_frame);
-  ASSERT_EQ(GetExtensionOrigin(), incognito_frame->GetLastCommittedOrigin());
-
-  // Test case #1: Fetch from a regular profile's foreground tab.
-  GURL cross_site_resource(
-      embedded_test_server()->GetURL("cross-site.com", "/nosniff.xml"));
-  {
-    SCOPED_TRACE("Regular profile's foreground tab - main frame");
+    // Perform a cross-origin fetch from the foreground extension page.
+    base::HistogramTester histograms;
+    GURL cross_site_resource(
+        embedded_test_server()->GetURL("cross-site.com", "/nosniff.xml"));
     std::string fetch_result =
-        FetchViaFrame(cross_site_resource, regular_frame);
+        FetchViaWebContents(cross_site_resource, active_web_contents());
 
     // Verify that no blocking occurred.
     EXPECT_EQ("nosniff.xml - body\n", fetch_result);
@@ -1820,88 +1493,12 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
   // Test case #2: Fetch from an about:srcdoc subframe of a
   // chrome-extension://... frame.
   {
-    SCOPED_TRACE("Regular profile's foreground tab - srcdoc frame");
-    std::string fetch_result =
-        FetchViaSrcDocFrame(cross_site_resource, regular_frame);
-
-    // Verify that no blocking occurred.
-    EXPECT_EQ("nosniff.xml - body\n", fetch_result);
-  }
-
-  // Test case #3: Fetch from an extension subframe in an incognito foreground
-  // tab.
-  {
-    SCOPED_TRACE("Incognito profile's foreground tab - subframe");
-    std::string fetch_result =
-        FetchViaFrame(cross_site_resource, incognito_frame);
-
-    // Verify that no blocking occurred.
-    EXPECT_EQ("nosniff.xml - body\n", fetch_result);
-  }
-}
-
-// Test that requests from an extension page hosted in a foreground tab use
-// relaxed CORB processing.  This test covers split-mode extensions - see:
-// https://developer.chrome.com/docs/extensions/mv2/manifest/incognito/#split
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
-                       FromForegroundPage_IncognitoSplitMode) {
-  ASSERT_TRUE(embedded_test_server()->Start());
-
-  // Install a split-mode extension with permission to cross-site.com.
-  TestExtensionDir extension_dir;
-  constexpr char kManifest[] = R"(
-      {
-        "name": "Split-mode CORS-testing extension",
-        "version": "1.0",
-        "manifest_version": 2,
-        "incognito": "split",
-        "permissions": [ "*://cross-site.com/*" ],
-        "background": { "scripts": ["bg_script.js"] }
-      } )";
-  extension_dir.WriteManifest(kManifest);
-  extension_dir.WriteFile(FILE_PATH_LITERAL("bg_script.js"), "");
-  extension_dir.WriteFile(FILE_PATH_LITERAL("page.html"),
-                          "<body>Hello World!</body>");
-  const Extension* extension =
-      LoadExtension(extension_dir.UnpackedPath(), {.allow_in_incognito = true});
-  ASSERT_TRUE(extension);
-
-  // This test covers the split-mode incognito mode where there is a separate
-  // background page for the regular profile and a separate background page for
-  // the incognito profile.
-  EXPECT_TRUE(IncognitoInfo::IsSplitMode(extension));
-
-  // Open an extension tab both in the regular window and in a new incognito
-  // window.
-  GURL extension_page = extension->GetResourceURL("page.html");
-  content::WebContents* regular_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
-  Browser* incognito_browser =
-      OpenURLOffTheRecord(browser()->profile(), extension_page);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), extension_page));
-  content::WebContents* incognito_contents =
-      incognito_browser->tab_strip_model()->GetActiveWebContents();
-  ASSERT_EQ(extension->origin(),
-            regular_contents->GetPrimaryMainFrame()->GetLastCommittedOrigin());
-  ASSERT_EQ(
-      extension->origin(),
-      incognito_contents->GetPrimaryMainFrame()->GetLastCommittedOrigin());
-
-  // Test fetching a cross-site resource.
-  GURL cross_site_resource(
-      embedded_test_server()->GetURL("cross-site.com", "/nosniff.xml"));
-  {
-    SCOPED_TRACE("Regular profile's foreground tab");
-    std::string fetch_result =
-        FetchViaFrame(cross_site_resource, regular_contents);
-
-    // Verify that no blocking occurred.
-    EXPECT_EQ("nosniff.xml - body\n", fetch_result);
-  }
-  {
-    SCOPED_TRACE("Incognito profile's foreground tab");
-    std::string fetch_result =
-        FetchViaFrame(cross_site_resource, incognito_contents);
+    // Perform a cross-origin fetch from the foreground extension page.
+    base::HistogramTester histograms;
+    GURL cross_site_resource(
+        embedded_test_server()->GetURL("cross-site.com", "/nosniff.xml"));
+    std::string fetch_result = FetchViaSrcDocFrame(
+        cross_site_resource, active_web_contents()->GetMainFrame());
 
     // Verify that no blocking occurred.
     EXPECT_EQ("nosniff.xml - body\n", fetch_result);
@@ -1912,7 +1509,7 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 // relaxed CORB processing (both in the case of requests that 1) are initiated
 // by the service worker and/or 2) are ignored by the service worker and fall
 // back to the network).
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        FromRegisteredServiceWorker_NoSniffXml) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtension());
@@ -1949,11 +1546,9 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
   ASSERT_TRUE(RegisterServiceWorkerForExtension(kServiceWorkerScript));
 
   // Navigate a tab to an extension page.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(),
-                                           GetExtensionResource("page.html")));
-  ASSERT_EQ(
-      GetExtensionOrigin(),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), GetExtensionResource("page.html"));
+  ASSERT_EQ(GetExtensionOrigin(),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Verify that the service worker controls the fetches.
   bool is_controlled_by_service_worker = false;
@@ -1971,11 +1566,12 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
   {
     // Perform a cross-origin fetch from the foreground extension page.
     // This should be intercepted by the service worker installed above.
+    base::HistogramTester histograms;
     GURL cross_site_resource_intercepted_by_service_worker(
         embedded_test_server()->GetURL("cross-site.com", "/nosniff.xml"));
     std::string fetch_result =
-        FetchViaFrame(cross_site_resource_intercepted_by_service_worker,
-                      active_web_contents());
+        FetchViaWebContents(cross_site_resource_intercepted_by_service_worker,
+                            active_web_contents());
 
     // Verify that no blocking occurred (and that the response really did go
     // through the service worker).
@@ -1992,10 +1588,11 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
   {
     // Perform a cross-origin fetch from the foreground extension page.
     // This should be intercepted by the service worker installed above.
+    base::HistogramTester histograms;
     GURL cross_site_resource_ignored_by_service_worker(
         embedded_test_server()->GetURL("other-with-permission.com",
                                        "/nosniff.xml"));
-    std::string fetch_result = FetchViaFrame(
+    std::string fetch_result = FetchViaWebContents(
         cross_site_resource_ignored_by_service_worker, active_web_contents());
 
     // Verify that no blocking occurred.
@@ -2003,8 +1600,8 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
   }
 }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN) || \
-    BUILDFLAG(IS_MAC)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_WIN) || \
+    defined(OS_MAC)
 // Flaky on Linux, especially under sanitizers: https://crbug.com/1073052
 // Flaky UAF on Mac under ASAN: https://crbug.com/1082355
 #define MAYBE_FromBackgroundServiceWorker_NoSniffXml \
@@ -2014,13 +1611,14 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
   FromBackgroundServiceWorker_NoSniffXml
 #endif
 
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        MAYBE_FromBackgroundServiceWorker_NoSniffXml) {
   // Install the extension with a service worker that can be asked to start a
   // fetch to an arbitrary URL.
   const char kManifestTemplate[] = R"(
       {
         "name": "CrossOriginReadBlockingTest - Extension/BgServiceWorker",
+        "key": "%s",
         "version": "1.0",
         "manifest_version": 2,
         "permissions": [
@@ -2042,7 +1640,7 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
             }
           });
   )";
-  dir_.WriteManifest(kManifestTemplate);
+  dir_.WriteManifest(base::StringPrintf(kManifestTemplate, kExtensionKey));
   dir_.WriteFile(FILE_PATH_LITERAL("sw.js"), kServiceWorker);
   dir_.WriteFile(FILE_PATH_LITERAL("page.html"), "<body>Hello World!</body>");
   const Extension* extension = LoadExtension(dir_.UnpackedPath());
@@ -2050,8 +1648,8 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 
   // Navigate a foreground tab to an extension URL, so that from this tab we can
   // ask the background service worker to initiate test fetches.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), extension->GetResourceURL("page.html")));
+  ui_test_utils::NavigateToURL(browser(),
+                               extension->GetResourceURL("page.html"));
   const char kFetchTemplate[] = R"(
       chrome.runtime.sendMessage({url: $1}, function(response) {
           domAutomationController.send(response);
@@ -2063,7 +1661,7 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
   {
     GURL nosniff_xml_with_permission(
         embedded_test_server()->GetURL("cross-site.com", "/nosniff.xml"));
-    content::DOMMessageQueue queue(active_web_contents());
+    content::DOMMessageQueue queue;
     base::HistogramTester histograms;
     content::ExecuteScriptAsync(
         active_web_contents(),
@@ -2074,14 +1672,17 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
     EXPECT_EQ("nosniff.xml - body\n", fetch_result);
 
     // CORB should be disabled for extension origins.
-    VerifyCorbWasDisabled(histograms);
+    metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
+    EXPECT_EQ(
+        0u,
+        histograms.GetTotalCountsForPrefix("SiteIsolation.XSD.Browser").size());
   }
 
   // Test a request to a website *not* covered by extension permissions.
   {
     GURL nosniff_xml_with_permission(embedded_test_server()->GetURL(
         "other-without-permission.com", "/nosniff.xml"));
-    content::DOMMessageQueue queue(active_web_contents());
+    content::DOMMessageQueue queue;
     base::HistogramTester histograms;
     ServiceWorkerConsoleObserver console_observer(
         active_web_contents()->GetBrowserContext());
@@ -2096,7 +1697,10 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
     VerifyFetchWasBlockedByCors(console_observer);
 
     // CORB should be disabled for extension origins.
-    VerifyCorbWasDisabled(histograms);
+    metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
+    EXPECT_EQ(
+        0u,
+        histograms.GetTotalCountsForPrefix("SiteIsolation.XSD.Browser").size());
   }
 }
 
@@ -2104,9 +1708,6 @@ class ReadyToCommitWaiter : public content::WebContentsObserver {
  public:
   explicit ReadyToCommitWaiter(content::WebContents* web_contents)
       : content::WebContentsObserver(web_contents) {}
-
-  ReadyToCommitWaiter(const ReadyToCommitWaiter&) = delete;
-  ReadyToCommitWaiter& operator=(const ReadyToCommitWaiter&) = delete;
 
   ~ReadyToCommitWaiter() override {}
 
@@ -2119,9 +1720,11 @@ class ReadyToCommitWaiter : public content::WebContentsObserver {
 
  private:
   base::RunLoop run_loop_;
+
+  DISALLOW_COPY_AND_ASSIGN(ReadyToCommitWaiter);
 };
 
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        ProgrammaticContentScriptVsWebUI) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtension());
@@ -2162,9 +1765,8 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
     //    (task posted from ReadyToCommitNavigation above should execute
     //     before any IPC responses that come after PostTask call).
     ready_to_commit_waiter.Wait();
-    DCHECK_NE(
-        web_ui_url,
-        active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
+    DCHECK_NE(web_ui_url,
+              active_web_contents()->GetMainFrame()->GetLastCommittedURL());
 
     // Inject the content script (simulating chrome.tabs.executeScript, but
     // using TabsExecuteScriptFunction directly to ensure the right timing).
@@ -2189,9 +1791,8 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 
     // Wait until the navigation completes.
     navigation_observer.Wait();
-    EXPECT_EQ(
-        web_ui_url,
-        active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
+    EXPECT_EQ(web_ui_url,
+              active_web_contents()->GetMainFrame()->GetLastCommittedURL());
   }
 
   // Check if the injection above succeeded (it shouldn't have, because of
@@ -2219,20 +1820,108 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
   EXPECT_EQ("LOADED", result);
 }
 
-class CorbAndCorsAppBrowserTest : public PlatformAppBrowserTest {
- public:
-  CorbAndCorsAppBrowserTest() = default;
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
+                       ProgrammaticContentScriptVsAppCache) {
+  ASSERT_TRUE(embedded_test_server()->Start());
+  ASSERT_TRUE(InstallExtension());
 
-  void SetUpOnMainThread() override {
-    PlatformAppBrowserTest::SetUpOnMainThread();
+  // Set up http server serving files from content/test/data (which conveniently
+  // already contains appcache-related test files, unlike chrome/test/data).
+  std::string origin = "http://127.0.0.1:8080";
+  std::unique_ptr<content::URLLoaderInterceptor> url_loader_interceptor =
+      content::URLLoaderInterceptor::ServeFilesFromDirectoryAtOrigin(
+          "content/test/data", GURL(origin));
 
-    host_resolver()->AddRule("*", "127.0.0.1");
-    content::SetupCrossSiteRedirector(embedded_test_server());
-    ASSERT_TRUE(embedded_test_server()->Start());
+  // Load the main page twice. The second navigation should have AppCache
+  // initialized for the page.
+  //
+  // Note that localhost / 127.0.0.1 need to be used, because Application Cache
+  // is restricted to secure contexts.
+  GURL main_url(origin + "/appcache/simple_page_with_manifest.html");
+  ui_test_utils::NavigateToURL(browser(), main_url);
+  base::string16 expected_title = base::ASCIIToUTF16("AppCache updated");
+  content::TitleWatcher title_watcher(active_web_contents(), expected_title);
+  EXPECT_EQ(expected_title, title_watcher.WaitAndGetTitle());
+  ui_test_utils::NavigateToURL(browser(), main_url);
+
+  // Turn off the server and sanity check that the resource is still available.
+  const char kScriptTemplate[] = R"(
+      new Promise(function (resolve, reject) {
+          var img = document.createElement('img');
+          img.src = '/appcache/' + $1;
+          img.onload = _ => resolve('IMG LOADED');
+          img.onerror = reject;
+      })
+  )";
+  EXPECT_EQ("IMG LOADED",
+            content::EvalJs(active_web_contents(),
+                            content::JsReplace(kScriptTemplate, "logo.png")));
+
+  // Inject a content script and verify that this doesn't negatively impact
+  // AppCache (i.e. verify that
+  // RenderFrameHostImpl::MarkInitiatorsAsRequiringSeparateURLLoaderFactory
+  // does not clobber the default URLLoaderFactory).
+  {
+    metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
+    base::HistogramTester histograms;
+    content::WebContentsConsoleObserver console_observer(active_web_contents());
+    GURL cross_site_resource(
+        embedded_test_server()->GetURL("cross-site.com", "/nosniff.xml"));
+    std::string fetch_result =
+        FetchViaContentScript(cross_site_resource, active_web_contents());
+
+    // Verify whether the fetch worked or not (expectations differ depending on
+    // various factors - see the body of
+    // VerifyCorbEligibleFetchFromContentScript).
+    VerifyCorbEligibleFetchFromContentScript(
+        histograms, console_observer, fetch_result, "nosniff.xml - body\n");
   }
-};
+  // Using a different image, to bypass renderer-side caching.
+  EXPECT_EQ("IMG LOADED",
+            content::EvalJs(active_web_contents(),
+                            content::JsReplace(kScriptTemplate, "logo2.png")));
+
+  // Crash the network service and wait for things to come back up.  This (and
+  // the remaining part of the test) only makes sense if 1) the network service
+  // is enabled and running in a separate process and 2) the frame has at least
+  // one network-bound URLLoaderFactory (i.e. the test extension is
+  // allowlisted).
+  if (!content::IsOutOfProcessNetworkService() || !IsExtensionAllowlisted())
+    return;
+  SimulateNetworkServiceCrash();
+  active_web_contents()
+      ->GetMainFrame()
+      ->FlushNetworkAndNavigationInterfacesForTesting();
+
+  // Make sure that both requests still work - the code should have recovered
+  // from the crash by 1) refreshing the URLLoaderFactory for the content script
+  // and 2) without cloberring the default factory for the AppCache.
+  {
+    metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
+    base::HistogramTester histograms;
+    content::WebContentsConsoleObserver console_observer(active_web_contents());
+    GURL cross_site_resource(
+        embedded_test_server()->GetURL("cross-site.com", "/nosniff.xml"));
+    std::string fetch_result =
+        FetchViaContentScript(cross_site_resource, active_web_contents());
+
+    // Verify whether the fetch worked or not (expectations differ depending on
+    // various factors - see the body of
+    // VerifyCorbEligibleFetchFromContentScript).
+    VerifyCorbEligibleFetchFromContentScript(
+        histograms, console_observer, fetch_result, "nosniff.xml - body\n");
+  }
+  // Using a different image, to bypass renderer-side caching.
+  EXPECT_EQ("IMG LOADED",
+            content::EvalJs(active_web_contents(),
+                            content::JsReplace(kScriptTemplate, "logo3.png")));
+}
+
+using CorbAndCorsAppBrowserTest = CorbAndCorsExtensionTestBase;
 
 IN_PROC_BROWSER_TEST_F(CorbAndCorsAppBrowserTest, WebViewContentScript) {
+  ASSERT_TRUE(embedded_test_server()->Start());
+
   // Load the test app.
   const char kManifest[] = R"(
       {
@@ -2246,26 +1935,30 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsAppBrowserTest, WebViewContentScript) {
           }
         }
       } )";
-  TestExtensionDir dir;
-  dir.WriteManifest(kManifest);
-  const char kBackgroundScript[] = R"(
+  dir_.WriteManifest(kManifest);
+  const char kBackgroungScript[] = R"(
       chrome.app.runtime.onLaunched.addListener(function() {
         chrome.app.window.create('page.html', {}, function () {});
       });
   )";
-  dir.WriteFile(FILE_PATH_LITERAL("background_script.js"), kBackgroundScript);
+  dir_.WriteFile(FILE_PATH_LITERAL("background_script.js"), kBackgroungScript);
   const char kPage[] = R"(
       <div id="webview-tag-container"></div>
   )";
-  dir.WriteFile(FILE_PATH_LITERAL("page.html"), kPage);
-  const Extension* app = LoadExtension(dir.UnpackedPath());
+  dir_.WriteFile(FILE_PATH_LITERAL("page.html"), kPage);
+  const Extension* app = LoadExtension(dir_.UnpackedPath());
   ASSERT_TRUE(app);
 
   // Launch the test app and grab its WebContents.
   content::WebContents* app_contents = nullptr;
   {
     content::WebContentsAddedObserver new_contents_observer;
-    LaunchPlatformApp(app);
+    apps::AppServiceProxyFactory::GetForProfile(browser()->profile())
+        ->BrowserAppLauncher()
+        ->LaunchAppWithParams(apps::AppLaunchParams(
+            app->id(), LaunchContainer::kLaunchContainerNone,
+            WindowOpenDisposition::NEW_WINDOW,
+            apps::mojom::AppLaunchSource::kSourceTest));
     app_contents = new_contents_observer.GetWebContents();
   }
   ASSERT_TRUE(content::WaitForLoadStop(app_contents));
@@ -2298,27 +1991,26 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsAppBrowserTest, WebViewContentScript) {
   std::string web_view_navigation_script =
       content::JsReplace(kWebViewNavigationScriptTemplate, guest_url);
   {
-    // NOTE: The Dom message will be emitted in a new WebContents instance that
-    // is created when setting webview.src. Hence, we need to listen for the
-    // message in that instance.
-    content::WebContents* webview_contents = nullptr;
-    {
-      content::WebContentsAddedObserver webview_contents_added_observer;
-      content::ExecuteScriptAsync(app_contents, web_view_navigation_script);
-      webview_contents = webview_contents_added_observer.GetWebContents();
-    }
-    content::DOMMessageQueue queue(webview_contents);
+    metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
+    base::HistogramTester histograms;
 
+    content::DOMMessageQueue queue;
+    content::ExecuteScriptAsync(app_contents, web_view_navigation_script);
     std::string fetch_result = PopString(&queue);
 
-    // Verify that no CORB or CORS blocking occurred.
+    // Verify that no CORB blocking occurred.
     EXPECT_EQ("nosniff.xml - body\n", fetch_result);
+
+    // Verify UMA histograms.
+    metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
+    histograms.ExpectBucketCount(
+        "NetworkService.CorsForcedOffForIsolatedWorldOrigin", true, 1);
   }
 }
 
 using OriginHeaderExtensionBrowserTest = CorbAndCorsExtensionBrowserTest;
 
-IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(OriginHeaderExtensionBrowserTest,
                        OriginHeaderInCrossOriginGetRequest) {
   const char kResourcePath[] = "/simulated-resource";
   net::test_server::ControllableHttpResponse http_request(
@@ -2328,13 +2020,11 @@ IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that performs a cross-origin GET fetch to
   // cross-site.com.
@@ -2358,16 +2048,21 @@ IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
   if (it != headers_map.end())
     actual_origin_header = it->second;
 
-  // Verify the Origin header uses the page's origin (not the extension
-  // origin).
-  EXPECT_EQ(url::Origin::Create(page_url).Serialize(), actual_origin_header);
+  if (AreContentScriptFetchesExpectedToBeBlocked()) {
+    // Verify the Origin header uses the page's origin (not the extension
+    // origin).
+    EXPECT_EQ(url::Origin::Create(page_url).Serialize(), actual_origin_header);
+  } else {
+    // Verify the Origin header is missing.
+    EXPECT_EQ("<none>", actual_origin_header);
+  }
 
   // Regression test against https://crbug.com/944704.
   EXPECT_THAT(actual_origin_header,
               ::testing::Not(::testing::HasSubstr("chrome-extension")));
 }
 
-IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(OriginHeaderExtensionBrowserTest,
                        OriginHeaderInCrossOriginPostRequest) {
   const char kResourcePath[] = "/simulated-resource";
   net::test_server::ControllableHttpResponse http_request(
@@ -2377,13 +2072,11 @@ IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that performs a cross-origin POST fetch to
   // cross-site.com.
@@ -2416,20 +2109,18 @@ IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
               ::testing::Not(::testing::HasSubstr("chrome-extension")));
 }
 
-IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(OriginHeaderExtensionBrowserTest,
                        OriginHeaderInSameOriginPostRequest) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(InstallExtension());
 
   // Navigate to a fetch-initiator.com page.
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that performs a same-origin POST fetch to
   // fetch-initiator.com.
@@ -2441,7 +2132,7 @@ IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
           .then(text => domAutomationController.send(text))
           .catch(err => domAutomationController.send('ERROR: ' + err));
   )";
-  content::DOMMessageQueue message_queue(active_web_contents());
+  content::DOMMessageQueue message_queue;
   ExecuteContentScript(
       active_web_contents(),
       content::JsReplace(kScriptTemplate, same_origin_resource));
@@ -2459,7 +2150,7 @@ IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
               ::testing::Not(::testing::HasSubstr("Origin: chrome-extension")));
 }
 
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        RequestHeaders_InSameOriginFetch_FromContentScript) {
   // Sec-Fetch-Site only works on secure origins - setting up a https test
   // server to help with this.
@@ -2475,13 +2166,11 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 
   // Navigate to https test page.
   GURL page_url = https_server.GetURL("/title1.html");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that performs a same-origin GET fetch.
   GURL same_origin_resource(https_server.GetURL("/subresource"));
@@ -2502,7 +2191,7 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
                              testing::Pair("Sec-Fetch-Site", "same-origin")}));
 }
 
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest,
                        RequestHeaders_InSameOriginXhr_FromContentScript) {
   // Sec-Fetch-Site only works on secure origins - setting up a https test
   // server to help with this.
@@ -2518,13 +2207,11 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
 
   // Navigate to https test page.
   GURL page_url = https_server.GetURL("/title1.html");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      url::Origin::Create(page_url),
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(url::Origin::Create(page_url),
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that performs a same-origin GET XHR.
   GURL same_origin_resource(https_server.GetURL("/subresource"));
@@ -2547,7 +2234,7 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
                              testing::Pair("Sec-Fetch-Site", "same-origin")}));
 }
 
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest, CorsFromContentScript) {
+IN_PROC_BROWSER_TEST_P(CorbAndCorsExtensionBrowserTest, CorsFromContentScript) {
   std::string cors_resource_path = "/cors-subresource-to-intercept";
   net::test_server::ControllableHttpResponse cors_request(
       embedded_test_server(), cors_resource_path);
@@ -2558,31 +2245,37 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest, CorsFromContentScript) {
   GURL page_url = GetTestPageUrl("fetch-initiator.com");
   url::Origin page_origin = url::Origin::Create(page_url);
   std::string page_origin_string = page_origin.Serialize();
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), page_url));
-  ASSERT_EQ(
-      page_url,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
-  ASSERT_EQ(
-      page_origin,
-      active_web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+  ui_test_utils::NavigateToURL(browser(), page_url);
+  ASSERT_EQ(page_url,
+            active_web_contents()->GetMainFrame()->GetLastCommittedURL());
+  ASSERT_EQ(page_origin,
+            active_web_contents()->GetMainFrame()->GetLastCommittedOrigin());
 
   // Inject a content script that performs a cross-origin GET fetch.
-  content::DOMMessageQueue message_queue(active_web_contents());
+  content::DOMMessageQueue message_queue;
   GURL cors_resource_url(
       embedded_test_server()->GetURL("cross-site.com", cors_resource_path));
   EXPECT_TRUE(ExecuteContentScript(active_web_contents(),
                                    CreateFetchScript(cors_resource_url)));
 
   // Verify the request headers (e.g. Origin and Sec-Fetch-Site headers).
-  //
-  // Content scripts should participate in regular CORS, just as if the request
-  // was issued from the webpage that the content script got injected into.
-  // Therefore we should expect the Origin header to be present and have the
-  // right value.
   cors_request.WaitForRequest();
-  EXPECT_THAT(
-      cors_request.http_request()->headers,
-      testing::Contains(testing::Pair("Origin", page_origin_string.c_str())));
+  if (IsExtensionAllowlisted()) {
+    // Content scripts of allowlisted extensions should be exempted from CORS,
+    // based on the websites the extension has permission for, via extension
+    // manifest.  Therefore, there should be no "Origin" header.
+    EXPECT_THAT(
+        cors_request.http_request()->headers,
+        testing::Not(testing::Contains(testing::Pair("Origin", testing::_))));
+  } else {
+    // Content scripts of non-allowlisted extensions should participate in
+    // regular CORS, just as if the request was issued from the webpage that the
+    // content script got injected into.  Therefore we should expect the Origin
+    // header to be present and have the right value.
+    EXPECT_THAT(
+        cors_request.http_request()->headers,
+        testing::Contains(testing::Pair("Origin", page_origin_string.c_str())));
+  }
 
   // Respond with Access-Control-Allow-Origin that matches the origin of the web
   // page.
@@ -2606,433 +2299,25 @@ IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest, CorsFromContentScript) {
   EXPECT_EQ("cors-allowed-body", fetch_result);
 }
 
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
-                       FromBackgroundPage_ActiveTabPermission) {
-  ASSERT_TRUE(embedded_test_server()->Start());
+INSTANTIATE_TEST_SUITE_P(Allowlisted,
+                         CorbAndCorsExtensionBrowserTest,
+                         ::testing::Values(TestParam::kAllowlisted));
+INSTANTIATE_TEST_SUITE_P(NotAllowlisted,
+                         CorbAndCorsExtensionBrowserTest,
+                         ::testing::Values(0));
 
-  TestExtensionDir extension_dir;
-  constexpr char kManifest[] = R"(
-      {
-        "name": "ActiveTab permissions vs CORS from extension background page",
-        "version": "1.0",
-        "manifest_version": 2,
-        "browser_action": {
-          "default_title": "activeTab"
-        },
-        "permissions": ["activeTab"],
-        "background": {
-          "scripts": ["bg_script.js"]
-        }
-      } )";
-  extension_dir.WriteManifest(kManifest);
-  extension_dir.WriteFile(FILE_PATH_LITERAL("bg_script.js"), "");
-  const Extension* extension = LoadExtension(extension_dir.UnpackedPath(),
-                                             {.allow_in_incognito = false});
-  ASSERT_TRUE(extension);
-
-  // This test covers the default incognito mode (spanning mode) where there is
-  // only a single background page (i.e. no separate incognito background page).
-  EXPECT_FALSE(IncognitoInfo::IsSplitMode(extension));
-
-  // Set up a test scenario:
-  // - top-level frame: kActiveTabHost
-  constexpr char kActiveTabHost[] = "active-tab.example";
-  GURL original_document_url =
-      embedded_test_server()->GetURL(kActiveTabHost, "/title1.html");
-  GURL cross_site_resource(
-      embedded_test_server()->GetURL(kActiveTabHost, "/nosniff.xml"));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), original_document_url));
-
-  // Open an incognito window.  Since the extension is not enabled for
-  // incognito, OriginAccessList should not be sent to the incognito-related
-  // NetworkContext (this is verified by a DCHECK in
-  // SetCorsOriginAccessListForExtensionHelper in
-  // //extensions/browser/extension_util.cc.
-  CreateIncognitoBrowser();
-
-  // CORS exception shouldn't be initially granted based on ActiveTab.
-  {
-    SCOPED_TRACE("TEST STEP 1: Initial fetch.");
-    std::string fetch_result =
-        FetchViaBackgroundPage(cross_site_resource, extension, browser());
-    EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-  }
-
-  // Do one pass of BrowserAction without granting ActiveTab permission,
-  // extension still shouldn't have ability to bypass CORS.
-  ExtensionActionRunner::GetForWebContents(active_web_contents())
-      ->RunAction(extension, false);
-  {
-    SCOPED_TRACE("TEST STEP 2: After BrowserAction without granting access.");
-    std::string fetch_result =
-        FetchViaBackgroundPage(cross_site_resource, extension, browser());
-    EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-  }
-
-  // Granting ActiveTab permission to the extension should give it the ability
-  // to bypass CORS.
-  ExtensionActionRunner::GetForWebContents(active_web_contents())
-      ->RunAction(extension, true);
-  {
-    // ActiveTab access (just like OOR-CORS access) extends to the background
-    // page.  This is desirable, because
-    // 1) there is no security boundary between A) extension background pages
-    //    and B) extension frames in the tab
-    // 2) it seems best to highlight #1 by simplistically granting extra
-    //    capabilities to the whole extension (rather than forcing the extension
-    //    authors to jump through extra hurdles to utilize the new capability).
-    SCOPED_TRACE("TEST STEP 3: After granting ActiveTab access.");
-    std::string fetch_result =
-        FetchViaBackgroundPage(cross_site_resource, extension, browser());
-    EXPECT_EQ("nosniff.xml - body\n", fetch_result);
-  }
-
-  // Navigating the tab to a different, same-origin document should retain
-  // extension's access to the origin.
-  GURL another_document_url =
-      embedded_test_server()->GetURL(kActiveTabHost, "/title2.html");
-  EXPECT_NE(another_document_url, original_document_url);
-  EXPECT_EQ(url::Origin::Create(another_document_url),
-            url::Origin::Create(original_document_url));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), another_document_url));
-  {
-    SCOPED_TRACE(
-        "TEST STEP 4: After navigating the tab cross-document, "
-        "but still same-origin.");
-    std::string fetch_result =
-        FetchViaBackgroundPage(cross_site_resource, extension, browser());
-    EXPECT_EQ("nosniff.xml - body\n", fetch_result);
-  }
-
-  // Navigating the tab to a different origin should revoke extension's access
-  // to the tab.
-  GURL cross_origin_url =
-      embedded_test_server()->GetURL("other.com", "/title1.html");
-  EXPECT_NE(url::Origin::Create(cross_origin_url),
-            url::Origin::Create(original_document_url));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), cross_origin_url));
-  {
-    SCOPED_TRACE("TEST STEP 5: After navigating the tab cross-origin.");
-    std::string fetch_result =
-        FetchViaBackgroundPage(cross_site_resource, extension, browser());
-    EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-  }
-}
-
-// Similar to FromBackgroundPage_ActiveTabPermission, but focues on interaction
-// between the regular background page and the separate incognito background
-// page in "split" mode.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
-                       FromBackgroundPage_ActiveTabPermission_SplitMode) {
-  TestExtensionDir extension_dir;
-  constexpr char kManifest[] = R"(
-      {
-        "name": "ActiveTab permissions vs CORS from extension background page",
-        "version": "1.0",
-        "manifest_version": 2,
-        "browser_action": {
-          "default_title": "activeTab"
-        },
-        "incognito": "split",
-        "permissions": ["activeTab"],
-        "background": {
-          "scripts": ["bg_script.js"]
-        }
-      } )";
-  extension_dir.WriteManifest(kManifest);
-  extension_dir.WriteFile(FILE_PATH_LITERAL("bg_script.js"), "");
-  const Extension* extension =
-      LoadExtension(extension_dir.UnpackedPath(), {.allow_in_incognito = true});
-  ASSERT_TRUE(extension);
-
-  // Set up a test scenario:
-  // - regular window: empty initial tab
-  // - incognito window: top-level frame: kActiveTabHost
-  ASSERT_TRUE(embedded_test_server()->Start());
-  constexpr char kActiveTabHost[] = "active-tab.example";
-  GURL original_document_url =
-      embedded_test_server()->GetURL(kActiveTabHost, "/title1.html");
-  Browser* incognito_browser =
-      OpenURLOffTheRecord(browser()->profile(), original_document_url);
-
-  // CORS exception shouldn't be initially granted based on ActiveTab.
-  GURL cross_site_resource(
-      embedded_test_server()->GetURL(kActiveTabHost, "/nosniff.xml"));
-  {
-    SCOPED_TRACE("TEST STEP 1: Initial fetch.");
-    {
-      SCOPED_TRACE("Regular profile's background page");
-      std::string fetch_result =
-          FetchViaBackgroundPage(cross_site_resource, extension, browser());
-      EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-    }
-    {
-      SCOPED_TRACE("Incognito profile's background page");
-      std::string fetch_result = FetchViaBackgroundPage(
-          cross_site_resource, extension, incognito_browser);
-      EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-    }
-  }
-
-  // Granting ActiveTab permission in the incognito window should give the
-  // extension access to the tab's origin, but only in the incognito profile
-  // (since the extension uses "split" mode).
-  ExtensionActionRunner::GetForWebContents(
-      incognito_browser->tab_strip_model()->GetActiveWebContents())
-      ->RunAction(extension, true);
-  {
-    SCOPED_TRACE("TEST STEP 2: After granting ActiveTab access.");
-    {
-      SCOPED_TRACE("Regular profile's background page");
-      std::string fetch_result =
-          FetchViaBackgroundPage(cross_site_resource, extension, browser());
-      EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-    }
-    {
-      SCOPED_TRACE("Incognito profile's background page");
-      std::string fetch_result = FetchViaBackgroundPage(
-          cross_site_resource, extension, incognito_browser);
-      EXPECT_EQ("nosniff.xml - body\n", fetch_result);
-    }
-  }
-
-  // Navigating the tab to a different origin should revoke extension's access
-  // to the tab.
-  GURL cross_origin_url =
-      embedded_test_server()->GetURL("other.com", "/title1.html");
-  EXPECT_NE(url::Origin::Create(cross_origin_url),
-            url::Origin::Create(original_document_url));
-  ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(incognito_browser, cross_origin_url));
-  {
-    SCOPED_TRACE("TEST STEP 3: After navigating the tab cross-origin.");
-    {
-      SCOPED_TRACE("Regular profile's background page");
-      std::string fetch_result =
-          FetchViaBackgroundPage(cross_site_resource, extension, browser());
-      EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-    }
-    {
-      SCOPED_TRACE("Incognito profile's background page");
-      std::string fetch_result = FetchViaBackgroundPage(
-          cross_site_resource, extension, incognito_browser);
-      EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-    }
-  }
-}
-
-// Similar to FromBackgroundPage_ActiveTabPermission_SplitMode, but goes through
-// steps that (at one point) forced additional, persistent leaking of incognito
-// permission into the regular profile's background page.  See also
-// https://crbug.com/1167262.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
-                       FromBackgroundPage_ActiveTabPermission_SplitMode2) {
-  TestExtensionDir extension_dir;
-  constexpr char kManifest[] = R"(
-      {
-        "name": "ActiveTab permissions vs CORS from extension background page",
-        "version": "1.0",
-        "manifest_version": 2,
-        "browser_action": {
-          "default_title": "activeTab"
-        },
-        "incognito": "split",
-        "permissions": ["activeTab"],
-        "background": {
-          "scripts": ["bg_script.js"]
-        }
-      } )";
-  extension_dir.WriteManifest(kManifest);
-  extension_dir.WriteFile(FILE_PATH_LITERAL("bg_script.js"), "");
-  const Extension* extension =
-      LoadExtension(extension_dir.UnpackedPath(), {.allow_in_incognito = true});
-  ASSERT_TRUE(extension);
-
-  // Set up a test scenario:
-  // - regular window: top-level frame: kRegularHost
-  // - incognito window: top-level frame: kIncognitoHost
-  ASSERT_TRUE(embedded_test_server()->Start());
-  constexpr char kIncognitoHost[] = "active-tab-in-incognito-profile.example";
-  constexpr char kRegularHost[] = "active-tab-in-regular-profile.example";
-  GURL incognito_page_url =
-      embedded_test_server()->GetURL(kIncognitoHost, "/title1.html");
-  GURL incognito_resource_url =
-      embedded_test_server()->GetURL(kIncognitoHost, "/nosniff.xml");
-  GURL regular_page_url =
-      embedded_test_server()->GetURL(kRegularHost, "/title2.html");
-  GURL regular_resource_url =
-      embedded_test_server()->GetURL(kRegularHost, "/nosniff.xml");
-  Browser* incognito_browser =
-      OpenURLOffTheRecord(browser()->profile(), incognito_page_url);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), regular_page_url));
-
-  // No CORS exception for `kIncognitoHost` should be initially granted based on
-  // ActiveTab.
-  {
-    SCOPED_TRACE("TEST STEP 1: Initial fetch.");
-    {
-      SCOPED_TRACE("Regular profile's background page");
-      std::string fetch_result =
-          FetchViaBackgroundPage(incognito_resource_url, extension, browser());
-      EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-    }
-    {
-      SCOPED_TRACE("Incognito profile's background page");
-      std::string fetch_result = FetchViaBackgroundPage(
-          incognito_resource_url, extension, incognito_browser);
-      EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-    }
-  }
-
-  // Granting ActiveTab permission in the *incognito* window should give the
-  // extension access to the tab's origin, but only in the incognito profile
-  // (since the extension uses "split" mode).
-  ExtensionActionRunner::GetForWebContents(
-      incognito_browser->tab_strip_model()->GetActiveWebContents())
-      ->RunAction(extension, true);
-  {
-    SCOPED_TRACE("TEST STEP 2: After granting 'incognito' ActiveTab access.");
-    {
-      SCOPED_TRACE("Regular profile's background page");
-      std::string fetch_result =
-          FetchViaBackgroundPage(incognito_resource_url, extension, browser());
-      EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-    }
-    {
-      SCOPED_TRACE("Incognito profile's background page");
-      std::string fetch_result = FetchViaBackgroundPage(
-          incognito_resource_url, extension, incognito_browser);
-      EXPECT_EQ("nosniff.xml - body\n", fetch_result);
-    }
-  }
-
-  // Granting ActiveTab permission in the *regular* window (for a separate,
-  // `kRegularHost`) should not affect how CORS behaved in the previous step
-  // (unless there is a bug and we leak incognito permissions to the regular
-  // background page).
-  content::WebContents* regular_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
-  EXPECT_EQ(
-      kRegularHost,
-      regular_contents->GetPrimaryMainFrame()->GetLastCommittedOrigin().host());
-  EXPECT_NE(kRegularHost, kIncognitoHost);
-  ExtensionActionRunner::GetForWebContents(regular_contents)
-      ->RunAction(extension, true);
-  {
-    SCOPED_TRACE("TEST STEP 3: After granting 'regular' ActiveTab access.");
-    {
-      SCOPED_TRACE("Regular profile's background page");
-      std::string fetch_result =
-          FetchViaBackgroundPage(incognito_resource_url, extension, browser());
-      // TODO(https://crbug.com/1167262): Change to EXPECT_EQ after fixing the
-      // leak of permissions from incognito profile to regular profile.
-      EXPECT_NE(kCorsErrorWhenFetching, fetch_result);
-    }
-    {
-      SCOPED_TRACE("Incognito profile's background page");
-      std::string fetch_result = FetchViaBackgroundPage(
-          incognito_resource_url, extension, incognito_browser);
-      EXPECT_EQ("nosniff.xml - body\n", fetch_result);
-    }
-  }
-
-  // After closing the incognito window, the regular background page should
-  // still have no access to the `kIncognitoHost` (or, hopefully, the potential
-  // leaks of permissions from the previous steps should be fixed/recovered-from
-  // at this point).
-  incognito_browser->tab_strip_model()->GetActiveWebContents()->Close();
-  {
-    SCOPED_TRACE("TEST STEP 4: After closing the incognito tab.");
-    {
-      SCOPED_TRACE("Regular profile's background page");
-      std::string fetch_result =
-          FetchViaBackgroundPage(incognito_resource_url, extension, browser());
-      // TODO(https://crbug.com/1167262): Change to EXPECT_EQ after fixing the
-      // leak of permissions from incognito profile to regular profile.
-      EXPECT_NE(kCorsErrorWhenFetching, fetch_result);
-    }
-  }
-}
-
-// Similar to FromBackgroundPage_ActiveTabPermission, but focues on behavior
-// of the background page when it is shared between the regular and the
-// incognito profiles in "spanning" mode.
-IN_PROC_BROWSER_TEST_F(CorbAndCorsExtensionBrowserTest,
-                       FromBackgroundPage_ActiveTabPermission_SpanningMode) {
-  TestExtensionDir extension_dir;
-  constexpr char kManifest[] = R"(
-      {
-        "name": "ActiveTab permissions vs CORS from extension background page",
-        "version": "1.0",
-        "manifest_version": 2,
-        "browser_action": {
-          "default_title": "activeTab"
-        },
-        "incognito": "spanning",
-        "permissions": ["activeTab"],
-        "background": {
-          "scripts": ["bg_script.js"]
-        }
-      } )";
-  extension_dir.WriteManifest(kManifest);
-  extension_dir.WriteFile(FILE_PATH_LITERAL("bg_script.js"), "");
-  const Extension* extension =
-      LoadExtension(extension_dir.UnpackedPath(), {.allow_in_incognito = true});
-  ASSERT_TRUE(extension);
-
-  // Set up a test scenario:
-  // - regular window: empty initial tab
-  // - incognito window: top-level frame: kActiveTabHost
-  ASSERT_TRUE(embedded_test_server()->Start());
-  constexpr char kActiveTabHost[] = "active-tab.example";
-  GURL original_document_url =
-      embedded_test_server()->GetURL(kActiveTabHost, "/title1.html");
-  Browser* incognito_browser =
-      OpenURLOffTheRecord(browser()->profile(), original_document_url);
-
-  // CORS exception shouldn't be initially granted based on ActiveTab.
-  GURL cross_site_resource(
-      embedded_test_server()->GetURL(kActiveTabHost, "/nosniff.xml"));
-  {
-    SCOPED_TRACE("TEST STEP 1: Initial fetch.");
-    SCOPED_TRACE("Regular profile's background page");
-    std::string fetch_result =
-        FetchViaBackgroundPage(cross_site_resource, extension, browser());
-    EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-
-    // There is no separate incognito background page in "spanning" mode.
-  }
-
-  // Granting ActiveTab permission in the incognito window should give the
-  // extension access to the tab's origin.
-  ExtensionActionRunner::GetForWebContents(
-      incognito_browser->tab_strip_model()->GetActiveWebContents())
-      ->RunAction(extension, true);
-  {
-    SCOPED_TRACE("TEST STEP 2: After granting ActiveTab access.");
-    std::string fetch_result =
-        FetchViaBackgroundPage(cross_site_resource, extension, browser());
-    EXPECT_EQ("nosniff.xml - body\n", fetch_result);
-
-    // There is no separate incognito background page in "spanning" mode.
-  }
-
-  // Navigating the tab to a different origin should revoke extension's access
-  // to the tab.
-  GURL cross_origin_url =
-      embedded_test_server()->GetURL("other.com", "/title1.html");
-  EXPECT_NE(url::Origin::Create(cross_origin_url),
-            url::Origin::Create(original_document_url));
-  ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(incognito_browser, cross_origin_url));
-  {
-    SCOPED_TRACE("TEST STEP 3: After navigating the tab cross-origin.");
-    std::string fetch_result =
-        FetchViaBackgroundPage(cross_site_resource, extension, browser());
-    EXPECT_EQ(kCorsErrorWhenFetching, fetch_result);
-
-    // There is no separate incognito background page in "spanning" mode.
-  }
-}
+INSTANTIATE_TEST_SUITE_P(Allowlisted_LegacyOriginHeaderBehavior,
+                         OriginHeaderExtensionBrowserTest,
+                         ::testing::Values(TestParam::kAllowlisted));
+INSTANTIATE_TEST_SUITE_P(Allowlisted_NewOriginHeaderBehavior,
+                         OriginHeaderExtensionBrowserTest,
+                         ::testing::Values(TestParam::kAllowlisted |
+                                           TestParam::kDeriveOriginFromUrl));
+INSTANTIATE_TEST_SUITE_P(NotAllowlisted_LegacyOriginHeaderBehavior,
+                         OriginHeaderExtensionBrowserTest,
+                         ::testing::Values(0));
+INSTANTIATE_TEST_SUITE_P(NotAllowlisted_NewOriginHeaderBehavior,
+                         OriginHeaderExtensionBrowserTest,
+                         ::testing::Values(TestParam::kDeriveOriginFromUrl));
 
 }  // namespace extensions

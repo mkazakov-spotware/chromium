@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include "third_party/blink/public/web/web_script_source.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
 #include "third_party/blink/renderer/core/css/css_style_declaration.h"
-#include "third_party/blink/renderer/core/css/properties/longhands.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/frame/web_local_frame_impl.h"
 #include "third_party/blink/renderer/core/html/html_anchor_element.h"
@@ -20,7 +19,6 @@
 #include "third_party/blink/renderer/core/testing/sim/sim_request.h"
 #include "third_party/blink/renderer/core/testing/sim/sim_test.h"
 #include "third_party/blink/renderer/platform/graphics/image.h"
-#include "third_party/blink/renderer/platform/heap/thread_state.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
 
 namespace blink {
@@ -32,7 +30,6 @@ class ElementFragmentAnchorTest : public SimTest {
     SimTest::SetUp();
 
     // Focus handlers aren't run unless the page is focused.
-    GetDocument().GetPage()->GetFocusController().SetActive(true);
     GetDocument().GetPage()->GetFocusController().SetFocused(true);
 
     WebView().MainFrameViewWidget()->Resize(gfx::Size(800, 600));
@@ -151,9 +148,10 @@ TEST_F(ElementFragmentAnchorTest, IframeFragmentNoLayoutUntilLoad) {
       iframe->contentDocument()->View()->LayoutViewport();
   Element* fragment = iframe->contentDocument()->getElementById("fragment");
 
-  gfx::Rect fragment_rect_in_frame =
-      fragment->GetLayoutObject()->AbsoluteBoundingBoxRect();
-  gfx::Rect viewport_rect(child_viewport->VisibleContentRect().size());
+  IntRect fragment_rect_in_frame(
+      fragment->GetLayoutObject()->AbsoluteBoundingBoxRect());
+  IntRect viewport_rect(IntPoint(),
+                        child_viewport->VisibleContentRect().Size());
 
   EXPECT_TRUE(viewport_rect.Contains(fragment_rect_in_frame))
       << "Fragment element at [" << fragment_rect_in_frame.ToString()
@@ -211,9 +209,10 @@ TEST_F(ElementFragmentAnchorTest, IframeFragmentDirtyLayoutAfterLoad) {
       iframe->contentDocument()->View()->LayoutViewport();
   Element* fragment = iframe->contentDocument()->getElementById("fragment");
 
-  gfx::Rect fragment_rect_in_frame =
-      fragment->GetLayoutObject()->AbsoluteBoundingBoxRect();
-  gfx::Rect viewport_rect(child_viewport->VisibleContentRect().size());
+  IntRect fragment_rect_in_frame(
+      fragment->GetLayoutObject()->AbsoluteBoundingBoxRect());
+  IntRect viewport_rect(IntPoint(),
+                        child_viewport->VisibleContentRect().Size());
 
   EXPECT_TRUE(viewport_rect.Contains(fragment_rect_in_frame))
       << "Fragment element at [" << fragment_rect_in_frame.ToString()
@@ -232,40 +231,62 @@ TEST_F(ElementFragmentAnchorTest, AnchorRemovedBeforeBeginFrameCrash) {
                                      "text/css");
   LoadURL("https://example.com/test.html#anchor");
 
-  main_resource.Complete(R"HTML(
+  if (!RuntimeEnabledFeatures::BlockHTMLParserOnStyleSheetsEnabled()) {
+    main_resource.Complete(R"HTML(
         <!DOCTYPE html>
         <link rel="stylesheet" type="text/css" href="sheet.css">
         <div style="height: 1000px;"></div>
         <input id="anchor">Bottom of the page</input>
       )HTML");
 
-  // We're still waiting on the stylesheet to load so the load event shouldn't
-  // yet dispatch and parsing is deferred. This will install the anchor.
-  ASSERT_FALSE(GetDocument().IsLoadCompleted());
+    // We're still waiting on the stylesheet to load so the load event shouldn't
+    // yet dispatch and parsing is deferred. This will install the anchor.
+    ASSERT_FALSE(GetDocument().IsLoadCompleted());
+    ASSERT_TRUE(GetDocument().View()->GetFragmentAnchor());
+    ASSERT_TRUE(static_cast<ElementFragmentAnchor*>(
+                    GetDocument().View()->GetFragmentAnchor())
+                    ->anchor_node_);
+  } else {
+    main_resource.Complete(R"HTML(
+        <!DOCTYPE html>
+        <div style="height: 1000px;"></div>
+        <input id="anchor">Bottom of the page</input>
+        <link rel="stylesheet" type="text/css" href="sheet.css">
+      )HTML");
 
-  ASSERT_TRUE(GetDocument().View()->GetFragmentAnchor());
-  ASSERT_TRUE(static_cast<ElementFragmentAnchor*>(
-                  GetDocument().View()->GetFragmentAnchor())
-                  ->anchor_node_.Get());
+    // We're still waiting on the stylesheet to load so the load event shouldn't
+    // yet dispatch and parsing is deferred. This will install the anchor.
+    ASSERT_FALSE(GetDocument().IsLoadCompleted());
+    ASSERT_FALSE(GetDocument().View()->GetFragmentAnchor());
+  }
 
   // Remove the fragment anchor from the DOM and perform GC.
   GetDocument().getElementById("anchor")->remove();
-  ThreadState::Current()->CollectAllGarbageForTesting();
-
-  EXPECT_TRUE(GetDocument().View()->GetFragmentAnchor());
-  EXPECT_FALSE(static_cast<ElementFragmentAnchor*>(
-                   GetDocument().View()->GetFragmentAnchor())
-                   ->anchor_node_.Get());
+  v8::Isolate* isolate = ToIsolate(GetDocument().GetFrame());
+  isolate->RequestGarbageCollectionForTesting(
+      v8::Isolate::kFullGarbageCollection);
 
   // Now that the element has been removed and GC'd, unblock parsing. The
-  // anchor should be installed at this point. When parsing finishes, a
-  // synchronous layout update will run, which will invoke the fragment anchor.
+  // anchor should be installed at this point.
   css_resource.Complete("");
   test::RunPendingTasks();
 
-  // When the document finishes loading, it does a synchronous layout update,
-  // which should clear LocalFrameView::fragment_anchor_ ...
-  EXPECT_FALSE(GetDocument().View()->GetFragmentAnchor());
+  if (!RuntimeEnabledFeatures::BlockHTMLParserOnStyleSheetsEnabled()) {
+    // We should still have a fragment anchor but its node pointer should be
+    // gone since it's a WeakMember.
+    ASSERT_TRUE(GetDocument().View()->GetFragmentAnchor());
+    ASSERT_FALSE(static_cast<ElementFragmentAnchor*>(
+                     GetDocument().View()->GetFragmentAnchor())
+                     ->anchor_node_);
+  } else {
+    // The fragment shouldn't have installed since the targeted element was
+    // removed.
+    ASSERT_FALSE(GetDocument().View()->GetFragmentAnchor());
+  }
+
+  // We'd normally focus the fragment during BeginFrame. Make sure we don't
+  // crash since it's been GC'd.
+  Compositor().BeginFrame();
 
   // Non-crash is considered a pass.
 }
@@ -339,9 +360,9 @@ TEST_F(ElementFragmentAnchorTest, HasURLEncodedCharacters) {
   Element* fragment = GetDocument().getElementById(u"\u00F6");
   ASSERT_NE(nullptr, fragment);
 
-  gfx::Rect fragment_rect_in_frame =
-      fragment->GetLayoutObject()->AbsoluteBoundingBoxRect();
-  gfx::Rect viewport_rect(viewport->VisibleContentRect().size());
+  IntRect fragment_rect_in_frame(
+      fragment->GetLayoutObject()->AbsoluteBoundingBoxRect());
+  IntRect viewport_rect(IntPoint(), viewport->VisibleContentRect().Size());
 
   EXPECT_TRUE(viewport_rect.Contains(fragment_rect_in_frame))
       << "Fragment element at [" << fragment_rect_in_frame.ToString()

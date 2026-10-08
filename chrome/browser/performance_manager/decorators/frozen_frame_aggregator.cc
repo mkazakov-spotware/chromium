@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,11 +19,10 @@ using LifecycleState = performance_manager::mojom::LifecycleState;
 // PageNodeImpl and ProcessNodeImpl.
 class FrozenFrameAggregatorAccess {
  public:
-  using StorageType = PageNodeImpl::FrozenFrameDataStorage;
+  using StorageType = decltype(PageNodeImpl::frozen_frame_data_);
 
   static StorageType* GetInternalStorage(PageNodeImpl* page_node) {
-    return &page_node->GetFrozenFrameData(
-        base::PassKey<FrozenFrameAggregatorAccess>());
+    return &page_node->frozen_frame_data_;
   }
 
   static StorageType* GetInternalStorage(ProcessNodeImpl* process_node) {
@@ -32,8 +31,7 @@ class FrozenFrameAggregatorAccess {
 
   static void SetLifecycleState(PageNodeImpl* page_node,
                                 LifecycleState lifecycle_state) {
-    page_node->SetLifecycleState(base::PassKey<FrozenFrameAggregatorAccess>(),
-                                 lifecycle_state);
+    page_node->SetLifecycleState(lifecycle_state);
   }
 
   static void NotifyAllFramesInProcessFrozen(ProcessNodeImpl* process_node) {
@@ -59,10 +57,6 @@ class FrozenDataImpl : public FrozenFrameAggregator::Data,
 
   explicit FrozenDataImpl(const PageNodeImpl* page_node) {}
   explicit FrozenDataImpl(const ProcessNodeImpl* process_node) {}
-
-  FrozenDataImpl(const FrozenDataImpl&) = delete;
-  FrozenDataImpl& operator=(const FrozenDataImpl&) = delete;
-
   ~FrozenDataImpl() override = default;
 
   static StorageType* GetInternalStorage(PageNodeImpl* page_node) {
@@ -106,6 +100,9 @@ class FrozenDataImpl : public FrozenFrameAggregator::Data,
 
     return IsFrozen() != was_frozen;
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FrozenDataImpl);
 };
 
 bool IsFrozen(const FrameNodeImpl* frame_node) {
@@ -189,7 +186,7 @@ void FrozenFrameAggregator::RegisterObservers(Graph* graph) {
   // This observer presumes that it's been added before any nodes exist in the
   // graph.
   // TODO(chrisha): Add graph introspection functions to Graph.
-  DCHECK(graph->HasOnlySystemNode());
+  DCHECK(GraphImpl::FromGraph(graph)->nodes().empty());
   graph->AddFrameNodeObserver(this);
   graph->AddPageNodeObserver(this);
   graph->AddProcessNodeObserver(this);

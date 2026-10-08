@@ -1,12 +1,13 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_NTP_SNIPPETS_REMOTE_REQUEST_THROTTLER_H_
 #define COMPONENTS_NTP_SNIPPETS_REMOTE_REQUEST_THROTTLER_H_
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ref.h"
+#include <string>
+
+#include "base/macros.h"
 
 class PrefRegistrySimple;
 class PrefService;
@@ -46,8 +47,6 @@ class RequestThrottler {
   };
 
   RequestThrottler(PrefService* pref_service, RequestType type);
-  RequestThrottler(const RequestThrottler&) = delete;
-  RequestThrottler& operator=(const RequestThrottler&) = delete;
 
   // Registers profile prefs for all RequestTypes. Called from browser_prefs.cc.
   static void RegisterProfilePrefs(PrefRegistrySimple* registry);
@@ -79,17 +78,19 @@ class RequestThrottler {
   void SetDay(int day);
   bool HasDay() const;
 
-  raw_ptr<PrefService> pref_service_;
-  const raw_ref<const RequestTypeInfo> type_info_;
+  PrefService* pref_service_;
+  const RequestTypeInfo& type_info_;
 
   // The quotas are hardcoded, but can be overridden by variation params.
   int quota_;
   int interactive_quota_;
 
   // The histograms for reporting the requests of the given |type_|.
-  raw_ptr<base::HistogramBase> histogram_request_status_;
-  raw_ptr<base::HistogramBase> histogram_per_day_background_;
-  raw_ptr<base::HistogramBase> histogram_per_day_interactive_;
+  base::HistogramBase* histogram_request_status_;
+  base::HistogramBase* histogram_per_day_background_;
+  base::HistogramBase* histogram_per_day_interactive_;
+
+  DISALLOW_COPY_AND_ASSIGN(RequestThrottler);
 };
 
 }  // namespace ntp_snippets

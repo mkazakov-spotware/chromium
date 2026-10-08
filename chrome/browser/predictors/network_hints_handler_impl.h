@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,9 +18,6 @@ class PreconnectManager;
 class NetworkHintsHandlerImpl
     : public network_hints::mojom::NetworkHintsHandler {
  public:
-  NetworkHintsHandlerImpl(const NetworkHintsHandlerImpl&) = delete;
-  NetworkHintsHandlerImpl& operator=(const NetworkHintsHandlerImpl&) = delete;
-
   ~NetworkHintsHandlerImpl() override;
 
   static void Create(
@@ -38,6 +35,8 @@ class NetworkHintsHandlerImpl
   const int32_t render_process_id_;
   const int32_t render_frame_id_;
   base::WeakPtr<PreconnectManager> preconnect_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(NetworkHintsHandlerImpl);
 };
 
 }  // namespace predictors

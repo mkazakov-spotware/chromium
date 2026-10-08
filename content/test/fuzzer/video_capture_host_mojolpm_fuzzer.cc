@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,15 @@
 #include <string>
 #include <utility>
 
+#include "base/at_exit.h"
 #include "base/bind.h"
-#include "base/callback_helpers.h"
+#include "base/command_line.h"
+#include "base/i18n/icu_util.h"
 #include "base/no_destructor.h"
 #include "base/run_loop.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
+#include "base/test/test_timeouts.h"
 #include "base/threading/thread.h"
 #include "content/browser/renderer_host/media/fake_video_capture_provider.h"
 #include "content/browser/renderer_host/media/in_process_video_capture_provider.h"  // nogncheck
@@ -20,10 +24,9 @@
 #include "content/browser/renderer_host/media/video_capture_host.h"  // nogncheck
 #include "content/browser/renderer_host/media/video_capture_manager.h"  // nogncheck
 #include "content/public/browser/browser_task_traits.h"
-#include "content/public/browser/browser_thread.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_browser_context.h"
-#include "content/test/fuzzer/mojolpm_fuzzer_support.h"
+#include "content/public/test/test_content_client_initializer.h"
 #include "content/test/fuzzer/video_capture_host_mojolpm_fuzzer.pb.h"
 #include "content/test/test_content_browser_client.h"
 #include "media/audio/audio_system_impl.h"
@@ -36,10 +39,11 @@
 #include "media/capture/video/linux/video_capture_device_factory_linux.h"
 #include "media/capture/video/video_capture_system_impl.h"
 #include "media/capture/video_capture_types.h"
+#include "mojo/core/embedder/embedder.h"
 #include "third_party/blink/public/common/mediastream/media_devices.h"
 #include "third_party/libprotobuf-mutator/src/src/libfuzzer/libfuzzer_macro.h"
 
-const char* kCmdline[] = {"video_capture_host_mojolpm_fuzzer", nullptr};
+const char* cmdline[] = {"video_capture_host_mojolpm_fuzzer", nullptr};
 
 // Describe all the devices (as descriptors).
 const uint32_t kNumDeviceDescriptors = 4;
@@ -54,9 +58,40 @@ const uint32_t kNumRenderProcessIds = 2;
 
 using blink::mojom::MediaDeviceType;
 
-content::mojolpm::FuzzerEnvironment& GetEnvironment() {
-  static base::NoDestructor<content::mojolpm::FuzzerEnvironment> environment(
-      1, kCmdline);
+// Global environment needed to run the interface being tested.
+//
+// This will be created once, before fuzzing starts, and will be shared between
+// all testcases. It is created on the main thread.
+//
+// At a minimum, we should always be able to set up the command line, i18n and
+// mojo, and create the thread on which the fuzzer will be run. We want to avoid
+// (as much as is reasonable) any state being preserved between testcases.
+//
+// We try to create an environment that matches the real browser process as much
+// as possible, so we use real platform threads in the task environment.
+class ContentFuzzerEnvironment {
+ public:
+  ContentFuzzerEnvironment()
+      : fuzzer_thread_((base::CommandLine::Init(1, cmdline), "fuzzer_thread")) {
+    TestTimeouts::Initialize();
+    logging::SetMinLogLevel(logging::LOG_FATAL);
+    mojo::core::Init();
+    base::i18n::InitializeICU();
+
+    fuzzer_thread_.StartAndWaitForTesting();
+  }
+
+  scoped_refptr<base::SequencedTaskRunner> fuzzer_task_runner() {
+    return fuzzer_thread_.task_runner();
+  }
+
+  base::AtExitManager at_exit_manager_;
+  base::Thread fuzzer_thread_;
+  content::TestContentClientInitializer content_client_initializer_;
+};
+
+ContentFuzzerEnvironment& GetEnvironment() {
+  static base::NoDestructor<ContentFuzzerEnvironment> environment;
   return *environment;
 }
 
@@ -261,13 +296,13 @@ void VideoCaptureHostTestcase::NextAction() {
         case Action::kRunThread: {
           if (action.run_thread().id()) {
             base::RunLoop run_loop(base::RunLoop::Type::kNestableTasksAllowed);
-            content::GetUIThreadTaskRunner({})->PostTask(
-                FROM_HERE, run_loop.QuitClosure());
+            base::PostTask(FROM_HERE, {content::BrowserThread::UI},
+                           run_loop.QuitClosure());
             run_loop.Run();
           } else {
             base::RunLoop run_loop(base::RunLoop::Type::kNestableTasksAllowed);
-            content::GetIOThreadTaskRunner({})->PostTask(
-                FROM_HERE, run_loop.QuitClosure());
+            base::PostTask(FROM_HERE, {content::BrowserThread::IO},
+                           run_loop.QuitClosure());
             run_loop.Run();
           }
         } break;
@@ -298,8 +333,8 @@ void VideoCaptureHostTestcase::NextAction() {
 void VideoCaptureHostTestcase::SetUp() {
   {
     base::RunLoop run_loop{base::RunLoop::Type::kNestableTasksAllowed};
-    content::GetIOThreadTaskRunner({})->PostTaskAndReply(
-        FROM_HERE,
+    base::PostTaskAndReply(
+        FROM_HERE, {content::BrowserThread::IO},
         base::BindOnce(&VideoCaptureHostTestcase::SetUpOnIOThreadFirst,
                        base::Unretained(this)),
         run_loop.QuitClosure());
@@ -307,8 +342,8 @@ void VideoCaptureHostTestcase::SetUp() {
   }
   {
     base::RunLoop run_loop{base::RunLoop::Type::kNestableTasksAllowed};
-    content::GetUIThreadTaskRunner({})->PostTaskAndReply(
-        FROM_HERE,
+    base::PostTaskAndReply(
+        FROM_HERE, {content::BrowserThread::UI},
         base::BindOnce(&VideoCaptureHostTestcase::SetUpOnUIThread,
                        base::Unretained(this)),
         run_loop.QuitClosure());
@@ -316,8 +351,8 @@ void VideoCaptureHostTestcase::SetUp() {
   }
   {
     base::RunLoop run_loop{base::RunLoop::Type::kNestableTasksAllowed};
-    content::GetIOThreadTaskRunner({})->PostTaskAndReply(
-        FROM_HERE,
+    base::PostTaskAndReply(
+        FROM_HERE, {content::BrowserThread::IO},
         base::BindOnce(&VideoCaptureHostTestcase::SetUpOnIOThreadSecond,
                        base::Unretained(this)),
         run_loop.QuitClosure());
@@ -357,7 +392,7 @@ void VideoCaptureHostTestcase::SetUpOnUIThread() {
       std::move(fake_v4l2_impl), std::move(fake_device_provider));
 
   media_stream_manager_ = std::make_unique<content::MediaStreamManager>(
-      audio_system_.get(),
+      audio_system_.get(), audio_manager_->GetTaskRunner(),
       content::InProcessVideoCaptureProvider::CreateInstance(
           std::make_unique<media::VideoCaptureSystemImpl>(
               std::move(video_capture_device_factory)),
@@ -377,8 +412,8 @@ void VideoCaptureHostTestcase::OpenSession(int render_process_id,
   content::MediaDeviceSaltAndOrigin salt_and_origin;
   {
     base::RunLoop run_loop{base::RunLoop::Type::kNestableTasksAllowed};
-    content::GetUIThreadTaskRunner({})->PostTaskAndReply(
-        FROM_HERE,
+    base::PostTaskAndReply(
+        FROM_HERE, {content::BrowserThread::UI},
         base::BindOnce(&VideoCaptureHostTestcase::OpenSessionOnUIThread,
                        base::Unretained(this), render_process_id,
                        render_frame_id, base::Unretained(&salt_and_origin)),
@@ -387,8 +422,8 @@ void VideoCaptureHostTestcase::OpenSession(int render_process_id,
   }
   {
     base::RunLoop run_loop{base::RunLoop::Type::kNestableTasksAllowed};
-    content::GetIOThreadTaskRunner({})->PostTask(
-        FROM_HERE,
+    base::PostTask(
+        FROM_HERE, {content::BrowserThread::IO},
         base::BindOnce(&VideoCaptureHostTestcase::OpenSessionOnIOThread,
                        base::Unretained(this), render_process_id,
                        render_frame_id, requester_id, page_request_id,
@@ -450,8 +485,8 @@ void VideoCaptureHostTestcase::OpenSessionOnIOThread(
 void VideoCaptureHostTestcase::TearDown() {
   {
     base::RunLoop run_loop{base::RunLoop::Type::kNestableTasksAllowed};
-    content::GetIOThreadTaskRunner({})->PostTaskAndReply(
-        FROM_HERE,
+    base::PostTaskAndReply(
+        FROM_HERE, {content::BrowserThread::IO},
         base::BindOnce(&VideoCaptureHostTestcase::TearDownOnIOThread,
                        base::Unretained(this)),
         run_loop.QuitClosure());
@@ -459,8 +494,8 @@ void VideoCaptureHostTestcase::TearDown() {
   }
   {
     base::RunLoop run_loop{base::RunLoop::Type::kNestableTasksAllowed};
-    content::GetUIThreadTaskRunner({})->PostTaskAndReply(
-        FROM_HERE,
+    base::PostTaskAndReply(
+        FROM_HERE, {content::BrowserThread::UI},
         base::BindOnce(&VideoCaptureHostTestcase::TearDownOnUIThread,
                        base::Unretained(this)),
         run_loop.QuitClosure());
@@ -520,8 +555,8 @@ void VideoCaptureHostTestcase::AddVideoCaptureHost(uint32_t id,
   auto receiver = remote.BindNewPipeAndPassReceiver();
 
   base::RunLoop run_loop(base::RunLoop::Type::kNestableTasksAllowed);
-  content::GetIOThreadTaskRunner({})->PostTaskAndReply(
-      FROM_HERE,
+  base::PostTaskAndReply(
+      FROM_HERE, {content::BrowserThread::IO},
       base::BindOnce(&content::VideoCaptureHost::Create, render_process_id,
                      media_stream_manager_.get(), std::move(receiver)),
       run_loop.QuitClosure());

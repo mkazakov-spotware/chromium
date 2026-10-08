@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <memory>
-
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "net/base/net_export.h"
 
 namespace disk_cache {
@@ -18,7 +16,7 @@ namespace disk_cache {
 // This class provides support for simple maps of bits.
 class NET_EXPORT_PRIVATE Bitmap {
  public:
-  Bitmap();
+  Bitmap() : map_(nullptr), num_bits_(0), array_size_(0), alloc_(false) {}
 
   // This constructor will allocate on a uint32_t boundary. If |clear_bits| is
   // false, the bitmap bits will not be initialized.
@@ -28,9 +26,6 @@ class NET_EXPORT_PRIVATE Bitmap {
   // has to be valid until this object destruction. |num_bits| is the number of
   // bits in the bitmap, and |num_words| is the size of |map| in 32-bit words.
   Bitmap(uint32_t* map, int num_bits, int num_words);
-
-  Bitmap(const Bitmap&) = delete;
-  Bitmap& operator=(const Bitmap&) = delete;
 
   ~Bitmap();
 
@@ -131,10 +126,12 @@ class NET_EXPORT_PRIVATE Bitmap {
   // stored in the same word, and len < kIntBits.
   void SetWordBits(int start, int len, bool value);
 
-  int num_bits_ = 0;    // The upper bound of the bitmap.
-  int array_size_ = 0;  // The physical size (in uint32s) of the bitmap.
-  std::unique_ptr<uint32_t[]> allocated_map_;  // The allocated data.
-  raw_ptr<uint32_t> map_ = nullptr;            // The bitmap.
+  uint32_t* map_;         // The bitmap.
+  int num_bits_;          // The upper bound of the bitmap.
+  int array_size_;        // The physical size (in uint32s) of the bitmap.
+  bool alloc_;            // Whether or not we allocated the memory.
+
+  DISALLOW_COPY_AND_ASSIGN(Bitmap);
 };
 
 }  // namespace disk_cache

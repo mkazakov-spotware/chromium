@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,17 @@
 
 #include <memory>
 
-#include "ash/components/arc/arc_util.h"
-#include "ash/components/arc/test/fake_arc_session.h"
 #include "ash/public/cpp/assistant/assistant_state.h"
 #include "base/bind.h"
 #include "base/files/scoped_temp_dir.h"
-#include "chrome/browser/ash/arc/session/arc_session_manager.h"
-#include "chrome/browser/ash/arc/test/test_arc_session_manager.h"
-#include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
+#include "chrome/browser/chromeos/arc/session/arc_session_manager.h"
+#include "chrome/browser/chromeos/arc/test/test_arc_session_manager.h"
+#include "chrome/browser/chromeos/login/users/fake_chrome_user_manager.h"
 #include "chrome/test/base/chrome_ash_test_base.h"
 #include "chrome/test/base/testing_profile.h"
-#include "chromeos/ash/components/dbus/concierge/concierge_client.h"
+#include "chromeos/dbus/dbus_thread_manager.h"
+#include "components/arc/arc_util.h"
+#include "components/arc/test/fake_arc_session.h"
 #include "components/language/core/browser/pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/user_manager/scoped_user_manager.h"
@@ -25,11 +25,14 @@
 class AssistantStateClientTest : public ChromeAshTestBase {
  public:
   AssistantStateClientTest()
-      : fake_user_manager_(std::make_unique<ash::FakeChromeUserManager>()) {}
+      : fake_user_manager_(
+            std::make_unique<chromeos::FakeChromeUserManager>()) {}
   ~AssistantStateClientTest() override = default;
 
   void SetUp() override {
-    ash::ConciergeClient::InitializeFake(/*fake_cicerone_client=*/nullptr);
+    // Need to initialize DBusThreadManager before ArcSessionManager's
+    // constructor calls DBusThreadManager::Get().
+    chromeos::DBusThreadManager::Initialize();
     ChromeAshTestBase::SetUp();
 
     // Setup test profile.
@@ -58,7 +61,7 @@ class AssistantStateClientTest : public ChromeAshTestBase {
     arc_session_manager_->Shutdown();
     arc_session_manager_.reset();
     ChromeAshTestBase::TearDown();
-    ash::ConciergeClient::Shutdown();
+    chromeos::DBusThreadManager::Shutdown();
   }
 
   AssistantStateClient* assistant_state_client() {
@@ -72,8 +75,8 @@ class AssistantStateClientTest : public ChromeAshTestBase {
   }
 
  private:
-  ash::FakeChromeUserManager* GetFakeUserManager() const {
-    return static_cast<ash::FakeChromeUserManager*>(
+  chromeos::FakeChromeUserManager* GetFakeUserManager() const {
+    return static_cast<chromeos::FakeChromeUserManager*>(
         user_manager::UserManager::Get());
   }
 

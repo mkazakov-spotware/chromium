@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,7 @@ void TestAppListControllerDelegate::DismissView() {
   did_dismiss_view_ = true;
 }
 
-aura::Window* TestAppListControllerDelegate::GetAppListWindow() {
+gfx::NativeWindow TestAppListControllerDelegate::GetAppListWindow() {
   return nullptr;
 }
 
@@ -53,15 +53,28 @@ void TestAppListControllerDelegate::DoShowAppInfoFlow(
     const std::string& extension_id) {
 }
 
-void TestAppListControllerDelegate::CreateNewWindow(
-    bool incognito,
-    bool should_trigger_session_restore) {}
+void TestAppListControllerDelegate::CreateNewWindow(bool incognito) {}
 
 void TestAppListControllerDelegate::OpenURL(Profile* profile,
                                             const GURL& url,
                                             ui::PageTransition transition,
                                             WindowOpenDisposition deposition) {
   last_opened_url_ = url;
+}
+
+void TestAppListControllerDelegate::ActivateApp(
+    Profile* profile,
+    const extensions::Extension* extension,
+    AppListSource source,
+    int event_flags) {
+}
+
+void TestAppListControllerDelegate::LaunchApp(
+    Profile* profile,
+    const extensions::Extension* extension,
+    AppListSource source,
+    int event_flags,
+    int64_t display_id) {
 }
 
 void TestAppListControllerDelegate::Reset() {

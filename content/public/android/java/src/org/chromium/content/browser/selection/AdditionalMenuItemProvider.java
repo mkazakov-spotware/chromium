@@ -1,17 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.content.browser.selection;
 
 import android.content.Context;
-import android.graphics.drawable.Drawable;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.textclassifier.TextClassification;
-
-import java.util.List;
 
 /**
  * An interface for adding more menu items.
@@ -23,8 +20,7 @@ public interface AdditionalMenuItemProvider {
      * @param menu Add menu items to this menu.
      * @param classification Providing info to generate menu items.
      */
-    void addMenuItems(
-            Context context, Menu menu, TextClassification classification, List<Drawable> icons);
+    void addMenuItems(Context context, Menu menu, TextClassification classification);
 
     /**
      * Call this to trigger internal cleanup.

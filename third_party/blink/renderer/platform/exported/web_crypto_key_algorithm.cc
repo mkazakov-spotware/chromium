@@ -112,11 +112,6 @@ WebCryptoKeyAlgorithm WebCryptoKeyAlgorithm::CreateEc(
       id, std::make_unique<WebCryptoEcKeyAlgorithmParams>(named_curve));
 }
 
-WebCryptoKeyAlgorithm WebCryptoKeyAlgorithm::CreateEd25519(
-    WebCryptoAlgorithmId id) {
-  return WebCryptoKeyAlgorithm(id, nullptr);
-}
-
 WebCryptoKeyAlgorithm WebCryptoKeyAlgorithm::CreateWithoutParams(
     WebCryptoAlgorithmId id) {
   if (!WebCryptoAlgorithm::IsKdf(id))

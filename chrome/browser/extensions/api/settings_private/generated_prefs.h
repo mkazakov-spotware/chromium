@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/extensions/api/settings_private/generated_pref.h"
 #include "chrome/browser/extensions/api/settings_private/prefs_util_enums.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -39,10 +39,6 @@ class GeneratedPrefs : public KeyedService {
       std::unordered_map<std::string, std::unique_ptr<GeneratedPref>>;
 
   explicit GeneratedPrefs(Profile* profile);
-
-  GeneratedPrefs(const GeneratedPrefs&) = delete;
-  GeneratedPrefs& operator=(const GeneratedPrefs&) = delete;
-
   ~GeneratedPrefs() override;
 
   // Returns true if preference is supported.
@@ -75,7 +71,9 @@ class GeneratedPrefs : public KeyedService {
   // Preference object map.
   PrefsMap prefs_;
 
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
+
+  DISALLOW_COPY_AND_ASSIGN(GeneratedPrefs);
 };
 
 }  // namespace settings_private

@@ -1,18 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/extensions/settings_overridden_params_providers.h"
 
-#include "base/ranges/algorithm.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/branding_buildflags.h"
+#include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/extensions/extension_web_ui.h"
+#include "chrome/browser/extensions/ntp_overridden_bubble_delegate.h"
 #include "chrome/browser/extensions/settings_api_bubble_delegate.h"
 #include "chrome/browser/extensions/settings_api_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
-#include "chrome/browser/ui/extensions/settings_api_bubble_helpers.h"
 #include "chrome/common/extensions/manifest_handlers/settings_overrides_handler.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/common/webui_url_constants.h"
@@ -21,7 +21,6 @@
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/url_formatter/url_formatter.h"
-#include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/browser_url_handler.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/common/extension.h"
@@ -40,8 +39,8 @@ size_t GetNumberOfExtensionsThatOverrideSearch(Profile* profile) {
     auto* const settings = extensions::SettingsOverrides::Get(extension.get());
     return settings && settings->search_engine;
   };
-  return base::ranges::count_if(registry->enabled_extensions(),
-                                overrides_search);
+  return std::count_if(registry->enabled_extensions().begin(),
+                       registry->enabled_extensions().end(), overrides_search);
 }
 
 // Returns true if the given |template_url| corresponds to Google search.
@@ -86,7 +85,7 @@ struct SecondarySearchInfo {
 
   // The name of the search engine; only populated when |type| is
   // kNonGoogleInDefaultList.
-  std::u16string name;
+  base::string16 name;
 };
 
 // Returns details about the search that would take over, if the currently-
@@ -123,7 +122,7 @@ SecondarySearchInfo GetSecondarySearchInfo(Profile* profile) {
 
   const GURL search_url = secondary_search->GenerateSearchURL(
       template_url_service->search_terms_data());
-  const GURL origin = search_url.DeprecatedGetOriginAsURL();
+  const GURL origin = search_url.GetOrigin();
   if (google_util::IsGoogleSearchUrl(search_url))
     return {SecondarySearchInfo::Type::kGoogle, origin};
 
@@ -139,17 +138,19 @@ SecondarySearchInfo GetSecondarySearchInfo(Profile* profile) {
 
 }  // namespace
 
-absl::optional<ExtensionSettingsOverriddenDialog::Params>
+base::Optional<ExtensionSettingsOverriddenDialog::Params>
 GetNtpOverriddenParams(Profile* profile) {
   const GURL ntp_url(chrome::kChromeUINewTabURL);
   const extensions::Extension* extension =
       ExtensionWebUI::GetExtensionControllingURL(ntp_url, profile);
   if (!extension)
-    return absl::nullopt;
+    return base::nullopt;
 
-  // This preference tracks whether users have acknowledged the extension's
-  // control, so that they are not warned twice about the same extension.
-  const char* preference_name = extensions::kNtpOverridingExtensionAcknowledged;
+  // We deliberately re-use the same preference that the bubble UI uses. This
+  // way, users won't see the bubble or dialog UI if they've already
+  // acknowledged either version.
+  const char* preference_name =
+      extensions::NtpOverriddenBubbleDelegate::kNtpBubbleAcknowledged;
 
   std::vector<GURL> possible_rewrites =
       content::BrowserURLHandler::GetInstance()->GetPossibleRewrites(ntp_url,
@@ -166,8 +167,8 @@ GetNtpOverriddenParams(Profile* profile) {
   if (possible_rewrites.size() > 1) {
     default_ntp_is_secondary =
         possible_rewrites[1] == ntp_url ||
-        possible_rewrites[1] == GURL(chrome::kChromeUINewTabPageURL) ||
-        possible_rewrites[1] == GURL(chrome::kChromeUINewTabPageThirdPartyURL);
+        possible_rewrites[1] == GURL(chrome::kChromeSearchLocalNtpUrl) ||
+        possible_rewrites[1] == GURL(chrome::kChromeUINewTabPageURL);
   }
   // Check if there's another extension that would take over (this isn't
   // included in BrowserURLHandler::GetPossibleRewrites(), which only takes the
@@ -185,7 +186,7 @@ GetNtpOverriddenParams(Profile* profile) {
   constexpr char kBackToGoogleDialogHistogramName[] =
       "Extensions.SettingsOverridden.BackToGoogleNtpOverriddenDialogResult";
 
-  std::u16string dialog_title;
+  base::string16 dialog_title;
   const char* histogram_name = nullptr;
   const gfx::VectorIcon* icon = nullptr;
   if (use_back_to_google_messaging) {
@@ -193,7 +194,7 @@ GetNtpOverriddenParams(Profile* profile) {
         IDS_EXTENSION_NTP_OVERRIDDEN_DIALOG_TITLE_BACK_TO_GOOGLE);
     histogram_name = kBackToGoogleDialogHistogramName;
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-    icon = &vector_icons::kGoogleGLogoIcon;
+    icon = &kGoogleGLogoIcon;
 #endif
   } else {
     dialog_title = l10n_util::GetStringUTF16(
@@ -203,7 +204,7 @@ GetNtpOverriddenParams(Profile* profile) {
   DCHECK(!dialog_title.empty());
   DCHECK(histogram_name);
 
-  std::u16string dialog_message = l10n_util::GetStringFUTF16(
+  base::string16 dialog_message = l10n_util::GetStringFUTF16(
       IDS_EXTENSION_NTP_OVERRIDDEN_DIALOG_BODY_GENERIC,
       base::UTF8ToUTF16(extension->name().c_str()));
 
@@ -212,12 +213,12 @@ GetNtpOverriddenParams(Profile* profile) {
       std::move(dialog_message), icon);
 }
 
-absl::optional<ExtensionSettingsOverriddenDialog::Params>
+base::Optional<ExtensionSettingsOverriddenDialog::Params>
 GetSearchOverriddenParams(Profile* profile) {
   const extensions::Extension* extension =
       extensions::GetExtensionOverridingSearchEngine(profile);
   if (!extension)
-    return absl::nullopt;
+    return base::nullopt;
 
   // We deliberately re-use the same preference that the bubble UI uses. This
   // way, users won't see the bubble or dialog UI if they've already
@@ -251,8 +252,8 @@ GetSearchOverriddenParams(Profile* profile) {
   // dialog to the user. That's likely good if any extension is doing something
   // as crazy as using filesystem: URLs as a search engine.
   if (!secondary_search.origin.is_empty() &&
-      secondary_search.origin == search_url.DeprecatedGetOriginAsURL()) {
-    return absl::nullopt;
+      secondary_search.origin == search_url.GetOrigin()) {
+    return base::nullopt;
   }
 
   // Format the URL for display.
@@ -260,8 +261,8 @@ GetSearchOverriddenParams(Profile* profile) {
       url_formatter::kFormatUrlOmitTrivialSubdomains |
       url_formatter::kFormatUrlTrimAfterHost |
       url_formatter::kFormatUrlOmitHTTP | url_formatter::kFormatUrlOmitHTTPS;
-  std::u16string formatted_search_url = url_formatter::FormatUrl(
-      search_url, kFormatRules, base::UnescapeRule::SPACES, nullptr, nullptr,
+  base::string16 formatted_search_url = url_formatter::FormatUrl(
+      search_url, kFormatRules, net::UnescapeRule::SPACES, nullptr, nullptr,
       nullptr);
 
   constexpr char kGenericDialogHistogramName[] =
@@ -273,14 +274,14 @@ GetSearchOverriddenParams(Profile* profile) {
 
   const char* histogram_name = nullptr;
   const gfx::VectorIcon* icon = nullptr;
-  std::u16string dialog_title;
+  base::string16 dialog_title;
   switch (secondary_search.type) {
     case SecondarySearchInfo::Type::kGoogle:
       histogram_name = kBackToGoogleHistogramName;
       dialog_title = l10n_util::GetStringUTF16(
           IDS_EXTENSION_SEARCH_OVERRIDDEN_DIALOG_TITLE_BACK_TO_GOOGLE);
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-      icon = &vector_icons::kGoogleGLogoIcon;
+      icon = &kGoogleGLogoIcon;
 #endif
       break;
     case SecondarySearchInfo::Type::kNonGoogleInDefaultList:
@@ -296,7 +297,7 @@ GetSearchOverriddenParams(Profile* profile) {
           IDS_EXTENSION_SEARCH_OVERRIDDEN_DIALOG_TITLE_GENERIC);
       break;
   }
-  std::u16string dialog_message = l10n_util::GetStringFUTF16(
+  base::string16 dialog_message = l10n_util::GetStringFUTF16(
       IDS_EXTENSION_SEARCH_OVERRIDDEN_DIALOG_BODY_GENERIC, formatted_search_url,
       base::UTF8ToUTF16(extension->name().c_str()));
 

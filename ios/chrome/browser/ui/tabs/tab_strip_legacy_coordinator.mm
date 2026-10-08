@@ -1,10 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/tabs/tab_strip_legacy_coordinator.h"
-
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/main/browser.h"
 #import "ios/chrome/browser/ui/tabs/requirements/tab_strip_presentation.h"
 #import "ios/chrome/browser/ui/tabs/tab_strip_controller.h"
@@ -26,11 +25,6 @@
 @synthesize started = _started;
 @synthesize tabStripController = _tabStripController;
 @synthesize animationWaitDuration = _animationWaitDuration;
-
-- (instancetype)initWithBrowser:(Browser*)browser {
-  DCHECK(browser);
-  return [super initWithBaseViewController:nil browser:browser];
-}
 
 - (void)setLongPressDelegate:(id<PopupMenuLongPressDelegate>)longPressDelegate {
   _longPressDelegate = longPressDelegate;
@@ -68,10 +62,6 @@
 - (void)setPanGestureHandler:
     (ViewRevealingVerticalPanHandler*)panGestureHandler {
   self.tabStripController.panGestureHandler = panGestureHandler;
-}
-
-- (id<ViewRevealingAnimatee>)animatee {
-  return self.tabStripController.animatee;
 }
 
 #pragma mark - ChromeCoordinator

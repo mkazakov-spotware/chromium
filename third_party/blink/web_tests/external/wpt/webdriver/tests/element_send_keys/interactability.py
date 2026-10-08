@@ -1,4 +1,5 @@
 from tests.support.asserts import assert_error, assert_success
+from tests.support.inline import iframe, inline
 
 
 def element_send_keys(session, element, text):
@@ -9,7 +10,7 @@ def element_send_keys(session, element, text):
         {"text": text})
 
 
-def test_body_is_interactable(session, inline):
+def test_body_is_interactable(session):
     session.url = inline("""
         <body onkeypress="document.querySelector('input').value += event.key">
           <input>
@@ -28,7 +29,7 @@ def test_body_is_interactable(session, inline):
     assert result.property("value") == "foo"
 
 
-def test_document_element_is_interactable(session, inline):
+def test_document_element_is_interactable(session):
     session.url = inline("""
         <html onkeypress="document.querySelector('input').value += event.key">
           <input>
@@ -48,7 +49,7 @@ def test_document_element_is_interactable(session, inline):
     assert result.property("value") == "foo"
 
 
-def test_iframe_is_interactable(session, inline, iframe):
+def test_iframe_is_interactable(session):
     session.url = inline(iframe("""
         <body onkeypress="document.querySelector('input').value += event.key">
           <input>
@@ -72,7 +73,7 @@ def test_iframe_is_interactable(session, inline, iframe):
     assert result.property("value") == "foo"
 
 
-def test_transparent_element(session, inline):
+def test_transparent_element(session):
     session.url = inline("""<input style="opacity: 0">""")
     element = session.find.css("input", all=False)
 
@@ -81,7 +82,7 @@ def test_transparent_element(session, inline):
     assert element.property("value") == "foo"
 
 
-def test_readonly_element(session, inline):
+def test_readonly_element(session):
     session.url = inline("<input readonly>")
     element = session.find.css("input", all=False)
 
@@ -90,7 +91,7 @@ def test_readonly_element(session, inline):
     assert element.property("value") == ""
 
 
-def test_obscured_element(session, inline):
+def test_obscured_element(session):
     session.url = inline("""
       <input>
       <div style="position: relative; top: -3em; height: 5em; background: blue;"></div>
@@ -102,7 +103,7 @@ def test_obscured_element(session, inline):
     assert element.property("value") == "foo"
 
 
-def test_not_a_focusable_element(session, inline):
+def test_not_a_focusable_element(session):
     session.url = inline("<div>foo</div>")
     element = session.find.css("div", all=False)
 
@@ -110,7 +111,7 @@ def test_not_a_focusable_element(session, inline):
     assert_error(response, "element not interactable")
 
 
-def test_display_none(session, inline):
+def test_display_none(session):
     session.url = inline("""<input style="display: none">""")
     element = session.find.css("input", all=False)
 
@@ -118,7 +119,7 @@ def test_display_none(session, inline):
     assert_error(response, "element not interactable")
 
 
-def test_visibility_hidden(session, inline):
+def test_visibility_hidden(session):
     session.url = inline("""<input style="visibility: hidden">""")
     element = session.find.css("input", all=False)
 
@@ -126,7 +127,7 @@ def test_visibility_hidden(session, inline):
     assert_error(response, "element not interactable")
 
 
-def test_hidden(session, inline):
+def test_hidden(session):
     session.url = inline("<input hidden>")
     element = session.find.css("input", all=False)
 
@@ -134,7 +135,7 @@ def test_hidden(session, inline):
     assert_error(response, "element not interactable")
 
 
-def test_disabled(session, inline):
+def test_disabled(session):
     session.url = inline("""<input disabled>""")
     element = session.find.css("input", all=False)
 

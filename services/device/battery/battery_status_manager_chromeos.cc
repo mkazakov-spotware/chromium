@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "chromeos/dbus/power/power_manager_client.h"
 #include "chromeos/dbus/power_manager/power_supply_properties.pb.h"
@@ -21,9 +22,6 @@ class PowerManagerObserver
   explicit PowerManagerObserver(
       const BatteryStatusService::BatteryUpdateCallback& callback)
       : callback_(callback), currently_listening_(false) {}
-
-  PowerManagerObserver(const PowerManagerObserver&) = delete;
-  PowerManagerObserver& operator=(const PowerManagerObserver&) = delete;
 
   // Starts listening for updates.
   void Start() {
@@ -117,6 +115,8 @@ class PowerManagerObserver
 
   BatteryStatusService::BatteryUpdateCallback callback_;
   bool currently_listening_;
+
+  DISALLOW_COPY_AND_ASSIGN(PowerManagerObserver);
 };
 
 class BatteryStatusManagerChromeOS
@@ -126,10 +126,6 @@ class BatteryStatusManagerChromeOS
   explicit BatteryStatusManagerChromeOS(
       const BatteryStatusService::BatteryUpdateCallback& callback)
       : observer_(base::MakeRefCounted<PowerManagerObserver>(callback)) {}
-
-  BatteryStatusManagerChromeOS(const BatteryStatusManagerChromeOS&) = delete;
-  BatteryStatusManagerChromeOS& operator=(const BatteryStatusManagerChromeOS&) =
-      delete;
 
   ~BatteryStatusManagerChromeOS() override { observer_->Stop(); }
 
@@ -143,6 +139,8 @@ class BatteryStatusManagerChromeOS
   void StopListeningBatteryChange() override { observer_->Stop(); }
 
   scoped_refptr<PowerManagerObserver> observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(BatteryStatusManagerChromeOS);
 };
 
 }  // namespace

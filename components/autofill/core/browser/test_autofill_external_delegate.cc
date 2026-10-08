@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 namespace autofill {
 
 TestAutofillExternalDelegate::TestAutofillExternalDelegate(
-    BrowserAutofillManager* autofill_manager,
+    AutofillManager* autofill_manager,
     AutofillDriver* autofill_driver,
     bool call_parent_methods)
     : AutofillExternalDelegate(autofill_manager, autofill_driver),
@@ -48,7 +48,7 @@ void TestAutofillExternalDelegate::OnQuery(int query_id,
 void TestAutofillExternalDelegate::OnSuggestionsReturned(
     int query_id,
     const std::vector<Suggestion>& suggestions,
-    AutoselectFirstSuggestion autoselect_first_suggestion,
+    bool autoselect_first_suggestion,
     bool is_all_server_suggestions) {
   on_suggestions_returned_seen_ = true;
   query_id_ = query_id;
@@ -60,7 +60,6 @@ void TestAutofillExternalDelegate::OnSuggestionsReturned(
   // execute logic relating to showing the popup or not.
   if (call_parent_methods_)
     AutofillExternalDelegate::OnSuggestionsReturned(query_id, suggestions,
-                                                    autoselect_first_suggestion,
                                                     is_all_server_suggestions);
 }
 
@@ -94,11 +93,8 @@ void TestAutofillExternalDelegate::CheckSuggestions(
   ASSERT_LE(expected_num_suggestions, suggestions_.size());
   for (size_t i = 0; i < expected_num_suggestions; ++i) {
     SCOPED_TRACE(base::StringPrintf("i: %" PRIuS, i));
-    EXPECT_EQ(expected_suggestions[i].main_text.value,
-              suggestions_[i].main_text.value);
-    EXPECT_EQ(expected_suggestions[i].minor_text.value,
-              suggestions_[i].minor_text.value);
-    EXPECT_EQ(expected_suggestions[i].labels, suggestions_[i].labels);
+    EXPECT_EQ(expected_suggestions[i].value, suggestions_[i].value);
+    EXPECT_EQ(expected_suggestions[i].label, suggestions_[i].label);
     EXPECT_EQ(expected_suggestions[i].icon, suggestions_[i].icon);
     EXPECT_EQ(expected_suggestions[i].frontend_id, suggestions_[i].frontend_id);
   }
@@ -127,8 +123,7 @@ bool TestAutofillExternalDelegate::on_suggestions_returned_seen() const {
   return on_suggestions_returned_seen_;
 }
 
-AutoselectFirstSuggestion
-TestAutofillExternalDelegate::autoselect_first_suggestion() const {
+bool TestAutofillExternalDelegate::autoselect_first_suggestion() const {
   return autoselect_first_suggestion_;
 }
 

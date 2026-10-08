@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2013 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.jsonTest');
 goog.setTestOnly();
@@ -53,7 +61,7 @@ function assertSerialize(expected, obj, replacer = undefined) {
   if (obj instanceof Function) return;
 
   // goog.json.serialize doesn't use the toJSON method.
-  if (goog.isObject(obj) && typeof obj.toJSON === 'function') return;
+  if (goog.isObject(obj) && goog.isFunction(obj.toJSON)) return;
 
   if (typeof JSON != 'undefined') {
     assertEquals(
@@ -208,7 +216,11 @@ testSuite({
 
   testObjectSerializeWithHasOwnProperty() {
     const object = {'hasOwnProperty': null};
-    assertEquals('{"hasOwnProperty":null}', googJson.serialize(object));
+    if (userAgent.IE && !userAgent.isVersionOrHigher('9')) {
+      assertEquals('{}', googJson.serialize(object));
+    } else {
+      assertEquals('{"hasOwnProperty":null}', googJson.serialize(object));
+    }
   },
 
   testWrappedObjects() {
@@ -408,7 +420,6 @@ testSuite({
     function F() {}
     F.prototype = {c: 3};
 
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const obj = new F;
     obj.a = 1;
     obj.b = 2;
@@ -436,7 +447,7 @@ testSuite({
     assertSerialize('[null,null,0]', [, , 0]);
 
     assertSerialize('[0,0,{"x":0}]', [, , {x: 0}], function(k, v) {
-      if (v === undefined && Array.isArray(this)) {
+      if (v === undefined && goog.isArray(this)) {
         return 0;
       }
       return v;
@@ -464,8 +475,7 @@ testSuite({
   },
 
   testTryNativeJson() {
-    // bypass the compiler @define check
-    googJson['TRY_NATIVE_JSON'] = true;
+    googJson.TRY_NATIVE_JSON = true;
     let error;
     googJson.setErrorLogger((message, ex) => {
       error = message;
@@ -475,8 +485,7 @@ testSuite({
     googJson.parse('{"a":[,1]}');
     assertEquals('Invalid JSON: {"a":[,1]}', error);
 
-    // bypass the compiler @define check
-    googJson['TRY_NATIVE_JSON'] = false;
+    googJson.TRY_NATIVE_JSON = false;
     googJson.setErrorLogger(goog.nullFunction);
   },
 });

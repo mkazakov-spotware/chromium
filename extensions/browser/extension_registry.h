@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include <string>
 
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/observer_list.h"
 #include "base/version.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -49,10 +49,6 @@ class ExtensionRegistry : public KeyedService {
   };
 
   explicit ExtensionRegistry(content::BrowserContext* browser_context);
-
-  ExtensionRegistry(const ExtensionRegistry&) = delete;
-  ExtensionRegistry& operator=(const ExtensionRegistry&) = delete;
-
   ~ExtensionRegistry() override;
 
   // Returns the instance for the given |browser_context|.
@@ -135,9 +131,6 @@ class ExtensionRegistry : public KeyedService {
   // not be any installed extension with |extension|'s ID.
   void TriggerOnUninstalled(const Extension* extension, UninstallReason reason);
 
-  // Invokes the observer method OnExtensionUninstallationDenied().
-  void TriggerOnUninstallationDenied(const Extension* extension);
-
   // Find an extension by ID using |include_mask| to pick the sets to search:
   //  * enabled_extensions()     --> ExtensionRegistry::ENABLED
   //  * disabled_extensions()    --> ExtensionRegistry::DISABLED
@@ -216,7 +209,9 @@ class ExtensionRegistry : public KeyedService {
 
   base::ObserverList<ExtensionRegistryObserver>::Unchecked observers_;
 
-  const raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* const browser_context_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionRegistry);
 };
 
 }  // namespace extensions

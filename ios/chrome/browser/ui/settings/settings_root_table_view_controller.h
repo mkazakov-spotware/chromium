@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,8 @@
 #import "ios/chrome/browser/ui/table_view/chrome_table_view_controller.h"
 
 // SettingsRootTableViewController is a base class for integrating UITableViews
-// into the Settings UI. This class is made to be subclassed and contains the
-// logic to handle the most common user interactions (edit, delete...).
+// into the Settings UI.  It handles the configuration and display of the MDC
+// AppBar.
 @interface SettingsRootTableViewController
     : ChromeTableViewController <SettingsRootViewControlling,
                                  TableViewLinkHeaderFooterItemDelegate,
@@ -22,28 +22,9 @@
 // Delete button for the toolbar.
 @property(nonatomic, strong, readonly) UIBarButtonItem* deleteButton;
 
-// Custom left button for the toolbar.
-// Return a non nil value to provide a custom button displayed on the left
-// side of the toolbar. Default is nil.
-@property(nonatomic, strong, readonly) UIBarButtonItem* customLeftToolbarButton;
-
-// Custom right button for the toolbar.
-// Return a non nil value to provide a custom button displayed on the right
-// side of the toolbar. Default is nil.
-@property(nonatomic, strong, readonly)
-    UIBarButtonItem* customRightToolbarButton;
-
 // Whether this table view controller should hide the "Done" button (the right
 // navigation bar button). Default is NO.
 @property(nonatomic, assign) BOOL shouldHideDoneButton;
-
-// Whether this table view controller should hide the "Done" button (the right
-// navigation bar button) on edit. Default is NO.
-@property(nonatomic, assign) BOOL shouldDisableDoneButtonOnEdit;
-
-// Whether this table view controller should show the "Delete" button in the
-// toolbar(bottom left) in edit mode. Default is YES. Set in `viewDidLoad`.
-@property(nonatomic, assign) BOOL shouldShowDeleteButtonInToolbar;
 
 // Updates the edit or done button to reflect editing state.  If the
 // tableView is not in edit mode (and thus showing the 'Done' button) it is
@@ -52,15 +33,7 @@
 // setEditing:animated: method instead of being manually triggered.
 - (void)updateUIForEditState;
 
-// Updates the buttons in the toolbar to reflect its editing state.
-// If `customLeftToolbarButton` or `customRightToolbarButton` are non nil, they
-// are displayed on the toolbar. In the absence of custom buttons and in edit
-// state, the left end shows the Delete button and the right end shows Done. In
-// no edit state and no custom buttons, the edit button is displayed on the
-// right end.
-- (void)updatedToolbarForEditState;
-
-// Reloads the table view model with `loadModel` and then reloads the
+// Reloads the table view model with |loadModel| and then reloads the
 // table view data.
 - (void)reloadData;
 
@@ -80,10 +53,6 @@
 // enabled.
 - (BOOL)editButtonEnabled;
 
-// Returns YES by default. Subclasses should overload this if the edit done
-// button should be shown.
-- (BOOL)shouldShowEditDoneButton;
-
 // Notifies the view controller that the edit button has been tapped. If you
 // override this method, you must call -[super editButtonPressed] at some point
 // in your implementation.
@@ -92,16 +61,12 @@
 // editing mode of this controller.
 - (void)editButtonPressed;
 
-// Returns NO. Subclasses should overload this if the cancel button should be
-// shown during editing.
-- (BOOL)showCancelDuringEditing;
-
 // Called when this ViewController toolbar's delete item has been tapped.
-// `indexPaths` is the index paths of the currently selected item to be deleted.
+// |indexPaths| is the index paths of the currently selected item to be deleted.
 // Default implementation removes the items.
 - (void)deleteItems:(NSArray<NSIndexPath*>*)indexPaths;
 
-// Prevents user interaction until `-allowUserInteraction` is called by doing
+// Prevents user interaction until |-allowUserInteraction| is called by doing
 // the following:
 // * Disables user interaction with the navigation bar.
 // * Replaces the done button with an activity indicator.
@@ -113,10 +78,6 @@
 // * Restores the done button.
 // * Removes the transparent veil.
 - (void)allowUserInteraction;
-
-// Called when the add button in the toolbar is pressed. Subclasses must
-// override this method if `shouldShowAddButtonInToolbar` is set to YES.
-- (void)addButtonCallback;
 
 @end
 

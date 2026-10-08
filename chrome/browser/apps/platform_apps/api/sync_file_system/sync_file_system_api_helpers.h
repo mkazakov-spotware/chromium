@@ -1,11 +1,12 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_APPS_PLATFORM_APPS_API_SYNC_FILE_SYSTEM_SYNC_FILE_SYSTEM_API_HELPERS_H_
 #define CHROME_BROWSER_APPS_PLATFORM_APPS_API_SYNC_FILE_SYSTEM_SYNC_FILE_SYSTEM_API_HELPERS_H_
 
-#include "base/values.h"
+#include <memory>
+
 #include "chrome/browser/sync_file_system/conflict_resolution_policy.h"
 #include "chrome/browser/sync_file_system/sync_action.h"
 #include "chrome/browser/sync_file_system/sync_direction.h"
@@ -16,6 +17,10 @@
 
 namespace storage {
 class FileSystemURL;
+}
+
+namespace base {
+class DictionaryValue;
 }
 
 namespace chrome_apps {
@@ -50,7 +55,7 @@ ConflictResolutionPolicyToExtensionEnum(
 // in the renderer's customer binding to create a FileEntry object.
 // This returns NULL if the given |url| is not valid or |file_type| is
 // SYNC_FILE_TYPE_UNKNOWN.
-absl::optional<base::Value::Dict> CreateDictionaryValueForFileSystemEntry(
+std::unique_ptr<base::DictionaryValue> CreateDictionaryValueForFileSystemEntry(
     const storage::FileSystemURL& url,
     ::sync_file_system::SyncFileType file_type);
 

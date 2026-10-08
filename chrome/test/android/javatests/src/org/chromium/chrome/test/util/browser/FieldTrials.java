@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@ package org.chromium.chrome.test.util.browser;
 
 import org.chromium.base.BaseSwitches;
 import org.chromium.base.CommandLine;
-import org.chromium.chrome.browser.flags.AllCachedFieldTrialParameters;
 import org.chromium.chrome.browser.flags.CachedFeatureFlags;
 import org.chromium.chrome.browser.flags.CachedFieldTrialParameter;
 
@@ -117,12 +116,9 @@ public class FieldTrials {
         Set<String> enableFeaturesSet = new HashSet<>();
         if (enableFeatures != null) {
             Collections.addAll(enableFeaturesSet, enableFeatures.split(","));
-
-            Map<String, Boolean> enabledFeaturesMap = new HashMap<>();
             for (String enabledFeature : enableFeaturesSet) {
-                enabledFeaturesMap.put(cleanupFeatureName(enabledFeature), true);
+                CachedFeatureFlags.setForTesting(cleanupFeatureName(enabledFeature), true);
             }
-            CachedFeatureFlags.setFeaturesForTesting(enabledFeaturesMap);
         }
 
         if (forceFieldTrials == null || forceFieldTrialParams == null || enableFeatures == null) {
@@ -143,7 +139,6 @@ public class FieldTrials {
                         CachedFieldTrialParameter.setForTesting(
                                 featureName, param.getKey(), param.getValue());
                     }
-                    AllCachedFieldTrialParameters.setForTesting(featureName, params);
                 }
             }
         } catch (Exception e) {

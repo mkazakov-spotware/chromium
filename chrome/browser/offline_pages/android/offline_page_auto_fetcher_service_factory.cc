@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,13 @@
 #include "chrome/browser/offline_pages/android/offline_page_auto_fetcher_service.h"
 #include "chrome/browser/offline_pages/offline_page_model_factory.h"
 #include "chrome/browser/offline_pages/request_coordinator_factory.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 
 namespace offline_pages {
 
 class OfflinePageAutoFetcherServiceFactory::ServiceDelegate final
     : public OfflinePageAutoFetcherService::Delegate {
-  void ShowAutoFetchCompleteNotification(const std::u16string& pageTitle,
+  void ShowAutoFetchCompleteNotification(const base::string16& pageTitle,
                                          const std::string& original_url,
                                          const std::string& final_url,
                                          int android_tab_id,
@@ -44,7 +45,9 @@ OfflinePageAutoFetcherServiceFactory::GetForBrowserContext(
 }
 
 OfflinePageAutoFetcherServiceFactory::OfflinePageAutoFetcherServiceFactory()
-    : ProfileKeyedServiceFactory("OfflinePageAutoFetcherService"),
+    : BrowserContextKeyedServiceFactory(
+          "OfflinePageAutoFetcherService",
+          BrowserContextDependencyManager::GetInstance()),
       service_delegate_(
           std::make_unique<
               OfflinePageAutoFetcherServiceFactory::ServiceDelegate>()) {

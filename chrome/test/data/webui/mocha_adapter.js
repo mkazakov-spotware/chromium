@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,32 +20,24 @@
  *     (see Runner.prototype in mocha.js).
  */
 function BrowserTestReporter(runner) {
-  let passes = 0;
-  let failures = 0;
-
-  // Log test progress.
-  runner.on('test', function(test) {
-    console.info(`Mocha test started: ${test.fullTitle()}`);
-  });
+  var passes = 0;
+  var failures = 0;
 
   // Increment passes for each passed test.
   runner.on('pass', function(test) {
     passes++;
-    // Note: Adding an extra space before 'passed' to beter align with the
-    // 'Mocha test started' message.
-    console.info(`Mocha test  passed: ${test.fullTitle()}`);
   });
 
   // Report failures. Mocha only catches "assert" failures, because "expect"
   // failures are caught by test_api.js.
   runner.on('fail', function(test, err) {
     failures++;
-    let message = 'Mocha test failed: ' + test.fullTitle() + '\n';
+    var message = 'Mocha test failed: ' + test.fullTitle() + '\n';
 
     // Remove unhelpful mocha lines from stack trace.
     if (err.stack) {
-      const stack = err.stack.split('\n');
-      for (let i = 0; i < stack.length; i++) {
+      var stack = err.stack.split('\n');
+      for (var i = 0; i < stack.length; i++) {
         if (stack[i].indexOf('mocha.js:') === -1) {
           message += stack[i] + '\n';
         }
@@ -70,7 +62,7 @@ function BrowserTestReporter(runner) {
     testDone([
       false,
       'Test Errors: ' + failures + '/' + (passes + failures) +
-          ' tests had failed assertions.',
+          ' tests had failed assertions.'
     ]);
   });
 }
@@ -102,5 +94,5 @@ mocha.setup({
   // Mocha timeouts are set to 2 seconds initially. This isn't nearly enough for
   // slower bots (e.g., Dr. Memory). Disable timeouts globally, because the C++
   // will handle it (and has scaled timeouts for slower bots).
-  timeout: '0',
+  enableTimeouts: false,
 });

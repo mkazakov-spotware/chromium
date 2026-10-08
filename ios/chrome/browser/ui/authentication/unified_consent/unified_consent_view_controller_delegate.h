@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,25 +12,15 @@
 // Delegate protocol for UnifiedConsentViewController.
 @protocol UnifiedConsentViewControllerDelegate<NSObject>
 
-// Returns whether there are policies disabling Sync for at least one data type.
-- (BOOL)unifiedConsentCoordinatorHasManagedSyncDataType;
-
-// Returns true if there are account restrictions.
-- (BOOL)unifiedConsentCoordinatorHasAccountRestrictions;
-
 // Called when the user taps on the settings link.
 - (void)unifiedConsentViewControllerDidTapSettingsLink:
     (UnifiedConsentViewController*)controller;
 
-// Called when the user taps on the 'Learn More' link.
-- (void)unifiedConsentViewControllerDidTapLearnMoreLink:
-    (UnifiedConsentViewController*)controller;
-
-// Called when the user taps at `point` on the IdentityButtonControl. `point` is
-// in the window coordinates.
-- (void)unifiedConsentViewControllerDidTapIdentityButtonControl:
+// Called when the user taps at |point| on the IdentityPickerView. |point| is in
+// the window coordinates.
+- (void)unifiedConsentViewControllerDidTapIdentityPickerView:
             (UnifiedConsentViewController*)controller
-                                                        atPoint:(CGPoint)point;
+                                                     atPoint:(CGPoint)point;
 
 // Called when the user scrolls down to the bottom (or when the view controller
 // is loaded with no scroll needed).

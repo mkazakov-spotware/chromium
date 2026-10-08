@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,13 +16,12 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 class ReputationServiceTest : public ChromeRenderViewHostTestHarness {
- public:
-  ReputationServiceTest(const ReputationServiceTest&) = delete;
-  ReputationServiceTest& operator=(const ReputationServiceTest&) = delete;
-
  protected:
   ReputationServiceTest() {}
   ~ReputationServiceTest() override {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ReputationServiceTest);
 };
 
 // Test that the blocklist blocks patterns as expected.

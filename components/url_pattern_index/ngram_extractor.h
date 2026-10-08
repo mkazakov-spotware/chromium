@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include <type_traits>
 
 #include "base/check_op.h"
-#include "base/memory/raw_ref.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 
@@ -38,20 +37,14 @@ template <size_t N,
 class NGramExtractor {
  public:
   // An STL compatible input iterator over N-grams contained in a string.
-  class Iterator {
+  class Iterator : public std::iterator<std::input_iterator_tag, NGramType> {
    public:
-    using iterator_category = std::input_iterator_tag;
-    using value_type = NGramType;
-    using difference_type = std::ptrdiff_t;
-    using pointer = NGramType*;
-    using reference = NGramType&;
-
     // Creates an iterator, which points to the leftmost valid N-gram within the
     // |extractor|'s string, starting from |head|.
     Iterator(const NGramExtractor& extractor,
              base::StringPiece::const_iterator head)
         : extractor_(extractor), head_(head), end_(extractor.string_.end()) {
-      DCHECK_GE(head, extractor_->string_.begin());
+      DCHECK_GE(head, extractor_.string_.begin());
       DCHECK_LE(head, end_);
 
       CompleteNGramFrom(0);
@@ -91,7 +84,7 @@ class NGramExtractor {
     // length of N. Leaves |head_| pointing to the last character consumed.
     void CompleteNGramFrom(size_t current_length) {
       for (; head_ != end_; ++head_) {
-        if (extractor_->is_separator_(*head_)) {
+        if (extractor_.is_separator_(*head_)) {
           current_length = 0;
           ngram_ = 0;
         } else {
@@ -102,7 +95,7 @@ class NGramExtractor {
       }
     }
 
-    const raw_ref<const NGramExtractor> extractor_;
+    const NGramExtractor& extractor_;
 
     // Always points to the last character included in the current |ngram_|.
     base::StringPiece::const_iterator head_;

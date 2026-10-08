@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,7 +38,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.robolectric.annotation.Config;
 
-import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -49,7 +48,6 @@ import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelFilterProvider;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorImpl;
 import org.chromium.chrome.browser.tasks.tab_groups.TabGroupModelFilter;
-import org.chromium.chrome.browser.tasks.tab_management.TabListCoordinator.TabListMode;
 import org.chromium.chrome.test.util.browser.Features;
 import org.chromium.components.feature_engagement.EventConstants;
 import org.chromium.components.feature_engagement.Tracker;
@@ -66,11 +64,7 @@ import java.util.List;
  */
 @SuppressWarnings("ResultOfMethodCallIgnored")
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE,
-        instrumentedPackages =
-                {
-                        "androidx.recyclerview.widget.RecyclerView" // required to mock final
-                })
+@Config(manifest = Config.NONE)
 @Features.EnableFeatures({ChromeFeatureList.TAB_GROUPS_ANDROID})
 public class TabGridItemTouchHelperCallbackUnitTest {
     @Rule
@@ -199,9 +193,8 @@ public class TabGridItemTouchHelperCallbackUnitTest {
     }
 
     private void setupItemTouchHelperCallback(boolean isDialog) {
-        mItemTouchHelperCallback = new TabGridItemTouchHelperCallback(
-                ContextUtils.getApplicationContext(), mModel, mTabModelSelector, mTabClosedListener,
-                isDialog ? mTabGridDialogHandler : null, "", !isDialog, TabListMode.GRID);
+        mItemTouchHelperCallback = new TabGridItemTouchHelperCallback(mModel, mTabModelSelector,
+                mTabClosedListener, isDialog ? mTabGridDialogHandler : null, "", !isDialog);
         mItemTouchHelperCallback.setupCallback(THRESHOLD, THRESHOLD, THRESHOLD, mProfile);
         mItemTouchHelperCallback.getMovementFlags(mRecyclerView, mMockViewHolder1);
     }
@@ -761,31 +754,31 @@ public class TabGridItemTouchHelperCallbackUnitTest {
     }
 
     @Test
-    public void largeMessageItemNotDraggable() {
-        when(mMockViewHolder1.getItemViewType()).thenReturn(TabProperties.UiType.LARGE_MESSAGE);
+    public void newTabTileNotDraggable() {
+        when(mMockViewHolder1.getItemViewType()).thenReturn(TabProperties.UiType.NEW_TAB_TILE);
         setupItemTouchHelperCallback(false);
         assertFalse(
                 mItemTouchHelperCallback.hasDragFlagForTesting(mRecyclerView, mMockViewHolder1));
     }
 
     @Test
-    public void largeMessageItemSwipeable() {
-        when(mMockViewHolder1.getItemViewType()).thenReturn(TabProperties.UiType.LARGE_MESSAGE);
+    public void newTabTileNotSwipeable() {
+        when(mMockViewHolder1.getItemViewType()).thenReturn(TabProperties.UiType.NEW_TAB_TILE);
         setupItemTouchHelperCallback(false);
-        assertTrue(mItemTouchHelperCallback.hasSwipeFlag(mRecyclerView, mMockViewHolder1));
+        assertFalse(mItemTouchHelperCallback.hasSwipeFlag(mRecyclerView, mMockViewHolder1));
     }
 
     @Test
-    public void largeMessageItemNotDropable() {
-        when(mMockViewHolder1.getItemViewType()).thenReturn(TabProperties.UiType.LARGE_MESSAGE);
+    public void newTabTileNotDropable() {
+        when(mMockViewHolder1.getItemViewType()).thenReturn(TabProperties.UiType.NEW_TAB_TILE);
         setupItemTouchHelperCallback(false);
         assertFalse(mItemTouchHelperCallback.canDropOver(
                 mRecyclerView, mMockViewHolder2, mMockViewHolder1));
     }
 
     @Test(expected = AssertionError.class)
-    public void largeMessageItemOnMoveFail() {
-        when(mMockViewHolder1.getItemViewType()).thenReturn(TabProperties.UiType.LARGE_MESSAGE);
+    public void newTabTileOnMoveFail() {
+        when(mMockViewHolder1.getItemViewType()).thenReturn(TabProperties.UiType.NEW_TAB_TILE);
         setupItemTouchHelperCallback(false);
         mItemTouchHelperCallback.onMove(mRecyclerView, mMockViewHolder1, mMockViewHolder2);
     }
@@ -856,6 +849,7 @@ public class TabGridItemTouchHelperCallbackUnitTest {
                                    .with(TabProperties.TAB_ID, id)
                                    .with(CARD_TYPE, TAB)
                                    .build();
+        doReturn(position).when(viewHolder).getAdapterPosition();
         return viewHolder;
     }
 

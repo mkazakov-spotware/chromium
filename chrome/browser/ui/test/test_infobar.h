@@ -1,22 +1,20 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_TEST_TEST_INFOBAR_H_
 #define CHROME_BROWSER_UI_TEST_TEST_INFOBAR_H_
 
+#include "base/optional.h"
 #include "chrome/browser/ui/test/test_browser_ui.h"
 #include "components/infobars/core/infobar_delegate.h"
 #include "components/infobars/core/infobar_manager.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+
+class InfoBarService;
 
 namespace content {
 class WebContents;
 }  // namespace content
-
-namespace infobars {
-class ContentInfoBarManager;
-}
 
 class TestInfoBar : public UiBrowserTest {
  public:
@@ -39,9 +37,9 @@ class TestInfoBar : public UiBrowserTest {
   content::WebContents* GetWebContents();
   const content::WebContents* GetWebContents() const;
 
-  // Returns the infobars::ContentInfoBarManager associated with the active tab.
-  infobars::ContentInfoBarManager* GetInfoBarManager();
-  const infobars::ContentInfoBarManager* GetInfoBarManager() const;
+  // Returns the InfoBarService associated with the active tab.
+  InfoBarService* GetInfoBarService();
+  const InfoBarService* GetInfoBarService() const;
 
  private:
   using InfoBars = infobars::InfoBarManager::InfoBars;
@@ -49,7 +47,7 @@ class TestInfoBar : public UiBrowserTest {
   // Returns the current infobars that are not already in |starting_infobars_|.
   // Fails (i.e. returns nullopt) if the current set of infobars does not begin
   // with |starting_infobars_|.
-  absl::optional<InfoBars> GetNewInfoBars() const;
+  base::Optional<InfoBars> GetNewInfoBars() const;
 
   InfoBars starting_infobars_;
   std::vector<InfoBarDelegateIdentifier> expected_identifiers_;

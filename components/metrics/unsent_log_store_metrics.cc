@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 namespace metrics {
 
 // static
-BASE_FEATURE(kRecordLastUnsentLogMetadataMetrics,
-             "RecordLastUnsentLogMetadataMetrics",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature UnsentLogStoreMetrics::kRecordLastUnsentLogMetadataMetrics =
+    {"RecordLastUnsentLogMetadataMetrics", base::FEATURE_DISABLED_BY_DEFAULT};
 
 UnsentLogStoreMetrics::UnsentLogStoreMetrics() = default;
 UnsentLogStoreMetrics::~UnsentLogStoreMetrics() = default;
@@ -22,6 +21,10 @@ void UnsentLogStoreMetrics::RecordCompressionRatio(size_t compressed_size,
 void UnsentLogStoreMetrics::RecordDroppedLogSize(size_t size) {}
 
 void UnsentLogStoreMetrics::RecordDroppedLogsNum(int dropped_logs_num) {}
+
+void UnsentLogStoreMetrics::RecordIntendingToSentLogs(int num) {}
+
+void UnsentLogStoreMetrics::RecordSentLog() {}
 
 void UnsentLogStoreMetrics::RecordLastUnsentLogMetadataMetrics(
     int unsent_samples_count,

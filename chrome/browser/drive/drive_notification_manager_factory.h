@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define CHROME_BROWSER_DRIVE_DRIVE_NOTIFICATION_MANAGER_FACTORY_H_
 
 #include "base/memory/singleton.h"
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 namespace content {
 class BrowserContext;
@@ -18,7 +18,8 @@ class DriveNotificationManager;
 
 // Singleton that owns all DriveNotificationManager and associates them with
 // browser contexts.
-class DriveNotificationManagerFactory : public ProfileKeyedServiceFactory {
+class DriveNotificationManagerFactory
+    : public BrowserContextKeyedServiceFactory {
  public:
   // Returns the |DriveNotificationManager| for |context| if one exists or NULL
   // otherwise.

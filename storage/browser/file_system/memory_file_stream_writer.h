@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,15 +18,6 @@ namespace storage {
 class COMPONENT_EXPORT(STORAGE_BROWSER) MemoryFileStreamWriter
     : public FileStreamWriter {
  public:
-  MemoryFileStreamWriter(
-      scoped_refptr<base::TaskRunner> task_runner,
-      base::WeakPtr<ObfuscatedFileUtilMemoryDelegate> memory_file_util,
-      const base::FilePath& file_path,
-      int64_t initial_offset);
-
-  MemoryFileStreamWriter(const MemoryFileStreamWriter&) = delete;
-  MemoryFileStreamWriter& operator=(const MemoryFileStreamWriter&) = delete;
-
   ~MemoryFileStreamWriter() override;
 
   // FileStreamWriter overrides.
@@ -37,6 +28,13 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) MemoryFileStreamWriter
   int Flush(net::CompletionOnceCallback callback) override;
 
  private:
+  friend class FileStreamWriter;
+  MemoryFileStreamWriter(
+      scoped_refptr<base::TaskRunner> task_runner,
+      base::WeakPtr<ObfuscatedFileUtilMemoryDelegate> memory_file_util,
+      const base::FilePath& file_path,
+      int64_t initial_offset);
+
   void OnWriteCompleted(net::CompletionOnceCallback callback, int result);
 
   // Stops the in-flight operation and calls |cancel_callback_| if it has been
@@ -53,6 +51,7 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) MemoryFileStreamWriter
   net::CompletionOnceCallback cancel_callback_;
 
   base::WeakPtrFactory<MemoryFileStreamWriter> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(MemoryFileStreamWriter);
 };
 
 }  // namespace storage

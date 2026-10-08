@@ -1,22 +1,21 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/settings/password/password_exporter_for_testing.h"
 
-#import "base/strings/utf_string_conversions.h"
-#import "base/test/metrics/histogram_tester.h"
-#import "base/test/task_environment.h"
-#import "components/password_manager/core/browser/password_form.h"
-#import "components/password_manager/core/browser/password_manager_metrics_util.h"
-#import "components/password_manager/core/browser/ui/credential_ui_entry.h"
-#import "components/strings/grit/components_strings.h"
-#import "ios/chrome/grit/ios_strings.h"
+#include "base/strings/utf_string_conversions.h"
+#include "base/test/metrics/histogram_tester.h"
+#include "base/test/task_environment.h"
+#include "components/password_manager/core/browser/password_form.h"
+#include "components/password_manager/core/browser/password_manager_metrics_util.h"
+#include "components/strings/grit/components_strings.h"
+#include "ios/chrome/grit/ios_strings.h"
 #import "ios/chrome/test/app/password_test_util.h"
-#import "testing/platform_test.h"
+#include "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
 #import "third_party/ocmock/gtest_support.h"
-#import "ui/base/l10n/l10n_util_mac.h"
+#include "ui/base/l10n/l10n_util_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -36,7 +35,8 @@
 }
 
 - (void)serializePasswords:
-            (const std::vector<password_manager::CredentialUIEntry>&)passwords
+            (std::vector<std::unique_ptr<password_manager::PasswordForm>>)
+                passwords
                    handler:(void (^)(std::string))serializedPasswordsHandler {
   _serializedPasswordsHandler = serializedPasswordsHandler;
 }
@@ -107,13 +107,16 @@ class PasswordExporterTest : public PlatformTest {
                               delegate:password_exporter_delegate_];
   }
 
-  std::vector<password_manager::CredentialUIEntry> CreatePasswordList() {
-    password_manager::PasswordForm password_form;
-    password_form.url = GURL("http://accounts.google.com/a/LoginAuth");
-    password_form.username_value = u"test@testmail.com";
-    password_form.password_value = u"test1";
+  std::vector<std::unique_ptr<password_manager::PasswordForm>>
+  CreatePasswordList() {
+    auto password_form = std::make_unique<password_manager::PasswordForm>();
+    password_form->url = GURL("http://accounts.google.com/a/LoginAuth");
+    password_form->username_value = base::ASCIIToUTF16("test@testmail.com");
+    password_form->password_value = base::ASCIIToUTF16("test1");
 
-    return {password_manager::CredentialUIEntry(password_form)};
+    std::vector<std::unique_ptr<password_manager::PasswordForm>> password_forms;
+    password_forms.push_back(std::move(password_form));
+    return password_forms;
   }
 
   id password_exporter_delegate_;

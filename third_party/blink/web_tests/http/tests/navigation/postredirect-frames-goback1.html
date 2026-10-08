@@ -9,7 +9,7 @@ if (window.testRunner) {
     testRunner.dumpBackForwardList();
  }
    
-onpageshow = function()
+onload = function()
 {
     if (sessionStorage.didNav) {
         delete sessionStorage.didNav;

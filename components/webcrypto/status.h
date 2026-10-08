@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,6 @@
 #include <stddef.h>
 
 #include <string>
-
-#include "base/strings/string_piece_forward.h"
 #include "third_party/blink/public/platform/web_crypto.h"
 
 namespace webcrypto {
@@ -56,15 +54,15 @@ class Status {
   static Status ErrorJwkNotDictionary();
 
   // The required JWK member |member_name| was missing.
-  static Status ErrorJwkMemberMissing(base::StringPiece member_name);
+  static Status ErrorJwkMemberMissing(const std::string& member_name);
 
   // The JWK member |member_name| was not of type |expected_type|.
-  static Status ErrorJwkMemberWrongType(base::StringPiece member_name,
-                                        base::StringPiece expected_type);
+  static Status ErrorJwkMemberWrongType(const std::string& member_name,
+                                        const std::string& expected_type);
 
   // The JWK member |member_name| was a string, however could not be
   // successfully base64 decoded.
-  static Status ErrorJwkBase64Decode(base::StringPiece member_name);
+  static Status ErrorJwkBase64Decode(const std::string& member_name);
 
   // The "ext" parameter was specified but was
   // incompatible with the value requested by the Web Crypto call.
@@ -96,7 +94,7 @@ class Status {
 
   // The "kty" parameter was given and was a string, however it was not the
   // expected value.
-  static Status ErrorJwkUnexpectedKty(base::StringPiece expected);
+  static Status ErrorJwkUnexpectedKty(const std::string& expected);
 
   // The amount of key data provided was incompatible with the selected
   // algorithm. For instance if the algorith name was A128CBC then EXACTLY
@@ -106,11 +104,12 @@ class Status {
 
   // The JWK member |member_name| is supposed to represent a big-endian unsigned
   // integer, however was the empty string.
-  static Status ErrorJwkEmptyBigInteger(base::StringPiece member_name);
+  static Status ErrorJwkEmptyBigInteger(const std::string& member_name);
 
   // The big-endian unsigned integer |member_name| contained leading zeros. This
   // violates the JWA requirement that such octet strings be minimal.
-  static Status ErrorJwkBigIntegerHasLeadingZero(base::StringPiece member_name);
+  static Status ErrorJwkBigIntegerHasLeadingZero(
+      const std::string& member_name);
 
   // The key_ops lists a usage more than once.
   static Status ErrorJwkDuplicateKeyOps();
@@ -175,7 +174,7 @@ class Status {
   // question was unsupported, some parameter combination was unsupported, or
   // something has not yet been implemented.
   static Status ErrorUnsupported();
-  static Status ErrorUnsupported(base::StringPiece message);
+  static Status ErrorUnsupported(const std::string& message);
 
   // Something unexpected happened in the code, which implies there is a
   // source-level bug. These should not happen, but safer to fail than simply
@@ -239,7 +238,7 @@ class Status {
 
   // The octet string |member_name| was expected to be |expected_length| bytes
   // long, but was instead |actual_length| bytes long.
-  static Status JwkOctetStringWrongLength(base::StringPiece member_name,
+  static Status JwkOctetStringWrongLength(const std::string& member_name,
                                           size_t expected_length,
                                           size_t actual_length);
 
@@ -281,16 +280,12 @@ class Status {
   // algorithms.
   static Status ErrorImportExtractableKdfKey();
 
-  // The key data buffer provided for importKey() is an incorrect length for
-  // Ed25519.
-  static Status ErrorImportEd25519KeyLength();
-
  private:
   enum Type { TYPE_ERROR, TYPE_SUCCESS };
 
   // Constructs an error with the specified error type and message.
   Status(blink::WebCryptoErrorType error_type,
-         base::StringPiece error_details_utf8);
+         const std::string& error_details_utf8);
 
   // Constructs a success or error without any details.
   explicit Status(Type type);

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/logging.h"
 #include "base/memory/ref_counted.h"
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/task_environment.h"
 #include "dbus/message.h"
@@ -189,7 +190,7 @@ class GeolocationWifiDataProviderLinuxTest : public testing::Test {
           const uint8_t kSsid[] = {0x74, 0x65, 0x73, 0x74};  // "test"
           dbus::MessageWriter variant_writer(response.get());
           writer.OpenVariant("ay", &variant_writer);
-          variant_writer.AppendArrayOfBytes(kSsid, std::size(kSsid));
+          variant_writer.AppendArrayOfBytes(kSsid, base::size(kSsid));
           writer.CloseContainer(&variant_writer);
         } else if (property_name == "HwAddress") {
           // This will be converted to "00-11-22-33-44-55".

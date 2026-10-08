@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,10 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
 #include "base/task/single_thread_task_executor.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/test_support_android.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "mojo/core/embedder/embedder.h"
 #include "mojo/public/java/system/jni_headers/MojoTestRule_jni.h"
 
@@ -57,9 +58,9 @@ static void JNI_MojoTestRule_RunLoop(JNIEnv* env,
                                      jlong timeout_ms) {
   base::RunLoop run_loop;
   if (timeout_ms) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE, run_loop.QuitWhenIdleClosure(),
-        base::Milliseconds(timeout_ms));
+        base::TimeDelta::FromMilliseconds(timeout_ms));
     run_loop.Run();
   } else {
     run_loop.RunUntilIdle();

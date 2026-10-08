@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
+#include "base/callback_forward.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
@@ -22,7 +22,7 @@
 #include "content/public/test/test_browser_context.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/run_loop.h"
 #endif
 
@@ -44,7 +44,7 @@ class TestBrowserClient : public ContentBrowserClient {
     DCHECK(browser_context);
     auto partition_num = std::to_string(++partition_count_);
     return StoragePartitionConfig::Create(
-        browser_context, std::string("PartitionDomain") + partition_num,
+        std::string("PartitionDomain") + partition_num,
         std::string("Partition") + partition_num, false /* in_memory */);
   }
 
@@ -65,8 +65,8 @@ class BackgroundSyncLauncherTest : public testing::Test {
     DCHECK(!urls.empty());
 
     for (const auto& url : urls) {
-      auto* storage_partition =
-          test_browser_context_.GetStoragePartitionForUrl(url);
+      auto* storage_partition = BrowserContext::GetStoragePartitionForSite(
+          &test_browser_context_, url);
 
       auto iter = wakeup_deltas.find(url);
       if (iter == wakeup_deltas.end())
@@ -74,8 +74,8 @@ class BackgroundSyncLauncherTest : public testing::Test {
 
       static_cast<StoragePartitionImpl*>(storage_partition)
           ->GetBackgroundSyncContext()
-          ->set_wakeup_delta_for_testing(sync_type,
-                                         base::Milliseconds(iter->second));
+          ->set_wakeup_delta_for_testing(
+              sync_type, base::TimeDelta::FromMilliseconds(iter->second));
     }
   }
 
@@ -87,18 +87,26 @@ class BackgroundSyncLauncherTest : public testing::Test {
 
   base::TimeDelta GetSoonestWakeupDelta(
       blink::mojom::BackgroundSyncType sync_type) {
-    return BackgroundSyncLauncher::GetSoonestWakeupDelta(
-        sync_type, &test_browser_context_);
+    base::TimeDelta to_return;
+    BackgroundSyncLauncher::GetSoonestWakeupDelta(
+        sync_type, &test_browser_context_,
+        base::BindLambdaForTesting(
+            [&to_return](base::TimeDelta soonest_wakeup_delta) {
+              to_return = soonest_wakeup_delta;
+            }));
+    task_environment_.RunUntilIdle();
+    return to_return;
   }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   void FireBackgroundSyncEventsForAllPartitions() {
     num_invocations_fire_background_sync_events_ = 0;
 
     auto done_closure = base::BindLambdaForTesting(
         [&]() { num_invocations_fire_background_sync_events_++; });
 
-    test_browser_context_.ForEachStoragePartition(
+    BrowserContext::ForEachStoragePartition(
+        &test_browser_context_,
         base::BindRepeating(
             [](base::OnceClosure done_closure,
                StoragePartition* storage_partition) {
@@ -125,7 +133,7 @@ class BackgroundSyncLauncherTest : public testing::Test {
 
   BrowserTaskEnvironment task_environment_;
   TestBrowserClient browser_client_;
-  raw_ptr<ContentBrowserClient> original_client_;
+  ContentBrowserClient* original_client_;
   TestBrowserContext test_browser_context_;
   int num_invocations_fire_background_sync_events_ = 0;
 };
@@ -189,7 +197,7 @@ TEST_F(BackgroundSyncLauncherTest, SoonestWakeupDeltaIsPickedForTheRightTask) {
             500);
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 TEST_F(BackgroundSyncLauncherTest, FireBackgroundSyncEvents) {
   std::vector<GURL> urls = {GURL(kUrl_1), GURL(kUrl_2)};
   SetUpBrowserContext(urls, blink::mojom::BackgroundSyncType::ONE_SHOT);

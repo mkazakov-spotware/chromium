@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -186,10 +186,7 @@ int SyntheticWebTouchEvent::PressPoint(float x,
                                        float radius_x,
                                        float radius_y,
                                        float rotation_angle,
-                                       float force,
-                                       float tangential_pressure,
-                                       int tilt_x,
-                                       int tilt_y) {
+                                       float force) {
   int index = FirstFreeIndex();
   if (index == -1)
     return -1;
@@ -202,10 +199,7 @@ int SyntheticWebTouchEvent::PressPoint(float x,
   point.radius_y = radius_y;
   point.rotation_angle = rotation_angle;
   point.force = force;
-  point.tilt_x = tilt_x;
-  point.tilt_y = tilt_y;
-  point.twist = 0;
-  point.tangential_pressure = tangential_pressure;
+  point.tilt_x = point.tilt_y = 0;
   point.pointer_type = blink::WebPointerProperties::PointerType::kTouch;
   ++touches_length;
   SetType(WebInputEvent::Type::kTouchStart);
@@ -219,10 +213,7 @@ void SyntheticWebTouchEvent::MovePoint(int index,
                                        float radius_x,
                                        float radius_y,
                                        float rotation_angle,
-                                       float force,
-                                       float tangential_pressure,
-                                       int tilt_x,
-                                       int tilt_y) {
+                                       float force) {
   CHECK_GE(index, 0);
   CHECK_LT(index, kTouchesLengthCap);
   // Always set this bit to avoid otherwise unexpected touchmove suppression.
@@ -236,10 +227,6 @@ void SyntheticWebTouchEvent::MovePoint(int index,
   point.radius_y = radius_y;
   point.rotation_angle = rotation_angle;
   point.force = force;
-  point.tilt_x = tilt_x;
-  point.tilt_y = tilt_y;
-  point.twist = 0;
-  point.tangential_pressure = tangential_pressure;
   SetType(WebInputEvent::Type::kTouchMove);
   dispatch_type = WebInputEvent::DispatchType::kBlocking;
 }

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,6 @@
 #include "base/system/sys_info.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "net/base/network_interfaces.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "remoting/base/constants.h"
@@ -33,11 +32,8 @@
 #include "remoting/signaling/signaling_address.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/strings/utf_string_conversions.h"
-
-// Needed for GetComputerNameExW/ComputerNameDnsFullyQualified.
-#include <windows.h>
 #endif
 
 namespace remoting {
@@ -72,10 +68,14 @@ constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
             "Not implemented."
         })");
 
-constexpr base::TimeDelta kMinimumHeartbeatInterval = base::Minutes(3);
-constexpr base::TimeDelta kHeartbeatResponseTimeout = base::Seconds(30);
-constexpr base::TimeDelta kResendDelayOnHostNotFound = base::Seconds(10);
-constexpr base::TimeDelta kResendDelayOnUnauthenticated = base::Seconds(10);
+constexpr base::TimeDelta kMinimumHeartbeatInterval =
+    base::TimeDelta::FromMinutes(3);
+constexpr base::TimeDelta kHeartbeatResponseTimeout =
+    base::TimeDelta::FromSeconds(30);
+constexpr base::TimeDelta kResendDelayOnHostNotFound =
+    base::TimeDelta::FromSeconds(10);
+constexpr base::TimeDelta kResendDelayOnUnauthenticated =
+    base::TimeDelta::FromSeconds(10);
 
 constexpr int kMaxResendOnHostNotFoundCount =
     12;  // 2 minutes (12 x 10 seconds).
@@ -109,11 +109,9 @@ const net::BackoffEntry::Policy kBackoffPolicy = {
 };
 
 std::string GetHostname() {
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag
-// switch of lacros-chrome is complete.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
   return net::GetHostName();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   wchar_t buffer[MAX_PATH] = {0};
   DWORD size = MAX_PATH;
   if (!::GetComputerNameExW(ComputerNameDnsFullyQualified, buffer, &size)) {
@@ -121,8 +119,8 @@ std::string GetHostname() {
     return std::string();
   }
   std::string hostname;
-  if (!base::WideToUTF8(buffer, size, &hostname)) {
-    LOG(ERROR) << "Failed to convert from Wide to UTF8";
+  if (!base::UTF16ToUTF8(buffer, size, &hostname)) {
+    LOG(ERROR) << "Failed to convert from UTF16 to UTF8";
     return std::string();
   }
   return hostname;
@@ -139,10 +137,6 @@ class HeartbeatSender::HeartbeatClientImpl final
   explicit HeartbeatClientImpl(
       OAuthTokenGetter* oauth_token_getter,
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory);
-
-  HeartbeatClientImpl(const HeartbeatClientImpl&) = delete;
-  HeartbeatClientImpl& operator=(const HeartbeatClientImpl&) = delete;
-
   ~HeartbeatClientImpl() override;
 
   void Heartbeat(std::unique_ptr<apis::v1::HeartbeatRequest> request,
@@ -151,6 +145,7 @@ class HeartbeatSender::HeartbeatClientImpl final
 
  private:
   ProtobufHttpClient http_client_;
+  DISALLOW_COPY_AND_ASSIGN(HeartbeatClientImpl);
 };
 
 HeartbeatSender::HeartbeatClientImpl::HeartbeatClientImpl(
@@ -165,11 +160,12 @@ HeartbeatSender::HeartbeatClientImpl::~HeartbeatClientImpl() = default;
 void HeartbeatSender::HeartbeatClientImpl::Heartbeat(
     std::unique_ptr<apis::v1::HeartbeatRequest> request,
     HeartbeatResponseCallback callback) {
-  std::string host_offline_reason =
+  std::string host_offline_reason_or_empty_log =
       request->has_host_offline_reason()
-          ? (" host_offline_reason: " + request->host_offline_reason())
+          ? (", host_offline_reason: " + request->host_offline_reason())
           : "";
-  HOST_LOG << "Sending outgoing heartbeat." << host_offline_reason;
+  HOST_LOG << "Sending outgoing heartbeat. tachyon_id: "
+           << request->tachyon_id() << host_offline_reason_or_empty_log;
 
   auto request_config =
       std::make_unique<ProtobufHttpRequestConfig>(kTrafficAnnotation);
@@ -319,7 +315,7 @@ void HeartbeatSender::OnResponse(
     }
 
     if (response->has_remote_command()) {
-      LOG(WARNING) << "Remote command ignored: " << response->remote_command();
+      OnRemoteCommand(response->remote_command());
     }
   } else {
     LOG(ERROR) << "Heartbeat failed. Error code: "
@@ -354,9 +350,10 @@ void HeartbeatSender::OnResponse(
 
   // Calculate delay before sending the next message.
   base::TimeDelta delay;
+  // See CoreErrorDomainTranslator.java for the mapping
   switch (status.error_code()) {
     case ProtobufHttpStatus::Code::OK:
-      delay = base::Seconds(response->set_interval_seconds());
+      delay = base::TimeDelta::FromSeconds(response->set_interval_seconds());
       if (delay < kMinimumHeartbeatInterval) {
         LOG(WARNING) << "Received suspicious set_interval_seconds: " << delay
                      << ". Using minimum interval: "
@@ -381,6 +378,21 @@ void HeartbeatSender::OnResponse(
                          &HeartbeatSender::SendHeartbeat);
 }
 
+void HeartbeatSender::OnRemoteCommand(
+    apis::v1::HeartbeatResponse::RemoteCommand remote_command) {
+  HOST_LOG << "Received remote command: "
+           << apis::v1::HeartbeatResponse::RemoteCommand_Name(remote_command)
+           << "(" << remote_command << ")";
+  switch (remote_command) {
+    case apis::v1::HeartbeatResponse::RESTART_HOST:
+      delegate_->OnRemoteRestartHost();
+      break;
+    default:
+      LOG(WARNING) << "Unknown remote command: " << remote_command;
+      break;
+  }
+}
+
 std::unique_ptr<apis::v1::HeartbeatRequest>
 HeartbeatSender::CreateHeartbeatRequest() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -397,7 +409,6 @@ HeartbeatSender::CreateHeartbeatRequest() {
   heartbeat->set_host_cpu_type(base::SysInfo::OperatingSystemArchitecture());
   heartbeat->set_is_initial_heartbeat(!initial_heartbeat_sent_);
 
-  // Only set the hostname if the user's email is @google.com.
   if (is_googler_) {
     std::string hostname = GetHostname();
     if (!hostname.empty()) {

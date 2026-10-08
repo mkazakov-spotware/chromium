@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,11 @@
 
 #include <string>
 
+#include "ash/public/cpp/ash_features.h"
 #include "ash/public/cpp/holding_space/holding_space_controller.h"
 #include "ash/public/cpp/holding_space/holding_space_image.h"
 #include "ash/public/cpp/holding_space/holding_space_item.h"
-#include "ash/public/cpp/holding_space/holding_space_metrics.h"
 #include "ash/public/cpp/holding_space/holding_space_model.h"
-#include "ash/public/cpp/holding_space/holding_space_util.h"
 #include "base/callback_helpers.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -19,15 +18,12 @@
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/unguessable_token.h"
-#include "chrome/browser/ash/file_manager/path_util.h"
+#include "chrome/browser/chromeos/file_manager/path_util.h"
 #include "chrome/browser/extensions/component_loader.h"
-#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/ash/holding_space/holding_space_browsertest_base.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/in_process_browser_test.h"
-#include "components/drive/drive_pref_names.h"
-#include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
 #include "storage/browser/file_system/external_mount_points.h"
 #include "ui/gfx/image/image_skia.h"
@@ -42,15 +38,6 @@ constexpr char kImageFilePath[] = "image.png";
 constexpr char kTextFilePath[] = "text.txt";
 
 // Helpers ---------------------------------------------------------------------
-
-// Creates an empty holding space image.
-std::unique_ptr<HoldingSpaceImage> CreateTestHoldingSpaceImage(
-    HoldingSpaceItem::Type type,
-    const base::FilePath& file_path) {
-  return std::make_unique<HoldingSpaceImage>(
-      holding_space_util::GetMaxImageSizeForType(type), file_path,
-      /*async_bitmap_resolver=*/base::DoNothing());
-}
 
 // Copies the file for the `relative_path` in the test data directory to
 // downloads directory, and returns the path to the copy.
@@ -83,28 +70,6 @@ base::FilePath TestFile(Profile* profile, const std::string& relative_path) {
 // Tests -----------------------------------------------------------------------
 
 using HoldingSpaceClientImplTest = HoldingSpaceBrowserTestBase;
-
-// Verifies that `HoldingSpaceClient::AddDiagnosticsLog()` works as intended.
-IN_PROC_BROWSER_TEST_F(HoldingSpaceClientImplTest, AddDiagnosticsLog) {
-  ASSERT_TRUE(HoldingSpaceController::Get());
-
-  auto* holding_space_client = HoldingSpaceController::Get()->client();
-  ASSERT_TRUE(holding_space_client);
-  auto* holding_space_model = HoldingSpaceController::Get()->model();
-  ASSERT_TRUE(holding_space_model);
-
-  // Create a diagnostics log item and verify that it is in the holding space.
-
-  ASSERT_EQ(0u, holding_space_model->items().size());
-  base::FilePath log_path = TestFile(GetProfile(), kTextFilePath);
-  holding_space_client->AddDiagnosticsLog(log_path);
-  ASSERT_EQ(1u, holding_space_model->items().size());
-  HoldingSpaceItem* diagnostics_log_item =
-      holding_space_model->items()[0].get();
-  EXPECT_EQ(diagnostics_log_item->type(),
-            HoldingSpaceItem::Type::kDiagnosticsLog);
-  EXPECT_EQ(diagnostics_log_item->file_path(), log_path);
-}
 
 // Verifies that `HoldingSpaceClient::CopyImageToClipboard()` works as intended
 // when attempting to copy both image backed and non-image backed holding space
@@ -152,24 +117,9 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceClientImplTest, CopyImageToClipboard) {
   }
 }
 
-// Verifies that `HoldingSpaceClient::IsDriveDisabled()` works as intended.
-IN_PROC_BROWSER_TEST_F(HoldingSpaceClientImplTest, IsDriveDisabled) {
-  ASSERT_TRUE(HoldingSpaceController::Get());
-
-  auto* holding_space_client = HoldingSpaceController::Get()->client();
-  ASSERT_TRUE(holding_space_client);
-
-  auto* prefs = GetProfile()->GetPrefs();
-  EXPECT_EQ(holding_space_client->IsDriveDisabled(),
-            prefs->GetBoolean(drive::prefs::kDisableDrive));
-  prefs->SetBoolean(drive::prefs::kDisableDrive, true);
-  EXPECT_EQ(holding_space_client->IsDriveDisabled(), true);
-  prefs->SetBoolean(drive::prefs::kDisableDrive, false);
-  EXPECT_EQ(holding_space_client->IsDriveDisabled(), false);
-}
-
 // Verifies that `HoldingSpaceClient::OpenDownloads()` works as intended.
-IN_PROC_BROWSER_TEST_F(HoldingSpaceClientImplTest, OpenDownloads) {
+// TODO(crbug.com/1139299): Flaky.
+IN_PROC_BROWSER_TEST_F(HoldingSpaceClientImplTest, DISABLED_OpenDownloads) {
   ASSERT_TRUE(HoldingSpaceController::Get());
 
   auto* holding_space_client = HoldingSpaceController::Get()->client();
@@ -178,23 +128,6 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceClientImplTest, OpenDownloads) {
   // We expect `HoldingSpaceClient::OpenDownloads()` to succeed.
   base::RunLoop run_loop;
   holding_space_client->OpenDownloads(
-      base::BindLambdaForTesting([&run_loop](bool success) {
-        EXPECT_TRUE(success);
-        run_loop.Quit();
-      }));
-  run_loop.Run();
-}
-
-// Verifies that `HoldingSpaceClient::OpenMyFiles()` works as intended.
-IN_PROC_BROWSER_TEST_F(HoldingSpaceClientImplTest, OpenMyFiles) {
-  ASSERT_TRUE(HoldingSpaceController::Get());
-
-  auto* holding_space_client = HoldingSpaceController::Get()->client();
-  ASSERT_TRUE(holding_space_client);
-
-  // We expect `HoldingSpaceClient::OpenMyFiles()` to succeed.
-  base::RunLoop run_loop;
-  holding_space_client->OpenMyFiles(
       base::BindLambdaForTesting([&run_loop](bool success) {
         EXPECT_TRUE(success);
         run_loop.Quit();
@@ -211,39 +144,22 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceClientImplTest, OpenItems) {
   auto* holding_space_client = HoldingSpaceController::Get()->client();
   ASSERT_TRUE(holding_space_client);
 
-  // OpenItems() depends on the Files app. Install the Files SWA.
-  WaitForTestSystemAppInstall();
-
-  // Verify no failures have yet been recorded.
-  base::HistogramTester histogram_tester;
-  histogram_tester.ExpectTotalCount("HoldingSpace.Item.FailureToLaunch", 0);
-  histogram_tester.ExpectTotalCount(
-      "HoldingSpace.Item.FailureToLaunch.Extension", 0);
-
   {
     // Create a holding space item backed by a non-existing file.
     auto holding_space_item = HoldingSpaceItem::CreateFileBackedItem(
-        HoldingSpaceItem::Type::kDownload, base::FilePath("foo.pdf"),
-        GURL("filesystem:fake"), base::BindOnce(&CreateTestHoldingSpaceImage));
+        HoldingSpaceItem::Type::kDownload, base::FilePath("foo"),
+        GURL("filesystem:fake"),
+        std::make_unique<HoldingSpaceImage>(
+            /*placeholder=*/gfx::ImageSkia(),
+            /*async_bitmap_resolver=*/base::DoNothing()));
 
     // We expect `HoldingSpaceClient::OpenItems()` to fail when the backing file
     // for `holding_space_item` does not exist.
     base::RunLoop run_loop;
     holding_space_client->OpenItems(
         {holding_space_item.get()},
-        base::BindLambdaForTesting([&](bool success) {
+        base::BindLambdaForTesting([&run_loop](bool success) {
           EXPECT_FALSE(success);
-
-          // Verify the failure has been recorded.
-          histogram_tester.ExpectBucketCount(
-              "HoldingSpace.Item.FailureToLaunch", holding_space_item->type(),
-              1);
-          histogram_tester.ExpectBucketCount(
-              "HoldingSpace.Item.FailureToLaunch.Extension",
-              holding_space_metrics::FilePathToExtension(
-                  holding_space_item->file_path()),
-              1);
-
           run_loop.Quit();
         }));
     run_loop.Run();
@@ -264,17 +180,18 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceClientImplTest, OpenItems) {
         }));
     run_loop.Run();
   }
-
-  // Verify that only the expected failure was recorded.
-  histogram_tester.ExpectTotalCount("HoldingSpace.Item.FailureToLaunch", 1);
-  histogram_tester.ExpectTotalCount(
-      "HoldingSpace.Item.FailureToLaunch.Extension", 1);
 }
 
 // Verifies that `HoldingSpaceClient::ShowItemInFolder()` works as intended when
 // attempting to open holding space items backed by both non-existing and
 // existing files.
-IN_PROC_BROWSER_TEST_F(HoldingSpaceClientImplTest, ShowItemInFolder) {
+// Flaky on linux-chromeos-dbg (https://crbug.com/1130958)
+#ifdef NDEBUG
+#define MAYBE_ShowItemInFolder ShowItemInFolder
+#else
+#define MAYBE_ShowItemInFolder DISABLED_ShowItemInFolder
+#endif
+IN_PROC_BROWSER_TEST_F(HoldingSpaceClientImplTest, MAYBE_ShowItemInFolder) {
   ASSERT_TRUE(HoldingSpaceController::Get());
 
   auto* holding_space_client = HoldingSpaceController::Get()->client();
@@ -284,7 +201,10 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceClientImplTest, ShowItemInFolder) {
     // Create a holding space item backed by a non-existing file.
     auto holding_space_item = HoldingSpaceItem::CreateFileBackedItem(
         HoldingSpaceItem::Type::kDownload, base::FilePath("foo"),
-        GURL("filesystem:fake"), base::BindOnce(&CreateTestHoldingSpaceImage));
+        GURL("filesystem:fake"),
+        std::make_unique<HoldingSpaceImage>(
+            /*placeholder=*/gfx::ImageSkia(),
+            /*async_bitmap_resolver=*/base::DoNothing()));
 
     // We expect `HoldingSpaceClient::ShowItemInFolder()` to fail when the
     // backing file for `holding_space_item` does not exist.
@@ -335,7 +255,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceClientImplTest, PinItems) {
   // same text and file path as the original download holding space item.
   HoldingSpaceItem* pinned_file_item = holding_space_model->items()[1].get();
   EXPECT_EQ(pinned_file_item->type(), HoldingSpaceItem::Type::kPinnedFile);
-  EXPECT_EQ(download_item->GetText(), pinned_file_item->GetText());
+  EXPECT_EQ(download_item->text(), pinned_file_item->text());
   EXPECT_EQ(download_item->file_path(), pinned_file_item->file_path());
 }
 

@@ -42,7 +42,8 @@ HTMLNoEmbedElement::HTMLNoEmbedElement(Document& document)
 
 bool HTMLNoEmbedElement::LayoutObjectIsNeeded(
     const ComputedStyle& style) const {
-  if (GetDocument().GetFrame()->Loader().AllowPlugins())
+  if (GetDocument().GetFrame()->Loader().AllowPlugins(
+          kNotAboutToInstantiatePlugin))
     return false;
   return Element::LayoutObjectIsNeeded(style);
 }

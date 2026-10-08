@@ -35,13 +35,17 @@
 #include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/platform/web_private_ptr.h"
 
+#if INSIDE_BLINK
+#include "third_party/blink/renderer/platform/heap/handle.h"  // nogncheck
+#endif
+
 namespace blink {
 
 class HTMLCollection;
 class WebElement;
 
 // Provides readonly access to some properties of a DOM node.
-class BLINK_EXPORT WebElementCollection {
+class WebElementCollection {
  public:
   ~WebElementCollection() { Reset(); }
 
@@ -54,12 +58,12 @@ class BLINK_EXPORT WebElementCollection {
 
   bool IsNull() const { return private_.IsNull(); }
 
-  void Reset();
-  void Assign(const WebElementCollection&);
+  BLINK_EXPORT void Reset();
+  BLINK_EXPORT void Assign(const WebElementCollection&);
 
-  unsigned length() const;
-  WebElement NextItem() const;
-  WebElement FirstItem() const;
+  BLINK_EXPORT unsigned length() const;
+  BLINK_EXPORT WebElement NextItem() const;
+  BLINK_EXPORT WebElement FirstItem() const;
 
 #if INSIDE_BLINK
   WebElementCollection(HTMLCollection*);
@@ -73,4 +77,4 @@ class BLINK_EXPORT WebElementCollection {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_ELEMENT_COLLECTION_H_
+#endif

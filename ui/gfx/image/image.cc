@@ -1,31 +1,28 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/gfx/image/image.h"
 
 #include <algorithm>
-#include <map>
-#include <ostream>
 #include <utility>
 #include <vector>
 
 #include "base/check_op.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/ref_counted_memory.h"
 #include "base/notreached.h"
 #include "build/build_config.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/gfx/geometry/size.h"
-#include "ui/gfx/image/image_internal.h"
 #include "ui/gfx/image/image_platform.h"
 #include "ui/gfx/image/image_png_rep.h"
 #include "ui/gfx/image/image_skia.h"
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 #include "base/mac/foundation_util.h"
 #include "ui/gfx/image/image_skia_util_ios.h"
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_APPLE)
 #include "base/mac/foundation_util.h"
 #include "base/mac/mac_util.h"
 #include "ui/gfx/image/image_skia_util_mac.h"
@@ -33,31 +30,82 @@
 
 namespace gfx {
 
+namespace {
+
+using RepresentationMap =
+    std::map<Image::RepresentationType, std::unique_ptr<internal::ImageRep>>;
+
+}  // namespace
+
 namespace internal {
 
-ImageRep::ImageRep(Image::RepresentationType rep) : type_(rep) {}
+class ImageRepPNG;
+class ImageRepSkia;
+class ImageRepCocoa;
+class ImageRepCocoaTouch;
 
-ImageRep::~ImageRep() = default;
+// An ImageRep is the object that holds the backing memory for an Image. Each
+// RepresentationType has an ImageRep subclass that is responsible for freeing
+// the memory that the ImageRep holds. When an ImageRep is created, it expects
+// to take ownership of the image, without having to retain it or increase its
+// reference count.
+class ImageRep {
+ public:
+  explicit ImageRep(Image::RepresentationType rep) : type_(rep) {}
 
-const ImageRepPNG* ImageRep::AsImageRepPNG() const {
-  CHECK_EQ(type_, Image::kImageRepPNG);
-  return reinterpret_cast<const ImageRepPNG*>(this);
-}
-ImageRepPNG* ImageRep::AsImageRepPNG() {
-  return const_cast<ImageRepPNG*>(
-      static_cast<const ImageRep*>(this)->AsImageRepPNG());
-}
+  // Deletes the associated pixels of an ImageRep.
+  virtual ~ImageRep() {}
 
-const ImageRepSkia* ImageRep::AsImageRepSkia() const {
-  CHECK_EQ(type_, Image::kImageRepSkia);
-  return reinterpret_cast<const ImageRepSkia*>(this);
-}
-ImageRepSkia* ImageRep::AsImageRepSkia() {
-  return const_cast<ImageRepSkia*>(
-      static_cast<const ImageRep*>(this)->AsImageRepSkia());
-}
+  // Cast helpers ("fake RTTI").
+  const ImageRepPNG* AsImageRepPNG() const {
+    CHECK_EQ(type_, Image::kImageRepPNG);
+    return reinterpret_cast<const ImageRepPNG*>(this);
+  }
+  ImageRepPNG* AsImageRepPNG() {
+    return const_cast<ImageRepPNG*>(
+        static_cast<const ImageRep*>(this)->AsImageRepPNG());
+  }
 
-class ImageRepPNG final : public ImageRep {
+  const ImageRepSkia* AsImageRepSkia() const {
+    CHECK_EQ(type_, Image::kImageRepSkia);
+    return reinterpret_cast<const ImageRepSkia*>(this);
+  }
+  ImageRepSkia* AsImageRepSkia() {
+    return const_cast<ImageRepSkia*>(
+        static_cast<const ImageRep*>(this)->AsImageRepSkia());
+  }
+
+#if defined(OS_IOS)
+  const ImageRepCocoaTouch* AsImageRepCocoaTouch() const {
+    CHECK_EQ(type_, Image::kImageRepCocoaTouch);
+    return reinterpret_cast<const ImageRepCocoaTouch*>(this);
+  }
+  ImageRepCocoaTouch* AsImageRepCocoaTouch() {
+    return const_cast<ImageRepCocoaTouch*>(
+        static_cast<const ImageRep*>(this)->AsImageRepCocoaTouch());
+  }
+#elif defined(OS_APPLE)
+  const ImageRepCocoa* AsImageRepCocoa() const {
+    CHECK_EQ(type_, Image::kImageRepCocoa);
+    return reinterpret_cast<const ImageRepCocoa*>(this);
+  }
+  ImageRepCocoa* AsImageRepCocoa() {
+    return const_cast<ImageRepCocoa*>(
+        static_cast<const ImageRep*>(this)->AsImageRepCocoa());
+  }
+#endif
+
+  Image::RepresentationType type() const { return type_; }
+
+  virtual int Width() const = 0;
+  virtual int Height() const = 0;
+  virtual gfx::Size Size() const = 0;
+
+ private:
+  Image::RepresentationType type_;
+};
+
+class ImageRepPNG : public ImageRep {
  public:
   ImageRepPNG() : ImageRep(Image::kImageRepPNG) {
   }
@@ -65,10 +113,7 @@ class ImageRepPNG final : public ImageRep {
   explicit ImageRepPNG(const std::vector<ImagePNGRep>& image_png_reps)
       : ImageRep(Image::kImageRepPNG), image_png_reps_(image_png_reps) {}
 
-  ImageRepPNG(const ImageRepPNG&) = delete;
-  ImageRepPNG& operator=(const ImageRepPNG&) = delete;
-
-  ~ImageRepPNG() override = default;
+  ~ImageRepPNG() override {}
 
   int Width() const override { return Size().width(); }
 
@@ -77,9 +122,9 @@ class ImageRepPNG final : public ImageRep {
   gfx::Size Size() const override {
     // Read the PNG data to get the image size, caching it.
     if (!size_cache_) {
-      for (const auto& it : image_reps()) {
-        if (it.scale == 1.0f) {
-          size_cache_ = it.Size();
+      for (auto it = image_reps().begin(); it != image_reps().end(); ++it) {
+        if (it->scale == 1.0f) {
+          size_cache_ = it->Size();
           return *size_cache_;
         }
       }
@@ -95,18 +140,17 @@ class ImageRepPNG final : public ImageRep {
   std::vector<ImagePNGRep> image_png_reps_;
 
   // Cached to avoid having to parse the raw data multiple times.
-  mutable absl::optional<gfx::Size> size_cache_;
+  mutable base::Optional<gfx::Size> size_cache_;
+
+  DISALLOW_COPY_AND_ASSIGN(ImageRepPNG);
 };
 
-class ImageRepSkia final : public ImageRep {
+class ImageRepSkia : public ImageRep {
  public:
   explicit ImageRepSkia(ImageSkia image)
       : ImageRep(Image::kImageRepSkia), image_(image) {}
 
-  ImageRepSkia(const ImageRepSkia&) = delete;
-  ImageRepSkia& operator=(const ImageRepSkia&) = delete;
-
-  ~ImageRepSkia() override = default;
+  ~ImageRepSkia() override {}
 
   int Width() const override { return image_.width(); }
 
@@ -119,69 +163,172 @@ class ImageRepSkia final : public ImageRep {
 
  private:
   ImageSkia image_;
+
+  DISALLOW_COPY_AND_ASSIGN(ImageRepSkia);
 };
 
-ImageStorage::ImageStorage(Image::RepresentationType default_type)
-    : default_representation_type_(default_type)
-#if BUILDFLAG(IS_MAC)
-      ,
-      default_representation_color_space_(base::mac::GetGenericRGBColorSpace())
-#endif  // BUILDFLAG(IS_MAC)
-{
-}
-ImageStorage::~ImageStorage() = default;
-
-Image::RepresentationType ImageStorage::default_representation_type() const {
-  DCHECK(IsOnValidSequence());
-  return default_representation_type_;
-}
-
-bool ImageStorage::HasRepresentation(Image::RepresentationType type) const {
-  DCHECK(IsOnValidSequence());
-  return representations_.count(type) != 0;
-}
-
-size_t ImageStorage::RepresentationCount() const {
-  DCHECK(IsOnValidSequence());
-  return representations_.size();
-}
-
-const ImageRep* ImageStorage::GetRepresentation(
-    Image::RepresentationType rep_type,
-    bool must_exist) const {
-  DCHECK(IsOnValidSequence());
-  auto it = representations_.find(rep_type);
-  if (it == representations_.end()) {
-    CHECK(!must_exist);
-    return nullptr;
+#if defined(OS_IOS)
+class ImageRepCocoaTouch : public ImageRep {
+ public:
+  explicit ImageRepCocoaTouch(UIImage* image)
+      : ImageRep(Image::kImageRepCocoaTouch),
+        image_(image) {
+    CHECK(image_);
+    base::mac::NSObjectRetain(image_);
   }
-  return it->second.get();
-}
 
-const ImageRep* ImageStorage::AddRepresentation(
-    std::unique_ptr<ImageRep> rep) const {
-  DCHECK(IsOnValidSequence());
-  Image::RepresentationType type = rep->type();
-  auto result = representations_.emplace(type, std::move(rep));
+  ~ImageRepCocoaTouch() override {
+    base::mac::NSObjectRelease(image_);
+    image_ = nil;
+  }
 
-  // insert should not fail (implies that there was already a representation
-  // of that type in the map).
-  CHECK(result.second) << "type was already in map.";
+  int Width() const override { return Size().width(); }
 
-  return result.first->second.get();
-}
+  int Height() const override { return Size().height(); }
+
+  gfx::Size Size() const override { return internal::UIImageSize(image_); }
+
+  UIImage* image() const { return image_; }
+
+ private:
+  UIImage* image_;
+
+  DISALLOW_COPY_AND_ASSIGN(ImageRepCocoaTouch);
+};
+#elif defined(OS_APPLE)
+class ImageRepCocoa : public ImageRep {
+ public:
+  explicit ImageRepCocoa(NSImage* image)
+      : ImageRep(Image::kImageRepCocoa),
+        image_(image) {
+    CHECK(image_);
+    base::mac::NSObjectRetain(image_);
+  }
+
+  ~ImageRepCocoa() override {
+    base::mac::NSObjectRelease(image_);
+    image_ = nil;
+  }
+
+  int Width() const override { return Size().width(); }
+
+  int Height() const override { return Size().height(); }
+
+  gfx::Size Size() const override { return internal::NSImageSize(image_); }
+
+  NSImage* image() const { return image_; }
+
+ private:
+  NSImage* image_;
+
+  DISALLOW_COPY_AND_ASSIGN(ImageRepCocoa);
+};
+#endif  // defined(OS_APPLE)
+
+// The Storage class acts similarly to the pixels in a SkBitmap: the Image
+// class holds a refptr instance of Storage, which in turn holds all the
+// ImageReps. This way, the Image can be cheaply copied.
+//
+// This class is deliberately not RefCountedThreadSafe. Making it so does not
+// solve threading issues, as gfx::Image and its internal classes are
+// themselves not threadsafe.
+class ImageStorage : public base::RefCounted<ImageStorage> {
+ public:
+  explicit ImageStorage(Image::RepresentationType default_type)
+      : default_representation_type_(default_type)
+#if defined(OS_MAC)
+        ,
+        default_representation_color_space_(
+            base::mac::GetGenericRGBColorSpace())
+#endif  // defined(OS_MAC)
+  {
+  }
+
+  Image::RepresentationType default_representation_type() const {
+    DCHECK(IsOnValidSequence());
+    return default_representation_type_;
+  }
+
+  bool HasRepresentation(Image::RepresentationType type) const {
+    DCHECK(IsOnValidSequence());
+    return representations_.count(type) != 0;
+  }
+
+  size_t RepresentationCount() const {
+    DCHECK(IsOnValidSequence());
+    return representations_.size();
+  }
+
+  const ImageRep* GetRepresentation(Image::RepresentationType rep_type,
+                                    bool must_exist) const {
+    DCHECK(IsOnValidSequence());
+    RepresentationMap::const_iterator it = representations_.find(rep_type);
+    if (it == representations_.end()) {
+      CHECK(!must_exist);
+      return nullptr;
+    }
+    return it->second.get();
+  }
+
+  const ImageRep* AddRepresentation(std::unique_ptr<ImageRep> rep) const {
+    DCHECK(IsOnValidSequence());
+    Image::RepresentationType type = rep->type();
+    auto result = representations_.emplace(type, std::move(rep));
+
+    // insert should not fail (implies that there was already a representation
+    // of that type in the map).
+    CHECK(result.second) << "type was already in map.";
+
+    return result.first->second.get();
+  }
+
+#if defined(OS_MAC)
+  void set_default_representation_color_space(CGColorSpaceRef color_space) {
+    DCHECK(IsOnValidSequence());
+    default_representation_color_space_ = color_space;
+  }
+  CGColorSpaceRef default_representation_color_space() const {
+    DCHECK(IsOnValidSequence());
+    return default_representation_color_space_;
+  }
+#endif  // defined(OS_MAC)
+
+ private:
+  friend class base::RefCounted<ImageStorage>;
+
+  ~ImageStorage() {}
+
+  // The type of image that was passed to the constructor. This key will always
+  // exist in the |representations_| map.
+  Image::RepresentationType default_representation_type_;
+
+#if defined(OS_MAC)
+  // The default representation's colorspace. This is used for converting to
+  // NSImage. This field exists to compensate for PNGCodec not writing or
+  // reading colorspace ancillary chunks. (sRGB, iCCP).
+  // Not owned.
+  CGColorSpaceRef default_representation_color_space_;
+#endif  // defined(OS_MAC)
+
+  // All the representations of an Image. Size will always be at least one, with
+  // more for any converted representations.
+  mutable RepresentationMap representations_;
+
+  DISALLOW_COPY_AND_ASSIGN(ImageStorage);
+};
 
 }  // namespace internal
 
+Image::Image() {
   // |storage_| is null for empty Images.
-Image::Image() = default;
+}
 
 Image::Image(const std::vector<ImagePNGRep>& image_reps) {
   // Do not store obviously invalid ImagePNGReps.
   std::vector<ImagePNGRep> filtered;
-  for (const auto& image_rep : image_reps) {
-    if (image_rep.raw_data.get() && image_rep.raw_data->size())
-      filtered.push_back(image_rep);
+  for (size_t i = 0; i < image_reps.size(); ++i) {
+    if (image_reps[i].raw_data.get() && image_reps[i].raw_data->size())
+      filtered.push_back(image_reps[i]);
   }
 
   if (filtered.empty())
@@ -198,6 +345,22 @@ Image::Image(const ImageSkia& image) {
   }
 }
 
+#if defined(OS_IOS)
+Image::Image(UIImage* image) {
+  if (image) {
+    storage_ = new internal::ImageStorage(Image::kImageRepCocoaTouch);
+    AddRepresentation(std::make_unique<internal::ImageRepCocoaTouch>(image));
+  }
+}
+#elif defined(OS_APPLE)
+Image::Image(NSImage* image) {
+  if (image) {
+    storage_ = new internal::ImageStorage(Image::kImageRepCocoa);
+    AddRepresentation(std::make_unique<internal::ImageRepCocoa>(image));
+  }
+}
+#endif
+
 Image::Image(const Image& other) = default;
 
 Image::Image(Image&& other) noexcept = default;
@@ -206,7 +369,7 @@ Image& Image::operator=(const Image& other) = default;
 
 Image& Image::operator=(Image&& other) noexcept = default;
 
-Image::~Image() = default;
+Image::~Image() {}
 
 bool Image::operator==(const Image& other) const {
   return storage_ == other.storage_;
@@ -235,7 +398,7 @@ Image Image::CreateFrom1xPNGBytes(
     return Image();
 
   std::vector<ImagePNGRep> image_reps;
-  image_reps.emplace_back(input, 1.0f);
+  image_reps.push_back(ImagePNGRep(input, 1.0f));
   return Image(image_reps);
 }
 
@@ -256,21 +419,21 @@ const ImageSkia* Image::ToImageSkia() const {
             internal::ImageSkiaFromPNG(png_rep->image_reps()));
         break;
       }
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
       case kImageRepCocoaTouch: {
         const internal::ImageRepCocoaTouch* native_rep =
             GetRepresentation(kImageRepCocoaTouch, true)
                 ->AsImageRepCocoaTouch();
         scoped_rep = std::make_unique<internal::ImageRepSkia>(
-            ImageSkiaFromUIImage(UIImageOfImageRepCocoaTouch(native_rep)));
+            ImageSkia(ImageSkiaFromUIImage(native_rep->image())));
         break;
       }
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_APPLE)
       case kImageRepCocoa: {
         const internal::ImageRepCocoa* native_rep =
             GetRepresentation(kImageRepCocoa, true)->AsImageRepCocoa();
         scoped_rep = std::make_unique<internal::ImageRepSkia>(
-            ImageSkiaFromNSImage(NSImageOfImageRepCocoa(native_rep)));
+            ImageSkia(ImageSkiaFromNSImage(native_rep->image())));
         break;
       }
 #endif
@@ -283,7 +446,7 @@ const ImageSkia* Image::ToImageSkia() const {
   return rep->AsImageRepSkia()->image();
 }
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 UIImage* Image::ToUIImage() const {
   const internal::ImageRep* rep = GetRepresentation(kImageRepCocoaTouch, false);
   if (!rep) {
@@ -292,7 +455,7 @@ UIImage* Image::ToUIImage() const {
       case kImageRepPNG: {
         const internal::ImageRepPNG* png_rep =
             GetRepresentation(kImageRepPNG, true)->AsImageRepPNG();
-        scoped_rep = internal::MakeImageRepCocoaTouch(
+        scoped_rep = std::make_unique<internal::ImageRepCocoaTouch>(
             internal::UIImageFromPNG(png_rep->image_reps()));
         break;
       }
@@ -300,7 +463,7 @@ UIImage* Image::ToUIImage() const {
         const internal::ImageRepSkia* skia_rep =
             GetRepresentation(kImageRepSkia, true)->AsImageRepSkia();
         UIImage* image = UIImageFromImageSkia(*skia_rep->image());
-        scoped_rep = internal::MakeImageRepCocoaTouch(image);
+        scoped_rep = std::make_unique<internal::ImageRepCocoaTouch>(image);
         break;
       }
       default:
@@ -309,9 +472,9 @@ UIImage* Image::ToUIImage() const {
     CHECK(scoped_rep);
     rep = AddRepresentation(std::move(scoped_rep));
   }
-  return UIImageOfImageRepCocoaTouch(rep->AsImageRepCocoaTouch());
+  return rep->AsImageRepCocoaTouch()->image();
 }
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_APPLE)
 NSImage* Image::ToNSImage() const {
   const internal::ImageRep* rep = GetRepresentation(kImageRepCocoa, false);
   if (!rep) {
@@ -323,8 +486,9 @@ NSImage* Image::ToNSImage() const {
       case kImageRepPNG: {
         const internal::ImageRepPNG* png_rep =
             GetRepresentation(kImageRepPNG, true)->AsImageRepPNG();
-        scoped_rep = internal::MakeImageRepCocoa(internal::NSImageFromPNG(
-            png_rep->image_reps(), default_representation_color_space));
+        scoped_rep =
+            std::make_unique<internal::ImageRepCocoa>(internal::NSImageFromPNG(
+                png_rep->image_reps(), default_representation_color_space));
         break;
       }
       case kImageRepSkia: {
@@ -332,7 +496,7 @@ NSImage* Image::ToNSImage() const {
             GetRepresentation(kImageRepSkia, true)->AsImageRepSkia();
         NSImage* image = NSImageFromImageSkiaWithColorSpace(*skia_rep->image(),
             default_representation_color_space);
-        scoped_rep = internal::MakeImageRepCocoa(image);
+        scoped_rep = std::make_unique<internal::ImageRepCocoa>(image);
         break;
       }
       default:
@@ -341,7 +505,7 @@ NSImage* Image::ToNSImage() const {
     CHECK(scoped_rep);
     rep = AddRepresentation(std::move(scoped_rep));
   }
-  return NSImageOfImageRepCocoa(rep->AsImageRepCocoa());
+  return rep->AsImageRepCocoa()->image();
 }
 #endif
 
@@ -354,29 +518,28 @@ scoped_refptr<base::RefCountedMemory> Image::As1xPNGBytes() const {
   if (rep) {
     const std::vector<ImagePNGRep>& image_png_reps =
         rep->AsImageRepPNG()->image_reps();
-    for (const auto& image_png_rep : image_png_reps) {
-      if (image_png_rep.scale == 1.0f)
-        return image_png_rep.raw_data;
+    for (size_t i = 0; i < image_png_reps.size(); ++i) {
+      if (image_png_reps[i].scale == 1.0f)
+        return image_png_reps[i].raw_data;
     }
     return new base::RefCountedBytes();
   }
 
   scoped_refptr<base::RefCountedMemory> png_bytes;
   switch (DefaultRepresentationType()) {
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
     case kImageRepCocoaTouch: {
       const internal::ImageRepCocoaTouch* cocoa_touch_rep =
           GetRepresentation(kImageRepCocoaTouch, true)->AsImageRepCocoaTouch();
       png_bytes = internal::Get1xPNGBytesFromUIImage(
-          internal::UIImageOfImageRepCocoaTouch(cocoa_touch_rep));
+          cocoa_touch_rep->image());
       break;
     }
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_APPLE)
     case kImageRepCocoa: {
       const internal::ImageRepCocoa* cocoa_rep =
           GetRepresentation(kImageRepCocoa, true)->AsImageRepCocoa();
-      png_bytes = internal::Get1xPNGBytesFromNSImage(
-          internal::NSImageOfImageRepCocoa(cocoa_rep));
+      png_bytes = internal::Get1xPNGBytesFromNSImage(cocoa_rep->image());
       break;
     }
 #endif
@@ -403,7 +566,7 @@ scoped_refptr<base::RefCountedMemory> Image::As1xPNGBytes() const {
   //   final type eg (converting from ImageRepSkia to ImageRepPNG to get an
   //   ImageRepCocoa).
   std::vector<ImagePNGRep> image_png_reps;
-  image_png_reps.emplace_back(png_bytes, 1.0f);
+  image_png_reps.push_back(ImagePNGRep(png_bytes, 1.0f));
   AddRepresentation(
       base::WrapUnique(new internal::ImageRepPNG(image_png_reps)));
   return png_bytes;
@@ -417,7 +580,7 @@ ImageSkia Image::AsImageSkia() const {
   return IsEmpty() ? ImageSkia() : *ToImageSkia();
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 NSImage* Image::AsNSImage() const {
   return IsEmpty() ? nil : ToNSImage();
 }
@@ -453,12 +616,12 @@ gfx::Size Image::Size() const {
   return GetRepresentation(DefaultRepresentationType(), true)->Size();
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 void Image::SetSourceColorSpace(CGColorSpaceRef color_space) {
   if (storage())
     storage()->set_default_representation_color_space(color_space);
 }
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
 Image::RepresentationType Image::DefaultRepresentationType() const {
   CHECK(storage());

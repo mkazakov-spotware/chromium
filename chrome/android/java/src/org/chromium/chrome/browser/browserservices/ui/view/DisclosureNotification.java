@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,7 @@ import static org.chromium.chrome.browser.dependency_injection.ChromeCommonQuali
 import static org.chromium.chrome.browser.notifications.NotificationConstants.NOTIFICATION_ID_TWA_DISCLOSURE_INITIAL;
 import static org.chromium.chrome.browser.notifications.NotificationConstants.NOTIFICATION_ID_TWA_DISCLOSURE_SUBSEQUENT;
 
+import android.app.Notification;
 import android.content.Context;
 import android.content.res.Resources;
 
@@ -73,10 +74,6 @@ public class DisclosureNotification
         NotificationWrapper notification =
                 createNotification(firstTime, mCurrentScope, packageName);
         mNotificationManager.notify(notification);
-        NotificationUmaTracker.getInstance().onNotificationShown(firstTime
-                        ? NotificationUmaTracker.SystemNotificationType.TWA_DISCLOSURE_INITIAL
-                        : NotificationUmaTracker.SystemNotificationType.TWA_DISCLOSURE_SUBSEQUENT,
-                notification.getNotification());
 
         mModel.get(DISCLOSURE_EVENTS_CALLBACK).onDisclosureShown();
     }
@@ -96,12 +93,12 @@ public class DisclosureNotification
         if (firstTime) {
             umaType = NotificationUmaTracker.SystemNotificationType.TWA_DISCLOSURE_INITIAL;
             preOPriority = NotificationCompat.PRIORITY_MAX;
-            channelId = ChromeChannelDefinitions.ChannelId.WEBAPPS;
+            channelId = ChromeChannelDefinitions.ChannelId.TWA_DISCLOSURE_INITIAL;
             notificationId = NOTIFICATION_ID_TWA_DISCLOSURE_INITIAL;
         } else {
             umaType = NotificationUmaTracker.SystemNotificationType.TWA_DISCLOSURE_SUBSEQUENT;
             preOPriority = NotificationCompat.PRIORITY_MIN;
-            channelId = ChromeChannelDefinitions.ChannelId.WEBAPPS_QUIET;
+            channelId = ChromeChannelDefinitions.ChannelId.TWA_DISCLOSURE_SUBSEQUENT;
             notificationId = NOTIFICATION_ID_TWA_DISCLOSURE_SUBSEQUENT;
         }
 
@@ -114,6 +111,11 @@ public class DisclosureNotification
                 UrlFormatter.formatUrlForDisplayOmitSchemeOmitTrivialSubdomains(scope);
         String text = mResources.getString(R.string.twa_running_in_chrome_v2, scopeForDisplay);
 
+        // We're using setStyle, which can't be handled by compat mode.
+        boolean preferCompat = false;
+        // The notification is being displayed by Chrome, so we don't need to provide a
+        // remoteAppPackageName.
+        String remoteAppPackageName = null;
         PendingIntentProvider intent = DisclosureAcceptanceBroadcastReceiver.createPendingIntent(
                 mContext, scope, notificationId, packageName);
 
@@ -121,7 +123,8 @@ public class DisclosureNotification
         int icon = 0;
 
         return NotificationWrapperBuilderFactory
-                .createNotificationWrapperBuilder(channelId, metadata)
+                .createNotificationWrapperBuilder(
+                        preferCompat, channelId, remoteAppPackageName, metadata)
                 .setSmallIcon(R.drawable.ic_chrome)
                 .setContentTitle(title)
                 .setContentText(text)
@@ -131,7 +134,7 @@ public class DisclosureNotification
                 .setShowWhen(false)
                 .setAutoCancel(false)
                 .setSound(null)
-                .setBigTextStyle(text)
+                .setStyle(new Notification.BigTextStyle().bigText(text))
                 .setOngoing(!firstTime)
                 .setPriorityBeforeO(preOPriority)
                 .buildNotificationWrapper();

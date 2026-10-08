@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,6 @@
 #include "ui/gfx/native_widget_types.h"
 #include "ui/gl/android/surface_texture.h"
 #include "ui/gl/gl_surface.h"
-#include "ui/gl/gl_utils.h"
 #include "ui/gl/init/gl_factory.h"
 
 namespace gpu {
@@ -41,7 +40,7 @@ TEST_F(GLSurfaceTextureTest, SimpleTest) {
   EXPECT_TRUE(window != nullptr);
 
   scoped_refptr<gl::GLSurface> gl_surface =
-      gl::init::CreateViewGLSurface(gl::GetDefaultDisplayEGL(), window);
+      gl::init::CreateViewGLSurface(window);
   EXPECT_TRUE(gl_surface.get() != nullptr);
 
   gl_.SetSurface(gl_surface.get());

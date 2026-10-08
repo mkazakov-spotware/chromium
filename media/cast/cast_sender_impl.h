@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #ifndef MEDIA_CAST_CAST_SENDER_IMPL_H_
@@ -6,8 +6,8 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "media/cast/cast_environment.h"
 #include "media/cast/cast_sender.h"
 #include "media/cast/sender/audio_sender.h"
@@ -31,12 +31,10 @@ class CastSenderImpl final : public CastSender {
   void InitializeVideo(
       const FrameSenderConfig& video_config,
       const StatusChangeCallback& status_change_cb,
-      const CreateVideoEncodeAcceleratorCallback& create_vea_cb) final;
+      const CreateVideoEncodeAcceleratorCallback& create_vea_cb,
+      const CreateVideoEncodeMemoryCallback& create_video_encode_mem_cb) final;
 
   void SetTargetPlayoutDelay(base::TimeDelta new_target_playout_delay) final;
-
-  CastSenderImpl(const CastSenderImpl&) = delete;
-  CastSenderImpl& operator=(const CastSenderImpl&) = delete;
 
   ~CastSenderImpl() final;
 
@@ -57,10 +55,12 @@ class CastSenderImpl final : public CastSender {
   scoped_refptr<CastEnvironment> cast_environment_;
   // The transport sender is owned by the owner of the CastSender, and should be
   // valid throughout the lifetime of the CastSender.
-  const raw_ptr<CastTransport> transport_sender_;
+  CastTransport* const transport_sender_;
 
   // NOTE: Weak pointers must be invalidated before all other member variables.
   base::WeakPtrFactory<CastSenderImpl> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(CastSenderImpl);
 };
 
 }  // namespace cast

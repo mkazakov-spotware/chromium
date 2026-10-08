@@ -32,11 +32,12 @@ include_rules = [
   # tests. To avoid transitively including them to //content/shell through
   # this directory, we avoid including them.
   "-content/web_test/renderer/web_frame_test_proxy.h",
+  "-content/web_test/renderer/web_view_test_proxy.h",
   "-content/web_test/renderer/web_widget_test_proxy.h",
 ]
 
 specific_include_rules = {
-  # These classes subclass `blink::WebView` and RenderWidget to inject behaviour
+  # These classes subclass RenderView and RenderWidget to inject behaviour
   # for web tests.
   "web_(frame|view|widget)_test_proxy\.h": [
     "+content/renderer",
@@ -46,6 +47,7 @@ specific_include_rules = {
   ".*\.cc": [
     "+content/renderer",
     "+content/web_test/renderer/web_frame_test_proxy.h",
+    "+content/web_test/renderer/web_view_test_proxy.h",
     "+content/web_test/renderer/web_widget_test_proxy.h",
   ],
 }

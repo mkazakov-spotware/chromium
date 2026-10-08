@@ -1,12 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_COMMON_IMPORTER_IMPORTER_URL_ROW_H_
 #define CHROME_COMMON_IMPORTER_IMPORTER_URL_ROW_H_
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "base/time/time.h"
 #include "url/gurl.h"
 
@@ -17,11 +16,10 @@ struct ImporterURLRow {
  public:
   ImporterURLRow();
   explicit ImporterURLRow(const GURL& url);
-  ImporterURLRow(const ImporterURLRow&);
-  ImporterURLRow& operator=(const ImporterURLRow&);
+  ImporterURLRow(const ImporterURLRow& other);
 
   GURL url;
-  std::u16string title;
+  base::string16 title;
 
   // Total number of times this URL has been visited.
   int visit_count;

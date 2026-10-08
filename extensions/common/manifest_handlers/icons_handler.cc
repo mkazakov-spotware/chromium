@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -58,11 +58,11 @@ IconsHandler::IconsHandler() {
 IconsHandler::~IconsHandler() {
 }
 
-bool IconsHandler::Parse(Extension* extension, std::u16string* error) {
+bool IconsHandler::Parse(Extension* extension, base::string16* error) {
   std::unique_ptr<IconsInfo> icons_info(new IconsInfo);
   const base::Value* icons_dict = nullptr;
   if (!extension->manifest()->GetDictionary(keys::kIcons, &icons_dict)) {
-    *error = manifest_errors::kInvalidIcons;
+    *error = base::ASCIIToUTF16(manifest_errors::kInvalidIcons);
     return false;
   }
 
@@ -81,7 +81,8 @@ bool IconsHandler::Validate(const Extension* extension,
   // Analyze the icons for visibility using the default toolbar color, since
   // the majority of Chrome users don't modify their theme.
   return file_util::ValidateExtensionIconSet(
-      IconsInfo::GetIcons(extension), extension, manifest_keys::kIcons, error);
+      IconsInfo::GetIcons(extension), extension, manifest_keys::kIcons,
+      image_util::kDefaultToolbarColor, error);
 }
 
 base::span<const char* const> IconsHandler::Keys() const {

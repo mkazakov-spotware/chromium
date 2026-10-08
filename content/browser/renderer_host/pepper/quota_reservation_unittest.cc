@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,12 +14,13 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "storage/browser/file_system/quota/quota_reservation.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "url/origin.h"
 
 using storage::QuotaReservationManager;
@@ -41,10 +42,6 @@ const int kFile3ID = 3;
 class FakeBackend : public QuotaReservationManager::QuotaBackend {
  public:
   FakeBackend() {}
-
-  FakeBackend(const FakeBackend&) = delete;
-  FakeBackend& operator=(const FakeBackend&) = delete;
-
   ~FakeBackend() override {}
 
   void ReserveQuota(
@@ -52,7 +49,7 @@ class FakeBackend : public QuotaReservationManager::QuotaBackend {
       storage::FileSystemType type,
       int64_t delta,
       QuotaReservationManager::ReserveQuotaCallback callback) override {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(base::IgnoreResult(std::move(callback)),
                                   base::File::FILE_OK, delta));
   }
@@ -69,6 +66,9 @@ class FakeBackend : public QuotaReservationManager::QuotaBackend {
                            storage::FileSystemType type) override {}
   void DecrementDirtyCount(const url::Origin& origin,
                            storage::FileSystemType type) override {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FakeBackend);
 };
 
 }  // namespace
@@ -76,10 +76,6 @@ class FakeBackend : public QuotaReservationManager::QuotaBackend {
 class QuotaReservationTest : public testing::Test {
  public:
   QuotaReservationTest() {}
-
-  QuotaReservationTest(const QuotaReservationTest&) = delete;
-  QuotaReservationTest& operator=(const QuotaReservationTest&) = delete;
-
   ~QuotaReservationTest() override {}
 
   void SetUp() override {
@@ -101,8 +97,7 @@ class QuotaReservationTest : public testing::Test {
   storage::FileSystemURL MakeFileSystemURL(
       const base::FilePath::StringType& file_name) {
     return storage::FileSystemURL::CreateForTest(
-        blink::StorageKey::CreateFromStringForTesting(kOrigin), kType,
-        MakeFilePath(file_name));
+        url::Origin::Create(GURL(kOrigin)), kType, MakeFilePath(file_name));
   }
 
   scoped_refptr<QuotaReservation> CreateQuotaReservation(
@@ -129,6 +124,8 @@ class QuotaReservationTest : public testing::Test {
   base::test::SingleThreadTaskEnvironment task_environment_;
   base::ScopedTempDir work_dir_;
   std::unique_ptr<storage::QuotaReservationManager> reservation_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(QuotaReservationTest);
 };
 
 void GotReservedQuota(int64_t* reserved_quota_ptr,

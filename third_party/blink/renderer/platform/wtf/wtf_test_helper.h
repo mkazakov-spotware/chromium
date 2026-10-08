@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <type_traits>
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
@@ -51,6 +52,8 @@ class MoveOnly {
 
  private:
   int i_;
+
+  DISALLOW_COPY_AND_ASSIGN(MoveOnly);
 };
 
 class MoveOnlyHashValue {
@@ -105,20 +108,22 @@ struct MoveOnlyHashTraits : public GenericHashTraits<MoveOnlyHashValue> {
 
 struct MoveOnlyHash {
   static unsigned GetHash(const MoveOnlyHashValue& value) {
-    return DefaultHash<int>::GetHash(value.Value());
+    return DefaultHash<int>::Hash::GetHash(value.Value());
   }
   static bool Equal(const MoveOnlyHashValue& left,
                     const MoveOnlyHashValue& right) {
-    return DefaultHash<int>::Equal(left.Value(), right.Value());
+    return DefaultHash<int>::Hash::Equal(left.Value(), right.Value());
   }
   static const bool safe_to_compare_to_empty_or_deleted = true;
 };
 
 template <>
-struct HashTraits<MoveOnlyHashValue> : MoveOnlyHashTraits {};
+struct HashTraits<MoveOnlyHashValue> : public MoveOnlyHashTraits {};
 
 template <>
-struct DefaultHash<MoveOnlyHashValue> : MoveOnlyHash {};
+struct DefaultHash<MoveOnlyHashValue> {
+  using Hash = MoveOnlyHash;
+};
 
 class CountCopy final {
  public:
@@ -167,10 +172,12 @@ struct CountCopyHash : public PtrHash<const int*> {
 };
 
 template <>
-struct HashTraits<CountCopy> : CountCopyHashTraits {};
+struct HashTraits<CountCopy> : public CountCopyHashTraits {};
 
 template <>
-struct DefaultHash<CountCopy> : CountCopyHash {};
+struct DefaultHash<CountCopy> {
+  using Hash = CountCopyHash;
+};
 
 template <typename T>
 class ValueInstanceCount final {
@@ -243,7 +250,9 @@ struct HashTraits<ValueInstanceCount<T>>
     : public ValueInstanceCountHashTraits<T> {};
 
 template <typename T>
-struct DefaultHash<ValueInstanceCount<T>> : public ValueInstanceCountHash<T> {};
+struct DefaultHash<ValueInstanceCount<T>> {
+  using Hash = ValueInstanceCountHash<T>;
+};
 
 class DummyRefCounted : public RefCounted<DummyRefCounted> {
  public:

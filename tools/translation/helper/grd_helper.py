@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -37,14 +37,14 @@ def GetGrdMessages(grd_path_or_string, dir_path):
   """Load the grd file and return a dict of message ids to messages.
 
   Ignores non-translateable messages."""
-  doc = grit.grd_reader.Parse(grd_path_or_string,
-                              dir_path,
-                              stop_after=None,
-                              first_ids_file=None,
-                              debug=False,
-                              defines={'_chromium': 1},
-                              tags_to_ignore=set(TAGS_TO_IGNORE),
-                              skip_validation_checks=True)
+  doc = grit.grd_reader.Parse(
+      grd_path_or_string,
+      dir_path,
+      stop_after=None,
+      first_ids_file=None,
+      debug=False,
+      defines={'_chromium': 1},
+      tags_to_ignore=set(TAGS_TO_IGNORE))
   return {
       msg.attrs['name']: msg
       for msg in doc.GetChildrenOfType(grit.node.message.MessageNode)
@@ -71,7 +71,7 @@ def GetGrdpMessagesFromString(grdp_string):
   replaced_string = grdp_string.replace(
       '<grit-part>',
       """<grit base_dir="." latest_public_release="1" current_release="1">
-            <release seq="1">
+            <release seq="1" allow_pseudo="false">
               <messages fallback_to_english="true">
         """)
   replaced_string = replaced_string.replace(

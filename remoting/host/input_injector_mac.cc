@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,11 +18,12 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/mac/scoped_cftyperef.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "remoting/host/clipboard.h"
 #include "remoting/proto/internal.pb.h"
@@ -43,15 +44,13 @@ void SetOrClearBit(uint64_t &value, uint64_t bit, bool set_bit) {
 void CreateAndPostKeyEvent(int keycode,
                            bool pressed,
                            uint64_t flags,
-                           const std::u16string& unicode) {
+                           const base::string16& unicode) {
   base::ScopedCFTypeRef<CGEventRef> eventRef(
       CGEventCreateKeyboardEvent(nullptr, keycode, pressed));
   if (eventRef) {
     CGEventSetFlags(eventRef, static_cast<CGEventFlags>(flags));
     if (!unicode.empty())
-      CGEventKeyboardSetUnicodeString(
-          eventRef, unicode.size(),
-          reinterpret_cast<const UniChar*>(unicode.data()));
+      CGEventKeyboardSetUnicodeString(eventRef, unicode.size(), &(unicode[0]));
     CGEventPost(kCGSessionEventTap, eventRef);
   }
 }
@@ -111,10 +110,6 @@ class InputInjectorMac : public InputInjector {
   explicit InputInjectorMac(
       scoped_refptr<base::SingleThreadTaskRunner> input_thread_task_runner,
       scoped_refptr<base::SingleThreadTaskRunner> ui_thread_task_runner);
-
-  InputInjectorMac(const InputInjectorMac&) = delete;
-  InputInjectorMac& operator=(const InputInjectorMac&) = delete;
-
   ~InputInjectorMac() override;
 
   // ClipboardStub interface.
@@ -137,9 +132,6 @@ class InputInjectorMac : public InputInjector {
     explicit Core(
         scoped_refptr<base::SingleThreadTaskRunner> input_thread_task_runner,
         scoped_refptr<base::SingleThreadTaskRunner> ui_thread_task_runner);
-
-    Core(const Core&) = delete;
-    Core& operator=(const Core&) = delete;
 
     // Mirrors the ClipboardStub interface.
     void InjectClipboardEvent(const ClipboardEvent& event);
@@ -168,9 +160,13 @@ class InputInjectorMac : public InputInjector {
     uint64_t left_modifiers_;
     uint64_t right_modifiers_;
     base::TimeTicks last_time_display_woken_;
+
+    DISALLOW_COPY_AND_ASSIGN(Core);
   };
 
   scoped_refptr<Core> core_;
+
+  DISALLOW_COPY_AND_ASSIGN(InputInjectorMac);
 };
 
 InputInjectorMac::InputInjectorMac(
@@ -290,7 +286,7 @@ void InputInjectorMac::Core::InjectKeyEvent(const KeyEvent& event) {
 
   ui_thread_task_runner_->PostTask(
       FROM_HERE, base::BindOnce(CreateAndPostKeyEvent, keycode, event.pressed(),
-                                flags, std::u16string()));
+                                flags, base::string16()));
 }
 
 void InputInjectorMac::Core::InjectTextEvent(const TextEvent& event) {
@@ -298,7 +294,7 @@ void InputInjectorMac::Core::InjectTextEvent(const TextEvent& event) {
 
   WakeUpDisplay();
 
-  std::u16string text = base::UTF8ToUTF16(event.text());
+  base::string16 text = base::UTF8ToUTF16(event.text());
 
   // CGEventKeyboardSetUnicodeString appears to only process up to 20 code
   // units (and key presses are generally expected to generate a single
@@ -319,21 +315,21 @@ void InputInjectorMac::Core::InjectTextEvent(const TextEvent& event) {
       // specially.
       ui_thread_task_runner_->PostTask(
           FROM_HERE, base::BindOnce(CreateAndPostKeyEvent, kVK_Return,
-                                    /*pressed=*/true, 0, std::u16string()));
+                                    /*pressed=*/true, 0, base::string16()));
       ui_thread_task_runner_->PostTask(
           FROM_HERE, base::BindOnce(CreateAndPostKeyEvent, kVK_Return,
-                                    /*pressed=*/false, 0, std::u16string()));
+                                    /*pressed=*/false, 0, base::string16()));
     } else {
       // Applications that ignore UnicodeString field will see the text event as
       // Space key.
       ui_thread_task_runner_->PostTask(
           FROM_HERE,
           base::BindOnce(CreateAndPostKeyEvent, kVK_Space,
-                         /*pressed=*/true, 0, std::u16string(grapheme)));
+                         /*pressed=*/true, 0, base::string16(grapheme)));
       ui_thread_task_runner_->PostTask(
           FROM_HERE,
           base::BindOnce(CreateAndPostKeyEvent, kVK_Space,
-                         /*pressed=*/false, 0, std::u16string(grapheme)));
+                         /*pressed=*/false, 0, base::string16(grapheme)));
     }
   }
 }
@@ -402,7 +398,7 @@ void InputInjectorMac::Core::Stop() {
 void InputInjectorMac::Core::WakeUpDisplay() {
   base::TimeTicks now = base::TimeTicks::Now();
   if (now - last_time_display_woken_ <
-      base::Milliseconds(kWakeUpDisplayIntervalMs)) {
+      base::TimeDelta::FromMilliseconds(kWakeUpDisplayIntervalMs)) {
     return;
   }
 

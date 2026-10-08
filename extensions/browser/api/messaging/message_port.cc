@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,14 +19,14 @@ void MessagePort::RevalidatePort() {}
 
 void MessagePort::DispatchOnConnect(
     const std::string& channel_name,
-    absl::optional<base::Value::Dict> source_tab,
-    const ExtensionApiFrameIdMap::FrameData& source_frame,
+    std::unique_ptr<base::DictionaryValue> source_tab,
+    int source_frame_id,
     int guest_process_id,
     int guest_render_frame_routing_id,
     const MessagingEndpoint& source_endpoint,
     const std::string& target_extension_id,
     const GURL& source_url,
-    absl::optional<url::Origin> source_origin) {}
+    base::Optional<url::Origin> source_origin) {}
 
 void MessagePort::DispatchOnDisconnect(const std::string& error_message) {}
 
@@ -36,11 +36,8 @@ void MessagePort::ClosePort(int process_id,
                             int routing_id,
                             int worker_thread_id) {}
 
-void MessagePort::IncrementLazyKeepaliveCount(
-    bool is_for_native_message_connect) {}
+void MessagePort::IncrementLazyKeepaliveCount() {}
 
 void MessagePort::DecrementLazyKeepaliveCount() {}
-
-void MessagePort::NotifyResponsePending() {}
 
 }  // namespace extensions

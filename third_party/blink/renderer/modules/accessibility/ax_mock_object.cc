@@ -39,13 +39,4 @@ bool AXMockObject::ComputeAccessibilityIsIgnored(
   return AccessibilityIsIgnoredByDefault(ignored_reasons);
 }
 
-Document* AXMockObject::GetDocument() const {
-  return ParentObject() ? ParentObject()->GetDocument() : nullptr;
-}
-
-ax::mojom::blink::Role AXMockObject::NativeRoleIgnoringAria() const {
-  NOTREACHED();
-  return ax::mojom::blink::Role::kUnknown;
-}
-
 }  // namespace blink

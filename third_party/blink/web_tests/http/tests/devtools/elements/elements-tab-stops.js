@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests what elements have focus after pressing tab.\n`);
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
   await TestRunner.showPanel('elements');
   await TestRunner.loadHTML(`
       <span id="node-to-select"></span>
@@ -20,22 +20,22 @@
   ElementsTestRunner.selectNodeAndWaitForStyles('node-to-select', nodeSelected);
   function nodeSelected() {
     eventSender.keyDown('Tab');
-    var startElement = Platform.DOMUtilities.deepActiveElement(document);
+    var startElement = document.deepActiveElement();
     do {
       dumpFocus();
       eventSender.keyDown('Tab');
       elements++;
-    } while (startElement !== Platform.DOMUtilities.deepActiveElement(document) && elements < maxElements);
+    } while (startElement !== document.deepActiveElement() && elements < maxElements);
 
     TestRunner.addResult('');
     TestRunner.addResult('Shift+Tab:');
     TestRunner.addResult('');
-    startElement = Platform.DOMUtilities.deepActiveElement(document);
+    startElement = document.deepActiveElement();
     do {
       dumpFocus();
       eventSender.keyDown('Tab', ['shiftKey']);
       elements++;
-    } while (startElement !== Platform.DOMUtilities.deepActiveElement(document) && elements < maxElements);
+    } while (startElement !== document.deepActiveElement() && elements < maxElements);
 
     if (elements >= maxElements)
       TestRunner.addResult('FAIL: Unable to complete tab stop cycle.');
@@ -44,7 +44,7 @@
   }
 
   function dumpFocus() {
-    var element = Platform.DOMUtilities.deepActiveElement(document);
+    var element = document.deepActiveElement();
     if (!element) {
       TestRunner.addResult('null');
       return;

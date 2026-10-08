@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,6 @@ import com.google.android.gms.common.api.Status;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.Task;
 
-import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.ui.base.WindowAndroid;
 
@@ -46,8 +45,7 @@ public class SmsUserConsentReceiver extends BroadcastReceiver {
         if (DEBUG) Log.d(TAG, "Registering intent filters.");
         IntentFilter filter = new IntentFilter();
         filter.addAction(SmsRetriever.SMS_RETRIEVED_ACTION);
-        ContextUtils.registerExportedBroadcastReceiver(
-                mContext, this, filter, SmsRetriever.SEND_PERMISSION);
+        mContext.registerReceiver(this, filter);
     }
 
     public SmsRetrieverClient createClient() {
@@ -55,7 +53,6 @@ public class SmsUserConsentReceiver extends BroadcastReceiver {
     }
 
     public void destroy() {
-        if (mDestroyed) return;
         if (DEBUG) Log.d(TAG, "Destroying SmsUserConsentReceiver.");
         mDestroyed = true;
         mContext.unregisterReceiver(this);
@@ -94,7 +91,7 @@ public class SmsUserConsentReceiver extends BroadcastReceiver {
                         intent.getExtras().getParcelable(SmsRetriever.EXTRA_CONSENT_INTENT);
                 try {
                     mProvider.getWindow().showIntent(consentIntent,
-                            (resultCode, data) -> onConsentResult(resultCode, data), null);
+                            (window, resultCode, data) -> onConsentResult(resultCode, data), null);
                 } catch (android.content.ActivityNotFoundException e) {
                     if (DEBUG) Log.d(TAG, "Error starting activity for result.");
                 }
@@ -109,7 +106,7 @@ public class SmsUserConsentReceiver extends BroadcastReceiver {
     void onConsentResult(int resultCode, Intent data) {
         if (resultCode == Activity.RESULT_OK) {
             String message = data.getStringExtra(SmsRetriever.EXTRA_SMS_MESSAGE);
-            mProvider.onReceive(message, GmsBackend.USER_CONSENT);
+            mProvider.onReceive(message);
         } else if (resultCode == Activity.RESULT_CANCELED) {
             if (DEBUG) Log.d(TAG, "Activity result cancelled.");
             mProvider.onCancel();

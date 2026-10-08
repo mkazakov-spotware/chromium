@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,13 +21,13 @@ AutofillTableEncryptorFactory* AutofillTableEncryptorFactory::GetInstance() {
 
 std::unique_ptr<AutofillTableEncryptor>
 AutofillTableEncryptorFactory::Create() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   return delegate_ ? delegate_->Create() : std::make_unique<SystemEncryptor>();
 }
 
 void AutofillTableEncryptorFactory::SetDelegate(
     std::unique_ptr<Delegate> delegate) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   delegate_ = std::move(delegate);
 }
 

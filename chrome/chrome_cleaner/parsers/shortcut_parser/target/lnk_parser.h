@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -69,9 +69,7 @@ mojom::LnkParsingResult ParseLnkBytes(std::vector<BYTE> file_buffer,
 
 struct ParsedLnkFile {
   ParsedLnkFile();
-  ~ParsedLnkFile();
   std::wstring target_path;
-  std::wstring working_dir;
   std::wstring command_line_arguments;
   std::wstring icon_location;
   int32_t icon_index = -1;

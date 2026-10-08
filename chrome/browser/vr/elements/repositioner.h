@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 
 #include <sstream>
 
+#include "base/macros.h"
 #include "chrome/browser/vr/elements/ui_element.h"
 #include "chrome/browser/vr/vr_ui_export.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
 namespace vr {
 
@@ -23,10 +24,6 @@ namespace vr {
 class VR_UI_EXPORT Repositioner : public UiElement {
  public:
   Repositioner();
-
-  Repositioner(const Repositioner&) = delete;
-  Repositioner& operator=(const Repositioner&) = delete;
-
   ~Repositioner() override;
 
   void set_laser_direction(const gfx::Vector3dF& laser_direction) {
@@ -61,6 +58,8 @@ class VR_UI_EXPORT Repositioner : public UiElement {
 
   gfx::Transform initial_transform_;
   gfx::Vector3dF initial_laser_direction_;
+
+  DISALLOW_COPY_AND_ASSIGN(Repositioner);
 };
 
 }  // namespace vr

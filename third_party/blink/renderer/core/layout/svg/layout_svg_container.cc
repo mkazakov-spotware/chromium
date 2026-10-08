@@ -24,8 +24,10 @@
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_container.h"
 
 #include "third_party/blink/renderer/core/layout/hit_test_result.h"
+#include "third_party/blink/renderer/core/layout/layout_analyzer.h"
 #include "third_party/blink/renderer/core/layout/svg/svg_layout_support.h"
 #include "third_party/blink/renderer/core/layout/svg/svg_resources.h"
+#include "third_party/blink/renderer/core/layout/svg/svg_resources_cache.h"
 #include "third_party/blink/renderer/core/layout/svg/transform_helper.h"
 #include "third_party/blink/renderer/core/layout/svg/transformed_hit_test_location.h"
 #include "third_party/blink/renderer/core/paint/svg_container_painter.h"
@@ -42,14 +44,10 @@ LayoutSVGContainer::LayoutSVGContainer(SVGElement* node)
 
 LayoutSVGContainer::~LayoutSVGContainer() = default;
 
-void LayoutSVGContainer::Trace(Visitor* visitor) const {
-  visitor->Trace(content_);
-  LayoutSVGModelObject::Trace(visitor);
-}
-
 void LayoutSVGContainer::UpdateLayout() {
   NOT_DESTROYED();
   DCHECK(NeedsLayout());
+  LayoutAnalyzer::Scope analyzer(*this);
 
   // Update the local transform in subclasses.
   // At this point our bounding box may be incorrect, so any box relative
@@ -90,13 +88,10 @@ void LayoutSVGContainer::UpdateLayout() {
 
   if (!IsSVGHiddenContainer()) {
     SetTransformAffectsVectorEffect(false);
-    ClearSVGDescendantMayHaveTransformRelatedAnimation();
     for (auto* child = FirstChild(); child; child = child->NextSibling()) {
-      if (child->TransformAffectsVectorEffect())
+      if (child->TransformAffectsVectorEffect()) {
         SetTransformAffectsVectorEffect(true);
-      if (child->StyleRef().HasCurrentTransformRelatedAnimation() ||
-          child->SVGDescendantMayHaveTransformRelatedAnimation()) {
-        SetSVGDescendantMayHaveTransformRelatedAnimation();
+        break;
       }
     }
   }
@@ -200,7 +195,7 @@ bool LayoutSVGContainer::UpdateCachedBoundaries() {
 bool LayoutSVGContainer::NodeAtPoint(HitTestResult& result,
                                      const HitTestLocation& hit_test_location,
                                      const PhysicalOffset& accumulated_offset,
-                                     HitTestPhase phase) {
+                                     HitTestAction hit_test_action) {
   NOT_DESTROYED();
   DCHECK_EQ(accumulated_offset, PhysicalOffset());
   TransformedHitTestLocation local_location(hit_test_location,
@@ -212,17 +207,17 @@ bool LayoutSVGContainer::NodeAtPoint(HitTestResult& result,
     return false;
 
   if (!ChildPaintBlockedByDisplayLock() &&
-      content_.HitTest(result, *local_location, phase))
+      content_.HitTest(result, *local_location, hit_test_action))
     return true;
 
   // pointer-events: bounding-box makes it possible for containers to be direct
   // targets.
-  if (StyleRef().UsedPointerEvents() == EPointerEvents::kBoundingBox) {
+  if (StyleRef().PointerEvents() == EPointerEvents::kBoundingBox) {
     // Check for a valid bounding box because it will be invalid for empty
     // containers.
     if (IsObjectBoundingBoxValid() &&
         local_location->Intersects(ObjectBoundingBox())) {
-      UpdateHitTestResult(result, PhysicalOffset::FromPointFRound(
+      UpdateHitTestResult(result, PhysicalOffset::FromFloatPointRound(
                                       local_location->TransformedPoint()));
       if (result.AddNodeToListBasedTestResult(GetElement(), *local_location) ==
           kStopHitTesting)

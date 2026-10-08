@@ -14,42 +14,33 @@ function isInView(element) {
 
 function checkScroll(resolve) {
   let position = 'unknown';
-  requestAnimationFrame(() => {
-    if (window.scrollY == 0)
-      position = 'top';
-    else if (isInView(document.getElementById('text')))
-      position = 'text';
-    resolve(position);
-  });
-}
+  if (window.scrollY == 0)
+    position = 'top';
+  else if (isInView(document.getElementById('text')))
+    position = 'text';
 
-function reset() {
-  window.location.hash = "";
-  window.scrollTo(0, 0);
+  resolve(position);
 }
 
 function runTest() {
   promise_test(t => new Promise(resolve => {
-    reset();
     window.location.href = "#:~:text=test";
     requestAnimationFrame(function() {
       checkScroll(resolve);
     });
   }).then(position => {
-    assert_equals(position, 'text');
+    assert_equals(position, 'top');
     assert_equals(window.location.href.indexOf(':~:'), -1, 'Expected fragment directive to be stripped from the URL.');
-  }), 'Activated for same-document window.location setter');
+  }), 'Test that a text fragment directive cannot be activated on a same-document navigation');
 
   promise_test(t => new Promise(resolve => {
-    reset();
-    window.location.replace("#:~:text=test");
+    window.location.href = "#text";
     requestAnimationFrame(function() {
       checkScroll(resolve);
     });
   }).then(position => {
     assert_equals(position, 'text');
-    assert_equals(window.location.href.indexOf(':~:'), -1, 'Expected fragment directive to be stripped from the URL.');
-  }), 'Activated for same-document window.location.replace');
+  }), 'Sanity check that the text element can be navigated by element ID');
 }
 </script>
 <style>

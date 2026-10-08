@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,11 +19,12 @@ class WebString;
 // Helper class for parsing icon sizes. The spec is:
 // https://html.spec.whatwg.org/multipage/semantics.html#attr-link-sizes
 // TODO(zqzhang): merge with WebIconURL, and rename it "WebIcon"?
-class BLINK_PLATFORM_EXPORT WebIconSizesParser {
+class WebIconSizesParser {
  public:
-  static WebVector<gfx::Size> ParseIconSizes(const WebString& sizes_string);
+  BLINK_PLATFORM_EXPORT static WebVector<gfx::Size> ParseIconSizes(
+      const WebString& sizes_string);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_ICON_SIZES_PARSER_H_
+#endif

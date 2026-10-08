@@ -26,7 +26,7 @@
 #include "third_party/blink/renderer/core/css/style_change_reason.h"
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_resource_masker.h"
 #include "third_party/blink/renderer/core/svg/svg_animated_length.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -112,9 +112,7 @@ void SVGMaskElement::CollectStyleForPresentationAttribute(
   }
 }
 
-void SVGMaskElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  const QualifiedName& attr_name = params.name;
+void SVGMaskElement::SvgAttributeChanged(const QualifiedName& attr_name) {
   bool is_length_attr =
       attr_name == svg_names::kXAttr || attr_name == svg_names::kYAttr ||
       attr_name == svg_names::kWidthAttr || attr_name == svg_names::kHeightAttr;
@@ -139,7 +137,7 @@ void SVGMaskElement::SvgAttributeChanged(
     return;
   }
 
-  SVGElement::SvgAttributeChanged(params);
+  SVGElement::SvgAttributeChanged(attr_name);
 }
 
 void SVGMaskElement::ChildrenChanged(const ChildrenChange& change) {
@@ -156,7 +154,7 @@ void SVGMaskElement::ChildrenChanged(const ChildrenChange& change) {
 
 LayoutObject* SVGMaskElement::CreateLayoutObject(const ComputedStyle&,
                                                  LegacyLayout) {
-  return MakeGarbageCollected<LayoutSVGResourceMasker>(this);
+  return new LayoutSVGResourceMasker(this);
 }
 
 bool SVGMaskElement::SelfHasRelativeLengths() const {

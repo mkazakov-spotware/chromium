@@ -1,13 +1,13 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("//chrome/common/features.gni")
 import("//third_party/closure_compiler/compile_js.gni")
-import("//tools/grit/preprocess_if_expr.gni")
+import("//tools/grit/preprocess_grit.gni")
 import("//tools/polymer/html_to_js.gni")
 import("//ui/webui/resources/tools/generate_grd.gni")
-import("../../tools/optimize_webui.gni")
+import("../../optimize_webui.gni")
 
 preprocess_folder = "preprocessed"
 preprocess_gen_manifest = "preprocessed_gen_manifest.json"
@@ -24,19 +24,10 @@ if (optimize_webui) {
 
     deps = [
       ":preprocess_generated",
-      "../../../../../ui/webui/resources:library",
       "../../../../../ui/webui/resources:preprocess",
     ]
 
-    excludes = [
-      "chrome://resources/js/cr.js",
-      "chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js",
-      "chrome://resources/mojo/mojo/public/mojom/base/big_buffer.mojom-lite.js",
-      "chrome://resources/mojo/mojo/public/mojom/base/string16.mojom-lite.js",
-      "chrome://resources/mojo/mojo/public/mojom/base/string16.mojom-webui.js",
-      "chrome://resources/mojo/chromeos/ash/services/bluetooth_config/public/mojom/cros_bluetooth_config.mojom-webui.js",
-      "chrome://resources/ash/common/bluetooth/cros_bluetooth_config.js",
-    ]
+    excludes = [ "chrome://resources/js/cr.m.js" ]
   }
 }
 
@@ -56,7 +47,7 @@ generate_grd("build_grd") {
   out_grd = "$target_gen_dir/${grd_prefix}_resources.grd"
 }
 
-preprocess_if_expr("preprocess_generated") {
+preprocess_grit("preprocess_generated") {
   deps = [ ":web_components" ]
   in_folder = target_gen_dir
   out_folder = "$target_gen_dir/$preprocess_folder"
@@ -66,20 +57,18 @@ preprocess_if_expr("preprocess_generated") {
 
 js_type_check("closure_compile") {
   is_polymer3 = true
-  closure_flags = default_closure_args + mojom_js_args
   deps = [ ":bluetooth_pairing_dialog" ]
 }
 
 js_library("bluetooth_pairing_dialog") {
   deps = [
-    "//ash/webui/common/resources:i18n_behavior",
-    "//ash/webui/common/resources/bluetooth:bluetooth_pairing_ui",
+    "//ui/webui/resources/cr_components/chromeos/bluetooth:bluetooth_dialog.m",
     "//ui/webui/resources/js:cr.m",
+    "//ui/webui/resources/js:i18n_behavior.m",
   ]
   externs_list = chrome_extension_public_externs + [
                    "$externs_path/bluetooth.js",
                    "$externs_path/bluetooth_private.js",
-                   "$externs_path/chrome_send.js",
                  ]
   extra_sources = [
     "$interfaces_path/bluetooth_interface.js",

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,11 @@
 #include "gpu/ipc/common/dx_diag_node.mojom-shared.h"
 
 #include "gpu/config/dx_diag_node.h"
-#include "gpu/gpu_export.h"
 
 namespace mojo {
 
 template <>
-struct GPU_EXPORT
-    StructTraits<gpu::mojom::DxDiagNodeDataView, gpu::DxDiagNode> {
+struct StructTraits<gpu::mojom::DxDiagNodeDataView, gpu::DxDiagNode> {
   static bool Read(gpu::mojom::DxDiagNodeDataView data, gpu::DxDiagNode* out);
 
   static const std::map<std::string, std::string>& values(

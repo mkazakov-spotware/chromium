@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define COMPONENTS_TRACING_COMMON_TRACE_STARTUP_CONFIG_H_
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/trace_event/trace_config.h"
 #include "build/build_config.h"
 #include "components/tracing/tracing_export.h"
@@ -93,18 +94,7 @@ class TRACING_EXPORT TraceStartupConfig {
     kSystemTracing
   };
 
-  enum class OutputFormat {
-    kLegacyJSON,
-    kProto,
-  };
-
-  // Exposed for testing.
-  static const char kDefaultStartupCategories[];
-
   static TraceStartupConfig* GetInstance();
-
-  TraceStartupConfig(const TraceStartupConfig&) = delete;
-  TraceStartupConfig& operator=(const TraceStartupConfig&) = delete;
 
   // Default minimum startup trace config with enough events to debug issues.
   static base::trace_event::TraceConfig GetDefaultBrowserStartupConfig();
@@ -128,15 +118,22 @@ class TRACING_EXPORT TraceStartupConfig {
   base::trace_event::TraceConfig GetTraceConfig() const;
   int GetStartupDuration() const;
 
-  // Returns the name of the file to write the trace result into.
+  // Returns true while startup tracing is not finished, if trace should be
+  // saved to result file.
+  bool ShouldTraceToResultFile() const;
   base::FilePath GetResultFile() const;
+  void OnTraceToResultFileFinished();
 
   // Set the background tracing config in preferences for the next session.
   void SetBackgroundStartupTracingEnabled(bool enabled);
 
-  SessionOwner GetSessionOwner() const;
+  // Returns when the startup tracing is finished and written to file, false on
+  // all other cases.
+  bool finished_writing_to_file_for_testing() const {
+    return finished_writing_to_file_;
+  }
 
-  OutputFormat GetOutputFormat() const;
+  SessionOwner GetSessionOwner() const;
 
   // Called by a potential session owner to determine if it should take
   // ownership of the startup tracing session and begin tracing. Returns |true|
@@ -155,6 +152,8 @@ class TRACING_EXPORT TraceStartupConfig {
   TraceStartupConfig();
   ~TraceStartupConfig();
 
+  bool IsUsingPerfettoOutput() const;
+
   bool EnableFromCommandLine();
   bool EnableFromConfigFile();
   bool EnableFromBackgroundTracing();
@@ -166,10 +165,13 @@ class TRACING_EXPORT TraceStartupConfig {
   bool enable_background_tracing_for_testing_ = false;
   base::trace_event::TraceConfig trace_config_;
   int startup_duration_in_seconds_ = kDefaultStartupDurationInSeconds;
+  bool should_trace_to_result_file_ = false;
   base::FilePath result_file_;
+  bool finished_writing_to_file_ = false;
   SessionOwner session_owner_ = SessionOwner::kTracingController;
   bool session_adopted_ = false;
-  OutputFormat output_format_ = OutputFormat::kProto;
+
+  DISALLOW_COPY_AND_ASSIGN(TraceStartupConfig);
 };
 
 }  // namespace tracing

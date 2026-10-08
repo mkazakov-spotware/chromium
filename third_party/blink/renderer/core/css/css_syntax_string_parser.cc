@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ namespace blink {
 namespace {
 
 // https://drafts.css-houdini.org/css-properties-values-api-1/#supported-names
-absl::optional<CSSSyntaxType> ParseSyntaxType(StringView type) {
+base::Optional<CSSSyntaxType> ParseSyntaxType(StringView type) {
   if (type == "length")
     return CSSSyntaxType::kLength;
   if (type == "number")
@@ -49,7 +49,7 @@ absl::optional<CSSSyntaxType> ParseSyntaxType(StringView type) {
   }
   if (type == "custom-ident")
     return CSSSyntaxType::kCustomIdent;
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 bool IsPreMultiplied(CSSSyntaxType type) {
@@ -61,9 +61,9 @@ bool IsPreMultiplied(CSSSyntaxType type) {
 CSSSyntaxStringParser::CSSSyntaxStringParser(const String& string)
     : string_(string.StripWhiteSpace()), input_(string_) {}
 
-absl::optional<CSSSyntaxDefinition> CSSSyntaxStringParser::Parse() {
-  if (string_.empty())
-    return absl::nullopt;
+base::Optional<CSSSyntaxDefinition> CSSSyntaxStringParser::Parse() {
+  if (string_.IsEmpty())
+    return base::nullopt;
   if (string_.length() == 1 && string_[0] == '*')
     return CSSSyntaxDefinition::CreateUniversal();
 
@@ -71,7 +71,7 @@ absl::optional<CSSSyntaxDefinition> CSSSyntaxStringParser::Parse() {
 
   while (true) {
     if (!ConsumeSyntaxComponent(components))
-      return absl::nullopt;
+      return base::nullopt;
     input_.AdvanceUntilNonWhitespace();
     UChar cc = input_.NextInputChar();
     input_.Advance();
@@ -79,7 +79,7 @@ absl::optional<CSSSyntaxDefinition> CSSSyntaxStringParser::Parse() {
       break;
     if (cc == '|')
       continue;
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   return CSSSyntaxDefinition(std::move(components));
@@ -150,7 +150,9 @@ bool CSSSyntaxStringParser::ConsumeDataTypeName(CSSSyntaxType& type) {
 
 bool CSSSyntaxStringParser::ConsumeIdent(String& ident) {
   ident = ConsumeName(input_);
+  // TODO(crbug.com/882285): Make 'default' invalid as <custom-ident>.
   return !css_parsing_utils::IsCSSWideKeyword(ident) &&
+         !css_parsing_utils::IsRevertKeyword(ident) &&
          !css_parsing_utils::IsDefaultKeyword(ident);
 }
 

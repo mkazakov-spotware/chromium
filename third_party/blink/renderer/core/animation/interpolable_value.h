@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,11 @@
 #include <memory>
 #include <utility>
 
+#include "base/memory/ptr_util.h"
 #include "third_party/blink/renderer/core/core_export.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
-#include "third_party/blink/renderer/platform/wtf/wtf_size_t.h"
 
 namespace blink {
 
@@ -36,17 +37,11 @@ class CORE_EXPORT InterpolableValue {
 
   virtual bool IsNumber() const { return false; }
   virtual bool IsBool() const { return false; }
-  virtual bool IsColor() const { return false; }
   virtual bool IsList() const { return false; }
   virtual bool IsLength() const { return false; }
-  virtual bool IsAspectRatio() const { return false; }
   virtual bool IsShadow() const { return false; }
   virtual bool IsFilter() const { return false; }
   virtual bool IsTransformList() const { return false; }
-  virtual bool IsGridLength() const { return false; }
-  virtual bool IsGridTrackList() const { return false; }
-  virtual bool IsGridTrackRepeater() const { return false; }
-  virtual bool IsGridTrackSize() const { return false; }
 
   // TODO(alancutter): Remove Equals().
   virtual bool Equals(const InterpolableValue&) const = 0;
@@ -97,13 +92,6 @@ class CORE_EXPORT InterpolableNumber final : public InterpolableValue {
   void Add(const InterpolableValue& other) final;
   void AssertCanInterpolateWith(const InterpolableValue& other) const final;
 
-  std::unique_ptr<InterpolableNumber> Clone() const {
-    return std::unique_ptr<InterpolableNumber>(RawClone());
-  }
-  std::unique_ptr<InterpolableNumber> CloneAndZero() const {
-    return std::unique_ptr<InterpolableNumber>(RawCloneAndZero());
-  }
-
  private:
   InterpolableNumber* RawClone() const final {
     return new InterpolableNumber(value_);
@@ -115,15 +103,22 @@ class CORE_EXPORT InterpolableNumber final : public InterpolableValue {
   double value_;
 };
 
-class CORE_EXPORT InterpolableList final : public InterpolableValue {
+class CORE_EXPORT InterpolableList : public InterpolableValue {
  public:
+  // Explicitly delete operator= because MSVC automatically generate
+  // copy constructors and operator= for dll-exported classes.
+  // Since InterpolableList is not copyable, automatically generated
+  // operator= causes MSVC compiler error.
+  // However, we cannot use DISALLOW_COPY_AND_ASSIGN because InterpolableList
+  // has its own copy constructor. So just delete operator= here.
+  InterpolableList& operator=(const InterpolableList&) = delete;
+
   explicit InterpolableList(wtf_size_t size) : values_(size) {}
 
-  // Move-only; use Clone() to make a copy.
-  InterpolableList(const InterpolableList&) = delete;
-  InterpolableList& operator=(const InterpolableList&) = delete;
-  InterpolableList(InterpolableList&&) = default;
-  InterpolableList& operator=(InterpolableList&&) = default;
+  InterpolableList(const InterpolableList& other) : values_(other.length()) {
+    for (wtf_size_t i = 0; i < length(); i++)
+      Set(i, other.values_[i]->Clone());
+  }
 
   const InterpolableValue* Get(wtf_size_t position) const {
     return values_[position].get();
@@ -134,13 +129,6 @@ class CORE_EXPORT InterpolableList final : public InterpolableValue {
   wtf_size_t length() const { return values_.size(); }
   void Set(wtf_size_t position, std::unique_ptr<InterpolableValue> value) {
     values_[position] = std::move(value);
-  }
-
-  std::unique_ptr<InterpolableList> Clone() const {
-    return std::unique_ptr<InterpolableList>(RawClone());
-  }
-  std::unique_ptr<InterpolableList> CloneAndZero() const {
-    return std::unique_ptr<InterpolableList>(RawCloneAndZero());
   }
 
   // InterpolableValue
@@ -157,10 +145,7 @@ class CORE_EXPORT InterpolableList final : public InterpolableValue {
 
  private:
   InterpolableList* RawClone() const final {
-    auto* result = new InterpolableList(length());
-    for (wtf_size_t i = 0; i < length(); i++)
-      result->Set(i, values_[i]->Clone());
-    return result;
+    return new InterpolableList(*this);
   }
   InterpolableList* RawCloneAndZero() const final;
 
@@ -182,4 +167,4 @@ struct DowncastTraits<InterpolableList> {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_ANIMATION_INTERPOLABLE_VALUE_H_
+#endif

@@ -18,5 +18,4 @@ var text17 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 var text18 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
 var result = text1 + text2;
-// Cache is emitted past the script evaluation, so produce log entry after script execution.
-setTimeout(() => console.log('Script 2 completed'), 0);
+console.log('Script 2 completed');

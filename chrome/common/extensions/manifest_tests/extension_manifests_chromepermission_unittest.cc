@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,7 +40,7 @@ TEST_F(ChromePermissionManifestTest, ChromeUntrustedURLPermissionInvalid) {
 
 TEST_F(ChromePermissionManifestTest, ChromeURLPermissionAllowedWithFlag) {
   // Ignore the policy delegate for this test.
-  PermissionsData::SetPolicyDelegate(nullptr);
+  PermissionsData::SetPolicyDelegate(NULL);
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
       switches::kExtensionsOnChromeURLs);
   std::string error;
@@ -74,8 +74,9 @@ TEST_F(ChromePermissionManifestTest,
                            errors::kInvalidPermissionScheme,
                            manifest_keys::kPermissions, "chrome://resources/"));
   std::string error;
-  LoadExtension(ManifestData("permission_chrome_resources_url.json"), &error,
-                extensions::mojom::ManifestLocation::kComponent,
+  LoadExtension(ManifestData("permission_chrome_resources_url.json"),
+                &error,
+                extensions::Manifest::COMPONENT,
                 Extension::NO_FLAGS);
   EXPECT_EQ("", error);
 }

@@ -1,13 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/browsing_data/core/counters/bookmark_counter.h"
 
-#include <memory>
-
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
@@ -24,7 +21,7 @@ namespace {
 class BookmarkCounterTest : public testing::Test {
  public:
   BookmarkCounterTest() {
-    run_loop_ = std::make_unique<base::RunLoop>();
+    run_loop_.reset(new base::RunLoop());
 
     TestingProfile::Builder profile_builder;
     profile_builder.AddTestingFactory(
@@ -62,7 +59,7 @@ class BookmarkCounterTest : public testing::Test {
 
   void WaitForResult() {
     run_loop_->Run();
-    run_loop_ = std::make_unique<base::RunLoop>();
+    run_loop_.reset(new base::RunLoop());
   }
 
  private:
@@ -70,7 +67,7 @@ class BookmarkCounterTest : public testing::Test {
   std::unique_ptr<TestingProfile> profile_;
   std::unique_ptr<base::RunLoop> run_loop_;
 
-  raw_ptr<bookmarks::BookmarkModel> model_;
+  bookmarks::BookmarkModel* model_;
   bool finished_ = false;
   browsing_data::BrowsingDataCounter::ResultInt result_ = 0;
 };
@@ -106,15 +103,15 @@ TEST_F(BookmarkCounterTest, CountWithPeriod) {
   base::Time now = base::Time::Now();
   AddNodes("1 2 3 ");
   GURL url("https://google.com");
-  const bookmarks::BookmarkNode* node1 =
-      model()->AddURL(model()->bookmark_bar_node(), 0, u"4", url);
-  model()->SetDateAdded(node1, now - base::Minutes(30));
-  const bookmarks::BookmarkNode* node2 =
-      model()->AddURL(model()->bookmark_bar_node(), 0, u"5", url);
-  model()->SetDateAdded(node2, now - base::Minutes(90));
+  const bookmarks::BookmarkNode* node1 = model()->AddURL(
+      model()->bookmark_bar_node(), 0, base::ASCIIToUTF16("4"), url);
+  model()->SetDateAdded(node1, now - base::TimeDelta::FromMinutes(30));
+  const bookmarks::BookmarkNode* node2 = model()->AddURL(
+      model()->bookmark_bar_node(), 0, base::ASCIIToUTF16("5"), url);
+  model()->SetDateAdded(node2, now - base::TimeDelta::FromMinutes(90));
 
   browsing_data::BookmarkCounter counter(model());
-  counter.InitWithoutPref(now - base::Minutes(60),
+  counter.InitWithoutPref(now - base::TimeDelta::FromMinutes(60),
                           base::BindRepeating(&BookmarkCounterTest::Callback,
                                               base::Unretained(this)));
   counter.Restart();

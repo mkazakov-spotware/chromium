@@ -1,7 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/macros.h"
 #include "chrome/test/payments/payment_request_platform_browsertest_base.h"
 #include "content/public/test/browser_test.h"
 
@@ -12,18 +13,15 @@ class PaymentHandlerEnableDelegationsTest
     : public PaymentRequestPlatformBrowserTestBase {
  public:
   PaymentHandlerEnableDelegationsTest() = default;
-
-  PaymentHandlerEnableDelegationsTest(
-      const PaymentHandlerEnableDelegationsTest&) = delete;
-  PaymentHandlerEnableDelegationsTest& operator=(
-      const PaymentHandlerEnableDelegationsTest&) = delete;
-
   ~PaymentHandlerEnableDelegationsTest() override = default;
 
   void SetUpOnMainThread() override {
     PaymentRequestPlatformBrowserTestBase::SetUpOnMainThread();
     NavigateTo("/payment_handler.html");
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PaymentHandlerEnableDelegationsTest);
 };
 
 IN_PROC_BROWSER_TEST_F(PaymentHandlerEnableDelegationsTest, EnableDelegations) {

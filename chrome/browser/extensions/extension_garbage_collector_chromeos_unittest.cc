@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,8 @@
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
-#include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
-#include "chrome/browser/ash/profiles/profile_helper.h"
+#include "chrome/browser/chromeos/login/users/fake_chrome_user_manager.h"
+#include "chrome/browser/chromeos/profiles/profile_helper.h"
 #include "chrome/browser/extensions/extension_assets_manager_chromeos.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
@@ -28,16 +28,13 @@
 #include "components/user_manager/scoped_user_manager.h"
 #include "components/user_manager/user_manager.h"
 #include "components/user_manager/user_names.h"
+#include "content/public/browser/plugin_service.h"
 #include "content/public/test/test_utils.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/install_flag.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/value_builder.h"
 #include "ppapi/buildflags/buildflags.h"
-
-#if BUILDFLAG(ENABLE_PLUGINS)
-#include "content/public/browser/plugin_service.h"
-#endif
 
 namespace {
 const char kExtensionId1[] = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -66,11 +63,11 @@ class ExtensionGarbageCollectorChromeOSUnitTest
     // Initialize the UserManager singleton to a fresh FakeChromeUserManager
     // instance.
     user_manager_enabler_ = std::make_unique<user_manager::ScopedUserManager>(
-        std::make_unique<ash::FakeChromeUserManager>());
+        std::make_unique<chromeos::FakeChromeUserManager>());
 
     GetFakeUserManager()->AddUser(user_manager::StubAccountId());
     GetFakeUserManager()->LoginUser(user_manager::StubAccountId());
-    ash::ProfileHelper::Get()->SetUserToProfileMappingForTesting(
+    chromeos::ProfileHelper::Get()->SetUserToProfileMappingForTesting(
         GetFakeUserManager()->GetActiveUser(), profile_.get());
   }
 
@@ -93,25 +90,30 @@ class ExtensionGarbageCollectorChromeOSUnitTest
                                   const std::string& version,
                                   const std::string& users_string,
                                   const base::FilePath& path) {
-    ScopedDictPrefUpdate shared_extensions(
-        testing_local_state_.Get(),
+    DictionaryPrefUpdate shared_extensions(testing_local_state_.Get(),
         ExtensionAssetsManagerChromeOS::kSharedExtensions);
 
-    base::Value::Dict* extension_info_weak = shared_extensions->EnsureDict(id);
+    base::DictionaryValue* extension_info_weak = NULL;
+    if (!shared_extensions->GetDictionary(id, &extension_info_weak)) {
+      auto extension_info = std::make_unique<base::DictionaryValue>();
+      extension_info_weak = extension_info.get();
+      shared_extensions->Set(id, std::move(extension_info));
+    }
 
-    base::Value version_info(base::Value::Type::DICTIONARY);
-    version_info.SetStringKey(
+    auto version_info = std::make_unique<base::DictionaryValue>();
+    version_info->SetString(
         ExtensionAssetsManagerChromeOS::kSharedExtensionPath, path.value());
 
-    base::Value users(base::Value::Type::LIST);
+    auto users = std::make_unique<base::ListValue>();
     for (const std::string& user :
          base::SplitString(users_string, ",", base::KEEP_WHITESPACE,
                            base::SPLIT_WANT_NONEMPTY)) {
-      users.Append(user);
+      users->AppendString(user);
     }
-    version_info.SetKey(ExtensionAssetsManagerChromeOS::kSharedExtensionUsers,
-                        std::move(users));
-    extension_info_weak->Set(version, std::move(version_info));
+    version_info->Set(ExtensionAssetsManagerChromeOS::kSharedExtensionUsers,
+                      std::move(users));
+    extension_info_weak->SetWithoutPathExpansion(version,
+                                                 std::move(version_info));
   }
 
   scoped_refptr<const Extension> CreateExtension(const std::string& id,
@@ -121,7 +123,7 @@ class ExtensionGarbageCollectorChromeOSUnitTest
         .SetVersion(version)
         .SetID(id)
         .SetPath(path)
-        .SetLocation(mojom::ManifestLocation::kInternal)
+        .SetLocation(Manifest::INTERNAL)
         .Build();
   }
 
@@ -129,8 +131,8 @@ class ExtensionGarbageCollectorChromeOSUnitTest
     return ExtensionPrefs::Get(profile_.get());
   }
 
-  ash::FakeChromeUserManager* GetFakeUserManager() {
-    return static_cast<ash::FakeChromeUserManager*>(
+  chromeos::FakeChromeUserManager* GetFakeUserManager() {
+    return static_cast<chromeos::FakeChromeUserManager*>(
         user_manager::UserManager::Get());
   }
 
@@ -180,12 +182,12 @@ TEST_F(ExtensionGarbageCollectorChromeOSUnitTest, SharedExtensions) {
 
   EXPECT_TRUE(base::PathExists(path_id2_1));
 
-  const base::Value::Dict& shared_extensions =
-      testing_local_state_.Get()->GetDict(
-          ExtensionAssetsManagerChromeOS::kSharedExtensions);
+  const base::DictionaryValue* shared_extensions = testing_local_state_.Get()->
+      GetDictionary(ExtensionAssetsManagerChromeOS::kSharedExtensions);
+  ASSERT_TRUE(shared_extensions);
 
-  EXPECT_FALSE(shared_extensions.Find(kExtensionId1));
-  EXPECT_TRUE(shared_extensions.Find(kExtensionId2));
+  EXPECT_FALSE(shared_extensions->HasKey(kExtensionId1));
+  EXPECT_TRUE(shared_extensions->HasKey(kExtensionId2));
 }
 
 }  // namespace extensions

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define ASH_ACCELERATORS_PRE_TARGET_ACCELERATOR_HANDLER_H_
 
 #include "ash/ash_export.h"
+#include "base/macros.h"
 #include "ui/wm/core/accelerator_delegate.h"
 
 namespace aura {
@@ -28,9 +29,6 @@ class ASH_EXPORT PreTargetAcceleratorHandler
     : public ::wm::AcceleratorDelegate {
  public:
   PreTargetAcceleratorHandler();
-  PreTargetAcceleratorHandler(const PreTargetAcceleratorHandler&) = delete;
-  PreTargetAcceleratorHandler& operator=(const PreTargetAcceleratorHandler&) =
-      delete;
   ~PreTargetAcceleratorHandler() override;
 
   // wm::AcceleratorDelegate:
@@ -46,6 +44,8 @@ class ASH_EXPORT PreTargetAcceleratorHandler
   bool ShouldProcessAcceleratorNow(aura::Window* target,
                                    const ui::KeyEvent& event,
                                    const ui::Accelerator& accelerator);
+
+  DISALLOW_COPY_AND_ASSIGN(PreTargetAcceleratorHandler);
 };
 
 }  // namespace ash

@@ -1,10 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/wm/wm_event.h"
-
-#include "ash/wm/window_positioning_utils.h"
 
 namespace ash {
 
@@ -35,8 +33,8 @@ bool WMEvent::IsCompoundEvent() const {
     case WM_EVENT_TOGGLE_VERTICAL_MAXIMIZE:
     case WM_EVENT_TOGGLE_HORIZONTAL_MAXIMIZE:
     case WM_EVENT_TOGGLE_FULLSCREEN:
-    case WM_EVENT_CYCLE_SNAP_PRIMARY:
-    case WM_EVENT_CYCLE_SNAP_SECONDARY:
+    case WM_EVENT_CYCLE_SNAP_LEFT:
+    case WM_EVENT_CYCLE_SNAP_RIGHT:
       return true;
     default:
       break;
@@ -72,35 +70,16 @@ bool WMEvent::IsTransitionEvent() const {
     case WM_EVENT_MAXIMIZE:
     case WM_EVENT_MINIMIZE:
     case WM_EVENT_FULLSCREEN:
-    case WM_EVENT_SNAP_PRIMARY:
-    case WM_EVENT_SNAP_SECONDARY:
-    case WM_EVENT_RESTORE:
+    case WM_EVENT_SNAP_LEFT:
+    case WM_EVENT_SNAP_RIGHT:
     case WM_EVENT_SHOW_INACTIVE:
     case WM_EVENT_PIN:
     case WM_EVENT_TRUSTED_PIN:
     case WM_EVENT_PIP:
-    case WM_EVENT_FLOAT:
       return true;
     default:
       break;
   }
-  return false;
-}
-
-bool WMEvent::IsSnapEvent() const {
-  switch (type_) {
-    case WM_EVENT_SNAP_PRIMARY:
-    case WM_EVENT_SNAP_SECONDARY:
-    case WM_EVENT_CYCLE_SNAP_PRIMARY:
-    case WM_EVENT_CYCLE_SNAP_SECONDARY:
-      return true;
-    default:
-      break;
-  }
-  return false;
-}
-
-bool WMEvent::IsSnapInfoAvailable() const {
   return false;
 }
 
@@ -126,36 +105,6 @@ SetBoundsWMEvent::SetBoundsWMEvent(const gfx::Rect& requested_bounds,
       animate_(false) {}
 
 SetBoundsWMEvent::~SetBoundsWMEvent() = default;
-
-WindowSnapWMEvent::WindowSnapWMEvent(WMEventType type) : WMEvent(type) {
-  DCHECK(IsSnapEvent());
-}
-
-WindowSnapWMEvent::WindowSnapWMEvent(WMEventType type,
-                                     WindowSnapWMEvent::SnapRatio snap_ratio)
-    : WMEvent(type), snap_ratio_(snap_ratio) {
-  DCHECK(IsSnapEvent());
-}
-
-WindowSnapWMEvent::~WindowSnapWMEvent() = default;
-
-float WindowSnapWMEvent::GetFloatValueForSnapRatio(
-    WindowSnapWMEvent::SnapRatio snap_ratio) {
-  switch (snap_ratio) {
-    case WindowSnapWMEvent::SnapRatio::kOneThirdSnapRatio:
-      return kOneThirdSnapRatio;
-    case WindowSnapWMEvent::SnapRatio::kDefaultSnapRatio:
-      return kDefaultSnapRatio;
-    case WindowSnapWMEvent::SnapRatio::kTwoThirdSnapRatio:
-      return kTwoThirdSnapRatio;
-    default:
-      return kDefaultSnapRatio;
-  }
-}
-
-bool WindowSnapWMEvent::IsSnapInfoAvailable() const {
-  return true;
-}
 
 DisplayMetricsChangedWMEvent::DisplayMetricsChangedWMEvent(int changed_metrics)
     : WMEvent(WM_EVENT_DISPLAY_BOUNDS_CHANGED),

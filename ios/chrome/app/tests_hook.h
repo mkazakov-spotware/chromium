@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,18 +16,9 @@ namespace tests_hook {
 // This is used by internal code.
 bool DisableAppGroupAccess();
 
-// Returns true if client-side field trials should be disabled, so
-// that their associated base::Features always use the default
-// behavior, avoiding unexpected randomness during testing.
-bool DisableClientSideFieldTrials();
-
 // Returns true if ContentSuggestions should be disabled to allow other tests to
 // run unimpeded.
 bool DisableContentSuggestions();
-
-// Returns true if Discover feed should be disabled to allow tests to run
-// without it.
-bool DisableDiscoverFeed();
 
 // Returns true if the first_run path should be disabled to allow other tests to
 // run unimpeded.
@@ -37,9 +28,9 @@ bool DisableFirstRun();
 // prompt displaying for the omnibox.
 bool DisableGeolocation();
 
-// Returns true if the upgrade sign-in promo should be disabled to allow other
+// Returns true if the signin recall promo should be disabled to allow other
 // tests to run unimpeded.
-bool DisableUpgradeSigninPromo();
+bool DisableSigninRecallPromo();
 
 // Returns true if the update service should be disabled so that the update
 // infobar won't be shown during testing.
@@ -50,11 +41,18 @@ bool DisableUpdateService();
 // Return true if it should be disabled.
 bool DisableMainThreadFreezeDetection();
 
+// Returns true if drag-and-drop should be disabled in native table views (e.g.
+// Bookmarks, History).
+// TODO(crbug.com/1129058): Clean this up when EarlGrey allows interacting with
+// context menus that can be dragged.
+bool DisableTableDragAndDrop();
+
 // Returns a policy provider that should be installed as the platform policy
 // provider when testing. May return nullptr.
 policy::ConfigurationPolicyProvider* GetOverriddenPlatformPolicyProvider();
 
-// Global integration tests setup.
+// Global integration tests setup.  This is not used by EarlGrey-based
+// integration tests.
 void SetUpTestsIfPresent();
 
 // Runs the integration tests.  This is not used by EarlGrey-based integration

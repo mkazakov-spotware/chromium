@@ -1,10 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // This file provides methods used to fill forms in JavaScript.
 
-// Requires functions from form.js.
+goog.provide('__crWeb.fill');
+
+goog.require('__crWeb.form');
 
 /**
  * @typedef {{
@@ -48,6 +50,9 @@ __gCrWeb.fill = {};
 // string, so it does not get renamed by closure compiler during the
 // minification.
 __gCrWeb['fill'] = __gCrWeb.fill;
+
+/* Beginning of anonymous object. */
+(function() {
 
 /**
  * The maximum length allowed for form data.
@@ -132,35 +137,22 @@ __gCrWeb.fill.ROLE_ATTRIBUTE_PRESENTATION = 0;
 /**
  * The value for a unique form or field ID not set or missing.
  *
+ * This variable is |kNotSetRendererID| from
+ * chromium/src/components/autofill/ios/browser/autofill_util.h
+ *
  * @const {string}
  */
-__gCrWeb.fill.RENDERER_ID_NOT_SET = '0';
+__gCrWeb.fill.RENDERER_ID_NOT_SET = '-1';
 
 /**
- * The JS Symbol object used to set stable unique form and field IDs.
+ * The name of the JS Symbol used to set stable unique form and field IDs.
  *
- * @const {symbol}
- */
-__gCrWeb.fill.ID_SYMBOL = window.Symbol.for('__gChrome~uniqueID');
-
-/**
- * Acquires the specified DOM |attribute| from the DOM |element| and returns
- * its lower-case value, or null if not present.
+ * This variable is |kNotSetRendererID| from
+ * chromium/src/components/autofill/ios/browser/autofill_util.h
  *
- * @param {Element} element A DOM element.
- * @param {string} attribute An attribute name.
- * @return {?string} Lowercase value of DOM element or null if not present.
+ * @const {string}
  */
-function getLowerCaseAttribute_(element, attribute) {
-  if (!element) {
-    return null;
-  }
-  const value = element.getAttribute(attribute);
-  if (value) {
-    return value.toLowerCase();
-  }
-  return null;
-}
+__gCrWeb.fill.UNIQUE_ID_SYMBOL_NAME = '__gChrome~uniqueID';
 
 /**
  * Returns true if an element can be autocompleted.
@@ -177,10 +169,12 @@ __gCrWeb.fill.autoComplete = function(element) {
   if (!element) {
     return false;
   }
-  if (getLowerCaseAttribute_(element, 'autocomplete') === 'off') {
+  if (__gCrWeb.common.getLowerCaseAttribute(element, 'autocomplete') ===
+      'off') {
     return false;
   }
-  if (getLowerCaseAttribute_(element.form, 'autocomplete') == 'off') {
+  if (__gCrWeb.common.getLowerCaseAttribute(element.form, 'autocomplete') ==
+      'off') {
     return false;
   }
   return true;
@@ -219,7 +213,7 @@ function setInputElementAngularValue_(value, input) {
     function(parse) {
       const setter = parse(angularModel);
       setter.assign(angularScope, value);
-    },
+    }
   ]);
 }
 
@@ -327,7 +321,7 @@ function setInputElementValue_(value, input) {
         // property.
         return value + '';
       },
-      configurable: true,
+      configurable: true
     };
     if (oldPropertyDescriptor.set) {
       newProperty.set = function(e) {
@@ -540,30 +534,6 @@ __gCrWeb.fill.createAndDispatchHTMLEvent = function(
 };
 
 /**
- * Converts a relative URL into an absolute URL.
- *
- * @param {Object} doc Document.
- * @param {string} relativeURL Relative URL.
- * @return {string} Absolute URL.
- */
-function absoluteURL_(doc, relativeURL) {
-  // In the case of data: URL-based pages, relativeURL === absoluteURL.
-  if (doc.location.protocol === 'data:') {
-    return doc.location.href;
-  }
-  let urlNormalizer = doc['__gCrWebURLNormalizer'];
-  if (!urlNormalizer) {
-    urlNormalizer = doc.createElement('a');
-    doc['__gCrWebURLNormalizer'] = urlNormalizer;
-  }
-
-  // Use the magical quality of the <a> element. It automatically converts
-  // relative URLs into absolute ones.
-  urlNormalizer.href = relativeURL;
-  return urlNormalizer.href;
-}
-
-/**
  * Returns a canonical action for |formElement|. It works the same as upstream
  * function GetCanonicalActionForForm.
  * @param {HTMLFormElement} formElement
@@ -571,7 +541,8 @@ function absoluteURL_(doc, relativeURL) {
  */
 __gCrWeb.fill.getCanonicalActionForForm = function(formElement) {
   const rawAction = formElement.getAttribute('action') || '';
-  const absoluteUrl = absoluteURL_(formElement.ownerDocument, rawAction);
+  const absoluteUrl =
+      __gCrWeb.common.absoluteURL(formElement.ownerDocument, rawAction);
   return __gCrWeb.common.removeQueryAndReferenceFromURL(absoluteUrl);
 };
 
@@ -621,7 +592,7 @@ function extractFieldsFromControlElements_(
 
     // Create a new AutofillFormFieldData, fill it out and map it to the
     // field's name.
-    const formField = new __gCrWeb['common'].JSONSafeObject();
+    const formField = new __gCrWeb['common'].JSONSafeObject;
     __gCrWeb.fill.webFormControlElementToFormField(
         controlElement, extractMask, formField);
     formFields.push(formField);
@@ -894,9 +865,9 @@ __gCrWeb.fill.webFormElementToFormData = function(
   // Note different from form_autofill_util.cc version of this method, which
   // computes |form.action| using document.completeURL(form_element.action())
   // and falls back to formElement.action() if the computed action is invalid,
-  // here the action returned by |absoluteURL_| is always valid, which is
-  // computed by creating a <a> element, and we don't check if the action is
-  // valid.
+  // here the action returned by |__gCrWeb.common.absoluteURL| is always
+  // valid, which is computed by creating a <a> element, and we don't check if
+  // the action is valid.
 
   const controlElements = __gCrWeb.form.getFormControlElements(formElement);
 
@@ -1025,9 +996,9 @@ __gCrWeb.fill.findChildTextInner = function(node, depth, divsToSkip) {
   }
 
   // Ignore elements known not to contain inferable labels.
-  let skipNode = false;
   if (node.nodeType === Node.ELEMENT_NODE) {
-    if (node.tagName === 'OPTION') {
+    if (node.tagName === 'OPTION' || node.tagName === 'SCRIPT' ||
+        node.tagName === 'NOSCRIPT') {
       return '';
     }
     if (__gCrWeb.form.isFormControlElement(/** @type {Element} */ (node))) {
@@ -1036,7 +1007,6 @@ __gCrWeb.fill.findChildTextInner = function(node, depth, divsToSkip) {
         return '';
       }
     }
-    skipNode = node.tagName === 'SCRIPT' || node.tagName === 'NOSCRIPT';
   }
 
   if (node.tagName === 'DIV') {
@@ -1048,33 +1018,30 @@ __gCrWeb.fill.findChildTextInner = function(node, depth, divsToSkip) {
   }
 
   // Extract the text exactly at this node.
-  let nodeText = '';
-  if (!skipNode) {
-    nodeText = __gCrWeb.fill.nodeValue(node);
-    if (node.nodeType === Node.TEXT_NODE && !nodeText) {
-      // In the C++ version, this text node would have been stripped completely.
-      // Just pass the buck.
-      return __gCrWeb.fill.findChildTextInner(
-          node.nextSibling, depth, divsToSkip);
-    }
-
-    // Recursively compute the children's text.
-    // Preserve inter-element whitespace separation.
-    const childText = __gCrWeb.fill.findChildTextInner(
-        node.firstChild, depth - 1, divsToSkip);
-    let addSpace = node.nodeType === Node.TEXT_NODE && !nodeText;
-    // Emulate apparently incorrect Chromium behavior tracked in
-    // https://crbug.com/239819.
-    addSpace = false;
-    nodeText = __gCrWeb.fill.combineAndCollapseWhitespace(
-        nodeText, childText, addSpace);
+  let nodeText = __gCrWeb.fill.nodeValue(node);
+  if (node.nodeType === Node.TEXT_NODE && !nodeText) {
+    // In the C++ version, this text node would have been stripped completely.
+    // Just pass the buck.
+    return __gCrWeb.fill.findChildTextInner(
+        node.nextSibling, depth, divsToSkip);
   }
+
+  // Recursively compute the children's text.
+  // Preserve inter-element whitespace separation.
+  const childText =
+      __gCrWeb.fill.findChildTextInner(node.firstChild, depth - 1, divsToSkip);
+  let addSpace = node.nodeType === Node.TEXT_NODE && !nodeText;
+  // Emulate apparently incorrect Chromium behavior tracked in
+  // https://crbug.com/239819.
+  addSpace = false;
+  nodeText =
+      __gCrWeb.fill.combineAndCollapseWhitespace(nodeText, childText, addSpace);
 
   // Recursively compute the siblings' text.
   // Again, preserve inter-element whitespace separation.
   const siblingText =
       __gCrWeb.fill.findChildTextInner(node.nextSibling, depth - 1, divsToSkip);
-  let addSpace = node.nodeType === Node.TEXT_NODE && !nodeText;
+  addSpace = node.nodeType === Node.TEXT_NODE && !nodeText;
   // Emulate apparently incorrect Chromium behavior tracked in
   // https://crbug.com/239819.
   addSpace = false;
@@ -1178,13 +1145,8 @@ __gCrWeb.fill.inferLabelFromSibling = function(element, forward) {
       const value = __gCrWeb.fill.findChildText(sibling);
       // A text node's value will be empty if it is for a line break.
       const addSpace = nodeType === Node.TEXT_NODE && value.length === 0;
-      if (forward) {
-        inferredLabel = __gCrWeb.fill.combineAndCollapseWhitespace(
-            inferredLabel, value, addSpace);
-      } else {
-        inferredLabel = __gCrWeb.fill.combineAndCollapseWhitespace(
-            value, inferredLabel, addSpace);
-      }
+      inferredLabel = __gCrWeb.fill.combineAndCollapseWhitespace(
+          value, inferredLabel, addSpace);
       continue;
     }
 
@@ -1269,6 +1231,25 @@ __gCrWeb.fill.inferLabelFromPlaceholder = function(element) {
 
 /**
  * Helper for |InferLabelForElement()| that infers a label, if possible, from
+ * the aria-label attribute.
+ *
+ * It is based on the logic in
+ *     string16 InferLabelFromAriaLabel(const WebFormControlElement& element)
+ * in chromium/src/components/autofill/content/renderer/form_autofill_util.cc.
+ *
+ * @param {FormControlElement} element An element to examine.
+ * @return {string} The label of element.
+ */
+__gCrWeb.fill.inferLabelFromAriaLabel = function(element) {
+  if (!element) {
+    return '';
+  }
+
+  return element.getAttribute('aria-label') || '';
+};
+
+/**
+ * Helper for |InferLabelForElement()| that infers a label, if possible, from
  * the value attribute when it is present and user has not typed in (if
  * element's value attribute is same as the element's value).
  *
@@ -1295,7 +1276,7 @@ __gCrWeb.fill.InferLabelFromValueAttr = function(element) {
  *
  * It is based on the logic in
  *     bool IsLabelValid(base::StringPiece16 inferred_label,
- *         const std::vector<char16_t>& stop_words)
+ *         const std::vector<base::char16>& stop_words)
  * in chromium/src/components/autofill/content/renderer/form_autofill_util.cc.
  * The list of characters that are considered special is hard-coded in a regexp.
  *
@@ -1565,14 +1546,8 @@ __gCrWeb.fill.inferLabelFromEnclosingLabel = function(element) {
  * e.g. <div>Some Text<span><input ...></span></div>
  * e.g. <div>Some Text</div><div><input ...></div>
  *
- * Contrary to the other InferLabelFrom* functions, this functions walks up
- * the DOM tree from the original input, instead of down from the surrounding
- * tag. While doing so, if a <label> or text node sibling are found along the
- * way, a label is inferred from them directly. For example, <div>First
- * name<div><input></div>Last name<div><input></div></div> infers "First name"
- * and "Last name" for the two inputs, respectively, by picking up the text
- * nodes on the way to the surrounding div. Without doing so, the label of both
- * inputs becomes "First nameLast name".
+ * Because this is already traversing the <div> structure, if it finds a <label>
+ * sibling along the way, infer from that <label>.
  *
  * It is based on the logic in
  *    string16 InferLabelFromDivTable(const WebFormControlElement& element)
@@ -1619,14 +1594,12 @@ __gCrWeb.fill.inferLabelFromDivTable = function(element) {
       }
 
       lookingForParent = false;
-    } else if (!lookingForParent) {
-      // Infer a label from text nodes and unassigned <label> siblings.
-      if (__gCrWeb.fill.hasTagName(node, 'label') && !node.control) {
+    } else if (!lookingForParent && __gCrWeb.fill.hasTagName(node, 'label')) {
+      if (!node.control) {
         inferredLabel = __gCrWeb.fill.findChildText(node);
-      } else if (node.nodeType === Node.TEXT_NODE) {
-        inferredLabel = __gCrWeb.fill.nodeValue(node).trim();
       }
-    } else if (__gCrWeb.fill.isTraversableContainerElement(node)) {
+    } else if (
+        lookingForParent && __gCrWeb.fill.isTraversableContainerElement(node)) {
       // If the element is in a non-div container, its label most likely is too.
       break;
     }
@@ -1742,7 +1715,7 @@ __gCrWeb.fill.inferLabelForElement = function(element) {
   }
 
   // If we didn't find a placeholder, check for the aria-label case.
-  inferredLabel = __gCrWeb.fill.getAriaLabel(element);
+  inferredLabel = __gCrWeb.fill.inferLabelFromAriaLabel(element);
   if (__gCrWeb.fill.IsLabelValid(inferredLabel)) {
     return inferredLabel;
   }
@@ -2074,7 +2047,7 @@ __gCrWeb.fill.webFormControlElementToFormField = function(
  * @return {string} a JSON encoded version of |form|
  */
 __gCrWeb.fill.autofillSubmissionData = function(form) {
-  const formData = new __gCrWeb['common'].JSONSafeObject();
+  const formData = new __gCrWeb['common'].JSONSafeObject;
   const extractMask =
       __gCrWeb.fill.EXTRACT_MASK_VALUE | __gCrWeb.fill.EXTRACT_MASK_OPTIONS;
   __gCrWeb['fill'].webFormElementToFormData(
@@ -2283,6 +2256,7 @@ __gCrWeb.fill.unownedFormElementsAndFieldSetsToFormData = function(
   for (let index = 0; index < count; index++) {
     const keyword = keywords[index];
     if (title.includes(keyword) || path.includes(keyword)) {
+      form['is_formless_checkout'] = true;
       return __gCrWeb.fill.formOrFieldsetsToFormData(
           null /* formElement*/, null /* formControlElement */, fieldsets,
           controlElements, extractMask, form, null /* field */);
@@ -2336,7 +2310,8 @@ __gCrWeb.fill.extractAutofillableElementsFromSet = function(controlElements) {
  * @param {int} nextAvailableID Next available integer.
  */
 __gCrWeb.fill['setUpForUniqueIDs'] = function(nextAvailableID) {
-  document[__gCrWeb.fill.ID_SYMBOL] = nextAvailableID;
+  const uniqueID = Symbol.for(__gCrWeb.fill.UNIQUE_ID_SYMBOL_NAME);
+  document[uniqueID] = nextAvailableID;
 };
 
 /**
@@ -2344,7 +2319,7 @@ __gCrWeb.fill['setUpForUniqueIDs'] = function(nextAvailableID) {
  */
 __gCrWeb.fill.setUniqueIDIfNeeded = function(element) {
   try {
-    const uniqueID = __gCrWeb.fill.ID_SYMBOL;
+    const uniqueID = Symbol.for(__gCrWeb.fill.UNIQUE_ID_SYMBOL_NAME);
     // Do not assign element id value if the base value for the document
     // is not set.
     if (typeof document[uniqueID] !== 'undefined' &&
@@ -2361,7 +2336,7 @@ __gCrWeb.fill.setUniqueIDIfNeeded = function(element) {
  */
 __gCrWeb.fill.getUniqueID = function(element) {
   try {
-    const uniqueID = __gCrWeb.fill.ID_SYMBOL;
+    const uniqueID = Symbol.for(__gCrWeb.fill.UNIQUE_ID_SYMBOL_NAME);
     if (typeof element[uniqueID] !== 'undefined' && !isNaN(element[uniqueID])) {
       return element[uniqueID].toString();
     } else {
@@ -2371,3 +2346,6 @@ __gCrWeb.fill.getUniqueID = function(element) {
     return __gCrWeb.fill.RENDERER_ID_NOT_SET;
   }
 };
+
+
+}());  // End of anonymous object

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "chrome/browser/ui/cookie_controls/cookie_controls_service.h"
 #include "chrome/browser/ui/cookie_controls/cookie_controls_service_factory.h"
 #include "chrome/common/chrome_features.h"
-#include "chrome/common/webui_url_constants.h"
 #include "components/content_settings/core/common/cookie_controls_enforcement.h"
 
 namespace {
@@ -51,14 +50,14 @@ void CookieControlsHandler::OnJavascriptDisallowed() {
 }
 
 void CookieControlsHandler::HandleCookieControlsToggleChanged(
-    const base::Value::List& args) {
-  CHECK(!args.empty());
-  const bool checked = args[0].GetBool();
+    const base::ListValue* args) {
+  bool checked;
+  CHECK(args->GetBoolean(0, &checked));
   service_->HandleCookieControlsToggleChanged(checked);
 }
 
 void CookieControlsHandler::HandleObserveCookieControlsSettingsChanges(
-    const base::Value::List& args) {
+    const base::ListValue* args) {
   AllowJavascript();
   SendCookieControlsUIChanges();
 }
@@ -86,11 +85,15 @@ void CookieControlsHandler::OnThirdPartyCookieBlockingPolicyChanged() {
 }
 
 void CookieControlsHandler::SendCookieControlsUIChanges() {
-  base::Value::Dict dict;
-  dict.Set("enforced", service_->ShouldEnforceCookieControls());
-  dict.Set("checked", service_->GetToggleCheckedValue());
-  dict.Set("icon",
-           GetEnforcementIcon(service_->GetCookieControlsEnforcement()));
-  dict.Set("cookieSettingsUrl", chrome::kChromeUICookieSettingsURL);
+  base::DictionaryValue dict;
+  dict.SetBoolKey("enforced", service_->ShouldEnforceCookieControls());
+  dict.SetBoolKey("checked", service_->GetToggleCheckedValue());
+  dict.SetStringKey(
+      "icon", GetEnforcementIcon(service_->GetCookieControlsEnforcement()));
+  bool use_new_cookie_page =
+      base::FeatureList::IsEnabled(features::kPrivacySettingsRedesign);
+  dict.SetString("cookieSettingsUrl",
+                 use_new_cookie_page ? "chrome://settings/cookies"
+                                     : "chrome://settings/content/cookies");
   FireWebUIListener("cookie-controls-changed", dict);
 }

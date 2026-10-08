@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,6 +23,13 @@ void InitializePUPDataWithCatalog(Engine::Name engine);
 // message (see file_digest.proto) of protected files. Returns zero if not
 // available.
 int GetProtectedFilesDigestResourceId();
+
+// Returns ID of the "TEXT" resource that contains seralized UwEMatcher
+// messages (see uwe_matcher.proto). Returns zero if not available.
+//
+// Each engine has its own UwEMatcher resource because the resource will
+// contain engine-specific UwS ID's.
+int GetUwEMatchersResourceID();
 
 // Returns IDs of the "LIBRARY" resources for |engine| that are embedded into
 // the executable.

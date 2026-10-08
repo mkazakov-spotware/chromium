@@ -6,47 +6,46 @@
   test(t => {
     t.add_cleanup(clearUseCounter);
     assert_false(internals.isUseCounted(document, kPriorityHints),
-                 'Priority Hints is not use-counted before the ' +
-                 'fetchPriority IDL attribute is set');
+                 'Priority Hints is not use-counted before the importance ' +
+                 'IDL attribute is set');
     const link = document.createElement('link');
-    link.fetchPriority = 'high';
+    link.importance = 'high';
     assert_true(internals.isUseCounted(document, kPriorityHints),
-                'Priority Hints is use-counted once the fetchPriority ' +
-                'IDL attribute is set');
-  }, 'Priority Hints use-counter works properly with the <link> ' +
-     'fetchPriority IDL attribute');
+                'Priority Hints is use-counted once the importance IDL ' +
+                'attribute is set');
+  }, 'Priority Hints use-counter works properly with the <link> importance ' +
+     'IDL attribute');
 
   test(t => {
     t.add_cleanup(clearUseCounter);
     assert_false(internals.isUseCounted(document, kPriorityHints),
-                 'Priority Hints is not use-counted before the ' +
-                 'fetchpriority content attribute is set');
+                 'Priority Hints is not use-counted before the importance ' +
+                 'content attribute is set');
     const link = document.createElement('link');
-    link.setAttribute('fetchpriority', 'high');
+    link.setAttribute('importance', 'high');
     assert_true(internals.isUseCounted(document, kPriorityHints),
-                'Priority Hints is use-counted once the fetchpriority ' +
-                'content attribute is set');
-  }, 'Priority Hints use-counter works properly with the <img> ' +
-     'fetchpriority content attribute');
+                'Priority Hints is use-counted once the importance content ' +
+                'attribute is set');
+  }, 'Priority Hints use-counter works properly with the <img> importance ' +
+     'content attribute');
 
-  const t = async_test('Priority Hints is use-counted when the ' +
-                       'fetchpriority content attribute is parsed on the ' +
-                       '<link> element');
+  const t = async_test('Priority Hints is use-counted when the importance ' +
+                       'content attribute is parsed on the <link> element');
   t.add_cleanup(clearUseCounter);
 
   t.step_func(() => {
     assert_false(internals.isUseCounted(document, kPriorityHints),
-                 'Priority Hints is not use-counted before the ' +
-                 'fetchpriority content attribute is parsed');
+                 'Priority Hints is not use-counted before the importance ' +
+                 'content attribute is parsed');
   });
 
   window.addEventListener('DOMContentLoaded', t.step_func_done(() => {
 
     document.head.innerHTML += `<link rel=stylesheet
                                       href=../resources/dummy.css
-                                      fetchpriority=high>`;
+                                      importance=high>`;
     assert_true(internals.isUseCounted(document, kPriorityHints),
-                'Priority Hints is use-counted once the fetchpriority ' +
-                'content attribute is parsed');
+                'Priority Hints is use-counted once the importance content ' +
+                'attribute is parsed');
   }));
 </script>

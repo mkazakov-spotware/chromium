@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@
 
 // Force the blocking UI to appear. Specifically, bring the blocking UI window
 // forward.
-- (void)bringBlockerToFront:(UIScene*)requestingScene;
+- (void)bringBlockerToFront:(UIScene*)requestingScene API_AVAILABLE(ios(13));
 
 @end
 

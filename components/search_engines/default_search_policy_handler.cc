@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,6 @@
 #include <utility>
 
 #include "base/strings/string_number_conversions.h"
-#include "base/values.h"
-#include "build/build_config.h"
 #include "components/policy/core/browser/policy_error_map.h"
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/policy_constants.h"
@@ -28,30 +26,45 @@ namespace {
 void SetListInPref(const PolicyMap& policies,
                    const char* policy_name,
                    const char* key,
-                   base::Value::Dict& dict) {
-  const base::Value* policy_value =
-      policies.GetValue(policy_name, base::Value::Type::LIST);
-  dict.Set(key, policy_value ? policy_value->Clone()
-                             : base::Value(base::Value::Type::LIST));
+                   base::DictionaryValue* dict) {
+  DCHECK(dict);
+  const base::Value* policy_value = policies.GetValue(policy_name);
+  const base::ListValue* policy_list = nullptr;
+  if (policy_value) {
+    bool is_list = policy_value->GetAsList(&policy_list);
+    DCHECK(is_list);
+  }
+  dict->Set(key, policy_list
+                     ? std::make_unique<base::Value>(policy_list->Clone())
+                     : std::make_unique<base::Value>(base::Value::Type::LIST));
 }
 
 // Extracts a string from a policy value and adds it to a pref dictionary.
 void SetStringInPref(const PolicyMap& policies,
                      const char* policy_name,
                      const char* key,
-                     base::Value::Dict& dict) {
-  const base::Value* policy_value =
-      policies.GetValue(policy_name, base::Value::Type::STRING);
-  dict.Set(key, policy_value ? policy_value->GetString() : std::string());
+                     base::DictionaryValue* dict) {
+  DCHECK(dict);
+  const base::Value* policy_value = policies.GetValue(policy_name);
+  std::string str;
+  if (policy_value) {
+    bool is_string = policy_value->GetAsString(&str);
+    DCHECK(is_string);
+  }
+  dict->SetString(key, str);
 }
 
 void SetBooleanInPref(const PolicyMap& policies,
                       const char* policy_name,
                       const char* key,
-                      base::Value::Dict& dict) {
-  const base::Value* policy_value =
-      policies.GetValue(policy_name, base::Value::Type::BOOLEAN);
-  dict.SetByDottedPath(key, policy_value && policy_value->GetBool());
+                      base::DictionaryValue* dict) {
+  DCHECK(dict);
+  const base::Value* policy_value = policies.GetValue(policy_name);
+  bool bool_value = false;
+  if (policy_value) {
+    DCHECK(policy_value->GetAsBoolean(&bool_value));
+  }
+  dict->SetBoolean(key, bool_value);
 }
 
 }  // namespace
@@ -87,11 +100,9 @@ const PolicyToPreferenceMapEntry kDefaultSearchPolicyDataMap[] = {
      base::Value::Type::STRING},
     {key::kDefaultSearchProviderImageURLPostParams,
      DefaultSearchManager::kImageURLPostParams, base::Value::Type::STRING},
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
     {key::kDefaultSearchProviderContextMenuAccessAllowed,
      prefs::kDefaultSearchProviderContextMenuAccessAllowed,
      base::Value::Type::BOOLEAN},
-#endif
 };
 
 // DefaultSearchPolicyHandler implementation -----------------------------------
@@ -114,9 +125,7 @@ bool DefaultSearchPolicyHandler::CheckPolicySettings(const PolicyMap& policies,
     for (const auto& policy_map_entry : kDefaultSearchPolicyDataMap) {
       const char* policy_name = policy_map_entry.policy_name;
       if (policy_name != key::kDefaultSearchProviderEnabled &&
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
           policy_name != key::kDefaultSearchProviderContextMenuAccessAllowed &&
-#endif
           HasDefaultSearchPolicy(policies, policy_name)) {
         errors->AddError(policy_name, IDS_POLICY_DEFAULT_SEARCH_DISABLED);
       }
@@ -141,8 +150,8 @@ void DefaultSearchPolicyHandler::ApplyPolicySettings(const PolicyMap& policies,
     return;
 
   if (DefaultSearchProviderIsDisabled(policies)) {
-    base::Value::Dict dict;
-    dict.Set(DefaultSearchManager::kDisabledByPolicy, true);
+    std::unique_ptr<base::DictionaryValue> dict(new base::DictionaryValue);
+    dict->SetBoolean(DefaultSearchManager::kDisabledByPolicy, true);
     DefaultSearchManager::AddPrefValueToMap(std::move(dict), prefs);
     return;
   }
@@ -155,80 +164,74 @@ void DefaultSearchPolicyHandler::ApplyPolicySettings(const PolicyMap& policies,
   if (!DefaultSearchURLIsValid(policies, &dummy, &url))
     return;
 
-  base::Value::Dict dict;
+  std::unique_ptr<base::DictionaryValue> dict(new base::DictionaryValue);
 
   // Set pref values for policies affecting the default
   // search provider, which are listed in kDefaultSearchPolicyDataMap.
   // Set or remove pref accordingly when kDefaultSearchPolicyDataMap has a
   // change, then revise the number in the check below to be correct.
   SetBooleanInPref(policies, key::kDefaultSearchProviderEnabled,
-                   prefs::kDefaultSearchProviderEnabled, dict);
+                   prefs::kDefaultSearchProviderEnabled, dict.get());
   SetStringInPref(policies, key::kDefaultSearchProviderName,
-                  DefaultSearchManager::kShortName, dict);
+                  DefaultSearchManager::kShortName, dict.get());
   SetStringInPref(policies, key::kDefaultSearchProviderKeyword,
-                  DefaultSearchManager::kKeyword, dict);
+                  DefaultSearchManager::kKeyword, dict.get());
   SetStringInPref(policies, key::kDefaultSearchProviderSearchURL,
-                  DefaultSearchManager::kURL, dict);
+                  DefaultSearchManager::kURL, dict.get());
   SetStringInPref(policies, key::kDefaultSearchProviderSuggestURL,
-                  DefaultSearchManager::kSuggestionsURL, dict);
+                  DefaultSearchManager::kSuggestionsURL, dict.get());
   SetStringInPref(policies, key::kDefaultSearchProviderIconURL,
-                  DefaultSearchManager::kFaviconURL, dict);
+                  DefaultSearchManager::kFaviconURL, dict.get());
   SetListInPref(policies, key::kDefaultSearchProviderEncodings,
-                DefaultSearchManager::kInputEncodings, dict);
+                DefaultSearchManager::kInputEncodings, dict.get());
   SetListInPref(policies, key::kDefaultSearchProviderAlternateURLs,
-                DefaultSearchManager::kAlternateURLs, dict);
+                DefaultSearchManager::kAlternateURLs, dict.get());
   SetStringInPref(policies, key::kDefaultSearchProviderImageURL,
-                  DefaultSearchManager::kImageURL, dict);
+                  DefaultSearchManager::kImageURL, dict.get());
   SetStringInPref(policies, key::kDefaultSearchProviderNewTabURL,
-                  DefaultSearchManager::kNewTabURL, dict);
+                  DefaultSearchManager::kNewTabURL, dict.get());
   SetStringInPref(policies, key::kDefaultSearchProviderSearchURLPostParams,
-                  DefaultSearchManager::kSearchURLPostParams, dict);
+                  DefaultSearchManager::kSearchURLPostParams, dict.get());
   SetStringInPref(policies, key::kDefaultSearchProviderSuggestURLPostParams,
-                  DefaultSearchManager::kSuggestionsURLPostParams, dict);
+                  DefaultSearchManager::kSuggestionsURLPostParams, dict.get());
   SetStringInPref(policies, key::kDefaultSearchProviderImageURLPostParams,
-                  DefaultSearchManager::kImageURLPostParams, dict);
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
-  SetBooleanInPref(policies,
-                   key::kDefaultSearchProviderContextMenuAccessAllowed,
-                   prefs::kDefaultSearchProviderContextMenuAccessAllowed, dict);
-  size_t policyCount = 14;
-#else
-  size_t policyCount = 13;
-#endif
+                  DefaultSearchManager::kImageURLPostParams, dict.get());
+  SetBooleanInPref(
+      policies, key::kDefaultSearchProviderContextMenuAccessAllowed,
+      prefs::kDefaultSearchProviderContextMenuAccessAllowed, dict.get());
 
-  CHECK_EQ(policyCount, std::size(kDefaultSearchPolicyDataMap));
+  size_t policyCount = 14;
+  CHECK_EQ(policyCount, base::size(kDefaultSearchPolicyDataMap));
 
   // Set the fields which are not specified by the policy to default values.
-  dict.Set(DefaultSearchManager::kID,
-           base::NumberToString(kInvalidTemplateURLID));
-  dict.Set(DefaultSearchManager::kPrepopulateID, 0);
-  dict.Set(DefaultSearchManager::kStarterPackId, 0);
-  dict.Set(DefaultSearchManager::kSyncGUID, std::string());
-  dict.Set(DefaultSearchManager::kOriginatingURL, std::string());
-  dict.Set(DefaultSearchManager::kSafeForAutoReplace, true);
-  dict.Set(DefaultSearchManager::kDateCreated,
-           static_cast<double>(base::Time::Now().ToInternalValue()));
-  dict.Set(DefaultSearchManager::kLastModified,
-           static_cast<double>(base::Time::Now().ToInternalValue()));
-  dict.Set(DefaultSearchManager::kUsageCount, 0);
-  dict.Set(DefaultSearchManager::kCreatedByPolicy, true);
+  dict->SetString(DefaultSearchManager::kID,
+                  base::NumberToString(kInvalidTemplateURLID));
+  dict->SetInteger(DefaultSearchManager::kPrepopulateID, 0);
+  dict->SetString(DefaultSearchManager::kSyncGUID, std::string());
+  dict->SetString(DefaultSearchManager::kOriginatingURL, std::string());
+  dict->SetBoolean(DefaultSearchManager::kSafeForAutoReplace, true);
+  dict->SetDouble(DefaultSearchManager::kDateCreated,
+                  base::Time::Now().ToInternalValue());
+  dict->SetDouble(DefaultSearchManager::kLastModified,
+                  base::Time::Now().ToInternalValue());
+  dict->SetInteger(DefaultSearchManager::kUsageCount, 0);
+  dict->SetBoolean(DefaultSearchManager::kCreatedByPolicy, true);
 
   // For the name and keyword, default to the host if not specified.  If
   // there is no host (as is the case with file URLs of the form:
   // "file:///c:/..."), use "_" to guarantee that the keyword is non-empty.
-  std::string* keyword = dict.FindString(DefaultSearchManager::kKeyword);
-  std::string* name = dict.FindString(DefaultSearchManager::kShortName);
-  std::string* url_str = dict.FindString(DefaultSearchManager::kURL);
-  if (url_str)
-    url = *url_str;
+  std::string name, keyword;
+  dict->GetString(DefaultSearchManager::kKeyword, &keyword);
+  dict->GetString(DefaultSearchManager::kShortName, &name);
+  dict->GetString(DefaultSearchManager::kURL, &url);
 
   std::string host(GURL(url).host());
   if (host.empty())
     host = "_";
-  if (!name || name->empty())
-    dict.Set(DefaultSearchManager::kShortName, host);
-  if (!keyword || keyword->empty())
-    dict.Set(DefaultSearchManager::kKeyword, host);
+  if (name.empty())
+    dict->SetString(DefaultSearchManager::kShortName, host);
+  if (keyword.empty())
+    dict->SetString(DefaultSearchManager::kKeyword, host);
 
   DefaultSearchManager::AddPrefValueToMap(std::move(dict), prefs);
 }
@@ -238,11 +241,9 @@ bool DefaultSearchPolicyHandler::CheckIndividualPolicies(
     PolicyErrorMap* errors) {
   bool all_ok = true;
   for (const auto& policy_map_entry : kDefaultSearchPolicyDataMap) {
-    // It's safe to use `GetValueUnsafe()` as multiple policy types are handled.
     // It's important to check policy type for all policies and not just exit on
     // the first error, so we report all policy errors.
-    const base::Value* value =
-        policies.GetValueUnsafe(policy_map_entry.policy_name);
+    const base::Value* value = policies.GetValue(policy_map_entry.policy_name);
     if (value && value->type() != policy_map_entry.value_type) {
       errors->AddError(policy_map_entry.policy_name, IDS_POLICY_TYPE_ERROR,
                        base::Value::GetTypeName(policy_map_entry.value_type));
@@ -269,9 +270,11 @@ bool DefaultSearchPolicyHandler::AnyDefaultSearchPoliciesSpecified(
 
 bool DefaultSearchPolicyHandler::DefaultSearchProviderIsDisabled(
     const PolicyMap& policies) {
-  const base::Value* provider_enabled = policies.GetValue(
-      key::kDefaultSearchProviderEnabled, base::Value::Type::BOOLEAN);
-  return provider_enabled && !provider_enabled->GetBool();
+  const base::Value* provider_enabled =
+      policies.GetValue(key::kDefaultSearchProviderEnabled);
+  bool enabled = true;
+  return provider_enabled && provider_enabled->GetAsBoolean(&enabled) &&
+      !enabled;
 }
 
 bool DefaultSearchPolicyHandler::DefaultSearchProviderPolicyIsSet(
@@ -283,13 +286,9 @@ bool DefaultSearchPolicyHandler::DefaultSearchURLIsValid(
     const PolicyMap& policies,
     const base::Value** url_value,
     std::string* url_string) {
-  *url_value = policies.GetValue(key::kDefaultSearchProviderSearchURL,
-                                 base::Value::Type::STRING);
-  if (!*url_value)
-    return false;
-
-  *url_string = (*url_value)->GetString();
-  if (url_string->empty())
+  *url_value = policies.GetValue(key::kDefaultSearchProviderSearchURL);
+  if (!*url_value || !(*url_value)->GetAsString(url_string) ||
+      url_string->empty())
     return false;
   TemplateURLData data;
   data.SetURL(*url_string);
@@ -309,7 +308,8 @@ void DefaultSearchPolicyHandler::EnsureListPrefExists(
     PrefValueMap* prefs,
     const std::string& path) {
   base::Value* value;
-  if (!prefs->GetValue(path, &value) || !value->is_list())
+  base::ListValue* list_value;
+  if (!prefs->GetValue(path, &value) || !value->GetAsList(&list_value))
     prefs->SetValue(path, base::Value(base::Value::Type::LIST));
 }
 

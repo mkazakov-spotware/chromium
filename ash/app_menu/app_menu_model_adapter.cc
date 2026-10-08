@@ -1,19 +1,19 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/app_menu/app_menu_model_adapter.h"
 
 #include "ash/app_menu/notification_menu_controller.h"
-#include "ash/constants/ash_features.h"
-#include "ash/public/cpp/app_menu_constants.h"
+#include "ash/public/cpp/ash_features.h"
+#include "ash/public/cpp/shelf_model.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/metrics/histogram_macros.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/models/simple_menu_model.h"
 #include "ui/views/controls/menu/menu_item_view.h"
 #include "ui/views/controls/menu/menu_model_adapter.h"
 #include "ui/views/controls/menu/menu_runner.h"
-#include "ui/views/controls/menu/submenu_view.h"
 #include "ui/views/widget/widget.h"
 
 namespace ash {
@@ -93,31 +93,13 @@ base::TimeTicks AppMenuModelAdapter::GetClosingEventTime() {
   return menu_runner_->closing_event_time();
 }
 
-views::Widget* AppMenuModelAdapter::GetSubmenuWidget() {
-  if (root_ && root_->GetSubmenu())
-    return root_->GetSubmenu()->GetWidget();
-  return nullptr;
-}
-
 void AppMenuModelAdapter::ExecuteCommand(int id, int mouse_event_flags) {
   // Note that the command execution may cause this to get deleted - for
   // example, for search result menus, the command could open an app window
   // causing the app list search to get cleared, destroying non-zero state
   // search results.
-  auto weak_self = weak_ptr_factory_.GetWeakPtr();
   RecordExecuteCommandHistogram(GetCommandIdForHistograms(id));
   views::MenuModelAdapter::ExecuteCommand(id, mouse_event_flags);
-
-  if (!weak_self)
-    return;
-
-  if (id >= USE_LAUNCH_TYPE_COMMAND_START &&
-      id <= USE_LAUNCH_TYPE_COMMAND_END) {
-    // Rebuild the menu to ensure that the `LAUNCH_NEW` menu item is refreshed
-    // after changing the app launch type. Note: this closes the submenu with
-    // `USE_LAUNCH_TYPE_*` commands.
-    BuildMenu(root_);
-  }
 }
 
 void AppMenuModelAdapter::OnMenuClosed(views::MenuItemView* menu) {
@@ -133,13 +115,6 @@ void AppMenuModelAdapter::OnMenuClosed(views::MenuItemView* menu) {
 
   if (on_menu_closed_callback_)
     std::move(on_menu_closed_callback_).Run();
-}
-
-bool AppMenuModelAdapter::ShouldExecuteCommandWithoutClosingMenu(
-    int id,
-    const ui::Event& event) {
-  return id >= USE_LAUNCH_TYPE_COMMAND_START &&
-         id <= USE_LAUNCH_TYPE_COMMAND_END;
 }
 
 void AppMenuModelAdapter::RecordExecuteCommandHistogram(int command_id) {

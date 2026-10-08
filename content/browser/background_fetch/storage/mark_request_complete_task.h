@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "content/browser/background_fetch/background_fetch.pb.h"
 #include "content/browser/background_fetch/background_fetch_request_info.h"
 #include "content/browser/background_fetch/storage/database_task.h"
+#include "content/browser/cache_storage/cache_storage_cache_handle.h"
 #include "third_party/blink/public/common/service_worker/service_worker_status_code.h"
 
 namespace content {
@@ -28,9 +29,6 @@ class MarkRequestCompleteTask : public DatabaseTask {
       scoped_refptr<BackgroundFetchRequestInfo> request_info,
       MarkRequestCompleteCallback callback);
 
-  MarkRequestCompleteTask(const MarkRequestCompleteTask&) = delete;
-  MarkRequestCompleteTask& operator=(const MarkRequestCompleteTask&) = delete;
-
   ~MarkRequestCompleteTask() override;
 
   // DatabaseTask implementation:
@@ -47,10 +45,12 @@ class MarkRequestCompleteTask : public DatabaseTask {
 
   void DidOpenCache(base::OnceClosure done_closure,
                     int64_t trace_id,
+                    CacheStorageCacheHandle handle,
                     blink::mojom::CacheStorageError error);
 
-  void DidWriteToCache(base::OnceClosure done_closure,
-                       blink::mojom::CacheStorageVerboseErrorPtr result);
+  void DidWriteToCache(CacheStorageCacheHandle handle,
+                       base::OnceClosure done_closure,
+                       blink::mojom::CacheStorageError error);
 
   void CreateAndStoreCompletedRequest(base::OnceClosure done_closure);
 
@@ -84,6 +84,8 @@ class MarkRequestCompleteTask : public DatabaseTask {
 
   base::WeakPtrFactory<MarkRequestCompleteTask> weak_factory_{
       this};  // Keep as last.
+
+  DISALLOW_COPY_AND_ASSIGN(MarkRequestCompleteTask);
 };
 
 }  // namespace background_fetch

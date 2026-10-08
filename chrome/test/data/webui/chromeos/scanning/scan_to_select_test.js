@@ -1,17 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import './scanning_mojom_imports.js';
 import 'chrome://scanning/scan_to_select.js';
 
 import {ScanningBrowserProxyImpl} from 'chrome://scanning/scanning_browser_proxy.js';
-import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chromeos/chai_assert.js';
+
+import {assertEquals, assertFalse, assertTrue} from '../../chai_assert.js';
 
 import {changeSelect} from './scanning_app_test_utils.js';
 import {TestScanningBrowserProxy} from './test_scanning_browser_proxy.js';
 
-suite('scanToSelectTest', function() {
+export function scanToSelectTest() {
   /** @type {?ScanToSelectElement} */
   let scanToSelect = null;
 
@@ -38,8 +38,6 @@ suite('scanToSelectTest', function() {
     scanToSelect = null;
   });
 
-  // Verifies the 'Scan To' dropdown is initialized enabled with the 'My files'
-  // and 'Select folder' option.
   test('initializeScanToSelect', () => {
     const select = scanToSelect.$$('select');
     assertTrue(!!select);
@@ -64,7 +62,6 @@ suite('scanToSelectTest', function() {
         /** @type {!HTMLSelectElement} */ (scanToSelect.$$('select'));
     return changeSelect(select, /* value */ null, /* selectedIndex */ 1)
         .then(() => {
-          assertEquals(myDownloads, scanToSelect.selectedFolder);
           assertEquals(myDownloadsPath, scanToSelect.selectedFilePath);
           assertEquals(
               myDownloads,
@@ -76,7 +73,6 @@ suite('scanToSelectTest', function() {
           return changeSelect(select, /* value */ null, /* selectedIndex */ 1);
         })
         .then(() => {
-          assertEquals(googleDrive, scanToSelect.selectedFolder);
           assertEquals(googleDrivePath, scanToSelect.selectedFilePath);
           assertEquals(
               googleDrive,
@@ -98,7 +94,6 @@ suite('scanToSelectTest', function() {
         /** @type {!HTMLSelectElement} */ (scanToSelect.$$('select'));
     return changeSelect(select, /* value */ null, /* selectedIndex */ 1)
         .then(() => {
-          assertEquals(myDownloads, scanToSelect.selectedFolder);
           assertEquals(myDownloadsPath, scanToSelect.selectedFilePath);
           assertEquals(
               myDownloads,
@@ -110,7 +105,6 @@ suite('scanToSelectTest', function() {
           return changeSelect(select, /* value */ null, /* selectedIndex */ 1);
         })
         .then(() => {
-          assertEquals(myDownloads, scanToSelect.selectedFolder);
           assertEquals(myDownloadsPath, scanToSelect.selectedFilePath);
           assertEquals(
               myDownloads,
@@ -118,4 +112,4 @@ suite('scanToSelectTest', function() {
           assertEquals(0, select.selectedIndex);
         });
   });
-});
+}

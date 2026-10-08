@@ -8,7 +8,7 @@
 
 idl_test(
   ['keyboard-lock'],
-  ['html', 'dom'],
+  ['html'],
   idl_array => {
     idl_array.add_objects({
       Navigator: ['navigator'],

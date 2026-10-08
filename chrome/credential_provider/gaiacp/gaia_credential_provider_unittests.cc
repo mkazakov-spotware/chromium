@@ -1,14 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/win/atl.h"
-
+#include <atlbase.h>
+#include <atlcom.h>
 #include <atlcomcli.h>
 #include <credentialprovider.h>
 #include <wrl/client.h>
 
-#include <memory>
 #include <tuple>
 
 #include "base/strings/utf_string_conversions.h"
@@ -30,39 +29,7 @@ namespace credential_provider {
 
 namespace testing {
 
-class GcpCredentialProviderTest : public GlsRunnerTestBase {
- protected:
-  void CreateDefaultCloudPoliciesForUser(const std::wstring& sid);
-  void SetCloudPoliciesForUser(const std::wstring& sid,
-                               const UserPolicies policies);
-
- private:
-  std::unique_ptr<FakeUserPoliciesManager> fake_user_policies_manager_;
-  std::unique_ptr<FakeTokenGenerator> fake_token_generator_;
-};
-
-void GcpCredentialProviderTest::CreateDefaultCloudPoliciesForUser(
-    const std::wstring& sid) {
-  UserPolicies policies;
-  SetCloudPoliciesForUser(sid, policies);
-}
-
-void GcpCredentialProviderTest::SetCloudPoliciesForUser(
-    const std::wstring& sid,
-    const UserPolicies policies) {
-  if (!fake_user_policies_manager_)
-    fake_user_policies_manager_ = std::make_unique<FakeUserPoliciesManager>();
-  if (!fake_token_generator_)
-    fake_token_generator_ = std::make_unique<FakeTokenGenerator>();
-
-  // Ensure user has policies and valid GCPW token.
-  fake_user_policies_manager_->SetUserPolicies(sid, policies);
-  fake_user_policies_manager_->SetUserPolicyStaleOrMissing(sid, false);
-
-  std::string dm_token = "test-gcpw-dm-token";
-  fake_token_generator_->SetTokensForTesting({dm_token});
-  EXPECT_EQ(S_OK, GenerateGCPWDmToken(sid));
-}
+class GcpCredentialProviderTest : public GlsRunnerTestBase {};
 
 TEST_F(GcpCredentialProviderTest, Basic) {
   Microsoft::WRL::ComPtr<IGaiaCredentialProvider> provider;
@@ -323,8 +290,6 @@ TEST_F(GcpCredentialProviderTest, AddPersonAfterUserRemove) {
                       kDummyUsername, kDummyPassword, L"full name", L"comment",
                       L"gaia-id", L"foo@gmail.com", &sid));
 
-  CreateDefaultCloudPoliciesForUser((BSTR)sid);
-
   {
     Microsoft::WRL::ComPtr<ICredentialProviderCredential> cred;
     Microsoft::WRL::ComPtr<ICredentialProvider> provider;
@@ -415,20 +380,18 @@ TEST_P(GcpCredentialProviderSetSerializationTest, CheckAutoLogon) {
   ASSERT_EQ(S_OK, fake_os_user_manager()->CreateTestOSUser(
                       first_username, L"password", L"full name", L"comment",
                       L"gaia-id", L"foo@gmail.com", &first_sid));
-  CreateDefaultCloudPoliciesForUser((BSTR)first_sid);
 
   CComBSTR second_sid;
   constexpr wchar_t second_username[] = L"username2";
   ASSERT_EQ(S_OK, fake_os_user_manager()->CreateTestOSUser(
                       second_username, L"password", L"Full Name", L"Comment",
                       L"gaia-id2", L"foo2@gmail.com", &second_sid));
-  CreateDefaultCloudPoliciesForUser((BSTR)second_sid);
 
   // Build a dummy authentication buffer that can be passed to SetSerialization.
   CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION cpcs;
-  std::wstring local_domain = OSUserManager::GetLocalDomain();
-  std::wstring serialization_username = second_username;
-  std::wstring serialization_password = L"password";
+  base::string16 local_domain = OSUserManager::GetLocalDomain();
+  base::string16 serialization_username = second_username;
+  base::string16 serialization_password = L"password";
   std::vector<wchar_t> dummy_domain(
       local_domain.c_str(), local_domain.c_str() + local_domain.size() + 1);
   std::vector<wchar_t> dummy_username(
@@ -540,17 +503,13 @@ TEST_P(GcpCredentialProviderWithGaiaUsersTest, ReauthCredentialTest) {
   }
 
   ASSERT_EQ(S_OK, SetUserProperty(OLE2CW(sid),
-                                  base::UTF8ToWide(kKeyLastTokenValid), L"0"));
-
-  UserPolicies policies;
+                                  base::UTF8ToUTF16(kKeyLastTokenValid), L"0"));
   if (is_offline_validity_expired) {
     // Setting validity period to zero enforces gcpw login irrespective of
     // whether internet is available or not.
-    policies.validity_period_days = 0;
+    ASSERT_EQ(S_OK, SetGlobalFlagForTesting(
+                        base::UTF8ToUTF16(kKeyValidityPeriodInDays), 0));
   }
-
-  // Ensure user has policies and valid GCPW token.
-  SetCloudPoliciesForUser((BSTR)sid, policies);
 
   if (!has_token_handle)
     ASSERT_EQ(S_OK, SetUserProperty((BSTR)sid, kUserTokenHandle, L""));
@@ -561,6 +520,7 @@ TEST_P(GcpCredentialProviderWithGaiaUsersTest, ReauthCredentialTest) {
   ASSERT_EQ(S_OK, SetUserProperty((BSTR)sid, kRegDeviceDetailsUploadFailures,
                                   num_upload_device_details_failures));
 
+  Microsoft::WRL::ComPtr<ICredentialProviderCredential> cred;
   Microsoft::WRL::ComPtr<ICredentialProvider> provider;
   DWORD count = 0;
   SetDefaultTokenHandleResponse(valid_token_handle
@@ -648,7 +608,7 @@ TEST_P(GcpCredentialProviderWithADUsersTest, ReauthCredentialTest) {
 
   CComBSTR sid;
   DWORD error;
-  std::wstring domain;
+  base::string16 domain;
   if (is_ad_user) {
     // Add an AD user.
     ASSERT_EQ(S_OK, fake_os_user_manager()->AddUser(
@@ -661,29 +621,27 @@ TEST_P(GcpCredentialProviderWithADUsersTest, ReauthCredentialTest) {
                                                     true, &sid, &error));
   }
 
-  UserPolicies policies;
   if (has_user_id) {
-    std::wstring test_user_id(L"12345");
+    base::string16 test_user_id(L"12345");
     ASSERT_EQ(S_OK, SetUserProperty(OLE2CW(sid), kUserId, test_user_id));
     // Set token handle to a non-empty value in registry.
     ASSERT_EQ(S_OK, SetUserProperty(OLE2CW(sid), kUserTokenHandle,
                                     L"non-empty-token-handle"));
     ASSERT_EQ(S_OK,
-              SetUserProperty(OLE2CW(sid), base::UTF8ToWide(kKeyLastTokenValid),
-                              L"0"));
+              SetUserProperty(OLE2CW(sid),
+                              base::UTF8ToUTF16(kKeyLastTokenValid), L"0"));
     if (is_offline_validity_expired) {
       // Setting validity period to zero enforces gcpw login irrespective of
       // whether internet is available or not.
-      policies.validity_period_days = 0;
+      ASSERT_EQ(S_OK, SetGlobalFlagForTesting(
+                          base::UTF8ToUTF16(kKeyValidityPeriodInDays), 0));
     }
 
     ASSERT_EQ(S_OK, SetUserProperty((BSTR)sid, kRegDeviceDetailsUploadStatus,
                                     is_upload_device_details_failed ? 0 : 1));
   }
 
-  // Ensure user has policies and valid GCPW token.
-  SetCloudPoliciesForUser((BSTR)sid, policies);
-
+  Microsoft::WRL::ComPtr<ICredentialProviderCredential> cred;
   Microsoft::WRL::ComPtr<ICredentialProvider> provider;
   DWORD count = 0;
   SetDefaultTokenHandleResponse(valid_token_handle
@@ -764,14 +722,12 @@ TEST_P(GcpCredentialProviderAvailableCredentialsTest, AvailableCredentials) {
   ASSERT_EQ(S_OK, fake_os_user_manager()->CreateTestOSUser(
                       first_username, L"password", L"full name", L"comment",
                       L"gaia-id", L"foo@gmail.com", &first_sid));
-  CreateDefaultCloudPoliciesForUser((BSTR)first_sid);
 
   CComBSTR second_sid;
   constexpr wchar_t second_username[] = L"username2";
   ASSERT_EQ(S_OK, fake_os_user_manager()->CreateTestOSUser(
                       second_username, L"password", L"Full Name", L"Comment",
                       L"gaia-id2", L"foo2@gmail.com", &second_sid));
-  CreateDefaultCloudPoliciesForUser((BSTR)second_sid);
 
   // Set the user locking the system.
   SetSidLockingWorkstation(second_user_locking_system ? OLE2CW(second_sid)
@@ -855,10 +811,10 @@ TEST_P(GcpCredentialProviderAvailableCredentialsTest, AvailableCredentials) {
     auto guid_string = base::win::WStringFromGUID(CLSID_GaiaCredentialProvider);
 
     wchar_t guid_in_registry[64];
-    ULONG length = std::size(guid_in_registry);
+    ULONG length = base::size(guid_in_registry);
     EXPECT_EQ(S_OK, GetMachineRegString(kLogonUiUserTileRegKey, sid,
                                         guid_in_registry, &length));
-    EXPECT_EQ(guid_string, std::wstring(guid_in_registry));
+    EXPECT_EQ(guid_string, base::string16(guid_in_registry));
     ::CoTaskMemFree(sid);
   }
 }
@@ -893,7 +849,7 @@ void GcpGaiaCredentialBaseMultiUserCloudPolicyTest::SetUp() {
   fakes.fake_win_http_url_fetcher_creator =
       fake_http_url_fetcher_factory()->GetCreatorCallback();
   fakes.os_user_manager_for_testing = fake_os_user_manager();
-  UserPoliciesManager::Get()->SetFakesForTesting(&fakes);
+  UserPoliciesManager::Get()->SetFakesForTesting(&fakes);  // IN-TEST
 }
 
 TEST_P(GcpGaiaCredentialBaseMultiUserCloudPolicyTest, CanCreateNewUsers) {
@@ -911,7 +867,7 @@ TEST_P(GcpGaiaCredentialBaseMultiUserCloudPolicyTest, CanCreateNewUsers) {
   CComBSTR sid;
   ASSERT_EQ(S_OK, fake_os_user_manager()->CreateTestOSUser(
                       L"foo_registered", L"password", L"name", L"comment",
-                      L"gaia-id-registered", std::wstring(), &sid));
+                      L"gaia-id-registered", base::string16(), &sid));
 
   // Set multi user mode in registry.
   ASSERT_EQ(S_OK, SetGlobalFlagForTesting(kRegMdmSupportsMultiUser,

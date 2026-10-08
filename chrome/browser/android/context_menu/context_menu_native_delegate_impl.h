@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_ANDROID_CONTEXT_MENU_CONTEXT_MENU_NATIVE_DELEGATE_IMPL_H_
 #define CHROME_BROWSER_ANDROID_CONTEXT_MENU_CONTEXT_MENU_NATIVE_DELEGATE_IMPL_H_
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/common/chrome_render_frame.mojom.h"
 #include "content/public/browser/context_menu_params.h"
 #include "content/public/browser/render_frame_host.h"
@@ -58,8 +57,7 @@ class ContextMenuNativeDelegateImpl {
       const base::android::JavaRef<jobject>& jcallback,
       const std::vector<uint8_t>& thumbnail_data,
       const gfx::Size& max_dimen_px,
-      const std::string& image_extension,
-      const std::vector<lens::mojom::LatencyLogPtr>)>;
+      const std::string& image_extension)>;
 
  private:
   void RetrieveImageInternal(
@@ -71,8 +69,8 @@ class ContextMenuNativeDelegateImpl {
       jint max_height_px,
       chrome::mojom::ImageFormat image_format);
 
-  const raw_ptr<content::WebContents> web_contents_;
-  const raw_ptr<content::ContextMenuParams> context_menu_params_;
+  content::WebContents* const web_contents_;
+  content::ContextMenuParams* const context_menu_params_;
 };
 
 #endif  // CHROME_BROWSER_ANDROID_CONTEXT_MENU_CONTEXT_MENU_NATIVE_DELEGATE_IMPL_H_

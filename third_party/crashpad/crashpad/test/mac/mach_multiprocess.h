@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <mach/mach.h>
 #include <unistd.h>
 
+#include "base/macros.h"
 #include "test/multiprocess.h"
 
 namespace crashpad {
@@ -41,9 +42,6 @@ struct MachMultiprocessInfo;
 class MachMultiprocess : public Multiprocess {
  public:
   MachMultiprocess();
-
-  MachMultiprocess(const MachMultiprocess&) = delete;
-  MachMultiprocess& operator=(const MachMultiprocess&) = delete;
 
   void Run();
 
@@ -112,6 +110,8 @@ class MachMultiprocess : public Multiprocess {
   virtual void MachMultiprocessChild() = 0;
 
   internal::MachMultiprocessInfo* info_;
+
+  DISALLOW_COPY_AND_ASSIGN(MachMultiprocess);
 };
 
 }  // namespace test

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -232,8 +232,9 @@ void SettingsResetPromptModel::InitStartupUrlsData() {
 
   settings_types_initialized_ |= SETTINGS_TYPE_STARTUP_URLS;
 
-  // Only the url restoring startup types are candidates for resetting.
-  if (!SessionStartupPref(settings_snapshot_->startup_type()).ShouldOpenUrls())
+  // Only the SessionStartupPref::URLS startup type is a candidate for
+  // resetting.
+  if (settings_snapshot_->startup_type() != SessionStartupPref::URLS)
     return;
 
   for (const GURL& startup_url : settings_snapshot_->startup_urls()) {

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,10 @@ package org.chromium.android_webview.common;
 
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
-import android.os.Build;
 
-import androidx.annotation.RequiresApi;
-
-import org.chromium.android_webview.common.services.ServiceNames;
 import org.chromium.base.ContextUtils;
 
 import java.util.HashMap;
@@ -57,23 +52,9 @@ public final class DeveloperModeUtils {
         return enabledState == PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    private static void startDeveloperUiService(String webViewPackageName) {
-        final Context context = ContextUtils.getApplicationContext();
-        Intent intent = new Intent();
-        intent.setClassName(webViewPackageName, ServiceNames.DEVELOPER_UI_SERVICE);
-        // Best effort attempt to start the service. If this fails, proceed anyway.
-        try {
-            context.startForegroundService(intent);
-        } catch (IllegalStateException e) {
-            assert Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                : "Unable to start DeveloperUiService, this is only expected on Android S";
-        }
-    }
-
     /**
      * Fetch the flag overrides from the developer mode ContentProvider. This should only be called
-     * if {@link #isDeveloperModeEnabled(String)} returns {@code true}, otherwise this may incur
+     * if {@link #isDeveloperModeEnabled(String}} returns {@code true}, otherwise this may incur
      * unnecessary IPC or start up processes unnecessarily.
      *
      * @param webViewPackageName the package name of the WebView implementation to fetch the flags
@@ -88,9 +69,6 @@ public final class DeveloperModeUtils {
                           .path(FLAG_OVERRIDE_URI_PATH)
                           .build();
         final Context appContext = ContextUtils.getApplicationContext();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startDeveloperUiService(webViewPackageName);
-        }
         try (Cursor cursor = appContext.getContentResolver().query(uri, /* projection */ null,
                      /* selection */ null, /* selectionArgs */ null, /* sortOrder */ null)) {
             assert cursor != null : "ContentProvider doesn't support querying '" + uri + "'";

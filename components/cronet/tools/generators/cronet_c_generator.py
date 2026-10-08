@@ -1,4 +1,4 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -6,16 +6,10 @@
 
 import os
 
-# This is called from cronet_bindings_generator.py which does some magic to add
-# libraries to the lookup path which pylint does not
-# pylint: disable=import-error
 import mojom.generate.generator as generator
 import mojom.generate.module as mojom
 import mojom.generate.pack as pack
 from mojom.generate.template_expander import UseJinja
-# pylint: enable=import-error
-
-# pylint: disable=useless-object-inheritance,super-with-arguments
 
 
 _kind_to_cpp_type = {
@@ -120,12 +114,9 @@ class _NameFormatter(object):
   def _ShouldIncludeNamespace(self, omit_namespace_for_module):
     return self._token.module
 
-
-  # pylint: disable=inconsistent-return-statements
   def _GetNamespace(self):
     if self._token.module:
       return NamespaceToArray(self._token.module.namespace)
-  # pylint: enable=inconsistent-return-statements
 
 
 def NamespaceToArray(namespace):
@@ -211,6 +202,8 @@ class StructConstructor(object):
 
 
 class Generator(generator.Generator):
+  def __init__(self, *args, **kwargs):
+    super(Generator, self).__init__(*args, **kwargs)
 
   def _GetExtraTraitsHeaders(self):
     extra_headers = set()
@@ -278,7 +271,7 @@ class Generator(generator.Generator):
                 for typename in
                 self.module.structs + all_enums + self.module.unions)
     headers = set()
-    for typename, typemap in self.typemap.items():
+    for typename, typemap in self.typemap.iteritems():
       if typename in types:
         headers.update(typemap.get("public_headers", []))
     return sorted(headers)
@@ -510,29 +503,30 @@ class Generator(generator.Generator):
       checked.add(kind.spec)
       if mojom.IsNullableKind(kind):
         return False
-      if mojom.IsStructKind(kind):
+      elif mojom.IsStructKind(kind):
         if kind.native_only:
           return False
         if (self._IsTypemappedKind(kind) and
             not self.typemap[self._GetFullMojomNameForKind(kind)]["hashable"]):
           return False
         return all(Check(field.kind) for field in kind.fields)
-      if mojom.IsEnumKind(kind):
+      elif mojom.IsEnumKind(kind):
         return not self._IsTypemappedKind(kind) or self.typemap[
             self._GetFullMojomNameForKind(kind)]["hashable"]
-      if mojom.IsUnionKind(kind):
+      elif mojom.IsUnionKind(kind):
         return all(Check(field.kind) for field in kind.fields)
-      if mojom.IsAnyHandleKind(kind):
+      elif mojom.IsAnyHandleKind(kind):
         return False
-      if mojom.IsAnyInterfaceKind(kind):
+      elif mojom.IsAnyInterfaceKind(kind):
         return False
       # TODO(crbug.com/735301): Arrays and maps could be made hashable. We just
       # don't have a use case yet.
-      if mojom.IsArrayKind(kind):
+      elif mojom.IsArrayKind(kind):
         return False
-      if mojom.IsMapKind(kind):
+      elif mojom.IsMapKind(kind):
         return False
-      return True
+      else:
+        return True
     return Check(kind)
 
   def _GetNativeTypeName(self, typemapped_kind):
@@ -552,7 +546,7 @@ class Generator(generator.Generator):
 
   def _GetCppWrapperType(self, kind, add_same_module_namespaces=False):
     def _AddOptional(type_name):
-      return "absl::optional<%s>" % type_name
+      return "base::Optional<%s>" % type_name
 
     if self._IsTypemappedKind(kind):
       type_name = self._GetNativeTypeName(kind)
@@ -811,8 +805,10 @@ class Generator(generator.Generator):
         return "%d, %s, %s" % (expected_num_elements,
                                "true" if element_is_nullable else "false",
                                element_validate_params)
-      return "%s, %s" % (key_validate_params, element_validate_params)
-    return "%d, %s" % (expected_num_elements, enum_validate_func)
+      else:
+        return "%s, %s" % (key_validate_params, element_validate_params)
+    else:
+      return "%d, %s" % (expected_num_elements, enum_validate_func)
 
   def _GetNewContainerValidateParams(self, kind):
     if (not mojom.IsArrayKind(kind) and not mojom.IsMapKind(kind) and

@@ -1,9 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/test/mock_background_sync_controller.h"
-#include "base/containers/contains.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
@@ -70,7 +69,7 @@ void MockBackgroundSyncController::ApplyFieldTrialParamsOverrides() {
     if (base::StringToInt(field_params[kMinPeriodicSyncEventsInterval],
                           &min_periodic_sync_events_interval_sec)) {
       background_sync_parameters_.min_periodic_sync_events_interval =
-          base::Seconds(min_periodic_sync_events_interval_sec);
+          base::TimeDelta::FromSeconds(min_periodic_sync_events_interval_sec);
     }
   }
 }
@@ -100,7 +99,7 @@ base::TimeDelta MockBackgroundSyncController::GetNextEventDelay(
       case blink::mojom::BackgroundSyncType::PERIODIC:
         int64_t effective_gap_ms =
             parameters->min_periodic_sync_events_interval.InMilliseconds();
-        return base::Milliseconds(
+        return base::TimeDelta::FromMilliseconds(
             std::max(registration.options()->min_interval, effective_gap_ms));
     }
   }

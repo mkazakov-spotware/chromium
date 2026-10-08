@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "components/browsing_data/content/file_system_helper.h"
 
 namespace content {
@@ -24,9 +25,6 @@ namespace browsing_data {
 class MockFileSystemHelper : public FileSystemHelper {
  public:
   explicit MockFileSystemHelper(content::BrowserContext* browser_context);
-
-  MockFileSystemHelper(const MockFileSystemHelper&) = delete;
-  MockFileSystemHelper& operator=(const MockFileSystemHelper&) = delete;
 
   // FileSystemHelper implementation.
   void StartFetching(FetchCallback callback) override;
@@ -65,6 +63,8 @@ class MockFileSystemHelper : public FileSystemHelper {
   std::map<const std::string, bool> file_systems_;
 
   std::list<FileSystemInfo> response_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockFileSystemHelper);
 };
 
 }  // namespace browsing_data

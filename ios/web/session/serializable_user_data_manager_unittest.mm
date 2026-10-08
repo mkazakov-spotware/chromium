@@ -1,13 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web/public/session/serializable_user_data_manager.h"
 
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "ios/web/session/crw_session_user_data.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
 #import "testing/gtest_mac.h"
-#import "testing/platform_test.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -26,7 +25,7 @@ class SerializableUserDataManagerTest : public PlatformTest {
     return web::SerializableUserDataManager::FromWebState(&web_state_);
   }
 
-  web::FakeWebState web_state_;
+  web::TestWebState web_state_;
 };
 
 // Tests that serializable data can be successfully added and read.
@@ -40,12 +39,13 @@ TEST_F(SerializableUserDataManagerTest, SetAndReadData) {
 TEST_F(SerializableUserDataManagerTest, EncodeDecode) {
   // Create a SerializableUserData instance for the test data.
   manager()->AddSerializableData(kTestUserData, kTestUserDataKey);
-  CRWSessionUserData* user_data = manager()->GetUserDataForSession();
+  std::unique_ptr<web::SerializableUserData> user_data =
+      manager()->CreateSerializableUserData();
 
   // Archive the serializable user data.
   NSKeyedArchiver* archiver =
       [[NSKeyedArchiver alloc] initRequiringSecureCoding:NO];
-  [archiver encodeObject:user_data forKey:NSKeyedArchiveRootObjectKey];
+  user_data->Encode(archiver);
   [archiver finishEncoding];
   NSData* data = [archiver encodedData];
 
@@ -53,14 +53,15 @@ TEST_F(SerializableUserDataManagerTest, EncodeDecode) {
   NSKeyedUnarchiver* unarchiver =
       [[NSKeyedUnarchiver alloc] initForReadingFromData:data error:nil];
   unarchiver.requiresSecureCoding = NO;
-  CRWSessionUserData* decoded_data =
-      [unarchiver decodeObjectForKey:NSKeyedArchiveRootObjectKey];
+  std::unique_ptr<web::SerializableUserData> decoded_data =
+      web::SerializableUserData::Create();
+  decoded_data->Decode(unarchiver);
 
   // Add the decoded user data to a new WebState and verify its contents.
-  web::FakeWebState decoded_web_state;
+  web::TestWebState decoded_web_state;
   web::SerializableUserDataManager* decoded_manager =
       web::SerializableUserDataManager::FromWebState(&decoded_web_state);
-  decoded_manager->SetUserDataFromSession(decoded_data);
+  decoded_manager->AddSerializableUserData(decoded_data.get());
   id decoded_value =
       decoded_manager->GetValueForSerializationKey(kTestUserDataKey);
   EXPECT_NSEQ(decoded_value, kTestUserData);
@@ -75,16 +76,18 @@ TEST_F(SerializableUserDataManagerTest, DecodeNoData) {
   [archiver finishEncoding];
   NSData* data = [archiver encodedData];
 
+  std::unique_ptr<web::SerializableUserData> user_data =
+      web::SerializableUserData::Create();
+
   NSKeyedUnarchiver* unarchiver =
       [[NSKeyedUnarchiver alloc] initForReadingFromData:data error:nil];
   unarchiver.requiresSecureCoding = NO;
-  CRWSessionUserData* user_data =
-      [unarchiver decodeObjectForKey:NSKeyedArchiveRootObjectKey];
+  user_data->Decode(unarchiver);
 
-  web::FakeWebState web_state;
+  web::TestWebState web_state;
   web::SerializableUserDataManager* user_data_manager =
       web::SerializableUserDataManager::FromWebState(&web_state);
-  user_data_manager->SetUserDataFromSession(user_data);
+  user_data_manager->AddSerializableUserData(user_data.get());
 
   id value = user_data_manager->GetValueForSerializationKey(kTestUserDataKey);
   EXPECT_NSEQ(nil, value);

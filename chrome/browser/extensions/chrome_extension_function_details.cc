@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,6 +25,10 @@ ChromeExtensionFunctionDetails::ChromeExtensionFunctionDetails(
     : function_(function) {}
 
 ChromeExtensionFunctionDetails::~ChromeExtensionFunctionDetails() {
+}
+
+Profile* ChromeExtensionFunctionDetails::GetProfile() const {
+  return Profile::FromBrowserContext(function_->browser_context());
 }
 
 Browser* ChromeExtensionFunctionDetails::GetCurrentBrowser() const {
@@ -62,7 +66,7 @@ Browser* ChromeExtensionFunctionDetails::GetCurrentBrowser() const {
   // A similar situation may arise during shutdown.
   // TODO(rafaelw): Delay creation of background_page until the browser
   // is available. http://code.google.com/p/chromium/issues/detail?id=13284
-  return nullptr;
+  return NULL;
 }
 
 gfx::NativeWindow ChromeExtensionFunctionDetails::GetNativeWindowForUI() {
@@ -95,8 +99,7 @@ gfx::NativeWindow ChromeExtensionFunctionDetails::GetNativeWindowForUI() {
   }
 
   // As a last resort, find a browser.
-  Browser* browser = chrome::FindBrowserWithProfile(
-      Profile::FromBrowserContext(function_->browser_context()));
+  Browser* browser = chrome::FindBrowserWithProfile(GetProfile());
   // If there are no browser windows open, no window is available.
   // This could happen e.g. if extension launches a long process or simple
   // sleep() in the background script, during which browser is closed.

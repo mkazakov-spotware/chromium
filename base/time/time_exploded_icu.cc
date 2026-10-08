@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,9 @@
 #include <memory>
 
 #include "base/check.h"
-#include "base/logging.h"
 #include "base/memory/ptr_util.h"
-#include "base/numerics/clamped_math.h"
 #include "build/build_config.h"
-#include "third_party/icu/source/common/unicode/locid.h"
 #include "third_party/icu/source/i18n/unicode/calendar.h"
-#include "third_party/icu/source/i18n/unicode/gregocal.h"
 #include "third_party/icu/source/i18n/unicode/timezone.h"
 
 namespace base {
@@ -24,17 +20,12 @@ namespace {
 // and for GMT otherwise. Returns null on error.
 std::unique_ptr<icu::Calendar> CreateCalendar(bool is_local) {
   UErrorCode status = U_ZERO_ERROR;
-  std::unique_ptr<icu::Calendar> calendar;
-  // Always use GregorianCalendar and US locale (relevant for day_of_week,
-  // Sunday is the first day) - that's what base::Time::Exploded assumes.
-  if (is_local) {
-    calendar =
-        std::make_unique<icu::GregorianCalendar>(icu::Locale::getUS(), status);
-  } else {
-    calendar = std::make_unique<icu::GregorianCalendar>(
-        *icu::TimeZone::getGMT(), icu::Locale::getUS(), status);
-  }
+  std::unique_ptr<icu::Calendar> calendar =
+      base::WrapUnique(is_local ? icu::Calendar::createInstance(status)
+                                : icu::Calendar::createInstance(
+                                      *icu::TimeZone::getGMT(), status));
   CHECK(U_SUCCESS(status));
+
   return calendar;
 }
 
@@ -140,7 +131,7 @@ bool Time::FromExplodedUsingIcu(bool is_local,
   return true;
 }
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 
 void Time::Explode(bool is_local, Exploded* exploded) const {
   return ExplodeUsingIcu(ToRoundedDownMillisecondsSinceUnixEpoch(), is_local,
@@ -156,6 +147,6 @@ bool Time::FromExploded(bool is_local, const Exploded& exploded, Time* time) {
   return false;
 }
 
-#endif  // BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_FUCHSIA)
 
 }  // namespace base

@@ -1,13 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/power/dual_role_notification.h"
 
-#include <memory>
 #include <set>
 
-#include "ash/constants/notifier_catalogs.h"
 #include "ash/public/cpp/notification_utils.h"
 #include "ash/public/cpp/system_tray_client.h"
 #include "ash/resources/vector_icons/vector_icons.h"
@@ -65,13 +63,13 @@ void DualRoleNotification::Update() {
     }
 
     if (source.id == current_power_source_id) {
-      new_source = std::make_unique<PowerStatus::PowerSource>(source);
+      new_source.reset(new PowerStatus::PowerSource(source));
       continue;
     }
     num_sinks_found++;
     // The notification only shows the sink port if it is the only sink.
     if (num_sinks_found == 1)
-      new_sink = std::make_unique<PowerStatus::PowerSource>(source);
+      new_sink.reset(new PowerStatus::PowerSource(source));
     else
       new_sink.reset();
   }
@@ -113,7 +111,7 @@ void DualRoleNotification::Update() {
 }
 
 std::unique_ptr<Notification> DualRoleNotification::CreateNotification() {
-  std::u16string title;
+  base::string16 title;
   if (dual_role_source_) {
     title = l10n_util::GetStringFUTF16(
         IDS_ASH_STATUS_TRAY_CHARGING_FROM_DUAL_ROLE_TITLE,
@@ -136,10 +134,9 @@ std::unique_ptr<Notification> DualRoleNotification::CreateNotification() {
   std::unique_ptr<Notification> notification = CreateSystemNotification(
       message_center::NOTIFICATION_TYPE_SIMPLE, kDualRoleNotificationId, title,
       l10n_util::GetStringUTF16(IDS_ASH_STATUS_TRAY_DUAL_ROLE_MESSAGE),
-      std::u16string(), GURL(),
+      base::string16(), GURL(),
       message_center::NotifierId(message_center::NotifierType::SYSTEM_COMPONENT,
-                                 kNotifierDualRole,
-                                 NotificationCatalogName::kDualRole),
+                                 kNotifierDualRole),
       message_center::RichNotificationData(), std::move(delegate),
       kNotificationChargingUsbCIcon,
       message_center::SystemNotificationWarningLevel::NORMAL);

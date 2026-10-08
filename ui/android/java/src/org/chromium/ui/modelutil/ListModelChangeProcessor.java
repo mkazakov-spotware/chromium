@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,28 +16,23 @@ import androidx.annotation.Nullable;
  *
  * @param <M> The {@link ListObservable} model.
  * @param <V> The view object that is changing.
- * @param <P> The payload for partial updates. Void can be used if a payload is not needed.
  */
-public class ListModelChangeProcessor<M extends ListObservable<P>, V, P>
-        implements ListObservable.ListObserver<P> {
+public class ListModelChangeProcessor<M extends ListObservable, V>
+        implements ListObservable.ListObserver<Void> {
     /**
      * A generic view binder that associates a view with a model.
-     *
-     * Refer to Javadocs for {@link ListObservable} for more information on the methods.
-     *
      * @param <M> The {@link ListObservable} model.
      * @param <V> The view or view holder that should be changed based on the model.
-     * @param <P> The payload for partial updates. Void can be used if a payload is not needed.
      */
-    public interface ViewBinder<M, V, P> {
+    public interface ViewBinder<M, V> {
         void onItemsInserted(M model, V view, int index, int count);
         void onItemsRemoved(M model, V view, int index, int count);
-        void onItemsChanged(M model, V view, int index, int count, P payload);
+        void onItemsChanged(M model, V view, int index, int count);
     }
 
     private final V mView;
     private final M mModel;
-    private final ViewBinder<M, V, P> mViewBinder;
+    private final ViewBinder<M, V> mViewBinder;
 
     /**
      * Construct a new ListModelChangeProcessor.
@@ -45,7 +40,7 @@ public class ListModelChangeProcessor<M extends ListObservable<P>, V, P>
      * @param view The view to which data will be bound.
      * @param viewBinder A class that binds the model to the view.
      */
-    public ListModelChangeProcessor(M model, V view, ViewBinder<M, V, P> viewBinder) {
+    public ListModelChangeProcessor(M model, V view, ViewBinder<M, V> viewBinder) {
         mModel = model;
         mView = view;
         mViewBinder = viewBinder;
@@ -65,8 +60,8 @@ public class ListModelChangeProcessor<M extends ListObservable<P>, V, P>
 
     @Override
     public void onItemRangeChanged(
-            ListObservable<P> source, int index, int count, @Nullable P payload) {
+            ListObservable source, int index, int count, @Nullable Void payload) {
         assert source == mModel;
-        mViewBinder.onItemsChanged(mModel, mView, index, count, payload);
+        mViewBinder.onItemsChanged(mModel, mView, index, count);
     }
 }

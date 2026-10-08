@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,19 +11,17 @@
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/lazy_instance.h"
-#include "base/path_service.h"
-#include "build/build_config.h"
-#include "chrome/common/chrome_paths.h"
 #include "chrome/common/profiler/thread_profiler.h"
 #include "chrome/common/profiler/thread_profiler_configuration.h"
 #include "chrome/utility/browser_exposed_utility_interfaces.h"
 #include "chrome/utility/services.h"
-#include "components/heap_profiling/in_process/heap_profiler_controller.h"
-#include "components/metrics/call_stack_profile_builder.h"
 #include "content/public/child/child_thread.h"
 #include "content/public/common/content_switches.h"
-#include "sandbox/policy/mojom/sandbox.mojom.h"
-#include "sandbox/policy/sandbox_type.h"
+#include "sandbox/policy/switches.h"
+
+#if BUILDFLAG(ENABLE_PRINT_PREVIEW) && defined(OS_WIN)
+#include "chrome/utility/printing_handler.h"
+#endif
 
 namespace {
 
@@ -32,17 +30,21 @@ base::LazyInstance<ChromeContentUtilityClient::NetworkBinderCreationCallback>::
 
 }  // namespace
 
-ChromeContentUtilityClient::ChromeContentUtilityClient() = default;
+ChromeContentUtilityClient::ChromeContentUtilityClient()
+    : utility_process_running_elevated_(false) {
+#if BUILDFLAG(ENABLE_PRINT_PREVIEW) && defined(OS_WIN)
+  printing_handler_ = std::make_unique<printing::PrintingHandler>();
+#endif
+}
 
 ChromeContentUtilityClient::~ChromeContentUtilityClient() = default;
 
 void ChromeContentUtilityClient::ExposeInterfacesToBrowser(
     mojo::BinderMap* binders) {
-#if BUILDFLAG(IS_WIN)
-  auto& cmd_line = *base::CommandLine::ForCurrentProcess();
-  auto sandbox_type = sandbox::policy::SandboxTypeFromCommandLine(cmd_line);
-  utility_process_running_elevated_ =
-      sandbox_type == sandbox::mojom::Sandbox::kNoSandboxAndElevatedPrivileges;
+#if defined(OS_WIN)
+  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
+  utility_process_running_elevated_ = command_line->HasSwitch(
+      sandbox::policy::switches::kNoSandboxAndElevatedPrivileges);
 #endif
 
   // If our process runs with elevated privileges, only add elevated Mojo
@@ -53,6 +55,18 @@ void ChromeContentUtilityClient::ExposeInterfacesToBrowser(
   // to ensure security review coverage.
   if (!utility_process_running_elevated_)
     ExposeElevatedChromeUtilityInterfacesToBrowser(binders);
+}
+
+bool ChromeContentUtilityClient::OnMessageReceived(
+    const IPC::Message& message) {
+  if (utility_process_running_elevated_)
+    return false;
+
+#if BUILDFLAG(ENABLE_PRINT_PREVIEW) && defined(OS_WIN)
+  if (printing_handler_->OnMessageReceived(message))
+    return true;
+#endif
+  return false;
 }
 
 void ChromeContentUtilityClient::RegisterNetworkBinders(
@@ -68,23 +82,16 @@ void ChromeContentUtilityClient::UtilityThreadStarted() {
       base::CommandLine::ForCurrentProcess();
   const std::string process_type =
       command_line->GetSwitchValueASCII(switches::kProcessType);
-  // An in-process utility thread may run in other processes, only set up
-  // collector in a utility process.
-  if (process_type == switches::kUtilityProcess) {
-    // The HeapProfilerController should have been created in
-    // ChromeMainDelegate::PostEarlyInitialization.
-    using HeapProfilerController = heap_profiling::HeapProfilerController;
-    DCHECK_NE(HeapProfilerController::GetProfilingEnabled(),
-              HeapProfilerController::ProfilingEnabled::kNoController);
-    if (ThreadProfiler::ShouldCollectProfilesForChildProcess() ||
-        HeapProfilerController::GetProfilingEnabled() ==
-            HeapProfilerController::ProfilingEnabled::kEnabled) {
-      mojo::PendingRemote<metrics::mojom::CallStackProfileCollector> collector;
-      content::ChildThread::Get()->BindHostReceiver(
-          collector.InitWithNewPipeAndPassReceiver());
-      metrics::CallStackProfileBuilder::
-          SetParentProfileCollectorForChildProcess(std::move(collector));
-    }
+  if (process_type ==
+          switches::kUtilityProcess &&  // An in-process utility thread may run
+                                        // in other processes, only set up
+                                        // collector in a utility process.
+      ThreadProfilerConfiguration::Get()
+          ->IsProfilerEnabledForCurrentProcess()) {
+    mojo::PendingRemote<metrics::mojom::CallStackProfileCollector> collector;
+    content::ChildThread::Get()->BindHostReceiver(
+        collector.InitWithNewPipeAndPassReceiver());
+    ThreadProfiler::SetCollectorForChildProcess(std::move(collector));
   }
 }
 
@@ -99,7 +106,7 @@ void ChromeContentUtilityClient::PostIOThreadCreated(
     base::SingleThreadTaskRunner* io_thread_task_runner) {
   io_thread_task_runner->PostTask(
       FROM_HERE, base::BindOnce(&ThreadProfiler::StartOnChildThread,
-                                metrics::CallStackProfileParams::Thread::kIo));
+                                metrics::CallStackProfileParams::IO_THREAD));
 }
 
 void ChromeContentUtilityClient::RegisterIOThreadServices(

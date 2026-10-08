@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include <ostream>
 #include <string>
 #include <vector>
+#include "base/optional.h"
 #include "components/autofill_assistant/browser/model.pb.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace autofill_assistant {
 
@@ -70,11 +70,12 @@ std::ostream& operator<<(std::ostream& out,
                          const CreditCardResponseProto& value);
 
 // Convenience constructors.
-ValueProto SimpleValue(bool value, bool is_client_side_only = true);
+ValueProto SimpleValue(bool value, bool is_client_side_only = false);
 ValueProto SimpleValue(const std::string& value,
-                       bool is_client_side_only = true);
-ValueProto SimpleValue(int value, bool is_client_side_only = true);
-ValueProto SimpleValue(const DateProto& value, bool is_client_side_only = true);
+                       bool is_client_side_only = false);
+ValueProto SimpleValue(int value, bool is_client_side_only = false);
+ValueProto SimpleValue(const DateProto& value,
+                       bool is_client_side_only = false);
 ModelProto::ModelValue SimpleModelValue(const std::string& identifier,
                                         const ValueProto& value);
 
@@ -93,7 +94,7 @@ int GetValueSize(const ValueProto& value);
 
 // Returns the |index|'th item of |value| or nullopt if |index| is
 // out-of-bounds.
-absl::optional<ValueProto> GetNthValue(const ValueProto& value, int index);
+base::Optional<ValueProto> GetNthValue(const ValueProto& value, int index);
 
 }  //  namespace autofill_assistant
 

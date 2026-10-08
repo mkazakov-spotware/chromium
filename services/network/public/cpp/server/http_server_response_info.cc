@@ -1,15 +1,16 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/network/public/cpp/server/http_server_response_info.h"
 
-#include "base/check.h"
 #include "base/format_macros.h"
 #include "base/strings/stringprintf.h"
 #include "net/http/http_request_headers.h"
 
-namespace network::server {
+namespace network {
+
+namespace server {
 
 HttpServerResponseInfo::HttpServerResponseInfo() : status_code_(net::HTTP_OK) {}
 
@@ -38,7 +39,7 @@ HttpServerResponseInfo HttpServerResponseInfo::CreateFor500(
 
 void HttpServerResponseInfo::AddHeader(const std::string& name,
                                        const std::string& value) {
-  headers_.emplace_back(name, value);
+  headers_.push_back(std::make_pair(name, value));
 }
 
 void HttpServerResponseInfo::SetBody(const std::string& body,
@@ -74,4 +75,6 @@ const std::string& HttpServerResponseInfo::body() const {
   return body_;
 }
 
-}  // namespace network::server
+}  // namespace server
+
+}  // namespace network

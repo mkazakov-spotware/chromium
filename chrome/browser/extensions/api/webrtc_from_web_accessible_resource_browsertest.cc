@@ -1,8 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/command_line.h"
+#include "base/macros.h"
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -18,12 +19,6 @@ namespace extensions {
 class WebRtcFromWebAccessibleResourceTest : public ExtensionApiTest {
  public:
   WebRtcFromWebAccessibleResourceTest() {}
-
-  WebRtcFromWebAccessibleResourceTest(
-      const WebRtcFromWebAccessibleResourceTest&) = delete;
-  WebRtcFromWebAccessibleResourceTest& operator=(
-      const WebRtcFromWebAccessibleResourceTest&) = delete;
-
   ~WebRtcFromWebAccessibleResourceTest() override {}
 
   // InProcessBrowserTest:
@@ -48,6 +43,9 @@ class WebRtcFromWebAccessibleResourceTest : public ExtensionApiTest {
     ASSERT_TRUE(LoadExtension(test_data_dir_.AppendASCII(
         "webrtc_from_web_accessible_resource")));
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WebRtcFromWebAccessibleResourceTest);
 };
 
 // Verify that a chrome-extension:// web accessible URL can successfully access
@@ -67,7 +65,7 @@ IN_PROC_BROWSER_TEST_F(WebRtcFromWebAccessibleResourceTest,
   permissions::PermissionRequestObserver permission_request_observer(
       web_contents);
   extensions::ResultCatcher catcher;
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
 
   ASSERT_TRUE(catcher.GetNextResult());
   EXPECT_TRUE(permission_request_observer.request_shown());
@@ -91,7 +89,7 @@ IN_PROC_BROWSER_TEST_F(WebRtcFromWebAccessibleResourceTest,
   permissions::PermissionRequestObserver permission_request_observer(
       web_contents);
   extensions::ResultCatcher catcher;
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
 
   ASSERT_TRUE(catcher.GetNextResult());
   EXPECT_TRUE(permission_request_observer.request_shown());

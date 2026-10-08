@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,22 +17,22 @@
 #include "media/gpu/media_gpu_export.h"
 #include "media/media_buildflags.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/windows_version.h"
 #include "media/gpu/windows/dxva_video_decode_accelerator_win.h"
 #endif
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "media/gpu/mac/vt_video_decode_accelerator_mac.h"
 #endif
-#if BUILDFLAG(USE_VAAPI)
-#include "media/gpu/vaapi/vaapi_video_decode_accelerator.h"
-#include "ui/gl/gl_implementation.h"
-#elif BUILDFLAG(USE_V4L2_CODEC) && \
-    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH))
+#if BUILDFLAG(USE_V4L2_CODEC)
 #include "media/gpu/v4l2/v4l2_device.h"
 #include "media/gpu/v4l2/v4l2_slice_video_decode_accelerator.h"
 #include "media/gpu/v4l2/v4l2_video_decode_accelerator.h"
 #include "ui/gl/gl_surface_egl.h"
+#endif
+#if BUILDFLAG(USE_VAAPI)
+#include "media/gpu/vaapi/vaapi_video_decode_accelerator.h"
+#include "ui/gl/gl_implementation.h"
 #endif
 
 namespace media {
@@ -53,24 +53,26 @@ gpu::VideoDecodeAcceleratorCapabilities GetDecoderCapabilitiesInternal(
   // TODO(posciak,henryhsu): improve this so that we choose a superset of
   // resolutions and other supported profile parameters.
   VideoDecodeAccelerator::Capabilities capabilities;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   capabilities.supported_profiles =
       DXVAVideoDecodeAccelerator::GetSupportedProfiles(gpu_preferences,
                                                        workarounds);
 #elif BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
-#if BUILDFLAG(USE_VAAPI)
-  capabilities.supported_profiles =
-      VaapiVideoDecodeAccelerator::GetSupportedProfiles();
-#elif BUILDFLAG(USE_V4L2_CODEC) && \
-    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH))
+  VideoDecodeAccelerator::SupportedProfiles vda_profiles;
+#if BUILDFLAG(USE_V4L2_CODEC)
+  vda_profiles = V4L2VideoDecodeAccelerator::GetSupportedProfiles();
   GpuVideoAcceleratorUtil::InsertUniqueDecodeProfiles(
-      V4L2VideoDecodeAccelerator::GetSupportedProfiles(),
-      &capabilities.supported_profiles);
+      vda_profiles, &capabilities.supported_profiles);
+  vda_profiles = V4L2SliceVideoDecodeAccelerator::GetSupportedProfiles();
   GpuVideoAcceleratorUtil::InsertUniqueDecodeProfiles(
-      V4L2SliceVideoDecodeAccelerator::GetSupportedProfiles(),
-      &capabilities.supported_profiles);
+      vda_profiles, &capabilities.supported_profiles);
 #endif
-#elif BUILDFLAG(IS_MAC)
+#if BUILDFLAG(USE_VAAPI)
+  vda_profiles = VaapiVideoDecodeAccelerator::GetSupportedProfiles(workarounds);
+  GpuVideoAcceleratorUtil::InsertUniqueDecodeProfiles(
+      vda_profiles, &capabilities.supported_profiles);
+#endif
+#elif defined(OS_MAC)
   capabilities.supported_profiles =
       VTVideoDecodeAccelerator::GetSupportedProfiles(workarounds);
 #endif
@@ -101,8 +103,7 @@ GpuVideoDecodeAcceleratorFactory::GetDecoderCapabilities(
   static gpu::VideoDecodeAcceleratorCapabilities capabilities =
       GetDecoderCapabilitiesInternal(gpu_preferences, workarounds);
 
-#if BUILDFLAG(USE_V4L2_CODEC) && \
-    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH))
+#if BUILDFLAG(USE_V4L2_CODEC)
   // V4L2-only: the decoder devices may not be visible at the time the GPU
   // process is starting. If the capabilities vector is empty, try to query the
   // devices again in the hope that they will have appeared in the meantime.
@@ -138,22 +139,17 @@ GpuVideoDecodeAcceleratorFactory::CreateVDA(
                                            const gpu::GpuPreferences&,
                                            MediaLog* media_log) const;
   const CreateVDAFp create_vda_fps[] = {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     &GpuVideoDecodeAcceleratorFactory::CreateDXVAVDA,
 #endif
-
-  // Usually only one of USE_VAAPI or USE_V4L2_CODEC is defined on ChromeOS,
-  // except for Chromeboxes with companion video acceleration chips, which have
-  // both. In those cases prefer the VA creation function.
 #if BUILDFLAG(USE_VAAPI)
     &GpuVideoDecodeAcceleratorFactory::CreateVaapiVDA,
-#elif BUILDFLAG(USE_V4L2_CODEC) && \
-    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH))
-    &GpuVideoDecodeAcceleratorFactory::CreateV4L2VDA,
-    &GpuVideoDecodeAcceleratorFactory::CreateV4L2SliceVDA,
 #endif
-
-#if BUILDFLAG(IS_MAC)
+#if BUILDFLAG(USE_V4L2_CODEC)
+    &GpuVideoDecodeAcceleratorFactory::CreateV4L2VDA,
+    &GpuVideoDecodeAcceleratorFactory::CreateV4L2SVDA,
+#endif
+#if defined(OS_MAC)
     &GpuVideoDecodeAcceleratorFactory::CreateVTVDA,
 #endif
   };
@@ -169,7 +165,7 @@ GpuVideoDecodeAcceleratorFactory::CreateVDA(
   return nullptr;
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 std::unique_ptr<VideoDecodeAccelerator>
 GpuVideoDecodeAcceleratorFactory::CreateDXVAVDA(
     const gpu::GpuDriverBugWorkarounds& workarounds,
@@ -184,51 +180,52 @@ GpuVideoDecodeAcceleratorFactory::CreateDXVAVDA(
 }
 #endif
 
-#if BUILDFLAG(USE_VAAPI)
-std::unique_ptr<VideoDecodeAccelerator>
-GpuVideoDecodeAcceleratorFactory::CreateVaapiVDA(
-    const gpu::GpuDriverBugWorkarounds& /*workarounds*/,
-    const gpu::GpuPreferences& /*gpu_preferences*/,
-    MediaLog* /*media_log*/) const {
-  std::unique_ptr<VideoDecodeAccelerator> decoder;
-  decoder.reset(new VaapiVideoDecodeAccelerator(gl_client_.make_context_current,
-                                                gl_client_.bind_image));
-  return decoder;
-}
-#elif BUILDFLAG(USE_V4L2_CODEC) && \
-    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH))
+#if BUILDFLAG(USE_V4L2_CODEC)
 std::unique_ptr<VideoDecodeAccelerator>
 GpuVideoDecodeAcceleratorFactory::CreateV4L2VDA(
-    const gpu::GpuDriverBugWorkarounds& /*workarounds*/,
-    const gpu::GpuPreferences& /*gpu_preferences*/,
-    MediaLog* /*media_log*/) const {
+    const gpu::GpuDriverBugWorkarounds& workarounds,
+    const gpu::GpuPreferences& gpu_preferences,
+    MediaLog* media_log) const {
   std::unique_ptr<VideoDecodeAccelerator> decoder;
   scoped_refptr<V4L2Device> device = V4L2Device::Create();
   if (device.get()) {
     decoder.reset(new V4L2VideoDecodeAccelerator(
-        gl::GLSurfaceEGL::GetGLDisplayEGL()->GetDisplay(),
-        gl_client_.get_context, gl_client_.make_context_current, device));
+        gl::GLSurfaceEGL::GetHardwareDisplay(), gl_client_.get_context,
+        gl_client_.make_context_current, device));
   }
   return decoder;
 }
 
 std::unique_ptr<VideoDecodeAccelerator>
-GpuVideoDecodeAcceleratorFactory::CreateV4L2SliceVDA(
-    const gpu::GpuDriverBugWorkarounds& /*workarounds*/,
-    const gpu::GpuPreferences& /*gpu_preferences*/,
-    MediaLog* /*media_log*/) const {
+GpuVideoDecodeAcceleratorFactory::CreateV4L2SVDA(
+    const gpu::GpuDriverBugWorkarounds& workarounds,
+    const gpu::GpuPreferences& gpu_preferences,
+    MediaLog* media_log) const {
   std::unique_ptr<VideoDecodeAccelerator> decoder;
   scoped_refptr<V4L2Device> device = V4L2Device::Create();
   if (device.get()) {
     decoder.reset(new V4L2SliceVideoDecodeAccelerator(
-        device, gl::GLSurfaceEGL::GetGLDisplayEGL()->GetDisplay(),
-        gl_client_.bind_image, gl_client_.make_context_current));
+        device, gl::GLSurfaceEGL::GetHardwareDisplay(), gl_client_.bind_image,
+        gl_client_.make_context_current));
   }
   return decoder;
 }
 #endif
 
-#if BUILDFLAG(IS_MAC)
+#if BUILDFLAG(USE_VAAPI)
+std::unique_ptr<VideoDecodeAccelerator>
+GpuVideoDecodeAcceleratorFactory::CreateVaapiVDA(
+    const gpu::GpuDriverBugWorkarounds& workarounds,
+    const gpu::GpuPreferences& gpu_preferences,
+    MediaLog* media_log) const {
+  std::unique_ptr<VideoDecodeAccelerator> decoder;
+  decoder.reset(new VaapiVideoDecodeAccelerator(gl_client_.make_context_current,
+                                                gl_client_.bind_image));
+  return decoder;
+}
+#endif
+
+#if defined(OS_MAC)
 std::unique_ptr<VideoDecodeAccelerator>
 GpuVideoDecodeAcceleratorFactory::CreateVTVDA(
     const gpu::GpuDriverBugWorkarounds& workarounds,

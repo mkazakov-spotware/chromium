@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,21 +8,17 @@
 #include <map>
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/no_destructor.h"
-#include "build/build_config.h"
 #include "content/browser/renderer_host/frame_tree_node.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/authenticator_environment.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
-#include "third_party/blink/public/mojom/webauthn/virtual_authenticator.mojom-forward.h"
+#include "third_party/blink/public/mojom/webauthn/virtual_authenticator.mojom.h"
 
 namespace device {
 class FidoDiscoveryFactory;
-#if BUILDFLAG(IS_WIN)
-class WinWebAuthnApi;
-#endif
-}  // namespace device
+}
 
 namespace content {
 
@@ -38,15 +34,11 @@ class CONTENT_EXPORT AuthenticatorEnvironmentImpl
  public:
   static AuthenticatorEnvironmentImpl* GetInstance();
 
-  AuthenticatorEnvironmentImpl(const AuthenticatorEnvironmentImpl&) = delete;
-  AuthenticatorEnvironmentImpl& operator=(const AuthenticatorEnvironmentImpl&) =
-      delete;
-
   // Enables the scoped virtual authenticator environment for the |node| and its
   // descendants.
   // Does not have any effect if the |node| already has the virtual environment
   // enabled.
-  void EnableVirtualAuthenticatorFor(FrameTreeNode* node, bool enable_ui);
+  void EnableVirtualAuthenticatorFor(FrameTreeNode* node);
 
   // Disables the scoped virtual authenticator environment for this |node|,
   // resetting the state. If the environment is set on one of the |node|'s
@@ -77,20 +69,6 @@ class CONTENT_EXPORT AuthenticatorEnvironmentImpl
   // ReplaceDefaultDiscoveryFactoryForTesting().
   device::FidoDiscoveryFactory* MaybeGetDiscoveryFactoryTestOverride();
 
-#if BUILDFLAG(IS_WIN)
-  // win_webauthn_api returns the WinWebAuthApi instance to be used for talking
-  // to the Windows WebAuthn API. This is a testing seam that can be altered
-  // with |SetWinWebAuthnApiForTesting|.
-  device::WinWebAuthnApi* win_webauthn_api() const;
-
-  // SetWinWebAuthnApiForTesting sets a testing override for |win_webauthn_api|.
-  void SetWinWebAuthnApiForTesting(device::WinWebAuthnApi*);
-
-  // ClearWinWebAuthnApiForTesting clears the testing override for
-  // |win_webauthn_api|.
-  void ClearWinWebAuthnApiForTesting();
-#endif
-
   // AuthenticatorEnvironment:
   void ReplaceDefaultDiscoveryFactoryForTesting(
       std::unique_ptr<device::FidoDiscoveryFactory> factory) override;
@@ -110,9 +88,7 @@ class CONTENT_EXPORT AuthenticatorEnvironmentImpl
   std::map<FrameTreeNode*, std::unique_ptr<VirtualAuthenticatorManagerImpl>>
       virtual_authenticator_managers_;
 
-#if BUILDFLAG(IS_WIN)
-  raw_ptr<device::WinWebAuthnApi> win_webauthn_api_for_testing_ = nullptr;
-#endif
+  DISALLOW_COPY_AND_ASSIGN(AuthenticatorEnvironmentImpl);
 };
 
 }  // namespace content

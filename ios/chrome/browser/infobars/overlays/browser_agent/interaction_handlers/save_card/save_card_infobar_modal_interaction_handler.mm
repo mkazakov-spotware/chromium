@@ -1,13 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/infobars/overlays/browser_agent/interaction_handlers/save_card/save_card_infobar_modal_interaction_handler.h"
 
-#import "components/autofill/core/browser/payments/autofill_save_card_infobar_delegate_mobile.h"
-#import "ios/chrome/browser/infobars/infobar_ios.h"
+#include "components/autofill/core/browser/payments/autofill_save_card_infobar_delegate_mobile.h"
+#include "ios/chrome/browser/infobars/infobar_ios.h"
 #import "ios/chrome/browser/infobars/overlays/browser_agent/interaction_handlers/save_card/save_card_infobar_modal_overlay_request_callback_installer.h"
-#import "ios/chrome/browser/main/browser.h"
+#include "ios/chrome/browser/main/browser.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -23,9 +23,9 @@ SaveCardInfobarModalInteractionHandler::
 
 void SaveCardInfobarModalInteractionHandler::UpdateCredentials(
     InfoBarIOS* infobar,
-    std::u16string cardholder_name,
-    std::u16string expiration_date_month,
-    std::u16string expiration_date_year) {
+    base::string16 cardholder_name,
+    base::string16 expiration_date_month,
+    base::string16 expiration_date_year) {
   infobar->set_accepted(GetInfoBarDelegate(infobar)->UpdateAndAccept(
       cardholder_name, expiration_date_month, expiration_date_year));
 }

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@
 
 #import <Foundation/Foundation.h>
 
-#include "components/autofill/core/browser/ui/popup_types.h"
-#include "components/autofill/core/common/unique_ids.h"
 #import "ios/chrome/browser/ui/util/keyboard_observer_helper.h"
 
 @class FormSuggestion;
@@ -35,18 +33,31 @@
 // Enables or disables the previous button if any.
 @property(nonatomic) BOOL formInputPreviousButtonEnabled;
 
-// Type of the form suggestions.
-@property(nonatomic) autofill::PopupType suggestionType;
+// Removes the animations on the custom keyboard view.
+- (void)removeAnimationsOnKeyboardView;
 
-// ID of the field that currently has focus.
-@property(nonatomic) autofill::FieldRendererId currentFieldId;
+// Removes the presented keyboard view and the input accessory view.
+- (void)restoreOriginalKeyboardView;
+
+// Removes the presented keyboard view and the input accessory view until
+// |continueCustomKeyboardView| is called.
+- (void)pauseCustomKeyboardView;
+
+// Adds the previously presented views to the keyboard. If they have not been
+// reset.
+- (void)continueCustomKeyboardView;
+
+// Tells the consumer that suggestions are being fetched. The fetching is
+// asynchronous, so this call gives the opportunity to do any view preparation
+// that doesn't need the suggestions.
+- (void)prepareToShowSuggestions;
 
 // Replace the keyboard accessory view with one showing the passed suggestions.
-// And form navigation buttons on iPhone (iPad already includes those).
+// And form navigation buttons if not an iPad (which already includes those).
 - (void)showAccessorySuggestions:(NSArray<FormSuggestion*>*)suggestions;
 
-// Animates the first form suggestion label.
-- (void)animateSuggestionLabel;
+// Indicates that the keyboard state changed.
+- (void)keyboardWillChangeToState:(KeyboardState)keyboardState;
 
 @end
 

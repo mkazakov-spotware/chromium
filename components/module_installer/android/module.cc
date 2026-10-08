@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,11 +52,10 @@ void* LoadLibrary(const std::string& library_name,
   // (hence there is no reason for the Java ClassLoader to be aware of the
   // library, for lazy JNI registration).
   const std::string partition_name = module_name + "_partition";
-  library_handle = BundleUtils::DlOpenModuleLibraryPartition(
-      library_name, partition_name, module_name);
+  library_handle =
+      BundleUtils::DlOpenModuleLibraryPartition(library_name, partition_name);
 #elif defined(COMPONENT_BUILD)
-  std::string library_path =
-      BundleUtils::ResolveLibraryPath(library_name, module_name);
+  std::string library_path = BundleUtils::ResolveLibraryPath(library_name);
   library_handle = dlopen(library_path.c_str(), RTLD_LOCAL);
 #else
 #error "Unsupported configuration."

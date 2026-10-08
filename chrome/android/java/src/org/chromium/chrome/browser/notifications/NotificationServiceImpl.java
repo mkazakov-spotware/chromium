@@ -1,9 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.notifications;
 
+import android.annotation.TargetApi;
 import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
 import android.content.BroadcastReceiver;
@@ -14,8 +15,6 @@ import android.os.Build;
 import android.os.PersistableBundle;
 import android.os.SystemClock;
 import android.util.Log;
-
-import androidx.annotation.RequiresApi;
 
 import org.chromium.base.task.PostTask;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
@@ -38,13 +37,6 @@ public class NotificationServiceImpl extends NotificationService.Impl {
     public static class Receiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (NotificationConstants.ACTION_CLICK_NOTIFICATION.equals(intent.getAction())) {
-                int actionIndex = intent.getIntExtra(
-                        NotificationConstants.EXTRA_NOTIFICATION_INFO_ACTION_INDEX, -1);
-                boolean isActionButton = actionIndex != -1;
-                WebPlatformNotificationMetrics.getInstance().onNotificationClicked(isActionButton);
-            }
-
             Log.i(TAG, "Received a notification intent in the NotificationService's receiver.");
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 // Android encourages us not to start services directly on N+, so instead we
@@ -73,7 +65,7 @@ public class NotificationServiceImpl extends NotificationService.Impl {
             }
         }
 
-        @RequiresApi(Build.VERSION_CODES.N)
+        @TargetApi(Build.VERSION_CODES.N)
         private static void putJobScheduledTimeInExtras(PersistableBundle extras) {
             extras.putLong(NotificationConstants.EXTRA_JOB_SCHEDULED_TIME_MS,
                     SystemClock.elapsedRealtime());

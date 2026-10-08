@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,11 @@
 namespace mojo {
 namespace features {
 
-COMPONENT_EXPORT(MOJO_CPP_BINDINGS_BASE) BASE_DECLARE_FEATURE(kTaskPerMessage);
+COMPONENT_EXPORT(MOJO_CPP_BINDINGS_BASE)
+extern const base::Feature kTaskPerMessage;
 
 COMPONENT_EXPORT(MOJO_CPP_BINDINGS_BASE)
-BASE_DECLARE_FEATURE(kMojoRecordUnreadMessageCount);
+extern const base::Feature kMojoRecordUnreadMessageCount;
 
 }  // namespace features
 }  // namespace mojo

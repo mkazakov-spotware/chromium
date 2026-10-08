@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -70,7 +70,7 @@ class StandaloneInstallerConfigurator {
   // Returns the storage used for the instance pointer.
   static StandaloneInstallerConfigurator** GetInstanceStorage();
 
-  std::wstring GetCurrentDate();
+  base::string16 GetCurrentDate();
 
   // Parse the provided installer data argument and load into
   // |installer_data_dictionary_|.

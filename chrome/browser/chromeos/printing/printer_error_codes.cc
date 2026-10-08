@@ -1,10 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/chromeos/printing/printer_error_codes.h"
 
-#include "ash/webui/print_management/mojom/printing_manager.mojom.h"
+#include "chromeos/components/print_management/mojom/printing_manager.mojom.h"
 #include "printing/backend/cups_jobs.h"
 #include "printing/printer_status.h"
 
@@ -20,40 +20,37 @@ namespace {
 
 STATIC_ASSERT_ENUM(
     PrinterErrorCode::NO_ERROR,
-    ash::printing::printing_manager::mojom::PrinterErrorCode::kNoError);
+    printing::printing_manager::mojom::PrinterErrorCode::kNoError);
 STATIC_ASSERT_ENUM(
     PrinterErrorCode::PAPER_JAM,
-    ash::printing::printing_manager::mojom::PrinterErrorCode::kPaperJam);
+    printing::printing_manager::mojom::PrinterErrorCode::kPaperJam);
 STATIC_ASSERT_ENUM(
     PrinterErrorCode::OUT_OF_PAPER,
-    ash::printing::printing_manager::mojom::PrinterErrorCode::kOutOfPaper);
+    printing::printing_manager::mojom::PrinterErrorCode::kOutOfPaper);
 STATIC_ASSERT_ENUM(
     PrinterErrorCode::OUT_OF_INK,
-    ash::printing::printing_manager::mojom::PrinterErrorCode::kOutOfInk);
+    printing::printing_manager::mojom::PrinterErrorCode::kOutOfInk);
 STATIC_ASSERT_ENUM(
     PrinterErrorCode::DOOR_OPEN,
-    ash::printing::printing_manager::mojom::PrinterErrorCode::kDoorOpen);
-STATIC_ASSERT_ENUM(PrinterErrorCode::PRINTER_UNREACHABLE,
-                   ash::printing::printing_manager::mojom::PrinterErrorCode::
-                       kPrinterUnreachable);
+    printing::printing_manager::mojom::PrinterErrorCode::kDoorOpen);
+STATIC_ASSERT_ENUM(
+    PrinterErrorCode::PRINTER_UNREACHABLE,
+    printing::printing_manager::mojom::PrinterErrorCode::kPrinterUnreachable);
 STATIC_ASSERT_ENUM(
     PrinterErrorCode::TRAY_MISSING,
-    ash::printing::printing_manager::mojom::PrinterErrorCode::kTrayMissing);
+    printing::printing_manager::mojom::PrinterErrorCode::kTrayMissing);
 STATIC_ASSERT_ENUM(
     PrinterErrorCode::OUTPUT_FULL,
-    ash::printing::printing_manager::mojom::PrinterErrorCode::kOutputFull);
+    printing::printing_manager::mojom::PrinterErrorCode::kOutputFull);
 STATIC_ASSERT_ENUM(
     PrinterErrorCode::STOPPED,
-    ash::printing::printing_manager::mojom::PrinterErrorCode::kStopped);
+    printing::printing_manager::mojom::PrinterErrorCode::kStopped);
 STATIC_ASSERT_ENUM(
     PrinterErrorCode::FILTER_FAILED,
-    ash::printing::printing_manager::mojom::PrinterErrorCode::kFilterFailed);
+    printing::printing_manager::mojom::PrinterErrorCode::kFilterFailed);
 STATIC_ASSERT_ENUM(
     PrinterErrorCode::UNKNOWN_ERROR,
-    ash::printing::printing_manager::mojom::PrinterErrorCode::kUnknownError);
-STATIC_ASSERT_ENUM(PrinterErrorCode::CLIENT_UNAUTHORIZED,
-                   ash::printing::printing_manager::mojom::PrinterErrorCode::
-                       kClientUnauthorized);
+    printing::printing_manager::mojom::PrinterErrorCode::kUnknownError);
 }  // namespace
 
 using PrinterReason = ::printing::PrinterStatus::PrinterReason;
@@ -61,21 +58,21 @@ using PrinterReason = ::printing::PrinterStatus::PrinterReason;
 PrinterErrorCode PrinterErrorCodeFromPrinterStatusReasons(
     const ::printing::PrinterStatus& printer_status) {
   for (const auto& reason : printer_status.reasons) {
-    if (reason.severity != PrinterReason::Severity::kError &&
-        reason.severity != PrinterReason::Severity::kWarning) {
-      continue;
-    }
-
     switch (reason.reason) {
       case PrinterReason::Reason::kMediaEmpty:
       case PrinterReason::Reason::kMediaNeeded:
+      case PrinterReason::Reason::kMediaLow:
         return PrinterErrorCode::OUT_OF_PAPER;
       case PrinterReason::Reason::kMediaJam:
         return PrinterErrorCode::PAPER_JAM;
       case PrinterReason::Reason::kTonerEmpty:
+      case PrinterReason::Reason::kTonerLow:
       case PrinterReason::Reason::kDeveloperEmpty:
+      case PrinterReason::Reason::kDeveloperLow:
       case PrinterReason::Reason::kMarkerSupplyEmpty:
+      case PrinterReason::Reason::kMarkerSupplyLow:
       case PrinterReason::Reason::kMarkerWasteFull:
+      case PrinterReason::Reason::kMarkerWasteAlmostFull:
         return PrinterErrorCode::OUT_OF_INK;
       case PrinterReason::Reason::kTimedOut:
       case PrinterReason::Reason::kShutdown:
@@ -95,11 +92,6 @@ PrinterErrorCode PrinterErrorCodeFromPrinterStatusReasons(
       case PrinterReason::Reason::kPaused:
       case PrinterReason::Reason::kMovingToPaused:
         return PrinterErrorCode::STOPPED;
-      case PrinterReason::Reason::kMediaLow:
-      case PrinterReason::Reason::kTonerLow:
-      case PrinterReason::Reason::kDeveloperLow:
-      case PrinterReason::Reason::kMarkerSupplyLow:
-      case PrinterReason::Reason::kMarkerWasteAlmostFull:
       default:
         break;
     }

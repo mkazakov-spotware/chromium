@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,8 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/thread_checker.h"
 #include "base/threading/thread_task_runner_handle.h"
@@ -23,7 +23,9 @@
 #include "ipc/ipc_channel.h"
 #include "ipc/ipc_listener.h"
 #include "ipc/ipc_message.h"
+#include "ipc/ipc_message_macros.h"
 #include "remoting/base/logging.h"
+#include "remoting/host/chromoting_messages.h"
 #include "remoting/host/client_session_details.h"
 #include "remoting/host/security_key/security_key_ipc_constants.h"
 #include "remoting/host/security_key/security_key_ipc_server.h"
@@ -32,11 +34,13 @@ namespace {
 
 // The timeout used to disconnect a client from the IPC Server channel if it
 // forgets to do so.  This ensures the server channel is not blocked forever.
-constexpr base::TimeDelta kInitialRequestTimeout = base::Seconds(5);
+constexpr base::TimeDelta kInitialRequestTimeout =
+    base::TimeDelta::FromSeconds(5);
 
 // This value represents the amount of time to wait for a security key request
 // from the client before terminating the connection.
-constexpr base::TimeDelta kSecurityKeyRequestTimeout = base::Seconds(60);
+constexpr base::TimeDelta kSecurityKeyRequestTimeout =
+    base::TimeDelta::FromSeconds(60);
 
 }  // namespace
 
@@ -53,15 +57,10 @@ class SecurityKeyAuthHandlerWin : public SecurityKeyAuthHandler {
  public:
   explicit SecurityKeyAuthHandlerWin(
       ClientSessionDetails* client_session_details);
-
-  SecurityKeyAuthHandlerWin(const SecurityKeyAuthHandlerWin&) = delete;
-  SecurityKeyAuthHandlerWin& operator=(const SecurityKeyAuthHandlerWin&) =
-      delete;
-
   ~SecurityKeyAuthHandlerWin() override;
 
  private:
-  using ActiveChannels = std::map<int, std::unique_ptr<SecurityKeyIpcServer>>;
+  typedef std::map<int, std::unique_ptr<SecurityKeyIpcServer>> ActiveChannels;
 
   // SecurityKeyAuthHandler interface.
   void CreateSecurityKeyConnection() override;
@@ -93,7 +92,7 @@ class SecurityKeyAuthHandlerWin : public SecurityKeyAuthHandler {
   SendMessageCallback send_message_callback_;
 
   // Interface which provides details about the client session.
-  raw_ptr<ClientSessionDetails> client_session_details_ = nullptr;
+  ClientSessionDetails* client_session_details_ = nullptr;
 
   // Tracks the IPC channel created for each security key forwarding session.
   ActiveChannels active_channels_;
@@ -106,6 +105,8 @@ class SecurityKeyAuthHandlerWin : public SecurityKeyAuthHandler {
   base::ThreadChecker thread_checker_;
 
   base::WeakPtrFactory<SecurityKeyAuthHandlerWin> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SecurityKeyAuthHandlerWin);
 };
 
 std::unique_ptr<SecurityKeyAuthHandler> SecurityKeyAuthHandler::Create(

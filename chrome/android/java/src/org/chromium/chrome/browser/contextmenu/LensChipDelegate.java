@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,8 @@ package org.chromium.chrome.browser.contextmenu;
 
 import android.net.Uri;
 
-import androidx.annotation.VisibleForTesting;
-
 import org.chromium.base.Callback;
 import org.chromium.chrome.browser.lens.LensController;
-import org.chromium.chrome.browser.lens.LensEntryPoint;
 import org.chromium.chrome.browser.lens.LensQueryParams;
 import org.chromium.content_public.browser.WebContents;
 
@@ -18,53 +15,30 @@ import org.chromium.content_public.browser.WebContents;
  * The class to handle Lens chip data and actions.
  */
 public class LensChipDelegate implements ChipDelegate {
-    private static LensController sLensController = LensController.getInstance();
-    private static boolean sShouldSkipIsEnabledCheckForTesting;
-    private boolean mIsChipSupported;
     private LensQueryParams mLensQueryParams;
+    private LensController mLensController;
     private ContextMenuNativeDelegate mNativeDelegate;
-    private Callback<Integer> mOnChipClickedCallback;
-    private Callback<Integer> mOnChipShownCallback;
-
-    public static boolean isEnabled(boolean isIncognito, boolean isTablet) {
-        if (sShouldSkipIsEnabledCheckForTesting) return true;
-        return sLensController.isLensEnabled(
-                new LensQueryParams.Builder(LensEntryPoint.CONTEXT_MENU_CHIP, isIncognito, isTablet)
-                        .build());
-    }
-
-    /**
-     * Whether it should skip the Lens chip eligiblity check for testing.
-     */
-    @VisibleForTesting
-    protected static void setShouldSkipIsEnabledCheckForTesting(boolean shouldSkipIsEnabledCheck) {
-        sShouldSkipIsEnabledCheckForTesting = shouldSkipIsEnabledCheck;
-    }
+    private Runnable mOnChipClickedCallback;
+    private Runnable mOnChipShownCallback;
 
     public LensChipDelegate(String pageUrl, String titleOrAltText, String srcUrl, String pageTitle,
-            boolean isIncognito, boolean isTablet, WebContents webContents,
-            ContextMenuNativeDelegate nativeDelegate, Callback<Integer> onChipClickedCallback,
-            Callback<Integer> onChipShownCallback) {
-        mIsChipSupported = sLensController.isQueryEnabled();
-        if (!mIsChipSupported) {
+            boolean isIncognito, WebContents webContents, ContextMenuNativeDelegate nativeDelegate,
+            Runnable onChipClickedCallback, Runnable onChipShownCallback) {
+        mLensController = LensController.getInstance();
+        if (!mLensController.isQueryEnabled()) {
             return;
         }
-        mLensQueryParams =
-                new LensQueryParams.Builder(LensEntryPoint.CONTEXT_MENU_CHIP, isIncognito, isTablet)
-                        .withPageUrl(pageUrl)
-                        .withImageTitleOrAltText(titleOrAltText)
-                        .withSrcUrl(srcUrl)
-                        .withPageTitle(pageTitle)
-                        .withWebContents(webContents)
-                        .build();
+        mLensQueryParams = (new LensQueryParams.Builder())
+                                   .withPageUrl(pageUrl)
+                                   .withImageTitleOrAltText(titleOrAltText)
+                                   .withSrcUrl(srcUrl)
+                                   .withPageTitle(pageTitle)
+                                   .withIsIncognito(isIncognito)
+                                   .withWebContents(webContents)
+                                   .build();
         mNativeDelegate = nativeDelegate;
         mOnChipClickedCallback = onChipClickedCallback;
         mOnChipShownCallback = onChipShownCallback;
-    }
-
-    @Override
-    public boolean isChipSupported() {
-        return mIsChipSupported;
     }
 
     @Override
@@ -76,7 +50,7 @@ public class LensChipDelegate implements ChipDelegate {
 
         Callback<Uri> callback = (uri) -> {
             mLensQueryParams.setImageUri(uri);
-            sLensController.getChipRenderParams(mLensQueryParams, (chipParams) -> {
+            mLensController.getChipRenderParams(mLensQueryParams, (chipParams) -> {
                 if (isValidChipRenderParams(chipParams)) {
                     // A new variable to avoid infinite loop inside the merged
                     // onClick callback.
@@ -85,10 +59,10 @@ public class LensChipDelegate implements ChipDelegate {
                         // The onClickCallback defined in LensController.
                         originalOnClickCallback.run();
                         // The onClickCallback defined when initialize the LensChipDelegate.
-                        mOnChipClickedCallback.bind(chipParams.chipType).run();
+                        mOnChipClickedCallback.run();
                     };
                     chipParams.onClickCallback = mergedOnClickCallback;
-                    chipParams.onShowCallback = mOnChipShownCallback.bind(chipParams.chipType);
+                    chipParams.onShowCallback = mOnChipShownCallback;
                 }
                 chipParamsCallback.onResult(chipParams);
             });
@@ -100,8 +74,9 @@ public class LensChipDelegate implements ChipDelegate {
 
     @Override
     public void onMenuClosed() {
-        // Lens controller will not react if a classification was not in progress.
-        sLensController.terminateClassification();
+        if (mLensController.isQueryEnabled()) {
+            mLensController.terminateClassification();
+        }
     }
 
     @Override

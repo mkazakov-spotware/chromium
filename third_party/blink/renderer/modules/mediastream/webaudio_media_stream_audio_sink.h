@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/synchronization/lock.h"
 #include "base/time/time.h"
 #include "media/base/audio_converter.h"
@@ -45,15 +46,10 @@ class MODULES_EXPORT WebAudioMediaStreamAudioSink
       public media::AudioConverter::InputCallback,
       public WebMediaStreamAudioSink {
  public:
-  static const int kWebAudioRenderBufferSize;
+  static const size_t kWebAudioRenderBufferSize;
 
   explicit WebAudioMediaStreamAudioSink(MediaStreamComponent* component,
                                         int context_sample_rate);
-
-  WebAudioMediaStreamAudioSink(const WebAudioMediaStreamAudioSink&) = delete;
-  WebAudioMediaStreamAudioSink& operator=(const WebAudioMediaStreamAudioSink&) =
-      delete;
-
   ~WebAudioMediaStreamAudioSink() override;
 
   // WebMediaStreamAudioSink implementation.
@@ -65,7 +61,7 @@ class MODULES_EXPORT WebAudioMediaStreamAudioSink
   // WebAudioSourceProvider implementation.
   void SetClient(WebAudioSourceProviderClient* client) override;
   void ProvideInput(const WebVector<float*>& audio_data,
-                    int number_of_frames) override;
+                    size_t number_of_frames) override;
 
   // Method to allow the unittests to inject its own sink parameters to avoid
   // query the hardware.
@@ -81,8 +77,7 @@ class MODULES_EXPORT WebAudioMediaStreamAudioSink
   // This function is triggered by the above ProvideInput() on the WebAudio
   // audio thread, so it has be called under the protection of |lock_|.
   double ProvideInput(media::AudioBus* audio_bus,
-                      uint32_t frames_delayed,
-                      const media::AudioGlitchInfo& glitch_info) override;
+                      uint32_t frames_delayed) override;
 
   std::unique_ptr<media::AudioConverter> audio_converter_ GUARDED_BY(lock_);
   std::unique_ptr<media::AudioFifo> fifo_ GUARDED_BY(lock_);
@@ -116,6 +111,8 @@ class MODULES_EXPORT WebAudioMediaStreamAudioSink
 
   // Used to assert that OnReadyStateChanged() is not accessed concurrently.
   REENTRANCY_CHECKER(ready_state_reentrancy_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(WebAudioMediaStreamAudioSink);
 };
 
 }  // namespace blink

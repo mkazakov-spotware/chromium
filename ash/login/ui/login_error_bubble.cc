@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,30 +24,42 @@ namespace {
 constexpr int kAlertIconSizeDp = 20;
 
 }  // namespace
-LoginErrorBubble::LoginErrorBubble()
-    : LoginErrorBubble(nullptr /*anchor_view*/) {}
 
-LoginErrorBubble::LoginErrorBubble(base::WeakPtr<views::View> anchor_view)
-    : LoginBaseBubbleView(std::move(anchor_view)) {
-  alert_icon_ = AddChildView(std::make_unique<views::ImageView>());
-  alert_icon_->SetPreferredSize(gfx::Size(kAlertIconSizeDp, kAlertIconSizeDp));
+LoginErrorBubble::LoginErrorBubble()
+    : LoginErrorBubble(nullptr /*content*/, nullptr /*anchor_view*/) {}
+
+LoginErrorBubble::LoginErrorBubble(views::View* content,
+                                   views::View* anchor_view)
+    : LoginBaseBubbleView(anchor_view) {
+  views::ImageView* alert_icon = new views::ImageView();
+  alert_icon->SetPreferredSize(gfx::Size(kAlertIconSizeDp, kAlertIconSizeDp));
+  alert_icon->SetImage(gfx::CreateVectorIcon(
+      kLockScreenAlertIcon,
+      AshColorProvider::Get()->GetContentLayerColor(
+          AshColorProvider::ContentLayerType::kIconColorPrimary)));
+  AddChildView(alert_icon);
+
+  if (content) {
+    content_ = content;
+    AddChildView(content);
+  }
 }
 
 LoginErrorBubble::~LoginErrorBubble() = default;
 
-void LoginErrorBubble::SetContent(std::unique_ptr<views::View> content) {
+void LoginErrorBubble::SetContent(views::View* content) {
   if (content_)
-    RemoveChildViewT(content_);
-  content_ = AddChildView(std::move(content));
+    delete content_;
+  content_ = content;
+  AddChildView(content_);
 }
 
-views::View* LoginErrorBubble::GetContent() {
-  return content_;
-}
-
-void LoginErrorBubble::SetTextContent(const std::u16string& message) {
-  message_ = message;
+void LoginErrorBubble::SetTextContent(const base::string16& message) {
   SetContent(login_views_utils::CreateBubbleLabel(message, this));
+}
+
+void LoginErrorBubble::SetAccessibleName(const base::string16& name) {
+  accessible_name_ = name;
 }
 
 const char* LoginErrorBubble::GetClassName() const {
@@ -57,19 +69,6 @@ const char* LoginErrorBubble::GetClassName() const {
 void LoginErrorBubble::GetAccessibleNodeData(ui::AXNodeData* node_data) {
   node_data->role = ax::mojom::Role::kAlertDialog;
   node_data->SetName(accessible_name_);
-}
-
-void LoginErrorBubble::OnThemeChanged() {
-  LoginBaseBubbleView::OnThemeChanged();
-  alert_icon_->SetImage(gfx::CreateVectorIcon(
-      kLockScreenAlertIcon,
-      AshColorProvider::Get()->GetContentLayerColor(
-          AshColorProvider::ContentLayerType::kIconColorPrimary)));
-  // It is assumed that we will not have an external call to SetTextContent
-  // followed by a call to SetContent (in such a case, the content would be
-  // erased on theme changed and replaced with the prior message).
-  if (!message_.empty())
-    SetTextContent(message_);
 }
 
 }  // namespace ash

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,7 @@
 #include "base/check_op.h"
 #include "base/notreached.h"
 #include "base/numerics/safe_math.h"
+#include "base/stl_util.h"
 
 namespace gpu {
 namespace gles2 {
@@ -751,7 +752,6 @@ uint32_t GLES2Util::RenderbufferBytesPerPixel(int format) {
     case GL_DEPTH24_STENCIL8_OES:
     case GL_RGB8_OES:
     case GL_RGBA8_OES:
-    case GL_RGBX8_ANGLE:
     case GL_DEPTH_COMPONENT24_OES:
       return 4;
     default:
@@ -1092,6 +1092,7 @@ uint32_t GLES2Util::GetGLReadPixelsImplementationType(uint32_t internal_format,
     case GL_R16UI:
     case GL_RG16UI:
     case GL_RGBA16UI:
+    case GL_RGB10_A2:
     case GL_RGB10_A2UI:
     case GL_R16_EXT:
     case GL_RG16_EXT:
@@ -1163,7 +1164,6 @@ uint32_t GLES2Util::GetChannelsForFormat(int format) {
     case GL_RGB32I:
     case GL_RGB16_EXT:
     case GL_RGB16_SNORM_EXT:
-    case GL_RGBX8_ANGLE:
       return kRGB;
     case GL_RGB_YCRCB_420_CHROMIUM:
     case GL_RGB_YCBCR_420V_CHROMIUM:
@@ -1273,7 +1273,6 @@ bool GLES2Util::IsSizedColorFormat(uint32_t internal_format) {
     case GL_RGBA16I:
     case GL_RGBA32UI:
     case GL_RGBA32I:
-    case GL_RGBX8_ANGLE:
     case GL_R8:
     case GL_R8_SNORM:
     case GL_R16_EXT:
@@ -1381,7 +1380,6 @@ void GLES2Util::GetColorFormatComponentSizes(
     case GL_RGB8_SNORM:
     case GL_RGB8UI:
     case GL_RGB8I:
-    case GL_RGBX8_ANGLE:
       *r = 8;
       *g = 8;
       *b = 8;
@@ -1547,7 +1545,7 @@ std::string GLES2Util::GetStringError(uint32_t value) {
     { GL_NONE, "GL_NONE" },
   };
   return GLES2Util::GetQualifiedEnumString(string_table,
-                                           std::size(string_table), value);
+                                           base::size(string_table), value);
 }
 
 std::string GLES2Util::GetStringBool(uint32_t value) {

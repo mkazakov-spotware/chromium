@@ -1,18 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/webshare/win/show_share_ui_for_window_operation.h"
 
-#include <EventToken.h>
 #include <shlobj.h>
 #include <windows.applicationmodel.datatransfer.h>
 #include <wrl/event.h>
 
 #include "base/callback.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/task/post_task.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/win/core_winrt_util.h"
-#include "base/win/windows_version.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 
@@ -38,11 +37,7 @@ HRESULT GetDataTransferManagerHandles(
     IDataTransferManagerInterop** data_transfer_manager_interop,
     IDataTransferManager** data_transfer_manager) {
   // If the required WinRT functionality is not available, fail the operation
-  // Note: Though the Share APIs are present starting in Windows 8, they are
-  // only fulfilled when invoked from within a UWP app container. Starting in
-  // Windows 10 they are fulfilled for all callers.
-  if ((base::win::GetVersion() < base::win::Version::WIN10) ||
-      !base::win::ResolveCoreWinRTDelayload() ||
+  if (!base::win::ResolveCoreWinRTDelayload() ||
       !base::win::ScopedHString::ResolveCoreWinRTStringDelayload()) {
     return E_FAIL;
   }
@@ -77,6 +72,7 @@ HRESULT GetDataTransferManagerHandles(
 
 ShowShareUIForWindowOperation::ShowShareUIForWindowOperation(HWND hwnd)
     : hwnd_(hwnd) {
+  data_requested_token_.value = 0;
 }
 
 ShowShareUIForWindowOperation::~ShowShareUIForWindowOperation() {
@@ -97,13 +93,12 @@ void ShowShareUIForWindowOperation::Run(
 
   // Fetch the OS handles needed
   ComPtr<IDataTransferManagerInterop> data_transfer_manager_interop;
-  ComPtr<IDataTransferManager> data_transfer_manager;
   HRESULT hr = GetDataTransferManagerHandles(
-      hwnd_, &data_transfer_manager_interop, &data_transfer_manager);
+      hwnd_, &data_transfer_manager_interop, &data_transfer_manager_);
   if (FAILED(hr))
     return Cancel();
 
-  // Create and register a data requested handler
+  // Create and register a data request handler
   auto weak_ptr = weak_factory_.GetWeakPtr();
   auto raw_data_requested_callback = Callback<
       ITypedEventHandler<DataTransferManager*, DataRequestedEventArgs*>>(
@@ -118,78 +113,59 @@ void ShowShareUIForWindowOperation::Run(
         // operation will fail gracefully with messaging to the user.
         return S_OK;
       });
-  EventRegistrationToken data_requested_token{};
-  hr = data_transfer_manager->add_DataRequested(
-      raw_data_requested_callback.Get(), &data_requested_token);
-
-  // Create a callback to clean up the data requested handler that doesn't rely
-  // on |this| so it can still be run even if |this| has been destroyed
-  auto remove_data_requested_listener = base::BindOnce(
-      [](ComPtr<IDataTransferManager> data_transfer_manager,
-         EventRegistrationToken data_requested_token) {
-        if (data_transfer_manager && data_requested_token.value) {
-          data_transfer_manager->remove_DataRequested(data_requested_token);
-        }
-      },
-      data_transfer_manager, data_requested_token);
-
-  // If the call to register the data requested handler failed, clean up
-  // listener and cancel the operation
-  if (FAILED(hr)) {
-    std::move(remove_data_requested_listener).Run();
+  hr = data_transfer_manager_->add_DataRequested(
+      raw_data_requested_callback.Get(), &data_requested_token_);
+  if (FAILED(hr))
     return Cancel();
-  }
 
   // Request showing the Share UI
+  show_share_ui_for_window_call_in_progress_ = true;
   hr = data_transfer_manager_interop->ShowShareUIForWindow(hwnd_);
+  show_share_ui_for_window_call_in_progress_ = false;
 
-  // If the call is expected to complete later, save the clean-up callback for
-  // later use and schedule a timeout to cover any cases where it fails (and
-  // therefore never comes)
-  if (SUCCEEDED(hr) && weak_ptr && data_requested_callback_) {
-    remove_data_requested_listener_ = std::move(remove_data_requested_listener);
-    if (!base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  // If the call is expected to complete later, schedule a timeout to cover
+  // any cases where it fails (and therefore never comes)
+  if (SUCCEEDED(hr) && data_requested_callback_) {
+    if (!base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
             FROM_HERE,
-            base::BindOnce(&ShowShareUIForWindowOperation::Cancel, weak_ptr),
+            base::BindOnce(&ShowShareUIForWindowOperation::Cancel,
+                           weak_factory_.GetWeakPtr()),
             kMaxExecutionTime)) {
       return Cancel();
     }
   } else {
-    // In all other cases (i.e. failure or synchronous completion), remove the
-    // listener right away
-    std::move(remove_data_requested_listener).Run();
-
-    // In the failure case, also cancel the operation (if it was not already
-    // cancelled synchronously).
-    if (FAILED(hr) && weak_ptr)
-      return Cancel();
+    RemoveDataRequestedListener();
   }
 }
 
 void ShowShareUIForWindowOperation::Cancel() {
-  if (remove_data_requested_listener_)
-    std::move(remove_data_requested_listener_).Run();
-
-  if (data_requested_callback_)
+  RemoveDataRequestedListener();
+  if (data_requested_callback_) {
     std::move(data_requested_callback_).Run(nullptr);
+  }
 }
 
 void ShowShareUIForWindowOperation::OnDataRequested(
     IDataTransferManager* data_transfer_manager,
     IDataRequestedEventArgs* event_args) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  DCHECK_EQ(data_transfer_manager, data_transfer_manager_.Get());
 
-  // If the callback to remove the DataRequested listener has been stored on
-  // |this| (i.e. this function is being invoked asynchronously), invoke it now
-  // before invoking the |data_requested_callback_|, as that may result in
-  // |this| being destroyed. Note that the callback to remove the DataRequested
-  // listener will not have been set if this is being invoked synchronously as
-  // part of the ShowShareUIForWindow call, as the system APIs don't handle
-  // unregistering at that point.
-  if (remove_data_requested_listener_)
-    std::move(remove_data_requested_listener_).Run();
+  // Remove the DataRequested handler if this is being invoked asynchronously.
+  // If this is an in-progress invocation the system APIs don't handle the
+  // event being unregistered while it is being executed, but we will unregister
+  // it after the ShowShareUIForWindow call completes.
+  if (!show_share_ui_for_window_call_in_progress_)
+    RemoveDataRequestedListener();
 
   std::move(data_requested_callback_).Run(event_args);
+}
+
+void ShowShareUIForWindowOperation::RemoveDataRequestedListener() {
+  if (data_transfer_manager_ && data_requested_token_.value) {
+    data_transfer_manager_->remove_DataRequested(data_requested_token_);
+    data_requested_token_.value = 0;
+  }
 }
 
 }  // namespace webshare

@@ -1,8 +1,8 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("//crypto/features.gni")
+import("//build/config/crypto.gni")
 import("//testing/test.gni")
 
 component("cert_net_url_loader") {
@@ -39,7 +39,6 @@ source_set("tests") {
     "//mojo/public/cpp/bindings",
     "//net",
     "//net:test_support",
-    "//services/network:network_service",
     "//services/network:test_support",
     "//services/network/public/cpp",
     "//services/network/public/mojom",

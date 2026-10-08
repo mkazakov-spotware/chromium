@@ -1,18 +1,6 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import 'chrome://resources/ash/common/network/network_icon.js';
-import 'chrome://resources/cr_elements/cr_button/cr_button.js';
-import 'chrome://resources/cr_elements/cr_shared_style.css.js';
-
-import {OncMojo} from 'chrome://resources/ash/common/network/onc_mojo.js';
-import {assert} from 'chrome://resources/js/assert.js';
-import {CrosNetworkConfig, CrosNetworkConfigRemote, FilterType, ManagedProperties, NO_LIMIT} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
-import {NetworkType} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/network_types.mojom-webui.js';
-import {html, Polymer} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-
-import {NetworkUIBrowserProxy, NetworkUIBrowserProxyImpl} from './network_ui_browser_proxy.js';
 
 /**
  * @typedef {!OncMojo.DeviceStateProperties|!OncMojo.NetworkStateProperties}
@@ -21,8 +9,6 @@ OncMojo.StateProperties;
 
 Polymer({
   is: 'network-state-ui',
-
-  _template: html`{__html_template__}`,
 
   properties: {},
 
@@ -33,18 +19,10 @@ Polymer({
    * @const
    */
   NETWORK_STATE_FIELDS: [
-    'guid',
-    'name',
-    'type',
-    'connectionState',
-    'connectable',
-    'errorState',
-    'wifi.security',
-    ['cellular.networkTechnology', 'EAP.EAP'],
-    'cellular.activationState',
-    'cellular.roaming',
-    'wifi.frequency',
-    'wifi.signalStrength',
+    'guid', 'name', 'type', 'connectionState', 'connectable', 'errorState',
+    'wifi.security', ['cellular.networkTechnology', 'EAP.EAP'],
+    'cellular.activationState', 'cellular.roaming', 'wifi.frequency',
+    'wifi.signalStrength'
   ],
 
   /** @const */
@@ -57,16 +35,17 @@ Polymer({
    * This UI will use both the networkingPrivate extension API and the
    * networkConfig mojo API until we provide all of the required functionality
    * in networkConfig. TODO(stevenjb): Remove use of networkingPrivate api.
-   * @private {?CrosNetworkConfigRemote}
+   * @private {?chromeos.networkConfig.mojom.CrosNetworkConfigRemote}
    */
   networkConfig_: null,
 
-  /** @private {!NetworkUIBrowserProxy} */
-  browserProxy_: NetworkUIBrowserProxyImpl.getInstance(),
+  /** @private {!network_ui.NetworkUIBrowserProxy} */
+  browserProxy_: network_ui.NetworkUIBrowserProxyImpl.getInstance(),
 
   /** @override */
   created() {
-    this.networkConfig_ = CrosNetworkConfig.getRemote();
+    this.networkConfig_ =
+        chromeos.networkConfig.mojom.CrosNetworkConfig.getRemote();
   },
 
   /** @override */
@@ -134,9 +113,8 @@ Polymer({
     while (keys.length > 1) {
       const k = keys.shift();
       dict = dict[k];
-      if (!dict || typeof dict != 'object') {
+      if (!dict || typeof dict != 'object')
         return undefined;
-      }
     }
     const k = keys.shift();
     return this.getOncTypeString_(k, dict[k]);
@@ -214,14 +192,12 @@ Polymer({
       } else {
         for (let j = 0; j < field.length; ++j) {
           value = this.getOncProperty_(state, field[j]);
-          if (value != undefined) {
+          if (value != undefined)
             break;
-          }
         }
       }
-      if (field == 'guid') {
+      if (field == 'guid')
         value = value.slice(0, 8);
-      }
       row.appendChild(this.createStateTableCell_(value));
     }
     return row;
@@ -237,9 +213,8 @@ Polymer({
   createStateTable_(tablename, stateFields, states) {
     const table = this.$$('#' + tablename);
     const oldRows = table.querySelectorAll('.state-table-row');
-    for (let i = 0; i < oldRows.length; ++i) {
+    for (let i = 0; i < oldRows.length; ++i)
       table.removeChild(oldRows[i]);
-    }
     states.forEach((state) => {
       table.appendChild(this.createStateTableRow_(stateFields, state));
     });
@@ -267,7 +242,7 @@ Polymer({
   },
 
   /**
-   * @param {!NetworkType} type
+   * @param {!chromeos.networkConfig.mojom.NetworkType} type
    * @return {string} A valid HTMLElement id.
    * @private
    */
@@ -355,11 +330,10 @@ Polymer({
     detailCell.className = 'state-table-expanded-cell';
     detailCell.colSpan = baseRow.childNodes.length - 1;
     expandedRow.appendChild(detailCell);
-    if (guid) {
+    if (guid)
       this.handleNetworkDetail_(guid, this.getSelectedFormat_(), detailCell);
-    } else {
+    else
       this.handleDeviceDetail_(state, this.getSelectedFormat_(), detailCell);
-    }
     return expandedRow;
   },
 
@@ -430,7 +404,7 @@ Polymer({
   /**
    * @param {!HTMLTableCellElement} detailCell
    * @param {!OncMojo.NetworkStateProperties|!OncMojo.DeviceStateProperties|
-   *         !ManagedProperties|
+   *         !chromeos.networkConfig.mojom.ManagedProperties|
    *         !chrome.networkingPrivate.NetworkProperties} state
    * @param {!Object=} error
    * @private
@@ -440,9 +414,7 @@ Polymer({
       this.showDetailError_(detailCell, error.message);
       return;
     }
-    detailCell.textContent = JSON.stringify(state, (key, value) => {
-      return typeof value === 'bigint' ? value.toString() : value;
-    }, '\t');
+    detailCell.textContent = JSON.stringify(state, null, '\t');
   },
 
   /**
@@ -474,11 +446,10 @@ Polymer({
       return;
     }
 
-    if (properties['ShillError']) {
+    if (properties['ShillError'])
       detailCell.textContent = properties['ShillError'];
-    } else {
+    else
       detailCell.textContent = JSON.stringify(properties, null, '\t');
-    }
   },
 
   /**
@@ -501,11 +472,10 @@ Polymer({
       return;
     }
 
-    if (properties['ShillError']) {
+    if (properties['ShillError'])
       detailCell.textContent = properties['ShillError'];
-    } else {
+    else
       detailCell.textContent = JSON.stringify(properties, null, '\t');
-    }
   },
 
   /**
@@ -517,10 +487,6 @@ Polymer({
     const state = result.shift();
     const states = [];
     if (state) {
-      // |state.type| is expected to be the string "etherneteap", which is not
-      // supported by the rest of this UI. Use the kEthernet constant instead.
-      // See https://crbug.com/1213176.
-      state.type = NetworkType.kEthernet;
       states.push(state);
     }
     this.createStateTable_(
@@ -532,11 +498,12 @@ Polymer({
    * @private
    */
   requestNetworks_() {
+    const mojom = chromeos.networkConfig.mojom;
     this.networkConfig_
         .getNetworkStateList({
-          filter: FilterType.kVisible,
-          networkType: NetworkType.kAll,
-          limit: NO_LIMIT,
+          filter: mojom.FilterType.kVisible,
+          networkType: mojom.NetworkType.kAll,
+          limit: mojom.NO_LIMIT,
         })
         .then((responseParams) => {
           this.onVisibleNetworksReceived_(responseParams.result);
@@ -544,9 +511,9 @@ Polymer({
 
     this.networkConfig_
         .getNetworkStateList({
-          filter: FilterType.kConfigured,
-          networkType: NetworkType.kAll,
-          limit: NO_LIMIT,
+          filter: mojom.FilterType.kConfigured,
+          networkType: mojom.NetworkType.kAll,
+          limit: mojom.NO_LIMIT,
         })
         .then((responseParams) => {
           this.onFavoriteNetworksReceived_(responseParams.result);

@@ -1,11 +1,13 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef UI_BASE_TEST_SCOPED_PREFERRED_SCROLLER_STYLE_MAC_H_
-#define UI_BASE_TEST_SCOPED_PREFERRED_SCROLLER_STYLE_MAC_H_
+#ifndef UI_BASE_TEST_SCOPED_PREFERRED_SCROLLER_STYLE_LEGACY_MAC_H_
+#define UI_BASE_TEST_SCOPED_PREFERRED_SCROLLER_STYLE_LEGACY_MAC_H_
 
 #include <memory>
+
+#include "base/macros.h"
 
 namespace base {
 namespace mac {
@@ -22,11 +24,6 @@ namespace test {
 class ScopedPreferredScrollerStyle {
  public:
   explicit ScopedPreferredScrollerStyle(bool overlay);
-
-  ScopedPreferredScrollerStyle(const ScopedPreferredScrollerStyle&) = delete;
-  ScopedPreferredScrollerStyle& operator=(const ScopedPreferredScrollerStyle&) =
-      delete;
-
   ~ScopedPreferredScrollerStyle();
 
  private:
@@ -34,9 +31,11 @@ class ScopedPreferredScrollerStyle {
 
   // True if the scrollbar style should overlay.
   bool overlay_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedPreferredScrollerStyle);
 };
 
 }  // namespace test
 }  // namespace ui
 
-#endif  // UI_BASE_TEST_SCOPED_PREFERRED_SCROLLER_STYLE_MAC_H_
+#endif  // UI_BASE_TEST_SCOPED_PREFERRED_SCROLLER_STYLE_LEGACY_MAC_H_

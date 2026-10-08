@@ -103,7 +103,11 @@
 
       Utils.timeLog('waiting for video to end.');
       video.removeEventListener('ended', Utils.failTest);
-      Utils.installTitleEventHandler(video, 'ended');
+      if (testConfig.sessionToLoad == "PersistentUsageRecord") {
+        video.addEventListener('ended', onEnded);
+      } else {
+        Utils.installTitleEventHandler(video, 'ended');
+      }
       video.removeEventListener('timeupdate', onTimeUpdate);
     }
 

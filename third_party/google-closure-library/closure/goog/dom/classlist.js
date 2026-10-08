@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2012 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Utilities for detecting, adding and removing classes.  Prefer
@@ -36,7 +44,6 @@ goog.dom.classlist.ALWAYS_USE_DOM_TOKEN_LIST =
  * @private
  */
 goog.dom.classlist.getClassName_ = function(element) {
-  'use strict';
   // If className is an instance of SVGAnimatedString use getAttribute
   return typeof element.className == 'string' ?
       element.className :
@@ -50,7 +57,6 @@ goog.dom.classlist.getClassName_ = function(element) {
  * @return {!IArrayLike<?>} Class names on `element`.
  */
 goog.dom.classlist.get = function(element) {
-  'use strict';
   if (goog.dom.classlist.ALWAYS_USE_DOM_TOKEN_LIST || element.classList) {
     return element.classList;
   }
@@ -65,7 +71,6 @@ goog.dom.classlist.get = function(element) {
  * @param {string} className Class name(s) to apply to element.
  */
 goog.dom.classlist.set = function(element, className) {
-  'use strict';
   // If className is an instance of SVGAnimatedString use setAttribute
   if ((typeof element.className) == 'string') {
     element.className = className;
@@ -84,7 +89,6 @@ goog.dom.classlist.set = function(element, className) {
  * @return {boolean} Whether element has the class.
  */
 goog.dom.classlist.contains = function(element, className) {
-  'use strict';
   if (goog.dom.classlist.ALWAYS_USE_DOM_TOKEN_LIST || element.classList) {
     return element.classList.contains(className);
   }
@@ -100,7 +104,6 @@ goog.dom.classlist.contains = function(element, className) {
  * @param {string} className Class name to add.
  */
 goog.dom.classlist.add = function(element, className) {
-  'use strict';
   if (goog.dom.classlist.ALWAYS_USE_DOM_TOKEN_LIST || element.classList) {
     element.classList.add(className);
     return;
@@ -126,10 +129,8 @@ goog.dom.classlist.add = function(element, className) {
  * or empty class names.
  */
 goog.dom.classlist.addAll = function(element, classesToAdd) {
-  'use strict';
   if (goog.dom.classlist.ALWAYS_USE_DOM_TOKEN_LIST || element.classList) {
-    Array.prototype.forEach.call(classesToAdd, function(className) {
-      'use strict';
+    goog.array.forEach(classesToAdd, function(className) {
       goog.dom.classlist.add(element, className);
     });
     return;
@@ -138,17 +139,13 @@ goog.dom.classlist.addAll = function(element, classesToAdd) {
   var classMap = {};
 
   // Get all current class names into a map.
-  Array.prototype.forEach.call(
-      goog.dom.classlist.get(element), function(className) {
-        'use strict';
-        classMap[className] = true;
-      });
-
-  // Add new class names to the map.
-  Array.prototype.forEach.call(classesToAdd, function(className) {
-    'use strict';
+  goog.array.forEach(goog.dom.classlist.get(element), function(className) {
     classMap[className] = true;
   });
+
+  // Add new class names to the map.
+  goog.array.forEach(
+      classesToAdd, function(className) { classMap[className] = true; });
 
   // Flatten the keys of the map into the className.
   var newClassName = '';
@@ -166,7 +163,6 @@ goog.dom.classlist.addAll = function(element, classesToAdd) {
  * @param {string} className Class name to remove.
  */
 goog.dom.classlist.remove = function(element, className) {
-  'use strict';
   if (goog.dom.classlist.ALWAYS_USE_DOM_TOKEN_LIST || element.classList) {
     element.classList.remove(className);
     return;
@@ -176,11 +172,10 @@ goog.dom.classlist.remove = function(element, className) {
     // Filter out the class name.
     goog.dom.classlist.set(
         element,
-        Array.prototype.filter
-            .call(
+        goog.array
+            .filter(
                 goog.dom.classlist.get(element),
                 function(c) {
-                  'use strict';
                   return c != className;
                 })
             .join(' '));
@@ -199,10 +194,8 @@ goog.dom.classlist.remove = function(element, className) {
  * or empty class names.
  */
 goog.dom.classlist.removeAll = function(element, classesToRemove) {
-  'use strict';
   if (goog.dom.classlist.ALWAYS_USE_DOM_TOKEN_LIST || element.classList) {
-    Array.prototype.forEach.call(classesToRemove, function(className) {
-      'use strict';
+    goog.array.forEach(classesToRemove, function(className) {
       goog.dom.classlist.remove(element, className);
     });
     return;
@@ -211,11 +204,10 @@ goog.dom.classlist.removeAll = function(element, classesToRemove) {
   // Filter out those classes in classesToRemove.
   goog.dom.classlist.set(
       element,
-      Array.prototype.filter
-          .call(
+      goog.array
+          .filter(
               goog.dom.classlist.get(element),
               function(className) {
-                'use strict';
                 // If this class is not one we are trying to remove,
                 // add it to the array of new class names.
                 return !goog.array.contains(classesToRemove, className);
@@ -234,7 +226,6 @@ goog.dom.classlist.removeAll = function(element, classesToRemove) {
  *     false removes).
  */
 goog.dom.classlist.enable = function(element, className, enabled) {
-  'use strict';
   if (enabled) {
     goog.dom.classlist.add(element, className);
   } else {
@@ -254,7 +245,6 @@ goog.dom.classlist.enable = function(element, className, enabled) {
  *     false removes).
  */
 goog.dom.classlist.enableAll = function(element, classesToEnable, enabled) {
-  'use strict';
   var f = enabled ? goog.dom.classlist.addAll : goog.dom.classlist.removeAll;
   f(element, classesToEnable);
 };
@@ -270,7 +260,6 @@ goog.dom.classlist.enableAll = function(element, classesToEnable, enabled) {
  * @return {boolean} Whether classes were switched.
  */
 goog.dom.classlist.swap = function(element, fromClass, toClass) {
-  'use strict';
   if (goog.dom.classlist.contains(element, fromClass)) {
     goog.dom.classlist.remove(element, fromClass);
     goog.dom.classlist.add(element, toClass);
@@ -291,7 +280,6 @@ goog.dom.classlist.swap = function(element, fromClass, toClass) {
  *     been called).
  */
 goog.dom.classlist.toggle = function(element, className) {
-  'use strict';
   var add = !goog.dom.classlist.contains(element, className);
   goog.dom.classlist.enable(element, className, add);
   return add;
@@ -309,7 +297,6 @@ goog.dom.classlist.toggle = function(element, className) {
  * @param {string} classToAdd Class to add.
  */
 goog.dom.classlist.addRemove = function(element, classToRemove, classToAdd) {
-  'use strict';
   goog.dom.classlist.remove(element, classToRemove);
   goog.dom.classlist.add(element, classToAdd);
 };

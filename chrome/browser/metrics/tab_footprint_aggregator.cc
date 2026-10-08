@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <numeric>
 #include <utility>
 
-#include "base/containers/contains.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "services/metrics/public/cpp/ukm_recorder.h"
 
@@ -97,12 +96,12 @@ void TabFootprintAggregator::AssociateFrame(ukm::SourceId sid,
       << "Can't associate multiple SourceIds to a single PageId.";
 
   std::vector<PageId>& pages = process_to_pages_[pid];
-  DCHECK(!base::Contains(pages, page_id))
+  DCHECK(!std::count(pages.begin(), pages.end(), page_id))
       << "Can't duplicate associations between a process and a page.";
   pages.push_back(page_id);
 
   std::vector<base::ProcessId>& processes = page_to_processes_[page_id];
-  DCHECK(!base::Contains(processes, pid))
+  DCHECK(!std::count(processes.begin(), processes.end(), pid))
       << "Can't duplicate associations between a page and a process.";
   processes.push_back(pid);
 

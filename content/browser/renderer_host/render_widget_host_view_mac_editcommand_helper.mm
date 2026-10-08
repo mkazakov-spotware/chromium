@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #import <objc/runtime.h>
 #include <stddef.h>
 
+#include "base/stl_util.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
 #import "content/browser/renderer_host/render_widget_host_view_mac.h"
 
@@ -124,11 +125,11 @@ const char* const kEditCommands[] = {
 // The route the message takes is:
 // RenderWidgetHostViewMac -> RenderViewHost ->
 // | IPC | ->
-// `blink::WebView` -> currently focused WebFrame.
+// RenderView -> currently focused WebFrame.
 // The WebFrame is in the Chrome glue layer and forwards the message to WebCore.
 void EditCommandImp(id self, SEL _cmd, id sender) {
   // Make sure |self| is the right type.
-  DCHECK([self respondsToSelector:@selector(renderWidgetHostNSViewHost)]);
+  DCHECK([self conformsToProtocol:@protocol(RenderWidgetHostNSViewHostOwner)]);
 
   // SEL -> command name string.
   NSString* command_name_ns =
@@ -137,7 +138,7 @@ void EditCommandImp(id self, SEL _cmd, id sender) {
 
   // Forward the edit command string down the pipeline.
   remote_cocoa::mojom::RenderWidgetHostNSViewHost* host =
-      [self renderWidgetHostNSViewHost];
+      [(id<RenderWidgetHostNSViewHostOwner>)self renderWidgetHostNSViewHost];
   DCHECK(host);
   host->ExecuteEditCommand(command);
 }
@@ -179,7 +180,7 @@ NSString* RenderWidgetHostViewMacEditCommandHelper::CommandNameForSelector(
 
 RenderWidgetHostViewMacEditCommandHelper::
     RenderWidgetHostViewMacEditCommandHelper() {
-  for (size_t i = 0; i < std::size(kEditCommands); ++i) {
+  for (size_t i = 0; i < base::size(kEditCommands); ++i) {
     edit_command_set_.insert(kEditCommands[i]);
   }
 }
@@ -187,6 +188,22 @@ RenderWidgetHostViewMacEditCommandHelper::
 RenderWidgetHostViewMacEditCommandHelper::
     ~RenderWidgetHostViewMacEditCommandHelper() {}
 
+// Dynamically adds Selectors to the aformentioned class.
+void RenderWidgetHostViewMacEditCommandHelper::AddEditingSelectorsToClass(
+    Class klass) {
+  for (size_t i = 0; i < base::size(kEditCommands); ++i) {
+    // Append trailing ':' to command name to get selector name.
+    NSString* sel_str = [NSString stringWithFormat: @"%s:", kEditCommands[i]];
+
+    SEL edit_selector = NSSelectorFromString(sel_str);
+    // May want to use @encode() for the last parameter to this method.
+    // If class_addMethod fails we assume that all the editing selectors where
+    // added to the class.
+    // If a certain class already implements a method then class_addMethod
+    // returns NO, which we can safely ignore.
+    class_addMethod(klass, edit_selector, (IMP)EditCommandImp, "v@:@");
+  }
+}
 
 bool RenderWidgetHostViewMacEditCommandHelper::IsMenuItemEnabled(
     SEL item_action,
@@ -209,27 +226,8 @@ bool RenderWidgetHostViewMacEditCommandHelper::IsMenuItemEnabled(
   return ret;
 }
 
-// static
-void RenderWidgetHostViewMacEditCommandHelper::AddEditingSelectorsToClass(
-    Class klass) {
-  for (size_t i = 0; i < std::size(kEditCommands); ++i) {
-    // Append trailing ':' to command name to get selector name.
-    NSString* sel_str = [NSString stringWithFormat:@"%s:", kEditCommands[i]];
-
-    SEL edit_selector = NSSelectorFromString(sel_str);
-    // May want to use @encode() for the last parameter to this method.
-    // If class_addMethod fails we assume that all the editing selectors where
-    // added to the class.
-    // If a certain class already implements a method then class_addMethod
-    // returns NO, which we can safely ignore.
-    class_addMethod(klass, edit_selector, (IMP)EditCommandImp, "v@:@");
-  }
-}
-
-// static
-NSArray*
-RenderWidgetHostViewMacEditCommandHelper::GetEditSelectorNamesForTesting() {
-  size_t num_edit_commands = std::size(kEditCommands);
+NSArray* RenderWidgetHostViewMacEditCommandHelper::GetEditSelectorNames() {
+  size_t num_edit_commands = base::size(kEditCommands);
   NSMutableArray* ret = [NSMutableArray arrayWithCapacity:num_edit_commands];
 
   for (size_t i = 0; i < num_edit_commands; ++i) {

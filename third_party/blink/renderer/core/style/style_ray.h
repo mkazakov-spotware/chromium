@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,12 +27,10 @@ class StyleRay : public BasicShape {
   RaySize Size() const { return size_; }
   bool Contain() const { return contain_; }
 
-  void GetPath(Path&, const gfx::RectF&, float) override;
+  void GetPath(Path&, const FloatRect&, float) override;
+  bool operator==(const BasicShape&) const override;
 
   ShapeType GetType() const override { return kStyleRayType; }
-
- protected:
-  bool IsEqualAssumingSameType(const BasicShape&) const override;
 
  private:
   StyleRay(float angle, RaySize, bool contain);
@@ -51,4 +49,4 @@ struct DowncastTraits<StyleRay> {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_STYLE_STYLE_RAY_H_
+#endif

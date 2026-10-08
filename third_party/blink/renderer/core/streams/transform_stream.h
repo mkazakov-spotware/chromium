@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,13 @@
 #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/visitor.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "v8/include/v8.h"
 
 namespace blink {
 
 class ExceptionState;
 class ReadableStream;
-class ReadableStreamDefaultController;
 class ScriptState;
 class StrategySizeAlgorithm;
 class StreamAlgorithm;
@@ -24,6 +22,7 @@ class StreamPromiseResolver;
 class StreamStartAlgorithm;
 class TransformStreamDefaultController;
 class TransformStreamTransformer;
+class Visitor;
 class WritableStream;
 
 // Implementation of TransformStream for Blink.  See
@@ -124,8 +123,6 @@ class CORE_EXPORT TransformStream final : public ScriptWrappable {
   static void SetBackpressure(ScriptState*,
                               TransformStream*,
                               bool backpressure);
-
-  ReadableStreamDefaultController* GetReadableController();
 
   // The [[backpressure]] internal slot from the standard is here called
   // |had_backpressure_| to conform to Blink style. The initial value is

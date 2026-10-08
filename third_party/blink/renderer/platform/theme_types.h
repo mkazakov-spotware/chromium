@@ -60,4 +60,4 @@ enum ControlPart {
 };
 
 }  // namespace blink
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_THEME_TYPES_H_
+#endif

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "apps/app_lifetime_monitor_factory.h"
+#include "base/macros.h"
 #include "components/keep_alive_registry/keep_alive_registry.h"
 #include "content/public/browser/browser_context.h"
 #include "extensions/browser/disable_reason.h"
@@ -21,11 +22,6 @@
 namespace extensions {
 
 class ShellKeepAliveRequesterTest : public ExtensionsTest {
- public:
-  ShellKeepAliveRequesterTest(const ShellKeepAliveRequesterTest&) = delete;
-  ShellKeepAliveRequesterTest& operator=(const ShellKeepAliveRequesterTest&) =
-      delete;
-
  protected:
   ShellKeepAliveRequesterTest() = default;
   ~ShellKeepAliveRequesterTest() override = default;
@@ -48,6 +44,9 @@ class ShellKeepAliveRequesterTest : public ExtensionsTest {
 
  protected:
   std::unique_ptr<ShellKeepAliveRequester> keep_alive_requester_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ShellKeepAliveRequesterTest);
 };
 
 // Tests with an extension.

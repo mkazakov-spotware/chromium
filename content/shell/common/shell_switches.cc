@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,11 +29,6 @@ const char kContentShellHostWindowSize[] = "content-shell-host-window-size";
 
 // Hides toolbar from content_shell's host window.
 const char kContentShellHideToolbar[] = "content-shell-hide-toolbar";
-
-// Let DevTools front-end talk to the target of type "tab" rather than
-// "frame" when inspecting a WebContents.
-const char kContentShellDevToolsTabTarget[] =
-    "content-shell-devtools-tab-target";
 
 // Runs Content Shell in web test mode, injecting test-only behaviour for
 // blink web tests.

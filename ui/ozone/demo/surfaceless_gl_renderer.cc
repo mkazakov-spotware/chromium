@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,16 +11,16 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/command_line.h"
-#include "base/cxx17_backports.h"
+#include "base/macros.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/trace_event/trace_event.h"
 #include "ui/display/types/display_snapshot.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/gfx/gpu_fence.h"
-#include "ui/gfx/overlay_plane_data.h"
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/gl_context.h"
 #include "ui/gl/gl_fence.h"
+#include "ui/gl/gl_image.h"
 #include "ui/gl/gl_image_native_pixmap.h"
 #include "ui/gl/gl_surface.h"
 #include "ui/gl/init/gl_factory.h"
@@ -58,6 +58,7 @@ OverlaySurfaceCandidate MakeOverlayCandidate(int z_order,
 
   // The demo overlay instance is always ontop and not clipped. Clipped quads
   // cannot be placed in overlays.
+  overlay_candidate.is_clipped = false;
 
   return overlay_candidate;
 }
@@ -74,11 +75,6 @@ SurfacelessGlRenderer::BufferWrapper::~BufferWrapper() {
     image_->ReleaseTexImage(GL_TEXTURE_2D);
     glDeleteTextures(1, &gl_tex_);
   }
-}
-
-scoped_refptr<gfx::NativePixmap> SurfacelessGlRenderer::BufferWrapper::image()
-    const {
-  return image_->GetNativePixmap();
 }
 
 bool SurfacelessGlRenderer::BufferWrapper::Initialize(
@@ -138,11 +134,11 @@ SurfacelessGlRenderer::~SurfacelessGlRenderer() {
   // Need to make current when deleting the framebuffer resources allocated in
   // the buffers.
   context_->MakeCurrent(gl_surface_.get());
-  for (size_t i = 0; i < std::size(buffers_); ++i)
+  for (size_t i = 0; i < base::size(buffers_); ++i)
     buffers_[i].reset();
 
   for (size_t i = 0; i < kMaxLayers; ++i) {
-    for (size_t j = 0; j < std::size(overlay_buffers_[i]); ++j)
+    for (size_t j = 0; j < base::size(overlay_buffers_[i]); ++j)
       overlay_buffers_[i][j].reset();
   }
 }
@@ -168,7 +164,7 @@ bool SurfacelessGlRenderer::Initialize() {
   else
     primary_plane_rect_ = gfx::Rect(size_);
 
-  for (size_t i = 0; i < std::size(buffers_); ++i) {
+  for (size_t i = 0; i < base::size(buffers_); ++i) {
     buffers_[i] = std::make_unique<BufferWrapper>();
     if (!buffers_[i]->Initialize(widget_, primary_plane_rect_.size()))
       return false;
@@ -179,12 +175,12 @@ bool SurfacelessGlRenderer::Initialize() {
     base::StringToInt(
         command_line->GetSwitchValueASCII("enable-overlay").c_str(),
         &requested_overlay_cnt);
-    overlay_cnt_ = base::clamp(requested_overlay_cnt, 1, kMaxLayers);
+    overlay_cnt_ = std::max(1, std::min(kMaxLayers, requested_overlay_cnt));
 
     const gfx::Size overlay_size =
         gfx::Size(size_.width() / 8, size_.height() / 8);
     for (size_t i = 0; i < overlay_cnt_; ++i) {
-      for (size_t j = 0; j < std::size(overlay_buffers_[i]); ++j) {
+      for (size_t j = 0; j < base::size(overlay_buffers_[i]); ++j) {
         overlay_buffers_[i][j] = std::make_unique<BufferWrapper>();
         overlay_buffers_[i][j]->Initialize(gfx::kNullAcceleratedWidget,
                                            overlay_size);
@@ -270,25 +266,17 @@ void SurfacelessGlRenderer::RenderFrame() {
         use_gpu_fences_ ? gl::GLFence::CreateForGpuFence() : nullptr;
 
     gl_surface_->ScheduleOverlayPlane(
-        buffers_[back_buffer_]->image(),
-        gl_fence ? gl_fence->GetGpuFence() : nullptr,
-        gfx::OverlayPlaneData(
-            0, gfx::OVERLAY_TRANSFORM_NONE, gfx::RectF(primary_plane_rect_),
-            unity_rect, false, gfx::Rect(buffers_[back_buffer_]->size()), 1.0f,
-            gfx::OverlayPriorityHint::kNone, gfx::RRectF(),
-            gfx::ColorSpace::CreateSRGB(), absl::nullopt));
+        0, gfx::OVERLAY_TRANSFORM_NONE, buffers_[back_buffer_]->image(),
+        primary_plane_rect_, unity_rect, false,
+        gl_fence ? gl_fence->GetGpuFence() : nullptr);
   }
 
   for (size_t i = 0; i < overlay_cnt_; ++i) {
     if (overlay_list.back().overlay_handled) {
       gl_surface_->ScheduleOverlayPlane(
-          overlay_buffers_[i][back_buffer_]->image(), /* gpu_fence */ nullptr,
-          gfx::OverlayPlaneData(
-              1, gfx::OVERLAY_TRANSFORM_NONE, gfx::RectF(overlay_rect[i]),
-              unity_rect, false,
-              gfx::Rect(overlay_buffers_[i][back_buffer_]->size()), 1.0f,
-              gfx::OverlayPriorityHint::kNone, gfx::RRectF(),
-              gfx::ColorSpace::CreateSRGB(), absl::nullopt));
+          1, gfx::OVERLAY_TRANSFORM_NONE,
+          overlay_buffers_[i][back_buffer_]->image(), overlay_rect[i],
+          unity_rect, false, /* gpu_fence */ nullptr);
     }
   }
 
@@ -296,28 +284,27 @@ void SurfacelessGlRenderer::RenderFrame() {
   gl_surface_->SwapBuffersAsync(
       base::BindOnce(&SurfacelessGlRenderer::PostRenderFrameTask,
                      weak_ptr_factory_.GetWeakPtr()),
-      base::DoNothing(), gl::FrameData());
+      base::DoNothing());
 }
 
 void SurfacelessGlRenderer::PostRenderFrameTask(
     gfx::SwapCompletionResult result) {
-  if (!result.release_fence.is_null())
-    gfx::GpuFence(std::move(result.release_fence)).Wait();
+  if (result.gpu_fence)
+    result.gpu_fence->Wait();
 
   switch (result.swap_result) {
     case gfx::SwapResult::SWAP_NAK_RECREATE_BUFFERS:
-      for (size_t i = 0; i < std::size(buffers_); ++i) {
+      for (size_t i = 0; i < base::size(buffers_); ++i) {
         buffers_[i] = std::make_unique<BufferWrapper>();
         if (!buffers_[i]->Initialize(widget_, primary_plane_rect_.size()))
           LOG(FATAL) << "Failed to recreate buffer";
       }
-      [[fallthrough]];  // We want to render a new frame anyways.
+      FALLTHROUGH;  // We want to render a new frame anyways.
     case gfx::SwapResult::SWAP_ACK:
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(&SurfacelessGlRenderer::RenderFrame,
                                     weak_ptr_factory_.GetWeakPtr()));
       break;
-    case gfx::SwapResult::SWAP_SKIPPED:
     case gfx::SwapResult::SWAP_FAILED:
       LOG(FATAL) << "Failed to swap buffers";
       break;

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,13 @@
 
 #include <vector>
 
-#include "base/containers/span.h"
-
 namespace blink {
 class WebCryptoKey;
 }
 
 namespace webcrypto {
 
+class CryptoData;
 class Status;
 
 // Helper functions for doing RSA-SSA signing and verification
@@ -27,13 +26,13 @@ class Status;
 
 Status RsaSign(const blink::WebCryptoKey& key,
                unsigned int pss_salt_length_bytes,
-               base::span<const uint8_t> data,
+               const CryptoData& data,
                std::vector<uint8_t>* buffer);
 
 Status RsaVerify(const blink::WebCryptoKey& key,
                  unsigned int pss_salt_length_bytes,
-                 base::span<const uint8_t> signature,
-                 base::span<const uint8_t> data,
+                 const CryptoData& signature,
+                 const CryptoData& data,
                  bool* signature_match);
 
 }  // namespace webcrypto

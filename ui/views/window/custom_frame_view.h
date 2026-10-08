@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/widget/widget.h"
@@ -35,10 +36,6 @@ class Widget;
 class VIEWS_EXPORT CustomFrameView : public NonClientFrameView {
  public:
   explicit CustomFrameView(Widget* frame);
-
-  CustomFrameView(const CustomFrameView&) = delete;
-  CustomFrameView& operator=(const CustomFrameView&) = delete;
-
   ~CustomFrameView() override;
 
   // Overridden from NonClientFrameView:
@@ -140,16 +137,16 @@ class VIEWS_EXPORT CustomFrameView : public NonClientFrameView {
   gfx::Rect title_bounds_;
 
   // Not owned.
-  const raw_ptr<Widget> frame_;
+  Widget* const frame_;
 
   // The icon of this window. May be NULL.
-  raw_ptr<ImageButton> window_icon_ = nullptr;
+  ImageButton* window_icon_ = nullptr;
 
   // Window caption buttons.
-  raw_ptr<ImageButton> minimize_button_;
-  raw_ptr<ImageButton> maximize_button_;
-  raw_ptr<ImageButton> restore_button_;
-  raw_ptr<ImageButton> close_button_;
+  ImageButton* minimize_button_;
+  ImageButton* maximize_button_;
+  ImageButton* restore_button_;
+  ImageButton* close_button_;
 
   // Background painter for the window frame.
   std::unique_ptr<FrameBackground> frame_background_;
@@ -159,10 +156,13 @@ class VIEWS_EXPORT CustomFrameView : public NonClientFrameView {
   int minimum_title_bar_x_ = 0;
   int maximum_title_bar_x_ = -1;
 
-  base::CallbackListSubscription paint_as_active_subscription_ =
-      frame_->RegisterPaintAsActiveChangedCallback(
-          base::BindRepeating(&CustomFrameView::SchedulePaint,
-                              base::Unretained(this)));
+  std::unique_ptr<Widget::PaintAsActiveCallbackList::Subscription>
+      paint_as_active_subscription_ =
+          frame_->RegisterPaintAsActiveChangedCallback(
+              base::BindRepeating(&CustomFrameView::SchedulePaint,
+                                  base::Unretained(this)));
+
+  DISALLOW_COPY_AND_ASSIGN(CustomFrameView);
 };
 
 }  // namespace views

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,4 @@
 namespace autofill_assistant {
 MockRuntimeManager::MockRuntimeManager() = default;
 MockRuntimeManager::~MockRuntimeManager() = default;
-
-base::WeakPtr<RuntimeManager> MockRuntimeManager::GetWeakPtr() {
-  return weak_ptr_factory_.GetWeakPtr();
-}
-
 }  // namespace autofill_assistant

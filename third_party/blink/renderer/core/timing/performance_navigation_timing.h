@@ -1,11 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_TIMING_PERFORMANCE_NAVIGATION_TIMING_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_TIMING_PERFORMANCE_NAVIGATION_TIMING_H_
 
-#include "third_party/blink/public/mojom/back_forward_cache_not_restored_reasons.mojom-blink.h"
+#include "third_party/blink/public/mojom/timing/resource_timing.mojom-blink.h"
 #include "third_party/blink/public/web/web_navigation_type.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/dom/dom_high_res_time_stamp.h"
@@ -15,6 +15,7 @@
 
 namespace blink {
 
+class Document;
 class DocumentTiming;
 class DocumentLoader;
 class DocumentLoadTiming;
@@ -33,14 +34,11 @@ class CORE_EXPORT PerformanceNavigationTiming final
   PerformanceNavigationTiming(LocalDOMWindow*,
                               ResourceTimingInfo*,
                               base::TimeTicks time_origin,
-                              bool cross_origin_isolated_capability,
-                              HeapVector<Member<PerformanceServerTiming>>,
-                              network::mojom::NavigationDeliveryType);
-  ~PerformanceNavigationTiming() override;
+                              HeapVector<Member<PerformanceServerTiming>>);
 
   // Attributes inherited from PerformanceEntry.
   DOMHighResTimeStamp duration() const override;
-  const AtomicString& entryType() const override;
+  AtomicString entryType() const override;
   PerformanceEntryType EntryTypeEnum() const override;
 
   AtomicString initiatorType() const override;
@@ -56,7 +54,6 @@ class CORE_EXPORT PerformanceNavigationTiming final
   DOMHighResTimeStamp loadEventEnd() const;
   AtomicString type() const;
   uint16_t redirectCount() const;
-  ScriptValue notRestoredReasons(ScriptState* script_state) const;
 
   // PerformanceResourceTiming overrides:
   DOMHighResTimeStamp fetchStart() const override;
@@ -70,9 +67,9 @@ class CORE_EXPORT PerformanceNavigationTiming final
   void BuildJSONValue(V8ObjectBuilder&) const override;
 
  private:
-  friend class PerformanceNavigationTimingActivationStart;
+  ~PerformanceNavigationTiming() override;
 
-  static AtomicString GetNavigationType(WebNavigationType);
+  static AtomicString GetNavigationType(WebNavigationType, const Document*);
 
   const DocumentTiming* GetDocumentTiming() const;
   DocumentLoader* GetDocumentLoader() const;
@@ -85,14 +82,10 @@ class CORE_EXPORT PerformanceNavigationTiming final
   uint64_t GetEncodedBodySize() const override;
   uint64_t GetDecodedBodySize() const override;
 
-  bool AllowRedirectDetails() const override;
-  bool AllowNegativeValue() const override;
+  bool GetAllowRedirectDetails() const;
+
   AtomicString AlpnNegotiatedProtocol() const override;
   AtomicString ConnectionInfo() const override;
-
-  ScriptValue NotRestoredReasonsBuilder(
-      ScriptState* script_state,
-      const mojom::blink::BackForwardCacheNotRestoredReasonsPtr& reasons) const;
 
   scoped_refptr<ResourceTimingInfo> resource_timing_info_;
 };

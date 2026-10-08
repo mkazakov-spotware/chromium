@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "components/web_package/mojom/web_bundle_parser.mojom.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/browser_context.h"
@@ -37,10 +38,6 @@ class CONTENT_EXPORT WebBundleBlobDataSource {
       mojo::ScopedDataPipeConsumerHandle outer_response_body,
       network::mojom::URLLoaderClientEndpointsPtr endpoints,
       BrowserContext::BlobContextGetter blob_context_getter);
-
-  WebBundleBlobDataSource(const WebBundleBlobDataSource&) = delete;
-  WebBundleBlobDataSource& operator=(const WebBundleBlobDataSource&) = delete;
-
   ~WebBundleBlobDataSource();
 
   void AddReceiver(mojo::PendingReceiver<web_package::mojom::BundleDataSource>
@@ -57,10 +54,6 @@ class CONTENT_EXPORT WebBundleBlobDataSource {
     BlobDataSourceCore(uint64_t length_hint,
                        network::mojom::URLLoaderClientEndpointsPtr endpoints,
                        BrowserContext::BlobContextGetter blob_context_getter);
-
-    BlobDataSourceCore(const BlobDataSourceCore&) = delete;
-    BlobDataSourceCore& operator=(const BlobDataSourceCore&) = delete;
-
     ~BlobDataSourceCore() override;
 
     void Start(mojo::ScopedDataPipeConsumerHandle outer_response_body);
@@ -77,10 +70,6 @@ class CONTENT_EXPORT WebBundleBlobDataSource {
    private:
     // Implements web_package::mojom::BundleDataSource.
     void Read(uint64_t offset, uint64_t length, ReadCallback callback) override;
-
-    void Length(LengthCallback callback) override;
-
-    void IsRandomAccessContext(IsRandomAccessContextCallback callback) override;
 
     void StreamingBlobDone(storage::BlobBuilderFromStream* builder,
                            std::unique_ptr<storage::BlobDataHandle> result);
@@ -107,6 +96,8 @@ class CONTENT_EXPORT WebBundleBlobDataSource {
     std::vector<base::OnceClosure> pending_get_blob_tasks_;
 
     base::WeakPtrFactory<BlobDataSourceCore> weak_factory_{this};
+
+    DISALLOW_COPY_AND_ASSIGN(BlobDataSourceCore);
   };
 
   static void CreateCoreOnIO(
@@ -142,6 +133,8 @@ class CONTENT_EXPORT WebBundleBlobDataSource {
   std::vector<base::OnceClosure> pending_get_core_tasks_;
 
   base::WeakPtrFactory<WebBundleBlobDataSource> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(WebBundleBlobDataSource);
 };
 
 }  // namespace content

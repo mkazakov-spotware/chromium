@@ -1,14 +1,14 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_CREDENTIAL_CACHE_H_
 #define COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_CREDENTIAL_CACHE_H_
 
-#include <map>
 #include <vector>
 
-#include "base/types/strong_alias.h"
+#include "base/strings/string16.h"
+#include "base/util/type_safety/strong_alias.h"
 #include "url/origin.h"
 
 namespace password_manager {
@@ -21,18 +21,18 @@ class CredentialCache {
  public:
   // TODO(crbug.com/1051553): Consider reusing this alias for other password
   // manager code as well.
-  using IsOriginBlocklisted =
-      base::StrongAlias<class IsOriginBlocklistedTag, bool>;
+  using IsOriginBlacklisted =
+      util::StrongAlias<class IsOriginBlacklistedTag, bool>;
   CredentialCache();
   CredentialCache(const CredentialCache&) = delete;
   CredentialCache& operator=(const CredentialCache&) = delete;
   ~CredentialCache();
 
-  // Saves credentials and blocklisted status for an origin so that they can be
+  // Saves credentials and blacklisted status for an origin so that they can be
   // used in the sheet.
-  void SaveCredentialsAndBlocklistedForOrigin(
+  void SaveCredentialsAndBlacklistedForOrigin(
       const std::vector<const PasswordForm*>& matches,
-      IsOriginBlocklisted is_blocklisted,
+      IsOriginBlacklisted is_blacklisted,
       const url::Origin& origin);
 
   // Returns the credential store for a given origin. If it does not exist, an

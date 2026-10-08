@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,9 +17,8 @@
 #include <string.h>
 #include <sys/types.h>
 
-#include <iterator>
-
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "client/annotation.h"
 #include "client/simple_string_dictionary.h"
@@ -158,7 +157,8 @@ void PEImageAnnotationsReader::ReadCrashpadAnnotationsList(
     snapshot.type = current.type;
 
     char name[Annotation::kNameMaxLength];
-    if (!process_reader_->Memory()->Read(current.name, std::size(name), name)) {
+    if (!process_reader_->Memory()->Read(
+            current.name, base::size(name), name)) {
       LOG(WARNING) << "could not read annotation name at index " << index
                    << " in " << base::WideToUTF8(name_);
       continue;

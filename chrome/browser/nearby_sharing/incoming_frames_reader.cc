@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,12 @@
 
 #include <type_traits>
 
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "chrome/browser/nearby_sharing/logging/logging.h"
-#include "chrome/browser/nearby_sharing/public/cpp/nearby_connection.h"
-#include "chromeos/ash/services/nearby/public/mojom/nearby_decoder.mojom.h"
+#include "chrome/browser/nearby_sharing/nearby_connection.h"
+#include "chrome/browser/nearby_sharing/nearby_process_manager.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chromeos/services/nearby/public/mojom/nearby_decoder.mojom.h"
 
 namespace {
 
@@ -23,27 +25,33 @@ std::ostream& operator<<(std::ostream& out,
 }  // namespace
 
 IncomingFramesReader::IncomingFramesReader(
-    ash::nearby::NearbyProcessManager* process_manager,
+    NearbyProcessManager* process_manager,
+    Profile* profile,
     NearbyConnection* connection)
-    : process_manager_(process_manager), connection_(connection) {
-  DCHECK(process_manager);
-  DCHECK(connection);
+    : process_manager_(process_manager),
+      profile_(profile),
+      connection_(connection) {
+  DCHECK(process_manager_);
+  DCHECK(profile_);
+  DCHECK(connection_);
+
+  nearby_process_observer_.Add(process_manager);
 }
 
 IncomingFramesReader::~IncomingFramesReader() = default;
 
 void IncomingFramesReader::ReadFrame(
-    base::OnceCallback<void(absl::optional<sharing::mojom::V1FramePtr>)>
+    base::OnceCallback<void(base::Optional<sharing::mojom::V1FramePtr>)>
         callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(!callback_);
   DCHECK(!is_process_stopped_);
 
   callback_ = std::move(callback);
-  frame_type_ = absl::nullopt;
+  frame_type_ = base::nullopt;
 
   // Check in cache for frame.
-  absl::optional<sharing::mojom::V1FramePtr> cached_frame =
+  base::Optional<sharing::mojom::V1FramePtr> cached_frame =
       GetCachedFrame(frame_type_);
   if (cached_frame) {
     Done(std::move(cached_frame));
@@ -55,14 +63,14 @@ void IncomingFramesReader::ReadFrame(
 
 void IncomingFramesReader::ReadFrame(
     sharing::mojom::V1Frame::Tag frame_type,
-    base::OnceCallback<void(absl::optional<sharing::mojom::V1FramePtr>)>
+    base::OnceCallback<void(base::Optional<sharing::mojom::V1FramePtr>)>
         callback,
     base::TimeDelta timeout) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(!callback_);
   DCHECK(!is_process_stopped_);
   if (!connection_) {
-    std::move(callback).Run(absl::nullopt);
+    std::move(callback).Run(base::nullopt);
     return;
   }
 
@@ -71,11 +79,11 @@ void IncomingFramesReader::ReadFrame(
 
   timeout_callback_.Reset(base::BindOnce(&IncomingFramesReader::OnTimeout,
                                          weak_ptr_factory_.GetWeakPtr()));
-  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::SequencedTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE, base::BindOnce(timeout_callback_.callback()), timeout);
 
   // Check in cache for frame.
-  absl::optional<sharing::mojom::V1FramePtr> cached_frame =
+  base::Optional<sharing::mojom::V1FramePtr> cached_frame =
       GetCachedFrame(frame_type_);
   if (cached_frame) {
     Done(std::move(cached_frame));
@@ -85,10 +93,13 @@ void IncomingFramesReader::ReadFrame(
   ReadNextFrame();
 }
 
-void IncomingFramesReader::OnNearbyProcessStopped(
-    ash::nearby::NearbyProcessManager::NearbyProcessShutdownReason) {
+void IncomingFramesReader::OnNearbyProfileChanged(Profile* profile) {}
+
+void IncomingFramesReader::OnNearbyProcessStarted() {}
+
+void IncomingFramesReader::OnNearbyProcessStopped() {
   is_process_stopped_ = true;
-  Done(absl::nullopt);
+  Done(base::nullopt);
 }
 
 void IncomingFramesReader::ReadNextFrame() {
@@ -101,12 +112,15 @@ void IncomingFramesReader::ReadNextFrame() {
 void IncomingFramesReader::OnTimeout() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
+  if (!callback_)
+    return;
+
   NS_LOG(WARNING) << __func__ << ": Timed out reading from NearbyConnection.";
-  Done(absl::nullopt);
+  connection_->Close();
 }
 
 void IncomingFramesReader::OnDataReadFromConnection(
-    absl::optional<std::vector<uint8_t>> bytes) {
+    base::Optional<std::vector<uint8_t>> bytes) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (!callback_) {
@@ -115,24 +129,13 @@ void IncomingFramesReader::OnDataReadFromConnection(
 
   if (!bytes) {
     NS_LOG(WARNING) << __func__ << ": Failed to read frame";
-    Done(absl::nullopt);
+    Done(base::nullopt);
     return;
   }
 
-  sharing::mojom::NearbySharingDecoder* decoder =
-      GetOrStartNearbySharingDecoder();
-
-  if (!decoder) {
-    NS_LOG(WARNING)
-        << __func__
-        << ": Cannot decode frame. Not currently bound to nearby process";
-    Done(absl::nullopt);
-    return;
-  }
-
-  decoder->DecodeFrame(*bytes,
-                       base::BindOnce(&IncomingFramesReader::OnFrameDecoded,
-                                      weak_ptr_factory_.GetWeakPtr()));
+  process_manager_->GetOrStartNearbySharingDecoder(profile_)->DecodeFrame(
+      *bytes, base::BindOnce(&IncomingFramesReader::OnFrameDecoded,
+                             weak_ptr_factory_.GetWeakPtr()));
 }
 
 void IncomingFramesReader::OnFrameDecoded(sharing::mojom::FramePtr frame) {
@@ -164,18 +167,18 @@ void IncomingFramesReader::OnFrameDecoded(sharing::mojom::FramePtr frame) {
 }
 
 void IncomingFramesReader::Done(
-    absl::optional<sharing::mojom::V1FramePtr> frame) {
+    base::Optional<sharing::mojom::V1FramePtr> frame) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  frame_type_ = absl::nullopt;
+  frame_type_ = base::nullopt;
   timeout_callback_.Cancel();
   if (callback_) {
     std::move(callback_).Run(std::move(frame));
   }
 }
 
-absl::optional<sharing::mojom::V1FramePtr> IncomingFramesReader::GetCachedFrame(
-    absl::optional<sharing::mojom::V1Frame::Tag> frame_type) {
+base::Optional<sharing::mojom::V1FramePtr> IncomingFramesReader::GetCachedFrame(
+    base::Optional<sharing::mojom::V1Frame::Tag> frame_type) {
   NS_LOG(VERBOSE) << __func__ << ": Fetching cached frame";
   if (frame_type)
     NS_LOG(VERBOSE) << __func__ << ": Requested frame type - " << *frame_type;
@@ -184,37 +187,10 @@ absl::optional<sharing::mojom::V1FramePtr> IncomingFramesReader::GetCachedFrame(
       frame_type ? cached_frames_.find(*frame_type) : cached_frames_.begin();
 
   if (iter == cached_frames_.end())
-    return absl::nullopt;
+    return base::nullopt;
 
   NS_LOG(VERBOSE) << __func__ << ": Successfully read cached frame";
   sharing::mojom::V1FramePtr frame = std::move(iter->second);
   cached_frames_.erase(iter);
   return frame;
-}
-
-sharing::mojom::NearbySharingDecoder*
-IncomingFramesReader::GetOrStartNearbySharingDecoder() {
-  if (!process_reference_) {
-    process_reference_ = process_manager_->GetNearbyProcessReference(
-        base::BindOnce(&IncomingFramesReader::OnNearbyProcessStopped,
-                       weak_ptr_factory_.GetWeakPtr()));
-
-    if (!process_reference_) {
-      NS_LOG(WARNING) << __func__
-                      << "Failed to get a reference to the nearby process.";
-      is_process_stopped_ = true;
-      return nullptr;
-    }
-  }
-
-  is_process_stopped_ = false;
-
-  sharing::mojom::NearbySharingDecoder* decoder =
-      process_reference_->GetNearbySharingDecoder().get();
-
-  if (!decoder)
-    NS_LOG(WARNING) << __func__
-                    << "Failed to get decoder from process reference.";
-
-  return decoder;
 }

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/files/scoped_file.h"
+#include "base/macros.h"
 #include "base/memory/read_only_shared_memory_region.h"
 #include "base/memory/unsafe_shared_memory_region.h"
 #include "base/process/process.h"
@@ -21,6 +22,10 @@
 namespace base {
 class SingleThreadTaskRunner;
 class WaitableEvent;
+}
+
+namespace IPC {
+class TestSink;
 }
 
 namespace ppapi {
@@ -66,16 +71,13 @@ class PPAPI_PROXY_EXPORT ProxyChannel
         base::ProcessId remote_pid) = 0;
   };
 
-  ProxyChannel(const ProxyChannel&) = delete;
-  ProxyChannel& operator=(const ProxyChannel&) = delete;
-
   ~ProxyChannel() override;
 
   // Alternative to InitWithChannel() for unit tests that want to send all
   // messages sent via this channel to the given test sink. The test sink
   // must outlive this class. In this case, the peer PID will be the current
   // process ID.
-  void InitWithTestSink(IPC::Sender* sender);
+  void InitWithTestSink(IPC::TestSink* test_sink);
 
   // Shares a file handle (HANDLE / file descriptor) with the remote side. It
   // returns a handle that should be sent in exactly one IPC message. Upon
@@ -139,11 +141,13 @@ class PPAPI_PROXY_EXPORT ProxyChannel
   // When we're unit testing, this will indicate the sink for the messages to
   // be deposited so they can be inspected by the test. When non-NULL, this
   // indicates that the channel should not be used.
-  IPC::Sender* test_sink_;
+  IPC::TestSink* test_sink_;
 
   // Will be null for some tests when there is a test_sink_, and if the
   // remote side has crashed.
   std::unique_ptr<IPC::SyncChannel> channel_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProxyChannel);
 };
 
 }  // namespace proxy

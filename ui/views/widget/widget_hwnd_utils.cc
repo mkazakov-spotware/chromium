@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@
 #include "ui/views/widget/widget_delegate.h"
 #include "ui/views/win/hwnd_message_handler.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "ui/base/win/shell.h"
 #endif
 
@@ -43,8 +43,8 @@ void CalculateWindowStylesFromInitParams(
     *style |= WS_MINIMIZE;
   if (!params.accept_events)
     *ex_style |= WS_EX_TRANSPARENT;
-  DCHECK_NE(Widget::InitParams::Activatable::kDefault, params.activatable);
-  if (params.activatable == Widget::InitParams::Activatable::kNo)
+  DCHECK_NE(Widget::InitParams::ACTIVATABLE_DEFAULT, params.activatable);
+  if (params.activatable == Widget::InitParams::ACTIVATABLE_NO)
     *ex_style |= WS_EX_NOACTIVATE;
   if (params.EffectiveZOrderLevel() != ui::ZOrderLevel::kNormal)
     *ex_style |= WS_EX_TOPMOST;
@@ -61,13 +61,13 @@ void CalculateWindowStylesFromInitParams(
       //   WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX
       *style |= WS_OVERLAPPEDWINDOW;
       if (!widget_delegate->CanMaximize())
-        *style &= static_cast<DWORD>(~WS_MAXIMIZEBOX);
+        *style &= ~WS_MAXIMIZEBOX;
       if (!widget_delegate->CanMinimize())
-        *style &= static_cast<DWORD>(~WS_MINIMIZEBOX);
+        *style &= ~WS_MINIMIZEBOX;
       if (!widget_delegate->CanResize())
-        *style &= static_cast<DWORD>(~(WS_THICKFRAME | WS_MAXIMIZEBOX));
+        *style &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
       if (params.remove_standard_frame)
-        *style &= static_cast<DWORD>(~(WS_MINIMIZEBOX | WS_MAXIMIZEBOX));
+        *style &= ~(WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
 
       if (native_widget_delegate->IsDialogBox()) {
         *style |= DS_MODALFRAME;
@@ -87,11 +87,14 @@ void CalculateWindowStylesFromInitParams(
 
       // See layered window comment below.
       if (is_translucent)
-        *style &= static_cast<DWORD>(~(WS_THICKFRAME | WS_CAPTION));
+        *style &= ~(WS_THICKFRAME | WS_CAPTION);
       break;
     }
     case Widget::InitParams::TYPE_CONTROL:
       *style |= WS_VISIBLE;
+      break;
+    case Widget::InitParams::TYPE_WINDOW_FRAMELESS:
+      *style |= WS_POPUP;
       break;
     case Widget::InitParams::TYPE_BUBBLE:
       *style |= WS_POPUP;
@@ -106,7 +109,8 @@ void CalculateWindowStylesFromInitParams(
       break;
     case Widget::InitParams::TYPE_MENU:
       *style |= WS_POPUP;
-      if (params.remove_standard_frame) {
+      if (::features::IsFormControlsRefreshEnabled() &&
+          params.remove_standard_frame) {
         // If the platform doesn't support drop shadow, decorate the Window
         // with just a border.
         if (ui::win::IsAeroGlassEnabled())
@@ -117,9 +121,7 @@ void CalculateWindowStylesFromInitParams(
       if (!params.force_show_in_taskbar)
         *ex_style |= WS_EX_TOOLWINDOW;
       break;
-    case Widget::InitParams::TYPE_DRAG:
     case Widget::InitParams::TYPE_TOOLTIP:
-    case Widget::InitParams::TYPE_WINDOW_FRAMELESS:
       *style |= WS_POPUP;
       break;
     default:

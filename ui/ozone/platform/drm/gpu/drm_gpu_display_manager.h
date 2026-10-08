@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,8 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/containers/flat_map.h"
+#include "base/macros.h"
 #include "ui/display/types/display_configuration_params.h"
 #include "ui/display/types/display_constants.h"
 #include "ui/gfx/geometry/point.h"
@@ -36,15 +38,11 @@ class DrmGpuDisplayManager {
  public:
   DrmGpuDisplayManager(ScreenManager* screen_manager,
                        DrmDeviceManager* drm_device_manager);
-
-  DrmGpuDisplayManager(const DrmGpuDisplayManager&) = delete;
-  DrmGpuDisplayManager& operator=(const DrmGpuDisplayManager&) = delete;
-
   ~DrmGpuDisplayManager();
 
   // Sets a callback that will be notified when display configuration may have
-  // changed, so we should update state for managing overlays.
-  void SetDisplaysConfiguredCallback(base::RepeatingClosure callback);
+  // changed to clear the overlay configuration cache.
+  void SetClearOverlayCacheCallback(base::RepeatingClosure callback);
 
   // Returns a list of the connected displays. When this is called the list of
   // displays is refreshed.
@@ -54,14 +52,8 @@ class DrmGpuDisplayManager {
   bool TakeDisplayControl();
   void RelinquishDisplayControl();
 
-  // Whether or not a udev display change event triggered by a DRM property
-  // should go through or get blocked.
-  bool ShouldDisplayEventTriggerConfiguration(
-      const EventPropertyMap& event_props);
-
-  bool ConfigureDisplays(
-      const std::vector<display::DisplayConfigurationParams>& config_requests,
-      uint32_t modeset_flag);
+  base::flat_map<int64_t, bool> ConfigureDisplays(
+      const std::vector<display::DisplayConfigurationParams>& config_requests);
   bool GetHDCPState(int64_t display_id,
                     display::HDCPState* state,
                     display::ContentProtectionMethod* protection_method);
@@ -75,7 +67,7 @@ class DrmGpuDisplayManager {
       int64_t display_id,
       const std::vector<display::GammaRampRGBEntry>& degamma_lut,
       const std::vector<display::GammaRampRGBEntry>& gamma_lut);
-  bool SetPrivacyScreen(int64_t display_id, bool enabled);
+  void SetPrivacyScreen(int64_t display_id, bool enabled);
 
   void SetColorSpace(int64_t crtc_id, const gfx::ColorSpace& color_space);
 
@@ -93,7 +85,9 @@ class DrmGpuDisplayManager {
 
   std::vector<std::unique_ptr<DrmDisplay>> displays_;
 
-  base::RepeatingClosure displays_configured_callback_;
+  base::RepeatingClosure clear_overlay_cache_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(DrmGpuDisplayManager);
 };
 
 }  // namespace ui

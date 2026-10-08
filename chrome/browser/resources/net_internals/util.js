@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,7 @@ function setNodeHeight(node, heightPx) {
  * @param {number} widthPx The width in pixels.
  * @param {number} heightPx The height in pixels.
  */
-export function setNodePosition(node, leftPx, topPx, widthPx, heightPx) {
+function setNodePosition(node, leftPx, topPx, widthPx, heightPx) {
   node.style.left = leftPx.toFixed(0) + 'px';
   node.style.top = topPx.toFixed(0) + 'px';
   setNodeWidth(node, widthPx);
@@ -40,8 +40,24 @@ export function setNodePosition(node, leftPx, topPx, widthPx, heightPx) {
  * @param {!HtmlNode} node The node being positioned.
  * @param {boolean} isVisible Whether to show the node or not.
  */
-export function setNodeDisplay(node, isVisible) {
+function setNodeDisplay(node, isVisible) {
   node.style.display = isVisible ? '' : 'none';
+}
+
+/**
+ * Toggles the visibility of a DOM node.
+ * @param {!HtmlNode} node The node to show or hide.
+ */
+function toggleNodeDisplay(node) {
+  setNodeDisplay(node, !getNodeDisplay(node));
+}
+
+/**
+ * Returns the visibility of a DOM node.
+ * @param {!HtmlNode} node The node to query.
+ */
+function getNodeDisplay(node) {
+  return node.style.display != 'none';
 }
 
 /**
@@ -51,7 +67,7 @@ export function setNodeDisplay(node, isVisible) {
  * @param {string} tagName the tag name of the new element.
  * @return {!HtmlElement} The newly created element.
  */
-export function addNode(parentNode, tagName) {
+function addNode(parentNode, tagName) {
   const elem = parentNode.ownerDocument.createElement(tagName);
   parentNode.appendChild(elem);
   return elem;
@@ -63,7 +79,7 @@ export function addNode(parentNode, tagName) {
  * @param {string} text The text to be added.
  * @return {!Object} The newly created text node.
  */
-export function addTextNode(parentNode, text) {
+function addTextNode(parentNode, text) {
   const textNode = parentNode.ownerDocument.createTextNode(text);
   parentNode.appendChild(textNode);
   return textNode;
@@ -78,13 +94,27 @@ export function addTextNode(parentNode, text) {
  * @param {string} text The text to be added.
  * @return {!HtmlElement} The newly created element.
  */
-export function addNodeWithText(parentNode, tagName, text) {
+function addNodeWithText(parentNode, tagName, text) {
   const elem = parentNode.ownerDocument.createElement(tagName);
   parentNode.appendChild(elem);
   addTextNode(elem, text);
   return elem;
 }
 
-export function hasTouchScreen() {
+/**
+ * Helper to make sure singleton classes are not instantiated more than once.
+ * @param {Function} ctor The constructor function being checked.
+ */
+function assertFirstConstructorCall(ctor) {
+  // This is the variable which is set by cr.addSingletonGetter().
+  if (ctor.hasCreateFirstInstance_) {
+    throw Error(
+        'The class ' + ctor.name + ' is a singleton, and should ' +
+        'only be accessed using ' + ctor.name + '.getInstance().');
+  }
+  ctor.hasCreateFirstInstance_ = true;
+}
+
+function hasTouchScreen() {
   return 'ontouchstart' in window;
 }

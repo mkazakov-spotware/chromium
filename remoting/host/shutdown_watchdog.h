@@ -1,10 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef REMOTING_HOST_SHUTDOWN_WATCHDOG_H_
 #define REMOTING_HOST_SHUTDOWN_WATCHDOG_H_
 
+#include "base/macros.h"
 #include "base/synchronization/lock.h"
 #include "base/threading/watchdog.h"
 
@@ -22,9 +23,6 @@ class ShutdownWatchdog : public base::Watchdog {
   // armed) before shutting down the process.
   explicit ShutdownWatchdog(const base::TimeDelta& duration);
 
-  ShutdownWatchdog(const ShutdownWatchdog&) = delete;
-  ShutdownWatchdog& operator=(const ShutdownWatchdog&) = delete;
-
   // This method should be called to set the process's exit-code before arming
   // the watchdog. Otherwise an exit-code of 0 is assumed.
   void SetExitCode(int exit_code);
@@ -36,6 +34,8 @@ class ShutdownWatchdog : public base::Watchdog {
 
   // Protects |exit_code_|, since Alarm() gets called on a separate thread.
   base::Lock lock_;
+
+  DISALLOW_COPY_AND_ASSIGN(ShutdownWatchdog);
 };
 
 }  // namespace remoting

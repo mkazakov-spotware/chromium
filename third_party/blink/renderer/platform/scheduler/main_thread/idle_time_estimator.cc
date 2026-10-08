@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,16 +9,23 @@
 namespace blink {
 namespace scheduler {
 
-IdleTimeEstimator::IdleTimeEstimator(const base::TickClock* time_source,
-                                     int sample_count,
-                                     double estimation_percentile)
-    : per_frame_compositor_task_runtime_(sample_count),
+IdleTimeEstimator::IdleTimeEstimator(
+    const scoped_refptr<MainThreadTaskQueue>& compositor_task_runner,
+    const base::TickClock* time_source,
+    int sample_count,
+    double estimation_percentile)
+    : compositor_task_queue_(compositor_task_runner),
+      per_frame_compositor_task_runtime_(sample_count),
       time_source_(time_source),
       estimation_percentile_(estimation_percentile),
       nesting_level_(0),
-      did_commit_(false) {}
+      did_commit_(false) {
+  compositor_task_queue_->GetTaskQueue()->AddTaskObserver(this);
+}
 
-IdleTimeEstimator::~IdleTimeEstimator() = default;
+IdleTimeEstimator::~IdleTimeEstimator() {
+  compositor_task_queue_->GetTaskQueue()->RemoveTaskObserver(this);
+}
 
 base::TimeDelta IdleTimeEstimator::GetExpectedIdleDuration(
     base::TimeDelta compositor_frame_interval) const {
@@ -64,16 +71,6 @@ void IdleTimeEstimator::DidProcessTask(const base::PendingTask& pending_task) {
     cumulative_compositor_runtime_ = base::TimeDelta();
     did_commit_ = false;
   }
-}
-
-void IdleTimeEstimator::AddCompositorTaskQueue(
-    scoped_refptr<MainThreadTaskQueue> compositor_task_queue) {
-  compositor_task_queue->AddTaskObserver(this);
-}
-
-void IdleTimeEstimator::RemoveCompositorTaskQueue(
-    scoped_refptr<MainThreadTaskQueue> compositor_task_queue) {
-  compositor_task_queue->RemoveTaskObserver(this);
 }
 
 }  // namespace scheduler

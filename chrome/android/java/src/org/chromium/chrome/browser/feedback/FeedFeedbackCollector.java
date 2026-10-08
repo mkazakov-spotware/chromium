@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,17 +36,17 @@ public class FeedFeedbackCollector
     }
 
     public FeedFeedbackCollector(Activity activity, @Nullable String categoryTag,
-            @Nullable String description, @Nullable ScreenshotSource screenshotSource,
-            InitParams initParams, Callback<FeedbackCollector> callback, Profile profile) {
+            @Nullable String description, @Nullable String feedbackContext,
+            @Nullable ScreenshotSource screenshotSource, InitParams initParams,
+            Callback<FeedbackCollector> callback) {
         super(categoryTag, description, callback);
 
-        init(activity, screenshotSource, initParams, profile);
+        init(activity, screenshotSource, initParams);
     }
 
     @VisibleForTesting
     @Override
-    protected List<FeedbackSource> buildSynchronousFeedbackSources(
-            Activity activity, InitParams initParams) {
+    protected List<FeedbackSource> buildSynchronousFeedbackSources(InitParams initParams) {
         List<FeedbackSource> sources = new ArrayList<>();
 
         // Since Interest feed feedback goes to a different destiation, we don't include other PSD

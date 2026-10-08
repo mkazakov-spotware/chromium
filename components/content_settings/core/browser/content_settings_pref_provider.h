@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 
 #include <map>
 #include <memory>
+#include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/content_settings/core/browser/content_settings_utils.h"
 #include "components/content_settings/core/browser/user_modifiable_provider.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -39,10 +40,6 @@ class PrefProvider : public UserModifiableProvider {
                bool off_the_record,
                bool store_last_modified,
                bool restore_session);
-
-  PrefProvider(const PrefProvider&) = delete;
-  PrefProvider& operator=(const PrefProvider&) = delete;
-
   ~PrefProvider() override;
 
   // UserModifiableProvider implementations.
@@ -52,13 +49,14 @@ class PrefProvider : public UserModifiableProvider {
   bool SetWebsiteSetting(const ContentSettingsPattern& primary_pattern,
                          const ContentSettingsPattern& secondary_pattern,
                          ContentSettingsType content_type,
-                         base::Value&& value,
+                         std::unique_ptr<base::Value>&& value,
                          const ContentSettingConstraints& constraints) override;
   void ClearAllContentSettingsRules(ContentSettingsType content_type) override;
   void ShutdownOnUIThread() override;
-  bool UpdateLastVisitTime(const ContentSettingsPattern& primary_pattern,
-                           const ContentSettingsPattern& secondary_pattern,
-                           ContentSettingsType content_type) override;
+  base::Time GetWebsiteSettingLastModified(
+      const ContentSettingsPattern& primary_pattern,
+      const ContentSettingsPattern& secondary_pattern,
+      ContentSettingsType content_type) override;
   void SetClockForTesting(base::Clock* clock) override;
 
   void ClearPrefs();
@@ -82,7 +80,7 @@ class PrefProvider : public UserModifiableProvider {
   }
 
   // Weak; owned by the Profile and reset in ShutdownOnUIThread.
-  raw_ptr<PrefService> prefs_;
+  PrefService* prefs_;
 
   const bool off_the_record_;
 
@@ -95,7 +93,9 @@ class PrefProvider : public UserModifiableProvider {
 
   base::ThreadChecker thread_checker_;
 
-  raw_ptr<base::Clock> clock_;
+  base::Clock* clock_;
+
+  DISALLOW_COPY_AND_ASSIGN(PrefProvider);
 };
 
 }  // namespace content_settings

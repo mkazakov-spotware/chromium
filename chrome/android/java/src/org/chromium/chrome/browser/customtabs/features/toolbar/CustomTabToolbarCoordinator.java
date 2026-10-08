@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.customtabs.features.toolbar;
 
 import static org.chromium.chrome.browser.dependency_injection.ChromeCommonQualifiers.APP_CONTEXT;
 
-import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
@@ -21,13 +20,13 @@ import androidx.browser.customtabs.CustomTabsIntent;
 
 import org.chromium.base.Log;
 import org.chromium.base.metrics.RecordUserAction;
-import org.chromium.cc.input.BrowserControlsState;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsVisibilityManager;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.intents.CustomButtonParams;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.compositor.layouts.LayoutManagerImpl;
 import org.chromium.chrome.browser.customtabs.CloseButtonVisibilityManager;
+import org.chromium.chrome.browser.customtabs.CustomButtonParams;
 import org.chromium.chrome.browser.customtabs.CustomTabCompositorContentInitializer;
 import org.chromium.chrome.browser.customtabs.CustomTabsConnection;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityNavigationController;
@@ -36,9 +35,8 @@ import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabProvid
 import org.chromium.chrome.browser.dependency_injection.ActivityScope;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
-import org.chromium.components.browser_ui.share.ShareHelper;
+import org.chromium.content_public.common.BrowserControlsState;
 import org.chromium.ui.util.TokenHolder;
-import org.chromium.url.GURL;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -63,7 +61,7 @@ public class CustomTabToolbarCoordinator {
     private final BrowserServicesIntentDataProvider mIntentDataProvider;
     private final CustomTabActivityTabProvider mTabProvider;
     private final CustomTabsConnection mConnection;
-    private final Activity mActivity;
+    private final ChromeActivity<?> mActivity;
     private final Context mAppContext;
     private final CustomTabActivityTabController mTabController;
     private final Lazy<BrowserControlsVisibilityManager> mBrowserControlsVisibilityManager;
@@ -84,7 +82,7 @@ public class CustomTabToolbarCoordinator {
     @Inject
     public CustomTabToolbarCoordinator(BrowserServicesIntentDataProvider intentDataProvider,
             CustomTabActivityTabProvider tabProvider, CustomTabsConnection connection,
-            Activity activity, @Named(APP_CONTEXT) Context appContext,
+            ChromeActivity<?> activity, @Named(APP_CONTEXT) Context appContext,
             CustomTabActivityTabController tabController,
             Lazy<BrowserControlsVisibilityManager> controlsVisiblityManager,
             CustomTabActivityNavigationController navigationController,
@@ -127,6 +125,8 @@ public class CustomTabToolbarCoordinator {
             manager.setToolbarShadowVisibility(View.GONE);
         }
         showCustomButtonsOnToolbar();
+        CustomTabToolbar toolbar = mActivity.findViewById(R.id.toolbar);
+        toolbar.setIncognitoIconHidden(mIntentDataProvider.shouldHideIncognitoIconOnToolbarInCct());
     }
 
     /**
@@ -144,13 +144,12 @@ public class CustomTabToolbarCoordinator {
         Tab tab = mTabProvider.getTab();
         if (tab == null) return;
 
-        sendButtonPendingIntentWithUrlAndTitle(params, tab.getOriginalUrl(), tab.getTitle());
+        sendButtonPendingIntentWithUrlAndTitle(params, tab.getUrlString(), tab.getTitle());
 
         RecordUserAction.record("CustomTabsCustomActionButtonClick");
         Resources resources = mActivity.getResources();
         if (mIntentDataProvider.shouldEnableEmbeddedMediaExperience()
                 && TextUtils.equals(params.getDescription(), resources.getString(R.string.share))) {
-            ShareHelper.recordShareSource(ShareHelper.ShareSourceAndroid.ANDROID_SHARE_SHEET);
             RecordUserAction.record("CustomTabsCustomActionButtonClick.DownloadsUI.Share");
         }
     }
@@ -163,9 +162,9 @@ public class CustomTabToolbarCoordinator {
      * @param title The title to attach as additional data to the {@link PendingIntent}.
      */
     private void sendButtonPendingIntentWithUrlAndTitle(
-            CustomButtonParams params, GURL url, String title) {
+            CustomButtonParams params, String url, String title) {
         Intent addedIntent = new Intent();
-        addedIntent.setData(Uri.parse(url.getSpec()));
+        addedIntent.setData(Uri.parse(url));
         addedIntent.putExtra(Intent.EXTRA_SUBJECT, title);
         try {
             params.getPendingIntent().send(

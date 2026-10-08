@@ -1,7 +1,5 @@
-# Primary
 jsbell@chromium.org
+pwnall@chromium.org
 
-# Secondary
-asully@chromium.org
-ayui@chromium.org
-wanderview@chromium.org
+# TEAM: storage-dev@chromium.org
+# COMPONENT: Blink>Storage

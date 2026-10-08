@@ -1,20 +1,22 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package com.android.webview.chromium;
 
+import android.annotation.TargetApi;
+import android.os.Build;
 import android.os.Handler;
 import android.webkit.WebMessage;
 import android.webkit.WebMessagePort;
 
-import org.chromium.content_public.browser.MessagePayload;
 import org.chromium.content_public.browser.MessagePort;
 
 /**
  * This class is used to convert a WebMessagePort to a MessagePort in chromium
  * world.
  */
+@TargetApi(Build.VERSION_CODES.M)
 public class WebMessagePortAdapter extends WebMessagePort {
     private MessagePort mPort;
 
@@ -24,8 +26,7 @@ public class WebMessagePortAdapter extends WebMessagePort {
 
     @Override
     public void postMessage(WebMessage message) {
-        mPort.postMessage(
-                new MessagePayload(message.getData()), toMessagePorts(message.getPorts()));
+        mPort.postMessage(message.getData(), toMessagePorts(message.getPorts()));
     }
 
     @Override
@@ -42,9 +43,9 @@ public class WebMessagePortAdapter extends WebMessagePort {
     public void setWebMessageCallback(final WebMessageCallback callback, final Handler handler) {
         mPort.setMessageCallback(new MessagePort.MessageCallback() {
             @Override
-            public void onMessage(MessagePayload messagePayload, MessagePort[] ports) {
+            public void onMessage(String message, MessagePort[] ports) {
                 callback.onMessage(WebMessagePortAdapter.this,
-                        new WebMessage(messagePayload.getAsString(), fromMessagePorts(ports)));
+                        new WebMessage(message, fromMessagePorts(ports)));
             }
         }, handler);
     }

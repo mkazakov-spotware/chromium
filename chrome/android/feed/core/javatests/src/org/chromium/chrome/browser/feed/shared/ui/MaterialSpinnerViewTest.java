@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,9 +34,7 @@ public class MaterialSpinnerViewTest {
     @Before
     public void setUp() {
         Activity activity = Robolectric.setupActivity(Activity.class);
-        // First set the app theme, then apply the feed theme overlay.
-        activity.setTheme(R.style.Theme_BrowserUI);
-        activity.setTheme(R.style.ThemeOverlay_Feed_Light);
+        activity.setTheme(R.style.Light);
 
         // Attach the spinner inside a layout, so we can hide either the spinner
         // or the parent view (ie. the layout) in the tests. Note that we

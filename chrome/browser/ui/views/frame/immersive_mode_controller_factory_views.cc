@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,29 +7,24 @@
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS) || BUILDFLAG(IS_LACROS)
 #include "chrome/browser/ui/views/frame/immersive_mode_controller_chromeos.h"
 #endif
 
-#if BUILDFLAG(IS_MAC)
-#include "chrome/browser/ui/views/frame/browser_view.h"
+#if defined(OS_MAC)
 #include "chrome/browser/ui/views/frame/immersive_mode_controller_mac.h"
 #endif
 
 namespace chrome {
 
-std::unique_ptr<ImmersiveModeController> CreateImmersiveModeController(
-    const BrowserView* browser_view) {
-#if BUILDFLAG(IS_CHROMEOS)
+std::unique_ptr<ImmersiveModeController> CreateImmersiveModeController() {
+#if defined(OS_CHROMEOS) || BUILDFLAG(IS_LACROS)
   return std::make_unique<ImmersiveModeControllerChromeos>();
-#elif BUILDFLAG(IS_MAC)
-  if (browser_view->UsesImmersiveFullscreenMode()) {
-    return CreateImmersiveModeControllerMac();
-  }
-  return std::make_unique<ImmersiveModeControllerStub>();
+#elif defined(OS_MAC)
+  return CreateImmersiveModeControllerMac();
 #else
   return std::make_unique<ImmersiveModeControllerStub>();
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // OS_CHROMEOS
 }
 
 }  // namespace chrome

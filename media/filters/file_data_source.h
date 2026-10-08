@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,12 @@
 
 #include <stdint.h>
 
+#include <string>
+
 #include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/files/memory_mapped_file.h"
+#include "base/macros.h"
 #include "media/base/data_source.h"
 
 namespace media {
@@ -19,14 +22,10 @@ namespace media {
 class MEDIA_EXPORT FileDataSource : public DataSource {
  public:
   FileDataSource();
-
-  FileDataSource(const FileDataSource&) = delete;
-  FileDataSource& operator=(const FileDataSource&) = delete;
-
   ~FileDataSource() override;
 
-  [[nodiscard]] bool Initialize(const base::FilePath& file_path);
-  [[nodiscard]] bool Initialize(base::File file);
+  WARN_UNUSED_RESULT bool Initialize(const base::FilePath& file_path);
+  WARN_UNUSED_RESULT bool Initialize(base::File file);
 
   // Implementation of DataSource.
   void Stop() override;
@@ -35,11 +34,9 @@ class MEDIA_EXPORT FileDataSource : public DataSource {
             int size,
             uint8_t* data,
             DataSource::ReadCB read_cb) override;
-  [[nodiscard]] bool GetSize(int64_t* size_out) override;
+  bool GetSize(int64_t* size_out) override;
   bool IsStreaming() override;
   void SetBitrate(int bitrate) override;
-  bool PassedTimingAllowOriginCheck() final;
-  bool WouldTaintOrigin() final;
 
   // Unit test helpers. Recreate the object if you want the default behaviour.
   void force_read_errors_for_testing() { force_read_errors_ = true; }
@@ -53,6 +50,8 @@ class MEDIA_EXPORT FileDataSource : public DataSource {
   bool force_read_errors_;
   bool force_streaming_;
   uint64_t bytes_read_;
+
+  DISALLOW_COPY_AND_ASSIGN(FileDataSource);
 };
 
 }  // namespace media

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ namespace content {
 std::unique_ptr<ui::AXActionTarget> AXActionTargetFactory::CreateFromNodeId(
     const blink::WebDocument& document,
     content::PluginAXTreeSource* plugin_tree_source,
-    ui::AXNodeID node_id) {
+    ui::AXNode::AXID node_id) {
   blink::WebAXObject blink_target =
       blink::WebAXObject::FromWebDocumentByID(document, node_id);
   if (!blink_target.IsNull())

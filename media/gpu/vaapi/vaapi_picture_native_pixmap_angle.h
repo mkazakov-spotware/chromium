@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,14 @@
 
 #include <stdint.h>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "media/gpu/vaapi/vaapi_picture_native_pixmap.h"
 #include "ui/gfx/buffer_types.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/x/xproto.h"
 #include "ui/gl/gl_bindings.h"
-
-namespace gl {
-class GLImage;
-}
 
 namespace media {
 
@@ -37,14 +34,10 @@ class VaapiPictureNativePixmapAngle : public VaapiPictureNativePixmap {
       uint32_t client_texture_id,
       uint32_t texture_target);
 
-  VaapiPictureNativePixmapAngle(const VaapiPictureNativePixmapAngle&) = delete;
-  VaapiPictureNativePixmapAngle& operator=(
-      const VaapiPictureNativePixmapAngle&) = delete;
-
   ~VaapiPictureNativePixmapAngle() override;
 
   // VaapiPicture implementation.
-  VaapiStatus Allocate(gfx::BufferFormat format) override;
+  Status Allocate(gfx::BufferFormat format) override;
   bool ImportGpuMemoryBufferHandle(
       gfx::BufferFormat format,
       gfx::GpuMemoryBufferHandle gpu_memory_buffer_handle) override;
@@ -56,8 +49,7 @@ class VaapiPictureNativePixmapAngle : public VaapiPictureNativePixmap {
  private:
   x11::Pixmap x_pixmap_ = x11::Pixmap::None;
 
-  // GLImage bound to the GL textures used by the VDA client.
-  scoped_refptr<gl::GLImage> gl_image_;
+  DISALLOW_COPY_AND_ASSIGN(VaapiPictureNativePixmapAngle);
 };
 
 }  // namespace media

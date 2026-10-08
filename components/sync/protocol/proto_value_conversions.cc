@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,57 +10,18 @@
 #include <utility>
 
 #include "base/base64.h"
-#include "base/memory/raw_ptr.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/values.h"
 #include "components/sync/base/unique_position.h"
-#include "components/sync/protocol/app_list_specifics.pb.h"
-#include "components/sync/protocol/app_setting_specifics.pb.h"
-#include "components/sync/protocol/app_specifics.pb.h"
-#include "components/sync/protocol/arc_package_specifics.pb.h"
-#include "components/sync/protocol/autofill_offer_specifics.pb.h"
-#include "components/sync/protocol/autofill_specifics.pb.h"
-#include "components/sync/protocol/bookmark_specifics.pb.h"
-#include "components/sync/protocol/contact_info_specifics.pb.h"
-#include "components/sync/protocol/data_type_progress_marker.pb.h"
-#include "components/sync/protocol/dictionary_specifics.pb.h"
-#include "components/sync/protocol/entity_specifics.pb.h"
-#include "components/sync/protocol/extension_setting_specifics.pb.h"
-#include "components/sync/protocol/extension_specifics.pb.h"
-#include "components/sync/protocol/history_delete_directive_specifics.pb.h"
-#include "components/sync/protocol/history_specifics.pb.h"
-#include "components/sync/protocol/nigori_specifics.pb.h"
-#include "components/sync/protocol/os_preference_specifics.pb.h"
-#include "components/sync/protocol/os_priority_preference_specifics.pb.h"
-#include "components/sync/protocol/password_specifics.pb.h"
-#include "components/sync/protocol/preference_specifics.pb.h"
-#include "components/sync/protocol/printer_specifics.pb.h"
-#include "components/sync/protocol/printers_authorization_server_specifics.pb.h"
-#include "components/sync/protocol/priority_preference_specifics.pb.h"
 #include "components/sync/protocol/proto_visitors.h"
-#include "components/sync/protocol/reading_list_specifics.pb.h"
-#include "components/sync/protocol/saved_tab_group_specifics.pb.h"
-#include "components/sync/protocol/search_engine_specifics.pb.h"
-#include "components/sync/protocol/segmentation_specifics.pb.h"
-#include "components/sync/protocol/send_tab_to_self_specifics.pb.h"
-#include "components/sync/protocol/session_specifics.pb.h"
-#include "components/sync/protocol/sharing_message_specifics.pb.h"
-#include "components/sync/protocol/sync.pb.h"
-#include "components/sync/protocol/sync_entity.pb.h"
-#include "components/sync/protocol/theme_specifics.pb.h"
-#include "components/sync/protocol/typed_url_specifics.pb.h"
-#include "components/sync/protocol/user_consent_specifics.pb.h"
-#include "components/sync/protocol/user_event_specifics.pb.h"
-#include "components/sync/protocol/web_app_specifics.pb.h"
-#include "components/sync/protocol/webauthn_credential_specifics.pb.h"
-#include "components/sync/protocol/workspace_desk_specifics.pb.h"
 
 namespace syncer {
 
 namespace {
 
 // ToValueVisitor is a VisitProtoFields()-compatible visitor that serializes
-// protos to base::Value. To serialize a proto you call ToValue() method:
+// protos to base::DictionaryValues. To serialize a proto you call ToValue()
+// method:
 //
 //  ToValueVisitor visitor;
 //  auto value = visitor.ToValue(proto);
@@ -104,45 +65,46 @@ namespace {
 //    customize ToValue() method:
 //
 //    template <class P>
-//    base::Value ToValue(const P& proto) const;
+//    std::unique_ptr<base::DictionaryValue> ToValue(const P& proto) const;
 //
 //    By default ToValue() creates new instance of ToValueVisitor, calls
 //    VisitProtoFields(visitor, |proto|) and returns visitor's |value_|.
-//    Default implementation is accessible via ToValueDictImpl().
+//    Default implementation is accessible via ToValueImpl().
 //
 //    For example let's say you want to clobber a sensitive field:
 //
-//    base::Value ToValue(const sync_pb::GreenProto& proto) const {
-//      base::Value::Dict value = ToValueDictImpl(proto);
-//      value.Set("secret", "<clobbered>");
-//      return base::Value(value);
+//    std::unique_ptr<base::DictionaryValue> ToValue(
+//        const sync_pb::GreenProto& proto) const {
+//      auto value = ToValueImpl(proto);
+//      value->SetString("secret", "<clobbered>");
+//      return value;
 //    }
 //
-//    ToValue() doesn't have to return a dictionary though. It might
+//    ToValue() doesn't have to return base::DictionaryValue though. It might
 //    be more appropriate to serialize GreenProto into a string instead:
 //
-//    base::Value ToValue(const sync_pb::GreenProto& proto) const {
-//      return base::Value(proto.content());
+//    std::unique_ptr<base::Value> ToValue(
+//        const sync_pb::GreenProto& proto) const {
+//      return std::make_unique<base::Value>(proto.content());
 //    }
 //
 class ToValueVisitor {
  public:
-  explicit ToValueVisitor(const ProtoValueConversionOptions& options =
-                              ProtoValueConversionOptions(),
-                          base::Value::Dict* value = nullptr)
-      : options_(options), value_(value) {}
+  ToValueVisitor(bool include_specifics = true,
+                 base::DictionaryValue* value = nullptr)
+    : value_(value)
+    , include_specifics_(include_specifics) {}
 
   template <class P>
   void VisitBytes(const P& parent_proto,
                   const char* field_name,
                   const std::string& field) {
-    value_->Set(field_name,
-                base::Base64Encode(base::as_bytes(base::make_span(field))));
+    value_->Set(field_name, BytesToValue(field));
   }
 
   template <class P, class E>
   void VisitEnum(const P& parent_proto, const char* field_name, E field) {
-    value_->Set(field_name, ProtoEnumToString(field));
+    value_->Set(field_name, EnumToValue(field));
   }
 
   template <class P, class F>
@@ -150,9 +112,9 @@ class ToValueVisitor {
              const char* field_name,
              const google::protobuf::RepeatedPtrField<F>& repeated_field) {
     if (!repeated_field.empty()) {
-      base::Value::List list;
+      std::unique_ptr<base::ListValue> list(new base::ListValue());
       for (const auto& field : repeated_field) {
-        list.Append(ToValue(field));
+        list->Append(ToValue(field));
       }
       value_->Set(field_name, std::move(list));
     }
@@ -163,9 +125,9 @@ class ToValueVisitor {
              const char* field_name,
              const google::protobuf::RepeatedField<F>& repeated_field) {
     if (!repeated_field.empty()) {
-      base::Value::List list;
+      std::unique_ptr<base::ListValue> list(new base::ListValue());
       for (const auto& field : repeated_field) {
-        list.Append(ToValue(field));
+        list->Append(ToValue(field));
       }
       value_->Set(field_name, std::move(list));
     }
@@ -177,105 +139,144 @@ class ToValueVisitor {
   }
 
   template <class P>
-  base::Value ToValue(const P& proto) const {
-    return base::Value(ToValueDictImpl(proto));
+  std::unique_ptr<base::DictionaryValue> ToValue(const P& proto) const {
+    return ToValueImpl(proto);
   }
 
   // Customizations
+
+  // ExperimentsSpecifics flags
+  #define IMPLEMENT_VISIT_EXPERIMENT_ENABLED_FIELD(Name) \
+    void Visit(const sync_pb::ExperimentsSpecifics&, \
+               const char* field_name, \
+               const sync_pb::Name& field) { \
+      if (field.has_enabled()) { \
+        Visit(field, field_name, field.enabled()); \
+      } \
+    }
+  IMPLEMENT_VISIT_EXPERIMENT_ENABLED_FIELD(KeystoreEncryptionFlags)
+  IMPLEMENT_VISIT_EXPERIMENT_ENABLED_FIELD(HistoryDeleteDirectives)
+  IMPLEMENT_VISIT_EXPERIMENT_ENABLED_FIELD(AutofillCullingFlags)
+  IMPLEMENT_VISIT_EXPERIMENT_ENABLED_FIELD(PreCommitUpdateAvoidanceFlags)
+  IMPLEMENT_VISIT_EXPERIMENT_ENABLED_FIELD(GcmChannelFlags)
+  IMPLEMENT_VISIT_EXPERIMENT_ENABLED_FIELD(GcmInvalidationsFlags)
+  #undef IMPLEMENT_VISIT_EXPERIMENT_ENABLED_FIELD
 
   // EntitySpecifics
   template <class P>
   void Visit(const P& parent_proto,
              const char* field_name,
              const sync_pb::EntitySpecifics& field) {
-    if (options_.include_specifics) {
+    if (include_specifics_) {
       VisitImpl(parent_proto, field_name, field);
     }
   }
 
-  // GetUpdateTriggers.
-  base::Value ToValue(const sync_pb::GetUpdateTriggers& proto) const {
-    base::Value::Dict dict = ToValueDictImpl(proto);
-    if (!options_.include_full_get_update_triggers) {
-      if (!proto.client_dropped_hints()) {
-        dict.Remove("client_dropped_hints");
-      }
-      if (!proto.invalidations_out_of_sync()) {
-        dict.Remove("invalidations_out_of_sync");
-      }
-      if (proto.local_modification_nudges() == 0) {
-        dict.Remove("local_modification_nudges");
-      }
-      if (proto.datatype_refresh_nudges() == 0) {
-        dict.Remove("datatype_refresh_nudges");
-      }
-      if (!proto.server_dropped_hints()) {
-        dict.Remove("server_dropped_hints");
-      }
-      if (!proto.initial_sync_in_progress()) {
-        dict.Remove("initial_sync_in_progress");
-      }
-      if (!proto.sync_for_resolve_conflict_in_progress()) {
-        dict.Remove("sync_for_resolve_conflict_in_progress");
-      }
-    }
-    return base::Value(std::move(dict));
+  // EnhancedBookmarksFlags
+  template <class P>
+  void Visit(const P& parent_proto,
+             const char* field_name,
+             const sync_pb::EnhancedBookmarksFlags& field) {
+    // Obsolete, don't visit
+  }
+
+  // WalletSyncFlags
+  template <class P>
+  void Visit(const P& parent_proto,
+             const char* field_name,
+             const sync_pb::WalletSyncFlags& field) {
+    // Obsolete, don't visit
+  }
+
+  // PasswordSpecifics
+  std::unique_ptr<base::DictionaryValue> ToValue(
+      const sync_pb::PasswordSpecifics& proto) const {
+    auto value = ToValueImpl(proto);
+    value->Remove("client_only_encrypted_data", nullptr);
+    return value;
+  }
+
+  // PasswordSpecificsData
+  std::unique_ptr<base::DictionaryValue> ToValue(
+      const sync_pb::PasswordSpecificsData& proto) const {
+    auto value = ToValueImpl(proto);
+    value->SetString("password_value", "<redacted>");
+    return value;
   }
 
   // AutofillWalletSpecifics
-  base::Value ToValue(const sync_pb::AutofillWalletSpecifics& proto) const {
-    base::Value::Dict dict = ToValueDictImpl(proto);
+  std::unique_ptr<base::DictionaryValue> ToValue(
+      const sync_pb::AutofillWalletSpecifics& proto) const {
+    auto value = ToValueImpl(proto);
     if (proto.type() != sync_pb::AutofillWalletSpecifics::POSTAL_ADDRESS) {
-      dict.Remove("address");
+      value->Remove("address", nullptr);
     }
     if (proto.type() != sync_pb::AutofillWalletSpecifics::MASKED_CREDIT_CARD) {
-      dict.Remove("masked_card");
+      value->Remove("masked_card", nullptr);
     }
     if (proto.type() != sync_pb::AutofillWalletSpecifics::CUSTOMER_DATA) {
-      dict.Remove("customer_data");
+      value->Remove("customer_data", nullptr);
     }
     if (proto.type() !=
         sync_pb::AutofillWalletSpecifics::CREDIT_CARD_CLOUD_TOKEN_DATA) {
-      dict.Remove("cloud_token_data");
+      value->Remove("cloud_token_data", nullptr);
     }
-    return base::Value(std::move(dict));
+    return value;
   }
 
   // UniquePosition
-  base::Value ToValue(const sync_pb::UniquePosition& proto) const {
+  std::unique_ptr<base::Value> ToValue(
+      const sync_pb::UniquePosition& proto) const {
     UniquePosition pos = UniquePosition::FromProto(proto);
-    return base::Value(pos.ToDebugString());
+    return std::make_unique<base::Value>(pos.ToDebugString());
   }
 
  private:
   template <class P>
-  base::Value::Dict ToValueDictImpl(const P& proto) const {
-    base::Value::Dict dict;
-    ToValueVisitor visitor(options_, &dict);
+  std::unique_ptr<base::DictionaryValue> ToValueImpl(const P& proto) const {
+    auto value = std::make_unique<base::DictionaryValue>();
+    ToValueVisitor visitor(include_specifics_, value.get());
     VisitProtoFields(visitor, proto);
-    return dict;
+    return value;
   }
 
-  base::Value ToValue(const std::string& value) const {
-    return base::Value(value);
+  static std::unique_ptr<base::Value> BytesToValue(const std::string& bytes) {
+    std::string bytes_base64;
+    base::Base64Encode(bytes, &bytes_base64);
+    return std::make_unique<base::Value>(bytes_base64);
   }
 
-  base::Value ToValue(int64_t value) const {
-    return base::Value(base::NumberToString(value));
-  }
-  base::Value ToValue(uint64_t value) const {
-    return base::Value(base::NumberToString(value));
-  }
-  base::Value ToValue(uint32_t value) const {
-    return base::Value(base::NumberToString(value));
-  }
-  base::Value ToValue(int32_t value) const {
-    return base::Value(base::NumberToString(value));
+  template <class E>
+  static std::unique_ptr<base::Value> EnumToValue(E value) {
+    return std::make_unique<base::Value>(ProtoEnumToString(value));
   }
 
-  base::Value ToValue(bool value) const { return base::Value(value); }
-  base::Value ToValue(float value) const { return base::Value(value); }
-  base::Value ToValue(double value) const { return base::Value(value); }
+  std::unique_ptr<base::Value> ToValue(const std::string& value) const {
+    return std::make_unique<base::Value>(value);
+  }
+
+  std::unique_ptr<base::Value> ToValue(int64_t value) const {
+    return std::make_unique<base::Value>(base::NumberToString(value));
+  }
+  std::unique_ptr<base::Value> ToValue(uint64_t value) const {
+    return std::make_unique<base::Value>(base::NumberToString(value));
+  }
+  std::unique_ptr<base::Value> ToValue(uint32_t value) const {
+    return std::make_unique<base::Value>(base::NumberToString(value));
+  }
+  std::unique_ptr<base::Value> ToValue(int32_t value) const {
+    return std::make_unique<base::Value>(base::NumberToString(value));
+  }
+
+  std::unique_ptr<base::Value> ToValue(bool value) const {
+    return std::make_unique<base::Value>(value);
+  }
+  std::unique_ptr<base::Value> ToValue(float value) const {
+    return std::make_unique<base::Value>(value);
+  }
+  std::unique_ptr<base::Value> ToValue(double value) const {
+    return std::make_unique<base::Value>(value);
+  }
 
   // Needs to be here to see all ToValue() overloads above.
   template <class P, class F>
@@ -283,24 +284,27 @@ class ToValueVisitor {
     value_->Set(field_name, ToValue(field));
   }
 
-  const ProtoValueConversionOptions options_;
-  raw_ptr<base::Value::Dict> value_;
+  base::DictionaryValue* value_;
+  bool include_specifics_;
 };
 
 }  // namespace
 
-#define IMPLEMENT_PROTO_TO_VALUE(Proto)                     \
-  base::Value Proto##ToValue(const sync_pb::Proto& proto) { \
-    return ToValueVisitor().ToValue(proto);                 \
+#define IMPLEMENT_PROTO_TO_VALUE(Proto) \
+  std::unique_ptr<base::DictionaryValue> Proto##ToValue( \
+      const sync_pb::Proto& proto) { \
+    return ToValueVisitor().ToValue(proto); \
   }
 
-#define IMPLEMENT_PROTO_TO_VALUE_WITH_OPTIONS(Proto)                       \
-  base::Value Proto##ToValue(const sync_pb::Proto& proto,                  \
-                             const ProtoValueConversionOptions& options) { \
-    return ToValueVisitor(options).ToValue(proto);                         \
+#define IMPLEMENT_PROTO_TO_VALUE_INCLUDE_SPECIFICS(Proto) \
+  std::unique_ptr<base::DictionaryValue> Proto##ToValue( \
+      const sync_pb::Proto& proto, \
+      bool include_specifics) { \
+    return ToValueVisitor(include_specifics).ToValue(proto); \
   }
 
 IMPLEMENT_PROTO_TO_VALUE(AppListSpecifics)
+IMPLEMENT_PROTO_TO_VALUE(AppNotificationSettings)
 IMPLEMENT_PROTO_TO_VALUE(AppSettingSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(AppSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(ArcPackageSpecifics)
@@ -308,10 +312,9 @@ IMPLEMENT_PROTO_TO_VALUE(AutofillOfferSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(AutofillProfileSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(AutofillSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(AutofillWalletSpecifics)
-IMPLEMENT_PROTO_TO_VALUE(AutofillWalletUsageSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(BookmarkSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(ClientConfigParams)
-IMPLEMENT_PROTO_TO_VALUE(ContactInfoSpecifics)
+IMPLEMENT_PROTO_TO_VALUE(DatatypeAssociationStats)
 IMPLEMENT_PROTO_TO_VALUE(DebugEventInfo)
 IMPLEMENT_PROTO_TO_VALUE(DebugInfo)
 IMPLEMENT_PROTO_TO_VALUE(DeviceInfoSpecifics)
@@ -319,34 +322,31 @@ IMPLEMENT_PROTO_TO_VALUE(DictionarySpecifics)
 IMPLEMENT_PROTO_TO_VALUE(EncryptedData)
 IMPLEMENT_PROTO_TO_VALUE(EntityMetadata)
 IMPLEMENT_PROTO_TO_VALUE(EntitySpecifics)
+IMPLEMENT_PROTO_TO_VALUE(ExperimentsSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(ExtensionSettingSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(ExtensionSpecifics)
+IMPLEMENT_PROTO_TO_VALUE(FaviconImageSpecifics)
+IMPLEMENT_PROTO_TO_VALUE(FaviconTrackingSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(GlobalIdDirective)
 IMPLEMENT_PROTO_TO_VALUE(HistoryDeleteDirectiveSpecifics)
-IMPLEMENT_PROTO_TO_VALUE(HistorySpecifics)
 IMPLEMENT_PROTO_TO_VALUE(LinkedAppIconInfo)
 IMPLEMENT_PROTO_TO_VALUE(ManagedUserSettingSpecifics)
+IMPLEMENT_PROTO_TO_VALUE(ManagedUserWhitelistSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(NavigationRedirect)
 IMPLEMENT_PROTO_TO_VALUE(NigoriSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(OsPreferenceSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(OsPriorityPreferenceSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(PasswordSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(PasswordSpecificsData)
-IMPLEMENT_PROTO_TO_VALUE(PasswordSpecificsData_Notes)
-IMPLEMENT_PROTO_TO_VALUE(PasswordSpecificsData_Notes_Note)
-IMPLEMENT_PROTO_TO_VALUE(PowerBookmarkSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(PaymentsCustomerData)
 IMPLEMENT_PROTO_TO_VALUE(PreferenceSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(PrinterPPDReference)
 IMPLEMENT_PROTO_TO_VALUE(PrinterSpecifics)
-IMPLEMENT_PROTO_TO_VALUE(PrintersAuthorizationServerSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(PriorityPreferenceSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(ReadingListSpecifics)
-IMPLEMENT_PROTO_TO_VALUE(SavedTabGroupSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(SearchEngineSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(SecurityEventSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(SendTabToSelfSpecifics)
-IMPLEMENT_PROTO_TO_VALUE(SegmentationSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(SessionHeader)
 IMPLEMENT_PROTO_TO_VALUE(SessionSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(SessionTab)
@@ -366,13 +366,12 @@ IMPLEMENT_PROTO_TO_VALUE(WalletMetadataSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(WalletPostalAddress)
 IMPLEMENT_PROTO_TO_VALUE(WebAppSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(WifiConfigurationSpecifics)
-IMPLEMENT_PROTO_TO_VALUE(WorkspaceDeskSpecifics)
 
-IMPLEMENT_PROTO_TO_VALUE_WITH_OPTIONS(ClientToServerMessage)
-IMPLEMENT_PROTO_TO_VALUE_WITH_OPTIONS(ClientToServerResponse)
-IMPLEMENT_PROTO_TO_VALUE_WITH_OPTIONS(SyncEntity)
+IMPLEMENT_PROTO_TO_VALUE_INCLUDE_SPECIFICS(ClientToServerMessage)
+IMPLEMENT_PROTO_TO_VALUE_INCLUDE_SPECIFICS(ClientToServerResponse)
+IMPLEMENT_PROTO_TO_VALUE_INCLUDE_SPECIFICS(SyncEntity)
 
 #undef IMPLEMENT_PROTO_TO_VALUE
-#undef IMPLEMENT_PROTO_TO_VALUE_WITH_OPTIONS
+#undef IMPLEMENT_PROTO_TO_VALUE_INCLUDE_SPECIFICS
 
 }  // namespace syncer

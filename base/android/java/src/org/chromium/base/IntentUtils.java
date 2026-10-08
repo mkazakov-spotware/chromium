@@ -1,14 +1,13 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.base;
 
-import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ResolveInfo;
 import android.os.BadParcelableException;
 import android.os.Binder;
 import android.os.Build;
@@ -17,13 +16,10 @@ import android.os.IBinder;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.TransactionTooLargeException;
-import android.text.TextUtils;
 
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 import androidx.core.app.BundleCompat;
-
-import org.chromium.base.compat.ApiHelperForM;
-import org.chromium.base.compat.ApiHelperForS;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -39,19 +35,26 @@ public class IntentUtils {
      */
     public static final String ANDROID_APP_REFERRER_SCHEME = "android-app";
 
-    /**
-     * Intent extra used to identify the sending application.
-     */
-    public static final String TRUSTED_APPLICATION_CODE_EXTRA = "trusted_application_code_extra";
+    // Instant Apps system resolver activity on N-MR1+.
+    @VisibleForTesting
+    public static final String EPHEMERAL_INSTALLER_CLASS =
+            "com.google.android.gms.instantapps.routing.EphemeralInstallerActivity";
 
     /**
-     * Fake ComponentName used in constructing TRUSTED_APPLICATION_CODE_EXTRA.
+     * Whether the given ResolveInfo object refers to Instant Apps as a launcher.
+     * @param info The resolve info.
      */
-    private static ComponentName sFakeComponentName;
-    private static final Object COMPONENT_NAME_LOCK = new Object();
+    public static boolean isInstantAppResolveInfo(ResolveInfo info) {
+        if (info == null) return false;
 
-    private static boolean sForceTrustedIntentForTesting;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            return info.isInstantAppAvailable;
+        } else if (info.activityInfo != null) {
+            return EPHEMERAL_INSTALLER_CLASS.equals(info.activityInfo.name);
+        }
 
+        return false;
+    }
     /**
      * Just like {@link Intent#hasExtra(String)} but doesn't throw exceptions.
      */
@@ -469,129 +472,5 @@ public class IntentUtils {
             }
             throw e;
         }
-    }
-
-    /**
-     * @return True if the intent is a MAIN intent a launcher would send.
-     */
-    public static boolean isMainIntentFromLauncher(Intent intent) {
-        return intent != null && TextUtils.equals(intent.getAction(), Intent.ACTION_MAIN)
-                && intent.hasCategory(Intent.CATEGORY_LAUNCHER)
-                && 0 == (intent.getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY);
-    }
-
-    /**
-     * Gets the PendingIntent flag for the specified mutability.
-     * PendingIntent.FLAG_IMMUTABLE was added in API level 23 (M), and FLAG_MUTABLE was added in
-     * Android S.
-     *
-     * Unless mutability is required, PendingIntents should always be marked as Immutable as this
-     * is the more secure default.
-     */
-    public static int getPendingIntentMutabilityFlag(boolean mutable) {
-        if (!mutable && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            return ApiHelperForM.getPendingIntentImmutableFlag();
-        } else if (mutable && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            return ApiHelperForS.getPendingIntentMutableFlag();
-        }
-        return 0;
-    }
-
-    /**
-     * Determines whether this app is the only possible handler for this Intent.
-     *
-     * @param context Any context for this app.
-     * @param intent The intent to check.
-     * @return True if the intent targets this app.
-     */
-    public static boolean intentTargetsSelf(Context context, Intent intent) {
-        boolean hasPackage = !TextUtils.isEmpty(intent.getPackage());
-        boolean matchesPackage = hasPackage && context.getPackageName().equals(intent.getPackage());
-        boolean hasComponent = intent.getComponent() != null;
-        boolean matchesComponent = hasComponent
-                && context.getPackageName().equals(intent.getComponent().getPackageName());
-
-        // Component takes precedence over PackageName when routing Intents if both are set, but to
-        // be on the safe side, ensure that if we have both package and component set, that they
-        // agree.
-        if (matchesComponent) {
-            if (hasPackage) {
-                // We should not create intents that disagree on package/component, but for security
-                // purposes we should handle this case.
-                assert matchesPackage;
-                return matchesPackage;
-            }
-            return true;
-        }
-        if (matchesPackage) {
-            assert !hasComponent;
-            return !hasComponent;
-        }
-        return false;
-    }
-
-    private static ComponentName getFakeComponentName(String packageName) {
-        synchronized (COMPONENT_NAME_LOCK) {
-            if (sFakeComponentName == null) {
-                sFakeComponentName = new ComponentName(packageName, "FakeClass");
-            }
-        }
-
-        return sFakeComponentName;
-    }
-
-    private static PendingIntent getAuthenticationToken() {
-        Intent fakeIntent = new Intent();
-        Context appContext = ContextUtils.getApplicationContext();
-        fakeIntent.setComponent(getFakeComponentName(appContext.getPackageName()));
-        return PendingIntent.getActivity(
-                appContext, 0, fakeIntent, getPendingIntentMutabilityFlag(false));
-    }
-
-    /**
-     * Sets TRUSTED_APPLICATION_CODE_EXTRA on the provided intent to identify it as coming from
-     * a trusted source.
-     *
-     * @param intent An Intent that targets either current package, or explicitly targets a
-     *         component of the current package.
-     */
-    public static void addTrustedIntentExtras(Intent intent) {
-        // It is crucial that we never leak the authentication token to other packages, because
-        // then the other package could be used to impersonate us/do things as us.
-        boolean toSelf =
-                IntentUtils.intentTargetsSelf(ContextUtils.getApplicationContext(), intent);
-        assert toSelf;
-        // For security reasons we have to check the asserted condition anyways.
-        if (!toSelf) return;
-
-        // The PendingIntent functions as an authentication token --- it could only have come
-        // from us. Stash it in the real Intent as an extra we can validate upon receiving it.
-        intent.putExtra(TRUSTED_APPLICATION_CODE_EXTRA, getAuthenticationToken());
-    }
-
-    /**
-     * @param intent An Intent to be checked.
-     * @return Whether an intent originates from the current app.
-     */
-    public static boolean isTrustedIntentFromSelf(@Nullable Intent intent) {
-        if (intent == null) return false;
-
-        if (sForceTrustedIntentForTesting) return true;
-
-        // Fetch the authentication token (a PendingIntent) created by
-        // addTrustedIntentExtras, if any. If anything goes wrong trying to retrieve the
-        // token (examples include BadParcelableException or ClassNotFoundException), fail closed.
-        PendingIntent token =
-                IntentUtils.safeGetParcelableExtra(intent, TRUSTED_APPLICATION_CODE_EXTRA);
-        if (token == null) return false;
-
-        // Fetch what should be a matching token. If the PendingIntents are equal, we know that the
-        // sender was us.
-        PendingIntent pending = getAuthenticationToken();
-        return pending.equals(token);
-    }
-
-    public static void setForceIsTrustedIntentForTesting(boolean isTrusted) {
-        sForceTrustedIntentForTesting = isTrusted;
     }
 }

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,14 +11,13 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "media/cdm/api/content_decryption_module.h"
 #include "media/mojo/mojom/cdm_storage.mojom.h"
 #include "media/mojo/services/media_mojo_export.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "mojo/public/cpp/bindings/pending_associated_remote.h"
-#include "mojo/public/cpp/bindings/remote.h"
 
 namespace media {
 
@@ -40,9 +39,7 @@ class MEDIA_MOJO_EXPORT MojoCdmFileIO : public cdm::FileIO {
   // management.
   MojoCdmFileIO(Delegate* delegate,
                 cdm::FileIOClient* client,
-                mojo::Remote<mojom::CdmStorage> cdm_storage);
-  MojoCdmFileIO(const MojoCdmFileIO&) = delete;
-  MojoCdmFileIO operator=(const MojoCdmFileIO&) = delete;
+                mojom::CdmStorage* cdm_storage);
   ~MojoCdmFileIO() override;
 
   // cdm::FileIO implementation.
@@ -91,12 +88,12 @@ class MEDIA_MOJO_EXPORT MojoCdmFileIO : public cdm::FileIO {
   // Callback to notify client of error asynchronously.
   void NotifyClientOfError(ErrorType error);
 
-  raw_ptr<Delegate> delegate_ = nullptr;
+  Delegate* delegate_ = nullptr;
 
   // Results of cdm::FileIO operations are sent asynchronously via |client_|.
-  raw_ptr<cdm::FileIOClient> client_ = nullptr;
+  cdm::FileIOClient* client_ = nullptr;
 
-  mojo::Remote<mojom::CdmStorage> cdm_storage_;
+  mojom::CdmStorage* cdm_storage_ = nullptr;
 
   // Keep track of the file being used. As this class can only be used for
   // accessing a single file, once |file_name_| is set it shouldn't be changed.
@@ -113,6 +110,8 @@ class MEDIA_MOJO_EXPORT MojoCdmFileIO : public cdm::FileIO {
 
   // NOTE: Weak pointers must be invalidated before all other member variables.
   base::WeakPtrFactory<MojoCdmFileIO> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MojoCdmFileIO);
 };
 
 }  // namespace media

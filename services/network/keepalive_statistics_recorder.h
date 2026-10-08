@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,15 @@
 #include <map>
 
 #include "base/component_export.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/unguessable_token.h"
 
 namespace network {
 
 // KeepaliveStatisticsRecorder keeps tracks of the number of inflight requests
-// with "keepalive" set.
+// with "keepalive" set and records UMA histograms.
 class COMPONENT_EXPORT(NETWORK_SERVICE) KeepaliveStatisticsRecorder
     : public base::SupportsWeakPtr<KeepaliveStatisticsRecorder> {
  public:
@@ -26,11 +28,6 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) KeepaliveStatisticsRecorder
   };
 
   KeepaliveStatisticsRecorder();
-
-  KeepaliveStatisticsRecorder(const KeepaliveStatisticsRecorder&) = delete;
-  KeepaliveStatisticsRecorder& operator=(const KeepaliveStatisticsRecorder&) =
-      delete;
-
   ~KeepaliveStatisticsRecorder();
 
   // Registers / Unregisters |top_level_frame| to this object.
@@ -64,6 +61,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) KeepaliveStatisticsRecorder
       per_top_level_frame_records_;
   int num_inflight_requests_ = 0;
   int peak_inflight_requests_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(KeepaliveStatisticsRecorder);
 };
 
 }  // namespace network

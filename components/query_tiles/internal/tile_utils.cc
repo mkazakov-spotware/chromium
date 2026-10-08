@@ -1,43 +1,39 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "components/query_tiles/internal/tile_utils.h"
-
 #include <algorithm>
-#include <cmath>
 #include <limits>
 
-#include "base/memory/raw_ptr.h"
-#include "base/rand_util.h"
 #include "base/strings/string_util.h"
 #include "components/query_tiles/internal/tile_config.h"
+#include "components/query_tiles/internal/tile_utils.h"
 
 namespace query_tiles {
 namespace {
 
 struct TileComparator {
-  explicit TileComparator(std::map<std::string, double>* tile_score_map)
+  explicit TileComparator(const std::map<std::string, double>& tile_score_map)
       : tile_score_map(tile_score_map) {}
 
   inline bool operator()(const std::unique_ptr<Tile>& a,
                          const std::unique_ptr<Tile>& b) {
-    return (*tile_score_map)[a->id] > (*tile_score_map)[b->id];
+    return tile_score_map[a->id] > tile_score_map[b->id];
   }
 
-  raw_ptr<std::map<std::string, double>> tile_score_map;
+  std::map<std::string, double> tile_score_map;
 };
 
 void SortTiles(std::vector<std::unique_ptr<Tile>>* tiles,
                std::map<std::string, TileStats>* tile_stats,
-               std::map<std::string, double>* score_map,
-               base::Time now_time) {
+               std::map<std::string, double>* score_map) {
   if (!tiles || tiles->empty())
     return;
 
   // Some tiles do not have scores, so the first step is to calculate scores
   // for them.
   double last_score = std::numeric_limits<double>::max();
+  base::Time now_time = base::Time::Now();
   TileStats last_tile_stats(now_time, last_score);
   size_t new_tile_index = 0;
   // Find any tiles that don't have scores, and add new entries for them.
@@ -88,40 +84,23 @@ void SortTiles(std::vector<std::unique_ptr<Tile>>* tiles,
     }
   }
   // Sort the tiles in descending order.
-  std::sort(tiles->begin(), tiles->end(), TileComparator(score_map));
-
+  std::sort(tiles->begin(), tiles->end(), TileComparator(*score_map));
   for (auto& tile : *tiles)
-    SortTiles(&tile->sub_tiles, tile_stats, score_map, now_time);
-}
-
-// Check if a tile's score is expired due to inactivity and should be
-// recalculated.
-int GetDaysPassedSinceLastClick(const TileStats& tile_stats,
-                                base::Time current_time) {
-  if (tile_stats.last_clicked_time >= current_time)
-    return 0;
-  return (current_time - tile_stats.last_clicked_time).InDaysFloored();
+    SortTiles(&tile->sub_tiles, tile_stats, score_map);
 }
 
 }  // namespace
-
-void TileShuffler::Shuffle(std::vector<Tile>* tiles, int start) const {
-  base::RandomShuffle(tiles->begin() + start, tiles->end());
-}
 
 void SortTilesAndClearUnusedStats(
     std::vector<std::unique_ptr<Tile>>* tiles,
     std::map<std::string, TileStats>* tile_stats) {
   if (!tiles || tiles->empty())
     return;
-  base::Time now_time = base::Time::Now();
   std::map<std::string, double> score_map;
-  SortTiles(tiles, tile_stats, &score_map, now_time);
+  SortTiles(tiles, tile_stats, &score_map);
   auto iter = tile_stats->begin();
   while (iter != tile_stats->end()) {
-    if (score_map.find(iter->first) == score_map.end() &&
-        (GetDaysPassedSinceLastClick(iter->second, now_time) >=
-         TileConfig::GetNumDaysToResetTileScore())) {
+    if (score_map.find(iter->first) == score_map.end()) {
       iter = tile_stats->erase(iter);
     } else {
       iter++;
@@ -131,25 +110,15 @@ void SortTilesAndClearUnusedStats(
 
 double CalculateTileScore(const TileStats& tile_stats,
                           base::Time current_time) {
-  // Reset the score if the tile has not been clicked for a long time.
-  int days_passed_since_last_click =
-      GetDaysPassedSinceLastClick(tile_stats, current_time);
-  if (days_passed_since_last_click >= TileConfig::GetNumDaysToResetTileScore())
-    return 0;
-  return tile_stats.score * exp(TileConfig::GetTileScoreDecayLambda() *
-                                days_passed_since_last_click);
+  if (tile_stats.last_clicked_time >= current_time)
+    return tile_stats.score;
+  return tile_stats.score *
+         exp(TileConfig::GetTileScoreDecayLambda() *
+             (current_time - tile_stats.last_clicked_time).InDaysFloored());
 }
 
 bool IsTrendingTile(const std::string& tile_id) {
   return base::StartsWith(tile_id, "trending_");
-}
-
-void ShuffleTiles(std::vector<Tile>* tiles, const TileShuffler& shuffler) {
-  size_t starting_index = TileConfig::GetTileShufflePosition();
-  if (tiles->size() <= starting_index + 1)
-    return;
-
-  shuffler.Shuffle(tiles, starting_index);
 }
 
 }  // namespace query_tiles

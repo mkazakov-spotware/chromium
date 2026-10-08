@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -90,11 +90,6 @@ TEST_F(ExtensionWebRequestPermissionsTest, TestHideRequestForURL) {
       {"https://chrome.google.com/webstore", HIDE_ALL},
       {"https://chrome.google.com./webstore", HIDE_ALL},
       {"https://chrome.google.com./webstore/", HIDE_ALL},
-      {"https://chromewebstore.google.com", HIDE_ALL},
-      {"https://chromewebstore.google.com/", HIDE_ALL},
-      {"https://chromewebstore.google.com./", HIDE_ALL},
-      {"https://chromewebstore.google.com:80/", HIDE_ALL},
-      {"https://chromewebstore.google.com/?query", HIDE_ALL},
       // Unsupported scheme.
       {"blob:https://chrome.google.com/fc3f440b-78ed-469f-8af8-7a1717ff39ae",
        HIDE_ALL},
@@ -205,39 +200,12 @@ TEST_F(ExtensionWebRequestPermissionsTest, TestHideRequestForURL) {
   // If the origin is labeled by the WebStoreAppId, it becomes protected.
   {
     const int kWebstoreProcessId = 42;
-    const content::SiteInstanceId kSiteInstanceId(23);
+    const int kSiteInstanceId = 23;
     ProcessMap::Get(browser_context())
         ->Insert(extensions::kWebStoreAppId, kWebstoreProcessId,
                  kSiteInstanceId);
     WebRequestInfo sensitive_request_info(create_request_params(
         non_sensitive_url, WebRequestResourceType::SCRIPT, kWebstoreProcessId));
-    EXPECT_TRUE(WebRequestPermissions::HideRequest(permission_helper,
-                                                   sensitive_request_info));
-  }
-  // If the request is initiated by the new webstore domain it becomes
-  // protected.
-  {
-    auto request_init_params = create_request_params(
-        non_sensitive_url, WebRequestResourceType::SCRIPT, kRendererProcessId);
-    GURL webstore_url("https://chromewebstore.google.com/");
-    request_init_params.initiator = url::Origin::Create(webstore_url);
-
-    WebRequestInfo sensitive_request_info(std::move(request_init_params));
-    EXPECT_TRUE(WebRequestPermissions::HideRequest(permission_helper,
-                                                   sensitive_request_info));
-  }
-  // Requests initiated in opaque origins with the webstore as a precursor will
-  // also be protected.
-  {
-    auto request_init_params = create_request_params(
-        non_sensitive_url, WebRequestResourceType::SCRIPT, kRendererProcessId);
-    GURL webstore_url("https://chromewebstore.google.com/");
-    auto opaque_origin =
-        url::Origin::Create(webstore_url).DeriveNewOpaqueOrigin();
-    EXPECT_TRUE(opaque_origin.opaque());
-    request_init_params.initiator = std::move(opaque_origin);
-
-    WebRequestInfo sensitive_request_info(std::move(request_init_params));
     EXPECT_TRUE(WebRequestPermissions::HideRequest(permission_helper,
                                                    sensitive_request_info));
   }
@@ -261,7 +229,7 @@ TEST_F(ExtensionWebRequestPermissionsTest,
 
   auto get_access = [extension, this](
                         const GURL& url,
-                        const absl::optional<url::Origin>& initiator,
+                        const base::Optional<url::Origin>& initiator,
                         const WebRequestResourceType type) {
     constexpr int kTabId = 42;
     constexpr WebRequestPermissions::HostPermissionsCheck kPermissionsCheck =
@@ -277,7 +245,7 @@ TEST_F(ExtensionWebRequestPermissionsTest,
   const url::Origin chromium_org_origin(url::Origin::Create(chromium_org));
 
   GURL urls[] = {example_com, chromium_org};
-  absl::optional<url::Origin> initiators[] = {absl::nullopt, example_com_origin,
+  base::Optional<url::Origin> initiators[] = {base::nullopt, example_com_origin,
                                               chromium_org_origin};
   WebRequestResourceType types[] = {WebRequestResourceType::OTHER,
                                     WebRequestResourceType::MAIN_FRAME};
@@ -308,7 +276,7 @@ TEST_F(ExtensionWebRequestPermissionsTest,
   // that the extension doesn't have access to, access is withheld.
   EXPECT_EQ(
       PermissionsData::PageAccess::kWithheld,
-      get_access(example_com, absl::nullopt, WebRequestResourceType::OTHER));
+      get_access(example_com, base::nullopt, WebRequestResourceType::OTHER));
   EXPECT_EQ(PermissionsData::PageAccess::kWithheld,
             get_access(example_com, example_com_origin,
                        WebRequestResourceType::MAIN_FRAME));
@@ -369,7 +337,7 @@ TEST_F(ExtensionWebRequestPermissionsTest,
 
   auto get_access = [extension, this](
                         const GURL& url,
-                        const absl::optional<url::Origin>& initiator,
+                        const base::Optional<url::Origin>& initiator,
                         WebRequestResourceType type) {
     constexpr int kTabId = 42;
     constexpr WebRequestPermissions::HostPermissionsCheck kPermissionsCheck =
@@ -388,15 +356,15 @@ TEST_F(ExtensionWebRequestPermissionsTest,
   const url::Origin kDeniedOrigin(url::Origin::Create(kDeniedUrl));
   const url::Origin kOpaqueOrigin;
   struct {
-    absl::optional<url::Origin> initiator;
+    base::Optional<url::Origin> initiator;
     GURL url;
     PermissionsData::PageAccess expected_access_subresource;
     PermissionsData::PageAccess expected_access_navigation;
   } cases[] = {
-      {absl::nullopt, kAllowedUrl, PageAccess::kAllowed, PageAccess::kAllowed},
-      {absl::nullopt, kWithheldUrl, PageAccess::kWithheld,
+      {base::nullopt, kAllowedUrl, PageAccess::kAllowed, PageAccess::kAllowed},
+      {base::nullopt, kWithheldUrl, PageAccess::kWithheld,
        PageAccess::kWithheld},
-      {absl::nullopt, kDeniedUrl, PageAccess::kDenied, PageAccess::kDenied},
+      {base::nullopt, kDeniedUrl, PageAccess::kDenied, PageAccess::kDenied},
 
       {kOpaqueOrigin, kAllowedUrl, PageAccess::kAllowed, PageAccess::kAllowed},
       {kOpaqueOrigin, kWithheldUrl, PageAccess::kWithheld,

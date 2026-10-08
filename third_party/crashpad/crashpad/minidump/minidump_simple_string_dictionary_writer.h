@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "minidump/minidump_extensions.h"
 #include "minidump/minidump_string_writer.h"
 #include "minidump/minidump_writable.h"
@@ -40,12 +41,6 @@ class MinidumpSimpleStringDictionaryEntryWriter final
     : public internal::MinidumpWritable {
  public:
   MinidumpSimpleStringDictionaryEntryWriter();
-
-  MinidumpSimpleStringDictionaryEntryWriter(
-      const MinidumpSimpleStringDictionaryEntryWriter&) = delete;
-  MinidumpSimpleStringDictionaryEntryWriter& operator=(
-      const MinidumpSimpleStringDictionaryEntryWriter&) = delete;
-
   ~MinidumpSimpleStringDictionaryEntryWriter() override;
 
   //! \brief Returns a MinidumpSimpleStringDictionaryEntry referencing this
@@ -81,6 +76,8 @@ class MinidumpSimpleStringDictionaryEntryWriter final
   struct MinidumpSimpleStringDictionaryEntry entry_;
   internal::MinidumpUTF8StringWriter key_;
   internal::MinidumpUTF8StringWriter value_;
+
+  DISALLOW_COPY_AND_ASSIGN(MinidumpSimpleStringDictionaryEntryWriter);
 };
 
 //! \brief The writer for a MinidumpSimpleStringDictionary object in a minidump
@@ -92,12 +89,6 @@ class MinidumpSimpleStringDictionaryWriter final
     : public internal::MinidumpWritable {
  public:
   MinidumpSimpleStringDictionaryWriter();
-
-  MinidumpSimpleStringDictionaryWriter(
-      const MinidumpSimpleStringDictionaryWriter&) = delete;
-  MinidumpSimpleStringDictionaryWriter& operator=(
-      const MinidumpSimpleStringDictionaryWriter&) = delete;
-
   ~MinidumpSimpleStringDictionaryWriter() override;
 
   //! \brief Adds an initialized MinidumpSimpleStringDictionaryEntryWriter for
@@ -147,6 +138,8 @@ class MinidumpSimpleStringDictionaryWriter final
 
   std::unique_ptr<MinidumpSimpleStringDictionary>
       simple_string_dictionary_base_;
+
+  DISALLOW_COPY_AND_ASSIGN(MinidumpSimpleStringDictionaryWriter);
 };
 
 }  // namespace crashpad

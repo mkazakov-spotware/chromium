@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,7 +39,7 @@ class IgnorePaymentMethodTest : public PaymentRequestPlatformBrowserTestBase {
 
   ServiceWorkerPaymentAppFinder* GetFinder() {
     return ServiceWorkerPaymentAppFinder::GetOrCreateForCurrentDocument(
-        GetActiveWebContents()->GetPrimaryMainFrame());
+        GetActiveWebContents()->GetMainFrame());
   }
 
   std::string method_name_;
@@ -73,9 +73,9 @@ IN_PROC_BROWSER_TEST_F(IgnorePaymentMethodTest, InstalledPHCannotBeLaunched) {
 
   GetFinder()->IgnorePaymentMethodForTest(method_name_);
 
-  VerifyFunctionOutput("NotSupportedError: The payment method \"" +
-                           method_name_ + "\" is not supported.",
-                       "getStatus($1)");
+  VerifyFunctionOutput(
+      "The payment method \"" + method_name_ + "\" is not supported.",
+      "getStatus($1)");
 }
 
 IN_PROC_BROWSER_TEST_F(IgnorePaymentMethodTest,
@@ -111,9 +111,9 @@ IN_PROC_BROWSER_TEST_F(
 
   GetFinder()->IgnorePaymentMethodForTest(method_name_);
 
-  VerifyFunctionOutput("NotSupportedError: The payment method \"" +
-                           method_name_ + "\" is not supported.",
-                       "getStatus($1)");
+  VerifyFunctionOutput(
+      "The payment method \"" + method_name_ + "\" is not supported.",
+      "getStatus($1)");
 }
 
 }  // namespace

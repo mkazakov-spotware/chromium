@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -14,30 +14,27 @@
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
-#include "base/notreached.h"
+#include "base/macros.h"
 #include "base/process/process_handle.h"
 #include "base/rand_util.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/current_thread.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/win/scoped_handle.h"
 #include "ipc/ipc_channel.h"
 #include "ipc/ipc_channel_proxy.h"
 #include "ipc/ipc_listener.h"
 #include "ipc/ipc_message.h"
-#include "mojo/public/cpp/bindings/associated_remote.h"
-#include "mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h"
 #include "mojo/public/cpp/platform/named_platform_channel.h"
 #include "mojo/public/cpp/platform/platform_channel.h"
 #include "mojo/public/cpp/platform/platform_channel_server_endpoint.h"
 #include "mojo/public/cpp/platform/platform_handle.h"
 #include "mojo/public/cpp/system/invitation.h"
-#include "remoting/host/base/switches.h"
 #include "remoting/host/host_main.h"
 #include "remoting/host/ipc_constants.h"
-#include "remoting/host/mojom/desktop_session.mojom.h"
+#include "remoting/host/switches.h"
 #include "remoting/host/win/launch_process_with_token.h"
 #include "remoting/host/win/security_descriptor.h"
 #include "remoting/host/win/worker_process_launcher.h"
@@ -64,9 +61,6 @@ class WtsSessionProcessDelegate::Core
        bool launch_elevated,
        const std::string& channel_security);
 
-  Core(const Core&) = delete;
-  Core& operator=(const Core&) = delete;
-
   // Initializes the object returning true on success.
   bool Initialize(uint32_t session_id);
 
@@ -75,10 +69,8 @@ class WtsSessionProcessDelegate::Core
 
   // Mirrors WorkerProcessLauncher::Delegate.
   void LaunchProcess(WorkerProcessLauncher* event_handler);
-  void GetRemoteAssociatedInterface(
-      mojo::GenericPendingAssociatedReceiver receiver);
+  void Send(IPC::Message* message);
   void CloseChannel();
-  void CrashProcess(const base::Location& location);
   void KillProcess();
 
  private:
@@ -94,9 +86,6 @@ class WtsSessionProcessDelegate::Core
   bool OnMessageReceived(const IPC::Message& message) override;
   void OnChannelConnected(int32_t peer_pid) override;
   void OnChannelError() override;
-  void OnAssociatedInterfaceRequest(
-      const std::string& interface_name,
-      mojo::ScopedInterfaceEndpointHandle handle) override;
 
   // The actual implementation of LaunchProcess()
   void DoLaunchProcess();
@@ -137,7 +126,7 @@ class WtsSessionProcessDelegate::Core
   // Security descriptor (as SDDL) to be applied to |channel_|.
   const std::string channel_security_;
 
-  raw_ptr<WorkerProcessLauncher> event_handler_ = nullptr;
+  WorkerProcessLauncher* event_handler_ = nullptr;
 
   // The job object used to control the lifetime of child processes.
   base::win::ScopedHandle job_;
@@ -170,7 +159,7 @@ class WtsSessionProcessDelegate::Core
   // The pending process connection for the process being launched.
   mojo::OutgoingInvitation mojo_invitation_;
 
-  mojo::AssociatedRemote<mojom::WorkerProcessControl> worker_process_control_;
+  DISALLOW_COPY_AND_ASSIGN(Core);
 };
 
 WtsSessionProcessDelegate::Core::Core(
@@ -179,7 +168,7 @@ WtsSessionProcessDelegate::Core::Core(
     bool launch_elevated,
     const std::string& channel_security)
     : base::MessagePumpForIO::IOHandler(FROM_HERE),
-      caller_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+      caller_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       io_task_runner_(std::move(io_task_runner)),
       channel_security_(channel_security),
       launch_elevated_(launch_elevated),
@@ -248,10 +237,14 @@ void WtsSessionProcessDelegate::Core::LaunchProcess(
   DoLaunchProcess();
 }
 
-void WtsSessionProcessDelegate::Core::GetRemoteAssociatedInterface(
-    mojo::GenericPendingAssociatedReceiver receiver) {
+void WtsSessionProcessDelegate::Core::Send(IPC::Message* message) {
   DCHECK(caller_task_runner_->BelongsToCurrentThread());
-  channel_->GetRemoteAssociatedInterface(std::move(receiver));
+
+  if (channel_) {
+    channel_->Send(message);
+  } else {
+    delete message;
+  }
 }
 
 void WtsSessionProcessDelegate::Core::CloseChannel() {
@@ -261,20 +254,10 @@ void WtsSessionProcessDelegate::Core::CloseChannel() {
     return;
   }
 
-  worker_process_control_.reset();
   channel_.reset();
   elevated_server_endpoint_.reset();
   elevated_launcher_pid_ = base::kNullProcessId;
   mojo_invitation_ = {};
-}
-
-void WtsSessionProcessDelegate::Core::CrashProcess(
-    const base::Location& location) {
-  DCHECK(caller_task_runner_->BelongsToCurrentThread());
-  if (worker_process_control_) {
-    worker_process_control_->CrashProcess(
-        location.function_name(), location.file_name(), location.line_number());
-  }
 }
 
 void WtsSessionProcessDelegate::Core::KillProcess() {
@@ -361,14 +344,12 @@ void WtsSessionProcessDelegate::Core::OnIOCompleted(
 bool WtsSessionProcessDelegate::Core::OnMessageReceived(
     const IPC::Message& message) {
   DCHECK(caller_task_runner_->BelongsToCurrentThread());
-  NOTREACHED() << "Received unexpected IPC type: " << message.type();
-  return false;
+
+  return event_handler_->OnMessageReceived(message);
 }
 
 void WtsSessionProcessDelegate::Core::OnChannelConnected(int32_t peer_pid) {
   DCHECK(caller_task_runner_->BelongsToCurrentThread());
-
-  channel_->GetRemoteAssociatedInterface(&worker_process_control_);
 
   if (event_handler_)
     event_handler_->OnChannelConnected(peer_pid);
@@ -378,15 +359,6 @@ void WtsSessionProcessDelegate::Core::OnChannelError() {
   DCHECK(caller_task_runner_->BelongsToCurrentThread());
 
   event_handler_->OnChannelError();
-}
-
-void WtsSessionProcessDelegate::Core::OnAssociatedInterfaceRequest(
-    const std::string& interface_name,
-    mojo::ScopedInterfaceEndpointHandle handle) {
-  DCHECK(caller_task_runner_->BelongsToCurrentThread());
-
-  event_handler_->OnAssociatedInterfaceRequest(interface_name,
-                                               std::move(handle));
 }
 
 void WtsSessionProcessDelegate::Core::DoLaunchProcess() {
@@ -420,7 +392,7 @@ void WtsSessionProcessDelegate::Core::DoLaunchProcess() {
   std::unique_ptr<IPC::ChannelProxy> channel = IPC::ChannelProxy::Create(
       mojo_invitation_.AttachMessagePipe(mojo_pipe_token).release(),
       IPC::Channel::MODE_SERVER, this, io_task_runner_,
-      base::SingleThreadTaskRunner::GetCurrentDefault());
+      base::ThreadTaskRunnerHandle::Get());
   command_line.AppendSwitchASCII(kMojoPipeToken, mojo_pipe_token);
 
   std::unique_ptr<mojo::PlatformChannel> normal_mojo_channel;
@@ -429,7 +401,7 @@ void WtsSessionProcessDelegate::Core::DoLaunchProcess() {
   if (launch_elevated_) {
     // Pass the name of the IPC channel to use.
     mojo::NamedPlatformChannel::Options options;
-    options.security_descriptor = base::UTF8ToWide(channel_security_);
+    options.security_descriptor = base::UTF8ToUTF16(channel_security_);
     elevated_mojo_channel =
         std::make_unique<mojo::NamedPlatformChannel>(options);
     elevated_mojo_channel->PassServerNameOnCommandLine(&command_line);
@@ -447,7 +419,7 @@ void WtsSessionProcessDelegate::Core::DoLaunchProcess() {
           session_token_.Get(), /*security_attributes=*/nullptr,
           /* thread_attributes= */ nullptr, handles_to_inherit,
           /* creation_flags= */ CREATE_SUSPENDED | CREATE_BREAKAWAY_FROM_JOB,
-          base::UTF8ToWide(kDefaultDesktopName).c_str(), &worker_process,
+          base::UTF8ToUTF16(kDefaultDesktopName).c_str(), &worker_process,
           &worker_thread)) {
     ReportFatalError();
     return;
@@ -626,17 +598,12 @@ void WtsSessionProcessDelegate::LaunchProcess(
   core_->LaunchProcess(event_handler);
 }
 
-void WtsSessionProcessDelegate::GetRemoteAssociatedInterface(
-    mojo::GenericPendingAssociatedReceiver receiver) {
-  core_->GetRemoteAssociatedInterface(std::move(receiver));
+void WtsSessionProcessDelegate::Send(IPC::Message* message) {
+  core_->Send(message);
 }
 
 void WtsSessionProcessDelegate::CloseChannel() {
   core_->CloseChannel();
-}
-
-void WtsSessionProcessDelegate::CrashProcess(const base::Location& location) {
-  core_->CrashProcess(location);
 }
 
 void WtsSessionProcessDelegate::KillProcess() {

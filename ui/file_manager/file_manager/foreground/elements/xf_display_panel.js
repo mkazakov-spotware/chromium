@@ -1,21 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {html} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-
-import {str, util} from '../../common/js/util.js';
-
-import {PanelItem} from './xf_panel_item.js';
-
-/** @type {!HTMLTemplateElement} */
-const htmlTemplate = html`{__html_template__}`;
 
 /**
  * A panel to display a collection of PanelItem.
  * @extends HTMLElement
  */
-export class DisplayPanel extends HTMLElement {
+class DisplayPanel extends HTMLElement {
   constructor() {
     super();
     this.createElement_();
@@ -54,7 +45,9 @@ export class DisplayPanel extends HTMLElement {
    * @private
    */
   createElement_() {
-    const fragment = htmlTemplate.content.cloneNode(true);
+    const template = document.createElement('template');
+    template.innerHTML = DisplayPanel.html_();
+    const fragment = template.content.cloneNode(true);
     this.attachShadow({mode: 'open'}).appendChild(fragment);
   }
 
@@ -64,8 +57,103 @@ export class DisplayPanel extends HTMLElement {
    * @return {string}
    */
   static html_() {
-    return `<!--_html_template_start_-->
-    <!--_html_template_end_-->`;
+    return `<style>
+              :host {
+                max-width: 400px;
+                outline: none;
+              }
+              #container {
+                  align-items: stretch;
+                  background-color: #FFF;
+                  box-shadow: 0px 1px 2px 0px rgba(60, 64, 67, 0.3),
+                              1px 1px 3px 0px rgba(60, 64, 67, 0.15);
+                  border-radius: 4px;
+                  display: flex;
+                  flex-direction: column;
+                  max-width: min-content;
+                  z-index: 100;
+              }
+              #separator {
+                background-color: rgba(60, 64, 67, 0.15);
+                height: 1px;
+              }
+              /* Limit to 3 visible progress panels before scroll. */
+              #panels {
+                  max-height: calc(192px + 28px);
+                  overflow-y: auto;
+              }
+              xf-panel-item:not(:only-child) {
+                --progress-height: 64px;
+              }
+              xf-panel-item:not(:only-child):first-child {
+                --progress-padding-top: 14px;
+              }
+              xf-panel-item:not(:only-child):last-child {
+                --progress-padding-bottom: 14px;
+              }
+              xf-panel-item:only-child {
+                --progress-height: 68px;
+              }
+              @keyframes setcollapse {
+                0% {
+                  max-height: 0;
+                  max-width: 0;
+                  opacity: 0;
+                }
+                75% {
+                  max-height: calc(192px + 28px);
+                  width: 400px;
+                  opacity: 0;
+                }
+                100% {
+                  max-height: calc(192px + 28px);
+                  width: 400px;
+                  opacity: 1;
+                }
+              }
+
+              @keyframes setexpand {
+                0% {
+                  max-height: calc(192px + 28px);
+                  max-width: 400px;
+                  opacity: 1;
+                }
+                25% {
+                  max-height: calc(192px + 28px);
+                  max-width: 400px;
+                  opacity: 0;
+                }
+                100% {
+                  max-height: 0;
+                  max-width: 0;
+                  opacity: 0;
+                }
+              }
+              .expanded {
+                animation: setcollapse 200ms forwards;
+                width: 400px;
+              }
+              .collapsed {
+                animation: setexpand 200ms forwards;
+              }
+              .expanding {
+                overflow: hidden;
+              }
+              .expandfinished {
+                max-height: calc(192px + 28px);
+                opacity: 1;
+                overflow-y: auto;
+                width: 400px;
+              }
+              xf-panel-item:not(:only-child) {
+                --multi-progress-height: 92px;
+              }
+            </style>
+            <div id="container">
+              <div id="summary"></div>
+              <div id="separator" hidden></div>
+              <div id="panels"></div>
+            </div>`;
   }
 
   /**
@@ -96,7 +184,7 @@ export class DisplayPanel extends HTMLElement {
    */
   setSummaryExpandedState(expandButton) {
     expandButton.setAttribute('data-category', 'collapse');
-    expandButton.setAttribute('aria-label', str('FEEDBACK_COLLAPSE_LABEL'));
+    expandButton.setAttribute('aria-label', '$i18n{FEEDBACK_COLLAPSE_LABEL}');
     expandButton.setAttribute('aria-expanded', 'true');
     this.panels_.hidden = false;
     this.separator_.hidden = false;
@@ -121,7 +209,7 @@ export class DisplayPanel extends HTMLElement {
     } else {
       panel.collapsed_ = true;
       expandButton.setAttribute('data-category', 'expand');
-      expandButton.setAttribute('aria-label', str('FEEDBACK_EXPAND_LABEL'));
+      expandButton.setAttribute('aria-label', '$i18n{FEEDBACK_EXPAND_LABEL}');
       expandButton.setAttribute('aria-expanded', 'false');
       panel.separator_.hidden = true;
       panel.panels_.listener_ = panel.panelCollapseFinished;
@@ -151,8 +239,7 @@ export class DisplayPanel extends HTMLElement {
     if (this.items_.length == 0) {
       return;
     }
-    let errors = 0;
-    let progressCount = 0;
+    let errors = 0, progressCount = 0;
     const connectedPanels = this.connectedPanelItems_();
     for (const panel of connectedPanels) {
       // Only sum progress for attached progress panels.
@@ -221,10 +308,11 @@ export class DisplayPanel extends HTMLElement {
       if (button) {
         button.removeEventListener('click', this.toggleSummary);
       }
-      // For transfer summary details.
-      const textDiv = summaryPanel.textDiv;
-      if (textDiv) {
-        textDiv.removeEventListener('click', this.toggleSummary);
+      if (util.isTransferDetailsEnabled()) {
+        const textDiv = summaryPanel.textDiv;
+        if (textDiv) {
+          textDiv.removeEventListener('click', this.toggleSummary);
+        }
       }
       summaryPanel.remove();
       this.panels_.hidden = false;
@@ -237,16 +325,20 @@ export class DisplayPanel extends HTMLElement {
       summaryPanel = document.createElement('xf-panel-item');
       summaryPanel.setAttribute('panel-type', 1);
       summaryPanel.id = 'summary-panel';
-      summaryPanel.setAttribute('detailed-summary', '');
+      if (util.isTransferDetailsEnabled()) {
+        summaryPanel.setAttribute('detailed-summary', '');
+      }
       const button = summaryPanel.primaryButton;
       if (button) {
         button.parent = this;
         button.addEventListener('click', this.toggleSummary);
       }
-      const textDiv = summaryPanel.textDiv;
-      if (textDiv) {
-        textDiv.parent = this;
-        textDiv.addEventListener('click', this.toggleSummary);
+      if (util.isTransferDetailsEnabled()) {
+        const textDiv = summaryPanel.textDiv;
+        if (textDiv) {
+          textDiv.parent = this;
+          textDiv.addEventListener('click', this.toggleSummary);
+        }
       }
       summaryHost.appendChild(summaryPanel);
       // Setup the panels based on expand/collapse state of the summary panel.
@@ -279,7 +371,9 @@ export class DisplayPanel extends HTMLElement {
     panel.setAttribute('indicator', 'progress');
     this.items_.push(/** @type {!PanelItem} */ (panel));
     this.setAriaHidden_();
-    this.setAttribute('detailed-panel', 'detailed-panel');
+    if (util.isTransferDetailsEnabled()) {
+      this.setAttribute('detailed-panel', 'detailed-panel');
+    }
     return /** @type {!PanelItem} */ (panel);
   }
 

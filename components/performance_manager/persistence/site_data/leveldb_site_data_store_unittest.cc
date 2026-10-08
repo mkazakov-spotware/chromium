@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,18 +7,16 @@
 #include <limits>
 
 #include "base/bind.h"
-#include "base/callback.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/task_environment.h"
 #include "base/test/test_file_util.h"
 #include "build/build_config.h"
 #include "components/performance_manager/persistence/site_data/site_data.pb.h"
-#include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/leveldatabase/leveldb_chrome.h"
 #include "url/gurl.h"
@@ -48,9 +46,9 @@ ScopedReadOnlyDirectory::ScopedReadOnlyDirectory(
       root_dir, FILE_PATH_LITERAL("read_only_path"), &read_only_path_));
   permission_restorer_ =
       std::make_unique<base::FilePermissionRestorer>(read_only_path_);
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   base::DenyFilePermission(read_only_path_, GENERIC_WRITE);
-#else  // BUILDFLAG(IS_WIN)
+#else  // defined(OS_WIN)
   EXPECT_TRUE(base::MakeFileUnwritable(read_only_path_));
 #endif
   EXPECT_FALSE(base::PathIsWritable(read_only_path_));
@@ -97,21 +95,6 @@ class LevelDBSiteDataStoreTest : public ::testing::Test {
     db_path_ = path;
   }
 
-  bool DbIsInitialized() {
-    base::RunLoop run_loop;
-    bool ret = false;
-    auto cb = base::BindOnce(
-        [](bool* ret, base::OnceClosure quit_closure, bool db_is_initialized) {
-          *ret = db_is_initialized;
-          std::move(quit_closure).Run();
-        },
-        base::Unretained(&ret), run_loop.QuitClosure());
-    db_->DatabaseIsInitializedForTesting(std::move(cb));
-    run_loop.Run();
-
-    return ret;
-  }
-
   const base::FilePath& GetTempPath() { return temp_dir_.GetPath(); }
   const base::FilePath& GetDBPath() { return db_path_; }
 
@@ -124,7 +107,7 @@ class LevelDBSiteDataStoreTest : public ::testing::Test {
     bool success = false;
     auto init_callback = base::BindOnce(
         [](SiteDataProto* receiving_proto, bool* success,
-           absl::optional<SiteDataProto> proto_opt) {
+           base::Optional<SiteDataProto> proto_opt) {
           *success = proto_opt.has_value();
           if (proto_opt)
             receiving_proto->CopyFrom(proto_opt.value());
@@ -156,7 +139,7 @@ class LevelDBSiteDataStoreTest : public ::testing::Test {
   const url::Origin kDummyOrigin = url::Origin::Create(GURL("http://foo.com"));
 
   base::FilePath db_path_;
-  content::BrowserTaskEnvironment task_env_;
+  base::test::TaskEnvironment task_env_;
   base::ScopedTempDir temp_dir_;
   std::unique_ptr<LevelDBSiteDataStore> db_;
 };
@@ -211,8 +194,8 @@ TEST_F(LevelDBSiteDataStoreTest, GetDatabaseSize) {
   std::vector<url::Origin> site_origins = AddDummyEntriesToDB(200);
 
   auto size_callback =
-      base::BindLambdaForTesting([&](absl::optional<int64_t> num_rows,
-                                     absl::optional<int64_t> on_disk_size_kb) {
+      base::BindLambdaForTesting([&](base::Optional<int64_t> num_rows,
+                                     base::Optional<int64_t> on_disk_size_kb) {
         EXPECT_TRUE(num_rows);
         // The DB contains an extra row for metadata.
         int64_t expected_rows = site_origins.size() + 1;
@@ -245,7 +228,7 @@ TEST_F(LevelDBSiteDataStoreTest, DatabaseRecoveryTest) {
   // Open the corrupt DB and ensure that the appropriate histograms gets
   // updated.
   OpenDB();
-  EXPECT_TRUE(DbIsInitialized());
+  EXPECT_TRUE(db_->DatabaseIsInitializedForTesting());
   histogram_tester.ExpectUniqueSample(
       "ResourceCoordinator.LocalDB.DatabaseInit", 1 /* kInitStatusCorruption */,
       1);
@@ -257,21 +240,14 @@ TEST_F(LevelDBSiteDataStoreTest, DatabaseRecoveryTest) {
   // manifest files.
 }
 
-#if BUILDFLAG(IS_FUCHSIA)
-// TODO(crbug.com/1314084): Re-enable when DatabaseOpeningFailure works on
-// Fuchsia.
-#define MAYBE_DatabaseOpeningFailure DISABLED_DatabaseOpeningFailure
-#else
-#define MAYBE_DatabaseOpeningFailure DatabaseOpeningFailure
-#endif
 // Ensure that there's no fatal failures if we try using the data store after
 // failing to open it (all the events will be ignored).
-TEST_F(LevelDBSiteDataStoreTest, MAYBE_DatabaseOpeningFailure) {
+TEST_F(LevelDBSiteDataStoreTest, DatabaseOpeningFailure) {
   db_.reset();
   ScopedReadOnlyDirectory read_only_dir(GetTempPath());
 
   OpenDB(read_only_dir.GetReadOnlyPath());
-  EXPECT_FALSE(DbIsInitialized());
+  EXPECT_FALSE(db_->DatabaseIsInitializedForTesting());
 
   SiteDataProto proto_temp;
   EXPECT_FALSE(
@@ -287,19 +263,14 @@ TEST_F(LevelDBSiteDataStoreTest, MAYBE_DatabaseOpeningFailure) {
 }
 
 TEST_F(LevelDBSiteDataStoreTest, DBGetsClearedOnVersionUpgrade) {
+  leveldb::DB* raw_db = db_->GetDBForTesting();
+  EXPECT_TRUE(raw_db);
+
   // Remove the entry containing the DB version number, this will cause the DB
   // to be cleared the next time it gets opened.
-  {
-    base::RunLoop run_loop;
-    db_->RunTaskWithRawDBForTesting(base::BindOnce([](leveldb::DB* raw_db) {
-                                      leveldb::Status s = raw_db->Delete(
-                                          leveldb::WriteOptions(),
-                                          LevelDBSiteDataStore::kDbMetadataKey);
-                                      EXPECT_TRUE(s.ok());
-                                    }),
-                                    run_loop.QuitClosure());
-    run_loop.Run();
-  }
+  leveldb::Status s = raw_db->Delete(leveldb::WriteOptions(),
+                                     LevelDBSiteDataStore::kDbMetadataKey);
+  EXPECT_TRUE(s.ok());
 
   // Add some dummy data to the data store to ensure the data store gets cleared
   // when upgrading it to the new version.
@@ -313,23 +284,14 @@ TEST_F(LevelDBSiteDataStoreTest, DBGetsClearedOnVersionUpgrade) {
 
   // Reopen the data store and ensure that it has been cleared.
   OpenDB();
-
-  {
-    base::RunLoop run_loop;
-    db_->RunTaskWithRawDBForTesting(
-        base::BindOnce([](leveldb::DB* raw_db) {
-          std::string db_metadata;
-          leveldb::Status s =
-              raw_db->Get(leveldb::ReadOptions(),
-                          LevelDBSiteDataStore::kDbMetadataKey, &db_metadata);
-          EXPECT_TRUE(s.ok());
-          size_t version = std::numeric_limits<size_t>::max();
-          EXPECT_TRUE(base::StringToSizeT(db_metadata, &version));
-          EXPECT_EQ(LevelDBSiteDataStore::kDbVersion, version);
-        }),
-        run_loop.QuitClosure());
-    run_loop.Run();
-  }
+  raw_db = db_->GetDBForTesting();
+  std::string db_metadata;
+  s = raw_db->Get(leveldb::ReadOptions(), LevelDBSiteDataStore::kDbMetadataKey,
+                  &db_metadata);
+  EXPECT_TRUE(s.ok());
+  size_t version = std::numeric_limits<size_t>::max();
+  EXPECT_TRUE(base::StringToSizeT(db_metadata, &version));
+  EXPECT_EQ(LevelDBSiteDataStore::kDbVersion, version);
 
   SiteDataProto proto_temp;
   EXPECT_FALSE(ReadFromDB(kDummyOrigin, &proto_temp));

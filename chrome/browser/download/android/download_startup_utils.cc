@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,21 +19,17 @@ static void JNI_DownloadStartupUtils_EnsureDownloadSystemInitialized(
     jboolean is_off_the_record) {
   DCHECK(is_full_browser_started || !is_off_the_record)
       << "OffTheRecord mode must load full browser.";
-  if (!is_full_browser_started) {
-    DownloadStartupUtils::EnsureDownloadSystemInitialized(nullptr);
-    return;
-  }
-
   std::vector<Profile*> profiles;
-  Profile* active_profile = ProfileManager::GetActiveUserProfile();
-  if (is_off_the_record)
-    profiles = active_profile->GetAllOffTheRecordProfiles();
-  else
-    profiles.push_back(active_profile);
-  for (Profile* profile : profiles) {
+  if (is_full_browser_started) {
+    Profile* active_profile = ProfileManager::GetActiveUserProfile();
+    if (is_off_the_record)
+      profiles = active_profile->GetAllOffTheRecordProfiles();
+    else
+      profiles.push_back(active_profile);
+  }
+  for (Profile* profile : profiles)
     DownloadStartupUtils::EnsureDownloadSystemInitialized(
         profile->GetProfileKey());
-  }
 }
 
 // static

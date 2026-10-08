@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/singleton.h"
 
 namespace base {
@@ -22,9 +22,6 @@ class DiagnosticsModel;
 class DiagnosticsController {
  public:
   static DiagnosticsController* GetInstance();
-
-  DiagnosticsController(const DiagnosticsController&) = delete;
-  DiagnosticsController& operator=(const DiagnosticsController&) = delete;
 
   // Entry point for the diagnostics mode. Returns zero if able to run
   // diagnostics successfully, regardless of the results of the diagnostics.
@@ -58,7 +55,9 @@ class DiagnosticsController {
   ~DiagnosticsController();
 
   std::unique_ptr<DiagnosticsModel> model_;
-  raw_ptr<DiagnosticsWriter> writer_;
+  DiagnosticsWriter* writer_;
+
+  DISALLOW_COPY_AND_ASSIGN(DiagnosticsController);
 };
 
 }  // namespace diagnostics

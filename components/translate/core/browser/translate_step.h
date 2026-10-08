@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@ enum TranslateStep {
   TRANSLATE_STEP_BEFORE_TRANSLATE,
   TRANSLATE_STEP_TRANSLATING,
   TRANSLATE_STEP_AFTER_TRANSLATE,
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   TRANSLATE_STEP_NEVER_TRANSLATE,
 #endif
   TRANSLATE_STEP_TRANSLATE_ERROR

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -53,11 +53,6 @@ extern const char kMsi[];
 // String. The MSI Product ID under which the MSI stores its information.  This
 // is used to update the DisplayVersion to match Chrome's version number.
 extern const char kMsiProductId[];
-// Installs Chrome in the location specified by the msi PROGRAMFILESDIR custom
-// property. The only accepted values are the values mapped to
-// CSIDL_PROGRAM_FILESX86 and CSIDL_PROGRAM_FILES. This property will only be
-// applied on fresh system installs.
-extern const char kProgramFilesDir[];
 // Boolean. Show EULA dialog before install.
 extern const char kRequireEula[];
 // Boolean. Install Chrome to system wise location. Cmd line override present.

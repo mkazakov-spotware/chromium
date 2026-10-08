@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(
       `Tests that renaming a selector updates element styles. Bug 70018. https://bugs.webkit.org/show_bug.cgi?id=70018\n`);
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
   await TestRunner.showPanel('elements');
   await TestRunner.loadHTML(`
       <style>
@@ -25,9 +25,9 @@
     await ElementsTestRunner.dumpSelectedElementStyles(true);
     var section = ElementsTestRunner.firstMatchedStyleSection();
     section.startEditingSelector();
-    section.selectorElement.textContent = 'hr, #inspected ';
+    section._selectorElement.textContent = 'hr, #inspected ';
     ElementsTestRunner.waitForSelectorCommitted(step2);
-    section.selectorElement.dispatchEvent(TestRunner.createKeyEvent('Enter'));
+    section._selectorElement.dispatchEvent(TestRunner.createKeyEvent('Enter'));
   }
 
   async function step2() {
@@ -35,9 +35,9 @@
     await ElementsTestRunner.dumpSelectedElementStyles(true);
     var section = ElementsTestRunner.firstMatchedStyleSection();
     section.startEditingSelector();
-    section.selectorElement.textContent = '#inspectedChanged';
+    section._selectorElement.textContent = '#inspectedChanged';
     ElementsTestRunner.waitForSelectorCommitted(step3);
-    section.selectorElement.dispatchEvent(TestRunner.createKeyEvent('Enter'));
+    section._selectorElement.dispatchEvent(TestRunner.createKeyEvent('Enter'));
   }
 
   async function step3() {

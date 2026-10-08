@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,19 +8,21 @@
 #include <map>
 #include <utility>
 
+#include "base/macros.h"
 #include "ui/views/layout/layout_provider.h"
 #include "ui/views/style/typography_provider.h"
 
-namespace views::test {
+namespace gfx {
+class FontList;
+}
+
+namespace views {
+namespace test {
 
 // Helper to test LayoutProvider overrides.
 class TestLayoutProvider : public LayoutProvider, public TypographyProvider {
  public:
   TestLayoutProvider();
-
-  TestLayoutProvider(const TestLayoutProvider&) = delete;
-  TestLayoutProvider& operator=(const TestLayoutProvider&) = delete;
-
   ~TestLayoutProvider() override;
 
   // Override requests for the |metric| DistanceMetric to return |value| rather
@@ -30,10 +32,8 @@ class TestLayoutProvider : public LayoutProvider, public TypographyProvider {
   // Override the return value of GetSnappedDialogWidth().
   void SetSnappedDialogWidth(int width);
 
-  // Override the font details for a given |context| and |style|.
-  void SetFontDetails(int context,
-                      int style,
-                      const ui::ResourceBundle::FontDetails& details);
+  // Override the font provided by style::GetFont().
+  void SetFont(int context, int style, const gfx::FontList& font);
 
   // LayoutProvider:
   int GetDistanceMetric(int metric) const override;
@@ -41,15 +41,17 @@ class TestLayoutProvider : public LayoutProvider, public TypographyProvider {
   int GetSnappedDialogWidth(int min_width) const override;
 
   // TypographyProvider:
-  ui::ResourceBundle::FontDetails GetFontDetails(int context,
-                                                 int style) const override;
+  const gfx::FontList& GetFont(int context, int style) const override;
 
  private:
   std::map<int, int> distance_metrics_;
-  std::map<std::pair<int, int>, ui::ResourceBundle::FontDetails> details_;
+  std::map<std::pair<int, int>, gfx::FontList> fonts_;
   int snapped_dialog_width_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(TestLayoutProvider);
 };
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views
 
 #endif  // UI_VIEWS_TEST_TEST_LAYOUT_PROVIDER_H_

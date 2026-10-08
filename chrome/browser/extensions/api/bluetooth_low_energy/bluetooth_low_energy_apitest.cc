@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <tuple>
 #include <utility>
 
-#include "base/test/gmock_callback_support.h"
 #include "base/test/gmock_move_support.h"
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "content/public/test/browser_test.h"
@@ -26,32 +25,29 @@
 #include "extensions/test/result_catcher.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
-using base::test::RunOnceCallback;
+using device::BluetoothUUID;
 using device::BluetoothAdapter;
 using device::BluetoothDevice;
-using device::BluetoothGattConnection;
-using device::BluetoothGattNotifySession;
-using device::BluetoothGattService;
 using device::BluetoothRemoteGattCharacteristic;
+using device::BluetoothGattConnection;
 using device::BluetoothRemoteGattDescriptor;
 using device::BluetoothRemoteGattService;
-using device::BluetoothUUID;
+using device::BluetoothGattNotifySession;
 using device::MockBluetoothAdapter;
 using device::MockBluetoothDevice;
 using device::MockBluetoothGattCharacteristic;
 using device::MockBluetoothGattConnection;
 using device::MockBluetoothGattDescriptor;
-using device::MockBluetoothGattNotifySession;
 using device::MockBluetoothGattService;
+using device::MockBluetoothGattNotifySession;
 using extensions::BluetoothLowEnergyEventRouter;
 using extensions::ResultCatcher;
-using testing::_;
-using testing::DoAll;
 using testing::Invoke;
 using testing::Return;
 using testing::ReturnRef;
 using testing::ReturnRefOfCopy;
 using testing::SaveArg;
+using testing::_;
 
 namespace {
 
@@ -227,30 +223,19 @@ ACTION_TEMPLATE(InvokeCallbackArgument,
   std::move(std::get<k>(args)).Run(p0);
 }
 
-ACTION_TEMPLATE(InvokeCallbackArgument,
-                HAS_1_TEMPLATE_PARAMS(int, k),
-                AND_2_VALUE_PARAMS(p0, p1)) {
-  std::move(std::get<k>(args)).Run(p0, p1);
-}
-
 ACTION_TEMPLATE(InvokeCallbackWithScopedPtrArg,
                 HAS_2_TEMPLATE_PARAMS(int, k, typename, T),
                 AND_1_VALUE_PARAMS(p0)) {
   std::move(std::get<k>(args)).Run(std::unique_ptr<T>(p0));
 }
 
-ACTION_TEMPLATE(InvokeCallbackWithScopedPtrArg,
-                HAS_2_TEMPLATE_PARAMS(int, k, typename, T),
-                AND_2_VALUE_PARAMS(p0, p1)) {
-  std::move(std::get<k>(args)).Run(std::unique_ptr<T>(p0), p1);
-}
-
-std::unique_ptr<BluetoothGattConnection> CreateGattConnection(
+BluetoothGattConnection* CreateGattConnection(
     scoped_refptr<device::BluetoothAdapter> adapter,
     const std::string& device_address,
     bool expect_disconnect) {
-  auto conn = std::make_unique<testing::NiceMock<MockBluetoothGattConnection>>(
-      adapter, device_address);
+  testing::NiceMock<MockBluetoothGattConnection>* conn =
+      new testing::NiceMock<MockBluetoothGattConnection>(adapter,
+                                                         device_address);
   EXPECT_CALL(*conn, Disconnect()).Times(expect_disconnect ? 1 : 0);
   return conn;
 }
@@ -265,7 +250,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, GetServices) {
 
   EXPECT_CALL(*mock_adapter_, GetDevice(_))
       .Times(3)
-      .WillOnce(Return(static_cast<BluetoothDevice*>(nullptr)))
+      .WillOnce(Return(static_cast<BluetoothDevice*>(NULL)))
       .WillRepeatedly(Return(device0_.get()));
 
   EXPECT_CALL(*device0_, GetGattServices())
@@ -274,7 +259,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, GetServices) {
       .WillOnce(Return(services));
 
   // Load and wait for setup.
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   listener.set_failure_message("fail");
   ASSERT_TRUE(LoadExtension(
       test_data_dir_.AppendASCII("bluetooth_low_energy/get_services")));
@@ -294,16 +279,16 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, GetService) {
 
   EXPECT_CALL(*mock_adapter_, GetDevice(_))
       .Times(3)
-      .WillOnce(Return(static_cast<BluetoothDevice*>(nullptr)))
+      .WillOnce(Return(static_cast<BluetoothDevice*>(NULL)))
       .WillRepeatedly(Return(device0_.get()));
 
   EXPECT_CALL(*device0_, GetGattService(kTestServiceId0))
       .Times(2)
-      .WillOnce(Return(static_cast<BluetoothRemoteGattService*>(nullptr)))
+      .WillOnce(Return(static_cast<BluetoothRemoteGattService*>(NULL)))
       .WillOnce(Return(service0_.get()));
 
   // Load and wait for setup.
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   listener.set_failure_message("fail");
   ASSERT_TRUE(LoadExtension(
       test_data_dir_.AppendASCII("bluetooth_low_energy/get_service")));
@@ -322,7 +307,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, ServiceEvents) {
   catcher.RestrictToBrowserContext(browser()->profile());
 
   // Load the extension and let it set up.
-  ExtensionTestMessageListener listener(ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener(true);
   ASSERT_TRUE(LoadExtension(
       test_data_dir_.AppendASCII("bluetooth_low_energy/service_events")));
   EXPECT_TRUE(listener.WaitUntilSatisfied());
@@ -370,7 +355,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, GetRemovedService) {
       .Times(1)
       .WillOnce(Return(service0_.get()));
 
-  ExtensionTestMessageListener get_service_success_listener;
+  ExtensionTestMessageListener get_service_success_listener(false);
 
   event_router()->GattServiceAdded(
       mock_adapter_, device0_.get(), service0_.get());
@@ -387,8 +372,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, GetRemovedService) {
   EXPECT_CALL(*mock_adapter_, GetDevice(_)).Times(0);
   EXPECT_CALL(*device0_, GetGattService(kTestServiceId0)).Times(0);
 
-  ExtensionTestMessageListener get_service_fail_listener(
-      ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener get_service_fail_listener(true);
 
   event_router()->GattServiceRemoved(
       mock_adapter_, device0_.get(), service0_.get());
@@ -409,7 +393,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, GetIncludedServices) {
   catcher.RestrictToBrowserContext(browser()->profile());
 
   // Wait for initial call to end with failure as there is no mapping.
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   listener.set_failure_message("fail");
 
   ASSERT_TRUE(LoadExtension(test_data_dir_.AppendASCII(
@@ -463,14 +447,14 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, GetCharacteristics) {
       Return(device0_.get()));
   EXPECT_CALL(*device0_, GetGattService(kTestServiceId0))
       .Times(3)
-      .WillOnce(Return(static_cast<BluetoothRemoteGattService*>(nullptr)))
+      .WillOnce(Return(static_cast<BluetoothRemoteGattService*>(NULL)))
       .WillRepeatedly(Return(service0_.get()));
   EXPECT_CALL(*service0_, GetCharacteristics())
       .Times(2)
       .WillOnce(Return(std::vector<BluetoothRemoteGattCharacteristic*>()))
       .WillOnce(Return(characteristics));
 
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   ASSERT_TRUE(LoadExtension(
       test_data_dir_.AppendASCII("bluetooth_low_energy/get_characteristics")));
   EXPECT_TRUE(listener.WaitUntilSatisfied());
@@ -492,22 +476,21 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, GetCharacteristic) {
 
   EXPECT_CALL(*mock_adapter_, GetDevice(_))
       .Times(4)
-      .WillOnce(Return(static_cast<BluetoothDevice*>(nullptr)))
+      .WillOnce(Return(static_cast<BluetoothDevice*>(NULL)))
       .WillRepeatedly(Return(device0_.get()));
 
   EXPECT_CALL(*device0_, GetGattService(kTestServiceId0))
       .Times(3)
-      .WillOnce(Return(static_cast<BluetoothRemoteGattService*>(nullptr)))
+      .WillOnce(Return(static_cast<BluetoothRemoteGattService*>(NULL)))
       .WillRepeatedly(Return(service0_.get()));
 
   EXPECT_CALL(*service0_, GetCharacteristic(kTestCharacteristicId0))
       .Times(2)
-      .WillOnce(
-          Return(static_cast<BluetoothRemoteGattCharacteristic*>(nullptr)))
+      .WillOnce(Return(static_cast<BluetoothRemoteGattCharacteristic*>(NULL)))
       .WillOnce(Return(chrc0_.get()));
 
   // Load the extension and wait for first test.
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   listener.set_failure_message("fail");
   ASSERT_TRUE(LoadExtension(
       test_data_dir_.AppendASCII("bluetooth_low_energy/get_characteristic")));
@@ -570,7 +553,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, CharacteristicProperties) {
           BluetoothRemoteGattCharacteristic::PROPERTY_RELIABLE_WRITE |
           BluetoothRemoteGattCharacteristic::PROPERTY_WRITABLE_AUXILIARIES));
 
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   listener.set_failure_message("fail");
   ASSERT_TRUE(LoadExtension(test_data_dir_.AppendASCII(
       "bluetooth_low_energy/characteristic_properties")));
@@ -603,7 +586,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, GetRemovedCharacteristic) {
       mock_adapter_, device0_.get(), service0_.get());
   event_router()->GattCharacteristicAdded(mock_adapter_, chrc0_.get());
 
-  ExtensionTestMessageListener listener(ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener(true);
   ASSERT_TRUE(LoadExtension(test_data_dir_.AppendASCII(
       "bluetooth_low_energy/get_removed_characteristic")));
 
@@ -675,7 +658,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, CharacteristicValueChanged) {
       .WillOnce(InvokeCallbackWithScopedPtrArg<0, BluetoothGattNotifySession>(
           session1));
 
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   ASSERT_TRUE(LoadExtension(test_data_dir_.AppendASCII(
       "bluetooth_low_energy/characteristic_value_changed")));
 
@@ -719,14 +702,13 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, ReadCharacteristicValue) {
       .WillRepeatedly(Return(chrc0_.get()));
 
   std::vector<uint8_t> value;
-  EXPECT_CALL(*chrc0_, ReadRemoteCharacteristic_(_))
+  EXPECT_CALL(*chrc0_, ReadRemoteCharacteristic_(_, _))
       .Times(2)
-      .WillOnce(InvokeCallbackArgument<0>(
-          BluetoothGattService::GattErrorCode::kFailed,
-          /*value=*/std::vector<uint8_t>()))
-      .WillOnce(InvokeCallbackArgument<0>(absl::nullopt, value));
+      .WillOnce(InvokeCallbackArgument<1>(
+          BluetoothRemoteGattService::GATT_ERROR_FAILED))
+      .WillOnce(InvokeCallbackArgument<0>(value));
 
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   listener.set_failure_message("fail");
   ASSERT_TRUE(LoadExtension(test_data_dir_.AppendASCII(
       "bluetooth_low_energy/read_characteristic_value")));
@@ -765,12 +747,12 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, WriteCharacteristicValue) {
   EXPECT_CALL(*chrc0_, DeprecatedWriteRemoteCharacteristic_(_, _, _))
       .Times(2)
       .WillOnce(InvokeCallbackArgument<2>(
-          BluetoothGattService::GattErrorCode::kFailed))
+          BluetoothRemoteGattService::GATT_ERROR_FAILED))
       .WillOnce(DoAll(SaveArg<0>(&write_value), InvokeCallbackArgument<1>()));
 
   EXPECT_CALL(*chrc0_, GetValue()).Times(1).WillOnce(ReturnRef(write_value));
 
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   listener.set_failure_message("fail");
   ASSERT_TRUE(LoadExtension(test_data_dir_.AppendASCII(
       "bluetooth_low_energy/write_characteristic_value")));
@@ -805,15 +787,14 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, GetDescriptors) {
       .WillRepeatedly(Return(service0_.get()));
   EXPECT_CALL(*service0_, GetCharacteristic(kTestCharacteristicId0))
       .Times(3)
-      .WillOnce(
-          Return(static_cast<BluetoothRemoteGattCharacteristic*>(nullptr)))
+      .WillOnce(Return(static_cast<BluetoothRemoteGattCharacteristic*>(NULL)))
       .WillRepeatedly(Return(chrc0_.get()));
   EXPECT_CALL(*chrc0_, GetDescriptors())
       .Times(2)
       .WillOnce(Return(std::vector<BluetoothRemoteGattDescriptor*>()))
       .WillOnce(Return(descriptors));
 
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   listener.set_failure_message("fail");
   ASSERT_TRUE(LoadExtension(
       test_data_dir_.AppendASCII("bluetooth_low_energy/get_descriptors")));
@@ -839,27 +820,26 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, GetDescriptor) {
 
   EXPECT_CALL(*mock_adapter_, GetDevice(_))
       .Times(5)
-      .WillOnce(Return(static_cast<BluetoothDevice*>(nullptr)))
+      .WillOnce(Return(static_cast<BluetoothDevice*>(NULL)))
       .WillRepeatedly(Return(device0_.get()));
 
   EXPECT_CALL(*device0_, GetGattService(kTestServiceId0))
       .Times(4)
-      .WillOnce(Return(static_cast<BluetoothRemoteGattService*>(nullptr)))
+      .WillOnce(Return(static_cast<BluetoothRemoteGattService*>(NULL)))
       .WillRepeatedly(Return(service0_.get()));
 
   EXPECT_CALL(*service0_, GetCharacteristic(kTestCharacteristicId0))
       .Times(3)
-      .WillOnce(
-          Return(static_cast<BluetoothRemoteGattCharacteristic*>(nullptr)))
+      .WillOnce(Return(static_cast<BluetoothRemoteGattCharacteristic*>(NULL)))
       .WillRepeatedly(Return(chrc0_.get()));
 
   EXPECT_CALL(*chrc0_, GetDescriptor(kTestDescriptorId0))
       .Times(2)
-      .WillOnce(Return(static_cast<BluetoothRemoteGattDescriptor*>(nullptr)))
+      .WillOnce(Return(static_cast<BluetoothRemoteGattDescriptor*>(NULL)))
       .WillOnce(Return(desc0_.get()));
 
   // Load the extension and wait for first test.
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   listener.set_failure_message("fail");
   ASSERT_TRUE(LoadExtension(
       test_data_dir_.AppendASCII("bluetooth_low_energy/get_descriptor")));
@@ -897,7 +877,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, GetRemovedDescriptor) {
   event_router()->GattCharacteristicAdded(mock_adapter_, chrc0_.get());
   event_router()->GattDescriptorAdded(mock_adapter_, desc0_.get());
 
-  ExtensionTestMessageListener listener(ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener(true);
   ASSERT_TRUE(LoadExtension(test_data_dir_.AppendASCII(
       "bluetooth_low_energy/get_removed_descriptor")));
 
@@ -939,7 +919,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, DescriptorValueChanged) {
   event_router()->GattDescriptorAdded(mock_adapter_, desc1_.get());
 
   // Load the extension and let it set up.
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   ASSERT_TRUE(LoadExtension(test_data_dir_.AppendASCII(
       "bluetooth_low_energy/descriptor_value_changed")));
   EXPECT_TRUE(listener.WaitUntilSatisfied());
@@ -987,32 +967,25 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, ReadDescriptorValue) {
       .WillRepeatedly(Return(desc0_.get()));
 
   std::vector<uint8_t> value;
-  EXPECT_CALL(*desc0_, ReadRemoteDescriptor_(_))
+  EXPECT_CALL(*desc0_, ReadRemoteDescriptor_(_, _))
       .Times(8)
-      .WillOnce(InvokeCallbackArgument<0>(
-          BluetoothGattService::GattErrorCode::kFailed,
-          /*value=*/std::vector<uint8_t>()))
-      .WillOnce(InvokeCallbackArgument<0>(
-          BluetoothGattService::GattErrorCode::kInvalidLength,
-          /*value=*/std::vector<uint8_t>()))
-      .WillOnce(InvokeCallbackArgument<0>(
-          BluetoothGattService::GattErrorCode::kNotPermitted,
-          /*value=*/std::vector<uint8_t>()))
-      .WillOnce(InvokeCallbackArgument<0>(
-          BluetoothGattService::GattErrorCode::kNotAuthorized,
-          /*value=*/std::vector<uint8_t>()))
-      .WillOnce(InvokeCallbackArgument<0>(
-          BluetoothGattService::GattErrorCode::kNotPaired,
-          /*value=*/std::vector<uint8_t>()))
-      .WillOnce(InvokeCallbackArgument<0>(
-          BluetoothGattService::GattErrorCode::kNotSupported,
-          /*value=*/std::vector<uint8_t>()))
-      .WillOnce(InvokeCallbackArgument<0>(
-          BluetoothGattService::GattErrorCode::kInProgress,
-          /*value=*/std::vector<uint8_t>()))
-      .WillOnce(InvokeCallbackArgument<0>(/*error_code=*/absl::nullopt, value));
+      .WillOnce(InvokeCallbackArgument<1>(
+          BluetoothRemoteGattService::GATT_ERROR_FAILED))
+      .WillOnce(InvokeCallbackArgument<1>(
+          BluetoothRemoteGattService::GATT_ERROR_INVALID_LENGTH))
+      .WillOnce(InvokeCallbackArgument<1>(
+          BluetoothRemoteGattService::GATT_ERROR_NOT_PERMITTED))
+      .WillOnce(InvokeCallbackArgument<1>(
+          BluetoothRemoteGattService::GATT_ERROR_NOT_AUTHORIZED))
+      .WillOnce(InvokeCallbackArgument<1>(
+          BluetoothRemoteGattService::GATT_ERROR_NOT_PAIRED))
+      .WillOnce(InvokeCallbackArgument<1>(
+          BluetoothRemoteGattService::GATT_ERROR_NOT_SUPPORTED))
+      .WillOnce(InvokeCallbackArgument<1>(
+          BluetoothRemoteGattService::GATT_ERROR_IN_PROGRESS))
+      .WillOnce(InvokeCallbackArgument<0>(value));
 
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   listener.set_failure_message("fail");
   ASSERT_TRUE(LoadExtension(test_data_dir_.AppendASCII(
       "bluetooth_low_energy/read_descriptor_value")));
@@ -1057,12 +1030,12 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, WriteDescriptorValue) {
   EXPECT_CALL(*desc0_, WriteRemoteDescriptor_(_, _, _))
       .Times(2)
       .WillOnce(InvokeCallbackArgument<2>(
-          BluetoothGattService::GattErrorCode::kFailed))
+          BluetoothRemoteGattService::GATT_ERROR_FAILED))
       .WillOnce(DoAll(SaveArg<0>(&write_value), InvokeCallbackArgument<1>()));
 
   EXPECT_CALL(*desc0_, GetValue()).Times(1).WillOnce(ReturnRef(write_value));
 
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   listener.set_failure_message("fail");
   ASSERT_TRUE(LoadExtension(test_data_dir_.AppendASCII(
       "bluetooth_low_energy/write_descriptor_value")));
@@ -1123,7 +1096,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, UuidPermissionEvents) {
   ResultCatcher catcher;
   catcher.RestrictToBrowserContext(browser()->profile());
 
-  ExtensionTestMessageListener listener(ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener(true);
   ASSERT_TRUE(LoadExtension(test_data_dir_.AppendASCII(
       "bluetooth_low_energy/uuid_permission_events")));
 
@@ -1156,7 +1129,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, GattConnection) {
   catcher.RestrictToBrowserContext(browser()->profile());
 
   EXPECT_CALL(*mock_adapter_, GetDevice(_))
-      .WillRepeatedly(Return(static_cast<BluetoothDevice*>(nullptr)));
+      .WillRepeatedly(Return(static_cast<BluetoothDevice*>(NULL)));
   EXPECT_CALL(*mock_adapter_, GetDevice(kTestLeDeviceAddress0))
       .WillRepeatedly(Return(device0_.get()));
   EXPECT_CALL(*mock_adapter_, GetDevice(kTestLeDeviceAddress1))
@@ -1164,36 +1137,27 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, GattConnection) {
   static_assert(
       BluetoothDevice::NUM_CONNECT_ERROR_CODES == 8,
       "Update required if the number of BluetoothDevice enums changes.");
-  EXPECT_CALL(*device0_, CreateGattConnection(_, _))
+  EXPECT_CALL(*device0_, CreateGattConnection_(_, _))
       .Times(9)
-      .WillOnce(RunOnceCallback<0>(/*connection=*/nullptr,
-                                   BluetoothDevice::ERROR_FAILED))
-      .WillOnce(RunOnceCallback<0>(/*connection=*/nullptr,
-                                   BluetoothDevice::ERROR_INPROGRESS))
-      .WillOnce(RunOnceCallback<0>(/*connection=*/nullptr,
-                                   BluetoothDevice::ERROR_AUTH_FAILED))
-      .WillOnce(RunOnceCallback<0>(/*connection=*/nullptr,
-                                   BluetoothDevice::ERROR_AUTH_REJECTED))
-      .WillOnce(RunOnceCallback<0>(/*connection=*/nullptr,
-                                   BluetoothDevice::ERROR_AUTH_CANCELED))
-      .WillOnce(RunOnceCallback<0>(/*connection=*/nullptr,
-                                   BluetoothDevice::ERROR_AUTH_TIMEOUT))
-      .WillOnce(RunOnceCallback<0>(
-          /*connection=*/nullptr, BluetoothDevice::ERROR_UNSUPPORTED_DEVICE))
-      .WillOnce(RunOnceCallback<0>(
+      .WillOnce(InvokeCallbackArgument<1>(BluetoothDevice::ERROR_FAILED))
+      .WillOnce(InvokeCallbackArgument<1>(BluetoothDevice::ERROR_INPROGRESS))
+      .WillOnce(InvokeCallbackArgument<1>(BluetoothDevice::ERROR_AUTH_FAILED))
+      .WillOnce(InvokeCallbackArgument<1>(BluetoothDevice::ERROR_AUTH_REJECTED))
+      .WillOnce(InvokeCallbackArgument<1>(BluetoothDevice::ERROR_AUTH_CANCELED))
+      .WillOnce(InvokeCallbackArgument<1>(BluetoothDevice::ERROR_AUTH_TIMEOUT))
+      .WillOnce(
+          InvokeCallbackArgument<1>(BluetoothDevice::ERROR_UNSUPPORTED_DEVICE))
+      .WillOnce(InvokeCallbackWithScopedPtrArg<0, BluetoothGattConnection>(
           CreateGattConnection(mock_adapter_, kTestLeDeviceAddress0,
-                               /*expect_disconnect=*/true),
-          /*error_code=*/absl::nullopt))
-      .WillOnce(RunOnceCallback<0>(
+                               true /* expect_disconnect */)))
+      .WillOnce(InvokeCallbackWithScopedPtrArg<0, BluetoothGattConnection>(
           CreateGattConnection(mock_adapter_, kTestLeDeviceAddress0,
-                               /*expect_disconnect=*/false),
-          /*error_code=*/absl::nullopt));
-  EXPECT_CALL(*device1_, CreateGattConnection(_, _))
+                               false /* expect_disconnect */)));
+  EXPECT_CALL(*device1_, CreateGattConnection_(_, _))
       .Times(1)
-      .WillOnce(RunOnceCallback<0>(
+      .WillOnce(InvokeCallbackWithScopedPtrArg<0, BluetoothGattConnection>(
           CreateGattConnection(mock_adapter_, kTestLeDeviceAddress1,
-                               /*expect_disconnect=*/true),
-          /*error_code=*/absl::nullopt));
+                               true /* expect_disconnect */)));
 
   ASSERT_TRUE(LoadExtension(
       test_data_dir_.AppendASCII("bluetooth_low_energy/gatt_connection")));
@@ -1207,23 +1171,21 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, ReconnectAfterDisconnected) {
   EXPECT_CALL(*mock_adapter_, GetDevice(kTestLeDeviceAddress0))
       .WillRepeatedly(Return(device0_.get()));
 
-  auto first_conn = CreateGattConnection(mock_adapter_, kTestLeDeviceAddress0,
-                                         /*expect_disconnect=*/false);
-  MockBluetoothGattConnection* first_conn_ptr =
-      static_cast<MockBluetoothGattConnection*>(first_conn.get());
-  EXPECT_CALL(*first_conn_ptr, IsConnected())
+  MockBluetoothGattConnection* first_conn =
+      static_cast<MockBluetoothGattConnection*>(CreateGattConnection(
+          mock_adapter_, kTestLeDeviceAddress0, false /* expect_disconnect */));
+  EXPECT_CALL(*first_conn, IsConnected())
       .Times(2)
       .WillOnce(Return(true))
       .WillOnce(Return(false));
 
-  EXPECT_CALL(*device0_, CreateGattConnection(_, _))
+  EXPECT_CALL(*device0_, CreateGattConnection_(_, _))
       .Times(2)
-      .WillOnce(RunOnceCallback<0>(std::move(first_conn),
-                                   /*error_code=*/absl::nullopt))
-      .WillOnce(RunOnceCallback<0>(
+      .WillOnce(InvokeCallbackWithScopedPtrArg<0, BluetoothGattConnection>(
+          first_conn))
+      .WillOnce(InvokeCallbackWithScopedPtrArg<0, BluetoothGattConnection>(
           CreateGattConnection(mock_adapter_, kTestLeDeviceAddress0,
-                               /*expect_disconnect=*/false),
-          /*error_code=*/absl::nullopt));
+                               false /* expect_disconnect */)));
 
   ASSERT_TRUE(LoadExtension(test_data_dir_.AppendASCII(
       "bluetooth_low_energy/reconnect_after_disconnected")));
@@ -1245,11 +1207,11 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, ConnectInProgress) {
   std::unique_ptr<BluetoothGattConnection> conn_ptr(conn);
   EXPECT_CALL(*conn, Disconnect()).Times(1);
 
-  EXPECT_CALL(*device0_, CreateGattConnection(_, _))
+  EXPECT_CALL(*device0_, CreateGattConnection_(_, _))
       .Times(1)
       .WillOnce(MoveArg<0>(&connect_callback));
 
-  ExtensionTestMessageListener listener;
+  ExtensionTestMessageListener listener(false);
   ASSERT_TRUE(LoadExtension(test_data_dir_.AppendASCII(
       "bluetooth_low_energy/connect_in_progress")));
 
@@ -1259,8 +1221,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, ConnectInProgress) {
       << listener.message();
   listener.Reset();
 
-  std::move(connect_callback)
-      .Run(std::move(conn_ptr), /*error_code=*/absl::nullopt);
+  std::move(connect_callback).Run(std::move(conn_ptr));
   EXPECT_TRUE(listener.WaitUntilSatisfied());
   ASSERT_EQ("After 2nd call to disconnect.", listener.message())
       << listener.message();
@@ -1310,7 +1271,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, StartStopNotifications) {
   EXPECT_CALL(*chrc0_, StartNotifySession_(_, _))
       .Times(2)
       .WillOnce(InvokeCallbackArgument<1>(
-          BluetoothGattService::GattErrorCode::kFailed))
+          BluetoothRemoteGattService::GATT_ERROR_FAILED))
       .WillOnce(InvokeCallbackWithScopedPtrArg<0, BluetoothGattNotifySession>(
           session0));
   EXPECT_CALL(*chrc1_, StartNotifySession_(_, _))
@@ -1318,7 +1279,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, StartStopNotifications) {
       .WillOnce(InvokeCallbackWithScopedPtrArg<0, BluetoothGattNotifySession>(
           session1));
 
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   listener.set_failure_message("fail");
   ASSERT_TRUE(LoadExtension(test_data_dir_.AppendASCII(
       "bluetooth_low_energy/start_stop_notifications")));
@@ -1366,7 +1327,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothLowEnergyApiTest, AddressChange) {
                                        kTestLeDeviceAddress0);
 
   // Load and wait for setup.
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   listener.set_failure_message("fail");
   ASSERT_TRUE(LoadExtension(
       test_data_dir_.AppendASCII("bluetooth_low_energy/address_change")));

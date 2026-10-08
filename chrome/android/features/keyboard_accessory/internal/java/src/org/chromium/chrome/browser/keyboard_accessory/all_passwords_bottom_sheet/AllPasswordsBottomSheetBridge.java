@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -58,12 +58,10 @@ class AllPasswordsBottomSheetBridge implements AllPasswordsBottomSheetCoordinato
     }
 
     @Override
-    public void onCredentialSelected(CredentialFillRequest credentialFillRequest) {
+    public void onCredentialSelected(Credential credential) {
         assert mNativeView != 0 : "The native side is already dismissed";
-        AllPasswordsBottomSheetBridgeJni.get().onCredentialSelected(mNativeView,
-                credentialFillRequest.getCredential().getUsername(),
-                credentialFillRequest.getCredential().getPassword(),
-                credentialFillRequest.getRequestsToFillPassword());
+        AllPasswordsBottomSheetBridgeJni.get().onCredentialSelected(
+                mNativeView, credential.getUsername(), credential.getPassword());
     }
 
     @Override
@@ -75,8 +73,8 @@ class AllPasswordsBottomSheetBridge implements AllPasswordsBottomSheetCoordinato
 
     @NativeMethods
     interface Natives {
-        void onCredentialSelected(long nativeAllPasswordsBottomSheetViewImpl, String username,
-                String password, boolean requestsToFillPassword);
+        void onCredentialSelected(
+                long nativeAllPasswordsBottomSheetViewImpl, String username, String password);
         void onDismiss(long nativeAllPasswordsBottomSheetViewImpl);
     }
 }

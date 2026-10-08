@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,14 @@
 #include <string>
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "base/sequence_checker.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/image_decoder/image_decoder.h"
 #include "components/signin/public/identity_manager/account_info.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "services/network/public/cpp/simple_url_loader.h"
+#include "services/network/public/mojom/url_loader_factory.mojom.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 
 namespace signin {
@@ -52,13 +53,16 @@ class ProfileDownloader : public ImageDecoder::ImageRequest,
   // token is available. Should not be called more than once.
   virtual void StartForAccount(const CoreAccountId& account_id);
 
+  // On successful download this returns the hosted domain of the user.
+  virtual base::string16 GetProfileHostedDomain() const;
+
   // On successful download this returns the full name of the user. For example
   // "Pat Smith".
-  virtual std::u16string GetProfileFullName() const;
+  virtual base::string16 GetProfileFullName() const;
 
   // On successful download this returns the given name of the user. For example
   // if the name is "Pat Smith", the given name is "Pat".
-  virtual std::u16string GetProfileGivenName() const;
+  virtual base::string16 GetProfileGivenName() const;
 
   // On successful download this returns G+ locale preference of the user.
   virtual std::string GetProfileLocale() const;
@@ -112,7 +116,7 @@ class ProfileDownloader : public ImageDecoder::ImageRequest,
 
   SEQUENCE_CHECKER(sequence_checker_);
 
-  raw_ptr<ProfileDownloaderDelegate> delegate_;
+  ProfileDownloaderDelegate* delegate_;
   CoreAccountId account_id_;
   std::string auth_token_;
   std::unique_ptr<network::SimpleURLLoader> simple_loader_;
@@ -120,10 +124,9 @@ class ProfileDownloader : public ImageDecoder::ImageRequest,
   AccountInfo account_info_;
   SkBitmap profile_picture_;
   PictureStatus picture_status_ = PICTURE_FAILED;
-  raw_ptr<signin::IdentityManager> identity_manager_;
-  base::ScopedObservation<signin::IdentityManager,
-                          signin::IdentityManager::Observer>
-      identity_manager_observation_{this};
+  signin::IdentityManager* identity_manager_;
+  ScopedObserver<signin::IdentityManager, signin::IdentityManager::Observer>
+      identity_manager_observer_;
   bool waiting_for_account_info_ = false;
 };
 

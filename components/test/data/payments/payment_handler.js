@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Chromium Authors
+ * Copyright 2019 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -15,7 +15,7 @@ var request;
  *    supports.
  * @return {Promise<string>} - 'success' or error message on failure.
  */
-async function install(method = DEFAULT_METHOD_NAME) {
+async function install(method=DEFAULT_METHOD_NAME) { // eslint-disable-line no-unused-vars, max-len
   try {
     methodName = method;
     let registration =
@@ -44,7 +44,7 @@ async function install(method = DEFAULT_METHOD_NAME) {
  * Uninstalls the payment handler.
  * @return {Promise<string>} - 'success' or error message on failure.
  */
-async function uninstall() {
+async function uninstall() { // eslint-disable-line no-unused-vars
   try {
     let registration =
         await navigator.serviceWorker.getRegistration(SW_SRC_URL);
@@ -63,7 +63,7 @@ async function uninstall() {
  * @param {Array<string>} delegations The list of payment options to delegate.
  * @return {Promise<string>} - 'success' or error message on failure.
  */
-async function enableDelegations(delegations) {
+async function enableDelegations(delegations) { // eslint-disable-line no-unused-vars, max-len
   try {
     await navigator.serviceWorker.ready;
     let registration =
@@ -89,7 +89,7 @@ async function enableDelegations(delegations) {
  * Launches the payment handler.
  * @return {Promise<string>} - 'success' or error message on failure.
  */
-async function launch() {
+async function launch() { // eslint-disable-line no-unused-vars
   try {
     const request = new PaymentRequest([{supportedMethods: methodName}], {
       total: {label: 'Total', amount: {currency: 'USD', value: '0.01'}},
@@ -104,15 +104,11 @@ async function launch() {
 
 /**
  * Launches the payment handler without waiting for a response to be returned.
- * @param {string} methodNameOverride - The payment method to launch. If not
- *     specified, the global methodName set from install() will be used.
  * @return {string} The 'success' or error message.
  */
-function launchWithoutWaitForResponse(methodNameOverride) {
-  let method =
-      (methodNameOverride !== undefined) ? methodNameOverride : methodName;
+function launchWithoutWaitForResponse() { // eslint-disable-line no-unused-vars
   try {
-    request = new PaymentRequest([{supportedMethods: method}], {
+    request = new PaymentRequest([{supportedMethods: methodName}], {
       total: {label: 'Total', amount: {currency: 'USD', value: '0.01'}},
     });
     request.show();
@@ -126,7 +122,7 @@ function launchWithoutWaitForResponse(methodNameOverride) {
  * Aborts the on-going payment request.
  * @return {Promise<string>} - 'success' or error message on failure.
  */
-async function abort() {
+async function abort() { // eslint-disable-line no-unused-vars
   try {
     await request.abort();
     return 'success';
@@ -144,7 +140,7 @@ var paymentOptions = null;
  * @param {Object} options The list of requested paymentOptions.
  * @return {string} The 'success' or error message.
  */
-function paymentRequestWithOptions(options) {
+function paymentRequestWithOptions(options) { // eslint-disable-line no-unused-vars, max-len
   paymentOptions = options;
   try {
     const request = new PaymentRequest([{

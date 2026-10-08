@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,7 +34,7 @@ namespace {
 using TestGetAssertionTaskCallbackReceiver =
     ::device::test::StatusAndValueCallbackReceiver<
         CtapDeviceResponseCode,
-        absl::optional<AuthenticatorGetAssertionResponse>>;
+        base::Optional<AuthenticatorGetAssertionResponse>>;
 
 class FidoGetAssertionTaskTest : public testing::Test {
  public:
@@ -122,22 +122,25 @@ TEST_F(FidoGetAssertionTaskTest, TestSignSuccessWithFake) {
   ASSERT_GE(32u + 1u + 4u + 8u,  // Minimal ECDSA signature is 8 bytes
             get_assertion_callback_receiver()
                 .value()
-                ->authenticator_data.SerializeToByteArray()
+                ->auth_data()
+                .SerializeToByteArray()
                 .size());
   EXPECT_EQ(0x01,
             get_assertion_callback_receiver()
                 .value()
-                ->authenticator_data.SerializeToByteArray()[32]);  // UP flag
+                ->auth_data()
+                .SerializeToByteArray()[32]);  // UP flag
   // Counter starts at zero and is incremented for every sign request.
   EXPECT_EQ(1, get_assertion_callback_receiver()
                    .value()
-                   ->authenticator_data.SerializeToByteArray()[36]);  // counter
+                   ->auth_data()
+                   .SerializeToByteArray()[36]);  // counter
 }
 
 TEST_F(FidoGetAssertionTaskTest, TestIncorrectGetAssertionResponse) {
   auto device = MockFidoDevice::MakeCtap();
   device->ExpectCtap2CommandAndRespondWith(
-      CtapRequestCommand::kAuthenticatorGetAssertion, absl::nullopt);
+      CtapRequestCommand::kAuthenticatorGetAssertion, base::nullopt);
 
   auto task = std::make_unique<GetAssertionTask>(
       device.get(),

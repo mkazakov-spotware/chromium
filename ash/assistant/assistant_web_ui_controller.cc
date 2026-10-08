@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,11 +29,6 @@ class AssistantWebContainerEventObserver : public ui::EventObserver {
                                                      widget->GetNativeWindow(),
                                                      {ui::ET_KEY_PRESSED})) {}
 
-  AssistantWebContainerEventObserver(
-      const AssistantWebContainerEventObserver&) = delete;
-  AssistantWebContainerEventObserver& operator=(
-      const AssistantWebContainerEventObserver&) = delete;
-
   ~AssistantWebContainerEventObserver() override = default;
 
   // ui::EventObserver:
@@ -63,13 +58,15 @@ class AssistantWebContainerEventObserver : public ui::EventObserver {
   views::Widget* widget_ = nullptr;
 
   std::unique_ptr<views::EventMonitor> event_monitor_;
+
+  DISALLOW_COPY_AND_ASSIGN(AssistantWebContainerEventObserver);
 };
 
 // -----------------------------------------------------------------------------
 // AssistantWebUiController:
 
 AssistantWebUiController::AssistantWebUiController() {
-  assistant_controller_observation_.Observe(AssistantController::Get());
+  assistant_controller_observer_.Add(AssistantController::Get());
 }
 
 AssistantWebUiController::~AssistantWebUiController() {

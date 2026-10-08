@@ -1,9 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <memory>
 
+#include "base/macros.h"
 #include "ui/aura/env.h"
 #include "ui/aura/test/test_window_delegate.h"
 #include "ui/aura/window_event_dispatcher.h"
@@ -32,9 +33,6 @@ class DesktopViewInputTest : public View {
  public:
   DesktopViewInputTest() = default;
 
-  DesktopViewInputTest(const DesktopViewInputTest&) = delete;
-  DesktopViewInputTest& operator=(const DesktopViewInputTest&) = delete;
-
   void OnGestureEvent(ui::GestureEvent* event) override {
     received_gesture_event_ = true;
     return View::OnGestureEvent(event);
@@ -47,6 +45,8 @@ class DesktopViewInputTest : public View {
 
  private:
   bool received_gesture_event_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(DesktopViewInputTest);
 };
 
 views::Widget* CreateWidget() {
@@ -103,11 +103,12 @@ TEST_F(DesktopCaptureControllerTest, CaptureWindowInputEventTest) {
   params.bounds = gfx::Rect(50, 50, 650, 650);
   params.native_widget = test::CreatePlatformNativeWidgetImpl(
       widget1.get(), test::kStubCapture, nullptr);
-  desktop_position_client1 = std::make_unique<DesktopScreenPositionClient>(
-      params.context->GetRootWindow());
   widget1->Init(std::move(params));
   internal::RootView* root1 =
       static_cast<internal::RootView*>(widget1->GetRootView());
+
+  desktop_position_client1 = std::make_unique<DesktopScreenPositionClient>(
+      params.context->GetRootWindow());
   aura::client::SetScreenPositionClient(
       widget1->GetNativeView()->GetRootWindow(),
       desktop_position_client1.get());
@@ -124,11 +125,12 @@ TEST_F(DesktopCaptureControllerTest, CaptureWindowInputEventTest) {
   params.bounds = gfx::Rect(50, 50, 650, 650);
   params.native_widget = test::CreatePlatformNativeWidgetImpl(
       widget2.get(), test::kStubCapture, nullptr);
-  desktop_position_client2 = std::make_unique<DesktopScreenPositionClient>(
-      params.context->GetRootWindow());
   widget2->Init(std::move(params));
+
   internal::RootView* root2 =
       static_cast<internal::RootView*>(widget2->GetRootView());
+  desktop_position_client2 = std::make_unique<DesktopScreenPositionClient>(
+      params.context->GetRootWindow());
   aura::client::SetScreenPositionClient(
       widget2->GetNativeView()->GetRootWindow(),
       desktop_position_client2.get());

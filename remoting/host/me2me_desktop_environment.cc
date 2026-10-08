@@ -1,20 +1,17 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/host/me2me_desktop_environment.h"
 
-#include <memory>
 #include <utility>
 
-#include "base/environment.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "remoting/base/logging.h"
 #include "remoting/host/action_executor.h"
-#include "remoting/host/base/screen_controls.h"
 #include "remoting/host/client_session_control.h"
 #include "remoting/host/curtain_mode.h"
 #include "remoting/host/desktop_resizer.h"
@@ -22,42 +19,22 @@
 #include "remoting/host/host_window_proxy.h"
 #include "remoting/host/input_injector.h"
 #include "remoting/host/input_monitor/local_input_monitor.h"
-#include "remoting/host/remote_open_url/remote_open_url_util.h"
 #include "remoting/host/resizing_host_observer.h"
+#include "remoting/host/screen_controls.h"
 #include "remoting/protocol/capability_names.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_capture_options.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_capturer.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <sys/types.h>
 #include <unistd.h>
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // defined(OS_POSIX)
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/windows_version.h"
-#endif  // BUILDFLAG(IS_WIN)
-
-#if defined(REMOTING_USE_X11)
-#include "remoting/host/linux/x11_util.h"
-#include "ui/gfx/x/connection.h"
-#endif  // defined(REMOTING_USE_X11)
+#endif  // defined(OS_WIN)
 
 namespace remoting {
-
-namespace {
-
-#if defined(REMOTING_USE_X11)
-
-// Helper function that caches the result of IsUsingVideoDummyDriver().
-bool UsingVideoDummyDriver() {
-  static bool is_using_dummy_driver =
-      IsUsingVideoDummyDriver(x11::Connection::Get());
-  return is_using_dummy_driver;
-}
-
-#endif  // defined(REMOTING_USE_X11)
-
-}  // namespace
 
 Me2MeDesktopEnvironment::~Me2MeDesktopEnvironment() {
   DCHECK(caller_task_runner()->BelongsToCurrentThread());
@@ -79,17 +56,12 @@ Me2MeDesktopEnvironment::CreateScreenControls() {
   // they disconnect and reconnect. Both OS X and Windows will restore the
   // resolution automatically when the user logs back in on the console, and on
   // Linux the curtain-mode uses a separate session.
-  auto resizer = std::make_unique<ResizingHostObserver>(
-      DesktopResizer::Create(), curtain_ == nullptr);
-  resizer->RegisterForDisplayChanges(*GetDisplayInfoMonitor());
-  return resizer;
+  return base::WrapUnique(new ResizingHostObserver(DesktopResizer::Create(),
+                                                   curtain_ == nullptr));
 }
 
 std::string Me2MeDesktopEnvironment::GetCapabilities() const {
-  std::string capabilities = BasicDesktopEnvironment::GetCapabilities();
-  if (!capabilities.empty()) {
-    capabilities += " ";
-  }
+  std::string capabilities;
   capabilities += protocol::kRateLimitResizeRequests;
 
   if (InputInjector::SupportsTouchEvents()) {
@@ -102,7 +74,7 @@ std::string Me2MeDesktopEnvironment::GetCapabilities() const {
     capabilities += protocol::kFileTransferCapability;
   }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   capabilities += " ";
   capabilities += protocol::kSendAttentionSequenceAction;
 
@@ -111,31 +83,7 @@ std::string Me2MeDesktopEnvironment::GetCapabilities() const {
     capabilities += " ";
     capabilities += protocol::kLockWorkstationAction;
   }
-#endif  // BUILDFLAG(IS_WIN)
-
-  if (desktop_environment_options().enable_remote_open_url() &&
-      IsRemoteOpenUrlSupported()) {
-    capabilities += " ";
-    capabilities += protocol::kRemoteOpenUrlCapability;
-  }
-
-  if (desktop_environment_options().enable_remote_webauthn()) {
-    capabilities += " ";
-    capabilities += protocol::kRemoteWebAuthnCapability;
-  }
-
-#if (BUILDFLAG(IS_LINUX) && defined(REMOTING_USE_X11)) || BUILDFLAG(IS_MAC)
-  capabilities += " ";
-  capabilities += protocol::kMultiStreamCapability;
-#endif  // (BUILDFLAG(IS_LINUX) && defined(REMOTING_USE_X11)) || ...
-
-#if BUILDFLAG(IS_LINUX) && defined(REMOTING_USE_X11)
-  // Client-controlled layout is only supported with Xorg+video-dummy.
-  if (UsingVideoDummyDriver()) {
-    capabilities += " ";
-    capabilities += protocol::kClientControlledLayoutCapability;
-  }
-#endif  // BUILDFLAG(IS_LINUX) && defined(REMOTING_USE_X11)
+#endif  // defined(OS_WIN)
 
   return capabilities;
 }
@@ -162,19 +110,6 @@ Me2MeDesktopEnvironment::Me2MeDesktopEnvironment(
   // see http://crbug.com/73423. It's safe to enable it here because it works
   // properly under Xvfb.
   mutable_desktop_capture_options()->set_use_update_notifications(true);
-
-#if BUILDFLAG(IS_LINUX)
-  // Setting this option to false means that the capture differ wrapper will not
-  // be used when the X11 capturer is selected. This reduces the X11 capture
-  // time by a few milliseconds per frame and is safe because we can rely on
-  // XDAMAGE to identify the changed regions rather than checking each pixel
-  // ourselves.
-  mutable_desktop_capture_options()->set_detect_updated_region(false);
-#endif
-
-#if defined(REMOTING_USE_WAYLAND)
-  mutable_desktop_capture_options()->set_prefer_cursor_embedded(false);
-#endif
 }
 
 bool Me2MeDesktopEnvironment::InitializeSecurity(
@@ -195,9 +130,9 @@ bool Me2MeDesktopEnvironment::InitializeSecurity(
 
   // Otherwise, if the session is shared with the local user start monitoring
   // the local input and create the in-session UI.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   bool want_user_interface = false;
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
   // Don't try to display any UI on top of the system's login screen as this
   // is rejected by the Window Server on OS X 10.7.4, and prevents the
   // capturer from working (http://crbug.com/140984).
@@ -219,15 +154,15 @@ bool Me2MeDesktopEnvironment::InitializeSecurity(
         client_session_control);
 
     // Create the disconnect window.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     disconnect_window_ =
         HostWindow::CreateAutoHidingDisconnectWindow(LocalInputMonitor::Create(
             caller_task_runner(), input_task_runner(), ui_task_runner()));
 #else
     disconnect_window_ = HostWindow::CreateDisconnectWindow();
 #endif
-    disconnect_window_ = std::make_unique<HostWindowProxy>(
-        caller_task_runner(), ui_task_runner(), std::move(disconnect_window_));
+    disconnect_window_.reset(new HostWindowProxy(
+        caller_task_runner(), ui_task_runner(), std::move(disconnect_window_)));
     disconnect_window_->Start(client_session_control);
   }
 
@@ -249,7 +184,6 @@ Me2MeDesktopEnvironmentFactory::~Me2MeDesktopEnvironmentFactory() {
 
 std::unique_ptr<DesktopEnvironment> Me2MeDesktopEnvironmentFactory::Create(
     base::WeakPtr<ClientSessionControl> client_session_control,
-    base::WeakPtr<ClientSessionEvents> client_session_events,
     const DesktopEnvironmentOptions& options) {
   DCHECK(caller_task_runner()->BelongsToCurrentThread());
 
@@ -262,7 +196,7 @@ std::unique_ptr<DesktopEnvironment> Me2MeDesktopEnvironmentFactory::Create(
     return nullptr;
   }
 
-  return desktop_environment;
+  return std::move(desktop_environment);
 }
 
 }  // namespace remoting

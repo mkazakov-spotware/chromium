@@ -1,4 +1,4 @@
-// Copyright 2016 The Crashpad Authors
+// Copyright 2016 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 
 #include "base/check_op.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/numerics/safe_conversions.h"
 #include "util/misc/from_pointer_cast.h"
 #include "util/numeric/checked_range.h"
@@ -65,9 +66,6 @@ class TSimpleAddressRangeBag {
           current_(0) {
     }
 
-    Iterator(const Iterator&) = delete;
-    Iterator& operator=(const Iterator&) = delete;
-
     //! \brief Returns the next entry in the bag, or `nullptr` if at the end of
     //!     the collection.
     const Entry* Next() {
@@ -83,6 +81,8 @@ class TSimpleAddressRangeBag {
    private:
     const TSimpleAddressRangeBag& bag_;
     size_t current_;
+
+    DISALLOW_COPY_AND_ASSIGN(Iterator);
   };
 
   TSimpleAddressRangeBag()

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include "base/bind.h"
 #include "chrome/browser/ui/passwords/passwords_model_delegate.h"
-#include "chrome/browser/ui/passwords/ui_utils.h"
+#include "chrome/browser/ui/views/accessibility/non_accessible_image_view.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/chrome_typography.h"
 #include "ui/base/resource/resource_bundle.h"
@@ -24,7 +24,7 @@ PostSaveCompromisedBubbleView::PostSaveCompromisedBubbleView(
       controller_(PasswordsModelDelegateFromWebContents(web_contents)) {
   SetLayoutManager(std::make_unique<views::FillLayout>());
 
-  std::u16string button = controller_.GetButtonText();
+  base::string16 button = controller_.GetButtonText();
   if (button.empty()) {
     SetButtons(ui::DIALOG_BUTTON_NONE);
   } else {
@@ -49,7 +49,6 @@ PostSaveCompromisedBubbleView::PostSaveCompromisedBubbleView(
   SetAcceptCallback(
       base::BindOnce(&PostSaveCompromisedBubbleController::OnAccepted,
                      base::Unretained(&controller_)));
-  SetShowIcon(true);
 }
 
 PostSaveCompromisedBubbleView::~PostSaveCompromisedBubbleView() = default;
@@ -64,12 +63,12 @@ PostSaveCompromisedBubbleView::GetController() const {
   return &controller_;
 }
 
-ui::ImageModel PostSaveCompromisedBubbleView::GetWindowIcon() {
-  return ui::ImageModel::FromVectorIcon(GooglePasswordManagerVectorIcon(),
-                                        ui::kColorIcon);
-}
-
-void PostSaveCompromisedBubbleView::AddedToWidget() {
-  SetBubbleHeader(controller_.GetImageID(/*dark=*/false),
-                  controller_.GetImageID(/*dark=*/true));
+void PostSaveCompromisedBubbleView::OnThemeChanged() {
+  PasswordBubbleViewBase::OnThemeChanged();
+  int image_id = controller_.GetImageID(
+      color_utils::IsDark(GetBubbleFrameView()->GetBackgroundColor()));
+  auto image_view = std::make_unique<NonAccessibleImageView>();
+  image_view->SetImage(
+      *ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(image_id));
+  GetBubbleFrameView()->SetHeaderView(std::move(image_view));
 }

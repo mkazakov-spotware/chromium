@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/optional.h"
 #include "build/build_config.h"
 #include "third_party/blink/public/common/input/web_gesture_event.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
@@ -19,7 +20,7 @@
 
 namespace gfx {
 class PointF;
-class Vector2dF;
+class Vector2d;
 }
 
 namespace ui {
@@ -28,10 +29,6 @@ class GestureEventAndroid;
 struct GestureEventData;
 struct GestureEventDetails;
 class MotionEvent;
-
-// The scroll percentage per mousewheel tick. Used to determine scroll delta
-// if percent based scrolling is enabled.
-const float kScrollPercentPerLineOrChar = 0.05f;
 
 blink::WebTouchEvent CreateWebTouchEventFromMotionEvent(
     const MotionEvent& event,
@@ -62,7 +59,7 @@ std::unique_ptr<blink::WebInputEvent> ScaleWebInputEvent(
 // Otherwise, returns the transformed version of |event|.
 std::unique_ptr<blink::WebInputEvent> TranslateAndScaleWebInputEvent(
     const blink::WebInputEvent& event,
-    const gfx::Vector2dF& delta,
+    const gfx::Vector2d& delta,
     float scale);
 
 blink::WebInputEvent::Type ToWebMouseEventType(MotionEvent::Action action);
@@ -100,7 +97,7 @@ inline const blink::WebGestureEvent& ToWebGestureEvent(
 blink::WebGestureEvent ScrollBeginFromScrollUpdate(
     const blink::WebGestureEvent& scroll_update);
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 // Convenience method that converts an instance to blink event.
 std::unique_ptr<blink::WebGestureEvent>
 CreateWebGestureEventFromGestureEventAndroid(const GestureEventAndroid& event);

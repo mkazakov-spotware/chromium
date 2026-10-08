@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <map>
 
+#include "base/macros.h"
 #include "remoting/ios/persistence/keychain.h"
 
 namespace remoting {
@@ -16,10 +17,6 @@ namespace remoting {
 class FakeKeychain : public Keychain {
  public:
   FakeKeychain();
-
-  FakeKeychain(const FakeKeychain&) = delete;
-  FakeKeychain& operator=(const FakeKeychain&) = delete;
-
   ~FakeKeychain() override;
 
   size_t GetNumberOfEntries() const;
@@ -33,6 +30,8 @@ class FakeKeychain : public Keychain {
 
  private:
   std::map<std::string, std::string> entries_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeKeychain);
 };
 
 }  // namespace remoting

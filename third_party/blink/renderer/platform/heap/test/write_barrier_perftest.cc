@@ -1,11 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/callback.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/perf/perf_result_reporter.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
 #include "third_party/blink/renderer/platform/heap/heap_test_utilities.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
 
@@ -64,9 +63,9 @@ TEST_F(WriteBarrierPerfTest, MemberWritePerformance) {
 
   // During GC.
   IncrementalMarkingTestDriver driver(ThreadState::Current());
-  driver.StartGC();
+  driver.Start();
   base::TimeDelta during_gc_duration = TimedRun(benchmark);
-  driver.TriggerMarkingSteps();
+  driver.FinishSteps();
   PreciselyCollectGarbage();
 
   // Outside GC.

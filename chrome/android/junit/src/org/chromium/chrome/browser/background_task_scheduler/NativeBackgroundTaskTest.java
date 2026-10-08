@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,6 @@ import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.robolectric.annotation.Config;
-import org.robolectric.annotation.LooperMode;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.library_loader.LibraryProcessType;
@@ -41,6 +40,8 @@ import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.init.BrowserParts;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
+import org.chromium.chrome.browser.metrics.BackgroundTaskMemoryMetricsEmitter;
+import org.chromium.chrome.browser.metrics.BackgroundTaskMemoryMetricsEmitterJni;
 import org.chromium.components.background_task_scheduler.BackgroundTask;
 import org.chromium.components.background_task_scheduler.BackgroundTaskSchedulerExternalUma;
 import org.chromium.components.background_task_scheduler.BackgroundTaskSchedulerFactory;
@@ -55,7 +56,6 @@ import java.util.concurrent.TimeUnit;
 /** Unit tests for {@link NativeBackgroundTask}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
-@LooperMode(LooperMode.Mode.LEGACY)
 public class NativeBackgroundTaskTest {
     private enum InitializerSetup {
         SUCCESS,
@@ -77,12 +77,12 @@ public class NativeBackgroundTaskTest {
 
         @Override
         public void startBrowserProcessesAsync(@LibraryProcessType int libraryProcessType,
-                boolean startGpuProcess, boolean startMinimalBrowser,
+                boolean startGpuProcess, boolean startServiceManagerOnly,
                 final StartupCallback callback) {}
 
         @Override
-        public void startBrowserProcessesSync(@LibraryProcessType int libraryProcessType,
-                boolean singleProcess, boolean startGpuProcess) {}
+        public void startBrowserProcessesSync(
+                @LibraryProcessType int libraryProcessType, boolean singleProcess) {}
 
         @Override
         public boolean isFullBrowserStarted() {
@@ -96,7 +96,7 @@ public class NativeBackgroundTaskTest {
         }
 
         @Override
-        public boolean isRunningInMinimalBrowserMode() {
+        public boolean isRunningInServiceManagerMode() {
             return false;
         }
 
@@ -107,7 +107,7 @@ public class NativeBackgroundTaskTest {
         public void setContentMainCallbackForTests(Runnable r) {}
 
         @Override
-        public int getStartupMode(boolean startMinimalBrowser) {
+        public int getStartupMode(boolean startServiceManagerOnly) {
             assertFalse(isNativeStarted());
             return 0 /*ServicificationStartupUma.ServicificationStartup.CHROME_COLD*/;
         }
@@ -128,6 +128,8 @@ public class NativeBackgroundTaskTest {
     public final JniMocker mocker = new JniMocker();
     @Mock
     private ChromeBrowserInitializer mChromeBrowserInitializer;
+    @Mock
+    BackgroundTaskMemoryMetricsEmitter.Natives mEmitterNativeMock;
     @Captor
     ArgumentCaptor<BrowserParts> mBrowserParts;
 
@@ -247,6 +249,7 @@ public class NativeBackgroundTaskTest {
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
+        mocker.mock(BackgroundTaskMemoryMetricsEmitterJni.TEST_HOOKS, mEmitterNativeMock);
         mBrowserStartupController = new TestBrowserStartupController();
         mCallback = new TaskFinishedCallback();
         mTask = new TestNativeBackgroundTask(mBrowserStartupController);
@@ -261,9 +264,7 @@ public class NativeBackgroundTaskTest {
     }
 
     private void setUpChromeBrowserInitializer(InitializerSetup setup) {
-        doNothing()
-                .when(mChromeBrowserInitializer)
-                .handlePreNativeStartupAndLoadLibraries(any(BrowserParts.class));
+        doNothing().when(mChromeBrowserInitializer).handlePreNativeStartup(any(BrowserParts.class));
         switch (setup) {
             case SUCCESS:
                 doAnswer(new Answer<Void>() {
@@ -299,7 +300,7 @@ public class NativeBackgroundTaskTest {
 
     private void verifyStartupCalls(int expectedPreNativeCalls, int expectedPostNativeCalls) {
         verify(mChromeBrowserInitializer, times(expectedPreNativeCalls))
-                .handlePreNativeStartupAndLoadLibraries(any(BrowserParts.class));
+                .handlePreNativeStartup(any(BrowserParts.class));
         verify(mChromeBrowserInitializer, times(expectedPostNativeCalls))
                 .handlePostNativeStartup(eq(true), any(BrowserParts.class));
     }

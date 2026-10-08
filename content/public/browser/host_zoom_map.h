@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,6 @@ class NavigationEntry;
 class BrowserContext;
 class SiteInstance;
 class WebContents;
-struct GlobalRenderFrameHostId;
 
 // Maps hostnames to custom zoom levels.  Written on the UI thread and read on
 // any thread.  One instance per browser context. Must be created on the UI
@@ -47,6 +46,8 @@ class HostZoomMap {
                                        // pair.
     ZOOM_CHANGED_TEMPORARY_ZOOM,       // Temporary zoom change for specific
                                        // renderer, no scheme/host is specified.
+    PAGE_SCALE_IS_ONE_CHANGED,         // Page scale factor equal to one changed
+                                       // for a host.
   };
 
   // Structure used to notify about zoom changes. Host and/or scheme are empty
@@ -82,6 +83,9 @@ class HostZoomMap {
   // temporary or host-specific.
   CONTENT_EXPORT static double GetZoomLevel(WebContents* web_contents);
 
+  // Returns true if the page scale factor for the WebContents is one.
+  CONTENT_EXPORT static bool PageScaleFactorIsOne(WebContents* web_contents);
+
   // Sets the current zoom level for the specified WebContents. The level may
   // be temporary or host-specific depending on the particular WebContents.
   CONTENT_EXPORT static void SetZoomLevel(WebContents* web_contents,
@@ -91,6 +95,12 @@ class HostZoomMap {
   // be called since error pages don't get loaded via the normal channel.
   CONTENT_EXPORT static void SendErrorPageZoomLevelRefresh(
       WebContents* web_contents);
+
+  // Set or clear whether or not the page scale factor for a view is one.
+  virtual void SetPageScaleFactorIsOneForView(
+      int render_process_id, int render_view_id, bool is_one) = 0;
+  virtual void ClearPageScaleFactorIsOneForView(
+      int render_process_id, int render_view_id) = 0;
 
   // Copy the zoom levels from the given map. Can only be called on the UI
   // thread.
@@ -142,16 +152,17 @@ class HostZoomMap {
                                             const std::string& host,
                                             double level) = 0;
 
-  // Returns whether the frame manages its zoom level independently of other
-  // frames from the same host.
-  virtual bool UsesTemporaryZoomLevel(
-      const GlobalRenderFrameHostId& rfh_id) = 0;
+  // Returns whether the view manages its zoom level independently of other
+  // views displaying content from the same host.
+  virtual bool UsesTemporaryZoomLevel(int render_process_id,
+                                      int render_view_id) = 0;
 
   // Sets the temporary zoom level that's only valid for the lifetime of this
-  // RenderFrameHost.
+  // WebContents.
   //
   // This should only be called on the UI thread.
-  virtual void SetTemporaryZoomLevel(const GlobalRenderFrameHostId& rfh_id,
+  virtual void SetTemporaryZoomLevel(int render_process_id,
+                                     int render_view_id,
                                      double level) = 0;
 
   // Clear zoom levels with a modification date greater than or equal
@@ -160,11 +171,11 @@ class HostZoomMap {
   virtual void ClearZoomLevels(base::Time delete_begin,
                                base::Time delete_end) = 0;
 
-  // Clears the temporary zoom level stored for this RenderFrameHost.
+  // Clears the temporary zoom level stored for this WebContents.
   //
   // This should only be called on the UI thread.
-  virtual void ClearTemporaryZoomLevel(
-      const GlobalRenderFrameHostId& rfh_id) = 0;
+  virtual void ClearTemporaryZoomLevel(int render_process_id,
+                                       int render_view_id) = 0;
 
   // Get/Set the default zoom level for pages that don't override it.
   virtual double GetDefaultZoomLevel() = 0;
@@ -172,21 +183,13 @@ class HostZoomMap {
 
   using ZoomLevelChangedCallback =
       base::RepeatingCallback<void(const ZoomLevelChange&)>;
+  typedef base::CallbackList<void(const ZoomLevelChange&)>::Subscription
+      Subscription;
   // Add and remove zoom level changed callbacks.
-  virtual base::CallbackListSubscription AddZoomLevelChangedCallback(
+  virtual std::unique_ptr<Subscription> AddZoomLevelChangedCallback(
       ZoomLevelChangedCallback callback) = 0;
 
   virtual void SetClockForTesting(base::Clock* clock) = 0;
-
-  // On Android only, set a callback for when the Java-side UI sets a default
-  // zoom level so the HostZoomMapImpl does not depend on Prefs or //chrome/.
-#if BUILDFLAG(IS_ANDROID)
-  using DefaultZoomChangedCallback =
-      base::RepeatingCallback<void(double new_level)>;
-
-  virtual void SetDefaultZoomLevelPrefCallback(
-      DefaultZoomChangedCallback callback) = 0;
-#endif
 
  protected:
   virtual ~HostZoomMap() {}

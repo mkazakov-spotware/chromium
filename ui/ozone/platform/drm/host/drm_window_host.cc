@@ -1,19 +1,16 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/ozone/platform/drm/host/drm_window_host.h"
 
 #include "base/bind.h"
-#include "base/memory/scoped_refptr.h"
-#include "ui/base/cursor/platform_cursor.h"
 #include "ui/display/display.h"
 #include "ui/events/devices/device_data_manager.h"
 #include "ui/events/event.h"
 #include "ui/events/ozone/evdev/event_factory_evdev.h"
 #include "ui/events/ozone/events_ozone.h"
 #include "ui/events/platform/platform_event_source.h"
-#include "ui/ozone/common/bitmap_cursor.h"
 #include "ui/ozone/platform/drm/host/drm_cursor.h"
 #include "ui/ozone/platform/drm/host/drm_display_host.h"
 #include "ui/ozone/platform/drm/host/drm_display_host_manager.h"
@@ -78,29 +75,17 @@ bool DrmWindowHost::IsVisible() const {
 
 void DrmWindowHost::PrepareForShutdown() {}
 
-void DrmWindowHost::SetBoundsInPixels(const gfx::Rect& bounds) {
-  bool origin_changed = bounds_.origin() != bounds.origin();
+void DrmWindowHost::SetBounds(const gfx::Rect& bounds) {
   bounds_ = bounds;
-  delegate_->OnBoundsChanged({origin_changed});
+  delegate_->OnBoundsChanged(bounds);
   SendBoundsChange();
 }
 
-gfx::Rect DrmWindowHost::GetBoundsInPixels() const {
+gfx::Rect DrmWindowHost::GetBounds() const {
   return bounds_;
 }
 
-void DrmWindowHost::SetBoundsInDIP(const gfx::Rect& bounds) {
-  NOTREACHED();
-  // No scaling at DRM level and should always use pixel bounds.
-}
-
-gfx::Rect DrmWindowHost::GetBoundsInDIP() const {
-  // No scaling at DRM level and should always use pixel bounds.
-  NOTREACHED();
-  return bounds_;
-}
-
-void DrmWindowHost::SetTitle(const std::u16string& title) {}
+void DrmWindowHost::SetTitle(const base::string16& title) {}
 
 void DrmWindowHost::SetCapture() {
   window_manager_->GrabEvents(widget_);
@@ -114,7 +99,7 @@ bool DrmWindowHost::HasCapture() const {
   return widget_ == window_manager_->event_grabber();
 }
 
-void DrmWindowHost::SetFullscreen(bool fullscreen, int64_t target_display_id) {}
+void DrmWindowHost::ToggleFullscreen() {}
 
 void DrmWindowHost::Maximize() {}
 
@@ -140,8 +125,8 @@ bool DrmWindowHost::ShouldUseNativeFrame() const {
   return false;
 }
 
-void DrmWindowHost::SetCursor(scoped_refptr<PlatformCursor> cursor) {
-  cursor_->SetCursor(widget_, BitmapCursor::FromPlatformCursor(cursor));
+void DrmWindowHost::SetCursor(PlatformCursor cursor) {
+  cursor_->SetCursor(widget_, cursor);
 }
 
 void DrmWindowHost::MoveCursorTo(const gfx::Point& location) {
@@ -156,11 +141,11 @@ void DrmWindowHost::ConfineCursorToBounds(const gfx::Rect& bounds) {
   cursor_->CommitBoundsChange(widget_, bounds_, bounds);
 }
 
-void DrmWindowHost::SetRestoredBoundsInDIP(const gfx::Rect& bounds) {
+void DrmWindowHost::SetRestoredBoundsInPixels(const gfx::Rect& bounds) {
   NOTREACHED();
 }
 
-gfx::Rect DrmWindowHost::GetRestoredBoundsInDIP() const {
+gfx::Rect DrmWindowHost::GetRestoredBoundsInPixels() const {
   NOTREACHED();
   return gfx::Rect();
 }

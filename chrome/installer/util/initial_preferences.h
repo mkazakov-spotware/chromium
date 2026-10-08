@@ -1,8 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
-// This file contains functions processing initial preference file used by
+// This file contains functions processing master preference file used by
 // setup and first run.
 
 #ifndef CHROME_INSTALLER_UTIL_INITIAL_PREFERENCES_H_
@@ -13,28 +13,27 @@
 #include <vector>
 
 #include "base/command_line.h"
-#include "base/memory/raw_ptr.h"
-#include "base/values.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 
 namespace base {
+class DictionaryValue;
 class FilePath;
 }  // namespace base
 
 namespace installer {
 
-#if !BUILDFLAG(IS_MAC)
-// This is the default name for the initial preferences file used to pre-set
+#if !defined(OS_MAC)
+// This is the default name for the master preferences file used to pre-set
 // values in the user profile at first run.
-const char kInitialPrefs[] = "initial_preferences";
-const char kLegacyInitialPrefs[] = "master_preferences";
+const char kDefaultMasterPrefs[] = "master_preferences";
 #endif
 
-// The initial preferences is a JSON file with the same entries as the
+// The master preferences is a JSON file with the same entries as the
 // 'Default\Preferences' file. This function parses the distribution
 // section of the preferences file.
 //
-// A prototypical initial preferences file looks like this:
+// A prototypical 'master_preferences' file looks like this:
 //
 // {
 //   "distribution": {
@@ -71,15 +70,17 @@ const char kLegacyInitialPrefs[] = "master_preferences";
 //
 // A reserved "distribution" entry in the file is used to group related
 // installation properties. This entry will be ignored at other times.
+// This function parses the 'distribution' entry and returns a combination
+// of MasterPrefResult.
 
 class InitialPreferences {
  public:
-  // Construct a initial preferences from the current process' current command
+  // Construct a master preferences from the current process' current command
   // line. Equivalent to calling
   // InitialPreferences(*CommandLine::ForCurrentProcess()).
   InitialPreferences();
 
-  // Parses the command line and optionally reads the initial preferences file
+  // Parses the command line and optionally reads the master preferences file
   // to get distribution related install options (if the "installerdata" switch
   // is present in the command line.
   // The options from the preference file and command line are merged, with the
@@ -94,13 +95,6 @@ class InitialPreferences {
   // line switches with the distribution dictionary.
   explicit InitialPreferences(const std::string& prefs);
 
-  // Parses a preferences directly from |prefs| and does not merge any command
-  // line switches with the distribution dictionary.
-  explicit InitialPreferences(base::Value::Dict prefs);
-
-  InitialPreferences(const InitialPreferences&) = delete;
-  InitialPreferences& operator=(const InitialPreferences&) = delete;
-
   ~InitialPreferences();
 
   // Each of the Get methods below returns true if the named value was found in
@@ -109,9 +103,8 @@ class InitialPreferences {
   bool GetBool(const std::string& name, bool* value) const;
   bool GetInt(const std::string& name, int* value) const;
   bool GetString(const std::string& name, std::string* value) const;
-  bool GetPath(const std::string& name, base::FilePath* value) const;
 
-  // As part of the initial preferences an optional section indicates the tabs
+  // As part of the master preferences an optional section indicates the tabs
   // to open during first run. An example is the following:
   //
   //  {
@@ -126,10 +119,10 @@ class InitialPreferences {
   // An empty vector is returned if the first_run_tabs preference is absent.
   std::vector<std::string> GetFirstRunTabs() const;
 
-  // The initial preferences can also contain a regular extensions
+  // The master preferences can also contain a regular extensions
   // preference block. If so, the extensions referenced there will be
   // installed during the first run experience.
-  // An extension can go in the initial prefs needs just the basic
+  // An extension can go in the master prefs needs just the basic
   // elements such as:
   //   1- An extension entry under settings, assigned by the gallery
   //   2- The "location" : 1 entry
@@ -139,7 +132,7 @@ class InitialPreferences {
   //   4- The "path" entry with the version as last component
   //   5- The "state" : 1 entry
   //
-  // The following is an example of a initial pref file that installs
+  // The following is an example of a master pref file that installs
   // Google XYZ:
   //
   //  {
@@ -160,21 +153,21 @@ class InitialPreferences {
   //        }
   //     }
   //  }
-  bool GetExtensionsBlock(const base::Value::Dict*& extensions) const;
+  //
+  bool GetExtensionsBlock(base::DictionaryValue** extensions) const;
 
-  // Returns the compressed variations seed entry from the initial prefs.
-  std::string GetCompressedVariationsSeed();
+  // Returns the compressed variations seed entry from the master prefs.
+  std::string GetCompressedVariationsSeed() const;
 
-  // Returns the variations seed signature entry from the initial prefs.
-  std::string GetVariationsSeedSignature();
+  // Returns the variations seed signature entry from the master prefs.
+  std::string GetVariationsSeedSignature() const;
 
-  // Returns true iff the initial preferences were successfully read from a
-  // file.
+  // Returns true iff the master preferences were successfully read from a file.
   bool read_from_file() const { return preferences_read_from_file_; }
 
   // Returns a reference to this InitialPreferences' root dictionary of values.
-  const base::Value::Dict& initial_dictionary() const {
-    return *initial_dictionary_;
+  const base::DictionaryValue& master_dictionary() const {
+    return *master_dictionary_.get();
   }
 
   // Returns a static preference object that has been initialized with the
@@ -192,18 +185,23 @@ class InitialPreferences {
   bool InitializeFromString(const std::string& json_data);
 
   // Enforces legacy preferences that should no longer be used, but could be
-  // found in older initial preferences files.
+  // found in older master_preferences files.
   void EnforceLegacyPreferences();
 
-  // Removes the specified string pref from the initial preferences and returns
-  // its value. Should be used for initial prefs that shouldn't be automatically
+  // Removes the specified string pref from the master preferences and returns
+  // its value. Should be used for master prefs that shouldn't be automatically
   // copied over to profile preferences.
-  std::string ExtractPrefString(const std::string& name);
+  std::string ExtractPrefString(const std::string& name) const;
 
-  absl::optional<base::Value::Dict> initial_dictionary_;
-  raw_ptr<base::Value::Dict> distribution_ = nullptr;
+  std::unique_ptr<base::DictionaryValue> master_dictionary_;
+  base::DictionaryValue* distribution_ = nullptr;
   bool preferences_read_from_file_ = false;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InitialPreferences);
 };
+
+using InitialPreferences = InitialPreferences;
 
 }  // namespace installer
 

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <propidl.h>
 
 #include "base/check_op.h"
+#include "base/macros.h"
 
 namespace base {
 namespace win {
@@ -17,9 +18,6 @@ namespace win {
 class ScopedPropVariant {
  public:
   ScopedPropVariant() { PropVariantInit(&pv_); }
-
-  ScopedPropVariant(const ScopedPropVariant&) = delete;
-  ScopedPropVariant& operator=(const ScopedPropVariant&) = delete;
 
   ~ScopedPropVariant() { Reset(); }
 
@@ -47,6 +45,7 @@ class ScopedPropVariant {
   // Comparison operators for ScopedPropVariant are not supported at this point.
   bool operator==(const ScopedPropVariant&) const;
   bool operator!=(const ScopedPropVariant&) const;
+  DISALLOW_COPY_AND_ASSIGN(ScopedPropVariant);
 };
 
 }  // namespace win

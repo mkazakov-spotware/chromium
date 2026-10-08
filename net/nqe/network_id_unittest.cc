@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,9 @@
 #include "net/base/network_change_notifier.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace net::nqe::internal {
+namespace net {
+namespace nqe {
+namespace internal {
 
 namespace {
 
@@ -23,4 +25,6 @@ TEST(NetworkIDTest, TestSerialize) {
 
 }  // namespace
 
-}  // namespace net::nqe::internal
+}  // namespace internal
+}  // namespace nqe
+}  // namespace net

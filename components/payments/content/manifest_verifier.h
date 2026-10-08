@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,8 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "components/payments/content/developer_console_logger.h"
 #include "components/webdata/common/web_data_service_base.h"
@@ -77,9 +78,6 @@ class ManifestVerifier final : public WebDataServiceConsumer {
                    PaymentManifestParser* parser,
                    PaymentManifestWebDataService* cache);
 
-  ManifestVerifier(const ManifestVerifier&) = delete;
-  ManifestVerifier& operator=(const ManifestVerifier&) = delete;
-
   ~ManifestVerifier() override;
 
   // Initiates the verification. This object should be deleted after
@@ -115,13 +113,13 @@ class ManifestVerifier final : public WebDataServiceConsumer {
   DeveloperConsoleLogger log_;
 
   // Downloads the manifests.
-  raw_ptr<PaymentManifestDownloader, DanglingUntriaged> downloader_;
+  PaymentManifestDownloader* downloader_;
 
   // Parses the manifests.
-  raw_ptr<PaymentManifestParser, DanglingUntriaged> parser_;
+  PaymentManifestParser* parser_;
 
   // Caches the manifests.
-  raw_ptr<PaymentManifestWebDataService> cache_;
+  PaymentManifestWebDataService* cache_;
 
   // The list of payment apps being verified.
   content::InstalledPaymentAppsFinder::PaymentApps apps_;
@@ -170,6 +168,8 @@ class ManifestVerifier final : public WebDataServiceConsumer {
   std::string first_error_message_;
 
   base::WeakPtrFactory<ManifestVerifier> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ManifestVerifier);
 };
 
 }  // namespace payments

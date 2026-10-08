@@ -1,26 +1,23 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/renderer/script_context_set.h"
 
 #include "base/bind.h"
-#include "base/feature_list.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "content/public/common/url_constants.h"
 #include "content/public/renderer/render_frame.h"
 #include "extensions/common/extension.h"
-#include "extensions/common/extension_features.h"
-#include "extensions/renderer/extension_frame_helper.h"
 #include "extensions/renderer/extensions_renderer_client.h"
 #include "extensions/renderer/script_context.h"
 #include "extensions/renderer/script_injection.h"
 #include "third_party/blink/public/web/blink.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_local_frame.h"
-#include "v8/include/v8-isolate.h"
-#include "v8/include/v8-object.h"
+#include "v8/include/v8.h"
 
 namespace extensions {
 
@@ -48,30 +45,13 @@ ScriptContext* ScriptContextSet::Register(
   const Extension* effective_extension =
       GetExtensionFromFrameAndWorld(frame, world_id, true);
 
-  mojom::ViewType view_type = mojom::ViewType::kInvalid;
-  content::RenderFrame* render_frame =
-      content::RenderFrame::FromWebFrame(frame);
-  // In production, we should always have a corresponding render frame.
-  // Unfortunately, this isn't the case in unit tests, so we can't DCHECK here.
-  if (render_frame) {
-    ExtensionFrameHelper* frame_helper =
-        ExtensionFrameHelper::Get(render_frame);
-    DCHECK(frame_helper);
-    view_type = frame_helper->view_type();
-    // We should only find an offscreen document if the corresponding feature
-    // is enabled.
-    DCHECK(base::FeatureList::IsEnabled(
-               extensions_features::kExtensionsOffscreenDocuments) ||
-           view_type != mojom::ViewType::kOffscreenDocument);
-  }
   GURL frame_url = ScriptContext::GetDocumentLoaderURLForFrame(frame);
   Feature::Context context_type = ClassifyJavaScriptContext(
-      extension, world_id, frame_url, frame->GetDocument().GetSecurityOrigin(),
-      view_type);
+      extension, world_id, frame_url, frame->GetDocument().GetSecurityOrigin());
   Feature::Context effective_context_type = ClassifyJavaScriptContext(
       effective_extension, world_id,
       ScriptContext::GetEffectiveDocumentURLForContext(frame, frame_url, true),
-      frame->GetDocument().GetSecurityOrigin(), view_type);
+      frame->GetDocument().GetSecurityOrigin());
 
   ScriptContext* context =
       new ScriptContext(v8_context, frame, extension, context_type,
@@ -83,8 +63,7 @@ ScriptContext* ScriptContextSet::Register(
 void ScriptContextSet::Remove(ScriptContext* context) {
   if (contexts_.erase(context)) {
     context->Invalidate();
-    base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE,
-                                                                  context);
+    base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE, context);
   }
 }
 
@@ -105,10 +84,7 @@ ScriptContext* ScriptContextSet::GetByV8Context(
 
 ScriptContext* ScriptContextSet::GetContextByObject(
     const v8::Local<v8::Object>& object) {
-  v8::Local<v8::Context> context;
-  if (!object->GetCreationContext().ToLocal(&context))
-    return nullptr;
-  return GetContextByV8Context(context);
+  return GetContextByV8Context(object->CreationContext());
 }
 
 ScriptContext* ScriptContextSet::GetContextByV8Context(
@@ -199,8 +175,7 @@ Feature::Context ScriptContextSet::ClassifyJavaScriptContext(
     const Extension* extension,
     int32_t world_id,
     const GURL& url,
-    const blink::WebSecurityOrigin& origin,
-    mojom::ViewType view_type) {
+    const blink::WebSecurityOrigin& origin) {
   // WARNING: This logic must match ProcessMap::GetContextType, as much as
   // possible.
 
@@ -232,20 +207,13 @@ Feature::Context ScriptContextSet::ClassifyJavaScriptContext(
     // unless the extension in question is a component extension, in which case
     // we cheat and call it blessed.
     if (extension->is_hosted_app() &&
-        extension->location() != mojom::ManifestLocation::kComponent) {
+        extension->location() != Manifest::COMPONENT) {
       return Feature::BLESSED_WEB_PAGE_CONTEXT;
     }
 
-    if (is_lock_screen_context_)
-      return Feature::LOCK_SCREEN_EXTENSION_CONTEXT;
-    if (view_type == mojom::ViewType::kOffscreenDocument)
-      return Feature::OFFSCREEN_EXTENSION_CONTEXT;
-    return Feature::BLESSED_EXTENSION_CONTEXT;
+    return is_lock_screen_context_ ? Feature::LOCK_SCREEN_EXTENSION_CONTEXT
+                                   : Feature::BLESSED_EXTENSION_CONTEXT;
   }
-
-  // None of the following feature types should ever be present in an
-  // offscreen document.
-  DCHECK_NE(mojom::ViewType::kOffscreenDocument, view_type);
 
   // TODO(kalman): This IsOpaque() check is wrong, it should be performed as
   // part of ScriptContext::IsSandboxedPage().

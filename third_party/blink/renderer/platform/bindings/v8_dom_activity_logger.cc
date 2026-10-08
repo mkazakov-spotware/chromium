@@ -1,15 +1,13 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/bindings/v8_dom_activity_logger.h"
 
 #include <memory>
-#include "third_party/blink/public/common/scheme_registry.h"
 #include "third_party/blink/renderer/platform/bindings/v8_binding.h"
 #include "third_party/blink/renderer/platform/bindings/v8_per_context_data.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
-#include "third_party/blink/renderer/platform/weborigin/scheme_registry.h"
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_hash.h"
 
@@ -66,7 +64,7 @@ V8DOMActivityLogger* V8DOMActivityLogger::ActivityLogger(
     return it == loggers.end() ? nullptr : it->value.get();
   }
 
-  if (extension_id.empty())
+  if (extension_id.IsEmpty())
     return nullptr;
 
   DOMActivityLoggerMapForMainWorld& loggers = DomActivityLoggersForMainWorld();
@@ -83,7 +81,7 @@ V8DOMActivityLogger* V8DOMActivityLogger::ActivityLogger(int world_id,
   // To find an activity logger that corresponds to the main world of an
   // extension, we need to obtain the extension ID. Extension ID is a hostname
   // of a background page's URL.
-  if (!CommonSchemeRegistry::IsExtensionScheme(url.Protocol().Ascii()))
+  if (!url.ProtocolIs("chrome-extension"))
     return nullptr;
 
   return ActivityLogger(world_id, url.Host());
@@ -128,7 +126,7 @@ V8DOMActivityLogger::CurrentActivityLoggerIfIsolatedWorld() {
 V8DOMActivityLogger*
 V8DOMActivityLogger::CurrentActivityLoggerIfIsolatedWorldForMainThread() {
   DCHECK(IsMainThread());
-  if (DomActivityLoggersForIsolatedWorld().empty())
+  if (DomActivityLoggersForIsolatedWorld().IsEmpty())
     return nullptr;
   return CurrentActivityLoggerIfIsolatedWorld(
       V8PerIsolateData::MainThreadIsolate());

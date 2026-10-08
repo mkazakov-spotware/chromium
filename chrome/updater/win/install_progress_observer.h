@@ -1,14 +1,14 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_UPDATER_WIN_INSTALL_PROGRESS_OBSERVER_H_
 #define CHROME_UPDATER_WIN_INSTALL_PROGRESS_OBSERVER_H_
 
-#include <string>
 #include <vector>
 
 #include "base/notreached.h"
+#include "base/strings/string16.h"
 
 namespace base {
 class Time;
@@ -59,33 +59,30 @@ inline bool IsCompletionCodeSuccess(CompletionCodes completion_code) {
 }
 
 struct AppCompletionInfo {
-  std::u16string display_name;
-  std::u16string app_id;
-  std::u16string completion_message;
+  base::string16 display_name;
+  base::string16 app_id;
+  base::string16 completion_message;
   CompletionCodes completion_code;
   int error_code = 0;
   int extra_code1 = 0;
   uint32_t installer_result_code = 0;
   bool is_canceled = false;
   bool is_noupdate = false;  // |noupdate| response from server.
-  std::wstring post_install_launch_command_line;
-  std::u16string post_install_url;
+  base::string16 post_install_launch_command_line;
+  base::string16 post_install_url;
 
   AppCompletionInfo();
   AppCompletionInfo(const AppCompletionInfo&);
-  AppCompletionInfo& operator=(const AppCompletionInfo&);
   ~AppCompletionInfo();
 };
 
 struct ObserverCompletionInfo {
   CompletionCodes completion_code = CompletionCodes::COMPLETION_CODE_SUCCESS;
-  std::wstring completion_text;
-  std::string help_url;
+  base::string16 completion_text;
+  base::string16 help_url;
   std::vector<AppCompletionInfo> apps_info;
 
   ObserverCompletionInfo();
-  ObserverCompletionInfo(const ObserverCompletionInfo&);
-  ObserverCompletionInfo& operator=(const ObserverCompletionInfo&);
   ~ObserverCompletionInfo();
 };
 
@@ -95,23 +92,23 @@ class InstallProgressObserver {
  public:
   virtual ~InstallProgressObserver() = default;
   virtual void OnCheckingForUpdate() = 0;
-  virtual void OnUpdateAvailable(const std::u16string& app_id,
-                                 const std::u16string& app_name,
-                                 const std::u16string& version_string) = 0;
-  virtual void OnWaitingToDownload(const std::u16string& app_id,
-                                   const std::u16string& app_name) = 0;
-  virtual void OnDownloading(const std::u16string& app_id,
-                             const std::u16string& app_name,
+  virtual void OnUpdateAvailable(const base::string16& app_id,
+                                 const base::string16& app_name,
+                                 const base::string16& version_string) = 0;
+  virtual void OnWaitingToDownload(const base::string16& app_id,
+                                   const base::string16& app_name) = 0;
+  virtual void OnDownloading(const base::string16& app_id,
+                             const base::string16& app_name,
                              int time_remaining_ms,
                              int pos) = 0;
-  virtual void OnWaitingRetryDownload(const std::u16string& app_id,
-                                      const std::u16string& app_name,
+  virtual void OnWaitingRetryDownload(const base::string16& app_id,
+                                      const base::string16& app_name,
                                       const base::Time& next_retry_time) = 0;
-  virtual void OnWaitingToInstall(const std::u16string& app_id,
-                                  const std::u16string& app_name,
+  virtual void OnWaitingToInstall(const base::string16& app_id,
+                                  const base::string16& app_name,
                                   bool* can_start_install) = 0;
-  virtual void OnInstalling(const std::u16string& app_id,
-                            const std::u16string& app_name,
+  virtual void OnInstalling(const base::string16& app_id,
+                            const base::string16& app_name,
                             int time_remaining_ms,
                             int pos) = 0;
   virtual void OnPause() = 0;

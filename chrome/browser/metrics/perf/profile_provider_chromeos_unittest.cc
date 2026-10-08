@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
@@ -18,7 +19,7 @@
 #include "chrome/browser/metrics/perf/metric_collector.h"
 #include "chrome/browser/metrics/perf/metric_provider.h"
 #include "chrome/browser/metrics/perf/windowed_incognito_observer.h"
-#include "chromeos/ash/components/login/login_state/login_state.h"
+#include "chromeos/login/login_state/login_state.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/test/browser_task_environment.h"
@@ -66,9 +67,6 @@ class TestMetricCollector : public internal::MetricCollector {
   explicit TestMetricCollector(const CollectionParams& collection_params)
       : internal::MetricCollector("UMA.CWP.TestData", collection_params) {}
 
-  TestMetricCollector(const TestMetricCollector&) = delete;
-  TestMetricCollector& operator=(const TestMetricCollector&) = delete;
-
   const char* ToolName() const override { return "test"; }
   base::WeakPtr<internal::MetricCollector> GetWeakPtr() override {
     return weak_factory_.GetWeakPtr();
@@ -87,10 +85,13 @@ class TestMetricCollector : public internal::MetricCollector {
 
  private:
   base::WeakPtrFactory<TestMetricCollector> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(TestMetricCollector);
 };
 
-const base::TimeDelta kPeriodicCollectionInterval = base::Hours(1);
-const base::TimeDelta kMaxCollectionDelay = base::Seconds(1);
+const base::TimeDelta kPeriodicCollectionInterval =
+    base::TimeDelta::FromHours(1);
+const base::TimeDelta kMaxCollectionDelay = base::TimeDelta::FromSeconds(1);
 
 // Allows access to some private methods for testing.
 class TestProfileProvider : public ProfileProvider {
@@ -108,9 +109,9 @@ class TestProfileProvider : public ProfileProvider {
 
     collectors_.clear();
     collectors_.push_back(std::make_unique<MetricProvider>(
-        std::make_unique<TestMetricCollector<100>>(test_params), nullptr));
+        std::make_unique<TestMetricCollector<100>>(test_params)));
     collectors_.push_back(std::make_unique<MetricProvider>(
-        std::make_unique<TestMetricCollector<200>>(test_params), nullptr));
+        std::make_unique<TestMetricCollector<200>>(test_params)));
   }
 
   using ProfileProvider::collectors_;
@@ -121,8 +122,8 @@ class TestProfileProvider : public ProfileProvider {
   using ProfileProvider::OnSessionRestoreDone;
   using ProfileProvider::SuspendDone;
 
-  TestProfileProvider(const TestProfileProvider&) = delete;
-  TestProfileProvider& operator=(const TestProfileProvider&) = delete;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestProfileProvider);
 };
 
 template <SampledProfile_TriggerEvent TRIGGER_TYPE>
@@ -149,9 +150,6 @@ class ProfileProviderTest : public testing::Test {
   ProfileProviderTest()
       : task_environment_(base::test::TaskEnvironment::TimeSource::MOCK_TIME) {}
 
-  ProfileProviderTest(const ProfileProviderTest&) = delete;
-  ProfileProviderTest& operator=(const ProfileProviderTest&) = delete;
-
   void SetUp() override {
     // ProfileProvider requires chromeos::LoginState and
     // chromeos::PowerManagerClient to be initialized.
@@ -175,6 +173,8 @@ class ProfileProviderTest : public testing::Test {
   content::BrowserTaskEnvironment task_environment_;
 
   std::unique_ptr<TestProfileProvider> profile_provider_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProfileProviderTest);
 };
 
 TEST_F(ProfileProviderTest, CheckSetup) {
@@ -223,7 +223,7 @@ TEST_F(ProfileProviderTest, UserLoginLogout) {
 
 TEST_F(ProfileProviderTest, SuspendDone_NoUserLoggedIn_NoCollection) {
   // No user is logged in, so no collection is done on resume from suspend.
-  profile_provider_->SuspendDone(base::Minutes(10));
+  profile_provider_->SuspendDone(base::TimeDelta::FromMinutes(10));
   // Run all pending tasks.
   task_environment_.FastForwardBy(kMaxCollectionDelay);
 
@@ -243,7 +243,7 @@ TEST_F(ProfileProviderTest, CanceledSuspend_NoCollection) {
   }
 
   // Trigger a canceled suspend (zero sleep duration).
-  profile_provider_->SuspendDone(base::Seconds(0));
+  profile_provider_->SuspendDone(base::TimeDelta::FromSeconds(0));
   // Run all pending tasks.
   task_environment_.FastForwardBy(kMaxCollectionDelay);
 
@@ -261,7 +261,7 @@ TEST_F(ProfileProviderTest, SuspendDone) {
       chromeos::LoginState::LOGGED_IN_USER_REGULAR);
 
   // Trigger a resume from suspend.
-  profile_provider_->SuspendDone(base::Minutes(10));
+  profile_provider_->SuspendDone(base::TimeDelta::FromMinutes(10));
   // Run all pending tasks.
   task_environment_.FastForwardBy(kMaxCollectionDelay);
 
@@ -274,7 +274,7 @@ TEST_F(ProfileProviderTest, SuspendDone) {
 
 TEST_F(ProfileProviderTest, OnSessionRestoreDone_NoUserLoggedIn_NoCollection) {
   // No user is logged in, so no collection is done on session restore.
-  profile_provider_->OnSessionRestoreDone(nullptr, 10);
+  profile_provider_->OnSessionRestoreDone(10);
   // Run all pending tasks.
   task_environment_.FastForwardBy(kMaxCollectionDelay);
 
@@ -294,7 +294,7 @@ TEST_F(ProfileProviderTest, OnSessionRestoreDone) {
   }
 
   // Trigger a session restore.
-  profile_provider_->OnSessionRestoreDone(nullptr, 10);
+  profile_provider_->OnSessionRestoreDone(10);
   // Run all pending tasks.
   task_environment_.FastForwardBy(kMaxCollectionDelay);
 
@@ -352,7 +352,7 @@ TEST_F(ProfileProviderTest, JankinessCollectionThrottled) {
   // Fast forward time to 1 second before the throttling duration is over.
   task_environment_.FastForwardBy(
       profile_provider_->jankiness_collection_min_interval() -
-      base::Seconds(1));
+      base::TimeDelta::FromSeconds(1));
 
   // This collection within the minimum interval should be throttled.
   profile_provider_->OnJankStarted();
@@ -363,7 +363,7 @@ TEST_F(ProfileProviderTest, JankinessCollectionThrottled) {
 
   // Move the clock forward past the throttling duration. The next JANKY_TASK
   // collection should succeed.
-  task_environment_.FastForwardBy(base::Seconds(1));
+  task_environment_.FastForwardBy(base::TimeDelta::FromSeconds(1));
 
   profile_provider_->OnJankStarted();
   task_environment_.RunUntilIdle();
@@ -377,6 +377,12 @@ TEST_F(ProfileProviderTest, JankinessCollectionThrottled) {
 // callbacks from the jank monitor.
 class ProfileProviderJankinessTest : public ProfileProviderTest {
  public:
+  ProfileProviderJankinessTest() : ProfileProviderTest() {
+    const base::Feature kBrowserJankinessProfiling{
+        "BrowserJankinessProfiling", base::FEATURE_DISABLED_BY_DEFAULT};
+    scoped_feature_list_.InitAndEnableFeature(kBrowserJankinessProfiling);
+  }
+
   void SetUp() override {
     ProfileProviderTest::SetUp();
     // Jankiness collection requires that the user is logged in.
@@ -388,6 +394,9 @@ class ProfileProviderJankinessTest : public ProfileProviderTest {
       collector->Deactivate();
     }
   }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 // Test profile collection triggered by a UI thread jank.
@@ -397,7 +406,7 @@ TEST_F(ProfileProviderJankinessTest, JankMonitor_UI) {
   content::GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE, base::BindLambdaForTesting([&]() {
         // This is a janky task that runs for 2 seconds.
-        task_environment_.FastForwardBy(base::Seconds(2));
+        task_environment_.FastForwardBy(base::TimeDelta::FromSeconds(2));
       }));
   task_environment_.RunUntilIdle();
 
@@ -415,7 +424,7 @@ TEST_F(ProfileProviderJankinessTest, JankMonitor_IO) {
   content::GetIOThreadTaskRunner({})->PostTask(
       FROM_HERE, base::BindLambdaForTesting([&]() {
         // This is a janky task that runs for 2 seconds.
-        task_environment_.FastForwardBy(base::Seconds(2));
+        task_environment_.FastForwardBy(base::TimeDelta::FromSeconds(2));
       }));
   task_environment_.RunUntilIdle();
 
@@ -426,6 +435,49 @@ TEST_F(ProfileProviderJankinessTest, JankMonitor_IO) {
   ExpectTwoStoredPerfProfiles<SampledProfile::JANKY_TASK>(stored_profiles);
 }
 
+TEST(ProfileProviderJankinessParamTest, SetFeatureParam) {
+  content::BrowserTaskEnvironment task_environment;
+
+  // Enable the jankiness profiler feature.
+  const base::Feature kBrowserJankinessProfiling{
+      "BrowserJankinessProfiling", base::FEATURE_DISABLED_BY_DEFAULT};
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(kBrowserJankinessProfiling);
+
+  chromeos::PowerManagerClient::InitializeFake();
+  chromeos::LoginState::Initialize();
+
+  std::unique_ptr<TestProfileProvider> profile_provider =
+      std::make_unique<TestProfileProvider>();
+  profile_provider->Init();
+
+  // Get default minimum interval is expected to be 30 minutes.
+  EXPECT_EQ(profile_provider->jankiness_collection_min_interval(),
+            base::TimeDelta::FromMinutes(30));
+
+  profile_provider.reset();
+
+  scoped_feature_list.Reset();
+
+  // Init the feature with non-default feature param value.
+  std::map<std::string, std::string> params;
+  params.insert(std::make_pair("JankinessCollectionMinIntervalSec", "180"));
+  scoped_feature_list.InitAndEnableFeatureWithParameters(
+      kBrowserJankinessProfiling, params);
+
+  // Init an instance of TestProfileProvider and check that the feature param
+  // value takes effect.
+  profile_provider = std::make_unique<TestProfileProvider>();
+  profile_provider->Init();
+  EXPECT_EQ(profile_provider->jankiness_collection_min_interval(),
+            base::TimeDelta::FromSeconds(180));
+
+  profile_provider.reset();
+
+  chromeos::LoginState::Shutdown();
+  chromeos::PowerManagerClient::Shutdown();
+}
+
 namespace {
 
 class TestStockProfileProvider : public ProfileProvider {
@@ -434,8 +486,8 @@ class TestStockProfileProvider : public ProfileProvider {
 
   using ProfileProvider::collectors_;
 
-  TestStockProfileProvider(const TestStockProfileProvider&) = delete;
-  TestStockProfileProvider& operator=(const TestStockProfileProvider&) = delete;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestStockProfileProvider);
 };
 
 }  // namespace
@@ -443,9 +495,6 @@ class TestStockProfileProvider : public ProfileProvider {
 class ProfileProviderStockTest : public testing::Test {
  public:
   ProfileProviderStockTest() = default;
-
-  ProfileProviderStockTest(const ProfileProviderStockTest&) = delete;
-  ProfileProviderStockTest& operator=(const ProfileProviderStockTest&) = delete;
 
   void SetUp() override {
     // ProfileProvider requires chromeos::LoginState and
@@ -461,6 +510,9 @@ class ProfileProviderStockTest : public testing::Test {
 
  protected:
   content::BrowserTaskEnvironment task_environment_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ProfileProviderStockTest);
 };
 
 TEST_F(ProfileProviderStockTest, CheckSetup) {

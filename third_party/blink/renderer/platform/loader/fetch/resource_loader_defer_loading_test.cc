@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,15 +39,16 @@ class TestCodeCacheLoader : public WebCodeCacheLoader {
   ~TestCodeCacheLoader() override = default;
 
   // WebCodeCacheLoader methods:
+  void FetchFromCodeCacheSynchronously(
+      const WebURL& url,
+      base::Time* response_time_out,
+      mojo_base::BigBuffer* buffer_out) override {}
   void FetchFromCodeCache(
-      mojom::blink::CodeCacheType cache_type,
+      blink::mojom::CodeCacheType cache_type,
       const WebURL& url,
       WebCodeCacheLoader::FetchCodeCacheCallback callback) override {
     process_request_.Run(std::move(callback));
   }
-
-  void ClearCodeCacheEntry(mojom::blink::CodeCacheType cache_type,
-                           const WebURL& url) override {}
 
  private:
   ProcessCodeCacheRequestCallback process_request_;
@@ -56,19 +57,20 @@ class TestCodeCacheLoader : public WebCodeCacheLoader {
 // A mock WebURLLoader to know the status of defers flag.
 class TestWebURLLoader final : public WebURLLoader {
  public:
-  explicit TestWebURLLoader(WebLoaderFreezeMode* const freeze_mode_ptr)
-      : freeze_mode_ptr_(freeze_mode_ptr) {}
+  explicit TestWebURLLoader(WebURLLoader::DeferType* const defers_flag_ptr)
+      : defers_flag_ptr_(defers_flag_ptr) {}
   ~TestWebURLLoader() override = default;
 
   void LoadSynchronously(
       std::unique_ptr<network::ResourceRequest> request,
       scoped_refptr<WebURLRequestExtraData> url_request_extra_data,
+      int requestor_id,
       bool pass_response_pipe_to_client,
       bool no_mime_sniffing,
       base::TimeDelta timeout_interval,
       WebURLLoaderClient*,
       WebURLResponse&,
-      absl::optional<WebURLError>&,
+      base::Optional<WebURLError>&,
       WebData&,
       int64_t& encoded_data_length,
       int64_t& encoded_body_length,
@@ -80,12 +82,15 @@ class TestWebURLLoader final : public WebURLLoader {
   void LoadAsynchronously(
       std::unique_ptr<network::ResourceRequest> request,
       scoped_refptr<WebURLRequestExtraData> url_request_extra_data,
+      int requestor_id,
       bool no_mime_sniffing,
       std::unique_ptr<blink::ResourceLoadInfoNotifierWrapper>
           resource_load_info_notifier_wrapper,
       WebURLLoaderClient*) override {}
 
-  void Freeze(WebLoaderFreezeMode mode) override { *freeze_mode_ptr_ = mode; }
+  void SetDefersLoading(WebURLLoader::DeferType defers) override {
+    *defers_flag_ptr_ = defers;
+  }
   void DidChangePriority(WebURLRequest::Priority, int) override {
     NOTREACHED();
   }
@@ -95,16 +100,16 @@ class TestWebURLLoader final : public WebURLLoader {
   }
 
  private:
-  // Points to |ResourceLoaderDefersLoadingTest::freeze_mode_|.
-  WebLoaderFreezeMode* const freeze_mode_ptr_;
+  // Points to |ResourceLoaderDefersLoadingTest::web_url_loader_defers_|.
+  WebURLLoader::DeferType* const defers_flag_ptr_;
 };
 
 class DeferTestLoaderFactory final : public ResourceFetcher::LoaderFactory {
  public:
   DeferTestLoaderFactory(
-      WebLoaderFreezeMode* const freeze_mode_ptr,
+      WebURLLoader::DeferType* const defers_flag,
       ProcessCodeCacheRequestCallback process_code_cache_request_callback)
-      : freeze_mode_ptr_(freeze_mode_ptr),
+      : defers_flag_(defers_flag),
         process_code_cache_request_callback_(
             process_code_cache_request_callback) {}
 
@@ -113,10 +118,9 @@ class DeferTestLoaderFactory final : public ResourceFetcher::LoaderFactory {
       const ResourceRequest& request,
       const ResourceLoaderOptions& options,
       scoped_refptr<base::SingleThreadTaskRunner> freezable_task_runner,
-      scoped_refptr<base::SingleThreadTaskRunner> unfreezable_task_runner,
-      WebBackForwardCacheLoaderHelper back_forward_cache_loader_helper)
+      scoped_refptr<base::SingleThreadTaskRunner> unfreezable_task_runner)
       override {
-    return std::make_unique<TestWebURLLoader>(freeze_mode_ptr_);
+    return std::make_unique<TestWebURLLoader>(defers_flag_);
   }
 
   std::unique_ptr<WebCodeCacheLoader> CreateCodeCacheLoader() override {
@@ -125,8 +129,8 @@ class DeferTestLoaderFactory final : public ResourceFetcher::LoaderFactory {
   }
 
  private:
-  // Points to |ResourceLoaderDefersLoadingTest::freeze_mode_|.
-  WebLoaderFreezeMode* const freeze_mode_ptr_;
+  // Points to |ResourceLoaderDefersLoadingTest::web_url_loader_defers_|.
+  WebURLLoader::DeferType* const defers_flag_;
 
   ProcessCodeCacheRequestCallback process_code_cache_request_callback_;
 };
@@ -154,9 +158,8 @@ class ResourceLoaderDefersLoadingTest : public testing::Test {
         base::MakeRefCounted<scheduler::FakeTaskRunner>(),
         base::MakeRefCounted<scheduler::FakeTaskRunner>(),
         MakeGarbageCollected<DeferTestLoaderFactory>(
-            &freeze_mode_, process_code_cache_request_callback_),
-        MakeGarbageCollected<MockContextLifecycleNotifier>(),
-        nullptr /* back_forward_cache_loader_helper */));
+            &web_url_loader_defers_, process_code_cache_request_callback_),
+        MakeGarbageCollected<MockContextLifecycleNotifier>()));
   }
 
   void SetCodeCacheProcessFunction(ProcessCodeCacheRequestCallback callback) {
@@ -166,15 +169,13 @@ class ResourceLoaderDefersLoadingTest : public testing::Test {
   ProcessCodeCacheRequestCallback process_code_cache_request_callback_;
   WebCodeCacheLoader::FetchCodeCacheCallback code_cache_response_callback_;
   // Passed to TestWebURLLoader (via |platform_|) and updated when its
-  // Freeze method is called.
-  WebLoaderFreezeMode freeze_mode_ = WebLoaderFreezeMode::kNone;
+  // SetDefersLoading method is called.
+  WebURLLoader::DeferType web_url_loader_defers_ =
+      WebURLLoader::DeferType::kNotDeferred;
   const KURL test_url_ = KURL("http://example.com/");
 
   ScopedTestingPlatformSupport<TestingPlatformSupportWithMockScheduler>
       platform_;
-
- private:
-  base::test::SingleThreadTaskEnvironment task_environment_;
 };
 
 TEST_F(ResourceLoaderDefersLoadingTest, CodeCacheFetchCheckDefers) {
@@ -189,11 +190,11 @@ TEST_F(ResourceLoaderDefersLoadingTest, CodeCacheFetchCheckDefers) {
   Resource* resource = RawResource::Fetch(fetch_parameters, fetcher, nullptr);
 
   // After code cache fetch it should have deferred WebURLLoader.
-  DCHECK_EQ(freeze_mode_, LoaderFreezeMode::kStrict);
+  DCHECK_EQ(web_url_loader_defers_, WebURLLoader::DeferType::kDeferred);
   DCHECK(resource);
   std::move(code_cache_response_callback_).Run(base::Time(), {});
   // Once the response is received it should be reset.
-  DCHECK_EQ(freeze_mode_, LoaderFreezeMode::kNone);
+  DCHECK_EQ(web_url_loader_defers_, WebURLLoader::DeferType::kNotDeferred);
 }
 
 TEST_F(ResourceLoaderDefersLoadingTest, CodeCacheFetchSyncReturn) {
@@ -213,7 +214,7 @@ TEST_F(ResourceLoaderDefersLoadingTest, CodeCacheFetchSyncReturn) {
   Resource* resource = RawResource::Fetch(fetch_parameters, fetcher, nullptr);
   DCHECK(resource);
   // The callback would be called so it should not be deferred.
-  DCHECK_EQ(freeze_mode_, LoaderFreezeMode::kNone);
+  DCHECK_EQ(web_url_loader_defers_, WebURLLoader::DeferType::kNotDeferred);
 }
 
 TEST_F(ResourceLoaderDefersLoadingTest, ChangeDefersToFalse) {
@@ -226,13 +227,13 @@ TEST_F(ResourceLoaderDefersLoadingTest, ChangeDefersToFalse) {
       FetchParameters::CreateForTest(std::move(request));
 
   Resource* resource = RawResource::Fetch(fetch_parameters, fetcher, nullptr);
-  DCHECK_EQ(freeze_mode_, LoaderFreezeMode::kStrict);
+  DCHECK_EQ(web_url_loader_defers_, WebURLLoader::DeferType::kDeferred);
 
   // Change Defers loading to false. This should not be sent to
   // WebURLLoader since a code cache request is still pending.
   ResourceLoader* loader = resource->Loader();
-  loader->SetDefersLoading(LoaderFreezeMode::kNone);
-  DCHECK_EQ(freeze_mode_, LoaderFreezeMode::kStrict);
+  loader->SetDefersLoading(WebURLLoader::DeferType::kNotDeferred);
+  DCHECK_EQ(web_url_loader_defers_, WebURLLoader::DeferType::kDeferred);
 }
 
 TEST_F(ResourceLoaderDefersLoadingTest, ChangeDefersToTrue) {
@@ -245,16 +246,16 @@ TEST_F(ResourceLoaderDefersLoadingTest, ChangeDefersToTrue) {
       FetchParameters::CreateForTest(std::move(request));
 
   Resource* resource = RawResource::Fetch(fetch_parameters, fetcher, nullptr);
-  DCHECK_EQ(freeze_mode_, LoaderFreezeMode::kStrict);
+  DCHECK_EQ(web_url_loader_defers_, WebURLLoader::DeferType::kDeferred);
 
   ResourceLoader* loader = resource->Loader();
-  loader->SetDefersLoading(LoaderFreezeMode::kStrict);
-  DCHECK_EQ(freeze_mode_, LoaderFreezeMode::kStrict);
+  loader->SetDefersLoading(WebURLLoader::DeferType::kDeferred);
+  DCHECK_EQ(web_url_loader_defers_, WebURLLoader::DeferType::kDeferred);
 
   std::move(code_cache_response_callback_).Run(base::Time(), {});
   // Since it was requested to be deferred, it should be reset to the
   // correct value.
-  DCHECK_EQ(freeze_mode_, LoaderFreezeMode::kStrict);
+  DCHECK_EQ(web_url_loader_defers_, WebURLLoader::DeferType::kDeferred);
 }
 
 TEST_F(ResourceLoaderDefersLoadingTest, ChangeDefersToBfcacheDefer) {
@@ -267,16 +268,18 @@ TEST_F(ResourceLoaderDefersLoadingTest, ChangeDefersToBfcacheDefer) {
       FetchParameters::CreateForTest(std::move(request));
 
   Resource* resource = RawResource::Fetch(fetch_parameters, fetcher, nullptr);
-  DCHECK_EQ(freeze_mode_, LoaderFreezeMode::kStrict);
+  DCHECK_EQ(web_url_loader_defers_, WebURLLoader::DeferType::kDeferred);
 
   ResourceLoader* loader = resource->Loader();
-  loader->SetDefersLoading(LoaderFreezeMode::kBufferIncoming);
-  DCHECK_EQ(freeze_mode_, LoaderFreezeMode::kStrict);
+  loader->SetDefersLoading(
+      WebURLLoader::DeferType::kDeferredWithBackForwardCache);
+  DCHECK_EQ(web_url_loader_defers_, WebURLLoader::DeferType::kDeferred);
 
   std::move(code_cache_response_callback_).Run(base::Time(), {});
   // Since it was requested to be deferred, it should be reset to the
   // correct value.
-  DCHECK_EQ(freeze_mode_, LoaderFreezeMode::kBufferIncoming);
+  DCHECK_EQ(web_url_loader_defers_,
+            WebURLLoader::DeferType::kDeferredWithBackForwardCache);
 }
 
 TEST_F(ResourceLoaderDefersLoadingTest, ChangeDefersMultipleTimes) {
@@ -289,17 +292,17 @@ TEST_F(ResourceLoaderDefersLoadingTest, ChangeDefersMultipleTimes) {
   FetchParameters fetch_parameters =
       FetchParameters::CreateForTest(std::move(request));
   Resource* resource = RawResource::Fetch(fetch_parameters, fetcher, nullptr);
-  DCHECK_EQ(freeze_mode_, LoaderFreezeMode::kStrict);
+  DCHECK_EQ(web_url_loader_defers_, WebURLLoader::DeferType::kDeferred);
 
   ResourceLoader* loader = resource->Loader();
-  loader->SetDefersLoading(LoaderFreezeMode::kStrict);
-  DCHECK_EQ(freeze_mode_, LoaderFreezeMode::kStrict);
+  loader->SetDefersLoading(WebURLLoader::DeferType::kDeferred);
+  DCHECK_EQ(web_url_loader_defers_, WebURLLoader::DeferType::kDeferred);
 
-  loader->SetDefersLoading(LoaderFreezeMode::kNone);
-  DCHECK_EQ(freeze_mode_, LoaderFreezeMode::kStrict);
+  loader->SetDefersLoading(WebURLLoader::DeferType::kNotDeferred);
+  DCHECK_EQ(web_url_loader_defers_, WebURLLoader::DeferType::kDeferred);
 
   std::move(code_cache_response_callback_).Run(base::Time(), {});
-  DCHECK_EQ(freeze_mode_, LoaderFreezeMode::kNone);
+  DCHECK_EQ(web_url_loader_defers_, WebURLLoader::DeferType::kNotDeferred);
 }
 
 }  // namespace blink

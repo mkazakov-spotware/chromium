@@ -1,9 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "content/public/test/browser_test.h"
 #include "content/test/ppapi/ppapi_test.h"
 #include "ppapi/shared_impl/test_utils.h"
@@ -39,7 +38,7 @@ namespace {
   }
 
 // Doesn't work in CrOS builds, http://crbug.com/619765
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #define MAYBE_BrowserFont DISABLED_BrowserFont
 #else
 #define MAYBE_BrowserFont BrowserFont
@@ -141,7 +140,7 @@ TEST_PPAPI_IN_PROCESS(Var)
 TEST_PPAPI_OUT_OF_PROCESS(Var)
 
 // Flaky on mac, http://crbug.com/121107
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #define MAYBE_VarDeprecated DISABLED_VarDeprecated
 #else
 #define MAYBE_VarDeprecated VarDeprecated
@@ -153,7 +152,7 @@ TEST_PPAPI_IN_PROCESS(VarResource)
 TEST_PPAPI_OUT_OF_PROCESS(VarResource)
 
 // Flaky on Win, Linux and CrOS, http://crbug.com/602877
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_WIN) || defined(OS_LINUX) || defined(OS_CHROMEOS)
 #define MAYBE_VideoDecoder DISABLED_VideoDecoder
 #else
 #define MAYBE_VideoDecoder VideoDecoder

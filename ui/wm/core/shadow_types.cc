@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@ void SetShadowElevation(aura::Window* window, int elevation) {
 }
 
 int GetDefaultShadowElevationForWindow(const aura::Window* window) {
-  switch (window->GetType()) {
+  switch (window->type()) {
     case aura::client::WINDOW_TYPE_NORMAL:
       return kShadowElevationInactiveWindow;
 

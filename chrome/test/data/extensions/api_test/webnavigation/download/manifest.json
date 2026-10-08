@@ -4,8 +4,7 @@
   "manifest_version": 2,
   "description": "Tests the webNavigation API events - download.",
   "background": {
-    "scripts": ["test_download.js"],
-    "persistent": true
+    "page": "test_download.html"
   },
   "permissions": ["webNavigation", "tabs"]
 }

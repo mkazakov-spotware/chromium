@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,12 @@
 #include <memory>
 #include <string>
 
-#include "base/values.h"
+#include "base/macros.h"
 #include "ui/base/template_expressions.h"
 
-class GURL;
+namespace base {
+class DictionaryValue;
+}
 
 namespace content {
 
@@ -24,11 +26,9 @@ class TestWebUIDataSource {
 
   virtual ~TestWebUIDataSource() = default;
 
-  virtual const base::Value::Dict* GetLocalizedStrings() = 0;
+  virtual const base::DictionaryValue* GetLocalizedStrings() = 0;
 
   virtual const ui::TemplateReplacements* GetReplacements() = 0;
-
-  virtual int URLToIdrOrDefault(const GURL& url) = 0;
 
   virtual WebUIDataSource* GetWebUIDataSource() = 0;
 };

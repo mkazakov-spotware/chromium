@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,18 +28,24 @@ UBiDiLevel GetParagraphLevelForDirection(base::i18n::TextDirection direction) {
 
 }  // namespace
 
-BiDiLineIterator::BiDiLineIterator() = default;
-BiDiLineIterator::~BiDiLineIterator() = default;
+BiDiLineIterator::BiDiLineIterator() : bidi_(nullptr) {}
 
-bool BiDiLineIterator::Open(const std::u16string& text,
+BiDiLineIterator::~BiDiLineIterator() {
+  if (bidi_) {
+    ubidi_close(bidi_);
+    bidi_ = nullptr;
+  }
+}
+
+bool BiDiLineIterator::Open(const base::string16& text,
                             base::i18n::TextDirection direction) {
   DCHECK(!bidi_);
   UErrorCode error = U_ZERO_ERROR;
-  bidi_.reset(ubidi_openSized(static_cast<int>(text.length()), 0, &error));
+  bidi_ = ubidi_openSized(static_cast<int>(text.length()), 0, &error);
   if (U_FAILURE(error))
     return false;
 
-  ubidi_setPara(bidi_.get(), text.data(), static_cast<int>(text.length()),
+  ubidi_setPara(bidi_, text.data(), static_cast<int>(text.length()),
                 GetParagraphLevelForDirection(direction), nullptr, &error);
   return (U_SUCCESS(error));
 }
@@ -47,7 +53,7 @@ bool BiDiLineIterator::Open(const std::u16string& text,
 int BiDiLineIterator::CountRuns() const {
   DCHECK(bidi_ != nullptr);
   UErrorCode error = U_ZERO_ERROR;
-  const int runs = ubidi_countRuns(bidi_.get(), &error);
+  const int runs = ubidi_countRuns(bidi_, &error);
   return U_SUCCESS(error) ? runs : 0;
 }
 
@@ -55,14 +61,14 @@ UBiDiDirection BiDiLineIterator::GetVisualRun(int index,
                                               int* start,
                                               int* length) const {
   DCHECK(bidi_ != nullptr);
-  return ubidi_getVisualRun(bidi_.get(), index, start, length);
+  return ubidi_getVisualRun(bidi_, index, start, length);
 }
 
 void BiDiLineIterator::GetLogicalRun(int start,
                                      int* end,
                                      UBiDiLevel* level) const {
   DCHECK(bidi_ != nullptr);
-  ubidi_getLogicalRun(bidi_.get(), start, end, level);
+  ubidi_getLogicalRun(bidi_, start, end, level);
 }
 
 }  // namespace gfx

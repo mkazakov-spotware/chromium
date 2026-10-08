@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,8 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/time/time.h"
-#include "build/build_config.h"
 
 namespace base {
 class FilePath;
@@ -29,8 +28,9 @@ class SecurityKeyAuthHandler {
   virtual ~SecurityKeyAuthHandler() {}
 
   // Used to send security key extension messages to the client.
-  using SendMessageCallback =
-      base::RepeatingCallback<void(int connection_id, const std::string& data)>;
+  typedef base::RepeatingCallback<void(int connection_id,
+                                       const std::string& data)>
+      SendMessageCallback;
 
   // Creates a platform-specific SecurityKeyAuthHandler.
   // All invocations of |send_message_callback| are guaranteed to occur before
@@ -42,11 +42,11 @@ class SecurityKeyAuthHandler {
       const SendMessageCallback& send_message_callback,
       scoped_refptr<base::SingleThreadTaskRunner> file_task_runner);
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   // Specify the name of the socket to listen to security key requests on.
   static void SetSecurityKeySocketName(
       const base::FilePath& security_key_socket_name);
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // defined(OS_POSIX)
 
   // Sets the callback used to send messages to the client.
   virtual void SetSendMessageCallback(const SendMessageCallback& callback) = 0;

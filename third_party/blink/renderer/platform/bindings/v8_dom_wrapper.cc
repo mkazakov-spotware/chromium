@@ -37,18 +37,17 @@
 
 namespace blink {
 
-v8::MaybeLocal<v8::Object> V8DOMWrapper::CreateWrapper(
-    ScriptState* script_state,
+v8::Local<v8::Object> V8DOMWrapper::CreateWrapper(
+    v8::Isolate* isolate,
+    v8::Local<v8::Object> creation_context,
     const WrapperTypeInfo* type) {
-  RUNTIME_CALL_TIMER_SCOPE(script_state->GetIsolate(),
+  RUNTIME_CALL_TIMER_SCOPE(isolate,
                            RuntimeCallStats::CounterId::kCreateWrapper);
 
-  V8WrapperInstantiationScope scope(script_state, type);
-  if (scope.AccessCheckFailed()) {
-    // V8WrapperInstantiationScope's ctor throws an exception
-    // if AccessCheckFailed.
-    return v8::MaybeLocal<v8::Object>();
-  }
+  // TODO(adithyas): We should abort wrapper creation if the context access
+  // check fails and throws an exception.
+  V8WrapperInstantiationScope scope(creation_context, isolate, type);
+  CHECK(!scope.AccessCheckFailed());
 
   V8PerContextData* per_context_data =
       V8PerContextData::From(scope.GetContext());
@@ -63,7 +62,7 @@ v8::MaybeLocal<v8::Object> V8DOMWrapper::CreateWrapper(
     // V8PerContextData::createWrapperFromCache, though there is no need to
     // cache resulting objects or their constructors.
     const DOMWrapperWorld& world = DOMWrapperWorld::World(scope.GetContext());
-    wrapper = type->GetV8ClassTemplate(script_state->GetIsolate(), world)
+    wrapper = type->GetV8ClassTemplate(isolate, world)
                   .As<v8::FunctionTemplate>()
                   ->InstanceTemplate()
                   ->NewInstance(scope.GetContext())

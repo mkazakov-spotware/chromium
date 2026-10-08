@@ -1,19 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that InspectorBackendDispatcher is catching incorrect messages.\n`);
 
-  function trimErrorMessage(message) {
-    if (message.error && message.error.data) {
-      message.error.data = message.error.data.replace(/at position \d+/, "<somewhere>");
-    }
-    return message;
-  }
-
-
-  const frameTargetSession = SDK.targetManager.mainFrameTarget().sessionId;
 
   var messages = [
     'some wrong string',
@@ -22,26 +13,26 @@
     '{"id":1,"method":1}',
     '{"id":2,"method":"resourceContent"}',
     '{"id":3,"method":"DOM.test"}',
-    `{"id":4,"method":"DOM.requestChildNodes", "sessionId": "${frameTargetSession}"}`,
-    `{"id":5,"method":"DOM.requestChildNodes","params":[], "sessionId": "${frameTargetSession}"}`,
-    `{"id":6,"method":"DOM.requestChildNodes","params":{}, "sessionId": "${frameTargetSession}"}`,
-    `{"id":7,"method":"DOM.requestChildNodes","params":{"nodeId":"not a number"}, "sessionId": "${frameTargetSession}"}`,
-    `{"id":8,"method":"DOM.test", "sessionId": "${frameTargetSession}"}`,
-    `{"id":9,"method":"DOM.test", "sessionId": "${frameTargetSession}"}`,
-    `{"id":10,"method": "DOM.test", "sessionId": "${frameTargetSession}"}`,
-    `{"id":11,"method" : "DOM.test", "sessionId": "${frameTargetSession}"}`,
-    `{"id":12, "method" : "DOM.test", "sessionId": "${frameTargetSession}"}`,
-    `{"id": 13, "method" : "DOM.test", "sessionId": "${frameTargetSession}"}`,
-    `{"id" : 14, "method" : "DOM.test", "sessionId": "${frameTargetSession}"}`,
-    `{ "id" : 15, "method" : "DOM.test", "sessionId": "${frameTargetSession}"}`,
-    `{  "id"\n :\r 16,\t "method" : "DOM.test", "sessionId": "${frameTargetSession}"}`,
+    '{"id":4,"method":"DOM.requestChildNodes"}',
+    '{"id":5,"method":"DOM.requestChildNodes","params":[]}',
+    '{"id":6,"method":"DOM.requestChildNodes","params":{}}',
+    '{"id":7,"method":"DOM.requestChildNodes","params":{"nodeId":"not a number"}}',
+    '{"id":8,"method":"DOM.test"}',
+    '{"id":9,"method":"DOM.test" }',
+    '{"id":10,"method": "DOM.test" }',
+    '{"id":11,"method" : "DOM.test" }',
+    '{"id":12, "method" : "DOM.test" }',
+    '{"id": 13, "method" : "DOM.test" }',
+    '{"id" : 14, "method" : "DOM.test" }',
+    '{ "id" : 15, "method" : "DOM.test" }',
+    '{  "id"\n :\r 16,\t "method" : "DOM.test" }',
   ];
 
   var numberOfReports = 0;
 
-  ProtocolClient.InspectorBackend.reportProtocolError = function(error, message) {
+  Protocol.InspectorBackend.reportProtocolError = function(error, message) {
     if (numberOfReports < messages.length) {
-      TestRunner.addObject(trimErrorMessage(message), {'sessionId': 'skip'});
+      TestRunner.addObject(message);
       TestRunner.addResult('-------------------------------------------------------');
     }
 

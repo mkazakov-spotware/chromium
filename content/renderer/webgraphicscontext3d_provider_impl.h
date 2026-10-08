@@ -1,13 +1,15 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_RENDERER_WEBGRAPHICSCONTEXT3D_PROVIDER_IMPL_H_
 #define CONTENT_RENDERER_WEBGRAPHICSCONTEXT3D_PROVIDER_IMPL_H_
 
+#include "base/compiler_specific.h"
 #include "base/containers/flat_map.h"
 #include "base/memory/ref_counted.h"
 #include "components/viz/common/gpu/context_provider.h"
+#include "content/common/content_export.h"
 #include "gpu/command_buffer/client/gles2_interface.h"
 #include "gpu/command_buffer/client/raster_interface.h"
 #include "gpu/command_buffer/client/webgpu_interface.h"
@@ -27,22 +29,16 @@ class GLHelper;
 
 namespace content {
 
-class WebGraphicsContext3DProviderImpl
+class CONTENT_EXPORT WebGraphicsContext3DProviderImpl
     : public blink::WebGraphicsContext3DProvider,
       public viz::ContextLostObserver {
  public:
   WebGraphicsContext3DProviderImpl(
       scoped_refptr<viz::ContextProviderCommandBuffer> provider);
-
-  WebGraphicsContext3DProviderImpl(const WebGraphicsContext3DProviderImpl&) =
-      delete;
-  WebGraphicsContext3DProviderImpl& operator=(
-      const WebGraphicsContext3DProviderImpl&) = delete;
-
   ~WebGraphicsContext3DProviderImpl() override;
 
   // WebGraphicsContext3DProvider implementation.
-  bool BindToCurrentSequence() override;
+  bool BindToCurrentThread() override;
   gpu::InterfaceBase* InterfaceBase() override;
   gpu::gles2::GLES2Interface* ContextGL() override;
   gpu::raster::RasterInterface* RasterInterface() override;
@@ -61,7 +57,10 @@ class WebGraphicsContext3DProviderImpl
   void CopyVideoFrame(media::PaintCanvasVideoRenderer* video_render,
                       media::VideoFrame* video_frame,
                       cc::PaintCanvas* canvas) override;
-  viz::RasterContextProvider* RasterContextProvider() const override;
+
+  viz::ContextProviderCommandBuffer* context_provider() const {
+    return provider_.get();
+  }
 
  private:
   // viz::ContextLostObserver implementation.
@@ -72,6 +71,8 @@ class WebGraphicsContext3DProviderImpl
   base::RepeatingClosure context_lost_callback_;
   base::flat_map<SkColorType, std::unique_ptr<cc::ImageDecodeCache>>
       image_decode_cache_map_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebGraphicsContext3DProviderImpl);
 };
 
 }  // namespace content

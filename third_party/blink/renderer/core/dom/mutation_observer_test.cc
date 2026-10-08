@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,7 @@
 #include "third_party/blink/renderer/core/dom/mutation_observer_registration.h"
 #include "third_party/blink/renderer/core/html/html_document.h"
 #include "third_party/blink/renderer/core/html/html_element.h"
-#include "third_party/blink/renderer/core/testing/null_execution_context.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/thread_state.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -39,9 +37,7 @@ class EmptyMutationCallback : public MutationObserver::Delegate {
 }  // namespace
 
 TEST(MutationObserverTest, DisconnectCrash) {
-  ScopedNullExecutionContext execution_context;
-  Persistent<Document> document =
-      HTMLDocument::CreateForTest(execution_context.GetExecutionContext());
+  Persistent<Document> document = HTMLDocument::CreateForTest();
   auto* root =
       To<HTMLElement>(document->CreateRawElement(html_names::kHTMLTag));
   document->AppendChild(root);
@@ -60,7 +56,7 @@ TEST(MutationObserverTest, DisconnectCrash) {
   // The following GC will collect |head|, but won't collect a
   // MutationObserverRegistration for |head|.
   ThreadState::Current()->CollectAllGarbageForTesting(
-      ThreadState::StackState::kNoHeapPointers);
+      BlinkGC::kNoHeapPointersOnStack);
   observer->disconnect();
   // The test passes if disconnect() didn't crash.  crbug.com/657613.
 }

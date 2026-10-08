@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/synchronization/lock.h"
 #include "components/viz/common/gpu/context_cache_controller.h"
@@ -51,7 +50,7 @@ class VIZ_COMMON_EXPORT ContextProvider {
     }
 
    private:
-    const raw_ptr<ContextProvider> context_provider_;
+    ContextProvider* const context_provider_;
     base::AutoLock context_lock_;
     std::unique_ptr<ContextCacheController::ScopedBusy> busy_;
   };
@@ -66,10 +65,10 @@ class VIZ_COMMON_EXPORT ContextProvider {
   // from the same thread unless the function has some explicitly specified
   // rules for access on a different thread. See SetupLockOnMainThread(), which
   // can be used to provide access from multiple threads.
-  virtual gpu::ContextResult BindToCurrentSequence() = 0;
+  virtual gpu::ContextResult BindToCurrentThread() = 0;
 
   // Adds/removes an observer to be called when the context is lost. AddObserver
-  // should be called before BindToCurrentSequence from the same thread that the
+  // should be called before BindToCurrentThread from the same thread that the
   // context is bound to, or any time while the lock is acquired after checking
   // for context loss.
   // NOTE: Implementations must avoid post-tasking the to the observer directly

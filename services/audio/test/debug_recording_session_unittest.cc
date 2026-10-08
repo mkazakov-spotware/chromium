@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,8 +28,8 @@ namespace audio {
 
 namespace {
 
-#if BUILDFLAG(IS_WIN)
-#define NumberToStringType base::NumberToWString
+#if defined(OS_WIN)
+#define NumberToStringType base::NumberToString16
 #else
 #define NumberToStringType base::NumberToString
 #endif
@@ -45,12 +45,6 @@ const base::FilePath::CharType kOutput[] = FILE_PATH_LITERAL("output");
 class DebugRecordingFileProviderTest : public testing::Test {
  public:
   DebugRecordingFileProviderTest() = default;
-
-  DebugRecordingFileProviderTest(const DebugRecordingFileProviderTest&) =
-      delete;
-  DebugRecordingFileProviderTest& operator=(
-      const DebugRecordingFileProviderTest&) = delete;
-
   ~DebugRecordingFileProviderTest() override = default;
 
   void SetUp() override {
@@ -82,16 +76,13 @@ class DebugRecordingFileProviderTest : public testing::Test {
       file_provider_;
   base::ScopedTempDir temp_dir_;
   base::FilePath file_path_;
+
+  DISALLOW_COPY_AND_ASSIGN(DebugRecordingFileProviderTest);
 };
 
 class DebugRecordingSessionTest : public media::AudioDebugRecordingTest {
  public:
   DebugRecordingSessionTest() = default;
-
-  DebugRecordingSessionTest(const DebugRecordingSessionTest&) = delete;
-  DebugRecordingSessionTest& operator=(const DebugRecordingSessionTest&) =
-      delete;
-
   ~DebugRecordingSessionTest() override = default;
 
   void SetUp() override {
@@ -128,6 +119,8 @@ class DebugRecordingSessionTest : public media::AudioDebugRecordingTest {
  private:
   mojo::Remote<mojom::AudioService> service_remote_;
   std::unique_ptr<Service> service_;
+
+  DISALLOW_COPY_AND_ASSIGN(DebugRecordingSessionTest);
 };
 
 TEST_F(DebugRecordingFileProviderTest, CreateFileForInputStream) {

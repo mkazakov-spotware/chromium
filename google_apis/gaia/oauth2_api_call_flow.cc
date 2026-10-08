@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,11 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/strings/escape.h"
 #include "base/strings/stringprintf.h"
 #include "google_apis/gaia/gaia_auth_util.h"
 #include "google_apis/gaia/gaia_urls.h"
+#include "net/base/escape.h"
 #include "net/base/load_flags.h"
-#include "net/http/http_request_headers.h"
 #include "net/http/http_status_code.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
@@ -31,7 +30,7 @@ static std::string MakeAuthorizationValue(const std::string& auth_token) {
 OAuth2ApiCallFlow::OAuth2ApiCallFlow() : state_(INITIAL) {
 }
 
-OAuth2ApiCallFlow::~OAuth2ApiCallFlow() = default;
+OAuth2ApiCallFlow::~OAuth2ApiCallFlow() {}
 
 void OAuth2ApiCallFlow::Start(
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
@@ -46,10 +45,6 @@ void OAuth2ApiCallFlow::Start(
                      base::Unretained(this)));
 }
 
-net::HttpRequestHeaders OAuth2ApiCallFlow::CreateApiCallHeaders() {
-  return net::HttpRequestHeaders();
-}
-
 void OAuth2ApiCallFlow::EndApiCall(std::unique_ptr<std::string> body) {
   CHECK_EQ(API_CALL_STARTED, state_);
   std::unique_ptr<network::SimpleURLLoader> source = std::move(url_loader_);
@@ -57,7 +52,8 @@ void OAuth2ApiCallFlow::EndApiCall(std::unique_ptr<std::string> body) {
   int status_code = 0;
   if (source->ResponseInfo() && source->ResponseInfo()->headers)
     status_code = source->ResponseInfo()->headers->response_code();
-  if (source->NetError() != net::OK || !IsExpectedSuccessCode(status_code)) {
+  if (source->NetError() != net::OK ||
+      (status_code != net::HTTP_OK && status_code != net::HTTP_NO_CONTENT)) {
     state_ = ERROR_STATE;
     ProcessApiCallFailure(source->NetError(), source->ResponseInfo(),
                           std::move(body));
@@ -73,10 +69,6 @@ std::string OAuth2ApiCallFlow::CreateApiCallBodyContentType() {
 
 std::string OAuth2ApiCallFlow::GetRequestTypeForBody(const std::string& body) {
   return body.empty() ? "GET" : "POST";
-}
-
-bool OAuth2ApiCallFlow::IsExpectedSuccessCode(int code) const {
-  return code == net::HTTP_OK || code == net::HTTP_NO_CONTENT;
 }
 
 void OAuth2ApiCallFlow::OnURLLoadComplete(std::unique_ptr<std::string> body) {
@@ -99,10 +91,8 @@ std::unique_ptr<network::SimpleURLLoader> OAuth2ApiCallFlow::CreateURLLoader(
   request->url = CreateApiCallUrl();
   request->method = request_type;
   request->credentials_mode = network::mojom::CredentialsMode::kOmit;
-  request->headers = CreateApiCallHeaders();
   request->headers.SetHeader("Authorization",
                              MakeAuthorizationValue(access_token));
-
   std::unique_ptr<network::SimpleURLLoader> result =
       network::SimpleURLLoader::Create(std::move(request), traffic_annotation);
 

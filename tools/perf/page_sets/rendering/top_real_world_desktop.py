@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 from telemetry.page import shared_page_state
@@ -26,13 +26,13 @@ class TopRealWorldDesktopPage(rendering_story.RenderingStory):
         extra_browser_args=extra_browser_args)
 
   def RunPageInteractions(self, action_runner):
-    action_runner.Wait(1)
-    with action_runner.CreateGestureInteraction('ScrollAction'):
-      action_runner.ScrollPage()
-      if self.story_set.scroll_forever:
-        while True:
-          action_runner.ScrollPage(direction='up')
-          action_runner.ScrollPage(direction='down')
+      action_runner.Wait(1)
+      with action_runner.CreateGestureInteraction('ScrollAction'):
+        action_runner.ScrollPage()
+        if self.story_set.scroll_forever:
+          while True:
+            action_runner.ScrollPage(direction='up')
+            action_runner.ScrollPage(direction='down')
 
 
 class GoogleWebSearch2018Page(TopRealWorldDesktopPage):
@@ -73,6 +73,9 @@ class GoogleImageSearch2018Page(TopRealWorldDesktopPage):
         shared_page_state_class=shared_page_state_class,
         name_suffix=name_suffix,
         extra_browser_args=extra_browser_args)
+
+  def RunNavigateSteps(self, action_runner):
+    super(GoogleImageSearch2018Page, self).RunNavigateSteps(action_runner)
 
 
 class GooglePlus2018Page(TopRealWorldDesktopPage):
@@ -288,13 +291,6 @@ class AccuWeather2018Page(TopRealWorldDesktopPage):
         name_suffix=name_suffix,
         extra_browser_args=extra_browser_args)
 
-  def RunNavigateSteps(self, action_runner):
-    super(AccuWeather2018Page, self).RunNavigateSteps(action_runner)
-
-    # Close a pop-up dialog before scrolling.
-    action_runner.WaitForElement(selector=".fc-button-consent")
-    action_runner.TapElement(selector=".fc-button-consent")
-
 
 class Twitch2018Page(TopRealWorldDesktopPage):
   """ Why: #1 games according to Alexa  """
@@ -334,8 +330,7 @@ class Gmail2018SmoothPage(TopRealWorldDesktopPage):
 
   def RunNavigateSteps(self, action_runner):
     if self.wpr_mode != wpr_modes.WPR_REPLAY:
-      # google_login.NewLoginGoogleAccount(action_runner, 'googletest')
-      google_login.ManualLoginGoogleAccount(action_runner)
+      google_login.NewLoginGoogleAccount(action_runner, 'googletest')
     super(Gmail2018SmoothPage, self).RunNavigateSteps(action_runner)
     action_runner.WaitForJavaScriptCondition(
         'window.gmonkey !== undefined &&'
@@ -362,8 +357,7 @@ class GoogleCalendar2018SmoothPage(TopRealWorldDesktopPage):
 
   def RunNavigateSteps(self, action_runner):
     if self.wpr_mode != wpr_modes.WPR_REPLAY:
-      # google_login.NewLoginGoogleAccount(action_runner, 'googletest')
-      google_login.ManualLoginGoogleAccount(action_runner)
+      google_login.NewLoginGoogleAccount(action_runner, 'googletest')
     super(GoogleCalendar2018SmoothPage, self).RunNavigateSteps(action_runner)
     action_runner.WaitForElement('span[class~="sm8sCf"]')
     action_runner.ExecuteJavaScript("""

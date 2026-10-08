@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,9 +49,6 @@ bool ToAudioSampleRate(int sample_rate, AudioSampleRate* asr) {
       return true;
     case 384000:
       *asr = k384000Hz;
-      return true;
-    case 768000:
-      *asr = k768000Hz;
       return true;
   }
   return false;

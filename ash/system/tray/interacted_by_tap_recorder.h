@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,11 +17,7 @@ namespace ash {
 // to record Interaction metrics.
 class InteractedByTapRecorder : public ui::EventHandler {
  public:
-  explicit InteractedByTapRecorder(views::View* target_view);
-
-  InteractedByTapRecorder(const InteractedByTapRecorder&) = delete;
-  InteractedByTapRecorder& operator=(const InteractedByTapRecorder&) = delete;
-
+  InteractedByTapRecorder(views::View* target_view);
   ~InteractedByTapRecorder() override = default;
 
   // Type of interaction. This enum is used to back an UMA histogram and should
@@ -35,6 +31,8 @@ class InteractedByTapRecorder : public ui::EventHandler {
  private:
   // ui::EventHandler:
   void OnEvent(ui::Event* event) override;
+
+  DISALLOW_COPY_AND_ASSIGN(InteractedByTapRecorder);
 };
 
 }  // namespace ash

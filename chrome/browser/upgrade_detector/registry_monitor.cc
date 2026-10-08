@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,8 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/location.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/win/registry.h"
 #include "chrome/browser/upgrade_detector/installed_version_monitor.h"
 #include "chrome/install_static/install_util.h"
@@ -48,7 +49,7 @@ void RegistryMonitor::StartWatching() {
           &RegistryMonitor::OnClientsKeyChanged, base::Unretained(this)))) {
     // Starting the watch failed. Report this back to the poller via a delayed
     // task.
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+    base::SequencedTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(on_change_callback_, /*error=*/true));
   }
 }

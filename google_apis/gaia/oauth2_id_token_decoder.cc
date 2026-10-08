@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,10 @@
 #include <memory>
 
 #include "base/base64url.h"
-#include "base/containers/contains.h"
 #include "base/json/json_reader.h"
 #include "base/logging.h"
 #include "base/strings/string_split.h"
 #include "base/values.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace {
 
@@ -28,13 +26,13 @@ const char kServicesKey[] = "services";
 
 // Decodes the JWT ID token to a dictionary. Returns whether the decoding was
 // successful.
-absl::optional<base::Value::Dict> DecodeIdToken(const std::string id_token) {
+std::unique_ptr<base::Value> DecodeIdToken(const std::string id_token) {
   const std::vector<base::StringPiece> token_pieces =
       base::SplitStringPiece(base::StringPiece(id_token), ".",
                              base::KEEP_WHITESPACE, base::SPLIT_WANT_ALL);
   if (token_pieces.size() != 3) {
     VLOG(1) << "Invalid id_token: not in JWT format";
-    return absl::nullopt;
+    return nullptr;
   }
   // Only the payload is used. The header is ignored, and signature
   // verification is not needed since the token was obtained directly from LSO.
@@ -43,15 +41,16 @@ absl::optional<base::Value::Dict> DecodeIdToken(const std::string id_token) {
                              base::Base64UrlDecodePolicy::IGNORE_PADDING,
                              &payload)) {
     VLOG(1) << "Invalid id_token: not in Base64Url encoding";
-    return absl::nullopt;
+    return nullptr;
   }
-  absl::optional<base::Value> decoded_payload = base::JSONReader::Read(payload);
-  if (!decoded_payload.has_value() ||
+  std::unique_ptr<base::Value> decoded_payload =
+      base::JSONReader::ReadDeprecated(payload);
+  if (!decoded_payload.get() ||
       decoded_payload->type() != base::Value::Type::DICTIONARY) {
     VLOG(1) << "Invalid id_token: paylod is not a well-formed JSON";
-    return absl::nullopt;
+    return nullptr;
   }
-  return std::move(decoded_payload->GetDict());
+  return decoded_payload;
 }
 
 // Obtains a vector of service flags from the encoded JWT ID token. Returns
@@ -61,18 +60,18 @@ bool GetServiceFlags(const std::string id_token,
                      std::vector<std::string>* out_service_flags) {
   DCHECK(out_service_flags->empty());
 
-  absl::optional<base::Value::Dict> decoded_payload = DecodeIdToken(id_token);
-  if (!decoded_payload.has_value()) {
+  std::unique_ptr<base::Value> decoded_payload = DecodeIdToken(id_token);
+  if (decoded_payload == nullptr) {
     VLOG(1) << "Failed to decode the id_token";
     return false;
   }
-  const base::Value::List* service_flags_value_raw =
-      decoded_payload->FindList(kServicesKey);
+  const base::Value* service_flags_value_raw =
+      decoded_payload->FindKeyOfType(kServicesKey, base::Value::Type::LIST);
   if (service_flags_value_raw == nullptr) {
     VLOG(1) << "Missing service flags in the id_token";
     return false;
   }
-  for (const auto& flag_value : *service_flags_value_raw) {
+  for (const auto& flag_value : service_flags_value_raw->GetList()) {
     const std::string& flag = flag_value.GetString();
     if (flag.size())
       out_service_flags->push_back(flag);
@@ -96,9 +95,11 @@ TokenServiceFlags ParseServiceFlags(const std::string& id_token) {
   }
 
   token_service_flags.is_child_account =
-      base::Contains(service_flags, kChildAccountServiceFlag);
+      std::find(service_flags.begin(), service_flags.end(),
+                kChildAccountServiceFlag) != service_flags.end();
   token_service_flags.is_under_advanced_protection =
-      base::Contains(service_flags, kAdvancedProtectionAccountServiceFlag);
+      std::find(service_flags.begin(), service_flags.end(),
+                kAdvancedProtectionAccountServiceFlag) != service_flags.end();
   return token_service_flags;
 }
 

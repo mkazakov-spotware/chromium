@@ -1,71 +1,53 @@
-(async function (testRunner) {
-  var { session, dp } = await testRunner.startBlank(`Tests Input.dispatchTouchEvent method.`);
-  await dp.Runtime.addBinding({ name: 'logEvent' });
-  await dp.Runtime.addBinding({ name: 'logString' });
-  dp.Runtime.onBindingCalled(data => {
-    if (data.params.name === 'logString') {
-      testRunner.log(data.params.payload);
-      if (data.params.payload === '\n------- Done ------') {
-        testRunner.completeTest();
-      }
-    } else {
-      const event = JSON.parse(data.params.payload);
-      testRunner.log('-----Event-----');
-      testRunner.log('type: ' + event.type);
+(async function(testRunner) {
+  var {page, session, dp} = await testRunner.startBlank(`Tests Input.dispatchTouchEvent method.`);
+
+  await session.evaluate(`
+    var logs = [];
+    function log(text) {
+      logs.push(text);
+    }
+
+    function takeLogs() {
+      var result = logs.join('\\n');
+      logs = [];
+      return result;
+    }
+
+    function logEvent(event) {
+      event.preventDefault();
+      log('-----Event-----');
+      log('type: ' + event.type);
       if (event.shiftKey)
-        testRunner.log('shiftKey');
-      testRunner.log('----Touches----');
+        log('shiftKey');
+      log('----Touches----');
       for (var i = 0; i < event.touches.length; i++) {
         var touch = event.touches[i];
-        testRunner.log('id: ' + i);
-        testRunner.log('pageX: ' + touch.pageX);
-        testRunner.log('pageY: ' + touch.pageY);
-        testRunner.log('radiusX: ' + touch.radiusX);
-        testRunner.log('radiusY: ' + touch.radiusY);
-        testRunner.log('rotationAngle: ' + touch.rotationAngle);
-        testRunner.log('force: ' + touch.force);
+        log('id: ' + i);
+        log('pageX: ' + touch.pageX);
+        log('pageY: ' + touch.pageY);
+        log('radiusX: ' + touch.radiusX);
+        log('radiusY: ' + touch.radiusY);
+        log('rotationAngle: ' + touch.rotationAngle);
+        log('force: ' + touch.force);
       }
     }
-  });
-  await session.evaluate(`
-    function logTouchEvent(event) {
-      event.preventDefault();
-      logEvent(JSON.stringify({
-        type: event.type,
-        shiftKey: event.shiftKey,
-        touches: Array.from(event.touches, (touch) => ({
-          pageX: touch.pageX,
-          pageY: touch.pageY,
-          radiusX: touch.radiusX,
-          radiusY: touch.radiusY,
-          rotationAngle: touch.rotationAngle,
-          force: touch.force,
-        })),
-      }));
-    }
 
-    window.addEventListener('touchstart', logTouchEvent, {passive: false});
-    window.addEventListener('touchend', logTouchEvent, {passive: false});
-    window.addEventListener('touchmove', logTouchEvent, {passive: false});
-    window.addEventListener('touchcancel', logTouchEvent, {passive: false});
+    window.addEventListener('touchstart', logEvent, {passive: false});
+    window.addEventListener('touchend', logEvent, {passive: false});
+    window.addEventListener('touchmove', logEvent, {passive: false});
+    window.addEventListener('touchcancel', logEvent, {passive: false});
   `);
 
-  async function log(message) {
-    // Pipe messages through the session to make sure they arrive in order.
-    await session.evaluate(`logString(${JSON.stringify(message)})`);
+  async function dispatchEvent(params) {
+    testRunner.log('\nDispatching event:');
+    testRunner.log(params);
+    var response = await dp.Input.dispatchTouchEvent(params);
+    if (response.error)
+      testRunner.log(response);
+    testRunner.log(await session.evaluate(`takeLogs()`));
   }
 
-  async function dispatchEvent(params, shouldFail = false, numberOfExpectedEvents = 1) {
-    await log('\nDispatching event:');
-    await log(`${params.type} with ${params.touchPoints.length} touch points`);
-    const response = await dp.Input.dispatchTouchEvent(params);
-    if (response.error) {
-      await log(response);
-      await log('');
-    }
-  }
-
-  await log('\n\n------- Sequence 1 ------');
+  testRunner.log('\n\n------- Sequence ------');
   await dispatchEvent({
     type: 'touchStart',
     touchPoints: [{
@@ -85,7 +67,7 @@
     touchPoints: []
   });
 
-  await log('\n------- Sequence 2 ------');
+  testRunner.log('\n------- Sequence ------');
   await dispatchEvent({
     type: 'touchStart',
     touchPoints: [{
@@ -102,13 +84,13 @@
       id: 1
     }],
     modifiers: 8 // shift
-  }, false, 2);
+  });
   await dispatchEvent({
     type: 'touchEnd',
     touchPoints: []
   });
 
-  await log('\n------- Sequence 3 ------');
+  testRunner.log('\n------- Sequence ------');
   await dispatchEvent({
     type: 'touchStart',
     touchPoints: [{
@@ -154,19 +136,19 @@
     touchPoints: []
   });
 
-  await log('\n------- Sequence 4 ------');
+  testRunner.log('\n------- Sequence ------');
   await dispatchEvent({
     type: 'touchEnd',
     touchPoints: []
   });
 
-  await log('\n------- Sequence 5 ------');
+  testRunner.log('\n------- Sequence ------');
   await dispatchEvent({
     type: 'touchStart',
     touchPoints: []
   });
 
-  await log('\n------- Sequence 6 ------');
+  testRunner.log('\n------- Sequence ------');
   await dispatchEvent({
     type: 'touchStart',
     touchPoints: [{
@@ -186,7 +168,7 @@
     touchPoints: []
   });
 
-  await log('\n------- Sequence 7 ------');
+  testRunner.log('\n------- Sequence ------');
   await dispatchEvent({
     type: 'touchStart',
     touchPoints: [{
@@ -200,20 +182,20 @@
       x: 100,
       y: 100
     }]
-  }, true);
+  });
   await dispatchEvent({
     type: 'touchMove',
     touchPoints: [{
       x: 100,
       y: 100
     }]
-  }, true);
+  });
   await dispatchEvent({
     type: 'touchEnd',
     touchPoints: []
   });
 
-  await log('\n------- Sequence 8 ------');
+  testRunner.log('\n------- Sequence ------');
   await dispatchEvent({
     type: 'touchStart',
     touchPoints: [{
@@ -235,7 +217,7 @@
     touchPoints: []
   });
 
-  await log('\n------- Sequence 9 ------');
+  testRunner.log('\n------- Sequence ------');
   await dispatchEvent({
     type: 'touchStart',
     touchPoints: [{
@@ -273,7 +255,7 @@
     touchPoints: []
   });
 
-  await log('\n------- Sequence 10 ------');
+  testRunner.log('\n------- Sequence ------');
   await dispatchEvent({
     type: 'touchStart',
     touchPoints: [{
@@ -291,7 +273,7 @@
     touchPoints: []
   });
 
-  await log('\n------- Sequence 11 ------');
+  testRunner.log('\n------- Sequence ------');
   await dispatchEvent({
     type: 'touchStart',
     touchPoints: [{
@@ -329,5 +311,5 @@
     touchPoints: []
   });
 
-  await log('\n------- Done ------');
-});
+  testRunner.completeTest();
+})

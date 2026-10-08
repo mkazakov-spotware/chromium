@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "base/strings/string16.h"
 #include "chrome/browser/notifications/scheduler/public/icon_bundle.h"
 #include "chrome/browser/notifications/scheduler/public/notification_scheduler_types.h"
 
@@ -28,7 +29,7 @@ struct NotificationData {
     ~Button();
 
     // The text associated with the button.
-    std::u16string text;
+    base::string16 text;
 
     // The button type.
     ActionButtonType type;
@@ -44,10 +45,10 @@ struct NotificationData {
   ~NotificationData();
 
   // The title of the notification.
-  std::u16string title;
+  base::string16 title;
 
   // The body text of the notification.
-  std::u16string message;
+  base::string16 message;
 
   // The icons of the notification.
   std::map<IconType, IconBundle> icons;

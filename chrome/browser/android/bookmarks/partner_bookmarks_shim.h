@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,18 @@
 #include <stdint.h>
 
 #include <memory>
-#include <string>
 
 #include "base/android/jni_weak_ref.h"
 #include "base/i18n/case_conversion.h"
 #include "base/i18n/string_search.h"
-#include "base/memory/raw_ptr.h"
-#include "base/strings/escape.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/supports_user_data.h"
 #include "components/bookmarks/browser/bookmark_node.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
 #include "components/url_formatter/url_formatter.h"
+#include "net/base/escape.h"
 #include "ui/base/models/tree_node_iterator.h"
 #include "url/gurl.h"
 
@@ -40,9 +40,6 @@ class PrefRegistrySyncable;
 // Note that node->GetTitle() returns an original (unmodified) title.
 class PartnerBookmarksShim : public base::SupportsUserData::Data {
  public:
-  PartnerBookmarksShim(const PartnerBookmarksShim&) = delete;
-  PartnerBookmarksShim& operator=(const PartnerBookmarksShim&) = delete;
-
   ~PartnerBookmarksShim() override;
 
   // Returns an instance of the shim for a given |browser_context|.
@@ -79,7 +76,7 @@ class PartnerBookmarksShim : public base::SupportsUserData::Data {
 
   // Renames a given bookmark.
   void RenameBookmark(const bookmarks::BookmarkNode* node,
-                      const std::u16string& title);
+                      const base::string16& title);
 
   // For Loaded/Changed/ShimBeingDeleted notifications
   class Observer {
@@ -99,7 +96,7 @@ class PartnerBookmarksShim : public base::SupportsUserData::Data {
 
   // PartnerBookmarksShim versions of BookmarkModel/BookmarkNode methods
   const bookmarks::BookmarkNode* GetNodeByID(int64_t id) const;
-  std::u16string GetTitle(const bookmarks::BookmarkNode* node) const;
+  base::string16 GetTitle(const bookmarks::BookmarkNode* node) const;
 
   bool IsPartnerBookmark(const bookmarks::BookmarkNode* node) const;
   const bookmarks::BookmarkNode* GetPartnerBookmarksRoot() const;
@@ -114,17 +111,17 @@ class PartnerBookmarksShim : public base::SupportsUserData::Data {
   // titles are considered indistinguishable.
   class NodeRenamingMapKey {
    public:
-    NodeRenamingMapKey(const GURL& url, const std::u16string& provider_title);
+    NodeRenamingMapKey(const GURL& url, const base::string16& provider_title);
     ~NodeRenamingMapKey();
     const GURL& url() const { return url_; }
-    const std::u16string& provider_title() const { return provider_title_; }
+    const base::string16& provider_title() const { return provider_title_; }
     friend bool operator<(const NodeRenamingMapKey& a,
                           const NodeRenamingMapKey& b);
    private:
     GURL url_;
-    std::u16string provider_title_;
+    base::string16 provider_title_;
   };
-  typedef std::map<NodeRenamingMapKey, std::u16string> NodeRenamingMap;
+  typedef std::map<NodeRenamingMapKey, base::string16> NodeRenamingMap;
 
   // PartnerBookmarksShim version of BookmarkUtils methods
   void GetPartnerBookmarksMatchingProperties(
@@ -152,11 +149,13 @@ class PartnerBookmarksShim : public base::SupportsUserData::Data {
   void SaveNodeMapping();
 
   std::unique_ptr<bookmarks::BookmarkNode> partner_bookmarks_root_;
-  raw_ptr<PrefService> prefs_;
+  PrefService* prefs_;
   NodeRenamingMap node_rename_remove_map_;
 
   // The observers.
   base::ObserverList<Observer>::Unchecked observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(PartnerBookmarksShim);
 };
 
 #endif  // CHROME_BROWSER_ANDROID_BOOKMARKS_PARTNER_BOOKMARKS_SHIM_H_

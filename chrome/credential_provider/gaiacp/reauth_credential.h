@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -60,9 +60,9 @@ class ATL_NO_VTABLE CReauthCredential
   // Returns S_OK if the user information stored in this credential matches
   // the user information that is being validated. Otherwise fills |error_text|
   // with an appropriate error message and returns an error.
-  HRESULT ValidateExistingUser(const std::wstring& username,
-                               const std::wstring& domain,
-                               const std::wstring& sid,
+  HRESULT ValidateExistingUser(const base::string16& username,
+                               const base::string16& domain,
+                               const base::string16& sid,
                                BSTR* error_text) override;
   HRESULT GetStringValueImpl(DWORD field_id, wchar_t** value) override;
 

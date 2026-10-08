@@ -1,10 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/protocol/pseudotcp_adapter.h"
 
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -14,12 +13,11 @@
 #include "base/containers/circular_deque.h"
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
-#include "base/time/time.h"
-#include "components/webrtc/thread_wrapper.h"
+#include "base/threading/thread_task_runner_handle.h"
+#include "jingle/glue/thread_wrapper.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
 #include "net/base/test_completion_callback.h"
@@ -29,7 +27,8 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 
@@ -136,12 +135,12 @@ class FakeSocket : public P2PDatagramSocket {
            const net::CompletionRepeatingCallback& callback) override {
     DCHECK(buf);
     if (peer_socket_) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
           FROM_HERE,
           base::BindOnce(&FakeSocket::AppendInputPacket,
                          base::Unretained(peer_socket_),
                          std::vector<char>(buf->data(), buf->data() + buf_len)),
-          base::Milliseconds(latency_ms_));
+          base::TimeDelta::FromMilliseconds(latency_ms_));
     }
 
     return buf_len;
@@ -154,8 +153,8 @@ class FakeSocket : public P2PDatagramSocket {
 
   base::circular_deque<std::vector<char>> incoming_packets_;
 
-  raw_ptr<FakeSocket> peer_socket_;
-  raw_ptr<RateLimiter> rate_limiter_;
+  FakeSocket* peer_socket_;
+  RateLimiter* rate_limiter_;
   int latency_ms_;
 };
 
@@ -281,8 +280,8 @@ class TCPChannelTester : public base::RefCountedThreadSafe<TCPChannelTester> {
   friend class base::RefCountedThreadSafe<TCPChannelTester>;
 
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
-  raw_ptr<P2PStreamSocket> host_socket_;
-  raw_ptr<P2PStreamSocket> client_socket_;
+  P2PStreamSocket* host_socket_;
+  P2PStreamSocket* client_socket_;
   bool done_;
 
   scoped_refptr<net::DrainableIOBuffer> output_buffer_;
@@ -295,7 +294,7 @@ class TCPChannelTester : public base::RefCountedThreadSafe<TCPChannelTester> {
 class PseudoTcpAdapterTest : public testing::Test {
  protected:
   void SetUp() override {
-    webrtc::ThreadWrapper::EnsureForCurrentMessageLoop();
+    jingle_glue::JingleThreadWrapper::EnsureForCurrentMessageLoop();
 
     host_socket_ = new FakeSocket();
     client_socket_ = new FakeSocket();
@@ -303,14 +302,13 @@ class PseudoTcpAdapterTest : public testing::Test {
     host_socket_->Connect(client_socket_);
     client_socket_->Connect(host_socket_);
 
-    host_pseudotcp_ = std::make_unique<PseudoTcpAdapter>(
-        base::WrapUnique(host_socket_.get()));
-    client_pseudotcp_ = std::make_unique<PseudoTcpAdapter>(
-        base::WrapUnique(client_socket_.get()));
+    host_pseudotcp_.reset(new PseudoTcpAdapter(base::WrapUnique(host_socket_)));
+    client_pseudotcp_.reset(
+        new PseudoTcpAdapter(base::WrapUnique(client_socket_)));
   }
 
-  raw_ptr<FakeSocket> host_socket_;
-  raw_ptr<FakeSocket> client_socket_;
+  FakeSocket* host_socket_;
+  FakeSocket* client_socket_;
 
   std::unique_ptr<PseudoTcpAdapter> host_pseudotcp_;
   std::unique_ptr<PseudoTcpAdapter> client_pseudotcp_;
@@ -332,7 +330,7 @@ TEST_F(PseudoTcpAdapterTest, DataTransfer) {
   EXPECT_EQ(net::OK, client_connect_cb.WaitForResult());
 
   scoped_refptr<TCPChannelTester> tester =
-      new TCPChannelTester(base::SingleThreadTaskRunner::GetCurrentDefault(),
+      new TCPChannelTester(base::ThreadTaskRunnerHandle::Get(),
                            host_pseudotcp_.get(), client_pseudotcp_.get());
 
   tester->Start();
@@ -367,7 +365,7 @@ TEST_F(PseudoTcpAdapterTest, LimitedChannel) {
   EXPECT_EQ(net::OK, client_connect_cb.WaitForResult());
 
   scoped_refptr<TCPChannelTester> tester =
-      new TCPChannelTester(base::SingleThreadTaskRunner::GetCurrentDefault(),
+      new TCPChannelTester(base::ThreadTaskRunnerHandle::Get(),
                            host_pseudotcp_.get(), client_pseudotcp_.get());
 
   tester->Start();
@@ -386,7 +384,7 @@ class DeleteOnConnected {
         FROM_HERE, base::RunLoop::QuitCurrentWhenIdleClosureDeprecated());
   }
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
-  raw_ptr<std::unique_ptr<PseudoTcpAdapter>> adapter_;
+  std::unique_ptr<PseudoTcpAdapter>* adapter_;
 };
 
 TEST_F(PseudoTcpAdapterTest, DeleteOnConnected) {
@@ -394,8 +392,8 @@ TEST_F(PseudoTcpAdapterTest, DeleteOnConnected) {
   // to deleted structures being touched as the stack unrolls, so the failure
   // mode is a crash rather than a normal test failure.
   net::TestCompletionCallback client_connect_cb;
-  DeleteOnConnected host_delete(
-      base::SingleThreadTaskRunner::GetCurrentDefault(), &host_pseudotcp_);
+  DeleteOnConnected host_delete(base::ThreadTaskRunnerHandle::Get(),
+                                &host_pseudotcp_);
 
   host_pseudotcp_->Connect(base::BindOnce(&DeleteOnConnected::OnConnected,
                                           base::Unretained(&host_delete)));
@@ -429,7 +427,7 @@ TEST_F(PseudoTcpAdapterTest, WriteWaitsForSendLetsDataThrough) {
   EXPECT_EQ(net::OK, client_connect_cb.WaitForResult());
 
   scoped_refptr<TCPChannelTester> tester =
-      new TCPChannelTester(base::SingleThreadTaskRunner::GetCurrentDefault(),
+      new TCPChannelTester(base::ThreadTaskRunnerHandle::Get(),
                            host_pseudotcp_.get(), client_pseudotcp_.get());
 
   tester->Start();
@@ -439,4 +437,5 @@ TEST_F(PseudoTcpAdapterTest, WriteWaitsForSendLetsDataThrough) {
 
 }  // namespace
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

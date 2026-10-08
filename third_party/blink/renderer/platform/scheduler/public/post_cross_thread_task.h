@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <utility>
 #include "base/location.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 
@@ -17,8 +17,8 @@ namespace blink {
 inline bool PostCrossThreadTask(base::SequencedTaskRunner& task_runner,
                                 const base::Location& location,
                                 WTF::CrossThreadOnceClosure task) {
-  return task_runner.PostTask(location,
-                              ConvertToBaseOnceCallback(std::move(task)));
+  return task_runner.PostDelayedTask(
+      location, ConvertToBaseOnceCallback(std::move(task)), base::TimeDelta());
 }
 
 inline bool PostDelayedCrossThreadTask(base::SequencedTaskRunner& task_runner,

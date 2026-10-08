@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/threading/thread.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "device/vr/public/mojom/isolated_xr_service.mojom.h"
 #include "device/vr/public/mojom/vr_service.mojom.h"
 #include "device/vr/util/fps_meter.h"
 #include "device/vr/util/sliding_average.h"
@@ -23,50 +22,28 @@
 #include "mojo/public/cpp/platform/platform_handle.h"
 #include "ui/gfx/geometry/rect_f.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "device/vr/windows/d3d11_texture_helper.h"
 #endif
 
-namespace gpu::gles2 {
-class GLES2Interface;
-}  // namespace gpu::gles2
-
 namespace device {
-
-enum class ExitXrPresentReason : int32_t {
-  kUnknown = 0,
-  kMojoConnectionError = 1,
-  kOpenXrUninitialize = 2,
-  kStartRuntimeFailed = 3,
-  kOpenXrStartFailed = 4,
-  kXrEndFrameFailed = 5,
-  kGetFrameAfterSessionEnded = 6,
-  kSubmitFrameFailed = 7,
-  kBrowserShutdown = 8,
-};
 
 class XRDeviceAbstraction {
  public:
   virtual mojom::XRFrameDataPtr GetNextFrameData();
-
-  using StartRuntimeCallback = base::OnceCallback<void(bool success)>;
-  virtual void StartRuntime(StartRuntimeCallback start_runtime_callback) = 0;
+  virtual bool StartRuntime() = 0;
   virtual void StopRuntime() = 0;
   virtual void OnSessionStart();
+  virtual bool PreComposite();
   virtual bool HasSessionEnded();
   virtual bool SubmitCompositedFrame() = 0;
   virtual void HandleDeviceLost();
   virtual void OnLayerBoundsChanged();
-  // Sets enabled_features_ based on what features are supported
-  virtual void EnableSupportedFeatures(
-      const std::vector<device::mojom::XRSessionFeature>& requiredFeatures,
-      const std::vector<device::mojom::XRSessionFeature>& optionalFeatures) = 0;
   virtual device::mojom::XREnvironmentBlendMode GetEnvironmentBlendMode(
       device::mojom::XRSessionMode session_mode);
   virtual device::mojom::XRInteractionMode GetInteractionMode(
       device::mojom::XRSessionMode session_mode);
   virtual bool CanEnableAntiAliasing() const;
-  virtual std::vector<mojom::XRViewPtr> GetDefaultViews() const = 0;
 };
 
 class XRCompositorCommon : public base::Thread,
@@ -79,17 +56,18 @@ class XRCompositorCommon : public base::Thread,
       base::OnceCallback<void(bool result, mojom::XRSessionPtr)>;
 
   XRCompositorCommon();
-
-  XRCompositorCommon(const XRCompositorCommon&) = delete;
-  XRCompositorCommon& operator=(const XRCompositorCommon&) = delete;
-
   ~XRCompositorCommon() override;
 
-  void RequestSession(base::RepeatingCallback<void(mojom::XRVisibilityState)>
+  // on_presentation_ended will be called when this the compositor stops
+  // presenting to the headset. If new session request comes in, only the new
+  // callback will be called (since we haven't yet stopped presenting to the
+  // headset).
+  void RequestSession(base::OnceCallback<void()> on_presentation_ended,
+                      base::RepeatingCallback<void(mojom::XRVisibilityState)>
                           on_visibility_state_changed,
                       mojom::XRRuntimeSessionOptionsPtr options,
                       RequestSessionCallback callback);
-  void ExitPresent(ExitXrPresentReason reason);
+  void ExitPresent();
 
   void GetFrameData(mojom::XRFrameDataRequestOptionsPtr options,
                     XRFrameDataProvider::GetFrameDataCallback callback) final;
@@ -100,19 +78,16 @@ class XRCompositorCommon : public base::Thread,
   void GetEnvironmentIntegrationProvider(
       mojo::PendingAssociatedReceiver<
           device::mojom::XREnvironmentIntegrationProvider> environment_provider)
-      override;
+      final;
 
   void RequestOverlay(mojo::PendingReceiver<mojom::ImmersiveOverlay> receiver);
-
-  virtual gpu::gles2::GLES2Interface* GetContextGL() = 0;
 
  protected:
   virtual bool UsesInputEventing();
   void SetVisibilityState(mojom::XRVisibilityState visibility_state);
-  const mojom::VRStageParametersPtr& GetCurrentStageParameters() const;
   void SetStageParameters(mojom::VRStageParametersPtr stage_parameters);
-#if BUILDFLAG(IS_WIN)
-  D3D11TextureHelper texture_helper_{this};
+#if defined(OS_WIN)
+  D3D11TextureHelper texture_helper_;
 #endif
   int16_t next_frame_id_ = 0;
 
@@ -124,18 +99,6 @@ class XRCompositorCommon : public base::Thread,
   // Derived classes override this to be notified to clear its pending frame.
   virtual void ClearPendingFrameInternal() {}
 
-  std::unordered_set<device::mojom::XRSessionFeature> enabled_features_;
-
-  // Override the default of false if you wish to use shared buffers across
-  // processes
-  virtual bool IsUsingSharedImages() const;
-
-#if BUILDFLAG(IS_WIN)
-  void SubmitFrameWithTextureHandle(int16_t frame_index,
-                                    mojo::PlatformHandle texture_handle,
-                                    const gpu::SyncToken& sync_token) final;
-#endif
-
  private:
   // base::Thread overrides:
   void Init() final;
@@ -143,13 +106,6 @@ class XRCompositorCommon : public base::Thread,
 
   void ClearPendingFrame();
   void StartPendingFrame();
-
-  void StartRuntimeFinish(
-      base::RepeatingCallback<void(mojom::XRVisibilityState)>
-          on_visibility_state_changed,
-      mojom::XRRuntimeSessionOptionsPtr options,
-      RequestSessionCallback callback,
-      bool success);
 
   // Will Submit if we have textures submitted from the Overlay (if it is
   // visible), and WebXR (if it is visible).  We decide what to wait for during
@@ -167,7 +123,9 @@ class XRCompositorCommon : public base::Thread,
                    base::TimeDelta time_waited) final;
   void SubmitFrameDrawnIntoTexture(int16_t frame_index,
                                    const gpu::SyncToken&,
-                                   base::TimeDelta time_waited) override;
+                                   base::TimeDelta time_waited) final;
+  void SubmitFrameWithTextureHandle(int16_t frame_index,
+                                    mojo::PlatformHandle texture_handle) final;
   void UpdateLayerBounds(int16_t frame_id,
                          const gfx::RectF& left_bounds,
                          const gfx::RectF& right_bounds,
@@ -176,7 +134,6 @@ class XRCompositorCommon : public base::Thread,
   // ImmersiveOverlay:
   void SubmitOverlayTexture(int16_t frame_id,
                             mojo::PlatformHandle texture,
-                            const gpu::SyncToken& sync_token,
                             const gfx::RectF& left_bounds,
                             const gfx::RectF& right_bounds,
                             SubmitOverlayTextureCallback callback) override;
@@ -211,7 +168,7 @@ class XRCompositorCommon : public base::Thread,
   SlidingTimeDeltaAverage webxr_js_time_;
   SlidingTimeDeltaAverage webxr_gpu_time_;
 
-  absl::optional<OutstandingFrame> pending_frame_;
+  base::Optional<OutstandingFrame> pending_frame_;
 
   bool is_presenting_ = false;  // True if we have a presenting session.
   bool webxr_visible_ = true;   // The browser may hide a presenting session.
@@ -226,6 +183,7 @@ class XRCompositorCommon : public base::Thread,
   SubmitOverlayTextureCallback overlay_submit_callback_;
   RequestNotificationOnWebXrSubmittedCallback on_webxr_submitted_;
   bool webxr_has_pose_ = false;
+  base::OnceCallback<void()> on_presentation_ended_;
   base::RepeatingCallback<void(mojom::XRVisibilityState)>
       on_visibility_state_changed_;
   mojo::Receiver<mojom::XRPresentationProvider> presentation_receiver_{this};
@@ -235,6 +193,8 @@ class XRCompositorCommon : public base::Thread,
       mojom::XRVisibilityState::VISIBLE;
   mojom::VRStageParametersPtr current_stage_parameters_;
   uint32_t stage_parameters_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(XRCompositorCommon);
 };
 
 }  // namespace device

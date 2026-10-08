@@ -1,13 +1,12 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_PASSWORDS_ACCOUNT_CHOOSER_DIALOG_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_PASSWORDS_ACCOUNT_CHOOSER_DIALOG_VIEW_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/ui/passwords/password_dialog_prompts.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 
 namespace content {
@@ -23,11 +22,8 @@ class CredentialManagerDialogController;
 class AccountChooserDialogView : public views::BubbleDialogDelegateView,
                                  public AccountChooserPrompt {
  public:
-  METADATA_HEADER(AccountChooserDialogView);
   AccountChooserDialogView(CredentialManagerDialogController* controller,
                            content::WebContents* web_contents);
-  AccountChooserDialogView(const AccountChooserDialogView&) = delete;
-  AccountChooserDialogView& operator=(const AccountChooserDialogView&) = delete;
   ~AccountChooserDialogView() override;
 
   // AccountChooserPrompt:
@@ -36,7 +32,8 @@ class AccountChooserDialogView : public views::BubbleDialogDelegateView,
 
  private:
   // WidgetDelegate:
-  std::u16string GetWindowTitle() const override;
+  ui::ModalType GetModalType() const override;
+  base::string16 GetWindowTitle() const override;
   bool ShouldShowCloseButton() const override;
   void WindowClosing() override;
 
@@ -49,8 +46,10 @@ class AccountChooserDialogView : public views::BubbleDialogDelegateView,
   void CredentialsItemPressed(const password_manager::PasswordForm* form);
 
   // A weak pointer to the controller.
-  raw_ptr<CredentialManagerDialogController, DanglingUntriaged> controller_;
-  raw_ptr<content::WebContents, DanglingUntriaged> web_contents_;
+  CredentialManagerDialogController* controller_;
+  content::WebContents* web_contents_;
+
+  DISALLOW_COPY_AND_ASSIGN(AccountChooserDialogView);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_PASSWORDS_ACCOUNT_CHOOSER_DIALOG_VIEW_H_

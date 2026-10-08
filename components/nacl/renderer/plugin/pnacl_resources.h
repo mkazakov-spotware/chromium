@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_NACL_RENDERER_PLUGIN_PNACL_RESOURCES_H_
 #define COMPONENTS_NACL_RENDERER_PLUGIN_PNACL_RESOURCES_H_
 
+#include "base/macros.h"
 #include "components/nacl/renderer/ppb_nacl_private.h"
 #include "ppapi/cpp/completion_callback.h"
 
@@ -29,10 +30,6 @@ struct PnaclResourceEntry {
 class PnaclResources {
  public:
   PnaclResources(Plugin* plugin, bool use_subzero);
-
-  PnaclResources(const PnaclResources&) = delete;
-  PnaclResources& operator=(const PnaclResources&) = delete;
-
   virtual ~PnaclResources();
 
   // Read the resource info JSON file.  This is the first step after
@@ -54,6 +51,8 @@ class PnaclResources {
   bool use_subzero_;
 
   PnaclResourceEntry resources_[NUM_TYPES + 1];
+
+  DISALLOW_COPY_AND_ASSIGN(PnaclResources);
 };
 
 }  // namespace plugin

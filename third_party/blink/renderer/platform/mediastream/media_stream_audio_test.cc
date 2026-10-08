@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/test/test_timeouts.h"
 #include "base/threading/platform_thread.h"
 #include "base/threading/thread_checker.h"
-#include "base/time/time.h"
 #include "media/base/audio_bus.h"
 #include "media/base/audio_parameters.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -20,7 +19,7 @@
 #include "third_party/blink/public/web/web_heap.h"
 #include "third_party/blink/renderer/platform/mediastream/media_stream_audio_source.h"
 #include "third_party/blink/renderer/platform/mediastream/media_stream_audio_track.h"
-#include "third_party/blink/renderer/platform/mediastream/media_stream_component_impl.h"
+#include "third_party/blink/renderer/platform/mediastream/media_stream_component.h"
 #include "third_party/blink/renderer/platform/mediastream/media_stream_source.h"
 
 namespace blink {
@@ -37,8 +36,8 @@ constexpr int kMaxValueSafelyConvertableToFloat = 1 << 24;
 // emits audio samples with monotonically-increasing sample values. Includes
 // hooks for the unit tests to confirm lifecycle status and to change audio
 // format.
-class FakeMediaStreamAudioSource final : public MediaStreamAudioSource,
-                                         public base::PlatformThread::Delegate {
+class FakeMediaStreamAudioSource : public MediaStreamAudioSource,
+                                   public base::PlatformThread::Delegate {
  public:
   FakeMediaStreamAudioSource()
       : MediaStreamAudioSource(scheduler::GetSingleThreadTaskRunnerForTesting(),
@@ -48,11 +47,7 @@ class FakeMediaStreamAudioSource final : public MediaStreamAudioSource,
         next_buffer_size_(kBufferSize),
         sample_count_(0) {}
 
-  FakeMediaStreamAudioSource(const FakeMediaStreamAudioSource&) = delete;
-  FakeMediaStreamAudioSource& operator=(const FakeMediaStreamAudioSource&) =
-      delete;
-
-  ~FakeMediaStreamAudioSource() override {
+  ~FakeMediaStreamAudioSource() final {
     DCHECK_CALLED_ON_VALID_THREAD(main_thread_checker_);
     EnsureSourceIsStopped();
   }
@@ -79,8 +74,8 @@ class FakeMediaStreamAudioSource final : public MediaStreamAudioSource,
       return true;
     if (was_stopped())
       return false;
-    base::PlatformThread::CreateWithType(0, this, &thread_,
-                                         base::ThreadType::kRealtimeAudio);
+    base::PlatformThread::CreateWithPriority(
+        0, this, &thread_, base::ThreadPriority::REALTIME_AUDIO);
     return true;
   }
 
@@ -100,7 +95,7 @@ class FakeMediaStreamAudioSource final : public MediaStreamAudioSource,
       if (!audio_bus_ || audio_bus_->frames() != buffer_size) {
         MediaStreamAudioSource::SetFormat(media::AudioParameters(
             media::AudioParameters::AUDIO_PCM_LOW_LATENCY,
-            media::ChannelLayoutConfig::Mono(), kSampleRate, buffer_size));
+            media::CHANNEL_LAYOUT_MONO, kSampleRate, buffer_size));
         audio_bus_ = media::AudioBus::Create(1, buffer_size);
       }
 
@@ -114,7 +109,7 @@ class FakeMediaStreamAudioSource final : public MediaStreamAudioSource,
                                                   base::TimeTicks::Now());
 
       // Sleep before producing the next chunk of audio.
-      base::PlatformThread::Sleep(base::Microseconds(
+      base::PlatformThread::Sleep(base::TimeDelta::FromMicroseconds(
           base::Time::kMicrosecondsPerSecond * buffer_size / kSampleRate));
     }
   }
@@ -128,15 +123,17 @@ class FakeMediaStreamAudioSource final : public MediaStreamAudioSource,
   base::subtle::Atomic32 next_buffer_size_;
   std::unique_ptr<media::AudioBus> audio_bus_;
   int sample_count_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeMediaStreamAudioSource);
 };
 
 // A simple WebMediaStreamAudioSink that consumes audio and confirms the
 // sample values. Includes hooks for the unit tests to monitor the format and
 // flow of audio, whether the audio is silent, and the propagation of the
 // "enabled" state.
-class FakeMediaStreamAudioSink final : public WebMediaStreamAudioSink {
+class FakeMediaStreamAudioSink : public WebMediaStreamAudioSink {
  public:
-  enum EnableState { kNoEnableNotification, kWasEnabled, kWasDisabled };
+  enum EnableState { NO_ENABLE_NOTIFICATION, WAS_ENABLED, WAS_DISABLED };
 
   FakeMediaStreamAudioSink()
       : WebMediaStreamAudioSink(),
@@ -144,12 +141,9 @@ class FakeMediaStreamAudioSink final : public WebMediaStreamAudioSink {
         num_on_data_calls_(0),
         audio_is_silent_(true),
         was_ended_(false),
-        enable_state_(kNoEnableNotification) {}
+        enable_state_(NO_ENABLE_NOTIFICATION) {}
 
-  FakeMediaStreamAudioSink(const FakeMediaStreamAudioSink&) = delete;
-  FakeMediaStreamAudioSink& operator=(const FakeMediaStreamAudioSink&) = delete;
-
-  ~FakeMediaStreamAudioSink() override {
+  ~FakeMediaStreamAudioSink() final {
     DCHECK_CALLED_ON_VALID_THREAD(main_thread_checker_);
   }
 
@@ -224,7 +218,7 @@ class FakeMediaStreamAudioSink final : public WebMediaStreamAudioSink {
 
   void OnEnabledChanged(bool enabled) final {
     DCHECK_CALLED_ON_VALID_THREAD(main_thread_checker_);
-    enable_state_ = enabled ? kWasEnabled : kWasDisabled;
+    enable_state_ = enabled ? WAS_ENABLED : WAS_DISABLED;
   }
 
  private:
@@ -238,6 +232,8 @@ class FakeMediaStreamAudioSink final : public WebMediaStreamAudioSink {
   base::subtle::Atomic32 audio_is_silent_;
   bool was_ended_;
   EnableState enable_state_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeMediaStreamAudioSink);
 };
 
 }  // namespace
@@ -247,11 +243,9 @@ class MediaStreamAudioTest : public ::testing::Test {
   void SetUp() override {
     audio_source_ = MakeGarbageCollected<MediaStreamSource>(
         String::FromUTF8("audio_id"), MediaStreamSource::kTypeAudio,
-        String::FromUTF8("audio_track"), false /* remote */,
-        std::make_unique<FakeMediaStreamAudioSource>());
-    audio_component_ = MakeGarbageCollected<MediaStreamComponentImpl>(
-        audio_source_->Id(), audio_source_,
-        std::make_unique<MediaStreamAudioTrack>(true /* is_local_track */));
+        String::FromUTF8("audio_track"), false /* remote */);
+    audio_component_ = MakeGarbageCollected<MediaStreamComponent>(
+        audio_source_->Id(), audio_source_);
   }
 
   void TearDown() override {
@@ -279,12 +273,16 @@ class MediaStreamAudioTest : public ::testing::Test {
 // works.
 TEST_F(MediaStreamAudioTest, BasicUsage) {
   // Create the source, but it should not be started yet.
+  ASSERT_FALSE(source());
+  auto platform_audio_source = std::make_unique<FakeMediaStreamAudioSource>();
+  audio_source_->SetPlatformSource(std::move(platform_audio_source));
   ASSERT_TRUE(source());
   EXPECT_FALSE(source()->was_started());
   EXPECT_FALSE(source()->was_stopped());
 
   // Connect a track to the source. This should auto-start the source.
-  EXPECT_TRUE(source()->ConnectToInitializedTrack(audio_component_));
+  ASSERT_FALSE(track());
+  EXPECT_TRUE(source()->ConnectToTrack(audio_component_));
   ASSERT_TRUE(track());
   EXPECT_TRUE(source()->was_started());
   EXPECT_FALSE(source()->was_stopped());
@@ -301,8 +299,8 @@ TEST_F(MediaStreamAudioTest, BasicUsage) {
 
   // Check that the audio parameters propagated to the track and sink.
   const media::AudioParameters expected_params(
-      media::AudioParameters::AUDIO_PCM_LOW_LATENCY,
-      media::ChannelLayoutConfig::Mono(), kSampleRate, kBufferSize);
+      media::AudioParameters::AUDIO_PCM_LOW_LATENCY, media::CHANNEL_LAYOUT_MONO,
+      kSampleRate, kBufferSize);
   EXPECT_TRUE(expected_params.Equals(track()->GetOutputFormat()));
   EXPECT_TRUE(expected_params.Equals(sink.params()));
 
@@ -321,17 +319,22 @@ TEST_F(MediaStreamAudioTest, BasicUsage) {
 TEST_F(MediaStreamAudioTest, ConnectTrackAfterSourceStopped) {
   // Create the source, connect one track, and stop it. This should
   // automatically stop the source.
+  auto platform_audio_source = std::make_unique<FakeMediaStreamAudioSource>();
+  audio_source_->SetPlatformSource(std::move(platform_audio_source));
   ASSERT_TRUE(source());
-  EXPECT_TRUE(source()->ConnectToInitializedTrack(audio_component_));
+  EXPECT_TRUE(source()->ConnectToTrack(audio_component_));
   track()->Stop();
   EXPECT_TRUE(source()->was_started());
   EXPECT_TRUE(source()->was_stopped());
 
-  // Now, connect another track. ConnectToInitializedTrack() will return false.
-  auto* another_component = MakeGarbageCollected<MediaStreamComponentImpl>(
-      audio_source_->Id(), audio_source_,
-      std::make_unique<MediaStreamAudioTrack>(true /* is_local_track */));
-  EXPECT_FALSE(source()->ConnectToInitializedTrack(another_component));
+  // Now, connect another track. ConnectToTrack() will return false, but there
+  // should be a MediaStreamAudioTrack instance created and owned by the
+  // MediaStreamComponent.
+  auto* another_component = MakeGarbageCollected<MediaStreamComponent>(
+      audio_source_->Id(), audio_source_);
+  EXPECT_FALSE(MediaStreamAudioTrack::From(another_component));
+  EXPECT_FALSE(source()->ConnectToTrack(another_component));
+  EXPECT_TRUE(MediaStreamAudioTrack::From(another_component));
 }
 
 // Tests that a sink is immediately "ended" when connected to a stopped track.
@@ -353,8 +356,10 @@ TEST_F(MediaStreamAudioTest, AddSinkToStoppedTrack) {
 TEST_F(MediaStreamAudioTest, FormatChangesPropagate) {
   // Create a source, connect it to track, and connect the track to a
   // sink.
+  auto platform_audio_source = std::make_unique<FakeMediaStreamAudioSource>();
+  audio_source_->SetPlatformSource(std::move(platform_audio_source));
   ASSERT_TRUE(source());
-  EXPECT_TRUE(source()->ConnectToInitializedTrack(audio_component_));
+  EXPECT_TRUE(source()->ConnectToTrack(audio_component_));
   ASSERT_TRUE(track());
   FakeMediaStreamAudioSink sink;
   ASSERT_TRUE(!sink.params().IsValid());
@@ -365,8 +370,8 @@ TEST_F(MediaStreamAudioTest, FormatChangesPropagate) {
   while (!sink.params().IsValid())
     base::PlatformThread::Sleep(TestTimeouts::tiny_timeout());
   const media::AudioParameters expected_params(
-      media::AudioParameters::AUDIO_PCM_LOW_LATENCY,
-      media::ChannelLayoutConfig::Mono(), kSampleRate, kBufferSize);
+      media::AudioParameters::AUDIO_PCM_LOW_LATENCY, media::CHANNEL_LAYOUT_MONO,
+      kSampleRate, kBufferSize);
   EXPECT_TRUE(expected_params.Equals(track()->GetOutputFormat()));
   EXPECT_TRUE(expected_params.Equals(sink.params()));
 
@@ -387,18 +392,20 @@ TEST_F(MediaStreamAudioTest, FormatChangesPropagate) {
 // OnEnabledChanged() method should be called.
 TEST_F(MediaStreamAudioTest, EnableAndDisableTracks) {
   // Create a source and connect it to track.
+  auto platform_audio_source = std::make_unique<FakeMediaStreamAudioSource>();
+  audio_source_->SetPlatformSource(std::move(platform_audio_source));
   ASSERT_TRUE(source());
-  EXPECT_TRUE(source()->ConnectToInitializedTrack(audio_component_));
+  EXPECT_TRUE(source()->ConnectToTrack(audio_component_));
   ASSERT_TRUE(track());
 
   // Connect the track to a sink and expect the sink to be notified that the
   // track is enabled.
   FakeMediaStreamAudioSink sink;
   EXPECT_TRUE(sink.is_audio_silent());
-  EXPECT_EQ(FakeMediaStreamAudioSink::kNoEnableNotification,
+  EXPECT_EQ(FakeMediaStreamAudioSink::NO_ENABLE_NOTIFICATION,
             sink.enable_state());
   track()->AddSink(&sink);
-  EXPECT_EQ(FakeMediaStreamAudioSink::kWasEnabled, sink.enable_state());
+  EXPECT_EQ(FakeMediaStreamAudioSink::WAS_ENABLED, sink.enable_state());
 
   // Wait until non-silent audio reaches the sink.
   while (sink.is_audio_silent())
@@ -406,7 +413,7 @@ TEST_F(MediaStreamAudioTest, EnableAndDisableTracks) {
 
   // Now, disable the track and expect the sink to be notified.
   track()->SetEnabled(false);
-  EXPECT_EQ(FakeMediaStreamAudioSink::kWasDisabled, sink.enable_state());
+  EXPECT_EQ(FakeMediaStreamAudioSink::WAS_DISABLED, sink.enable_state());
 
   // Wait until silent audio reaches the sink.
   while (!sink.is_audio_silent())
@@ -415,14 +422,13 @@ TEST_F(MediaStreamAudioTest, EnableAndDisableTracks) {
   // Create a second track and a second sink, but this time the track starts out
   // disabled. Expect the sink to be notified at the start that the track is
   // disabled.
-  auto* another_component = MakeGarbageCollected<MediaStreamComponentImpl>(
-      audio_source_->Id(), audio_source_,
-      std::make_unique<MediaStreamAudioTrack>(true /* is_local_track */));
-  EXPECT_TRUE(source()->ConnectToInitializedTrack(another_component));
+  auto* another_component = MakeGarbageCollected<MediaStreamComponent>(
+      audio_source_->Id(), audio_source_);
+  EXPECT_TRUE(source()->ConnectToTrack(another_component));
   MediaStreamAudioTrack::From(another_component)->SetEnabled(false);
   FakeMediaStreamAudioSink another_sink;
   MediaStreamAudioTrack::From(another_component)->AddSink(&another_sink);
-  EXPECT_EQ(FakeMediaStreamAudioSink::kWasDisabled,
+  EXPECT_EQ(FakeMediaStreamAudioSink::WAS_DISABLED,
             another_sink.enable_state());
 
   // Wait until OnData() is called on the second sink. Expect the audio to be
@@ -434,7 +440,7 @@ TEST_F(MediaStreamAudioTest, EnableAndDisableTracks) {
 
   // Now, enable the second track and expect the second sink to be notified.
   MediaStreamAudioTrack::From(another_component)->SetEnabled(true);
-  EXPECT_EQ(FakeMediaStreamAudioSink::kWasEnabled, another_sink.enable_state());
+  EXPECT_EQ(FakeMediaStreamAudioSink::WAS_ENABLED, another_sink.enable_state());
 
   // Wait until non-silent audio reaches the second sink.
   while (another_sink.is_audio_silent())
@@ -443,7 +449,7 @@ TEST_F(MediaStreamAudioTest, EnableAndDisableTracks) {
   // The first track and sink should not have been affected by changing the
   // enabled state of the second track and sink. They should still be disabled,
   // with silent audio being consumed at the sink.
-  EXPECT_EQ(FakeMediaStreamAudioSink::kWasDisabled, sink.enable_state());
+  EXPECT_EQ(FakeMediaStreamAudioSink::WAS_DISABLED, sink.enable_state());
   EXPECT_TRUE(sink.is_audio_silent());
 
   MediaStreamAudioTrack::From(another_component)->RemoveSink(&another_sink);

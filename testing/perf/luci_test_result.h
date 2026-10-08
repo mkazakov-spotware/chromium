@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,9 @@
 
 #include "base/containers/flat_map.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "base/time/time.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace perf_test {
 
@@ -47,9 +48,9 @@ class LuciTestResult {
 
     // Use only one of the two fields below.
     // Absolute path on the same machine running the test.
-    absl::optional<base::FilePath> file_path;
+    base::Optional<base::FilePath> file_path;
     // The data of the artifact.
-    absl::optional<std::string> contents;
+    base::Optional<std::string> contents;
 
     std::string content_type;
   };

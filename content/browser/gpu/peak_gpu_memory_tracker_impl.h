@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include "base/callback_forward.h"
 #include "base/callback_helpers.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "content/common/content_export.h"
 #include "content/public/browser/peak_gpu_memory_tracker.h"
 
 namespace content {
@@ -21,7 +22,7 @@ namespace content {
 // GPU connection.
 //
 // This is instaniated via PeakGpuMemoryTracker::Create.
-class PeakGpuMemoryTrackerImpl : public PeakGpuMemoryTracker {
+class CONTENT_EXPORT PeakGpuMemoryTrackerImpl : public PeakGpuMemoryTracker {
  public:
   // Requests the GPU service to begin peak memory tracking.
   PeakGpuMemoryTrackerImpl(PeakGpuMemoryTracker::Usage usage);
@@ -37,7 +38,7 @@ class PeakGpuMemoryTrackerImpl : public PeakGpuMemoryTracker {
  private:
   friend class PeakGpuMemoryTrackerImplTest;
 
-  // A callback which will be run after receiving a callback from the
+  // A callback which will be ran after receiving a callback from the
   // GpuService. For use by tests to synchronize work done on the IO thread.
   base::OnceClosure post_gpu_service_callback_for_testing_ = base::DoNothing();
 

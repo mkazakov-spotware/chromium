@@ -1,14 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/autofill/automation/automation_action.h"
 
-#import "base/mac/foundation_util.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
+#include "base/mac/foundation_util.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "base/values.h"
+#include "base/values.h"
 #import "ios/chrome/browser/autofill/form_suggestion_constants.h"
 #import "ios/chrome/browser/ui/infobars/infobar_constants.h"
 #import "ios/chrome/test/earl_grey/chrome_actions.h"
@@ -22,17 +22,18 @@
 #endif
 
 @interface AutomationAction () {
-  base::Value::Dict _actionDictionary;
+  std::unique_ptr<const base::DictionaryValue> _actionDictionary;
 }
 
-@property(nonatomic, readonly) const base::Value::Dict& actionDictionary;
+@property(nonatomic, readonly)
+    const std::unique_ptr<const base::DictionaryValue>& actionDictionary;
 
 // Selects the proper subclass in the class cluster for the given type. Called
 // from the class method creating the actions.
 + (Class)classForType:(NSString*)type;
 
-- (instancetype)initWithValueDict:(base::Value::Dict)actionDictionary
-    NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithValueDictionary:
+    (const base::DictionaryValue&)actionDictionary NS_DESIGNATED_INITIALIZER;
 @end
 
 // An action that always fails.
@@ -140,13 +141,17 @@
 
 @implementation AutomationAction
 
-+ (instancetype)actionWithValueDict:(base::Value::Dict)actionDictionary {
-  const std::string* type = actionDictionary.FindString("type");
-  GREYAssert(type, @"Type is missing in action.");
-  GREYAssert(!type->empty(), @"Type is an empty value.");
++ (instancetype)actionWithValueDictionary:
+    (const base::DictionaryValue&)actionDictionary {
+  const base::Value* typeValue =
+      actionDictionary.FindKeyOfType("type", base::Value::Type::STRING);
+  GREYAssert(typeValue, @"Type is missing in action.");
 
-  return [[[self classForType:base::SysUTF8ToNSString(*type)] alloc]
-      initWithValueDict:std::move(actionDictionary)];
+  const std::string type(typeValue->GetString());
+  GREYAssert(!type.empty(), @"Type is an empty value.");
+
+  return [[[self classForType:base::SysUTF8ToNSString(type)] alloc]
+      initWithValueDictionary:actionDictionary];
 }
 
 + (Class)classForType:(NSString*)type {
@@ -166,10 +171,11 @@
   return classForType[type] ?: [AutomationActionUnrecognized class];
 }
 
-- (instancetype)initWithValueDict:(base::Value::Dict)actionDictionary {
+- (instancetype)initWithValueDictionary:
+    (const base::DictionaryValue&)actionDictionary {
   self = [super init];
   if (self) {
-    _actionDictionary = std::move(actionDictionary);
+    _actionDictionary = actionDictionary.DeepCopyWithoutEmptyChildren();
   }
   return self;
 }
@@ -178,7 +184,7 @@
   GREYAssert(NO, @"Should not be called!");
 }
 
-- (const base::Value::Dict&)actionDictionary {
+- (const std::unique_ptr<const base::DictionaryValue>&)actionDictionary {
   return _actionDictionary;
 }
 
@@ -196,7 +202,7 @@
   // Calling WebViewTapElement right after WebViewScrollElement caused flaky
   // issues with the wrong location being provided for the tap target,
   // seemingly caused by the screen not redrawing in-between these two actions.
-  // We force a brief wait here to avoid this issue. `waitWithTimeout` requires
+  // We force a brief wait here to avoid this issue. |waitWithTimeout| requires
   // its result to be used. Void the result as it's always false.
   (void)[[GREYCondition conditionWithName:@"forced wait to allow for redraw"
                                     block:^BOOL {
@@ -220,29 +226,33 @@
 // dictionary. Will raise a test failure if the key is missing or the value is
 // empty.
 - (std::string)stringFromDictionaryWithKey:(const std::string&)key {
-  const std::string* expectedType = self.actionDictionary.FindString(key);
-  GREYAssert(expectedType, @"%s is missing in action.", key.c_str());
-  GREYAssert(!expectedType->empty(), @"%s is an empty value", key.c_str());
+  const base::Value* expectedTypeValue(
+      self.actionDictionary->FindKeyOfType(key, base::Value::Type::STRING));
+  GREYAssert(expectedTypeValue, @"%s is missing in action.", key.c_str());
 
-  return *expectedType;
+  const std::string expectedType(expectedTypeValue->GetString());
+  GREYAssert(!expectedType.empty(), @"%s is an empty value", key.c_str());
+
+  return expectedType;
 }
 
 // Returns an int corrensponding to the given key in the action
 // dictionary. Will raise a test failure if the key is missing or the value is
 // empty.
 - (int)intFromDictionaryWithKey:(const std::string&)key {
-  absl::optional<int> expectedTypeValue = self.actionDictionary.FindInt(key);
+  const base::Value* expectedTypeValue(
+      self.actionDictionary->FindKeyOfType(key, base::Value::Type::INTEGER));
   GREYAssert(expectedTypeValue, @"%s is missing in action.", key.c_str());
 
-  return *expectedTypeValue;
+  return expectedTypeValue->GetInt();
 }
 
 // Runs the JS code passed in against the target element specified by the
 // selector passed in. The target element is passed in to the JS function
 // by the name "target", so example JS code is like:
 // return target.value
-- (base::Value)executeJavaScript:(std::string)function
-                        onTarget:(ElementSelector*)selector {
+- (id)executeJavaScript:(std::string)function
+               onTarget:(ElementSelector*)selector {
   NSString* javaScript = [NSString
       stringWithFormat:@"    (function() {"
                         "      try {"
@@ -254,7 +264,7 @@
                        base::SysUTF8ToNSString(function),
                        selector.selectorScript];
 
-  return [ChromeEarlGrey evaluateJavaScript:javaScript];
+  return [ChromeEarlGrey executeJavaScript:javaScript];
 }
 
 @end
@@ -279,14 +289,16 @@
 @implementation AutomationActionWaitFor
 
 - (void)execute {
-  const base::Value::List* assertionsValues =
-      self.actionDictionary.FindList("assertions");
-  GREYAssert(assertionsValues, @"Assertions key is missing in action.");
-  GREYAssert(assertionsValues->size(), @"Assertions list is empty.");
+  const base::Value* assertionsValue(self.actionDictionary->FindKeyOfType(
+      "assertions", base::Value::Type::LIST));
+  GREYAssert(assertionsValue, @"Assertions key is missing in action.");
+
+  base::Value::ConstListView assertionsValues(assertionsValue->GetList());
+  GREYAssert(assertionsValues.size(), @"Assertions list is empty.");
 
   std::vector<std::string> state_assertions;
 
-  for (auto const& assertionValue : *assertionsValues) {
+  for (auto const& assertionValue : assertionsValues) {
     const std::string assertionString(assertionValue.GetString());
     GREYAssert(!assertionString.empty(), @"assertionString is an empty value.");
     state_assertions.push_back(assertionString);
@@ -301,8 +313,8 @@
                         [self checkForJsAssertionFailures:state_assertions] ==
                         nil;
                   }];
-  bool waitForCompleted = [waitForElement
-      waitWithTimeout:base::test::ios::kWaitForActionTimeout.InSecondsF()];
+  bool waitForCompleted =
+      [waitForElement waitWithTimeout:base::test::ios::kWaitForActionTimeout];
   GREYAssertTrue(waitForCompleted, conditionDescription);
 }
 
@@ -321,10 +333,10 @@
                                                        "    })();",
                                                       assertionString];
 
-    base::Value result = [ChromeEarlGrey evaluateJavaScript:javascript];
-    GREYAssertTrue(result.is_bool(), @"The result is not a boolean.");
+    NSNumber* result = base::mac::ObjCCastStrict<NSNumber>(
+        [ChromeEarlGrey executeJavaScript:javascript]);
 
-    if (!result.GetBool()) {
+    if (![result boolValue]) {
       return assertionString;
     }
   }
@@ -364,14 +376,12 @@
   NSString* expectedValue = base::SysUTF8ToNSString(
       [self stringFromDictionaryWithKey:"expectedValue"]);
 
-  base::Value result = [self executeJavaScript:"return target.placeholder;"
-                                      onTarget:[self selectorForTarget]];
-  GREYAssertTrue(result.is_string(), @"The result is not a string.");
-  NSString* predictionType = base::SysUTF8ToNSString(result.GetString());
+  NSString* predictionType = base::mac::ObjCCastStrict<NSString>([self
+      executeJavaScript:"return target.placeholder;"
+               onTarget:[self selectorForTarget]]);
 
-  result = [self executeJavaScript:"return target.value;" onTarget:selector];
-  GREYAssertTrue(result.is_string(), @"The result is not a string.");
-  NSString* autofilledValue = base::SysUTF8ToNSString(result.GetString());
+  NSString* autofilledValue = base::mac::ObjCCastStrict<NSString>(
+      [self executeJavaScript:"return target.value;" onTarget:selector]);
 
   GREYAssertEqualObjects(predictionType, expectedType,
                          @"Expected prediction type %@ but got %@",
@@ -405,9 +415,11 @@
 @implementation AutomationActionUnrecognized
 
 - (void)execute {
-  const std::string* type = self.actionDictionary.FindString("type");
-  GREYAssert(type, @"Unknown action; missing type string");
-  GREYAssert(NO, @"Unknown action of type %s", type->c_str());
+  const base::Value* typeValue =
+      self.actionDictionary->FindKeyOfType("type", base::Value::Type::STRING);
+  const std::string type(typeValue->GetString());
+
+  GREYAssert(NO, @"Unknown action of type %s", type.c_str());
 }
 
 @end

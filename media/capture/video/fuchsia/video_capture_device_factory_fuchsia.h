@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 #include <map>
 
 #include "base/containers/small_map.h"
+#include "base/optional.h"
 #include "media/capture/video/video_capture_device_factory.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace media {
 
@@ -27,7 +27,7 @@ class CAPTURE_EXPORT VideoCaptureDeviceFactoryFuchsia
       const VideoCaptureDeviceFactoryFuchsia&) = delete;
 
   // VideoCaptureDeviceFactory implementation.
-  VideoCaptureErrorOrDevice CreateDevice(
+  std::unique_ptr<VideoCaptureDevice> CreateDevice(
       const VideoCaptureDeviceDescriptor& device_descriptor) override;
   void GetDevicesInfo(GetDevicesInfoCallback callback) override;
 
@@ -48,13 +48,11 @@ class CAPTURE_EXPORT VideoCaptureDeviceFactoryFuchsia
   std::vector<VideoCaptureDeviceInfo> MakeDevicesInfo();
   void MaybeResolvePendingDeviceInfoCallbacks();
 
-  bool received_initial_list_ = false;
-
   fuchsia::camera3::DeviceWatcherPtr device_watcher_;
 
   // Current list of devices. Set to nullopt if the list hasn't been received
   // yet.
-  absl::optional<
+  base::Optional<
       base::small_map<std::map<uint64_t, std::unique_ptr<DeviceConfigFetcher>>>>
       devices_;
 

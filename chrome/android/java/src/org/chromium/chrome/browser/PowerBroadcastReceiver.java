@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,7 +34,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class PowerBroadcastReceiver extends BroadcastReceiver {
     private final AtomicBoolean mIsRegistered = new AtomicBoolean(false);
 
-    private ServiceRunnable mServiceRunnable = new ServiceRunnable();
+    private PowerManagerHelper mPowerManagerHelper;
+    private ServiceRunnable mServiceRunnable;
+
+    /**
+     * Stubs out interaction with the PowerManager.
+     */
+    @VisibleForTesting
+    static class PowerManagerHelper {
+        /** @return whether the screen is on or not. */
+        public boolean isScreenOn(Context context) {
+            PowerManager powerManager =
+                    (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            return powerManager.isInteractive();
+        }
+    }
 
     /**
      * Defines a set of actions to perform when the conditions are met.
@@ -67,7 +81,7 @@ public class PowerBroadcastReceiver extends BroadcastReceiver {
         public void post() {
             if (mState == State.POSTED) return;
             setState(State.POSTED);
-            mHandler.postDelayed(this, MS_DELAY_TO_RUN);
+            mHandler.postDelayed(this, getDelayToRun());
         }
 
         public void cancel() {
@@ -96,6 +110,14 @@ public class PowerBroadcastReceiver extends BroadcastReceiver {
             OmahaBase.onForegroundSessionStart(context);
         }
 
+        public long getDelayToRun() {
+            return MS_DELAY_TO_RUN;
+        }
+    }
+
+    public PowerBroadcastReceiver() {
+        mServiceRunnable = new ServiceRunnable();
+        mPowerManagerHelper = new PowerManagerHelper();
     }
 
     /** See {@link ChromeApplication#onForegroundSessionStart()}. */
@@ -103,13 +125,10 @@ public class PowerBroadcastReceiver extends BroadcastReceiver {
         ThreadUtils.assertOnUiThread();
         assert Looper.getMainLooper() == Looper.myLooper();
 
-        PowerManager powerManager =
-                (PowerManager) ContextUtils.getApplicationContext().getSystemService(
-                        Context.POWER_SERVICE);
-        if (powerManager.isInteractive()) {
+        if (mPowerManagerHelper.isScreenOn(ContextUtils.getApplicationContext())) {
             mServiceRunnable.post();
         } else {
-            registerBroadcastReceiver();
+            registerReceiver();
         }
     }
 
@@ -118,7 +137,7 @@ public class PowerBroadcastReceiver extends BroadcastReceiver {
         assert Looper.getMainLooper() == Looper.myLooper();
 
         mServiceRunnable.cancel();
-        unregisterBroadcastReceiver();
+        unregisterReceiver();
     }
 
     @Override
@@ -126,7 +145,7 @@ public class PowerBroadcastReceiver extends BroadcastReceiver {
         if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())
                 && ApplicationStatus.hasVisibleActivities()) {
             mServiceRunnable.post();
-            unregisterBroadcastReceiver();
+            unregisterReceiver();
         }
     }
 
@@ -142,7 +161,7 @@ public class PowerBroadcastReceiver extends BroadcastReceiver {
      * Unregisters this broadcast receiver so it no longer receives Intents.
      * Also cancels any Runnables waiting to be executed.
      */
-    private void unregisterBroadcastReceiver() {
+    private void unregisterReceiver() {
         if (mIsRegistered.getAndSet(false)) {
             ContextUtils.getApplicationContext().unregisterReceiver(this);
         }
@@ -151,11 +170,11 @@ public class PowerBroadcastReceiver extends BroadcastReceiver {
     /**
      * Registers this broadcast receiver so it receives Intents.
      */
-    private void registerBroadcastReceiver() {
+    private void registerReceiver() {
         assert Looper.getMainLooper() == Looper.myLooper();
         if (mIsRegistered.getAndSet(true)) return;
-        ContextUtils.registerProtectedBroadcastReceiver(ContextUtils.getApplicationContext(), this,
-                new IntentFilter(Intent.ACTION_SCREEN_ON));
+        ContextUtils.getApplicationContext().registerReceiver(
+                this, new IntentFilter(Intent.ACTION_SCREEN_ON));
     }
 
     /**
@@ -166,5 +185,13 @@ public class PowerBroadcastReceiver extends BroadcastReceiver {
         assert mServiceRunnable != null;
         mServiceRunnable.cancel();
         mServiceRunnable = runnable;
+    }
+
+    /**
+     * Sets the PowerManagerHelper that will be used to check if the screen is on.
+     */
+    @VisibleForTesting
+    void setPowerManagerHelperForTests(PowerManagerHelper helper) {
+        mPowerManagerHelper = helper;
     }
 }

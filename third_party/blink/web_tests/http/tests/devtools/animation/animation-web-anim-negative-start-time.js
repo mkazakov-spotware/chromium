@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that animation with negative start delay gets added.\n`);
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
   await TestRunner.showPanel('elements');
   await TestRunner.loadHTML(`
       <div id="node" style="background-color: red; height: 100px"></div>
@@ -28,18 +28,18 @@
   };
 
   await UI.viewManager.showView('animations');
-  var timeline = Animation.AnimationTimeline.instance();
+  var timeline = self.runtime.sharedInstance(Animation.AnimationTimeline);
   TestRunner.evaluateInPage('startAnimation()');
   ElementsTestRunner.waitForAnimationAdded(step2);
 
   function step2(group) {
-    TestRunner.addResult(timeline.groupBuffer.indexOf(group) !== -1);
+    TestRunner.addResult(timeline._groupBuffer.indexOf(group) !== -1);
     ElementsTestRunner.waitForAnimationAdded(step3);
     TestRunner.evaluateInPage('startAnimationWithNegativeStartTime()');
   }
 
   function step3(group) {
-    TestRunner.addResult(timeline.groupBuffer.indexOf(group) !== -1);
+    TestRunner.addResult(timeline._groupBuffer.indexOf(group) !== -1);
     TestRunner.completeTest();
   }
 })();

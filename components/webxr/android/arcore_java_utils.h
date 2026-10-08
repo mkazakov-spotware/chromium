@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,13 @@
 
 #include "base/android/scoped_java_ref.h"
 #include "base/callback.h"
+#include "base/memory/weak_ptr.h"
 #include "components/webxr/android/ar_compositor_delegate_provider.h"
 #include "device/vr/android/arcore/arcore_session_utils.h"
 
 namespace webxr {
 
-class ArCoreJavaUtils : public device::ArCoreSessionUtils {
+class ArCoreJavaUtils : public vr::ArCoreSessionUtils {
  public:
   explicit ArCoreJavaUtils(
       webxr::ArCompositorDelegateProvider compositor_delegate_provider);
@@ -26,10 +27,9 @@ class ArCoreJavaUtils : public device::ArCoreSessionUtils {
       int render_process_id,
       int render_frame_id,
       bool use_overlay,
-      bool can_render_dom_content,
-      device::SurfaceReadyCallback ready_callback,
-      device::SurfaceTouchCallback touch_callback,
-      device::SurfaceDestroyedCallback destroyed_callback) override;
+      vr::SurfaceReadyCallback ready_callback,
+      vr::SurfaceTouchCallback touch_callback,
+      vr::SurfaceDestroyedCallback destroyed_callback) override;
   void EndSession() override;
   bool EnsureLoaded() override;
   base::android::ScopedJavaLocalRef<jobject> GetApplicationContext() override;
@@ -39,7 +39,6 @@ class ArCoreJavaUtils : public device::ArCoreSessionUtils {
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jobject>& surface,
-      const base::android::JavaParamRef<jobject>& root_window,
       int rotation,
       int width,
       int height);
@@ -59,9 +58,9 @@ class ArCoreJavaUtils : public device::ArCoreSessionUtils {
 
   webxr::ArCompositorDelegateProvider compositor_delegate_provider_;
 
-  device::SurfaceReadyCallback surface_ready_callback_;
-  device::SurfaceTouchCallback surface_touch_callback_;
-  device::SurfaceDestroyedCallback surface_destroyed_callback_;
+  vr::SurfaceReadyCallback surface_ready_callback_;
+  vr::SurfaceTouchCallback surface_touch_callback_;
+  vr::SurfaceDestroyedCallback surface_destroyed_callback_;
 };
 
 }  // namespace webxr

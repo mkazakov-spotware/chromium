@@ -1,12 +1,13 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_INSTRUMENTATION_TRACING_WEB_MEMORY_ALLOCATOR_DUMP_H_
-#define THIRD_PARTY_BLINK_RENDERER_PLATFORM_INSTRUMENTATION_TRACING_WEB_MEMORY_ALLOCATOR_DUMP_H_
+#ifndef WebMemoryAllocatorDump_h
+#define WebMemoryAllocatorDump_h
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
@@ -29,8 +30,6 @@ class PLATFORM_EXPORT WebMemoryAllocatorDump final {
  public:
   explicit WebMemoryAllocatorDump(
       base::trace_event::MemoryAllocatorDump* memory_allocator_dump);
-  WebMemoryAllocatorDump(const WebMemoryAllocatorDump&) = delete;
-  WebMemoryAllocatorDump& operator=(const WebMemoryAllocatorDump&) = delete;
 
   // Adds a scalar attribute to the dump.
   // Arguments:
@@ -54,8 +53,10 @@ class PLATFORM_EXPORT WebMemoryAllocatorDump final {
  private:
   base::trace_event::MemoryAllocatorDump* memory_allocator_dump_;  // Not owned.
   blink::WebMemoryAllocatorDumpGuid guid_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebMemoryAllocatorDump);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_INSTRUMENTATION_TRACING_WEB_MEMORY_ALLOCATOR_DUMP_H_
+#endif  // WebMemoryAllocatorDump_h

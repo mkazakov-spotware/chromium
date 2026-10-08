@@ -1,21 +1,28 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
- * @fileoverview Interface for storing, retrieving and scanning data using some
+ * @fileoverview Interface for storing, retieving and scanning data using some
  * persistence mechanism.
  */
 
-goog.module('goog.storage.mechanism.IterableMechanism');
-goog.module.declareLegacyNamespace();
+goog.provide('goog.storage.mechanism.IterableMechanism');
 
-const Mechanism = goog.require('goog.storage.mechanism.Mechanism');
-const {Iterator: GoogIterator} = goog.require('goog.iter');
-const {ShimIterable} = goog.require('goog.iter.es6');
-const {assertString} = goog.require('goog.asserts');
+goog.require('goog.array');
+goog.require('goog.asserts');
+goog.require('goog.iter');
+goog.require('goog.storage.mechanism.Mechanism');
 
 
 
@@ -24,15 +31,13 @@ const {assertString} = goog.require('goog.asserts');
  *
  * @constructor
  * @struct
- * @extends {Mechanism}
- * @implements {Iterable<!Array<string>>}
- * @abstract
+ * @extends {goog.storage.mechanism.Mechanism}
  */
-const IterableMechanism = function() {
-  'use strict';
-  IterableMechanism.base(this, 'constructor');
+goog.storage.mechanism.IterableMechanism = function() {
+  goog.storage.mechanism.IterableMechanism.base(this, 'constructor');
 };
-goog.inherits(IterableMechanism, Mechanism);
+goog.inherits(
+    goog.storage.mechanism.IterableMechanism, goog.storage.mechanism.Mechanism);
 
 
 /**
@@ -43,13 +48,12 @@ goog.inherits(IterableMechanism, Mechanism);
  *
  * @return {number} Number of stored elements.
  */
-IterableMechanism.prototype.getCount = function() {
-  'use strict';
-  let count = 0;
-  for (const key of this) {
-    assertString(key);
+goog.storage.mechanism.IterableMechanism.prototype.getCount = function() {
+  var count = 0;
+  goog.iter.forEach(this.__iterator__(true), function(key) {
+    goog.asserts.assertString(key);
     count++;
-  }
+  });
   return count;
 };
 
@@ -60,37 +64,23 @@ IterableMechanism.prototype.getCount = function() {
  *
  * @param {boolean=} opt_keys True to iterate over the keys. False to iterate
  *     over the values.  The default value is false.
- * @return {!GoogIterator} The iterator.
- * @deprecated Use ES6 iteration protocols instead.
+ * @return {!goog.iter.Iterator} The iterator.
  */
-IterableMechanism.prototype.__iterator__ = goog.abstractMethod;
-
-
-/**
- * Returns an interator that iterates over all the keys for elements in storage.
- *
- * @return {!IteratorIterable<string>}
- */
-IterableMechanism.prototype[Symbol.iterator] = function() {
-  return ShimIterable.of(this.__iterator__(true)).toEs6();
-};
+goog.storage.mechanism.IterableMechanism.prototype.__iterator__ =
+    goog.abstractMethod;
 
 
 /**
  * Remove all key-value pairs.
  *
- * Could be overridden in a subclass, as the default implementation is not
- * very efficient - it iterates over all keys.
+ * Could be overridden in a subclass, as the default implementation is not very
+ * efficient - it iterates over all keys.
  */
-IterableMechanism.prototype.clear = function() {
-  'use strict';
+goog.storage.mechanism.IterableMechanism.prototype.clear = function() {
   // This converts the keys to an array first because otherwise
   // removing while iterating results in unstable ordering of keys and
   // can skip keys or terminate early.
-  const keys = Array.from(this);
-  for (const key of keys) {
-    this.remove(key);
-  }
+  var keys = goog.iter.toArray(this.__iterator__(true));
+  var selfObj = this;
+  goog.array.forEach(keys, function(key) { selfObj.remove(key); });
 };
-
-exports = IterableMechanism;

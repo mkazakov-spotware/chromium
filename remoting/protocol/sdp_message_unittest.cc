@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 // Verify that SDP is normalized by removing empty lines and normalizing
 // line-endings to \r\n.
@@ -254,4 +255,5 @@ TEST(SdpMessages, PreferVideoCodec_MultiplePlayloads) {
       sdp_message.ToString());
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

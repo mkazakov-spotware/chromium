@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,10 @@
 #define COMPONENTS_OFFLINE_PAGES_CORE_OFFLINE_PAGE_METADATA_STORE_TEST_UTIL_H_
 
 #include <memory>
+#include <vector>
 
 #include "base/files/scoped_temp_dir.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/test/simple_test_clock.h"
 #include "base/test/test_mock_time_task_runner.h"
 #include "components/offline_pages/core/offline_page_metadata_store.h"
@@ -25,12 +26,6 @@ namespace offline_pages {
 class OfflinePageMetadataStoreTestUtil {
  public:
   OfflinePageMetadataStoreTestUtil();
-
-  OfflinePageMetadataStoreTestUtil(const OfflinePageMetadataStoreTestUtil&) =
-      delete;
-  OfflinePageMetadataStoreTestUtil& operator=(
-      const OfflinePageMetadataStoreTestUtil&) = delete;
-
   ~OfflinePageMetadataStoreTestUtil();
 
   // Builds a new store in a temporary directory.
@@ -63,8 +58,10 @@ class OfflinePageMetadataStoreTestUtil {
   // Prefetching, to remove the ownership to the store. And clean up related
   // usage of |store_ptr_|.
   std::unique_ptr<OfflinePageMetadataStore> store_;
-  raw_ptr<OfflinePageMetadataStore> store_ptr_;
+  OfflinePageMetadataStore* store_ptr_;
   base::SimpleTestClock clock_;
+
+  DISALLOW_COPY_AND_ASSIGN(OfflinePageMetadataStoreTestUtil);
 };
 
 }  // namespace offline_pages

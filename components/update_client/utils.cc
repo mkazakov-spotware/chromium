@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,24 +6,19 @@
 
 #include <stddef.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
-#include <memory>
-#include <utility>
 
 #include "base/callback.h"
-#include "base/containers/contains.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/memory_mapped_file.h"
 #include "base/json/json_file_value_serializer.h"
-#include "base/path_service.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
-#include "base/system/sys_info.h"
 #include "base/values.h"
 #include "components/crx_file/id_util.h"
 #include "components/update_client/component.h"
@@ -35,17 +30,7 @@
 #include "crypto/sha2.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_WIN)
-#include <shlobj.h>
-
-#include "base/win/windows_version.h"
-#endif  // BUILDFLAG(IS_WIN)
-
 namespace update_client {
-
-const char kArchAmd64[] = "x86_64";
-const char kArchIntel[] = "x86";
-const char kArchArm64[] = "arm64";
 
 bool HasDiffUpdate(const Component& component) {
   return !component.crx_diffurls().empty();
@@ -59,14 +44,11 @@ bool DeleteFileAndEmptyParentDirectory(const base::FilePath& filepath) {
   if (!base::DeleteFile(filepath))
     return false;
 
-  return DeleteEmptyDirectory(filepath.DirName());
-}
-
-bool DeleteEmptyDirectory(const base::FilePath& dir_path) {
-  if (!base::IsDirectoryEmpty(dir_path))
+  const base::FilePath dirname(filepath.DirName());
+  if (!base::IsDirectoryEmpty(dirname))
     return true;
 
-  return base::DeleteFile(dir_path);
+  return base::DeleteFile(dirname);
 }
 
 std::string GetCrxComponentID(const CrxComponent& component) {
@@ -89,20 +71,14 @@ bool VerifyFileHash256(const base::FilePath& filepath,
     return false;
   }
 
-  std::unique_ptr<crypto::SecureHash> hasher(
-      crypto::SecureHash::Create(crypto::SecureHash::SHA256));
-
-  int64_t file_size = 0;
-  if (!base::GetFileSize(filepath, &file_size))
+  base::MemoryMappedFile mmfile;
+  if (!mmfile.Initialize(filepath))
     return false;
-  if (file_size > 0) {
-    base::MemoryMappedFile mmfile;
-    if (!mmfile.Initialize(filepath))
-      return false;
-    hasher->Update(mmfile.data(), mmfile.length());
-  }
 
   uint8_t actual_hash[crypto::kSHA256Length] = {0};
+  std::unique_ptr<crypto::SecureHash> hasher(
+      crypto::SecureHash::Create(crypto::SecureHash::SHA256));
+  hasher->Update(mmfile.data(), mmfile.length());
   hasher->Finish(actual_hash, sizeof(actual_hash));
 
   return memcmp(actual_hash, &expected_hash[0], sizeof(actual_hash)) == 0;
@@ -110,9 +86,12 @@ bool VerifyFileHash256(const base::FilePath& filepath,
 
 bool IsValidBrand(const std::string& brand) {
   const size_t kMaxBrandSize = 4;
-  return brand.empty() ||
-         (brand.size() == kMaxBrandSize &&
-          base::ranges::all_of(brand, &base::IsAsciiAlpha<char>));
+  if (!brand.empty() && brand.size() != kMaxBrandSize)
+    return false;
+
+  return std::find_if_not(brand.begin(), brand.end(), [](char ch) {
+           return base::IsAsciiAlpha(ch);
+         }) == brand.end();
 }
 
 // Helper function.
@@ -122,11 +101,20 @@ bool IsValidInstallerAttributePart(const std::string& part,
                                    const std::string& special_chars,
                                    size_t min_length,
                                    size_t max_length) {
-  return part.size() >= min_length && part.size() <= max_length &&
-         base::ranges::all_of(part, [&special_chars](char ch) {
-           return base::IsAsciiAlpha(ch) || base::IsAsciiDigit(ch) ||
-                  base::Contains(special_chars, ch);
-         });
+  if (part.size() < min_length || part.size() > max_length)
+    return false;
+
+  return std::find_if_not(part.begin(), part.end(), [&special_chars](char ch) {
+           if (base::IsAsciiAlpha(ch) || base::IsAsciiDigit(ch))
+             return true;
+
+           for (auto c : special_chars) {
+             if (c == ch)
+               return true;
+           }
+
+           return false;
+         }) == part.end();
 }
 
 // Returns true if the |name| parameter matches ^[-_a-zA-Z0-9]{1,256}$ .
@@ -160,28 +148,21 @@ CrxInstaller::Result InstallFunctionWrapper(
 // TODO(cpu): add a specific attribute check to a component json that the
 // extension unpacker will reject, so that a component cannot be installed
 // as an extension.
-base::Value ReadManifest(const base::FilePath& unpack_path) {
+std::unique_ptr<base::DictionaryValue> ReadManifest(
+    const base::FilePath& unpack_path) {
   base::FilePath manifest =
       unpack_path.Append(FILE_PATH_LITERAL("manifest.json"));
   if (!base::PathExists(manifest))
-    return base::Value();
+    return std::unique_ptr<base::DictionaryValue>();
   JSONFileValueDeserializer deserializer(manifest);
   std::string error;
   std::unique_ptr<base::Value> root = deserializer.Deserialize(nullptr, &error);
   if (!root)
-    return base::Value();
-  return base::Value::FromUniquePtrValue(std::move(root));
-}
-
-std::string GetArchitecture() {
-#if BUILDFLAG(IS_WIN)
-  const base::win::OSInfo* os_info = base::win::OSInfo::GetInstance();
-  return (os_info->IsWowX86OnARM64() || os_info->IsWowAMD64OnARM64())
-             ? kArchArm64
-             : base::SysInfo().OperatingSystemArchitecture();
-#else   // BUILDFLAG(IS_WIN)
-  return base::SysInfo().OperatingSystemArchitecture();
-#endif  // BUILDFLAG(IS_WIN)
+    return std::unique_ptr<base::DictionaryValue>();
+  if (!root->is_dict())
+    return std::unique_ptr<base::DictionaryValue>();
+  return std::unique_ptr<base::DictionaryValue>(
+      static_cast<base::DictionaryValue*>(root.release()));
 }
 
 }  // namespace update_client

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,18 +23,18 @@
 
 namespace content {
 
-bool ParseDownloadMetadata(const std::u16string& metadata,
-                           std::u16string* mime_type,
+bool ParseDownloadMetadata(const base::string16& metadata,
+                           base::string16* mime_type,
                            base::FilePath* file_name,
                            GURL* url) {
-  const char16_t separator = L':';
+  const base::char16 separator = L':';
 
   size_t mime_type_end_pos = metadata.find(separator);
-  if (mime_type_end_pos == std::u16string::npos)
+  if (mime_type_end_pos == base::string16::npos)
     return false;
 
   size_t file_name_end_pos = metadata.find(separator, mime_type_end_pos + 1);
-  if (file_name_end_pos == std::u16string::npos)
+  if (file_name_end_pos == base::string16::npos)
     return false;
 
   GURL parsed_url = GURL(metadata.substr(file_name_end_pos + 1));
@@ -44,9 +44,13 @@ bool ParseDownloadMetadata(const std::u16string& metadata,
   if (mime_type)
     *mime_type = metadata.substr(0, mime_type_end_pos);
   if (file_name) {
-    std::u16string file_name_str = metadata.substr(
-        mime_type_end_pos + 1, file_name_end_pos - mime_type_end_pos - 1);
-    *file_name = base::FilePath::FromUTF16Unsafe(file_name_str);
+    base::string16 file_name_str = metadata.substr(
+        mime_type_end_pos + 1, file_name_end_pos - mime_type_end_pos  - 1);
+#if defined(OS_WIN)
+    *file_name = base::FilePath(file_name_str);
+#else
+    *file_name = base::FilePath(base::UTF16ToUTF8(file_name_str));
+#endif
   }
   if (url)
     *url = parsed_url;
@@ -63,16 +67,17 @@ base::File CreateFileForDrop(base::FilePath* file_path) {
     if (seq == 0) {
       new_file_path = *file_path;
     } else {
-#if BUILDFLAG(IS_WIN)
-      std::wstring suffix = L"-" + base::NumberToWString(seq);
+#if defined(OS_WIN)
+      base::string16 suffix =
+          base::ASCIIToUTF16("-") + base::NumberToString16(seq);
 #else
-      std::string suffix = "-" + base::NumberToString(seq);
+      std::string suffix = std::string("-") + base::NumberToString(seq);
 #endif
       new_file_path = file_path->InsertBeforeExtension(suffix);
     }
 
     // http://crbug.com/110709
-    base::ScopedAllowBlocking allow_blocking;
+    base::ThreadRestrictions::ScopedAllowIO allow_io;
 
     base::File file(
         new_file_path, base::File::FLAG_CREATE | base::File::FLAG_WRITE);

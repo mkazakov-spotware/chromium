@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "ui/display/types/display_mode.h"
 #include "ui/display/types/display_types_export.h"
 #include "ui/gfx/geometry/point.h"
@@ -25,7 +25,7 @@ struct DISPLAY_TYPES_EXPORT DisplayConfigurationParams {
 
   int64_t id = 0;
   gfx::Point origin = gfx::Point();
-  absl::optional<std::unique_ptr<display::DisplayMode>> mode = absl::nullopt;
+  base::Optional<std::unique_ptr<display::DisplayMode>> mode = base::nullopt;
 };
 
 }  // namespace display

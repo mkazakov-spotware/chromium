@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define CHROMECAST_PUBLIC_BLUETOOTH_LE_SCANNER_H_
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "bluetooth_types.h"    // NOLINT(build/include)
@@ -18,13 +19,13 @@ namespace bluetooth_v2_shlib {
 class CHROMECAST_EXPORT LeScanner {
  public:
   struct ScanResult {
-    ScanResult(Addr addr, const std::vector<uint8_t>& adv_data, int rssi);
+    ScanResult();
     ScanResult(const ScanResult& other);
     ~ScanResult();
 
-    const Addr addr;
-    const std::vector<uint8_t> adv_data;
-    const int rssi;
+    Addr addr;
+    std::vector<uint8_t> adv_data;
+    int rssi;
   };
 
   class Delegate {
@@ -45,7 +46,7 @@ class CHROMECAST_EXPORT LeScanner {
       __attribute__((__weak__));
 };
 
-inline LeScanner::ScanResult::ScanResult(Addr addr, const std::vector<uint8_t>& adv_data, int rssi) : addr(std::move(addr)), adv_data(adv_data), rssi(rssi) {} 
+inline LeScanner::ScanResult::ScanResult() = default;
 inline LeScanner::ScanResult::ScanResult(const LeScanner::ScanResult& other) =
     default;
 inline LeScanner::ScanResult::~ScanResult() = default;

@@ -1,12 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Needed for BUILDFLAG(IS_WIN)
+// Needed for defined(OS_WIN)
 #include "build/build_config.h"
 
 // Windows headers must come first.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #endif
 
@@ -15,12 +15,12 @@
 
 #include "ui/events/platform/platform_event_source.h"
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "ui/aura/env.h"
 #include "ui/events/event.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/task/current_thread.h"
 #endif
 
@@ -39,7 +39,7 @@ NativeEventObserver::~NativeEventObserver() {
   DeregisterObserver();
 }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 void NativeEventObserver::RegisterObserver() {
   aura::Env::GetInstance()->AddWindowEventDispatcherObserver(this);
 }
@@ -58,12 +58,12 @@ void NativeEventObserver::OnWindowEventDispatcherStartedProcessing(
 void NativeEventObserver::OnWindowEventDispatcherFinishedProcessingEvent(
     aura::WindowEventDispatcher* dispatcher) {
   EventInfo& info = events_being_processed_.back();
-  did_run_event_callback_.Run(info.unique_id.get());
+  did_run_event_callback_.Run(info.unique_id);
   events_being_processed_.pop_back();
 }
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void NativeEventObserver::RegisterObserver() {
   base::CurrentUIThread::Get()->AddMessagePumpObserver(this);
 }
@@ -76,12 +76,12 @@ void NativeEventObserver::WillDispatchMSG(const MSG& msg) {
 void NativeEventObserver::DidDispatchMSG(const MSG& msg) {
   did_run_event_callback_.Run(&msg);
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_ANDROID) || defined(OS_FUCHSIA)
 void NativeEventObserver::RegisterObserver() {}
 void NativeEventObserver::DeregisterObserver() {}
-#endif  // BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_ANDROID) || defined(OS_FUCHSIA)
 
 }  // namespace responsiveness
 }  // namespace content

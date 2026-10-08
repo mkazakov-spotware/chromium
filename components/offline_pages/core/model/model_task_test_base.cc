@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/offline_pages/core/model/model_task_test_base.h"
 
 #include "base/files/file_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 
 namespace offline_pages {
 ModelTaskTestBase::ModelTaskTestBase() {}
@@ -18,7 +18,7 @@ void ModelTaskTestBase::SetUp() {
   ASSERT_TRUE(public_dir_.CreateUniqueTempDir());
   archive_manager_ = std::make_unique<ArchiveManager>(
       TemporaryDir(), PrivateDir(), PublicDir(),
-      base::SingleThreadTaskRunner::GetCurrentDefault());
+      base::ThreadTaskRunnerHandle::Get());
   generator()->SetArchiveDirectory(TemporaryDir());
   store_test_util_.BuildStoreInMemory();
 }

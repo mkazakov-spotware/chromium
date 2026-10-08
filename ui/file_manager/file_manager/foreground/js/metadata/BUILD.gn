@@ -1,10 +1,11 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("//third_party/closure_compiler/compile_js.gni")
 import("//third_party/closure_compiler/js_unit_tests.gni")
-import("//ui/file_manager/base/gn/js_test_type_check.gni")
+import("//ui/file_manager/base/gn/js_test_gen_html.gni")
+import("//ui/webui/resources/tools/js_modulizer.gni")
 
 # TODO(tapted): This entire folder should move to //ui/file_manager/base.
 visibility = [ "//ui/file_manager/*" ]
@@ -13,52 +14,36 @@ group("closure_compile") {
   testonly = true
   deps = [
     ":closure_compile_jsmodules",
-    ":js_test_type_check",
-  ]
-}
-
-group("js_modules") {
-  deps = [
-    ":byte_reader",
-    ":content_metadata_provider",
-    ":dlp_metadata_provider",
-    ":exif_constants",
-    ":exif_parser",
-    ":external_metadata_provider",
-    ":file_system_metadata_provider",
-    ":function_parallel",
-    ":function_sequence",
-    ":id3_parser",
-    ":image_parsers",
-    ":metadata_cache_item",
-    ":metadata_cache_set",
-    ":metadata_dispatcher",
-    ":metadata_item",
-    ":metadata_model",
-    ":metadata_parser",
-    ":metadata_provider",
-    ":metadata_request",
-    ":mock_metadata",
-    ":mpeg_parser",
-    ":multi_metadata_provider",
-    ":thumbnail_model",
+    ":closure_compile_module",
+    ":js_test_gen_html_modules_type_check_auto",
+    ":js_test_gen_html_type_check_auto",
   ]
 }
 
 js_type_check("closure_compile_jsmodules") {
-  closure_flags = default_closure_args + [
-                    "language_in=ECMASCRIPT_2020",
-                    "js_module_root=gen/ui/file_manager/",
-                    "js_module_root=" +
-                        rebase_path("//ui/file_manager/", root_build_dir),
-                    "browser_resolver_prefix_replacements=\"chrome://file-manager/=./file_manager/\"",
-                    "browser_resolver_prefix_replacements=\"chrome-extension://pmfjbimdmchhbnneeidfognadeopoehp/=./image_loader/\"",
-                  ]
+  uses_js_modules = true
+  deps = [
+    ":byte_reader.m",
+    ":exif_constants.m",
+    ":external_metadata_provider.m",
+    ":file_system_metadata_provider.m",
+    ":function_parallel.m",
+    ":function_sequence.m",
+    ":image_orientation.m",
+    ":image_parsers.m",
+    ":metadata_cache_item.m",
+    ":metadata_item.m",
+    ":metadata_parser.m",
+    ":metadata_provider.m",
+    ":metadata_request.m",
+    ":mpeg_parser.m",
+  ]
+}
 
+js_type_check("closure_compile_module") {
   deps = [
     ":byte_reader",
     ":content_metadata_provider",
-    ":dlp_metadata_provider",
     ":exif_constants",
     ":exif_parser",
     ":external_metadata_provider",
@@ -66,6 +51,7 @@ js_type_check("closure_compile_jsmodules") {
     ":function_parallel",
     ":function_sequence",
     ":id3_parser",
+    ":image_orientation",
     ":image_parsers",
     ":metadata_cache_item",
     ":metadata_cache_set",
@@ -75,7 +61,6 @@ js_type_check("closure_compile_jsmodules") {
     ":metadata_parser",
     ":metadata_provider",
     ":metadata_request",
-    ":mock_metadata",
     ":mpeg_parser",
     ":multi_metadata_provider",
     ":thumbnail_model",
@@ -85,93 +70,103 @@ js_type_check("closure_compile_jsmodules") {
 js_library("byte_reader") {
 }
 
+js_library("byte_reader.m") {
+  sources = [ "$root_gen_dir/ui/file_manager/file_manager/foreground/js/metadata/byte_reader.m.js" ]
+
+  extra_deps = [ ":modulize" ]
+}
+
 js_library("content_metadata_provider") {
   deps = [
-    ":metadata_item",
     ":metadata_provider",
     "//ui/file_manager/file_manager/common/js:file_type",
     "//ui/file_manager/file_manager/common/js:util",
     "//ui/file_manager/file_manager/foreground/js:thumbnail_loader",
-    "//ui/file_manager/image_loader:image_loader_client",
-    "//ui/file_manager/image_loader:load_image_request",
-    "//ui/webui/resources/js:assert",
   ]
 }
 
 js_unittest("content_metadata_provider_unittest") {
   deps = [
     ":content_metadata_provider",
-    ":metadata_request",
-    "//chrome/test/data/webui/chromeos:chai_assert",
-    "//ui/file_manager/file_manager/common/js:test_error_reporting",
-  ]
-}
-
-js_library("dlp_metadata_provider") {
-  deps = [
-    ":metadata_item",
-    ":metadata_provider",
-    "//ui/file_manager/file_manager/common/js:api",
+    "//ui/file_manager/base/js:test_error_reporting",
   ]
 }
 
 js_library("exif_constants") {
 }
 
+js_library("exif_constants.m") {
+  sources = [ "$root_gen_dir/ui/file_manager/file_manager/foreground/js/metadata/exif_constants.m.js" ]
+
+  extra_deps = [ ":modulize" ]
+}
+
 js_library("exif_parser") {
   deps = [
-    ":byte_reader",
     ":exif_constants",
-    ":metadata_parser",
-    "//ui/file_manager/file_manager/externs:exif_entry",
-    "//ui/file_manager/file_manager/externs:metadata_worker_window",
+    ":image_parsers",
   ]
+  externs_list = [ "//ui/file_manager/externs/exif_entry.js" ]
 }
 
 js_unittest("exif_parser_unittest") {
   deps = [
-    ":byte_reader",
-    ":exif_constants",
     ":exif_parser",
-    "//chrome/test/data/webui/chromeos:chai_assert",
-    "//ui/file_manager/file_manager/externs:exif_entry",
-    "//ui/file_manager/file_manager/externs:metadata_worker_window",
+    "//ui/file_manager/base/js:test_error_reporting",
+    "//ui/file_manager/gallery/js/image_editor:exif_encoder",
   ]
 }
 
 js_library("external_metadata_provider") {
   deps = [
-    ":metadata_item",
     ":metadata_provider",
-    ":metadata_request",
-    "//ui/file_manager/file_manager/externs:file_manager_private",
-    "//ui/webui/resources/js:assert",
+    "//ui/file_manager/externs:file_manager_private",
   ]
 }
 
-js_unittest("external_metadata_provider_unittest") {
+js_library("external_metadata_provider.m") {
+  sources = [ "$root_gen_dir/ui/file_manager/file_manager/foreground/js/metadata/external_metadata_provider.m.js" ]
   deps = [
-    ":external_metadata_provider",
-    ":metadata_request",
-    "//chrome/test/data/webui/chromeos:chai_assert",
-    "//ui/file_manager/file_manager/common/js:mock_chrome",
-    "//ui/file_manager/file_manager/common/js:test_error_reporting",
+    ":metadata_item.m",
+    ":metadata_provider.m",
+    ":metadata_request.m",
+    "//ui/file_manager/externs:file_manager_private",
+    "//ui/webui/resources/js:assert.m",
+  ]
+
+  extra_deps = [ ":modulize" ]
+}
+
+js_unittest("external_metadata_provider_unittest.m") {
+  deps = [
+    ":external_metadata_provider.m",
+    ":metadata_request.m",
+    "//chrome/test/data/webui:chai_assert",
+    "//ui/file_manager/base/js:mock_chrome.m",
+    "//ui/file_manager/base/js:test_error_reporting.m",
   ]
 }
 
 js_library("file_system_metadata_provider") {
-  deps = [
-    ":metadata_item",
-    ":metadata_provider",
-  ]
+  deps = [ ":metadata_provider" ]
 }
 
-js_unittest("file_system_metadata_provider_unittest") {
+js_library("file_system_metadata_provider.m") {
+  sources = [ "$root_gen_dir/ui/file_manager/file_manager/foreground/js/metadata/file_system_metadata_provider.m.js" ]
   deps = [
-    ":file_system_metadata_provider",
-    ":metadata_request",
-    "//chrome/test/data/webui/chromeos:chai_assert",
-    "//ui/file_manager/file_manager/common/js:test_error_reporting",
+    ":metadata_item.m",
+    ":metadata_provider.m",
+  ]
+
+  extra_deps = [ ":modulize" ]
+}
+
+js_unittest("file_system_metadata_provider_unittest.m") {
+  deps = [
+    ":file_system_metadata_provider.m",
+    ":metadata_request.m",
+    "//chrome/test/data/webui:chai_assert",
+    "//ui/file_manager/base/js:test_error_reporting.m",
   ]
 }
 
@@ -179,8 +174,22 @@ js_library("function_parallel") {
   deps = [ ":metadata_parser" ]
 }
 
+js_library("function_parallel.m") {
+  sources = [ "$root_gen_dir/ui/file_manager/file_manager/foreground/js/metadata/function_parallel.m.js" ]
+  deps = [ ":metadata_parser.m" ]
+
+  extra_deps = [ ":modulize" ]
+}
+
 js_library("function_sequence") {
   deps = [ ":metadata_parser" ]
+}
+
+js_library("function_sequence.m") {
+  sources = [ "$root_gen_dir/ui/file_manager/file_manager/foreground/js/metadata/function_sequence.m.js" ]
+  deps = [ ":metadata_parser.m" ]
+
+  extra_deps = [ ":modulize" ]
 }
 
 js_library("id3_parser") {
@@ -189,16 +198,39 @@ js_library("id3_parser") {
     ":function_parallel",
     ":function_sequence",
     ":metadata_parser",
-    "//ui/file_manager/file_manager/externs:metadata_worker_window",
+  ]
+}
+
+js_library("image_orientation") {
+}
+
+js_library("image_orientation.m") {
+  sources = [ "$root_gen_dir/ui/file_manager/file_manager/foreground/js/metadata/image_orientation.m.js" ]
+
+  extra_deps = [ ":modulize" ]
+}
+
+js_unittest("image_orientation_unittest.m") {
+  deps = [
+    ":image_orientation.m",
+    "//chrome/test/data/webui:chai_assert",
   ]
 }
 
 js_library("image_parsers") {
+  deps = [ ":metadata_parser" ]
+  externs_list = [ "//ui/file_manager/externs/metadata_worker_window.js" ]
+}
+
+js_library("image_parsers.m") {
+  sources = [ "$root_gen_dir/ui/file_manager/file_manager/foreground/js/metadata/image_parsers.m.js" ]
   deps = [
-    ":byte_reader",
-    ":metadata_parser",
-    "//ui/file_manager/file_manager/externs:metadata_worker_window",
+    ":byte_reader.m",
+    ":metadata_parser.m",
+    "//ui/file_manager/externs:metadata_worker_window.m",
   ]
+
+  extra_deps = [ ":modulize" ]
 }
 
 js_library("metadata_cache_item") {
@@ -208,11 +240,21 @@ js_library("metadata_cache_item") {
   ]
 }
 
-js_unittest("metadata_cache_item_unittest") {
+js_library("metadata_cache_item.m") {
+  sources = [ "$root_gen_dir/ui/file_manager/file_manager/foreground/js/metadata/metadata_cache_item.m.js" ]
   deps = [
-    ":metadata_cache_item",
-    ":metadata_item",
-    "//chrome/test/data/webui/chromeos:chai_assert",
+    ":metadata_item.m",
+    "//ui/webui/resources/js:assert.m",
+  ]
+
+  extra_deps = [ ":modulize" ]
+}
+
+js_unittest("metadata_cache_item_unittest.m") {
+  deps = [
+    ":metadata_cache_item.m",
+    ":metadata_item.m",
+    "//chrome/test/data/webui:chai_assert",
   ]
 }
 
@@ -221,31 +263,38 @@ js_library("metadata_cache_set") {
     ":metadata_cache_item",
     ":metadata_item",
     ":metadata_request",
-    "//ash/webui/common/resources:event_target",
+    "//ui/file_manager/file_manager/common/js:lru_cache",
     "//ui/file_manager/file_manager/common/js:util",
+    "//ui/webui/resources/js/cr:event_target",
   ]
 }
 
 js_unittest("metadata_cache_set_unittest") {
   deps = [
     ":metadata_cache_set",
-    "//chrome/test/data/webui/chromeos:chai_assert",
+    "//ui/file_manager/base/js:test_error_reporting",
   ]
 }
 
 js_library("metadata_dispatcher") {
   deps = [
+    ":byte_reader",
     ":exif_parser",
     ":id3_parser",
     ":image_parsers",
     ":metadata_parser",
     ":mpeg_parser",
-    "//ui/file_manager/file_manager/externs:metadata_worker_window",
   ]
-  externs_list = [ "//ui/file_manager/file_manager/externs/platform.js" ]
+  externs_list = [ "//ui/file_manager/externs/platform.js" ]
 }
 
 js_library("metadata_item") {
+}
+
+js_library("metadata_item.m") {
+  sources = [ "$root_gen_dir/ui/file_manager/file_manager/foreground/js/metadata/metadata_item.m.js" ]
+
+  extra_deps = [ ":modulize" ]
 }
 
 js_library("metadata_model") {
@@ -257,25 +306,30 @@ js_library("metadata_model") {
     ":metadata_item",
     ":metadata_provider",
     ":multi_metadata_provider",
+    "//ui/file_manager/externs:volume_manager",
     "//ui/file_manager/file_manager/common/js:util",
-    "//ui/file_manager/file_manager/externs:volume_manager",
   ]
 }
 
 js_unittest("metadata_model_unittest") {
   deps = [
     ":metadata_model",
-    ":metadata_provider",
-    "//chrome/test/data/webui/chromeos:chai_assert",
-    "//ui/file_manager/file_manager/common/js:test_error_reporting",
+    "//ui/file_manager/base/js:test_error_reporting",
   ]
 }
 
 js_library("metadata_parser") {
+  deps = [ ":byte_reader" ]
+}
+
+js_library("metadata_parser.m") {
+  sources = [ "$root_gen_dir/ui/file_manager/file_manager/foreground/js/metadata/metadata_parser.m.js" ]
   deps = [
-    ":byte_reader",
-    "//ui/file_manager/file_manager/externs:metadata_worker_window",
+    ":byte_reader.m",
+    "//ui/file_manager/externs:metadata_worker_window.m",
   ]
+
+  extra_deps = [ ":modulize" ]
 }
 
 js_library("metadata_provider") {
@@ -286,7 +340,24 @@ js_library("metadata_provider") {
   ]
 }
 
+js_library("metadata_provider.m") {
+  sources = [ "$root_gen_dir/ui/file_manager/file_manager/foreground/js/metadata/metadata_provider.m.js" ]
+  deps = [
+    ":metadata_item.m",
+    ":metadata_request.m",
+    "//ui/webui/resources/js:assert.m",
+  ]
+
+  extra_deps = [ ":modulize" ]
+}
+
 js_library("metadata_request") {
+}
+
+js_library("metadata_request.m") {
+  sources = [ "$root_gen_dir/ui/file_manager/file_manager/foreground/js/metadata/metadata_request.m.js" ]
+
+  extra_deps = [ ":modulize" ]
 }
 
 js_library("mock_metadata") {
@@ -294,82 +365,92 @@ js_library("mock_metadata") {
 }
 
 js_library("mpeg_parser") {
+  deps = [ ":metadata_parser" ]
+}
+
+js_library("mpeg_parser.m") {
+  sources = [ "$root_gen_dir/ui/file_manager/file_manager/foreground/js/metadata/mpeg_parser.m.js" ]
   deps = [
-    ":byte_reader",
-    ":metadata_parser",
-    "//ui/file_manager/file_manager/externs:metadata_worker_window",
+    ":byte_reader.m",
+    ":metadata_parser.m",
+    "//ui/file_manager/externs:metadata_worker_window.m",
   ]
+
+  extra_deps = [ ":modulize" ]
 }
 
 js_library("multi_metadata_provider") {
   deps = [
     ":content_metadata_provider",
-    ":dlp_metadata_provider",
     ":external_metadata_provider",
     ":file_system_metadata_provider",
-    ":metadata_item",
     ":metadata_provider",
-    ":metadata_request",
-    "//ui/file_manager/file_manager/common/js:volume_manager_types",
-    "//ui/file_manager/file_manager/externs:volume_manager",
-    "//ui/webui/resources/js:assert",
+    "//ui/file_manager/externs:volume_manager",
   ]
 }
 
 js_unittest("multi_metadata_provider_unittest") {
   deps = [
-    ":content_metadata_provider",
-    ":dlp_metadata_provider",
-    ":external_metadata_provider",
-    ":file_system_metadata_provider",
-    ":metadata_request",
     ":multi_metadata_provider",
-    "//chrome/test/data/webui/chromeos:chai_assert",
-    "//ui/file_manager/file_manager/common/js:test_error_reporting",
-    "//ui/file_manager/file_manager/common/js:volume_manager_types",
-    "//ui/file_manager/file_manager/externs:volume_manager",
+    "//ui/file_manager/base/js:test_error_reporting",
   ]
 }
 
 js_library("thumbnail_model") {
-  deps = [
-    ":metadata_model",
-    "//ui/file_manager/file_manager/common/js:file_type",
-  ]
+  deps = [ ":metadata_model" ]
 }
 
 js_unittest("thumbnail_model_unittest") {
   deps = [
-    ":metadata_item",
-    ":metadata_model",
     ":thumbnail_model",
-    "//chrome/test/data/webui/chromeos:chai_assert",
-    "//ui/file_manager/file_manager/common/js:test_error_reporting",
+    "//ui/file_manager/base/js:test_error_reporting",
+    "//ui/webui/resources/js:webui_resource_test",
   ]
 }
 
-js_test_type_check("js_test_type_check") {
+js_test_gen_html("js_test_gen_html_modules") {
+  deps = [
+    ":external_metadata_provider_unittest.m",
+    ":file_system_metadata_provider_unittest.m",
+    ":image_orientation_unittest.m",
+    ":metadata_cache_item_unittest.m",
+  ]
+  js_module = true
+
+  closure_flags = strict_error_checking_closure_args + [
+                    "js_module_root=./gen/ui/file_manager/file_manager/foreground/js/metadata",
+                    "js_module_root=../../ui/file_manager/file_manager/foreground/js/metadata",
+                    "browser_resolver_prefix_replacements=\"chrome://test/=./\"",
+                  ]
+}
+
+js_test_gen_html("js_test_gen_html") {
   deps = [
     ":content_metadata_provider_unittest",
     ":exif_parser_unittest",
-    ":external_metadata_provider_unittest",
-    ":file_system_metadata_provider_unittest",
-    ":metadata_cache_item_unittest",
     ":metadata_cache_set_unittest",
     ":metadata_model_unittest",
     ":multi_metadata_provider_unittest",
     ":thumbnail_model_unittest",
   ]
+  mocks = [ "metadata_dispatcher_mock_deps.js" ]
+}
 
-  closure_flags = strict_error_checking_closure_args + [
-                    "language_in=ECMASCRIPT_2020",
-                    "js_module_root=./gen/ui",
-                    "js_module_root=" +
-                        rebase_path("//ui/file_manager/", root_build_dir),
-                    "js_module_root=./gen/ui/file_manager/",
-                    "browser_resolver_prefix_replacements=\"chrome://webui-test/=./\"",
-                    "browser_resolver_prefix_replacements=\"chrome://file-manager/=./file_manager/\"",
-                    "browser_resolver_prefix_replacements=\"chrome-extension://pmfjbimdmchhbnneeidfognadeopoehp/=./image_loader/\"",
-                    "hide_warnings_for=third_party/",
-                  ]
+js_modulizer("modulize") {
+  input_files = [
+    "byte_reader.js",
+    "exif_constants.js",
+    "external_metadata_provider.js",
+    "file_system_metadata_provider.js",
+    "function_parallel.js",
+    "function_sequence.js",
+    "image_parsers.js",
+    "metadata_cache_item.js",
+    "metadata_item.js",
+    "metadata_parser.js",
+    "metadata_request.js",
+    "image_orientation.js",
+    "metadata_provider.js",
+    "mpeg_parser.js",
+  ]
 }

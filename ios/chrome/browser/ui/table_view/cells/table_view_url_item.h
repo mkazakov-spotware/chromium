@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,29 +10,21 @@
 #import "ios/chrome/browser/ui/table_view/cells/table_view_cell.h"
 #import "ios/chrome/browser/ui/table_view/cells/table_view_item.h"
 
-@class CrURL;
+class GURL;
 @class FaviconView;
 @class TableViewURLCellFaviconBadgeView;
 
 // TableViewURLItem contains the model data for a TableViewURLCell.
 @interface TableViewURLItem : TableViewItem
 
-// The title of the page at `URL`.
+// The title of the page at |URL|.
 @property(nonatomic, readwrite, copy) NSString* title;
-// CrURL from which the cell will retrieve a favicon and display the host name.
-@property(nonatomic, readwrite, strong) CrURL* URL;
+// GURL from which the cell will retrieve a favicon and display the host name.
+@property(nonatomic, assign) GURL URL;
 // Supplemental text used to describe the URL.
 @property(nonatomic, readwrite, copy) NSString* supplementalURLText;
 // Delimiter used to separate the URL hostname and the supplemental text.
 @property(nonatomic, readwrite, copy) NSString* supplementalURLTextDelimiter;
-// Custom third row text. This is not shown if it is empty or if the second row
-// is empty.
-@property(nonatomic, readwrite, copy) NSString* thirdRowText;
-// Third row text color, if it is shown. If nil, ChromeTableViewStyler's
-// `detailTextColor` is used, otherwise a default color is used.
-@property(nonatomic, strong) UIColor* thirdRowTextColor;
-// Detail text to be displayed instead of the URL.
-@property(nonatomic, strong) NSString* detailText;
 // Metadata text displayed at the trailing edge of the cell.
 @property(nonatomic, readwrite, copy) NSString* metadata;
 // The image for the badge view added over the favicon.
@@ -52,6 +44,9 @@
 // contains a favicon composited on top of an off-white background.
 @property(nonatomic, readonly, strong) FaviconView* faviconView;
 
+// Container View for the faviconView.
+@property(nonatomic, readonly, strong) UIImageView* faviconContainerView;
+
 // The image view used to display the favicon badge.
 @property(nonatomic, readonly, strong)
     TableViewURLCellFaviconBadgeView* faviconBadgeView;
@@ -65,10 +60,6 @@
 // Optional metadata that is displayed at the trailing edge of the cell.
 @property(nonatomic, readonly, strong) UILabel* metadataLabel;
 
-// Optional third row label. This is never used in place of the second row of
-// text.
-@property(nonatomic, readonly, strong) UILabel* thirdRowLabel;
-
 // Unique identifier that matches with one URLItem.
 @property(nonatomic, strong) NSString* cellUniqueIdentifier;
 
@@ -76,14 +67,6 @@
 // configured. This must be called at the end of configureCell: for all items
 // that use TableViewURLCell.
 - (void)configureUILayout;
-
-// Starts the animation of the activity indicator replacing the favicon. NO-OP
-// if it is already running.
-- (void)startAnimatingActivityIndicator;
-
-// Stops the animation of the activity indicator and puts favicon back in place.
-// NO-OP if it is already stopped.
-- (void)stopAnimatingActivityIndicator;
 
 @end
 

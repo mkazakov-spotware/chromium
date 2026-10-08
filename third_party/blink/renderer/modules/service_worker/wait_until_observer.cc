@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,11 @@
 #include "third_party/blink/renderer/core/execution_context/agent.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/modules/service_worker/service_worker_global_scope.h"
+#include "third_party/blink/renderer/platform/bindings/microtask.h"
 #include "third_party/blink/renderer/platform/scheduler/public/event_loop.h"
 #include "third_party/blink/renderer/platform/scheduler/public/thread.h"
 #include "third_party/blink/renderer/platform/web_test_support.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "v8/include/v8.h"
 
 namespace blink {
@@ -28,33 +30,46 @@ const unsigned kWindowInteractionTimeout = 10;
 const unsigned kWindowInteractionTimeoutForTest = 1;
 
 base::TimeDelta WindowInteractionTimeout() {
-  return base::Seconds(WebTestSupport::IsRunningWebTest()
-                           ? kWindowInteractionTimeoutForTest
-                           : kWindowInteractionTimeout);
+  return base::TimeDelta::FromSeconds(WebTestSupport::IsRunningWebTest()
+                                          ? kWindowInteractionTimeoutForTest
+                                          : kWindowInteractionTimeout);
 }
 
 }  // anonymous namespace
 
-class WaitUntilObserver::ThenFunction final : public ScriptFunction::Callable {
+class WaitUntilObserver::ThenFunction final : public ScriptFunction {
  public:
   enum ResolveType {
     kFulfilled,
     kRejected,
   };
 
-  ThenFunction(WaitUntilObserver* observer,
+  static v8::Local<v8::Function> CreateFunction(
+      ScriptState* script_state,
+      WaitUntilObserver* observer,
+      ResolveType type,
+      PromiseSettledCallback callback) {
+    ThenFunction* self = MakeGarbageCollected<ThenFunction>(
+        script_state, observer, type, std::move(callback));
+    return self->BindToV8Function();
+  }
+
+  ThenFunction(ScriptState* script_state,
+               WaitUntilObserver* observer,
                ResolveType type,
                PromiseSettledCallback callback)
-      : observer_(observer),
+      : ScriptFunction(script_state),
+        observer_(observer),
         resolve_type_(type),
         callback_(std::move(callback)) {}
 
   void Trace(Visitor* visitor) const override {
     visitor->Trace(observer_);
-    ScriptFunction::Callable::Trace(visitor);
+    ScriptFunction::Trace(visitor);
   }
 
-  ScriptValue Call(ScriptState* script_state, ScriptValue value) override {
+ private:
+  ScriptValue Call(ScriptValue value) override {
     DCHECK(observer_);
     DCHECK(resolve_type_ == kFulfilled || resolve_type_ == kRejected);
     if (callback_)
@@ -65,7 +80,7 @@ class WaitUntilObserver::ThenFunction final : public ScriptFunction::Callable {
     // substeps: Decrement the pending promises count by one."
 
     scoped_refptr<scheduler::EventLoop> event_loop =
-        ExecutionContext::From(script_state)->GetAgent()->event_loop();
+        ExecutionContext::From(GetScriptState())->GetAgent()->event_loop();
 
     // At this time point the microtask A running resolve/reject function of
     // this promise has already been queued, in order to allow microtask A to
@@ -76,20 +91,19 @@ class WaitUntilObserver::ThenFunction final : public ScriptFunction::Callable {
     // extend lifetime promise at that time.
     if (resolve_type_ == kRejected) {
       event_loop->EnqueueMicrotask(
-          WTF::BindOnce(&WaitUntilObserver::OnPromiseRejected,
-                        WrapPersistent(observer_.Get())));
+          WTF::Bind(&WaitUntilObserver::OnPromiseRejected,
+                    WrapPersistent(observer_.Get())));
       observer_ = nullptr;
-      return ScriptPromise::Reject(script_state, value).AsScriptValue();
+      return ScriptPromise::Reject(GetScriptState(), value).GetScriptValue();
     }
 
     event_loop->EnqueueMicrotask(
-        WTF::BindOnce(&WaitUntilObserver::OnPromiseFulfilled,
-                      WrapPersistent(observer_.Get())));
+        WTF::Bind(&WaitUntilObserver::OnPromiseFulfilled,
+                  WrapPersistent(observer_.Get())));
     observer_ = nullptr;
     return value;
   }
 
- private:
   Member<WaitUntilObserver> observer_;
   ResolveType resolve_type_;
   PromiseSettledCallback callback_;
@@ -153,14 +167,11 @@ bool WaitUntilObserver::WaitUntil(ScriptState* script_state,
   // 3. `Add f to the extend lifetime promises.`
   // 4. `Increment the pending promises count by one.`
   IncrementPendingPromiseCount();
-  script_promise.Then(MakeGarbageCollected<ScriptFunction>(
-                          script_state, MakeGarbageCollected<ThenFunction>(
-                                            this, ThenFunction::kFulfilled,
-                                            std::move(on_promise_fulfilled))),
-                      MakeGarbageCollected<ScriptFunction>(
-                          script_state, MakeGarbageCollected<ThenFunction>(
-                                            this, ThenFunction::kRejected,
-                                            std::move(on_promise_rejected))));
+  script_promise.Then(
+      ThenFunction::CreateFunction(script_state, this, ThenFunction::kFulfilled,
+                                   std::move(on_promise_fulfilled)),
+      ThenFunction::CreateFunction(script_state, this, ThenFunction::kRejected,
+                                   std::move(on_promise_rejected)));
   return true;
 }
 
@@ -183,7 +194,7 @@ WaitUntilObserver::WaitUntilObserver(ExecutionContext* context,
       type_(type),
       event_id_(event_id),
       consume_window_interaction_timer_(
-          context->GetTaskRunner(TaskType::kUserInteraction),
+          Thread::Current()->GetTaskRunner(),
           this,
           &WaitUntilObserver::ConsumeWindowInteraction) {}
 
@@ -325,7 +336,6 @@ void WaitUntilObserver::ConsumeWindowInteraction(TimerBase*) {
 }
 
 void WaitUntilObserver::Trace(Visitor* visitor) const {
-  visitor->Trace(consume_window_interaction_timer_);
   ExecutionContextClient::Trace(visitor);
 }
 

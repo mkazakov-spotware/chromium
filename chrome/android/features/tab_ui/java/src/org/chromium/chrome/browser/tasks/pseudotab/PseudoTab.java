@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.tasks.pseudotab;
 
-import android.content.Context;
 import android.os.SystemClock;
 
 import androidx.annotation.NonNull;
@@ -13,6 +12,7 @@ import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Log;
 import org.chromium.base.StreamUtil;
+import org.chromium.chrome.browser.flags.CachedFeatureFlags;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.state.CriticalPersistedTabData;
@@ -23,9 +23,8 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabPersistentStore;
 import org.chromium.chrome.browser.tabmodel.TabbedModeTabPersistencePolicy;
 import org.chromium.chrome.browser.tabpersistence.TabStateDirectory;
+import org.chromium.chrome.browser.tasks.ReturnToChromeExperimentsUtil;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiFeatureUtilities;
-import org.chromium.components.embedder_support.util.UrlUtilities;
-import org.chromium.url.GURL;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
@@ -61,9 +60,7 @@ public class PseudoTab {
     /**
      * An interface to get the title to be used for a tab.
      */
-    public interface TitleProvider {
-        String getTitle(Context context, PseudoTab tab);
-    }
+    public interface TitleProvider { String getTitle(PseudoTab tab); }
 
     /**
      * Construct from a tab ID. An earlier instance with the same ID can be returned.
@@ -92,7 +89,7 @@ public class PseudoTab {
                 if (cached.getTab() == tab) {
                     return cached;
                 } else {
-                    assert tab.getWebContents() == null || cached.getTab().getWebContents() == null
+                    assert cached.getTab().getWebContents() == null
                             || cached.getTab().getWebContents().getTopLevelNativeWindow() == null;
                     return new PseudoTab(tab);
                 }
@@ -134,10 +131,7 @@ public class PseudoTab {
         if (tabList != null) {
             pseudoTabs = new ArrayList<>();
             for (int i = 0; i < tabList.getCount(); i++) {
-                Tab tab = tabList.getTabAt(i);
-                if (tab != null) {
-                    pseudoTabs.add(fromTab(tab));
-                }
+                pseudoTabs.add(fromTab(tabList.getTabAt(i)));
             }
         }
         return pseudoTabs;
@@ -160,13 +154,11 @@ public class PseudoTab {
      * Get the title of the {@link PseudoTab} through a {@link TitleProvider}.
      *
      * If the {@link TitleProvider} is {@code null}, fall back to {@link #getTitle()}.
-     *
-     * @param context The activity context.
      * @param titleProvider The {@link TitleProvider} to provide the title.
      * @return The title
      */
-    public String getTitle(Context context, @Nullable TitleProvider titleProvider) {
-        if (titleProvider != null) return titleProvider.getTitle(context, this);
+    public String getTitle(@Nullable TitleProvider titleProvider) {
+        if (titleProvider != null) return titleProvider.getTitle(this);
         return getTitle();
     }
 
@@ -186,9 +178,9 @@ public class PseudoTab {
      * Get the URL of the {@link PseudoTab}.
      * @return The URL
      */
-    public GURL getUrl() {
+    public String getUrl() {
         if (mTab != null && mTab.get() != null && mTab.get().isInitialized()) {
-            return mTab.get().getUrl();
+            return mTab.get().getUrlString();
         }
         assert mTabId != null;
         return TabAttributeCache.getUrl(mTabId);
@@ -207,23 +199,24 @@ public class PseudoTab {
     }
 
     /**
-     * @return The timestamp of the {@link PseudoTab}.
-     */
-    public long getTimestampMillis() {
-        if (mTab != null && mTab.get() != null && mTab.get().isInitialized()) {
-            return CriticalPersistedTabData.from(mTab.get()).getTimestampMillis();
-        }
-        assert mTabId != null;
-        return TabAttributeCache.getTimestampMillis(mTabId);
-    }
-
-    /**
      * @return Whether the {@link PseudoTab} is in the Incognito mode.
      */
     public boolean isIncognito() {
         if (mTab != null && mTab.get() != null) return mTab.get().isIncognito();
         assert mTabId != null;
         return false;
+    }
+
+    /**
+     * @return {@link Tab#getTimestampMillis()} of the underlying real {@link Tab}
+     */
+    public long getTimestampMillis() {
+        assert mTab != null
+                && mTab.get() != null : "getTimestampMillis can only be used with real tabs";
+        if (!mTab.get().isInitialized()) {
+            return CriticalPersistedTabData.INVALID_TIMESTAMP;
+        }
+        return CriticalPersistedTabData.from(mTab.get()).getTimestampMillis();
     }
 
     /**
@@ -252,25 +245,18 @@ public class PseudoTab {
     public static void clearForTesting() {
         synchronized (sLock) {
             sAllTabs.clear();
-            sReadStateFile = false;
-            sActiveTabFromStateFile = null;
-            if (sAllTabsFromStateFile != null) {
-                sAllTabsFromStateFile.clear();
-            }
         }
     }
 
     /**
      * Get related tabs of a certain {@link PseudoTab}, through {@link TabModelFilter}s if
      * available.
-     *
-     * @param context The activity context.
      * @param member The {@link PseudoTab} related to
      * @param tabModelSelector The {@link TabModelSelector} to query the tab relation
      * @return Related {@link PseudoTab}s
      */
     public static @NonNull List<PseudoTab> getRelatedTabs(
-            Context context, PseudoTab member, @NonNull TabModelSelector tabModelSelector) {
+            PseudoTab member, @NonNull TabModelSelector tabModelSelector) {
         synchronized (sLock) {
             List<Tab> relatedTabs = getRelatedTabList(tabModelSelector, member.getId());
             if (relatedTabs != null) return getListOfPseudoTab(relatedTabs);
@@ -278,7 +264,7 @@ public class PseudoTab {
             List<PseudoTab> related = new ArrayList<>();
             int rootId = member.getRootId();
             if (rootId == Tab.INVALID_TAB_ID
-                    || !TabUiFeatureUtilities.isTabGroupsAndroidEnabled(context)) {
+                    || !TabUiFeatureUtilities.isTabGroupsAndroidEnabled()) {
                 related.add(member);
                 return related;
             }
@@ -297,7 +283,7 @@ public class PseudoTab {
     private static @Nullable List<Tab> getRelatedTabList(
             @NonNull TabModelSelector tabModelSelector, int tabId) {
         if (!tabModelSelector.isTabStateInitialized()) {
-            assert ChromeFeatureList.sInstantStart.isEnabled();
+            assert CachedFeatureFlags.isEnabled(ChromeFeatureList.INSTANT_START);
             return null;
         }
         TabModelFilterProvider provider = tabModelSelector.getTabModelFilterProvider();
@@ -315,24 +301,21 @@ public class PseudoTab {
         }
     }
 
-    /**
-     * @param context The activity context.
-     */
     @Nullable
-    public static List<PseudoTab> getAllPseudoTabsFromStateFile(Context context) {
-        readAllPseudoTabsFromStateFile(context);
+    public static List<PseudoTab> getAllPseudoTabsFromStateFile() {
+        readAllPseudoTabsFromStateFile();
         return sAllTabsFromStateFile;
     }
 
     @Nullable
-    public static PseudoTab getActiveTabFromStateFile(Context context) {
-        readAllPseudoTabsFromStateFile(context);
+    public static PseudoTab getActiveTabFromStateFile() {
+        readAllPseudoTabsFromStateFile();
         return sActiveTabFromStateFile;
     }
 
-    @SuppressWarnings("AssertionSideEffect")
-    private static void readAllPseudoTabsFromStateFile(Context context) {
-        assert ChromeFeatureList.sInstantStart.isEnabled();
+    private static void readAllPseudoTabsFromStateFile() {
+        assert CachedFeatureFlags.isEnabled(ChromeFeatureList.INSTANT_START)
+                || CachedFeatureFlags.isEnabled(ChromeFeatureList.PAINT_PREVIEW_SHOW_ON_STARTUP);
         if (sReadStateFile) return;
         sReadStateFile = true;
 
@@ -365,7 +348,8 @@ public class PseudoTab {
                     (index, id, url, isIncognito, isStandardActiveIndex, isIncognitoActiveIndex)
                             -> {
                         // Skip restoring of non-selected NTP to match the real restoration logic.
-                        if (UrlUtilities.isCanonicalizedNTPUrl(url) && !isStandardActiveIndex) {
+                        if (ReturnToChromeExperimentsUtil.isCanonicalizedNTPUrl(url)
+                                && !isStandardActiveIndex) {
                             return;
                         }
                         PseudoTab tab = PseudoTab.fromTabId(id);
@@ -374,14 +358,14 @@ public class PseudoTab {
                             sActiveTabFromStateFile = tab;
                         }
                         int rootId = tab.getRootId();
-                        if (TabUiFeatureUtilities.isTabGroupsAndroidEnabled(context)
+                        if (TabUiFeatureUtilities.isTabGroupsAndroidEnabled()
                                 && seenRootId.contains(rootId)) {
                             return;
                         }
                         sAllTabsFromStateFile.add(tab);
                         seenRootId.add(rootId);
                     },
-                    null);
+                    null, false);
         } catch (IOException exception) {
             Log.e(TAG, "Could not read state file.", exception);
             return;

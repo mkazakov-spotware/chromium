@@ -26,6 +26,9 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_WEBAUDIO_ASYNC_AUDIO_DECODER_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBAUDIO_ASYNC_AUDIO_DECODER_H_
 
+#include <memory>
+
+#include "base/macros.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_decode_error_callback.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_decode_success_callback.h"
 
@@ -40,8 +43,6 @@ class AudioBus;
 class BaseAudioContext;
 class DOMArrayBuffer;
 class ScriptPromiseResolver;
-class ExceptionContext;
-class ExceptionState;
 
 // AsyncAudioDecoder asynchronously decodes audio file data from a
 // DOMArrayBuffer in the background thread. Upon successful decoding, a
@@ -53,14 +54,10 @@ class AsyncAudioDecoder {
 
  public:
   AsyncAudioDecoder() = default;
-
-  AsyncAudioDecoder(const AsyncAudioDecoder&) = delete;
-  AsyncAudioDecoder& operator=(const AsyncAudioDecoder&) = delete;
-
   ~AsyncAudioDecoder() = default;
 
-  // Must be called on the main thread.  `DecodeAsync` and callees must not
-  // modify any of the parameters except `audio_data`.  They are used to
+  // Must be called on the main thread.  |decodeAsync| and callees must not
+  // modify any of the parameters except |audioData|.  They are used to
   // associate this decoding instance with the caller to process the decoding
   // appropriately when finished.
   void DecodeAsync(DOMArrayBuffer* audio_data,
@@ -68,8 +65,7 @@ class AsyncAudioDecoder {
                    V8DecodeSuccessCallback*,
                    V8DecodeErrorCallback*,
                    ScriptPromiseResolver*,
-                   BaseAudioContext*,
-                   ExceptionState&);
+                   BaseAudioContext*);
 
  private:
   AudioBuffer* CreateAudioBufferFromAudioBus(AudioBus*);
@@ -80,15 +76,15 @@ class AsyncAudioDecoder {
       V8DecodeErrorCallback*,
       ScriptPromiseResolver*,
       BaseAudioContext*,
-      scoped_refptr<base::SingleThreadTaskRunner>,
-      const ExceptionContext&);
+      scoped_refptr<base::SingleThreadTaskRunner>);
   static void NotifyComplete(DOMArrayBuffer* audio_data,
                              V8DecodeSuccessCallback*,
                              V8DecodeErrorCallback*,
                              AudioBus*,
                              ScriptPromiseResolver*,
-                             BaseAudioContext*,
-                             const ExceptionContext&);
+                             BaseAudioContext*);
+
+  DISALLOW_COPY_AND_ASSIGN(AsyncAudioDecoder);
 };
 
 }  // namespace blink

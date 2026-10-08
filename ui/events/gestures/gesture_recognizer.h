@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "ui/events/event_constants.h"
 #include "ui/events/events_export.h"
 #include "ui/events/gestures/gesture_types.h"
@@ -24,10 +25,6 @@ class EVENTS_EXPORT GestureRecognizer {
   using Gestures = std::vector<std::unique_ptr<GestureEvent>>;
 
   GestureRecognizer();
-
-  GestureRecognizer(const GestureRecognizer&) = delete;
-  GestureRecognizer& operator=(const GestureRecognizer&) = delete;
-
   virtual ~GestureRecognizer();
 
   // Invoked before event dispatch. If the event is invalid given the current
@@ -110,12 +107,8 @@ class EVENTS_EXPORT GestureRecognizer {
   // and must be cleaned up appropriately by the caller.
   virtual void RemoveGestureEventHelper(GestureEventHelper* helper) = 0;
 
-  // Returns whether `consumer` has active touch or not.
-  virtual bool DoesConsumerHaveActiveTouch(GestureConsumer* consumer) const = 0;
-
-  // Synthesizes gesture end events (including ET_GESTURE_END and
-  // ET_GESTURE_SCROLL_END) and send to `consumer`.
-  virtual void SendSynthesizedEndEvents(GestureConsumer* consumer) = 0;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(GestureRecognizer);
 };
 
 }  // namespace ui

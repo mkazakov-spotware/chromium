@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,10 +26,10 @@ class CONTENT_EXPORT DedicatedWorkerService {
     virtual void OnWorkerCreated(
         const blink::DedicatedWorkerToken& worker_token,
         int worker_process_id,
-        GlobalRenderFrameHostId ancestor_render_frame_host_id) = 0;
+        GlobalFrameRoutingId ancestor_render_frame_host_id) = 0;
     virtual void OnBeforeWorkerDestroyed(
         const blink::DedicatedWorkerToken& worker_token,
-        GlobalRenderFrameHostId ancestor_render_frame_host_id) = 0;
+        GlobalFrameRoutingId ancestor_render_frame_host_id) = 0;
 
     // Called when the final response URL (the URL after redirects) was
     // determined when fetching the worker's script.

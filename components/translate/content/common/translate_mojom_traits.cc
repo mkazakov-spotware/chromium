@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,33 +10,33 @@
 
 namespace mojo {
 
-translate::mojom::TranslateError EnumTraits<
-    translate::mojom::TranslateError,
-    translate::TranslateErrors>::ToMojom(translate::TranslateErrors input) {
+translate::mojom::TranslateError
+EnumTraits<translate::mojom::TranslateError, translate::TranslateErrors::Type>::
+    ToMojom(translate::TranslateErrors::Type input) {
   switch (input) {
-    case translate::TranslateErrors::NONE:
+    case translate::TranslateErrors::Type::NONE:
       return translate::mojom::TranslateError::NONE;
-    case translate::TranslateErrors::NETWORK:
+    case translate::TranslateErrors::Type::NETWORK:
       return translate::mojom::TranslateError::NETWORK;
-    case translate::TranslateErrors::INITIALIZATION_ERROR:
+    case translate::TranslateErrors::Type::INITIALIZATION_ERROR:
       return translate::mojom::TranslateError::INITIALIZATION_ERROR;
-    case translate::TranslateErrors::UNKNOWN_LANGUAGE:
+    case translate::TranslateErrors::Type::UNKNOWN_LANGUAGE:
       return translate::mojom::TranslateError::UNKNOWN_LANGUAGE;
-    case translate::TranslateErrors::UNSUPPORTED_LANGUAGE:
+    case translate::TranslateErrors::Type::UNSUPPORTED_LANGUAGE:
       return translate::mojom::TranslateError::UNSUPPORTED_LANGUAGE;
-    case translate::TranslateErrors::IDENTICAL_LANGUAGES:
+    case translate::TranslateErrors::Type::IDENTICAL_LANGUAGES:
       return translate::mojom::TranslateError::IDENTICAL_LANGUAGES;
-    case translate::TranslateErrors::TRANSLATION_ERROR:
+    case translate::TranslateErrors::Type::TRANSLATION_ERROR:
       return translate::mojom::TranslateError::TRANSLATION_ERROR;
-    case translate::TranslateErrors::TRANSLATION_TIMEOUT:
+    case translate::TranslateErrors::Type::TRANSLATION_TIMEOUT:
       return translate::mojom::TranslateError::TRANSLATION_TIMEOUT;
-    case translate::TranslateErrors::UNEXPECTED_SCRIPT_ERROR:
+    case translate::TranslateErrors::Type::UNEXPECTED_SCRIPT_ERROR:
       return translate::mojom::TranslateError::UNEXPECTED_SCRIPT_ERROR;
-    case translate::TranslateErrors::BAD_ORIGIN:
+    case translate::TranslateErrors::Type::BAD_ORIGIN:
       return translate::mojom::TranslateError::BAD_ORIGIN;
-    case translate::TranslateErrors::SCRIPT_LOAD_ERROR:
+    case translate::TranslateErrors::Type::SCRIPT_LOAD_ERROR:
       return translate::mojom::TranslateError::SCRIPT_LOAD_ERROR;
-    case translate::TranslateErrors::TRANSLATE_ERROR_MAX:
+    case translate::TranslateErrors::Type::TRANSLATE_ERROR_MAX:
       return translate::mojom::TranslateError::TRANSLATE_ERROR_MAX;
   }
 
@@ -44,45 +44,46 @@ translate::mojom::TranslateError EnumTraits<
   return translate::mojom::TranslateError::NONE;
 }
 
-bool EnumTraits<translate::mojom::TranslateError, translate::TranslateErrors>::
+bool EnumTraits<translate::mojom::TranslateError,
+                translate::TranslateErrors::Type>::
     FromMojom(translate::mojom::TranslateError input,
-              translate::TranslateErrors* output) {
+              translate::TranslateErrors::Type* output) {
   switch (input) {
     case translate::mojom::TranslateError::NONE:
-      *output = translate::TranslateErrors::NONE;
+      *output = translate::TranslateErrors::Type::NONE;
       return true;
     case translate::mojom::TranslateError::NETWORK:
-      *output = translate::TranslateErrors::NETWORK;
+      *output = translate::TranslateErrors::Type::NETWORK;
       return true;
     case translate::mojom::TranslateError::INITIALIZATION_ERROR:
-      *output = translate::TranslateErrors::INITIALIZATION_ERROR;
+      *output = translate::TranslateErrors::Type::INITIALIZATION_ERROR;
       return true;
     case translate::mojom::TranslateError::UNKNOWN_LANGUAGE:
-      *output = translate::TranslateErrors::UNKNOWN_LANGUAGE;
+      *output = translate::TranslateErrors::Type::UNKNOWN_LANGUAGE;
       return true;
     case translate::mojom::TranslateError::UNSUPPORTED_LANGUAGE:
-      *output = translate::TranslateErrors::UNSUPPORTED_LANGUAGE;
+      *output = translate::TranslateErrors::Type::UNSUPPORTED_LANGUAGE;
       return true;
     case translate::mojom::TranslateError::IDENTICAL_LANGUAGES:
-      *output = translate::TranslateErrors::IDENTICAL_LANGUAGES;
+      *output = translate::TranslateErrors::Type::IDENTICAL_LANGUAGES;
       return true;
     case translate::mojom::TranslateError::TRANSLATION_ERROR:
-      *output = translate::TranslateErrors::TRANSLATION_ERROR;
+      *output = translate::TranslateErrors::Type::TRANSLATION_ERROR;
       return true;
     case translate::mojom::TranslateError::TRANSLATION_TIMEOUT:
-      *output = translate::TranslateErrors::TRANSLATION_TIMEOUT;
+      *output = translate::TranslateErrors::Type::TRANSLATION_TIMEOUT;
       return true;
     case translate::mojom::TranslateError::UNEXPECTED_SCRIPT_ERROR:
-      *output = translate::TranslateErrors::UNEXPECTED_SCRIPT_ERROR;
+      *output = translate::TranslateErrors::Type::UNEXPECTED_SCRIPT_ERROR;
       return true;
     case translate::mojom::TranslateError::BAD_ORIGIN:
-      *output = translate::TranslateErrors::BAD_ORIGIN;
+      *output = translate::TranslateErrors::Type::BAD_ORIGIN;
       return true;
     case translate::mojom::TranslateError::SCRIPT_LOAD_ERROR:
-      *output = translate::TranslateErrors::SCRIPT_LOAD_ERROR;
+      *output = translate::TranslateErrors::Type::SCRIPT_LOAD_ERROR;
       return true;
     case translate::mojom::TranslateError::TRANSLATE_ERROR_MAX:
-      *output = translate::TranslateErrors::TRANSLATE_ERROR_MAX;
+      *output = translate::TranslateErrors::Type::TRANSLATE_ERROR_MAX;
       return true;
   }
 
@@ -101,10 +102,10 @@ bool StructTraits<translate::mojom::LanguageDetectionDetailsDataView,
     return false;
   if (!data.ReadContentLanguage(&out->content_language))
     return false;
-  if (!data.ReadModelDetectedLanguage(&out->model_detected_language))
+  if (!data.ReadCldLanguage(&out->cld_language))
     return false;
 
-  out->is_model_reliable = data.is_model_reliable();
+  out->is_cld_reliable = data.is_cld_reliable();
   out->has_notranslate = data.has_notranslate();
 
   if (!data.ReadHtmlRootLanguage(&out->html_root_language))
@@ -112,10 +113,6 @@ bool StructTraits<translate::mojom::LanguageDetectionDetailsDataView,
   if (!data.ReadAdoptedLanguage(&out->adopted_language))
     return false;
   if (!data.ReadContents(&out->contents))
-    return false;
-
-  out->model_reliability_score = data.model_reliability_score();
-  if (!data.ReadDetectionModelVersion(&out->detection_model_version))
     return false;
 
   return true;

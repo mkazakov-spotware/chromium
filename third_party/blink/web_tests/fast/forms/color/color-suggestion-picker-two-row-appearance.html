@@ -1,10 +1,14 @@
 <!DOCTYPE html>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
-<script src="../resources/picker-common.js"></script>
-
+<html>
+<head>
+<script>
+window.enablePixelTesting = true;
+</script>
+<script src="../../../resources/js-test.js"></script>
+<script src="../../forms/resources/picker-common.js"></script>
+</head>
 <body style="background-color: #777777">
-<input type=color value="#ff0000" list=rainbow focus>
+<input type=color id=color value="#ff0000" list=rainbow focus>
 <datalist id=rainbow>
     <option>#ff0000</option>
     <option>#ffa500</option>
@@ -14,7 +18,12 @@
     <option>#4b0082</option>
     <option>#ee82ee</option>
 </datalist>
-  
+
+<p id="description" style="opacity: 0"></p>
+<div id="console" style="opacity: 0"></div>
+
 <script>
-  window.onload = openPickerAppearanceOnly(document.querySelector('input'));
+openPickerAppearanceOnly(document.getElementById('color'), finishJSTest);
 </script>
+</body>
+</html>

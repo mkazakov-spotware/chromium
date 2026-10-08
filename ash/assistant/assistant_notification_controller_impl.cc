@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,12 @@
 #include "ash/assistant/assistant_controller_impl.h"
 #include "ash/assistant/assistant_notification_expiry_monitor.h"
 #include "ash/assistant/util/deep_link_util.h"
-#include "ash/constants/notifier_catalogs.h"
-#include "ash/public/cpp/assistant/assistant_state.h"
 #include "ash/public/cpp/assistant/controller/assistant_controller.h"
 #include "ash/public/cpp/notification_utils.h"
 #include "ash/shell.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chromeos/ash/services/libassistant/public/cpp/assistant_notification.h"
+#include "chromeos/services/assistant/public/cpp/assistant_notification.h"
 #include "chromeos/ui/vector_icons/vector_icons.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -36,10 +34,10 @@ constexpr char kNotifierId[] = "assistant";
 
 std::unique_ptr<message_center::Notification> CreateSystemNotification(
     const message_center::NotifierId& notifier_id,
-    const assistant::AssistantNotification& notification) {
-  const std::u16string title = base::UTF8ToUTF16(notification.title);
-  const std::u16string message = base::UTF8ToUTF16(notification.message);
-  const std::u16string display_source =
+    const chromeos::assistant::AssistantNotification& notification) {
+  const base::string16 title = base::UTF8ToUTF16(notification.title);
+  const base::string16 message = base::UTF8ToUTF16(notification.message);
+  const base::string16 display_source =
       l10n_util::GetStringUTF16(IDS_ASH_ASSISTANT_NOTIFICATION_DISPLAY_SOURCE);
 
   message_center::RichNotificationData data;
@@ -57,13 +55,13 @@ std::unique_ptr<message_center::Notification> CreateSystemNotification(
   system_notification->set_pinned(notification.is_pinned);
 
   switch (notification.priority) {
-    case assistant::AssistantNotificationPriority::kLow:
+    case chromeos::assistant::AssistantNotificationPriority::kLow:
       system_notification->set_priority(message_center::LOW_PRIORITY);
       break;
-    case assistant::AssistantNotificationPriority::kDefault:
+    case chromeos::assistant::AssistantNotificationPriority::kDefault:
       system_notification->set_priority(message_center::DEFAULT_PRIORITY);
       break;
-    case assistant::AssistantNotificationPriority::kHigh:
+    case chromeos::assistant::AssistantNotificationPriority::kHigh:
       system_notification->set_priority(message_center::HIGH_PRIORITY);
       break;
   }
@@ -73,8 +71,7 @@ std::unique_ptr<message_center::Notification> CreateSystemNotification(
 
 message_center::NotifierId GetNotifierId() {
   return message_center::NotifierId(
-      message_center::NotifierType::SYSTEM_COMPONENT, kNotifierId,
-      NotificationCatalogName::kAssistantNotification);
+      message_center::NotifierType::SYSTEM_COMPONENT, kNotifierId);
 }
 
 bool IsValidActionUrl(const GURL& action_url) {
@@ -99,32 +96,21 @@ AssistantNotificationControllerImpl::~AssistantNotificationControllerImpl() {
 }
 
 void AssistantNotificationControllerImpl::SetAssistant(
-    assistant::Assistant* assistant) {
-  receiver_.reset();
-
+    chromeos::assistant::Assistant* assistant) {
   assistant_ = assistant;
-
-  if (assistant)
-    receiver_.Bind(assistant_->GetPendingNotificationDelegate());
 }
 
 // AssistantNotificationController --------------------------------------
+
+void AssistantNotificationControllerImpl::AddOrUpdateNotification(
+    AssistantNotification&& notification) {
+  model_.AddOrUpdateNotification(std::move(notification));
+}
 
 void AssistantNotificationControllerImpl::RemoveNotificationById(
     const std::string& id,
     bool from_server) {
   model_.RemoveNotificationById(id, from_server);
-}
-
-void AssistantNotificationControllerImpl::SetQuietMode(bool enabled) {
-  message_center::MessageCenter::Get()->SetQuietMode(enabled);
-}
-
-// NotificationDelegate ------------------------------------------------------
-
-void AssistantNotificationControllerImpl::AddOrUpdateNotification(
-    AssistantNotification notification) {
-  model_.AddOrUpdateNotification(std::move(notification));
 }
 
 void AssistantNotificationControllerImpl::RemoveNotificationByGroupingKey(
@@ -136,6 +122,10 @@ void AssistantNotificationControllerImpl::RemoveNotificationByGroupingKey(
 void AssistantNotificationControllerImpl::RemoveAllNotifications(
     bool from_server) {
   model_.RemoveAllNotifications(from_server);
+}
+
+void AssistantNotificationControllerImpl::SetQuietMode(bool enabled) {
+  message_center::MessageCenter::Get()->SetQuietMode(enabled);
 }
 
 // AssistantNotificationModelObserver ------------------------------------------
@@ -169,10 +159,8 @@ void AssistantNotificationControllerImpl::OnNotificationRemoved(
       notification.client_id, /*by_user=*/false);
 
   // Dismiss the notification on the server to sync across devices.
-  if (!from_server && AssistantState::Get()->assistant_status() ==
-                          assistant::AssistantStatus::READY) {
+  if (!from_server)
     assistant_->DismissNotification(notification);
-  }
 }
 
 void AssistantNotificationControllerImpl::OnAllNotificationsRemoved(
@@ -185,8 +173,8 @@ void AssistantNotificationControllerImpl::OnAllNotificationsRemoved(
 
 void AssistantNotificationControllerImpl::OnNotificationClicked(
     const std::string& id,
-    const absl::optional<int>& button_index,
-    const absl::optional<std::u16string>& reply) {
+    const base::Optional<int>& button_index,
+    const base::Optional<base::string16>& reply) {
   const AssistantNotification* notification = model_.GetNotificationById(id);
   if (!notification)
     return;
@@ -222,10 +210,7 @@ void AssistantNotificationControllerImpl::OnNotificationClicked(
   // -------------------------------------------------
   // Action: | Top Level | Button 1 | Button 2 | ...
   const int action_index = button_index.value_or(-1) + 1;
-  if (AssistantState::Get()->assistant_status() ==
-      assistant::AssistantStatus::READY) {
-    assistant_->RetrieveNotification(*notification, action_index);
-  }
+  assistant_->RetrieveNotification(*notification, action_index);
 }
 
 void AssistantNotificationControllerImpl::OnNotificationRemoved(

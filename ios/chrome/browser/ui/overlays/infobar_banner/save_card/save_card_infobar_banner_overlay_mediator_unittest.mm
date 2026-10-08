@@ -1,26 +1,29 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/overlays/infobar_banner/save_card/save_card_infobar_banner_overlay_mediator.h"
 
-#import "base/bind.h"
-#import "base/feature_list.h"
-#import "base/guid.h"
-#import "base/strings/sys_string_conversions.h"
-#import "components/autofill/core/browser/autofill_client.h"
-#import "components/autofill/core/browser/autofill_test_utils.h"
-#import "components/autofill/core/browser/data_model/credit_card.h"
-#import "components/autofill/core/browser/payments/autofill_save_card_infobar_delegate_mobile.h"
-#import "components/signin/public/identity_manager/account_info.h"
-#import "ios/chrome/browser/infobars/infobar_ios.h"
-#import "ios/chrome/browser/overlays/public/infobar_banner/infobar_banner_overlay_responses.h"
+#include "base/bind.h"
+#include "base/feature_list.h"
+#include "base/guid.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/test/scoped_feature_list.h"
+#include "components/autofill/core/browser/autofill_client.h"
+#include "components/autofill/core/browser/autofill_test_utils.h"
+#include "components/autofill/core/browser/data_model/credit_card.h"
+#include "components/autofill/core/browser/payments/autofill_save_card_infobar_delegate_mobile.h"
+#include "components/infobars/core/infobar_feature.h"
+#include "components/prefs/pref_service.h"
+#include "ios/chrome/browser/infobars/infobar_ios.h"
+#include "ios/chrome/browser/overlays/public/infobar_banner/infobar_banner_overlay_responses.h"
 #import "ios/chrome/browser/overlays/public/infobar_banner/save_card_infobar_banner_overlay_request_config.h"
 #import "ios/chrome/browser/overlays/public/infobar_modal/save_card_infobar_modal_overlay_responses.h"
-#import "ios/chrome/browser/overlays/test/fake_overlay_request_callback_installer.h"
+#include "ios/chrome/browser/overlays/test/fake_overlay_request_callback_installer.h"
 #import "ios/chrome/browser/ui/infobars/banners/test/fake_infobar_banner_consumer.h"
+#import "ios/chrome/browser/ui/infobars/infobar_feature.h"
 #import "testing/gtest_mac.h"
-#import "testing/platform_test.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -36,9 +39,12 @@ class SaveCardInfobarBannerOverlayMediatorTest : public PlatformTest {
       : callback_installer_(&callback_receiver_,
                             {InfobarBannerShowModalResponse::ResponseSupport(),
                              SaveCardMainAction::ResponseSupport()}) {
+    feature_list_.InitWithFeatures({kIOSInfobarUIReboot},
+                                   {kInfobarUIRebootOnlyiOS13});
   }
 
  protected:
+  base::test::ScopedFeatureList feature_list_;
   MockOverlayRequestCallbackReceiver callback_receiver_;
   FakeOverlayRequestCallbackInstaller callback_installer_;
 };
@@ -48,6 +54,7 @@ class SaveCardInfobarBannerOverlayMediatorTest : public PlatformTest {
 TEST_F(SaveCardInfobarBannerOverlayMediatorTest, SetUpConsumer) {
   autofill::CreditCard credit_card(base::GenerateGUID(),
                                    "https://www.example.com/");
+  std::unique_ptr<PrefService> prefs = autofill::test::PrefServiceForTesting();
   std::unique_ptr<autofill::AutofillSaveCardInfoBarDelegateMobile>
       passed_delegate =
           std::make_unique<autofill::AutofillSaveCardInfoBarDelegateMobile>(
@@ -59,7 +66,7 @@ TEST_F(SaveCardInfobarBannerOverlayMediatorTest, SetUpConsumer) {
                   ^(autofill::AutofillClient::SaveCardOfferUserDecision
                         user_decision){
                   }),
-              AccountInfo());
+              prefs.get());
   autofill::AutofillSaveCardInfoBarDelegateMobile* delegate =
       passed_delegate.get();
   InfoBarIOS infobar(InfobarType::kInfobarTypeSaveCard,
@@ -91,20 +98,18 @@ TEST_F(SaveCardInfobarBannerOverlayMediatorTest, PresentModalWhenUploadOn) {
   // Create an InfoBarIOS with a ConfirmInfoBarDelegate.
   autofill::CreditCard credit_card(base::GenerateGUID(),
                                    "https://www.example.com/");
+  std::unique_ptr<PrefService> prefs = autofill::test::PrefServiceForTesting();
   std::unique_ptr<autofill::AutofillSaveCardInfoBarDelegateMobile>
-      passed_delegate =
-          std::make_unique<autofill::AutofillSaveCardInfoBarDelegateMobile>(
-              /*upload=*/true,
-              autofill::AutofillClient::SaveCreditCardOptions(), credit_card,
-              autofill::LegalMessageLines(),
-              base::BindOnce(
-                  ^(autofill::AutofillClient::SaveCardOfferUserDecision
-                        user_decision,
-                    const autofill::AutofillClient::UserProvidedCardDetails&
-                        user_provided_card_details){
-                  }),
-              autofill::AutofillClient::LocalSaveCardPromptCallback(),
-              AccountInfo());
+      passed_delegate = std::make_unique<
+          autofill::AutofillSaveCardInfoBarDelegateMobile>(
+          /*upload=*/true, autofill::AutofillClient::SaveCreditCardOptions(),
+          credit_card, autofill::LegalMessageLines(),
+          base::BindOnce(^(
+              autofill::AutofillClient::SaveCardOfferUserDecision user_decision,
+              const autofill::AutofillClient::UserProvidedCardDetails&
+                  user_provided_card_details){
+          }),
+          autofill::AutofillClient::LocalSaveCardPromptCallback(), prefs.get());
 
   InfoBarIOS infobar(InfobarType::kInfobarTypeSaveCard,
                      std::move(passed_delegate));
@@ -131,6 +136,7 @@ TEST_F(SaveCardInfobarBannerOverlayMediatorTest, PresentModalWhenUploadOff) {
   // Create an InfoBarIOS with a ConfirmInfoBarDelegate.
   autofill::CreditCard credit_card(base::GenerateGUID(),
                                    "https://www.example.com/");
+  std::unique_ptr<PrefService> prefs = autofill::test::PrefServiceForTesting();
   std::unique_ptr<autofill::AutofillSaveCardInfoBarDelegateMobile>
       passed_delegate =
           std::make_unique<autofill::AutofillSaveCardInfoBarDelegateMobile>(
@@ -142,7 +148,7 @@ TEST_F(SaveCardInfobarBannerOverlayMediatorTest, PresentModalWhenUploadOff) {
                   ^(autofill::AutofillClient::SaveCardOfferUserDecision
                         user_decision){
                   }),
-              AccountInfo());
+              prefs.get());
 
   InfoBarIOS infobar(InfobarType::kInfobarTypeSaveCard,
                      std::move(passed_delegate));

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -15,23 +15,23 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <list>
 #include <memory>
 #include <string>
 
 #include "base/callback.h"
 #include "base/files/file.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/unsafe_shared_memory_region.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/time/time.h"
-#include "base/token.h"
 #include "build/build_config.h"
 #include "media/base/video_frame.h"
+#include "media/base/video_frame_feedback.h"
 #include "media/capture/capture_export.h"
 #include "media/capture/mojom/image_capture.mojom.h"
-#include "media/capture/mojom/video_capture_types.mojom.h"
 #include "media/capture/video/video_capture_buffer_handle.h"
 #include "media/capture/video/video_capture_device_descriptor.h"
-#include "media/capture/video/video_capture_feedback.h"
 #include "media/capture/video_capture_types.h"
 #include "ui/gfx/gpu_memory_buffer.h"
 
@@ -58,21 +58,13 @@ class CAPTURE_EXPORT VideoFrameConsumerFeedbackObserver {
   // is available for encoding and/or sufficient bandwidth is available for
   // transmission over the network.  The maximum of the two utilization
   // measurements would be used as feedback.
-  virtual void OnUtilizationReport(media::VideoCaptureFeedback feedback) {}
-};
-
-struct CAPTURE_EXPORT CapturedExternalVideoBuffer {
-  CapturedExternalVideoBuffer(gfx::GpuMemoryBufferHandle handle,
-                              VideoCaptureFormat format,
-                              gfx::ColorSpace color_space);
-  CapturedExternalVideoBuffer(CapturedExternalVideoBuffer&& other);
-  ~CapturedExternalVideoBuffer();
-
-  CapturedExternalVideoBuffer& operator=(CapturedExternalVideoBuffer&& other);
-
-  gfx::GpuMemoryBufferHandle handle;
-  VideoCaptureFormat format;
-  gfx::ColorSpace color_space;
+  //
+  // The parameter |frame_feedback_id| must match a |frame_feedback_id|
+  // previously sent out by the VideoCaptureDevice we are giving feedback about.
+  // It is used to indicate which particular frame the reported utilization
+  // corresponds to.
+  virtual void OnUtilizationReport(int frame_feedback_id,
+                                   media::VideoFrameFeedback feedback) {}
 };
 
 class CAPTURE_EXPORT VideoCaptureDevice
@@ -107,6 +99,9 @@ class CAPTURE_EXPORT VideoCaptureDevice
         // Duplicate as an writable (unsafe) shared memory region.
         virtual base::UnsafeSharedMemoryRegion DuplicateAsUnsafeRegion() = 0;
 
+        // Duplicate as a writable (unsafe) mojo buffer.
+        virtual mojo::ScopedSharedBufferHandle DuplicateAsMojoBuffer() = 0;
+
         // Access a |VideoCaptureBufferHandle| for local, writable memory.
         virtual std::unique_ptr<VideoCaptureBufferHandle>
         GetHandleForInProcessAccess() = 0;
@@ -128,12 +123,6 @@ class CAPTURE_EXPORT VideoCaptureDevice
       int frame_feedback_id;
       std::unique_ptr<HandleProvider> handle_provider;
       std::unique_ptr<ScopedAccessPermission> access_permission;
-
-      // Some buffer types may be preemptively mapped in the capturer if
-      // requested by the consumer.
-      // This is used to notify the client that a shared memory region
-      // associated with the buffer is valid.
-      bool is_premapped = false;
     };
 
     // Result code for calls to ReserveOutputBuffer()
@@ -190,21 +179,19 @@ class CAPTURE_EXPORT VideoCaptureDevice
         base::TimeDelta timestamp,
         int frame_feedback_id = 0) = 0;
 
-    // Captured a new video frame. The data for this frame is in
-    // |buffer.handle|, which is owned by the platform-specific capture device.
-    // It is the responsibility of the implementation to prevent the buffer in
-    // |buffer.handle| from being reused by the external capturer. In practice,
-    // this is used only on macOS, the external capturer maintains a
-    // CVPixelBufferPool, and gfx::ScopedInUseIOSurface is used to prevent reuse
-    // of buffers until all consumers have consumed them. |visible_rect|
-    // specifies the region in the memory pointed to by |buffer.handle| that
-    // contains the captured content.
+    // Captured a new video frame. The data for this frame is in |handle|,
+    // which is owned by the platform-specific capture device. It is the
+    // responsibilty of the implementation to prevent the buffer in |handle|
+    // from being reused by the external capturer. In practice, this is used
+    // only on macOS, the external capturer maintains a CVPixelBufferPool, and
+    // gfx::ScopedInUseIOSurface is used to prevent reuse of buffers until all
+    // consumers have consumed them.
     virtual void OnIncomingCapturedExternalBuffer(
-        CapturedExternalVideoBuffer buffer,
-        std::vector<CapturedExternalVideoBuffer> scaled_buffers,
+        gfx::GpuMemoryBufferHandle handle,
+        const VideoCaptureFormat& format,
+        const gfx::ColorSpace& color_space,
         base::TimeTicks reference_time,
-        base::TimeDelta timestamp,
-        gfx::Rect visible_rect) = 0;
+        base::TimeDelta timestamp) = 0;
 
     // Reserve an output buffer into which contents can be captured directly.
     // The returned |buffer| will always be allocated with a memory size
@@ -216,11 +203,11 @@ class CAPTURE_EXPORT VideoCaptureDevice
     //
     // The buffer stays reserved for use by the caller as long as it
     // holds on to the contained |buffer_read_write_permission|.
-    [[nodiscard]] virtual ReserveResult ReserveOutputBuffer(
-        const gfx::Size& dimensions,
-        VideoPixelFormat format,
-        int frame_feedback_id,
-        Buffer* buffer) = 0;
+    virtual ReserveResult ReserveOutputBuffer(const gfx::Size& dimensions,
+                                              VideoPixelFormat format,
+                                              int frame_feedback_id,
+                                              Buffer* buffer)
+        WARN_UNUSED_RESULT = 0;
 
     // Provides VCD::Client with a populated Buffer containing the content of
     // the next video frame. The |buffer| must originate from an earlier call to
@@ -310,23 +297,6 @@ class CAPTURE_EXPORT VideoCaptureDevice
   // Note: This should only be called after AllocateAndStart() and before
   // StopAndDeAllocate(). Otherwise, its behavior is undefined.
   virtual void Resume() {}
-
-  // Start/stop cropping.
-  //
-  // Non-empty |crop_id| sets (or changes) the crop-target.
-  // Empty |crop_id| reverts the capture to its original, uncropped state.
-  //
-  // |crop_version| must be incremented by at least one for each call.
-  // By including it in frame's metadata, Viz informs Blink what was the
-  // latest invocation of cropTo() before a given frame was produced.
-  //
-  // The callback reports success/failure. It is called on an unspecified
-  // thread, it's the caller's responsibility to wrap it (i.e. via BindPostTask)
-  // as needed.
-  virtual void Crop(
-      const base::Token& crop_id,
-      uint32_t crop_version,
-      base::OnceCallback<void(media::mojom::CropRequestResult)> callback);
 
   // Deallocates the video capturer, possibly asynchronously.
   //

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,6 +42,7 @@ AndroidCdmFactory::~AndroidCdmFactory() {
 }
 
 void AndroidCdmFactory::Create(
+    const std::string& key_system,
     const CdmConfig& cdm_config,
     const SessionMessageCB& session_message_cb,
     const SessionClosedCB& session_closed_cb,
@@ -57,7 +58,7 @@ void AndroidCdmFactory::Create(
   // Create AesDecryptor here to support External Clear Key key system.
   // This is used for testing.
   if (base::FeatureList::IsEnabled(media::kExternalClearKeyForTesting) &&
-      IsExternalClearKey(cdm_config.key_system)) {
+      IsExternalClearKey(key_system)) {
     scoped_refptr<ContentDecryptionModule> cdm(
         new AesDecryptor(session_message_cb, session_closed_cb,
                          session_keys_change_cb, session_expiration_update_cb));
@@ -67,11 +68,10 @@ void AndroidCdmFactory::Create(
 
   std::string error_message;
 
-  if (!MediaDrmBridge::IsKeySystemSupported(cdm_config.key_system)) {
+  if (!MediaDrmBridge::IsKeySystemSupported(key_system)) {
     ReportMediaDrmBridgeKeySystemSupport(false);
     std::move(bound_cdm_created_cb)
-        .Run(nullptr,
-             "Key system not supported unexpectedly: " + cdm_config.key_system);
+        .Run(nullptr, "Key system not supported unexpectedly: " + key_system);
     return;
   }
 
@@ -87,8 +87,9 @@ void AndroidCdmFactory::Create(
       PendingCreation(std::move(factory), std::move(bound_cdm_created_cb)));
   CHECK(result.second);
 
-  raw_factory->Create(cdm_config, session_message_cb, session_closed_cb,
-                      session_keys_change_cb, session_expiration_update_cb,
+  raw_factory->Create(key_system, cdm_config, session_message_cb,
+                      session_closed_cb, session_keys_change_cb,
+                      session_expiration_update_cb,
                       base::BindOnce(&AndroidCdmFactory::OnCdmCreated,
                                      weak_factory_.GetWeakPtr(), creation_id_));
 }
@@ -99,7 +100,7 @@ void AndroidCdmFactory::OnCdmCreated(
     const std::string& error_message) {
   DVLOG(1) << __func__ << ": creation_id = " << creation_id;
 
-  DCHECK(pending_creations_.contains(creation_id));
+  DCHECK(pending_creations_.count(creation_id));
   CdmCreatedCB cdm_created_cb =
       std::move(pending_creations_[creation_id].second);
   pending_creations_.erase(creation_id);

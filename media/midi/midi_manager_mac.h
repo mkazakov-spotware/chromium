@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "base/callback.h"
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/synchronization/lock.h"
 #include "base/thread_annotations.h"
 #include "base/threading/thread.h"
@@ -25,10 +26,6 @@ class MidiService;
 class MIDI_EXPORT MidiManagerMac final : public MidiManager {
  public:
   explicit MidiManagerMac(MidiService* service);
-
-  MidiManagerMac(const MidiManagerMac&) = delete;
-  MidiManagerMac& operator=(const MidiManagerMac&) = delete;
-
   ~MidiManagerMac() override;
 
   // MidiManager implementation.
@@ -84,6 +81,8 @@ class MIDI_EXPORT MidiManagerMac final : public MidiManager {
 
   // Keeps track of all destinations.
   std::vector<MIDIEndpointRef> destinations_;
+
+  DISALLOW_COPY_AND_ASSIGN(MidiManagerMac);
 };
 
 }  // namespace midi

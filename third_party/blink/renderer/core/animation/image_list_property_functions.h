@@ -1,15 +1,13 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_ANIMATION_IMAGE_LIST_PROPERTY_FUNCTIONS_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_ANIMATION_IMAGE_LIST_PROPERTY_FUNCTIONS_H_
 
-#include "base/notreached.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -45,15 +43,15 @@ class ImageListPropertyFunctions {
   }
 
   static void SetImageList(const CSSProperty& property,
-                           ComputedStyleBuilder& builder,
+                           ComputedStyle& style,
                            const StyleImageList* image_list) {
     FillLayer* fill_layer = nullptr;
     switch (property.PropertyID()) {
       case CSSPropertyID::kBackgroundImage:
-        fill_layer = &builder.AccessBackgroundLayers();
+        fill_layer = &style.AccessBackgroundLayers();
         break;
       case CSSPropertyID::kWebkitMaskImage:
-        fill_layer = &builder.AccessMaskLayers();
+        fill_layer = &style.AccessMaskLayers();
         break;
       default:
         NOTREACHED();

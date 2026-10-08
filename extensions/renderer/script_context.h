@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,20 +12,17 @@
 
 #include "base/callback.h"
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "base/unguessable_token.h"
 #include "extensions/common/features/feature.h"
-#include "extensions/common/mojom/api_permission_id.mojom-shared.h"
 #include "extensions/common/permissions/api_permission_set.h"
 #include "extensions/common/script_constants.h"
 #include "extensions/renderer/module_system.h"
 #include "extensions/renderer/safe_builtins.h"
-#include "third_party/blink/public/web/web_script_execution_callback.h"
+#include "extensions/renderer/script_injection_callback.h"
 #include "url/gurl.h"
-#include "v8-exception.h"
-#include "v8/include/v8-context.h"
-#include "v8/include/v8-forward.h"
-#include "v8/include/v8-script.h"
+#include "v8/include/v8.h"
 
 namespace blink {
 class WebDocumentLoader;
@@ -49,8 +46,7 @@ class Extension;
 // functionality as those bound to the main RenderThread.
 class ScriptContext {
  public:
-  using RunScriptExceptionHandler =
-      base::OnceCallback<void(const v8::TryCatch&)>;
+  using RunScriptExceptionHandler = base::Callback<void(const v8::TryCatch&)>;
 
   ScriptContext(const v8::Local<v8::Context>& context,
                 blink::WebLocalFrame* frame,
@@ -58,10 +54,6 @@ class ScriptContext {
                 Feature::Context context_type,
                 const Extension* effective_extension,
                 Feature::Context effective_context_type);
-
-  ScriptContext(const ScriptContext&) = delete;
-  ScriptContext& operator=(const ScriptContext&) = delete;
-
   ~ScriptContext();
 
   // Returns whether |url| from any Extension in |extension_set| is sandboxed,
@@ -126,10 +118,11 @@ class ScriptContext {
   void SafeCallFunction(const v8::Local<v8::Function>& function,
                         int argc,
                         v8::Local<v8::Value> argv[]);
-  void SafeCallFunction(const v8::Local<v8::Function>& function,
-                        int argc,
-                        v8::Local<v8::Value> argv[],
-                        blink::WebScriptExecutionCallback callback);
+  void SafeCallFunction(
+      const v8::Local<v8::Function>& function,
+      int argc,
+      v8::Local<v8::Value> argv[],
+      const ScriptInjectionCallback::CompleteCallback& callback);
 
   // Returns the availability of the API |api_name|.
   Feature::Availability GetAvailability(const std::string& api_name);
@@ -192,16 +185,12 @@ class ScriptContext {
    public:
     ScopedFrameDocumentLoader(blink::WebLocalFrame* frame,
                               blink::WebDocumentLoader* document_loader);
-
-    ScopedFrameDocumentLoader(const ScopedFrameDocumentLoader&) = delete;
-    ScopedFrameDocumentLoader& operator=(const ScopedFrameDocumentLoader&) =
-        delete;
-
     ~ScopedFrameDocumentLoader();
 
    private:
     blink::WebLocalFrame* frame_;
     blink::WebDocumentLoader* document_loader_;
+    DISALLOW_COPY_AND_ASSIGN(ScopedFrameDocumentLoader);
   };
 
   // TODO(devlin): Move all these Get*URL*() methods out of here? While they are
@@ -255,7 +244,7 @@ class ScriptContext {
   // a context for an extension which has that permission, or by being a web
   // context which has been granted the corresponding capability by an
   // extension.
-  bool HasAPIPermission(mojom::APIPermissionID permission) const;
+  bool HasAPIPermission(APIPermission::ID permission) const;
 
   // Throws an Error in this context's JavaScript context, if this context does
   // not have access to |name|. Returns true if this context has access (i.e.
@@ -268,20 +257,22 @@ class ScriptContext {
   // Gets the current stack trace as a multi-line string to be logged.
   std::string GetStackTraceAsString() const;
 
-  // Generate a unique integer value. This is only unique within this instance.
-  int32_t GetNextIdFromCounter() { return id_counter++; }
-
   // Runs |code|, labelling the script that gets created as |name| (the name is
   // used in the devtools and stack traces). |exception_handler| will be called
   // re-entrantly if an exception is thrown during the script's execution.
   v8::Local<v8::Value> RunScript(
       v8::Local<v8::String> name,
       v8::Local<v8::String> code,
-      RunScriptExceptionHandler exception_handler,
+      const RunScriptExceptionHandler& exception_handler,
       v8::ScriptCompiler::NoCacheReason no_cache_reason =
           v8::ScriptCompiler::NoCacheReason::kNoCacheNoReason);
 
  private:
+  // DEPRECATED.
+  v8::Local<v8::Value> CallFunction(const v8::Local<v8::Function>& function,
+                                    int argc,
+                                    v8::Local<v8::Value> argv[]) const;
+
   // Whether this context is valid.
   bool is_valid_;
 
@@ -331,10 +322,9 @@ class ScriptContext {
 
   int64_t service_worker_version_id_;
 
-  // A counter to generate unique IDs. IDs must start at 1.
-  int32_t id_counter = 1;
-
   base::ThreadChecker thread_checker_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScriptContext);
 };
 
 }  // namespace extensions

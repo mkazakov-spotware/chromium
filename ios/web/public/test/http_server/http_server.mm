@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,20 +6,20 @@
 
 #import <Foundation/Foundation.h>
 
-#import <string>
+#include <string>
 
-#import "base/bind.h"
-#import "base/check.h"
-#import "base/path_service.h"
-#import "base/strings/string_number_conversions.h"
-#import "base/strings/sys_string_conversions.h"
-#import "ios/net/url_test_util.h"
+#include "base/bind.h"
+#include "base/check.h"
+#include "base/path_service.h"
+#include "base/strings/string_number_conversions.h"
+#include "base/strings/sys_string_conversions.h"
+#include "ios/net/url_test_util.h"
 #import "net/base/mac/url_conversions.h"
-#import "net/test/embedded_test_server/embedded_test_server.h"
-#import "net/test/embedded_test_server/http_request.h"
-#import "net/test/embedded_test_server/http_response.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
+#include "net/test/embedded_test_server/http_request.h"
+#include "net/test/embedded_test_server/http_response.h"
 
-#import "url/gurl.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."

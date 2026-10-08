@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -65,7 +65,7 @@ enum PathComponentIndex : unsigned {
 
 InterpolationValue PathInterpolationFunctions::ConvertValue(
     const StylePath* style_path,
-    CoordinateConversion coordinate_conversion) {
+    CoordinateConversion coordinateConversion) {
   if (!style_path)
     return nullptr;
 
@@ -81,7 +81,7 @@ InterpolationValue PathInterpolationFunctions::ConvertValue(
         SVGPathSegInterpolationFunctions::ConsumePathSeg(segment,
                                                          current_coordinates));
     SVGPathSegType seg_type = segment.command;
-    if (coordinate_conversion == kForceAbsolute)
+    if (coordinateConversion == ForceAbsolute)
       seg_type = ToAbsolutePathSegType(seg_type);
     path_seg_types.push_back(seg_type);
     length++;
@@ -100,7 +100,7 @@ InterpolationValue PathInterpolationFunctions::ConvertValue(
                                 path_seg_types, style_path->GetWindRule()));
 }
 
-class UnderlyingPathSegTypesChecker final
+class UnderlyingPathSegTypesChecker
     : public InterpolationType::ConversionChecker {
  public:
   ~UnderlyingPathSegTypesChecker() final = default;
@@ -165,33 +165,19 @@ static bool PathSegTypesMatch(const Vector<SVGPathSegType>& a,
   return true;
 }
 
-bool PathInterpolationFunctions::IsPathNonInterpolableValue(
-    const NonInterpolableValue& value) {
-  return DynamicTo<SVGPathNonInterpolableValue>(value);
-}
-
-bool PathInterpolationFunctions::PathsAreCompatible(
-    const NonInterpolableValue& start,
-    const NonInterpolableValue& end) {
-  auto& start_path = To<SVGPathNonInterpolableValue>(start);
-  auto& end_path = To<SVGPathNonInterpolableValue>(end);
+PairwiseInterpolationValue PathInterpolationFunctions::MaybeMergeSingles(
+    InterpolationValue&& start,
+    InterpolationValue&& end) {
+  auto& start_path =
+      To<SVGPathNonInterpolableValue>(*start.non_interpolable_value);
+  auto& end_path = To<SVGPathNonInterpolableValue>(*end.non_interpolable_value);
 
   if (start_path.GetWindRule() != end_path.GetWindRule())
-    return false;
+    return nullptr;
 
   const Vector<SVGPathSegType>& start_types = start_path.PathSegTypes();
   const Vector<SVGPathSegType>& end_types = end_path.PathSegTypes();
   if (start_types.size() == 0 || !PathSegTypesMatch(start_types, end_types))
-    return false;
-
-  return true;
-}
-
-PairwiseInterpolationValue PathInterpolationFunctions::MaybeMergeSingles(
-    InterpolationValue&& start,
-    InterpolationValue&& end) {
-  if (!PathsAreCompatible(*start.non_interpolable_value.get(),
-                          *end.non_interpolable_value.get()))
     return nullptr;
 
   return PairwiseInterpolationValue(std::move(start.interpolable_value),

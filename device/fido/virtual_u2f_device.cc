@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,16 +9,20 @@
 #include <tuple>
 #include <utility>
 
-#include "base/containers/contains.h"
-#include "base/functional/bind.h"
+#include "base/bind.h"
+#include "base/check_op.h"
 #include "base/location.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
+#include "base/time/time.h"
 #include "components/apdu/apdu_command.h"
 #include "components/apdu/apdu_response.h"
+#include "components/cbor/reader.h"
+#include "components/cbor/values.h"
 #include "crypto/ec_private_key.h"
 #include "device/fido/fido_constants.h"
 #include "device/fido/fido_parsing_utils.h"
+#include "device/fido/public_key.h"
 
 namespace device {
 
@@ -31,7 +35,7 @@ namespace {
 constexpr uint8_t kU2fRegistrationResponseHeader = 0x05;
 
 // Returns an error response with the given status.
-absl::optional<std::vector<uint8_t>> ErrorStatus(
+base::Optional<std::vector<uint8_t>> ErrorStatus(
     apdu::ApduResponse::Status status) {
   return apdu::ApduResponse(std::vector<uint8_t>(), status)
       .GetEncodedResponse();
@@ -50,7 +54,7 @@ bool VirtualU2fDevice::IsTransportSupported(FidoTransportProtocol transport) {
                         transport);
 }
 
-VirtualU2fDevice::VirtualU2fDevice() = default;
+VirtualU2fDevice::VirtualU2fDevice() : VirtualFidoDevice() {}
 
 VirtualU2fDevice::VirtualU2fDevice(scoped_refptr<State> state)
     : VirtualFidoDevice(std::move(state)) {
@@ -70,7 +74,7 @@ FidoDevice::CancelToken VirtualU2fDevice::DeviceTransact(
 
   // If malformed U2F request is received, respond with error immediately.
   if (!parsed_command) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(
             std::move(cb),
@@ -83,12 +87,12 @@ FidoDevice::CancelToken VirtualU2fDevice::DeviceTransact(
     auto response = apdu::ApduResponse(std::move(nonsense),
                                        apdu::ApduResponse::Status::SW_NO_ERROR)
                         .GetEncodedResponse();
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(cb), std::move(response)));
     return 0;
   }
 
-  absl::optional<std::vector<uint8_t>> response;
+  base::Optional<std::vector<uint8_t>> response;
 
   switch (parsed_command->ins()) {
     // Version request is defined by the U2F spec, but is never used in
@@ -110,7 +114,7 @@ FidoDevice::CancelToken VirtualU2fDevice::DeviceTransact(
   if (response) {
     // Call |callback| via the |MessageLoop| because |AuthenticatorImpl| doesn't
     // support callback hairpinning.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(cb), std::move(response)));
   }
   return 0;
@@ -120,7 +124,7 @@ base::WeakPtr<FidoDevice> VirtualU2fDevice::GetWeakPtr() {
   return weak_factory_.GetWeakPtr();
 }
 
-absl::optional<std::vector<uint8_t>> VirtualU2fDevice::DoRegister(
+base::Optional<std::vector<uint8_t>> VirtualU2fDevice::DoRegister(
     uint8_t ins,
     uint8_t p1,
     uint8_t p2,
@@ -130,7 +134,7 @@ absl::optional<std::vector<uint8_t>> VirtualU2fDevice::DoRegister(
   }
 
   if (!SimulatePress()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   auto challenge_param = data.first<32>();
@@ -140,12 +144,7 @@ absl::optional<std::vector<uint8_t>> VirtualU2fDevice::DoRegister(
   // Note: Non-deterministic, you need to mock this out if you rely on
   // deterministic behavior.
   std::unique_ptr<PrivateKey> private_key(PrivateKey::FreshP256Key());
-  std::vector<uint8_t> x962 = private_key->GetX962PublicKey();
-
-  if (mutable_state()->u2f_invalid_public_key) {
-    // Flip a bit in the x-coordinate, which will push the point off the curve.
-    x962[10] ^= 1;
-  }
+  const std::vector<uint8_t> x962 = private_key->GetX962PublicKey();
 
   // Our key handles are simple hashes of the public key.
   const auto key_handle = crypto::SHA256Hash(x962);
@@ -172,8 +171,8 @@ absl::optional<std::vector<uint8_t>> VirtualU2fDevice::DoRegister(
   // The spec says that the other bits of P1 should be zero. However, Chrome
   // sends Test User Presence (0x03) so we ignore those bits.
   bool individual_attestation_requested = p1 & kP1IndividualAttestation;
-  const auto attestation_cert = GenerateAttestationCertificate(
-      individual_attestation_requested, /*include_transports=*/true);
+  const auto attestation_cert =
+      GenerateAttestationCertificate(individual_attestation_requested);
   if (!attestation_cert)
     return ErrorStatus(apdu::ApduResponse::Status::SW_INS_NOT_SUPPORTED);
 
@@ -197,7 +196,7 @@ absl::optional<std::vector<uint8_t>> VirtualU2fDevice::DoRegister(
       .GetEncodedResponse();
 }
 
-absl::optional<std::vector<uint8_t>> VirtualU2fDevice::DoSign(
+base::Optional<std::vector<uint8_t>> VirtualU2fDevice::DoSign(
     uint8_t ins,
     uint8_t p1,
     uint8_t p2,
@@ -209,7 +208,7 @@ absl::optional<std::vector<uint8_t>> VirtualU2fDevice::DoSign(
   }
 
   if (!SimulatePress()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   if (data.size() < 32 + 32 + 1)
@@ -246,16 +245,9 @@ absl::optional<std::vector<uint8_t>> VirtualU2fDevice::DoSign(
   // Sign with credential key.
   std::vector<uint8_t> sig = registration->private_key->Sign(sign_buffer);
 
-  if (mutable_state()->u2f_invalid_signature) {
-    // Flip a bit in the ASN.1 header to make the signature structurally
-    // invalid.
-    sig[0] ^= 1;
-  }
-
   // Add signature for full response.
   Append(&response, sig);
 
-  mutable_state()->NotifyAssertion(std::make_pair(key_handle, registration));
   return apdu::ApduResponse(std::move(response),
                             apdu::ApduResponse::Status::SW_NO_ERROR)
       .GetEncodedResponse();

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,9 @@
 
 #include "base/json/json_string_value_serializer.h"
 #include "base/memory/ptr_util.h"
-#include "base/metrics/histogram_functions.h"
-#include "base/metrics/histogram_macros.h"
-#include "base/time/time.h"
 #include "components/reading_list/core/offline_url_utils.h"
 #include "components/reading_list/core/proto/reading_list.pb.h"
-#include "components/reading_list/core/reading_list_sync_bridge.h"
+#include "components/reading_list/core/reading_list_store.h"
 #include "components/sync/protocol/reading_list_specifics.pb.h"
 #include "net/base/backoff_entry_serializer.h"
 
@@ -22,7 +19,7 @@ namespace {
 int64_t TimeToUS(const base::Time& time) {
   return (time - base::Time::UnixEpoch()).InMicroseconds();
 }
-}  // namespace
+}
 
 // The backoff time is the following: 10min, 10min, 1h, 2h, 2h..., starting
 // after the first failure.
@@ -62,7 +59,6 @@ ReadingListEntry::ReadingListEntry(const GURL& url,
                                    std::unique_ptr<net::BackoffEntry> backoff)
     : ReadingListEntry(url,
                        title,
-                       base::TimeDelta(),
                        UNSEEN,
                        TimeToUS(now),
                        0,
@@ -80,7 +76,6 @@ ReadingListEntry::ReadingListEntry(const GURL& url,
 ReadingListEntry::ReadingListEntry(
     const GURL& url,
     const std::string& title,
-    base::TimeDelta estimated_read_time,
     State state,
     int64_t creation_time,
     int64_t first_read_time,
@@ -96,7 +91,6 @@ ReadingListEntry::ReadingListEntry(
     const reading_list::ContentSuggestionsExtra& content_suggestions_extra)
     : url_(url),
       title_(title),
-      estimated_read_time_(estimated_read_time),
       state_(state),
       distilled_path_(distilled_path),
       distilled_url_(distilled_url),
@@ -124,7 +118,6 @@ ReadingListEntry::ReadingListEntry(
 ReadingListEntry::ReadingListEntry(ReadingListEntry&& entry)
     : url_(std::move(entry.url_)),
       title_(std::move(entry.title_)),
-      estimated_read_time_(std::move(entry.estimated_read_time_)),
       state_(std::move(entry.state_)),
       distilled_path_(std::move(entry.distilled_path_)),
       distilled_url_(std::move(entry.distilled_url_)),
@@ -147,10 +140,6 @@ const GURL& ReadingListEntry::URL() const {
 
 const std::string& ReadingListEntry::Title() const {
   return title_;
-}
-
-base::TimeDelta ReadingListEntry::EstimatedReadTime() const {
-  return estimated_read_time_;
 }
 
 ReadingListEntry::DistillationState ReadingListEntry::DistilledState() const {
@@ -184,7 +173,6 @@ int ReadingListEntry::FailedDownloadCounter() const {
 ReadingListEntry& ReadingListEntry::operator=(ReadingListEntry&& other) {
   url_ = std::move(other.url_);
   title_ = std::move(other.title_);
-  estimated_read_time_ = std::move(other.estimated_read_time_);
   distilled_path_ = std::move(other.distilled_path_);
   distilled_url_ = std::move(other.distilled_url_);
   distilled_state_ = std::move(other.distilled_state_);
@@ -218,12 +206,7 @@ void ReadingListEntry::SetRead(bool read, const base::Time& now) {
     return;
   }
   if (FirstReadTime() == 0 && read) {
-    int64_t time_to_us = TimeToUS(now);
-    int64_t time_since_creation =
-        (time_to_us - creation_time_us_) / base::Time::kMicrosecondsPerHour;
-    base::UmaHistogramCounts1000("ReadingList.Read.AgeOnFirstRead",
-                                 time_since_creation);
-    first_read_time_us_ = time_to_us;
+    first_read_time_us_ = TimeToUS(now);
   }
   if (!(previous_state == UNSEEN && state_ == UNREAD)) {
     // If changing UNSEEN -> UNREAD, entry is not marked updated to preserve
@@ -248,11 +231,6 @@ ReadingListEntry::ContentSuggestionsExtra() const {
 void ReadingListEntry::SetContentSuggestionsExtra(
     const reading_list::ContentSuggestionsExtra& extra) {
   content_suggestions_extra_ = extra;
-}
-
-void ReadingListEntry::SetEstimatedReadTime(
-    base::TimeDelta estimated_read_time) {
-  estimated_read_time_ = estimated_read_time;
 }
 
 void ReadingListEntry::SetDistilledInfo(const base::FilePath& path,
@@ -352,10 +330,6 @@ std::unique_ptr<ReadingListEntry> ReadingListEntry::FromReadingListLocal(
     // update_title_time_us. Set it to creation_time_us for consistency.
     update_title_time_us = creation_time_us;
   }
-  base::TimeDelta estimated_read_time;
-  if (pb_entry.estimated_read_time_seconds()) {
-    estimated_read_time = base::Seconds(pb_entry.estimated_read_time_seconds());
-  }
 
   State state = UNSEEN;
   if (pb_entry.has_status()) {
@@ -425,9 +399,8 @@ std::unique_ptr<ReadingListEntry> ReadingListEntry::FromReadingListLocal(
     std::unique_ptr<base::Value> value(
         deserializer.Deserialize(nullptr, nullptr));
     if (value) {
-      DCHECK(value->is_list());
-      backoff = net::BackoffEntrySerializer::DeserializeFromList(
-          value->GetList(), &kBackoffPolicy, nullptr, now);
+      backoff = net::BackoffEntrySerializer::DeserializeFromValue(
+          *value, &kBackoffPolicy, nullptr, now);
     }
   }
 
@@ -441,11 +414,10 @@ std::unique_ptr<ReadingListEntry> ReadingListEntry::FromReadingListLocal(
   }
 
   return base::WrapUnique<ReadingListEntry>(new ReadingListEntry(
-      url, title, estimated_read_time, state, creation_time_us,
-      first_read_time_us, update_time_us, update_title_time_us,
-      distillation_state, distilled_path, distilled_url, distillation_time_us,
-      distillation_size, failed_download_counter, std::move(backoff),
-      content_suggestions_extra));
+      url, title, state, creation_time_us, first_read_time_us, update_time_us,
+      update_title_time_us, distillation_state, distilled_path, distilled_url,
+      distillation_time_us, distillation_size, failed_download_counter,
+      std::move(backoff), content_suggestions_extra));
 }
 
 // static
@@ -488,10 +460,6 @@ std::unique_ptr<ReadingListEntry> ReadingListEntry::FromReadingListSpecifics(
     // update_title_time_us. Set it to creation_time_us for consistency.
     update_title_time_us = creation_time_us;
   }
-  base::TimeDelta estimated_read_time;
-  if (pb_entry.has_estimated_read_time_seconds()) {
-    estimated_read_time = base::Seconds(pb_entry.estimated_read_time_seconds());
-  }
 
   State state = UNSEEN;
   if (pb_entry.has_status()) {
@@ -509,9 +477,8 @@ std::unique_ptr<ReadingListEntry> ReadingListEntry::FromReadingListSpecifics(
   }
 
   return base::WrapUnique<ReadingListEntry>(new ReadingListEntry(
-      url, title, estimated_read_time, state, creation_time_us,
-      first_read_time_us, update_time_us, update_title_time_us, WAITING,
-      base::FilePath(), GURL(), 0, 0, 0, nullptr,
+      url, title, state, creation_time_us, first_read_time_us, update_time_us,
+      update_title_time_us, WAITING, base::FilePath(), GURL(), 0, 0, 0, nullptr,
       reading_list::ContentSuggestionsExtra()));
 }
 
@@ -538,12 +505,6 @@ void ReadingListEntry::MergeWithEntry(const ReadingListEntry& other) {
   if (creation_time_us_ < other.creation_time_us_) {
     creation_time_us_ = std::move(other.creation_time_us_);
     first_read_time_us_ = std::move(other.first_read_time_us_);
-    if (estimated_read_time_ != other.estimated_read_time_ &&
-        !other.estimated_read_time_.is_zero()) {
-      // Assume that if |other| is newer that its estimated read time is the
-      // preferred one.
-      estimated_read_time_ = std::move(other.estimated_read_time_);
-    }
   } else if (creation_time_us_ == other.creation_time_us_) {
     // The first_time_read_us from |other| is used if
     // - this.first_time_read_us == 0: the entry was never read in this device.
@@ -568,9 +529,8 @@ void ReadingListEntry::MergeWithEntry(const ReadingListEntry& other) {
 #if !defined(NDEBUG)
   std::unique_ptr<sync_pb::ReadingListSpecifics> new_this_pb(
       AsReadingListSpecifics());
-  DCHECK(
-      ReadingListSyncBridge::CompareEntriesForSync(*old_this_pb, *new_this_pb));
-  DCHECK(ReadingListSyncBridge::CompareEntriesForSync(*other_pb, *new_this_pb));
+  DCHECK(ReadingListStore::CompareEntriesForSync(*old_this_pb, *new_this_pb));
+  DCHECK(ReadingListStore::CompareEntriesForSync(*other_pb, *new_this_pb));
 #endif
 }
 
@@ -588,7 +548,6 @@ ReadingListEntry::AsReadingListLocal(const base::Time& now) const {
   pb_entry->set_first_read_time_us(FirstReadTime());
   pb_entry->set_update_time_us(UpdateTime());
   pb_entry->set_update_title_time_us(UpdateTitleTime());
-  pb_entry->set_estimated_read_time_seconds(EstimatedReadTime().InSeconds());
 
   switch (state_) {
     case READ:
@@ -638,12 +597,12 @@ ReadingListEntry::AsReadingListLocal(const base::Time& now) const {
   pb_entry->set_failed_download_counter(failed_download_counter_);
 
   if (backoff_) {
-    base::Value::List backoff =
-        net::BackoffEntrySerializer::SerializeToList(*backoff_, now);
+    std::unique_ptr<base::Value> backoff =
+        net::BackoffEntrySerializer::SerializeToValue(*backoff_, now);
 
     std::string output;
     JSONStringValueSerializer serializer(&output);
-    serializer.Serialize(backoff);
+    serializer.Serialize(*backoff);
     pb_entry->set_backoff(output);
   }
 
@@ -668,7 +627,6 @@ ReadingListEntry::AsReadingListSpecifics() const {
   pb_entry->set_first_read_time_us(FirstReadTime());
   pb_entry->set_update_time_us(UpdateTime());
   pb_entry->set_update_title_time_us(UpdateTitleTime());
-  pb_entry->set_estimated_read_time_seconds(EstimatedReadTime().InSeconds());
 
   switch (state_) {
     case READ:

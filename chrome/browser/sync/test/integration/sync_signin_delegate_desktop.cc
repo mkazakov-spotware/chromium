@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,27 +19,21 @@ void SyncSigninDelegateDesktop::SigninFake(Profile* profile,
   signin::IdentityManager* identity_manager =
       IdentityManagerFactory::GetForProfile(profile);
 
-  // Verify HasPrimaryAccount(signin::ConsentLevel::kSync) separately because
-  // MakePrimaryAccountAvailable() below DCHECK fails if there is already an
-  // authenticated account.
-  if (identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync)) {
-    DCHECK_EQ(
-        identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSync)
-            .email,
-        username);
+  // Verify HasPrimaryAccount() separately because MakePrimaryAccountAvailable()
+  // below DCHECK fails if there is already an authenticated account.
+  if (identity_manager->HasPrimaryAccount()) {
+    DCHECK_EQ(identity_manager->GetPrimaryAccountInfo().email, username);
     // Don't update the refresh token if we already have one. The reason is
     // that doing so causes Sync (ServerConnectionManager in particular) to
     // mark the current access token as invalid. Since tests typically
     // always hand out the same access token string, any new access token
     // acquired later would also be considered invalid.
-    if (!identity_manager->HasPrimaryAccountWithRefreshToken(
-            signin::ConsentLevel::kSync)) {
+    if (!identity_manager->HasPrimaryAccountWithRefreshToken()) {
       signin::SetRefreshTokenForPrimaryAccount(identity_manager);
     }
   } else {
     // Authenticate sync client using GAIA credentials.
-    signin::MakePrimaryAccountAvailable(identity_manager, username,
-                                        signin::ConsentLevel::kSync);
+    signin::MakePrimaryAccountAvailable(identity_manager, username);
   }
 }
 
@@ -57,7 +51,8 @@ bool SyncSigninDelegateDesktop::SigninUI(Profile* profile,
 
 bool SyncSigninDelegateDesktop::ConfirmSigninUI(Profile* profile) {
   if (!login_ui_test_utils::ConfirmSyncConfirmationDialog(
-          chrome::FindBrowserWithProfile(profile))) {
+          chrome::FindBrowserWithProfile(profile),
+          base::TimeDelta::FromSeconds(30))) {
     LOG(ERROR) << "Failed to dismiss sync confirmation dialog.";
     return false;
   }

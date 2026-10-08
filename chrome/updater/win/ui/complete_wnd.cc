@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,9 @@
 
 #include "base/check.h"
 #include "base/strings/string_util.h"
-#include "chrome/updater/util/win_util.h"
-#include "chrome/updater/win/ui/l10n_util.h"
-#include "chrome/updater/win/ui/resources/updater_installer_strings.h"
-#include "chrome/updater/win/ui/ui_constants.h"
-#include "chrome/updater/win/ui/ui_util.h"
+#include "chrome/updater/win/ui/constants.h"
+#include "chrome/updater/win/ui/util.h"
+#include "chrome/updater/win/util.h"
 
 namespace updater {
 namespace ui {
@@ -87,18 +85,20 @@ bool CompleteWnd::MaybeCloseWindow() {
 }
 
 void CompleteWnd::DisplayCompletionDialog(bool is_success,
-                                          const std::wstring& text,
-                                          const std::string& help_url) {
+                                          const base::string16& text,
+                                          const base::string16& help_url) {
   if (!OmahaWnd::OnComplete())
     return;
 
-  SetDlgItemText(IDC_CLOSE, GetLocalizedString(IDS_UPDATER_CLOSE_BASE).c_str());
+  base::string16 s;
+  LoadString(IDS_CLOSE, &s);
+  SetDlgItemText(IDC_CLOSE, s.c_str());
 
   DCHECK(!text.empty());
 
   // FormatMessage() converts all LFs to CRLFs, which are rendered as little
   // squares in UI. To avoid this, convert all CRLFs to LFs.
-  std::wstring display_text;
+  base::string16 display_text;
   base::ReplaceChars(text, L"\r\n", L"\n", &display_text);
 
   if (is_success) {
@@ -108,8 +108,8 @@ void CompleteWnd::DisplayCompletionDialog(bool is_success,
 
     if (!help_url.empty()) {
       help_url_ = help_url.c_str();
-      SetDlgItemText(IDC_GET_HELP,
-                     GetLocalizedString(IDS_GET_HELP_TEXT_BASE).c_str());
+      LoadString(IDS_GET_HELP_TEXT, &s);
+      SetDlgItemText(IDC_GET_HELP, s.c_str());
     }
   }
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,18 +11,13 @@
 
 #include "base/callback.h"
 #include "base/containers/flat_map.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
+#include "base/optional.h"
 #include "components/component_updater/configurator_impl.h"
-#include "components/update_client/buildflags.h"
 #include "components/update_client/configurator.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class GURL;
-
-namespace base {
-class FilePath;
-}  // namespace base
 
 namespace content {
 class BrowserContext;
@@ -37,10 +32,6 @@ class ProtocolHandlerFactory;
 
 namespace extensions {
 
-#if BUILDFLAG(ENABLE_PUFFIN_PATCHES)
-inline constexpr const char* kExtensionsCrxCachePath = "extensions_crx_cache";
-#endif
-
 class ExtensionUpdateClientBaseTest;
 
 class ChromeUpdateClientConfig : public update_client::Configurator {
@@ -51,15 +42,12 @@ class ChromeUpdateClientConfig : public update_client::Configurator {
 
   static scoped_refptr<ChromeUpdateClientConfig> Create(
       content::BrowserContext* context,
-      absl::optional<GURL> url_override);
+      base::Optional<GURL> url_override);
 
   ChromeUpdateClientConfig(content::BrowserContext* context,
-                           absl::optional<GURL> url_override);
+                           base::Optional<GURL> url_override);
 
-  ChromeUpdateClientConfig(const ChromeUpdateClientConfig&) = delete;
-  ChromeUpdateClientConfig& operator=(const ChromeUpdateClientConfig&) = delete;
-
-  double InitialDelay() const override;
+  int InitialDelay() const override;
   int NextCheckDelay() const override;
   int OnDemandDelay() const override;
   int UpdateDelay() const override;
@@ -68,6 +56,7 @@ class ChromeUpdateClientConfig : public update_client::Configurator {
   std::string GetProdId() const override;
   base::Version GetBrowserVersion() const override;
   std::string GetChannel() const override;
+  std::string GetBrand() const override;
   std::string GetLang() const override;
   std::string GetOSLongName() const override;
   base::flat_map<std::string, std::string> ExtraRequestParams() const override;
@@ -79,6 +68,7 @@ class ChromeUpdateClientConfig : public update_client::Configurator {
   scoped_refptr<update_client::UnzipperFactory> GetUnzipperFactory() override;
   scoped_refptr<update_client::PatcherFactory> GetPatcherFactory() override;
   bool EnabledDeltas() const override;
+  bool EnabledComponentUpdates() const override;
   bool EnabledBackgroundDownloader() const override;
   bool EnabledCupSigning() const override;
   PrefService* GetPrefService() const override;
@@ -86,11 +76,6 @@ class ChromeUpdateClientConfig : public update_client::Configurator {
   bool IsPerUserInstall() const override;
   std::unique_ptr<update_client::ProtocolHandlerFactory>
   GetProtocolHandlerFactory() const override;
-  absl::optional<bool> IsMachineExternallyManaged() const override;
-  update_client::UpdaterStateProvider GetUpdaterStateProvider() const override;
-#if BUILDFLAG(ENABLE_PUFFIN_PATCHES)
-  absl::optional<base::FilePath> GetCrxCachePath() const override;
-#endif
 
  protected:
   friend class base::RefCountedThreadSafe<ChromeUpdateClientConfig>;
@@ -104,15 +89,17 @@ class ChromeUpdateClientConfig : public update_client::Configurator {
       FactoryCallback factory);
 
  private:
-  raw_ptr<content::BrowserContext> context_ = nullptr;
+  content::BrowserContext* context_ = nullptr;
   component_updater::ConfiguratorImpl impl_;
-  raw_ptr<PrefService> pref_service_;
+  PrefService* pref_service_;
   std::unique_ptr<update_client::ActivityDataService> activity_data_service_;
   scoped_refptr<update_client::NetworkFetcherFactory> network_fetcher_factory_;
   scoped_refptr<update_client::CrxDownloaderFactory> crx_downloader_factory_;
   scoped_refptr<update_client::UnzipperFactory> unzip_factory_;
   scoped_refptr<update_client::PatcherFactory> patch_factory_;
-  absl::optional<GURL> url_override_;
+  base::Optional<GURL> url_override_;
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeUpdateClientConfig);
 };
 
 }  // namespace extensions

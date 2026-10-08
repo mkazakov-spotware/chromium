@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,7 +33,6 @@
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/simple_url_loader.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "url/gurl.h"
 
 namespace explore_sites {
@@ -62,8 +61,6 @@ constexpr net::NetworkTrafficAnnotationTag traffic_annotation =
           }
           policy {
             cookies_allowed: NO
-            policy_exception_justification:
-              "TODO(crbug.com/1231780): Add this field."
           })");
 
 }  // namespace
@@ -123,8 +120,7 @@ ExploreSitesFetcher::ExploreSitesFetcher(
       callback_(std::move(callback)),
       url_loader_factory_(loader_factory) {
   base::Version version = version_info::GetVersion();
-  std::string channel_name =
-      chrome::GetChannelName(chrome::WithExtendedStable(true));
+  std::string channel_name = chrome::GetChannelName();
   client_version_ = base::StringPrintf("%d.%d.%d.%s.chrome",
                                        version.components()[0],  // Major
                                        version.components()[2],  // Build
@@ -158,6 +154,16 @@ void ExploreSitesFetcher::Start() {
   if (!accept_languages_.empty()) {
     resource_request->headers.SetHeader(
         net::HttpRequestHeaders::kAcceptLanguage, accept_languages_);
+  }
+
+  // Get field trial value, if any.
+  std::string tag = base::GetFieldTrialParamValueByFeature(
+      chrome::android::kExploreSites,
+      chrome::android::explore_sites::
+          kExploreSitesHeadersExperimentParameterName);
+
+  if (!tag.empty()) {
+    resource_request->headers.SetHeader("X-Goog-Chrome-Experiment-Tag", tag);
   }
 
   url_loader_ = network::SimpleURLLoader::Create(std::move(resource_request),
@@ -246,7 +252,7 @@ void ExploreSitesFetcher::RetryWithBackoff() {
     return;
   }
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&ExploreSitesFetcher::Start, weak_factory_.GetWeakPtr()),
       backoff_entry_->GetTimeUntilRelease());

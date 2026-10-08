@@ -1,14 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.net.impl;
 
-import static java.lang.Math.max;
-
-import android.os.Build;
-
-import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Log;
@@ -26,14 +21,11 @@ import org.chromium.net.RequestFinishedInfo;
 import org.chromium.net.RequestPriority;
 import org.chromium.net.UploadDataProvider;
 import org.chromium.net.UrlRequest;
-import org.chromium.net.impl.CronetLogger.CronetTrafficInfo;
 
 import java.nio.ByteBuffer;
-import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -97,9 +89,6 @@ public final class CronetUrlRequest extends UrlRequestBase {
     private final boolean mTrafficStatsUidSet;
     private final int mTrafficStatsUid;
     private final VersionSafeCallbacks.RequestFinishedInfoListener mRequestFinishedListener;
-    private final long mNetworkHandle;
-    private final int mCronetEngineId;
-    private final CronetLogger mLogger;
 
     private CronetUploadDataStream mUploadDataStream;
 
@@ -111,8 +100,6 @@ public final class CronetUrlRequest extends UrlRequestBase {
     private int mFinishedReason;
     private CronetException mException;
     private CronetMetrics mMetrics;
-    private boolean mQuicConnectionMigrationAttempted;
-    private boolean mQuicConnectionMigrationSuccessful;
 
     /*
      * Listener callback is repeatedly invoked when each read is completed, so it
@@ -123,8 +110,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
     @GuardedBy("mUrlRequestAdapterLock")
     private Runnable mOnDestroyedCallbackForTesting;
 
-    @VisibleForTesting
-    static final class HeadersList extends ArrayList<Map.Entry<String, String>> {}
+    private static final class HeadersList extends ArrayList<Map.Entry<String, String>> {}
 
     private final class OnReadCompletedRunnable implements Runnable {
         // Buffer passed back from current invocation of onReadCompleted.
@@ -156,7 +142,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
             boolean disableCache, boolean disableConnectionMigration, boolean allowDirectExecutor,
             boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
             int trafficStatsUid, RequestFinishedInfo.Listener requestFinishedListener,
-            int idempotency, long networkHandle) {
+            int idempotency) {
         if (url == null) {
             throw new NullPointerException("URL is required");
         }
@@ -169,8 +155,6 @@ public final class CronetUrlRequest extends UrlRequestBase {
 
         mAllowDirectExecutor = allowDirectExecutor;
         mRequestContext = requestContext;
-        mCronetEngineId = requestContext.getCronetEngineId();
-        mLogger = requestContext.getCronetLogger();
         mInitialUrl = url;
         mUrlChain.add(url);
         mPriority = convertRequestPriority(priority);
@@ -187,7 +171,6 @@ public final class CronetUrlRequest extends UrlRequestBase {
                 ? new VersionSafeCallbacks.RequestFinishedInfoListener(requestFinishedListener)
                 : null;
         mIdempotency = convertIdempotency(idempotency);
-        mNetworkHandle = networkHandle;
     }
 
     @Override
@@ -231,8 +214,10 @@ public final class CronetUrlRequest extends UrlRequestBase {
                 mUrlRequestAdapter = CronetUrlRequestJni.get().createRequestAdapter(
                         CronetUrlRequest.this, mRequestContext.getUrlRequestContextAdapter(),
                         mInitialUrl, mPriority, mDisableCache, mDisableConnectionMigration,
+                        mRequestContext.hasRequestFinishedListener()
+                                || mRequestFinishedListener != null,
                         mTrafficStatsTagSet, mTrafficStatsTag, mTrafficStatsUidSet,
-                        mTrafficStatsUid, mIdempotency, mNetworkHandle);
+                        mTrafficStatsUid, mIdempotency);
                 mRequestContext.onRequestStarted();
                 if (mInitialMethod != null) {
                     if (!CronetUrlRequestJni.get().setHttpMethod(
@@ -447,44 +432,6 @@ public final class CronetUrlRequest extends UrlRequestBase {
             default:
                 return Idempotency.DEFAULT_IDEMPOTENCY;
         }
-    }
-
-    /**
-     * Estimates the byte size of the headers in their on-wire format.
-     * We are not really interested in their specific size but something which is close enough.
-     */
-    @VisibleForTesting
-    static long estimateHeadersSizeInBytes(Map<String, List<String>> headers) {
-        if (headers == null) return 0;
-
-        long responseHeaderSizeInBytes = 0;
-        for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
-            String key = entry.getKey();
-            if (key != null) responseHeaderSizeInBytes += key.length();
-            if (entry.getValue() == null) continue;
-
-            for (String content : entry.getValue()) {
-                responseHeaderSizeInBytes += content.length();
-            }
-        }
-        return responseHeaderSizeInBytes;
-    }
-
-    /**
-     * Estimates the byte size of the headers in their on-wire format.
-     * We are not really interested in their specific size but something which is close enough.
-     */
-    @VisibleForTesting
-    static long estimateHeadersSizeInBytes(HeadersList headers) {
-        if (headers == null) return 0;
-        long responseHeaderSizeInBytes = 0;
-        for (Map.Entry<String, String> entry : headers) {
-            String key = entry.getKey();
-            if (key != null) responseHeaderSizeInBytes += key.length();
-            String value = entry.getValue();
-            if (value != null) responseHeaderSizeInBytes += entry.getValue().length();
-        }
-        return responseHeaderSizeInBytes;
     }
 
     private UrlResponseInfoImpl prepareResponseInfoOnNetworkThread(int httpStatusCode,
@@ -788,8 +735,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
             long connectStartMs, long connectEndMs, long sslStartMs, long sslEndMs,
             long sendingStartMs, long sendingEndMs, long pushStartMs, long pushEndMs,
             long responseStartMs, long requestEndMs, boolean socketReused, long sentByteCount,
-            long receivedByteCount, boolean quicConnectionMigrationAttempted,
-            boolean quicConnectionMigrationSuccessful) {
+            long receivedByteCount) {
         synchronized (mUrlRequestAdapterLock) {
             if (mMetrics != null) {
                 throw new IllegalStateException("Metrics collection should only happen once.");
@@ -798,8 +744,6 @@ public final class CronetUrlRequest extends UrlRequestBase {
                     connectEndMs, sslStartMs, sslEndMs, sendingStartMs, sendingEndMs, pushStartMs,
                     pushEndMs, responseStartMs, requestEndMs, socketReused, sentByteCount,
                     receivedByteCount);
-            mQuicConnectionMigrationAttempted = quicConnectionMigrationAttempted;
-            mQuicConnectionMigrationSuccessful = quicConnectionMigrationSuccessful;
         }
         // Metrics are reported to RequestFinishedListener when the final UrlRequest.Callback has
         // been invoked.
@@ -876,105 +820,10 @@ public final class CronetUrlRequest extends UrlRequestBase {
         }
     }
 
-    /**
-     * Builds the {@link CronetTrafficInfo} associated to this request internal state.
-     * This helper methods makes strong assumptions about the state of the request. For this reason
-     * it should only be called within {@link CronetUrlRequest#maybeReportMetrics} where these
-     * assumptions are guaranteed to be true.
-     * @return the {@link CronetTrafficInfo} associated to this request internal state
-     */
-    @RequiresApi(Build.VERSION_CODES.O)
-    private CronetTrafficInfo buildCronetTrafficInfo() {
-        assert mMetrics != null;
-        assert mRequestHeaders != null;
-
-        // Most of the CronetTrafficInfo fields have similar names/semantics. To avoid bugs due to
-        // typos everything is final, this means that things have to initialized through an if/else.
-        final Map<String, List<String>> responseHeaders;
-        final String negotiatedProtocol;
-        final int httpStatusCode;
-        final boolean wasCached;
-        if (mResponseInfo != null) {
-            responseHeaders = mResponseInfo.getAllHeaders();
-            negotiatedProtocol = mResponseInfo.getNegotiatedProtocol();
-            httpStatusCode = mResponseInfo.getHttpStatusCode();
-            wasCached = mResponseInfo.wasCached();
-        } else {
-            responseHeaders = Collections.emptyMap();
-            negotiatedProtocol = "";
-            httpStatusCode = 0;
-            wasCached = false;
-        }
-
-        // TODO(stefanoduo): A better approach might be keeping track of the total length of an
-        // upload and use that value as the request body size instead.
-        final long requestTotalSizeInBytes = mMetrics.getSentByteCount();
-        final long requestHeaderSizeInBytes;
-        final long requestBodySizeInBytes;
-        // Cached responses might still need to be revalidated over the network before being served
-        // (from UrlResponseInfo#wasCached documentation).
-        if (wasCached && requestTotalSizeInBytes == 0) {
-            // Served from cache without the need to revalidate.
-            requestHeaderSizeInBytes = 0;
-            requestBodySizeInBytes = 0;
-        } else {
-            // Served from cache with the need to revalidate or served from the network directly.
-            requestHeaderSizeInBytes = estimateHeadersSizeInBytes(mRequestHeaders);
-            requestBodySizeInBytes = max(0, requestTotalSizeInBytes - requestHeaderSizeInBytes);
-        }
-
-        final long responseTotalSizeInBytes = mMetrics.getReceivedByteCount();
-        final long responseBodySizeInBytes;
-        final long responseHeaderSizeInBytes;
-        // Cached responses might still need to be revalidated over the network before being served
-        // (from UrlResponseInfo#wasCached documentation).
-        if (wasCached && responseTotalSizeInBytes == 0) {
-            // Served from cache without the need to revalidate.
-            responseBodySizeInBytes = 0;
-            responseHeaderSizeInBytes = 0;
-        } else {
-            // Served from cache with the need to revalidate or served from the network directly.
-            responseHeaderSizeInBytes = estimateHeadersSizeInBytes(responseHeaders);
-            responseBodySizeInBytes = max(0, responseTotalSizeInBytes - responseHeaderSizeInBytes);
-        }
-
-        final Duration headersLatency;
-        if (mMetrics.getRequestStart() != null && mMetrics.getResponseStart() != null) {
-            headersLatency = Duration.ofMillis(
-                    mMetrics.getResponseStart().getTime() - mMetrics.getRequestStart().getTime());
-        } else {
-            headersLatency = Duration.ofSeconds(0);
-        }
-
-        final Duration totalLatency;
-        if (mMetrics.getRequestStart() != null && mMetrics.getRequestEnd() != null) {
-            totalLatency = Duration.ofMillis(
-                    mMetrics.getRequestEnd().getTime() - mMetrics.getRequestStart().getTime());
-        } else {
-            totalLatency = Duration.ofSeconds(0);
-        }
-
-        return new CronetTrafficInfo(requestHeaderSizeInBytes, requestBodySizeInBytes,
-                responseHeaderSizeInBytes, responseBodySizeInBytes, httpStatusCode, headersLatency,
-                totalLatency, negotiatedProtocol, mQuicConnectionMigrationAttempted,
-                mQuicConnectionMigrationSuccessful);
-    }
-
     // Maybe report metrics. This method should only be called on Callback's executor thread and
     // after Callback's onSucceeded, onFailed and onCanceled.
     private void maybeReportMetrics() {
         if (mMetrics != null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                try {
-                    mLogger.logCronetTrafficInfo(mCronetEngineId, buildCronetTrafficInfo());
-                } catch (RuntimeException e) {
-                    // Handle any issue gracefully, we should never crash due failures while
-                    // logging.
-                    Log.e(CronetUrlRequestContext.LOG_TAG,
-                            "Error while trying to log CronetTrafficInfo: ", e);
-                }
-            }
-
             final RequestFinishedInfo requestInfo = new RequestFinishedInfoImpl(mInitialUrl,
                     mRequestAnnotations, mMetrics, mFinishedReason, mResponseInfo, mException);
             mRequestContext.reportRequestFinished(requestInfo);
@@ -999,8 +848,8 @@ public final class CronetUrlRequest extends UrlRequestBase {
     interface Natives {
         long createRequestAdapter(CronetUrlRequest caller, long urlRequestContextAdapter,
                 String url, int priority, boolean disableCache, boolean disableConnectionMigration,
-                boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
-                int trafficStatsUid, int idempotency, long networkHandle);
+                boolean enableMetrics, boolean trafficStatsTagSet, int trafficStatsTag,
+                boolean trafficStatsUidSet, int trafficStatsUid, int idempotency);
 
         @NativeClassQualifiedName("CronetURLRequestAdapter")
         boolean setHttpMethod(long nativePtr, CronetUrlRequest caller, String method);

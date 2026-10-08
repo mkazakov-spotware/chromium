@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <string>
 #include <unordered_set>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "content/public/browser/reload_type.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "third_party/blink/public/mojom/favicon/favicon_url.mojom-forward.h"
@@ -39,10 +39,6 @@ class IconHelper : public content::WebContentsObserver {
   };
 
   explicit IconHelper(content::WebContents* web_contents);
-
-  IconHelper(const IconHelper&) = delete;
-  IconHelper& operator=(const IconHelper&) = delete;
-
   ~IconHelper() override;
 
   void SetListener(Listener* listener);
@@ -65,10 +61,12 @@ class IconHelper : public content::WebContentsObserver {
   bool WasUnableToDownloadFavicon(const GURL& icon_url) const;
   void ClearUnableToDownloadFavicons();
 
-  raw_ptr<Listener> listener_;
+  Listener* listener_;
 
   using MissingFaviconURLHash = size_t;
   std::unordered_set<MissingFaviconURLHash> missing_favicon_urls_;
+
+  DISALLOW_COPY_AND_ASSIGN(IconHelper);
 };
 
 }  // namespace android_webview

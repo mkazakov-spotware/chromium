@@ -1,4 +1,7 @@
 <html>
+  <body>
+    <p id='x'></p>
+  </body>
   <script>
     function toggleFullscreen() {
       if (!document.fullscreenElement) {
@@ -7,8 +10,6 @@
         document.exitFullscreen();
       }
     }
+    document.addEventListener('touchend', function(e) { toggleFullscreen(); }, false);
   </script>
-  <body onclick="toggleFullscreen();">
-    <p id='x'>X</p>
-  </body>
 </html>

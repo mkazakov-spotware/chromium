@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,16 +6,16 @@
 
 #include <stddef.h>
 
-#include "ash/constants/ash_paths.h"
 #include "base/path_service.h"
-#include "chrome/browser/ash/settings/cros_settings.h"
-#include "chromeos/ash/components/settings/cros_settings_names.h"
+#include "chrome/browser/chromeos/settings/cros_settings.h"
+#include "chromeos/constants/chromeos_paths.h"
+#include "chromeos/settings/cros_settings_names.h"
 
 namespace extensions {
 
 ChromeOSExtensionCacheDelegate::ChromeOSExtensionCacheDelegate()
     : cache_dir_(base::PathService::CheckedGet(
-          ash::DIR_DEVICE_EXTENSION_LOCAL_CACHE)) {}
+          chromeos::DIR_DEVICE_EXTENSION_LOCAL_CACHE)) {}
 
 ChromeOSExtensionCacheDelegate::ChromeOSExtensionCacheDelegate(
     const base::FilePath& cache_dir)
@@ -37,8 +37,8 @@ size_t ChromeOSExtensionCacheDelegate::GetMaximumCacheSize() const {
 
   size_t max_size = kDefaultCacheSizeLimit;
   int policy_size = 0;
-  if (ash::CrosSettings::Get()->GetInteger(ash::kExtensionCacheSize,
-                                           &policy_size) &&
+  if (chromeos::CrosSettings::Get()->GetInteger(chromeos::kExtensionCacheSize,
+                                                &policy_size) &&
       policy_size >= static_cast<int>(GetMinimumCacheSize())) {
     max_size = policy_size;
   }
@@ -47,7 +47,7 @@ size_t ChromeOSExtensionCacheDelegate::GetMaximumCacheSize() const {
 
 base::TimeDelta ChromeOSExtensionCacheDelegate::GetMaximumCacheAge() const {
   // Maximum age of unused extensions in the cache.
-  static constexpr base::TimeDelta kMaxCacheAge = base::Days(30);
+  static constexpr base::TimeDelta kMaxCacheAge = base::TimeDelta::FromDays(30);
   return kMaxCacheAge;
 }
 

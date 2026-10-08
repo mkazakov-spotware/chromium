@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,9 @@
 #define COMPONENTS_SYNC_DEVICE_INFO_DEVICE_INFO_PREFS_H_
 
 #include <string>
+#include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 
 class PrefService;
 class PrefRegistrySimple;
@@ -25,10 +26,6 @@ class DeviceInfoPrefs {
 
   // |pref_service| and |clock| must outlive this class and be non null.
   DeviceInfoPrefs(PrefService* pref_service, const base::Clock* clock);
-
-  DeviceInfoPrefs(const DeviceInfoPrefs&) = delete;
-  DeviceInfoPrefs& operator=(const DeviceInfoPrefs&) = delete;
-
   ~DeviceInfoPrefs();
 
   // Returns if the given |cache_guid| is present in the saved pref. This is
@@ -45,8 +42,10 @@ class DeviceInfoPrefs {
   void GarbageCollectExpiredCacheGuids();
 
  private:
-  const raw_ptr<PrefService> pref_service_;
-  const raw_ptr<const base::Clock> clock_;
+  PrefService* const pref_service_;
+  const base::Clock* const clock_;
+
+  DISALLOW_COPY_AND_ASSIGN(DeviceInfoPrefs);
 };
 
 }  // namespace syncer

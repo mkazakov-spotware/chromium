@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,22 +50,8 @@ class OzoneUIControlsTestHelper {
                               const gfx::Point& mouse_root_loc,
                               base::OnceClosure closure) = 0;
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  // Sends touch event and executes |closure| when done.
-  virtual void SendTouchEvent(gfx::AcceleratedWidget widget,
-                              int action,
-                              int id,
-                              const gfx::Point& touch_loc,
-                              base::OnceClosure closure) = 0;
-#endif
-
   // Executes closure after all pending ui events are sent.
   virtual void RunClosureAfterAllPendingUIEvents(base::OnceClosure closure) = 0;
-
-  // Tells the client of OzoneUIControlsTestHelper that it must use
-  // SendMouseMotionNotifyEvent instead of calling MoveCursorTo via
-  // aura::Window.
-  virtual bool MustUseUiControlsForMoveCursorTo() = 0;
 };
 
 COMPONENT_EXPORT(OZONE)

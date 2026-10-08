@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "components/viz/test/test_context_provider.h"
 #include "gpu/command_buffer/client/gles2_interface.h"
 #include "gpu/command_buffer/client/raster_implementation_gles.h"
-#include "gpu/command_buffer/client/webgpu_interface_stub.h"
 #include "gpu/command_buffer/common/capabilities.h"
 #include "gpu/config/gpu_feature_info.h"
 #include "third_party/blink/public/platform/web_graphics_context_3d_provider.h"
@@ -22,14 +21,11 @@ namespace blink {
 
 class FakeWebGraphicsContext3DProvider : public WebGraphicsContext3DProvider {
  public:
-  explicit FakeWebGraphicsContext3DProvider(
-      gpu::gles2::GLES2Interface* gl,
-      cc::ImageDecodeCache* cache = nullptr,
-      GrDirectContext* gr_context = nullptr,
-      viz::RasterContextProvider* raster_context_provider = nullptr)
+  FakeWebGraphicsContext3DProvider(gpu::gles2::GLES2Interface* gl,
+                                   cc::ImageDecodeCache* cache = nullptr,
+                                   GrDirectContext* gr_context = nullptr)
       : gl_(gl),
-        image_decode_cache_(cache ? cache : &stub_image_decode_cache_),
-        raster_context_provider_(raster_context_provider) {
+        image_decode_cache_(cache ? cache : &stub_image_decode_cache_) {
     if (gr_context) {
       gr_context_ = sk_ref_sp<GrDirectContext>(gr_context);
     } else {
@@ -37,15 +33,10 @@ class FakeWebGraphicsContext3DProvider : public WebGraphicsContext3DProvider {
       gr_context_ = GrDirectContext::MakeMock(&mockOptions);
     }
 
-    if (!raster_context_provider_) {
-      // If there is no raster context provider, fall back to using a locally
-      // created raster interface. Unit tests that want to use something other
-      // than RasterImplementationGLES should pas a raster_context_provider.
-      raster_interface_ =
-          std::make_unique<gpu::raster::RasterImplementationGLES>(gl_, nullptr);
-    }
-
-    webgpu_interface_ = std::make_unique<gpu::webgpu::WebGPUInterfaceStub>();
+    // TODO(nazabris, crbug.com/1017508) Use RasterImplementation after
+    // all references to GLES2Interface have been removed.
+    raster_interface_ =
+        std::make_unique<gpu::raster::RasterImplementationGLES>(gl_, nullptr);
 
     // enable all gpu features.
     for (unsigned feature = 0; feature < gpu::NUMBER_OF_GPU_FEATURE_TYPES;
@@ -75,19 +66,18 @@ class FakeWebGraphicsContext3DProvider : public WebGraphicsContext3DProvider {
   gpu::InterfaceBase* InterfaceBase() override { return gl_; }
   gpu::gles2::GLES2Interface* ContextGL() override { return gl_; }
   gpu::raster::RasterInterface* RasterInterface() override {
-    return raster_context_provider_
-               ? raster_context_provider_->RasterInterface()
-               : raster_interface_.get();
+    if (!raster_interface_)
+      return nullptr;
+
+    return raster_interface_.get();
   }
   bool IsContextLost() override {
     return RasterInterface() &&
            RasterInterface()->GetGraphicsResetStatusKHR() != GL_NO_ERROR;
   }
-  gpu::webgpu::WebGPUInterface* WebGPUInterface() override {
-    return webgpu_interface_.get();
-  }
+  gpu::webgpu::WebGPUInterface* WebGPUInterface() override { return nullptr; }
 
-  bool BindToCurrentSequence() override { return false; }
+  bool BindToCurrentThread() override { return false; }
   void SetLostContextCallback(base::RepeatingClosure) override {}
   void SetErrorMessageCallback(
       base::RepeatingCallback<void(const char*, int32_t id)>) override {}
@@ -100,22 +90,17 @@ class FakeWebGraphicsContext3DProvider : public WebGraphicsContext3DProvider {
   void CopyVideoFrame(media::PaintCanvasVideoRenderer* video_render,
                       media::VideoFrame* video_frame,
                       cc::PaintCanvas* canvas) override {}
-  viz::RasterContextProvider* RasterContextProvider() const override {
-    return raster_context_provider_;
-  }
 
  private:
   cc::StubDecodeCache stub_image_decode_cache_;
   viz::TestSharedImageInterface test_shared_image_interface_;
   gpu::gles2::GLES2Interface* gl_;
   std::unique_ptr<gpu::raster::RasterInterface> raster_interface_;
-  std::unique_ptr<gpu::webgpu::WebGPUInterfaceStub> webgpu_interface_;
   sk_sp<GrDirectContext> gr_context_;
   gpu::Capabilities capabilities_;
   gpu::GpuFeatureInfo gpu_feature_info_;
   WebglPreferences webgl_preferences_;
   cc::ImageDecodeCache* image_decode_cache_;
-  viz::RasterContextProvider* raster_context_provider_;
 };
 
 }  // namespace blink

@@ -1,13 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_WM_OVERVIEW_OVERVIEW_ITEM_VIEW_H_
 #define ASH_WM_OVERVIEW_OVERVIEW_ITEM_VIEW_H_
 
-#include "ash/wm/overview/overview_highlightable_view.h"
+#include "ash/wm/overview/overview_highlight_controller.h"
 #include "ash/wm/window_mini_view.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "base/macros.h"
 #include "ui/views/controls/button/button.h"
 
 namespace aura {
@@ -15,21 +15,18 @@ class Window;
 }  // namespace aura
 
 namespace views {
+class ImageButton;
 class View;
 }  // namespace views
 
 namespace ash {
-
-class CloseButton;
 class OverviewItem;
 
-// OverviewItemView covers the overview window, provides an overview only header
-// and handles events. It hosts a mirror view if the window is minimized.
-class ASH_EXPORT OverviewItemView : public WindowMiniView,
-                                    public OverviewHighlightableView {
+// OverviewItemView covers the overview window and listens for events.
+class ASH_EXPORT OverviewItemView
+    : public WindowMiniView,
+      public OverviewHighlightController::OverviewHighlightableView {
  public:
-  METADATA_HEADER(OverviewItemView);
-
   // The visibility of the header. It may be fully visible or invisible, or
   // everything but the close button is visible.
   enum class HeaderVisibility {
@@ -44,8 +41,6 @@ class ASH_EXPORT OverviewItemView : public WindowMiniView,
                    views::Button::PressedCallback close_callback,
                    aura::Window* window,
                    bool show_preview);
-  OverviewItemView(const OverviewItemView&) = delete;
-  OverviewItemView& operator=(const OverviewItemView&) = delete;
   ~OverviewItemView() override;
 
   // Fades the app icon and title out if |visibility| is kInvisible, in
@@ -71,38 +66,39 @@ class ASH_EXPORT OverviewItemView : public WindowMiniView,
   // WindowMiniView:
   gfx::Rect GetHeaderBounds() const override;
   gfx::Size GetPreviewViewSize() const override;
+  gfx::ImageSkia ModifyIcon(gfx::ImageSkia* image) const override;
+  void Layout() override;
 
-  // OverviewHighlightableView:
+  // OverviewHighlightController::OverviewHighlightableView:
   views::View* GetView() override;
   void MaybeActivateHighlightedView() override;
-  void MaybeCloseHighlightedView(bool primary_action) override;
-  void MaybeSwapHighlightedView(bool right) override;
-  bool MaybeActivateHighlightedViewOnOverviewExit(
-      OverviewSession* overview_session) override;
+  void MaybeCloseHighlightedView() override;
   void OnViewHighlighted() override;
   void OnViewUnhighlighted() override;
   gfx::Point GetMagnifierFocusPointInScreen() override;
 
-  CloseButton* close_button() const { return close_button_; }
+  views::ImageButton* close_button() { return close_button_; }
 
  protected:
   // views::View:
+  const char* GetClassName() const override;
   bool OnMousePressed(const ui::MouseEvent& event) override;
   bool OnMouseDragged(const ui::MouseEvent& event) override;
   void OnMouseReleased(const ui::MouseEvent& event) override;
   void OnGestureEvent(ui::GestureEvent* event) override;
   bool CanAcceptEvent(const ui::Event& event) override;
   void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
-  void OnThemeChanged() override;
 
  private:
   // The OverviewItem which owns the widget which houses this view. Non-null
   // until |OnOverviewItemWindowRestoring| is called.
   OverviewItem* overview_item_;
 
-  CloseButton* close_button_;
+  views::ImageButton* close_button_;
 
   HeaderVisibility current_header_visibility_ = HeaderVisibility::kVisible;
+
+  DISALLOW_COPY_AND_ASSIGN(OverviewItemView);
 };
 
 }  // namespace ash

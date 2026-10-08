@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,10 +15,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace {
-
-const char kTestRobotEmail[] = "foo@system.gserviceaccount.com";
-const char kTestOtherRobotEmail[] = "bar@system.gserviceaccount.com";
-
 class TestObserver : public DeviceOAuth2TokenStore::Observer {
  public:
   int called_count() const { return called_count_; }
@@ -74,7 +70,7 @@ TEST_F(DeviceOAuth2TokenStoreDesktopTest, InitWithoutSavedToken) {
 
 TEST_F(DeviceOAuth2TokenStoreDesktopTest, InitWithSavedToken) {
   scoped_testing_local_state()->Get()->SetString(kCBCMServiceAccountEmail,
-                                                 kTestRobotEmail);
+                                                 "foo@g.com");
 
   std::string token = "test_token";
   std::string encrypted_token;
@@ -96,14 +92,13 @@ TEST_F(DeviceOAuth2TokenStoreDesktopTest, InitWithSavedToken) {
   store.Init(base::BindOnce([](bool, bool) {}));
 
   EXPECT_EQ(1, observer.called_count());
-  EXPECT_EQ(store.GetAccountId(),
-            CoreAccountId::FromRobotEmail(kTestRobotEmail));
+  EXPECT_EQ(store.GetAccountId(), CoreAccountId::FromEmail("foo@g.com"));
   EXPECT_EQ(store.GetRefreshToken(), token);
 }
 
 TEST_F(DeviceOAuth2TokenStoreDesktopTest, ObserverNotifiedWhenAccountChanges) {
   scoped_testing_local_state()->Get()->SetString(kCBCMServiceAccountEmail,
-                                                 kTestRobotEmail);
+                                                 "foo@g.com");
 
   std::string token = "test_token";
   std::string encrypted_token;
@@ -126,11 +121,10 @@ TEST_F(DeviceOAuth2TokenStoreDesktopTest, ObserverNotifiedWhenAccountChanges) {
 
   EXPECT_EQ(1, test_observer.called_count());
 
-  EXPECT_EQ(store.GetAccountId(),
-            CoreAccountId::FromRobotEmail(kTestRobotEmail));
+  EXPECT_EQ(store.GetAccountId(), CoreAccountId::FromEmail("foo@g.com"));
   EXPECT_EQ(store.GetRefreshToken(), token);
 
-  store.SetAccountEmail(kTestOtherRobotEmail);
+  store.SetAccountEmail("bar@g.com");
 
   EXPECT_EQ(2, test_observer.called_count());
 }

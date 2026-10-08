@@ -30,9 +30,8 @@
 
 #include "third_party/blink/renderer/core/xml/parser/shared_buffer_reader.h"
 
+#include <algorithm>
 #include <cstdlib>
-
-#include "base/ranges/algorithm.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
 
@@ -71,7 +70,8 @@ TEST(SharedBufferReaderTest, readDataWithSizeBiggerThanSharedBufferSize) {
       std::equal(kTestData, kTestData + sizeof(kTestData), output_buffer));
   // Check that the bytes past index sizeof(testData) were not touched.
   EXPECT_EQ(kExtraBytes,
-            base::ranges::count(output_buffer, kInitializationByte));
+            std::count(output_buffer, output_buffer + sizeof(output_buffer),
+                       kInitializationByte));
 }
 
 TEST(SharedBufferReaderTest, readDataInMultiples) {
@@ -94,7 +94,8 @@ TEST(SharedBufferReaderTest, readDataInMultiples) {
     EXPECT_EQ(kBytesPerIteration, bytes_read);
   }
 
-  EXPECT_TRUE(base::ranges::equal(test_data, destination_vector));
+  EXPECT_TRUE(std::equal(test_data.begin(), test_data.end(),
+                         destination_vector.begin()));
 }
 
 TEST(SharedBufferReaderTest, clearSharedBufferBetweenCallsToReadData) {

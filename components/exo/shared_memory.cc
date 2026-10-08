@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,7 +42,7 @@ SharedMemory::~SharedMemory() {}
 std::unique_ptr<Buffer> SharedMemory::CreateBuffer(const gfx::Size& size,
                                                    gfx::BufferFormat format,
                                                    unsigned offset,
-                                                   uint32_t stride) {
+                                                   int stride) {
   TRACE_EVENT2("exo", "SharedMemory::CreateBuffer", "size", size.ToString(),
                "format", static_cast<int>(format));
 
@@ -52,8 +52,10 @@ std::unique_ptr<Buffer> SharedMemory::CreateBuffer(const gfx::Size& size,
     return nullptr;
   }
 
-  if (gfx::RowSizeForBufferFormat(size.width(), format, 0) > stride ||
-      stride & 3) {
+  if (!base::IsValueInRangeForNumericType<size_t>(stride) ||
+      gfx::RowSizeForBufferFormat(size.width(), format, 0) >
+          static_cast<size_t>(stride) ||
+      static_cast<size_t>(stride) & 3) {
     DLOG(WARNING) << "Failed to create shm buffer. Unsupported stride "
                   << stride;
     return nullptr;

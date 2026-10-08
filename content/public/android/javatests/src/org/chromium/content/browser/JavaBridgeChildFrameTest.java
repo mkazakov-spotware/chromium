@@ -1,11 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.content.browser;
 
 import android.support.test.InstrumentationRegistry;
-import android.webkit.JavascriptInterface;
 
 import androidx.test.filters.SmallTest;
 
@@ -52,7 +51,6 @@ public class JavaBridgeChildFrameTest {
         private String mStringValue;
 
         @SuppressWarnings("unused") // Called via reflection
-        @JavascriptInterface
         public synchronized void setStringValue(String x) {
             mStringValue = x;
             notifyResultIsReady();
@@ -77,7 +75,6 @@ public class JavaBridgeChildFrameTest {
         mActivityTestRule.injectObjectAndReload(mTestController, "testController");
     }
 
-    // TODO(crbug.com/1116744): Fix flakiness when using MojoTestParams.
     @Test
     @SmallTest
     @Feature({"AndroidWebView", "Android-JavaBridge"})
@@ -121,7 +118,6 @@ public class JavaBridgeChildFrameTest {
 
     // Verify that parent page and child frame each has own JS wrapper object.
     // Failing to do so exposes parent's context to the child.
-    // TODO(crbug.com/1116744): Fix flakiness when using MojoTestParams.
     @Test
     @SmallTest
     @Feature({"AndroidWebView", "Android-JavaBridge"})
@@ -154,7 +150,7 @@ public class JavaBridgeChildFrameTest {
     @Test
     @SmallTest
     @Feature({"AndroidWebView", "Android-JavaBridge"})
-    @DisabledTest(message = "https://crbug.com/677053")
+    @DisabledTest(message = "https://crbug.com/677182")
     @UseMethodParameter(JavaBridgeActivityTestRule.MojoTestParams.class)
     public void testRemovingTransientObjectHolders(boolean useMojo) throws Throwable {
         class Test {

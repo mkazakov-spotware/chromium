@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <atomic>
 #include <set>
 
+#include "base/macros.h"
 #include "ui/events/events_export.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/events/types/event_type.h"
@@ -23,10 +24,6 @@ namespace ui {
 class EVENTS_EXPORT KeyboardEventCounter {
  public:
   KeyboardEventCounter();
-
-  KeyboardEventCounter(const KeyboardEventCounter&) = delete;
-  KeyboardEventCounter& operator=(const KeyboardEventCounter&) = delete;
-
   ~KeyboardEventCounter();
 
   // Returns the total number of keypresses since its creation.
@@ -42,6 +39,8 @@ class EVENTS_EXPORT KeyboardEventCounter {
   std::set<KeyboardCode> pressed_keys_;
 
   std::atomic<uint32_t> total_key_presses_;
+
+  DISALLOW_COPY_AND_ASSIGN(KeyboardEventCounter);
 };
 
 }  // namespace ui

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,7 +44,9 @@ TEST(GetShownOriginAndLinkUrlTest, OriginFromAndroidForm_NoAppDisplayName) {
   android_form.signon_realm = "android://hash@com.example.android";
   android_form.app_display_name.clear();
 
-  auto [shown_origin, link_url] = GetShownOriginAndLinkUrl(android_form);
+  std::string shown_origin;
+  GURL link_url;
+  std::tie(shown_origin, link_url) = GetShownOriginAndLinkUrl(android_form);
 
   EXPECT_EQ("android.example.com", shown_origin);
   EXPECT_EQ("https://play.google.com/store/apps/details?id=com.example.android",
@@ -56,7 +58,9 @@ TEST(GetShownOriginAndLinkUrlTest, OriginFromAndroidForm_WithAppDisplayName) {
   android_form.signon_realm = "android://hash@com.example.android";
   android_form.app_display_name = "Example Android App";
 
-  auto [shown_origin, link_url] = GetShownOriginAndLinkUrl(android_form);
+  std::string shown_origin;
+  GURL link_url;
+  std::tie(shown_origin, link_url) = GetShownOriginAndLinkUrl(android_form);
 
   EXPECT_EQ("Example Android App", shown_origin);
   EXPECT_EQ("https://play.google.com/store/apps/details?id=com.example.android",
@@ -68,7 +72,9 @@ TEST(GetShownOriginAndLinkUrlTest, OriginFromNonAndroidForm) {
   form.signon_realm = "https://example.com/";
   form.url = GURL("https://example.com/login?ref=1");
 
-  auto [shown_origin, link_url] = GetShownOriginAndLinkUrl(form);
+  std::string shown_origin;
+  GURL link_url;
+  std::tie(shown_origin, link_url) = GetShownOriginAndLinkUrl(form);
 
   EXPECT_EQ("example.com", shown_origin);
   EXPECT_EQ(GURL("https://example.com/login?ref=1"), link_url);

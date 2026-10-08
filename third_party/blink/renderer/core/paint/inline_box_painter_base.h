@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,16 +12,12 @@
 #include "third_party/blink/renderer/platform/text/text_direction.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
-namespace gfx {
-class Rect;
-}
-
 namespace blink {
 
 class Color;
 class ComputedStyle;
 class FillLayer;
-class NinePieceImage;
+class IntRect;
 struct PaintInfo;
 struct PhysicalOffset;
 struct PhysicalRect;
@@ -66,12 +62,6 @@ class InlineBoxPainterBase {
                       const PhysicalRect&,
                       BackgroundImageGeometry& geometry,
                       bool object_has_multiple_boxes);
-  void PaintMask(BoxPainterBase&,
-                 const PaintInfo&,
-                 const PhysicalRect& paint_rect,
-                 BackgroundImageGeometry&,
-                 bool object_has_multiple_boxes,
-                 PhysicalBoxSides sides_to_include);
   virtual void PaintNormalBoxShadow(const PaintInfo&,
                                     const ComputedStyle&,
                                     const PhysicalRect& paint_rect) = 0;
@@ -79,11 +69,6 @@ class InlineBoxPainterBase {
                                    const ComputedStyle&,
                                    const PhysicalRect& paint_rect) = 0;
 
-  static PhysicalRect ClipRectForNinePieceImageStrip(
-      const ComputedStyle& style,
-      PhysicalBoxSides sides_to_include,
-      const NinePieceImage& image,
-      const PhysicalRect& paint_rect);
   virtual PhysicalRect PaintRectForImageStrip(
       const PhysicalRect&,
       TextDirection direction) const = 0;
@@ -95,7 +80,7 @@ class InlineBoxPainterBase {
   };
   virtual BorderPaintingType GetBorderPaintType(
       const PhysicalRect& adjusted_frame_rect,
-      gfx::Rect& adjusted_clip_rect,
+      IntRect& adjusted_clip_rect,
       bool object_has_multiple_boxes) const = 0;
 
   const ImageResourceObserver& image_observer_;

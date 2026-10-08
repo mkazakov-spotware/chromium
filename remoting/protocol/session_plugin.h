@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 
 #include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 // Interface for Session plugins. Plugins allow to send and receive optional
 // information that is not essential for session handshake. Messages generated
@@ -29,6 +30,7 @@ class SessionPlugin {
   virtual void OnIncomingMessage(const jingle_xmpp::XmlElement& attachments) = 0;
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_SESSION_PLUGIN_H_

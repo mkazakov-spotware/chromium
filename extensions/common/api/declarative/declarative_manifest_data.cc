@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include <stddef.h>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
@@ -19,15 +19,12 @@ namespace {
 
 class ErrorBuilder {
  public:
-  explicit ErrorBuilder(std::u16string* error) : error_(error) {}
-
-  ErrorBuilder(const ErrorBuilder&) = delete;
-  ErrorBuilder& operator=(const ErrorBuilder&) = delete;
+  explicit ErrorBuilder(base::string16* error) : error_(error) {}
 
   // Appends a literal string |error|.
   void Append(base::StringPiece error) {
     if (!error_->empty())
-      error_->append(u"; ");
+      error_->append(base::ASCIIToUTF16("; "));
     error_->append(base::UTF8ToUTF16(error));
   }
 
@@ -37,7 +34,8 @@ class ErrorBuilder {
   }
 
  private:
-  const raw_ptr<std::u16string> error_;
+  base::string16* const error_;
+  DISALLOW_COPY_AND_ASSIGN(ErrorBuilder);
 };
 
 // Converts a rule defined in the manifest into a JSON internal format. The
@@ -45,31 +43,29 @@ class ErrorBuilder {
 // type of rule/condition, while the internal format uses a "instanceType" key
 // for this. This function walks through all the conditions and rules to swap
 // the manifest key for the internal key.
-bool ConvertManifestRule(DeclarativeManifestData::Rule& rule,
+bool ConvertManifestRule(const DeclarativeManifestData::Rule& rule,
                          ErrorBuilder* error_builder) {
-  auto convert_list = [error_builder](std::vector<base::Value>& list) {
-    for (base::Value& value : list) {
-      base::Value::Dict* dictionary = value.GetIfDict();
-      if (!dictionary) {
-        error_builder->Append("expected dictionary, got %s",
-                              base::Value::GetTypeName(value.type()));
-        return false;
-      }
-      std::string* type = dictionary->FindString("type");
-      if (!type) {
-        error_builder->Append("'type' is required and must be a string");
-        return false;
-      }
-      if (*type == declarative_content_constants::kLegacyShowAction) {
-        dictionary->Set("instanceType",
-                        declarative_content_constants::kShowAction);
-      } else {
-        dictionary->Set("instanceType", std::move(*type));
-      }
-      dictionary->Remove("type");
-    }
-    return true;
-  };
+  auto convert_list =
+      [error_builder](const std::vector<std::unique_ptr<base::Value>>& list) {
+        for (const std::unique_ptr<base::Value>& value : list) {
+          base::DictionaryValue* dictionary = nullptr;
+          if (!value->GetAsDictionary(&dictionary)) {
+            error_builder->Append("expected dictionary, got %s",
+                                  base::Value::GetTypeName(value->type()));
+            return false;
+          }
+          std::string type;
+          if (!dictionary->GetString("type", &type)) {
+            error_builder->Append("'type' is required and must be a string");
+            return false;
+          }
+          if (type == declarative_content_constants::kLegacyShowAction)
+            type = declarative_content_constants::kShowAction;
+          dictionary->Remove("type", nullptr);
+          dictionary->SetString("instanceType", type);
+        }
+        return true;
+      };
   return convert_list(rule.actions) && convert_list(rule.conditions);
 }
 
@@ -91,7 +87,7 @@ DeclarativeManifestData* DeclarativeManifestData::Get(
 // static
 std::unique_ptr<DeclarativeManifestData> DeclarativeManifestData::FromValue(
     const base::Value& value,
-    std::u16string* error) {
+    base::string16* error) {
   //  The following is an example of how an event programmatic rule definition
   //  translates to a manifest definition.
   //
@@ -127,33 +123,34 @@ std::unique_ptr<DeclarativeManifestData> DeclarativeManifestData::FromValue(
   ErrorBuilder error_builder(error);
   std::unique_ptr<DeclarativeManifestData> result(
       new DeclarativeManifestData());
-  if (!value.is_list()) {
+  const base::ListValue* list = nullptr;
+  if (!value.GetAsList(&list)) {
     error_builder.Append("'event_rules' expected list, got %s",
                          base::Value::GetTypeName(value.type()));
-    return nullptr;
+    return std::unique_ptr<DeclarativeManifestData>();
   }
 
-  for (const auto& element : value.GetList()) {
+  for (const auto& element : *list) {
     const base::DictionaryValue* dict = nullptr;
     if (!element.GetAsDictionary(&dict)) {
       error_builder.Append("expected dictionary, got %s",
                            base::Value::GetTypeName(element.type()));
-      return nullptr;
+      return std::unique_ptr<DeclarativeManifestData>();
     }
     std::string event;
     if (!dict->GetString("event", &event)) {
       error_builder.Append("'event' is required");
-      return nullptr;
+      return std::unique_ptr<DeclarativeManifestData>();
     }
 
     Rule rule;
     if (!Rule::Populate(*dict, &rule)) {
       error_builder.Append("rule failed to populate");
-      return nullptr;
+      return std::unique_ptr<DeclarativeManifestData>();
     }
 
     if (!ConvertManifestRule(rule, &error_builder))
-      return nullptr;
+      return std::unique_ptr<DeclarativeManifestData>();
 
     result->event_rules_map_[event].push_back(std::move(rule));
   }
@@ -169,8 +166,9 @@ DeclarativeManifestData::RulesForEvent(const std::string& event) {
     // TODO(rdevlin.cronin): It would be nice if we could have the RulesRegistry
     // reference the rules owned here, but the ownership issues are a bit
     // tricky. Revisit this.
+    std::unique_ptr<base::DictionaryValue> rule_value = rule.ToValue();
     std::unique_ptr<DeclarativeManifestData::Rule> rule_copy =
-        DeclarativeManifestData::Rule::FromValue(base::Value(rule.ToValue()));
+        DeclarativeManifestData::Rule::FromValue(*rule_value);
     result.push_back(std::move(*rule_copy));
   }
   return result;

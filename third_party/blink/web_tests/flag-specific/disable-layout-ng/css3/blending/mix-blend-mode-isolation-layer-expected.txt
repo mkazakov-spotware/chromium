@@ -1,10 +1,8 @@
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
-      "bounds": [800, 600],
-      "contentsOpaque": true,
-      "backgroundColor": "#FFFFFF"
+      "name": "LayoutBlockFlow HTML",
+      "bounds": [800, 600]
     },
     {
       "name": "LayoutBlockFlow (positioned) DIV class='stacking-context'",
@@ -16,13 +14,11 @@
     {
       "name": "LayoutImage IMG class='accelerated blended'",
       "bounds": [160, 90],
-      "contentsOpaqueForText": true,
       "transform": 1
     },
     {
-      "name": "LayoutBlockFlow HTML",
-      "position": [8, 8],
-      "bounds": [784, 579]
+      "name": "LayoutBlockFlow HTML (foreground) Layer",
+      "bounds": [800, 600]
     }
   ],
   "transforms": [

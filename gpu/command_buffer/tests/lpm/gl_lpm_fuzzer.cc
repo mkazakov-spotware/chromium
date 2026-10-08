@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,6 @@
 #include "base/message_loop/message_pump_type.h"
 #include "base/strings/string_split.h"
 #include "base/task/single_thread_task_executor.h"
-#include "build/build_config.h"
 #include "gpu/command_buffer/client/gles2_lib.h"
 #include "gpu/command_buffer/tests/gl_manager.h"
 #include "gpu/command_buffer/tests/gl_test_utils.h"
@@ -33,10 +32,6 @@
 #include "ui/gl/gl_context.h"
 #include "ui/gl/gl_version_info.h"
 #include "ui/gl/init/gl_factory.h"
-
-#if BUILDFLAG(IS_OZONE)
-#include "ui/ozone/public/ozone_platform.h"
-#endif
 
 // Enable this to log and crash on unexpected errors during shader compilation.
 #define CHECK_FOR_UNKNOWN_ERRORS false
@@ -54,9 +49,6 @@ struct Env {
                                     gl::kANGLEImplementationNullName);
     base::FeatureList::InitializeInstance(std::string(), std::string());
     base::SingleThreadTaskExecutor io_task_executor(base::MessagePumpType::IO);
-#if BUILDFLAG(IS_OZONE)
-    ui::OzonePlatform::InitializeForGPU(ui::OzonePlatform::InitParams());
-#endif
     gpu::GLTestHelper::InitializeGLDefault();
     ::gles2::Initialize();
   }

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,8 @@
 
 #include <algorithm>
 
-#include "base/containers/contains.h"
 #import "base/mac/foundation_util.h"
 #import "base/mac/scoped_nsobject.h"
-#include "base/memory/raw_ptr.h"
 #include "base/notreached.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/sys_string_conversions.h"
@@ -27,10 +25,9 @@
 // tear-down process. Is responsible for deleting itself when done.
 @interface ContentShellWindowDelegate : NSObject <NSWindowDelegate> {
  @private
-  raw_ptr<content::Shell> _shell;
+  content::Shell* _shell;
 }
 - (id)initWithShell:(content::Shell*)shell;
-- (content::Shell*)shell;
 @end
 
 @implementation ContentShellWindowDelegate
@@ -40,12 +37,6 @@
     _shell = shell;
   }
   return self;
-}
-
-// Called by CrShellWindow so that it doesn't need to hold
-// raw_ptr<content::Shell>.
-- (content::Shell*)shell {
-  return _shell;
 }
 
 // Called when the window is about to close. Perform the self-destruction
@@ -58,7 +49,7 @@
   // Don't leave a dangling pointer if the window lives beyond
   // this method. See crbug.com/719830.
   [window setDelegate:nil];
-  _shell.ClearAndDelete();
+  delete _shell;
   [self release];
 
   return YES;
@@ -74,19 +65,22 @@
 
 @end
 
-@interface CrShellWindow : UnderlayOpenGLHostingWindow
+@interface CrShellWindow : UnderlayOpenGLHostingWindow {
+ @private
+  content::Shell* _shell;
+}
+- (void)setShell:(content::Shell*)shell;
 - (void)showDevTools:(id)sender;
 @end
 
 @implementation CrShellWindow
 
+- (void)setShell:(content::Shell*)shell {
+  _shell = shell;
+}
+
 - (void)showDevTools:(id)sender {
-  // This is prefered as holding a raw_ptr<content::Shell> because the delegate
-  // is responsible for destroying the shell on `windowShouldClose` event which
-  // would lead the raw_ptr to dangle.
-  ContentShellWindowDelegate* delegate =
-      base::mac::ObjCCastStrict<ContentShellWindowDelegate>(self.delegate);
-  delegate.shell->ShowDevTools();
+  _shell->ShowDevTools();
 }
 
 @end
@@ -113,7 +107,7 @@ void MakeShellButton(NSRect* rect,
   base::scoped_nsobject<NSButton> button(
       [[NSButton alloc] initWithFrame:*rect]);
   [button setTitle:title];
-  [button setBezelStyle:NSBezelStyleSmallSquare];
+  [button setBezelStyle:NSSmallSquareBezelStyle];
   [button setAutoresizingMask:(NSViewMaxXMargin | NSViewMinYMargin)];
   [button setTarget:target];
   [button setAction:@selector(performAction:)];
@@ -139,7 +133,7 @@ ShellPlatformDelegate::ShellPlatformDelegate() = default;
 ShellPlatformDelegate::~ShellPlatformDelegate() = default;
 
 void ShellPlatformDelegate::Initialize(const gfx::Size& default_window_size) {
-  screen_ = std::make_unique<display::ScopedNativeScreen>();
+  // |platform_| is unused on this platform.
 }
 
 void ShellPlatformDelegate::CreatePlatformWindow(
@@ -155,14 +149,14 @@ void ShellPlatformDelegate::CreatePlatformWindow(
     height += kURLBarHeight;
   NSRect initial_window_bounds = NSMakeRect(0, 0, width, height);
   NSRect content_rect = initial_window_bounds;
-  NSUInteger style_mask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
-                          NSWindowStyleMaskMiniaturizable |
-                          NSWindowStyleMaskResizable;
+  NSUInteger style_mask = NSTitledWindowMask | NSClosableWindowMask |
+                          NSMiniaturizableWindowMask | NSResizableWindowMask;
   CrShellWindow* window =
       [[CrShellWindow alloc] initWithContentRect:content_rect
                                        styleMask:style_mask
                                          backing:NSBackingStoreBuffered
                                            defer:NO];
+  [window setShell:shell];
   [window setTitle:kWindowTitle];
   NSView* content = [window contentView];
 
@@ -196,13 +190,13 @@ void ShellPlatformDelegate::CreatePlatformWindow(
                    kButtonWidth, kURLBarHeight);
 
     MakeShellButton(&button_frame, @"Back", content, IDC_NAV_BACK,
-                    (NSView*)delegate, @"[", NSEventModifierFlagCommand);
+                    (NSView*)delegate, @"[", NSCommandKeyMask);
     MakeShellButton(&button_frame, @"Forward", content, IDC_NAV_FORWARD,
-                    (NSView*)delegate, @"]", NSEventModifierFlagCommand);
+                    (NSView*)delegate, @"]", NSCommandKeyMask);
     MakeShellButton(&button_frame, @"Reload", content, IDC_NAV_RELOAD,
-                    (NSView*)delegate, @"r", NSEventModifierFlagCommand);
+                    (NSView*)delegate, @"r", NSCommandKeyMask);
     MakeShellButton(&button_frame, @"Stop", content, IDC_NAV_STOP,
-                    (NSView*)delegate, @".", NSEventModifierFlagCommand);
+                    (NSView*)delegate, @".", NSCommandKeyMask);
 
     button_frame.size.width =
         NSWidth(initial_window_bounds) - NSMinX(button_frame);
@@ -302,7 +296,7 @@ void ShellPlatformDelegate::SetAddressBarURL(Shell* shell, const GURL& url) {
 void ShellPlatformDelegate::SetIsLoading(Shell* shell, bool loading) {}
 
 void ShellPlatformDelegate::SetTitle(Shell* shell,
-                                     const std::u16string& title) {
+                                     const base::string16& title) {
   DCHECK(base::Contains(shell_data_map_, shell));
   ShellData& shell_data = shell_data_map_[shell];
 
@@ -310,7 +304,8 @@ void ShellPlatformDelegate::SetTitle(Shell* shell,
   [shell_data.window.GetNativeNSWindow() setTitle:title_string];
 }
 
-void ShellPlatformDelegate::MainFrameCreated(Shell* shell) {}
+void ShellPlatformDelegate::RenderViewReady(Shell* shell) {
+}
 
 bool ShellPlatformDelegate::DestroyShell(Shell* shell) {
   DCHECK(base::Contains(shell_data_map_, shell));
@@ -338,7 +333,7 @@ void ShellPlatformDelegate::ActivateContents(Shell* shell,
   [NSApp activateIgnoringOtherApps:YES];
 }
 
-void ShellPlatformDelegate::DidNavigatePrimaryMainFramePostCommit(
+void ShellPlatformDelegate::DidNavigateMainFramePostCommit(
     Shell* shell,
     WebContents* contents) {}
 
@@ -354,8 +349,8 @@ bool ShellPlatformDelegate::HandleKeyboardEvent(
 
   // The event handling to get this strictly right is a tangle; cheat here a bit
   // by just letting the menus have a chance at it.
-  if ([event.os_event type] == NSEventTypeKeyDown) {
-    if (([event.os_event modifierFlags] & NSEventModifierFlagCommand) &&
+  if ([event.os_event type] == NSKeyDown) {
+    if (([event.os_event modifierFlags] & NSCommandKeyMask) &&
         [[event.os_event characters] isEqual:@"l"]) {
       [shell_data.window.GetNativeNSWindow()
           makeFirstResponder:shell_data.url_edit_view];

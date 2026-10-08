@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,9 @@ bool StructTraits<blink::mojom::blink::CloneableMessage::DataView,
   mojo_base::BigBufferView message_view;
   if (!data.ReadEncodedMessage(&message_view))
     return false;
-  out->message = blink::SerializedScriptValue::Create(message_view.data());
+  auto message_data = message_view.data();
+  out->message = blink::SerializedScriptValue::Create(
+      reinterpret_cast<const char*>(message_data.data()), message_data.size());
 
   Vector<scoped_refptr<blink::BlobDataHandle>> blobs;
   if (!data.ReadBlobs(&blobs))
@@ -44,15 +46,14 @@ bool StructTraits<blink::mojom::blink::CloneableMessage::DataView,
                      data.stack_trace_debugger_id_second()),
       data.stack_trace_should_pause());
 
-  base::UnguessableToken sender_agent_cluster_id;
-  if (!data.ReadSenderAgentClusterId(&sender_agent_cluster_id))
+  base::Optional<base::UnguessableToken> locked_agent_cluster_id;
+  if (!data.ReadLockedAgentClusterId(&locked_agent_cluster_id))
     return false;
-  out->sender_agent_cluster_id = sender_agent_cluster_id;
-  out->locked_to_sender_agent_cluster = data.locked_to_sender_agent_cluster();
+  out->locked_agent_cluster_id = locked_agent_cluster_id;
 
-  Vector<PendingRemote<blink::mojom::blink::FileSystemAccessTransferToken>>&
-      tokens = out->message->FileSystemAccessTokens();
-  if (!data.ReadFileSystemAccessTokens(&tokens)) {
+  Vector<PendingRemote<blink::mojom::blink::NativeFileSystemTransferToken>>&
+      tokens = out->message->NativeFileSystemTokens();
+  if (!data.ReadNativeFileSystemTokens(&tokens)) {
     return false;
   }
   return true;

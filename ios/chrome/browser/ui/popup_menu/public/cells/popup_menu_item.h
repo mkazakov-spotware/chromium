@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,12 +24,10 @@ typedef NS_ENUM(NSInteger, PopupMenuAction) {
   PopupMenuActionReportIssue,
   PopupMenuActionHelp,
   PopupMenuActionTextZoom,
-  PopupMenuActionPriceNotifications,
 #if !defined(NDEBUG)
   PopupMenuActionViewSource,
 #endif  // !defined(NDEBUG)
   PopupMenuActionOpenNewWindow,
-  PopupMenuActionFollow,
   PopupMenuActionBookmarks,
   PopupMenuActionReadingList,
   PopupMenuActionRecentTabs,
@@ -41,7 +39,6 @@ typedef NS_ENUM(NSInteger, PopupMenuAction) {
   PopupMenuActionSearch,
   PopupMenuActionIncognitoSearch,
   PopupMenuActionQRCodeSearch,
-  PopupMenuActionLensCopiedImage,
   PopupMenuActionSearchCopiedImage,
   PopupMenuActionSearchCopiedText,
   PopupMenuActionVisitCopiedLink,
@@ -56,11 +53,8 @@ typedef NS_ENUM(NSInteger, PopupMenuAction) {
   // Badge overflow popup menu
   PopupMenuActionShowSavePasswordOptions,
   PopupMenuActionShowUpdatePasswordOptions,
-  PopupMenuActionShowSaveAddressProfileOptions,
   PopupMenuActionShowSaveCardOptions,
   PopupMenuActionShowTranslateOptions,
-  PopupMenuActionAddToReadingListOptions,
-  PopupMenuActionShowPermissionsOptions,
   // Textual popup menu
   PopupMenuActionEnterpriseInfoMessage,
 };

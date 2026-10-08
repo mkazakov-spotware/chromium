@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,10 @@
 
 #include <memory>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/supports_user_data.h"
-#include "base/time/time.h"
 #include "net/base/net_export.h"
 #include "net/der/parse_values.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace net {
 
@@ -20,20 +18,37 @@ class CertNetFetcher;
 class CertVerifyProc;
 class SystemTrustStore;
 
+// Will be used to create the system trust store. Implementations must be
+// thread-safe - CreateSystemTrustStore may be invoked concurrently on worker
+// threads.
+class NET_EXPORT SystemTrustStoreProvider {
+ public:
+  virtual ~SystemTrustStoreProvider() {}
+
+  // Returns a SystemTrustStoreProvider that will create the default
+  // SystemTrustStore for SSL (using CreateSslSystemTrustStore()).
+  static std::unique_ptr<SystemTrustStoreProvider> CreateDefaultForSSL();
+
+  // Create and return a SystemTrustStore to be used during certificate
+  // verification.
+  // This function may be invoked concurrently on worker threads and must be
+  // thread-safe. However, the returned SystemTrustStore will only be used on
+  // a single thread.
+  virtual std::unique_ptr<SystemTrustStore> CreateSystemTrustStore() = 0;
+};
+
 class NET_EXPORT CertVerifyProcBuiltinResultDebugData
     : public base::SupportsUserData::Data {
  public:
   CertVerifyProcBuiltinResultDebugData(
       base::Time verification_time,
-      const der::GeneralizedTime& der_verification_time,
-      absl::optional<int64_t> chrome_root_store_version);
+      const der::GeneralizedTime& der_verification_time);
 
   static const CertVerifyProcBuiltinResultDebugData* Get(
       const base::SupportsUserData* debug_data);
   static void Create(base::SupportsUserData* debug_data,
                      base::Time verification_time,
-                     const der::GeneralizedTime& der_verification_time,
-                     absl::optional<int64_t> chrome_root_store_version);
+                     const der::GeneralizedTime& der_verification_time);
 
   // base::SupportsUserData::Data implementation:
   std::unique_ptr<Data> Clone() override;
@@ -42,14 +57,10 @@ class NET_EXPORT CertVerifyProcBuiltinResultDebugData
   const der::GeneralizedTime& der_verification_time() const {
     return der_verification_time_;
   }
-  absl::optional<int64_t> chrome_root_store_version() const {
-    return chrome_root_store_version_;
-  }
 
  private:
   base::Time verification_time_;
   der::GeneralizedTime der_verification_time_;
-  absl::optional<int64_t> chrome_root_store_version_;
 };
 
 // TODO(crbug.com/649017): This is not how other cert_verify_proc_*.h are
@@ -57,7 +68,7 @@ class NET_EXPORT CertVerifyProcBuiltinResultDebugData
 // here too.
 NET_EXPORT scoped_refptr<CertVerifyProc> CreateCertVerifyProcBuiltin(
     scoped_refptr<CertNetFetcher> net_fetcher,
-    std::unique_ptr<SystemTrustStore> system_trust_store);
+    std::unique_ptr<SystemTrustStoreProvider> system_trust_store_provider);
 
 // Returns the time limit used by CertVerifyProcBuiltin. Intended for test use.
 NET_EXPORT_PRIVATE base::TimeDelta

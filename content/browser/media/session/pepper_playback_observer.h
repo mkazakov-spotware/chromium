@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <memory>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 
 namespace content {
 
@@ -24,10 +24,6 @@ class WebContents;
 class PepperPlaybackObserver {
  public:
   explicit PepperPlaybackObserver(WebContents* contents);
-
-  PepperPlaybackObserver(const PepperPlaybackObserver&) = delete;
-  PepperPlaybackObserver& operator=(const PepperPlaybackObserver&) = delete;
-
   virtual ~PepperPlaybackObserver();
 
   void RenderFrameDeleted(RenderFrameHost* render_frame_host);
@@ -60,7 +56,9 @@ class PepperPlaybackObserver {
   PlayersPlayedSoundMap players_played_sound_map_;
 
   // Weak reference to WebContents.
-  raw_ptr<WebContents> contents_;
+  WebContents* contents_;
+
+  DISALLOW_COPY_AND_ASSIGN(PepperPlaybackObserver);
 };
 
 }  // namespace content

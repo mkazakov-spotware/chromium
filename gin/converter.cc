@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,10 @@
 #include <stdint.h>
 
 #include "base/strings/string_util.h"
-#include "base/time/time.h"
-#include "v8/include/v8-array-buffer.h"
-#include "v8/include/v8-external.h"
-#include "v8/include/v8-function.h"
-#include "v8/include/v8-maybe.h"
-#include "v8/include/v8-object.h"
-#include "v8/include/v8-primitive.h"
-#include "v8/include/v8-promise.h"
-#include "v8/include/v8-value.h"
+#include "v8/include/v8.h"
 
 using v8::ArrayBuffer;
+using v8::Boolean;
 using v8::External;
 using v8::Function;
 using v8::Int32;
@@ -48,7 +41,7 @@ bool FromMaybe(Maybe<T> maybe, U* out) {
 namespace gin {
 
 Local<Value> Converter<bool>::ToV8(Isolate* isolate, bool val) {
-  return v8::Boolean::New(isolate, val).As<Value>();
+  return Boolean::New(isolate, val).As<Value>();
 }
 
 bool Converter<bool>::FromV8(Isolate* isolate, Local<Value> val, bool* out) {
@@ -159,17 +152,17 @@ bool Converter<std::string>::FromV8(Isolate* isolate,
   return true;
 }
 
-Local<Value> Converter<std::u16string>::ToV8(Isolate* isolate,
-                                             const std::u16string& val) {
+Local<Value> Converter<base::string16>::ToV8(Isolate* isolate,
+                                             const base::string16& val) {
   return String::NewFromTwoByte(isolate,
                                 reinterpret_cast<const uint16_t*>(val.data()),
                                 v8::NewStringType::kNormal, val.size())
       .ToLocalChecked();
 }
 
-bool Converter<std::u16string>::FromV8(Isolate* isolate,
+bool Converter<base::string16>::FromV8(Isolate* isolate,
                                        Local<Value> val,
-                                       std::u16string* out) {
+                                       base::string16* out) {
   if (!val->IsString())
     return false;
   Local<String> str = Local<String>::Cast(val);
@@ -180,12 +173,6 @@ bool Converter<std::u16string>::FromV8(Isolate* isolate,
              reinterpret_cast<uint16_t*>(base::WriteInto(out, length + 1)), 0,
              length);
   return true;
-}
-
-v8::Local<v8::Value> Converter<base::TimeTicks>::ToV8(v8::Isolate* isolate,
-                                                      base::TimeTicks val) {
-  return v8::BigInt::New(isolate, val.since_origin().InMicroseconds())
-      .As<v8::Value>();
 }
 
 Local<Value> Converter<Local<Function>>::ToV8(Isolate* isolate,

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -123,11 +123,11 @@ void StandaloneInstallerConfigurator::ConfigureInstallationType(
     LOGFN(ERROR) << "SetGlobalFlag failed" << putHR(hr);
 }
 
-std::wstring StandaloneInstallerConfigurator::GetCurrentDate() {
+base::string16 StandaloneInstallerConfigurator::GetCurrentDate() {
   static const wchar_t kDateFormat[] = L"yyyyMMdd";
-  wchar_t date_str[std::size(kDateFormat)] = {0};
+  wchar_t date_str[base::size(kDateFormat)] = {0};
   int len = GetDateFormatW(LOCALE_INVARIANT, 0, nullptr, kDateFormat, date_str,
-                           std::size(date_str));
+                           base::size(date_str));
   if (len) {
     --len;  // Subtract terminating \0.
   } else {
@@ -135,7 +135,7 @@ std::wstring StandaloneInstallerConfigurator::GetCurrentDate() {
     return L"";
   }
 
-  return std::wstring(date_str, len);
+  return base::string16(date_str, len);
 }
 
 bool StandaloneInstallerConfigurator::IsStandaloneInstallation() const {
@@ -236,7 +236,7 @@ HRESULT StandaloneInstallerConfigurator::AddUninstallKey(
   base::Version version(CHROME_VERSION_STRING);
 
   status = key.WriteValue(kRegVersion,
-                          base::ASCIIToWide(version.GetString()).c_str());
+                          base::ASCIIToUTF16(version.GetString()).c_str());
   if (status != ERROR_SUCCESS) {
     HRESULT hr = HRESULT_FROM_WIN32(status);
     LOGFN(ERROR) << "Unable to write " << kRegVersion << " hr=" << putHR(hr);
@@ -244,7 +244,7 @@ HRESULT StandaloneInstallerConfigurator::AddUninstallKey(
   }
 
   status = key.WriteValue(kRegDisplayVersion,
-                          base::ASCIIToWide(version.GetString()).c_str());
+                          base::ASCIIToUTF16(version.GetString()).c_str());
   if (status != ERROR_SUCCESS) {
     HRESULT hr = HRESULT_FROM_WIN32(status);
     LOGFN(ERROR) << "Unable to write " << kRegDisplayVersion

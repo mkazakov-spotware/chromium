@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "ppapi/c/pp_size.h"
 #include "ppapi/c/private/pp_video_capture_format.h"
 #include "ppapi/proxy/connection.h"
@@ -25,10 +26,6 @@ class PPAPI_PROXY_EXPORT CameraDeviceResource
       public thunk::PPB_CameraDevice_API {
  public:
   CameraDeviceResource(Connection connection, PP_Instance instance);
-
-  CameraDeviceResource(const CameraDeviceResource&) = delete;
-  CameraDeviceResource& operator=(const CameraDeviceResource&) = delete;
-
   ~CameraDeviceResource() override;
 
   // Resource overrides:
@@ -62,6 +59,8 @@ class PPAPI_PROXY_EXPORT CameraDeviceResource
 
   scoped_refptr<TrackedCallback> get_capabilities_callback_;
   scoped_refptr<CameraCapabilitiesResource> camera_capabilities_;
+
+  DISALLOW_COPY_AND_ASSIGN(CameraDeviceResource);
 };
 
 }  // namespace proxy

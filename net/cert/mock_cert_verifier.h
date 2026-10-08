@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <list>
 #include <memory>
 
-#include "base/callback_list.h"
 #include "net/base/completion_once_callback.h"
 #include "net/cert/cert_verifier.h"
 #include "net/cert/cert_verify_result.h"
@@ -66,15 +65,12 @@ class MockCertVerifier : public CertVerifier {
   struct Rule;
   using RuleList = std::list<Rule>;
   class MockRequest;
-  friend class MockRequest;
 
   int VerifyImpl(const RequestParams& params, CertVerifyResult* verify_result);
 
-  int default_result_ = ERR_CERT_INVALID;
+  int default_result_;
   RuleList rules_;
-  bool async_ = false;
-
-  base::OnceClosureList request_list_;
+  bool async_;
 };
 
 }  // namespace net

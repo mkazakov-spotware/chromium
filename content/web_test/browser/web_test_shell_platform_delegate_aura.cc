@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,12 +53,12 @@ void WebTestShellPlatformDelegate::SetAddressBarURL(Shell* shell,
 }
 
 void WebTestShellPlatformDelegate::SetTitle(Shell* shell,
-                                            const std::u16string& title) {
+                                            const base::string16& title) {
   ShellPlatformDelegate::SetTitle(shell, title);
 }
 
-void WebTestShellPlatformDelegate::MainFrameCreated(Shell* shell) {
-  ShellPlatformDelegate::MainFrameCreated(shell);
+void WebTestShellPlatformDelegate::RenderViewReady(Shell* shell) {
+  ShellPlatformDelegate::RenderViewReady(shell);
 }
 
 bool WebTestShellPlatformDelegate::DestroyShell(Shell* shell) {

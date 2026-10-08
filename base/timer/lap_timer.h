@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define BASE_TIMER_LAP_TIMER_H_
 
 #include "base/base_export.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
 #include "base/time/time.h"
 
@@ -36,10 +37,6 @@ class BASE_EXPORT LapTimer {
            TimerMethod timing_method = TimerMethod::kUseTimeTicks);
   // Create LapTimer with sensible default values.
   LapTimer(TimerMethod timing_method = TimerMethod::kUseTimeTicks);
-
-  LapTimer(const LapTimer&) = delete;
-  LapTimer& operator=(const LapTimer&) = delete;
-
   // Sets the timer back to its starting state.
   void Reset();
   // Sets the start point to now.
@@ -83,6 +80,7 @@ class BASE_EXPORT LapTimer {
   int remaining_no_check_laps_ = 0;
 
   SEQUENCE_CHECKER(sequence_checker_);
+  DISALLOW_COPY_AND_ASSIGN(LapTimer);
 };
 }  // namespace base
 

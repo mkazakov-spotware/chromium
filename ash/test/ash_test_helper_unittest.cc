@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,10 +17,6 @@ namespace ash {
 class AshTestHelperTest : public testing::Test {
  public:
   AshTestHelperTest() = default;
-
-  AshTestHelperTest(const AshTestHelperTest&) = delete;
-  AshTestHelperTest& operator=(const AshTestHelperTest&) = delete;
-
   ~AshTestHelperTest() override = default;
 
   void SetUp() override {
@@ -35,6 +31,8 @@ class AshTestHelperTest : public testing::Test {
       base::test::TaskEnvironment::MainThreadType::UI};
 
   AshTestHelper ash_test_helper_;
+
+  DISALLOW_COPY_AND_ASSIGN(AshTestHelperTest);
 };
 
 // Ensure that we have initialized enough of Ash to create and show a window.

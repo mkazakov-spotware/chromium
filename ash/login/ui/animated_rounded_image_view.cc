@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,8 @@
 #include "skia/ext/image_operations.h"
 #include "third_party/skia/include/core/SkPath.h"
 #include "ui/gfx/canvas.h"
-#include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/gfx/image/image_skia_operations.h"
+#include "ui/gfx/skia_util.h"
 
 namespace ash {
 namespace {
@@ -21,12 +21,7 @@ namespace {
 class SingleFrameImageDecoder
     : public AnimatedRoundedImageView::AnimationDecoder {
  public:
-  explicit SingleFrameImageDecoder(const gfx::ImageSkia& image)
-      : image_(image) {}
-
-  SingleFrameImageDecoder(const SingleFrameImageDecoder&) = delete;
-  SingleFrameImageDecoder& operator=(const SingleFrameImageDecoder&) = delete;
-
+  SingleFrameImageDecoder(const gfx::ImageSkia& image) : image_(image) {}
   ~SingleFrameImageDecoder() override = default;
 
   // AnimatedRoundedImageView::AnimationDecoder:
@@ -38,6 +33,8 @@ class SingleFrameImageDecoder
 
  private:
   gfx::ImageSkia image_;
+
+  DISALLOW_COPY_AND_ASSIGN(SingleFrameImageDecoder);
 };
 
 }  // namespace

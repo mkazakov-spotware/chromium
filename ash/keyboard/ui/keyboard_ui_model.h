@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "ash/keyboard/ui/keyboard_export.h"
 #include "ash/public/cpp/keyboard/keyboard_config.h"
+#include "base/macros.h"
 
 namespace keyboard {
 
@@ -50,9 +51,6 @@ class KEYBOARD_EXPORT KeyboardUIModel {
  public:
   KeyboardUIModel();
 
-  KeyboardUIModel(const KeyboardUIModel&) = delete;
-  KeyboardUIModel& operator=(const KeyboardUIModel&) = delete;
-
   // Get the current state of the keyboard UI.
   KeyboardUIState state() const { return state_; }
 
@@ -62,6 +60,8 @@ class KEYBOARD_EXPORT KeyboardUIModel {
  private:
   // Current state of the keyboard UI.
   KeyboardUIState state_ = KeyboardUIState::kInitial;
+
+  DISALLOW_COPY_AND_ASSIGN(KeyboardUIModel);
 };
 
 }  // namespace keyboard

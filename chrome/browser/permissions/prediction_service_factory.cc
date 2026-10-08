@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,9 @@
 
 #include "base/memory/singleton.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/permissions/prediction_service/prediction_service.h"
 #include "services/network/public/cpp/cross_thread_pending_shared_url_loader_factory.h"
 
@@ -23,9 +25,9 @@ PredictionServiceFactory* PredictionServiceFactory::GetInstance() {
 }
 
 PredictionServiceFactory::PredictionServiceFactory()
-    : ProfileKeyedServiceFactory(
+    : BrowserContextKeyedServiceFactory(
           "PredictionService",
-          ProfileSelections::BuildForRegularAndIncognito()) {}
+          BrowserContextDependencyManager::GetInstance()) {}
 
 PredictionServiceFactory::~PredictionServiceFactory() = default;
 
@@ -36,4 +38,9 @@ KeyedService* PredictionServiceFactory::BuildServiceInstanceFor(
           g_browser_process->shared_url_loader_factory());
   return new permissions::PredictionService(
       network::SharedURLLoaderFactory::Create(std::move(url_loader_factory)));
+}
+
+content::BrowserContext* PredictionServiceFactory::GetBrowserContextToUse(
+    content::BrowserContext* context) const {
+  return chrome::GetBrowserContextOwnInstanceInIncognito(context);
 }

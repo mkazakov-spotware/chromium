@@ -37,15 +37,13 @@ testing, use [EmbeddedTestServer](/net/test/android/javatests/src/org/chromium/n
 which will allow simple loading of files from the [data directory](/android_webview/test/data/).
 For loading data from arbitrary URIs and more advanced control, the
 [TestWebServer](/net/test/android/javatests/src/org/chromium/net/test/util/TestWebServer.java)
-can be used. Note that, when simulating input or user actions on web content,
-the content should include some visiible text because input is typically
-ignored until something meaningful is painted.
+can be used.
 
 ## Java unittest (JUnit)
 These are off-device tests using robolectric that only exercise android\_webview
 Java code.
 
-#### Where to add tests?
+#### Where do add tests?
 The tests are located in the [junit directory](/android_webview/junit/src/org/chromium/android_webview/robolectric/).
 
 #### How to write junit tests?

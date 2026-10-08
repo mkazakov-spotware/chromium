@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -8,7 +8,6 @@
 
 #include <objbase.h>
 
-#include <iterator>
 #include <list>
 
 #include "base/files/file_path.h"
@@ -16,6 +15,7 @@
 #include "base/files/scoped_temp_dir.h"
 #include "base/logging.h"
 #include "base/process/process_handle.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/win/event_trace_controller.h"
@@ -38,9 +38,6 @@ class TestConsumer : public EtwTraceConsumerBase<TestConsumer> {
     sank_event_.Set(::CreateEvent(nullptr, TRUE, FALSE, nullptr));
     ClearQueue();
   }
-
-  TestConsumer(const TestConsumer&) = delete;
-  TestConsumer& operator=(const TestConsumer&) = delete;
 
   ~TestConsumer() {
     ClearQueue();
@@ -68,11 +65,14 @@ class TestConsumer : public EtwTraceConsumerBase<TestConsumer> {
 
   static void ProcessEvent(EVENT_TRACE* event) {
     EnqueueEvent(event);
-    ::SetEvent(sank_event_.get());
+    ::SetEvent(sank_event_.Get());
   }
 
   static ScopedHandle sank_event_;
   static EventQueue events_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestConsumer);
 };
 
 ScopedHandle TestConsumer::sank_event_;
@@ -138,7 +138,7 @@ class EtwTraceConsumerRealtimeTest : public EtwTraceConsumerBaseTest {
   }
 
   DWORD ConsumerThread() {
-    ::SetEvent(consumer_ready_.get());
+    ::SetEvent(consumer_ready_.Get());
     return consumer_.Consume();
   }
 
@@ -149,15 +149,15 @@ class EtwTraceConsumerRealtimeTest : public EtwTraceConsumerBaseTest {
 
   HRESULT StartConsumerThread() {
     consumer_ready_.Set(::CreateEvent(nullptr, TRUE, FALSE, nullptr));
-    EXPECT_TRUE(consumer_ready_.is_valid());
+    EXPECT_TRUE(consumer_ready_.IsValid());
     consumer_thread_.Set(
         ::CreateThread(nullptr, 0, ConsumerThreadMainProc, this, 0, nullptr));
-    if (consumer_thread_.get() == nullptr)
+    if (consumer_thread_.Get() == nullptr)
       return HRESULT_FROM_WIN32(::GetLastError());
 
-    HANDLE events[] = {consumer_ready_.get(), consumer_thread_.get()};
+    HANDLE events[] = {consumer_ready_.Get(), consumer_thread_.Get()};
     DWORD result =
-        ::WaitForMultipleObjects(std::size(events), events, FALSE, INFINITE);
+        ::WaitForMultipleObjects(size(events), events, FALSE, INFINITE);
     switch (result) {
       case WAIT_OBJECT_0:
         // The event was set, the consumer_ is ready.
@@ -165,10 +165,10 @@ class EtwTraceConsumerRealtimeTest : public EtwTraceConsumerBaseTest {
       case WAIT_OBJECT_0 + 1: {
         // The thread finished. This may race with the event, so check
         // explicitly for the event here, before concluding there's trouble.
-        if (::WaitForSingleObject(consumer_ready_.get(), 0) == WAIT_OBJECT_0)
+        if (::WaitForSingleObject(consumer_ready_.Get(), 0) == WAIT_OBJECT_0)
           return S_OK;
         DWORD exit_code = 0;
-        if (::GetExitCodeThread(consumer_thread_.get(), &exit_code))
+        if (::GetExitCodeThread(consumer_thread_.Get(), &exit_code))
           return exit_code;
         return HRESULT_FROM_WIN32(::GetLastError());
       }
@@ -179,13 +179,13 @@ class EtwTraceConsumerRealtimeTest : public EtwTraceConsumerBaseTest {
 
   // Waits for consumer_ thread to exit, and returns its exit code.
   HRESULT JoinConsumerThread() {
-    if (::WaitForSingleObject(consumer_thread_.get(), INFINITE) !=
+    if (::WaitForSingleObject(consumer_thread_.Get(), INFINITE) !=
         WAIT_OBJECT_0) {
       return HRESULT_FROM_WIN32(::GetLastError());
     }
 
     DWORD exit_code = 0;
-    if (::GetExitCodeThread(consumer_thread_.get(), &exit_code))
+    if (::GetExitCodeThread(consumer_thread_.Get(), &exit_code))
       return exit_code;
 
     return HRESULT_FROM_WIN32(::GetLastError());
@@ -209,14 +209,9 @@ TEST_F(EtwTraceConsumerRealtimeTest, ConsumerReturnsWhenSessionClosed) {
   // Start the consumer_.
   ASSERT_HRESULT_SUCCEEDED(StartConsumerThread());
 
-  // Wait around for the consumer_ thread a bit. This is inherently racy because
-  // the consumer thread says that it is ready and then calls Consume() which
-  // calls ::ProcessTrace. We need to call WaitForSingleObject after the call to
-  // ::ProcessTrace but there is no way to know when that call has been made.
-  // With a timeout of 50 ms this test was failing frequently when the system
-  // was under load. It is hoped that 500 ms will be enough.
+  // Wait around for the consumer_ thread a bit.
   ASSERT_EQ(static_cast<DWORD>(WAIT_TIMEOUT),
-            ::WaitForSingleObject(consumer_thread_.get(), 500));
+            ::WaitForSingleObject(consumer_thread_.Get(), 50));
   ASSERT_HRESULT_SUCCEEDED(controller.Stop(nullptr));
 
   // The consumer_ returns success on session stop.
@@ -255,7 +250,7 @@ TEST_F(EtwTraceConsumerRealtimeTest, ConsumeEvent) {
   EtwMofEvent<1> event(kTestEventType, 1, TRACE_LEVEL_ERROR);
   EXPECT_EQ(static_cast<DWORD>(ERROR_SUCCESS), provider.Log(&event.header));
   EXPECT_EQ(WAIT_OBJECT_0,
-            ::WaitForSingleObject(TestConsumer::sank_event_.get(), INFINITE));
+            ::WaitForSingleObject(TestConsumer::sank_event_.Get(), INFINITE));
   ASSERT_HRESULT_SUCCEEDED(controller.Stop(nullptr));
   ASSERT_HRESULT_SUCCEEDED(JoinConsumerThread());
   ASSERT_NE(0u, TestConsumer::events_.size());

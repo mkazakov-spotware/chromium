@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,12 +28,12 @@ PowerObserverHelper::PowerObserverHelper(
   // TODO(grunell): We could be suspending when adding this as observer, and
   // we won't be notified about that. See if we can add
   // PowerMonitorSource::IsSuspending() so that this can be checked here.
-  base::PowerMonitor::AddPowerSuspendObserver(this);
+  base::PowerMonitor::AddObserver(this);
 }
 
 PowerObserverHelper::~PowerObserverHelper() {
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
-  base::PowerMonitor::RemovePowerSuspendObserver(this);
+  base::PowerMonitor::RemoveObserver(this);
 }
 
 bool PowerObserverHelper::IsSuspending() const {

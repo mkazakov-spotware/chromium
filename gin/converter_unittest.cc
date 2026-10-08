@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <string>
-
 #include "base/compiler_specific.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "gin/function_template.h"
 #include "gin/handle.h"
@@ -19,12 +19,7 @@
 #include "gin/wrappable.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "v8/include/v8-container.h"
-#include "v8/include/v8-forward.h"
-#include "v8/include/v8-function.h"
-#include "v8/include/v8-isolate.h"
-#include "v8/include/v8-primitive.h"
-#include "v8/include/v8-template.h"
+#include "v8/include/v8.h"
 
 namespace gin {
 
@@ -74,7 +69,7 @@ TEST_F(ConverterTest, Bool) {
       {Undefined(instance_->isolate()).As<Value>(), false},
   };
 
-  for (size_t i = 0; i < std::size(test_data); ++i) {
+  for (size_t i = 0; i < base::size(test_data); ++i) {
     bool result = false;
     EXPECT_TRUE(Converter<bool>::FromV8(instance_->isolate(),
                                         test_data[i].input, &result));
@@ -92,30 +87,31 @@ TEST_F(ConverterTest, String16) {
 
   HandleScope handle_scope(isolate);
 
-  EXPECT_TRUE(Converter<std::u16string>::ToV8(isolate, u"")
+  EXPECT_TRUE(Converter<base::string16>::ToV8(isolate, base::ASCIIToUTF16(""))
                   ->StrictEquals(StringToV8(isolate, "")));
-  EXPECT_TRUE(Converter<std::u16string>::ToV8(isolate, u"hello")
-                  ->StrictEquals(StringToV8(isolate, "hello")));
+  EXPECT_TRUE(
+      Converter<base::string16>::ToV8(isolate, base::ASCIIToUTF16("hello"))
+          ->StrictEquals(StringToV8(isolate, "hello")));
 
-  std::u16string result;
+  base::string16 result;
 
   ASSERT_FALSE(
-      Converter<std::u16string>::FromV8(isolate, v8::False(isolate), &result));
+      Converter<base::string16>::FromV8(isolate, v8::False(isolate), &result));
   ASSERT_FALSE(
-      Converter<std::u16string>::FromV8(isolate, v8::True(isolate), &result));
-  ASSERT_TRUE(Converter<std::u16string>::FromV8(
+      Converter<base::string16>::FromV8(isolate, v8::True(isolate), &result));
+  ASSERT_TRUE(Converter<base::string16>::FromV8(
       isolate, v8::String::Empty(isolate), &result));
-  EXPECT_EQ(result, std::u16string());
-  ASSERT_TRUE(Converter<std::u16string>::FromV8(
+  EXPECT_EQ(result, base::string16());
+  ASSERT_TRUE(Converter<base::string16>::FromV8(
       isolate, StringToV8(isolate, "hello"), &result));
-  EXPECT_EQ(result, u"hello");
+  EXPECT_EQ(result, base::ASCIIToUTF16("hello"));
 }
 
 TEST_F(ConverterTest, Int32) {
   HandleScope handle_scope(instance_->isolate());
 
   int test_data_to[] = {-1, 0, 1};
-  for (size_t i = 0; i < std::size(test_data_to); ++i) {
+  for (size_t i = 0; i < base::size(test_data_to); ++i) {
     EXPECT_TRUE(Converter<int32_t>::ToV8(instance_->isolate(), test_data_to[i])
                     ->StrictEquals(
                           Integer::New(instance_->isolate(), test_data_to[i])));
@@ -149,7 +145,7 @@ TEST_F(ConverterTest, Int32) {
       {v8::Undefined(instance_->isolate()).As<Value>(), false, 0},
   };
 
-  for (size_t i = 0; i < std::size(test_data_from); ++i) {
+  for (size_t i = 0; i < base::size(test_data_from); ++i) {
     int32_t result = std::numeric_limits<int32_t>::min();
     bool success = Converter<int32_t>::FromV8(instance_->isolate(),
                                               test_data_from[i].input, &result);

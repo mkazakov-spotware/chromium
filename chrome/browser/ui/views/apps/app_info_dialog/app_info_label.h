@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/controls/label.h"
 
 // Label styled for use in AppInfo dialog so accessible users can step through
@@ -15,13 +14,11 @@
 // TODO(dfried): merge functionality into views::Label.
 class AppInfoLabel : public views::Label {
  public:
-  METADATA_HEADER(AppInfoLabel);
-
-  explicit AppInfoLabel(const std::u16string& text);
+  explicit AppInfoLabel(const base::string16& text);
   ~AppInfoLabel() override;
 
   // See documentation on views::Label::Label().
-  AppInfoLabel(const std::u16string& text,
+  AppInfoLabel(const base::string16& text,
                int text_context,
                int text_style = views::style::STYLE_PRIMARY,
                gfx::DirectionalityMode directionality_mode =

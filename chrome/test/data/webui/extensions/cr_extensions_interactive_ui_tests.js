@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,6 +22,14 @@ const CrExtensionsInteractiveUITest = class extends PolymerInteractiveUITest {
     return 'chrome://extensions/';
   }
 
+  /** @override */
+  get extraLibraries() {
+    return [
+      '//third_party/mocha/mocha.js',
+      '//chrome/test/data/webui/mocha_adapter.js',
+    ];
+  }
+
   // The name of the mocha suite. Should be overridden by subclasses.
   get suiteName() {
     return null;
@@ -35,6 +43,7 @@ const CrExtensionsInteractiveUITest = class extends PolymerInteractiveUITest {
 
 
 /** Test fixture for Sync Page. */
+// eslint-disable-next-line no-var
 var CrExtensionsOptionsPageTest = class extends CrExtensionsInteractiveUITest {
   /** @override */
   get browsePreload() {
@@ -57,6 +66,7 @@ TEST_F('CrExtensionsOptionsPageTest', 'DISABLED_All', function() {
   mocha.run();
 });
 
+// eslint-disable-next-line no-var
 var CrExtensionsShortcutInputTest =
     class extends CrExtensionsInteractiveUITest {
   /** @override */

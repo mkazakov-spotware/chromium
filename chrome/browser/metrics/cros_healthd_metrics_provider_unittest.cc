@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,14 +12,15 @@
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
-#include "chromeos/ash/services/cros_healthd/public/cpp/fake_cros_healthd.h"
-#include "chromeos/ash/services/cros_healthd/public/mojom/cros_healthd.mojom.h"
-#include "chromeos/ash/services/cros_healthd/public/mojom/cros_healthd_probe.mojom.h"
+#include "chromeos/dbus/cros_healthd/cros_healthd_client.h"
+#include "chromeos/dbus/cros_healthd/fake_cros_healthd_client.h"
+#include "chromeos/services/cros_healthd/public/cpp/service_connection.h"
+#include "chromeos/services/cros_healthd/public/mojom/cros_healthd.mojom.h"
+#include "chromeos/services/cros_healthd/public/mojom/cros_healthd_probe.mojom.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/metrics_proto/system_profile.pb.h"
 
 namespace {
-
 constexpr uint32_t kVendorId = 25;
 constexpr uint32_t kProductId = 17;
 constexpr uint32_t kRevision = 92;
@@ -31,46 +32,47 @@ constexpr char kSubsystem[] = "block:nvme:pcie";
 constexpr auto kType =
     metrics::SystemProfileProto::Hardware::InternalStorageDevice::TYPE_NVME;
 constexpr auto kMojoPurpose =
-    ash::cros_healthd::mojom::StorageDevicePurpose::kSwapDevice;
+    chromeos::cros_healthd::mojom::StorageDevicePurpose::kSwapDevice;
 constexpr auto kUmaPurpose =
     metrics::SystemProfileProto::Hardware::InternalStorageDevice::PURPOSE_SWAP;
-
 }  // namespace
 
 class CrosHealthdMetricsProviderTest : public testing::Test {
  public:
   CrosHealthdMetricsProviderTest() {
-    ash::cros_healthd::FakeCrosHealthd::Initialize();
+    chromeos::CrosHealthdClient::InitializeFake();
 
-    ash::cros_healthd::mojom::NonRemovableBlockDeviceInfo storage_info;
-    storage_info.vendor_id =
-        ash::cros_healthd::mojom::BlockDeviceVendor::NewNvmeSubsystemVendor(
-            kVendorId);
-    storage_info.product_id =
-        ash::cros_healthd::mojom::BlockDeviceProduct::NewNvmeSubsystemDevice(
-            kProductId);
+    chromeos::cros_healthd::mojom::NonRemovableBlockDeviceInfo storage_info;
+    storage_info.vendor_id = chromeos::cros_healthd::mojom::BlockDeviceVendor::
+        NewNvmeSubsystemVendor(kVendorId);
+    storage_info.product_id = chromeos::cros_healthd::mojom::
+        BlockDeviceProduct::NewNvmeSubsystemDevice(kProductId);
     storage_info.revision =
-        ash::cros_healthd::mojom::BlockDeviceRevision::NewNvmePcieRev(
+        chromeos::cros_healthd::mojom::BlockDeviceRevision::NewNvmePcieRev(
             kRevision);
     storage_info.firmware_version =
-        ash::cros_healthd::mojom::BlockDeviceFirmware::NewNvmeFirmwareRev(
+        chromeos::cros_healthd::mojom::BlockDeviceFirmware::NewNvmeFirmwareRev(
             kFwVersion);
     storage_info.size = kSize;
     storage_info.name = kModel;
     storage_info.type = kSubsystem;
     storage_info.purpose = kMojoPurpose;
 
-    std::vector<ash::cros_healthd::mojom::NonRemovableBlockDeviceInfoPtr> devs;
+    std::vector<chromeos::cros_healthd::mojom::NonRemovableBlockDeviceInfoPtr>
+        devs;
     devs.push_back(storage_info.Clone());
-    auto info = ash::cros_healthd::mojom::TelemetryInfo::New();
-    info->block_device_result = ash::cros_healthd::mojom::
+    auto info = chromeos::cros_healthd::mojom::TelemetryInfo::New();
+    info->block_device_result = chromeos::cros_healthd::mojom::
         NonRemovableBlockDeviceResult::NewBlockDeviceInfo(std::move(devs));
-    ash::cros_healthd::FakeCrosHealthd::Get()
+    chromeos::cros_healthd::FakeCrosHealthdClient::Get()
         ->SetProbeTelemetryInfoResponseForTesting(info);
   }
 
   ~CrosHealthdMetricsProviderTest() override {
-    ash::cros_healthd::FakeCrosHealthd::Shutdown();
+    chromeos::CrosHealthdClient::Shutdown();
+
+    // Wait for ServiceConnection to observe the destruction of the client.
+    chromeos::cros_healthd::ServiceConnection::GetInstance()->FlushForTesting();
   }
 
  protected:
@@ -106,8 +108,9 @@ TEST_F(CrosHealthdMetricsProviderTest, EndToEnd) {
 }
 
 TEST_F(CrosHealthdMetricsProviderTest, EndToEndTimeout) {
-  ash::cros_healthd::FakeCrosHealthd::Get()->SetCallbackDelay(
-      CrosHealthdMetricsProvider::GetTimeout() + base::Seconds(5));
+  chromeos::cros_healthd::FakeCrosHealthdClient::Get()->SetCallbackDelay(
+      CrosHealthdMetricsProvider::GetTimeout() +
+      base::TimeDelta::FromSeconds(5));
 
   base::RunLoop run_loop;
   CrosHealthdMetricsProvider provider;

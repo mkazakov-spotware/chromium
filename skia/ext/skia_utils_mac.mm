@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,7 @@ SkBitmap NSImageOrNSImageRepToSkBitmapWithColorSpace(
     bool is_opaque,
     CGColorSpaceRef color_space) {
   // Only image or image_rep should be provided, not both.
-  DCHECK((image != nullptr) ^ (image_rep != nullptr));
+  DCHECK((image != 0) ^ (image_rep != 0));
 
   SkBitmap bitmap;
   if (!bitmap.tryAllocN32Pixels(size.width, size.height, is_opaque))
@@ -42,8 +42,13 @@ SkBitmap NSImageOrNSImageRepToSkBitmapWithColorSpace(
              && SK_G32_SHIFT == (g) && SK_B32_SHIFT == (b))
 #if defined(SK_CPU_LENDIAN) && HAS_ARGB_SHIFTS(24, 16, 8, 0)
   base::ScopedCFTypeRef<CGContextRef> context(CGBitmapContextCreate(
-      data, size.width, size.height, 8, size.width * 4, color_space,
-      uint32_t{kCGImageAlphaPremultipliedFirst} | kCGBitmapByteOrder32Host));
+      data,
+      size.width,
+      size.height,
+      8,
+      size.width * 4,
+      color_space,
+      kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host));
 #else
 #error We require that Skia's and CoreGraphics's recommended \
        image memory layout match.
@@ -56,19 +61,19 @@ SkBitmap NSImageOrNSImageRepToSkBitmapWithColorSpace(
   [NSGraphicsContext saveGraphicsState];
 
   NSGraphicsContext* context_cocoa =
-      [NSGraphicsContext graphicsContextWithCGContext:context flipped:NO];
+      [NSGraphicsContext graphicsContextWithGraphicsPort:context flipped:NO];
   [NSGraphicsContext setCurrentContext:context_cocoa];
 
   NSRect drawRect = NSMakeRect(0, 0, size.width, size.height);
   if (image) {
     [image drawInRect:drawRect
              fromRect:NSZeroRect
-            operation:NSCompositingOperationCopy
+            operation:NSCompositeCopy
              fraction:1.0];
   } else {
     [image_rep drawInRect:drawRect
                  fromRect:NSZeroRect
-                operation:NSCompositingOperationCopy
+                operation:NSCompositeCopy
                  fraction:1.0
            respectFlipped:NO
                     hints:nil];
@@ -151,22 +156,20 @@ SkColor NSSystemColorToSkColor(NSColor* color) {
 }
 
 SkColor CGColorRefToSkColor(CGColorRef color) {
-  base::ScopedCFTypeRef<CGColorRef> cg_color(
-      CGColorCreateCopyByMatchingToColorSpace(base::mac::GetSRGBColorSpace(),
-                                              kCGRenderingIntentDefault, color,
-                                              nullptr));
+  // TODO(ccameron): This assumes that |color| is already in sRGB. Ideally we'd
+  // use something like CGColorCreateCopyByMatchingToColorSpace, but that's
+  // only available in macOS 10.11.
   DCHECK(CGColorGetNumberOfComponents(color) == 4);
-  const CGFloat* components = CGColorGetComponents(cg_color);
+  const CGFloat* components = CGColorGetComponents(color);
   return SkColor4f{components[0], components[1], components[2], components[3]}
       .toSkColor();
 }
 
-base::ScopedCFTypeRef<CGColorRef> CGColorCreateFromSkColor(SkColor color) {
+CGColorRef CGColorCreateFromSkColor(SkColor color) {
   CGFloat components[] = {
       SkColorGetR(color) / 255.0f, SkColorGetG(color) / 255.0f,
       SkColorGetB(color) / 255.0f, SkColorGetA(color) / 255.0f};
-  return base::ScopedCFTypeRef<CGColorRef>(
-      CGColorCreate(base::mac::GetSRGBColorSpace(), components));
+  return CGColorCreate(base::mac::GetSRGBColorSpace(), components);
 }
 
 // Converts NSColor to ARGB
@@ -224,6 +227,12 @@ SkBitmap NSImageRepToSkBitmapWithColorSpace(NSImageRep* image_rep,
       nil, image_rep, size, is_opaque, color_space);
 }
 
+NSBitmapImageRep* SkBitmapToNSBitmapImageRep(const SkBitmap& skiaBitmap) {
+  base::ScopedCFTypeRef<CGColorSpaceRef> color_space(
+      CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB));
+  return SkBitmapToNSBitmapImageRepWithColorSpace(skiaBitmap, color_space);
+}
+
 NSBitmapImageRep* SkBitmapToNSBitmapImageRepWithColorSpace(
     const SkBitmap& skiaBitmap,
     CGColorSpaceRef colorSpace) {
@@ -252,6 +261,12 @@ NSImage* SkBitmapToNSImageWithColorSpace(const SkBitmap& skiaBitmap,
   [image addRepresentation:imageRep];
   [image setSize:NSMakeSize(skiaBitmap.width(), skiaBitmap.height())];
   return [image.release() autorelease];
+}
+
+NSImage* SkBitmapToNSImage(const SkBitmap& skiaBitmap) {
+  base::ScopedCFTypeRef<CGColorSpaceRef> colorSpace(
+      CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB));
+  return SkBitmapToNSImageWithColorSpace(skiaBitmap, colorSpace.get());
 }
 
 }  // namespace skia

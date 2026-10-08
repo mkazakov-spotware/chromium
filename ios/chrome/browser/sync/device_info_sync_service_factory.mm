@@ -1,30 +1,28 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/sync/device_info_sync_service_factory.h"
+#include "ios/chrome/browser/sync/device_info_sync_service_factory.h"
 
-#import <utility>
+#include <utility>
 
-#import "base/bind.h"
-#import "base/memory/singleton.h"
-#import "base/time/default_clock.h"
-#import "components/keyed_service/core/service_access_type.h"
-#import "components/keyed_service/ios/browser_state_dependency_manager.h"
-#import "components/send_tab_to_self/features.h"
-#import "components/signin/public/base/device_id_helper.h"
-#import "components/sync/invalidations/sync_invalidations_service.h"
-#import "components/sync/model/model_type_store_service.h"
-#import "components/sync_device_info/device_info_prefs.h"
-#import "components/sync_device_info/device_info_sync_client.h"
-#import "components/sync_device_info/device_info_sync_service_impl.h"
-#import "components/sync_device_info/local_device_info_provider_impl.h"
-#import "ios/chrome/browser/application_context/application_context.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state_manager.h"
-#import "ios/chrome/browser/sync/model_type_store_service_factory.h"
-#import "ios/chrome/browser/sync/sync_invalidations_service_factory.h"
-#import "ios/chrome/common/channel_info.h"
+#include "base/bind.h"
+#include "base/memory/singleton.h"
+#include "base/time/default_clock.h"
+#include "components/keyed_service/core/service_access_type.h"
+#include "components/keyed_service/ios/browser_state_dependency_manager.h"
+#include "components/send_tab_to_self/features.h"
+#include "components/signin/public/base/device_id_helper.h"
+#include "components/sync/model/model_type_store_service.h"
+#include "components/sync_device_info/device_info_prefs.h"
+#include "components/sync_device_info/device_info_sync_client.h"
+#include "components/sync_device_info/device_info_sync_service_impl.h"
+#include "components/sync_device_info/local_device_info_provider_impl.h"
+#include "ios/chrome/browser/application_context.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state_manager.h"
+#include "ios/chrome/browser/sync/model_type_store_service_factory.h"
+#include "ios/chrome/common/channel_info.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -34,11 +32,7 @@ namespace {
 
 class DeviceInfoSyncClient : public syncer::DeviceInfoSyncClient {
  public:
-  DeviceInfoSyncClient(
-      PrefService* prefs,
-      syncer::SyncInvalidationsService* sync_invalidations_service)
-      : prefs_(prefs),
-        sync_invalidations_service_(sync_invalidations_service) {}
+  explicit DeviceInfoSyncClient(PrefService* prefs) : prefs_(prefs) {}
   ~DeviceInfoSyncClient() override = default;
 
   // syncer::DeviceInfoSyncClient:
@@ -48,52 +42,25 @@ class DeviceInfoSyncClient : public syncer::DeviceInfoSyncClient {
 
   // syncer::DeviceInfoSyncClient:
   bool GetSendTabToSelfReceivingEnabled() const override {
-    // Always true starting with M101, see crbug.com/1299833. Older clients and
-    // clients from other embedders might still return false.
-    return true;
+    return send_tab_to_self::IsReceivingEnabledByUserOnThisDevice(prefs_);
   }
 
   // syncer::DeviceInfoSyncClient:
-  absl::optional<syncer::DeviceInfo::SharingInfo> GetLocalSharingInfo()
+  base::Optional<syncer::DeviceInfo::SharingInfo> GetLocalSharingInfo()
       const override {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   // syncer::DeviceInfoSyncClient:
-  absl::optional<syncer::DeviceInfo::PhoneAsASecurityKeyInfo>
-  GetPhoneAsASecurityKeyInfo() const override {
-    return absl::nullopt;
-  }
+  std::string GetFCMRegistrationToken() const override { return std::string(); }
 
   // syncer::DeviceInfoSyncClient:
-  absl::optional<std::string> GetFCMRegistrationToken() const override {
-    if (sync_invalidations_service_) {
-      return sync_invalidations_service_->GetFCMRegistrationToken();
-    }
-    // If the service is not enabled, then the registration token must be empty,
-    // not unknown (absl::nullopt). This is needed to reset previous token if
-    // the invalidations have been turned off.
-    return std::string();
-  }
-
-  // syncer::DeviceInfoSyncClient:
-  absl::optional<syncer::ModelTypeSet> GetInterestedDataTypes() const override {
-    if (sync_invalidations_service_) {
-      return sync_invalidations_service_->GetInterestedDataTypes();
-    }
-    // If the service is not enabled, then the list of types must be empty, not
-    // unknown (absl::nullopt). This is needed to reset previous types if the
-    // invalidations have been turned off.
+  syncer::ModelTypeSet GetInterestedDataTypes() const override {
     return syncer::ModelTypeSet();
   }
 
-  // syncer::DeviceInfoSyncClient:
-  // Returns false since we only care about Chrome OS devices
-  bool IsUmaEnabledOnCrOSDevice() const override { return false; }
-
  private:
   PrefService* const prefs_;
-  syncer::SyncInvalidationsService* const sync_invalidations_service_;
 };
 
 }  // namespace
@@ -136,7 +103,6 @@ DeviceInfoSyncServiceFactory::DeviceInfoSyncServiceFactory()
           "DeviceInfoSyncService",
           BrowserStateDependencyManager::GetInstance()) {
   DependsOn(ModelTypeStoreServiceFactory::GetInstance());
-  DependsOn(SyncInvalidationsServiceFactory::GetInstance());
 }
 
 DeviceInfoSyncServiceFactory::~DeviceInfoSyncServiceFactory() {}
@@ -147,10 +113,8 @@ DeviceInfoSyncServiceFactory::BuildServiceInstanceFor(
   ChromeBrowserState* browser_state =
       ChromeBrowserState::FromBrowserState(context);
 
-  syncer::SyncInvalidationsService* const sync_invalidations_service =
-      SyncInvalidationsServiceFactory::GetForBrowserState(browser_state);
-  auto device_info_sync_client = std::make_unique<DeviceInfoSyncClient>(
-      browser_state->GetPrefs(), sync_invalidations_service);
+  auto device_info_sync_client =
+      std::make_unique<DeviceInfoSyncClient>(browser_state->GetPrefs());
   auto local_device_info_provider =
       std::make_unique<syncer::LocalDeviceInfoProviderImpl>(
           ::GetChannel(), ::GetVersionString(), device_info_sync_client.get());
@@ -161,5 +125,6 @@ DeviceInfoSyncServiceFactory::BuildServiceInstanceFor(
       ModelTypeStoreServiceFactory::GetForBrowserState(browser_state)
           ->GetStoreFactory(),
       std::move(local_device_info_provider), std::move(device_prefs),
-      std::move(device_info_sync_client), sync_invalidations_service);
+      std::move(device_info_sync_client),
+      /*sync_invalidations_service=*/nullptr);
 }

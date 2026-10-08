@@ -1,12 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_TRANSLATE_CONTENT_COMMON_TRANSLATE_MOJOM_TRAITS_H_
 #define COMPONENTS_TRANSLATE_CONTENT_COMMON_TRANSLATE_MOJOM_TRAITS_H_
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "base/time/time.h"
 #include "components/translate/content/common/translate.mojom-shared.h"
 #include "components/translate/core/common/language_detection_details.h"
@@ -17,11 +16,11 @@ namespace mojo {
 
 template <>
 struct EnumTraits<translate::mojom::TranslateError,
-                  translate::TranslateErrors> {
+                  translate::TranslateErrors::Type> {
   static translate::mojom::TranslateError ToMojom(
-      translate::TranslateErrors input);
+      translate::TranslateErrors::Type input);
   static bool FromMojom(translate::mojom::TranslateError input,
-                        translate::TranslateErrors* output);
+                        translate::TranslateErrors::Type* output);
 };
 
 template <>
@@ -40,13 +39,13 @@ struct StructTraits<translate::mojom::LanguageDetectionDetailsDataView,
     return r.content_language;
   }
 
-  static const std::string& model_detected_language(
+  static const std::string& cld_language(
       const translate::LanguageDetectionDetails& r) {
-    return r.model_detected_language;
+    return r.cld_language;
   }
 
-  static bool is_model_reliable(const translate::LanguageDetectionDetails& r) {
-    return r.is_model_reliable;
+  static bool is_cld_reliable(const translate::LanguageDetectionDetails& r) {
+    return r.is_cld_reliable;
   }
 
   static bool has_notranslate(const translate::LanguageDetectionDetails& r) {
@@ -63,19 +62,9 @@ struct StructTraits<translate::mojom::LanguageDetectionDetailsDataView,
     return r.adopted_language;
   }
 
-  static const std::u16string& contents(
+  static const base::string16& contents(
       const translate::LanguageDetectionDetails& r) {
     return r.contents;
-  }
-
-  static float model_reliability_score(
-      const translate::LanguageDetectionDetails& r) {
-    return r.model_reliability_score;
-  }
-
-  static const std::string& detection_model_version(
-      const translate::LanguageDetectionDetails& r) {
-    return r.detection_model_version;
   }
 
   static bool Read(translate::mojom::LanguageDetectionDetailsDataView data,

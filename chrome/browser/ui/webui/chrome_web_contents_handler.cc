@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <utility>
 
-#include "chrome/browser/file_select_helper.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
@@ -14,9 +13,7 @@
 #include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "content/public/browser/file_select_listener.h"
 #include "content/public/browser/web_contents.h"
-#include "third_party/blink/public/mojom/window_features/window_features.mojom.h"
 
 using content::BrowserContext;
 using content::OpenURLParams;
@@ -38,17 +35,13 @@ WebContents* ChromeWebContentsHandler::OpenURLFromTab(
     WebContents* source,
     const OpenURLParams& params) {
   if (!context)
-    return nullptr;
+    return NULL;
 
   Profile* profile = Profile::FromBrowserContext(context);
 
   Browser* browser = chrome::FindTabbedBrowser(profile, false);
   const bool browser_created = !browser;
   if (!browser) {
-    if (Browser::GetCreationStatusForProfile(profile) !=
-        Browser::CreationStatus::kOk) {
-      return nullptr;
-    }
     // TODO(erg): OpenURLParams should pass a user_gesture flag, pass it to
     // CreateParams, and pass the real value to nav_params below.
     browser = Browser::Create(
@@ -86,7 +79,7 @@ void ChromeWebContentsHandler::AddNewContents(
     std::unique_ptr<WebContents> new_contents,
     const GURL& target_url,
     WindowOpenDisposition disposition,
-    const blink::mojom::WindowFeatures& window_features,
+    const gfx::Rect& initial_rect,
     bool user_gesture) {
   if (!context)
     return;
@@ -96,10 +89,12 @@ void ChromeWebContentsHandler::AddNewContents(
   Browser* browser = chrome::FindTabbedBrowser(profile, false);
   const bool browser_created = !browser;
   if (!browser) {
-    // The request can be triggered by Captive portal when browser is not ready
-    // (https://crbug.com/1141608).
-    if (Browser::GetCreationStatusForProfile(profile) !=
-        Browser::CreationStatus::kOk) {
+    // TODO(https://crbug.com/1141608): Remove when root cause is found.
+    if (Browser::GetBrowserCreationStatusForProfile(profile) !=
+        Browser::BrowserCreationStatus::kOk) {
+      NOTREACHED() << "Browser creation status: "
+                   << static_cast<int>(
+                          Browser::GetBrowserCreationStatusForProfile(profile));
       return;
     }
     browser = Browser::Create(
@@ -108,7 +103,7 @@ void ChromeWebContentsHandler::AddNewContents(
   NavigateParams params(browser, std::move(new_contents));
   params.source_contents = source;
   params.disposition = disposition;
-  params.window_bounds = window_features.bounds;
+  params.window_bounds = initial_rect;
   params.window_action = NavigateParams::SHOW_WINDOW;
   params.user_gesture = user_gesture;
   Navigate(&params);
@@ -116,12 +111,4 @@ void ChromeWebContentsHandler::AddNewContents(
   // Close the browser if chrome::Navigate created a new one.
   if (browser_created && (browser != params.browser))
     browser->window()->Close();
-}
-
-void ChromeWebContentsHandler::RunFileChooser(
-    content::RenderFrameHost* render_frame_host,
-    scoped_refptr<content::FileSelectListener> listener,
-    const blink::mojom::FileChooserParams& params) {
-  FileSelectHelper::RunFileChooser(render_frame_host, std::move(listener),
-                                   params);
 }

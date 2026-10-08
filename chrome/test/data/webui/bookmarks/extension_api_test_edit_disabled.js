@@ -1,9 +1,9 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // Bookmark Manager API test for Chrome.
-import {simulateChromeExtensionAPITest} from './test_util.js';
+import {simulateChromeExtensionAPITest} from 'chrome://test/bookmarks/test_util.js';
 
 test('bookmarkManagerPrivate with edit disabled', async () => {
   const bookmarkManager = chrome.bookmarkManagerPrivate;

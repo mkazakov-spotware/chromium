@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,6 +28,7 @@ bool SandboxCompiler::InsertStringParam(const std::string& key,
 }
 
 bool SandboxCompiler::CompileAndApplyProfile(std::string* error) {
+  char* error_internal = nullptr;
   std::vector<const char*> params;
 
   for (const auto& kv : params_map_) {
@@ -37,8 +38,13 @@ bool SandboxCompiler::CompileAndApplyProfile(std::string* error) {
   // The parameters array must be null terminated.
   params.push_back(static_cast<const char*>(0));
 
-  return sandbox::Seatbelt::InitWithParams(profile_str_.c_str(), 0,
-                                           params.data(), error);
+  if (sandbox::Seatbelt::InitWithParams(profile_str_.c_str(), 0, params.data(),
+                                        &error_internal)) {
+    error->assign(error_internal);
+    sandbox::Seatbelt::FreeError(error_internal);
+    return false;
+  }
+  return true;
 }
 
 }  // namespace sandbox

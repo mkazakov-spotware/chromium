@@ -1,15 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/accelerators/key_hold_detector.h"
 
-#include <tuple>
 #include <utility>
 
 #include "ash/shell.h"
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "ui/aura/window_tracker.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/events/event_dispatcher.h"
@@ -25,7 +24,7 @@ void DispatchPressedEvent(const ui::KeyEvent& key_event,
     return;
   ui::KeyEvent event(key_event);
   aura::Window* target = *(tracker->windows().begin());
-  std::ignore = target->GetHost()->GetEventSink()->OnEventFromSource(&event);
+  ignore_result(target->GetHost()->event_sink()->OnEventFromSource(&event));
 }
 
 void PostPressedEvent(ui::KeyEvent* event) {
@@ -36,7 +35,7 @@ void PostPressedEvent(ui::KeyEvent* event) {
   std::unique_ptr<aura::WindowTracker> tracker(new aura::WindowTracker);
   tracker->Add(static_cast<aura::Window*>(event->target()));
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&DispatchPressedEvent, pressed_event, std::move(tracker)));
 }
@@ -69,7 +68,7 @@ void KeyHoldDetector::OnKeyEvent(ui::KeyEvent* event) {
         break;
       case PRESSED:
         state_ = HOLD;
-        [[fallthrough]];
+        FALLTHROUGH;
       case HOLD:
         delegate_->OnKeyHold(event);
         if (delegate_->ShouldStopEventPropagation())

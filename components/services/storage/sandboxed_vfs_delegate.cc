@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,10 @@
 #include <utility>
 
 #include "base/files/file.h"
-#include "base/files/file_error_or.h"
 #include "base/files/file_path.h"
+#include "base/optional.h"
+#include "components/services/storage/public/cpp/filesystem/file_error_or.h"
 #include "components/services/storage/public/cpp/filesystem/filesystem_proxy.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace storage {
 
@@ -23,10 +23,10 @@ SandboxedVfsDelegate::~SandboxedVfsDelegate() = default;
 
 base::File SandboxedVfsDelegate::OpenFile(const base::FilePath& file_path,
                                           int sqlite_requested_flags) {
-  base::FileErrorOr<base::File> result = filesystem_->OpenFile(
+  FileErrorOr<base::File> result = filesystem_->OpenFile(
       file_path, base::File::FLAG_OPEN_ALWAYS | base::File::FLAG_READ |
                      base::File::FLAG_WRITE);
-  if (!result.has_value())
+  if (result.is_error())
     return base::File();
   return std::move(result.value());
 }
@@ -38,12 +38,12 @@ int SandboxedVfsDelegate::DeleteFile(const base::FilePath& file_path,
   return SQLITE_OK;
 }
 
-absl::optional<sql::SandboxedVfs::PathAccessInfo>
+base::Optional<sql::SandboxedVfs::PathAccessInfo>
 SandboxedVfsDelegate::GetPathAccess(const base::FilePath& file_path) {
-  absl::optional<FilesystemProxy::PathAccessInfo> info =
+  base::Optional<FilesystemProxy::PathAccessInfo> info =
       filesystem_->GetPathAccess(file_path);
   if (!info)
-    return absl::nullopt;
+    return base::nullopt;
 
   sql::SandboxedVfs::PathAccessInfo access;
   access.can_read = info->can_read;

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,11 +14,9 @@
 #include "ash/shell_delegate.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/style/ash_color_provider.h"
-#include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/power_monitor/power_monitor.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "components/media_message_center/media_controls_progress_view.h"
 #include "components/media_message_center/media_notification_util.h"
 #include "components/vector_icons/vector_icons.h"
@@ -27,26 +25,21 @@
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/color/color_id.h"
-#include "ui/compositor/layer.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/gfx/font.h"
 #include "ui/gfx/font_list.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/message_center/message_center.h"
 #include "ui/message_center/vector_icons.h"
-#include "ui/views/animation/ink_drop.h"
 #include "ui/views/animation/ink_drop_highlight.h"
 #include "ui/views/background.h"
-#include "ui/views/border.h"
 #include "ui/views/controls/button/image_button_factory.h"
-#include "ui/views/controls/focus_ring.h"
 #include "ui/views/controls/highlight_path_generator.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/layout_provider.h"
+#include "ui/views/metadata/metadata_impl_macros.h"
 
 namespace ash {
 
@@ -54,22 +47,26 @@ using media_session::mojom::MediaSessionAction;
 
 namespace {
 
+constexpr SkColor kProgressBarForeground = gfx::kGoogleBlue300;
+constexpr SkColor kProgressBarBackground =
+    SkColorSetA(gfx::kGoogleBlue300, 0x4C);  // 30%
+
 // Maximum number of actions that should be displayed on |button_row_|.
 constexpr size_t kMaxActions = 5;
 
 // Dimensions.
-constexpr gfx::Insets kMediaControlsInsets = gfx::Insets(16);
+constexpr gfx::Insets kMediaControlsInsets = gfx::Insets(16, 16, 16, 16);
 constexpr int kMediaControlsCornerRadius = 16;
 constexpr int kMinimumSourceIconSize = 16;
 constexpr int kDesiredSourceIconSize = 20;
 constexpr int kMinimumArtworkSize = 30;
 constexpr int kDesiredArtworkSize = 48;
 constexpr int kArtworkRowPadding = 16;
-constexpr auto kArtworkRowInsets = gfx::Insets::TLBR(24, 0, 9, 0);
+constexpr gfx::Insets kArtworkRowInsets = gfx::Insets(24, 0, 9, 0);
 constexpr gfx::Size kArtworkRowPreferredSize =
     gfx::Size(328, kDesiredArtworkSize);
 constexpr int kMediaButtonRowPadding = 16;
-constexpr auto kButtonRowInsets = gfx::Insets::TLBR(4, 0, 0, 0);
+constexpr gfx::Insets kButtonRowInsets = gfx::Insets(4, 0, 0, 0);
 constexpr int kPlayPauseIconSize = 40;
 constexpr int kMediaControlsIconSize = 24;
 constexpr gfx::Size kPlayPauseButtonSize = gfx::Size(72, 72);
@@ -83,10 +80,12 @@ constexpr int kArtworkCornerRadius = 4;
 
 constexpr int kDragVelocityThreshold = 6;
 constexpr int kDistanceDismissalThreshold = 20;
-constexpr base::TimeDelta kAnimationDuration = base::Milliseconds(200);
+constexpr base::TimeDelta kAnimationDuration =
+    base::TimeDelta::FromMilliseconds(200);
 
 // How long to wait (in milliseconds) for a new media session to begin.
-constexpr base::TimeDelta kNextMediaDelay = base::Milliseconds(2500);
+constexpr base::TimeDelta kNextMediaDelay =
+    base::TimeDelta::FromMilliseconds(2500);
 
 // Scales |size| to fit |view_size| while preserving proportions.
 gfx::Size ScaleSizeToFitView(const gfx::Size& size,
@@ -129,11 +128,6 @@ const gfx::VectorIcon& GetVectorIconForMediaAction(MediaSessionAction action) {
     case MediaSessionAction::kEnterPictureInPicture:
     case MediaSessionAction::kExitPictureInPicture:
     case MediaSessionAction::kSwitchAudioDevice:
-    case MediaSessionAction::kToggleMicrophone:
-    case MediaSessionAction::kToggleCamera:
-    case MediaSessionAction::kHangUp:
-    case MediaSessionAction::kRaise:
-    case MediaSessionAction::kSetMute:
       NOTREACHED();
       break;
   }
@@ -148,7 +142,7 @@ class MediaActionButton : public views::ImageButton {
   MediaActionButton(LockScreenMediaControlsView* view,
                     int icon_size,
                     MediaSessionAction action,
-                    const std::u16string& accessible_name)
+                    const base::string16& accessible_name)
       : views::ImageButton(base::BindRepeating(
             // Handle dynamically-updated button tags without rebinding.
             [](LockScreenMediaControlsView* controls,
@@ -159,16 +153,8 @@ class MediaActionButton : public views::ImageButton {
             view,
             this)),
         icon_size_(icon_size) {
-    views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::ON);
+    SetInkDropMode(views::Button::InkDropMode::ON);
     SetHasInkDropActionOnClick(true);
-    views::InkDrop::Get(this)->SetCreateHighlightCallback(base::BindRepeating(
-        [](Button* host) {
-          return std::make_unique<views::InkDropHighlight>(
-              gfx::SizeF(host->size()),
-              views::InkDrop::Get(host)->GetBaseColor());
-        },
-        this));
-
     SetImageHorizontalAlignment(views::ImageButton::ALIGN_CENTER);
     SetImageVerticalAlignment(views::ImageButton::ALIGN_MIDDLE);
     SetBorder(
@@ -183,42 +169,32 @@ class MediaActionButton : public views::ImageButton {
     SetAction(action, accessible_name);
 
     SetInstallFocusRingOnFocus(true);
-    views::FocusRing::Get(this)->SetColorId(ui::kColorAshFocusRing);
-    login_views_utils::ConfigureRectFocusRingCircleInkDrop(
-        this, views::FocusRing::Get(this), absl::nullopt);
+    login_views_utils::ConfigureRectFocusRingCircleInkDrop(this, focus_ring(),
+                                                           base::nullopt);
   }
-
-  MediaActionButton(const MediaActionButton&) = delete;
-  MediaActionButton& operator=(const MediaActionButton&) = delete;
 
   ~MediaActionButton() override = default;
 
   void SetAction(MediaSessionAction action,
-                 const std::u16string& accessible_name) {
+                 const base::string16& accessible_name) {
     set_tag(static_cast<int>(action));
     SetTooltipText(accessible_name);
-    UpdateIcon();
+    views::SetImageFromVectorIcon(
+        this, GetVectorIconForMediaAction(action), icon_size_,
+        AshColorProvider::Get()->GetContentLayerColor(
+            AshColorProvider::ContentLayerType::kIconColorPrimary));
   }
 
-  // views::ImageButton:
-  void OnThemeChanged() override {
-    views::ImageButton::OnThemeChanged();
-    UpdateIcon();
+  std::unique_ptr<views::InkDropHighlight> CreateInkDropHighlight()
+      const override {
+    return std::make_unique<views::InkDropHighlight>(gfx::SizeF(size()),
+                                                     GetInkDropBaseColor());
   }
 
  private:
-  void UpdateIcon() {
-    SkColor icon_color = AshColorProvider::Get()->GetContentLayerColor(
-        AshColorProvider::ContentLayerType::kIconColorPrimary);
-    SkColor icon_disabled_color =
-        SkColorSetA(icon_color, gfx::kDisabledControlAlpha);
-    views::SetImageFromVectorIconWithColor(
-        this,
-        GetVectorIconForMediaAction(static_cast<MediaSessionAction>(tag())),
-        icon_size_, icon_color, icon_disabled_color);
-  }
-
   int const icon_size_;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaActionButton);
 };
 
 }  // namespace
@@ -248,11 +224,10 @@ LockScreenMediaControlsView::LockScreenMediaControlsView(
 
   // Media controls should observe power events and handle the case of being
   // created in suspended state.
-  if (base::PowerMonitor::AddPowerSuspendObserverAndReturnSuspendedState(
-          this)) {
-    // The system is in the power suspended state. Post OnSuspend call to run
-    // after LockContentsView is initialized.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::PowerMonitor::AddObserver(this);
+  if (base::PowerMonitor::IsProcessSuspended()) {
+    // Post OnSuspend call to run after LockContentsView is initialized.
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&LockScreenMediaControlsView::OnSuspend,
                                   weak_ptr_factory_.GetWeakPtr()));
   }
@@ -265,6 +240,10 @@ LockScreenMediaControlsView::LockScreenMediaControlsView(
   contents_view_ = AddChildView(std::make_unique<views::View>());
   contents_view_->SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical, kMediaControlsInsets));
+  contents_view_->SetBackground(views::CreateRoundedRectBackground(
+      AshColorProvider::Get()->GetBaseLayerColor(
+          AshColorProvider::BaseLayerType::kTransparent80),
+      kMediaControlsCornerRadius));
 
   contents_view_->SetPaintToLayer();  // Needed for opacity animation.
   contents_view_->layer()->SetFillsBoundsOpaquely(false);
@@ -307,6 +286,8 @@ LockScreenMediaControlsView::LockScreenMediaControlsView(
   auto title_label = std::make_unique<views::Label>();
   title_label->SetFontList(base_font_list.Derive(
       2, gfx::Font::FontStyle::NORMAL, gfx::Font::Weight::BOLD));
+  title_label->SetEnabledColor(AshColorProvider::Get()->GetContentLayerColor(
+      AshColorProvider::ContentLayerType::kTextColorPrimary));
   title_label->SetAutoColorReadabilityEnabled(false);
   title_label->SetElideBehavior(gfx::ELIDE_TAIL);
   title_label->SetHorizontalAlignment(gfx::HorizontalAlignment::ALIGN_LEFT);
@@ -315,6 +296,8 @@ LockScreenMediaControlsView::LockScreenMediaControlsView(
   auto artist_label = std::make_unique<views::Label>();
   artist_label->SetFontList(base_font_list.Derive(
       0, gfx::Font::FontStyle::NORMAL, gfx::Font::Weight::LIGHT));
+  artist_label->SetEnabledColor(AshColorProvider::Get()->GetContentLayerColor(
+      AshColorProvider::ContentLayerType::kTextColorSecondary));
   artist_label->SetAutoColorReadabilityEnabled(false);
   artist_label->SetElideBehavior(gfx::ELIDE_TAIL);
   artist_label->SetHorizontalAlignment(gfx::HorizontalAlignment::ALIGN_LEFT);
@@ -328,9 +311,9 @@ LockScreenMediaControlsView::LockScreenMediaControlsView(
       std::make_unique<media_message_center::MediaControlsProgressView>(
           base::BindRepeating(&LockScreenMediaControlsView::SeekTo,
                               base::Unretained(this)));
+  progress_view->SetForegroundColor(kProgressBarForeground);
+  progress_view->SetBackgroundColor(kProgressBarBackground);
   progress_ = contents_view_->AddChildView(std::move(progress_view));
-
-  UpdateColors();
 
   // |button_row_| contains the buttons for controlling playback.
   auto button_row = std::make_unique<NonAccessibleView>();
@@ -414,11 +397,11 @@ LockScreenMediaControlsView::LockScreenMediaControlsView(
 
   // Set child view data to default values initially, until the media controller
   // observers are triggered by a change in media session state.
-  MediaSessionMetadataChanged(absl::nullopt);
-  MediaSessionPositionChanged(absl::nullopt);
+  MediaSessionMetadataChanged(base::nullopt);
+  MediaSessionPositionChanged(base::nullopt);
   MediaControllerImageChanged(
       media_session::mojom::MediaSessionImageType::kSourceIcon, SkBitmap());
-  SetArtwork(absl::nullopt);
+  SetArtwork(base::nullopt);
 
   // |service| can be null in tests.
   media_session::MediaSessionService* service =
@@ -465,7 +448,7 @@ LockScreenMediaControlsView::~LockScreenMediaControlsView() {
     }
   }
 
-  base::PowerMonitor::RemovePowerSuspendObserver(this);
+  base::PowerMonitor::RemoveObserver(this);
 }
 
 gfx::Size LockScreenMediaControlsView::CalculatePreferredSize() const {
@@ -492,19 +475,14 @@ void LockScreenMediaControlsView::OnMouseEntered(const ui::MouseEvent& event) {
   if (is_in_drag_ || contents_view_->layer()->GetAnimator()->is_animating())
     return;
 
-  header_row_->SetForceShowCloseButton(true);
+  header_row_->SetCloseButtonVisibility(true);
 }
 
 void LockScreenMediaControlsView::OnMouseExited(const ui::MouseEvent& event) {
   if (is_in_drag_ || contents_view_->layer()->GetAnimator()->is_animating())
     return;
 
-  header_row_->SetForceShowCloseButton(false);
-}
-
-void LockScreenMediaControlsView::OnThemeChanged() {
-  views::View::OnThemeChanged();
-  UpdateColors();
+  header_row_->SetCloseButtonVisibility(false);
 }
 
 void LockScreenMediaControlsView::MediaSessionInfoChanged(
@@ -546,13 +524,13 @@ void LockScreenMediaControlsView::MediaSessionInfoChanged(
 }
 
 void LockScreenMediaControlsView::MediaSessionMetadataChanged(
-    const absl::optional<media_session::MediaMetadata>& metadata) {
+    const base::Optional<media_session::MediaMetadata>& metadata) {
   if (hide_controls_timer_->IsRunning())
     return;
 
   media_session::MediaMetadata session_metadata =
       metadata.value_or(media_session::MediaMetadata());
-  std::u16string source_title =
+  base::string16 source_title =
       session_metadata.source_title.empty()
           ? message_center::MessageCenter::Get()->GetSystemNotificationAppName()
           : session_metadata.source_title;
@@ -577,7 +555,7 @@ void LockScreenMediaControlsView::MediaSessionActionsChanged(
 }
 
 void LockScreenMediaControlsView::MediaSessionChanged(
-    const absl::optional<base::UnguessableToken>& request_id) {
+    const base::Optional<base::UnguessableToken>& request_id) {
   if (!media_session_id_.has_value()) {
     media_session_id_ = request_id;
     return;
@@ -599,7 +577,7 @@ void LockScreenMediaControlsView::MediaSessionChanged(
 }
 
 void LockScreenMediaControlsView::MediaSessionPositionChanged(
-    const absl::optional<media_session::MediaPosition>& position) {
+    const base::Optional<media_session::MediaPosition>& position) {
   if (hide_controls_timer_->IsRunning())
     return;
 
@@ -641,19 +619,19 @@ void LockScreenMediaControlsView::MediaControllerImageChanged(
 
   switch (type) {
     case media_session::mojom::MediaSessionImageType::kArtwork: {
-      absl::optional<gfx::ImageSkia> session_artwork;
+      base::Optional<gfx::ImageSkia> session_artwork;
       if (!converted_bitmap.empty())
         session_artwork = gfx::ImageSkia::CreateFrom1xBitmap(converted_bitmap);
       SetArtwork(session_artwork);
       break;
     }
     case media_session::mojom::MediaSessionImageType::kSourceIcon: {
-      auto session_icon = ui::ImageModel::FromImageSkia(
-          gfx::ImageSkia::CreateFrom1xBitmap(converted_bitmap));
-      if (session_icon.IsEmpty()) {
-        session_icon = ui::ImageModel::FromVectorIcon(
-            message_center::kProductIcon, ui::kColorIcon,
-            kDesiredSourceIconSize);
+      gfx::ImageSkia session_icon =
+          gfx::ImageSkia::CreateFrom1xBitmap(converted_bitmap);
+      if (session_icon.isNull()) {
+        session_icon =
+            gfx::CreateVectorIcon(message_center::kProductIcon,
+                                  kDesiredSourceIconSize, gfx::kChromeIconGrey);
       }
       header_row_->SetAppIcon(session_icon);
     }
@@ -802,7 +780,7 @@ void LockScreenMediaControlsView::Dismiss() {
 }
 
 void LockScreenMediaControlsView::SetArtwork(
-    absl::optional<gfx::ImageSkia> img) {
+    base::Optional<gfx::ImageSkia> img) {
   if (!img.has_value()) {
     if (!session_artwork_->GetVisible() || hide_artwork_timer_->IsRunning())
       return;
@@ -896,28 +874,6 @@ void LockScreenMediaControlsView::RunResetControlsAnimation() {
 
   contents_view_->layer()->SetTransform(gfx::Transform());
   contents_view_->layer()->SetOpacity(1);
-}
-
-void LockScreenMediaControlsView::UpdateColors() {
-  const auto* color_provider = AshColorProvider::Get();
-
-  contents_view_->SetBackground(views::CreateRoundedRectBackground(
-      color_provider->GetBaseLayerColor(
-          AshColorProvider::BaseLayerType::kTransparent80),
-      kMediaControlsCornerRadius));
-
-  title_label_->SetEnabledColor(color_provider->GetContentLayerColor(
-      AshColorProvider::ContentLayerType::kTextColorPrimary));
-
-  artist_label_->SetEnabledColor(color_provider->GetContentLayerColor(
-      AshColorProvider::ContentLayerType::kTextColorSecondary));
-
-  progress_->SetForegroundColor(color_provider->GetContentLayerColor(
-      AshColorProvider::ContentLayerType::kProgressBarColorForeground));
-  progress_->SetBackgroundColor(color_provider->GetContentLayerColor(
-      AshColorProvider::ContentLayerType::kProgressBarColorBackground));
-  progress_->SetTextColor(color_provider->GetContentLayerColor(
-      AshColorProvider::ContentLayerType::kTextColorPrimary));
 }
 
 BEGIN_METADATA(LockScreenMediaControlsView, views::View)

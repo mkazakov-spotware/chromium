@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "remoting/signaling/ftl_device_id_provider.h"
 
 namespace remoting {
@@ -28,17 +28,14 @@ class TestDeviceIdProvider final : public FtlDeviceIdProvider {
   };
 
   explicit TestDeviceIdProvider(TokenStorage* token_storage);
-
-  TestDeviceIdProvider(const TestDeviceIdProvider&) = delete;
-  TestDeviceIdProvider& operator=(const TestDeviceIdProvider&) = delete;
-
   ~TestDeviceIdProvider() override;
 
   // FtlDeviceIdProvider implementations.
   ftl::DeviceId GetDeviceId() override;
 
  private:
-  raw_ptr<TokenStorage> token_storage_;
+  TokenStorage* token_storage_;
+  DISALLOW_COPY_AND_ASSIGN(TestDeviceIdProvider);
 };
 
 }  // namespace test

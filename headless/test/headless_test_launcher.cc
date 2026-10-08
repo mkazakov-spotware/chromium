@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 
 #include "base/bind.h"
 #include "base/command_line.h"
+#include "base/macros.h"
 #include "base/test/launcher/test_launcher.h"
-#include "build/build_config.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/test/content_test_suite_base.h"
 #include "content/public/test/network_service_test_helper.h"
@@ -16,10 +16,6 @@
 #include "headless/lib/headless_content_main_delegate.h"
 #include "headless/lib/utility/headless_content_utility_client.h"
 #include "testing/gtest/include/gtest/gtest.h"
-
-#if BUILDFLAG(IS_WIN)
-#include "base/win/win_util.h"
-#endif  // BUILDFLAG(IS_WIN)
 
 namespace headless {
 namespace {
@@ -31,21 +27,15 @@ class HeadlessBrowserImplForTest : public HeadlessBrowserImpl {
                                            base::Unretained(this)),
                             std::move(options)) {}
 
-  HeadlessBrowserImplForTest(const HeadlessBrowserImplForTest&) = delete;
-  HeadlessBrowserImplForTest& operator=(const HeadlessBrowserImplForTest&) =
-      delete;
-
   void OnStart(HeadlessBrowser* browser) { EXPECT_EQ(this, browser); }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HeadlessBrowserImplForTest);
 };
 
 class HeadlessTestLauncherDelegate : public content::TestLauncherDelegate {
  public:
   HeadlessTestLauncherDelegate() = default;
-
-  HeadlessTestLauncherDelegate(const HeadlessTestLauncherDelegate&) = delete;
-  HeadlessTestLauncherDelegate& operator=(const HeadlessTestLauncherDelegate&) =
-      delete;
-
   ~HeadlessTestLauncherDelegate() override = default;
 
   // content::TestLauncherDelegate implementation:
@@ -65,6 +55,9 @@ class HeadlessTestLauncherDelegate : public content::TestLauncherDelegate {
         new HeadlessBrowserImplForTest(options_builder.Build()));
     return new HeadlessContentMainDelegate(std::move(browser));
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HeadlessTestLauncherDelegate);
 };
 
 }  // namespace
@@ -75,12 +68,6 @@ int main(int argc, char** argv) {
   size_t parallel_jobs = base::NumParallelJobs(/*cores_per_job=*/2);
   if (parallel_jobs == 0U)
     return 1;
-
-#if BUILDFLAG(IS_WIN)
-  // Load and pin user32.dll to avoid having to load it once tests start while
-  // on the main thread loop where blocking calls are disallowed.
-  base::win::PinUser32();
-#endif  // BUILDFLAG(IS_WIN)
 
   // Setup a working test environment for the network service in case it's used.
   // Only create this object in the utility process, so that its members don't

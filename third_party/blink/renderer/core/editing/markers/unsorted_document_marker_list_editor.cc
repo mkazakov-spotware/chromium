@@ -1,10 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/editing/markers/unsorted_document_marker_list_editor.h"
 
-#include "base/ranges/algorithm.h"
 #include "third_party/blink/renderer/core/editing/markers/spell_check_marker_list_impl.h"
 
 namespace blink {
@@ -67,7 +66,7 @@ bool UnsortedDocumentMarkerListEditor::ShiftMarkersContentIndependent(
   bool did_shift_marker = false;
   HeapVector<Member<DocumentMarker>> unremoved_markers;
   for (const Member<DocumentMarker>& marker : *list) {
-    absl::optional<DocumentMarker::MarkerOffsets> result =
+    base::Optional<DocumentMarker::MarkerOffsets> result =
         marker->ComputeOffsetsAfterShift(offset, old_length, new_length);
     if (!result) {
       did_shift_marker = true;
@@ -94,11 +93,12 @@ DocumentMarker* UnsortedDocumentMarkerListEditor::FirstMarkerIntersectingRange(
     unsigned end_offset) {
   DCHECK_LE(start_offset, end_offset);
 
-  auto* const it = base::ranges::find_if(
-      list, [start_offset, end_offset](const DocumentMarker* marker) {
-        return marker->StartOffset() < end_offset &&
-               marker->EndOffset() > start_offset;
-      });
+  auto* const it =
+      std::find_if(list.begin(), list.end(),
+                   [start_offset, end_offset](const DocumentMarker* marker) {
+                     return marker->StartOffset() < end_offset &&
+                            marker->EndOffset() > start_offset;
+                   });
 
   if (it == list.end())
     return nullptr;
@@ -113,12 +113,11 @@ UnsortedDocumentMarkerListEditor::MarkersIntersectingRange(
   DCHECK_LE(start_offset, end_offset);
 
   HeapVector<Member<DocumentMarker>> results;
-  base::ranges::copy_if(
-      list, std::back_inserter(results),
-      [start_offset, end_offset](const DocumentMarker* marker) {
-        return marker->StartOffset() < end_offset &&
-               marker->EndOffset() > start_offset;
-      });
+  std::copy_if(list.begin(), list.end(), std::back_inserter(results),
+               [start_offset, end_offset](const DocumentMarker* marker) {
+                 return marker->StartOffset() < end_offset &&
+                        marker->EndOffset() > start_offset;
+               });
   return results;
 }
 

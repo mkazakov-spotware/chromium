@@ -16,25 +16,14 @@
 
 #import "OCMPassByRefSetter.h"
 
-static NSHashTable *gPointerTable = nil;
 
 @implementation OCMPassByRefSetter
-
-+ (void)initialize {
-    if (self == [OCMPassByRefSetter class])
-    {
-        gPointerTable = [[NSHashTable hashTableWithOptions:NSPointerFunctionsOpaqueMemory | NSPointerFunctionsOpaquePersonality] retain];
-    }
-}
 
 - (id)initWithValue:(id)aValue
 {
     if ((self = [super init]))
     {
         value = [aValue retain];
-        @synchronized(gPointerTable) {
-            NSHashInsertKnownAbsent(gPointerTable, self);
-        }
     }
 	
 	return self;
@@ -43,22 +32,12 @@ static NSHashTable *gPointerTable = nil;
 - (void)dealloc
 {
 	[value release];
-	@synchronized(gPointerTable) {
-		NSAssert(NSHashGet(gPointerTable, self) != NULL, @"self should be in the hash table");
-		NSHashRemove(gPointerTable, self);
-	}
 	[super dealloc];
 }
 
 - (id)value
 {
 	return value;
-}
-
-+ (BOOL)ptrIsPassByRefSetter:(void*)ptr {
-    @synchronized(gPointerTable) {
-        return NSHashGet(gPointerTable, ptr) != NULL;
-    }
 }
 
 @end

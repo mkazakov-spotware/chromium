@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,7 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/i18n/rtl.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/utf_string_conversions.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -27,7 +25,7 @@
 #include "ui/gfx/codec/png_codec.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "chrome/browser/ui/settings_window_manager_chromeos.h"
 #endif
 
@@ -38,7 +36,7 @@ struct CustomHomePagesTableModel::Entry {
   GURL url;
 
   // Page title.  If this is empty, we'll display the URL as the entry.
-  std::u16string title;
+  base::string16 title;
 
   // If not |base::CancelableTaskTracker::kBadTaskId|, indicates we're loading
   // the title for the page.
@@ -69,15 +67,14 @@ void CustomHomePagesTableModel::SetURLs(const std::vector<GURL>& urls) {
  * elements, compact the remaining ones, and re-insert moved elements.
  * Expects |index_list| to be ordered ascending.
  */
-void CustomHomePagesTableModel::MoveURLs(
-    size_t insert_before,
-    const std::vector<size_t>& index_list) {
+void CustomHomePagesTableModel::MoveURLs(int insert_before,
+                                         const std::vector<int>& index_list) {
   if (index_list.empty()) return;
-  DCHECK(insert_before <= RowCount());
+  DCHECK(insert_before >= 0 && insert_before <= RowCount());
 
   // The range of elements that needs to be reshuffled is [ |first|, |last| ).
-  size_t first = std::min(insert_before, index_list.front());
-  size_t last = std::max(insert_before, index_list.back() + 1);
+  int first = std::min(insert_before, index_list.front());
+  int last = std::max(insert_before, index_list.back() + 1);
 
   // Save the dragged elements. Also, adjust insertion point if it is before a
   // dragged element.
@@ -90,7 +87,7 @@ void CustomHomePagesTableModel::MoveURLs(
 
   // Compact the range between beginning and insertion point, moving downwards.
   size_t skip_count = 0;
-  for (size_t i = first; i < insert_before; ++i) {
+  for (int i = first; i < insert_before; ++i) {
     if (skip_count < index_list.size() && index_list[skip_count] == i)
       skip_count++;
     else
@@ -103,40 +100,40 @@ void CustomHomePagesTableModel::MoveURLs(
 
   // Now compact up for elements after the insertion point.
   skip_count = 0;
-  for (size_t i = last; i > first; --i) {
-    const size_t index = i - 1;
+  for (int i = last - 1; i >= first; --i) {
     if (skip_count < index_list.size() &&
-        index_list[index_list.size() - skip_count - 1] == index) {
+        index_list[index_list.size() - skip_count - 1] == i) {
       skip_count++;
     } else {
-      entries_[index + skip_count] = entries_[index];
+      entries_[i + skip_count] = entries_[i];
     }
   }
 
   // Insert moved elements.
-  base::ranges::copy(moved_entries, entries_.begin() + insert_before);
+  std::copy(moved_entries.begin(), moved_entries.end(),
+      entries_.begin() + insert_before);
 
   // Possibly large change, so tell the view to just rebuild itself.
   if (observer_)
     observer_->OnModelChanged();
 }
 
-void CustomHomePagesTableModel::AddWithoutNotification(size_t index,
-                                                       const GURL& url) {
-  DCHECK(index <= RowCount());
-  entries_.insert(entries_.begin() + index, Entry());
+void CustomHomePagesTableModel::AddWithoutNotification(
+    int index, const GURL& url) {
+  DCHECK(index >= 0 && index <= RowCount());
+  entries_.insert(entries_.begin() + static_cast<size_t>(index), Entry());
   entries_[index].url = url;
 }
 
-void CustomHomePagesTableModel::Add(size_t index, const GURL& url) {
+void CustomHomePagesTableModel::Add(int index, const GURL& url) {
   AddWithoutNotification(index, url);
   LoadTitle(&(entries_[index]));
   if (observer_)
     observer_->OnItemsAdded(index, 1);
 }
 
-void CustomHomePagesTableModel::RemoveWithoutNotification(size_t index) {
-  DCHECK(index < RowCount());
+void CustomHomePagesTableModel::RemoveWithoutNotification(int index) {
+  DCHECK(index >= 0 && index < RowCount());
   Entry* entry = &(entries_[index]);
   // Cancel any pending load requests now so we don't deref a bogus pointer when
   // we get the loaded notification.
@@ -144,10 +141,10 @@ void CustomHomePagesTableModel::RemoveWithoutNotification(size_t index) {
     task_tracker_.TryCancel(entry->task_id);
     entry->task_id = base::CancelableTaskTracker::kBadTaskId;
   }
-  entries_.erase(entries_.begin() + index);
+  entries_.erase(entries_.begin() + static_cast<size_t>(index));
 }
 
-void CustomHomePagesTableModel::Remove(size_t index) {
+void CustomHomePagesTableModel::Remove(int index) {
   RemoveWithoutNotification(index);
   if (observer_)
     observer_->OnItemsRemoved(index, 1);
@@ -160,7 +157,7 @@ void CustomHomePagesTableModel::SetToCurrentlyOpenPages(
     RemoveWithoutNotification(0);
 
   // Add tabs from appropriate browser windows.
-  size_t add_index = 0;
+  int add_index = 0;
   for (auto* browser : *BrowserList::GetInstance()) {
     if (!ShouldIncludeBrowser(browser))
       continue;
@@ -187,19 +184,19 @@ std::vector<GURL> CustomHomePagesTableModel::GetURLs() {
   return urls;
 }
 
-size_t CustomHomePagesTableModel::RowCount() {
-  return entries_.size();
+int CustomHomePagesTableModel::RowCount() {
+  return static_cast<int>(entries_.size());
 }
 
-std::u16string CustomHomePagesTableModel::GetText(size_t row, int column_id) {
+base::string16 CustomHomePagesTableModel::GetText(int row, int column_id) {
   DCHECK(column_id == 0);
-  DCHECK(row < RowCount());
+  DCHECK(row >= 0 && row < RowCount());
   return entries_[row].title.empty() ? FormattedURL(row) : entries_[row].title;
 }
 
-std::u16string CustomHomePagesTableModel::GetTooltip(size_t row) {
+base::string16 CustomHomePagesTableModel::GetTooltip(int row) {
   return entries_[row].title.empty()
-             ? std::u16string()
+             ? base::string16()
              : l10n_util::GetStringFUTF16(IDS_SETTINGS_ON_STARTUP_PAGE_TOOLTIP,
                                           entries_[row].title,
                                           FormattedURL(row));
@@ -213,7 +210,7 @@ bool CustomHomePagesTableModel::ShouldIncludeBrowser(Browser* browser) {
   // Do not include incognito browsers.
   if (browser->profile() != profile_)
     return false;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // Do not include the Settings window.
   if (chrome::SettingsWindowManager::GetInstance()->IsSettingsBrowser(
           browser)) {
@@ -269,7 +266,7 @@ void CustomHomePagesTableModel::OnGotOneOfManyTitles(
 void CustomHomePagesTableModel::OnGotTitle(const GURL& entry_url,
                                            bool observable,
                                            history::QueryURLResult result) {
-  Entry* entry = nullptr;
+  Entry* entry = NULL;
   size_t entry_index = 0;
   for (size_t i = 0; i < entries_.size(); ++i) {
     if (entries_[i].url == entry_url) {
@@ -286,12 +283,12 @@ void CustomHomePagesTableModel::OnGotTitle(const GURL& entry_url,
   if (result.success && !result.row.title().empty()) {
     entry->title = result.row.title();
     if (observer_ && observable)
-      observer_->OnItemsChanged(entry_index, 1);
+      observer_->OnItemsChanged(static_cast<int>(entry_index), 1);
   }
 }
 
-std::u16string CustomHomePagesTableModel::FormattedURL(size_t row) const {
-  std::u16string url = url_formatter::FormatUrl(entries_[row].url);
+base::string16 CustomHomePagesTableModel::FormattedURL(int row) const {
+  base::string16 url = url_formatter::FormatUrl(entries_[row].url);
   url = base::i18n::GetDisplayStringInLTRDirectionality(url);
   return url;
 }

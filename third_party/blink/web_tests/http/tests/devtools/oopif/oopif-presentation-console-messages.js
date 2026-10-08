@@ -1,28 +1,19 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Test that links to UISourceCode work correctly when navigating OOPIF`);
 
-  await TestRunner.loadLegacyModule('sources'); await TestRunner.loadTestModule('sources_test_runner');
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('sources_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.showPanel('console');
 
-  function dumpMessage(prefix, message, url) {
-    url = url.replace(/VM[0-9]+/, 'VM#');
-    TestRunner.addResult(`Line Message was ${prefix}: ${url} ${
-        message.level()} '${message.text()}':${message.lineNumber()}:${
-        message.columnNumber()}`);
+  function dumpMessage(prefix, message) {
+    TestRunner.addResult(`Line Message was ${prefix}: ${message.uiSourceCode().url()} ${message.level()} '${message.text()}':${message.lineNumber()}:${message.columnNumber()}`);
   }
-  TestRunner.addSniffer(
-      Workspace.UISourceCode.prototype, 'addMessage', function(message) {
-        dumpMessage('added', message, this.url());
-      }, true);
-  TestRunner.addSniffer(
-      Workspace.UISourceCode.prototype, 'removeMessage', function(message) {
-        dumpMessage('removed', message, this.url());
-      }, true);
+  TestRunner.addSniffer(Workspace.UISourceCode.prototype, 'addLineMessage', (level, text, lineNumber, columnNumber, message) => dumpMessage('added', message), true);
+  TestRunner.addSniffer(Workspace.UISourceCode.prototype, 'removeMessage', message => dumpMessage('removed', message), true);
 
   TestRunner.addResult('\nNavigating main frame');
   await TestRunner.navigatePromise('resources/error.html');

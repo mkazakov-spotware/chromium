@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <string>
 
-#include "base/component_export.h"
+#include "base/optional.h"
+#include "chromeos/chromeos_export.h"
 #include "chromeos/printing/cups_printer_status.h"
 #include "chromeos/printing/uri.h"
 #include "net/base/host_port_pair.h"
@@ -20,14 +21,14 @@ namespace chromeos {
 
 // Classes of printers tracked.  See doc/cups_printer_management.md for
 // details on what these mean.
-enum class COMPONENT_EXPORT(CHROMEOS_PRINTING) PrinterClass {
+enum class CHROMEOS_EXPORT PrinterClass {
   kEnterprise,
   kAutomatic,
   kDiscovered,
   kSaved
 };
 
-COMPONENT_EXPORT(CHROMEOS_PRINTING) std::string ToString(PrinterClass pclass);
+CHROMEOS_EXPORT std::string ToString(PrinterClass pclass);
 
 // This function checks if the given URI is a valid printer URI. |uri| is
 // considered to be a valid printer URI if it has one of the scheme listed in
@@ -47,10 +48,10 @@ COMPONENT_EXPORT(CHROMEOS_PRINTING) std::string ToString(PrinterClass pclass);
 // If the given |uri| does not meet the criteria the function returns false and
 // set an error message in |error_message| (if it is not nullptr). The message
 // has the prefix "Malformed printer URI: ".
-bool COMPONENT_EXPORT(CHROMEOS_PRINTING)
-    IsValidPrinterUri(const Uri& uri, std::string* error_message = nullptr);
+bool CHROMEOS_EXPORT IsValidPrinterUri(const Uri& uri,
+                                       std::string* error_message = nullptr);
 
-class COMPONENT_EXPORT(CHROMEOS_PRINTING) Printer {
+class CHROMEOS_EXPORT Printer {
  public:
   // Information needed to find the PPD file for this printer.
   //
@@ -129,12 +130,17 @@ class COMPONENT_EXPORT(CHROMEOS_PRINTING) Printer {
     description_ = description;
   }
 
-  const std::string& usb_printer_manufacturer() const {
-    return usb_printer_manufacturer_;
+  // Returns the |manufacturer| of the printer.
+  // DEPRECATED(skau@chromium.org): Use make_and_model() instead.
+  const std::string& manufacturer() const { return manufacturer_; }
+  void set_manufacturer(const std::string& manufacturer) {
+    manufacturer_ = manufacturer;
   }
-  void set_usb_printer_manufacturer(const std::string& manufacturer) {
-    usb_printer_manufacturer_ = manufacturer;
-  }
+
+  // Returns the |model| of the printer.
+  // DEPRECATED(skau@chromium.org): Use make_and_model() instead.
+  const std::string& model() const { return model_; }
+  void set_model(const std::string& model) { model_ = model; }
 
   const std::string& make_and_model() const { return make_and_model_; }
   void set_make_and_model(const std::string& make_and_model) {
@@ -220,8 +226,15 @@ class COMPONENT_EXPORT(CHROMEOS_PRINTING) Printer {
   // User defined string for additional printer information.
   std::string description_;
 
-  // Holds manufacturer name read from USB printer.
-  std::string usb_printer_manufacturer_;
+  // The manufacturer of the printer, e.g. HP
+  // DEPRECATED(skau@chromium.org): Migrating to make_and_model.  This is kept
+  // for backward compatibility until migration is complete.
+  std::string manufacturer_;
+
+  // The model of the printer, e.g. OfficeJet 415
+  // DEPRECATED(skau@chromium.org): Migrating to make_and_model.  This is kept
+  // for backward compatibility until migration is complete.
+  std::string model_;
 
   // The manufactuer and model of the printer in one string. e.g. HP OfficeJet
   // 415. This is either read from or derived from printer information and is

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,8 @@
 
 #include "base/run_loop.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/prefs/session_startup_pref.h"
-#include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
-#include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/resource_coordinator/tab_load_tracker_test_support.h"
 #include "chrome/browser/resource_coordinator/tab_manager.h"
@@ -39,14 +36,38 @@
 using content::WebContents;
 using content::NavigationHandle;
 
+// This class records session-restore states of a tab when it starts navigation.
+class NavigationStartWebContentsObserver : public content::WebContentsObserver {
+ public:
+  explicit NavigationStartWebContentsObserver(WebContents* contents)
+      : WebContentsObserver(contents) {}
+
+  // content::WebContentsObserver implementation:
+  void DidStartNavigation(NavigationHandle* navigation_handle) override {
+    WebContents* contents = navigation_handle->GetWebContents();
+    resource_coordinator::TabManager* tab_manager =
+        g_browser_process->GetTabManager();
+    ASSERT_TRUE(tab_manager);
+
+    is_session_restored_ = tab_manager->IsTabInSessionRestore(contents);
+    is_restored_in_foreground_ =
+        tab_manager->IsTabRestoredInForeground(contents);
+  }
+
+  // Returns the session-restore states at the navigation start.
+  bool is_session_restored() const { return is_session_restored_; }
+  bool is_restored_in_foreground() const { return is_restored_in_foreground_; }
+
+ private:
+  bool is_session_restored_ = false;
+  bool is_restored_in_foreground_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(NavigationStartWebContentsObserver);
+};
+
 class MockSessionRestoreObserver : public SessionRestoreObserver {
  public:
   MockSessionRestoreObserver() { SessionRestore::AddObserver(this); }
-
-  MockSessionRestoreObserver(const MockSessionRestoreObserver&) = delete;
-  MockSessionRestoreObserver& operator=(const MockSessionRestoreObserver&) =
-      delete;
-
   ~MockSessionRestoreObserver() { SessionRestore::RemoveObserver(this); }
 
   enum class SessionRestoreEvent { kStartedLoadingTabs, kFinishedLoadingTabs };
@@ -64,26 +85,37 @@ class MockSessionRestoreObserver : public SessionRestoreObserver {
     session_restore_events_.emplace_back(
         SessionRestoreEvent::kFinishedLoadingTabs);
   }
+  void OnWillRestoreTab(WebContents* contents) override {
+    navigation_start_observers_.emplace(
+        contents, new NavigationStartWebContentsObserver(contents));
+  }
+
+  NavigationStartWebContentsObserver*
+  GetNavigationStartWebContentsObserverForTab(WebContents* contents) {
+    return navigation_start_observers_[contents].get();
+  }
 
  private:
   std::vector<SessionRestoreEvent> session_restore_events_;
+  std::unordered_map<WebContents*,
+                     std::unique_ptr<NavigationStartWebContentsObserver>>
+      navigation_start_observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockSessionRestoreObserver);
 };
 
 class SessionRestoreObserverTest : public InProcessBrowserTest {
  protected:
   SessionRestoreObserverTest() {}
 
-  SessionRestoreObserverTest(const SessionRestoreObserverTest&) = delete;
-  SessionRestoreObserverTest& operator=(const SessionRestoreObserverTest&) =
-      delete;
-
   void SetUpOnMainThread() override {
     SessionStartupPref pref(SessionStartupPref::LAST);
     SessionStartupPref::SetStartupPref(browser()->profile(), pref);
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
     SessionServiceTestHelper helper(
         SessionServiceFactory::GetForProfile(browser()->profile()));
     helper.SetForceBrowserNotAliveWithNoWindows(true);
+    helper.ReleaseService();
 #endif
     ASSERT_TRUE(embedded_test_server()->Start());
   }
@@ -91,10 +123,8 @@ class SessionRestoreObserverTest : public InProcessBrowserTest {
   Browser* QuitBrowserAndRestore(Browser* browser) {
     Profile* profile = browser->profile();
 
-    auto keep_alive = std::make_unique<ScopedKeepAlive>(
-        KeepAliveOrigin::SESSION_RESTORE, KeepAliveRestartOption::DISABLED);
-    auto profile_keep_alive = std::make_unique<ScopedProfileKeepAlive>(
-        profile, ProfileKeepAliveOrigin::kBrowserWindow);
+    std::unique_ptr<ScopedKeepAlive> keep_alive(new ScopedKeepAlive(
+        KeepAliveOrigin::SESSION_RESTORE, KeepAliveRestartOption::DISABLED));
     CloseBrowserSynchronously(browser);
 
     // Create a new window, which should trigger session restore.
@@ -130,16 +160,18 @@ class SessionRestoreObserverTest : public InProcessBrowserTest {
 
  private:
   MockSessionRestoreObserver mock_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(SessionRestoreObserverTest);
 };
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #define MAYBE_SingleTabSessionRestore DISABLED_SingleTabSessionRestore
 #else
 #define MAYBE_SingleTabSessionRestore SingleTabSessionRestore
 #endif
 IN_PROC_BROWSER_TEST_F(SessionRestoreObserverTest,
                        MAYBE_SingleTabSessionRestore) {
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GetTestURL()));
+  ui_test_utils::NavigateToURL(browser(), GetTestURL());
   Browser* new_browser = QuitBrowserAndRestore(browser());
 
   // The restored browser should have 1 tab.
@@ -157,10 +189,28 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreObserverTest,
   EXPECT_EQ(
       MockSessionRestoreObserver::SessionRestoreEvent::kFinishedLoadingTabs,
       session_restore_events()[1]);
+
+  // The only restored tab should be in foreground.
+  NavigationStartWebContentsObserver* observer =
+      session_restore_observer().GetNavigationStartWebContentsObserverForTab(
+          new_browser->tab_strip_model()->GetWebContentsAt(0));
+  EXPECT_TRUE(observer->is_session_restored());
+  EXPECT_TRUE(observer->is_restored_in_foreground());
+
+  // A new foreground tab should not be created by session restore.
+  ui_test_utils::NavigateToURLWithDisposition(
+      new_browser, GetTestURL(), WindowOpenDisposition::NEW_FOREGROUND_TAB,
+      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
+  resource_coordinator::TabManager* tab_manager =
+      g_browser_process->GetTabManager();
+  WebContents* contents = new_browser->tab_strip_model()->GetWebContentsAt(1);
+  ASSERT_TRUE(contents);
+  EXPECT_FALSE(tab_manager->IsTabInSessionRestore(contents));
+  EXPECT_FALSE(tab_manager->IsTabRestoredInForeground(contents));
 }
 
 IN_PROC_BROWSER_TEST_F(SessionRestoreObserverTest, MultipleTabSessionRestore) {
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GetTestURL()));
+  ui_test_utils::NavigateToURL(browser(), GetTestURL());
   ui_test_utils::NavigateToURLWithDisposition(
       browser(), GetTestURL(), WindowOpenDisposition::NEW_BACKGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
@@ -181,4 +231,20 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreObserverTest, MultipleTabSessionRestore) {
   EXPECT_EQ(
       MockSessionRestoreObserver::SessionRestoreEvent::kFinishedLoadingTabs,
       session_restore_events()[1]);
+
+  // The first tab should be restored in foreground.
+  NavigationStartWebContentsObserver* observer =
+      session_restore_observer().GetNavigationStartWebContentsObserverForTab(
+          new_browser->tab_strip_model()->GetWebContentsAt(0));
+  ASSERT_TRUE(observer);
+  EXPECT_TRUE(observer->is_session_restored());
+  EXPECT_TRUE(observer->is_restored_in_foreground());
+
+  // The second tab should be restored in background.
+  observer =
+      session_restore_observer().GetNavigationStartWebContentsObserverForTab(
+          new_browser->tab_strip_model()->GetWebContentsAt(1));
+  ASSERT_TRUE(observer);
+  EXPECT_TRUE(observer->is_session_restored());
+  EXPECT_FALSE(observer->is_restored_in_foreground());
 }

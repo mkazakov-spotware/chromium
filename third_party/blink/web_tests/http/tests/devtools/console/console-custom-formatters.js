@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult('Tests that console logging dumps properly when there are multiple custom formatters on the page\n');
 
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.showPanel('console');
 
   await TestRunner.evaluateInPagePromise(`
@@ -133,10 +133,10 @@
   function expandVariablesInConsole() {
     var consoleView = Console.ConsoleView.instance();
 
-    if (consoleView.needsFullUpdate)
-      consoleView.updateMessageList();
+    if (consoleView._needsFullUpdate)
+      consoleView._updateMessageList();
 
-    var viewMessages = consoleView.visibleViewMessages;
+    var viewMessages = consoleView._visibleViewMessages;
 
     for (var i = 0; i < viewMessages.length; ++i) {
       var uiMessage = viewMessages[i];

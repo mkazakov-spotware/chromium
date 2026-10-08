@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "ash/public/cpp/session/session_observer.h"
 #include "ash/system/enterprise/enterprise_domain_observer.h"
 #include "ash/system/tray/tray_item_view.h"
+#include "base/macros.h"
 
 namespace ash {
 
@@ -19,29 +20,22 @@ class ManagedDeviceTrayItemView : public TrayItemView,
                                   public EnterpriseDomainObserver {
  public:
   explicit ManagedDeviceTrayItemView(Shelf* shelf);
-
-  ManagedDeviceTrayItemView(const ManagedDeviceTrayItemView&) = delete;
-  ManagedDeviceTrayItemView& operator=(const ManagedDeviceTrayItemView&) =
-      delete;
-
   ~ManagedDeviceTrayItemView() override;
 
   // SessionObserver:
   void OnLoginStatusChanged(LoginStatus status) override;
 
   // EnterpriseDomainObserver:
-  void OnDeviceEnterpriseInfoChanged() override;
-  void OnEnterpriseAccountDomainChanged() override;
+  void OnEnterpriseDomainChanged() override;
 
   // views::TrayItemView:
   const char* GetClassName() const override;
-  void OnThemeChanged() override;
   void HandleLocaleChange() override;
 
  private:
   void Update();
-  void UpdateIcon();
-  void UpdateTooltipText();
+
+  DISALLOW_COPY_AND_ASSIGN(ManagedDeviceTrayItemView);
 };
 
 }  // namespace ash

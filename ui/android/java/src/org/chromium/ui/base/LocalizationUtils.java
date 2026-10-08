@@ -1,9 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.ui.base;
 
+import android.content.res.Configuration;
 import android.view.View;
 
 import androidx.annotation.VisibleForTesting;
@@ -27,7 +28,7 @@ public class LocalizationUtils {
     public static final int RIGHT_TO_LEFT = 1;
     public static final int LEFT_TO_RIGHT = 2;
 
-    private static Boolean sIsLayoutRtlForTesting;
+    private static Boolean sIsLayoutRtl;
 
     private LocalizationUtils() { /* cannot be instantiated */ }
 
@@ -52,18 +53,19 @@ public class LocalizationUtils {
      */
     @CalledByNative
     public static boolean isLayoutRtl() {
-        if (sIsLayoutRtlForTesting != null) return sIsLayoutRtlForTesting;
+        if (sIsLayoutRtl == null) {
+            Configuration configuration =
+                    ContextUtils.getApplicationContext().getResources().getConfiguration();
+            sIsLayoutRtl = Boolean.valueOf(
+                    configuration.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL);
+        }
 
-        return ContextUtils.getApplicationContext()
-                       .getResources()
-                       .getConfiguration()
-                       .getLayoutDirection()
-                == View.LAYOUT_DIRECTION_RTL;
+        return sIsLayoutRtl.booleanValue();
     }
 
     @VisibleForTesting
     public static void setRtlForTesting(boolean shouldBeRtl) {
-        sIsLayoutRtlForTesting = shouldBeRtl;
+        sIsLayoutRtl = shouldBeRtl;
     }
 
     /**
@@ -74,10 +76,6 @@ public class LocalizationUtils {
     public static int getFirstStrongCharacterDirection(String string) {
         assert string != null;
         return LocalizationUtilsJni.get().getFirstStrongCharacterDirection(string);
-    }
-
-    public static String getNativeUiLocale() {
-        return LocalizationUtilsJni.get().getNativeUiLocale();
     }
 
     public static String substituteLocalePlaceholder(String str) {
@@ -121,12 +119,11 @@ public class LocalizationUtils {
      *         but true for ("en-US", "en") (USA locale + English language).
      */
     public static boolean chromiumLocaleMatchesLanguage(String locale, String lang) {
-        return LocaleUtils.toBaseLanguage(locale).equals(lang);
+        return LocaleUtils.toLanguage(locale).equals(lang);
     }
 
     @NativeMethods
     interface Natives {
         int getFirstStrongCharacterDirection(String string);
-        String getNativeUiLocale();
     }
 }

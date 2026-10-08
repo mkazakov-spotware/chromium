@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -72,13 +72,10 @@ def main(argv):
   gn_build_dir = os.path.join(out_dir, 'gn_build')
   ninja_binary = os.environ.get('NINJA', 'ninja')
 
-  def append_to_env(var, vals):
-    os.environ[var] = os.environ.get(var, '') + ' ' + ' '.join(vals)
-
-  # https://crbug.com/1166707
-  append_to_env('CXXFLAGS',
-                ['-D_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS'])
-
+  # TODO(thomasanderson): Remove this once Ubuntu Trusty reaches EOL, or when
+  # Chromium's infrastructure is upgraded from Trusty to Xenial, whichever comes
+  # second ideally.  This can be done by reverting this CL:
+  # https://chromium-review.googlesource.com/c/chromium/src/+/1460187/
   if options.use_custom_libcxx:
     libcxx_dir = os.path.join(gn_build_dir, 'libc++')
     if not os.path.exists(libcxx_dir):
@@ -97,6 +94,8 @@ def main(argv):
     subprocess.check_call([ninja_binary, '-C', libcxx_dir])
     shutil.copy2(os.path.join(gn_build_dir, 'libc++.gn.so'), out_dir)
 
+    def append_to_env(var, vals):
+      os.putenv(var, os.environ.get(var, '') + ' ' + ' '.join(vals))
 
     append_to_env('LDFLAGS', [
         '-nodefaultlibs', 'libc++.gn.so',
@@ -105,8 +104,7 @@ def main(argv):
     ])
     append_to_env('CXXFLAGS', [
         '-nostdinc++',
-        '-isystem../../../buildtools/third_party/libc++',
-        '-isystem../../../buildtools/third_party/libc++/trunk/include',
+        ' -isystem../../../buildtools/third_party/libc++/trunk/include',
         '-isystem../../../buildtools/third_party/libc++abi/trunk/include'
     ])
 

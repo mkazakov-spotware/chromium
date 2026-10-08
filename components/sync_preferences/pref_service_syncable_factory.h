@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,14 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/prefs/pref_service_factory.h"
 #include "components/prefs/pref_value_store.h"
 
 namespace policy {
 class BrowserPolicyConnector;
 class PolicyService;
-}  // namespace policy
+}
 
 namespace user_prefs {
 class PrefRegistrySyncable;
@@ -31,11 +31,6 @@ class PrefServiceSyncable;
 class PrefServiceSyncableFactory : public PrefServiceFactory {
  public:
   PrefServiceSyncableFactory();
-
-  PrefServiceSyncableFactory(const PrefServiceSyncableFactory&) = delete;
-  PrefServiceSyncableFactory& operator=(const PrefServiceSyncableFactory&) =
-      delete;
-
   ~PrefServiceSyncableFactory() override;
 
   // Set up policy pref stores using the given policy service and connector.
@@ -52,7 +47,9 @@ class PrefServiceSyncableFactory : public PrefServiceFactory {
       scoped_refptr<user_prefs::PrefRegistrySyncable> pref_registry);
 
  private:
-  raw_ptr<PrefModelAssociatorClient> pref_model_associator_client_ = nullptr;
+  PrefModelAssociatorClient* pref_model_associator_client_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(PrefServiceSyncableFactory);
 };
 
 }  // namespace sync_preferences

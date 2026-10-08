@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,12 @@
 #include "chrome/browser/search_engines/ui_thread_search_terms_data.h"
 #include "content/public/browser/browser_thread.h"
 
-base::LazyInstance<std::u16string>::Leaky
+base::LazyInstance<base::string16>::Leaky
     SearchTermsDataAndroid::rlz_parameter_value_ = LAZY_INSTANCE_INITIALIZER;
 base::LazyInstance<std::string>::Leaky
     SearchTermsDataAndroid::search_client_ = LAZY_INSTANCE_INITIALIZER;
 
-std::u16string UIThreadSearchTermsData::GetRlzParameterValue(
+base::string16 UIThreadSearchTermsData::GetRlzParameterValue(
     bool from_app_list) const {
   DCHECK(!content::BrowserThread::IsThreadInitialized(
              content::BrowserThread::UI) ||

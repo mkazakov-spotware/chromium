@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,8 @@ template <> const char* interface_name<PPB_MessageLoop>() {
 
 }  // namespace
 
-MessageLoop::MessageLoop() : Resource() {}
+MessageLoop::MessageLoop() : Resource() {
+}
 
 MessageLoop::MessageLoop(const InstanceHandle& instance) : Resource() {
   if (has_interface<PPB_MessageLoop>()) {
@@ -29,11 +30,8 @@ MessageLoop::MessageLoop(const InstanceHandle& instance) : Resource() {
   }
 }
 
-MessageLoop::MessageLoop(const MessageLoop& other) : Resource(other) {}
-
-MessageLoop& MessageLoop::operator=(const MessageLoop& other) {
-  Resource::operator=(other);
-  return *this;
+MessageLoop::MessageLoop(const MessageLoop& other)
+    : Resource(other) {
 }
 
 MessageLoop::MessageLoop(PP_Resource pp_message_loop)

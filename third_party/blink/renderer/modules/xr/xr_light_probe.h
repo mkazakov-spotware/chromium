@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,19 +8,16 @@
 #include <memory>
 
 #include "device/vr/public/mojom/vr_service.mojom-blink-forward.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/renderer/core/dom/events/event_target.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_typed_array.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/wtf/forward.h"
 
-namespace gfx {
-class Transform;
-}
+#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/wtf/forward.h"
 
 namespace blink {
 
+class TransformationMatrix;
 class XRCubeMap;
 class XRLightEstimate;
 class XRLightProbeInit;
@@ -44,9 +41,7 @@ class XRLightProbe : public EventTargetWithInlineData {
 
   DEFINE_ATTRIBUTE_EVENT_LISTENER(reflectionchange, kReflectionchange)
 
-  absl::optional<gfx::Transform> MojoFromObject() const;
-
-  device::mojom::blink::XRNativeOriginInformationPtr NativeOrigin() const;
+  base::Optional<TransformationMatrix> MojoFromObject() const;
 
   void ProcessLightEstimationData(
       const device::mojom::blink::XRLightEstimationData* data,
@@ -60,8 +55,6 @@ class XRLightProbe : public EventTargetWithInlineData {
   // EventTarget overrides.
   ExecutionContext* GetExecutionContext() const override;
   const AtomicString& InterfaceName() const override;
-
-  bool IsStationary() const { return true; }
 
   void Trace(Visitor* visitor) const override;
 

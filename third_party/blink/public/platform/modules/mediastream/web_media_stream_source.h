@@ -37,6 +37,9 @@
 #include "third_party/blink/public/platform/web_common.h"
 
 #include "third_party/blink/public/platform/web_private_ptr.h"
+#if INSIDE_BLINK
+#include "third_party/blink/renderer/platform/heap/handle.h"  // nogncheck
+#endif
 
 namespace blink {
 
@@ -44,7 +47,7 @@ class MediaStreamSource;
 class WebPlatformMediaStreamSource;
 class WebString;
 
-class BLINK_PLATFORM_EXPORT WebMediaStreamSource {
+class WebMediaStreamSource {
  public:
   enum Type { kTypeAudio, kTypeVideo };
 
@@ -63,29 +66,30 @@ class BLINK_PLATFORM_EXPORT WebMediaStreamSource {
     return *this;
   }
 
-  void Assign(const WebMediaStreamSource&);
+  BLINK_PLATFORM_EXPORT void Assign(const WebMediaStreamSource&);
 
-  void Initialize(const WebString& id,
-                  Type,
-                  const WebString& name,
-                  bool remote,
-                  std::unique_ptr<WebPlatformMediaStreamSource>);
-  void Reset();
+  BLINK_PLATFORM_EXPORT void Initialize(const WebString& id,
+                                        Type,
+                                        const WebString& name,
+                                        bool remote);
+  BLINK_PLATFORM_EXPORT void Reset();
   bool IsNull() const { return private_.IsNull(); }
 
-  WebString Id() const;
-  Type GetType() const;
+  BLINK_PLATFORM_EXPORT WebString Id() const;
+  BLINK_PLATFORM_EXPORT Type GetType() const;
 
-  void SetReadyState(ReadyState);
-  ReadyState GetReadyState() const;
+  BLINK_PLATFORM_EXPORT void SetReadyState(ReadyState);
+  BLINK_PLATFORM_EXPORT ReadyState GetReadyState() const;
 
-  WebPlatformMediaStreamSource* GetPlatformSource() const;
+  BLINK_PLATFORM_EXPORT WebPlatformMediaStreamSource* GetPlatformSource() const;
+  BLINK_PLATFORM_EXPORT void SetPlatformSource(
+      std::unique_ptr<WebPlatformMediaStreamSource>);
 
 #if INSIDE_BLINK
-  explicit WebMediaStreamSource(MediaStreamSource*);
-  WebMediaStreamSource& operator=(MediaStreamSource*);
-  operator scoped_refptr<MediaStreamSource>() const;
-  operator MediaStreamSource*() const;
+  BLINK_PLATFORM_EXPORT explicit WebMediaStreamSource(MediaStreamSource*);
+  BLINK_PLATFORM_EXPORT WebMediaStreamSource& operator=(MediaStreamSource*);
+  BLINK_PLATFORM_EXPORT operator scoped_refptr<MediaStreamSource>() const;
+  BLINK_PLATFORM_EXPORT operator MediaStreamSource*() const;
 #endif
 
  private:

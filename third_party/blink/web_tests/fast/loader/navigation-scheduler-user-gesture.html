@@ -13,6 +13,8 @@
     if (window.testRunner) {
         testRunner.dumpAsText();
         testRunner.waitUntilDone();
+        testRunner.setCanOpenWindows();
+        testRunner.setPopupBlockingEnabled(true);
     }
 
     function popup() {

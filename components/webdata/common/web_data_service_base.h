@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 #define COMPONENTS_WEBDATA_COMMON_WEB_DATA_SERVICE_BASE_H_
 
 #include "base/callback.h"
+#include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/ref_counted_delete_on_sequence.h"
 #include "components/webdata/common/webdata_export.h"
@@ -47,9 +49,6 @@ class WEBDATA_EXPORT WebDataServiceBase
       scoped_refptr<WebDatabaseService> wdbs,
       const scoped_refptr<base::SingleThreadTaskRunner>& ui_task_runner);
 
-  WebDataServiceBase(const WebDataServiceBase&) = delete;
-  WebDataServiceBase& operator=(const WebDataServiceBase&) = delete;
-
   // Cancel any pending request. You need to call this method if your
   // WebDataServiceConsumer is about to be deleted.
   virtual void CancelRequest(Handle h);
@@ -76,6 +75,9 @@ class WEBDATA_EXPORT WebDataServiceBase
 
   // Our database service.
   scoped_refptr<WebDatabaseService> wdbs_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WebDataServiceBase);
 };
 
 #endif  // COMPONENTS_WEBDATA_COMMON_WEB_DATA_SERVICE_BASE_H_

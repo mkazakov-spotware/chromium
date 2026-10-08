@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "build/build_config.h"
 #include "third_party/sqlite/sqlite3.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #endif
 
@@ -79,25 +79,22 @@ base::File VfsBackend::OpenFile(const base::FilePath& file_path,
     flags |= base::File::FLAG_WRITE;
 
   if (!(desired_flags & SQLITE_OPEN_MAIN_DB))
-    flags |= base::File::FLAG_WIN_EXCLUSIVE_READ |
-             base::File::FLAG_WIN_EXCLUSIVE_WRITE;
+    flags |= base::File::FLAG_EXCLUSIVE_READ | base::File::FLAG_EXCLUSIVE_WRITE;
 
-  if (desired_flags & SQLITE_OPEN_CREATE) {
-    flags |= (desired_flags & SQLITE_OPEN_EXCLUSIVE)
-                 ? base::File::FLAG_CREATE
-                 : base::File::FLAG_OPEN_ALWAYS;
-  } else {
-    flags |= base::File::FLAG_OPEN;
-  }
+  flags |= ((desired_flags & SQLITE_OPEN_CREATE) ?
+           base::File::FLAG_OPEN_ALWAYS : base::File::FLAG_OPEN);
+
+  if (desired_flags & SQLITE_OPEN_EXCLUSIVE)
+    flags |= base::File::FLAG_EXCLUSIVE_READ | base::File::FLAG_EXCLUSIVE_WRITE;
 
   if (desired_flags & SQLITE_OPEN_DELETEONCLOSE) {
-    flags |= base::File::FLAG_WIN_TEMPORARY | base::File::FLAG_WIN_HIDDEN |
+    flags |= base::File::FLAG_TEMPORARY | base::File::FLAG_HIDDEN |
              base::File::FLAG_DELETE_ON_CLOSE;
   }
 
   // This flag will allow us to delete the file later on from the browser
   // process.
-  flags |= base::File::FLAG_WIN_SHARE_DELETE;
+  flags |= base::File::FLAG_SHARE_DELETE;
 
   // Try to open/create the DB file.
   return base::File(file_path, flags);
@@ -129,7 +126,7 @@ int VfsBackend::DeleteFile(const base::FilePath& file_path, bool sync_dir) {
     return SQLITE_IOERR_DELETE;
 
   int error_code = SQLITE_OK;
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
   if (sync_dir) {
     base::File dir(file_path.DirName(), base::File::FLAG_READ);
     if (dir.IsValid()) {
@@ -145,9 +142,9 @@ int VfsBackend::DeleteFile(const base::FilePath& file_path, bool sync_dir) {
 
 // static
 uint32_t VfsBackend::GetFileAttributes(const base::FilePath& file_path) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   uint32_t attributes = ::GetFileAttributes(file_path.value().c_str());
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
   uint32_t attributes = 0;
   if (!access(file_path.value().c_str(), R_OK))
     attributes |= static_cast<uint32_t>(R_OK);
@@ -157,6 +154,12 @@ uint32_t VfsBackend::GetFileAttributes(const base::FilePath& file_path) {
     attributes = -1;
 #endif
   return attributes;
+}
+
+// static
+int64_t VfsBackend::GetFileSize(const base::FilePath& file_path) {
+  int64_t size = 0;
+  return (base::GetFileSize(file_path, &size) ? size : 0);
 }
 
 // static

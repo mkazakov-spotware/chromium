@@ -1,27 +1,26 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/browsing_data/access_context_audit_service.h"
 #include "base/memory/ref_counted.h"
-#include "base/observer_list.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
-#include "base/task/updateable_sequenced_task_runner.h"
 #include "base/time/default_clock.h"
 #include "base/time/time.h"
+#include "base/updateable_sequenced_task_runner.h"
 #include "chrome/browser/browsing_data/access_context_audit_database.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "content/public/browser/storage_partition.h"
-#include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 
 AccessContextAuditService::CookieAccessHelper::CookieAccessHelper(
     AccessContextAuditService* service)
     : service_(service) {
   DCHECK(service);
-  deletion_observation_.Observe(service);
+  deletion_observer_.Add(service);
 }
 
 AccessContextAuditService::CookieAccessHelper::~CookieAccessHelper() {
@@ -88,8 +87,8 @@ bool AccessContextAuditService::Init(
 
   cookie_manager->AddGlobalChangeListener(
       cookie_listener_receiver_.BindNewPipeAndPassRemote());
-  history_observation_.Observe(history_service);
-  storage_partition_observation_.Observe(storage_partition);
+  history_observer_.Add(history_service);
+  storage_partition_observer_.Add(storage_partition);
   return true;
 }
 
@@ -121,8 +120,7 @@ void AccessContextAuditService::RecordStorageAPIAccess(
     const url::Origin& storage_origin,
     AccessContextAuditDatabase::StorageAPIType type,
     const url::Origin& top_frame_origin) {
-  // Opaque top frame origins are only supported for storing cross-site storage
-  // access records after history deletions.
+  // Opaque top frame origins are not supported.
   if (top_frame_origin.opaque())
     return;
   DCHECK(!storage_origin.opaque());
@@ -133,62 +131,6 @@ void AccessContextAuditService::RecordStorageAPIAccess(
   database_task_runner_->PostTask(
       FROM_HERE, base::BindOnce(&AccessContextAuditDatabase::AddRecords,
                                 database_, std::move(access_record)));
-}
-
-void AccessContextAuditService::GetCookieAccessRecords(
-    AccessContextRecordsCallback callback) {
-  if (!user_visible_tasks_in_progress++)
-    database_task_runner_->UpdatePriority(base::TaskPriority::USER_VISIBLE);
-
-  for (auto& helper : cookie_access_helpers_)
-    helper.FlushCookieRecords();
-
-  database_task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
-      base::BindOnce(&AccessContextAuditDatabase::GetCookieRecords, database_),
-      base::BindOnce(
-          &AccessContextAuditService::CompleteGetAccessRecordsInternal,
-          weak_factory_.GetWeakPtr(), std::move(callback)));
-}
-
-void AccessContextAuditService::GetStorageAccessRecords(
-    AccessContextRecordsCallback callback) {
-  if (!user_visible_tasks_in_progress++)
-    database_task_runner_->UpdatePriority(base::TaskPriority::USER_VISIBLE);
-
-  database_task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
-      base::BindOnce(&AccessContextAuditDatabase::GetStorageRecords, database_),
-      base::BindOnce(
-          &AccessContextAuditService::CompleteGetAccessRecordsInternal,
-          weak_factory_.GetWeakPtr(), std::move(callback)));
-}
-
-namespace {
-
-bool IsSameSite(const url::Origin& origin1, const url::Origin& origin2) {
-  return net::registry_controlled_domains::SameDomainOrHost(
-      origin1, origin2,
-      net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
-}
-
-void SelectThirdPartyStorageAccessRecords(
-    AccessContextRecordsCallback callback,
-    std::vector<AccessContextAuditDatabase::AccessRecord> storage_records) {
-  std::vector<AccessContextAuditDatabase::AccessRecord> result;
-  for (auto& record : storage_records) {
-    if (!IsSameSite(record.origin, record.top_frame_origin))
-      result.push_back(std::move(record));
-  }
-  std::move(callback).Run(std::move(result));
-}
-
-}  // namespace
-
-void AccessContextAuditService::GetThirdPartyStorageAccessRecords(
-    AccessContextRecordsCallback callback) {
-  GetStorageAccessRecords(base::BindOnce(&SelectThirdPartyStorageAccessRecords,
-                                         std::move(callback)));
 }
 
 void AccessContextAuditService::GetAllAccessRecords(
@@ -203,11 +145,11 @@ void AccessContextAuditService::GetAllAccessRecords(
       FROM_HERE,
       base::BindOnce(&AccessContextAuditDatabase::GetAllRecords, database_),
       base::BindOnce(
-          &AccessContextAuditService::CompleteGetAccessRecordsInternal,
+          &AccessContextAuditService::CompleteGetAllAccessRecordsInternal,
           weak_factory_.GetWeakPtr(), std::move(callback)));
 }
 
-void AccessContextAuditService::CompleteGetAccessRecordsInternal(
+void AccessContextAuditService::CompleteGetAllAccessRecordsInternal(
     AccessContextRecordsCallback callback,
     std::vector<AccessContextAuditDatabase::AccessRecord> records) {
   DCHECK_GT(user_visible_tasks_in_progress, 0);
@@ -230,17 +172,19 @@ void AccessContextAuditService::RemoveAllRecordsForOriginKeyedStorage(
 }
 
 void AccessContextAuditService::Shutdown() {
-  DCHECK(cookie_access_helpers_.empty());
+  DCHECK(!cookie_access_helpers_.might_have_observers());
   ClearSessionOnlyRecords();
 }
 
-void AccessContextAuditService::OnStorageKeyDataCleared(
+void AccessContextAuditService::OnOriginDataCleared(
     uint32_t remove_mask,
-    content::StoragePartition::StorageKeyMatcherFunction storage_key_matcher,
+    base::RepeatingCallback<bool(const url::Origin&)> origin_matcher,
     const base::Time begin,
     const base::Time end) {
   std::set<AccessContextAuditDatabase::StorageAPIType> types;
 
+  if (remove_mask & content::StoragePartition::REMOVE_DATA_MASK_APPCACHE)
+    types.insert(AccessContextAuditDatabase::StorageAPIType::kAppCache);
   if (remove_mask & content::StoragePartition::REMOVE_DATA_MASK_FILE_SYSTEMS)
     types.insert(AccessContextAuditDatabase::StorageAPIType::kFileSystem);
   if (remove_mask & content::StoragePartition::REMOVE_DATA_MASK_INDEXEDDB)
@@ -258,20 +202,20 @@ void AccessContextAuditService::OnStorageKeyDataCleared(
     return;
 
   DCHECK_EQ(AccessContextAuditDatabase::StorageAPIType::kMaxValue,
-            AccessContextAuditDatabase::StorageAPIType::kAppCacheDeprecated)
+            AccessContextAuditDatabase::StorageAPIType::kAppCache)
       << "Unexpected number of storage types. Ensure that all storage types "
          "are accounted for when checking |remove_mask|.";
   bool all_origin_storage_types = types.size() == 7;
 
-  if (begin == base::Time() && end == base::Time::Max() &&
-      !storage_key_matcher && all_origin_storage_types) {
+  if (begin == base::Time() && end == base::Time::Max() && !origin_matcher &&
+      all_origin_storage_types) {
     database_task_runner_->PostTask(
         FROM_HERE, base::BindOnce(&AccessContextAuditDatabase::RemoveAllRecords,
                                   database_));
     return;
   }
 
-  if (!storage_key_matcher && all_origin_storage_types) {
+  if (!origin_matcher && all_origin_storage_types) {
     database_task_runner_->PostTask(
         FROM_HERE,
         base::BindOnce(
@@ -283,8 +227,7 @@ void AccessContextAuditService::OnStorageKeyDataCleared(
   database_task_runner_->PostTask(
       FROM_HERE,
       base::BindOnce(&AccessContextAuditDatabase::RemoveStorageApiRecords,
-                     database_, types, std::move(storage_key_matcher), begin,
-                     end));
+                     database_, types, std::move(origin_matcher), begin, end));
 }
 
 void AccessContextAuditService::OnCookieChange(
@@ -318,9 +261,8 @@ void AccessContextAuditService::OnURLsDeleted(
     const history::DeletionInfo& deletion_info) {
   if (deletion_info.IsAllHistory()) {
     database_task_runner_->PostTask(
-        FROM_HERE,
-        base::BindOnce(&AccessContextAuditDatabase::RemoveAllRecordsHistory,
-                       database_));
+        FROM_HERE, base::BindOnce(&AccessContextAuditDatabase::RemoveAllRecords,
+                                  database_));
     return;
   }
 
@@ -333,7 +275,7 @@ void AccessContextAuditService::OnURLsDeleted(
     database_task_runner_->PostTask(
         FROM_HERE,
         base::BindOnce(
-            &AccessContextAuditDatabase::RemoveAllRecordsForTimeRangeHistory,
+            &AccessContextAuditDatabase::RemoveAllRecordsForTimeRange,
             database_, deletion_info.time_range().begin(),
             deletion_info.time_range().end()));
   }

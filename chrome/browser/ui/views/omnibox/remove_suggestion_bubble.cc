@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,6 @@
 #include "components/search_engines/template_url_service.h"
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/box_layout.h"
@@ -24,7 +22,6 @@ namespace {
 class RemoveSuggestionBubbleDialogDelegateView
     : public views::BubbleDialogDelegateView {
  public:
-  METADATA_HEADER(RemoveSuggestionBubbleDialogDelegateView);
   RemoveSuggestionBubbleDialogDelegateView(
       TemplateURLService* template_url_service,
       views::View* anchor_view,
@@ -40,7 +37,6 @@ class RemoveSuggestionBubbleDialogDelegateView
     SetButtonLabel(ui::DIALOG_BUTTON_OK, l10n_util::GetStringUTF16(IDS_REMOVE));
     SetButtonLabel(ui::DIALOG_BUTTON_CANCEL,
                    l10n_util::GetStringUTF16(IDS_CANCEL));
-    SetModalType(ui::MODAL_TYPE_WINDOW);
 
     auto* layout_manager = SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kVertical));
@@ -50,7 +46,7 @@ class RemoveSuggestionBubbleDialogDelegateView
     layout_manager->set_between_child_spacing(16);
 
     // Get the Search Provider name associated with this match.
-    std::u16string search_provider_short_name;
+    base::string16 search_provider_short_name;
     const TemplateURL* template_url =
         match.GetTemplateURL(template_url_service, false);
     // If the match has no associated Search Provider, get the default one,
@@ -92,7 +88,8 @@ class RemoveSuggestionBubbleDialogDelegateView
   }
 
   // views::WidgetDelegate:
-  std::u16string GetWindowTitle() const override {
+  ui::ModalType GetModalType() const override { return ui::MODAL_TYPE_WINDOW; }
+  base::string16 GetWindowTitle() const override {
     return l10n_util::GetStringUTF16(
         IDS_OMNIBOX_REMOVE_SUGGESTION_BUBBLE_TITLE);
   }
@@ -101,10 +98,6 @@ class RemoveSuggestionBubbleDialogDelegateView
   AutocompleteMatch match_;
   base::OnceClosure remove_closure_;
 };
-
-BEGIN_METADATA(RemoveSuggestionBubbleDialogDelegateView,
-               views::BubbleDialogDelegateView)
-END_METADATA
 
 }  // namespace
 

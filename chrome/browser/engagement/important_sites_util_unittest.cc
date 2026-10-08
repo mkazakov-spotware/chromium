@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/sample_vector.h"
 #include "base/strings/utf_string_conversions.h"
@@ -16,6 +16,8 @@
 #include "build/build_config.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
+#include "chrome/browser/engagement/site_engagement_score.h"
+#include "chrome/browser/engagement/site_engagement_service.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "chrome/test/base/testing_profile.h"
@@ -25,17 +27,13 @@
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_pattern.h"
 #include "components/keyed_service/core/keyed_service.h"
-#include "components/site_engagement/content/site_engagement_score.h"
-#include "components/site_engagement/content/site_engagement_service.h"
 #include "content/public/browser/web_contents.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 // TODO(crbug.com/1039517): Disabled all tests because they lead the flakiness
 // dashboard. The root cause is documented in the bug.
-#if !BUILDFLAG(IS_ANDROID)
-
-namespace site_engagement {
+#if !defined(OS_ANDROID)
 
 namespace {
 using BookmarkModel = bookmarks::BookmarkModel;
@@ -126,7 +124,7 @@ class ImportantSitesUtilTest : public ChromeRenderViewHostTestHarness {
   }
 
  private:
-  raw_ptr<BookmarkModel> model_ = nullptr;
+  BookmarkModel* model_ = nullptr;
 };
 
 TEST_F(ImportantSitesUtilTest, TestNoImportantSites) {
@@ -246,7 +244,7 @@ TEST_F(ImportantSitesUtilTest, TooManyBookmarks) {
       expected_sorted_domains, expected_sorted_origins, important_sites);
 }
 
-TEST_F(ImportantSitesUtilTest, Suppressing) {
+TEST_F(ImportantSitesUtilTest, Blacklisting) {
   SiteEngagementService* service = SiteEngagementService::Get(profile());
   ASSERT_TRUE(service);
 
@@ -270,10 +268,10 @@ TEST_F(ImportantSitesUtilTest, Suppressing) {
                            important_sites);
   ASSERT_EQ(2u, important_sites.size());
   // Record ignore twice.
-  ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
+  ImportantSitesUtil::RecordBlacklistedAndIgnoredImportantSites(
       profile(), {"gmail.com"}, {important_sites[1].reason_bitfield},
       {"google.com"}, {important_sites[0].reason_bitfield});
-  ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
+  ImportantSitesUtil::RecordBlacklistedAndIgnoredImportantSites(
       profile(), {"gmail.com"}, {important_sites[1].reason_bitfield},
       {"google.com"}, {important_sites[0].reason_bitfield});
 
@@ -282,15 +280,15 @@ TEST_F(ImportantSitesUtilTest, Suppressing) {
       profile(), kNumImportantSites);
   ExpectImportantResultsEq(expected_sorted_domains, expected_sorted_origins,
                            important_sites);
-  // We shouldn't suppress after first two times.
+  // We shouldn't blacklist after first two times.
   ASSERT_EQ(2u, important_sites.size());
 
   // Record ignore 3rd time.
-  ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
+  ImportantSitesUtil::RecordBlacklistedAndIgnoredImportantSites(
       profile(), {"gmail.com"}, {important_sites[1].reason_bitfield},
       {"google.com"}, {important_sites[0].reason_bitfield});
 
-  // Important fetch 3. Google.com should be suppressed now.
+  // Important fetch 3. Google.com should be blacklisted now.
   important_sites = ImportantSitesUtil::GetImportantRegisterableDomains(
       profile(), kNumImportantSites);
 
@@ -301,7 +299,7 @@ TEST_F(ImportantSitesUtilTest, Suppressing) {
                            important_sites);
 }
 
-TEST_F(ImportantSitesUtilTest, SuppressingReset) {
+TEST_F(ImportantSitesUtilTest, BlacklistingReset) {
   SiteEngagementService* service = SiteEngagementService::Get(profile());
   ASSERT_TRUE(service);
 
@@ -320,10 +318,10 @@ TEST_F(ImportantSitesUtilTest, SuppressingReset) {
                                                           kNumImportantSites);
   ASSERT_EQ(2u, important_sites.size());
   // Record ignore twice.
-  ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
+  ImportantSitesUtil::RecordBlacklistedAndIgnoredImportantSites(
       profile(), {"gmail.com"}, {important_sites[1].reason_bitfield},
       {"google.com"}, {important_sites[0].reason_bitfield});
-  ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
+  ImportantSitesUtil::RecordBlacklistedAndIgnoredImportantSites(
       profile(), {"gmail.com"}, {important_sites[1].reason_bitfield},
       {"google.com"}, {important_sites[0].reason_bitfield});
 
@@ -338,16 +336,16 @@ TEST_F(ImportantSitesUtilTest, SuppressingReset) {
                            important_sites);
 
   // Record NOT ignored.
-  ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
+  ImportantSitesUtil::RecordBlacklistedAndIgnoredImportantSites(
       profile(), {"google.com", "gmail.com"},
       {important_sites[0].reason_bitfield, important_sites[1].reason_bitfield},
       std::vector<std::string>(), std::vector<int32_t>());
 
   // Record ignored twice again
-  ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
+  ImportantSitesUtil::RecordBlacklistedAndIgnoredImportantSites(
       profile(), {"gmail.com"}, {important_sites[1].reason_bitfield},
       {"google.com"}, {important_sites[0].reason_bitfield});
-  ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
+  ImportantSitesUtil::RecordBlacklistedAndIgnoredImportantSites(
       profile(), {"gmail.com"}, {important_sites[1].reason_bitfield},
       {"google.com"}, {important_sites[0].reason_bitfield});
 
@@ -358,11 +356,11 @@ TEST_F(ImportantSitesUtilTest, SuppressingReset) {
                            important_sites);
 
   // Record ignored 3rd time in a row.
-  ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
+  ImportantSitesUtil::RecordBlacklistedAndIgnoredImportantSites(
       profile(), {"gmail.com"}, {important_sites[1].reason_bitfield},
       {"google.com"}, {important_sites[0].reason_bitfield});
 
-  // Suppressed now.
+  // Blacklisted now.
   important_sites = ImportantSitesUtil::GetImportantRegisterableDomains(
       profile(), kNumImportantSites);
   ASSERT_EQ(1u, important_sites.size());
@@ -392,7 +390,7 @@ TEST_F(ImportantSitesUtilTest, Metrics) {
       ImportantSitesUtil::GetImportantRegisterableDomains(profile(),
                                                           kNumImportantSites);
 
-  ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
+  ImportantSitesUtil::RecordBlacklistedAndIgnoredImportantSites(
       profile(), {"google.com", "youtube.com"},
       {important_sites[0].reason_bitfield, important_sites[1].reason_bitfield},
       {"bad.com"}, {important_sites[2].reason_bitfield});
@@ -415,7 +413,7 @@ TEST_F(ImportantSitesUtilTest, Metrics) {
                   base::Bucket(CROSSED_REASON_UNKNOWN, 1)));
 }
 
-TEST_F(ImportantSitesUtilTest, DialogExcluding) {
+TEST_F(ImportantSitesUtilTest, DialogBlacklisting) {
   SiteEngagementService* service = SiteEngagementService::Get(profile());
   ASSERT_TRUE(service);
 
@@ -442,11 +440,11 @@ TEST_F(ImportantSitesUtilTest, DialogExcluding) {
                            important_sites);
   ASSERT_EQ(2u, important_sites.size());
   // Ignore all sites 2 times.
-  ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
+  ImportantSitesUtil::RecordBlacklistedAndIgnoredImportantSites(
       profile(), std::vector<std::string>(), std::vector<int32_t>(),
       {"google.com", "yahoo.com"},
       {important_sites[0].reason_bitfield, important_sites[1].reason_bitfield});
-  ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
+  ImportantSitesUtil::RecordBlacklistedAndIgnoredImportantSites(
       profile(), std::vector<std::string>(), std::vector<int32_t>(),
       {"google.com", "yahoo.com"},
       {important_sites[0].reason_bitfield, important_sites[1].reason_bitfield});
@@ -455,7 +453,7 @@ TEST_F(ImportantSitesUtilTest, DialogExcluding) {
   EXPECT_FALSE(ImportantSitesUtil::IsDialogDisabled(profile()));
 
   // Ignore 3rd time.
-  ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
+  ImportantSitesUtil::RecordBlacklistedAndIgnoredImportantSites(
       profile(), std::vector<std::string>(), std::vector<int32_t>(),
       {"google.com", "yahoo.com"},
       {important_sites[0].reason_bitfield, important_sites[1].reason_bitfield});
@@ -466,10 +464,8 @@ TEST_F(ImportantSitesUtilTest, DialogExcluding) {
   ExpectImportantResultsEq(expected_sorted_domains, expected_sorted_origins,
                            important_sites);
 
-  // Dialog should be disabled.
+  // Dialog should be blacklisted.
   EXPECT_TRUE(ImportantSitesUtil::IsDialogDisabled(profile()));
 }
 
-}  // namespace site_engagement
-
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)

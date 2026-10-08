@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,11 @@
 #define THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_URL_REQUEST_UTIL_H_
 
 #include "net/http/http_request_headers.h"
-#include "services/network/public/mojom/fetch_api.mojom-forward.h"
+#include "services/network/public/cpp/resource_request_body.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-forward.h"
-#include "third_party/blink/public/mojom/loader/mixed_content.mojom-shared.h"
 #include "third_party/blink/public/mojom/loader/resource_load_info.mojom-forward.h"
 #include "third_party/blink/public/platform/web_common.h"
-
-namespace network {
-class ResourceRequestBody;
-}
+#include "third_party/blink/public/platform/web_mixed_content_context_type.h"
 
 namespace blink {
 
@@ -45,7 +41,7 @@ BLINK_PLATFORM_EXPORT mojom::RequestContextType
 GetRequestContextTypeForWebURLRequest(const WebURLRequest& request);
 BLINK_PLATFORM_EXPORT network::mojom::RequestDestination
 GetRequestDestinationForWebURLRequest(const WebURLRequest& request);
-BLINK_PLATFORM_EXPORT mojom::MixedContentContextType
+BLINK_PLATFORM_EXPORT WebMixedContentContextType
 GetMixedContentContextTypeForWebURLRequest(const WebURLRequest& request);
 
 }  // namespace blink

@@ -1,13 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_OPENED_FRAME_TRACKER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_OPENED_FRAME_TRACKER_H_
 
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "base/macros.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
+#include "third_party/blink/renderer/platform/wtf/hash_set.h"
 
 namespace blink {
 
@@ -21,8 +22,6 @@ class OpenedFrameTracker {
 
  public:
   OpenedFrameTracker();
-  OpenedFrameTracker(const OpenedFrameTracker&) = delete;
-  OpenedFrameTracker& operator=(const OpenedFrameTracker&) = delete;
   ~OpenedFrameTracker();
   void Trace(Visitor*) const;
 
@@ -34,15 +33,12 @@ class OpenedFrameTracker {
   // opener for opened frames to point to the new frame being swapped in.
   void TransferTo(Frame*) const;
 
-  // Explicitly break opener references from opened frames when removing
-  // a frame from the DOM, rather than relying on weak fields + GC to
-  // non-deterministically clear them later.
-  void Dispose();
-
  private:
-  HeapHashSet<Member<Frame>> opened_frames_;
+  HeapHashSet<WeakMember<Frame>> opened_frames_;
+
+  DISALLOW_COPY_AND_ASSIGN(OpenedFrameTracker);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_OPENED_FRAME_TRACKER_H_
+#endif  // WebFramePrivate_h

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,9 +18,6 @@
 #include "ash/public/cpp/app_list/app_list_features.h"
 #include "ash/public/cpp/assistant/controller/assistant_ui_controller.h"
 #include "ash/search_box/search_box_constants.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/compositor/layer.h"
-#include "ui/compositor/layer_animator.h"
 #include "ui/views/layout/box_layout.h"
 
 namespace ash {
@@ -29,9 +26,9 @@ namespace {
 
 // Dialog plate animation.
 constexpr base::TimeDelta kDialogPlateAnimationFadeInDelay =
-    base::Milliseconds(283);
+    base::TimeDelta::FromMilliseconds(283);
 constexpr base::TimeDelta kDialogPlateAnimationFadeInDuration =
-    base::Milliseconds(167);
+    base::TimeDelta::FromMilliseconds(167);
 
 }  // namespace
 
@@ -40,13 +37,17 @@ AssistantMainView::AssistantMainView(AssistantViewDelegate* delegate)
   SetID(AssistantViewID::kMainView);
   InitLayout();
 
-  assistant_controller_observation_.Observe(AssistantController::Get());
+  assistant_controller_observer_.Add(AssistantController::Get());
   AssistantUiController::Get()->GetModel()->AddObserver(this);
 }
 
 AssistantMainView::~AssistantMainView() {
   if (AssistantUiController::Get())
     AssistantUiController::Get()->GetModel()->RemoveObserver(this);
+}
+
+const char* AssistantMainView::GetClassName() const {
+  return "AssistantMainView";
 }
 
 void AssistantMainView::ChildPreferredSizeChanged(views::View* child) {
@@ -78,16 +79,14 @@ void AssistantMainView::RequestFocus() {
 
 void AssistantMainView::OnAssistantControllerDestroying() {
   AssistantUiController::Get()->GetModel()->RemoveObserver(this);
-  DCHECK(assistant_controller_observation_.IsObservingSource(
-      AssistantController::Get()));
-  assistant_controller_observation_.Reset();
+  assistant_controller_observer_.Remove(AssistantController::Get());
 }
 
 void AssistantMainView::OnUiVisibilityChanged(
     AssistantVisibility new_visibility,
     AssistantVisibility old_visibility,
-    absl::optional<AssistantEntryPoint> entry_point,
-    absl::optional<AssistantExitPoint> exit_point) {
+    base::Optional<AssistantEntryPoint> entry_point,
+    base::Optional<AssistantExitPoint> exit_point) {
   if (!assistant::util::IsStartingSession(new_visibility, old_visibility)) {
     return;
   }
@@ -132,8 +131,5 @@ void AssistantMainView::InitLayout() {
 
   layout->SetFlexForView(main_stage_, 1);
 }
-
-BEGIN_METADATA(AssistantMainView, views::View)
-END_METADATA
 
 }  // namespace ash

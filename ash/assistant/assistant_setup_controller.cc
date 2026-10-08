@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 #include "ash/public/cpp/assistant/controller/assistant_ui_controller.h"
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "chromeos/ash/services/assistant/public/cpp/assistant_prefs.h"
-#include "chromeos/ash/services/assistant/public/cpp/features.h"
+#include "chromeos/services/assistant/public/cpp/assistant_prefs.h"
+#include "chromeos/services/assistant/public/cpp/features.h"
 
 namespace {
 
@@ -25,7 +25,7 @@ namespace ash {
 AssistantSetupController::AssistantSetupController(
     AssistantControllerImpl* assistant_controller)
     : assistant_controller_(assistant_controller) {
-  assistant_controller_observation_.Observe(AssistantController::Get());
+  assistant_controller_observer_.Add(AssistantController::Get());
 }
 
 AssistantSetupController::~AssistantSetupController() = default;
@@ -44,14 +44,14 @@ void AssistantSetupController::OnDeepLinkReceived(
   if (type != assistant::util::DeepLinkType::kOnboarding)
     return;
 
-  absl::optional<bool> relaunch = assistant::util::GetDeepLinkParamAsBool(
+  base::Optional<bool> relaunch = assistant::util::GetDeepLinkParamAsBool(
       params, assistant::util::DeepLinkParam::kRelaunch);
 
   StartOnboarding(relaunch.value_or(false));
 }
 
 void AssistantSetupController::OnOptInButtonPressed() {
-  using assistant::prefs::ConsentStatus;
+  using chromeos::assistant::prefs::ConsentStatus;
   if (AssistantState::Get()->consent_status().value_or(
           ConsentStatus::kUnknown) == ConsentStatus::kUnauthorized) {
     AssistantController::Get()->OpenUrl(assistant::util::CreateLocalizedGURL(
@@ -66,7 +66,8 @@ void AssistantSetupController::StartOnboarding(bool relaunch, FlowType type) {
   if (!assistant_setup)
     return;
 
-  AssistantUiController::Get()->CloseUi(assistant::AssistantExitPoint::kSetup);
+  AssistantUiController::Get()->CloseUi(
+      chromeos::assistant::AssistantExitPoint::kSetup);
 
   assistant_setup->StartAssistantOptInFlow(
       type, base::BindOnce(&AssistantSetupController::OnOptInFlowFinished,
@@ -77,7 +78,7 @@ void AssistantSetupController::OnOptInFlowFinished(bool relaunch,
                                                    bool completed) {
   if (relaunch && completed) {
     AssistantUiController::Get()->ShowUi(
-        assistant::AssistantEntryPoint::kSetup);
+        chromeos::assistant::AssistantEntryPoint::kSetup);
   }
 }
 

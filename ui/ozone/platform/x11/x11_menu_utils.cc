@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,7 @@ int X11MenuUtils::GetCurrentKeyModifiers() const {
 
 std::string X11MenuUtils::ToDBusKeySym(KeyboardCode code) const {
   return base::UTF16ToUTF8(
-      std::u16string(1, ui::GetUnicodeCharacterFromXKeySym(
+      base::string16(1, ui::GetUnicodeCharacterFromXKeySym(
                             XKeysymForWindowsKeyCode(code, false))));
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,19 +6,17 @@
 
 #include <wininet.h>
 
-#include "base/bind.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/run_loop.h"
+#include "base/macros.h"
 #include "base/strings/stringprintf.h"
-#include "base/strings/utf_string_conversions.h"
-#include "base/test/task_environment.h"
 #include "base/test/test_file_util.h"
 #include "base/test/test_reg_util_win.h"
 #include "base/win/scoped_com_initializer.h"
 #include "base/win/win_util.h"
 #include "base/win/windows_version.h"
+#include "components/services/quarantine/public/cpp/quarantine_features_win.h"
 #include "components/services/quarantine/quarantine.h"
 #include "components/services/quarantine/test_support.h"
 #include "net/base/filename_util.h"
@@ -47,8 +45,8 @@ const char* const kUntrustedURLs[] = {
 bool CreateFile(const base::FilePath& file_path) {
   constexpr char kTestData[] = "Hello world!";
 
-  return base::WriteFile(file_path, kTestData, std::size(kTestData)) ==
-         static_cast<int>(std::size(kTestData));
+  return base::WriteFile(file_path, kTestData, base::size(kTestData)) ==
+         static_cast<int>(base::size(kTestData));
 }
 
 base::FilePath GetZoneIdentifierStreamPath(const base::FilePath& file_path) {
@@ -78,25 +76,23 @@ class ScopedZoneForSite {
     kRestrictedSitesZone = 4,
   };
 
-  ScopedZoneForSite(const std::wstring& domain,
-                    const std::wstring& protocol,
+  ScopedZoneForSite(const base::string16& domain,
+                    const base::string16& protocol,
                     ZoneIdentifierType zone_identifier_type);
-
-  ScopedZoneForSite(const ScopedZoneForSite&) = delete;
-  ScopedZoneForSite& operator=(const ScopedZoneForSite&) = delete;
-
   ~ScopedZoneForSite();
 
  private:
-  std::wstring domain_;
-  std::wstring protocol_;
+  base::string16 domain_;
+  base::string16 protocol_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedZoneForSite);
 };
 
-ScopedZoneForSite::ScopedZoneForSite(const std::wstring& domain,
-                                     const std::wstring& protocol,
+ScopedZoneForSite::ScopedZoneForSite(const base::string16& domain,
+                                     const base::string16& protocol,
                                      ZoneIdentifierType zone_identifier_type)
     : domain_(domain), protocol_(protocol) {
-  std::wstring registry_path = base::StringPrintf(
+  base::string16 registry_path = base::StringPrintf(
       L"Software\\Microsoft\\Windows\\CurrentVersion\\Internet "
       L"Settings\\ZoneMap\\Domains\\%ls",
       domain_.c_str());
@@ -108,7 +104,7 @@ ScopedZoneForSite::ScopedZoneForSite(const std::wstring& domain,
 }
 
 ScopedZoneForSite::~ScopedZoneForSite() {
-  std::wstring registry_path = base::StringPrintf(
+  base::string16 registry_path = base::StringPrintf(
       L"Software\\Microsoft\\Windows\\CurrentVersion\\Internet "
       L"Settings\\ZoneMap\\Domains\\%ls",
       domain_.c_str());
@@ -122,13 +118,8 @@ bool AddInternetZoneIdentifierDirectly(const base::FilePath& file_path) {
   static const char kMotwForInternetZone[] = "[ZoneTransfer]\r\nZoneId=3\r\n";
   return base::WriteFile(GetZoneIdentifierStreamPath(file_path),
                          kMotwForInternetZone,
-                         std::size(kMotwForInternetZone)) ==
-         static_cast<int>(std::size(kMotwForInternetZone));
-}
-
-void CheckQuarantineResult(QuarantineFileResult result,
-                           QuarantineFileResult expected_result) {
-  EXPECT_EQ(expected_result, result);
+                         base::size(kMotwForInternetZone)) ==
+         static_cast<int>(base::size(kMotwForInternetZone));
 }
 
 }  // namespace
@@ -136,10 +127,6 @@ void CheckQuarantineResult(QuarantineFileResult result,
 class QuarantineWinTest : public ::testing::Test {
  public:
   QuarantineWinTest() = default;
-
-  QuarantineWinTest(const QuarantineWinTest&) = delete;
-  QuarantineWinTest& operator=(const QuarantineWinTest&) = delete;
-
   ~QuarantineWinTest() override = default;
 
   void SetUp() override {
@@ -167,8 +154,6 @@ class QuarantineWinTest : public ::testing::Test {
   const wchar_t* GetInternetSite() { return L"example.com"; }
 
  private:
-  base::test::SingleThreadTaskEnvironment task_environment_;
-
   registry_util::RegistryOverrideManager registry_override_;
 
   base::ScopedTempDir scoped_temp_dir_;
@@ -181,16 +166,16 @@ class QuarantineWinTest : public ::testing::Test {
   std::unique_ptr<ScopedZoneForSite> scoped_zone_for_trusted_site_;
   std::unique_ptr<ScopedZoneForSite> scoped_zone_for_internet_site_;
   std::unique_ptr<ScopedZoneForSite> scoped_zone_for_restricted_site_;
+
+  DISALLOW_COPY_AND_ASSIGN(QuarantineWinTest);
 };
 
 // If the file is missing, the QuarantineFile() call should return FILE_MISSING.
 TEST_F(QuarantineWinTest, MissingFile) {
-  QuarantineFile(GetTempDir().AppendASCII("does-not-exist.exe"),
-                 GURL(kDummySourceUrl), GURL(kDummyReferrerUrl),
-                 kDummyClientGuid,
-                 base::BindOnce(&CheckQuarantineResult,
-                                QuarantineFileResult::FILE_MISSING));
-  base::RunLoop().RunUntilIdle();
+  EXPECT_EQ(QuarantineFileResult::FILE_MISSING,
+            QuarantineFile(GetTempDir().AppendASCII("does-not-exist.exe"),
+                           GURL(kDummySourceUrl), GURL(kDummyReferrerUrl),
+                           kDummyClientGuid));
 }
 
 // On Windows systems, files downloaded from a local source are considered
@@ -209,10 +194,9 @@ TEST_F(QuarantineWinTest, LocalFile_DependsOnLocalConfig) {
 
     ASSERT_TRUE(CreateFile(test_file));
 
-    QuarantineFile(
-        test_file, GURL(source_url), GURL(), kDummyClientGuid,
-        base::BindOnce(&CheckQuarantineResult, QuarantineFileResult::OK));
-    base::RunLoop().RunUntilIdle();
+    EXPECT_EQ(
+        QuarantineFileResult::OK,
+        QuarantineFile(test_file, GURL(source_url), GURL(), kDummyClientGuid));
 
     std::string zone_identifier;
     GetZoneIdentifierStreamContents(test_file, &zone_identifier);
@@ -235,11 +219,9 @@ TEST_F(QuarantineWinTest, DownloadedFile_DependsOnLocalConfig) {
     SCOPED_TRACE(::testing::Message() << "Trying URL " << source_url);
 
     ASSERT_TRUE(CreateFile(test_file));
-
-    QuarantineFile(
-        test_file, GURL(source_url), GURL(), kDummyClientGuid,
-        base::BindOnce(&CheckQuarantineResult, QuarantineFileResult::OK));
-    base::RunLoop().RunUntilIdle();
+    EXPECT_EQ(
+        QuarantineFileResult::OK,
+        QuarantineFile(test_file, GURL(source_url), GURL(), kDummyClientGuid));
 
     std::string zone_identifier;
     ASSERT_TRUE(GetZoneIdentifierStreamContents(test_file, &zone_identifier));
@@ -268,11 +250,9 @@ TEST_F(QuarantineWinTest, UnsafeReferrer_DependsOnLocalConfig) {
     SCOPED_TRACE(::testing::Message() << "Trying URL " << referrer_url);
 
     ASSERT_TRUE(CreateFile(test_file));
-    QuarantineFile(
-        test_file, GURL("http://example.com/good"), GURL(referrer_url),
-        kDummyClientGuid,
-        base::BindOnce(&CheckQuarantineResult, QuarantineFileResult::OK));
-    base::RunLoop().RunUntilIdle();
+    EXPECT_EQ(QuarantineFileResult::OK,
+              QuarantineFile(test_file, GURL("http://example.com/good"),
+                             GURL(referrer_url), kDummyClientGuid));
 
     std::string zone_identifier;
     ASSERT_TRUE(GetZoneIdentifierStreamContents(test_file, &zone_identifier));
@@ -292,10 +272,8 @@ TEST_F(QuarantineWinTest, EmptySource_DependsOnLocalConfig) {
   base::FilePath test_file = GetTempDir().AppendASCII("foo.exe");
   ASSERT_TRUE(CreateFile(test_file));
 
-  QuarantineFile(
-      test_file, GURL(), GURL(), kDummyClientGuid,
-      base::BindOnce(&CheckQuarantineResult, QuarantineFileResult::OK));
-  base::RunLoop().RunUntilIdle();
+  EXPECT_EQ(QuarantineFileResult::OK,
+            QuarantineFile(test_file, GURL(), GURL(), kDummyClientGuid));
 
   std::string zone_identifier;
   ASSERT_TRUE(GetZoneIdentifierStreamContents(test_file, &zone_identifier));
@@ -313,10 +291,9 @@ TEST_F(QuarantineWinTest, EmptyFile) {
   base::FilePath test_file = GetTempDir().AppendASCII("foo.exe");
   ASSERT_EQ(0, base::WriteFile(test_file, "", 0u));
 
-  QuarantineFile(
-      test_file, net::FilePathToFileURL(test_file), GURL(), kDummyClientGuid,
-      base::BindOnce(&CheckQuarantineResult, QuarantineFileResult::OK));
-  base::RunLoop().RunUntilIdle();
+  EXPECT_EQ(QuarantineFileResult::OK,
+            QuarantineFile(test_file, net::FilePathToFileURL(test_file), GURL(),
+                           kDummyClientGuid));
 
   std::string zone_identifier;
   ASSERT_TRUE(GetZoneIdentifierStreamContents(test_file, &zone_identifier));
@@ -335,10 +312,9 @@ TEST_F(QuarantineWinTest, NoClientGuid) {
   base::FilePath test_file = GetTempDir().AppendASCII("foo.exe");
   ASSERT_TRUE(CreateFile(test_file));
 
-  QuarantineFile(
-      test_file, net::FilePathToFileURL(test_file), GURL(), std::string(),
-      base::BindOnce(&CheckQuarantineResult, QuarantineFileResult::OK));
-  base::RunLoop().RunUntilIdle();
+  EXPECT_EQ(QuarantineFileResult::OK,
+            QuarantineFile(test_file, net::FilePathToFileURL(test_file), GURL(),
+                           std::string()));
 
   std::string zone_identifier;
   ASSERT_TRUE(GetZoneIdentifierStreamContents(test_file, &zone_identifier));
@@ -358,10 +334,8 @@ TEST_F(QuarantineWinTest, SuperLongURL) {
 
   std::string source_url("http://example.com/");
   source_url.append(INTERNET_MAX_URL_LENGTH * 2, 'a');
-  QuarantineFile(
-      test_file, GURL(source_url), GURL(), std::string(),
-      base::BindOnce(&CheckQuarantineResult, QuarantineFileResult::OK));
-  base::RunLoop().RunUntilIdle();
+  EXPECT_EQ(QuarantineFileResult::OK,
+            QuarantineFile(test_file, GURL(source_url), GURL(), std::string()));
 
   std::string zone_identifier;
   ASSERT_TRUE(GetZoneIdentifierStreamContents(test_file, &zone_identifier));
@@ -375,14 +349,12 @@ TEST_F(QuarantineWinTest, SuperLongURL) {
 TEST_F(QuarantineWinTest, TrustedSite) {
   // Test file path and source URL.
   base::FilePath test_file = GetTempDir().AppendASCII("good.exe");
-  GURL source_url = GURL(base::WideToUTF8(
-      base::StringPrintf(L"https://%ls/folder/good.exe", GetTrustedSite())));
+  GURL source_url = GURL(
+      base::StringPrintf(L"https://%ls/folder/good.exe", GetTrustedSite()));
 
   ASSERT_TRUE(CreateFile(test_file));
-  QuarantineFile(
-      test_file, source_url, GURL(), kDummyClientGuid,
-      base::BindOnce(&CheckQuarantineResult, QuarantineFileResult::OK));
-  base::RunLoop().RunUntilIdle();
+  EXPECT_EQ(QuarantineFileResult::OK,
+            QuarantineFile(test_file, source_url, GURL(), kDummyClientGuid));
 
   // No zone identifier.
   std::string zone_identifier;
@@ -392,16 +364,14 @@ TEST_F(QuarantineWinTest, TrustedSite) {
 TEST_F(QuarantineWinTest, RestrictedSite) {
   // Test file path and source URL.
   base::FilePath test_file = GetTempDir().AppendASCII("bad.exe");
-  GURL source_url = GURL(base::WideToUTF8(
-      base::StringPrintf(L"https://%ls/folder/bad.exe", GetRestrictedSite())));
+  GURL source_url = GURL(
+      base::StringPrintf(L"https://%ls/folder/bad.exe", GetRestrictedSite()));
 
   ASSERT_TRUE(CreateFile(test_file));
 
   // Files from a restricted site are deleted.
-  QuarantineFile(test_file, source_url, GURL(), kDummyClientGuid,
-                 base::BindOnce(&CheckQuarantineResult,
-                                QuarantineFileResult::BLOCKED_BY_POLICY));
-  base::RunLoop().RunUntilIdle();
+  EXPECT_EQ(QuarantineFileResult::BLOCKED_BY_POLICY,
+            QuarantineFile(test_file, source_url, GURL(), kDummyClientGuid));
 
   std::string zone_identifier;
   EXPECT_FALSE(GetZoneIdentifierStreamContents(test_file, &zone_identifier));
@@ -410,16 +380,14 @@ TEST_F(QuarantineWinTest, RestrictedSite) {
 TEST_F(QuarantineWinTest, TrustedSite_AlreadyQuarantined) {
   // Test file path and source URL.
   base::FilePath test_file = GetTempDir().AppendASCII("good.exe");
-  GURL source_url = GURL(base::WideToUTF8(
-      base::StringPrintf(L"https://%ls/folder/good.exe", GetTrustedSite())));
+  GURL source_url = GURL(
+      base::StringPrintf(L"https://%ls/folder/good.exe", GetTrustedSite()));
 
   ASSERT_TRUE(CreateFile(test_file));
   // Ensure the file already contains a zone identifier.
   ASSERT_TRUE(AddInternetZoneIdentifierDirectly(test_file));
-  QuarantineFile(
-      test_file, source_url, GURL(), kDummyClientGuid,
-      base::BindOnce(&CheckQuarantineResult, QuarantineFileResult::OK));
-  base::RunLoop().RunUntilIdle();
+  EXPECT_EQ(QuarantineFileResult::OK,
+            QuarantineFile(test_file, source_url, GURL(), kDummyClientGuid));
 
   // The existing zone identifier was not removed.
   std::string zone_identifier;
@@ -431,18 +399,16 @@ TEST_F(QuarantineWinTest, TrustedSite_AlreadyQuarantined) {
 TEST_F(QuarantineWinTest, RestrictedSite_AlreadyQuarantined) {
   // Test file path and source URL.
   base::FilePath test_file = GetTempDir().AppendASCII("bad.exe");
-  GURL source_url = GURL(base::WideToUTF8(
-      base::StringPrintf(L"https://%ls/folder/bad.exe", GetRestrictedSite())));
+  GURL source_url = GURL(
+      base::StringPrintf(L"https://%ls/folder/bad.exe", GetRestrictedSite()));
 
   ASSERT_TRUE(CreateFile(test_file));
   // Ensure the file already contains a zone identifier.
   ASSERT_TRUE(AddInternetZoneIdentifierDirectly(test_file));
 
   // Files from a restricted site are deleted.
-  QuarantineFile(test_file, source_url, GURL(), kDummyClientGuid,
-                 base::BindOnce(&CheckQuarantineResult,
-                                QuarantineFileResult::BLOCKED_BY_POLICY));
-  base::RunLoop().RunUntilIdle();
+  EXPECT_EQ(QuarantineFileResult::BLOCKED_BY_POLICY,
+            QuarantineFile(test_file, source_url, GURL(), kDummyClientGuid));
 
   std::string zone_identifier;
   EXPECT_FALSE(GetZoneIdentifierStreamContents(test_file, &zone_identifier));
@@ -452,20 +418,18 @@ TEST_F(QuarantineWinTest, MetaData_ApplyMOTW_Directly) {
   base::FilePath test_file = GetTempDir().AppendASCII("foo.exe");
   ASSERT_TRUE(CreateFile(test_file));
 
-  GURL host_url = GURL(base::WideToUTF8(base::StringPrintf(
-      L"https://user:pass@%ls/folder/foo.exe?x#y", GetInternetSite())));
-  GURL host_url_clean = GURL(base::WideToUTF8(base::StringPrintf(
-      L"https://%ls/folder/foo.exe?x#y", GetInternetSite())));
-  GURL referrer_url = GURL(base::WideToUTF8(base::StringPrintf(
-      L"https://user:pass@%ls/folder/index?x#y", GetInternetSite())));
-  GURL referrer_url_clean = GURL(base::WideToUTF8(
-      base::StringPrintf(L"https://%ls/folder/index?x#y", GetInternetSite())));
+  GURL host_url = GURL(base::StringPrintf(
+      L"https://user:pass@%ls/folder/foo.exe?x#y", GetInternetSite()));
+  GURL host_url_clean = GURL(
+      base::StringPrintf(L"https://%ls/folder/foo.exe?x#y", GetInternetSite()));
+  GURL referrer_url = GURL(base::StringPrintf(
+      L"https://user:pass@%ls/folder/index?x#y", GetInternetSite()));
+  GURL referrer_url_clean = GURL(
+      base::StringPrintf(L"https://%ls/folder/index?x#y", GetInternetSite()));
 
   // An invalid GUID will cause QuarantineFile() to apply the MOTW directly.
-  QuarantineFile(
-      test_file, host_url, referrer_url, std::string(),
-      base::BindOnce(&CheckQuarantineResult, QuarantineFileResult::OK));
-  base::RunLoop().RunUntilIdle();
+  EXPECT_EQ(QuarantineFileResult::OK,
+            QuarantineFile(test_file, host_url, referrer_url, std::string()));
 
   EXPECT_TRUE(IsFileQuarantined(test_file, host_url_clean, referrer_url_clean));
 }
@@ -474,19 +438,18 @@ TEST_F(QuarantineWinTest, MetaData_InvokeAS) {
   base::FilePath test_file = GetTempDir().AppendASCII("foo.exe");
   ASSERT_TRUE(CreateFile(test_file));
 
-  GURL host_url = GURL(base::WideToUTF8(base::StringPrintf(
-      L"https://%ls/folder/foo.exe?x#y", GetInternetSite())));
-  GURL host_url_clean = GURL(base::WideToUTF8(base::StringPrintf(
-      L"https://%ls/folder/foo.exe?x#y", GetInternetSite())));
-  GURL referrer_url = GURL(base::WideToUTF8(base::StringPrintf(
-      L"https://user:pass@%ls/folder/index?x#y", GetInternetSite())));
-  GURL referrer_url_clean = GURL(base::WideToUTF8(
-      base::StringPrintf(L"https://%ls/folder/index?x#y", GetInternetSite())));
+  GURL host_url = GURL(
+      base::StringPrintf(L"https://%ls/folder/foo.exe?x#y", GetInternetSite()));
+  GURL host_url_clean = GURL(
+      base::StringPrintf(L"https://%ls/folder/foo.exe?x#y", GetInternetSite()));
+  GURL referrer_url = GURL(base::StringPrintf(
+      L"https://user:pass@%ls/folder/index?x#y", GetInternetSite()));
+  GURL referrer_url_clean = GURL(
+      base::StringPrintf(L"https://%ls/folder/index?x#y", GetInternetSite()));
 
-  QuarantineFile(
-      test_file, host_url, referrer_url, kDummyClientGuid,
-      base::BindOnce(&CheckQuarantineResult, QuarantineFileResult::OK));
-  base::RunLoop().RunUntilIdle();
+  EXPECT_EQ(
+      QuarantineFileResult::OK,
+      QuarantineFile(test_file, host_url, referrer_url, kDummyClientGuid));
 
   EXPECT_TRUE(IsFileQuarantined(test_file, host_url_clean, referrer_url_clean));
 }

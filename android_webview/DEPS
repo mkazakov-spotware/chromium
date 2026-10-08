@@ -11,15 +11,12 @@ include_rules = [
   "+components/about_ui",
   "+components/content_capture",
   "+components/embedder_support/android/java",
-  "+components/feature_engagement",
   "+components/heap_profiling",
-  "+components/keyed_service/content",
   "+components/google/core",
   "+components/gwp_asan",
   "+components/js_injection",
   "+components/network_session_configurator/common",
   "+components/metrics",
-  "+components/power_scheduler",
   "+components/prefs",
   "+components/services/heap_profiling/public",
   "+components/url_formatter",
@@ -27,6 +24,7 @@ include_rules = [
   # Only allow this header in spellchecking since allowing all of spellchecking
   # would include both browser and renderer components.
   "+components/spellcheck/spellcheck_buildflags.h",
+  "+components/ui_devtools/buildflags.h",
   "+content/public/common",
   "+crypto",
   "+gpu",

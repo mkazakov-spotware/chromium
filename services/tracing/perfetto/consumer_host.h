@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,12 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/process/process_handle.h"
 #include "base/sequence_checker.h"
 #include "base/threading/sequence_bound.h"
 #include "base/timer/timer.h"
-#include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "services/tracing/public/mojom/perfetto_service.mojom.h"
 #include "third_party/perfetto/include/perfetto/ext/tracing/core/consumer.h"
@@ -49,12 +48,7 @@ class ConsumerHost : public perfetto::Consumer, public mojom::ConsumerHost {
         mojo::PendingReceiver<mojom::TracingSessionHost> tracing_session_host,
         mojo::PendingRemote<mojom::TracingSessionClient> tracing_session_client,
         const perfetto::TraceConfig& trace_config,
-        perfetto::base::ScopedFile output_file,
         mojom::TracingClientPriority priority);
-
-    TracingSession(const TracingSession&) = delete;
-    TracingSession& operator=(const TracingSession&) = delete;
-
     ~TracingSession() override;
 
     void OnPerfettoEvents(const perfetto::ObservableEvents&);
@@ -96,7 +90,7 @@ class ConsumerHost : public perfetto::Consumer, public mojom::ConsumerHost {
     void MaybeSendEnableTracingAck();
     bool IsExpectedPid(base::ProcessId pid) const;
 
-    const raw_ptr<ConsumerHost> host_;
+    ConsumerHost* const host_;
     mojo::Remote<mojom::TracingSessionClient> tracing_session_client_;
     mojo::Receiver<mojom::TracingSessionHost> receiver_;
     bool privacy_filtering_enabled_ = false;
@@ -114,7 +108,7 @@ class ConsumerHost : public perfetto::Consumer, public mojom::ConsumerHost {
 
     // If set, we didn't issue OnTracingEnabled() on the session yet. If set and
     // empty, no more pids are pending and we should issue OnTracingEnabled().
-    absl::optional<std::set<base::ProcessId>> pending_enable_tracing_ack_pids_;
+    base::Optional<std::set<base::ProcessId>> pending_enable_tracing_ack_pids_;
     base::OneShotTimer enable_tracing_ack_timer_;
 
     struct DataSourceHandle : public std::pair<std::string, std::string> {
@@ -126,15 +120,13 @@ class ConsumerHost : public perfetto::Consumer, public mojom::ConsumerHost {
 
     SEQUENCE_CHECKER(sequence_checker_);
     base::WeakPtrFactory<TracingSession> weak_factory_{this};
+
+    DISALLOW_COPY_AND_ASSIGN(TracingSession);
   };
 
   // The owner of ConsumerHost should make sure to destroy
   // |service| after destroying this.
   explicit ConsumerHost(PerfettoService* service);
-
-  ConsumerHost(const ConsumerHost&) = delete;
-  ConsumerHost& operator=(const ConsumerHost&) = delete;
-
   ~ConsumerHost() override;
 
   PerfettoService* service() const { return service_; }
@@ -146,8 +138,7 @@ class ConsumerHost : public perfetto::Consumer, public mojom::ConsumerHost {
   void EnableTracing(
       mojo::PendingReceiver<mojom::TracingSessionHost> tracing_session_host,
       mojo::PendingRemote<mojom::TracingSessionClient> tracing_session_client,
-      const perfetto::TraceConfig& config,
-      base::File output_file) override;
+      const perfetto::TraceConfig& config) override;
 
   // perfetto::Consumer implementation.
   // This gets called by the Perfetto service as control signals,
@@ -171,7 +162,7 @@ class ConsumerHost : public perfetto::Consumer, public mojom::ConsumerHost {
  private:
   void DestructTracingSession();
 
-  const raw_ptr<PerfettoService> service_;
+  PerfettoService* const service_;
   std::unique_ptr<TracingSession> tracing_session_;
 
   SEQUENCE_CHECKER(sequence_checker_);
@@ -181,6 +172,7 @@ class ConsumerHost : public perfetto::Consumer, public mojom::ConsumerHost {
       consumer_endpoint_;
 
   base::WeakPtrFactory<ConsumerHost> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(ConsumerHost);
 };
 
 }  // namespace tracing

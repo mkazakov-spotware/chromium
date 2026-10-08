@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,8 +20,6 @@ SizesAttributeParser::SizesAttributeParser(
       length_(0),
       length_was_set_(false) {
   DCHECK(media_values_);
-  DCHECK(media_values_->Width().has_value());
-  DCHECK(media_values_->Height().has_value());
   is_valid_ =
       Parse(CSSParserTokenRange(CSSTokenizer(attribute).TokenizeToEOF()));
 }
@@ -43,7 +41,7 @@ bool SizesAttributeParser::CalculateLengthInPixels(CSSParserTokenRange range,
     if ((media_values_->ComputeLength(start_token.NumericValue(),
                                       start_token.GetUnitType(), length)) &&
         (length >= 0)) {
-      result = ClampTo<float>(length);
+      result = clampTo<float>(length);
       return true;
     }
   } else if (type == kFunctionToken) {
@@ -63,7 +61,7 @@ bool SizesAttributeParser::CalculateLengthInPixels(CSSParserTokenRange range,
 bool SizesAttributeParser::MediaConditionMatches(
     const MediaQuerySet& media_condition) {
   // A Media Condition cannot have a media type other then screen.
-  MediaQueryEvaluator media_query_evaluator(media_values_);
+  MediaQueryEvaluator media_query_evaluator(*media_values_);
   return media_query_evaluator.Eval(media_condition);
 }
 
@@ -88,9 +86,10 @@ bool SizesAttributeParser::Parse(CSSParserTokenRange range) {
     if (!CalculateLengthInPixels(
             range.MakeSubRange(length_token_start, length_token_end), length))
       continue;
-    MediaQuerySet* media_condition = MediaQueryParser::ParseMediaCondition(
-        range.MakeSubRange(media_condition_start, length_token_start),
-        execution_context_);
+    scoped_refptr<MediaQuerySet> media_condition =
+        MediaQueryParser::ParseMediaCondition(
+            range.MakeSubRange(media_condition_start, length_token_start),
+            execution_context_);
     if (!media_condition || !MediaConditionMatches(*media_condition))
       continue;
     length_ = length;
@@ -108,7 +107,7 @@ float SizesAttributeParser::EffectiveSize() {
 
 float SizesAttributeParser::EffectiveSizeDefaultValue() {
   // Returning the equivalent of "100vw"
-  return ClampTo<float>(*media_values_->Width());
+  return clampTo<float>(media_values_->ViewportWidth());
 }
 
 }  // namespace blink

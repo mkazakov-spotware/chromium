@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_BROWSER_OVERLAYS_DEFAULT_OVERLAY_REQUEST_CANCEL_HANDLER_H_
 #define IOS_CHROME_BROWSER_OVERLAYS_DEFAULT_OVERLAY_REQUEST_CANCEL_HANDLER_H_
 
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #import "ios/chrome/browser/overlays/public/overlay_request_cancel_handler.h"
 #import "ios/web/public/web_state.h"
 #include "ios/web/public/web_state_observer.h"
@@ -39,8 +39,7 @@ class DefaultOverlayRequestCancelHandler : public OverlayRequestCancelHandler {
 
    private:
     DefaultOverlayRequestCancelHandler* cancel_handler_ = nullptr;
-    base::ScopedObservation<web::WebState, web::WebStateObserver>
-        scoped_observation_{this};
+    ScopedObserver<web::WebState, web::WebStateObserver> scoped_observer_;
   };
 
   NavigationHelper navigation_helper_;

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,15 @@
 #include "base/values.h"
 #include "chromeos/components/quick_answers/search_result_parsers/definition_result_parser.h"
 #include "chromeos/components/quick_answers/search_result_parsers/kp_entity_result_parser.h"
+#include "chromeos/components/quick_answers/search_result_parsers/translation_result_parser.h"
 #include "chromeos/components/quick_answers/search_result_parsers/unit_conversion_result_parser.h"
 
+namespace chromeos {
 namespace quick_answers {
 namespace {
+
 using base::Value;
+
 }  // namespace
 
 const Value* ResultParser::GetFirstListElement(const Value& value,
@@ -24,7 +28,7 @@ const Value* ResultParser::GetFirstListElement(const Value& value,
     return nullptr;
   }
 
-  const auto& list = entries->GetList();
+  auto list = entries->GetList();
   if (list.empty()) {
     // No valid dictionary entries found.
     return nullptr;
@@ -40,13 +44,12 @@ std::unique_ptr<ResultParser> ResultParserFactory::Create(
       return std::make_unique<KpEntityResultParser>();
     case ResultType::kDefinitionResult:
       return std::make_unique<DefinitionResultParser>();
+    case ResultType::kTranslationResult:
+      return std::make_unique<TranslationResultParser>();
     case ResultType::kUnitConversionResult:
       return std::make_unique<UnitConversionResultParser>();
       // TODO(llin): Add other result parsers.
 
-    // Translation responses are from the Clound server and parsed
-    // separately.
-    case ResultType::kTranslationResult:
     case ResultType::kNoResult:
       NOTREACHED();
       break;
@@ -56,3 +59,4 @@ std::unique_ptr<ResultParser> ResultParserFactory::Create(
 }
 
 }  // namespace quick_answers
+}  // namespace chromeos

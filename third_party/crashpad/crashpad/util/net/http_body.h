@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@
 #include <string>
 #include <vector>
 
+#include "base/files/file_path.h"
+#include "base/macros.h"
 #include "util/file/file_io.h"
 #include "util/file/file_reader.h"
 
@@ -57,9 +59,6 @@ class StringHTTPBodyStream : public HTTPBodyStream {
   //! \param[in] string The string to turn into a stream.
   explicit StringHTTPBodyStream(const std::string& string);
 
-  StringHTTPBodyStream(const StringHTTPBodyStream&) = delete;
-  StringHTTPBodyStream& operator=(const StringHTTPBodyStream&) = delete;
-
   ~StringHTTPBodyStream() override;
 
   // HTTPBodyStream:
@@ -68,6 +67,8 @@ class StringHTTPBodyStream : public HTTPBodyStream {
  private:
   std::string string_;
   size_t bytes_read_;
+
+  DISALLOW_COPY_AND_ASSIGN(StringHTTPBodyStream);
 };
 
 //! \brief An implementation of HTTPBodyStream that reads from a
@@ -80,9 +81,6 @@ class FileReaderHTTPBodyStream : public HTTPBodyStream {
   //!     will read.
   explicit FileReaderHTTPBodyStream(FileReaderInterface* reader);
 
-  FileReaderHTTPBodyStream(const FileReaderHTTPBodyStream&) = delete;
-  FileReaderHTTPBodyStream& operator=(const FileReaderHTTPBodyStream&) = delete;
-
   ~FileReaderHTTPBodyStream() override;
 
   // HTTPBodyStream:
@@ -91,6 +89,8 @@ class FileReaderHTTPBodyStream : public HTTPBodyStream {
  private:
   FileReaderInterface* reader_;  // weak
   bool reached_eof_;
+
+  DISALLOW_COPY_AND_ASSIGN(FileReaderHTTPBodyStream);
 };
 
 //! \brief An implementation of HTTPBodyStream that combines an array of
@@ -107,9 +107,6 @@ class CompositeHTTPBodyStream : public HTTPBodyStream {
   //!     an instance of this class.
   explicit CompositeHTTPBodyStream(const PartsList& parts);
 
-  CompositeHTTPBodyStream(const CompositeHTTPBodyStream&) = delete;
-  CompositeHTTPBodyStream& operator=(const CompositeHTTPBodyStream&) = delete;
-
   ~CompositeHTTPBodyStream() override;
 
   // HTTPBodyStream:
@@ -118,6 +115,8 @@ class CompositeHTTPBodyStream : public HTTPBodyStream {
  private:
   PartsList parts_;
   PartsList::iterator current_part_;
+
+  DISALLOW_COPY_AND_ASSIGN(CompositeHTTPBodyStream);
 };
 
 }  // namespace crashpad

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,12 @@
 #include <memory>
 
 #include "build/build_config.h"
-#include "build/buildflag.h"
-#include "build/chromeos_buildflags.h"
-#include "components/signin/public/base/signin_buildflags.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 #include "base/memory/scoped_refptr.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "components/signin/internal/identity_manager/mutable_profile_oauth2_token_service_delegate.h"
 #endif
 
@@ -25,7 +22,7 @@ class PrefService;
 class ProfileOAuth2TokenService;
 class SigninClient;
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 class DeviceAccountsProvider;
 #endif
 
@@ -37,35 +34,33 @@ namespace network {
 class NetworkConnectionTracker;
 }
 
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
+#if !defined(OS_ANDROID)
 class TokenWebData;
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS)
-namespace account_manager {
-class AccountManagerFacade;
+#if defined(OS_CHROMEOS)
+namespace chromeos {
+class AccountManager;
 }
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif
 
 std::unique_ptr<ProfileOAuth2TokenService> BuildProfileOAuth2TokenService(
     PrefService* pref_service,
     AccountTrackerService* account_tracker_service,
     network::NetworkConnectionTracker* network_connection_tracker,
     signin::AccountConsistencyMethod account_consistency,
-#if BUILDFLAG(IS_CHROMEOS)
-    account_manager::AccountManagerFacade* account_manager_facade,
+#if defined(OS_CHROMEOS)
+    chromeos::AccountManager* account_manager,
     bool is_regular_profile,
-#endif  // BUILDFLAG(IS_CHROMEOS)
-#if BUILDFLAG(ENABLE_DICE_SUPPORT) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#endif
+#if !defined(OS_ANDROID)
     bool delete_signin_cookies_on_exit,
-#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT) || BUILDFLAG(IS_CHROMEOS_LACROS)
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
     scoped_refptr<TokenWebData> token_web_data,
-#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
-#if BUILDFLAG(IS_IOS)
+#endif
+#if defined(OS_IOS)
     std::unique_ptr<DeviceAccountsProvider> device_accounts_provider,
 #endif
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     MutableProfileOAuth2TokenServiceDelegate::FixRequestErrorCallback
         reauth_callback,
 #endif

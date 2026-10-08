@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -106,38 +106,27 @@ static const UChar32 kIsCJKIdeographOrSymbolRanges[] = {
     // Modifiers
     0x1F3FB, 0x1F3FF,
 
-    // Transport
-    0x1F6DC, 0x1F6DF,
-
     // Colored circles and squares for use with emoji.
     0x1F7E0, 0x1F7EB,
-
-    // Math
-    0x1F7F0, 0x1F7F0,
 
     0x1F900, 0x1F90F,
     // ZIPPER-MOUTH FACE...SIGN OF THE HORNS
     0x1F910, 0x1F918, 0x1F919, 0x1F97F, 0x1F980, 0x1F9BF, 0x1F9C0, 0x1F9FF,
-    // Clothing, heart and Medical symbols
-    0x1FA70, 0x1FA7C,
+    // Clothing
+    0x1FA70, 0x1FA74,
+    // Medical symbols
+    0x1FA78, 0x1FA7A,
     // Toys and sport symbols
-    0x1FA80, 0x1FA88,
+    0x1FA80, 0x1FA86,
     // Miscellaneous objects
+    0x1FA90, 0x1FAA8,
     // Animals and nature
-    0x1FA90, 0x1FABD,
-    // Animal
+    0x1FAB0, 0x1FAB6,
     // Body parts
     // People
-    0x1FABF, 0x1FAC5,
-    // animal-mammal
-    0x1FACE, 0x1FACF,
+    0x1FAC0, 0x1FAC2,
     // Food and drink
-    0x1FAD0, 0x1FADB,
-    // Face
-    0x1FAE0, 0x1FAE8,
-    // Hand
-    0x1FAF0, 0x1FAF8,
-    };
+    0x1FAD0, 0x1FAD6};
 
 // https://html.spec.whatwg.org/C/#prod-potentialcustomelementname
 static const UChar32 kIsPotentialCustomElementNameCharArray[] = {
@@ -183,4 +172,4 @@ extern const uint8_t kSerializedCharacterData[];
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_TEXT_CHARACTER_PROPERTY_DATA_H_
+#endif

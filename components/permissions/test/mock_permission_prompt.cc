@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,10 @@
 #include "base/run_loop.h"
 #include "build/build_config.h"
 #include "components/permissions/permission_uma_util.h"
-#include "components/permissions/request_type.h"
 #include "components/permissions/test/mock_permission_prompt_factory.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 #include "ui/gfx/vector_icon_types.h"
 #endif
 
@@ -23,13 +22,11 @@ MockPermissionPrompt::~MockPermissionPrompt() {
     factory_->HideView(this);
 }
 
-bool MockPermissionPrompt::UpdateAnchor() {
-  return true;
-}
+void MockPermissionPrompt::UpdateAnchorPosition() {}
 
 PermissionPrompt::TabSwitchingBehavior
 MockPermissionPrompt::GetTabSwitchingBehavior() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return TabSwitchingBehavior::kKeepPromptAlive;
 #else
   return TabSwitchingBehavior::kDestroyPromptButKeepRequestPending;
@@ -37,7 +34,7 @@ MockPermissionPrompt::GetTabSwitchingBehavior() {
 }
 
 PermissionPromptDisposition MockPermissionPrompt::GetPromptDisposition() const {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return PermissionPromptDisposition::MODAL_DIALOG;
 #else
   return PermissionPromptDisposition::ANCHORED_BUBBLE;
@@ -48,16 +45,17 @@ MockPermissionPrompt::MockPermissionPrompt(MockPermissionPromptFactory* factory,
                                            Delegate* delegate)
     : factory_(factory), delegate_(delegate) {
   for (const PermissionRequest* request : delegate_->Requests()) {
-    RequestType request_type = request->request_type();
     // The actual prompt will call these, so test they're sane.
-#if BUILDFLAG(IS_ANDROID)
-    // For kStorageAccess, the prompt itself calculates the message text.
-    if (request_type != permissions::RequestType::kStorageAccess)
-      EXPECT_FALSE(request->GetDialogMessageText().empty());
-    EXPECT_NE(0, permissions::GetIconId(request_type));
-#else
     EXPECT_FALSE(request->GetMessageTextFragment().empty());
-    EXPECT_FALSE(permissions::GetIconId(request_type).is_empty());
+#if defined(OS_ANDROID)
+    // For STORAGE_ACCESS, the prompt itself calculates the message text.
+    if (request->GetContentSettingsType() !=
+        ContentSettingsType::STORAGE_ACCESS) {
+      EXPECT_FALSE(request->GetMessageText().empty());
+    }
+    EXPECT_NE(0, request->GetIconId());
+#else
+    EXPECT_FALSE(request->GetIconId().is_empty());
 #endif
   }
 }

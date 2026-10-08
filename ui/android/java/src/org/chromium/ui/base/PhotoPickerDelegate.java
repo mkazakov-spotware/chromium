@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,9 +24,4 @@ public interface PhotoPickerDelegate {
      * Returns whether video decoding support is supported in the photo picker.
      */
     boolean supportsVideos();
-
-    /**
-     * Returns whether the Android media picker is preferred over the Chrome media picker.
-     */
-    boolean preferAndroidMediaPicker();
 }

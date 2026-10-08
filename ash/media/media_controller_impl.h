@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include "ash/ash_export.h"
 #include "ash/public/cpp/media_controller.h"
-#include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "components/account_id/account_id.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -26,13 +26,8 @@ class MediaCaptureObserver {
   // Called when media capture state has changed.
   virtual void OnMediaCaptureChanged(
       const base::flat_map<AccountId, MediaCaptureState>& capture_states) {}
-  // Called when VMs' media capture notifications change. Each VM can have 0 or
-  // 1 media notification. It can either be a "camera", "mic", or "camera and
-  // mic" notification. Each of the argument is true if a notification of the
-  // corresponding type is active.
-  virtual void OnVmMediaNotificationChanged(bool camera,
-                                            bool mic,
-                                            bool camera_and_mic) {}
+  // Called when a VM's media capture state has changed.
+  virtual void OnVmMediaCaptureChanged(MediaCaptureState state) {}
 
  protected:
   virtual ~MediaCaptureObserver() {}
@@ -46,10 +41,6 @@ class ASH_EXPORT MediaControllerImpl
       public media_session::mojom::MediaControllerObserver {
  public:
   MediaControllerImpl();
-
-  MediaControllerImpl(const MediaControllerImpl&) = delete;
-  MediaControllerImpl& operator=(const MediaControllerImpl&) = delete;
-
   ~MediaControllerImpl() override;
 
   static void RegisterProfilePrefs(PrefRegistrySimple* registry);
@@ -66,9 +57,7 @@ class ASH_EXPORT MediaControllerImpl
   void SetForceMediaClientKeyHandling(bool enabled) override;
   void NotifyCaptureState(const base::flat_map<AccountId, MediaCaptureState>&
                               capture_states) override;
-  void NotifyVmMediaNotificationState(bool camera,
-                                      bool mic,
-                                      bool camera_and_mic) override;
+  void NotifyVmCaptureState(MediaCaptureState capture_state) override;
 
   // If media session accelerators are enabled then these methods will use the
   // media session service to control playback. Otherwise it will forward to
@@ -90,14 +79,14 @@ class ASH_EXPORT MediaControllerImpl
   void MediaSessionInfoChanged(
       media_session::mojom::MediaSessionInfoPtr session_info) override;
   void MediaSessionMetadataChanged(
-      const absl::optional<media_session::MediaMetadata>& metadata) override {}
+      const base::Optional<media_session::MediaMetadata>& metadata) override {}
   void MediaSessionActionsChanged(
       const std::vector<media_session::mojom::MediaSessionAction>& actions)
       override;
   void MediaSessionChanged(
-      const absl::optional<base::UnguessableToken>& request_id) override {}
+      const base::Optional<base::UnguessableToken>& request_id) override {}
   void MediaSessionPositionChanged(
-      const absl::optional<media_session::MediaPosition>& position) override {}
+      const base::Optional<media_session::MediaPosition>& position) override {}
 
  private:
   friend class MediaControllerTest;
@@ -160,6 +149,8 @@ class ASH_EXPORT MediaControllerImpl
   MediaClient* client_ = nullptr;
 
   base::ObserverList<MediaCaptureObserver>::Unchecked observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaControllerImpl);
 };
 
 }  // namespace ash

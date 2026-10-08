@@ -26,12 +26,10 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_SUPPLEMENTABLE_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_SUPPLEMENTABLE_H_
 
-#include <cstddef>
-
-#include "base/check_op.h"
-#include "base/dcheck_is_on.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "base/macros.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
+#include "third_party/blink/renderer/platform/wtf/hash_map.h"
 
 #if DCHECK_IS_ON()
 #include "third_party/blink/renderer/platform/wtf/threading.h"
@@ -79,7 +77,7 @@ namespace blink {
 //      public:
 //       static const char kSupplementName[];
 //
-//       static NavigatorFoo& From(Navigator&);
+//       NavigatorFoo& From(Navigator&);
 //     }
 //
 //     // static
@@ -122,7 +120,7 @@ class Supplement : public GarbageCollectedMixin {
  public:
   // TODO(haraken): Remove the default constructor.
   // All Supplement objects should be instantiated with |supplementable_|.
-  explicit Supplement(std::nullptr_t) {}
+  Supplement() {}
 
   explicit Supplement(T& supplementable) : supplementable_(&supplementable) {}
 
@@ -160,9 +158,6 @@ class Supplement : public GarbageCollectedMixin {
 template <typename T>
 class Supplementable : public GarbageCollectedMixin {
  public:
-  Supplementable(const Supplementable&) = delete;
-  Supplementable& operator=(const Supplementable&) = delete;
-
   template <typename SupplementType>
   void ProvideSupplement(SupplementType* supplement) {
 #if DCHECK_IS_ON()
@@ -196,10 +191,8 @@ class Supplementable : public GarbageCollectedMixin {
         std::is_array<decltype(SupplementType::kSupplementName)>::value,
         "Declare a const char array kSupplementName. See Supplementable.h for "
         "details.");
-    const auto it = this->supplements_.find(SupplementType::kSupplementName);
-    if (it == this->supplements_.end())
-      return nullptr;
-    return static_cast<SupplementType*>(it->value.Get());
+    return static_cast<SupplementType*>(
+        this->supplements_.at(SupplementType::kSupplementName));
   }
 
   void ReattachThread() {
@@ -228,6 +221,8 @@ class Supplementable : public GarbageCollectedMixin {
   base::PlatformThreadId attached_thread_id_;
   base::PlatformThreadId creation_thread_id_;
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(Supplementable);
 };
 
 template <typename T>

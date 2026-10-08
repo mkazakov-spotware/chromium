@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,14 +11,13 @@
 #include "components/dom_distiller/core/dom_distiller_features.h"
 #include "components/dom_distiller/core/url_utils.h"
 #include "components/prefs/pref_service.h"
+#include "components/ukm/content/source_url_recorder.h"
 #include "content/public/browser/navigation_details.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "services/metrics/public/cpp/ukm_recorder.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/views/animation/ink_drop.h"
 
 using dom_distiller::UMAHelper;
 using dom_distiller::url_utils::IsDistilledPage;
@@ -31,7 +30,7 @@ UMAHelper::ReaderModePageType GetPageType(content::WebContents* contents) {
   if (IsDistilledPage(contents->GetLastCommittedURL())) {
     page_type = UMAHelper::ReaderModePageType::kDistilled;
   } else {
-    absl::optional<dom_distiller::DistillabilityResult> distillability =
+    base::Optional<dom_distiller::DistillabilityResult> distillability =
         dom_distiller::GetLatestResult(contents);
     if (distillability && distillability.value().is_distillable)
       page_type = UMAHelper::ReaderModePageType::kDistillable;
@@ -49,8 +48,7 @@ ReaderModeIconView::ReaderModeIconView(
     : PageActionIconView(command_updater,
                          IDC_DISTILL_PAGE,
                          icon_label_bubble_delegate,
-                         page_action_icon_delegate,
-                         "ReaderMode"),
+                         page_action_icon_delegate),
       pref_service_(pref_service) {}
 
 ReaderModeIconView::~ReaderModeIconView() {
@@ -60,17 +58,16 @@ ReaderModeIconView::~ReaderModeIconView() {
   DCHECK(!DistillabilityObserver::IsInObserverList());
 }
 
-void ReaderModeIconView::PrimaryPageChanged(content::Page& page) {
+void ReaderModeIconView::DidFinishNavigation(
+    content::NavigationHandle* navigation_handle) {
   if (GetVisible())
-    views::InkDrop::Get(this)->AnimateToState(views::InkDropState::HIDDEN,
-                                              nullptr);
+    AnimateInkDrop(views::InkDropState::HIDDEN, nullptr);
 }
 
 void ReaderModeIconView::ReadyToCommitNavigation(
     content::NavigationHandle* navigation_handle) {
   content::WebContents* web_contents = GetWebContents();
-  // Only primary main frame navigations are relevant for tracking time stats.
-  if (!navigation_handle->IsInPrimaryMainFrame() || !web_contents)
+  if (!navigation_handle->IsInMainFrame() || !web_contents)
     return;
   // When navigation is about to happen, ensure timers are appropriately stopped
   // and reset.
@@ -78,7 +75,7 @@ void ReaderModeIconView::ReadyToCommitNavigation(
                                       GetPageType(web_contents));
 }
 
-void ReaderModeIconView::PrimaryMainDocumentElementAvailable() {
+void ReaderModeIconView::DocumentAvailableInMainFrame() {
   content::WebContents* web_contents = GetWebContents();
   if (!web_contents)
     return;
@@ -129,12 +126,16 @@ void ReaderModeIconView::UpdateImpl() {
 }
 
 const gfx::VectorIcon& ReaderModeIconView::GetVectorIcon() const {
-  return GetActive() ? kReaderModeIcon : kReaderModeDisabledIcon;
+  return active() ? kReaderModeIcon : kReaderModeDisabledIcon;
 }
 
-std::u16string ReaderModeIconView::GetTextForTooltipAndAccessibleName() const {
-  return l10n_util::GetStringUTF16(GetActive() ? IDS_EXIT_DISTILLED_PAGE
-                                               : IDS_DISTILL_PAGE);
+base::string16 ReaderModeIconView::GetTextForTooltipAndAccessibleName() const {
+  return l10n_util::GetStringUTF16(active() ? IDS_EXIT_DISTILLED_PAGE
+                                            : IDS_DISTILL_PAGE);
+}
+
+const char* ReaderModeIconView::GetClassName() const {
+  return "ReaderModeIconView";
 }
 
 // TODO(gilmanmh): Consider displaying a bubble the first time a user
@@ -145,7 +146,7 @@ views::BubbleDialogDelegate* ReaderModeIconView::GetBubble() const {
 
 void ReaderModeIconView::OnExecuting(
     PageActionIconView::ExecuteSource execute_source) {
-  if (GetActive()) {
+  if (active()) {
     dom_distiller::UMAHelper::RecordReaderModeExit(
         dom_distiller::UMAHelper::ReaderModeEntryPoint::kOmniboxIcon);
   } else {
@@ -156,8 +157,7 @@ void ReaderModeIconView::OnExecuting(
   content::WebContents* contents = GetWebContents();
   if (!contents || IsDistilledPage(contents->GetLastCommittedURL()))
     return;
-  ukm::SourceId source_id =
-      contents->GetPrimaryMainFrame()->GetPageUkmSourceId();
+  ukm::SourceId source_id = ukm::GetSourceIdForWebContentsDocument(contents);
   ukm::builders::ReaderModeActivated(source_id)
       .SetActivatedViaOmnibox(true)
       .Record(ukm::UkmRecorder::Get());
@@ -173,7 +173,7 @@ void ReaderModeIconView::OnResult(
 
   if (result.is_last) {
     ukm::SourceId source_id =
-        web_contents->GetPrimaryMainFrame()->GetPageUkmSourceId();
+        ukm::GetSourceIdForWebContentsDocument(web_contents);
     ukm::builders::ReaderModeReceivedDistillability(source_id)
         .SetIsPageDistillable(result.is_distillable)
         .Record(ukm::UkmRecorder::Get());
@@ -186,6 +186,3 @@ void ReaderModeIconView::OnResult(
   UMAHelper::ReaderModePageType page_type = GetPageType(web_contents);
   UMAHelper::StartTimerIfNeeded(web_contents, page_type);
 }
-
-BEGIN_METADATA(ReaderModeIconView, PageActionIconView)
-END_METADATA

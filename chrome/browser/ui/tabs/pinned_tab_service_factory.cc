@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/tabs/pinned_tab_service.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 
 // static
 PinnedTabService* PinnedTabServiceFactory::GetForProfile(
@@ -19,7 +20,10 @@ PinnedTabServiceFactory* PinnedTabServiceFactory::GetInstance() {
 }
 
 PinnedTabServiceFactory::PinnedTabServiceFactory()
-    : ProfileKeyedServiceFactory("PinnedTabService") {}
+    : BrowserContextKeyedServiceFactory(
+        "PinnedTabService",
+        BrowserContextDependencyManager::GetInstance()) {
+}
 
 PinnedTabServiceFactory::~PinnedTabServiceFactory() {
 }

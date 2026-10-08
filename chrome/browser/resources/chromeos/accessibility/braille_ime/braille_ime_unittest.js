@@ -1,11 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
  * @fileoverview Unit test for the Braille IME.
  */
-GEN_INCLUDE(['../common/testing/accessibility_test_base.js']);
 
 /**
  * Mock Chrome event supporting one listener.
@@ -71,10 +70,9 @@ var localStorage;
 /**
  * Test fixture for the braille IME unit test.
  */
-BrailleImeUnitTest = class extends AccessibilityTestBase {
-  /** @override */
+BrailleImeUnitTest = class extends testing.Test {
+  /** @Override */
   setUp() {
-    super.setUp();
     chrome = chrome || {};
     chrome.input = chrome.input || {};
     chrome.input.ime = chrome.input.ime || {};
@@ -92,14 +90,8 @@ BrailleImeUnitTest = class extends AccessibilityTestBase {
 
   createIme() {
     var IME_EVENTS = [
-      'onActivate',
-      'onDeactivated',
-      'onFocus',
-      'onBlur',
-      'onInputContextUpdate',
-      'onKeyEvent',
-      'onReset',
-      'onMenuItemActivated',
+      'onActivate', 'onDeactivated', 'onFocus', 'onBlur',
+      'onInputContextUpdate', 'onKeyEvent', 'onReset', 'onMenuItemActivated'
     ];
     for (var i = 0, name; name = IME_EVENTS[i]; ++i) {
       this[name] = chrome.input.ime[name] = new MockEvent();
@@ -204,9 +196,8 @@ TEST_F('BrailleImeUnitTest', 'KeysWhenStandardKeysEnabled', function() {
   expectTrue(this.sendKeyUp('KeyF'));
 
   assertDeepEquals(this.port.messages, [
-    {type: 'brailleDots', dots: 0x03},
-    {type: 'brailleDots', dots: 0x09},
-    {type: 'brailleDots', dots: 0},
+    {type: 'brailleDots', dots: 0x03}, {type: 'brailleDots', dots: 0x09},
+    {type: 'brailleDots', dots: 0}
   ]);
 });
 
@@ -224,7 +215,7 @@ TEST_F('BrailleImeUnitTest', 'TestBackspaceKey', function() {
   this.port.onMessage.dispatch({
     type: 'keyEventHandled',
     requestId: this.lastSentKeyRequestId_ + '',
-    result: true,
+    result: true
   });
   expectEquals(this.lastSentKeyRequestId_, this.lastHandledKeyRequestId_);
   expectTrue(this.lastHandledKeyResult_);

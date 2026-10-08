@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include "base/bind.h"
 #include "base/bit_cast.h"
 #include "base/check_op.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
 #include "net/base/io_buffer.h"
 #include "third_party/brotli/include/brotli/decode.h"
@@ -23,14 +23,16 @@ const char kBrotli[] = "BROTLI";
 class BrotliSourceStream : public FilterSourceStream {
  public:
   explicit BrotliSourceStream(std::unique_ptr<SourceStream> upstream)
-      : FilterSourceStream(SourceStream::TYPE_BROTLI, std::move(upstream)) {
+      : FilterSourceStream(SourceStream::TYPE_BROTLI, std::move(upstream)),
+        decoding_status_(DecodingStatus::DECODING_IN_PROGRESS),
+        used_memory_(0),
+        used_memory_maximum_(0),
+        consumed_bytes_(0),
+        produced_bytes_(0) {
     brotli_state_ =
         BrotliDecoderCreateInstance(AllocateMemory, FreeMemory, this);
     CHECK(brotli_state_);
   }
-
-  BrotliSourceStream(const BrotliSourceStream&) = delete;
-  BrotliSourceStream& operator=(const BrotliSourceStream&) = delete;
 
   ~BrotliSourceStream() override {
     BrotliDecoderErrorCode error_code =
@@ -80,24 +82,23 @@ class BrotliSourceStream : public FilterSourceStream {
   // SourceStream implementation
   std::string GetTypeAsString() const override { return kBrotli; }
 
-  base::expected<size_t, Error> FilterData(
-      IOBuffer* output_buffer,
-      size_t output_buffer_size,
-      IOBuffer* input_buffer,
-      size_t input_buffer_size,
-      size_t* consumed_bytes,
-      bool /*upstream_eof_reached*/) override {
+  int FilterData(IOBuffer* output_buffer,
+                 int output_buffer_size,
+                 IOBuffer* input_buffer,
+                 int input_buffer_size,
+                 int* consumed_bytes,
+                 bool /*upstream_eof_reached*/) override {
     if (decoding_status_ == DecodingStatus::DECODING_DONE) {
       *consumed_bytes = input_buffer_size;
-      return 0;
+      return OK;
     }
 
     if (decoding_status_ != DecodingStatus::DECODING_IN_PROGRESS)
-      return base::unexpected(ERR_CONTENT_DECODING_FAILED);
+      return ERR_CONTENT_DECODING_FAILED;
 
-    const uint8_t* next_in = base::bit_cast<uint8_t*>(input_buffer->data());
+    const uint8_t* next_in = bit_cast<uint8_t*>(input_buffer->data());
     size_t available_in = input_buffer_size;
-    uint8_t* next_out = base::bit_cast<uint8_t*>(output_buffer->data());
+    uint8_t* next_out = bit_cast<uint8_t*>(output_buffer->data());
     size_t available_out = output_buffer_size;
 
     BrotliDecoderResult result =
@@ -106,8 +107,8 @@ class BrotliSourceStream : public FilterSourceStream {
 
     size_t bytes_used = input_buffer_size - available_in;
     size_t bytes_written = output_buffer_size - available_out;
-    CHECK_GE(input_buffer_size, available_in);
-    CHECK_GE(output_buffer_size, available_out);
+    CHECK_GE(bytes_used, 0u);
+    CHECK_GE(bytes_written, 0u);
     produced_bytes_ += bytes_written;
     consumed_bytes_ += bytes_used;
 
@@ -130,7 +131,7 @@ class BrotliSourceStream : public FilterSourceStream {
       // If the decompressor threw an error, fail synchronously.
       default:
         decoding_status_ = DecodingStatus::DECODING_ERROR;
-        return base::unexpected(ERR_CONTENT_DECODING_FAILED);
+        return ERR_CONTENT_DECODING_FAILED;
     }
   }
 
@@ -163,14 +164,16 @@ class BrotliSourceStream : public FilterSourceStream {
     free(&array[-1]);
   }
 
-  raw_ptr<BrotliDecoderState, DanglingUntriaged> brotli_state_;
+  BrotliDecoderState* brotli_state_;
 
-  DecodingStatus decoding_status_ = DecodingStatus::DECODING_IN_PROGRESS;
+  DecodingStatus decoding_status_;
 
-  size_t used_memory_ = 0;
-  size_t used_memory_maximum_ = 0;
-  size_t consumed_bytes_ = 0;
-  size_t produced_bytes_ = 0;
+  size_t used_memory_;
+  size_t used_memory_maximum_;
+  size_t consumed_bytes_;
+  size_t produced_bytes_;
+
+  DISALLOW_COPY_AND_ASSIGN(BrotliSourceStream);
 };
 
 }  // namespace

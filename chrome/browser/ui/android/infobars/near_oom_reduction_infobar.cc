@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,18 +13,21 @@
 #include "base/callback_helpers.h"
 #include "base/memory/ptr_util.h"
 #include "chrome/android/chrome_jni_headers/NearOomReductionInfoBar_jni.h"
+#include "chrome/browser/android/resource_mapper.h"
 #include "chrome/browser/android/tab_android.h"
+#include "chrome/browser/infobars/infobar_service.h"
 #include "chrome/browser/ui/interventions/intervention_delegate.h"
 #include "chrome/browser/ui/interventions/intervention_infobar_delegate.h"
-#include "components/infobars/content/content_infobar_manager.h"
 #include "components/infobars/core/infobar_delegate.h"
 #include "content/public/browser/web_contents.h"
 
 NearOomReductionInfoBar::NearOomReductionInfoBar(InterventionDelegate* delegate)
-    : infobars::InfoBarAndroid(std::make_unique<InterventionInfoBarDelegate>(
-          infobars::InfoBarDelegate::InfoBarIdentifier::
-              NEAR_OOM_REDUCTION_INFOBAR_ANDROID,
-          delegate)),
+    : infobars::InfoBarAndroid(
+          std::make_unique<InterventionInfoBarDelegate>(
+              infobars::InfoBarDelegate::InfoBarIdentifier::
+                  NEAR_OOM_REDUCTION_INFOBAR_ANDROID,
+              delegate),
+          base::BindRepeating(&ResourceMapper::MapToJavaDrawableId)),
       delegate_(delegate) {
   DCHECK(delegate_);
 }
@@ -36,9 +39,7 @@ void NearOomReductionInfoBar::ProcessButton(int action) {
 }
 
 base::android::ScopedJavaLocalRef<jobject>
-NearOomReductionInfoBar::CreateRenderInfoBar(
-    JNIEnv* env,
-    const ResourceIdMapper& resource_id_mapper) {
+NearOomReductionInfoBar::CreateRenderInfoBar(JNIEnv* env) {
   return Java_NearOomReductionInfoBar_create(env);
 }
 
@@ -55,7 +56,6 @@ void NearOomReductionInfoBar::OnLinkClicked(
 // static
 void NearOomReductionInfoBar::Show(content::WebContents* web_contents,
                                    InterventionDelegate* delegate) {
-  infobars::ContentInfoBarManager* manager =
-      infobars::ContentInfoBarManager::FromWebContents(web_contents);
-  manager->AddInfoBar(base::WrapUnique(new NearOomReductionInfoBar(delegate)));
+  InfoBarService* service = InfoBarService::FromWebContents(web_contents);
+  service->AddInfoBar(base::WrapUnique(new NearOomReductionInfoBar(delegate)));
 }

@@ -1,13 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {addEntries, ENTRIES, RootPath, sendTestMessage, TestEntryInfo} from '../test_util.js';
-import {testcase} from '../testcase.js';
-
-import {navigateWithDirectoryTree, openNewWindow, remoteCall, setupAndWaitUntilReady} from './background.js';
-import {FakeTask} from './tasks.js';
-import {COMPLEX_DOCUMENTS_PROVIDER_ENTRY_SET, COMPLEX_DRIVE_ENTRY_SET, RECENT_ENTRY_SET} from './test_data.js';
+'use strict';
 
 /**
  * Tests that check the context menu displays the right options (enabled and
@@ -27,7 +22,9 @@ async function maybeCopyToClipboard(appId, commandId, file = 'hello.txt') {
   if (!/^paste/.test(commandId)) {
     return;
   }
-  await remoteCall.waitUntilSelected(appId, file);
+  chrome.test.assertTrue(
+      !!await remoteCall.callRemoteTestUtil('selectFile', appId, [file]),
+      'selectFile failed');
   chrome.test.assertTrue(
       !!await remoteCall.callRemoteTestUtil('execCommand', appId, ['copy']),
       'execCommand failed');
@@ -41,7 +38,8 @@ async function maybeCopyToClipboard(appId, commandId, file = 'hello.txt') {
  */
 async function selectFile(appId, path) {
   // Select the file |path|.
-  await remoteCall.waitUntilSelected(appId, path);
+  chrome.test.assertTrue(
+      !!await remoteCall.callRemoteTestUtil('selectFile', appId, [path]));
 
   // Wait for the file to be selected.
   await remoteCall.waitForElement(appId, '.table-row[selected]');
@@ -69,13 +67,9 @@ async function rightClickSelectedFile(appId) {
  * @param {string} commandId ID of the command in the context menu to check.
  * @param {string} path Path to the file to open the context menu for.
  * @param {boolean} expectedEnabledState True if the command should be enabled
- *     in the context menu, false if not. Only checked if the command isn't
- * hidden.
- * @param {boolean} expectedHiddenState True if the command should be hidden
- *     in the context menu, false if not. Defaults to false.
+ *     in the context menu, false if not.
  */
-async function checkContextMenu(
-    commandId, path, expectedEnabledState, expectedHiddenState = false) {
+async function checkContextMenu(commandId, path, expectedEnabledState) {
   // Open Files App on Drive.
   const appId =
       await setupAndWaitUntilReady(RootPath.DRIVE, [], COMPLEX_DRIVE_ENTRY_SET);
@@ -84,7 +78,8 @@ async function checkContextMenu(
   await maybeCopyToClipboard(appId, commandId);
 
   // Select the file |path|.
-  await remoteCall.waitUntilSelected(appId, path);
+  chrome.test.assertTrue(
+      !!await remoteCall.callRemoteTestUtil('selectFile', appId, [path]));
 
   // Wait for the file to be selected.
   await remoteCall.waitForElement(appId, '.table-row[selected]');
@@ -98,16 +93,11 @@ async function checkContextMenu(
 
   // Wait for the command option to appear.
   let query = '#file-context-menu:not([hidden])';
-  if (expectedHiddenState) {
-    query += ` [command="#${commandId}"][hidden]`;
+  if (expectedEnabledState) {
+    query += ` [command="#${commandId}"]:not([hidden]):not([disabled])`;
   } else {
-    if (expectedEnabledState) {
-      query += ` [command="#${commandId}"]:not([hidden]):not([disabled])`;
-    } else {
-      query += ` [command="#${commandId}"][disabled]:not([hidden])`;
-    }
+    query += ` [command="#${commandId}"][disabled]:not([hidden])`;
   }
-
   await remoteCall.waitForElement(appId, query);
 }
 
@@ -270,15 +260,6 @@ testcase.checkCutDisabledForReadOnlyFile = () => {
 };
 
 /**
- * Tests that the Restriction details menu item is hidden if DLP is disabled.
- */
-testcase.checkDlpRestrictionDetailsDisabledForNonDlpFiles = () => {
-  return checkContextMenu(
-      'dlp-restriction-details', 'hello.txt', /*expectedEnabledState=*/ false,
-      /*expectedHiddenState=*/ true);
-};
-
-/**
  * Tests that the Cut menu item is disabled if a read-only folder is
  * selected.
  */
@@ -415,7 +396,8 @@ testcase.checkContextMenusForInputElements = async () => {
       'fakeEvent', appId, ['#search-box cr-input', 'focus']));
 
   // Input a text.
-  await remoteCall.inputText(appId, '#search-box cr-input', 'test.pdf');
+  await remoteCall.callRemoteTestUtil(
+      'inputText', appId, ['#search-box cr-input', 'test.pdf']);
 
   // Notify the element of the input.
   chrome.test.assertTrue(await remoteCall.callRemoteTestUtil(
@@ -448,7 +430,9 @@ testcase.checkContextMenuForRenameInput = async () => {
   const appId = await setupAndWaitUntilReady(RootPath.DOWNLOADS);
 
   // Select the file.
-  await remoteCall.waitUntilSelected(appId, 'hello.txt');
+  chrome.test.assertTrue(
+      await remoteCall.callRemoteTestUtil('selectFile', appId, ['hello.txt']),
+      'selectFile failed');
 
   // Press Ctrl+Enter key to rename the file.
   const key = ['#file-list', 'Enter', true, false, false];
@@ -459,7 +443,8 @@ testcase.checkContextMenuForRenameInput = async () => {
   await remoteCall.waitForElement(appId, textInput);
 
   // Type new file name.
-  await remoteCall.inputText(appId, textInput, 'NEW NAME');
+  await remoteCall.callRemoteTestUtil(
+      'inputText', appId, [textInput, 'NEW NAME']);
 
   // Right click to show the context menu.
   await remoteCall.waitAndRightClick(appId, textInput);
@@ -599,7 +584,8 @@ async function checkMyFilesRootItemContextMenu(itemName, commandStates) {
       {ignoreFileSize: true, ignoreLastModifiedTime: true});
 
   // Select the item.
-  await remoteCall.waitUntilSelected(appId, itemName);
+  chrome.test.assertTrue(
+      !!await remoteCall.callRemoteTestUtil('selectFile', appId, [itemName]));
 
   // Wait for the file to be selected.
   await remoteCall.waitForElement(appId, '.table-row[selected]');
@@ -689,12 +675,12 @@ async function checkDocumentsProviderContextMenu(
   const documentsProviderVolumeQuery =
       '[has-children="true"] [volume-type-icon="documents_provider"]';
 
+  // Open Files app.
+  const appId = await openNewWindow(RootPath.DOWNLOADS);
+
   // Add files to the DocumentsProvider volume.
   await addEntries(
       ['documents_provider'], COMPLEX_DOCUMENTS_PROVIDER_ENTRY_SET);
-
-  // Open Files app.
-  const appId = await openNewWindow(RootPath.DOWNLOADS);
 
   // Wait for the DocumentsProvider volume to mount.
   await remoteCall.waitForElement(appId, documentsProviderVolumeQuery);
@@ -711,7 +697,8 @@ async function checkDocumentsProviderContextMenu(
   await remoteCall.waitForFiles(appId, files, {ignoreLastModifiedTime: true});
 
   // Select the file |path|.
-  await remoteCall.waitUntilSelected(appId, path);
+  chrome.test.assertTrue(
+      !!await remoteCall.callRemoteTestUtil('selectFile', appId, [path]));
 
   // Wait for the file to be selected.
   await remoteCall.waitForElement(appId, '.table-row[selected]');
@@ -795,7 +782,7 @@ async function checkRecentsContextMenu(
   await remoteCall.waitForFiles(appId, expectedRows);
 
   if (opt_selectMultiple) {
-    // Select all the files.
+    // Select all the files and check that the delete button isn't visible.
     const ctrlA = ['#file-list', 'a', true, false, false];
     await remoteCall.callRemoteTestUtil('fakeKeyDown', appId, ctrlA);
 
@@ -803,7 +790,8 @@ async function checkRecentsContextMenu(
     await remoteCall.waitForElement(appId, '#file-list li[selected]');
   } else {
     // Select the item.
-    await remoteCall.waitUntilSelected(appId, fileName);
+    chrome.test.assertTrue(
+        !!await remoteCall.callRemoteTestUtil('selectFile', appId, [fileName]));
 
     // Wait for the file to be selected.
     await remoteCall.waitForElement(appId, '.table-row[selected]');
@@ -860,7 +848,8 @@ testcase.checkContextMenuFocus = async () => {
   const appId = await setupAndWaitUntilReady(RootPath.DOWNLOADS);
 
   // Select the file |path|.
-  await remoteCall.waitUntilSelected(appId, 'hello.txt');
+  chrome.test.assertTrue(!!await remoteCall.callRemoteTestUtil(
+      'selectFile', appId, ['hello.txt']));
 
   // Wait for the file to be selected.
   await remoteCall.waitForElement(appId, '.table-row[selected]');
@@ -880,110 +869,4 @@ testcase.checkContextMenuFocus = async () => {
   const focusedElement =
       await remoteCall.callRemoteTestUtil('getActiveElement', appId, []);
   chrome.test.assertEq('menuitem', focusedElement.attributes['role']);
-};
-
-testcase.checkDefaultTask = async () => {
-  // Open FilesApp on Downloads.
-  const appId = await setupAndWaitUntilReady(
-      RootPath.DOWNLOADS, [ENTRIES.photos, ENTRIES.hello], []);
-
-  // Force a task for the `hello` file.
-  const fakeTask = new FakeTask(
-      /* isDefault */ true,
-      {appId: 'dummyId', taskType: 'app', actionId: 'open-with'}, 'DummyTask');
-  await remoteCall.callRemoteTestUtil('overrideTasks', appId, [[fakeTask]]);
-
-  // Display the context menu.
-  await remoteCall.showContextMenuFor(appId, ENTRIES.hello.nameText);
-
-  // Get the context menu.
-  const menu = await remoteCall.getMenu(appId, 'context-menu');
-
-  // Check the default task item is displayed for the DummyTask.
-  const defaultTaskItem =
-      menu['items'].find(el => el.attributes.id === 'default-task-menu-item');
-  chrome.test.assertTrue(!!defaultTaskItem);
-  chrome.test.assertFalse(defaultTaskItem.hidden);
-  chrome.test.assertEq(defaultTaskItem.text, 'DummyTask');
-
-  // Dismiss the context menu.
-  await remoteCall.dismissMenu(appId);
-
-  // Force empty tasks for the folder `photos`.
-  await remoteCall.callRemoteTestUtil('overrideTasks', appId, [[]]);
-
-  // Display the context menu.
-  await remoteCall.showContextMenuFor(appId, ENTRIES.photos.nameText);
-
-  // Get the context menu.
-  const folderMenu = await remoteCall.getMenu(appId, 'context-menu');
-
-  // Check the default task item is hidden.
-  const folderDefaultTaskItem = folderMenu['items'].find(
-      el => el.attributes.id === 'default-task-menu-item');
-  chrome.test.assertTrue(!!folderDefaultTaskItem);
-  chrome.test.assertTrue(folderDefaultTaskItem.hidden);
-};
-
-testcase.checkPolicyAssignedDefaultHasManagedIcon = async () => {
-  // Open FilesApp on Downloads.
-  const appId =
-      await setupAndWaitUntilReady(RootPath.DOWNLOADS, [ENTRIES.hello], []);
-
-  // Force a task for the `hello` file.
-  const fakeDefaultTask = new FakeTask(
-      /* isDefault */ true,
-      {appId: 'dummyId1', taskType: 'app', actionId: 'open-with'},
-      'DummyDefaultTask');
-  const fakeSecondaryTask = new FakeTask(
-      /* isDefault */ false,
-      {appId: 'dummyId2', taskType: 'app', actionId: 'open-with'},
-      'DummySecondaryTask');
-
-  await remoteCall.callRemoteTestUtil(
-      'overrideTasks', appId,
-      [[fakeDefaultTask, fakeSecondaryTask], /*isPolicyDefault=*/ true]);
-
-  // Display the context menu.
-  await remoteCall.showContextMenuFor(appId, ENTRIES.hello.nameText);
-
-  // Get the context menu.
-  const contextMenu = await remoteCall.getMenu(appId, 'context-menu');
-
-  // Check the default task item is visible and has is-default/is-managed
-  // properties set.
-  const contextMenuDefaultTaskItem = contextMenu['items'].find(
-      el => el.attributes.id === 'default-task-menu-item');
-  chrome.test.assertTrue(!!contextMenuDefaultTaskItem);
-  chrome.test.assertFalse(contextMenuDefaultTaskItem.hidden);
-  chrome.test.assertEq(contextMenuDefaultTaskItem.text, 'DummyDefaultTask');
-  chrome.test.assertTrue('is-default' in contextMenuDefaultTaskItem.attributes);
-  chrome.test.assertTrue('is-managed' in contextMenuDefaultTaskItem.attributes);
-
-  // Dismiss the context menu.
-  await remoteCall.dismissMenu(appId);
-
-  // Display the tasks menu.
-  await remoteCall.expandOpenDropdown(appId);
-
-  // Get the tasks menu.
-  const tasksMenu = await remoteCall.getMenu(appId, 'tasks');
-
-  // Check the default task item is visible and has is-default/is-managed
-  // properties set.
-  const tasksMenuDefaultTaskItem = tasksMenu['items'][0];
-  chrome.test.assertTrue(!!tasksMenuDefaultTaskItem);
-  chrome.test.assertFalse(tasksMenuDefaultTaskItem.hidden);
-  chrome.test.assertTrue(
-      tasksMenuDefaultTaskItem.text.includes('DummyDefaultTask'));
-  chrome.test.assertTrue('is-default' in tasksMenuDefaultTaskItem.attributes);
-  chrome.test.assertTrue('is-managed' in tasksMenuDefaultTaskItem.attributes);
-
-  // Check that the remaining items do not have is-default/is-managed
-  // properties.
-  const tasksMenuNonDefaultTaskItems = tasksMenu['items'].slice(1);
-  for (const nonDefaultTaskItem of tasksMenuNonDefaultTaskItems) {
-    chrome.test.assertFalse('is-default' in nonDefaultTaskItem.attributes);
-    chrome.test.assertFalse('is-managed' in nonDefaultTaskItem.attributes);
-  }
 };

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "third_party/blink/public/mojom/script/script_type.mojom-blink.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/bindings/script_state.h"
 
 namespace blink {
 
@@ -49,24 +48,17 @@ ScriptEvaluationResult ScriptEvaluationResult::FromClassicSuccess(
 ScriptEvaluationResult ScriptEvaluationResult::FromModuleSuccess(
     v8::Local<v8::Value> value) {
   DCHECK(!value.IsEmpty());
-  DCHECK(value->IsPromise());
+  DCHECK(!base::FeatureList::IsEnabled(features::kTopLevelAwait) ||
+         value->IsPromise());
 
   return ScriptEvaluationResult(mojom::blink::ScriptType::kModule,
                                 ResultType::kSuccess, value);
 }
 
 // static
-ScriptEvaluationResult ScriptEvaluationResult::FromClassicExceptionRethrown() {
+ScriptEvaluationResult ScriptEvaluationResult::FromClassicException() {
   return ScriptEvaluationResult(mojom::blink::ScriptType::kClassic,
                                 ResultType::kException, {});
-}
-
-// static
-ScriptEvaluationResult ScriptEvaluationResult::FromClassicException(
-    v8::Local<v8::Value> exception) {
-  DCHECK(!exception.IsEmpty());
-  return ScriptEvaluationResult(mojom::blink::ScriptType::kClassic,
-                                ResultType::kException, exception);
 }
 
 // static
@@ -89,16 +81,16 @@ ScriptEvaluationResult ScriptEvaluationResult::FromModuleAborted() {
                                 ResultType::kAborted, {});
 }
 
+ScriptEvaluationResult& ScriptEvaluationResult::Escape(
+    ScriptState::EscapableScope* scope) {
+  value_ = scope->Escape(value_);
+  return *this;
+}
+
 v8::Local<v8::Value> ScriptEvaluationResult::GetSuccessValue() const {
   DCHECK_EQ(result_type_, ResultType::kSuccess);
   DCHECK(!value_.IsEmpty());
   return value_;
-}
-
-v8::Local<v8::Value> ScriptEvaluationResult::GetSuccessValueOrEmpty() const {
-  if (GetResultType() == ResultType::kSuccess)
-    return GetSuccessValue();
-  return v8::Local<v8::Value>();
 }
 
 v8::Local<v8::Value> ScriptEvaluationResult::GetExceptionForModule() const {
@@ -111,16 +103,9 @@ v8::Local<v8::Value> ScriptEvaluationResult::GetExceptionForModule() const {
   return value_;
 }
 
-v8::Local<v8::Value> ScriptEvaluationResult::GetExceptionForClassicForTesting()
-    const {
-  DCHECK_EQ(result_type_, ResultType::kException);
-  DCHECK(!value_.IsEmpty());
-
-  return value_;
-}
-
 ScriptPromise ScriptEvaluationResult::GetPromise(
     ScriptState* script_state) const {
+  DCHECK(base::FeatureList::IsEnabled(features::kTopLevelAwait));
 #if DCHECK_IS_ON()
   DCHECK_EQ(script_type_, mojom::blink::ScriptType::kModule);
 #endif

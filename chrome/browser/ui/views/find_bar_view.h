@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,10 @@
 #define CHROME_BROWSER_UI_VIEWS_FIND_BAR_VIEW_H_
 
 #include <memory>
-#include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/ui/views/chrome_views_export.h"
 #include "chrome/browser/ui/views/dropdown_bar_host_delegate.h"
 #include "ui/views/controls/button/button.h"
@@ -48,30 +49,26 @@ class FindBarView : public views::BoxLayoutView,
   METADATA_HEADER(FindBarView);
 
   explicit FindBarView(FindBarHost* host = nullptr);
-
-  FindBarView(const FindBarView&) = delete;
-  FindBarView& operator=(const FindBarView&) = delete;
-
   ~FindBarView() override;
 
   void SetHost(FindBarHost* host);
 
   // Accessors for the text and selection displayed in the text box.
-  void SetFindTextAndSelectedRange(const std::u16string& find_text,
+  void SetFindTextAndSelectedRange(const base::string16& find_text,
                                    const gfx::Range& selected_range);
-  std::u16string GetFindText() const;
+  base::string16 GetFindText() const;
   gfx::Range GetSelectedRange() const;
 
   // Gets the selected text in the text box.
-  std::u16string GetFindSelectedText() const;
+  base::string16 GetFindSelectedText() const;
 
   // Gets the match count text displayed in the text box.
-  std::u16string GetMatchCountText() const;
+  base::string16 GetMatchCountText() const;
 
   // Updates the label inside the Find text box that shows the ordinal of the
   // active item and how many matches were found.
   void UpdateForResult(const find_in_page::FindNotificationDetails& result,
-                       const std::u16string& find_text);
+                       const base::string16& find_text);
 
   // Clears the current Match Count value in the Find text box.
   void ClearMatchCount();
@@ -92,7 +89,7 @@ class FindBarView : public views::BoxLayoutView,
 
  private:
   // Starts finding |search_text|.  If the text is empty, stops finding.
-  void Find(const std::u16string& search_text);
+  void Find(const base::string16& search_text);
 
   // Find the next/previous occurrence of search text when clicking the
   // next/previous button.
@@ -108,11 +105,11 @@ class FindBarView : public views::BoxLayoutView,
 
   // The OS-specific view for the find bar that acts as an intermediary
   // between us and the WebContentsView.
-  raw_ptr<FindBarHost> find_bar_host_;
+  FindBarHost* find_bar_host_;
 
   // Used to detect if the input text, not including the IME composition text,
   // has changed or not.
-  std::u16string last_searched_text_;
+  base::string16 last_searched_text_;
 
   // The controls in the window.
   views::Textfield* find_text_;
@@ -122,6 +119,8 @@ class FindBarView : public views::BoxLayoutView,
   views::ImageButton* find_previous_button_;
   views::ImageButton* find_next_button_;
   views::ImageButton* close_button_;
+
+  DISALLOW_COPY_AND_ASSIGN(FindBarView);
 };
 
 BEGIN_VIEW_BUILDER(/* no export */, FindBarView, views::BoxLayoutView)

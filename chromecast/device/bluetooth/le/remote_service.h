@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "chromecast/device/bluetooth/le/ble_types.h"
 #include "chromecast/public/bluetooth/gatt.h"
@@ -24,9 +25,6 @@ class RemoteDevice;
 // specified, all callbacks are run on the caller's thread.
 class RemoteService : public base::RefCountedThreadSafe<RemoteService> {
  public:
-  RemoteService(const RemoteService&) = delete;
-  RemoteService& operator=(const RemoteService&) = delete;
-
   // Returns a list of characteristics in this service.
   virtual std::vector<scoped_refptr<RemoteCharacteristic>>
   GetCharacteristics() = 0;
@@ -43,6 +41,9 @@ class RemoteService : public base::RefCountedThreadSafe<RemoteService> {
 
   RemoteService() = default;
   virtual ~RemoteService() = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(RemoteService);
 };
 
 }  // namespace bluetooth

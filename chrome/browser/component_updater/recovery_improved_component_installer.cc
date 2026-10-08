@@ -1,12 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/component_updater/recovery_improved_component_installer.h"
 
-#include "base/task/sequenced_task_runner.h"
 #include "build/branding_buildflags.h"
-#include "build/build_config.h"
 
 // The recovery component is built and used by Google Chrome only.
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
@@ -29,6 +27,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
+#include "build/build_config.h"
 #include "chrome/browser/component_updater/component_updater_utils.h"
 #include "components/services/unzip/content/unzip_service.h"
 #include "components/update_client/patcher.h"
@@ -89,7 +88,7 @@ void RecoveryComponentActionHandler::UnpackComplete(
   }
 
   unpack_path_ = result.unpack_path;
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&RecoveryComponentActionHandler::RunCommand,
                                 this, MakeCommandLine(result.unpack_path)));
 }
@@ -98,7 +97,7 @@ void RecoveryComponentActionHandler::RunCommand(
     const base::CommandLine& cmdline) {
   VLOG(1) << "run command: " << cmdline.GetCommandLineString();
   base::LaunchOptions options;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   options.start_hidden = true;
 #endif
   base::Process process = base::LaunchProcess(cmdline, options);
@@ -110,14 +109,9 @@ void RecoveryComponentActionHandler::RunCommand(
 
 void RecoveryComponentActionHandler::WaitForCommand(base::Process process) {
   int exit_code = 0;
-  const base::TimeDelta kMaxWaitTime = base::Seconds(600);
-  bool succeeded = false;
-  if (!process.IsValid()) {
-    exit_code =
-        static_cast<int>(update_client::InstallError::LAUNCH_PROCESS_FAILED);
-  } else {
-    succeeded = process.WaitForExitWithTimeout(kMaxWaitTime, &exit_code);
-  }
+  const base::TimeDelta kMaxWaitTime = base::TimeDelta::FromSeconds(600);
+  const bool succeeded =
+      process.WaitForExitWithTimeout(kMaxWaitTime, &exit_code);
   base::DeletePathRecursively(unpack_path_);
   main_task_runner_->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback_), succeeded, exit_code, 0));
@@ -141,7 +135,7 @@ bool RecoveryImprovedInstallerPolicy::RequiresNetworkEncryption() const {
 
 update_client::CrxInstaller::Result
 RecoveryImprovedInstallerPolicy::OnCustomInstall(
-    const base::Value& manifest,
+    const base::DictionaryValue& manifest,
     const base::FilePath& install_dir) {
   return update_client::CrxInstaller::Result(0);
 }
@@ -151,13 +145,13 @@ void RecoveryImprovedInstallerPolicy::OnCustomUninstall() {}
 void RecoveryImprovedInstallerPolicy::ComponentReady(
     const base::Version& version,
     const base::FilePath& install_dir,
-    base::Value manifest) {
+    std::unique_ptr<base::DictionaryValue> manifest) {
   DVLOG(1) << "RecoveryImproved component is ready.";
 }
 
 // Called during startup and installation before ComponentReady().
 bool RecoveryImprovedInstallerPolicy::VerifyInstallation(
-    const base::Value& manifest,
+    const base::DictionaryValue& manifest,
     const base::FilePath& install_dir) const {
   return true;
 }
@@ -181,9 +175,14 @@ RecoveryImprovedInstallerPolicy::GetInstallerAttributes() const {
   return {};
 }
 
+std::vector<std::string> RecoveryImprovedInstallerPolicy::GetMimeTypes() const {
+  return {};
+}
+
 void RegisterRecoveryImprovedComponent(ComponentUpdateService* cus,
                                        PrefService* prefs) {
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+// TODO(sorin): enable recovery component for macOS. crbug/687231.
+#if defined(OS_WIN)
   DVLOG(1) << "Registering RecoveryImproved component.";
 
   // |cus| keeps a reference to the |installer| in the CrxComponent instance.

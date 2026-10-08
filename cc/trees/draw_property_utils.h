@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,6 @@ class TransformTree;
 class PropertyTrees;
 struct EffectNode;
 struct TransformNode;
-struct ViewportPropertyIds;
 
 namespace draw_property_utils {
 
@@ -33,9 +32,7 @@ void CC_EXPORT ConcatInverseSurfaceContentsScale(const EffectNode* effect_node,
 
 // Computes combined (screen space) transforms for every node in the transform
 // tree. This must be done prior to calling |ComputeClips|.
-void CC_EXPORT
-ComputeTransforms(TransformTree* transform_tree,
-                  const ViewportPropertyIds& viewport_property_ids);
+void CC_EXPORT ComputeTransforms(TransformTree* transform_tree);
 
 // Computes screen space opacity for every node in the opacity tree.
 void CC_EXPORT ComputeEffects(EffectTree* effect_tree);
@@ -43,7 +40,7 @@ void CC_EXPORT ComputeEffects(EffectTree* effect_tree);
 void CC_EXPORT UpdatePropertyTrees(LayerTreeHost* layer_tree_host);
 
 void CC_EXPORT
-UpdatePropertyTreesAndRenderSurfaces(LayerTreeImpl* layer_tree_impl,
+UpdatePropertyTreesAndRenderSurfaces(LayerImpl* root_layer,
                                      PropertyTrees* property_trees);
 
 void CC_EXPORT FindLayersThatNeedUpdates(LayerTreeHost* layer_tree_host,

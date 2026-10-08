@@ -1,14 +1,14 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "components/performance_manager/execution_context_priority/boosting_vote_aggregator.h"
+#include "components/performance_manager/public/execution_context_priority/boosting_vote_aggregator.h"
 
 #include <algorithm>
-#include <deque>
 #include <tuple>
 #include <utility>
 
+#include "base/stl_util.h"
 #include "components/performance_manager/public/execution_context/execution_context.h"
 
 // This voter allows expressing "priority boosts" which are used to resolve
@@ -189,6 +189,15 @@ void BoostingVoteAggregator::NodeData::DecrementEdgeCount() {
   --edge_count_;
 }
 
+VoteReceipt BoostingVoteAggregator::NodeData::SetIncomingVote(
+    VoteConsumer* consumer,
+    voting::VoterId<Vote> voter_id,
+    const ExecutionContext* execution_context,
+    const Vote& vote) {
+  incoming_ = AcceptedVote(consumer, voter_id, execution_context, vote);
+  return incoming_.IssueReceipt();
+}
+
 BoostingVoteAggregator::EdgeData::EdgeData() = default;
 
 BoostingVoteAggregator::EdgeData::EdgeData(EdgeData&&) = default;
@@ -238,7 +247,7 @@ const char* BoostingVoteAggregator::EdgeData::GetActiveReason() const {
   return reasons_[0];
 }
 
-BoostingVoteAggregator::BoostingVoteAggregator() = default;
+BoostingVoteAggregator::BoostingVoteAggregator() : factory_(this) {}
 
 BoostingVoteAggregator::~BoostingVoteAggregator() {
   DCHECK(forward_edges_.empty());
@@ -247,19 +256,22 @@ BoostingVoteAggregator::~BoostingVoteAggregator() {
 
 VotingChannel BoostingVoteAggregator::GetVotingChannel() {
   DCHECK(nodes_.empty());
-  DCHECK(!input_voter_id_);
-  DCHECK_GT(1u, voting_channel_factory_.voting_channels_issued());
-  auto channel = voting_channel_factory_.BuildVotingChannel();
+  DCHECK_EQ(voting::kInvalidVoterId<Vote>, input_voter_id_);
+  DCHECK_GT(1u, factory_.voting_channels_issued());
+  auto channel = factory_.BuildVotingChannel();
   input_voter_id_ = channel.voter_id();
   return channel;
 }
 
-void BoostingVoteAggregator::SetUpstreamVotingChannel(VotingChannel channel) {
+void BoostingVoteAggregator::SetUpstreamVotingChannel(VotingChannel&& channel) {
+  DCHECK(channel.IsValid());
+  DCHECK(nodes_.empty());
+  DCHECK(!channel_.IsValid());
   channel_ = std::move(channel);
 }
 
 bool BoostingVoteAggregator::IsSetup() const {
-  return input_voter_id_ && channel_.IsValid();
+  return input_voter_id_ != voting::kInvalidVoterId<Vote> && channel_.IsValid();
 }
 
 void BoostingVoteAggregator::SubmitBoostingVote(
@@ -383,16 +395,19 @@ void BoostingVoteAggregator::CancelBoostingVote(
   }
 }
 
-void BoostingVoteAggregator::OnVoteSubmitted(
-    VoterId voter_id,
+VoteReceipt BoostingVoteAggregator::SubmitVote(
+    util::PassKey<VotingChannel>,
+    voting::VoterId<Vote> voter_id,
     const ExecutionContext* execution_context,
     const Vote& vote) {
   DCHECK(IsSetup());
   DCHECK_EQ(input_voter_id_, voter_id);
+  DCHECK(vote.IsValid());
 
   // Store the vote.
   auto node_data_it = FindOrCreateNodeData(execution_context);
-  node_data_it->second.SetIncomingVote(vote);
+  VoteReceipt receipt = node_data_it->second.SetIncomingVote(
+      this, voter_id, execution_context, vote);
 
   NodeDataPtrSet changes;
 
@@ -403,21 +418,21 @@ void BoostingVoteAggregator::OnVoteSubmitted(
   }
 
   UpstreamChanges(changes);
+
+  return receipt;
 }
 
-void BoostingVoteAggregator::OnVoteChanged(
-    VoterId voter_id,
-    const ExecutionContext* execution_context,
-    const Vote& new_vote) {
-  auto node_data_it = FindNodeData(execution_context);
-  auto* node_data = &(*node_data_it);
-
+void BoostingVoteAggregator::ChangeVote(util::PassKey<AcceptedVote>,
+                                        AcceptedVote* old_vote,
+                                        const Vote& new_vote) {
   // Remember the old and new priorities before committing any changes.
-  base::TaskPriority old_priority = node_data->second.incoming_vote().value();
+  base::TaskPriority old_priority = old_vote->vote().value();
   base::TaskPriority new_priority = new_vote.value();
 
   // Update the vote in place.
-  node_data->second.UpdateIncomingVote(new_vote);
+  auto node_data_it = GetNodeDataByVote(old_vote);
+  auto* node_data = &(*node_data_it);
+  old_vote->UpdateVote(new_vote);
 
   NodeDataPtrSet changes;
   changes.insert(node_data);  // This node is changing regardless.
@@ -437,17 +452,10 @@ void BoostingVoteAggregator::OnVoteChanged(
   UpstreamChanges(changes);
 }
 
-void BoostingVoteAggregator::OnVoteInvalidated(
-    VoterId voter_id,
-    const ExecutionContext* execution_context) {
-  auto node_data_it = FindNodeData(execution_context);
-
-  // Remember the old priority before committing any changes.
-  base::TaskPriority old_priority =
-      node_data_it->second.incoming_vote().value();
-
-  // Update the vote.
-  node_data_it->second.RemoveIncomingVote();
+void BoostingVoteAggregator::VoteInvalidated(util::PassKey<AcceptedVote>,
+                                             AcceptedVote* vote) {
+  auto node_data_it = GetNodeDataByVote(vote);
+  base::TaskPriority old_priority = vote->vote().value();
 
   NodeDataPtrSet changes;
 
@@ -491,6 +499,21 @@ void BoostingVoteAggregator::ForEachOutgoingEdge(const ExecutionContext* node,
 }
 
 BoostingVoteAggregator::NodeDataMap::iterator
+BoostingVoteAggregator::GetNodeDataByVote(AcceptedVote* vote) {
+  // The vote being retrieved should have us as its consumer, and have been
+  // emitted by our known voter.
+  DCHECK(vote);
+  DCHECK_EQ(this, vote->consumer());
+  DCHECK(vote->voter_id() == input_voter_id_);
+  DCHECK(IsSetup());
+
+  auto it = nodes_.find(vote->context());
+  DCHECK(it != nodes_.end());
+  DCHECK_EQ(vote, &it->second.incoming());
+  return it;
+}
+
+BoostingVoteAggregator::NodeDataMap::iterator
 BoostingVoteAggregator::FindOrCreateNodeData(const ExecutionContext* node) {
   auto it = nodes_.lower_bound(node);
   if (it->first == node)
@@ -501,7 +524,7 @@ BoostingVoteAggregator::FindOrCreateNodeData(const ExecutionContext* node) {
 
 BoostingVoteAggregator::NodeDataMap::iterator
 BoostingVoteAggregator::FindNodeData(const ExecutionContext* node) {
-  auto it = nodes_.find(node);
+  auto it = nodes_.lower_bound(node);
   DCHECK(it != nodes_.end());
   return it;
 }
@@ -519,11 +542,11 @@ const char* BoostingVoteAggregator::GetVoteReason(
   // If a vote has been expressed for this node at the given priority level then
   // preferentially use that reason.
   if (node_data.HasIncomingVote()) {
-    const Vote& incoming_vote = node_data.incoming_vote();
-    if (priority == incoming_vote.value()) {
+    const Vote& incoming = node_data.incoming().vote();
+    if (priority == incoming.value()) {
       // This node will not have an active incoming edge in this case.
       DCHECK(GetActiveInboundEdge(layer_bit, node) == reverse_edges_.end());
-      return incoming_vote.reason();
+      return incoming.reason();
     }
   }
 
@@ -545,26 +568,24 @@ void BoostingVoteAggregator::UpstreamVoteIfNeeded(
   // default priority level of every execution context in the absence of any
   // specific higher votes.
   if (priority == base::TaskPriority::LOWEST) {
-    if (node_data->HasOutgoingVote()) {
+    if (node_data->HasOutgoingVote())
       node_data->CancelOutgoingVote();
-      channel_.InvalidateVote(execution_context);
-    }
     return;
   }
 
-  const Vote vote(priority, GetVoteReason(node));
+  // Get the reason for this vote.
+  const char* reason = GetVoteReason(node);
 
-  // Update the vote if the node already has one. If it changed, the new vote
-  // must be upstreamed.
+  // If the node already has a vote, then change it. This is a nop if the vote
+  // details are identical.
   if (node_data->HasOutgoingVote()) {
-    if (node_data->UpdateOutgoingVote(vote))
-      channel_.ChangeVote(execution_context, vote);
+    node_data->ChangeOutgoingVote(priority, reason);
     return;
   }
 
   // Create an outgoing vote.
-  node_data->SetOutgoingVote(vote);
-  channel_.SubmitVote(execution_context, vote);
+  node_data->SetOutgoingVoteReceipt(
+      channel_.SubmitVote(execution_context, Vote(priority, reason)));
 }
 
 void BoostingVoteAggregator::UpstreamChanges(const NodeDataPtrSet& changes) {

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,6 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
-#include "base/no_destructor.h"
 #include "remoting/base/directory_service_client.h"
 #include "remoting/base/protobuf_http_status.h"
 #include "remoting/base/string_resources.h"
@@ -97,12 +96,14 @@ void HostListService::Init() {
               }];
 }
 
-base::CallbackListSubscription HostListService::RegisterHostListStateCallback(
+std::unique_ptr<HostListService::CallbackSubscription>
+HostListService::RegisterHostListStateCallback(
     const base::RepeatingClosure& callback) {
   return host_list_state_callbacks_.Add(callback);
 }
 
-base::CallbackListSubscription HostListService::RegisterFetchFailureCallback(
+std::unique_ptr<HostListService::CallbackSubscription>
+HostListService::RegisterFetchFailureCallback(
     const base::RepeatingClosure& callback) {
   return fetch_failure_callbacks_.Add(callback);
 }
@@ -178,7 +179,8 @@ void HostListService::HandleFetchFailure(const ProtobufHttpStatus& status) {
 }
 
 void HostListService::OnUserUpdated(bool is_user_signed_in) {
-  directory_client_.AsyncCall(&DirectoryServiceClient::CancelPendingRequests);
+  directory_client_.Post(FROM_HERE,
+                         &DirectoryServiceClient::CancelPendingRequests);
   SetState(State::NOT_FETCHED);
   if (is_user_signed_in) {
     RequestFetch();

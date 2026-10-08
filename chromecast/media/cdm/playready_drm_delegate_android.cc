@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chromecast/media/cdm/playready_drm_delegate_android.h"
 
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "chromecast/media/cdm/chromecast_init_data.h"
 
 namespace chromecast {
@@ -22,7 +23,7 @@ PlayreadyDrmDelegateAndroid::~PlayreadyDrmDelegateAndroid() {
 
 const ::media::UUID PlayreadyDrmDelegateAndroid::GetUUID() const {
   return ::media::UUID(kPlayreadyUuid,
-                       kPlayreadyUuid + std::size(kPlayreadyUuid));
+                       kPlayreadyUuid + base::size(kPlayreadyUuid));
 }
 
 bool PlayreadyDrmDelegateAndroid::OnCreateSession(

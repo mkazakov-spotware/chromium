@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that exporting console messages produces proper output.\n`);
 
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.showPanel('console');
 
   await TestRunner.evaluateInPagePromise(`
@@ -29,6 +29,6 @@
   await ConsoleTestRunner.dumpConsoleMessages();
   TestRunner.addResult('\nDumping export strings');
   var consoleView = Console.ConsoleView.instance();
-  consoleView.visibleViewMessages.forEach(message => TestRunner.addResult(message.toExportString()));
+  consoleView._visibleViewMessages.forEach(message => TestRunner.addResult(message.toExportString()));
   TestRunner.completeTest();
 })();

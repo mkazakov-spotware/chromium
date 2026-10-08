@@ -1,4 +1,4 @@
-// META: script=resources/support-promises.js
+// META: script=support-promises.js
 
 promise_test(async testCase => {
   const db = await createDatabase(testCase, db => {

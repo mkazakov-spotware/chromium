@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,24 +22,20 @@
 
 #import <Foundation/Foundation.h>
 
-#import <stdio.h>
-#import <map>
-#import <set>
-#import <string>
-#import <utility>
-#import <vector>
+#include <stdio.h>
+#include <map>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
 
-#import "base/files/file_path.h"
-#import "base/files/file_util.h"
-#import "base/strings/string_piece.h"
-#import "base/strings/sys_string_conversions.h"
-#import "ios/chrome/tools/strings/grit_header_parsing.h"
-#import "ui/base/resource/data_pack.h"
-#import "ui/base/resource/resource_handle.h"
-
-#if !defined(__has_feature) || !__has_feature(objc_arc)
-#error "This file requires ARC support."
-#endif
+#include "base/files/file_path.h"
+#include "base/files/file_util.h"
+#include "base/mac/scoped_nsautorelease_pool.h"
+#include "base/strings/string_piece.h"
+#include "base/strings/sys_string_conversions.h"
+#include "ui/base/resource/data_pack.h"
+#include "ui/base/resource/resource_handle.h"
 
 namespace {
 
@@ -63,7 +59,7 @@ std::unique_ptr<ui::DataPack> LoadResourceDataPack(
   if (!base::PathExists(resources_pak_path))
     return resource_data_pack;
 
-  resource_data_pack.reset(new ui::DataPack(ui::k100Percent));
+  resource_data_pack.reset(new ui::DataPack(ui::SCALE_FACTOR_100P));
   if (!resource_data_pack->LoadFromPath(resources_pak_path))
     resource_data_pack.reset();
 
@@ -80,13 +76,14 @@ NSString* GetStringFromDataPack(const ui::DataPack& data_pack,
 
   // Data pack encodes strings as either UTF8 or UTF16.
   if (data_pack.GetTextEncodingType() == ui::DataPack::UTF8) {
-    return [[NSString alloc] initWithBytes:data.data()
-                                    length:data.length()
-                                  encoding:NSUTF8StringEncoding];
+    return [[[NSString alloc] initWithBytes:data.data()
+                                     length:data.length()
+                                   encoding:NSUTF8StringEncoding] autorelease];
   } else if (data_pack.GetTextEncodingType() == ui::DataPack::UTF16) {
-    return [[NSString alloc] initWithBytes:data.data()
-                                    length:data.length()
-                                  encoding:NSUTF16LittleEndianStringEncoding];
+    return [[[NSString alloc] initWithBytes:data.data()
+                                     length:data.length()
+                                   encoding:NSUTF16LittleEndianStringEncoding]
+        autorelease];
   }
   return nil;
 }
@@ -141,26 +138,57 @@ NSDictionary* LoadResourcesListFromHeaders(NSArray* header_list,
     fprintf(stderr, "ERROR: No header file in the config.\n");
     return nil;
   }
-
-  std::vector<base::FilePath> headers;
-  for (NSString* header in header_list) {
-    headers.push_back(base::FilePath(base::SysNSStringToUTF8(
-        [root_header_dir stringByAppendingPathComponent:header])));
+  NSMutableDictionary* resources_ids =
+      [[[NSMutableDictionary alloc] init] autorelease];
+  for (NSString* header : header_list) {
+    NSString* header_file =
+        [root_header_dir stringByAppendingPathComponent:header];
+    if (![[NSFileManager defaultManager] isReadableFileAtPath:header_file]) {
+      fprintf(stderr, "ERROR: header file %s not readable.\n",
+              base::SysNSStringToUTF8(header_file).c_str());
+      return nil;
+    }
+    NSString* header_content =
+        [NSString stringWithContentsOfFile:header_file
+                                  encoding:NSASCIIStringEncoding
+                                     error:nil];
+    if (!header_content) {
+      fprintf(stderr, "ERROR: header file %s contains non-ASCII chars.\n",
+              base::SysNSStringToUTF8(header_file).c_str());
+      return nil;
+    }
+    NSCharacterSet* separator = [NSCharacterSet newlineCharacterSet];
+    NSArray* defines =
+        [header_content componentsSeparatedByCharactersInSet:separator];
+    for (NSString* define : defines) {
+      if (![define hasPrefix:@"#define "]) {
+        continue;
+      }
+      NSArray* define_string_id = [define componentsSeparatedByString:@" "];
+      if ([define_string_id count] != 3) {
+        fprintf(stderr, "ERROR: header %s contains invalid entry: %s.\n",
+                base::SysNSStringToUTF8(header_file).c_str(),
+                base::SysNSStringToUTF8(define).c_str());
+        return nil;
+      }
+      NSString* string_name = [define_string_id objectAtIndex:1];
+      NSInteger string_id = [[define_string_id objectAtIndex:2] integerValue];
+      if (!string_id) {
+        fprintf(stderr, "ERROR: header %s contains invalid entry: %s.\n",
+                base::SysNSStringToUTF8(header_file).c_str(),
+                base::SysNSStringToUTF8(define).c_str());
+        return nil;
+      }
+      if ([resources_ids valueForKey:string_name]) {
+        fprintf(stderr, "ERROR: duplicate entry for key %s.\n",
+                base::SysNSStringToUTF8(string_name).c_str());
+        return nil;
+      }
+      [resources_ids setValue:[NSNumber numberWithInteger:string_id]
+                       forKey:string_name];
+    }
   }
-
-  absl::optional<ResourceMap> resource_map =
-      LoadResourcesFromGritHeaders(headers);
-  if (!resource_map) {
-    return nil;
-  }
-
-  NSMutableDictionary* resource_ids = [[NSMutableDictionary alloc] init];
-  for (const auto& pair : *resource_map) {
-    resource_ids[base::SysUTF8ToNSString(pair.first)] =
-        [NSNumber numberWithInt:pair.second];
-  }
-
-  return [resource_ids copy];
+  return resources_ids;
 }
 
 // Save |dictionary| as a Property List file (in binary1 encoding)
@@ -210,7 +238,11 @@ bool SavePropertyList(NSDictionary* dictionary,
   return true;
 }
 
-int real_main(int argc, char* const argv[]) {
+}  // namespace
+
+int main(int argc, char* const argv[]) {
+  base::mac::ScopedNSAutoreleasePool autorelease_pool;
+
   NSString* output_dir = nil;
   NSString* data_pack_dir = nil;
   NSString* root_header_dir = nil;
@@ -241,9 +273,11 @@ int real_main(int argc, char* const argv[]) {
                 "for all specified locales in output_dir from packed data\n"
                 "packs in data_pack_dir.\n");
         exit(0);
+        break;
       default:
         fprintf(stderr, "ERROR: bad command line arg: %c.n\n", ch);
         exit(1);
+        break;
     }
   }
 
@@ -291,8 +325,8 @@ int real_main(int argc, char* const argv[]) {
     if ([locale isEqualToString:@"en-US"]) {
       locale = @"en";
     } else {
-      locale = [locale stringByReplacingOccurrencesOfString:@"-"
-                                                 withString:@"_"];
+      locale =
+          [locale stringByReplacingOccurrencesOfString:@"-" withString:@"_"];
     }
     [locales addObject:locale];
   }
@@ -339,12 +373,4 @@ int real_main(int argc, char* const argv[]) {
     }
   }
   return 0;
-}
-
-}  // namespace
-
-int main(int argc, char* const argv[]) {
-  @autoreleasepool {
-    return real_main(argc, argv);
-  }
 }

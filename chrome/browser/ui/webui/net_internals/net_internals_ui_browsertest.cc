@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,13 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_file.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/string_split.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/current_thread.h"
+#include "base/task/post_task.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/values.h"
 #include "chrome/browser/browser_process.h"
@@ -40,13 +42,11 @@
 #include "net/base/address_list.h"
 #include "net/base/net_errors.h"
 #include "net/base/network_isolation_key.h"
+#include "net/dns/host_resolver_source.h"
 #include "net/dns/mock_host_resolver.h"
-#include "net/dns/public/host_resolver_source.h"
 #include "net/dns/public/resolve_error_info.h"
-#include "net/http/transport_security_state.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/embedded_test_server/request_handler_util.h"
-#include "services/network/test/test_network_context.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 
@@ -76,20 +76,18 @@ class DnsLookupClient : public network::mojom::ResolveHostClient {
       mojo::PendingReceiver<network::mojom::ResolveHostClient> receiver,
       Callback callback)
       : receiver_(this, std::move(receiver)), callback_(std::move(callback)) {
-    receiver_.set_disconnect_handler(base::BindOnce(
-        &DnsLookupClient::OnComplete, base::Unretained(this),
-        net::ERR_NAME_NOT_RESOLVED, net::ResolveErrorInfo(net::ERR_FAILED),
-        /*resolved_addresses=*/absl::nullopt,
-        /*endpoint_results_with_metadata=*/absl::nullopt));
+    receiver_.set_disconnect_handler(
+        base::BindOnce(&DnsLookupClient::OnComplete, base::Unretained(this),
+                       net::ERR_NAME_NOT_RESOLVED,
+                       net::ResolveErrorInfo(net::ERR_FAILED), base::nullopt));
   }
   ~DnsLookupClient() override {}
 
   // network::mojom::ResolveHostClient:
-  void OnComplete(int32_t error,
-                  const net::ResolveErrorInfo& resolve_error_info,
-                  const absl::optional<net::AddressList>& resolved_addresses,
-                  const absl::optional<net::HostResolverEndpointResults>&
-                      endpoint_results_with_metadata) override {
+  void OnComplete(
+      int32_t error,
+      const net::ResolveErrorInfo& resolve_error_info,
+      const base::Optional<net::AddressList>& resolved_addresses) override {
     std::string result;
     if (error == net::OK) {
       CHECK(resolved_addresses->size() == 1);
@@ -110,76 +108,6 @@ class DnsLookupClient : public network::mojom::ResolveHostClient {
   Callback callback_;
 };
 
-class NetworkContextForTesting : public network::TestNetworkContext {
-  // This is a mock network context for testing.
-  // Only "*.com" is registered to this resolver. And especially for
-  // http2/http3/multihost.com, results include endpoint_results_with_metadata
-  // as well as resolved_addresses.
-  void ResolveHost(
-      network::mojom::HostResolverHostPtr host,
-      const net::NetworkAnonymizationKey& network_anonymization_key,
-      network::mojom::ResolveHostParametersPtr optional_parameters,
-      mojo::PendingRemote<network::mojom::ResolveHostClient>
-          pending_response_client) override {
-    mojo::Remote<network::mojom::ResolveHostClient> response_client(
-        std::move(pending_response_client));
-
-    auto hostname = host->get_scheme_host_port().host();
-
-    if (!base::EndsWith(hostname, ".com", base::CompareCase::SENSITIVE)) {
-      response_client->OnComplete(
-          net::ERR_NAME_NOT_RESOLVED,
-          net::ResolveErrorInfo(net::ERR_NAME_NOT_RESOLVED),
-          /*resolved_addresses=*/absl::nullopt,
-          /*endpoint_results_with_metadata=*/absl::nullopt);
-    }
-
-    const net::IPAddress first_localhost{127, 0, 0, 1};
-    const net::IPAddress second_localhost{127, 0, 0, 2};
-    const net::IPEndPoint first_ip_endpoint =
-        net::IPEndPoint(first_localhost, 0);
-    const net::IPEndPoint second_ip_endpoint =
-        net::IPEndPoint(second_localhost, 0);
-    net::ConnectionEndpointMetadata first_endpoint_metadata;
-    net::ConnectionEndpointMetadata second_endpoint_metadata;
-
-    if (hostname == "http2.com") {
-      first_endpoint_metadata.supported_protocol_alpns = {"http/1.1", "h2"};
-    } else if (hostname == "http3.com") {
-      first_endpoint_metadata.supported_protocol_alpns = {"http/1.1", "h2",
-                                                          "h3"};
-    } else if (hostname == "multihost.com") {
-      first_endpoint_metadata.supported_protocol_alpns = {"http/1.1", "h2"};
-      second_endpoint_metadata.supported_protocol_alpns = {"http/1.1", "h2",
-                                                           "h3"};
-    } else {
-      response_client->OnComplete(
-          0, net::ResolveErrorInfo(net::OK),
-          net::AddressList(first_ip_endpoint),
-          /*endpoint_results_with_metadata=*/absl::nullopt);
-    }
-
-    if (hostname == "multihost.com") {
-      net::HostResolverEndpointResults endpoint_results(2);
-      endpoint_results[0].ip_endpoints = {first_ip_endpoint};
-      endpoint_results[0].metadata = first_endpoint_metadata;
-      endpoint_results[1].ip_endpoints = {second_ip_endpoint};
-      endpoint_results[1].metadata = second_endpoint_metadata;
-      response_client->OnComplete(
-          0, net::ResolveErrorInfo(net::OK),
-          net::AddressList({first_ip_endpoint, second_ip_endpoint}),
-          endpoint_results);
-    } else {
-      net::HostResolverEndpointResults endpoint_results(1);
-      endpoint_results[0].ip_endpoints = {first_ip_endpoint};
-      endpoint_results[0].metadata = first_endpoint_metadata;
-      response_client->OnComplete(0, net::ResolveErrorInfo(net::OK),
-                                  net::AddressList(first_ip_endpoint),
-                                  endpoint_results);
-    }
-  }
-};
-
 }  // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -191,9 +119,6 @@ class NetInternalsTest::MessageHandler : public content::WebUIMessageHandler {
  public:
   explicit MessageHandler(NetInternalsTest* net_internals_test);
 
-  MessageHandler(const MessageHandler&) = delete;
-  MessageHandler& operator=(const MessageHandler&) = delete;
-
  private:
   void RegisterMessages() override;
 
@@ -201,39 +126,35 @@ class NetInternalsTest::MessageHandler : public content::WebUIMessageHandler {
                        const content::WebUI::MessageCallback& handler);
 
   void HandleMessage(const content::WebUI::MessageCallback& handler,
-                     const base::Value::List& data);
+                     const base::ListValue* data);
 
   // Runs NetInternalsTest.callback with the given value.
   void RunJavascriptCallback(base::Value* value);
 
   // Takes a string and provides the corresponding URL from the test server,
   // which must already have been started.
-  void GetTestServerURL(const base::Value::List& list);
+  void GetTestServerURL(const base::ListValue* list_value);
 
   // Sets up the test server to receive test Expect-CT reports. Calls the
   // Javascript callback to return the test server URI.
-  void SetUpTestReportURI(const base::Value::List& list);
+  void SetUpTestReportURI(const base::ListValue* list_value);
 
   // Performs a DNS lookup. Calls the Javascript callback with the host's IP
   // address or an error string.
-  void DnsLookup(const base::Value::List& list);
-
-  // Sets/resets a mock network context for testing.
-  void SetNetworkContextForTesting(const base::Value::List& list);
-  void ResetNetworkContextForTesting(const base::Value::List& list);
+  void DnsLookup(const base::ListValue* list_value);
 
   Browser* browser() { return net_internals_test_->browser(); }
 
-  raw_ptr<NetInternalsTest> net_internals_test_;
+  NetInternalsTest* net_internals_test_;
 
-  NetworkContextForTesting network_context_for_testing_;
-
-  // Single NetworkAnonymizationKey used for all DNS lookups, so repeated
-  // lookups use the same cache key.
-  net::NetworkAnonymizationKey network_anonymization_key_{
-      net::NetworkAnonymizationKey::CreateTransient()};
+  // Single NetworkIsolationKey used for all DNS lookups, so repeated lookups
+  // use the same cache key.
+  net::NetworkIsolationKey network_isolation_key_{
+      net::NetworkIsolationKey::CreateTransient()};
 
   base::WeakPtrFactory<MessageHandler> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MessageHandler);
 };
 
 NetInternalsTest::MessageHandler::MessageHandler(
@@ -252,16 +173,6 @@ void NetInternalsTest::MessageHandler::RegisterMessages() {
   RegisterMessage("dnsLookup", base::BindRepeating(
                                    &NetInternalsTest::MessageHandler::DnsLookup,
                                    weak_factory_.GetWeakPtr()));
-  RegisterMessage(
-      "setNetworkContextForTesting",
-      base::BindRepeating(
-          &NetInternalsTest::MessageHandler::SetNetworkContextForTesting,
-          weak_factory_.GetWeakPtr()));
-  RegisterMessage(
-      "resetNetworkContextForTesting",
-      base::BindRepeating(
-          &NetInternalsTest::MessageHandler::ResetNetworkContextForTesting,
-          weak_factory_.GetWeakPtr()));
 }
 
 void NetInternalsTest::MessageHandler::RegisterMessage(
@@ -275,7 +186,9 @@ void NetInternalsTest::MessageHandler::RegisterMessage(
 
 void NetInternalsTest::MessageHandler::HandleMessage(
     const content::WebUI::MessageCallback& handler,
-    const base::Value::List& data) {
+    const base::ListValue* data) {
+  // The handler might run a nested loop to wait for something.
+  base::CurrentThread::ScopedNestableTaskAllower nestable_task_allower;
   handler.Run(data);
 }
 
@@ -285,18 +198,19 @@ void NetInternalsTest::MessageHandler::RunJavascriptCallback(
 }
 
 void NetInternalsTest::MessageHandler::GetTestServerURL(
-    const base::Value::List& list) {
+    const base::ListValue* list_value) {
   ASSERT_TRUE(net_internals_test_->StartTestServer());
-  const std::string& path = list[0].GetString();
+  std::string path;
+  ASSERT_TRUE(list_value->GetString(0, &path));
   GURL url = net_internals_test_->embedded_test_server()->GetURL(path);
-  base::Value url_value(url.spec());
-  RunJavascriptCallback(&url_value);
+  std::unique_ptr<base::Value> url_value(new base::Value(url.spec()));
+  RunJavascriptCallback(url_value.get());
 }
 
 void NetInternalsTest::MessageHandler::SetUpTestReportURI(
-    const base::Value::List& list) {
+    const base::ListValue* list_value) {
   net_internals_test_->embedded_test_server()->RegisterRequestHandler(
-      base::BindRepeating(&HandleExpectCTReportPreflight));
+      base::Bind(&HandleExpectCTReportPreflight));
   ASSERT_TRUE(net_internals_test_->embedded_test_server()->Start());
   base::Value report_uri_value(
       net_internals_test_->embedded_test_server()->GetURL("/").spec());
@@ -304,12 +218,11 @@ void NetInternalsTest::MessageHandler::SetUpTestReportURI(
 }
 
 void NetInternalsTest::MessageHandler::DnsLookup(
-    const base::Value::List& list) {
-  ASSERT_GE(2u, list.size());
-  ASSERT_TRUE(list[0].is_string());
-  ASSERT_TRUE(list[1].is_bool());
-  const std::string hostname = list[0].GetString();
-  const bool local = list[1].GetBool();
+    const base::ListValue* list_value) {
+  std::string hostname;
+  bool local;
+  ASSERT_TRUE(list_value->GetString(0, &hostname));
+  ASSERT_TRUE(list_value->GetBoolean(1, &local));
   ASSERT_TRUE(browser());
 
   auto resolve_host_parameters = network::mojom::ResolveHostParameters::New();
@@ -320,24 +233,10 @@ void NetInternalsTest::MessageHandler::DnsLookup(
   new DnsLookupClient(client.InitWithNewPipeAndPassReceiver(),
                       base::BindOnce(&MessageHandler::RunJavascriptCallback,
                                      weak_factory_.GetWeakPtr()));
-  browser()
-      ->profile()
-      ->GetDefaultStoragePartition()
+  content::BrowserContext::GetDefaultStoragePartition(browser()->profile())
       ->GetNetworkContext()
-      ->ResolveHost(network::mojom::HostResolverHost::NewHostPortPair(
-                        net::HostPortPair(hostname, 80)),
-                    network_anonymization_key_,
+      ->ResolveHost(net::HostPortPair(hostname, 80), network_isolation_key_,
                     std::move(resolve_host_parameters), std::move(client));
-}
-
-void NetInternalsTest::MessageHandler::SetNetworkContextForTesting(
-    const base::Value::List& list) {
-  NetInternalsUI::SetNetworkContextForTesting(&network_context_for_testing_);
-}
-
-void NetInternalsTest::MessageHandler::ResetNetworkContextForTesting(
-    const base::Value::List& list) {
-  NetInternalsUI::SetNetworkContextForTesting(nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -347,7 +246,6 @@ void NetInternalsTest::MessageHandler::ResetNetworkContextForTesting(
 NetInternalsTest::NetInternalsTest()
     : test_server_started_(false) {
   message_handler_ = std::make_unique<MessageHandler>(this);
-  scoped_feature_list_.InitAndEnableFeature(net::kDynamicExpectCTFeature);
 }
 
 NetInternalsTest::~NetInternalsTest() {
@@ -355,7 +253,7 @@ NetInternalsTest::~NetInternalsTest() {
 
 void NetInternalsTest::SetUpOnMainThread() {
   WebUIBrowserTest::SetUpOnMainThread();
-  host_resolver()->AddRule("*.com", "127.0.0.1");
+  host_resolver()->AddRule("*", "127.0.0.1");
 }
 
 content::WebUIMessageHandler* NetInternalsTest::GetMockMessageHandler() {

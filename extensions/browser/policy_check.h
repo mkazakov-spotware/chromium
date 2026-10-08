@@ -1,13 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_BROWSER_POLICY_CHECK_H_
 #define EXTENSIONS_BROWSER_POLICY_CHECK_H_
 
-#include <string>
-
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "extensions/browser/preload_check.h"
 
 namespace content {
@@ -24,19 +23,17 @@ class PolicyCheck : public PreloadCheck {
  public:
   PolicyCheck(content::BrowserContext* context,
               scoped_refptr<const Extension> extension);
-
-  PolicyCheck(const PolicyCheck&) = delete;
-  PolicyCheck& operator=(const PolicyCheck&) = delete;
-
   ~PolicyCheck() override;
 
   // PreloadCheck:
   void Start(ResultCallback callback) override;
-  std::u16string GetErrorMessage() const override;
+  base::string16 GetErrorMessage() const override;
 
  private:
-  raw_ptr<content::BrowserContext> context_;
-  std::u16string error_;
+  content::BrowserContext* context_;
+  base::string16 error_;
+
+  DISALLOW_COPY_AND_ASSIGN(PolicyCheck);
 };
 
 }  // namespace extensions

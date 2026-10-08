@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,10 @@
 #include "mojo/public/cpp/bindings/array_data_view.h"
 #include "mojo/public/cpp/bindings/lib/bindings_internal.h"
 #include "mojo/public/cpp/bindings/lib/map_data_internal.h"
+#include "mojo/public/cpp/bindings/lib/serialization_context.h"
 #include "mojo/public/cpp/bindings/lib/serialization_forward.h"
 
 namespace mojo {
-
-class Message;
 
 template <typename K, typename V>
 class MapDataView {
@@ -22,9 +21,9 @@ class MapDataView {
 
   MapDataView() {}
 
-  MapDataView(Data_* data, Message* message)
-      : keys_(data ? data->keys.Get() : nullptr, message),
-        values_(data ? data->values.Get() : nullptr, message) {}
+  MapDataView(Data_* data, internal::SerializationContext* context)
+      : keys_(data ? data->keys.Get() : nullptr, context),
+        values_(data ? data->values.Get() : nullptr, context) {}
 
   bool is_null() const {
     DCHECK_EQ(keys_.is_null(), values_.is_null());
@@ -42,7 +41,7 @@ class MapDataView {
   template <typename U>
   bool ReadKeys(U* output) {
     return internal::Deserialize<ArrayDataView<K>>(keys_.data_, output,
-                                                   keys_.message_);
+                                                   keys_.context_);
   }
 
   ArrayDataView<V>& values() { return values_; }
@@ -51,7 +50,7 @@ class MapDataView {
   template <typename U>
   bool ReadValues(U* output) {
     return internal::Deserialize<ArrayDataView<V>>(values_.data_, output,
-                                                   values_.message_);
+                                                   values_.context_);
   }
 
  private:

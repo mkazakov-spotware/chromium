@@ -36,18 +36,18 @@ AppendNodeCommand::AppendNodeCommand(ContainerNode* parent, Node* node)
   DCHECK(node_);
   DCHECK(!node_->parentNode()) << node_;
 
-  DCHECK(IsEditable(*parent_) || !parent_->InActiveDocument()) << parent_;
+  DCHECK(HasEditableStyle(*parent_) || !parent_->InActiveDocument()) << parent_;
 }
 
 void AppendNodeCommand::DoApply(EditingState*) {
-  if (!IsEditable(*parent_) && parent_->InActiveDocument())
+  if (!HasEditableStyle(*parent_) && parent_->InActiveDocument())
     return;
 
   parent_->AppendChild(node_.Get(), IGNORE_EXCEPTION_FOR_TESTING);
 }
 
 void AppendNodeCommand::DoUnapply() {
-  if (!IsEditable(*parent_))
+  if (!HasEditableStyle(*parent_))
     return;
 
   node_->remove(IGNORE_EXCEPTION_FOR_TESTING);

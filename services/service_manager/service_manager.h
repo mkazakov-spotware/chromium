@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,11 @@
 
 #include "base/containers/unique_ptr_adapters.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "base/process/process.h"
 #include "base/token.h"
+#include "mojo/public/cpp/bindings/interface_ptr_set.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote_set.h"
@@ -108,10 +110,13 @@ class ServiceManager : public Service {
   ServiceManager(const std::vector<Manifest>& manifests,
                  ServiceExecutablePolicy service_executable_policy);
 
-  ServiceManager(const ServiceManager&) = delete;
-  ServiceManager& operator=(const ServiceManager&) = delete;
-
   ~ServiceManager() override;
+
+  // Provide a callback to be notified whenever an instance is destroyed.
+  // Typically the creator of the Service Manager will use this to determine
+  // when some set of services it created are destroyed, so it can shut down.
+  void SetInstanceQuitCallback(
+      base::OnceCallback<void(const Identity&)> callback);
 
   // Directly requests that the Service Manager start a new instance for
   // |service_name| if one is not already running.
@@ -204,9 +209,12 @@ class ServiceManager : public Service {
 
   // Always points to the ServiceManager's own Instance. Note that this
   // ServiceInstance still has an entry in |instances_|.
-  raw_ptr<ServiceInstance> service_manager_instance_;
+  ServiceInstance* service_manager_instance_;
 
   mojo::RemoteSet<mojom::ServiceManagerListener> listeners_;
+  base::OnceCallback<void(const Identity&)> instance_quit_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(ServiceManager);
 };
 
 }  // namespace service_manager

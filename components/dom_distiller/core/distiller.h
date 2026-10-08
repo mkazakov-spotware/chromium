@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ref.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "components/dom_distiller/core/article_distillation_update.h"
@@ -157,8 +156,7 @@ class DistillerImpl : public Distiller {
   // state.
   const ArticleDistillationUpdate CreateDistillationUpdate() const;
 
-  const raw_ref<const DistillerURLFetcherFactory>
-      distiller_url_fetcher_factory_;
+  const DistillerURLFetcherFactory& distiller_url_fetcher_factory_;
   std::unique_ptr<DistillerPage> distiller_page_;
 
   dom_distiller::proto::DomDistillerOptions dom_distiller_options_;

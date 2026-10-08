@@ -1,8 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import {addWebUIListener} from 'chrome://resources/js/cr.m.js';
+import {$} from 'chrome://resources/js/util.m.js';
 
 import {QueryTilesInternalsBrowserProxy, QueryTilesInternalsBrowserProxyImpl, ServiceStatus, TileData} from './query_tiles_internals_browser_proxy.js';
 
@@ -11,18 +12,16 @@ import {QueryTilesInternalsBrowserProxy, QueryTilesInternalsBrowserProxyImpl, Se
  *     service.
  */
 function onServiceStatusChanged(serviceStatus) {
-  document.body.querySelector('#group-status').textContent =
-      serviceStatus.groupStatus;
-  document.body.querySelector('#fetcher-status').textContent =
-      serviceStatus.fetcherStatus;
+  $('group-status').textContent = serviceStatus.groupStatus;
+  $('fetcher-status').textContent = serviceStatus.fetcherStatus;
 }
 
 /**
  * @param {!TileData} tileData The raw data persisted in database.
  */
 function onTileDataAvailable(tileData) {
-  document.body.querySelector('#group-info').textContent = tileData.groupInfo;
-  document.body.querySelector('#tile-proto').textContent = tileData.tilesProto;
+  $('group-info').textContent = tileData.groupInfo;
+  $('tile-proto').textContent = tileData.tilesProto;
 }
 
 function initialize() {
@@ -34,26 +33,25 @@ function initialize() {
 
   addWebUIListener('tile-data-available', onTileDataAvailable);
 
-  document.body.querySelector('#start-fetch').onclick = function() {
+  $('start-fetch').onclick = function() {
     browserProxy.startFetch();
   };
 
-  document.body.querySelector('#purge-db').onclick = function() {
+  $('purge-db').onclick = function() {
     browserProxy.purgeDb();
   };
 
-  document.body.querySelector('#prototype-server').onclick = function() {
-    document.body.querySelector('#base-url').value =
+  $('prototype-server').onclick = function() {
+    $('base-url').value =
         'https://staging-gsaprototype-pa.sandbox.googleapis.com';
   };
 
-  document.body.querySelector('#prod-server').onclick = function() {
-    document.body.querySelector('#base-url').value =
-        'https://chromeupboarding-pa.googleapis.com';
+  $('prod-server').onclick = function() {
+    $('base-url').value = 'https://chromeupboarding-pa.googleapis.com';
   };
 
-  document.body.querySelector('#set-url').onclick = function() {
-    browserProxy.setServerUrl(document.body.querySelector('#base-url').value);
+  $('set-url').onclick = function() {
+    browserProxy.setServerUrl($('base-url').value);
   };
   // Kick off requests for the current system state.
   browserProxy.getServiceStatus().then(onServiceStatusChanged);

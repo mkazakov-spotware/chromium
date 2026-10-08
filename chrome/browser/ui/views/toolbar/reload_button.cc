@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,27 +6,37 @@
 
 #include <stddef.h>
 
+#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/command_updater.h"
-#include "chrome/browser/external_protocol/external_protocol_handler.h"
 #include "chrome/browser/themes/theme_properties.h"
 #include "chrome/browser/ui/view_ids.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/simple_menu_model.h"
 #include "ui/base/pointer/touch_ui_controller.h"
 #include "ui/base/theme_provider.h"
 #include "ui/base/window_open_disposition.h"
-#include "ui/base/window_open_disposition_utils.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/metadata/metadata_impl_macros.h"
 #include "ui/views/metrics.h"
 #include "ui/views/widget/widget.h"
+
+namespace {
+
+const gfx::VectorIcon& GetIconForMode(bool is_reload) {
+  if (ui::TouchUiController::Get()->touch_ui())
+    return is_reload ? kReloadTouchIcon : kNavigateStopTouchIcon;
+
+  return is_reload ? vector_icons::kReloadIcon : kNavigateStopIcon;
+}
+
+}  // namespace
 
 // ReloadButton ---------------------------------------------------------------
 
@@ -37,9 +47,8 @@ ReloadButton::ReloadButton(CommandUpdater* command_updater)
                     nullptr),
       command_updater_(command_updater),
       double_click_timer_delay_(
-          base::Milliseconds(views::GetDoubleClickInterval())),
-      mode_switch_timer_delay_(base::Milliseconds(1350)) {
-  SetVisibleMode(Mode::kReload);
+          base::TimeDelta::FromMilliseconds(views::GetDoubleClickInterval())),
+      mode_switch_timer_delay_(base::TimeDelta::FromMilliseconds(1350)) {
   SetTriggerableEventFlags(ui::EF_LEFT_MOUSE_BUTTON |
                            ui::EF_MIDDLE_MOUSE_BUTTON);
   SetAccessibleName(l10n_util::GetStringUTF16(IDS_ACCNAME_RELOAD));
@@ -59,7 +68,8 @@ void ReloadButton::ChangeMode(Mode mode, bool force) {
                              : (visible_mode_ != Mode::kStop))) {
     double_click_timer_.Stop();
     mode_switch_timer_.Stop();
-    SetVisibleMode(mode);
+    visible_mode_ = mode;
+    UpdateIcon();
     SetEnabled(true);
 
     // We want to disable the button if we're preventing a change from stop to
@@ -87,13 +97,27 @@ void ReloadButton::SetMenuEnabled(bool enable) {
   menu_enabled_ = enable;
 }
 
+void ReloadButton::OnThemeChanged() {
+  ToolbarButton::OnThemeChanged();
+  UpdateIcon();
+}
+
+void ReloadButton::UpdateIcon() {
+  // There's no reason to make graphical changes when we're not yet in a
+  // Widget.  This function will be called again after widget addition.
+  if (!GetWidget())
+    return;
+
+  UpdateIconsWithStandardColors(GetIconForMode(visible_mode_ == Mode::kReload));
+}
+
 void ReloadButton::OnMouseExited(const ui::MouseEvent& event) {
   ToolbarButton::OnMouseExited(event);
   if (!IsMenuShowing())
     ChangeMode(intended_mode_, true);
 }
 
-std::u16string ReloadButton::GetTooltipText(const gfx::Point& p) const {
+base::string16 ReloadButton::GetTooltipText(const gfx::Point& p) const {
   int reload_tooltip = menu_enabled_ ?
       IDS_TOOLTIP_RELOAD_WITH_MENU : IDS_TOOLTIP_RELOAD;
   return l10n_util::GetStringUTF16(
@@ -149,28 +173,7 @@ std::unique_ptr<ui::SimpleMenuModel> ReloadButton::CreateMenuModel() {
   return menu_model;
 }
 
-void ReloadButton::SetVisibleMode(Mode mode) {
-  visible_mode_ = mode;
-  switch (mode) {
-    case Mode::kReload:
-      SetVectorIcons(vector_icons::kReloadIcon, kReloadTouchIcon);
-      break;
-    case Mode::kStop:
-      SetVectorIcons(kNavigateStopIcon, kNavigateStopTouchIcon);
-      break;
-  }
-}
-
 void ReloadButton::ButtonPressed(const ui::Event& event) {
-  // This is called in order to signal that external protocol dialogs are
-  // allowed to show due to a user action, which are likely to happen on the
-  // next page load after the reload button is clicked.
-  // Ideally, the browser UI's event system would notify ExternalProtocolHandler
-  // that a user action occurred and we are OK to open the dialog, but for some
-  // reason that isn't happening every time the reload button is clicked. See
-  // http://crbug.com/1206456
-  ExternalProtocolHandler::PermitLaunchUrl();
-
   ClearPendingMenu();
 
   if (visible_mode_ == Mode::kStop) {

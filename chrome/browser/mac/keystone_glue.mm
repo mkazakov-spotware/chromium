@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,6 +22,7 @@
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/sys_string_conversions.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/version.h"
 #include "build/branding_buildflags.h"
@@ -318,13 +319,11 @@ NSString* const kVersionKey = @"KSVersion";
     return;
   }
 
-  std::string channel =
-      chrome::GetChannelName(chrome::WithExtendedStable(true));
-  // The regular stable channel has no tag.  If updating to it, remove the dev,
-  // beta, and extended tags since we've been "promoted".
+  std::string channel = chrome::GetChannelName();
+  // The stable channel has no tag.  If updating to stable, remove the
+  // dev and beta tags since we've been "promoted".
   version_info::Channel channelType = chrome::GetChannelByName(channel);
-  if (channelType == version_info::Channel::STABLE &&
-      !chrome::IsExtendedStableChannel()) {
+  if (channelType == version_info::Channel::STABLE) {
     channel = base::SysNSStringToUTF8(ksr::KSRegistrationRemoveExistingTag);
     DCHECK(chrome::GetChannelByName(channel) == version_info::Channel::STABLE)
         << "-channel name modification has side effect";
@@ -1195,7 +1194,7 @@ bool KeystoneEnabled() {
   return [KeystoneGlue defaultKeystoneGlue] != nil;
 }
 
-std::u16string CurrentlyInstalledVersion() {
+base::string16 CurrentlyInstalledVersion() {
   KeystoneGlue* keystoneGlue = [KeystoneGlue defaultKeystoneGlue];
   NSString* version = [keystoneGlue currentlyInstalledVersion];
   return base::SysNSStringToUTF16(version);

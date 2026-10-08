@@ -16,6 +16,7 @@
 
 # ABSL random-number generation libraries.
 
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load(
     "//absl:copts/configure_copts.bzl",
     "ABSL_DEFAULT_COPTS",
@@ -68,7 +69,6 @@ cc_library(
         "//absl/base:config",
         "//absl/base:core_headers",
         "//absl/meta:type_traits",
-        "//absl/numeric:bits",
         "//absl/random/internal:distribution_caller",
         "//absl/random/internal:fast_uniform_bits",
         "//absl/random/internal:fastmath",
@@ -100,7 +100,8 @@ cc_library(
     linkopts = ABSL_DEFAULT_LINKOPTS,
     deps = [
         ":seed_gen_exception",
-        "//absl/base:config",
+        "//absl/container:inlined_vector",
+        "//absl/random/internal:nonsecure_base",
         "//absl/random/internal:pool_urbg",
         "//absl/random/internal:salted_seed_seq",
         "//absl/random/internal:seed_material",
@@ -127,7 +128,6 @@ cc_library(
     name = "mock_distributions",
     testonly = 1,
     hdrs = ["mock_distributions.h"],
-    linkopts = ABSL_DEFAULT_LINKOPTS,
     deps = [
         ":distributions",
         ":mocking_bit_gen",
@@ -183,14 +183,10 @@ cc_test(
     copts = ABSL_TEST_COPTS,
     flaky = 1,
     linkopts = ABSL_DEFAULT_LINKOPTS,
-    tags = [
-        "no_test_wasm",
-    ],
     deps = [
         ":distributions",
         ":random",
         "//absl/base:raw_logging_internal",
-        "//absl/numeric:representation",
         "//absl/random/internal:distribution_test_util",
         "//absl/random/internal:pcg_engine",
         "//absl/random/internal:sequence_urbg",
@@ -238,9 +234,6 @@ cc_test(
     ],
     copts = ABSL_TEST_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
-    tags = [
-        "no_test_wasm",  # Does not converge on WASM.
-    ],
     deps = [
         ":distributions",
         ":random",
@@ -306,7 +299,6 @@ cc_test(
 cc_test(
     name = "exponential_distribution_test",
     size = "small",
-    timeout = "moderate",
     srcs = ["exponential_distribution_test.cc"],
     copts = ABSL_TEST_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
@@ -315,7 +307,6 @@ cc_test(
         ":random",
         "//absl/base:core_headers",
         "//absl/base:raw_logging_internal",
-        "//absl/numeric:representation",
         "//absl/random/internal:distribution_test_util",
         "//absl/random/internal:pcg_engine",
         "//absl/random/internal:sequence_urbg",
@@ -339,7 +330,6 @@ cc_test(
         ":random",
         "//absl/base:core_headers",
         "//absl/base:raw_logging_internal",
-        "//absl/numeric:representation",
         "//absl/random/internal:distribution_test_util",
         "//absl/random/internal:sequence_urbg",
         "//absl/strings",
@@ -386,7 +376,6 @@ cc_test(
         ":distributions",
         ":random",
         "//absl/base:raw_logging_internal",
-        "//absl/numeric:representation",
         "//absl/random/internal:distribution_test_util",
         "//absl/random/internal:pcg_engine",
         "//absl/random/internal:sequence_urbg",
@@ -436,9 +425,6 @@ cc_test(
     srcs = ["mocking_bit_gen_test.cc"],
     copts = ABSL_TEST_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
-    tags = [
-        "no_test_wasm",
-    ],
     deps = [
         ":bit_gen_ref",
         ":mock_distributions",
@@ -454,9 +440,6 @@ cc_test(
     srcs = ["mock_distributions_test.cc"],
     copts = ABSL_TEST_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
-    tags = [
-        "no_test_wasm",
-    ],
     deps = [
         ":mock_distributions",
         ":mocking_bit_gen",
@@ -471,9 +454,6 @@ cc_test(
     srcs = ["examples_test.cc"],
     copts = ABSL_TEST_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
-    tags = [
-        "no_test_wasm",
-    ],
     deps = [
         ":random",
         "@com_google_googletest//:gtest_main",

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,6 @@
 
 #include "media/base/video_facing.h"
 #include "media/capture/video_capture_types.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/public/mojom/mediastream/media_devices.mojom-blink.h"
 #include "third_party/blink/renderer/modules/mediastream/media_stream_constraints_util_sets.h"
 #include "third_party/blink/renderer/modules/mediastream/video_track_adapter_settings.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
@@ -69,13 +67,13 @@ class MODULES_EXPORT VideoCaptureSettings {
   // Creates an object with the given values.
   VideoCaptureSettings(std::string device_id,
                        media::VideoCaptureParams capture_params_,
-                       absl::optional<bool> noise_reduction_,
+                       base::Optional<bool> noise_reduction_,
                        const VideoTrackAdapterSettings& track_adapter_settings,
-                       absl::optional<double> min_frame_rate,
-                       absl::optional<double> max_frame_rate,
-                       absl::optional<double> pan = absl::nullopt,
-                       absl::optional<double> tilt = absl::nullopt,
-                       absl::optional<double> zoom = absl::nullopt);
+                       base::Optional<double> min_frame_rate,
+                       base::Optional<double> max_frame_rate,
+                       base::Optional<double> pan = base::nullopt,
+                       base::Optional<double> tilt = base::nullopt,
+                       base::Optional<double> zoom = base::nullopt);
 
   VideoCaptureSettings(const VideoCaptureSettings& other);
   VideoCaptureSettings& operator=(const VideoCaptureSettings& other);
@@ -117,7 +115,7 @@ class MODULES_EXPORT VideoCaptureSettings {
     DCHECK(HasValue());
     return capture_params_;
   }
-  const absl::optional<bool>& noise_reduction() const {
+  const base::Optional<bool>& noise_reduction() const {
     DCHECK(HasValue());
     return noise_reduction_;
   }
@@ -125,23 +123,23 @@ class MODULES_EXPORT VideoCaptureSettings {
     DCHECK(HasValue());
     return track_adapter_settings_;
   }
-  const absl::optional<double>& min_frame_rate() const {
+  const base::Optional<double>& min_frame_rate() const {
     DCHECK(HasValue());
     return min_frame_rate_;
   }
-  const absl::optional<double>& max_frame_rate() const {
+  const base::Optional<double>& max_frame_rate() const {
     DCHECK(HasValue());
     return max_frame_rate_;
   }
-  const absl::optional<double>& pan() const {
+  const base::Optional<double>& pan() const {
     DCHECK(HasValue());
     return pan_;
   }
-  const absl::optional<double>& tilt() const {
+  const base::Optional<double>& tilt() const {
     DCHECK(HasValue());
     return tilt_;
   }
-  const absl::optional<double>& zoom() const {
+  const base::Optional<double>& zoom() const {
     DCHECK(HasValue());
     return zoom_;
   }
@@ -150,13 +148,13 @@ class MODULES_EXPORT VideoCaptureSettings {
   const char* failed_constraint_name_;
   std::string device_id_;
   media::VideoCaptureParams capture_params_;
-  absl::optional<bool> noise_reduction_;
+  base::Optional<bool> noise_reduction_;
   VideoTrackAdapterSettings track_adapter_settings_;
-  absl::optional<double> min_frame_rate_;
-  absl::optional<double> max_frame_rate_;
-  absl::optional<double> pan_;
-  absl::optional<double> tilt_;
-  absl::optional<double> zoom_;
+  base::Optional<double> min_frame_rate_;
+  base::Optional<double> max_frame_rate_;
+  base::Optional<double> pan_;
+  base::Optional<double> tilt_;
+  base::Optional<double> zoom_;
 };
 
 // This class represents the output the SelectSettings algorithm for audio
@@ -206,14 +204,13 @@ class MODULES_EXPORT AudioCaptureSettings {
   explicit AudioCaptureSettings(const char* failed_constraint_name);
 
   // Creates an object with the given values.
-  AudioCaptureSettings(
+  explicit AudioCaptureSettings(
       std::string device_id,
-      const absl::optional<int>& requested_buffer_size,
+      const base::Optional<int>& requested_buffer_size,
       bool disable_local_echo,
       bool enable_automatic_output_device_selection,
       ProcessingType processing_type,
-      const AudioProcessingProperties& audio_processing_properties,
-      int num_channels);
+      const AudioProcessingProperties& audio_processing_properties);
   AudioCaptureSettings(const AudioCaptureSettings& other);
   AudioCaptureSettings& operator=(const AudioCaptureSettings& other);
   AudioCaptureSettings(AudioCaptureSettings&& other);
@@ -227,7 +224,7 @@ class MODULES_EXPORT AudioCaptureSettings {
     DCHECK(HasValue());
     return device_id_;
   }
-  const absl::optional<int>& requested_buffer_size() const {
+  const base::Optional<int>& requested_buffer_size() const {
     DCHECK(HasValue());
     return requested_buffer_size_;
   }
@@ -247,20 +244,15 @@ class MODULES_EXPORT AudioCaptureSettings {
     DCHECK(HasValue());
     return audio_processing_properties_;
   }
-  int num_channels() const {
-    DCHECK(HasValue());
-    return num_channels_;
-  }
 
  private:
   const char* failed_constraint_name_;
   std::string device_id_;
-  absl::optional<int> requested_buffer_size_;
+  base::Optional<int> requested_buffer_size_;
   bool disable_local_echo_;
   bool render_to_associated_sink_;
   ProcessingType processing_type_;
   AudioProcessingProperties audio_processing_properties_;
-  int num_channels_;
 };
 
 // Method to get boolean value of constraint with |name| from constraints.
@@ -347,9 +339,9 @@ MODULES_EXPORT MediaStreamSource::Capabilities
 ComputeCapabilitiesForVideoSource(
     const String& device_id,
     const media::VideoCaptureFormats& formats,
-    mojom::blink::FacingMode facing_mode,
+    media::VideoFacingMode facing_mode,
     bool is_device_capture,
-    const absl::optional<std::string>& group_id = absl::nullopt);
+    const base::Optional<std::string>& group_id = base::nullopt);
 
 }  // namespace blink
 

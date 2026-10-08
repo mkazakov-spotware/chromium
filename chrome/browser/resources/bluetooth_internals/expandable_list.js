@@ -1,72 +1,142 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.js';
-import {CustomElement} from 'chrome://resources/js/custom_element.js';
+/**
+ * Javascript for ExpandableList and ExpandableListItem, served from
+ *     chrome://bluetooth-internals/.
+ */
 
-import {getTemplate} from './expandable_list.html.js';
-
-export class ExpandableListElement extends CustomElement {
-  static get template() {
-    return getTemplate();
-  }
-
-  connectedCallback() {
-    this.classList.add('expandable-list');
-  }
+cr.define('expandable_list', function() {
+  const List = cr.ui.List;
+  const ListItem = cr.ui.ListItem;
 
   /**
-   * Sets the data model of the list.
-   * @param {Array} data
+   * A list item that has expandable content that toggles when the item is
+   * clicked.
+   * @constructor
+   * @extends {cr.ui.ListItem}
    */
-  setData(data) {
-    this.updateMessageDisplay_(data.length === 0);
-    const items = this.shadowRoot.querySelector('.list-items');
-    data.forEach(item => {
-      const listItem = this.createItem(item);
-      items.appendChild(listItem);
-    });
-  }
+  const ExpandableListItem = cr.ui.define('li');
 
-  createItem(itemData) {}
+  ExpandableListItem.prototype = {
+    __proto__: ListItem.prototype,
+
+    /**
+     * Decorates the element as an expandable list item and caches the created
+     * content holders for implementations.
+     * @override
+     */
+    decorate() {
+      this.classList.add('expandable-list-item');
+      this.briefContent_ = document.createElement('div');
+      this.briefContent_.classList.add('brief-content');
+      this.briefContent_.addEventListener('click', this.onExpand_.bind(this));
+      this.appendChild(this.briefContent_);
+
+      this.expandedContent_ = document.createElement('div');
+      this.expandedContent_.classList.add('expanded-content');
+      this.appendChild(this.expandedContent_);
+    },
+
+    /**
+     * Called when the list item is expanded or collapsed.
+     * @param {boolean} expanded
+     */
+    onExpandInternal(expanded) {},
+
+    /**
+     * Toggles the expanded class on the item.
+     * @private
+     */
+    onExpand_() {
+      this.onExpandInternal(this.classList.toggle('expanded'));
+    },
+  };
 
   /**
-   * Sets the empty message text.
-   * @param {string} message
+   * A list that contains expandable list items.
+   * @constructor
+   * @extends {cr.ui.List}
    */
-  setEmptyMessage(message) {
-    const emptyMessage = this.shadowRoot.querySelector('.empty-message');
-    emptyMessage.textContent = message;
-  }
+  const ExpandableList = cr.ui.define('list');
 
-  /**
-   * Sets the spinner display state. If |showing| is true, the loading
-   * spinner is dispayed.
-   * @param {boolean} showing
-   */
-  setSpinnerShowing(showing) {
-    this.shadowRoot.querySelector('.spinner').hidden = !showing;
-  }
+  ExpandableList.prototype = {
+    __proto__: List.prototype,
 
-  /**
-   * Gets the spinner display state. Returns true if the spinner is showing.
-   * @return {boolean}
-   */
-  isSpinnerShowing() {
-    return !this.shadowRoot.querySelector('.spinner').hidden;
-  }
+    /**
+     * Decorates element as an expandable list and caches references to layout
+     * elements.
+     * @override
+     */
+    decorate() {
+      List.prototype.decorate.call(this);
+      this.classList.add('expandable-list');
 
-  /**
-   * Updates the display state of the empty message. If there are no items in
-   * the data model, the empty message is displayed.
-   * @param {boolean} empty Whether the list is empty.
-   */
-  updateMessageDisplay_(empty) {
-    const emptyMessage = this.shadowRoot.querySelector('.empty-message');
-    assert(emptyMessage);
-    emptyMessage.hidden = !empty;
-  }
-}
+      this.emptyMessage_ = document.createElement('h3');
+      this.emptyMessage_.classList.add('empty-message');
+      this.emptyMessage_.hidden = true;
+      this.insertBefore(this.emptyMessage_, this.firstChild);
 
-customElements.define('expandable-list', ExpandableListElement);
+      this.spinner_ = document.createElement('div');
+      this.spinner_.classList.add('spinner');
+      this.insertBefore(this.spinner_, this.firstChild);
+
+      this.autoExpands = true;
+      this.boundUpdateMessage_ = this.updateMessageDisplay_.bind(this);
+      this.setSpinnerShowing(true);
+    },
+
+    /**
+     * Sets the data model of the list.
+     * @param {cr.ui.ArrayDataModel} data
+     */
+    setData(data) {
+      if (this.dataModel) {
+        this.dataModel.removeEventListener('splice', this.boundUpdateMessage_);
+      }
+
+      this.dataModel = data;
+      this.dataModel.addEventListener('splice', this.boundUpdateMessage_);
+      this.updateMessageDisplay_();
+    },
+
+    /**
+     * Sets the empty message text.
+     * @param {string} message
+     */
+    setEmptyMessage(message) {
+      this.emptyMessage_.textContent = message;
+    },
+
+    /**
+     * Sets the spinner display state. If |showing| is true, the loading
+     * spinner is dispayed.
+     * @param {boolean} showing
+     */
+    setSpinnerShowing(showing) {
+      this.spinner_.hidden = !showing;
+    },
+
+    /**
+     * Gets the spinner display state. Returns true if the spinner is showing.
+     * @return {boolean}
+     */
+    isSpinnerShowing() {
+      return !this.spinner_.hidden;
+    },
+
+    /**
+     * Updates the display state of the empty message. If there are no items in
+     * the data model, the empty message is displayed.
+     */
+    updateMessageDisplay_() {
+      this.emptyMessage_.hidden = this.dataModel.length > 0;
+    },
+  };
+
+  return {
+    ExpandableListItem: ExpandableListItem,
+    ExpandableList: ExpandableList,
+  };
+});

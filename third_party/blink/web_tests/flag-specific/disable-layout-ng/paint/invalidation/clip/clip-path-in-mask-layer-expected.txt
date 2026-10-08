@@ -1,7 +1,7 @@
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [800, 600],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF"
@@ -9,7 +9,6 @@
     {
       "name": "LayoutBlockFlow DIV",
       "bounds": [200, 200],
-      "contentsOpaque": true,
       "backgroundColor": "#0000FF",
       "invalidations": [
         [0, 0, 200, 200]
@@ -18,8 +17,7 @@
     },
     {
       "name": "Synthesized Clip",
-      "position": [-2, -2],
-      "bounds": [204, 204],
+      "bounds": [200, 200],
       "transform": 1
     }
   ],

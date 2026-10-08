@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/events/mojom/event_mojom_traits.h"
 
-#include "base/time/time.h"
 #include "mojo/public/cpp/base/time_mojom_traits.h"
 #include "ui/events/event.h"
 #include "ui/events/event_utils.h"
@@ -367,7 +366,7 @@ bool StructTraits<ui::mojom::EventDataView, EventUniquePtr>::Read(
       if (!event.ReadKeyData<ui::mojom::KeyDataPtr>(&key_data))
         return false;
 
-      absl::optional<ui::DomKey> dom_key =
+      base::Optional<ui::DomKey> dom_key =
           ui::DomKey::FromBase(key_data->dom_key);
       if (!dom_key)
         return false;
@@ -478,7 +477,7 @@ bool StructTraits<ui::mojom::EventDataView, EventUniquePtr>::Read(
   if (!event.ReadLatency((*out)->latency()))
     return false;
 
-  absl::optional<ui::Event::Properties> properties;
+  base::Optional<ui::Event::Properties> properties;
   if (!event.ReadProperties(&properties))
     return false;
   if (properties && !properties->empty())

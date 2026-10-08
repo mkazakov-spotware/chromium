@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,9 @@
 // NOTE: The format of types has changed. 'FooType' is now
 //   'chrome.tabGroups.FooType'.
 // Please run the closure compiler before committing changes.
-// See https://chromium.googlesource.com/chromium/src/+/main/docs/closure_compilation.md
+// See https://chromium.googlesource.com/chromium/src/+/master/docs/closure_compilation.md
 
-/**
- * @fileoverview Externs generated from namespace: tabGroups
- * @externs
- */
+/** @fileoverview Externs generated from namespace: tabGroups */
 
 /** @const */
 chrome.tabGroups = {};
@@ -30,7 +27,6 @@ chrome.tabGroups.Color = {
   PINK: 'pink',
   PURPLE: 'purple',
   CYAN: 'cyan',
-  ORANGE: 'orange',
 };
 
 /**
@@ -99,35 +95,3 @@ chrome.tabGroups.update = function(groupId, updateProperties, callback) {};
  * @see https://developer.chrome.com/extensions/tabGroups#method-move
  */
 chrome.tabGroups.move = function(groupId, moveProperties, callback) {};
-
-/**
- * Fired when a group is created.
- * @type {!ChromeEvent}
- * @see https://developer.chrome.com/extensions/tabGroups#event-onCreated
- */
-chrome.tabGroups.onCreated;
-
-/**
- * Fired when a group is updated.
- * @type {!ChromeEvent}
- * @see https://developer.chrome.com/extensions/tabGroups#event-onUpdated
- */
-chrome.tabGroups.onUpdated;
-
-/**
- * Fired when a group is moved within a window. Move events are still fired for
- * the individual tabs within the group, as well as for the group itself. This
- * event is not fired when a group is moved between windows; instead, it will be
- * removed from one window and created in another.
- * @type {!ChromeEvent}
- * @see https://developer.chrome.com/extensions/tabGroups#event-onMoved
- */
-chrome.tabGroups.onMoved;
-
-/**
- * Fired when a group is closed, either directly by the user or automatically
- * because it contained zero tabs.
- * @type {!ChromeEvent}
- * @see https://developer.chrome.com/extensions/tabGroups#event-onRemoved
- */
-chrome.tabGroups.onRemoved;

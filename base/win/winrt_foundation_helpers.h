@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,10 @@
 #include <windows.foundation.h>
 #include <wrl/client.h>
 
-#include <algorithm>
 #include <vector>
 
+#include "base/optional.h"
 #include "base/win/hstring_compare.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 // This file provides helpers for WinRT types.
 
@@ -65,13 +64,13 @@ using StorageType = std::conditional_t<
     Microsoft::WRL::ComPtr<std::remove_pointer_t<AbiType<TComplex>>>,
     AbiType<TComplex>>;
 
-// Similar to StorageType, but returns a absl::optional in case underlying Abi
+// Similar to StorageType, but returns a base::Optional in case underlying Abi
 // type is not a pointer to IUnknown.
 template <typename TComplex>
 using OptionalStorageType = std::conditional_t<
     std::is_convertible<AbiType<TComplex>, IUnknown*>::value,
     Microsoft::WRL::ComPtr<std::remove_pointer_t<AbiType<TComplex>>>,
-    absl::optional<AbiType<TComplex>>>;
+    base::Optional<AbiType<TComplex>>>;
 
 template <typename T>
 HRESULT CopyTo(const T& value, T* ptr) {
@@ -85,7 +84,7 @@ HRESULT CopyTo(const Microsoft::WRL::ComPtr<T>& value, T** ptr) {
 }
 
 template <typename T>
-HRESULT CopyTo(const absl::optional<T>& value, T* ptr) {
+HRESULT CopyTo(const base::Optional<T>& value, T* ptr) {
   *ptr = *value;
   return S_OK;
 }

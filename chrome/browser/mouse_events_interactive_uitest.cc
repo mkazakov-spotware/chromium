@@ -1,9 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/callback_helpers.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
@@ -27,10 +28,7 @@ namespace {
 // Integration test of browser event forwarding and web content event handling.
 class MouseEventsTest : public InProcessBrowserTest {
  public:
-  MouseEventsTest() = default;
-
-  MouseEventsTest(const MouseEventsTest&) = delete;
-  MouseEventsTest& operator=(const MouseEventsTest&) = delete;
+  MouseEventsTest() {}
 
   // InProcessBrowserTest:
   void SetUpOnMainThread() override {
@@ -45,7 +43,7 @@ class MouseEventsTest : public InProcessBrowserTest {
   void WaitForTitle(const std::string& title) {
     // Logging added temporarily to track down flakiness cited below.
     LOG(INFO) << "Waiting for title: " << title;
-    const std::u16string expected_title(base::ASCIIToUTF16(title));
+    const base::string16 expected_title(base::ASCIIToUTF16(title));
     content::TitleWatcher title_watcher(GetActiveWebContents(), expected_title);
     ASSERT_EQ(expected_title, title_watcher.WaitAndGetTitle());
   }
@@ -62,7 +60,7 @@ class MouseEventsTest : public InProcessBrowserTest {
     const GURL url = ui_test_utils::GetTestUrl(
         base::FilePath(),
         base::FilePath(FILE_PATH_LITERAL("mouse_events_test.html")));
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+    ui_test_utils::NavigateToURL(browser(), url);
     WaitForTitle("onload");
 
     // Move the mouse over the div and wait for onmouseover to be called.
@@ -79,10 +77,12 @@ class MouseEventsTest : public InProcessBrowserTest {
     ui_controls::SendMouseMove(bounds.CenterPoint().x(), bounds.y() - 10);
     WaitForTitle("onmouseout");
   }
+
+  DISALLOW_COPY_AND_ASSIGN(MouseEventsTest);
 };
 
-#if BUILDFLAG(IS_MAC)
-// Flaky; http://crbug.com/133361.
+#if defined(OS_MAC)
+// OS_MAC: Missing automation provider support: http://crbug.com/45892.
 #define MAYBE_MouseOver DISABLED_MouseOver
 #else
 #define MAYBE_MouseOver MouseOver
@@ -92,8 +92,8 @@ IN_PROC_BROWSER_TEST_F(MouseEventsTest, MAYBE_MouseOver) {
   NavigateAndWaitForMouseOver();
 }
 
-#if BUILDFLAG(IS_MAC)
-// Flaky; http://crbug.com/133361.
+#if defined(OS_MAC)
+// OS_MAC: Missing automation provider support: http://crbug.com/45892.
 #define MAYBE_ClickAndDoubleClick DISABLED_ClickAndDoubleClick
 #else
 #define MAYBE_ClickAndDoubleClick ClickAndDoubleClick
@@ -109,9 +109,10 @@ IN_PROC_BROWSER_TEST_F(MouseEventsTest, MAYBE_ClickAndDoubleClick) {
   WaitForTitle("ondblclick");
 }
 
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
-    BUILDFLAG(IS_WIN)
-// Flaky; http://crbug.com/133361.
+#if defined(OS_MAC) || defined(OS_LINUX) || defined(OS_CHROMEOS) || \
+    defined(OS_WIN)
+// OS_MAC: Missing automation provider support: http://crbug.com/45892.
+// OS_LINUX, OS_WIN: http://crbug.com/133361.
 #define MAYBE_TestOnMouseOut DISABLED_TestOnMouseOut
 #else
 #define MAYBE_TestOnMouseOut TestOnMouseOut
@@ -121,8 +122,9 @@ IN_PROC_BROWSER_TEST_F(MouseEventsTest, MAYBE_TestOnMouseOut) {
   NavigateAndWaitForMouseOverThenMouseOut();
 }
 
-#if BUILDFLAG(IS_WIN)
-// Mac/Linux are flaky; http://crbug.com/133361.
+#if defined(OS_WIN)
+// OS_MAC: Missing automation provider support: http://crbug.com/45892
+// OS_LINUX: http://crbug.com/133361. interactive mouse tests are flaky.
 IN_PROC_BROWSER_TEST_F(MouseEventsTest, MouseDownOnBrowserCaption) {
   gfx::Rect browser_bounds = browser()->window()->GetBounds();
   ui_controls::SendMouseMove(browser_bounds.x() + 200, browser_bounds.y() + 10);
@@ -132,13 +134,15 @@ IN_PROC_BROWSER_TEST_F(MouseEventsTest, MouseDownOnBrowserCaption) {
 }
 #endif
 
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_OZONE)
+#if defined(OS_MAC) || defined(OS_WIN)
 // Test that a mouseleave is not triggered when showing the context menu.
 // If the test is failed, it means that Blink gets the mouseleave event
 // when showing the context menu and it could make the unexpecting
 // content behavior such as clearing the hover status.
 // Please refer to the below issue for understanding what happens .
-// Flaky; See http://crbug.com/656101.
+// TODO: Make test pass on OS_WIN and OS_MAC
+// OS_WIN: Flaky. See http://crbug.com/656101.
+// OS_MAC: Missing automation provider support: http://crbug.com/45892.
 #define MAYBE_ContextMenu DISABLED_ContextMenu
 #else
 #define MAYBE_ContextMenu ContextMenu
@@ -153,20 +157,23 @@ IN_PROC_BROWSER_TEST_F(MouseEventsTest, MAYBE_ContextMenu) {
   menu_observer.WaitForMenuOpenAndClose();
 
   content::WebContents* tab = GetActiveWebContents();
-  tab->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(u"done()",
-                                                        base::NullCallback());
-  const std::u16string success_title = u"without mouseleave";
-  const std::u16string failure_title = u"with mouseleave";
+  tab->GetMainFrame()->ExecuteJavaScriptForTests(base::ASCIIToUTF16("done()"),
+                                                 base::NullCallback());
+  const base::string16 success_title = base::ASCIIToUTF16("without mouseleave");
+  const base::string16 failure_title = base::ASCIIToUTF16("with mouseleave");
   content::TitleWatcher done_title_watcher(tab, success_title);
   done_title_watcher.AlsoWaitForTitle(failure_title);
   EXPECT_EQ(success_title, done_title_watcher.WaitAndGetTitle());
 }
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
-    BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_WIN) || defined(OS_MAC) || defined(OS_LINUX) || \
+    defined(OS_CHROMEOS)
 // Test that a mouseleave is not triggered when showing a modal dialog.
 // Sample regression: crbug.com/394672
-// Flaky; http://crbug.com/838120
+// TODO: Make test pass on OS_WIN and OS_MAC
+// OS_WIN: http://crbug.com/450138
+// OS_MAC: Missing automation provider support: http://crbug.com/45892.
+// OS_LINUX: Flaky http://crbug.com/838120
 #define MAYBE_ModalDialog DISABLED_ModalDialog
 #else
 #define MAYBE_ModalDialog ModalDialog
@@ -181,17 +188,17 @@ IN_PROC_BROWSER_TEST_F(MouseEventsTest, MAYBE_ModalDialog) {
   base::RunLoop dialog_wait;
   js_dialog_manager->SetDialogShownCallbackForTesting(
       dialog_wait.QuitClosure());
-  tab->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(u"alert()",
-                                                        base::NullCallback());
+  tab->GetMainFrame()->ExecuteJavaScriptForTests(base::UTF8ToUTF16("alert()"),
+                                                 base::NullCallback());
   dialog_wait.Run();
 
   // Cancel the dialog.
   js_dialog_manager->HandleJavaScriptDialog(tab, false, nullptr);
 
-  tab->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(u"done()",
-                                                        base::NullCallback());
-  const std::u16string success_title = u"without mouseleave";
-  const std::u16string failure_title = u"with mouseleave";
+  tab->GetMainFrame()->ExecuteJavaScriptForTests(base::ASCIIToUTF16("done()"),
+                                                 base::NullCallback());
+  const base::string16 success_title = base::ASCIIToUTF16("without mouseleave");
+  const base::string16 failure_title = base::ASCIIToUTF16("with mouseleave");
   content::TitleWatcher done_title_watcher(tab, success_title);
   done_title_watcher.AlsoWaitForTitle(failure_title);
   EXPECT_EQ(success_title, done_title_watcher.WaitAndGetTitle());

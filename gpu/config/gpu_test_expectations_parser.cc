@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -48,8 +48,6 @@ enum Token {
   kConfigMacMojave,
   kConfigMacCatalina,
   kConfigMacBigSur,
-  kConfigMacMonterey,
-  kConfigMacVentura,
   kConfigMac,
   kConfigLinux,
   kConfigChromeOS,
@@ -112,8 +110,6 @@ const TokenInfo kTokenData[] = {
     {"mojave", GPUTestConfig::kOsMacMojave},
     {"catalina", GPUTestConfig::kOsMacCatalina},
     {"bigsur", GPUTestConfig::kOsMacBigSur},
-    {"monterey", GPUTestConfig::kOsMacMonterey},
-    {"ventura", GPUTestConfig::kOsMacVentura},
     {"mac", GPUTestConfig::kOsMac},
     {"linux", GPUTestConfig::kOsLinux},
     {"chromeos", GPUTestConfig::kOsChromeOS},
@@ -176,7 +172,7 @@ Token ParseToken(const std::string& word) {
     return kConfigGPUDeviceID;
 
   for (int32_t i = 0; i < kNumberOfExactMatchTokens; ++i) {
-    if (base::EqualsCaseInsensitiveASCII(word, kTokenData[i].name))
+    if (base::LowerCaseEqualsASCII(word, kTokenData[i].name))
       return static_cast<Token>(i);
   }
   return kTokenWord;
@@ -284,8 +280,6 @@ bool GPUTestExpectationsParser::ParseConfig(
       case kConfigMacMojave:
       case kConfigMacCatalina:
       case kConfigMacBigSur:
-      case kConfigMacMonterey:
-      case kConfigMacVentura:
       case kConfigMac:
       case kConfigLinux:
       case kConfigChromeOS:
@@ -352,8 +346,6 @@ bool GPUTestExpectationsParser::ParseLine(
       case kConfigMacMojave:
       case kConfigMacCatalina:
       case kConfigMacBigSur:
-      case kConfigMacMonterey:
-      case kConfigMacVentura:
       case kConfigMac:
       case kConfigLinux:
       case kConfigChromeOS:
@@ -483,8 +475,6 @@ bool GPUTestExpectationsParser::UpdateTestConfig(GPUTestConfig* config,
     case kConfigMacMojave:
     case kConfigMacCatalina:
     case kConfigMacBigSur:
-    case kConfigMacMonterey:
-    case kConfigMacVentura:
     case kConfigMac:
     case kConfigLinux:
     case kConfigChromeOS:

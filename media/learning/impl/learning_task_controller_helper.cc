@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 
 namespace media {
 namespace learning {
@@ -19,7 +19,7 @@ LearningTaskControllerHelper::LearningTaskControllerHelper(
     SequenceBoundFeatureProvider feature_provider)
     : task_(task),
       feature_provider_(std::move(feature_provider)),
-      task_runner_(base::SequencedTaskRunner::GetCurrentDefault()),
+      task_runner_(base::SequencedTaskRunnerHandle::Get()),
       add_example_cb_(std::move(add_example_cb)) {}
 
 LearningTaskControllerHelper::~LearningTaskControllerHelper() = default;
@@ -27,7 +27,7 @@ LearningTaskControllerHelper::~LearningTaskControllerHelper() = default;
 void LearningTaskControllerHelper::BeginObservation(
     base::UnguessableToken id,
     FeatureVector features,
-    absl::optional<ukm::SourceId> source_id) {
+    base::Optional<ukm::SourceId> source_id) {
   auto& pending_example = pending_examples_[id];
 
   if (source_id)

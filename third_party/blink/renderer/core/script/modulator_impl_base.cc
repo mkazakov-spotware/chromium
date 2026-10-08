@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/frame/web_feature.h"
-#include "third_party/blink/renderer/core/loader/modulescript/module_script_creation_params.h"
 #include "third_party/blink/renderer/core/loader/modulescript/module_script_fetch_request.h"
 #include "third_party/blink/renderer/core/loader/modulescript/module_tree_linker.h"
 #include "third_party/blink/renderer/core/loader/modulescript/module_tree_linker_registry.h"
@@ -54,8 +53,8 @@ bool ModulatorImplBase::IsScriptingDisabled() const {
   return !GetExecutionContext()->CanExecuteScripts(kAboutToExecuteScript);
 }
 
-mojom::blink::V8CacheOptions ModulatorImplBase::GetV8CacheOptions() const {
-  return GetExecutionContext()->GetV8CacheOptions();
+bool ModulatorImplBase::ImportMapsEnabled() const {
+  return RuntimeEnabledFeatures::ImportMapsEnabled(GetExecutionContext());
 }
 
 // <specdef label="fetch-a-module-script-tree"
@@ -64,16 +63,15 @@ mojom::blink::V8CacheOptions ModulatorImplBase::GetV8CacheOptions() const {
 // href="https://html.spec.whatwg.org/C/#fetch-a-module-worker-script-tree">
 void ModulatorImplBase::FetchTree(
     const KURL& url,
-    ModuleType module_type,
     ResourceFetcher* fetch_client_settings_object_fetcher,
     mojom::blink::RequestContextType context_type,
     network::mojom::RequestDestination destination,
     const ScriptFetchOptions& options,
     ModuleScriptCustomFetchType custom_fetch_type,
     ModuleTreeClient* client) {
-  tree_linker_registry_->Fetch(
-      url, module_type, fetch_client_settings_object_fetcher, context_type,
-      destination, options, this, custom_fetch_type, client);
+  ModuleTreeLinker::Fetch(url, fetch_client_settings_object_fetcher,
+                          context_type, destination, options, this,
+                          custom_fetch_type, tree_linker_registry_, client);
 }
 
 void ModulatorImplBase::FetchDescendantsForInlineScript(
@@ -82,9 +80,10 @@ void ModulatorImplBase::FetchDescendantsForInlineScript(
     mojom::blink::RequestContextType context_type,
     network::mojom::RequestDestination destination,
     ModuleTreeClient* client) {
-  tree_linker_registry_->FetchDescendantsForInlineScript(
+  ModuleTreeLinker::FetchDescendantsForInlineScript(
       module_script, fetch_client_settings_object_fetcher, context_type,
-      destination, this, ModuleScriptCustomFetchType::kNone, client);
+      destination, this, ModuleScriptCustomFetchType::kNone,
+      tree_linker_registry_, client);
 }
 
 void ModulatorImplBase::FetchSingle(
@@ -97,10 +96,8 @@ void ModulatorImplBase::FetchSingle(
                                 level, custom_fetch_type, client);
 }
 
-ModuleScript* ModulatorImplBase::GetFetchedModuleScript(
-    const KURL& url,
-    ModuleType module_type) {
-  return map_->GetFetchedModuleScript(url, module_type);
+ModuleScript* ModulatorImplBase::GetFetchedModuleScript(const KURL& url) {
+  return map_->GetFetchedModuleScript(url);
 }
 
 // <specdef href="https://html.spec.whatwg.org/C/#resolve-a-module-specifier">
@@ -123,11 +120,11 @@ KURL ModulatorImplBase::ResolveModuleSpecifier(const String& specifier,
   // errors, but should be supressed (i.e. |logger| should be null) in normal
   // cases.
 
-  absl::optional<KURL> mapped_url;
-  if (GetImportMap()) {
+  base::Optional<KURL> mapped_url;
+  if (import_map_) {
     String import_map_debug_message;
-    mapped_url = GetImportMap()->Resolve(parsed_specifier, base_url,
-                                         &import_map_debug_message);
+    mapped_url = import_map_->Resolve(parsed_specifier, base_url,
+                                      &import_map_debug_message);
 
     // Output the resolution log. This is too verbose to be always shown, but
     // will be helpful for Web developers (and also Chromium developers) for
@@ -168,12 +165,64 @@ KURL ModulatorImplBase::ResolveModuleSpecifier(const String& specifier,
   }
 }
 
+ScriptValue ModulatorImplBase::CreateTypeError(const String& message) const {
+  ScriptState::Scope scope(script_state_);
+  ScriptValue error(
+      script_state_->GetIsolate(),
+      V8ThrowException::CreateTypeError(script_state_->GetIsolate(), message));
+  return error;
+}
+
+ScriptValue ModulatorImplBase::CreateSyntaxError(const String& message) const {
+  ScriptState::Scope scope(script_state_);
+  ScriptValue error(script_state_->GetIsolate(),
+                    V8ThrowException::CreateSyntaxError(
+                        script_state_->GetIsolate(), message));
+  return error;
+}
+
+// <specdef href="https://wicg.github.io/import-maps/#register-an-import-map">
+void ModulatorImplBase::RegisterImportMap(const ImportMap* import_map,
+                                          ScriptValue error_to_rethrow) {
+  DCHECK(import_map);
+  DCHECK(ImportMapsEnabled());
+
+  // <spec step="7">If import map parse result’s error to rethrow is not null,
+  // then:</spec>
+  if (!error_to_rethrow.IsEmpty()) {
+    // <spec step="7.1">Report the exception given import map parse result’s
+    // error to rethrow. ...</spec>
+    if (!IsScriptingDisabled()) {
+      ScriptState::Scope scope(script_state_);
+      ModuleRecord::ReportException(script_state_, error_to_rethrow.V8Value());
+    }
+
+    // <spec step="7.2">Return.</spec>
+    return;
+  }
+
+  // <spec step="8">Update element’s node document's import map with import map
+  // parse result’s import map.</spec>
+  //
+  // TODO(crbug.com/927119): Implement merging. Currently only one import map is
+  // allowed.
+  if (import_map_) {
+    GetExecutionContext()->AddConsoleMessage(
+        mojom::ConsoleMessageSource::kOther, mojom::ConsoleMessageLevel::kError,
+        "Multiple import maps are not yet supported. https://crbug.com/927119");
+    return;
+  }
+
+  import_map_ = import_map;
+}
+
 bool ModulatorImplBase::HasValidContext() {
   return script_state_->ContextIsValid();
 }
 
 void ModulatorImplBase::ResolveDynamically(
-    const ModuleRequest& module_request,
+    const String& specifier,
+    const KURL& referrer_url,
     const ReferrerScriptInfo& referrer_info,
     ScriptPromiseResolver* resolver) {
   String reason;
@@ -184,8 +233,8 @@ void ModulatorImplBase::ResolveDynamically(
   }
   UseCounter::Count(GetExecutionContext(),
                     WebFeature::kDynamicImportModuleScript);
-  dynamic_module_resolver_->ResolveDynamically(module_request, referrer_info,
-                                               resolver);
+  dynamic_module_resolver_->ResolveDynamically(specifier, referrer_url,
+                                               referrer_info, resolver);
 }
 
 // <specdef href="https://html.spec.whatwg.org/C/#hostgetimportmetaproperties">
@@ -198,37 +247,27 @@ ModuleImportMeta ModulatorImplBase::HostGetImportMetaProperties(
 
   // <spec step="3">Let urlString be module script's base URL,
   // serialized.</spec>
-  String url_string = module_script->BaseUrl().GetString();
+  String url_string = module_script->BaseURL().GetString();
 
   // <spec step="4">Return « Record { [[Key]]: "url", [[Value]]: urlString }
   // ».</spec>
   return ModuleImportMeta(url_string);
 }
 
-ModuleType ModulatorImplBase::ModuleTypeFromRequest(
-    const ModuleRequest& module_request) const {
-  String module_type_string = module_request.GetModuleTypeString();
-  if (module_type_string.IsNull()) {
-    // <spec href="https://html.spec.whatwg.org/#fetch-a-single-module-script"
-    // step="1">Let module type be "javascript".</spec> If no type assertion is
-    // provided, the import is treated as a JavaScript module.
-    return ModuleType::kJavaScript;
-  } else if (module_type_string == "json") {
-    // <spec href="https://html.spec.whatwg.org/#fetch-a-single-module-script"
-    // step="17"> If...module type is "json", then set module script to the
-    // result of creating a JSON module script...</spec>
-    return ModuleType::kJSON;
-  } else if (module_type_string == "css" && GetExecutionContext()->IsWindow()) {
-    // <spec href="https://html.spec.whatwg.org/#fetch-a-single-module-script"
-    // step="16"> If...module type is "css", then set module script to the
-    // result of creating a CSS module script...</spec>
-    return ModuleType::kCSS;
-  } else {
-    // Per https://github.com/whatwg/html/pull/7066, unrecognized type
-    // assertions or "css" type assertions in a non-document context should be
-    // treated as an error similar to an invalid module specifier.
-    return ModuleType::kInvalid;
-  }
+ScriptValue ModulatorImplBase::InstantiateModule(
+    v8::Local<v8::Module> module_record,
+    const KURL& source_url) {
+  UseCounter::Count(GetExecutionContext(),
+                    WebFeature::kInstantiateModuleScript);
+
+  ScriptState::Scope scope(script_state_);
+  return ModuleRecord::Instantiate(script_state_, module_record, source_url);
+}
+
+Vector<ModuleRequest> ModulatorImplBase::ModuleRequestsFromModuleRecord(
+    v8::Local<v8::Module> module_record) {
+  ScriptState::Scope scope(script_state_);
+  return ModuleRecord::ModuleRequests(script_state_, module_record);
 }
 
 void ModulatorImplBase::ProduceCacheModuleTreeTopLevel(
@@ -258,21 +297,17 @@ void ModulatorImplBase::ProduceCacheModuleTree(
   module_script->ProduceCache();
 
   Vector<ModuleRequest> child_specifiers =
-      ModuleRecord::ModuleRequests(GetScriptState(), record);
+      ModuleRequestsFromModuleRecord(record);
 
   for (const auto& module_request : child_specifiers) {
     KURL child_url =
         module_script->ResolveModuleSpecifier(module_request.specifier);
 
-    ModuleType child_module_type = ModuleTypeFromRequest(module_request);
-    CHECK_NE(child_module_type, ModuleType::kInvalid);
-
     CHECK(child_url.IsValid())
         << "ModuleScript::ResolveModuleSpecifier() impl must "
            "return a valid url.";
 
-    ModuleScript* child_module =
-        GetFetchedModuleScript(child_url, child_module_type);
+    ModuleScript* child_module = GetFetchedModuleScript(child_url);
     CHECK(child_module);
 
     if (discovered_set->Contains(child_module))
@@ -288,6 +323,7 @@ void ModulatorImplBase::Trace(Visitor* visitor) const {
   visitor->Trace(tree_linker_registry_);
   visitor->Trace(module_record_resolver_);
   visitor->Trace(dynamic_module_resolver_);
+  visitor->Trace(import_map_);
 
   Modulator::Trace(visitor);
 }

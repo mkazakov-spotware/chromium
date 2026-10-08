@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -94,12 +94,13 @@ struct SDRResult
 typedef struct SDRResult SDRResult;
 
 static SEC_ASN1Template g_template[] = {
-    {SEC_ASN1_SEQUENCE, 0, nullptr, sizeof(SDRResult)},
-    {SEC_ASN1_OCTET_STRING, offsetof(SDRResult, keyid)},
-    {SEC_ASN1_INLINE | SEC_ASN1_XTRN, offsetof(SDRResult, alg),
-     SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate)},
-    {SEC_ASN1_OCTET_STRING, offsetof(SDRResult, data)},
-    {0}};
+  { SEC_ASN1_SEQUENCE, 0, NULL, sizeof (SDRResult) },
+  { SEC_ASN1_OCTET_STRING, offsetof(SDRResult, keyid) },
+  { SEC_ASN1_INLINE | SEC_ASN1_XTRN, offsetof(SDRResult, alg),
+    SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
+  { SEC_ASN1_OCTET_STRING, offsetof(SDRResult, data) },
+  { 0 }
+};
 
 static SECStatus
 unpadBlock(SECItem *data, int blockSize, SECItem *result)
@@ -108,7 +109,7 @@ unpadBlock(SECItem *data, int blockSize, SECItem *result)
   int padLength;
   int i;
 
-  result->data = nullptr;
+  result->data = 0;
   result->len = 0;
 
   /* Remove the padding from the end if the input data */
@@ -148,12 +149,12 @@ pk11Decrypt(PK11SlotInfo *slot, PLArenaPool *arena,
             CK_MECHANISM_TYPE type, PK11SymKey *key,
             SECItem *params, SECItem *in, SECItem *result)
 {
-  PK11Context* ctx = nullptr;
+  PK11Context *ctx = 0;
   SECItem paddedResult;
   SECStatus rv;
 
   paddedResult.len = 0;
-  paddedResult.data = nullptr;
+  paddedResult.data = 0;
 
   ctx = PK11_CreateContextBySymKey(type, CKA_DECRYPT, key, params);
   if (!ctx) { rv = SECFailure; goto loser; }
@@ -170,7 +171,7 @@ pk11Decrypt(PK11SlotInfo *slot, PLArenaPool *arena,
   PK11_Finalize(ctx);
 
   /* Remove the padding */
-  rv = unpadBlock(&paddedResult, PK11_GetBlockSize(type, nullptr), result);
+  rv = unpadBlock(&paddedResult, PK11_GetBlockSize(type, 0), result);
   if (rv) goto loser;
 
 loser:
@@ -181,12 +182,12 @@ loser:
 SECStatus NSSDecryptor::PK11SDR_DecryptWithSlot(
     PK11SlotInfo* slot, SECItem* data, SECItem* result, void* cx) const {
   SECStatus rv = SECSuccess;
-  PK11SymKey* key = nullptr;
+  PK11SymKey *key = 0;
   CK_MECHANISM_TYPE type;
   SDRResult sdrResult;
-  SECItem* params = nullptr;
-  SECItem possibleResult = {siBuffer, nullptr, 0};
-  PLArenaPool* arena = nullptr;
+  SECItem *params = 0;
+  SECItem possibleResult = { siBuffer, NULL, 0 };
+  PLArenaPool *arena = 0;
 
   arena = PORT_NewArena(SEC_ASN1_DEFAULT_ARENA_SIZE);
   if (!arena) { rv = SECFailure; goto loser; }
@@ -223,9 +224,9 @@ SECStatus NSSDecryptor::PK11SDR_DecryptWithSlot(
    * handle the case where your key indicies may have been broken
    */
   if (rv != SECSuccess) {
-    PK11SymKey* keyList = PK11_ListFixedKeysInSlot(slot, nullptr, cx);
-    PK11SymKey* testKey = nullptr;
-    PK11SymKey* nextKey = nullptr;
+    PK11SymKey *keyList = PK11_ListFixedKeysInSlot(slot, NULL, cx);
+    PK11SymKey *testKey = NULL;
+    PK11SymKey *nextKey = NULL;
 
     for (testKey = keyList; testKey;
          testKey = PK11_GetNextSymKey(testKey)) {
@@ -258,7 +259,7 @@ SECStatus NSSDecryptor::PK11SDR_DecryptWithSlot(
   /* we didn't find a better key, use the one with a small pad value */
   if ((rv != SECSuccess) && (possibleResult.data)) {
     *result = possibleResult;
-    possibleResult.data = nullptr;
+    possibleResult.data = NULL;
     rv = SECSuccess;
   }
 

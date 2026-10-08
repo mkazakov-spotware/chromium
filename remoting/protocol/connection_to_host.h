@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "remoting/protocol/errors.h"
 
@@ -16,7 +16,8 @@ namespace base {
 class SingleThreadTaskRunner;
 }  // namespace base
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 class AudioStub;
 class ClientStub;
@@ -104,6 +105,7 @@ class ConnectionToHost {
   virtual State state() const = 0;
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_CONNECTION_TO_HOST_H_

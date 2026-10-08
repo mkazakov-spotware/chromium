@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,9 +21,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace {
-
-using StorageType =
-    content_settings::mojom::ContentSettingsManager::StorageType;
 
 class MockCookieControlsView : public content_settings::CookieControlsView {
  public:
@@ -76,10 +73,9 @@ class CookieControlsTest : public ChromeRenderViewHostTestHarness {
             content_settings::CookieControlsMode::kBlockThirdParty));
     NavigateAndCommit(GURL("chrome://newtab"));
 
-    cookie_settings_ = CookieSettingsFactory::GetForProfile(profile());
     cookie_controls_ =
         std::make_unique<content_settings::CookieControlsController>(
-            cookie_settings_, nullptr);
+            CookieSettingsFactory::GetForProfile(profile()), nullptr);
     cookie_controls_->AddObserver(mock());
     testing::Mock::VerifyAndClearExpectations(mock());
   }
@@ -94,22 +90,17 @@ class CookieControlsTest : public ChromeRenderViewHostTestHarness {
     return cookie_controls_.get();
   }
 
-  content_settings::CookieSettings* cookie_settings() {
-    return cookie_settings_.get();
-  }
-
   MockCookieControlsView* mock() { return &mock_; }
 
   content_settings::PageSpecificContentSettings*
   page_specific_content_settings() {
     return content_settings::PageSpecificContentSettings::GetForFrame(
-        web_contents()->GetPrimaryMainFrame());
+        web_contents()->GetMainFrame());
   }
 
  private:
   MockCookieControlsView mock_;
   std::unique_ptr<content_settings::CookieControlsController> cookie_controls_;
-  scoped_refptr<content_settings::CookieSettings> cookie_settings_;
 };
 
 TEST_F(CookieControlsTest, NewTabPage) {
@@ -130,9 +121,8 @@ TEST_F(CookieControlsTest, SomeWebSite) {
 
   // Accessing cookies should be notified.
   EXPECT_CALL(*mock(), OnCookiesCountChanged(1, 0));
-  page_specific_content_settings()->OnStorageAccessed(
-      StorageType::DATABASE, GURL("https://example.com"),
-      /*blocked_by_policy=*/false);
+  page_specific_content_settings()->OnWebDatabaseAccessed(
+      GURL("https://example.com"), /*blocked=*/false);
   testing::Mock::VerifyAndClearExpectations(mock());
 
   // Manually trigger a full update to check that the cookie count changed.
@@ -144,9 +134,8 @@ TEST_F(CookieControlsTest, SomeWebSite) {
 
   // Blocking cookies should update the blocked cookie count.
   EXPECT_CALL(*mock(), OnCookiesCountChanged(1, 1));
-  page_specific_content_settings()->OnStorageAccessed(
-      StorageType::DATABASE, GURL("https://thirdparty.com"),
-      /*blocked_by_policy=*/true);
+  page_specific_content_settings()->OnWebDatabaseAccessed(
+      GURL("https://thirdparty.com"), /*blocked=*/true);
   testing::Mock::VerifyAndClearExpectations(mock());
 
   // Manually trigger a full update to check that the cookie count changed.
@@ -179,29 +168,6 @@ TEST_F(CookieControlsTest, PreferenceDisabled) {
   profile()->GetPrefs()->SetInteger(
       prefs::kCookieControlsMode,
       static_cast<int>(content_settings::CookieControlsMode::kOff));
-  testing::Mock::VerifyAndClearExpectations(mock());
-}
-
-TEST_F(CookieControlsTest, AllCookiesBlocked) {
-  NavigateAndCommit(GURL("https://example.com"));
-  EXPECT_CALL(*mock(),
-              OnStatusChanged(CookieControlsStatus::kEnabled,
-                              CookieControlsEnforcement::kNoEnforcement, 0, 0));
-  cookie_controls()->Update(web_contents());
-  testing::Mock::VerifyAndClearExpectations(mock());
-
-  // Disable all cookies - an OnStatusCallback should get triggered.
-  EXPECT_CALL(*mock(),
-              OnStatusChanged(CookieControlsStatus::kEnabled,
-                              CookieControlsEnforcement::kNoEnforcement, 0, 0));
-  cookie_settings()->SetDefaultCookieSetting(CONTENT_SETTING_BLOCK);
-  testing::Mock::VerifyAndClearExpectations(mock());
-
-  // Disable cookie blocking for example.com.
-  EXPECT_CALL(*mock(),
-              OnStatusChanged(CookieControlsStatus::kDisabledForSite,
-                              CookieControlsEnforcement::kNoEnforcement, 0, 0));
-  cookie_controls()->OnCookieBlockingEnabledForSite(false);
   testing::Mock::VerifyAndClearExpectations(mock());
 }
 
@@ -256,7 +222,7 @@ TEST_F(CookieControlsTest, Incognito) {
   // content_settings::CookieControlsController.
   std::unique_ptr<content::WebContents> incognito_web_contents =
       content::WebContentsTester::CreateTestWebContents(
-          profile()->GetPrimaryOTRProfile(/*create_if_needed=*/true), nullptr);
+          profile()->GetPrimaryOTRProfile(), nullptr);
   content_settings::PageSpecificContentSettings::CreateForWebContents(
       incognito_web_contents.get(),
       std::make_unique<chrome::PageSpecificContentSettingsDelegate>(
@@ -264,8 +230,7 @@ TEST_F(CookieControlsTest, Incognito) {
   auto* tester = content::WebContentsTester::For(incognito_web_contents.get());
   MockCookieControlsView incognito_mock_;
   content_settings::CookieControlsController incognito_cookie_controls(
-      CookieSettingsFactory::GetForProfile(
-          profile()->GetPrimaryOTRProfile(/*create_if_needed=*/true)),
+      CookieSettingsFactory::GetForProfile(profile()->GetPrimaryOTRProfile()),
       CookieSettingsFactory::GetForProfile(profile()));
   incognito_cookie_controls.AddObserver(&incognito_mock_);
 

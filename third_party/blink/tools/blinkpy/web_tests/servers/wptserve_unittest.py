@@ -1,10 +1,9 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import json
 import logging
-import six
 
 from blinkpy.common.host_mock import MockHost
 from blinkpy.common.system.log_testing import LoggingTestCase
@@ -18,62 +17,42 @@ class TestWPTServe(LoggingTestCase):
         self.host = MockHost()
         self.port = TestPort(self.host)
         self.host.filesystem.write_text_file(
-            '/mock-checkout/third_party/blink/web_tests/'
-            'external/wpt/config.json', '{"ports": {}, "aliases": []}')
-        # crbug.com/1308877: `web_test_runner.Worker.__del__` can log:
-        #   worker/0 cleaning up
-        #   worker/0 killing driver
-        # to its module's logger when the worker is garbage collected. Since
-        # this test case asserts the root logger outputs certain numbers of
-        # lines, we temporarily prevent propagation so the expected output is
-        # not polluted.
-        logging.getLogger('blinkpy.web_tests.controllers.'
-                          'web_test_runner').propagate = False
-
-    def tearDown(self):
-        logging.getLogger('blinkpy.web_tests.controllers.'
-                          'web_test_runner').propagate = True
+            '/mock-checkout/third_party/blink/tools/blinkpy/third_party/wpt/wpt.config.json',
+            '{"ports": {}, "aliases": []}')
 
     # pylint: disable=protected-access
 
     def test_init_start_cmd_without_ws_handlers(self):
         server = WPTServe(self.port, '/foo')
-        expected_start_cmd = [
-            self.port.python3_command(),
+        self.assertEqual(server._start_cmd, [
+            'python',
             '-u',
-            '/mock-checkout/third_party/wpt_tools/wpt/wpt',
+            '/mock-checkout/third_party/blink/tools/blinkpy/third_party/wpt/wpt/wpt',
             'serve',
             '--config',
             server._config_file,
             '--doc_root',
-            '/mock-checkout/third_party/blink/web_tests/external/wpt',
-        ]
-        if six.PY3:
-            expected_start_cmd.append('--webtransport-h3')
-
-        self.assertEqual(server._start_cmd, expected_start_cmd)
+            '/test.checkout/wtests/external/wpt',
+            '--no-h2',
+        ])
 
     def test_init_start_cmd_with_ws_handlers(self):
         self.host.filesystem.maybe_make_directory(
-            '/mock-checkout/third_party/blink/web_tests/external/wpt/websockets/handlers'
-        )
+            '/test.checkout/wtests/external/wpt/websockets/handlers')
         server = WPTServe(self.port, '/foo')
-        expected_start_cmd = [
-            self.port.python3_command(),
+        self.assertEqual(server._start_cmd, [
+            'python',
             '-u',
-            '/mock-checkout/third_party/wpt_tools/wpt/wpt',
+            '/mock-checkout/third_party/blink/tools/blinkpy/third_party/wpt/wpt/wpt',
             'serve',
             '--config',
             server._config_file,
             '--doc_root',
-            '/mock-checkout/third_party/blink/web_tests/external/wpt',
+            '/test.checkout/wtests/external/wpt',
+            '--no-h2',
             '--ws_doc_root',
-            '/mock-checkout/third_party/blink/web_tests/external/wpt/websockets/handlers',
-        ]
-        if six.PY3:
-            expected_start_cmd.append('--webtransport-h3')
-
-        self.assertEqual(server._start_cmd, expected_start_cmd)
+            '/test.checkout/wtests/external/wpt/websockets/handlers',
+        ])
 
     def test_init_env(self):
         server = WPTServe(self.port, '/foo')
@@ -111,8 +90,7 @@ class TestWPTServe(LoggingTestCase):
         server.start()
         # PID file should be overwritten (MockProcess.pid == 42)
         self.assertEqual(server._pid, 42)
-        self.assertEqual(self.host.filesystem.read_text_file(server._pid_file),
-                         '42')
+        self.assertEqual(self.host.filesystem.files[server._pid_file], '42')
         # Config file should exist.
         json.loads(self.port._filesystem.read_text_file(server._config_file))
 
@@ -144,8 +122,7 @@ class TestWPTServe(LoggingTestCase):
 
         server.start()
         self.assertEqual(server._pid, 42)
-        self.assertEqual(self.host.filesystem.read_text_file(server._pid_file),
-                         '42')
+        self.assertEqual(self.host.filesystem.files[server._pid_file], '42')
 
         # In this case, we'll try to kill the process repeatedly,
         # then give up and just try to start a new process anyway.

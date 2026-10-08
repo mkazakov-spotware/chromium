@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,9 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/lookalikes/lookalike_url_blocking_page.h"
+#include "components/site_engagement/core/mojom/site_engagement_details.mojom.h"
 #include "components/url_formatter/url_formatter.h"
 #include "content/public/browser/navigation_throttle.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
@@ -38,15 +38,12 @@ bool IsSafeRedirect(const std::string& safe_url_host,
 //
 // Remember to update //docs/idn.md with the appropriate information if you
 // modify the lookalike heuristics.
-//
-// This throttle assumes that two navigations never share the same throttle.
 class LookalikeUrlNavigationThrottle : public content::NavigationThrottle {
  public:
   explicit LookalikeUrlNavigationThrottle(content::NavigationHandle* handle);
   ~LookalikeUrlNavigationThrottle() override;
 
   // content::NavigationThrottle:
-  ThrottleCheckResult WillStartRequest() override;
   ThrottleCheckResult WillProcessResponse() override;
   const char* GetNameForLogging() override;
 
@@ -63,50 +60,23 @@ class LookalikeUrlNavigationThrottle : public content::NavigationThrottle {
   ThrottleCheckResult PerformChecks(
       const std::vector<DomainInfo>& engaged_sites);
 
-  // A void-returning variant, only used with deferred throttle results (e.g.
-  // when we need to fetch engaged sites list or digital asset link manifests).
-  // |start| is the time at which the navigation was deferred, for metrics.
-  void PerformChecksDeferred(base::TimeTicks start,
-                             const std::vector<DomainInfo>& engaged_sites);
+  // A void-returning variant, only used with deferred throttle results.
+  void PerformChecksDeferred(const std::vector<DomainInfo>& engaged_sites);
 
   // Returns whether |url| is a lookalike, setting |match_type| and
   // |suggested_url| appropriately. Used in PerformChecks() on a per-URL basis.
-  // |get_domain_info_duration| should hold zero when IsLookalikeUrl() is
-  // invoked. After invocation, it will hold the duration spent in
-  // GetDomainInfo() if GetDomainInfo() was invoked.
   bool IsLookalikeUrl(const GURL& url,
                       const std::vector<DomainInfo>& engaged_sites,
                       LookalikeUrlMatchType* match_type,
-                      GURL* suggested_url,
-                      base::TimeDelta* get_domain_info_duration);
+                      GURL* suggested_url);
 
-  // Shows a full page interstitial. |safe_domain| is the domain suggested as
-  // safe by the interstitial. |lookalike_domain| is the domain that triggered
-  // the warning.
-  // This function can display two types of interstitials depending on the
-  // value of |safe_domain|:
-  // - If |safe_domain| is a valid URL, it displays a lookalike interstitial
-  // that suggests the user to go to |safe_domain| instead.
-  // - Otherwise, it displays the punycode interstitial which doesn't suggest a
-  // safe URL.
   ThrottleCheckResult ShowInterstitial(const GURL& safe_domain,
-                                       const GURL& lookalike_domain,
+                                       const GURL& url,
                                        ukm::SourceId source_id,
-                                       LookalikeUrlMatchType match_type,
-                                       bool triggered_by_initial_url);
+                                       LookalikeUrlMatchType match_type);
 
-  // Checks if a full page intersitial can be shown. This function checks if
-  // the navigation isn't a prerender navigation.
-  ThrottleCheckResult CheckAndMaybeShowInterstitial(
-      const GURL& safe_domain,
-      const GURL& lookalike_domain,
-      ukm::SourceId source_id,
-      LookalikeUrlMatchType match_type,
-      bool triggered_by_initial_url);
-
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
   bool use_test_profile_ = false;
-
   base::WeakPtrFactory<LookalikeUrlNavigationThrottle> weak_factory_{this};
 };
 

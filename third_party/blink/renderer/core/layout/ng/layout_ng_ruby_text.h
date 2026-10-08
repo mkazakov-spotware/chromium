@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,6 @@
 
 namespace blink {
 
-extern template class CORE_EXTERN_TEMPLATE_EXPORT
-    LayoutNGBlockFlowMixin<LayoutRubyText>;
-extern template class CORE_EXTERN_TEMPLATE_EXPORT LayoutNGMixin<LayoutRubyText>;
-
 // A LayoutNG version of LayoutRubyText.
 class CORE_EXPORT LayoutNGRubyText final
     : public LayoutNGBlockFlowMixin<LayoutRubyText> {
@@ -22,10 +18,7 @@ class CORE_EXPORT LayoutNGRubyText final
   explicit LayoutNGRubyText(Element* element);
   ~LayoutNGRubyText() override;
 
-  const char* GetName() const override {
-    NOT_DESTROYED();
-    return "LayoutNGRubyText";
-  }
+  const char* GetName() const override { return "LayoutNGRubyText"; }
   void UpdateBlockLayout(bool relayout_children) override;
 };
 

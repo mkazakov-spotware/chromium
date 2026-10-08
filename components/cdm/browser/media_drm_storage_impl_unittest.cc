@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,17 +8,16 @@
 #include <utility>
 
 #include "base/bind.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/unguessable_token.h"
 #include "components/prefs/testing_pref_service.h"
-#include "content/public/browser/web_contents.h"
 #include "content/public/test/navigation_simulator.h"
 #include "content/public/test/test_renderer_host.h"
 #include "media/mojo/services/mojo_media_drm_storage.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -46,11 +45,11 @@ void CreateOriginId(MediaDrmStorageImpl::OriginIdObtainedCB callback) {
 
 void CreateEmptyOriginId(MediaDrmStorageImpl::OriginIdObtainedCB callback) {
   // |callback| has to fail in order to check if empty origin ID allowed.
-  std::move(callback).Run(false, absl::nullopt);
+  std::move(callback).Run(false, base::nullopt);
 }
 
 void CreateOriginIdAsync(MediaDrmStorageImpl::OriginIdObtainedCB callback) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&CreateOriginId, std::move(callback)));
 }
 
@@ -71,7 +70,7 @@ class MediaDrmStorageImplTest : public content::RenderViewHostTestHarness {
   void SetUp() override {
     RenderViewHostTestHarness::SetUp();
 
-    pref_service_ = std::make_unique<TestingPrefServiceSimple>();
+    pref_service_.reset(new TestingPrefServiceSimple());
     PrefRegistrySimple* registry = pref_service_->registry();
     MediaDrmStorageImpl::RegisterProfilePrefs(registry);
 
@@ -101,7 +100,7 @@ class MediaDrmStorageImplTest : public content::RenderViewHostTestHarness {
         std::move(pending_media_drm_storage));
 
     // The created object will be destroyed on connection error.
-    new MediaDrmStorageImpl(*rfh, pref_service_.get(),
+    new MediaDrmStorageImpl(rfh, pref_service_.get(),
                             std::move(get_origin_id_cb),
                             std::move(allow_empty_cb), std::move(receiver));
 
@@ -123,16 +122,16 @@ class MediaDrmStorageImplTest : public content::RenderViewHostTestHarness {
     base::RunLoop().RunUntilIdle();
 
     // Verify the origin dictionary is created.
-    const base::Value::Dict& storage_dict =
-        pref_service_->GetDict(prefs::kMediaDrmStorage);
-    EXPECT_TRUE(storage_dict.Find(kTestOrigin));
+    const base::DictionaryValue* storage_dict =
+        pref_service_->GetDictionary(prefs::kMediaDrmStorage);
+    EXPECT_TRUE(storage_dict->FindKey(kTestOrigin));
 
     DCHECK(*origin_id);
     return media_drm_storage;
   }
 
   content::RenderFrameHost* SimulateNavigation(const GURL& url) {
-    content::RenderFrameHost* rfh = web_contents()->GetPrimaryMainFrame();
+    content::RenderFrameHost* rfh = web_contents()->GetMainFrame();
     content::RenderFrameHostTester::For(rfh)->InitializeRenderFrameIfNeeded();
 
     auto navigation_simulator =
@@ -291,9 +290,9 @@ TEST_F(MediaDrmStorageImplTest, OnProvisioned) {
   base::RunLoop().RunUntilIdle();
 
   // Verify the origin dictionary is created.
-  const base::Value::Dict& storage_dict =
-      pref_service_->GetDict(prefs::kMediaDrmStorage);
-  EXPECT_TRUE(storage_dict.Find(kTestOrigin));
+  const base::DictionaryValue* storage_dict =
+      pref_service_->GetDictionary(prefs::kMediaDrmStorage);
+  EXPECT_TRUE(storage_dict->FindKey(kTestOrigin));
 }
 
 TEST_F(MediaDrmStorageImplTest, OnProvisioned_Twice) {

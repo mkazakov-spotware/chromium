@@ -1,10 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/media/unified_media_controls_detailed_view_controller.h"
 
-#include "ash/system/media/media_notification_provider.h"
+#include "ash/public/cpp/media_notification_provider.h"
 #include "ash/system/media/media_tray.h"
 #include "ash/system/status_area_widget.h"
 #include "ash/system/status_area_widget_test_helper.h"
@@ -22,10 +22,9 @@ namespace ash {
 
 namespace {
 
-class MockMediaNotificationProvider : public MediaNotificationProvider {
+class MockMediaNotificationProvider : MediaNotificationProvider {
  public:
-  MockMediaNotificationProvider()
-      : old_provider_(MediaNotificationProvider::Get()) {
+  MockMediaNotificationProvider() {
     MediaNotificationProvider::Set(this);
 
     ON_CALL(*this, GetMediaNotificationListView(_)).WillByDefault([](auto) {
@@ -34,7 +33,7 @@ class MockMediaNotificationProvider : public MediaNotificationProvider {
   }
 
   ~MockMediaNotificationProvider() override {
-    MediaNotificationProvider::Set(old_provider_);
+    MediaNotificationProvider::Set(nullptr);
   }
 
   // MediaNotificationProvider implementations.
@@ -49,9 +48,6 @@ class MockMediaNotificationProvider : public MediaNotificationProvider {
   bool HasFrozenNotifications() override { return true; }
   void SetColorTheme(
       const media_message_center::NotificationTheme& color_theme) override {}
-
- private:
-  MediaNotificationProvider* const old_provider_;
 };
 
 }  // namespace
@@ -62,9 +58,8 @@ class UnifiedMediaControlsDetailedViewControllerTest : public AshTestBase {
   ~UnifiedMediaControlsDetailedViewControllerTest() override = default;
 
   void SetUp() override {
-    AshTestBase::SetUp();
-
     provider_ = std::make_unique<MockMediaNotificationProvider>();
+    AshTestBase::SetUp();
 
     // Ensure media tray is not pinned to shelf so that media controls
     // show up in quick settings.
@@ -72,12 +67,12 @@ class UnifiedMediaControlsDetailedViewControllerTest : public AshTestBase {
 
     StatusAreaWidgetTestHelper::GetStatusAreaWidget()
         ->unified_system_tray()
-        ->ShowBubble();
+        ->ShowBubble(false /* show_by_click */);
   }
 
   void TearDown() override {
-    provider_.reset();
     AshTestBase::TearDown();
+    provider_.reset();
   }
 
   void SimulateTransitionToMainMenu() {
@@ -92,7 +87,7 @@ class UnifiedMediaControlsDetailedViewControllerTest : public AshTestBase {
     return StatusAreaWidgetTestHelper::GetStatusAreaWidget()
         ->unified_system_tray()
         ->bubble()
-        ->unified_system_tray_controller();
+        ->controller_for_test();
   }
 
   MockMediaNotificationProvider* provider() { return provider_.get(); }

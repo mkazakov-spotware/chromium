@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -67,11 +67,7 @@ class VIEWS_EXPORT LayoutManager {
   virtual int GetPreferredHeightForWidth(const View* host, int width) const;
 
   // Returns the maximum space available in the layout for the specified child
-  // view. Default is unbounded. May result in a layout calculation for |host|
-  // if the layout is not valid, so while it can be called during the Layout()
-  // method for |view|, it should never be called during the actual computation
-  // of |host|'s layout (e.g. in a FlexLayout FlexRule calculation) to prevent
-  // an infinite loop.
+  // view. Default is unbounded.
   virtual SizeBounds GetAvailableSize(const View* host, const View* view) const;
 
   // Called when a View is added as a child of the View the LayoutManager has
@@ -95,7 +91,7 @@ class VIEWS_EXPORT LayoutManager {
 
  protected:
   // Sets the visibility of a view without triggering ViewVisibilitySet().
-  // During Layout(), use this method instead of View::SetVisible().
+  // During Layout(), use this method instead of View::SetVisibility().
   void SetViewVisibility(View* view, bool visible);
 
   // Gets the child views of the specified view in paint order (reverse

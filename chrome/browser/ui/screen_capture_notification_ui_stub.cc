@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,16 +13,19 @@ class ScreenCaptureNotificationUIStub : public ScreenCaptureNotificationUI {
 
   gfx::NativeViewId OnStarted(
       base::OnceClosure stop_callback,
-      content::MediaStreamUI::SourceCallback source_callback,
-      const std::vector<content::DesktopMediaID>& media_ids) override {
+      content::MediaStreamUI::SourceCallback source_callback) override {
     NOTIMPLEMENTED();
     return 0;
+  }
+
+  void SetStopCallback(base::OnceClosure stop_callback) override {
+    NOTIMPLEMENTED();
   }
 };
 
 // static
 std::unique_ptr<ScreenCaptureNotificationUI>
-ScreenCaptureNotificationUI::Create(const std::u16string& title) {
+ScreenCaptureNotificationUI::Create(const base::string16& title) {
   return std::unique_ptr<ScreenCaptureNotificationUI>(
       new ScreenCaptureNotificationUIStub());
 }

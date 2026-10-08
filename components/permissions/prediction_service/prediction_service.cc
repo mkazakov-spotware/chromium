@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,8 @@
 #include "base/no_destructor.h"
 #include "base/notreached.h"
 #include "components/permissions/features.h"
-#include "components/permissions/prediction_service/prediction_common.h"
 #include "components/permissions/prediction_service/prediction_request_features.h"
+#include "components/permissions/prediction_service/prediction_service_common.h"
 #include "components/permissions/prediction_service/prediction_service_messages.pb.h"
 #include "net/base/load_flags.h"
 #include "net/base/net_errors.h"
@@ -24,11 +24,54 @@
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
 #include "services/network/public/mojom/fetch_api.mojom-shared.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 
 namespace {
 
-constexpr base::TimeDelta kURLLookupTimeout = base::Seconds(2);
+constexpr base::TimeDelta kURLLookupTimeout = base::TimeDelta::FromSeconds(2);
+
+permissions::ClientFeatures_Gesture ConvertToProtoGesture(
+    const permissions::PermissionRequestGestureType type) {
+  switch (type) {
+    case permissions::PermissionRequestGestureType::GESTURE:
+      return permissions::ClientFeatures_Gesture_GESTURE;
+    case permissions::PermissionRequestGestureType::NO_GESTURE:
+      return permissions::ClientFeatures_Gesture_NO_GESTURE;
+    case permissions::PermissionRequestGestureType::UNKNOWN:
+      return permissions::ClientFeatures_Gesture_UNKNOWN_GESTURE;
+    case permissions::PermissionRequestGestureType::NUM:
+      break;
+  }
+
+  NOTREACHED();
+  return permissions::ClientFeatures_Gesture_UNKNOWN_GESTURE;
+}
+
+inline float GetRatioRoundedToTwoDecimals(int numerator, int denominator) {
+  if (denominator == 0)
+    return 0;
+  return roundf(100.f * numerator / denominator) / 100.f;
+}
+
+void FillInStatsFeatures(
+    const permissions::PredictionRequestFeatures::ActionCounts& counts,
+    permissions::StatsFeatures* features) {
+  int total_counts =
+      counts.denies + counts.dismissals + counts.grants + counts.ignores;
+
+  // Round to only 2 decimal places to help prevent fingerprinting.
+  features->set_avg_deny_rate(
+      GetRatioRoundedToTwoDecimals(counts.denies, total_counts));
+  features->set_avg_dismiss_rate(
+      GetRatioRoundedToTwoDecimals(counts.dismissals, total_counts));
+  features->set_avg_grant_rate(
+      GetRatioRoundedToTwoDecimals(counts.grants, total_counts));
+  features->set_avg_ignore_rate(
+      GetRatioRoundedToTwoDecimals(counts.ignores, total_counts));
+
+  // Prevent hyperspecific large counts from becoming usable to fingerprint
+  // users that see an unexpectedly large prompt count.
+  features->set_prompts_count(std::min(total_counts, 100));
+}
 
 net::NetworkTrafficAnnotationTag GetTrafficAnnotationTag() {
   return net::DefineNetworkTrafficAnnotation("permission_predictions", R"(
@@ -41,7 +84,7 @@ net::NetworkTrafficAnnotationTag GetTrafficAnnotationTag() {
         "the user with a different UI; a less intrusive one."
       trigger:
         "A permission prompt is about to be shown to the user, and the user "
-        "has opted into Safe Browsing."
+        "has opted into Safe Browsing's Enhanced Protection."
       data:
         "User stats helpful for attempting to predict the user's likelihood "
         "of granting the permission: the permission type, the presence of a "
@@ -53,11 +96,11 @@ net::NetworkTrafficAnnotationTag GetTrafficAnnotationTag() {
     policy {
       cookies_allowed: NO
       setting:
-        "This can be disabled by disabling Safe Browsing by going to "
+        "This can be disabled by disabling Enhanced Protection by going to "
         "Settings and then to the Security sub-menu."
       chrome_policy {
         SafeBrowsingProtectionLevel {
-          SafeBrowsingProtectionLevel: 0
+          SafeBrowsingProtectionLevel: 1
         }
       }
     })");
@@ -78,7 +121,6 @@ void PredictionService::StartLookup(const PredictionRequestFeatures& entity,
   auto request = GetResourceRequest();
   auto proto_request = GetPredictionRequestProto(entity);
   std::string request_data;
-
   proto_request->SerializeToString(&request_data);
 
   SendRequestInternal(std::move(request), request_data, entity,
@@ -133,6 +175,34 @@ PredictionService::GetResourceRequest() {
   return request;
 }
 
+std::unique_ptr<GetSuggestionsRequest>
+PredictionService::GetPredictionRequestProto(
+    const PredictionRequestFeatures& entity) {
+  auto proto_request = std::make_unique<GetSuggestionsRequest>();
+
+  ClientFeatures* client_features = proto_request->mutable_client_features();
+  client_features->set_platform(GetCurrentPlatformProto());
+  client_features->set_gesture(ConvertToProtoGesture(entity.gesture));
+  FillInStatsFeatures(entity.all_permission_counts,
+                      client_features->mutable_client_stats());
+
+  PermissionFeatures* permission_features =
+      proto_request->mutable_permission_features()->Add();
+  FillInStatsFeatures(entity.requested_permission_counts,
+                      permission_features->mutable_permission_stats());
+
+  switch (entity.type) {
+    case PermissionRequestType::PERMISSION_NOTIFICATIONS:
+      permission_features->mutable_notification_permission()
+          ->InitAsDefaultInstance();
+      break;
+    default:
+      NOTREACHED() << "CPSS only supports notifications at the moment.";
+  }
+
+  return proto_request;
+}
+
 void PredictionService::SendRequestInternal(
     std::unique_ptr<network::ResourceRequest> request,
     const std::string& request_data,
@@ -165,15 +235,10 @@ void PredictionService::OnURLLoaderComplete(
           CreatePredictionsResponse(loader, response_body.get());
 
       if (request.second) {
-        absl::optional<GeneratePredictionsResponse> response;
-        if (prediction_response == nullptr) {
-          response = absl::nullopt;
-        } else {
-          response = *prediction_response;
-        }
-        bool lookup_success = prediction_response != nullptr;
         std::move(request.second)
-            .Run(lookup_success, /*Response from cache=*/false, response);
+            .Run(prediction_response != nullptr /* Lookup successful */,
+                 false /* Response from cache */,
+                 std::move(prediction_response));
       }
 
       pending_requests_.erase(request.first);
@@ -184,7 +249,7 @@ void PredictionService::OnURLLoaderComplete(
   NOTREACHED() << "Unexpected loader callback.";
 }
 
-std::unique_ptr<GeneratePredictionsResponse>
+std::unique_ptr<GetSuggestionsResponse>
 PredictionService::CreatePredictionsResponse(network::SimpleURLLoader* loader,
                                              const std::string* response_body) {
   if (!response_body || loader->NetError() != net::OK ||
@@ -192,12 +257,13 @@ PredictionService::CreatePredictionsResponse(network::SimpleURLLoader* loader,
     return nullptr;
   }
 
-  auto predictions_response = std::make_unique<GeneratePredictionsResponse>();
-  if (!predictions_response->ParseFromString(*response_body)) {
-    return nullptr;
+  auto predictions_response = std::make_unique<GetSuggestionsResponse>();
+
+  if (predictions_response->ParseFromString(*response_body)) {
+    return predictions_response;
   }
 
-  return predictions_response;
+  return nullptr;
 }
 
 }  // namespace permissions

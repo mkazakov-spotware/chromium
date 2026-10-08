@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,15 +14,12 @@
 #include "base/memory/ref_counted.h"
 #include "base/task/task_traits.h"
 #include "base/timer/timer.h"
-#include "base/values.h"
-#include "build/chromeos_buildflags.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/tracing_controller.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "mojo/public/cpp/system/data_pipe_drainer.h"
 #include "services/tracing/public/mojom/perfetto_service.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace perfetto {
 namespace protos {
@@ -38,6 +35,7 @@ namespace trace_event {
 class TraceConfig;
 }  // namespace trace_event
 
+class DictionaryValue;
 }  // namespace base
 
 namespace tracing {
@@ -46,6 +44,7 @@ class BaseAgent;
 
 namespace content {
 
+class PerfettoFileTracer;
 class TracingDelegate;
 
 class TracingControllerImpl : public TracingController,
@@ -64,9 +63,6 @@ class TracingControllerImpl : public TracingController,
 
   // Should be called on the UI thread.
   CONTENT_EXPORT TracingControllerImpl();
-
-  TracingControllerImpl(const TracingControllerImpl&) = delete;
-  TracingControllerImpl& operator=(const TracingControllerImpl&) = delete;
 
   // TracingController implementation.
   bool GetCategories(GetCategoriesDoneCallback callback) override;
@@ -89,13 +85,29 @@ class TracingControllerImpl : public TracingController,
   CONTENT_EXPORT void SetTracingDelegateForTesting(
       std::unique_ptr<TracingDelegate> delegate);
 
+  // If command line flags specify startup tracing options, adopts the startup
+  // tracing session and relays it to all tracing agents. Note that the local
+  // TraceLog has already been enabled at this point by
+  // tracing::EnableStartupTracingIfNeeded(), before threads were available.
+  // Requires browser threads to have started and a started main message loop.
+  void StartStartupTracingIfNeeded();
+
+  // Should be called before browser main loop shutdown. If startup tracing is
+  // tracing to a file and is still active, this stops the duration timer if it
+  // exists.
+  void FinalizeStartupTracingIfNeeded();
+
+  PerfettoFileTracer* perfetto_file_tracer_for_testing() const {
+    return perfetto_file_tracer_.get();
+  }
+
  private:
   friend std::default_delete<TracingControllerImpl>;
 
   ~TracingControllerImpl() override;
   void AddAgents();
   void ConnectToServiceIfNeeded();
-  absl::optional<base::Value::Dict> GenerateMetadataDict();
+  std::unique_ptr<base::DictionaryValue> GenerateMetadataDict();
   void GenerateMetadataPacket(perfetto::protos::pbzero::TracePacket* packet,
                               bool privacy_filtering_enabled);
 
@@ -109,10 +121,12 @@ class TracingControllerImpl : public TracingController,
 
   void InitStartupTracingForDuration();
   void EndStartupTracing();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   void OnMachineStatisticsLoaded();
 #endif
+  base::FilePath GetStartupTraceFileName() const;
 
+  std::unique_ptr<PerfettoFileTracer> perfetto_file_tracer_;
   mojo::Remote<tracing::mojom::ConsumerHost> consumer_host_;
   mojo::Remote<tracing::mojom::TracingSessionHost> tracing_session_host_;
   mojo::Receiver<tracing::mojom::TracingSessionClient> receiver_{this};
@@ -126,11 +140,17 @@ class TracingControllerImpl : public TracingController,
   bool is_data_complete_ = false;
   bool read_buffers_complete_ = false;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+  base::FilePath startup_trace_file_;
+  // This timer initiates trace file saving.
+  base::OneShotTimer startup_trace_timer_;
+
+#if defined(OS_CHROMEOS)
   bool are_statistics_loaded_ = false;
   std::string hardware_class_;
   base::WeakPtrFactory<TracingControllerImpl> weak_ptr_factory_{this};
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(TracingControllerImpl);
 };
 
 }  // namespace content

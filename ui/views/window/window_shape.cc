@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,11 @@
 namespace views {
 
 void GetDefaultWindowMask(const gfx::Size& size,
+                          float scale,
                           SkPath* window_mask) {
-  const SkScalar width = SkIntToScalar(size.width());
-  const SkScalar height = SkIntToScalar(size.height());
+  const SkScalar sk_scale = SkFloatToScalar(scale);
+  const SkScalar width = SkIntToScalar(size.width()) / sk_scale;
+  const SkScalar height = SkIntToScalar(size.height()) / sk_scale;
 
   window_mask->moveTo(0, 3);
   window_mask->lineTo(1, 3);
@@ -39,6 +41,10 @@ void GetDefaultWindowMask(const gfx::Size& size,
   window_mask->lineTo(0, height - 3);
 
   window_mask->close();
+
+  SkMatrix m;
+  m.setScale(sk_scale, sk_scale);
+  window_mask->transform(m);
 }
 
 }  // namespace views

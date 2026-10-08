@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 
 using ::testing::Optional;
 
-namespace network::internal {
+namespace network {
+namespace internal {
 
 // trust_tokens/types.h's TimeToString/StringToTime implementations are
 // thin wrappers around well-tested //base conversion methods, so these
@@ -17,14 +18,15 @@ namespace network::internal {
 // getting passed to the pertinent //base libraries.
 
 TEST(TrustTokenTypes, TimeToStringRoundtrip) {
-  auto my_time = base::Time::UnixEpoch() +
-                 base::Milliseconds(373849174829374);  // arbitrary
+  auto my_time = base::Time::UnixEpoch() + base::TimeDelta::FromMilliseconds(
+                                               373849174829374);  // arbitrary
   EXPECT_THAT(StringToTime(TimeToString(my_time)), Optional(my_time));
 }
 
 TEST(TrustTokenTypes, TimeFromBadStringFails) {
   EXPECT_EQ(StringToTime("I bet this isn't a valid representation of a time."),
-            absl::nullopt);
+            base::nullopt);
 }
 
-}  // namespace network::internal
+}  // namespace internal
+}  // namespace network

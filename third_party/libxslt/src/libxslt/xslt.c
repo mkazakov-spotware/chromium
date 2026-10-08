@@ -91,7 +91,13 @@ const xmlChar *xsltXSLTAttrMarker = (const xmlChar *) "LRE XSLT Attr";
 #ifdef XSLT_LOCALE_WINAPI
 extern xmlRMutexPtr xsltLocaleMutex;
 #endif
-
+/*
+ * Harmless but avoiding a problem when compiling against a
+ * libxml <= 2.3.11 without LIBXML_DEBUG_ENABLED
+ */
+#ifndef LIBXML_DEBUG_ENABLED
+double xmlXPathStringEvalNumber(const xmlChar *str);
+#endif
 /*
  * Useful macros
  */
@@ -3650,8 +3656,12 @@ xsltPreprocessStylesheet(xsltStylesheetPtr style, xmlNodePtr cur)
 	    (!xsltCheckExtURI(style, cur->ns->href))) {
 	    goto skip_children;
 	} else if (cur->children != NULL) {
-	    cur = cur->children;
-	    continue;
+	    if ((cur->children->type != XML_ENTITY_DECL) &&
+		(cur->children->type != XML_ENTITY_REF_NODE) &&
+		(cur->children->type != XML_ENTITY_NODE)) {
+		cur = cur->children;
+		continue;
+	    }
 	}
 
 skip_children:
@@ -6681,9 +6691,6 @@ xsltParseStylesheetUser(xsltStylesheetPtr style, xmlDocPtr doc) {
     }
 #endif /* else of XSLT_REFACTORED */
 
-    if (style->parent == NULL)
-        xsltResolveStylesheetAttributeSet(style);
-
     if (style->errors != 0) {
         /*
         * Detach the doc from the stylesheet; otherwise the doc
@@ -6697,6 +6704,9 @@ xsltParseStylesheetUser(xsltStylesheetPtr style, xmlDocPtr doc) {
             xsltCleanupStylesheetTree(doc, xmlDocGetRootElement(doc));
         return(-1);
     }
+
+    if (style->parent == NULL)
+        xsltResolveStylesheetAttributeSet(style);
 
     return(0);
 }

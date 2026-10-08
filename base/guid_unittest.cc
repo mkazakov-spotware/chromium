@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <stdint.h>
 
 #include <limits>
-#include <set>
 #include <unordered_set>
 
 #include "base/strings/string_util.h"
@@ -163,100 +162,6 @@ TEST(GUIDTest, UnorderedSet) {
   EXPECT_EQ(2u, guid_set.size());
   guid_set.insert(GUID::ParseCaseInsensitive(ToUpperASCII(kGUID2)));
   EXPECT_EQ(2u, guid_set.size());
-}
-
-TEST(GUIDTest, Set) {
-  std::set<GUID> guid_set;
-
-  static constexpr char kGUID1[] = "01234567-89ab-cdef-0123-456789abcdef";
-  const GUID guid1 = GUID::ParseLowercase(kGUID1);
-  ASSERT_TRUE(guid1.is_valid());
-  guid_set.insert(guid1);
-
-  static constexpr char kGUID2[] = "deadbeef-dead-beef-dead-beefdeadbeef";
-  const GUID guid2 = GUID::ParseLowercase(kGUID2);
-  ASSERT_TRUE(guid2.is_valid());
-  guid_set.insert(guid2);
-
-  // Test that the order of the GUIDs was preserved.
-  auto it = guid_set.begin();
-  EXPECT_EQ(guid1, *it);
-  ++it;
-  EXPECT_EQ(guid2, *it);
-  ++it;
-  EXPECT_EQ(guid_set.end(), it);
-}
-
-TEST(GUIDTest, Compare) {
-  static constexpr char kGUID[] = "21abd97f-73e8-4b88-9389-a9fee6abda5e";
-  static constexpr char kGUIDLess[] = "1e0dcaca-9e7c-4f4b-bcc6-e4c02b0c99df";
-  static constexpr char kGUIDGreater[] = "6eeb1bc8-186b-433c-9d6a-a827bc96b2d4";
-
-  const GUID guid = GUID::ParseLowercase(kGUID);
-  const GUID guid_eq = GUID::ParseLowercase(kGUID);
-  const GUID guid_lt = GUID::ParseLowercase(kGUIDLess);
-  const GUID guid_gt = GUID::ParseLowercase(kGUIDGreater);
-  const GUID guid_invalid = GUID();
-
-  EXPECT_TRUE(guid_eq == guid);
-  EXPECT_FALSE(guid_eq != guid);
-  EXPECT_FALSE(guid_eq < guid);
-  EXPECT_TRUE(guid_eq <= guid);
-  EXPECT_FALSE(guid_eq > guid);
-  EXPECT_TRUE(guid_eq >= guid);
-
-  EXPECT_FALSE(guid_lt == guid);
-  EXPECT_TRUE(guid_lt != guid);
-  EXPECT_TRUE(guid_lt < guid);
-  EXPECT_TRUE(guid_lt <= guid);
-  EXPECT_FALSE(guid_lt > guid);
-  EXPECT_FALSE(guid_lt >= guid);
-
-  EXPECT_FALSE(guid_gt == guid);
-  EXPECT_TRUE(guid_gt != guid);
-  EXPECT_FALSE(guid_gt < guid);
-  EXPECT_FALSE(guid_gt <= guid);
-  EXPECT_TRUE(guid_gt > guid);
-  EXPECT_TRUE(guid_gt >= guid);
-
-  // Invalid GUIDs are the "least".
-  EXPECT_FALSE(guid_invalid == guid);
-  EXPECT_TRUE(guid_invalid != guid);
-  EXPECT_TRUE(guid_invalid < guid);
-  EXPECT_TRUE(guid_invalid <= guid);
-  EXPECT_FALSE(guid_invalid > guid);
-  EXPECT_FALSE(guid_invalid >= guid);
-}
-
-TEST(GUIDTest, FormatRandomDataAsV4) {
-  static constexpr uint64_t bytes1a[] = {0x0123456789abcdefull,
-                                         0x5a5a5a5aa5a5a5a5ull};
-  static constexpr uint64_t bytes1b[] = {bytes1a[0], bytes1a[1]};
-  static constexpr uint64_t bytes2[] = {0xfffffffffffffffdull,
-                                        0xfffffffffffffffeull};
-  static constexpr uint64_t bytes3[] = {0xfffffffffffffffdull,
-                                        0xfffffffffffffffcull};
-
-  const GUID guid1a =
-      GUID::FormatRandomDataAsV4ForTesting(as_bytes(make_span(bytes1a)));
-  const GUID guid1b =
-      GUID::FormatRandomDataAsV4ForTesting(as_bytes(make_span(bytes1b)));
-  const GUID guid2 =
-      GUID::FormatRandomDataAsV4ForTesting(as_bytes(make_span(bytes2)));
-  const GUID guid3 =
-      GUID::FormatRandomDataAsV4ForTesting(as_bytes(make_span(bytes3)));
-
-  EXPECT_TRUE(guid1a.is_valid());
-  EXPECT_TRUE(guid1b.is_valid());
-  EXPECT_TRUE(guid2.is_valid());
-  EXPECT_TRUE(guid3.is_valid());
-
-  // The same input should give the same GUID.
-  EXPECT_EQ(guid1a, guid1b);
-
-  EXPECT_NE(guid1a, guid2);
-  EXPECT_NE(guid1a, guid3);
-  EXPECT_NE(guid2, guid3);
 }
 
 }  // namespace base

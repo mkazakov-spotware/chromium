@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/metrics/system_session_analyzer/system_session_analyzer_win.h"
 
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/time/time.h"
 
 namespace metrics {
@@ -299,7 +300,7 @@ bool SystemSessionAnalyzer::ProcessSession(const EventInfo& end,
 
 SystemSessionAnalyzer::EvtHandle SystemSessionAnalyzer::CreateRenderContext() {
   LPCWSTR value_paths[] = {kEventIdPath, kEventTimePath};
-  const DWORD kValueCnt = std::size(value_paths);
+  const DWORD kValueCnt = base::size(value_paths);
 
   EVT_HANDLE context = nullptr;
   context =

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,17 +8,26 @@
 #include "base/compiler_specific.h"
 #include "base/containers/circular_deque.h"
 #include "base/containers/flat_map.h"
-#include "components/performance_manager/public/freezing/freezing.h"
-#include "components/performance_manager/public/graph/graph_registered.h"
-#include "components/performance_manager/public/graph/node_data_describer.h"
 #include "components/performance_manager/public/voting/voting.h"
 
 namespace performance_manager {
 
-class FreezingVoteDecorator;
 class PageNode;
 
 namespace freezing {
+
+enum class FreezingVoteValue {
+  kCannotFreeze,
+  kCanFreeze,
+};
+
+using FreezingVote =
+    voting::Vote<PageNode, FreezingVoteValue, FreezingVoteValue::kCannotFreeze>;
+using FreezingVoteReceipt = voting::VoteReceipt<FreezingVote>;
+using FreezingVotingChannel = voting::VotingChannel<FreezingVote>;
+using FreezingVoteConsumer = voting::VoteConsumer<FreezingVote>;
+using AcceptedFreezingVote = voting::AcceptedVote<FreezingVote>;
+using FreezingVotingChannelFactory = voting::VotingChannelFactory<FreezingVote>;
 
 // An aggregator for freezing votes. It upstreams an aggregated vote to an
 // upstream channel every time the freezing decision changes for a PageNode. It
@@ -26,15 +35,9 @@ namespace freezing {
 // kCanFreeze vote for this node. Any kCannotFreeze vote received will have
 // priority over the kCanFreeze votes and will prevent the PageNode from being
 // frozen.
-//
-// This is a GraphRegistered object, once created this instance can be
-// retrieved via:
-//     graph()->GetRegisteredObjectAs<freezing::FreezingVoteAggregator>();
-class FreezingVoteAggregator final
-    : public FreezingVoteObserver,
-      public NodeDataDescriberDefaultImpl,
-      public GraphRegisteredImpl<FreezingVoteAggregator> {
+class FreezingVoteAggregator final : public FreezingVoteConsumer {
  public:
+  FreezingVoteAggregator();
   FreezingVoteAggregator(const FreezingVoteAggregator& rhs) = delete;
   FreezingVoteAggregator& operator=(const FreezingVoteAggregator& rhs) = delete;
   ~FreezingVoteAggregator() override;
@@ -45,30 +48,19 @@ class FreezingVoteAggregator final
   // Sets the upstream voting channel. Should only be called once.
   void SetUpstreamVotingChannel(FreezingVotingChannel&& channel);
 
-  // FreezingVoteObserver implementation:
-  void OnVoteSubmitted(FreezingVoterId voter_id,
-                       const PageNode* page_node,
-                       const FreezingVote& vote) override;
-  void OnVoteChanged(FreezingVoterId voter_id,
-                     const PageNode* page_node,
-                     const FreezingVote& new_vote) override;
-  void OnVoteInvalidated(FreezingVoterId voter_id,
-                         const PageNode* page_node) override;
-
-  void RegisterNodeDataDescriber(Graph* graph);
-  void UnregisterNodeDataDescriber(Graph* graph);
-
-  // NodeDataDescriber implementation:
-  base::Value DescribePageNodeData(const PageNode* node) const override;
+  // VoteConsumer implementation:
+  FreezingVoteReceipt SubmitVote(util::PassKey<FreezingVotingChannel>,
+                                 voting::VoterId<FreezingVote> voter_id,
+                                 const PageNode* page_node,
+                                 const FreezingVote& vote) override;
+  void ChangeVote(util::PassKey<AcceptedFreezingVote>,
+                  AcceptedFreezingVote* old_vote,
+                  const FreezingVote& new_vote) override;
+  void VoteInvalidated(util::PassKey<AcceptedFreezingVote>,
+                       AcceptedFreezingVote* vote) override;
 
  private:
-  friend class performance_manager::FreezingVoteDecorator;
-  friend class FreezingVoteAggregatorTest;
   friend class FreezingVoteAggregatorTestAccess;
-
-  // Private constructor, in practice the FreezingVoteDecorator is responsible
-  // for maintaining the lifetime of this object.
-  FreezingVoteAggregator();
 
   // Contains the freezing votes for a given PageNode.
   class FreezingVoteData {
@@ -93,44 +85,49 @@ class FreezingVoteAggregator final
     FreezingVoteData& operator=(const FreezingVoteData& rhs) = delete;
     ~FreezingVoteData();
 
-    // Adds a new vote.
-    void AddVote(FreezingVoterId voter_id, const FreezingVote& vote);
+    // Adds a vote. Returns an UpstreamVoteImpact indicating if the upstreamed
+    // vote should be updated by calling UpstreamVote.
+    UpstreamVoteImpact AddVote(AcceptedFreezingVote&& vote) WARN_UNUSED_RESULT;
 
-    // Updates an existing vote.
-    void UpdateVote(FreezingVoterId voter_id, const FreezingVote& new_vote);
+    // Updates a vote. Returns an UpstreamVoteImpact indicating if the
+    // upstreamed vote should be updated by calling UpstreamVote.
+    UpstreamVoteImpact UpdateVote(AcceptedFreezingVote* old_vote,
+                                  const FreezingVote& new_vote)
+        WARN_UNUSED_RESULT;
 
-    // Removes an existing vote
-    void RemoveVote(FreezingVoterId voter_id);
+    // Removes a vote. Returns an UpstreamVoteImpact indicating if the
+    // upstreamed vote should be updated by calling UpstreamVote or invalidated.
+    UpstreamVoteImpact RemoveVote(AcceptedFreezingVote* vote)
+        WARN_UNUSED_RESULT;
 
     // Upstreams the vote for this vote data, using the given voting |channel|.
-    void UpstreamVote(const PageNode* page_node,
-                      FreezingVotingChannel* channel);
+    void UpstreamVote(FreezingVotingChannel* channel);
 
-    bool IsEmpty() { return votes_.empty(); }
+    bool IsEmpty() { return accepted_votes_.empty(); }
 
-    // Returns the chosen vote. Invalid to call if IsEmpty() is true.
-    const FreezingVote& GetChosenVote();
+    // Returns the current aggregated vote.
+    const AcceptedFreezingVote& GetCurrentVote();
 
-    // Helper for FreezingVoteAggregator::DescribePageNodeData.
-    void DescribeVotes(base::Value* ret) const;
-
-   private:
     friend class FreezingVoteAggregatorTestAccess;
 
     // The current set of votes.
-    using VotesDeque =
-        base::circular_deque<std::pair<FreezingVoterId, FreezingVote>>;
+    using AcceptedVotesDeque = base::circular_deque<AcceptedFreezingVote>;
 
-    const VotesDeque& GetVotesForTesting() { return votes_; }
+    const AcceptedVotesDeque& GetAcceptedVotesForTesting() {
+      return accepted_votes_;
+    }
 
-    // Returns the iterator of |voter_id| in |votes_|. |voter_id| is expected
+    // Returns the iterator of |vote| in |accepted_votes_|. |vote| is expected
     // to be in the deque, this is enforced by a DCHECK.
-    VotesDeque::iterator FindVote(FreezingVoterId voter_id);
+    AcceptedVotesDeque::iterator FindVote(AcceptedFreezingVote* vote);
 
-    void AddVoteToDeque(FreezingVoterId voter_id, const FreezingVote& vote);
+    void AddVoteToDeque(AcceptedFreezingVote&& vote);
 
     // kCannotFreeze votes are always at the beginning of the deque.
-    VotesDeque votes_;
+    AcceptedVotesDeque accepted_votes_;
+
+    // The receipt for the vote we've upstreamed.
+    FreezingVoteReceipt receipt_;
   };
   using VoteDataMap = base::flat_map<const PageNode*, FreezingVoteData>;
 
@@ -144,8 +141,8 @@ class FreezingVoteAggregator final
   // The channel for upstreaming our votes.
   FreezingVotingChannel channel_;
 
-  // Provides FreezingVotingChannels to our input voters.
-  FreezingVotingChannelFactory freezing_voting_channel_factory_{this};
+  // The factory for providing FreezingVotingChannels to our input voters.
+  FreezingVotingChannelFactory factory_;
 };
 
 }  // namespace freezing

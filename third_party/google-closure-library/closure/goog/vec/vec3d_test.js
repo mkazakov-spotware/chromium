@@ -1,8 +1,5 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2013 The Closure Library Authors. All Rights Reserved.
+// Use of this source code is governed by the Apache License, Version 2.0.
 
 ////////////////////////// NOTE ABOUT EDITING THIS FILE ///////////////////////
 //                                                                           //
@@ -15,7 +12,6 @@ goog.module('goog.vec.vec3dTest');
 goog.setTestOnly();
 
 const testSuite = goog.require('goog.testing.testSuite');
-const vec = goog.require('goog.vec');
 const vec3d = goog.require('goog.vec.vec3d');
 
 testSuite({
@@ -116,7 +112,6 @@ testSuite({
     assertElementsEquals([1, 2, 3], v0);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testScale() {
     const v0 = vec3d.setFromArray(vec3d.create(), [1, 2, 3]);
     const v1 = vec3d.create();
@@ -140,7 +135,6 @@ testSuite({
     assertEquals(Math.sqrt(14), vec3d.magnitude(v0));
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testNormalize() {
     const v0 = vec3d.setFromArray(vec3d.create(), [2, 3, 4]);
     const v1 = vec3d.create();
@@ -163,7 +157,6 @@ testSuite({
     assertEquals(32, vec3d.dot(v1, v0));
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testCross() {
     const v0 = vec3d.setFromArray(vec3d.create(), [1, 2, 3]);
     const v1 = vec3d.setFromArray(vec3d.create(), [4, 5, 6]);
@@ -217,7 +210,7 @@ testSuite({
     vec3d.direction(v0, v1, dirVec);
     assertElementsRoughlyEqual(
         [-0.5773502588272095, -0.5773502588272095, -0.5773502588272095], dirVec,
-        vec.EPSILON);
+        goog.vec.EPSILON);
   },
 
   testLerp() {
@@ -250,45 +243,53 @@ testSuite({
     // Try slerp between perpendicular vectors.
     vec3d.slerp(v0, v1, .5, v5);
     assertElementsRoughlyEqual(
-        [Math.sqrt(2) / 2, 0, Math.sqrt(2) / 2], v5, vec.EPSILON);
+        [Math.sqrt(2) / 2, 0, Math.sqrt(2) / 2], v5, goog.vec.EPSILON);
 
     // Try slerp between vectors of opposite directions (+Z and -Z).
     v5 = vec3d.slerp(v0, v4, .5, v5);
     // Axis of rotation is arbitrary, but result should be 90 degrees from both
     // v0 and v4 when f = 0.5.
-    assertRoughlyEquals(Math.PI / 2, Math.acos(vec3d.dot(v5, v0)), vec.EPSILON);
-    assertRoughlyEquals(Math.PI / 2, Math.acos(vec3d.dot(v5, v4)), vec.EPSILON);
+    assertRoughlyEquals(
+        Math.PI / 2, Math.acos(vec3d.dot(v5, v0)), goog.vec.EPSILON);
+    assertRoughlyEquals(
+        Math.PI / 2, Math.acos(vec3d.dot(v5, v4)), goog.vec.EPSILON);
 
     // f == 0.25, result should be 45-degrees to v0, and 135 to v4.
     v5 = vec3d.slerp(v0, v4, .25, v5);
-    assertRoughlyEquals(Math.PI / 4, Math.acos(vec3d.dot(v5, v0)), vec.EPSILON);
     assertRoughlyEquals(
-        Math.PI * 3 / 4, Math.acos(vec3d.dot(v5, v4)), vec.EPSILON);
+        Math.PI / 4, Math.acos(vec3d.dot(v5, v0)), goog.vec.EPSILON);
+    assertRoughlyEquals(
+        Math.PI * 3 / 4, Math.acos(vec3d.dot(v5, v4)), goog.vec.EPSILON);
 
     // f = 0.75, result should be 135-degrees to v0, and 45 to v4.
     v5 = vec3d.slerp(v0, v4, .75, v5);
     assertRoughlyEquals(
-        Math.PI * 3 / 4, Math.acos(vec3d.dot(v5, v0)), vec.EPSILON);
-    assertRoughlyEquals(Math.PI / 4, Math.acos(vec3d.dot(v5, v4)), vec.EPSILON);
+        Math.PI * 3 / 4, Math.acos(vec3d.dot(v5, v0)), goog.vec.EPSILON);
+    assertRoughlyEquals(
+        Math.PI / 4, Math.acos(vec3d.dot(v5, v4)), goog.vec.EPSILON);
 
     // Same as above, but on opposite directions of the X-axis.
     v5 = vec3d.slerp(v1, v2, .5, v5);
     // Axis of rotation is arbitrary, but result should be 90 degrees from both
     // v1 and v2 when f = 0.5.
-    assertRoughlyEquals(Math.PI / 2, Math.acos(vec3d.dot(v5, v1)), vec.EPSILON);
-    assertRoughlyEquals(Math.PI / 2, Math.acos(vec3d.dot(v5, v2)), vec.EPSILON);
+    assertRoughlyEquals(
+        Math.PI / 2, Math.acos(vec3d.dot(v5, v1)), goog.vec.EPSILON);
+    assertRoughlyEquals(
+        Math.PI / 2, Math.acos(vec3d.dot(v5, v2)), goog.vec.EPSILON);
 
     // f == 0.25, result should be 45-degrees to v1, and 135 to v2.
     v5 = vec3d.slerp(v1, v2, .25, v5);
-    assertRoughlyEquals(Math.PI / 4, Math.acos(vec3d.dot(v5, v1)), vec.EPSILON);
     assertRoughlyEquals(
-        Math.PI * 3 / 4, Math.acos(vec3d.dot(v5, v2)), vec.EPSILON);
+        Math.PI / 4, Math.acos(vec3d.dot(v5, v1)), goog.vec.EPSILON);
+    assertRoughlyEquals(
+        Math.PI * 3 / 4, Math.acos(vec3d.dot(v5, v2)), goog.vec.EPSILON);
 
     // f = 0.75, result should be 135-degrees to v1, and 45 to v2.
     v5 = vec3d.slerp(v1, v2, .75, v5);
     assertRoughlyEquals(
-        Math.PI * 3 / 4, Math.acos(vec3d.dot(v5, v1)), vec.EPSILON);
-    assertRoughlyEquals(Math.PI / 4, Math.acos(vec3d.dot(v5, v2)), vec.EPSILON);
+        Math.PI * 3 / 4, Math.acos(vec3d.dot(v5, v1)), goog.vec.EPSILON);
+    assertRoughlyEquals(
+        Math.PI / 4, Math.acos(vec3d.dot(v5, v2)), goog.vec.EPSILON);
 
     // Try vectors that aren't perpendicular or opposite/same direction.
     const v6 = vec3d.setFromValues(
@@ -298,9 +299,9 @@ testSuite({
     // The vectors are 45 degrees apart, for f == 0.9, results should be 1/10 of
     // that from v6 and 9/10 of that away from v1.
     assertRoughlyEquals(
-        (Math.PI / 4) * 0.9, Math.acos(vec3d.dot(v1, v5)), vec.EPSILON);
+        (Math.PI / 4) * 0.9, Math.acos(vec3d.dot(v1, v5)), goog.vec.EPSILON);
     assertRoughlyEquals(
-        (Math.PI / 4) * 0.1, Math.acos(vec3d.dot(v6, v5)), vec.EPSILON);
+        (Math.PI / 4) * 0.1, Math.acos(vec3d.dot(v6, v5)), goog.vec.EPSILON);
 
     // Between vectors of the same direction, where one is non-unit-length
     // (magnitudes should be lerp-ed).
@@ -309,9 +310,10 @@ testSuite({
 
     // Between perpendicular vectors, where one is non-unit length.
     vec3d.slerp(v0, v3, .5, v5);
-    assertRoughlyEquals(3, vec3d.magnitude(v5), vec.EPSILON);
+    assertRoughlyEquals(3, vec3d.magnitude(v5), goog.vec.EPSILON);
     assertElementsRoughlyEqual(
-        [-3 * (Math.sqrt(2) / 2), 0, 3 * (Math.sqrt(2) / 2)], v5, vec.EPSILON);
+        [-3 * (Math.sqrt(2) / 2), 0, 3 * (Math.sqrt(2) / 2)], v5,
+        goog.vec.EPSILON);
 
     // And vectors of opposite directions, where one is non-unit length.
     vec3d.slerp(v1, v3, .5, v5);
@@ -321,21 +323,21 @@ testSuite({
         Math.PI / 2,
         Math.acos(
             vec3d.dot(v5, v1) / (vec3d.magnitude(v5) * vec3d.magnitude(v1))),
-        vec.EPSILON);
+        goog.vec.EPSILON);
     assertRoughlyEquals(
         Math.PI / 2,
         Math.acos(
             vec3d.dot(v5, v3) / (vec3d.magnitude(v3) * vec3d.magnitude(v5))),
-        vec.EPSILON);
+        goog.vec.EPSILON);
     // Magnitude should be linearly interpolated.
-    assertRoughlyEquals(3, vec3d.magnitude(v5), vec.EPSILON);
+    assertRoughlyEquals(3, vec3d.magnitude(v5), goog.vec.EPSILON);
 
     // Try a case where the vectors are the same direction (the same vector in
     // this case), but where numerical error results in a dot product
     // slightly greater than 1. Taking the acos of this would result in NaN.
     const v7 = vec3d.setFromValues(vec3d.create(), 0.009, 0.147, 0.989);
     vec3d.slerp(v7, v7, .25, v5);
-    assertElementsRoughlyEqual([v7[0], v7[1], v7[2]], v5, vec.EPSILON);
+    assertElementsRoughlyEqual([v7[0], v7[1], v7[2]], v5, goog.vec.EPSILON);
   },
 
   testMax() {

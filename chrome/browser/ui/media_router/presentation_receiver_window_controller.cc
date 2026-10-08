@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,8 +52,8 @@ PresentationReceiverWindowController::~PresentationReceiverWindowController() {
   DCHECK(!window_);
 
   if (otr_profile_) {
-    otr_profile_observation_.Reset();
-    ProfileDestroyer::DestroyOTRProfileWhenAppropriate(otr_profile_);
+    otr_profile_->RemoveObserver(this);
+    ProfileDestroyer::DestroyProfileWhenAppropriate(otr_profile_);
   }
 }
 
@@ -114,15 +114,14 @@ PresentationReceiverWindowController::PresentationReceiverWindowController(
     base::OnceClosure termination_callback,
     TitleChangeCallback title_change_callback)
     : otr_profile_(profile->GetOffTheRecordProfile(
-          Profile::OTRProfileID::CreateUniqueForMediaRouter(),
-          /*create_if_needed=*/true)),
+          Profile::OTRProfileID::CreateUniqueForMediaRouter())),
       web_contents_(WebContents::Create(CreateWebContentsParams(otr_profile_))),
       window_(PresentationReceiverWindow::Create(this, bounds)),
       termination_callback_(std::move(termination_callback)),
       title_change_callback_(std::move(title_change_callback)) {
   DCHECK(otr_profile_);
   DCHECK(otr_profile_->IsOffTheRecord());
-  otr_profile_observation_.Observe(otr_profile_.get());
+  otr_profile_->AddObserver(this);
   content::WebContentsObserver::Observe(web_contents_.get());
   web_contents_->SetDelegate(this);
 }
@@ -136,7 +135,6 @@ void PresentationReceiverWindowController::OnProfileWillBeDestroyed(
     Profile* profile) {
   DCHECK(profile == otr_profile_);
   web_contents_.reset();
-  otr_profile_observation_.Reset();
   otr_profile_ = nullptr;
   Terminate();
 }

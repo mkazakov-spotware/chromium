@@ -40,12 +40,11 @@
 #import "NSURL+Utils.h"
 #import "NSString+Utils.h"
 
-#import "base/mac/scoped_nsobject.h"
-
 NSString* const kCorePasteboardFlavorType_url  = @"CorePasteboardFlavorType 0x75726C20"; // 'url '  url
 NSString* const kCorePasteboardFlavorType_urln = @"CorePasteboardFlavorType 0x75726C6E"; // 'urln'  title
 NSString* const kCorePasteboardFlavorType_urld = @"CorePasteboardFlavorType 0x75726C64"; // 'urld' URL description
 
+NSString* const kCaminoBookmarkListPBoardType = @"MozBookmarkType"; // list of Camino bookmark UIDs
 NSString* const kWebURLsWithTitlesPboardType  = @"WebURLsWithTitlesPboardType"; // Safari-compatible URL + title arrays
 
 @interface NSPasteboard(ChimeraPasteboardURLUtilsPrivate)
@@ -70,6 +69,19 @@ NSString* const kWebURLsWithTitlesPboardType  = @"WebURLsWithTitlesPboardType"; 
 @end
 
 @implementation NSPasteboard(ChimeraPasteboardURLUtils)
+
+- (int)declareURLPasteboardWithAdditionalTypes:(NSArray*)additionalTypes owner:(id)newOwner
+{
+  NSArray* allTypes = [additionalTypes arrayByAddingObjectsFromArray:
+                            [NSArray arrayWithObjects:
+                                        kWebURLsWithTitlesPboardType,
+                                        NSURLPboardType,
+                                        NSStringPboardType,
+                                        kCorePasteboardFlavorType_url,
+                                        kCorePasteboardFlavorType_urln,
+                                        nil]];
+       return [self declareTypes:allTypes owner:newOwner];
+}
 
 //
 // Copy a single URL (with an optional title) to the clipboard in all relevant
@@ -165,9 +177,7 @@ NSString* const kWebURLsWithTitlesPboardType  = @"WebURLsWithTitlesPboardType"; 
     convertingFilenames:(BOOL)convertFilenames
     convertingTextToURL:(BOOL)convertTextToURL
 {
-  // -types returns an ivar that might be invalidated by further manipulation of
-  // NSPasteboard; retain it. https://crbug.com/1016740#c21
-  base::scoped_nsobject<NSArray> types([[self types] retain]);
+  NSArray* types = [self types];
   NSURL* urlFromNSURL = nil;  // Used below in getting an URL from the NSURLPboardType.
   if ([types containsObject:kWebURLsWithTitlesPboardType]) {
     NSArray* urlAndTitleContainer = [self propertyListForType:kWebURLsWithTitlesPboardType];

@@ -1,4 +1,4 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -22,9 +22,9 @@ group("make_generated") {
 }
 
 blink_platform_sources("network") {
+  configs += [ "//build/config/compiler:noshadowing" ]
+
   sources = [
-    "blink_schemeful_site.cc",
-    "blink_schemeful_site.h",
     "content_security_policy_parsers.cc",
     "content_security_policy_parsers.h",
     "content_security_policy_response_headers.cc",
@@ -48,6 +48,7 @@ blink_platform_sources("network") {
     "mime/mime_type_from_url.h",
     "mime/mime_type_registry.cc",
     "mime/mime_type_registry.h",
+    "network_log.h",
     "network_state_notifier.cc",
     "network_state_notifier.h",
     "network_utils.cc",
@@ -77,9 +78,6 @@ source_set("unit_tests") {
   testonly = true
 
   sources = [
-    "blink_schemeful_site_mojom_traits_test.cc",
-    "blink_schemeful_site_test.cc",
-    "content_security_policy_parsers_test.cc",
     "encoded_form_data_test.cc",
     "http_parsers_test.cc",
     "mime/mime_type_registry_test.cc",

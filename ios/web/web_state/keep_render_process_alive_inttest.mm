@@ -1,13 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <UIKit/UIKit.h>
-#import <functional>
+#include <functional>
 
-#import "base/test/scoped_feature_list.h"
-#import "ios/web/common/features.h"
-#import "ios/web/common/uikit_ui_util.h"
+#include "base/test/scoped_feature_list.h"
+#include "ios/web/common/features.h"
 #import "ios/web/public/test/web_test_with_web_state.h"
 #import "ios/web/public/web_client.h"
 #import "ios/web/public/web_state.h"
@@ -40,10 +39,6 @@ class KeepRenderProcessAliveTest : public WebTestWithWebState {
         web::features::kKeepsRenderProcessAlive);
   }
 
-  KeepRenderProcessAliveTest(const KeepRenderProcessAliveTest&) = delete;
-  KeepRenderProcessAliveTest& operator=(const KeepRenderProcessAliveTest&) =
-      delete;
-
   void SetUp() override {
     WebTestWithWebState::SetUp();
     ASSERT_EQ(0U, GetWebClient()->GetWindowedContainer().subviews.count);
@@ -61,10 +56,13 @@ class KeepRenderProcessAliveTest : public WebTestWithWebState {
     return view.superview == GetKeyWindow();
   }
 
-  UIWindow* GetKeyWindow() { return GetAnyKeyWindow(); }
+  UIWindow* GetKeyWindow() {
+    return [UIApplication sharedApplication].keyWindow;
+  }
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
+  DISALLOW_COPY_AND_ASSIGN(KeepRenderProcessAliveTest);
 };
 
 // Test's that nothing is added to the WindowedContainer when

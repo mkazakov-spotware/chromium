@@ -1,9 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/cookie_controls/cookie_controls_service.h"
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/cookie_controls/cookie_controls_service_factory.h"
 #include "components/content_settings/core/common/cookie_controls_enforcement.h"
 
@@ -27,10 +26,6 @@ class CookieControlsServiceObserver : public CookieControlsService::Observer {
     checked_ = false;
   }
 
-  CookieControlsServiceObserver(const CookieControlsServiceObserver&) = delete;
-  CookieControlsServiceObserver& operator=(
-      const CookieControlsServiceObserver&) = delete;
-
   ~CookieControlsServiceObserver() override = default;
 
   CookieControlsService* GetService() { return service_; }
@@ -43,8 +38,10 @@ class CookieControlsServiceObserver : public CookieControlsService::Observer {
   }
 
  private:
-  raw_ptr<CookieControlsService> service_;
+  CookieControlsService* service_;
   bool checked_;
+
+  DISALLOW_COPY_AND_ASSIGN(CookieControlsServiceObserver);
 };
 
 class CookieControlsServiceTest : public ChromeRenderViewHostTestHarness {
@@ -61,8 +58,7 @@ class CookieControlsServiceTest : public ChromeRenderViewHostTestHarness {
 };
 
 TEST_F(CookieControlsServiceTest, HandleCookieControlsToggleChanged) {
-  Profile* otr_profile =
-      profile()->GetPrimaryOTRProfile(/*create_if_needed=*/true);
+  Profile* otr_profile = profile()->GetPrimaryOTRProfile();
   observer_ = std::make_unique<CookieControlsServiceObserver>(otr_profile);
   EXPECT_EQ(
       static_cast<int>(content_settings::CookieControlsMode::kIncognitoOnly),

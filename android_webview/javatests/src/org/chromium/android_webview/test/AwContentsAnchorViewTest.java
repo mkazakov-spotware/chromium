@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,10 +33,8 @@ public class AwContentsAnchorViewTest {
 
     @Before
     public void setUp() {
-        mActivityTestRule.runOnUiThread(() -> {
-            mContainerView = new FrameLayout(mActivityTestRule.getActivity());
-            mViewDelegate = new AwViewAndroidDelegate(mContainerView, null, null);
-        });
+        mContainerView = new FrameLayout(mActivityTestRule.getActivity());
+        mViewDelegate = new AwViewAndroidDelegate(mContainerView, null, null);
     }
 
     @Test

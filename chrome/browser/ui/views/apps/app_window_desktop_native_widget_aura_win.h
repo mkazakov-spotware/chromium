@@ -1,11 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_APPS_APP_WINDOW_DESKTOP_NATIVE_WIDGET_AURA_WIN_H_
 #define CHROME_BROWSER_UI_VIEWS_APPS_APP_WINDOW_DESKTOP_NATIVE_WIDGET_AURA_WIN_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/views/widget/desktop_aura/desktop_native_widget_aura.h"
 
 class ChromeNativeAppWindowViewsWin;
@@ -22,11 +22,6 @@ class AppWindowDesktopNativeWidgetAuraWin
   explicit AppWindowDesktopNativeWidgetAuraWin(
       ChromeNativeAppWindowViewsWin* app_window);
 
-  AppWindowDesktopNativeWidgetAuraWin(
-      const AppWindowDesktopNativeWidgetAuraWin&) = delete;
-  AppWindowDesktopNativeWidgetAuraWin& operator=(
-      const AppWindowDesktopNativeWidgetAuraWin&) = delete;
-
  protected:
   ~AppWindowDesktopNativeWidgetAuraWin() override;
 
@@ -37,10 +32,12 @@ class AppWindowDesktopNativeWidgetAuraWin
 
  private:
   // Ownership managed by the views system.
-  raw_ptr<ChromeNativeAppWindowViewsWin> app_window_;
+  ChromeNativeAppWindowViewsWin* app_window_;
 
   // Owned by superclass DesktopNativeWidgetAura.
-  raw_ptr<views::DesktopWindowTreeHost, DanglingUntriaged> tree_host_;
+  views::DesktopWindowTreeHost* tree_host_;
+
+  DISALLOW_COPY_AND_ASSIGN(AppWindowDesktopNativeWidgetAuraWin);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_APPS_APP_WINDOW_DESKTOP_NATIVE_WIDGET_AURA_WIN_H_

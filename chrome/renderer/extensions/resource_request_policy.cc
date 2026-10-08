@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,25 +42,13 @@ void ResourceRequestPolicy::OnExtensionLoaded(const Extension& extension) {
       // TODO(devlin): Should we incorporate this into
       // WebAccessibleResourcesInfo?
       (extension.is_hosted_app() && !IconsInfo::GetIcons(&extension).empty())) {
-    web_accessible_resources_map_[extension.id()] = extension.guid();
+    web_accessible_ids_.insert(extension.id());
   }
-}
-
-bool ResourceRequestPolicy::IsWebAccessibleHost(const std::string& host) {
-  if (web_accessible_resources_map_.find(host) !=
-      web_accessible_resources_map_.end()) {
-    return true;
-  }
-  for (const auto& [id, guid] : web_accessible_resources_map_) {
-    if (host == guid)
-      return true;
-  }
-  return false;
 }
 
 void ResourceRequestPolicy::OnExtensionUnloaded(
     const ExtensionId& extension_id) {
-  web_accessible_resources_map_.erase(extension_id);
+  web_accessible_ids_.erase(extension_id);
 }
 
 // This method does a security check whether chrome-extension:// URLs can be
@@ -71,8 +59,7 @@ void ResourceRequestPolicy::OnExtensionUnloaded(
 bool ResourceRequestPolicy::CanRequestResource(
     const GURL& resource_url,
     blink::WebLocalFrame* frame,
-    ui::PageTransition transition_type,
-    const absl::optional<url::Origin>& initiator_origin) {
+    ui::PageTransition transition_type) {
   CHECK(resource_url.SchemeIs(kExtensionScheme));
 
   GURL frame_url = frame->GetDocument().Url();
@@ -93,7 +80,7 @@ bool ResourceRequestPolicy::CanRequestResource(
   // current extension or has a devtools scheme.
   GURL page_origin = url::Origin(frame->Top()->GetSecurityOrigin()).GetURL();
 
-  GURL extension_origin = resource_url.DeprecatedGetOriginAsURL();
+  GURL extension_origin = resource_url.GetOrigin();
 
   // We always allow loads in the following cases, regardless of web accessible
   // resources:
@@ -109,7 +96,7 @@ bool ResourceRequestPolicy::CanRequestResource(
   // of the frame, to account for about:blank subframes being scripted by an
   // extension parent (though we'll still need the frame origin check for
   // sandboxed frames).
-  if (frame_url.DeprecatedGetOriginAsURL() == extension_origin ||
+  if (frame_url.GetOrigin() == extension_origin ||
       page_origin == extension_origin) {
     return true;
   }
@@ -130,7 +117,7 @@ bool ResourceRequestPolicy::CanRequestResource(
   // extension with no web accessible resources. We aren't worried about any
   // extensions with web accessible resources, since those are inherently
   // identifiable.
-  if (!is_dev_tools && !IsWebAccessibleHost(extension_origin.host())) {
+  if (!is_dev_tools && !web_accessible_ids_.count(extension_origin.host())) {
     // Failures are recorded here, successes will be in the browser.
     RecordExtensionResourceAccessResult(
         ukm::SourceIdObj::FromInt64(frame->GetDocument().GetUkmSourceId()),
@@ -140,8 +127,7 @@ bool ResourceRequestPolicy::CanRequestResource(
   }
 
   const Extension* extension =
-      RendererExtensionRegistry::Get()->GetExtensionOrAppByURL(
-          resource_url, true /*include_guid*/);
+      RendererExtensionRegistry::Get()->GetExtensionOrAppByURL(resource_url);
   if (is_dev_tools) {
     // Allow the load in the case of a non-existent extension. We'll just get a
     // 404 from the browser process.
@@ -178,7 +164,7 @@ bool ResourceRequestPolicy::CanRequestResource(
   // Disallow loading of extension resources which are not explicitly listed
   // as web or WebView accessible if the manifest version is 2 or greater.
   if (!WebAccessibleResourcesInfo::IsResourceWebAccessible(
-          extension, resource_url.path(), initiator_origin) &&
+          extension, resource_url.path()) &&
       !WebviewInfo::IsResourceWebviewAccessible(
           extension, dispatcher_->webview_partition_id(),
           resource_url.path())) {

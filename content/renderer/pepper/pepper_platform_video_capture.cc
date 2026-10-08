@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,8 +53,7 @@ void PepperPlatformVideoCapture::StartCapture(
                                 weak_factory_.GetWeakPtr())),
                             media::BindToCurrentLoop(base::BindRepeating(
                                 &PepperPlatformVideoCapture::OnFrameReady,
-                                weak_factory_.GetWeakPtr())),
-                            /*crop_version_cb=*/base::DoNothing());
+                                weak_factory_.GetWeakPtr())));
 }
 
 void PepperPlatformVideoCapture::StopCapture() {
@@ -95,14 +94,6 @@ PepperPlatformVideoCapture::~PepperPlatformVideoCapture() {
 void PepperPlatformVideoCapture::OnDeviceOpened(int request_id,
                                                 bool succeeded,
                                                 const std::string& label) {
-  RenderFrameImpl* render_frame =
-      RenderFrameImpl::FromRoutingID(render_frame_id_);
-  if (!render_frame) {
-    if (handler_)
-      handler_->OnInitialized(false);
-    return;
-  }
-
   pending_open_device_ = false;
   pending_open_device_id_ = -1;
 
@@ -114,8 +105,7 @@ void PepperPlatformVideoCapture::OnDeviceOpened(int request_id,
         PP_DEVICETYPE_DEV_VIDEOCAPTURE, label);
     blink::WebVideoCaptureImplManager* manager =
         RenderThreadImpl::current()->video_capture_impl_manager();
-    release_device_cb_ = manager->UseDevice(
-        session_id_, render_frame->GetBrowserInterfaceBroker());
+    release_device_cb_ = manager->UseDevice(session_id_);
   }
 
   if (handler_)
@@ -144,13 +134,10 @@ void PepperPlatformVideoCapture::OnStateUpdate(blink::VideoCaptureState state) {
 }
 
 void PepperPlatformVideoCapture::OnFrameReady(
-    scoped_refptr<media::VideoFrame> video_frame,
-    std::vector<scoped_refptr<media::VideoFrame>> /*scaled_video_frames*/,
+    scoped_refptr<media::VideoFrame> frame,
     base::TimeTicks estimated_capture_time) {
-  if (handler_ && stop_capture_cb_) {
-    // The scaled video frames are ignored by Pepper.
-    handler_->OnFrameReady(std::move(video_frame));
-  }
+  if (handler_ && stop_capture_cb_)
+    handler_->OnFrameReady(*frame);
 }
 
 PepperMediaDeviceManager* PepperPlatformVideoCapture::GetMediaDeviceManager() {

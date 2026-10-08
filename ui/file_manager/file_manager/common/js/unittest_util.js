@@ -1,8 +1,6 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {assertEquals, assertTrue} from 'chrome://webui-test/chromeos/chai_assert.js';
 
 /**
  * Asserts that two lists contain the same set of Entries.  Entries are deemed
@@ -11,7 +9,7 @@ import {assertEquals, assertTrue} from 'chrome://webui-test/chromeos/chai_assert
  * @param {!Array<!FileEntry>} expected
  * @param {!Array<!FileEntry>} actual
  */
-export function assertFileEntryListEquals(expected, actual) {
+function assertFileEntryListEquals(expected, actual) {
   const entryToPath = entry => {
     assertTrue(entry.isFile);
     return entry.fullPath;
@@ -26,7 +24,7 @@ export function assertFileEntryListEquals(expected, actual) {
  * @param {!Array<string>} expectedPaths
  * @param {!Array<!FileEntry>} fileEntries
  */
-export function assertFileEntryPathsEqual(expectedPaths, fileEntries) {
+function assertFileEntryPathsEqual(expectedPaths, fileEntries) {
   assertEquals(expectedPaths.length, fileEntries.length);
 
   const entryToPath = entry => {
@@ -55,7 +53,7 @@ export function assertFileEntryPathsEqual(expectedPaths, fileEntries) {
  *   assertEquals(recorder.getListCall()[0], 'hammy');
  * </pre>
  */
-export class TestCallRecorder {
+class TestCallRecorder {
   constructor() {
     /** @private {!Array<!Arguments>} */
     this.calls_ = [];
@@ -101,28 +99,9 @@ export class TestCallRecorder {
   /**
    * @param {number} index Index of which args to return.
    * @return {?Arguments} Returns the {@code Arguments} for the call specified
-   *    by indexed.
+   *    by indexd.
    */
   getArguments(index) {
     return (index < this.calls_.length) ? this.calls_[index] : null;
   }
-}
-
-/**
- * Wait for the update (render/re-render) of the `element` to be finished
- * in unit test.
- *
- * @param {!HTMLElement} element
- * @return {!Promise}
- */
-export async function waitForElementUpdate(element) {
-  // For LitElement we explicitly await the internal updateComplete promise.
-  if (element.updateComplete && element.updateComplete.then) {
-    await element.updateComplete;
-    // Wait for nested LitElements to finish rendering. Assumes that all nested
-    // elements' render() complete in microtasks.
-    return new Promise(resolve => setTimeout(resolve, 0));
-  }
-  // For others, wait for the next animation frame.
-  return new Promise(resolve => window.requestAnimationFrame(resolve));
 }

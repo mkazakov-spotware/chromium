@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package org.chromium.android_webview.variations;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -20,7 +21,6 @@ import org.chromium.android_webview.AwBrowserProcess;
 import org.chromium.android_webview.common.AwSwitches;
 import org.chromium.android_webview.common.services.IVariationsSeedServer;
 import org.chromium.android_webview.common.services.IVariationsSeedServerCallback;
-import org.chromium.android_webview.common.services.ServiceConnectionDelayRecorder;
 import org.chromium.android_webview.common.services.ServiceNames;
 import org.chromium.android_webview.common.variations.VariationsServiceMetricsHelper;
 import org.chromium.android_webview.common.variations.VariationsUtils;
@@ -89,6 +89,12 @@ public class VariationsSeedLoader {
     @VisibleForTesting
     public static final String APP_SEED_FRESHNESS_HISTOGRAM_NAME = "Variations.AppSeedFreshness";
     @VisibleForTesting
+    public static final String DOWNLOAD_JOB_FETCH_RESULT_HISTOGRAM_NAME =
+            "Variations.WebViewDownloadJobFetchResult";
+    @VisibleForTesting
+    public static final String DOWNLOAD_JOB_FETCH_TIME_HISTOGRAM_NAME =
+            "Variations.WebViewDownloadJobFetchTime2";
+    @VisibleForTesting
     public static final String DOWNLOAD_JOB_INTERVAL_HISTOGRAM_NAME =
             "Variations.WebViewDownloadJobInterval";
     @VisibleForTesting
@@ -104,7 +110,7 @@ public class VariationsSeedLoader {
 
     private static void recordLoadSeedResult(@LoadSeedResult int result) {
         RecordHistogram.recordEnumeratedHistogram(
-                SEED_LOAD_RESULT_HISTOGRAM_NAME, result, LoadSeedResult.MAX_VALUE + 1);
+                SEED_LOAD_RESULT_HISTOGRAM_NAME, result, LoadSeedResult.ENUM_SIZE);
     }
 
     private static void recordSeedLoadBlockingTime(long timeMs) {
@@ -241,7 +247,7 @@ public class VariationsSeedLoader {
 
     // Connects to VariationsSeedServer service. Sends a file descriptor for our local copy of the
     // seed to the service, to which the service will write a new seed.
-    private class SeedServerConnection extends ServiceConnectionDelayRecorder {
+    private class SeedServerConnection implements ServiceConnection {
         private ParcelFileDescriptor mNewSeedFd;
         private long mOldSeedDate;
 
@@ -252,8 +258,8 @@ public class VariationsSeedLoader {
 
         public void start() {
             try {
-                if (!bind(ContextUtils.getApplicationContext(), getServerIntent(),
-                            Context.BIND_AUTO_CREATE)) {
+                if (!ContextUtils.getApplicationContext().bindService(
+                            getServerIntent(), this, Context.BIND_AUTO_CREATE)) {
                     Log.e(TAG, "Failed to bind to WebView service");
                 }
                 // Connect to nonembedded metrics Service at the same time we connect to variation
@@ -267,7 +273,7 @@ public class VariationsSeedLoader {
         }
 
         @Override
-        public void onServiceConnectedImpl(ComponentName name, IBinder service) {
+        public void onServiceConnected(ComponentName name, IBinder service) {
             try {
                 if (mNewSeedFd.getFd() >= 0) {
                     IVariationsSeedServer.Stub.asInterface(service).getSeed(
@@ -302,6 +308,19 @@ public class VariationsSeedLoader {
                         TimeUnit.MILLISECONDS.toMinutes(metrics.getJobQueueTime()),
                         TimeUnit.DAYS.toMinutes(30));
             }
+            if (metrics.hasSeedFetchResult()) {
+                // This metric stores the same enum as Variations.FirstRun.SeedFetchResult, but is
+                // used for all WebView seed requests rather than just the first-run request.
+                RecordHistogram.recordSparseHistogram(
+                        DOWNLOAD_JOB_FETCH_RESULT_HISTOGRAM_NAME, metrics.getSeedFetchResult());
+            }
+            if (metrics.hasSeedFetchTime()) {
+                // Newer versions of Android limit job execution time to 10 minutes. Set the max
+                // histogram bucket to double that to have some wiggle room.
+                RecordHistogram.recordCustomTimesHistogram(DOWNLOAD_JOB_FETCH_TIME_HISTOGRAM_NAME,
+                        metrics.getSeedFetchTime(), 100, TimeUnit.MINUTES.toMillis(20),
+                        50); // 50 buckets from 100ms to 20min
+            }
         }
     }
 
@@ -327,14 +346,13 @@ public class VariationsSeedLoader {
     }
 
     @VisibleForTesting
-    // Returns false if it didn't connect to the service.
-    protected boolean requestSeedFromService(long oldSeedDate) {
+    protected void requestSeedFromService(long oldSeedDate) {
         File newSeedFile = VariationsUtils.getNewSeedFile();
         try {
             newSeedFile.createNewFile(); // Silently returns false if already exists.
         } catch (IOException e) {
             Log.e(TAG, "Failed to create seed file " + newSeedFile);
-            return false;
+            return;
         }
         ParcelFileDescriptor newSeedFd = null;
         try {
@@ -342,14 +360,12 @@ public class VariationsSeedLoader {
                     ParcelFileDescriptor.open(newSeedFile, ParcelFileDescriptor.MODE_WRITE_ONLY);
         } catch (FileNotFoundException e) {
             Log.e(TAG, "Failed to open seed file " + newSeedFile);
-            return false;
+            return;
         }
 
         VariationsUtils.debugLog("Requesting new seed from IVariationsSeedServer");
         SeedServerConnection connection = new SeedServerConnection(newSeedFd, oldSeedDate);
         connection.start();
-
-        return true;
     }
 
     // Begin asynchronously loading the variations seed. ContextUtils.getApplicationContext() and
@@ -360,8 +376,8 @@ public class VariationsSeedLoader {
     }
 
     // Block on loading the seed with a timeout. Then if a seed was successfully loaded, initialize
-    // variations. Returns whether or not variations was initialized.
-    public boolean finishVariationsInit() {
+    // variations.
+    public void finishVariationsInit() {
         long start = SystemClock.elapsedRealtime();
         try {
             try {
@@ -370,11 +386,9 @@ public class VariationsSeedLoader {
                 long seedDate = mRunnable.getLoadedSeedDate();
                 if (gotSeed && seedDate > 0) {
                     long seedAge = TimeUnit.MILLISECONDS.toSeconds(new Date().getTime() - seedDate);
-                    // Changes to the log message below must be accompanied with changes to WebView
-                    // finch smoke tests since they look for this message in the logcat.
                     VariationsUtils.debugLog("Loaded seed with age " + seedAge + "s");
                 }
-                return gotSeed;
+                return;
             } finally {
                 long end = SystemClock.elapsedRealtime();
                 recordSeedLoadBlockingTime(end - start);
@@ -387,7 +401,6 @@ public class VariationsSeedLoader {
             recordLoadSeedResult(LoadSeedResult.LOAD_OTHER_FAILURE);
         }
         Log.e(TAG, "Failed loading variations seed. Variations disabled.");
-        return false;
     }
 
     @NativeMethods

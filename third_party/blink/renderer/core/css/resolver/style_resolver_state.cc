@@ -22,7 +22,7 @@
 
 #include "third_party/blink/renderer/core/css/resolver/style_resolver_state.h"
 
-#include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom-blink.h"
+#include "third_party/blink/public/mojom/web_feature/web_feature.mojom-blink.h"
 #include "third_party/blink/renderer/core/animation/css/css_animations.h"
 #include "third_party/blink/renderer/core/css/css_light_dark_value_pair.h"
 #include "third_party/blink/renderer/core/css/css_property_value_set.h"
@@ -30,58 +30,37 @@
 #include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/dom/pseudo_element.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
-
-namespace {
-
-bool CanCacheBaseStyle(const StyleRequest& style_request) {
-  return style_request.IsPseudoStyleRequest() ||
-         (!style_request.parent_override &&
-          !style_request.layout_parent_override &&
-          style_request.matching_behavior == kMatchAllRules);
-}
-
-}  // namespace
 
 StyleResolverState::StyleResolverState(
     Document& document,
     Element& element,
-    const StyleRecalcContext* style_recalc_context,
-    const StyleRequest& style_request)
+    PseudoElement* pseudo_element,
+    PseudoElementStyleRequest::RequestType pseudo_request_type,
+    ElementType element_type,
+    const ComputedStyle* parent_style,
+    const ComputedStyle* layout_parent_style)
     : element_context_(element),
       document_(&document),
-      parent_style_(style_request.parent_override),
-      layout_parent_style_(style_request.layout_parent_override),
-      pseudo_request_type_(style_request.type),
+      parent_style_(parent_style),
+      layout_parent_style_(layout_parent_style),
+      pseudo_request_type_(pseudo_request_type),
       font_builder_(&document),
-      pseudo_element_(
-          element.GetNestedPseudoElement(style_request.pseudo_id,
-                                         style_request.pseudo_argument)),
       element_style_resources_(GetElement(),
                                document.DevicePixelRatio(),
-                               pseudo_element_),
-      element_type_(style_request.IsPseudoStyleRequest()
-                        ? ElementType::kPseudoElement
-                        : ElementType::kElement),
-      container_unit_context_(style_recalc_context
-                                  ? style_recalc_context->container
-                                  : element.ParentOrShadowHostElement()),
-      originating_element_style_(style_request.originating_element_style),
-      is_for_highlight_(IsHighlightPseudoElement(style_request.pseudo_id)),
-      uses_highlight_pseudo_inheritance_(
-          ::blink::UsesHighlightPseudoInheritance(style_request.pseudo_id)),
-      can_cache_base_style_(blink::CanCacheBaseStyle(style_request)) {
+                               pseudo_element),
+      pseudo_element_(pseudo_element),
+      element_type_(element_type) {
   DCHECK(!!parent_style_ == !!layout_parent_style_);
 
-  if (UsesHighlightPseudoInheritance()) {
-    DCHECK(originating_element_style_);
-  } else {
-    if (!parent_style_)
-      parent_style_ = element_context_.ParentStyle();
-    if (!layout_parent_style_)
-      layout_parent_style_ = element_context_.LayoutParentStyle();
+  if (!parent_style_) {
+    parent_style_ = element_context_.ParentStyle();
   }
+
+  if (!layout_parent_style_)
+    layout_parent_style_ = element_context_.LayoutParentStyle();
 
   if (!layout_parent_style_)
     layout_parent_style_ = parent_style_;
@@ -89,38 +68,53 @@ StyleResolverState::StyleResolverState(
   DCHECK(document.IsActive());
 }
 
+StyleResolverState::StyleResolverState(Document& document,
+                                       Element& element,
+                                       const ComputedStyle* parent_style,
+                                       const ComputedStyle* layout_parent_style)
+    : StyleResolverState(document,
+                         element,
+                         nullptr /* pseudo_element */,
+                         PseudoElementStyleRequest::kForRenderer,
+                         ElementType::kElement,
+                         parent_style,
+                         layout_parent_style) {}
+
+StyleResolverState::StyleResolverState(
+    Document& document,
+    Element& element,
+    PseudoId pseudo_id,
+    PseudoElementStyleRequest::RequestType pseudo_request_type,
+    const ComputedStyle* parent_style,
+    const ComputedStyle* layout_parent_style)
+    : StyleResolverState(document,
+                         element,
+                         element.GetPseudoElement(pseudo_id),
+                         pseudo_request_type,
+                         ElementType::kPseudoElement,
+                         parent_style,
+                         layout_parent_style) {}
+
 StyleResolverState::~StyleResolverState() {
   // For performance reasons, explicitly clear HeapVectors and
   // HeapHashMaps to avoid giving a pressure on Oilpan's GC.
   animation_update_.Clear();
 }
 
-bool StyleResolverState::IsInheritedForUnset(
-    const CSSProperty& property) const {
-  return property.IsInherited() || UsesHighlightPseudoInheritance();
+TreeScope& StyleResolverState::GetTreeScope() const {
+  return GetElement().GetTreeScope();
 }
 
 void StyleResolverState::SetStyle(scoped_refptr<ComputedStyle> style) {
   // FIXME: Improve RAII of StyleResolverState to remove this function.
-  style_builder_.SetStyle(std::move(style));
-  UpdateLengthConversionData();
+  style_ = std::move(style);
+  css_to_length_conversion_data_ = CSSToLengthConversionData(
+      style_.get(), RootElementStyle(), GetDocument().GetLayoutView(),
+      style_->EffectiveZoom());
 }
 
 scoped_refptr<ComputedStyle> StyleResolverState::TakeStyle() {
-  if (had_no_matched_properties_ &&
-      pseudo_request_type_ == StyleRequest::kForRenderer) {
-    return nullptr;
-  }
-  return style_builder_.TakeStyle();
-}
-
-void StyleResolverState::UpdateLengthConversionData() {
-  css_to_length_conversion_data_ = CSSToLengthConversionData(
-      Style(), ParentStyle(), RootElementStyle(), GetDocument().GetLayoutView(),
-      CSSToLengthConversionData::ContainerSizes(container_unit_context_),
-      StyleBuilder().EffectiveZoom());
-  element_style_resources_.UpdateLengthConversionData(
-      &css_to_length_conversion_data_);
+  return std::move(style_);
 }
 
 CSSToLengthConversionData StyleResolverState::UnzoomedLengthConversionData(
@@ -131,12 +125,8 @@ CSSToLengthConversionData StyleResolverState::UnzoomedLengthConversionData(
       em, rem, &font_style->GetFont(), font_style->EffectiveZoom());
   CSSToLengthConversionData::ViewportSize viewport_size(
       GetDocument().GetLayoutView());
-  CSSToLengthConversionData::ContainerSizes container_sizes(
-      container_unit_context_);
 
-  return CSSToLengthConversionData(Style(), ParentStyle(),
-                                   StyleBuilder().GetWritingMode(), font_sizes,
-                                   viewport_size, container_sizes, 1);
+  return CSSToLengthConversionData(Style(), font_sizes, viewport_size, 1);
 }
 
 CSSToLengthConversionData StyleResolverState::FontSizeConversionData() const {
@@ -151,8 +141,6 @@ CSSToLengthConversionData StyleResolverState::UnzoomedLengthConversionData()
 void StyleResolverState::SetParentStyle(
     scoped_refptr<const ComputedStyle> parent_style) {
   parent_style_ = std::move(parent_style);
-  // Need to update conversion data for 'lh' units.
-  UpdateLengthConversionData();
 }
 
 void StyleResolverState::SetLayoutParentStyle(
@@ -161,21 +149,19 @@ void StyleResolverState::SetLayoutParentStyle(
 }
 
 void StyleResolverState::LoadPendingResources() {
-  if (pseudo_request_type_ == StyleRequest::kForComputedStyle ||
+  if (pseudo_request_type_ == PseudoElementStyleRequest::kForComputedStyle ||
       (ParentStyle() && ParentStyle()->IsEnsuredInDisplayNone()) ||
-      (StyleBuilder().Display() == EDisplay::kNone &&
-       !GetElement().LayoutObjectIsNeeded(*Style())) ||
-      StyleBuilder().IsEnsuredOutsideFlatTree()) {
+      StyleRef().Display() == EDisplay::kNone ||
+      StyleRef().IsEnsuredOutsideFlatTree())
     return;
-  }
 
-  if (StyleBuilder().StyleType() == kPseudoIdTargetText) {
+  if (StyleRef().StyleType() == kPseudoIdTargetText) {
     // Do not load any resources for ::target-text since that could leak text
     // content to external stylesheets.
     return;
   }
 
-  element_style_resources_.LoadPendingResources(StyleBuilder());
+  element_style_resources_.LoadPendingResources(StyleRef());
 }
 
 const FontDescription& StyleResolverState::ParentFontDescription() const {
@@ -187,32 +173,31 @@ void StyleResolverState::SetZoom(float f) {
                                     ? ParentStyle()->EffectiveZoom()
                                     : ComputedStyleInitialValues::InitialZoom();
 
-  StyleBuilder().SetZoom(f);
+  style_->SetZoom(f);
 
   if (f != 1.f)
     GetDocument().CountUse(WebFeature::kCascadedCSSZoomNotEqualToOne);
 
-  if (StyleBuilder().SetEffectiveZoom(parent_effective_zoom * f))
+  if (style_->SetEffectiveZoom(parent_effective_zoom * f))
     font_builder_.DidChangeEffectiveZoom();
 }
 
 void StyleResolverState::SetEffectiveZoom(float f) {
-  if (StyleBuilder().SetEffectiveZoom(f))
+  if (style_->SetEffectiveZoom(f))
     font_builder_.DidChangeEffectiveZoom();
 }
 
 void StyleResolverState::SetWritingMode(WritingMode new_writing_mode) {
-  if (StyleBuilder().GetWritingMode() == new_writing_mode) {
+  if (style_->GetWritingMode() == new_writing_mode) {
     return;
   }
-  StyleBuilder().SetWritingMode(new_writing_mode);
-  UpdateLengthConversionData();
+  style_->SetWritingMode(new_writing_mode);
   font_builder_.DidChangeWritingMode();
 }
 
 void StyleResolverState::SetTextOrientation(ETextOrientation text_orientation) {
-  if (StyleBuilder().GetTextOrientation() != text_orientation) {
-    StyleBuilder().SetTextOrientation(text_orientation);
+  if (style_->GetTextOrientation() != text_orientation) {
+    style_->SetTextOrientation(text_orientation);
     font_builder_.DidChangeTextOrientation();
   }
 }
@@ -228,30 +213,27 @@ Element* StyleResolverState::GetAnimatingElement() const {
   return pseudo_element_;
 }
 
-PseudoElement* StyleResolverState::GetPseudoElement() const {
-  return element_type_ == ElementType::kPseudoElement ? pseudo_element_
-                                                      : nullptr;
-}
-
 const CSSValue& StyleResolverState::ResolveLightDarkPair(
+    const CSSProperty& property,
     const CSSValue& value) {
   if (const auto* pair = DynamicTo<CSSLightDarkValuePair>(value)) {
-    if (StyleBuilder().UsedColorScheme() == mojom::blink::ColorScheme::kLight)
+    if (!property.IsInherited())
+      Style()->SetHasNonInheritedLightDarkValue();
+    if (Style()->UsedColorScheme() == mojom::blink::ColorScheme::kLight)
       return pair->First();
     return pair->Second();
   }
   return value;
 }
 
-void StyleResolverState::UpdateFont() {
-  GetFontBuilder().CreateFont(StyleBuilder(), ParentStyle());
-  SetConversionFontSizes(
-      CSSToLengthConversionData::FontSizes(Style(), RootElementStyle()));
-  SetConversionZoom(StyleBuilder().EffectiveZoom());
-}
+void StyleResolverState::MarkDependency(const CSSProperty& property) {
+  if (!RuntimeEnabledFeatures::CSSMatchedPropertiesCacheDependenciesEnabled())
+    return;
+  if (!HasValidDependencies())
+    return;
 
-void StyleResolverState::UpdateLineHeight() {
-  css_to_length_conversion_data_.ClearLhStyle();
+  has_incomparable_dependency_ |= !property.IsComputedValueComparable();
+  dependencies_.insert(property.GetCSSPropertyName());
 }
 
 }  // namespace blink

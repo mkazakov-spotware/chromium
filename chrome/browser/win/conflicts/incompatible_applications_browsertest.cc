@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,6 +28,7 @@
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
+#include "components/services/quarantine/public/cpp/quarantine_features_win.h"
 #include "content/public/test/browser_test.h"
 
 // This class allows to wait until the kIncompatibleApplications preference is
@@ -46,11 +47,6 @@ class IncompatibleApplicationsObserver {
                                 OnIncompatibleApplicationsChanged,
                             base::Unretained(this)));
   }
-
-  IncompatibleApplicationsObserver(const IncompatibleApplicationsObserver&) =
-      delete;
-  IncompatibleApplicationsObserver& operator=(
-      const IncompatibleApplicationsObserver&) = delete;
 
   ~IncompatibleApplicationsObserver() = default;
 
@@ -78,15 +74,11 @@ class IncompatibleApplicationsObserver {
   PrefChangeRegistrar pref_change_registrar_;
 
   base::RepeatingClosure run_loop_quit_closure_;
+
+  DISALLOW_COPY_AND_ASSIGN(IncompatibleApplicationsObserver);
 };
 
 class IncompatibleApplicationsBrowserTest : public InProcessBrowserTest {
- public:
-  IncompatibleApplicationsBrowserTest(
-      const IncompatibleApplicationsBrowserTest&) = delete;
-  IncompatibleApplicationsBrowserTest& operator=(
-      const IncompatibleApplicationsBrowserTest&) = delete;
-
  protected:
   // The name of the application deemed incompatible.
   static constexpr wchar_t kApplicationName[] = L"FooBar123";
@@ -103,8 +95,10 @@ class IncompatibleApplicationsBrowserTest : public InProcessBrowserTest {
     ASSERT_NO_FATAL_FAILURE(
         registry_override_manager_.OverrideRegistry(HKEY_CURRENT_USER));
 
-    scoped_feature_list_.InitAndEnableFeature(
-        features::kIncompatibleApplicationsWarning);
+    scoped_feature_list_.InitWithFeatures(
+        {features::kIncompatibleApplicationsWarning,
+         quarantine::kOutOfProcessQuarantine},
+        {});
 
     ASSERT_NO_FATAL_FAILURE(CreateModuleList());
     ASSERT_NO_FATAL_FAILURE(InstallThirdPartyApplication());
@@ -128,9 +122,9 @@ class IncompatibleApplicationsBrowserTest : public InProcessBrowserTest {
   // Writes an empty serialized ModuleList proto to |GetModuleListPath()|.
   void CreateModuleList() {
     chrome::conflicts::ModuleList module_list;
-    // Include an empty blocklist and allowlist.
-    module_list.mutable_blocklist();
-    module_list.mutable_allowlist();
+    // Include an empty blacklist and whitelist.
+    module_list.mutable_blacklist();
+    module_list.mutable_whitelist();
 
     std::string contents;
     ASSERT_TRUE(module_list.SerializeToString(&contents));
@@ -150,7 +144,7 @@ class IncompatibleApplicationsBrowserTest : public InProcessBrowserTest {
         L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\%ls";
 
     // Note: Using the application name for the product id.
-    const std::wstring registry_key_path =
+    const base::string16 registry_key_path =
         base::StringPrintf(kRegistryKeyPathFormat, kApplicationName);
     base::win::RegKey registry_key(HKEY_CURRENT_USER, registry_key_path.c_str(),
                                    KEY_WRITE);
@@ -189,6 +183,8 @@ class IncompatibleApplicationsBrowserTest : public InProcessBrowserTest {
 
   // Enables the IncompatibleApplicationsWarning feature.
   base::test::ScopedFeatureList scoped_feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(IncompatibleApplicationsBrowserTest);
 };
 
 // static
@@ -219,7 +215,7 @@ IN_PROC_BROWSER_TEST_F(IncompatibleApplicationsBrowserTest,
         ModuleDatabase* module_database = ModuleDatabase::GetInstance();
 
         // Speed up the test.
-        module_database->ForceStartInspection();
+        module_database->IncreaseInspectionPriority();
 
         // Simulate the download of the module list component.
         module_database->third_party_conflicts_manager()->LoadModuleList(
@@ -244,6 +240,6 @@ IN_PROC_BROWSER_TEST_F(IncompatibleApplicationsBrowserTest,
   ASSERT_EQ(incompatible_applications.size(), 1u);
   const auto& incompatible_application = incompatible_applications[0];
   EXPECT_EQ(incompatible_application.info.name, kApplicationName);
-  EXPECT_EQ(incompatible_application.blocklist_action->message_type(),
-            chrome::conflicts::BlocklistMessageType::UNINSTALL);
+  EXPECT_EQ(incompatible_application.blacklist_action->message_type(),
+            chrome::conflicts::BlacklistMessageType::UNINSTALL);
 }

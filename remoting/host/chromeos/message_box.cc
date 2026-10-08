@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,8 @@
 
 #include <utility>
 
+#include "base/macros.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/controls/message_box_view.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/dialog_delegate.h"
@@ -18,7 +17,7 @@ namespace remoting {
 // MessageBox::Core creates the dialog using the views::DialogWidget.  The
 // DialogWidget is created by the caller but its lifetime is managed by the
 // NativeWidget.  The DialogWidget communicates with the caller using the
-// DialogDelegateView interface, which must remain valid until DeleteDelegate()
+//.DialogDelegateView interface, which must remain valid until DeleteDelegate()
 // is called, at which the DialogDelegateView deletes itself.
 //
 // The Core class is introduced to abstract this awkward ownership model.  The
@@ -26,15 +25,12 @@ namespace remoting {
 // invalidated when either side are destroyed.
 class MessageBox::Core : public views::DialogDelegateView {
  public:
-  METADATA_HEADER(Core);
-  Core(const std::u16string& title_label,
-       const std::u16string& message_label,
-       const std::u16string& ok_label,
-       const std::u16string& cancel_label,
+  Core(const base::string16& title_label,
+       const base::string16& message_label,
+       const base::string16& ok_label,
+       const base::string16& cancel_label,
        ResultCallback result_callback,
        MessageBox* message_box);
-  Core(const Core&) = delete;
-  Core& operator=(const Core&) = delete;
 
   // Mirrors the public MessageBox interface.
   void Show();
@@ -42,27 +38,30 @@ class MessageBox::Core : public views::DialogDelegateView {
 
   // views::DialogDelegateView:
   ui::ModalType GetModalType() const override;
-  std::u16string GetWindowTitle() const override;
+  base::string16 GetWindowTitle() const override;
   views::View* GetContentsView() override;
   views::Widget* GetWidget() override;
   const views::Widget* GetWidget() const override;
+  void DeleteDelegate() override;
 
   // Called by MessageBox::Core when it is destroyed.
   void OnMessageBoxDestroyed();
 
  private:
-  const std::u16string title_label_;
+  const base::string16 title_label_;
   ResultCallback result_callback_;
   MessageBox* message_box_;
 
   // Owned by the native widget hierarchy.
   views::MessageBoxView* message_box_view_;
+
+  DISALLOW_COPY_AND_ASSIGN(Core);
 };
 
-MessageBox::Core::Core(const std::u16string& title_label,
-                       const std::u16string& message_label,
-                       const std::u16string& ok_label,
-                       const std::u16string& cancel_label,
+MessageBox::Core::Core(const base::string16& title_label,
+                       const base::string16& message_label,
+                       const base::string16& ok_label,
+                       const base::string16& cancel_label,
                        ResultCallback result_callback,
                        MessageBox* message_box)
     : title_label_(title_label),
@@ -70,31 +69,27 @@ MessageBox::Core::Core(const std::u16string& title_label,
       message_box_(message_box),
       message_box_view_(new views::MessageBoxView(message_label)) {
   DCHECK(message_box_);
-  SetButtonLabel(ui::DIALOG_BUTTON_OK, ok_label);
-  SetButtonLabel(ui::DIALOG_BUTTON_CANCEL, cancel_label);
+  DialogDelegate::SetButtonLabel(ui::DIALOG_BUTTON_OK, ok_label);
+  DialogDelegate::SetButtonLabel(ui::DIALOG_BUTTON_CANCEL, cancel_label);
 
   auto run_callback = [](MessageBox::Core* core, Result result) {
     if (core->result_callback_)
       std::move(core->result_callback_).Run(result);
   };
-  SetAcceptCallback(base::BindOnce(run_callback, base::Unretained(this), OK));
-  SetCancelCallback(
+  DialogDelegate::SetAcceptCallback(
+      base::BindOnce(run_callback, base::Unretained(this), OK));
+  DialogDelegate::SetCancelCallback(
       base::BindOnce(run_callback, base::Unretained(this), CANCEL));
-  SetCloseCallback(
+  DialogDelegate::SetCloseCallback(
       base::BindOnce(run_callback, base::Unretained(this), CANCEL));
-  RegisterDeleteDelegateCallback(base::BindOnce(
-      [](Core* dialog) {
-        if (dialog->message_box_)
-          dialog->message_box_->core_ = nullptr;
-      },
-      this));
 }
 
 void MessageBox::Core::Show() {
   // The widget is owned by the NativeWidget.  See  comments in widget.h.
   views::Widget* widget =
       CreateDialogWidget(this, /* delegate */
-                         nullptr /* parent window*/, nullptr /* parent view */);
+                         nullptr /* parent window*/,
+                         nullptr /* parent view */);
 
   if (widget) {
     widget->Show();
@@ -111,7 +106,7 @@ ui::ModalType MessageBox::Core::GetModalType() const {
   return ui::MODAL_TYPE_SYSTEM;
 }
 
-std::u16string MessageBox::Core::GetWindowTitle() const {
+base::string16 MessageBox::Core::GetWindowTitle() const {
   return title_label_;
 }
 
@@ -127,6 +122,13 @@ const views::Widget* MessageBox::Core::GetWidget() const {
   return message_box_view_->GetWidget();
 }
 
+void MessageBox::Core::DeleteDelegate() {
+  if (message_box_) {
+    message_box_->core_ = nullptr;
+  }
+  delete this;
+}
+
 void MessageBox::Core::OnMessageBoxDestroyed() {
   DCHECK(message_box_);
   message_box_ = nullptr;
@@ -134,22 +136,17 @@ void MessageBox::Core::OnMessageBoxDestroyed() {
   result_callback_.Reset();
 }
 
-BEGIN_METADATA(MessageBox, Core, views::DialogDelegateView)
-END_METADATA
-
-MessageBox::MessageBox(const std::u16string& title_label,
-                       const std::u16string& message_label,
-                       const std::u16string& ok_label,
-                       const std::u16string& cancel_label,
+MessageBox::MessageBox(const base::string16& title_label,
+                       const base::string16& message_label,
+                       const base::string16& ok_label,
+                       const base::string16& cancel_label,
                        ResultCallback result_callback)
     : core_(new Core(title_label,
                      message_label,
                      ok_label,
                      cancel_label,
                      std::move(result_callback),
-                     this)) {}
-
-void MessageBox::Show() {
+                     this)) {
   core_->Show();
 }
 

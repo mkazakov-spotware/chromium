@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "base/bind.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -32,17 +31,17 @@ EventRouterForwarder::~EventRouterForwarder() {
 void EventRouterForwarder::BroadcastEventToRenderers(
     events::HistogramValue histogram_value,
     const std::string& event_name,
-    base::Value::List event_args,
+    std::unique_ptr<base::ListValue> event_args,
     const GURL& event_url,
     bool dispatch_to_off_the_record_profiles) {
   HandleEvent(std::string(), histogram_value, event_name, std::move(event_args),
-              nullptr, true, event_url, dispatch_to_off_the_record_profiles);
+              0, true, event_url, dispatch_to_off_the_record_profiles);
 }
 
 void EventRouterForwarder::DispatchEventToRenderers(
     events::HistogramValue histogram_value,
     const std::string& event_name,
-    base::Value::List event_args,
+    std::unique_ptr<base::ListValue> event_args,
     void* profile,
     bool use_profile_to_restrict_events,
     const GURL& event_url,
@@ -58,7 +57,7 @@ void EventRouterForwarder::HandleEvent(
     const std::string& extension_id,
     events::HistogramValue histogram_value,
     const std::string& event_name,
-    base::Value::List event_args,
+    std::unique_ptr<base::ListValue> event_args,
     void* profile_ptr,
     bool use_profile_to_restrict_events,
     const GURL& event_url,
@@ -77,7 +76,7 @@ void EventRouterForwarder::HandleEvent(
     return;
 
   ProfileManager* profile_manager = g_browser_process->profile_manager();
-  Profile* profile = nullptr;
+  Profile* profile = NULL;
   if (profile_ptr) {
     if (!profile_manager->IsValidProfile(profile_ptr))
       return;
@@ -94,29 +93,31 @@ void EventRouterForwarder::HandleEvent(
   }
 
   if (dispatch_to_off_the_record_profiles) {
-    for (Profile* profile_to_dispatch_to : profiles_to_dispatch_to) {
-      if (profile_to_dispatch_to->HasPrimaryOTRProfile())
-        profiles_to_dispatch_to.insert(
-            profile_to_dispatch_to->GetPrimaryOTRProfile(
-                /*create_if_needed=*/true));
+    for (Profile* profile : profiles_to_dispatch_to) {
+      if (profile->HasPrimaryOTRProfile())
+        profiles_to_dispatch_to.insert(profile->GetPrimaryOTRProfile());
     }
   }
 
-  // There should always be at least one profile when running as Chromium.
-  // However, some Chromium embedders are known to run without profiles, in
-  // which case there's nothing to dispatch to.
-  if (profiles_to_dispatch_to.size() == 0u)
-    return;
+  DCHECK_GT(profiles_to_dispatch_to.size(), 0u)
+      << "There should always be at least one profile!";
 
+  std::vector<std::unique_ptr<base::ListValue>> per_profile_args;
+  per_profile_args.reserve(profiles_to_dispatch_to.size());
+  for (size_t i = 0; i < profiles_to_dispatch_to.size() - 1; ++i)
+    per_profile_args.emplace_back(event_args->DeepCopy());
+  per_profile_args.emplace_back(std::move(event_args));
+  DCHECK_EQ(per_profile_args.size(), profiles_to_dispatch_to.size());
+
+  size_t profile_args_index = 0;
   for (Profile* profile_to_dispatch_to : profiles_to_dispatch_to) {
     CallEventRouter(
         profile_to_dispatch_to, extension_id, histogram_value, event_name,
-        profile_to_dispatch_to != *std::prev(profiles_to_dispatch_to.end())
-            ? event_args.Clone()
-            : std::move(event_args),
+        std::move(per_profile_args[profile_args_index++]),
         use_profile_to_restrict_events ? profile_to_dispatch_to : nullptr,
         event_url);
   }
+  DCHECK_EQ(per_profile_args.size(), profile_args_index);
 }
 
 void EventRouterForwarder::CallEventRouter(
@@ -124,10 +125,10 @@ void EventRouterForwarder::CallEventRouter(
     const std::string& extension_id,
     events::HistogramValue histogram_value,
     const std::string& event_name,
-    base::Value::List event_args,
+    std::unique_ptr<base::ListValue> event_args,
     Profile* restrict_to_profile,
     const GURL& event_url) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // Extension does not exist for chromeos login.  This needs to be
   // removed once we have an extension service for login screen.
   // crosbug.com/12856.

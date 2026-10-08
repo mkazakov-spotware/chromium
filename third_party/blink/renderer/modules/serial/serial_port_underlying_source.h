@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,52 +7,47 @@
 
 #include "mojo/public/cpp/system/data_pipe.h"
 #include "mojo/public/cpp/system/simple_watcher.h"
-#include "services/device/public/mojom/serial.mojom-blink-forward.h"
-#include "third_party/blink/renderer/bindings/core/v8/script_value.h"
-#include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
-#include "third_party/blink/renderer/core/streams/underlying_byte_source_base.h"
+#include "third_party/blink/renderer/core/streams/underlying_source_base.h"
 
 namespace blink {
 
-class ExceptionState;
+class DOMException;
 class ScriptPromiseResolver;
 class SerialPort;
 
-class SerialPortUnderlyingSource : public UnderlyingByteSourceBase,
-                                   ExecutionContextLifecycleObserver {
+class SerialPortUnderlyingSource : public UnderlyingSourceBase {
  public:
   SerialPortUnderlyingSource(ScriptState*,
                              SerialPort*,
                              mojo::ScopedDataPipeConsumerHandle);
 
-  // UnderlyingByteSourceBase
-  ScriptPromise Pull(ReadableByteStreamController* controller,
-                     ExceptionState&) override;
-  ScriptPromise Cancel(ExceptionState&) override;
-  ScriptPromise Cancel(v8::Local<v8::Value> reason, ExceptionState&) override;
-  ScriptState* GetScriptState() override;
-
+  // UnderlyingSourceBase
+  ScriptPromise pull(ScriptState*) override;
+  ScriptPromise Cancel(ScriptState*, ScriptValue reason) override;
   void ContextDestroyed() override;
 
-  void SignalErrorOnClose(device::mojom::blink::SerialReceiveError);
+  void SignalErrorImmediately(DOMException*);
+  void SignalErrorOnClose(DOMException*);
 
   void Trace(Visitor*) const override;
 
  private:
-  // Reads data from |data_pipe_|. Arms |watcher_| if it needs to wait.
-  void ReadDataOrArmWatcher();
+  // Reads data from |data_pipe_|. Returns true if data was enqueued to
+  // |Controller()| or the pipe was closed, and false otherwise.
+  bool ReadData();
 
+  void ArmWatcher();
   void OnHandleReady(MojoResult, const mojo::HandleSignalsState&);
   void OnFlush(ScriptPromiseResolver*);
+  void ExpectPipeClose();
   void PipeClosed();
   void Close();
 
   mojo::ScopedDataPipeConsumerHandle data_pipe_;
   mojo::SimpleWatcher watcher_;
-  const Member<ScriptState> script_state_;
-  const Member<SerialPort> serial_port_;
-  Member<ReadableByteStreamController> controller_;
-  ScriptValue pending_exception_;
+  Member<SerialPort> serial_port_;
+  Member<DOMException> pending_exception_;
+  bool expect_close_ = false;
 };
 
 }  // namespace blink

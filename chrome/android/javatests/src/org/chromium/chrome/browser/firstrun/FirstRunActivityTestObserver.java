@@ -1,64 +1,52 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.firstrun;
 
-import org.chromium.base.test.util.CallbackHelper;
+import android.os.Bundle;
 
-import java.util.HashMap;
-import java.util.Map;
+import org.chromium.base.test.util.CallbackHelper;
 
 /** Records when the FirstRunActivity has progressed through various states. */
 public class FirstRunActivityTestObserver implements FirstRunActivity.FirstRunActivityObserver {
-    /** Holds data and callbacks from observer methods that originated from a specific caller. */
-    public static class ScopedObserverData {
-        public final CallbackHelper createPostNativeAndPoliciesPageSequenceCallback =
-                new CallbackHelper();
-        public final CallbackHelper acceptTermsOfServiceCallback = new CallbackHelper();
-        public final CallbackHelper jumpToPageCallback = new CallbackHelper();
-        public final CallbackHelper updateCachedEngineCallback = new CallbackHelper();
-        public final CallbackHelper abortFirstRunExperienceCallback = new CallbackHelper();
-        public final CallbackHelper exitFirstRunCallback = new CallbackHelper();
-    }
+    public final CallbackHelper flowIsKnownCallback = new CallbackHelper();
+    public final CallbackHelper acceptTermsOfServiceCallback = new CallbackHelper();
+    public final CallbackHelper jumpToPageCallback = new CallbackHelper();
+    public final CallbackHelper updateCachedEngineCallback = new CallbackHelper();
+    public final CallbackHelper abortFirstRunExperienceCallback = new CallbackHelper();
+    public final CallbackHelper exitFirstRunCallback = new CallbackHelper();
 
-    private final Map<FirstRunActivity, ScopedObserverData> mScopeObserverDataMap = new HashMap<>();
+    public Bundle freProperties;
 
-    public ScopedObserverData getScopedObserverData(FirstRunActivity firstRunActivity) {
-        if (!mScopeObserverDataMap.containsKey(firstRunActivity)) {
-            mScopeObserverDataMap.put(firstRunActivity, new ScopedObserverData());
-        }
-        return mScopeObserverDataMap.get(firstRunActivity);
+    @Override
+    public void onFlowIsKnown(Bundle freProperties) {
+        this.freProperties = freProperties;
+        flowIsKnownCallback.notifyCalled();
     }
 
     @Override
-    public void onCreatePostNativeAndPoliciesPageSequence(FirstRunActivity caller) {
-        getScopedObserverData(caller)
-                .createPostNativeAndPoliciesPageSequenceCallback.notifyCalled();
+    public void onAcceptTermsOfService() {
+        acceptTermsOfServiceCallback.notifyCalled();
     }
 
     @Override
-    public void onAcceptTermsOfService(FirstRunActivity caller) {
-        getScopedObserverData(caller).acceptTermsOfServiceCallback.notifyCalled();
+    public void onJumpToPage(int position) {
+        jumpToPageCallback.notifyCalled();
     }
 
     @Override
-    public void onJumpToPage(FirstRunActivity caller, int position) {
-        getScopedObserverData(caller).jumpToPageCallback.notifyCalled();
+    public void onUpdateCachedEngineName() {
+        updateCachedEngineCallback.notifyCalled();
     }
 
     @Override
-    public void onUpdateCachedEngineName(FirstRunActivity caller) {
-        getScopedObserverData(caller).updateCachedEngineCallback.notifyCalled();
+    public void onAbortFirstRunExperience() {
+        abortFirstRunExperienceCallback.notifyCalled();
     }
 
     @Override
-    public void onAbortFirstRunExperience(FirstRunActivity caller) {
-        getScopedObserverData(caller).abortFirstRunExperienceCallback.notifyCalled();
-    }
-
-    @Override
-    public void onExitFirstRun(FirstRunActivity caller) {
-        getScopedObserverData(caller).exitFirstRunCallback.notifyCalled();
+    public void onExitFirstRun() {
+        exitFirstRunCallback.notifyCalled();
     }
 }

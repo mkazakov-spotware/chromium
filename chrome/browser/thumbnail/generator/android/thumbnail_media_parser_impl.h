@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,11 @@
 
 #include "base/callback.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/optional.h"
+#include "base/sequenced_task_runner.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/thumbnail/generator/android/stats.h"
 #include "chrome/browser/thumbnail/generator/android/thumbnail_media_parser.h"
@@ -40,10 +42,6 @@ class ThumbnailMediaParserImpl : public ThumbnailMediaParser,
  public:
   ThumbnailMediaParserImpl(const std::string& mime_type,
                            const base::FilePath& file_path);
-
-  ThumbnailMediaParserImpl(const ThumbnailMediaParserImpl&) = delete;
-  ThumbnailMediaParserImpl& operator=(const ThumbnailMediaParserImpl&) = delete;
-
   ~ThumbnailMediaParserImpl() override;
 
   // ThumbnailMediaParser implementation.
@@ -64,7 +62,10 @@ class ThumbnailMediaParserImpl : public ThumbnailMediaParser,
 
   // Retrieves an encoded video frame.
   void RetrieveEncodedVideoFrame();
-  void OnVideoFrameRetrieved(chrome::mojom::ExtractVideoFrameResultPtr result);
+  void OnVideoFrameRetrieved(
+      bool success,
+      chrome::mojom::VideoFrameDataPtr video_frame_data,
+      const base::Optional<media::VideoDecoderConfig>& config);
 
   // Decodes the video frame.
   void OnGpuVideoAcceleratorFactoriesReady(
@@ -117,6 +118,8 @@ class ThumbnailMediaParserImpl : public ThumbnailMediaParser,
   bool decode_done_;
 
   base::WeakPtrFactory<ThumbnailMediaParserImpl> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ThumbnailMediaParserImpl);
 };
 
 #endif  // CHROME_BROWSER_THUMBNAIL_GENERATOR_ANDROID_THUMBNAIL_MEDIA_PARSER_IMPL_H_

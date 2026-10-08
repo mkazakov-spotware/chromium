@@ -1,13 +1,15 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef MEDIA_CAST_CAST_ENVIRONMENT_H_
 #define MEDIA_CAST_CAST_ENVIRONMENT_H_
 
-#include "base/memory/raw_ptr.h"
+#include <memory>
+
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/time/tick_clock.h"
 #include "base/time/time.h"
 #include "media/cast/logging/log_event_dispatcher.h"
@@ -34,9 +36,6 @@ class CastEnvironment : public base::RefCountedThreadSafe<CastEnvironment> {
       scoped_refptr<base::SingleThreadTaskRunner> main_thread_proxy,
       scoped_refptr<base::SingleThreadTaskRunner> audio_thread_proxy,
       scoped_refptr<base::SingleThreadTaskRunner> video_thread_proxy);
-
-  CastEnvironment(const CastEnvironment&) = delete;
-  CastEnvironment& operator=(const CastEnvironment&) = delete;
 
   // These are the same methods in message_loop.h, but are guaranteed to either
   // get posted to the MessageLoop if it's still alive, or be deleted otherwise.
@@ -74,11 +73,13 @@ class CastEnvironment : public base::RefCountedThreadSafe<CastEnvironment> {
   scoped_refptr<base::SingleThreadTaskRunner> main_thread_proxy_;
   scoped_refptr<base::SingleThreadTaskRunner> audio_thread_proxy_;
   scoped_refptr<base::SingleThreadTaskRunner> video_thread_proxy_;
-  raw_ptr<const base::TickClock> clock_;
+  const base::TickClock* clock_;
   LogEventDispatcher logger_;
 
  private:
   friend class base::RefCountedThreadSafe<CastEnvironment>;
+
+  DISALLOW_COPY_AND_ASSIGN(CastEnvironment);
 };
 
 }  // namespace cast

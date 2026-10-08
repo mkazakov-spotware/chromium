@@ -1,16 +1,13 @@
-// Copyright 2011 The Chromium Authors
+// Copyright 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_TREES_DAMAGE_TRACKER_H_
 #define CC_TREES_DAMAGE_TRACKER_H_
 
-#include <algorithm>
 #include <memory>
-#include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "cc/cc_export.h"
 #include "cc/layers/layer_collections.h"
 #include "ui/gfx/geometry/rect.h"
@@ -97,8 +94,14 @@ class CC_EXPORT DamageTracker {
   // These helper functions are used only during UpdateDamageTracking().
   void PrepareForUpdate();
   void AccumulateDamageFromLayer(LayerImpl* layer);
-  void AccumulateDamageFromRenderSurface(RenderSurfaceImpl* render_surface);
-  void ComputeSurfaceDamage(RenderSurfaceImpl* render_surface);
+  void AccumulateDamageFromRenderSurface(
+      RenderSurfaceImpl* render_surface,
+      std::vector<std::pair<RenderSurfaceImpl*, gfx::Rect>>&
+          surfaces_with_backdrop_blur_filter);
+  void ComputeSurfaceDamage(
+      RenderSurfaceImpl* render_surface,
+      std::vector<std::pair<RenderSurfaceImpl*, gfx::Rect>>&
+          surfaces_with_backdrop_blur_filter);
   void ExpandDamageInsideRectWithFilters(const gfx::Rect& pre_filter_rect,
                                          const FilterOperations& filters);
 
@@ -154,15 +157,6 @@ class CC_EXPORT DamageTracker {
 
   // Damage accumulated since the last call to PrepareForUpdate().
   DamageAccumulator damage_for_this_update_;
-
-  struct SurfaceWithRect {
-    SurfaceWithRect(RenderSurfaceImpl* rs, const gfx::Rect& rect)
-        : render_surface(rs), rect_in_target_space(rect) {}
-    raw_ptr<RenderSurfaceImpl> render_surface;
-    const gfx::Rect rect_in_target_space;
-  };
-
-  std::vector<SurfaceWithRect> contributing_surfaces_;
 };
 
 }  // namespace cc

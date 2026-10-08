@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -132,19 +132,13 @@ function shouldBeEqualToString(a, b)
 }
 
 function indexedDBTest(upgradeCallback, optionalOpenCallback) {
-  indexedDBTestWithIdb(indexedDB, upgradeCallback, optionalOpenCallback);
-}
-
-// This version takes the indexeddb object as a parameter to support bucket
-// idbs.
-function indexedDBTestWithIdb(idb, upgradeCallback, optionalOpenCallback) {
   dbname = self.location.pathname.substring(
     1 + self.location.pathname.lastIndexOf("/"));
-  var deleteRequest = idb.deleteDatabase(dbname);
+  var deleteRequest = indexedDB.deleteDatabase(dbname);
   deleteRequest.onerror = unexpectedErrorCallback;
   deleteRequest.onblocked = unexpectedBlockedCallback;
   deleteRequest.onsuccess = function() {
-    var openRequest = idb.open(dbname);
+    var openRequest = indexedDB.open(dbname);
     openRequest.onerror = unexpectedErrorCallback;
     openRequest.onupgradeneeded = upgradeCallback;
     openRequest.onblocked = unexpectedBlockedCallback;

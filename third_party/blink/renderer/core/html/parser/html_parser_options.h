@@ -37,9 +37,7 @@ class CORE_EXPORT HTMLParserOptions {
   DISALLOW_NEW();
 
  public:
-  explicit HTMLParserOptions(Document* = nullptr);
-
-  // https://html.spec.whatwg.org/C/#scripting-flag
+  // https://html.spec.whatwg.org/#scripting-flag
   bool scripting_flag = false;
 
   // TODO(domfarolino): Remove this when Priority Hints is no longer in an
@@ -49,10 +47,9 @@ class CORE_EXPORT HTMLParserOptions {
   // access to an ExecutionContext*, but HTMLParserOptions does.
   bool priority_hints_origin_trial_enabled = false;
 
-  // If set, the ranges (offsets) of the attribute name and value are tracked.
-  bool track_attributes_ranges = false;
+  explicit HTMLParserOptions(Document* = nullptr);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_HTML_PARSER_HTML_PARSER_OPTIONS_H_
+#endif

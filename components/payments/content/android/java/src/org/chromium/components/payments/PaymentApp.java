@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,6 @@ import org.chromium.payments.mojom.PaymentItem;
 import org.chromium.payments.mojom.PaymentMethodData;
 import org.chromium.payments.mojom.PaymentOptions;
 import org.chromium.payments.mojom.PaymentRequestDetailsUpdate;
-import org.chromium.payments.mojom.PaymentResponse;
 import org.chromium.payments.mojom.PaymentShippingOption;
 
 import java.util.List;
@@ -27,9 +26,6 @@ import java.util.Set;
  * The base class for a single payment app, e.g., a payment handler.
  */
 public abstract class PaymentApp extends EditableOption {
-    /** Arbitrarily chosen maximum length of a payment app name. */
-    private static final int APP_NAME_ELIDE_LENGTH = 64;
-
     /**
      * Whether complete and valid autofill data for merchant's request is available, e.g., if
      * merchant specifies `requestPayerEmail: true`, then this variable is true only if the autofill
@@ -78,33 +74,12 @@ public abstract class PaymentApp extends EditableOption {
     }
 
     protected PaymentApp(String id, String label, String sublabel, Drawable icon) {
-        super(id, maybeElide(removeLineTerminators(label)), sublabel, icon);
+        super(id, label, sublabel, icon);
     }
 
     protected PaymentApp(
             String id, String label, String sublabel, String tertiarylabel, Drawable icon) {
-        super(id, maybeElide(removeLineTerminators(label)), sublabel, tertiarylabel, icon);
-    }
-
-    private static String removeLineTerminators(String text) {
-        // '\n' - A newline (line feed) character.
-        // '\f' - A form feed character.
-        // '\r' - A carriage-return character.
-        // '\u0085' - A next-line character.
-        // '\u2028' - A line-separator character.
-        // '\u2029' - A paragraph-separator character.
-        // [abc] - a, b, or c (simple character class).
-        // X+ - X, one or more times, a greedy quantifier.
-        // See: https://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html
-        return text.replaceAll("[\n\f\r\u0085\u2028\u2029]+", "");
-    }
-
-    private static String maybeElide(String text) {
-        // 2026 is the unicode horizontal ellipsis.
-        // See https://util.unicode.org/UnicodeJsps/character.jsp?a=2026.
-        return text.length() <= APP_NAME_ELIDE_LENGTH
-                ? text
-                : text.substring(0, APP_NAME_ELIDE_LENGTH) + "\u2026";
+        super(id, label, sublabel, tertiarylabel, icon);
     }
 
     /**
@@ -122,6 +97,19 @@ public abstract class PaymentApp extends EditableOption {
      * @return The method names for this app.
      */
     public abstract Set<String> getInstrumentMethodNames();
+
+    /**
+     * @return Whether this is an autofill app. All autofill apps are sorted below all non-autofill
+     *         apps.
+     */
+    public boolean isAutofillInstrument() {
+        return false;
+    }
+
+    /** @return Whether this is a server autofill app. */
+    public boolean isServerAutofillInstrument() {
+        return false;
+    }
 
     /**
      * @return Whether this is a replacement for all server autofill apps. If at least one of
@@ -169,6 +157,12 @@ public abstract class PaymentApp extends EditableOption {
         return false;
     }
 
+    /** @return The country code (or null if none) associated with this payment app. */
+    @Nullable
+    public String getCountryCode() {
+        return null;
+    }
+
     /**
      * @param haveRequestedAutofillData Whether complete and valid autofill data for merchant's
      *                                  request is available.
@@ -178,15 +172,20 @@ public abstract class PaymentApp extends EditableOption {
     }
 
     /**
-     * @return Whether this payment app should cause PaymentRequest.hasEnrolledInstrument() to
-     *         return true.
+     * @return Whether presence of this payment app should cause the
+     *         PaymentRequest.canMakePayment() to return true.
      */
-    public boolean hasEnrolledInstrument() {
+    public boolean canMakePayment() {
         return true;
     }
 
     /** @return Whether this payment app can be pre-selected for immediate payment. */
     public boolean canPreselect() {
+        return true;
+    }
+
+    /** @return Whether skip-UI flow with this app requires a user gesture. */
+    public boolean isUserGestureRequiredToSkipUi() {
         return true;
     }
 
@@ -257,6 +256,20 @@ public abstract class PaymentApp extends EditableOption {
     /** Cleans up any resources held by the payment app. For example, closes server connections. */
     public abstract void dismissInstrument();
 
+    /** @return Whether the payment app is ready for a minimal UI flow. */
+    public boolean isReadyForMinimalUI() {
+        return false;
+    }
+
+    /** @return Account balance for minimal UI flow. */
+    @Nullable
+    public String accountBalance() {
+        return null;
+    }
+
+    /** Disable opening a window for this payment app. */
+    public void disableShowingOwnUI() {}
+
     /**
      * @return The identifier for another payment app that should be hidden when this payment app is
      * present.
@@ -300,16 +313,5 @@ public abstract class PaymentApp extends EditableOption {
      */
     public boolean isPreferred() {
         return false;
-    }
-
-    /**
-     * Updates the response IPC structure with the fields that are unique to this type of payment
-     * app. Used when JSON serialization of payment method specific data is not being used. The
-     * payment apps who need to set the fields should override this method.
-     * @param response The PaymentResponse to whom the fields are set.
-     * @return The PaymentResponse whose fields has been set.
-     */
-    public PaymentResponse setAppSpecificResponseFields(PaymentResponse response) {
-        return response;
     }
 }

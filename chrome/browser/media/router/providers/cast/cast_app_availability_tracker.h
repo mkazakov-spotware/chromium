@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,12 @@
 
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
+#include "base/macros.h"
 #include "base/time/time.h"
+#include "components/cast_channel/cast_message_util.h"
 #include "components/media_router/common/discovery/media_sink_internal.h"
 #include "components/media_router/common/media_source.h"
 #include "components/media_router/common/providers/cast/cast_media_source.h"
-#include "components/media_router/common/providers/cast/channel/cast_message_util.h"
 
 namespace media_router {
 
@@ -53,11 +54,6 @@ class CastAppAvailabilityTracker {
       std::pair<cast_channel::GetAppAvailabilityResult, base::TimeTicks>;
 
   CastAppAvailabilityTracker();
-
-  CastAppAvailabilityTracker(const CastAppAvailabilityTracker&) = delete;
-  CastAppAvailabilityTracker& operator=(const CastAppAvailabilityTracker&) =
-      delete;
-
   ~CastAppAvailabilityTracker();
 
   // Registers |source| with the tracker. Returns a list of new app IDs that
@@ -73,7 +69,7 @@ class CastAppAvailabilityTracker {
   // call |GetAvailableSinks| with the returned CastMediaSources to get the
   // updated lists.
   std::vector<CastMediaSource> UpdateAppAvailability(
-      const MediaSinkInternal& sink,
+      const MediaSink::Id& sink_id,
       const std::string& app_id,
       AppAvailability availability);
 
@@ -108,16 +104,6 @@ class CastAppAvailabilityTracker {
   // App ID to availability.
   using AppAvailabilityMap = base::flat_map<std::string, AppAvailability>;
 
-  struct CapabilitiesAndAvailabilityMap {
-   public:
-    explicit CapabilitiesAndAvailabilityMap(const MediaSinkInternal& sink);
-    CapabilitiesAndAvailabilityMap(const CapabilitiesAndAvailabilityMap&);
-    ~CapabilitiesAndAvailabilityMap();
-
-    BitwiseOr<cast_channel::CastDeviceCapability> capabilities;
-    AppAvailabilityMap availabilities;
-  };
-
   // Registered sources and corresponding CastMediaSource's.
   base::flat_map<MediaSource::Id, CastMediaSource> registered_sources_;
 
@@ -125,8 +111,9 @@ class CastAppAvailabilityTracker {
   base::flat_map<std::string, int> registration_count_by_app_id_;
 
   // IDs and app availabilities of known sinks.
-  base::flat_map<MediaSink::Id, CapabilitiesAndAvailabilityMap>
-      capabilities_and_availabilities_;
+  base::flat_map<MediaSink::Id, AppAvailabilityMap> app_availabilities_;
+
+  DISALLOW_COPY_AND_ASSIGN(CastAppAvailabilityTracker);
 };
 
 }  // namespace media_router

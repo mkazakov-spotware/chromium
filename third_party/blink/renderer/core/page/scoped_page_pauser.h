@@ -20,8 +20,9 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_PAGE_SCOPED_PAGE_PAUSER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_PAGE_SCOPED_PAGE_PAUSER_H_
 
+#include "base/macros.h"
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/platform/scheduler/public/main_thread_scheduler.h"
+#include "third_party/blink/renderer/platform/scheduler/public/thread_scheduler.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
@@ -33,8 +34,6 @@ class CORE_EXPORT ScopedPagePauser final {
 
  public:
   explicit ScopedPagePauser();
-  ScopedPagePauser(const ScopedPagePauser&) = delete;
-  ScopedPagePauser& operator=(const ScopedPagePauser&) = delete;
   ~ScopedPagePauser();
 
  private:
@@ -43,7 +42,8 @@ class CORE_EXPORT ScopedPagePauser final {
   static void SetPaused(bool);
   static bool IsActive();
 
-  std::unique_ptr<MainThreadScheduler::RendererPauseHandle> pause_handle_;
+  std::unique_ptr<ThreadScheduler::RendererPauseHandle> pause_handle_;
+  DISALLOW_COPY_AND_ASSIGN(ScopedPagePauser);
 };
 
 }  // namespace blink

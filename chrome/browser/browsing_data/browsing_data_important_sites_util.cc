@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/browsing_data/browsing_data_important_sites_util.h"
 
-#include "base/scoped_observation.h"
-#include "chrome/browser/browsing_data/chrome_browsing_data_remover_constants.h"
+#include "base/scoped_observer.h"
+#include "chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.h"
 #include "content/public/browser/browsing_data_filter_builder.h"
 
 namespace {
@@ -17,21 +17,19 @@ class BrowsingDataTaskObserver : public content::BrowsingDataRemover::Observer {
   BrowsingDataTaskObserver(content::BrowsingDataRemover* remover,
                            base::OnceCallback<void(uint64_t)> callback,
                            int task_count);
-
-  BrowsingDataTaskObserver(const BrowsingDataTaskObserver&) = delete;
-  BrowsingDataTaskObserver& operator=(const BrowsingDataTaskObserver&) = delete;
-
   ~BrowsingDataTaskObserver() override;
 
   void OnBrowsingDataRemoverDone(uint64_t failed_data_types) override;
 
  private:
   base::OnceCallback<void(uint64_t)> callback_;
-  base::ScopedObservation<content::BrowsingDataRemover,
-                          content::BrowsingDataRemover::Observer>
-      remover_observation_{this};
+  ScopedObserver<content::BrowsingDataRemover,
+                 content::BrowsingDataRemover::Observer>
+      remover_observer_;
   int task_count_;
   uint64_t failed_data_types_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(BrowsingDataTaskObserver);
 };
 
 BrowsingDataTaskObserver::BrowsingDataTaskObserver(
@@ -39,8 +37,9 @@ BrowsingDataTaskObserver::BrowsingDataTaskObserver(
     base::OnceCallback<void(uint64_t)> callback,
     int task_count)
     : callback_(std::move(callback)),
+      remover_observer_(this),
       task_count_(task_count) {
-  remover_observation_.Observe(remover);
+  remover_observer_.Add(remover);
 }
 
 BrowsingDataTaskObserver::~BrowsingDataTaskObserver() = default;
@@ -51,7 +50,7 @@ void BrowsingDataTaskObserver::OnBrowsingDataRemoverDone(
   failed_data_types_ |= failed_data_types;
   if (--task_count_)
     return;
-  remover_observation_.Reset();
+  remover_observer_.RemoveAll();
   std::move(callback_).Run(failed_data_types_);
   delete this;
 }
@@ -74,9 +73,11 @@ void Remove(uint64_t remove_mask,
 
   if (!filter_builder->MatchesAllOriginsAndDomains()) {
     filterable_mask =
-        remove_mask & chrome_browsing_data_remover::IMPORTANT_SITES_DATA_TYPES;
+        remove_mask &
+        ChromeBrowsingDataRemoverDelegate::IMPORTANT_SITES_DATA_TYPES;
     nonfilterable_mask =
-        remove_mask & ~chrome_browsing_data_remover::IMPORTANT_SITES_DATA_TYPES;
+        remove_mask &
+        ~ChromeBrowsingDataRemoverDelegate::IMPORTANT_SITES_DATA_TYPES;
   }
   browsing_data::RecordDeletionForPeriod(time_period);
 

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,28 +7,33 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/clock.h"
 #include "components/consent_auditor/consent_auditor.h"
 #include "components/consent_auditor/consent_sync_bridge.h"
 
+class PrefService;
+class PrefRegistrySimple;
+
 namespace consent_auditor {
 
 class ConsentAuditorImpl : public ConsentAuditor {
  public:
-  ConsentAuditorImpl(std::unique_ptr<ConsentSyncBridge> consent_sync_bridge,
+  ConsentAuditorImpl(PrefService* pref_service,
+                     std::unique_ptr<ConsentSyncBridge> consent_sync_bridge,
+                     const std::string& app_version,
                      const std::string& app_locale,
                      base::Clock* clock);
-
-  ConsentAuditorImpl(const ConsentAuditorImpl&) = delete;
-  ConsentAuditorImpl& operator=(const ConsentAuditorImpl&) = delete;
-
   ~ConsentAuditorImpl() override;
 
   // KeyedService (through ConsentAuditor) implementation.
   void Shutdown() override;
+
+  // Registers the preferences needed by this service.
+  static void RegisterProfilePrefs(PrefRegistrySimple* registry);
 
   void RecordArcPlayConsent(
       const CoreAccountId& account_id,
@@ -53,13 +58,20 @@ class ConsentAuditorImpl : public ConsentAuditor {
       const CoreAccountId& account_id,
       const sync_pb::UserConsentTypes::AccountPasswordsConsent& consent)
       override;
+  void RecordLocalConsent(const std::string& feature,
+                          const std::string& description_text,
+                          const std::string& confirmation_text) override;
   base::WeakPtr<syncer::ModelTypeControllerDelegate> GetControllerDelegate()
       override;
 
  private:
-  const std::unique_ptr<ConsentSyncBridge> consent_sync_bridge_;
-  const std::string app_locale_;
-  const raw_ptr<base::Clock> clock_;
+  PrefService* pref_service_;
+  std::unique_ptr<ConsentSyncBridge> consent_sync_bridge_;
+  std::string app_version_;
+  std::string app_locale_;
+  base::Clock* clock_;
+
+  DISALLOW_COPY_AND_ASSIGN(ConsentAuditorImpl);
 };
 
 }  // namespace consent_auditor

@@ -1,11 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/feedback/feedback_dialog_utils.h"
 
 #include "ash/public/cpp/multi_user_window_manager.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -16,7 +15,7 @@
 #include "content/public/browser/web_contents.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "chrome/browser/ui/ash/multi_user/multi_user_util.h"
 #include "chrome/browser/ui/ash/multi_user/multi_user_window_manager_helper.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -42,7 +41,7 @@ GURL GetTargetTabUrl(SessionID session_id, int index) {
         }
       }
       if (target_tab)
-        return target_tab->GetLastCommittedURL();
+        return target_tab->GetURL();
     }
   }
 
@@ -60,7 +59,7 @@ Profile* GetFeedbackProfile(const Browser* browser) {
   profile = profile->GetOriginalProfile();
   DCHECK(profile);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // Obtains the display profile ID on which the Feedback window should show.
   auto* const window_manager = MultiUserWindowManagerHelper::GetWindowManager();
   const AccountId display_account_id =
@@ -79,7 +78,7 @@ void ShowFeedbackDialogForWebUI(WebUIFeedbackSource webui_source,
   std::string category;
   switch (webui_source) {
     case WebUIFeedbackSource::kConnectivityDiagnostics:
-      source = FeedbackSource::kFeedbackSourceConnectivityDiagnostics;
+      source = FeedbackSource::kFeedbackSourceNetworkHealthPage;
       category = "connectivity-diagnostics";
       break;
   }

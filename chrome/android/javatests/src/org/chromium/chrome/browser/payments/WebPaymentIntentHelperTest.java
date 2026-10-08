@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -143,10 +143,11 @@ public class WebPaymentIntentHelperTest {
                 new HashSet<>(
                         bundle.getStringArrayList(WebPaymentIntentHelper.EXTRA_METHOD_NAMES)));
 
-        Bundle methodDataBundle = bundle.getParcelable(WebPaymentIntentHelper.EXTRA_METHOD_DATA);
-        Assert.assertEquals(2, methodDataBundle.keySet().size());
-        Assert.assertEquals("{\"key\":\"value\"}", methodDataBundle.getString("bobPay"));
-        Assert.assertEquals("{}", methodDataBundle.getString("maxPay"));
+        Bundle expectedMethodDataBundle =
+                bundle.getParcelable(WebPaymentIntentHelper.EXTRA_METHOD_DATA);
+        Assert.assertEquals(2, expectedMethodDataBundle.keySet().size());
+        Assert.assertEquals("{\"key\":\"value\"}", expectedMethodDataBundle.getString("bobPay"));
+        Assert.assertEquals("{}", expectedMethodDataBundle.getString("maxPay"));
 
         // The data field is a string because it is PaymentMethodData#stringifiedData.
         String expectedSerializedModifiers =
@@ -828,7 +829,7 @@ public class WebPaymentIntentHelperTest {
     @Test
     @SmallTest
     @Feature({"Payments"})
-    public void createIsReadyToPayIntentWithIdentity() throws Throwable {
+    public void createIsReadyToPayIntent() throws Throwable {
         Map<String, PaymentMethodData> methodDataMap = new HashMap<String, PaymentMethodData>();
         PaymentMethodData bobPayMethodData =
                 new PaymentMethodData("bobPayMethod", "{\"key\":\"value\"}");
@@ -840,7 +841,7 @@ public class WebPaymentIntentHelperTest {
 
         Intent intent = WebPaymentIntentHelper.createIsReadyToPayIntent("package.name",
                 "service.name", "schemeless.origin", "schemeless.iframe.origin", certificateChain,
-                methodDataMap, /*clearIdFields=*/false);
+                methodDataMap);
         Assert.assertEquals("package.name", intent.getComponent().getPackageName());
         Assert.assertEquals("service.name", intent.getComponent().getClassName());
         Bundle bundle = intent.getExtras();
@@ -860,49 +861,17 @@ public class WebPaymentIntentHelperTest {
         Assert.assertEquals(new HashSet(Arrays.asList("bobPay", "maxPay")),
                 new HashSet(bundle.getStringArrayList(WebPaymentIntentHelper.EXTRA_METHOD_NAMES)));
 
-        Bundle methodDataBundle = bundle.getParcelable(WebPaymentIntentHelper.EXTRA_METHOD_DATA);
-        Assert.assertEquals(2, methodDataBundle.keySet().size());
-        Assert.assertEquals("{\"key\":\"value\"}", methodDataBundle.getString("bobPay"));
-        Assert.assertEquals("{}", methodDataBundle.getString("maxPay"));
+        Bundle expectedMethodDataBundle =
+                bundle.getParcelable(WebPaymentIntentHelper.EXTRA_METHOD_DATA);
+        Assert.assertEquals(2, expectedMethodDataBundle.keySet().size());
+        Assert.assertEquals("{\"key\":\"value\"}", expectedMethodDataBundle.getString("bobPay"));
+        Assert.assertEquals("{}", expectedMethodDataBundle.getString("maxPay"));
     }
 
     @Test
     @SmallTest
     @Feature({"Payments"})
-    public void createIsReadyToPayIntentWithoutIdentity() throws Throwable {
-        Map<String, PaymentMethodData> methodDataMap = new HashMap<String, PaymentMethodData>();
-        PaymentMethodData bobPayMethodData =
-                new PaymentMethodData("bobPayMethod", "{\"key\":\"value\"}");
-        PaymentMethodData maxPayMethodData = new PaymentMethodData("maxPayMethod", "{}");
-        methodDataMap.put("bobPay", bobPayMethodData);
-        methodDataMap.put("maxPay", maxPayMethodData);
-
-        byte[][] certificateChain = new byte[][] {{0}};
-
-        Intent intent = WebPaymentIntentHelper.createIsReadyToPayIntent("package.name",
-                "service.name", "schemeless.origin", "schemeless.iframe.origin", certificateChain,
-                methodDataMap, /*clearIdFields=*/true);
-        Assert.assertEquals("package.name", intent.getComponent().getPackageName());
-        Assert.assertEquals("service.name", intent.getComponent().getClassName());
-        Bundle bundle = intent.getExtras();
-        Assert.assertNotNull(bundle);
-        Assert.assertEquals(null, bundle.get(WebPaymentIntentHelper.EXTRA_TOP_ORIGIN));
-        Assert.assertEquals(null, bundle.get(WebPaymentIntentHelper.EXTRA_PAYMENT_REQUEST_ORIGIN));
-
-        Parcelable[] certificateChainParcels =
-                bundle.getParcelableArray(WebPaymentIntentHelper.EXTRA_TOP_CERTIFICATE_CHAIN);
-        Assert.assertEquals(null, certificateChainParcels);
-        Assert.assertEquals(
-                null, bundle.getStringArrayList(WebPaymentIntentHelper.EXTRA_METHOD_NAMES));
-
-        Assert.assertEquals(null, bundle.getParcelable(WebPaymentIntentHelper.EXTRA_METHOD_DATA));
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Payments"})
-    public void createIsReadyToPayIntentNullPackageNameExceptionTestWithIdentity()
-            throws Throwable {
+    public void createIsReadyToPayIntentNullPackageNameExceptionTest() throws Throwable {
         thrown.expect(IllegalArgumentException.class);
         thrown.expectMessage("packageName should not be null or empty.");
 
@@ -914,25 +883,6 @@ public class WebPaymentIntentHelperTest {
 
         WebPaymentIntentHelper.createIsReadyToPayIntent(/*packageName=*/null, "service.name",
                 "schemeless.origin", "schemeless.iframe.origin", /*certificateChain=*/null,
-                methodDataMap, /*clearIdFields=*/false);
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Payments"})
-    public void createIsReadyToPayIntentNullPackageNameExceptionTestWithoutIdentity()
-            throws Throwable {
-        thrown.expect(IllegalArgumentException.class);
-        thrown.expectMessage("packageName should not be null or empty.");
-
-        Map<String, PaymentMethodData> methodDataMap = new HashMap<String, PaymentMethodData>();
-        PaymentMethodData bobPayMethodData = new PaymentMethodData("method", "null");
-        methodDataMap.put("bobPay", bobPayMethodData);
-
-        PaymentItem total = new PaymentItem(new PaymentCurrencyAmount("CAD", "200"));
-
-        WebPaymentIntentHelper.createIsReadyToPayIntent(/*packageName=*/null, "service.name",
-                "schemeless.origin", "schemeless.iframe.origin", /*certificateChain=*/null,
-                methodDataMap, /*clearIdFields=*/true);
+                methodDataMap);
     }
 }

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,7 @@
 #include "ash/login/ui/hover_notifier.h"
 #include "ash/login/ui/login_display_style.h"
 #include "ash/login/ui/views_utils.h"
-#include "ash/strings/grit/ash_strings.h"
 #include "base/bind.h"
-#include "base/callback.h"
-#include "ui/base/l10n/l10n_util.h"
-#include "ui/compositor/layer.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/views/layout/box_layout.h"
 
@@ -77,13 +73,6 @@ LoginPublicAccountUserView::LoginPublicAccountUserView(
       base::BindRepeating(&LoginPublicAccountUserView::ArrowButtonPressed,
                           base::Unretained(this)),
       kArrowButtonSizeDp);
-  std::string display_name = user.basic_user_info.display_name;
-  // display_name can be empty in debug builds with stub users.
-  if (display_name.empty())
-    display_name = user.basic_user_info.display_email;
-  arrow_button->SetAccessibleName(l10n_util::GetStringFUTF16(
-      IDS_ASH_LOGIN_PUBLIC_ACCOUNT_DIALOG_BUTTON_ACCESSIBLE_NAME,
-      base::UTF8ToUTF16(display_name)));
   arrow_button->SetFocusPainter(nullptr);
 
   SetPaintToLayer(ui::LayerType::LAYER_NOT_DRAWN);
@@ -104,17 +93,7 @@ LoginPublicAccountUserView::LoginPublicAccountUserView(
   add_padding(kDistanceFromTopOfBigUserViewToUserIconDp);
   AddChildView(std::move(wrapped_user_view));
   add_padding(kDistanceFromUserViewToArrowButton);
-
-  // Arrow button size should be its preferred size so we wrap it.
-  auto* arrow_button_container =
-      AddChildView(std::make_unique<NonAccessibleView>());
-  auto container_layout = std::make_unique<views::BoxLayout>(
-      views::BoxLayout::Orientation::kHorizontal);
-  container_layout->set_main_axis_alignment(
-      views::BoxLayout::MainAxisAlignment::kCenter);
-  arrow_button_container->SetLayoutManager(std::move(container_layout));
-  arrow_button_ = arrow_button_container->AddChildView(std::move(arrow_button));
-
+  arrow_button_ = AddChildView(std::move(arrow_button));
   add_padding(kDistanceFromArrowButtonToBigUserViewBottom);
 
   // Update authentication UI.
@@ -193,7 +172,7 @@ void LoginPublicAccountUserView::UpdateArrowButtonOpacity(float target_opacity,
     ui::ScopedLayerAnimationSettings settings(
         arrow_button_->layer()->GetAnimator());
     settings.SetTransitionDuration(
-        base::Milliseconds(kArrowButtonFadeAnimationDurationMs));
+        base::TimeDelta::FromMilliseconds(kArrowButtonFadeAnimationDurationMs));
     settings.SetTweenType(gfx::Tween::EASE_IN_OUT);
 
     arrow_button_->layer()->SetOpacity(target_opacity);

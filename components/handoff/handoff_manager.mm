@@ -1,22 +1,21 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/handoff/handoff_manager.h"
 
 #include "base/check.h"
+#include "base/mac/objc_release_properties.h"
 #include "base/mac/scoped_nsobject.h"
 #include "base/notreached.h"
-#include "base/strings/sys_string_conversions.h"
-#include "build/build_config.h"
 #include "net/base/mac/url_conversions.h"
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 #include "components/handoff/pref_names_ios.h"
 #include "components/pref_registry/pref_registry_syncable.h"  // nogncheck
 #endif
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "base/mac/mac_util.h"
 #endif
 
@@ -41,7 +40,7 @@
 
 @synthesize userActivity = _userActivity;
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry {
   registry->RegisterBooleanPref(
       prefs::kIosHandoffToOtherDevices, true,
@@ -52,9 +51,9 @@
 - (instancetype)init {
   self = [super init];
   if (self) {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     _origin = handoff::ORIGIN_MAC;
-#elif BUILDFLAG(IS_IOS)
+#elif defined(OS_IOS)
     _origin = handoff::ORIGIN_IOS;
 #else
     NOTREACHED();
@@ -64,20 +63,13 @@
 }
 
 - (void)dealloc {
-  [_userActivity release];
+  base::mac::ReleaseProperties(self);
   [super dealloc];
 }
 
 - (void)updateActiveURL:(const GURL&)url {
   _activeURL = url;
   [self updateUserActivity];
-}
-
-- (void)updateActiveTitle:(const std::u16string&)title {
-  // Assume the activity has already been created since the page navigation
-  // will complete before the page title loads. No need to re-create it, just
-  // set the title. If the activity has not been created, ignore the update.
-  self.userActivity.title = base::SysUTF16ToNSString(title);
 }
 
 - (BOOL)shouldUseActiveURL {
@@ -112,15 +104,11 @@
 
 @end
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 @implementation HandoffManager (TestingOnly)
 
 - (NSURL*)userActivityWebpageURL {
   return self.userActivity.webpageURL;
-}
-
-- (NSString*)userActivityTitle {
-  return self.userActivity.title;
 }
 
 @end

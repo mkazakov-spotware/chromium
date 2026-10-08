@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "components/viz/service/display_embedder/skia_output_device.h"
 #include "gpu/command_buffer/service/shared_context_state.h"
 #include "third_party/skia/include/core/SkColorSpace.h"
@@ -22,23 +23,19 @@ class SkiaOutputDeviceOffscreen : public SkiaOutputDevice {
       bool has_alpha,
       gpu::MemoryTracker* memory_tracker,
       DidSwapBufferCompleteCallback did_swap_buffer_complete_callback);
-
-  SkiaOutputDeviceOffscreen(const SkiaOutputDeviceOffscreen&) = delete;
-  SkiaOutputDeviceOffscreen& operator=(const SkiaOutputDeviceOffscreen&) =
-      delete;
-
   ~SkiaOutputDeviceOffscreen() override;
 
   // SkiaOutputDevice implementation:
-  bool Reshape(const SkSurfaceCharacterization& characterization,
-               const gfx::ColorSpace& color_space,
+  bool Reshape(const gfx::Size& size,
                float device_scale_factor,
+               const gfx::ColorSpace& color_space,
+               gfx::BufferFormat format,
                gfx::OverlayTransform transform) override;
   void SwapBuffers(BufferPresentedCallback feedback,
-                   OutputSurfaceFrame frame) override;
+                   std::vector<ui::LatencyInfo> latency_info) override;
   void PostSubBuffer(const gfx::Rect& rect,
                      BufferPresentedCallback feedback,
-                     OutputSurfaceFrame frame) override;
+                     std::vector<ui::LatencyInfo> latency_info) override;
   void EnsureBackbuffer() override;
   void DiscardBackbuffer() override;
   SkSurface* BeginPaint(
@@ -51,13 +48,14 @@ class SkiaOutputDeviceOffscreen : public SkiaOutputDevice {
   sk_sp<SkSurface> sk_surface_;
   GrBackendTexture backend_texture_;
   bool supports_rgbx_ = true;
-  gfx::Size size_;
-  SkColorType sk_color_type_ = kUnknown_SkColorType;
-  sk_sp<SkColorSpace> sk_color_space_;
-  int sample_count_ = 1;
 
  private:
+  gfx::Size size_;
+  gfx::BufferFormat format_ = gfx::BufferFormat::RGBA_8888;
   uint64_t backbuffer_estimated_size_ = 0;
+  sk_sp<SkColorSpace> sk_color_space_;
+
+  DISALLOW_COPY_AND_ASSIGN(SkiaOutputDeviceOffscreen);
 };
 
 }  // namespace viz

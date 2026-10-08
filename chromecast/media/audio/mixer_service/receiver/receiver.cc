@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,9 @@
 #include "base/command_line.h"
 #include "base/location.h"
 #include "base/no_destructor.h"
+#include "base/sequenced_task_runner.h"
 #include "base/synchronization/lock.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "chromecast/base/chromecast_switches.h"
 #include "chromecast/media/audio/mixer_service/constants.h"
 #include "chromecast/media/audio/mixer_service/mixer_socket.h"
@@ -41,9 +42,6 @@ class LocalReceiverInstance {
  public:
   LocalReceiverInstance() = default;
 
-  LocalReceiverInstance(const LocalReceiverInstance&) = delete;
-  LocalReceiverInstance& operator=(const LocalReceiverInstance&) = delete;
-
   void SetInstance(Receiver* receiver) {
     base::AutoLock lock(lock_);
     receiver_ = receiver;
@@ -65,6 +63,8 @@ class LocalReceiverInstance {
   }
 
  private:
+  DISALLOW_COPY_AND_ASSIGN(LocalReceiverInstance);
+
   base::Lock lock_;
   Receiver* receiver_ = nullptr;
 };
@@ -87,9 +87,6 @@ class Receiver::InitialSocket : public MixerSocket::Delegate {
     DCHECK(receiver_);
     socket_->SetDelegate(this);
   }
-
-  InitialSocket(const InitialSocket&) = delete;
-  InitialSocket& operator=(const InitialSocket&) = delete;
 
   ~InitialSocket() override = default;
 
@@ -123,10 +120,12 @@ class Receiver::InitialSocket : public MixerSocket::Delegate {
 
   Receiver* const receiver_;
   std::unique_ptr<MixerSocket> socket_;
+
+  DISALLOW_COPY_AND_ASSIGN(InitialSocket);
 };
 
 Receiver::Receiver()
-    : task_runner_(base::SequencedTaskRunner::GetCurrentDefault()),
+    : task_runner_(base::SequencedTaskRunnerHandle::Get()),
       socket_service_(
           GetEndpoint(),
           GetSwitchValueNonNegativeInt(switches::kMixerServicePort,
@@ -146,9 +145,8 @@ std::unique_ptr<MixerSocket> Receiver::LocalConnect() {
   auto receiver_socket = std::make_unique<MixerSocket>();
   auto caller_socket = std::make_unique<MixerSocket>();
 
-  receiver_socket->SetLocalCounterpart(
-      caller_socket->GetWeakPtr(),
-      base::SequencedTaskRunner::GetCurrentDefault());
+  receiver_socket->SetLocalCounterpart(caller_socket->GetWeakPtr(),
+                                       base::SequencedTaskRunnerHandle::Get());
   caller_socket->SetLocalCounterpart(receiver_socket->GetWeakPtr(),
                                      task_runner_);
 

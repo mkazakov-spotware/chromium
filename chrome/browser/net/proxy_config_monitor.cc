@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/net/proxy_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
@@ -17,9 +16,9 @@
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/profiles/profile_helper.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/profiles/profile_helper.h"
+#endif  // defined(OS_CHROMEOS)
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/browser/extensions/api/proxy/proxy_api.h"
@@ -35,16 +34,15 @@ ProxyConfigMonitor::ProxyConfigMonitor(Profile* profile) {
   profile_ = profile;
 #endif
 
-// If this is the ChromeOS sign-in or lock screen profile, just create the
-// tracker from global state.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  if (ash::ProfileHelper::IsSigninProfile(profile) ||
-      ash::ProfileHelper::IsLockScreenProfile(profile)) {
+// If this is the ChromeOS sign-in profile, just create the tracker from global
+// state.
+#if defined(OS_CHROMEOS)
+  if (chromeos::ProfileHelper::IsSigninProfile(profile)) {
     pref_proxy_config_tracker_ =
         ProxyServiceFactory::CreatePrefProxyConfigTrackerOfLocalState(
             g_browser_process->local_state());
   }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
   if (!pref_proxy_config_tracker_) {
     pref_proxy_config_tracker_ =
@@ -53,7 +51,7 @@ ProxyConfigMonitor::ProxyConfigMonitor(Profile* profile) {
   }
 
   proxy_config_service_ = ProxyServiceFactory::CreateProxyConfigService(
-      pref_proxy_config_tracker_.get(), profile);
+      pref_proxy_config_tracker_.get());
 
   proxy_config_service_->AddObserver(this);
 }
@@ -67,7 +65,8 @@ ProxyConfigMonitor::ProxyConfigMonitor(PrefService* local_state) {
           local_state);
 
   proxy_config_service_ = ProxyServiceFactory::CreateProxyConfigService(
-      pref_proxy_config_tracker_.get(), nullptr);
+      pref_proxy_config_tracker_.get());
+
   proxy_config_service_->AddObserver(this);
 }
 

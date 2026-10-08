@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -156,8 +156,7 @@ void MediaRouterAndroidBridge::OnSinksReceived(
                                             jsource_urn, i);
     sinks_converted.push_back(MediaSink(
         ConvertJavaStringToUTF8(env, jsink_urn.obj()),
-        ConvertJavaStringToUTF8(env, jsink_name.obj()), SinkIconType::GENERIC,
-        mojom::MediaRouteProviderId::ANDROID_CAF));
+        ConvertJavaStringToUTF8(env, jsink_name.obj()), SinkIconType::GENERIC));
   }
   native_media_router_->OnSinksReceived(
       ConvertJavaStringToUTF8(env, jsource_urn), sinks_converted);
@@ -175,21 +174,12 @@ void MediaRouterAndroidBridge::OnRouteCreated(
       ConvertJavaStringToUTF8(env, jsink_id), jroute_request_id, jis_local);
 }
 
-void MediaRouterAndroidBridge::OnCreateRouteRequestError(
+void MediaRouterAndroidBridge::OnRouteRequestError(
     JNIEnv* env,
     const JavaRef<jobject>& obj,
     const JavaRef<jstring>& jerror_text,
     jint jroute_request_id) {
-  native_media_router_->OnCreateRouteRequestError(
-      ConvertJavaStringToUTF8(jerror_text), jroute_request_id);
-}
-
-void MediaRouterAndroidBridge::OnJoinRouteRequestError(
-    JNIEnv* env,
-    const JavaRef<jobject>& obj,
-    const JavaRef<jstring>& jerror_text,
-    jint jroute_request_id) {
-  native_media_router_->OnJoinRouteRequestError(
+  native_media_router_->OnRouteRequestError(
       ConvertJavaStringToUTF8(jerror_text), jroute_request_id);
 }
 
@@ -209,8 +199,8 @@ void MediaRouterAndroidBridge::OnRouteClosed(
   native_media_router_->OnRouteClosed(
       ConvertJavaStringToUTF8(env, jmedia_route_id),
       jerror.is_null()
-          ? absl::nullopt
-          : absl::make_optional(ConvertJavaStringToUTF8(env, jerror)));
+          ? base::nullopt
+          : base::make_optional(ConvertJavaStringToUTF8(env, jerror)));
 }
 
 void MediaRouterAndroidBridge::OnMessage(

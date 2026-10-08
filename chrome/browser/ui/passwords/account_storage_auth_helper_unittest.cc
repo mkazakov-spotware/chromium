@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,16 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/callback_helpers.h"
-#include "base/test/bind.h"
-#include "base/test/task_environment.h"
 #include "build/build_config.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
+#include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
 #include "chrome/browser/signin/reauth_result.h"
 #include "chrome/browser/ui/signin_view_controller.h"
+#include "chrome/test/base/testing_profile.h"
 #include "components/password_manager/core/browser/mock_password_feature_manager.h"
 #include "components/signin/public/base/signin_metrics.h"
-#include "components/signin/public/identity_manager/identity_test_environment.h"
+#include "components/signin/public/identity_manager/identity_test_utils.h"
+#include "content/public/test/browser_task_environment.h"
 #include "google_apis/gaia/core_account_id.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -50,41 +51,43 @@ class MockSigninViewController : public SigninViewController {
 class AccountStorageAuthHelperTest : public ::testing::Test {
  public:
   AccountStorageAuthHelperTest()
-      : auth_helper_(
-            identity_test_env_.identity_manager(),
-            &mock_password_feature_manager_,
-            base::BindLambdaForTesting([this]() -> SigninViewController* {
-              return &mock_signin_view_controller_;
-            })) {}
+      : profile_(IdentityTestEnvironmentProfileAdaptor::
+                     CreateProfileForIdentityTestEnvironment()),
+        identity_test_env_adaptor_(profile_.get()),
+        auth_helper_(profile_.get(), &mock_password_feature_manager_) {
+    auth_helper_.SetSigninViewControllerGetterForTesting(base::BindRepeating(
+        [](SigninViewController* controller) { return controller; },
+        &mock_signin_view_controller_));
+  }
   ~AccountStorageAuthHelperTest() override = default;
 
-  CoreAccountId MakeUnconsentedAccountAvailable() {
-    return identity_test_env_
-        .MakePrimaryAccountAvailable("alice@gmail.com",
-                                     signin::ConsentLevel::kSignin)
-        .account_id;
+  signin::IdentityManager* GetIdentityManager() {
+    return IdentityManagerFactory::GetForProfile(profile_.get());
   }
 
  protected:
-  base::test::SingleThreadTaskEnvironment task_environment_;
-  signin::IdentityTestEnvironment identity_test_env_;
+  content::BrowserTaskEnvironment task_environment_;
+  std::unique_ptr<TestingProfile> profile_;
+  IdentityTestEnvironmentProfileAdaptor identity_test_env_adaptor_;
   password_manager::MockPasswordFeatureManager mock_password_feature_manager_;
   MockSigninViewController mock_signin_view_controller_;
   AccountStorageAuthHelper auth_helper_;
 };
 
 TEST_F(AccountStorageAuthHelperTest, ShouldTriggerReauthForPrimaryAccount) {
-  CoreAccountId account_id = MakeUnconsentedAccountAvailable();
+  signin::MakePrimaryAccountAvailable(GetIdentityManager(), "alice@gmail.com");
   EXPECT_CALL(mock_signin_view_controller_,
-              ShowReauthPrompt(account_id, kReauthAccessPoint, _));
+              ShowReauthPrompt(GetIdentityManager()->GetPrimaryAccountId(),
+                               kReauthAccessPoint, _));
 
   auth_helper_.TriggerOptInReauth(kReauthAccessPoint, base::DoNothing());
 }
 
 TEST_F(AccountStorageAuthHelperTest, ShouldSetOptInOnSucessfulReauth) {
-  CoreAccountId account_id = MakeUnconsentedAccountAvailable();
+  signin::MakePrimaryAccountAvailable(GetIdentityManager(), "alice@gmail.com");
   EXPECT_CALL(mock_signin_view_controller_,
-              ShowReauthPrompt(account_id, kReauthAccessPoint, _))
+              ShowReauthPrompt(GetIdentityManager()->GetPrimaryAccountId(),
+                               kReauthAccessPoint, _))
       .WillOnce([](auto, auto,
                    base::OnceCallback<void(signin::ReauthResult)> callback) {
         std::move(callback).Run(signin::ReauthResult::kSuccess);
@@ -96,9 +99,10 @@ TEST_F(AccountStorageAuthHelperTest, ShouldSetOptInOnSucessfulReauth) {
 }
 
 TEST_F(AccountStorageAuthHelperTest, ShouldNotSetOptInOnFailedReauth) {
-  CoreAccountId account_id = MakeUnconsentedAccountAvailable();
+  signin::MakePrimaryAccountAvailable(GetIdentityManager(), "alice@gmail.com");
   EXPECT_CALL(mock_signin_view_controller_,
-              ShowReauthPrompt(account_id, kReauthAccessPoint, _))
+              ShowReauthPrompt(GetIdentityManager()->GetPrimaryAccountId(),
+                               kReauthAccessPoint, _))
       .WillOnce([](auto, auto,
                    base::OnceCallback<void(signin::ReauthResult)> callback) {
         std::move(callback).Run(signin::ReauthResult::kCancelled);
@@ -110,10 +114,10 @@ TEST_F(AccountStorageAuthHelperTest, ShouldNotSetOptInOnFailedReauth) {
 }
 
 TEST_F(AccountStorageAuthHelperTest, ShouldTriggerSigninIfDiceEnabled) {
-  const signin_metrics::AccessPoint kAccessPoint =
+  const signin_metrics::AccessPoint kAcessPoint =
       signin_metrics::AccessPoint::ACCESS_POINT_AUTOFILL_DROPDOWN;
   EXPECT_CALL(mock_signin_view_controller_,
-              ShowDiceAddAccountTab(kAccessPoint, _));
+              ShowDiceAddAccountTab(kAcessPoint, _));
 
-  auth_helper_.TriggerSignIn(kAccessPoint);
+  auth_helper_.TriggerSignIn(kAcessPoint);
 }

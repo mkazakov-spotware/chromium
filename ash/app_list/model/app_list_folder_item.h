@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,8 @@
 #include "ash/app_list/model/folder_image.h"
 #include "ash/public/cpp/app_list/app_list_config_provider.h"
 #include "ash/public/cpp/app_list/app_list_types.h"
-#include "base/scoped_observation.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 
 namespace gfx {
 class Rect;
@@ -29,17 +30,12 @@ namespace ash {
 
 class AppListConfig;
 class AppListItemList;
-class AppListModelDelegate;
 
-// AppListFolderItem implements the model/controller for folders. It observes
-// all the items in its list to watch for property changes (e.g. whether a child
-// item is a new install).
+// AppListFolderItem implements the model/controller for folders.
 class APP_LIST_MODEL_EXPORT AppListFolderItem
     : public AppListItem,
       public FolderImageObserver,
-      public AppListConfigProvider::Observer,
-      public AppListItemListObserver,
-      public AppListItemObserver {
+      public AppListConfigProvider::Observer {
  public:
   // The folder type affects folder behavior.
   enum FolderType {
@@ -51,12 +47,7 @@ class APP_LIST_MODEL_EXPORT AppListFolderItem
 
   static const char kItemType[];
 
-  AppListFolderItem(const std::string& id,
-                    AppListModelDelegate* app_list_model_delegate);
-
-  AppListFolderItem(const AppListFolderItem&) = delete;
-  AppListFolderItem& operator=(const AppListFolderItem&) = delete;
-
+  explicit AppListFolderItem(const std::string& id);
   ~AppListFolderItem() override;
 
   // Returns the target icon bounds for |item| to fly back to its parent folder
@@ -78,25 +69,14 @@ class APP_LIST_MODEL_EXPORT AppListFolderItem
   // AppListItem overrides:
   const char* GetItemType() const override;
   AppListItem* FindChildItem(const std::string& id) override;
-  AppListItem* GetChildItemAt(size_t index) override;
   size_t ChildItemCount() const override;
-  void RequestFolderIconUpdate() override;
 
   // AppListConfigProvider::Observer override:
   void OnAppListConfigCreated(AppListConfigType config_type) override;
 
-  // AppListItemListObserver:
-  void OnListItemAdded(size_t index, AppListItem* item) override;
-  void OnListItemRemoved(size_t index, AppListItem* item) override;
-
-  // AppListItemObserver:
-  void ItemBadgeVisibilityChanged() override;
-  void ItemIsNewInstallChanged() override;
-
-  // Whether this is a system created folder like the Linux apps folder or the
-  // OEM folder.
-  bool IsSystemFolder() const;
-  void SetIsSystemFolder(bool is_system_folder);
+  // Persistent folders will be retained even if there is 1 app in them.
+  bool IsPersistent() const;
+  void SetIsPersistent(bool is_persistent);
 
   // Returns true if this folder is a candidate for auto-removal (based on its
   // type and the number of children it has).
@@ -124,14 +104,6 @@ class APP_LIST_MODEL_EXPORT AppListFolderItem
       const std::vector<AppListConfigType>& config_types,
       bool request_icon_update);
 
-  // Sets the "new install" property on this folder item if any of the items
-  // inside the folder are new installs.
-  void UpdateIsNewInstall();
-
-  // Adds a notification badge on this folder item if any of the items inside
-  // the folder are new installs.
-  void UpdateNotificationBadge();
-
   // The type of folder; may affect behavior of folder views.
   const FolderType folder_type_;
 
@@ -143,9 +115,10 @@ class APP_LIST_MODEL_EXPORT AppListFolderItem
   // Set when a folder item is being dragged.
   AppListItem* dragged_item_ = nullptr;
 
-  base::ScopedObservation<AppListConfigProvider,
-                          AppListConfigProvider::Observer>
-      config_provider_observation_{this};
+  ScopedObserver<AppListConfigProvider, AppListConfigProvider::Observer>
+      config_provider_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AppListFolderItem);
 };
 
 }  // namespace ash

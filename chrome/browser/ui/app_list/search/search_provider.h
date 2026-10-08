@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,68 +10,67 @@
 #include <vector>
 
 #include "ash/public/cpp/app_list/app_list_types.h"
+#include "base/callback.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 
 class ChromeSearchResult;
 
-namespace ash {
-
-enum class AppListSearchResultType;
-
-}  // namespace ash
-
 namespace app_list {
 
-class SearchController;
+enum class RankingItemType;
 
 class SearchProvider {
  public:
   using Results = std::vector<std::unique_ptr<ChromeSearchResult>>;
+  using ResultChangedCallback = base::Closure;
 
   SearchProvider();
-
-  SearchProvider(const SearchProvider&) = delete;
-  SearchProvider& operator=(const SearchProvider&) = delete;
-
   virtual ~SearchProvider();
 
-  // Invoked to start a query search. |query| is guaranteed to be non-empty.
-  virtual void Start(const std::u16string& query) {}
-
-  // Called when search query is cleared. The provider should stop/cancel
-  // any pending search query handling. This should not affect zero state
-  // search.
-  virtual void StopQuery() {}
-
-  // Invoked to start a zero-state search.
-  virtual void StartZeroState() {}
-
-  // Invoked to cancel zero-state search - called when app list view gets
-  // hidden.
-  virtual void StopZeroState() {}
-
+  // Invoked to start a query.
+  virtual void Start(const base::string16& query) = 0;
+  // Invoked when the UI view closes. In response, the |SearchProvider| may
+  // clear its caches.
+  virtual void ViewClosing() {}
   // Handles training signals if necessary. A given |SearchProvider| may receive
-  // training signals for results of any |AppListSearchResultType|, so it is the
+  // training signals for results of any |RankingItemType|, so it is the
   // |SearchProvider|'s responsibility to check |type| and ignore if necessary.
-  virtual void Train(const std::string& id, ash::AppListSearchResultType type) {
-  }
+  virtual void Train(const std::string& id, RankingItemType type) {}
+  // Invoked when the app list is shown. This can optionally be used by a
+  // provider to eg. warm up a cache of results.
+  virtual void AppListShown() {}
   // Returns the main result type created by this provider.
-  virtual ash::AppListSearchResultType ResultType() const = 0;
+  virtual ash::AppListSearchResultType ResultType() = 0;
 
-  void set_controller(SearchController* controller) {
-    search_controller_ = controller;
+  void set_result_changed_callback(const ResultChangedCallback& callback) {
+    result_changed_callback_ = callback;
   }
 
   const Results& results() const { return results_; }
 
  protected:
+  // Interface for the derived class to generate search results.
+  void Add(std::unique_ptr<ChromeSearchResult> result);
+
   // Swaps the internal results with |new_results|.
   // This is useful when multiple results will be added, and the notification is
   // desired to be done only once when all results are added.
   void SwapResults(Results* new_results);
 
+  // Clear results and call the |result_changed_callback_|.
+  void ClearResults();
+
+  // Clear the results without calling the |result_changed_callback_|.
+  void ClearResultsSilently();
+
  private:
-  SearchController* search_controller_ = nullptr;
+  void FireResultChanged();
+
+  ResultChangedCallback result_changed_callback_;
   Results results_;
+
+  DISALLOW_COPY_AND_ASSIGN(SearchProvider);
 };
 
 }  // namespace app_list

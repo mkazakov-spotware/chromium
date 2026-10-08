@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -64,7 +64,8 @@ TabletEventConverterEvdev::TabletEventConverterEvdev(
     one_side_btn_pen_ = true;
 }
 
-TabletEventConverterEvdev::~TabletEventConverterEvdev() = default;
+TabletEventConverterEvdev::~TabletEventConverterEvdev() {
+}
 
 void TabletEventConverterEvdev::OnFileCanReadWithoutBlocking(int fd) {
   TRACE_EVENT1("evdev",
@@ -195,7 +196,7 @@ void TabletEventConverterEvdev::DispatchMouseButton(const input_event& input) {
 
   dispatcher_->DispatchMouseButtonEvent(MouseButtonEventParams(
       input_device_.id, EF_NONE, cursor_->GetLocation(), button, down,
-      MouseButtonMapType::kNone,
+      false /* allow_remap */,
       PointerDetails(GetToolType(stylus_), /* pointer_id*/ 0,
                      /* radius_x */ 0.0f, /* radius_y */ 0.0f, pressure_,
                      /* twist */ 0.0f, tilt_x_, tilt_y_),
@@ -217,12 +218,8 @@ void TabletEventConverterEvdev::FlushEvents(const input_event& input) {
 
   UpdateCursor();
 
-  // Tablet cursor events should not warp us to another display when they get
-  // near the edge of the screen.
-  const int event_flags = EF_NOT_SUITABLE_FOR_MOUSE_WARPING;
-
   dispatcher_->DispatchMouseMoveEvent(MouseMoveEventParams(
-      input_device_.id, event_flags, cursor_->GetLocation(),
+      input_device_.id, EF_NONE, cursor_->GetLocation(),
       /* ordinal_delta */ nullptr,
       PointerDetails(GetToolType(stylus_), /* pointer_id*/ 0,
                      /* radius_x */ 0.0f, /* radius_y */ 0.0f, pressure_,

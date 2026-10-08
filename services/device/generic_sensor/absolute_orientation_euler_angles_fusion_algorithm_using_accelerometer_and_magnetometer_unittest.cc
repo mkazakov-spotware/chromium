@@ -1,10 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <cmath>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/test/task_environment.h"
 #include "services/device/generic_sensor/absolute_orientation_euler_angles_fusion_algorithm_using_accelerometer_and_magnetometer.h"
@@ -70,8 +69,7 @@ class
  protected:
   base::test::TaskEnvironment task_environment_;
   scoped_refptr<FakePlatformSensorFusion> fake_fusion_sensor_;
-  raw_ptr<
-      AbsoluteOrientationEulerAnglesFusionAlgorithmUsingAccelerometerAndMagnetometer>
+  AbsoluteOrientationEulerAnglesFusionAlgorithmUsingAccelerometerAndMagnetometer*
       fusion_algorithm_;
 };
 

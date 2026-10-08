@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,6 +20,7 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
 import org.chromium.components.webapk.lib.common.WebApkMetaDataKeys;
+import org.chromium.testing.local.LocalRobolectricTestRunner;
 import org.chromium.webapk.test.WebApkTestHelper;
 
 import java.lang.annotation.Retention;
@@ -31,7 +32,7 @@ import java.util.List;
 
 /** Tests for HostBrowserUtils. */
 @RunWith(ParameterizedRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
+@Config(sdk = LocalRobolectricTestRunner.DEFAULT_SDK, manifest = Config.NONE)
 public class HostBrowserUtilsTest {
     @IntDef({DefaultBrowserWebApkSupport.YES, DefaultBrowserWebApkSupport.NO})
     @Retention(RetentionPolicy.SOURCE)

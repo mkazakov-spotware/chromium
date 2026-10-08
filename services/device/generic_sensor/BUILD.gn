@@ -1,13 +1,8 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("//build/config/chromeos/ui_mode.gni")
 import("//build/config/features.gni")
-
-if (is_chromeos) {
-  import("//chromeos/components/sensors/buildflags.gni")
-}
 
 if (is_android) {
   import("//build/config/android/rules.gni")  # For generate_jni().
@@ -21,8 +16,6 @@ source_set("generic_sensor") {
     "absolute_orientation_euler_angles_fusion_algorithm_using_accelerometer_and_magnetometer.cc",
     "absolute_orientation_euler_angles_fusion_algorithm_using_accelerometer_and_magnetometer.h",
     "generic_sensor_consts.h",
-    "gravity_fusion_algorithm_using_accelerometer.cc",
-    "gravity_fusion_algorithm_using_accelerometer.h",
     "linear_acceleration_fusion_algorithm_using_accelerometer.cc",
     "linear_acceleration_fusion_algorithm_using_accelerometer.h",
     "orientation_euler_angles_fusion_algorithm_using_quaternion.cc",
@@ -70,10 +63,7 @@ source_set("generic_sensor") {
       "platform_sensor_provider_android.cc",
       "platform_sensor_provider_android.h",
     ]
-    deps += [
-      ":jni_headers",
-      "//services/device/public/cpp:device_feature_list",
-    ]
+    deps += [ ":jni_headers" ]
   }
 
   if (is_mac) {
@@ -92,11 +82,33 @@ source_set("generic_sensor") {
     ]
   }
 
-  if (is_chromeos) {
-    deps += [ "//chromeos/components/sensors:buildflags" ]
+  if (is_linux) {
+    sources += [
+      "linux/sensor_data_linux.cc",
+      "linux/sensor_data_linux.h",
+      "platform_sensor_linux.cc",
+      "platform_sensor_linux.h",
+      "platform_sensor_reader_linux.cc",
+      "platform_sensor_reader_linux.h",
+    ]
+    if (use_udev) {
+      deps += [
+        "//device/base",
+        "//device/udev_linux",
+      ]
+
+      sources += [
+        "linux/sensor_device_manager.cc",
+        "linux/sensor_device_manager.h",
+        "platform_sensor_provider_linux.cc",
+        "platform_sensor_provider_linux.h",
+        "platform_sensor_provider_linux_base.cc",
+        "platform_sensor_provider_linux_base.h",
+      ]
+    }
   }
 
-  if (is_chromeos && use_iioservice) {
+  if (is_chromeos) {
     deps += [
       "//chromeos/components/sensors",
       "//chromeos/components/sensors/mojom",
@@ -109,26 +121,6 @@ source_set("generic_sensor") {
       "platform_sensor_provider_chromeos.h",
       "platform_sensor_provider_linux_base.cc",
       "platform_sensor_provider_linux_base.h",
-    ]
-  } else if ((is_linux || is_chromeos) && use_udev) {
-    deps += [
-      "//device/base",
-      "//device/udev_linux",
-    ]
-
-    sources += [
-      "linux/sensor_data_linux.cc",
-      "linux/sensor_data_linux.h",
-      "linux/sensor_device_manager.cc",
-      "linux/sensor_device_manager.h",
-      "platform_sensor_linux.cc",
-      "platform_sensor_linux.h",
-      "platform_sensor_provider_linux.cc",
-      "platform_sensor_provider_linux.h",
-      "platform_sensor_provider_linux_base.cc",
-      "platform_sensor_provider_linux_base.h",
-      "platform_sensor_reader_linux.cc",
-      "platform_sensor_reader_linux.h",
     ]
   }
 
@@ -176,10 +168,7 @@ if (is_android) {
     deps = [
       "//base:base_java",
       "//base:jni_java",
-      "//build/android:build_java",
-      "//services/device/public/java:device_feature_list_java",
       "//services/device/public/mojom:generic_sensor_java",
-      "//third_party/androidx:androidx_annotation_annotation_java",
     ]
     annotation_processor_deps = [ "//base/android/jni_generator:jni_processor" ]
   }

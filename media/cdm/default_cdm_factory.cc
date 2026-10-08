@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,11 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
-#include "media/base/cdm_config.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "media/base/content_decryption_module.h"
 #include "media/base/key_system_names.h"
+#include "media/base/key_systems.h"
 #include "media/base/media_switches.h"
 #include "media/cdm/aes_decryptor.h"
 #include "url/origin.h"
@@ -22,7 +23,7 @@ DefaultCdmFactory::DefaultCdmFactory() = default;
 DefaultCdmFactory::~DefaultCdmFactory() = default;
 
 static bool ShouldCreateAesDecryptor(const std::string& key_system) {
-  if (IsClearKey(key_system))
+  if (CanUseAesDecryptor(key_system))
     return true;
 
   // Should create AesDecryptor to support External Clear Key key system.
@@ -32,14 +33,15 @@ static bool ShouldCreateAesDecryptor(const std::string& key_system) {
 }
 
 void DefaultCdmFactory::Create(
+    const std::string& key_system,
     const CdmConfig& cdm_config,
     const SessionMessageCB& session_message_cb,
     const SessionClosedCB& session_closed_cb,
     const SessionKeysChangeCB& session_keys_change_cb,
     const SessionExpirationUpdateCB& session_expiration_update_cb,
     CdmCreatedCB cdm_created_cb) {
-  if (!ShouldCreateAesDecryptor(cdm_config.key_system)) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  if (!ShouldCreateAesDecryptor(key_system)) {
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(cdm_created_cb), nullptr,
                                   "Unsupported key system."));
     return;
@@ -48,7 +50,7 @@ void DefaultCdmFactory::Create(
   scoped_refptr<ContentDecryptionModule> cdm(
       new AesDecryptor(session_message_cb, session_closed_cb,
                        session_keys_change_cb, session_expiration_update_cb));
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(cdm_created_cb), cdm, ""));
 }
 

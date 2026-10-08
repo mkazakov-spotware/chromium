@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,13 +27,14 @@
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/pref_registry/pref_registry_syncable.h"
+#include "components/ukm/content/source_url_recorder.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/visibility.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_delegate.h"
-#include "extensions/buildflags/buildflags.h"
+#include "extensions/common/constants.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "services/metrics/public/cpp/ukm_recorder.h"
@@ -41,14 +42,11 @@
 #include "third_party/blink/public/mojom/devtools/console_message.mojom.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/android/framebust_intervention/framebust_blocked_delegate_android.h"
+#if defined(OS_ANDROID)
+#include "chrome/browser/ui/android/infobars/framebust_block_infobar.h"
+#include "chrome/browser/ui/interventions/framebust_block_message_delegate.h"
 #else
 #include "chrome/browser/ui/blocked_content/framebust_block_tab_helper.h"
-#endif
-
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-#include "extensions/common/constants.h"
 #endif
 
 namespace {
@@ -58,9 +56,8 @@ void LogAction(TabUnderNavigationThrottle::Action action) {
                             TabUnderNavigationThrottle::Action::kCount);
 }
 
-#if BUILDFLAG(IS_ANDROID)
-typedef blocked_content::FramebustBlockedMessageDelegate::InterventionOutcome
-    InterventionOutcome;
+#if defined(OS_ANDROID)
+typedef FramebustBlockMessageDelegate::InterventionOutcome InterventionOutcome;
 
 TabUnderNavigationThrottle::Action GetActionForOutcome(
     InterventionOutcome outcome) {
@@ -93,7 +90,7 @@ void LogTabUnderAttempt(content::NavigationHandle* handle) {
   // previous navigation commit.
   ukm::UkmRecorder* ukm_recorder = ukm::UkmRecorder::Get();
   ukm::SourceId opener_source_id =
-      handle->GetWebContents()->GetPrimaryMainFrame()->GetPageUkmSourceId();
+      ukm::GetSourceIdForWebContentsDocument(handle->GetWebContents());
   if (opener_source_id != ukm::kInvalidSourceId && ukm_recorder) {
     ukm::builders::AbusiveExperienceHeuristic_TabUnder(opener_source_id)
         .SetDidTabUnder(true)
@@ -103,20 +100,13 @@ void LogTabUnderAttempt(content::NavigationHandle* handle) {
 
 }  // namespace
 
-BASE_FEATURE(kBlockTabUnders,
-             "BlockTabUnders",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature TabUnderNavigationThrottle::kBlockTabUnders{
+    "BlockTabUnders", base::FEATURE_DISABLED_BY_DEFAULT};
 
 // static
 std::unique_ptr<content::NavigationThrottle>
 TabUnderNavigationThrottle::MaybeCreate(content::NavigationHandle* handle) {
-  // TODO(crbug.com/1222367): TabUnderNavigationThrottle doesn't block
-  // prerendering activations. However, currently prerender is same-origin only
-  // so a prerendered activation could never be classified as a tab-under.
-  // Otherwise, it should be safe to avoid creating a throttle in non primary
-  // pages because prerendered pages should not be able to open popups. A
-  // tab-under could therefore never occur within the non-primary page.
-  if (handle->IsInPrimaryMainFrame())
+  if (handle->IsInMainFrame())
     return base::WrapUnique(new TabUnderNavigationThrottle(handle));
   return nullptr;
 }
@@ -133,15 +123,12 @@ TabUnderNavigationThrottle::TabUnderNavigationThrottle(
                              content::Visibility::VISIBLE) {}
 
 bool TabUnderNavigationThrottle::IsSuspiciousClientRedirect() const {
-  // This throttle is only created for primary main frame navigations. See
-  // MaybeCreate().
-  DCHECK(navigation_handle()->IsInPrimaryMainFrame());
   DCHECK(!navigation_handle()->HasCommitted());
-
   // Some browser initiated navigations have HasUserGesture set to false. This
   // should eventually be fixed in crbug.com/617904. In the meantime, just dont
   // block browser initiated ones.
-  if (started_in_foreground_ || navigation_handle()->HasUserGesture() ||
+  if (started_in_foreground_ || !navigation_handle()->IsInMainFrame() ||
+      navigation_handle()->HasUserGesture() ||
       !navigation_handle()->IsRendererInitiated()) {
     return false;
   }
@@ -162,7 +149,6 @@ bool TabUnderNavigationThrottle::IsSuspiciousClientRedirect() const {
     return false;
   }
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
   // Exempt navigating to or from extension URLs, as they will redirect pages in
   // the background. By exempting in both directions, extensions can always
   // round-trip a page through an extension URL in order to perform arbitrary
@@ -171,7 +157,6 @@ bool TabUnderNavigationThrottle::IsSuspiciousClientRedirect() const {
       previous_main_frame_url.SchemeIs(extensions::kExtensionScheme)) {
     return false;
   }
-#endif
   return true;
 }
 
@@ -195,7 +180,7 @@ TabUnderNavigationThrottle::MaybeBlockNavigation() {
     const std::string error =
         base::StringPrintf(kBlockTabUnderFormatMessage,
                            navigation_handle()->GetURL().spec().c_str());
-    contents->GetPrimaryMainFrame()->AddMessageToConsole(
+    contents->GetMainFrame()->AddMessageToConsole(
         blink::mojom::ConsoleMessageLevel::kError, error.c_str());
     LogAction(Action::kBlocked);
     ShowUI();
@@ -207,18 +192,10 @@ TabUnderNavigationThrottle::MaybeBlockNavigation() {
 void TabUnderNavigationThrottle::ShowUI() {
   content::WebContents* web_contents = navigation_handle()->GetWebContents();
   const GURL& url = navigation_handle()->GetURL();
-#if BUILDFLAG(IS_ANDROID)
-  blocked_content::FramebustBlockedMessageDelegate::CreateForWebContents(
-      web_contents);
-  blocked_content::FramebustBlockedMessageDelegate*
-      framebust_blocked_message_delegate =
-          blocked_content::FramebustBlockedMessageDelegate::FromWebContents(
-              web_contents);
-  framebust_blocked_message_delegate->ShowMessage(
-      url,
-      HostContentSettingsMapFactory::GetForProfile(
-          web_contents->GetBrowserContext()),
-      base::BindOnce(&LogOutcome));
+#if defined(OS_ANDROID)
+  FramebustBlockInfoBar::Show(
+      web_contents, std::make_unique<FramebustBlockMessageDelegate>(
+                        web_contents, url, base::BindOnce(&LogOutcome)));
 #else
   if (auto* tab_helper =
           FramebustBlockTabHelper::FromWebContents(web_contents)) {

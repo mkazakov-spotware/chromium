@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,13 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
 #include "components/invalidation/public/invalidation_util.h"
 #include "components/invalidation/public/topic_invalidation_map.h"
 #include "components/prefs/pref_service.h"
 
-namespace invalidation {
+namespace syncer {
+
+FCMInvalidationListener::Delegate::~Delegate() {}
 
 FCMInvalidationListener::FCMInvalidationListener(
     std::unique_ptr<FCMSyncNetworkChannel> network_channel)
@@ -66,7 +67,7 @@ void FCMInvalidationListener::InvalidationReceived(
     int64_t version) {
   // Note: |public_topic| is empty for some invalidations (e.g. Drive). Prefer
   // using |*expected_public_topic| over |public_topic|.
-  absl::optional<std::string> expected_public_topic =
+  base::Optional<std::string> expected_public_topic =
       per_user_topic_subscription_manager_
           ->LookupSubscribedPublicTopicByPrivateTopic(private_topic);
   if (!expected_public_topic ||
@@ -80,7 +81,7 @@ void FCMInvalidationListener::InvalidationReceived(
   Invalidation inv =
       Invalidation::Init(*expected_public_topic, version, payload);
   inv.SetAckHandler(weak_factory_.GetWeakPtr(),
-                    base::SingleThreadTaskRunner::GetCurrentDefault());
+                    base::ThreadTaskRunnerHandle::Get());
   DVLOG(1) << "Received invalidation with version " << inv.version() << " for "
            << *expected_public_topic;
 
@@ -129,7 +130,7 @@ void FCMInvalidationListener::TokenReceived(
 }
 
 void FCMInvalidationListener::Acknowledge(const Topic& topic,
-                                          const AckHandle& handle) {
+                                          const syncer::AckHandle& handle) {
   auto lookup = unacked_invalidations_map_.find(topic);
   if (lookup == unacked_invalidations_map_.end()) {
     DLOG(WARNING) << "Received acknowledgement for untracked topic";
@@ -139,7 +140,7 @@ void FCMInvalidationListener::Acknowledge(const Topic& topic,
 }
 
 void FCMInvalidationListener::Drop(const Topic& topic,
-                                   const AckHandle& handle) {
+                                   const syncer::AckHandle& handle) {
   auto lookup = unacked_invalidations_map_.find(topic);
   if (lookup == unacked_invalidations_map_.end()) {
     DLOG(WARNING) << "Received drop for untracked topic";
@@ -167,10 +168,9 @@ void FCMInvalidationListener::DoSubscriptionUpdate() {
       continue;
     }
 
-    unacked.second.ExportInvalidations(
-        weak_factory_.GetWeakPtr(),
-        base::SingleThreadTaskRunner::GetCurrentDefault(),
-        &topic_invalidation_map);
+    unacked.second.ExportInvalidations(weak_factory_.GetWeakPtr(),
+                                       base::ThreadTaskRunnerHandle::Get(),
+                                       &topic_invalidation_map);
   }
 
   // There's no need to run these through DispatchInvalidations(); they've
@@ -180,7 +180,8 @@ void FCMInvalidationListener::DoSubscriptionUpdate() {
 }
 
 void FCMInvalidationListener::RequestDetailedStatus(
-    const base::RepeatingCallback<void(base::Value::Dict)>& callback) const {
+    const base::RepeatingCallback<void(const base::DictionaryValue&)>& callback)
+    const {
   network_channel_->RequestDetailedStatus(callback);
   callback.Run(CollectDebugData());
 }
@@ -242,20 +243,20 @@ void FCMInvalidationListener::OnSubscriptionChannelStateChanged(
   EmitStateChange();
 }
 
-base::Value::Dict FCMInvalidationListener::CollectDebugData() const {
-  base::Value::Dict status =
+base::DictionaryValue FCMInvalidationListener::CollectDebugData() const {
+  base::DictionaryValue status =
       per_user_topic_subscription_manager_->CollectDebugData();
-  status.SetByDottedPath("InvalidationListener.FCM-channel-state",
-                         FcmChannelStateToString(fcm_network_state_));
-  status.SetByDottedPath(
+  status.SetString("InvalidationListener.FCM-channel-state",
+                   FcmChannelStateToString(fcm_network_state_));
+  status.SetString(
       "InvalidationListener.Subscription-channel-state",
       SubscriptionChannelStateToString(subscription_channel_state_));
   for (const auto& topic : interested_topics_) {
-    if (!status.Find(topic.first)) {
-      status.Set(topic.first, "Unsubscribed");
+    if (!status.HasKey(topic.first)) {
+      status.SetString(topic.first, "Unsubscribed");
     }
   }
   return status;
 }
 
-}  // namespace invalidation
+}  // namespace syncer

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,207 +27,216 @@
 
 TEST(SessionCommandsTest, ExecuteGetTimeouts) {
   Session session("id");
-  base::Value::Dict params;
+  base::DictionaryValue params;
   std::unique_ptr<base::Value> value;
 
   Status status = ExecuteGetTimeouts(&session, params, &value);
   ASSERT_EQ(kOk, status.code());
-  base::Value::Dict* response = value->GetIfDict();
-  ASSERT_TRUE(response);
+  base::DictionaryValue* response;
+  ASSERT_TRUE(value->GetAsDictionary(&response));
 
-  int script = response->FindInt("script").value_or(-1);
+  int script;
+  ASSERT_TRUE(response->GetInteger("script", &script));
   ASSERT_EQ(script, 30000);
-  int page_load = response->FindInt("pageLoad").value_or(-1);
+  int page_load;
+  ASSERT_TRUE(response->GetInteger("pageLoad", &page_load));
   ASSERT_EQ(page_load, 300000);
-  int implicit = response->FindInt("implicit").value_or(-1);
+  int implicit;
+  ASSERT_TRUE(response->GetInteger("implicit", &implicit));
   ASSERT_EQ(implicit, 0);
 }
 
 TEST(SessionCommandsTest, ExecuteSetTimeouts) {
   Session session("id");
-  base::Value::Dict params;
+  base::DictionaryValue params;
   std::unique_ptr<base::Value> value;
 
   // W3C spec doesn't forbid passing in an empty object, so we should get kOk.
   Status status = ExecuteSetTimeouts(&session, params, &value);
   ASSERT_EQ(kOk, status.code());
 
-  params.Set("pageLoad", 5000);
+  params.SetInteger("pageLoad", 5000);
   status = ExecuteSetTimeouts(&session, params, &value);
   ASSERT_EQ(kOk, status.code());
 
-  params.Set("script", 5000);
-  params.Set("implicit", 5000);
+  params.SetInteger("script", 5000);
+  params.SetInteger("implicit", 5000);
   status = ExecuteSetTimeouts(&session, params, &value);
   ASSERT_EQ(kOk, status.code());
 
-  params.Set("implicit", -5000);
+  params.SetInteger("implicit", -5000);
   status = ExecuteSetTimeouts(&session, params, &value);
   ASSERT_EQ(kInvalidArgument, status.code());
 
-  params.clear();
-  params.Set("unknown", 5000);
+  params.Clear();
+  params.SetInteger("unknown", 5000);
   status = ExecuteSetTimeouts(&session, params, &value);
   ASSERT_EQ(kOk, status.code());
 
   // Old pre-W3C format.
-  params.clear();
-  params.Set("ms", 5000.0);
-  params.Set("type", "page load");
+  params.Clear();
+  params.SetDouble("ms", 5000.0);
+  params.SetString("type", "page load");
   status = ExecuteSetTimeouts(&session, params, &value);
   ASSERT_EQ(kOk, status.code());
 }
 
 TEST(SessionCommandsTest, MergeCapabilities) {
-  base::Value::Dict primary;
-  primary.Set("strawberry", "velociraptor");
-  primary.Set("pear", "unicorn");
+  base::DictionaryValue primary;
+  primary.SetString("strawberry", "velociraptor");
+  primary.SetString("pear", "unicorn");
 
-  base::Value::Dict secondary;
-  secondary.Set("broccoli", "giraffe");
-  secondary.Set("celery", "hippo");
-  secondary.Set("eggplant", "elephant");
+  base::DictionaryValue secondary;
+  secondary.SetString("broccoli", "giraffe");
+  secondary.SetString("celery", "hippo");
+  secondary.SetString("eggplant", "elephant");
 
-  base::Value::Dict merged;
+  base::DictionaryValue merged;
 
   // key collision should return false
-  ASSERT_FALSE(MergeCapabilities(primary, primary, merged));
+  ASSERT_FALSE(MergeCapabilities(&primary, &primary, &merged));
   // non key collision should return true
-  ASSERT_TRUE(MergeCapabilities(primary, secondary, merged));
+  ASSERT_TRUE(MergeCapabilities(&primary, &secondary, &merged));
 
-  merged.clear();
-  MergeCapabilities(primary, secondary, merged);
-  primary.Merge(std::move(secondary));
+  merged.Clear();
+  MergeCapabilities(&primary, &secondary, &merged);
+  primary.MergeDictionary(&secondary);
 
   ASSERT_EQ(primary, merged);
 }
 
 TEST(SessionCommandsTest, ProcessCapabilities_Empty) {
   // "capabilities" is required
-  base::Value::Dict params;
-  base::Value::Dict result;
-  Status status = ProcessCapabilities(params, result);
+  base::DictionaryValue params;
+  base::DictionaryValue result;
+  Status status = ProcessCapabilities(params, &result);
   ASSERT_EQ(kInvalidArgument, status.code());
 
   // "capabilities" must be a JSON object
-  params.Set("capabilities", base::Value::List());
-  status = ProcessCapabilities(params, result);
+  params.SetList("capabilities", std::make_unique<base::ListValue>());
+  status = ProcessCapabilities(params, &result);
   ASSERT_EQ(kInvalidArgument, status.code());
 
   // Empty "capabilities" is OK
-  params.Set("capabilities", base::Value::Dict());
-  status = ProcessCapabilities(params, result);
+  params.SetDictionary("capabilities",
+                       std::make_unique<base::DictionaryValue>());
+  status = ProcessCapabilities(params, &result);
   ASSERT_EQ(kOk, status.code()) << status.message();
   ASSERT_TRUE(result.empty());
 }
 
 TEST(SessionCommandsTest, ProcessCapabilities_AlwaysMatch) {
-  base::Value::Dict params;
-  base::Value::Dict result;
+  base::DictionaryValue params;
+  base::DictionaryValue result;
 
   // "alwaysMatch" must be a JSON object
-  params.SetByDottedPath("capabilities.alwaysMatch", base::Value::List());
-  Status status = ProcessCapabilities(params, result);
+  params.SetList("capabilities.alwaysMatch",
+                 std::make_unique<base::ListValue>());
+  Status status = ProcessCapabilities(params, &result);
   ASSERT_EQ(kInvalidArgument, status.code());
 
   // Empty "alwaysMatch" is OK
-  params.SetByDottedPath("capabilities.alwaysMatch", base::Value::Dict());
-  status = ProcessCapabilities(params, result);
+  params.SetDictionary("capabilities.alwaysMatch",
+                       std::make_unique<base::DictionaryValue>());
+  status = ProcessCapabilities(params, &result);
   ASSERT_EQ(kOk, status.code()) << status.message();
   ASSERT_TRUE(result.empty());
 
   // Invalid "alwaysMatch"
-  params.SetByDottedPath("capabilities.alwaysMatch.browserName", 10);
-  status = ProcessCapabilities(params, result);
+  params.SetInteger("capabilities.alwaysMatch.browserName", 10);
+  status = ProcessCapabilities(params, &result);
   ASSERT_EQ(kInvalidArgument, status.code());
 
   // Valid "alwaysMatch"
-  params.SetByDottedPath("capabilities.alwaysMatch.browserName", "chrome");
-  status = ProcessCapabilities(params, result);
+  params.SetString("capabilities.alwaysMatch.browserName", "chrome");
+  status = ProcessCapabilities(params, &result);
   ASSERT_EQ(kOk, status.code()) << status.message();
   ASSERT_EQ(result.size(), 1u);
-  std::string* result_string = result.FindString("browserName");
-  ASSERT_TRUE(result_string);
-  ASSERT_EQ(*result_string, "chrome");
+  std::string result_string;
+  ASSERT_TRUE(result.GetString("browserName", &result_string));
+  ASSERT_EQ(result_string, "chrome");
 
   // Null "browserName" treated as not specifying "browserName"
-  params.SetByDottedPath("capabilities.alwaysMatch.browserName", base::Value());
-  status = ProcessCapabilities(params, result);
+  params.SetPath({"capabilities", "alwaysMatch", "browserName"}, base::Value());
+  status = ProcessCapabilities(params, &result);
   ASSERT_EQ(kOk, status.code()) << status.message();
-  ASSERT_FALSE(result.FindString("browserName"));
+  ASSERT_FALSE(result.GetString("browserName", &result_string));
 }
 
 TEST(SessionCommandsTest, ProcessCapabilities_FirstMatch) {
-  base::Value::Dict params;
-  base::Value::Dict result;
+  base::DictionaryValue params;
+  base::DictionaryValue result;
 
   // "firstMatch" must be a JSON list
-  params.SetByDottedPath("capabilities.firstMatch", base::Value::Dict());
-  Status status = ProcessCapabilities(params, result);
+  params.SetDictionary("capabilities.firstMatch",
+                       std::make_unique<base::DictionaryValue>());
+  Status status = ProcessCapabilities(params, &result);
   ASSERT_EQ(kInvalidArgument, status.code());
 
   // "firstMatch" must have at least one entry
-  params.SetByDottedPath("capabilities.firstMatch",
-                         base::Value(base::Value::Type::LIST));
-  status = ProcessCapabilities(params, result);
+  params.SetList("capabilities.firstMatch",
+                 std::make_unique<base::ListValue>());
+  status = ProcessCapabilities(params, &result);
   ASSERT_EQ(kInvalidArgument, status.code());
 
   // Each entry must be a JSON object
-  base::Value::List* list =
-      params.FindListByDottedPath("capabilities.firstMatch");
-  list->Append(base::Value::List());
-  status = ProcessCapabilities(params, result);
+  base::ListValue* list_ptr;
+  ASSERT_TRUE(params.GetList("capabilities.firstMatch", &list_ptr));
+  list_ptr->Set(0, std::make_unique<base::ListValue>());
+  status = ProcessCapabilities(params, &result);
   ASSERT_EQ(kInvalidArgument, status.code());
 
   // Empty JSON object allowed as an entry
-  (*list)[0] = base::Value(base::Value::Type::DICT);
-  status = ProcessCapabilities(params, result);
+  list_ptr->Set(0, std::make_unique<base::DictionaryValue>());
+  status = ProcessCapabilities(params, &result);
   ASSERT_EQ(kOk, status.code()) << status.message();
   ASSERT_TRUE(result.empty());
 
   // Invalid entry
-  base::Value::Dict* entry = (*list)[0].GetIfDict();
-  entry->Set("pageLoadStrategy", "invalid");
-  status = ProcessCapabilities(params, result);
+  base::DictionaryValue* entry_ptr;
+  ASSERT_TRUE(list_ptr->GetDictionary(0, &entry_ptr));
+  entry_ptr->SetString("pageLoadStrategy", "invalid");
+  status = ProcessCapabilities(params, &result);
   ASSERT_EQ(kInvalidArgument, status.code());
 
   // Valid entry
-  entry->Set("pageLoadStrategy", "eager");
-  status = ProcessCapabilities(params, result);
+  entry_ptr->SetString("pageLoadStrategy", "eager");
+  status = ProcessCapabilities(params, &result);
   ASSERT_EQ(kOk, status.code()) << status.message();
   ASSERT_EQ(result.size(), 1u);
-  std::string* result_string = result.FindString("pageLoadStrategy");
-  ASSERT_TRUE(result_string);
-  ASSERT_EQ(*result_string, "eager");
+  std::string result_string;
+  ASSERT_TRUE(result.GetString("pageLoadStrategy", &result_string));
+  ASSERT_EQ(result_string, "eager");
 
   // Multiple entries, the first one should be selected.
-  list->Append(base::Value::Dict());
-  entry = (*list)[1].GetIfDict();
-  entry->Set("pageLoadStrategy", "normal");
-  entry->Set("browserName", "chrome");
-  status = ProcessCapabilities(params, result);
+  list_ptr->Set(1, std::make_unique<base::DictionaryValue>());
+  ASSERT_TRUE(list_ptr->GetDictionary(1, &entry_ptr));
+  entry_ptr->SetString("pageLoadStrategy", "normal");
+  entry_ptr->SetString("browserName", "chrome");
+  status = ProcessCapabilities(params, &result);
   ASSERT_EQ(kOk, status.code()) << status.message();
   ASSERT_EQ(result.size(), 1u);
-  result_string = result.FindString("pageLoadStrategy");
-  ASSERT_TRUE(result_string);
-  ASSERT_EQ(*result_string, "eager");
+  ASSERT_TRUE(result.GetString("pageLoadStrategy", &result_string));
+  ASSERT_EQ(result_string, "eager");
 }
 
 namespace {
 
-Status ProcessCapabilitiesJson(const std::string& params_json,
-                               base::Value::Dict& result_capabilities) {
+Status ProcessCapabilitiesJson(const std::string& paramsJson,
+                               base::DictionaryValue* result_capabilities) {
   std::unique_ptr<base::Value> params =
-      base::JSONReader::ReadDeprecated(params_json);
+      base::JSONReader::ReadDeprecated(paramsJson);
   if (!params || !params->is_dict())
     return Status(kUnknownError);
-  return ProcessCapabilities(params->GetDict(), result_capabilities);
+  return ProcessCapabilities(
+      *static_cast<const base::DictionaryValue*>(params.get()),
+      result_capabilities);
 }
 
 }  // namespace
 
 TEST(SessionCommandsTest, ProcessCapabilities_Merge) {
-  base::Value::Dict result;
+  base::DictionaryValue result;
   Status status(kOk);
 
   // Disallow setting same capability in alwaysMatch and firstMatch
@@ -241,7 +250,7 @@ TEST(SessionCommandsTest, ProcessCapabilities_Merge) {
           ]
         }
       })",
-      result);
+      &result);
   ASSERT_EQ(kInvalidArgument, status.code());
 
   // No conflicts between alwaysMatch and firstMatch, select first firstMatch
@@ -255,12 +264,12 @@ TEST(SessionCommandsTest, ProcessCapabilities_Merge) {
           ]
         }
       })",
-      result);
+      &result);
   ASSERT_EQ(kOk, status.code()) << status.message();
   ASSERT_EQ(result.size(), 2u);
-  ASSERT_TRUE(result.Find("timeouts"));
-  ASSERT_TRUE(result.Find("unhandledPromptBehavior"));
-  ASSERT_FALSE(result.Find("pageLoadStrategy"));
+  ASSERT_TRUE(result.HasKey("timeouts"));
+  ASSERT_TRUE(result.HasKey("unhandledPromptBehavior"));
+  ASSERT_FALSE(result.HasKey("pageLoadStrategy"));
 
   // Selection by platformName
   std::string platform_name =
@@ -276,11 +285,11 @@ TEST(SessionCommandsTest, ProcessCapabilities_Merge) {
          ]
        }
      })",
-      result);
+      &result);
   printf("THIS IS PLATFORM: %s", platform_name.c_str());
   ASSERT_EQ(kOk, status.code()) << status.message();
-  ASSERT_EQ(*result.FindString("platformName"), platform_name);
-  ASSERT_EQ(*result.FindString("pageLoadStrategy"), "eager");
+  ASSERT_EQ(result.FindKey("platformName")->GetString(), platform_name);
+  ASSERT_EQ(result.FindKey("pageLoadStrategy")->GetString(), "eager");
 
   // Selection by browserName
   status = ProcessCapabilitiesJson(
@@ -293,13 +302,13 @@ TEST(SessionCommandsTest, ProcessCapabilities_Merge) {
           ]
         }
       })",
-      result);
+      &result);
   ASSERT_EQ(kOk, status.code()) << status.message();
   ASSERT_EQ(result.size(), 3u);
-  ASSERT_TRUE(result.Find("timeouts"));
-  ASSERT_EQ(*result.FindString("browserName"), "chrome");
-  ASSERT_FALSE(result.Find("unhandledPromptBehavior"));
-  ASSERT_TRUE(result.Find("pageLoadStrategy"));
+  ASSERT_TRUE(result.HasKey("timeouts"));
+  ASSERT_EQ(result.FindKey("browserName")->GetString(), "chrome");
+  ASSERT_FALSE(result.HasKey("unhandledPromptBehavior"));
+  ASSERT_TRUE(result.HasKey("pageLoadStrategy"));
 
   // No acceptable firstMatch
   status = ProcessCapabilitiesJson(
@@ -312,13 +321,13 @@ TEST(SessionCommandsTest, ProcessCapabilities_Merge) {
           ]
         }
       })",
-      result);
+      &result);
   ASSERT_EQ(kSessionNotCreated, status.code());
 }
 
 TEST(SessionCommandsTest, FileUpload) {
   Session session("id");
-  base::Value::Dict params;
+  base::DictionaryValue params;
   std::unique_ptr<base::Value> value;
   // Zip file entry that contains a single file with contents 'COW\n', base64
   // encoded following RFC 1521.
@@ -326,15 +335,14 @@ TEST(SessionCommandsTest, FileUpload) {
       "UEsDBBQAAAAAAMROi0K/wAzGBAAAAAQAAAADAAAAbW9vQ09XClBLAQIUAxQAAAAAAMROi0K/"
       "wAzG\nBAAAAAQAAAADAAAAAAAAAAAAAACggQAAAABtb29QSwUGAAAAAAEAAQAxAAAAJQAAAA"
       "AA\n";
-  params.Set("file", kBase64ZipEntry);
+  params.SetString("file", kBase64ZipEntry);
   Status status = ExecuteUploadFile(&session, params, &value);
   ASSERT_EQ(kOk, status.code()) << status.message();
-  ASSERT_TRUE(value->is_string());
-  std::string path = value->GetString();
-  ASSERT_TRUE(base::PathExists(base::FilePath::FromUTF8Unsafe(path)));
+  base::FilePath::StringType path;
+  ASSERT_TRUE(value->GetAsString(&path));
+  ASSERT_TRUE(base::PathExists(base::FilePath(path)));
   std::string data;
-  ASSERT_TRUE(
-      base::ReadFileToString(base::FilePath::FromUTF8Unsafe(path), &data));
+  ASSERT_TRUE(base::ReadFileToString(base::FilePath(path), &data));
   ASSERT_STREQ("COW\n", data.c_str());
 }
 
@@ -357,54 +365,54 @@ class DetachChrome : public StubChrome {
 }  // namespace
 
 TEST(SessionCommandsTest, MatchCapabilities) {
-  base::Value::Dict merged;
-  merged.Set("browserName", "not chrome");
+  base::DictionaryValue merged;
+  merged.SetString("browserName", "not chrome");
 
-  ASSERT_FALSE(MatchCapabilities(merged));
+  ASSERT_FALSE(MatchCapabilities(&merged));
 
-  merged.clear();
-  merged.Set("browserName", "chrome");
+  merged.Clear();
+  merged.SetString("browserName", "chrome");
 
-  ASSERT_TRUE(MatchCapabilities(merged));
+  ASSERT_TRUE(MatchCapabilities(&merged));
 }
 
 TEST(SessionCommandsTest, MatchCapabilitiesVirtualAuthenticators) {
   // Match webauthn:virtualAuthenticators on desktop.
-  base::Value::Dict merged;
-  merged.SetByDottedPath("webauthn:virtualAuthenticators", true);
-  EXPECT_TRUE(MatchCapabilities(merged));
+  base::DictionaryValue merged;
+  merged.SetBoolPath("webauthn:virtualAuthenticators", true);
+  EXPECT_TRUE(MatchCapabilities(&merged));
 
   // Don't match webauthn:virtualAuthenticators on android.
-  merged.SetByDottedPath("goog:chromeOptions.androidPackage", "packageName");
-  EXPECT_FALSE(MatchCapabilities(merged));
+  merged.SetStringPath("goog:chromeOptions.androidPackage", "packageName");
+  EXPECT_FALSE(MatchCapabilities(&merged));
 
   // Don't match values other than bools.
-  merged.clear();
-  merged.Set("webauthn:virtualAuthenticators", "not a bool");
-  EXPECT_FALSE(MatchCapabilities(merged));
+  merged.Clear();
+  merged.SetStringPath("webauthn:virtualAuthenticators", "not a bool");
+  EXPECT_FALSE(MatchCapabilities(&merged));
 }
 
 TEST(SessionCommandsTest, MatchCapabilitiesVirtualAuthenticatorsLargeBlob) {
   // Match webauthn:extension:largeBlob on desktop.
-  base::Value::Dict merged;
-  merged.SetByDottedPath("webauthn:extension:largeBlob", true);
-  EXPECT_TRUE(MatchCapabilities(merged));
+  base::DictionaryValue merged;
+  merged.SetBoolPath("webauthn:extension:largeBlob", true);
+  EXPECT_TRUE(MatchCapabilities(&merged));
 
   // Don't match webauthn:extension:largeBlob on android.
-  merged.SetByDottedPath("goog:chromeOptions.androidPackage", "packageName");
-  EXPECT_FALSE(MatchCapabilities(merged));
+  merged.SetStringPath("goog:chromeOptions.androidPackage", "packageName");
+  EXPECT_FALSE(MatchCapabilities(&merged));
 
   // Don't match values other than bools.
-  merged.clear();
-  merged.Set("webauthn:extension:largeBlob", "not a bool");
-  EXPECT_FALSE(MatchCapabilities(merged));
+  merged.Clear();
+  merged.SetStringPath("webauthn:extension:largeBlob", "not a bool");
+  EXPECT_FALSE(MatchCapabilities(&merged));
 }
 
 TEST(SessionCommandsTest, Quit) {
   DetachChrome* chrome = new DetachChrome();
   Session session("id", std::unique_ptr<Chrome>(chrome));
 
-  base::Value::Dict params;
+  base::DictionaryValue params;
   std::unique_ptr<base::Value> value;
 
   ASSERT_EQ(kOk, ExecuteQuit(false, &session, params, &value).code());
@@ -420,7 +428,7 @@ TEST(SessionCommandsTest, QuitWithDetach) {
   Session session("id", std::unique_ptr<Chrome>(chrome));
   session.detach = true;
 
-  base::Value::Dict params;
+  base::DictionaryValue params;
   std::unique_ptr<base::Value> value;
 
   ASSERT_EQ(kOk, ExecuteQuit(true, &session, params, &value).code());
@@ -434,8 +442,8 @@ namespace {
 
 class FailsToQuitChrome : public StubChrome {
  public:
-  FailsToQuitChrome() = default;
-  ~FailsToQuitChrome() override = default;
+  FailsToQuitChrome() {}
+  ~FailsToQuitChrome() override {}
 
   // Overridden from Chrome:
   Status Quit() override { return Status(kUnknownError); }
@@ -445,7 +453,7 @@ class FailsToQuitChrome : public StubChrome {
 
 TEST(SessionCommandsTest, QuitFails) {
   Session session("id", std::unique_ptr<Chrome>(new FailsToQuitChrome()));
-  base::Value::Dict params;
+  base::DictionaryValue params;
   std::unique_ptr<base::Value> value;
   ASSERT_EQ(kUnknownError, ExecuteQuit(false, &session, params, &value).code());
 }
@@ -457,7 +465,7 @@ class MockChrome : public StubChrome {
   explicit MockChrome(BrowserInfo& binfo) : web_view_("1") {
     browser_info_ = binfo;
   }
-  ~MockChrome() override = default;
+  ~MockChrome() override {}
 
   const BrowserInfo* GetBrowserInfo() const override { return &browser_info_; }
 
@@ -475,15 +483,15 @@ class MockChrome : public StubChrome {
 
 TEST(SessionCommandsTest, ConfigureHeadlessSession_dotNotation) {
   Capabilities capabilities;
-  base::Value::Dict caps;
-  base::Value::List args;
-  args.Append("headless");
-  caps.SetByDottedPath("goog:chromeOptions.args", base::Value(std::move(args)));
+  base::DictionaryValue caps;
+  base::Value::ListStorage args;
+  args.emplace_back("headless");
+  caps.SetPath({"goog:chromeOptions", "args"}, base::Value(args));
 
-  base::Value::Dict prefs;
-  prefs.SetByDottedPath("download.default_directory",
-                        base::Value("/examples/python/downloads"));
-  caps.SetByDottedPath("goog:chromeOptions.prefs", prefs.Clone());
+  base::DictionaryValue prefs;
+  prefs.SetKey("download.default_directory",
+               base::Value("/examples/python/downloads"));
+  caps.SetPath({"goog:chromeOptions", "prefs"}, prefs.Clone());
 
   Status status = capabilities.Parse(caps);
   BrowserInfo binfo;
@@ -500,15 +508,16 @@ TEST(SessionCommandsTest, ConfigureHeadlessSession_dotNotation) {
 
 TEST(SessionCommandsTest, ConfigureHeadlessSession_nestedMap) {
   Capabilities capabilities;
-  base::Value::Dict caps;
-  base::Value::List args;
-  args.Append("headless");
-  caps.SetByDottedPath("goog:chromeOptions.args", base::Value(std::move(args)));
+  base::DictionaryValue caps;
+  base::Value::ListStorage args;
+  args.emplace_back("headless");
+  caps.SetPath({"goog:chromeOptions", "args"}, base::Value(args));
 
-  base::Value* prefs =
-      caps.SetByDottedPath("goog:chromeOptions.prefs", base::Value::Dict());
-  base::Value::Dict* download = prefs->GetDict().EnsureDict("download");
-  download->Set("default_directory", "/examples/python/downloads");
+  base::DictionaryValue prefs;
+  std::unique_ptr<base::DictionaryValue> download(new base::DictionaryValue());
+  download->SetStringPath("default_directory", "/examples/python/downloads");
+  prefs.SetDictionary("download", std::move(download));
+  caps.SetPath({"goog:chromeOptions", "prefs"}, prefs.Clone());
 
   Status status = capabilities.Parse(caps);
   BrowserInfo binfo;
@@ -525,10 +534,10 @@ TEST(SessionCommandsTest, ConfigureHeadlessSession_nestedMap) {
 
 TEST(SessionCommandsTest, ConfigureHeadlessSession_noDownloadDir) {
   Capabilities capabilities;
-  base::Value::Dict caps;
-  base::Value::List args;
-  args.Append("headless");
-  caps.SetByDottedPath("goog:chromeOptions.args", base::Value(std::move(args)));
+  base::DictionaryValue caps;
+  base::Value::ListStorage args;
+  args.emplace_back("headless");
+  caps.SetPath({"goog:chromeOptions", "args"}, base::Value(args));
 
   Status status = capabilities.Parse(caps);
   BrowserInfo binfo;
@@ -544,11 +553,12 @@ TEST(SessionCommandsTest, ConfigureHeadlessSession_noDownloadDir) {
 
 TEST(SessionCommandsTest, ConfigureHeadlessSession_notHeadless) {
   Capabilities capabilities;
-  base::Value::Dict caps;
-  base::Value* prefs =
-      caps.SetByDottedPath("goog:chromeOptions.prefs", base::Value::Dict());
-  base::Value::Dict* download = prefs->GetDict().EnsureDict("download");
-  download->Set("default_directory", "/examples/python/downloads");
+  base::DictionaryValue caps;
+  base::DictionaryValue prefs;
+  std::unique_ptr<base::DictionaryValue> download(new base::DictionaryValue());
+  download->SetStringPath("default_directory", "/examples/python/downloads");
+  prefs.SetDictionary("download", std::move(download));
+  caps.SetPath({"goog:chromeOptions", "prefs"}, prefs.Clone());
 
   Status status = capabilities.Parse(caps);
   BrowserInfo binfo;
@@ -566,6 +576,7 @@ TEST(SessionCommandsTest, ConfigureSession_allSet) {
   MockChrome* chrome = new MockChrome(binfo);
   Session session("id", std::unique_ptr<Chrome>(chrome));
 
+  const base::DictionaryValue* params_in = nullptr;
   base::Value value = base::JSONReader::Read(
                           R"({
         "capabilities": {
@@ -590,8 +601,7 @@ TEST(SessionCommandsTest, ConfigureSession_allSet) {
         }
       })")
                           .value();
-  base::Value::Dict* params_in = value.GetIfDict();
-  ASSERT_TRUE(params_in);
+  ASSERT_TRUE(value.GetAsDictionary(&params_in));
 
   const base::DictionaryValue* desired_caps_out;
   base::DictionaryValue merged_out;
@@ -605,9 +615,9 @@ TEST(SessionCommandsTest, ConfigureSession_allSet) {
   ASSERT_TRUE(capabilities_out.logging_prefs["driver"]);
   // Verify session settings are correct
   ASSERT_EQ(kAccept, session.unhandled_prompt_behavior);
-  ASSERT_EQ(base::Seconds(57), session.implicit_wait);
-  ASSERT_EQ(base::Seconds(29), session.page_load_timeout);
-  ASSERT_EQ(base::Seconds(21), session.script_timeout);
+  ASSERT_EQ(base::TimeDelta::FromSeconds(57), session.implicit_wait);
+  ASSERT_EQ(base::TimeDelta::FromSeconds(29), session.page_load_timeout);
+  ASSERT_EQ(base::TimeDelta::FromSeconds(21), session.script_timeout);
   ASSERT_TRUE(session.strict_file_interactability);
   ASSERT_EQ(Log::Level::kDebug, session.driver_log.get()->min_level());
 }
@@ -617,6 +627,7 @@ TEST(SessionCommandsTest, ConfigureSession_defaults) {
   MockChrome* chrome = new MockChrome(binfo);
   Session session("id", std::unique_ptr<Chrome>(chrome));
 
+  const base::DictionaryValue* params_in = nullptr;
   base::Value value = base::JSONReader::Read(
                           R"({
         "capabilities": {
@@ -625,8 +636,7 @@ TEST(SessionCommandsTest, ConfigureSession_defaults) {
         }
       })")
                           .value();
-  const base::Value::Dict* params_in = value.GetIfDict();
-  ASSERT_TRUE(params_in);
+  ASSERT_TRUE(value.GetAsDictionary(&params_in));
   const base::DictionaryValue* desired_caps_out;
   base::DictionaryValue merged_out;
   Capabilities capabilities_out;
@@ -637,9 +647,9 @@ TEST(SessionCommandsTest, ConfigureSession_defaults) {
   ASSERT_TRUE(desired_caps_out->is_dict());
   ASSERT_TRUE(merged_out.is_dict());
   // Testing specific values could be fragile, but want to verify they are set
-  ASSERT_EQ(base::Seconds(0), session.implicit_wait);
-  ASSERT_EQ(base::Seconds(300), session.page_load_timeout);
-  ASSERT_EQ(base::Seconds(30), session.script_timeout);
+  ASSERT_EQ(base::TimeDelta::FromSeconds(0), session.implicit_wait);
+  ASSERT_EQ(base::TimeDelta::FromSeconds(300), session.page_load_timeout);
+  ASSERT_EQ(base::TimeDelta::FromSeconds(30), session.script_timeout);
   ASSERT_FALSE(session.strict_file_interactability);
   ASSERT_EQ(Log::Level::kWarning, session.driver_log.get()->min_level());
   // w3c values:
@@ -651,6 +661,7 @@ TEST(SessionCommandsTest, ConfigureSession_legacyDefault) {
   MockChrome* chrome = new MockChrome(binfo);
   Session session("id", std::unique_ptr<Chrome>(chrome));
 
+  const base::DictionaryValue* params_in = nullptr;
   base::Value value = base::JSONReader::Read(
                           R"({
         "desiredCapabilities": {
@@ -661,8 +672,7 @@ TEST(SessionCommandsTest, ConfigureSession_legacyDefault) {
         }
       })")
                           .value();
-  const base::Value::Dict* params_in = value.GetIfDict();
-  ASSERT_TRUE(params_in);
+  ASSERT_TRUE(value.GetAsDictionary(&params_in));
   const base::DictionaryValue* desired_caps_out;
   base::DictionaryValue merged_out;
   Capabilities capabilities_out;

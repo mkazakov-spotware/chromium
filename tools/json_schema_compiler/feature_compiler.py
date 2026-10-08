@@ -1,4 +1,4 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -10,7 +10,6 @@ from datetime import datetime
 from functools import partial
 import json
 import os
-import posixpath
 import re
 import sys
 
@@ -19,13 +18,12 @@ import json_parse
 
 # The template for the header file of the generated FeatureProvider.
 HEADER_FILE_TEMPLATE = """
-// Copyright %(year)s The Chromium Authors
+// Copyright %(year)s The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // GENERATED FROM THE FEATURES FILE:
 //   %(source_files)s
-// by tools/json_schema_compiler.
 // DO NOT EDIT.
 
 #ifndef %(header_guard)s
@@ -43,13 +41,12 @@ void %(method_name)s(FeatureProvider* provider);
 
 # The beginning of the .cc file for the generated FeatureProvider.
 CC_FILE_BEGIN = """
-// Copyright %(year)s The Chromium Authors
+// Copyright %(year)s The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // GENERATED FROM THE FEATURES FILE:
 //   %(source_files)s
-// by tools/json_schema_compiler.
 // DO NOT EDIT.
 
 #include "%(header_file_path)s"
@@ -58,7 +55,6 @@ CC_FILE_BEGIN = """
 #include "extensions/common/features/feature_provider.h"
 #include "extensions/common/features/manifest_feature.h"
 #include "extensions/common/features/permission_feature.h"
-#include "extensions/common/mojom/feature_session_type.mojom.h"
 
 namespace extensions {
 
@@ -72,12 +68,9 @@ CC_FILE_END = """
 }  // namespace extensions
 """
 
-def ToPosixPath(path):
-  """Returns |path| with separator converted to POSIX style.
-
-  This is needed to generate C++ #include paths.
-  """
-  return path.replace(os.path.sep, posixpath.sep)
+# Legacy keys for the allow and blocklists.
+LEGACY_ALLOWLIST_KEY = 'whitelist'
+LEGACY_BLOCKLIST_KEY = 'blacklist'
 
 # Returns true if the list 'l' only contains strings that are a hex-encoded SHA1
 # hashes.
@@ -131,16 +124,7 @@ FEATURE_GRAMMAR = ({
         str: {},
         'shared': True
     },
-    'allowlist': {
-        list: {
-            'subtype':
-            str,
-            'validators':
-            [(ListContainsOnlySha1Hashes,
-              'list should only have hex-encoded SHA1 hashes of extension ids')]
-        }
-    },
-    'blocklist': {
+    LEGACY_BLOCKLIST_KEY: {
         list: {
             'subtype':
             str,
@@ -174,7 +158,6 @@ FEATURE_GRAMMAR = ({
                 'content_script': 'Feature::CONTENT_SCRIPT_CONTEXT',
                 'lock_screen_extension':
                 'Feature::LOCK_SCREEN_EXTENSION_CONTEXT',
-                'offscreen_extension': 'Feature::OFFSCREEN_EXTENSION_CONTEXT',
                 'web_page': 'Feature::WEB_PAGE_CONTEXT',
                 'webui': 'Feature::WEBUI_CONTEXT',
                 'webui_untrusted': 'Feature::WEBUI_UNTRUSTED_CONTEXT',
@@ -197,9 +180,6 @@ FEATURE_GRAMMAR = ({
             'subtype': str
         }
     },
-    'developer_mode_only': {
-        bool: {}
-    },
     'disallow_for_service_workers': {
         bool: {}
     },
@@ -214,8 +194,6 @@ FEATURE_GRAMMAR = ({
                 'theme': 'Manifest::TYPE_THEME',
                 'login_screen_extension':
                 'Manifest::TYPE_LOGIN_SCREEN_EXTENSION',
-                'chromeos_system_extension':
-                'Manifest::TYPE_CHROMEOS_SYSTEM_EXTENSION',
             },
             'allow_all': True
         },
@@ -263,7 +241,6 @@ FEATURE_GRAMMAR = ({
         list: {
             'enum_map': {
                 'chromeos': 'Feature::CHROMEOS_PLATFORM',
-                'fuchsia': 'Feature::FUCHSIA_PLATFORM',
                 'lacros': 'Feature::LACROS_PLATFORM',
                 'linux': 'Feature::LINUX_PLATFORM',
                 'mac': 'Feature::MACOSX_PLATFORM',
@@ -274,16 +251,24 @@ FEATURE_GRAMMAR = ({
     'session_types': {
         list: {
             'enum_map': {
-                'regular': 'mojom::FeatureSessionType::kRegular',
-                'kiosk': 'mojom::FeatureSessionType::kKiosk',
-                'kiosk.autolaunched':
-                  'mojom::FeatureSessionType::kAutolaunchedKiosk',
+                'regular': 'FeatureSessionType::REGULAR',
+                'kiosk': 'FeatureSessionType::KIOSK',
+                'kiosk.autolaunched': 'FeatureSessionType::AUTOLAUNCHED_KIOSK',
             }
         }
     },
     'source': {
         str: {},
         'shared': True
+    },
+    LEGACY_ALLOWLIST_KEY: {
+        list: {
+            'subtype':
+            str,
+            'validators':
+            [(ListContainsOnlySha1Hashes,
+              'list should only have hex-encoded SHA1 hashes of extension ids')]
+        }
     },
 })
 
@@ -356,7 +341,7 @@ def IsFeatureCrossReference(property_name, reverse_property_name, feature,
 # Verifies that a feature with an allowlist is not available to hosted apps,
 # returning true on success.
 def DoesNotHaveAllowlistForHostedApps(value):
-  if not 'allowlist' in value:
+  if not LEGACY_ALLOWLIST_KEY in value:
     return True
 
   # Hack Alert: |value| here has the code for the generated C++ feature. Since
@@ -386,8 +371,8 @@ def DoesNotHaveAllowlistForHostedApps(value):
   # what the allowlist looks like) to a python list of strings.
   def cpp_list_to_list(cpp_list):
     assert type(cpp_list) is str
-    assert cpp_list[0] == '{'
-    assert cpp_list[-1] == '}'
+    assert cpp_list[0] is '{'
+    assert cpp_list[-1] is '}'
     new_list = json.loads('[%s]' % cpp_list[1:-1])
     assert type(new_list) is list
     return new_list
@@ -395,10 +380,12 @@ def DoesNotHaveAllowlistForHostedApps(value):
   # Exceptions (see the feature files).
   # DO NOT ADD MORE.
   HOSTED_APP_EXCEPTIONS = [
+      '99060B01DE911EB85FD630C8BA6320C9186CA3AB',
       'B44D08FD98F1523ED5837D78D0A606EA9D6206E5',
+      '2653F6F6C39BC6EEBD36A09AFB92A19782FF7EB4',
   ]
 
-  allowlist = cpp_list_to_list(value['allowlist'])
+  allowlist = cpp_list_to_list(value[LEGACY_ALLOWLIST_KEY])
   for entry in allowlist:
     if entry not in HOSTED_APP_EXCEPTIONS:
       return False
@@ -486,7 +473,14 @@ def GetCodeForFeatureValues(feature_values):
     if key in IGNORED_KEYS:
       continue;
 
-    c.Append('feature->set_%s(%s);' % (key, feature_values[key]))
+    # TODO(devlin): Remove this hack as part of 842387.
+    set_key = key
+    if key == LEGACY_ALLOWLIST_KEY:
+      set_key = 'allowlist'
+    elif key == LEGACY_BLOCKLIST_KEY:
+      set_key = 'blocklist'
+
+    c.Append('feature->set_%s(%s);' % (set_key, feature_values[key]))
   return c
 
 class Feature(object):
@@ -898,7 +892,7 @@ class FeatureCompiler(object):
         'header_guard': (header_file_path.replace('/', '_').
                              replace('.', '_').upper()),
         'method_name': self._method_name,
-        'source_files': str([ToPosixPath(f) for f in self._source_files]),
+        'source_files': str(self._source_files),
         'year': str(datetime.now().year)
     })
     if not os.path.exists(self._out_root):

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,18 +15,14 @@
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/api/autofill_private/autofill_util.h"
-#include "chrome/browser/profiles/profile.h"
 #include "chrome/common/extensions/api/autofill_private.h"
 #include "components/autofill/content/browser/content_autofill_driver.h"
 #include "components/autofill/content/browser/content_autofill_driver_factory.h"
 #include "components/autofill/core/browser/autofill_address_util.h"
-#include "components/autofill/core/browser/browser_autofill_manager.h"
+#include "components/autofill/core/browser/autofill_manager.h"
 #include "components/autofill/core/browser/data_model/autofill_profile.h"
-#include "components/autofill/core/browser/data_model/credit_card.h"
 #include "components/autofill/core/browser/form_data_importer.h"
 #include "components/autofill/core/browser/payments/local_card_migration_manager.h"
-#include "components/autofill/core/browser/payments/virtual_card_enrollment_flow.h"
-#include "components/autofill/core/browser/payments/virtual_card_enrollment_manager.h"
 #include "components/autofill/core/browser/personal_data_manager.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "content/public/browser/web_contents.h"
@@ -50,92 +46,36 @@ static const char kErrorDataUnavailable[] = "Autofill data unavailable.";
 constexpr auto kUserVerified =
     autofill::structured_address::VerificationStatus::kUserVerified;
 
-// Dictionary keys used for serializing AddressUiComponent. Those values
-// are used as keys in JavaScript code and shouldn't be modified.
-constexpr char kFieldTypeKey[] = "field";
-constexpr char kFieldLengthKey[] = "isLongField";
-constexpr char kFieldNameKey[] = "fieldName";
-
-// Field names for the address components.
-constexpr char kFullNameField[] = "FULL_NAME";
-constexpr char kCompanyNameField[] = "COMPANY_NAME";
-constexpr char kAddressLineField[] = "ADDRESS_LINES";
-constexpr char kDependentLocalityField[] = "ADDRESS_LEVEL_3";
-constexpr char kCityField[] = "ADDRESS_LEVEL_2";
-constexpr char kStateField[] = "ADDRESS_LEVEL_1";
-constexpr char kPostalCodeField[] = "POSTAL_CODE";
-constexpr char kSortingCodeField[] = "SORTING_CODE";
-constexpr char kCountryField[] = "COUNTY_CODE";
-
-// Converts an autofill::ServerFieldType to string format. Used in serilization
-// of field type info to be used in JavaScript code, and hence those values
-// shouldn't be modified.
-const char* GetStringFromAddressField(i18n::addressinput::AddressField type) {
-  switch (type) {
-    case i18n::addressinput::RECIPIENT:
-      return kFullNameField;
-    case i18n::addressinput::ORGANIZATION:
-      return kCompanyNameField;
-    case i18n::addressinput::STREET_ADDRESS:
-      return kAddressLineField;
-    case i18n::addressinput::DEPENDENT_LOCALITY:
-      return kDependentLocalityField;
-    case i18n::addressinput::LOCALITY:
-      return kCityField;
-    case i18n::addressinput::ADMIN_AREA:
-      return kStateField;
-    case i18n::addressinput::POSTAL_CODE:
-      return kPostalCodeField;
-    case i18n::addressinput::SORTING_CODE:
-      return kSortingCodeField;
-    case i18n::addressinput::COUNTRY:
-      return kCountryField;
-    default:
-      NOTREACHED();
-      return "";
-  }
-}
-
-// Serializes the AddressUiComponent a map from string to base::Value().
-base::Value::Dict AddressUiComponentAsValueMap(
-    const i18n::addressinput::AddressUiComponent& address_ui_component) {
-  base::Value::Dict info;
-  info.Set(kFieldNameKey, address_ui_component.name);
-  info.Set(kFieldTypeKey,
-           GetStringFromAddressField(address_ui_component.field));
-  info.Set(kFieldLengthKey,
-           address_ui_component.length_hint ==
-               i18n::addressinput::AddressUiComponent::HINT_LONG);
-  return info;
-}
-
 // Searches the |list| for the value at |index|.  If this value is present in
 // any of the rest of the list, then the item (at |index|) is removed. The
 // comparison of phone number values is done on normalized versions of the phone
 // number values.
 void RemoveDuplicatePhoneNumberAtIndex(size_t index,
                                        const std::string& country_code,
-                                       base::Value::List& list) {
-  if (list.size() <= index) {
+                                       base::ListValue* list) {
+  base::string16 new_value;
+  if (!list->GetString(index, &new_value)) {
     NOTREACHED() << "List should have a value at index " << index;
     return;
   }
-  const std::string& new_value = list[index].GetString();
 
   bool is_duplicate = false;
   std::string app_locale = g_browser_process->GetApplicationLocale();
-  for (size_t i = 0; i < list.size() && !is_duplicate; ++i) {
+  for (size_t i = 0; i < list->GetSize() && !is_duplicate; ++i) {
     if (i == index)
       continue;
 
-    const std::string& existing_value = list[i].GetString();
-    is_duplicate = autofill::i18n::PhoneNumbersMatch(
-        base::UTF8ToUTF16(new_value), base::UTF8ToUTF16(existing_value),
-        country_code, app_locale);
+    base::string16 existing_value;
+    if (!list->GetString(i, &existing_value)) {
+      NOTREACHED() << "List should have a value at index " << i;
+      continue;
+    }
+    is_duplicate = autofill::i18n::PhoneNumbersMatch(new_value, existing_value,
+                                                     country_code, app_locale);
   }
 
   if (is_duplicate)
-    list.erase(list.begin() + index);
+    list->Remove(index, nullptr);
 }
 
 autofill::AutofillManager* GetAutofillManager(
@@ -145,7 +85,7 @@ autofill::AutofillManager* GetAutofillManager(
   }
   autofill::ContentAutofillDriver* autofill_driver =
       autofill::ContentAutofillDriverFactory::FromWebContents(web_contents)
-          ->DriverForFrame(web_contents->GetPrimaryMainFrame());
+          ->DriverForFrame(web_contents->GetMainFrame());
   if (!autofill_driver)
     return nullptr;
   return autofill_driver->autofill_manager();
@@ -160,12 +100,12 @@ namespace extensions {
 
 ExtensionFunction::ResponseAction AutofillPrivateSaveAddressFunction::Run() {
   std::unique_ptr<api::autofill_private::SaveAddress::Params> parameters =
-      api::autofill_private::SaveAddress::Params::Create(args());
+      api::autofill_private::SaveAddress::Params::Create(*args_);
   EXTENSION_FUNCTION_VALIDATE(parameters.get());
 
   autofill::PersonalDataManager* personal_data =
       autofill::PersonalDataManagerFactory::GetForProfile(
-          Profile::FromBrowserContext(browser_context()));
+          chrome_details_.GetProfile());
   if (!personal_data || !personal_data->IsDataLoaded())
     return RespondNow(Error(kErrorDataUnavailable));
 
@@ -193,12 +133,6 @@ ExtensionFunction::ResponseAction AutofillPrivateSaveAddressFunction::Run() {
     profile.SetInfoWithVerificationStatus(
         autofill::AutofillType(autofill::NAME_FULL),
         base::UTF8ToUTF16(full_name), g_browser_process->GetApplicationLocale(),
-        kUserVerified);
-  }
-
-  if (address->honorific) {
-    profile.SetRawInfoWithVerificationStatus(
-        autofill::NAME_HONORIFIC_PREFIX, base::UTF8ToUTF16(*address->honorific),
         kUserVerified);
   }
 
@@ -274,11 +208,10 @@ ExtensionFunction::ResponseAction AutofillPrivateSaveAddressFunction::Run() {
     profile.set_origin(kSettingsOrigin);
     personal_data->UpdateProfile(profile);
   } else {
-    profile.FinalizeAfterImport();
     personal_data->AddProfile(profile);
   }
 
-  return RespondNow(WithArguments());
+  return RespondNow(NoArguments());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -287,7 +220,7 @@ ExtensionFunction::ResponseAction AutofillPrivateSaveAddressFunction::Run() {
 ExtensionFunction::ResponseAction AutofillPrivateGetCountryListFunction::Run() {
   autofill::PersonalDataManager* personal_data =
       autofill::PersonalDataManagerFactory::GetForProfile(
-          Profile::FromBrowserContext(browser_context()));
+          chrome_details_.GetProfile());
 
   // Return an empty list if data is not loaded.
   if (!(personal_data && personal_data->IsDataLoaded())) {
@@ -310,34 +243,30 @@ ExtensionFunction::ResponseAction
 AutofillPrivateGetAddressComponentsFunction::Run() {
   std::unique_ptr<api::autofill_private::GetAddressComponents::Params>
       parameters =
-          api::autofill_private::GetAddressComponents::Params::Create(args());
+          api::autofill_private::GetAddressComponents::Params::Create(*args_);
   EXTENSION_FUNCTION_VALIDATE(parameters.get());
 
-  std::vector<std::vector<::i18n::addressinput::AddressUiComponent>> lines;
-  std::string language_code;
+  auto components = std::make_unique<base::ListValue>();
+  std::string language_code_;
 
-  autofill::GetAddressComponents(
-      parameters->country_code, g_browser_process->GetApplicationLocale(),
-      /*include_literals=*/false, &lines, &language_code);
-  // Convert std::vector<std::vector<::i18n::addressinput::AddressUiComponent>>
-  // to AddressComponents
-  base::Value::Dict address_components;
-  base::Value::List rows;
+  autofill::GetAddressComponents(parameters->country_code,
+                                 g_browser_process->GetApplicationLocale(),
+                                 components.get(), &language_code_);
 
-  for (auto& line : lines) {
-    base::Value::List row_values;
-    for (const ::i18n::addressinput::AddressUiComponent& component : line) {
-      row_values.Append(AddressUiComponentAsValueMap(component));
-    }
-    base::Value::Dict row;
-    row.Set("row", std::move(row_values));
+  // Convert ListValue to AddressComponents
+  base::Value address_components(base::Value::Type::DICTIONARY);
+  base::Value rows(base::Value::Type::LIST);
+
+  for (auto& component : components->GetList()) {
+    base::Value row(base::Value::Type::DICTIONARY);
+    row.SetKey("row", std::move(component));
     rows.Append(std::move(row));
   }
 
-  address_components.Set("components", std::move(rows));
-  address_components.Set("languageCode", language_code);
+  address_components.SetKey("components", std::move(rows));
+  address_components.SetKey("languageCode", base::Value(language_code_));
 
-  return RespondNow(WithArguments(std::move(address_components)));
+  return RespondNow(OneArgument(std::move(address_components)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -346,7 +275,7 @@ AutofillPrivateGetAddressComponentsFunction::Run() {
 ExtensionFunction::ResponseAction AutofillPrivateGetAddressListFunction::Run() {
   autofill::PersonalDataManager* personal_data =
       autofill::PersonalDataManagerFactory::GetForProfile(
-          Profile::FromBrowserContext(browser_context()));
+          chrome_details_.GetProfile());
 
   DCHECK(personal_data && personal_data->IsDataLoaded());
 
@@ -361,12 +290,12 @@ ExtensionFunction::ResponseAction AutofillPrivateGetAddressListFunction::Run() {
 
 ExtensionFunction::ResponseAction AutofillPrivateSaveCreditCardFunction::Run() {
   std::unique_ptr<api::autofill_private::SaveCreditCard::Params> parameters =
-      api::autofill_private::SaveCreditCard::Params::Create(args());
+      api::autofill_private::SaveCreditCard::Params::Create(*args_);
   EXTENSION_FUNCTION_VALIDATE(parameters.get());
 
   autofill::PersonalDataManager* personal_data =
       autofill::PersonalDataManagerFactory::GetForProfile(
-          Profile::FromBrowserContext(browser_context()));
+          chrome_details_.GetProfile());
   if (!personal_data || !personal_data->IsDataLoaded())
     return RespondNow(Error(kErrorDataUnavailable));
 
@@ -414,7 +343,7 @@ ExtensionFunction::ResponseAction AutofillPrivateSaveCreditCardFunction::Run() {
   if (use_existing_card) {
     // Only updates when the card info changes.
     if (existing_card && existing_card->Compare(credit_card) == 0)
-      return RespondNow(WithArguments());
+      return RespondNow(NoArguments());
 
     // Record when nickname is updated.
     if (credit_card.HasNonEmptyValidNickname() &&
@@ -434,7 +363,7 @@ ExtensionFunction::ResponseAction AutofillPrivateSaveCreditCardFunction::Run() {
     }
   }
 
-  return RespondNow(WithArguments());
+  return RespondNow(NoArguments());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -442,18 +371,18 @@ ExtensionFunction::ResponseAction AutofillPrivateSaveCreditCardFunction::Run() {
 
 ExtensionFunction::ResponseAction AutofillPrivateRemoveEntryFunction::Run() {
   std::unique_ptr<api::autofill_private::RemoveEntry::Params> parameters =
-      api::autofill_private::RemoveEntry::Params::Create(args());
+      api::autofill_private::RemoveEntry::Params::Create(*args_);
   EXTENSION_FUNCTION_VALIDATE(parameters.get());
 
   autofill::PersonalDataManager* personal_data =
       autofill::PersonalDataManagerFactory::GetForProfile(
-          Profile::FromBrowserContext(browser_context()));
+          chrome_details_.GetProfile());
   if (!personal_data || !personal_data->IsDataLoaded())
     return RespondNow(Error(kErrorDataUnavailable));
 
   personal_data->RemoveByGUID(parameters->guid);
 
-  return RespondNow(WithArguments());
+  return RespondNow(NoArguments());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -463,21 +392,20 @@ ExtensionFunction::ResponseAction
 AutofillPrivateValidatePhoneNumbersFunction::Run() {
   std::unique_ptr<api::autofill_private::ValidatePhoneNumbers::Params>
       parameters =
-          api::autofill_private::ValidatePhoneNumbers::Params::Create(args());
+          api::autofill_private::ValidatePhoneNumbers::Params::Create(*args_);
   EXTENSION_FUNCTION_VALIDATE(parameters.get());
 
   api::autofill_private::ValidatePhoneParams* params = &parameters->params;
 
   // Extract the phone numbers into a ListValue.
-  base::Value::List phone_numbers;
-  for (auto phone_number : params->phone_numbers) {
-    phone_numbers.Append(phone_number);
-  }
+  std::unique_ptr<base::ListValue> phone_numbers(new base::ListValue);
+  phone_numbers->AppendStrings(params->phone_numbers);
 
   RemoveDuplicatePhoneNumberAtIndex(params->index_of_new_number,
-                                    params->country_code, phone_numbers);
+                                    params->country_code, phone_numbers.get());
 
-  return RespondNow(WithArguments(std::move(phone_numbers)));
+  return RespondNow(
+      OneArgument(base::Value::FromUniquePtrValue(std::move(phone_numbers))));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -485,18 +413,18 @@ AutofillPrivateValidatePhoneNumbersFunction::Run() {
 
 ExtensionFunction::ResponseAction AutofillPrivateMaskCreditCardFunction::Run() {
   std::unique_ptr<api::autofill_private::MaskCreditCard::Params> parameters =
-      api::autofill_private::MaskCreditCard::Params::Create(args());
+      api::autofill_private::MaskCreditCard::Params::Create(*args_);
   EXTENSION_FUNCTION_VALIDATE(parameters.get());
 
   autofill::PersonalDataManager* personal_data =
       autofill::PersonalDataManagerFactory::GetForProfile(
-          Profile::FromBrowserContext(browser_context()));
+          chrome_details_.GetProfile());
   if (!personal_data || !personal_data->IsDataLoaded())
     return RespondNow(Error(kErrorDataUnavailable));
 
   personal_data->ResetFullServerCard(parameters->guid);
 
-  return RespondNow(WithArguments());
+  return RespondNow(NoArguments());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -506,7 +434,7 @@ ExtensionFunction::ResponseAction
 AutofillPrivateGetCreditCardListFunction::Run() {
   autofill::PersonalDataManager* personal_data =
       autofill::PersonalDataManagerFactory::GetForProfile(
-          Profile::FromBrowserContext(browser_context()));
+          chrome_details_.GetProfile());
 
   DCHECK(personal_data && personal_data->IsDataLoaded());
 
@@ -524,13 +452,12 @@ ExtensionFunction::ResponseAction
 AutofillPrivateMigrateCreditCardsFunction::Run() {
   autofill::PersonalDataManager* personal_data =
       autofill::PersonalDataManagerFactory::GetForProfile(
-          Profile::FromBrowserContext(browser_context()));
+          chrome_details_.GetProfile());
   if (!personal_data || !personal_data->IsDataLoaded())
     return RespondNow(Error(kErrorDataUnavailable));
 
-  // Get the BrowserAutofillManager from the web contents.
-  // BrowserAutofillManager has a pointer to its AutofillClient which owns
-  // FormDataImporter.
+  // Get the AutofillManager from the web contents. AutofillManager has a
+  // pointer to its AutofillClient which owns FormDataImporter.
   autofill::AutofillManager* autofill_manager =
       GetAutofillManager(GetSenderWebContents());
   if (!autofill_manager || !autofill_manager->client())
@@ -554,7 +481,7 @@ AutofillPrivateMigrateCreditCardsFunction::Run() {
   local_card_migration_manager->GetMigratableCreditCards();
   local_card_migration_manager->AttemptToOfferLocalCardMigration(
       /*is_from_settings_page=*/true);
-  return RespondNow(WithArguments());
+  return RespondNow(NoArguments());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -564,13 +491,13 @@ ExtensionFunction::ResponseAction
 AutofillPrivateLogServerCardLinkClickedFunction::Run() {
   autofill::PersonalDataManager* personal_data =
       autofill::PersonalDataManagerFactory::GetForProfile(
-          Profile::FromBrowserContext(browser_context()));
+          chrome_details_.GetProfile());
 
   if (!personal_data || !personal_data->IsDataLoaded())
     return RespondNow(Error(kErrorDataUnavailable));
 
   personal_data->LogServerCardLinkClicked();
-  return RespondNow(WithArguments());
+  return RespondNow(NoArguments());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -584,19 +511,19 @@ AutofillPrivateSetCreditCardFIDOAuthEnabledStateFunction::Run() {
   if (!autofill_manager)
     return RespondNow(Error(kErrorDataUnavailable));
   autofill::CreditCardAccessManager* credit_card_access_manager =
-      autofill_manager->GetCreditCardAccessManager();
+      autofill_manager->credit_card_access_manager();
   if (!credit_card_access_manager)
     return RespondNow(Error(kErrorDataUnavailable));
 
   std::unique_ptr<
       api::autofill_private::SetCreditCardFIDOAuthEnabledState::Params>
       parameters = api::autofill_private::SetCreditCardFIDOAuthEnabledState::
-          Params::Create(args());
+          Params::Create(*args_);
   EXTENSION_FUNCTION_VALIDATE(parameters.get());
 
   credit_card_access_manager->OnSettingsPageFIDOAuthToggled(
       parameters->enabled);
-  return RespondNow(WithArguments());
+  return RespondNow(NoArguments());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -605,94 +532,12 @@ AutofillPrivateSetCreditCardFIDOAuthEnabledStateFunction::Run() {
 ExtensionFunction::ResponseAction AutofillPrivateGetUpiIdListFunction::Run() {
   autofill::PersonalDataManager* personal_data =
       autofill::PersonalDataManagerFactory::GetForProfile(
-          Profile::FromBrowserContext(browser_context()));
+          chrome_details_.GetProfile());
   DCHECK(personal_data && personal_data->IsDataLoaded());
 
   return RespondNow(
       ArgumentList(api::autofill_private::GetUpiIdList::Results::Create(
           personal_data->GetUpiIds())));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// AutofillPrivateAddVirtualCardFunction
-
-ExtensionFunction::ResponseAction AutofillPrivateAddVirtualCardFunction::Run() {
-  std::unique_ptr<api::autofill_private::AddVirtualCard::Params> parameters =
-      api::autofill_private::AddVirtualCard::Params::Create(args());
-  EXTENSION_FUNCTION_VALIDATE(parameters.get());
-
-  // Get the PersonalDataManager to retrieve the card based on the id.
-  autofill::PersonalDataManager* personal_data_manager =
-      autofill::PersonalDataManagerFactory::GetForProfile(
-          Profile::FromBrowserContext(browser_context()));
-  if (!personal_data_manager || !personal_data_manager->IsDataLoaded())
-    return RespondNow(Error(kErrorDataUnavailable));
-
-  autofill::CreditCard* card =
-      personal_data_manager->GetCreditCardByServerId(parameters->card_id);
-  if (!card)
-    return RespondNow(Error(kErrorDataUnavailable));
-
-  autofill::AutofillManager* autofill_manager =
-      GetAutofillManager(GetSenderWebContents());
-  if (!autofill_manager || !autofill_manager->client() ||
-      !autofill_manager->client()->GetFormDataImporter() ||
-      !autofill_manager->client()
-           ->GetFormDataImporter()
-           ->GetVirtualCardEnrollmentManager()) {
-    return RespondNow(Error(kErrorDataUnavailable));
-  }
-
-  autofill::VirtualCardEnrollmentManager* virtual_card_enrollment_manager =
-      autofill_manager->client()
-          ->GetFormDataImporter()
-          ->GetVirtualCardEnrollmentManager();
-
-  virtual_card_enrollment_manager->InitVirtualCardEnroll(
-      *card, autofill::VirtualCardEnrollmentSource::kSettingsPage);
-  return RespondNow(WithArguments());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// AutofillPrivateRemoveVirtualCardFunction
-
-ExtensionFunction::ResponseAction
-AutofillPrivateRemoveVirtualCardFunction::Run() {
-  std::unique_ptr<api::autofill_private::RemoveVirtualCard::Params> parameters =
-      api::autofill_private::RemoveVirtualCard::Params::Create(args());
-  EXTENSION_FUNCTION_VALIDATE(parameters.get());
-
-  // Get the PersonalDataManager to retrieve the card based on the id.
-  autofill::PersonalDataManager* personal_data_manager =
-      autofill::PersonalDataManagerFactory::GetForProfile(
-          Profile::FromBrowserContext(browser_context()));
-  if (!personal_data_manager || !personal_data_manager->IsDataLoaded())
-    return RespondNow(Error(kErrorDataUnavailable));
-
-  autofill::CreditCard* card =
-      personal_data_manager->GetCreditCardByServerId(parameters->card_id);
-  if (!card)
-    return RespondNow(Error(kErrorDataUnavailable));
-
-  autofill::AutofillManager* autofill_manager =
-      GetAutofillManager(GetSenderWebContents());
-  if (!autofill_manager || !autofill_manager->client() ||
-      !autofill_manager->client()->GetFormDataImporter() ||
-      !autofill_manager->client()
-           ->GetFormDataImporter()
-           ->GetVirtualCardEnrollmentManager()) {
-    return RespondNow(Error(kErrorDataUnavailable));
-  }
-
-  autofill::VirtualCardEnrollmentManager* virtual_card_enrollment_manager =
-      autofill_manager->client()
-          ->GetFormDataImporter()
-          ->GetVirtualCardEnrollmentManager();
-
-  virtual_card_enrollment_manager->Unenroll(
-      card->instrument_id(),
-      /*virtual_card_enrollment_update_response_callback=*/absl::nullopt);
-  return RespondNow(WithArguments());
 }
 
 }  // namespace extensions

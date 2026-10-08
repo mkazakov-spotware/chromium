@@ -1,24 +1,24 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <Foundation/Foundation.h>
 
-#import "ios/chrome/browser/crash_report/crash_reporter_url_observer.h"
+#include "ios/chrome/browser/crash_report/crash_reporter_url_observer.h"
 
-#import "base/strings/sys_string_conversions.h"
-#import "base/test/task_environment.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/test/task_environment.h"
+#include "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
 #import "ios/chrome/browser/web_state_list/fake_web_state_list_delegate.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/web_state_list/web_state_opener.h"
 #import "ios/web/public/navigation/navigation_item.h"
 #import "ios/web/public/test/fakes/fake_navigation_context.h"
-#import "ios/web/public/test/fakes/fake_navigation_manager.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "testing/gtest_mac.h"
-#import "testing/platform_test.h"
+#import "ios/web/public/test/fakes/test_navigation_manager.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "testing/gtest_mac.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -26,14 +26,14 @@
 
 namespace {
 
-class FakeWebState : public web::FakeWebState {
+class TestWebState : public web::TestWebState {
  public:
   void LoadURL(const GURL& url) {
     SetCurrentURL(url);
     web::FakeNavigationContext context;
     context.SetUrl(url);
-    web::FakeNavigationManager* navigation_manager =
-        static_cast<web::FakeNavigationManager*>(GetNavigationManager());
+    web::TestNavigationManager* navigation_manager =
+        static_cast<web::TestNavigationManager*>(GetNavigationManager());
     navigation_manager->SetPendingItem(nullptr);
     pending_item_.reset();
     OnNavigationFinished(&context);
@@ -43,8 +43,8 @@ class FakeWebState : public web::FakeWebState {
     SetCurrentURL(url);
     web::FakeNavigationContext context;
     context.SetUrl(url);
-    web::FakeNavigationManager* navigation_manager =
-        static_cast<web::FakeNavigationManager*>(GetNavigationManager());
+    web::TestNavigationManager* navigation_manager =
+        static_cast<web::TestNavigationManager*>(GetNavigationManager());
     DCHECK(!pending_item_);
     pending_item_ = web::NavigationItem::Create();
     pending_item_->SetURL(url);
@@ -55,11 +55,6 @@ class FakeWebState : public web::FakeWebState {
  private:
   std::unique_ptr<web::NavigationItem> pending_item_;
 };
-
-NSString* NumberToKey(NSNumber* number, bool pending) {
-  return [NSString stringWithFormat:@"url%d%@", number.intValue,
-                                    pending ? @"-pending" : @""];
-}
 
 }  // namespace
 
@@ -77,15 +72,11 @@ NSString* NumberToKey(NSNumber* number, bool pending) {
   return self;
 }
 
-- (void)removeReportParameter:(NSNumber*)number pending:(BOOL)pending {
-  NSString* key = NumberToKey(number, pending);
+- (void)removeReportParameter:(NSString*)key {
   [_params removeObjectForKey:key];
 }
 
-- (void)setReportParameterURL:(const GURL&)URL
-                       forKey:(NSNumber*)number
-                      pending:(BOOL)pending {
-  NSString* key = NumberToKey(number, pending);
+- (void)setReportParameterURL:(const GURL&)URL forKey:(NSString*)key {
   [_params setObject:base::SysUTF8ToNSString(URL.spec()) forKey:key];
 }
 
@@ -100,23 +91,25 @@ class CrashReporterURLObserverTest : public PlatformTest {
     observer_ = std::make_unique<CrashReporterURLObserver>(params_);
   }
 
-  FakeWebState* CreateWebState(WebStateList* web_state_list) {
-    auto test_web_state = std::make_unique<FakeWebState>();
+  TestWebState* CreateWebState(WebStateList* web_state_list) {
+    std::unique_ptr<TestWebState> test_web_state =
+        std::make_unique<TestWebState>();
     test_web_state->SetBrowserState(test_chrome_browser_state_.get());
     test_web_state->SetNavigationManager(
-        std::make_unique<web::FakeNavigationManager>());
-    FakeWebState* test_web_state_ptr = test_web_state.get();
+        std::make_unique<web::TestNavigationManager>());
+    TestWebState* test_web_state_ptr = test_web_state.get();
     web_state_list->InsertWebState(0, std::move(test_web_state),
                                    WebStateList::INSERT_NO_FLAGS,
                                    WebStateOpener());
     return test_web_state_ptr;
   }
 
-  std::unique_ptr<FakeWebState> CreatePreloadWebState() {
-    auto test_web_state = std::make_unique<FakeWebState>();
+  std::unique_ptr<TestWebState> CreatePreloadWebState() {
+    std::unique_ptr<TestWebState> test_web_state =
+        std::make_unique<TestWebState>();
     test_web_state->SetBrowserState(test_chrome_browser_state_.get());
     test_web_state->SetNavigationManager(
-        std::make_unique<web::FakeNavigationManager>());
+        std::make_unique<web::TestNavigationManager>());
     observer_->ObservePreloadWebState(test_web_state.get());
     return test_web_state;
   }
@@ -144,12 +137,12 @@ TEST_F(CrashReporterURLObserverTest, TestBasicBehaviors) {
   WebStateList web_state_list_5(&web_state_list_delegate_);
   observer_->ObserveWebStateList(&web_state_list_5);
 
-  FakeWebState* web_state_11 = CreateWebState(&web_state_list_1);
-  FakeWebState* web_state_12 = CreateWebState(&web_state_list_1);
-  FakeWebState* web_state_21 = CreateWebState(&web_state_list_2);
-  FakeWebState* web_state_31 = CreateWebState(&web_state_list_3);
-  FakeWebState* web_state_41 = CreateWebState(&web_state_list_4);
-  FakeWebState* web_state_51 = CreateWebState(&web_state_list_5);
+  TestWebState* web_state_11 = CreateWebState(&web_state_list_1);
+  TestWebState* web_state_12 = CreateWebState(&web_state_list_1);
+  TestWebState* web_state_21 = CreateWebState(&web_state_list_2);
+  TestWebState* web_state_31 = CreateWebState(&web_state_list_3);
+  TestWebState* web_state_41 = CreateWebState(&web_state_list_4);
+  TestWebState* web_state_51 = CreateWebState(&web_state_list_5);
 
   // Load in every group in turn. The last 3 should be reported.
   web_state_11->LoadURL(GURL("http://example11.test/"));
@@ -353,8 +346,8 @@ TEST_F(CrashReporterURLObserverTest, TestBasicBehaviors) {
   };
   EXPECT_NSEQ(expected, params_.params);
 
-  auto preload_web_state = CreatePreloadWebState();
-  FakeWebState* preload_web_state_ptr = preload_web_state.get();
+  std::unique_ptr<TestWebState> preload_web_state = CreatePreloadWebState();
+  TestWebState* preload_web_state_ptr = preload_web_state.get();
   expected = @{
     @"url0" : @"http://example14.test/",
     @"url1" : @"http://example33.test/",

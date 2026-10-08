@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,11 +14,6 @@ class ExclusiveAccessBubbleViewsTest : public ExclusiveAccessTest,
                                        public views::WidgetObserver {
  public:
   ExclusiveAccessBubbleViewsTest() {}
-
-  ExclusiveAccessBubbleViewsTest(const ExclusiveAccessBubbleViewsTest&) =
-      delete;
-  ExclusiveAccessBubbleViewsTest& operator=(
-      const ExclusiveAccessBubbleViewsTest&) = delete;
 
   ExclusiveAccessBubbleViews* bubble() {
     BrowserView* browser_view =
@@ -36,6 +31,9 @@ class ExclusiveAccessBubbleViewsTest : public ExclusiveAccessTest,
  protected:
   bool was_destroying_ = false;
   bool was_observing_in_destroying_ = false;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ExclusiveAccessBubbleViewsTest);
 };
 
 // Simulate obscure codepaths resulting in the bubble Widget being closed before

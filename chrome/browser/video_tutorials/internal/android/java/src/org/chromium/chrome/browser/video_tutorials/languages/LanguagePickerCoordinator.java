@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.video_tutorials.languages;
 import android.content.Context;
 import android.view.View;
 
-import org.chromium.chrome.browser.video_tutorials.FeatureType;
 import org.chromium.chrome.browser.video_tutorials.LanguageInfoProvider;
 import org.chromium.chrome.browser.video_tutorials.VideoTutorialService;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
@@ -42,13 +41,11 @@ public class LanguagePickerCoordinator {
 
     /**
      * Called to open the language picker UI.
-     * @param feature The tutorial for which the language options will be shown.
      * @param doneCallback The callback to be invoked when the watch button is clicked.
      * @param closeCallback The callback to be invoked when the close button is clicked.
      */
-    public void showLanguagePicker(
-            @FeatureType int feature, Runnable doneCallback, Runnable closeCallback) {
-        mMediator.showLanguagePicker(feature, doneCallback, closeCallback);
+    public void showLanguagePicker(Runnable doneCallback, Runnable closeCallback) {
+        mMediator.showLanguagePicker(doneCallback, closeCallback);
     }
 
     /** @return A {@link View} representing this coordinator. */

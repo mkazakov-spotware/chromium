@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,9 @@
 
 #import <UIKit/UIKit.h>
 
-#import "base/power_monitor/power_monitor_features.h"
-
 namespace base {
 
-bool PowerMonitorDeviceSource::IsOnBatteryPower() {
+bool PowerMonitorDeviceSource::IsOnBatteryPowerImpl() {
 #if TARGET_IPHONE_SIMULATOR
   return false;
 #else
@@ -25,10 +23,6 @@ bool PowerMonitorDeviceSource::IsOnBatteryPower() {
 }
 
 void PowerMonitorDeviceSource::PlatformInit() {
-  if (FeatureList::IsEnabled(kRemoveIOSPowerEventNotifications)) {
-    return;
-  }
-
   NSNotificationCenter* nc = [NSNotificationCenter defaultCenter];
   id foreground =
       [nc addObserverForName:UIApplicationWillEnterForegroundNotification

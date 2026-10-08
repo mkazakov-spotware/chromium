@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@
 #include "chrome/test/base/testing_profile.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-using PinnedTabCodecTest = BrowserWithTestWindowTest;
+typedef BrowserWithTestWindowTest PinnedTabCodecTest;
 
 // Make sure nothing is restored when the browser has no pinned tabs.
 TEST_F(PinnedTabCodecTest, NoPinnedTabs) {

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_CSS_PROPERTIES_LONGHANDS_VARIABLE_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_PROPERTIES_LONGHANDS_VARIABLE_H_
 
-#include "base/notreached.h"
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/properties/longhand.h"
 
 namespace blink {
@@ -37,8 +35,7 @@ class CORE_EXPORT Variable : public Longhand {
  protected:
   explicit constexpr Variable(CSSProperty::Flags flags)
       : Longhand(CSSPropertyID::kVariable,
-                 kProperty | kValidForFirstLetter | kValidForFirstLine |
-                     kValidForMarker | kValidForHighlightLegacy |
+                 kProperty | kValidForFirstLetter | kValidForMarker |
                      kValidForHighlight | flags,
                  '\0') {}
 };

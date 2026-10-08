@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "chromecast/media/api/decoder_buffer_base.h"
 #include "chromecast/media/cma/test/frame_generator_for_test.h"
@@ -45,13 +46,13 @@ void MockFrameProvider::Read(ReadCB read_cb) {
   pattern_idx_ = (pattern_idx_ + 1) % delayed_task_pattern_.size();
 
   if (delayed) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&MockFrameProvider::DoRead, base::Unretained(this),
                        std::move(read_cb)),
-        base::Milliseconds(1));
+        base::TimeDelta::FromMilliseconds(1));
   } else {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&MockFrameProvider::DoRead,
                                   base::Unretained(this), std::move(read_cb)));
   }
@@ -59,8 +60,8 @@ void MockFrameProvider::Read(ReadCB read_cb) {
 
 void MockFrameProvider::Flush(base::OnceClosure flush_cb) {
   if (delay_flush_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-        FROM_HERE, std::move(flush_cb), base::Milliseconds(10));
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+        FROM_HERE, std::move(flush_cb), base::TimeDelta::FromMilliseconds(10));
   } else {
     std::move(flush_cb).Run();
   }
@@ -79,14 +80,14 @@ void MockFrameProvider::DoRead(ReadCB read_cb) {
     gfx::Rect visible_rect(640, 480);
     gfx::Size natural_size(640, 480);
     video_config = ::media::VideoDecoderConfig(
-        ::media::VideoCodec::kH264, ::media::VIDEO_CODEC_PROFILE_UNKNOWN,
+        ::media::kCodecH264, ::media::VIDEO_CODEC_PROFILE_UNKNOWN,
         ::media::VideoDecoderConfig::AlphaMode::kIsOpaque,
         ::media::VideoColorSpace(), ::media::kNoTransformation, coded_size,
         visible_rect, natural_size, ::media::EmptyExtraData(),
         ::media::EncryptionScheme::kUnencrypted);
 
     audio_config = ::media::AudioDecoderConfig(
-        ::media::AudioCodec::kAAC, ::media::kSampleFormatS16,
+        ::media::kCodecAAC, ::media::kSampleFormatS16,
         ::media::CHANNEL_LAYOUT_STEREO, 44100, ::media::EmptyExtraData(),
         ::media::EncryptionScheme::kUnencrypted);
   }

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 #include <memory>
 
 #include "base/base64.h"
+#include "chrome/browser/web_applications/components/web_app_helpers.h"
 #include "chrome/browser/web_applications/proto/web_app.pb.h"
 #include "chrome/browser/web_applications/web_app.h"
-#include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -57,14 +57,13 @@ TEST(WebAppProtoUtilsTest, M85SpecificsProtoParse) {
   EXPECT_EQ(sync_pb::WebAppSpecifics::BROWSER, sync_proto.user_display_mode());
 
   // Check the fields were parsed into the web app struct.
-  absl::optional<WebApp::SyncFallbackData> fallback_data =
+  base::Optional<WebApp::SyncFallbackData> fallback_data =
       ParseSyncFallbackDataStruct(sync_proto);
   ASSERT_TRUE(fallback_data.has_value());
   EXPECT_EQ(kAppName, fallback_data->name);
   ASSERT_EQ(1u, fallback_data->icon_infos.size());
   EXPECT_EQ(kIconUrl, fallback_data->icon_infos[0].url.spec());
-  EXPECT_EQ(apps::IconInfo::Purpose::kAny,
-            fallback_data->icon_infos[0].purpose);
+  EXPECT_EQ(Purpose::ANY, fallback_data->icon_infos[0].purpose);
 }
 
 // Test that a minimal M85 proto (ie. only fields that would always be set in
@@ -78,7 +77,7 @@ TEST(WebAppProtoUtilsTest, M85SpecificsProtoToWebApp_Minimal) {
   sync_proto.set_user_display_mode(sync_pb::WebAppSpecifics::BROWSER);
 
   // Parse the proto.
-  absl::optional<WebApp::SyncFallbackData> fallback_data =
+  base::Optional<WebApp::SyncFallbackData> fallback_data =
       ParseSyncFallbackDataStruct(sync_proto);
 
   // Check the fields were parsed.
@@ -109,7 +108,7 @@ TEST(WebAppProtoUtilsTest, M85SpecificsProtoToWebApp_FullyPopulated) {
   icon_info_2->set_purpose(sync_pb::WebAppIconInfo_Purpose_MASKABLE);
 
   // Parse the proto.
-  absl::optional<WebApp::SyncFallbackData> fallback_data =
+  base::Optional<WebApp::SyncFallbackData> fallback_data =
       ParseSyncFallbackDataStruct(sync_proto);
 
   // Check the fields were parsed.
@@ -120,12 +119,10 @@ TEST(WebAppProtoUtilsTest, M85SpecificsProtoToWebApp_FullyPopulated) {
   ASSERT_EQ(2u, fallback_data->icon_infos.size());
   EXPECT_EQ(kIconUrl, fallback_data->icon_infos[0].url.spec());
   EXPECT_EQ(kIconSizePx, fallback_data->icon_infos[0].square_size_px);
-  EXPECT_EQ(apps::IconInfo::Purpose::kAny,
-            fallback_data->icon_infos[0].purpose);
+  EXPECT_EQ(Purpose::ANY, fallback_data->icon_infos[0].purpose);
   EXPECT_EQ(kIconUrl, fallback_data->icon_infos[1].url.spec());
   EXPECT_EQ(kIconSizePx, fallback_data->icon_infos[1].square_size_px);
-  EXPECT_EQ(apps::IconInfo::Purpose::kMaskable,
-            fallback_data->icon_infos[1].purpose);
+  EXPECT_EQ(Purpose::MASKABLE, fallback_data->icon_infos[1].purpose);
 }
 
 TEST(WebAppProtoUtilsTest, RunOnOsLoginModes) {
@@ -135,12 +132,9 @@ TEST(WebAppProtoUtilsTest, RunOnOsLoginModes) {
   mode = ToRunOnOsLoginMode(WebAppProto::WINDOWED);
   EXPECT_EQ(RunOnOsLoginMode::kWindowed, mode);
 
-  mode = ToRunOnOsLoginMode(WebAppProto::NOT_RUN);
-  EXPECT_EQ(RunOnOsLoginMode::kNotRun, mode);
-
-  // Any other value should return kNotRun.
+  // Any value other than Windowed and Minimized should return kUndefined,
   mode = ToRunOnOsLoginMode(static_cast<WebAppProto::RunOnOsLoginMode>(0xCAFE));
-  EXPECT_EQ(RunOnOsLoginMode::kNotRun, mode);
+  EXPECT_EQ(RunOnOsLoginMode::kUndefined, mode);
 
   WebAppProto::RunOnOsLoginMode proto_mode =
       ToWebAppProtoRunOnOsLoginMode(RunOnOsLoginMode::kWindowed);
@@ -148,9 +142,6 @@ TEST(WebAppProtoUtilsTest, RunOnOsLoginModes) {
 
   proto_mode = ToWebAppProtoRunOnOsLoginMode(RunOnOsLoginMode::kMinimized);
   EXPECT_EQ(WebAppProto::MINIMIZED, proto_mode);
-
-  proto_mode = ToWebAppProtoRunOnOsLoginMode(RunOnOsLoginMode::kNotRun);
-  EXPECT_EQ(WebAppProto::NOT_RUN, proto_mode);
 }
 
 }  // namespace web_app

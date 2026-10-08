@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,6 +20,7 @@
 #include <map>
 #include <memory>
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "net/base/host_port_pair.h"
@@ -105,7 +106,7 @@ class Referrer : public SubresourceMap {
   void SuggestHost(const GURL& url);
 
   // Provide methods for persisting, and restoring contents into a Value class.
-  std::unique_ptr<base::Value::List> Serialize() const;
+  std::unique_ptr<base::ListValue> Serialize() const;
   void Deserialize(const base::Value& referrers);
 
  private:

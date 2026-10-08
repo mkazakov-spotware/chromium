@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,6 @@
 #include "components/error_page/common/net_error_info.h"
 #include "components/security_interstitials/content/renderer/security_interstitial_page_controller.h"
 #include "components/security_interstitials/core/controller_client.h"
-#include "content/public/common/alternative_error_page_override_info.mojom-forward.h"
 #include "content/public/renderer/render_frame_observer.h"
 #include "content/public/renderer/render_frame_observer_tracker.h"
 #include "mojo/public/cpp/bindings/associated_receiver_set.h"
@@ -73,11 +72,13 @@ class NetErrorHelper
   // loaded immediately.
   void PrepareErrorPage(const error_page::Error& error,
                         bool is_failed_post,
-                        content::mojom::AlternativeErrorPageOverrideInfoPtr
-                            alternative_error_page_info,
                         std::string* error_html);
 
  private:
+  // Returns ResourceRequest filled with |url|. It has request_initiator from
+  // the frame origin and origin header with "null" for a unique origin.
+  std::unique_ptr<network::ResourceRequest> CreatePostRequest(
+      const GURL& url) const;
   chrome::mojom::NetworkDiagnostics* GetRemoteNetworkDiagnostics();
   chrome::mojom::NetworkEasterEgg* GetRemoteNetworkEasterEgg();
   chrome::mojom::NetErrorPageSupport* GetRemoteNetErrorPageSupport();
@@ -87,8 +88,6 @@ class NetErrorHelper
       const error_page::Error& error,
       bool is_failed_post,
       bool can_use_local_diagnostics_service,
-      content::mojom::AlternativeErrorPageOverrideInfoPtr
-          alternative_error_page_info,
       std::string* html) const override;
 
   void EnablePageHelperFunctions() override;
@@ -107,7 +106,7 @@ class NetErrorHelper
       const std::string& offline_content_json) override;
   content::RenderFrame* GetRenderFrame() override;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   void SetAutoFetchState(
       chrome::mojom::OfflinePageAutoFetcherScheduleResult state) override;
 #endif

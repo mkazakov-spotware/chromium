@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -65,10 +65,11 @@ def _rewrite_namespaces(string, namespace_rewrites):
 
 def ProcessFile(filename, out_folder, namespace_rewrites):
   # Gather indices of lines to be removed.
-  indices_to_remove = []
+  indices_to_remove = [];
+  renames = {}
 
   with io.open(filename, encoding='utf-8', mode='r') as f:
-    lines = f.readlines()
+    lines = f.readlines();
     ignore_remaining_lines = False
     cr_define_start_index = -1
     cr_define_end_index = -1

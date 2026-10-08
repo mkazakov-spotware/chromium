@@ -1,10 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/process/process_metrics.h"
 
-#include <AvailabilityMacros.h>
 #include <libproc.h>
 #include <mach/mach.h>
 #include <mach/mach_time.h>
@@ -153,7 +152,7 @@ TimeDelta ProcessMetrics::GetCumulativeCPUUsage() {
   timeradd(&user_timeval, &task_timeval, &task_timeval);
   timeradd(&system_timeval, &task_timeval, &task_timeval);
 
-  return Microseconds(TimeValToMicroseconds(task_timeval));
+  return TimeDelta::FromMicroseconds(TimeValToMicroseconds(task_timeval));
 }
 
 int ProcessMetrics::GetPackageIdleWakeupsPerSecond() {
@@ -227,15 +226,15 @@ int ProcessMetrics::GetOpenFdCount() const {
   if (rv < 0)
     return -1;
 
-  std::unique_ptr<char[]> buffer(new char[static_cast<size_t>(rv)]);
+  std::unique_ptr<char[]> buffer(new char[rv]);
   rv = proc_pidinfo(process_, PROC_PIDLISTFDS, 0, buffer.get(), rv);
   if (rv < 0)
     return -1;
-  return static_cast<int>(static_cast<unsigned long>(rv) / PROC_PIDLISTFD_SIZE);
+  return rv / PROC_PIDLISTFD_SIZE;
 }
 
 int ProcessMetrics::GetOpenFdSoftLimit() const {
-  return checked_cast<int>(GetMaxFds());
+  return GetMaxFds();
 }
 
 bool ProcessMetrics::GetIOCounters(IoCounters* io_counters) const {
@@ -297,10 +296,8 @@ bool GetSystemMemoryInfo(SystemMemoryInfoKB* meminfo) {
   }
   DCHECK_EQ(HOST_VM_INFO64_COUNT, count);
 
-#if defined(ARCH_CPU_ARM64) || \
-    MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_16
-  // PAGE_SIZE is vm_page_size on arm or for deployment targets >= 10.16,
-  // and vm_page_size isn't constexpr.
+#if defined(ARCH_CPU_ARM64)
+  // PAGE_SIZE is vm_page_size on arm, which isn't constexpr.
   DCHECK_EQ(PAGE_SIZE % 1024, 0u) << "Invalid page size";
 #else
   static_assert(PAGE_SIZE % 1024 == 0, "Invalid page size");
@@ -324,14 +321,14 @@ MachVMRegionResult GetTopInfo(mach_port_t task,
                               mach_vm_address_t* address,
                               vm_region_top_info_data_t* info) {
   mach_msg_type_number_t info_count = VM_REGION_TOP_INFO_COUNT;
+  mach_port_t object_name;
+  kern_return_t kr = mach_vm_region(task, address, size, VM_REGION_TOP_INFO,
+                                    reinterpret_cast<vm_region_info_t>(info),
+                                    &info_count, &object_name);
   // The kernel always returns a null object for VM_REGION_TOP_INFO, but
   // balance it with a deallocate in case this ever changes. See 10.9.2
   // xnu-2422.90.20/osfmk/vm/vm_map.c vm_map_region.
-  mac::ScopedMachSendRight object_name;
-  kern_return_t kr =
-      mach_vm_region(task, address, size, VM_REGION_TOP_INFO,
-                     reinterpret_cast<vm_region_info_t>(info), &info_count,
-                     mac::ScopedMachSendRight::Receiver(object_name).get());
+  mach_port_deallocate(task, object_name);
   return ParseOutputFromMachVMRegion(kr);
 }
 
@@ -340,14 +337,14 @@ MachVMRegionResult GetBasicInfo(mach_port_t task,
                                 mach_vm_address_t* address,
                                 vm_region_basic_info_64* info) {
   mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;
+  mach_port_t object_name;
+  kern_return_t kr = mach_vm_region(
+      task, address, size, VM_REGION_BASIC_INFO_64,
+      reinterpret_cast<vm_region_info_t>(info), &info_count, &object_name);
   // The kernel always returns a null object for VM_REGION_BASIC_INFO_64, but
   // balance it with a deallocate in case this ever changes. See 10.9.2
   // xnu-2422.90.20/osfmk/vm/vm_map.c vm_map_region.
-  mac::ScopedMachSendRight object_name;
-  kern_return_t kr =
-      mach_vm_region(task, address, size, VM_REGION_BASIC_INFO_64,
-                     reinterpret_cast<vm_region_info_t>(info), &info_count,
-                     mac::ScopedMachSendRight::Receiver(object_name).get());
+  mach_port_deallocate(task, object_name);
   return ParseOutputFromMachVMRegion(kr);
 }
 

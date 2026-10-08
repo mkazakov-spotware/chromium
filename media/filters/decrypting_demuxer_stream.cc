@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 #include "base/callback_helpers.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/sequenced_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/trace_event/trace_event.h"
 #include "media/base/bind_to_current_loop.h"
 #include "media/base/cdm_context.h"
@@ -133,7 +133,7 @@ DemuxerStream::Type DecryptingDemuxerStream::type() const {
   return demuxer_stream_->type();
 }
 
-StreamLiveness DecryptingDemuxerStream::liveness() const {
+DemuxerStream::Liveness DecryptingDemuxerStream::liveness() const {
   DCHECK(state_ != kUninitialized) << state_;
   return demuxer_stream_->liveness();
 }
@@ -144,10 +144,6 @@ void DecryptingDemuxerStream::EnableBitstreamConverter() {
 
 bool DecryptingDemuxerStream::SupportsConfigChanges() {
   return demuxer_stream_->SupportsConfigChanges();
-}
-
-bool DecryptingDemuxerStream::HasClearLead() const {
-  return has_clear_lead_.value_or(false);
 }
 
 DecryptingDemuxerStream::~DecryptingDemuxerStream() {
@@ -225,11 +221,6 @@ void DecryptingDemuxerStream::OnBufferReadFromDemuxerStream(
     state_ = kIdle;
     std::move(read_cb_).Run(kOk, std::move(buffer));
     return;
-  }
-
-  // One time set of `has_clear_lead_`.
-  if (!has_clear_lead_.has_value()) {
-    has_clear_lead_ = !buffer->decrypt_config();
   }
 
   if (!buffer->decrypt_config()) {
@@ -394,15 +385,6 @@ void DecryptingDemuxerStream::InitializeDecoderConfig() {
       NOTREACHED();
       return;
   }
-  LogMetadata();
-}
-
-void DecryptingDemuxerStream::LogMetadata() {
-  std::vector<AudioDecoderConfig> audio_metadata{audio_config_};
-  std::vector<VideoDecoderConfig> video_metadata{video_config_};
-  media_log_->SetProperty<MediaLogProperty::kAudioTracks>(audio_metadata);
-  media_log_->SetProperty<MediaLogProperty::kVideoTracks>(video_metadata);
-  // FFmpegDemuxer also provides a max diration, start time, and bitrate.
 }
 
 void DecryptingDemuxerStream::CompletePendingDecrypt(Decryptor::Status status) {

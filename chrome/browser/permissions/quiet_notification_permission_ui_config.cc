@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -76,9 +76,9 @@ bool QuietNotificationPermissionUiConfig::IsAdaptiveActivationDryRunEnabled() {
 base::TimeDelta
 QuietNotificationPermissionUiConfig::GetAdaptiveActivationWindowSize() {
   if (!base::FeatureList::IsEnabled(features::kQuietNotificationPrompts))
-    return base::Days(90);
+    return base::TimeDelta::FromDays(90);
 
-  return base::Days(base::GetFieldTrialParamByFeatureAsInt(
+  return base::TimeDelta::FromDays(base::GetFieldTrialParamByFeatureAsInt(
       features::kQuietNotificationPrompts,
       kAdaptiveActivationActionWindowSizeInDays, 90 /* default */));
 }
@@ -90,13 +90,13 @@ bool QuietNotificationPermissionUiConfig::IsCrowdDenyTriggeringEnabled() {
 
   return base::GetFieldTrialParamByFeatureAsBool(
       features::kQuietNotificationPrompts, kEnableCrowdDenyTriggering,
-      true /* default */);
+      false /* default */);
 }
 
 // static
 double QuietNotificationPermissionUiConfig::GetCrowdDenyHoldBackChance() {
   return base::GetFieldTrialParamByFeatureAsDouble(
-      features::kQuietNotificationPrompts, kCrowdDenyHoldBackChance, 0.3);
+      features::kQuietNotificationPrompts, kCrowdDenyHoldBackChance, 0);
 }
 
 // static
@@ -115,7 +115,7 @@ bool QuietNotificationPermissionUiConfig::IsAbusiveRequestBlockingEnabled() {
 
   return base::GetFieldTrialParamByFeatureAsBool(
       features::kQuietNotificationPrompts, kEnableAbusiveRequestBlocking,
-      true /* default */);
+      false /* default */);
 }
 
 // static
@@ -125,7 +125,7 @@ bool QuietNotificationPermissionUiConfig::IsAbusiveRequestWarningEnabled() {
 
   return base::GetFieldTrialParamByFeatureAsBool(
       features::kQuietNotificationPrompts, kEnableAbusiveRequestWarning,
-      true /* default */);
+      false /* default */);
 }
 
 // static
@@ -136,7 +136,7 @@ bool QuietNotificationPermissionUiConfig::
 
   return base::GetFieldTrialParamByFeatureAsBool(
       features::kQuietNotificationPrompts,
-      kEnableAbusiveContentTriggeredRequestBlocking, true /* default */);
+      kEnableAbusiveContentTriggeredRequestBlocking, false /* default */);
 }
 
 // static
@@ -147,13 +147,5 @@ bool QuietNotificationPermissionUiConfig::
 
   return base::GetFieldTrialParamByFeatureAsBool(
       features::kQuietNotificationPrompts,
-      kEnableAbusiveContentTriggeredRequestWarning, true /* default */);
-}
-
-// static
-bool QuietNotificationPermissionUiConfig::
-    IsDisruptiveBehaviorRequestBlockingEnabled() {
-  return base::FeatureList::IsEnabled(features::kQuietNotificationPrompts) &&
-         base::FeatureList::IsEnabled(
-             features::kDisruptiveNotificationPermissionRevocation);
+      kEnableAbusiveContentTriggeredRequestWarning, false /* default */);
 }

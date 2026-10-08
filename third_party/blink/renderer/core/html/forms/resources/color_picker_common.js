@@ -1,18 +1,15 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (C) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-const global = {
-  argumentsReceived: false,
-  params: null
-};
+var global = {argumentsReceived: false, params: null};
 
 // DefaultColor is used by ColorPicker when selectedColor is not provided.
-const DefaultColor = '#000000';
+var DefaultColor = '#000000';
 
 // DefaultColorPalette is used by ColorSuggestionPicker when the list of values
 // is empty.
-const DefaultColorPalette = [
+var DefaultColorPalette = [
   '#000000', '#404040', '#808080', '#c0c0c0', '#ffffff', '#980000', '#ff0000',
   '#ff9900', '#ffff00', '#00ff00', '#00ffff', '#4a86e8', '#0000ff', '#9900ff',
   '#ff00ff'
@@ -39,10 +36,13 @@ if (window.dialogArguments) {
  */
 function initialize(args) {
   global.params = args;
-  const main = $('main');
+  var main = $('main');
   main.innerHTML = '';
-  let errorString;
+  var errorString;
   if (global.params.shouldShowColorSuggestionPicker) {
+    if (global.params.isFormControlsRefreshEnabled) {
+      document.body.classList.add('controls-refresh');
+    }
     main.classList.add('color-suggestion-picker-main');
     if (global.params.isBorderTransparent) {
       main.style.borderColor = 'transparent';
@@ -70,7 +70,7 @@ function handleArgumentsTimeout() {
   // When an argument timeout happens, we do not have enough information to
   // determine whether to show the color picker or color suggestion picker.
   // In this case, we just choose to show the color suggestion picker.
-  const args = {
+  var args = {
     values: DefaultColorPalette,
     otherColorLabel: 'Other...',
     shouldShowColorSuggestionPicker: true,

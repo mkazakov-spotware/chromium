@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -68,6 +68,14 @@ class BASE_EXPORT FuchsiaIntlProfileWatcher {
   ::fuchsia::intl::PropertyProviderPtr property_provider_;
   const ProfileChangeCallback on_profile_changed_;
 };
+
+// TODO(crbug.com/1073821): Remove this block when out-of-tree callers have been
+// changed to use the non-fuchsia-sub-namespace version.
+namespace fuchsia {
+
+using IntlProfileWatcher = ::base::FuchsiaIntlProfileWatcher;
+
+}  // namespace fuchsia
 
 }  // namespace base
 

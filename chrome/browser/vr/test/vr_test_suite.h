@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,10 +16,6 @@ namespace vr {
 class VrTestSuite : public base::TestSuite {
  public:
   VrTestSuite(int argc, char** argv);
-
-  VrTestSuite(const VrTestSuite&) = delete;
-  VrTestSuite& operator=(const VrTestSuite&) = delete;
-
   ~VrTestSuite() override;
 
  protected:
@@ -28,6 +24,8 @@ class VrTestSuite : public base::TestSuite {
 
  private:
   std::unique_ptr<content::BrowserTaskEnvironment> task_environment_;
+
+  DISALLOW_COPY_AND_ASSIGN(VrTestSuite);
 };
 
 }  // namespace vr

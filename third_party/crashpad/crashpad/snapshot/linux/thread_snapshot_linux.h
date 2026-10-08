@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "snapshot/cpu_context.h"
 #include "snapshot/linux/process_reader_linux.h"
@@ -32,10 +33,6 @@ namespace internal {
 class ThreadSnapshotLinux final : public ThreadSnapshot {
  public:
   ThreadSnapshotLinux();
-
-  ThreadSnapshotLinux(const ThreadSnapshotLinux&) = delete;
-  ThreadSnapshotLinux& operator=(const ThreadSnapshotLinux&) = delete;
-
   ~ThreadSnapshotLinux() override;
 
   //! \brief Initializes the object.
@@ -47,17 +44,14 @@ class ThreadSnapshotLinux final : public ThreadSnapshot {
   //!
   //! \return `true` if the snapshot could be created, `false` otherwise with
   //!     a message logged.
-  bool Initialize(
-      ProcessReaderLinux* process_reader,
-      const ProcessReaderLinux::Thread& thread,
-      uint32_t* gather_indirectly_referenced_memory_bytes_remaining);
+  bool Initialize(ProcessReaderLinux* process_reader,
+                  const ProcessReaderLinux::Thread& thread);
 
   // ThreadSnapshot:
 
   const CPUContext* Context() const override;
   const MemorySnapshot* Stack() const override;
   uint64_t ThreadID() const override;
-  std::string ThreadName() const override;
   int SuspendCount() const override;
   int Priority() const override;
   uint64_t ThreadSpecificDataAddress() const override;
@@ -81,11 +75,11 @@ class ThreadSnapshotLinux final : public ThreadSnapshot {
   CPUContext context_;
   MemorySnapshotGeneric stack_;
   LinuxVMAddress thread_specific_data_address_;
-  std::string thread_name_;
   pid_t thread_id_;
   int priority_;
   InitializationStateDcheck initialized_;
-  std::vector<std::unique_ptr<MemorySnapshotGeneric>> pointed_to_memory_;
+
+  DISALLOW_COPY_AND_ASSIGN(ThreadSnapshotLinux);
 };
 
 }  // namespace internal

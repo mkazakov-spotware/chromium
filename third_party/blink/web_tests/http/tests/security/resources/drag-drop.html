@@ -4,9 +4,9 @@
     function receiveMessage(event)
     {
         if (document.body.innerHTML.match(/Dragme/i))
-            console.log("FAIL");
+            alert("FAIL");
         else
-            console.log("PASS");
+            alert("PASS");
         
         if (window.testRunner)
             testRunner.notifyDone();

@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -58,8 +58,6 @@ component("domain_reliability") {
     "dispatcher.cc",
     "dispatcher.h",
     "domain_reliability_export.h",
-    "features.cc",
-    "features.h",
     "google_configs.cc",
     "google_configs.h",
     "monitor.cc",
@@ -99,6 +97,8 @@ source_set("unit_tests") {
     "uploader_unittest.cc",
     "util_unittest.cc",
   ]
+
+  configs += [ "//build/config/compiler:no_size_t_to_int_warning" ]
 
   deps = [
     ":domain_reliability",

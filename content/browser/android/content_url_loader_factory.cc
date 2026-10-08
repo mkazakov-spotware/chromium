@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,11 @@
 
 #include "base/android/content_uri_utils.h"
 #include "base/bind.h"
-#include "base/command_line.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/macros.h"
+#include "base/strings/stringprintf.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
@@ -110,15 +111,12 @@ class ContentURLLoader : public network::mojom::URLLoader {
                               std::move(client_remote));
   }
 
-  ContentURLLoader(const ContentURLLoader&) = delete;
-  ContentURLLoader& operator=(const ContentURLLoader&) = delete;
-
   // network::mojom::URLLoader:
   void FollowRedirect(
       const std::vector<std::string>& removed_headers,
       const net::HttpRequestHeaders& modified_headers,
       const net::HttpRequestHeaders& modified_cors_exempt_headers,
-      const absl::optional<GURL>& new_url) override {}
+      const base::Optional<GURL>& new_url) override {}
   void SetPriority(net::RequestPriority priority,
                    int32_t intra_priority_value) override {}
   void PauseReadingBodyFromNet() override {}
@@ -179,12 +177,9 @@ class ContentURLLoader : public network::mojom::URLLoader {
                                  net::ERR_REQUEST_RANGE_NOT_SATISFIABLE);
     }
 
-    mojo::ScopedDataPipeProducerHandle producer_handle;
-    mojo::ScopedDataPipeConsumerHandle consumer_handle;
-    if (mojo::CreateDataPipe(kDefaultContentUrlPipeSize, producer_handle,
-                             consumer_handle) != MOJO_RESULT_OK) {
+    mojo::DataPipe pipe(kDefaultContentUrlPipeSize);
+    if (!pipe.consumer_handle.is_valid())
       return CompleteWithFailure(std::move(client), net::ERR_FAILED);
-    }
 
     base::File file = base::OpenContentUriForRead(path);
     if (!file.IsValid()) {
@@ -229,8 +224,8 @@ class ContentURLLoader : public network::mojom::URLLoader {
                                head->mime_type);
     }
 
-    client->OnReceiveResponse(std::move(head), std::move(consumer_handle),
-                              absl::nullopt);
+    client->OnReceiveResponse(std::move(head));
+    client->OnStartLoadingResponseBody(std::move(pipe.consumer_handle));
     client_ = std::move(client);
 
     if (total_bytes_to_send == 0) {
@@ -246,8 +241,8 @@ class ContentURLLoader : public network::mojom::URLLoader {
     data_source->SetRange(first_byte_to_send,
                           first_byte_to_send + total_bytes_to_send);
 
-    data_producer_ =
-        std::make_unique<mojo::DataPipeProducer>(std::move(producer_handle));
+    data_producer_ = std::make_unique<mojo::DataPipeProducer>(
+        std::move(pipe.producer_handle));
     data_producer_->Write(std::move(data_source),
                           base::BindOnce(&ContentURLLoader::OnFileWritten,
                                          base::Unretained(this)));
@@ -295,6 +290,8 @@ class ContentURLLoader : public network::mojom::URLLoader {
   // It is used to set some of the URLLoaderCompletionStatus data passed back
   // to the URLLoaderClients (eg SimpleURLLoader).
   size_t total_bytes_written_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(ContentURLLoader);
 };
 
 }  // namespace
@@ -302,13 +299,14 @@ class ContentURLLoader : public network::mojom::URLLoader {
 ContentURLLoaderFactory::ContentURLLoaderFactory(
     scoped_refptr<base::SequencedTaskRunner> task_runner,
     mojo::PendingReceiver<network::mojom::URLLoaderFactory> factory_receiver)
-    : network::SelfDeletingURLLoaderFactory(std::move(factory_receiver)),
+    : NonNetworkURLLoaderFactoryBase(std::move(factory_receiver)),
       task_runner_(std::move(task_runner)) {}
 
 ContentURLLoaderFactory::~ContentURLLoaderFactory() = default;
 
 void ContentURLLoaderFactory::CreateLoaderAndStart(
     mojo::PendingReceiver<network::mojom::URLLoader> loader,
+    int32_t routing_id,
     int32_t request_id,
     uint32_t options,
     const network::ResourceRequest& request,
@@ -325,8 +323,7 @@ ContentURLLoaderFactory::Create() {
   mojo::PendingRemote<network::mojom::URLLoaderFactory> pending_remote;
 
   // The ContentURLLoaderFactory will delete itself when there are no more
-  // receivers - see the network::SelfDeletingURLLoaderFactory::OnDisconnect
-  // method.
+  // receivers - see the NonNetworkURLLoaderFactoryBase::OnDisconnect method.
   new ContentURLLoaderFactory(
       base::ThreadPool::CreateSequencedTaskRunner(
           {base::MayBlock(), base::TaskPriority::BEST_EFFORT,

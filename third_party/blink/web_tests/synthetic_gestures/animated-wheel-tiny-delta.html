@@ -2,7 +2,6 @@
 <script src='../resources/testharness.js'></script>
 <script src='../resources/testharnessreport.js'></script>
 <script src='../resources/gesture-util.js'></script>
-<script src="../virtual/percent-based-scrolling/resources/percent-based-util.js"></script>
 
 <style>
   body, html {
@@ -15,7 +14,7 @@
   // This test ensures that animated mouse wheel scrolls with tiny amounts are
   // accurately propagated in the renderer.
 
-  async function tryScroll(distance, source, expectedScrollY) {
+  async function tryScroll(distance, source) {
       const x = 400;
       const y = 300;
       const precise_deltas = false;
@@ -31,10 +30,8 @@
                          SPEED_INSTANT,
                          precise_deltas);
 
-      
-
-      await waitFor(() => { return window.scrollY - scrollYBefore >= expectedScrollY; },
-                    "Didn't scroll by expected amount: " + expectedScrollY);
+      await waitFor(() => { return window.scrollY - scrollYBefore >= distance; },
+                    "Didn't scroll by expected amount: " + distance);
       await waitForCompositorCommit();
   }
 
@@ -42,20 +39,16 @@
     const source_type = GestureSourceType.MOUSE_INPUT;
 
     promise_test(async () => {
-      const expectedScrollY = 
-              calculateExpectedScroll(document.scrollingElement, 0, 1).y;
       assert_equals(window.scrollY, 0);
-      await tryScroll(1, source_type, expectedScrollY);
-      assert_approx_equals(window.scrollY, expectedScrollY, 0.00001);
+      await tryScroll(1, source_type);
+      assert_equals(window.scrollY, 1);
     }, 'Synthetic animated ' + GestureSourceType.ToString(source_type) +
        ' gestures accurately scroll delta (0, 1).');
 
     promise_test(async () => {
-      const scrollYBefore = window.scrollY;
-      const expectedScrollY = 
-              calculateExpectedScroll(document.scrollingElement, 0, 2).y;
-      await tryScroll(2, source_type, expectedScrollY);
-      assert_approx_equals(window.scrollY, scrollYBefore + expectedScrollY, 0.00001);
+      assert_equals(window.scrollY, 1);
+      await tryScroll(2, source_type);
+      assert_equals(window.scrollY, 3);
       window.scrollTo(0, 0);
     }, 'Synthetic animated ' + GestureSourceType.ToString(source_type) +
        ' gestures accurately scroll delta (0, 2).');

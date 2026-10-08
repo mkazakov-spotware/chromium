@@ -1,11 +1,8 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-const scriptUrl = '_test_resources/api_test/webnavigation/framework.js';
-let loadScript = chrome.test.loadScript(scriptUrl);
-
-loadScript.then(async function() {
+onload = async function() {
   let tab = await promise(chrome.tabs.create, {"url": "about:blank"});
   let config = await promise(chrome.test.getConfig);
   let port = config.testServer.port;
@@ -27,9 +24,7 @@ loadScript.then(async function() {
               label: 'a-onBeforeNavigate',
               event: 'onBeforeNavigate',
               details: {
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: -1,
                 tabId: 0,
@@ -41,10 +36,7 @@ loadScript.then(async function() {
               label: 'a-onCommitted',
               event: 'onCommitted',
               details: {
-                documentId: 1,
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: 0,
                 tabId: 0,
@@ -58,10 +50,7 @@ loadScript.then(async function() {
               label: 'a-onDOMContentLoaded',
               event: 'onDOMContentLoaded',
               details: {
-                documentId: 1,
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: 0,
                 tabId: 0,
@@ -73,10 +62,7 @@ loadScript.then(async function() {
               label: 'a-onCompleted',
               event: 'onCompleted',
               details: {
-                documentId: 1,
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: 0,
                 tabId: 0,
@@ -88,9 +74,7 @@ loadScript.then(async function() {
               label: 'b-onBeforeNavigate',
               event: 'onBeforeNavigate',
               details: {
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: -1,
                 tabId: 0,
@@ -102,15 +86,12 @@ loadScript.then(async function() {
               label: 'b-onCommitted',
               event: 'onCommitted',
               details: {
-                documentId: 2,
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: 1,
                 tabId: 0,
                 timeStamp: 0,
-                transitionQualifiers: [],
+                transitionQualifiers: ['client_redirect'],
                 transitionType: 'link',
                 url: URL_REGULAR
               }
@@ -119,10 +100,7 @@ loadScript.then(async function() {
               label: 'b-onDOMContentLoaded',
               event: 'onDOMContentLoaded',
               details: {
-                documentId: 2,
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: 1,
                 tabId: 0,
@@ -134,10 +112,7 @@ loadScript.then(async function() {
               label: 'b-onCompleted',
               event: 'onCompleted',
               details: {
-                documentId: 2,
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: 1,
                 tabId: 0,
@@ -159,9 +134,7 @@ loadScript.then(async function() {
               label: 'a-onBeforeNavigate',
               event: 'onBeforeNavigate',
               details: {
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: -1,
                 tabId: 0,
@@ -173,10 +146,7 @@ loadScript.then(async function() {
               label: 'a-onCommitted',
               event: 'onCommitted',
               details: {
-                documentId: 1,
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: 0,
                 tabId: 0,
@@ -190,10 +160,7 @@ loadScript.then(async function() {
               label: 'a-onDOMContentLoaded',
               event: 'onDOMContentLoaded',
               details: {
-                documentId: 1,
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: 0,
                 tabId: 0,
@@ -205,10 +172,7 @@ loadScript.then(async function() {
               label: 'a-onCompleted',
               event: 'onCompleted',
               details: {
-                documentId: 1,
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: 0,
                 tabId: 0,
@@ -220,9 +184,7 @@ loadScript.then(async function() {
               label: 'c-onBeforeNavigate',
               event: 'onBeforeNavigate',
               details: {
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: -1,
                 tabId: 0,
@@ -234,15 +196,12 @@ loadScript.then(async function() {
               label: 'c-onCommitted',
               event: 'onCommitted',
               details: {
-                documentId: 2,
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: 1,
                 tabId: 0,
                 timeStamp: 0,
-                transitionQualifiers: ['server_redirect'],
+                transitionQualifiers: ['client_redirect', 'server_redirect'],
                 transitionType: 'link',
                 url: URL_REGULAR
               }
@@ -251,10 +210,7 @@ loadScript.then(async function() {
               label: 'c-onDOMContentLoaded',
               event: 'onDOMContentLoaded',
               details: {
-                documentId: 2,
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: 1,
                 tabId: 0,
@@ -266,10 +222,7 @@ loadScript.then(async function() {
               label: 'c-onCompleted',
               event: 'onCompleted',
               details: {
-                documentId: 2,
-                documentLifecycle: "active",
                 frameId: 0,
-                frameType: "outermost_frame",
                 parentFrameId: -1,
                 processId: 1,
                 tabId: 0,
@@ -378,7 +331,7 @@ loadScript.then(async function() {
                      processId: 0,
                      tabId: 0,
                      timeStamp: 0,
-                     transitionQualifiers: [],
+                     transitionQualifiers: ["client_redirect"],
                      transitionType: "link",
                      url: getURL('empty.html') }},
         { label: "c-onDOMContentLoaded",
@@ -420,9 +373,7 @@ loadScript.then(async function() {
       expect([
         { label: "a-onBeforeNavigate",
           event: "onBeforeNavigate",
-          details: { documentLifecycle: "active",
-                     frameId: 0,
-                     frameType: "outermost_frame",
+          details: { frameId: 0,
                      parentFrameId: -1,
                      processId: -1,
                      tabId: 0,
@@ -430,10 +381,7 @@ loadScript.then(async function() {
                      url: getURL('d.html') }},
         { label: "a-onCommitted",
           event: "onCommitted",
-          details: { documentId: 1,
-                     documentLifecycle: "active",
-                     frameId: 0,
-                     frameType: "outermost_frame",
+          details: { frameId: 0,
                      parentFrameId: -1,
                      processId: 0,
                      tabId: 0,
@@ -443,10 +391,7 @@ loadScript.then(async function() {
                      url: getURL('d.html') }},
         { label: "a-onDOMContentLoaded",
           event: "onDOMContentLoaded",
-          details: { documentId: 1,
-                     documentLifecycle: "active",
-                     frameId: 0,
-                     frameType: "outermost_frame",
+          details: { frameId: 0,
                      parentFrameId: -1,
                      processId: 0,
                      tabId: 0,
@@ -454,10 +399,7 @@ loadScript.then(async function() {
                      url: getURL('d.html') }},
         { label: "a-onCompleted",
           event: "onCompleted",
-          details: { documentId: 1,
-                     documentLifecycle: "active",
-                     frameId: 0,
-                     frameType: "outermost_frame",
+          details: { frameId: 0,
                      parentFrameId: -1,
                      processId: 0,
                      tabId: 0,
@@ -465,9 +407,7 @@ loadScript.then(async function() {
                      url: getURL('d.html') }},
         { label: "b-onBeforeNavigate",
           event: "onBeforeNavigate",
-          details: { documentLifecycle: "active",
-                     frameId: 0,
-                     frameType: "outermost_frame",
+          details: { frameId: 0,
                      parentFrameId: -1,
                      processId: -1,
                      tabId: 0,
@@ -476,10 +416,7 @@ loadScript.then(async function() {
         { label: "b-onErrorOccurred",
           event: "onErrorOccurred",
           details: { error: "net::ERR_ABORTED",
-                     documentId: 2,
-                     documentLifecycle: "active",
                      frameId: 0,
-                     frameType: "outermost_frame",
                      parentFrameId: -1,
                      processId: -1,
                      tabId: 0,
@@ -487,9 +424,7 @@ loadScript.then(async function() {
                      url: URL_TEST + "2" }},
         { label: "c-onBeforeNavigate",
           event: "onBeforeNavigate",
-          details: { documentLifecycle: "active",
-                     frameId: 0,
-                     frameType: "outermost_frame",
+          details: { frameId: 0,
                      parentFrameId: -1,
                      processId: -1,
                      tabId: 0,
@@ -497,23 +432,17 @@ loadScript.then(async function() {
                      url: getURL('empty.html') }},
         { label: "c-onCommitted",
           event: "onCommitted",
-          details: { documentId: 3,
-                     documentLifecycle: "active",
-                     frameId: 0,
-                     frameType: "outermost_frame",
+          details: { frameId: 0,
                      parentFrameId: -1,
                      processId: 0,
                      tabId: 0,
                      timeStamp: 0,
-                     transitionQualifiers: [],
+                     transitionQualifiers: ["client_redirect"],
                      transitionType: "link",
                      url: getURL('empty.html') }},
         { label: "c-onDOMContentLoaded",
           event: "onDOMContentLoaded",
-          details: { documentId: 3,
-                     documentLifecycle: "active",
-                     frameId: 0,
-                     frameType: "outermost_frame",
+          details: { frameId: 0,
                      parentFrameId: -1,
                      processId: 0,
                      tabId: 0,
@@ -521,10 +450,7 @@ loadScript.then(async function() {
                      url: getURL('empty.html') }},
         { label: "c-onCompleted",
           event: "onCompleted",
-          details: { documentId: 3,
-                     documentLifecycle: "active",
-                     frameId: 0,
-                     frameType: "outermost_frame",
+          details: { frameId: 0,
                      parentFrameId: -1,
                      processId: 0,
                      tabId: 0,
@@ -540,4 +466,4 @@ loadScript.then(async function() {
       chrome.tabs.update(tab.id, {url: getURL('d.html?' + port + "/test2")});
     },
   ]);
-});
+};

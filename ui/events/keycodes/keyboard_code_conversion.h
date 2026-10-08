@@ -1,10 +1,12 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_EVENTS_KEYCODES_KEYBOARD_CODE_CONVERSION_H_
 #define UI_EVENTS_KEYCODES_KEYBOARD_CODE_CONVERSION_H_
 
+#include "base/compiler_specific.h"
+#include "base/strings/string16.h"
 #include "ui/events/events_base_export.h"
 #include "ui/events/keycodes/dom/dom_key.h"
 #include "ui/events/keycodes/keyboard_codes.h"
@@ -38,23 +40,23 @@ enum class DomCode;
 // Returns true and sets the output parameters if the (dom_code, flags) pair
 // has an interpretation in the US English layout; otherwise the output
 // parameters are untouched.
-EVENTS_BASE_EXPORT char16_t DomCodeToUsLayoutCharacter(DomCode dom_code,
-                                                       int flags);
-[[nodiscard]] EVENTS_BASE_EXPORT bool DomCodeToUsLayoutDomKey(
-    DomCode dom_code,
-    int flags,
-    DomKey* dom_key,
-    KeyboardCode* key_code);
+EVENTS_BASE_EXPORT base::char16 DomCodeToUsLayoutCharacter(DomCode dom_code,
+                                                           int flags);
+EVENTS_BASE_EXPORT bool DomCodeToUsLayoutDomKey(DomCode dom_code,
+                                                int flags,
+                                                DomKey* dom_key,
+                                                KeyboardCode* key_code)
+    WARN_UNUSED_RESULT;
 
 // Helper function to map a physical key (dom_code) to a meaning (dom_key
 // and character, together corresponding to the DOM keyboard event |key|
 // value), along with a corresponding non-located Windows-based key_code.
 // Unlike |DomCodeToUsLayoutDomKey| this function only maps non-printable,
 // or action, keys.
-[[nodiscard]] EVENTS_BASE_EXPORT bool DomCodeToNonPrintableDomKey(
-    DomCode dom_code,
-    DomKey* dom_key,
-    KeyboardCode* key_code);
+EVENTS_BASE_EXPORT bool DomCodeToNonPrintableDomKey(DomCode dom_code,
+                                                    DomKey* dom_key,
+                                                    KeyboardCode* key_code)
+    WARN_UNUSED_RESULT;
 
 // Obtains the control character corresponding to a physical key;
 // that is, the meaning of the physical key state (dom_code, and flags
@@ -62,11 +64,11 @@ EVENTS_BASE_EXPORT char16_t DomCodeToUsLayoutCharacter(DomCode dom_code,
 // Returns true and sets the output parameters if the (dom_code, flags) pair
 // is interpreted as a control character; otherwise the output parameters
 // are untouched.
-[[nodiscard]] EVENTS_BASE_EXPORT bool DomCodeToControlCharacter(
-    DomCode dom_code,
-    int flags,
-    DomKey* dom_key,
-    KeyboardCode* key_code);
+EVENTS_BASE_EXPORT bool DomCodeToControlCharacter(DomCode dom_code,
+                                                  int flags,
+                                                  DomKey* dom_key,
+                                                  KeyboardCode* key_code)
+    WARN_UNUSED_RESULT;
 
 // Returns a Windows-based VKEY for a non-printable DOM Level 3 |key|.
 // The returned VKEY is non-located (e.g. VKEY_SHIFT).
@@ -108,10 +110,6 @@ DomCodeToUsLayoutNonLocatedKeyboardCode(DomCode dom_code);
 // Returns the ui::EventFlags value associated with a modifier key,
 // or 0 (EF_NONE) if the key is not a modifier.
 EVENTS_BASE_EXPORT int ModifierDomKeyToEventFlag(DomKey key);
-
-// Returns the physical DOM code along with a corresponding non-located
-// Windows-based key_code.
-EVENTS_BASE_EXPORT DomCode UsLayoutDomKeyToDomCode(DomKey dom_key);
 
 }  // namespace ui
 

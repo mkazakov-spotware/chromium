@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,10 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/containers/contains.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
+#include "base/task/post_task.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "content/browser/service_worker/embedded_worker_test_helper.h"
 #include "content/browser/service_worker/service_worker_context_core.h"
@@ -18,12 +20,8 @@
 #include "net/base/io_buffer.h"
 #include "net/base/test_completion_callback.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/blob/blob_utils.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "third_party/blink/public/mojom/service_worker/service_worker_registration.mojom.h"
-#include "third_party/blink/public/mojom/service_worker/service_worker_registration_options.mojom.h"
-#include "url/origin.h"
 
 namespace content {
 
@@ -92,11 +90,6 @@ class MockServiceWorkerInstalledScriptsManager
           receiver)
       : receiver_(this, std::move(receiver)) {}
 
-  MockServiceWorkerInstalledScriptsManager(
-      const MockServiceWorkerInstalledScriptsManager&) = delete;
-  MockServiceWorkerInstalledScriptsManager& operator=(
-      const MockServiceWorkerInstalledScriptsManager&) = delete;
-
   blink::mojom::ServiceWorkerScriptInfoPtr WaitUntilTransferInstalledScript() {
     EXPECT_TRUE(incoming_script_info_.is_null());
     EXPECT_FALSE(transfer_installed_script_waiter_);
@@ -120,6 +113,8 @@ class MockServiceWorkerInstalledScriptsManager
   mojo::Receiver<blink::mojom::ServiceWorkerInstalledScriptsManager> receiver_;
   base::OnceClosure transfer_installed_script_waiter_;
   blink::mojom::ServiceWorkerScriptInfoPtr incoming_script_info_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockServiceWorkerInstalledScriptsManager);
 };
 
 class ServiceWorkerInstalledScriptsSenderTest : public testing::Test {
@@ -135,14 +130,13 @@ class ServiceWorkerInstalledScriptsSenderTest : public testing::Test {
     blink::mojom::ServiceWorkerRegistrationOptions options;
     options.scope = scope_;
     registration_ = base::MakeRefCounted<ServiceWorkerRegistration>(
-        options, blink::StorageKey(url::Origin::Create(scope_)), 1L,
-        context()->AsWeakPtr(), blink::mojom::AncestorFrameType::kNormalFrame);
+        options, 1L, context()->AsWeakPtr());
     version_ = CreateNewServiceWorkerVersion(
         context()->registry(), registration_.get(),
         GURL("http://www.example.com/test/service_worker.js"),
         blink::mojom::ScriptType::kClassic);
-    version_->set_fetch_handler_type(
-        ServiceWorkerVersion::FetchHandlerType::kNotSkippable);
+    version_->set_fetch_handler_existence(
+        ServiceWorkerVersion::FetchHandlerExistence::EXISTS);
     version_->SetStatus(ServiceWorkerVersion::INSTALLED);
   }
 
@@ -681,7 +675,7 @@ TEST_F(ServiceWorkerInstalledScriptsSenderTest, RemoteStorageDisconnection) {
 
   sender->Start();
 
-  helper()->SimulateStorageRestartForTesting();
+  registry()->SimulateStorageRestartForTesting();
   base::RunLoop().RunUntilIdle();
 
   EXPECT_EQ(sender->last_finished_reason(), FinishedReason::kConnectionError);
@@ -706,9 +700,8 @@ TEST_F(ServiceWorkerInstalledScriptsSenderTest, StorageDisabled) {
         info.second.WriteToDiskCache(context()->GetStorageControl()));
   version()->script_cache_map()->SetResources(records);
 
-  base::RunLoop loop;
-  registry()->DisableStorageForTesting(loop.QuitClosure());
-  loop.Run();
+  registry()->GetRemoteStorageControl()->Disable();
+  registry()->GetRemoteStorageControl().FlushForTesting();
 
   auto sender =
       std::make_unique<ServiceWorkerInstalledScriptsSender>(version());

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,20 +11,19 @@
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/cursor/cursor.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/color/color_id.h"
-#include "ui/color/color_provider.h"
 #include "ui/events/event.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/font_list.h"
-#include "ui/views/controls/focus_ring.h"
+#include "ui/native_theme/native_theme.h"
+#include "ui/views/metadata/metadata_impl_macros.h"
+#include "ui/views/native_cursor.h"
 #include "ui/views/style/platform_style.h"
 
 namespace views {
 
-Link::Link(const std::u16string& title, int text_context, int text_style)
+Link::Link(const base::string16& title, int text_context, int text_style)
     : Label(title, text_context, text_style) {
   RecalculateFont();
 
@@ -34,24 +33,23 @@ Link::Link(const std::u16string& title, int text_context, int text_style)
   // Label() indirectly calls SetText(), but at that point our virtual override
   // will not be reached.  Call it explicitly here to configure focus.
   SetText(GetText());
-
-  views::FocusRing::Install(this);
 }
 
 Link::~Link() = default;
 
 SkColor Link::GetColor() const {
   // TODO(tapted): Use style::GetColor().
-  const ui::ColorProvider* color_provider = GetColorProvider();
-  DCHECK(color_provider);
+  const ui::NativeTheme* theme = GetNativeTheme();
+  DCHECK(theme);
   if (!GetEnabled())
-    return color_provider->GetColor(ui::kColorLinkForegroundDisabled);
+    return theme->GetSystemColor(ui::NativeTheme::kColorId_LinkDisabled);
 
   if (requested_enabled_color_.has_value())
     return requested_enabled_color_.value();
 
-  return color_provider->GetColor(pressed_ ? ui::kColorLinkForegroundPressed
-                                           : ui::kColorLinkForeground);
+  return GetNativeTheme()->GetSystemColor(
+      pressed_ ? ui::NativeTheme::kColorId_LinkPressed
+               : ui::NativeTheme::kColorId_LinkEnabled);
 }
 
 void Link::SetForceUnderline(bool force_underline) {
@@ -62,14 +60,10 @@ void Link::SetForceUnderline(bool force_underline) {
   RecalculateFont();
 }
 
-bool Link::GetForceUnderline() const {
-  return force_underline_;
-}
-
-ui::Cursor Link::GetCursor(const ui::MouseEvent& event) {
+gfx::NativeCursor Link::GetCursor(const ui::MouseEvent& event) {
   if (!GetEnabled())
-    return ui::Cursor();
-  return ui::mojom::CursorType::kHand;
+    return gfx::kNullCursor;
+  return GetNativeHandCursor();
 }
 
 bool Link::GetCanProcessEventsWithinSubtree() const {
@@ -155,7 +149,7 @@ void Link::GetAccessibleNodeData(ui::AXNodeData* node_data) {
   Label::GetAccessibleNodeData(node_data);
   // Prevent invisible links from being announced by screen reader.
   node_data->role =
-      GetText().empty() ? ax::mojom::Role::kNone : ax::mojom::Role::kLink;
+      GetText().empty() ? ax::mojom::Role::kIgnored : ax::mojom::Role::kLink;
 }
 
 void Link::OnFocus() {
@@ -177,7 +171,7 @@ void Link::SetFontList(const gfx::FontList& font_list) {
   RecalculateFont();
 }
 
-void Link::SetText(const std::u16string& text) {
+void Link::SetText(const base::string16& text) {
   Label::SetText(text);
   ConfigureFocus();
 }
@@ -189,8 +183,7 @@ void Link::OnThemeChanged() {
 
 void Link::SetEnabledColor(SkColor color) {
   requested_enabled_color_ = color;
-  if (GetWidget())
-    Label::SetEnabledColor(GetColor());
+  Label::SetEnabledColor(GetColor());
 }
 
 bool Link::IsSelectionSupported() const {
@@ -228,7 +221,7 @@ void Link::ConfigureFocus() {
   if (GetText().empty()) {
     SetFocusBehavior(FocusBehavior::NEVER);
   } else {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_APPLE)
     SetFocusBehavior(FocusBehavior::ACCESSIBLE_ONLY);
 #else
     SetFocusBehavior(FocusBehavior::ALWAYS);
@@ -237,8 +230,7 @@ void Link::ConfigureFocus() {
 }
 
 BEGIN_METADATA(Link, Label)
-ADD_READONLY_PROPERTY_METADATA(SkColor, Color, ui::metadata::SkColorConverter)
-ADD_PROPERTY_METADATA(bool, ForceUnderline)
+ADD_READONLY_PROPERTY_METADATA(SkColor, Color)
 END_METADATA
 
 }  // namespace views

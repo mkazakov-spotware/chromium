@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "components/download/public/common/download_interrupt_reasons.h"
 #include "url/gurl.h"
@@ -79,9 +79,6 @@ class TestFileErrorInjector
   static scoped_refptr<TestFileErrorInjector> Create(
       DownloadManager* download_manager);
 
-  TestFileErrorInjector(const TestFileErrorInjector&) = delete;
-  TestFileErrorInjector& operator=(const TestFileErrorInjector&) = delete;
-
   // Injects the errors such that new download files will be affected.
   // The download system must already be initialized before calling this.
   // Multiple calls are allowed, but only useful if the errors have changed.
@@ -129,10 +126,12 @@ class TestFileErrorInjector
   size_t total_file_count_ = 0;
 
   // The factory we created. May outlive this class.
-  raw_ptr<DownloadFileWithErrorFactory> created_factory_ = nullptr;
+  DownloadFileWithErrorFactory* created_factory_ = nullptr;
 
   // The download manager we set the factory on.
-  raw_ptr<DownloadManagerImpl> download_manager_ = nullptr;
+  DownloadManagerImpl* download_manager_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(TestFileErrorInjector);
 };
 
 }  // namespace content

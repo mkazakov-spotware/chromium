@@ -1,12 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_INLINE_NG_INLINE_LAYOUT_ALGORITHM_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_INLINE_NG_INLINE_LAYOUT_ALGORITHM_H_
 
-#include "base/dcheck_is_on.h"
-#include "base/notreached.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/ng/inline/ng_inline_node.h"
 #include "third_party/blink/renderer/core/layout/ng/inline/ng_logical_line_item.h"
@@ -19,7 +17,6 @@
 
 namespace blink {
 
-class NGColumnSpannerPath;
 class NGConstraintSpace;
 class NGExclusionSpace;
 class NGInlineBreakToken;
@@ -27,7 +24,6 @@ class NGInlineChildLayoutContext;
 class NGInlineNode;
 class NGInlineItem;
 class NGInlineLayoutStateStack;
-class NGLineBreaker;
 class NGLineInfo;
 struct NGInlineBoxState;
 struct NGInlineItemResult;
@@ -46,20 +42,19 @@ class CORE_EXPORT NGInlineLayoutAlgorithm final
   NGInlineLayoutAlgorithm(NGInlineNode,
                           const NGConstraintSpace&,
                           const NGInlineBreakToken*,
-                          const NGColumnSpannerPath*,
                           NGInlineChildLayoutContext* context);
   ~NGInlineLayoutAlgorithm() override;
 
   void CreateLine(const NGLineLayoutOpportunity&,
                   NGLineInfo*,
                   NGLogicalLineItems* line_box,
-                  NGLineBreaker*);
+                  NGExclusionSpace*);
 
-  const NGLayoutResult* Layout() override;
+  scoped_refptr<const NGLayoutResult> Layout() override;
 
-  MinMaxSizesResult ComputeMinMaxSizes(const MinMaxSizesFloatInput&) override {
+  MinMaxSizesResult ComputeMinMaxSizes(const MinMaxSizesInput&) const override {
     NOTREACHED();
-    return MinMaxSizesResult();
+    return {MinMaxSizes(), true};
   }
 
  private:
@@ -100,14 +95,6 @@ class CORE_EXPORT NGInlineLayoutAlgorithm final
                                       const NGLineInfo&,
                                       NGInlineItemResult*,
                                       NGLogicalLineItems* line_box);
-  void PlaceBlockInInline(const NGInlineItem&,
-                          const NGLineInfo&,
-                          NGInlineItemResult*,
-                          NGLogicalLineItems* line_box);
-  void PlaceInitialLetterBox(const NGInlineItem&,
-                             const NGLineInfo&,
-                             NGInlineItemResult*,
-                             NGLogicalLineItems* line_box);
   void PlaceLayoutResult(NGInlineItemResult*,
                          NGLogicalLineItems* line_box,
                          NGInlineBoxState*,
@@ -118,34 +105,22 @@ class CORE_EXPORT NGInlineLayoutAlgorithm final
   void PlaceFloatingObjects(const NGLineInfo&,
                             const FontHeight&,
                             const NGLineLayoutOpportunity&,
-                            LayoutUnit ruby_block_start_adjust,
                             NGLogicalLineItems* line_box,
-                            NGLineBreaker*);
+                            NGExclusionSpace*);
   void PlaceRelativePositionedItems(NGLogicalLineItems* line_box);
   void PlaceListMarker(const NGInlineItem&,
                        NGInlineItemResult*,
                        const NGLineInfo&);
 
   LayoutUnit ApplyTextAlign(NGLineInfo*);
-  absl::optional<LayoutUnit> ApplyJustify(LayoutUnit space, NGLineInfo*);
+  base::Optional<LayoutUnit> ApplyJustify(LayoutUnit space, NGLineInfo*);
 
-  // Add any trailing clearance requested by a BR 'clear' attribute on the line.
-  // Return true if this was successful (this also includes cases where there is
-  // no clearance needed). Return false if the floats that we need to clear past
-  // will be resumed in a subsequent fragmentainer.
-  bool AddAnyClearanceAfterLine(const NGLineInfo&);
-
-  LayoutUnit SetAnnotationOverflow(const NGLineInfo& line_info,
-                                   const NGLogicalLineItems& line_box,
-                                   const FontHeight& line_box_metrics);
+  LayoutUnit ComputeContentSize(const NGLineInfo&,
+                                const NGExclusionSpace&,
+                                LayoutUnit line_height);
 
   NGInlineLayoutStateStack* box_states_;
   NGInlineChildLayoutContext* context_;
-
-  const NGColumnSpannerPath* column_spanner_path_;
-
-  NGMarginStrut end_margin_strut_;
-  absl::optional<int> lines_until_clamp_;
 
   FontBaseline baseline_type_ = FontBaseline::kAlphabeticBaseline;
 

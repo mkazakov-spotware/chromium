@@ -1,27 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/unified/unified_system_tray_model.h"
 
 #include "ash/accessibility/accessibility_controller_impl.h"
-#include "ash/shelf/shelf_widget.h"
 #include "ash/shell.h"
-#include "ash/shell_observer.h"
 #include "ash/system/brightness_control_delegate.h"
-#include "ash/system/status_area_widget.h"
 #include "base/bind.h"
 #include "chromeos/dbus/power_manager/backlight.pb.h"
-
-namespace {
-
-// The minimum width for system tray with size of kMedium.
-constexpr int kMinWidthMediumSystemTray = 768;
-
-// The maximum width for system tray with size of kMedium.
-constexpr int kMaxWidthMediumSystemTray = 1280;
-
-}  // namespace
 
 namespace ash {
 
@@ -29,14 +16,10 @@ class UnifiedSystemTrayModel::DBusObserver
     : public chromeos::PowerManagerClient::Observer {
  public:
   explicit DBusObserver(UnifiedSystemTrayModel* owner);
-
-  DBusObserver(const DBusObserver&) = delete;
-  DBusObserver& operator=(const DBusObserver&) = delete;
-
   ~DBusObserver() override;
 
  private:
-  void HandleInitialBrightness(absl::optional<double> percent);
+  void HandleInitialBrightness(base::Optional<double> percent);
 
   // chromeos::PowerManagerClient::Observer:
   void ScreenBrightnessChanged(
@@ -47,33 +30,8 @@ class UnifiedSystemTrayModel::DBusObserver
   UnifiedSystemTrayModel* const owner_;
 
   base::WeakPtrFactory<DBusObserver> weak_ptr_factory_{this};
-};
 
-class UnifiedSystemTrayModel::SizeObserver : public display::DisplayObserver,
-                                             public ShellObserver {
- public:
-  explicit SizeObserver(UnifiedSystemTrayModel* owner);
-  ~SizeObserver() override;
-  SizeObserver(const SizeObserver&) = delete;
-  SizeObserver& operator=(const SizeObserver&) = delete;
-
- private:
-  // display::DisplayObserver:
-  void OnDisplayMetricsChanged(const display::Display& display,
-                               uint32_t changed_metrics) override;
-
-  // ShellObserver:
-  void OnShelfAlignmentChanged(aura::Window* root_window,
-                               ShelfAlignment old_alignment) override;
-
-  void Update();
-
-  UnifiedSystemTrayModel* const owner_;
-
-  display::ScopedDisplayObserver display_observer_{this};
-
-  // Keep track of current system tray size.
-  UnifiedSystemTrayModel::SystemTrayButtonSize system_tray_size_;
+  DISALLOW_COPY_AND_ASSIGN(DBusObserver);
 };
 
 UnifiedSystemTrayModel::DBusObserver::DBusObserver(
@@ -90,7 +48,7 @@ UnifiedSystemTrayModel::DBusObserver::~DBusObserver() {
 }
 
 void UnifiedSystemTrayModel::DBusObserver::HandleInitialBrightness(
-    absl::optional<double> percent) {
+    base::Optional<double> percent) {
   if (percent.has_value())
     owner_->DisplayBrightnessChanged(percent.value() / 100.,
                                      false /* by_user */);
@@ -98,6 +56,8 @@ void UnifiedSystemTrayModel::DBusObserver::HandleInitialBrightness(
 
 void UnifiedSystemTrayModel::DBusObserver::ScreenBrightnessChanged(
     const power_manager::BacklightBrightnessChange& change) {
+  Shell::Get()->metrics()->RecordUserMetricsAction(
+      UMA_STATUS_AREA_BRIGHTNESS_CHANGED);
   owner_->DisplayBrightnessChanged(
       change.percent() / 100.,
       change.cause() ==
@@ -106,52 +66,15 @@ void UnifiedSystemTrayModel::DBusObserver::ScreenBrightnessChanged(
 
 void UnifiedSystemTrayModel::DBusObserver::KeyboardBrightnessChanged(
     const power_manager::BacklightBrightnessChange& change) {
-  owner_->KeyboardBrightnessChanged(change.percent() / 100., change.cause());
+  owner_->KeyboardBrightnessChanged(
+      change.percent() / 100.,
+      change.cause() ==
+          power_manager::BacklightBrightnessChange_Cause_USER_REQUEST);
 }
 
-UnifiedSystemTrayModel::SizeObserver::SizeObserver(
-    UnifiedSystemTrayModel* owner)
-    : owner_(owner) {
-  Shell::Get()->AddShellObserver(this);
-  system_tray_size_ = owner_->GetSystemTrayButtonSize();
-}
-
-UnifiedSystemTrayModel::SizeObserver::~SizeObserver() {
-  Shell::Get()->RemoveShellObserver(this);
-}
-
-void UnifiedSystemTrayModel::SizeObserver::OnDisplayMetricsChanged(
-    const display::Display& display,
-    uint32_t changed_metrics) {
-  if (owner_->GetDisplay().id() != display.id())
-    return;
-  Update();
-}
-
-void UnifiedSystemTrayModel::SizeObserver::OnShelfAlignmentChanged(
-    aura::Window* root_window,
-    ShelfAlignment old_alignment) {
-  Update();
-}
-
-void UnifiedSystemTrayModel::SizeObserver::Update() {
-  UnifiedSystemTrayModel::SystemTrayButtonSize new_size =
-      owner_->GetSystemTrayButtonSize();
-  if (system_tray_size_ == new_size)
-    return;
-
-  system_tray_size_ = new_size;
-  owner_->SystemTrayButtonSizeChanged(system_tray_size_);
-}
-
-UnifiedSystemTrayModel::UnifiedSystemTrayModel(Shelf* shelf)
-    : shelf_(shelf),
-      dbus_observer_(std::make_unique<DBusObserver>(this)),
-      size_observer_(std::make_unique<SizeObserver>(this)) {
-  // |shelf_| might be null in unit tests.
-  pagination_model_ = std::make_unique<PaginationModel>(
-      shelf_ ? shelf_->GetStatusAreaWidget()->GetRootView() : nullptr);
-}
+UnifiedSystemTrayModel::UnifiedSystemTrayModel(views::View* owner_view)
+    : dbus_observer_(std::make_unique<DBusObserver>(this)),
+      pagination_model_(std::make_unique<PaginationModel>(owner_view)) {}
 
 UnifiedSystemTrayModel::~UnifiedSystemTrayModel() = default;
 
@@ -172,11 +95,11 @@ bool UnifiedSystemTrayModel::IsExplicitlyExpanded() const {
   return expanded_on_open_ == StateOnOpen::EXPANDED;
 }
 
-absl::optional<bool> UnifiedSystemTrayModel::GetNotificationExpanded(
+base::Optional<bool> UnifiedSystemTrayModel::GetNotificationExpanded(
     const std::string& notification_id) const {
   auto it = notification_changes_.find(notification_id);
-  return it == notification_changes_.end() ? absl::optional<bool>()
-                                           : absl::optional<bool>(it->second);
+  return it == notification_changes_.end() ? base::Optional<bool>()
+                                           : base::Optional<bool>(it->second);
 }
 
 void UnifiedSystemTrayModel::SetTargetNotification(
@@ -201,24 +124,6 @@ void UnifiedSystemTrayModel::ClearNotificationChanges() {
   notification_changes_.clear();
 }
 
-UnifiedSystemTrayModel::SystemTrayButtonSize
-UnifiedSystemTrayModel::GetSystemTrayButtonSize() const {
-  // |shelf_| might be null in unit tests, returns medium size as default.
-  if (!shelf_)
-    return SystemTrayButtonSize::kMedium;
-
-  // Handles the cases: the shelf is placed horizontally or vertically, or the
-  // screen is rotated.
-  const int display_size =
-      std::max(GetDisplay().size().width(), GetDisplay().size().height());
-
-  if (display_size < kMinWidthMediumSystemTray)
-    return SystemTrayButtonSize::kSmall;
-  if (display_size <= kMaxWidthMediumSystemTray)
-    return SystemTrayButtonSize::kMedium;
-  return SystemTrayButtonSize::kLarge;
-}
-
 void UnifiedSystemTrayModel::DisplayBrightnessChanged(float brightness,
                                                       bool by_user) {
   display_brightness_ = brightness;
@@ -226,30 +131,11 @@ void UnifiedSystemTrayModel::DisplayBrightnessChanged(float brightness,
     observer.OnDisplayBrightnessChanged(by_user);
 }
 
-void UnifiedSystemTrayModel::KeyboardBrightnessChanged(
-    float brightness,
-    power_manager::BacklightBrightnessChange_Cause cause) {
+void UnifiedSystemTrayModel::KeyboardBrightnessChanged(float brightness,
+                                                       bool by_user) {
   keyboard_brightness_ = brightness;
   for (auto& observer : observers_)
-    observer.OnKeyboardBrightnessChanged(cause);
-}
-
-void UnifiedSystemTrayModel::SystemTrayButtonSizeChanged(
-    SystemTrayButtonSize system_tray_size) {
-  for (auto& observer : observers_)
-    observer.OnSystemTrayButtonSizeChanged(system_tray_size);
-}
-
-const display::Display UnifiedSystemTrayModel::GetDisplay() const {
-  // |shelf_| might be null in unit tests, returns primary display as default.
-  if (!shelf_)
-    return display::Screen::GetScreen()->GetPrimaryDisplay();
-
-  return display::Screen::GetScreen()->GetDisplayNearestWindow(
-      shelf_->GetStatusAreaWidget()
-          ->GetRootView()
-          ->GetWidget()
-          ->GetNativeWindow());
+    observer.OnKeyboardBrightnessChanged(by_user);
 }
 
 }  // namespace ash

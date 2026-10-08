@@ -29,15 +29,15 @@ namespace blink {
 
 float CalculateTextAnchorShift(const ComputedStyle& style, float length) {
   bool is_ltr = style.IsLeftToRightDirection();
-  switch (style.TextAnchor()) {
+  switch (style.SvgStyle().TextAnchor()) {
     default:
       NOTREACHED();
-      [[fallthrough]];
-    case ETextAnchor::kStart:
+      FALLTHROUGH;
+    case TA_START:
       return is_ltr ? 0 : -length;
-    case ETextAnchor::kMiddle:
+    case TA_MIDDLE:
       return -length / 2;
-    case ETextAnchor::kEnd:
+    case TA_END:
       return is_ltr ? -length : 0;
   }
 }
@@ -46,15 +46,15 @@ namespace {
 
 bool NeedsTextAnchorAdjustment(const ComputedStyle& style) {
   bool is_ltr = style.IsLeftToRightDirection();
-  switch (style.TextAnchor()) {
+  switch (style.SvgStyle().TextAnchor()) {
     default:
       NOTREACHED();
-      [[fallthrough]];
-    case ETextAnchor::kStart:
+      FALLTHROUGH;
+    case TA_START:
       return !is_ltr;
-    case ETextAnchor::kMiddle:
+    case TA_MIDDLE:
       return true;
-    case ETextAnchor::kEnd:
+    case TA_END:
       return is_ltr;
   }
 }
@@ -64,8 +64,7 @@ class ChunkLengthAccumulator {
   ChunkLengthAccumulator(bool is_vertical)
       : num_characters_(0), length_(0), is_vertical_(is_vertical) {}
 
-  typedef HeapVector<Member<SVGInlineTextBox>>::const_iterator
-      BoxListConstIterator;
+  typedef Vector<SVGInlineTextBox*>::const_iterator BoxListConstIterator;
 
   void ProcessRange(BoxListConstIterator box_start,
                     BoxListConstIterator box_end);
@@ -86,7 +85,7 @@ class ChunkLengthAccumulator {
 void ChunkLengthAccumulator::ProcessRange(BoxListConstIterator box_start,
                                           BoxListConstIterator box_end) {
   SVGTextFragment* last_fragment = nullptr;
-  for (auto* box_iter = box_start; box_iter != box_end; ++box_iter) {
+  for (auto* const* box_iter = box_start; box_iter != box_end; ++box_iter) {
     for (SVGTextFragment& fragment : (*box_iter)->TextFragments()) {
       num_characters_ += fragment.length;
 
@@ -116,14 +115,14 @@ void ChunkLengthAccumulator::ProcessRange(BoxListConstIterator box_start,
 SVGTextChunkBuilder::SVGTextChunkBuilder() = default;
 
 void SVGTextChunkBuilder::ProcessTextChunks(
-    const HeapVector<Member<SVGInlineTextBox>>& line_layout_boxes) {
-  if (line_layout_boxes.empty())
+    const Vector<SVGInlineTextBox*>& line_layout_boxes) {
+  if (line_layout_boxes.IsEmpty())
     return;
 
   bool found_start = false;
-  auto const* box_iter = line_layout_boxes.begin();
-  auto const* end_box = line_layout_boxes.end();
-  auto const* chunk_start_box = box_iter;
+  auto* const* box_iter = line_layout_boxes.begin();
+  auto* const* end_box = line_layout_boxes.end();
+  auto* const* chunk_start_box = box_iter;
   for (; box_iter != end_box; ++box_iter) {
     if (!(*box_iter)->StartsNewTextChunk())
       continue;
@@ -210,9 +209,9 @@ void SVGTextChunkBuilder::HandleTextChunk(BoxListConstIterator box_start,
         text_length_shift /= length_accumulator.NumCharacters() - 1;
       }
       unsigned at_character = 0;
-      for (auto* box_iter = box_start; box_iter != box_end; ++box_iter) {
+      for (auto* const* box_iter = box_start; box_iter != box_end; ++box_iter) {
         Vector<SVGTextFragment>& fragments = (*box_iter)->TextFragments();
-        if (fragments.empty())
+        if (fragments.IsEmpty())
           continue;
         ProcessTextLengthSpacingCorrection(is_vertical_text, text_length_shift,
                                            fragments, at_character);
@@ -230,10 +229,10 @@ void SVGTextChunkBuilder::HandleTextChunk(BoxListConstIterator box_start,
       float text_length_bias = 0;
 
       bool found_first_fragment = false;
-      for (auto* box_iter = box_start; box_iter != box_end; ++box_iter) {
+      for (auto* const* box_iter = box_start; box_iter != box_end; ++box_iter) {
         SVGInlineTextBox* text_box = *box_iter;
         Vector<SVGTextFragment>& fragments = text_box->TextFragments();
-        if (fragments.empty())
+        if (fragments.IsEmpty())
           continue;
 
         if (!found_first_fragment) {
@@ -253,9 +252,9 @@ void SVGTextChunkBuilder::HandleTextChunk(BoxListConstIterator box_start,
 
   float text_anchor_shift =
       CalculateTextAnchorShift(style, length_accumulator.length());
-  for (auto* box_iter = box_start; box_iter != box_end; ++box_iter) {
+  for (auto* const* box_iter = box_start; box_iter != box_end; ++box_iter) {
     Vector<SVGTextFragment>& fragments = (*box_iter)->TextFragments();
-    if (fragments.empty())
+    if (fragments.IsEmpty())
       continue;
     ProcessTextAnchorCorrection(is_vertical_text, text_anchor_shift, fragments);
   }

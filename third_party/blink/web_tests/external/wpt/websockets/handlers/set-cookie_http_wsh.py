@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import urllib
+from six.moves import urllib
 
 def web_socket_do_extra_handshake(request):
     url_parts = urllib.parse.urlsplit(request.uri)

@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_GFX_RENDER_TEXT_TEST_API_H_
 #define UI_GFX_RENDER_TEXT_TEST_API_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/gfx/break_list.h"
 #include "ui/gfx/geometry/vector2d.h"
 #include "ui/gfx/render_text.h"
@@ -17,9 +17,6 @@ namespace test {
 class RenderTextTestApi {
  public:
   RenderTextTestApi(RenderText* render_text) : render_text_(render_text) {}
-
-  RenderTextTestApi(const RenderTextTestApi&) = delete;
-  RenderTextTestApi& operator=(const RenderTextTestApi&) = delete;
 
   static const cc::PaintFlags& GetRendererPaint(
       internal::SkiaTextRenderer* renderer) {
@@ -45,7 +42,7 @@ class RenderTextTestApi {
     render_text_->Draw(canvas, select_all);
   }
 
-  const std::u16string& GetLayoutText() {
+  const base::string16& GetLayoutText() {
     return render_text_->GetLayoutText();
   }
 
@@ -67,10 +64,6 @@ class RenderTextTestApi {
 
   const std::vector<internal::Line>& lines() const {
     return render_text_->GetShapedText()->lines();
-  }
-
-  const Vector2d& display_offset() const {
-    return render_text_->display_offset_;
   }
 
   SelectionModel EdgeSelectionModel(VisualCursorDirection direction) {
@@ -120,7 +113,9 @@ class RenderTextTestApi {
   }
 
  private:
-  raw_ptr<RenderText> render_text_;
+  RenderText* render_text_;
+
+  DISALLOW_COPY_AND_ASSIGN(RenderTextTestApi);
 };
 
 }  // namespace test

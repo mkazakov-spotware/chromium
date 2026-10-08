@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,26 @@
 
 #include <stddef.h>
 
-#include <ostream>
-
-#include "base/logging.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "base/strings/string_split.h"
 #include "base/values.h"
-#include "components/sync/protocol/entity_specifics.pb.h"
+#include "components/sync/protocol/app_setting_specifics.pb.h"
+#include "components/sync/protocol/app_specifics.pb.h"
+#include "components/sync/protocol/autofill_specifics.pb.h"
+#include "components/sync/protocol/bookmark_specifics.pb.h"
+#include "components/sync/protocol/extension_setting_specifics.pb.h"
+#include "components/sync/protocol/extension_specifics.pb.h"
+#include "components/sync/protocol/nigori_specifics.pb.h"
+#include "components/sync/protocol/password_specifics.pb.h"
+#include "components/sync/protocol/preference_specifics.pb.h"
+#include "components/sync/protocol/reading_list_specifics.pb.h"
+#include "components/sync/protocol/search_engine_specifics.pb.h"
+#include "components/sync/protocol/send_tab_to_self_specifics.pb.h"
+#include "components/sync/protocol/session_specifics.pb.h"
+#include "components/sync/protocol/sync.pb.h"
+#include "components/sync/protocol/theme_specifics.pb.h"
+#include "components/sync/protocol/typed_url_specifics.pb.h"
 
 namespace syncer {
 
@@ -30,7 +42,7 @@ struct ModelTypeInfo {
   // String value for Model Type
   // This should be the same as the model type but space separated and the
   // first letter of every word capitalized.
-  const char* const model_type_debug_string;
+  const char* const model_type_string;
   // Field number of the model type specifics in EntitySpecifics.
   const int specifics_field_number;
   // Model type value from SyncModelTypes enum in enums.xml. Must always be in
@@ -47,6 +59,8 @@ struct ModelTypeInfo {
 const ModelTypeInfo kModelTypeInfoMap[] = {
     {UNSPECIFIED, "", "", "Unspecified", -1,
      ModelTypeForHistograms::kUnspecified},
+    {TOP_LEVEL_FOLDER, "", "", "Top Level Folder", -1,
+     ModelTypeForHistograms::kTopLevelFolder},
     {BOOKMARKS, "BOOKMARK", "bookmarks", "Bookmarks",
      sync_pb::EntitySpecifics::kBookmarkFieldNumber,
      ModelTypeForHistograms::kBookmarks},
@@ -73,10 +87,6 @@ const ModelTypeInfo kModelTypeInfoMap[] = {
      "Autofill Wallet Offer",
      sync_pb::EntitySpecifics::kAutofillOfferFieldNumber,
      ModelTypeForHistograms::kAutofillWalletOffer},
-    {AUTOFILL_WALLET_USAGE, "AUTOFILL_WALLET_USAGE", "autofill_wallet_usage",
-     "Autofill Wallet Usage",
-     sync_pb::EntitySpecifics::kAutofillWalletUsageFieldNumber,
-     ModelTypeForHistograms::kAutofillWalletUsage},
     {THEMES, "THEME", "themes", "Themes",
      sync_pb::EntitySpecifics::kThemeFieldNumber,
      ModelTypeForHistograms::kThemes},
@@ -108,6 +118,12 @@ const ModelTypeInfo kModelTypeInfoMap[] = {
     {DICTIONARY, "DICTIONARY", "dictionary", "Dictionary",
      sync_pb::EntitySpecifics::kDictionaryFieldNumber,
      ModelTypeForHistograms::kDictionary},
+    {DEPRECATED_FAVICON_IMAGES, "FAVICON_IMAGE", "favicon_images",
+     "Favicon Images", sync_pb::EntitySpecifics::kFaviconImageFieldNumber,
+     ModelTypeForHistograms::kFaviconImages},
+    {DEPRECATED_FAVICON_TRACKING, "FAVICON_TRACKING", "favicon_tracking",
+     "Favicon Tracking", sync_pb::EntitySpecifics::kFaviconTrackingFieldNumber,
+     ModelTypeForHistograms::kFaviconTracking},
     {DEVICE_INFO, "DEVICE_INFO", "device_info", "Device Info",
      sync_pb::EntitySpecifics::kDeviceInfoFieldNumber,
      ModelTypeForHistograms::kDeviceInfo},
@@ -122,6 +138,10 @@ const ModelTypeInfo kModelTypeInfoMap[] = {
     {APP_LIST, "APP_LIST", "app_list", "App List",
      sync_pb::EntitySpecifics::kAppListFieldNumber,
      ModelTypeForHistograms::kAppList},
+    {SUPERVISED_USER_ALLOWLISTS, "MANAGED_USER_WHITELIST",
+     "managed_user_whitelists", "Managed User Whitelists",
+     sync_pb::EntitySpecifics::kManagedUserWhitelistFieldNumber,
+     ModelTypeForHistograms::kSupervisedUserAllowlists},
     {ARC_PACKAGE, "ARC_PACKAGE", "arc_package", "Arc Package",
      sync_pb::EntitySpecifics::kArcPackageFieldNumber,
      ModelTypeForHistograms::kArcPackage},
@@ -137,9 +157,6 @@ const ModelTypeInfo kModelTypeInfoMap[] = {
     {USER_CONSENTS, "USER_CONSENT", "user_consent", "User Consents",
      sync_pb::EntitySpecifics::kUserConsentFieldNumber,
      ModelTypeForHistograms::kUserConsents},
-    {SEGMENTATION, "SEGMENTATION", "segmentation", "Segmentation",
-     sync_pb::EntitySpecifics::kSegmentationFieldNumber,
-     ModelTypeForHistograms::kSegmentation},
     {SEND_TAB_TO_SELF, "SEND_TAB_TO_SELF", "send_tab_to_self",
      "Send Tab To Self", sync_pb::EntitySpecifics::kSendTabToSelfFieldNumber,
      ModelTypeForHistograms::kSendTabToSelf},
@@ -163,42 +180,30 @@ const ModelTypeInfo kModelTypeInfoMap[] = {
     {SHARING_MESSAGE, "SHARING_MESSAGE", "sharing_message", "Sharing Message",
      sync_pb::EntitySpecifics::kSharingMessageFieldNumber,
      ModelTypeForHistograms::kSharingMessage},
-    {WORKSPACE_DESK, "WORKSPACE_DESK", "workspace_desk", "Workspace Desk",
-     sync_pb::EntitySpecifics::kWorkspaceDeskFieldNumber,
-     ModelTypeForHistograms::kWorkspaceDesk},
-    {HISTORY, "HISTORY", "history", "History",
-     sync_pb::EntitySpecifics::kHistoryFieldNumber,
-     ModelTypeForHistograms::kHistory},
-    {PRINTERS_AUTHORIZATION_SERVERS, "PRINTERS_AUTHORIZATION_SERVER",
-     "printers_authorization_servers", "Printers Authorization Servers",
-     sync_pb::EntitySpecifics::kPrintersAuthorizationServerFieldNumber,
-     ModelTypeForHistograms::kPrintersAuthorizationServers},
-    {CONTACT_INFO, "CONTACT_INFO", "contact_info", "Contact Info",
-     sync_pb::EntitySpecifics::kContactInfoFieldNumber,
-     ModelTypeForHistograms::kContactInfo},
-    {SAVED_TAB_GROUP, "SAVED_TAB_GROUP", "saved_tab_group", "Saved Tab Group",
-     sync_pb::EntitySpecifics::kSavedTabGroupFieldNumber,
-     ModelTypeForHistograms::kSavedTabGroups},
     // ---- Proxy types ----
-    {PROXY_TABS, "", "", "Proxy tabs", -1, ModelTypeForHistograms::kProxyTabs},
+    {PROXY_TABS, "", "", "Tabs", -1, ModelTypeForHistograms::kProxyTabs},
     // ---- Control Types ----
     {NIGORI, "NIGORI", "nigori", "Encryption Keys",
      sync_pb::EntitySpecifics::kNigoriFieldNumber,
      ModelTypeForHistograms::kNigori},
 };
 
-static_assert(std::size(kModelTypeInfoMap) == GetNumModelTypes(),
-              "kModelTypeInfoMap should have GetNumModelTypes() elements");
+static_assert(base::size(kModelTypeInfoMap) == ModelType::NUM_ENTRIES,
+              "kModelTypeInfoMap should have ModelType::NUM_ENTRIES elements");
 
-static_assert(44 == syncer::GetNumModelTypes(),
+static_assert(41 == syncer::ModelType::NUM_ENTRIES,
               "When adding a new type, update enum SyncModelTypes in enums.xml "
               "and suffix SyncModelType in histograms.xml.");
+
+static_assert(41 == syncer::ModelType::NUM_ENTRIES,
+              "When adding a new type, update kAllocatorDumpNameAllowlist in "
+              "base/trace_event/memory_infra_background_allowlist.cc.");
 
 void AddDefaultFieldValue(ModelType type, sync_pb::EntitySpecifics* specifics) {
   switch (type) {
     case UNSPECIFIED:
-      NOTREACHED() << "No default field value for "
-                   << ModelTypeToDebugString(type);
+    case TOP_LEVEL_FOLDER:
+      NOTREACHED() << "No default field value for " << ModelTypeToString(type);
       break;
     case BOOKMARKS:
       specifics->mutable_bookmark();
@@ -223,9 +228,6 @@ void AddDefaultFieldValue(ModelType type, sync_pb::EntitySpecifics* specifics) {
       break;
     case AUTOFILL_WALLET_OFFER:
       specifics->mutable_autofill_offer();
-      break;
-    case AUTOFILL_WALLET_USAGE:
-      specifics->mutable_autofill_wallet_usage();
       break;
     case THEMES:
       specifics->mutable_theme();
@@ -257,6 +259,12 @@ void AddDefaultFieldValue(ModelType type, sync_pb::EntitySpecifics* specifics) {
     case DICTIONARY:
       specifics->mutable_dictionary();
       break;
+    case DEPRECATED_FAVICON_IMAGES:
+      specifics->mutable_favicon_image();
+      break;
+    case DEPRECATED_FAVICON_TRACKING:
+      specifics->mutable_favicon_tracking();
+      break;
     case DEVICE_INFO:
       specifics->mutable_device_info();
       break;
@@ -269,14 +277,14 @@ void AddDefaultFieldValue(ModelType type, sync_pb::EntitySpecifics* specifics) {
     case APP_LIST:
       specifics->mutable_app_list();
       break;
+    case SUPERVISED_USER_ALLOWLISTS:
+      specifics->mutable_managed_user_whitelist();
+      break;
     case ARC_PACKAGE:
       specifics->mutable_arc_package();
       break;
     case PRINTERS:
       specifics->mutable_printer();
-      break;
-    case PRINTERS_AUTHORIZATION_SERVERS:
-      specifics->mutable_printers_authorization_server();
       break;
     case READING_LIST:
       specifics->mutable_reading_list();
@@ -294,8 +302,7 @@ void AddDefaultFieldValue(ModelType type, sync_pb::EntitySpecifics* specifics) {
       specifics->mutable_send_tab_to_self();
       break;
     case PROXY_TABS:
-      NOTREACHED() << "No default field value for "
-                   << ModelTypeToDebugString(type);
+      NOTREACHED() << "No default field value for " << ModelTypeToString(type);
       break;
     case NIGORI:
       specifics->mutable_nigori();
@@ -306,9 +313,6 @@ void AddDefaultFieldValue(ModelType type, sync_pb::EntitySpecifics* specifics) {
     case WIFI_CONFIGURATIONS:
       specifics->mutable_wifi_configuration();
       break;
-    case WORKSPACE_DESK:
-      specifics->mutable_workspace_desk();
-      break;
     case OS_PREFERENCES:
       specifics->mutable_os_preference();
       break;
@@ -318,17 +322,8 @@ void AddDefaultFieldValue(ModelType type, sync_pb::EntitySpecifics* specifics) {
     case SHARING_MESSAGE:
       specifics->mutable_sharing_message();
       break;
-    case HISTORY:
-      specifics->mutable_history();
-      break;
-    case CONTACT_INFO:
-      specifics->mutable_contact_info();
-      break;
-    case SEGMENTATION:
-      specifics->mutable_segmentation();
-      break;
-    case SAVED_TAB_GROUP:
-      specifics->mutable_saved_tab_group();
+    case ModelType::NUM_ENTRIES:
+      NOTREACHED() << "No default field value for " << ModelTypeToString(type);
       break;
   }
 }
@@ -348,19 +343,28 @@ int GetSpecificsFieldNumberFromModelType(ModelType model_type) {
   return kModelTypeInfoMap[model_type].specifics_field_number;
 }
 
-void internal::GetModelTypeSetFromSpecificsFieldNumberListHelper(
-    ModelTypeSet& model_types,
-    int field_number) {
-  ModelType model_type = GetModelTypeFromSpecificsFieldNumber(field_number);
-  if (IsRealDataType(model_type)) {
-    model_types.Put(model_type);
-  } else {
-    DLOG(WARNING) << "Unknown field number " << field_number;
+// Note: keep this consistent with GetModelType in entry.cc!
+ModelType GetModelType(const sync_pb::SyncEntity& sync_entity) {
+  ModelType specifics_type = GetModelTypeFromSpecifics(sync_entity.specifics());
+  if (specifics_type != UNSPECIFIED)
+    return specifics_type;
+
+  // Loose check for server-created top-level folders that aren't
+  // bound to a particular model type.
+  if (!sync_entity.server_defined_unique_tag().empty() &&
+      sync_entity.folder()) {
+    return TOP_LEVEL_FOLDER;
   }
+
+  // This is an item of a datatype we can't understand. Maybe it's
+  // from the future?  Either we mis-encoded the object, or the
+  // server sent us entries it shouldn't have.
+  DVLOG(1) << "Unknown datatype in sync proto.";
+  return UNSPECIFIED;
 }
 
 ModelType GetModelTypeFromSpecifics(const sync_pb::EntitySpecifics& specifics) {
-  static_assert(44 == syncer::GetNumModelTypes(),
+  static_assert(41 == ModelType::NUM_ENTRIES,
                 "When adding new protocol types, the following type lookup "
                 "logic must be updated.");
   if (specifics.has_bookmark())
@@ -397,6 +401,10 @@ ModelType GetModelTypeFromSpecifics(const sync_pb::EntitySpecifics& specifics) {
     return HISTORY_DELETE_DIRECTIVES;
   if (specifics.has_dictionary())
     return DICTIONARY;
+  if (specifics.has_favicon_image())
+    return DEPRECATED_FAVICON_IMAGES;
+  if (specifics.has_favicon_tracking())
+    return DEPRECATED_FAVICON_TRACKING;
   if (specifics.has_device_info())
     return DEVICE_INFO;
   if (specifics.has_priority_preference())
@@ -405,6 +413,8 @@ ModelType GetModelTypeFromSpecifics(const sync_pb::EntitySpecifics& specifics) {
     return SUPERVISED_USER_SETTINGS;
   if (specifics.has_app_list())
     return APP_LIST;
+  if (specifics.has_managed_user_whitelist())
+    return SUPERVISED_USER_ALLOWLISTS;
   if (specifics.has_arc_package())
     return ARC_PACKAGE;
   if (specifics.has_printer())
@@ -433,98 +443,132 @@ ModelType GetModelTypeFromSpecifics(const sync_pb::EntitySpecifics& specifics) {
     return SHARING_MESSAGE;
   if (specifics.has_autofill_offer())
     return AUTOFILL_WALLET_OFFER;
-  if (specifics.has_workspace_desk())
-    return WORKSPACE_DESK;
-  if (specifics.has_history())
-    return HISTORY;
-  if (specifics.has_printers_authorization_server())
-    return PRINTERS_AUTHORIZATION_SERVERS;
-  if (specifics.has_contact_info())
-    return CONTACT_INFO;
-  if (specifics.has_autofill_wallet_usage())
-    return AUTOFILL_WALLET_USAGE;
-  if (specifics.has_segmentation())
-    return SEGMENTATION;
-  if (specifics.has_saved_tab_group())
-    return SAVED_TAB_GROUP;
 
-  // This client version doesn't understand |specifics|.
-  DVLOG(1) << "Unknown datatype in sync proto.";
   return UNSPECIFIED;
 }
 
 ModelTypeSet EncryptableUserTypes() {
-  static_assert(44 == syncer::GetNumModelTypes(),
+  static_assert(41 == ModelType::NUM_ENTRIES,
                 "If adding an unencryptable type, remove from "
                 "encryptable_user_types below.");
   ModelTypeSet encryptable_user_types = UserTypes();
   // Wallet data is not encrypted since it actually originates on the server.
   encryptable_user_types.Remove(AUTOFILL_WALLET_DATA);
   encryptable_user_types.Remove(AUTOFILL_WALLET_OFFER);
-  encryptable_user_types.Remove(AUTOFILL_WALLET_USAGE);
-  // Similarly, contact info is not encrypted since it originates on the server.
-  encryptable_user_types.Remove(CONTACT_INFO);
   // Commit-only types are never encrypted since they are consumed server-side.
   encryptable_user_types.RemoveAll(CommitOnlyTypes());
-  // History Sync is disabled if encryption is enabled.
-  encryptable_user_types.Remove(HISTORY);
+  // Other types that are never encrypted because consumed server-side.
   encryptable_user_types.Remove(HISTORY_DELETE_DIRECTIVES);
-  // Never encrypted because consumed server-side.
   encryptable_user_types.Remove(DEVICE_INFO);
   // Never encrypted because also written server-side.
   encryptable_user_types.Remove(PRIORITY_PREFERENCES);
   encryptable_user_types.Remove(OS_PRIORITY_PREFERENCES);
   encryptable_user_types.Remove(SUPERVISED_USER_SETTINGS);
+  encryptable_user_types.Remove(SUPERVISED_USER_ALLOWLISTS);
   // Proxy types have no sync representation and are therefore not encrypted.
   // Note however that proxy types map to one or more protocol types, which
   // may or may not be encrypted themselves.
-  encryptable_user_types.RetainAll(ProtocolTypes());
+  encryptable_user_types.RemoveAll(ProxyTypes());
   return encryptable_user_types;
 }
 
-const char* ModelTypeToDebugString(ModelType model_type) {
-  // This is used for displaying debug information.
-  return kModelTypeInfoMap[model_type].model_type_debug_string;
+const char* ModelTypeToString(ModelType model_type) {
+  // This is used in serialization routines as well as for displaying debug
+  // information.  Do not attempt to change these string values unless you know
+  // what you're doing.
+  if (model_type >= UNSPECIFIED && model_type < ModelType::NUM_ENTRIES)
+    return kModelTypeInfoMap[model_type].model_type_string;
+  NOTREACHED() << "No known extension for model type.";
+  return "Invalid";
 }
 
 const char* ModelTypeToHistogramSuffix(ModelType model_type) {
+  DCHECK_GE(model_type, UNSPECIFIED);
+  DCHECK_LT(model_type, ModelType::NUM_ENTRIES);
+
   // We use the same string that is used for notification types because they
   // satisfy all we need (being stable and explanatory).
   return kModelTypeInfoMap[model_type].notification_type;
 }
 
 ModelTypeForHistograms ModelTypeHistogramValue(ModelType model_type) {
+  DCHECK_GE(model_type, UNSPECIFIED);
+  DCHECK_LT(model_type, ModelType::NUM_ENTRIES);
   return kModelTypeInfoMap[model_type].model_type_histogram_val;
 }
 
 int ModelTypeToStableIdentifier(ModelType model_type) {
+  DCHECK_GE(model_type, UNSPECIFIED);
+  DCHECK_LT(model_type, ModelType::NUM_ENTRIES);
   // Make sure the value is stable and positive.
   return static_cast<int>(ModelTypeHistogramValue(model_type)) + 1;
 }
 
 std::unique_ptr<base::Value> ModelTypeToValue(ModelType model_type) {
-  return std::make_unique<base::Value>(ModelTypeToDebugString(model_type));
+  if (model_type >= FIRST_REAL_MODEL_TYPE) {
+    return std::make_unique<base::Value>(ModelTypeToString(model_type));
+  }
+  if (model_type == TOP_LEVEL_FOLDER) {
+    return std::make_unique<base::Value>("Top-level folder");
+  }
+  DCHECK_EQ(model_type, UNSPECIFIED);
+  return std::make_unique<base::Value>("Unspecified");
 }
 
-std::string ModelTypeSetToDebugString(ModelTypeSet model_types) {
+ModelType ModelTypeFromString(const std::string& model_type_string) {
+  if (model_type_string != "Unspecified" &&
+      model_type_string != "Top Level Folder") {
+    for (size_t i = 0; i < base::size(kModelTypeInfoMap); ++i) {
+      if (kModelTypeInfoMap[i].model_type_string == model_type_string)
+        return kModelTypeInfoMap[i].model_type;
+    }
+  }
+  return UNSPECIFIED;
+}
+
+std::string ModelTypeSetToString(ModelTypeSet model_types) {
   std::string result;
   for (ModelType type : model_types) {
     if (!result.empty()) {
       result += ", ";
     }
-    result += ModelTypeToDebugString(type);
+    result += ModelTypeToString(type);
   }
   return result;
 }
 
 std::ostream& operator<<(std::ostream& out, ModelTypeSet model_type_set) {
-  return out << ModelTypeSetToDebugString(model_type_set);
+  return out << ModelTypeSetToString(model_type_set);
 }
 
-base::Value::List ModelTypeSetToValue(ModelTypeSet model_types) {
-  base::Value::List value;
+ModelTypeSet ModelTypeSetFromString(const std::string& model_types_string) {
+  std::string working_copy = model_types_string;
+  ModelTypeSet model_types;
+  while (!working_copy.empty()) {
+    // Remove any leading spaces.
+    working_copy = working_copy.substr(working_copy.find_first_not_of(' '));
+    if (working_copy.empty())
+      break;
+    std::string type_str;
+    size_t end = working_copy.find(',');
+    if (end == std::string::npos) {
+      end = working_copy.length() - 1;
+      type_str = working_copy;
+    } else {
+      type_str = working_copy.substr(0, end);
+    }
+    ModelType type = ModelTypeFromString(type_str);
+    if (IsRealDataType(type))
+      model_types.Put(type);
+    working_copy = working_copy.substr(end + 1);
+  }
+  return model_types;
+}
+
+std::unique_ptr<base::ListValue> ModelTypeSetToValue(ModelTypeSet model_types) {
+  std::unique_ptr<base::ListValue> value(new base::ListValue());
   for (ModelType type : model_types) {
-    value.Append(ModelTypeToDebugString(type));
+    value->AppendString(ModelTypeToString(type));
   }
   return value;
 }
@@ -532,11 +576,10 @@ base::Value::List ModelTypeSetToValue(ModelTypeSet model_types) {
 // TODO(zea): remove all hardcoded tags in model associators and have them use
 // this instead.
 std::string ModelTypeToRootTag(ModelType type) {
-  DCHECK(ProtocolTypes().Has(type));
+  if (IsProxyType(type))
+    return std::string();
   DCHECK(IsRealDataType(type));
-  const std::string root_tag = std::string(kModelTypeInfoMap[type].root_tag);
-  DCHECK(!root_tag.empty());
-  return "google_chrome_" + root_tag;
+  return "google_chrome_" + std::string(kModelTypeInfoMap[type].root_tag);
 }
 
 const char* GetModelTypeRootTag(ModelType model_type) {
@@ -555,21 +598,27 @@ bool RealModelTypeToNotificationType(ModelType model_type,
 
 bool NotificationTypeToRealModelType(const std::string& notification_type,
                                      ModelType* model_type) {
-  auto* iter = base::ranges::find(kModelTypeInfoMap, notification_type,
-                                  &ModelTypeInfo::notification_type);
-  if (iter == std::end(kModelTypeInfoMap)) {
+  if (notification_type.empty()) {
+    *model_type = UNSPECIFIED;
     return false;
   }
-  if (!IsRealDataType(iter->model_type)) {
-    return false;
+  for (size_t i = 0; i < base::size(kModelTypeInfoMap); ++i) {
+    if (kModelTypeInfoMap[i].notification_type == notification_type) {
+      *model_type = kModelTypeInfoMap[i].model_type;
+      return true;
+    }
   }
-  *model_type = iter->model_type;
-  return true;
+  *model_type = UNSPECIFIED;
+  return false;
 }
 
 bool IsRealDataType(ModelType model_type) {
   return model_type >= FIRST_REAL_MODEL_TYPE &&
-         model_type <= LAST_REAL_MODEL_TYPE;
+         model_type < ModelType::NUM_ENTRIES;
+}
+
+bool IsProxyType(ModelType model_type) {
+  return model_type >= FIRST_PROXY_TYPE && model_type <= LAST_PROXY_TYPE;
 }
 
 bool IsActOnceDataType(ModelType model_type) {
@@ -583,6 +632,15 @@ bool IsTypeWithServerGeneratedRoot(ModelType model_type) {
 bool IsTypeWithClientGeneratedRoot(ModelType model_type) {
   return IsRealDataType(model_type) &&
          !IsTypeWithServerGeneratedRoot(model_type);
+}
+
+bool TypeSupportsHierarchy(ModelType model_type) {
+  // TODO(stanisc): crbug/438313: Should this also include TOP_LEVEL_FOLDER?
+  return model_type == BOOKMARKS;
+}
+
+bool TypeSupportsOrdering(ModelType model_type) {
+  return model_type == BOOKMARKS;
 }
 
 }  // namespace syncer

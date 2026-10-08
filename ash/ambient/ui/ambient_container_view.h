@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,43 +8,45 @@
 #include <memory>
 
 #include "ash/ash_export.h"
+#include "base/macros.h"
 #include "ui/views/view.h"
 
 namespace ash {
 
-class AmbientAnimationFrameRateController;
-class AmbientAnimationProgressTracker;
-class AmbientAnimationStaticResources;
-class AmbientMultiScreenMetricsRecorder;
-class AmbientViewDelegateImpl;
-
-namespace ambient {
-class AmbientOrientationMetricsRecorder;
-}  // namespace ambient
+class AmbientAssistantContainerView;
+class AmbientViewDelegate;
+class PhotoView;
 
 // Container view to display all Ambient Mode related views, i.e. photo frame,
 // weather info.
 class ASH_EXPORT AmbientContainerView : public views::View {
  public:
-  METADATA_HEADER(AmbientContainerView);
-
-  // |animation_static_resources| contains the Lottie animation file to render
-  // along with its accompanying static image assets. If null, that means the
-  // slideshow UI should be rendered instead.
-  AmbientContainerView(
-      AmbientViewDelegateImpl* delegate,
-      AmbientAnimationProgressTracker* progress_tracker,
-      std::unique_ptr<AmbientAnimationStaticResources>
-          animation_static_resources,
-      AmbientMultiScreenMetricsRecorder* multi_screen_metrics_recorder,
-      AmbientAnimationFrameRateController* frame_rate_controller);
+  explicit AmbientContainerView(AmbientViewDelegate* delegate);
   ~AmbientContainerView() override;
+
+  // views::View:
+  const char* GetClassName() const override;
+  gfx::Size CalculatePreferredSize() const override;
+  void Layout() override;
 
  private:
   friend class AmbientAshTestBase;
 
-  std::unique_ptr<ambient::AmbientOrientationMetricsRecorder>
-      orientation_metrics_recorder_;
+  void Init();
+
+  // Layouts its child views.
+  // TODO(meilinw): Use LayoutManagers to lay out children instead of overriding
+  // Layout(). See b/163170162.
+  void LayoutPhotoView();
+  void LayoutAssistantView();
+
+  AmbientViewDelegate* delegate_ = nullptr;
+
+  // Owned by view hierarchy.
+  PhotoView* photo_view_ = nullptr;
+  AmbientAssistantContainerView* ambient_assistant_container_view_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(AmbientContainerView);
 };
 
 }  // namespace ash

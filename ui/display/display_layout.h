@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "ui/display/display_export.h"
 
@@ -70,8 +71,7 @@ struct DISPLAY_EXPORT DisplayPlacement {
                    int offset,
                    OffsetReference offset_reference);
 
-  DisplayPlacement(const DisplayPlacement&);
-  DisplayPlacement& operator=(const DisplayPlacement&);
+  DisplayPlacement(const DisplayPlacement& placement);
 
   bool operator==(const DisplayPlacement& other) const;
   bool operator!=(const DisplayPlacement& other) const;
@@ -88,10 +88,6 @@ struct DISPLAY_EXPORT DisplayPlacement {
 class DISPLAY_EXPORT DisplayLayout final {
  public:
   DisplayLayout();
-
-  DisplayLayout(const DisplayLayout&) = delete;
-  DisplayLayout& operator=(const DisplayLayout&) = delete;
-
   ~DisplayLayout();
 
   // Applies the layout to the displays in |display_list|.
@@ -124,9 +120,6 @@ class DISPLAY_EXPORT DisplayLayout final {
   // as mirrored, primary_id are ignored.
   bool HasSamePlacementList(const DisplayLayout& layout) const;
 
-  // Removes the display placemenats created for `display_id_list`.
-  void RemoveDisplayPlacements(const DisplayIdList& display_id_list);
-
   // Returns string representation of the layout for debugging/testing.
   std::string ToString() const;
 
@@ -146,6 +139,8 @@ class DISPLAY_EXPORT DisplayLayout final {
   static bool ApplyDisplayPlacement(const DisplayPlacement& placement,
                                     Displays* display_list,
                                     int minimum_offset_overlap);
+
+  DISALLOW_COPY_AND_ASSIGN(DisplayLayout);
 };
 
 }  // namespace display

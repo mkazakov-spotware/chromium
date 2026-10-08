@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <stdint.h>
 
 #include "base/compiler_specific.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "ppapi/proxy/plugin_resource.h"
 #include "ppapi/proxy/ppapi_proxy_export.h"
 #include "ppapi/shared_impl/tracked_callback.h"
@@ -22,12 +23,6 @@ class PPAPI_PROXY_EXPORT TCPServerSocketPrivateResource
       public thunk::PPB_TCPServerSocket_Private_API {
  public:
   TCPServerSocketPrivateResource(Connection connection, PP_Instance instance);
-
-  TCPServerSocketPrivateResource(const TCPServerSocketPrivateResource&) =
-      delete;
-  TCPServerSocketPrivateResource& operator=(
-      const TCPServerSocketPrivateResource&) = delete;
-
   ~TCPServerSocketPrivateResource() override;
 
   // PluginResource implementation.
@@ -64,6 +59,8 @@ class PPAPI_PROXY_EXPORT TCPServerSocketPrivateResource
 
   scoped_refptr<TrackedCallback> listen_callback_;
   scoped_refptr<TrackedCallback> accept_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(TCPServerSocketPrivateResource);
 };
 
 }  // namespace proxy

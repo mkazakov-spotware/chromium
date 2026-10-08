@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/remote_cocoa/app_shim/drag_drop_client.h"
 #include "ui/base/dragdrop/mojom/drag_drop_types.mojom-forward.h"
 #include "ui/base/dragdrop/os_exchange_data.h"
@@ -39,10 +39,6 @@ class VIEWS_EXPORT DragDropClientMac : public remote_cocoa::DragDropClient {
  public:
   DragDropClientMac(remote_cocoa::NativeWidgetNSWindowBridge* bridge,
                     View* root_view);
-
-  DragDropClientMac(const DragDropClientMac&) = delete;
-  DragDropClientMac& operator=(const DragDropClientMac&) = delete;
-
   ~DragDropClientMac() override;
 
   // Initiates a drag and drop session. Returns the drag operation that was
@@ -77,14 +73,15 @@ class VIEWS_EXPORT DragDropClientMac : public remote_cocoa::DragDropClient {
   int last_operation_ = 0;
 
   // The bridge between the content view and the drag drop client.
-  raw_ptr<remote_cocoa::NativeWidgetNSWindowBridge, DanglingUntriaged>
-      bridge_;  // Weak. Owns |this|.
+  remote_cocoa::NativeWidgetNSWindowBridge* bridge_;  // Weak. Owns |this|.
 
   // The closure for the drag and drop's run loop.
   base::OnceClosure quit_closure_;
 
   // Whether |this| is the source of current dragging session.
   bool is_drag_source_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(DragDropClientMac);
 };
 
 }  // namespace views

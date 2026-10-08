@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,8 @@
 #include "ui/compositor/test/layer_animator_test_controller.h"
 #include "ui/views/animation/ink_drop_ripple.h"
 
-namespace views::test {
+namespace views {
+namespace test {
 
 SquareInkDropRippleTestApi::SquareInkDropRippleTestApi(
     SquareInkDropRipple* ink_drop_ripple)
@@ -47,4 +48,5 @@ SquareInkDropRippleTestApi::GetLayerAnimators() {
   return animators;
 }
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views

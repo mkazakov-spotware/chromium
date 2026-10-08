@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,34 +16,30 @@
 #endif
 
 @interface AddAccountSigninManager ()
-
 // Presenting view controller.
-@property(nonatomic, strong) UIViewController* baseViewController;
+@property(nonatomic, weak) UIViewController* viewController;
 // The coordinator's manager that handles interactions to add identities.
-@property(nonatomic, strong)
+@property(nonatomic, weak)
     ChromeIdentityInteractionManager* identityInteractionManager;
 // The Browser state's user-selected preferences.
 @property(nonatomic, assign) PrefService* prefService;
 // The Browser state's identity manager.
 @property(nonatomic, assign) signin::IdentityManager* identityManager;
-// Indicates that the add account sign-in flow was interrupted.
-@property(nonatomic, readwrite) BOOL signinInterrupted;
-
 @end
 
 @implementation AddAccountSigninManager
 
 #pragma mark - Public
 
-- (instancetype)initWithBaseViewController:(UIViewController*)baseViewController
-                identityInteractionManager:(ChromeIdentityInteractionManager*)
-                                               identityInteractionManager
-                               prefService:(PrefService*)prefService
-                           identityManager:
-                               (signin::IdentityManager*)identityManager {
+- (instancetype)
+    initWithPresentingViewController:(UIViewController*)viewController
+          identityInteractionManager:
+              (ChromeIdentityInteractionManager*)identityInteractionManager
+                         prefService:(PrefService*)prefService
+                     identityManager:(signin::IdentityManager*)identityManager {
   self = [super init];
   if (self) {
-    _baseViewController = baseViewController;
+    _viewController = viewController;
     _identityInteractionManager = identityInteractionManager;
     _prefService = prefService;
     _identityManager = identityManager;
@@ -59,8 +55,8 @@
       break;
     }
     case AddAccountSigninIntentReauthPrimaryAccount: {
-      CoreAccountInfo accountInfo = self.identityManager->GetPrimaryAccountInfo(
-          signin::ConsentLevel::kSync);
+      CoreAccountInfo accountInfo =
+          self.identityManager->GetPrimaryAccountInfo();
       std::string userEmailString = accountInfo.email;
 
       if (userEmailString.empty()) {
@@ -81,9 +77,9 @@
   }
   __weak AddAccountSigninManager* weakSelf = self;
   [self.identityInteractionManager
-      addAccountWithPresentingViewController:self.baseViewController
+      addAccountWithPresentingViewController:self.viewController
                                    userEmail:userEmail
-                                  completion:^(id<SystemIdentity> identity,
+                                  completion:^(ChromeIdentity* identity,
                                                NSError* error) {
                                     [weakSelf
                                         operationCompletedWithIdentity:identity
@@ -91,31 +87,23 @@
                                   }];
 }
 
-- (void)interruptAddAccountAnimated:(BOOL)animated
-                         completion:(ProceduralBlock)completion {
-  self.signinInterrupted = YES;
-  [self.identityInteractionManager cancelAddAccountAnimated:animated
-                                                 completion:completion];
-}
-
 #pragma mark - Private
 
 // Handles the reauthentication or add account operation or displays an alert
 // if the flow is interrupted by a sign-in error.
-- (void)operationCompletedWithIdentity:(id<SystemIdentity>)identity
+- (void)operationCompletedWithIdentity:(ChromeIdentity*)identity
                                  error:(NSError*)error {
-  SigninCoordinatorResult signinResult = SigninCoordinatorResultSuccess;
-  if (self.signinInterrupted) {
-    signinResult = SigninCoordinatorResultInterrupted;
-    identity = nil;
-  } else if (error) {
-    // Filter out errors handled internally by `identity`.
+  SigninCoordinatorResult signinResult;
+  if (error) {
+    // Filter out errors handled internally by ChromeIdentity.
     if (ShouldHandleSigninError(error)) {
       [self.delegate addAccountSigninManagerFailedWithError:error];
       return;
     }
     signinResult = SigninCoordinatorResultCanceledByUser;
-    identity = nil;
+  } else {
+    signinResult = self.signinInterrupted ? SigninCoordinatorResultInterrupted
+                                          : SigninCoordinatorResultSuccess;
   }
 
   [self.delegate addAccountSigninManagerFinishedWithSigninResult:signinResult

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 
 #include "base/memory/scoped_refptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/unguessable_token.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
 #include "third_party/blink/public/mojom/loader/pause_subresource_loading_handle.mojom-blink.h"
@@ -17,6 +17,7 @@
 #include "third_party/blink/public/platform/task_type.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/scheduler/public/frame_or_worker_scheduler.h"
+#include "third_party/blink/renderer/platform/scheduler/public/web_scheduling_priority.h"
 #include "third_party/blink/renderer/platform/wtf/hash_set.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
@@ -26,20 +27,33 @@ class UkmRecorder;
 
 namespace blink {
 
-class AgentGroupScheduler;
+namespace scheduler {
+class WebAgentGroupScheduler;
+}  // namespace scheduler
+
 class PageScheduler;
+class WebSchedulingTaskQueue;
 
 class FrameScheduler : public FrameOrWorkerScheduler {
  public:
-  class PLATFORM_EXPORT Delegate : public FrameOrWorkerScheduler::Delegate {
+  class PLATFORM_EXPORT Delegate {
    public:
-    ~Delegate() override = default;
+    virtual ~Delegate() = default;
 
     virtual ukm::UkmRecorder* GetUkmRecorder() = 0;
     virtual ukm::SourceId GetUkmSourceId() = 0;
 
     // Called when a frame has exceeded a total task time threshold (100ms).
     virtual void UpdateTaskTime(base::TimeDelta time) = 0;
+
+    // Notify that the list of active features for this frame has changed.
+    // See SchedulingPolicy::Feature for the list of features and the meaning
+    // of individual features.
+    // Note that this method is not called when the frame navigates — it is
+    // the responsibility of the observer to detect this and act reset features
+    // accordingly.
+    virtual void UpdateActiveSchedulerTrackedFeatures(
+        uint64_t features_mask) = 0;
 
     virtual const base::UnguessableToken& GetAgentClusterId() const = 0;
   };
@@ -79,15 +93,11 @@ class FrameScheduler : public FrameOrWorkerScheduler {
   // Set whether this frame is cross origin w.r.t. the top level frame. Cross
   // origin frames may use a different scheduling policy from same origin
   // frames.
-  virtual void SetCrossOriginToNearestMainFrame(bool) = 0;
-  virtual bool IsCrossOriginToNearestMainFrame() const = 0;
+  virtual void SetCrossOriginToMainFrame(bool) = 0;
+  virtual bool IsCrossOriginToMainFrame() const = 0;
 
-  virtual void SetIsAdFrame(bool is_ad_frame) = 0;
+  virtual void SetIsAdFrame() = 0;
   virtual bool IsAdFrame() const = 0;
-
-  // Returns whether this frame scheduler is contained in an embedded frame
-  // tree.
-  virtual bool IsInEmbeddedFrameTree() const = 0;
 
   virtual void TraceUrlChange(const String&) = 0;
 
@@ -120,11 +130,14 @@ class FrameScheduler : public FrameOrWorkerScheduler {
   virtual std::unique_ptr<scheduler::WebResourceLoadingTaskRunnerHandle>
   CreateResourceLoadingMaybeUnfreezableTaskRunnerHandle() = 0;
 
+  virtual std::unique_ptr<WebSchedulingTaskQueue> CreateWebSchedulingTaskQueue(
+      WebSchedulingPriority) = 0;
+
   // Returns the parent PageScheduler.
   virtual PageScheduler* GetPageScheduler() const = 0;
 
   // Returns the parent AgentGroupScheduler.
-  virtual AgentGroupScheduler* GetAgentGroupScheduler() = 0;
+  virtual scheduler::WebAgentGroupScheduler* GetAgentGroupScheduler() = 0;
 
   // Returns a WebScopedVirtualTimePauser which can be used to vote for pausing
   // virtual time. Virtual time will be paused if any WebScopedVirtualTimePauser
@@ -139,7 +152,7 @@ class FrameScheduler : public FrameOrWorkerScheduler {
   // Tells the scheduler that a provisional load has started, the scheduler may
   // reset the task cost estimators and the UserModel. Must be called from the
   // main thread.
-  virtual void DidStartProvisionalLoad() = 0;
+  virtual void DidStartProvisionalLoad(bool is_main_frame) = 0;
 
   // Tells the scheduler that a provisional load has committed, the scheduler
   // may reset the task cost estimators and the UserModel. Must be called from
@@ -148,8 +161,8 @@ class FrameScheduler : public FrameOrWorkerScheduler {
                                         NavigationType navigation_type) = 0;
 
   // Tells the scheduler that the first contentful paint has occurred for this
-  // frame. Only for main frames.
-  virtual void OnFirstContentfulPaintInMainFrame() = 0;
+  // frame.
+  virtual void OnFirstContentfulPaint() = 0;
 
   // Tells the scheduler that the first meaningful paint has occurred for this
   // frame.

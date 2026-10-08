@@ -1,10 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "chrome/browser/extensions/api/gcm/gcm_api.h"
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "chrome/browser/extensions/extension_gcm_app_handler.h"
@@ -13,7 +13,7 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/gcm_driver/fake_gcm_profile_service.h"
-#include "components/sync/base/command_line_switches.h"
+#include "components/sync/driver/sync_driver_switches.h"
 #include "content/public/test/browser_test.h"
 #include "extensions/test/result_catcher.h"
 
@@ -73,15 +73,17 @@ class GcmApiTest : public ExtensionApiTest {
  private:
   void OnWillCreateBrowserContextServices(content::BrowserContext* context);
 
-  base::CallbackListSubscription create_services_subscription_;
+  std::unique_ptr<
+      BrowserContextDependencyManager::CreateServicesCallbackList::Subscription>
+      create_services_subscription_;
 };
 
 void GcmApiTest::SetUpCommandLine(base::CommandLine* command_line) {
   // We now always create the GCMProfileService instance in
-  // SyncServiceFactory that is called when a profile is being
+  // ProfileSyncServiceFactory that is called when a profile is being
   // initialized. In order to prevent it from being created, we add the switch
   // to disable the sync logic.
-  command_line->AppendSwitch(syncer::kDisableSync);
+  command_line->AppendSwitch(switches::kDisableSync);
 
   ExtensionApiTest::SetUpCommandLine(command_line);
 }
@@ -117,8 +119,8 @@ const Extension* GcmApiTest::LoadTestExtension(
   const Extension* extension =
       LoadExtension(test_data_dir_.AppendASCII(extension_path));
   if (extension) {
-    EXPECT_TRUE(ui_test_utils::NavigateToURL(
-        browser(), extension->GetResourceURL(page_name)));
+    ui_test_utils::NavigateToURL(
+        browser(), extension->GetResourceURL(page_name));
   }
   return extension;
 }
@@ -264,11 +266,9 @@ IN_PROC_BROWSER_TEST_F(GcmApiTest, Incognito) {
   ResultCatcher catcher;
   catcher.RestrictToBrowserContext(profile());
   ResultCatcher incognito_catcher;
-  incognito_catcher.RestrictToBrowserContext(
-      profile()->GetPrimaryOTRProfile(/*create_if_needed=*/true));
+  incognito_catcher.RestrictToBrowserContext(profile()->GetPrimaryOTRProfile());
 
-  ASSERT_TRUE(RunExtensionTest("gcm/functions/incognito", {},
-                               {.allow_in_incognito = true}));
+  ASSERT_TRUE(RunExtensionTestIncognito("gcm/functions/incognito"));
 
   EXPECT_TRUE(catcher.GetNextResult()) << catcher.message();
   EXPECT_TRUE(incognito_catcher.GetNextResult()) << incognito_catcher.message();

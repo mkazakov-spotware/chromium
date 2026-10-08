@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <tuple>
 
 #include "base/bind.h"
-#include "base/containers/lru_cache.h"
+#include "base/containers/mru_cache.h"
 #include "components/favicon/core/favicon_service.h"
 #include "components/omnibox/browser/autocomplete_result.h"
 
@@ -31,7 +31,7 @@ bool FaviconCache::Request::operator<(const Request& rhs) const {
 FaviconCache::FaviconCache(favicon::FaviconService* favicon_service,
                            history::HistoryService* history_service)
     : favicon_service_(favicon_service),
-      lru_cache_(GetFaviconCacheSize()),
+      mru_cache_(GetFaviconCacheSize()),
       responses_without_favicons_(GetFaviconCacheSize()) {
   if (history_service) {
     history_observation_.Observe(history_service);
@@ -75,8 +75,8 @@ gfx::Image FaviconCache::GetFaviconInternal(
     return gfx::Image();
 
   // Early exit if we have a cached favicon ready.
-  auto cache_iterator = lru_cache_.Get(request);
-  if (cache_iterator != lru_cache_.end())
+  auto cache_iterator = mru_cache_.Get(request);
+  if (cache_iterator != mru_cache_.end())
     return cache_iterator->second;
 
   // Early exit if we've already established that we don't have the favicon.
@@ -149,7 +149,7 @@ void FaviconCache::OnFaviconRawBitmapFetched(
 void FaviconCache::InvokeRequestCallbackWithFavicon(const Request& request,
                                                     const gfx::Image& image) {
   DCHECK(!image.IsEmpty());
-  lru_cache_.Put(request, image);
+  mru_cache_.Put(request, image);
 
   auto it = pending_requests_.find(request);
   DCHECK(it != pending_requests_.end());
@@ -160,19 +160,21 @@ void FaviconCache::InvokeRequestCallbackWithFavicon(const Request& request,
 }
 
 void FaviconCache::OnURLVisited(history::HistoryService* history_service,
-                                const history::URLRow& url_row,
-                                const history::VisitRow& new_visit) {
-  auto it = responses_without_favicons_.Peek(
-      {RequestType::BY_PAGE_URL, url_row.url()});
+                                ui::PageTransition transition,
+                                const history::URLRow& row,
+                                const history::RedirectList& redirects,
+                                base::Time visit_time) {
+  auto it =
+      responses_without_favicons_.Peek({RequestType::BY_PAGE_URL, row.url()});
   if (it != responses_without_favicons_.end())
     responses_without_favicons_.Erase(it);
 }
 
 void FaviconCache::InvalidateCachedRequests(const Request& request) {
   {
-    auto it = lru_cache_.Peek(request);
-    if (it != lru_cache_.end())
-      lru_cache_.Erase(it);
+    auto it = mru_cache_.Peek(request);
+    if (it != mru_cache_.end())
+      mru_cache_.Erase(it);
   }
 
   {
@@ -189,7 +191,7 @@ void FaviconCache::OnURLsDeleted(history::HistoryService* history_service,
     return;
 
   if (deletion_info.IsAllHistory()) {
-    lru_cache_.Clear();
+    mru_cache_.Clear();
     responses_without_favicons_.Clear();
     return;
   }

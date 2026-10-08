@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@ namespace {
 bool NavigationShouldInvalidateThumbnail(
     content::NavigationHandle* navigation) {
   // Ignore subframe navigations.
-  if (!navigation->IsInPrimaryMainFrame())
+  if (!navigation->IsInMainFrame())
     return false;
 
   // Some navigations change the tab URL but don't create a new
@@ -63,7 +63,7 @@ void ThumbnailReadinessTracker::DidFinishNavigation(
   UpdateReadiness(Readiness::kReadyForInitialCapture);
 }
 
-void ThumbnailReadinessTracker::DocumentOnLoadCompletedInPrimaryMainFrame() {
+void ThumbnailReadinessTracker::DocumentOnLoadCompletedInMainFrame() {
   UpdateReadiness(Readiness::kReadyForFinalCapture);
 }
 

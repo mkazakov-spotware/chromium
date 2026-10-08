@@ -1,34 +1,44 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/after_startup_task_utils.h"
 
+#include <memory>
+#include <utility>
+
 #include "base/containers/circular_deque.h"
 #include "base/lazy_instance.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/process/process.h"
+#include "base/rand_util.h"
+#include "base/sequence_checker.h"
+#include "base/sequenced_task_runner.h"
 #include "base/synchronization/atomic_flag.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
-#include "components/performance_manager/performance_manager_impl.h"
-#include "components/performance_manager/public/graph/graph.h"
-#include "components/performance_manager/public/graph/page_node.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/navigation_handle.h"
+#include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/web_contents.h"
+#include "content/public/browser/web_contents_observer.h"
+#include "content/public/common/page_visibility_state.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/login/ui/login_display_host.h"
+#if !defined(OS_ANDROID)
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/startup/browser_params_proxy.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
+#include "ui/views/linux_ui/linux_ui.h"
+#endif
 
 using content::BrowserThread;
+using content::WebContents;
+using content::WebContentsObserver;
 
 namespace {
 
@@ -51,6 +61,8 @@ base::LazyInstance<base::AtomicFlag>::Leaky g_startup_complete_flag;
 base::LazyInstance<base::circular_deque<AfterStartupTask*>>::Leaky
     g_after_startup_tasks;
 
+bool g_schedule_tasks_with_delay = true;
+
 bool IsBrowserStartupComplete() {
   // Be sure to initialize the LazyInstance on the main thread since the flag
   // may only be set on it's initializing thread.
@@ -66,11 +78,18 @@ void RunTask(std::unique_ptr<AfterStartupTask> queued_task) {
 }
 
 void ScheduleTask(std::unique_ptr<AfterStartupTask> queued_task) {
+  // Spread their execution over a brief time.
+  constexpr int kMinDelaySec = 0;
+  constexpr int kMaxDelaySec = 10;
   scoped_refptr<base::SequencedTaskRunner> target_runner =
       queued_task->task_runner;
   base::Location from_here = queued_task->from_here;
-  target_runner->PostTask(from_here,
-                          base::BindOnce(&RunTask, std::move(queued_task)));
+  int delay_in_seconds = g_schedule_tasks_with_delay
+                             ? base::RandInt(kMinDelaySec, kMaxDelaySec)
+                             : 0;
+  target_runner->PostDelayedTask(
+      from_here, base::BindOnce(&RunTask, std::move(queued_task)),
+      base::TimeDelta::FromSeconds(delay_in_seconds));
 }
 
 void QueueTask(std::unique_ptr<AfterStartupTask> queued_task) {
@@ -100,14 +119,8 @@ void QueueTask(std::unique_ptr<AfterStartupTask> queued_task) {
 
 void SetBrowserStartupIsComplete() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-
-  if (IsBrowserStartupComplete())
-    return;
-
-  TRACE_EVENT0("startup", "SetBrowserStartupIsComplete");
-  g_startup_complete_flag.Get().Set();
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || \
-    BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_MAC) || defined(OS_WIN) || defined(OS_LINUX) || \
+    defined(OS_CHROMEOS)
   // Process::Current().CreationTime() is not available on all platforms.
   const base::Time process_creation_time =
       base::Process::Current().CreationTime();
@@ -115,138 +128,118 @@ void SetBrowserStartupIsComplete() {
     UMA_HISTOGRAM_LONG_TIMES("Startup.AfterStartupTaskDelayedUntilTime",
                              base::Time::Now() - process_creation_time);
   }
-#endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) ||
-        // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_MAC) || defined(OS_WIN) || defined(OS_LINUX) ||
+        // defined(OS_CHROMEOS)
   UMA_HISTOGRAM_COUNTS_10000("Startup.AfterStartupTaskCount",
                              g_after_startup_tasks.Get().size());
+  g_startup_complete_flag.Get().Set();
   for (AfterStartupTask* queued_task : g_after_startup_tasks.Get())
     ScheduleTask(base::WrapUnique(queued_task));
   g_after_startup_tasks.Get().clear();
   g_after_startup_tasks.Get().shrink_to_fit();
+
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
+  // Make sure we complete the startup notification sequence, or launchers will
+  // get confused by not receiving the expected message from the main process.
+  views::LinuxUI* linux_ui = views::LinuxUI::instance();
+  if (linux_ui)
+    linux_ui->NotifyWindowManagerStartupComplete();
+#endif
 }
 
 // Observes the first visible page load and sets the startup complete
-// flag accordingly. Ownership is passed to the Performance Manager
-// after creation.
-class StartupObserver
-    : public performance_manager::GraphOwned,
-      public performance_manager::PageNode::ObserverDefaultImpl {
+// flag accordingly.
+class StartupObserver : public WebContentsObserver {
  public:
-  StartupObserver(const StartupObserver&) = delete;
-  StartupObserver& operator=(const StartupObserver&) = delete;
+  StartupObserver() {}
+  ~StartupObserver() override {
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+    DCHECK(IsBrowserStartupComplete());
+  }
 
-  ~StartupObserver() override = default;
-
-  static void Start();
+  void Start();
 
  private:
-  StartupObserver() = default;
-
   void OnStartupComplete() {
-    if (!performance_manager::PerformanceManagerImpl::IsAvailable()) {
-      // Already shutting down before startup finished. Do not notify.
-      return;
-    }
-
-    // This should only be called once.
-    if (!startup_complete_) {
-      startup_complete_ = true;
-      content::GetUIThreadTaskRunner({})->PostTask(
-          FROM_HERE, base::BindOnce(&SetBrowserStartupIsComplete));
-      // This will result in delete getting called.
-      TakeFromGraph();
-    }
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+    SetBrowserStartupIsComplete();
+    delete this;
   }
 
-  // GraphOwned overrides
-  void OnPassedToGraph(performance_manager::Graph* graph) override {
-    graph->AddPageNodeObserver(this);
+  void OnFailsafeTimeout() { OnStartupComplete(); }
+
+  // WebContentsObserver overrides
+  void DidFinishLoad(content::RenderFrameHost* render_frame_host,
+                     const GURL& validated_url) override {
+    if (!render_frame_host->GetParent())
+      OnStartupComplete();
   }
 
-  void OnTakenFromGraph(performance_manager::Graph* graph) override {
-    graph->RemovePageNodeObserver(this);
+  void DidFailLoad(content::RenderFrameHost* render_frame_host,
+                   const GURL& validated_url,
+                   int error_code) override {
+    if (!render_frame_host->GetParent())
+      OnStartupComplete();
   }
 
-  // PageNodeObserver overrides
-  void OnLoadingStateChanged(
-      const performance_manager::PageNode* page_node,
-      performance_manager::PageNode::LoadingState previous_state) override {
-    // Only interested in visible PageNodes
-    if (page_node->IsVisible()) {
-      if (page_node->GetLoadingState() ==
-              performance_manager::PageNode::LoadingState::kLoadedIdle ||
-          page_node->GetLoadingState() ==
-              performance_manager::PageNode::LoadingState::kLoadingTimedOut)
-        OnStartupComplete();
-    }
+  // Starting the browser with a file download url will not result in
+  // DidFinishLoad firing, so watch for this case too. crbug.com/1006954
+  void DidFinishNavigation(
+      content::NavigationHandle* navigation_handle) override {
+    if (navigation_handle->IsInMainFrame() && navigation_handle->IsDownload())
+      OnStartupComplete();
   }
 
-  void PassToGraph() {
-    // Pass to the performance manager so we can get notified when
-    // loading completes.  Ownership of this object is passed to the
-    // performance manager.
-    DCHECK(performance_manager::PerformanceManagerImpl::IsAvailable());
-    performance_manager::PerformanceManagerImpl::PassToGraph(
-        FROM_HERE, base::WrapUnique(this));
-  }
+  void WebContentsDestroyed() override { OnStartupComplete(); }
 
-  void TakeFromGraph() {
-    // Remove this object from the performance manager.  This will
-    // cause the object to be deleted.
-    DCHECK(performance_manager::PerformanceManagerImpl::IsAvailable());
-    performance_manager::PerformanceManager::CallOnGraph(
-        FROM_HERE, base::BindOnce(
-                       [](performance_manager::GraphOwned* observer,
-                          performance_manager::Graph* graph) {
-                         graph->TakeFromGraph(observer);
-                       },
-                       base::Unretained(this)));
-  }
+  SEQUENCE_CHECKER(sequence_checker_);
 
-  bool startup_complete_ = false;
+  base::WeakPtrFactory<StartupObserver> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(StartupObserver);
 };
 
-// static
 void StartupObserver::Start() {
-  // Create the StartupObserver and pass it to the Performance Manager which
-  // will own it going forward.
-  (new StartupObserver)->PassToGraph();
+  // Signal completion quickly when there is no first page to load.
+  const int kShortDelaySecs = 3;
+  base::TimeDelta delay = base::TimeDelta::FromSeconds(kShortDelaySecs);
+
+#if !defined(OS_ANDROID)
+  WebContents* contents = nullptr;
+  for (auto* browser : *BrowserList::GetInstance()) {
+    contents = browser->tab_strip_model()->GetActiveWebContents();
+    if (contents && contents->GetMainFrame() &&
+        contents->GetMainFrame()->GetVisibilityState() ==
+            content::PageVisibilityState::kVisible) {
+      break;
+    }
+  }
+
+  if (contents) {
+    // Give the page time to finish loading.
+    const int kLongerDelayMins = 3;
+    Observe(contents);
+    delay = base::TimeDelta::FromMinutes(kLongerDelayMins);
+  }
+#else
+  // Startup completion is signaled via AfterStartupTaskUtils.java,
+  // this is just a failsafe timeout.
+  const int kLongerDelayMins = 3;
+  delay = base::TimeDelta::FromMinutes(kLongerDelayMins);
+#endif  // !defined(OS_ANDROID)
+
+  content::GetUIThreadTaskRunner({})->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(&StartupObserver::OnFailsafeTimeout,
+                     weak_factory_.GetWeakPtr()),
+      delay);
 }
 
 }  // namespace
 
 void AfterStartupTaskUtils::StartMonitoringStartup() {
-  // For Android, startup completion is signaled via
-  // AfterStartupTaskUtils.java. We do not use the StartupObserver.
-#if !BUILDFLAG(IS_ANDROID)
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  // For Lacros, there may not be a Browser created at startup.
-  if (chromeos::BrowserParamsProxy::Get()->InitialBrowserAction() ==
-      crosapi::mojom::InitialBrowserAction::kDoNotOpenWindow) {
-    content::GetUIThreadTaskRunner({})->PostTask(
-        FROM_HERE, base::BindOnce(&SetBrowserStartupIsComplete));
-    return;
-  }
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  // If we are on a login screen which does not expect WebUI to be loaded,
-  // Browser won't be created at startup.
-  if (ash::LoginDisplayHost::default_host() &&
-      !ash::LoginDisplayHost::default_host()->IsWebUIStarted()) {
-    content::GetUIThreadTaskRunner({})->PostTask(
-        FROM_HERE, base::BindOnce(&SetBrowserStartupIsComplete));
-    return;
-  }
-#endif
-
-  StartupObserver::Start();
-#endif  // !BUILDFLAG(IS_ANDROID)
-
-  // Add failsafe timeout
-  content::GetUIThreadTaskRunner({})->PostDelayedTask(
-      FROM_HERE, base::BindOnce(&SetBrowserStartupIsComplete),
-      base::Minutes(3));
+  // The observer is self-deleting.
+  (new StartupObserver)->Start();
 }
 
 void AfterStartupTaskUtils::PostTask(
@@ -281,4 +274,9 @@ void AfterStartupTaskUtils::UnsafeResetForTesting() {
     return;
   g_startup_complete_flag.Get().UnsafeResetForTesting();
   DCHECK(!IsBrowserStartupComplete());
+}
+
+// static
+void AfterStartupTaskUtils::DisableScheduleTaskDelayForTesting() {
+  g_schedule_tasks_with_delay = false;
 }

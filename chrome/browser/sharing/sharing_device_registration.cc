@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,8 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/sharing/buildflags.h"
+#include "chrome/browser/sharing/click_to_call/feature.h"
+#include "chrome/browser/sharing/shared_clipboard/feature_flags.h"
 #include "chrome/browser/sharing/sharing_constants.h"
 #include "chrome/browser/sharing/sharing_device_registration_result.h"
 #include "chrome/browser/sharing/sharing_sync_preference.h"
@@ -22,13 +24,12 @@
 #include "chrome/common/pref_names.h"
 #include "components/gcm_driver/crypto/p256_key_util.h"
 #include "components/gcm_driver/instance_id/instance_id_driver.h"
-#include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/prefs/pref_service.h"
 #include "components/sync/driver/sync_service.h"
 #include "components/sync_device_info/device_info.h"
 #include "crypto/ec_private_key.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "chrome/android/chrome_jni_headers/SharingJNIBridge_jni.h"
 #endif
 
@@ -50,12 +51,12 @@ SharingDeviceRegistration::SharingDeviceRegistration(
 SharingDeviceRegistration::~SharingDeviceRegistration() = default;
 
 void SharingDeviceRegistration::RegisterDevice(RegistrationCallback callback) {
-  absl::optional<std::string> authorized_entity = GetAuthorizationEntity();
+  base::Optional<std::string> authorized_entity = GetAuthorizationEntity();
   if (!authorized_entity) {
     OnVapidTargetInfoRetrieved(std::move(callback),
-                               /*authorized_entity=*/absl::nullopt,
+                               /*authorized_entity=*/base::nullopt,
                                SharingDeviceRegistrationResult::kSuccess,
-                               /*vapid_target_info=*/absl::nullopt);
+                               /*vapid_target_info=*/base::nullopt);
     return;
   }
 
@@ -72,6 +73,7 @@ void SharingDeviceRegistration::RetrieveTargetInfo(
   instance_id_driver_->GetInstanceID(kSharingFCMAppID)
       ->GetToken(authorized_entity, instance_id::kGCMScope,
                  /*time_to_live=*/base::TimeDelta(),
+                 /*options=*/{},
                  /*flags=*/{InstanceID::Flags::kBypassScheduler},
                  base::BindOnce(&SharingDeviceRegistration::OnFCMTokenReceived,
                                 weak_ptr_factory_.GetWeakPtr(),
@@ -97,13 +99,13 @@ void SharingDeviceRegistration::OnFCMTokenReceived(
     case InstanceID::SERVER_ERROR:
     case InstanceID::ASYNC_OPERATION_PENDING:
       std::move(callback).Run(
-          SharingDeviceRegistrationResult::kFcmTransientError, absl::nullopt);
+          SharingDeviceRegistrationResult::kFcmTransientError, base::nullopt);
       break;
     case InstanceID::INVALID_PARAMETER:
     case InstanceID::UNKNOWN_ERROR:
     case InstanceID::DISABLED:
       std::move(callback).Run(SharingDeviceRegistrationResult::kFcmFatalError,
-                              absl::nullopt);
+                              base::nullopt);
       break;
   }
 }
@@ -115,15 +117,15 @@ void SharingDeviceRegistration::OnEncryptionInfoReceived(
     std::string auth_secret) {
   std::move(callback).Run(
       SharingDeviceRegistrationResult::kSuccess,
-      absl::make_optional(syncer::DeviceInfo::SharingTargetInfo{
+      base::make_optional(syncer::DeviceInfo::SharingTargetInfo{
           fcm_token, p256dh, auth_secret}));
 }
 
 void SharingDeviceRegistration::OnVapidTargetInfoRetrieved(
     RegistrationCallback callback,
-    absl::optional<std::string> authorized_entity,
+    base::Optional<std::string> authorized_entity,
     SharingDeviceRegistrationResult result,
-    absl::optional<syncer::DeviceInfo::SharingTargetInfo> vapid_target_info) {
+    base::Optional<syncer::DeviceInfo::SharingTargetInfo> vapid_target_info) {
   if (result != SharingDeviceRegistrationResult::kSuccess) {
     std::move(callback).Run(result);
     return;
@@ -133,7 +135,7 @@ void SharingDeviceRegistration::OnVapidTargetInfoRetrieved(
     OnSharingTargetInfoRetrieved(
         std::move(callback), std::move(authorized_entity),
         std::move(vapid_target_info), SharingDeviceRegistrationResult::kSuccess,
-        /*sharing_target_info=*/absl::nullopt);
+        /*sharing_target_info=*/base::nullopt);
     return;
   }
 
@@ -148,10 +150,10 @@ void SharingDeviceRegistration::OnVapidTargetInfoRetrieved(
 
 void SharingDeviceRegistration::OnSharingTargetInfoRetrieved(
     RegistrationCallback callback,
-    absl::optional<std::string> authorized_entity,
-    absl::optional<syncer::DeviceInfo::SharingTargetInfo> vapid_target_info,
+    base::Optional<std::string> authorized_entity,
+    base::Optional<syncer::DeviceInfo::SharingTargetInfo> vapid_target_info,
     SharingDeviceRegistrationResult result,
-    absl::optional<syncer::DeviceInfo::SharingTargetInfo> sharing_target_info) {
+    base::Optional<syncer::DeviceInfo::SharingTargetInfo> sharing_target_info) {
   if (result != SharingDeviceRegistrationResult::kSuccess) {
     std::move(callback).Run(result);
     return;
@@ -247,22 +249,22 @@ void SharingDeviceRegistration::OnFCMTokenDeleted(RegistrationCallback callback,
   NOTREACHED();
 }
 
-absl::optional<std::string> SharingDeviceRegistration::GetAuthorizationEntity()
+base::Optional<std::string> SharingDeviceRegistration::GetAuthorizationEntity()
     const {
   // TODO(himanshujaju) : Extract a static function to convert ECPrivateKey* to
   // Base64PublicKey in library.
   crypto::ECPrivateKey* vapid_key = vapid_key_manager_->GetOrCreateKey();
   if (!vapid_key)
-    return absl::nullopt;
+    return base::nullopt;
 
   std::string public_key;
   if (!gcm::GetRawPublicKey(*vapid_key, &public_key))
-    return absl::nullopt;
+    return base::nullopt;
 
   std::string base64_public_key;
   base::Base64UrlEncode(public_key, base::Base64UrlEncodePolicy::OMIT_PADDING,
                         &base64_public_key);
-  return absl::make_optional(std::move(base64_public_key));
+  return base::make_optional(std::move(base64_public_key));
 }
 
 std::set<SharingSpecificFields::EnabledFeatures>
@@ -287,10 +289,6 @@ SharingDeviceRegistration::GetEnabledFeatures(bool supports_vapid) const {
     enabled_features.insert(SharingSpecificFields::SMS_FETCHER);
   if (IsRemoteCopySupported())
     enabled_features.insert(SharingSpecificFields::REMOTE_COPY);
-  if (IsOptimizationGuidePushNotificationSupported()) {
-    enabled_features.insert(
-        SharingSpecificFields::OPTIMIZATION_GUIDE_PUSH_NOTIFICATION);
-  }
 #if BUILDFLAG(ENABLE_DISCOVERY)
   enabled_features.insert(SharingSpecificFields::DISCOVERY);
 #endif
@@ -299,12 +297,14 @@ SharingDeviceRegistration::GetEnabledFeatures(bool supports_vapid) const {
 }
 
 bool SharingDeviceRegistration::IsClickToCallSupported() const {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
+  if (!base::FeatureList::IsEnabled(kClickToCallReceiver))
+    return false;
   JNIEnv* env = base::android::AttachCurrentThread();
   return Java_SharingJNIBridge_isTelephonySupported(env);
-#else
-  return false;
 #endif
+
+  return false;
 }
 
 bool SharingDeviceRegistration::IsSharedClipboardSupported() const {
@@ -317,26 +317,20 @@ bool SharingDeviceRegistration::IsSharedClipboardSupported() const {
 }
 
 bool SharingDeviceRegistration::IsSmsFetcherSupported() const {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return base::FeatureList::IsEnabled(kWebOTPCrossDevice);
-#else
-  return false;
 #endif
+
+  return false;
 }
 
 bool SharingDeviceRegistration::IsRemoteCopySupported() const {
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
-    BUILDFLAG(IS_CHROMEOS)
-  return true;
+#if defined(OS_WIN) || defined(OS_MAC) || defined(OS_LINUX) || \
+    defined(OS_CHROMEOS)
+  return base::FeatureList::IsEnabled(kRemoteCopyReceiver);
 #else
   return false;
 #endif
-}
-
-bool SharingDeviceRegistration::IsOptimizationGuidePushNotificationSupported()
-    const {
-  return optimization_guide::features::IsOptimizationHintsEnabled() &&
-         optimization_guide::features::IsPushNotificationsEnabled();
 }
 
 void SharingDeviceRegistration::SetEnabledFeaturesForTesting(

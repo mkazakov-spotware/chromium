@@ -1,6 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+#include "cc/trees/layer_tree_host.h"
 
 #include <stdint.h>
 
@@ -9,12 +11,10 @@
 #include "base/bind.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/path_service.h"
 #include "base/strings/string_piece.h"
 #include "base/time/time.h"
 #include "base/timer/lap_timer.h"
-#include "build/build_config.h"
 #include "cc/layers/nine_patch_layer.h"
 #include "cc/layers/solid_color_layer.h"
 #include "cc/layers/texture_layer.h"
@@ -22,8 +22,8 @@
 #include "cc/test/layer_tree_json_parser.h"
 #include "cc/test/layer_tree_test.h"
 #include "cc/test/test_layer_tree_frame_sink.h"
-#include "cc/trees/layer_tree_host.h"
 #include "cc/trees/layer_tree_impl.h"
+#include "components/viz/common/resources/single_release_callback.h"
 #include "components/viz/test/paths.h"
 #include "gpu/command_buffer/common/mailbox.h"
 #include "gpu/command_buffer/common/sync_token.h"
@@ -40,12 +40,13 @@ class LayerTreeHostPerfTest : public LayerTreeTest {
  public:
   LayerTreeHostPerfTest()
       : draw_timer_(kWarmupRuns,
-                    base::Milliseconds(kTimeLimitMillis),
+                    base::TimeDelta::FromMilliseconds(kTimeLimitMillis),
                     kTimeCheckInterval),
         commit_timer_(0, base::TimeDelta(), 1),
         full_damage_each_frame_(false),
         begin_frame_driven_drawing_(false),
-        measure_commit_cost_(false) {}
+        measure_commit_cost_(false) {
+  }
 
   std::unique_ptr<TestLayerTreeFrameSink> CreateLayerTreeFrameSink(
       const viz::RendererSettings& renderer_settings,
@@ -60,7 +61,7 @@ class LayerTreeHostPerfTest : public LayerTreeTest {
     return std::make_unique<TestLayerTreeFrameSink>(
         compositor_context_provider, std::move(worker_context_provider),
         gpu_memory_buffer_manager(), renderer_settings, &debug_settings_,
-        task_runner_provider(), synchronous_composite, disable_display_vsync,
+        ImplThreadTaskRunner(), synchronous_composite, disable_display_vsync,
         refresh_rate);
   }
 
@@ -166,7 +167,7 @@ class LayerTreeHostPerfTestJsonReader : public LayerTreeHostPerfTest {
 
 // Simulates a tab switcher scene with two stacks of 10 tabs each.
 // Timed out on Android: http://crbug.com/723821
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #define MAYBE_TenTenSingleThread DISABLED_TenTenSingleThread
 #else
 #define MAYBE_TenTenSingleThread TenTenSingleThread
@@ -178,7 +179,7 @@ TEST_F(LayerTreeHostPerfTestJsonReader, MAYBE_TenTenSingleThread) {
 }
 
 // Timed out on Android: http://crbug.com/723821
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #define MAYBE_TenTenThreaded DISABLED_TenTenThreaded
 #else
 #define MAYBE_TenTenThreaded TenTenThreaded
@@ -228,7 +229,7 @@ class LayerTreeHostPerfTestLeafInvalidates
   }
 
  protected:
-  raw_ptr<Layer> layer_to_invalidate_;
+  Layer* layer_to_invalidate_;
 };
 
 // Simulates a tab switcher scene with two stacks of 10 tabs each. Invalidate a
@@ -264,7 +265,8 @@ class ScrollingLayerTreePerfTest : public LayerTreeHostPerfTestJsonReader {
       return;
     static const gfx::Vector2d delta = gfx::Vector2d(0, 10);
     SetScrollOffset(scrollable_.get(),
-                    CurrentScrollOffset(scrollable_.get()) + delta);
+                    gfx::ScrollOffsetWithDelta(
+                        CurrentScrollOffset(scrollable_.get()), delta));
   }
 
  private:
@@ -272,7 +274,7 @@ class ScrollingLayerTreePerfTest : public LayerTreeHostPerfTestJsonReader {
 };
 
 // Timed out on Android: http://crbug.com/723821
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #define MAYBE_LongScrollablePageSingleThread \
     DISABLED_LongScrollablePageSingleThread
 #else
@@ -285,7 +287,7 @@ TEST_F(ScrollingLayerTreePerfTest, MAYBE_LongScrollablePageSingleThread) {
 }
 
 // Timed out on Android: http://crbug.com/723821
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #define MAYBE_LongScrollablePageThreaded DISABLED_LongScrollablePageThreaded
 #else
 #define MAYBE_LongScrollablePageThreaded LongScrollablePageThreaded
@@ -314,7 +316,7 @@ class BrowserCompositorInvalidateLayerTreePerfTest
     ASSERT_TRUE(tab_contents_.get());
   }
 
-  void WillCommit(const CommitState&) override {
+  void WillCommit() override {
     if (CleanUpStarted())
       return;
     gpu::Mailbox gpu_mailbox;
@@ -322,9 +324,10 @@ class BrowserCompositorInvalidateLayerTreePerfTest
     name_stream << "name" << next_fence_sync_;
     gpu_mailbox.SetName(
         reinterpret_cast<const int8_t*>(name_stream.str().c_str()));
-    auto callback = base::BindOnce(
-        &BrowserCompositorInvalidateLayerTreePerfTest::ReleaseMailbox,
-        base::Unretained(this));
+    std::unique_ptr<viz::SingleReleaseCallback> callback =
+        viz::SingleReleaseCallback::Create(base::BindOnce(
+            &BrowserCompositorInvalidateLayerTreePerfTest::ReleaseMailbox,
+            base::Unretained(this)));
 
     gpu::SyncToken next_sync_token(gpu::CommandBufferNamespace::GPU_IO,
                                    gpu::CommandBufferId::FromUnsafeValue(1),
@@ -332,9 +335,9 @@ class BrowserCompositorInvalidateLayerTreePerfTest
     next_sync_token.SetVerifyFlush();
 
     constexpr gfx::Size size(64, 64);
-    viz::TransferableResource resource = viz::TransferableResource::MakeGpu(
+    viz::TransferableResource resource = viz::TransferableResource::MakeGL(
         gpu_mailbox, GL_LINEAR, GL_TEXTURE_2D, next_sync_token, size,
-        viz::RGBA_8888, false /* is_overlay_candidate */);
+        false /* is_overlay_candidate */);
     next_fence_sync_++;
 
     tab_contents_->SetTransferableResource(resource, std::move(callback));
@@ -389,7 +392,7 @@ TEST_F(BrowserCompositorInvalidateLayerTreePerfTest, DenseBrowserUIThreaded) {
 
 // Simulates a page with several large, transformed and animated layers.
 // Timed out on Android: http://crbug.com/723821
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #define MAYBE_HeavyPageThreaded DISABLED_HeavyPageThreaded
 #else
 #define MAYBE_HeavyPageThreaded HeavyPageThreaded

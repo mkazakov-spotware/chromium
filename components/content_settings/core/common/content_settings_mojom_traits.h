@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -105,7 +105,7 @@ struct StructTraits<
   }
 
   static const base::Time& expiration(const ContentSettingPatternSource& r) {
-    return r.metadata.expiration;
+    return r.expiration;
   }
 
   static const std::string& source(const ContentSettingPatternSource& r) {
@@ -143,11 +143,6 @@ struct StructTraits<
   static const std::vector<ContentSettingPatternSource>& mixed_content_rules(
       const RendererContentSettingRules& r) {
     return r.mixed_content_rules;
-  }
-
-  static const std::vector<ContentSettingPatternSource>&
-  auto_dark_content_rules(const RendererContentSettingRules& r) {
-    return r.auto_dark_content_rules;
   }
 
   static bool Read(

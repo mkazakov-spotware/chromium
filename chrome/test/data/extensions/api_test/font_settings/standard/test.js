@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,6 +16,8 @@ function expect(expected, message) {
 }
 
 chrome.test.runTests([
+  // This test may fail on Windows if the font is not installed on the
+  // system. See crbug.com/122303
   function setPerScriptFont() {
     var script = 'Hang';
     var genericFamily = 'standard';
@@ -37,6 +39,8 @@ chrome.test.runTests([
     }, chrome.test.callbackPass());
   },
 
+  // This test may fail on Windows if the font is not installed on
+  // the system. See crbug.com/122303
   function setGlobalFontName() {
     var genericFamily = 'sansserif';
     var fontId = 'Tahoma';
@@ -156,6 +160,8 @@ chrome.test.runTests([
     }));
   },
 
+  // This test may fail on Windows if the font is not installed on the
+  // system. See crbug.com/122303
   function clearPerScriptFont() {
     var script = 'Hang';
     var genericFamily = 'standard';
@@ -176,6 +182,8 @@ chrome.test.runTests([
     }, chrome.test.callbackPass());
   },
 
+  // This test may fail on Windows if the font is not installed on the
+  // system. See crbug.com/122303
   function clearGlobalFont() {
     var script = 'Zyyy';
     var genericFamily = 'sansserif';

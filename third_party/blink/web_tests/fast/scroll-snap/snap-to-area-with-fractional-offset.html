@@ -3,18 +3,16 @@
 <script src="../../resources/testharness.js"></script>
 <script src="../../resources/testharnessreport.js"></script>
 <style>
-body {
-  margin: 0;
-  padding: 0;
+html {
+  scroll-snap-type: y mandatory;
 }
 
-#scroller {
+body {
   overflow: scroll;
   height: 300px;
   width: 300px;
   margin: 0;
   padding: 0;
-  scroll-snap-type: y mandatory;
 }
 
 #container {
@@ -43,15 +41,13 @@ body {
 }
 </style>
 
-<div id="scroller">
-  <div id="container">
-    <div id="initial-area"></div>
-    <div id="target-area"></div>
-  </div>
+<div id="container">
+  <div id="initial-area"></div>
+  <div id="target-area"></div>
 </div>
 
 <script>
-const scroller = document.getElementById('scroller');
+const scroller = document.scrollingElement;
 const initial_area = document.getElementById('initial-area');
 const target_area = document.getElementById('target-area');
 
@@ -71,42 +67,34 @@ function keyPress(key) {
   })
 }
 
-function scrollTop() {
-  return scroller.scrollTop;
-}
-
-async function waitForScrollEndWithFractionalValue(targetElement, value) {
-  return waitForScrollEnd(targetElement, () => {
-    if (internals.runtimeFlags.fractionalScrollOffsetsEnabled)
-        return Math.abs(scrollTop() - value) < 1;
-    return Math.abs(scrollTop() - value) <= 1;
-  }, true);
-}
-
 promise_test (async t => {
   t.add_cleanup(cleanup);
-  scroller.scrollTo(0, 183);
-  assert_approx_equals(scrollTop(), initial_area.offsetTop, 1);
+  scroller.scrollTo(0,183);
+  assert_approx_equals(scroller.scrollTop, initial_area.offsetTop, 1);
 
   await mouseClickOn(10, 10);
   await keyPress('ArrowDown');
-  await waitForScrollEndWithFractionalValue(scroller, target_area.offsetTop);
+  await waitForAnimationEndTimeBased(() => { return scroller.scrollTop; });
+  assert_approx_equals(scroller.scrollTop, target_area.offsetTop, 1);
 
   await keyPress('ArrowUp');
-  await waitForScrollEndWithFractionalValue(scroller, initial_area.offsetTop);
+  await waitForAnimationEndTimeBased(() => { return scroller.scrollTop; });
+  assert_approx_equals(scroller.scrollTop, initial_area.offsetTop, 1);
 }, "Keyboard scrolling should ignore the current snapped element even when its"
 + " offset is a fractional number.");
 
 promise_test (async t => {
   t.add_cleanup(cleanup);
-  assert_approx_equals(scrollTop(), initial_area.offsetTop, 1);
+  assert_approx_equals(scroller.scrollTop, initial_area.offsetTop, 1);
 
   scroller.scrollBy(0, 10);
-  await waitForScrollEndWithFractionalValue(scroller, target_area.offsetTop);
+  await waitForAnimationEndTimeBased(() => { return scroller.scrollTop; });
+  assert_approx_equals(scroller.scrollTop, target_area.offsetTop, 1);
 
   scroller.scrollBy(0, -10);
-  await waitForScrollEndWithFractionalValue(scroller, initial_area.offsetTop);
-}, "Programmatic directional scrolling should ignore the current snapped " +
-   "element even when its offset is a fractional number.");
+  await waitForAnimationEndTimeBased(() => { return scroller.scrollTop; });
+  assert_approx_equals(scroller.scrollTop, initial_area.offsetTop, 1);
+}, "Programmatic directional scrolling should ignore the current snapped element"
++ " even when its offset is a fractional number.");
 
 </script>

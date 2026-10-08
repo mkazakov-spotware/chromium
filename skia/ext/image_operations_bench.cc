@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,6 +20,7 @@
 
 #include "base/command_line.h"
 #include "base/format_macros.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
@@ -50,7 +51,7 @@ const StringMethodPair resize_methods[] = {
 // Returns true on success, false otherwise.
 bool StringToMethod(const std::string& arg,
                     skia::ImageOperations::ResizeMethod* method) {
-  for (size_t i = 0; i < std::size(resize_methods); ++i) {
+  for (size_t i = 0; i < base::size(resize_methods); ++i) {
     if (base::EqualsCaseInsensitiveASCII(arg, resize_methods[i].name)) {
       *method = resize_methods[i].method;
       return true;
@@ -60,7 +61,7 @@ bool StringToMethod(const std::string& arg,
 }
 
 const char* MethodToString(skia::ImageOperations::ResizeMethod method) {
-  for (size_t i = 0; i < std::size(resize_methods); ++i) {
+  for (size_t i = 0; i < base::size(resize_methods); ++i) {
     if (method == resize_methods[i].method) {
       return resize_methods[i].name;
     }
@@ -71,7 +72,7 @@ const char* MethodToString(skia::ImageOperations::ResizeMethod method) {
 // Prints all supported resize methods
 void PrintMethods() {
   bool print_comma = false;
-  for (size_t i = 0; i < std::size(resize_methods); ++i) {
+  for (size_t i = 0; i < base::size(resize_methods); ++i) {
     if (print_comma) {
       printf(",");
     } else {
@@ -185,7 +186,7 @@ bool Benchmark::ParseArgs(const base::CommandLine* command_line) {
        ++iter) {
     const std::string& s = iter->first;
     std::string value;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     value = base::WideToUTF8(iter->second);
 #else
     value = iter->second;

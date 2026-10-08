@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,14 @@
 #define CHROME_BROWSER_CONTENT_SETTINGS_PAGE_SPECIFIC_CONTENT_SETTINGS_DELEGATE_H_
 
 #include "build/build_config.h"
-#include "chrome/browser/browsing_data/access_context_audit_service.h"
+#include "chrome/common/custom_handlers/protocol_handler.h"
 #include "components/content_settings/browser/page_specific_content_settings.h"
-#include "components/custom_handlers/protocol_handler.h"
-#include "content/public/browser/web_contents_observer.h"
+
+#if !defined(OS_ANDROID)
+#include "chrome/browser/browsing_data/access_context_audit_service.h"
+#endif  // !defined(OS_ANDROID)
 
 namespace chrome {
-
-using StorageType =
-    content_settings::mojom::ContentSettingsManager::StorageType;
 
 class PageSpecificContentSettingsDelegate
     : public content_settings::PageSpecificContentSettings::Delegate,
@@ -32,28 +31,25 @@ class PageSpecificContentSettingsDelegate
       content::WebContents* web_contents);
 
   // Call to indicate that there is a protocol handler pending user approval.
-  void set_pending_protocol_handler(
-      const custom_handlers::ProtocolHandler& handler) {
+  void set_pending_protocol_handler(const ProtocolHandler& handler) {
     pending_protocol_handler_ = handler;
   }
 
-  const custom_handlers::ProtocolHandler& pending_protocol_handler() const {
+  const ProtocolHandler& pending_protocol_handler() const {
     return pending_protocol_handler_;
   }
 
   void ClearPendingProtocolHandler() {
-    pending_protocol_handler_ =
-        custom_handlers::ProtocolHandler::EmptyProtocolHandler();
+    pending_protocol_handler_ = ProtocolHandler::EmptyProtocolHandler();
   }
 
   // Sets the previous protocol handler which will be replaced by the
   // pending protocol handler.
-  void set_previous_protocol_handler(
-      const custom_handlers::ProtocolHandler& handler) {
+  void set_previous_protocol_handler(const ProtocolHandler& handler) {
     previous_protocol_handler_ = handler;
   }
 
-  const custom_handlers::ProtocolHandler& previous_protocol_handler() const {
+  const ProtocolHandler& previous_protocol_handler() const {
     return previous_protocol_handler_;
   }
 
@@ -70,11 +66,13 @@ class PageSpecificContentSettingsDelegate
  private:
   // PageSpecificContentSettings::Delegate:
   void UpdateLocationBar() override;
+  void SetContentSettingRules(
+      content::RenderProcessHost* process,
+      const RendererContentSettingRules& rules) override;
   PrefService* GetPrefs() override;
   HostContentSettingsMap* GetSettingsMap() override;
-  void SetDefaultRendererContentSettingRules(
-      content::RenderFrameHost* rfh,
-      RendererContentSettingRules* rules) override;
+  ContentSetting GetEmbargoSetting(const GURL& request_origin,
+                                   ContentSettingsType permission) override;
   std::vector<storage::FileSystemType> GetAdditionalFileSystemTypes() override;
   browsing_data::CookieHelper::IsDeletionDisabledCallback
   GetIsDeletionDisabledCallback() override;
@@ -85,40 +83,41 @@ class PageSpecificContentSettingsDelegate
       const std::string& media_stream_selected_video_device) override;
   content_settings::PageSpecificContentSettings::MicrophoneCameraState
   GetMicrophoneCameraState() override;
-  content::WebContents* MaybeGetSyncedWebContentsForPictureInPicture(
-      content::WebContents* web_contents) override;
   void OnContentAllowed(ContentSettingsType type) override;
   void OnContentBlocked(ContentSettingsType type) override;
-  void OnStorageAccessAllowed(StorageType storage_type,
-                              const url::Origin& origin,
-                              content::Page& page) override;
-  void OnCookieAccessAllowed(const net::CookieList& accessed_cookies,
-                             content::Page& page) override;
-  void OnServiceWorkerAccessAllowed(const url::Origin& origin,
-                                    content::Page& page) override;
+  void OnCacheStorageAccessAllowed(const url::Origin& origin) override;
+  void OnCookieAccessAllowed(const net::CookieList& accessed_cookies) override;
+  void OnDomStorageAccessAllowed(const url::Origin& origin) override;
+  void OnFileSystemAccessAllowed(const url::Origin& origin) override;
+  void OnIndexedDBAccessAllowed(const url::Origin& origin) override;
+  void OnServiceWorkerAccessAllowed(const url::Origin& origin) override;
+  void OnWebDatabaseAccessAllowed(const url::Origin& origin) override;
 
   // content::WebContentsObserver:
-  void PrimaryPageChanged(content::Page& page) override;
+  void DidFinishNavigation(
+      content::NavigationHandle* navigation_handle) override;
 
   // The pending protocol handler, if any. This can be set if
   // registerProtocolHandler was invoked without user gesture.
   // The |IsEmpty| method will be true if no protocol handler is
   // pending registration.
-  custom_handlers::ProtocolHandler pending_protocol_handler_ =
-      custom_handlers::ProtocolHandler::EmptyProtocolHandler();
+  ProtocolHandler pending_protocol_handler_ =
+      ProtocolHandler::EmptyProtocolHandler();
 
   // The previous protocol handler to be replaced by
   // the pending_protocol_handler_, if there is one. Empty if
   // there is no handler which would be replaced.
-  custom_handlers::ProtocolHandler previous_protocol_handler_ =
-      custom_handlers::ProtocolHandler::EmptyProtocolHandler();
+  ProtocolHandler previous_protocol_handler_ =
+      ProtocolHandler::EmptyProtocolHandler();
 
   // The setting on the pending protocol handler registration. Persisted in case
   // the user opens the bubble and makes changes multiple times.
   ContentSetting pending_protocol_handler_setting_ = CONTENT_SETTING_DEFAULT;
 
+#if !defined(OS_ANDROID)
   std::unique_ptr<AccessContextAuditService::CookieAccessHelper>
       cookie_access_helper_;
+#endif  // !defined(OS_ANDROID)
 };
 
 }  // namespace chrome

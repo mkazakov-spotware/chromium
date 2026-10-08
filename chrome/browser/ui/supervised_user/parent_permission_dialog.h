@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "base/callback_forward.h"
 #include "base/memory/weak_ptr.h"
+#include "base/strings/string16.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/native_widget_types.h"
 
@@ -78,7 +79,7 @@ class ParentPermissionDialog {
       Profile* profile,
       gfx::NativeWindow window,
       const gfx::ImageSkia& icon,
-      const std::u16string& message,
+      const base::string16& message,
       ParentPermissionDialog::DoneCallback done_callback);
 
   // Creates a ParentPermissionDialog customized for the installation of the

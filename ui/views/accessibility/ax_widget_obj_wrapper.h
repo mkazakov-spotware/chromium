@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,21 +7,22 @@
 
 #include <stdint.h>
 
-#include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "ui/accessibility/platform/ax_unique_id.h"
 #include "ui/views/accessibility/ax_aura_obj_wrapper.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_observer.h"
+#include "ui/views/widget/widget_removals_observer.h"
 
 namespace views {
 class AXAuraObjCache;
 
 // Describes a |Widget| for use with other AX classes.
-class AXWidgetObjWrapper : public AXAuraObjWrapper, public WidgetObserver {
+class AXWidgetObjWrapper : public AXAuraObjWrapper,
+                           public WidgetObserver,
+                           public WidgetRemovalsObserver {
  public:
   // |aura_obj_cache| must outlive this object.
   AXWidgetObjWrapper(AXAuraObjCache* aura_obj_cache, Widget* widget);
@@ -30,22 +31,28 @@ class AXWidgetObjWrapper : public AXAuraObjWrapper, public WidgetObserver {
   ~AXWidgetObjWrapper() override;
 
   // AXAuraObjWrapper overrides.
+  bool IsIgnored() override;
   AXAuraObjWrapper* GetParent() override;
   void GetChildren(std::vector<AXAuraObjWrapper*>* out_children) override;
   void Serialize(ui::AXNodeData* out_node_data) override;
-  ui::AXNodeID GetUniqueId() const final;
+  int32_t GetUniqueId() const final;
   std::string ToString() const override;
 
   // WidgetObserver overrides.
   void OnWidgetDestroying(Widget* widget) override;
   void OnWidgetDestroyed(Widget* widget) override;
+  void OnWidgetClosing(Widget* widget) override;
+  void OnWidgetVisibilityChanged(Widget*, bool) override;
+
+  // WidgetRemovalsObserver overrides.
+  void OnWillRemoveView(Widget* widget, View* view) override;
 
  private:
-  raw_ptr<Widget> widget_;
+  Widget* widget_;
 
   const ui::AXUniqueId unique_id_;
 
-  base::ScopedObservation<Widget, WidgetObserver> widget_observation_{this};
+  ScopedObserver<Widget, WidgetObserver> widget_observer_{this};
 };
 
 }  // namespace views

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,13 +10,15 @@
 #include <string>
 
 #include "base/bind.h"
+#include "base/callback_forward.h"
+#include "base/callback_helpers.h"
 #include "base/command_line.h"
 #include "base/mac/mac_util.h"
 #include "base/mac/scoped_cftyperef.h"
 #include "base/mac/scoped_nsobject.h"
-#include "base/strings/sys_string_conversions.h"
+#include "base/run_loop.h"
+#include "base/test/gmock_callback_support.h"
 #include "base/test/task_environment.h"
-#include "base/test/test_future.h"
 #include "services/shape_detection/barcode_detection_impl_mac_vision.h"
 #include "services/shape_detection/public/mojom/barcodedetection.mojom.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -24,6 +26,7 @@
 #include "third_party/skia/include/utils/mac/SkCGUtils.h"
 #include "ui/gl/gl_switches.h"
 
+using base::test::RunOnceClosure;
 using ::testing::TestWithParam;
 using ::testing::ValuesIn;
 
@@ -38,8 +41,11 @@ std::unique_ptr<mojom::BarcodeDetection> CreateBarcodeDetectorImplMacCoreImage(
 
 std::unique_ptr<mojom::BarcodeDetection> CreateBarcodeDetectorImplMacVision(
     mojom::BarcodeDetectorOptionsPtr options) {
-  if (!BarcodeDetectionImplMacVision::IsBlockedMacOSVersion()) {
-    return std::make_unique<BarcodeDetectionImplMacVision>(std::move(options));
+  if (@available(macOS 10.13, *)) {
+    if (!BarcodeDetectionImplMacVision::IsBlockedMacOSVersion()) {
+      return std::make_unique<BarcodeDetectionImplMacVision>(
+          std::move(options));
+    }
   }
   return nullptr;
 }
@@ -51,24 +57,24 @@ using BarcodeDetectorFactory =
 const std::string kInfoString = "https://www.chromium.org";
 
 struct TestParams {
-  bool allow_duplicates;
+  size_t num_barcodes;
   mojom::BarcodeFormat symbology;
   BarcodeDetectorFactory factory;
   NSString* test_code_generator;
 } kTestParams[] = {
     // CoreImage only supports QR Codes.
-    {false, mojom::BarcodeFormat::QR_CODE,
+    {1, mojom::BarcodeFormat::QR_CODE,
      base::BindRepeating(&CreateBarcodeDetectorImplMacCoreImage),
      @"CIQRCodeGenerator"},
     // Vision only supports a number of 1D/2D codes. Not all of them are
     // available for generation, though, only a few.
-    {false, mojom::BarcodeFormat::PDF417,
+    {1, mojom::BarcodeFormat::PDF417,
      base::BindRepeating(&CreateBarcodeDetectorImplMacVision),
      @"CIPDF417BarcodeGenerator"},
-    {false, mojom::BarcodeFormat::QR_CODE,
+    {1, mojom::BarcodeFormat::QR_CODE,
      base::BindRepeating(&CreateBarcodeDetectorImplMacVision),
      @"CIQRCodeGenerator"},
-    {true,  // 1D barcode makes the detector find the same code several times.
+    {6 /* 1D barcode makes the detector find the same code several times. */,
      mojom::BarcodeFormat::CODE_128,
      base::BindRepeating(&CreateBarcodeDetectorImplMacVision),
      @"CICode128BarcodeGenerator"}};
@@ -78,14 +84,27 @@ class BarcodeDetectionImplMacTest : public TestWithParam<struct TestParams> {
  public:
   ~BarcodeDetectionImplMacTest() override = default;
 
- private:
+  void DetectCallback(size_t num_barcodes,
+                      mojom::BarcodeFormat symbology,
+                      const std::string& barcode_value,
+                      std::vector<mojom::BarcodeDetectionResultPtr> results) {
+    EXPECT_EQ(num_barcodes, results.size());
+    for (const auto& barcode : results) {
+      EXPECT_EQ(barcode_value, barcode->raw_value);
+      EXPECT_EQ(symbology, barcode->format);
+    }
+
+    Detection();
+  }
+  MOCK_METHOD0(Detection, void(void));
+
+  std::unique_ptr<mojom::BarcodeDetection> impl_;
   base::test::SingleThreadTaskEnvironment task_environment_;
 };
 
 TEST_P(BarcodeDetectionImplMacTest, CreateAndDestroy) {
-  std::unique_ptr<mojom::BarcodeDetection> impl =
-      GetParam().factory.Run(mojom::BarcodeDetectorOptions::New());
-  if (!impl) {
+  impl_ = GetParam().factory.Run(mojom::BarcodeDetectorOptions::New());
+  if (!impl_) {
     LOG(WARNING) << "Barcode Detection for this (library, OS version) pair is "
                     "not supported, skipping test.";
     return;
@@ -100,12 +119,17 @@ TEST_P(BarcodeDetectionImplMacTest, ScanOneBarcode) {
     return;
   }
 
-  std::unique_ptr<mojom::BarcodeDetection> impl =
-      GetParam().factory.Run(mojom::BarcodeDetectorOptions::New());
+  impl_ = GetParam().factory.Run(mojom::BarcodeDetectorOptions::New());
+  if (!impl_) {
+    LOG(WARNING) << "Barcode Detection is not supported before Mac OSX 10.10."
+                 << "Skipping test.";
+    return;
+  }
 
   // Generate a barcode image as a CIImage by using |qr_code_generator|.
-  NSData* const qr_code_data = [base::SysUTF8ToNSString(kInfoString)
-      dataUsingEncoding:NSISOLatin1StringEncoding];
+  NSData* const qr_code_data =
+      [[NSString stringWithUTF8String:kInfoString.c_str()]
+          dataUsingEncoding:NSISOLatin1StringEncoding];
 
   CIFilter* qr_code_generator =
       [CIFilter filterWithName:GetParam().test_code_generator];
@@ -126,41 +150,45 @@ TEST_P(BarcodeDetectionImplMacTest, ScanOneBarcode) {
   SkBitmap bitmap;
   ASSERT_TRUE(SkCreateBitmapFromCGImage(&bitmap, cg_image));
 
-  base::test::TestFuture<std::vector<mojom::BarcodeDetectionResultPtr>> future;
-  impl->Detect(bitmap, future.GetCallback());
+  base::RunLoop run_loop;
+  // Send the image Detect() and expect the response in callback.
+  EXPECT_CALL(*this, Detection())
+      .WillOnce(RunOnceClosure(run_loop.QuitClosure()));
+  // TODO(crbug.com/938663): expect detected symbology.
+  impl_->Detect(bitmap,
+                base::BindOnce(&BarcodeDetectionImplMacTest::DetectCallback,
+                               base::Unretained(this), GetParam().num_barcodes,
+                               GetParam().symbology, kInfoString));
 
-  auto results = future.Take();
-  if (GetParam().allow_duplicates) {
-    EXPECT_GE(results.size(), 1u);
-  } else {
-    EXPECT_EQ(results.size(), 1u);
-  }
-  for (const auto& barcode : results) {
-    EXPECT_EQ(kInfoString, barcode->raw_value);
-    EXPECT_EQ(GetParam().symbology, barcode->format);
-  }
+  run_loop.Run();
 }
 
 INSTANTIATE_TEST_SUITE_P(, BarcodeDetectionImplMacTest, ValuesIn(kTestParams));
 
 TEST_F(BarcodeDetectionImplMacTest, HintFormats) {
-  auto vision_impl = std::make_unique<BarcodeDetectionImplMacVision>(
-      mojom::BarcodeDetectorOptions::New());
-  EXPECT_EQ([vision_impl->GetSymbologyHintsForTesting() count], 0u);
+  if (@available(macOS 10.13, *)) {
+    auto vision_impl = std::make_unique<BarcodeDetectionImplMacVision>(
+        mojom::BarcodeDetectorOptions::New());
+    EXPECT_EQ([vision_impl->GetSymbologyHintsForTesting() count], 0u);
 
-  mojom::BarcodeDetectorOptionsPtr options =
-      mojom::BarcodeDetectorOptions::New();
-  options->formats = {
-      mojom::BarcodeFormat::PDF417, mojom::BarcodeFormat::QR_CODE,
-      mojom::BarcodeFormat::CODE_128, mojom::BarcodeFormat::ITF};
-  vision_impl =
-      std::make_unique<BarcodeDetectionImplMacVision>(std::move(options));
-  NSArray<VNBarcodeSymbology>* expected = @[
-    VNBarcodeSymbologyPDF417, VNBarcodeSymbologyQR, VNBarcodeSymbologyCode128,
-    VNBarcodeSymbologyITF14, VNBarcodeSymbologyI2of5,
-    VNBarcodeSymbologyI2of5Checksum
-  ];
-  EXPECT_TRUE([vision_impl->GetSymbologyHintsForTesting() isEqualTo:expected]);
+    mojom::BarcodeDetectorOptionsPtr options =
+        mojom::BarcodeDetectorOptions::New();
+    options->formats = {
+        mojom::BarcodeFormat::PDF417, mojom::BarcodeFormat::QR_CODE,
+        mojom::BarcodeFormat::CODE_128, mojom::BarcodeFormat::ITF};
+    vision_impl =
+        std::make_unique<BarcodeDetectionImplMacVision>(std::move(options));
+    NSArray<VNBarcodeSymbology>* expected = @[
+      VNBarcodeSymbologyPDF417, VNBarcodeSymbologyQR, VNBarcodeSymbologyCode128,
+      VNBarcodeSymbologyITF14, VNBarcodeSymbologyI2of5,
+      VNBarcodeSymbologyI2of5Checksum
+    ];
+    EXPECT_TRUE(
+        [vision_impl->GetSymbologyHintsForTesting() isEqualTo:expected]);
+  } else {
+    LOG(WARNING) << "Barcode Detection with Vision not supported before 10.13, "
+                 << "skipping test.";
+  }
 }
 
 }  // shape_detection namespace

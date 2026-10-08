@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,9 @@
 
 #include "base/check.h"
 #include "base/lazy_instance.h"  // For testing purposes only.
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/thread_local.h"  // For testing purposes only.
+#include "base/threading/thread_task_runner_handle.h"
 
 namespace ppapi {
 
@@ -23,12 +24,12 @@ PpapiGlobals* ppapi_globals = NULL;
 PpapiGlobals::PpapiGlobals() {
   DCHECK(!ppapi_globals);
   ppapi_globals = this;
-  main_task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+  main_task_runner_ = base::ThreadTaskRunnerHandle::Get();
 }
 
 PpapiGlobals::PpapiGlobals(PerThreadForTest) {
   DCHECK(!ppapi_globals);
-  main_task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+  main_task_runner_ = base::ThreadTaskRunnerHandle::Get();
 }
 
 PpapiGlobals::~PpapiGlobals() {
@@ -58,7 +59,7 @@ base::SingleThreadTaskRunner* PpapiGlobals::GetMainThreadMessageLoop() {
 }
 
 void PpapiGlobals::ResetMainThreadMessageLoopForTesting() {
-  main_task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+  main_task_runner_ = base::ThreadTaskRunnerHandle::Get();
 }
 
 bool PpapiGlobals::IsHostGlobals() const { return false; }

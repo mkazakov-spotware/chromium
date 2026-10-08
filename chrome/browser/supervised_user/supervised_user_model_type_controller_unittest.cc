@@ -1,10 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/supervised_user/supervised_user_sync_model_type_controller.h"
 
 #include "base/callback_helpers.h"
+#include "chrome/browser/supervised_user/supervised_user_constants.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/sync/base/model_type.h"
 #include "components/sync/base/sync_mode.h"
@@ -22,9 +23,9 @@ class SupervisedUserSyncModelTypeControllerTest : public testing::Test {
 TEST_F(SupervisedUserSyncModelTypeControllerTest,
        SupervisedUserMeetsPreconditions) {
   TestingProfile::Builder builder;
-  builder.SetIsSupervisedProfile();
+  builder.SetSupervisedUserId(supervised_users::kChildAccountSUID);
   std::unique_ptr<Profile> child_profile = builder.Build();
-  ASSERT_TRUE(child_profile->IsChild());
+  ASSERT_TRUE(child_profile->IsSupervised());
 
   SupervisedUserSyncModelTypeController controller(
       syncer::SUPERVISED_USER_SETTINGS, child_profile.get(),
@@ -39,7 +40,7 @@ TEST_F(SupervisedUserSyncModelTypeControllerTest,
        NonSupervisedUserDoesNotMeetPreconditions) {
   TestingProfile::Builder builder;
   std::unique_ptr<Profile> non_child_profile = builder.Build();
-  ASSERT_FALSE(non_child_profile->IsChild());
+  ASSERT_FALSE(non_child_profile->IsSupervised());
 
   SupervisedUserSyncModelTypeController controller(
       syncer::SUPERVISED_USER_SETTINGS, non_child_profile.get(),
@@ -52,9 +53,9 @@ TEST_F(SupervisedUserSyncModelTypeControllerTest,
 
 TEST_F(SupervisedUserSyncModelTypeControllerTest, HasTransportModeDelegate) {
   TestingProfile::Builder builder;
-  builder.SetIsSupervisedProfile();
+  builder.SetSupervisedUserId(supervised_users::kChildAccountSUID);
   std::unique_ptr<Profile> child_profile = builder.Build();
-  ASSERT_TRUE(child_profile->IsChild());
+  ASSERT_TRUE(child_profile->IsSupervised());
 
   SupervisedUserSyncModelTypeController controller(
       syncer::SUPERVISED_USER_SETTINGS, child_profile.get(),

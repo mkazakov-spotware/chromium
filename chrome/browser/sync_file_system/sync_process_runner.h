@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,8 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/sync_file_system/sync_callbacks.h"
 #include "chrome/browser/sync_file_system/sync_service_state.h"
@@ -62,7 +61,7 @@ class SyncProcessRunner {
     virtual bool IsRunning() = 0;
     virtual void Start(const base::Location& from_here,
                        const base::TimeDelta& delay,
-                       base::OnceClosure closure) = 0;
+                       const base::Closure& closure) = 0;
     virtual base::TimeTicks Now() const = 0;
 
    protected:
@@ -73,14 +72,10 @@ class SyncProcessRunner {
                     Client* client,
                     std::unique_ptr<TimerHelper> timer_helper,
                     size_t max_parallel_task);
-
-  SyncProcessRunner(const SyncProcessRunner&) = delete;
-  SyncProcessRunner& operator=(const SyncProcessRunner&) = delete;
-
   virtual ~SyncProcessRunner();
 
   // Subclass must implement this.
-  virtual void StartSync(SyncStatusCallback callback) = 0;
+  virtual void StartSync(const SyncStatusCallback& callback) = 0;
 
   // Schedules a new sync.
   void Schedule();
@@ -111,7 +106,7 @@ class SyncProcessRunner {
   void CheckIfIdle();
 
   std::string name_;
-  raw_ptr<Client> client_;
+  Client* client_;
   size_t max_parallel_task_;
   size_t running_tasks_;
   std::unique_ptr<TimerHelper> timer_helper_;
@@ -124,6 +119,8 @@ class SyncProcessRunner {
 
   int64_t pending_changes_;
   base::WeakPtrFactory<SyncProcessRunner> factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SyncProcessRunner);
 };
 
 }  // namespace sync_file_system

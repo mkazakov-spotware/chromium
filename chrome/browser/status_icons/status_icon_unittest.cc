@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,11 +20,11 @@ class TestStatusIcon : public StatusIcon {
  public:
   TestStatusIcon() {}
   void SetImage(const gfx::ImageSkia& image) override {}
-  void SetToolTip(const std::u16string& tool_tip) override {}
+  void SetToolTip(const base::string16& tool_tip) override {}
   void UpdatePlatformContextMenu(StatusIconMenuModel* menu) override {}
   void DisplayBalloon(const gfx::ImageSkia& icon,
-                      const std::u16string& title,
-                      const std::u16string& contents,
+                      const base::string16& title,
+                      const base::string16& contents,
                       const message_center::NotifierId& notifier_id) override {}
 };
 

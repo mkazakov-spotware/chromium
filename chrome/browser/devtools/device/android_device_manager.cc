@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,14 +17,13 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/devtools/device/usb/usb_device_manager_helper.h"
 #include "chrome/browser/devtools/device/usb/usb_device_provider.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "net/base/io_buffer.h"
-#include "net/base/ip_endpoint.h"
 #include "net/base/net_errors.h"
 #include "net/socket/stream_socket.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
@@ -67,31 +66,31 @@ net::NetworkTrafficAnnotationTag kAndroidDeviceManagerTrafficAnnotation =
 
 static void PostDeviceInfoCallback(
     scoped_refptr<base::SingleThreadTaskRunner> response_task_runner,
-    AndroidDeviceManager::DeviceInfoCallback callback,
+    const AndroidDeviceManager::DeviceInfoCallback& callback,
     const AndroidDeviceManager::DeviceInfo& device_info) {
-  response_task_runner->PostTask(
-      FROM_HERE, base::BindOnce(std::move(callback), device_info));
+  response_task_runner->PostTask(FROM_HERE,
+                                 base::BindOnce(callback, device_info));
 }
 
 static void PostCommandCallback(
     scoped_refptr<base::SingleThreadTaskRunner> response_task_runner,
-    AndroidDeviceManager::CommandCallback callback,
+    const AndroidDeviceManager::CommandCallback& callback,
     int result,
     const std::string& response) {
-  response_task_runner->PostTask(
-      FROM_HERE, base::BindOnce(std::move(callback), result, response));
+  response_task_runner->PostTask(FROM_HERE,
+                                 base::BindOnce(callback, result, response));
 }
 
 static void PostHttpUpgradeCallback(
     scoped_refptr<base::SingleThreadTaskRunner> response_task_runner,
-    AndroidDeviceManager::HttpUpgradeCallback callback,
+    const AndroidDeviceManager::HttpUpgradeCallback& callback,
     int result,
     const std::string& extensions,
     const std::string& body_head,
     std::unique_ptr<net::StreamSocket> socket) {
   response_task_runner->PostTask(
-      FROM_HERE, base::BindOnce(std::move(callback), result, extensions,
-                                body_head, std::move(socket)));
+      FROM_HERE, base::BindOnce(callback, result, extensions, body_head,
+                                std::move(socket)));
 }
 
 class HttpRequest {
@@ -100,24 +99,24 @@ class HttpRequest {
   typedef AndroidDeviceManager::HttpUpgradeCallback HttpUpgradeCallback;
 
   static void CommandRequest(const std::string& path,
-                             CommandCallback callback,
+                             const CommandCallback& callback,
                              int result,
                              std::unique_ptr<net::StreamSocket> socket) {
     if (result != net::OK) {
-      std::move(callback).Run(result, std::string());
+      callback.Run(result, std::string());
       return;
     }
-    new HttpRequest(std::move(socket), path, {}, std::move(callback));
+    new HttpRequest(std::move(socket), path, {}, callback);
   }
 
   static void HttpUpgradeRequest(const std::string& path,
                                  const std::string& extensions,
-                                 HttpUpgradeCallback callback,
+                                 const HttpUpgradeCallback& callback,
                                  int result,
                                  std::unique_ptr<net::StreamSocket> socket) {
     if (result != net::OK) {
-      std::move(callback).Run(result, std::string(), std::string(),
-                              base::WrapUnique<net::StreamSocket>(nullptr));
+      callback.Run(result, std::string(), std::string(),
+                   base::WrapUnique<net::StreamSocket>(nullptr));
       return;
     }
     std::map<std::string, std::string> headers = {
@@ -127,16 +126,16 @@ class HttpRequest {
         {"Sec-WebSocket-Version", "13"}};
     if (!extensions.empty())
       headers["Sec-WebSocket-Extensions"] = extensions;
-    new HttpRequest(std::move(socket), path, headers, std::move(callback));
+    new HttpRequest(std::move(socket), path, headers, callback);
   }
 
  private:
   HttpRequest(std::unique_ptr<net::StreamSocket> socket,
               const std::string& path,
               const std::map<std::string, std::string>& headers,
-              CommandCallback callback)
+              const CommandCallback& callback)
       : socket_(std::move(socket)),
-        command_callback_(std::move(callback)),
+        command_callback_(callback),
         expected_total_size_(0),
         header_size_(std::string::npos) {
     SendRequest(path, headers);
@@ -145,9 +144,9 @@ class HttpRequest {
   HttpRequest(std::unique_ptr<net::StreamSocket> socket,
               const std::string& path,
               const std::map<std::string, std::string>& headers,
-              HttpUpgradeCallback callback)
+              const HttpUpgradeCallback& callback)
       : socket_(std::move(socket)),
-        http_upgrade_callback_(std::move(callback)),
+        http_upgrade_callback_(callback),
         expected_total_size_(0),
         header_size_(std::string::npos) {
     SendRequest(path, headers);
@@ -261,11 +260,11 @@ class HttpRequest {
         const std::string& body = response_.substr(header_size_);
 
         if (!command_callback_.is_null()) {
-          std::move(command_callback_).Run(net::OK, body);
+          command_callback_.Run(net::OK, body);
         } else {
-          std::move(http_upgrade_callback_)
-              .Run(net::OK, ExtractHeader("Sec-WebSocket-Extensions:"), body,
-                   std::move(socket_));
+          http_upgrade_callback_.Run(net::OK,
+                                     ExtractHeader("Sec-WebSocket-Extensions:"),
+                                     body, std::move(socket_));
         }
 
         delete this;
@@ -297,11 +296,10 @@ class HttpRequest {
     if (result >= 0)
       return true;
     if (!command_callback_.is_null()) {
-      std::move(command_callback_).Run(result, std::string());
+      command_callback_.Run(result, std::string());
     } else {
-      std::move(http_upgrade_callback_)
-          .Run(result, std::string(), std::string(),
-               base::WrapUnique<net::StreamSocket>(nullptr));
+      http_upgrade_callback_.Run(result, std::string(), std::string(),
+                                 base::WrapUnique<net::StreamSocket>(nullptr));
     }
     delete this;
     return false;
@@ -330,47 +328,45 @@ class HttpRequest {
 
 class DevicesRequest : public base::RefCountedThreadSafe<DevicesRequest> {
  public:
-  using DeviceInfo = AndroidDeviceManager::DeviceInfo;
-  using DeviceProvider = AndroidDeviceManager::DeviceProvider;
-  using DeviceProviders = AndroidDeviceManager::DeviceProviders;
-  using DeviceDescriptors = AndroidDeviceManager::DeviceDescriptors;
-  using DescriptorsCallback =
-      base::OnceCallback<void(std::unique_ptr<DeviceDescriptors>)>;
+  typedef AndroidDeviceManager::DeviceInfo DeviceInfo;
+  typedef AndroidDeviceManager::DeviceProvider DeviceProvider;
+  typedef AndroidDeviceManager::DeviceProviders DeviceProviders;
+  typedef AndroidDeviceManager::DeviceDescriptors DeviceDescriptors;
+  typedef base::Callback<void(std::unique_ptr<DeviceDescriptors>)>
+      DescriptorsCallback;
 
   static void Start(
       scoped_refptr<base::SingleThreadTaskRunner> device_task_runner,
       const DeviceProviders& providers,
-      DescriptorsCallback callback) {
+      const DescriptorsCallback& callback) {
     // Don't keep counted reference on calling thread;
     scoped_refptr<DevicesRequest> request =
-        base::WrapRefCounted(new DevicesRequest(std::move(callback)));
-    for (const auto& provider : providers) {
+        base::WrapRefCounted(new DevicesRequest(callback));
+    for (auto it = providers.begin(); it != providers.end(); ++it) {
       device_task_runner->PostTask(
-          FROM_HERE,
-          base::BindOnce(&DeviceProvider::QueryDevices, provider,
-                         base::BindOnce(&DevicesRequest::ProcessSerials,
-                                        request, provider)));
+          FROM_HERE, base::BindOnce(&DeviceProvider::QueryDevices, *it,
+                                    base::Bind(&DevicesRequest::ProcessSerials,
+                                               request, *it)));
     }
     device_task_runner->ReleaseSoon(FROM_HERE, std::move(request));
   }
 
  private:
-  explicit DevicesRequest(DescriptorsCallback callback)
-      : response_task_runner_(
-            base::SingleThreadTaskRunner::GetCurrentDefault()),
-        callback_(std::move(callback)),
+  explicit DevicesRequest(const DescriptorsCallback& callback)
+      : response_task_runner_(base::ThreadTaskRunnerHandle::Get()),
+        callback_(callback),
         descriptors_(new DeviceDescriptors()) {}
 
   friend class base::RefCountedThreadSafe<DevicesRequest>;
   ~DevicesRequest() {
     response_task_runner_->PostTask(
-        FROM_HERE,
-        base::BindOnce(std::move(callback_), std::move(descriptors_)));
+        FROM_HERE, base::BindOnce(callback_, std::move(descriptors_)));
   }
 
-  using Serials = std::vector<std::string>;
+  typedef std::vector<std::string> Serials;
 
-  void ProcessSerials(scoped_refptr<DeviceProvider> provider, Serials serials) {
+  void ProcessSerials(scoped_refptr<DeviceProvider> provider,
+                      const Serials& serials) {
     for (auto it = serials.begin(); it != serials.end(); ++it) {
       descriptors_->resize(descriptors_->size() + 1);
       descriptors_->back().provider = provider;
@@ -383,9 +379,10 @@ class DevicesRequest : public base::RefCountedThreadSafe<DevicesRequest> {
   std::unique_ptr<DeviceDescriptors> descriptors_;
 };
 
-void OnCountDevices(base::OnceCallback<void(int)> callback, int device_count) {
+void OnCountDevices(const base::Callback<void(int)>& callback,
+                    int device_count) {
   content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE, base::BindOnce(std::move(callback), device_count));
+      FROM_HERE, base::BindOnce(callback, device_count));
 }
 
 }  // namespace
@@ -396,9 +393,6 @@ AndroidDeviceManager::BrowserInfo::BrowserInfo()
 
 AndroidDeviceManager::BrowserInfo::BrowserInfo(const BrowserInfo& other) =
     default;
-
-AndroidDeviceManager::BrowserInfo& AndroidDeviceManager::BrowserInfo::operator=(
-    const BrowserInfo& other) = default;
 
 AndroidDeviceManager::DeviceInfo::DeviceInfo()
     : model(kModelOffline), connected(false) {
@@ -422,10 +416,9 @@ void AndroidDeviceManager::DeviceProvider::SendJsonRequest(
     const std::string& serial,
     const std::string& socket_name,
     const std::string& request,
-    CommandCallback callback) {
+    const CommandCallback& callback) {
   OpenSocket(serial, socket_name,
-             base::BindOnce(&HttpRequest::CommandRequest, request,
-                            std::move(callback)));
+             base::Bind(&HttpRequest::CommandRequest, request, callback));
 }
 
 void AndroidDeviceManager::DeviceProvider::HttpUpgrade(
@@ -433,10 +426,10 @@ void AndroidDeviceManager::DeviceProvider::HttpUpgrade(
     const std::string& socket_name,
     const std::string& path,
     const std::string& extensions,
-    HttpUpgradeCallback callback) {
-  OpenSocket(serial, socket_name,
-             base::BindOnce(&HttpRequest::HttpUpgradeRequest, path, extensions,
-                            std::move(callback)));
+    const HttpUpgradeCallback& callback) {
+  OpenSocket(
+      serial, socket_name,
+      base::Bind(&HttpRequest::HttpUpgradeRequest, path, extensions, callback));
 }
 
 void AndroidDeviceManager::DeviceProvider::ReleaseDevice(
@@ -450,57 +443,52 @@ AndroidDeviceManager::DeviceProvider::~DeviceProvider() {
 }
 
 void AndroidDeviceManager::Device::QueryDeviceInfo(
-    DeviceInfoCallback callback) {
+    const DeviceInfoCallback& callback) {
   task_runner_->PostTask(
       FROM_HERE,
       base::BindOnce(
           &DeviceProvider::QueryDeviceInfo, provider_, serial_,
-          base::BindOnce(&PostDeviceInfoCallback,
-                         base::SingleThreadTaskRunner::GetCurrentDefault(),
-                         std::move(callback))));
+          base::Bind(&PostDeviceInfoCallback,
+                     base::ThreadTaskRunnerHandle::Get(), callback)));
 }
 
 void AndroidDeviceManager::Device::OpenSocket(const std::string& socket_name,
-                                              SocketCallback callback) {
+                                              const SocketCallback& callback) {
   task_runner_->PostTask(
       FROM_HERE, base::BindOnce(&DeviceProvider::OpenSocket, provider_, serial_,
-                                socket_name, std::move(callback)));
+                                socket_name, callback));
 }
 
 void AndroidDeviceManager::Device::SendJsonRequest(
     const std::string& socket_name,
     const std::string& request,
-    CommandCallback callback) {
+    const CommandCallback& callback) {
   task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(
-          &DeviceProvider::SendJsonRequest, provider_, serial_, socket_name,
-          request,
-          base::BindOnce(&PostCommandCallback,
-                         base::SingleThreadTaskRunner::GetCurrentDefault(),
-                         std::move(callback))));
+      FROM_HERE, base::BindOnce(&DeviceProvider::SendJsonRequest, provider_,
+                                serial_, socket_name, request,
+                                base::Bind(&PostCommandCallback,
+                                           base::ThreadTaskRunnerHandle::Get(),
+                                           callback)));
 }
 
-void AndroidDeviceManager::Device::HttpUpgrade(const std::string& socket_name,
-                                               const std::string& path,
-                                               const std::string& extensions,
-                                               HttpUpgradeCallback callback) {
+void AndroidDeviceManager::Device::HttpUpgrade(
+    const std::string& socket_name,
+    const std::string& path,
+    const std::string& extensions,
+    const HttpUpgradeCallback& callback) {
   task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(
-          &DeviceProvider::HttpUpgrade, provider_, serial_, socket_name, path,
-          extensions,
-          base::BindOnce(&PostHttpUpgradeCallback,
-                         base::SingleThreadTaskRunner::GetCurrentDefault(),
-                         std::move(callback))));
+      FROM_HERE, base::BindOnce(&DeviceProvider::HttpUpgrade, provider_,
+                                serial_, socket_name, path, extensions,
+                                base::Bind(&PostHttpUpgradeCallback,
+                                           base::ThreadTaskRunnerHandle::Get(),
+                                           callback)));
 }
 
 AndroidDeviceManager::Device::Device(
     scoped_refptr<base::SingleThreadTaskRunner> device_task_runner,
     scoped_refptr<DeviceProvider> provider,
     const std::string& serial)
-    : RefCountedDeleteOnSequence<Device>(
-          base::SingleThreadTaskRunner::GetCurrentDefault()),
+    : RefCountedDeleteOnSequence<Device>(base::ThreadTaskRunnerHandle::Get()),
       task_runner_(device_task_runner),
       provider_(provider),
       serial_(serial) {}
@@ -529,7 +517,7 @@ AndroidDeviceManager::HandlerThread::HandlerThread() {
   thread_ = new base::Thread(kDevToolsAdbBridgeThreadName);
   base::Thread::Options options;
   options.message_pump_type = base::MessagePumpType::IO;
-  if (!thread_->StartWithOptions(std::move(options))) {
+  if (!thread_->StartWithOptions(options)) {
     delete thread_;
     thread_ = nullptr;
   }
@@ -571,20 +559,18 @@ void AndroidDeviceManager::SetDeviceProviders(
   providers_ = providers;
 }
 
-void AndroidDeviceManager::QueryDevices(DevicesCallback callback) {
-  DevicesRequest::Start(
-      handler_thread_->message_loop(), providers_,
-      base::BindOnce(&AndroidDeviceManager::UpdateDevices,
-                     weak_factory_.GetWeakPtr(), std::move(callback)));
+void AndroidDeviceManager::QueryDevices(const DevicesCallback& callback) {
+  DevicesRequest::Start(handler_thread_->message_loop(), providers_,
+                        base::Bind(&AndroidDeviceManager::UpdateDevices,
+                                   weak_factory_.GetWeakPtr(), callback));
 }
 
 void AndroidDeviceManager::CountDevices(
-    base::OnceCallback<void(int)> callback) {
+    const base::Callback<void(int)>& callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   handler_thread_->message_loop()->PostTask(
-      FROM_HERE,
-      base::BindOnce(&UsbDeviceManagerHelper::CountDevices,
-                     base::BindOnce(&OnCountDevices, std::move(callback))));
+      FROM_HERE, base::BindOnce(&UsbDeviceManagerHelper::CountDevices,
+                                base::BindOnce(&OnCountDevices, callback)));
 }
 
 void AndroidDeviceManager::set_usb_device_manager_for_test(
@@ -605,7 +591,7 @@ AndroidDeviceManager::~AndroidDeviceManager() {
 }
 
 void AndroidDeviceManager::UpdateDevices(
-    DevicesCallback callback,
+    const DevicesCallback& callback,
     std::unique_ptr<DeviceDescriptors> descriptors) {
   Devices response;
   DeviceWeakMap new_devices;
@@ -625,5 +611,5 @@ void AndroidDeviceManager::UpdateDevices(
     new_devices[it->serial] = device->weak_factory_.GetWeakPtr();
   }
   devices_.swap(new_devices);
-  std::move(callback).Run(response);
+  callback.Run(response);
 }

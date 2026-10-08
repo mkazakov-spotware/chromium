@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/media_message_center/media_notification_util.h"
 
-#include "base/containers/contains.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "ui/views/controls/button/button.h"
@@ -39,9 +38,9 @@ const int kMediaNotificationCountHistogramMax = 20;
 const char kCountHistogramName[] = "Media.Notification.Count";
 const char kCastCountHistogramName[] = "Media.Notification.Cast.Count";
 
-std::u16string GetAccessibleNameFromMetadata(
+base::string16 GetAccessibleNameFromMetadata(
     media_session::MediaMetadata session_metadata) {
-  std::vector<std::u16string> text;
+  std::vector<base::string16> text;
 
   if (!session_metadata.title.empty())
     text.push_back(session_metadata.title);
@@ -52,7 +51,8 @@ std::u16string GetAccessibleNameFromMetadata(
   if (!session_metadata.album.empty())
     text.push_back(session_metadata.album);
 
-  std::u16string accessible_name = base::JoinString(text, u" - ");
+  base::string16 accessible_name =
+      base::JoinString(text, base::ASCIIToUTF16(" - "));
   return accessible_name;
 }
 

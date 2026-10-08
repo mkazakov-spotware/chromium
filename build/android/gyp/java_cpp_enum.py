@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -28,7 +28,7 @@ ENUM_FIXED_TYPE_ALLOWLIST = [
 ]
 
 
-class EnumDefinition:
+class EnumDefinition(object):
   def __init__(self, original_enum_name=None, class_name_override=None,
                enum_package=None, entries=None, comments=None, fixed_type=None):
     self.original_enum_name = original_enum_name
@@ -79,9 +79,9 @@ class EnumDefinition:
         else:
           try:
             self.entries[key] = int(value)
-          except ValueError as e:
+          except ValueError:
             raise Exception('Could not interpret integer from enum value "%s" '
-                            'for key %s.' % (value, key)) from e
+                            'for key %s.' % (value, key))
         prev_enum_value = self.entries[key]
 
 
@@ -96,7 +96,7 @@ class EnumDefinition:
                   'k' + self.original_enum_name]
 
       for prefix in prefixes:
-        if all(w.startswith(prefix) for w in self.entries.keys()):
+        if all([w.startswith(prefix) for w in self.entries.keys()]):
           prefix_to_strip = prefix
           break
       else:
@@ -141,7 +141,7 @@ def _TransformKeys(d, func):
   return ret
 
 
-class DirectiveSet:
+class DirectiveSet(object):
   class_name_override_key = 'CLASS_NAME_OVERRIDE'
   enum_package_key = 'ENUM_PACKAGE'
   prefix_to_strip_key = 'PREFIX_TO_STRIP'
@@ -169,7 +169,7 @@ class DirectiveSet:
         DirectiveSet.prefix_to_strip_key)
 
 
-class HeaderParser:
+class HeaderParser(object):
   single_line_comment_re = re.compile(r'\s*//\s*([^\n]*)')
   multi_line_comment_start_re = re.compile(r'\s*/\*')
   enum_line_re = re.compile(r'^\s*(\w+)(\s*\=\s*([^,\n]+))?,?')
@@ -305,7 +305,7 @@ class HeaderParser:
                       '. Use () for multi-line directives. E.g.\n' +
                       '// GENERATED_JAVA_ENUM_PACKAGE: (\n' +
                       '//   foo.package)')
-    if generator_directive:
+    elif generator_directive:
       directive_name = generator_directive.groups()[0]
       directive_value = generator_directive.groups()[1]
       self._generator_directives.Update(directive_name, directive_value)

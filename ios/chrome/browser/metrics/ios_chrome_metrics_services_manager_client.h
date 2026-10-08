@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "components/metrics_services_manager/metrics_services_manager_client.h"
 
@@ -23,12 +24,6 @@ class IOSChromeMetricsServicesManagerClient
     : public metrics_services_manager::MetricsServicesManagerClient {
  public:
   explicit IOSChromeMetricsServicesManagerClient(PrefService* local_state);
-
-  IOSChromeMetricsServicesManagerClient(
-      const IOSChromeMetricsServicesManagerClient&) = delete;
-  IOSChromeMetricsServicesManagerClient& operator=(
-      const IOSChromeMetricsServicesManagerClient&) = delete;
-
   ~IOSChromeMetricsServicesManagerClient() override;
 
  private:
@@ -38,6 +33,7 @@ class IOSChromeMetricsServicesManagerClient
   class IOSChromeEnabledStateProvider;
 
   // metrics_services_manager::MetricsServicesManagerClient:
+  std::unique_ptr<rappor::RapporServiceImpl> CreateRapporServiceImpl() override;
   std::unique_ptr<variations::VariationsService> CreateVariationsService()
       override;
   std::unique_ptr<metrics::MetricsServiceClient> CreateMetricsServiceClient()
@@ -48,8 +44,8 @@ class IOSChromeMetricsServicesManagerClient
   bool IsMetricsConsentGiven() override;
   bool IsOffTheRecordSessionActive() override;
 
-  // Static helper for `IsOffTheRecordSessionActive()`, suitable for binding
-  // into callbacks. `true` if any browser states have any incognito WebStates
+  // Static helper for |IsOffTheRecordSessionActive()|, suitable for binding
+  // into callbacks. |true| if any browser states have any incognito WebStates
   // in any Browser.
   static bool AreIncognitoTabsPresent();
 
@@ -65,6 +61,8 @@ class IOSChromeMetricsServicesManagerClient
 
   // Weak pointer to the local state prefs store.
   PrefService* local_state_;
+
+  DISALLOW_COPY_AND_ASSIGN(IOSChromeMetricsServicesManagerClient);
 };
 
 #endif  // IOS_CHROME_BROWSER_METRICS_IOS_CHROME_METRICS_SERVICES_MANAGER_CLIENT_H_

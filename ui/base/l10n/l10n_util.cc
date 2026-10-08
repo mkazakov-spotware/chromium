@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,62 +20,52 @@
 #include "base/i18n/rtl.h"
 #include "base/i18n/string_compare.h"
 #include "base/lazy_instance.h"
-#include "base/logging.h"
-#include "base/no_destructor.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "third_party/icu/source/common/unicode/rbbi.h"
 #include "third_party/icu/source/common/unicode/uloc.h"
 #include "ui/base/l10n/l10n_util_collator.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_paths.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/locale_utils.h"
 #include "ui/base/l10n/l10n_util_android.h"
-#endif
-
-#if BUILDFLAG(IS_IOS)
-#include "ui/base/l10n/l10n_util_ios.h"
 #endif
 
 #if defined(USE_GLIB)
 #include <glib.h>
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/logging.h"
 #include "ui/base/l10n/l10n_util_win.h"
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
 namespace {
 
 static const char* const kAcceptLanguageList[] = {
-    "af",  // Afrikaans
-    "ak",  // Twi
-    "am",  // Amharic
-    "an",  // Aragonese
-    "ar",  // Arabic
-#if defined(ENABLE_PSEUDOLOCALES)
-    "ar-XB",           // RTL Pseudolocale
-#endif                 // defined(ENABLE_PSEUDOLOCALES)
-    "as",              // Assamese
+    "af",              // Afrikaans
+    "am",              // Amharic
+    "an",              // Aragonese
+    "ar",              // Arabic
     "ast",             // Asturian
     "az",              // Azerbaijani
     "be",              // Belarusian
     "bg",              // Bulgarian
+    "bh",              // Bihari
     "bn",              // Bengali
     "br",              // Breton
     "bs",              // Bosnian
     "ca",              // Catalan
     "ceb",             // Cebuano
-    "chr",             // Cherokee
     "ckb",             // Kurdish (Arabic),  Sorani
     "co",              // Corsican
     "cs",              // Czech
@@ -86,23 +76,20 @@ static const char* const kAcceptLanguageList[] = {
     "de-CH",           // German (Switzerland)
     "de-DE",           // German (Germany)
     "de-LI",           // German (Liechtenstein)
-    "ee",              // Ewe
     "el",              // Greek
     "en",              // English
     "en-AU",           // English (Australia)
     "en-CA",           // English (Canada)
     "en-GB",           // English (UK)
     "en-GB-oxendict",  // English (UK, OED spelling)
-    "en-IE",           // English (Ireland)
     "en-IN",           // English (India)
     "en-NZ",           // English (New Zealand)
     "en-US",           // English (US)
-#if defined(ENABLE_PSEUDOLOCALES)
-    "en-XA",  // Long strings Pseudolocale
-#endif        // defined(ENABLE_PSEUDOLOCALES)
-    "en-ZA",  // English (South Africa)
-    "eo",     // Esperanto
-    "es",     // Spanish
+    "en-ZA",           // English (South Africa)
+    "eo",              // Esperanto
+    // TODO(jungshik) : Do we want to list all es-Foo for Latin-American
+    // Spanish speaking countries?
+    "es",      // Spanish
     "es-419",  // Spanish (Latin America)
     "es-AR",   // Spanish (Argentina)
     "es-CL",   // Spanish (Chile)
@@ -154,13 +141,10 @@ static const char* const kAcceptLanguageList[] = {
     "km",      // Cambodian
     "kn",      // Kannada
     "ko",      // Korean
-    "kok",     // Konkani
-    "kri",     // Krio
     "ku",      // Kurdish
     "ky",      // Kyrgyz
     "la",      // Latin
     "lb",      // Luxembourgish
-    "lg",      // Luganda
     "ln",      // Lingala
     "lo",      // Laothian
     "lt",      // Lithuanian
@@ -180,11 +164,10 @@ static const char* const kAcceptLanguageList[] = {
     "nl",      // Dutch
     "nn",      // Norwegian (Nynorsk)
     "no",      // Norwegian
-    "nso",     // Sepedi
     "ny",      // Nyanja
     "oc",      // Occitan
     "om",      // Oromo
-    "or",      // Odia (Oriya)
+    "or",      // Oriya
     "pa",      // Punjabi
     "pl",      // Polish
     "ps",      // Pashto
@@ -195,7 +178,6 @@ static const char* const kAcceptLanguageList[] = {
     "rm",      // Romansh
     "ro",      // Romanian
     "ru",      // Russian
-    "rw",      // Kinyarwanda
     "sd",      // Sindhi
     "sh",      // Serbo-Croatian
     "si",      // Sinhalese
@@ -216,18 +198,16 @@ static const char* const kAcceptLanguageList[] = {
     "th",      // Thai
     "ti",      // Tigrinya
     "tk",      // Turkmen
-    "tn",      // Tswana
     "to",      // Tonga
     "tr",      // Turkish
     "tt",      // Tatar
     "tw",      // Twi
-    "ug",      // Uyghur
+    "ug",      // Uighur
     "uk",      // Ukrainian
     "ur",      // Urdu
     "uz",      // Uzbek
     "vi",      // Vietnamese
     "wa",      // Walloon
-    "wo",      // Wolof
     "xh",      // Xhosa
     "yi",      // Yiddish
     "yo",      // Yoruba
@@ -236,33 +216,6 @@ static const char* const kAcceptLanguageList[] = {
     "zh-HK",   // Chinese (Hong Kong)
     "zh-TW",   // Chinese (Taiwan)
     "zu",      // Zulu
-};
-
-// The list of locales that expected on the current platform, generated from the
-// |locales| variable in GN (defined in build/config/locales.gni). This is
-// equivalently the list of locales that we expect to have translation strings
-// for on the current platform. Guaranteed to be in sorted order and guaranteed
-// to have no duplicates.
-//
-// Note that this could have false positives at runtime on Android and iOS:
-// - On Android, locale files are dynamically shipped in app bundles which are
-//   only downloaded when needed - so the |locales| variable does not accurately
-//   reflect the UI strings that are currently available on disk.
-//   See the comment at the top of |LoadLocaleResources| in
-//   ui/base/resource/resource_bundle_android.cc for more information.
-// - On iOS, some locales aren't shipped (|ios_unsupported_locales|) as they are
-//   not supported by the operating system. These locales are included in this
-//   variable.
-//
-// To avoid false positives on these platforms, use
-// ui::ResourceBundle::LocaleDataPakExists() to check whether the locales exist
-// on disk instead (requires I/O).
-static const char* const kPlatformLocales[] = {
-#define PLATFORM_LOCALE(locale) #locale,
-// The below is generated by tools/l10n/generate_locales_list.py, which is
-// run in the //ui/base:locales_list_gen build rule.
-#include "ui/base/l10n/l10n_util_locales_list.inc"
-#undef PLATFORM_LOCALE
 };
 
 // Returns true if |locale_name| has an alias in the ICU data file.
@@ -305,15 +258,8 @@ bool IsLocalePartiallyPopulated(const std::string& locale_name) {
   return !l10n_util::IsLocaleNameTranslated("en", locale_name);
 }
 
-// If |perform_io| is false, this will not perform any I/O but may return false
-// positives on Android and iOS. See the |kPlatformLocales| documentation for
-// more information.
-bool HasStringsForLocale(const std::string& locale,
-                         const bool perform_io = true) {
-  if (!perform_io) {
-    return std::binary_search(std::begin(kPlatformLocales),
-                              std::end(kPlatformLocales), locale);
-  }
+#if !defined(OS_APPLE)
+bool IsLocaleAvailable(const std::string& locale) {
   // If locale has any illegal characters in it, we don't want to try to
   // load it because it may be pointing outside the locale data file directory.
   if (!base::i18n::IsFilenameLegal(base::ASCIIToUTF16(locale)))
@@ -321,22 +267,24 @@ bool HasStringsForLocale(const std::string& locale,
 
   // IsLocalePartiallyPopulated() can be called here for an early return w/o
   // checking the resource availability below. It'd help when Chrome is run
-  // under a system locale Chrome is not localized to (e.g. Farsi on Linux),
+  // under a system locale Chrome is not localized to (e.g.Farsi on Linux),
   // but it'd slow down the start up time a little bit for locales Chrome is
   // localized to. So, we don't call it here.
   return ui::ResourceBundle::LocaleDataPakExists(locale);
 }
+#endif
 
 // On Linux, the text layout engine Pango determines paragraph directionality
 // by looking at the first strongly-directional character in the text. This
 // means text such as "Google Chrome foo bar..." will be layed out LTR even
 // if "foo bar" is RTL. So this function prepends the necessary RLM in such
 // cases.
-void AdjustParagraphDirectionality(std::u16string* paragraph) {
-#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_ANDROID)
+void AdjustParagraphDirectionality(base::string16* paragraph) {
+#if defined(OS_POSIX) && !defined(OS_APPLE) && !defined(OS_ANDROID)
   if (base::i18n::IsRTL() &&
       base::i18n::StringContainsStrongRTLChars(*paragraph)) {
-    paragraph->insert(0, 1, char16_t{base::i18n::kRightToLeftMark});
+    paragraph->insert(0, 1,
+                      static_cast<base::char16>(base::i18n::kRightToLeftMark));
   }
 #endif
 }
@@ -363,9 +311,9 @@ struct AvailableLocalesTraits
       std::replace(locale_name.begin(), locale_name.end(), '_', '-');
 
       // Map the Chinese locale names over to zh-CN and zh-TW.
-      if (base::EqualsCaseInsensitiveASCII(locale_name, "zh-hans")) {
+      if (base::LowerCaseEqualsASCII(locale_name, "zh-hans")) {
         locale_name = "zh-CN";
-      } else if (base::EqualsCaseInsensitiveASCII(locale_name, "zh-hant")) {
+      } else if (base::LowerCaseEqualsASCII(locale_name, "zh-hant")) {
         locale_name = "zh-TW";
       }
       locales->push_back(locale_name);
@@ -387,20 +335,12 @@ std::string GetLanguage(const std::string& locale) {
   return std::string(locale, 0, hyphen_pos);
 }
 
-std::string GetCountry(const std::string& locale) {
-  const std::string::size_type hyphen_pos = locale.find('-');
-  if (hyphen_pos == std::string::npos)
-    return std::string();
-
-  return std::string(locale, hyphen_pos + 1);
-}
-
-// TODO(jshin): revamp this function completely to use a more systematic
+// TODO(jshin): revamp this function completely to use a more sytematic
 // and generic locale fallback based on ICU/CLDR.
 bool CheckAndResolveLocale(const std::string& locale,
-                           std::string* resolved_locale,
-                           const bool perform_io) {
-  if (HasStringsForLocale(locale, perform_io)) {
+                           std::string* resolved_locale) {
+#if !defined(OS_APPLE)
+  if (IsLocaleAvailable(locale)) {
     *resolved_locale = locale;
     return true;
   }
@@ -423,41 +363,34 @@ bool CheckAndResolveLocale(const std::string& locale,
     std::string tmp_locale(lang);
     // Map es-RR other than es-ES to es-419 (Chrome's Latin American
     // Spanish locale).
-    if (base::EqualsCaseInsensitiveASCII(lang, "es") &&
-        !base::EqualsCaseInsensitiveASCII(region, "es")) {
-#if BUILDFLAG(IS_IOS)
-      // iOS uses a different name for es-419 (es-MX).
-      tmp_locale.append("-MX");
-#else
+    if (base::LowerCaseEqualsASCII(lang, "es") &&
+        !base::LowerCaseEqualsASCII(region, "es")) {
       tmp_locale.append("-419");
-#endif
-    } else if (base::EqualsCaseInsensitiveASCII(lang, "pt") &&
-               !base::EqualsCaseInsensitiveASCII(region, "br")) {
+    } else if (base::LowerCaseEqualsASCII(lang, "pt")) {
       // Map pt-RR other than pt-BR to pt-PT. Note that "pt" by itself maps to
-      // pt-BR (logic below), and we need to explicitly check for pt-BR here as
-      // it is unavailable on iOS.
+      // pt-BR (logic below).
       tmp_locale.append("-PT");
-    } else if (base::EqualsCaseInsensitiveASCII(lang, "zh")) {
+    } else if (base::LowerCaseEqualsASCII(lang, "zh")) {
       // Map zh-HK and zh-MO to zh-TW. Otherwise, zh-FOO is mapped to zh-CN.
-      if (base::EqualsCaseInsensitiveASCII(region, "hk") ||
-          base::EqualsCaseInsensitiveASCII(region, "mo")) {  // Macao
+      if (base::LowerCaseEqualsASCII(region, "hk") ||
+          base::LowerCaseEqualsASCII(region, "mo")) {  // Macao
         tmp_locale.append("-TW");
       } else {
         tmp_locale.append("-CN");
       }
-    } else if (base::EqualsCaseInsensitiveASCII(lang, "en")) {
+    } else if (base::LowerCaseEqualsASCII(lang, "en")) {
       // Map Liberian and Filipino English to US English, and everything
       // else to British English.
       // TODO(jungshik): en-CA may have to change sides once
       // we have OS locale separate from app locale (Chrome's UI language).
-      if (base::EqualsCaseInsensitiveASCII(region, "lr") ||
-          base::EqualsCaseInsensitiveASCII(region, "ph")) {
+      if (base::LowerCaseEqualsASCII(region, "lr") ||
+          base::LowerCaseEqualsASCII(region, "ph")) {
         tmp_locale.append("-US");
       } else {
         tmp_locale.append("-GB");
       }
     }
-    if (HasStringsForLocale(tmp_locale, perform_io)) {
+    if (IsLocaleAvailable(tmp_locale)) {
       resolved_locale->swap(tmp_locale);
       return true;
     }
@@ -473,24 +406,22 @@ bool CheckAndResolveLocale(const std::string& locale,
       {"pt", "pt-BR"}, {"tl", "fil"}, {"zh", "zh-CN"},
   };
   for (const auto& alias : kAliasMap) {
-    if (base::EqualsCaseInsensitiveASCII(lang, alias.source)) {
+    if (base::LowerCaseEqualsASCII(lang, alias.source)) {
       std::string tmp_locale(alias.dest);
-      if (HasStringsForLocale(tmp_locale, perform_io)) {
+      if (IsLocaleAvailable(tmp_locale)) {
         resolved_locale->swap(tmp_locale);
         return true;
       }
     }
   }
+#else
+  NOTIMPLEMENTED();
+#endif  // !defined(OS_APPLE)
 
   return false;
 }
 
-bool CheckAndResolveLocale(const std::string& locale,
-                           std::string* resolved_locale) {
-  return CheckAndResolveLocale(locale, resolved_locale, /*perform_io=*/true);
-}
-
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 std::string GetApplicationLocaleInternalMac(const std::string& pref_locale) {
   // Use any override (Cocoa for the browser), otherwise use the preference
   // passed to the function.
@@ -507,7 +438,7 @@ std::string GetApplicationLocaleInternalMac(const std::string& pref_locale) {
 }
 #endif
 
-#if !BUILDFLAG(IS_APPLE)
+#if !defined(OS_APPLE)
 std::string GetApplicationLocaleInternalNonMac(const std::string& pref_locale) {
   std::string resolved_locale;
   std::vector<std::string> candidates;
@@ -517,7 +448,7 @@ std::string GetApplicationLocaleInternalNonMac(const std::string& pref_locale) {
   // to renderer and plugin processes so they know what language the parent
   // process decided to use.
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // First, try the preference value.
   if (!pref_locale.empty())
     candidates.push_back(base::i18n::GetCanonicalLocale(pref_locale));
@@ -533,14 +464,14 @@ std::string GetApplicationLocaleInternalNonMac(const std::string& pref_locale) {
     // If no override was set, defer to ICU
     candidates.push_back(base::i18n::GetConfiguredLocale());
   }
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
   // Try pref_locale first.
   if (!pref_locale.empty())
     candidates.push_back(base::i18n::GetCanonicalLocale(pref_locale));
 
   // On Android, query java.util.Locale for the default locale.
   candidates.push_back(base::android::GetDefaultLocaleString());
-#elif defined(USE_GLIB) && !BUILDFLAG(IS_CHROMEOS_ASH)
+#elif defined(USE_GLIB) && !defined(OS_CHROMEOS)
   // GLib implements correct environment variable parsing with
   // the precedence order: LANGUAGE, LC_ALL, LC_MESSAGES and LANG.
   // We used to use our custom parsing code along with ICU for this purpose.
@@ -558,7 +489,7 @@ std::string GetApplicationLocaleInternalNonMac(const std::string& pref_locale) {
   // and linux systems without glib.
   if (!pref_locale.empty())
     candidates.push_back(pref_locale);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   std::vector<std::string>::const_iterator i = candidates.begin();
   for (; i != candidates.end(); ++i) {
@@ -569,15 +500,15 @@ std::string GetApplicationLocaleInternalNonMac(const std::string& pref_locale) {
 
   // Fallback on en-US.
   const std::string fallback_locale("en-US");
-  if (HasStringsForLocale(fallback_locale))
+  if (IsLocaleAvailable(fallback_locale))
     return fallback_locale;
 
   return std::string();
 }
-#endif  // !BUILDFLAG(IS_APPLE)
+#endif  // !defined(OS_APPLE)
 
 std::string GetApplicationLocaleInternal(const std::string& pref_locale) {
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   return GetApplicationLocaleInternalMac(pref_locale);
 #else
   return GetApplicationLocaleInternalNonMac(pref_locale);
@@ -598,7 +529,7 @@ std::string GetApplicationLocale(const std::string& pref_locale) {
 
 bool IsLocaleNameTranslated(const char* locale,
                             const std::string& display_locale) {
-  std::u16string display_name =
+  base::string16 display_name =
       l10n_util::GetDisplayNameForLocale(locale, display_locale, false);
   // Because ICU sets the error code to U_USING_DEFAULT_WARNING whether or not
   // uloc_getDisplayName returns the actual translation or the default
@@ -610,7 +541,7 @@ bool IsLocaleNameTranslated(const char* locale,
       base::UTF16ToASCII(display_name) != locale;
 }
 
-std::u16string GetDisplayNameForLocale(const std::string& locale,
+base::string16 GetDisplayNameForLocale(const std::string& locale,
                                        const std::string& display_locale,
                                        bool is_for_ui,
                                        bool disallow_default) {
@@ -629,22 +560,13 @@ std::u16string GetDisplayNameForLocale(const std::string& locale,
   else if (locale_code == "mo")
     locale_code = "ro-MD";
 
-  std::u16string display_name;
-
-#if defined(ENABLE_PSEUDOLOCALES)
-  if (locale_code == "en-XA") {
-    return u"Long strings pseudolocale (en-XA)";
-  } else if (locale_code == "ar-XB") {
-    return u"RTL pseudolocale (ar-XB)";
-  }
-#endif  // defined(ENABLE_PSEUDOLOCALES)
-
-#if BUILDFLAG(IS_IOS)
+  base::string16 display_name;
+#if defined(OS_IOS)
   // Use the Foundation API to get the localized display name, removing the need
   // for the ICU data file to include this data.
   display_name = GetDisplayNameForLocale(locale_code, display_locale);
 #else
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // Use Java API to get locale display name so that we can remove most of
   // the lang data from icu data to reduce binary size, except for zh-Hans and
   // zh-Hant because the current Android Java API doesn't support scripts.
@@ -653,12 +575,12 @@ std::u16string GetDisplayNameForLocale(const std::string& locale,
   if (!base::StartsWith(locale_code, "zh-Han", base::CompareCase::SENSITIVE)) {
     display_name = GetDisplayNameForLocale(locale_code, display_locale);
   } else
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
   {
     UErrorCode error = U_ZERO_ERROR;
     const int kBufferSize = 1024;
 
-    int32_t actual_size;
+    int actual_size;
     // For Country code in ICU64 we need to call uloc_getDisplayCountry
     if (locale_code[0] == '-' || locale_code[0] == '_') {
       actual_size = uloc_getDisplayCountry(
@@ -670,11 +592,11 @@ std::u16string GetDisplayNameForLocale(const std::string& locale,
           base::WriteInto(&display_name, kBufferSize), kBufferSize - 1, &error);
     }
     if (disallow_default && U_USING_DEFAULT_WARNING == error)
-      return std::u16string();
+      return base::string16();
     DCHECK(U_SUCCESS(error));
-    display_name.resize(base::checked_cast<size_t>(actual_size));
+    display_name.resize(actual_size);
   }
-#endif  // BUILDFLAG(IS_IOS)
+#endif  // defined(OS_IOS)
 
   // Add directional markup so parentheses are properly placed.
   if (is_for_ui && base::i18n::IsRTL())
@@ -682,7 +604,7 @@ std::u16string GetDisplayNameForLocale(const std::string& locale,
   return display_name;
 }
 
-std::u16string GetDisplayNameForCountry(const std::string& country_code,
+base::string16 GetDisplayNameForCountry(const std::string& country_code,
                                         const std::string& display_locale) {
   return GetDisplayNameForLocale("_" + country_code, display_locale, false);
 }
@@ -782,150 +704,151 @@ std::string GetStringUTF8(int message_id) {
   return base::UTF16ToUTF8(GetStringUTF16(message_id));
 }
 
-std::u16string GetStringUTF16(int message_id) {
+base::string16 GetStringUTF16(int message_id) {
   ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
-  std::u16string str = rb.GetLocalizedString(message_id);
+  base::string16 str = rb.GetLocalizedString(message_id);
   AdjustParagraphDirectionality(&str);
 
   return str;
 }
 
-std::u16string FormatString(const std::u16string& format_string,
-                            const std::vector<std::u16string>& replacements,
-                            std::vector<size_t>* offsets) {
-#if DCHECK_IS_ON()
-  // Make sure every replacement string is being used, so we don't just silently
-  // fail to insert one.
-  //
-  // $9 is the highest allowed placeholder.
-  for (size_t i = 0; i < 9; ++i) {
-    bool placeholder_should_exist = i < replacements.size();
+base::string16 GetStringFUTF16(int message_id,
+                               const std::vector<base::string16>& replacements,
+                               std::vector<size_t>* offsets) {
+  // TODO(tc): We could save a string copy if we got the raw string as
+  // a StringPiece and were able to call ReplaceStringPlaceholders with
+  // a StringPiece format string and base::string16 substitution strings.  In
+  // practice, the strings should be relatively short.
+  ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
+  const base::string16& format_string = rb.GetLocalizedString(message_id);
 
-    std::u16string placeholder = u"$";
-    placeholder += static_cast<char16_t>('1' + static_cast<char>(i));
-    size_t pos = format_string.find(placeholder);
-    if (placeholder_should_exist) {
-      DCHECK_NE(std::string::npos, pos) << " Didn't find a " << placeholder
-                                        << " placeholder in " << format_string;
-    } else {
-      DCHECK_EQ(std::string::npos, pos)
-          << " Unexpectedly found a " << placeholder << " placeholder in "
-          << format_string;
+#if DCHECK_IS_ON()
+  // Make sure every replacement string is being used, so we don't just
+  // silently fail to insert one. If |offsets| is non-NULL, then don't do this
+  // check as the code may simply want to find the placeholders rather than
+  // actually replacing them.
+  if (!offsets) {
+    // $9 is the highest allowed placeholder.
+    for (size_t i = 0; i < 9; ++i) {
+      bool placeholder_should_exist = replacements.size() > i;
+
+      base::string16 placeholder = base::ASCIIToUTF16("$");
+      placeholder += (L'1' + i);
+      size_t pos = format_string.find(placeholder);
+      if (placeholder_should_exist) {
+        DCHECK_NE(std::string::npos, pos) << " Didn't find a " << placeholder
+                                          << " placeholder in "
+                                          << format_string;
+      } else {
+        DCHECK_EQ(std::string::npos, pos) << " Unexpectedly found a "
+                                          << placeholder << " placeholder in "
+                                          << format_string;
+      }
     }
   }
 #endif
 
-  std::u16string formatted =
-      base::ReplaceStringPlaceholders(format_string, replacements, offsets);
+  base::string16 formatted = base::ReplaceStringPlaceholders(
+      format_string, replacements, offsets);
   AdjustParagraphDirectionality(&formatted);
 
   return formatted;
 }
 
-std::u16string GetStringFUTF16(int message_id,
-                               const std::vector<std::u16string>& replacements,
-                               std::vector<size_t>* offsets) {
-  // TODO(tc): We could save a string copy if we got the raw string as
-  // a StringPiece and were able to call ReplaceStringPlaceholders with
-  // a StringPiece format string and std::u16string substitution strings.  In
-  // practice, the strings should be relatively short.
-  ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
-  const std::u16string& format_string = rb.GetLocalizedString(message_id);
-  return FormatString(format_string, replacements, offsets);
-}
-
-std::string GetStringFUTF8(int message_id, const std::u16string& a) {
+std::string GetStringFUTF8(int message_id,
+                           const base::string16& a) {
   return base::UTF16ToUTF8(GetStringFUTF16(message_id, a));
 }
 
 std::string GetStringFUTF8(int message_id,
-                           const std::u16string& a,
-                           const std::u16string& b) {
+                           const base::string16& a,
+                           const base::string16& b) {
   return base::UTF16ToUTF8(GetStringFUTF16(message_id, a, b));
 }
 
 std::string GetStringFUTF8(int message_id,
-                           const std::u16string& a,
-                           const std::u16string& b,
-                           const std::u16string& c) {
+                           const base::string16& a,
+                           const base::string16& b,
+                           const base::string16& c) {
   return base::UTF16ToUTF8(GetStringFUTF16(message_id, a, b, c));
 }
 
 std::string GetStringFUTF8(int message_id,
-                           const std::u16string& a,
-                           const std::u16string& b,
-                           const std::u16string& c,
-                           const std::u16string& d) {
+                           const base::string16& a,
+                           const base::string16& b,
+                           const base::string16& c,
+                           const base::string16& d) {
   return base::UTF16ToUTF8(GetStringFUTF16(message_id, a, b, c, d));
 }
 
-std::u16string GetStringFUTF16(int message_id, const std::u16string& a) {
-  std::vector<std::u16string> replacements = {a};
+base::string16 GetStringFUTF16(int message_id,
+                               const base::string16& a) {
+  std::vector<base::string16> replacements = {a};
   return GetStringFUTF16(message_id, replacements, nullptr);
 }
 
-std::u16string GetStringFUTF16(int message_id,
-                               const std::u16string& a,
-                               const std::u16string& b) {
+base::string16 GetStringFUTF16(int message_id,
+                               const base::string16& a,
+                               const base::string16& b) {
   return GetStringFUTF16(message_id, a, b, nullptr);
 }
 
-std::u16string GetStringFUTF16(int message_id,
-                               const std::u16string& a,
-                               const std::u16string& b,
-                               const std::u16string& c) {
-  std::vector<std::u16string> replacements = {a, b, c};
+base::string16 GetStringFUTF16(int message_id,
+                               const base::string16& a,
+                               const base::string16& b,
+                               const base::string16& c) {
+  std::vector<base::string16> replacements = {a, b, c};
   return GetStringFUTF16(message_id, replacements, nullptr);
 }
 
-std::u16string GetStringFUTF16(int message_id,
-                               const std::u16string& a,
-                               const std::u16string& b,
-                               const std::u16string& c,
-                               const std::u16string& d) {
-  std::vector<std::u16string> replacements = {a, b, c, d};
+base::string16 GetStringFUTF16(int message_id,
+                               const base::string16& a,
+                               const base::string16& b,
+                               const base::string16& c,
+                               const base::string16& d) {
+  std::vector<base::string16> replacements = {a, b, c, d};
   return GetStringFUTF16(message_id, replacements, nullptr);
 }
 
-std::u16string GetStringFUTF16(int message_id,
-                               const std::u16string& a,
-                               const std::u16string& b,
-                               const std::u16string& c,
-                               const std::u16string& d,
-                               const std::u16string& e) {
-  std::vector<std::u16string> replacements = {a, b, c, d, e};
+base::string16 GetStringFUTF16(int message_id,
+                               const base::string16& a,
+                               const base::string16& b,
+                               const base::string16& c,
+                               const base::string16& d,
+                               const base::string16& e) {
+  std::vector<base::string16> replacements = {a, b, c, d, e};
   return GetStringFUTF16(message_id, replacements, nullptr);
 }
 
-std::u16string GetStringFUTF16(int message_id,
-                               const std::u16string& a,
+base::string16 GetStringFUTF16(int message_id,
+                               const base::string16& a,
                                size_t* offset) {
   DCHECK(offset);
   std::vector<size_t> offsets;
-  std::vector<std::u16string> replacements = {a};
-  std::u16string result = GetStringFUTF16(message_id, replacements, &offsets);
+  std::vector<base::string16> replacements = {a};
+  base::string16 result = GetStringFUTF16(message_id, replacements, &offsets);
   DCHECK_EQ(1u, offsets.size());
   *offset = offsets[0];
   return result;
 }
 
-std::u16string GetStringFUTF16(int message_id,
-                               const std::u16string& a,
-                               const std::u16string& b,
+base::string16 GetStringFUTF16(int message_id,
+                               const base::string16& a,
+                               const base::string16& b,
                                std::vector<size_t>* offsets) {
-  std::vector<std::u16string> replacements = {a, b};
+  std::vector<base::string16> replacements = {a, b};
   return GetStringFUTF16(message_id, replacements, offsets);
 }
 
-std::u16string GetStringFUTF16Int(int message_id, int a) {
+base::string16 GetStringFUTF16Int(int message_id, int a) {
   return GetStringFUTF16(message_id, base::FormatNumber(a));
 }
 
-std::u16string GetStringFUTF16Int(int message_id, int64_t a) {
+base::string16 GetStringFUTF16Int(int message_id, int64_t a) {
   return GetStringFUTF16(message_id, base::FormatNumber(a));
 }
 
-std::u16string GetPluralStringFUTF16(int message_id, int number) {
+base::string16 GetPluralStringFUTF16(int message_id, int number) {
   return base::i18n::MessageFormatter::FormatWithNumberedArgs(
       GetStringUTF16(message_id), number);
 }
@@ -934,66 +857,19 @@ std::string GetPluralStringFUTF8(int message_id, int number) {
   return base::UTF16ToUTF8(GetPluralStringFUTF16(message_id, number));
 }
 
-std::u16string GetSingleOrMultipleStringUTF16(int message_id,
-                                              bool is_multiple) {
+base::string16 GetSingleOrMultipleStringUTF16(int message_id,
+                                               bool is_multiple) {
   return base::i18n::MessageFormatter::FormatWithNumberedArgs(
       GetStringUTF16(message_id), is_multiple ? "multiple" : "single");
 }
 
 void SortStrings16(const std::string& locale,
-                   std::vector<std::u16string>* strings) {
+                   std::vector<base::string16>* strings) {
   SortVectorWithStringKey(locale, strings, false);
 }
 
-const std::vector<std::string>& GetAvailableICULocales() {
+const std::vector<std::string>& GetAvailableLocales() {
   return g_available_locales.Get();
-}
-
-bool IsUserFacingUILocale(const std::string& locale) {
-  std::string resolved_locale;
-  // As there are many callers of IsUserFacingUILocale and
-  // GetUserFacingUILocaleList from threads where I/O is prohibited, do not
-  // perform I/O here.
-  if (!l10n_util::CheckAndResolveLocale(locale, &resolved_locale,
-                                        /*perform_io=*/false)) {
-    return false;
-  }
-
-  // Locales that have strings on disk should always be shown to the user.
-  if (resolved_locale == locale) {
-    return true;
-  }
-
-  const std::string& language = l10n_util::GetLanguage(locale);
-
-  // Chinese locales (other than the ones that have strings on disk) should not
-  // be shown.
-  if (base::EqualsCaseInsensitiveASCII(language, "zh")) {
-    return false;
-  }
-
-  // Norwegian (no) should not be shown as it does not specify a written form.
-  // Users can select Norwegian Bokmål (nb) or Norwegian Nynorsk (nn) instead.
-  if (base::EqualsCaseInsensitiveASCII(language, "no")) {
-    return false;
-  }
-
-  return true;
-}
-
-const std::vector<std::string>& GetUserFacingUILocaleList() {
-  static base::NoDestructor<std::vector<std::string>> available_locales([] {
-    std::vector<std::string> locales;
-    for (const char* accept_language : kAcceptLanguageList) {
-      std::string locale(accept_language);
-      if (IsUserFacingUILocale(locale)) {
-        locales.push_back(locale);
-      }
-    }
-    return locales;
-  }());
-
-  return *available_locales;
 }
 
 void GetAcceptLanguagesForLocale(const std::string& display_locale,
@@ -1037,15 +913,7 @@ const char* const* GetAcceptLanguageListForTesting() {
 }
 
 size_t GetAcceptLanguageListSizeForTesting() {
-  return std::size(kAcceptLanguageList);
-}
-
-const char* const* GetPlatformLocalesForTesting() {
-  return kPlatformLocales;
-}
-
-size_t GetPlatformLocalesSizeForTesting() {
-  return std::size(kPlatformLocales);
+  return base::size(kAcceptLanguageList);
 }
 
 }  // namespace l10n_util

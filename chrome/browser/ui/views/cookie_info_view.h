@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,13 @@
 #include <unordered_map>
 #include <vector>
 
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "ui/views/controls/scroll_view.h"
 
 namespace views {
-class TableLayout;
+class GridLayout;
 class Textfield;
 }
 
@@ -25,13 +27,10 @@ class CanonicalCookie;
 ///////////////////////////////////////////////////////////////////////////////
 // CookieInfoView
 //
-//  Responsible for displaying a table of Cookie information.
+//  Responsible for displaying a tabular grid of Cookie information.
 class CookieInfoView : public views::ScrollView {
  public:
-  METADATA_HEADER(CookieInfoView);
   CookieInfoView();
-  CookieInfoView(const CookieInfoView&) = delete;
-  CookieInfoView& operator=(const CookieInfoView&) = delete;
   ~CookieInfoView() override;
 
   // Update the display from the specified CookieNode.
@@ -59,12 +58,15 @@ class CookieInfoView : public views::ScrollView {
   };
 
   // Layout helper routines.
-  views::Textfield* AddTextfieldRow(views::TableLayout* layout,
+  views::Textfield* AddTextfieldRow(int layout_id,
+                                    views::GridLayout* layout,
                                     int label_message_id);
 
   void SetTextfieldColors();
 
   std::unordered_map<CookieProperty, views::Textfield*> property_textfields_;
+
+  DISALLOW_COPY_AND_ASSIGN(CookieInfoView);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_COOKIE_INFO_VIEW_H_

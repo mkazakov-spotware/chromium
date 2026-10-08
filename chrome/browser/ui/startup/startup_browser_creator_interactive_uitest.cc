@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/run_loop.h"
 #include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/chrome_browser_main.h"
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
@@ -37,7 +36,7 @@ using StartupBrowserCreatorTest = InProcessBrowserTest;
 // Chrome OS doesn't support multiprofile.
 // And BrowserWindow::IsActive() always returns false in tests on MAC.
 // And this test is useless without that functionality.
-#if !BUILDFLAG(IS_CHROMEOS_ASH) && !BUILDFLAG(IS_MAC)
+#if !defined(OS_CHROMEOS) && !defined(OS_MAC)
 IN_PROC_BROWSER_TEST_F(StartupBrowserCreatorTest, LastUsedProfileActivated) {
   base::ScopedAllowBlockingForTesting allow_blocking;
   ProfileManager* profile_manager = g_browser_process->profile_manager();
@@ -79,8 +78,7 @@ IN_PROC_BROWSER_TEST_F(StartupBrowserCreatorTest, LastUsedProfileActivated) {
   last_opened_profiles.push_back(profile_2);
   last_opened_profiles.push_back(profile_3);
   last_opened_profiles.push_back(profile_4);
-  browser_creator.Start(dummy, profile_manager->user_data_dir(),
-                        {profile_2, StartupProfileMode::kBrowserWindow},
+  browser_creator.Start(dummy, profile_manager->user_data_dir(), profile_2,
                         last_opened_profiles);
 
   while (!browser_creator.ActivatedProfile())
@@ -110,7 +108,7 @@ IN_PROC_BROWSER_TEST_F(StartupBrowserCreatorTest, LastUsedProfileActivated) {
   ASSERT_TRUE(new_browser);
   EXPECT_FALSE(new_browser->window()->IsActive());
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH) && !BUILDFLAG(IS_MAC)
+#endif  // !OS_MAC && !OS_CHROMEOS
 
 #if defined(USE_AURA)
 class StartupPagePrefSetterMainExtraParts : public ChromeBrowserMainExtraParts {
@@ -125,7 +123,7 @@ class StartupPagePrefSetterMainExtraParts : public ChromeBrowserMainExtraParts {
   // ChromeBrowserMainExtraParts:
   void PreBrowserStart() override {
     Profile* profile =
-        g_browser_process->profile_manager()->GetLastUsedProfile();
+        g_browser_process->profile_manager()->GetActiveUserProfile();
 
     SessionStartupPref pref_urls(SessionStartupPref::URLS);
     pref_urls.urls = std::move(urls_);

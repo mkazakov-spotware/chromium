@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,27 +7,20 @@ package org.chromium.chrome.browser.tab;
 import android.support.test.InstrumentationRegistry;
 import android.widget.Button;
 
-import androidx.test.filters.MediumTest;
 import androidx.test.filters.SmallTest;
 
-import org.junit.After;
 import org.junit.Assert;
-import org.junit.ClassRule;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.UrlUtils;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
-import org.chromium.chrome.browser.fullscreen.FullscreenManagerTestUtils;
-import org.chromium.chrome.browser.tab.TabUtils.LoadIfNeededCaller;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.util.TestWebServer;
@@ -38,19 +31,15 @@ import java.util.concurrent.ExecutionException;
  * Tests related to the sad tab logic.
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
-@Batch(Batch.PER_CLASS)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class SadTabTest {
-    private static final String LONG_HTML_TEST_PAGE =
-            UrlUtils.encodeHtmlDataUri("<html><body style='height:100000px;'></body></html>");
-
-    @ClassRule
-    public static ChromeTabbedActivityTestRule sActivityTestRule =
-            new ChromeTabbedActivityTestRule();
-
     @Rule
-    public BlankCTATabInitialStateRule mBlankCTATabInitialStateRule =
-            new BlankCTATabInitialStateRule(sActivityTestRule, false);
+    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
+
+    @Before
+    public void setUp() throws InterruptedException {
+        mActivityTestRule.startMainActivityOnBlankPage();
+    }
 
     private static boolean isShowingSadTab(Tab tab) {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
@@ -61,16 +50,6 @@ public class SadTabTest {
         }
     }
 
-    @After
-    public void tearDown() {
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            Tab tab = sActivityTestRule.getActivity().getActivityTab();
-            tab.show(TabSelectionType.FROM_USER, LoadIfNeededCaller.OTHER);
-            SadTab sadTab = SadTab.from(tab);
-            sadTab.removeIfPresent();
-        });
-    }
-
     /**
      * Verify that the sad tab is shown when the renderer crashes.
      */
@@ -78,7 +57,7 @@ public class SadTabTest {
     @SmallTest
     @Feature({"SadTab"})
     public void testSadTabShownWhenRendererProcessKilled() {
-        final Tab tab = sActivityTestRule.getActivity().getActivityTab();
+        final Tab tab = mActivityTestRule.getActivity().getActivityTab();
 
         Assert.assertFalse(isShowingSadTab(tab));
         simulateRendererKilled(tab, true);
@@ -93,7 +72,7 @@ public class SadTabTest {
     @SmallTest
     @Feature({"SadTab"})
     public void testSadTabNotShownWhenRendererProcessKilledInBackround() {
-        final Tab tab = sActivityTestRule.getActivity().getActivityTab();
+        final Tab tab = mActivityTestRule.getActivity().getActivityTab();
 
         Assert.assertFalse(isShowingSadTab(tab));
         simulateRendererKilled(tab, false);
@@ -107,12 +86,12 @@ public class SadTabTest {
     @SmallTest
     @Feature({"SadTab"})
     public void testSadTabReloadAfterKill() throws Throwable {
-        final Tab tab = sActivityTestRule.getActivity().getActivityTab();
+        final Tab tab = mActivityTestRule.getActivity().getActivityTab();
 
         TestWebServer webServer = TestWebServer.start();
         try {
             final String url1 = webServer.setEmptyResponse("/page1.html");
-            sActivityTestRule.loadUrl(url1);
+            mActivityTestRule.loadUrl(url1);
             Assert.assertFalse(tab.needsReload());
             simulateRendererKilled(tab, false);
             Assert.assertTrue(tab.needsReload());
@@ -128,16 +107,16 @@ public class SadTabTest {
     @SmallTest
     @Feature({"SadTab"})
     public void testSadTabNoReloadAfterLoad() throws Throwable {
-        final Tab tab = sActivityTestRule.getActivity().getActivityTab();
+        final Tab tab = mActivityTestRule.getActivity().getActivityTab();
 
         TestWebServer webServer = TestWebServer.start();
         try {
             final String url1 = webServer.setEmptyResponse("/page1.html");
             final String url2 = webServer.setEmptyResponse("/page2.html");
-            sActivityTestRule.loadUrl(url1);
+            mActivityTestRule.loadUrl(url1);
             Assert.assertFalse(tab.needsReload());
             simulateRendererKilled(tab, false);
-            sActivityTestRule.loadUrl(url2);
+            mActivityTestRule.loadUrl(url2);
             Assert.assertFalse(tab.needsReload());
         } finally {
             webServer.shutdown();
@@ -154,26 +133,25 @@ public class SadTabTest {
     @SmallTest
     @Feature({"SadTab"})
     public void testSadTabPageButtonText() throws IllegalArgumentException {
-        final Tab tab = sActivityTestRule.getActivity().getActivityTab();
+        final Tab tab = mActivityTestRule.getActivity().getActivityTab();
 
         Assert.assertFalse(isShowingSadTab(tab));
         simulateRendererKilled(tab, true);
         Assert.assertTrue(isShowingSadTab(tab));
         String actualText = getSadTabButton(tab).getText().toString();
         Assert.assertEquals("Expected the sad tab button to have the reload label",
-                sActivityTestRule.getActivity().getString(R.string.sad_tab_reload_label),
+                mActivityTestRule.getActivity().getString(R.string.sad_tab_reload_label),
                 actualText);
 
         reloadSadTab(tab);
         Assert.assertTrue(isShowingSadTab(tab));
         actualText = getSadTabButton(tab).getText().toString();
-        Assert.assertTrue(showSendFeedbackView(tab));
         Assert.assertEquals(
                 "Expected the sad tab button to have the feedback label after the tab button "
                         + "crashes twice in a row.",
-                sActivityTestRule.getActivity().getString(R.string.sad_tab_send_feedback_label),
+                mActivityTestRule.getActivity().getString(R.string.sad_tab_send_feedback_label),
                 actualText);
-        sActivityTestRule.loadUrl("about:blank");
+        mActivityTestRule.loadUrl("about:blank");
         Assert.assertFalse(
                 "Expected about:blank to destroy the sad tab however the sad tab is still in "
                         + "view",
@@ -182,23 +160,8 @@ public class SadTabTest {
         actualText = getSadTabButton(tab).getText().toString();
         Assert.assertEquals(
                 "Expected the sad tab button to have the reload label after a successful load",
-                sActivityTestRule.getActivity().getString(R.string.sad_tab_reload_label),
+                mActivityTestRule.getActivity().getString(R.string.sad_tab_reload_label),
                 actualText);
-    }
-
-    @Test
-    @MediumTest
-    @Feature({"SadTab"})
-    public void testSadTabBrowserControlsVisibility() {
-        TestThreadUtils.runOnUiThreadBlocking(
-                TabStateBrowserControlsVisibilityDelegate::disablePageLoadDelayForTests);
-        FullscreenManagerTestUtils.disableBrowserOverrides();
-        sActivityTestRule.loadUrl(LONG_HTML_TEST_PAGE);
-        FullscreenManagerTestUtils.waitForBrowserControlsToBeMoveable(
-                sActivityTestRule, sActivityTestRule.getActivity().getActivityTab());
-        FullscreenManagerTestUtils.scrollBrowserControls(sActivityTestRule, false);
-        simulateRendererKilled(sActivityTestRule.getActivity().getActivityTab(), true);
-        FullscreenManagerTestUtils.waitForBrowserControlsPosition(sActivityTestRule, 0);
     }
 
     /**
@@ -207,7 +170,7 @@ public class SadTabTest {
     private static void simulateRendererKilled(final Tab tab, final boolean visible) {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             if (!visible) tab.hide(TabHidingType.CHANGED_TABS);
-            ChromeTabUtils.simulateRendererKilledForTesting(tab);
+            ChromeTabUtils.simulateRendererKilledForTesting(tab, false);
         });
     }
 
@@ -218,17 +181,8 @@ public class SadTabTest {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             SadTab sadTab = SadTab.from(tab);
             sadTab.removeIfPresent();
-            sadTab.show(tab.getContext(), () -> {}, () -> {});
+            sadTab.show();
         });
-    }
-
-    private static boolean showSendFeedbackView(final Tab tab) {
-        try {
-            return TestThreadUtils.runOnUiThreadBlocking(
-                    () -> SadTab.from(tab).showSendFeedbackView());
-        } catch (ExecutionException e) {
-            return false; // Make tests fail when an exception is thrown.
-        }
     }
 
     /**

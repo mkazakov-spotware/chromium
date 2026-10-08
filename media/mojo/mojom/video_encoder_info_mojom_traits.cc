@@ -1,10 +1,20 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/mojo/mojom/video_encoder_info_mojom_traits.h"
 
 namespace mojo {
+
+// static
+bool StructTraits<
+    media::mojom::ScalingSettingsDataView,
+    media::ScalingSettings>::Read(media::mojom::ScalingSettingsDataView data,
+                                  media::ScalingSettings* out) {
+  out->min_qp = data.min_qp();
+  out->max_qp = data.max_qp();
+  return true;
+}
 
 // static
 bool StructTraits<media::mojom::ResolutionBitrateLimitDataView,
@@ -28,9 +38,11 @@ bool StructTraits<
   out->has_trusted_rate_controller = data.has_trusted_rate_controller();
   out->is_hardware_accelerated = data.is_hardware_accelerated();
   out->supports_simulcast = data.supports_simulcast();
-  out->reports_average_qp = data.reports_average_qp();
 
   if (!data.ReadImplementationName(&out->implementation_name))
+    return false;
+
+  if (!data.ReadScalingSettings(&out->scaling_settings))
     return false;
 
   base::span<std::vector<uint8_t>> fps_allocation(out->fps_allocation);

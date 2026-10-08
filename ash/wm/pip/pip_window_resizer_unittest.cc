@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,13 +21,11 @@
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
 #include "ash/wm/window_state.h"
 #include "ash/wm/wm_event.h"
-#include "ash/wm/work_area_insets.h"
 #include "base/callback_helpers.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/window.h"
 #include "ui/base/hit_test.h"
-#include "ui/compositor/layer.h"
 #include "ui/display/scoped_display_for_new_windows.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/views/widget/widget.h"
@@ -44,10 +42,6 @@ class FakeWindowState : public WindowState::State {
  public:
   explicit FakeWindowState(WindowStateType initial_state_type)
       : state_type_(initial_state_type) {}
-
-  FakeWindowState(const FakeWindowState&) = delete;
-  FakeWindowState& operator=(const FakeWindowState&) = delete;
-
   ~FakeWindowState() override = default;
 
   // WindowState::State overrides:
@@ -73,6 +67,8 @@ class FakeWindowState : public WindowState::State {
   WindowStateType state_type_;
   gfx::Rect last_bounds_;
   WindowState* last_window_state_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeWindowState);
 };
 
 }  // namespace
@@ -84,10 +80,6 @@ class PipWindowResizerTest : public AshTestBase,
                                  std::tuple<std::string, std::size_t>> {
  public:
   PipWindowResizerTest() = default;
-
-  PipWindowResizerTest(const PipWindowResizerTest&) = delete;
-  PipWindowResizerTest& operator=(const PipWindowResizerTest&) = delete;
-
   ~PipWindowResizerTest() override = default;
 
   void SetUp() override {
@@ -191,11 +183,11 @@ class PipWindowResizerTest : public AshTestBase,
 
   void UpdateWorkArea(const std::string& bounds) {
     UpdateDisplay(bounds);
-    for (aura::Window* root : Shell::GetAllRootWindows()) {
-      WorkAreaInsets::ForWindow(root)->UpdateWorkAreaInsetsForTest(
-          root, gfx::Rect(), gfx::Insets(), gfx::Insets());
-    }
+    for (aura::Window* root : Shell::GetAllRootWindows())
+      Shell::Get()->SetDisplayWorkAreaInsets(root, gfx::Insets());
   }
+
+  DISALLOW_COPY_AND_ASSIGN(PipWindowResizerTest);
 };
 
 TEST_P(PipWindowResizerTest, PipWindowCanDrag) {
@@ -222,22 +214,17 @@ TEST_P(PipWindowResizerTest, PipWindowDragIsRestrictedToWorkArea) {
   // Specify point in parent as center so the drag point does not leave the
   // display. If the drag point is not in any display bounds, it causes the
   // window to be moved to the default display.
-  auto landscape =
-      display::Screen::GetScreen()->GetPrimaryDisplay().is_landscape();
-  int right_x = landscape ? 392 : 292;
-  int bottom_y = landscape ? 292 : 392;
-
   std::unique_ptr<PipWindowResizer> resizer(
       CreateResizerForTest(HTCAPTION, gfx::Point(250, 250)));
   ASSERT_TRUE(resizer.get());
 
   // Drag to the right.
   resizer->Drag(CalculateDragPoint(*resizer, 250, 0), 0);
-  EXPECT_EQ(gfx::Rect(right_x, 200, 100, 100), test_state()->last_bounds());
+  EXPECT_EQ(gfx::Rect(292, 200, 100, 100), test_state()->last_bounds());
 
   // Drag down.
   resizer->Drag(CalculateDragPoint(*resizer, 0, 250), 0);
-  EXPECT_EQ(gfx::Rect(200, bottom_y, 100, 100), test_state()->last_bounds());
+  EXPECT_EQ(gfx::Rect(200, 292, 100, 100), test_state()->last_bounds());
 
   // Drag to the left.
   resizer->Drag(CalculateDragPoint(*resizer, -250, 0), 0);
@@ -376,8 +363,6 @@ TEST_P(PipWindowResizerTest,
 
 TEST_P(PipWindowResizerTest, PipWindowIsFlungToEdge) {
   PreparePipWindow(gfx::Rect(200, 200, 100, 100));
-  auto landscape =
-      display::Screen::GetScreen()->GetPrimaryDisplay().is_landscape();
 
   {
     std::unique_ptr<PipWindowResizer> resizer(CreateResizerForTest(HTCAPTION));
@@ -386,10 +371,8 @@ TEST_P(PipWindowResizerTest, PipWindowIsFlungToEdge) {
     resizer->Drag(CalculateDragPoint(*resizer, 0, 10), 0);
     Fling(std::move(resizer), 0.f, 4000.f);
 
-    auto origin = landscape ? gfx::Point(200, 292) : gfx::Point(200, 392);
-
     // Flung downwards.
-    EXPECT_EQ(origin, test_state()->last_bounds().origin());
+    EXPECT_EQ(gfx::Rect(200, 292, 100, 100), test_state()->last_bounds());
   }
 
   {
@@ -410,9 +393,8 @@ TEST_P(PipWindowResizerTest, PipWindowIsFlungToEdge) {
     resizer->Drag(CalculateDragPoint(*resizer, 10, 0), 0);
     Fling(std::move(resizer), 4000.f, 0.f);
 
-    auto origin = landscape ? gfx::Point(392, 200) : gfx::Point(292, 200);
     // Flung to the right.
-    EXPECT_EQ(origin, test_state()->last_bounds().origin());
+    EXPECT_EQ(gfx::Rect(292, 200, 100, 100), test_state()->last_bounds());
   }
 
   {
@@ -429,8 +411,6 @@ TEST_P(PipWindowResizerTest, PipWindowIsFlungToEdge) {
 
 TEST_P(PipWindowResizerTest, PipWindowIsFlungDiagonally) {
   PreparePipWindow(gfx::Rect(200, 200, 100, 100));
-  auto landscape =
-      display::Screen::GetScreen()->GetPrimaryDisplay().is_landscape();
 
   {
     std::unique_ptr<PipWindowResizer> resizer(CreateResizerForTest(HTCAPTION));
@@ -449,20 +429,20 @@ TEST_P(PipWindowResizerTest, PipWindowIsFlungDiagonally) {
 
     resizer->Drag(CalculateDragPoint(*resizer, 3, 4), 0);
     Fling(std::move(resizer), 3000.f, 4000.f);
-    gfx::Point origin = landscape ? gfx::Point(269, 292) : gfx::Point(292, 322);
 
     // Flung downward and to the right, but reaching the bottom edge first.
-    EXPECT_EQ(origin, test_state()->last_bounds().origin());
+    EXPECT_EQ(gfx::Rect(269, 292, 100, 100), test_state()->last_bounds());
   }
+
   {
     std::unique_ptr<PipWindowResizer> resizer(CreateResizerForTest(HTCAPTION));
     ASSERT_TRUE(resizer.get());
 
     resizer->Drag(CalculateDragPoint(*resizer, 4, 3), 0);
     Fling(std::move(resizer), 4000.f, 3000.f);
-    gfx::Point origin = landscape ? gfx::Point(322, 292) : gfx::Point(292, 269);
+
     // Flung downward and to the right, but reaching the right edge first.
-    EXPECT_EQ(origin, test_state()->last_bounds().origin());
+    EXPECT_EQ(gfx::Rect(292, 269, 100, 100), test_state()->last_bounds());
   }
 
   {
@@ -473,7 +453,7 @@ TEST_P(PipWindowResizerTest, PipWindowIsFlungDiagonally) {
     Fling(std::move(resizer), -3000.f, -4000.f);
 
     // Flung upward and to the left, but reaching the top edge first.
-    EXPECT_EQ(gfx::Point(56, 8), test_state()->last_bounds().origin());
+    EXPECT_EQ(gfx::Rect(56, 8, 100, 100), test_state()->last_bounds());
   }
 
   {
@@ -505,9 +485,8 @@ TEST_P(PipWindowResizerTest, PipWindowIsFlungDiagonally) {
     resizer->Drag(CalculateDragPoint(*resizer, 3, -3), 0);
     Fling(std::move(resizer), 3000.f, -3000.f);
 
-    gfx::Point origin = landscape ? gfx::Point(392, 8) : gfx::Point(292, 108);
     // Flung upward and to the right, but reaching the right edge first.
-    EXPECT_EQ(origin, test_state()->last_bounds().origin());
+    EXPECT_EQ(gfx::Rect(292, 108, 100, 100), test_state()->last_bounds());
   }
 
   {
@@ -517,9 +496,8 @@ TEST_P(PipWindowResizerTest, PipWindowIsFlungDiagonally) {
     resizer->Drag(CalculateDragPoint(*resizer, -3, 3), 0);
     Fling(std::move(resizer), -3000.f, 3000.f);
 
-    gfx::Point origin = landscape ? gfx::Point(108, 292) : gfx::Point(8, 392);
     // Flung downward and to the left, but reaching the bottom edge first.
-    EXPECT_EQ(origin, test_state()->last_bounds().origin());
+    EXPECT_EQ(gfx::Rect(108, 292, 100, 100), test_state()->last_bounds());
   }
 
   {
@@ -541,8 +519,8 @@ TEST_P(PipWindowResizerTest, PipWindowFlungAvoidsFloatingKeyboard) {
   keyboard_controller->SetContainerType(keyboard::ContainerType::kFloating,
                                         gfx::Rect(0, 0, 1, 1),
                                         base::DoNothing());
-  const display::Display display = WindowState::Get(window())->GetDisplay();
-  keyboard_controller->ShowKeyboardInDisplay(display);
+  keyboard_controller->ShowKeyboardInDisplay(
+      WindowState::Get(window())->GetDisplay());
   ASSERT_TRUE(keyboard::WaitUntilShown());
 
   aura::Window* keyboard_window = keyboard_controller->GetKeyboardWindow();
@@ -615,14 +593,14 @@ TEST_P(PipWindowResizerTest, PipFreeResizeAreaUmaMetrics) {
   ASSERT_TRUE(resizer.get());
 
   EXPECT_EQ(1, histograms().GetBucketCount(
-                   kAshPipFreeResizeInitialAreaHistogramName, Sample(5)));
+                   kAshPipFreeResizeInitialAreaHistogramName, Sample(6)));
   histograms().ExpectTotalCount(kAshPipFreeResizeInitialAreaHistogramName, 1);
 
   window()->layer()->SetBounds(gfx::Rect(200, 200, 100, 190));
   resizer->CompleteDrag();
 
   EXPECT_EQ(1, histograms().GetBucketCount(
-                   kAshPipFreeResizeFinishAreaHistogramName, Sample(10)));
+                   kAshPipFreeResizeFinishAreaHistogramName, Sample(12)));
   histograms().ExpectTotalCount(kAshPipFreeResizeFinishAreaHistogramName, 1);
 }
 
@@ -645,16 +623,16 @@ TEST_P(PipWindowResizerTest, DragDetailsAreDestroyed) {
 
 // TODO: UpdateDisplay() doesn't support different layouts of multiple displays.
 // We should add some way to try multiple layouts.
-INSTANTIATE_TEST_SUITE_P(All,
-                         PipWindowResizerTest,
-                         testing::Values(std::make_tuple("500x400", 0u),
-                                         std::make_tuple("500x400/r", 0u),
-                                         std::make_tuple("500x400/u", 0u),
-                                         std::make_tuple("500x400/l", 0u),
-                                         std::make_tuple("1000x800*2", 0u),
-                                         std::make_tuple("500x400,500x400", 0u),
-                                         std::make_tuple("500x400,500x400",
-                                                         1u)));
+INSTANTIATE_TEST_SUITE_P(
+    All,
+    PipWindowResizerTest,
+    testing::Values(std::make_tuple("400x400", 0u),
+                    std::make_tuple("400x400/r", 0u),
+                    std::make_tuple("400x400/u", 0u),
+                    std::make_tuple("400x400/l", 0u),
+                    std::make_tuple("800x800*2", 0u),
+                    std::make_tuple("400x400,400x400", 0u),
+                    std::make_tuple("400x400,400x400", 1u)));
 
 using PipWindowResizerNonSquareAspectRatioTest = PipWindowResizerTest;
 

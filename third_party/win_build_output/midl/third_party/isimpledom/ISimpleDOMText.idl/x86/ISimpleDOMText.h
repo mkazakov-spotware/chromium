@@ -43,14 +43,6 @@
 #pragma once
 #endif
 
-#ifndef DECLSPEC_XFGVIRT
-#if _CONTROL_FLOW_GUARD_XFG
-#define DECLSPEC_XFGVIRT(base, func) __declspec(xfg_virtual(base, func))
-#else
-#define DECLSPEC_XFGVIRT(base, func)
-#endif
-#endif
-
 /* Forward Declarations */ 
 
 #ifndef __ISimpleDOMText_FWD_DEFINED__
@@ -172,27 +164,22 @@ EXTERN_C const IID IID_ISimpleDOMText;
     {
         BEGIN_INTERFACE
         
-        DECLSPEC_XFGVIRT(IUnknown, QueryInterface)
         HRESULT ( STDMETHODCALLTYPE *QueryInterface )( 
             ISimpleDOMText * This,
             /* [in] */ REFIID riid,
             /* [annotation][iid_is][out] */ 
             _COM_Outptr_  void **ppvObject);
         
-        DECLSPEC_XFGVIRT(IUnknown, AddRef)
         ULONG ( STDMETHODCALLTYPE *AddRef )( 
             ISimpleDOMText * This);
         
-        DECLSPEC_XFGVIRT(IUnknown, Release)
         ULONG ( STDMETHODCALLTYPE *Release )( 
             ISimpleDOMText * This);
         
-        DECLSPEC_XFGVIRT(ISimpleDOMText, get_domText)
         /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_domText )( 
             ISimpleDOMText * This,
             /* [retval][out] */ BSTR *domText);
         
-        DECLSPEC_XFGVIRT(ISimpleDOMText, get_clippedSubstringBounds)
         HRESULT ( STDMETHODCALLTYPE *get_clippedSubstringBounds )( 
             ISimpleDOMText * This,
             /* [in] */ unsigned int startIndex,
@@ -202,7 +189,6 @@ EXTERN_C const IID IID_ISimpleDOMText;
             /* [out] */ int *width,
             /* [out] */ int *height);
         
-        DECLSPEC_XFGVIRT(ISimpleDOMText, get_unclippedSubstringBounds)
         HRESULT ( STDMETHODCALLTYPE *get_unclippedSubstringBounds )( 
             ISimpleDOMText * This,
             /* [in] */ unsigned int startIndex,
@@ -212,13 +198,11 @@ EXTERN_C const IID IID_ISimpleDOMText;
             /* [out] */ int *width,
             /* [out] */ int *height);
         
-        DECLSPEC_XFGVIRT(ISimpleDOMText, scrollToSubstring)
         HRESULT ( STDMETHODCALLTYPE *scrollToSubstring )( 
             ISimpleDOMText * This,
             /* [in] */ unsigned int startIndex,
             /* [in] */ unsigned int endIndex);
         
-        DECLSPEC_XFGVIRT(ISimpleDOMText, get_fontFamily)
         /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_fontFamily )( 
             ISimpleDOMText * This,
             /* [retval][out] */ BSTR *fontFamily);

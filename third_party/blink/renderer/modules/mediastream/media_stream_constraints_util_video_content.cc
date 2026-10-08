@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,13 @@
 #include <cmath>
 #include <utility>
 
-#include "base/feature_list.h"
 #include "media/base/limits.h"
-#include "media/base/video_types.h"
 #include "third_party/blink/public/common/mediastream/media_stream_controls.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/web/modules/mediastream/media_stream_video_source.h"
 #include "third_party/blink/renderer/modules/mediastream/media_stream_constraints_util.h"
 #include "third_party/blink/renderer/modules/mediastream/media_stream_constraints_util_sets.h"
 #include "third_party/blink/renderer/platform/mediastream/media_constraints.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
 
@@ -48,12 +45,6 @@ using StringSet = media_constraints::DiscreteSet<std::string>;
 using BoolSet = media_constraints::DiscreteSet<bool>;
 using DoubleRangeSet = media_constraints::NumericRangeSet<double>;
 
-// If enabled, the minimum frame rate is a small positive value.
-// If disabled, the minimum frame rate is zero.
-BASE_FEATURE(kMinScreenCastFrameRateIsMoreThanZero,
-             "MinScreenCastFrameRateIsMoreThanZero",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 constexpr double kMinScreenCastAspectRatio =
     static_cast<double>(kMinScreenCastDimension) /
     static_cast<double>(kMaxScreenCastDimension);
@@ -76,7 +67,7 @@ class VideoContentCaptureCandidates {
                                     kMaxScreenCastDimension),
         frame_rate_set_(
             DoubleRangeSet::FromConstraint(constraint_set.frame_rate,
-                                           MinScreenCastFrameRate(),
+                                           0.0,
                                            kMaxScreenCastFrameRate)),
         device_id_set_(media_constraints::StringSetFromConstraint(
             constraint_set.device_id)),
@@ -209,13 +200,9 @@ media::VideoCaptureParams SelectVideoCaptureParamsFromCandidates(
       candidates.resolution_set().SelectClosestPointToIdeal(
           basic_constraint_set, default_height, default_width);
   media::VideoCaptureParams params;
-  // If zero-copy tab capture is enabled, we want the capturer to auto-select
-  // the pixel format:
   params.requested_format = media::VideoCaptureFormat(
       ToGfxSize(requested_resolution), static_cast<float>(requested_frame_rate),
-      RuntimeEnabledFeatures::ZeroCopyTabCaptureEnabled()
-          ? media::PIXEL_FORMAT_UNKNOWN
-          : media::PIXEL_FORMAT_I420);
+      media::PIXEL_FORMAT_I420);
   params.resolution_change_policy = SelectResolutionPolicyFromCandidates(
       candidates.resolution_set(), default_resolution_policy);
   // Content capture always uses default power-line frequency.
@@ -250,21 +237,21 @@ std::string SelectDeviceIDFromCandidates(
   return candidates.FirstElement();
 }
 
-absl::optional<bool> SelectNoiseReductionFromCandidates(
+base::Optional<bool> SelectNoiseReductionFromCandidates(
     const BoolSet& candidates,
     const MediaTrackConstraintSetPlatform& basic_constraint_set) {
   DCHECK(!candidates.IsEmpty());
   if (basic_constraint_set.goog_noise_reduction.HasIdeal() &&
       candidates.Contains(basic_constraint_set.goog_noise_reduction.Ideal())) {
-    return absl::optional<bool>(
+    return base::Optional<bool>(
         basic_constraint_set.goog_noise_reduction.Ideal());
   }
 
   if (candidates.is_universal())
-    return absl::optional<bool>();
+    return base::Optional<bool>();
 
   // A non-universal BoolSet can have at most one element.
-  return absl::optional<bool>(candidates.FirstElement());
+  return base::Optional<bool>(candidates.FirstElement());
 }
 
 bool SelectRescaleFromCandidates(
@@ -351,7 +338,7 @@ VideoCaptureSettings SelectResultFromCandidates(
           candidates, basic_constraint_set, default_height, default_width,
           default_frame_rate, default_resolution_policy);
 
-  absl::optional<bool> noise_reduction = SelectNoiseReductionFromCandidates(
+  base::Optional<bool> noise_reduction = SelectNoiseReductionFromCandidates(
       candidates.noise_reduction_set(), basic_constraint_set);
 
   bool enable_rescale = SelectRescaleFromCandidates(candidates.rescale_set(),
@@ -391,13 +378,6 @@ VideoCaptureSettings UnsatisfiedConstraintsResult(
 }
 
 }  // namespace
-
-double MinScreenCastFrameRate() {
-  if (base::FeatureList::IsEnabled(kMinScreenCastFrameRateIsMoreThanZero)) {
-    return 0.01;
-  }
-  return 0;
-}
 
 VideoCaptureSettings SelectSettingsVideoContentCapture(
     const MediaConstraints& constraints,

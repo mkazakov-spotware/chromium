@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -406,6 +406,8 @@ def main_win(options, args, results_collector):
     'mini_installer.exe',
     'resources.pak',
     'setup.exe',
+    'swiftshader\\libEGL.dll',
+    'swiftshader\\libGLESv2.dll',
     'WidevineCdm\\_platform_specific\\win_x64\\widevinecdm.dll',
     'WidevineCdm\\_platform_specific\\win_x64\\widevinecdmadapter.dll',
     'WidevineCdm\\_platform_specific\\win_x86\\widevinecdm.dll',
@@ -446,7 +448,7 @@ def main():
     default_platform = 'win'
   elif sys.platform.startswith('darwin'):
     default_platform = 'mac'
-  elif sys.platform.startswith('linux'):
+  elif sys.platform == 'linux2':
     default_platform = 'linux'
   else:
     default_platform = None

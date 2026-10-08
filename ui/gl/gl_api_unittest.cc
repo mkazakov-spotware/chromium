@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "base/command_line.h"
+#include "base/stl_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gl/gl_context.h"
 #include "ui/gl/gl_gl_api_implementation.h"
@@ -151,7 +152,7 @@ TEST_F(GLApiTest, DisabledExtensionBitTest) {
   };
   static const char* kFakeDisabledExtensions = "GL_ARB_timer_query";
 
-  SetFakeExtensionStrings(kFakeExtensions, std::size(kFakeExtensions));
+  SetFakeExtensionStrings(kFakeExtensions, base::size(kFakeExtensions));
   InitializeAPI(nullptr);
   EXPECT_TRUE(driver_->ext.b_GL_ARB_timer_query);
 
@@ -172,17 +173,17 @@ TEST_F(GLApiTest, DisabledExtensionStringIndexTest) {
     "GL_EXT_4"
   };
 
-  SetFakeExtensionStrings(kFakeExtensions, std::size(kFakeExtensions));
+  SetFakeExtensionStrings(kFakeExtensions, base::size(kFakeExtensions));
   InitializeAPI(nullptr);
 
-  EXPECT_EQ(std::size(kFakeExtensions), GetNumExtensions());
-  for (uint32_t i = 0; i < std::size(kFakeExtensions); ++i) {
+  EXPECT_EQ(base::size(kFakeExtensions), GetNumExtensions());
+  for (uint32_t i = 0; i < base::size(kFakeExtensions); ++i) {
     EXPECT_STREQ(kFakeExtensions[i], GetExtensioni(i));
   }
 
   InitializeAPI(kFakeDisabledExtensions);
-  EXPECT_EQ(std::size(kFilteredExtensions), GetNumExtensions());
-  for (uint32_t i = 0; i < std::size(kFilteredExtensions); ++i) {
+  EXPECT_EQ(base::size(kFilteredExtensions), GetNumExtensions());
+  for (uint32_t i = 0; i < base::size(kFilteredExtensions); ++i) {
     EXPECT_STREQ(kFilteredExtensions[i], GetExtensioni(i));
   }
 }

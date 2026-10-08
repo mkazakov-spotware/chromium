@@ -1,26 +1,26 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/components/security_interstitials/lookalikes/lookalike_url_blocking_page.h"
 
-#import "base/strings/string_number_conversions.h"
+#include "base/strings/string_number_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "base/test/metrics/histogram_tester.h"
-#import "base/values.h"
-#import "components/lookalikes/core/lookalike_url_util.h"
-#import "components/security_interstitials/core/metrics_helper.h"
-#import "components/ukm/ios/ukm_url_recorder.h"
-#import "components/ukm/test_ukm_recorder.h"
-#import "ios/components/security_interstitials/lookalikes/lookalike_url_controller_client.h"
-#import "ios/components/security_interstitials/lookalikes/lookalike_url_tab_allow_list.h"
+#include "base/test/metrics/histogram_tester.h"
+#include "base/values.h"
+#include "components/lookalikes/core/lookalike_url_util.h"
+#include "components/security_interstitials/core/metrics_helper.h"
+#include "components/ukm/ios/ukm_url_recorder.h"
+#include "components/ukm/test_ukm_recorder.h"
+#include "ios/components/security_interstitials/lookalikes/lookalike_url_controller_client.h"
+#include "ios/components/security_interstitials/lookalikes/lookalike_url_tab_allow_list.h"
 #import "ios/web/public/navigation/navigation_item.h"
-#import "ios/web/public/test/fakes/fake_navigation_manager.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "ios/web/public/test/web_task_environment.h"
-#import "services/metrics/public/cpp/ukm_builders.h"
-#import "services/metrics/public/cpp/ukm_source_id.h"
-#import "testing/platform_test.h"
+#import "ios/web/public/test/fakes/test_navigation_manager.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "ios/web/public/test/web_task_environment.h"
+#include "services/metrics/public/cpp/ukm_builders.h"
+#include "services/metrics/public/cpp/ukm_source_id.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -44,7 +44,7 @@ const LookalikeUrlMatchType kTestMatchType =
 
 using UkmEntry = ukm::builders::LookalikeUrl_NavigationSuggestion;
 
-// Creates a LookalikeUrlBlockingPage with a given `safe_url`.
+// Creates a LookalikeUrlBlockingPage with a given |safe_url|.
 std::unique_ptr<LookalikeUrlBlockingPage> CreateBlockingPage(
     web::WebState* web_state,
     const GURL& safe_url,
@@ -55,8 +55,8 @@ std::unique_ptr<LookalikeUrlBlockingPage> CreateBlockingPage(
                                                      request_url, "en-US"));
 }
 
-// A fake web state that sets the visible URL to the last opened URL.
-class FakeWebState : public web::FakeWebState {
+// A Test web state that sets the visible URL to the last opened URL.
+class TestWebState : public web::TestWebState {
  public:
   void OpenURL(const web::WebState::OpenURLParams& params) override {
     SetVisibleURL(params.url);
@@ -69,7 +69,8 @@ class FakeWebState : public web::FakeWebState {
 class LookalikeUrlBlockingPageTest : public PlatformTest {
  public:
   LookalikeUrlBlockingPageTest() : url_("https://www.chromium.test") {
-    auto navigation_manager = std::make_unique<web::FakeNavigationManager>();
+    std::unique_ptr<web::TestNavigationManager> navigation_manager =
+        std::make_unique<web::TestNavigationManager>();
     navigation_manager_ = navigation_manager.get();
     web_state_.SetNavigationManager(std::move(navigation_manager));
     LookalikeUrlTabAllowList::CreateForWebState(&web_state_);
@@ -78,9 +79,11 @@ class LookalikeUrlBlockingPageTest : public PlatformTest {
   }
 
   void SendCommand(SecurityInterstitialCommand command) {
-    page_->HandleCommand(command, url_,
-                         /*user_is_interacting=*/true,
-                         /*sender_frame=*/nullptr);
+    base::DictionaryValue dict;
+    dict.SetKey("command", base::Value("." + base::NumberToString(command)));
+    page_->HandleScriptCommand(dict, url_,
+                               /*user_is_interacting=*/true,
+                               /*sender_frame=*/nullptr);
   }
 
   // Checks that UKM recorded an event with the given metric name and value.
@@ -98,8 +101,8 @@ class LookalikeUrlBlockingPageTest : public PlatformTest {
  protected:
   web::WebTaskEnvironment task_environment_{
       web::WebTaskEnvironment::IO_MAINLOOP};
-  FakeWebState web_state_;
-  web::FakeNavigationManager* navigation_manager_ = nullptr;
+  TestWebState web_state_;
+  web::TestNavigationManager* navigation_manager_ = nullptr;
   GURL url_;
   std::unique_ptr<IOSSecurityInterstitialPage> page_;
   base::HistogramTester histogram_tester_;

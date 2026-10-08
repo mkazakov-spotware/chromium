@@ -13,8 +13,10 @@
     </style>
     <script>
         function runTest() {
-            document.body.offsetTop;
-            document.body.style.width = '600px';
+            if (window.testRunner) {
+                testRunner.useUnfortunateSynchronousResizeMode();
+                window.resizeTo(600, 600);
+            }
         }
     </script>
 </head>

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,12 @@
 
 #import <UIKit/UIKit.h>
 
-#import "base/check_op.h"
+#include "base/check_op.h"
 #import "base/test/ios/wait_util.h"
 #import "ios/chrome/browser/ui/gestures/layout_switcher.h"
 #import "ios/chrome/browser/ui/gestures/layout_switcher_provider.h"
 #import "ios/chrome/browser/ui/gestures/view_revealing_animatee.h"
-#import "testing/platform_test.h"
+#include "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -31,8 +31,12 @@
   }
   return self;
 }
+- (void)willAnimateViewReveal:(ViewRevealState)viewRevealState {
+}
 - (void)animateViewReveal:(ViewRevealState)viewRevealState {
   self.state = viewRevealState;
+}
+- (void)didAnimateViewReveal:(ViewRevealState)viewRevealState {
 }
 @end
 
@@ -61,11 +65,6 @@
 @end
 
 @implementation FakeLayoutSwitcher
-
-- (LayoutSwitcherState)currentLayoutSwitcherState {
-  return self.state;
-}
-
 - (instancetype)init {
   self = [super init];
   if (self) {
@@ -110,6 +109,9 @@
 namespace {
 // The distance between the Hidden and Peeked states.
 const CGFloat kThumbStripHeight = 212.0f;
+// The distance between te Peeked and Revealed states is |kBaseViewHeight| -
+// |kBVCHeightTabGrid|.
+const CGFloat kBVCHeightTabGrid = 108.0f;
 const CGFloat kBaseViewHeight = 800.0f;
 // The percentage of the total distance traveled by a gesture required to
 // trigger a transition.
@@ -118,13 +120,13 @@ const CGFloat kRevealThreshold = 1 / 3.0f;
 // traveled during a pan gesture simulation.
 const CGFloat kSmallOffset = 10.0f;
 // The delay in ms after the gesture ends before starting a new one.
-const int kAnimationDelay = 5;
+const int kAnimationDelay = 1;
 
 // The test class, passed as argument to TEST_F().
 using ViewRevealingVerticalPanHandlerTest = PlatformTest;
 
 // Simulates a fake vertical pan gesture from beginning, to change, to end.
-// `translation_y` is by how much the gesture translates vertically
+// |translation_y| is by how much the gesture translates vertically
 void SimulatePanGesture(ViewRevealingVerticalPanHandler* pan_handler,
                         double translation_y) {
   // A small offset in the same direction as the translation to guarantee that
@@ -135,10 +137,6 @@ void SimulatePanGesture(ViewRevealingVerticalPanHandler* pan_handler,
           initWithTarget:pan_handler
                   action:@selector(handlePanGesture:)];
 
-  if (![pan_handler gestureRecognizerShouldBegin:fake_gesture_recognizer]) {
-    return;
-  }
-
   fake_gesture_recognizer.state = UIGestureRecognizerStateBegan;
   [pan_handler handlePanGesture:fake_gesture_recognizer];
   fake_gesture_recognizer.state = UIGestureRecognizerStateChanged;
@@ -147,22 +145,25 @@ void SimulatePanGesture(ViewRevealingVerticalPanHandler* pan_handler,
   fake_gesture_recognizer.translation = CGPointMake(0, translation_y + offset);
   fake_gesture_recognizer.state = UIGestureRecognizerStateEnded;
   [pan_handler handlePanGesture:fake_gesture_recognizer];
-  // The runloop needs to be spun between the end of a gesture and the begining
+  // The runloop needs to be spun between the end of a gesture and the beggining
   // of another one, because the current state of the pan_handler needs to be
   // updated to its next state before starting a new transition.
-  base::test::ios::SpinRunLoopWithMinDelay(base::Milliseconds(kAnimationDelay));
+  base::test::ios::SpinRunLoopWithMinDelay(
+      base::TimeDelta::FromMilliseconds(kAnimationDelay));
 }
 
 // Simulates 4 transitions of state in a ViewRevealingVerticalPanHandler (Hidden
-// -> Peeked -> Revealed -> Peeked -> Hidden), and observes the resulting change
+// -> Peeked -> Revealed -> Peeked -> Hiiden), and observes the resulting change
 // of state in a fake animatee.
 TEST_F(ViewRevealingVerticalPanHandlerTest, DetectPan) {
+  double remaining_height = kBaseViewHeight - kBVCHeightTabGrid;
+
   // Create a view revealing vertical pan handler.
   ViewRevealingVerticalPanHandler* pan_handler =
       [[ViewRevealingVerticalPanHandler alloc]
           initWithPeekedHeight:kThumbStripHeight
-                baseViewHeight:kBaseViewHeight
-                  initialState:ViewRevealState::Hidden];
+           revealedCoverHeight:kBVCHeightTabGrid
+                baseViewHeight:kBaseViewHeight];
 
   // Create a fake layout switcher and a provider.
   FakeLayoutSwitcher* fake_layout_switcher = [[FakeLayoutSwitcher alloc] init];
@@ -183,13 +184,13 @@ TEST_F(ViewRevealingVerticalPanHandlerTest, DetectPan) {
 
   // Simulate a pan gesture from Peeked state to Revealed state. The layout
   // should transition to full state.
-  SimulatePanGesture(pan_handler, kBaseViewHeight * kRevealThreshold);
+  SimulatePanGesture(pan_handler, remaining_height * kRevealThreshold);
   EXPECT_EQ(ViewRevealState::Revealed, fake_animatee.state);
   EXPECT_EQ(LayoutSwitcherState::Grid, fake_layout_switcher.state);
 
   // Simulate a pan gesture from Revealed state to Peeked state. The layout
   // should transition back to horizontal state.
-  SimulatePanGesture(pan_handler, -(kBaseViewHeight * kRevealThreshold));
+  SimulatePanGesture(pan_handler, -(remaining_height * kRevealThreshold));
   EXPECT_EQ(ViewRevealState::Peeked, fake_animatee.state);
   EXPECT_EQ(LayoutSwitcherState::Horizontal, fake_layout_switcher.state);
 
@@ -205,8 +206,8 @@ TEST_F(ViewRevealingVerticalPanHandlerTest, ManualStateChange) {
   ViewRevealingVerticalPanHandler* pan_handler =
       [[ViewRevealingVerticalPanHandler alloc]
           initWithPeekedHeight:kThumbStripHeight
-                baseViewHeight:kBaseViewHeight
-                  initialState:ViewRevealState::Hidden];
+           revealedCoverHeight:kBVCHeightTabGrid
+                baseViewHeight:kBaseViewHeight];
 
   // Create a fake layout switcher and a provider.
   FakeLayoutSwitcher* fake_layout_switcher = [[FakeLayoutSwitcher alloc] init];
@@ -216,116 +217,17 @@ TEST_F(ViewRevealingVerticalPanHandlerTest, ManualStateChange) {
   pan_handler.layoutSwitcherProvider = fake_layout_switcher_provider;
   EXPECT_EQ(LayoutSwitcherState::Horizontal, fake_layout_switcher.state);
 
-  // Create a fake animatee. Try direct to tab grid and back.
-  FakeAnimatee* fake_animatee = [[FakeAnimatee alloc] init];
-  [pan_handler addAnimatee:fake_animatee];
-  EXPECT_EQ(ViewRevealState::Hidden, fake_animatee.state);
-
-  [pan_handler setNextState:ViewRevealState::Revealed
-                   animated:NO
-                    trigger:ViewRevealTrigger::Unknown];
-  EXPECT_EQ(ViewRevealState::Revealed, fake_animatee.state);
-  EXPECT_EQ(LayoutSwitcherState::Grid, fake_layout_switcher.state);
-
-  [pan_handler setNextState:ViewRevealState::Hidden
-                   animated:NO
-                    trigger:ViewRevealTrigger::Unknown];
-  EXPECT_EQ(ViewRevealState::Hidden, fake_animatee.state);
-  EXPECT_EQ(LayoutSwitcherState::Grid, fake_layout_switcher.state);
-
-  // Try from hidden to peek to hidden
-  [pan_handler setNextState:ViewRevealState::Peeked
-                   animated:NO
-                    trigger:ViewRevealTrigger::Unknown];
-  EXPECT_EQ(ViewRevealState::Peeked, fake_animatee.state);
-  EXPECT_EQ(LayoutSwitcherState::Horizontal, fake_layout_switcher.state);
-
-  [pan_handler setNextState:ViewRevealState::Hidden
-                   animated:NO
-                    trigger:ViewRevealTrigger::Unknown];
-  EXPECT_EQ(ViewRevealState::Hidden, fake_animatee.state);
-  EXPECT_EQ(LayoutSwitcherState::Horizontal, fake_layout_switcher.state);
-}
-
-// Tests that a second gesture does not interrupt the first gesture.
-TEST_F(ViewRevealingVerticalPanHandlerTest, ConflictingGestures) {
-  // Create a view revealing vertical pan handler.
-  ViewRevealingVerticalPanHandler* pan_handler =
-      [[ViewRevealingVerticalPanHandler alloc]
-          initWithPeekedHeight:kThumbStripHeight
-                baseViewHeight:kBaseViewHeight
-                  initialState:ViewRevealState::Hidden];
-
   // Create a fake animatee.
   FakeAnimatee* fake_animatee = [[FakeAnimatee alloc] init];
   [pan_handler addAnimatee:fake_animatee];
   EXPECT_EQ(ViewRevealState::Hidden, fake_animatee.state);
 
-  // Scroll down to transition to Peeked state.
-  SimulatePanGesture(pan_handler, kThumbStripHeight * kRevealThreshold);
-  EXPECT_EQ(ViewRevealState::Peeked, fake_animatee.state);
+  [pan_handler setState:ViewRevealState::Revealed animated:NO];
+  EXPECT_EQ(ViewRevealState::Revealed, fake_animatee.state);
+  EXPECT_EQ(LayoutSwitcherState::Grid, fake_layout_switcher.state);
 
-  // Start a gesture moving further down.
-  FakeGestureRecognizer* fake_gesture_recognizer =
-      [[FakeGestureRecognizer alloc]
-          initWithTarget:pan_handler
-                  action:@selector(handlePanGesture:)];
-
-  EXPECT_TRUE(
-      [pan_handler gestureRecognizerShouldBegin:fake_gesture_recognizer]);
-  fake_gesture_recognizer.state = UIGestureRecognizerStateBegan;
-  [pan_handler handlePanGesture:fake_gesture_recognizer];
-  fake_gesture_recognizer.state = UIGestureRecognizerStateChanged;
-  fake_gesture_recognizer.translation = CGPointMake(0, kSmallOffset);
-
-  // Start and finish a second gesture moving back up to Hidden.
-  SimulatePanGesture(pan_handler, -(kThumbStripHeight * kRevealThreshold));
-  // This second gesture should NOT change the state back to Hidden.
-  EXPECT_NE(ViewRevealState::Hidden, fake_animatee.state);
-
-  // Start and finish a second gesture moving down to Revealed.
-  SimulatePanGesture(pan_handler, kBaseViewHeight * kRevealThreshold);
-  // This second gesture should NOT change the state to Revealed.
-  EXPECT_NE(ViewRevealState::Revealed, fake_animatee.state);
-
-  // Finish the ongoing gesture down to Revealed. This should change the state
-  // to revealed.
-  fake_gesture_recognizer.state = UIGestureRecognizerStateChanged;
-  fake_gesture_recognizer.translation = CGPointMake(0, kBaseViewHeight);
-  fake_gesture_recognizer.state = UIGestureRecognizerStateEnded;
-  [pan_handler handlePanGesture:fake_gesture_recognizer];
-  // The runloop needs to be spun between the end of a gesture and the begining
-  // of another one, because the current state of the pan_handler needs to be
-  // updated to its next state before starting a new transition.
-  base::test::ios::SpinRunLoopWithMinDelay(base::Milliseconds(kAnimationDelay));
-
-  EXPECT_NE(ViewRevealState::Revealed, fake_animatee.state);
+  [pan_handler setState:ViewRevealState::Hidden animated:NO];
+  EXPECT_EQ(ViewRevealState::Hidden, fake_animatee.state);
+  EXPECT_EQ(LayoutSwitcherState::Horizontal, fake_layout_switcher.state);
 }
-
-// Tests that a current state reports the right value.
-TEST_F(ViewRevealingVerticalPanHandlerTest, CurrentState) {
-  // Create a view revealing vertical pan handler.
-  ViewRevealingVerticalPanHandler* pan_handler =
-      [[ViewRevealingVerticalPanHandler alloc]
-          initWithPeekedHeight:kThumbStripHeight
-                baseViewHeight:kBaseViewHeight
-                  initialState:ViewRevealState::Hidden];
-  EXPECT_EQ(ViewRevealState::Hidden, pan_handler.currentState);
-
-  [pan_handler setNextState:ViewRevealState::Revealed
-                   animated:NO
-                    trigger:ViewRevealTrigger::Unknown];
-  EXPECT_EQ(ViewRevealState::Revealed, pan_handler.currentState);
-
-  [pan_handler setNextState:ViewRevealState::Peeked
-                   animated:NO
-                    trigger:ViewRevealTrigger::Unknown];
-  EXPECT_EQ(ViewRevealState::Peeked, pan_handler.currentState);
-
-  [pan_handler setNextState:ViewRevealState::Hidden
-                   animated:NO
-                    trigger:ViewRevealTrigger::Unknown];
-  EXPECT_EQ(ViewRevealState::Hidden, pan_handler.currentState);
-}
-
 }  // namespace

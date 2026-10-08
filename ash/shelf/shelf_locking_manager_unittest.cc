@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,9 +15,6 @@ class ShelfLockingManagerTest : public AshTestBase {
  public:
   ShelfLockingManagerTest() = default;
 
-  ShelfLockingManagerTest(const ShelfLockingManagerTest&) = delete;
-  ShelfLockingManagerTest& operator=(const ShelfLockingManagerTest&) = delete;
-
   ShelfLockingManager* GetShelfLockingManager() {
     return GetPrimaryShelf()->GetShelfLockingManagerForTesting();
   }
@@ -29,6 +26,9 @@ class ShelfLockingManagerTest : public AshTestBase {
   void SetSessionState(session_manager::SessionState state) {
     GetShelfLockingManager()->OnSessionStateChanged(state);
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ShelfLockingManagerTest);
 };
 
 // Makes sure shelf alignment is correct for lock screen.

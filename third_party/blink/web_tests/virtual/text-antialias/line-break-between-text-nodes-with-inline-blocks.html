@@ -6,9 +6,10 @@
     if (window.testRunner) {
         testRunner.dumpAsText();
         testRunner.waitUntilDone();
+        testRunner.useUnfortunateSynchronousResizeMode();
     }
 
-    window.onload = async function() {
+    window.onload = function() {
         document.body.offsetTop;
         b.style.display = "inline-block";
 
@@ -16,9 +17,7 @@
         a.removeChild(c);
 
         document.body.offsetTop;
-        var resizePromise = new Promise(resolve => window.onresize = resolve);
         window.resizeTo(42, window.outerHeight);
-        await resizePromise;
 
         document.getElementById("results").innerText = "Test passes if no crash."
         if (window.testRunner) {

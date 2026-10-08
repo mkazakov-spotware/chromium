@@ -1,4 +1,4 @@
-file://components/embedder_support/OWNERS
+mkwst@chromium.org
 
 per-file *.mojom=set noparent
 per-file *.mojom=file://ipc/SECURITY_OWNERS

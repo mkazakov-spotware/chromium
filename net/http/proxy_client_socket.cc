@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -59,8 +59,8 @@ int ProxyClientSocket::HandleProxyAuthChallenge(
 }
 
 // static
-void ProxyClientSocket::SanitizeProxyAuth(HttpResponseInfo& response) {
-  DCHECK(response.headers);
+bool ProxyClientSocket::SanitizeProxyAuth(HttpResponseInfo* response) {
+  DCHECK(response && response->headers.get());
 
   // Copy status line and all hop-by-hop headers to preserve keep-alive
   // behavior.
@@ -79,8 +79,8 @@ void ProxyClientSocket::SanitizeProxyAuth(HttpResponseInfo& response) {
   std::string header_name;
   std::string header_value;
   std::unordered_set<std::string> headers_to_remove;
-  while (response.headers->EnumerateHeaderLines(&iter, &header_name,
-                                                &header_value)) {
+  while (response->headers->EnumerateHeaderLines(&iter, &header_name,
+                                                 &header_value)) {
     bool remove = true;
     for (const char* header : kHeadersToKeep) {
       if (base::EqualsCaseInsensitiveASCII(header, header_name)) {
@@ -92,7 +92,9 @@ void ProxyClientSocket::SanitizeProxyAuth(HttpResponseInfo& response) {
       headers_to_remove.insert(header_name);
   }
 
-  response.headers->RemoveHeaders(headers_to_remove);
+  response->headers->RemoveHeaders(headers_to_remove);
+
+  return true;
 }
 
 }  // namespace net

@@ -32,18 +32,18 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LOADER_MIXED_CONTENT_CHECKER_H_
 
 #include "base/gtest_prod_util.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/macros.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink-forward.h"
 #include "third_party/blink/public/mojom/loader/content_security_notifier.mojom-blink-forward.h"
-#include "third_party/blink/public/mojom/loader/mixed_content.mojom-blink-forward.h"
+#include "third_party/blink/public/platform/web_mixed_content.h"
+#include "third_party/blink/public/platform/web_mixed_content_context_type.h"
 #include "third_party/blink/public/platform/web_url_request.h"
 #include "third_party/blink/renderer/core/core_export.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/loader/fetch/https_state.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_request.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_response.h"
-#include "third_party/blink/renderer/platform/loader/mixed_content.h"
 #include "third_party/blink/renderer/platform/weborigin/reporting_disposition.h"
-#include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
@@ -76,11 +76,10 @@ class CORE_EXPORT MixedContentChecker final {
  public:
   static bool ShouldBlockFetch(LocalFrame* frame,
                                mojom::blink::RequestContextType request_context,
-                               network::mojom::blink::IPAddressSpace,
                                const KURL& url_before_redirects,
                                ResourceRequest::RedirectStatus redirect_status,
                                const KURL& url,
-                               const absl::optional<String>& devtools_id,
+                               const base::Optional<String>& devtools_id,
                                ReportingDisposition reporting_disposition,
                                mojom::blink::ContentSecurityNotifier& notifier);
 
@@ -110,14 +109,17 @@ class CORE_EXPORT MixedContentChecker final {
                                 WebContentSettingsClient* settings_client,
                                 const KURL& url);
 
-  static mojom::blink::MixedContentContextType ContextTypeForInspector(
+  static void CheckMixedPrivatePublic(LocalFrame*,
+                                      const ResourceResponse& response);
+
+  static WebMixedContentContextType ContextTypeForInspector(
       LocalFrame*,
       const ResourceRequest&);
 
   static void HandleCertificateError(
       const ResourceResponse&,
       mojom::blink::RequestContextType,
-      MixedContent::CheckModeForPlugin,
+      WebMixedContent::CheckModeForPlugin,
       mojom::blink::ContentSecurityNotifier& notifier);
 
   // Receive information about mixed content found externally.
@@ -146,10 +148,8 @@ class CORE_EXPORT MixedContentChecker final {
       mojom::RequestContextFrameType,
       WebContentSettingsClient* settings_client);
 
-  static MixedContent::CheckModeForPlugin DecideCheckModeForPlugin(Settings*);
-
-  MixedContentChecker(const MixedContentChecker&) = delete;
-  MixedContentChecker& operator=(const MixedContentChecker&) = delete;
+  static WebMixedContent::CheckModeForPlugin DecideCheckModeForPlugin(
+      Settings*);
 
  private:
   FRIEND_TEST_ALL_PREFIXES(MixedContentCheckerTest, HandleCertificateError);
@@ -168,6 +168,8 @@ class CORE_EXPORT MixedContentChecker final {
   static void Count(Frame*,
                     mojom::blink::RequestContextType,
                     const LocalFrame*);
+
+  DISALLOW_COPY_AND_ASSIGN(MixedContentChecker);
 };
 
 }  // namespace blink

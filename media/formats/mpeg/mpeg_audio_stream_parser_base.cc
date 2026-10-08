@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,9 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/numerics/checked_math.h"
-#include "base/time/time.h"
 #include "media/base/media_log.h"
 #include "media/base/media_tracks.h"
 #include "media/base/media_util.h"
-#include "media/base/stream_parser.h"
 #include "media/base/stream_parser_buffer.h"
 #include "media/base/text_track_config.h"
 #include "media/base/timestamp_constants.h"
@@ -66,20 +63,20 @@ MPEGAudioStreamParserBase::~MPEGAudioStreamParserBase() = default;
 
 void MPEGAudioStreamParserBase::Init(
     InitCB init_cb,
-    NewConfigCB config_cb,
-    NewBuffersCB new_buffers_cb,
+    const NewConfigCB& config_cb,
+    const NewBuffersCB& new_buffers_cb,
     bool ignore_text_tracks,
-    EncryptedMediaInitDataCB encrypted_media_init_data_cb,
-    NewMediaSegmentCB new_segment_cb,
-    EndMediaSegmentCB end_of_segment_cb,
+    const EncryptedMediaInitDataCB& encrypted_media_init_data_cb,
+    const NewMediaSegmentCB& new_segment_cb,
+    const EndMediaSegmentCB& end_of_segment_cb,
     MediaLog* media_log) {
   DVLOG(1) << __func__;
   DCHECK_EQ(state_, UNINITIALIZED);
   init_cb_ = std::move(init_cb);
-  config_cb_ = std::move(config_cb);
-  new_buffers_cb_ = std::move(new_buffers_cb);
-  new_segment_cb_ = std::move(new_segment_cb);
-  end_of_segment_cb_ = std::move(end_of_segment_cb);
+  config_cb_ = config_cb;
+  new_buffers_cb_ = new_buffers_cb;
+  new_segment_cb_ = new_segment_cb;
+  end_of_segment_cb_ = end_of_segment_cb;
   media_log_ = media_log;
 
   ChangeState(INITIALIZED);
@@ -89,11 +86,8 @@ void MPEGAudioStreamParserBase::Flush() {
   DVLOG(1) << __func__;
   DCHECK_NE(state_, UNINITIALIZED);
   queue_.Reset();
-  uninspected_pending_bytes_ = 0;
-  if (timestamp_helper_) {
+  if (timestamp_helper_)
     timestamp_helper_->SetBaseTimestamp(base::TimeDelta());
-  }
-
   in_media_segment_ = false;
 }
 
@@ -101,80 +95,26 @@ bool MPEGAudioStreamParserBase::GetGenerateTimestampsFlag() const {
   return true;
 }
 
-bool MPEGAudioStreamParserBase::AppendToParseBuffer(const uint8_t* buf,
-                                                    size_t size) {
+bool MPEGAudioStreamParserBase::Parse(const uint8_t* buf, int size) {
   DVLOG(1) << __func__ << "(" << size << ")";
-
   DCHECK(buf);
-  DCHECK_GT(size, 0UL);
+  DCHECK_GT(size, 0);
   DCHECK_NE(state_, UNINITIALIZED);
 
-  if (state_ == PARSE_ERROR) {
-    // To preserve previous app-visible behavior in this hopefully
-    // never-encountered path, report no failure to caller due to being in
-    // invalid underlying state. If caller then proceeds with async parse (via
-    // Parse, below), they will get the expected parse failure.  If, instead, we
-    // returned false here, then caller would instead tell app QuotaExceededErr
-    // synchronous with the app's appendBuffer() call, instead of async decode
-    // error during async parse. Since Parse() cannot succeed in kError state,
-    // don't even copy `buf` into `queue_` in this case.
-    // TODO(crbug.com/1379160): Instrument this path to see if it can be changed
-    // to just DCHECK_NE(state_, PARSE_ERROR).
-    return true;
-  }
+  if (state_ == PARSE_ERROR)
+    return false;
 
   DCHECK_EQ(state_, INITIALIZED);
 
-  // Ensure that we are not still in the middle of iterating Parse calls for
-  // previously appended data. May consider changing this to a DCHECK once
-  // stabilized, though since impact of proceeding when this condition fails
-  // could lead to memory corruption, preferring CHECK.
-  CHECK_EQ(uninspected_pending_bytes_, 0);
-
-  uninspected_pending_bytes_ = base::checked_cast<int>(size);
-  queue_.Push(buf, uninspected_pending_bytes_);
-
-  return true;
-}
-
-StreamParser::ParseStatus MPEGAudioStreamParserBase::Parse(
-    int max_pending_bytes_to_inspect) {
-  DVLOG(1) << __func__;
-
-  DCHECK_GE(max_pending_bytes_to_inspect, 0);
-
-  if (state_ == PARSE_ERROR) {
-    return ParseStatus::kFailed;
-  }
-
-  DCHECK_EQ(state_, INITIALIZED);
+  queue_.Push(buf, size);
 
   bool end_of_segment = true;
   BufferQueue buffers;
-
-  const uint8_t* data = nullptr;
-  int queue_size = 0;
-  queue_.Peek(&data, &queue_size);
-
-  // First, determine the amount of bytes not yet popped, though already
-  // inspected by previous call(s) to Parse().
-  int data_size = queue_size - uninspected_pending_bytes_;
-  DCHECK_GE(data_size, 0);
-
-  // Next, allow up to `max_pending_bytes_to_inspect` more of `queue_` contents
-  // beyond those previously inspected to be involved in this Parse() call.
-  int inspection_increment =
-      std::min(max_pending_bytes_to_inspect, uninspected_pending_bytes_);
-  data_size += inspection_increment;
-
-  // If successfully parsed, remember that we will have inspected this
-  // incremental part of `byte_queue_` contents. Note that parse failures are
-  // fatal.
-  uninspected_pending_bytes_ -= inspection_increment;
-  DCHECK_GE(uninspected_pending_bytes_, 0);
-
-  int bytes_to_pop = 0;
   for (;;) {
+    const uint8_t* data;
+    int data_size;
+    queue_.Peek(&data, &data_size);
+
     if (data_size < 4)
       break;
 
@@ -207,34 +147,25 @@ StreamParser::ParseStatus MPEGAudioStreamParserBase::Parse(
 
     if (bytes_read < 0) {
       ChangeState(PARSE_ERROR);
-      return ParseStatus::kFailed;
+      return false;
     } else if (bytes_read == 0) {
       // Need more data.
       break;
     }
 
     // Send pending buffers if we have encountered metadata.
-    if (parsed_metadata && !buffers.empty() && !SendBuffers(&buffers, true)) {
-      return ParseStatus::kFailed;
-    }
+    if (parsed_metadata && !buffers.empty() && !SendBuffers(&buffers, true))
+      return false;
 
-    CHECK_GE(data_size, bytes_read);
-    data_size -= bytes_read;
-    data += bytes_read;
-    bytes_to_pop += bytes_read;
+    queue_.Pop(bytes_read);
     end_of_segment = true;
   }
 
-  queue_.Pop(bytes_to_pop);
+  if (buffers.empty())
+    return true;
 
-  if (buffers.empty() || SendBuffers(&buffers, end_of_segment)) {
-    if (uninspected_pending_bytes_ > 0) {
-      return ParseStatus::kSuccessHasMoreData;
-    }
-    return ParseStatus::kSuccess;
-  }
-
-  return ParseStatus::kFailed;
+  // Send buffers collected in this append that haven't been sent yet.
+  return SendBuffers(&buffers, end_of_segment);
 }
 
 void MPEGAudioStreamParserBase::ChangeState(State state) {
@@ -282,14 +213,14 @@ int MPEGAudioStreamParserBase::ParseFrame(const uint8_t* data,
     config_.Initialize(audio_codec_, kSampleFormatF32, channel_layout,
                        sample_rate, extra_data, EncryptionScheme::kUnencrypted,
                        base::TimeDelta(), codec_delay_);
-    if (audio_codec_ == AudioCodec::kAAC)
+    if (audio_codec_ == kCodecAAC)
       config_.disable_discard_decoder_delay();
 
     base::TimeDelta base_timestamp;
     if (timestamp_helper_)
       base_timestamp = timestamp_helper_->GetTimestamp();
 
-    timestamp_helper_ = std::make_unique<AudioTimestampHelper>(sample_rate);
+    timestamp_helper_.reset(new AudioTimestampHelper(sample_rate));
     timestamp_helper_->SetBaseTimestamp(base_timestamp);
 
     std::unique_ptr<MediaTracks> media_tracks(new MediaTracks());

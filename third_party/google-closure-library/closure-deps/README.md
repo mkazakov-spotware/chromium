@@ -66,16 +66,16 @@ const {parser, depGraph} = require('google-closure-deps');
 
 // A file that provides "goog" is required for any file that references Closure.
 // Usually this is Closure's base.js file.
-const goog = parser.parseText('/** @provideGoog */', '/base.js').dependencies;
+const goog = parser.parseText('/** @provideGoog */', '/base.js').dependency;
 
 const firstFile =
-    parser.parseText(`goog.module('first.module')`, '/first.js').dependencies;
+    parser.parseText(`goog.module('first.module')`, '/first.js').dependency;
 const secondFile = parser.parseText(`
 goog.module('second.module');
 const firstModule = goog.require('first.module');
-`, '/second.js').dependencies;
-const graph = new depGraph.Graph([...goog, ...firstFile, ...secondFile]);
-graph.order(...secondFile); // [goog, firstFile, secondFile]
+`, '/second.js').dependency;
+const graph = new depGraph.Graph([goog, firstFile, secondFile]);
+graph.order(secondFile); // [goog, firstFile, secondFile]
 graph.depsBySymbol.get('first.module'); // firstFile
 graph.depsByPath.get('/second.js'); // secondFile
 ```
@@ -88,25 +88,25 @@ const {parser, depGraph} = require('google-closure-deps');
 
 // A file that provides "goog" is required for any file that references Closure.
 // Usually this is Closure's base.js file.
-const goog = parser.parseText('/** @provideGoog */', '/base.js').dependencies;
+const goog = parser.parseText('/** @provideGoog */', '/base.js').dependency;
 
 const firstFile = parser.parseText(
 `
 goog.declareModuleId('first.module');
 export const FOO = 'foo';
-`, "/first.js").dependencies;
+`, "/first.js").dependency;
 
 const secondFile = parser.parseText(
     'import {FOO} from "./first.js";',
-    '/second.js').dependencies;
+    '/second.js').dependency;
 
 const thirdFile = parser.parseText(
 `
 goog.module("third.module");
 const firstModule = goog.require("first.module");
-`, '/third.js').dependencies;
+`, '/third.js').dependency;
 
-const graph = new depGraph.Graph([...goog, ...firstFile, ...secondFile, ...thirdFile]);
-graph.order(...secondFile, ...thirdFile); // [goog, firstFile, secondFile, thirdFile]
+const graph = new depGraph.Graph([goog, firstFile, secondFile, thirdFile]);
+graph.order(secondFile, thirdFile); // [goog, firstFile, secondFile, thirdFile]
 ```
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,28 +7,24 @@
 #include <iostream>
 
 #include "base/base_paths.h"
-#include "base/check.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/logging.h"
 #include "base/notreached.h"
 #include "base/path_service.h"
 #include "base/process/kill.h"
 #include "base/process/launch.h"
-#include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
-#include "remoting/host/base/host_exit_codes.h"
-#include "remoting/host/base/switches.h"
+#include "remoting/host/host_exit_codes.h"
 #include "remoting/host/ipc_constants.h"
+#include "remoting/host/switches.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "remoting/host/win/evaluate_3d_display_mode.h"
 #include "remoting/host/win/evaluate_d3d.h"
 #endif
 
 namespace remoting {
-
-// TODO(crbug.com/1144161): Do not perform blocking operations on the IO thread.
-class ScopedBypassIOThreadRestrictions : public base::ScopedAllowBlocking {};
 
 namespace {
 
@@ -45,7 +41,7 @@ base::FilePath BuildHostBinaryPath() {
   base::FilePath directory;
   result = base::PathService::Get(base::DIR_EXE, &directory);
   DCHECK(result);
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   if (path.BaseName().value() == FILE_PATH_LITERAL("remoting_unittests.exe")) {
     return directory.Append(FILE_PATH_LITERAL("capability_test_stub.exe"));
   }
@@ -55,7 +51,7 @@ base::FilePath BuildHostBinaryPath() {
   }
 #endif
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   if (path.BaseName().value() ==
       FILE_PATH_LITERAL("chrome-remote-desktop-host")) {
     return path;
@@ -65,14 +61,14 @@ base::FilePath BuildHostBinaryPath() {
   }
 
   return directory.Append(FILE_PATH_LITERAL("remoting_me2me_host"));
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
   if (path.BaseName().value() == FILE_PATH_LITERAL("remoting_me2me_host")) {
     return path;
   }
 
   return directory.Append(FILE_PATH_LITERAL(
       "remoting_me2me_host.app/Contents/MacOS/remoting_me2me_host"));
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   if (path.BaseName().value() == FILE_PATH_LITERAL("remoting_console.exe")) {
     return path;
   }
@@ -92,7 +88,7 @@ base::FilePath BuildHostBinaryPath() {
 }  // namespace
 
 int EvaluateCapabilityLocally(const std::string& type) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   if (type == kEvaluateD3D) {
     return EvaluateD3D();
   }
@@ -117,22 +113,23 @@ int EvaluateCapability(const std::string& type,
     output = &dummy_output;
   }
 
-  // TODO(crbug.com/1144161): Do not perform blocking operations on the IO
-  // thread.
-  ScopedBypassIOThreadRestrictions bypass;
-#if DCHECK_IS_ON() && !BUILDFLAG(IS_WIN)
-  const bool result =
+  bool result = base::GetAppOutputWithExitCode(command, output, &exit_code);
+#if defined(OS_WIN)
+  // On Windows, base::GetAppOutputWithExitCode() usually returns false when
+  // receiving "unknown" exit code. See
+  // https://cs.chromium.org/chromium/src/base/process/launch_win.cc?rcl=39ec40095376e8d977decbdc5d7ca28ba7d39cf2&l=130
+  // But we forward the |exit_code| through return value, so the return value of
+  // base::GetAppOutputWithExitCode() should be ignored.
+  result = true;
 #endif
-      base::GetAppOutputWithExitCode(command, output, &exit_code);
-
-// On Windows, base::GetAppOutputWithExitCode() usually returns false when
-// receiving "unknown" exit code. See
-// https://cs.chromium.org/chromium/src/base/process/launch_win.cc?rcl=39ec40095376e8d977decbdc5d7ca28ba7d39cf2&l=130
-#if DCHECK_IS_ON() && !BUILDFLAG(IS_WIN)
-  DCHECK(result) << "Failed to execute process "
-                 << command.GetCommandLineString() << ", exit code "
-                 << exit_code;
-#endif
+  if (!result) {
+    LOG(ERROR) << "Failed to execute process "
+               << command.GetCommandLineString()
+               << ", exit code "
+               << exit_code;
+    // This should not happen.
+    NOTREACHED();
+  }
 
   return exit_code;
 }

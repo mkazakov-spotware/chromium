@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <math.h>
 #include <stddef.h>
 
-#include <memory>
+#include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>
@@ -16,11 +16,13 @@
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/process/process.h"
-#include "base/ranges/algorithm.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
@@ -37,9 +39,9 @@
 #include "chrome/browser/safe_browsing/safe_browsing_service.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
-#include "components/safe_browsing/core/common/features.h"
-#include "components/safe_browsing/core/common/proto/csd.pb.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+#include "components/safe_browsing/core/features.h"
+#include "components/safe_browsing/core/proto/csd.pb.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/download_item_utils.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
@@ -47,14 +49,14 @@
 
 namespace safe_browsing {
 
-BASE_FEATURE(kIncidentReportingEnableUpload,
-             "IncidentReportingEnableUpload",
+const base::Feature kIncidentReportingEnableUpload {
+  "IncidentReportingEnableUpload",
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-             base::FEATURE_ENABLED_BY_DEFAULT
+      base::FEATURE_ENABLED_BY_DEFAULT
 #else
-             base::FEATURE_DISABLED_BY_DEFAULT
+      base::FEATURE_DISABLED_BY_DEFAULT
 #endif
-);
+};
 
 namespace {
 
@@ -100,7 +102,7 @@ void LogIncidentDataType(IncidentDisposition disposition,
       "SBIRS.DiscardedIncident",
       "SBIRS.NoDownloadIncident",
   };
-  static_assert(std::size(kHistogramNames) == NUM_DISPOSITIONS,
+  static_assert(base::size(kHistogramNames) == NUM_DISPOSITIONS,
                 "Keep kHistogramNames in sync with enum IncidentDisposition.");
   DCHECK_GE(disposition, 0);
   DCHECK_LT(disposition, NUM_DISPOSITIONS);
@@ -134,10 +136,6 @@ scoped_refptr<base::TaskRunner> GetBackgroundTaskRunner() {
 
 struct IncidentReportingService::ProfileContext {
   ProfileContext();
-
-  ProfileContext(const ProfileContext&) = delete;
-  ProfileContext& operator=(const ProfileContext&) = delete;
-
   ~ProfileContext();
 
   // Returns true if the profile has incidents to be uploaded or cleared.
@@ -155,6 +153,9 @@ struct IncidentReportingService::ProfileContext {
 
   // False until OnProfileAdded is called.
   bool added;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ProfileContext);
 };
 
 class IncidentReportingService::UploadContext {
@@ -163,10 +164,6 @@ class IncidentReportingService::UploadContext {
       PersistentIncidentStateCollection;
 
   explicit UploadContext(std::unique_ptr<ClientIncidentReport> report);
-
-  UploadContext(const UploadContext&) = delete;
-  UploadContext& operator=(const UploadContext&) = delete;
-
   ~UploadContext();
 
   // The report being uploaded.
@@ -178,6 +175,9 @@ class IncidentReportingService::UploadContext {
   // A mapping of profile contexts to the data to be persisted upon successful
   // upload.
   PersistentIncidentStateCollection profiles_to_state;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(UploadContext);
 };
 
 // An IncidentReceiver that is weakly-bound to the service and transparently
@@ -185,10 +185,6 @@ class IncidentReportingService::UploadContext {
 class IncidentReportingService::Receiver : public IncidentReceiver {
  public:
   explicit Receiver(const base::WeakPtr<IncidentReportingService>& service);
-
-  Receiver(const Receiver&) = delete;
-  Receiver& operator=(const Receiver&) = delete;
-
   ~Receiver() override;
 
   // IncidentReceiver methods:
@@ -209,12 +205,15 @@ class IncidentReportingService::Receiver : public IncidentReceiver {
 
   base::WeakPtr<IncidentReportingService> service_;
   scoped_refptr<base::SingleThreadTaskRunner> thread_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(Receiver);
 };
 
 IncidentReportingService::Receiver::Receiver(
     const base::WeakPtr<IncidentReportingService>& service)
     : service_(service),
-      thread_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {}
+      thread_runner_(base::ThreadTaskRunnerHandle::Get()) {
+}
 
 IncidentReportingService::Receiver::~Receiver() {
 }
@@ -313,9 +312,10 @@ bool IncidentReportingService::IsEnabledForProfile(Profile* profile) {
 
 IncidentReportingService::IncidentReportingService(
     SafeBrowsingService* safe_browsing_service)
-    : IncidentReportingService(safe_browsing_service,
-                               base::Milliseconds(kDefaultCallbackIntervalMs),
-                               GetBackgroundTaskRunner()) {
+    : IncidentReportingService(
+          safe_browsing_service,
+          base::TimeDelta::FromMilliseconds(kDefaultCallbackIntervalMs),
+          GetBackgroundTaskRunner()) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   DownloadProtectionService* download_protection_service =
       (safe_browsing_service
@@ -361,7 +361,7 @@ IncidentReportingService::CreatePreferenceValidationDelegate(Profile* profile) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   if (profile->IsOffTheRecord())
-    return nullptr;
+    return std::unique_ptr<prefs::mojom::TrackedPreferenceValidationDelegate>();
   return std::make_unique<PreferenceValidationDelegate>(profile,
                                                         GetIncidentReceiver());
 }
@@ -373,7 +373,7 @@ void IncidentReportingService::RegisterDelayedAnalysisCallback(
   // |callback| will be run on the blocking pool. The receiver will bounce back
   // to the origin thread if needed.
   delayed_analysis_callbacks_.RegisterCallback(
-      base::BindOnce(std::move(callback), GetIncidentReceiver()));
+      base::BindOnce(std::move(callback), base::Passed(GetIncidentReceiver())));
 
   // Start running the callbacks if any profiles are participating in safe
   // browsing extended reporting. If none are now, running will commence if/when
@@ -395,11 +395,15 @@ IncidentReportingService::IncidentReportingService(
       collect_environment_data_fn_(&CollectEnvironmentData),
       environment_collection_task_runner_(GetBackgroundTaskRunner()),
       collation_timer_(FROM_HERE,
-                       base::Milliseconds(kDefaultUploadDelayMs),
+                       base::TimeDelta::FromMilliseconds(kDefaultUploadDelayMs),
                        this,
                        &IncidentReportingService::OnCollationTimeout),
       delayed_analysis_callbacks_(delayed_task_interval, delayed_task_runner) {
-  url_loader_factory_ = g_browser_process->shared_url_loader_factory();
+  if (base::FeatureList::IsEnabled(kSafeBrowsingRemoveCookies)) {
+    url_loader_factory_ = g_browser_process->shared_url_loader_factory();
+  } else if (safe_browsing_service) {
+    url_loader_factory_ = safe_browsing_service->GetURLLoaderFactory();
+  }
   if (g_browser_process->profile_manager())
     g_browser_process->profile_manager()->AddObserver(this);
 }
@@ -613,7 +617,7 @@ void IncidentReportingService::BeginReportProcessing() {
 
   // Creates a new report if needed.
   if (!report_)
-    report_ = std::make_unique<ClientIncidentReport>();
+    report_.reset(new ClientIncidentReport());
 
   // Ensure that collection tasks are running (calls are idempotent).
   BeginIncidentCollation();
@@ -704,8 +708,8 @@ void IncidentReportingService::OnEnvironmentDataCollected(
   environment_collection_pending_ = false;
 
 // Process::Current().CreationTime() is missing on some platforms.
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || \
-    BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_MAC) || defined(OS_WIN) || defined(OS_LINUX) || \
+    defined(OS_CHROMEOS)
   base::TimeDelta uptime =
       first_incident_time_ - base::Process::Current().CreationTime();
   environment_data->mutable_process()->set_uptime_msec(uptime.InMilliseconds());
@@ -978,8 +982,11 @@ void IncidentReportingService::OnReportUploadResult(
 
   // The upload is no longer outstanding, so take ownership of the context (from
   // the collection of outstanding uploads) in this scope.
-  auto it = base::ranges::find(uploads_, context,
-                               &std::unique_ptr<UploadContext>::get);
+  auto it =
+      std::find_if(uploads_.begin(), uploads_.end(),
+                   [context](const std::unique_ptr<UploadContext>& value) {
+                     return value.get() == context;
+                   });
   DCHECK(it != uploads_.end());
   std::unique_ptr<UploadContext> upload(std::move(*it));
   uploads_.erase(it);

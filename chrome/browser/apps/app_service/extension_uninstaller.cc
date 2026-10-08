@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,7 +47,7 @@ void ExtensionUninstaller::Run() {
 
 void ExtensionUninstaller::OnExtensionUninstallDialogClosed(
     bool did_start_uninstall,
-    const std::u16string& error) {
+    const base::string16& error) {
   delete this;
 }
 

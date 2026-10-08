@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "third_party/blink/renderer/core/css/properties/css_property.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/dom/node_computed_style.h"
-#include "third_party/blink/renderer/core/execution_context/security_context.h"
 
 namespace blink {
 
@@ -23,11 +22,6 @@ using MissingPropertyValueMap = HashMap<String, String>;
 void ResolveUnderlyingPropertyValues(Element& element,
                                      const PropertyHandleSet& properties,
                                      MissingPropertyValueMap& map) {
-  // The element's computed style may be null if the element has been removed
-  // form the DOM tree.
-  if (!element.GetComputedStyle())
-    return;
-
   // TODO(crbug.com/1069235): Should sample the underlying animation.
   ActiveInterpolationsMap empty_interpolations_map;
   AnimationUtils::ForEachInterpolatedPropertyValue(
@@ -72,10 +66,7 @@ void AddMissingProperties(const MissingPropertyValueMap& property_map,
 void ResolveComputedValues(Element* element, StringKeyframe* keyframe) {
   DCHECK(element);
   // Styles are flushed when getKeyframes is called on a CSS animation.
-  // The element's computed style may be null if detached from the DOM tree.
-  if (!element->GetComputedStyle())
-    return;
-
+  DCHECK(element->GetComputedStyle());
   for (const auto& property : keyframe->Properties()) {
     if (property.IsCSSCustomProperty()) {
       // At present, custom properties are to be excluded from the keyframes.
@@ -87,11 +78,16 @@ void ResolveComputedValues(Element* element, StringKeyframe* keyframe) {
       keyframe->RemoveCustomCSSProperty(property);
     } else if (property.IsCSSProperty()) {
       const CSSValue& value = keyframe->CssPropertyValue(property);
-      const CSSPropertyName property_name = property.GetCSSPropertyName();
+      const CSSPropertyName property_name =
+          property.IsCSSCustomProperty()
+              ? CSSPropertyName(property.CustomPropertyName())
+              : CSSPropertyName(property.GetCSSProperty().PropertyID());
       const CSSValue* computed_value =
           StyleResolver::ComputeValue(element, property_name, value);
-      if (computed_value)
-        keyframe->SetCSSPropertyValue(property_name, *computed_value);
+      if (computed_value) {
+        keyframe->SetCSSPropertyValue(property.GetCSSProperty(),
+                                      *computed_value);
+      }
     }
   }
 }
@@ -141,13 +137,13 @@ CssKeyframeEffectModel::GetComputedKeyframes(Element* element) {
                                     missing_property_value_map);
   }
   if (from_properties.size() < all_properties.size() &&
-      !computed_keyframes.empty()) {
+      !computed_keyframes.IsEmpty()) {
     AddMissingProperties(
         missing_property_value_map, all_properties, from_properties,
         DynamicTo<StringKeyframe>(computed_keyframes[0].Get()));
   }
   if (to_properties.size() < all_properties.size() &&
-      !computed_keyframes.empty()) {
+      !computed_keyframes.IsEmpty()) {
     wtf_size_t index = keyframes.size() - 1;
     AddMissingProperties(
         missing_property_value_map, all_properties, to_properties,

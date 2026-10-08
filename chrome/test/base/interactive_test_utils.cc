@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "base/logging.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/task/current_thread.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
@@ -58,6 +57,12 @@ void BrowserActivationWaiter::OnBrowserSetLastActive(Browser* browser) {
   if (browser != browser_)
     return;
 
+// On Mac, BrowserWindowCocoa::Show() sets the active browser before the
+// window becomes the key window.
+#if !defined(OS_MAC)
+  EXPECT_TRUE(browser->window()->IsActive());
+#endif
+
   observed_ = true;
   BrowserList::RemoveObserver(this);
   if (run_loop_.running())
@@ -95,7 +100,7 @@ void BrowserDeactivationWaiter::OnBrowserNoLongerActive(Browser* browser) {
 }
 
 bool BringBrowserWindowToFront(const Browser* browser) {
-  gfx::NativeWindow window = nullptr;
+  gfx::NativeWindow window = NULL;
   if (!GetNativeWindow(browser, &window))
     return false;
 
@@ -113,7 +118,7 @@ bool SendKeyPressSync(const Browser* browser,
                       bool shift,
                       bool alt,
                       bool command) {
-  gfx::NativeWindow window = nullptr;
+  gfx::NativeWindow window = NULL;
   if (!GetNativeWindow(browser, &window))
     return false;
   return SendKeyPressToWindowSync(window, key, control, shift, alt, command);
@@ -125,20 +130,22 @@ bool SendKeyPressToWindowSync(const gfx::NativeWindow window,
                               bool shift,
                               bool alt,
                               bool command) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   DCHECK(key != ui::VKEY_ESCAPE || !control)
       << "'ctrl + esc' opens start menu on Windows. Start menu on windows "
          "2012 is a full-screen always on top window. It breaks all "
          "interactive tests.";
 #endif
 
-  base::RunLoop run_loop(base::RunLoop::Type::kNestableTasksAllowed);
-  bool result = ui_controls::SendKeyPressNotifyWhenDone(
-      window, key, control, shift, alt, command, run_loop.QuitClosure());
-#if BUILDFLAG(IS_WIN)
+  scoped_refptr<content::MessageLoopRunner> runner =
+      new content::MessageLoopRunner;
+  bool result;
+  result = ui_controls::SendKeyPressNotifyWhenDone(
+      window, key, control, shift, alt, command, runner->QuitClosure());
+#if defined(OS_WIN)
   if (!result && ui_test_utils::ShowAndFocusNativeWindow(window)) {
     result = ui_controls::SendKeyPressNotifyWhenDone(
-        window, key, control, shift, alt, command, run_loop.QuitClosure());
+        window, key, control, shift, alt, command, runner->QuitClosure());
   }
 #endif
   if (!result) {
@@ -149,8 +156,7 @@ bool SendKeyPressToWindowSync(const gfx::NativeWindow window,
   // Run the message loop. It'll stop running when either the key was received
   // or the test timed out (in which case testing::Test::HasFatalFailure should
   // be set).
-  run_loop.Run();
-
+  runner->Run();
   return !testing::Test::HasFatalFailure();
 }
 

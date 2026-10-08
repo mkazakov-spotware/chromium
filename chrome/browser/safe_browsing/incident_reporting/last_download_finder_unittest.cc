@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,10 +18,11 @@
 #include "base/guid.h"
 #include "base/location.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/mock_entropy_provider.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/history/chrome_history_client.h"
@@ -41,8 +42,8 @@
 #include "components/history/core/browser/history_constants.h"
 #include "components/history/core/browser/history_database_params.h"
 #include "components/history/core/browser/history_service.h"
-#include "components/safe_browsing/core/common/proto/csd.pb.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+#include "components/safe_browsing/core/proto/csd.pb.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_utils.h"
@@ -78,17 +79,17 @@ std::unique_ptr<KeyedService> BuildHistoryService(
   return nullptr;
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 static const base::FilePath::CharType kBinaryFileName[] =
     FILE_PATH_LITERAL("spam.exe");
 static const base::FilePath::CharType kBinaryFileNameForOtherOS[] =
     FILE_PATH_LITERAL("spam.dmg");
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
 static const base::FilePath::CharType kBinaryFileName[] =
     FILE_PATH_LITERAL("spam.dmg");
 static const base::FilePath::CharType kBinaryFileNameForOtherOS[] =
     FILE_PATH_LITERAL("spam.apk");
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
 static const base::FilePath::CharType kBinaryFileName[] =
     FILE_PATH_LITERAL("spam.apk");
 static const base::FilePath::CharType kBinaryFileNameForOtherOS[] =
@@ -123,7 +124,7 @@ class LastDownloadFinderTest : public testing::Test {
         HistoryServiceFactory::GetForProfile(
             profile, ServiceAccessType::EXPLICIT_ACCESS);
     history_service->CreateDownload(
-        CreateTestDownloadRow(kBinaryFileName, profile),
+        CreateTestDownloadRow(kBinaryFileName),
         base::BindOnce(&LastDownloadFinderTest::OnDownloadCreated,
                        base::Unretained(this)));
   }
@@ -157,8 +158,8 @@ class LastDownloadFinderTest : public testing::Test {
 
   void SetUp() override {
     testing::Test::SetUp();
-    profile_manager_ = std::make_unique<TestingProfileManager>(
-        TestingBrowserProcess::GetGlobal());
+    profile_manager_.reset(
+        new TestingProfileManager(TestingBrowserProcess::GetGlobal()));
     ASSERT_TRUE(profile_manager_->SetUp());
   }
 
@@ -192,6 +193,7 @@ class LastDownloadFinderTest : public testing::Test {
         profile_name, std::move(prefs),
         base::UTF8ToUTF16(profile_name),  // user_name
         0,                                // avatar_id
+        std::string(),                    // supervised_user_id
         std::move(factories));
 
     return profile;
@@ -234,29 +236,21 @@ class LastDownloadFinderTest : public testing::Test {
   }
 
   history::DownloadRow CreateTestDownloadRow(
-      const base::FilePath::CharType* file_path,
-      content::BrowserContext* browser_context) {
+      const base::FilePath::CharType* file_path) {
     base::Time now(base::Time::Now());
 
-    auto* download_manager = browser_context->GetDownloadManager();
-    content::StoragePartitionConfig storage_partition_config =
-        download_manager->GetStoragePartitionConfigForSiteUrl(
-            GURL("http://site-url.com/"));
     history::DownloadRow row;
     row.current_path = base::FilePath(file_path);
     row.target_path = base::FilePath(file_path);
     row.url_chain.push_back(GURL("http://www.google.com/"));
     row.referrer_url = GURL("http://referrer.example.com/");
-    row.embedder_download_data =
-        download_manager
-            ->StoragePartitionConfigToSerializedEmbedderDownloadData(
-                storage_partition_config);
+    row.site_url = GURL("http://site-url.example.com/");
     row.tab_url = GURL("http://tab-url.example.com/");
     row.tab_referrer_url = GURL("http://tab-referrer.example.com/");
     row.mime_type = "application/octet-stream";
     row.original_mime_type = "application/octet-stream";
-    row.start_time = now - base::Minutes(10);
-    row.end_time = now - base::Minutes(9);
+    row.start_time = now - base::TimeDelta::FromMinutes(10);
+    row.end_time = now - base::TimeDelta::FromMinutes(9);
     row.received_bytes = 47;
     row.total_bytes = 47;
     row.state = history::DownloadState::COMPLETE;
@@ -266,7 +260,7 @@ class LastDownloadFinderTest : public testing::Test {
     row.id = download_id_++;
     row.guid = base::GenerateGUID();
     row.opened = false;
-    row.last_access_time = now - base::Minutes(5);
+    row.last_access_time = now - base::TimeDelta::FromMinutes(5);
     row.transient = false;
 
     return row;
@@ -316,7 +310,7 @@ TEST_F(LastDownloadFinderTest, NoSafeBrowsingProfile) {
   TestingProfile* profile = CreateProfile(EXTENDED_REPORTING_ONLY);
 
   // Add a download.
-  AddDownload(profile, CreateTestDownloadRow(kBinaryFileName, profile));
+  AddDownload(profile, CreateTestDownloadRow(kBinaryFileName));
 
   std::unique_ptr<ClientIncidentReport_DownloadDetails> last_binary_download;
   std::unique_ptr<ClientIncidentReport_NonBinaryDownloadDetails>
@@ -333,7 +327,7 @@ TEST_F(LastDownloadFinderTest, NoExtendedReportingProfile) {
   TestingProfile* profile = CreateProfile(SAFE_BROWSING_ONLY);
 
   // Add a download.
-  AddDownload(profile, CreateTestDownloadRow(kBinaryFileName, profile));
+  AddDownload(profile, CreateTestDownloadRow(kBinaryFileName));
 
   std::unique_ptr<ClientIncidentReport_DownloadDetails> last_binary_download;
   std::unique_ptr<ClientIncidentReport_NonBinaryDownloadDetails>
@@ -349,8 +343,8 @@ TEST_F(LastDownloadFinderTest, SimpleEndToEnd) {
   TestingProfile* profile = CreateProfile(SAFE_BROWSING_AND_EXTENDED_REPORTING);
 
   // Add a binary and non-binary download.
-  AddDownload(profile, CreateTestDownloadRow(kBinaryFileName, profile));
-  AddDownload(profile, CreateTestDownloadRow(kTxtFileName, profile));
+  AddDownload(profile, CreateTestDownloadRow(kBinaryFileName));
+  AddDownload(profile, CreateTestDownloadRow(kTxtFileName));
 
   std::unique_ptr<ClientIncidentReport_DownloadDetails> last_binary_download;
   std::unique_ptr<ClientIncidentReport_NonBinaryDownloadDetails>
@@ -366,7 +360,7 @@ TEST_F(LastDownloadFinderTest, NonBinaryOnly) {
   TestingProfile* profile = CreateProfile(SAFE_BROWSING_AND_EXTENDED_REPORTING);
 
   // Add a non-binary download.
-  AddDownload(profile, CreateTestDownloadRow(kTxtFileName, profile));
+  AddDownload(profile, CreateTestDownloadRow(kTxtFileName));
 
   std::unique_ptr<ClientIncidentReport_DownloadDetails> last_binary_download;
   std::unique_ptr<ClientIncidentReport_NonBinaryDownloadDetails>
@@ -376,15 +370,14 @@ TEST_F(LastDownloadFinderTest, NonBinaryOnly) {
   EXPECT_TRUE(last_non_binary_download);
 }
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_WIN) || defined(OS_MAC) || defined(OS_ANDROID)
 // Tests that nothing happens if the binary is an executable for a different OS.
 TEST_F(LastDownloadFinderTest, DownloadForDifferentOs) {
   // Create a profile with a history service that is opted-in.
   TestingProfile* profile = CreateProfile(SAFE_BROWSING_AND_EXTENDED_REPORTING);
 
   // Add a download.
-  AddDownload(profile,
-              CreateTestDownloadRow(kBinaryFileNameForOtherOS, profile));
+  AddDownload(profile, CreateTestDownloadRow(kBinaryFileNameForOtherOS));
 
   std::unique_ptr<ClientIncidentReport_DownloadDetails> last_binary_download;
   std::unique_ptr<ClientIncidentReport_NonBinaryDownloadDetails>
@@ -401,7 +394,7 @@ TEST_F(LastDownloadFinderTest, DeleteBeforeResults) {
   TestingProfile* profile = CreateProfile(SAFE_BROWSING_AND_EXTENDED_REPORTING);
 
   // Add a download.
-  AddDownload(profile, CreateTestDownloadRow(kBinaryFileName, profile));
+  AddDownload(profile, CreateTestDownloadRow(kBinaryFileName));
 
   // Start a finder and kill it before the search completes.
   LastDownloadFinder::Create(
@@ -422,7 +415,7 @@ TEST_F(LastDownloadFinderTest, AddProfileAfterStarting) {
   base::RunLoop run_loop;
 
   // Post a task that will create a second profile once the main loop is run.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&LastDownloadFinderTest::CreateProfileWithDownload,
                      base::Unretained(this)));

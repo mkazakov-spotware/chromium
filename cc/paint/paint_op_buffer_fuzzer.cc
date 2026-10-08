@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "base/test/test_discardable_memory_allocator.h"
 #include "cc/paint/paint_cache.h"
 #include "cc/paint/paint_op_buffer.h"
-#include "cc/paint/paint_op_writer.h"
 #include "cc/test/transfer_cache_test_helper.h"
 #include "components/viz/test/test_context_provider.h"
 #include "gpu/command_buffer/common/buffer.h"
@@ -75,12 +74,12 @@ void Raster(scoped_refptr<viz::TestContextProvider> context_provider,
 
   SkImageInfo image_info = SkImageInfo::MakeN32(
       kRasterDimension, kRasterDimension, kOpaque_SkAlphaType);
-  context_provider->BindToCurrentSequence();
+  context_provider->BindToCurrentThread();
   sk_sp<SkSurface> surface = SkSurface::MakeRenderTarget(
       context_provider->GrContext(), SkBudgeted::kYes, image_info);
   SkCanvas* canvas = surface->getCanvas();
 
-  cc::PlaybackParams params(nullptr, canvas->getLocalToDevice());
+  cc::PlaybackParams params(nullptr, canvas->getTotalMatrix());
   cc::TransferCacheTestHelper transfer_cache_helper;
   std::vector<uint8_t> scratch_buffer;
   cc::PaintOp::DeserializeOptions deserialize_options(
@@ -122,17 +121,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   if (size <= sizeof(size_t))
     return 0;
 
-  [[maybe_unused]] static Environment* env = new Environment();
+  static Environment* env = new Environment();
+  ALLOW_UNUSED_LOCAL(env);
   base::CommandLine::Init(0, nullptr);
 
   // Partition the data to use some bytes for populating the font cache.
   uint32_t bytes_for_fonts = data[0];
   if (bytes_for_fonts > size)
     bytes_for_fonts = size / 2;
-  // PaintOpBuffer only accepts 4 bytes aligned buffer.
-  bytes_for_fonts = base::bits::AlignDown(
-      bytes_for_fonts,
-      base::checked_cast<uint32_t>(cc::PaintOpWriter::Alignment()));
 
   FontSupport font_support;
   scoped_refptr<gpu::ServiceFontManager> font_manager(
@@ -148,14 +144,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   }
 
   auto context_provider_no_support = viz::TestContextProvider::Create();
-  context_provider_no_support->BindToCurrentSequence();
+  context_provider_no_support->BindToCurrentThread();
   CHECK(!context_provider_no_support->GrContext()->supportsDistanceFieldText());
   Raster(context_provider_no_support, font_manager->strike_client(),
          &paint_cache, data, size);
 
   auto context_provider_with_support = viz::TestContextProvider::Create(
       std::string("GL_OES_standard_derivatives"));
-  context_provider_with_support->BindToCurrentSequence();
+  context_provider_with_support->BindToCurrentThread();
   CHECK(
       context_provider_with_support->GrContext()->supportsDistanceFieldText());
   Raster(context_provider_with_support, font_manager->strike_client(),

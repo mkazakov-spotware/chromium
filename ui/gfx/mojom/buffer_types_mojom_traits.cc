@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/scoped_hardware_buffer_handle.h"
 #include "mojo/public/cpp/system/message_pipe.h"
 #include "mojo/public/cpp/system/scope_to_message_pipe.h"
@@ -33,14 +33,14 @@ gfx::mojom::GpuMemoryBufferPlatformHandlePtr StructTraits<
       return gfx::mojom::GpuMemoryBufferPlatformHandle::NewSharedMemoryHandle(
           std::move(handle.region));
     case gfx::NATIVE_PIXMAP:
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_OZONE)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(USE_OZONE)
       return gfx::mojom::GpuMemoryBufferPlatformHandle::NewNativePixmapHandle(
           std::move(handle.native_pixmap_handle));
 #else
       break;
 #endif
     case gfx::IO_SURFACE_BUFFER: {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
       gfx::ScopedRefCountedIOSurfaceMachPort io_surface_mach_port(
           IOSurfaceCreateMachPort(handle.io_surface.get()));
       return gfx::mojom::GpuMemoryBufferPlatformHandle::NewMachPort(
@@ -51,18 +51,15 @@ gfx::mojom::GpuMemoryBufferPlatformHandlePtr StructTraits<
 #endif
     }
     case gfx::DXGI_SHARED_HANDLE:
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
       DCHECK(handle.dxgi_handle.IsValid());
-      DCHECK(handle.dxgi_token.has_value());
       return gfx::mojom::GpuMemoryBufferPlatformHandle::NewDxgiHandle(
-          gfx::mojom::DXGIHandle::New(
-              mojo::PlatformHandle(std::move(handle.dxgi_handle)),
-              std::move(handle.dxgi_token.value()), std::move(handle.region)));
+          mojo::PlatformHandle(std::move(handle.dxgi_handle)));
 #else
       break;
 #endif
     case gfx::ANDROID_HARDWARE_BUFFER: {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
       // We must keep a ref to the AHardwareBuffer alive until the receiver has
       // acquired its own reference. We do this by sending a message pipe handle
       // along with the buffer. When the receiver deserializes (or even if they
@@ -111,19 +108,19 @@ bool StructTraits<gfx::mojom::GpuMemoryBufferHandleDataView,
 
   switch (platform_handle->which()) {
     case gfx::mojom::GpuMemoryBufferPlatformHandleDataView::Tag::
-        kSharedMemoryHandle:
+        SHARED_MEMORY_HANDLE:
       out->type = gfx::SHARED_MEMORY_BUFFER;
       out->region = std::move(platform_handle->get_shared_memory_handle());
       return true;
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_OZONE)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(USE_OZONE)
     case gfx::mojom::GpuMemoryBufferPlatformHandleDataView::Tag::
-        kNativePixmapHandle:
+        NATIVE_PIXMAP_HANDLE:
       out->type = gfx::NATIVE_PIXMAP;
       out->native_pixmap_handle =
           std::move(platform_handle->get_native_pixmap_handle());
       return true;
-#elif BUILDFLAG(IS_MAC)
-    case gfx::mojom::GpuMemoryBufferPlatformHandleDataView::Tag::kMachPort: {
+#elif defined(OS_MAC)
+    case gfx::mojom::GpuMemoryBufferPlatformHandleDataView::Tag::MACH_PORT: {
       out->type = gfx::IO_SURFACE_BUFFER;
       if (!platform_handle->get_mach_port().is_mach_send())
         return false;
@@ -137,18 +134,15 @@ bool StructTraits<gfx::mojom::GpuMemoryBufferHandleDataView,
       }
       return true;
     }
-#elif BUILDFLAG(IS_WIN)
-    case gfx::mojom::GpuMemoryBufferPlatformHandleDataView::Tag::kDxgiHandle: {
+#elif defined(OS_WIN)
+    case gfx::mojom::GpuMemoryBufferPlatformHandleDataView::Tag::DXGI_HANDLE: {
       out->type = gfx::DXGI_SHARED_HANDLE;
-      auto dxgi_handle = std::move(platform_handle->get_dxgi_handle());
-      out->dxgi_handle = dxgi_handle->buffer_handle.TakeHandle();
-      out->dxgi_token = std::move(dxgi_handle->token);
-      out->region = std::move(dxgi_handle->shared_memory_handle);
+      out->dxgi_handle = platform_handle->get_dxgi_handle().TakeHandle();
       return true;
     }
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
     case gfx::mojom::GpuMemoryBufferPlatformHandleDataView::Tag::
-        kAndroidHardwareBufferHandle: {
+        ANDROID_HARDWARE_BUFFER_HANDLE: {
       out->type = gfx::ANDROID_HARDWARE_BUFFER;
       gfx::mojom::AHardwareBufferHandlePtr buffer_handle =
           std::move(platform_handle->get_android_hardware_buffer_handle());

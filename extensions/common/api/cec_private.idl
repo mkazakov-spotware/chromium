@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ namespace cecPrivate {
     // There was an error querying the power state of the display.
     error,
 
-    // The kernel adapter for the CEC endpoint isn't configured (no EDID set).
+    // The kernel adapter for the CEC endpoint isn’t configured (no EDID set).
     adapterNotConfigured,
 
     // No device ACKed the request on the CEC bus.
@@ -46,8 +46,7 @@ namespace cecPrivate {
     //
     // |callback| will be run as soon as all displays have been requested to
     // change their power state.
-    [supportsPromises] static void sendStandBy(
-        optional ChangePowerStateCallback callback);
+    static void sendStandBy(optional ChangePowerStateCallback callback);
 
     // Attempt to announce this device as the active input source towards all
     // HDMI CEC enabled displays connected, waking them from standby if
@@ -55,11 +54,10 @@ namespace cecPrivate {
     //
     // |callback| will be run as soon as all displays have been requested to
     // change their power state.
-    [supportsPromises] static void sendWakeUp(
-        optional ChangePowerStateCallback callback);
+    static void sendWakeUp(optional ChangePowerStateCallback callback);
 
     // Queries all HDMI CEC capable displays for their current power state.
-    [supportsPromises] static void queryDisplayCecPowerState(
+    static void queryDisplayCecPowerState(
         DisplayCecPowerStateCallback callback);
   };
 };

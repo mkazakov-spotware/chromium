@@ -30,6 +30,8 @@
 
 #include <memory>
 
+#include "base/memory/weak_ptr.h"
+#include "base/single_thread_task_runner.h"
 #include "third_party/blink/public/common/privacy_budget/identifiable_surface.h"
 #include "third_party/blink/public/common/privacy_budget/identifiable_token.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
@@ -41,33 +43,37 @@
 #include "third_party/blink/renderer/core/html/html_element.h"
 #include "third_party/blink/renderer/core/imagebitmap/image_bitmap_source.h"
 #include "third_party/blink/renderer/core/page/page_visibility_observer.h"
+#include "third_party/blink/renderer/core/typed_arrays/dom_typed_array.h"
+#include "third_party/blink/renderer/platform/geometry/float_rect.h"
+#include "third_party/blink/renderer/platform/geometry/int_size.h"
+#include "third_party/blink/renderer/platform/graphics/canvas_2d_layer_bridge.h"
 #include "third_party/blink/renderer/platform/graphics/canvas_resource_host.h"
+#include "third_party/blink/renderer/platform/graphics/canvas_resource_provider.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_types.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_types_3d.h"
 #include "third_party/blink/renderer/platform/graphics/offscreen_canvas_placeholder.h"
 #include "third_party/blink/renderer/platform/graphics/static_bitmap_image.h"
 #include "third_party/blink/renderer/platform/graphics/surface_layer_bridge.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/prefinalizer.h"
-#include "ui/gfx/geometry/rect_f.h"
-#include "ui/gfx/geometry/size.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 #define CanvasDefaultInterpolationQuality kInterpolationLow
+
+namespace cc {
+class Layer;
+}
 
 namespace blink {
 
 class Canvas2DLayerBridge;
 class CanvasContextCreationAttributesCore;
 class CanvasDrawListener;
-class CanvasHighDynamicRangeOptions;
 class CanvasRenderingContext;
 class CanvasRenderingContextFactory;
-class CanvasResourceProvider;
 class GraphicsContext;
+class HitTestCanvasResult;
 class HTMLCanvasElement;
 class ImageBitmapOptions;
-class StaticBitmapImageToVideoFrameCopier;
+class IntSize;
 
 class
     CanvasRenderingContext2DOrWebGLRenderingContextOrWebGL2RenderingContextOrImageBitmapRenderingContextOrGPUCanvasContext;
@@ -79,6 +85,8 @@ typedef CanvasRenderingContext2DOrWebGLRenderingContextOrWebGL2RenderingContextO
 // It can be a 3D Context (WebGL or WebGL2), 2D Context,
 // BitmapRenderingContext or it can have no context (Offscreen placeholder).
 // To check the no context case is good to check if there is a placeholder.
+// For 3D and 2D contexts there are Is3D or IsRenderingContext2D functions.
+// The remaining case is BitmaprenderingContext.
 //
 // TODO (juanmihd): Study if a refactor of context could help in simplifying
 // this class and without overcomplicating context.
@@ -100,15 +108,15 @@ class CORE_EXPORT HTMLCanvasElement final
   ~HTMLCanvasElement() override;
 
   // Attributes and functions exposed to script
-  unsigned width() const { return Size().width(); }
-  unsigned height() const { return Size().height(); }
+  unsigned width() const { return Size().Width(); }
+  unsigned height() const { return Size().Height(); }
 
-  const gfx::Size& Size() const override { return size_; }
+  const IntSize& Size() const override { return size_; }
 
   void setWidth(unsigned, ExceptionState&);
   void setHeight(unsigned, ExceptionState&);
 
-  void SetSize(const gfx::Size& new_size);
+  void SetSize(const IntSize& new_size);
 
   // Called by Document::getCSSCanvasContext as well as above getContext().
   CanvasRenderingContext* GetCanvasRenderingContext(
@@ -132,23 +140,14 @@ class CORE_EXPORT HTMLCanvasElement final
               ExceptionState& exception_state) {
     return toBlob(callback, mime_type, ScriptValue(), exception_state);
   }
-  void configureHighDynamicRange(const CanvasHighDynamicRangeOptions*,
-                                 ExceptionState&);
-
-  bool IsPresentationAttribute(const QualifiedName&) const final;
-  void CollectStyleForPresentationAttribute(const QualifiedName&,
-                                            const AtomicString&,
-                                            MutableCSSPropertyValueSet*) final;
 
   // Used for canvas capture.
   void AddListener(CanvasDrawListener*);
   void RemoveListener(CanvasDrawListener*);
-  // Derived from OffscreenCanvasPlaceholder.
-  bool HasCanvasCapture() const final { return !listeners_.empty(); }
 
   // Used for rendering
-  void DidDraw(const SkIRect&) override;
-  using CanvasRenderingContextHost::DidDraw;
+  void DidDraw(const FloatRect&) override;
+  void DidDraw() override;
 
   void Paint(GraphicsContext&,
              const PhysicalRect&,
@@ -177,7 +176,6 @@ class CORE_EXPORT HTMLCanvasElement final
   InsertionNotificationRequest InsertedInto(ContainerNode&) override;
 
   bool IsDirty() { return !dirty_rect_.IsEmpty(); }
-  bool IsVisible() const;
 
   void DoDeferredPaintInvalidation();
 
@@ -186,7 +184,7 @@ class CORE_EXPORT HTMLCanvasElement final
 
   CanvasResourceDispatcher* GetOrCreateResourceDispatcher() override;
 
-  bool PushFrame(scoped_refptr<CanvasResource>&& image,
+  bool PushFrame(scoped_refptr<CanvasResource> image,
                  const SkIRect& damage_rect) override;
 
   // ExecutionContextLifecycleObserver and PageVisibilityObserver implementation
@@ -196,13 +194,11 @@ class CORE_EXPORT HTMLCanvasElement final
   void PageVisibilityChanged() override;
 
   // CanvasImageSource implementation
-  scoped_refptr<Image> GetSourceImageForCanvas(
-      SourceImageStatus*,
-      const gfx::SizeF&,
-      const AlphaDisposition alpha_disposition = kPremultiplyAlpha) override;
+  scoped_refptr<Image> GetSourceImageForCanvas(SourceImageStatus*,
+                                               const FloatSize&) override;
   bool WouldTaintOrigin() const override;
-  gfx::SizeF ElementSize(const gfx::SizeF&,
-                         const RespectImageOrientationEnum) const override;
+  FloatSize ElementSize(const FloatSize&,
+                        const RespectImageOrientationEnum) const override;
   bool IsCanvasElement() const override { return true; }
   bool IsOpaque() const override;
   bool IsAccelerated() const override;
@@ -216,13 +212,12 @@ class CORE_EXPORT HTMLCanvasElement final
   void NotifyGpuContextLost() override;
   void SetNeedsCompositingUpdate() override;
   void UpdateMemoryUsage() override;
-  size_t GetMemoryUsage() const override;
   bool ShouldAccelerate2dContext() const override;
+  SkFilterQuality FilterQuality() const override;
   bool LowLatencyEnabled() const override;
   CanvasResourceProvider* GetOrCreateCanvasResourceProvider(
       RasterModeHint hint) override;
   bool IsPrinting() const override;
-  void SetFilterQuality(cc::PaintFlags::FilterQuality filter_quality) override;
 
   // CanvasRenderingContextHost implementation.
   UkmParameters GetUkmParameters() override;
@@ -231,20 +226,20 @@ class CORE_EXPORT HTMLCanvasElement final
                                unaccelerated_bridge_used_for_testing = nullptr);
 
   // ImageBitmapSource implementation
-  gfx::Size BitmapSourceSize() const override;
+  IntSize BitmapSourceSize() const override;
   ScriptPromise CreateImageBitmap(ScriptState*,
-                                  absl::optional<gfx::Rect> crop_rect,
+                                  base::Optional<IntRect> crop_rect,
                                   const ImageBitmapOptions*,
                                   ExceptionState&) override;
 
   // OffscreenCanvasPlaceholder implementation.
-  void SetOffscreenCanvasResource(scoped_refptr<CanvasResource>&&,
-                                  viz::ResourceId resource_id) override;
+  void SetOffscreenCanvasResource(scoped_refptr<CanvasResource>,
+                                  unsigned resource_id) override;
   void Trace(Visitor*) const override;
 
   void SetResourceProviderForTesting(std::unique_ptr<CanvasResourceProvider>,
                                      std::unique_ptr<Canvas2DLayerBridge>,
-                                     const gfx::Size&);
+                                     const IntSize&);
 
   static void RegisterRenderingContextFactory(
       std::unique_ptr<CanvasRenderingContextFactory>);
@@ -257,11 +252,16 @@ class CORE_EXPORT HTMLCanvasElement final
 
   void NotifyListenersCanvasChanged();
 
+  // For Canvas HitRegions
+  bool IsSupportedInteractiveCanvasFallback(const Element&);
+  HitTestCanvasResult* GetControlAndIdIfHitRegionExists(const PhysicalOffset&);
+  String GetIdFromControl(const Element*);
+
   // For OffscreenCanvas that controls this html canvas element
   ::blink::SurfaceLayerBridge* SurfaceLayerBridge() const {
     return surface_layer_bridge_.get();
   }
-  bool CreateLayer();
+  void CreateLayer();
 
   void DetachContext() override { context_ = nullptr; }
 
@@ -279,8 +279,6 @@ class CORE_EXPORT HTMLCanvasElement final
     return DispatchEvent(*event);
   }
 
-  void UpdateSuspendOffscreenCanvasAnimation();
-
   // Gets the settings of this Html Canvas Element. If there is a frame, it will
   // return the settings from the frame. If it is a frameless element it will
   // try to fetch the global dom window and get the settings from there.
@@ -288,7 +286,13 @@ class CORE_EXPORT HTMLCanvasElement final
   bool IsWebGL1Enabled() const override;
   bool IsWebGL2Enabled() const override;
   bool IsWebGLBlocked() const override;
-  void SetContextCreationWasBlocked() override;
+  void SetContextCreationWasBlocked() override {
+    context_creation_was_blocked_ = true;
+  }
+
+  ScriptPromise convertToBlob(ScriptState*,
+                              const ImageEncodeOptions*,
+                              ExceptionState&);
 
   bool NeedsUnbufferedInputEvents() const { return needs_unbuffered_input_; }
 
@@ -310,8 +314,6 @@ class CORE_EXPORT HTMLCanvasElement final
 
   bool IsCanvasClear() { return canvas_is_clear_; }
 
-  bool IsPlaceholder() const override { return IsOffscreenCanvasRegistered(); }
-
  protected:
   void DidMoveToNewDocument(Document& old_document) override;
 
@@ -329,6 +331,7 @@ class CORE_EXPORT HTMLCanvasElement final
       IdentifiableToken canvas_contents_token) const;
 
   void PaintInternal(GraphicsContext&, const PhysicalRect&);
+  void UpdateFilterQuality(SkFilterQuality filter_quality);
 
   using ContextFactoryVector =
       Vector<std::unique_ptr<CanvasRenderingContextFactory>>;
@@ -347,7 +350,7 @@ class CORE_EXPORT HTMLCanvasElement final
       RasterMode raster_mode);
   void SetCanvas2DLayerBridgeInternal(std::unique_ptr<Canvas2DLayerBridge>);
 
-  void SetSurfaceSize(const gfx::Size&);
+  void SetSurfaceSize(const IntSize&);
 
   bool PaintsIntoCanvasBuffer() const;
 
@@ -367,31 +370,25 @@ class CORE_EXPORT HTMLCanvasElement final
       const CanvasContextCreationAttributesCore&);
 
   scoped_refptr<StaticBitmapImage> GetSourceImageForCanvasInternal(
-      SourceImageStatus*,
-      const AlphaDisposition alpha_disposition = kPremultiplyAlpha);
+      SourceImageStatus*);
 
-  static std::pair<blink::Image*, float> BrokenCanvas(
-      float device_scale_factor);
-
-  FRIEND_TEST_ALL_PREFIXES(HTMLCanvasElementTest, BrokenCanvasHighRes);
+  void OnContentsCcLayerChanged();
 
   HeapHashSet<WeakMember<CanvasDrawListener>> listeners_;
 
-  gfx::Size size_;
+  IntSize size_;
 
   Member<CanvasRenderingContext> context_;
   // Used only for WebGL currently.
   bool context_creation_was_blocked_;
 
-  bool disposing_ = false;
   bool canvas_is_clear_ = true;
 
   bool ignore_reset_;
-  gfx::RectF dirty_rect_;
+  FloatRect dirty_rect_;
 
   bool origin_clean_;
   bool needs_unbuffered_input_ = false;
-  bool style_is_visible_ = false;
 
   // It prevents repeated attempts in allocating resources after the first
   // attempt failed.
@@ -411,14 +408,12 @@ class CORE_EXPORT HTMLCanvasElement final
   // TODO: rename to CanvasFrameDispatcher.
   std::unique_ptr<CanvasResourceDispatcher> frame_dispatcher_;
 
-  std::unique_ptr<StaticBitmapImageToVideoFrameCopier> copier_;
-
   bool did_notify_listeners_for_current_frame_ = false;
 
   // GPU Memory Management
   mutable intptr_t externally_allocated_memory_;
 
-  scoped_refptr<StaticBitmapImage> transparent_image_;
+  scoped_refptr<StaticBitmapImage> transparent_image_ = nullptr;
 };
 
 }  // namespace blink

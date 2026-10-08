@@ -1,26 +1,25 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <AVFoundation/AVFoundation.h>
 #import <UIKit/UIKit.h>
 
-#import "base/ios/ios_util.h"
-#import "base/strings/stringprintf.h"
-#import "base/strings/sys_string_conversions.h"
+#include "base/ios/ios_util.h"
+#include "base/strings/stringprintf.h"
+#include "base/strings/sys_string_conversions.h"
 #import "ios/chrome/browser/ui/qr_scanner/qr_scanner_app_interface.h"
-#import "ios/chrome/browser/ui/scanner/camera_state.h"
-#import "ios/chrome/grit/ios_strings.h"
+#include "ios/chrome/browser/ui/scanner/camera_state.h"
+#include "ios/chrome/grit/ios_strings.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
-#import "ios/chrome/test/earl_grey/earl_grey_scoped_block_swizzler.h"
+#include "ios/chrome/test/earl_grey/earl_grey_scoped_block_swizzler.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
 #import "net/base/mac/url_conversions.h"
-#import "net/base/url_util.h"
-#import "net/test/embedded_test_server/embedded_test_server.h"
-#import "net/test/embedded_test_server/http_request.h"
-#import "net/test/embedded_test_server/http_response.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
+#include "net/test/embedded_test_server/http_request.h"
+#include "net/test/embedded_test_server/http_response.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
 #import "ui/base/l10n/l10n_util.h"
 #import "ui/base/l10n/l10n_util_mac.h"
@@ -44,11 +43,6 @@ class ScopedQRScannerVoiceSearchOverride {
                                                     isOn:YES];
   }
 
-  ScopedQRScannerVoiceSearchOverride(
-      const ScopedQRScannerVoiceSearchOverride&) = delete;
-  ScopedQRScannerVoiceSearchOverride& operator=(
-      const ScopedQRScannerVoiceSearchOverride&) = delete;
-
   ~ScopedQRScannerVoiceSearchOverride() {
     [QRScannerAppInterface overrideVoiceOverCheckForQRScannerViewController:
                                scanner_view_controller_
@@ -57,25 +51,29 @@ class ScopedQRScannerVoiceSearchOverride {
 
  private:
   UIViewController* scanner_view_controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedQRScannerVoiceSearchOverride);
 };
+
+// TODO(crbug.com/1015113) The EG2 macro is breaking indexing for some reason
+// without the trailing semicolon.  For now, disable the extra semi warning
+// so Xcode indexing works for the egtest.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc++98-compat-extra-semi"
+GREY_STUB_CLASS_IN_APP_MAIN_QUEUE(QRScannerAppInterface);
 
 namespace {
 
 char kTestURL[] = "/testurl";
 char kTestURLResponse[] = "Test URL page";
+char kTestQuery[] = "testquery";
+char kTestQueryURL[] = "/searchurl/testquery";
+char kTestQueryResponse[] = "Test query page";
+
 char kTestURLEdited[] = "/testuredited";
 char kTestURLEditedResponse[] = "Test URL edited page";
-
-char kTestQuery[] = "testquery";
-char kTestQueryURL[] = "/search";
-char kTestQueryURLParams[] = "?q={searchTerms}";
-char kTestQueryResponse[] = "Query: testquery";
-char kTestQueryEditedResponse[] = "Query: testqueredited";
-char kTestURLForbiddenCharacters[] = "test\u2028\u2029\u0085url";
-
-char kTestDataURL[] = "data:dataURL";
-char kTestSanitizedDataURL[] = "\"data:dataURL\"";
-char kTestDataURLResponse[] = "Query: \"data:dataURL\"";
+char kTestQueryEditedURL[] = "/searchurl/testqueredited";
+char kTestQueryEditedResponse[] = "Test query edited page";
 
 // The GREYCondition timeout used for calls to waitWithTimeout:pollInterval:.
 CFTimeInterval kGREYConditionTimeout = 5;
@@ -86,7 +84,8 @@ CFTimeInterval kGREYConditionPollInterval = 0.1;
 // Returns the GREYMatcher for an element which is visible, interactable, and
 // enabled.
 id<GREYMatcher> VisibleInteractableEnabled() {
-  return grey_allOf(grey_enabled(), grey_sufficientlyVisible(), nil);
+  return grey_allOf(grey_sufficientlyVisible(), grey_interactable(),
+                    grey_enabled(), nil);
 }
 
 // Returns the GREYMatcher for the button that closes the QR Scanner.
@@ -144,12 +143,12 @@ void ShowQRScanner() {
       performAction:grey_tap()];
 }
 
-// Taps the `button`.
+// Taps the |button|.
 void TapButton(id<GREYMatcher> button) {
   [[EarlGrey selectElementWithMatcher:button] performAction:grey_tap()];
 }
 
-// Appends the given `editText` to the `text` already in the omnibox and presses
+// Appends the given |editText| to the |text| already in the omnibox and presses
 // the keyboard return key.
 void EditOmniboxTextAndTapKeyboardReturn(std::string text, NSString* editText) {
   [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(text)]
@@ -169,29 +168,27 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
       std::make_unique<net::test_server::BasicHttpResponse>();
   http_response->set_code(net::HTTP_OK);
 
-  std::string body_content;
+  char* body_content = nullptr;
   if (base::StartsWith(request.relative_url, kTestURL,
                        base::CompareCase::SENSITIVE)) {
     body_content = kTestURLResponse;
+  } else if (base::StartsWith(request.relative_url, kTestQueryURL,
+                              base::CompareCase::SENSITIVE)) {
+    body_content = kTestQueryResponse;
   } else if (base::StartsWith(request.relative_url, kTestURLEdited,
                               base::CompareCase::SENSITIVE)) {
     body_content = kTestURLEditedResponse;
-  } else if (base::StartsWith(request.relative_url, kTestQueryURL,
+  } else if (base::StartsWith(request.relative_url, kTestQueryEditedURL,
                               base::CompareCase::SENSITIVE)) {
-    GURL url = request.GetURL();
-    std::string query;
-    bool found = net::GetValueForKeyInQuery(url, "q", &query);
-    if (found) {
-      body_content = "Query: " + query;
-    } else {
-      body_content = "No query";
-    }
+    body_content = kTestQueryEditedResponse;
   } else {
     return nullptr;
   }
 
-  http_response->set_content(
-      base::StringPrintf("<html><body>%s</body></html>", body_content.c_str()));
+  if (body_content) {
+    http_response->set_content(
+        base::StringPrintf("<html><body>%s</body></html>", body_content));
+  }
 
   return std::move(http_response);
 }
@@ -204,6 +201,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
   GURL _testURL;
   GURL _testURLEdited;
   GURL _testQuery;
+  GURL _testQueryEdited;
 }
 
 @end
@@ -211,6 +209,10 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 @implementation QRScannerViewControllerTestCase {
   // A swizzler for the CameraController method cameraControllerWithDelegate:.
   std::unique_ptr<EarlGreyScopedBlockSwizzler> _camera_controller_swizzler;
+  // A swizzler for the LocationBarCoordinator method
+  // loadGURLFromLocationBar:transition:.
+  std::unique_ptr<EarlGreyScopedBlockSwizzler>
+      _load_GURL_from_location_bar_swizzler;
 }
 
 - (void)setUp {
@@ -223,15 +225,12 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
   _testURL = self.testServer->GetURL(kTestURL);
   _testURLEdited = self.testServer->GetURL(kTestURLEdited);
   _testQuery = self.testServer->GetURL(kTestQueryURL);
-
-  NSString* templateURL =
-      base::SysUTF8ToNSString(_testQuery.spec() + kTestQueryURLParams);
-  [QRScannerAppInterface overrideSearchEngine:templateURL];
+  _testQueryEdited = self.testServer->GetURL(kTestQueryEditedURL);
 }
 
 - (void)tearDown {
   [super tearDown];
-  [QRScannerAppInterface resetSearchEngine];
+  _load_GURL_from_location_bar_swizzler.reset();
   _camera_controller_swizzler.reset();
 }
 
@@ -262,8 +261,8 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 // Checks that the torch off button is visible and disabled.
 - (void)assertTorchButtonIsDisabled {
   [[EarlGrey selectElementWithMatcher:QrScannerTorchOffButton()]
-      assertWithMatcher:grey_allOf(grey_not(grey_enabled()),
-                                   grey_sufficientlyVisible(), nil)];
+      assertWithMatcher:grey_allOf(grey_sufficientlyVisible(),
+                                   grey_not(grey_enabled()), nil)];
 }
 
 // Checks that the camera viewport caption is visible.
@@ -273,8 +272,8 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 }
 
 // Checks that the close button, the camera preview, and the camera viewport
-// caption are visible. If `torch` is YES, checks that the torch off button is
-// visible, otherwise checks that the torch button is disabled. If `preview` is
+// caption are visible. If |torch| is YES, checks that the torch off button is
+// visible, otherwise checks that the torch button is disabled. If |preview| is
 // YES, checks that the preview is visible and of the same size as the QR
 // Scanner view, otherwise checks that the preview is in the view hierarchy but
 // is hidden.
@@ -323,7 +322,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
        toDisappearFromAbove:QRScannerAppInterface.currentBrowserViewController];
 }
 
-// Checks that the omnibox is visible and contains `text`.
+// Checks that the omnibox is visible and contains |text|.
 - (void)assertOmniboxIsVisibleWithText:(std::string)text {
   [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(text)]
       assertWithMatcher:grey_notNil()];
@@ -332,7 +331,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 #pragma mark helpers for dialogs
 
 // Checks that the QRScannerViewController is presenting a UIAlertController and
-// that the title of this alert corresponds to `state`.
+// that the title of this alert corresponds to |state|.
 - (void)assertQRScannerIsPresentingADialogForState:(CameraState)state {
   NSError* error = [QRScannerAppInterface
       assertModalOfClass:@"UIAlertController"
@@ -344,7 +343,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
       assertWithMatcher:grey_notNil()];
 }
 
-// Checks that there is no visible alert with title corresponding to `state`.
+// Checks that there is no visible alert with title corresponding to |state|.
 - (void)assertQRScannerIsNotPresentingADialogForState:(CameraState)state {
   [[EarlGrey selectElementWithMatcher:grey_text([QRScannerAppInterface
                                           dialogTitleForState:state])]
@@ -355,7 +354,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 #pragma mark Helpers for mocks
 
 // Swizzles the QRScannerViewController property cameraController: to return
-// `cameraControllerMock` instead of a new instance of CameraController.
+// |cameraControllerMock| instead of a new instance of CameraController.
 - (void)swizzleCameraController:(id)cameraControllerMock {
   id swizzleCameraControllerBlock = [QRScannerAppInterface
       cameraControllerSwizzleBlockWithMock:cameraControllerMock];
@@ -365,7 +364,23 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
       swizzleCameraControllerBlock);
 }
 
-// Checks that the modal presented by `viewController` is of class `klass` and
+// Swizzles the LocationBarCoordinator loadGURLFromLocationBarBlock:transition:
+// method to load |searchURL| instead of the generated search URL.
+- (void)swizzleLocationBarCoordinatorLoadGURLFromLocationBar:
+    (const GURL&)replacementURL {
+  NSURL* replacementNSURL = net::NSURLWithGURL(replacementURL);
+
+  id loadGURLFromLocationBarBlock = [QRScannerAppInterface
+      locationBarCoordinatorLoadGURLFromLocationBarSwizzleBlockForSearchURL:
+          replacementNSURL];
+  _load_GURL_from_location_bar_swizzler =
+      std::make_unique<EarlGreyScopedBlockSwizzler>(
+          @"LocationBarCoordinator",
+          @"loadGURLFromLocationBar:postContent:transition:disposition:",
+          loadGURLFromLocationBarBlock);
+}
+
+// Checks that the modal presented by |viewController| is of class |klass| and
 // waits for the modal's view to load.
 - (void)waitForModalOfClass:(NSString*)klassString
               toAppearAbove:(UIViewController*)viewController {
@@ -387,8 +402,8 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
   GREYAssertTrue(modalViewLoaded, errorString);
 }
 
-// Checks that the `viewController` is not presenting a modal, or that the modal
-// presented by `viewController` is not of class `klass`. If a modal was
+// Checks that the |viewController| is not presenting a modal, or that the modal
+// presented by |viewController| is not of class |klass|. If a modal was
 // previously presented, waits until it is dismissed.
 - (void)waitForModalOfClass:(NSString*)klassString
        toDisappearFromAbove:(UIViewController*)viewController {
@@ -413,13 +428,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 
 // Tests that the close button, camera preview, viewport caption, and the torch
 // button are visible if the camera is available. The preview is delayed.
-// TODO(crbug.com/1320518): Flaky on iOS device.
-#if TARGET_IPHONE_SIMULATOR
-#define MAYBE_testQRScannerUIIsShown testQRScannerUIIsShown
-#else
-#define MAYBE_testQRScannerUIIsShown DISABLED_testQRScannerUIIsShown
-#endif
-- (void)MAYBE_testQRScannerUIIsShown {
+- (void)testQRScannerUIIsShown {
   id cameraControllerMock =
       [QRScannerAppInterface cameraControllerMockWithAuthorizationStatus:
                                  AVAuthorizationStatusAuthorized];
@@ -514,15 +523,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 
 // Tests that the torch button is disabled when the camera reports that torch
 // became unavailable.
-// TODO(crbug.com/1320518): Flaky on iOS device.
-#if TARGET_IPHONE_SIMULATOR
-#define MAYBE_testTorchButtonIsDisabledWhenTorchBecomesUnavailable \
-  testTorchButtonIsDisabledWhenTorchBecomesUnavailable
-#else
-#define MAYBE_testTorchButtonIsDisabledWhenTorchBecomesUnavailable \
-  DISABLED_testTorchButtonIsDisabledWhenTorchBecomesUnavailable
-#endif
-- (void)MAYBE_testTorchButtonIsDisabledWhenTorchBecomesUnavailable {
+- (void)testTorchButtonIsDisabledWhenTorchBecomesUnavailable {
   id cameraControllerMock =
       [QRScannerAppInterface cameraControllerMockWithAuthorizationStatus:
                                  AVAuthorizationStatusAuthorized];
@@ -548,13 +549,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 
 // Tests that a UIAlertController is presented instead of the
 // QRScannerViewController if the camera is unavailable.
-// TODO(crbug.com/1320518): Flaky on iOS device.
-#if TARGET_IPHONE_SIMULATOR
-#define MAYBE_testCameraUnavailableDialog testCameraUnavailableDialog
-#else
-#define MAYBE_testCameraUnavailableDialog DISABLED_testCameraUnavailableDialog
-#endif
-- (void)MAYBE_testCameraUnavailableDialog {
+- (void)testCameraUnavailableDialog {
   UIViewController* bvc = QRScannerAppInterface.currentBrowserViewController;
   NSError* error =
       [QRScannerAppInterface assertModalOfClass:@"QRScannerViewController"
@@ -581,15 +576,8 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 
 // Tests that a UIAlertController is presented by the QRScannerViewController if
 // the camera state changes after the QRScannerViewController is presented.
-// TODO(crbug.com/1320518): Flaky on iOS device.
-#if TARGET_IPHONE_SIMULATOR
-#define MAYBE_testDialogIsDisplayedIfCameraStateChanges \
-  testDialogIsDisplayedIfCameraStateChanges
-#else
-#define MAYBE_testDialogIsDisplayedIfCameraStateChanges \
-  DISABLED_testDialogIsDisplayedIfCameraStateChanges
-#endif
-- (void)MAYBE_testDialogIsDisplayedIfCameraStateChanges {
+// TODO(crbug.com/1019211): Re-enable test on iOS12.
+- (void)testDialogIsDisplayedIfCameraStateChanges {
   id cameraControllerMock =
       [QRScannerAppInterface cameraControllerMockWithAuthorizationStatus:
                                  AVAuthorizationStatusAuthorized];
@@ -623,14 +611,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 
 // Tests that a new dialog replaces an old dialog if the camera state changes.
 // TODO(crbug.com/1019211): Re-enable test on iOS12.
-#if TARGET_IPHONE_SIMULATOR
-#define MAYBE_testDialogIsReplacedIfCameraStateChanges \
-  testDialogIsReplacedIfCameraStateChanges
-#else
-#define MAYBE_testDialogIsReplacedIfCameraStateChanges \
-  DISABLED_testDialogIsReplacedIfCameraStateChanges
-#endif
-- (void)MAYBE_testDialogIsReplacedIfCameraStateChanges {
+- (void)testDialogIsReplacedIfCameraStateChanges {
   id cameraControllerMock =
       [QRScannerAppInterface cameraControllerMockWithAuthorizationStatus:
                                  AVAuthorizationStatusAuthorized];
@@ -669,15 +650,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 }
 
 // Tests that an error dialog is dismissed if the camera becomes available.
-// TODO(crbug.com/1320518): Flaky on iOS device.
-#if TARGET_IPHONE_SIMULATOR
-#define MAYBE_testDialogDismissedIfCameraBecomesAvailable \
-  testDialogDismissedIfCameraBecomesAvailable
-#else
-#define MAYBE_testDialogDismissedIfCameraBecomesAvailable \
-  DISABLED_testDialogDismissedIfCameraBecomesAvailable
-#endif
-- (void)MAYBE_testDialogDismissedIfCameraBecomesAvailable {
+- (void)testDialogDismissedIfCameraBecomesAvailable {
   id cameraControllerMock =
       [QRScannerAppInterface cameraControllerMockWithAuthorizationStatus:
                                  AVAuthorizationStatusAuthorized];
@@ -706,12 +679,11 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 
 // A helper function for testing that the view controller correctly passes the
 // received results to its delegate and that pages can be loaded. The result
-// received from the camera controller is in `result`, `response` is the
-// expected response on the loaded page, and `editString` is a nullable string
+// received from the camera controller is in |result|, |response| is the
+// expected response on the loaded page, and |editString| is a nullable string
 // which can be appended to the response in the omnibox before the page is
 // loaded.
 - (void)doTestReceivingResult:(std::string)result
-              sanitizedResult:(std::string)sanitizedResult
                      response:(std::string)response
                          edit:(NSString*)editString {
   id cameraControllerMock =
@@ -735,11 +707,11 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
   [cameraControllerMock verify];
 
   // Optionally edit the text in the omnibox before pressing return.
-  [self assertOmniboxIsVisibleWithText:sanitizedResult];
+  [self assertOmniboxIsVisibleWithText:result];
   if (editString != nil) {
-    EditOmniboxTextAndTapKeyboardReturn(sanitizedResult, editString);
+    EditOmniboxTextAndTapKeyboardReturn(result, editString);
   } else {
-    TapKeyboardReturnKeyInOmniboxWithText(sanitizedResult);
+    TapKeyboardReturnKeyInOmniboxWithText(result);
   }
   [ChromeEarlGrey waitForWebStateContainingText:response];
 
@@ -752,26 +724,9 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
   GREYAssertNil(error, error.localizedDescription);
 }
 
-- (void)doTestReceivingResult:(std::string)result
-                     response:(std::string)response
-                         edit:(NSString*)editString {
-  [self doTestReceivingResult:result
-              sanitizedResult:result
-                     response:response
-                         edit:editString];
-}
-
 // Test that the correct page is loaded if the scanner result is a URL which is
 // then manually edited when VoiceOver is enabled.
-// TODO(crbug.com/1320518): Flaky on iOS device.
-#if TARGET_IPHONE_SIMULATOR
-#define MAYBE_testReceivingQRScannerURLResultWithVoiceOver \
-  testReceivingQRScannerURLResultWithVoiceOver
-#else
-#define MAYBE_testReceivingQRScannerURLResultWithVoiceOver \
-  DISABLED_testReceivingQRScannerURLResultWithVoiceOver
-#endif
-- (void)MAYBE_testReceivingQRScannerURLResultWithVoiceOver {
+- (void)testReceivingQRScannerURLResultWithVoiceOver {
   id cameraControllerMock =
       [QRScannerAppInterface cameraControllerMockWithAuthorizationStatus:
                                  AVAuthorizationStatusAuthorized];
@@ -807,96 +762,45 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 }
 
 // Test that the correct page is loaded if the scanner result is a URL.
-// TODO(crbug.com/1320518): Flaky on iOS device.
-#if TARGET_IPHONE_SIMULATOR
-#define MAYBE_testReceivingQRScannerURLResult testReceivingQRScannerURLResult
-#else
-#define MAYBE_testReceivingQRScannerURLResult \
-  DISABLED_testReceivingQRScannerURLResult
-#endif
-- (void)MAYBE_testReceivingQRScannerURLResult {
+- (void)testReceivingQRScannerURLResult {
   [self doTestReceivingResult:_testURL.GetContent()
-                     response:kTestURLResponse
-                         edit:nil];
-}
-
-// Test that the URL is sanitized and the correct page is loaded if the scanner
-// result is a URL with forbidden characters.
-// TODO(crbug.com/1320518): Flaky on iOS device.
-#if TARGET_IPHONE_SIMULATOR
-#define MAYBE_testForbiddenCharactersRemoved testForbiddenCharactersRemoved
-#else
-#define MAYBE_testForbiddenCharactersRemoved \
-  DISABLED_testForbiddenCharactersRemoved
-#endif
-- (void)MAYBE_testForbiddenCharactersRemoved {
-  [self doTestReceivingResult:self.testServer->base_url().GetContent() +
-                              kTestURLForbiddenCharacters
-              sanitizedResult:_testURL.GetContent()
                      response:kTestURLResponse
                          edit:nil];
 }
 
 // Test that the correct page is loaded if the scanner result is a URL which is
 // then manually edited.
-// TODO(crbug.com/1320518): Flaky on iOS device.
-#if TARGET_IPHONE_SIMULATOR
-#define MAYBE_testReceivingQRScannerURLResultAndEditingTheURL \
-  testReceivingQRScannerURLResultAndEditingTheURL
-#else
-#define MAYBE_testReceivingQRScannerURLResultAndEditingTheURL \
-  DISABLED_testReceivingQRScannerURLResultAndEditingTheURL
-#endif
-- (void)MAYBE_testReceivingQRScannerURLResultAndEditingTheURL {
+- (void)testReceivingQRScannerURLResultAndEditingTheURL {
+  // TODO(crbug.com/753098): Re-enable this test on iPad once grey_typeText
+  // works.
+  if ([ChromeEarlGrey isIPadIdiom]) {
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iPad.");
+  }
+
   [self doTestReceivingResult:_testURL.GetContent()
                      response:kTestURLEditedResponse
                          edit:@"\bedited/"];
 }
 
 // Test that the correct page is loaded if the scanner result is a search query.
-// TODO(crbug.com/1320518): Flaky on iOS device.
-#if TARGET_IPHONE_SIMULATOR
-#define MAYBE_testReceivingQRScannerSearchQueryResult \
-  testReceivingQRScannerSearchQueryResult
-#else
-#define MAYBE_testReceivingQRScannerSearchQueryResult \
-  DISABLED_testReceivingQRScannerSearchQueryResult
-#endif
-- (void)MAYBE_testReceivingQRScannerSearchQueryResult {
+- (void)testReceivingQRScannerSearchQueryResult {
+  [self swizzleLocationBarCoordinatorLoadGURLFromLocationBar:_testQuery];
   [self doTestReceivingResult:kTestQuery response:kTestQueryResponse edit:nil];
 }
 
 // Test that the correct page is loaded if the scanner result is a search query
 // which is then manually edited.
-// TODO(crbug.com/1320518): Flaky on iOS device.
-#if TARGET_IPHONE_SIMULATOR
-#define MAYBE_testReceivingQRScannerSearchQueryResultAndEditingTheQuery \
-  testReceivingQRScannerSearchQueryResultAndEditingTheQuery
-#else
-#define MAYBE_testReceivingQRScannerSearchQueryResultAndEditingTheQuery \
-  DISABLED_testReceivingQRScannerSearchQueryResultAndEditingTheQuery
-#endif
-- (void)MAYBE_testReceivingQRScannerSearchQueryResultAndEditingTheQuery {
+- (void)testReceivingQRScannerSearchQueryResultAndEditingTheQuery {
+  // TODO(crbug.com/753098): Re-enable this test on iPad once grey_typeText
+  // works.
+  if ([ChromeEarlGrey isIPadIdiom]) {
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iPad.");
+  }
+
+  [self swizzleLocationBarCoordinatorLoadGURLFromLocationBar:_testQueryEdited];
   [self doTestReceivingResult:kTestQuery
                      response:kTestQueryEditedResponse
                          edit:@"\bedited"];
-}
-
-// Test that the correct page is loaded if the scanner result is a not supported
-// URL.
-// TODO(crbug.com/1320518): Flaky on iOS device.
-#if TARGET_IPHONE_SIMULATOR
-#define MAYBE_testReceivingQRScannerLoadDataResult \
-  testReceivingQRScannerLoadDataResult
-#else
-#define MAYBE_testReceivingQRScannerLoadDataResult \
-  DISABLED_testReceivingQRScannerLoadDataResult
-#endif
-- (void)MAYBE_testReceivingQRScannerLoadDataResult {
-  [self doTestReceivingResult:kTestDataURL
-              sanitizedResult:kTestSanitizedDataURL
-                     response:kTestDataURLResponse
-                         edit:nil];
 }
 
 @end

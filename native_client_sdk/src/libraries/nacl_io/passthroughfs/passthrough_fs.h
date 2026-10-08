@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,6 @@
 namespace nacl_io {
 
 class PassthroughFs : public Filesystem {
- public:
-  PassthroughFs(const PassthroughFs&) = delete;
-  PassthroughFs& operator=(const PassthroughFs&) = delete;
-
  protected:
   PassthroughFs();
 
@@ -33,6 +29,7 @@ class PassthroughFs : public Filesystem {
 
  private:
   friend class TypedFsFactory<PassthroughFs>;
+  DISALLOW_COPY_AND_ASSIGN(PassthroughFs);
 };
 
 }  // namespace nacl_io

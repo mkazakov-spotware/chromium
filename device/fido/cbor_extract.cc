@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,17 +46,32 @@ class Extractor {
 
   bool ValuesFromMap(const cbor::Value::MapValue& map) {
     for (;;) {
-      const internal::Step step = steps_[step_i_++].step;
+      // steps_[] emits a CHECK, and we don't want the code-size hit. Thus
+      // bounds are DCHECKed but then steps_.data() is dereferenced.
+      DCHECK_LT(step_i_, steps_.size());
+      const internal::Step step = steps_.data()[step_i_++].step;
       const Type value_type = static_cast<Type>(step.value_type);
       if (value_type == Type::kStop) {
         return true;
       }
 
-      const cbor::Value::MapValue::const_iterator map_it = map.find(NextKey());
+      DCHECK_LT(step_i_, steps_.size());
+      const uint8_t key_or_string_indicator = steps_.data()[step_i_++].u8;
+      cbor::Value::MapValue::const_iterator map_it;
+      if (key_or_string_indicator == StepOrByte<void>::STRING_KEY) {
+        DCHECK_LT(step_i_, steps_.size());
+        std::string key(&steps_.data()[step_i_].c);
+        step_i_ += key.size() + 1;
+        map_it = map.find(cbor::Value(std::move(key)));
+      } else {
+        map_it = map.find(cbor::Value(static_cast<int64_t>(
+            static_cast<int8_t>(key_or_string_indicator))));
+      }
+
       const void** output = nullptr;
       if (value_type != Type::kMap) {
         DCHECK_LT(step.output_index, outputs_.size());
-        output = &outputs_[step.output_index];
+        output = &outputs_.data()[step.output_index];
       }
 
       if (map_it == map.end()) {
@@ -65,11 +80,6 @@ class Extractor {
         }
         if (output) {
           *output = nullptr;
-        }
-        if (value_type == Type::kMap) {
-          // When skipping an optional map, all the |StepOrByte| for the
-          // elements of the map need to be skipped over.
-          SeekPastNextStop();
         }
         continue;
       }
@@ -97,7 +107,7 @@ class Extractor {
       const cbor::Value& value = map_it->second;
       const unsigned cbor_type_u = static_cast<unsigned>(value.type());
       const unsigned value_type_u = static_cast<unsigned>(value_type);
-      DCHECK(value_type_u < std::size(kExpectedCBORTypes));
+      DCHECK(value_type_u < base::size(kExpectedCBORTypes));
       if (cbor_type_u >= 8 ||
           (kExpectedCBORTypes[value_type_u] & (1u << cbor_type_u)) == 0) {
         return false;
@@ -144,44 +154,11 @@ class Extractor {
           return false;
       }
     }
+
+    return true;
   }
 
  private:
-  // SeekPastNextStop increments |step_i_| until just after the next |Stop|
-  // element, taking into account nested maps.
-  void SeekPastNextStop() {
-    for (;;) {
-      const internal::Step step = steps_[step_i_++].step;
-      const Type value_type = static_cast<Type>(step.value_type);
-      if (value_type == Type::kStop) {
-        break;
-      }
-
-      NextKey();
-
-      if (value_type == Type::kMap) {
-        SeekPastNextStop();
-      } else {
-        outputs_[step.output_index] = nullptr;
-      }
-    }
-  }
-
-  cbor::Value NextKey() {
-    DCHECK_LT(step_i_, steps_.size());
-    const uint8_t key_or_string_indicator = steps_[step_i_++].u8;
-    if (key_or_string_indicator != StepOrByte<void>::STRING_KEY) {
-      return cbor::Value(
-          static_cast<int64_t>(static_cast<int8_t>(key_or_string_indicator)));
-    }
-
-    DCHECK_LT(step_i_, steps_.size());
-    std::string key(&steps_[step_i_].c);
-    step_i_ += key.size() + 1;
-    DCHECK_LE(step_i_, steps_.size());
-    return cbor::Value(std::move(key));
-  }
-
   base::span<const void*> outputs_;
   base::span<const StepOrByte<void>> steps_;
   size_t step_i_ = 0;

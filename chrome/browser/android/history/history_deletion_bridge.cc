@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,23 +32,26 @@ history::DeletionInfo HistoryDeletionBridge::SanitizeDeletionInfo(
     if (!row.url().is_empty() && row.url().is_valid())
       sanitized_rows.push_back(row);
   }
-  return history::DeletionInfo(
-      deletion_info.time_range(), deletion_info.is_from_expiration(),
-      /*deleted_rows=*/sanitized_rows, deletion_info.favicon_urls(),
-      deletion_info.restrict_urls());
+  return history::DeletionInfo::ForUrls(sanitized_rows, {});
 }
 
 HistoryDeletionBridge::HistoryDeletionBridge(const JavaRef<jobject>& jobj)
-    : jobj_(ScopedJavaGlobalRef<jobject>(jobj)) {
-  Profile* profile = ProfileManager::GetLastUsedProfile()->GetOriginalProfile();
+    : jobj_(ScopedJavaGlobalRef<jobject>(jobj)),
+      profile_(ProfileManager::GetLastUsedProfile()->GetOriginalProfile()) {
   history::HistoryService* history_service =
-      HistoryServiceFactory::GetForProfile(profile,
+      HistoryServiceFactory::GetForProfile(profile_,
                                            ServiceAccessType::IMPLICIT_ACCESS);
   if (history_service)
-    scoped_history_service_observer_.Observe(history_service);
+    history_service->AddObserver(this);
 }
 
-HistoryDeletionBridge::~HistoryDeletionBridge() = default;
+HistoryDeletionBridge::~HistoryDeletionBridge() {
+  history::HistoryService* history_service =
+      HistoryServiceFactory::GetForProfile(profile_,
+                                           ServiceAccessType::IMPLICIT_ACCESS);
+  if (history_service)
+    history_service->RemoveObserver(this);
+}
 
 void HistoryDeletionBridge::OnURLsDeleted(
     history::HistoryService* history_service,
@@ -58,9 +61,4 @@ void HistoryDeletionBridge::OnURLsDeleted(
   history::DeletionInfo sanitized_info = SanitizeDeletionInfo(deletion_info);
   Java_HistoryDeletionBridge_onURLsDeleted(
       env, jobj_, CreateHistoryDeletionInfo(env, &sanitized_info));
-}
-
-void HistoryDeletionBridge::HistoryServiceBeingDeleted(
-    history::HistoryService* history_service) {
-  scoped_history_service_observer_.Reset();
 }

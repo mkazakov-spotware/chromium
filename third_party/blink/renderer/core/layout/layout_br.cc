@@ -62,12 +62,7 @@ int LayoutBR::CaretMaxOffset() const {
 
 PositionWithAffinity LayoutBR::PositionForPoint(const PhysicalOffset&) const {
   NOT_DESTROYED();
-  // NG codepath requires |kPrePaintClean|.
-  // |SelectionModifier| calls this only in legacy codepath.
-  DCHECK(!IsInLayoutNGInlineFormattingContext() ||
-         GetDocument().Lifecycle().GetState() >=
-             DocumentLifecycle::kPrePaintClean);
-  return PositionBeforeThis();
+  return CreatePositionWithAffinity(0);
 }
 
 Position LayoutBR::PositionForCaretOffset(unsigned offset) const {
@@ -78,11 +73,11 @@ Position LayoutBR::PositionForCaretOffset(unsigned offset) const {
                 : Position::BeforeNode(*GetNode());
 }
 
-absl::optional<unsigned> LayoutBR::CaretOffsetForPosition(
+base::Optional<unsigned> LayoutBR::CaretOffsetForPosition(
     const Position& position) const {
   NOT_DESTROYED();
   if (position.IsNull() || position.AnchorNode() != GetNode())
-    return absl::nullopt;
+    return base::nullopt;
   DCHECK(position.IsBeforeAnchor() || position.IsAfterAnchor()) << position;
   return position.IsBeforeAnchor() ? 0 : 1;
 }

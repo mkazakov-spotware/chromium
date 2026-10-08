@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #ifndef COMPONENTS_SYNC_PROTOCOL_SYNC_PROTOCOL_ERROR_H_
@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 
+#include "base/values.h"
 #include "components/sync/base/model_type.h"
 
 namespace syncer {
@@ -61,7 +62,7 @@ enum ClientAction {
   // settings page that account is disabled.
   STOP_SYNC_FOR_DISABLED_ACCOUNT,
 
-  // Generated in response to CLIENT_DATA_OBSOLETE error. SyncServiceImpl
+  // Generated in response to CLIENT_DATA_OBSOLETE error. ProfileSyncService
   // should stop sync engine, delete the data and restart sync engine.
   RESET_LOCAL_SYNC_DATA,
 
@@ -77,6 +78,7 @@ struct SyncProtocolError {
   SyncProtocolError();
   SyncProtocolError(const SyncProtocolError& other);
   ~SyncProtocolError();
+  std::unique_ptr<base::DictionaryValue> ToValue() const;
 };
 
 const char* GetSyncErrorTypeString(SyncProtocolErrorType type);

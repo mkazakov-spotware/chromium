@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,7 +37,7 @@ class ZxcvbnDataComponentInstallerPolicy : public ComponentInstallerPolicy {
       FILE_PATH_LITERAL("us_tv_and_film.txt");
 
   // ComponentInstallerPolicy overrides:
-  bool VerifyInstallation(const base::Value& manifest,
+  bool VerifyInstallation(const base::DictionaryValue& manifest,
                           const base::FilePath& install_dir) const override;
 
   bool SupportsGroupPolicyEnabledComponentUpdates() const override;
@@ -45,14 +45,14 @@ class ZxcvbnDataComponentInstallerPolicy : public ComponentInstallerPolicy {
   bool RequiresNetworkEncryption() const override;
 
   update_client::CrxInstaller::Result OnCustomInstall(
-      const base::Value& manifest,
+      const base::DictionaryValue& manifest,
       const base::FilePath& install_dir) override;
 
   void OnCustomUninstall() override;
 
   void ComponentReady(const base::Version& version,
                       const base::FilePath& install_dir,
-                      base::Value manifest) override;
+                      std::unique_ptr<base::DictionaryValue> manifest) override;
 
   base::FilePath GetRelativeInstallDir() const override;
 
@@ -60,6 +60,7 @@ class ZxcvbnDataComponentInstallerPolicy : public ComponentInstallerPolicy {
 
   std::string GetName() const override;
 
+  std::vector<std::string> GetMimeTypes() const override;
 
   update_client::InstallerAttributes GetInstallerAttributes() const override;
 };

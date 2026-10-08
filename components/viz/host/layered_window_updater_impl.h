@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/unsafe_shared_memory_region.h"
 #include "components/viz/host/viz_host_export.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -29,10 +30,6 @@ class VIZ_HOST_EXPORT LayeredWindowUpdaterImpl
   LayeredWindowUpdaterImpl(
       HWND hwnd,
       mojo::PendingReceiver<mojom::LayeredWindowUpdater> receiver);
-
-  LayeredWindowUpdaterImpl(const LayeredWindowUpdaterImpl&) = delete;
-  LayeredWindowUpdaterImpl& operator=(const LayeredWindowUpdaterImpl&) = delete;
-
   ~LayeredWindowUpdaterImpl() override;
 
   // mojom::LayeredWindowUpdater implementation.
@@ -44,6 +41,8 @@ class VIZ_HOST_EXPORT LayeredWindowUpdaterImpl
   const HWND hwnd_;
   mojo::Receiver<mojom::LayeredWindowUpdater> receiver_;
   std::unique_ptr<SkCanvas> canvas_;
+
+  DISALLOW_COPY_AND_ASSIGN(LayeredWindowUpdaterImpl);
 };
 
 }  // namespace viz

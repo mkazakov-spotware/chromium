@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 #define REMOTING_BASE_TASK_UTIL_H_
 
 #include "base/bind.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/threading/sequence_bound.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 
 namespace remoting {
 
@@ -29,8 +29,7 @@ base::OnceCallback<void(Args...)> WrapCallbackToCurrentSequence(
         }
         task_runner->PostTask(from_here, std::move(closure));
       },
-      base::SequencedTaskRunner::GetCurrentDefault(), from_here,
-      std::move(callback));
+      base::SequencedTaskRunnerHandle::Get(), from_here, std::move(callback));
 }
 
 // Similar to base::SequenceBound::Post, but executes the callback (which should
@@ -38,8 +37,7 @@ base::OnceCallback<void(Args...)> WrapCallbackToCurrentSequence(
 // Say if you want to call this method and make |callback| run on the current
 // sequence:
 //
-//   client_.AsyncCall(&DirectoryClient::DeleteHost).WithArgs(host_id,
-//   callback);
+//   client_.Post(FROM_HERE, &DirectoryClient::DeleteHost, host_id, callback);
 //
 // You can just do:
 //
@@ -61,9 +59,8 @@ void PostWithCallback(const base::Location& from_here,
                       void (SequenceBoundType::*method)(MethodArgs...),
                       base::OnceCallback<void(CallbackArgs...)> callback,
                       Args&&... args) {
-  client->AsyncCall(method, from_here)
-      .WithArgs(std::forward<Args>(args)...,
-                WrapCallbackToCurrentSequence(from_here, std::move(callback)));
+  client->Post(from_here, method, std::forward<Args>(args)...,
+               WrapCallbackToCurrentSequence(from_here, std::move(callback)));
 }
 
 }  // namespace remoting

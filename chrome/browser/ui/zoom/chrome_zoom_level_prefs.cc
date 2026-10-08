@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "base/bind.h"
 #include "base/feature_list.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/time/time.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/common/chrome_constants.h"
@@ -39,17 +38,14 @@ std::string GetPartitionKey(const base::FilePath& relative_path) {
              path.size() * sizeof(base::FilePath::StringType::value_type));
 }
 
-const char kZoomLevelKey[] = "zoom_level";
+const char kZoomLevelPath[] = "zoom_level";
 const char kLastModifiedPath[] = "last_modified";
 
 // Extract a timestamp from |dictionary[kLastModifiedPath]|.
 // Will return base::Time() if no timestamp exists.
-base::Time GetTimeStamp(const base::Value::Dict& dictionary) {
+base::Time GetTimeStamp(const base::DictionaryValue* dictionary) {
   std::string timestamp_str;
-  const std::string* timestamp_str_ptr =
-      dictionary.FindString(kLastModifiedPath);
-  if (timestamp_str_ptr)
-    timestamp_str = *timestamp_str_ptr;
+  dictionary->GetStringWithoutPathExpansion(kLastModifiedPath, &timestamp_str);
   int64_t timestamp = 0;
   base::StringToInt64(timestamp_str, &timestamp);
   base::Time last_modified = base::Time::FromInternalValue(timestamp);
@@ -87,8 +83,8 @@ void ChromeZoomLevelPrefs::SetDefaultZoomLevelPref(double level) {
   if (blink::PageZoomValuesEqual(level, host_zoom_map_->GetDefaultZoomLevel()))
     return;
 
-  ScopedDictPrefUpdate update(pref_service_, prefs::kPartitionDefaultZoomLevel);
-  update->Set(partition_key_, level);
+  DictionaryPrefUpdate update(pref_service_, prefs::kPartitionDefaultZoomLevel);
+  update->SetDouble(partition_key_, level);
   // For unregistered paths, OnDefaultZoomLevelChanged won't be called, so
   // set this manually.
   host_zoom_map_->SetDefaultZoomLevel(level);
@@ -98,15 +94,20 @@ void ChromeZoomLevelPrefs::SetDefaultZoomLevelPref(double level) {
 }
 
 double ChromeZoomLevelPrefs::GetDefaultZoomLevelPref() const {
-  const base::Value::Dict& default_zoom_level_dictionary =
-      pref_service_->GetDict(prefs::kPartitionDefaultZoomLevel);
-  return default_zoom_level_dictionary.FindDouble(partition_key_).value_or(0.0);
+  double default_zoom_level = 0.0;
+
+  const base::DictionaryValue* default_zoom_level_dictionary =
+      pref_service_->GetDictionary(prefs::kPartitionDefaultZoomLevel);
+  // If no default has been previously set, the default returned is the
+  // value used to initialize default_zoom_level in this function.
+  default_zoom_level_dictionary->GetDouble(partition_key_, &default_zoom_level);
+  return default_zoom_level;
 }
 
-base::CallbackListSubscription
+std::unique_ptr<ChromeZoomLevelPrefs::DefaultZoomLevelSubscription>
 ChromeZoomLevelPrefs::RegisterDefaultZoomLevelCallback(
-    base::RepeatingClosure callback) {
-  return default_zoom_changed_callbacks_.Add(std::move(callback));
+    const base::Closure& callback) {
+  return default_zoom_changed_callbacks_.Add(callback);
 }
 
 void ChromeZoomLevelPrefs::OnZoomLevelChanged(
@@ -120,53 +121,59 @@ void ChromeZoomLevelPrefs::OnZoomLevelChanged(
   if (change.mode != content::HostZoomMap::ZOOM_CHANGED_FOR_HOST)
     return;
   double level = change.zoom_level;
-  ScopedDictPrefUpdate update(pref_service_,
+  DictionaryPrefUpdate update(pref_service_,
                               prefs::kPartitionPerHostZoomLevels);
-  base::Value::Dict& host_zoom_dictionaries = update.Get();
+  base::DictionaryValue* host_zoom_dictionaries = update.Get();
+  DCHECK(host_zoom_dictionaries);
 
   bool modification_is_removal =
       blink::PageZoomValuesEqual(level, host_zoom_map_->GetDefaultZoomLevel());
 
-  base::Value::Dict* host_zoom_dictionary_weak =
-      host_zoom_dictionaries.FindDict(partition_key_);
-  if (!host_zoom_dictionary_weak) {
-    base::Value::Dict dict;
-    host_zoom_dictionaries.Set(partition_key_, std::move(dict));
-    host_zoom_dictionary_weak = host_zoom_dictionaries.FindDict(partition_key_);
+  base::DictionaryValue* host_zoom_dictionary_weak = nullptr;
+  if (!host_zoom_dictionaries->GetDictionary(partition_key_,
+                                             &host_zoom_dictionary_weak)) {
+    auto host_zoom_dictionary = std::make_unique<base::DictionaryValue>();
+    host_zoom_dictionary_weak = host_zoom_dictionary.get();
+    host_zoom_dictionaries->Set(partition_key_,
+                                std::move(host_zoom_dictionary));
   }
 
   if (modification_is_removal) {
-    host_zoom_dictionary_weak->Remove(change.host);
+    host_zoom_dictionary_weak->RemoveKey(change.host);
   } else {
-    base::Value::Dict dict;
-    dict.Set(kZoomLevelKey, level);
-    dict.Set(kLastModifiedPath,
-             base::NumberToString(change.last_modified.ToInternalValue()));
-    host_zoom_dictionary_weak->Set(change.host, std::move(dict));
+    base::DictionaryValue dict;
+    dict.SetDouble(kZoomLevelPath, level);
+    dict.SetString(
+        kLastModifiedPath,
+        base::NumberToString(change.last_modified.ToInternalValue()));
+    host_zoom_dictionary_weak->SetKey(change.host, std::move(dict));
   }
 }
 
 // TODO(wjmaclean): Remove the dictionary_path once the migration code is
 // removed. crbug.com/420643
 void ChromeZoomLevelPrefs::ExtractPerHostZoomLevels(
-    const base::Value::Dict& host_zoom_dictionary,
+    const base::DictionaryValue* host_zoom_dictionary,
     bool sanitize_partition_host_zoom_levels) {
   std::vector<std::string> keys_to_remove;
-  base::Value::Dict host_zoom_dictionary_copy = host_zoom_dictionary.Clone();
-  for (auto [host, value] : host_zoom_dictionary_copy) {
-    absl::optional<double> maybe_zoom;
+  std::unique_ptr<base::DictionaryValue> host_zoom_dictionary_copy =
+      host_zoom_dictionary->DeepCopyWithoutEmptyChildren();
+  for (base::DictionaryValue::Iterator i(*host_zoom_dictionary_copy);
+       !i.IsAtEnd();
+       i.Advance()) {
+    const std::string& host(i.key());
+    double zoom_level = 0;
     base::Time last_modified;
 
-    if (value.is_dict()) {
-      base::Value::Dict& dict = value.GetDict();
-      if (dict.empty())
-        continue;
-
-      maybe_zoom = dict.FindDouble(kZoomLevelKey);
+    bool has_valid_zoom_level;
+    if (i.value().is_dict()) {
+      const base::DictionaryValue* dict;
+      i.value().GetAsDictionary(&dict);
+      has_valid_zoom_level = dict->GetDouble(kZoomLevelPath, &zoom_level);
       last_modified = GetTimeStamp(dict);
     } else {
       // Old zoom level that is stored directly as a double.
-      maybe_zoom = value.GetIfDouble();
+      has_valid_zoom_level = i.value().GetAsDouble(&zoom_level);
     }
 
     // Filter out A) the empty host, B) zoom levels equal to the default; and
@@ -176,15 +183,14 @@ void ChromeZoomLevelPrefs::ExtractPerHostZoomLevels(
     // level was set to its current value. In either case, SetZoomLevelForHost
     // will ignore type B values, thus, to have consistency with HostZoomMap's
     // internal state, these values must also be removed from Prefs.
-    if (host.empty() || !maybe_zoom.has_value() ||
-        blink::PageZoomValuesEqual(maybe_zoom.value_or(0),
+    if (host.empty() || !has_valid_zoom_level ||
+        blink::PageZoomValuesEqual(zoom_level,
                                    host_zoom_map_->GetDefaultZoomLevel())) {
       keys_to_remove.push_back(host);
       continue;
     }
 
-    host_zoom_map_->InitializeZoomLevelForHost(host, maybe_zoom.value(),
-                                               last_modified);
+    host_zoom_map_->InitializeZoomLevelForHost(host, zoom_level, last_modified);
   }
 
   // We don't bother sanitizing non-partition dictionaries as they will be
@@ -198,13 +204,14 @@ void ChromeZoomLevelPrefs::ExtractPerHostZoomLevels(
   // Sanitize prefs to remove entries that match the default zoom level and/or
   // have an empty host.
   {
-    ScopedDictPrefUpdate update(pref_service_,
+    DictionaryPrefUpdate update(pref_service_,
                                 prefs::kPartitionPerHostZoomLevels);
-    base::Value::Dict& host_zoom_dictionaries = update.Get();
-    base::Value::Dict* partition_dictionary =
-        host_zoom_dictionaries.FindDict(partition_key_);
+    base::DictionaryValue* host_zoom_dictionaries = update.Get();
+    base::DictionaryValue* host_zoom_dictionary = nullptr;
+    host_zoom_dictionaries->GetDictionary(partition_key_,
+                                          &host_zoom_dictionary);
     for (const std::string& s : keys_to_remove)
-      partition_dictionary->Remove(s);
+      host_zoom_dictionary->RemoveKey(s);
   }
 }
 
@@ -220,28 +227,18 @@ void ChromeZoomLevelPrefs::InitHostZoomMap(
 
   // Initialize the HostZoomMap with per-host zoom levels from the persisted
   // zoom-level preference values.
-  const base::Value::Dict& host_zoom_dictionaries =
-      pref_service_->GetDict(prefs::kPartitionPerHostZoomLevels);
-  const base::Value::Dict* host_zoom_dictionary =
-      host_zoom_dictionaries.FindDict(partition_key_);
-  if (host_zoom_dictionary != nullptr) {
+  const base::DictionaryValue* host_zoom_dictionaries =
+      pref_service_->GetDictionary(prefs::kPartitionPerHostZoomLevels);
+  const base::DictionaryValue* host_zoom_dictionary = nullptr;
+  if (host_zoom_dictionaries->GetDictionary(partition_key_,
+                                            &host_zoom_dictionary)) {
     // Since we're calling this before setting up zoom_subscription_ below we
-    // don't need to worry that host_zoom_dictionary is indirectly affected by
-    // calls to HostZoomMap::SetZoomLevelForHost().
-    ExtractPerHostZoomLevels(*host_zoom_dictionary,
+    // don't need to worry that host_zoom_dictionary is indirectly affected
+    // by calls to HostZoomMap::SetZoomLevelForHost().
+    ExtractPerHostZoomLevels(host_zoom_dictionary,
                              true /* sanitize_partition_host_zoom_levels */);
   }
   zoom_subscription_ =
       host_zoom_map_->AddZoomLevelChangedCallback(base::BindRepeating(
           &ChromeZoomLevelPrefs::OnZoomLevelChanged, base::Unretained(this)));
-
-// On Android, the default zoom level is controlled by the Java-side UI and not
-// the settings flow as it is with other platforms. For Android, we will pass an
-// extra callback to the HostZoomMapImpl for setting the default zoom Pref when
-// Java sends an update through the JNI. The HostZoomMapImpl cannot directly
-// depend on this file, which will save the Pref to the storage partition.
-#if BUILDFLAG(IS_ANDROID)
-  host_zoom_map_->SetDefaultZoomLevelPrefCallback(base::BindRepeating(
-      &ChromeZoomLevelPrefs::SetDefaultZoomLevelPref, base::Unretained(this)));
-#endif
 }

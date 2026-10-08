@@ -1,18 +1,18 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "ios/web/public/test/fakes/fake_web_state_delegate.h"
+#import "ios/web/public/test/fakes/test_web_state_delegate.h"
 #import "ios/web/public/test/js_test_util.h"
 #import "ios/web/public/test/navigation_test_util.h"
 #import "ios/web/public/test/web_test_with_web_state.h"
-#import "net/test/embedded_test_server/default_handlers.h"
-#import "net/test/embedded_test_server/embedded_test_server.h"
+#include "net/test/embedded_test_server/default_handlers.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
 #import "testing/gtest_mac.h"
-#import "url/gurl.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -33,14 +33,14 @@ class HttpAuthTest : public WebTestWithWebState {
     ASSERT_TRUE(server_.Start());
   }
   // Waits until WebStateDelegate::OnAuthRequired callback is called.
-  [[nodiscard]] bool WaitForOnAuthRequiredCallback() {
+  bool WaitForOnAuthRequiredCallback() WARN_UNUSED_RESULT {
     delegate_.ClearLastAuthenticationRequest();
     return WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, ^bool {
       return delegate_.last_authentication_request();
     });
   }
   net::EmbeddedTestServer server_;
-  FakeWebStateDelegate delegate_;
+  TestWebStateDelegate delegate_;
 };
 
 // Tests successful basic authentication.
@@ -73,7 +73,7 @@ TEST_F(HttpAuthTest, SuccessfullBasicAuth) {
   ASSERT_TRUE(auth_request);
   std::move(auth_request->auth_callback).Run(@"me", @"goodpass");
   ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, ^{
-    return web_state()->GetTitle() == u"me/goodpass";
+    return web_state()->GetTitle() == base::ASCIIToUTF16("me/goodpass");
   }));
 }
 
@@ -110,7 +110,8 @@ TEST_F(HttpAuthTest, UnsucessfulBasicAuth) {
   std::move(auth_request->auth_callback)
       .Run(/*username=*/nil, /*password=*/nil);
   ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, ^{
-    return web_state()->GetTitle() == u"Denied: Missing Authorization Header";
+    return web_state()->GetTitle() ==
+           base::ASCIIToUTF16("Denied: Missing Authorization Header");
   }));
 }
 

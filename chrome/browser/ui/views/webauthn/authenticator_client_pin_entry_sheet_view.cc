@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,23 +21,20 @@ AuthenticatorClientPinEntrySheetView::pin_entry_sheet_model() {
   return static_cast<AuthenticatorClientPinEntrySheetModel*>(model());
 }
 
-std::pair<std::unique_ptr<views::View>,
-          AuthenticatorRequestSheetView::AutoFocus>
+std::unique_ptr<views::View>
 AuthenticatorClientPinEntrySheetView::BuildStepSpecificContent() {
-  return std::make_pair(
-      std::make_unique<AuthenticatorClientPinEntryView>(
-          this,
-          /*show_confirmation_text_field=*/pin_entry_sheet_model()->mode() !=
-              AuthenticatorClientPinEntrySheetModel::Mode::kPinEntry),
-      AutoFocus::kYes);
+  return std::make_unique<AuthenticatorClientPinEntryView>(
+      this, pin_entry_sheet_model()->mode() ==
+                AuthenticatorClientPinEntrySheetModel::Mode::
+                    kPinSetup /* show_confirmation_text_field */);
 }
 
 void AuthenticatorClientPinEntrySheetView::OnPincodeChanged(
-    std::u16string pincode) {
+    base::string16 pincode) {
   pin_entry_sheet_model()->SetPinCode(std::move(pincode));
 }
 
 void AuthenticatorClientPinEntrySheetView::OnConfirmationChanged(
-    std::u16string pincode) {
+    base::string16 pincode) {
   pin_entry_sheet_model()->SetPinConfirmation(std::move(pincode));
 }

@@ -1,16 +1,15 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/safe_browsing/content/browser/mojo_safe_browsing_impl.h"
 
 #include <memory>
+#include <vector>
 
 #include "base/bind.h"
 #include "base/supports_user_data.h"
-#include "components/safe_browsing/content/browser/web_ui/safe_browsing_ui.h"
 #include "components/safe_browsing/core/browser/safe_browsing_url_checker_impl.h"
-#include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/resource_context.h"
@@ -37,28 +36,21 @@ content::WebContents* GetWebContentsFromID(int render_process_id,
 // if it hasn't been run yet.
 class CheckUrlCallbackWrapper {
  public:
-  using Callback =
-      base::OnceCallback<void(mojo::PendingReceiver<mojom::UrlCheckNotifier>,
-                              bool,
-                              bool,
-                              bool,
-                              bool)>;
+  using Callback = base::OnceCallback<
+      void(mojo::PendingReceiver<mojom::UrlCheckNotifier>, bool, bool)>;
 
   explicit CheckUrlCallbackWrapper(Callback callback)
       : callback_(std::move(callback)) {}
   ~CheckUrlCallbackWrapper() {
     if (callback_)
-      Run(mojo::NullReceiver(), true, false, false, false);
+      Run(mojo::NullReceiver(), true, false);
   }
 
   void Run(mojo::PendingReceiver<mojom::UrlCheckNotifier> slow_check_notifier,
            bool proceed,
-           bool showed_interstitial,
-           bool did_perform_real_time_check,
-           bool did_check_allowlist) {
+           bool showed_interstitial) {
     std::move(callback_).Run(std::move(slow_check_notifier), proceed,
-                             showed_interstitial, did_perform_real_time_check,
-                             did_check_allowlist);
+                             showed_interstitial);
   }
 
  private:
@@ -73,14 +65,12 @@ class SafeBrowserUserData : public base::SupportsUserData::Data {
  public:
   explicit SafeBrowserUserData(std::unique_ptr<MojoSafeBrowsingImpl> impl)
       : impl_(std::move(impl)) {}
-
-  SafeBrowserUserData(const SafeBrowserUserData&) = delete;
-  SafeBrowserUserData& operator=(const SafeBrowserUserData&) = delete;
-
   ~SafeBrowserUserData() override = default;
 
  private:
   std::unique_ptr<MojoSafeBrowsingImpl> impl_;
+
+  DISALLOW_COPY_AND_ASSIGN(SafeBrowserUserData);
 };
 
 }  // namespace
@@ -115,7 +105,8 @@ void MojoSafeBrowsingImpl::MaybeCreate(
 
   scoped_refptr<UrlCheckerDelegate> delegate = delegate_getter.Run();
 
-  if (!resource_context || !delegate)
+  if (!resource_context || !delegate ||
+      !delegate->GetDatabaseManager()->IsSupported())
     return;
 
   std::unique_ptr<MojoSafeBrowsingImpl> impl(new MojoSafeBrowsingImpl(
@@ -136,21 +127,19 @@ void MojoSafeBrowsingImpl::CreateCheckerAndCheck(
     const std::string& method,
     const net::HttpRequestHeaders& headers,
     int32_t load_flags,
-    network::mojom::RequestDestination request_destination,
+    blink::mojom::ResourceType resource_type,
     bool has_user_gesture,
     bool originated_from_service_worker,
     CreateCheckerAndCheckCallback callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
 
-  if (delegate_->ShouldSkipRequestCheck(
-          url, content::RenderFrameHost::kNoFrameTreeNodeId, render_process_id_,
-          render_frame_id, originated_from_service_worker)) {
+  if (delegate_->ShouldSkipRequestCheck(url, -1 /* frame_tree_node_id */,
+                                        render_process_id_, render_frame_id,
+                                        originated_from_service_worker)) {
     // Ensure that we don't destroy an uncalled CreateCheckerAndCheckCallback
     if (callback) {
       std::move(callback).Run(mojo::NullReceiver(), true /* proceed */,
-                              false /* showed_interstitial */,
-                              false /* did_perform_real_time_check */,
-                              false /* did_check_allowlist */);
+                              false /* showed_interstitial */);
     }
 
     // This will drop |receiver|. The result is that the renderer side will
@@ -163,18 +152,14 @@ void MojoSafeBrowsingImpl::CreateCheckerAndCheck(
   // support non-main frames, we will need to provide the user preferences,
   // url_lookup_service regarding real time lookup here.
   auto checker_impl = std::make_unique<SafeBrowsingUrlCheckerImpl>(
-      headers, static_cast<int>(load_flags), request_destination,
-      has_user_gesture, delegate_,
+      headers, static_cast<int>(load_flags), resource_type, has_user_gesture,
+      delegate_,
       base::BindRepeating(&GetWebContentsFromID, render_process_id_,
                           static_cast<int>(render_frame_id)),
-      render_process_id_, render_frame_id,
-      content::RenderFrameHost::kNoFrameTreeNodeId,
       /*real_time_lookup_enabled=*/false,
       /*can_rt_check_subresource_url=*/false,
-      /*can_check_db=*/true, /*can_check_high_confidence_allowlist=*/true,
-      /*url_lookup_service_metric_suffix=*/".None",
-      /*last_committed_url=*/GURL(), content::GetUIThreadTaskRunner({}),
-      /*url_lookup_service=*/nullptr, WebUIInfoSingleton::GetInstance());
+      /*can_check_db=*/true,
+      /*url_lookup_service=*/nullptr);
 
   checker_impl->CheckUrl(
       url, method,

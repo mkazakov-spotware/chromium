@@ -1,11 +1,13 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/common/extensions_client.h"
 
 #include "base/check.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
+#include "base/timer/elapsed_timer.h"
 #include "extensions/common/extension_icon_set.h"
 #include "extensions/common/extensions_api_provider.h"
 #include "extensions/common/features/feature_provider.h"
@@ -18,7 +20,7 @@ namespace extensions {
 
 namespace {
 
-ExtensionsClient* g_client = nullptr;
+ExtensionsClient* g_client = NULL;
 
 }  // namespace
 
@@ -100,20 +102,21 @@ std::set<base::FilePath> ExtensionsClient::GetBrowserImagePaths(
   return paths;
 }
 
+bool ExtensionsClient::ExtensionAPIEnabledInExtensionServiceWorkers() const {
+  return false;
+}
+
 void ExtensionsClient::AddOriginAccessPermissions(
     const Extension& extension,
     bool is_extension_active,
     std::vector<network::mojom::CorsOriginPatternPtr>* origin_patterns) const {}
-
-absl::optional<int> ExtensionsClient::GetExtensionExtendedErrorCode() const {
-  return absl::nullopt;
-}
 
 void ExtensionsClient::DoInitialize() {
   initialize_called_ = true;
 
   DCHECK(!ManifestHandler::IsRegistrationFinalized());
   PermissionsInfo* permissions_info = PermissionsInfo::GetInstance();
+  const base::ElapsedTimer timer;
   for (const auto& provider : api_providers_) {
     provider->RegisterManifestHandlers();
     provider->RegisterPermissions(permissions_info);
@@ -121,6 +124,11 @@ void ExtensionsClient::DoInitialize() {
   ManifestHandler::FinalizeRegistration();
 
   Initialize();
+
+  UMA_HISTOGRAM_CUSTOM_MICROSECONDS_TIMES(
+      "Extensions.ChromeExtensionsClientInitTime2", timer.Elapsed(),
+      base::TimeDelta::FromMicroseconds(1), base::TimeDelta::FromSeconds(10),
+      50);
 }
 
 }  // namespace extensions

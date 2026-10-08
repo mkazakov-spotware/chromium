@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define CHROME_BROWSER_ANDROID_WEBAPPS_WEBAPP_REGISTRY_H_
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 
 class GURL;
 
@@ -17,10 +18,6 @@ class GURL;
 class WebappRegistry {
  public:
   WebappRegistry() { }
-
-  WebappRegistry(const WebappRegistry&) = delete;
-  WebappRegistry& operator=(const WebappRegistry&) = delete;
-
   virtual ~WebappRegistry() { }
 
   // Cleans up data stored by web apps on URLs matching |url_filter|.
@@ -31,6 +28,9 @@ class WebappRegistry {
   // URLs matching |url_filter|, whilst leaving other data intact.
   virtual void ClearWebappHistoryForUrls(
       const base::RepeatingCallback<bool(const GURL&)>& url_filter);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WebappRegistry);
 };
 
 #endif  // CHROME_BROWSER_ANDROID_WEBAPPS_WEBAPP_REGISTRY_H_

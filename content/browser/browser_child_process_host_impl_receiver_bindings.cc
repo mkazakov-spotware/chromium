@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,18 +18,17 @@
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/device_service.h"
-#include "content/public/common/content_features.h"
 #include "services/device/public/mojom/power_monitor.mojom.h"
 #include "services/metrics/public/cpp/ukm_recorder.h"
 #include "services/metrics/public/mojom/ukm_interface.mojom.h"
 #include "services/metrics/ukm_recorder_interface.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "content/browser/sandbox_support_mac_impl.h"
 #include "content/common/sandbox_support_mac.mojom.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "content/browser/renderer_host/dwrite_font_proxy_impl_win.h"
 #include "content/public/common/font_cache_dispatcher_win.h"
 #include "content/public/common/font_cache_win.mojom.h"
@@ -65,7 +64,7 @@ void BrowserChildProcessHostImpl::BindHostReceiver(
     return;
   }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   if (auto r = receiver.As<mojom::SandboxSupportMac>()) {
     static base::NoDestructor<SandboxSupportMacImpl> sandbox_support;
     sandbox_support->BindReceiver(std::move(r));
@@ -73,7 +72,7 @@ void BrowserChildProcessHostImpl::BindHostReceiver(
   }
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   if (auto r = receiver.As<mojom::FontCacheWin>()) {
     FontCacheDispatcher::Create(std::move(r));
     return;
@@ -89,26 +88,26 @@ void BrowserChildProcessHostImpl::BindHostReceiver(
 #endif
 
   if (auto r = receiver.As<mojom::FieldTrialRecorder>()) {
-    FieldTrialRecorder::Create(std::move(r));
+    GetUIThreadTaskRunner({})->PostTask(
+        FROM_HERE, base::BindOnce(&FieldTrialRecorder::Create, std::move(r)));
     return;
   }
 
   if (auto r = receiver.As<
                discardable_memory::mojom::DiscardableSharedMemoryManager>()) {
-    GetIOThreadTaskRunner({})->PostTask(
-        FROM_HERE,
-        base::BindOnce(
-            [](mojo::PendingReceiver<
-                discardable_memory::mojom::DiscardableSharedMemoryManager> r) {
-              discardable_memory::DiscardableSharedMemoryManager::Get()->Bind(
-                  std::move(r));
-            },
-            std::move(r)));
+    discardable_memory::DiscardableSharedMemoryManager::Get()->Bind(
+        std::move(r));
     return;
   }
 
   if (auto r = receiver.As<device::mojom::PowerMonitor>()) {
-    GetDeviceService().BindPowerMonitor(std::move(r));
+    GetUIThreadTaskRunner({})->PostTask(
+        FROM_HERE,
+        base::BindOnce(
+            [](mojo::PendingReceiver<device::mojom::PowerMonitor> r) {
+              GetDeviceService().BindPowerMonitor(std::move(r));
+            },
+            std::move(r)));
     return;
   }
 

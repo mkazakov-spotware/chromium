@@ -1,11 +1,13 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_ANDROID_COMPOSITOR_LAYER_CONTENT_LAYER_H_
 #define CHROME_BROWSER_ANDROID_COMPOSITOR_LAYER_CONTENT_LAYER_H_
 
-#include "base/memory/raw_ptr.h"
+#include <memory>
+
+#include "base/macros.h"
 #include "chrome/browser/android/compositor/layer/layer.h"
 #include "ui/android/resources/nine_patch_resource.h"
 #include "ui/gfx/geometry/rect.h"
@@ -27,10 +29,6 @@ class ContentLayer : public Layer {
  public:
   static scoped_refptr<ContentLayer> Create(
       TabContentManager* tab_content_manager);
-
-  ContentLayer(const ContentLayer&) = delete;
-  ContentLayer& operator=(const ContentLayer&) = delete;
-
   void SetProperties(int id,
                      bool can_use_live_layer,
                      float static_to_view_blend,
@@ -51,7 +49,10 @@ class ContentLayer : public Layer {
   // both the static and content layers (or either, or none, depending on which
   // is available).
   scoped_refptr<cc::Layer> layer_;
-  raw_ptr<TabContentManager> tab_content_manager_;
+  TabContentManager* tab_content_manager_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ContentLayer);
 };
 
 }  //  namespace android

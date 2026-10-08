@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,10 @@
 
 #include <string>
 
-#include "base/values.h"
-#include "chrome/test/chromedriver/chrome/status.h"
+namespace base {
+class Value;
+}
 
-Status SerializeAsJson(const base::Value::Dict& value, std::string* json);
-
-Status SerializeAsJson(const base::Value& value, std::string* json);
-
-Status SerializeAsJson(const std::string& value, std::string* json);
+std::string SerializeValue(const base::Value* value);
 
 #endif  // CHROME_TEST_CHROMEDRIVER_CHROME_UTIL_H_

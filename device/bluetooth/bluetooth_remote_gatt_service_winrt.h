@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "device/bluetooth/bluetooth_export.h"
 #include "device/bluetooth/bluetooth_remote_gatt_characteristic_winrt.h"
 #include "device/bluetooth/bluetooth_remote_gatt_service.h"
@@ -34,12 +34,6 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothRemoteGattServiceWinrt
       Microsoft::WRL::ComPtr<ABI::Windows::Devices::Bluetooth::
                                  GenericAttributeProfile::IGattDeviceService>
           gatt_service);
-
-  BluetoothRemoteGattServiceWinrt(const BluetoothRemoteGattServiceWinrt&) =
-      delete;
-  BluetoothRemoteGattServiceWinrt& operator=(
-      const BluetoothRemoteGattServiceWinrt&) = delete;
-
   ~BluetoothRemoteGattServiceWinrt() override;
 
   // BluetoothRemoteGattService:
@@ -62,12 +56,12 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothRemoteGattServiceWinrt
     if (FAILED(hr)) {
       DVLOG(2) << "Getting Protocol Error Reference failed: "
                << logging::SystemErrorCodeToString(hr);
-      return GattErrorCode::kUnknown;
+      return GattErrorCode::GATT_ERROR_UNKNOWN;
     }
 
     if (!protocol_error_ref) {
       DVLOG(2) << "Got Null Protocol Error Reference.";
-      return GattErrorCode::kUnknown;
+      return GattErrorCode::GATT_ERROR_UNKNOWN;
     }
 
     uint8_t protocol_error;
@@ -75,7 +69,7 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothRemoteGattServiceWinrt
     if (FAILED(hr)) {
       DVLOG(2) << "Getting Protocol Error Value failed: "
                << logging::SystemErrorCodeToString(hr);
-      return GattErrorCode::kUnknown;
+      return GattErrorCode::GATT_ERROR_UNKNOWN;
     }
 
     DVLOG(2) << "Got Protocol Error: " << static_cast<int>(protocol_error);
@@ -84,41 +78,41 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothRemoteGattServiceWinrt
     // Version 5.0 Vol 3, Part F, 3.4.1.1.
     switch (protocol_error) {
       case 0x01:  // Invalid Handle
-        return GattErrorCode::kFailed;
+        return GATT_ERROR_FAILED;
       case 0x02:  // Read Not Permitted
-        return GattErrorCode::kNotPermitted;
+        return GATT_ERROR_NOT_PERMITTED;
       case 0x03:  // Write Not Permitted
-        return GattErrorCode::kNotPermitted;
+        return GATT_ERROR_NOT_PERMITTED;
       case 0x04:  // Invalid PDU
-        return GattErrorCode::kFailed;
+        return GATT_ERROR_FAILED;
       case 0x05:  // Insufficient Authentication
-        return GattErrorCode::kNotAuthorized;
+        return GATT_ERROR_NOT_AUTHORIZED;
       case 0x06:  // Request Not Supported
-        return GattErrorCode::kNotSupported;
+        return GATT_ERROR_NOT_SUPPORTED;
       case 0x07:  // Invalid Offset
-        return GattErrorCode::kInvalidLength;
+        return GATT_ERROR_INVALID_LENGTH;
       case 0x08:  // Insufficient Authorization
-        return GattErrorCode::kNotAuthorized;
+        return GATT_ERROR_NOT_AUTHORIZED;
       case 0x09:  // Prepare Queue Full
-        return GattErrorCode::kInProgress;
+        return GATT_ERROR_IN_PROGRESS;
       case 0x0A:  // Attribute Not Found
-        return GattErrorCode::kFailed;
+        return GATT_ERROR_FAILED;
       case 0x0B:  // Attribute Not Long
-        return GattErrorCode::kFailed;
+        return GATT_ERROR_FAILED;
       case 0x0C:  // Insufficient Encryption Key Size
-        return GattErrorCode::kFailed;
+        return GATT_ERROR_FAILED;
       case 0x0D:  // Invalid Attribute Value Length
-        return GattErrorCode::kInvalidLength;
+        return GATT_ERROR_INVALID_LENGTH;
       case 0x0E:  // Unlikely Error
-        return GattErrorCode::kFailed;
+        return GATT_ERROR_FAILED;
       case 0x0F:  // Insufficient Encryption
-        return GattErrorCode::kNotPaired;
+        return GATT_ERROR_NOT_PAIRED;
       case 0x10:  // Unsupported Group Type
-        return GattErrorCode::kFailed;
+        return GATT_ERROR_FAILED;
       case 0x11:  // Insufficient Resources
-        return GattErrorCode::kFailed;
+        return GATT_ERROR_FAILED;
       default:
-        return GattErrorCode::kUnknown;
+        return GATT_ERROR_UNKNOWN;
     }
   }
 
@@ -133,13 +127,15 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothRemoteGattServiceWinrt
       BluetoothUUID uuid,
       uint16_t attribute_handle);
 
-  raw_ptr<BluetoothDevice> device_;
+  BluetoothDevice* device_;
   Microsoft::WRL::ComPtr<ABI::Windows::Devices::Bluetooth::
                              GenericAttributeProfile::IGattDeviceService>
       gatt_service_;
   BluetoothUUID uuid_;
   uint16_t attribute_handle_;
   std::string identifier_;
+
+  DISALLOW_COPY_AND_ASSIGN(BluetoothRemoteGattServiceWinrt);
 };
 
 }  // namespace device

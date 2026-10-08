@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,10 @@
 
 #include <stdint.h>
 #include <memory>
-#include <string>
 #include <utility>
 
 #include "chrome/updater/device_management/dm_cached_policy_info.h"
 #include "chrome/updater/device_management/dm_policy_builder_for_testing.h"
-#include "chrome/updater/device_management/dm_response_validator.h"
 #include "chrome/updater/protos/omaha_settings.pb.h"
 #include "components/policy/proto/device_management_backend.pb.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -19,7 +17,8 @@
 namespace updater {
 
 TEST(DMMessage, GetRegisterBrowserRequestData) {
-  std::string message = GetRegisterBrowserRequestData();
+  std::string message =
+      GetRegisterBrowserRequestData("MachineFoo", "Mac OSX", "10.15");
   EXPECT_FALSE(message.empty());
 }
 
@@ -61,11 +60,9 @@ TEST(DMMessage, ParsePolicyFetchResponse) {
           DMPolicyBuilderForTesting::SigningOption::kSignNormally);
 
   CachedPolicyInfo initial_policy_info;
-  std::vector<PolicyValidationResult> validation_results;
   DMPolicyMap policy_map = ParsePolicyFetchResponse(
       dm_response->SerializeAsString(), initial_policy_info, "test-dm-token",
-      "test-device-id", validation_results);
-  EXPECT_TRUE(validation_results.empty());
+      "test-device-id");
   EXPECT_EQ(policy_map.size(), size_t{1});
   EXPECT_NE(policy_map.find(policy_type), policy_map.end());
   std::string policy_data = policy_map[policy_type];
@@ -75,14 +72,13 @@ TEST(DMMessage, ParsePolicyFetchResponse) {
   EXPECT_FALSE(updated_policy_info.public_key().empty());
   EXPECT_GE(updated_policy_info.timestamp(), test_start_time);
 
-  // Test the case when public key is not rotated.
+  // Test the case when public is not rotated.
   dm_response = GetDefaultTestingPolicyFetchDMResponse(
       false /* first_request */, false /* rotate_to_new_key */,
       DMPolicyBuilderForTesting::SigningOption::kSignNormally);
   policy_map = ParsePolicyFetchResponse(dm_response->SerializeAsString(),
                                         updated_policy_info, "test-dm-token",
-                                        "test-device-id", validation_results);
-  EXPECT_TRUE(validation_results.empty());
+                                        "test-device-id");
   EXPECT_EQ(policy_map.size(), size_t{1});
   EXPECT_NE(policy_map.find(policy_type), policy_map.end());
 
@@ -97,8 +93,7 @@ TEST(DMMessage, ParsePolicyFetchResponse) {
 
   policy_map = ParsePolicyFetchResponse(dm_response->SerializeAsString(),
                                         updated_policy_info, "test-dm-token",
-                                        "test-device-id", validation_results);
-  EXPECT_TRUE(validation_results.empty());
+                                        "test-device-id");
   EXPECT_EQ(policy_map.size(), size_t{1});
   EXPECT_NE(policy_map.find(policy_type), policy_map.end());
 
@@ -124,29 +119,14 @@ TEST(DMMessage, ResponseValidation) {
 
   CachedPolicyInfo initial_policy_info;
   const std::string bad_dm_token = "bad-dm-token";
-  std::vector<PolicyValidationResult> validation_results;
   DMPolicyMap policy_map = ParsePolicyFetchResponse(
-      dm_response_data, initial_policy_info, bad_dm_token, "test-device-id",
-      validation_results);
-  EXPECT_EQ(validation_results.size(), size_t{1});
-  EXPECT_TRUE(validation_results[0].policy_type.empty());
-  EXPECT_EQ(validation_results[0].status,
-            PolicyValidationResult::Status::kValidationBadDMToken);
-  EXPECT_TRUE(validation_results[0].issues.empty());
-  EXPECT_TRUE(policy_map.empty());
-  validation_results.clear();
+      dm_response_data, initial_policy_info, bad_dm_token, "test-device-id");
+  EXPECT_EQ(policy_map.size(), size_t{0});
 
   const std::string bad_devide_id = "unexpected-device-id";
   policy_map = ParsePolicyFetchResponse(dm_response_data, initial_policy_info,
-                                        "test-dm-token", bad_devide_id,
-                                        validation_results);
-  EXPECT_EQ(validation_results.size(), size_t{1});
-  EXPECT_TRUE(validation_results[0].policy_type.empty());
-  EXPECT_EQ(validation_results[0].status,
-            PolicyValidationResult::Status::kValidationBadDeviceID);
-  EXPECT_TRUE(validation_results[0].issues.empty());
-  EXPECT_TRUE(policy_map.empty());
-  validation_results.clear();
+                                        "test-dm-token", bad_devide_id);
+  EXPECT_EQ(policy_map.size(), size_t{0});
 
   // 2) Client must have a cached public key other than the first request.
   dm_response = GetDefaultTestingPolicyFetchDMResponse(
@@ -154,14 +134,8 @@ TEST(DMMessage, ResponseValidation) {
       DMPolicyBuilderForTesting::SigningOption::kSignNormally);
   policy_map = ParsePolicyFetchResponse(dm_response->SerializeAsString(),
                                         initial_policy_info, "test-dm-token",
-                                        "test-device-id", validation_results);
-  EXPECT_EQ(validation_results.size(), size_t{1});
-  EXPECT_TRUE(validation_results[0].policy_type.empty());
-  EXPECT_EQ(validation_results[0].status,
-            PolicyValidationResult::Status::kValidationBadSignature);
-  EXPECT_TRUE(validation_results[0].issues.empty());
-  EXPECT_TRUE(policy_map.empty());
-  validation_results.clear();
+                                        "test-device-id");
+  EXPECT_EQ(policy_map.size(), size_t{0});
 
   // 3) Client should reject response if the public key is not signed properly.
 
@@ -172,8 +146,7 @@ TEST(DMMessage, ResponseValidation) {
       DMPolicyBuilderForTesting::SigningOption::kSignNormally);
   policy_map = ParsePolicyFetchResponse(dm_response->SerializeAsString(),
                                         initial_policy_info, "test-dm-token",
-                                        "test-device-id", validation_results);
-  EXPECT_TRUE(validation_results.empty());
+                                        "test-device-id");
   CachedPolicyInfo updated_policy_info;
   updated_policy_info.Populate(policy_map[policy_type]);
   EXPECT_FALSE(updated_policy_info.public_key().empty());
@@ -183,15 +156,8 @@ TEST(DMMessage, ResponseValidation) {
       DMPolicyBuilderForTesting::SigningOption::kTamperKeySignature);
   policy_map = ParsePolicyFetchResponse(dm_response->SerializeAsString(),
                                         updated_policy_info, "test-dm-token",
-                                        "test-device-id", validation_results);
-  EXPECT_EQ(validation_results.size(), size_t{1});
-  EXPECT_TRUE(validation_results[0].policy_type.empty());
-  EXPECT_EQ(
-      validation_results[0].status,
-      PolicyValidationResult::Status::kValidationBadKeyVerificationSignature);
-  EXPECT_TRUE(validation_results[0].issues.empty());
-  EXPECT_TRUE(policy_map.empty());
-  validation_results.clear();
+                                        "test-device-id");
+  EXPECT_EQ(policy_map.size(), size_t{0});
 
   // 4) Client should reject response if policy data is not signed properly.
   dm_response = GetDefaultTestingPolicyFetchDMResponse(
@@ -199,14 +165,8 @@ TEST(DMMessage, ResponseValidation) {
       DMPolicyBuilderForTesting::SigningOption::kTamperDataSignature);
   policy_map = ParsePolicyFetchResponse(dm_response->SerializeAsString(),
                                         initial_policy_info, "test-dm-token",
-                                        "test-device-id", validation_results);
-  EXPECT_EQ(validation_results.size(), size_t{1});
-  EXPECT_EQ(validation_results[0].policy_type, policy_type);
-  EXPECT_EQ(validation_results[0].status,
-            PolicyValidationResult::Status::kValidationBadSignature);
-  EXPECT_TRUE(validation_results[0].issues.empty());
-  EXPECT_TRUE(policy_map.empty());
-  validation_results.clear();
+                                        "test-device-id");
+  EXPECT_EQ(policy_map.size(), size_t{0});
 }
 
 }  // namespace updater

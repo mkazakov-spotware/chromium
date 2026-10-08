@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.notifications.NotificationWrapperBuilderFactory;
 import org.chromium.chrome.browser.notifications.channels.ChromeChannelDefinitions;
@@ -37,7 +36,6 @@ import java.util.List;
  * Test for DownloadForegroundService.
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
-@Batch(Batch.UNIT_TESTS)
 public class DownloadForegroundServiceTest {
     private static final int FAKE_DOWNLOAD_ID1 = 1;
     private static final int FAKE_DOWNLOAD_ID2 = 2;
@@ -112,7 +110,7 @@ public class DownloadForegroundServiceTest {
         mForegroundService = new MockDownloadForegroundService();
         mNotification =
                 NotificationWrapperBuilderFactory
-                        .createNotificationWrapperBuilder(
+                        .createNotificationWrapperBuilder(true /* preferCompat */,
                                 ChromeChannelDefinitions.ChannelId.DOWNLOADS)
                         .setSmallIcon(org.chromium.chrome.R.drawable.ic_file_download_white_24dp)
                         .setContentTitle("fakeContentTitle")

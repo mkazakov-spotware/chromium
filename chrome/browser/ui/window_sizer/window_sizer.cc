@@ -1,30 +1,29 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/window_sizer/window_sizer.h"
 
-#include <algorithm>
 #include <utility>
 
 #include "base/command_line.h"
-#include "base/functional/function_ref.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/numerics/ranges.h"
 #include "build/build_config.h"
+#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window_state.h"
-#include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/common/chrome_switches.h"
 #include "components/prefs/pref_service.h"
 #include "ui/base/ui_base_switches.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS) || BUILDFLAG(IS_LACROS)
 #include "chrome/browser/ui/window_sizer/window_sizer_chromeos.h"
 #endif
 
@@ -35,29 +34,12 @@ const int kMinVisibleHeight = 30;
 // Minimum width of the visible part of a window.
 const int kMinVisibleWidth = 30;
 
-BrowserWindow* FindMostRecentBrowserWindow(
-    base::FunctionRef<bool(Browser*)> matcher) {
-  const BrowserList* browser_list = BrowserList::GetInstance();
-  for (auto it = browser_list->begin_browsers_ordered_by_activation();
-       it != browser_list->end_browsers_ordered_by_activation(); ++it) {
-    Browser* last_active = *it;
-    if (last_active && matcher(last_active)) {
-      DCHECK(last_active->window());
-      return last_active->window();
-    }
-  }
-  return nullptr;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // An implementation of WindowSizer::StateProvider that gets the last active
 // and persistent state from the browser window and the user's profile.
 class DefaultStateProvider : public WindowSizer::StateProvider {
  public:
   explicit DefaultStateProvider(const Browser* browser) : browser_(browser) {}
-
-  DefaultStateProvider(const DefaultStateProvider&) = delete;
-  DefaultStateProvider& operator=(const DefaultStateProvider&) = delete;
 
   // Overridden from WindowSizer::StateProvider:
   bool GetPersistentState(gfx::Rect* bounds,
@@ -69,75 +51,69 @@ class DefaultStateProvider : public WindowSizer::StateProvider {
     if (!browser_ || !browser_->profile()->GetPrefs())
       return false;
 
-    const base::Value::Dict* pref =
+    const base::DictionaryValue* wp_pref =
         chrome::GetWindowPlacementDictionaryReadOnly(
             chrome::GetWindowName(browser_), browser_->profile()->GetPrefs());
+    int top = 0, left = 0, bottom = 0, right = 0;
+    bool maximized = false;
+    bool has_prefs = wp_pref &&
+                     wp_pref->GetInteger("top", &top) &&
+                     wp_pref->GetInteger("left", &left) &&
+                     wp_pref->GetInteger("bottom", &bottom) &&
+                     wp_pref->GetInteger("right", &right) &&
+                     wp_pref->GetBoolean("maximized", &maximized);
+    bounds->SetRect(left, top, std::max(0, right - left),
+                    std::max(0, bottom - top));
 
-    absl::optional<gfx::Rect> pref_bounds = RectFromPrefixedPref(pref, "");
-    absl::optional<gfx::Rect> pref_area =
-        RectFromPrefixedPref(pref, "work_area_");
-    absl::optional<bool> maximized =
-        pref ? pref->FindBool("maximized") : absl::nullopt;
+    int work_area_top = 0;
+    int work_area_left = 0;
+    int work_area_bottom = 0;
+    int work_area_right = 0;
+    if (wp_pref) {
+      wp_pref->GetInteger("work_area_top", &work_area_top);
+      wp_pref->GetInteger("work_area_left", &work_area_left);
+      wp_pref->GetInteger("work_area_bottom", &work_area_bottom);
+      wp_pref->GetInteger("work_area_right", &work_area_right);
+      if (*show_state == ui::SHOW_STATE_DEFAULT && maximized)
+        *show_state = ui::SHOW_STATE_MAXIMIZED;
+    }
+    work_area->SetRect(work_area_left, work_area_top,
+                      std::max(0, work_area_right - work_area_left),
+                      std::max(0, work_area_bottom - work_area_top));
 
-    if (!pref_bounds || !maximized)
-      return false;
-
-    *bounds = pref_bounds.value();
-    if (pref_area)
-      *work_area = pref_area.value();
-    if (*show_state == ui::SHOW_STATE_DEFAULT && maximized.value())
-      *show_state = ui::SHOW_STATE_MAXIMIZED;
-
-    return true;
+    return has_prefs;
   }
 
   bool GetLastActiveWindowState(
       gfx::Rect* bounds,
       ui::WindowShowState* show_state) const override {
     DCHECK(show_state);
-    // Legacy Applications and Devtools are always restored with the same
-    // position.
-    if (browser_ && !web_app::AppBrowserController::IsWebApp(browser_) &&
-        (browser_->is_type_app() || browser_->is_type_app_popup() ||
-         browser_->is_type_devtools())) {
+    // Applications are always restored with the same position.
+    if (browser_ && browser_->deprecated_is_app())
       return false;
-    }
 
     // If a reference browser is set, use its window. Otherwise find last
-    // active. Depending on the type of browser being created, different logic
-    // determines if a particular browser can be a reference browser.
-    BrowserWindow* window = nullptr;
+    // active. Panels are never used as reference browsers as panels are
+    // specially positioned.
+    BrowserWindow* window = NULL;
     // Window may be null if browser is just starting up.
     if (browser_ && browser_->window()) {
       window = browser_->window();
-    } else if (web_app::AppBrowserController::IsWebApp(browser_)) {
-      window = FindMostRecentBrowserWindow(
-          [profile = browser_->profile(),
-           app_id = browser_->app_controller()->app_id(),
-           display = display::Screen::GetScreen()->GetDisplayForNewWindows()](
-              Browser* browser) {
-            if (browser->profile() != profile)
-              return false;
-            if (!web_app::AppBrowserController::IsForWebApp(browser, app_id)) {
-              return false;
-            }
-#if BUILDFLAG(IS_CHROMEOS)
-            if (display::Screen::GetScreen()->GetDisplayNearestWindow(
-                    browser->window()->GetNativeWindow()) != display) {
-              return false;
-            }
-#endif
-            if (!browser->window()->IsOnCurrentWorkspace())
-              return false;
-            return true;
-          });
     } else {
-      window = FindMostRecentBrowserWindow(
-          [](Browser* browser) { return browser->is_type_normal(); });
+      const BrowserList* browser_list = BrowserList::GetInstance();
+      for (auto it = browser_list->begin_last_active();
+           it != browser_list->end_last_active(); ++it) {
+        Browser* last_active = *it;
+        if (last_active && last_active->is_type_normal()) {
+          window = last_active->window();
+          DCHECK(window);
+          break;
+        }
+      }
     }
 
     if (window) {
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS) || BUILDFLAG(IS_LACROS)
       if (window->IsVisible())
         *bounds = window->GetRestoredBounds();
 #else
@@ -152,39 +128,12 @@ class DefaultStateProvider : public WindowSizer::StateProvider {
   }
 
  private:
-  static absl::optional<gfx::Rect> RectFromPrefixedPref(
-      const base::Value::Dict* pref,
-      const std::string& prefix) {
-    if (!pref)
-      return absl::nullopt;
-
-    absl::optional<int> top, left, bottom, right;
-
-    top = pref->FindInt(prefix + "top");
-    left = pref->FindInt(prefix + "left");
-    bottom = pref->FindInt(prefix + "bottom");
-    right = pref->FindInt(prefix + "right");
-
-    if (!top || !left || !bottom || !right)
-      return absl::nullopt;
-
-    return gfx::Rect(left.value(), top.value(),
-                     std::max(0, right.value() - left.value()),
-                     std::max(0, bottom.value() - top.value()));
-  }
-
   std::string app_name_;
 
   // If set, is used as the reference browser for GetLastActiveWindowState.
-  raw_ptr<const Browser> browser_;
+  const Browser* browser_;
+  DISALLOW_COPY_AND_ASSIGN(DefaultStateProvider);
 };
-
-// This function, unlike base::clamp(), does not check if `min` is greater than
-// `max`, and returns a bogus answer if it is. TODO(crbug.com/1235666) migrate
-// all code that calls this function to use base::clamp() instead.
-constexpr int BrokenClampThatShouldNotBeUsed(int value, int min, int max) {
-  return std::min(std::max(value, min), max);
-}
 
 }  // namespace
 
@@ -205,8 +154,6 @@ void WindowSizer::GetBrowserWindowBoundsAndShowState(
       browser, window_bounds, show_state);
 }
 
-#if !BUILDFLAG(IS_LINUX)
-// Linux has its own implementation, see WindowSizerLinux.
 // static
 void WindowSizer::GetBrowserWindowBoundsAndShowState(
     std::unique_ptr<StateProvider> state_provider,
@@ -216,7 +163,7 @@ void WindowSizer::GetBrowserWindowBoundsAndShowState(
     ui::WindowShowState* show_state) {
   DCHECK(bounds);
   DCHECK(show_state);
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS) || BUILDFLAG(IS_LACROS)
   WindowSizerChromeOS sizer(std::move(state_provider), browser);
 #else
   WindowSizer sizer(std::move(state_provider), browser);
@@ -226,7 +173,6 @@ void WindowSizer::GetBrowserWindowBoundsAndShowState(
   *bounds = specified_bounds;
   sizer.DetermineWindowBoundsAndShowState(specified_bounds, bounds, show_state);
 }
-#endif  // !BUILDFLAG(IS_LINUX)
 
 void WindowSizer::DetermineWindowBoundsAndShowState(
     const gfx::Rect& specified_bounds,
@@ -254,14 +200,9 @@ void WindowSizer::DetermineWindowBoundsAndShowState(
   // is visible on the screen.
   gfx::Rect work_area =
       display::Screen::GetScreen()->GetDisplayMatching(*bounds).work_area();
-
-  AdjustWorkAreaForPlatform(work_area);
-
   // Resize so that it fits.
   bounds->AdjustToFit(work_area);
 }
-
-void WindowSizer::AdjustWorkAreaForPlatform(gfx::Rect& work_area) {}
 
 bool WindowSizer::GetLastActiveWindowBounds(
     gfx::Rect* bounds,
@@ -303,7 +244,7 @@ gfx::Rect WindowSizer::GetDefaultWindowBounds(
                                kWindowMaxDefaultWidth);
   int default_height = work_area.height() - 2 * kWindowTilePixels;
 
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
   // For wider aspect ratio displays at higher resolutions, we might size the
   // window narrower to allow two windows to easily be placed side-by-side.
   gfx::Rect screen_size =
@@ -323,7 +264,7 @@ gfx::Rect WindowSizer::GetDefaultWindowBounds(
     default_width = static_cast<int>(work_area.width() / 2. -
         1.5 * kWindowTilePixels);
   }
-#endif  // !BUILDFLAG(IS_MAC)
+#endif  // !defined(OS_MAC)
   return gfx::Rect(kWindowTilePixels + work_area.x(),
                    kWindowTilePixels + work_area.y(), default_width,
                    default_height);
@@ -361,15 +302,13 @@ void WindowSizer::AdjustBoundsToBeVisibleOnDisplay(
       !work_area.Contains(*bounds)) {
     bounds->set_width(std::min(bounds->width(), work_area.width()));
     bounds->set_height(std::min(bounds->height(), work_area.height()));
-    // TODO(crbug.com/1235666): Make sure these use correct ranges (lo <= hi)
-    // and migrate to base::clamp().
-    bounds->set_x(BrokenClampThatShouldNotBeUsed(
-        bounds->x(), work_area.x(), work_area.right() - bounds->width()));
-    bounds->set_y(BrokenClampThatShouldNotBeUsed(
-        bounds->y(), work_area.y(), work_area.bottom() - bounds->height()));
+    bounds->set_x(base::ClampToRange(bounds->x(), work_area.x(),
+                                     work_area.right() - bounds->width()));
+    bounds->set_y(base::ClampToRange(bounds->y(), work_area.y(),
+                                     work_area.bottom() - bounds->height()));
   }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // Limit the maximum height.  On the Mac the sizer is on the
   // bottom-right of the window, and a window cannot be moved "up"
   // past the menubar.  If the window is too tall you'll never be able
@@ -394,11 +333,9 @@ void WindowSizer::AdjustBoundsToBeVisibleOnDisplay(
   const int min_x = work_area.x() + kMinVisibleWidth - bounds->width();
   const int max_y = work_area.bottom() - kMinVisibleHeight;
   const int max_x = work_area.right() - kMinVisibleWidth;
-  // TODO(crbug.com/1235666): Make sure these use correct ranges (lo <= hi)
-  // and migrate to base::clamp().
-  bounds->set_y(BrokenClampThatShouldNotBeUsed(bounds->y(), min_y, max_y));
-  bounds->set_x(BrokenClampThatShouldNotBeUsed(bounds->x(), min_x, max_x));
-#endif  // BUILDFLAG(IS_MAC)
+  bounds->set_y(base::ClampToRange(bounds->y(), min_y, max_y));
+  bounds->set_x(base::ClampToRange(bounds->x(), min_x, max_x));
+#endif  // defined(OS_MAC)
 }
 
 // static
@@ -413,8 +350,7 @@ ui::WindowShowState WindowSizer::GetWindowDefaultShowState(
 
 #if defined(USE_AURA)
   // We use the apps save state as well on aura.
-  use_command_line = use_command_line || browser->is_type_app() ||
-                     browser->is_type_app_popup();
+  use_command_line = use_command_line || browser->deprecated_is_app();
 #endif
 
   if (use_command_line && base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -427,10 +363,10 @@ ui::WindowShowState WindowSizer::GetWindowDefaultShowState(
 
 // static
 display::Display WindowSizer::GetDisplayForNewWindow(const gfx::Rect& bounds) {
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS) || BUILDFLAG(IS_LACROS)
   // Prefer the display where the user last activated a window.
   return display::Screen::GetScreen()->GetDisplayForNewWindows();
 #else
   return display::Screen::GetScreen()->GetDisplayMatching(bounds);
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS) || BUILDFLAG(IS_LACROS)
 }

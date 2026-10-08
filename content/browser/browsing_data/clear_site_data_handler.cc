@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/scoped_observer.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
@@ -19,7 +20,7 @@
 #include "net/base/load_flags.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/http/http_response_headers.h"
-#include "services/network/public/cpp/is_potentially_trustworthy.h"
+#include "third_party/blink/public/common/loader/network_utils.h"
 
 namespace content {
 
@@ -53,8 +54,7 @@ void OutputFormattedMessage(WebContents* web_contents,
                             blink::mojom::ConsoleMessageLevel level,
                             const std::string& formatted_text) {
   if (web_contents)
-    web_contents->GetPrimaryMainFrame()->AddMessageToConsole(level,
-                                                             formatted_text);
+    web_contents->GetMainFrame()->AddMessageToConsole(level, formatted_text);
 }
 
 }  // namespace
@@ -109,12 +109,9 @@ void ClearSiteDataHandler::HandleHeader(
     const GURL& url,
     const std::string& header_value,
     int load_flags,
-    const absl::optional<net::CookiePartitionKey>& cookie_partition_key,
-    const absl::optional<blink::StorageKey>& storage_key,
     base::OnceClosure callback) {
   ClearSiteDataHandler handler(browser_context_getter, web_contents_getter, url,
-                               header_value, load_flags, cookie_partition_key,
-                               storage_key, std::move(callback),
+                               header_value, load_flags, std::move(callback),
                                std::make_unique<ConsoleMessagesDelegate>());
   handler.HandleHeaderAndOutputConsoleMessages();
 }
@@ -137,8 +134,6 @@ ClearSiteDataHandler::ClearSiteDataHandler(
     const GURL& url,
     const std::string& header_value,
     int load_flags,
-    const absl::optional<net::CookiePartitionKey>& cookie_partition_key,
-    const absl::optional<blink::StorageKey>& storage_key,
     base::OnceClosure callback,
     std::unique_ptr<ConsoleMessagesDelegate> delegate)
     : browser_context_getter_(browser_context_getter),
@@ -146,8 +141,6 @@ ClearSiteDataHandler::ClearSiteDataHandler(
       url_(url),
       header_value_(header_value),
       load_flags_(load_flags),
-      cookie_partition_key_(cookie_partition_key),
-      storage_key_(storage_key),
       callback_(std::move(callback)),
       delegate_(std::move(delegate)) {
   DCHECK(browser_context_getter_);
@@ -172,7 +165,7 @@ bool ClearSiteDataHandler::HandleHeaderAndOutputConsoleMessages() {
 
 bool ClearSiteDataHandler::Run() {
   // Only accept the header on secure non-unique origins.
-  if (!network::IsUrlPotentiallyTrustworthy(url_)) {
+  if (!blink::network_utils::IsOriginSecure(url_)) {
     delegate_->AddMessage(url_, "Not supported for insecure origins.",
                           blink::mojom::ConsoleMessageLevel::kError);
     return false;
@@ -307,7 +300,7 @@ void ClearSiteDataHandler::ExecuteClearingTask(const url::Origin& origin,
                                                base::OnceClosure callback) {
   ClearSiteData(browser_context_getter_, origin, clear_cookies, clear_storage,
                 clear_cache, true /*avoid_closing_connections*/,
-                cookie_partition_key_, storage_key_, std::move(callback));
+                std::move(callback));
 }
 
 // static
@@ -320,7 +313,8 @@ void ClearSiteDataHandler::TaskFinished(
 
   UMA_HISTOGRAM_CUSTOM_TIMES("Navigation.ClearSiteData.Duration",
                              base::TimeTicks::Now() - clearing_started,
-                             base::Milliseconds(1), base::Seconds(1), 50);
+                             base::TimeDelta::FromMilliseconds(1),
+                             base::TimeDelta::FromSeconds(1), 50);
 
   // TODO(crbug.com/876931): Delay output until next frame for navigations.
   delegate->OutputMessages(web_contents_getter);

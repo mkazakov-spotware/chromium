@@ -1,11 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/base/mime_util.h"
 
 #include "base/no_destructor.h"
-#include "base/strings/string_piece.h"
 #include "media/base/mime_util_internal.h"
 
 namespace media {
@@ -16,22 +15,22 @@ static const internal::MimeUtil* GetMimeUtil() {
   return &(*mime_util);
 }
 
-bool IsSupportedMediaMimeType(base::StringPiece mime_type) {
+bool IsSupportedMediaMimeType(const std::string& mime_type) {
   return GetMimeUtil()->IsSupportedMediaMimeType(mime_type);
 }
 
-SupportsType IsSupportedMediaFormat(base::StringPiece mime_type,
+SupportsType IsSupportedMediaFormat(const std::string& mime_type,
                                     const std::vector<std::string>& codecs) {
   return GetMimeUtil()->IsSupportedMediaFormat(mime_type, codecs, false);
 }
 
 SupportsType IsSupportedEncryptedMediaFormat(
-    base::StringPiece mime_type,
+    const std::string& mime_type,
     const std::vector<std::string>& codecs) {
   return GetMimeUtil()->IsSupportedMediaFormat(mime_type, codecs, true);
 }
 
-void SplitCodecs(base::StringPiece codecs,
+void SplitCodecs(const std::string& codecs,
                  std::vector<std::string>* codecs_out) {
   GetMimeUtil()->SplitCodecs(codecs, codecs_out);
 }
@@ -40,8 +39,8 @@ void StripCodecs(std::vector<std::string>* codecs) {
   GetMimeUtil()->StripCodecs(codecs);
 }
 
-bool ParseVideoCodecString(base::StringPiece mime_type,
-                           base::StringPiece codec_id,
+bool ParseVideoCodecString(const std::string& mime_type,
+                           const std::string& codec_id,
                            bool* ambiguous_codec_string,
                            VideoCodec* out_codec,
                            VideoCodecProfile* out_profile,
@@ -52,8 +51,8 @@ bool ParseVideoCodecString(base::StringPiece mime_type,
       out_level, out_colorspace);
 }
 
-bool ParseAudioCodecString(base::StringPiece mime_type,
-                           base::StringPiece codec_id,
+bool ParseAudioCodecString(const std::string& mime_type,
+                           const std::string& codec_id,
                            bool* ambiguous_codec_string,
                            AudioCodec* out_codec) {
   return GetMimeUtil()->ParseAudioCodecString(

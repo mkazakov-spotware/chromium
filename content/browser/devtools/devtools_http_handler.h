@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,15 @@
 #include <string>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/values.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "net/http/http_status_code.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
+class DictionaryValue;
 class Thread;
+class Value;
 }
 
 namespace content {
@@ -51,10 +52,6 @@ class DevToolsHttpHandler {
       std::unique_ptr<DevToolsSocketFactory> server_socket_factory,
       const base::FilePath& active_port_output_directory,
       const base::FilePath& debug_frontend_dir);
-
-  DevToolsHttpHandler(const DevToolsHttpHandler&) = delete;
-  DevToolsHttpHandler& operator=(const DevToolsHttpHandler&) = delete;
-
   ~DevToolsHttpHandler();
 
  private:
@@ -85,7 +82,7 @@ class DevToolsHttpHandler {
 
   void SendJson(int connection_id,
                 net::HttpStatusCode status_code,
-                absl::optional<base::ValueView> value,
+                base::Value* value,
                 const std::string& message);
   void Send200(int connection_id,
                const std::string& data,
@@ -104,7 +101,7 @@ class DevToolsHttpHandler {
       const std::string& target_id,
       const std::string& host);
 
-  base::Value::Dict SerializeDescriptor(
+  std::unique_ptr<base::DictionaryValue> SerializeDescriptor(
       scoped_refptr<DevToolsAgentHost> agent_host,
       const std::string& host);
 
@@ -119,6 +116,8 @@ class DevToolsHttpHandler {
   DevToolsManagerDelegate* delegate_;
   std::unique_ptr<DevToolsSocketFactory> socket_factory_;
   base::WeakPtrFactory<DevToolsHttpHandler> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DevToolsHttpHandler);
 };
 
 }  // namespace content

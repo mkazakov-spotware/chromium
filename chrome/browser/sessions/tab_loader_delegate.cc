@@ -1,11 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/sessions/tab_loader_delegate.h"
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/string_number_conversions.h"
 #include "chrome/browser/resource_coordinator/session_restore_policy.h"
@@ -36,10 +36,6 @@ class TabLoaderDelegateImpl
       public network::NetworkConnectionTracker::NetworkConnectionObserver {
  public:
   explicit TabLoaderDelegateImpl(TabLoaderCallback* callback);
-
-  TabLoaderDelegateImpl(const TabLoaderDelegateImpl&) = delete;
-  TabLoaderDelegateImpl& operator=(const TabLoaderDelegateImpl&) = delete;
-
   ~TabLoaderDelegateImpl() override;
 
   // TabLoaderDelegate:
@@ -94,16 +90,18 @@ class TabLoaderDelegateImpl
   // The policy engine used to implement ShouldLoad. By default this is simply
   // a pointer to |default_policy_|, but it can also point to externally
   // injected policy engine for testing.
-  raw_ptr<resource_coordinator::SessionRestorePolicy> policy_;
+  resource_coordinator::SessionRestorePolicy* policy_;
 
   // The function to call when the connection type changes.
-  raw_ptr<TabLoaderCallback> callback_;
+  TabLoaderCallback* callback_;
 
   // The timeouts to use in tab loading.
   base::TimeDelta first_timeout_;
   base::TimeDelta timeout_;
 
   base::WeakPtrFactory<TabLoaderDelegateImpl> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(TabLoaderDelegateImpl);
 };
 
 TabLoaderDelegateImpl::TabLoaderDelegateImpl(TabLoaderCallback* callback)
@@ -121,8 +119,8 @@ TabLoaderDelegateImpl::TabLoaderDelegateImpl(TabLoaderCallback* callback)
     callback->SetTabLoadingEnabled(false);
   }
 
-  first_timeout_ = base::Milliseconds(kFirstTabLoadTimeoutMS);
-  timeout_ = base::Milliseconds(kInitialDelayTimerMS);
+  first_timeout_ = base::TimeDelta::FromMilliseconds(kFirstTabLoadTimeoutMS);
+  timeout_ = base::TimeDelta::FromMilliseconds(kInitialDelayTimerMS);
 
   // Override |policy_| if a testing policy has been set.
   if (g_testing_policy) {

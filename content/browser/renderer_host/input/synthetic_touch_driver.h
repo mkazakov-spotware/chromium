@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,19 +6,17 @@
 #define CONTENT_BROWSER_RENDERER_HOST_INPUT_SYNTHETIC_TOUCH_DRIVER_H_
 
 #include <array>
+#include "base/macros.h"
 #include "content/browser/renderer_host/input/synthetic_pointer_driver.h"
+#include "content/common/content_export.h"
 #include "third_party/blink/public/common/input/synthetic_web_input_event_builders.h"
 
 namespace content {
 
-class SyntheticTouchDriver : public SyntheticPointerDriver {
+class CONTENT_EXPORT SyntheticTouchDriver : public SyntheticPointerDriver {
  public:
   SyntheticTouchDriver();
   explicit SyntheticTouchDriver(blink::SyntheticWebTouchEvent touch_event);
-
-  SyntheticTouchDriver(const SyntheticTouchDriver&) = delete;
-  SyntheticTouchDriver& operator=(const SyntheticTouchDriver&) = delete;
-
   ~SyntheticTouchDriver() override;
 
   void DispatchEvent(SyntheticGestureTarget* target,
@@ -34,10 +32,7 @@ class SyntheticTouchDriver : public SyntheticPointerDriver {
       float width = 40.f,
       float height = 40.f,
       float rotation_angle = 0.f,
-      float force = 0.5,
-      float tangential_pressure = 0.f,
-      int tilt_x = 0,
-      int tilt_y = 0,
+      float force = 1.f,
       const base::TimeTicks& timestamp = base::TimeTicks::Now()) override;
   void Move(float x,
             float y,
@@ -46,12 +41,7 @@ class SyntheticTouchDriver : public SyntheticPointerDriver {
             float width = 40.f,
             float height = 40.f,
             float rotation_angle = 0.f,
-            float force = 0.5,
-            float tangential_pressure = 0.f,
-            int tilt_x = 0,
-            int tilt_y = 0,
-            SyntheticPointerActionParams::Button button =
-                SyntheticPointerActionParams::Button::NO_BUTTON) override;
+            float force = 1.f) override;
   void Release(int index,
                SyntheticPointerActionParams::Button button =
                    SyntheticPointerActionParams::Button::LEFT,
@@ -73,8 +63,10 @@ class SyntheticTouchDriver : public SyntheticPointerDriver {
 
   blink::SyntheticWebTouchEvent touch_event_;
   PointerIdIndexMap pointer_id_map_;
+
+  DISALLOW_COPY_AND_ASSIGN(SyntheticTouchDriver);
 };
 
 }  // namespace content
 
-#endif  // CONTENT_BROWSER_RENDERER_HOST_INPUT_SYNTHETIC_TOUCH_DRIVER_H_
+#endif  // CONTENT_COMMON_INPUT_SYNTHETIC_TOUCH_DRIVER_H_

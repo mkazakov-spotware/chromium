@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/containers/circular_deque.h"
+#include "base/macros.h"
 #include "media/midi/midi_export.h"
 
 namespace midi {
@@ -45,10 +46,6 @@ class MIDI_EXPORT MidiMessageQueue {
   // Initializes the queue. Set true to |allow_running_status| to enable
   // "MIDI running status" reconstruction.
   explicit MidiMessageQueue(bool allow_running_status);
-
-  MidiMessageQueue(const MidiMessageQueue&) = delete;
-  MidiMessageQueue& operator=(const MidiMessageQueue&) = delete;
-
   ~MidiMessageQueue();
 
   // Enqueues |data| to the internal buffer.
@@ -70,6 +67,7 @@ class MIDI_EXPORT MidiMessageQueue {
   base::circular_deque<uint8_t> queue_;
   std::vector<uint8_t> next_message_;
   const bool allow_running_status_;
+  DISALLOW_COPY_AND_ASSIGN(MidiMessageQueue);
 };
 
 }  // namespace midi

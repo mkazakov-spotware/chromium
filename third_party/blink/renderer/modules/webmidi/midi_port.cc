@@ -32,9 +32,6 @@
 
 #include "third_party/blink/public/platform/task_type.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
-#include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
-#include "third_party/blink/renderer/bindings/core/v8/to_v8_traits.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_midi_port_device_state.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
 #include "third_party/blink/renderer/core/frame/web_feature.h"
 #include "third_party/blink/renderer/modules/webmidi/midi_access.h"
@@ -50,7 +47,7 @@ MIDIPort::MIDIPort(MIDIAccess* access,
                    const String& id,
                    const String& manufacturer,
                    const String& name,
-                   MIDIPortType type,
+                   TypeCode type,
                    const String& version,
                    PortState state)
     : ExecutionContextLifecycleObserver(access->GetExecutionContext()),
@@ -60,68 +57,82 @@ MIDIPort::MIDIPort(MIDIAccess* access,
       type_(type),
       version_(version),
       access_(access),
-      connection_(MIDIPortConnectionState::kClosed) {
+      connection_(kConnectionStateClosed) {
   DCHECK(access);
-  DCHECK(type == MIDIPortType::kInput || type == MIDIPortType::kOutput);
+  DCHECK(type == kTypeInput || type == kTypeOutput);
   DCHECK(state == PortState::DISCONNECTED || state == PortState::CONNECTED);
   state_ = state;
 }
 
-V8MIDIPortConnectionState MIDIPort::connection() const {
-  return V8MIDIPortConnectionState(connection_);
+String MIDIPort::connection() const {
+  switch (connection_) {
+    case kConnectionStateOpen:
+      return "open";
+    case kConnectionStateClosed:
+      return "closed";
+    case kConnectionStatePending:
+      return "pending";
+  }
+  return g_empty_string;
 }
 
-V8MIDIPortDeviceState MIDIPort::state() const {
+String MIDIPort::state() const {
   switch (state_) {
     case PortState::DISCONNECTED:
-      return V8MIDIPortDeviceState(V8MIDIPortDeviceState::Enum::kDisconnected);
+      return "disconnected";
     case PortState::CONNECTED:
-      return V8MIDIPortDeviceState(V8MIDIPortDeviceState::Enum::kConnected);
+      return "connected";
     case PortState::OPENED:
-      break;
+      NOTREACHED();
+      return "connected";
   }
-  NOTREACHED();
-  return V8MIDIPortDeviceState(V8MIDIPortDeviceState::Enum::kConnected);
+  return g_empty_string;
 }
 
-V8MIDIPortType MIDIPort::type() const {
-  return V8MIDIPortType(type_);
+String MIDIPort::type() const {
+  switch (type_) {
+    case kTypeInput:
+      return "input";
+    case kTypeOutput:
+      return "output";
+  }
+  return g_empty_string;
 }
 
 ScriptPromise MIDIPort::open(ScriptState* script_state) {
-  if (connection_ == MIDIPortConnectionState::kOpen)
+  if (connection_ == kConnectionStateOpen)
     return Accept(script_state);
 
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(script_state);
   GetExecutionContext()
       ->GetTaskRunner(TaskType::kMiscPlatformAPI)
       ->PostTask(FROM_HERE,
-                 WTF::BindOnce(&MIDIPort::OpenAsynchronously,
-                               WrapPersistent(this), WrapPersistent(resolver)));
+                 WTF::Bind(&MIDIPort::OpenAsynchronously, WrapPersistent(this),
+                           WrapPersistent(resolver)));
   running_open_count_++;
   return resolver->Promise();
 }
 
 void MIDIPort::open() {
-  if (connection_ == MIDIPortConnectionState::kOpen || running_open_count_)
+  if (connection_ == kConnectionStateOpen || running_open_count_)
     return;
   GetExecutionContext()
       ->GetTaskRunner(TaskType::kMiscPlatformAPI)
-      ->PostTask(FROM_HERE, WTF::BindOnce(&MIDIPort::OpenAsynchronously,
-                                          WrapPersistent(this), nullptr));
+      ->PostTask(FROM_HERE, WTF::Bind(&MIDIPort::OpenAsynchronously,
+                                      WrapPersistent(this), nullptr));
   running_open_count_++;
 }
 
 ScriptPromise MIDIPort::close(ScriptState* script_state) {
-  if (connection_ == MIDIPortConnectionState::kClosed)
+  if (connection_ == kConnectionStateClosed)
     return Accept(script_state);
 
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(script_state);
   GetExecutionContext()
       ->GetTaskRunner(TaskType::kMiscPlatformAPI)
       ->PostTask(FROM_HERE,
-                 WTF::BindOnce(&MIDIPort::CloseAsynchronously,
-                               WrapPersistent(this), WrapPersistent(resolver)));
+                 WTF::Bind(&MIDIPort::CloseAsynchronously, WrapPersistent(this),
+                           WrapPersistent(resolver)));
   return resolver->Promise();
 }
 
@@ -129,29 +140,29 @@ void MIDIPort::SetState(PortState state) {
   switch (state) {
     case PortState::DISCONNECTED:
       switch (connection_) {
-        case MIDIPortConnectionState::kOpen:
-        case MIDIPortConnectionState::kPending:
-          SetStates(PortState::DISCONNECTED, MIDIPortConnectionState::kPending);
+        case kConnectionStateOpen:
+        case kConnectionStatePending:
+          SetStates(PortState::DISCONNECTED, kConnectionStatePending);
           break;
-        case MIDIPortConnectionState::kClosed:
+        case kConnectionStateClosed:
           // Will do nothing.
-          SetStates(PortState::DISCONNECTED, MIDIPortConnectionState::kClosed);
+          SetStates(PortState::DISCONNECTED, kConnectionStateClosed);
           break;
       }
       break;
     case PortState::CONNECTED:
       switch (connection_) {
-        case MIDIPortConnectionState::kOpen:
+        case kConnectionStateOpen:
           NOTREACHED();
           break;
-        case MIDIPortConnectionState::kPending:
+        case kConnectionStatePending:
           // We do not use |setStates| in order not to dispatch events twice.
           // |open| calls |setStates|.
           state_ = PortState::CONNECTED;
           open();
           break;
-        case MIDIPortConnectionState::kClosed:
-          SetStates(PortState::CONNECTED, MIDIPortConnectionState::kClosed);
+        case kConnectionStateClosed:
+          SetStates(PortState::CONNECTED, kConnectionStateClosed);
           break;
       }
       break;
@@ -168,12 +179,12 @@ ExecutionContext* MIDIPort::GetExecutionContext() const {
 bool MIDIPort::HasPendingActivity() const {
   // MIDIPort should survive if ConnectionState is "open" or can be "open" via
   // a MIDIConnectionEvent even if there are no references from JavaScript.
-  return connection_ != MIDIPortConnectionState::kClosed;
+  return connection_ != kConnectionStateClosed;
 }
 
 void MIDIPort::ContextDestroyed() {
   // Should be "closed" to assume there are no pending activities.
-  connection_ = MIDIPortConnectionState::kClosed;
+  connection_ = kConnectionStateClosed;
 }
 
 void MIDIPort::Trace(Visitor* visitor) const {
@@ -195,12 +206,12 @@ void MIDIPort::OpenAsynchronously(ScriptPromiseResolver* resolver) {
   DidOpen(state_ == PortState::CONNECTED);
   switch (state_) {
     case PortState::DISCONNECTED:
-      SetStates(state_, MIDIPortConnectionState::kPending);
+      SetStates(state_, kConnectionStatePending);
       break;
     case PortState::CONNECTED:
       // TODO(toyoshim): Add blink API to perform a real open and close
       // operation.
-      SetStates(state_, MIDIPortConnectionState::kOpen);
+      SetStates(state_, kConnectionStateOpen);
       break;
     case PortState::OPENED:
       NOTREACHED();
@@ -219,19 +230,19 @@ void MIDIPort::CloseAsynchronously(ScriptPromiseResolver* resolver) {
   DCHECK(resolver);
   // TODO(toyoshim): Do clear() operation on MIDIOutput.
   // TODO(toyoshim): Add blink API to perform a real close operation.
-  SetStates(state_, MIDIPortConnectionState::kClosed);
+  SetStates(state_, kConnectionStateClosed);
   resolver->Resolve(this);
 }
 
 ScriptPromise MIDIPort::Accept(ScriptState* script_state) {
-  return ScriptPromise::Cast(
-      script_state,
-      ToV8Traits<MIDIPort>::ToV8(script_state, this).ToLocalChecked());
+  return ScriptPromise::Cast(script_state,
+                             ToV8(this, script_state->GetContext()->Global(),
+                                  script_state->GetIsolate()));
 }
 
-void MIDIPort::SetStates(PortState state, MIDIPortConnectionState connection) {
+void MIDIPort::SetStates(PortState state, ConnectionState connection) {
   DCHECK(state != PortState::DISCONNECTED ||
-         connection != MIDIPortConnectionState::kOpen);
+         connection != kConnectionStateOpen);
   if (state_ == state && connection_ == connection)
     return;
   state_ = state;

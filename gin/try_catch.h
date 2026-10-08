@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "gin/gin_export.h"
-#include "v8/include/v8-exception.h"
+#include "v8/include/v8.h"
 
 namespace gin {
 
@@ -17,16 +17,16 @@ namespace gin {
 class GIN_EXPORT TryCatch {
  public:
   explicit TryCatch(v8::Isolate* isolate);
-  TryCatch(const TryCatch&) = delete;
-  TryCatch& operator=(const TryCatch&) = delete;
   ~TryCatch();
 
   bool HasCaught();
   std::string GetStackTrace();
 
  private:
-  raw_ptr<v8::Isolate> isolate_;
+  v8::Isolate* isolate_;
   v8::TryCatch try_catch_;
+
+  DISALLOW_COPY_AND_ASSIGN(TryCatch);
 };
 
 }  // namespace gin

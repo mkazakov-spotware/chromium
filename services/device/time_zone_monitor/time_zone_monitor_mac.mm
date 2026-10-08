@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "services/device/time_zone_monitor/time_zone_monitor.h"
 #include "third_party/icu/source/i18n/unicode/timezone.h"
 
@@ -24,9 +25,6 @@ class TimeZoneMonitorMac : public TimeZoneMonitor {
                     }];
   }
 
-  TimeZoneMonitorMac(const TimeZoneMonitorMac&) = delete;
-  TimeZoneMonitorMac& operator=(const TimeZoneMonitorMac&) = delete;
-
   ~TimeZoneMonitorMac() override {
     NSNotificationCenter* nc = [NSNotificationCenter defaultCenter];
     [nc removeObserver:notification_observer_];
@@ -34,6 +32,8 @@ class TimeZoneMonitorMac : public TimeZoneMonitor {
 
  private:
   id notification_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(TimeZoneMonitorMac);
 };
 
 // static

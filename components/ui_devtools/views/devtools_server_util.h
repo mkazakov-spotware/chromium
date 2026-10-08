@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,7 @@ namespace ui_devtools {
 // The connector is used in TracingAgent to hook up with the tracing service.
 std::unique_ptr<UiDevToolsServer> CreateUiDevToolsServerForViews(
     network::mojom::NetworkContext* network_context,
-    std::unique_ptr<ConnectorDelegate> connector,
-    const base::FilePath& active_port_output_directory);
+    std::unique_ptr<ConnectorDelegate> connector);
 
 }  // namespace ui_devtools
 

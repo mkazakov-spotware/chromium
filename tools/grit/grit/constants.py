@@ -1,4 +1,4 @@
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -15,9 +15,7 @@ ENCODING_CHECK = u'm\u00f6l'
 # A special language, translations into which are always "TTTTTT".
 CONSTANT_LANGUAGE = 'x_constant'
 
-PSEUDOLOCALE_LONG_STRINGS = 'en-XA'
-PSEUDOLOCALE_RTL = 'ar-XB'
-PSEUDOLOCALES = [PSEUDOLOCALE_LONG_STRINGS, PSEUDOLOCALE_RTL]
+FAKE_BIDI = 'fake-bidi'
 
 # Magic number added to the header of resources brotli compressed by grit. Used
 # to easily identify resources as being brotli compressed. See

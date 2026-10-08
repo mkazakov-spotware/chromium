@@ -1,14 +1,20 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_WEBUI_WELCOME_HELPERS_H_
 #define CHROME_BROWSER_UI_WEBUI_WELCOME_HELPERS_H_
 
-#include "base/feature_list.h"
+#include <string>
+
+#include "base/macros.h"
 #include "base/metrics/field_trial_params.h"
-#include "base/values.h"
 #include "build/build_config.h"
+
+namespace base {
+class DictionaryValue;
+struct Feature;
+}  // namespace base
 
 namespace policy {
 class PolicyMap;
@@ -30,10 +36,10 @@ bool IsAppVariationEnabled();
 
 bool HasModulesToShow(Profile* profile);
 
-base::Value::Dict GetModules(Profile* profile);
+base::DictionaryValue GetModules(Profile* profile);
 
 // Exposed for testing.
-BASE_DECLARE_FEATURE(kForceEnabled);
+extern const base::Feature kForceEnabled;
 
 bool CanShowGoogleAppModuleForTesting(const policy::PolicyMap& policies);
 bool CanShowNTPBackgroundModuleForTesting(const policy::PolicyMap& policies,

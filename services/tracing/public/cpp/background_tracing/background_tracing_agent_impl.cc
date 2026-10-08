@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 
 #include "base/metrics/metrics_hashes.h"
 #include "base/metrics/statistics_recorder.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/trace_event/trace_event.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "services/tracing/public/cpp/perfetto/macros.h"
@@ -16,7 +17,8 @@
 namespace tracing {
 namespace {
 
-constexpr base::TimeDelta kMinTimeBetweenHistogramChanges = base::Seconds(10);
+constexpr base::TimeDelta kMinTimeBetweenHistogramChanges =
+    base::TimeDelta::FromSeconds(10);
 
 }  // namespace
 
@@ -40,14 +42,12 @@ void BackgroundTracingAgentImpl::SetUMACallback(
 
   // This callback will run on a random thread, so we need to proxy back to the
   // current sequence before touching |this|.
-  auto histogram_observer =
-      std::make_unique<base::StatisticsRecorder::ScopedHistogramSampleObserver>(
-          histogram_name,
-          base::BindRepeating(&BackgroundTracingAgentImpl::OnHistogramChanged,
-                              weak_self, histogram_lower_value,
-                              histogram_upper_value, repeat));
-  histogram_callback_map_.insert(
-      {histogram_name, std::move(histogram_observer)});
+  base::StatisticsRecorder::SetCallback(
+      histogram_name,
+      base::BindRepeating(&BackgroundTracingAgentImpl::OnHistogramChanged,
+                          weak_self, base::SequencedTaskRunnerHandle::Get(),
+                          histogram_lower_value, histogram_upper_value,
+                          repeat));
 
   base::HistogramBase* existing_histogram =
       base::StatisticsRecorder::FindHistogram(histogram_name);
@@ -86,23 +86,30 @@ void BackgroundTracingAgentImpl::SetUMACallback(
 void BackgroundTracingAgentImpl::ClearUMACallback(
     const std::string& histogram_name) {
   histogram_last_changed_ = base::Time();
-  histogram_callback_map_.erase(histogram_name);
+  base::StatisticsRecorder::ClearCallback(histogram_name);
 }
 
 // static
 void BackgroundTracingAgentImpl::OnHistogramChanged(
     base::WeakPtr<BackgroundTracingAgentImpl> weak_self,
+    scoped_refptr<base::SequencedTaskRunner> task_runner,
     base::Histogram::Sample histogram_lower_value,
     base::Histogram::Sample histogram_upper_value,
     bool repeat,
     const char* histogram_name,
     uint64_t name_hash,
     base::Histogram::Sample actual_value) {
+  // NOTE: This method is called from an arbitrary sequence.
+
   if (actual_value < histogram_lower_value ||
       actual_value > histogram_upper_value) {
-    if (!repeat && weak_self)
-      weak_self->SendAbortBackgroundTracingMessage();
-
+    if (!repeat) {
+      task_runner->PostTask(
+          FROM_HERE,
+          base::BindOnce(
+              &BackgroundTracingAgentImpl::SendAbortBackgroundTracingMessage,
+              weak_self));
+    }
     return;
   }
   TRACE_EVENT("toplevel", "HistogramSampleTrigger",
@@ -113,8 +120,9 @@ void BackgroundTracingAgentImpl::OnHistogramChanged(
                 new_sample->set_sample(actual_value);
               });
 
-  if (weak_self)
-    weak_self->SendTriggerMessage(histogram_name);
+  task_runner->PostTask(
+      FROM_HERE, base::BindOnce(&BackgroundTracingAgentImpl::SendTriggerMessage,
+                                weak_self, histogram_name));
 }
 
 void BackgroundTracingAgentImpl::SendTriggerMessage(

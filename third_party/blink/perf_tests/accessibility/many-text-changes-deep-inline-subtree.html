@@ -24,14 +24,14 @@ function runTest() {
     startTime = PerfTestRunner.now();
 
     document.body.innerHTML = '';
-    appendManyElements(document.body, 4);
+    appendManyElements(document.body, 7);
 
-    setTimeout(changeLeafText, 250);
+    setTimeout(changeLeafText, 10);
 
     // Re-run the same test.
     // Wait to allow the asynchronous accessibility code that's
     // covered by traceEventsToMeasure to have a chance to run.
-    setTimeout(runTest, 2500);
+    setTimeout(runTest, 1500);
   }
 }
 
@@ -68,8 +68,6 @@ PerfTestRunner.startMeasureValuesAsync({
     iterationCount: 6,
     tracingCategories: 'accessibility',
     traceEventsToMeasure: [
-      // Measuring 'AXObjectCacheImpl::ChildrenChanged(LayoutObject)'
-      // can lead to this test timing out.
       'ProcessDeferredAccessibilityEvents',
       'RenderAccessibilityImpl::SendPendingAccessibilityEvents'
     ]

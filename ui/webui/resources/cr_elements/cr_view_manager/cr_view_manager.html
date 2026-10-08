@@ -1,3 +1,9 @@
+<link rel="import" href="../../html/polymer.html">
+
+<link rel="import" href="../../html/assert.html">
+
+<dom-module id="cr-view-manager">
+  <template>
     <style>
       :host ::slotted([slot=view]) {
         bottom: 0;
@@ -14,3 +20,6 @@
       }
     </style>
     <slot name="view"></slot>
+  </template>
+  <script src="cr_view_manager.js"></script>
+</dom-module>

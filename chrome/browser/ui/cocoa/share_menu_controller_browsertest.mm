@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -66,7 +66,7 @@ class ShareMenuControllerTest : public InProcessBrowserTest {
     ASSERT_TRUE(embedded_test_server()->Start());
 
     url_ = embedded_test_server()->GetURL("/title2.html");
-    ASSERT_TRUE(AddTabAtIndex(0, url_, ui::PAGE_TRANSITION_TYPED));
+    AddTabAtIndex(0, url_, ui::PAGE_TRANSITION_TYPED);
     controller_.reset([[ShareMenuController alloc] init]);
   }
 
@@ -187,7 +187,7 @@ IN_PROC_BROWSER_TEST_F(ShareMenuControllerTest, SharingDelegate) {
 
 IN_PROC_BROWSER_TEST_F(ShareMenuControllerTest, Histograms) {
   base::HistogramTester tester;
-  const std::string histogram_name = "Mac.FileMenuNativeShare";
+  const std::string histogram_name = "OSX.NativeShare";
 
   tester.ExpectTotalCount(histogram_name, 0);
 
@@ -220,8 +220,7 @@ IN_PROC_BROWSER_TEST_F(ShareMenuControllerTest, MenuHasKeyEquivalent) {
   base::scoped_nsobject<NSMenu> menu([[NSMenu alloc] initWithTitle:@"Share"]);
   EXPECT_EQ([menu numberOfItems], 0);
   NSEvent* event = cocoa_test_event_utils::KeyEventWithKeyCode(
-      'i', 'i', NSEventTypeKeyDown,
-      NSEventModifierFlagCommand | NSEventModifierFlagShift);
+      'i', 'i', NSKeyDown, NSCommandKeyMask | NSShiftKeyMask);
   id ignored_target;
   SEL ignored_action;
   EXPECT_FALSE([controller_ menuHasKeyEquivalent:menu

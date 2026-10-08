@@ -1,9 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.testing.local;
 
+import android.app.ApplicationPackageManager;
 import android.content.ComponentName;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
@@ -17,7 +18,7 @@ import org.robolectric.shadows.ShadowApplicationPackageManager;
  * Uses {@link PackageManager#getPackageInfo()} to retrieve ActivityInfo. This enables registering
  * activities via {@link ShadowPackageManager#addPackage()}.
  */
-@Implements(className = "android.app.ApplicationPackageManager")
+@Implements(ApplicationPackageManager.class)
 public class CustomShadowApplicationPackageManager extends ShadowApplicationPackageManager {
     @Implementation
     @Override

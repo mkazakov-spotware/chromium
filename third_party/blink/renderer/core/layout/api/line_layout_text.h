@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_API_LINE_LAYOUT_TEXT_H_
 
 #include "third_party/blink/renderer/core/editing/frame_selection.h"
+#include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/layout/api/line_layout_item.h"
 #include "third_party/blink/renderer/core/layout/layout_text.h"
 #include "third_party/blink/renderer/platform/geometry/layout_unit.h"
@@ -94,7 +95,7 @@ class LineLayoutText : public LineLayoutItem {
               LayoutUnit x_pos,
               TextDirection text_direction,
               HashSet<const SimpleFontData*>* fallback_fonts,
-              gfx::RectF* glyph_bounds,
+              FloatRect* glyph_bounds,
               float expansion = 0) const {
     return ToText()->Width(from, len, font, x_pos, text_direction,
                            fallback_fonts, glyph_bounds, expansion);
@@ -106,7 +107,7 @@ class LineLayoutText : public LineLayoutItem {
               TextDirection text_direction,
               bool first_line,
               HashSet<const SimpleFontData*>* fallback_fonts = nullptr,
-              gfx::RectF* glyph_bounds = nullptr,
+              FloatRect* glyph_bounds = nullptr,
               float expansion = 0) const {
     return ToText()->Width(from, len, x_pos, text_direction, first_line,
                            fallback_fonts, glyph_bounds, expansion);
@@ -122,7 +123,10 @@ class LineLayoutText : public LineLayoutItem {
 
   UChar PreviousCharacter() const { return ToText()->PreviousCharacter(); }
 
-  LayoutTextSelectionStatus SelectionStatus() const;
+  struct LayoutTextSelectionStatus SelectionStatus() const {
+    return ToText()->GetFrame()->Selection().ComputeLayoutSelectionStatus(
+        *ToText());
+  }
 
  private:
   LayoutText* ToText() { return To<LayoutText>(GetLayoutObject()); }

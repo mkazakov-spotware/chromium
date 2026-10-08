@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@
 
 #include <stdint.h>
 
-#include "base/memory/raw_ptr.h"
+#include <memory>
+
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "net/base/net_export.h"
@@ -17,6 +19,7 @@
 
 namespace net {
 
+class DnsSocketAllocator;
 class NetLog;
 
 // Session parameters and state shared between DnsTransactions for a specific
@@ -33,13 +36,12 @@ class NET_EXPORT_PRIVATE DnsSession : public base::RefCounted<DnsSession> {
   typedef base::RepeatingCallback<int()> RandCallback;
 
   DnsSession(const DnsConfig& config,
+             std::unique_ptr<DnsSocketAllocator> socket_allocator,
              const RandIntCallback& rand_int_callback,
              NetLog* net_log);
 
-  DnsSession(const DnsSession&) = delete;
-  DnsSession& operator=(const DnsSession&) = delete;
-
   const DnsConfig& config() const { return config_; }
+  DnsSocketAllocator* socket_allocator() { return socket_allocator_.get(); }
   DnsUdpTracker* udp_tracker() { return &udp_tracker_; }
   NetLog* net_log() const { return net_log_; }
 
@@ -62,11 +64,14 @@ class NET_EXPORT_PRIVATE DnsSession : public base::RefCounted<DnsSession> {
   ~DnsSession();
 
   const DnsConfig config_;
+  std::unique_ptr<DnsSocketAllocator> socket_allocator_;
   DnsUdpTracker udp_tracker_;
   RandCallback rand_callback_;
-  raw_ptr<NetLog> net_log_;
+  NetLog* net_log_;
 
   mutable base::WeakPtrFactory<DnsSession> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DnsSession);
 };
 
 }  // namespace net

@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/public/test/content_mock_cert_verifier.h"
 
 #include "base/command_line.h"
-#include "base/feature_list.h"
 #include "content/public/browser/network_service_instance.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/common/network_service_util.h"
@@ -27,18 +26,12 @@ void ContentMockCertVerifier::CertVerifier::set_default_result(
     int default_result) {
   verifier_->set_default_result(default_result);
 
-  // If set_default_result is called before the FeatureList is available, add
-  // the command line flag since the network service may be running out of
-  // process. We don't want to set the command line flag otherwise since it can
-  // cause TSan errors.
-  if (base::FeatureList::GetInstance() == nullptr) {
-    // Set the default result as a flag in case the FeatureList has not been
-    // initialized yet and we don't know if network service will run out of
-    // process.
-    base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
-        switches::kMockCertVerifierDefaultResultForTesting,
-        base::NumberToString(default_result));
-  }
+  // Set the default result as a flag in case the FeatureList has not been
+  // initialized yet and we don't know if network service will run out of
+  // process.
+  base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
+      switches::kMockCertVerifierDefaultResultForTesting,
+      base::NumberToString(default_result));
 
   if (IsInProcessNetworkService())
     return;

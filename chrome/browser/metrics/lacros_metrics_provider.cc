@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,13 @@
 #include "base/metrics/histogram_macros.h"
 #include "chrome/browser/metrics/enrollment_status.h"
 #include "chromeos/crosapi/mojom/crosapi.mojom.h"
-#include "chromeos/startup/browser_params_proxy.h"
-#include "third_party/metrics_proto/chrome_user_metrics_extension.pb.h"
+#include "chromeos/lacros/lacros_chrome_service_impl.h"
 
 namespace {
 
 EnrollmentStatus GetEnrollmentStatus() {
-  switch (chromeos::BrowserParamsProxy::Get()->DeviceMode()) {
+  auto* service = chromeos::LacrosChromeServiceImpl::Get();
+  switch (service->init_params()->device_mode) {
     case crosapi::mojom::DeviceMode::kUnknown:
       return EnrollmentStatus::kErrorGettingStatus;
     case crosapi::mojom::DeviceMode::kNotSet:
@@ -46,6 +46,5 @@ void LacrosMetricsProvider::ProvideStabilityMetrics(
 
 void LacrosMetricsProvider::ProvideCurrentSessionData(
     metrics::ChromeUserMetricsExtension* uma_proto) {
-  ProvideStabilityMetrics(uma_proto->mutable_system_profile());
   base::UmaHistogramBoolean("ChromeOS.IsLacrosBrowser", true);
 }

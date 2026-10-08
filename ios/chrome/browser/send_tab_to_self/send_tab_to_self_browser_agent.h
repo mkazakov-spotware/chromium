@@ -1,20 +1,19 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_BROWSER_SEND_TAB_TO_SELF_SEND_TAB_TO_SELF_BROWSER_AGENT_H_
 #define IOS_CHROME_BROWSER_SEND_TAB_TO_SELF_SEND_TAB_TO_SELF_BROWSER_AGENT_H_
 
-#import <CoreFoundation/CoreFoundation.h>
+#include <string>
+#include <vector>
 
-#import <string>
-#import <vector>
-
-#import "components/send_tab_to_self/send_tab_to_self_model_observer.h"
+#include "base/macros.h"
+#include "components/send_tab_to_self/send_tab_to_self_model_observer.h"
 #import "ios/chrome/browser/main/browser_observer.h"
 #import "ios/chrome/browser/main/browser_user_data.h"
 #import "ios/chrome/browser/web_state_list/web_state_list_observer.h"
-#import "ios/web/public/web_state_observer.h"
+#include "ios/web/public/web_state_observer.h"
 
 namespace web {
 class WebState;
@@ -35,6 +34,10 @@ class SendTabToSelfBrowserAgent
       BrowserObserver {
  public:
   ~SendTabToSelfBrowserAgent() override;
+
+  // Add a new entry to the SendTabToSelfModel for the active web state of the
+  // browser.
+  void SendCurrentTabToDevice(NSString* target_device_id);
 
   // SendTabToSelfModelObserver::
   // Keeps track of when the model is loaded so that updates to the
@@ -61,15 +64,14 @@ class SendTabToSelfBrowserAgent
   void WebStateDestroyed(web::WebState* web_state) override;
 
  private:
+  explicit SendTabToSelfBrowserAgent(Browser* browser);
   friend class BrowserUserData<SendTabToSelfBrowserAgent>;
   BROWSER_USER_DATA_KEY_DECL();
-
-  explicit SendTabToSelfBrowserAgent(Browser* browser);
 
   // BrowserObserver::
   void BrowserDestroyed(Browser* browser) override;
 
-  // Display an infobar for `entry` on the specified `web_state`.
+  // Display an infobar for |entry| on the specified |web_state|.
   void DisplayInfoBar(web::WebState* web_state,
                       const send_tab_to_self::SendTabToSelfEntry* entry);
 

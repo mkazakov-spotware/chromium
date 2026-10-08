@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,19 +28,12 @@ struct DocumentStartJavaScript {
   js_injection.mojom.OriginMatcher origin_matcher;
 };
 
-// JsWebMessage struct contains the message payload sent between
-// JavaScript and Browser.
-// TODO(crbug.com/1374142): Add ArrayBuffer support.
-union JsWebMessage {
-  mojo_base.mojom.String16 string_value;
-};
-
 // For JavaScript postMessage() API, implemented by browser.
 interface JsToBrowserMessaging {
   // Called from renderer, browser receives |message| and possible |ports|,
   // The |message| is an opaque type and the contents are defined by the client
   // of this API.
-  PostMessage(JsWebMessage message,
+  PostMessage(mojo_base.mojom.String16 message,
               array<blink.mojom.MessagePortDescriptor> ports);
 
   // When there is a new BrowserToJsMessaging created in renderer, we need to
@@ -53,7 +46,7 @@ interface JsToBrowserMessaging {
 // the renderer.
 interface BrowserToJsMessaging {
   // Called from browser, to send message to page.
-  OnPostMessage(JsWebMessage message);
+  OnPostMessage(mojo_base.mojom.String16 message);
 };
 
 // For browser to configure renderer, implemented by renderer.

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,11 +27,11 @@ std::vector<uint8_t> Materialize(base::span<const uint8_t> span) {
   return std::vector<uint8_t>(span.begin(), span.end());
 }
 
-absl::optional<std::vector<uint8_t>> MaterializeOrNull(
-    absl::optional<base::span<const uint8_t>> span) {
+base::Optional<std::vector<uint8_t>> MaterializeOrNull(
+    base::Optional<base::span<const uint8_t>> span) {
   if (span)
     return Materialize(*span);
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 void Append(std::vector<uint8_t>* target, base::span<const uint8_t> in_values) {
@@ -59,7 +59,9 @@ std::vector<uint8_t> ExtractSuffix(base::span<const uint8_t> span, size_t pos) {
 
 base::span<const uint8_t> ExtractSuffixSpan(base::span<const uint8_t> span,
                                             size_t pos) {
-  return span.subspan(std::min(pos, span.size()));
+  if (pos > span.size())
+    return std::vector<uint8_t>();
+  return span.subspan(pos);
 }
 
 std::vector<base::span<const uint8_t>> SplitSpan(base::span<const uint8_t> span,

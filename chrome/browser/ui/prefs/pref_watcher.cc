@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,22 +6,18 @@
 
 #include "base/bind.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/renderer_preferences_util.h"
 #include "chrome/browser/ui/prefs/prefs_tab_helper.h"
 #include "chrome/common/pref_names.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/language/core/browser/pref_names.h"
-#include "components/live_caption/pref_names.h"
 #include "third_party/blink/public/common/renderer_preferences/renderer_preferences.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "ash/constants/ash_pref_names.h"
-#endif
-
-#if BUILDFLAG(IS_ANDROID)
-#include "components/browser_ui/accessibility/android/font_size_prefs_android.h"
+#if defined(OS_CHROMEOS)
+#include "ash/public/cpp/ash_pref_names.h"
 #endif
 
 namespace {
@@ -45,9 +41,9 @@ const char* const kWebPrefsToObserve[] = {
     prefs::kAccessibilityCaptionsBackgroundColor,
     prefs::kAccessibilityCaptionsTextShadow,
     prefs::kAccessibilityCaptionsBackgroundOpacity,
-#if BUILDFLAG(IS_ANDROID)
-    browser_ui::prefs::kWebKitFontScaleFactor,
-    browser_ui::prefs::kWebKitForceEnableZoom,
+#if defined(OS_ANDROID)
+    prefs::kWebKitFontScaleFactor,
+    prefs::kWebKitForceEnableZoom,
     prefs::kWebKitPasswordEchoEnabled,
 #endif
     prefs::kWebKitForceDarkModeEnabled,
@@ -59,14 +55,14 @@ const char* const kWebPrefsToObserve[] = {
     prefs::kWebkitTabsToLinks,
     prefs::kWebKitTextAreasAreResizable,
     prefs::kWebKitWebSecurityEnabled,
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
     ash::prefs::kAccessibilityFocusHighlightEnabled,
 #else
     prefs::kAccessibilityFocusHighlightEnabled,
 #endif
 };
 
-const int kWebPrefsToObserveLength = std::size(kWebPrefsToObserve);
+const int kWebPrefsToObserveLength = base::size(kWebPrefsToObserve);
 
 }  // namespace
 
@@ -91,12 +87,12 @@ PrefWatcher::PrefWatcher(Profile* profile) : profile_(profile) {
   profile_pref_change_registrar_.Add(prefs::kWebRTCUDPPortRange,
                                      renderer_callback);
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   profile_pref_change_registrar_.Add(prefs::kCaretBrowsingEnabled,
                                      renderer_callback);
 #endif
 
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
   profile_pref_change_registrar_.Add(prefs::kFullscreenAllowed,
                                      renderer_callback);
 #endif
@@ -113,8 +109,6 @@ PrefWatcher::PrefWatcher(Profile* profile) : profile_(profile) {
     local_state_pref_change_registrar_.Init(g_browser_process->local_state());
     local_state_pref_change_registrar_.Add(prefs::kAllowCrossOriginAuthPrompt,
                                            renderer_callback);
-    local_state_pref_change_registrar_.Add(
-        prefs::kExplicitlyAllowedNetworkPorts, renderer_callback);
   }
 }
 
@@ -165,15 +159,20 @@ PrefWatcherFactory* PrefWatcherFactory::GetInstance() {
 }
 
 PrefWatcherFactory::PrefWatcherFactory()
-    : ProfileKeyedServiceFactory(
+    : BrowserContextKeyedServiceFactory(
           "PrefWatcher",
-          ProfileSelections::BuildForRegularAndIncognito()) {}
+          BrowserContextDependencyManager::GetInstance()) {}
 
 PrefWatcherFactory::~PrefWatcherFactory() = default;
 
 KeyedService* PrefWatcherFactory::BuildServiceInstanceFor(
     content::BrowserContext* browser_context) const {
   return new PrefWatcher(Profile::FromBrowserContext(browser_context));
+}
+
+content::BrowserContext* PrefWatcherFactory::GetBrowserContextToUse(
+    content::BrowserContext* context) const {
+  return chrome::GetBrowserContextOwnInstanceInIncognito(context);
 }
 
 // static

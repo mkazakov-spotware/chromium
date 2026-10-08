@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,7 @@
 extern const char kBrowserMetricsName[];
 
 // Do all the checking and work necessary to enable persistent histograms.
-void InstantiatePersistentHistograms(const base::FilePath& metrics_dir);
+void InstantiatePersistentHistograms(const base::FilePath& metrics_dir,
+                                     bool default_local_memory = false);
 
 #endif  // COMPONENTS_METRICS_PERSISTENT_HISTOGRAMS_H_

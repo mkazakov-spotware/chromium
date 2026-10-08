@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,9 +17,9 @@
 #include "components/sync/base/client_tag_hash.h"
 #include "components/sync/engine/commit_and_get_updates_types.h"
 #include "components/sync/engine/model_type_processor.h"
-#include "components/sync/protocol/entity_data.h"
+#include "components/sync/model/entity_data.h"
+#include "components/sync/model_impl/in_memory_metadata_change_list.h"
 #include "components/sync/protocol/session_specifics.pb.h"
-#include "components/sync/protocol/sync_enums.pb.h"
 #include "components/sync_sessions/open_tabs_ui_delegate.h"
 #include "components/sync_sessions/session_store.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -33,7 +33,7 @@ const char kTabTitleFormat[] = "session=%d;window=%d;tab=%d";
 const uint64_t kMaxMinutesRange = 1000;
 
 struct TitleTimestampPair {
-  std::u16string title;
+  base::string16 title;
   base::Time timestamp;
 };
 
@@ -69,7 +69,7 @@ struct RecentTabsBuilderTestHelper::TabInfo {
   TabInfo() : id(SessionID::InvalidValue()) {}
   SessionID id;
   base::Time timestamp;
-  std::u16string title;
+  base::string16 title;
 };
 struct RecentTabsBuilderTestHelper::WindowInfo {
   WindowInfo() : id(SessionID::InvalidValue()) {}
@@ -136,14 +136,15 @@ SessionID RecentTabsBuilderTestHelper::GetWindowID(int session_index,
 
 void RecentTabsBuilderTestHelper::AddTab(int session_index, int window_index) {
   base::Time timestamp =
-      start_time_ + base::Minutes(base::RandGenerator(kMaxMinutesRange));
-  AddTabWithInfo(session_index, window_index, timestamp, std::u16string());
+      start_time_ +
+      base::TimeDelta::FromMinutes(base::RandGenerator(kMaxMinutesRange));
+  AddTabWithInfo(session_index, window_index, timestamp, base::string16());
 }
 
 void RecentTabsBuilderTestHelper::AddTabWithInfo(int session_index,
                                                  int window_index,
                                                  base::Time timestamp,
-                                                 const std::u16string& title) {
+                                                 const base::string16& title) {
   TabInfo tab_info;
   tab_info.id = SessionID::NewUnique();
   tab_info.timestamp = timestamp;
@@ -169,10 +170,10 @@ base::Time RecentTabsBuilderTestHelper::GetTabTimestamp(int session_index,
       .tabs[tab_index].timestamp;
 }
 
-std::u16string RecentTabsBuilderTestHelper::GetTabTitle(int session_index,
+base::string16 RecentTabsBuilderTestHelper::GetTabTitle(int session_index,
                                                         int window_index,
                                                         int tab_index) {
-  std::u16string title =
+  base::string16 title =
       sessions_[session_index].windows[window_index].tabs[tab_index].title;
   if (title.empty()) {
     title = base::UTF8ToUTF16(ToTabTitle(
@@ -203,8 +204,7 @@ void RecentTabsBuilderTestHelper::ExportToSessionSync(
 
   sync_pb::ModelTypeState model_type_state;
   model_type_state.set_initial_sync_done(true);
-  processor->OnUpdateReceived(model_type_state, std::move(updates),
-                              /*gc_directive=*/absl::nullopt);
+  processor->OnUpdateReceived(model_type_state, std::move(updates));
   // ClientTagBasedModelTypeProcessor uses ModelTypeProcessorProxy during
   // activation, which involves task posting for receiving updates.
   base::RunLoop().RunUntilIdle();
@@ -227,7 +227,7 @@ void RecentTabsBuilderTestHelper::VerifyExport(
   }
 }
 
-std::vector<std::u16string>
+std::vector<base::string16>
 RecentTabsBuilderTestHelper::GetTabTitlesSortedByRecency() {
   std::vector<TitleTimestampPair> tabs;
   for (int s = 0; s < GetSessionCount(); ++s) {
@@ -242,7 +242,7 @@ RecentTabsBuilderTestHelper::GetTabTitlesSortedByRecency() {
   }
   sort(tabs.begin(), tabs.end(), SortTabTimesByRecency);
 
-  std::vector<std::u16string> titles;
+  std::vector<base::string16> titles;
   for (size_t i = 0; i < tabs.size(); ++i)
     titles.push_back(tabs[i].title);
   return titles;
@@ -267,7 +267,7 @@ void RecentTabsBuilderTestHelper::AddWindowToHeaderSpecifics(
   SessionID window_id = GetWindowID(session_index, window_index);
   window->set_window_id(window_id.id());
   window->set_selected_tab_index(0);
-  window->set_browser_type(sync_pb::SyncEnums_BrowserType_TYPE_TABBED);
+  window->set_browser_type(sync_pb::SessionWindow_BrowserType_TYPE_TABBED);
   for (int i = 0; i < GetTabCount(session_index, window_index); ++i)
     window->add_tab(GetTabID(session_index, window_index, i).id());
 }

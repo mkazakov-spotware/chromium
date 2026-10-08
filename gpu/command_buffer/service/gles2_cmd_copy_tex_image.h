@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <array>
 
+#include "base/macros.h"
 #include "gpu/command_buffer/service/feature_info.h"
 #include "gpu/gpu_gles2_export.h"
 
@@ -21,11 +22,6 @@ namespace gles2 {
 class GPU_GLES2_EXPORT CopyTexImageResourceManager {
  public:
   explicit CopyTexImageResourceManager(const gles2::FeatureInfo* feature_info);
-
-  CopyTexImageResourceManager(const CopyTexImageResourceManager&) = delete;
-  CopyTexImageResourceManager& operator=(const CopyTexImageResourceManager&) =
-      delete;
-
   virtual ~CopyTexImageResourceManager();
 
   virtual void Initialize(const DecoderContext* decoder);
@@ -79,6 +75,8 @@ class GPU_GLES2_EXPORT CopyTexImageResourceManager {
   GLuint scratch_fbo_ = 0;
 
   GLuint vao_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(CopyTexImageResourceManager);
 };
 
 }  // namespace gles2

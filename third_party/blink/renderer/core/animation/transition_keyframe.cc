@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,13 +45,13 @@ void TransitionKeyframe::AddKeyframePropertiesToV8Object(
 
   Document& document = element->GetDocument();
   StyleResolverState state(document, *element);
-  state.SetStyle(document.GetStyleResolver().CreateComputedStyle());
+  state.SetStyle(ComputedStyle::Create());
   CSSInterpolationTypesMap map(document.GetPropertyRegistry(), document);
-  CSSInterpolationEnvironment environment(map, state);
+  CSSInterpolationEnvironment environment(map, state, nullptr, nullptr);
   value_->GetType().Apply(value_->GetInterpolableValue(),
                           value_->GetNonInterpolableValue(), environment);
 
-  scoped_refptr<const ComputedStyle> style = state.TakeStyle();
+  const ComputedStyle* style = state.Style();
   String property_value =
       AnimationUtils::KeyframeValueFromComputedStyle(
           property_, *style, document, element->GetLayoutObject())

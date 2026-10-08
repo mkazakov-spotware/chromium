@@ -136,16 +136,6 @@ if (window.testRunner) {
         finish();
     }
 
-    PerfTestRunner.assert_true = function (cond,text) {
-      if (cond)
-        return;
-      PerfTestRunner.logFatalError(text);
-    }
-
-    PerfTestRunner.assert_false = function (cond,text) {
-      PerfTestRunner.assert_true(!cond,text);
-    }
-
     PerfTestRunner.formatException = function (text, exception) {
         return "Got an exception while " + text +
             " with name=" + exception.name +
@@ -354,17 +344,6 @@ if (window.testRunner) {
         start(test, requestAnimationFrame, measureFrameTimeOnce);
     }
 
-    PerfTestRunner.measureInnerRAFTime = function (test) {
-        PerfTestRunner.unit = "ms";
-        PerfTestRunner.bufferedLog = true;
-        test.warmUpCount = test.warmUpCount || 5;
-        test.iterationCount = test.iterationCount || 10;
-        // Force gc before starting the test to avoid the measured time from
-        // being affected by gc performance. See crbug.com/667811#c16.
-        PerfTestRunner.gc();
-        start(test, requestAnimationFrame, measureTimeOnce);
-    }
-
     var lastFrameTime = -1;
     function measureFrameTimeOnce() {
         if (lastFrameTime != -1)
@@ -387,11 +366,6 @@ if (window.testRunner) {
     PerfTestRunner.measureTime = function (test) {
         PerfTestRunner.unit = "ms";
         PerfTestRunner.bufferedLog = true;
-        start(test, zeroTimeoutScheduler, measureTimeOnce);
-    }
-
-    PerfTestRunner.measureValue = function (test) {
-        PerfTestRunner.unit = test.unit;
         start(test, zeroTimeoutScheduler, measureTimeOnce);
     }
 

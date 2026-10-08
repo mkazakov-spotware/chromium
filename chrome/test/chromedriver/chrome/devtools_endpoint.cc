@@ -1,9 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/test/chromedriver/chrome/devtools_endpoint.h"
 
+#include "base/strings/stringprintf.h"
 #include "chrome/test/chromedriver/chrome/devtools_http_client.h"
 #include "chrome/test/chromedriver/net/net_util.h"
 
@@ -24,8 +25,10 @@ NetAddress DevToolsEndpoint::Address() const {
 }
 
 std::string DevToolsEndpoint::GetBrowserDebuggerUrl() const {
-  GURL::Replacements replacements;
-  replacements.SetSchemeStr(server_url_.SchemeIs("https") ? "wss" : "ws");
+  const std::string scheme = server_url_.SchemeIs("https") ? "wss" : "ws";
+
+  url::Replacements<char> replacements;
+  replacements.SetScheme(scheme.c_str(), url::Component(0, scheme.length()));
 
   return server_url_.Resolve("devtools/browser/")
       .ReplaceComponents(replacements)
@@ -33,8 +36,10 @@ std::string DevToolsEndpoint::GetBrowserDebuggerUrl() const {
 }
 
 std::string DevToolsEndpoint::GetDebuggerUrl(const std::string& id) const {
-  GURL::Replacements replacements;
-  replacements.SetSchemeStr(server_url_.SchemeIs("https") ? "wss" : "ws");
+  const std::string scheme = server_url_.SchemeIs("https") ? "wss" : "ws";
+
+  url::Replacements<char> replacements;
+  replacements.SetScheme(scheme.c_str(), url::Component(0, scheme.length()));
 
   return server_url_.Resolve("devtools/page/" + id)
       .ReplaceComponents(replacements)
@@ -47,4 +52,12 @@ std::string DevToolsEndpoint::GetVersionUrl() const {
 
 std::string DevToolsEndpoint::GetListUrl() const {
   return server_url_.Resolve("json/list").spec();
+}
+
+std::string DevToolsEndpoint::GetCloseUrl(const std::string& id) const {
+  return server_url_.Resolve("json/close/" + id).spec();
+}
+
+std::string DevToolsEndpoint::GetActivateUrl(const std::string& id) const {
+  return server_url_.Resolve("json/activate/" + id).spec();
 }

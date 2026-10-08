@@ -20,24 +20,18 @@
 
 #include "third_party/blink/renderer/modules/plugins/dom_mime_type_array.h"
 
-#include "base/containers/contains.h"
-#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/core/page/plugin_data.h"
-#include "third_party/blink/renderer/modules/plugins/dom_plugin_array.h"
-#include "third_party/blink/renderer/modules/plugins/navigator_plugins.h"
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace blink {
 
-DOMMimeTypeArray::DOMMimeTypeArray(LocalDOMWindow* window,
-                                   bool should_return_fixed_plugin_data)
+DOMMimeTypeArray::DOMMimeTypeArray(LocalDOMWindow* window)
     : ExecutionContextLifecycleObserver(window),
-      PluginsChangedObserver(window ? window->GetFrame()->GetPage() : nullptr),
-      should_return_fixed_plugin_data_(should_return_fixed_plugin_data) {
+      PluginsChangedObserver(window ? window->GetFrame()->GetPage() : nullptr) {
   UpdatePluginData();
 }
 
@@ -63,13 +57,6 @@ DOMMimeType* DOMMimeTypeArray::item(unsigned index) {
 }
 
 DOMMimeType* DOMMimeTypeArray::namedItem(const AtomicString& property_name) {
-  if (should_return_fixed_plugin_data_) {
-    for (const auto& mimetype : dom_mime_types_) {
-      if (mimetype->type() == property_name)
-        return mimetype;
-    }
-    return nullptr;
-  }
   PluginData* data = GetPluginData();
   if (!data)
     return nullptr;
@@ -85,12 +72,6 @@ DOMMimeType* DOMMimeTypeArray::namedItem(const AtomicString& property_name) {
 
 void DOMMimeTypeArray::NamedPropertyEnumerator(Vector<String>& property_names,
                                                ExceptionState&) const {
-  if (should_return_fixed_plugin_data_) {
-    property_names.ReserveInitialCapacity(dom_mime_types_.size());
-    for (const auto& mimetype : dom_mime_types_)
-      property_names.UncheckedAppend(mimetype->type());
-    return;
-  }
   PluginData* data = GetPluginData();
   if (!data)
     return;
@@ -102,9 +83,6 @@ void DOMMimeTypeArray::NamedPropertyEnumerator(Vector<String>& property_names,
 
 bool DOMMimeTypeArray::NamedPropertyQuery(const AtomicString& property_name,
                                           ExceptionState&) const {
-  if (should_return_fixed_plugin_data_) {
-    return base::Contains(dom_mime_types_, property_name, &DOMMimeType::type);
-  }
   PluginData* data = GetPluginData();
   if (!data)
     return false;
@@ -118,20 +96,15 @@ PluginData* DOMMimeTypeArray::GetPluginData() const {
 }
 
 void DOMMimeTypeArray::UpdatePluginData() {
-  dom_mime_types_.clear();
-  if (should_return_fixed_plugin_data_) {
-    if (DomWindow()) {
-      dom_mime_types_ = NavigatorPlugins::plugins(*DomWindow()->navigator())
-                            ->GetFixedMimeTypeArray();
-    }
+  PluginData* data = GetPluginData();
+  if (!data) {
+    dom_mime_types_.clear();
     return;
   }
-  PluginData* data = GetPluginData();
-  if (!data)
-    return;
 
   HeapVector<Member<DOMMimeType>> old_dom_mime_types(
       std::move(dom_mime_types_));
+  dom_mime_types_.clear();
   dom_mime_types_.resize(data->Mimes().size());
 
   for (Member<DOMMimeType>& mime : old_dom_mime_types) {

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,14 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
-#include "media/base/demuxer.h"
+#include "base/single_thread_task_runner.h"
 
 namespace media {
 
 MediaUrlDemuxer::MediaUrlDemuxer(
-    const scoped_refptr<base::SequencedTaskRunner>& task_runner,
+    const scoped_refptr<base::SingleThreadTaskRunner>& task_runner,
     const GURL& media_url,
-    const net::SiteForCookies& site_for_cookies,
+    const GURL& site_for_cookies,
     const url::Origin& top_frame_origin,
     bool allow_credentials,
     bool is_hls)
@@ -42,14 +41,10 @@ std::string MediaUrlDemuxer::GetDisplayName() const {
   return "MediaUrlDemuxer";
 }
 
-DemuxerType MediaUrlDemuxer::GetDemuxerType() const {
-  return DemuxerType::kMediaUrlDemuxer;
-}
-
 void MediaUrlDemuxer::ForwardDurationChangeToDemuxerHost(
     base::TimeDelta duration) {
   DCHECK(host_);
-  DCHECK(task_runner_->RunsTasksInCurrentSequence());
+  DCHECK(task_runner_->BelongsToCurrentThread());
   host_->SetDuration(duration);
 }
 
@@ -88,9 +83,9 @@ int64_t MediaUrlDemuxer::GetMemoryUsage() const {
   return 0;
 }
 
-absl::optional<container_names::MediaContainerName>
+base::Optional<container_names::MediaContainerName>
 MediaUrlDemuxer::GetContainerForMetrics() const {
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 void MediaUrlDemuxer::OnEnabledAudioTracksChanged(

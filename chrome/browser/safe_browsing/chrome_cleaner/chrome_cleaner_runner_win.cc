@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,9 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/path_service.h"
 #include "base/process/launch.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/trace_event/trace_event.h"
 #include "chrome/browser/safe_browsing/chrome_cleaner/chrome_cleaner_scanner_results_win.h"
@@ -46,6 +47,8 @@ ChromeCleanerRunner::ProcessStatus::ProcessStatus(LaunchStatus launch_status,
 
 // static
 void ChromeCleanerRunner::RunChromeCleanerAndReplyWithExitCode(
+    extensions::ExtensionService* extension_service,
+    extensions::ExtensionRegistry* extension_registry,
     const base::FilePath& cleaner_executable_path,
     const SwReporterInvocation& reporter_invocation,
     ChromeMetricsStatus metrics_status,
@@ -59,7 +62,11 @@ void ChromeCleanerRunner::RunChromeCleanerAndReplyWithExitCode(
       std::move(on_process_done), std::move(task_runner)));
   auto launch_and_wait = base::BindOnce(
       &ChromeCleanerRunner::LaunchAndWaitForExitOnBackgroundThread,
-      cleaner_runner);
+      cleaner_runner,
+      // base::Unretained is safe because these are long-running services that
+      // will outlive ChromeCleanerRunner.
+      base::Unretained(extension_service),
+      base::Unretained(extension_registry));
   auto process_done =
       base::BindOnce(&ChromeCleanerRunner::OnProcessDone, cleaner_runner);
   base::ThreadPool::PostTaskAndReplyWithResult(
@@ -138,19 +145,29 @@ ChromeCleanerRunner::ChromeCleanerRunner(
         chrome_cleaner::kEnableCrashReportingSwitch);
   }
 
-  // Older versions of the Chrome Cleanup Tool needs this switch to ensure
-  // resetting of shortcuts.
-  cleaner_command_line_.AppendSwitch(chrome_cleaner::kResetShortcutsSwitch);
+  const std::string group_name = GetSRTPromptGroupName();
+  if (!group_name.empty()) {
+    cleaner_command_line_.AppendSwitchASCII(
+        chrome_cleaner::kSRTPromptFieldTrialGroupNameSwitch, group_name);
+  }
+
+  if (base::FeatureList::IsEnabled(kResetShortcutsFeature)) {
+    cleaner_command_line_.AppendSwitch(chrome_cleaner::kResetShortcutsSwitch);
+  }
 }
 
 ChromeCleanerRunner::ProcessStatus
-ChromeCleanerRunner::LaunchAndWaitForExitOnBackgroundThread() {
+ChromeCleanerRunner::LaunchAndWaitForExitOnBackgroundThread(
+    extensions::ExtensionService* extension_service,
+    extensions::ExtensionRegistry* extension_registry) {
   TRACE_EVENT0("safe_browsing",
                "ChromeCleanerRunner::LaunchAndWaitForExitOnBackgroundThread");
-  auto on_connection_closed =
-      base::BindOnce(&ChromeCleanerRunner::OnConnectionClosed, this);
+  auto on_connection_closed = base::BindOnce(
+      &ChromeCleanerRunner::OnConnectionClosed, base::RetainedRef(this));
   auto actions = std::make_unique<ChromePromptActions>(
-      base::BindOnce(&ChromeCleanerRunner::OnPromptUser, this));
+      extension_service, extension_registry,
+      base::BindOnce(&ChromeCleanerRunner::OnPromptUser,
+                     base::RetainedRef(this)));
 
   // The channel will make blocking calls to ::WriteFile.
   scoped_refptr<base::SequencedTaskRunner> channel_task_runner =
@@ -187,6 +204,8 @@ ChromeCleanerRunner::LaunchAndWaitForExitOnBackgroundThread() {
         LaunchStatus::kLaunchSucceededFailedToWaitForCompletion);
   }
 
+  base::UmaHistogramSparse(
+      "SoftwareReporter.Cleaner.ExitCodeFromConnectedProcess", exit_code);
   return ProcessStatus(LaunchStatus::kSuccess, exit_code);
 }
 

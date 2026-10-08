@@ -27,6 +27,8 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_EDITING_IME_INPUT_METHOD_CONTROLLER_H_
 
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
+#include "third_party/blink/public/platform/web_rect.h"
 #include "third_party/blink/public/platform/web_text_input_info.h"
 #include "third_party/blink/public/platform/web_text_input_type.h"
 #include "third_party/blink/renderer/core/core_export.h"
@@ -37,9 +39,7 @@
 #include "third_party/blink/renderer/core/editing/ime/ime_text_span.h"
 #include "third_party/blink/renderer/core/editing/plain_text_range.h"
 #include "third_party/blink/renderer/core/events/input_event.h"
-#include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
-#include "third_party/blink/renderer/platform/graphics/dom_node_id.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace blink {
@@ -61,9 +61,7 @@ class CORE_EXPORT InputMethodController final
   };
 
   explicit InputMethodController(LocalDOMWindow&, LocalFrame&);
-  InputMethodController(const InputMethodController&) = delete;
-  InputMethodController& operator=(const InputMethodController&) = delete;
-  ~InputMethodController() override;
+  virtual ~InputMethodController();
   void Trace(Visitor*) const override;
 
   // international text input composition
@@ -114,7 +112,6 @@ class CORE_EXPORT InputMethodController final
   void DeleteSurroundingText(int before, int after);
   void DeleteSurroundingTextInCodePoints(int before, int after);
 
-  void DidChangeVisibility(const LayoutObject& layout_object);
   void DidLayoutSubtree(const LayoutObject& layout_object);
   void DidUpdateLayout(const LayoutObject& layout_object);
   void LayoutObjectWillBeDestroyed(const LayoutObject& layout_object);
@@ -137,7 +134,7 @@ class CORE_EXPORT InputMethodController final
 
   // Returns either the focused editable element's control bounds or the
   // EditContext's control and selection bounds if available.
-  void GetLayoutBounds(gfx::Rect* control_bounds, gfx::Rect* selection_bounds);
+  void GetLayoutBounds(WebRect* control_bounds, WebRect* selection_bounds);
 
   // Sets the state of the VK show()/hide() calls from virtualkeyboard.
   void SetVirtualKeyboardVisibilityRequest(
@@ -152,8 +149,6 @@ class CORE_EXPORT InputMethodController final
   CachedTextInputInfo& GetCachedTextInputInfoForTesting() {
     return cached_text_input_info_;
   }
-
-  DOMNodeId NodeIdOfFocusedElement() const;
 
  private:
   friend class InputMethodControllerTest;
@@ -191,7 +186,7 @@ class CORE_EXPORT InputMethodController final
 
   // Inserts the given text string in the place of the existing composition.
   // Returns true if did replace.
-  [[nodiscard]] bool ReplaceComposition(const String& text);
+  bool ReplaceComposition(const String& text) WARN_UNUSED_RESULT;
   // Inserts the given text string in the place of the existing composition
   // and moves caret. Returns true if did replace and moved caret successfully.
   bool ReplaceCompositionAndMoveCaret(
@@ -200,19 +195,19 @@ class CORE_EXPORT InputMethodController final
       const Vector<ImeTextSpan>& ime_text_spans);
 
   // Returns false if the frame was destroyed, true otherwise.
-  [[nodiscard]] bool DeleteSelection();
+  bool DeleteSelection() WARN_UNUSED_RESULT;
 
   // Returns false if the frame was destroyed, true otherwise.
   // The difference between this function and DeleteSelection() is that
   // DeleteSelection() code path may modify the selection to visible units,
   // which we don't want when deleting code point.
-  [[nodiscard]] bool DeleteSelectionWithoutAdjustment();
+  bool DeleteSelectionWithoutAdjustment() WARN_UNUSED_RESULT;
 
   // Returns true if moved caret successfully.
   bool MoveCaret(int new_caret_position);
 
   // Returns false if the frame is destroyed, true otherwise.
-  [[nodiscard]] bool DispatchCompositionStartEvent(const String& text);
+  bool DispatchCompositionStartEvent(const String& text) WARN_UNUSED_RESULT;
 
   PlainTextRange CreateSelectionRangeForSetComposition(
       int selection_start,
@@ -254,12 +249,16 @@ class CORE_EXPORT InputMethodController final
       TypingCommand::TextCompositionType composition_type);
   void DispatchCompositionEndEvent(LocalFrame& frame, const String& text);
 
-  WebVector<ui::ImeTextSpan> GetImeTextSpans() const;
+  // Gets ime text spans of interest at the cursor position.
+  WebVector<ui::ImeTextSpan> GetImeTextSpansAroundPosition(
+      const Position& position) const;
 
   FRIEND_TEST_ALL_PREFIXES(InputMethodControllerTest,
                            InputModeOfFocusedElement);
   FRIEND_TEST_ALL_PREFIXES(InputMethodControllerTest,
                            VirtualKeyboardPolicyOfFocusedElement);
+
+  DISALLOW_COPY_AND_ASSIGN(InputMethodController);
 };
 
 }  // namespace blink

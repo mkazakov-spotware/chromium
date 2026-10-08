@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,29 +7,25 @@
 
 #include "time.h"
 
+#include "ash/hud_display/compositor_stats.h"
 #include "ash/hud_display/graph.h"
 #include "ash/hud_display/graph_page_view_base.h"
-#include "base/containers/circular_deque.h"
-#include "base/time/time.h"
 #include "ui/aura/window_observer.h"
 #include "ui/compositor/compositor_observer.h"
-#include "ui/views/widget/widget_observer.h"
-
-namespace gfx {
-struct PresentationFeedback;
-}
+#include "ui/views/view_observer.h"
 
 namespace ash {
 namespace hud_display {
 
-class ReferenceLines;
+class Grid;
 
-// Draws several graphs per UI compositor frame.  Every time
-// OnDidPresentCompositorFrame() is called a new value is appended to the end
-// of the graph. Every time UpdateData() is called, legend values are updated.
+// Draws FPS graphs.
+// Graph is updated in two ways:
+// 1. Regular update with UpdateData() sifts graph and adds new point.
+// 2. Every time OnFramePresented() is called, the last graph value is updated.
 class FPSGraphPageView : public GraphPageViewBase,
                          public ui::CompositorObserver,
-                         public views::WidgetObserver,
+                         public views::ViewObserver,
                          public aura::WindowObserver {
  public:
   METADATA_HEADER(FPSGraphPageView);
@@ -40,8 +36,6 @@ class FPSGraphPageView : public GraphPageViewBase,
   ~FPSGraphPageView() override;
 
   // GraphPageViewBase:
-  void AddedToWidget() override;
-  void RemovedFromWidget() override;
   void OnPaint(gfx::Canvas* canvas) override;
   void UpdateData(const DataSource::Snapshot& snapshot) override;
 
@@ -50,8 +44,8 @@ class FPSGraphPageView : public GraphPageViewBase,
       uint32_t frame_token,
       const gfx::PresentationFeedback& feedback) override;
 
-  // views::WidgetObserver:
-  void OnWidgetDestroying(views::Widget* widget) override;
+  // views::ViewObserver:
+  void OnViewRemovedFromWidget(views::View* observed_view) override;
 
   // aura::WindowObserver:
   void OnWindowAddedToRootWindow(aura::Window* window) override;
@@ -59,17 +53,8 @@ class FPSGraphPageView : public GraphPageViewBase,
                                       aura::Window* new_root) override;
 
  private:
-  float frame_rate_for_last_second() const { return presented_times_.size(); }
-
-  float frame_rate_for_last_half_second() const {
-    return frame_rate_for_last_half_second_;
-  }
-
-  // Sets top reference line label to the maximum of the observed refresh rate.
+  // Sets grid top label to the maximum of the observed refresh rate.
   void UpdateTopLabel(float f_refresh_rate);
-
-  // Updates the stats with |feedback|.
-  void UpdateStats(const gfx::PresentationFeedback& feedback);
 
   // Number of frames per second presented.
   Graph frame_rate_1s_;
@@ -78,12 +63,9 @@ class FPSGraphPageView : public GraphPageViewBase,
   // Active display refresh rate.
   Graph refresh_rate_;
 
-  ReferenceLines* reference_lines_;  // not owned
+  Grid* grid_;  // not owned
 
-  float frame_rate_for_last_half_second_;
-
-  // |timestamp| from PresentationFeedback for one second.
-  base::circular_deque<base::TimeTicks> presented_times_;
+  CompositorStats compositor_stats_;
 };
 
 }  // namespace hud_display

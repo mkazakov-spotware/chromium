@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,11 @@
 #define SERVICES_DEVICE_GEOLOCATION_NETWORK_LOCATION_REQUEST_H_
 
 #include <memory>
-#include <string>
 
 #include "base/callback.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/time/time.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
+#include "base/strings/string16.h"
 #include "services/device/geolocation/wifi_data_provider.h"
 #include "services/device/public/mojom/geoposition.mojom.h"
 #include "url/gurl.h"
@@ -42,10 +42,6 @@ class NetworkLocationRequest {
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
       const std::string& api_key,
       LocationResponseCallback callback);
-
-  NetworkLocationRequest(const NetworkLocationRequest&) = delete;
-  NetworkLocationRequest& operator=(const NetworkLocationRequest&) = delete;
-
   ~NetworkLocationRequest();
 
   // Makes a new request using the specified |wifi_data|. Returns true if the
@@ -73,6 +69,8 @@ class NetworkLocationRequest {
   // when the response arrives.
   WifiData wifi_data_;
   base::Time wifi_timestamp_;
+
+  DISALLOW_COPY_AND_ASSIGN(NetworkLocationRequest);
 };
 
 }  // namespace device

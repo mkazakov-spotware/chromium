@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,25 +8,26 @@
 #include <memory>
 #include <string>
 
-#include "ash/constants/notifier_catalogs.h"
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "chromeos/ash/components/multidevice/remote_device_ref.h"
-#include "chromeos/ash/components/network/network_state.h"
-#include "chromeos/ash/components/tether/notification_presenter.h"
+#include "base/strings/string16.h"
+#include "chromeos/components/multidevice/remote_device_ref.h"
+#include "chromeos/components/tether/notification_presenter.h"
+#include "chromeos/network/network_state.h"
 #include "ui/message_center/public/cpp/notification.h"
 
 class Profile;
-
-namespace ash {
-class NetworkConnect;
-}
 
 namespace message_center {
 class Notification;
 }  // namespace message_center
 
-namespace ash::tether {
+namespace chromeos {
+
+class NetworkConnect;
+
+namespace tether {
 
 // Produces notifications associated with CrOS tether network events and alerts
 // observers about interactions with those notifications.
@@ -36,11 +37,6 @@ class TetherNotificationPresenter : public NotificationPresenter {
   // instance.
   TetherNotificationPresenter(Profile* profile,
                               NetworkConnect* network_connect);
-
-  TetherNotificationPresenter(const TetherNotificationPresenter&) = delete;
-  TetherNotificationPresenter& operator=(const TetherNotificationPresenter&) =
-      delete;
-
   ~TetherNotificationPresenter() override;
 
   // NotificationPresenter:
@@ -89,16 +85,15 @@ class TetherNotificationPresenter : public NotificationPresenter {
   };
 
   void OnNotificationClicked(const std::string& notification_id,
-                             absl::optional<int> button_index);
+                             base::Optional<int> button_index);
   NotificationInteractionType GetMetricValueForClickOnNotificationBody(
       const std::string& clicked_notification_id) const;
   void OnNotificationClosed(const std::string& notification_id);
 
   std::unique_ptr<message_center::Notification> CreateNotification(
       const std::string& id,
-      const NotificationCatalogName& catalog_name,
-      const std::u16string& title,
-      const std::u16string& message,
+      const base::string16& title,
+      const base::string16& message,
       const gfx::ImageSkia& small_image,
       const message_center::RichNotificationData& rich_notification_data);
 
@@ -123,8 +118,12 @@ class TetherNotificationPresenter : public NotificationPresenter {
   // in the "multiple hotspots available" mode, this pointer is null.
   std::unique_ptr<std::string> hotspot_nearby_device_id_;
   base::WeakPtrFactory<TetherNotificationPresenter> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(TetherNotificationPresenter);
 };
 
-}  // namespace ash::tether
+}  // namespace tether
+
+}  // namespace chromeos
 
 #endif  // CHROME_BROWSER_UI_ASH_NETWORK_TETHER_NOTIFICATION_PRESENTER_H_

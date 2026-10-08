@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@
 
 namespace payments {
 
-struct SecurePaymentConfirmationCredential;
+struct SecurePaymentConfirmationInstrument;
 
 class SecurePaymentConfirmationAppFactory
     : public PaymentAppFactory,
@@ -45,40 +45,16 @@ class SecurePaymentConfirmationAppFactory
   void RenderFrameDeleted(content::RenderFrameHost* render_frame_host) override;
 
   void OnIsUserVerifyingPlatformAuthenticatorAvailable(
-      std::unique_ptr<Request> request,
+      base::WeakPtr<PaymentAppFactory::Delegate> delegate,
+      mojom::SecurePaymentConfirmationRequestPtr request,
       bool is_available);
 
-  // On platforms where we have credential-store level support for retrieving
-  // credentials (i.e., rather than using the user profile database), this
-  // callback will be called with the retrieved and matching credential ids.
-  //
-  // |relying_party_id| and |matching_credentials| are always std::move'd in,
-  // and so are not const-ref.
-  void OnGetMatchingCredentialIdsFromStore(
+  void OnAppIconDecoded(
+      std::unique_ptr<SecurePaymentConfirmationInstrument> instrument,
       std::unique_ptr<Request> request,
-      std::string relying_party_id,
-      std::vector<std::vector<uint8_t>> matching_credentials);
+      const SkBitmap& decoded_image);
 
-  void OnRetrievedCredentials(
-      std::unique_ptr<Request> request,
-      std::vector<std::unique_ptr<SecurePaymentConfirmationCredential>>
-          credentials);
-
-  void OnAppIcon(
-      std::unique_ptr<SecurePaymentConfirmationCredential> credential,
-      std::unique_ptr<Request> request,
-      const SkBitmap& icon);
-
-  // Called after downloading the icon whose URL was passed into PaymentRequest
-  // API.
-  void DidDownloadIcon(
-      std::unique_ptr<SecurePaymentConfirmationCredential> credential,
-      std::unique_ptr<Request> request,
-      int request_id,
-      int unused_http_status_code,
-      const GURL& unused_image_url,
-      const std::vector<SkBitmap>& bitmaps,
-      const std::vector<gfx::Size>& unused_sizes);
+  std::unique_ptr<autofill::InternalAuthenticator> authenticator_;
 
   std::map<WebDataServiceBase::Handle, std::unique_ptr<Request>> requests_;
   base::WeakPtrFactory<SecurePaymentConfirmationAppFactory> weak_ptr_factory_{

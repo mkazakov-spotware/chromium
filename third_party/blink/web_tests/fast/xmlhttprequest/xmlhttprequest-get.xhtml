@@ -37,7 +37,6 @@ pre {
 }
 </style>
 <script type="text/javascript">
-//<![CDATA[
 var p = new XMLHttpRequest();
 
 if (window.testRunner) {
@@ -58,9 +57,7 @@ function myfunc(e)
     var str = s.serializeToString(d);
     document.getElementById("id2").firstChild.nodeValue = str;
   }
-  // Delete carriage returns (since the golden file we compare with only has
-  // newlines) and mask the last modified date, which can vary.
-  document.getElementById("id3").firstChild.nodeValue = p.getAllResponseHeaders().replace(/\r/g, '').replace(/(?<=^last-modified: ).*$/m, '(date)');
+  document.getElementById("id3").firstChild.nodeValue = p.getAllResponseHeaders();
   document.getElementById("id4").firstChild.nodeValue = p.status;
   document.getElementById("id5").firstChild.nodeValue = p.statusText;
   document.getElementById("id6").firstChild.nodeValue = p.readyState;
@@ -93,7 +90,6 @@ function mysend()
 {
   p.send(null);
 }
-//]]>
 </script>
 </head>
 <body onload="mysend();">

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,8 +44,8 @@ TEST_F(DiskCacheDirPolicyTest, SetPolicyValid) {
 
   const base::Value* value;
   ASSERT_TRUE(prefs_.GetValue(prefs::kDiskCacheDir, &value));
-  ASSERT_TRUE(value->is_string());
-  const std::string& out = value->GetString();
+  std::string out;
+  ASSERT_TRUE(value->GetAsString(&out));
   EXPECT_NE(std::string::npos, out.find("foo"));
   EXPECT_EQ(std::string::npos, out.find("${user_name}"));
 }

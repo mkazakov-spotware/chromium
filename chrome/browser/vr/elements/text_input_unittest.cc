@@ -1,8 +1,7 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/vr/ui_input_manager.h"
 
 #include <memory>
@@ -45,7 +44,7 @@ class TextInputSceneTest : public UiTest {
     // Make test text input.
     text_input_delegate_ =
         std::make_unique<StrictMock<MockTextInputDelegate>>();
-    edited_text_ = std::make_unique<EditedText>(u"asdfg");
+    edited_text_ = std::make_unique<EditedText>(base::ASCIIToUTF16("asdfg"));
     auto text_input = CreateTextInput(1, model_, edited_text_.get(),
                                       text_input_delegate_.get());
     text_input_ = text_input.get();
@@ -54,7 +53,7 @@ class TextInputSceneTest : public UiTest {
   }
 
  protected:
-  raw_ptr<TextInput> text_input_;
+  TextInput* text_input_;
   std::unique_ptr<StrictMock<MockTextInputDelegate>> text_input_delegate_;
   std::unique_ptr<EditedText> edited_text_;
   testing::Sequence in_sequence_;
@@ -143,7 +142,7 @@ TEST_F(TextInputSceneTest, InputFieldEdit) {
 
   // Edits from the keyboard update the underlying text input  model.
   EXPECT_CALL(*text_input_delegate_, UpdateInput(_)).InSequence(in_sequence_);
-  EditedText info(u"asdfgh");
+  EditedText info(base::ASCIIToUTF16("asdfgh"));
   text_input_->OnInputEdited(info);
   EXPECT_TRUE(AdvanceFrame());
   EXPECT_EQ(info, *edited_text_);
@@ -192,7 +191,7 @@ TEST(TextInputTest, HintText) {
   EXPECT_GT(element->get_hint_element()->GetTargetOpacity(), 0);
 
   // When text enters the field, the hint should disappear.
-  EditedText info(u"text");
+  EditedText info(base::UTF8ToUTF16("text"));
   element->UpdateInput(info);
   scene.OnBeginFrame(base::TimeTicks(), kStartHeadPose);
   EXPECT_EQ(element->get_hint_element()->GetTargetOpacity(), 0);
@@ -214,7 +213,7 @@ TEST(TextInputTest, CursorBlinking) {
   float initial = element->get_cursor_element()->GetTargetOpacity();
   EXPECT_EQ(initial, 0.f);
   for (int ms = 0; ms <= 2000; ms += 100) {
-    scene.OnBeginFrame(gfx::MsToTicks(ms), kStartHeadPose);
+    scene.OnBeginFrame(MsToTicks(ms), kStartHeadPose);
     EXPECT_EQ(initial, element->get_cursor_element()->GetTargetOpacity());
   }
 
@@ -223,20 +222,20 @@ TEST(TextInputTest, CursorBlinking) {
   initial = element->get_cursor_element()->GetTargetOpacity();
   bool toggled = false;
   for (int ms = 0; ms <= 2000; ms += 100) {
-    scene.OnBeginFrame(gfx::MsToTicks(ms), kStartHeadPose);
+    scene.OnBeginFrame(MsToTicks(ms), kStartHeadPose);
     if (initial != element->get_cursor_element()->GetTargetOpacity())
       toggled = true;
   }
   EXPECT_TRUE(toggled);
 
   // With a selection, the cursor should not be blinking or visible.
-  EditedText info(u"text");
+  EditedText info(base::UTF8ToUTF16("text"));
   info.current.selection_start = 0;
   info.current.selection_end = info.current.text.size();
   element->UpdateInput(info);
   EXPECT_EQ(0.f, element->get_cursor_element()->GetTargetOpacity());
   for (int ms = 0; ms <= 2000; ms += 100) {
-    scene.OnBeginFrame(gfx::MsToTicks(ms), kStartHeadPose);
+    scene.OnBeginFrame(MsToTicks(ms), kStartHeadPose);
     EXPECT_EQ(0.f, element->get_cursor_element()->GetTargetOpacity());
   }
 }
@@ -253,7 +252,7 @@ TEST(TextInputTest, CursorPositionUpdatesOnKeyboardInput) {
   element->set_event_handlers(event_handlers);
   element->SetSize(1, 0);
 
-  EditedText info(u"text");
+  EditedText info(base::UTF8ToUTF16("text"));
   info.current.selection_start = 0;
   info.current.selection_end = 0;
   element->UpdateInput(info);
@@ -277,7 +276,7 @@ TEST(TextInputTest, CursorPositionUpdatesOnClicks) {
   element->set_event_handlers(event_handlers);
   element->SetSize(1, 0);
 
-  EditedText info(u"text");
+  EditedText info(base::UTF8ToUTF16("text"));
   element->UpdateInput(info);
   element->get_text_element()->PrepareToDrawForTest();
 
@@ -312,7 +311,8 @@ TEST(TextInputTest, TextSelectionUpdatesOnTouchMove) {
   element->SetSize(1.0, 0);
 
   EditedText info(TextInputInfo(
-      u"this is a long text with the cursor at the beginning", 0, 0));
+      base::UTF8ToUTF16("this is a long text with the cursor at the beginning"),
+      0, 0));
   element->UpdateInput(info);
   element->get_text_element()->PrepareToDrawForTest();
   EXPECT_EQ(element->edited_text().current.SelectionSize(), 0u);

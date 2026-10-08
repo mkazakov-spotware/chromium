@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <string>
 
-#include "base/containers/lru_cache.h"
+#include "base/containers/mru_cache.h"
+#include "base/macros.h"
 #include "base/synchronization/lock.h"
 
 namespace chromecast {
@@ -20,10 +21,6 @@ namespace chromecast {
 class SignatureCache {
  public:
   SignatureCache();
-
-  SignatureCache(const SignatureCache&) = delete;
-  SignatureCache& operator=(const SignatureCache&) = delete;
-
   ~SignatureCache();
 
   std::string Get(const std::string& wrapped_private_key,
@@ -36,7 +33,9 @@ class SignatureCache {
  private:
   std::string key_;
   base::Lock lock_;
-  base::HashingLRUCache<std::string, std::string> contents_;
+  base::HashingMRUCache<std::string, std::string> contents_;
+
+  DISALLOW_COPY_AND_ASSIGN(SignatureCache);
 };
 
 }  // namespace chromecast

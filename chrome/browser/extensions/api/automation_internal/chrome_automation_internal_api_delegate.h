@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,6 @@
 #include "extensions/browser/api/automation_internal/automation_internal_api_delegate.h"
 
 namespace extensions {
-
-class AutomationEventRouterInterface;
 
 // A delegate for chrome specific automation api logic.
 class ChromeAutomationInternalApiDelegate
@@ -38,8 +36,7 @@ class ChromeAutomationInternalApiDelegate
   bool EnableTree(const ui::AXTreeID& tree_id) override;
   void EnableDesktop() override;
   ui::AXTreeID GetAXTreeID() override;
-  void SetAutomationEventRouterInterface(
-      AutomationEventRouterInterface* router) override;
+  void SetEventBundleSink(ui::AXEventBundleSink* sink) override;
   content::BrowserContext* GetActiveUserContext() override;
 };
 

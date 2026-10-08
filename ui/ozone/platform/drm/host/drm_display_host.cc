@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "ui/display/types/display_mode.h"
 #include "ui/display/types/display_snapshot.h"
 #include "ui/ozone/platform/drm/common/drm_util.h"
@@ -47,7 +47,7 @@ void DrmDisplayHost::OnHDCPStateReceived(
     display::HDCPState state,
     display::ContentProtectionMethod protection_method) {
   if (!get_hdcp_callback_.is_null()) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(get_hdcp_callback_), status, state,
                                   protection_method));
   } else {
@@ -70,7 +70,7 @@ void DrmDisplayHost::SetHDCPState(
 
 void DrmDisplayHost::OnHDCPStateUpdated(bool status) {
   if (!set_hdcp_callback_.is_null()) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(set_hdcp_callback_), status));
   } else {
     LOG(ERROR) << "Got unexpected event for display "
@@ -91,11 +91,8 @@ void DrmDisplayHost::SetGammaCorrection(
                                  gamma_lut);
 }
 
-void DrmDisplayHost::SetPrivacyScreen(
-    bool enabled,
-    display::SetPrivacyScreenCallback callback) {
-  sender_->GpuSetPrivacyScreen(snapshot_->display_id(), enabled,
-                               std::move(callback));
+void DrmDisplayHost::SetPrivacyScreen(bool enabled) {
+  sender_->GpuSetPrivacyScreen(snapshot_->display_id(), enabled);
 }
 
 void DrmDisplayHost::OnGpuProcessLaunched() {}

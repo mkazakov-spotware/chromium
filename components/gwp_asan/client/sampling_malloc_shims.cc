@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 #include <algorithm>
 #include <utility>
 
-#include "base/allocator/partition_allocator/shim/allocator_shim.h"
+#include "base/allocator/allocator_shim.h"
 #include "base/check_op.h"
 #include "base/compiler_specific.h"
+#include "base/no_destructor.h"
 #include "base/numerics/safe_math.h"
 #include "base/process/process_metrics.h"
 #include "base/rand_util.h"
@@ -20,7 +21,7 @@
 #include "components/gwp_asan/client/sampling_state.h"
 #include "components/gwp_asan/common/crash_key_name.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include <pthread.h>
 #endif
 
@@ -29,7 +30,7 @@ namespace internal {
 
 namespace {
 
-using allocator_shim::AllocatorDispatch;
+using base::allocator::AllocatorDispatch;
 
 // By being implemented as a global with inline method definitions, method calls
 // and member acceses are inlined and as efficient as possible in the
@@ -137,15 +138,6 @@ size_t GetSizeEstimateFn(const AllocatorDispatch* self,
   return self->next->get_size_estimate_function(self->next, address, context);
 }
 
-bool ClaimedAddressFn(const AllocatorDispatch* self,
-                      void* address,
-                      void* context) {
-  if (UNLIKELY(gpa->PointerIsMine(address)))
-    return true;
-
-  return self->next->claimed_address_function(self->next, address, context);
-}
-
 unsigned BatchMallocFn(const AllocatorDispatch* self,
                        size_t size,
                        void** results,
@@ -192,17 +184,6 @@ void FreeDefiniteSizeFn(const AllocatorDispatch* self,
   }
 
   self->next->free_definite_size_function(self->next, address, size, context);
-}
-
-void TryFreeDefaultFn(const AllocatorDispatch* self,
-                      void* address,
-                      void* context) {
-  if (UNLIKELY(gpa->PointerIsMine(address))) {
-    gpa->Deallocate(address);
-    return;
-  }
-
-  self->next->try_free_default_function(self->next, address, context);
 }
 
 static void* AlignedMallocFn(const AllocatorDispatch* self,
@@ -263,11 +244,9 @@ AllocatorDispatch g_allocator_dispatch = {
     &ReallocFn,
     &FreeFn,
     &GetSizeEstimateFn,
-    &ClaimedAddressFn,
     &BatchMallocFn,
     &BatchFreeFn,
     &FreeDefiniteSizeFn,
-    &TryFreeDefaultFn,
     &AlignedMallocFn,
     &AlignedReallocFn,
     &AlignedFreeFn,
@@ -292,7 +271,7 @@ void InstallMallocHooks(size_t max_allocated_pages,
             false);
   malloc_crash_key.Set(gpa->GetCrashKey());
   sampling_state.Init(sampling_frequency);
-  allocator_shim::InsertAllocatorDispatch(&g_allocator_dispatch);
+  base::allocator::InsertAllocatorDispatch(&g_allocator_dispatch);
 }
 
 }  // namespace internal

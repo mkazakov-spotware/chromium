@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,95 +9,44 @@
  * Event 'reload' will be fired when the user click the retry button.
  */
 
-import '//resources/polymer/v3_0/iron-icon/iron-icon.js';
-import '//resources/polymer/v3_0/paper-progress/paper-progress.js';
-import '../components/buttons/oobe_text_button.js';
-import '../components/common_styles/oobe_dialog_host_styles.m.js';
-import '../components/dialogs/oobe_adaptive_dialog.js';
-import '../components/dialogs/oobe_content_dialog.js';
-import './assistant_icon.m.js';
-import './assistant_common_styles.m.js';
+Polymer({
+  is: 'assistant-loading',
 
-import {afterNextRender, html, mixinBehaviors, Polymer, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+  behaviors: [OobeI18nBehavior, OobeDialogHostBehavior],
 
-import {MultiStepBehavior, MultiStepBehaviorInterface} from '../components/behaviors/multi_step_behavior.m.js';
-import {OobeDialogHostBehavior} from '../components/behaviors/oobe_dialog_host_behavior.m.js';
-import {OobeI18nBehavior, OobeI18nBehaviorInterface} from '../components/behaviors/oobe_i18n_behavior.m.js';
-
-import {BrowserProxyImpl} from './browser_proxy.m.js';
-
-
-const AssistantLoadingUIState = {
-  LOADING: 'loading',
-  LOADED: 'loaded',
-  ERROR: 'error',
-};
-
-/**
- * @constructor
- * @extends {PolymerElement}
- */
-const AssistantLoadingBase =
-    mixinBehaviors([OobeI18nBehavior, MultiStepBehavior], PolymerElement);
-
-/**
- * @polymer
- */
-class AssistantLoading extends AssistantLoadingBase {
-  static get is() {
-    return 'assistant-loading';
-  }
-
-  static get template() {
-    return html`{__html_template__}`;
-  }
-
-  static get properties() {
-    return {
-      /**
-       * Buttons are disabled when the page content is loading.
-       */
-      buttonsDisabled: {
-        type: Boolean,
-        value: true,
-      },
-    };
-  }
-
-  constructor() {
-    super();
-
-    this.UI_STEPS = AssistantLoadingUIState;
-
+  properties: {
     /**
-     * Whether an error occurs while the page is loading.
-     * @type {boolean}
-     * @private
+     * Buttons are disabled when the page content is loading.
      */
-    this.loadingError_ = false;
+    buttonsDisabled: {
+      type: Boolean,
+      value: true,
+    },
+  },
 
-    /**
-     * Timeout ID for loading animation.
-     * @type {number}
-     * @private
-     */
-    this.animationTimeout_ = null;
+  /**
+   * Whether an error occurs while the page is loading.
+   * @type {boolean}
+   * @private
+   */
+  loadingError_: false,
 
-    /**
-     * Timeout ID for loading (will fire an error).
-     * @type {number}
-     * @private
-     */
-    this.loadingTimeout_ = null;
+  /**
+   * Timeout ID for loading animation.
+   * @type {number}
+   * @private
+   */
+  animationTimeout_: null,
 
-    /** @private {?BrowserProxy} */
-    this.browserProxy_ = BrowserProxyImpl.getInstance();
-  }
+  /**
+   * Timeout ID for loading (will fire an error).
+   * @type {number}
+   * @private
+   */
+  loadingTimeout_: null,
 
-  defaultUIStep() {
-    return AssistantLoadingUIState.LOADED;
-  }
-
+  /** @private {?assistant.BrowserProxy} */
+  browserProxy_: null,
 
   /**
    * On-tap event handler for retry button.
@@ -105,9 +54,8 @@ class AssistantLoading extends AssistantLoadingBase {
    * @private
    */
   onRetryTap_() {
-    this.dispatchEvent(
-        new CustomEvent('reload', {bubbles: true, composed: true}));
-  }
+    this.fire('reload');
+  },
 
   /**
    * On-tap event handler for skip button.
@@ -120,7 +68,32 @@ class AssistantLoading extends AssistantLoadingBase {
     }
     this.buttonsDisabled = true;
     this.browserProxy_.flowFinished();
-  }
+  },
+
+  /**
+   * Add class to the list of classes of root elements.
+   * @param {string} className class to add
+   *
+   * @private
+   */
+  addClass_(className) {
+    this.$['loading-dialog'].classList.add(className);
+  },
+
+  /**
+   * Remove class to the list of classes of root elements.
+   * @param {string} className class to remove
+   *
+   * @private
+   */
+  removeClass_(className) {
+    this.$['loading-dialog'].classList.remove(className);
+  },
+
+  /** @override */
+  created() {
+    this.browserProxy_ = assistant.BrowserProxyImpl.getInstance();
+  },
 
   /**
    * Reloads the page.
@@ -128,13 +101,18 @@ class AssistantLoading extends AssistantLoadingBase {
   reloadPage() {
     window.clearTimeout(this.animationTimeout_);
     window.clearTimeout(this.loadingTimeout_);
-    this.setUIStep(AssistantLoadingUIState.LOADED);
+    this.removeClass_('loaded');
+    this.removeClass_('error');
+    this.addClass_('loading');
     this.buttonsDisabled = true;
-    this.animationTimeout_ = window.setTimeout(
-        () => this.setUIStep(AssistantLoadingUIState.LOADING), 500);
-    this.loadingTimeout_ =
-        window.setTimeout(() => this.onLoadingTimeout(), 15000);
-  }
+
+    this.animationTimeout_ = window.setTimeout(function() {
+      this.addClass_('loading-animation');
+    }.bind(this), 500);
+    this.loadingTimeout_ = window.setTimeout(function() {
+      this.onLoadingTimeout();
+    }.bind(this), 15000);
+  },
 
   /**
    * Handles event when page content cannot be loaded.
@@ -143,11 +121,14 @@ class AssistantLoading extends AssistantLoadingBase {
     this.loadingError_ = true;
     window.clearTimeout(this.animationTimeout_);
     window.clearTimeout(this.loadingTimeout_);
-    this.setUIStep(AssistantLoadingUIState.ERROR);
+    this.removeClass_('loading-animation');
+    this.removeClass_('loading');
+    this.removeClass_('loaded');
+    this.addClass_('error');
 
     this.buttonsDisabled = false;
     this.$['retry-button'].focus();
-  }
+  },
 
   /**
    * Handles event when all the page content has been loaded.
@@ -155,8 +136,11 @@ class AssistantLoading extends AssistantLoadingBase {
   onPageLoaded() {
     window.clearTimeout(this.animationTimeout_);
     window.clearTimeout(this.loadingTimeout_);
-    this.setUIStep(AssistantLoadingUIState.LOADED);
-  }
+    this.removeClass_('loading-animation');
+    this.removeClass_('loading');
+    this.removeClass_('error');
+    this.addClass_('loaded');
+  },
 
   /**
    * Called when the loading timeout is triggered.
@@ -164,15 +148,14 @@ class AssistantLoading extends AssistantLoadingBase {
   onLoadingTimeout() {
     this.browserProxy_.timeout();
     this.onErrorOccurred();
-  }
+  },
 
   /**
    * Signal from host to show the screen.
    */
   onShow() {
     this.reloadPage();
-    afterNextRender(this, () => this.$['loading-dialog'].focus());
-  }
-}
-
-customElements.define(AssistantLoading.is, AssistantLoading);
+    Polymer.RenderStatus.afterNextRender(
+        this, () => this.$['loading-dialog'].focus());
+  },
+});

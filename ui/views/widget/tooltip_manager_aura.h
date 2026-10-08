@@ -1,13 +1,13 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_VIEWS_WIDGET_TOOLTIP_MANAGER_AURA_H_
 #define UI_VIEWS_WIDGET_TOOLTIP_MANAGER_AURA_H_
 
-#include <string>
-
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/views/views_export.h"
 #include "ui/views/widget/tooltip_manager.h"
@@ -21,25 +21,20 @@ class FontList;
 }
 
 namespace views {
-namespace internal {
-class NativeWidgetPrivate;
-}
+
+class Widget;
+
 // TooltipManager implementation for Aura.
 class VIEWS_EXPORT TooltipManagerAura : public TooltipManager {
  public:
-  explicit TooltipManagerAura(internal::NativeWidgetPrivate* native_widget);
-
-  TooltipManagerAura(const TooltipManagerAura&) = delete;
-  TooltipManagerAura& operator=(const TooltipManagerAura&) = delete;
-
+  explicit TooltipManagerAura(Widget* widget);
   ~TooltipManagerAura() override;
 
   // If |source| has capture this finds the Widget under the mouse and invokes
   // UpdateTooltip() on it's TooltipManager. This is necessary as when capture
   // is held mouse events are only delivered to the Window that has capture even
   // though we may show tooltips for the Window under the mouse.
-  static void UpdateTooltipManagerForCapture(
-      internal::NativeWidgetPrivate* source);
+  static void UpdateTooltipManagerForCapture(Widget* source);
 
   // Returns the FontList used by all TooltipManagerAuras.
   static const gfx::FontList& GetDefaultFontList();
@@ -59,8 +54,10 @@ class VIEWS_EXPORT TooltipManagerAura : public TooltipManager {
   // Returns the Window the tooltip text is installed on.
   aura::Window* GetWindow();
 
-  base::raw_ptr<internal::NativeWidgetPrivate> native_widget_;
-  std::u16string tooltip_text_;
+  Widget* widget_;
+  base::string16 tooltip_text_;
+
+  DISALLOW_COPY_AND_ASSIGN(TooltipManagerAura);
 };
 
 }  // namespace views

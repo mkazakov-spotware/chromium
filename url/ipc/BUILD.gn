@@ -1,4 +1,4 @@
-# Copyright 2016 The Chromium Authors
+# Copyright (c) 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -22,14 +22,13 @@ component("url_ipc") {
 
 # IPC unit tests aren't build on iOS.
 if (!is_ios) {
-  source_set("url_ipc_unittests") {
-    testonly = true
-
+  test("url_ipc_unittests") {
     sources = [ "url_param_traits_unittest.cc" ]
 
     deps = [
       ":url_ipc",
       "//base",
+      "//base/test:run_all_unittests",
       "//ipc:test_support",
       "//testing/gtest",
       "//url:url",

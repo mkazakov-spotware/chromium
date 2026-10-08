@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,9 +15,9 @@ const char* kFallbackIconTextForIP = "IP";
 
 namespace favicon {
 
-std::u16string GetFallbackIconText(const GURL& url) {
+base::string16 GetFallbackIconText(const GURL& url) {
   if (url.is_empty())
-    return std::u16string();
+    return base::string16();
   std::string domain = net::registry_controlled_domains::GetDomainAndRegistry(
       url, net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
   if (domain.empty()) {  // E.g., http://localhost/ or http://192.168.0.1/
@@ -26,7 +26,7 @@ std::u16string GetFallbackIconText(const GURL& url) {
     domain = url.host();
   }
   if (domain.empty())
-    return std::u16string();
+    return base::string16();
   // TODO(huangs): Handle non-ASCII ("xn--") domain names.
   return base::i18n::ToUpper(base::ASCIIToUTF16(domain.substr(0, 1)));
 }

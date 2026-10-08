@@ -1,11 +1,10 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "gpu/gles2_conform_support/egl/config.h"
 #include "base/check.h"
 
-namespace gles2_conform_support {
 namespace egl {
 
 Config::Config(EGLint surface_type)
@@ -221,4 +220,3 @@ bool Config::ValidateAttributeList(const EGLint* attrib_list) {
 }
 
 }  // namespace egl
-}  // namespace gles2_conform_support

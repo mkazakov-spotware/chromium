@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/strings/string16.h"
 #include "base/values.h"
 #include "base/win/scoped_handle.h"
 
@@ -20,10 +21,10 @@ class FakeScopedUserProfileFactory;
 class ScopedUserProfile {
  public:
   static std::unique_ptr<ScopedUserProfile> Create(
-      const std::wstring& sid,
-      const std::wstring& domain,
-      const std::wstring& username,
-      const std::wstring& password);
+      const base::string16& sid,
+      const base::string16& domain,
+      const base::string16& username,
+      const base::string16& password);
 
   virtual ~ScopedUserProfile();
 
@@ -37,16 +38,16 @@ class ScopedUserProfile {
   ScopedUserProfile();
 
   HRESULT ExtractAssociationInformation(const base::Value& properties,
-                                        std::wstring* sid,
-                                        std::wstring* id,
-                                        std::wstring* email,
-                                        std::wstring* token_handle);
+                                        base::string16* sid,
+                                        base::string16* id,
+                                        base::string16* email,
+                                        base::string16* token_handle);
 
-  HRESULT RegisterAssociation(const std::wstring& sid,
-                              const std::wstring& id,
-                              const std::wstring& email,
-                              const std::wstring& token_handle,
-                              const std::wstring& last_token_valid_millis);
+  HRESULT RegisterAssociation(const base::string16& sid,
+                              const base::string16& id,
+                              const base::string16& email,
+                              const base::string16& token_handle,
+                              const base::string16& last_token_valid_millis);
 
  private:
   friend class FakeScopedUserProfileFactory;
@@ -63,12 +64,12 @@ class ScopedUserProfile {
   // workaround used in this class is to simply wait for the user's profile
   // directory and registry hive to be loaded by the system itself.  This
   // code must be run after the credprov tells winlogon to log the user in.
-  ScopedUserProfile(const std::wstring& sid,
-                    const std::wstring& domain,
-                    const std::wstring& username,
-                    const std::wstring& password);
+  ScopedUserProfile(const base::string16& sid,
+                    const base::string16& domain,
+                    const base::string16& username,
+                    const base::string16& password);
 
-  bool WaitForProfileCreation(const std::wstring& sid);
+  bool WaitForProfileCreation(const base::string16& sid);
 
   base::win::ScopedHandle token_;
 

@@ -1,9 +1,9 @@
 [document web]
-++[article]
+++[article] xml-roles:article
 ++++[section]
 ++++++[paragraph]
 ++++++++[static] name='Header inside article.'
-++[section]
+++[section] xml-roles:region
 ++++[section]
 ++++++[paragraph]
 ++++++++[static] name='Header inside section.'

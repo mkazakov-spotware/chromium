@@ -1,10 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.safety_check;
 
+import android.content.Context;
 import android.os.Bundle;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.RelativeSizeSpan;
+import android.text.style.SuperscriptSpan;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -14,22 +18,48 @@ import android.widget.TextView;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 
+import org.chromium.base.ApiCompatibilityUtils;
+import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
+import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
+import org.chromium.ui.text.SpanApplier;
+import org.chromium.ui.text.SpanApplier.SpanInfo;
 import org.chromium.ui.widget.ButtonCompat;
 
 /**
  * Settings fragment containing Safety check. This class represents a View in the MVC paradigm.
  */
 public class SafetyCheckSettingsFragment extends PreferenceFragmentCompat {
-    private static final String SAFETY_CHECK_IMMEDIATE_RUN =
-            "SafetyCheckSettingsFragment.safetyCheckImmediateRun";
+    // Number of Safety check runs, after which the "NEW" label is no longer shown.
+    public static final int SAFETY_CHECK_RUNS_SHOW_NEW_LABEL = 3;
 
     /** The "Check" button at the bottom that needs to be added after the View is inflated. */
     private ButtonCompat mCheckButton;
 
     private TextView mTimestampTextView;
 
-    private boolean mRunSafetyCheckImmediately;
+    public static CharSequence getSafetyCheckSettingsElementTitle(Context context) {
+        SharedPreferencesManager preferenceManager = SharedPreferencesManager.getInstance();
+        if (preferenceManager.readInt(ChromePreferenceKeys.SETTINGS_SAFETY_CHECK_RUN_COUNTER)
+                < SAFETY_CHECK_RUNS_SHOW_NEW_LABEL) {
+            // Show the styled "NEW" text if the user ran the Safety check less than 3 times.
+            // TODO(crbug.com/1102827): remove the "NEW" label in M88 once the feature is no longer
+            // "new".
+            return SpanApplier.applySpans(context.getString(R.string.prefs_safety_check),
+                    new SpanInfo("<new>", "</new>", new SuperscriptSpan(),
+                            new RelativeSizeSpan(0.75f),
+                            new ForegroundColorSpan(ApiCompatibilityUtils.getColor(
+                                    context.getResources(), R.color.default_text_color_blue))));
+        } else {
+            // Remove the "NEW" text and the trailing whitespace.
+            return (CharSequence) (SpanApplier
+                                           .removeSpanText(
+                                                   context.getString(R.string.prefs_safety_check),
+                                                   new SpanInfo("<new>", "</new>"))
+                                           .toString()
+                                           .trim());
+        }
+    }
 
     /**
      * Initializes all the objects related to the preferences page.
@@ -38,11 +68,10 @@ public class SafetyCheckSettingsFragment extends PreferenceFragmentCompat {
     public void onCreatePreferences(Bundle bundle, String s) {
         // Add all preferences and set the title.
         SettingsUtils.addPreferencesFromResource(this, R.xml.safety_check_preferences);
-        getActivity().setTitle(getString(R.string.prefs_safety_check));
-
-        mRunSafetyCheckImmediately = getArguments() != null
-                && getArguments().containsKey(SAFETY_CHECK_IMMEDIATE_RUN)
-                && getArguments().getBoolean(SAFETY_CHECK_IMMEDIATE_RUN);
+        CharSequence safetyCheckTitle = SpanApplier.removeSpanText(
+                getString(R.string.prefs_safety_check), new SpanInfo("<new>", "</new>"));
+        // Remove the trailing whitespace left after deleting the "NEW" label.
+        getActivity().setTitle(safetyCheckTitle.toString().trim());
     }
 
     @Override
@@ -98,30 +127,5 @@ public class SafetyCheckSettingsFragment extends PreferenceFragmentCompat {
             return;
         }
         p.setSummary(statusString);
-    }
-
-    /**
-     * Creates a bundle for this fragment.
-     * @param runSafetyCheckImmediately Whether the afety check should be run right after the
-     *         fragment is opened.
-     */
-    public static Bundle createBundle(boolean runSafetyCheckImmediately) {
-        Bundle result = new Bundle();
-        result.putBoolean(SAFETY_CHECK_IMMEDIATE_RUN, runSafetyCheckImmediately);
-        return result;
-    }
-
-    /**
-     * @return Whether safety check need to be run immediately once the safety check settings is
-     *         fully initialized.
-     */
-    boolean shouldRunSafetyCheckImmediately() {
-        return mRunSafetyCheckImmediately;
-    }
-
-    @Override
-    public void onPause() {
-        super.onPause();
-        mRunSafetyCheckImmediately = false;
     }
 }

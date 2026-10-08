@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 
 /**
@@ -48,7 +56,6 @@ goog.require('goog.ui.Component');
  */
 goog.graphics.AbstractGraphics = function(
     width, height, opt_coordWidth, opt_coordHeight, opt_domHelper) {
-  'use strict';
   goog.ui.Component.call(this, opt_domHelper);
 
   /**
@@ -110,7 +117,6 @@ goog.graphics.AbstractGraphics.prototype.coordTop = 0;
  * @return {goog.graphics.GroupElement} The root level canvas element.
  */
 goog.graphics.AbstractGraphics.prototype.getCanvasElement = function() {
-  'use strict';
   return this.canvasElement;
 };
 
@@ -122,7 +128,6 @@ goog.graphics.AbstractGraphics.prototype.getCanvasElement = function() {
  */
 goog.graphics.AbstractGraphics.prototype.setCoordSize = function(
     coordWidth, coordHeight) {
-  'use strict';
   this.coordWidth = coordWidth;
   this.coordHeight = coordHeight;
 };
@@ -132,7 +137,6 @@ goog.graphics.AbstractGraphics.prototype.setCoordSize = function(
  * @return {goog.math.Size} The coordinate size.
  */
 goog.graphics.AbstractGraphics.prototype.getCoordSize = function() {
-  'use strict';
   if (this.coordWidth) {
     return new goog.math.Size(
         this.coordWidth,
@@ -155,7 +159,6 @@ goog.graphics.AbstractGraphics.prototype.setCoordOrigin = goog.abstractMethod;
  * @return {!goog.math.Coordinate} The coordinate system position.
  */
 goog.graphics.AbstractGraphics.prototype.getCoordOrigin = function() {
-  'use strict';
   return new goog.math.Coordinate(this.coordLeft, this.coordTop);
 };
 
@@ -173,7 +176,6 @@ goog.graphics.AbstractGraphics.prototype.setSize = goog.abstractMethod;
  * @deprecated Use getPixelSize.
  */
 goog.graphics.AbstractGraphics.prototype.getSize = function() {
-  'use strict';
   return this.getPixelSize();
 };
 
@@ -185,7 +187,6 @@ goog.graphics.AbstractGraphics.prototype.getSize = function() {
  *     document.
  */
 goog.graphics.AbstractGraphics.prototype.getPixelSize = function() {
-  'use strict';
   if (this.isInDocument()) {
     return goog.style.getSize(this.getElement());
   }
@@ -200,7 +201,6 @@ goog.graphics.AbstractGraphics.prototype.getPixelSize = function() {
  * @return {number} Returns the number of pixels per unit in the x direction.
  */
 goog.graphics.AbstractGraphics.prototype.getPixelScaleX = function() {
-  'use strict';
   var pixelSize = this.getPixelSize();
   return pixelSize ? pixelSize.width / this.getCoordSize().width : 0;
 };
@@ -210,7 +210,6 @@ goog.graphics.AbstractGraphics.prototype.getPixelScaleX = function() {
  * @return {number} Returns the number of pixels per unit in the y direction.
  */
 goog.graphics.AbstractGraphics.prototype.getPixelScaleY = function() {
-  'use strict';
   var pixelSize = this.getPixelSize();
   return pixelSize ? pixelSize.height / this.getCoordSize().height : 0;
 };
@@ -228,7 +227,6 @@ goog.graphics.AbstractGraphics.prototype.clear = goog.abstractMethod;
  * @param {goog.graphics.Element} element The element to remove.
  */
 goog.graphics.AbstractGraphics.prototype.removeElement = function(element) {
-  'use strict';
   goog.dom.removeNode(element.getElement());
 };
 
@@ -291,7 +289,6 @@ goog.graphics.AbstractGraphics.prototype.setElementAffineTransform =
  */
 goog.graphics.AbstractGraphics.prototype.drawCircle = function(
     cx, cy, r, stroke, fill, opt_group) {
-  'use strict';
   return this.drawEllipse(cx, cy, r, r, stroke, fill, opt_group);
 };
 
@@ -353,7 +350,6 @@ goog.graphics.AbstractGraphics.prototype.drawRect = goog.abstractMethod;
  */
 goog.graphics.AbstractGraphics.prototype.drawText = function(
     text, x, y, width, height, align, vAlign, font, stroke, fill, opt_group) {
-  'use strict';
   var baseline = font.size / 2;  // Baseline is middle of line
   var textY;
   if (vAlign == 'bottom') {
@@ -423,7 +419,6 @@ goog.graphics.AbstractGraphics.prototype.createGroup = goog.abstractMethod;
  * @deprecated Use {@code new goog.graphics.Path()}.
  */
 goog.graphics.AbstractGraphics.prototype.createPath = function() {
-  'use strict';
   return new goog.graphics.Path();
 };
 
@@ -448,7 +443,6 @@ goog.graphics.AbstractGraphics.prototype.getTextWidth = goog.abstractMethod;
  *     an accurate reproduction of the graphics contents.
  */
 goog.graphics.AbstractGraphics.prototype.isDomClonable = function() {
-  'use strict';
   return false;
 };
 

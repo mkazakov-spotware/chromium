@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -14,6 +14,7 @@
 
 #include "base/base_export.h"
 #include "base/containers/span.h"
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 
 namespace base {
@@ -21,11 +22,11 @@ namespace win {
 namespace i18n {
 
 // Selects a language from a set of available translations based on the user's
-// preferred language list. An optional preferred language may be provided to
+// preferred language list. An optional preferred langauge may be provided to
 // override selection should a corresponding translation be available.
 class BASE_EXPORT LanguageSelector {
  public:
-  using LangToOffset = std::pair<WStringPiece, size_t>;
+  using LangToOffset = std::pair<WStringPiece, int>;
 
   // Constructor to be used for users of this class that will provide the actual
   // language offsets that will be used.
@@ -39,21 +40,18 @@ class BASE_EXPORT LanguageSelector {
                    span<const LangToOffset> languages_to_offset);
 
   // Constructor for testing purposes.
-  // |candidates| is a list of all candidate languages that can be used to
-  // determine which language to use.
+  // |candidates| is a list of all candiate languages that can be used to
+  // determine which langauge to use.
   // |languages_to_offset_begin| and |languages_to_offset_end| point to a sorted
   // array of language identifiers (and their offsets) for which translations
   // are available.
   LanguageSelector(const std::vector<std::wstring>& candidates,
                    span<const LangToOffset> languages_to_offset);
 
-  LanguageSelector(const LanguageSelector&) = delete;
-  LanguageSelector& operator=(const LanguageSelector&) = delete;
-
   ~LanguageSelector();
 
   // The offset of the matched language (i.e., IDS_L10N_OFFSET_*).
-  size_t offset() const { return selected_offset_; }
+  int offset() const { return selected_offset_; }
 
   // The full name of the candidate language for which a match was found.
   const std::wstring& matched_candidate() const { return matched_candidate_; }
@@ -66,7 +64,9 @@ class BASE_EXPORT LanguageSelector {
  private:
   std::wstring matched_candidate_;
   std::wstring selected_language_;
-  size_t selected_offset_;
+  int selected_offset_;
+
+  DISALLOW_COPY_AND_ASSIGN(LanguageSelector);
 };
 
 }  // namespace i18n

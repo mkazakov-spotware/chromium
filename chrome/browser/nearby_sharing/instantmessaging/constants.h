@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,5 +13,8 @@ const char kInstantMessagingSendMessageAPI[] =
 
 // Template for optional OAuth2 authorization HTTP header.
 const char kAuthorizationHeaderFormat[] = "Authorization: Bearer %s";
+
+// Timeout for network calls to instantmessaging servers.
+const base::TimeDelta kNetworkTimeout = base::TimeDelta::FromMilliseconds(2500);
 
 #endif  // CHROME_BROWSER_NEARBY_SHARING_INSTANTMESSAGING_CONSTANTS_H_

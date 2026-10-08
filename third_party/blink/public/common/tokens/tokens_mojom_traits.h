@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_PUBLIC_COMMON_TOKENS_TOKENS_MOJOM_TRAITS_H_
 #define THIRD_PARTY_BLINK_PUBLIC_COMMON_TOKENS_TOKENS_MOJOM_TRAITS_H_
 
-#include "base/immediate_crash.h"
 #include "third_party/blink/public/common/common_export.h"
 #include "third_party/blink/public/common/tokens/token_mojom_traits_helper.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
@@ -15,13 +14,6 @@ namespace mojo {
 
 // Mojom traits for the various token types.
 // See third_party/blink/public/common/tokens/tokens.h for more details.
-
-////////////////////////////////////////////////////////////////////////////////
-// DOCUMENT TOKENS
-template <>
-struct StructTraits<blink::mojom::DocumentTokenDataView, blink::DocumentToken>
-    : public blink::TokenMojomTraitsHelper<blink::mojom::DocumentTokenDataView,
-                                           blink::DocumentToken> {};
 
 ////////////////////////////////////////////////////////////////////////////////
 // FRAME TOKENS
@@ -43,30 +35,14 @@ struct StructTraits<blink::mojom::RemoteFrameTokenDataView,
 template <>
 struct BLINK_COMMON_EXPORT
     UnionTraits<blink::mojom::FrameTokenDataView, blink::FrameToken> {
- private:
-  using DataView = blink::mojom::FrameTokenDataView;
-
- public:
-  static bool Read(DataView input, blink::FrameToken* output);
-
-  static DataView::Tag GetTag(const blink::FrameToken& token) {
-    switch (token.variant_index()) {
-      case blink::FrameToken::IndexOf<blink::LocalFrameToken>():
-        return DataView::Tag::kLocalFrameToken;
-      case blink::FrameToken::IndexOf<blink::RemoteFrameToken>():
-        return DataView::Tag::kRemoteFrameToken;
-    }
-    base::ImmediateCrash();
-  }
-
-  static const blink::LocalFrameToken& local_frame_token(
-      const blink::FrameToken& token) {
-    return token.GetAs<blink::LocalFrameToken>();
-  }
-  static const blink::RemoteFrameToken& remote_frame_token(
-      const blink::FrameToken& token) {
-    return token.GetAs<blink::RemoteFrameToken>();
-  }
+  static bool Read(blink::mojom::FrameTokenDataView input,
+                   blink::FrameToken* output);
+  static blink::mojom::FrameTokenDataView::Tag GetTag(
+      const blink::FrameToken& token);
+  static blink::LocalFrameToken local_frame_token(
+      const blink::FrameToken& token);
+  static blink::RemoteFrameToken remote_frame_token(
+      const blink::FrameToken& token);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,37 +72,16 @@ struct StructTraits<blink::mojom::SharedWorkerTokenDataView,
 template <>
 struct BLINK_COMMON_EXPORT
     UnionTraits<blink::mojom::WorkerTokenDataView, blink::WorkerToken> {
- private:
-  using DataView = blink::mojom::WorkerTokenDataView;
-
- public:
-  static bool Read(DataView input, blink::WorkerToken* output);
-
+  static bool Read(blink::mojom::WorkerTokenDataView input,
+                   blink::WorkerToken* output);
   static blink::mojom::WorkerTokenDataView::Tag GetTag(
-      const blink::WorkerToken& token) {
-    switch (token.variant_index()) {
-      case blink::WorkerToken::IndexOf<blink::DedicatedWorkerToken>():
-        return DataView::Tag::kDedicatedWorkerToken;
-      case blink::WorkerToken::IndexOf<blink::ServiceWorkerToken>():
-        return DataView::Tag::kServiceWorkerToken;
-      case blink::WorkerToken::IndexOf<blink::SharedWorkerToken>():
-        return DataView::Tag::kSharedWorkerToken;
-    }
-    base::ImmediateCrash();
-  }
-
-  static const blink::DedicatedWorkerToken& dedicated_worker_token(
-      const blink::WorkerToken& token) {
-    return token.GetAs<blink::DedicatedWorkerToken>();
-  }
-  static const blink::ServiceWorkerToken& service_worker_token(
-      const blink::WorkerToken& token) {
-    return token.GetAs<blink::ServiceWorkerToken>();
-  }
-  static const blink::SharedWorkerToken& shared_worker_token(
-      const blink::WorkerToken& token) {
-    return token.GetAs<blink::SharedWorkerToken>();
-  }
+      const blink::WorkerToken& token);
+  static blink::DedicatedWorkerToken dedicated_worker_token(
+      const blink::WorkerToken& token);
+  static blink::ServiceWorkerToken service_worker_token(
+      const blink::WorkerToken& token);
+  static blink::SharedWorkerToken shared_worker_token(
+      const blink::WorkerToken& token);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,54 +118,19 @@ struct StructTraits<blink::mojom::PaintWorkletTokenDataView,
 template <>
 struct BLINK_COMMON_EXPORT
     UnionTraits<blink::mojom::WorkletTokenDataView, blink::WorkletToken> {
- private:
-  using DataView = blink::mojom::WorkletTokenDataView;
-
- public:
-  static bool Read(DataView input, blink::WorkletToken* output);
-
+  static bool Read(blink::mojom::WorkletTokenDataView input,
+                   blink::WorkletToken* output);
   static blink::mojom::WorkletTokenDataView::Tag GetTag(
-      const blink::WorkletToken& token) {
-    switch (token.variant_index()) {
-      case blink::WorkletToken::IndexOf<blink::AnimationWorkletToken>():
-        return DataView::Tag::kAnimationWorkletToken;
-      case blink::WorkletToken::IndexOf<blink::AudioWorkletToken>():
-        return DataView::Tag::kAudioWorkletToken;
-      case blink::WorkletToken::IndexOf<blink::LayoutWorkletToken>():
-        return DataView::Tag::kLayoutWorkletToken;
-      case blink::WorkletToken::IndexOf<blink::PaintWorkletToken>():
-        return DataView::Tag::kPaintWorkletToken;
-    }
-    base::ImmediateCrash();
-  }
-
-  static const blink::AnimationWorkletToken& animation_worklet_token(
-      const blink::WorkletToken& token) {
-    return token.GetAs<blink::AnimationWorkletToken>();
-  }
-  static const blink::AudioWorkletToken& audio_worklet_token(
-      const blink::WorkletToken& token) {
-    return token.GetAs<blink::AudioWorkletToken>();
-  }
-  static const blink::LayoutWorkletToken& layout_worklet_token(
-      const blink::WorkletToken& token) {
-    return token.GetAs<blink::LayoutWorkletToken>();
-  }
-  static const blink::PaintWorkletToken& paint_worklet_token(
-      const blink::WorkletToken& token) {
-    return token.GetAs<blink::PaintWorkletToken>();
-  }
+      const blink::WorkletToken& token);
+  static blink::AnimationWorkletToken animation_worklet_token(
+      const blink::WorkletToken& token);
+  static blink::AudioWorkletToken audio_worklet_token(
+      const blink::WorkletToken& token);
+  static blink::LayoutWorkletToken layout_worklet_token(
+      const blink::WorkletToken& token);
+  static blink::PaintWorkletToken paint_worklet_token(
+      const blink::WorkletToken& token);
 };
-
-////////////////////////////////////////////////////////////////////////////////
-// SHADOW REALM TOKENS
-
-template <>
-struct StructTraits<blink::mojom::ShadowRealmTokenDataView,
-                    blink::ShadowRealmToken>
-    : public blink::TokenMojomTraitsHelper<
-          blink::mojom::ShadowRealmTokenDataView,
-          blink::ShadowRealmToken> {};
 
 ////////////////////////////////////////////////////////////////////////////////
 // OTHER TOKENS
@@ -222,91 +142,29 @@ struct StructTraits<blink::mojom::ShadowRealmTokenDataView,
 // keep the following list in alphabetic order.
 
 template <>
-struct StructTraits<blink::mojom::AttributionSrcTokenDataView,
-                    blink::AttributionSrcToken>
-    : public blink::TokenMojomTraitsHelper<
-          blink::mojom::AttributionSrcTokenDataView,
-          blink::AttributionSrcToken> {};
-
-template <>
-struct StructTraits<blink::mojom::ClipboardSequenceNumberTokenDataView,
-                    blink::ClipboardSequenceNumberToken>
-    : public blink::TokenMojomTraitsHelper<
-          blink::mojom::ClipboardSequenceNumberTokenDataView,
-          blink::ClipboardSequenceNumberToken> {};
-
-template <>
 struct BLINK_COMMON_EXPORT
     UnionTraits<blink::mojom::ExecutionContextTokenDataView,
                 blink::ExecutionContextToken> {
- private:
-  using DataView = blink::mojom::ExecutionContextTokenDataView;
-
- public:
   static bool Read(blink::mojom::ExecutionContextTokenDataView input,
                    blink::ExecutionContextToken* output);
-
-  static DataView::Tag GetTag(const blink::ExecutionContextToken& token) {
-    switch (token.variant_index()) {
-      case blink::ExecutionContextToken::IndexOf<blink::LocalFrameToken>():
-        return DataView::Tag::kLocalFrameToken;
-      case blink::ExecutionContextToken::IndexOf<blink::DedicatedWorkerToken>():
-        return DataView::Tag::kDedicatedWorkerToken;
-      case blink::ExecutionContextToken::IndexOf<blink::ServiceWorkerToken>():
-        return DataView::Tag::kServiceWorkerToken;
-      case blink::ExecutionContextToken::IndexOf<blink::SharedWorkerToken>():
-        return DataView::Tag::kSharedWorkerToken;
-      case blink::ExecutionContextToken::IndexOf<
-          blink::AnimationWorkletToken>():
-        return DataView::Tag::kAnimationWorkletToken;
-      case blink::ExecutionContextToken::IndexOf<blink::AudioWorkletToken>():
-        return DataView::Tag::kAudioWorkletToken;
-      case blink::ExecutionContextToken::IndexOf<blink::LayoutWorkletToken>():
-        return DataView::Tag::kLayoutWorkletToken;
-      case blink::ExecutionContextToken::IndexOf<blink::PaintWorkletToken>():
-        return DataView::Tag::kPaintWorkletToken;
-      case blink::ExecutionContextToken::IndexOf<blink::ShadowRealmToken>():
-        return DataView::Tag::kShadowRealmToken;
-    }
-    base::ImmediateCrash();
-  }
-
-  static const blink::LocalFrameToken& local_frame_token(
-      const blink::ExecutionContextToken& token) {
-    return token.GetAs<blink::LocalFrameToken>();
-  }
-  static const blink::DedicatedWorkerToken& dedicated_worker_token(
-      const blink::ExecutionContextToken& token) {
-    return token.GetAs<blink::DedicatedWorkerToken>();
-  }
-  static const blink::ServiceWorkerToken& service_worker_token(
-      const blink::ExecutionContextToken& token) {
-    return token.GetAs<blink::ServiceWorkerToken>();
-  }
-  static const blink::SharedWorkerToken& shared_worker_token(
-      const blink::ExecutionContextToken& token) {
-    return token.GetAs<blink::SharedWorkerToken>();
-  }
-  static const blink::AnimationWorkletToken& animation_worklet_token(
-      const blink::ExecutionContextToken& token) {
-    return token.GetAs<blink::AnimationWorkletToken>();
-  }
-  static const blink::AudioWorkletToken& audio_worklet_token(
-      const blink::ExecutionContextToken& token) {
-    return token.GetAs<blink::AudioWorkletToken>();
-  }
-  static const blink::LayoutWorkletToken& layout_worklet_token(
-      const blink::ExecutionContextToken& token) {
-    return token.GetAs<blink::LayoutWorkletToken>();
-  }
-  static const blink::PaintWorkletToken& paint_worklet_token(
-      const blink::ExecutionContextToken& token) {
-    return token.GetAs<blink::PaintWorkletToken>();
-  }
-  static const blink::ShadowRealmToken& shadow_realm_token(
-      const blink::ExecutionContextToken& token) {
-    return token.GetAs<blink::ShadowRealmToken>();
-  }
+  static blink::mojom::ExecutionContextTokenDataView::Tag GetTag(
+      const blink::ExecutionContextToken& token);
+  static blink::LocalFrameToken local_frame_token(
+      const blink::ExecutionContextToken& token);
+  static blink::DedicatedWorkerToken dedicated_worker_token(
+      const blink::ExecutionContextToken& token);
+  static blink::ServiceWorkerToken service_worker_token(
+      const blink::ExecutionContextToken& token);
+  static blink::SharedWorkerToken shared_worker_token(
+      const blink::ExecutionContextToken& token);
+  static blink::AnimationWorkletToken animation_worklet_token(
+      const blink::ExecutionContextToken& token);
+  static blink::AudioWorkletToken audio_worklet_token(
+      const blink::ExecutionContextToken& token);
+  static blink::LayoutWorkletToken layout_worklet_token(
+      const blink::ExecutionContextToken& token);
+  static blink::PaintWorkletToken paint_worklet_token(
+      const blink::ExecutionContextToken& token);
 };
 
 template <>
@@ -318,37 +176,6 @@ template <>
 struct StructTraits<blink::mojom::V8ContextTokenDataView, blink::V8ContextToken>
     : public blink::TokenMojomTraitsHelper<blink::mojom::V8ContextTokenDataView,
                                            blink::V8ContextToken> {};
-
-template <>
-struct BLINK_COMMON_EXPORT
-    UnionTraits<blink::mojom::WebGPUExecutionContextTokenDataView,
-                blink::WebGPUExecutionContextToken> {
- private:
-  using DataView = blink::mojom::WebGPUExecutionContextTokenDataView;
-
- public:
-  static bool Read(DataView input, blink::WebGPUExecutionContextToken* output);
-
-  static DataView::Tag GetTag(const blink::WebGPUExecutionContextToken& token) {
-    switch (token.variant_index()) {
-      case blink::WebGPUExecutionContextToken::IndexOf<blink::DocumentToken>():
-        return DataView::Tag::kDocumentToken;
-      case blink::WebGPUExecutionContextToken::IndexOf<
-          blink::DedicatedWorkerToken>():
-        return DataView::Tag::kDedicatedWorkerToken;
-    }
-    base::ImmediateCrash();
-  }
-
-  static const blink::DocumentToken& document_token(
-      const blink::WebGPUExecutionContextToken& token) {
-    return token.GetAs<blink::DocumentToken>();
-  }
-  static const blink::DedicatedWorkerToken& dedicated_worker_token(
-      const blink::WebGPUExecutionContextToken& token) {
-    return token.GetAs<blink::DedicatedWorkerToken>();
-  }
-};
 
 }  // namespace mojo
 

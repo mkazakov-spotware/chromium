@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,7 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/gtest_prod_util.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/time/time.h"
 
@@ -60,13 +58,12 @@ FORWARD_DECLARE_TEST(TaskEnvironmentTest, SetsDefaultRunTimeout);
 
 class ScopedRunLoopTimeout {
  public:
-  ScopedRunLoopTimeout(const Location& timeout_enabled_from_here,
-                       TimeDelta timeout);
+  ScopedRunLoopTimeout(const Location& from_here, TimeDelta timeout);
   ~ScopedRunLoopTimeout();
 
   // Invokes |on_timeout_log| if |timeout| expires, and appends it to the
   // logged error message.
-  ScopedRunLoopTimeout(const Location& timeout_enabled_from_here,
+  ScopedRunLoopTimeout(const Location& from_here,
                        TimeDelta timeout,
                        RepeatingCallback<std::string()> on_timeout_log);
 
@@ -101,7 +98,7 @@ class ScopedDisableRunLoopTimeout {
       delete;
 
  private:
-  const raw_ptr<const RunLoop::RunLoopTimeout> nested_timeout_;
+  const RunLoop::RunLoopTimeout* const nested_timeout_;
 };
 
 }  // namespace test

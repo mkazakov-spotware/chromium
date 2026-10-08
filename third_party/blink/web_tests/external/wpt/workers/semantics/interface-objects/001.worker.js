@@ -19,10 +19,9 @@ var expected = [
   "Path2D",
   "PromiseRejectionEvent",
   "EventSource",
-  "BroadcastChannel",
-  // https://websockets.spec.whatwg.org/
   "WebSocket",
   "CloseEvent",
+  "BroadcastChannel",
   // https://tc39.github.io/ecma262/
   "ArrayBuffer",
   "Int8Array",
@@ -55,7 +54,7 @@ var expected = [
   "ErrorEvent",
   "Event",
   "CustomEvent",
-  // https://webidl.spec.whatwg.org/
+  // http://heycam.github.io/webidl/
   "DOMException",
   // https://streams.spec.whatwg.org/
   "ReadableStream",

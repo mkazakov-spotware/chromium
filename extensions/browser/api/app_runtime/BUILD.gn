@@ -1,4 +1,4 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -13,13 +13,7 @@ source_set("app_runtime") {
     "app_runtime_api.h",
   ]
 
-  deps = [
-    "//components/services/app_service/public/mojom",
-    "//extensions/common",
-    "//extensions/common/api",
-  ]
+  deps = [ "//extensions/common/api" ]
 
   public_deps = [ "//extensions/browser:browser_sources" ]
-
-  allow_circular_includes_from = [ "//extensions/browser:browser_sources" ]
 }

@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that "Show Function Definition" jumps to the correct location.\n`);
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.showPanel('sources');
   await TestRunner.evaluateInPagePromise(`
       function jumpToMe()
@@ -24,7 +24,7 @@
       function didGetFunction(result) {
         var error = !result.object || !!result.exceptionDetails;
         TestRunner.assertTrue(!error);
-        panel.showFunctionDefinition(result.object);
+        panel._showFunctionDefinition(result.object);
       }
 
       function showUISourceCodeHook(uiSourceCode, lineNumber, columnNumber, forceShowInPanel) {
@@ -39,13 +39,13 @@
     function testDumpFunctionDefinition(next) {
       TestRunner.addSniffer(ObjectUI.ObjectPropertiesSection, 'formatObjectAsFunction', onConsoleMessagesReceived);
       var consoleView = Console.ConsoleView.instance();
-      consoleView.prompt.appendCommand('jumpToMe', true);
+      consoleView._prompt._appendCommand('jumpToMe', true);
 
       function onConsoleMessagesReceived() {
         TestRunner.deprecatedRunAfterPendingDispatches(function() {
           var messages = [];
           ConsoleTestRunner.disableConsoleViewport();
-          var viewMessages = Console.ConsoleView.instance().visibleViewMessages;
+          var viewMessages = Console.ConsoleView.instance()._visibleViewMessages;
           for (var i = 0; i < viewMessages.length; ++i) {
             var uiMessage = viewMessages[i];
             var element = uiMessage.contentElement();

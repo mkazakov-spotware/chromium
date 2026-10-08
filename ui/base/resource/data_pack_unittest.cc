@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <map>
-#include <string>
 #include <utility>
 
 #include "base/files/file.h"
@@ -38,11 +36,11 @@ TEST(DataPackTest, LoadFromPath) {
       dir.GetPath().Append(FILE_PATH_LITERAL("sample.pak"));
 
   // Dump contents into the pak file.
-  ASSERT_TRUE(
-      base::WriteFile(data_path, {kSamplePakContentsV4, kSamplePakSizeV4}));
+  ASSERT_TRUE(base::WriteFile(
+      data_path, base::StringPiece(kSamplePakContentsV4, kSamplePakSizeV4)));
 
   // Load the file through the data pack API.
-  DataPack pack(k100Percent);
+  DataPack pack(SCALE_FACTOR_100P);
   ASSERT_TRUE(pack.LoadFromPath(data_path));
 
   base::StringPiece data;
@@ -73,11 +71,11 @@ TEST(DataPackTest, LoadFromPathCompressed) {
   // Dump contents into a compressed pak file.
   std::string compressed;
   ASSERT_TRUE(compression::GzipCompress(
-      {kSamplePakContentsV4, kSamplePakSizeV4}, &compressed));
+      base::StringPiece(kSamplePakContentsV4, kSamplePakSizeV4), &compressed));
   ASSERT_TRUE(base::WriteFile(data_path, compressed));
 
   // Load the file through the data pack API.
-  DataPack pack(k100Percent);
+  DataPack pack(SCALE_FACTOR_100P);
   ASSERT_TRUE(pack.LoadFromPath(data_path));
 
   base::StringPiece data;
@@ -106,14 +104,14 @@ TEST(DataPackTest, LoadFromFile) {
       dir.GetPath().Append(FILE_PATH_LITERAL("sample.pak"));
 
   // Dump contents into the pak file.
-  ASSERT_TRUE(
-      base::WriteFile(data_path, {kSamplePakContentsV4, kSamplePakSizeV4}));
+  ASSERT_TRUE(base::WriteFile(
+      data_path, base::StringPiece(kSamplePakContentsV4, kSamplePakSizeV4)));
 
   base::File file(data_path, base::File::FLAG_OPEN | base::File::FLAG_READ);
   ASSERT_TRUE(file.IsValid());
 
   // Load the file through the data pack API.
-  DataPack pack(k100Percent);
+  DataPack pack(SCALE_FACTOR_100P);
   ASSERT_TRUE(pack.LoadFromFile(std::move(file)));
 
   base::StringPiece data;
@@ -146,13 +144,13 @@ TEST(DataPackTest, LoadFromFileRegion) {
   const uint8_t kPadding[5678] = {0};
   ASSERT_TRUE(base::WriteFile(data_path, kPadding));
   ASSERT_TRUE(
-      base::AppendToFile(data_path, {kSamplePakContentsV4, kSamplePakSizeV4}));
+      base::AppendToFile(data_path, kSamplePakContentsV4, kSamplePakSizeV4));
 
   base::File file(data_path, base::File::FLAG_OPEN | base::File::FLAG_READ);
   ASSERT_TRUE(file.IsValid());
 
   // Load the file through the data pack API.
-  DataPack pack(k100Percent);
+  DataPack pack(SCALE_FACTOR_100P);
   base::MemoryMappedFile::Region region = {sizeof(kPadding), kSamplePakSizeV4};
   ASSERT_TRUE(pack.LoadFromFileRegion(std::move(file), region));
 
@@ -176,9 +174,10 @@ TEST(DataPackTest, LoadFromFileRegion) {
 }
 
 TEST(DataPackTest, LoadFromBufferV4) {
-  DataPack pack(k100Percent);
+  DataPack pack(SCALE_FACTOR_100P);
 
-  ASSERT_TRUE(pack.LoadFromBuffer({kSamplePakContentsV4, kSamplePakSizeV4}));
+  ASSERT_TRUE(pack.LoadFromBuffer(
+      base::StringPiece(kSamplePakContentsV4, kSamplePakSizeV4)));
 
   base::StringPiece data;
   ASSERT_TRUE(pack.HasResource(4));
@@ -200,10 +199,10 @@ TEST(DataPackTest, LoadFromBufferV4) {
 }
 
 TEST(DataPackTest, LoadFromBufferV5) {
-  DataPack pack(k100Percent);
+  DataPack pack(SCALE_FACTOR_100P);
 
-  ASSERT_TRUE(pack.LoadFromBuffer(
-      {kSampleCompressPakContentsV5, kSampleCompressPakSizeV5}));
+  ASSERT_TRUE(pack.LoadFromBuffer(base::StringPiece(
+      kSampleCompressPakContentsV5, kSampleCompressPakSizeV5)));
 
   base::StringPiece data;
   ASSERT_TRUE(pack.HasResource(4));
@@ -236,7 +235,7 @@ TEST(DataPackTest, LoadFileWithTruncatedHeader) {
   ASSERT_TRUE(base::PathService::Get(UI_DIR_TEST_DATA, &data_path));
   data_path = data_path.AppendASCII("data_pack_unittest/truncated-header.pak");
 
-  DataPack pack(k100Percent);
+  DataPack pack(SCALE_FACTOR_100P);
   ASSERT_FALSE(pack.LoadFromPath(data_path));
 }
 
@@ -260,7 +259,7 @@ TEST_P(DataPackTest, Write) {
   ASSERT_TRUE(DataPack::WritePack(file, resources, GetParam()));
 
   // Now try to read the data back in.
-  DataPack pack(k100Percent);
+  DataPack pack(SCALE_FACTOR_100P);
   ASSERT_TRUE(pack.LoadFromPath(file));
   EXPECT_EQ(pack.GetTextEncodingType(), GetParam());
 
@@ -277,7 +276,7 @@ TEST_P(DataPackTest, Write) {
   EXPECT_EQ(fifteen, data);
 
   EXPECT_EQ(5U, pack.GetResourceTableSizeForTesting());
-  EXPECT_EQ(0U, pack.GetAliasTableSize());
+  EXPECT_EQ(0U, pack.GetAliasTableSizeForTesting());
 }
 
 TEST_P(DataPackTest, WriteWithAliases) {
@@ -302,7 +301,7 @@ TEST_P(DataPackTest, WriteWithAliases) {
   ASSERT_TRUE(DataPack::WritePack(file, resources, GetParam()));
 
   // Now try to read the data back in.
-  DataPack pack(k100Percent);
+  DataPack pack(SCALE_FACTOR_100P);
   ASSERT_TRUE(pack.LoadFromPath(file));
   EXPECT_EQ(pack.GetTextEncodingType(), GetParam());
 
@@ -332,10 +331,10 @@ TEST_P(DataPackTest, WriteWithAliases) {
   EXPECT_EQ(data.data(), data2.data());
 
   EXPECT_EQ(5U, pack.GetResourceTableSizeForTesting());
-  EXPECT_EQ(2U, pack.GetAliasTableSize());
+  EXPECT_EQ(2U, pack.GetAliasTableSizeForTesting());
 }
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 TEST(DataPackTest, ModifiedWhileUsed) {
   base::ScopedTempDir dir;
   ASSERT_TRUE(dir.CreateUniqueTempDir());
@@ -343,14 +342,14 @@ TEST(DataPackTest, ModifiedWhileUsed) {
       dir.GetPath().Append(FILE_PATH_LITERAL("sample.pak"));
 
   // Dump contents into the pak file.
-  ASSERT_TRUE(
-      base::WriteFile(data_path, {kSamplePakContentsV4, kSamplePakSizeV4}));
+  ASSERT_TRUE(base::WriteFile(
+      data_path, base::StringPiece(kSamplePakContentsV4, kSamplePakSizeV4)));
 
   base::File file(data_path, base::File::FLAG_OPEN | base::File::FLAG_READ);
   ASSERT_TRUE(file.IsValid());
 
   // Load the file through the data pack API.
-  DataPack pack(k100Percent);
+  DataPack pack(SCALE_FACTOR_100P);
   ASSERT_TRUE(pack.LoadFromFile(std::move(file)));
 
   base::StringPiece data;
@@ -358,7 +357,8 @@ TEST(DataPackTest, ModifiedWhileUsed) {
   ASSERT_TRUE(pack.GetStringPiece(10, &data));
 
   ASSERT_TRUE(base::WriteFile(
-      data_path, {kSampleCorruptPakContents, kSampleCorruptPakSize}));
+      data_path,
+      base::StringPiece(kSampleCorruptPakContents, kSampleCorruptPakSize)));
 
   // Reading asset #10 should now fail as it extends past the end of the file.
   ASSERT_TRUE(pack.HasResource(10));

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,20 +12,14 @@
 #include <vector>
 
 #include "base/atomicops.h"
-#include "base/base_export.h"
 #include "base/bits.h"
 #include "base/callback.h"
 #include "base/callback_forward.h"
 #include "base/callback_helpers.h"
 #include "base/compiler_specific.h"
-#include "base/dcheck_is_on.h"
 #include "base/debug/crash_logging.h"
-#include "base/gtest_prod_util.h"
 #include "base/memory/memory_pressure_listener.h"
-#include "base/memory/raw_ptr.h"
 #include "base/synchronization/lock.h"
-#include "base/synchronization/waitable_event.h"
-#include "base/template_util.h"
 #include "base/thread_annotations.h"
 #include "base/threading/platform_thread.h"
 #include "base/threading/simple_thread.h"
@@ -36,7 +30,7 @@
 #include "build/build_config.h"
 
 namespace base {
-class WatchHangsInScope;
+class HangWatchScopeEnabled;
 namespace internal {
 class HangWatchState;
 }  // namespace internal
@@ -44,13 +38,13 @@ class HangWatchState;
 
 namespace base {
 
-// Instantiate a WatchHangsInScope in a code scope to register to be
+// Instantiate a HangWatchScopeEnabled in a code scope to register to be
 // watched for hangs of more than |timeout| by the HangWatcher.
 //
 // Example usage:
 //
 //  void FooBar(){
-//    WatchHangsInScope scope(base::Seconds(5));
+//    HangWatchScopeEnabled scope(base::TimeDelta::FromSeconds(5));
 //    DoWork();
 //  }
 //
@@ -58,48 +52,82 @@ namespace base {
 // inspects the thread state before Foobar returns a hang will be
 // reported.
 //
-// WatchHangsInScopes are typically meant to live on the stack. In some
-// cases it's necessary to keep a WatchHangsInScope instance as a class
-// member but special care is required when doing so as a WatchHangsInScope
+// HangWatchScopeEnableds are typically meant to live on the stack. In some
+// cases it's necessary to keep a HangWatchScopeEnabled instance as a class
+// member but special care is required when doing so as a HangWatchScopeEnabled
 // that stays alive longer than intended will generate non-actionable hang
 // reports.
-class BASE_EXPORT WatchHangsInScope {
+class BASE_EXPORT HangWatchScopeEnabled {
  public:
   // A good default value needs to be large enough to represent a significant
   // hang and avoid noise while being small enough to not exclude too many
   // hangs. The nature of the work that gets executed on the thread is also
-  // important. We can be much stricter when monitoring a UI thread compared to
+  // important. We can be much stricter when monitoring a UI thread compared tp
   // a ThreadPool thread for example.
-  static constexpr base::TimeDelta kDefaultHangWatchTime = base::Seconds(10);
+  static const base::TimeDelta kDefaultHangWatchTime;
 
   // Constructing/destructing thread must be the same thread.
-  explicit WatchHangsInScope(TimeDelta timeout = kDefaultHangWatchTime);
-  ~WatchHangsInScope();
+  explicit HangWatchScopeEnabled(TimeDelta timeout);
+  ~HangWatchScopeEnabled();
 
-  WatchHangsInScope(const WatchHangsInScope&) = delete;
-  WatchHangsInScope& operator=(const WatchHangsInScope&) = delete;
+  HangWatchScopeEnabled(const HangWatchScopeEnabled&) = delete;
+  HangWatchScopeEnabled& operator=(const HangWatchScopeEnabled&) = delete;
 
  private:
-  // Will be true if the object actually set a deadline and false if not.
-  bool took_effect_ = true;
-
   // This object should always be constructed and destructed on the same thread.
   THREAD_CHECKER(thread_checker_);
 
-  // The deadline set by the previous WatchHangsInScope created on this
-  // thread. Stored so it can be restored when this WatchHangsInScope is
+  // The deadline set by the previous HangWatchScopeEnabled created on this
+  // thread. Stored so it can be restored when this HangWatchScopeEnabled is
   // destroyed.
   TimeTicks previous_deadline_;
 
-  // Indicates whether the kIgnoreCurrentWatchHangsInScope flag must be set upon
-  // exiting this WatchHangsInScope if a call to InvalidateActiveExpectations()
-  // previously suspended hang watching.
+  // Indicates whether the kIgnoreCurrentHang flag must be set upon exiting this
+  // HangWatchScopeEnabled. This is true if the
+  // kIgnoreCurrentHangWatchScopeEnabled flag was set upon entering this scope,
+  // but was cleared for this HangWatchScopeEnabled because there was no active
+  // HangWatchScopeDisabled.
   bool set_hangs_ignored_on_exit_ = false;
 
 #if DCHECK_IS_ON()
-  // The previous WatchHangsInScope created on this thread.
-  WatchHangsInScope* previous_watch_hangs_in_scope_;
+  // The previous HangWatchScopeEnabled created on this thread.
+  HangWatchScopeEnabled* previous_hang_watch_scope_enable_;
 #endif
+};
+
+// Scoped object that disables hang watching on the thread. The object nullifies
+// the effect of all live HangWatchScopeEnabled instances and also that of new
+// HangWatchScopeEnabled instances created during its lifetime. Use to avoid
+// capturing hangs for operations known to take unbounded time like waiting for
+// user input. This does not unregister the thread so when this object is
+// destroyed hang watching resumes for new HangWatchScopeEnableds.
+//
+// Example usage:
+//  {
+//    HangWatchScopeEnabled scope_1;
+//    {
+//      HangWatchScopeEnabled scope_2;
+//      HangWatchScopeDisabled disabler;
+//      WaitForUserInput();
+//      HangWatchScopeEnabled scope_3;
+//    }
+//
+//    HangWatchScopeEnabled scope_4;
+//  }
+//
+// HangWatchScopeEnabled scope_5;
+//
+// In this example hang watching is disabled for HangWatchScopeEnableds 1, 2 and
+// 3 since they were either active at the time of the |disabler|'s creation or
+// created while the disabler was still active. HangWatchScopeEnableds 4 and 5
+// are unaffected since they were created after the disabler was destroyed.
+//
+class BASE_EXPORT HangWatchScopeDisabled {
+ public:
+  HangWatchScopeDisabled();
+  ~HangWatchScopeDisabled();
+  HangWatchScopeDisabled(const HangWatchScopeDisabled&) = delete;
+  HangWatchScopeDisabled& operator=(const HangWatchScopeDisabled&) = delete;
 };
 
 // Monitors registered threads for hangs by inspecting their associated
@@ -108,33 +136,17 @@ class BASE_EXPORT WatchHangsInScope {
 // within a single process. This instance must outlive all monitored threads.
 class BASE_EXPORT HangWatcher : public DelegateSimpleThread::Delegate {
  public:
-  // Describes the type of a process for logging purposes.
-  enum class ProcessType {
-    kUnknownProcess = 0,
-    kBrowserProcess = 1,
-    kGPUProcess = 2,
-    kRendererProcess = 3,
-    kUtilityProcess = 4,
-    kMax = kUtilityProcess
-  };
-
   // Describes the type of a thread for logging purposes.
   enum class ThreadType {
     kIOThread = 0,
-    kMainThread = 1,
+    kUIThread = 1,
     kThreadPoolThread = 2,
     kMax = kThreadPoolThread
   };
 
-  // Notes on lifetime:
-  //   1) The first invocation of the constructor will set the global instance
-  //      accessible through GetInstance().
-  //   2) In production HangWatcher is always purposefuly leaked.
-  //   3) If not leaked HangWatcher is always constructed and destructed from
-  //      the same thread.
-  //   4) There can never be more than one instance of HangWatcher at a time.
-  //      The class is not base::Singleton derived because it needs to destroyed
-  //      in tests.
+  // The first invocation of the constructor will set the global instance
+  // accessible through GetInstance(). This means that only one instance can
+  // exist at a time.
   HangWatcher();
 
   // Clears the global instance for the class.
@@ -143,62 +155,25 @@ class BASE_EXPORT HangWatcher : public DelegateSimpleThread::Delegate {
   HangWatcher(const HangWatcher&) = delete;
   HangWatcher& operator=(const HangWatcher&) = delete;
 
-  static void CreateHangWatcherInstance();
-
   // Returns a non-owning pointer to the global HangWatcher instance.
   static HangWatcher* GetInstance();
 
   // Initializes HangWatcher. Must be called once on the main thread during
   // startup while single-threaded.
-  static void InitializeOnMainThread(ProcessType process_type);
-
-  // Returns the values that were set through InitializeOnMainThread() to their
-  // default value. Used for testing since in prod initialization should happen
-  // only once.
-  static void UnitializeOnMainThreadForTesting();
+  static void InitializeOnMainThread();
 
   // Thread safe functions to verify if hang watching is activated. If called
   // before InitializeOnMainThread returns the default value which is false.
   static bool IsEnabled();
   static bool IsThreadPoolHangWatchingEnabled();
   static bool IsIOThreadHangWatchingEnabled();
-
-  // Returns true if crash dump reporting is configured for any thread type.
-  static bool IsCrashReportingEnabled();
-
-  // Use to avoid capturing hangs for operations known to take unbounded time
-  // like waiting for user input. WatchHangsInScope objects created after this
-  // call will take effect. To resume watching for hangs create a new
-  // WatchHangsInScope after the unbounded operation finishes.
-  //
-  // Example usage:
-  //  {
-  //    WatchHangsInScope scope_1;
-  //    {
-  //      WatchHangsInScope scope_2;
-  //      InvalidateActiveExpectations();
-  //      WaitForUserInput();
-  //    }
-  //
-  //    WatchHangsInScope scope_4;
-  //  }
-  //
-  // WatchHangsInScope scope_5;
-  //
-  // In this example hang watching is disabled for WatchHangsInScopes 1 and 2
-  // since they were both active at the time of the invalidation.
-  // WatchHangsInScopes 4 and 5 are unaffected since they were created after the
-  // end of the WatchHangsInScope that was current at the time of invalidation.
-  //
-  static void InvalidateActiveExpectations();
+  static bool IsUIThreadHangWatchingEnabled();
 
   // Sets up the calling thread to be monitored for threads. Returns a
   // ScopedClosureRunner that unregisters the thread. This closure has to be
-  // called from the registered thread before it's joined. Returns a null
-  // closure in the case where there is no HangWatcher instance to register the
-  // thread with.
-  [[nodiscard]] static ScopedClosureRunner RegisterThread(
-      ThreadType thread_type);
+  // called from the registered thread before it's joined.
+  ScopedClosureRunner RegisterThread(ThreadType thread_type)
+      LOCKS_EXCLUDED(watch_state_lock_) WARN_UNUSED_RESULT;
 
   // Choose a closure to be run at the end of each call to Monitor(). Use only
   // for testing. Reentering the HangWatcher in the closure must be done with
@@ -230,7 +205,7 @@ class BASE_EXPORT HangWatcher : public DelegateSimpleThread::Delegate {
   // Call to make sure no more monitoring takes place. The
   // function is thread-safe and can be called at anytime but won't stop
   // monitoring that is currently taking place. Use only for testing.
-  static void StopMonitoringForTesting();
+  void StopMonitoringForTesting();
 
   // Replace the clock used when calculating time spent
   // sleeping. Use only for testing.
@@ -244,15 +219,7 @@ class BASE_EXPORT HangWatcher : public DelegateSimpleThread::Delegate {
   // Begin executing the monitoring loop on the HangWatcher thread.
   void Start();
 
-  // Returns the value of the crash key with the time since last system power
-  // resume.
-  std::string GetTimeSinceLastSystemPowerResumeCrashKeyValue() const;
-
  private:
-  // See comment of ::RegisterThread() for details.
-  [[nodiscard]] ScopedClosureRunner RegisterThreadInternal(
-      ThreadType thread_type) LOCKS_EXCLUDED(watch_state_lock_);
-
   // Use to assert that functions are called on the monitoring thread.
   THREAD_CHECKER(hang_watcher_thread_checker_);
 
@@ -263,11 +230,11 @@ class BASE_EXPORT HangWatcher : public DelegateSimpleThread::Delegate {
   void OnMemoryPressure(
       base::MemoryPressureListener::MemoryPressureLevel memory_pressure_level);
 
-#if !BUILDFLAG(IS_NACL)
+#if not defined(OS_NACL)
   // Returns a ScopedCrashKeyString that sets the crash key with the time since
   // last critical memory pressure signal.
-  [[nodiscard]] debug::ScopedCrashKeyString
-  GetTimeSinceLastCriticalMemoryPressureCrashKey();
+  debug::ScopedCrashKeyString GetTimeSinceLastCriticalMemoryPressureCrashKey()
+      WARN_UNUSED_RESULT;
 #endif
 
   // Invoke base::debug::DumpWithoutCrashing() insuring that the stack frame
@@ -286,45 +253,29 @@ class BASE_EXPORT HangWatcher : public DelegateSimpleThread::Delegate {
       base::PlatformThreadId thread_id;
     };
 
-    WatchStateSnapShot();
+    // Construct the snapshot from provided data. |snapshot_time| can be
+    // different than now() to be coherent with other operations recently done
+    // on |watch_states|. If any deadline in |watch_states| is before
+    // |deadline_ignore_threshold|, the snapshot is empty.
+    WatchStateSnapShot(const HangWatchStates& watch_states,
+                       base::TimeTicks deadline_ignore_threshold);
     WatchStateSnapShot(const WatchStateSnapShot& other);
     ~WatchStateSnapShot();
-
-    // Initialize the snapshot from provided data. |snapshot_time| can be
-    // different than now() to be coherent with other operations recently done
-    // on |watch_states|. |hung_watch_state_copies_| can be empty after
-    // initialization for a number of reasons:
-    // 1. If any deadline in |watch_states| is before
-    // |deadline_ignore_threshold|.
-    // 2. If some of the hung threads could not be marked as blocking on
-    // capture.
-    // 3. If none of the hung threads are of a type configured to trigger a
-    // crash dump.
-    //
-    // This function cannot be called more than once without an associated call
-    // to Clear().
-    void Init(const HangWatchStates& watch_states,
-              base::TimeTicks deadline_ignore_threshold);
-
-    // Reset the snapshot object to be reused. Can only be called after Init().
-    void Clear();
 
     // Returns a string that contains the ids of the hung threads separated by a
     // '|'. The size of the string is capped at debug::CrashKeySize::Size256. If
     // no threads are hung returns an empty string. Can only be invoked if
-    // IsActionable(). Can only be called after Init().
+    // IsActionable().
     std::string PrepareHungThreadListCrashKey() const;
 
-    // Return the highest deadline included in this snapshot. Can only be called
-    // if IsActionable(). Can only be called after Init().
+    // Return the highest deadline included in this snapshot.
     base::TimeTicks GetHighestDeadline() const;
 
     // Returns true if the snapshot can be used to record an actionable hang
-    // report and false if not. Can only be called after Init().
+    // report and false if not.
     bool IsActionable() const;
 
    private:
-    bool initialized_ = false;
     std::vector<WatchStateCopy> hung_watch_state_copies_;
   };
 
@@ -356,6 +307,9 @@ class BASE_EXPORT HangWatcher : public DelegateSimpleThread::Delegate {
 
   base::TimeDelta monitor_period_;
 
+  // Indicates whether Run() should return after the next monitoring.
+  std::atomic<bool> keep_monitoring_{true};
+
   // Use to make the HangWatcher thread wake or sleep to schedule the
   // appropriate monitoring frequency.
   WaitableEvent should_monitor_;
@@ -371,11 +325,6 @@ class BASE_EXPORT HangWatcher : public DelegateSimpleThread::Delegate {
   std::vector<std::unique_ptr<internal::HangWatchState>> watch_states_
       GUARDED_BY(watch_state_lock_);
 
-  // Snapshot to be reused across hang captures. The point of keeping it
-  // around is reducing allocations during capture.
-  WatchStateSnapShot watch_state_snapshot_
-      GUARDED_BY_CONTEXT(hang_watcher_thread_checker_);
-
   base::DelegateSimpleThread thread_;
 
   RepeatingClosure after_monitor_closure_for_testing_;
@@ -385,7 +334,7 @@ class BASE_EXPORT HangWatcher : public DelegateSimpleThread::Delegate {
   base::Lock capture_lock_ ACQUIRED_AFTER(watch_state_lock_);
   std::atomic<bool> capture_in_progress_{false};
 
-  raw_ptr<const base::TickClock> tick_clock_;
+  const base::TickClock* tick_clock_;
 
   // Registration to receive memory pressure signals.
   base::MemoryPressureListener memory_pressure_listener_;
@@ -423,10 +372,13 @@ class BASE_EXPORT HangWatchDeadline {
   enum class Flag : uint64_t {
     // Minimum value for validation purposes. Not currently used.
     kMinValue = bits::LeftmostBit<uint64_t>() >> 7,
+    // Persistent because control by the lifetime of HangWatchScopeDisabled.
+    kHasActiveHangWatchScopeDisabled = bits::LeftmostBit<uint64_t>() >> 2,
     // Persistent because if hang detection is disabled on a thread it should
     // be re-enabled manually.
-    kIgnoreCurrentWatchHangsInScope = bits::LeftmostBit<uint64_t>() >> 1,
-    // Non-persistent because a new value means a new WatchHangsInScope started
+    kIgnoreCurrentHangWatchScopeEnabled = bits::LeftmostBit<uint64_t>() >> 1,
+    // Non-persistent because a new value means a new HangWatchScopeEnabled
+    // started
     // after the beginning of capture. It can't be implicated in the hang so we
     // don't want it to block.
     kShouldBlockOnHang = bits::LeftmostBit<uint64_t>() >> 0,
@@ -471,11 +423,17 @@ class BASE_EXPORT HangWatchDeadline {
   // not set the flag and returns false.
   bool SetShouldBlockOnHang(uint64_t old_flags, TimeTicks old_deadline);
 
-  // Sets the kIgnoreCurrentWatchHangsInScope flag.
-  void SetIgnoreCurrentWatchHangsInScope();
+  // Sets the kHasActiveHangWatchScopeDisabled flag.
+  void SetHasActiveHangWatchScopeDisabled();
 
-  // Clears the kIgnoreCurrentWatchHangsInScope flag.
-  void UnsetIgnoreCurrentWatchHangsInScope();
+  // Clears the kHasActiveHangWatchScopeDisabled flag.
+  void UnsetHasActiveHangWatchScopeDisabled();
+
+  // Sets the kIgnoreCurrentHangWatchScopeEnabled flag.
+  void SetIgnoreCurrentHangWatchScopeEnabled();
+
+  // Clears the kIgnoreCurrentHangWatchScopeEnabled flag.
+  void UnsetIgnoreCurrentHangWatchScopeEnabled();
 
   // Use to simulate the value of |bits_| changing between the calling a
   // Set* function and the moment of atomically switching the values. The
@@ -491,8 +449,7 @@ class BASE_EXPORT HangWatchDeadline {
 
  private:
   using TimeTicksInternalRepresentation =
-      std::invoke_result<decltype(&TimeTicks::ToInternalValue),
-                         TimeTicks>::type;
+      std::result_of<decltype (&TimeTicks::ToInternalValue)(TimeTicks)>::type;
   static_assert(std::is_same<TimeTicksInternalRepresentation, int64_t>::value,
                 "Bit manipulations made by HangWatchDeadline need to be"
                 "adapted if internal representation of TimeTicks changes.");
@@ -596,13 +553,21 @@ class BASE_EXPORT HangWatchState {
   // Sets the deadline to a new value.
   void SetDeadline(TimeTicks deadline);
 
-  // Mark this thread as ignored for hang watching. This means existing
-  // WatchHangsInScope will not trigger hangs.
-  void SetIgnoreCurrentWatchHangsInScope();
+  // Mark this thread as ignored for hang watching. This means existing hang
+  // watch will not trigger hangs.
+  void SetIgnoreCurrentHangWatchScopeEnabled();
 
   // Reactivate hang watching on this thread. Should be called when all
-  // WatchHangsInScope instances that were ignored have completed.
-  void UnsetIgnoreCurrentWatchHangsInScope();
+  // HangWatchScopeEnabled instances that were ignored have completed.
+  void UnsetIgnoreCurrentHangWatchScopeEnabled();
+
+  // Mark hang watching as disabled on this thread. This means new
+  // HangWatchScopeEnabled instances will not trigger hangs.
+  void SetHasActiveHangWatchScopeDisabled();
+
+  // Reactivate hang watching on this thread. New HangWatchScopeEnabled
+  // instances will trigger hangs.
+  void UnsetHasActiveHangWatchScopeDisabled();
 
   // Mark the current state as having to block in its destruction until hang
   // capture completes.
@@ -617,12 +582,12 @@ class BASE_EXPORT HangWatchState {
   bool IsOverDeadline() const;
 
 #if DCHECK_IS_ON()
-  // Saves the supplied WatchHangsInScope as the currently active
-  // WatchHangsInScope.
-  void SetCurrentWatchHangsInScope(WatchHangsInScope* scope);
+  // Saves the supplied HangWatchScopeEnabled as the currently active
+  // HangWatchScopeEnabled.
+  void SetCurrentHangWatchScopeEnabled(HangWatchScopeEnabled* scope);
 
   // Retrieve the currently active scope.
-  WatchHangsInScope* GetCurrentWatchHangsInScope();
+  HangWatchScopeEnabled* GetCurrentHangWatchScopeEnabled();
 #endif
 
   PlatformThreadId GetThreadID() const;
@@ -651,9 +616,7 @@ class BASE_EXPORT HangWatchState {
   // reaches the value contained in it this constistutes a hang.
   HangWatchDeadline deadline_;
 
-  // A unique ID of the thread under watch. Used for logging in crash reports
-  // only.
-  PlatformThreadId thread_id_;
+  const PlatformThreadId thread_id_;
 
   // Number of active HangWatchScopeEnables on this thread.
   int nesting_level_ = 0;
@@ -662,7 +625,7 @@ class BASE_EXPORT HangWatchState {
   const HangWatcher::ThreadType thread_type_;
 
 #if DCHECK_IS_ON()
-  // Used to keep track of the current WatchHangsInScope and detect improper
+  // Used to keep track of the current HangWatchScopeEnabled and detect improper
   // usage. Scopes should always be destructed in reverse order from the one
   // they were constructed in. Example of improper use:
   //
@@ -672,7 +635,7 @@ class BASE_EXPORT HangWatchState {
   //   |scope| gets deallocated first, violating reverse destruction order.
   //   scope.reset();
   // }
-  raw_ptr<WatchHangsInScope> current_watch_hangs_in_scope_{nullptr};
+  HangWatchScopeEnabled* current_hang_watch_scope_enable_{nullptr};
 #endif
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "base/check.h"
+#include "base/macros.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "build/chromeos_buildflags.h"
 #include "media/base/container_names.h"
@@ -31,10 +32,6 @@ namespace media {
 class MockProtocol : public FFmpegURLProtocol {
  public:
   MockProtocol() = default;
-
-  MockProtocol(const MockProtocol&) = delete;
-  MockProtocol& operator=(const MockProtocol&) = delete;
-
   virtual ~MockProtocol() = default;
 
   MOCK_METHOD2(Read, int(int size, uint8_t* data));
@@ -42,6 +39,9 @@ class MockProtocol : public FFmpegURLProtocol {
   MOCK_METHOD1(SetPosition, bool(int64_t position));
   MOCK_METHOD1(GetSize, bool(int64_t* size_out));
   MOCK_METHOD0(IsStreaming, bool());
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockProtocol);
 };
 
 class FFmpegGlueTest : public ::testing::Test {
@@ -50,13 +50,10 @@ class FFmpegGlueTest : public ::testing::Test {
       : protocol_(new StrictMock<MockProtocol>()) {
     // IsStreaming() is called when opening.
     EXPECT_CALL(*protocol_.get(), IsStreaming()).WillOnce(Return(true));
-    glue_ = std::make_unique<FFmpegGlue>(protocol_.get());
+    glue_.reset(new FFmpegGlue(protocol_.get()));
     CHECK(glue_->format_context());
     CHECK(glue_->format_context()->pb);
   }
-
-  FFmpegGlueTest(const FFmpegGlueTest&) = delete;
-  FFmpegGlueTest& operator=(const FFmpegGlueTest&) = delete;
 
   ~FFmpegGlueTest() override {
     // Ensure |glue_| and |protocol_| are still alive.
@@ -79,6 +76,9 @@ class FFmpegGlueTest : public ::testing::Test {
  protected:
   std::unique_ptr<FFmpegGlue> glue_;
   std::unique_ptr<StrictMock<MockProtocol>> protocol_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FFmpegGlueTest);
 };
 
 class FFmpegGlueDestructionTest : public ::testing::Test {
@@ -87,16 +87,12 @@ class FFmpegGlueDestructionTest : public ::testing::Test {
 
   void Initialize(const char* filename) {
     data_ = ReadTestDataFile(filename);
-    protocol_ = std::make_unique<InMemoryUrlProtocol>(
-        data_->data(), data_->data_size(), false);
-    glue_ = std::make_unique<FFmpegGlue>(protocol_.get());
+    protocol_.reset(new InMemoryUrlProtocol(
+        data_->data(), data_->data_size(), false));
+    glue_.reset(new FFmpegGlue(protocol_.get()));
     CHECK(glue_->format_context());
     CHECK(glue_->format_context()->pb);
   }
-
-  FFmpegGlueDestructionTest(const FFmpegGlueDestructionTest&) = delete;
-  FFmpegGlueDestructionTest& operator=(const FFmpegGlueDestructionTest&) =
-      delete;
 
   ~FFmpegGlueDestructionTest() override {
     // Ensure Initialize() was called.
@@ -117,6 +113,8 @@ class FFmpegGlueDestructionTest : public ::testing::Test {
  private:
   std::unique_ptr<InMemoryUrlProtocol> protocol_;
   scoped_refptr<DecoderBuffer> data_;
+
+  DISALLOW_COPY_AND_ASSIGN(FFmpegGlueDestructionTest);
 };
 
 // Tests that ensure we are using the correct AVInputFormat name given by ffmpeg
@@ -124,10 +122,6 @@ class FFmpegGlueDestructionTest : public ::testing::Test {
 class FFmpegGlueContainerTest : public FFmpegGlueDestructionTest {
  public:
   FFmpegGlueContainerTest() = default;
-
-  FFmpegGlueContainerTest(const FFmpegGlueContainerTest&) = delete;
-  FFmpegGlueContainerTest& operator=(const FFmpegGlueContainerTest&) = delete;
-
   ~FFmpegGlueContainerTest() override = default;
 
  protected:
@@ -143,6 +137,7 @@ class FFmpegGlueContainerTest : public FFmpegGlueDestructionTest {
 
  private:
   base::HistogramTester histogram_tester_;
+  DISALLOW_COPY_AND_ASSIGN(FFmpegGlueContainerTest);
 };
 
 // Ensure writing has been disabled.
@@ -321,7 +316,7 @@ TEST_F(FFmpegGlueContainerTest, AAC) {
   ExpectContainer(container_names::CONTAINER_AAC);
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_ASH)
 TEST_F(FFmpegGlueContainerTest, AVI) {
   InitializeAndOpen("bear.avi");
   ExpectContainer(container_names::CONTAINER_AVI);
@@ -331,7 +326,7 @@ TEST_F(FFmpegGlueContainerTest, AMR) {
   InitializeAndOpen("bear.amr");
   ExpectContainer(container_names::CONTAINER_AMR);
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_ASH)
 #endif  // BUILDFLAG(USE_PROPRIETARY_CODECS)
 
 // Probe something unsupported to ensure we fall back to the our internal guess.

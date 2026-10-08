@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,21 +7,13 @@
 
 #include <set>
 
-#include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
-#include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
-#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/engagement/site_engagement_observer.h"
 #include "components/background_sync/background_sync_delegate.h"
-#include "components/keep_alive_registry/scoped_keep_alive.h"
-#include "components/site_engagement/content/site_engagement_observer.h"
-#include "content/public/browser/background_sync_controller.h"
-#include "content/public/browser/browser_thread.h"
 #include "url/origin.h"
 
 class Profile;
 class HostContentSettingsMap;
-class ScopedKeepAlive;
-class ScopedProfileKeepAlive;
 
 namespace ukm {
 class UkmBackgroundRecorderService;
@@ -30,7 +22,7 @@ class UkmBackgroundRecorderService;
 // Chrome's customization of the logic in components/background_sync
 class BackgroundSyncDelegateImpl
     : public background_sync::BackgroundSyncDelegate,
-      public site_engagement::SiteEngagementObserver {
+      public SiteEngagementObserver {
  public:
   static const int kEngagementLevelNonePenalty = 0;
   static const int kEngagementLevelHighOrMaxPenalty = 1;
@@ -40,28 +32,8 @@ class BackgroundSyncDelegateImpl
   explicit BackgroundSyncDelegateImpl(Profile* profile);
   ~BackgroundSyncDelegateImpl() override;
 
-#if !BUILDFLAG(IS_ANDROID)
-  class BackgroundSyncEventKeepAliveImpl
-      : public content::BackgroundSyncController::BackgroundSyncEventKeepAlive {
-   public:
-    ~BackgroundSyncEventKeepAliveImpl() override;
-    explicit BackgroundSyncEventKeepAliveImpl(Profile* profile);
-
-   private:
-    std::unique_ptr<ScopedKeepAlive, content::BrowserThread::DeleteOnUIThread>
-        keepalive_;
-    std::unique_ptr<ScopedProfileKeepAlive,
-                    content::BrowserThread::DeleteOnUIThread>
-        profile_keepalive_;
-  };
-
-  std::unique_ptr<
-      content::BackgroundSyncController::BackgroundSyncEventKeepAlive>
-  CreateBackgroundSyncEventKeepAlive() override;
-#endif
-
   void GetUkmSourceId(const url::Origin& origin,
-                      base::OnceCallback<void(absl::optional<ukm::SourceId>)>
+                      base::OnceCallback<void(base::Optional<ukm::SourceId>)>
                           callback) override;
   void Shutdown() override;
   HostContentSettingsMap* GetHostContentSettingsMap() override;
@@ -69,30 +41,28 @@ class BackgroundSyncDelegateImpl
   void NoteSuspendedPeriodicSyncOrigins(
       std::set<url::Origin> suspended_origins) override;
   int GetSiteEngagementPenalty(const GURL& url) override;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   void ScheduleBrowserWakeUpWithDelay(
       blink::mojom::BackgroundSyncType sync_type,
       base::TimeDelta delay) override;
   void CancelBrowserWakeup(blink::mojom::BackgroundSyncType sync_type) override;
   bool ShouldDisableBackgroundSync() override;
   bool ShouldDisableAndroidNetworkDetection() override;
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
   // SiteEngagementObserver overrides.
   void OnEngagementEvent(
       content::WebContents* web_contents,
       const GURL& url,
       double score,
-      site_engagement::EngagementType engagement_type) override;
+      SiteEngagementService::EngagementType engagement_type) override;
 
  private:
-  raw_ptr<Profile, DanglingUntriaged> profile_;
+  Profile* profile_;
   bool off_the_record_;
-  raw_ptr<ukm::UkmBackgroundRecorderService, DanglingUntriaged>
-      ukm_background_service_;
+  ukm::UkmBackgroundRecorderService* ukm_background_service_;
   // Same lifetime as |profile_|.
-  raw_ptr<site_engagement::SiteEngagementService, DanglingUntriaged>
-      site_engagement_service_;
+  SiteEngagementService* site_engagement_service_;
   std::set<url::Origin> suspended_periodic_sync_origins_;
 };
 

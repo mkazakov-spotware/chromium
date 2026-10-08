@@ -1,11 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef WEBLAYER_BROWSER_STATEFUL_SSL_HOST_STATE_DELEGATE_FACTORY_H_
 #define WEBLAYER_BROWSER_STATEFUL_SSL_HOST_STATE_DELEGATE_FACTORY_H_
 
+#include "base/macros.h"
 #include "base/memory/singleton.h"
+#include "base/values.h"
 #include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 #include "components/prefs/pref_service.h"
 

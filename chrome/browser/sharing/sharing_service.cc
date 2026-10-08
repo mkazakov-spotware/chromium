@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/bind.h"
 #include "base/feature_list.h"
+#include "base/stl_util.h"
 #include "base/time/time.h"
 #include "chrome/browser/sharing/features.h"
 #include "chrome/browser/sharing/sharing_constants.h"
@@ -73,12 +74,12 @@ SharingService::SharingDeviceList SharingService::GetDeviceCandidates(
   return device_source_->GetDeviceCandidates(required_feature);
 }
 
-base::OnceClosure SharingService::SendMessageToDevice(
+void SharingService::SendMessageToDevice(
     const syncer::DeviceInfo& device,
     base::TimeDelta response_timeout,
     chrome_browser_sharing::SharingMessage message,
     SharingMessageSender::ResponseCallback callback) {
-  return message_sender_->SendMessageToDevice(
+  message_sender_->SendMessageToDevice(
       device, response_timeout, std::move(message),
       SharingMessageSender::DelegateType::kFCM, std::move(callback));
 }
@@ -130,11 +131,6 @@ SharingFCMHandler* SharingService::GetFCMHandlerForTesting() const {
 
 SharingMessageSender* SharingService::GetMessageSenderForTesting() const {
   return message_sender_.get();
-}
-
-SharingMessageHandler* SharingService::GetSharingHandlerForTesting(
-    chrome_browser_sharing::SharingMessage::PayloadCase payload_case) const {
-  return handler_registry_->GetSharingHandler(payload_case);
 }
 
 void SharingService::OnSyncShutdown(syncer::SyncService* sync) {
@@ -229,7 +225,7 @@ void SharingService::OnDeviceRegistered(
 
 void SharingService::OnDeviceUnregistered(
     SharingDeviceRegistrationResult result) {
-  LogSharingUnregistrationResult(result);
+  LogSharingUnegistrationResult(result);
   if (IsSyncEnabledForSharing(sync_service_)) {
     // In case sync is enabled during un-registration, register it.
     state_ = State::REGISTERING;

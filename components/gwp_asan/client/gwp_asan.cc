@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,20 +7,21 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <tuple>
 
 #include "base/allocator/buildflags.h"
-#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/callback_helpers.h"
 #include "base/debug/crash_logging.h"
 #include "base/feature_list.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/numerics/safe_math.h"
+#include "base/optional.h"
+#include "base/partition_alloc_buildflags.h"
 #include "base/rand_util.h"
+#include "base/strings/stringprintf.h"
 #include "build/build_config.h"
 #include "components/gwp_asan/client/guarded_page_allocator.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 #if BUILDFLAG(USE_ALLOCATOR_SHIM)
 #include "components/gwp_asan/client/sampling_malloc_shims.h"
@@ -57,15 +58,16 @@ constexpr double kDefaultProcessSamplingProbability = 0.015;
 // we want to perform additional testing (e.g., on canary/dev builds).
 constexpr int kDefaultProcessSamplingBoost2 = 10;
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_APPLE)
+#if defined(OS_WIN) || defined(OS_APPLE)
 constexpr base::FeatureState kDefaultEnabled = base::FEATURE_ENABLED_BY_DEFAULT;
 #else
 constexpr base::FeatureState kDefaultEnabled =
     base::FEATURE_DISABLED_BY_DEFAULT;
 #endif
 
-BASE_FEATURE(kGwpAsanMalloc, "GwpAsanMalloc", kDefaultEnabled);
-BASE_FEATURE(kGwpAsanPartitionAlloc, "GwpAsanPartitionAlloc", kDefaultEnabled);
+const base::Feature kGwpAsanMalloc{"GwpAsanMalloc", kDefaultEnabled};
+const base::Feature kGwpAsanPartitionAlloc{"GwpAsanPartitionAlloc",
+                                           kDefaultEnabled};
 
 // Returns whether this process should be sampled to enable GWP-ASan.
 bool SampleProcess(const base::Feature& feature, bool boost_sampling) {
@@ -133,17 +135,15 @@ size_t AllocationSamplingFrequency(const base::Feature& feature) {
 }  // namespace
 
 // Exported for testing.
-GWP_ASAN_EXPORT absl::optional<AllocatorSettings> GetAllocatorSettings(
+GWP_ASAN_EXPORT base::Optional<AllocatorSettings> GetAllocatorSettings(
     const base::Feature& feature,
     bool boost_sampling) {
   if (!base::FeatureList::IsEnabled(feature))
-    return absl::nullopt;
+    return base::nullopt;
 
-  static_assert(
-      AllocatorState::kMaxRequestedSlots <= std::numeric_limits<int>::max(),
-      "kMaxRequestedSlots out of range");
-  constexpr int kMaxRequestedSlots =
-      static_cast<int>(AllocatorState::kMaxRequestedSlots);
+  static_assert(AllocatorState::kMaxSlots <= std::numeric_limits<int>::max(),
+                "kMaxSlots out of range");
+  constexpr int kMaxSlots = static_cast<int>(AllocatorState::kMaxSlots);
 
   static_assert(AllocatorState::kMaxMetadata <= std::numeric_limits<int>::max(),
                 "kMaxMetadata out of range");
@@ -151,9 +151,9 @@ GWP_ASAN_EXPORT absl::optional<AllocatorSettings> GetAllocatorSettings(
 
   int total_pages = GetFieldTrialParamByFeatureAsInt(feature, "TotalPages",
                                                      kDefaultTotalPages);
-  if (total_pages < 1 || total_pages > kMaxRequestedSlots) {
+  if (total_pages < 1 || total_pages > kMaxSlots) {
     DLOG(ERROR) << "GWP-ASan TotalPages is out-of-range: " << total_pages;
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   int max_metadata = GetFieldTrialParamByFeatureAsInt(feature, "MaxMetadata",
@@ -161,7 +161,7 @@ GWP_ASAN_EXPORT absl::optional<AllocatorSettings> GetAllocatorSettings(
   if (max_metadata < 1 || max_metadata > std::min(total_pages, kMaxMetadata)) {
     DLOG(ERROR) << "GWP-ASan MaxMetadata is out-of-range: " << max_metadata
                 << " with TotalPages = " << total_pages;
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   int max_allocations = GetFieldTrialParamByFeatureAsInt(
@@ -169,19 +169,18 @@ GWP_ASAN_EXPORT absl::optional<AllocatorSettings> GetAllocatorSettings(
   if (max_allocations < 1 || max_allocations > max_metadata) {
     DLOG(ERROR) << "GWP-ASan MaxAllocations is out-of-range: "
                 << max_allocations << " with MaxMetadata = " << max_metadata;
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   size_t alloc_sampling_freq = AllocationSamplingFrequency(feature);
   if (!alloc_sampling_freq)
-    return absl::nullopt;
+    return base::nullopt;
 
   if (!SampleProcess(feature, boost_sampling))
-    return absl::nullopt;
+    return base::nullopt;
 
-  return AllocatorSettings{
-      static_cast<size_t>(max_allocations), static_cast<size_t>(max_metadata),
-      static_cast<size_t>(total_pages), alloc_sampling_freq};
+  return AllocatorSettings{max_allocations, max_metadata, total_pages,
+                           alloc_sampling_freq};
 }
 
 }  // namespace internal
@@ -199,9 +198,9 @@ void EnableForMalloc(bool boost_sampling, const char* process_type) {
         settings->total_pages, settings->sampling_frequency, base::DoNothing());
     return true;
   }();
-  std::ignore = init_once;
+  ignore_result(init_once);
 #else
-  std::ignore = internal::kGwpAsanMalloc;
+  ignore_result(internal::kGwpAsanMalloc);
   DLOG(WARNING) << "base::allocator shims are unavailable for GWP-ASan.";
 #endif  // BUILDFLAG(USE_ALLOCATOR_SHIM)
 }
@@ -219,9 +218,9 @@ void EnableForPartitionAlloc(bool boost_sampling, const char* process_type) {
         settings->total_pages, settings->sampling_frequency, base::DoNothing());
     return true;
   }();
-  std::ignore = init_once;
+  ignore_result(init_once);
 #else
-  std::ignore = internal::kGwpAsanPartitionAlloc;
+  ignore_result(internal::kGwpAsanPartitionAlloc);
   DLOG(WARNING) << "PartitionAlloc hooks are unavailable for GWP-ASan.";
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC)
 }

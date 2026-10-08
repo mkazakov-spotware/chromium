@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,10 +17,6 @@ class UrlFilterBridge {
  public:
   explicit UrlFilterBridge(
       const base::RepeatingCallback<bool(const GURL&)>& url_filter);
-
-  UrlFilterBridge(const UrlFilterBridge&) = delete;
-  UrlFilterBridge& operator=(const UrlFilterBridge&) = delete;
-
   ~UrlFilterBridge();
 
   // Destroys this object.
@@ -42,6 +38,8 @@ class UrlFilterBridge {
 
   // The Java counterpart of this C++ object.
   base::android::ScopedJavaGlobalRef<jobject> j_bridge_;
+
+  DISALLOW_COPY_AND_ASSIGN(UrlFilterBridge);
 };
 
 #endif // CHROME_BROWSER_ANDROID_BROWSING_DATA_URL_FILTER_BRIDGE_H_

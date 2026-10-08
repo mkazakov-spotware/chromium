@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.browserservices.permissiondelegation;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -26,7 +25,6 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.notifications.NotificationChannelStatus;
 import org.chromium.chrome.browser.notifications.channels.ChromeChannelDefinitions;
 import org.chromium.chrome.browser.notifications.channels.SiteChannelsManager;
-import org.chromium.components.content_settings.ContentSettingValues;
 import org.chromium.components.embedder_support.util.Origin;
 
 /**
@@ -39,7 +37,7 @@ public class NotificationChannelPreserverTest {
     private static final String CHANNEL_ID = "red-channel-id";
     private static final Origin ORIGIN_WITHOUT_CHANNEL = Origin.create("https://www.blue.com");
 
-    @Mock InstalledWebappPermissionStore mStore;
+    @Mock TrustedWebActivityPermissionStore mStore;
     @Mock SiteChannelsManager mSiteChannelsManager;
 
     private NotificationChannelPreserver mPreserver;
@@ -69,10 +67,7 @@ public class NotificationChannelPreserverTest {
 
         mPreserver.deleteChannel(ORIGIN_WITH_CHANNEL);
 
-        @ContentSettingValues
-        int settingValue = enabled ? ContentSettingValues.ALLOW : ContentSettingValues.BLOCK;
-        verify(mStore).setPreInstallNotificationPermission(
-                eq(ORIGIN_WITH_CHANNEL), eq(settingValue));
+        verify(mStore).setPreTwaNotificationState(eq(ORIGIN_WITH_CHANNEL), eq(enabled));
         verify(mSiteChannelsManager).deleteSiteChannel(eq(CHANNEL_ID));
     }
 
@@ -80,13 +75,13 @@ public class NotificationChannelPreserverTest {
     public void delete_nopIfNoChannel() {
         mPreserver.deleteChannel(ORIGIN_WITHOUT_CHANNEL);
 
-        verify(mStore, never()).setPreInstallNotificationPermission(any(), anyInt());
+        verify(mStore, never()).setPreTwaNotificationState(any(), anyBoolean());
         verify(mSiteChannelsManager, never()).deleteSiteChannel(any());
     }
 
     @Test
     public void restore_nopIfNoStore() {
-        setPreInstallNotificationPermission(ORIGIN_WITHOUT_CHANNEL, null);
+        setPreTwaChannelStatus(ORIGIN_WITHOUT_CHANNEL,null);
         mPreserver.restoreChannel(ORIGIN_WITHOUT_CHANNEL);
         verify(mSiteChannelsManager, never()).createSiteChannel(any(), anyLong(), anyBoolean());
     }
@@ -102,9 +97,7 @@ public class NotificationChannelPreserverTest {
     }
 
     private void testCreatesChannel(boolean enabled) {
-        @ContentSettingValues
-        int settingValue = enabled ? ContentSettingValues.ALLOW : ContentSettingValues.BLOCK;
-        setPreInstallNotificationPermission(ORIGIN_WITH_CHANNEL, settingValue);
+        setPreTwaChannelStatus(ORIGIN_WITH_CHANNEL,enabled);
         mPreserver.restoreChannel(ORIGIN_WITH_CHANNEL);
         verify(mSiteChannelsManager)
                 .createSiteChannel(eq(ORIGIN_WITH_CHANNEL.toString()), anyLong(), eq(enabled));
@@ -115,8 +108,7 @@ public class NotificationChannelPreserverTest {
                 enabled ? NotificationChannelStatus.ENABLED : NotificationChannelStatus.BLOCKED);
     }
 
-    private void setPreInstallNotificationPermission(
-            Origin origin, @ContentSettingValues Integer settingValue) {
-        when(mStore.getAndRemovePreInstallNotificationPermission(origin)).thenReturn(settingValue);
+    private void setPreTwaChannelStatus(Origin origin, Boolean value) {
+        when(mStore.getPreTwaNotificationState(origin)).thenReturn(value);
     }
 }

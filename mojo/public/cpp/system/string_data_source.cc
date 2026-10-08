@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,15 @@
 
 namespace mojo {
 
-StringDataSource::StringDataSource(base::span<const char> data,
+StringDataSource::StringDataSource(base::StringPiece data,
                                    AsyncWritingMode mode) {
   switch (mode) {
     case AsyncWritingMode::STRING_MAY_BE_INVALIDATED_BEFORE_COMPLETION:
       data_ = std::string(data.data(), data.size());
-      data_view_ = base::make_span(data_);
+      data_view_ = base::span<const char>(data_.data(), data_.size());
       break;
     case AsyncWritingMode::STRING_STAYS_VALID_UNTIL_COMPLETION:
-      data_view_ = data;
+      data_view_ = base::span<const char>(data.data(), data.size());
       break;
   }
 }

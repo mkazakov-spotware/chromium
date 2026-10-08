@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,11 @@
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/sequenced_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/strings/stringprintf.h"
 #include "base/time/default_clock.h"
 #include "base/timer/timer.h"
 #include "components/crx_file/id_util.h"
@@ -183,8 +185,8 @@ int ConstructGCMVersion(const std::string& chrome_version) {
   }
 
   int gcm_version = 0;
-  base::StringToInt(base::StringPiece(chrome_version.c_str(), pos),
-                    &gcm_version);
+  base::StringToInt(
+      base::StringPiece(chrome_version.c_str(), pos), &gcm_version);
   return gcm_version;
 }
 
@@ -237,9 +239,9 @@ std::unique_ptr<MCSClient> GCMInternalsBuilder::BuildMCSClient(
     GCMStore* gcm_store,
     scoped_refptr<base::SequencedTaskRunner> io_task_runner,
     GCMStatsRecorder* recorder) {
-  return std::make_unique<MCSClient>(version, clock, connection_factory,
-                                     gcm_store, std::move(io_task_runner),
-                                     recorder);
+  return std::unique_ptr<MCSClient>(
+      new MCSClient(version, clock, connection_factory, gcm_store,
+                    std::move(io_task_runner), recorder));
 }
 
 std::unique_ptr<ConnectionFactory> GCMInternalsBuilder::BuildConnectionFactory(
@@ -257,9 +259,11 @@ std::unique_ptr<ConnectionFactory> GCMInternalsBuilder::BuildConnectionFactory(
 }
 
 GCMClientImpl::CheckinInfo::CheckinInfo()
-    : android_id(0), secret(0), accounts_set(false) {}
+    : android_id(0), secret(0), accounts_set(false) {
+}
 
-GCMClientImpl::CheckinInfo::~CheckinInfo() = default;
+GCMClientImpl::CheckinInfo::~CheckinInfo() {
+}
 
 void GCMClientImpl::CheckinInfo::SnapshotCheckinAccounts() {
   last_checkin_accounts.clear();
@@ -287,7 +291,8 @@ GCMClientImpl::GCMClientImpl(
       gcm_store_reset_(false),
       network_connection_tracker_(nullptr) {}
 
-GCMClientImpl::~GCMClientImpl() = default;
+GCMClientImpl::~GCMClientImpl() {
+}
 
 void GCMClientImpl::Initialize(
     const ChromeBuildInfo& chrome_build_info,
@@ -311,9 +316,9 @@ void GCMClientImpl::Initialize(
   url_loader_factory_ = url_loader_factory;
   network_connection_tracker_ = network_connection_tracker;
   chrome_build_info_ = chrome_build_info;
-  gcm_store_ = std::make_unique<GCMStoreImpl>(
-      path, remove_account_mappings_with_email_key, blocking_task_runner,
-      std::move(encryptor));
+  gcm_store_.reset(
+      new GCMStoreImpl(path, remove_account_mappings_with_email_key,
+                       blocking_task_runner, std::move(encryptor)));
   delegate_ = delegate;
   io_task_runner_ = std::move(io_task_runner);
   recorder_.SetDelegate(this);
@@ -395,20 +400,25 @@ void GCMClientImpl::OnLoadCompleted(
   last_checkin_time_ = result->last_checkin_time;
   gservices_settings_.UpdateFromLoadResult(*result);
 
-  for (const auto& [key, value] : result->registrations) {
+  for (auto iter = result->registrations.begin();
+       iter != result->registrations.end();
+       ++iter) {
     std::string registration_id;
     scoped_refptr<RegistrationInfo> registration =
-        RegistrationInfo::BuildFromString(key, value, &registration_id);
+        RegistrationInfo::BuildFromString(iter->first, iter->second,
+                                          &registration_id);
     // TODO(jianli): Add UMA to track the error case.
     if (registration)
       registrations_.emplace(std::move(registration), registration_id);
   }
 
-  for (const auto& [key, value] : result->instance_id_data) {
+  for (auto iter = result->instance_id_data.begin();
+       iter != result->instance_id_data.end();
+       ++iter) {
     std::string instance_id;
     std::string extra_data;
-    if (DeserializeInstanceIDData(value, &instance_id, &extra_data))
-      instance_id_data_[key] = std::make_pair(instance_id, extra_data);
+    if (DeserializeInstanceIDData(iter->second, &instance_id, &extra_data))
+      instance_id_data_[iter->first] = std::make_pair(instance_id, extra_data);
   }
 
   load_result_ = std::move(result);
@@ -420,15 +430,11 @@ void GCMClientImpl::OnLoadCompleted(
     // If no standalone app is using GCM and the device ID is present, schedule
     // to have the store wiped out.
     if (device_checkin_info_.android_id) {
-      DVLOG(1) << "GCM is in delayed start mode and there is no standalone "
-                  "app, posting task to wipe store in "
-               << base::Milliseconds(kDestroyGCMStoreDelayMS)
-               << " milliseconds.";
       io_task_runner_->PostDelayedTask(
           FROM_HERE,
           base::BindOnce(&GCMClientImpl::DestroyStoreWhenNotNeeded,
                          destroying_gcm_store_ptr_factory_.GetWeakPtr()),
-          base::Milliseconds(kDestroyGCMStoreDelayMS));
+          base::TimeDelta::FromMilliseconds(kDestroyGCMStoreDelayMS));
     }
 
     return;
@@ -456,8 +462,6 @@ void GCMClientImpl::StartGCM() {
 
   state_ = INITIAL_DEVICE_CHECKIN;
   device_checkin_info_.Reset();
-
-  DVLOG(1) << "Starting initial GCM checkin.";
   StartCheckin();
 }
 
@@ -564,7 +568,7 @@ void GCMClientImpl::SetAccountTokens(
   for (auto iter = device_checkin_info_.last_checkin_accounts.begin();
        iter != device_checkin_info_.last_checkin_accounts.end(); ++iter) {
     if (device_checkin_info_.account_tokens.find(*iter) ==
-        device_checkin_info_.account_tokens.end()) {
+            device_checkin_info_.account_tokens.end()) {
       account_removed = true;
     }
   }
@@ -675,21 +679,16 @@ void GCMClientImpl::StartCheckin() {
 
   checkin_proto::ChromeBuildProto chrome_build_proto;
   ToCheckinProtoVersion(chrome_build_info_, &chrome_build_proto);
-
-  std::map<std::string, std::string> empty_account_tokens;
-  bool include_account_tokens = base::FeatureList::IsEnabled(
-      features::kGCMIncludeAccountTokensInCheckinRequest);
-
-  CheckinRequest::RequestInfo request_info(
-      device_checkin_info_.android_id, device_checkin_info_.secret,
-      include_account_tokens ? device_checkin_info_.account_tokens
-                             : empty_account_tokens,
-      gservices_settings_.digest(), chrome_build_proto);
-  checkin_request_ = std::make_unique<CheckinRequest>(
+  CheckinRequest::RequestInfo request_info(device_checkin_info_.android_id,
+                                           device_checkin_info_.secret,
+                                           device_checkin_info_.account_tokens,
+                                           gservices_settings_.digest(),
+                                           chrome_build_proto);
+  checkin_request_.reset(new CheckinRequest(
       gservices_settings_.GetCheckinURL(), request_info, GetGCMBackoffPolicy(),
       base::BindOnce(&GCMClientImpl::OnCheckinCompleted,
                      weak_ptr_factory_.GetWeakPtr()),
-      url_loader_factory_, io_task_runner_, &recorder_);
+      url_loader_factory_, io_task_runner_, &recorder_));
   // Taking a snapshot of the accounts count here, as there might be an asynch
   // update of the account tokens while checkin is in progress.
   device_checkin_info_.SnapshotCheckinAccounts();
@@ -760,7 +759,7 @@ void GCMClientImpl::SchedulePeriodicCheckin() {
   periodic_checkin_ptr_factory_.InvalidateWeakPtrs();
 
   base::TimeDelta time_to_next_checkin = GetTimeToNextCheckin();
-  if (time_to_next_checkin.is_negative())
+  if (time_to_next_checkin < base::TimeDelta())
     time_to_next_checkin = base::TimeDelta();
 
   io_task_runner_->PostDelayedTask(
@@ -845,8 +844,6 @@ void GCMClientImpl::Stop() {
 }
 
 void GCMClientImpl::ResetCache() {
-  DVLOG(2) << "Resetting GCMClientImpl cache";
-
   weak_ptr_factory_.InvalidateWeakPtrs();
   periodic_checkin_ptr_factory_.InvalidateWeakPtrs();
   device_checkin_info_.Reset();
@@ -928,12 +925,14 @@ void GCMClientImpl::Register(
       GCMRegistrationInfo::FromRegistrationInfo(registration_info.get());
   if (gcm_registration_info) {
     std::string senders;
-    for (const auto& kv : gcm_registration_info->sender_ids) {
+    for (auto iter = gcm_registration_info->sender_ids.begin();
+         iter != gcm_registration_info->sender_ids.end();
+         ++iter) {
       if (!senders.empty())
         senders.append(",");
-      senders.append(kv);
+      senders.append(*iter);
     }
-    request_handler = std::make_unique<GCMRegistrationRequestHandler>(senders);
+    request_handler.reset(new GCMRegistrationRequestHandler(senders));
     source_to_record = senders;
   }
 
@@ -943,12 +942,12 @@ void GCMClientImpl::Register(
     auto instance_id_iter = instance_id_data_.find(registration_info->app_id);
     DCHECK(instance_id_iter != instance_id_data_.end());
 
-    request_handler = std::make_unique<InstanceIDGetTokenRequestHandler>(
+    request_handler.reset(new InstanceIDGetTokenRequestHandler(
         instance_id_iter->second.first,
         instance_id_token_info->authorized_entity,
         instance_id_token_info->scope,
         ConstructGCMVersion(chrome_build_info_.version),
-        instance_id_token_info->time_to_live);
+        instance_id_token_info->time_to_live, instance_id_token_info->options));
     source_to_record = instance_id_token_info->authorized_entity + "/" +
                        instance_id_token_info->scope;
   }
@@ -1016,7 +1015,8 @@ void GCMClientImpl::OnRegisterCompleted(
   }
 
   delegate_->OnRegisterFinished(
-      registration_info, result == SUCCESS ? registration_id : std::string(),
+      registration_info,
+      result == SUCCESS ? registration_id : std::string(),
       result);
 
   if (iter != pending_registration_requests_.end())
@@ -1069,8 +1069,8 @@ void GCMClientImpl::Unregister(
   const GCMRegistrationInfo* gcm_registration_info =
       GCMRegistrationInfo::FromRegistrationInfo(registration_info.get());
   if (gcm_registration_info) {
-    request_handler = std::make_unique<GCMUnregistrationRequestHandler>(
-        registration_info->app_id);
+    request_handler.reset(
+        new GCMUnregistrationRequestHandler(registration_info->app_id));
   }
 
   const InstanceIDTokenInfo* instance_id_token_info =
@@ -1084,11 +1084,11 @@ void GCMClientImpl::Unregister(
       return;
     }
 
-    request_handler = std::make_unique<InstanceIDDeleteTokenRequestHandler>(
+    request_handler.reset(new InstanceIDDeleteTokenRequestHandler(
         instance_id_iter->second.first,
         instance_id_token_info->authorized_entity,
         instance_id_token_info->scope,
-        ConstructGCMVersion(chrome_build_info_.version));
+        ConstructGCMVersion(chrome_build_info_.version)));
     source_to_record = instance_id_token_info->authorized_entity + "/" +
                        instance_id_token_info->scope;
   }
@@ -1101,7 +1101,8 @@ void GCMClientImpl::Unregister(
     // If authorized_entity and scope are '*', find and remove all associated
     // tokens.
     bool token_found = false;
-    for (auto iter = registrations_.begin(); iter != registrations_.end();) {
+    for (auto iter = registrations_.begin();
+          iter != registrations_.end();) {
       InstanceIDTokenInfo* cached_instance_id_token_info =
           InstanceIDTokenInfo::FromRegistrationInfo(iter->first.get());
       if (cached_instance_id_token_info &&
@@ -1120,7 +1121,8 @@ void GCMClientImpl::Unregister(
     // If no token is found for the Instance ID, don't need to unregister
     // since the Instance ID is not sent to the server yet.
     if (!token_found) {
-      OnUnregisterCompleted(registration_info, UnregistrationRequest::SUCCESS);
+      OnUnregisterCompleted(registration_info,
+                            UnregistrationRequest::SUCCESS);
       return;
     }
   } else {
@@ -1217,7 +1219,7 @@ void GCMClientImpl::Send(const std::string& app_id,
 }
 
 std::string GCMClientImpl::GetStateString() const {
-  switch (state_) {
+  switch(state_) {
     case GCMClientImpl::UNINITIALIZED:
       return "UNINITIALIZED";
     case GCMClientImpl::INITIALIZED:

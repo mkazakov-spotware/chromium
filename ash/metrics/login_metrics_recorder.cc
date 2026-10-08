@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -85,16 +85,6 @@ const ShelfButtonClickMapping kShelfTargets[] = {
      LoginMetricsRecorder::LockScreenUserClickTarget::kTargetCount,
      LoginMetricsRecorder::LoginScreenUserClickTarget::kTargetCount,
      LoginMetricsRecorder::OobeUserClickTarget::kEnterpriseEnrollmentButton},
-    // |kOsInstallButton|
-    {LoginMetricsRecorder::ShelfButtonClickTarget::kOsInstallButton,
-     LoginMetricsRecorder::LockScreenUserClickTarget::kTargetCount,
-     LoginMetricsRecorder::LoginScreenUserClickTarget::kOsInstallButton,
-     LoginMetricsRecorder::OobeUserClickTarget::kOsInstallButton},
-    // |kSignIn|
-    {LoginMetricsRecorder::ShelfButtonClickTarget::kSignIn,
-     LoginMetricsRecorder::LockScreenUserClickTarget::kTargetCount,
-     LoginMetricsRecorder::LoginScreenUserClickTarget::kTargetCount,
-     LoginMetricsRecorder::OobeUserClickTarget::kSignIn},
 };
 
 // Defines mapping of TrayClickTarget |original| to different UMA target in

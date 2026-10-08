@@ -1,6 +1,10 @@
-/* Copyright 2013 The Chromium Authors
+/* Copyright 2013 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file. */
+
+#anchor {
+  display: none;
+}
 
 body {
   font-size: 84%;
@@ -57,7 +61,9 @@ html[dir='rtl'] #header {
 }
 
 div#header h1::before {
-  -webkit-mask-image: url(chrome://resources/images/icon_settings.svg);
+  /* grit doesn't flatten -webkit-mask, so define the properties separately
+  * for now. */
+  -webkit-mask-image: url(../../../../ui/webui/resources/images/settings.svg);
   -webkit-mask-position: center;
   -webkit-mask-repeat: no-repeat;
   -webkit-mask-size: 24px;
@@ -139,18 +145,6 @@ tr > *:nth-child(2) {
 .name {
   background-position: 5em center;
   background-repeat: no-repeat;
-}
-
-a.anchor {
-  text-decoration: none;
-}
-
-a.anchor::before {
-  content: '🔗';
-}
-
-a.anchor:hover {
-  text-decoration: underline;
 }
 
 .stat-value {

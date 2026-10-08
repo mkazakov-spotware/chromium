@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 #include <algorithm>
 #include <memory>
 
-#include "base/containers/cxx20_erase.h"
 #include "base/containers/flat_set.h"
 #include "base/rand_util.h"
+#include "base/stl_util.h"
 #include "base/time/time.h"
 #include "chrome/browser/privacy_budget/encountered_surface_tracker.h"
 #include "chrome/browser/privacy_budget/identifiability_study_state.h"
@@ -17,7 +17,6 @@
 #include "services/metrics/public/mojom/ukm_interface.mojom.h"
 #include "third_party/blink/public/common/privacy_budget/identifiability_study_settings.h"
 #include "third_party/blink/public/common/privacy_budget/identifiable_surface.h"
-#include "third_party/blink/public/common/privacy_budget/identifiable_token.h"
 
 PrivacyBudgetUkmEntryFilter::PrivacyBudgetUkmEntryFilter(
     IdentifiabilityStudyState* state)
@@ -25,7 +24,7 @@ PrivacyBudgetUkmEntryFilter::PrivacyBudgetUkmEntryFilter(
 
 bool PrivacyBudgetUkmEntryFilter::FilterEntry(
     ukm::mojom::UkmEntry* entry,
-    base::flat_set<uint64_t>* removed_metric_hashes) {
+    base::flat_set<uint64_t>* removed_metric_hashes) const {
   // We don't yet deal with any event other than Identifiability. All other
   // types of events pass through.
   if (entry->event_hash != ukm::builders::Identifiability::kEntryNameHash)
@@ -44,14 +43,7 @@ bool PrivacyBudgetUkmEntryFilter::FilterEntry(
   base::EraseIf(entry->metrics, [&](auto metric) {
     const auto surface =
         blink::IdentifiableSurface::FromMetricHash(metric.first);
-    const blink::IdentifiableToken token = metric.second;
-
-    // Update the Reid surface storage map.
-    identifiability_study_state_->MaybeStoreValueForComputingReidScore(surface,
-                                                                       token);
-
-    if (!blink::IdentifiabilityStudySettings::Get()->ShouldSampleSurface(
-            surface))
+    if (!blink::IdentifiabilityStudySettings::Get()->IsSurfaceAllowed(surface))
       return true;
 
     if (identifiability_study_state_->ShouldReportEncounteredSurface(
@@ -86,7 +78,7 @@ bool PrivacyBudgetUkmEntryFilter::FilterEntry(
   return !entry->metrics.empty();
 }
 
-void PrivacyBudgetUkmEntryFilter::OnStoreRecordingsInReport() {
-  identifiability_study_state_->ResetPerReportState();
+void PrivacyBudgetUkmEntryFilter::OnStoreRecordingsInReport() const {
+  identifiability_study_state_->ResetRecordedSurfaces();
   metadata_reported_ = false;
 }

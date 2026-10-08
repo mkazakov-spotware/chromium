@@ -1,31 +1,24 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/browser/browser_context_impl.h"
 
-#include "base/memory/raw_ptr.h"
 #include "base/threading/thread_restrictions.h"
-#include "build/build_config.h"
 #include "components/background_sync/background_sync_controller_impl.h"
 #include "components/blocked_content/safe_browsing_triggered_popup_blocker.h"
 #include "components/client_hints/browser/client_hints.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/download/public/common/in_progress_download_manager.h"
 #include "components/embedder_support/pref_names.h"
-#include "components/heavy_ad_intervention/heavy_ad_service.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/language/core/browser/language_prefs.h"
-#include "components/origin_trials/browser/origin_trials.h"
-#include "components/origin_trials/browser/prefservice_persistence_provider.h"
-#include "components/payments/core/payment_prefs.h"
 #include "components/permissions/permission_manager.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/in_memory_pref_store.h"
 #include "components/prefs/json_pref_store.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/pref_service_factory.h"
-#include "components/reduce_accept_language/browser/reduce_accept_language_service.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
 #include "components/security_interstitials/content/stateful_ssl_host_state_delegate.h"
 #include "components/site_isolation/pref_names.h"
@@ -41,34 +34,25 @@
 #include "content/public/browser/download_request_utils.h"
 #include "content/public/browser/resource_context.h"
 #include "content/public/browser/storage_partition.h"
-#include "third_party/blink/public/common/web_preferences/web_preferences.h"
-#include "weblayer/browser/background_fetch/background_fetch_delegate_factory.h"
-#include "weblayer/browser/background_fetch/background_fetch_delegate_impl.h"
 #include "weblayer/browser/background_sync/background_sync_controller_factory.h"
 #include "weblayer/browser/browsing_data_remover_delegate.h"
 #include "weblayer/browser/browsing_data_remover_delegate_factory.h"
 #include "weblayer/browser/client_hints_factory.h"
-#include "weblayer/browser/heavy_ad_service_factory.h"
-#include "weblayer/browser/origin_trials_factory.h"
+#include "weblayer/browser/default_search_engine.h"
 #include "weblayer/browser/permissions/permission_manager_factory.h"
-#include "weblayer/browser/reduce_accept_language_factory.h"
 #include "weblayer/browser/stateful_ssl_host_state_delegate_factory.h"
 #include "weblayer/public/common/switches.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/path_utils.h"
-#include "components/browser_ui/accessibility/android/font_size_prefs_android.h"
 #include "components/cdm/browser/media_drm_storage_impl.h"  // nogncheck
 #include "components/permissions/contexts/geolocation_permission_context_android.h"
-#include "components/site_engagement/content/site_engagement_service.h"
 #include "components/unified_consent/pref_names.h"
-#elif BUILDFLAG(IS_WIN)
-#include <windows.h>
-
+#elif defined(OS_WIN)
 #include <KnownFolders.h>
 #include <shlobj.h>
 #include "base/win/scoped_co_mem.h"
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
 #include "base/nix/xdg_util.h"
 #endif
 
@@ -100,40 +84,35 @@ const char kUkmEnabled[] = "weblayer.ukm_enabled";
 class ResourceContextImpl : public content::ResourceContext {
  public:
   ResourceContextImpl() = default;
-
-  ResourceContextImpl(const ResourceContextImpl&) = delete;
-  ResourceContextImpl& operator=(const ResourceContextImpl&) = delete;
-
   ~ResourceContextImpl() override = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ResourceContextImpl);
 };
 
 BrowserContextImpl::BrowserContextImpl(ProfileImpl* profile_impl,
                                        const base::FilePath& path)
     : profile_impl_(profile_impl),
       path_(path),
-      simple_factory_key_(path, path.empty()),
       resource_context_(new ResourceContextImpl()),
-      download_delegate_(GetDownloadManager()) {
+      download_delegate_(BrowserContext::GetDownloadManager(this)) {
   CreateUserPrefService();
 
   BrowserContextDependencyManager::GetInstance()->CreateBrowserContextServices(
       this);
 
-  auto* heavy_ad_service = HeavyAdServiceFactory::GetForBrowserContext(this);
-  if (IsOffTheRecord()) {
-    heavy_ad_service->InitializeOffTheRecord();
-  } else {
-    heavy_ad_service->Initialize(GetPath());
-  }
-
   site_isolation::SiteIsolationPolicy::ApplyPersistedIsolatedOrigins(this);
 
-  // Ensure the delegate is initialized early to give it time to load its
-  // persistence.
-  GetOriginTrialsControllerDelegate();
+  // Set the DSE permissions every time the browser context is created for
+  // simplicity. These permissions are not editable in site settings, so should
+  // not ever be changed by the user. The site settings entry will link to the
+  // client app's system level permissions page to handle these.
+  ResetDsePermissions(this);
 }
 
 BrowserContextImpl::~BrowserContextImpl() {
+  NotifyWillBeDestroyed(this);
+
   BrowserContextDependencyManager::GetInstance()->DestroyBrowserContextServices(
       this);
 }
@@ -142,13 +121,15 @@ base::FilePath BrowserContextImpl::GetDefaultDownloadDirectory() {
   // Note: if we wanted to productionize this on Windows/Linux, refactor
   // src/chrome's GetDefaultDownloadDirectory.
   base::FilePath download_dir;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   base::android::GetDownloadsDirectory(&download_dir);
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   base::win::ScopedCoMem<wchar_t> path_buf;
   if (SUCCEEDED(
           SHGetKnownFolderPath(FOLDERID_Downloads, 0, nullptr, &path_buf))) {
     download_dir = base::FilePath(path_buf.get());
+  } else {
+    NOTREACHED();
   }
 #else
   download_dir = base::nix::GetXDGUserDirectory("DOWNLOAD", "Downloads");
@@ -156,10 +137,12 @@ base::FilePath BrowserContextImpl::GetDefaultDownloadDirectory() {
   return download_dir;
 }
 
+#if !defined(OS_ANDROID)
 std::unique_ptr<content::ZoomLevelDelegate>
 BrowserContextImpl::CreateZoomLevelDelegate(const base::FilePath&) {
   return nullptr;
 }
+#endif  // !defined(OS_ANDROID)
 
 base::FilePath BrowserContextImpl::GetPath() {
   return path_;
@@ -183,11 +166,6 @@ content::BrowserPluginGuestManager* BrowserContextImpl::GetGuestManager() {
 }
 
 storage::SpecialStoragePolicy* BrowserContextImpl::GetSpecialStoragePolicy() {
-  return nullptr;
-}
-
-content::PlatformNotificationService*
-BrowserContextImpl::GetPlatformNotificationService() {
   return nullptr;
 }
 
@@ -216,7 +194,7 @@ BrowserContextImpl::GetClientHintsControllerDelegate() {
 
 content::BackgroundFetchDelegate*
 BrowserContextImpl::GetBackgroundFetchDelegate() {
-  return BackgroundFetchDelegateFactory::GetForBrowserContext(this);
+  return nullptr;
 }
 
 content::BackgroundSyncController*
@@ -229,28 +207,19 @@ BrowserContextImpl::GetBrowsingDataRemoverDelegate() {
   return BrowsingDataRemoverDelegateFactory::GetForBrowserContext(this);
 }
 
-content::ReduceAcceptLanguageControllerDelegate*
-BrowserContextImpl::GetReduceAcceptLanguageControllerDelegate() {
-  return ReduceAcceptLanguageFactory::GetForBrowserContext(this);
-}
-
-content::OriginTrialsControllerDelegate*
-BrowserContextImpl::GetOriginTrialsControllerDelegate() {
-  return OriginTrialsFactory::GetForBrowserContext(this);
-}
-
 download::InProgressDownloadManager*
 BrowserContextImpl::RetriveInProgressDownloadManager() {
   // Override this to provide a connection to the wake lock service.
   auto* download_manager = new download::InProgressDownloadManager(
       nullptr, path_,
-      path_.empty() ? nullptr
-                    : GetDefaultStoragePartition()->GetProtoDatabaseProvider(),
+      path_.empty()
+          ? nullptr
+          : GetDefaultStoragePartition(this)->GetProtoDatabaseProvider(),
       base::BindRepeating(&IgnoreOriginSecurityCheck),
       base::BindRepeating(&content::DownloadRequestUtils::IsURLSafe),
       base::BindRepeating(&BindWakeLockProvider));
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   download_manager->set_default_download_dir(GetDefaultDownloadDirectory());
 #endif
 
@@ -295,8 +264,6 @@ void BrowserContextImpl::RegisterPrefs(
       embedder_support::kAlternateErrorPagesEnabled, true);
   pref_registry->RegisterListPref(
       site_isolation::prefs::kUserTriggeredIsolatedOrigins);
-  pref_registry->RegisterDictionaryPref(
-      site_isolation::prefs::kWebTriggeredIsolatedOrigins);
 
   StatefulSSLHostStateDelegate::RegisterProfilePrefs(pref_registry);
   HostContentSettingsMap::RegisterProfilePrefs(pref_registry);
@@ -305,23 +272,15 @@ void BrowserContextImpl::RegisterPrefs(
   translate::TranslatePrefs::RegisterProfilePrefs(pref_registry);
   blocked_content::SafeBrowsingTriggeredPopupBlocker::RegisterProfilePrefs(
       pref_registry);
-  payments::RegisterProfilePrefs(pref_registry);
   pref_registry->RegisterBooleanPref(
-      translate::prefs::kOfferTranslateEnabled, true,
+      ::prefs::kOfferTranslateEnabled, true,
       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
-#if BUILDFLAG(IS_ANDROID)
-  site_engagement::SiteEngagementService::RegisterProfilePrefs(pref_registry);
+#if defined(OS_ANDROID)
   cdm::MediaDrmStorageImpl::RegisterProfilePrefs(pref_registry);
   permissions::GeolocationPermissionContextAndroid::RegisterProfilePrefs(
       pref_registry);
   pref_registry->RegisterBooleanPref(
       unified_consent::prefs::kUrlKeyedAnonymizedDataCollectionEnabled, false);
-
-  pref_registry->RegisterDoublePref(browser_ui::prefs::kWebKitFontScaleFactor,
-                                    1.0);
-  blink::web_pref::WebPreferences pref_defaults;
-  pref_registry->RegisterBooleanPref(browser_ui::prefs::kWebKitForceEnableZoom,
-                                     pref_defaults.force_enable_zoom);
 #endif
 
   BrowserContextDependencyManager::GetInstance()
@@ -342,18 +301,20 @@ class BrowserContextImpl::WebLayerVariationsClient
 
   variations::mojom::VariationsHeadersPtr GetVariationsHeaders()
       const override {
-    // As the embedder supplies the set of ids, the signed-in state should be
-    // ignored. The value supplied (`is_signed_in`) doesn't matter as
-    // VariationsIdsProvider is configured to ignore the signed in state.
-    const bool is_signed_in = true;
-    DCHECK_EQ(variations::VariationsIdsProvider::Mode::kIgnoreSignedInState,
-              variations::VariationsIdsProvider::GetInstance()->mode());
     return variations::VariationsIdsProvider::GetInstance()
-        ->GetClientDataHeaders(is_signed_in);
+        ->GetClientDataHeaders(IsSignedIn());
   }
 
  private:
-  raw_ptr<content::BrowserContext> browser_context_;
+  // Signed-in state shouldn't control the set of variations for WebLayer,
+  // so this always returns true. This is particularly experiment for
+  // registering external experiment ids, which are registered assuming
+  // signed-in.
+  // TODO(sky): this is rather misleading, and needs to be resolved. Figure
+  // out right long term solution.
+  bool IsSignedIn() const { return true; }
+
+  content::BrowserContext* browser_context_;
 };
 
 variations::VariationsClient* BrowserContextImpl::GetVariationsClient() {

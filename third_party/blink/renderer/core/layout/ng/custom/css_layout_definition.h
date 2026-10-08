@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include "third_party/blink/renderer/platform/bindings/name_client.h"
 #include "third_party/blink/renderer/platform/bindings/scoped_persistent.h"
 #include "third_party/blink/renderer/platform/bindings/trace_wrapper_v8_reference.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "v8/include/v8.h"
 
 namespace blink {
@@ -44,7 +44,7 @@ class CSSLayoutDefinition final : public GarbageCollected<CSSLayoutDefinition>,
       const Vector<AtomicString>& custom_invalidation_properties,
       const Vector<CSSPropertyID>& child_native_invalidation_properties,
       const Vector<AtomicString>& child_custom_invalidation_properties);
-  ~CSSLayoutDefinition() final;
+  virtual ~CSSLayoutDefinition();
 
   // This class represents an instance of the layout class defined by the
   // CSSLayoutDefinition.
@@ -67,15 +67,16 @@ class CSSLayoutDefinition final : public GarbageCollected<CSSLayoutDefinition>,
 
     // Runs the web developer defined intrinsicSizes, returns true if everything
     // succeeded. It populates the IntrinsicSizesResultOptions dictionary.
-    bool IntrinsicSizes(const NGConstraintSpace&,
-                        const Document&,
-                        const NGBlockNode&,
-                        const LogicalSize& border_box_size,
-                        const NGBoxStrut& border_scrollbar_padding,
-                        const LayoutUnit child_available_block_size,
-                        CustomLayoutScope*,
-                        IntrinsicSizesResultOptions**,
-                        bool* child_depends_on_block_constraints);
+    bool IntrinsicSizes(
+        const NGConstraintSpace&,
+        const Document&,
+        const NGBlockNode&,
+        const LogicalSize& border_box_size,
+        const NGBoxStrut& border_scrollbar_padding,
+        const LayoutUnit child_percentage_resolution_block_size_for_min_max,
+        CustomLayoutScope*,
+        IntrinsicSizesResultOptions**,
+        bool* child_depends_on_percentage_block_size);
 
     void Trace(Visitor*) const;
 

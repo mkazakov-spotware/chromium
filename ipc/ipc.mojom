@@ -1,16 +1,20 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 module IPC.mojom;
 
+import "mojo/public/mojom/base/big_buffer.mojom";
 import "mojo/public/interfaces/bindings/native_struct.mojom";
-import "mojo/public/mojom/base/generic_pending_associated_receiver.mojom";
+
+// A placeholder interface type since we don't yet support generic associated
+// message pipe handles.
+interface GenericInterface {};
 
 // Typemapped such that arbitrarily large IPC::Message objects can be sent and
 // received with minimal copying.
 struct Message {
-  array<uint8> bytes;
+  mojo_base.mojom.BigBuffer buffer;
   array<mojo.native.SerializedHandle>? handles;
 };
 
@@ -20,15 +24,14 @@ interface Channel {
   SetPeerPid(int32 pid);
 
   // Transmits a classical Chrome IPC message.
-  [UnlimitedSize]
   Receive(Message message);
 
   // Requests a Channel-associated interface.
   GetAssociatedInterface(
-      mojo_base.mojom.GenericPendingAssociatedReceiver receiver);
+      string name,
+      pending_associated_receiver<GenericInterface> receiver);
 };
 
 // A strictly nominal interface used to identify Channel bootstrap requests.
-// This is only used in `AgentSchedulingGroup` initialization.
 interface ChannelBootstrap {};
 

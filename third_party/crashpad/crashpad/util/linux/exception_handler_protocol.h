@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "util/file/file_io.h"
 #include "util/misc/address_types.h"
@@ -51,7 +52,7 @@ class ExceptionHandlerProtocol {
     //!     SanitizationInformation struct, or 0 if there is no such struct.
     VMAddress sanitization_information_address;
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
     //! \brief Indicates that the client is likely in a crash loop if a crash
     //!     occurs before this timestamp. This value is only used by ChromeOS's
     //!     `/sbin/crash_reporter`.
@@ -123,11 +124,9 @@ class ExceptionHandlerProtocol {
     pid_t pid;
   };
 
-  ExceptionHandlerProtocol() = delete;
-  ExceptionHandlerProtocol(const ExceptionHandlerProtocol&) = delete;
-  ExceptionHandlerProtocol& operator=(const ExceptionHandlerProtocol&) = delete;
-
 #pragma pack(pop)
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ExceptionHandlerProtocol);
 };
 
 }  // namespace crashpad

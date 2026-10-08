@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,7 @@
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
-#include "base/time/time.h"
+#include "base/optional.h"
 #include "base/unguessable_token.h"
 #include "content/browser/site_instance_impl.h"
 #include "content/browser/web_contents/web_contents_impl.h"
@@ -24,7 +23,6 @@
 #include "content/test/test_render_view_host.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/mojom/loader/pause_subresource_loading_handle.mojom-forward.h"
 #include "ui/base/page_transition_types.h"
 
@@ -54,25 +52,21 @@ class TestWebContents : public WebContentsImpl, public WebContentsTester {
   static TestWebContents* Create(const CreateParams& params);
 
   // WebContentsImpl overrides (returning the same values, but in Test* types)
-  TestRenderFrameHost* GetPrimaryMainFrame() override;
+  TestRenderFrameHost* GetMainFrame() override;
   TestRenderViewHost* GetRenderViewHost() override;
   // Overrides to avoid establishing Mojo connection with renderer process.
   int DownloadImage(const GURL& url,
                     bool is_favicon,
-                    const gfx::Size& preferred_size,
+                    uint32_t preferred_size,
                     uint32_t max_bitmap_size,
                     bool bypass_cache,
                     ImageDownloadCallback callback) override;
   const GURL& GetLastCommittedURL() override;
-  const std::u16string& GetTitle() override;
-
-  // Override to cache the tab switch start time without going through
-  // VisibleTimeRequestTrigger.
-  void SetTabSwitchStartTime(base::TimeTicks start_time,
-                             bool destination_is_loaded) final;
+  const base::string16& GetTitle() override;
 
   // WebContentsTester implementation.
   void CommitPendingNavigation() override;
+  TestRenderFrameHost* GetPendingMainFrame() override;
 
   void NavigateAndCommit(
       const GURL& url,
@@ -80,22 +74,31 @@ class TestWebContents : public WebContentsImpl, public WebContentsTester {
 
   void NavigateAndFail(const GURL& url, int error_code) override;
   void TestSetIsLoading(bool value) override;
+  void TestDidNavigate(RenderFrameHost* render_frame_host,
+                       int nav_entry_id,
+                       bool did_create_new_entry,
+                       const GURL& url,
+                       ui::PageTransition transition) override;
+  void TestDidNavigateWithSequenceNumber(RenderFrameHost* render_frame_host,
+                                         int nav_entry_id,
+                                         bool did_create_new_entry,
+                                         const GURL& url,
+                                         const Referrer& referrer,
+                                         ui::PageTransition transition,
+                                         bool was_within_same_document,
+                                         int item_sequence_number,
+                                         int document_sequence_number);
   void SetOpener(WebContents* opener) override;
-  void SetIsCrashed(base::TerminationStatus status, int error_code) override;
   const std::string& GetSaveFrameHeaders() override;
-  const std::u16string& GetSuggestedFileName() override;
+  const base::string16& GetSuggestedFileName() override;
   bool HasPendingDownloadImage(const GURL& url) override;
   bool TestDidDownloadImage(
       const GURL& url,
       int http_status_code,
       const std::vector<SkBitmap>& bitmaps,
       const std::vector<gfx::Size>& original_bitmap_sizes) override;
-  void TestSetFaviconURL(
-      const std::vector<blink::mojom::FaviconURLPtr>& favicon_urls) override;
-  void TestUpdateFaviconURL(
-      const std::vector<blink::mojom::FaviconURLPtr>& favicon_urls) override;
   void SetLastCommittedURL(const GURL& url) override;
-  void SetTitle(const std::u16string& new_title) override;
+  void SetTitle(const base::string16& new_title) override;
   void SetMainFrameMimeType(const std::string& mime_type) override;
   const std::string& GetContentsMimeType() override;
   void SetIsCurrentlyAudible(bool audible) override;
@@ -109,8 +112,8 @@ class TestWebContents : public WebContentsImpl, public WebContentsTester {
   // Prevent interaction with views.
   bool CreateRenderViewForRenderManager(
       RenderViewHost* render_view_host,
-      const absl::optional<blink::FrameToken>& opener_frame_token,
-      RenderFrameProxyHost* proxy_host) override;
+      const base::Optional<base::UnguessableToken>& opener_frame_token,
+      int proxy_routing_id) override;
 
   // Returns a clone of this TestWebContents. The returned object is also a
   // TestWebContents. The caller owns the returned object.
@@ -126,14 +129,22 @@ class TestWebContents : public WebContentsImpl, public WebContentsTester {
   void AddPendingContents(std::unique_ptr<WebContentsImpl> contents,
                           const GURL& target_url);
 
+  // Establish expected arguments for |SetHistoryOffsetAndLength()|. When
+  // |SetHistoryOffsetAndLength()| is called, the arguments are compared
+  // with the expected arguments specified here.
+  void ExpectSetHistoryOffsetAndLength(int history_offset,
+                                       int history_length);
+
+  // Compares the arguments passed in with the expected arguments passed in
+  // to |ExpectSetHistoryOffsetAndLength()|.
+  void SetHistoryOffsetAndLength(int history_offset,
+                                 int history_length) override;
+
   bool GetPauseSubresourceLoadingCalled() override;
 
   void ResetPauseSubresourceLoadingCalled() override;
 
   void SetLastActiveTime(base::TimeTicks last_active_time) override;
-
-  void TestIncrementUsbActiveFrameCount() override;
-  void TestDecrementUsbActiveFrameCount() override;
 
   void TestIncrementBluetoothConnectedDeviceCount() override;
   void TestDecrementBluetoothConnectedDeviceCount() override;
@@ -152,35 +163,20 @@ class TestWebContents : public WebContentsImpl, public WebContentsTester {
     web_preferences_changed_counter_ = counter;
   }
 
-  void SetBackForwardCacheSupported(bool supported);
-
-  bool IsPageFrozen() override;
-
-  TestRenderFrameHost* GetSpeculativePrimaryMainFrame();
-
-  int AddPrerender(const GURL& url) override;
-  TestRenderFrameHost* AddPrerenderAndCommitNavigation(
-      const GURL& url) override;
-  std::unique_ptr<NavigationSimulator> AddPrerenderAndStartNavigation(
-      const GURL& url) override;
-  void ActivatePrerenderedPage(const GURL& url) override;
-
-  base::TimeTicks GetTabSwitchStartTime() final;
-
  protected:
   // The deprecated WebContentsTester still needs to subclass this.
   explicit TestWebContents(BrowserContext* browser_context);
 
  private:
   // WebContentsImpl overrides
-  FrameTree* CreateNewWindow(
-      RenderFrameHostImpl* opener,
+  RenderFrameHostDelegate* CreateNewWindow(
+      RenderFrameHost* opener,
       const mojom::CreateNewWindowParams& params,
       bool is_new_browsing_instance,
       bool has_user_gesture,
       SessionStorageNamespace* session_storage_namespace) override;
   RenderWidgetHostImpl* CreateNewPopupWidget(
-      base::SafeRef<SiteInstanceGroup> site_instance_group,
+      AgentSchedulingGroupHost& agent_scheduling_group,
       int32_t route_id,
       mojo::PendingAssociatedReceiver<blink::mojom::PopupWidgetHost>
           blink_popup_widget_host,
@@ -188,40 +184,37 @@ class TestWebContents : public WebContentsImpl, public WebContentsTester {
           blink_widget_host,
       mojo::PendingAssociatedRemote<blink::mojom::Widget> blink_widget)
       override;
-  void ShowCreatedWindow(RenderFrameHostImpl* opener,
+  void ShowCreatedWindow(RenderFrameHost* opener,
                          int route_id,
                          WindowOpenDisposition disposition,
-                         const blink::mojom::WindowFeatures& window_features,
+                         const gfx::Rect& initial_rect,
                          bool user_gesture) override;
   void ShowCreatedWidget(int process_id,
                          int route_id,
-                         const gfx::Rect& initial_rect,
-                         const gfx::Rect& initial_anchor_rect) override;
+                         const gfx::Rect& initial_rect) override;
   void SaveFrameWithHeaders(const GURL& url,
                             const Referrer& referrer,
                             const std::string& headers,
-                            const std::u16string& suggested_filename,
-                            RenderFrameHost* rfh) override;
+                            const base::string16& suggested_filename) override;
   void ReattachToOuterWebContentsFrame() override {}
-  void SetPageFrozen(bool frozen) override;
-  bool IsBackForwardCacheSupported() override;
 
-  raw_ptr<RenderViewHostDelegateView> delegate_view_override_;
+  RenderViewHostDelegateView* delegate_view_override_;
 
   // See set_web_preferences_changed_counter() above. May be nullptr.
-  raw_ptr<int> web_preferences_changed_counter_;
+  int* web_preferences_changed_counter_;
+  // Expectations for arguments of |SetHistoryOffsetAndLength()|.
+  bool expect_set_history_offset_and_length_;
+  int expect_set_history_offset_and_length_history_offset_;
+  int expect_set_history_offset_and_length_history_length_;
   std::string save_frame_headers_;
-  std::u16string suggested_filename_;
+  base::string16 suggested_filename_;
   // Map keyed by image URL. Values are <id, callback> pairs.
   std::map<GURL, std::list<std::pair<int, ImageDownloadCallback>>>
       pending_image_downloads_;
   GURL last_committed_url_;
-  absl::optional<std::u16string> title_;
+  base::Optional<base::string16> title_;
   bool pause_subresource_loading_called_;
   base::UnguessableToken audio_group_id_;
-  bool is_page_frozen_;
-  bool back_forward_cache_supported_ = true;
-  base::TimeTicks tab_switch_start_time_;
 };
 
 }  // namespace content

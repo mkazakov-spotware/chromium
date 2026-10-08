@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "components/policy/core/common/cloud/device_management_service.h"
 
 namespace policy {
@@ -28,13 +29,12 @@ class DeviceManagementServiceConfigurationIOS
   ~DeviceManagementServiceConfigurationIOS() override;
 
   // DeviceManagementService::Configuration implementation.
-  std::string GetDMServerUrl() const override;
-  std::string GetAgentParameter() const override;
-  std::string GetPlatformParameter() const override;
-  std::string GetRealtimeReportingServerUrl() const override;
-  std::string GetEncryptedReportingServerUrl() const override;
-  std::string GetReportingConnectorServerUrl(
-      content::BrowserContext* context) const override;
+  std::string GetDMServerUrl() override;
+  std::string GetAgentParameter() override;
+  std::string GetPlatformParameter() override;
+  std::string GetRealtimeReportingServerUrl() override;
+  std::string GetEncryptedReportingServerUrl() override;
+  std::string GetReportingConnectorServerUrl() override;
 
  private:
   const std::string dm_server_url_;

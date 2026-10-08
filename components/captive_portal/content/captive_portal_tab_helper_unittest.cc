@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 #include "base/callback.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/captive_portal/content/captive_portal_service.h"
 #include "components/captive_portal/content/captive_portal_tab_reloader.h"
 #include "components/embedder_support/pref_names.h"
@@ -58,11 +58,6 @@ class CaptivePortalTabHelperTest : public content::RenderViewHostTestHarness {
  public:
   CaptivePortalTabHelperTest()
       : mock_reloader_(new testing::StrictMock<MockCaptivePortalTabReloader>) {}
-
-  CaptivePortalTabHelperTest(const CaptivePortalTabHelperTest&) = delete;
-  CaptivePortalTabHelperTest& operator=(const CaptivePortalTabHelperTest&) =
-      delete;
-
   ~CaptivePortalTabHelperTest() override {}
 
   void SetUp() override {
@@ -124,8 +119,8 @@ class CaptivePortalTabHelperTest : public content::RenderViewHostTestHarness {
         .Times(1);
     auto navigation = content::NavigationSimulator::CreateBrowserInitiated(
         url, web_contents());
-    navigation->SetResolveErrorInfo(net::ResolveErrorInfo(
-        net::ERR_CERT_COMMON_NAME_INVALID, true /* is_secure_network_error */));
+    navigation->SetResolveErrorInfo({net::ERR_CERT_COMMON_NAME_INVALID,
+                                     true /* is_secure_network_error */});
     navigation->Fail(net::ERR_NAME_NOT_RESOLVED);
     EXPECT_CALL(mock_reloader(),
                 OnLoadCommitted(net::ERR_NAME_NOT_RESOLVED,
@@ -193,7 +188,9 @@ class CaptivePortalTabHelperTest : public content::RenderViewHostTestHarness {
   std::unique_ptr<CaptivePortalTabHelper> tab_helper_;
 
   // Owned by |tab_helper_|.
-  raw_ptr<testing::StrictMock<MockCaptivePortalTabReloader>> mock_reloader_;
+  testing::StrictMock<MockCaptivePortalTabReloader>* mock_reloader_;
+
+  DISALLOW_COPY_AND_ASSIGN(CaptivePortalTabHelperTest);
 };
 
 TEST_F(CaptivePortalTabHelperTest, HttpSuccess) {

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <deque>
 #include <string>
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "cc/cc_export.h"
 
@@ -17,17 +18,22 @@ namespace cc {
 // https://docs.google.com/document/d/1e8NuzPblIv2B9bz01oSj40rmlse7_PHq5oFS3lqz6N4/
 class CC_EXPORT AverageLagTracker {
  public:
+  enum class FinishTimeType { GpuSwapBegin, PresentationFeedback };
   enum class EventType { ScrollBegin, ScrollUpdate };
 
   struct EventInfo {
-    EventInfo(float event_scroll_delta,
+    EventInfo(int trace_id,
+              float event_scroll_delta,
               float predicted_scroll_delta,
               base::TimeTicks event_timestamp,
               EventType event_type)
-        : event_scroll_delta(event_scroll_delta),
+        : trace_id(trace_id),
+          event_scroll_delta(event_scroll_delta),
           predicted_scroll_delta(predicted_scroll_delta),
           event_timestamp(event_timestamp),
           event_type(event_type) {}
+    // Id from the original LatencyInfo.
+    int trace_id;
     // Delta reported by the scroll event (begin or update).
     float event_scroll_delta;
     // Delta predicted (when prediction is on, otherwise should be equals to
@@ -42,7 +48,7 @@ class CC_EXPORT AverageLagTracker {
     EventType event_type;
   };
 
-  AverageLagTracker();
+  explicit AverageLagTracker(FinishTimeType);
   ~AverageLagTracker();
 
   // Disallow copy and assign.
@@ -56,10 +62,10 @@ class CC_EXPORT AverageLagTracker {
   std::string GetAverageLagMetricName(EventType) const;
 
  private:
-  struct LagAreaInFrame {
-    explicit LagAreaInFrame(base::TimeTicks time,
-                            float rendered_pos = 0,
-                            float rendered_pos_no_prediction = 0)
+  typedef struct LagAreaInFrame {
+    LagAreaInFrame(base::TimeTicks time,
+                   float rendered_pos = 0,
+                   float rendered_pos_no_prediction = 0)
         : frame_time(time),
           rendered_accumulated_delta(rendered_pos),
           lag_area(0),
@@ -81,7 +87,7 @@ class CC_EXPORT AverageLagTracker {
     // |lag_area_no_prediction| is computed the same as |lag_area| but using
     // rendered_accumulated_delta_no_prediction as the rendered delta.
     float lag_area_no_prediction;
-  };
+  } LagAreaInFrame;
 
   // Processes |event_info| as a ScrollBegin event and add it to the Lag.
   void AddScrollBeginInFrame(const EventInfo& event_info);
@@ -100,6 +106,10 @@ class CC_EXPORT AverageLagTracker {
                    float rendered_accumulated_delta);
 
   float LagForUnfinishedFrame(float rendered_accumulated_delta);
+
+  // Time in the frame lifecycle that EventInfo::finish_timestamp represents
+  // and defines which metric is tracked by this AverageLagTracker.
+  const FinishTimeType finish_time_type_;
 
   std::deque<LagAreaInFrame> frame_lag_infos_;
 

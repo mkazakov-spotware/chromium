@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,6 @@ import org.robolectric.shadows.ShadowLooper;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.build.BuildConfig;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -867,7 +866,7 @@ public class UnownedUserDataKeyTest {
         mFoo.assertDetachedHostsMatch(mHost1);
         assertTrue(mHost1.isDestroyed());
 
-        assertThrows(AssertionError.class, () -> Foo.KEY.attachToHost(mHost1, mFoo));
+        assertThrows(IllegalStateException.class, () -> Foo.KEY.attachToHost(mHost1, mFoo));
 
         // The following operation gracefully returns null.
         assertNull(Foo.KEY.retrieveDataFromHost(mHost1));
@@ -905,11 +904,12 @@ public class UnownedUserDataKeyTest {
         Foo.KEY.detachFromAllHosts(mFoo);
     }
 
-    private <E extends Throwable> void assertThrows(Class<E> exceptionType, Runnable runnable) {
-        Throwable actualException = null;
+    private <E extends RuntimeException> void assertThrows(
+            Class<E> exceptionType, Runnable runnable) {
+        RuntimeException actualException = null;
         try {
             runnable.run();
-        } catch (Throwable e) {
+        } catch (RuntimeException e) {
             actualException = e;
         }
         assertNotNull("Exception not thrown", actualException);
@@ -917,9 +917,6 @@ public class UnownedUserDataKeyTest {
     }
 
     private void assertAsserts(Runnable runnable) {
-        // When DCHECK is off, asserts are stripped.
-        if (!BuildConfig.ENABLE_ASSERTS) return;
-
         try {
             runnable.run();
             throw new RuntimeException("Assertion should fail.");

@@ -1,32 +1,33 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/display/cursor_window_controller.h"
 
-#include "ash/accessibility/magnifier/fullscreen_magnifier_controller.h"
-#include "ash/capture_mode/capture_mode_camera_controller.h"
 #include "ash/capture_mode/capture_mode_controller.h"
 #include "ash/capture_mode/capture_mode_session.h"
-#include "ash/color_enhancement/color_enhancement_controller.h"
-#include "ash/constants/ash_constants.h"
-#include "ash/constants/ash_pref_names.h"
-#include "ash/constants/ash_switches.h"
-#include "ash/curtain/security_curtain_controller.h"
 #include "ash/display/display_color_manager.h"
+#include "ash/display/mirror_window_controller.h"
+#include "ash/display/window_tree_host_manager.h"
 #include "ash/fast_ink/cursor/cursor_view.h"
+#include "ash/magnifier/magnification_controller.h"
+#include "ash/public/cpp/ash_constants.h"
+#include "ash/public/cpp/ash_features.h"
+#include "ash/public/cpp/ash_pref_names.h"
+#include "ash/public/cpp/ash_switches.h"
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/root_window_controller.h"
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
+#include "ash/window_factory.h"
 #include "base/command_line.h"
 #include "base/metrics/histogram_macros.h"
 #include "components/prefs/pref_service.h"
 #include "ui/aura/env.h"
-#include "ui/aura/window.h"
 #include "ui/aura/window_delegate.h"
+#include "ui/aura/window_event_dispatcher.h"
+#include "ui/base/cursor/cursors_aura.h"
 #include "ui/base/hit_test.h"
-#include "ui/base/layout.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/compositor/paint_recorder.h"
 #include "ui/display/display.h"
@@ -38,7 +39,6 @@
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_skia_operations.h"
 #include "ui/views/widget/widget.h"
-#include "ui/wm/core/cursors_aura.h"
 
 namespace ash {
 namespace {
@@ -51,10 +51,6 @@ const int kMaxLargeCursorSize = 64;
 class CursorWindowDelegate : public aura::WindowDelegate {
  public:
   CursorWindowDelegate() = default;
-
-  CursorWindowDelegate(const CursorWindowDelegate&) = delete;
-  CursorWindowDelegate& operator=(const CursorWindowDelegate&) = delete;
-
   ~CursorWindowDelegate() override = default;
 
   // aura::WindowDelegate overrides:
@@ -100,6 +96,8 @@ class CursorWindowDelegate : public aura::WindowDelegate {
  private:
   gfx::ImageSkia cursor_image_;
   gfx::Size size_;
+
+  DISALLOW_COPY_AND_ASSIGN(CursorWindowDelegate);
 };
 
 CursorWindowController::CursorWindowController()
@@ -110,14 +108,6 @@ CursorWindowController::CursorWindowController()
 
 CursorWindowController::~CursorWindowController() {
   SetContainer(NULL);
-}
-
-void CursorWindowController::AddObserver(Observer* observer) {
-  observers_.AddObserver(observer);
-}
-
-void CursorWindowController::RemoveObserver(Observer* observer) {
-  observers_.RemoveObserver(observer);
 }
 
 void CursorWindowController::SetLargeCursorSizeInDip(
@@ -148,31 +138,24 @@ bool CursorWindowController::ShouldEnableCursorCompositing() {
   if (is_cursor_motion_blur_enabled_)
     return true;
 
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kForceShowCursor)) {
-    return false;
-  }
+  if (features::IsCaptureModeEnabled()) {
+    auto* controller = CaptureModeController::Get();
+    if (controller->is_recording_in_progress()) {
+      // To let the video capturer record the cursor.
+      return true;
+    }
 
-  auto* controller = CaptureModeController::Get();
-  auto* session = controller->capture_mode_session();
-  if (session && session->is_drag_in_progress()) {
-    // To ensure the cursor is aligned with the dragged region.
-    return true;
-  }
-
-  if (controller->camera_controller()->is_drag_in_progress()) {
-    // To ensure the cursor is aligned with the dragged camera preview.
-    return true;
-  }
-
-  Shell* shell = Shell::Get();
-  if (shell->security_curtain_controller().IsEnabled()) {
-    return true;
+    auto* session = controller->capture_mode_session();
+    if (session && session->is_drag_in_progress()) {
+      // To ensure the cursor is aligned with the dragged region.
+      return true;
+    }
   }
 
   // During startup, we may not have a preference service yet. We need to check
   // display manager state first so that we don't accidentally ignore it while
   // early outing when there isn't a PrefService yet.
+  Shell* shell = Shell::Get();
   display::DisplayManager* display_manager = shell->display_manager();
   if ((display_manager->IsInSoftwareMirrorMode()) ||
       display_manager->IsInUnifiedMode() ||
@@ -180,7 +163,7 @@ bool CursorWindowController::ShouldEnableCursorCompositing() {
     return true;
   }
 
-  if (shell->fullscreen_magnifier_controller()->IsEnabled())
+  if (shell->magnification_controller()->IsEnabled())
     return true;
 
   if (cursor_color_ != kDefaultCursorColor)
@@ -208,26 +191,18 @@ bool CursorWindowController::ShouldEnableCursorCompositing() {
       return true;
   }
 
-  if (shell->color_enhancement_controller()
-          ->ShouldEnableCursorCompositingForSepia()) {
-    return true;
-  }
-
   return prefs->GetBoolean(prefs::kAccessibilityLargeCursorEnabled) ||
          prefs->GetBoolean(prefs::kAccessibilityHighContrastEnabled) ||
          prefs->GetBoolean(prefs::kDockedMagnifierEnabled);
 }
 
 void CursorWindowController::SetCursorCompositingEnabled(bool enabled) {
-  if (is_cursor_compositing_enabled_ == enabled)
-    return;
-
-  is_cursor_compositing_enabled_ = enabled;
-  if (display_.is_valid())
-    UpdateCursorImage();
-  UpdateContainer();
-  for (auto& obs : observers_)
-    obs.OnCursorCompositingStateChanged(is_cursor_compositing_enabled_);
+  if (is_cursor_compositing_enabled_ != enabled) {
+    is_cursor_compositing_enabled_ = enabled;
+    if (display_.is_valid())
+      UpdateCursorImage();
+    UpdateContainer();
+  }
 }
 
 void CursorWindowController::UpdateContainer() {
@@ -268,14 +243,6 @@ void CursorWindowController::SetDisplay(const display::Display& display) {
   UpdateCursorImage();
 }
 
-void CursorWindowController::OnDockedMagnifierResizingStateChanged(
-    bool is_active) {
-  const int container_id = is_active ? kShellWindowId_DockedMagnifierContainer
-                                     : kShellWindowId_MouseCursorContainer;
-  SetContainer(
-      RootWindowController::ForWindow(container_)->GetContainer(container_id));
-}
-
 void CursorWindowController::UpdateLocation() {
   if (!cursor_window_)
     return;
@@ -305,10 +272,6 @@ void CursorWindowController::SetVisibility(bool visible) {
   UpdateCursorVisibility();
 }
 
-const aura::Window* CursorWindowController::GetContainerForTest() const {
-  return container_;
-}
-
 void CursorWindowController::SetContainer(aura::Window* container) {
   if (container_ == container)
     return;
@@ -327,7 +290,7 @@ void CursorWindowController::SetContainer(aura::Window* container) {
   } else {
     // Reusing the window does not work when the display is disconnected.
     // Just creates a new one instead. crbug.com/384218.
-    cursor_window_ = std::make_unique<aura::Window>(delegate_.get());
+    cursor_window_ = window_factory::NewWindow(delegate_.get());
     cursor_window_->SetTransparent(true);
     cursor_window_->Init(ui::LAYER_TEXTURED);
     cursor_window_->SetEventTargetingPolicy(aura::EventTargetingPolicy::kNone);
@@ -363,8 +326,8 @@ void CursorWindowController::UpdateCursorImage() {
                                    ->GetDisplayInfo(display_.id())
                                    .device_scale_factor();
   // And use the nearest resource scale factor.
-  float cursor_scale = ui::GetScaleForResourceScaleFactor(
-      ui::GetSupportedResourceScaleFactor(original_scale));
+  float cursor_scale =
+      ui::GetScaleForScaleFactor(ui::GetSupportedScaleFactor(original_scale));
 
   gfx::ImageSkia image;
   gfx::Point hot_point_in_physical_pixels;
@@ -376,7 +339,7 @@ void CursorWindowController::UpdateCursorImage() {
     hot_point_in_physical_pixels = cursor_.custom_hotspot();
   } else {
     int resource_id;
-    if (!wm::GetCursorDataFor(cursor_size_, cursor_.type(), cursor_scale,
+    if (!ui::GetCursorDataFor(cursor_size_, cursor_.type(), cursor_scale,
                               &resource_id, &hot_point_in_physical_pixels)) {
       return;
     }
@@ -403,8 +366,8 @@ void CursorWindowController::UpdateCursorImage() {
 
   const gfx::ImageSkiaRep& image_rep = resized.GetRepresentation(cursor_scale);
   delegate_->SetCursorImage(resized.size(),
-                            gfx::ImageSkia::CreateFromBitmap(
-                                GetAdjustedBitmap(image_rep), cursor_scale));
+                            gfx::ImageSkia(gfx::ImageSkiaRep(
+                                GetAdjustedBitmap(image_rep), cursor_scale)));
   // TODO(danakj): Should this be rounded? Or kept as a floating point?
   hot_point_ = gfx::ToFlooredPoint(
       gfx::ConvertPointToDips(hot_point_in_physical_pixels, cursor_scale));
@@ -465,7 +428,7 @@ SkBitmap CursorWindowController::GetAdjustedBitmap(
   recolored.allocN32Pixels(bitmap.width(), bitmap.height());
   recolored.eraseARGB(0, 0, 0, 0);
   SkCanvas canvas(recolored);
-  canvas.drawImage(bitmap.asImage(), 0, 0);
+  canvas.drawBitmap(bitmap, 0, 0);
   color_utils::HSL cursor_hsl;
   color_utils::SkColorToHSL(cursor_color_, &cursor_hsl);
   for (int y = 0; y < bitmap.height(); ++y) {

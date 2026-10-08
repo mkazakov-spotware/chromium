@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -88,12 +88,19 @@ function onReadFileRequested(options, onSuccess, onError) {
       var textToSend = TESTING_TEXT.substr(options.offset, options.length);
       var textToSendInChunks = textToSend.split(/(?= )/);
 
-      textToSendInChunks.forEach((item, index) => {
+      textToSendInChunks.forEach(function(item, index) {
         // Convert item (string) to an ArrayBuffer.
-        onSuccess(
-            /*data=*/new TextEncoder().encode(item).buffer,
-            /*hasMore=*/index < textToSendInChunks.length - 1);
+        var reader = new FileReader();
+
+        reader.onload = function(e) {
+          onSuccess(
+              e.target.result,
+              index < textToSendInChunks.length - 1 /* hasMore */);
+        };
+
+        reader.readAsArrayBuffer(new Blob([item]));
       });
+      return;
     }
 
     if (filePath === '/' + TESTING_VANILLA_FOR_ABORT_FILE.name) {

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,10 +22,6 @@ using base::i18n::UTF16CharIterator;
 
 namespace {
 
-constexpr char16_t kAcceleratorChar = '&';
-constexpr char16_t kOpenParenthesisChar = '(';
-constexpr char16_t kCloseParenthesisChar = ')';
-
 // Returns true if the specified character must be elided from a string.
 // Examples are combining marks and whitespace.
 bool IsCombiningMark(UChar32 c) {
@@ -43,27 +39,17 @@ bool IsSpace(UChar32 c) {
          char_type == U_PARAGRAPH_SEPARATOR || char_type == U_CONTROL_CHAR;
 }
 
-std::u16string RemoveAcceleratorChar(bool full_removal,
-                                     const std::u16string& s,
+}  // namespace
+
+base::string16 RemoveAcceleratorChar(const base::string16& s,
+                                     base::char16 accelerator_char,
                                      int* accelerated_char_pos,
                                      int* accelerated_char_span) {
   bool escaped = false;
   ptrdiff_t last_char_pos = -1;
   int last_char_span = 0;
   UTF16CharIterator chars(s);
-  std::u16string accelerator_removed;
-
-  // The states of a state machine looking for a CJK-style accelerator (i.e.
-  // "(&x)"). |cjk_state| proceeds up from |kFoundNothing| through these states,
-  // resetting either when it sees a complete accelerator, or gives up because
-  // the current character doesn't match.
-  enum {
-    kFoundNothing,
-    kFoundOpenParen,
-    kFoundAcceleratorChar,
-    kFoundAccelerator
-  } cjk_state = kFoundNothing;
-  size_t pre_cjk_size = 0;
+  base::string16 accelerator_removed;
 
   accelerator_removed.reserve(s.size());
   while (!chars.end()) {
@@ -71,29 +57,9 @@ std::u16string RemoveAcceleratorChar(bool full_removal,
     int array_pos = chars.array_pos();
     chars.Advance();
 
-    if (full_removal) {
-      if (cjk_state == kFoundNothing && c == kOpenParenthesisChar) {
-        pre_cjk_size = array_pos;
-        cjk_state = kFoundOpenParen;
-      } else if (cjk_state == kFoundOpenParen && c == kAcceleratorChar) {
-        cjk_state = kFoundAcceleratorChar;
-      } else if (cjk_state == kFoundAcceleratorChar) {
-        // Accept any character as the accelerator.
-        cjk_state = kFoundAccelerator;
-      } else if (cjk_state == kFoundAccelerator && c == kCloseParenthesisChar) {
-        cjk_state = kFoundNothing;
-        accelerator_removed.resize(pre_cjk_size);
-        pre_cjk_size = 0;
-        escaped = false;
-        continue;
-      } else {
-        cjk_state = kFoundNothing;
-      }
-    }
-
-    if (c != kAcceleratorChar || escaped) {
+    if (c != accelerator_char || escaped) {
       int span = chars.array_pos() - array_pos;
-      if (escaped && c != kAcceleratorChar) {
+      if (escaped && c != accelerator_char) {
         last_char_pos = accelerator_removed.size();
         last_char_span = span;
       }
@@ -105,28 +71,15 @@ std::u16string RemoveAcceleratorChar(bool full_removal,
     }
   }
 
-  if (accelerated_char_pos && !full_removal)
+  if (accelerated_char_pos)
     *accelerated_char_pos = last_char_pos;
-  if (accelerated_char_span && !full_removal)
+  if (accelerated_char_span)
     *accelerated_char_span = last_char_span;
 
   return accelerator_removed;
 }
 
-}  // namespace
-
-std::u16string LocateAndRemoveAcceleratorChar(const std::u16string& s,
-                                              int* accelerated_char_pos,
-                                              int* accelerated_char_span) {
-  return RemoveAcceleratorChar(false, s, accelerated_char_pos,
-                               accelerated_char_span);
-}
-
-std::u16string RemoveAccelerator(const std::u16string& s) {
-  return RemoveAcceleratorChar(true, s, nullptr, nullptr);
-}
-
-size_t FindValidBoundaryBefore(const std::u16string& text,
+size_t FindValidBoundaryBefore(const base::string16& text,
                                size_t index,
                                bool trim_whitespace) {
   UTF16CharIterator it = UTF16CharIterator::LowerBound(text, index);
@@ -145,7 +98,7 @@ size_t FindValidBoundaryBefore(const std::u16string& text,
   return it.array_pos();
 }
 
-size_t FindValidBoundaryAfter(const std::u16string& text,
+size_t FindValidBoundaryAfter(const base::string16& text,
                               size_t index,
                               bool trim_whitespace) {
   UTF16CharIterator it = UTF16CharIterator::UpperBound(text, index);
@@ -177,7 +130,7 @@ HorizontalAlignment MaybeFlipForRTL(HorizontalAlignment alignment) {
   return alignment;
 }
 
-Size GetStringSize(const std::u16string& text, const FontList& font_list) {
+Size GetStringSize(const base::string16& text, const FontList& font_list) {
   return Size(GetStringWidth(text, font_list), font_list.GetHeight());
 }
 
@@ -202,7 +155,7 @@ int GetFontCapHeightCenterOffset(const gfx::FontList& original_font,
 
   const int cap_height_diff = original_cap_height - to_center_cap_height;
   const int new_cap_top =
-      original_cap_leading + base::ClampRound(cap_height_diff / 2.0f);
+      original_cap_leading + std::lround(cap_height_diff / 2.0f);
   const int new_top = new_cap_top - to_center_leading;
 
   // Since we assume the old font starts at zero, the new top is the adjustment.

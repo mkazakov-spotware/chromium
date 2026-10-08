@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -79,7 +79,7 @@ GuestViewEvents.prototype.setupEvents = function() {
           listenersToBeRemoved[i].listener);
       listenersToBeRemoved[i] = null;
     }
-  }, undefined, this.listenersToBeRemoved));
+  }, undefined, this.listenersToBeRemoved), -1 /* portId */);
 
   // Set up the GuestView events.
   for (var eventName in GuestViewEvents.EVENTS) {

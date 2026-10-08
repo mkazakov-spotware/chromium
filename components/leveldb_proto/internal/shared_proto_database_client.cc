@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,12 @@
 #include <memory>
 #include <utility>
 
-#include "base/check.h"
 #include "base/check_op.h"
 #include "base/notreached.h"
 #include "base/strings/strcat.h"
 #include "base/strings/stringprintf.h"
 #include "components/leveldb_proto/internal/proto_leveldb_wrapper.h"
 #include "components/leveldb_proto/internal/shared_proto_database.h"
-#include "components/leveldb_proto/public/proto_database.h"
 #include "components/leveldb_proto/public/shared_proto_database_client_list.h"
 
 namespace leveldb_proto {
@@ -36,7 +34,7 @@ class ObsoleteClientsDbHolder
   void set_success(bool success) { success_ &= success; }
 
  private:
-  friend class base::RefCounted<ObsoleteClientsDbHolder>;
+  friend class RefCounted<ObsoleteClientsDbHolder>;
   ~ObsoleteClientsDbHolder() { std::move(callback_).Run(success_); }
 
   bool success_;
@@ -44,78 +42,33 @@ class ObsoleteClientsDbHolder
   Callbacks::UpdateCallback callback_;
 };
 
-PhysicalKey MakePhysicalKey(const KeyPrefix& prefix, const LogicalKey& key) {
-  return PhysicalKey(base::StrCat({prefix.value(), key.value()}));
-}
-
 }  // namespace
 
 // static
-bool SharedProtoDatabaseClient::HasPrefix(const PhysicalKey& key,
-                                          const KeyPrefix& prefix) {
-  return base::StartsWith(key.value(), prefix.value(),
-                          base::CompareCase::SENSITIVE);
-}
-
-// static
-absl::optional<LogicalKey> SharedProtoDatabaseClient::StripPrefix(
-    const PhysicalKey& key,
-    const KeyPrefix& prefix) {
-  if (!HasPrefix(key, prefix))
-    return absl::nullopt;
-  return LogicalKey(key.value().substr(prefix.value().length()));
+std::string SharedProtoDatabaseClient::StripPrefix(const std::string& key,
+                                                   const std::string& prefix) {
+  return base::StartsWith(key, prefix, base::CompareCase::SENSITIVE)
+             ? key.substr(prefix.length())
+             : key;
 }
 
 // static
 std::unique_ptr<KeyVector> SharedProtoDatabaseClient::PrefixStrings(
     std::unique_ptr<KeyVector> strings,
-    const KeyPrefix& prefix) {
+    const std::string& prefix) {
   for (auto& str : *strings)
-    str.assign(MakePhysicalKey(prefix, LogicalKey(str)).value());
+    str.assign(base::StrCat({prefix, str}));
   return strings;
 }
 
 // static
 bool SharedProtoDatabaseClient::KeyFilterStripPrefix(
     const KeyFilter& key_filter,
-    const KeyPrefix& prefix,
-    const PhysicalKey& key) {
+    const std::string& prefix,
+    const std::string& key) {
   if (key_filter.is_null())
     return true;
-  absl::optional<LogicalKey> stripped = StripPrefix(key, prefix);
-  if (!stripped)
-    return false;
-  return key_filter.Run(stripped->value());
-}
-
-// static
-bool SharedProtoDatabaseClient::KeyStringFilterStripPrefix(
-    const KeyFilter& key_filter,
-    const KeyPrefix& prefix,
-    const std::string& key) {
-  return KeyFilterStripPrefix(key_filter, prefix, PhysicalKey(key));
-}
-
-// static
-Enums::KeyIteratorAction
-SharedProtoDatabaseClient::KeyIteratorControllerStripPrefix(
-    const KeyIteratorController& controller,
-    const KeyPrefix& prefix,
-    const PhysicalKey& key) {
-  DCHECK(!controller.is_null());
-  absl::optional<LogicalKey> stripped = StripPrefix(key, prefix);
-  if (!stripped)
-    return Enums::kSkipAndStop;
-  return controller.Run(stripped->value());
-}
-
-// static
-Enums::KeyIteratorAction
-SharedProtoDatabaseClient::KeyStringIteratorControllerStripPrefix(
-    const KeyIteratorController& controller,
-    const KeyPrefix& prefix,
-    const std::string& key) {
-  return KeyIteratorControllerStripPrefix(controller, prefix, PhysicalKey(key));
+  return key_filter.Run(StripPrefix(key, prefix));
 }
 
 // static
@@ -160,7 +113,7 @@ void SharedProtoDatabaseClient::DestroyObsoleteSharedProtoDatabaseClients(
     // the prefix contains the client namespace at the beginning.
     db_wrapper_ptr->RemoveKeys(
         base::BindRepeating([](const std::string& key) { return true; }),
-        SharedProtoDatabaseClient::PrefixForDatabase(list[i]).value(),
+        SharedProtoDatabaseClient::PrefixForDatabase(list[i]),
         std::move(callback_wrapper));
   }
 }
@@ -172,8 +125,8 @@ void SharedProtoDatabaseClient::SetObsoleteClientListForTesting(
 }
 
 // static
-KeyPrefix SharedProtoDatabaseClient::PrefixForDatabase(ProtoDbType db_type) {
-  return KeyPrefix(base::StringPrintf("%d_", static_cast<int>(db_type)));
+std::string SharedProtoDatabaseClient::PrefixForDatabase(ProtoDbType db_type) {
+  return base::StringPrintf("%d_", static_cast<int>(db_type));
 }
 
 SharedProtoDatabaseClient::SharedProtoDatabaseClient(
@@ -183,7 +136,6 @@ SharedProtoDatabaseClient::SharedProtoDatabaseClient(
     : UniqueProtoDatabase(std::move(db_wrapper)),
       prefix_(PrefixForDatabase(db_type)),
       parent_db_(parent_db) {
-  SetMetricsId(SharedProtoDatabaseClientList::ProtoDbTypeToString(db_type));
   DETACH_FROM_SEQUENCE(sequence_checker_);
 }
 
@@ -193,10 +145,8 @@ SharedProtoDatabaseClient::~SharedProtoDatabaseClient() {
 
 void SharedProtoDatabaseClient::Init(const std::string& client_uma_name,
                                      Callbacks::InitStatusCallback callback) {
-  // Should never be called from from the selector, and init is not necessary.
-  NOTREACHED();
-  GetSharedDatabaseInitStatusAsync(client_db_id(), parent_db_,
-                                   std::move(callback));
+  SetMetricsId(client_uma_name);
+  GetSharedDatabaseInitStatusAsync(prefix_, parent_db_, std::move(callback));
 }
 
 void SharedProtoDatabaseClient::InitWithDatabase(
@@ -235,10 +185,8 @@ void SharedProtoDatabaseClient::UpdateEntriesWithRemoveFilter(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   UniqueProtoDatabase::UpdateEntriesWithRemoveFilter(
       PrefixKeyEntryVector(std::move(entries_to_save), prefix_),
-      base::BindRepeating(&KeyStringFilterStripPrefix, delete_key_filter,
-                          prefix_),
-      MakePhysicalKey(prefix_, LogicalKey(target_prefix)).value(),
-      std::move(callback));
+      base::BindRepeating(&KeyFilterStripPrefix, delete_key_filter, prefix_),
+      prefix_ + target_prefix, std::move(callback));
 }
 
 void SharedProtoDatabaseClient::LoadEntries(Callbacks::LoadCallback callback) {
@@ -261,9 +209,8 @@ void SharedProtoDatabaseClient::LoadEntriesWithFilter(
     Callbacks::LoadCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   UniqueProtoDatabase::LoadEntriesWithFilter(
-      base::BindRepeating(&KeyStringFilterStripPrefix, filter, prefix_),
-      options, MakePhysicalKey(prefix_, LogicalKey(target_prefix)).value(),
-      std::move(callback));
+      base::BindRepeating(&KeyFilterStripPrefix, filter, prefix_), options,
+      prefix_ + target_prefix, std::move(callback));
 }
 
 void SharedProtoDatabaseClient::LoadKeys(Callbacks::LoadKeysCallback callback) {
@@ -275,7 +222,7 @@ void SharedProtoDatabaseClient::LoadKeys(const std::string& target_prefix,
                                          Callbacks::LoadKeysCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   UniqueProtoDatabase::LoadKeys(
-      MakePhysicalKey(prefix_, LogicalKey(target_prefix)).value(),
+      prefix_ + target_prefix,
       base::BindOnce(&SharedProtoDatabaseClient::StripPrefixLoadKeysCallback,
                      std::move(callback), prefix_));
 }
@@ -299,8 +246,8 @@ void SharedProtoDatabaseClient::LoadKeysAndEntriesWithFilter(
     Callbacks::LoadKeysAndEntriesCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   UniqueProtoDatabase::LoadKeysAndEntriesWithFilter(
-      base::BindRepeating(&KeyStringFilterStripPrefix, filter, prefix_),
-      options, MakePhysicalKey(prefix_, LogicalKey(target_prefix)).value(),
+      base::BindRepeating(&KeyFilterStripPrefix, filter, prefix_), options,
+      prefix_ + target_prefix,
       base::BindOnce(
           &SharedProtoDatabaseClient::StripPrefixLoadKeysAndEntriesCallback,
           std::move(callback), prefix_));
@@ -312,22 +259,7 @@ void SharedProtoDatabaseClient::LoadKeysAndEntriesInRange(
     Callbacks::LoadKeysAndEntriesCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   UniqueProtoDatabase::LoadKeysAndEntriesInRange(
-      MakePhysicalKey(prefix_, LogicalKey(start)).value(),
-      MakePhysicalKey(prefix_, LogicalKey(end)).value(),
-      base::BindOnce(
-          &SharedProtoDatabaseClient::StripPrefixLoadKeysAndEntriesCallback,
-          std::move(callback), prefix_));
-}
-
-void SharedProtoDatabaseClient::LoadKeysAndEntriesWhile(
-    const std::string& start,
-    const leveldb_proto::KeyIteratorController& controller,
-    Callbacks::LoadKeysAndEntriesCallback callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  UniqueProtoDatabase::LoadKeysAndEntriesWhile(
-      MakePhysicalKey(prefix_, LogicalKey(start)).value(),
-      base::BindRepeating(&KeyStringIteratorControllerStripPrefix, controller,
-                          prefix_),
+      prefix_ + start, prefix_ + end,
       base::BindOnce(
           &SharedProtoDatabaseClient::StripPrefixLoadKeysAndEntriesCallback,
           std::move(callback), prefix_));
@@ -336,8 +268,7 @@ void SharedProtoDatabaseClient::LoadKeysAndEntriesWhile(
 void SharedProtoDatabaseClient::GetEntry(const std::string& key,
                                          Callbacks::GetCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  UniqueProtoDatabase::GetEntry(
-      MakePhysicalKey(prefix_, LogicalKey(key)).value(), std::move(callback));
+  UniqueProtoDatabase::GetEntry(prefix_ + key, std::move(callback));
 }
 
 void SharedProtoDatabaseClient::Destroy(Callbacks::DestroyCallback callback) {
@@ -356,7 +287,7 @@ void SharedProtoDatabaseClient::UpdateClientInitMetadata(
   migration_status_ = migration_status;
   // Tell the SharedProtoDatabase that we've seen the corruption state so it's
   // safe to update its records for this client.
-  UpdateClientMetadataAsync(parent_db_, client_db_id(), migration_status_,
+  UpdateClientMetadataAsync(parent_db_, prefix_, migration_status_,
                             base::BindOnce([](bool success) {
                               // TODO(thildebr): Should we do anything special
                               // here? If the shared DB can't update the
@@ -369,33 +300,25 @@ void SharedProtoDatabaseClient::UpdateClientInitMetadata(
 // static
 void SharedProtoDatabaseClient::StripPrefixLoadKeysCallback(
     Callbacks::LoadKeysCallback callback,
-    const KeyPrefix& prefix,
+    const std::string& prefix,
     bool success,
     std::unique_ptr<leveldb_proto::KeyVector> keys) {
   auto stripped_keys = std::make_unique<leveldb_proto::KeyVector>();
-  for (auto& key : *keys) {
-    absl::optional<LogicalKey> stripped = StripPrefix(PhysicalKey(key), prefix);
-    if (!stripped)
-      continue;
-    stripped_keys->emplace_back(stripped->value());
-  }
+  for (auto& key : *keys)
+    stripped_keys->emplace_back(StripPrefix(key, prefix));
   std::move(callback).Run(success, std::move(stripped_keys));
 }
 
 // static
 void SharedProtoDatabaseClient::StripPrefixLoadKeysAndEntriesCallback(
     Callbacks::LoadKeysAndEntriesCallback callback,
-    const KeyPrefix& prefix,
+    const std::string& prefix,
     bool success,
     std::unique_ptr<KeyValueMap> keys_entries) {
   auto stripped_keys_map = std::make_unique<KeyValueMap>();
   for (auto& key_entry : *keys_entries) {
-    absl::optional<LogicalKey> stripped_key =
-        StripPrefix(PhysicalKey(key_entry.first), prefix);
-    if (!stripped_key)
-      continue;
     stripped_keys_map->insert(
-        std::make_pair(stripped_key->value(), key_entry.second));
+        std::make_pair(StripPrefix(key_entry.first, prefix), key_entry.second));
   }
   std::move(callback).Run(success, std::move(stripped_keys_map));
 }
@@ -403,10 +326,9 @@ void SharedProtoDatabaseClient::StripPrefixLoadKeysAndEntriesCallback(
 // static
 std::unique_ptr<KeyValueVector> SharedProtoDatabaseClient::PrefixKeyEntryVector(
     std::unique_ptr<KeyValueVector> kev,
-    const KeyPrefix& prefix) {
+    const std::string& prefix) {
   for (auto& key_entry_pair : *kev) {
-    key_entry_pair.first =
-        MakePhysicalKey(prefix, LogicalKey(key_entry_pair.first)).value();
+    key_entry_pair.first = base::StrCat({prefix, key_entry_pair.first});
   }
   return kev;
 }

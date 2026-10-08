@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,8 @@
 #include <stdint.h>
 
 #include <vector>
+
+#include "base/macros.h"
 
 namespace device {
 
@@ -27,12 +29,6 @@ class FakeBluetoothLEManufacturerData
   FakeBluetoothLEManufacturerData(
       uint16_t company_id,
       Microsoft::WRL::ComPtr<ABI::Windows::Storage::Streams::IBuffer> data);
-
-  FakeBluetoothLEManufacturerData(const FakeBluetoothLEManufacturerData&) =
-      delete;
-  FakeBluetoothLEManufacturerData& operator=(
-      const FakeBluetoothLEManufacturerData&) = delete;
-
   ~FakeBluetoothLEManufacturerData() override;
 
   // IBluetoothLEManufacturerData:
@@ -46,6 +42,8 @@ class FakeBluetoothLEManufacturerData
  private:
   uint16_t company_id_;
   Microsoft::WRL::ComPtr<ABI::Windows::Storage::Streams::IBuffer> data_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeBluetoothLEManufacturerData);
 };
 
 class FakeBluetoothLEManufacturerDataFactory
@@ -56,12 +54,6 @@ class FakeBluetoothLEManufacturerDataFactory
               IBluetoothLEManufacturerDataFactory> {
  public:
   FakeBluetoothLEManufacturerDataFactory();
-
-  FakeBluetoothLEManufacturerDataFactory(
-      const FakeBluetoothLEManufacturerDataFactory&) = delete;
-  FakeBluetoothLEManufacturerDataFactory& operator=(
-      const FakeBluetoothLEManufacturerDataFactory&) = delete;
-
   ~FakeBluetoothLEManufacturerDataFactory() override;
 
   // IBluetoothLEManufacturerDataFactory:
@@ -69,6 +61,9 @@ class FakeBluetoothLEManufacturerDataFactory
                         ABI::Windows::Storage::Streams::IBuffer* data,
                         ABI::Windows::Devices::Bluetooth::Advertisement::
                             IBluetoothLEManufacturerData** value) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FakeBluetoothLEManufacturerDataFactory);
 };
 
 }  // namespace device

@@ -1,11 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_SYSTEM_STATUS_AREA_WIDGET_TEST_HELPER_H_
 #define ASH_SYSTEM_STATUS_AREA_WIDGET_TEST_HELPER_H_
 
-#include "ui/compositor/layer.h"
+#include "base/macros.h"
 
 namespace ash {
 
@@ -14,11 +14,6 @@ class StatusAreaWidget;
 
 class StatusAreaWidgetTestHelper {
  public:
-  StatusAreaWidgetTestHelper() = delete;
-  StatusAreaWidgetTestHelper(const StatusAreaWidgetTestHelper&) = delete;
-  StatusAreaWidgetTestHelper& operator=(const StatusAreaWidgetTestHelper&) =
-      delete;
-
   static LoginStatus GetUserLoginStatus();
 
   // Returns the StatusAreaWidget that appears on the primary display.
@@ -30,8 +25,8 @@ class StatusAreaWidgetTestHelper {
   // Waits until status area animations are over.
   static void WaitForAnimationEnd(StatusAreaWidget* status_area_widget);
 
-  // Waits until one child view's layer animations are over.
-  static void WaitForLayerAnimationEnd(ui::Layer* layer);
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(StatusAreaWidgetTestHelper);
 };
 
 }  // namespace ash

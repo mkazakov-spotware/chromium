@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 
 #include <jni.h>
 
+#include <memory>
+
 #include "base/android/jni_weak_ref.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
 #include "components/policy/core/common/android/policy_map_android.h"
 #include "components/policy/core/common/policy_service.h"
 #include "components/policy/policy_export.h"
@@ -53,7 +54,7 @@ class POLICY_EXPORT PolicyServiceAndroid : public PolicyService::Observer {
   base::android::ScopedJavaLocalRef<jobject> GetJavaObject();
 
  private:
-  raw_ptr<PolicyService> policy_service_;
+  PolicyService* policy_service_;
 
   // Contains all Chrome policies. The PolicyBundle is not used as there is only
   // one policy namespace supported on Android.

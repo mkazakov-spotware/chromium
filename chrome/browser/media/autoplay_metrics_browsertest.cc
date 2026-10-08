@@ -1,7 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/task/post_task.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -55,16 +56,16 @@ class AutoplayMetricsBrowserTest : public InProcessBrowserTest {
   }
 
   content::RenderFrameHost* first_child() const {
-    return ChildFrameAt(web_contents(), 0);
+    return web_contents()->GetAllFrames()[1];
   }
 
   content::RenderFrameHost* second_child() const {
-    return ChildFrameAt(first_child(), 0);
+    return web_contents()->GetAllFrames()[2];
   }
 };
 
 // Flaky on various platforms. https://crbug.com/1101841
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_WIN) || defined(OS_LINUX) || defined(OS_CHROMEOS)
 #define MAYBE_RecordAutoplayAttemptUkm DISABLED_RecordAutoplayAttemptUkm
 #else
 #define MAYBE_RecordAutoplayAttemptUkm RecordAutoplayAttemptUkm
@@ -80,7 +81,7 @@ IN_PROC_BROWSER_TEST_F(AutoplayMetricsBrowserTest,
       embedded_test_server()->GetURL("bar.com", "/media/autoplay_iframe.html"));
 
   // Navigate main frame, try play.
-  NavigateFrameAndWait(web_contents()->GetPrimaryMainFrame(), main_url);
+  NavigateFrameAndWait(web_contents()->GetMainFrame(), main_url);
   TryAutoplay(test_ukm_recorder, web_contents());
 
   // Check that we recorded a UKM event using the main frame URL.
@@ -150,7 +151,7 @@ IN_PROC_BROWSER_TEST_F(AutoplayMetricsBrowserTest,
   }
 
   // Navigate top frame, try play.
-  NavigateFrameAndWait(web_contents()->GetPrimaryMainFrame(), foo_url);
+  NavigateFrameAndWait(web_contents()->GetMainFrame(), foo_url);
   TryAutoplay(test_ukm_recorder, web_contents());
 
   // Check that we recorded a UKM event using the main frame URL.

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -48,7 +48,7 @@ class BASE_EXPORT TraceConfigCategoryFilter {
   // category is enabled from the tracing runtime's perspective.
   bool IsCategoryEnabled(const StringPiece& category_name) const;
 
-  void ToDict(Value::Dict& dict) const;
+  void ToDict(Value* dict) const;
 
   std::string ToFilterString() const;
 
@@ -57,7 +57,6 @@ class BASE_EXPORT TraceConfigCategoryFilter {
 
   const StringList& included_categories() const { return included_categories_; }
   const StringList& excluded_categories() const { return excluded_categories_; }
-  const StringList& disabled_categories() const { return disabled_categories_; }
 
  private:
   void SetCategoriesFromIncludedList(const Value& included_list);
@@ -65,7 +64,7 @@ class BASE_EXPORT TraceConfigCategoryFilter {
 
   void AddCategoriesToDict(const StringList& categories,
                            const char* param,
-                           Value::Dict& dict) const;
+                           Value* dict) const;
 
   void WriteCategoryFilterString(const StringList& values,
                                  std::string* out,

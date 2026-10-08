@@ -11,7 +11,7 @@
             }
         </style>
     </head>
-    <body onload="setVideoSrcAndWaitForFirstFrame('content/test.ogv')">
+    <body onload="setSrcByTagName('video', 'content/test.ogv'); init();">
         <p>The look of the controls should not change when styled under strict mode.</p>
         <video controls></video>
         <video controls></video>

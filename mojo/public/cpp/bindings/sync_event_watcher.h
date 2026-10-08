@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include "base/callback.h"
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
 #include "base/synchronization/waitable_event.h"
@@ -25,9 +25,6 @@ namespace mojo {
 class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) SyncEventWatcher {
  public:
   SyncEventWatcher(base::WaitableEvent* event, base::RepeatingClosure callback);
-
-  SyncEventWatcher(const SyncEventWatcher&) = delete;
-  SyncEventWatcher& operator=(const SyncEventWatcher&) = delete;
 
   ~SyncEventWatcher();
 
@@ -53,7 +50,7 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) SyncEventWatcher {
   void IncrementRegisterCount();
   void DecrementRegisterCount();
 
-  const raw_ptr<base::WaitableEvent> event_;
+  base::WaitableEvent* const event_;
   const base::RepeatingClosure callback_;
 
   // Must outlive (and thus be declared before) |subscription_|, since
@@ -68,6 +65,8 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) SyncEventWatcher {
   scoped_refptr<base::RefCountedData<bool>> destroyed_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(SyncEventWatcher);
 };
 
 }  // namespace mojo

@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/protocol/input_filter.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 InputFilter::InputFilter() : input_stub_(nullptr), enabled_(true) {
 }
@@ -35,4 +36,5 @@ void InputFilter::InjectTouchEvent(const TouchEvent& event) {
     input_stub_->InjectTouchEvent(event);
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

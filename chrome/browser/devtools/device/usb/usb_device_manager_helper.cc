@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -173,8 +173,7 @@ void UsbDeviceManagerHelper::GetDevice(
   EnsureUsbDeviceManagerConnection();
 
   DCHECK(device_manager_);
-  device_manager_->GetDevice(guid, /*blocked_interface_classes=*/{},
-                             std::move(device_receiver),
+  device_manager_->GetDevice(guid, std::move(device_receiver),
                              /*device_client=*/mojo::NullRemote());
 }
 

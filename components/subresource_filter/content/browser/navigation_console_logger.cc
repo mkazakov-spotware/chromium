@@ -1,12 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/subresource_filter/content/browser/navigation_console_logger.h"
 
 #include "base/memory/ptr_util.h"
-#include "components/subresource_filter/content/browser/content_subresource_filter_web_contents_helper.h"
-#include "content/public/browser/frame_type.h"
 #include "content/public/browser/navigation_handle.h"
 
 namespace subresource_filter {
@@ -16,10 +14,7 @@ void NavigationConsoleLogger::LogMessageOnCommit(
     content::NavigationHandle* handle,
     blink::mojom::ConsoleMessageLevel level,
     const std::string& message) {
-  DCHECK(IsInSubresourceFilterRoot(handle));
-  DCHECK_NE(handle->GetNavigatingFrameType(),
-            content::FrameType::kFencedFrameRoot);
-
+  DCHECK(handle->IsInMainFrame());
   if (handle->HasCommitted() && !handle->IsErrorPage()) {
     handle->GetRenderFrameHost()->AddMessageToConsole(level, message);
   } else {
@@ -31,24 +26,29 @@ void NavigationConsoleLogger::LogMessageOnCommit(
 // static
 NavigationConsoleLogger* NavigationConsoleLogger::CreateIfNeededForNavigation(
     content::NavigationHandle* handle) {
-  DCHECK(IsInSubresourceFilterRoot(handle));
-  DCHECK_NE(handle->GetNavigatingFrameType(),
-            content::FrameType::kFencedFrameRoot);
-  return GetOrCreateForNavigationHandle(*handle);
+  DCHECK(handle->IsInMainFrame());
+  content::WebContents* contents = handle->GetWebContents();
+  auto* logger = FromWebContents(contents);
+  if (!logger) {
+    auto new_logger = base::WrapUnique(new NavigationConsoleLogger(handle));
+    logger = new_logger.get();
+    contents->SetUserData(UserDataKey(), std::move(new_logger));
+  }
+  return logger;
 }
 
 NavigationConsoleLogger::~NavigationConsoleLogger() = default;
 
 NavigationConsoleLogger::NavigationConsoleLogger(
-    content::NavigationHandle& handle)
-    : content::WebContentsObserver(handle.GetWebContents()), handle_(&handle) {}
+    content::NavigationHandle* handle)
+    : content::WebContentsObserver(handle->GetWebContents()), handle_(handle) {}
 
 void NavigationConsoleLogger::DidFinishNavigation(
     content::NavigationHandle* handle) {
   if (handle != handle_)
     return;
 
-  // The root frame navigation has finished.
+  // The main frame navigation has finished.
   if (handle->HasCommitted() && !handle->IsErrorPage()) {
     for (const auto& message : commit_messages_) {
       handle->GetRenderFrameHost()->AddMessageToConsole(message.first,
@@ -56,9 +56,9 @@ void NavigationConsoleLogger::DidFinishNavigation(
     }
   }
   // Deletes |this|.
-  DeleteForNavigationHandle(*handle);
+  web_contents()->RemoveUserData(UserDataKey());
 }
 
-NAVIGATION_HANDLE_USER_DATA_KEY_IMPL(NavigationConsoleLogger);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(NavigationConsoleLogger)
 
 }  // namespace subresource_filter

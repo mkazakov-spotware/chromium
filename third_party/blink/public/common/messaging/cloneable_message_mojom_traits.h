@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include "mojo/public/cpp/base/big_buffer.h"
 #include "mojo/public/cpp/base/unguessable_token_mojom_traits.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/messaging/cloneable_message.h"
 #include "third_party/blink/public/mojom/messaging/cloneable_message.mojom.h"
 #include "url/mojom/origin_mojom_traits.h"
@@ -26,7 +25,7 @@ struct BLINK_COMMON_EXPORT
     return input.blobs;
   }
 
-  static const absl::optional<url::Origin>& sender_origin(
+  static const base::Optional<url::Origin>& sender_origin(
       const blink::CloneableMessage& input) {
     return input.sender_origin;
   }
@@ -49,23 +48,18 @@ struct BLINK_COMMON_EXPORT
     return input.stack_trace_should_pause;
   }
 
-  static const base::UnguessableToken& sender_agent_cluster_id(
+  static const base::Optional<base::UnguessableToken>& locked_agent_cluster_id(
       const blink::CloneableMessage& input) {
-    return input.sender_agent_cluster_id;
-  }
-
-  static bool locked_to_sender_agent_cluster(
-      const blink::CloneableMessage& input) {
-    return input.locked_to_sender_agent_cluster;
+    return input.locked_agent_cluster_id;
   }
 
   static bool Read(blink::mojom::CloneableMessage::DataView data,
                    blink::CloneableMessage* out);
 
   static std::vector<
-      mojo::PendingRemote<blink::mojom::FileSystemAccessTransferToken>>&
-  file_system_access_tokens(blink::CloneableMessage& input) {
-    return input.file_system_access_tokens;
+      mojo::PendingRemote<blink::mojom::NativeFileSystemTransferToken>>&
+  native_file_system_tokens(blink::CloneableMessage& input) {
+    return input.native_file_system_tokens;
   }
 };
 

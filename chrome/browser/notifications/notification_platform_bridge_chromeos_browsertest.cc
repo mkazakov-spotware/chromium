@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,7 +42,7 @@ IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeChromeOsBrowserTest,
                        Shutdown) {
   message_center::Notification notification(
       message_center::NOTIFICATION_TYPE_SIMPLE, "notification-id",
-      std::u16string(), std::u16string(), ui::ImageModel(), std::u16string(),
+      base::string16(), base::string16(), gfx::Image(), base::string16(),
       GURL(), message_center::NotifierId(),
       message_center::RichNotificationData(),
       base::MakeRefCounted<message_center::ThunkNotificationDelegate>(

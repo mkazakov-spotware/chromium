@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ namespace vr {
 // move to a higher level and tests could be run on all supported runtimes if
 // desired.
 class WebXrVrPermissionsBrowserTest
-    : public WebXrVrOpenXrBrowserTestBase,
+    : public WebXrVrWmrBrowserTestBase,
       public permissions::PermissionRequestManager::Observer {
  public:
   WebXrVrPermissionsBrowserTest() = default;
@@ -27,7 +27,7 @@ class WebXrVrPermissionsBrowserTest
   uint32_t ShownCount() { return shown_count_; }
 
  private:
-  void OnPromptAdded() override { shown_count_++; }
+  void OnBubbleAdded() override { shown_count_++; }
 
   uint32_t shown_count_ = 0u;
 };

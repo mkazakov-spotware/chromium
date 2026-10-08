@@ -6,6 +6,8 @@
 <script src=../include/tests.js></script>
 <script src=/resources/testharness.js></script>
 <script src=/resources/testharnessreport.js></script>
+<div contenteditable id="editor">abc</div>
+<iframe srcdoc="<div contenteditable id='editor'>def</div><span>ghi</span>"></iframe>
 <script>
 "use strict";
 
@@ -17,7 +19,7 @@ setup({explicit_done: true});
 // "cut", "copy", "paste" and "selectall" commands should work without DOM tree
 // modification for making web apps can implement their own editor without
 // editable element.
-async function runTests() {
+function runTests() {
   let parentWindow = window;
   let parentDocument = document;
   let parentSelection = parentDocument.getSelection();
@@ -32,19 +34,19 @@ async function runTests() {
 
   // execCommand() in child document shouldn't affect to focused parent
   // document.
-  await doTest(parentWindow, parentDocument, parentSelection, parentEditor,
-               childWindow, childDocument, childSelection, childEditor, false);
+  doTest(parentWindow, parentDocument, parentSelection, parentEditor,
+         childWindow, childDocument, childSelection, childEditor, false);
   // execCommand() in parent document shouldn't affect to focused child
   // document but "cut" and "copy" may affect the focused child document.
-  await doTest(childWindow, childDocument, childSelection, childEditor,
-               parentWindow, parentDocument, parentSelection, parentEditor, true);
+  doTest(childWindow, childDocument, childSelection, childEditor,
+         parentWindow, parentDocument, parentSelection, parentEditor, true);
 
   done();
 }
 
-async function doTest(aFocusWindow, aFocusDocument, aFocusSelection, aFocusEditor,
-                      aExecWindow, aExecDocument, aExecSelection, aExecEditor,
-                      aExecInParent) {
+function doTest(aFocusWindow, aFocusDocument, aFocusSelection, aFocusEditor,
+                aExecWindow, aExecDocument, aExecSelection, aExecEditor,
+                aExecInParent) {
   const kTests = [
     /**
      * command: The command which you test.
@@ -150,7 +152,7 @@ async function doTest(aFocusWindow, aFocusDocument, aFocusSelection, aFocusEdito
     // "selectall" command should be available without editable content.
     {command: "selectall", value: null,
      focusContent: "a[b]c", execContent: "a[b]c",
-     expectedFocusContent: "a[b]c", expectedExecContent: undefined,
+     expectedFocusContent: "a[b]c", expectedExecContent: "[abc",
      event: "selectionchange", expectedFiredInFocus: false, expectedFiredInExec: true,
      expectedResult: true,
     },
@@ -385,16 +387,6 @@ async function doTest(aFocusWindow, aFocusDocument, aFocusSelection, aFocusEdito
     },
   ];
 
-  async function waitForCondition(aCheckFunc) {
-    let retry = 60;
-    while (retry--) {
-      if (aCheckFunc()) {
-        return;
-      }
-      await new Promise(resolve => requestAnimationFrame(resolve));
-    }
-  }
-
   for (const kTest of kTests) {
     // Skip unsupported command since it's not purpose of this tests whether
     // each command is supported on the browser.
@@ -427,22 +419,10 @@ async function doTest(aFocusWindow, aFocusDocument, aFocusSelection, aFocusEdito
         let ret = aExecDocument.execCommand(kTest.command, false, kTest.value);
         assert_equals(ret, kTest.expectedResult, `execCommand should return ${kTest.expectedResult}`);
       }, `${kDescription}: calling execCommand`);
-      if (kTest.event === "selectionchange") {
-        test(function () {
-          assert_false(eventFiredOnFocusDocument,
-                      `"${kTest.event}" event should not be fired synchronously on focused document`);
-          assert_false(eventFiredOnExecDocument,
-                      `"${kTest.event}" event should not be fired synchronously on executed document`);
-        }, `${kDescription}: checking unexpected synchronous event`);
-        await waitForCondition(() => eventFiredOnFocusDocument && eventFiredOnExecDocument);
-        // TODO: Whether select all changes selection in the focused document depends on the
-        //       implementation of "Select All".
-      } else {
-        test(function () {
-          assert_equals(eventFiredOnFocusDocument, kTest.expectedFiredInFocus,
-                      `"${kTest.event}" event should${kTest.expectedFiredInFocus ? "" : " not"} be fired`);
-        }, `${kDescription}: checking event on focused document`);
-      }
+      test(function () {
+        assert_equals(eventFiredOnFocusDocument, kTest.expectedFiredInFocus,
+                    `"${kTest.event}" event should${kTest.expectedFiredInFocus ? "" : " not"} be fired`);
+      }, `${kDescription}: checking event on focused document`);
       test(function () {
         assert_equals(eventFiredOnExecDocument, kTest.expectedFiredInExec,
                     `"${kTest.event}" event should${kTest.expectedFiredInExec ? "" : " not"} be fired`);
@@ -454,18 +434,10 @@ async function doTest(aFocusWindow, aFocusDocument, aFocusSelection, aFocusEdito
         assert_equals(aFocusEditor.innerHTML, kTest.expectedFocusContent);
       }, `${kDescription}: checking result content in focused document`);
       test(function () {
-        if (kTest.command === "selectall") {
-          assert_true(aExecSelection.rangeCount > 0);
-          assert_equals(
-            aExecSelection.toString().replace(/[\r\n]/g, ""),
-            aExecDocument.body.textContent.replace(/[\r\n]/g, "")
-          );
-        } else {
-          if (aExecSelection.rangeCount) {
-            addBrackets(aExecSelection.getRangeAt(0));
-          }
-          assert_equals(aExecEditor.innerHTML, kTest.expectedExecContent);
+        if (aExecSelection.rangeCount) {
+          addBrackets(aExecSelection.getRangeAt(0));
         }
+        assert_equals(aExecEditor.innerHTML, kTest.expectedExecContent);
       }, `${kDescription}: checking result content in executed document`);
       aFocusDocument.removeEventListener(kTest.event, handlerOnFocusDocument, {capture: true});
       aExecDocument.removeEventListener(kTest.event, handlerOnExecDocument, {capture: true});
@@ -520,7 +492,3 @@ async function doTest(aFocusWindow, aFocusDocument, aFocusSelection, aFocusEdito
 
 window.addEventListener("load", runTests, {once: true});
 </script>
-<body>
-<div contenteditable id="editor">abc</div>
-<iframe srcdoc="<div contenteditable id='editor'>def</div><span>ghi</span>"></iframe>
-</body>

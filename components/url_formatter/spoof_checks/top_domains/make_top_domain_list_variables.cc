@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,6 @@
 
 #include <cctype>
 #include <iostream>
-#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -60,7 +59,7 @@ const size_t kMinKeywordLength = 3;
 
 void PrintHelp() {
   std::cout << "make_top_domain_list_for_edit_distance <input-file>"
-            << " <namespace-name> <output-file> [--v=1]" << std::endl;
+            << " <output-file> [--v=1]" << std::endl;
 }
 
 std::string GetSkeleton(const std::string& domain,
@@ -90,7 +89,7 @@ int main(int argc, char* argv[]) {
       logging::LOG_TO_SYSTEM_DEBUG_LOG | logging::LOG_TO_STDERR;
   logging::InitLogging(settings);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   std::vector<std::string> args;
   base::CommandLine::StringVector wide_args = command_line.GetArgs();
   for (const auto& arg : wide_args) {
@@ -99,7 +98,7 @@ int main(int argc, char* argv[]) {
 #else
   base::CommandLine::StringVector args = command_line.GetArgs();
 #endif
-  if (args.size() < 3) {
+  if (args.size() < 2) {
     PrintHelp();
     return 1;
   }
@@ -116,8 +115,6 @@ int main(int argc, char* argv[]) {
     LOG(ERROR) << "Could not read input file: " << input_path;
     return 1;
   }
-
-  std::string namespace_str = argv[2];
 
   std::vector<std::string> lines = base::SplitString(
       input_text, "\n", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
@@ -180,22 +177,22 @@ int main(int argc, char* argv[]) {
   std::sort(sorted_keywords.begin(), sorted_keywords.end());
 
   std::ostringstream output_stream;
-  output_stream
-      << R"(#include "components/url_formatter/spoof_checks/top_domains/)"
-      << namespace_str << R"(.h"
-namespace )"
-      << namespace_str << R"( {
-const char* const kTop500EditDistanceSkeletons[] = {
+  output_stream <<
+      R"(#include "components/url_formatter/spoof_checks/top_domains/top500_domains.h"
+namespace top500_domains {
+const char* const kTop500EditDistanceSkeletons[)"
+                << kMaxDomains << R"(] = {
 )";
 
   for (const std::string& skeleton : sorted_skeletons) {
     output_stream << ("\"" + skeleton + "\"");
     output_stream << ",\n";
   }
+  // Pad any remaining array slots with blank entries.
+  for (size_t i = skeletons.size(); i < kMaxDomains; ++i) {
+    output_stream << ("\"\",\n");
+  }
   output_stream << R"(};
-  constexpr size_t kNumTop500EditDistanceSkeletons = )"
-                << sorted_skeletons.size() << R"(;
-
 const char* const kTopKeywords[] = {
 )";
 
@@ -209,12 +206,11 @@ const char* const kTopKeywords[] = {
       R"(
 constexpr size_t kNumTopKeywords = )"
                 << sorted_keywords.size() << R"(;
-}  // namespace )"
-                << namespace_str;
+}  // namespace top500_domains)";
 
   std::string output = output_stream.str();
 
-  base::FilePath output_path = base::FilePath::FromUTF8Unsafe(argv[3]);
+  base::FilePath output_path = base::FilePath::FromUTF8Unsafe(argv[2]);
   if (base::WriteFile(output_path, output.c_str(),
                       static_cast<uint32_t>(output.size())) <= 0) {
     LOG(ERROR) << "Failed to write output: " << output_path;

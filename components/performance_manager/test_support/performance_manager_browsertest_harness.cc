@@ -1,18 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/performance_manager/test_support/performance_manager_browsertest_harness.h"
 
-#include <memory>
-
+#include "base/callback_helpers.h"
 #include "base/run_loop.h"
-#include "base/synchronization/condition_variable.h"
-#include "base/synchronization/lock.h"
 #include "components/performance_manager/embedder/performance_manager_lifetime.h"
-#include "components/performance_manager/performance_manager_impl.h"
 #include "content/public/common/content_switches.h"
-#include "content/public/test/browser_test_utils.h"
 #include "content/shell/browser/shell.h"
 #include "content/shell/browser/shell_content_browser_client.h"
 #include "content/shell/browser/shell_web_contents_view_delegate_creator.h"
@@ -23,38 +18,17 @@
 
 namespace performance_manager {
 
-PerformanceManagerBrowserTestHarness::PerformanceManagerBrowserTestHarness() =
-    default;
-
 PerformanceManagerBrowserTestHarness::~PerformanceManagerBrowserTestHarness() =
     default;
 
 void PerformanceManagerBrowserTestHarness::SetUp() {
-  // We use a ConditionVariable instead of RunLoop because the task environment
-  // isn't initialized until *after* calling Super::SetUp, but we need to setup
-  // the callback before that point.
-  base::Lock lock;
-  base::ConditionVariable cv(&lock);
-  bool graph_initialization_complete = false;
-  PerformanceManagerLifetime::SetGraphFeaturesOverrideForTesting(
-      GraphFeatures::WithNone());
   PerformanceManagerLifetime::SetAdditionalGraphCreatedCallbackForTesting(
-      base::BindLambdaForTesting([&](Graph* graph) {
-        OnGraphCreatedImpl(graph);
-        base::AutoLock auto_lock(lock);
-        graph_initialization_complete = true;
-        cv.Signal();
-      }));
+      base::BindLambdaForTesting(
+          [self = this](Graph* graph) { self->OnGraphCreated(graph); }));
 
-  // The PM gets initialized in the following, so this must occur after setting
-  // up the callback.
+  // The PM gets initialized in the following, so this must occur after
+  // setting the callback.
   Super::SetUp();
-
-  // Wait until the PM is initialized and callbacks have been invoked on the
-  // PM sequence.
-  base::AutoLock auto_lock(lock);
-  while (!graph_initialization_complete)
-    cv.Wait();
 }
 
 void PerformanceManagerBrowserTestHarness::PreRunTestOnMainThread() {
@@ -92,18 +66,6 @@ void PerformanceManagerBrowserTestHarness::StartNavigation(
   contents->Focus();
 }
 
-::testing::AssertionResult
-PerformanceManagerBrowserTestHarness::NavigateAndWaitForConsoleMessage(
-    content::WebContents* contents,
-    const GURL& url,
-    base::StringPiece console_pattern) {
-  content::WebContentsConsoleObserver console_observer(contents);
-  console_observer.SetPattern(std::string(console_pattern));
-  if (NavigateToURL(contents, url) && console_observer.Wait())
-    return ::testing::AssertionSuccess();
-  return ::testing::AssertionFailure();
-}
-
 namespace {
 
 class WaitForLoadObserver : public content::WebContentsObserver {
@@ -131,11 +93,6 @@ void PerformanceManagerBrowserTestHarness::WaitForLoad(
     content::WebContents* contents) {
   WaitForLoadObserver observer(contents);
   observer.Wait();
-}
-
-void PerformanceManagerBrowserTestHarness::OnGraphCreatedImpl(Graph* graph) {
-  graph_features_.ConfigureGraph(graph);
-  OnGraphCreated(graph);
 }
 
 }  // namespace performance_manager

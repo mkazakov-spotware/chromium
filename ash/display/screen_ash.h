@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,9 @@
 #define ASH_DISPLAY_SCREEN_ASH_H_
 
 #include <stdint.h>
-#include <memory>
 
 #include "ash/ash_export.h"
+#include "base/macros.h"
 #include "ui/display/screen.h"
 
 namespace display {
@@ -27,10 +27,6 @@ namespace ash {
 class ASH_EXPORT ScreenAsh : public display::Screen {
  public:
   ScreenAsh();
-
-  ScreenAsh(const ScreenAsh&) = delete;
-  ScreenAsh& operator=(const ScreenAsh&) = delete;
-
   ~ScreenAsh() override;
 
   // display::Screen overrides:
@@ -49,19 +45,20 @@ class ASH_EXPORT ScreenAsh : public display::Screen {
   display::Display GetDisplayMatching(
       const gfx::Rect& match_rect) const override;
   display::Display GetPrimaryDisplay() const override;
-  void SetDisplayForNewWindows(int64_t display_id) override;
   void AddObserver(display::DisplayObserver* observer) override;
   void RemoveObserver(display::DisplayObserver* observer) override;
-  display::TabletState GetTabletState() const override;
 
   // CreateDisplayManager with a ScreenAsh instance.
-  static std::unique_ptr<display::DisplayManager> CreateDisplayManager();
+  static display::DisplayManager* CreateDisplayManager();
 
   // Create a screen instance to be used during shutdown.
   static void CreateScreenForShutdown();
 
   // Test helpers may need to clean up the ScreenForShutdown between tests.
   static void DeleteScreenForShutdown();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ScreenAsh);
 };
 
 }  // namespace ash

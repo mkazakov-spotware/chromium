@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <memory>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
@@ -19,10 +18,6 @@ namespace views {
 class CheckboxTest : public ViewsTestBase {
  public:
   CheckboxTest() = default;
-
-  CheckboxTest(const CheckboxTest&) = delete;
-  CheckboxTest& operator=(const CheckboxTest&) = delete;
-
   ~CheckboxTest() override = default;
 
   void SetUp() override {
@@ -50,11 +45,13 @@ class CheckboxTest : public ViewsTestBase {
 
  private:
   std::unique_ptr<Widget> widget_;
-  raw_ptr<Checkbox> checkbox_ = nullptr;
+  Checkbox* checkbox_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(CheckboxTest);
 };
 
 TEST_F(CheckboxTest, AccessibilityTest) {
-  const std::u16string label_text = u"Some label";
+  const base::string16 label_text = base::ASCIIToUTF16("Some label");
   StyledLabel label;
   label.SetText(label_text);
   checkbox()->SetAssociatedLabel(&label);

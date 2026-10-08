@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,8 +18,6 @@
 #include "third_party/skia/include/core/SkPath.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/rect.h"
-#include "ui/gfx/geometry/size.h"
-#include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/scoped_canvas.h"
 #include "ui/views/view.h"
@@ -74,9 +72,16 @@ void PaintThemedFrame(gfx::Canvas* canvas,
     canvas->Restore();
 }
 
-// Returns the frame path with the given |bounds| and |corner_radius|
-// for the rounded corner of the frame header.
-SkPath GetFrameHeaderPath(const gfx::Rect& bounds, int corner_radius) {
+// Tiles |frame_image| and |frame_overlay_image| into an area, rounding the top
+// corners.
+void PaintFrameImagesInRoundRect(gfx::Canvas* canvas,
+                                 const gfx::ImageSkia& frame_image,
+                                 const gfx::ImageSkia& frame_overlay_image,
+                                 SkColor background_color,
+                                 const gfx::Rect& bounds,
+                                 int image_inset_x,
+                                 int image_inset_y,
+                                 int corner_radius) {
   const SkScalar sk_corner_radius = SkIntToScalar(corner_radius);
   const SkScalar radii[8] = {sk_corner_radius,
                              sk_corner_radius,  // top-left
@@ -89,32 +94,13 @@ SkPath GetFrameHeaderPath(const gfx::Rect& bounds, int corner_radius) {
   SkPath frame_path;
   frame_path.addRoundRect(gfx::RectToSkRect(bounds), radii,
                           SkPathDirection::kCW);
-  return frame_path;
-}
-
-// Tiles |frame_image| and |frame_overlay_image| into an area, rounding the top
-// corners.
-void PaintFrameImagesInRoundRect(gfx::Canvas* canvas,
-                                 const gfx::ImageSkia& frame_image,
-                                 const gfx::ImageSkia& frame_overlay_image,
-                                 SkColor background_color,
-                                 const gfx::Rect& bounds,
-                                 int image_inset_x,
-                                 int image_inset_y,
-                                 int corner_radius) {
   bool antialias = corner_radius > 0;
 
   gfx::ScopedCanvas scoped_save(canvas);
-  canvas->ClipPath(GetFrameHeaderPath(bounds, corner_radius), antialias);
+  canvas->ClipPath(frame_path, antialias);
 
   PaintThemedFrame(canvas, frame_image, frame_overlay_image, background_color,
                    bounds, image_inset_x, image_inset_y);
-}
-
-int GetCornerRadius(chromeos::WindowStateType state_type) {
-  return chromeos::IsNormalWindowStateType(state_type)
-             ? chromeos::kTopCornerRadiusWhenRestored
-             : 0;
 }
 
 }  // namespace
@@ -176,17 +162,8 @@ SkColor BrowserFrameHeaderChromeOS::GetCurrentFrameColor() const {
 }
 
 void BrowserFrameHeaderChromeOS::UpdateFrameColors() {
-  SetPaintAsActive(target_widget()->ShouldPaintAsActive());
   UpdateCaptionButtonColors();
   view()->SchedulePaint();
-}
-
-SkPath BrowserFrameHeaderChromeOS::GetWindowMaskForFrameHeader(
-    const gfx::Size& size) {
-  chromeos::WindowStateType state_type =
-      target_widget()->GetNativeWindow()->GetProperty(
-          chromeos::kWindowStateTypeKey);
-  return GetFrameHeaderPath(gfx::Rect(size), GetCornerRadius(state_type));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -203,10 +180,13 @@ void BrowserFrameHeaderChromeOS::PaintFrameImages(gfx::Canvas* canvas) {
   chromeos::WindowStateType state_type =
       target_widget()->GetNativeWindow()->GetProperty(
           chromeos::kWindowStateTypeKey);
+  int corner_radius = chromeos::IsNormalWindowStateType(state_type)
+                          ? chromeos::kTopCornerRadiusWhenRestored
+                          : 0;
 
   PaintFrameImagesInRoundRect(canvas, frame_image, frame_overlay_image,
                               appearance_provider_->GetFrameHeaderColor(active),
                               GetPaintedBounds(), GetThemeBackgroundXInset(),
                               appearance_provider_->GetFrameHeaderImageYInset(),
-                              GetCornerRadius(state_type));
+                              corner_radius);
 }

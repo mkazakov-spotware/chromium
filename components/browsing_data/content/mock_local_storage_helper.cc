@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,9 @@
 #include <utility>
 
 #include "base/callback.h"
-#include "base/containers/contains.h"
+#include "base/stl_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "url/gurl.h"
 
 namespace browsing_data {
 
@@ -23,29 +24,25 @@ void MockLocalStorageHelper::StartFetching(FetchCallback callback) {
   callback_ = std::move(callback);
 }
 
-void MockLocalStorageHelper::DeleteStorageKey(
-    const blink::StorageKey& storage_key,
-    base::OnceClosure callback) {
-  ASSERT_TRUE(base::Contains(storage_keys_, storage_key));
-  last_deleted_storage_key_ = storage_key;
-  storage_keys_[storage_key] = false;
+void MockLocalStorageHelper::DeleteOrigin(const url::Origin& origin,
+                                          base::OnceClosure callback) {
+  ASSERT_TRUE(base::Contains(origins_, origin));
+  last_deleted_origin_ = origin;
+  origins_[origin] = false;
   std::move(callback).Run();
 }
 
 void MockLocalStorageHelper::AddLocalStorageSamples() {
-  const blink::StorageKey kStorageKey1 =
-      blink::StorageKey::CreateFromStringForTesting("http://host1:1/");
-  const blink::StorageKey kStorageKey2 =
-      blink::StorageKey::CreateFromStringForTesting("http://host2:2/");
-  AddLocalStorageForStorageKey(kStorageKey1, 1);
-  AddLocalStorageForStorageKey(kStorageKey2, 2);
+  const GURL kOrigin1("http://host1:1/");
+  const GURL kOrigin2("http://host2:2/");
+  AddLocalStorageForOrigin(url::Origin::Create(kOrigin1), 1);
+  AddLocalStorageForOrigin(url::Origin::Create(kOrigin2), 2);
 }
 
-void MockLocalStorageHelper::AddLocalStorageForStorageKey(
-    const blink::StorageKey& storage_key,
-    int64_t size) {
-  response_.emplace_back(storage_key, size, base::Time());
-  storage_keys_[storage_key] = true;
+void MockLocalStorageHelper::AddLocalStorageForOrigin(const url::Origin& origin,
+                                                      int64_t size) {
+  response_.emplace_back(origin, size, base::Time());
+  origins_[origin] = true;
 }
 
 void MockLocalStorageHelper::Notify() {
@@ -53,12 +50,12 @@ void MockLocalStorageHelper::Notify() {
 }
 
 void MockLocalStorageHelper::Reset() {
-  for (auto& pair : storage_keys_)
+  for (auto& pair : origins_)
     pair.second = true;
 }
 
 bool MockLocalStorageHelper::AllDeleted() {
-  for (const auto& pair : storage_keys_) {
+  for (const auto& pair : origins_) {
     if (pair.second)
       return false;
   }

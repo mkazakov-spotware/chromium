@@ -78,7 +78,8 @@ base::TimeTicks GetTimeOrigin(ExecutionContext* context) {
   }
 
   DCHECK(performance);
-  return performance->GetTimeOriginInternal();
+  return base::TimeTicks() +
+         base::TimeDelta::FromSecondsD(performance->GetTimeOrigin());
 }
 
 class MessageValidator {
@@ -242,13 +243,7 @@ MIDIOutput::MIDIOutput(MIDIAccess* access,
                        const String& name,
                        const String& version,
                        PortState state)
-    : MIDIPort(access,
-               id,
-               manufacturer,
-               name,
-               MIDIPortType::kOutput,
-               version,
-               state),
+    : MIDIPort(access, id, manufacturer, name, kTypeOutput, version, state),
       port_index_(port_index) {}
 
 MIDIOutput::~MIDIOutput() = default;
@@ -264,10 +259,10 @@ void MIDIOutput::send(NotShared<DOMUint8Array> array,
   if (timestamp_in_milliseconds == 0.0) {
     timestamp = base::TimeTicks::Now();
   } else {
-    timestamp =
-        GetTimeOrigin(context) + base::Milliseconds(timestamp_in_milliseconds);
+    timestamp = GetTimeOrigin(context) +
+                base::TimeDelta::FromMillisecondsD(timestamp_in_milliseconds);
   }
-  SendInternal(array.Get(), timestamp, exception_state);
+  SendInternal(array.View(), timestamp, exception_state);
 }
 
 void MIDIOutput::send(Vector<unsigned> unsigned_data,
@@ -293,7 +288,7 @@ void MIDIOutput::send(NotShared<DOMUint8Array> data,
     return;
 
   DCHECK(data);
-  SendInternal(data.Get(), base::TimeTicks::Now(), exception_state);
+  SendInternal(data.View(), base::TimeTicks::Now(), exception_state);
 }
 
 void MIDIOutput::send(Vector<unsigned> unsigned_data,
@@ -323,7 +318,7 @@ void MIDIOutput::DidOpen(bool opened) {
         base::checked_cast<wtf_size_t>(data.first->length()), data.second);
   }
   queued_data.clear();
-  DCHECK(pending_data_.empty());
+  DCHECK(pending_data_.IsEmpty());
 }
 
 void MIDIOutput::Trace(Visitor* visitor) const {

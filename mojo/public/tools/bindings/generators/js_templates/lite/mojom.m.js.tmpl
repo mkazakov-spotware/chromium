@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,9 @@
 import {mojo} from '{{bindings_library_path}}';
 {%- endif %}
 
-{% for path, kinds in js_module_imports.items()|sort -%}
+{% for path, kinds in js_module_imports.items() -%}
 import {
-{%- for kind in kinds|sort %}
+{%- for kind in kinds %}
 {%-   for item in kind|imports_for_kind %}
   {{item.name}} as {{item.alias}}
 {%-     if not loop.last -%},{% endif -%}

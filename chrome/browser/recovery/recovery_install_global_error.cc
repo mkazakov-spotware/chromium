@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,7 @@
 #include "components/prefs/pref_service.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/image_model.h"
-#include "ui/color/color_id.h"
+#include "ui/native_theme/native_theme.h"
 
 RecoveryInstallGlobalError::RecoveryInstallGlobalError(Profile* profile)
         : elevation_needed_(false),
@@ -40,9 +40,8 @@ RecoveryInstallGlobalError::RecoveryInstallGlobalError(Profile* profile)
   pref_registrar_.Init(pref);
   pref_registrar_.Add(
       prefs::kRecoveryComponentNeedsElevation,
-      base::BindRepeating(
-          &RecoveryInstallGlobalError::OnElevationRequirementChanged,
-          base::Unretained(this)));
+      base::Bind(&RecoveryInstallGlobalError::OnElevationRequirementChanged,
+                 base::Unretained(this)));
 }
 
 RecoveryInstallGlobalError::~RecoveryInstallGlobalError() {}
@@ -64,13 +63,13 @@ int RecoveryInstallGlobalError::MenuItemCommandID() {
   return IDC_ELEVATED_RECOVERY_DIALOG;
 }
 
-std::u16string RecoveryInstallGlobalError::MenuItemLabel() {
-  return l10n_util::GetStringUTF16(IDS_RELAUNCH_TO_UPDATE);
+base::string16 RecoveryInstallGlobalError::MenuItemLabel() {
+  return l10n_util::GetStringUTF16(IDS_UPDATE_NOW);
 }
 
 ui::ImageModel RecoveryInstallGlobalError::MenuItemIcon() {
-  return ui::ImageModel::FromVectorIcon(kBrowserToolsUpdateIcon,
-                                        ui::kColorAlertHighSeverity);
+  return ui::ImageModel::FromVectorIcon(
+      kBrowserToolsUpdateIcon, ui::NativeTheme::kColorId_AlertSeverityHigh);
 }
 
 void RecoveryInstallGlobalError::ExecuteMenuItem(Browser* browser) {
@@ -94,17 +93,17 @@ bool RecoveryInstallGlobalError::ShouldCloseOnDeactivate() const {
   return false;
 }
 
-std::u16string RecoveryInstallGlobalError::GetBubbleViewTitle() {
+base::string16 RecoveryInstallGlobalError::GetBubbleViewTitle() {
   return l10n_util::GetStringUTF16(IDS_RECOVERY_BUBBLE_TITLE);
 }
 
-std::vector<std::u16string>
+std::vector<base::string16>
 RecoveryInstallGlobalError::GetBubbleViewMessages() {
-  return std::vector<std::u16string>(
-      1, l10n_util::GetStringUTF16(IDS_RECOVERY_BUBBLE_TEXT));
+  return std::vector<base::string16>(1,
+      l10n_util::GetStringUTF16(IDS_RECOVERY_BUBBLE_TEXT));
 }
 
-std::u16string RecoveryInstallGlobalError::GetBubbleViewAcceptButtonLabel() {
+base::string16 RecoveryInstallGlobalError::GetBubbleViewAcceptButtonLabel() {
   return l10n_util::GetStringUTF16(IDS_RUN_RECOVERY);
 }
 
@@ -116,7 +115,7 @@ bool RecoveryInstallGlobalError::ShouldAddElevationIconToAcceptButton() {
   return true;
 }
 
-std::u16string RecoveryInstallGlobalError::GetBubbleViewCancelButtonLabel() {
+base::string16 RecoveryInstallGlobalError::GetBubbleViewCancelButtonLabel() {
   return l10n_util::GetStringUTF16(IDS_DECLINE_RECOVERY);
 }
 

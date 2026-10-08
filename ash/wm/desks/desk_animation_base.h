@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,6 @@
 #include "ash/public/cpp/metrics_util.h"
 #include "ash/wm/desks/desks_histogram_enums.h"
 #include "ash/wm/desks/root_window_desk_switch_animator.h"
-#include "base/callback.h"
-#include "base/time/time.h"
 #include "ui/compositor/throughput_tracker.h"
 
 namespace ash {
@@ -58,11 +56,7 @@ class ASH_EXPORT DeskAnimationBase
   void OnStartingDeskScreenshotTaken(int ending_desk_index) override;
   void OnEndingDeskScreenshotTaken() override;
   void OnDeskSwitchAnimationFinished() override;
-
-  void set_finished_callback(base::OnceClosure finished_callback) {
-    DCHECK(finished_callback_.is_null());
-    finished_callback_ = std::move(finished_callback);
-  }
+  void OnVisibleDeskChanged() override;
 
   void set_skip_notify_controller_on_animation_finished_for_testing(bool val) {
     skip_notify_controller_on_animation_finished_for_testing_ = val;
@@ -80,13 +74,11 @@ class ASH_EXPORT DeskAnimationBase
   virtual void OnDeskSwitchAnimationFinishedInternal() = 0;
 
   // Since performance here matters, we have to use the UMA histograms macros to
-  // report the histograms, but each macro use has to be associated with exactly
-  // one histogram name. These functions allow subclasses to return callbacks
-  // that report each histogram using the macro with their desired name.
-  using LatencyReportCallback =
-      base::OnceCallback<void(const base::TimeDelta& latency)>;
-  virtual LatencyReportCallback GetLatencyReportCallback() const = 0;
-  virtual metrics_util::ReportCallback GetSmoothnessReportCallback() const = 0;
+  // report the smoothness histograms, but each macro use has to be associated
+  // with exactly one histogram name. This function allows subclasses to return
+  // a callback that reports the histogram using the macro with their desired
+  // name.
+  virtual metrics_util::ReportCallback GetReportCallback() const = 0;
 
   DesksController* const controller_;
 
@@ -103,27 +95,12 @@ class ASH_EXPORT DeskAnimationBase
   // OnEndingDeskScreenshotTaken is called.
   const bool is_continuous_gesture_animation_;
 
-  // Used when the animation is a continuous gesture animation. True when
-  // `EndSwipeAnimation()` has been called and a fast swipe was detected, and
-  // reset to false if `Replace()` has been called. A fast swipe is one where
-  // the user starts and ends the swipe gesture within half a second. If this is
-  // false, we do not start the animation when `OnEndingDeskScreenshotTaken` is
-  // called.
-  // TODO(sammiequon): If the trial feature is removed, this can be combined
-  // with `is_continuous_gesture_animation_` as an optional or enum.
-  bool did_continuous_gesture_end_fast_ = false;
-
   // Used for metrics collection to track how many desks changes a user has seen
   // during the animation. This is different from the number of desk activations
   // as the user may switch desks but not activate it if the desk already has a
   // screenshot taken. This will only change for an activation animation, not a
   // remove animation.
   int visible_desk_changes_ = 0;
-
-  // Used for the Ash.Desks.AnimationLatency.* histograms. Null if no animation
-  // is being prepared. In a continuous desk animation, the latency is reported
-  // only for the first desk switch, and `launch_time_` is null thereafter.
-  base::TimeTicks launch_time_;
 
   // ThroughputTracker used for measuring this animation smoothness.
   ui::ThroughputTracker throughput_tracker_;
@@ -133,9 +110,6 @@ class ASH_EXPORT DeskAnimationBase
   // DeskController are tied together in production code, but may not be in a
   // test scenario.
   bool skip_notify_controller_on_animation_finished_for_testing_ = false;
-
-  // Callback for when the animation is finished.
-  base::OnceClosure finished_callback_;
 };
 
 }  // namespace ash

@@ -1,13 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/performance_manager/service_worker_context_adapter.h"
 
 #include "base/check_op.h"
-#include "base/memory/raw_ptr.h"
 #include "base/notreached.h"
-#include "base/observer_list.h"
 #include "base/scoped_observation.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_process_host_observer.h"
@@ -39,7 +37,7 @@ class ServiceWorkerContextAdapter::RunningServiceWorker
 
   // The adapter that owns |this|. Notified when RenderProcessExited() is
   // called.
-  const raw_ptr<ServiceWorkerContextAdapter> adapter_;
+  ServiceWorkerContextAdapter* const adapter_;
 
   base::ScopedObservation<content::RenderProcessHost,
                           content::RenderProcessHostObserver>
@@ -64,7 +62,7 @@ void ServiceWorkerContextAdapter::RunningServiceWorker::Subscribe(
 void ServiceWorkerContextAdapter::RunningServiceWorker::Unsubscribe() {
   DCHECK(scoped_observation_.IsObserving());
 
-  scoped_observation_.Reset();
+  scoped_observation_.RemoveObservation();
 }
 
 void ServiceWorkerContextAdapter::RunningServiceWorker::RenderProcessExited(
@@ -106,15 +104,13 @@ void ServiceWorkerContextAdapter::RemoveObserver(
 
 void ServiceWorkerContextAdapter::RegisterServiceWorker(
     const GURL& script_url,
-    const blink::StorageKey& key,
     const blink::mojom::ServiceWorkerRegistrationOptions& options,
-    StatusCodeCallback callback) {
+    ResultCallback callback) {
   NOTIMPLEMENTED();
 }
 
 void ServiceWorkerContextAdapter::UnregisterServiceWorker(
     const GURL& scope,
-    const blink::StorageKey& key,
     ResultCallback callback) {
   NOTIMPLEMENTED();
 }
@@ -122,7 +118,6 @@ void ServiceWorkerContextAdapter::UnregisterServiceWorker(
 content::ServiceWorkerExternalRequestResult
 ServiceWorkerContextAdapter::StartingExternalRequest(
     int64_t service_worker_version_id,
-    content::ServiceWorkerExternalRequestTimeoutType timeout_type,
     const std::string& request_uuid) {
   NOTIMPLEMENTED();
   return content::ServiceWorkerExternalRequestResult::kOk;
@@ -136,24 +131,22 @@ ServiceWorkerContextAdapter::FinishedExternalRequest(
   return content::ServiceWorkerExternalRequestResult::kOk;
 }
 
-size_t ServiceWorkerContextAdapter::CountExternalRequestsForTest(
-    const blink::StorageKey& key) {
+void ServiceWorkerContextAdapter::CountExternalRequestsForTest(
+    const url::Origin& origin,
+    CountExternalRequestsCallback callback) {
   NOTIMPLEMENTED();
-  return 0u;
 }
 
-bool ServiceWorkerContextAdapter::ExecuteScriptForTest(
-    const std::string& script,
-    int64_t version_id,
-    content::ServiceWorkerScriptExecutionCallback callback) {
+bool ServiceWorkerContextAdapter::MaybeHasRegistrationForOrigin(
+    const url::Origin& origin) {
   NOTIMPLEMENTED();
   return false;
 }
 
-bool ServiceWorkerContextAdapter::MaybeHasRegistrationForStorageKey(
-    const blink::StorageKey& key) {
+void ServiceWorkerContextAdapter::GetInstalledRegistrationOrigins(
+    base::Optional<std::string> host_filter,
+    GetInstalledRegistrationOriginsCallback callback) {
   NOTIMPLEMENTED();
-  return false;
 }
 
 void ServiceWorkerContextAdapter::GetAllOriginsInfo(
@@ -161,22 +154,24 @@ void ServiceWorkerContextAdapter::GetAllOriginsInfo(
   NOTIMPLEMENTED();
 }
 
-void ServiceWorkerContextAdapter::DeleteForStorageKey(
-    const blink::StorageKey& key,
-    ResultCallback callback) {
+void ServiceWorkerContextAdapter::DeleteForOrigin(const url::Origin& origin_url,
+                                                  ResultCallback callback) {
+  NOTIMPLEMENTED();
+}
+
+void ServiceWorkerContextAdapter::PerformStorageCleanup(
+    base::OnceClosure callback) {
   NOTIMPLEMENTED();
 }
 
 void ServiceWorkerContextAdapter::CheckHasServiceWorker(
     const GURL& url,
-    const blink::StorageKey& key,
     CheckHasServiceWorkerCallback callback) {
   NOTIMPLEMENTED();
 }
 
 void ServiceWorkerContextAdapter::CheckOfflineCapability(
     const GURL& url,
-    const blink::StorageKey& key,
     CheckOfflineCapabilityCallback callback) {
   NOTIMPLEMENTED();
 }
@@ -188,30 +183,13 @@ void ServiceWorkerContextAdapter::ClearAllServiceWorkersForTest(
 
 void ServiceWorkerContextAdapter::StartWorkerForScope(
     const GURL& scope,
-    const blink::StorageKey& key,
     StartWorkerCallback info_callback,
-    StatusCodeCallback status_callback) {
+    base::OnceClosure failure_callback) {
   NOTIMPLEMENTED();
-}
-
-bool ServiceWorkerContextAdapter::IsLiveRunningServiceWorker(
-    int64_t service_worker_version_id) {
-  NOTIMPLEMENTED();
-  return false;
-}
-
-service_manager::InterfaceProvider&
-ServiceWorkerContextAdapter::GetRemoteInterfaces(
-    int64_t service_worker_version_id) {
-  NOTIMPLEMENTED();
-  static service_manager::InterfaceProvider interface_provider(
-      base::SingleThreadTaskRunner::GetCurrentDefault());
-  return interface_provider;
 }
 
 void ServiceWorkerContextAdapter::StartServiceWorkerAndDispatchMessage(
     const GURL& scope,
-    const blink::StorageKey& key,
     blink::TransferableMessage message,
     ResultCallback result_callback) {
   NOTIMPLEMENTED();
@@ -219,13 +197,12 @@ void ServiceWorkerContextAdapter::StartServiceWorkerAndDispatchMessage(
 
 void ServiceWorkerContextAdapter::StartServiceWorkerForNavigationHint(
     const GURL& document_url,
-    const blink::StorageKey& key,
     StartServiceWorkerForNavigationHintCallback callback) {
   NOTIMPLEMENTED();
 }
 
-void ServiceWorkerContextAdapter::StopAllServiceWorkersForStorageKey(
-    const blink::StorageKey& key) {
+void ServiceWorkerContextAdapter::StopAllServiceWorkersForOrigin(
+    const url::Origin& origin) {
   NOTIMPLEMENTED();
 }
 
@@ -295,8 +272,8 @@ void ServiceWorkerContextAdapter::OnVersionStoppedRunning(int64_t version_id) {
 #if DCHECK_IS_ON()
     // If this service worker could not be found, then it must be because its
     // render process exited early.
-    size_t removed_count = stopped_service_workers_.erase(version_id);
-    DCHECK_EQ(removed_count, 1u);
+    size_t removed = stopped_service_workers_.erase(version_id);
+    DCHECK_EQ(removed, 1u);
 #endif  // DCHECK_IS_ON()
     return;
   }
@@ -357,7 +334,7 @@ void ServiceWorkerContextAdapter::OnNoControllees(int64_t version_id,
 void ServiceWorkerContextAdapter::OnControlleeNavigationCommitted(
     int64_t version_id,
     const std::string& client_uuid,
-    content::GlobalRenderFrameHostId render_frame_host_id) {
+    content::GlobalFrameRoutingId render_frame_host_id) {
   // The navigation committed notification should not be sent if the frame is
   // not already a client of |version_id|.
   auto it = service_worker_clients_.find(version_id);

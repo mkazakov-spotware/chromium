@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 
 #include <utility>
 
-#include "base/metrics/histogram_functions.h"
 #include "base/rand_util.h"
+#include "base/stl_util.h"
 #include "base/time/time.h"
 #include "components/sync_user_events/user_event_sync_bridge.h"
 
@@ -53,39 +53,6 @@ bool NavigationPresenceValid(UserEventSpecifics::EventCase event_case,
          (presence == kCannotHave && !has_navigation_id);
 }
 
-// An equivalent to UserEventSpecifics::EventCase (from the proto) that's
-// appropriate for recording in UMA. Do not remove entries etc.
-enum class EventTypeForUMA {
-  kUnknown = 0,
-  kTestEvent = 1,
-  kGaiaPasswordReuseEvent = 2,
-  kGaiaPasswordCapturedEvent = 3,
-  kFlocIdComputedEvent = 4,
-  kMaxValue = kFlocIdComputedEvent
-};
-
-EventTypeForUMA GetEventTypeForUMA(UserEventSpecifics::EventCase event_case) {
-  switch (event_case) {
-    case UserEventSpecifics::kTestEvent:
-      return EventTypeForUMA::kTestEvent;
-    case UserEventSpecifics::kGaiaPasswordReuseEvent:
-      return EventTypeForUMA::kGaiaPasswordReuseEvent;
-    case UserEventSpecifics::kGaiaPasswordCapturedEvent:
-      return EventTypeForUMA::kGaiaPasswordCapturedEvent;
-    case UserEventSpecifics::kFlocIdComputedEvent:
-      return EventTypeForUMA::kFlocIdComputedEvent;
-    // The event types below are not recorded anymore, so are not handled here
-    // (will fall through to the NOTREACHED() below).
-    case UserEventSpecifics::kLanguageDetectionEvent:
-    case UserEventSpecifics::kTranslationEvent:
-    case UserEventSpecifics::kUserConsent:
-    case UserEventSpecifics::EVENT_NOT_SET:
-      break;
-  }
-  NOTREACHED();
-  return EventTypeForUMA::kUnknown;
-}
-
 }  // namespace
 
 UserEventServiceImpl::UserEventServiceImpl(
@@ -94,23 +61,17 @@ UserEventServiceImpl::UserEventServiceImpl(
   DCHECK(bridge_);
 }
 
-UserEventServiceImpl::~UserEventServiceImpl() = default;
+UserEventServiceImpl::~UserEventServiceImpl() {}
 
 void UserEventServiceImpl::Shutdown() {}
 
 void UserEventServiceImpl::RecordUserEvent(
     std::unique_ptr<UserEventSpecifics> specifics) {
-  if (!ShouldRecordEvent(*specifics)) {
-    return;
+  if (ShouldRecordEvent(*specifics)) {
+    DCHECK(!specifics->has_session_id());
+    specifics->set_session_id(session_id_);
+    bridge_->RecordUserEvent(std::move(specifics));
   }
-
-  DCHECK(!specifics->has_session_id());
-  specifics->set_session_id(session_id_);
-
-  base::UmaHistogramEnumeration("Sync.RecordedUserEventType",
-                                GetEventTypeForUMA(specifics->event_case()));
-
-  bridge_->RecordUserEvent(std::move(specifics));
 }
 
 void UserEventServiceImpl::RecordUserEvent(

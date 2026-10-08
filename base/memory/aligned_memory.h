@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <ostream>
+#include <type_traits>
 
 #include "base/base_export.h"
 #include "base/bits.h"
 #include "base/check.h"
+#include "base/process/process_metrics.h"
 #include "build/build_config.h"
 
 #if defined(COMPILER_MSVC)
@@ -76,6 +77,13 @@ inline bool IsAligned(uintptr_t val, size_t alignment) {
 
 inline bool IsAligned(const void* val, size_t alignment) {
   return IsAligned(reinterpret_cast<uintptr_t>(val), alignment);
+}
+
+template <typename Type>
+inline bool IsPageAligned(Type val) {
+  static_assert(std::is_integral<Type>::value || std::is_pointer<Type>::value,
+                "Integral or pointer type required");
+  return IsAligned(val, GetPageSize());
 }
 
 }  // namespace base

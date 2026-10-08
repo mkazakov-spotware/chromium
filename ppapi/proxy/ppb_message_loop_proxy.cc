@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,13 @@
 
 #include <stddef.h>
 
-#include <memory>
 #include <vector>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/check.h"
 #include "base/compiler_specific.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "ppapi/c/pp_errors.h"
 #include "ppapi/c/ppb_message_loop.h"
 #include "ppapi/proxy/plugin_dispatcher.h"
@@ -59,7 +58,7 @@ MessageLoopResource::MessageLoopResource(ForMainThread for_main_thread)
 
   slot->Set(this);
 
-  task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+  task_runner_ = base::ThreadTaskRunnerHandle::Get();
 }
 
 
@@ -92,9 +91,8 @@ int32_t MessageLoopResource::AttachToCurrentThread() {
   AddRef();
   slot->Set(this);
 
-  single_thread_task_executor_ =
-      std::make_unique<base::SingleThreadTaskExecutor>();
-  task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+  single_thread_task_executor_.reset(new base::SingleThreadTaskExecutor);
+  task_runner_ = base::ThreadTaskRunnerHandle::Get();
 
   // Post all pending work to the task executor.
   for (auto& info : pending_tasks_) {
@@ -116,8 +114,8 @@ int32_t MessageLoopResource::Run() {
   run_loop_ = &run_loop;
 
   nested_invocations_++;
-  CallWhileUnlocked(base::BindOnce(&base::RunLoop::Run,
-                                   base::Unretained(run_loop_), FROM_HERE));
+  CallWhileUnlocked(
+      base::BindOnce(&base::RunLoop::Run, base::Unretained(run_loop_)));
   nested_invocations_--;
 
   run_loop_ = previous_run_loop;
@@ -194,7 +192,7 @@ void MessageLoopResource::PostClosure(const base::Location& from_here,
                                       int64_t delay_ms) {
   if (task_runner_.get()) {
     task_runner_->PostDelayedTask(from_here, std::move(closure),
-                                  base::Milliseconds(delay_ms));
+                                  base::TimeDelta::FromMilliseconds(delay_ms));
   } else {
     TaskInfo info;
     info.from_here = FROM_HERE;

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,30 +13,26 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
-#include "base/bind.h"
-#include "base/callback_forward.h"
-#include "base/callback_list.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/histogram_flattener.h"
 #include "base/metrics/histogram_snapshot_manager.h"
 #include "base/metrics/user_metrics.h"
-#include "base/observer_list.h"
-#include "base/scoped_observation.h"
 #include "base/sequence_checker.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
+#include "components/metrics/clean_exit_beacon.h"
 #include "components/metrics/delegating_provider.h"
 #include "components/metrics/metrics_log.h"
 #include "components/metrics/metrics_log_manager.h"
 #include "components/metrics/metrics_log_store.h"
-#include "components/metrics/metrics_logs_event_manager.h"
 #include "components/metrics/metrics_provider.h"
 #include "components/metrics/metrics_reporting_service.h"
+#include "components/variations/synthetic_trial_registry.h"
 
 class PrefService;
 class PrefRegistrySimple;
@@ -46,11 +42,8 @@ FORWARD_DECLARE_TEST(IOSChromeMetricsServiceClientTest,
                      TestRegisterMetricsServiceProviders);
 
 namespace base {
+class HistogramSamples;
 class PrefService;
-}  // namespace base
-
-namespace variations {
-class SyntheticTrialRegistry;
 }
 
 namespace metrics {
@@ -60,7 +53,7 @@ class MetricsServiceClient;
 class MetricsStateManager;
 
 // See metrics_service.cc for a detailed description.
-class MetricsService {
+class MetricsService : public base::HistogramFlattener {
  public:
   // Creates the MetricsService with the given |state_manager|, |client|, and
   // |local_state|.  Does not take ownership of the paramaters; instead stores
@@ -69,11 +62,7 @@ class MetricsService {
   MetricsService(MetricsStateManager* state_manager,
                  MetricsServiceClient* client,
                  PrefService* local_state);
-
-  MetricsService(const MetricsService&) = delete;
-  MetricsService& operator=(const MetricsService&) = delete;
-
-  virtual ~MetricsService();
+  ~MetricsService() override;
 
   // Initializes metrics recording state. Updates various bookkeeping values in
   // prefs and sets up the scheduler. This is a separate function rather than
@@ -109,13 +98,8 @@ class MetricsService {
   // recording is not currently running.
   std::string GetClientId() const;
 
-  // Set an external provided id for the metrics service. This method can be
-  // set by a caller which wants to explicitly control the *next* id used by the
-  // metrics service. Note that setting the external client id will *not* change
-  // the current metrics client id. In order to change the current client id,
-  // callers should call ResetClientId to change the current client id to the
-  // provided id.
-  void SetExternalClientId(const std::string& id);
+  // Returns the install date of the application, in seconds since the epoch.
+  int64_t GetInstallDate();
 
   // Returns the date at which the current metrics client ID was created as
   // an int64_t containing seconds since the epoch.
@@ -127,11 +111,23 @@ class MetricsService {
   // Registers local state prefs used by this class.
   static void RegisterPrefs(PrefRegistrySimple* registry);
 
+  // HistogramFlattener:
+  void RecordDelta(const base::HistogramBase& histogram,
+                   const base::HistogramSamples& snapshot) override;
+
   // This should be called when the application is not idle, i.e. the user seems
   // to be interacting with the application.
   void OnApplicationNotIdle();
 
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
+  // Invoked when we get a WM_SESSIONEND. This places a value in prefs that is
+  // reset when RecordCompletedSessionEnd is invoked.
+  void RecordStartOfSessionEnd();
+
+  // This should be called when the application is shutting down. It records
+  // that session end was successful.
+  void RecordCompletedSessionEnd();
+
+#if defined(OS_ANDROID) || defined(OS_IOS)
   // Called when the application is going into background mode.
   // If |keep_recording_in_background| is true, UMA is still recorded and
   // reported while in the background.
@@ -139,17 +135,26 @@ class MetricsService {
 
   // Called when the application is coming out of background mode.
   void OnAppEnterForeground(bool force_open_new_log = false);
-#endif  // BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
+#else
+  // Set the dirty flag, which will require a later call to LogCleanShutdown().
+  void LogNeedForCleanShutdown();
+#endif  // defined(OS_ANDROID) || defined(OS_IOS)
 
-  // Signals that the browser is shutting down cleanly. Intended to be called
-  // during shutdown after critical shutdown tasks have completed.
-  void LogCleanShutdown();
+  // Saves in the preferences if the crash report registration was successful.
+  // This count is eventually send via UMA logs.
+  void RecordBreakpadRegistration(bool success);
+
+  // Saves in the preferences if the browser is running under a debugger.
+  // This count is eventually send via UMA logs.
+  void RecordBreakpadHasDebugger(bool has_debugger);
 
   bool recording_active() const;
   bool reporting_active() const;
   bool has_unsent_logs() const;
 
-  bool IsMetricsReportingEnabled() const;
+  // Redundant test to ensure that we are notified of a clean exit.
+  // This value should be true when process has completed shutdown.
+  static bool UmaMetricsProperlyShutdown();
 
   // Register the specified |provider| to provide additional metrics into the
   // UMA log. Should be called during MetricsService initialization only.
@@ -166,74 +171,9 @@ class MetricsService {
   // Clears the stability metrics that are saved in local state.
   void ClearSavedStabilityMetrics();
 
-  // Marks current histograms as reported by snapshotting them, without
-  // actually saving the deltas. At a higher level, this is used to throw
-  // away new histogram samples (since the last log) so that they will not
-  // be included in the next log.
-  void MarkCurrentHistogramsAsReported();
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  // Binds a user log store to store unsent logs. This log store will be
-  // fully managed by MetricsLogStore. This will no-op if another log store has
-  // already been set.
-  //
-  // If this is called before initial logs are recorded, then histograms
-  // recorded before user log store is set will be included with user histograms
-  // when initial logs are recorded.
-  //
-  // If this is called after initial logs are recorded, then this will flush all
-  // logs recorded before swapping to |user_log_store|.
-  void SetUserLogStore(std::unique_ptr<UnsentLogStore> user_log_store);
-
-  // Unbinds the user log store. If there was no user log store, then this does
-  // nothing.
-  //
-  // If this is called before initial logs are recorded, then histograms and the
-  // current log will be discarded.
-  //
-  // If called after initial logs are recorded, then this will flush all logs
-  // before the user log store is unset.
-  void UnsetUserLogStore();
-
-  // Returns true if a user log store has been bound.
-  bool HasUserLogStore();
-
-  // Initializes per-user metrics collection. Logs recorded during a user
-  // session will be stored within each user's directory and consent to send
-  // these logs will be controlled by each user. Logs recorded before any user
-  // logs in or during guest sessions (given device owner has consented) will be
-  // stored in local_state.
-  //
-  // This is in its own function because the MetricsService is created very
-  // early on and a user metrics service may have dependencies on services that
-  // are created happen after MetricsService is initialized.
-  void InitPerUserMetrics();
-
-  // Returns the current user metrics consent if it should be applied to
-  // determine metrics reporting state.
-  //
-  // See comments at MetricsServiceClient::GetCurrentUserMetricsConsent() for
-  // more details.
-  absl::optional<bool> GetCurrentUserMetricsConsent() const;
-
-  // Returns the current logged in user id. See comments at
-  // MetricsServiceClient::GetCurrentUserId() for more details.
-  absl::optional<std::string> GetCurrentUserId() const;
-
-  // Updates the current user metrics consent. No-ops if no user has logged in.
-  void UpdateCurrentUserMetricsConsent(bool user_metrics_consent);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-#if BUILDFLAG(IS_CHROMEOS)
-  // Forces the client ID to be reset and generates a new client ID. This will
-  // be called when a user re-consents to metrics collection and the user had
-  // consented in the past.
-  //
-  // This is to preserve the pseudo-anonymous identifier <client_id, user_id>.
-  void ResetClientId();
-#endif  // BUILDFLAG(IS_CHROMEOS)
-
-  variations::SyntheticTrialRegistry* GetSyntheticTrialRegistry();
+  variations::SyntheticTrialRegistry* synthetic_trial_registry() {
+    return &synthetic_trial_registry_;
+  }
 
   MetricsLogStore* LogStoreForTest() {
     return reporting_service_.metrics_log_store();
@@ -242,27 +182,11 @@ class MetricsService {
   // Test hook to safely stage the current log in the log store.
   bool StageCurrentLogForTest();
 
-  MetricsLog* GetCurrentLogForTest() { return log_manager_.current_log(); }
-
   DelegatingProvider* GetDelegatingProviderForTesting() {
     return &delegating_provider_;
   }
 
-  // Adds/Removes a logs observer. Observers are notified when a log is newly
-  // created and is now known by the metrics service. This may occur when
-  // closing a log, or when loading a log from persistent storage. Observers are
-  // also notified when an event occurs on the log (e.g., log is staged,
-  // uploaded, etc.). See MetricsLogsEventManager::LogEvent for more details.
-  void AddLogsObserver(MetricsLogsEventManager::Observer* observer);
-  void RemoveLogsObserver(MetricsLogsEventManager::Observer* observer);
-
-  // Observers will be notified when the enablement state changes. The callback
-  // should accept one boolean argument, which will signal whether or not the
-  // metrics collection has been enabled.
-  base::CallbackListSubscription AddEnablementObserver(
-      const base::RepeatingCallback<void(bool)>& observer);
-
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
+#if defined(OS_ANDROID) || defined(OS_IOS)
   bool IsInForegroundForTesting() const { return is_in_foreground_; }
 #endif
 
@@ -279,108 +203,28 @@ class MetricsService {
       PrefService* local_state,
       DelegatingProvider* delegating_provider);
 
+ private:
   // The MetricsService has a lifecycle that is stored as a state.
   // See metrics_service.cc for description of this lifecycle.
   enum State {
-    CONSTRUCTED,          // Constructor was called.
-    INITIALIZED,          // InitializeMetricsRecordingState() was called.
+    INITIALIZED,          // Constructor was called.
     INIT_TASK_SCHEDULED,  // Waiting for deferred init tasks to finish.
     INIT_TASK_DONE,       // Waiting for timer to send initial log.
-    SENDING_LOGS,         // Sending logs and creating new ones when we run out.
+    SENDING_LOGS,         // Sending logs an creating new ones when we run out.
   };
 
-  State state() const { return state_; }
+  enum ShutdownCleanliness {
+    CLEANLY_SHUTDOWN = 0xdeadbeef,
+    NEED_TO_SHUTDOWN = ~CLEANLY_SHUTDOWN
+  };
 
- private:
   // The current state of recording for the MetricsService. The state is UNSET
   // until set to something else, at which point it remains INACTIVE or ACTIVE
   // for the lifetime of the object.
   enum RecordingState {
     INACTIVE,
     ACTIVE,
-    UNSET,
-  };
-
-  // The result of a call to FinalizeLog().
-  struct FinalizedLog {
-    FinalizedLog();
-    ~FinalizedLog();
-
-    // This type is move only.
-    FinalizedLog(FinalizedLog&& other);
-
-    // The size of the uncompressed log data. This is only used for calculating
-    // some metrics.
-    size_t uncompressed_log_size;
-
-    // A LogInfo object representing the log, which contains its compressed
-    // data, hash, signature, timestamp, and some metadata.
-    std::unique_ptr<UnsentLogStore::LogInfo> log_info;
-  };
-
-  // Writes snapshots of histograms owned by the StatisticsRecorder to a log.
-  // Does not take ownership of the log.
-  class MetricsLogHistogramWriter {
-   public:
-    explicit MetricsLogHistogramWriter(MetricsLog* log);
-
-    MetricsLogHistogramWriter(MetricsLog* log,
-                              base::HistogramBase::Flags required_flags);
-
-    MetricsLogHistogramWriter(const MetricsLogHistogramWriter&) = delete;
-    MetricsLogHistogramWriter& operator=(const MetricsLogHistogramWriter&) =
-        delete;
-
-    ~MetricsLogHistogramWriter();
-
-    // Snapshots histograms known by the StatisticsRecorder and writes them to
-    // |log_|'s proto.
-    void SnapshotStatisticsRecorderHistograms();
-
-    base::HistogramSnapshotManager* histogram_snapshot_manager() {
-      return histogram_snapshot_manager_.get();
-    }
-
-   private:
-    // Used to select which histograms to record when calling
-    // SnapshotStatisticsRecorderHistograms().
-    const base::HistogramBase::Flags required_flags_;
-
-    // Used to write histograms to |log_|.
-    std::unique_ptr<base::HistogramFlattener> flattener_;
-
-    // Used to snapshot histograms.
-    std::unique_ptr<base::HistogramSnapshotManager> histogram_snapshot_manager_;
-  };
-
-  // Loads "independent" metrics from a metrics provider and executes a
-  // callback when complete, which could be immediate or after some
-  // execution on a background thread.
-  class IndependentMetricsLoader {
-   public:
-    explicit IndependentMetricsLoader(std::unique_ptr<MetricsLog> log);
-
-    IndependentMetricsLoader(const IndependentMetricsLoader&) = delete;
-    IndependentMetricsLoader& operator=(const IndependentMetricsLoader&) =
-        delete;
-
-    ~IndependentMetricsLoader();
-
-    // Call ProvideIndependentMetrics (which may execute on a background thread)
-    // for the |metrics_provider| and execute the |done_callback| when complete
-    // with the result (true if successful). Though this can be called multiple
-    // times to include data from multiple providers, later calls will override
-    // system profile information set by earlier calls.
-    void Run(base::OnceCallback<void(bool)> done_callback,
-             MetricsProvider* metrics_provider);
-
-    // Extract the filled log. No more Run() operations can be done after this.
-    std::unique_ptr<MetricsLog> ReleaseLog();
-
-   private:
-    std::unique_ptr<MetricsLog> log_;
-    std::unique_ptr<base::HistogramFlattener> flattener_;
-    std::unique_ptr<base::HistogramSnapshotManager> snapshot_manager_;
+    UNSET
   };
 
   // Gets the LogStore for UMA logs.
@@ -428,12 +272,8 @@ class MetricsService {
   // Closes out the current log after adding any last information.
   void CloseCurrentLog();
 
-  // Stores the |finalized_log| in |log_store()|.
-  void StoreFinalizedLog(MetricsLog::LogType log_type,
-                         base::OnceClosure done_callback,
-                         FinalizedLog finalized_log);
-
   // Pushes the text of the current and staged logs into persistent storage.
+  // Called when Chrome shuts down.
   void PushPendingLogsToPersistentStorage();
 
   // Ensures that scheduler is running, assuming the current settings are such
@@ -455,6 +295,17 @@ class MetricsService {
   // true if a log was created.
   bool PrepareInitialStabilityLog(const std::string& prefs_previous_version);
 
+  // Prepares the initial metrics log, which includes startup histograms and
+  // profiler data, as well as incremental stability-related metrics.
+  void PrepareInitialMetricsLog();
+
+  // Reads, increments and then sets the specified long preference that is
+  // stored as a string.
+  void IncrementLongPrefsValue(const char* path);
+
+  // Records that the browser was shut down cleanly.
+  void LogCleanShutdown(bool end_completed);
+
   // Creates a new MetricsLog instance with the given |log_type|.
   std::unique_ptr<MetricsLog> CreateLog(MetricsLog::LogType log_type);
 
@@ -462,10 +313,18 @@ class MetricsService {
   // the results in prefs and GlobalPersistentSystemProfile.
   void RecordCurrentEnvironment(MetricsLog* log, bool complete);
 
+  // Record complete list of histograms into the current log.
+  // Called when we close a log.
+  void RecordCurrentHistograms();
+
+  // Record complete list of stability histograms into the current log,
+  // i.e., histograms with the |kUmaStabilityHistogramFlag| flag set.
+  void RecordCurrentStabilityHistograms();
+
   // Handle completion of PrepareProviderMetricsLog which is run as a
   // background task.
   void PrepareProviderMetricsLogDone(
-      std::unique_ptr<IndependentMetricsLoader> loader,
+      std::unique_ptr<MetricsLog::IndependentMetricsLoader> loader,
       bool success);
 
   // Record a single independent profile and associated histogram from
@@ -480,41 +339,27 @@ class MetricsService {
   // Updates the "last live" browser timestamp and schedules the next update.
   void UpdateLastLiveTimestampTask();
 
-  // Snapshots histograms using the passed |log_histogram_writer| and then
-  // finalizes |log| by calling FinalizeLog(). |log|, |current_app_version| and
-  // |signing_key| are used to finalize the log (see FinalizeLog()).
-  static FinalizedLog SnapshotHistogramsAndFinalizeLog(
-      std::unique_ptr<MetricsLogHistogramWriter> log_histogram_writer,
-      std::unique_ptr<MetricsLog> log,
-      bool truncate_events,
-      std::string current_app_version,
-      std::string signing_key);
-
-  // Finalizes |log| (see MetricsLog::FinalizeLog()). The |signing_key| is used
-  // to compute a signature for the log.
-  static FinalizedLog FinalizeLog(std::unique_ptr<MetricsLog> log,
-                                  bool truncate_events,
-                                  std::string current_app_version,
-                                  std::string signing_key);
-
   // Sub-service for uploading logs.
   MetricsReportingService reporting_service_;
 
   // Manager for the various in-flight logs.
   MetricsLogManager log_manager_;
 
+  // |histogram_snapshot_manager_| prepares histogram deltas for transmission.
+  base::HistogramSnapshotManager histogram_snapshot_manager_;
+
   // Used to manage various metrics reporting state prefs, such as client id,
   // low entropy source and whether metrics reporting is enabled. Weak pointer.
-  const raw_ptr<MetricsStateManager> state_manager_;
+  MetricsStateManager* const state_manager_;
 
   // Used to interact with the embedder. Weak pointer; must outlive |this|
   // instance.
-  const raw_ptr<MetricsServiceClient> client_;
+  MetricsServiceClient* const client_;
 
   // Registered metrics providers.
   DelegatingProvider delegating_provider_;
 
-  raw_ptr<PrefService> local_state_;
+  PrefService* local_state_;
 
   base::ActionCallback action_callback_;
 
@@ -530,6 +375,11 @@ class MetricsService {
   // The progression of states made by the browser are recorded in the following
   // state.
   State state_;
+
+  // The initial metrics log, used to record startup metrics (histograms and
+  // profiler data). Note that if a crash occurred in the previous session, an
+  // initial stability log may be sent before this.
+  std::unique_ptr<MetricsLog> initial_metrics_log_;
 
   // Whether the MetricsService object has received any notifications since
   // the last time a transmission was sent.
@@ -547,22 +397,20 @@ class MetricsService {
   // Stores the time of the last call to |GetUptimes()|.
   base::TimeTicks last_updated_time_;
 
+  variations::SyntheticTrialRegistry synthetic_trial_registry_;
+
   // Indicates if loading of independent metrics is currently active.
   bool independent_loader_active_ = false;
 
-  // Logs event manager to keep track of the various logs that the metrics
-  // service interacts with. An unowned pointer of this instance is passed down
-  // to various objects that are owned by this class.
-  MetricsLogsEventManager logs_event_manager_;
-
-  // A set of observers that keeps track of the metrics reporting state.
-  base::RepeatingCallbackList<void(bool)> enablement_observers_;
-
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
+#if defined(OS_ANDROID) || defined(OS_IOS)
   // Indicates whether OnAppEnterForeground() (true) or OnAppEnterBackground
   // (false) was called.
   bool is_in_foreground_ = false;
 #endif
+
+  // Redundant marker to check that we completed our shutdown, and set the
+  // exited-cleanly bit in the prefs.
+  static ShutdownCleanliness clean_shutdown_status_;
 
   FRIEND_TEST_ALL_PREFIXES(MetricsServiceTest, ActiveFieldTrialsReported);
   FRIEND_TEST_ALL_PREFIXES(MetricsServiceTest, IsPluginProcess);
@@ -575,6 +423,8 @@ class MetricsService {
   // Weak pointers factory used to post task on different threads. All weak
   // pointers managed by this factory have the same lifetime as MetricsService.
   base::WeakPtrFactory<MetricsService> self_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MetricsService);
 };
 
 }  // namespace metrics

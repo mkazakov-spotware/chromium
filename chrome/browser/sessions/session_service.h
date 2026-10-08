@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,16 +7,31 @@
 
 #include <map>
 #include <string>
+#include <utility>
 
-#include "base/callback_list.h"
+#include "base/callback.h"
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "chrome/browser/sessions/session_service_base.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
+#include "base/time/time.h"
+#include "base/token.h"
+#include "chrome/browser/defaults.h"
+#include "chrome/browser/sessions/session_common_utils.h"
+#include "chrome/browser/sessions/session_service_utils.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_list_observer.h"
+#include "components/keyed_service/core/keyed_service.h"
+#include "components/sessions/content/session_tab_helper_delegate.h"
 #include "components/sessions/core/command_storage_manager_delegate.h"
+#include "components/sessions/core/session_service_commands.h"
+#include "components/sessions/core/tab_restore_service_client.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tab_groups/tab_group_visual_data.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "third_party/skia/include/core/SkColor.h"
+#include "ui/base/ui_base_types.h"
 
 class Profile;
 
@@ -25,11 +40,11 @@ class WebContents;
 }  // namespace content
 
 namespace sessions {
+class SessionCommand;
+struct SessionTab;
 struct SessionWindow;
+class SnapshottingCommandStorageManager;
 }  // namespace sessions
-
-struct StartupTab;
-using StartupTabs = std::vector<StartupTab>;
 
 // SessionService ------------------------------------------------------------
 
@@ -51,37 +66,38 @@ using StartupTabs = std::vector<StartupTab>;
 // flushed to |CommandStorageBackend| and written to a file. Every so often
 // |SessionService| rebuilds the contents of the file from the open state of the
 // browser.
-
-// TODO(stahon@microsoft.com) When AppSessionService is implemented, we should
-// make a pass in SessionService to remove app related code.
-class SessionService : public SessionServiceBase {
+class SessionService : public sessions::CommandStorageManagerDelegate,
+                       public sessions::SessionTabHelperDelegate,
+                       public KeyedService,
+                       public BrowserListObserver {
   friend class SessionServiceTestHelper;
  public:
   // Creates a SessionService for the specified profile.
   explicit SessionService(Profile* profile);
-
-  SessionService(const SessionService&) = delete;
-  SessionService& operator=(const SessionService&) = delete;
+  // For testing.
+  explicit SessionService(const base::FilePath& save_path);
 
   ~SessionService() override;
 
-  // Returns true if `window_type` identifies a type tracked by SessionService.
-  static bool IsRelevantWindowType(
-      sessions::SessionWindow::WindowType window_type);
+  // This may be NULL during testing.
+  Profile* profile() const { return profile_; }
 
-  // Returns true if restore should be triggered. If `browser` is non-null this
-  // is called as the result of a new Browser being created. If `browser` is
-  // null this is called from RestoreIfNecessary();
-  bool ShouldRestore(Browser* browser);
+  // Returns true if a new window opening should really be treated like the
+  // start of a session (with potential session restore, startup URLs, etc.).
+  // In particular, this is true if there are no tabbed browsers running
+  // currently (eg. because only background or other app pages are running).
+  bool ShouldNewWindowStartSession();
 
   // Invoke at a point when you think session restore might occur. For example,
   // during startup and window creation this is invoked to see if a session
   // needs to be restored. If a session needs to be restored it is done so
   // asynchronously and true is returned. If false is returned the session was
   // not restored and the caller needs to create a new window.
-  // Since RestoreIfNecessary can potentially trigger a restore, we need to
-  // know whether the caller intends for us to restore apps or not.
-  bool RestoreIfNecessary(const StartupTabs& startup_tabs, bool restore_apps);
+  bool RestoreIfNecessary(const std::vector<GURL>& urls_to_open);
+
+  // Resets the contents of the file from the current state of all open
+  // browsers whose profile matches our profile.
+  void ResetFromCurrentBrowsers();
 
   // Moves the current session to the last session. This is useful when a
   // checkpoint occurs, such as when the user launches the app and no tabbed
@@ -91,58 +107,117 @@ class SessionService : public SessionServiceBase {
   // Deletes the last session.
   void DeleteLastSession();
 
+  // Associates a tab with a window.
+  void SetTabWindow(const SessionID& window_id,
+                    const SessionID& tab_id);
+
+  // Sets the bounds of a window.
+  void SetWindowBounds(const SessionID& window_id,
+                       const gfx::Rect& bounds,
+                       ui::WindowShowState show_state);
+
+  // Sets the workspace the window resides in.
+  void SetWindowWorkspace(const SessionID& window_id,
+                          const std::string& workspace);
+
+  // Sets the visual index of the tab in its parent window.
+  void SetTabIndexInWindow(const SessionID& window_id,
+                           const SessionID& tab_id,
+                           int new_index);
+
   // Sets a tab's group ID, if any. Note that a group can't be split between
   // multiple windows.
   void SetTabGroup(const SessionID& window_id,
                    const SessionID& tab_id,
-                   absl::optional<tab_groups::TabGroupId> group);
+                   base::Optional<tab_groups::TabGroupId> group);
 
-  // Updates the metadata associated with a tab group. |window_id| should be
-  // the window where the group currently resides. Note that a group can't be
-  // split between multiple windows.
+  // Updates the metadata associated with a tab group. |window_id| should be the
+  // window where the group currently resides. Note that a group can't be split
+  // between multiple windows.
   void SetTabGroupMetadata(const SessionID& window_id,
                            const tab_groups::TabGroupId& group_id,
                            const tab_groups::TabGroupVisualData* visual_data);
 
-  void AddTabExtraData(const SessionID& window_id,
-                       const SessionID& tab_id,
-                       const char* key,
-                       const std::string data);
+  // Sets the pinned state of the tab.
+  void SetPinnedState(const SessionID& window_id,
+                      const SessionID& tab_id,
+                      bool is_pinned);
 
-  void AddWindowExtraData(const SessionID& window_id,
-                          const char* key,
-                          const std::string data);
-
-  void TabClosed(const SessionID& window_id, const SessionID& tab_id) override;
+  // Note: this is invoked from the NavigationController's destructor, which is
+  // after the actual tab has been removed.
+  void TabClosed(const SessionID& window_id, const SessionID& tab_id);
 
   // Notification a window has opened.
-  void WindowOpened(Browser* browser) override;
+  void WindowOpened(Browser* browser);
 
   // Notification the window is about to close.
-  void WindowClosing(const SessionID& window_id) override;
+  void WindowClosing(const SessionID& window_id);
 
   // Notification a window has finished closing.
-  void WindowClosed(const SessionID& window_id) override;
+  void WindowClosed(const SessionID& window_id);
+
+  // Called when a tab is inserted.
+  void TabInserted(content::WebContents* contents);
+
+  // Called when a tab is closing.
+  void TabClosing(content::WebContents* contents);
 
   // Sets the type of window. In order for the contents of a window to be
   // tracked SetWindowType must be invoked with a type we track
   // (ShouldRestoreOfWindowType returns true).
-  void SetWindowType(const SessionID& window_id, Browser::Type type) override;
+  void SetWindowType(const SessionID& window_id, Browser::Type type);
+
+  // Sets the application name of the specified window.
+  void SetWindowAppName(const SessionID& window_id,
+                        const std::string& app_name);
 
   void SetWindowUserTitle(const SessionID& window_id,
                           const std::string& user_title);
 
-  // CommandStorageManagerDelegate:
-  void OnErrorWritingSessionCommands() override;
+  // Notification that a tab has restored its entries or a closed tab is being
+  // reused.
+  void TabRestored(content::WebContents* tab, bool pinned);
 
+  // Sets the index of the selected tab in the specified window.
+  void SetSelectedTabInWindow(const SessionID& window_id, int index);
+
+  // Sets the application extension id of the specified tab.
+  void SetTabExtensionAppID(const SessionID& window_id,
+                            const SessionID& tab_id,
+                            const std::string& extension_app_id);
+
+  // Sets the last active time of the tab.
+  void SetLastActiveTime(const SessionID& window_id,
+                         const SessionID& tab_id,
+                         base::TimeTicks last_active_time);
+
+  // Fetches the contents of the last session, notifying the callback when
+  // done. If the callback is supplied an empty vector of SessionWindows
+  // it means the session could not be restored.
+  void GetLastSession(sessions::GetLastSessionCallback callback);
+
+  // CommandStorageManagerDelegate:
+  bool ShouldUseDelayedSave() override;
+  void OnWillSaveCommands() override;
+
+  // sessions::SessionTabHelperDelegate:
   void SetTabUserAgentOverride(const SessionID& window_id,
                                const SessionID& tab_id,
                                const sessions::SerializedUserAgentOverride&
                                    user_agent_override) override;
-
- protected:
-  Browser::Type GetDesiredBrowserTypeForWebContents() override;
-  void DidScheduleCommand() override;
+  void SetSelectedNavigationIndex(const SessionID& window_id,
+                                  const SessionID& tab_id,
+                                  int index) override;
+  void UpdateTabNavigation(
+      const SessionID& window_id,
+      const SessionID& tab_id,
+      const sessions::SerializedNavigationEntry& navigation) override;
+  void TabNavigationPathPruned(const SessionID& window_id,
+                               const SessionID& tab_id,
+                               int index,
+                               int count) override;
+  void TabNavigationPathEntriesDeleted(const SessionID& window_id,
+                                       const SessionID& tab_id) override;
 
  private:
   // Allow tests to access our innards for testing purposes.
@@ -151,24 +226,35 @@ class SessionService : public SessionServiceBase {
   FRIEND_TEST_ALL_PREFIXES(SessionServiceTest, RestoreActivation2);
   FRIEND_TEST_ALL_PREFIXES(SessionServiceTest, RemoveUnusedRestoreWindowsTest);
   FRIEND_TEST_ALL_PREFIXES(SessionServiceTest, Workspace);
-  FRIEND_TEST_ALL_PREFIXES(SessionServiceTest, WorkspaceSavedOnOpened);
-  FRIEND_TEST_ALL_PREFIXES(SessionServiceTest, VisibleOnAllWorkspaces);
   FRIEND_TEST_ALL_PREFIXES(NoStartupWindowTest, DontInitSessionServiceForApps);
-  FRIEND_TEST_ALL_PREFIXES(SessionServiceTest, PinnedAfterReset);
 
-  using IdToRange = std::map<SessionID, std::pair<int, int>>;
+  typedef std::map<SessionID, std::pair<int, int>> IdToRange;
+
+  void Init();
 
   // Returns true if a window of given |window_type| should get
   // restored upon session restore.
   bool ShouldRestoreWindowOfType(
-      sessions::SessionWindow::WindowType type) const override;
+      sessions::SessionWindow::WindowType type) const;
 
-  // Implementation of RestoreIfNecessary. If |browser| is non-null and we
-  // need to restore, the tabs are added to it, otherwise a new browser is
-  // created.
-  bool RestoreIfNecessary(const StartupTabs& startup_tabs,
-                          Browser* browser,
-                          bool restore_apps);
+  // Removes unrestorable windows from the previous windows list.
+  void RemoveUnusedRestoreWindows(
+      std::vector<std::unique_ptr<sessions::SessionWindow>>* window_list);
+
+  // Implementation of RestoreIfNecessary. If |browser| is non-null and we need
+  // to restore, the tabs are added to it, otherwise a new browser is created.
+  bool RestoreIfNecessary(const std::vector<GURL>& urls_to_open,
+                          Browser* browser);
+
+  // BrowserListObserver
+  void OnBrowserAdded(Browser* browser) override {}
+  void OnBrowserRemoved(Browser* browser) override {}
+  void OnBrowserSetLastActive(Browser* browser) override;
+
+  // Converts |commands| to SessionWindows and notifies the callback.
+  void OnGotSessionCommands(
+      sessions::GetLastSessionCallback callback,
+      std::vector<std::unique_ptr<sessions::SessionCommand>> commands);
 
   // Adds commands to commands that will recreate the state of the specified
   // tab. This adds at most kMaxNavigationCountToPersist navigations (in each
@@ -178,19 +264,36 @@ class SessionService : public SessionServiceBase {
   void BuildCommandsForTab(const SessionID& window_id,
                            content::WebContents* tab,
                            int index_in_window,
-                           absl::optional<tab_groups::TabGroupId> group,
+                           base::Optional<tab_groups::TabGroupId> group,
                            bool is_pinned,
-                           IdToRange* tab_to_available_range) override;
+                           IdToRange* tab_to_available_range);
+
+  // Adds commands to create the specified browser, and invokes
+  // BuildCommandsForTab for each of the tabs in the browser. This ignores
+  // any tabs not in the profile we were created with.
+  void BuildCommandsForBrowser(Browser* browser,
+                               IdToRange* tab_to_available_range,
+                               std::set<SessionID>* windows_to_track);
+
+  // Iterates over all the known browsers invoking BuildCommandsForBrowser.
+  // This only adds browsers that should be tracked (|ShouldRestoreWindowOfType|
+  // returns true). All browsers that are tracked are added to windows_to_track
+  // (as long as it is non-null).
+  void BuildCommandsFromBrowsers(IdToRange* tab_to_available_range,
+                                 std::set<SessionID>* windows_to_track);
 
   // Schedules a reset of the existing commands. A reset means the contents
   // of the file are recreated from the state of the browser.
-  void ScheduleResetCommands() override;
+  void ScheduleResetCommands();
+
+  // Schedules the specified command.
+  void ScheduleCommand(std::unique_ptr<sessions::SessionCommand> command);
 
   // Converts all pending tab/window closes to commands and schedules them.
   void CommitPendingCloses();
 
-  // Returns true if there is only one window open with a single tab that
-  // shares our profile.
+  // Returns true if there is only one window open with a single tab that shares
+  // our profile.
   bool IsOnlyOneTabLeft() const;
 
   // Returns true if there are open trackable browser windows whose ids do
@@ -199,39 +302,75 @@ class SessionService : public SessionServiceBase {
   // |ShouldRestoreWindowOfType| for details.
   bool HasOpenTrackableBrowsers(const SessionID& window_id) const;
 
+  // Returns true if changes to tabs in the specified window should be tracked.
+  bool ShouldTrackChangesToWindow(const SessionID& window_id) const;
+
+  // Returns true if we track changes to the specified browser.
+  bool ShouldTrackBrowser(Browser* browser) const;
+
   // Will rebuild session commands if rebuild_on_next_save_ is true.
-  void RebuildCommandsIfRequired() override;
+  void RebuildCommandsIfRequired();
 
-  // Invoked with true when all browsers start closing.
-  void OnClosingAllBrowsersChanged(bool closing);
+  // Call when certain session relevant notifications
+  // (tab_closed, nav_list_pruned) occur.  In addition, this is
+  // currently called when Save() is called to compare how often the
+  // session data is currently saved verses when we may want to save it.
+  // It records the data in UMA stats.
+  void RecordSessionUpdateHistogramData(int type,
+    base::TimeTicks* last_updated_time);
 
-  // If necessary, removes the current exit event and adds a new one. This
-  // does nothing if `pending_window_close_ids_` is empty, which means the
-  // user is potentially closing the last browser.
-  void LogExitEvent();
+  // Deletes session data if no windows are open for the current profile.
+  void MaybeDeleteSessionOnlyData();
 
-  // If an exit event was logged, it is removed.
-  void RemoveExitEvent();
+  // Unit test accessors.
+  sessions::CommandStorageManager* GetCommandStorageManagerForTest();
+
+  void SetAvailableRangeForTest(const SessionID& tab_id,
+                                const std::pair<int, int>& range);
+  bool GetAvailableRangeForTest(const SessionID& tab_id,
+                                std::pair<int, int>* range);
+
+  // The profile. This may be null during testing.
+  Profile* profile_;
+
+  // Whether to use delayed save. Set to false when constructed with a FilePath
+  // (which should only be used for testing).
+  bool should_use_delayed_save_;
+
+  std::unique_ptr<sessions::SnapshottingCommandStorageManager>
+      command_storage_manager_;
+
+  // Maps from session tab id to the range of navigation entries that has
+  // been written to disk.
+  //
+  // This is only used if not all the navigation entries have been
+  // written.
+  IdToRange tab_to_available_range_;
 
   // When the user closes the last window, where the last window is the
   // last tabbed browser and no more tabbed browsers are open with the same
   // profile, the window ID is added here. These IDs are only committed (which
   // marks them as closed) if the user creates a new tabbed browser.
-  using PendingWindowCloseIDs = std::set<SessionID>;
+  typedef std::set<SessionID> PendingWindowCloseIDs;
   PendingWindowCloseIDs pending_window_close_ids_;
 
   // Set of tabs that have been closed by way of the last window or last tab
   // closing, but not yet committed.
-  using PendingTabCloseIDs = std::set<SessionID>;
+  typedef std::set<SessionID> PendingTabCloseIDs;
   PendingTabCloseIDs pending_tab_close_ids_;
 
   // When a window other than the last window (see description of
   // pending_window_close_ids) is closed, the id is added to this set.
-  using WindowClosingIDs = std::set<SessionID>;
+  typedef std::set<SessionID> WindowClosingIDs;
   WindowClosingIDs window_closing_ids_;
 
+  // Set of windows we're tracking changes to. This is only browsers that
+  // return true from |ShouldRestoreWindowOfType|.
+  typedef std::set<SessionID> WindowsTracking;
+  WindowsTracking windows_tracking_;
+
   // Are there any open trackable browsers?
-  bool has_open_trackable_browsers_ = false;
+  bool has_open_trackable_browsers_;
 
   // Used to override HasOpenTrackableBrowsers()
   bool has_open_trackable_browser_for_test_ = true;
@@ -239,31 +378,26 @@ class SessionService : public SessionServiceBase {
   // Use to override IsOnlyOneTableft()
   bool is_only_one_tab_left_for_test_ = false;
 
-  // If true and a new tabbed browser is created and there are no opened
-  // tabbed browser (has_open_trackable_browsers_ is false), then the current
-  // session is made the last session. See description above class for details
-  // on current/last session.
-  bool move_on_new_browser_ = false;
+  // If true and a new tabbed browser is created and there are no opened tabbed
+  // browser (has_open_trackable_browsers_ is false), then the current session
+  // is made the last session. See description above class for details on
+  // current/last session.
+  bool move_on_new_browser_;
 
   // For browser_tests, since we want to simulate the browser shutting down
   // without quitting.
-  bool force_browser_not_alive_with_no_windows_ = false;
+  bool force_browser_not_alive_with_no_windows_;
 
-  base::CallbackListSubscription closing_all_browsers_subscription_;
+  // Force session commands to be rebuild before next save event.
+  bool rebuild_on_next_save_;
 
-  bool did_log_exit_ = false;
-
-  int unrecoverable_write_error_count_ = 0;
-
-  // True if this is the first SessionService created for the Profile. A value
-  // of false means the first SessionService was destroyed and a new one
-  // created.
-  const bool is_first_session_service_;
-
-  // Set to true once a valid command has been scheduled.
-  bool did_schedule_command_ = false;
+  // Don't send duplicate SetSelectedTabInWindow commands when the selected
+  // tab's index hasn't changed.
+  std::map<SessionID, int> last_selected_tab_in_window_;
 
   base::WeakPtrFactory<SessionService> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SessionService);
 };
 
 #endif  // CHROME_BROWSER_SESSIONS_SESSION_SERVICE_H_

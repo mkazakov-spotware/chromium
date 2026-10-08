@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,18 +9,6 @@
 #endif
 
 @implementation OverlayPresentationController
-
-- (instancetype)
-    initWithPresentedViewController:(UIViewController*)presentedViewController
-           presentingViewController:
-               (nullable UIViewController*)presentingViewController {
-  self = [super initWithPresentedViewController:presentedViewController
-                       presentingViewController:presentingViewController];
-  if (self) {
-    _needsLayout = YES;
-  }
-  return self;
-}
 
 #pragma mark - Accessors
 
@@ -38,11 +26,8 @@
   [super containerViewWillLayoutSubviews];
   // Trigger a layout pass for the presenting view controller.  This allows the
   // presentation context to resize itself to match the presented overlay UI if
-  // `resizesPresentationContainer` is YES.
-  if (self.needsLayout) {
-    [self.presentingViewController.view setNeedsLayout];
-    self.needsLayout = NO;
-  }
+  // |resizesPresentationContainer| is YES.
+  [self.presentingViewController.view setNeedsLayout];
 }
 
 @end

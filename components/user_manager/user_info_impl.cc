@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,12 +15,12 @@ UserInfoImpl::UserInfoImpl() : account_id_(StubAccountId()) {}
 UserInfoImpl::~UserInfoImpl() {
 }
 
-std::u16string UserInfoImpl::GetDisplayName() const {
-  return u"stub-user";
+base::string16 UserInfoImpl::GetDisplayName() const {
+  return base::UTF8ToUTF16("stub-user");
 }
 
-std::u16string UserInfoImpl::GetGivenName() const {
-  return u"Stub";
+base::string16 UserInfoImpl::GetGivenName() const {
+  return base::UTF8ToUTF16("Stub");
 }
 
 std::string UserInfoImpl::GetDisplayEmail() const {

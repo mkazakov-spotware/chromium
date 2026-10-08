@@ -1,19 +1,18 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_NOTIFICATIONS_NOTIFICATION_DISPLAY_SERVICE_TESTER_H_
 #define CHROME_BROWSER_NOTIFICATIONS_NOTIFICATION_DISPLAY_SERVICE_TESTER_H_
 
-#include <string>
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/notifications/notification_common.h"
 #include "chrome/browser/notifications/stub_notification_display_service.h"
 #include "components/keyed_service/core/keyed_service_shutdown_notifier.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class Profile;
 
@@ -55,15 +54,15 @@ class NotificationDisplayServiceTester {
   const NotificationCommon::Metadata* GetMetadataForNotification(
       const message_center::Notification& notification);
 
-  absl::optional<message_center::Notification> GetNotification(
+  base::Optional<message_center::Notification> GetNotification(
       const std::string& notification_id) const;
 
   // Simulates the notification identified by |notification_id| being clicked
   // on, optionally with the given |action_index| and |reply|.
   void SimulateClick(NotificationHandler::Type notification_type,
                      const std::string& notification_id,
-                     absl::optional<int> action_index,
-                     absl::optional<std::u16string> reply);
+                     base::Optional<int> action_index,
+                     base::Optional<base::string16> reply);
 
   // Simulates a click on the settings button of the notification identified by
   // |notification_id|.
@@ -91,9 +90,10 @@ class NotificationDisplayServiceTester {
  private:
   void OnProfileShutdown();
 
-  raw_ptr<Profile> profile_;
-  raw_ptr<StubNotificationDisplayService, DanglingUntriaged> display_service_;
-  base::CallbackListSubscription profile_shutdown_subscription_;
+  Profile* profile_;
+  StubNotificationDisplayService* display_service_;
+  std::unique_ptr<KeyedServiceShutdownNotifier::Subscription>
+      profile_shutdown_subscription_;
 };
 
 #endif  // CHROME_BROWSER_NOTIFICATIONS_NOTIFICATION_DISPLAY_SERVICE_TESTER_H_

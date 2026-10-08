@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,7 +42,9 @@ void MockCameraModule::GetCameraInfo(int32_t camera_id,
 void MockCameraModule::SetCallbacks(
     mojo::PendingRemote<cros::mojom::CameraModuleCallbacks> callbacks,
     SetCallbacksCallback callback) {
-  // Method deprecated and not expected to be called.
+  DoSetCallbacks(callbacks, callback);
+  callbacks_.Bind(std::move(callbacks));
+  std::move(callback).Run(0);
 }
 
 void MockCameraModule::Init(InitCallback callback) {
@@ -64,13 +66,6 @@ void MockCameraModule::GetVendorTagOps(
   std::move(callback).Run();
 }
 
-void MockCameraModule::SetCallbacksAssociated(
-    mojo::PendingAssociatedRemote<cros::mojom::CameraModuleCallbacks> callbacks,
-    SetCallbacksAssociatedCallback callback) {
-  DoSetCallbacksAssociated(callbacks, callback);
-  callbacks_.Bind(std::move(callbacks));
-  std::move(callback).Run(0);
-}
 void MockCameraModule::NotifyCameraDeviceChange(
     int camera_id,
     cros::mojom::CameraDeviceStatus status) {

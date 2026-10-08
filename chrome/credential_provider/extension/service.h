@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <windows.h>
 
 #include "base/callback.h"
+#include "base/macros.h"
 
 namespace credential_provider {
 namespace extension {
@@ -18,9 +19,6 @@ class Service {
  public:
   // Gets the singleton instance of the service.
   static Service* Get();
-
-  Service(const Service&) = delete;
-  Service& operator=(const Service&) = delete;
 
   // Invoke the chosen action routine. By default service runs as a service,
   // but the action routine can support running in console for testing purposes.
@@ -63,6 +61,8 @@ class Service {
 
   // Callback to end running periodic tasks.
   base::OnceClosure quit_closure_;
+
+  DISALLOW_COPY_AND_ASSIGN(Service);
 };
 
 }  // namespace extension

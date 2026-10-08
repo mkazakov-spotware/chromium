@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,19 +16,22 @@ public class SecurityStatusIcon {
      */
     @DrawableRes
     public static int getSecurityIconResource(@ConnectionSecurityLevel int securityLevel,
-            boolean isSmallDevice, boolean skipIconForNeutralState,
-            boolean useUpdatedConnectionSecurityIndicators) {
+            boolean shouldShowDangerTriangleForWarningLevel, boolean isSmallDevice,
+            boolean skipIconForNeutralState) {
         switch (securityLevel) {
             case ConnectionSecurityLevel.NONE:
                 if (isSmallDevice && skipIconForNeutralState) return 0;
                 return R.drawable.omnibox_info;
             case ConnectionSecurityLevel.WARNING:
+                if (shouldShowDangerTriangleForWarningLevel) {
+                    return R.drawable.omnibox_not_secure_warning;
+                }
+                return R.drawable.omnibox_info;
             case ConnectionSecurityLevel.DANGEROUS:
                 return R.drawable.omnibox_not_secure_warning;
             case ConnectionSecurityLevel.SECURE_WITH_POLICY_INSTALLED_CERT:
             case ConnectionSecurityLevel.SECURE:
-                return useUpdatedConnectionSecurityIndicators ? R.drawable.omnibox_https_valid_arrow
-                                                              : R.drawable.omnibox_https_valid;
+                return R.drawable.omnibox_https_valid;
             default:
                 assert false;
         }

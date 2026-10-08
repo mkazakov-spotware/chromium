@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,6 +25,7 @@ typedef NS_ENUM(NSInteger, SettingsItemType) {
   SettingsItemTypeSignInButton = kItemTypeEnumZero,
   SettingsItemTypeSigninPromo,
   SettingsItemTypeAccount,
+  SettingsItemTypeSyncAndGoogleServices,
   SettingsItemTypeGoogleSync,
   SettingsItemTypeGoogleServices,
   SettingsItemTypeHeader,
@@ -34,7 +35,6 @@ typedef NS_ENUM(NSInteger, SettingsItemType) {
   SettingsItemTypeAutofillCreditCard,
   SettingsItemTypeAutofillProfile,
   SettingsItemTypeVoiceSearch,
-  SettingsItemTypePriceNotifications,
   SettingsItemTypePrivacy,
   SettingsItemTypeLanguageSettings,
   SettingsItemTypeContentSettings,
@@ -44,10 +44,8 @@ typedef NS_ENUM(NSInteger, SettingsItemType) {
   SettingsItemTypeViewSource,
   SettingsItemTypeTableCellCatalog,
   SettingsItemTypeArticlesForYou,
-  SettingsItemTypeManagedArticlesForYou,
   SettingsItemTypeSafetyCheck,
   SettingsItemTypeDefaultBrowser,
-  SettingsItemTypeSigninDisabled,
 };
 
 // The accessibility identifier of the settings TableView.
@@ -55,13 +53,6 @@ extern NSString* const kSettingsTableViewId;
 
 // The accessibility identifier of the sign in cell.
 extern NSString* const kSettingsSignInCellId;
-
-// The accessibility identifier of the sign in cell when sign-in is disabled by
-// policy.
-extern NSString* const kSettingsSignInDisabledByPolicyCellId;
-
-// The accessibility identifier of the sign in cell when sign-in is disabled.
-extern NSString* const kSettingsSignInDisabledCellId;
 
 // The accessibility identifier of the account cell.
 extern NSString* const kSettingsAccountCellId;
@@ -123,9 +114,6 @@ extern NSString* const kSettingsPreloadCellId;
 // The accessibility identifier of the Block Popups cell.
 extern NSString* const kSettingsBlockPopupsCellId;
 
-// The accessibility identifier of the Show Link Preview cell.
-extern NSString* const kSettingsShowLinkPreviewCellId;
-
 // The accessibility identifier of the Default Apps cell.
 extern NSString* const kSettingsDefaultAppsCellId;
 
@@ -140,23 +128,5 @@ extern NSString* const kSettingsHandoffCellId;
 
 // The accessibility identifier of the Cookies cell.
 extern NSString* const kSettingsCookiesCellId;
-
-// The accessibility identifier of the Default Site Mode cell.
-extern NSString* const kSettingsDefaultSiteModeCellId;
-
-// The accessibility identifier of the default browser settings TableView.
-extern NSString* const kDefaultBrowserSettingsTableViewId;
-
-extern NSString* const kSettingsHttpsOnlyModeCellId;
-
-// The accessibility identifier of the Incognito interstitial setting.
-extern NSString* const kSettingsIncognitoInterstitialId;
-
-// The accessibility identifier of the Incognito interstitial setting
-// when the setting is disabled because of Enterprise policy.
-extern NSString* const kSettingsIncognitoInterstitialDisabledId;
-
-// The accessibility identifier of the Price Notifications setting.
-extern NSString* const kSettingsPriceNotificationsId;
 
 #endif  // IOS_CHROME_BROWSER_UI_SETTINGS_SETTINGS_TABLE_VIEW_CONTROLLER_CONSTANTS_H_

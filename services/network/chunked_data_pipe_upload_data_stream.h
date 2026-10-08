@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,9 @@
 #include <vector>
 
 #include "base/component_export.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
+#include "base/optional.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "mojo/public/cpp/system/data_pipe.h"
@@ -21,7 +23,6 @@
 #include "net/base/upload_data_stream.h"
 #include "services/network/public/cpp/resource_request_body.h"
 #include "services/network/public/mojom/chunked_data_pipe_getter.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace net {
 class IOBuffer;
@@ -39,13 +40,7 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) ChunkedDataPipeUploadDataStream
   ChunkedDataPipeUploadDataStream(
       scoped_refptr<ResourceRequestBody> resource_request_body,
       mojo::PendingRemote<mojom::ChunkedDataPipeGetter>
-          chunked_data_pipe_getter,
-      bool has_null_source = false);
-
-  ChunkedDataPipeUploadDataStream(const ChunkedDataPipeUploadDataStream&) =
-      delete;
-  ChunkedDataPipeUploadDataStream& operator=(
-      const ChunkedDataPipeUploadDataStream&) = delete;
+          chunked_data_pipe_getter);
 
   ~ChunkedDataPipeUploadDataStream() override;
 
@@ -100,7 +95,7 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) ChunkedDataPipeUploadDataStream
 
   // Total size of input, as passed to ReadCallback(). nullptr until size is
   // received.
-  absl::optional<uint64_t> size_;
+  base::Optional<uint64_t> size_;
 
   uint64_t bytes_read_ = 0;
 
@@ -112,6 +107,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) ChunkedDataPipeUploadDataStream
   CacheState cache_state_ = CacheState::kDisabled;
   size_t dst_window_size_ = kDefaultDestinationWindowSize;
   std::vector<char> cache_;
+
+  DISALLOW_COPY_AND_ASSIGN(ChunkedDataPipeUploadDataStream);
 };
 
 }  // namespace network

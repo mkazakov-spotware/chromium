@@ -1,13 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/signin/force_signin_verifier.h"
 
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
-#include "chrome/browser/profiles/profile.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "content/public/browser/network_service_instance.h"
 #include "services/network/test/test_network_connection_tracker.h"
@@ -21,7 +20,7 @@ class ForceSigninVerifierWithAccessToInternalsForTesting
  public:
   explicit ForceSigninVerifierWithAccessToInternalsForTesting(
       signin::IdentityManager* identity_manager)
-      : ForceSigninVerifier(nullptr, identity_manager) {}
+      : ForceSigninVerifier(identity_manager) {}
 
   bool IsDelayTaskPosted() { return GetOneShotTimerForTesting()->IsRunning(); }
 
@@ -45,11 +44,6 @@ class NetworkConnectionObserverHelper
     content::GetNetworkConnectionTracker()->AddNetworkConnectionObserver(this);
   }
 
-  NetworkConnectionObserverHelper(const NetworkConnectionObserverHelper&) =
-      delete;
-  NetworkConnectionObserverHelper& operator=(
-      const NetworkConnectionObserverHelper&) = delete;
-
   ~NetworkConnectionObserverHelper() override {
     content::GetNetworkConnectionTracker()->RemoveNetworkConnectionObserver(
         this);
@@ -61,6 +55,8 @@ class NetworkConnectionObserverHelper
 
  private:
   base::RepeatingClosure closure_;
+
+  DISALLOW_COPY_AND_ASSIGN(NetworkConnectionObserverHelper);
 };
 
 // Used to select which type of network type NetworkConnectionTracker should
@@ -141,8 +137,8 @@ void ConfigureNetworkConnectionTracker(NetworkConnectionType connection_type,
 // MetworkConnectionTracker is returning results asynchronously.
 void SpinCurrentSequenceTaskRunner() {
   base::RunLoop run_loop;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, run_loop.QuitClosure());
+  base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                run_loop.QuitClosure());
   run_loop.Run();
 }
 
@@ -152,8 +148,7 @@ TEST(ForceSigninVerifierTest, OnGetTokenSuccess) {
   base::test::TaskEnvironment scoped_task_env;
   signin::IdentityTestEnvironment identity_test_env;
   const AccountInfo account_info =
-      identity_test_env.MakePrimaryAccountAvailable(
-          "email@test.com", signin::ConsentLevel::kSync);
+      identity_test_env.MakePrimaryAccountAvailable("email@test.com");
 
   ForceSigninVerifierWithAccessToInternalsForTesting verifier(
       identity_test_env.identity_manager());
@@ -176,8 +171,7 @@ TEST(ForceSigninVerifierTest, OnGetTokenPersistentFailure) {
   base::test::TaskEnvironment scoped_task_env;
   signin::IdentityTestEnvironment identity_test_env;
   const AccountInfo account_info =
-      identity_test_env.MakePrimaryAccountAvailable(
-          "email@test.com", signin::ConsentLevel::kSync);
+      identity_test_env.MakePrimaryAccountAvailable("email@test.com");
 
   ForceSigninVerifierWithAccessToInternalsForTesting verifier(
       identity_test_env.identity_manager());
@@ -201,8 +195,7 @@ TEST(ForceSigninVerifierTest, OnGetTokenTransientFailure) {
   base::test::TaskEnvironment scoped_task_env;
   signin::IdentityTestEnvironment identity_test_env;
   const AccountInfo account_info =
-      identity_test_env.MakePrimaryAccountAvailable(
-          "email@test.com", signin::ConsentLevel::kSync);
+      identity_test_env.MakePrimaryAccountAvailable("email@test.com");
 
   ForceSigninVerifierWithAccessToInternalsForTesting verifier(
       identity_test_env.identity_manager());
@@ -225,8 +218,7 @@ TEST(ForceSigninVerifierTest, OnLostConnection) {
   base::test::TaskEnvironment scoped_task_env;
   signin::IdentityTestEnvironment identity_test_env;
   const AccountInfo account_info =
-      identity_test_env.MakePrimaryAccountAvailable(
-          "email@test.com", signin::ConsentLevel::kSync);
+      identity_test_env.MakePrimaryAccountAvailable("email@test.com");
 
   ForceSigninVerifierWithAccessToInternalsForTesting verifier(
       identity_test_env.identity_manager());
@@ -250,8 +242,7 @@ TEST(ForceSigninVerifierTest, OnReconnected) {
   base::test::TaskEnvironment scoped_task_env;
   signin::IdentityTestEnvironment identity_test_env;
   const AccountInfo account_info =
-      identity_test_env.MakePrimaryAccountAvailable(
-          "email@test.com", signin::ConsentLevel::kSync);
+      identity_test_env.MakePrimaryAccountAvailable("email@test.com");
 
   ForceSigninVerifierWithAccessToInternalsForTesting verifier(
       identity_test_env.identity_manager());
@@ -275,8 +266,7 @@ TEST(ForceSigninVerifierTest, GetNetworkStatusAsync) {
   base::test::TaskEnvironment scoped_task_env;
   signin::IdentityTestEnvironment identity_test_env;
   const AccountInfo account_info =
-      identity_test_env.MakePrimaryAccountAvailable(
-          "email@test.com", signin::ConsentLevel::kSync);
+      identity_test_env.MakePrimaryAccountAvailable("email@test.com");
 
   ConfigureNetworkConnectionTracker(NetworkConnectionType::Undecided,
                                     NetworkResponseType::Asynchronous);
@@ -298,8 +288,7 @@ TEST(ForceSigninVerifierTest, LaunchVerifierWithoutNetwork) {
   base::test::TaskEnvironment scoped_task_env;
   signin::IdentityTestEnvironment identity_test_env;
   const AccountInfo account_info =
-      identity_test_env.MakePrimaryAccountAvailable(
-          "email@test.com", signin::ConsentLevel::kSync);
+      identity_test_env.MakePrimaryAccountAvailable("email@test.com");
 
   ConfigureNetworkConnectionTracker(NetworkConnectionType::ConnectionNone,
                                     NetworkResponseType::Asynchronous);
@@ -328,8 +317,7 @@ TEST(ForceSigninVerifierTest, ChangeNetworkFromWIFITo4GWithOnGoingRequest) {
   base::test::TaskEnvironment scoped_task_env;
   signin::IdentityTestEnvironment identity_test_env;
   const AccountInfo account_info =
-      identity_test_env.MakePrimaryAccountAvailable(
-          "email@test.com", signin::ConsentLevel::kSync);
+      identity_test_env.MakePrimaryAccountAvailable("email@test.com");
 
   ConfigureNetworkConnectionTracker(NetworkConnectionType::ConnectionWifi,
                                     NetworkResponseType::Asynchronous);
@@ -360,8 +348,7 @@ TEST(ForceSigninVerifierTest, ChangeNetworkFromWIFITo4GWithFinishedRequest) {
   base::test::TaskEnvironment scoped_task_env;
   signin::IdentityTestEnvironment identity_test_env;
   const AccountInfo account_info =
-      identity_test_env.MakePrimaryAccountAvailable(
-          "email@test.com", signin::ConsentLevel::kSync);
+      identity_test_env.MakePrimaryAccountAvailable("email@test.com");
 
   ConfigureNetworkConnectionTracker(NetworkConnectionType::ConnectionWifi,
                                     NetworkResponseType::Asynchronous);
@@ -388,29 +375,4 @@ TEST(ForceSigninVerifierTest, ChangeNetworkFromWIFITo4GWithFinishedRequest) {
 
   // No more request because it's verfied already.
   EXPECT_EQ(nullptr, verifier.access_token_fetcher());
-}
-
-// Regression test for https://crbug.com/1259864
-TEST(ForceSigninVerifierTest, DeleteWithPendingRequestShouldNotCrash) {
-  base::test::TaskEnvironment scoped_task_env;
-  signin::IdentityTestEnvironment identity_test_env;
-  const AccountInfo account_info =
-      identity_test_env.MakePrimaryAccountAvailable(
-          "email@test.com", signin::ConsentLevel::kSync);
-
-  ConfigureNetworkConnectionTracker(NetworkConnectionType::Undecided,
-                                    NetworkResponseType::Asynchronous);
-
-  {
-    ForceSigninVerifierWithAccessToInternalsForTesting verifier(
-        identity_test_env.identity_manager());
-
-    // There is no network type at first.
-    ASSERT_EQ(nullptr, verifier.access_token_fetcher());
-
-    // Delete the verifier while the request is pending.
-  }
-
-  // Waiting for the network type returns, this should not crash.
-  SpinCurrentSequenceTaskRunner();
 }

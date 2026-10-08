@@ -1,13 +1,15 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+#include "chrome/browser/prefs/chrome_command_line_pref_store.h"
 
 #include <gtest/gtest.h>
 #include <stddef.h>
 
 #include "base/command_line.h"
 #include "base/memory/ref_counted.h"
-#include "chrome/browser/prefs/chrome_command_line_pref_store.h"
+#include "base/stl_util.h"
 #include "chrome/common/chrome_switches.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
@@ -56,7 +58,7 @@ static const CommandLineTestParams kCommandLineTestParams[] = {
         "No proxy",
         // Input
         {
-            {switches::kNoProxyServer, nullptr},
+            {switches::kNoProxyServer, NULL},
         },
         // Expected result
         false,  // is_null
@@ -68,7 +70,7 @@ static const CommandLineTestParams kCommandLineTestParams[] = {
         "No proxy with extra parameters.",
         // Input
         {
-            {switches::kNoProxyServer, nullptr},
+            {switches::kNoProxyServer, NULL},
             {switches::kProxyServer, "http://proxy:8888"},
         },
         // Expected result
@@ -139,7 +141,7 @@ static const CommandLineTestParams kCommandLineTestParams[] = {
         "Autodetect",
         // Input
         {
-            {switches::kProxyAutoDetect, nullptr},
+            {switches::kProxyAutoDetect, NULL},
         },
         // Expected result
         false,  // is_null
@@ -160,7 +162,7 @@ class ChromeCommandLinePrefStoreProxyTest
   net::ProxyConfigWithAnnotation* proxy_config() { return &proxy_config_; }
 
   void SetUp() override {
-    for (size_t i = 0; i < std::size(GetParam().switches); i++) {
+    for (size_t i = 0; i < base::size(GetParam().switches); i++) {
       const char* name = GetParam().switches[i].name;
       const char* value = GetParam().switches[i].value;
       if (name && value)

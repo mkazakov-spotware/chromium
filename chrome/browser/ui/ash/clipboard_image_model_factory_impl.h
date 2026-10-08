@@ -1,12 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_ASH_CLIPBOARD_IMAGE_MODEL_FACTORY_IMPL_H_
 #define CHROME_BROWSER_UI_ASH_CLIPBOARD_IMAGE_MODEL_FACTORY_IMPL_H_
 
-#include <list>
-#include <memory>
 #include <string>
 
 #include "ash/public/cpp/clipboard_image_model_factory.h"
@@ -30,12 +28,10 @@ class ClipboardImageModelFactoryImpl : public ash::ClipboardImageModelFactory {
   // ash::ClipboardImageModelFactory:
   void Render(const base::UnguessableToken& id,
               const std::string& html_markup,
-              const gfx::Size& bounding_box_size,
               ImageModelCallback callback) override;
   void CancelRequest(const base::UnguessableToken& id) override;
   void Activate() override;
   void Deactivate() override;
-  void RenderCurrentPendingRequests() override;
   void OnShutdown() override;
 
   // Starts the first request in |pending_list_|.
@@ -51,11 +47,6 @@ class ClipboardImageModelFactoryImpl : public ash::ClipboardImageModelFactory {
   // Whether ClipboardImageModelFactoryImpl is activated. If not, requests are
   // queued until Activate().
   bool active_ = false;
-
-  // Whether ClipboardImageModelFactoryImpl will render all requests until the
-  // |pending_list_| is empty. When true, all requests will be rendered
-  // regardless of |active_|.
-  bool active_until_empty_ = false;
 
   // Requests which are waiting to be run.
   std::list<ClipboardImageModelRequest::Params> pending_list_;

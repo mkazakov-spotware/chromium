@@ -1,4 +1,3 @@
-// META: script=/resources/test-only-api.js
 // META: script=/service-workers/service-worker/resources/test-helpers.sub.js
 // META: script=resources.js
 'use strict';
@@ -20,19 +19,8 @@ contentIndexTest(async (t, index) => {
 
   await expectTypeError(
       index.add(createDescription({iconUrl: 'file://some-local-file.png'})));
-
-  const isFetchingIcons = await fetchesIcons();
-  if (isFetchingIcons) {
-    // If the browser will try to fetch these icons we expect it to fail.
-    await expectTypeError(
-        index.add(createDescription({iconUrl: '/non-existent-icon.png'})));
-    await expectTypeError(
-        index.add(createDescription({iconUrl: '/images/broken.png'})));
-  } else {
-    // If the browser will not try to fetch these icons this should succeed.
-    await index.add(createDescription({iconUrl: '/non-existent-icon.png'}));
-    await index.add(createDescription({iconUrl: '/images/broken.png'}));
-  }
+  await expectTypeError(index.add(createDescription({iconUrl: '/non-existent-icon.png'})));
+  await expectTypeError(index.add(createDescription({iconUrl: '/images/broken.png'})));
 
   await expectTypeError(index.add(createDescription({url: 'https://other-domain.com/'})));
   await expectTypeError(index.add(createDescription({url: '/different-scope'})));

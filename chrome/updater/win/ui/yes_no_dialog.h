@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,7 @@
 
 #include <windows.h>
 
-#include <string>
-
-#include "base/memory/raw_ptr.h"
+#include "base/strings/string16.h"
 #include "base/win/atl.h"
 #include "base/win/scoped_gdi_object.h"
 #include "chrome/updater/win/ui/owner_draw_controls.h"
@@ -32,8 +30,8 @@ class YesNoDialog : public CAxDialogImpl<YesNoDialog>,
   YesNoDialog& operator=(const YesNoDialog&) = delete;
   ~YesNoDialog() override;
 
-  HRESULT Initialize(const std::wstring& yes_no_title,
-                     const std::wstring& yes_no_text);
+  HRESULT Initialize(const base::string16& yes_no_title,
+                     const base::string16& yes_no_text);
   HRESULT Show();
 
   bool yes_clicked() const { return yes_clicked_; }
@@ -60,7 +58,7 @@ class YesNoDialog : public CAxDialogImpl<YesNoDialog>,
   LRESULT OnClose(UINT msg, WPARAM wparam, LPARAM lparam, BOOL& handled);
   LRESULT OnNCDestroy(UINT msg, WPARAM wparam, LPARAM lparam, BOOL& handled);
 
-  raw_ptr<WTL::CMessageLoop> message_loop_;
+  WTL::CMessageLoop* message_loop_;
   HWND parent_;
   bool yes_clicked_;
 

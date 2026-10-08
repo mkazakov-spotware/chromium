@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,14 +20,5 @@ public interface ChromeOptionShareCallback {
      * @param chromeShareExtras The extras not contained in {@code params}.
      */
     public void showThirdPartyShareSheet(
-            ShareParams params, ChromeShareExtras chromeShareExtras, long shareStartTime);
-
-    /**
-     * Used to show the share sheet
-     * @param params The share parameters.
-     * @param chromeShareExtras The extras not contained in {@code params}.
-     * @param shareStartTime The start time of the current share.
-     */
-    public void showShareSheet(
             ShareParams params, ChromeShareExtras chromeShareExtras, long shareStartTime);
 }

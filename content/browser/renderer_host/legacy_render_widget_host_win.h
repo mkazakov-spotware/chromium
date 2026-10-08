@@ -1,11 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_RENDERER_HOST_LEGACY_RENDER_WIDGET_HOST_WIN_H_
 #define CONTENT_BROWSER_RENDERER_HOST_LEGACY_RENDER_WIDGET_HOST_WIN_H_
-
-#include "base/memory/raw_ptr.h"
 
 // Must be included before <atlapp.h>.
 #include "base/win/atl.h"   // NOLINT(build/include_order)
@@ -17,10 +15,9 @@
 
 #include <memory>
 
-#include "base/memory/weak_ptr.h"
+#include "base/macros.h"
 #include "content/common/content_export.h"
 #include "ui/accessibility/platform/ax_fragment_root_delegate_win.h"
-#include "ui/base/win/internal_constants.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/native_widget_types.h"
 
@@ -65,7 +62,7 @@ class CONTENT_EXPORT LegacyRenderWidgetHostHWND
                               ATL::CWinTraits<WS_CHILD>>,
       public ui::AXFragmentRootDelegateWin {
  public:
-  DECLARE_WND_CLASS_EX(ui::kLegacyRenderWidgetHostHwnd, CS_DBLCLKS, 0)
+  DECLARE_WND_CLASS_EX(L"Chrome_RenderWidgetHostHWND", CS_DBLCLKS, 0)
 
   typedef ATL::CWindowImpl<LegacyRenderWidgetHostHWND,
                            ATL::CWindow,
@@ -76,10 +73,6 @@ class CONTENT_EXPORT LegacyRenderWidgetHostHWND
   // successful creation of a child window parented to the parent window passed
   // in.
   static LegacyRenderWidgetHostHWND* Create(HWND parent);
-
-  LegacyRenderWidgetHostHWND(const LegacyRenderWidgetHostHWND&) = delete;
-  LegacyRenderWidgetHostHWND& operator=(const LegacyRenderWidgetHostHWND&) =
-      delete;
 
   // Destroys the HWND managed by this class.
   void Destroy();
@@ -145,11 +138,10 @@ class CONTENT_EXPORT LegacyRenderWidgetHostHWND
   friend class AccessibilityObjectLifetimeWinBrowserTest;
   friend class DirectManipulationBrowserTestBase;
 
-  LegacyRenderWidgetHostHWND();
+  explicit LegacyRenderWidgetHostHWND(HWND parent);
   ~LegacyRenderWidgetHostHWND() override;
 
-  // If initialization fails, deletes `this` and returns false.
-  bool InitOrDeleteSelf(HWND parent);
+  void Init();
 
   // Returns the target to which the windows input events are forwarded.
   static ui::WindowEventTarget* GetWindowEventTarget(HWND parent);
@@ -189,7 +181,7 @@ class CONTENT_EXPORT LegacyRenderWidgetHostHWND
   // Set to true if we turned on mouse tracking.
   bool mouse_tracking_enabled_;
 
-  raw_ptr<RenderWidgetHostViewAura> host_;
+  RenderWidgetHostViewAura* host_;
 
   // Some assistive software need to track the location of the caret.
   std::unique_ptr<ui::AXSystemCaretWin> ax_system_caret_;
@@ -208,7 +200,7 @@ class CONTENT_EXPORT LegacyRenderWidgetHostHWND
   // in Chrome on Windows 10.
   std::unique_ptr<DirectManipulationHelper> direct_manipulation_helper_;
 
-  base::WeakPtrFactory<LegacyRenderWidgetHostHWND> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(LegacyRenderWidgetHostHWND);
 };
 
 }  // namespace content

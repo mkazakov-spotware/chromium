@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@ package org.chromium.android_webview;
 
 import org.chromium.android_webview.AwContents.VisualStateCallback;
 import org.chromium.base.task.PostTask;
-import org.chromium.content_public.browser.GlobalRenderFrameHostId;
-import org.chromium.content_public.browser.LifecycleState;
 import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
 import org.chromium.content_public.browser.WebContents;
@@ -15,7 +13,6 @@ import org.chromium.content_public.browser.WebContentsObserver;
 import org.chromium.content_public.common.ContentUrlConstants;
 import org.chromium.net.NetError;
 import org.chromium.ui.base.PageTransition;
-import org.chromium.url.GURL;
 
 import java.lang.ref.WeakReference;
 
@@ -55,22 +52,18 @@ public class AwWebContentsObserver extends WebContentsObserver {
     }
 
     @Override
-    public void didFinishLoadInPrimaryMainFrame(GlobalRenderFrameHostId rfhId, GURL url,
-            boolean isKnownValid, @LifecycleState int rfhLifecycleState) {
-        if (rfhLifecycleState != LifecycleState.ACTIVE) return;
-        String validatedUrl = isKnownValid ? url.getSpec() : url.getPossiblyInvalidSpec();
-        if (getClientIfNeedToFireCallback(validatedUrl) != null) {
+    public void didFinishLoad(long frameId, String validatedUrl, boolean isMainFrame) {
+        if (isMainFrame && getClientIfNeedToFireCallback(validatedUrl) != null) {
             mLastDidFinishLoadUrl = validatedUrl;
         }
     }
 
     @Override
-    public void didStopLoading(GURL gurl, boolean isKnownValid) {
-        String url = isKnownValid ? gurl.getSpec() : gurl.getPossiblyInvalidSpec();
-        if (url.length() == 0) url = ContentUrlConstants.ABOUT_BLANK_DISPLAY_URL;
-        AwContentsClient client = getClientIfNeedToFireCallback(url);
-        if (client != null && url.equals(mLastDidFinishLoadUrl)) {
-            client.getCallbackHelper().postOnPageFinished(url);
+    public void didStopLoading(String validatedUrl) {
+        if (validatedUrl.length() == 0) validatedUrl = ContentUrlConstants.ABOUT_BLANK_DISPLAY_URL;
+        AwContentsClient client = getClientIfNeedToFireCallback(validatedUrl);
+        if (client != null && validatedUrl.equals(mLastDidFinishLoadUrl)) {
+            client.getCallbackHelper().postOnPageFinished(validatedUrl);
             mLastDidFinishLoadUrl = null;
         }
     }
@@ -83,20 +76,13 @@ public class AwWebContentsObserver extends WebContentsObserver {
     }
 
     @Override
-    public void didFailLoad(boolean isInPrimaryMainFrame, @NetError int errorCode, GURL failingGurl,
-            @LifecycleState int frameLifecycleState) {
-        processFailedLoad(isInPrimaryMainFrame, errorCode, failingGurl);
-    }
-
-    private void processFailedLoad(
-            boolean isPrimaryMainFrame, @NetError int errorCode, GURL failingGurl) {
-        String failingUrl = failingGurl.getPossiblyInvalidSpec();
+    public void didFailLoad(boolean isMainFrame, @NetError int errorCode, String failingUrl) {
         AwContentsClient client = mAwContentsClient.get();
         if (client == null) return;
         String unreachableWebDataUrl = AwContentsStatics.getUnreachableWebDataUrl();
         boolean isErrorUrl =
                 unreachableWebDataUrl != null && unreachableWebDataUrl.equals(failingUrl);
-        if (isPrimaryMainFrame && !isErrorUrl) {
+        if (isMainFrame && !isErrorUrl) {
             if (errorCode == NetError.ERR_ABORTED) {
                 // Need to call onPageFinished for backwards compatibility with the classic webview.
                 // See also AwContentsClientBridge.onReceivedError.
@@ -120,15 +106,17 @@ public class AwWebContentsObserver extends WebContentsObserver {
     }
 
     @Override
-    public void didFinishNavigationInPrimaryMainFrame(NavigationHandle navigation) {
-        String url = navigation.getUrl().getPossiblyInvalidSpec();
+    public void didFinishNavigation(NavigationHandle navigation) {
+        String url = navigation.getUrlString();
         if (navigation.errorCode() != NetError.OK && !navigation.isDownload()) {
-            processFailedLoad(true, navigation.errorCode(), navigation.getUrl());
+            didFailLoad(navigation.isInMainFrame(), navigation.errorCode(), url);
         }
 
         if (!navigation.hasCommitted()) return;
 
         mCommittedNavigation = true;
+
+        if (!navigation.isInMainFrame()) return;
 
         AwContentsClient client = mAwContentsClient.get();
         if (client != null) {
@@ -140,8 +128,9 @@ public class AwWebContentsObserver extends WebContentsObserver {
                 client.getCallbackHelper().postOnPageStarted(url);
             }
 
-            boolean isReload = (navigation.pageTransition() & PageTransition.CORE_MASK)
-                    == PageTransition.RELOAD;
+            boolean isReload = navigation.pageTransition() != null
+                    && ((navigation.pageTransition() & PageTransition.CORE_MASK)
+                            == PageTransition.RELOAD);
             client.getCallbackHelper().postDoUpdateVisitedHistory(url, isReload);
         }
 
@@ -164,7 +153,7 @@ public class AwWebContentsObserver extends WebContentsObserver {
             });
         }
 
-        if (client != null && navigation.isPrimaryMainFrameFragmentNavigation()) {
+        if (client != null && navigation.isFragmentNavigation()) {
             // Note fragment navigations do not have a matching onPageStarted.
             client.getCallbackHelper().postOnPageFinished(url);
         }

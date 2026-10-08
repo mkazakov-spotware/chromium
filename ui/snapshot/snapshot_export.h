@@ -1,9 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef UI_SNAPSHOT_SNAPSHOT_EXPORT_H_
-#define UI_SNAPSHOT_SNAPSHOT_EXPORT_H_
+#ifndef UI_SNAPSHOT_SNAPSHOT_EXPORT_H
+#define UI_SNAPSHOT_SNAPSHOT_EXPORT_H
 
 // Defines SNAPSHOT_EXPORT so that functionality implemented by the snapshot
 // module can be exported to consumers.
@@ -29,4 +29,4 @@
 #define SNAPSHOT_EXPORT
 #endif
 
-#endif  // UI_SNAPSHOT_SNAPSHOT_EXPORT_H_
+#endif  // UI_SNAPSHOT_SNAPSHOT_EXPORT_H

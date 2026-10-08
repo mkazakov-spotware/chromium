@@ -20,12 +20,10 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_SVG_LAYOUT_SVG_RESOURCE_PAINT_SERVER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_SVG_LAYOUT_SVG_RESOURCE_PAINT_SERVER_H_
 
-#include "cc/paint/paint_flags.h"
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_resource_container.h"
+#include "third_party/blink/renderer/platform/graphics/paint/paint_flags.h"
 
 namespace blink {
-
-struct AutoDarkMode;
 
 class LayoutSVGResourcePaintServer : public LayoutSVGResourceContainer {
  public:
@@ -33,10 +31,9 @@ class LayoutSVGResourcePaintServer : public LayoutSVGResourceContainer {
       : LayoutSVGResourceContainer(element) {}
 
   virtual bool ApplyShader(const SVGResourceClient&,
-                           const gfx::RectF& reference_box,
+                           const FloatRect& reference_box,
                            const AffineTransform* additional_transform,
-                           const AutoDarkMode& auto_dark_mode,
-                           cc::PaintFlags&) = 0;
+                           PaintFlags&) = 0;
 };
 
 template <>
@@ -47,4 +44,4 @@ inline bool IsResourceOfType<LayoutSVGResourcePaintServer>(
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_SVG_LAYOUT_SVG_RESOURCE_PAINT_SERVER_H_
+#endif

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,21 +6,73 @@
 
 #include <memory>
 
+#include "base/run_loop.h"
 #include "base/test/bind.h"
+#include "base/test/task_environment.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
-#include "build/build_config.h"
+#include "base/timer/timer.h"
 #include "cc/metrics/frame_sequence_metrics.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "ui/compositor/compositor.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_sequence.h"
 #include "ui/compositor/layer_animator.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
-#include "ui/compositor/test/animation_throughput_reporter_test_base.h"
-#include "ui/compositor/test/throughput_report_checker.h"
+#include "ui/compositor/test/test_compositor_host.h"
+#include "ui/compositor/test/test_context_factories.h"
 #include "ui/gfx/geometry/rect.h"
 
 namespace ui {
 
-using AnimationThroughputReporterTest = AnimationThroughputReporterTestBase;
+class AnimationThroughputReporterTest : public testing::Test {
+ public:
+  AnimationThroughputReporterTest()
+      : task_environment_(base::test::TaskEnvironment::MainThreadType::UI) {}
+  AnimationThroughputReporterTest(const AnimationThroughputReporterTest&) =
+      delete;
+  AnimationThroughputReporterTest& operator=(
+      const AnimationThroughputReporterTest&) = delete;
+  ~AnimationThroughputReporterTest() override = default;
+
+  // testing::Test:
+  void SetUp() override {
+    context_factories_ = std::make_unique<TestContextFactories>(false);
+
+    const gfx::Rect bounds(100, 100);
+    host_.reset(TestCompositorHost::Create(
+        bounds, context_factories_->GetContextFactory()));
+    host_->Show();
+
+    compositor()->SetRootLayer(&root_);
+
+    frame_generation_timer_.Start(
+        FROM_HERE, base::TimeDelta::FromMilliseconds(50), this,
+        &AnimationThroughputReporterTest::GenerateOneFrame);
+  }
+
+  void TearDown() override {
+    frame_generation_timer_.Stop();
+    host_.reset();
+    context_factories_.reset();
+  }
+
+  void GenerateOneFrame() { compositor()->ScheduleFullRedraw(); }
+
+  Compositor* compositor() { return host_->GetCompositor(); }
+  Layer* root_layer() { return &root_; }
+
+ private:
+  base::test::TaskEnvironment task_environment_;
+
+  std::unique_ptr<TestContextFactories> context_factories_;
+  std::unique_ptr<TestCompositorHost> host_;
+  Layer root_;
+
+  // A timer to generate continuous compositor frames to trigger throughput
+  // data being transferred back.
+  base::RepeatingTimer frame_generation_timer_;
+};
 
 // Tests animation throughput collection with implicit animation scenario.
 TEST_F(AnimationThroughputReporterTest, ImplicitAnimation) {
@@ -28,18 +80,20 @@ TEST_F(AnimationThroughputReporterTest, ImplicitAnimation) {
   layer.SetOpacity(0.5f);
   root_layer()->Add(&layer);
 
-  ThroughputReportChecker checker(this);
+  base::RunLoop run_loop;
   {
     LayerAnimator* animator = layer.GetAnimator();
-    AnimationThroughputReporter reporter(animator,
-                                         checker.repeating_callback());
+    AnimationThroughputReporter reporter(
+        animator, base::BindLambdaForTesting(
+                      [&](const cc::FrameSequenceMetrics::CustomReportData&) {
+                        run_loop.Quit();
+                      }));
 
     ScopedLayerAnimationSettings settings(animator);
-    settings.SetTransitionDuration(base::Milliseconds(48));
+    settings.SetTransitionDuration(base::TimeDelta::FromMilliseconds(50));
     layer.SetOpacity(1.0f);
   }
-  // The animation starts in next frame (16ms) and ends 48 ms later.
-  EXPECT_TRUE(checker.WaitUntilReported());
+  run_loop.Run();
 }
 
 // Tests animation throughput collection with implicit animation setup before
@@ -48,20 +102,24 @@ TEST_F(AnimationThroughputReporterTest, ImplicitAnimationLateAttach) {
   Layer layer;
   layer.SetOpacity(0.5f);
 
-  ThroughputReportChecker checker(this);
+  base::RunLoop run_loop;
   {
     LayerAnimator* animator = layer.GetAnimator();
-    AnimationThroughputReporter reporter(animator,
-                                         checker.repeating_callback());
+    AnimationThroughputReporter reporter(
+        animator, base::BindLambdaForTesting(
+                      [&](const cc::FrameSequenceMetrics::CustomReportData&) {
+                        run_loop.Quit();
+                      }));
 
     ScopedLayerAnimationSettings settings(animator);
-    settings.SetTransitionDuration(base::Milliseconds(48));
+    settings.SetTransitionDuration(base::TimeDelta::FromMilliseconds(50));
     layer.SetOpacity(1.0f);
   }
 
   // Attach to root after animation setup.
   root_layer()->Add(&layer);
-  EXPECT_TRUE(checker.WaitUntilReported());
+
+  run_loop.Run();
 }
 
 // Tests animation throughput collection with explicitly created animation
@@ -71,15 +129,20 @@ TEST_F(AnimationThroughputReporterTest, ExplicitAnimation) {
   layer.SetOpacity(0.5f);
   root_layer()->Add(&layer);
 
-  ThroughputReportChecker checker(this);
-  LayerAnimator* animator = layer.GetAnimator();
-  AnimationThroughputReporter reporter(animator, checker.repeating_callback());
+  base::RunLoop run_loop;
+  {
+    LayerAnimator* animator = layer.GetAnimator();
+    AnimationThroughputReporter reporter(
+        animator, base::BindLambdaForTesting(
+                      [&](const cc::FrameSequenceMetrics::CustomReportData&) {
+                        run_loop.Quit();
+                      }));
 
-  animator->ScheduleAnimation(
-      new LayerAnimationSequence(LayerAnimationElement::CreateOpacityElement(
-          1.0f, base::Milliseconds(48))));
-
-  EXPECT_TRUE(checker.WaitUntilReported());
+    animator->ScheduleAnimation(
+        new LayerAnimationSequence(LayerAnimationElement::CreateOpacityElement(
+            1.0f, base::TimeDelta::FromMilliseconds(50))));
+  }
+  run_loop.Run();
 }
 
 // Tests animation throughput collection for a persisted animator of a Layer.
@@ -89,21 +152,26 @@ TEST_F(AnimationThroughputReporterTest, PersistedAnimation) {
   root_layer()->Add(layer.get());
 
   // Set a persisted animator to |layer|.
-  LayerAnimator* animator = new LayerAnimator(base::Milliseconds(48));
+  LayerAnimator* animator =
+      new LayerAnimator(base::TimeDelta::FromMilliseconds(50));
   layer->SetAnimator(animator);
 
+  std::unique_ptr<base::RunLoop> run_loop = std::make_unique<base::RunLoop>();
   // |reporter| keeps reporting as long as it is alive.
-  ThroughputReportChecker checker(this);
-  AnimationThroughputReporter reporter(animator, checker.repeating_callback());
+  AnimationThroughputReporter reporter(
+      animator, base::BindLambdaForTesting(
+                    [&](const cc::FrameSequenceMetrics::CustomReportData&) {
+                      run_loop->Quit();
+                    }));
 
   // Report data for animation of opacity goes to 1.
   layer->SetOpacity(1.0f);
-  EXPECT_TRUE(checker.WaitUntilReported());
+  run_loop->Run();
 
   // Report data for animation of opacity goes to 0.5.
-  checker.reset();
+  run_loop = std::make_unique<base::RunLoop>();
   layer->SetOpacity(0.5f);
-  EXPECT_TRUE(checker.WaitUntilReported());
+  run_loop->Run();
 }
 
 // Tests animation throughput not reported when animation is aborted.
@@ -112,17 +180,16 @@ TEST_F(AnimationThroughputReporterTest, AbortedAnimation) {
   layer->SetOpacity(0.5f);
   root_layer()->Add(layer.get());
 
-  ThroughputReportChecker checker(this, /*fail_if_reported=*/true);
-
-  // Reporter started monitoring animation, then deleted, which should be
-  // reported when the animation ends.
   {
     LayerAnimator* animator = layer->GetAnimator();
-    AnimationThroughputReporter reporter(animator,
-                                         checker.repeating_callback());
+    AnimationThroughputReporter reporter(
+        animator, base::BindLambdaForTesting(
+                      [&](const cc::FrameSequenceMetrics::CustomReportData&) {
+                        ADD_FAILURE() << "No report for aborted animations.";
+                      }));
 
     ScopedLayerAnimationSettings settings(animator);
-    settings.SetTransitionDuration(base::Milliseconds(48));
+    settings.SetTransitionDuration(base::TimeDelta::FromMilliseconds(50));
     layer->SetOpacity(1.0f);
   }
 
@@ -130,32 +197,11 @@ TEST_F(AnimationThroughputReporterTest, AbortedAnimation) {
   layer.reset();
 
   // Wait a bit to ensure that report does not happen.
-  Advance(base::Milliseconds(100));
-
-  // TODO(crbug.com/1158510): Test the scenario where the report exists when the
-  // layer is removed.
-}
-
-// Tests no report and no leak when underlying layer is gone before reporter.
-TEST_F(AnimationThroughputReporterTest, LayerDestroyedBeforeReporter) {
-  auto layer = std::make_unique<Layer>();
-  layer->SetOpacity(0.5f);
-  root_layer()->Add(layer.get());
-
-  ThroughputReportChecker checker(this, /*fail_if_reported=*/true);
-  LayerAnimator* animator = layer->GetAnimator();
-  AnimationThroughputReporter reporter(animator, checker.repeating_callback());
-  {
-    ScopedLayerAnimationSettings settings(animator);
-    settings.SetTransitionDuration(base::Milliseconds(48));
-    layer->SetOpacity(1.0f);
-  }
-
-  // Delete |layer| to before the reporter.
-  layer.reset();
-
-  // Wait a bit to ensure that report does not happen.
-  Advance(base::Milliseconds(100));
+  base::RunLoop run_loop;
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+      FROM_HERE, run_loop.QuitClosure(),
+      base::TimeDelta::FromMilliseconds(100));
+  run_loop.Run();
 }
 
 // Tests animation throughput not reported when detached from timeline.
@@ -164,13 +210,16 @@ TEST_F(AnimationThroughputReporterTest, NoReportOnDetach) {
   layer->SetOpacity(0.5f);
   root_layer()->Add(layer.get());
 
-  ThroughputReportChecker checker(this, /*fail_if_reported=*/true);
   {
     LayerAnimator* animator = layer->GetAnimator();
-    AnimationThroughputReporter reporter(animator,
-                                         checker.repeating_callback());
+    AnimationThroughputReporter reporter(
+        animator, base::BindLambdaForTesting(
+                      [&](const cc::FrameSequenceMetrics::CustomReportData&) {
+                        ADD_FAILURE() << "No report for aborted animations.";
+                      }));
+
     ScopedLayerAnimationSettings settings(animator);
-    settings.SetTransitionDuration(base::Milliseconds(48));
+    settings.SetTransitionDuration(base::TimeDelta::FromMilliseconds(50));
     layer->SetOpacity(1.0f);
   }
 
@@ -179,7 +228,11 @@ TEST_F(AnimationThroughputReporterTest, NoReportOnDetach) {
   root_layer()->Add(layer.get());
 
   // Wait a bit to ensure that report does not happen.
-  Advance(base::Milliseconds(100));
+  base::RunLoop run_loop;
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+      FROM_HERE, run_loop.QuitClosure(),
+      base::TimeDelta::FromMilliseconds(100));
+  run_loop.Run();
 }
 
 // Tests animation throughput not reported and no leak when animation is stopped
@@ -188,14 +241,18 @@ TEST_F(AnimationThroughputReporterTest, EndDetachedNoReportNoLeak) {
   auto layer = std::make_unique<Layer>();
   layer->SetOpacity(0.5f);
 
-  ThroughputReportChecker checker(this, /*fail_if_reported=*/true);
   LayerAnimator* animator = layer->GetAnimator();
+
   // Schedule an animation without being attached to a root.
   {
-    AnimationThroughputReporter reporter(animator,
-                                         checker.repeating_callback());
+    AnimationThroughputReporter reporter(
+        animator, base::BindLambdaForTesting(
+                      [&](const cc::FrameSequenceMetrics::CustomReportData&) {
+                        ADD_FAILURE() << "No report for aborted animations.";
+                      }));
+
     ScopedLayerAnimationSettings settings(animator);
-    settings.SetTransitionDuration(base::Milliseconds(50));
+    settings.SetTransitionDuration(base::TimeDelta::FromMilliseconds(50));
     layer->SetOpacity(1.0f);
   }
 
@@ -203,7 +260,11 @@ TEST_F(AnimationThroughputReporterTest, EndDetachedNoReportNoLeak) {
   animator->StopAnimating();
 
   // Wait a bit to ensure that report does not happen.
-  Advance(base::Milliseconds(100));
+  base::RunLoop run_loop;
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+      FROM_HERE, run_loop.QuitClosure(),
+      base::TimeDelta::FromMilliseconds(100));
+  run_loop.Run();
 
   // AnimationTracker in |reporter| should not leak in asan.
 }
@@ -216,60 +277,39 @@ TEST_F(AnimationThroughputReporterTest, ReportForAnimateToNewTarget) {
   layer->SetBounds(gfx::Rect(0, 0, 1, 2));
   root_layer()->Add(layer.get());
 
-  ThroughputReportChecker checker(this, /*fail_if_reported=*/true);
   LayerAnimator* animator = layer->GetAnimator();
+
   // Schedule an animation that will be preempted. No report should happen.
   {
-    AnimationThroughputReporter reporter(animator,
-                                         checker.repeating_callback());
+    AnimationThroughputReporter reporter(
+        animator, base::BindLambdaForTesting(
+                      [&](const cc::FrameSequenceMetrics::CustomReportData&) {
+                        ADD_FAILURE() << "No report for aborted animations.";
+                      }));
+
     ScopedLayerAnimationSettings settings(animator);
-    settings.SetTransitionDuration(base::Milliseconds(50));
+    settings.SetTransitionDuration(base::TimeDelta::FromMilliseconds(50));
     layer->SetOpacity(0.5f);
     layer->SetBounds(gfx::Rect(0, 0, 3, 4));
   }
 
   // Animate to new target. Report should happen.
-  ThroughputReportChecker checker2(this);
+  base::RunLoop run_loop;
   {
-    AnimationThroughputReporter reporter(animator,
-                                         checker2.repeating_callback());
+    AnimationThroughputReporter reporter(
+        animator, base::BindLambdaForTesting(
+                      [&](const cc::FrameSequenceMetrics::CustomReportData&) {
+                        run_loop.Quit();
+                      }));
+
     ScopedLayerAnimationSettings settings(animator);
     settings.SetPreemptionStrategy(
         LayerAnimator::IMMEDIATELY_ANIMATE_TO_NEW_TARGET);
-    settings.SetTransitionDuration(base::Milliseconds(48));
+    settings.SetTransitionDuration(base::TimeDelta::FromMilliseconds(50));
     layer->SetOpacity(1.0f);
     layer->SetBounds(gfx::Rect(0, 0, 5, 6));
   }
-  EXPECT_TRUE(checker2.WaitUntilReported());
-}
-
-// Tests AnimationThroughputReporter does not leak its AnimationTracker when
-// there are existing animations but no new animation sequence starts after it
-// is created.
-TEST_F(AnimationThroughputReporterTest, NoLeakWithNoAnimationStart) {
-  auto layer = std::make_unique<Layer>();
-  layer->SetOpacity(0.5f);
-  root_layer()->Add(layer.get());
-
-  LayerAnimator* animator = layer->GetAnimator();
-
-  // Create an existing animation.
-  {
-    ScopedLayerAnimationSettings settings(animator);
-    settings.SetTransitionDuration(base::Milliseconds(50));
-    layer->SetOpacity(0.0f);
-  }
-
-  // Create the reporter with the existing animation.
-  ThroughputReportChecker checker(this, /*fail_if_reported=*/true);
-  {
-    AnimationThroughputReporter reporter(animator,
-                                         checker.repeating_callback());
-  }
-
-  // Wait a bit to ensure to let the existing animation finish.
-  // There should be no report and no leak.
-  Advance(base::Milliseconds(100));
+  run_loop.Run();
 }
 
 }  // namespace ui

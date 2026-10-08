@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,20 +6,20 @@ package org.chromium.chrome.browser.browserservices.ui.trustedwebactivity;
 
 import static android.app.NotificationManager.IMPORTANCE_NONE;
 
-import static org.chromium.chrome.browser.notifications.channels.ChromeChannelDefinitions.ChannelId.WEBAPPS;
-import static org.chromium.chrome.browser.notifications.channels.ChromeChannelDefinitions.ChannelId.WEBAPPS_QUIET;
+import static org.chromium.chrome.browser.notifications.channels.ChromeChannelDefinitions.ChannelId.TWA_DISCLOSURE_INITIAL;
+import static org.chromium.chrome.browser.notifications.channels.ChromeChannelDefinitions.ChannelId.TWA_DISCLOSURE_SUBSEQUENT;
 
+import android.annotation.TargetApi;
 import android.app.NotificationChannel;
 import android.os.Build;
 
-import androidx.annotation.RequiresApi;
-
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider.TwaDisclosureUi;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider.TwaDisclosureUi;
 import org.chromium.chrome.browser.browserservices.ui.view.DisclosureInfobar;
 import org.chromium.chrome.browser.browserservices.ui.view.DisclosureNotification;
 import org.chromium.chrome.browser.browserservices.ui.view.DisclosureSnackbar;
 import org.chromium.chrome.browser.dependency_injection.ActivityScope;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.NativeInitObserver;
 import org.chromium.components.browser_ui.notifications.NotificationManagerProxy;
@@ -68,7 +68,8 @@ public class DisclosureUiPicker implements NativeInitObserver {
         // this logic into the constructor and let the Views call showIfNeeded() themselves in
         // their onFinishNativeInitialization.
 
-        if (mIntentDataProvider.getTwaDisclosureUi() == TwaDisclosureUi.V1_INFOBAR) {
+        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.TRUSTED_WEB_ACTIVITY_NEW_DISCLOSURE)
+                || mIntentDataProvider.getTwaDisclosureUi() == TwaDisclosureUi.V1_INFOBAR) {
             mDisclosureInfobar.get().showIfNeeded();
         } else if (areNotificationsEnabled()) {
             mDisclosureNotification.get().onStartWithNative();
@@ -81,10 +82,11 @@ public class DisclosureUiPicker implements NativeInitObserver {
         if (!mNotificationManager.areNotificationsEnabled()) return false;
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true;
 
-        return isChannelEnabled(WEBAPPS) && isChannelEnabled(WEBAPPS_QUIET);
+        return isChannelEnabled(TWA_DISCLOSURE_INITIAL)
+                && isChannelEnabled(TWA_DISCLOSURE_SUBSEQUENT);
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
+    @TargetApi(Build.VERSION_CODES.O)
     private boolean isChannelEnabled(String channelId) {
         NotificationChannel channel = mNotificationManager.getNotificationChannel(channelId);
 

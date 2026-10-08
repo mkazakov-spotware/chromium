@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <string>
 
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "third_party/hunspell/fuzz/hunspell_fuzzer_hunspell_dictionary.h"
 #include "third_party/hunspell/src/hunspell/hunspell.hxx"
@@ -22,7 +23,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
   // hunspell is not handling invalid UTF8. To avoid that, do the same thing
   // Chromium does - convert to UTF16, and back to UTF8. Valid UTF8 guaranteed.
-  std::u16string utf16_string = base::UTF8ToUTF16(data_string);
+  base::string16 utf16_string = base::UTF8ToUTF16(data_string);
   data_string = base::UTF16ToUTF8(utf16_string);
 
   hunspell->spell(data_string);

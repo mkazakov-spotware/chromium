@@ -1,15 +1,14 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+import test_util
 from absl import app
 from pywinauto.application import Application
 
-from test_util import create_chrome_webdriver
-
 
 def main(argv):
-  driver = create_chrome_webdriver()
+  driver = test_util.create_chrome_webdriver()
   try:
     application = Application(backend="uia")
     application.connect(title_re='.*Chrome|.*Chromium')

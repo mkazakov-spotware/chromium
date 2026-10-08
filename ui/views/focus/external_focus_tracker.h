@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
 #include "ui/views/focus/focus_manager.h"
 
 namespace views {
@@ -62,11 +62,11 @@ class VIEWS_EXPORT ExternalFocusTracker : public FocusChangeListener {
   void StartTracking();
 
   // Focus manager which we are a listener for.
-  raw_ptr<FocusManager, DanglingUntriaged> focus_manager_;
+  FocusManager* focus_manager_;
 
   // The parent view of views which we should not track focus changes to. We
   // also do not track changes to parent_view_ itself.
-  raw_ptr<View, DanglingUntriaged> parent_view_;
+  View* parent_view_;
 
   // Holds the last focused view.
   std::unique_ptr<ViewTracker> last_focused_view_tracker_;

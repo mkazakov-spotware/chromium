@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/unsafe_shared_memory_region.h"
 #include "components/viz/service/viz_service_export.h"
 #include "ui/gfx/geometry/size.h"
@@ -33,10 +34,6 @@ class VIZ_SERVICE_EXPORT OutputDeviceBacking {
   };
 
   OutputDeviceBacking();
-
-  OutputDeviceBacking(const OutputDeviceBacking&) = delete;
-  OutputDeviceBacking& operator=(const OutputDeviceBacking&) = delete;
-
   ~OutputDeviceBacking();
 
   void RegisterClient(Client* client);
@@ -61,6 +58,8 @@ class VIZ_SERVICE_EXPORT OutputDeviceBacking {
   std::vector<Client*> clients_;
   base::UnsafeSharedMemoryRegion region_;
   size_t created_shm_bytes_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(OutputDeviceBacking);
 };
 
 }  // namespace viz

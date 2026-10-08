@@ -196,7 +196,7 @@
       "fallback": true,
       "fonts": [
         {
-          "asset": "NotoSansCJK-VF.otf.ttc",
+          "asset": "NotoSansCJKjp-Regular.otf",
           "language": "ja"
         }
       ]

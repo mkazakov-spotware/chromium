@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,10 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/path_service.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
+#include "base/task_runner_util.h"
 #include "chrome/installer/util/firewall_manager_win.h"
 
 namespace media_router {
@@ -36,9 +38,9 @@ bool DoCanFirewallUseLocalPorts() {
 void CanFirewallUseLocalPorts(base::OnceCallback<void(bool)> callback) {
   auto task_runner = base::ThreadPool::CreateCOMSTATaskRunner(
       {base::MayBlock(), base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN});
-  task_runner->PostTaskAndReplyWithResult(
-      FROM_HERE, base::BindOnce(&DoCanFirewallUseLocalPorts),
-      std::move(callback));
+  base::PostTaskAndReplyWithResult(task_runner.get(), FROM_HERE,
+                                   base::BindOnce(&DoCanFirewallUseLocalPorts),
+                                   std::move(callback));
 }
 
 }  // namespace media_router

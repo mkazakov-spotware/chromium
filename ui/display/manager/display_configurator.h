@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,19 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
+#include "base/optional.h"
 #include "base/timer/timer.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/cros_system_api/dbus/service_constants.h"
 #include "ui/display/manager/display_manager_export.h"
 #include "ui/display/types/display_constants.h"
 #include "ui/display/types/native_display_observer.h"
+#include "ui/display/util/display_util.h"
 #include "ui/events/platform_event.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -110,22 +112,20 @@ class DISPLAY_MANAGER_EXPORT DisplayConfigurator
    public:
     explicit TestApi(DisplayConfigurator* configurator)
         : configurator_(configurator) {}
-
-    TestApi(const TestApi&) = delete;
-    TestApi& operator=(const TestApi&) = delete;
-
     ~TestApi() {}
 
     // If |configure_timer_| is started, stops the timer, runs
     // ConfigureDisplays(), and returns true; returns false otherwise.
-    [[nodiscard]] bool TriggerConfigureTimeout();
+    bool TriggerConfigureTimeout() WARN_UNUSED_RESULT;
 
     // Gets the current delay of the |configure_timer_| if it's running, or zero
     // time delta otherwise.
     base::TimeDelta GetConfigureDelay() const;
 
    private:
-    raw_ptr<DisplayConfigurator> configurator_;  // not owned
+    DisplayConfigurator* configurator_;  // not owned
+
+    DISALLOW_COPY_AND_ASSIGN(TestApi);
   };
 
   // Flags that can be passed to SetDisplayPower().
@@ -162,10 +162,6 @@ class DISPLAY_MANAGER_EXPORT DisplayConfigurator
       const gfx::Size& size);
 
   DisplayConfigurator();
-
-  DisplayConfigurator(const DisplayConfigurator&) = delete;
-  DisplayConfigurator& operator=(const DisplayConfigurator&) = delete;
-
   ~DisplayConfigurator() override;
 
   MultipleDisplayState display_state() const { return current_display_state_; }
@@ -238,19 +234,12 @@ class DISPLAY_MANAGER_EXPORT DisplayConfigurator
   // current set of connected displays).
   void SetDisplayMode(MultipleDisplayState new_state);
 
-  // Request the display's refresh rate to be throttled. Currently
-  // only supports internal displays. If the underlying panel/display driver
-  // do not support this, it is a no-op.
-  void MaybeSetRefreshRateThrottleState(int64_t display_id,
-                                        RefreshRateThrottleState state);
-
   // NativeDisplayDelegate::Observer overrides:
   void OnConfigurationChanged() override;
   void OnDisplaySnapshotsInvalidated() override;
 
   void AddObserver(Observer* observer);
   void RemoveObserver(Observer* observer);
-  bool HasObserverForTesting(Observer* observer) const;
 
   // Sets all the displays into pre-suspend mode; usually this means
   // configure them for their resume state. This allows faster resume on
@@ -279,20 +268,16 @@ class DISPLAY_MANAGER_EXPORT DisplayConfigurator
 
   // Enable/disable the privacy screen on display with |display_id|.
   // For this to succeed, privacy screen must be supported by the display.
-  // After privacy screen is set, |callback| is called with the outcome
-  // (success/failure) of the operation.
-  void SetPrivacyScreen(int64_t display_id,
-                        bool enabled,
-                        ConfigurationCallback callback);
+  void SetPrivacyScreen(int64_t display_id, bool enabled);
 
   // Returns the requested power state if set or the default power state.
   chromeos::DisplayPowerState GetRequestedPowerState() const;
 
   void reset_requested_power_state_for_test() {
-    requested_power_state_ = absl::nullopt;
+    requested_power_state_ = base::nullopt;
   }
 
-  absl::optional<chromeos::DisplayPowerState> GetRequestedPowerStateForTest()
+  base::Optional<chromeos::DisplayPowerState> GetRequestedPowerStateForTest()
       const {
     return requested_power_state_;
   }
@@ -350,14 +335,6 @@ class DISPLAY_MANAGER_EXPORT DisplayConfigurator
   // otherwise.
   bool ShouldRunConfigurationTask() const;
 
-  // Returns true if there are pending configuration changes that should be done
-  // seamlessly.
-  bool HasPendingSeamlessConfiguration() const;
-
-  // Returns true if there are pending configuration changes that require a full
-  // modeset.
-  bool HasPendingFullConfiguration() const;
-
   // Helper functions which will call the callbacks in
   // |in_progress_configuration_callbacks_| and
   // |queued_configuration_callbacks_| and clear the lists after. |success| is
@@ -378,8 +355,8 @@ class DISPLAY_MANAGER_EXPORT DisplayConfigurator
   void SendRelinquishDisplayControl(DisplayControlCallback callback,
                                     bool success);
 
-  raw_ptr<StateController> state_controller_;
-  raw_ptr<SoftwareMirroringController> mirroring_controller_;
+  StateController* state_controller_;
+  SoftwareMirroringController* mirroring_controller_;
   std::unique_ptr<NativeDisplayDelegate> native_display_delegate_;
 
   // Used to enable modes which rely on panel fitting.
@@ -401,7 +378,7 @@ class DISPLAY_MANAGER_EXPORT DisplayConfigurator
   MultipleDisplayState requested_display_state_;
 
   // Stores the requested power state.
-  absl::optional<chromeos::DisplayPowerState> requested_power_state_;
+  base::Optional<chromeos::DisplayPowerState> requested_power_state_;
 
   // The power state used by RunPendingConfiguration(). May be
   // |requested_power_state_| or DISPLAY_POWER_ALL_OFF for suspend.
@@ -412,9 +389,6 @@ class DISPLAY_MANAGER_EXPORT DisplayConfigurator
 
   // Bitwise-or value of the |kSetDisplayPower*| flags defined above.
   int pending_power_flags_;
-
-  // Stores the requested refresh rate throttle state.
-  absl::optional<RefreshRateThrottleState> pending_refresh_rate_throttle_state_;
 
   // List of callbacks from callers waiting for the display configuration to
   // start/finish. Note these callbacks belong to the pending request, not a
@@ -460,6 +434,8 @@ class DISPLAY_MANAGER_EXPORT DisplayConfigurator
 
   // This must be the last variable.
   base::WeakPtrFactory<DisplayConfigurator> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DisplayConfigurator);
 };
 
 }  // namespace display

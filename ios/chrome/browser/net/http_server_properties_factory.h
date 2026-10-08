@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 
 class JsonPrefStore;
@@ -19,14 +20,13 @@ class NetLog;
 // Class for registration and creation of HttpServerProperties.
 class HttpServerPropertiesFactory {
  public:
-  HttpServerPropertiesFactory(const HttpServerPropertiesFactory&) = delete;
-  HttpServerPropertiesFactory& operator=(const HttpServerPropertiesFactory&) =
-      delete;
-
   // Create an instance of HttpServerProperties.
   static std::unique_ptr<net::HttpServerProperties> CreateHttpServerProperties(
       scoped_refptr<JsonPrefStore> pref_store,
       net::NetLog* net_log);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HttpServerPropertiesFactory);
 };
 
 #endif  // IOS_CHROME_BROWSER_NET_HTTP_SERVER_PROPERTIES_FACTORY_H_

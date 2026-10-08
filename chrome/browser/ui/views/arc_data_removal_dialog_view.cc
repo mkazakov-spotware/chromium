@@ -1,20 +1,20 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/app_list/arc/arc_data_removal_dialog.h"
 
-#include "chrome/browser/ash/arc/session/arc_session_manager.h"
-#include "chrome/browser/ash/arc/session/arc_session_manager_observer.h"
+#include "base/macros.h"
+#include "chrome/browser/chromeos/arc/session/arc_session_manager.h"
+#include "chrome/browser/chromeos/arc/session/arc_session_manager_observer.h"
 #include "chrome/browser/ui/app_list/app_service/app_service_app_icon_loader.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_utils.h"
+#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/gfx/geometry/insets.h"
@@ -41,13 +41,9 @@ class DataRemovalConfirmationDialog : public views::DialogDelegateView,
                                       public AppIconLoaderDelegate,
                                       public ArcSessionManagerObserver {
  public:
-  METADATA_HEADER(DataRemovalConfirmationDialog);
   DataRemovalConfirmationDialog(
       Profile* profile,
       DataRemovalConfirmationCallback confirm_data_removal);
-  DataRemovalConfirmationDialog(const DataRemovalConfirmationDialog&) = delete;
-  DataRemovalConfirmationDialog& operator=(
-      const DataRemovalConfirmationDialog&) = delete;
   ~DataRemovalConfirmationDialog() override;
 
   // AppIconLoaderDelegate:
@@ -66,6 +62,8 @@ class DataRemovalConfirmationDialog : public views::DialogDelegateView,
   Profile* const profile_;
 
   DataRemovalConfirmationCallback confirm_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(DataRemovalConfirmationDialog);
 };
 
 DataRemovalConfirmationDialog* g_current_data_removal_confirmation = nullptr;
@@ -94,8 +92,7 @@ DataRemovalConfirmationDialog::DataRemovalConfirmationDialog(
 
   std::unique_ptr<views::BoxLayout> layout = std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kHorizontal,
-      provider->GetDialogInsetsForContentType(views::DialogContentType::kText,
-                                              views::DialogContentType::kText),
+      provider->GetDialogInsetsForContentType(views::TEXT, views::TEXT),
       provider->GetDistanceMetric(views::DISTANCE_RELATED_CONTROL_HORIZONTAL));
   layout->set_cross_axis_alignment(
       views::BoxLayout::CrossAxisAlignment::kStart);
@@ -116,6 +113,8 @@ DataRemovalConfirmationDialog::DataRemovalConfirmationDialog(
   icon_loader_ = std::make_unique<AppServiceAppIconLoader>(
       profile_, kArcAppIconSize, this);
   icon_loader_->FetchImage(kPlayStoreAppId);
+  chrome::RecordDialogCreation(
+      chrome::DialogIdentifier::ARC_DATA_REMOVAL_CONFIRMATION);
 
   ArcSessionManager::Get()->AddObserver(this);
 
@@ -146,9 +145,6 @@ void DataRemovalConfirmationDialog::OnArcPlayStoreEnabledChanged(bool enabled) {
     return;
   CancelDialog();
 }
-
-BEGIN_METADATA(DataRemovalConfirmationDialog, views::DialogDelegateView)
-END_METADATA
 
 }  // namespace
 

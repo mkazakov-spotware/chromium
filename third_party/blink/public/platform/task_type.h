@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,8 @@ namespace blink {
 // For the task type usage guideline, see https://bit.ly/2vMAsQ4
 //
 // When a new task type is created:
-// * Update kMaxValue to point to a new value
-// * in tools/metrics/histograms/enums.xml update the
-//   "RendererSchedulerTaskType" enum
+// * use kCount value as a new value,
+// * update tools/metrics/histograms/enums.xml,
 // * update TaskTypes.md
 enum class TaskType : unsigned char {
   ///////////////////////////////////////
@@ -46,13 +45,14 @@ enum class TaskType : unsigned char {
   // This task source is used for features that trigger in response to network
   // activity.
   kNetworking = 3,
+  // This is a part of Networking task source used to annotate tasks which are
+  // posted from the loading stack (i.e. WebURLLoader).
+  kNetworkingWithURLLoaderAnnotation = 50,
   // This is a part of Networking task that should not be frozen when a page is
   // frozen.
   kNetworkingUnfreezable = 75,
   // This task source is used for control messages between kNetworking tasks.
   kNetworkingControl = 4,
-  // Tasks used to run low priority scripts.
-  kLowPriorityScriptExecution = 81,
   // This task source is used to queue calls to history.back() and similar APIs.
   kHistoryTraversal = 5,
 
@@ -142,7 +142,6 @@ enum class TaskType : unsigned char {
   kWorkerAnimation = 51,
 
   // Obsolete.
-  // kNetworkingWithURLLoaderAnnotation = 50, (see crbug.com/860545)
   // kExperimentalWebSchedulingUserInteraction = 53,
   // kExperimentalWebSchedulingBestEffort = 54,
 
@@ -161,18 +160,8 @@ enum class TaskType : unsigned char {
   // https://w3c.github.io/ServiceWorker/#dfn-client-message-queue
   kServiceWorkerClientMessage = 60,
 
-  // https://w3c.github.io/web-locks/#web-locks-tasks-source
+  // https://wicg.github.io/web-locks/#web-locks-tasks-source
   kWebLocks = 66,
-
-  // Task type used for the Prioritized Task Scheduling API
-  // (https://wicg.github.io/scheduling-apis/#the-posted-task-task-source).
-  // This task type should not be passed directly to
-  // FrameScheduler::GetTaskRunner(); it is used indirectly by
-  // WebSchedulingTaskQueues.
-  kWebSchedulingPostedTask = 67,
-
-  // https://w3c.github.io/screen-wake-lock/#dfn-screen-wake-lock-task-source
-  kWakeLock = 76,
 
   ///////////////////////////////////////
   // Not-speced tasks should use one of the following task types
@@ -245,6 +234,13 @@ enum class TaskType : unsigned char {
   // Task used to split a script loading task for cooperative scheduling
   kInternalContinueScriptLoading = 65,
 
+  // Experimental tasks types used for main thread scheduling postTask API
+  // (https://github.com/WICG/main-thread-scheduling).
+  // These task types should not be passed directly to
+  // FrameScheduler::GetTaskRunner(); they are used indirectly by
+  // WebSchedulingTaskQueues.
+  kExperimentalWebScheduling = 67,
+
   // Tasks used to control frame lifecycle - they should run even when the frame
   // is frozen.
   kInternalFrameLifecycleControl = 68,
@@ -254,18 +250,6 @@ enum class TaskType : unsigned char {
 
   // Tasks that come in on the HighPriorityLocalFrame interface.
   kInternalHighPriorityLocalFrame = 71,
-
-  // Tasks that are should use input priority task queue/runner.
-  kInternalInputBlocking = 77,
-
-  // Tasks related to the WebGPU API
-  kWebGPU = 78,
-
-  // Cross-process PostMessage IPCs that are deferred in the current task.
-  kInternalPostMessageForwarding = 79,
-
-  // Tasks related to renderer-initiated navigation cancellation.
-  kInternalNavigationCancellation = 80,
 
   ///////////////////////////////////////
   // The following task types are only for thread-local queues.
@@ -294,7 +278,7 @@ enum class TaskType : unsigned char {
   kWorkerThreadTaskQueueV8 = 47,
   kWorkerThreadTaskQueueCompositor = 48,
 
-  kMaxValue = kLowPriorityScriptExecution,
+  kCount = 76,
 };
 
 }  // namespace blink

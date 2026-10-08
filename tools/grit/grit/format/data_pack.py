@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# Copyright 2012 The Chromium Authors
+#!/usr/bin/env python
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -283,10 +283,7 @@ def RePackFromDataPackStrings(inputs,
     # Make sure we have no dups.
     duplicate_keys = set(input_resources.keys()) & set(resources.keys())
     if duplicate_keys:
-      raise KeyError(
-          'Duplicate resource IDs: ' + str(list(duplicate_keys)) + '. '
-          'This is likely because the reserved ID ranges defined in ' +
-          'tools/gritsettings/resource_ids.spec have been exhausted.')
+      raise KeyError('Duplicate keys: ' + str(list(duplicate_keys)))
 
     # Make sure encoding is consistent.
     if encoding in (None, BINARY):

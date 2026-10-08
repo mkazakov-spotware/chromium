@@ -1,14 +1,21 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Iterators over DOM nodes.
  */
 
-goog.provide('goog.dom.iter');
 goog.provide('goog.dom.iter.AncestorIterator');
 goog.provide('goog.dom.iter.ChildIterator');
 goog.provide('goog.dom.iter.SiblingIterator');
@@ -29,7 +36,6 @@ goog.require('goog.iter.StopIteration');
  * @extends {goog.iter.Iterator}
  */
 goog.dom.iter.SiblingIterator = function(node, opt_includeNode, opt_reverse) {
-  'use strict';
   /**
    * The current node, or null if iteration is finished.
    * @type {Node}
@@ -45,15 +51,14 @@ goog.dom.iter.SiblingIterator = function(node, opt_includeNode, opt_reverse) {
   this.reverse_ = !!opt_reverse;
 
   if (node && !opt_includeNode) {
-    this.nextValueOrThrow();
+    this.next();
   }
 };
 goog.inherits(goog.dom.iter.SiblingIterator, goog.iter.Iterator);
 
 
 /** @override */
-goog.dom.iter.SiblingIterator.prototype.nextValueOrThrow = function() {
-  'use strict';
+goog.dom.iter.SiblingIterator.prototype.next = function() {
   var node = this.node_;
   if (!node) {
     throw goog.iter.StopIteration;
@@ -61,6 +66,7 @@ goog.dom.iter.SiblingIterator.prototype.nextValueOrThrow = function() {
   this.node_ = this.reverse_ ? node.previousSibling : node.nextSibling;
   return node;
 };
+
 
 
 /**
@@ -74,7 +80,6 @@ goog.dom.iter.SiblingIterator.prototype.nextValueOrThrow = function() {
  * @final
  */
 goog.dom.iter.ChildIterator = function(element, opt_reverse, opt_startIndex) {
-  'use strict';
   if (opt_startIndex === undefined) {
     opt_startIndex = opt_reverse && element.childNodes.length ?
         element.childNodes.length - 1 :
@@ -97,7 +102,6 @@ goog.inherits(goog.dom.iter.ChildIterator, goog.dom.iter.SiblingIterator);
  * @final
  */
 goog.dom.iter.AncestorIterator = function(node, opt_includeNode) {
-  'use strict';
   /**
    * The current node, or null if iteration is finished.
    * @type {Node}
@@ -106,15 +110,14 @@ goog.dom.iter.AncestorIterator = function(node, opt_includeNode) {
   this.node_ = node;
 
   if (node && !opt_includeNode) {
-    this.nextValueOrThrow();
+    this.next();
   }
 };
 goog.inherits(goog.dom.iter.AncestorIterator, goog.iter.Iterator);
 
 
 /** @override */
-goog.dom.iter.AncestorIterator.prototype.nextValueOrThrow = function() {
-  'use strict';
+goog.dom.iter.AncestorIterator.prototype.next = function() {
   var node = this.node_;
   if (!node) {
     throw goog.iter.StopIteration;

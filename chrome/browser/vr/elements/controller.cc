@@ -1,16 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/vr/elements/controller.h"
 
 #include "base/numerics/math_constants.h"
+#include "base/stl_util.h"
 #include "base/trace_event/trace_event.h"
+#include "cc/animation/keyframed_animation_curve.h"
 #include "chrome/browser/vr/ui_element_renderer.h"
 #include "chrome/browser/vr/ui_scene_constants.h"
 #include "device/vr/vr_gl_util.h"
 #include "third_party/skia/include/core/SkColor.h"
-#include "ui/gfx/animation/keyframe/keyframed_animation_curve.h"
 
 namespace vr {
 
@@ -60,13 +61,14 @@ static constexpr char const* kFragmentShader = SHADER(
 );
 // clang-format on
 
-std::unique_ptr<gfx::FloatAnimationCurve> CreateAlphaCurve(
+std::unique_ptr<cc::FloatAnimationCurve> CreateAlphaCurve(
     const float* alpha_stops,
     size_t length) {
-  auto alpha_curve = gfx::KeyframedFloatAnimationCurve::Create();
+  auto alpha_curve = cc::KeyframedFloatAnimationCurve::Create();
   for (size_t i = 0; i < length; i += 2) {
-    alpha_curve->AddKeyframe(gfx::FloatKeyframe::Create(
-        base::Seconds(alpha_stops[i + 1]), alpha_stops[i], nullptr));
+    alpha_curve->AddKeyframe(cc::FloatKeyframe::Create(
+        base::TimeDelta::FromSecondsD(alpha_stops[i + 1]), alpha_stops[i],
+        nullptr));
   }
   return alpha_curve;
 }
@@ -74,19 +76,20 @@ std::unique_ptr<gfx::FloatAnimationCurve> CreateAlphaCurve(
 void AddVertex(const gfx::Point3F& local_vertex,
                const gfx::Transform& transform,
                std::vector<float>* vertices) {
-  gfx::Point3F vertex = transform.MapPoint(local_vertex);
+  gfx::Point3F vertex(local_vertex);
+  transform.TransformPoint(&vertex);
   vertices->push_back(vertex.x());
   vertices->push_back(vertex.y());
   vertices->push_back(vertex.z());
 }
 
 void AddColor(float alpha,
-              const gfx::FloatAnimationCurve& alpha_curve,
+              const cc::FloatAnimationCurve& alpha_curve,
               std::vector<float>* colors) {
   colors->push_back(SkColorGetR(kColor) / 255.0);
   colors->push_back(SkColorGetG(kColor) / 255.0);
   colors->push_back(SkColorGetB(kColor) / 255.0);
-  colors->push_back(alpha_curve.GetValue(base::Seconds(alpha)));
+  colors->push_back(alpha_curve.GetValue(base::TimeDelta::FromSecondsD(alpha)));
 }
 
 void AddSphere(size_t num_rings,
@@ -94,7 +97,7 @@ void AddSphere(size_t num_rings,
                float arc_rings,
                float arc_sectors,
                const gfx::Transform& transform,
-               const gfx::FloatAnimationCurve& alpha_curve,
+               const cc::FloatAnimationCurve& alpha_curve,
                std::vector<float>* vertices,
                std::vector<float>* colors,
                std::vector<GLushort>* indices) {
@@ -136,7 +139,7 @@ void AddCylinder(size_t num_rings,
                  size_t num_sectors,
                  float arc,
                  const gfx::Transform& transform,
-                 const gfx::FloatAnimationCurve& alpha_curve,
+                 const cc::FloatAnimationCurve& alpha_curve,
                  std::vector<float>* vertices,
                  std::vector<float>* colors,
                  std::vector<GLushort>* indices) {
@@ -176,7 +179,7 @@ void AddCircle(size_t num_rings,
                size_t num_sectors,
                float arc,
                const gfx::Transform& transform,
-               const gfx::FloatAnimationCurve& alpha_curve,
+               const cc::FloatAnimationCurve& alpha_curve,
                std::vector<float>* vertices,
                std::vector<float>* colors,
                std::vector<GLushort>* indices) {
@@ -215,7 +218,7 @@ void AddCircle(size_t num_rings,
 void AddSquare(size_t num_rings,
                size_t num_sectors,
                const gfx::Transform& transform,
-               const gfx::FloatAnimationCurve& alpha_curve,
+               const cc::FloatAnimationCurve& alpha_curve,
                std::vector<float>* vertices,
                std::vector<float>* colors,
                std::vector<GLushort>* indices) {
@@ -276,9 +279,9 @@ Controller::Renderer::Renderer()
   opacity_handle_ = glGetUniformLocation(program_handle_, "u_Opacity");
 
   auto body_alpha_curve =
-      CreateAlphaCurve(kBodyAlphaStops, std::size(kBodyAlphaStops));
+      CreateAlphaCurve(kBodyAlphaStops, base::size(kBodyAlphaStops));
   auto top_alpha_curve =
-      CreateAlphaCurve(kTopAlphaStops, std::size(kTopAlphaStops));
+      CreateAlphaCurve(kTopAlphaStops, base::size(kTopAlphaStops));
 
   gfx::Transform transform;
   transform.Translate3d(0.0, 0.0, (kControllerLength - kControllerWidth) / 2);

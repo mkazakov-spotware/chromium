@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,8 +17,8 @@ AsyncWebStatePolicyDecider::~AsyncWebStatePolicyDecider() = default;
 
 void AsyncWebStatePolicyDecider::ShouldAllowResponse(
     NSURLResponse* response,
-    WebStatePolicyDecider::ResponseInfo response_info,
-    WebStatePolicyDecider::PolicyDecisionCallback callback) {
+    bool for_main_frame,
+    base::OnceCallback<void(PolicyDecision)> callback) {
   callback_ = std::move(callback);
 }
 

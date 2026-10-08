@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@ class MockLeakDetectionDelegateInterface
 
   // LeakDetectionDelegateInterface:
   MOCK_METHOD4(OnLeakDetectionDone,
-               void(bool, GURL, std::u16string, std::u16string));
+               void(bool, GURL, base::string16, base::string16));
   MOCK_METHOD1(OnError, void(LeakDetectionError));
 };
 

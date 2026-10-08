@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,6 @@ import static org.mockito.Mockito.verify;
 import static org.chromium.chrome.browser.dom_distiller.ReaderModeManager.DOM_DISTILLER_SCHEME;
 
 import android.app.Activity;
-import android.app.PendingIntent;
 import android.os.Build.VERSION_CODES;
 import android.support.test.InstrumentationRegistry;
 
@@ -38,7 +37,6 @@ import androidx.test.espresso.action.Press;
 import androidx.test.espresso.action.Tap;
 import androidx.test.filters.MediumTest;
 
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -53,7 +51,6 @@ import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.CriteriaNotSatisfiedException;
 import org.chromium.base.test.util.DisableIf;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
@@ -63,7 +60,6 @@ import org.chromium.chrome.browser.download.DownloadTestRule;
 import org.chromium.chrome.browser.download.DownloadTestRule.CustomMainActivityStart;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
-import org.chromium.chrome.browser.incognito.IncognitoNotificationServiceImpl;
 import org.chromium.chrome.browser.infobar.ReaderModeInfoBar;
 import org.chromium.chrome.browser.offlinepages.OfflinePageUtils;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -71,6 +67,7 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.chrome.test.util.MenuUtils;
+import org.chromium.chrome.test.util.ViewUtils;
 import org.chromium.chrome.test.util.browser.Features.DisableFeatures;
 import org.chromium.chrome.test.util.browser.Features.EnableFeatures;
 import org.chromium.components.dom_distiller.core.DistilledPagePrefs;
@@ -82,7 +79,6 @@ import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.NetworkChangeNotifier;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.ui.test.util.UiRestriction;
-import org.chromium.ui.test.util.ViewUtils;
 
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
@@ -125,9 +121,6 @@ public class ReaderModeTest implements CustomMainActivityStart {
 
     @Test
     @MediumTest
-    // TODO(crbug.com/1225333): Implement corresponding test for messages.
-    @DisableFeatures(ChromeFeatureList.MESSAGES_FOR_ANDROID_READER_MODE)
-    @DisabledTest(message = "https://crbug.com/1328942")
     public void testReaderModeInfobarShown() {
         waitForReaderModeInfobar();
     }
@@ -180,32 +173,6 @@ public class ReaderModeTest implements CustomMainActivityStart {
     @MediumTest
     @EnableFeatures({ChromeFeatureList.READER_MODE_IN_CCT, ChromeFeatureList.CCT_INCOGNITO})
     public void testReaderModeInCCT_Incognito() throws TimeoutException {
-        openReaderModeInIncognitoCCT();
-    }
-
-    @Test
-    @MediumTest
-    @EnableFeatures({ChromeFeatureList.READER_MODE_IN_CCT, ChromeFeatureList.CCT_INCOGNITO})
-    @DisabledTest(message = "https://crbug.com/1338273")
-    public void testCloseAllIncognitoNotification_ClosesCCT()
-            throws PendingIntent.CanceledException, TimeoutException {
-        CustomTabActivity customTabActivity = openReaderModeInIncognitoCCT();
-
-        // Click on "Close all Incognito tabs" notification.
-        PendingIntent clearIntent =
-                IncognitoNotificationServiceImpl
-                        .getRemoveAllIncognitoTabsIntent(InstrumentationRegistry.getTargetContext())
-                        .getPendingIntent();
-        clearIntent.send();
-
-        // Verify the Incognito CCT is closed.
-        CriteriaHelper.pollUiThread(() -> {
-            Criteria.checkThat(customTabActivity.getTabModelSelector().getModel(true).getCount(),
-                    Matchers.equalTo(0));
-        });
-    }
-
-    private CustomTabActivity openReaderModeInIncognitoCCT() throws TimeoutException {
         ChromeTabUtils.fullyLoadUrlInNewTab(InstrumentationRegistry.getInstrumentation(),
                 (ChromeTabbedActivity) mDownloadTestRule.getActivity(), mURL, true);
 
@@ -226,8 +193,6 @@ public class ReaderModeTest implements CustomMainActivityStart {
         Tab distillerViewerTab = Objects.requireNonNull(customTabActivity.getActivityTab());
         waitForDistillation(TITLE, distillerViewerTab);
         assertTrue(distillerViewerTab.isIncognito());
-
-        return customTabActivity;
     }
 
     private void downloadAndOpenOfflinePage() {
@@ -292,11 +257,9 @@ public class ReaderModeTest implements CustomMainActivityStart {
     @Test
     @MediumTest
     @DisableFeatures(ChromeFeatureList.READER_MODE_IN_CCT)
-    @DisableIf.Build(sdk_is_less_than = VERSION_CODES.O,
-            message =
-                    "Failing on Lollipop Phone Tester (https://crbug.com/1120830) and test-n-phone (https://crbug.com/1160911)")
-    public void
-    testPreferenceInTab() throws TimeoutException {
+    @DisableIf.Build(sdk_is_less_than = VERSION_CODES.M,
+            message = "Failing on Lollipop Phone Tester. https://crbug.com/1120830")
+    public void testPreferenceInTab() throws TimeoutException {
         mDownloadTestRule.loadUrl(
                 DomDistillerUrlUtils.getDistillerViewUrlFromUrl(DOM_DISTILLER_SCHEME, mURL, TITLE));
 

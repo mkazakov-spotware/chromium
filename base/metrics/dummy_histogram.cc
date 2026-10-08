@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/metrics/histogram_samples.h"
 #include "base/metrics/metrics_hashes.h"
-#include "base/no_destructor.h"
 #include "base/notreached.h"
 #include "base/values.h"
 
@@ -36,10 +35,12 @@ class DummySampleCountIterator : public SampleCountIterator {
 
 class DummyHistogramSamples : public HistogramSamples {
  public:
-  DummyHistogramSamples()
-      : HistogramSamples(0, std::make_unique<LocalMetadata>()) {}
+  DummyHistogramSamples() : HistogramSamples(0, new LocalMetadata()) {}
   DummyHistogramSamples(const DummyHistogramSamples&) = delete;
   DummyHistogramSamples& operator=(const DummyHistogramSamples&) = delete;
+  ~DummyHistogramSamples() override {
+    delete static_cast<LocalMetadata*>(meta());
+  }
 
   // HistogramSamples:
   void Accumulate(HistogramBase::Sample value,
@@ -77,7 +78,7 @@ HistogramType DummyHistogram::GetHistogramType() const {
 bool DummyHistogram::HasConstructionArguments(
     Sample expected_minimum,
     Sample expected_maximum,
-    size_t expected_bucket_count) const {
+    uint32_t expected_bucket_count) const {
   return true;
 }
 
@@ -89,11 +90,6 @@ std::unique_ptr<HistogramSamples> DummyHistogram::SnapshotSamples() const {
   return std::make_unique<DummyHistogramSamples>();
 }
 
-std::unique_ptr<HistogramSamples> DummyHistogram::SnapshotUnloggedSamples()
-    const {
-  return std::make_unique<DummyHistogramSamples>();
-}
-
 std::unique_ptr<HistogramSamples> DummyHistogram::SnapshotDelta() {
   return std::make_unique<DummyHistogramSamples>();
 }
@@ -102,12 +98,8 @@ std::unique_ptr<HistogramSamples> DummyHistogram::SnapshotFinalDelta() const {
   return std::make_unique<DummyHistogramSamples>();
 }
 
-Value::Dict DummyHistogram::ToGraphDict() const {
-  return Value::Dict();
-}
-
-Value::Dict DummyHistogram::GetParameters() const {
-  return Value::Dict();
+base::DictionaryValue DummyHistogram::ToGraphDict() const {
+  return base::DictionaryValue();
 }
 
 }  // namespace base

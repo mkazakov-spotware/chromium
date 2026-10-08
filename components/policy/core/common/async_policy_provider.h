@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/cancelable_callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
@@ -34,8 +35,6 @@ class POLICY_EXPORT AsyncPolicyProvider : public ConfigurationPolicyProvider {
   // should be passed later to Init().
   AsyncPolicyProvider(SchemaRegistry* registry,
                       std::unique_ptr<AsyncPolicyLoader> loader);
-  AsyncPolicyProvider(const AsyncPolicyProvider&) = delete;
-  AsyncPolicyProvider& operator=(const AsyncPolicyProvider&) = delete;
   ~AsyncPolicyProvider() override;
 
   // ConfigurationPolicyProvider implementation.
@@ -49,7 +48,7 @@ class POLICY_EXPORT AsyncPolicyProvider : public ConfigurationPolicyProvider {
   void ReloadAfterRefreshSync();
 
   // Invoked with the latest bundle loaded by the |loader_|.
-  void OnLoaderReloaded(PolicyBundle bundle);
+  void OnLoaderReloaded(std::unique_ptr<PolicyBundle> bundle);
 
   // Callback passed to the loader that it uses to pass back the current policy
   // bundle to the provider. This is invoked on the background thread and
@@ -58,7 +57,7 @@ class POLICY_EXPORT AsyncPolicyProvider : public ConfigurationPolicyProvider {
   static void LoaderUpdateCallback(
       scoped_refptr<base::SingleThreadTaskRunner> runner,
       base::WeakPtr<AsyncPolicyProvider> weak_this,
-      PolicyBundle bundle);
+      std::unique_ptr<PolicyBundle> bundle);
 
   // The |loader_| that does the platform-specific policy loading. It lives
   // on the background thread but is owned by |this|.
@@ -75,6 +74,8 @@ class POLICY_EXPORT AsyncPolicyProvider : public ConfigurationPolicyProvider {
   // Used to get a WeakPtr to |this| for the update callback given to the
   // loader.
   base::WeakPtrFactory<AsyncPolicyProvider> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AsyncPolicyProvider);
 };
 
 }  // namespace policy

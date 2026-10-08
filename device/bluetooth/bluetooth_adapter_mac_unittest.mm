@@ -1,10 +1,8 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/bluetooth/bluetooth_adapter_mac.h"
-
-#include "base/memory/raw_ptr.h"
 
 #import <Foundation/Foundation.h>
 
@@ -12,11 +10,12 @@
 
 #include "base/bind.h"
 #include "base/files/file_path.h"
+#include "base/files/file_path_watcher.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_simple_task_runner.h"
@@ -32,11 +31,17 @@
 #import "device/bluetooth/test/test_bluetooth_adapter_observer.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 #import <CoreBluetooth/CoreBluetooth.h>
-#else  // !BUILDFLAG(IS_IOS)
+#else  // !defined(OS_IOS)
 #import <IOBluetooth/IOBluetooth.h>
-#endif  // BUILDFLAG(IS_IOS)
+#endif  // defined(OS_IOS)
+
+// List of undocumented IOBluetooth APIs used for BluetoothAdapterMac.
+extern "C" {
+int IOBluetoothPreferenceGetControllerPowerState();
+void IOBluetoothPreferenceSetControllerPowerState(int state);
+}
 
 namespace {
 
@@ -161,7 +166,7 @@ class BluetoothAdapterMacTest : public testing::Test {
   NSDictionary* AdvertisementData() {
     NSDictionary* advertisement_data = @{
       CBAdvertisementDataIsConnectable : @(YES),
-      CBAdvertisementDataServiceDataKey : @{},
+      CBAdvertisementDataServiceDataKey : [NSDictionary dictionary],
     };
     return [advertisement_data retain];
   }
@@ -178,7 +183,7 @@ class BluetoothAdapterMacTest : public testing::Test {
     return (device != NULL);
   }
 
-  bool SetMockCentralManager(CBManagerState desired_state) {
+  bool SetMockCentralManager(CBCentralManagerState desired_state) {
     mock_central_manager_.reset([[MockCentralManager alloc] init]);
     [mock_central_manager_ setState:desired_state];
     CBCentralManager* centralManager =
@@ -211,7 +216,7 @@ class BluetoothAdapterMacTest : public testing::Test {
   base::test::TaskEnvironment task_environment_;
   scoped_refptr<base::TestSimpleTaskRunner> ui_task_runner_;
   scoped_refptr<BluetoothAdapter> adapter_;
-  raw_ptr<BluetoothAdapterMac> adapter_mac_;
+  BluetoothAdapterMac* adapter_mac_;
   scoped_refptr<FakeBluetoothLowEnergyDeviceWatcherMac>
       fake_low_energy_device_watcher_;
   TestBluetoothAdapterObserver observer_;
@@ -225,6 +230,15 @@ class BluetoothAdapterMacTest : public testing::Test {
   base::ScopedTempDir temp_dir_;
   base::FilePath test_property_list_file_path_;
 };
+
+// Test if private IOBluetooth APIs are callable on all supported macOS
+// versions.
+TEST_F(BluetoothAdapterMacTest, IOBluetoothPrivateAPIs) {
+  // Obtain current power state, toggle it, and reset it to it's original value.
+  int previous_state = IOBluetoothPreferenceGetControllerPowerState();
+  IOBluetoothPreferenceSetControllerPowerState(!previous_state);
+  IOBluetoothPreferenceSetControllerPowerState(previous_state);
+}
 
 TEST_F(BluetoothAdapterMacTest, Poll) {
   PollAdapter();
@@ -255,7 +269,7 @@ TEST_F(BluetoothAdapterMacTest, PollAndChangePower) {
 }
 
 TEST_F(BluetoothAdapterMacTest, AddDiscoverySessionWithLowEnergyFilter) {
-  if (!SetMockCentralManager(CBManagerStatePoweredOn))
+  if (!SetMockCentralManager(CBCentralManagerStatePoweredOn))
     return;
   EXPECT_EQ(0, [mock_central_manager_ scanForPeripheralsCallCount]);
   EXPECT_EQ(0, NumDiscoverySessions());
@@ -265,7 +279,6 @@ TEST_F(BluetoothAdapterMacTest, AddDiscoverySessionWithLowEnergyFilter) {
 
   adapter_mac_->StartDiscoverySessionWithFilter(
       std::move(discovery_filter),
-      /*client_name=*/std::string(),
       base::BindOnce(&BluetoothAdapterMacTest::OnStartDiscoverySessionSuccess,
                      base::Unretained(this)),
       base::BindOnce(&BluetoothAdapterMacTest::ErrorCallback,
@@ -284,7 +297,7 @@ TEST_F(BluetoothAdapterMacTest, AddDiscoverySessionWithLowEnergyFilter) {
 // TODO(krstnmnlsn): Test changing the filter when adding the second discovery
 // session (once we have that ability).
 TEST_F(BluetoothAdapterMacTest, AddSecondDiscoverySessionWithLowEnergyFilter) {
-  if (!SetMockCentralManager(CBManagerStatePoweredOn))
+  if (!SetMockCentralManager(CBCentralManagerStatePoweredOn))
     return;
   std::unique_ptr<BluetoothDiscoveryFilter> discovery_filter(
       new BluetoothDiscoveryFilter(BLUETOOTH_TRANSPORT_LE));
@@ -297,7 +310,6 @@ TEST_F(BluetoothAdapterMacTest, AddSecondDiscoverySessionWithLowEnergyFilter) {
   discovery_filter->AddDeviceFilter(device_filter);
   adapter_mac_->StartDiscoverySessionWithFilter(
       std::move(discovery_filter),
-      /*client_name=*/std::string(),
       base::BindOnce(&BluetoothAdapterMacTest::OnStartDiscoverySessionSuccess,
                      base::Unretained(this)),
       base::BindOnce(&BluetoothAdapterMacTest::ErrorCallback,
@@ -314,7 +326,6 @@ TEST_F(BluetoothAdapterMacTest, AddSecondDiscoverySessionWithLowEnergyFilter) {
 
   adapter_mac_->StartDiscoverySessionWithFilter(
       std::move(discovery_filter2),
-      /*client_name=*/std::string(),
       base::BindOnce(&BluetoothAdapterMacTest::OnStartDiscoverySessionSuccess,
                      base::Unretained(this)),
       base::BindOnce(&BluetoothAdapterMacTest::ErrorCallback,
@@ -328,7 +339,7 @@ TEST_F(BluetoothAdapterMacTest, AddSecondDiscoverySessionWithLowEnergyFilter) {
 }
 
 TEST_F(BluetoothAdapterMacTest, RemoveDiscoverySessionWithLowEnergyFilter) {
-  if (!SetMockCentralManager(CBManagerStatePoweredOn))
+  if (!SetMockCentralManager(CBCentralManagerStatePoweredOn))
     return;
   EXPECT_EQ(0, [mock_central_manager_ scanForPeripheralsCallCount]);
 
@@ -336,7 +347,6 @@ TEST_F(BluetoothAdapterMacTest, RemoveDiscoverySessionWithLowEnergyFilter) {
       new BluetoothDiscoveryFilter(BLUETOOTH_TRANSPORT_LE));
   adapter_mac_->StartDiscoverySessionWithFilter(
       std::move(discovery_filter),
-      /*client_name=*/std::string(),
       base::BindOnce(&BluetoothAdapterMacTest::OnStartDiscoverySessionSuccess,
                      base::Unretained(this)),
       base::BindOnce(&BluetoothAdapterMacTest::ErrorCallback,
@@ -363,7 +373,7 @@ TEST_F(BluetoothAdapterMacTest, RemoveDiscoverySessionWithLowEnergyFilter) {
 }
 
 TEST_F(BluetoothAdapterMacTest, CheckGetPeripheralHashAddress) {
-  if (!SetMockCentralManager(CBManagerStatePoweredOn))
+  if (!SetMockCentralManager(CBCentralManagerStatePoweredOn))
     return;
   base::scoped_nsobject<CBPeripheral> mock_peripheral(
       CreateMockPeripheral(kTestNSUUID));
@@ -373,7 +383,7 @@ TEST_F(BluetoothAdapterMacTest, CheckGetPeripheralHashAddress) {
 }
 
 TEST_F(BluetoothAdapterMacTest, LowEnergyDeviceUpdatedNewDevice) {
-  if (!SetMockCentralManager(CBManagerStatePoweredOn))
+  if (!SetMockCentralManager(CBCentralManagerStatePoweredOn))
     return;
   base::scoped_nsobject<CBPeripheral> mock_peripheral(
       CreateMockPeripheral(kTestNSUUID));
@@ -437,7 +447,7 @@ TEST_F(BluetoothAdapterMacTest, GetNewlyPairedLowEnergyDevice) {
 
   const char kTestAddedDeviceNSUUID[] = "E7F8589A-A7D9-4B94-9A08-D89076A159F4";
 
-  ASSERT_TRUE(SetMockCentralManager(CBManagerStatePoweredOn));
+  ASSERT_TRUE(SetMockCentralManager(CBCentralManagerStatePoweredOn));
 
   base::scoped_nsobject<CBPeripheral> mock_peripheral_one(
       CreateMockPeripheral(kTestNSUUID));
@@ -486,7 +496,7 @@ TEST_F(BluetoothAdapterMacTest, NotifyObserverWhenDeviceIsUnpaired) {
       "</dict>"
       "</plist>";
 
-  if (!SetMockCentralManager(CBManagerStatePoweredOn))
+  if (!SetMockCentralManager(CBCentralManagerStatePoweredOn))
     return;
 
   base::scoped_nsobject<CBPeripheral> mock_peripheral(

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,12 @@
 #include <string>
 
 #include "base/bind.h"
+#include "base/callback_forward.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/media/webrtc/webrtc_event_log_manager_common.h"
 #include "chrome/test/base/testing_browser_process.h"
@@ -23,7 +21,6 @@
 #include "content/public/test/browser_task_environment.h"
 #include "net/http/http_status_code.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "services/network/test/test_url_loader_factory.h"
 #include "services/network/test/test_utils.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -55,7 +52,7 @@ class UploadObserver {
   base::OnceClosure on_complete_callback_;
 };
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 void RemovePermissions(const base::FilePath& path, int removed_permissions) {
   int permissions;
   ASSERT_TRUE(base::GetPosixFilePermissions(path, &permissions));
@@ -69,7 +66,7 @@ void RemoveReadPermissions(const base::FilePath& path) {
                                    base::FILE_PERMISSION_READ_BY_OTHERS;
   RemovePermissions(path, read_permissions);
 }
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // defined(OS_POSIX)
 }  // namespace
 
 class WebRtcEventLogUploaderImplTest : public ::testing::Test {
@@ -86,7 +83,7 @@ class WebRtcEventLogUploaderImplTest : public ::testing::Test {
     EXPECT_TRUE(base::Time::FromString("30 Dec 1983", &kReasonableTime));
 
     uploader_factory_ = std::make_unique<WebRtcEventLogUploaderImpl::Factory>(
-        base::SequencedTaskRunner::GetCurrentDefault());
+        base::SequencedTaskRunnerHandle::Get());
   }
 
   ~WebRtcEventLogUploaderImplTest() override {
@@ -199,7 +196,7 @@ class WebRtcEventLogUploaderImplTest : public ::testing::Test {
 
   base::ScopedTempDir profiles_dir_;
   std::unique_ptr<TestingProfileManager> testing_profile_manager_;
-  raw_ptr<TestingProfile> testing_profile_;  // |testing_profile_manager_| owns.
+  TestingProfile* testing_profile_;  // |testing_profile_manager_| owns.
   BrowserContextId browser_context_id_;
 
   base::FilePath log_file_;
@@ -238,7 +235,7 @@ TEST_F(WebRtcEventLogUploaderImplTest, UnsuccessfulUploadReportedToObserver2) {
   EXPECT_FALSE(base::PathExists(log_file_));
 }
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 TEST_F(WebRtcEventLogUploaderImplTest, FailureToReadFileReportedToObserver) {
   // Show the failure was independent of the URLLoaderFactory's primed return
   // value.
@@ -258,7 +255,7 @@ TEST_F(WebRtcEventLogUploaderImplTest, NonExistentFileReportedToObserver) {
   EXPECT_CALL(observer_, CompletionCallback(log_file_, false)).Times(1);
   StartAndWaitForUpload();
 }
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // defined(OS_POSIX)
 
 TEST_F(WebRtcEventLogUploaderImplTest, FilesUpToMaxSizeUploaded) {
   int64_t log_file_size_bytes;

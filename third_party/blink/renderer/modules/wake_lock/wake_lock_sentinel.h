@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,12 @@
 #include "base/gtest_prod_util.h"
 #include "third_party/blink/renderer/bindings/core/v8/active_script_wrappable.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_wake_lock_type.h"
 #include "third_party/blink/renderer/core/dom/events/event_target.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/modules/wake_lock/wake_lock_type.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
 
@@ -30,7 +29,7 @@ class MODULES_EXPORT WakeLockSentinel final
 
  public:
   WakeLockSentinel(ScriptState* script_state,
-                   V8WakeLockType::Enum type,
+                   WakeLockType type,
                    WakeLockManager* manager);
   ~WakeLockSentinel() override;
 
@@ -38,7 +37,7 @@ class MODULES_EXPORT WakeLockSentinel final
   DEFINE_ATTRIBUTE_EVENT_LISTENER(release, kRelease)
   ScriptPromise release(ScriptState*);
   bool released() const;
-  V8WakeLockType type() const;
+  String type() const;
 
   // EventTarget overrides.
   ExecutionContext* GetExecutionContext() const override;
@@ -62,9 +61,11 @@ class MODULES_EXPORT WakeLockSentinel final
   // where |script_state_|'s context is no longer valid.
   void DoRelease();
 
+  void DispatchReleaseEvent();
+
   Member<WakeLockManager> manager_;
   bool released_ = false;
-  const V8WakeLockType::Enum type_;
+  const WakeLockType type_;
 
   FRIEND_TEST_ALL_PREFIXES(WakeLockSentinelTest, MultipleReleaseCalls);
 };

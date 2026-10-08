@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,7 @@
 #include "base/bind.h"
 #include "base/metrics/histogram.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/task/sequenced_task_runner.h"
-#include "build/build_config.h"
+#include "base/sequenced_task_runner.h"
 #include "chrome/browser/media/media_engagement_preloaded_list.h"
 #include "chrome/browser/media/media_engagement_service.h"
 #include "chrome/browser/media/media_engagement_session.h"
@@ -24,11 +23,11 @@
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/mojom/autoplay/autoplay.mojom.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
 namespace {
 
@@ -48,7 +47,7 @@ const gfx::Size MediaEngagementContentsObserver::kSignificantSize =
     gfx::Size(200, 140);
 
 const base::TimeDelta MediaEngagementContentsObserver::kMaxShortPlaybackTime =
-    base::Seconds(3);
+    base::TimeDelta::FromSeconds(3);
 
 const char* const
     MediaEngagementContentsObserver::kHistogramScoreAtPlaybackName =
@@ -72,7 +71,7 @@ const int MediaEngagementContentsObserver::kMaxInsignificantPlaybackReason =
 
 const base::TimeDelta
     MediaEngagementContentsObserver::kSignificantMediaPlaybackTime =
-        base::Seconds(7);
+        base::TimeDelta::FromSeconds(7);
 
 MediaEngagementContentsObserver::MediaEngagementContentsObserver(
     content::WebContents* web_contents,
@@ -86,8 +85,6 @@ MediaEngagementContentsObserver::~MediaEngagementContentsObserver() = default;
 MediaEngagementContentsObserver::PlaybackTimer::PlaybackTimer(
     base::Clock* clock)
     : clock_(clock) {}
-
-MediaEngagementContentsObserver::PlaybackTimer::~PlaybackTimer() = default;
 
 void MediaEngagementContentsObserver::PlaybackTimer::Start() {
   start_time_ = clock_->Now();
@@ -157,7 +154,7 @@ void MediaEngagementContentsObserver::RegisterAudiblePlayersWithSession() {
 
 void MediaEngagementContentsObserver::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
-  if (!navigation_handle->IsInPrimaryMainFrame() ||
+  if (!navigation_handle->IsInMainFrame() ||
       !navigation_handle->HasCommitted() ||
       navigation_handle->IsSameDocument() || navigation_handle->IsErrorPage()) {
     return;
@@ -166,7 +163,8 @@ void MediaEngagementContentsObserver::DidFinishNavigation(
   RegisterAudiblePlayersWithSession();
   ClearPlayerStates();
 
-  if (session_ && session_->IsSameOriginWith(navigation_handle->GetURL()))
+  url::Origin new_origin = url::Origin::Create(navigation_handle->GetURL());
+  if (session_ && session_->IsSameOriginWith(new_origin))
     return;
 
   // Only get the opener if the navigation originated from a link.
@@ -260,13 +258,6 @@ void MediaEngagementContentsObserver::MediaResized(
        size.height() >= kSignificantSize.height());
   MaybeInsertRemoveSignificantPlayer(id);
   UpdatePlayerTimer(id);
-}
-
-void MediaEngagementContentsObserver::MediaDestroyed(
-    const content::MediaPlayerId& id) {
-  player_states_.erase(id);
-  audible_players_.erase(id);
-  significant_players_.erase(id);
 }
 
 void MediaEngagementContentsObserver::MediaStoppedPlaying(
@@ -580,22 +571,13 @@ void MediaEngagementContentsObserver::SetTaskRunnerForTest(
 
 void MediaEngagementContentsObserver::ReadyToCommitNavigation(
     content::NavigationHandle* handle) {
-  // Do nothing if prerendering.
-  if (handle->GetRenderFrameHost()->GetLifecycleState() ==
-          content::RenderFrameHost::LifecycleState::kPrerendering &&
-      !handle->IsPrerenderedPageActivation()) {
-    return;
-  }
-
-  // If the navigation is occurring in the main frame we should use the URL
+  // If the navigation is occuring in the main frame we should use the URL
   // provided by |handle| as the navigation has not committed yet. If the
-  // navigation is in a subframe or fenced frame, use the URL from the outermost
-  // main frame.
-  url::Origin origin = url::Origin::Create(handle->IsInPrimaryMainFrame()
-                                               ? handle->GetURL()
-                                               : handle->GetRenderFrameHost()
-                                                     ->GetOutermostMainFrame()
-                                                     ->GetLastCommittedURL());
+  // navigation is in a sub frame then use the URL from the main frame.
+  url::Origin origin = url::Origin::Create(
+      handle->IsInMainFrame()
+          ? handle->GetURL()
+          : handle->GetWebContents()->GetLastCommittedURL());
   MediaEngagementScore score = service_->CreateEngagementScore(origin);
   bool has_high_engagement = score.high_score();
 
@@ -621,7 +603,7 @@ void MediaEngagementContentsObserver::ReadyToCommitNavigation(
 }
 
 content::WebContents* MediaEngagementContentsObserver::GetOpener() const {
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   for (auto* browser : *BrowserList::GetInstance()) {
     if (browser->profile() != service_->profile())
       continue;
@@ -634,7 +616,7 @@ content::WebContents* MediaEngagementContentsObserver::GetOpener() const {
     // Whether or not the |opener| is null, this is the right tab strip.
     return browser->tab_strip_model()->GetOpenerOfWebContentsAt(index);
   }
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
   return nullptr;
 }
@@ -655,13 +637,12 @@ MediaEngagementContentsObserver::GetOrCreateSession(
       service_->GetContentsObserverFor(opener);
 
   if (opener_observer && opener_observer->session_ &&
-      opener_observer->session_->IsSameOriginWith(
-          navigation_handle->GetURL())) {
+      opener_observer->session_->IsSameOriginWith(origin)) {
     return opener_observer->session_;
   }
 
   MediaEngagementSession::RestoreType restore_type =
-      navigation_handle->GetRestoreType() == content::RestoreType::kNotRestored
+      navigation_handle->GetRestoreType() == content::RestoreType::NONE
           ? MediaEngagementSession::RestoreType::kNotRestored
           : MediaEngagementSession::RestoreType::kRestored;
 

@@ -1,10 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/services/sharing/nearby/platform/input_file.h"
-
-#include <vector>
 
 #include "base/logging.h"
 
@@ -32,17 +30,13 @@ ExceptionOr<ByteArray> InputFile::Read(std::int64_t size) {
   if (!file_.IsValid())
     return Exception::kIo;
 
-  if (size == 0) {
-    return ExceptionOr<ByteArray>(ByteArray());
-  }
-
-  std::vector<char> buf(size);
-  int num_bytes_read = file_.ReadAtCurrentPos(buf.data(), size);
+  char buf[size];
+  int num_bytes_read = file_.ReadAtCurrentPos(buf, size);
 
   if (num_bytes_read < 0 || num_bytes_read > GetTotalSize())
     return Exception::kIo;
 
-  return ExceptionOr<ByteArray>(ByteArray(buf.data(), num_bytes_read));
+  return ExceptionOr<ByteArray>(ByteArray(buf, num_bytes_read));
 }
 
 Exception InputFile::Close() {

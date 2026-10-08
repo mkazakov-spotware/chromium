@@ -31,11 +31,12 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_WEBDATABASE_QUOTA_TRACKER_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBDATABASE_QUOTA_TRACKER_H_
 
-#include "base/synchronization/lock.h"
+#include "base/macros.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_hash.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
+#include "third_party/blink/renderer/platform/wtf/threading_primitives.h"
 
 namespace blink {
 
@@ -46,9 +47,6 @@ class MODULES_EXPORT QuotaTracker {
 
  public:
   static QuotaTracker& Instance();
-
-  QuotaTracker(const QuotaTracker&) = delete;
-  QuotaTracker& operator=(const QuotaTracker&) = delete;
 
   void GetDatabaseSizeAndSpaceAvailableToOrigin(const SecurityOrigin*,
                                                 const String& database_name,
@@ -62,8 +60,10 @@ class MODULES_EXPORT QuotaTracker {
   QuotaTracker() = default;
 
   typedef HashMap<String, uint64_t> SizeMap;
-  HashMap<String, SizeMap> database_sizes_ GUARDED_BY(data_guard_);
-  base::Lock data_guard_;
+  HashMap<String, SizeMap> database_sizes_;
+  Mutex data_guard_;
+
+  DISALLOW_COPY_AND_ASSIGN(QuotaTracker);
 };
 
 }  // namespace blink

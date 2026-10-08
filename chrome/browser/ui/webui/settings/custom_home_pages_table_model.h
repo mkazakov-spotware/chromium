@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "components/history/core/browser/history_types.h"
 #include "ui/base/models/table_model.h"
@@ -31,11 +32,6 @@ class TableModelObserver;
 class CustomHomePagesTableModel : public ui::TableModel {
  public:
   explicit CustomHomePagesTableModel(Profile* profile);
-
-  CustomHomePagesTableModel(const CustomHomePagesTableModel&) = delete;
-  CustomHomePagesTableModel& operator=(const CustomHomePagesTableModel&) =
-      delete;
-
   ~CustomHomePagesTableModel() override;
 
   // Sets the set of urls that this model contains.
@@ -44,13 +40,13 @@ class CustomHomePagesTableModel : public ui::TableModel {
   // Collect all entries indexed by |index_list|, and moves them to be right
   // before the element addressed by |insert_before|. Used by Drag&Drop.
   // Expects |index_list| to be ordered ascending.
-  void MoveURLs(size_t insert_before, const std::vector<size_t>& index_list);
+  void MoveURLs(int insert_before, const std::vector<int>& index_list);
 
   // Adds an entry at the specified index.
-  void Add(size_t index, const GURL& url);
+  void Add(int index, const GURL& url);
 
   // Removes the entry at the specified index.
-  void Remove(size_t index);
+  void Remove(int index);
 
   // Clears any entries and fills the list with pages currently opened in the
   // browser. |ignore_contents| is omitted from the open pages.
@@ -60,9 +56,9 @@ class CustomHomePagesTableModel : public ui::TableModel {
   std::vector<GURL> GetURLs();
 
   // TableModel overrides:
-  size_t RowCount() override;
-  std::u16string GetText(size_t row, int column_id) override;
-  std::u16string GetTooltip(size_t row) override;
+  int RowCount() override;
+  base::string16 GetText(int row, int column_id) override;
+  base::string16 GetTooltip(int row) override;
   void SetObserver(ui::TableModelObserver* observer) override;
 
  private:
@@ -94,21 +90,21 @@ class CustomHomePagesTableModel : public ui::TableModel {
 
   // Adds an entry at the specified index, but doesn't load the title or tell
   // the observer.
-  void AddWithoutNotification(size_t index, const GURL& url);
+  void AddWithoutNotification(int index, const GURL& url);
 
   // Removes the entry at the specified index, but doesn't tell the observer.
-  void RemoveWithoutNotification(size_t index);
+  void RemoveWithoutNotification(int index);
 
   // Returns the URL for a particular row, formatted for display to the user.
-  std::u16string FormattedURL(size_t row) const;
+  base::string16 FormattedURL(int row) const;
 
   // Set of entries we're showing.
   std::vector<Entry> entries_;
 
   // Profile used to load titles.
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
-  raw_ptr<ui::TableModelObserver> observer_;
+  ui::TableModelObserver* observer_;
 
   // Used in loading titles.
   base::CancelableTaskTracker task_tracker_;
@@ -116,6 +112,8 @@ class CustomHomePagesTableModel : public ui::TableModel {
   // Used to keep track of when it's time to update the observer when loading
   // multiple titles.
   int num_outstanding_title_lookups_;
+
+  DISALLOW_COPY_AND_ASSIGN(CustomHomePagesTableModel);
 };
 
 #endif  // CHROME_BROWSER_UI_WEBUI_SETTINGS_CUSTOM_HOME_PAGES_TABLE_MODEL_H_

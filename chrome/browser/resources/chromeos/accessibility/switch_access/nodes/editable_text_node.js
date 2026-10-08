@@ -1,25 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {EventGenerator} from '../../common/event_generator.js';
-import {EventHandler} from '../../common/event_handler.js';
-import {KeyCode} from '../../common/key_code.js';
-import {Navigator} from '../navigator.js';
-import {SwitchAccess} from '../switch_access.js';
-import {SAConstants, SwitchAccessMenuAction} from '../switch_access_constants.js';
-import {SwitchAccessPredicate} from '../switch_access_predicate.js';
-import {TextNavigationManager} from '../text_navigation_manager.js';
-
-import {BasicNode} from './basic_node.js';
-import {SAChildNode, SARootNode} from './switch_access_node.js';
-
-const AutomationNode = chrome.automation.AutomationNode;
 
 /**
  * This class handles interactions with editable text fields.
  */
-export class EditableTextNode extends BasicNode {
+class EditableTextNode extends BasicNode {
   /**
    * @param {!AutomationNode} baseNode
    * @param {?SARootNode} parent
@@ -82,7 +68,7 @@ export class EditableTextNode extends BasicNode {
   performAction(action) {
     switch (action) {
       case SwitchAccessMenuAction.KEYBOARD:
-        Navigator.byItem.enterKeyboard();
+        NavigationManager.enterKeyboard();
         return SAConstants.ActionResponse.CLOSE_MENU;
       case SwitchAccessMenuAction.DICTATION:
         if (this.automationNode.state[chrome.automation.StateType.FOCUSED]) {
@@ -114,7 +100,7 @@ export class EditableTextNode extends BasicNode {
         return SAConstants.ActionResponse.OPEN_TEXT_NAVIGATION_MENU;
       case SwitchAccessMenuAction.END_TEXT_SELECTION:
         TextNavigationManager.saveSelectEnd();
-        return SAConstants.ActionResponse.EXIT_SUBMENU;
+        return SAConstants.ActionResponse.RELOAD_MENU;
 
       case SwitchAccessMenuAction.JUMP_TO_BEGINNING_OF_TEXT:
         TextNavigationManager.jumpToBeginning();
@@ -144,8 +130,3 @@ export class EditableTextNode extends BasicNode {
     return super.performAction(action);
   }
 }
-
-BasicNode.creators.push({
-  predicate: SwitchAccessPredicate.isTextInput,
-  creator: (node, parentNode) => new EditableTextNode(node, parentNode),
-});

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,9 +38,7 @@ if (typeof(goog) != 'undefined' && goog.require) {
     channel_.port1.onmessage = function(evt) {
       cvox.MathJax.execMessage(evt.data);
     };
-    window.postMessage(
-        'cvox.MathJaxPortSetup', '*' /* target origin */,
-        [channel_.port2] /* transfer */);
+    window.postMessage('cvox.MathJaxPortSetup', '*', [channel_.port2]);
   };
 
 

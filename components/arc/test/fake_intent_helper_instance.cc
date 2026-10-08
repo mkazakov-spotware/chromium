@@ -1,16 +1,16 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/arc/test/fake_intent_helper_instance.h"
 
+#include <algorithm>
 #include <iterator>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/ranges/algorithm.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 
 namespace arc {
 
@@ -58,29 +58,25 @@ void FakeIntentHelperInstance::AddPreferredPackage(
 void FakeIntentHelperInstance::AddPreferredApp(const std::string& package_name,
                                                IntentFilter intent_filter,
                                                mojom::IntentInfoPtr intent) {}
+void FakeIntentHelperInstance::ResetVerifiedLinks(
+    const std::vector<std::string>& package_names) {}
 
-void FakeIntentHelperInstance::SetVerifiedLinks(
-    const std::vector<std::string>& package_names,
-    bool always_open) {
-  for (const auto& package : package_names) {
-    verified_links_[package] = always_open;
-  }
-}
+void FakeIntentHelperInstance::GetFileSizeDeprecated(
+    const std::string& url,
+    GetFileSizeDeprecatedCallback callback) {}
 
 void FakeIntentHelperInstance::HandleIntent(mojom::IntentInfoPtr intent,
                                             mojom::ActivityNamePtr activity) {
   handled_intents_.emplace_back(std::move(intent), std::move(activity));
 }
 
-void FakeIntentHelperInstance::HandleIntentWithWindowInfo(
-    mojom::IntentInfoPtr intent,
-    mojom::ActivityNamePtr activity,
-    mojom::WindowInfoPtr window_info) {
-  handled_intents_.emplace_back(std::move(intent), std::move(activity));
-}
-
 void FakeIntentHelperInstance::HandleUrl(const std::string& url,
                                          const std::string& package_name) {}
+
+void FakeIntentHelperInstance::InitDeprecated(
+    mojo::PendingRemote<mojom::IntentHelperHost> host_remote) {
+  Init(std::move(host_remote), base::DoNothing());
+}
 
 void FakeIntentHelperInstance::Init(
     mojo::PendingRemote<mojom::IntentHelperHost> host_remote,
@@ -90,6 +86,10 @@ void FakeIntentHelperInstance::Init(
   host_remote_.Bind(std::move(host_remote));
   std::move(callback).Run();
 }
+
+void FakeIntentHelperInstance::OpenFileToReadDeprecated(
+    const std::string& url,
+    OpenFileToReadDeprecatedCallback callback) {}
 
 void FakeIntentHelperInstance::RequestActivityIcons(
     std::vector<mojom::ActivityNamePtr> activities,
@@ -108,7 +108,7 @@ void FakeIntentHelperInstance::RequestIntentHandlerList(
     }
   }
   // Post the reply to run asynchronously to match the real implementation.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), std::move(handlers)));
 }
 
@@ -117,7 +117,7 @@ void FakeIntentHelperInstance::RequestUrlHandlerList(
     RequestUrlHandlerListCallback callback) {
   std::vector<mojom::IntentHandlerInfoPtr> handlers;
   // Post the reply to run asynchronously to match the real implementation.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), std::move(handlers)));
 }
 
@@ -131,6 +131,11 @@ void FakeIntentHelperInstance::SendBroadcast(const std::string& action,
                                              const std::string& extras) {
   broadcasts_.emplace_back(action, package_name, cls, extras);
 }
+
+void FakeIntentHelperInstance::ClassifySelectionDeprecated(
+    const std::string& text,
+    ::arc::mojom::ScaleFactor scale_factor,
+    ClassifySelectionDeprecatedCallback callback) {}
 
 void FakeIntentHelperInstance::RequestTextSelectionActions(
     const std::string& text,
@@ -147,9 +152,9 @@ std::vector<FakeIntentHelperInstance::Broadcast>
 FakeIntentHelperInstance::GetBroadcastsForAction(
     const std::string& action) const {
   std::vector<Broadcast> result;
-  base::ranges::copy_if(
-      broadcasts_, std::back_inserter(result),
-      [&action](const Broadcast& b) { return b.action == action; });
+  std::copy_if(broadcasts_.begin(), broadcasts_.end(),
+               std::back_inserter(result),
+               [action](const Broadcast& b) { return b.action == action; });
   return result;
 }
 

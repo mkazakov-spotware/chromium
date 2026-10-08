@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,10 +14,19 @@ GEN('#include "content/public/test/browser_test.h"');
 const BookmarksFocusTest = class extends PolymerInteractiveUITest {
   /** @override */
   get browsePreload() {
-    throw new Error('this is abstract and should be overriden by subclasses');
+    throw 'this is abstract and should be overriden by subclasses';
+  }
+
+  /** @override */
+  get extraLibraries() {
+    return [
+      '//third_party/mocha/mocha.js',
+      '//chrome/test/data/webui/mocha_adapter.js',
+    ];
   }
 };
 
+// eslint-disable-next-line no-var
 var BookmarksFolderNodeFocusTest = class extends BookmarksFocusTest {
   /** @override */
   get browsePreload() {
@@ -31,6 +40,7 @@ TEST_F('BookmarksFolderNodeFocusTest', 'MAYBE_All', function() {
   mocha.run();
 });
 
+// eslint-disable-next-line no-var
 var BookmarksListFocusTest = class extends BookmarksFocusTest {
   /** @override */
   get browsePreload() {
@@ -44,6 +54,7 @@ TEST_F('BookmarksListFocusTest', 'MAYBE_All', function() {
   mocha.run();
 });
 
+// eslint-disable-next-line no-var
 var BookmarksDialogFocusManagerTest = class extends BookmarksFocusTest {
   /** @override */
   get browsePreload() {

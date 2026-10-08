@@ -2,20 +2,17 @@ precision mediump float;
 
 uniform sampler2D uDepthTexture;
 uniform mat4 uUvTransform;
-uniform float uRawValueToMeters;
-uniform float uAlpha;
 
 varying vec2 vTexCoord;
 
-float DepthGetMeters(in sampler2D depth_texture, in vec2 depth_uv) {
+float DepthGetMillimeters(in sampler2D depth_texture, in vec2 depth_uv) {
   // Depth is packed into the luminance and alpha components of its texture.
-  // The texture is in a normalized format, storing raw values that need to be
-  // converted to meters.
+  // The texture is a normalized format, storing millimeters.
   vec2 packedDepthAndVisibility = texture2D(depth_texture, depth_uv).ra;
-  return dot(packedDepthAndVisibility, vec2(255.0, 256.0 * 255.0)) * uRawValueToMeters;
+  return dot(packedDepthAndVisibility, vec2(255.0, 256.0 * 255.0));
 }
 
-const highp float kMaxDepthInMeters = 8.0;
+const highp float kMaxDepth = 8000.0; // In millimeters.
 const float kInvalidDepthThreshold = 0.01;
 
 vec3 TurboColormap(in float x);
@@ -30,11 +27,11 @@ vec3 DepthGetColorVisualization(in float x) {
 }
 
 void main(void) {
-  vec4 texCoord = uUvTransform * vec4(vTexCoord, 0, 1);
+  vec2 texCoord = (uUvTransform * vec4(vTexCoord.xy, 0, 1)).xy;
 
   highp float normalized_depth = clamp(
-    DepthGetMeters(uDepthTexture, texCoord.xy) / kMaxDepthInMeters, 0.0, 1.0);
-  gl_FragColor = vec4(DepthGetColorVisualization(normalized_depth), uAlpha);
+    DepthGetMillimeters(uDepthTexture, texCoord) / kMaxDepth, 0.0, 1.0);
+  gl_FragColor = vec4(DepthGetColorVisualization(normalized_depth), 0.75);
 }
 
 // Insert turbo.glsl here.

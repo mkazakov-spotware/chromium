@@ -3,8 +3,6 @@
 <head>
 <script src='../../../resources/testharness.js'></script>
 <script src='../../../resources/testharnessreport.js'></script>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
 <script src='../../../fast/forms/resources/picker-common.js'></script>
 </head>
 <body>
@@ -15,17 +13,15 @@
 let t = async_test('Color picker: Manually entering an invalid value should not change the selected color.');
 t.step(() => {
   let colorControl = document.getElementById('color');
-  openPicker(colorControl)
-  .then(t.step_func_done(() => {
-    internals.pagePopupWindow.focus();
-    const popupDocument = internals.pagePopupWindow.document;
+  openPicker(colorControl, t.step_func_done(() => {
+    popupWindow.focus();
+    const popupDocument = popupWindow.document;
     const gValueContainer = popupDocument.getElementById('gValueContainer');
     assert_equals(gValueContainer.value, '72');
     const gValueContainerRect = gValueContainer.getBoundingClientRect();
     eventSender.mouseMoveTo(gValueContainerRect.left + 1, gValueContainerRect.top);
     eventSender.mouseDown();
     eventSender.mouseUp();
-    eventSender.keyDown('ArrowLeft');
     eventSender.keyDown('3');
     assert_equals(gValueContainer.value, '372');
     eventSender.keyDown('Tab');
@@ -39,7 +35,6 @@ t.step(() => {
     eventSender.mouseMoveTo(sValueContainerRect.right - 1, sValueContainerRect.top + (sValueContainerRect.height / 2));
     eventSender.mouseDown();
     eventSender.mouseUp();
-    eventSender.keyDown('ArrowRight');
     eventSender.keyDown('Backspace');
     assert_equals(sValueContainer.value, '41');
     eventSender.keyDown('Tab');
@@ -52,7 +47,6 @@ t.step(() => {
     eventSender.mouseMoveTo(hexValueContainerRect.right - 1, hexValueContainerRect.top + (hexValueContainerRect.height / 2));
     eventSender.mouseDown();
     eventSender.mouseUp();
-    eventSender.keyDown('ArrowRight');
     const hexValueContainerLength = hexValueContainer.value.length;
     for (let i = 0; i < hexValueContainerLength; i++) {
       eventSender.keyDown('Backspace');

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,14 @@
 
 #include "base/feature_list.h"
 #include "base/metrics/field_trial_params.h"
+#include "base/optional.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search/background/ntp_background_service.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/search/ntp_features.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/storage_partition.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 // static
 NtpBackgroundService* NtpBackgroundServiceFactory::GetForProfile(
@@ -29,7 +30,9 @@ NtpBackgroundServiceFactory* NtpBackgroundServiceFactory::GetInstance() {
 }
 
 NtpBackgroundServiceFactory::NtpBackgroundServiceFactory()
-    : ProfileKeyedServiceFactory("NtpBackgroundService") {}
+    : BrowserContextKeyedServiceFactory(
+          "NtpBackgroundService",
+          BrowserContextDependencyManager::GetInstance()) {}
 
 NtpBackgroundServiceFactory::~NtpBackgroundServiceFactory() = default;
 
@@ -38,7 +41,8 @@ KeyedService* NtpBackgroundServiceFactory::BuildServiceInstanceFor(
   // TODO(crbug.com/914898): Background service URLs should be
   // configurable server-side, so they can be changed mid-release.
 
-  auto url_loader_factory = context->GetDefaultStoragePartition()
-                                ->GetURLLoaderFactoryForBrowserProcess();
+  auto url_loader_factory =
+      content::BrowserContext::GetDefaultStoragePartition(context)
+          ->GetURLLoaderFactoryForBrowserProcess();
   return new NtpBackgroundService(url_loader_factory);
 }

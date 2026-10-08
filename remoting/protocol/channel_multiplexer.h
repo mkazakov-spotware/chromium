@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "remoting/base/buffered_socket_writer.h"
@@ -15,7 +15,8 @@
 #include "remoting/protocol/message_reader.h"
 #include "remoting/protocol/stream_channel_factory.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 class ChannelMultiplexer : public StreamChannelFactory {
  public:
@@ -24,10 +25,6 @@ class ChannelMultiplexer : public StreamChannelFactory {
   // |factory| is used to create the channel upon which to multiplex.
   ChannelMultiplexer(StreamChannelFactory* factory,
                      const std::string& base_channel_name);
-
-  ChannelMultiplexer(const ChannelMultiplexer&) = delete;
-  ChannelMultiplexer& operator=(const ChannelMultiplexer&) = delete;
-
   ~ChannelMultiplexer() override;
 
   // StreamChannelFactory interface.
@@ -67,7 +64,7 @@ class ChannelMultiplexer : public StreamChannelFactory {
 
   // Factory used to create |base_channel_|. Set to nullptr once creation is
   // finished or failed.
-  raw_ptr<StreamChannelFactory> base_channel_factory_;
+  StreamChannelFactory* base_channel_factory_;
 
   // Name of the underlying channel.
   std::string base_channel_name_;
@@ -89,8 +86,12 @@ class ChannelMultiplexer : public StreamChannelFactory {
   MessageReader reader_;
 
   base::WeakPtrFactory<ChannelMultiplexer> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ChannelMultiplexer);
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
+
 
 #endif  // REMOTING_PROTOCOL_CHANNEL_MULTIPLEXER_H_

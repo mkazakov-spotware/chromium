@@ -1,10 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/power/battery_notification.h"
 
-#include "ash/constants/notifier_catalogs.h"
 #include "ash/public/cpp/notification_utils.h"
 #include "ash/public/cpp/power_utils.h"
 #include "ash/resources/vector_icons/vector_icons.h"
@@ -28,6 +27,7 @@ namespace ash {
 
 namespace {
 
+const char kBatteryNotificationId[] = "battery";
 const char kNotifierBattery[] = "ash.battery";
 
 const gfx::VectorIcon& GetBatteryImageMD(
@@ -52,7 +52,7 @@ message_center::SystemNotificationWarningLevel GetWarningLevelMD(
     return message_center::SystemNotificationWarningLevel::NORMAL;
   } else if (notification_state ==
              PowerNotificationController::NOTIFICATION_LOW_POWER) {
-    return message_center::SystemNotificationWarningLevel::WARNING;
+    return message_center::SystemNotificationWarningLevel::NORMAL;
   } else if (notification_state ==
              PowerNotificationController::NOTIFICATION_CRITICAL) {
     return message_center::SystemNotificationWarningLevel::CRITICAL_WARNING;
@@ -66,59 +66,42 @@ std::unique_ptr<Notification> CreateNotification(
     PowerNotificationController::NotificationState notification_state) {
   const PowerStatus& status = *PowerStatus::Get();
 
-  const double battery_percentage = status.GetRoundedBatteryPercent();
-
-  std::u16string title =
-      l10n_util::GetStringUTF16(IDS_ASH_STATUS_TRAY_BATTERY_PERCENT_TITLE);
-  std::u16string message = base::i18n::MessageFormatter::FormatWithNumberedArgs(
+  base::string16 message = base::i18n::MessageFormatter::FormatWithNumberedArgs(
       l10n_util::GetStringUTF16(IDS_ASH_STATUS_TRAY_BATTERY_PERCENT),
-      battery_percentage / 100.0);
+      static_cast<double>(status.GetRoundedBatteryPercent()) / 100.0);
 
-  const absl::optional<base::TimeDelta> time =
+  const base::Optional<base::TimeDelta> time =
       status.IsBatteryCharging() ? status.GetBatteryTimeToFull()
                                  : status.GetBatteryTimeToEmpty();
-
-  message_center::RichNotificationData rich_notification_data;
-
+  base::string16 time_message;
   if (status.IsUsbChargerConnected()) {
-    title =
-        l10n_util::GetStringUTF16(IDS_ASH_STATUS_TRAY_LOW_POWER_CHARGER_TITLE);
-    message = l10n_util::GetStringUTF16(
+    time_message = l10n_util::GetStringUTF16(
         IDS_ASH_STATUS_TRAY_BATTERY_CHARGING_UNRELIABLE);
   } else if (time && power_utils::ShouldDisplayBatteryTime(*time) &&
              !status.IsBatteryDischargingOnLinePower()) {
-    std::u16string duration = ui::TimeFormat::Simple(
-        ui::TimeFormat::FORMAT_DURATION, ui::TimeFormat::LENGTH_LONG, *time);
     if (status.IsBatteryCharging()) {
-      title =
-          l10n_util::GetStringUTF16(IDS_ASH_STATUS_TRAY_BATTERY_CHARGING_TITLE);
-      message = l10n_util::GetStringFUTF16(
+      base::string16 duration;
+      if (!TimeDurationFormat(*time, base::DURATION_WIDTH_NARROW, &duration))
+        LOG(ERROR) << "Failed to format duration " << *time;
+      time_message = l10n_util::GetStringFUTF16(
           IDS_ASH_STATUS_TRAY_BATTERY_TIME_UNTIL_FULL, duration);
     } else {
       // This is a low battery warning prompting the user in minutes.
-      title = notification_state ==
-                      PowerNotificationController::NOTIFICATION_CRITICAL
-                  ? l10n_util::GetStringUTF16(
-                        IDS_ASH_STATUS_TRAY_CRITICAL_BATTERY_TITLE)
-                  : l10n_util::GetStringUTF16(
-                        IDS_ASH_STATUS_TRAY_LOW_BATTERY_TITLE);
-      message = l10n_util::GetStringFUTF16(
-          IDS_ASH_STATUS_TRAY_LOW_BATTERY_MESSAGE, duration,
-          base::NumberToString16(battery_percentage));
-      // Low battery notifications should display on fullscreen windows.
-      rich_notification_data.fullscreen_visibility =
-          message_center::FullscreenVisibility::OVER_USER;
+      time_message = ui::TimeFormat::Simple(ui::TimeFormat::FORMAT_REMAINING,
+                                            ui::TimeFormat::LENGTH_LONG, *time);
     }
   }
 
+  if (!time_message.empty())
+    message = message + base::ASCIIToUTF16("\n") + time_message;
+
   std::unique_ptr<Notification> notification = ash::CreateSystemNotification(
-      message_center::NOTIFICATION_TYPE_SIMPLE,
-      BatteryNotification::kNotificationId, title, message, std::u16string(),
-      GURL(),
+      message_center::NOTIFICATION_TYPE_SIMPLE, kBatteryNotificationId,
+      base::string16(), message, base::string16(), GURL(),
       message_center::NotifierId(message_center::NotifierType::SYSTEM_COMPONENT,
-                                 kNotifierBattery,
-                                 NotificationCatalogName::kBatteryNotifier),
-      rich_notification_data, nullptr, GetBatteryImageMD(notification_state),
+                                 kNotifierBattery),
+      message_center::RichNotificationData(), nullptr,
+      GetBatteryImageMD(notification_state),
       GetWarningLevelMD(notification_state));
   if (notification_state ==
       PowerNotificationController::NOTIFICATION_CRITICAL) {
@@ -130,9 +113,6 @@ std::unique_ptr<Notification> CreateNotification(
 
 }  // namespace
 
-// static
-const char BatteryNotification::kNotificationId[] = "battery";
-
 BatteryNotification::BatteryNotification(
     MessageCenter* message_center,
     PowerNotificationController::NotificationState notification_state)
@@ -141,14 +121,14 @@ BatteryNotification::BatteryNotification(
 }
 
 BatteryNotification::~BatteryNotification() {
-  if (message_center_->FindVisibleNotificationById(kNotificationId))
-    message_center_->RemoveNotification(kNotificationId, false);
+  if (message_center_->FindVisibleNotificationById(kBatteryNotificationId))
+    message_center_->RemoveNotification(kBatteryNotificationId, false);
 }
 
 void BatteryNotification::Update(
     PowerNotificationController::NotificationState notification_state) {
-  if (message_center_->FindVisibleNotificationById(kNotificationId)) {
-    message_center_->UpdateNotification(kNotificationId,
+  if (message_center_->FindVisibleNotificationById(kBatteryNotificationId)) {
+    message_center_->UpdateNotification(kBatteryNotificationId,
                                         CreateNotification(notification_state));
   }
 }

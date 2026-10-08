@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,14 +19,23 @@ namespace content {
 
 namespace {
 bool DumpJavascriptDialog() {
-  WebTestControlHost* control_host = WebTestControlHost::Get();
-  return control_host->web_test_runtime_flags().dump_javascript_dialogs();
+  base::Optional<bool> result =
+      WebTestControlHost::Get()
+          ->accumulated_web_test_runtime_flags_changes()
+          .FindBoolPath("dump_javascript_dialogs");
+  if (!result.has_value())
+    return true;
+  return result.value();
 }
 
 bool ShouldStayOnPageAfterHandlingBeforeUnload() {
-  WebTestControlHost* control_host = WebTestControlHost::Get();
-  return control_host->web_test_runtime_flags()
-      .stay_on_page_after_handling_before_unload();
+  base::Optional<bool> result =
+      WebTestControlHost::Get()
+          ->accumulated_web_test_runtime_flags_changes()
+          .FindBoolPath("stay_on_page_after_handling_before_unload");
+  if (!result.has_value())
+    return false;
+  return result.value();
 }
 
 }  // namespace
@@ -39,8 +48,8 @@ void WebTestJavaScriptDialogManager::RunJavaScriptDialog(
     WebContents* web_contents,
     RenderFrameHost* render_frame_host,
     JavaScriptDialogType dialog_type,
-    const std::u16string& message_text,
-    const std::u16string& default_prompt_text,
+    const base::string16& message_text,
+    const base::string16& default_prompt_text,
     DialogClosedCallback callback,
     bool* did_suppress_message) {
   if (DumpJavascriptDialog()) {
@@ -62,7 +71,7 @@ void WebTestJavaScriptDialogManager::RunJavaScriptDialog(
     }
     WebTestControlHost::Get()->printer()->AddMessageRaw(message);
   }
-  std::move(callback).Run(true, std::u16string());
+  std::move(callback).Run(true, base::string16());
 }
 
 void WebTestJavaScriptDialogManager::RunBeforeUnloadDialog(
@@ -73,7 +82,7 @@ void WebTestJavaScriptDialogManager::RunBeforeUnloadDialog(
   if (DumpJavascriptDialog())
     WebTestControlHost::Get()->printer()->AddMessageRaw("CONFIRM NAVIGATION\n");
   std::move(callback).Run(!ShouldStayOnPageAfterHandlingBeforeUnload(),
-                          std::u16string());
+                          base::string16());
 }
 
 }  // namespace content

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -61,8 +61,7 @@ ExtensionActionManager::ExtensionActionManager(
     : browser_context_(browser_context) {
   CHECK(!browser_context_->IsOffTheRecord())
       << "Don't instantiate this with an off-the-record context.";
-  extension_registry_observation_.Observe(
-      ExtensionRegistry::Get(browser_context_));
+  extension_registry_observer_.Add(ExtensionRegistry::Get(browser_context_));
 }
 
 ExtensionActionManager::~ExtensionActionManager() {

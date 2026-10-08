@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <algorithm>
 
-#include "base/callback.h"
 #include "base/check.h"
 
 namespace media {
@@ -61,15 +60,5 @@ bool MemoryDataSource::IsStreaming() {
 }
 
 void MemoryDataSource::SetBitrate(int bitrate) {}
-
-bool MemoryDataSource::PassedTimingAllowOriginCheck() {
-  // There are no HTTP responses, so this can safely return true.
-  return true;
-}
-
-bool MemoryDataSource::WouldTaintOrigin() {
-  // There are no HTTP responses, so this can safely return false.
-  return false;
-}
 
 }  // namespace media

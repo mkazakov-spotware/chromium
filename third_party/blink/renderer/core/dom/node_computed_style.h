@@ -28,9 +28,14 @@
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/dom/layout_tree_builder_traversal.h"
 #include "third_party/blink/renderer/core/dom/node.h"
+#include "third_party/blink/renderer/core/dom/v0_insertion_point.h"
 #include "third_party/blink/renderer/core/layout/layout_object.h"
 
 namespace blink {
+
+inline ComputedStyle* Node::MutableComputedStyleForEditingDeprecated() const {
+  return const_cast<ComputedStyle*>(GetComputedStyle());
+}
 
 inline const ComputedStyle* Node::GetComputedStyle() const {
   if (IsElementNode()) {
@@ -42,6 +47,18 @@ inline const ComputedStyle* Node::GetComputedStyle() const {
   // Text nodes and Document.
   if (LayoutObject* layout_object = GetLayoutObject())
     return layout_object->Style();
+  return nullptr;
+}
+
+inline const ComputedStyle* Node::ParentComputedStyle() const {
+  if (!CanParticipateInFlatTree())
+    return nullptr;
+  ContainerNode* parent = LayoutTreeBuilderTraversal::Parent(*this);
+  if (parent && parent->ChildrenCanHaveStyle()) {
+    const ComputedStyle* parent_style = parent->GetComputedStyle();
+    if (parent_style && !parent_style->IsEnsuredInDisplayNone())
+      return parent_style;
+  }
   return nullptr;
 }
 

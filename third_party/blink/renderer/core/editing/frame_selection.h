@@ -29,23 +29,21 @@
 
 #include <memory>
 
-#include "base/check_op.h"
-#include "base/dcheck_is_on.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/dom/synchronous_mutation_observer.h"
-#include "third_party/blink/renderer/core/editing/ephemeral_range.h"
 #include "third_party/blink/renderer/core/editing/forward.h"
 #include "third_party/blink/renderer/core/editing/set_selection_options.h"
 #include "third_party/blink/renderer/core/scroll/scroll_alignment.h"
+#include "third_party/blink/renderer/platform/geometry/int_rect.h"
 #include "third_party/blink/renderer/platform/geometry/layout_rect.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "ui/gfx/geometry/rect.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
-class EffectPaintPropertyNode;
+class CaretDisplayItemClient;
 class Element;
-class InlineTextBox;
 class LayoutBlock;
 class LayoutText;
 class LocalFrame;
@@ -53,8 +51,6 @@ class FrameCaret;
 class GranularityStrategy;
 class GraphicsContext;
 class NGInlineCursor;
-class NGInlineCursorPosition;
-class NGPhysicalBoxFragment;
 class Range;
 class SelectionEditor;
 class LayoutSelection;
@@ -71,7 +67,6 @@ enum RevealExtentOption { kRevealExtent, kDoNotRevealExtent };
 enum class CaretVisibility;
 
 enum class HandleVisibility { kNotVisible, kVisible };
-enum class ContextMenuVisibility { kNotVisible, kVisible };
 enum class SelectSoftLineBreak { kNotSelected, kSelected };
 
 // This is return type of ComputeLayoutSelectionStatus(cursor).
@@ -133,8 +128,6 @@ class CORE_EXPORT FrameSelection final
       public SynchronousMutationObserver {
  public:
   explicit FrameSelection(LocalFrame&);
-  FrameSelection(const FrameSelection&) = delete;
-  FrameSelection& operator=(const FrameSelection&) = delete;
   ~FrameSelection();
 
   bool IsAvailable() const;
@@ -142,10 +135,10 @@ class CORE_EXPORT FrameSelection final
   Document& GetDocument() const;
   LocalFrame* GetFrame() const { return frame_; }
   Element* RootEditableElementOrDocumentElement() const;
-  wtf_size_t CharacterIndexForPoint(const gfx::Point&) const;
+  size_t CharacterIndexForPoint(const IntPoint&) const;
 
   // An implementation of |WebFrame::moveCaretSelection()|
-  void MoveCaretSelection(const gfx::Point&);
+  void MoveCaretSelection(const IntPoint&);
 
   VisibleSelection ComputeVisibleSelectionInDOMTree() const;
   VisibleSelectionInFlatTree ComputeVisibleSelectionInFlatTree() const;
@@ -191,9 +184,9 @@ class CORE_EXPORT FrameSelection final
   // This function does not allow the selection to collapse. If the new
   // extent is resolved to the same position as the current base, this
   // function will do nothing.
-  void MoveRangeSelectionExtent(const gfx::Point&);
-  void MoveRangeSelection(const gfx::Point& base_point,
-                          const gfx::Point& extent_point,
+  void MoveRangeSelectionExtent(const IntPoint&);
+  void MoveRangeSelection(const IntPoint& base_point,
+                          const IntPoint& extent_point,
                           TextGranularity);
 
   TextGranularity Granularity() const { return granularity_; }
@@ -201,19 +194,18 @@ class CORE_EXPORT FrameSelection final
   // Returns true if specified layout block should paint caret. This function is
   // called during painting only.
   bool ShouldPaintCaret(const LayoutBlock&) const;
-  bool ShouldPaintCaret(const NGPhysicalBoxFragment&) const;
 
   // Bounds of (possibly transformed) caret in absolute coords
-  gfx::Rect AbsoluteCaretBounds() const;
+  IntRect AbsoluteCaretBounds() const;
 
   // Returns anchor and focus bounds in absolute coords.
   // If the selection range is empty, returns the caret bounds.
   // Note: this updates styles and layout, use cautiously.
-  bool ComputeAbsoluteBounds(gfx::Rect& anchor, gfx::Rect& focus) const;
+  bool ComputeAbsoluteBounds(IntRect& anchor, IntRect& focus) const;
 
   // Computes the rect we should use when scrolling/zooming a selection into
   // view.
-  gfx::Rect ComputeRectToScroll(RevealExtentOption);
+  IntRect ComputeRectToScroll(RevealExtentOption);
 
   void DidChangeFocus();
 
@@ -247,30 +239,10 @@ class CORE_EXPORT FrameSelection final
   void PageActivationChanged();
 
   bool IsHandleVisible() const { return is_handle_visible_; }
-  void SetHandleVisibleForTesting() { is_handle_visible_ = true; }
   bool ShouldShrinkNextTap() const { return should_shrink_next_tap_; }
 
   // Returns true if a word is selected.
   bool SelectWordAroundCaret();
-
-  // Returns whether a selection was successfully executed. Currently supports
-  // word and sentence granularities. Also sets the visibility of the handle and
-  // context menu based on parameters passed.
-  bool SelectAroundCaret(TextGranularity text_granularity,
-                         HandleVisibility handle_visibility,
-                         ContextMenuVisibility context_menu_visibility);
-
-  // Returns the range corresponding to a word selection around the caret.
-  // Returns a null range if the selection failed, either because the current
-  // selection was not a caret or if a word selection could not be made.
-  EphemeralRange GetWordSelectionRangeAroundCaret() const;
-
-  // Returns the range corresponding to a |text_granularity| selection around
-  // the caret. Returns a null range if the selection failed, either because
-  // the current selection was not a caret or if a |text_granularity| selection
-  // could not be made.
-  EphemeralRange GetSelectionRangeAroundCaretForTesting(
-      TextGranularity text_granularity) const;
 
 #if DCHECK_IS_ON()
   void ShowTreeForThis() const;
@@ -296,6 +268,8 @@ class CORE_EXPORT FrameSelection final
   void SetSelectionFromNone();
 
   void UpdateAppearance();
+  bool ShouldShowBlockCursor() const;
+  void SetShouldShowBlockCursor(bool);
 
   void CacheRangeOfDocument(Range*);
   Range* DocumentCachedRange() const;
@@ -305,18 +279,12 @@ class CORE_EXPORT FrameSelection final
   // |VisibleSelection| and selection bounds.
   void MarkCacheDirty();
 
-  const EffectPaintPropertyNode& CaretEffectNode() const;
-
   FrameCaret& FrameCaretForTesting() const { return *frame_caret_; }
 
   LayoutTextSelectionStatus ComputeLayoutSelectionStatus(
       const LayoutText& text) const;
   LayoutSelectionStatus ComputeLayoutSelectionStatus(
       const NGInlineCursor& cursor) const;
-  SelectionState ComputePaintingSelectionStateForCursor(
-      const NGInlineCursorPosition& position) const;
-  SelectionState ComputeLayoutSelectionStateForInlineTextBox(
-      const InlineTextBox& text_box) const;
 
   void Trace(Visitor*) const override;
 
@@ -325,6 +293,8 @@ class CORE_EXPORT FrameSelection final
   friend class FrameSelectionTest;
   friend class PaintControllerPaintTestBase;
   friend class SelectionControllerTest;
+
+  const CaretDisplayItemClient& CaretDisplayItemClientForTesting() const;
 
   void NotifyAccessibilityForSelectionChange();
   void NotifyCompositorForSelectionChange();
@@ -340,13 +310,6 @@ class CORE_EXPORT FrameSelection final
   void ContextDestroyed() final;
   void NodeChildrenWillBeRemoved(ContainerNode&) final;
   void NodeWillBeRemoved(Node&) final;
-
-  // Returns the range corresponding to a |text_granularity| selection around
-  // the caret. Returns a null range if the selection failed, either because
-  // the current selection was not a caret or if a |text_granularity| selection
-  // could not be made.
-  EphemeralRange GetSelectionRangeAroundCaret(
-      TextGranularity text_granularity) const;
 
   Member<LocalFrame> frame_;
   const Member<LayoutSelection> layout_selection_;
@@ -371,14 +334,16 @@ class CORE_EXPORT FrameSelection final
   std::unique_ptr<GranularityStrategy> granularity_strategy_;
 
   const Member<FrameCaret> frame_caret_;
+
+  DISALLOW_COPY_AND_ASSIGN(FrameSelection);
 };
 
 }  // namespace blink
 
 #if DCHECK_IS_ON()
 // Outside the blink namespace for ease of invocation from gdb.
-void ShowTree(const blink::FrameSelection&);
-void ShowTree(const blink::FrameSelection*);
+void showTree(const blink::FrameSelection&);
+void showTree(const blink::FrameSelection*);
 #endif
 
 #endif  // THIRD_PARTY_BLINK_RENDERER_CORE_EDITING_FRAME_SELECTION_H_

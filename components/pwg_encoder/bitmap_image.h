@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -23,10 +24,6 @@ class BitmapImage {
   };
 
   BitmapImage(const gfx::Size& size, Colorspace colorspace);
-
-  BitmapImage(const BitmapImage&) = delete;
-  BitmapImage& operator=(const BitmapImage&) = delete;
-
   ~BitmapImage();
 
   uint8_t channels() const;
@@ -42,6 +39,8 @@ class BitmapImage {
   gfx::Size size_;
   Colorspace colorspace_;
   std::unique_ptr<uint8_t[]> data_;
+
+  DISALLOW_COPY_AND_ASSIGN(BitmapImage);
 };
 
 }  // namespace pwg_encoder

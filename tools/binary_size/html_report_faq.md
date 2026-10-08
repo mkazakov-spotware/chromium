@@ -4,6 +4,9 @@
 
 ## Usage
 
+### How do I create a data file?
+See the [`html_report` command docs](README.md#Usage_html_report).
+
 ### What do the different folder and file colors mean?
 Containers (folders, files, and components) have different colors depending on
 the symbols they contain. The color corresponds whatever symbol type has the

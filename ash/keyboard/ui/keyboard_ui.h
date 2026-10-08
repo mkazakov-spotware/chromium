@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "ash/keyboard/ui/keyboard_export.h"
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "ui/base/ime/text_input_type.h"
 #include "ui/events/gestures/gesture_types.h"
 
@@ -27,10 +28,6 @@ class KEYBOARD_EXPORT KeyboardUI {
   using LoadCallback = base::OnceCallback<void()>;
 
   KeyboardUI();
-
-  KeyboardUI(const KeyboardUI&) = delete;
-  KeyboardUI& operator=(const KeyboardUI&) = delete;
-
   virtual ~KeyboardUI();
 
   // Begin loading the virtual keyboard window asynchronously.
@@ -83,6 +80,8 @@ class KEYBOARD_EXPORT KeyboardUI {
 
  private:
   KeyboardUIController* keyboard_controller_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(KeyboardUI);
 };
 
 }  // namespace keyboard

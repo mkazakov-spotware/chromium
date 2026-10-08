@@ -1,14 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/app_list/views/result_selection_controller.h"
 
-#include <utility>
-
 #include "ash/app_list/app_list_util.h"
 #include "ash/app_list/views/search_result_container_view.h"
-#include "base/i18n/rtl.h"
 
 namespace ash {
 
@@ -73,10 +70,9 @@ void ResultSelectionController::ResetSelection(const ui::KeyEvent* key_event,
   if (block_selection_changes_)
     return;
 
-  std::unique_ptr<ResultLocationDetails> default_location =
-      GetFirstAvailableResultLocation();
-  // Clear selection if no search results exist.
-  if (!default_location) {
+  // Clear selection if no search results exist (the first container will have
+  // at least one result if search results are available).
+  if (result_selection_model_->at(0)->num_results() == 0) {
     ClearSelection();
     return;
   }
@@ -97,13 +93,19 @@ void ResultSelectionController::ResetSelection(const ui::KeyEvent* key_event,
                             key_event->IsShiftDown();
 
   if (!selected_location_details_) {
-    selected_location_details_ = std::move(default_location);
+    selected_location_details_ = std::make_unique<ResultLocationDetails>(
+        0 /* container_index */,
+        result_selection_model_->size() /* container_count */,
+        0 /* result_index */,
+        result_selection_model_->at(0)->num_results() /* result_count */,
+        result_selection_model_->at(0)
+            ->horizontally_traversable() /* container_is_horizontal */);
+
     // Note: left and right arrows are used primarily for traversal in
     // horizontal containers, so treat "back" arrow as other non-traversal keys
     // when deciding whether to reverse selection direction.
     if (is_up_key || is_shift_tab)
-      ChangeContainer(selected_location_details_.get(),
-                      selected_location_details_->container_index - 1);
+      ChangeContainer(selected_location_details_.get(), -1);
   }
 
   SearchResultBaseView* new_selection =
@@ -112,7 +114,7 @@ void ResultSelectionController::ResetSelection(const ui::KeyEvent* key_event,
     return;
 
   if (selected_result_)
-    selected_result_->SetSelected(false, absl::nullopt);
+    selected_result_->SetSelected(false, base::nullopt);
 
   selected_result_ = new_selection;
 
@@ -121,8 +123,7 @@ void ResultSelectionController::ResetSelection(const ui::KeyEvent* key_event,
     selected_result_->set_is_default_result(default_selection &&
                                             !selected_id_preserved);
     selected_result_->SetSelected(true, is_shift_tab);
-    selected_result_id_ =
-        new_selection->result() ? new_selection->result()->id() : std::string();
+    selected_result_id_ = new_selection->result()->id();
   } else {
     selected_result_id_ = std::string();
   }
@@ -134,7 +135,7 @@ void ResultSelectionController::ClearSelection() {
   selected_location_details_ = nullptr;
   if (selected_result_) {
     // Reset the state of the previous selected result.
-    selected_result_->SetSelected(false, absl::nullopt);
+    selected_result_->SetSelected(false, base::nullopt);
     selected_result_id_ = std::string();
     selected_result_->set_is_default_result(false);
   }
@@ -274,23 +275,6 @@ void ResultSelectionController::SetSelection(
   selection_change_callback_.Run();
 }
 
-std::unique_ptr<ResultLocationDetails>
-ResultSelectionController::GetFirstAvailableResultLocation() const {
-  for (size_t container_index = 0;
-       container_index < result_selection_model_->size(); ++container_index) {
-    SearchResultContainerView* container =
-        result_selection_model_->at(container_index);
-    if (!container->num_results())
-      continue;
-
-    return std::make_unique<ResultLocationDetails>(
-        container_index, result_selection_model_->size() /* container_count */,
-        0 /* result_index */, container->num_results() /* result_count */,
-        container->horizontally_traversable() /* container_is_horizontal */);
-  }
-  return nullptr;
-}
-
 SearchResultBaseView* ResultSelectionController::GetResultAtLocation(
     const ResultLocationDetails& location) {
   SearchResultContainerView* located_container =
@@ -306,9 +290,7 @@ ResultSelectionController::FindResultWithId(const std::string& id) {
         result_selection_model_->at(container_index);
     for (int result_index = 0; result_index < container->num_results();
          ++result_index) {
-      const SearchResult* const result =
-          container->GetResultViewAt(result_index)->result();
-      if (result && result->id() == id) {
+      if (container->GetResultViewAt(result_index)->result()->id() == id) {
         return std::make_unique<ResultLocationDetails>(
             container_index, result_selection_model_->size(), result_index,
             container->num_results(), container->horizontally_traversable());
@@ -321,8 +303,9 @@ ResultSelectionController::FindResultWithId(const std::string& id) {
 void ResultSelectionController::ChangeContainer(
     ResultLocationDetails* location_details,
     int new_container_index) {
-  if (new_container_index == location_details->container_index)
+  if (new_container_index == location_details->container_index) {
     return;
+  }
 
   // If the index is advancing
   bool container_advancing =
@@ -330,15 +313,12 @@ void ResultSelectionController::ChangeContainer(
 
   // This handles 'looping', so if the selection goes off the end of the
   // container, it will come back to the beginning.
-  auto ensure_valid_index = [&location_details](int index) -> int {
-    if (index < 0)
-      return location_details->container_count - 1;
-    if (index >= location_details->container_count)
-      return 0;
-    return index;
-  };
-
-  int new_container = ensure_valid_index(new_container_index);
+  int new_container = new_container_index;
+  if (new_container < 0) {
+    new_container = location_details->container_count - 1;
+  }
+  if (new_container >= location_details->container_count)
+    new_container = 0;
 
   // Because all containers always exist, we need to make sure there are results
   // in the next container.
@@ -349,12 +329,13 @@ void ResultSelectionController::ChangeContainer(
       --new_container;
     }
 
-    new_container = ensure_valid_index(new_container);
-
-    // Prevent any potential infinite looping by resetting to currently selected
-    // container.
-    if (new_container == location_details->container_index)
+    // Prevent any potential infinite looping by resetting to '0', a container
+    // that should never be empty.
+    if (new_container <= 0 ||
+        new_container >= location_details->container_count) {
+      new_container = 0;
       break;
+    }
   }
 
   // Updates |result_count| and |container_is_horizontal| based on

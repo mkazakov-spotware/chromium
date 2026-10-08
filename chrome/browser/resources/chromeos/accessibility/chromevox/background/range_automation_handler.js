@@ -1,24 +1,16 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
  * @fileoverview Handles automation from ChromeVox's current range.
  */
-import {AutomationPredicate} from '../../common/automation_predicate.js';
-import {AutomationUtil} from '../../common/automation_util.js';
-import {constants} from '../../common/constants.js';
-import {CursorRange} from '../../common/cursors/range.js';
-import {ChromeVoxEvent, CustomAutomationEvent} from '../common/custom_automation_event.js';
-import {Msgs} from '../common/msgs.js';
 
-import {BaseAutomationHandler} from './base_automation_handler.js';
-import {ChromeVoxState, ChromeVoxStateObserver} from './chromevox_state.js';
-import {DesktopAutomationHandler} from './desktop_automation_handler.js';
-import {FocusBounds} from './focus_bounds.js';
-import {Output} from './output/output.js';
-import {OutputCustomEvent} from './output/output_types.js';
+goog.provide('RangeAutomationHandler');
 
+goog.require('BaseAutomationHandler');
+
+goog.scope(function() {
 const AutomationEvent = chrome.automation.AutomationEvent;
 const AutomationNode = chrome.automation.AutomationNode;
 const Dir = constants.Dir;
@@ -26,11 +18,12 @@ const EventType = chrome.automation.EventType;
 const RoleType = chrome.automation.RoleType;
 const StateType = chrome.automation.StateType;
 
-/** @implements {ChromeVoxStateObserver} */
-export class RangeAutomationHandler extends BaseAutomationHandler {
-  /** @private */
+/**
+ * @implements {ChromeVoxStateObserver}
+ */
+RangeAutomationHandler = class extends BaseAutomationHandler {
   constructor() {
-    super(null);
+    super(undefined);
 
     /** @private {AutomationNode} */
     this.lastAttributeTarget_;
@@ -44,21 +37,13 @@ export class RangeAutomationHandler extends BaseAutomationHandler {
     ChromeVoxState.addObserver(this);
   }
 
-  static init() {
-    if (RangeAutomationHandler.instance) {
-      throw 'Error: Trying to create two copies of singleton RangeAutomationHandler';
-    }
-    RangeAutomationHandler.instance = new RangeAutomationHandler();
-  }
-
   /**
-   * @param {CursorRange} newRange
-   * @param {boolean=} opt_fromEditing
+   * @param {cursors.Range} newRange
    */
-  onCurrentRangeChanged(newRange, opt_fromEditing) {
+  onCurrentRangeChanged(newRange) {
     if (this.node_) {
       this.removeAllListeners();
-      this.node_ = null;
+      this.node_ = undefined;
     }
 
     if (!newRange || !newRange.start.node || !newRange.end.node) {
@@ -99,9 +84,6 @@ export class RangeAutomationHandler extends BaseAutomationHandler {
     this.addListener_(EventType.AUTOCORRECTION_OCCURED, this.onEventIfInRange);
     this.addListener_(
         EventType.CHECKED_STATE_CHANGED, this.onCheckedStateChanged);
-    this.addListener_(
-        EventType.CHECKED_STATE_DESCRIPTION_CHANGED,
-        this.onCheckedStateChanged);
     this.addListener_(EventType.COLLAPSED, this.onEventIfInRange);
     this.addListener_(EventType.EXPANDED, this.onEventIfInRange);
     this.addListener_(EventType.INVALID_STATUS_CHANGED, this.onEventIfInRange);
@@ -114,9 +96,12 @@ export class RangeAutomationHandler extends BaseAutomationHandler {
     this.addListener_(EventType.SORT_CHANGED, this.onAriaAttributeChanged);
   }
 
-  /** @param {!ChromeVoxEvent} evt */
+  /**
+   * @param {!ChromeVoxEvent} evt
+   */
   onEventIfInRange(evt) {
-    if (BaseAutomationHandler.disallowEventFromAction(evt)) {
+    if (!DesktopAutomationHandler.announceActions &&
+        evt.eventFrom === 'action') {
       return;
     }
 
@@ -126,7 +111,7 @@ export class RangeAutomationHandler extends BaseAutomationHandler {
     }
 
     // TODO: we need more fine grained filters for attribute changes.
-    if (prev.contentEquals(CursorRange.fromNode(evt.target)) ||
+    if (prev.contentEquals(cursors.Range.fromNode(evt.target)) ||
         evt.target.state.focused) {
       const prevTarget = this.lastAttributeTarget_;
 
@@ -134,8 +119,8 @@ export class RangeAutomationHandler extends BaseAutomationHandler {
       const prevOutput = this.lastAttributeOutput_;
       this.lastAttributeTarget_ = evt.target.activeDescendant || evt.target;
       this.lastAttributeOutput_ = new Output().withRichSpeechAndBraille(
-          CursorRange.fromNode(this.lastAttributeTarget_), prev,
-          OutputCustomEvent.NAVIGATE);
+          cursors.Range.fromNode(this.lastAttributeTarget_), prev,
+          Output.EventType.NAVIGATE);
       if (this.lastAttributeTarget_ === prevTarget && prevOutput &&
           prevOutput.equals(this.lastAttributeOutput_)) {
         return;
@@ -146,7 +131,7 @@ export class RangeAutomationHandler extends BaseAutomationHandler {
       let maybeControlledBy = evt.target;
       while (maybeControlledBy) {
         if (maybeControlledBy.controlledBy &&
-            maybeControlledBy.controlledBy.find(n => Boolean(n.autoComplete))) {
+            maybeControlledBy.controlledBy.find((n) => !!n.autoComplete)) {
           clearTimeout(this.delayedAttributeOutputId_);
           this.delayedAttributeOutputId_ = setTimeout(() => {
             this.lastAttributeOutput_.go();
@@ -160,7 +145,9 @@ export class RangeAutomationHandler extends BaseAutomationHandler {
     }
   }
 
-  /** @param {!ChromeVoxEvent} evt */
+  /**
+   * @param {!ChromeVoxEvent} evt
+   */
   onAriaAttributeChanged(evt) {
     // Don't report changes on editable nodes since they interfere with text
     // selection changes. Users can query via Search+k for the current state
@@ -210,12 +197,9 @@ export class RangeAutomationHandler extends BaseAutomationHandler {
       return;
     }
 
-    const event =
-        new CustomAutomationEvent(EventType.CHECKED_STATE_CHANGED, evt.target, {
-          eventFrom: evt.eventFrom,
-          eventFromAction: evt.eventFromAction,
-          intents: evt.intents,
-        });
+    const event = new CustomAutomationEvent(
+        EventType.CHECKED_STATE_CHANGED, evt.target, evt.eventFrom,
+        evt.intents);
     this.onEventIfInRange(event);
   }
 
@@ -227,20 +211,21 @@ export class RangeAutomationHandler extends BaseAutomationHandler {
   onLocationChanged(evt) {
     const cur = ChromeVoxState.instance.currentRange;
     if (!cur || !cur.isValid()) {
-      if (FocusBounds.get().length) {
-        FocusBounds.set([]);
+      if (ChromeVoxState.instance.getFocusBounds().length) {
+        ChromeVoxState.instance.setFocusBounds([]);
       }
       return;
     }
 
     // Rather than trying to figure out if the current range falls somewhere
     // in |evt.target|, just update it if our cached bounds don't match.
-    const oldFocusBounds = FocusBounds.get();
+    const oldFocusBounds = ChromeVoxState.instance.getFocusBounds();
     const startRect = cur.start.node.location;
     const endRect = cur.end.node.location;
+
     const found =
-        oldFocusBounds.some(rect => this.areRectsEqual_(rect, startRect)) &&
-        oldFocusBounds.some(rect => this.areRectsEqual_(rect, endRect));
+        oldFocusBounds.some((rect) => this.areRectsEqual_(rect, startRect)) &&
+        oldFocusBounds.some((rect) => this.areRectsEqual_(rect, endRect));
     if (found) {
       return;
     }
@@ -258,7 +243,6 @@ export class RangeAutomationHandler extends BaseAutomationHandler {
     return rectA.left === rectB.left && rectA.top === rectB.top &&
         rectA.width === rectB.width && rectA.height === rectB.height;
   }
-}
+};
 
-/** @type {RangeAutomationHandler} */
-RangeAutomationHandler.instance;
+});  // goog.scope

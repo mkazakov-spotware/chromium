@@ -1,10 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/autofill_assistant/browser/generic_ui_replace_placeholders.h"
-
-#include "base/containers/flat_map.h"
 #include "base/logging.h"
 #include "components/autofill_assistant/browser/field_formatter.h"
 
@@ -12,13 +10,12 @@ namespace autofill_assistant {
 // Forward declaration to allow recursive calls.
 void ReplacePlaceholdersInGenericUi(
     GenericUserInterfaceProto* in_out_proto,
-    const base::flat_map<std::string, std::string>& placeholders);
+    const std::map<std::string, std::string>& placeholders);
 
 namespace {
 
-void ReplaceInPlace(
-    std::string* in_out,
-    const base::flat_map<std::string, std::string>& placeholders) {
+void ReplaceInPlace(std::string* in_out,
+                    const std::map<std::string, std::string>& placeholders) {
   auto formatted_string = field_formatter::FormatString(*in_out, placeholders,
                                                         /*strict = */ false);
   if (!formatted_string.has_value()) {
@@ -30,7 +27,7 @@ void ReplaceInPlace(
 
 void ReplacePlaceholdersInView(
     ViewProto* in_out_proto,
-    const base::flat_map<std::string, std::string>& placeholders) {
+    const std::map<std::string, std::string>& placeholders) {
   if (in_out_proto->has_identifier()) {
     ReplaceInPlace(in_out_proto->mutable_identifier(), placeholders);
   }
@@ -106,7 +103,7 @@ void ReplacePlaceholdersInView(
 
 void ReplacePlaceholdersInEvent(
     EventProto* in_out_proto,
-    const base::flat_map<std::string, std::string>& placeholders) {
+    const std::map<std::string, std::string>& placeholders) {
   switch (in_out_proto->kind_case()) {
     case EventProto::kOnValueChanged:
       if (in_out_proto->on_value_changed().has_model_identifier()) {
@@ -146,7 +143,7 @@ void ReplacePlaceholdersInEvent(
 
 void ReplacePlaceholdersInValue(
     ValueReferenceProto* in_out_proto,
-    const base::flat_map<std::string, std::string>& placeholders) {
+    const std::map<std::string, std::string>& placeholders) {
   switch (in_out_proto->kind_case()) {
     case ValueReferenceProto::kModelIdentifier:
       ReplaceInPlace(in_out_proto->mutable_model_identifier(), placeholders);
@@ -159,7 +156,7 @@ void ReplacePlaceholdersInValue(
 
 void ReplacePlaceholdersInInteraction(
     InteractionProto* in_out_proto,
-    const base::flat_map<std::string, std::string>& placeholders) {
+    const std::map<std::string, std::string>& placeholders) {
   for (auto& trigger_event : *in_out_proto->mutable_trigger_event()) {
     ReplacePlaceholdersInEvent(&trigger_event, placeholders);
   }
@@ -171,7 +168,7 @@ void ReplacePlaceholdersInInteraction(
 
 void ReplacePlaceholdersInModel(
     ModelProto* in_out_proto,
-    const base::flat_map<std::string, std::string>& placeholders) {
+    const std::map<std::string, std::string>& placeholders) {
   for (auto& value : *in_out_proto->mutable_values()) {
     if (value.has_identifier()) {
       ReplaceInPlace(value.mutable_identifier(), placeholders);
@@ -183,7 +180,7 @@ void ReplacePlaceholdersInModel(
 
 void ReplacePlaceholdersInGenericUi(
     GenericUserInterfaceProto* in_out_proto,
-    const base::flat_map<std::string, std::string>& placeholders) {
+    const std::map<std::string, std::string>& placeholders) {
   if (placeholders.empty()) {
     return;
   }
@@ -204,7 +201,7 @@ void ReplacePlaceholdersInGenericUi(
 
 void ReplacePlaceholdersInCallback(
     CallbackProto* in_out_proto,
-    const base::flat_map<std::string, std::string>& placeholders) {
+    const std::map<std::string, std::string>& placeholders) {
   if (in_out_proto->has_condition_model_identifier()) {
     ReplaceInPlace(in_out_proto->mutable_condition_model_identifier(),
                    placeholders);
@@ -324,22 +321,6 @@ void ReplacePlaceholdersInCallback(
                     ->mutable_create_login_option_response()
                     ->mutable_value(),
                 placeholders);
-          }
-          return;
-        case ComputeValueProto::kStringEmpty:
-          if (in_out_proto->compute_value().string_empty().has_value()) {
-            ReplacePlaceholdersInValue(in_out_proto->mutable_compute_value()
-                                           ->mutable_string_empty()
-                                           ->mutable_value(),
-                                       placeholders);
-          }
-          return;
-        case ComputeValueProto::kArrayLength:
-          if (in_out_proto->compute_value().array_length().has_value()) {
-            ReplacePlaceholdersInValue(in_out_proto->mutable_compute_value()
-                                           ->mutable_array_length()
-                                           ->mutable_value(),
-                                       placeholders);
           }
           return;
         case ComputeValueProto::KIND_NOT_SET:
@@ -464,24 +445,7 @@ void ReplacePlaceholdersInCallback(
         ReplacePlaceholdersInCallback(&callback, placeholders);
       }
       return;
-    case CallbackProto::kRequestBackendData:
-      if (in_out_proto->request_backend_data()
-              .has_output_success_model_identifier()) {
-        ReplaceInPlace(in_out_proto->mutable_request_backend_data()
-                           ->mutable_output_success_model_identifier(),
-                       placeholders);
-      }
-      if (in_out_proto->request_backend_data()
-              .request_phone_numbers()
-              .has_output_profiles_model_identifier()) {
-        ReplaceInPlace(in_out_proto->mutable_request_backend_data()
-                           ->mutable_request_phone_numbers()
-                           ->mutable_output_profiles_model_identifier(),
-                       placeholders);
-      }
-      return;
     case CallbackProto::kShowInfoPopup:
-    case CallbackProto::kShowAccountScreen:
     case CallbackProto::kEndAction:
     case CallbackProto::KIND_NOT_SET:
       return;

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,10 +25,6 @@ class ConnectionHelpTabHelperTest : public InProcessBrowserTest {
       : https_server_(net::EmbeddedTestServer::TYPE_HTTPS),
         https_expired_server_(net::EmbeddedTestServer::TYPE_HTTPS) {}
 
-  ConnectionHelpTabHelperTest(const ConnectionHelpTabHelperTest&) = delete;
-  ConnectionHelpTabHelperTest& operator=(const ConnectionHelpTabHelperTest&) =
-      delete;
-
   void SetUpOnMainThread() override {
     https_server_.SetSSLConfig(net::EmbeddedTestServer::CERT_OK);
     https_expired_server_.SetSSLConfig(net::EmbeddedTestServer::CERT_EXPIRED);
@@ -54,6 +50,7 @@ class ConnectionHelpTabHelperTest : public InProcessBrowserTest {
  private:
   net::EmbeddedTestServer https_server_;
   net::EmbeddedTestServer https_expired_server_;
+  DISALLOW_COPY_AND_ASSIGN(ConnectionHelpTabHelperTest);
 };
 
 // Tests that the chrome://connection-help redirect is not triggered for an
@@ -63,9 +60,9 @@ IN_PROC_BROWSER_TEST_F(ConnectionHelpTabHelperTest,
   GURL expired_non_support_url = https_expired_server()->GetURL("/title2.html");
   GURL good_support_url = https_server()->GetURL("/title2.html");
   SetHelpCenterUrl(browser(), good_support_url);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), expired_non_support_url));
+  ui_test_utils::NavigateToURL(browser(), expired_non_support_url);
 
-  std::u16string tab_title;
+  base::string16 tab_title;
   ui_test_utils::GetCurrentTabTitle(browser(), &tab_title);
   EXPECT_EQ(base::UTF16ToUTF8(tab_title), "Privacy error");
 }
@@ -76,9 +73,9 @@ IN_PROC_BROWSER_TEST_F(ConnectionHelpTabHelperTest,
                        SupportURLWithNoInterstitial) {
   GURL good_support_url = https_server()->GetURL("/title2.html");
   SetHelpCenterUrl(browser(), good_support_url);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), good_support_url));
+  ui_test_utils::NavigateToURL(browser(), good_support_url);
 
-  std::u16string tab_title;
+  base::string16 tab_title;
   ui_test_utils::GetCurrentTabTitle(browser(), &tab_title);
   EXPECT_EQ(base::UTF16ToUTF8(tab_title), "Title Of Awesomeness");
 }
@@ -89,9 +86,9 @@ IN_PROC_BROWSER_TEST_F(ConnectionHelpTabHelperTest, InterstitialOnSupportURL) {
   GURL expired_url = https_expired_server()->GetURL("/title2.html");
   SetHelpCenterUrl(browser(), expired_url);
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), expired_url));
+  ui_test_utils::NavigateToURL(browser(), expired_url);
 
-  std::u16string tab_title;
+  base::string16 tab_title;
   ui_test_utils::GetCurrentTabTitle(browser(), &tab_title);
   EXPECT_EQ(base::UTF16ToUTF8(tab_title),
             l10n_util::GetStringUTF8(IDS_CONNECTION_HELP_TITLE));
@@ -107,10 +104,10 @@ IN_PROC_BROWSER_TEST_F(ConnectionHelpTabHelperTest,
   replacements.ClearRef();
   SetHelpCenterUrl(browser(), expired_url.ReplaceComponents(replacements));
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), expired_url));
+  ui_test_utils::NavigateToURL(browser(), expired_url);
 
   // Check that we got redirected to the offline help content.
-  std::u16string tab_title;
+  base::string16 tab_title;
   ui_test_utils::GetCurrentTabTitle(browser(), &tab_title);
   EXPECT_EQ(base::UTF16ToUTF8(tab_title),
             l10n_util::GetStringUTF8(IDS_CONNECTION_HELP_TITLE));
@@ -136,10 +133,10 @@ IN_PROC_BROWSER_TEST_F(ConnectionHelpTabHelperTest,
   replacements.ClearRef();
   SetHelpCenterUrl(browser(), expired_url.ReplaceComponents(replacements));
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), expired_url));
+  ui_test_utils::NavigateToURL(browser(), expired_url);
 
   // Check that we got redirected to the offline help content.
-  std::u16string tab_title;
+  base::string16 tab_title;
   ui_test_utils::GetCurrentTabTitle(browser(), &tab_title);
   EXPECT_EQ(base::UTF16ToUTF8(tab_title),
             l10n_util::GetStringUTF8(IDS_CONNECTION_HELP_TITLE));

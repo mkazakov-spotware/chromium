@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,11 @@
 
 #include <list>
 
-#include "base/at_exit.h"
 #include "base/bind.h"
 #include "base/debug/alias.h"
-#include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/singleton.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/synchronization/lock.h"
@@ -52,9 +52,6 @@ struct ClassInfo {
 // WARNING: this class may be used on multiple threads.
 class ClassRegistrar {
  public:
-  ClassRegistrar(const ClassRegistrar&) = delete;
-  ClassRegistrar& operator=(const ClassRegistrar&) = delete;
-
   ~ClassRegistrar();
 
   static ClassRegistrar* GetInstance();
@@ -96,6 +93,8 @@ class ClassRegistrar {
   int registered_count_;
 
   base::Lock lock_;
+
+  DISALLOW_COPY_AND_ASSIGN(ClassRegistrar);
 };
 
 ClassRegistrar::~ClassRegistrar() {}
@@ -144,7 +143,7 @@ ATOM ClassRegistrar::RetrieveClassAtom(const ClassInfo& class_info) {
     auto last_error = ::GetLastError();
     base::debug::Alias(&last_error);
     wchar_t name_copy[64];
-    base::wcslcpy(name_copy, name.c_str(), std::size(name_copy));
+    base::wcslcpy(name_copy, name.c_str(), base::size(name_copy));
     base::debug::Alias(name_copy);
     PCHECK(atom);
   }
@@ -171,6 +170,8 @@ WindowImpl::WindowImpl(const std::string& debugging_id)
     : debugging_id_(debugging_id), class_style_(CS_DBLCLKS) {}
 
 WindowImpl::~WindowImpl() {
+  if (destroyed_)
+    *destroyed_ = true;
   ClearUserData();
 }
 
@@ -207,7 +208,8 @@ void WindowImpl::Init(HWND parent, const Rect& bounds) {
   }
 
   ATOM atom = GetWindowClassAtom();
-  auto weak_this = weak_factory_.GetWeakPtr();
+  bool destroyed = false;
+  destroyed_ = &destroyed;
   HWND hwnd = CreateWindowEx(window_ex_style_,
                              reinterpret_cast<wchar_t*>(atom), NULL,
                              window_style_, x, y, width, height,
@@ -224,10 +226,8 @@ void WindowImpl::Init(HWND parent, const Rect& bounds) {
   }
 
   if (!hwnd_ && create_window_error == 0) {
-    bool still_alive = !!weak_this;
-    base::debug::Alias(&still_alive);
+    base::debug::Alias(&destroyed);
     base::debug::Alias(&hwnd);
-    base::debug::Alias(&atom);
     bool got_create = got_create_;
     base::debug::Alias(&got_create);
     bool got_valid_hwnd = got_valid_hwnd_;
@@ -244,6 +244,8 @@ void WindowImpl::Init(HWND parent, const Rect& bounds) {
     base::debug::Alias(&procs_match);
     CHECK(false);
   }
+  if (!destroyed)
+    destroyed_ = nullptr;
 
   CheckWindowCreated(hwnd_, create_window_error);
 

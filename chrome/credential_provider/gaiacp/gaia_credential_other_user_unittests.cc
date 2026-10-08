@@ -1,9 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/win/atl.h"
-
+#include <atlbase.h>
+#include <atlcom.h>
 #include <atlcomcli.h>
 #include <wrl/client.h>
 
@@ -121,11 +121,12 @@ TEST_F(GcpGaiaCredentialOtherUserTest, OnUserAuthenticated_DiffPassword) {
       S_OK,
       fake_os_user_manager()->CreateTestOSUser(
           L"foo_bar",
-          base::UTF8ToWide(test_data_storage.GetSuccessPassword()).c_str(),
-          base::UTF8ToWide(test_data_storage.GetSuccessFullName()).c_str(),
+          base::UTF8ToUTF16(test_data_storage.GetSuccessPassword()).c_str(),
+          base::UTF8ToUTF16(test_data_storage.GetSuccessFullName()).c_str(),
           L"comment",
-          base::UTF8ToWide(test_data_storage.GetSuccessId()).c_str(),
-          base::UTF8ToWide(test_data_storage.GetSuccessEmail()).c_str(), &sid));
+          base::UTF8ToUTF16(test_data_storage.GetSuccessId()).c_str(),
+          base::UTF8ToUTF16(test_data_storage.GetSuccessEmail()).c_str(),
+          &sid));
   Microsoft::WRL::ComPtr<ICredentialProviderCredential> cred;
 
   ASSERT_EQ(S_OK, InitializeProviderAndGetCredential(0, &cred));

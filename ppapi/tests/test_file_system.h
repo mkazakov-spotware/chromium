@@ -1,9 +1,9 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef PPAPI_TESTS_TEST_FILE_SYSTEM_H_
-#define PPAPI_TESTS_TEST_FILE_SYSTEM_H_
+#ifndef PAPPI_TESTS_TEST_FILE_SYSTEM_H_
+#define PAPPI_TESTS_TEST_FILE_SYSTEM_H_
 
 #include <string>
 
@@ -23,5 +23,5 @@ class TestFileSystem : public TestCase {
   std::string TestResourceConversion();
 };
 
-#endif  // PPAPI_TESTS_TEST_FILE_SYSTEM_H_
+#endif  // PAPPI_TESTS_TEST_FILE_SYSTEM_H_
 

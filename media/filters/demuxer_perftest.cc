@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,11 @@
 
 #include "base/at_exit.h"
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "media/base/media.h"
@@ -32,10 +33,6 @@ static const int kBenchmarkIterations = 100;
 class DemuxerHostImpl : public media::DemuxerHost {
  public:
   DemuxerHostImpl() = default;
-
-  DemuxerHostImpl(const DemuxerHostImpl&) = delete;
-  DemuxerHostImpl& operator=(const DemuxerHostImpl&) = delete;
-
   ~DemuxerHostImpl() override = default;
 
   // DemuxerHost implementation.
@@ -43,12 +40,15 @@ class DemuxerHostImpl : public media::DemuxerHost {
       const Ranges<base::TimeDelta>& ranges) override {}
   void SetDuration(base::TimeDelta duration) override {}
   void OnDemuxerError(media::PipelineStatus error) override {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DemuxerHostImpl);
 };
 
-static void QuitLoopWithStatus(base::OnceClosure quit_cb,
+static void QuitLoopWithStatus(base::Closure quit_cb,
                                media::PipelineStatus status) {
   CHECK_EQ(status, media::PIPELINE_OK);
-  std::move(quit_cb).Run();
+  quit_cb.Run();
 }
 
 static void OnEncryptedMediaInitData(EmeInitDataType init_data_type,
@@ -67,10 +67,6 @@ typedef std::vector<media::DemuxerStream*> Streams;
 class StreamReader {
  public:
   StreamReader(media::Demuxer* demuxer, bool enable_bitstream_converter);
-
-  StreamReader(const StreamReader&) = delete;
-  StreamReader& operator=(const StreamReader&) = delete;
-
   ~StreamReader();
 
   // Performs a single step read.
@@ -85,7 +81,7 @@ class StreamReader {
 
  private:
   void OnReadDone(scoped_refptr<base::SingleThreadTaskRunner> task_runner,
-                  base::OnceClosure quit_when_idle_closure,
+                  const base::Closure& quit_when_idle_closure,
                   bool* end_of_stream,
                   base::TimeDelta* timestamp,
                   media::DemuxerStream::Status status,
@@ -96,6 +92,8 @@ class StreamReader {
   std::vector<bool> end_of_stream_;
   std::vector<base::TimeDelta> last_read_timestamp_;
   std::vector<int> counts_;
+
+  DISALLOW_COPY_AND_ASSIGN(StreamReader);
 };
 
 StreamReader::StreamReader(media::Demuxer* demuxer,
@@ -121,8 +119,8 @@ void StreamReader::Read() {
   base::RunLoop run_loop;
   streams_[index]->Read(base::BindOnce(
       &StreamReader::OnReadDone, base::Unretained(this),
-      base::SingleThreadTaskRunner::GetCurrentDefault(),
-      run_loop.QuitWhenIdleClosure(), &end_of_stream, &timestamp));
+      base::ThreadTaskRunnerHandle::Get(), run_loop.QuitWhenIdleClosure(),
+      &end_of_stream, &timestamp));
   run_loop.Run();
 
   CHECK(end_of_stream || timestamp != media::kNoTimestamp);
@@ -141,7 +139,7 @@ bool StreamReader::IsDone() {
 
 void StreamReader::OnReadDone(
     scoped_refptr<base::SingleThreadTaskRunner> task_runner,
-    base::OnceClosure quit_when_idle_closure,
+    const base::Closure& quit_when_idle_closure,
     bool* end_of_stream,
     base::TimeDelta* timestamp,
     media::DemuxerStream::Status status,
@@ -150,7 +148,7 @@ void StreamReader::OnReadDone(
   CHECK(buffer);
   *end_of_stream = buffer->end_of_stream();
   *timestamp = *end_of_stream ? media::kNoTimestamp : buffer->timestamp();
-  task_runner->PostTask(FROM_HERE, std::move(quit_when_idle_closure));
+  task_runner->PostTask(FROM_HERE, quit_when_idle_closure);
 }
 
 int StreamReader::GetNextStreamIndexToRead() {
@@ -187,9 +185,9 @@ static void RunDemuxerBenchmark(const std::string& filename) {
         base::BindRepeating(&OnEncryptedMediaInitData);
     Demuxer::MediaTracksUpdatedCB tracks_updated_cb =
         base::BindRepeating(&OnMediaTracksUpdated);
-    FFmpegDemuxer demuxer(base::SingleThreadTaskRunner::GetCurrentDefault(),
-                          &data_source, encrypted_media_init_data_cb,
-                          tracks_updated_cb, &media_log_, true);
+    FFmpegDemuxer demuxer(base::ThreadTaskRunnerHandle::Get(), &data_source,
+                          encrypted_media_init_data_cb, tracks_updated_cb,
+                          &media_log_, true);
 
     {
       base::RunLoop run_loop;

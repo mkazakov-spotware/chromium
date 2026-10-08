@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,7 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
-#include "ui/gl/gl_bindings.h"
-#include "ui/gl/gl_implementation.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "ui/ozone/common/egl_util.h"
 
 namespace ui {
@@ -19,9 +17,9 @@ constexpr size_t kBytesPerPixelBGRA = 4;
 
 }  // namespace
 
-GLSurfaceEglReadback::GLSurfaceEglReadback(gl::GLDisplayEGL* display)
-    : PbufferGLSurfaceEGL(display, gfx::Size(1, 1)),
-      task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {}
+GLSurfaceEglReadback::GLSurfaceEglReadback()
+    : PbufferGLSurfaceEGL(gfx::Size(1, 1)),
+      task_runner_(base::ThreadTaskRunnerHandle::Get()) {}
 
 bool GLSurfaceEglReadback::Resize(const gfx::Size& size,
                                   float scale_factor,
@@ -31,14 +29,6 @@ bool GLSurfaceEglReadback::Resize(const gfx::Size& size,
 
   if (!PbufferGLSurfaceEGL::Resize(size, scale_factor, color_space, has_alpha))
     return false;
-
-  // For NullDrawGLBindings, all draws will be skipped,
-  // so reading back pixels will causes use-of-uninitialized-value problem
-  // on MemorySanitizer enabled trybots, so don't allocate the pixel_ and skip
-  // pixels reading back.
-  // See crbug.com/1259170 for detail.
-  if (gl::HasInitializedNullDrawGLBindings())
-    return true;
 
   // Allocate a new buffer for readback.
   const size_t buffer_size = size.width() * size.height() * kBytesPerPixelBGRA;
@@ -51,20 +41,16 @@ bool GLSurfaceEglReadback::IsOffscreen() {
   return false;
 }
 
-gfx::SwapResult GLSurfaceEglReadback::SwapBuffers(PresentationCallback callback,
-                                                  gl::FrameData data) {
+gfx::SwapResult GLSurfaceEglReadback::SwapBuffers(
+    PresentationCallback callback) {
+  ReadPixels(pixels_.get());
+
   gfx::SwapResult swap_result = gfx::SwapResult::SWAP_FAILED;
   gfx::PresentationFeedback feedback;
 
-  if (pixels_) {
-    ReadPixels(pixels_.get());
-    if (HandlePixels(pixels_.get())) {
-      // Swap is successful, so return SWAP_ACK and provide the current time
-      // with presentation feedback.
-      swap_result = gfx::SwapResult::SWAP_ACK;
-      feedback.timestamp = base::TimeTicks::Now();
-    }
-  } else {
+  if (HandlePixels(pixels_.get())) {
+    // Swap is succesful, so return SWAP_ACK and provide the current time with
+    // presentation feedback.
     swap_result = gfx::SwapResult::SWAP_ACK;
     feedback.timestamp = base::TimeTicks::Now();
   }
@@ -88,6 +74,7 @@ bool GLSurfaceEglReadback::HandlePixels(uint8_t* pixels) {
 
 void GLSurfaceEglReadback::ReadPixels(void* buffer) {
   const gfx::Size size = GetSize();
+
   GLint read_fbo = 0;
   GLint pixel_pack_buffer = 0;
   glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read_fbo);

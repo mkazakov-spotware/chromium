@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -66,13 +66,14 @@
                         item->type != blink::mojom::MenuItem::Type::kGroup)];
   [menuItem setTarget:self];
 
-  // Set various alignment/language attributes.
+  // Set various alignment/language attributes. Note that many (if not most) of
+  // these attributes are functional only on 10.6 and above.
   base::scoped_nsobject<NSMutableDictionary> attrs(
       [[NSMutableDictionary alloc] initWithCapacity:3]);
   base::scoped_nsobject<NSMutableParagraphStyle> paragraphStyle(
       [[NSMutableParagraphStyle alloc] init]);
-  [paragraphStyle
-      setAlignment:_rightAligned ? NSTextAlignmentRight : NSTextAlignmentLeft];
+  [paragraphStyle setAlignment:_rightAligned ? NSRightTextAlignment
+                                             : NSLeftTextAlignment];
   NSWritingDirection writingDirection =
       item->text_direction == base::i18n::RIGHT_TO_LEFT
           ? NSWritingDirectionRightToLeft
@@ -81,8 +82,12 @@
   [attrs setObject:paragraphStyle forKey:NSParagraphStyleAttributeName];
 
   if (item->has_text_direction_override) {
-    [attrs setObject:@[ @(long{writingDirection} | NSWritingDirectionOverride) ]
-              forKey:NSWritingDirectionAttributeName];
+    base::scoped_nsobject<NSNumber> directionValue(
+        [[NSNumber alloc] initWithInteger:
+            writingDirection + NSTextWritingDirectionOverride]);
+    base::scoped_nsobject<NSArray> directionArray(
+        [[NSArray alloc] initWithObjects:directionValue.get(), nil]);
+    [attrs setObject:directionArray forKey:NSWritingDirectionAttributeName];
   }
 
   [attrs setObject:[NSFont menuFontOfSize:_fontSize]
@@ -131,8 +136,20 @@
   if (_rightAligned) {
     [cell setUserInterfaceLayoutDirection:
               NSUserInterfaceLayoutDirectionRightToLeft];
-    [_menu setUserInterfaceLayoutDirection:
-               NSUserInterfaceLayoutDirectionRightToLeft];
+    // setUserInterfaceLayoutDirection for NSMenu is supported on macOS 10.11+.
+    SEL sel = @selector(setUserInterfaceLayoutDirection:);
+    if ([_menu respondsToSelector:sel]) {
+      NSUserInterfaceLayoutDirection direction =
+          NSUserInterfaceLayoutDirectionRightToLeft;
+      NSMethodSignature* signature =
+          [NSMenu instanceMethodSignatureForSelector:sel];
+      NSInvocation* invocation =
+          [NSInvocation invocationWithMethodSignature:signature];
+      [invocation setTarget:_menu.get()];
+      [invocation setSelector:sel];
+      [invocation setArgument:&direction atIndex:2];
+      [invocation invoke];
+    }
   }
 
   // When popping up a menu near the Dock, Cocoa restricts the menu

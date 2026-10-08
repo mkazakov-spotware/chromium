@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,16 +15,15 @@
 namespace mojo {
 
 template <>
-struct COMPONENT_EXPORT(NETWORK_CPP_IP_ADDRESS)
+struct COMPONENT_EXPORT(NETWORK_CPP_BASE)
     StructTraits<network::mojom::AddressListDataView, net::AddressList> {
   static const std::vector<net::IPEndPoint>& addresses(
       const net::AddressList& obj) {
     return obj.endpoints();
   }
 
-  static const std::vector<std::string>& dns_aliases(
-      const net::AddressList& obj) {
-    return obj.dns_aliases();
+  static const std::string& canonical_name(const net::AddressList& obj) {
+    return obj.canonical_name();
   }
 
   static bool Read(network::mojom::AddressListDataView data,

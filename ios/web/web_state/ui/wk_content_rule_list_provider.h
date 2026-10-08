@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,11 +14,14 @@
 
 namespace web {
 
+class BrowserState;
+enum class CookieBlockingMode;
+
 // A provider class that handles compiling and configuring Content Blocker
 // rules.
 class WKContentRuleListProvider {
  public:
-  explicit WKContentRuleListProvider();
+  explicit WKContentRuleListProvider(BrowserState* browser_state);
   ~WKContentRuleListProvider();
 
   // Sets the WKUserContentController that this provider will install its rules
@@ -28,7 +31,7 @@ class WKContentRuleListProvider {
 
   // Updates and re-installs the Content Blocker rules using any new state.
   // This may be asynchronous if a rule list hasn't been compiled yet, so
-  // `callback` will be called after the mode is set. It will be called with
+  // |callback| will be called after the mode is set. It will be called with
   // true if the update is successful and false otherwise (most likely because
   // rules were updated again before the first set of rules was fully
   // installed).
@@ -46,8 +49,10 @@ class WKContentRuleListProvider {
   // Uninstalls all content rule lists installed by this provider.
   void UninstallContentRuleLists();
 
+  BrowserState* browser_state_;
   __weak WKUserContentController* user_content_controller_;
-  WKContentRuleList* block_local_rule_list_;
+  WKContentRuleList* block_content_rule_list_;
+  WKContentRuleList* block_third_party_content_rule_list_;
 
   base::OnceCallback<void(bool)> update_callback_;
 

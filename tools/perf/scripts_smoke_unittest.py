@@ -1,8 +1,7 @@
-# Copyright 2015 The Chromium Authors
+# Copyright 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-from __future__ import print_function
 import json
 import logging
 import os
@@ -38,48 +37,33 @@ class ScriptsSmokeTest(unittest.TestCase):
                             env=env)
     stdout = proc.communicate()[0]
     return_code = proc.returncode
-    return return_code, stdout.decode('utf-8')
+    return return_code, stdout
 
   def testRunBenchmarkHelp(self):
     return_code, stdout = self.RunPerfScript('run_benchmark --help')
-    self.assertEqual(return_code, 0, stdout)
+    self.assertEquals(return_code, 0, stdout)
     self.assertIn('usage: run_benchmark', stdout)
 
   @decorators.Disabled('chromeos')  # crbug.com/754913
   def testRunBenchmarkListBenchmarks(self):
-    cmdline = [
-        'run_benchmark', 'list', '--browser', self.options.browser_type,
-        '--chrome-root',
-        os.path.abspath(self.options.chrome_root)
-    ]
-    if self.options.browser_type == 'exact':
-      # If we're running with an exact browser and it was not specified with
-      # an absolute path, then there's no guarantee that we can actually find it
-      # now, so make the test a no-op.
-      if not os.path.isabs(self.options.browser_executable):
-        return
-      cmdline.extend(['--browser-executable', self.options.browser_executable])
-    return_code, stdout = self.RunPerfScript(cmdline)
-    if sys.version_info.major == 3:
-      self.assertRegex(stdout, r'Available benchmarks .*? are:')
-    else:
-      # TODO: (crbug/1342770) clean up after python migration is done.
-      self.assertRegexpMatches(stdout, r'Available benchmarks .*? are:')  # pylint: disable=deprecated-method
+    return_code, stdout = self.RunPerfScript(
+        ['run_benchmark', 'list', '--browser', self.options.browser_type])
+    self.assertRegexpMatches(stdout, r'Available benchmarks .*? are:')
     self.assertEqual(return_code, 0)
 
   def testRunBenchmarkRunListsOutBenchmarks(self):
     return_code, stdout = self.RunPerfScript('run_benchmark run')
     self.assertIn('Pass --browser to list benchmarks', stdout)
-    self.assertNotEqual(return_code, 0)
+    self.assertNotEquals(return_code, 0)
 
   def testRunBenchmarkRunNonExistingBenchmark(self):
     return_code, stdout = self.RunPerfScript('run_benchmark foo')
     self.assertIn('no such benchmark: foo', stdout)
-    self.assertNotEqual(return_code, 0)
+    self.assertNotEquals(return_code, 0)
 
   def testRunRecordWprHelp(self):
     return_code, stdout = self.RunPerfScript('record_wpr')
-    self.assertEqual(return_code, 0, stdout)
+    self.assertEquals(return_code, 0, stdout)
     self.assertIn('optional arguments:', stdout)
 
   @decorators.Disabled('chromeos')  # crbug.com/814068
@@ -90,7 +74,7 @@ class ScriptsSmokeTest(unittest.TestCase):
     # crbug.com/561668
     if 'ImportError: cannot import name small_profile_extender' in stdout:
       self.skipTest('small_profile_extender is missing')
-    self.assertEqual(return_code, 0, stdout)
+    self.assertEquals(return_code, 0, stdout)
     self.assertIn('kraken', stdout)
 
   @decorators.Disabled('chromeos')  # crbug.com/754913
@@ -98,25 +82,18 @@ class ScriptsSmokeTest(unittest.TestCase):
     tempdir = tempfile.mkdtemp()
     benchmarks = ['dummy_benchmark.stable_benchmark_1',
                   'dummy_benchmark.noisy_benchmark_1']
-    cmdline = ('../../testing/scripts/run_performance_tests.py '
-               '../../tools/perf/run_benchmark '
-               '--benchmarks=%s '
-               '--browser=%s '
-               '--chrome-root=%s '
-               '--isolated-script-test-also-run-disabled-tests '
-               '--isolated-script-test-output=%s' %
-               (','.join(benchmarks), self.options.browser_type,
-                os.path.abspath(self.options.chrome_root),
-                os.path.join(tempdir, 'output.json')))
-    if self.options.browser_type == 'exact':
-      # If the path to the browser executable is not absolute, there is no
-      # guarantee that we can actually find it at this point, so no-op the
-      # test.
-      if not os.path.isabs(self.options.browser_executable):
-        return
-      cmdline += ' --browser-executable=%s' % self.options.browser_executable
-    return_code, stdout = self.RunPerfScript(cmdline)
-    self.assertEqual(return_code, 0, stdout)
+    return_code, stdout = self.RunPerfScript(
+        '../../testing/scripts/run_performance_tests.py '
+        '../../tools/perf/run_benchmark '
+        '--benchmarks=%s '
+        '--browser=%s '
+        '--isolated-script-test-also-run-disabled-tests '
+        '--isolated-script-test-output=%s' % (
+            ','.join(benchmarks),
+            self.options.browser_type,
+            os.path.join(tempdir, 'output.json')
+        ))
+    self.assertEquals(return_code, 0, stdout)
     try:
       with open(os.path.join(tempdir, 'output.json')) as f:
         test_results = json.load(f)
@@ -211,7 +188,7 @@ class ScriptsSmokeTest(unittest.TestCase):
         ), env=env)
     test_results = None
     try:
-      self.assertEqual(return_code, 0)
+      self.assertEquals(return_code, 0)
       expected_benchmark_folders = (
           'dummy_benchmark.stable_benchmark_1',
           'dummy_benchmark.stable_benchmark_1.reference',
@@ -267,11 +244,11 @@ class ScriptsSmokeTest(unittest.TestCase):
             os.path.join(tempdir, 'output.json')
         ))
     try:
-      self.assertEqual(return_code, 0, stdout)
+      self.assertEquals(return_code, 0, stdout)
     except AssertionError:
       try:
         with open(os.path.join(tempdir, benchmark, 'benchmark_log.txt')) as fh:
-          print(fh.read())
+          print fh.read()
       # pylint: disable=bare-except
       except:
         # pylint: enable=bare-except
@@ -406,7 +383,7 @@ class ScriptsSmokeTest(unittest.TestCase):
           tempdir, 'fake_gtest')
       output_paths.SetUp()
       return_code = run_performance_tests.execute_gtest_perf_test(
-          fake_command_generator, output_paths, is_unittest=True)
+          fake_command_generator, output_paths)
       self.assertEqual(return_code, 1)
       with open(output_paths.test_results) as fh:
         json_test_results = json.load(fh)

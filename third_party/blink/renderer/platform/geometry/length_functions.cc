@@ -23,11 +23,11 @@
 
 #include "third_party/blink/renderer/platform/geometry/length_functions.h"
 
+#include "third_party/blink/renderer/platform/geometry/float_point.h"
+#include "third_party/blink/renderer/platform/geometry/float_size.h"
 #include "third_party/blink/renderer/platform/geometry/layout_unit.h"
 #include "third_party/blink/renderer/platform/geometry/length_point.h"
 #include "third_party/blink/renderer/platform/geometry/length_size.h"
-#include "ui/gfx/geometry/point_f.h"
-#include "ui/gfx/geometry/size_f.h"
 
 namespace blink {
 
@@ -35,25 +35,21 @@ int IntValueForLength(const Length& length, int maximum_value) {
   return ValueForLength(length, LayoutUnit(maximum_value)).ToInt();
 }
 
-float FloatValueForLength(const Length& length,
-                          float maximum_value,
-                          const Length::AnchorEvaluator* anchor_evaluator) {
+float FloatValueForLength(const Length& length, float maximum_value) {
   switch (length.GetType()) {
     case Length::kFixed:
       return length.GetFloatValue();
     case Length::kPercent:
-      return ClampTo<float>(maximum_value * length.Percent() / 100.0f);
+      return static_cast<float>(maximum_value * length.Percent() / 100.0f);
     case Length::kFillAvailable:
     case Length::kAuto:
       return static_cast<float>(maximum_value);
     case Length::kCalculated:
-      return length.NonNanCalculatedValue(LayoutUnit(maximum_value),
-                                          anchor_evaluator);
+      return length.NonNanCalculatedValue(LayoutUnit(maximum_value));
     case Length::kMinContent:
     case Length::kMaxContent:
     case Length::kMinIntrinsic:
     case Length::kFitContent:
-    case Length::kContent:
     case Length::kExtendToZoom:
     case Length::kDeviceWidth:
     case Length::kDeviceHeight:
@@ -65,10 +61,8 @@ float FloatValueForLength(const Length& length,
   return 0;
 }
 
-LayoutUnit MinimumValueForLengthInternal(
-    const Length& length,
-    LayoutUnit maximum_value,
-    const Length::AnchorEvaluator* anchor_evaluator) {
+LayoutUnit MinimumValueForLengthInternal(const Length& length,
+                                         LayoutUnit maximum_value) {
   switch (length.GetType()) {
     case Length::kPercent:
       // Don't remove the extra cast to float. It is needed for rounding on
@@ -76,8 +70,7 @@ LayoutUnit MinimumValueForLengthInternal(
       return LayoutUnit(
           static_cast<float>(maximum_value * length.Percent() / 100.0f));
     case Length::kCalculated:
-      return LayoutUnit(
-          length.NonNanCalculatedValue(maximum_value, anchor_evaluator));
+      return LayoutUnit(length.NonNanCalculatedValue(maximum_value));
     case Length::kFillAvailable:
     case Length::kAuto:
       return LayoutUnit();
@@ -86,7 +79,6 @@ LayoutUnit MinimumValueForLengthInternal(
     case Length::kMaxContent:
     case Length::kMinIntrinsic:
     case Length::kFitContent:
-    case Length::kContent:
     case Length::kExtendToZoom:
     case Length::kDeviceWidth:
     case Length::kDeviceHeight:
@@ -111,7 +103,6 @@ LayoutUnit ValueForLength(const Length& length, LayoutUnit maximum_value) {
     case Length::kMaxContent:
     case Length::kMinIntrinsic:
     case Length::kFitContent:
-    case Length::kContent:
     case Length::kExtendToZoom:
     case Length::kDeviceWidth:
     case Length::kDeviceHeight:
@@ -123,17 +114,17 @@ LayoutUnit ValueForLength(const Length& length, LayoutUnit maximum_value) {
   return LayoutUnit();
 }
 
-gfx::SizeF SizeForLengthSize(const LengthSize& length_size,
-                             const gfx::SizeF& box_size) {
-  return gfx::SizeF(
-      FloatValueForLength(length_size.Width(), box_size.width()),
-      FloatValueForLength(length_size.Height(), box_size.height()));
+FloatSize FloatSizeForLengthSize(const LengthSize& length_size,
+                                 const FloatSize& box_size) {
+  return FloatSize(
+      FloatValueForLength(length_size.Width(), box_size.Width()),
+      FloatValueForLength(length_size.Height(), box_size.Height()));
 }
 
-gfx::PointF PointForLengthPoint(const LengthPoint& length_point,
-                                const gfx::SizeF& box_size) {
-  return gfx::PointF(FloatValueForLength(length_point.X(), box_size.width()),
-                     FloatValueForLength(length_point.Y(), box_size.height()));
+FloatPoint FloatPointForLengthPoint(const LengthPoint& length_point,
+                                    const FloatSize& box_size) {
+  return FloatPoint(FloatValueForLength(length_point.X(), box_size.Width()),
+                    FloatValueForLength(length_point.Y(), box_size.Height()));
 }
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,13 +16,14 @@
 
 #include "base/callback_forward.h"
 #include "base/feature_list.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/threading/thread_checker.h"
 #include "base/win/windows_version.h"
 #include "device/base/features.h"
 #include "device/bluetooth/bluetooth_device.h"
 #include "device/bluetooth/bluetooth_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace device {
 
@@ -42,10 +43,6 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDeviceWinrt : public BluetoothDevice {
   static constexpr uint8_t k128BitServiceDataSection = 0x21;
 
   BluetoothDeviceWinrt(BluetoothAdapterWinrt* adapter, uint64_t raw_address);
-
-  BluetoothDeviceWinrt(const BluetoothDeviceWinrt&) = delete;
-  BluetoothDeviceWinrt& operator=(const BluetoothDeviceWinrt&) = delete;
-
   ~BluetoothDeviceWinrt() override;
 
   // BluetoothDevice:
@@ -57,7 +54,7 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDeviceWinrt : public BluetoothDevice {
   uint16_t GetProductID() const override;
   uint16_t GetDeviceID() const override;
   uint16_t GetAppearance() const override;
-  absl::optional<std::string> GetName() const override;
+  base::Optional<std::string> GetName() const override;
   bool IsPaired() const override;
   bool IsConnected() const override;
   bool IsGattConnected() const override;
@@ -71,9 +68,11 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDeviceWinrt : public BluetoothDevice {
                             base::OnceClosure callback,
                             ErrorCallback error_callback) override;
   void Connect(PairingDelegate* pairing_delegate,
-               ConnectCallback callback) override;
+               base::OnceClosure callback,
+               ConnectErrorCallback error_callback) override;
   void Pair(PairingDelegate* pairing_delegate,
-            ConnectCallback callback) override;
+            base::OnceClosure callback,
+            ConnectErrorCallback error_callback) override;
   void SetPinCode(const std::string& pincode) override;
   void SetPasskey(uint32_t passkey) override;
   void ConfirmPairing() override;
@@ -96,12 +95,12 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDeviceWinrt : public BluetoothDevice {
   static std::string CanonicalizeAddress(uint64_t address);
 
   // Called by BluetoothAdapterWinrt when an advertisement packet is received.
-  void UpdateLocalName(absl::optional<std::string> local_name);
+  void UpdateLocalName(base::Optional<std::string> local_name);
 
  protected:
   // BluetoothDevice:
   void CreateGattConnectionImpl(
-      absl::optional<BluetoothUUID> service_uuid) override;
+      base::Optional<BluetoothUUID> service_uuid) override;
   void UpgradeToFullDiscovery() override;
   void DisconnectGatt() override;
 
@@ -162,7 +161,7 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDeviceWinrt : public BluetoothDevice {
       gatt_session_status_;
   uint64_t raw_address_;
   std::string address_;
-  absl::optional<std::string> local_name_;
+  base::Optional<std::string> local_name_;
 
   std::unique_ptr<BluetoothPairingWinrt> pairing_;
 
@@ -182,19 +181,21 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDeviceWinrt : public BluetoothDevice {
   // FromBluetoothAddressAsync() otherwise.
   bool pending_gatt_service_discovery_start_ = false;
 
-  absl::optional<BluetoothUUID> target_uuid_;
+  base::Optional<BluetoothUUID> target_uuid_;
   std::unique_ptr<BluetoothGattDiscovererWinrt> gatt_discoverer_;
 
-  absl::optional<EventRegistrationToken> connection_changed_token_;
-  absl::optional<EventRegistrationToken> gatt_session_status_changed_token_;
-  absl::optional<EventRegistrationToken> gatt_services_changed_token_;
-  absl::optional<EventRegistrationToken> name_changed_token_;
+  base::Optional<EventRegistrationToken> connection_changed_token_;
+  base::Optional<EventRegistrationToken> gatt_session_status_changed_token_;
+  base::Optional<EventRegistrationToken> gatt_services_changed_token_;
+  base::Optional<EventRegistrationToken> name_changed_token_;
 
   THREAD_CHECKER(thread_checker_);
 
   // Note: This should remain the last member so it'll be destroyed and
   // invalidate its weak pointers before any other members are destroyed.
   base::WeakPtrFactory<BluetoothDeviceWinrt> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(BluetoothDeviceWinrt);
 };
 
 }  // namespace device

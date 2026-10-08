@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,12 @@
 
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/scroll/scroll_types.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
-class Element;
-class KURL;
+
 class LocalFrame;
-class ScrollIntoViewOptions;
+class KURL;
 
 // This class is an interface for the concept of a "fragment anchor". A
 // fragment anchor allows a page to link to a specific part of a page by using
@@ -36,7 +34,6 @@ class CORE_EXPORT FragmentAnchor : public GarbageCollected<FragmentAnchor> {
                                    LocalFrame& frame,
                                    bool should_scroll);
 
-  explicit FragmentAnchor(LocalFrame& frame) : frame_(frame) {}
   FragmentAnchor() = default;
   virtual ~FragmentAnchor() = default;
 
@@ -52,18 +49,14 @@ class CORE_EXPORT FragmentAnchor : public GarbageCollected<FragmentAnchor> {
   virtual void Installed() = 0;
 
   virtual void DidScroll(mojom::blink::ScrollType type) = 0;
-  virtual void PerformScriptableActions() = 0;
+  virtual void PerformPreRafActions() = 0;
 
-  virtual void Trace(Visitor*) const;
+  // Dismissing the fragment anchor removes indicators of the anchor, such as
+  // text highlighting on a text fragment anchor. If true, the anchor has been
+  // dismissed and can be disposed.
+  virtual bool Dismiss() = 0;
 
-  virtual bool IsTextFragmentAnchor() { return false; }
-
-  virtual bool IsSelectorFragmentAnchor() { return false; }
-
-  virtual void ScrollElementIntoViewWithOptions(Element* element_to_scroll,
-                                                ScrollIntoViewOptions* options);
-
-  Member<LocalFrame> frame_;
+  virtual void Trace(Visitor*) const {}
 };
 
 }  // namespace blink

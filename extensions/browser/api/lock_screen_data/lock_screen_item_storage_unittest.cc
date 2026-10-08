@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,21 +12,21 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/containers/contains.h"
 #include "base/containers/queue.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
+#include "base/task/post_task.h"
 #include "base/time/time.h"
 #include "base/values.h"
-#include "chromeos/ash/components/login/login_state/login_state.h"
+#include "chromeos/login/login_state/login_state.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "components/user_prefs/user_prefs.h"
-#include "components/value_store/test_value_store_factory.h"
 #include "content/public/test/test_browser_context.h"
 #include "extensions/browser/api/lock_screen_data/data_item.h"
 #include "extensions/browser/api/lock_screen_data/lock_screen_value_store_migrator.h"
@@ -37,6 +37,7 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extensions_test.h"
 #include "extensions/browser/test_extensions_browser_client.h"
+#include "extensions/browser/value_store/test_value_store_factory.h"
 #include "extensions/common/api/lock_screen_data.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/value_builder.h"
@@ -84,10 +85,6 @@ class TestEventRouter : public extensions::EventRouter {
  public:
   explicit TestEventRouter(content::BrowserContext* context)
       : extensions::EventRouter(context, nullptr) {}
-
-  TestEventRouter(const TestEventRouter&) = delete;
-  TestEventRouter& operator=(const TestEventRouter&) = delete;
-
   ~TestEventRouter() override = default;
 
   bool ExtensionHasEventListener(const std::string& extension_id,
@@ -105,12 +102,14 @@ class TestEventRouter : public extensions::EventRouter {
         extensions::api::lock_screen_data::OnDataItemsAvailable::kEventName) {
       return;
     }
-    ASSERT_TRUE(!event->event_args.empty());
-    const base::Value& arg_value = event->event_args[0];
+    ASSERT_TRUE(event->event_args);
+    const base::Value* arg_value = nullptr;
+    ASSERT_TRUE(event->event_args->Get(0, &arg_value));
+    ASSERT_TRUE(arg_value);
 
     std::unique_ptr<extensions::api::lock_screen_data::DataItemsAvailableEvent>
         event_args = extensions::api::lock_screen_data::
-            DataItemsAvailableEvent::FromValue(arg_value);
+            DataItemsAvailableEvent::FromValue(*arg_value);
     ASSERT_TRUE(event_args);
     was_locked_values_.push_back(event_args->was_locked);
   }
@@ -123,6 +122,8 @@ class TestEventRouter : public extensions::EventRouter {
 
  private:
   std::vector<bool> was_locked_values_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestEventRouter);
 };
 
 std::unique_ptr<KeyedService> TestEventRouterFactoryFunction(
@@ -135,10 +136,6 @@ class ItemRegistry {
  public:
   explicit ItemRegistry(const std::string& extension_id)
       : extension_id_(extension_id) {}
-
-  ItemRegistry(const ItemRegistry&) = delete;
-  ItemRegistry& operator=(const ItemRegistry&) = delete;
-
   ~ItemRegistry() = default;
 
   // Adds a new item to set of registered items.
@@ -160,20 +157,22 @@ class ItemRegistry {
   void RemoveAll() { items_.clear(); }
 
   // Gets the set of registered data items.
-  void HandleGetRequest(DataItem::RegisteredValuesCallback callback) {
+  void HandleGetRequest(const DataItem::RegisteredValuesCallback& callback) {
     if (!throttle_get_) {
-      RunCallback(std::move(callback));
+      RunCallback(callback);
       return;
     }
 
     ASSERT_TRUE(pending_callback_.is_null());
-    pending_callback_ = std::move(callback);
+    pending_callback_ = callback;
   }
 
   // Completes a pending |HandleGetRequest| request.
   void RunPendingCallback() {
     ASSERT_FALSE(pending_callback_.is_null());
-    RunCallback(std::move(pending_callback_));
+    DataItem::RegisteredValuesCallback callback = pending_callback_;
+    pending_callback_.Reset();
+    RunCallback(callback);
   }
 
   bool HasPendingCallback() const { return !pending_callback_.is_null(); }
@@ -183,20 +182,20 @@ class ItemRegistry {
   void set_throttle_get(bool throttle_get) { throttle_get_ = throttle_get; }
 
  private:
-  void RunCallback(DataItem::RegisteredValuesCallback callback) {
-    std::move(callback).Run(
-        fail_ ? OperationResult::kFailed : OperationResult::kSuccess,
-        ItemsToDict());
+  void RunCallback(const DataItem::RegisteredValuesCallback& callback) {
+    callback.Run(fail_ ? OperationResult::kFailed : OperationResult::kSuccess,
+                 ItemsToValue());
   }
 
-  base::Value::Dict ItemsToDict() {
+  std::unique_ptr<base::DictionaryValue> ItemsToValue() {
     if (fail_)
-      return base::Value::Dict();
+      return nullptr;
 
-    base::Value::Dict result;
+    std::unique_ptr<base::DictionaryValue> result =
+        std::make_unique<base::DictionaryValue>();
 
     for (const std::string& item_id : items_)
-      result.Set(item_id, base::Value::Dict());
+      result->Set(item_id, std::make_unique<base::DictionaryValue>());
 
     return result;
   }
@@ -215,6 +214,8 @@ class ItemRegistry {
   DataItem::RegisteredValuesCallback pending_callback_;
   // Set of registered item ids.
   std::set<std::string> items_;
+
+  DISALLOW_COPY_AND_ASSIGN(ItemRegistry);
 };
 
 // Keeps track of all operations requested from the test data item.
@@ -247,36 +248,33 @@ class OperationQueue {
   OperationQueue(const std::string& id, ItemRegistry* item_registry)
       : id_(id), item_registry_(item_registry) {}
 
-  OperationQueue(const OperationQueue&) = delete;
-  OperationQueue& operator=(const OperationQueue&) = delete;
-
   ~OperationQueue() = default;
 
-  void Register(DataItem::WriteCallback callback) {
+  void Register(const DataItem::WriteCallback& callback) {
     bool registered = item_registry_->Add(id_);
-    std::move(callback).Run(registered ? OperationResult::kSuccess
-                                       : OperationResult::kFailed);
+    callback.Run(registered ? OperationResult::kSuccess
+                            : OperationResult::kFailed);
   }
 
   void AddWrite(const std::vector<char>& data,
-                DataItem::WriteCallback callback) {
+                const DataItem::WriteCallback& callback) {
     PendingOperation operation(OperationType::kWrite);
     operation.data = data;
-    operation.write_callback = std::move(callback);
+    operation.write_callback = callback;
 
     pending_operations_.emplace(std::move(operation));
   }
 
-  void AddRead(DataItem::ReadCallback callback) {
+  void AddRead(const DataItem::ReadCallback& callback) {
     PendingOperation operation(OperationType::kRead);
-    operation.read_callback = std::move(callback);
+    operation.read_callback = callback;
 
     pending_operations_.emplace(std::move(operation));
   }
 
-  void AddDelete(DataItem::WriteCallback callback) {
+  void AddDelete(const DataItem::WriteCallback& callback) {
     PendingOperation operation(OperationType::kDelete);
-    operation.delete_callback = std::move(callback);
+    operation.delete_callback = callback;
 
     pending_operations_.emplace(std::move(operation));
   }
@@ -290,7 +288,7 @@ class OperationQueue {
     ASSERT_FALSE(pending_operations_.empty());
     ASSERT_FALSE(deleted_);
 
-    PendingOperation& operation = pending_operations_.front();
+    const PendingOperation& operation = pending_operations_.front();
 
     ASSERT_EQ(expected_type, operation.type);
 
@@ -298,9 +296,9 @@ class OperationQueue {
       case OperationType::kWrite: {
         if (result == OperationResult::kSuccess)
           content_ = operation.data;
-        DataItem::WriteCallback callback = std::move(operation.write_callback);
+        DataItem::WriteCallback callback = operation.write_callback;
         pending_operations_.pop();
-        std::move(callback).Run(result);
+        callback.Run(result);
         break;
       }
       case OperationType::kDelete: {
@@ -310,9 +308,9 @@ class OperationQueue {
           content_ = std::vector<char>();
         }
 
-        DataItem::WriteCallback callback = std::move(operation.delete_callback);
+        DataItem::WriteCallback callback = operation.delete_callback;
         pending_operations_.pop();
-        std::move(callback).Run(result);
+        callback.Run(result);
         break;
       }
       case OperationType::kRead: {
@@ -322,9 +320,9 @@ class OperationQueue {
                                                             content_.end());
         }
 
-        DataItem::ReadCallback callback = std::move(operation.read_callback);
+        DataItem::ReadCallback callback = operation.read_callback;
         pending_operations_.pop();
-        std::move(callback).Run(result, std::move(result_data));
+        callback.Run(result, std::move(result_data));
         break;
       }
       default:
@@ -347,6 +345,8 @@ class OperationQueue {
   base::queue<PendingOperation> pending_operations_;
   std::vector<char> content_;
   bool deleted_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(OperationQueue);
 };
 
 // Test data item - routes all requests to the OperationQueue provided through
@@ -363,48 +363,42 @@ class TestDataItem : public DataItem {
       : DataItem(id, extension_id, nullptr, nullptr, nullptr, crypto_key),
         operations_(operations) {}
 
-  TestDataItem(const TestDataItem&) = delete;
-  TestDataItem& operator=(const TestDataItem&) = delete;
-
   ~TestDataItem() override = default;
 
-  void Register(WriteCallback callback) override {
-    operations_->Register(std::move(callback));
+  void Register(const WriteCallback& callback) override {
+    operations_->Register(callback);
   }
 
-  void Write(const std::vector<char>& data, WriteCallback callback) override {
-    operations_->AddWrite(data, std::move(callback));
+  void Write(const std::vector<char>& data,
+             const WriteCallback& callback) override {
+    operations_->AddWrite(data, callback);
   }
 
-  void Read(ReadCallback callback) override {
-    operations_->AddRead(std::move(callback));
+  void Read(const ReadCallback& callback) override {
+    operations_->AddRead(callback);
   }
 
-  void Delete(WriteCallback callback) override {
-    operations_->AddDelete(std::move(callback));
+  void Delete(const WriteCallback& callback) override {
+    operations_->AddDelete(callback);
   }
 
  private:
   OperationQueue* operations_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestDataItem);
 };
 
 class TestLockScreenValueStoreMigrator : public LockScreenValueStoreMigrator {
  public:
   TestLockScreenValueStoreMigrator() = default;
-
-  TestLockScreenValueStoreMigrator(const TestLockScreenValueStoreMigrator&) =
-      delete;
-  TestLockScreenValueStoreMigrator& operator=(
-      const TestLockScreenValueStoreMigrator&) = delete;
-
   ~TestLockScreenValueStoreMigrator() override = default;
 
   void Run(const std::set<ExtensionId>& extensions_to_migrate,
-           ExtensionMigratedCallback callback) override {
+           const ExtensionMigratedCallback& callback) override {
     ASSERT_TRUE(migration_callback_.is_null());
     ASSERT_TRUE(extensions_to_migrate_.empty());
 
-    migration_callback_ = std::move(callback);
+    migration_callback_ = callback;
     extensions_to_migrate_ = extensions_to_migrate;
   }
 
@@ -414,12 +408,12 @@ class TestLockScreenValueStoreMigrator : public LockScreenValueStoreMigrator {
   }
 
   void ClearDataForExtension(const ExtensionId& extension_id,
-                             base::OnceClosure callback) override {
+                             const base::Closure& callback) override {
     EXPECT_EQ(clear_data_callbacks_.count(extension_id), 0u);
     EXPECT_GT(extensions_to_migrate_.count(extension_id), 0u);
 
     extensions_to_migrate_.erase(extension_id);
-    clear_data_callbacks_[extension_id] = std::move(callback);
+    clear_data_callbacks_[extension_id] = callback;
   }
 
   bool ClearingDataForExtension(const ExtensionId& extension_id) const {
@@ -437,9 +431,9 @@ class TestLockScreenValueStoreMigrator : public LockScreenValueStoreMigrator {
     if (clear_data_callbacks_.count(extension_id) == 0)
       return false;
 
-    base::OnceClosure callback = std::move(clear_data_callbacks_[extension_id]);
+    base::Closure callback = clear_data_callbacks_[extension_id];
     clear_data_callbacks_.erase(extension_id);
-    std::move(callback).Run();
+    callback.Run();
     return true;
   }
 
@@ -450,17 +444,14 @@ class TestLockScreenValueStoreMigrator : public LockScreenValueStoreMigrator {
  private:
   ExtensionMigratedCallback migration_callback_;
   std::set<ExtensionId> extensions_to_migrate_;
-  std::map<ExtensionId, base::OnceClosure> clear_data_callbacks_;
+  std::map<ExtensionId, base::Closure> clear_data_callbacks_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestLockScreenValueStoreMigrator);
 };
 
 class LockScreenItemStorageTest : public ExtensionsTest {
  public:
   LockScreenItemStorageTest() = default;
-
-  LockScreenItemStorageTest(const LockScreenItemStorageTest&) = delete;
-  LockScreenItemStorageTest& operator=(const LockScreenItemStorageTest&) =
-      delete;
-
   ~LockScreenItemStorageTest() override = default;
 
   void SetUp() override {
@@ -482,22 +473,22 @@ class LockScreenItemStorageTest : public ExtensionsTest {
     // Inject custom data item factory to be used with LockScreenItemStorage
     // instances.
     value_store_cache_factory_ =
-        base::BindRepeating(&LockScreenItemStorageTest::CreateValueStoreCache,
-                            base::Unretained(this));
+        base::Bind(&LockScreenItemStorageTest::CreateValueStoreCache,
+                   base::Unretained(this));
     LockScreenItemStorage::SetValueStoreCacheFactoryForTesting(
         &value_store_cache_factory_);
 
-    migrator_factory_ = base::BindRepeating(
-        &LockScreenItemStorageTest::CreateMigrator, base::Unretained(this));
+    migrator_factory_ = base::Bind(&LockScreenItemStorageTest::CreateMigrator,
+                                   base::Unretained(this));
     LockScreenItemStorage::SetValueStoreMigratorFactoryForTesting(
         &migrator_factory_);
 
-    item_factory_ = base::BindRepeating(&LockScreenItemStorageTest::CreateItem,
-                                        base::Unretained(this));
-    registered_items_getter_ = base::BindRepeating(
+    item_factory_ = base::Bind(&LockScreenItemStorageTest::CreateItem,
+                               base::Unretained(this));
+    registered_items_getter_ = base::Bind(
         &LockScreenItemStorageTest::GetRegisteredItems, base::Unretained(this));
-    item_store_deleter_ = base::BindRepeating(
-        &LockScreenItemStorageTest::RemoveAllItems, base::Unretained(this));
+    item_store_deleter_ = base::Bind(&LockScreenItemStorageTest::RemoveAllItems,
+                                     base::Unretained(this));
     LockScreenItemStorage::SetItemProvidersForTesting(
         &registered_items_getter_, &item_factory_, &item_store_deleter_);
 
@@ -539,7 +530,7 @@ class LockScreenItemStorageTest : public ExtensionsTest {
     OperationResult write_result = OperationResult::kFailed;
     lock_screen_item_storage()->SetItemContent(
         extension()->id(), id, content,
-        base::BindOnce(&RecordWriteResult, &write_result));
+        base::Bind(&RecordWriteResult, &write_result));
     if (!item_operations->HasPendingOperations()) {
       ADD_FAILURE() << "Write not registered";
       return false;
@@ -555,7 +546,7 @@ class LockScreenItemStorageTest : public ExtensionsTest {
     const DataItem* item = nullptr;
     lock_screen_item_storage()->CreateItem(
         extension()->id(),
-        base::BindOnce(&RecordCreateResult, &create_result, &item));
+        base::Bind(&RecordCreateResult, &create_result, &item));
     EXPECT_EQ(OperationResult::kSuccess, create_result);
 
     return item;
@@ -578,7 +569,7 @@ class LockScreenItemStorageTest : public ExtensionsTest {
 
   void GetAllItems(std::vector<std::string>* all_items) {
     lock_screen_item_storage()->GetAllForExtension(
-        extension()->id(), base::BindOnce(&RecordGetAllItemsResult, all_items));
+        extension()->id(), base::Bind(&RecordGetAllItemsResult, all_items));
   }
 
   // Finds an item with the ID |id| in list of items |items|.
@@ -603,15 +594,15 @@ class LockScreenItemStorageTest : public ExtensionsTest {
       ASSERT_TRUE(state.storage_version == 1 || state.storage_version == 2)
           << "Failed to init local state " << state.extension_id;
 
-      ScopedDictPrefUpdate update(&local_state_, "lockScreenDataItems");
-      base::Value::Dict* user_dict = update->EnsureDict(kTestUserIdHash);
+      DictionaryPrefUpdate update(&local_state_, "lockScreenDataItems");
       if (state.storage_version == 1) {
-        user_dict->Set(state.extension_id, state.item_count);
+        update->SetPath({kTestUserIdHash, state.extension_id},
+                        base::Value(state.item_count));
       } else {
-        base::Value::Dict info;
-        info.Set("item_count", state.item_count);
-        info.Set("storage_version", 2);
-        user_dict->Set(state.extension_id, std::move(info));
+        base::Value info(base::Value::Type::DICTIONARY);
+        info.SetKey("item_count", base::Value(state.item_count));
+        info.SetKey("storage_version", base::Value(2));
+        update->SetPath({kTestUserIdHash, state.extension_id}, std::move(info));
       }
     }
   }
@@ -717,7 +708,7 @@ class LockScreenItemStorageTest : public ExtensionsTest {
         << "Unexpected value store path " << root.value();
 
     return std::make_unique<LocalValueStoreCache>(
-        base::MakeRefCounted<value_store::TestValueStoreFactory>());
+        base::MakeRefCounted<TestValueStoreFactory>());
   }
 
   // Callback for creating value store migrator - this is the callback passed to
@@ -744,20 +735,19 @@ class LockScreenItemStorageTest : public ExtensionsTest {
   }
 
   void GetRegisteredItems(const std::string& extension_id,
-                          DataItem::RegisteredValuesCallback callback) {
+                          const DataItem::RegisteredValuesCallback& callback) {
     if (extension()->id() != extension_id) {
-      std::move(callback).Run(OperationResult::kUnknownExtension,
-                              base::Value::Dict());
+      callback.Run(OperationResult::kUnknownExtension, nullptr);
       return;
     }
-    item_registry_->HandleGetRequest(std::move(callback));
+    item_registry_->HandleGetRequest(callback);
   }
 
   void RemoveAllItems(const std::string& extension_id,
-                      base::OnceClosure callback) {
+                      const base::Closure& callback) {
     ASSERT_EQ(extension()->id(), extension_id);
     item_registry_->RemoveAll();
-    std::move(callback).Run();
+    callback.Run();
   }
 
   std::unique_ptr<LockScreenItemStorage> lock_screen_item_storage_;
@@ -785,6 +775,8 @@ class LockScreenItemStorageTest : public ExtensionsTest {
   bool can_create_deprecated_value_store_ = false;
 
   TestLockScreenValueStoreMigrator* value_store_migrator_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(LockScreenItemStorageTest);
 };
 
 }  // namespace
@@ -827,7 +819,7 @@ TEST_F(LockScreenItemStorageTest, SetAndGetContent) {
   OperationResult write_result = OperationResult::kFailed;
   lock_screen_item_storage()->SetItemContent(
       extension()->id(), item->id(), content,
-      base::BindOnce(&RecordWriteResult, &write_result));
+      base::Bind(&RecordWriteResult, &write_result));
 
   item_operations->CompleteNextOperation(OperationQueue::OperationType::kWrite,
                                          OperationResult::kSuccess);
@@ -840,7 +832,7 @@ TEST_F(LockScreenItemStorageTest, SetAndGetContent) {
 
   lock_screen_item_storage()->GetItemContent(
       extension()->id(), item->id(),
-      base::BindOnce(&RecordReadResult, &read_result, &read_content));
+      base::Bind(&RecordReadResult, &read_result, &read_content));
 
   item_operations->CompleteNextOperation(OperationQueue::OperationType::kRead,
                                          OperationResult::kSuccess);
@@ -850,7 +842,7 @@ TEST_F(LockScreenItemStorageTest, SetAndGetContent) {
   OperationResult delete_result = OperationResult::kFailed;
   lock_screen_item_storage()->DeleteItem(
       extension()->id(), item->id(),
-      base::BindOnce(&RecordWriteResult, &delete_result));
+      base::Bind(&RecordWriteResult, &delete_result));
 
   item_operations->CompleteNextOperation(OperationQueue::OperationType::kDelete,
                                          OperationResult::kSuccess);
@@ -871,20 +863,20 @@ TEST_F(LockScreenItemStorageTest, FailToInitializeData) {
   OperationResult write_result = OperationResult::kFailed;
   lock_screen_item_storage()->SetItemContent(
       extension()->id(), item_id, {'x'},
-      base::BindOnce(&RecordWriteResult, &write_result));
+      base::Bind(&RecordWriteResult, &write_result));
   EXPECT_EQ(OperationResult::kNotFound, write_result);
 
   OperationResult read_result = OperationResult::kFailed;
   std::unique_ptr<std::vector<char>> read_content;
   lock_screen_item_storage()->GetItemContent(
       extension()->id(), item_id,
-      base::BindOnce(&RecordReadResult, &read_result, &read_content));
+      base::Bind(&RecordReadResult, &read_result, &read_content));
   EXPECT_EQ(OperationResult::kNotFound, read_result);
 
   OperationResult delete_result = OperationResult::kFailed;
   lock_screen_item_storage()->DeleteItem(
       extension()->id(), "non_existen",
-      base::BindOnce(&RecordWriteResult, &delete_result));
+      base::Bind(&RecordWriteResult, &delete_result));
   EXPECT_EQ(OperationResult::kNotFound, delete_result);
 
   OperationQueue* operations = GetOperations(item_id);
@@ -899,7 +891,7 @@ TEST_F(LockScreenItemStorageTest, FailToInitializeData) {
   write_result = OperationResult::kFailed;
   lock_screen_item_storage()->SetItemContent(
       extension()->id(), new_item->id(), {'y'},
-      base::BindOnce(&RecordWriteResult, &write_result));
+      base::Bind(&RecordWriteResult, &write_result));
 
   OperationQueue* new_item_operations = GetOperations(new_item->id());
   ASSERT_TRUE(new_item_operations);
@@ -928,23 +920,23 @@ TEST_F(LockScreenItemStorageTest, RequestsDuringInitialLoad) {
   OperationResult write_result = OperationResult::kFailed;
   lock_screen_item_storage()->SetItemContent(
       extension()->id(), item_id, {'x'},
-      base::BindOnce(&RecordWriteResult, &write_result));
+      base::Bind(&RecordWriteResult, &write_result));
 
   OperationResult read_result = OperationResult::kFailed;
   std::unique_ptr<std::vector<char>> read_content;
   lock_screen_item_storage()->GetItemContent(
       extension()->id(), item_id,
-      base::BindOnce(&RecordReadResult, &read_result, &read_content));
+      base::Bind(&RecordReadResult, &read_result, &read_content));
 
   std::vector<std::string> items;
   lock_screen_item_storage()->GetAllForExtension(
-      extension()->id(), base::BindOnce(&RecordGetAllItemsResult, &items));
+      extension()->id(), base::Bind(&RecordGetAllItemsResult, &items));
   EXPECT_TRUE(items.empty());
 
   OperationResult delete_result = OperationResult::kFailed;
   lock_screen_item_storage()->DeleteItem(
       extension()->id(), item_id,
-      base::BindOnce(&RecordWriteResult, &delete_result));
+      base::Bind(&RecordWriteResult, &delete_result));
 
   OperationQueue* operations = GetOperations(item_id);
   ASSERT_TRUE(operations);
@@ -954,7 +946,7 @@ TEST_F(LockScreenItemStorageTest, RequestsDuringInitialLoad) {
   const DataItem* new_item = nullptr;
   lock_screen_item_storage()->CreateItem(
       extension()->id(),
-      base::BindOnce(&RecordCreateResult, &create_result, &new_item));
+      base::Bind(&RecordCreateResult, &create_result, &new_item));
   EXPECT_FALSE(new_item);
 
   EXPECT_TRUE(item_registry()->HasPendingCallback());
@@ -997,38 +989,38 @@ TEST_F(LockScreenItemStorageTest, HandleNonExistent) {
   OperationResult write_result = OperationResult::kFailed;
   lock_screen_item_storage()->SetItemContent(
       extension()->id(), "non_existent", content,
-      base::BindOnce(&RecordWriteResult, &write_result));
+      base::Bind(&RecordWriteResult, &write_result));
   EXPECT_EQ(OperationResult::kNotFound, write_result);
 
   write_result = OperationResult::kFailed;
   lock_screen_item_storage()->SetItemContent(
       "non_existent", item->id(), content,
-      base::BindOnce(&RecordWriteResult, &write_result));
+      base::Bind(&RecordWriteResult, &write_result));
   EXPECT_EQ(OperationResult::kNotFound, write_result);
 
   OperationResult read_result = OperationResult::kFailed;
   std::unique_ptr<std::vector<char>> read_content;
   lock_screen_item_storage()->GetItemContent(
       extension()->id(), "non_existent",
-      base::BindOnce(&RecordReadResult, &read_result, &read_content));
+      base::Bind(&RecordReadResult, &read_result, &read_content));
   EXPECT_EQ(OperationResult::kNotFound, read_result);
   read_result = OperationResult::kFailed;
 
   lock_screen_item_storage()->GetItemContent(
       "non_existent", item->id(),
-      base::BindOnce(&RecordReadResult, &read_result, &read_content));
+      base::Bind(&RecordReadResult, &read_result, &read_content));
   EXPECT_EQ(OperationResult::kNotFound, read_result);
 
   OperationResult delete_result = OperationResult::kFailed;
   lock_screen_item_storage()->DeleteItem(
       extension()->id(), "non_existen",
-      base::BindOnce(&RecordWriteResult, &delete_result));
+      base::Bind(&RecordWriteResult, &delete_result));
   EXPECT_EQ(OperationResult::kNotFound, delete_result);
 
   delete_result = OperationResult::kFailed;
   lock_screen_item_storage()->DeleteItem(
       "non_existent", item->id(),
-      base::BindOnce(&RecordWriteResult, &delete_result));
+      base::Bind(&RecordWriteResult, &delete_result));
   EXPECT_EQ(OperationResult::kNotFound, delete_result);
 }
 
@@ -1043,7 +1035,7 @@ TEST_F(LockScreenItemStorageTest, HandleFailure) {
   OperationResult write_result = OperationResult::kFailed;
   lock_screen_item_storage()->SetItemContent(
       extension()->id(), item->id(), {'x'},
-      base::BindOnce(&RecordWriteResult, &write_result));
+      base::Bind(&RecordWriteResult, &write_result));
   operations->CompleteNextOperation(OperationQueue::OperationType::kWrite,
                                     OperationResult::kInvalidKey);
   EXPECT_EQ(OperationResult::kInvalidKey, write_result);
@@ -1052,7 +1044,7 @@ TEST_F(LockScreenItemStorageTest, HandleFailure) {
   std::unique_ptr<std::vector<char>> read_content;
   lock_screen_item_storage()->GetItemContent(
       extension()->id(), item->id(),
-      base::BindOnce(&RecordReadResult, &read_result, &read_content));
+      base::Bind(&RecordReadResult, &read_result, &read_content));
   operations->CompleteNextOperation(OperationQueue::OperationType::kRead,
                                     OperationResult::kWrongKey);
   EXPECT_EQ(OperationResult::kWrongKey, read_result);
@@ -1109,7 +1101,7 @@ TEST_F(LockScreenItemStorageTest, DataItemsAvailableEventOnUnlock) {
   OperationResult delete_result;
   lock_screen_item_storage()->DeleteItem(
       extension()->id(), item_id,
-      base::BindOnce(&RecordWriteResult, &delete_result));
+      base::Bind(&RecordWriteResult, &delete_result));
   OperationQueue* operations = GetOperations(item_id);
   ASSERT_TRUE(operations);
   operations->CompleteNextOperation(OperationQueue::OperationType::kDelete,
@@ -1136,7 +1128,7 @@ TEST_F(LockScreenItemStorageTest,
   const DataItem* item = nullptr;
   lock_screen_item_storage()->CreateItem(
       extension()->id(),
-      base::BindOnce(&RecordCreateResult, &create_result, &item));
+      base::Bind(&RecordCreateResult, &create_result, &item));
   EXPECT_EQ(OperationResult::kFailed, create_result);
 
   lock_screen_item_storage()->SetSessionLocked(false);
@@ -1181,7 +1173,7 @@ TEST_F(LockScreenItemStorageTest, DataItemsAvailableEventOnRestart) {
   OperationResult delete_result = OperationResult::kFailed;
   lock_screen_item_storage()->DeleteItem(
       extension()->id(), item_id,
-      base::BindOnce(&RecordWriteResult, &delete_result));
+      base::Bind(&RecordWriteResult, &delete_result));
   OperationQueue* operations = GetOperations(item_id);
   ASSERT_TRUE(operations);
   operations->CompleteNextOperation(OperationQueue::OperationType::kDelete,
@@ -1269,23 +1261,23 @@ TEST_F(LockScreenItemStorageTest, OperationsBlockedOnMigration) {
   OperationResult write_result = OperationResult::kFailed;
   lock_screen_item_storage()->SetItemContent(
       extension()->id(), initial_item_id, {'x'},
-      base::BindOnce(&RecordWriteResult, &write_result));
+      base::Bind(&RecordWriteResult, &write_result));
 
   OperationResult read_result = OperationResult::kFailed;
   std::unique_ptr<std::vector<char>> read_content;
   lock_screen_item_storage()->GetItemContent(
       extension()->id(), migrated_item_id,
-      base::BindOnce(&RecordReadResult, &read_result, &read_content));
+      base::Bind(&RecordReadResult, &read_result, &read_content));
 
   std::vector<std::string> items;
   lock_screen_item_storage()->GetAllForExtension(
-      extension()->id(), base::BindOnce(&RecordGetAllItemsResult, &items));
+      extension()->id(), base::Bind(&RecordGetAllItemsResult, &items));
   EXPECT_TRUE(items.empty());
 
   OperationResult delete_result = OperationResult::kFailed;
   lock_screen_item_storage()->DeleteItem(
       extension()->id(), initial_item_id,
-      base::BindOnce(&RecordWriteResult, &delete_result));
+      base::Bind(&RecordWriteResult, &delete_result));
 
   OperationQueue* initial_item_operations = GetOperations(initial_item_id);
   ASSERT_TRUE(initial_item_operations);
@@ -1306,7 +1298,7 @@ TEST_F(LockScreenItemStorageTest, OperationsBlockedOnMigration) {
   const DataItem* new_item = nullptr;
   lock_screen_item_storage()->CreateItem(
       extension()->id(),
-      base::BindOnce(&RecordCreateResult, &create_result, &new_item));
+      base::Bind(&RecordCreateResult, &create_result, &new_item));
   EXPECT_FALSE(new_item);
 
   // Finish item migration - all queued operations should be now run.

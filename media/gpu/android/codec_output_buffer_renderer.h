@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 
 #include <memory>
 
-#include "gpu/command_buffer/service/ref_counted_lock.h"
 #include "gpu/command_buffer/service/stream_texture_shared_image_interface.h"
 #include "media/gpu/android/codec_buffer_wait_coordinator.h"
 #include "media/gpu/android/codec_wrapper.h"
@@ -19,18 +18,14 @@ namespace media {
 
 // A class that holds CodecOutputBuffer and renders it to TextureOwner or
 // overlay as necessary. Unit tests for this class are part of CodecImage unit
-// tests. Note that when DrDc is enabled(kEnableDrDc),
-// a per codec dr-dc lock is expected to be held while calling methods of this
-// class. This is ensured by adding AssertAcquiredDrDcLock() to those methods.
-class MEDIA_GPU_EXPORT CodecOutputBufferRenderer
-    : public gpu::RefCountedLockHelperDrDc {
+// tests.
+class MEDIA_GPU_EXPORT CodecOutputBufferRenderer {
  public:
   using BindingsMode = gpu::StreamTextureSharedImageInterface::BindingsMode;
 
   CodecOutputBufferRenderer(
       std::unique_ptr<CodecOutputBuffer> output_buffer,
-      scoped_refptr<CodecBufferWaitCoordinator> codec_buffer_wait_coordinator,
-      scoped_refptr<gpu::RefCountedLock> drdc_lock);
+      scoped_refptr<CodecBufferWaitCoordinator> codec_buffer_wait_coordinator);
   ~CodecOutputBufferRenderer();
 
   CodecOutputBufferRenderer(const CodecOutputBufferRenderer&) = delete;
@@ -44,11 +39,7 @@ class MEDIA_GPU_EXPORT CodecOutputBufferRenderer
   // Renders this image to the texture owner front buffer by first rendering
   // it to the back buffer if it's not already there, and then waiting for the
   // frame available event before calling UpdateTexImage().
-  // Also bind the latest imagecto the provided |service_id| if TextureOwner
-  // does not binds texture on update. If |bindings_mode| is other than
-  // kEnsureTexImageBound, then |service_id| is not required.
-  bool RenderToTextureOwnerFrontBuffer(BindingsMode bindings_mode,
-                                       GLuint service_id);
+  bool RenderToTextureOwnerFrontBuffer(BindingsMode bindings_mode);
 
   // Renders this image to the front buffer of its backing surface.
   // Returns true if the buffer is in the front buffer. Returns false if the
@@ -65,26 +56,10 @@ class MEDIA_GPU_EXPORT CodecOutputBufferRenderer
 
   // Whether the codec buffer has been rendered to the front buffer.
   bool was_rendered_to_front_buffer() const {
-    AssertAcquiredDrDcLock();
     return phase_ == Phase::kInFrontBuffer;
   }
 
-  // Whether a call to RenderTextureOwnerFrontBuffer() will be a no-op. Present
-  // for debugging whether there are cases in which CodecImage::CopyTexImage()
-  // results in actual rendering happening.
-  // TODO(crbug.com/1310020): Remove this method once that issue is resolved.
-  bool render_to_front_buffer_will_be_noop_for_debugging() const {
-    AssertAcquiredDrDcLock();
-    return was_rendered_to_front_buffer() || !codec_buffer_wait_coordinator_ ||
-           phase_ == Phase::kInvalidated;
-  }
-
   gfx::Size size() const { return output_buffer_->size(); }
-
-  // Color space of the image.
-  const gfx::ColorSpace& color_space() const {
-    return output_buffer_->color_space();
-  }
 
   bool was_tex_image_bound() const { return was_tex_image_bound_; }
 
@@ -105,11 +80,7 @@ class MEDIA_GPU_EXPORT CodecOutputBufferRenderer
   // kInFrontBuffer and kInvalidated are terminal.
   enum class Phase { kInCodec, kInBackBuffer, kInFrontBuffer, kInvalidated };
 
-  // Ensure that the latest image is bound to the texture |service_id| if
-  // TextureOwner does not binds texture on update. If TextureOwner binds
-  // texture on update, then it will always be bound to the TextureOwners
-  // texture and |service_id| will be ignored.
-  void EnsureBoundIfNeeded(BindingsMode mode, GLuint service_id);
+  void EnsureBoundIfNeeded(BindingsMode mode);
 
   void set_phase_for_testing(Phase phase) { phase_ = phase; }
 
@@ -127,4 +98,4 @@ class MEDIA_GPU_EXPORT CodecOutputBufferRenderer
 };
 
 }  // namespace media
-#endif  // MEDIA_GPU_ANDROID_CODEC_OUTPUT_BUFFER_RENDERER_H_
+#endif  // MEDIA_GPU_ANDROID_CODEC_OUTPUT_BUFFER_RENDERER_H

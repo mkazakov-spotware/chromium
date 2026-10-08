@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #include "base/bind.h"
 #include "base/compiler_specific.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/test/launcher/unit_test_launcher.h"
 #include "base/test/test_suite.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -17,9 +18,6 @@ namespace {
 class UIAndroidTestSuite : public base::TestSuite {
  public:
   UIAndroidTestSuite(int argc, char** argv) : base::TestSuite(argc, argv) {}
-
-  UIAndroidTestSuite(const UIAndroidTestSuite&) = delete;
-  UIAndroidTestSuite& operator=(const UIAndroidTestSuite&) = delete;
 
  protected:
   void Initialize() override {
@@ -34,6 +32,9 @@ class UIAndroidTestSuite : public base::TestSuite {
     ui::ResourceBundle::CleanupSharedInstance();
     base::TestSuite::Shutdown();
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(UIAndroidTestSuite);
 };
 
 }  // namespace

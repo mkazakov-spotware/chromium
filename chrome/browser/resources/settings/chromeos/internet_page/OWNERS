@@ -1,1 +1,7 @@
-file://ash/webui/common/resources/network/OWNERS
+azeemarshad@chromium.org
+jonmann@chromium.org
+khorimoto@chromium.org
+stevenjb@chromium.org
+tbarzic@chromium.org
+
+# COMPONENT: OS>Systems>Network

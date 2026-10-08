@@ -2,14 +2,10 @@
   .secondary-button {
     margin-inline-end: 20px;
   }
-
-  .rounded-button {
-    border-radius: 20px;
-  }
 </style>
 
 <cr-button
-    class$="[[secondaryButtonClasses_]]"
+    class="secondary-button"
     on-click="onSecondaryActionButtonClicked_"
     aria-label$="[[data_.secondaryActionButtonLabel]]"
     hidden="[[!data_.secondaryActionButtonLabel]]"
@@ -17,7 +13,7 @@
     [[data_.secondaryActionButtonLabel]]
 </cr-button>
 <cr-button
-    class$="[[actionButtonClasses_]]"
+    class="action-button"
     on-click="onPrimaryActionButtonClicked_"
     aria-label$="[[data_.primaryActionButtonLabel]]"
     hidden="[[!data_.primaryActionButtonLabel]]"

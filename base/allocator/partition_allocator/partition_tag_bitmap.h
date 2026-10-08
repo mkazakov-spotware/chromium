@@ -1,19 +1,45 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_TAG_BITMAP_H_
 #define BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_TAG_BITMAP_H_
 
+#include "base/allocator/partition_allocator/checked_ptr_support.h"
 #include "base/allocator/partition_allocator/page_allocator_constants.h"
-#include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
-#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
-#include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
 
-namespace partition_alloc::internal {
+namespace base {
 
-#if defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
+namespace internal {
+
+#if ENABLE_TAG_FOR_MTE_CHECKED_PTR
+
+// Normal bucket layout
+// +----------------+ super_page_base
+// | PartitionPage  |
+// | (Meta+Guard)   |
+// +----------------+ super_page_base + PartitionPageSize() (=bitmap_base)
+// |  TagBitmap     |
+// ....
+// +- - - - - - - - + bitmap_base + kActualTagBitmapSize
+// | guard pages(*) | (kActualTagBitmapSize is SystemPageSize()-aligned.)
+// +----------------+ bitmap_base + kReservedTagBitmapSize
+// |   Slot Span    | (kReservedTagBitmapSize is PartitionPageSize()-aligned.)
+// ....
+// ....
+// +----------------+
+// |   Slot Span    |
+// ....
+// ....
+// +----------------+
+// | PartitionPage  |
+// |  (GuardPage)   |
+// +----------------+ super_page_base + kSuperPageSize
+// (*) If kActualTagBitmapSize < kReservedTagBitmapSize, the
+// unused pages are guard pages. This depends on sizeof(PartitionTag).
+// TODO(tasak): Consider guaranteeing guard pages after the tag bitmap, if
+// needed.
 
 namespace tag_bitmap {
 // kPartitionTagSize should be equal to sizeof(PartitionTag).
@@ -70,7 +96,7 @@ constexpr size_t CeilCountOfUnits(size_t size, size_t unit_size) {
 //   PartitionPageSize()
 // Finally,
 //   kTagBitmapSize >= (kSuperPageSize - 2 * PartitionPageSize()) / (1 + Y)
-PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR PA_ALWAYS_INLINE size_t
+PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR ALWAYS_INLINE size_t
 NumPartitionPagesPerTagBitmap() {
   return tag_bitmap::CeilCountOfUnits(
       kSuperPageSize / PartitionPageSize() - 2,
@@ -81,7 +107,7 @@ NumPartitionPagesPerTagBitmap() {
 // number of SystemPages of TagBitmap. If kNumSystemPagesPerTagBitmap *
 // SystemPageSize() < kTagBitmapSize, guard pages will be created. (c.f. no
 // guard pages if sizeof(PartitionTag) == 2.)
-PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR PA_ALWAYS_INLINE size_t
+PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR ALWAYS_INLINE size_t
 NumSystemPagesPerTagBitmap() {
   return tag_bitmap::CeilCountOfUnits(
       kSuperPageSize / SystemPageSize() -
@@ -89,13 +115,13 @@ NumSystemPagesPerTagBitmap() {
       tag_bitmap::kBytesPerPartitionTagRatio + 1);
 }
 
-PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR PA_ALWAYS_INLINE size_t
+PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR ALWAYS_INLINE size_t
 ActualTagBitmapSize() {
   return NumSystemPagesPerTagBitmap() * SystemPageSize();
 }
 
 // PartitionPageSize-aligned tag bitmap size.
-PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR PA_ALWAYS_INLINE size_t
+PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR ALWAYS_INLINE size_t
 ReservedTagBitmapSize() {
   return PartitionPageSize() * NumPartitionPagesPerTagBitmap();
 }
@@ -111,8 +137,8 @@ static_assert(ReservedTagBitmapSize() - ActualTagBitmapSize() <
 
 // The region available for slot spans is the reminder of the super page, after
 // taking away the first and last partition page (for metadata and guard pages)
-// and partition pages reserved for the freeslot bitmap and the tag bitmap.
-PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR PA_ALWAYS_INLINE size_t
+// and partition pages reserved for the tag bitmap.
+PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR ALWAYS_INLINE size_t
 SlotSpansSize() {
   return kSuperPageSize - 2 * PartitionPageSize() - ReservedTagBitmapSize();
 }
@@ -124,24 +150,25 @@ static_assert((ActualTagBitmapSize() - PartitionPageSize()) *
                       tag_bitmap::kBytesPerPartitionTagRatio <
                   SlotSpansSize(),
               "any smaller bitmap wouldn't suffice to cover slots spans");
-#endif  // PAGE_ALLOCATOR_CONSTANTS_ARE_CONSTEXPR
+#endif
 
-#else
+#else  // !ENABLE_TAG_FOR_MTE_CHECKED_PTR
 
-constexpr PA_ALWAYS_INLINE size_t NumPartitionPagesPerTagBitmap() {
+constexpr ALWAYS_INLINE size_t NumPartitionPagesPerTagBitmap() {
   return 0;
 }
 
-constexpr PA_ALWAYS_INLINE size_t ActualTagBitmapSize() {
+constexpr ALWAYS_INLINE size_t ActualTagBitmapSize() {
   return 0;
 }
 
-constexpr PA_ALWAYS_INLINE size_t ReservedTagBitmapSize() {
+constexpr ALWAYS_INLINE size_t ReservedTagBitmapSize() {
   return 0;
 }
 
-#endif  // defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
+#endif
 
-}  // namespace partition_alloc::internal
+}  // namespace internal
+}  // namespace base
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_TAG_BITMAP_H_

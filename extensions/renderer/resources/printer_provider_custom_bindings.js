@@ -1,8 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 var printerProviderInternal = getInternalApi('printerProviderInternal');
+var blobNatives = requireNative('blob_natives');
 
 var printerProviderSchema =
     requireNative('schema_registry').GetSchema('printerProvider')
@@ -78,27 +79,20 @@ function handleEvent(eventName, prepareArgsForDispatch, resultReporter) {
   });
 }
 
-function getPrintDataCallback(callback, blobs) {
-  if (callback)
-    callback(blobs ? blobs[0] : null);
-}
-
 // Sets up printJob.document property for a print request.
 function createPrintRequestBlobArguments(args, callback) {
-  bindingUtil.sendRequest(
-    'printerProviderInternal.getPrintData',
-    [args[0], (blob) => {
-      if (chrome.runtime.lastError) {
-        callback(false);
-        return;
-      }
+  printerProviderInternal.getPrintData(args[0] /* requestId */,
+                                       function(blobInfo) {
+    if (chrome.runtime.lastError) {
+      callback(false);
+      return;
+    }
 
-      // |args[1]| is printJob.
-      args[1].document = blob;
-      callback(true);
-    }],
-    {__proto__: null, customCallback: getPrintDataCallback}
-  );
+    // |args[1]| is printJob.
+    args[1].document = blobNatives.TakeBrowserProcessBlob(
+        blobInfo.blobUuid, blobInfo.type, blobInfo.size);
+    callback(true);
+  });
 }
 
 handleEvent('onGetPrintersRequested',

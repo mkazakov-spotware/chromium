@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,11 @@
 
 #include "base/atomicops.h"
 #include "base/bind.h"
-#include "base/callback.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "content/public/browser/browser_context.h"
@@ -36,11 +37,11 @@
 #include "net/socket/tcp_server_socket.h"
 #include "ui/base/resource/resource_bundle.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 #include "content/public/browser/devtools_frontend_host.h"
 #endif
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "content/public/browser/android/devtools_auth.h"
 #include "net/socket/unix_domain_server_socket_posix.h"
 #endif
@@ -53,15 +54,11 @@ const int kBackLog = 10;
 
 base::subtle::Atomic32 g_last_used_port;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 class UnixDomainServerSocketFactory : public content::DevToolsSocketFactory {
  public:
   explicit UnixDomainServerSocketFactory(const std::string& socket_name)
       : socket_name_(socket_name) {}
-
-  UnixDomainServerSocketFactory(const UnixDomainServerSocketFactory&) = delete;
-  UnixDomainServerSocketFactory& operator=(
-      const UnixDomainServerSocketFactory&) = delete;
 
  private:
   // content::DevToolsSocketFactory.
@@ -71,7 +68,7 @@ class UnixDomainServerSocketFactory : public content::DevToolsSocketFactory {
             base::BindRepeating(&CanUserConnectToDevTools),
             true /* use_abstract_namespace */));
     if (socket->BindAndListen(socket_name_, kBackLog) != net::OK)
-      return nullptr;
+      return std::unique_ptr<net::ServerSocket>();
 
     return std::move(socket);
   }
@@ -82,6 +79,8 @@ class UnixDomainServerSocketFactory : public content::DevToolsSocketFactory {
   }
 
   std::string socket_name_;
+
+  DISALLOW_COPY_AND_ASSIGN(UnixDomainServerSocketFactory);
 };
 #else
 class TCPServerSocketFactory : public content::DevToolsSocketFactory {
@@ -89,16 +88,13 @@ class TCPServerSocketFactory : public content::DevToolsSocketFactory {
   TCPServerSocketFactory(const std::string& address, uint16_t port)
       : address_(address), port_(port) {}
 
-  TCPServerSocketFactory(const TCPServerSocketFactory&) = delete;
-  TCPServerSocketFactory& operator=(const TCPServerSocketFactory&) = delete;
-
  private:
   // content::DevToolsSocketFactory.
   std::unique_ptr<net::ServerSocket> CreateForHttpServer() override {
     std::unique_ptr<net::ServerSocket> socket(
         new net::TCPServerSocket(nullptr, net::NetLogSource()));
     if (socket->ListenWithAddressAndPort(address_, port_, kBackLog) != net::OK)
-      return nullptr;
+      return std::unique_ptr<net::ServerSocket>();
 
     net::IPEndPoint endpoint;
     if (socket->GetLocalAddress(&endpoint) == net::OK)
@@ -114,13 +110,15 @@ class TCPServerSocketFactory : public content::DevToolsSocketFactory {
 
   std::string address_;
   uint16_t port_;
+
+  DISALLOW_COPY_AND_ASSIGN(TCPServerSocketFactory);
 };
 #endif
 
 std::unique_ptr<content::DevToolsSocketFactory> CreateSocketFactory() {
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   std::string socket_name = "content_shell_devtools_remote";
   if (command_line.HasSwitch(switches::kRemoteDebuggingSocketName)) {
     socket_name = command_line.GetSwitchValueASCII(
@@ -167,7 +165,7 @@ void ShellDevToolsManagerDelegate::StartHttpHandler(
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();
   if (command_line.HasSwitch(switches::kRemoteDebuggingPipe))
-    DevToolsAgentHost::StartRemoteDebuggingPipeHandler(base::OnceClosure());
+    DevToolsAgentHost::StartRemoteDebuggingPipeHandler();
 }
 
 // static
@@ -207,7 +205,7 @@ ShellDevToolsManagerDelegate::CreateNewTarget(const GURL& url) {
 }
 
 std::string ShellDevToolsManagerDelegate::GetDiscoveryPageHTML() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return std::string();
 #else
   return ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
@@ -216,11 +214,10 @@ std::string ShellDevToolsManagerDelegate::GetDiscoveryPageHTML() {
 }
 
 bool ShellDevToolsManagerDelegate::HasBundledFrontendResources() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return false;
-#else
-  return true;
 #endif
+  return true;
 }
 
 }  // namespace content

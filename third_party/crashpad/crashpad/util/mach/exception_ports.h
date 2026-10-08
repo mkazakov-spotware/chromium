@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #include <vector>
 
+#include "base/macros.h"
 
 namespace crashpad {
 
@@ -96,10 +97,6 @@ class ExceptionPorts {
     using VectorType = std::vector<ExceptionHandler>;
 
     ExceptionHandlerVector();
-
-    ExceptionHandlerVector(const ExceptionHandlerVector&) = delete;
-    ExceptionHandlerVector& operator=(const ExceptionHandlerVector&) = delete;
-
     ~ExceptionHandlerVector();
 
     VectorType::const_iterator begin() const { return vector_.begin(); }
@@ -116,6 +113,8 @@ class ExceptionPorts {
     void Deallocate();
 
     VectorType vector_;
+
+    DISALLOW_COPY_AND_ASSIGN(ExceptionHandlerVector);
   };
 
   //! \brief Constructs an interface object to get or set exception ports on a
@@ -136,9 +135,6 @@ class ExceptionPorts {
   //!     In this case, ownership of the target port will be managed
   //!     appropriately for \a target_type.
   ExceptionPorts(TargetType target_type, mach_port_t target_port);
-
-  ExceptionPorts(const ExceptionPorts&) = delete;
-  ExceptionPorts& operator=(const ExceptionPorts&) = delete;
 
   ~ExceptionPorts();
 
@@ -257,6 +253,8 @@ class ExceptionPorts {
   // even with a TASK_NULL target_port, because it is incorrect to deallocate
   // the result of mach_task_self().
   bool dealloc_target_port_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExceptionPorts);
 };
 
 }  // namespace crashpad

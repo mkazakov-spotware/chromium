@@ -1,9 +1,10 @@
-import {NDEFErrorType, NDEFRecordTypeCategory, NFC, NFCReceiver} from '/gen/services/device/public/mojom/nfc.mojom.m.js';
+'use strict';
 
 // Converts between NDEFMessageInit https://w3c.github.io/web-nfc/#dom-ndefmessage
 // and mojom.NDEFMessage structure, so that watch function can be tested.
 function toMojoNDEFMessage(message) {
-  let ndefMessage = {data: []};
+  let ndefMessage = new device.mojom.NDEFMessage();
+  ndefMessage.data = [];
   for (let record of message.records) {
     ndefMessage.data.push(toMojoNDEFRecord(record));
   }
@@ -11,16 +12,16 @@ function toMojoNDEFMessage(message) {
 }
 
 function toMojoNDEFRecord(record) {
-  let nfcRecord = {};
+  let nfcRecord = new device.mojom.NDEFRecord();
   // Simply checks the existence of ':' to decide whether it's an external
   // type or a local type. As a mock, no need to really implement the validation
   // algorithms for them.
   if (record.recordType.startsWith(':')) {
-    nfcRecord.category = NDEFRecordTypeCategory.kLocal;
+    nfcRecord.category = device.mojom.NDEFRecordTypeCategory.kLocal;
   } else if (record.recordType.search(':') != -1) {
-    nfcRecord.category = NDEFRecordTypeCategory.kExternal;
+    nfcRecord.category = device.mojom.NDEFRecordTypeCategory.kExternal;
   } else {
-    nfcRecord.category = NDEFRecordTypeCategory.kStandardized;
+    nfcRecord.category = device.mojom.NDEFRecordTypeCategory.kStandardized;
   }
   nfcRecord.recordType = record.recordType;
   nfcRecord.mediaType = record.mediaType;
@@ -58,7 +59,7 @@ function toByteArray(data) {
 // Compares NDEFRecords that were provided / received by the mock service.
 // TODO: Use different getters to get received record data,
 // see spec changes at https://github.com/w3c/web-nfc/pull/243.
-self.compareNDEFRecords = function(providedRecord, receivedRecord) {
+function compareNDEFRecords(providedRecord, receivedRecord) {
   assert_equals(providedRecord.recordType, receivedRecord.recordType);
 
   if (providedRecord.id === undefined) {
@@ -92,7 +93,7 @@ self.compareNDEFRecords = function(providedRecord, receivedRecord) {
 
 // Compares NDEFWriteOptions structures that were provided to API and
 // received by the mock mojo service.
-self.assertNDEFWriteOptionsEqual = function(provided, received) {
+function assertNDEFWriteOptionsEqual(provided, received) {
   if (provided.overwrite !== undefined)
     assert_equals(provided.overwrite, !!received.overwrite);
   else
@@ -101,7 +102,7 @@ self.assertNDEFWriteOptionsEqual = function(provided, received) {
 
 // Compares NDEFReaderOptions structures that were provided to API and
 // received by the mock mojo service.
-self.assertNDEFReaderOptionsEqual = function(provided, received) {
+function assertNDEFReaderOptionsEqual(provided, received) {
   if (provided.url !== undefined)
     assert_equals(provided.url, received.url);
   else
@@ -118,20 +119,24 @@ self.assertNDEFReaderOptionsEqual = function(provided, received) {
 }
 
 function createNDEFError(type) {
-  return {error: (type != null ? {errorType: type, errorMessage: ''} : null)};
+  return {
+    error: type != null ?
+        new device.mojom.NDEFError({errorType: type, errorMessage: ''}) :
+        null
+  };
 }
 
-self.WebNFCTest = (() => {
+var WebNFCTest = (() => {
   class MockNFC {
     constructor() {
-      this.receiver_ = new NFCReceiver(this);
+      this.bindingSet_ = new mojo.BindingSet(device.mojom.NFC);
 
-      this.interceptor_ = new MojoInterfaceInterceptor(NFC.$interfaceName);
+      this.interceptor_ = new MojoInterfaceInterceptor(device.mojom.NFC.name);
       this.interceptor_.oninterfacerequest = e => {
         if (this.should_close_pipe_on_request_)
           e.handle.close();
         else
-          this.receiver_.$.bindHandle(e.handle);
+          this.bindingSet_.addBinding(this, e.handle);
       }
 
       this.interceptor_.start();
@@ -139,10 +144,8 @@ self.WebNFCTest = (() => {
       this.hw_status_ = NFCHWStatus.ENABLED;
       this.pushed_message_ = null;
       this.pending_write_options_ = null;
-      this.pending_push_promise_func_ = null;
+      this.pending_promise_func_ = null;
       this.push_completed_ = true;
-      this.pending_make_read_only_promise_func_ = null;
-      this.make_read_only_completed_ = true;
       this.client_ = null;
       this.watchers_ = [];
       this.reading_messages_ = [];
@@ -154,11 +157,11 @@ self.WebNFCTest = (() => {
 
     // NFC delegate functions.
     async push(message, options) {
-      const error = this.getHWError();
+      let error = this.getHWError();
       if (error)
         return error;
       // Cancels previous pending push operation.
-      if (this.pending_push_promise_func_) {
+      if (this.pending_promise_func_) {
         this.cancelPendingPushOperation();
       }
 
@@ -167,14 +170,14 @@ self.WebNFCTest = (() => {
       return new Promise(resolve => {
         if (this.operations_suspended_ || !this.push_completed_) {
           // Leaves the push pending.
-          this.pending_push_promise_func_ = resolve;
+          this.pending_promise_func_ = resolve;
         } else if (this.is_formatted_tag_ && !options.overwrite) {
           // Resolves with NotAllowedError if there are NDEF records on the device
           // and overwrite is false.
-          resolve(createNDEFError(NDEFErrorType.NOT_ALLOWED));
+          resolve(createNDEFError(device.mojom.NDEFErrorType.NOT_ALLOWED));
         } else if (this.data_transfer_failed_) {
           // Resolves with NetworkError if data transfer fails.
-          resolve(createNDEFError(NDEFErrorType.IO_ERROR));
+          resolve(createNDEFError(device.mojom.NDEFErrorType.IO_ERROR));
         } else {
           resolve(createNDEFError(null));
         }
@@ -186,40 +189,13 @@ self.WebNFCTest = (() => {
       return createNDEFError(null);
     }
 
-    async makeReadOnly(options) {
-      const error = this.getHWError();
-      if (error)
-        return error;
-      // Cancels previous pending makeReadOnly operation.
-      if (this.pending_make_read_only_promise_func_) {
-        this.cancelPendingMakeReadOnlyOperation();
-      }
-
-      if (this.operations_suspended_ || !this.make_read_only_completed_) {
-        // Leaves the makeReadOnly pending.
-        return new Promise(resolve => {
-          this.pending_make_read_only_promise_func_ = resolve;
-        });
-      } else if (this.data_transfer_failed_) {
-        // Resolves with NetworkError if data transfer fails.
-        return createNDEFError(NDEFErrorType.IO_ERROR);
-      } else {
-        return createNDEFError(null);
-      }
-    }
-
-    async cancelMakeReadOnly() {
-      this.cancelPendingMakeReadOnlyOperation();
-      return createNDEFError(null);
-    }
-
     setClient(client) {
       this.client_ = client;
     }
 
     async watch(id) {
       assert_true(id > 0);
-      const error = this.getHWError();
+      let error = this.getHWError();
       if (error) {
         return error;
       }
@@ -238,18 +214,30 @@ self.WebNFCTest = (() => {
       return createNDEFError(null);
     }
 
-    cancelWatch(id) {
+    async cancelWatch(id) {
       let index = this.watchers_.findIndex(value => value.id === id);
-      if (index !== -1) {
-        this.watchers_.splice(index, 1);
+      if (index === -1) {
+        return createNDEFError(device.mojom.NDEFErrorType.NOT_FOUND);
       }
+
+      this.watchers_.splice(index, 1);
+      return createNDEFError(null);
+    }
+
+    async cancelAllWatches() {
+      if (this.watchers_.length === 0) {
+        return createNDEFError(device.mojom.NDEFErrorType.NOT_FOUND);
+      }
+
+      this.watchers_.splice(0, this.watchers_.length);
+      return createNDEFError(null);
     }
 
     getHWError() {
       if (this.hw_status_ === NFCHWStatus.DISABLED)
-        return createNDEFError(NDEFErrorType.NOT_READABLE);
+        return createNDEFError(device.mojom.NDEFErrorType.NOT_READABLE);
       if (this.hw_status_ === NFCHWStatus.NOT_SUPPORTED)
-        return createNDEFError(NDEFErrorType.NOT_SUPPORTED);
+        return createNDEFError(device.mojom.NDEFErrorType.NOT_SUPPORTED);
       return null;
     }
 
@@ -274,42 +262,27 @@ self.WebNFCTest = (() => {
       this.push_completed_ = result;
     }
 
-    setPendingMakeReadOnlyCompleted(result) {
-      this.make_read_only_completed_ = result;
-    }
-
     reset() {
       this.hw_status_ = NFCHWStatus.ENABLED;
       this.watchers_ = [];
       this.reading_messages_ = [];
       this.operations_suspended_ = false;
       this.cancelPendingPushOperation();
-      this.cancelPendingMakeReadOnlyOperation();
       this.is_formatted_tag_ = false;
       this.data_transfer_failed_ = false;
       this.should_close_pipe_on_request_ = false;
     }
 
     cancelPendingPushOperation() {
-      if (this.pending_push_promise_func_) {
-        this.pending_push_promise_func_(
-            createNDEFError(NDEFErrorType.OPERATION_CANCELLED));
-        this.pending_push_promise_func_ = null;
+      if (this.pending_promise_func_) {
+        this.pending_promise_func_(
+            createNDEFError(device.mojom.NDEFErrorType.OPERATION_CANCELLED));
+        this.pending_promise_func_ = null;
       }
 
       this.pushed_message_ = null;
       this.pending_write_options_ = null;
       this.push_completed_ = true;
-    }
-
-    cancelPendingMakeReadOnlyOperation() {
-      if (this.pending_make_read_only_promise_func_) {
-        this.pending_make_read_only_promise_func_(
-            createNDEFError(NDEFErrorType.OPERATION_CANCELLED));
-        this.pending_make_read_only_promise_func_ = null;
-      }
-
-      this.make_read_only_completed_ = true;
     }
 
     // Sets message that is used to deliver NFC reading updates.
@@ -347,15 +320,9 @@ self.WebNFCTest = (() => {
         }
       }
       // Resumes pending push operation.
-      if (this.pending_push_promise_func_ && this.push_completed_) {
-        this.pending_push_promise_func_(createNDEFError(null));
-        this.pending_push_promise_func_ = null;
-      }
-      // Resumes pending makeReadOnly operation.
-      if (this.pending_make_read_only_promise_func_ &&
-          this.make_read_only_completed_) {
-        this.pending_make_read_only_promise_func_(createNDEFError(null));
-        this.pending_make_read_only_promise_func_ = null;
+      if (this.pending_promise_func_ && this.push_completed_) {
+        this.pending_promise_func_(createNDEFError(null));
+        this.pending_promise_func_ = null;
       }
     }
 
@@ -363,22 +330,16 @@ self.WebNFCTest = (() => {
     simulateNonNDEFTagDiscovered() {
       // Notify NotSupportedError to all active readers.
       if (this.watchers_.length != 0) {
-        this.client_.onError({
-          errorType: NDEFErrorType.NOT_SUPPORTED,
+        this.client_.onError(new device.mojom.NDEFError({
+          errorType: device.mojom.NDEFErrorType.NOT_SUPPORTED,
           errorMessage: ''
-        });
+        }));
       }
       // Reject the pending push with NotSupportedError.
-      if (this.pending_push_promise_func_) {
-        this.pending_push_promise_func_(
-            createNDEFError(NDEFErrorType.NOT_SUPPORTED));
-        this.pending_push_promise_func_ = null;
-      }
-      // Reject the pending makeReadOnly with NotSupportedError.
-      if (this.pending_make_read_only_promise_func_) {
-        this.pending_make_read_only_promise_func_(
-            createNDEFError(NDEFErrorType.NOT_SUPPORTED));
-        this.pending_make_read_only_promise_func_ = null;
+      if (this.pending_promise_func_) {
+        this.pending_promise_func_(
+            createNDEFError(device.mojom.NDEFErrorType.NOT_SUPPORTED));
+        this.pending_promise_func_ = null;
       }
     }
 

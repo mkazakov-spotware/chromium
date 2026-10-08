@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,22 +11,30 @@
 
 namespace net {
 
-bool TestRootCerts::AddImpl(X509Certificate* certificate) {
+bool TestRootCerts::Add(X509Certificate* certificate) {
   android::AddTestRootCertificate(
       CRYPTO_BUFFER_data(certificate->cert_buffer()),
       CRYPTO_BUFFER_len(certificate->cert_buffer()));
+  empty_ = false;
   return true;
 }
 
-void TestRootCerts::ClearImpl() {
-  if (IsEmpty())
+void TestRootCerts::Clear() {
+  if (empty_)
     return;
 
   android::ClearTestRootCertificates();
+  empty_ = true;
 }
 
-TestRootCerts::~TestRootCerts() = default;
+bool TestRootCerts::IsEmpty() const {
+  return empty_;
+}
 
-void TestRootCerts::Init() {}
+TestRootCerts::~TestRootCerts() {}
+
+void TestRootCerts::Init() {
+  empty_ = true;
+}
 
 }  // namespace net

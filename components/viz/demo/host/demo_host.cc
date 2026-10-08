@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <utility>
 
 #include "base/rand_util.h"
-#include "base/time/time.h"
 #include "components/viz/demo/client/demo_client.h"
 #include "components/viz/host/renderer_settings_creation.h"
 #include "mojo/public/cpp/bindings/pending_associated_remote.h"
@@ -104,11 +103,11 @@ void DemoHost::EmbedClients(DemoClient* embedder_client,
     // Embed another client after a second. This could embed the client
     // immediately here too if desired. The delay is to demonstrate asynchronous
     // usage of the API.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&DemoHost::EmbedClients, base::Unretained(this),
                        embedded_client.get(), gfx::Rect(125, 125, 150, 150)),
-        base::Seconds(1));
+        base::TimeDelta::FromSeconds(1));
   }
   embedded_clients_.push_back(std::move(embedded_client));
 }
@@ -159,16 +158,15 @@ void DemoHost::Initialize(
   root_client_->Initialize(std::move(client_receiver), std::move(sink_remote));
 
   // Embed a new client into the root after the first second.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&DemoHost::EmbedClients, base::Unretained(this),
                      root_client_.get(), gfx::Rect(50, 50, 300, 300)),
-      base::Seconds(1));
+      base::TimeDelta::FromSeconds(1));
 }
 
 void DemoHost::OnFirstSurfaceActivation(const viz::SurfaceInfo& surface_info) {}
 
-void DemoHost::OnFrameTokenChanged(uint32_t frame_token,
-                                   base::TimeTicks activation_time) {}
+void DemoHost::OnFrameTokenChanged(uint32_t frame_token) {}
 
 }  // namespace demo

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -8,8 +8,7 @@
 #ifndef CHROME_INSTALLER_SETUP_INSTALL_WORKER_H_
 #define CHROME_INSTALLER_SETUP_INSTALL_WORKER_H_
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "base/win/windows_types.h"
 
 class WorkItemList;
@@ -44,7 +43,7 @@ void AddUpdateBrandCodeWorkItem(const InstallerState& installer_state,
 // Checks to see if the given brand code is one that should be updated if
 // the current install is considered an enterprise install.  If so the updated
 // brand code is returned, otherwise an empty string is returned.
-std::wstring GetUpdatedBrandCode(const std::wstring& brand_code);
+base::string16 GetUpdatedBrandCode(const base::string16& brand_code);
 
 // After a successful copying of all the files, this function is called to
 // do a few post install tasks:
@@ -65,25 +64,12 @@ bool AppendPostInstallTasks(const InstallParams& install_params,
 void AddInstallWorkItems(const InstallParams& install_params,
                          WorkItemList* install_list);
 
-// Adds work items to `list` to register a COM server with the OS after deleting
+// Adds work items to |list| to register a COM server with the OS after deleting
 // the old ones, which is used to handle the toast notification activation.
 void AddNativeNotificationWorkItems(
     HKEY root,
     const base::FilePath& notification_helper_path,
     WorkItemList* list);
-
-// Adds work items to `list` to delete all previous WER runtime exception helper
-// module registrations. Registry values that fit the following pattern are
-// deleted: target_path.value()\<valid version>\kWerDll
-void AddOldWerHelperRegistrationCleanupItems(HKEY root,
-                                             const base::FilePath& target_path,
-                                             WorkItemList* list);
-
-// Adds work items to `list` to register a WER runtime exception helper module
-// in the registry. The wer module should be located at `wer_helper_path`.
-void AddWerHelperRegistration(HKEY root,
-                              const base::FilePath& wer_helper_path,
-                              WorkItemList* list);
 
 void AddSetMsiMarkerWorkItem(const InstallerState& installer_state,
                              bool set,
@@ -105,35 +91,12 @@ void AppendUninstallCommandLineFlags(const InstallerState& installer_state,
 
 // Adds work items to add or remove the "on-os-upgrade" command to Chrome's
 // version key on the basis of the current operation (represented in
-// `installer_state`).  `new_version` is the version currently being installed
+// |installer_state|).  |new_version| is the version currently being installed
 // -- can be empty on uninstall.
 void AddOsUpgradeWorkItems(const InstallerState& installer_state,
                            const base::FilePath& setup_path,
                            const base::Version& new_version,
                            WorkItemList* install_list);
-
-// Adds work items to set or delete the "channel" value in `clients_key`. The
-// value is set if a channel was provided to the installer via the --channel
-// command line switch and deleted otherwise.
-void AddChannelWorkItems(HKEY root,
-                         const std::wstring& clients_key,
-                         WorkItemList* list);
-
-// Adds a best-effort item to update the "ap" value if the channel was dictated
-// by --channel on the command line. This is done so that such channel changes
-// are "sticky" -- once an install or update succeeds in this way, all
-// subsequent update checks will be on that same channel until --channel is used
-// to switch once again.
-void AddChannelSelectionWorkItems(const InstallerState& installer_state,
-                                  WorkItemList* list);
-
-// Adds work items to be done when finalizing an update. This happens both
-// after the executables get renamed for an in-use update or as the last steps
-// for a regular update.
-void AddFinalizeUpdateWorkItems(const base::Version& new_version,
-                                const InstallerState& installer_state,
-                                const base::FilePath& setup_path,
-                                WorkItemList* list);
 
 }  // namespace installer
 

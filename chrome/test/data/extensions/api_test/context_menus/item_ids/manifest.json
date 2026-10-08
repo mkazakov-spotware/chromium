@@ -4,8 +4,7 @@
   "manifest_version": 2,
   "description": "test for string and integer ID forms",
   "background": {
-    "scripts": ["test.js"],
-    "persistent": true
+    "scripts": ["test.js"]
   },
   "permissions": ["contextMenus"]
 }

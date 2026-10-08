@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """This script implements a few IntelPowerGadget related helper functions.
@@ -24,46 +24,39 @@ import logging
 import os
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Tuple, Union
-
-SummaryType = Dict[str, Dict[str, float]]
-ResultType = Dict[str, Any]
-MetricType = Dict[str, Union[List[str], List[float]]]
 
 
-def LocateIPG() -> str:
+def LocateIPG():
   if sys.platform == 'win32':
     ipg_dir = os.getenv('IPG_Dir')
     if not ipg_dir:
-      raise Exception('No env IPG_Dir')
-    gadget_path = os.path.join(ipg_dir, 'PowerLog3.0.exe')
+      raise Exception("No env IPG_Dir")
+    gadget_path = os.path.join(ipg_dir, "PowerLog3.0.exe")
     if not os.path.isfile(gadget_path):
       raise Exception("Can't locate Intel Power Gadget at " + gadget_path)
     return gadget_path
   if sys.platform == 'darwin':
     return '/Applications/Intel Power Gadget/PowerLog'
-  raise Exception('Only supported on Windows/Mac')
+  raise Exception("Only supported on Windows/Mac")
 
 
-def GenerateIPGLogFilename(log_prefix: str = 'PowerLog',
-                           log_dir: Optional[str] = None,
-                           current_run: int = 1,
-                           total_runs: int = 1,
-                           timestamp: bool = False) -> str:
+def GenerateIPGLogFilename(log_prefix='PowerLog',
+                           log_dir=None,
+                           current_run=1,
+                           total_runs=1,
+                           timestamp=False):
   # If all args take default value, it is the IPG's default log path.
   log_dir = log_dir or os.getcwd()
   log_dir = os.path.abspath(log_dir)
   if total_runs > 1:
-    log_prefix = '%s_%d_%d' % (log_prefix, current_run, total_runs)
+    log_prefix = "%s_%d_%d" % (log_prefix, current_run, total_runs)
   if timestamp:
     now = datetime.datetime.now()
-    log_prefix = '%s_%s' % (log_prefix, now.strftime('%Y%m%d%H%M%S'))
+    log_prefix = "%s_%s" % (log_prefix, now.strftime('%Y%m%d%H%M%S'))
   return os.path.join(log_dir, log_prefix + '.csv')
 
 
-def RunIPG(duration_in_s: int = 60,
-           resolution_in_ms: int = 100,
-           logfile: Optional[str] = None) -> None:
+def RunIPG(duration_in_s=60, resolution_in_ms=100, logfile=None):
   intel_power_gadget_path = LocateIPG()
   command = ('"%s" -duration %d -resolution %d' %
              (intel_power_gadget_path, duration_in_s, resolution_in_ms))
@@ -71,7 +64,7 @@ def RunIPG(duration_in_s: int = 60,
     # It is not necessary but allows to print out the log path for debugging.
     logfile = GenerateIPGLogFilename()
   command = command + (' -file %s' % logfile)
-  logging.debug('Running: %s', command)
+  logging.debug("Running: " + command)
   try:
     output = subprocess.check_output(command,
                                      shell=True,
@@ -79,12 +72,11 @@ def RunIPG(duration_in_s: int = 60,
   except subprocess.CalledProcessError as e:
     logging.error('Running Intel Power Gadget failed. Output: %s', e.output)
     raise
-  logging.debug('Running: DONE')
+  logging.debug("Running: DONE")
   logging.debug(output)
 
 
-def AnalyzeIPGLogFile(logfile: Optional[str] = None,
-                      skip_in_sec: int = 0) -> ResultType:
+def AnalyzeIPGLogFile(logfile=None, skip_in_sec=0):
   if not logfile:
     logfile = GenerateIPGLogFilename()
   if not os.path.isfile(logfile):
@@ -118,7 +110,8 @@ def AnalyzeIPGLogFile(logfile: Optional[str] = None,
     if skip_in_sec > 0 and float(tokens[col_time]) < skip_in_sec:
       continue
     samples += 1
-    for ii, index in enumerate(indices):
+    for ii in range(0, len(indices)):
+      index = indices[ii]
       sums[ii] += float(tokens[index])
   results = {'samples': samples}
   if samples > 0:
@@ -127,12 +120,11 @@ def AnalyzeIPGLogFile(logfile: Optional[str] = None,
   return results
 
 
-def ProcessResultsFromMultipleIPGRuns(logfiles: List[str],
-                                      skip_in_seconds: int = 0,
-                                      outliers: int = 0,
-                                      output_json: Optional[str] = None
-                                      ) -> SummaryType:
-  def _ScrapeDataFromIPGLogFiles() -> Tuple[Dict[str, ResultType], MetricType]:
+def ProcessResultsFromMultipleIPGRuns(logfiles,
+                                      skip_in_seconds=0,
+                                      outliers=0,
+                                      output_json=None):
+  def _ScrapeDataFromIPGLogFiles():
     """Scrapes data from IPG log files.
 
     Returns:
@@ -153,12 +145,12 @@ def ProcessResultsFromMultipleIPGRuns(logfiles: List[str],
       per_core_results[core] = results
 
       for key in results:
-        if key in ('samples', 'log'):
+        if key == 'samples' or key == 'log':
           continue
         metrics.setdefault(key, []).append(results[key])
     return per_core_results, metrics
 
-  def _CalculateSummaryStatistics(metrics: MetricType) -> SummaryType:
+  def _CalculateSummaryStatistics(metrics):
     """Calculates summary statistics for the given metrics.
 
     Args:
@@ -169,7 +161,7 @@ def ProcessResultsFromMultipleIPGRuns(logfiles: List[str],
       the 'mean' and 'stdev' for the metric.
     """
     summary = {}
-    for key, data in metrics.items():
+    for key, data in metrics.iteritems():
       assert data and len(data) > 1
       n = len(data)
       if outliers > 0:

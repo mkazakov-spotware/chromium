@@ -1,4 +1,12 @@
     <style include="cr-shared-style cr-hidden-style settings-shared">
+      #overscroll {
+        margin-top: 64px;
+      }
+
+      .showing-subpage ~ #overscroll {
+        display: none;
+      }
+
       #noSearchResults {
         margin-top: 80px;
         text-align: center;
@@ -30,7 +38,7 @@
     </div>
     <template is="dom-if"
         if="[[showManagedHeader_(inSearchMode_, showingSubpage_,
-        showPages_.about)]]" restamp>
+        showPages_.about)]]">
       <managed-footnote></managed-footnote>
     </template>
     <template is="dom-if" if="[[showPages_.settings]]">
@@ -38,6 +46,7 @@
           class="cr-centered-card-container"
           prefs="{{prefs}}"
           page-visibility="[[pageVisibility]]"
+          on-showing-section="onShowingSection_"
           on-subpage-expand="onShowingSubpage_"
           on-showing-main-page="onShowingMainPage_"
           in-search-mode="[[inSearchMode_]]"
@@ -47,6 +56,11 @@
     <template is="dom-if" if="[[showPages_.about]]">
       <settings-about-page role="main"
           class="cr-centered-card-container"
-          prefs="{{prefs}}">
+          in-search-mode="[[inSearchMode_]]"
+          on-subpage-expand="onShowingSubpage_"
+          on-showing-main-page="onShowingMainPage_"
+          prefs="{{prefs}}"
+          show-crostini="[[showCrostini]]">
       </settings-about-page>
     </template>
+    <div id="overscroll" style="padding-bottom: [[overscroll_]]px"></div>

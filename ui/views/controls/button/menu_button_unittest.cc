@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,12 @@
 #include <memory>
 #include <utility>
 
-#include "base/bind.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
 #include "ui/events/keycodes/dom/dom_code.h"
 #include "ui/events/test/event_generator.h"
-#include "ui/views/animation/ink_drop.h"
 #include "ui/views/animation/test/ink_drop_host_view_test_api.h"
 #include "ui/views/animation/test/test_ink_drop.h"
 #include "ui/views/controls/button/button.h"
@@ -33,10 +30,9 @@
 #include "ui/events/event_handler.h"
 #endif
 
-namespace views {
+using base::ASCIIToUTF16;
 
-using ::base::ASCIIToUTF16;
-using ::ui::mojom::DragOperation;
+namespace views {
 
 class TestMenuButton : public MenuButton {
  public:
@@ -44,7 +40,8 @@ class TestMenuButton : public MenuButton {
       : TestMenuButton(base::BindRepeating(&TestMenuButton::ButtonPressed,
                                            base::Unretained(this))) {}
   explicit TestMenuButton(PressedCallback callback)
-      : MenuButton(std::move(callback), std::u16string(u"button")) {}
+      : MenuButton(std::move(callback),
+                   base::string16(ASCIIToUTF16("button"))) {}
   TestMenuButton(const TestMenuButton&) = delete;
   TestMenuButton& operator=(const TestMenuButton&) = delete;
   ~TestMenuButton() override = default;
@@ -119,17 +116,16 @@ class MenuButtonTest : public ViewsTestBase {
 
     auto ink_drop = std::make_unique<test::TestInkDrop>();
     ink_drop_ = ink_drop.get();
-    test::InkDropHostTestApi(InkDrop::Get(button_))
-        .SetInkDrop(std::move(ink_drop));
+    test::InkDropHostViewTestApi(button_).SetInkDrop(std::move(ink_drop));
 
     widget_->Show();
   }
 
  private:
-  raw_ptr<Widget> widget_ = nullptr;          // Owned by self.
-  raw_ptr<TestMenuButton> button_ = nullptr;  // Owned by |widget_|.
+  Widget* widget_ = nullptr;          // Owned by self.
+  TestMenuButton* button_ = nullptr;  // Owned by |widget_|.
   std::unique_ptr<ui::test::EventGenerator> generator_;
-  raw_ptr<test::TestInkDrop> ink_drop_ = nullptr;  // Owned by |button_|.
+  test::TestInkDrop* ink_drop_ = nullptr;  // Owned by |button_|.
 };
 
 // A Button that will acquire a PressedLock in the pressed callback and
@@ -194,16 +190,12 @@ class TestDragDropClient : public aura::client::DragDropClient,
   ~TestDragDropClient() override;
 
   // aura::client::DragDropClient:
-  DragOperation StartDragAndDrop(std::unique_ptr<ui::OSExchangeData> data,
-                                 aura::Window* root_window,
-                                 aura::Window* source_window,
-                                 const gfx::Point& screen_location,
-                                 int allowed_operations,
-                                 ui::mojom::DragEventSource source) override;
-#if BUILDFLAG(IS_LINUX)
-  void UpdateDragImage(const gfx::ImageSkia& image,
-                       const gfx::Vector2d& offset) override {}
-#endif
+  int StartDragAndDrop(std::unique_ptr<ui::OSExchangeData> data,
+                       aura::Window* root_window,
+                       aura::Window* source_window,
+                       const gfx::Point& screen_location,
+                       int operation,
+                       ui::mojom::DragEventSource source) override;
   void DragCancel() override;
   bool IsDragDropInProgress() override;
   void AddObserver(aura::client::DragDropClientObserver* observer) override {}
@@ -218,25 +210,25 @@ class TestDragDropClient : public aura::client::DragDropClient,
   bool drag_in_progress_ = false;
 
   // Target window where drag operations are occurring.
-  raw_ptr<aura::Window> target_ = nullptr;
+  aura::Window* target_ = nullptr;
 };
 
 TestDragDropClient::TestDragDropClient() = default;
 
 TestDragDropClient::~TestDragDropClient() = default;
 
-DragOperation TestDragDropClient::StartDragAndDrop(
+int TestDragDropClient::StartDragAndDrop(
     std::unique_ptr<ui::OSExchangeData> data,
     aura::Window* root_window,
     aura::Window* source_window,
     const gfx::Point& screen_location,
-    int allowed_operations,
+    int operation,
     ui::mojom::DragEventSource source) {
   if (IsDragDropInProgress())
-    return DragOperation::kNone;
+    return ui::DragDropTypes::DRAG_NONE;
   drag_in_progress_ = true;
   target_ = root_window;
-  return ui::PreferredDragOperation(allowed_operations);
+  return operation;
 }
 
 void TestDragDropClient::DragCancel() {
@@ -269,7 +261,6 @@ void TestDragDropClient::OnMouseEvent(ui::MouseEvent* event) {
 TEST_F(MenuButtonTest, ActivateDropDownOnMouseClick) {
   ConfigureMenuButton(std::make_unique<TestMenuButton>());
 
-  generator()->MoveMouseTo(button()->GetBoundsInScreen().CenterPoint());
   generator()->ClickLeftButton();
 
   EXPECT_TRUE(button()->clicked());
@@ -297,15 +288,13 @@ TEST_F(MenuButtonTest, ActivateOnKeyPress) {
 TEST_F(MenuButtonTest, InkDropCenterSetFromClick) {
   ConfigureMenuButton(std::make_unique<TestMenuButton>());
 
-  const gfx::Point click_point = button()->GetBoundsInScreen().CenterPoint();
+  gfx::Point click_point(6, 8);
   generator()->MoveMouseTo(click_point);
   generator()->ClickLeftButton();
 
   EXPECT_TRUE(button()->clicked());
-  gfx::Point inkdrop_center_point =
-      InkDrop::Get(button())->GetInkDropCenterBasedOnLastEvent();
-  View::ConvertPointToScreen(button(), &inkdrop_center_point);
-  EXPECT_EQ(click_point, inkdrop_center_point);
+  EXPECT_EQ(click_point, test::InkDropHostViewTestApi(button())
+                             .GetInkDropCenterBasedOnLastEvent());
 }
 
 // Tests that the ink drop center point is set from the PressedLock constructor.
@@ -319,17 +308,16 @@ TEST_F(MenuButtonTest, InkDropCenterSetFromClickWithPressedLock) {
                                                  false, &click_event);
 
   EXPECT_EQ(Button::STATE_PRESSED, button()->GetState());
-  EXPECT_EQ(click_point,
-            InkDrop::Get(button())->GetInkDropCenterBasedOnLastEvent());
+  EXPECT_EQ(click_point, test::InkDropHostViewTestApi(button())
+                             .GetInkDropCenterBasedOnLastEvent());
 }
 
 // Test that the MenuButton stays pressed while there are any PressedLocks.
 TEST_F(MenuButtonTest, ButtonStateForMenuButtonsWithPressedLocks) {
   ConfigureMenuButton(std::make_unique<TestMenuButton>());
-  const gfx::Rect button_bounds = button()->GetBoundsInScreen();
 
   // Move the mouse over the button; the button should be in a hovered state.
-  generator()->MoveMouseTo(button_bounds.CenterPoint());
+  generator()->MoveMouseTo(gfx::Point(10, 10));
   EXPECT_EQ(Button::STATE_HOVERED, button()->GetState());
 
   // Introduce a PressedLock, which should make the button pressed.
@@ -338,7 +326,7 @@ TEST_F(MenuButtonTest, ButtonStateForMenuButtonsWithPressedLocks) {
   EXPECT_EQ(Button::STATE_PRESSED, button()->GetState());
 
   // Even if we move the mouse outside of the button, it should remain pressed.
-  generator()->MoveMouseTo(button_bounds.bottom_right() + gfx::Vector2d(1, 1));
+  generator()->MoveMouseTo(gfx::Point(300, 10));
   EXPECT_EQ(Button::STATE_PRESSED, button()->GetState());
 
   // Creating a new lock should obviously keep the button pressed.
@@ -355,7 +343,7 @@ TEST_F(MenuButtonTest, ButtonStateForMenuButtonsWithPressedLocks) {
   EXPECT_EQ(Button::STATE_NORMAL, button()->GetState());
 
   // ...And it should respond to mouse movement again.
-  generator()->MoveMouseTo(button_bounds.CenterPoint());
+  generator()->MoveMouseTo(gfx::Point(10, 10));
   EXPECT_EQ(Button::STATE_HOVERED, button()->GetState());
 
   // Test that the button returns to the appropriate state after the press; if
@@ -373,7 +361,7 @@ TEST_F(MenuButtonTest, ButtonStateForMenuButtonsWithPressedLocks) {
   pressed_lock1.reset();
   EXPECT_EQ(Button::STATE_DISABLED, button()->GetState());
 
-  generator()->MoveMouseTo(button_bounds.bottom_right() + gfx::Vector2d(1, 1));
+  generator()->MoveMouseTo(gfx::Point(300, 10));
 
   // Edge case: the button is disabled, a pressed lock is added, and then the
   // button is re-enabled. It should be enabled after the lock is removed.
@@ -391,7 +379,6 @@ TEST_F(MenuButtonTest, DraggableMenuButtonActivatesOnRelease) {
   TestDragController drag_controller;
   button()->set_drag_controller(&drag_controller);
 
-  generator()->MoveMouseTo(button()->GetBoundsInScreen().CenterPoint());
   generator()->PressLeftButton();
   EXPECT_FALSE(button()->clicked());
 
@@ -507,7 +494,7 @@ TEST_F(MenuButtonTest, DraggableMenuButtonDoesNotActivateOnDrag) {
 #endif  // USE_AURA
 
 // No touch on desktop Mac. Tracked in http://crbug.com/445520.
-#if !BUILDFLAG(IS_MAC) || defined(USE_AURA)
+#if !defined(OS_APPLE) || defined(USE_AURA)
 
 // Tests if the callback is notified correctly when a gesture tap happens on a
 // MenuButton that has a callback.
@@ -554,7 +541,7 @@ TEST_F(MenuButtonTest, TouchFeedbackDuringTapCancel) {
   EXPECT_FALSE(button()->clicked());
 }
 
-#endif  // !BUILDFLAG(IS_MAC) || defined(USE_AURA)
+#endif  // !defined(OS_APPLE) || defined(USE_AURA)
 
 TEST_F(MenuButtonTest, InkDropHoverWhenShowingMenu) {
   ConfigureMenuButton(std::make_unique<PressStateButton>(false));
@@ -562,7 +549,7 @@ TEST_F(MenuButtonTest, InkDropHoverWhenShowingMenu) {
   generator()->MoveMouseTo(GetOutOfButtonLocation());
   EXPECT_FALSE(ink_drop()->is_hovered());
 
-  generator()->MoveMouseTo(button()->GetBoundsInScreen().CenterPoint());
+  generator()->MoveMouseTo(button()->bounds().CenterPoint());
   EXPECT_TRUE(ink_drop()->is_hovered());
 
   generator()->PressLeftButton();
@@ -574,7 +561,7 @@ TEST_F(MenuButtonTest, InkDropIsHoveredAfterDismissingMenuWhenMouseOverButton) {
   auto* test_button = press_state_button.get();
   ConfigureMenuButton(std::move(press_state_button));
 
-  generator()->MoveMouseTo(button()->GetBoundsInScreen().CenterPoint());
+  generator()->MoveMouseTo(button()->bounds().CenterPoint());
   generator()->PressLeftButton();
   EXPECT_FALSE(ink_drop()->is_hovered());
   test_button->ReleasePressedLock();
@@ -588,7 +575,7 @@ TEST_F(MenuButtonTest,
   auto* test_button = press_state_button.get();
   ConfigureMenuButton(std::move(press_state_button));
 
-  generator()->MoveMouseTo(button()->GetBoundsInScreen().CenterPoint());
+  generator()->MoveMouseTo(button()->bounds().CenterPoint());
   generator()->PressLeftButton();
   generator()->MoveMouseTo(GetOutOfButtonLocation());
   test_button->ReleasePressedLock();

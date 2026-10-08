@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,9 @@
 #include "testing/gmock/include/gmock/gmock.h"
 
 // This file contains matchers for protocol events.
-namespace remoting::protocol::test {
+namespace remoting {
+namespace protocol {
+namespace test {
 
 MATCHER_P2(EqualsKeyEvent, usb_keycode, pressed, "") {
   return arg.usb_keycode() == static_cast<uint32_t>(usb_keycode) &&
@@ -133,6 +135,8 @@ MATCHER_P2(EqualsTouchEventTypeAndId, type, id, "") {
   return arg.touch_points(0).id() == id;
 }
 
-}  // namespace remoting::protocol::test
+}  // namespace test
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_TEST_EVENT_MATCHERS_H_

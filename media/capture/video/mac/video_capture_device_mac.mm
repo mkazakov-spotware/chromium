@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,11 +20,12 @@
 #include "base/mac/scoped_cftyperef.h"
 #include "base/mac/scoped_ioobject.h"
 #include "base/mac/scoped_ioplugininterface.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/sys_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
-#include "base/trace_event/trace_event.h"
 #include "media/base/timestamp_constants.h"
 #include "media/capture/mojom/image_capture_types.h"
 #import "media/capture/video/mac/video_capture_device_avfoundation_mac.h"
@@ -36,8 +37,7 @@ using ScopedIOUSBInterfaceInterface =
 
 @implementation DeviceNameAndTransportType
 
-- (instancetype)initWithName:(NSString*)deviceName
-               transportType:(int32_t)transportType {
+- (id)initWithName:(NSString*)deviceName transportType:(int32_t)transportType {
   if (self = [super init]) {
     _deviceName.reset([deviceName copy]);
     _transportType = transportType;
@@ -59,7 +59,7 @@ namespace media {
 
 // Mac specific limits for minimum and maximum frame rate.
 const float kMinFrameRate = 1.0f;
-const float kMaxFrameRate = 60.0f;
+const float kMaxFrameRate = 30.0f;
 
 // In device identifiers, the USB VID and PID are stored in 4 bytes each.
 const size_t kVidPidSize = 4;
@@ -115,7 +115,7 @@ static bool FindDeviceWithVendorAndProductIds(int vendor_id,
   kern_return_t kr = IOServiceGetMatchingServices(
       kIOMasterPortDefault, query_dictionary.release(), usb_iterator);
   if (kr != kIOReturnSuccess) {
-    VLOG(1) << "No devices found with specified Vendor and Product ID.";
+    DLOG(ERROR) << "No devices found with specified Vendor and Product ID.";
     return false;
   }
   return true;
@@ -136,7 +136,7 @@ static bool FindDeviceInterfaceInUsbDevice(
       usb_device, kIOUSBDeviceUserClientTypeID, kIOCFPlugInInterfaceID, &plugin,
       &score);
   if (kr != kIOReturnSuccess || !plugin) {
-    VLOG(1) << "IOCreatePlugInInterfaceForService";
+    DLOG(ERROR) << "IOCreatePlugInInterfaceForService";
     return false;
   }
   base::mac::ScopedIOPluginInterface<IOCFPlugInInterface> plugin_ref(plugin);
@@ -146,7 +146,7 @@ static bool FindDeviceInterfaceInUsbDevice(
       plugin, CFUUIDGetUUIDBytes(kIOUSBDeviceInterfaceID),
       reinterpret_cast<LPVOID*>(device_interface));
   if (!SUCCEEDED(res) || !*device_interface) {
-    VLOG(1) << "QueryInterface, couldn't create interface to USB";
+    DLOG(ERROR) << "QueryInterface, couldn't create interface to USB";
     return false;
   }
   return true;
@@ -171,7 +171,7 @@ static bool FindVideoControlInterfaceInDeviceInterface(
           ->CreateInterfaceIterator(device_interface, &interface_request,
                                     &interface_iterator);
   if (kr != kIOReturnSuccess) {
-    VLOG(1) << "Could not create an iterator to the device's interfaces.";
+    DLOG(ERROR) << "Could not create an iterator to the device's interfaces.";
     return false;
   }
   base::mac::ScopedIOObject<io_iterator_t> iterator_ref(interface_iterator);
@@ -180,7 +180,7 @@ static bool FindVideoControlInterfaceInDeviceInterface(
   io_service_t found_interface;
   found_interface = IOIteratorNext(interface_iterator);
   if (!found_interface) {
-    VLOG(1) << "Could not find a Video-AVControl interface in the device.";
+    DLOG(ERROR) << "Could not find a Video-AVControl interface in the device.";
     return false;
   }
   base::mac::ScopedIOObject<io_service_t> found_interface_ref(found_interface);
@@ -191,7 +191,7 @@ static bool FindVideoControlInterfaceInDeviceInterface(
       found_interface, kIOUSBInterfaceUserClientTypeID, kIOCFPlugInInterfaceID,
       video_control_interface, &score);
   if (kr != kIOReturnSuccess || !*video_control_interface) {
-    VLOG(1) << "IOCreatePlugInInterfaceForService";
+    DLOG(ERROR) << "IOCreatePlugInInterfaceForService";
     return false;
   }
   return true;
@@ -211,7 +211,7 @@ static void SetAntiFlickerInVideoControlInterface(
               plugin_interface, CFUUIDGetUUIDBytes(kIOUSBInterfaceInterfaceID),
               reinterpret_cast<LPVOID*>(control_interface.InitializeInto()));
   if (!SUCCEEDED(res) || !control_interface) {
-    VLOG(1) << "Couldn’t create control interface";
+    DLOG(ERROR) << "Couldn’t create control interface";
     return;
   }
 
@@ -231,7 +231,7 @@ static void SetAntiFlickerInVideoControlInterface(
       break;
     }
   }
-  VLOG_IF(1, real_unit_id == -1)
+  DVLOG_IF(1, real_unit_id == -1)
       << "This USB device doesn't seem to have a "
       << " VC_PROCESSING_UNIT, anti-flicker not available";
   if (real_unit_id == -1)
@@ -239,15 +239,15 @@ static void SetAntiFlickerInVideoControlInterface(
 
   if ((*control_interface)->USBInterfaceOpen(control_interface) !=
       kIOReturnSuccess) {
-    VLOG(1) << "Unable to open control interface";
+    DLOG(ERROR) << "Unable to open control interface";
     return;
   }
 
   // Create the control request and launch it to the device's control interface.
   // Note how the wIndex needs the interface number OR'ed in the lowest bits.
   IOUSBDevRequest command;
-  command.bmRequestType = USBmakebmRequestType(UInt8{kUSBOut}, UInt8{kUSBClass},
-                                               UInt8{kUSBInterface});
+  command.bmRequestType =
+      USBmakebmRequestType(kUSBOut, kUSBClass, kUSBInterface);
   command.bRequest = kVcRequestCodeSetCur;
   UInt8 interface_number;
   (*control_interface)
@@ -263,10 +263,10 @@ static void SetAntiFlickerInVideoControlInterface(
 
   IOReturn ret =
       (*control_interface)->ControlRequest(control_interface, 0, &command);
-  VLOG_IF(1, ret != kIOReturnSuccess) << "Anti-flicker control request"
+  DLOG_IF(ERROR, ret != kIOReturnSuccess) << "Anti-flicker control request"
                                           << " failed (0x" << std::hex << ret
                                           << "), unit id: " << real_unit_id;
-  VLOG_IF(1, ret == kIOReturnSuccess) << "Anti-flicker set to "
+  DVLOG_IF(1, ret == kIOReturnSuccess) << "Anti-flicker set to "
                                        << static_cast<int>(frequency) << "Hz";
 
   (*control_interface)->USBInterfaceClose(control_interface);
@@ -328,8 +328,8 @@ static IOUSBDevRequest CreateEmptyPanTiltZoomRequest(
   (*control_interface)
       ->GetInterfaceNumber(control_interface, &interface_number);
   IOUSBDevRequest command;
-  command.bmRequestType = USBmakebmRequestType(
-      endpoint_direction, UInt8{kUSBClass}, UInt8{kUSBInterface});
+  command.bmRequestType =
+      USBmakebmRequestType(endpoint_direction, kUSBClass, kUSBInterface);
   command.bRequest = request_code;
   command.wIndex = (unit_id << 8) | interface_number;
   command.wValue = (control_selector << 8);
@@ -355,7 +355,7 @@ static bool SendPanTiltControlRequest(
 
   IOReturn ret =
       (*control_interface)->ControlRequest(control_interface, 0, &command);
-  VLOG_IF(1, ret != kIOReturnSuccess)
+  DLOG_IF(ERROR, ret != kIOReturnSuccess)
       << "Control pan tilt request"
       << " failed (0x" << std::hex << ret << "), unit id: " << unit_id;
   if (ret != kIOReturnSuccess)
@@ -382,7 +382,7 @@ static bool SendZoomControlRequest(
 
   IOReturn ret =
       (*control_interface)->ControlRequest(control_interface, 0, &command);
-  VLOG_IF(1, ret != kIOReturnSuccess)
+  DLOG_IF(ERROR, ret != kIOReturnSuccess)
       << "Control zoom request"
       << " failed (0x" << std::hex << ret << "), unit id: " << unit_id;
   if (ret != kIOReturnSuccess)
@@ -450,8 +450,8 @@ static void GetZoomControlRangeAndCurrent(
 static void SetPanTiltInUsbDevice(
     IOUSBInterfaceInterface220** control_interface,
     int unit_id,
-    absl::optional<int> pan,
-    absl::optional<int> tilt) {
+    base::Optional<int> pan,
+    base::Optional<int> tilt) {
   if (!pan.has_value() && !tilt.has_value())
     return;
 
@@ -476,12 +476,12 @@ static void SetPanTiltInUsbDevice(
 
   IOReturn ret =
       (*control_interface)->ControlRequest(control_interface, 0, &command);
-  VLOG_IF(1, ret != kIOReturnSuccess)
+  DLOG_IF(ERROR, ret != kIOReturnSuccess)
       << "Control request"
       << " failed (0x" << std::hex << ret << "), unit id: " << unit_id
       << " pan value: " << pan.value_or(pan_current)
       << " tilt value: " << tilt.value_or(tilt_current);
-  VLOG_IF(1, ret == kIOReturnSuccess)
+  DVLOG_IF(1, ret == kIOReturnSuccess)
       << "Setting pan value to " << pan.value_or(pan_current)
       << " and tilt value to " << tilt.value_or(tilt_current);
 }
@@ -497,11 +497,11 @@ static void SetZoomInUsbDevice(IOUSBInterfaceInterface220** control_interface,
 
   IOReturn ret =
       (*control_interface)->ControlRequest(control_interface, 0, &command);
-  VLOG_IF(1, ret != kIOReturnSuccess)
+  DLOG_IF(ERROR, ret != kIOReturnSuccess)
       << "Control request"
       << " failed (0x" << std::hex << ret << "), unit id: " << unit_id
       << " zoom value: " << zoom;
-  VLOG_IF(1, ret == kIOReturnSuccess) << "Setting zoom value to " << zoom;
+  DVLOG_IF(1, ret == kIOReturnSuccess) << "Setting zoom value to " << zoom;
 }
 
 // Open the pan, tilt, zoom interface in a USB webcam identified by
@@ -560,7 +560,7 @@ static ScopedIOUSBInterfaceInterface OpenPanTiltZoomControlInterface(
               CFUUIDGetUUIDBytes(kIOUSBInterfaceInterfaceID220),
               reinterpret_cast<LPVOID*>(control_interface.InitializeInto()));
   if (!SUCCEEDED(res) || !control_interface) {
-    VLOG(1) << "Couldn’t get control interface";
+    DLOG(ERROR) << "Couldn’t get control interface";
     return ScopedIOUSBInterfaceInterface();
   }
 
@@ -580,7 +580,7 @@ static ScopedIOUSBInterfaceInterface OpenPanTiltZoomControlInterface(
     }
   }
 
-  VLOG_IF(1, *unit_id == -1)
+  DVLOG_IF(1, *unit_id == -1)
       << "This USB device doesn't seem to have a "
       << " VC_INPUT_TERMINAL. Pan, tilt, zoom are not available.";
   if (*unit_id == -1)
@@ -588,7 +588,7 @@ static ScopedIOUSBInterfaceInterface OpenPanTiltZoomControlInterface(
 
   if ((*control_interface)->USBInterfaceOpen(control_interface) !=
       kIOReturnSuccess) {
-    VLOG(1) << "Unable to open control interface";
+    DLOG(ERROR) << "Unable to open control interface";
     return ScopedIOUSBInterfaceInterface();
   }
 
@@ -598,7 +598,7 @@ static ScopedIOUSBInterfaceInterface OpenPanTiltZoomControlInterface(
 VideoCaptureDeviceMac::VideoCaptureDeviceMac(
     const VideoCaptureDeviceDescriptor& device_descriptor)
     : device_descriptor_(device_descriptor),
-      task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+      task_runner_(base::ThreadTaskRunnerHandle::Get()),
       state_(kNotInitialized),
       capture_device_(nil),
       weak_factory_(this) {}
@@ -611,19 +611,17 @@ void VideoCaptureDeviceMac::AllocateAndStart(
     const VideoCaptureParams& params,
     std::unique_ptr<VideoCaptureDevice::Client> client) {
   DCHECK(task_runner_->BelongsToCurrentThread());
-  TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("video_and_image_capture"),
-               "VideoCaptureDeviceMac::AllocateAndStart");
   if (state_ != kIdle) {
     return;
   }
 
   client_ = std::move(client);
-  if (device_descriptor_.capture_api == VideoCaptureApi::MACOSX_AVFOUNDATION) {
+  if (device_descriptor_.capture_api == VideoCaptureApi::MACOSX_AVFOUNDATION)
     LogMessage("Using AVFoundation for device: " +
                device_descriptor_.display_name());
-  }
 
-  NSString* deviceId = base::SysUTF8ToNSString(device_descriptor_.device_id);
+  NSString* deviceId =
+      [NSString stringWithUTF8String:device_descriptor_.device_id.c_str()];
 
   [capture_device_ setFrameReceiver:this];
 
@@ -661,14 +659,11 @@ void VideoCaptureDeviceMac::AllocateAndStart(
                                 GetPowerLineFrequency(params));
     }
   }
-  {
-    TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("video_and_image_capture"),
-                 "startCapture");
-    if (![capture_device_ startCapture]) {
-      SetErrorState(VideoCaptureError::kMacCouldNotStartCaptureDevice,
-                    FROM_HERE, "Could not start capture device.");
-      return;
-    }
+
+  if (![capture_device_ startCapture]) {
+    SetErrorState(VideoCaptureError::kMacCouldNotStartCaptureDevice, FROM_HERE,
+                  "Could not start capture device.");
+    return;
   }
 
   client_->OnStarted();
@@ -755,10 +750,10 @@ void VideoCaptureDeviceMac::SetPhotoOptions(mojom::PhotoSettingsPtr settings,
     if (settings->has_pan || settings->has_tilt) {
       SetPanTiltInUsbDevice(
           control_interface, unit_id,
-          settings->has_pan ? absl::make_optional(settings->pan)
-                            : absl::nullopt,
-          settings->has_tilt ? absl::make_optional(settings->tilt)
-                             : absl::nullopt);
+          settings->has_pan ? base::make_optional(settings->pan)
+                            : base::nullopt,
+          settings->has_tilt ? base::make_optional(settings->tilt)
+                             : base::nullopt);
     }
     if (settings->has_zoom) {
       SetZoomInUsbDevice(control_interface, unit_id, settings->zoom);
@@ -769,14 +764,6 @@ void VideoCaptureDeviceMac::SetPhotoOptions(mojom::PhotoSettingsPtr settings,
   std::move(callback).Run(true);
 }
 
-void VideoCaptureDeviceMac::OnUtilizationReport(
-    media::VideoCaptureFeedback feedback) {
-  DCHECK(task_runner_->BelongsToCurrentThread());
-  if (!capture_device_)
-    return;
-  [capture_device_ setScaledResolutions:std::move(feedback.mapped_sizes)];
-}
-
 bool VideoCaptureDeviceMac::Init(VideoCaptureApi capture_api_type) {
   DCHECK(task_runner_->BelongsToCurrentThread());
   DCHECK_EQ(state_, kNotInitialized);
@@ -784,8 +771,8 @@ bool VideoCaptureDeviceMac::Init(VideoCaptureApi capture_api_type) {
   if (capture_api_type != VideoCaptureApi::MACOSX_AVFOUNDATION)
     return false;
 
-  capture_device_.reset(
-      [[VideoCaptureDeviceAVFoundation alloc] initWithFrameReceiver:this]);
+  capture_device_.reset([[GetVideoCaptureDeviceAVFoundationImplementationClass()
+      alloc] initWithFrameReceiver:this]);
 
   if (!capture_device_)
     return false;
@@ -816,19 +803,20 @@ void VideoCaptureDeviceMac::ReceiveFrame(const uint8_t* video_frame,
 }
 
 void VideoCaptureDeviceMac::ReceiveExternalGpuMemoryBufferFrame(
-    CapturedExternalVideoBuffer frame,
-    std::vector<CapturedExternalVideoBuffer> scaled_frames,
+    gfx::GpuMemoryBufferHandle handle,
+    const VideoCaptureFormat& format,
+    const gfx::ColorSpace color_space,
     base::TimeDelta timestamp) {
-  if (capture_format_.frame_size != frame.format.frame_size) {
+  if (capture_format_.frame_size != format.frame_size) {
     ReceiveError(VideoCaptureError::kMacReceivedFrameWithUnexpectedResolution,
                  FROM_HERE,
-                 "Captured resolution " + frame.format.frame_size.ToString() +
+                 "Captured resolution " + format.frame_size.ToString() +
                      ", and expected " + capture_format_.frame_size.ToString());
     return;
   }
-  client_->OnIncomingCapturedExternalBuffer(
-      std::move(frame), std::move(scaled_frames), base::TimeTicks::Now(),
-      timestamp, gfx::Rect(capture_format_.frame_size));
+  client_->OnIncomingCapturedExternalBuffer(std::move(handle), format,
+                                            color_space, base::TimeTicks::Now(),
+                                            timestamp);
 }
 
 void VideoCaptureDeviceMac::OnPhotoTaken(const uint8_t* image_data,
@@ -847,7 +835,7 @@ void VideoCaptureDeviceMac::OnPhotoTaken(const uint8_t* image_data,
 }
 
 void VideoCaptureDeviceMac::OnPhotoError() {
-  VLOG(1) << __func__ << " error taking picture";
+  DLOG(ERROR) << __func__ << " error taking picture";
   photo_callback_.Reset();
 }
 
@@ -935,8 +923,6 @@ void VideoCaptureDeviceMac::SetErrorState(VideoCaptureError error,
 }
 
 bool VideoCaptureDeviceMac::UpdateCaptureResolution() {
-  TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("video_and_image_capture"),
-               "VideoCaptureDeviceMac::UpdateCaptureResolution");
   if (![capture_device_ setCaptureHeight:capture_format_.frame_size.height()
                                    width:capture_format_.frame_size.width()
                                frameRate:capture_format_.frame_rate]) {

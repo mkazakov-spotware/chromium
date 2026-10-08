@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -66,8 +66,8 @@ TEST_P(PrePaintTreeWalkTest, PropertyTreesRebuiltWithBorderInvalidation) {
   auto* transformed_element = GetDocument().getElementById("transformed");
   const auto* transformed_properties =
       transformed_element->GetLayoutObject()->FirstFragment().PaintProperties();
-  EXPECT_EQ(gfx::Vector2dF(100, 100),
-            transformed_properties->Transform()->Get2dTranslation());
+  EXPECT_EQ(FloatSize(100, 100),
+            transformed_properties->Transform()->Translation2D());
 
   // Artifically change the transform node.
   const_cast<ObjectPaintProperties*>(transformed_properties)->ClearTransform();
@@ -78,8 +78,8 @@ TEST_P(PrePaintTreeWalkTest, PropertyTreesRebuiltWithBorderInvalidation) {
   UpdateAllLifecyclePhasesForTest();
 
   // Should have changed back.
-  EXPECT_EQ(gfx::Vector2dF(100, 100),
-            transformed_properties->Transform()->Get2dTranslation());
+  EXPECT_EQ(FloatSize(100, 100),
+            transformed_properties->Transform()->Translation2D());
 }
 
 TEST_P(PrePaintTreeWalkTest, PropertyTreesRebuiltWithFrameScroll) {
@@ -90,8 +90,7 @@ TEST_P(PrePaintTreeWalkTest, PropertyTreesRebuiltWithFrameScroll) {
   GetDocument().domWindow()->scrollTo(0, 100);
   UpdateAllLifecyclePhasesForTest();
 
-  EXPECT_EQ(gfx::Vector2dF(0, -100),
-            FrameScrollTranslation()->Get2dTranslation());
+  EXPECT_EQ(FloatSize(0, -100), FrameScrollTranslation()->Translation2D());
 }
 
 TEST_P(PrePaintTreeWalkTest, PropertyTreesRebuiltWithCSSTransformInvalidation) {
@@ -107,16 +106,16 @@ TEST_P(PrePaintTreeWalkTest, PropertyTreesRebuiltWithCSSTransformInvalidation) {
   auto* transformed_element = GetDocument().getElementById("transformed");
   const auto* transformed_properties =
       transformed_element->GetLayoutObject()->FirstFragment().PaintProperties();
-  EXPECT_EQ(gfx::Vector2dF(100, 100),
-            transformed_properties->Transform()->Get2dTranslation());
+  EXPECT_EQ(FloatSize(100, 100),
+            transformed_properties->Transform()->Translation2D());
 
   // Invalidate the CSS transform property.
   transformed_element->setAttribute(html_names::kClassAttr, "transformB");
   UpdateAllLifecyclePhasesForTest();
 
   // The transform should have changed.
-  EXPECT_EQ(gfx::Vector2dF(200, 200),
-            transformed_properties->Transform()->Get2dTranslation());
+  EXPECT_EQ(FloatSize(200, 200),
+            transformed_properties->Transform()->Translation2D());
 }
 
 TEST_P(PrePaintTreeWalkTest, PropertyTreesRebuiltWithOpacityInvalidation) {
@@ -246,13 +245,13 @@ TEST_P(PrePaintTreeWalkTest, ClearSubsequenceCachingClipChangePosFixed) {
 TEST_P(PrePaintTreeWalkTest, ClipChangeRepaintsDescendants) {
   SetBodyInnerHTML(R"HTML(
     <style>
-      #parent { position: relative; width: 100px; }
+      #parent { height: 75px; position: relative; width: 100px; }
       #child { overflow: hidden; width: 10%; height: 100%; position: relative; }
       #greatgrandchild {
-        width: 100px; height: 100px; z-index: 100; position: relative;
+        width: 5px; height: 5px; z-index: 100; position: relative;
       }
     </style>
-    <div id='parent' style='height: 10px'>
+    <div id='parent' style='height: 100px;'>
       <div id='child'>
         <div id='grandchild'>
           <div id='greatgrandchild'></div>
@@ -261,8 +260,7 @@ TEST_P(PrePaintTreeWalkTest, ClipChangeRepaintsDescendants) {
     </div>
   )HTML");
 
-  GetDocument().getElementById("parent")->setAttribute(html_names::kStyleAttr,
-                                                       "height: 100px");
+  GetDocument().getElementById("parent")->removeAttribute("style");
   UpdateAllLifecyclePhasesExceptPaint();
 
   auto* paint_layer = GetPaintLayerByElementId("greatgrandchild");
@@ -398,6 +396,8 @@ TEST_P(PrePaintTreeWalkTest, EffectiveTouchActionStyleUpdate) {
 }
 
 TEST_P(PrePaintTreeWalkTest, InsideBlockingWheelEventHandlerUpdate) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(::features::kWheelEventRegions);
   SetBodyInnerHTML(R"HTML(
     <div id='ancestor' style='width: 100px; height: 100px;'>
       <div id='handler' style='width: 100px; height: 100px;'>
@@ -449,48 +449,6 @@ TEST_P(PrePaintTreeWalkTest, InsideBlockingWheelEventHandlerUpdate) {
   EXPECT_FALSE(ancestor.InsideBlockingWheelEventHandler());
   EXPECT_TRUE(handler.InsideBlockingWheelEventHandler());
   EXPECT_TRUE(descendant.InsideBlockingWheelEventHandler());
-}
-
-TEST_P(PrePaintTreeWalkTest, CullRectUpdateOnSVGTransformChange) {
-  SetBodyInnerHTML(R"HTML(
-    <svg style="width: 200px; height: 200px">
-      <rect id="rect"/>
-      <g id="g"><foreignObject id="foreign"/></g>
-    </svg>
-  )HTML");
-
-  auto& foreign = *GetLayoutObjectByElementId("foreign");
-  EXPECT_EQ(gfx::Rect(0, 0, 200, 200),
-            foreign.FirstFragment().GetCullRect().Rect());
-
-  GetDocument().getElementById("rect")->setAttribute(
-      html_names::kStyleAttr, "transform: translateX(20px)");
-  UpdateAllLifecyclePhasesExceptPaint();
-  EXPECT_EQ(gfx::Rect(0, 0, 200, 200),
-            foreign.FirstFragment().GetCullRect().Rect());
-
-  GetDocument().getElementById("g")->setAttribute(
-      html_names::kStyleAttr, "transform: translateY(20px)");
-  UpdateAllLifecyclePhasesExceptPaint();
-  EXPECT_EQ(gfx::Rect(0, -20, 200, 200),
-            foreign.FirstFragment().GetCullRect().Rect());
-}
-
-TEST_P(PrePaintTreeWalkTest, InlineOutlineWithContinuationPaintInvalidation) {
-  SetBodyInnerHTML(R"HTML(
-    <div>
-      <span style="outline: 1px solid black">
-        <span id="child-span">span</span>
-        <div>continuation</div>
-      </span>
-    </div>
-  )HTML");
-
-  // This test passes if the following doesn't crash.
-  GetDocument()
-      .getElementById("child-span")
-      ->setAttribute(html_names::kStyleAttr, "color: blue");
-  UpdateAllLifecyclePhasesForTest();
 }
 
 }  // namespace blink

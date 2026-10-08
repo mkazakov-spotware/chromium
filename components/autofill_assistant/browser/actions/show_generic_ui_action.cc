@@ -1,48 +1,89 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/autofill_assistant/browser/actions/show_generic_ui_action.h"
 
-#include <memory>
 #include <utility>
+#include "base/optional.h"
 
-#include "base/containers/flat_map.h"
-#include "base/ranges/algorithm.h"
-#include "base/strings/string_number_conversions.h"
-#include "base/strings/string_util.h"
-#include "base/strings/utf_string_conversions.h"
-#include "components/autofill/core/browser/data_model/autofill_profile.h"
 #include "components/autofill_assistant/browser/actions/action_delegate.h"
 #include "components/autofill_assistant/browser/client_status.h"
-#include "components/autofill_assistant/browser/service.pb.h"
-#include "components/autofill_assistant/browser/user_data_util.h"
 #include "components/autofill_assistant/browser/user_model.h"
-#include "components/autofill_assistant/browser/web/element.h"
 #include "content/public/browser/web_contents.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace autofill_assistant {
 
-void ShowGenericUiAction::OnInterruptStarted() {
-  delegate_->ClearGenericUi();
+namespace {
+
+void WriteCreditCardsToUserModel(
+    std::unique_ptr<std::vector<std::unique_ptr<autofill::CreditCard>>>
+        credit_cards,
+    const ShowGenericUiProto::RequestAutofillCreditCards& proto,
+    UserModel* user_model) {
+  DCHECK(credit_cards);
+  DCHECK(user_model);
+  ValueProto model_value;
+  model_value.set_is_client_side_only(true);
+  for (const auto& credit_card : *credit_cards) {
+    DCHECK(!credit_card->guid().empty());
+    model_value.mutable_credit_cards()->add_values()->set_guid(
+        credit_card->guid());
+  }
+  user_model->SetAutofillCreditCards(std::move(credit_cards));
+  user_model->SetValue(proto.model_identifier(), model_value);
 }
 
-void ShowGenericUiAction::OnInterruptFinished() {
-  delegate_->SetGenericUi(
-      std::make_unique<GenericUserInterfaceProto>(
-          proto_.show_generic_ui().generic_user_interface()),
-      base::BindOnce(&ShowGenericUiAction::OnEndActionInteraction,
-                     weak_ptr_factory_.GetWeakPtr()),
-      base::BindOnce(&ShowGenericUiAction::OnViewInflationFinished,
-                     weak_ptr_factory_.GetWeakPtr(), false),
-      base::BindRepeating(&ShowGenericUiAction::OnRequestBackendUserData,
-                          weak_ptr_factory_.GetWeakPtr()),
-      base::BindRepeating(&ShowGenericUiAction::OnShowAccountScreen,
-                          weak_ptr_factory_.GetWeakPtr())
-
-  );
+void WriteProfilesToUserModel(
+    std::unique_ptr<std::vector<std::unique_ptr<autofill::AutofillProfile>>>
+        profiles,
+    const ShowGenericUiProto::RequestAutofillProfiles& proto,
+    UserModel* user_model) {
+  DCHECK(profiles);
+  DCHECK(user_model);
+  ValueProto model_value;
+  model_value.set_is_client_side_only(true);
+  for (const auto& profile : *profiles) {
+    DCHECK(!profile->guid().empty());
+    model_value.mutable_profiles()->add_values()->set_guid(profile->guid());
+  }
+  user_model->SetAutofillProfiles(std::move(profiles));
+  user_model->SetValue(proto.model_identifier(), model_value);
 }
+
+void WriteLoginOptionsToUserModel(
+    const ShowGenericUiProto::RequestLoginOptions& proto,
+    UserModel* user_model,
+    std::vector<WebsiteLoginManager::Login> logins) {
+  DCHECK(user_model);
+  ValueProto model_value;
+  model_value.set_is_client_side_only(true);
+  for (const auto& login_option : proto.login_options()) {
+    switch (login_option.type_case()) {
+      case ShowGenericUiProto::RequestLoginOptions::LoginOption::
+          kCustomLoginOption:
+        *model_value.mutable_login_options()->add_values() =
+            login_option.custom_login_option();
+        break;
+      case ShowGenericUiProto::RequestLoginOptions::LoginOption::
+          kPasswordManagerLogins: {
+        for (const auto& login : logins) {
+          auto* option = model_value.mutable_login_options()->add_values();
+          option->set_label(login.username);
+          option->set_sublabel(
+              login_option.password_manager_logins().sublabel());
+          option->set_payload(login_option.password_manager_logins().payload());
+        }
+        break;
+      }
+      case ShowGenericUiProto::RequestLoginOptions::LoginOption::TYPE_NOT_SET:
+        NOTREACHED();
+        break;
+    }
+  }
+  user_model->SetValue(proto.model_identifier(), model_value);
+}
+}  // namespace
 
 ShowGenericUiAction::ShowGenericUiAction(ActionDelegate* delegate,
                                          const ActionProto& proto)
@@ -50,7 +91,9 @@ ShowGenericUiAction::ShowGenericUiAction(ActionDelegate* delegate,
   DCHECK(proto_.has_show_generic_ui());
 }
 
-ShowGenericUiAction::~ShowGenericUiAction() = default;
+ShowGenericUiAction::~ShowGenericUiAction() {
+  delegate_->GetPersonalDataManager()->RemoveObserver(this);
+}
 
 void ShowGenericUiAction::InternalProcessAction(
     ProcessActionCallback callback) {
@@ -74,22 +117,6 @@ void ShowGenericUiAction::InternalProcessAction(
       return;
     }
   }
-  for (const auto& additional_value :
-       proto_.show_generic_ui().request_user_data().additional_values()) {
-    if (!delegate_->GetUserData()->HasAdditionalValue(
-            additional_value.source_identifier())) {
-      EndAction(ClientStatus(PRECONDITION_FAILED));
-      return;
-    }
-  }
-  for (const auto& additional_value :
-       proto_.show_generic_ui().request_user_data().additional_values()) {
-    ValueProto value = *delegate_->GetUserData()->GetAdditionalValue(
-        additional_value.source_identifier());
-    value.set_is_client_side_only(true);
-    delegate_->GetUserModel()->SetValue(additional_value.model_identifier(),
-                                        value);
-  }
 
   base::OnceCallback<void()> end_on_navigation_callback;
   if (proto_.show_generic_ui().end_on_navigation()) {
@@ -106,105 +133,70 @@ void ShowGenericUiAction::InternalProcessAction(
       base::BindOnce(&ShowGenericUiAction::OnEndActionInteraction,
                      weak_ptr_factory_.GetWeakPtr()),
       base::BindOnce(&ShowGenericUiAction::OnViewInflationFinished,
-                     weak_ptr_factory_.GetWeakPtr(),
-                     /* first_inflation= */ true),
-      base::BindRepeating(&ShowGenericUiAction::OnRequestBackendUserData,
-                          weak_ptr_factory_.GetWeakPtr()),
-      base::BindRepeating(&ShowGenericUiAction::OnShowAccountScreen,
-                          weak_ptr_factory_.GetWeakPtr()));
+                     weak_ptr_factory_.GetWeakPtr()));
 }
 
-void ShowGenericUiAction::OnShowAccountScreen(
-    const ShowAccountScreenProto& proto) {
-  if (!proto.has_gms_account_intent_screen_id()) {
-    LOG(ERROR) << "Screen information not present in ShowAccountScreenProto";
-    return;
-  }
-  delegate_->ShowAccountScreen(
-      proto, delegate_->GetEmailAddressForAccessTokenAccount());
-}
-
-void ShowGenericUiAction::OnRequestBackendUserData(
-    const RequestBackendDataProto& request) {
-  if (request.output_success_model_identifier().empty() ||
-      request.request_phone_numbers()
-          .output_profiles_model_identifier()
-          .empty()) {
-    return;
-  }
-  // TODO(b/246875491): Stop using collect user data options in ShowGenericUi.
-  CollectUserDataOptions options;
-  options.request_phone_number_separately = request.has_request_phone_numbers();
-  delegate_->RequestUserData(
-      options, base::BindOnce(&ShowGenericUiAction::OnGetBackendUserData,
-                              weak_ptr_factory_.GetWeakPtr(), request));
-}
-
-void ShowGenericUiAction::OnGetBackendUserData(
-    const RequestBackendDataProto& request,
-    bool success,
-    const GetUserDataResponseProto& response) {
-  delegate_->GetUserModel()->SetValue(request.output_success_model_identifier(),
-                                      SimpleValue(success));
-  if (request.has_request_phone_numbers()) {
-    auto phone_number_autofill_profile_list = std::make_unique<
-        std::vector<std::unique_ptr<autofill::AutofillProfile>>>();
-    for (const auto& phone_number_proto : response.available_phone_numbers()) {
-      auto profile = std::make_unique<autofill::AutofillProfile>();
-      // AddAutofillEntryToDataModel adds only to the autofill profile and
-      // not UserModel.
-      user_data::AddAutofillEntryToDataModel(
-          autofill::ServerFieldType::PHONE_HOME_WHOLE_NUMBER,
-          phone_number_proto.value(), response.locale(), profile.get());
-      phone_number_autofill_profile_list->emplace_back(std::move(profile));
-    }
-    size_t phone_numbers_count = phone_number_autofill_profile_list->size();
-    delegate_->GetUserModel()->SetPhoneNumbers(
-        std::move(phone_number_autofill_profile_list));
-
-    auto phone_number_model_list_value = ValueProto();
-    auto* phone_number_model_list =
-        phone_number_model_list_value.mutable_profiles();
-    for (size_t i = 0; i < phone_numbers_count; i++) {
-      phone_number_model_list->add_values()->set_phone_number_index(i);
-    }
-    phone_number_model_list_value.set_is_client_side_only(true);
-    delegate_->GetUserModel()->SetValue(
-        request.request_phone_numbers().output_profiles_model_identifier(),
-        phone_number_model_list_value);
-  }
-}
-
-void ShowGenericUiAction::OnViewInflationFinished(bool first_inflation,
-                                                  const ClientStatus& status) {
+void ShowGenericUiAction::OnViewInflationFinished(const ClientStatus& status) {
   if (!status.ok()) {
     EndAction(status);
     return;
   }
 
-  if (!first_inflation) {
-    return;
+  // Note: it is important to write autofill profiles etc. to the model AFTER
+  // the UI has been inflated, otherwise the UI won't get change notifications
+  // for them.
+  for (const auto& additional_value :
+       proto_.show_generic_ui().request_user_data().additional_values()) {
+    if (!delegate_->GetUserData()->has_additional_value(
+            additional_value.source_identifier())) {
+      EndAction(ClientStatus(PRECONDITION_FAILED));
+      return;
+    }
   }
-
+  for (const auto& additional_value :
+       proto_.show_generic_ui().request_user_data().additional_values()) {
+    ValueProto value = *delegate_->GetUserData()->additional_value(
+        additional_value.source_identifier());
+    value.set_is_client_side_only(true);
+    delegate_->GetUserModel()->SetValue(additional_value.model_identifier(),
+                                        value);
+  }
+  if (proto_.show_generic_ui().has_request_login_options()) {
+    auto login_options =
+        proto_.show_generic_ui().request_login_options().login_options();
+    if (std::find_if(login_options.begin(), login_options.end(),
+                     [&](const auto& option) {
+                       return option.type_case() ==
+                              ShowGenericUiProto::RequestLoginOptions::
+                                  LoginOption::kPasswordManagerLogins;
+                     }) != login_options.end()) {
+      delegate_->GetWebsiteLoginManager()->GetLoginsForUrl(
+          delegate_->GetWebContents()->GetLastCommittedURL(),
+          base::BindOnce(&WriteLoginOptionsToUserModel,
+                         proto_.show_generic_ui().request_login_options(),
+                         delegate_->GetUserModel()));
+    } else {
+      WriteLoginOptionsToUserModel(
+          proto_.show_generic_ui().request_login_options(),
+          delegate_->GetUserModel(),
+          /* logins = */ std::vector<WebsiteLoginManager::Login>());
+    }
+  }
+  delegate_->GetPersonalDataManager()->AddObserver(this);
+  OnPersonalDataChanged();
   for (const auto& element_check :
        proto_.show_generic_ui().periodic_element_checks().element_checks()) {
-    preconditions_.emplace_back(element_check.element_condition());
+    preconditions_.emplace_back(std::make_unique<ElementPrecondition>(
+        element_check.element_condition()));
   }
   if (proto_.show_generic_ui().allow_interrupt() ||
-      base::ranges::any_of(preconditions_, [&](const auto& precondition) {
-        return !BatchElementChecker::IsElementConditionEmpty(precondition);
-      })) {
+      std::any_of(
+          preconditions_.begin(), preconditions_.end(),
+          [&](const auto& precondition) { return !precondition->empty(); })) {
     has_pending_wait_for_dom_ = true;
 
-    // TODO(b/219004758): Enable observer-based WaitForDom, which would require
-    // negating the preconditions that matched in the previous check, so that we
-    // are alerted every time one changes instead of every time one becomes
-    // true.
     delegate_->WaitForDom(
-        /* max_wait_time= */ base::TimeDelta::Max(),
-        /* allow_observer_mode = */ false,
-        proto_.show_generic_ui().allow_interrupt(),
-        /* observer= */ this,
+        base::TimeDelta::Max(), proto_.show_generic_ui().allow_interrupt(),
         base::BindRepeating(&ShowGenericUiAction::RegisterChecks,
                             weak_ptr_factory_.GetWeakPtr()),
         base::BindOnce(&ShowGenericUiAction::OnWaitForElementTimed,
@@ -233,10 +225,9 @@ void ShowGenericUiAction::RegisterChecks(
   }
 
   for (size_t i = 0; i < preconditions_.size(); i++) {
-    checker->AddElementConditionCheck(
-        preconditions_[i],
-        base::BindOnce(&ShowGenericUiAction::OnPreconditionResult,
-                       weak_ptr_factory_.GetWeakPtr(), i));
+    preconditions_[i]->Check(
+        checker, base::BindOnce(&ShowGenericUiAction::OnPreconditionResult,
+                                weak_ptr_factory_.GetWeakPtr(), i));
   }
   // Let WaitForDom know we're still waiting for elements.
   checker->AddAllDoneCallback(base::BindOnce(
@@ -247,9 +238,7 @@ void ShowGenericUiAction::RegisterChecks(
 void ShowGenericUiAction::OnPreconditionResult(
     size_t precondition_index,
     const ClientStatus& status,
-    const std::vector<std::string>& ignored_payloads,
-    const std::vector<std::string>& ignored_tags,
-    const base::flat_map<std::string, DomObjectFrameStack>& ignored_elements) {
+    const std::vector<std::string>& ignored_payloads) {
   if (should_end_action_) {
     return;
   }
@@ -325,6 +314,34 @@ void ShowGenericUiAction::EndAction(const ClientStatus& status) {
   }
 
   std::move(callback_).Run(std::move(processed_action_proto_));
+}
+
+void ShowGenericUiAction::OnPersonalDataChanged() {
+  if (proto_.show_generic_ui().has_request_profiles()) {
+    auto profiles = std::make_unique<
+        std::vector<std::unique_ptr<autofill::AutofillProfile>>>();
+    for (const auto* profile :
+         delegate_->GetPersonalDataManager()->GetProfilesToSuggest()) {
+      profiles->emplace_back(
+          std::make_unique<autofill::AutofillProfile>(*profile));
+    }
+    WriteProfilesToUserModel(std::move(profiles),
+                             proto_.show_generic_ui().request_profiles(),
+                             delegate_->GetUserModel());
+  }
+
+  if (proto_.show_generic_ui().has_request_credit_cards()) {
+    auto credit_cards =
+        std::make_unique<std::vector<std::unique_ptr<autofill::CreditCard>>>();
+    for (const auto* credit_card :
+         delegate_->GetPersonalDataManager()->GetCreditCardsToSuggest(true)) {
+      credit_cards->emplace_back(
+          std::make_unique<autofill::CreditCard>(*credit_card));
+    }
+    WriteCreditCardsToUserModel(std::move(credit_cards),
+                                proto_.show_generic_ui().request_credit_cards(),
+                                delegate_->GetUserModel());
+  }
 }
 
 }  // namespace autofill_assistant

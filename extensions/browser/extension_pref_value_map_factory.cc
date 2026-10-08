@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,7 +37,6 @@ KeyedService* ExtensionPrefValueMapFactory::BuildServiceInstanceFor(
 content::BrowserContext* ExtensionPrefValueMapFactory::GetBrowserContextToUse(
     content::BrowserContext* context) const {
   // Redirected in incognito.
-  return extensions::ExtensionsBrowserClient::Get()
-      ->GetRedirectedContextInIncognito(context, /*force_guest_profile=*/true,
-                                        /*force_system_profile=*/false);
+  return extensions::ExtensionsBrowserClient::Get()->GetOriginalContext(
+      context);
 }

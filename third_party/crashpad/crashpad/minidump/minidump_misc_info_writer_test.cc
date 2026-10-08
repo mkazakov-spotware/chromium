@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,11 +16,13 @@
 
 #include <string.h>
 
-#include <iterator>
 #include <string>
 #include <utility>
 
+#include "base/compiler_specific.h"
 #include "base/format_macros.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "gtest/gtest.h"
@@ -60,11 +62,11 @@ void GetMiscInfoStream(const std::string& file_contents, const T** misc_info) {
   ASSERT_TRUE(misc_info);
 }
 
-void ExpectNULPaddedString16Equal(const char16_t* expected,
-                                  const char16_t* observed,
+void ExpectNULPaddedString16Equal(const base::char16* expected,
+                                  const base::char16* observed,
                                   size_t size) {
-  std::u16string expected_string(expected, size);
-  std::u16string observed_string(observed, size);
+  base::string16 expected_string(expected, size);
+  base::string16 observed_string(observed, size);
   EXPECT_EQ(observed_string, expected_string);
 }
 
@@ -125,7 +127,7 @@ void ExpectMiscInfoEqual<MINIDUMP_MISC_INFO_3>(
     SCOPED_TRACE("Standard");
     ExpectNULPaddedString16Equal(AsU16CStr(expected->TimeZone.StandardName),
                                  AsU16CStr(observed->TimeZone.StandardName),
-                                 std::size(expected->TimeZone.StandardName));
+                                 base::size(expected->TimeZone.StandardName));
     ExpectSystemTimeEqual(&expected->TimeZone.StandardDate,
                           &observed->TimeZone.StandardDate);
     EXPECT_EQ(observed->TimeZone.StandardBias, expected->TimeZone.StandardBias);
@@ -134,7 +136,7 @@ void ExpectMiscInfoEqual<MINIDUMP_MISC_INFO_3>(
     SCOPED_TRACE("Daylight");
     ExpectNULPaddedString16Equal(AsU16CStr(expected->TimeZone.DaylightName),
                                  AsU16CStr(observed->TimeZone.DaylightName),
-                                 std::size(expected->TimeZone.DaylightName));
+                                 base::size(expected->TimeZone.DaylightName));
     ExpectSystemTimeEqual(&expected->TimeZone.DaylightDate,
                           &observed->TimeZone.DaylightDate);
     EXPECT_EQ(observed->TimeZone.DaylightBias, expected->TimeZone.DaylightBias);
@@ -152,13 +154,13 @@ void ExpectMiscInfoEqual<MINIDUMP_MISC_INFO_4>(
     SCOPED_TRACE("BuildString");
     ExpectNULPaddedString16Equal(AsU16CStr(expected->BuildString),
                                  AsU16CStr(observed->BuildString),
-                                 std::size(expected->BuildString));
+                                 base::size(expected->BuildString));
   }
   {
     SCOPED_TRACE("DbgBldStr");
     ExpectNULPaddedString16Equal(AsU16CStr(expected->DbgBldStr),
                                  AsU16CStr(observed->DbgBldStr),
-                                 std::size(expected->DbgBldStr));
+                                 base::size(expected->DbgBldStr));
   }
 }
 
@@ -169,33 +171,20 @@ void ExpectMiscInfoEqual<MINIDUMP_MISC_INFO_5>(
   ExpectMiscInfoEqual<MINIDUMP_MISC_INFO_4>(
       reinterpret_cast<const MINIDUMP_MISC_INFO_4*>(expected),
       reinterpret_cast<const MINIDUMP_MISC_INFO_4*>(observed));
-
-  MINIDUMP_MISC_INFO_5 expected_misc_info, observed_misc_info;
-  memcpy(&expected_misc_info, expected, sizeof(expected_misc_info));
-  memcpy(&observed_misc_info, observed, sizeof(observed_misc_info));
-
-  EXPECT_EQ(observed_misc_info.XStateData.SizeOfInfo,
-            expected_misc_info.XStateData.SizeOfInfo);
-  EXPECT_EQ(observed_misc_info.XStateData.ContextSize,
-            expected_misc_info.XStateData.ContextSize);
-  EXPECT_EQ(observed_misc_info.XStateData.EnabledFeatures,
-            expected_misc_info.XStateData.EnabledFeatures);
+  EXPECT_EQ(observed->XStateData.SizeOfInfo, expected->XStateData.SizeOfInfo);
+  EXPECT_EQ(observed->XStateData.ContextSize, expected->XStateData.ContextSize);
+  EXPECT_EQ(observed->XStateData.EnabledFeatures,
+            expected->XStateData.EnabledFeatures);
   for (size_t feature_index = 0;
-       feature_index < std::size(observed_misc_info.XStateData.Features);
+       feature_index < base::size(observed->XStateData.Features);
        ++feature_index) {
     SCOPED_TRACE(base::StringPrintf("feature_index %" PRIuS, feature_index));
-    EXPECT_EQ(observed_misc_info.XStateData.Features[feature_index].Offset,
-              expected_misc_info.XStateData.Features[feature_index].Offset);
-    EXPECT_EQ(observed_misc_info.XStateData.Features[feature_index].Size,
-              expected_misc_info.XStateData.Features[feature_index].Size);
+    EXPECT_EQ(observed->XStateData.Features[feature_index].Offset,
+              expected->XStateData.Features[feature_index].Offset);
+    EXPECT_EQ(observed->XStateData.Features[feature_index].Size,
+              expected->XStateData.Features[feature_index].Size);
   }
-  EXPECT_EQ(observed_misc_info.ProcessCookie, expected_misc_info.ProcessCookie);
-}
-
-// Bypass restrictions on conversion of compile-time constants (added for
-// https://crbug.com/1189439).
-const char* Crbug1189439Cast(const char str[]) {
-  return str;
+  EXPECT_EQ(observed->ProcessCookie, expected->ProcessCookie);
 }
 
 TEST(MinidumpMiscInfoWriter, Empty) {
@@ -404,20 +393,18 @@ TEST(MinidumpMiscInfoWriter, TimeZone) {
   expected.Flags1 = MINIDUMP_MISC3_TIMEZONE;
   expected.TimeZoneId = kTimeZoneId;
   expected.TimeZone.Bias = kBias;
-  std::u16string standard_name_utf16 =
-      base::UTF8ToUTF16(Crbug1189439Cast(kStandardName));
+  base::string16 standard_name_utf16 = base::UTF8ToUTF16(kStandardName);
   c16lcpy(AsU16CStr(expected.TimeZone.StandardName),
           standard_name_utf16.c_str(),
-          std::size(expected.TimeZone.StandardName));
+          base::size(expected.TimeZone.StandardName));
   memcpy(&expected.TimeZone.StandardDate,
          &kStandardDate,
          sizeof(expected.TimeZone.StandardDate));
   expected.TimeZone.StandardBias = kStandardBias;
-  std::u16string daylight_name_utf16 =
-      base::UTF8ToUTF16(Crbug1189439Cast(kDaylightName));
+  base::string16 daylight_name_utf16 = base::UTF8ToUTF16(kDaylightName);
   c16lcpy(AsU16CStr(expected.TimeZone.DaylightName),
           daylight_name_utf16.c_str(),
-          std::size(expected.TimeZone.DaylightName));
+          base::size(expected.TimeZone.DaylightName));
   memcpy(&expected.TimeZone.DaylightDate,
          &kDaylightDate,
          sizeof(expected.TimeZone.DaylightDate));
@@ -435,10 +422,11 @@ TEST(MinidumpMiscInfoWriter, TimeZoneStringsOverflow) {
 
   constexpr uint32_t kTimeZoneId = 2;
   constexpr int32_t kBias = 300;
-  [[maybe_unused]] MINIDUMP_MISC_INFO_N tmp;
-  std::string standard_name(std::size(tmp.TimeZone.StandardName) + 1, 's');
+  MINIDUMP_MISC_INFO_N tmp;
+  ALLOW_UNUSED_LOCAL(tmp);
+  std::string standard_name(base::size(tmp.TimeZone.StandardName) + 1, 's');
   constexpr int32_t kStandardBias = 0;
-  std::string daylight_name(std::size(tmp.TimeZone.DaylightName), 'd');
+  std::string daylight_name(base::size(tmp.TimeZone.DaylightName), 'd');
   constexpr int32_t kDaylightBias = -60;
 
   // Test using kSystemTimeZero, because not all platforms will be able to
@@ -466,18 +454,18 @@ TEST(MinidumpMiscInfoWriter, TimeZoneStringsOverflow) {
   expected.Flags1 = MINIDUMP_MISC3_TIMEZONE;
   expected.TimeZoneId = kTimeZoneId;
   expected.TimeZone.Bias = kBias;
-  std::u16string standard_name_utf16 = base::UTF8ToUTF16(standard_name);
+  base::string16 standard_name_utf16 = base::UTF8ToUTF16(standard_name);
   c16lcpy(AsU16CStr(expected.TimeZone.StandardName),
           standard_name_utf16.c_str(),
-          std::size(expected.TimeZone.StandardName));
+          base::size(expected.TimeZone.StandardName));
   memcpy(&expected.TimeZone.StandardDate,
          &kSystemTimeZero,
          sizeof(expected.TimeZone.StandardDate));
   expected.TimeZone.StandardBias = kStandardBias;
-  std::u16string daylight_name_utf16 = base::UTF8ToUTF16(daylight_name);
+  base::string16 daylight_name_utf16 = base::UTF8ToUTF16(daylight_name);
   c16lcpy(AsU16CStr(expected.TimeZone.DaylightName),
           daylight_name_utf16.c_str(),
-          std::size(expected.TimeZone.DaylightName));
+          base::size(expected.TimeZone.DaylightName));
   memcpy(&expected.TimeZone.DaylightDate,
          &kSystemTimeZero,
          sizeof(expected.TimeZone.DaylightDate));
@@ -505,16 +493,15 @@ TEST(MinidumpMiscInfoWriter, BuildStrings) {
 
   MINIDUMP_MISC_INFO_4 expected = {};
   expected.Flags1 = MINIDUMP_MISC4_BUILDSTRING;
-  std::u16string build_string_utf16 =
-      base::UTF8ToUTF16(Crbug1189439Cast(kBuildString));
+  base::string16 build_string_utf16 = base::UTF8ToUTF16(kBuildString);
   c16lcpy(AsU16CStr(expected.BuildString),
           build_string_utf16.c_str(),
-          std::size(expected.BuildString));
-  std::u16string debug_build_string_utf16 =
-      base::UTF8ToUTF16(Crbug1189439Cast(kDebugBuildString));
+          base::size(expected.BuildString));
+  base::string16 debug_build_string_utf16 =
+      base::UTF8ToUTF16(kDebugBuildString);
   c16lcpy(AsU16CStr(expected.DbgBldStr),
           debug_build_string_utf16.c_str(),
-          std::size(expected.DbgBldStr));
+          base::size(expected.DbgBldStr));
 
   ExpectMiscInfoEqual(&expected, observed);
 }
@@ -526,9 +513,10 @@ TEST(MinidumpMiscInfoWriter, BuildStringsOverflow) {
   MinidumpFileWriter minidump_file_writer;
   auto misc_info_writer = std::make_unique<MinidumpMiscInfoWriter>();
 
-  [[maybe_unused]] MINIDUMP_MISC_INFO_N tmp;
-  std::string build_string(std::size(tmp.BuildString) + 1, 'B');
-  std::string debug_build_string(std::size(tmp.DbgBldStr), 'D');
+  MINIDUMP_MISC_INFO_N tmp;
+  ALLOW_UNUSED_LOCAL(tmp);
+  std::string build_string(base::size(tmp.BuildString) + 1, 'B');
+  std::string debug_build_string(base::size(tmp.DbgBldStr), 'D');
 
   misc_info_writer->SetBuildString(build_string, debug_build_string);
 
@@ -542,15 +530,15 @@ TEST(MinidumpMiscInfoWriter, BuildStringsOverflow) {
 
   MINIDUMP_MISC_INFO_4 expected = {};
   expected.Flags1 = MINIDUMP_MISC4_BUILDSTRING;
-  std::u16string build_string_utf16 = base::UTF8ToUTF16(build_string);
+  base::string16 build_string_utf16 = base::UTF8ToUTF16(build_string);
   c16lcpy(AsU16CStr(expected.BuildString),
           build_string_utf16.c_str(),
-          std::size(expected.BuildString));
-  std::u16string debug_build_string_utf16 =
+          base::size(expected.BuildString));
+  base::string16 debug_build_string_utf16 =
       base::UTF8ToUTF16(debug_build_string);
   c16lcpy(AsU16CStr(expected.DbgBldStr),
           debug_build_string_utf16.c_str(),
-          std::size(expected.DbgBldStr));
+          base::size(expected.DbgBldStr));
 
   ExpectMiscInfoEqual(&expected, observed);
 }
@@ -687,34 +675,31 @@ TEST(MinidumpMiscInfoWriter, Everything) {
   expected.ProtectedProcess = kProtectedProcess;
   expected.TimeZoneId = kTimeZoneId;
   expected.TimeZone.Bias = kBias;
-  std::u16string standard_name_utf16 =
-      base::UTF8ToUTF16(Crbug1189439Cast(kStandardName));
+  base::string16 standard_name_utf16 = base::UTF8ToUTF16(kStandardName);
   c16lcpy(AsU16CStr(expected.TimeZone.StandardName),
           standard_name_utf16.c_str(),
-          std::size(expected.TimeZone.StandardName));
+          base::size(expected.TimeZone.StandardName));
   memcpy(&expected.TimeZone.StandardDate,
          &kSystemTimeZero,
          sizeof(expected.TimeZone.StandardDate));
   expected.TimeZone.StandardBias = kStandardBias;
-  std::u16string daylight_name_utf16 =
-      base::UTF8ToUTF16(Crbug1189439Cast(kDaylightName));
+  base::string16 daylight_name_utf16 = base::UTF8ToUTF16(kDaylightName);
   c16lcpy(AsU16CStr(expected.TimeZone.DaylightName),
           daylight_name_utf16.c_str(),
-          std::size(expected.TimeZone.DaylightName));
+          base::size(expected.TimeZone.DaylightName));
   memcpy(&expected.TimeZone.DaylightDate,
          &kSystemTimeZero,
          sizeof(expected.TimeZone.DaylightDate));
   expected.TimeZone.DaylightBias = kDaylightBias;
-  std::u16string build_string_utf16 =
-      base::UTF8ToUTF16(Crbug1189439Cast(kBuildString));
+  base::string16 build_string_utf16 = base::UTF8ToUTF16(kBuildString);
   c16lcpy(AsU16CStr(expected.BuildString),
           build_string_utf16.c_str(),
-          std::size(expected.BuildString));
-  std::u16string debug_build_string_utf16 =
-      base::UTF8ToUTF16(Crbug1189439Cast(kDebugBuildString));
+          base::size(expected.BuildString));
+  base::string16 debug_build_string_utf16 =
+      base::UTF8ToUTF16(kDebugBuildString);
   c16lcpy(AsU16CStr(expected.DbgBldStr),
           debug_build_string_utf16.c_str(),
-          std::size(expected.DbgBldStr));
+          base::size(expected.DbgBldStr));
 
   ExpectMiscInfoEqual(&expected, observed);
 }
@@ -731,15 +716,15 @@ TEST(MinidumpMiscInfoWriter, InitializeFromSnapshot) {
       "root:xnu-2422.115.4~1/RELEASE_X86_64 x86_64";
   static constexpr char kMachineDescription[] =
       "MacBookPro11,3 (Mac-2BD1B31983FE1663)";
-  std::u16string standard_time_name_utf16 =
-      base::UTF8ToUTF16(Crbug1189439Cast(kStandardTimeName));
-  std::u16string daylight_time_name_utf16 =
-      base::UTF8ToUTF16(Crbug1189439Cast(kDaylightTimeName));
-  std::u16string build_string_utf16 = base::UTF8ToUTF16(
+  base::string16 standard_time_name_utf16 =
+      base::UTF8ToUTF16(kStandardTimeName);
+  base::string16 daylight_time_name_utf16 =
+      base::UTF8ToUTF16(kDaylightTimeName);
+  base::string16 build_string_utf16 = base::UTF8ToUTF16(
       std::string(kOSVersionFull) + "; " + kMachineDescription);
   std::string debug_build_string = internal::MinidumpMiscInfoDebugBuildString();
   EXPECT_FALSE(debug_build_string.empty());
-  std::u16string debug_build_string_utf16 =
+  base::string16 debug_build_string_utf16 =
       base::UTF8ToUTF16(debug_build_string);
 
   expect_misc_info.SizeOfInfo = sizeof(expect_misc_info);
@@ -758,25 +743,25 @@ TEST(MinidumpMiscInfoWriter, InitializeFromSnapshot) {
   expect_misc_info.TimeZone.Bias = 300;
   c16lcpy(AsU16CStr(expect_misc_info.TimeZone.StandardName),
           standard_time_name_utf16.c_str(),
-          std::size(expect_misc_info.TimeZone.StandardName));
+          base::size(expect_misc_info.TimeZone.StandardName));
   expect_misc_info.TimeZone.StandardBias = 0;
   c16lcpy(AsU16CStr(expect_misc_info.TimeZone.DaylightName),
           daylight_time_name_utf16.c_str(),
-          std::size(expect_misc_info.TimeZone.DaylightName));
+          base::size(expect_misc_info.TimeZone.DaylightName));
   expect_misc_info.TimeZone.DaylightBias = -60;
   c16lcpy(AsU16CStr(expect_misc_info.BuildString),
           build_string_utf16.c_str(),
-          std::size(expect_misc_info.BuildString));
+          base::size(expect_misc_info.BuildString));
   c16lcpy(AsU16CStr(expect_misc_info.DbgBldStr),
           debug_build_string_utf16.c_str(),
-          std::size(expect_misc_info.DbgBldStr));
+          base::size(expect_misc_info.DbgBldStr));
 
-  const timeval kStartTime = {
-      static_cast<long>(expect_misc_info.ProcessCreateTime), 0};
-  const timeval kUserCPUTime = {
-      static_cast<long>(expect_misc_info.ProcessUserTime), 0};
-  const timeval kSystemCPUTime = {
-      static_cast<long>(expect_misc_info.ProcessKernelTime), 0};
+  const timeval kStartTime =
+      { static_cast<time_t>(expect_misc_info.ProcessCreateTime), 0 };
+  const timeval kUserCPUTime =
+      { static_cast<time_t>(expect_misc_info.ProcessUserTime), 0 };
+  const timeval kSystemCPUTime =
+      { static_cast<time_t>(expect_misc_info.ProcessKernelTime), 0 };
 
   TestProcessSnapshot process_snapshot;
   process_snapshot.SetProcessID(expect_misc_info.ProcessId);

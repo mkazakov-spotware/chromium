@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,12 @@
 namespace content {
 
 // static
-absl::optional<SignedExchangeError::Field>
+base::Optional<SignedExchangeError::Field>
 SignedExchangeError::GetFieldFromSignatureVerifierResult(
     SignedExchangeSignatureVerifier::Result verify_result) {
   switch (verify_result) {
     case SignedExchangeSignatureVerifier::Result::kSuccess:
-      return absl::nullopt;
+      return base::nullopt;
     case SignedExchangeSignatureVerifier::Result::kErrCertificateSHA256Mismatch:
       return Field::kSignatureCertSha256;
     case SignedExchangeSignatureVerifier::Result::
@@ -41,11 +41,11 @@ SignedExchangeError::GetFieldFromSignatureVerifierResult(
   }
 
   NOTREACHED();
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 SignedExchangeError::SignedExchangeError(const std::string& message,
-                                         absl::optional<FieldIndexPair> field)
+                                         base::Optional<FieldIndexPair> field)
     : message(message), field(field) {}
 
 SignedExchangeError::SignedExchangeError(const SignedExchangeError& other) =

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,9 +41,10 @@ void RemoveTestGmsBridge();
 // See comment for kDelayConsent.
 void RunConsentCallback(bool has_consent);
 
-ProfileImpl* CreateProfile(const std::string& name, bool incognito = false);
+// See Profile::Create()'s comments for the semantics of |name|.
+ProfileImpl* CreateProfile(const std::string& name);
 
-void DestroyProfile(const std::string& name, bool incognito = false);
+void DestroyProfile(const std::string& name);
 
 }  // namespace weblayer
 

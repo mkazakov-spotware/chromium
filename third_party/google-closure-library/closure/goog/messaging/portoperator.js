@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview The central node of a {@link goog.messaging.PortNetwork}. The
@@ -16,12 +24,10 @@ goog.provide('goog.messaging.PortOperator');
 
 goog.require('goog.Disposable');
 goog.require('goog.asserts');
-goog.require('goog.dispose');
 goog.require('goog.log');
 goog.require('goog.messaging.PortChannel');
 goog.require('goog.messaging.PortNetwork');  // interface
 goog.require('goog.object');
-goog.requireType('goog.messaging.MessageChannel');
 
 
 
@@ -35,7 +41,6 @@ goog.requireType('goog.messaging.MessageChannel');
  * @final
  */
 goog.messaging.PortOperator = function(name) {
-  'use strict';
   goog.messaging.PortOperator.base(this, 'constructor');
 
   /**
@@ -82,7 +87,6 @@ goog.messaging.PortOperator.prototype.logger_ =
 
 /** @override */
 goog.messaging.PortOperator.prototype.dial = function(name) {
-  'use strict';
   this.connectSelfToPort_(name);
   return this.connections_[name];
 };
@@ -99,7 +103,6 @@ goog.messaging.PortOperator.prototype.dial = function(name) {
  *     {@link MessagePort}s.
  */
 goog.messaging.PortOperator.prototype.addPort = function(name, port) {
-  'use strict';
   this.switchboard_[name] = port;
   port.registerService(
       goog.messaging.PortNetwork.REQUEST_CONNECTION_SERVICE,
@@ -120,19 +123,18 @@ goog.messaging.PortOperator.prototype.addPort = function(name, port) {
  */
 goog.messaging.PortOperator.prototype.requestConnection_ = function(
     sourceName, message) {
-  'use strict';
-  const requestedName = /** @type {string} */ (message);
+  var requestedName = /** @type {string} */ (message);
   if (requestedName == this.name_) {
     this.connectSelfToPort_(sourceName);
     return;
   }
 
-  const sourceChannel = this.switchboard_[sourceName];
-  const requestedChannel = this.switchboard_[requestedName];
+  var sourceChannel = this.switchboard_[sourceName];
+  var requestedChannel = this.switchboard_[requestedName];
 
   goog.asserts.assert(sourceChannel != null);
   if (!requestedChannel) {
-    const err = 'Port "' + sourceName + '" requested a connection to port "' +
+    var err = 'Port "' + sourceName + '" requested a connection to port "' +
         requestedName + '", which doesn\'t exist';
     goog.log.warning(this.logger_, err);
     sourceChannel.send(
@@ -141,7 +143,7 @@ goog.messaging.PortOperator.prototype.requestConnection_ = function(
     return;
   }
 
-  const messageChannel = new MessageChannel();
+  var messageChannel = new MessageChannel();
   sourceChannel.send(
       goog.messaging.PortNetwork.GRANT_CONNECTION_SERVICE,
       {'success': true, 'name': requestedName, 'port': messageChannel.port1});
@@ -161,18 +163,17 @@ goog.messaging.PortOperator.prototype.requestConnection_ = function(
  */
 goog.messaging.PortOperator.prototype.connectSelfToPort_ = function(
     contextName) {
-  'use strict';
   if (contextName in this.connections_) {
     // We've already established a connection with this port.
     return;
   }
 
-  const contextChannel = this.switchboard_[contextName];
+  var contextChannel = this.switchboard_[contextName];
   if (!contextChannel) {
     throw new Error('Port "' + contextName + '" doesn\'t exist');
   }
 
-  const messageChannel = new MessageChannel();
+  var messageChannel = new MessageChannel();
   contextChannel.send(
       goog.messaging.PortNetwork.GRANT_CONNECTION_SERVICE,
       {'success': true, 'name': this.name_, 'port': messageChannel.port1});
@@ -184,7 +185,6 @@ goog.messaging.PortOperator.prototype.connectSelfToPort_ = function(
 
 /** @override */
 goog.messaging.PortOperator.prototype.disposeInternal = function() {
-  'use strict';
   goog.object.forEach(this.switchboard_, goog.dispose);
   goog.object.forEach(this.connections_, goog.dispose);
   delete this.switchboard_;

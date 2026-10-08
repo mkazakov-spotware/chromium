@@ -1,11 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.explore_sites;
 
 import static androidx.test.espresso.Espresso.onView;
-import static androidx.test.espresso.matcher.ViewMatchers.withId;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 import android.os.SystemClock;
 
@@ -41,11 +42,9 @@ import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.util.ChromeRenderTestRule;
 import org.chromium.chrome.test.util.browser.Features;
-import org.chromium.chrome.test.util.browser.Features.DisableFeatures;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.test.util.NightModeTestUtils;
-import org.chromium.url.GURL;
 
 import java.util.ArrayList;
 
@@ -57,30 +56,26 @@ import java.util.ArrayList;
 @RunWith(ParameterizedRunner.class)
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@DisableFeatures({ChromeFeatureList.FEED_POSITION_ANDROID})
 public class ExploreSitesPageTest {
     // clang-format on
 
     ArrayList<ExploreSitesCategory> getTestingCatalog() {
-        return TestThreadUtils.runOnUiThreadBlockingNoException(() -> {
-            final ArrayList<ExploreSitesCategory> categoryList = new ArrayList<>();
-            for (int i = 0; i < 5; i++) {
-                ExploreSitesCategory category =
-                        new ExploreSitesCategory(i, i, "Category #" + Integer.toString(i),
-                                /* ntpShownCount = */ 1, /* interactionCount = */ 0);
-                // 0th category would be filtered out. Tests that row maximums are obeyed.
-                int numSites = 4 * i + 1;
-                for (int j = 0; j < numSites; j++) {
-                    ExploreSitesSite site =
-                            new ExploreSitesSite(i * 8 + j, "Site #" + Integer.toString(j),
-                                    new GURL("https://example.com/"), false);
-                    category.addSite(site);
-                }
-                categoryList.add(category);
+        final ArrayList<ExploreSitesCategory> categoryList = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            ExploreSitesCategory category =
+                    new ExploreSitesCategory(i, i, "Category #" + Integer.toString(i),
+                            /* ntpShownCount = */ 1, /* interactionCount = */ 0);
+            // 0th category would be filtered out. Tests that row maximums are obeyed.
+            int numSites = 4 * i + 1;
+            for (int j = 0; j < numSites; j++) {
+                ExploreSitesSite site = new ExploreSitesSite(
+                        i * 8 + j, "Site #" + Integer.toString(j), "https://example.com/", false);
+                category.addSite(site);
             }
+            categoryList.add(category);
+        }
 
-            return categoryList;
-        });
+        return categoryList;
     }
 
     @Rule
@@ -88,10 +83,7 @@ public class ExploreSitesPageTest {
 
     @Rule
     public ChromeRenderTestRule mRenderTestRule =
-            ChromeRenderTestRule.Builder.withPublicCorpus()
-                    .setBugComponent(
-                            ChromeRenderTestRule.Component.UI_BROWSER_NEW_TAB_PAGE_EXPLORE_SITES)
-                    .build();
+            ChromeRenderTestRule.Builder.withPublicCorpus().build();
 
     private Tab mTab;
     private RecyclerView mRecyclerView;
@@ -139,12 +131,12 @@ public class ExploreSitesPageTest {
 
     @Test
     @SmallTest
-    @DisabledTest(message = "crbug.com/953254")
+    @DisabledTest
     @Feature({"ExploreSites", "RenderTest"})
     @Features.EnableFeatures(ChromeFeatureList.EXPLORE_SITES)
     public void testScrolledLayout_withBack() throws Exception {
         final int scrollPosition = 2;
-        onView(withId(R.id.feed_stream_recycler_view))
+        onView(instanceOf(RecyclerView.class))
                 .perform(RecyclerViewActions.scrollToPosition(scrollPosition));
         mRenderTestRule.render(mRecyclerView, "recycler_layout");
         Assert.assertEquals(scrollPosition, getFirstVisiblePosition());
@@ -164,8 +156,7 @@ public class ExploreSitesPageTest {
     @Features.EnableFeatures(ChromeFeatureList.EXPLORE_SITES)
     @ParameterAnnotations.UseMethodParameter(NightModeTestUtils.NightModeParams.class)
     public void testInitialLayout(boolean nightModeEnabled) throws Exception {
-        onView(withId(R.id.explore_sites_category_recycler))
-                .perform(RecyclerViewActions.scrollToPosition(0));
+        onView(instanceOf(RecyclerView.class)).perform(RecyclerViewActions.scrollToPosition(0));
         mRenderTestRule.render(mRecyclerView, "initial_layout");
     }
 

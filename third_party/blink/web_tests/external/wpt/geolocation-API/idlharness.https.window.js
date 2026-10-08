@@ -1,14 +1,17 @@
 // META: script=/resources/WebIDLParser.js
 // META: script=/resources/idlharness.js
-// META: script=/resources/testdriver.js
-// META: script=/resources/testdriver-vendor.js
 
 // https://www.w3.org/TR/geolocation-API/
 
-window.onload = async () => {
-  idl_test(["geolocation"], ["hr-time", "html"], (idl_array) => {
+idl_test(
+  ['geolocation-API'],
+  ['html'],
+  idl_array => {
+    self.audio = document.createElement('audio');
+    self.video = document.createElement('video');
     idl_array.add_objects({
-      Geolocation: ["navigator.geolocation"],
+      Navigator: ['navigator'],
+      Geolocation: ['navigator.geolocation'],
     });
-  });
-};
+  }
+);

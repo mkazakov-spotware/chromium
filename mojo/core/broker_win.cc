@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -58,8 +58,7 @@ Channel::MessagePtr WaitForBrokerMessage(HANDLE pipe_handle,
   }
 
   Channel::MessagePtr message =
-      Channel::Message::Deserialize(buffer, static_cast<size_t>(bytes_read),
-                                    Channel::HandlePolicy::kAcceptHandles);
+      Channel::Message::Deserialize(buffer, static_cast<size_t>(bytes_read));
   if (!message || message->payload_size() < sizeof(BrokerMessageHeader)) {
     LOG(ERROR) << "Invalid broker message";
 
@@ -111,11 +110,12 @@ Broker::Broker(PlatformHandle handle, bool wait_for_channel_handle)
     const InitData* data = reinterpret_cast<const InitData*>(header + 1);
     CHECK_EQ(message->payload_size(),
              sizeof(BrokerMessageHeader) + sizeof(InitData) +
-                 data->pipe_name_length * sizeof(char16_t));
-    auto* name_data = reinterpret_cast<const wchar_t*>(data + 1);
+                 data->pipe_name_length * sizeof(base::char16));
+    const base::char16* name_data =
+        reinterpret_cast<const base::char16*>(data + 1);
     CHECK(data->pipe_name_length);
     inviter_endpoint_ = NamedPlatformChannel::ConnectToServer(
-        NamedPlatformChannel::ServerName(name_data, data->pipe_name_length));
+        base::string16(name_data, data->pipe_name_length));
   }
 }
 

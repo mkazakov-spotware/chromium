@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,8 @@
 #include "third_party/blink/renderer/core/loader/empty_clients.h"
 #include "third_party/blink/renderer/core/testing/page_test_base.h"
 #include "third_party/blink/renderer/modules/media_controls/media_controls_impl.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
 #include "third_party/blink/renderer/platform/text/platform_locale.h"
@@ -53,7 +54,11 @@ class MediaControlDisplayCutoutFullscreenButtonElementTest
       : ScopedDisplayCutoutAPIForTest(true) {}
   void SetUp() override {
     chrome_client_ = MakeGarbageCollected<MockDisplayCutoutChromeClient>();
-    SetupPageWithClients(chrome_client_,
+
+    Page::PageClients clients;
+    FillWithEmptyClients(clients);
+    clients.chrome_client = chrome_client_.Get();
+    SetupPageWithClients(&clients,
                          MakeGarbageCollected<EmptyLocalFrameClient>());
     video_ = MakeGarbageCollected<HTMLVideoElement>(GetDocument());
     GetDocument().body()->AppendChild(video_);
@@ -124,10 +129,12 @@ TEST_F(MediaControlDisplayCutoutFullscreenButtonElementTest,
 
   EXPECT_EQ(mojom::ViewportFit::kAuto, CurrentViewportFit());
 
-  display_cutout_fullscreen_button_->DispatchSimulatedClick(nullptr);
+  display_cutout_fullscreen_button_->DispatchSimulatedClick(
+      nullptr, kSendNoEvents, SimulatedClickCreationScope::kFromUserAgent);
   EXPECT_EQ(mojom::ViewportFit::kCoverForcedByUserAgent, CurrentViewportFit());
 
-  display_cutout_fullscreen_button_->DispatchSimulatedClick(nullptr);
+  display_cutout_fullscreen_button_->DispatchSimulatedClick(
+      nullptr, kSendNoEvents, SimulatedClickCreationScope::kFromUserAgent);
   EXPECT_EQ(mojom::ViewportFit::kAuto, CurrentViewportFit());
 }
 

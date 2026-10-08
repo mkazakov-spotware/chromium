@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 
 #include "base/component_export.h"
 #include "base/containers/span.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/boringssl/src/include/openssl/base.h"
 
 namespace device {
@@ -40,7 +39,7 @@ class COMPONENT_EXPORT(DEVICE_FIDO) Noise {
   void MixKey(base::span<const uint8_t> ikm);
   void MixKeyAndHash(base::span<const uint8_t> ikm);
   std::vector<uint8_t> EncryptAndHash(base::span<const uint8_t> plaintext);
-  absl::optional<std::vector<uint8_t>> DecryptAndHash(
+  base::Optional<std::vector<uint8_t>> DecryptAndHash(
       base::span<const uint8_t> ciphertext);
   std::array<uint8_t, 32> handshake_hash() const;
 

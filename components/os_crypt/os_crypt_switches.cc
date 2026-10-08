@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,11 @@
 namespace os_crypt {
 namespace switches {
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 
 const char kUseMockKeychain[] = "use-mock-keychain";
 
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // OS_APPLE
 
 }  // namespace switches
 }  // namespace os_crypt

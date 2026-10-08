@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,8 @@
 #include "base/bind.h"
 #include "base/check.h"
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/notreached.h"
-#include "base/strings/string_number_conversions.h"
-#include "base/strings/string_util.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/google/google_brand.h"
@@ -39,12 +35,13 @@
 #include "rlz/buildflags/buildflags.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "chrome/installer/util/google_update_settings.h"
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "ash/constants/ash_switches.h"
+#if defined(OS_CHROMEOS)
+#include "base/command_line.h"
+#include "chromeos/constants/chromeos_switches.h"
 #endif
 
 ChromeRLZTrackerDelegate::ChromeRLZTrackerDelegate() {}
@@ -56,20 +53,16 @@ void ChromeRLZTrackerDelegate::RegisterProfilePrefs(
     user_prefs::PrefRegistrySyncable* registry) {
 #if BUILDFLAG(ENABLE_RLZ)
   int rlz_ping_delay_seconds = 90;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          ash::switches::kRlzPingDelay)) {
+          chromeos::switches::kRlzPingDelay)) {
     // Use a switch for overwriting the default delay because it doesn't seem
     // possible to manually override the Preferences file on Chrome OS: the file
     // is already loaded into memory by the time you modify it and any changes
     // made get overwritten by Chrome.
-    int parsed_delay_from_switch = 0;
-    if (base::StringToInt(
-            base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
-                ash::switches::kRlzPingDelay),
-            &parsed_delay_from_switch)) {
-      rlz_ping_delay_seconds = parsed_delay_from_switch;
-    }
+    rlz_ping_delay_seconds =
+        std::stoi(base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+            chromeos::switches::kRlzPingDelay));
   } else {
     rlz_ping_delay_seconds = 24 * 3600;
   }
@@ -107,8 +100,10 @@ bool ChromeRLZTrackerDelegate::IsGoogleInStartpages(Profile* profile) {
       StartupBrowserCreator::GetSessionStartupPref(
           *base::CommandLine::ForCurrentProcess(), profile);
   if (session_startup_prefs.type == SessionStartupPref::URLS) {
-    is_google_in_startpages = base::Contains(session_startup_prefs.urls, true,
-                                             google_util::IsGoogleHomePageUrl);
+    is_google_in_startpages =
+        std::count_if(session_startup_prefs.urls.begin(),
+                      session_startup_prefs.urls.end(),
+                      google_util::IsGoogleHomePageUrl) > 0;
   }
   return is_google_in_startpages;
 }
@@ -145,12 +140,9 @@ bool ChromeRLZTrackerDelegate::ShouldEnableZeroDelayForTesting() {
       ::switches::kTestType);
 }
 
-bool ChromeRLZTrackerDelegate::GetLanguage(std::u16string* language) {
-#if BUILDFLAG(IS_WIN)
-  std::wstring wide_language;
-  bool result = GoogleUpdateSettings::GetLanguage(&wide_language);
-  *language = base::AsString16(wide_language);
-  return result;
+bool ChromeRLZTrackerDelegate::GetLanguage(base::string16* language) {
+#if defined(OS_WIN)
+  return GoogleUpdateSettings::GetLanguage(language);
 #else
   // On other systems, we don't know the install language of promotions. That's
   // OK, for now all promotions on non-Windows systems will be reported as "en".
@@ -160,12 +152,9 @@ bool ChromeRLZTrackerDelegate::GetLanguage(std::u16string* language) {
 #endif
 }
 
-bool ChromeRLZTrackerDelegate::GetReferral(std::u16string* referral) {
-#if BUILDFLAG(IS_WIN)
-  std::wstring wide_referral;
-  bool result = GoogleUpdateSettings::GetReferral(&wide_referral);
-  *referral = base::AsString16(wide_referral);
-  return result;
+bool ChromeRLZTrackerDelegate::GetReferral(base::string16* referral) {
+#if defined(OS_WIN)
+  return GoogleUpdateSettings::GetReferral(referral);
 #else
   // The referral program is defunct and not used. No need to implement this
   // function on non-Win platforms.
@@ -174,7 +163,7 @@ bool ChromeRLZTrackerDelegate::GetReferral(std::u16string* referral) {
 }
 
 bool ChromeRLZTrackerDelegate::ClearReferral() {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   return GoogleUpdateSettings::ClearReferral();
 #else
   // The referral program is defunct and not used. No need to implement this
@@ -188,8 +177,8 @@ void ChromeRLZTrackerDelegate::SetOmniboxSearchCallback(
   DCHECK(!callback.is_null());
   omnibox_url_opened_subscription_ =
       OmniboxEventGlobalTracker::GetInstance()->RegisterCallback(
-          base::BindRepeating(&ChromeRLZTrackerDelegate::OnURLOpenedFromOmnibox,
-                              base::Unretained(this)));
+          base::Bind(&ChromeRLZTrackerDelegate::OnURLOpenedFromOmnibox,
+                     base::Unretained(this)));
   on_omnibox_search_callback_ = std::move(callback);
 }
 
@@ -270,6 +259,6 @@ void ChromeRLZTrackerDelegate::OnURLOpenedFromOmnibox(OmniboxLog* log) {
   if (!log->is_popup_open)
     return;
 
-  omnibox_url_opened_subscription_ = {};
+  omnibox_url_opened_subscription_.reset();
   std::move(on_omnibox_search_callback_).Run();
 }

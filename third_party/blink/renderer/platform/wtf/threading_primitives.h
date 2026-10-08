@@ -31,61 +31,143 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_WTF_THREADING_PRIMITIVES_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_WTF_THREADING_PRIMITIVES_H_
 
-#include <atomic>
-
-#include "base/check_op.h"
-#include "base/gtest_prod_util.h"
-#include "base/synchronization/lock.h"
+#include "base/macros.h"
 #include "base/thread_annotations.h"
-#include "base/threading/platform_thread.h"
 #include "build/build_config.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "third_party/blink/renderer/platform/wtf/wtf_export.h"
 
-namespace blink {
-class DeferredTaskHandler;
-}
+#if defined(OS_WIN)
+#include <windows.h>
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
+#include <pthread.h>
+#endif
 
 namespace WTF {
 
-// RecursiveMutex is deprecated AND WILL BE REMOVED.
-// https://crbug.com/856641
-class LOCKABLE WTF_EXPORT RecursiveMutex {
+#if defined(OS_WIN)
+struct PlatformMutex {
+  CRITICAL_SECTION internal_mutex_;
+  size_t recursion_count_;
+};
+typedef CONDITION_VARIABLE PlatformCondition;
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
+struct PlatformMutex {
+  pthread_mutex_t internal_mutex_;
+#if DCHECK_IS_ON()
+  size_t recursion_count_;
+#endif
+};
+typedef pthread_cond_t PlatformCondition;
+#endif
+
+class WTF_EXPORT MutexBase {
+  USING_FAST_MALLOC(MutexBase);
+
  public:
-  // Overridden solely for the purpose of annotating them.
-  // The compiler is expected to optimize the calls away.
-  void lock() EXCLUSIVE_LOCK_FUNCTION();
-  void unlock() UNLOCK_FUNCTION();
-  void AssertAcquired() const ASSERT_EXCLUSIVE_LOCK() {
-    // TS_UNCHECKED_READ: Either we are the owner and then the value can be
-    // read, or we aren't, and we are guaranteed to not see our own thread ID.
-    DCHECK_EQ(TS_UNCHECKED_READ(owner_), base::PlatformThread::CurrentId());
+  ~MutexBase();
+
+  void lock();
+  void unlock();
+  void AssertAcquired() const {
+#if DCHECK_IS_ON()
+    DCHECK(mutex_.recursion_count_);
+#endif
   }
+
+ public:
+  PlatformMutex& Impl() { return mutex_; }
+
+ protected:
+  MutexBase(bool recursive);
+
+  PlatformMutex mutex_;
+
+  DISALLOW_COPY_AND_ASSIGN(MutexBase);
+};
+
+class LOCKABLE WTF_EXPORT Mutex : public MutexBase {
+ public:
+  Mutex() : MutexBase(false) {}
   bool TryLock() EXCLUSIVE_TRYLOCK_FUNCTION(true);
 
+  // Overridden solely for the purpose of annotating them.
+  // The compiler is expected to optimize the calls away.
+  void lock() EXCLUSIVE_LOCK_FUNCTION() { MutexBase::lock(); }
+  void unlock() UNLOCK_FUNCTION() { MutexBase::unlock(); }
+  void AssertAcquired() const ASSERT_EXCLUSIVE_LOCK() {
+    MutexBase::AssertAcquired();
+  }
+};
+
+// RecursiveMutex is deprecated AND WILL BE REMOVED.
+// https://crbug.com/856641
+class WTF_EXPORT RecursiveMutex : public MutexBase {
+ public:
+  RecursiveMutex() : MutexBase(true) {}
+  bool TryLock();
+};
+
+class SCOPED_LOCKABLE MutexLocker final {
+  STACK_ALLOCATED();
+
+ public:
+  MutexLocker(Mutex& mutex) EXCLUSIVE_LOCK_FUNCTION(mutex) : mutex_(mutex) {
+    mutex_.lock();
+  }
+  ~MutexLocker() UNLOCK_FUNCTION() { mutex_.unlock(); }
+
  private:
-  // Private constructor to ensure that no new users appear. This class will be
-  // removed.
-  RecursiveMutex() = default;
-  void UpdateStateAfterLockAcquired(base::PlatformThreadId thread_id)
-      EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  Mutex& mutex_;
 
-  base::Lock lock_;
-  // Atomic only used to avoid load shearing.
-  std::atomic<base::PlatformThreadId> owner_ GUARDED_BY(lock_) =
-      base::kInvalidThreadId;
-  uint64_t lock_depth_ GUARDED_BY(lock_) = 0;
+  DISALLOW_COPY_AND_ASSIGN(MutexLocker);
+};
 
-  // DO NOT ADD any new caller.
-  friend class ::blink::DeferredTaskHandler;
+class MutexTryLocker final {
+  STACK_ALLOCATED();
 
-  FRIEND_TEST_ALL_PREFIXES(RecursiveMutexTest, LockUnlock);
-  FRIEND_TEST_ALL_PREFIXES(RecursiveMutexTest, LockUnlockRecursive);
-  FRIEND_TEST_ALL_PREFIXES(RecursiveMutexTest, LockUnlockThreads);
+ public:
+  MutexTryLocker(Mutex& mutex) : mutex_(mutex), locked_(mutex.TryLock()) {}
+  ~MutexTryLocker() {
+    if (locked_)
+      mutex_.unlock();
+  }
+
+  bool Locked() const { return locked_; }
+
+ private:
+  Mutex& mutex_;
+  bool locked_;
+
+  DISALLOW_COPY_AND_ASSIGN(MutexTryLocker);
+};
+
+class WTF_EXPORT ThreadCondition final {
+  USING_FAST_MALLOC(ThreadCondition);  // Only HeapTest.cpp requires.
+
+ public:
+  explicit ThreadCondition(Mutex&);
+  ~ThreadCondition();
+
+  void Wait();
+  void Signal();
+  void Broadcast();
+
+ private:
+  PlatformCondition condition_;
+  PlatformMutex& mutex_;
+
+  DISALLOW_COPY_AND_ASSIGN(ThreadCondition);
 };
 
 }  // namespace WTF
 
+using WTF::MutexBase;
+using WTF::Mutex;
 using WTF::RecursiveMutex;
+using WTF::MutexLocker;
+using WTF::MutexTryLocker;
+using WTF::ThreadCondition;
 
 #endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_WTF_THREADING_PRIMITIVES_H_

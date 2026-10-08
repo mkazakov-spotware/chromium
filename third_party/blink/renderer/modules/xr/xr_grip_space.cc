@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,11 +14,11 @@ namespace blink {
 XRGripSpace::XRGripSpace(XRSession* session, XRInputSource* source)
     : XRSpace(session), input_source_(source) {}
 
-absl::optional<gfx::Transform> XRGripSpace::MojoFromNative() const {
+base::Optional<TransformationMatrix> XRGripSpace::MojoFromNative() {
   // Grip is only available when using tracked pointer for input.
   if (input_source_->TargetRayMode() !=
       device::mojom::XRTargetRayMode::POINTING) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   return input_source_->MojoFromInput();
@@ -28,19 +28,16 @@ bool XRGripSpace::EmulatedPosition() const {
   return input_source_->emulatedPosition();
 }
 
-device::mojom::blink::XRNativeOriginInformationPtr XRGripSpace::NativeOrigin()
-    const {
-  // Grip space's native origin is valid only when using tracked pointer for
-  // input.
+base::Optional<device::mojom::blink::XRNativeOriginInformation>
+XRGripSpace::NativeOrigin() const {
+  // Grip space's native origin is equal to input source's native origin, but
+  // only when using tracked pointer for input.
   if (input_source_->TargetRayMode() !=
       device::mojom::XRTargetRayMode::POINTING) {
-    return nullptr;
+    return base::nullopt;
   }
 
-  return device::mojom::blink::XRNativeOriginInformation::
-      NewInputSourceSpaceInfo(device::mojom::blink::XRInputSourceSpaceInfo::New(
-          input_source_->source_id(),
-          device::mojom::blink::XRInputSourceSpaceType::kGrip));
+  return input_source_->nativeOrigin();
 }
 
 bool XRGripSpace::IsStationary() const {

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -148,11 +148,15 @@ void ResourceMessageParams::AppendHandle(SerializedHandle handle) const {
 }
 
 ResourceMessageCallParams::ResourceMessageCallParams()
-    : ResourceMessageParams(), has_callback_(false) {}
+    : ResourceMessageParams(),
+      has_callback_(0) {
+}
 
 ResourceMessageCallParams::ResourceMessageCallParams(PP_Resource resource,
                                                      int32_t sequence)
-    : ResourceMessageParams(resource, sequence), has_callback_(false) {}
+    : ResourceMessageParams(resource, sequence),
+      has_callback_(0) {
+}
 
 ResourceMessageCallParams::~ResourceMessageCallParams() {
 }

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -89,8 +89,9 @@ TEST_F(SchemaRegistryTrackingPolicyProviderTest, PassOnChromePolicy) {
                             nullptr);
 
   EXPECT_CALL(observer_, OnUpdatePolicy(&schema_registry_tracking_provider_));
-  PolicyBundle delegate_bundle = bundle.Clone();
-  delegate_bundle.Get(PolicyNamespace(POLICY_DOMAIN_EXTENSIONS, "xyz"))
+  std::unique_ptr<PolicyBundle> delegate_bundle(new PolicyBundle);
+  delegate_bundle->CopyFrom(bundle);
+  delegate_bundle->Get(PolicyNamespace(POLICY_DOMAIN_EXTENSIONS, "xyz"))
       .Set("foo", POLICY_LEVEL_MANDATORY, POLICY_SCOPE_USER,
            POLICY_SOURCE_CLOUD, base::Value("not visible"), nullptr);
   mock_provider_.UpdatePolicy(std::move(delegate_bundle));
@@ -120,10 +121,10 @@ TEST_F(SchemaRegistryTrackingPolicyProviderTest, SchemaReadyWithComponents) {
   PolicyMap policy_map;
   policy_map.Set("foo", POLICY_LEVEL_MANDATORY, POLICY_SCOPE_USER,
                  POLICY_SOURCE_CLOUD, base::Value("omg"), nullptr);
-  PolicyBundle bundle;
-  bundle.Get(PolicyNamespace(POLICY_DOMAIN_CHROME, "")) = policy_map.Clone();
-  bundle.Get(PolicyNamespace(POLICY_DOMAIN_EXTENSIONS, "xyz")) =
-      policy_map.Clone();
+  std::unique_ptr<PolicyBundle> bundle(new PolicyBundle);
+  bundle->Get(PolicyNamespace(POLICY_DOMAIN_CHROME, "")).CopyFrom(policy_map);
+  bundle->Get(PolicyNamespace(POLICY_DOMAIN_EXTENSIONS, "xyz"))
+      .CopyFrom(policy_map);
   EXPECT_CALL(observer_, OnUpdatePolicy(&schema_registry_tracking_provider_));
   mock_provider_.UpdatePolicy(std::move(bundle));
   Mock::VerifyAndClearExpectations(&observer_);
@@ -141,8 +142,8 @@ TEST_F(SchemaRegistryTrackingPolicyProviderTest, SchemaReadyWithComponents) {
   EXPECT_FALSE(schema_registry_tracking_provider_.IsInitializationComplete(
       policy::POLICY_DOMAIN_EXTENSIONS));
   PolicyBundle expected_bundle;
-  expected_bundle.Get(PolicyNamespace(POLICY_DOMAIN_CHROME, "")) =
-      policy_map.Clone();
+  expected_bundle.Get(PolicyNamespace(POLICY_DOMAIN_CHROME, ""))
+      .CopyFrom(policy_map);
   EXPECT_TRUE(
       schema_registry_tracking_provider_.policies().Equals(expected_bundle));
 
@@ -152,8 +153,8 @@ TEST_F(SchemaRegistryTrackingPolicyProviderTest, SchemaReadyWithComponents) {
 
   EXPECT_TRUE(schema_registry_tracking_provider_.IsInitializationComplete(
       policy::POLICY_DOMAIN_EXTENSIONS));
-  expected_bundle.Get(PolicyNamespace(POLICY_DOMAIN_EXTENSIONS, "xyz")) =
-      policy_map.Clone();
+  expected_bundle.Get(PolicyNamespace(POLICY_DOMAIN_EXTENSIONS, "xyz"))
+      .CopyFrom(policy_map);
   EXPECT_TRUE(
       schema_registry_tracking_provider_.policies().Equals(expected_bundle));
 }
@@ -206,7 +207,8 @@ TEST_F(SchemaRegistryTrackingPolicyProviderTest, RemoveAndAddComponent) {
   PolicyBundle platform_policy;
   platform_policy.Get(ns).Set("foo", POLICY_LEVEL_MANDATORY, POLICY_SCOPE_USER,
                               POLICY_SOURCE_CLOUD, base::Value("omg"), nullptr);
-  PolicyBundle copy = platform_policy.Clone();
+  std::unique_ptr<PolicyBundle> copy(new PolicyBundle);
+  copy->CopyFrom(platform_policy);
   EXPECT_CALL(observer_, OnUpdatePolicy(_));
   mock_provider_.UpdatePolicy(std::move(copy));
   Mock::VerifyAndClearExpectations(&observer_);
@@ -227,7 +229,8 @@ TEST_F(SchemaRegistryTrackingPolicyProviderTest, RemoveAndAddComponent) {
   Mock::VerifyAndClearExpectations(&mock_provider_);
 
   EXPECT_CALL(observer_, OnUpdatePolicy(_));
-  copy = platform_policy.Clone();
+  copy.reset(new PolicyBundle);
+  copy->CopyFrom(platform_policy);
   mock_provider_.UpdatePolicy(std::move(copy));
   Mock::VerifyAndClearExpectations(&observer_);
   EXPECT_TRUE(

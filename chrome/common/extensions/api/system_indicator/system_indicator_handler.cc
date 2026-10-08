@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,13 +20,11 @@ namespace {
 
 struct SystemIndicatorInfo : public Extension::ManifestData {
   SystemIndicatorInfo();
-
-  SystemIndicatorInfo(const SystemIndicatorInfo&) = delete;
-  SystemIndicatorInfo& operator=(const SystemIndicatorInfo&) = delete;
-
   ~SystemIndicatorInfo() override;
 
   ExtensionIconSet icon_set;
+
+  DISALLOW_COPY_AND_ASSIGN(SystemIndicatorInfo);
 };
 
 SystemIndicatorInfo::SystemIndicatorInfo() {}
@@ -48,11 +46,11 @@ const ExtensionIconSet* SystemIndicatorHandler::GetSystemIndicatorIcon(
 }
 
 bool SystemIndicatorHandler::Parse(Extension* extension,
-                                   std::u16string* error) {
+                                   base::string16* error) {
   const base::DictionaryValue* system_indicator_value = nullptr;
   if (!extension->manifest()->GetDictionary(
           manifest_keys::kSystemIndicator, &system_indicator_value)) {
-    *error = manifest_errors::kInvalidSystemIndicator;
+    *error = base::ASCIIToUTF16(manifest_errors::kInvalidSystemIndicator);
     return false;
   }
 
@@ -87,7 +85,7 @@ bool SystemIndicatorHandler::Parse(Extension* extension,
   if (icon_value->is_string()) {
     std::string default_icon = icon_value->GetString();
     if (!manifest_handler_helpers::NormalizeAndValidatePath(&default_icon)) {
-      *error = manifest_errors::kInvalidActionDefaultIcon;
+      *error = base::ASCIIToUTF16(manifest_errors::kInvalidActionDefaultIcon);
       return false;
     }
     // Choose the most optimistic (highest) icon density regardless of the
@@ -98,7 +96,7 @@ bool SystemIndicatorHandler::Parse(Extension* extension,
     return true;
   }
 
-  *error = manifest_errors::kInvalidActionDefaultIcon;
+  *error = base::ASCIIToUTF16(manifest_errors::kInvalidActionDefaultIcon);
   return false;
 }
 

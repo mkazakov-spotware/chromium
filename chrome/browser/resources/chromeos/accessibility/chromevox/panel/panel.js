@@ -1,59 +1,69 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
  * @fileoverview The ChromeVox panel and menus.
  */
-import {constants} from '../../common/constants.js';
-import {EventGenerator} from '../../common/event_generator.js';
-import {KeyCode} from '../../common/key_code.js';
-import {LocalStorage} from '../../common/local_storage.js';
-import {BackgroundBridge} from '../common/background_bridge.js';
-import {BrailleCommandData} from '../common/braille/braille_command_data.js';
-import {BridgeConstants} from '../common/bridge_constants.js';
-import {BridgeHelper} from '../common/bridge_helper.js';
-import {Command, CommandCategory, CommandStore} from '../common/command_store.js';
-import {EventSourceType} from '../common/event_source_type.js';
-import {GestureCommandData} from '../common/gesture_command_data.js';
-import {KeyMap} from '../common/key_map.js';
-import {KeyUtil} from '../common/key_util.js';
-import {LocaleOutputHelper} from '../common/locale_output_helper.js';
-import {Msgs} from '../common/msgs.js';
-import {PanelCommand, PanelCommandType} from '../common/panel_command.js';
-import {ALL_PANEL_MENU_NODE_DATA, PanelNodeMenuData, PanelNodeMenuId, PanelNodeMenuItemData} from '../common/panel_menu_data.js';
-import {QueueMode} from '../common/tts_types.js';
 
-import {ISearchUI} from './i_search_ui.js';
-import {PanelInterface} from './panel_interface.js';
-import {PanelMenu, PanelNodeMenu, PanelSearchMenu} from './panel_menu.js';
-import {PanelMode, PanelModeInfo} from './panel_mode.js';
+goog.provide('Panel');
+
+goog.require('AbstractEarcons');
+goog.require('AnnotationsUI');
+goog.require('BackgroundKeyboardHandler');
+goog.require('BrailleCommandData');
+goog.require('ChromeVoxKbHandler');
+goog.require('ChromeVoxState');
+goog.require('CommandStore');
+goog.require('EventGenerator');
+goog.require('EventSourceType');
+goog.require('GestureCommandData');
+goog.require('ISearchUI');
+goog.require('KeyCode');
+goog.require('LocaleOutputHelper');
+goog.require('Msgs');
+goog.require('PanelCommand');
+goog.require('PanelMenu');
+goog.require('PanelMenuItem');
+goog.require('QueueMode');
+goog.require('UserAnnotationHandler');
 
 /**
  * Class to manage the panel.
  */
-export class Panel extends PanelInterface {
-  /** @override */
-  setPendingCallback(callback) {
-    /** @private {?function() : !Promise} */
+Panel = class {
+  constructor() {}
+
+  /**
+   * A callback function to be executed to perform the action from selecting
+   * a menu item after the menu has been closed and focus has been restored
+   * to the page or wherever it was previously.
+   * @param {?Function} callback
+   */
+  static setPendingCallback(callback) {
+    /** @type {?Function} @private */
     Panel.pendingCallback_ = callback;
   }
 
   /**
    * Initialize the panel.
    */
-  static async init() {
+  static init() {
     /** @type {string} */
     Panel.sessionState = '';
 
-    await LocalStorage.init();
-
-    const updateSessionState = sessionState => {
+    const updateSessionState = (sessionState) => {
       Panel.sessionState = sessionState;
       $('options').disabled = sessionState !== 'IN_SESSION';
     };
     chrome.loginState.getSessionState(updateSessionState);
     chrome.loginState.onSessionStateChanged.addListener(updateSessionState);
+
+    // Called directly for initialization. In the background page context,
+    // |Background| subclasses |ChromeVoxState| (who's constructor is called as
+    // part of |Background| construction).
+    new ChromeVoxState();
+    UserAnnotationHandler.init();
     LocaleOutputHelper.init();
 
     /** @type {Element} @private */
@@ -68,8 +78,14 @@ export class Panel extends PanelInterface {
     /** @type {Element} @private */
     Panel.searchContainer_ = $('search-container');
 
-    /** @type {!Element} @private */
-    Panel.searchInput_ = /** @type {!Element} */ ($('search'));
+    /** @type {Element} @private */
+    Panel.searchInput_ = $('search');
+
+    /** @type {Element} @private */
+    Panel.annotationsContainer_ = $('annotations-container');
+
+    /** @type {Element} @private */
+    Panel.annotationsInput_ = $('annotations');
 
     /** @type {Element} @private */
     Panel.brailleTableElement_ = $('braille-table');
@@ -87,8 +103,8 @@ export class Panel extends PanelInterface {
       chrome.extension.getBackgroundPage()['ChromeVox'].braille.panRight();
     }, false);
 
-    /** @type {PanelMode} @private */
-    Panel.mode_ = PanelMode.COLLAPSED;
+    /** @type {Panel.Mode} @private */
+    Panel.mode_ = Panel.Mode.COLLAPSED;
 
     /**
      * The array of top-level menus.
@@ -104,11 +120,21 @@ export class Panel extends PanelInterface {
      */
     Panel.activeMenu_ = null;
 
-    /** @private {Object} */
-    Panel.tutorial = null;
+    /**
+     * @type {Object}
+     * @private
+     */
+    Panel.iTutorial = {
+      // Closure needs this to know about the showNextLesson function.
+      // Otherwise, Closure fires an error whenever calling showNextLesson().
+      showNextLesson: () => {
+        throw new Error(
+            'iTutorial should be assigned to the <i-tutorial> ' +
+            'element before calling showNextLesson()');
+      }
+    };
 
-    PanelInterface.instance = new Panel();
-    PanelInterface.instance.setPendingCallback(null);
+    Panel.setPendingCallback(null);
     Panel.updateFromPrefs();
 
     Msgs.addTranslatedMessagesToDom(document);
@@ -127,6 +153,9 @@ export class Panel extends PanelInterface {
     $('menus_button').addEventListener('mousedown', Panel.onOpenMenus, false);
     $('options').addEventListener('click', Panel.onOptions, false);
     $('close').addEventListener('click', Panel.onClose, false);
+    $('discard-annotation')
+        .addEventListener('click', Panel.closeMenusAndRestoreFocus, false);
+    $('save-annotation').addEventListener('click', Panel.saveAnnotation, false);
 
     document.addEventListener('keydown', Panel.onKeyDown, false);
     document.addEventListener('mouseup', Panel.onMouseUp, false);
@@ -135,41 +164,33 @@ export class Panel extends PanelInterface {
         return;
       }
 
-      PanelInterface.instance.closeMenusAndRestoreFocus();
+      Panel.closeMenusAndRestoreFocus();
     }, false);
 
     /** @type {Window} */
     Panel.ownerWindow = window;
 
     /** @private {boolean} */
-    Panel.tutorialReadyForTesting_ = false;
-
-    /** @private {boolean} */
-    Panel.mockTouchGestureSourceForTesting_ = false;
-  }
-
-  /**
-   * Enables touch gesture mode for testing.
-   */
-  static setTouchGestureSourceForTesting() {
-    Panel.mockTouchGestureSourceForTesting_ = true;
-  }
-
-  /**
-   * Adds BackgroundBridge to the global object so that tests can mock it.
-   */
-  static exportBackgroundBridgeForTesting() {
-    window.BackgroundBridge = BackgroundBridge;
+    Panel.iTutorialReadyForTesting_ = false;
   }
 
   /**
    * Update the display based on prefs.
    */
   static updateFromPrefs() {
-    if (Panel.mode_ === PanelMode.SEARCH) {
+    if (Panel.mode_ === Panel.Mode.SEARCH) {
       Panel.speechContainer_.hidden = true;
       Panel.brailleContainer_.hidden = true;
+      Panel.annotationsContainer_.hidden = true;
       Panel.searchContainer_.hidden = false;
+      return;
+    }
+
+    if (Panel.mode_ === Panel.Mode.ANNOTATION) {
+      Panel.speechContainer_.hidden = true;
+      Panel.brailleContainer_.hidden = true;
+      Panel.searchContainer_.hidden = true;
+      Panel.annotationsContainer_.hidden = false;
       return;
     }
 
@@ -177,7 +198,7 @@ export class Panel extends PanelInterface {
     Panel.brailleContainer_.hidden = false;
     Panel.searchContainer_.hidden = true;
 
-    if (LocalStorage.get('brailleCaptions')) {
+    if (localStorage['brailleCaptions'] === String(true)) {
       Panel.speechContainer_.style.visibility = 'hidden';
       Panel.brailleContainer_.style.visibility = 'visible';
     } else {
@@ -239,10 +260,15 @@ export class Panel extends PanelInterface {
       case PanelCommandType.TUTORIAL:
         Panel.onTutorial();
         break;
+      case PanelCommandType.UPDATE_NOTES:
+        break;
+      case PanelCommandType.OPEN_ANNOTATIONS_UI:
+        if (typeof command.data === 'string') {
+          Panel.openAnnotationsUI(command.data);
+        }
+        break;
       case PanelCommandType.CLOSE_CHROMEVOX:
         Panel.onClose();
-      case PanelCommandType.ENABLE_TEST_HOOKS:
-        window.Panel = Panel;
         break;
     }
   }
@@ -250,47 +276,40 @@ export class Panel extends PanelInterface {
   /**
    * Sets the mode, which determines the size of the panel and what objects
    *     are shown or hidden.
-   * @param {PanelMode} mode The new mode.
+   * @param {Panel.Mode} mode The new mode.
    */
   static setMode(mode) {
     if (Panel.mode_ === mode) {
       return;
     }
 
-    // Change the title of ChromeVox menu based on menu's state.
-    $('menus_title')
-        .setAttribute(
-            'msgid',
-            mode === PanelMode.FULLSCREEN_MENUS ? 'menus_collapse_title' :
-                                                  'menus_title');
-    Msgs.addTranslatedMessagesToDom(document);
-
     Panel.mode_ = mode;
 
-    document.title = Msgs.getMsg(PanelModeInfo[Panel.mode_].title);
+    document.title = Msgs.getMsg(Panel.ModeInfo[Panel.mode_].title);
 
     // Fully qualify the path here because this function might be called with a
     // window object belonging to the background page.
     Panel.ownerWindow.location =
         chrome.extension.getURL('chromevox/panel/panel.html') +
-        PanelModeInfo[Panel.mode_].location;
+        Panel.ModeInfo[Panel.mode_].location;
 
-    $('main').hidden = (Panel.mode_ === PanelMode.FULLSCREEN_TUTORIAL);
-    $('menus_background').hidden = (Panel.mode_ !== PanelMode.FULLSCREEN_MENUS);
+    $('main').hidden = (Panel.mode_ === Panel.Mode.FULLSCREEN_TUTORIAL);
+    $('menus_background').hidden =
+        (Panel.mode_ !== Panel.Mode.FULLSCREEN_MENUS);
     // Interactive tutorial elements may not have been loaded yet.
-    const iTutorialContainer = $('chromevox-tutorial-container');
+    const iTutorialContainer = $('i-tutorial-container');
     if (iTutorialContainer) {
       iTutorialContainer.hidden =
-          (Panel.mode_ !== PanelMode.FULLSCREEN_TUTORIAL);
+          (Panel.mode_ !== Panel.Mode.FULLSCREEN_TUTORIAL);
     }
 
     Panel.updateFromPrefs();
 
     // Change the orientation of the triangle next to the menus button to
     // indicate whether the menu is open or closed.
-    if (mode === PanelMode.FULLSCREEN_MENUS) {
+    if (mode === Panel.Mode.FULLSCREEN_MENUS) {
       $('triangle').style.transform = 'rotate(180deg)';
-    } else if (mode === PanelMode.COLLAPSED) {
+    } else if (mode === Panel.Mode.COLLAPSED) {
       $('triangle').style.transform = '';
     }
   }
@@ -300,10 +319,10 @@ export class Panel extends PanelInterface {
    * @param {Event=} opt_event An optional event that triggered this.
    * @param {*=} opt_activateMenuTitle Title msg id of menu to open.
    */
-  static async onOpenMenus(opt_event, opt_activateMenuTitle) {
+  static onOpenMenus(opt_event, opt_activateMenuTitle) {
     // If the menu was already open, close it now and exit early.
-    if (Panel.mode_ !== PanelMode.COLLAPSED) {
-      Panel.setMode(PanelMode.COLLAPSED);
+    if (Panel.mode_ !== Panel.Mode.COLLAPSED) {
+      Panel.setMode(Panel.Mode.COLLAPSED);
       return;
     }
 
@@ -314,42 +333,27 @@ export class Panel extends PanelInterface {
       opt_event.preventDefault();
     }
 
-    await BackgroundBridge.PanelBackground.saveCurrentNode();
-    Panel.setMode(PanelMode.FULLSCREEN_MENUS);
+    Panel.setMode(Panel.Mode.FULLSCREEN_MENUS);
 
-    const onFocusDo = async () => {
+    const onFocusDo = () => {
       window.removeEventListener('focus', onFocusDo);
       // Clear any existing menus and clear the callback.
       Panel.clearMenus();
       Panel.pendingCallback_ = null;
 
-      const eventSourceState = await BackgroundBridge.EventSourceState.get();
-      const touchScreen =
-          (eventSourceState === EventSourceType.TOUCH_GESTURE ||
-           this.mockTouchGestureSourceForTesting_);
-
       // Build the top-level menus.
       const searchMenu = Panel.addSearchMenu('panel_search_menu');
       const jumpMenu = Panel.addMenu('panel_menu_jump');
       const speechMenu = Panel.addMenu('panel_menu_speech');
-      const touchMenu =
-          touchScreen ? Panel.addMenu('panel_menu_touchgestures') : null;
       const tabsMenu = Panel.addMenu('panel_menu_tabs');
       const chromevoxMenu = Panel.addMenu('panel_menu_chromevox');
       const actionsMenu = Panel.addMenu('panel_menu_actions');
 
       // Add a menu item that opens the full list of ChromeBook keyboard
       // shortcuts. We want this to be at the top of the ChromeVox menu.
-      let localizedSlash = await new Promise(
-          resolve =>
-              chrome.accessibilityPrivate.getLocalizedDomKeyStringForKeyCode(
-                  KeyCode.OEM_2, resolve));
-      if (!localizedSlash) {
-        localizedSlash = '/';
-      }
       chromevoxMenu.addMenuItem(
-          Msgs.getMsg('open_keyboard_shortcuts_menu'),
-          `Ctrl+Alt+${localizedSlash}`, '', '', async function() {
+          Msgs.getMsg('open_keyboard_shortcuts_menu'), 'Ctrl+Alt+/', '', '',
+          function() {
             EventGenerator.sendKeyPress(
                 KeyCode.OEM_2 /* forward slash */, {'ctrl': true, 'alt': true});
           });
@@ -357,39 +361,40 @@ export class Panel extends PanelInterface {
       // Create a mapping between categories from CommandStore, and our
       // top-level menus. Some categories aren't mapped to any menu.
       const categoryToMenu = {
-        [CommandCategory.NAVIGATION]: jumpMenu,
-        [CommandCategory.JUMP_COMMANDS]: jumpMenu,
-        [CommandCategory.OVERVIEW]: jumpMenu,
-        [CommandCategory.TABLES]: jumpMenu,
-        [CommandCategory.CONTROLLING_SPEECH]: speechMenu,
-        [CommandCategory.INFORMATION]: speechMenu,
-        [CommandCategory.MODIFIER_KEYS]: chromevoxMenu,
-        [CommandCategory.HELP_COMMANDS]: chromevoxMenu,
-        [CommandCategory.ACTIONS]: actionsMenu,
+        'navigation': jumpMenu,
+        'jump_commands': jumpMenu,
+        'overview': jumpMenu,
+        'tables': jumpMenu,
+        'controlling_speech': speechMenu,
+        'information': speechMenu,
+        'modifier_keys': chromevoxMenu,
+        'help_commands': chromevoxMenu,
+        'actions': actionsMenu,
 
-        [CommandCategory.BRAILLE]: null,
-        [CommandCategory.DEVELOPER]: null,
+        'braille': null,
+        'developer': null
       };
 
       // TODO(accessibility): Commands should be based off of CommandStore and
       // not the keymap. There are commands that don't have a key binding (e.g.
       // commands for touch).
 
-      // Get the key map.
-      const keymap = KeyMap.get();
+      // Get the key map from the background page.
+      const bkgnd = chrome.extension.getBackgroundPage();
+      const keymap = bkgnd['KeyMap']['fromCurrentKeyMap']();
 
       // Make a copy of the key bindings, get the localized title of each
       // command, and then sort them.
       const sortedBindings = keymap.bindings().slice();
-      for (let binding, i = 0; binding = sortedBindings[i]; i++) {
+      sortedBindings.forEach(goog.bind(function(binding) {
         const command = binding.command;
         const keySeq = binding.sequence;
-        binding.keySeq = await KeyUtil.keySequenceToString(keySeq, true);
+        binding.keySeq = KeyUtil.keySequenceToString(keySeq, true);
         const titleMsgId = CommandStore.messageForCommand(command);
         if (!titleMsgId) {
           console.error('No localization for: ' + command);
           binding.title = '';
-          continue;
+          return;
         }
         let title = Msgs.getMsg(titleMsgId);
         // Convert to title case.
@@ -397,29 +402,28 @@ export class Panel extends PanelInterface {
           return word.charAt(0).toUpperCase() + word.substr(1);
         });
         binding.title = title;
-      }
+      }, this));
       sortedBindings.sort(function(binding1, binding2) {
         return binding1.title.localeCompare(binding2.title);
       });
 
       // Insert items from the bindings into the menus.
       const sawBindingSet = {};
-      const bindingMap = new Map();
       const gestures = Object.keys(GestureCommandData.GESTURE_COMMAND_MAP);
-      sortedBindings.forEach(binding => {
+      sortedBindings.forEach(goog.bind(function(binding) {
         const command = binding.command;
-        bindingMap.set(binding.command, binding);
         if (sawBindingSet[command]) {
           return;
         }
         sawBindingSet[command] = true;
         const category = CommandStore.categoryForCommand(binding.command);
         const menu = category ? categoryToMenu[category] : null;
+        const eventSource = bkgnd['EventSourceState']['get']();
         if (binding.title && menu) {
           let keyText;
           let brailleText;
           let gestureText;
-          if (touchScreen) {
+          if (eventSource === EventSourceType.TOUCH_GESTURE) {
             for (let i = 0, gesture; gesture = gestures[i]; i++) {
               const data = GestureCommandData.GESTURE_COMMAND_MAP[gesture];
               if (data && data.command === command) {
@@ -434,52 +438,36 @@ export class Panel extends PanelInterface {
           }
 
           menu.addMenuItem(
-              binding.title, keyText, brailleText, gestureText,
-              () => BackgroundBridge.CommandHandler.onCommand(binding.command),
-              binding.command);
+              binding.title, keyText, brailleText, gestureText, function() {
+                const CommandHandler =
+                    chrome.extension.getBackgroundPage()['CommandHandler'];
+                CommandHandler['onCommand'](binding.command);
+              }, binding.command);
         }
-      });
-
-      // Add Touch Gestures menu items.
-      if (touchScreen) {
-        const touchGestureItems = [];
-        for (const key in GestureCommandData.GESTURE_COMMAND_MAP) {
-          const command =
-              GestureCommandData.GESTURE_COMMAND_MAP[key]['command'];
-          if (!command) {
-            continue;
-          }
-
-          const gestureText =
-              Msgs.getMsg(GestureCommandData.GESTURE_COMMAND_MAP[key]['msgId']);
-          const msgForCmd =
-              GestureCommandData
-                  .GESTURE_COMMAND_MAP[key]['commandDescriptionMsgId'] ||
-              CommandStore.messageForCommand(command);
-          const titleText = Msgs.getMsg(msgForCmd);
-          touchGestureItems.push({titleText, gestureText, command});
-        }
-
-        touchGestureItems.sort(function(item1, item2) {
-          return item1.titleText.localeCompare(item2.titleText);
-        });
-
-        for (const item of touchGestureItems) {
-          touchMenu.addMenuItem(
-              item.titleText, '', '', item.gestureText,
-              () => BackgroundBridge.CommandHandler.onCommand(item.command),
-              item.command);
-        }
-      }
+      }, this));
 
       // Add all open tabs to the Tabs menu.
-      const data = await BackgroundBridge.PanelBackground.getTabMenuData();
-      for (const menuInfo of data) {
-        tabsMenu.addMenuItem(menuInfo.title, '', '', '', async function() {
-          BackgroundBridge.PanelBackground.focusTab(
-              menuInfo.windowId, menuInfo.tabId);
+      bkgnd.chrome.windows.getLastFocused(function(lastFocusedWindow) {
+        bkgnd.chrome.windows.getAll({'populate': true}, function(windows) {
+          for (let i = 0; i < windows.length; i++) {
+            const tabs = windows[i].tabs;
+            for (let j = 0; j < tabs.length; j++) {
+              let title = tabs[j].title;
+              if (tabs[j].active && windows[i].id === lastFocusedWindow.id) {
+                title += ' ' + Msgs.getMsg('active_tab');
+              }
+              tabsMenu.addMenuItem(
+                  title, '', '', '', (function(win, tab) {
+                                       bkgnd.chrome.windows.update(
+                                           win.id, {focused: true}, function() {
+                                             bkgnd.chrome.tabs.update(
+                                                 tab.id, {active: true});
+                                           });
+                                     }).bind(this, windows[i], tabs[j]));
+            }
+          }
         });
-      }
+      });
 
       if (Panel.sessionState !== 'IN_SESSION') {
         tabsMenu.disable();
@@ -488,8 +476,7 @@ export class Panel extends PanelInterface {
           const menu = Panel.menus_[i];
           for (let j = 0; j < menu.items.length; ++j) {
             const item = menu.items[j];
-            if (CommandStore.denySignedOut(
-                    /** @type {!Command} */ (item.element.id))) {
+            if (CommandStore.denyOOBE(item.element.id)) {
               item.disable();
             }
           }
@@ -498,41 +485,55 @@ export class Panel extends PanelInterface {
 
       // Add a menu item that disables / closes ChromeVox.
       chromevoxMenu.addMenuItem(
-          Msgs.getMsg('disable_chromevox'), 'Ctrl+Alt+Z', '', '',
-          async function() {
+          Msgs.getMsg('disable_chromevox'), 'Ctrl+Alt+Z', '', '', function() {
             Panel.onClose();
           });
 
-      for (const menuData of ALL_PANEL_MENU_NODE_DATA) {
-        Panel.addNodeMenu(menuData);
-      }
-      await BackgroundBridge.PanelBackground.createAllNodeMenuBackgrounds(
-          opt_activateMenuTitle);
+      const roleListMenuMapping = [
+        {menuTitle: 'role_heading', predicate: AutomationPredicate.heading},
+        {menuTitle: 'role_landmark', predicate: AutomationPredicate.landmark},
+        {menuTitle: 'role_link', predicate: AutomationPredicate.link}, {
+          menuTitle: 'panel_menu_form_controls',
+          predicate: AutomationPredicate.formField
+        },
+        {menuTitle: 'role_table', predicate: AutomationPredicate.table}
+      ];
 
-      const actions =
-          await BackgroundBridge.PanelBackground.getActionsForCurrentNode();
-      for (const standardAction of actions.standardActions) {
-        const actionMsg = Panel.ACTION_TO_MSG_ID[standardAction];
-        if (!actionMsg) {
-          continue;
+      const range = bkgnd.ChromeVoxState.instance.getCurrentRange();
+      const node = range ? range.start.node : null;
+      for (let i = 0; i < roleListMenuMapping.length; ++i) {
+        const menuTitle = roleListMenuMapping[i].menuTitle;
+        const predicate = roleListMenuMapping[i].predicate;
+        // Create node menus asynchronously (because it may require
+        // searching a long document) unless that's the specific menu the
+        // user requested.
+        const async = (menuTitle !== opt_activateMenuTitle);
+        Panel.addNodeMenu(menuTitle, node, predicate, async);
+      }
+
+      if (node && node.standardActions) {
+        for (let i = 0; i < node.standardActions.length; i++) {
+          const standardAction = node.standardActions[i];
+          const actionMsg = Panel.ACTION_TO_MSG_ID[standardAction];
+          if (!actionMsg) {
+            continue;
+          }
+          const actionDesc = Msgs.getMsg(actionMsg);
+          actionsMenu.addMenuItem(
+              actionDesc, '' /* menuItemShortcut */, '' /* menuItemBraille */,
+              '' /* gesture */,
+              node.performStandardAction.bind(node, standardAction));
         }
-        const commandName = CommandStore.commandForMessage(actionMsg);
-        const command = bindingMap.get(commandName);
-        const shortcutName = command ? command.keySeq : '';
-        const actionDesc = Msgs.getMsg(actionMsg);
-        actionsMenu.addMenuItem(
-            actionDesc, shortcutName, '' /* menuItemBraille */,
-            '' /* gesture */,
-            () => BackgroundBridge.PanelBackground
-                      .performStandardActionOnCurrentNode(standardAction));
       }
 
-      for (const customAction of actions.customActions) {
-        actionsMenu.addMenuItem(
-            customAction.description, '' /* menuItemShortcut */,
-            '' /* menuItemBraille */, '' /* gesture */,
-            () => BackgroundBridge.PanelBackground
-                      .performCustomActionOnCurrentNode(customAction.id));
+      if (node && node.customActions) {
+        for (let i = 0; i < node.customActions.length; i++) {
+          const customAction = node.customActions[i];
+          actionsMenu.addMenuItem(
+              customAction.description, '' /* menuItemShortcut */,
+              '' /* menuItemBraille */, '' /* gesture */,
+              node.performCustomAction.bind(node, customAction.id));
+        }
       }
 
       // Activate either the specified menu or the search menu.
@@ -559,12 +560,12 @@ export class Panel extends PanelInterface {
   }
 
   /** Open incremental search. */
-  static async onSearch() {
-    Panel.setMode(PanelMode.SEARCH);
+  static onSearch() {
+    Panel.setMode(Panel.Mode.SEARCH);
     Panel.clearMenus();
     Panel.pendingCallback_ = null;
     Panel.updateFromPrefs();
-    await ISearchUI.init(Panel.searchInput_);
+    ISearchUI.init(Panel.searchInput_);
   }
 
   /**
@@ -609,15 +610,17 @@ export class Panel extends PanelInterface {
     const groups = data.groups;
     const cols = data.cols;
     const rows = data.rows;
-    const sideBySide = LocalStorage.get('brailleSideBySide');
+    const sideBySide = localStorage['brailleSideBySide'] === 'true';
 
     const addBorders = function(event) {
       const cell = event.target;
       if (cell.tagName === 'TD') {
         cell.className = 'highlighted-cell';
         const companionIDs = cell.getAttribute('data-companionIDs');
-        companionIDs.split(' ').forEach(
-            companionID => $(companionID).className = 'highlighted-cell');
+        companionIDs.split(' ').map(function(companionID) {
+          const companion = $(companionID);
+          companion.className = 'highlighted-cell';
+        });
       }
     };
 
@@ -626,8 +629,10 @@ export class Panel extends PanelInterface {
       if (cell.tagName === 'TD') {
         cell.className = 'unhighlighted-cell';
         const companionIDs = cell.getAttribute('data-companionIDs');
-        companionIDs.split(' ').forEach(
-            companionID => $(companionID).className = 'unhighlighted-cell');
+        companionIDs.split(' ').map(function(companionID) {
+          const companion = $(companionID);
+          companion.className = 'unhighlighted-cell';
+        });
       }
     };
 
@@ -660,8 +665,7 @@ export class Panel extends PanelInterface {
       Panel.brailleTableElement2_.deleteRow(0);
     }
 
-    let row1;
-    let row2;
+    let row1, row2;
     // Number of rows already written.
     rowCount = 0;
     // Number of cells already written in this row.
@@ -743,24 +747,23 @@ export class Panel extends PanelInterface {
 
   /**
    * Create a new node menu with the given name and add it to the menu bar.
-   * @param {!PanelNodeMenuData} menuData The title/predicate for the new menu.
+   * @param {string} menuMsg The msg id of the new menu to add.
+   * @param {!chrome.automation.AutomationNode} node
+   * @param {AutomationPredicate.Unary} pred
+   * @param {boolean} defer If true, defers populating the menu.
+   * @return {PanelMenu} The menu just created.
    */
-  static addNodeMenu(menuData) {
-    const menu = new PanelNodeMenu(menuData.titleId);
+  static addNodeMenu(menuMsg, node, pred, defer) {
+    const menu = new PanelNodeMenu(menuMsg, node, pred, defer);
     $('menu-bar').appendChild(menu.menuBarItemElement);
-    menu.menuBarItemElement.addEventListener('mouseover', () => {
+    menu.menuBarItemElement.addEventListener('mouseover', function() {
       Panel.activateMenu(menu, true /* activateFirstItem */);
-    });
+    }, false);
     menu.menuBarItemElement.addEventListener(
-        'mouseup', event => Panel.onMouseUpOnMenuTitle_(menu, event));
+        'mouseup', Panel.onMouseUpOnMenuTitle_.bind(this, menu), false);
     $('menus_background').appendChild(menu.menuContainerElement);
     Panel.menus_.push(menu);
-    Panel.nodeMenuDictionary_[menuData.menuId] = menu;
-  }
-
-  /** @param {!PanelNodeMenuItemData} itemData */
-  static addNodeMenuItem(itemData) {
-    Panel.nodeMenuDictionary_[itemData.menuId].addItemFromData(itemData);
+    return menu;
   }
 
   /**
@@ -918,14 +921,14 @@ export class Panel extends PanelInterface {
     if (target && Panel.activeMenu_) {
       Panel.pendingCallback_ = Panel.activeMenu_.getCallbackForElement(target);
     }
-    PanelInterface.instance.closeMenusAndRestoreFocus();
+    Panel.closeMenusAndRestoreFocus();
   }
 
   /**
    * Activate a menu whose title has been clicked. Stop event propagation at
    * this point so we don't close the ChromeVox menus and restore focus.
    * @param {PanelMenu} menu The menu we would like to activate.
-   * @param {Event} mouseUpEvent The mouseup event.
+   * @parm {Event} mouseUpEvent The mouseup event.
    * @private
    */
   static onMouseUpOnMenuTitle_(menu, mouseUpEvent) {
@@ -941,8 +944,8 @@ export class Panel extends PanelInterface {
    */
   static onKeyDown(event) {
     if (event.key === 'Escape' &&
-        Panel.mode_ === PanelMode.FULLSCREEN_TUTORIAL) {
-      Panel.setMode(PanelMode.COLLAPSED);
+        Panel.mode_ === Panel.Mode.FULLSCREEN_TUTORIAL) {
+      Panel.setMode(Panel.Mode.COLLAPSED);
       return;
     }
 
@@ -990,7 +993,7 @@ export class Panel extends PanelInterface {
         Panel.advanceItemBy(1);
         break;
       case 'Escape':
-        PanelInterface.instance.closeMenusAndRestoreFocus();
+        Panel.closeMenusAndRestoreFocus();
         break;
       case 'PageUp':
         Panel.advanceItemBy(10);
@@ -1007,7 +1010,7 @@ export class Panel extends PanelInterface {
       case 'Enter':
       case ' ':
         Panel.pendingCallback_ = Panel.getCallbackForCurrentItem();
-        PanelInterface.instance.closeMenusAndRestoreFocus();
+        Panel.closeMenusAndRestoreFocus();
         break;
       default:
         // Don't mark this event as handled.
@@ -1022,8 +1025,10 @@ export class Panel extends PanelInterface {
    * Open the ChromeVox Options.
    */
   static onOptions() {
-    chrome.runtime.openOptionsPage();
-    Panel.setMode(PanelMode.COLLAPSED);
+    const bkgnd =
+        chrome.extension.getBackgroundPage()['ChromeVoxState']['instance'];
+    bkgnd['showOptionsPage']();
+    Panel.setMode(Panel.Mode.COLLAPSED);
   }
 
   /**
@@ -1047,93 +1052,112 @@ export class Panel extends PanelInterface {
     return null;
   }
 
-  /** @override */
-  async closeMenusAndRestoreFocus() {
-    const pendingCallback = Panel.pendingCallback_;
-    Panel.pendingCallback_ = null;
-
-    // Prepare the watcher before close the panel so that the watcher won't miss
-    // panel collapse signal.
-    await BackgroundBridge.PanelBackground.setPanelCollapseWatcher;
-
-    // Make sure all menus are cleared to avoid bogus output when we re-open.
-    Panel.clearMenus();
-
-    // Make sure we're not in full-screen mode.
-    Panel.setMode(PanelMode.COLLAPSED);
-
-    Panel.activeMenu_ = null;
-
-    await BackgroundBridge.PanelBackground.waitForPanelCollapse();
-
-    if (pendingCallback) {
-      await pendingCallback();
-    }
-    BackgroundBridge.PanelBackground.clearSavedNode();
-  }
-
-  /** Open the tutorial. */
-  static onTutorial() {
-    chrome.chromeosInfoPrivate.isTabletModeEnabled(enabled => {
-      // Use tablet mode to decide the medium for the tutorial.
-      const medium = enabled ? constants.InteractionMedium.TOUCH :
-                               constants.InteractionMedium.KEYBOARD;
-      if (!$('chromevox-tutorial')) {
-        let curriculum = null;
-        if (Panel.sessionState ===
-            chrome.loginState.SessionState.IN_OOBE_SCREEN) {
-          // We currently support two mediums: keyboard and touch, which is why
-          // we can decide the curriculum using a ternary statement.
-          curriculum = medium === constants.InteractionMedium.KEYBOARD ?
-              'quick_orientation' :
-              'touch_orientation';
+  /**
+   * Close the menus and restore focus to the page. If a menu item's callback
+   * was queued, execute it once focus is restored.
+   */
+  static closeMenusAndRestoreFocus() {
+    const bkgnd = chrome.extension.getBackgroundPage();
+    bkgnd.chrome.automation.getDesktop(function(desktop) {
+      // Watch for a blur on the panel.
+      const pendingCallback = Panel.pendingCallback_;
+      Panel.pendingCallback_ = null;
+      const onFocus = function(evt) {
+        if (evt.target.docUrl === location.href) {
+          return;
         }
-        Panel.createITutorial(curriculum, medium);
-      }
 
-      Panel.setMode(PanelMode.FULLSCREEN_TUTORIAL);
-      if (Panel.tutorial && Panel.tutorial.show) {
-        Panel.tutorial.medium = medium;
-        Panel.tutorial.show();
-      }
+        desktop.removeEventListener(
+            chrome.automation.EventType.FOCUS, onFocus, true);
+
+        // Clears focus on the page by focusing the root explicitly. This makes
+        // sure we don't get future focus events as a result of giving this
+        // entire page focus and that would have interfered with with our
+        // desired range.
+        if (evt.target.root) {
+          evt.target.root.focus();
+        }
+
+        setTimeout(function() {
+          if (pendingCallback) {
+            pendingCallback();
+          }
+        }, 0);
+      };
+
+      desktop.addEventListener(
+          chrome.automation.EventType.FOCUS, onFocus, true);
+
+      // Make sure all menus are cleared to avoid bogus output when we re-open.
+      Panel.clearMenus();
+
+      // Ensure annotations input is cleared.
+      Panel.annotationsInput_.value = '';
+
+      // Make sure we're not in full-screen mode.
+      Panel.setMode(Panel.Mode.COLLAPSED);
+
+      Panel.activeMenu_ = null;
     });
   }
 
   /**
-   * Creates a <chromevox-tutorial> element and adds it to the dom.
-   * @param {(string|null)} curriculum
-   * @param {constants.InteractionMedium} medium
+   * Open the tutorial.
+   * @param {string=} opt_page Show a specific page.
    */
-  static createITutorial(curriculum, medium) {
+  static onTutorial(opt_page) {
+    if (!$('i-tutorial')) {
+      const curriculum =
+          Panel.sessionState === chrome.loginState.SessionState.IN_OOBE_SCREEN ?
+          'quick_orientation' :
+          null;
+      Panel.createITutorial(curriculum);
+    }
+
+    Panel.setMode(Panel.Mode.FULLSCREEN_TUTORIAL);
+    if (Panel.iTutorial.show) {
+      Panel.iTutorial.show();
+    }
+  }
+
+  /**
+   * Creates an <i-tutorial> element and adds it to the dom.
+   * @param {(string|null)} curriculum
+   */
+  static createITutorial(curriculum) {
     const tutorialScript = document.createElement('script');
-    tutorialScript.src =
-        '../../common/tutorial/components/chromevox_tutorial.js';
+    tutorialScript.src = '../i_tutorial/components/i_tutorial.js';
     tutorialScript.setAttribute('type', 'module');
+    const lessonScript = document.createElement('script');
+    lessonScript.src = '../i_tutorial/components/tutorial_lesson.js';
+    lessonScript.setAttribute('type', 'module');
     document.body.appendChild(tutorialScript);
+    document.body.appendChild(lessonScript);
 
     // Create tutorial container and element.
     const tutorialContainer = document.createElement('div');
-    tutorialContainer.setAttribute('id', 'chromevox-tutorial-container');
+    tutorialContainer.setAttribute('id', 'i-tutorial-container');
     tutorialContainer.hidden = true;
-    const tutorialElement = document.createElement('chromevox-tutorial');
-    tutorialElement.setAttribute('id', 'chromevox-tutorial');
+    const tutorialElement = document.createElement('i-tutorial');
+    tutorialElement.setAttribute('id', 'i-tutorial');
     if (curriculum) {
       tutorialElement.curriculum = curriculum;
     }
-    tutorialElement.medium = medium;
     tutorialContainer.appendChild(tutorialElement);
     document.body.appendChild(tutorialContainer);
-    Panel.tutorial = tutorialElement;
+    Panel.iTutorial = tutorialElement;
 
     // Add listeners. These are custom events fired from custom components.
     const backgroundPage = chrome.extension.getBackgroundPage();
+    const chromeVoxState = backgroundPage['ChromeVoxState'];
+    const chromeVoxStateInstance = chromeVoxState['instance'];
 
-    $('chromevox-tutorial').addEventListener('closetutorial', async evt => {
+    $('i-tutorial').addEventListener('closetutorial', (evt) => {
       // Ensure UserActionMonitor is destroyed before closing tutorial.
-      await BackgroundBridge.UserActionMonitor.destroy();
+      chromeVoxStateInstance.destroyUserActionMonitor();
       Panel.onCloseTutorial();
     });
-    $('chromevox-tutorial').addEventListener('requestspeech', evt => {
+    $('i-tutorial').addEventListener('requestspeech', (evt) => {
       /**
        * @type {{
        * text: string,
@@ -1152,47 +1176,44 @@ export class Panel extends PanelInterface {
       const cvox = backgroundPage['ChromeVox'];
       cvox.tts.speak(text, queueMode, properties);
     });
-    $('chromevox-tutorial')
-        .addEventListener('startinteractivemode', async evt => {
-          const actions = evt.detail.actions;
-          await BackgroundBridge.UserActionMonitor.create(actions);
-          await BackgroundBridge.UserActionMonitor.destroy();
-          if (Panel.tutorial && Panel.tutorial.showNextLesson) {
-            Panel.tutorial.showNextLesson();
-          }
-        });
-    $('chromevox-tutorial')
-        .addEventListener('stopinteractivemode', async evt => {
-          await BackgroundBridge.UserActionMonitor.destroy();
-        });
-    $('chromevox-tutorial').addEventListener('requestfullydescribe', evt => {
-      BackgroundBridge.CommandHandler.onCommand(Command.FULLY_DESCRIBE);
+    $('i-tutorial').addEventListener('startinteractivemode', (evt) => {
+      const actions = evt.detail.actions;
+      chromeVoxStateInstance.createUserActionMonitor(actions, () => {
+        chromeVoxStateInstance.destroyUserActionMonitor();
+        Panel.iTutorial.showNextLesson();
+      });
     });
-    $('chromevox-tutorial').addEventListener('requestearcon', evt => {
-      evt = /** @type {{detail: {earconId: string}}} */ (evt);
+    $('i-tutorial').addEventListener('stopinteractivemode', (evt) => {
+      chromeVoxStateInstance.destroyUserActionMonitor();
+    });
+    $('i-tutorial').addEventListener('requestfullydescribe', (evt) => {
+      const commandHandler = backgroundPage['CommandHandler'];
+      commandHandler.onCommand('fullyDescribe');
+    });
+    $('i-tutorial').addEventListener('requestearcon', (evt) => {
       const earconId = evt.detail.earconId;
       backgroundPage['ChromeVox']['earcons']['playEarcon'](earconId);
     });
-    $('chromevox-tutorial').addEventListener('cancelearcon', evt => {
-      evt = /** @type {{detail: {earconId: string}}} */ (evt);
-      const earconId = evt.detail.earconId;
-      backgroundPage['ChromeVox']['earcons']['cancelEarcon'](earconId);
+    $('i-tutorial').addEventListener('readyfortesting', () => {
+      Panel.iTutorialReadyForTesting_ = true;
     });
-    $('chromevox-tutorial').addEventListener('readyfortesting', () => {
-      Panel.tutorialReadyForTesting_ = true;
-    });
-    $('chromevox-tutorial').addEventListener('openUrl', async evt => {
+    $('i-tutorial').addEventListener('openUrl', (evt) => {
       const url = evt.detail.url;
       // Ensure UserActionMonitor is destroyed before closing tutorial.
-      await BackgroundBridge.UserActionMonitor.destroy();
+      chromeVoxStateInstance.destroyUserActionMonitor();
       Panel.onCloseTutorial();
       chrome.tabs.create({url});
     });
+
+    Panel.observer_ = new Panel.PanelStateObserver();
+    chromeVoxState.addObserver(Panel.observer_);
   }
 
-  /** Close the tutorial. */
+  /**
+   * Close the tutorial.
+   */
   static onCloseTutorial() {
-    Panel.setMode(PanelMode.COLLAPSED);
+    Panel.setMode(Panel.Mode.COLLAPSED);
   }
 
   /**
@@ -1242,15 +1263,63 @@ export class Panel extends PanelInterface {
     Panel.searchMenu.activateItem(0);
   }
 
-  static onCurrentRangeChanged() {
-    if (Panel.mode_ === PanelMode.FULLSCREEN_TUTORIAL) {
-      if (Panel.tutorial && Panel.tutorial.restartNudges &&
-          !Panel.disableRestartTutorialNudgesForTesting) {
-        Panel.tutorial.restartNudges();
+  /**
+   * Initializes the annotations UI.
+   * @param {!string} identifier
+   */
+  static openAnnotationsUI(identifier) {
+    Panel.setMode(Panel.Mode.ANNOTATION);
+    Panel.annotationsInput_.value = '';
+    AnnotationsUI.init(Panel.annotationsInput_, identifier);
+  }
+
+  /**
+   * Creates a new annotation using the contents of |annotationsInput|.
+   */
+  static saveAnnotation() {
+    AnnotationsUI.saveAnnotation(Panel.annotationsInput_.value);
+  }
+};
+
+/**
+ * An observer that reacts to ChromeVox range changes.
+ * @implements {ChromeVoxStateObserver}
+ */
+Panel.PanelStateObserver = class {
+  constructor() {}
+
+  onCurrentRangeChanged(range) {
+    if (Panel.mode_ === Panel.Mode.FULLSCREEN_TUTORIAL) {
+      if (Panel.iTutorial && Panel.iTutorial.restartNudges) {
+        Panel.iTutorial.restartNudges();
       }
     }
   }
-}
+};
+
+/**
+ * @enum {string}
+ */
+Panel.Mode = {
+  ANNOTATION: 'annotation',
+  COLLAPSED: 'collapsed',
+  FOCUSED: 'focused',
+  FULLSCREEN_MENUS: 'menus',
+  FULLSCREEN_TUTORIAL: 'tutorial',
+  SEARCH: 'search',
+};
+
+/**
+ * @type {!Object<string, {title: string, location: (string|undefined)}>}
+ */
+Panel.ModeInfo = {
+  annotation: {title: 'panel_title', location: '#focus'},
+  collapsed: {title: 'panel_title', location: '#'},
+  focused: {title: 'panel_title', location: '#focus'},
+  menus: {title: 'panel_menus_title', location: '#fullscreen'},
+  tutorial: {title: 'panel_tutorial_title', location: '#fullscreen'},
+  search: {title: 'panel_title', location: '#focus'},
+};
 
 Panel.ACTION_TO_MSG_ID = {
   decrement: 'action_decrement_description',
@@ -1258,22 +1327,22 @@ Panel.ACTION_TO_MSG_ID = {
   increment: 'action_increment_description',
   scrollBackward: 'action_scroll_backward_description',
   scrollForward: 'action_scroll_forward_description',
-  showContextMenu: 'show_context_menu',
-  longClick: 'force_long_click_on_current_item',
+  showContextMenu: 'show_context_menu'
 };
 
 
-/** @private {string} */
+/**
+ * @private {string}
+ */
 Panel.lastMenu_ = '';
 
-/** @private {!Object<!PanelNodeMenuId, !PanelNodeMenu>} */
-Panel.nodeMenuDictionary_ = {};
+/**
+ * @private {ChromeVoxStateObserver}
+ */
+Panel.observer_ = null;
 
-/** @public {boolean} */
-Panel.disableRestartTutorialNudgesForTesting = false;
-
-window.addEventListener('load', async function() {
-  await Panel.init();
+window.addEventListener('load', function() {
+  Panel.init();
 
   switch (location.search.slice(1)) {
     case 'tutorial':
@@ -1281,36 +1350,18 @@ window.addEventListener('load', async function() {
   }
 }, false);
 
-window.addEventListener('hashchange', async function() {
+window.addEventListener('hashchange', function() {
   const bkgnd = chrome.extension.getBackgroundPage();
 
   // Save the sticky state when a user first focuses the panel.
   if (location.hash === '#fullscreen' || location.hash === '#focus') {
-    Panel.originalStickyState_ =
-        await BackgroundBridge.ChromeVoxPrefs.getStickyPref();
+    Panel.originalStickyState_ = bkgnd['ChromeVox']['isStickyPrefOn'];
   }
 
   // If the original sticky state was on when we first entered the panel, toggle
   // it in in every case. (fullscreen/focus turns the state off, collapse
   // turns it back on).
   if (Panel.originalStickyState_) {
-    BackgroundBridge.CommandHandler.onCommand(Command.TOGGLE_STICKY_MODE);
+    bkgnd['CommandHandler']['onCommand']('toggleStickyMode');
   }
 }, false);
-
-/**
- * Shortcut for document.getElementById.
- * @param {string} id of the element.
- * @return {Element} with the id.
- */
-function $(id) {
-  return document.getElementById(id);
-}
-
-BridgeHelper.registerHandler(
-    BridgeConstants.Panel.TARGET, BridgeConstants.Panel.Action.ADD_MENU_ITEM,
-    itemData => Panel.addNodeMenuItem(itemData));
-BridgeHelper.registerHandler(
-    BridgeConstants.Panel.TARGET,
-    BridgeConstants.Panel.Action.ON_CURRENT_RANGE_CHANGED,
-    () => Panel.onCurrentRangeChanged());

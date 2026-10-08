@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,7 +8,6 @@ import hashlib
 import os
 import re
 import shlex
-import sys
 import xml.dom.minidom as minidom
 
 from util import build_utils
@@ -63,7 +62,6 @@ def ParseManifest(path):
     manifest_node = doc.getroot()
   else:
     manifest_node = doc.find('manifest')
-  assert manifest_node is not None, 'Manifest is none for path ' + path
 
   app_node = doc.find('application')
   if app_node is None:
@@ -92,7 +90,7 @@ def AssertUsesSdk(manifest_node,
   is not None and the value of attribute exist. If |fail_if_not_exist| is true
   will fail if passed value is not None but attribute does not exist.
   """
-  uses_sdk_node = _FindUsesSdkNode(manifest_node)
+  uses_sdk_node = manifest_node.find('./uses-sdk')
   if uses_sdk_node is None:
     return
   for prefix, sdk_version in (('min', min_sdk_version), ('target',
@@ -110,20 +108,6 @@ def AssertUsesSdk(manifest_node,
         (prefix, value, sdk_version))
 
 
-def SetTargetApiIfUnset(manifest_node, target_sdk_version):
-  uses_sdk_node = _FindUsesSdkNode(manifest_node)
-  if uses_sdk_node is None:
-    # Right now it seems like only some random test-only manifests don't have
-    # any uses-sdk. If we start seeing some libraries which need their target
-    # api to be set, but don't have a uses-sdk node, we may have to insert the
-    # node here.
-    return
-  target_sdk_attribute_name = '{%s}targetSdkVersion' % ANDROID_NAMESPACE
-  curr_target_sdk_version = uses_sdk_node.get(target_sdk_attribute_name)
-  if curr_target_sdk_version is None:
-    uses_sdk_node.set(target_sdk_attribute_name, target_sdk_version)
-
-
 def AssertPackage(manifest_node, package):
   """Asserts that manifest package has desired value.
 
@@ -131,8 +115,7 @@ def AssertPackage(manifest_node, package):
   manifest.
   """
   package_value = GetPackage(manifest_node)
-  if package_value is None or package is None or (
-      package_value == 'no.manifest.configured'):
+  if package_value is None or package is None:
     return
   assert package_value == package, (
       'Package in Android manifest is %s but we expect %s' % (package_value,
@@ -140,37 +123,38 @@ def AssertPackage(manifest_node, package):
 
 
 def _SortAndStripElementTree(root):
-  # Sort alphabetically with two exceptions:
-  # 1) Put <application> node last (since it's giant).
-  # 2) Put android:name before other attributes.
-  def element_sort_key(node):
-    if node.tag == 'application':
-      return 'z'
+  def sort_key(node):
     ret = ElementTree.tostring(node)
     # ElementTree.tostring inserts namespace attributes for any that are needed
     # for the node or any of its descendants. Remove them so as to prevent a
     # change to a child that adds/removes a namespace usage from changing sort
     # order.
-    return re.sub(r' xmlns:.*?".*?"', '', ret.decode('utf8'))
-
-  name_attr = '{%s}name' % ANDROID_NAMESPACE
-
-  def attribute_sort_key(tup):
-    return ('', '') if tup[0] == name_attr else tup
+    return re.sub(r' xmlns:.*?".*?"', '', ret)
 
   def helper(node):
     for child in node:
       if child.text and child.text.isspace():
         child.text = None
       helper(child)
+    node[:] = sorted(node, key=sort_key)
 
-    # Sort attributes (requires Python 3.8+).
-    node.attrib = dict(sorted(node.attrib.items(), key=attribute_sort_key))
+  def rename_attrs(node, from_name, to_name):
+    value = node.attrib.get(from_name)
+    if value is not None:
+      node.attrib[to_name] = value
+      del node.attrib[from_name]
+    for child in node:
+      rename_attrs(child, from_name, to_name)
 
-    # Sort nodes
-    node[:] = sorted(node, key=element_sort_key)
-
+  # Sort alphabetically with two exceptions:
+  # 1) Put <application> node last (since it's giant).
+  # 2) Pretend android:name appears before other attributes.
+  app_node = root.find('application')
+  app_node.tag = 'zz'
+  rename_attrs(root, '{%s}name' % ANDROID_NAMESPACE, '__name__')
   helper(root)
+  rename_attrs(root, '__name__', '{%s}name' % ANDROID_NAMESPACE)
+  app_node.tag = 'application'
 
 
 def _SplitElement(line):
@@ -195,10 +179,6 @@ def _SplitElement(line):
   return start_tag, [restore_quotes(x) for x in attrs], end_tag
 
 
-def _FindUsesSdkNode(manifest_node):
-  return manifest_node.find('./uses-sdk')
-
-
 def _CreateNodeHash(lines):
   """Computes a hash (md5) for the first XML node found in |lines|.
 
@@ -215,7 +195,7 @@ def _CreateNodeHash(lines):
     if cur_indent != -1 and cur_indent <= target_indent:
       tag_lines = lines[:i + 1]
       break
-    if not tag_closed and 'android:name="' in l:
+    elif not tag_closed and 'android:name="' in l:
       # To reduce noise of node tags changing, use android:name as the
       # basis the hash since they usually unique.
       tag_lines = [l]
@@ -225,7 +205,7 @@ def _CreateNodeHash(lines):
     assert False, 'Did not find end of node:\n' + '\n'.join(lines)
 
   # Insecure and truncated hash as it only needs to be unique vs. its neighbors.
-  return hashlib.md5(('\n'.join(tag_lines)).encode('utf8')).hexdigest()[:8]
+  return hashlib.md5('\n'.join(tag_lines)).hexdigest()[:8]
 
 
 def _IsSelfClosing(lines):
@@ -234,7 +214,7 @@ def _IsSelfClosing(lines):
     idx = l.find('>')
     if idx != -1:
       return l[idx - 1] == '/'
-  raise RuntimeError('Did not find end of tag:\n%s' % '\n'.join(lines))
+  assert False, 'Did not find end of tag:\n' + '\n'.join(lines)
 
 
 def _AddDiffTags(lines):
@@ -277,19 +257,12 @@ def NormalizeManifest(manifest_contents):
   root = ElementTree.fromstring(manifest_contents)
   package = GetPackage(root)
 
+  # Trichrome's static library version number is updated daily. To avoid
+  # frequent manifest check failures, we remove the exact version number
+  # during normalization.
   app_node = root.find('application')
   if app_node is not None:
-    # android:debuggable is added when !is_official_build. Strip it out to avoid
-    # expectation diffs caused by not adding is_official_build. Play store
-    # blocks uploading apps with it set, so there's no risk of it slipping in.
-    debuggable_name = '{%s}debuggable' % ANDROID_NAMESPACE
-    if debuggable_name in app_node.attrib:
-      del app_node.attrib[debuggable_name]
-
-    # Trichrome's static library version number is updated daily. To avoid
-    # frequent manifest check failures, we remove the exact version number
-    # during normalization.
-    for node in app_node:
+    for node in app_node.getchildren():
       if (node.tag in ['uses-static-library', 'static-library']
           and '{%s}version' % ANDROID_NAMESPACE in node.keys()
           and '{%s}name' % ANDROID_NAMESPACE in node.keys()):
@@ -301,14 +274,14 @@ def NormalizeManifest(manifest_contents):
     for key in node.keys():
       node.set(key, node.get(key).replace(package, '$PACKAGE'))
 
-    for child in node:
+    for child in node.getchildren():
       blur_package_name(child)
 
   # We only blur the package names of non-root nodes because they generate a lot
   # of diffs when doing manifest checks for upstream targets. We still want to
   # have 1 piece of package name not blurred just in case the package name is
   # mistakenly changed.
-  for child in root:
+  for child in root.getchildren():
     blur_package_name(child)
 
   _SortAndStripElementTree(root)

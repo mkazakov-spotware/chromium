@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 
 #include <windows.h>
 
-#include "base/files/file_path.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/win/registry.h"
 #include "chrome/browser/profiles/profile.h"
@@ -22,13 +21,13 @@ namespace platform_state_store {
 namespace {
 
 // Returns the path to the registry key holding profile-specific state values.
-std::wstring GetStateStoreKeyName() {
+base::string16 GetStateStoreKeyName() {
   return install_static::GetRegistryPath().append(L"\\IncidentsSent");
 }
 
 // Returns the name of the registry value for |profile|'s state.
-std::wstring GetValueNameForProfile(Profile* profile) {
-  return profile->GetBaseName().value();
+base::string16 GetValueNameForProfile(Profile* profile) {
+  return profile->GetPath().BaseName().value();
 }
 
 // Clears |profile|'s state.
@@ -38,7 +37,7 @@ PlatformStateStoreLoadResult ClearStoreData(Profile* profile) {
   if (key.Open(HKEY_CURRENT_USER, GetStateStoreKeyName().c_str(),
                KEY_QUERY_VALUE | KEY_SET_VALUE | KEY_WOW64_32KEY) ==
       ERROR_SUCCESS) {
-    std::wstring value_name(GetValueNameForProfile(profile));
+    base::string16 value_name(GetValueNameForProfile(profile));
     if (key.HasValue(value_name.c_str())) {
       if (key.DeleteValue(value_name.c_str()) == ERROR_SUCCESS)
         return PlatformStateStoreLoadResult::CLEARED_DATA;
@@ -58,7 +57,7 @@ PlatformStateStoreLoadResult ReadStoreData(Profile* profile,
     return ClearStoreData(profile);
   }
 
-  std::wstring value_name(GetValueNameForProfile(profile));
+  base::string16 value_name(GetValueNameForProfile(profile));
   base::win::RegKey key;
   if (key.Open(HKEY_CURRENT_USER, GetStateStoreKeyName().c_str(),
                KEY_QUERY_VALUE | KEY_WOW64_32KEY) == ERROR_SUCCESS) {

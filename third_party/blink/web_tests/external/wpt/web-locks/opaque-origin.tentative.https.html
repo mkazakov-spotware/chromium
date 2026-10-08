@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <meta charset=utf-8>
 <title>Web Locks API: Opaque origins</title>
-<link rel=help href="https://w3c.github.io/web-locks/">
+<link rel=help href="https://wicg.github.io/web-locks/">
 <script src="/resources/testharness.js"></script>
 <script src="/resources/testharnessreport.js"></script>
 <script>
@@ -32,19 +32,9 @@ function wait_for_message(iframe) {
 const script = `
 <script>
   "use strict";
-  window.onmessage = async (ev) => {
+  window.onmessage = async () => {
     try {
-      switch (ev.data) {
-        case "request":
-          await navigator.locks.request('name', lock => {});
-          break;
-        case "query":
-          await navigator.locks.query();
-          break;
-        default:
-          window.parent.postMessage({result: "unexpected message"}, "*");
-          return;
-      }
+      await navigator.locks.request('name', lock => {});
       window.parent.postMessage({result: "no exception"}, "*");
     } catch (ex) {
       window.parent.postMessage({result: ex.name}, "*");
@@ -55,7 +45,7 @@ const script = `
 
 promise_test(async t => {
   const iframe = await load_iframe(script);
-  iframe.contentWindow.postMessage("request", '*');
+  iframe.contentWindow.postMessage({}, '*');
   const message = await wait_for_message(iframe);
   assert_equals(message.result, 'no exception',
                 'navigator.locks.request() should not throw');
@@ -63,25 +53,9 @@ promise_test(async t => {
 
 promise_test(async t => {
   const iframe = await load_iframe(script, 'allow-scripts');
-  iframe.contentWindow.postMessage("request", '*');
+  iframe.contentWindow.postMessage({}, '*');
   const message = await wait_for_message(iframe);
   assert_equals(message.result, 'SecurityError',
                 'Exception should be SecurityError');
 }, 'navigator.locks.request() in sandboxed iframe should throw SecurityError');
-
-promise_test(async t => {
-  const iframe = await load_iframe(script);
-  iframe.contentWindow.postMessage("query", '*');
-  const message = await wait_for_message(iframe);
-  assert_equals(message.result, 'no exception',
-                'navigator.locks.request() should not throw');
-}, 'navigator.locks.query() in non-sandboxed iframe should not throw');
-
-promise_test(async t => {
-  const iframe = await load_iframe(script, 'allow-scripts');
-  iframe.contentWindow.postMessage("query", '*');
-  const message = await wait_for_message(iframe);
-  assert_equals(message.result, 'SecurityError',
-                'Exception should be SecurityError');
-}, 'navigator.locks.query() in sandboxed iframe should throw SecurityError');
 </script>

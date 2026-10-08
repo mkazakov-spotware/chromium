@@ -159,14 +159,14 @@ class ArgsList {
   // Returns success status: true if parsing successful, false otherwise.
   bool ReadFromFlagfile(const std::string& flag_file_name);
 
-  size_t Size() const { return args_.size() - next_arg_; }
-  size_t FrontIndex() const { return next_arg_; }
+  int Size() const { return args_.size() - next_arg_; }
+  int FrontIndex() const { return next_arg_; }
   absl::string_view Front() const { return args_[next_arg_]; }
   void PopFront() { next_arg_++; }
 
  private:
   std::vector<std::string> args_;
-  size_t next_arg_;
+  int next_arg_;
 };
 
 bool ArgsList::ReadFromFlagfile(const std::string& flag_file_name) {
@@ -626,7 +626,7 @@ std::vector<char*> ParseCommandLineImpl(int argc, char* argv[],
 
   std::vector<char*> output_args;
   std::vector<char*> positional_args;
-  output_args.reserve(static_cast<size_t>(argc));
+  output_args.reserve(argc);
 
   // This is the list of undefined flags. The element of the list is the pair
   // consisting of boolean indicating if flag came from command line (vs from
@@ -713,11 +713,6 @@ std::vector<char*> ParseCommandLineImpl(int argc, char* argv[],
     std::tie(flag, is_negative) = LocateFlag(flag_name);
 
     if (flag == nullptr) {
-      // Usage flags are not modeled as Abseil flags. Locate them separately.
-      if (flags_internal::DeduceUsageFlags(flag_name, value)) {
-        continue;
-      }
-
       if (on_undef_flag != OnUndefinedFlag::kIgnoreUndefined) {
         undefined_flag_names.emplace_back(arg_from_argv,
                                           std::string(flag_name));
@@ -795,8 +790,8 @@ std::vector<char*> ParseCommandLineImpl(int argc, char* argv[],
 
   // All the remaining arguments are positional.
   if (!input_args.empty()) {
-    for (size_t arg_index = input_args.back().FrontIndex();
-         arg_index < static_cast<size_t>(argc); ++arg_index) {
+    for (int arg_index = input_args.back().FrontIndex(); arg_index < argc;
+         ++arg_index) {
       output_args.push_back(argv[arg_index]);
     }
   }

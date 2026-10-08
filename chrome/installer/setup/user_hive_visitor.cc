@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 #include "base/files/file_util.h"
 #include "base/logging.h"
 #include "base/rand_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/win/registry.h"
@@ -29,10 +30,6 @@ namespace {
 class ScopedUserHive {
  public:
   explicit ScopedUserHive(const base::FilePath& hive_file);
-
-  ScopedUserHive(const ScopedUserHive&) = delete;
-  ScopedUserHive& operator=(const ScopedUserHive&) = delete;
-
   ~ScopedUserHive();
 
   // Returns true if the hive file was loaded.
@@ -44,16 +41,18 @@ class ScopedUserHive {
  private:
   // The randomly-chosen name of the subkey under HKLM where the file is loaded.
   // If empty, the file is not loaded.
-  std::wstring subkey_name_;
+  base::string16 subkey_name_;
 
   // The loaded key.
   base::win::RegKey key_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedUserHive);
 };
 
 ScopedUserHive::ScopedUserHive(const base::FilePath& hive_file) {
   // Generate a random name for the key at which the file will be loaded.
   std::string buffer = base::RandBytesAsString(10);
-  subkey_name_ = base::ASCIIToWide(
+  subkey_name_ = base::ASCIIToUTF16(
       base32::Base32Encode(buffer, base32::Base32EncodePolicy::OMIT_PADDING));
   DCHECK_EQ(16U, subkey_name_.size());
 
@@ -128,7 +127,7 @@ void VisitUserHives(const HiveVisitor& visitor) {
     }
 
     // Read the path to the profile directory to load the hive manually.
-    std::wstring profile_key_name(kProfileListKey);
+    base::string16 profile_key_name(kProfileListKey);
     profile_key_name.append(1, L'\\').append(sid);
     LONG result =
         key.Open(HKEY_LOCAL_MACHINE, profile_key_name.c_str(), KEY_QUERY_VALUE);
@@ -138,7 +137,7 @@ void VisitUserHives(const HiveVisitor& visitor) {
                   << "\"";
       continue;
     }
-    std::wstring image_path;
+    base::string16 image_path;
     result = key.ReadValue(L"ProfileImagePath", &image_path);
     if (result != ERROR_SUCCESS) {
       ::SetLastError(result);

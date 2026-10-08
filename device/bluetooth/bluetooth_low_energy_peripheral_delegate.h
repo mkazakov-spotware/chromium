@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,10 @@
 
 #import <CoreBluetooth/CoreBluetooth.h>
 
-#include <memory>
-
+#include "base/memory/ref_counted.h"
 #include "build/build_config.h"
 
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
 #import <IOBluetooth/IOBluetooth.h>
 #endif
 
@@ -28,7 +27,7 @@ class BluetoothLowEnergyPeripheralBridge;
   std::unique_ptr<device::BluetoothLowEnergyPeripheralBridge> _bridge;
 }
 
-- (instancetype)initWithBluetoothLowEnergyDeviceMac:
+- (id)initWithBluetoothLowEnergyDeviceMac:
     (device::BluetoothLowEnergyDeviceMac*)device_mac;
 
 @end

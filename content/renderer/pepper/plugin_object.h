@@ -1,4 +1,4 @@
-// Copyright 2010 The Chromium Authors
+// Copyright (c) 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "gin/interceptor.h"
 #include "gin/wrappable.h"
@@ -31,9 +32,6 @@ class PluginObject : public gin::Wrappable<PluginObject>,
                      public gin::NamedPropertyInterceptor {
  public:
   static gin::WrapperInfo kWrapperInfo;
-
-  PluginObject(const PluginObject&) = delete;
-  PluginObject& operator=(const PluginObject&) = delete;
 
   ~PluginObject() override;
 
@@ -89,6 +87,8 @@ class PluginObject : public gin::Wrappable<PluginObject>,
   v8::StdGlobalValueMap<std::string, v8::FunctionTemplate> template_cache_;
 
   base::WeakPtrFactory<PluginObject> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PluginObject);
 };
 
 }  // namespace content

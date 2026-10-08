@@ -1,10 +1,10 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("//build/config/chromeos/ui_mode.gni")
 
-assert(is_chromeos,
+assert(is_chromeos || is_lacros,
        "Non-Chrome-OS or Lacros builds must not depend on //chromeos")
 
 # C++ headers and sources that can be used by both ash and lacros builds.
@@ -13,10 +13,6 @@ component("base") {
 
   sources = [
     "chromeos_ui_constants.h",
-    "display_util.cc",
-    "display_util.h",
-    "file_icon_util.cc",
-    "file_icon_util.h",
     "tablet_state.cc",
     "tablet_state.h",
     "window_pin_type.cc",
@@ -31,31 +27,9 @@ component("base") {
 
   deps = [
     "//base",
-    "//build:chromeos_buildflags",
-    "//chromeos/constants",
-    "//chromeos/ui/vector_icons",
     "//skia",
-    "//third_party/abseil-cpp:absl",
     "//ui/base",
-    "//ui/chromeos/styles:cros_styles_views",
     "//ui/display",
-    "//ui/gfx",
     "//ui/gfx/geometry",
   ]
-
-  if (is_chromeos_lacros) {
-    deps += [ "//chromeos/startup" ]
-  }
-}
-
-source_set("unit_tests") {
-  testonly = true
-  deps = [
-    ":base",
-    "//base",
-    "//base/test:test_support",
-    "//skia",
-    "//testing/gtest",
-  ]
-  sources = [ "file_icon_util_unittest.cc" ]
 }

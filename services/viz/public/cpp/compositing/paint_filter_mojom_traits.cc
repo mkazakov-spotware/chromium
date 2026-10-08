@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 namespace mojo {
 
 // static
-absl::optional<std::vector<uint8_t>>
+base::Optional<std::vector<uint8_t>>
 StructTraits<viz::mojom::PaintFilterDataView, sk_sp<cc::PaintFilter>>::data(
     const sk_sp<cc::PaintFilter>& filter) {
   std::vector<uint8_t> memory;
@@ -18,13 +18,15 @@ StructTraits<viz::mojom::PaintFilterDataView, sk_sp<cc::PaintFilter>>::data(
   // No need to populate the SerializeOptions here since the security
   // constraints explicitly disable serializing images using the transfer cache
   // and serialization of PaintRecords.
-  cc::PaintOp::SerializeOptions options;
+  cc::PaintOp::SerializeOptions options(nullptr, nullptr, nullptr, nullptr,
+                                        nullptr, nullptr, false, false, 0,
+                                        SkMatrix::I());
   cc::PaintOpWriter writer(memory.data(), memory.size(), options,
                            true /* enable_security_constraints */);
-  writer.Write(filter.get(), SkM44());
+  writer.Write(filter.get());
 
   if (writer.size() == 0)
-    return absl::nullopt;
+    return base::nullopt;
 
   memory.resize(writer.size());
   return memory;
@@ -33,7 +35,7 @@ StructTraits<viz::mojom::PaintFilterDataView, sk_sp<cc::PaintFilter>>::data(
 // static
 bool StructTraits<viz::mojom::PaintFilterDataView, sk_sp<cc::PaintFilter>>::
     Read(viz::mojom::PaintFilterDataView data, sk_sp<cc::PaintFilter>* out) {
-  absl::optional<std::vector<uint8_t>> buffer;
+  base::Optional<std::vector<uint8_t>> buffer;
   if (!data.ReadData(&buffer))
     return false;
 

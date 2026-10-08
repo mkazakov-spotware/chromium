@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 [
   Exposed=(Window, Worker),
-  RuntimeEnabled=StorageFoundationAPI,
+  RuntimeEnabled=NativeIO,
   SecureContext
 ] interface NativeIOFile {
   [CallWith=ScriptState] Promise<void> close();
@@ -20,14 +20,14 @@
   ] Promise<void> setLength(unsigned long long length);
 
   [
-    CallWith=ScriptState, RaisesException, MeasureAs=StorageFoundationRead
-  ] Promise<NativeIOReadResult> read(ArrayBufferView buffer,
+    CallWith=ScriptState, RaisesException
+  ] Promise<unsigned long long> read([AllowShared] ArrayBufferView buffer,
                                      unsigned long long file_offset);
   [
-    CallWith=ScriptState, RaisesException, MeasureAs=StorageFoundationWrite
-  ] Promise<NativeIOWriteResult> write(ArrayBufferView buffer,
+    CallWith=ScriptState, RaisesException
+  ] Promise<unsigned long long> write([AllowShared] ArrayBufferView buffer,
                                       unsigned long long file_offset);
   [
-    CallWith=ScriptState, RaisesException, MeasureAs=StorageFoundationFlush
+    CallWith=ScriptState, RaisesException
   ] Promise<void> flush();
 };

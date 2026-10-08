@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,18 +29,15 @@ class MockArcAppListPrefsObserver : public ArcAppListPrefs::Observer {
   MOCK_METHOD2(OnAppNameUpdated,
                void(const std::string& id, const std::string& name));
   MOCK_METHOD1(OnAppLastLaunchTimeUpdated, void(const std::string& app_id));
-  MOCK_METHOD5(OnTaskCreated,
+  MOCK_METHOD4(OnTaskCreated,
                void(int32_t task_id,
                     const std::string& package_name,
                     const std::string& activity,
-                    const std::string& intent,
-                    int32_t session_id));
-  MOCK_METHOD5(OnTaskDescriptionChanged,
+                    const std::string& intent));
+  MOCK_METHOD3(OnTaskDescriptionChanged,
                void(int32_t task_id,
                     const std::string& label,
-                    const arc::mojom::RawIconPngData& icon,
-                    uint32_t primary_color,
-                    uint32_t status_bar_color));
+                    const arc::mojom::RawIconPngData& icon));
   MOCK_METHOD1(OnTaskDestroyed, void(int32_t task_id));
   MOCK_METHOD1(OnTaskSetActive, void(int32_t task_id));
   MOCK_METHOD2(OnNotificationsEnabledChanged,

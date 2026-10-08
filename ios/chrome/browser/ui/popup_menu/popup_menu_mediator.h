@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #import <UIKit/UIKit.h>
 
 #import "ios/chrome/browser/ui/browser_container/browser_container_consumer.h"
-#import "ios/chrome/browser/ui/popup_menu/popup_menu_action_handler_delegate.h"
+#import "ios/chrome/browser/ui/popup_menu/popup_menu_action_handler_commands.h"
 #import "ios/chrome/browser/ui/popup_menu/public/popup_menu_ui_updating.h"
 
 namespace bookmarks {
@@ -18,26 +18,23 @@ namespace feature_engagement {
 class Tracker;
 }
 @protocol BrowserCommands;
-@protocol LensCommands;
 class OverlayPresenter;
 @protocol PopupMenuConsumer;
 class PrefService;
 class ReadingListModel;
 class TemplateURLService;
-class UrlLoadingBrowserAgent;
 class WebStateList;
 class BrowserPolicyConnectorIOS;
-class FollowBrowserAgent;
 
 // Mediator for the popup menu. This object is in charge of creating and
 // updating the items of the popup menu.
 @interface PopupMenuMediator
-    : NSObject <BrowserContainerConsumer, PopupMenuActionHandlerDelegate>
+    : NSObject <BrowserContainerConsumer, PopupMenuActionHandlerCommands>
 
-// Initializes the mediator with a `type` of popup menu, whether it
-// `isIncognito`, a `readingListModel` used to display the badge for the reading
-// list entry, whether the mediator should `triggerNewIncognitoTabTip`, and a
-// `browserPolicyConnector` used to check if the browser is managed by policy.
+// Initializes the mediator with a |type| of popup menu, whether it
+// |isIncognito|, a |readingListModel| used to display the badge for the reading
+// list entry, whether the mediator should |triggerNewIncognitoTabTip|, and a
+// |browserPolicyConnector| used to check if the browser is managed by policy.
 - (instancetype)initWithType:(PopupMenuType)type
                   isIncognito:(BOOL)isIncognito
              readingListModel:(ReadingListModel*)readingListModel
@@ -50,15 +47,13 @@ class FollowBrowserAgent;
 // WebState.
 @property(nonatomic, assign) WebStateList* webStateList;
 // The overlay presenter for OverlayModality::kWebContentArea.  This mediator
-// listens for overlay presentation events to determine whether the "Add to
-// Reading List" button should be enabled.
+// listens for overlay presentation events to determine whether the "Read Later"
+// button should be enabled.
 @property(nonatomic, assign) OverlayPresenter* webContentAreaOverlayPresenter;
 // The consumer to be configured with this mediator.
 @property(nonatomic, strong) id<PopupMenuConsumer> popupMenu;
-// Handler for browser commands.
-@property(nonatomic, weak) id<BrowserCommands> browserCommandsHandler;
-// Handler for Lens commands.
-@property(nonatomic, weak) id<LensCommands> lensCommandsHandler;
+// Dispatcher.
+@property(nonatomic, weak) id<BrowserCommands> dispatcher;
 // Records events for the use of in-product help. The mediator does not take
 // ownership of tracker. Tracker must not be destroyed during lifetime of the
 // object.
@@ -70,10 +65,6 @@ class FollowBrowserAgent;
 // The template url service to use for checking whether search by image is
 // available.
 @property(nonatomic, assign) TemplateURLService* templateURLService;
-// The URL loading service, used to load the reverse image search.
-@property(nonatomic, assign) UrlLoadingBrowserAgent* URLLoadingBrowserAgent;
-// The FollowBrowserAgent used to manage web channels subscriptions.
-@property(nonatomic, assign) FollowBrowserAgent* followBrowserAgent;
 
 // Disconnect the mediator.
 - (void)disconnect;

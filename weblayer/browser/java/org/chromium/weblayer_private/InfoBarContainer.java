@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -94,15 +94,10 @@ public class InfoBarContainer implements KeyboardVisibilityListener, InfoBar.Con
      */
     private final WebContentsObserver mWebContentsObserver = new WebContentsObserver() {
         @Override
-        public void didFinishNavigationInPrimaryMainFrame(NavigationHandle navigation) {
-            if (navigation.hasCommitted()) {
+        public void didFinishNavigation(NavigationHandle navigation) {
+            if (navigation.hasCommitted() && navigation.isInMainFrame()) {
                 setHidden(false);
             }
-        }
-
-        @Override
-        public void didFinishNavigationNoop(NavigationHandle navigation) {
-            if (!navigation.isInPrimaryMainFrame()) return;
         }
     };
 

@@ -1,47 +1,45 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/policy/core/common/policy_bundle.h"
 
 #include "base/check.h"
-#include "base/no_destructor.h"
 #include "base/notreached.h"
 
 namespace policy {
 
-namespace {
-// An empty PolicyMap that is returned by const Get() for namespaces that
-// do not exist in |policy_bundle_|.
-const PolicyMap& GetEmptyPolicyMap() {
-  static const base::NoDestructor<PolicyMap> kEmpty;
-  return *kEmpty;
+PolicyBundle::PolicyBundle() {}
+
+PolicyBundle::~PolicyBundle() {
+  Clear();
 }
-}  // namespace
-
-PolicyBundle::PolicyBundle() = default;
-PolicyBundle::PolicyBundle(PolicyBundle&&) = default;
-PolicyBundle& PolicyBundle::operator=(PolicyBundle&&) = default;
-
-PolicyBundle::~PolicyBundle() = default;
 
 PolicyMap& PolicyBundle::Get(const PolicyNamespace& ns) {
   DCHECK(ns.domain != POLICY_DOMAIN_CHROME || ns.component_id.empty());
-  return policy_bundle_[ns];
+  std::unique_ptr<PolicyMap>& policy = policy_bundle_[ns];
+  if (!policy)
+    policy = std::make_unique<PolicyMap>();
+  return *policy;
 }
 
 const PolicyMap& PolicyBundle::Get(const PolicyNamespace& ns) const {
   DCHECK(ns.domain != POLICY_DOMAIN_CHROME || ns.component_id.empty());
-  const auto it = policy_bundle_.find(ns);
-  return it == end() ? GetEmptyPolicyMap() : it->second;
+  auto it = policy_bundle_.find(ns);
+  return it == end() ? kEmpty_ : *it->second;
 }
 
-PolicyBundle PolicyBundle::Clone() const {
-  PolicyBundle clone;
-  for (const auto& entry : policy_bundle_) {
-    clone.policy_bundle_[entry.first] = entry.second.Clone();
+void PolicyBundle::Swap(PolicyBundle* other) {
+  policy_bundle_.swap(other->policy_bundle_);
+}
+
+void PolicyBundle::CopyFrom(const PolicyBundle& other) {
+  DCHECK_NE(this, &other);
+
+  Clear();
+  for (auto it = other.begin(); it != other.end(); ++it) {
+    policy_bundle_[it->first] = it->second->DeepCopy();
   }
-  return clone;
 }
 
 void PolicyBundle::MergeFrom(const PolicyBundle& other) {
@@ -57,7 +55,7 @@ void PolicyBundle::MergeFrom(const PolicyBundle& other) {
   while (it_this != end_this && it_other != end_other) {
     if (it_this->first == it_other->first) {
       // Same namespace: merge existing PolicyMaps.
-      it_this->second.MergeFrom(it_other->second);
+      it_this->second->MergeFrom(*it_other->second);
       ++it_this;
       ++it_other;
     } else if (it_this->first < it_other->first) {
@@ -65,7 +63,7 @@ void PolicyBundle::MergeFrom(const PolicyBundle& other) {
       ++it_this;
     } else if (it_other->first < it_this->first) {
       // |other| has a PolicyMap that |this| doesn't; copy it.
-      policy_bundle_[it_other->first] = it_other->second.Clone();
+      policy_bundle_[it_other->first] = it_other->second->DeepCopy();
       ++it_other;
     } else {
       NOTREACHED();
@@ -74,7 +72,7 @@ void PolicyBundle::MergeFrom(const PolicyBundle& other) {
 
   // Add extra PolicyMaps at the end.
   while (it_other != end_other) {
-    policy_bundle_[it_other->first] = it_other->second.Clone();
+    policy_bundle_[it_other->first] = it_other->second->DeepCopy();
     ++it_other;
   }
 }
@@ -88,14 +86,14 @@ bool PolicyBundle::Equals(const PolicyBundle& other) const {
 
   while (true) {
     // Skip empty PolicyMaps.
-    while (it_this != end() && it_this->second.empty())
+    while (it_this != end() && it_this->second->empty())
       ++it_this;
-    while (it_other != other.end() && it_other->second.empty())
+    while (it_other != other.end() && it_other->second->empty())
       ++it_other;
     if (it_this == end() || it_other == other.end())
       break;
     if (it_this->first != it_other->first ||
-        !it_this->second.Equals(it_other->second)) {
+        !it_this->second->Equals(*it_other->second)) {
       return false;
     }
     ++it_this;

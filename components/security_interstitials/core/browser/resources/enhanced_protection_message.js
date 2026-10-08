@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,28 +20,24 @@ function setupEnhancedProtectionMessage() {
     return;
   }
 
-  const enhancedProtectionLink =
-      document.querySelector('#enhanced-protection-link');
-  const enhancedProtectionMessage =
-      document.querySelector('#enhanced-protection-message');
-  if (enhancedProtectionLink) {
+  if ($('enhanced-protection-link')) {
     if (mobileNav) {
       // To make sure the touch area of the link is larger than the
       // minimum touch area for accessibility, make the whole block tappable.
-      enhancedProtectionMessage.addEventListener('click', function() {
+      $('enhanced-protection-message').addEventListener('click', function() {
         sendCommand(SecurityInterstitialCommandId
                         .CMD_OPEN_ENHANCED_PROTECTION_SETTINGS);
         return false;
       });
     } else {
-      enhancedProtectionLink.addEventListener('click', function() {
+      $('enhanced-protection-link').addEventListener('click', function() {
         sendCommand(SecurityInterstitialCommandId
                         .CMD_OPEN_ENHANCED_PROTECTION_SETTINGS);
         return false;
       });
     }
   }
-  enhancedProtectionMessage.classList.remove('hidden');
+  $('enhanced-protection-message').classList.remove('hidden');
 
   const billing =
       interstitialType === 'SAFEBROWSING' && loadTimeData.getBoolean('billing');
@@ -51,5 +47,5 @@ function setupEnhancedProtectionMessage() {
     className = 'safe-browsing-enhanced-protection-message';
   }
 
-  enhancedProtectionMessage.classList.add(className);
+  $('enhanced-protection-message').classList.add(className);
 }

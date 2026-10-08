@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,10 +46,6 @@ class PendingLogsService {
                                   RegistryLogger* registry_logger);
 
   PendingLogsService();
-
-  PendingLogsService(const PendingLogsService&) = delete;
-  PendingLogsService& operator=(const PendingLogsService&) = delete;
-
   ~PendingLogsService();
 
   // Retry to upload the next pending log if any. |done_callback| is called with
@@ -78,6 +74,8 @@ class PendingLogsService {
   // Remember whether we are currently retrying to upload logs so that we don't
   // re-re-re-re-retry... ;-)
   static bool retrying_;
+
+  DISALLOW_COPY_AND_ASSIGN(PendingLogsService);
 };
 
 }  // namespace chrome_cleaner

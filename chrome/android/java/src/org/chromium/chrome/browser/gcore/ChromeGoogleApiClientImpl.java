@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,8 @@ import com.google.android.gms.common.api.GoogleApiClient;
 
 import org.chromium.base.Log;
 import org.chromium.base.TraceEvent;
-import org.chromium.components.externalauth.ExternalAuthUtils;
+import org.chromium.chrome.browser.AppHooks;
+import org.chromium.chrome.browser.externalauth.ExternalAuthUtils;
 
 import java.util.concurrent.TimeUnit;
 
@@ -36,7 +37,7 @@ public class ChromeGoogleApiClientImpl implements ChromeGoogleApiClient {
             boolean requireFirstPartyBuild) {
         mApplicationContext = context.getApplicationContext();
         mClient = client;
-        mExternalAuthUtils = ExternalAuthUtils.getInstance();
+        mExternalAuthUtils = AppHooks.get().getExternalAuthUtils();
         if (requireFirstPartyBuild && !mExternalAuthUtils.isChromeGoogleSigned()) {
             throw new IllegalStateException("GoogleApiClient requires first-party build");
         }

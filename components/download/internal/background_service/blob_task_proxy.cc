@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 
 #include "base/bind.h"
 #include "base/guid.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/task_runner_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "storage/browser/blob/blob_data_builder.h"
 #include "storage/browser/blob/blob_data_handle.h"
 #include "storage/browser/blob/blob_storage_context.h"
@@ -25,7 +26,7 @@ std::unique_ptr<BlobTaskProxy> BlobTaskProxy::Create(
 BlobTaskProxy::BlobTaskProxy(
     BlobContextGetter blob_context_getter,
     scoped_refptr<base::SingleThreadTaskRunner> io_task_runner)
-    : main_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+    : main_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       io_task_runner_(io_task_runner) {
   // Unretained the raw pointer because owner on UI thread should destroy this
   // object on IO thread.

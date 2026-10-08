@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define CHROME_BROWSER_SAFE_BROWSING_ADVANCED_PROTECTION_STATUS_MANAGER_FACTORY_H_
 
 #include "base/memory/singleton.h"
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 class Profile;
 
@@ -17,16 +17,11 @@ class AdvancedProtectionStatusManager;
 // Responsible for keeping track of advanced protection status of the sign-in
 // profile.
 class AdvancedProtectionStatusManagerFactory
-    : public ProfileKeyedServiceFactory {
+    : public BrowserContextKeyedServiceFactory {
  public:
   static AdvancedProtectionStatusManager* GetForProfile(Profile* profile);
 
   static AdvancedProtectionStatusManagerFactory* GetInstance();
-
-  AdvancedProtectionStatusManagerFactory(
-      const AdvancedProtectionStatusManagerFactory&) = delete;
-  AdvancedProtectionStatusManagerFactory& operator=(
-      const AdvancedProtectionStatusManagerFactory&) = delete;
 
  private:
   friend struct base::DefaultSingletonTraits<
@@ -39,6 +34,10 @@ class AdvancedProtectionStatusManagerFactory
   KeyedService* BuildServiceInstanceFor(
       content::BrowserContext* context) const override;
   bool ServiceIsCreatedWithBrowserContext() const override;
+  content::BrowserContext* GetBrowserContextToUse(
+      content::BrowserContext* context) const override;
+
+  DISALLOW_COPY_AND_ASSIGN(AdvancedProtectionStatusManagerFactory);
 };
 
 }  // namespace safe_browsing

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,9 @@
 
 #include "base/bind.h"
 #include "base/containers/circular_deque.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "extensions/browser/api_test_utils.h"
 #include "extensions/browser/api_unittest.h"
 #include "extensions/browser/unloaded_extension_reason.h"
@@ -55,9 +54,6 @@ class FakeWakeLockManager {
             base::BindRepeating(&FakeWakeLockManager::CancelWakeLock,
                                 base::Unretained(this)));
   }
-
-  FakeWakeLockManager(const FakeWakeLockManager&) = delete;
-  FakeWakeLockManager& operator=(const FakeWakeLockManager&) = delete;
 
   ~FakeWakeLockManager() {
     PowerAPI::Get(browser_context_)
@@ -138,13 +134,15 @@ class FakeWakeLockManager {
     is_active_ = false;
   }
 
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
 
   device::mojom::WakeLockType type_;
   bool is_active_;
 
   // Requests in chronological order.
   base::circular_deque<Request> requests_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeWakeLockManager);
 };
 
 }  // namespace
@@ -153,7 +151,7 @@ class PowerAPITest : public ApiUnitTest {
  public:
   void SetUp() override {
     ApiUnitTest::SetUp();
-    manager_ = std::make_unique<FakeWakeLockManager>(browser_context());
+    manager_.reset(new FakeWakeLockManager(browser_context()));
   }
 
   void TearDown() override {
@@ -174,12 +172,11 @@ class PowerAPITest : public ApiUnitTest {
   bool CallFunction(FunctionType type,
                     const std::string& args,
                     const extensions::Extension* extension) {
-    scoped_refptr<ExtensionFunction> function;
-    if (type == REQUEST) {
-      function = base::MakeRefCounted<PowerRequestKeepAwakeFunction>();
-    } else {
-      function = base::MakeRefCounted<PowerReleaseKeepAwakeFunction>();
-    }
+    scoped_refptr<ExtensionFunction> function(
+        type == REQUEST
+            ? static_cast<ExtensionFunction*>(new PowerRequestKeepAwakeFunction)
+            : static_cast<ExtensionFunction*>(
+                  new PowerReleaseKeepAwakeFunction));
     function->set_extension(extension);
     return api_test_utils::RunFunction(function.get(), args, browser_context());
   }

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -63,9 +63,8 @@ PageAgentViews::PageAgentViews(DOMAgent* dom_agent) : PageAgent(dom_agent) {}
 PageAgentViews::~PageAgentViews() {}
 
 protocol::Response PageAgentViews::disable() {
-  // Don't disable widget activation handling any more.
-  views::Widget::SetDisableActivationChangeHandling(
-      views::Widget::DisableActivationChangeHandlingType::kNone);
+  // Set bubble lock flag back to false.
+  views::BubbleDialogDelegateView::devtools_dismiss_override_ = false;
 
   // Remove debug bounds rects if enabled.
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -83,14 +82,10 @@ protocol::Response PageAgentViews::reload(protocol::Maybe<bool> bypass_cache) {
 
   bool shift_pressed = bypass_cache.fromMaybe(false);
 
-  // Ctrl+Shift+R called to toggle widget lock.
+  // Ctrl+Shift+R called to toggle bubble lock.
   if (shift_pressed) {
-    views::Widget::SetDisableActivationChangeHandling(
-        views::Widget::GetDisableActivationChangeHandling() ==
-                views::Widget::DisableActivationChangeHandlingType::kNone
-            ? views::Widget::DisableActivationChangeHandlingType::
-                  kIgnoreDeactivationOnly
-            : views::Widget::DisableActivationChangeHandlingType::kNone);
+    views::BubbleDialogDelegateView::devtools_dismiss_override_ =
+        !views::BubbleDialogDelegateView::devtools_dismiss_override_;
   } else {
     // Ctrl+R called to toggle debug bounds rectangles.
     if (base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -157,10 +152,8 @@ protocol::Response PageAgentViews::getResourceContent(
     return protocol::Response::ServerError("Could not read source file");
 }
 
-bool PageAgentViews::GetDevtoolsDismissOverrideForTesting() const {
-  return views::Widget::GetDisableActivationChangeHandling() ==
-         views::Widget::DisableActivationChangeHandlingType::
-             kIgnoreDeactivationOnly;
+bool PageAgentViews::devtools_dismiss_override() {
+  return views::BubbleDialogDelegateView::devtools_dismiss_override_;
 }
 
 }  // namespace ui_devtools

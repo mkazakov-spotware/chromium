@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,16 +17,11 @@ public class WebContentsState {
      */
     public static final int CONTENTS_STATE_CURRENT_VERSION = 2;
 
-    /**
-     * mBuffer should not be modified once it is set
-     */
     private final ByteBuffer mBuffer;
     private int mVersion;
-    private static WebContentsState sEmptyWebContentsState;
 
     public WebContentsState(ByteBuffer buffer) {
         mBuffer = buffer;
-        sEmptyWebContentsState = null;
     }
 
     public ByteBuffer buffer() {
@@ -49,15 +44,5 @@ public class WebContentsState {
     /** @return URL currently being displayed in the saved state's current entry. */
     public String getVirtualUrlFromState() {
         return WebContentsStateBridge.getVirtualUrlFromState(this);
-    }
-
-    public static WebContentsState getTempWebContentsState() {
-        if (sEmptyWebContentsState == null) {
-            byte[] bytes = new byte[0];
-            ByteBuffer buf = ByteBuffer.wrap(bytes);
-            sEmptyWebContentsState = new WebContentsState(buf);
-            sEmptyWebContentsState.setVersion(-1);
-        }
-        return sEmptyWebContentsState;
     }
 }

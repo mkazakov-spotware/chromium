@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,8 @@
 #include <string>
 
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "components/omnibox/browser/location_bar_model.h"
 #include "components/url_formatter/url_formatter.h"
 #include "url/gurl.h"
@@ -22,39 +23,32 @@ class LocationBarModelDelegate;
 // from the navigation controller returned by GetNavigationController().
 class LocationBarModelImpl : public LocationBarModel {
  public:
-  LocationBarModelImpl() = delete;
-
   LocationBarModelImpl(LocationBarModelDelegate* delegate,
                        size_t max_url_display_chars);
-
-  LocationBarModelImpl(const LocationBarModelImpl&) = delete;
-  LocationBarModelImpl& operator=(const LocationBarModelImpl&) = delete;
-
   ~LocationBarModelImpl() override;
 
   // LocationBarModel:
-  std::u16string GetFormattedFullURL() const override;
-  std::u16string GetURLForDisplay() const override;
+  base::string16 GetFormattedFullURL() const override;
+  base::string16 GetURLForDisplay() const override;
   GURL GetURL() const override;
   security_state::SecurityLevel GetSecurityLevel() const override;
-  net::CertStatus GetCertStatus() const override;
   metrics::OmniboxEventProto::PageClassification GetPageClassification(
-      OmniboxFocusSource focus_source,
-      bool is_prefetch = false) override;
+      OmniboxFocusSource focus_source) override;
   const gfx::VectorIcon& GetVectorIcon() const override;
-  std::u16string GetSecureDisplayText() const override;
-  std::u16string GetSecureAccessibilityText() const override;
+  base::string16 GetSecureDisplayText() const override;
+  base::string16 GetSecureAccessibilityText() const override;
   bool ShouldDisplayURL() const override;
   bool IsOfflinePage() const override;
   bool ShouldPreventElision() const override;
-  bool ShouldUseUpdatedConnectionSecurityIndicators() const override;
 
  private:
-  std::u16string GetFormattedURL(
+  base::string16 GetFormattedURL(
       url_formatter::FormatUrlTypes format_types) const;
 
-  raw_ptr<LocationBarModelDelegate, DanglingUntriaged> delegate_;
+  LocationBarModelDelegate* delegate_;
   const size_t max_url_display_chars_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(LocationBarModelImpl);
 };
 
 #endif  // COMPONENTS_OMNIBOX_BROWSER_LOCATION_BAR_MODEL_IMPL_H_

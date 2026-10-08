@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,7 @@ SaveCardFailureBubbleViews::CreateMainContentView() {
       views::BoxLayout::Orientation::kVertical, gfx::Insets(),
       provider->GetDistanceMetric(views::DISTANCE_UNRELATED_CONTROL_VERTICAL)));
 
-  std::u16string explanation = controller()->GetExplanatoryMessage();
+  base::string16 explanation = controller()->GetExplanatoryMessage();
   if (!explanation.empty()) {
     auto* explanation_label =
         new views::Label(explanation, views::style::CONTEXT_DIALOG_BODY_TEXT,

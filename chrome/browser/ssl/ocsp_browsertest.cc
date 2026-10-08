@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,6 @@
 #include "net/cert/ev_root_ca_metadata.h"
 #include "net/test/cert_test_util.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
-#include "net/test/test_data_directory.h"
 #include "services/network/public/cpp/features.h"
 #include "services/network/public/mojom/ssl_config.mojom.h"
 #include "third_party/blink/public/common/features.h"
@@ -36,12 +35,21 @@ namespace AuthState = ssl_test_util::AuthState;
 
 namespace {
 
+// SHA256 hash of the testserver root_ca_cert DER.
+// openssl x509 -in root_ca_cert.pem -outform der | \
+//   openssl dgst -sha256 -binary | xxd -i
+static const net::SHA256HashValue kTestRootCertHash = {
+    {0xb2, 0xab, 0xa3, 0xa5, 0xd4, 0x11, 0x56, 0xcb, 0xb9, 0x23, 0x35,
+     0x07, 0x6d, 0x0b, 0x51, 0xbe, 0xd3, 0xee, 0x2e, 0xab, 0xe7, 0xab,
+     0x6b, 0xad, 0xcc, 0x2a, 0xfa, 0x35, 0xfb, 0x8e, 0x31, 0x5e}};
+
 // The test EV policy OID used for generated certs.
 static const char kOCSPTestCertPolicy[] = "1.3.6.1.4.1.11129.2.4.1";
 
 }  // namespace
 
 class OCSPBrowserTest : public PlatformBrowserTest,
+                        public ::testing::WithParamInterface<bool>,
                         public network::mojom::SSLConfigClient {
  public:
   OCSPBrowserTest() = default;
@@ -50,9 +58,8 @@ class OCSPBrowserTest : public PlatformBrowserTest,
     SystemNetworkContextManager::SetEnableCertificateTransparencyForTesting(
         false);
 
-    policy_provider_.SetDefaultReturns(
-        /*is_initialization_complete_return=*/true,
-        /*is_first_policy_load_complete_return=*/true);
+    EXPECT_CALL(policy_provider_, IsInitializationComplete(testing::_))
+        .WillRepeatedly(testing::Return(true));
     policy::BrowserPolicyConnector::SetPolicyProviderForTesting(
         &policy_provider_);
 
@@ -64,7 +71,20 @@ class OCSPBrowserTest : public PlatformBrowserTest,
     InProcessBrowserTest::TearDown();
 
     SystemNetworkContextManager::SetEnableCertificateTransparencyForTesting(
-        absl::nullopt);
+        base::nullopt);
+  }
+
+  void SetUpInProcessBrowserTestFixture() override {
+    std::vector<base::Feature> enabled_features;
+    std::vector<base::Feature> disabled_features;
+    disabled_features.push_back(blink::features::kMixedContentAutoupgrade);
+    if (GetParam()) {
+      enabled_features.push_back(network::features::kCertVerifierService);
+    } else {
+      disabled_features.push_back(network::features::kCertVerifierService);
+    }
+
+    scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
   }
 
   void SetUpOnMainThread() override {
@@ -73,6 +93,24 @@ class OCSPBrowserTest : public PlatformBrowserTest,
             ->CreateDefaultNetworkContextParams();
     last_ssl_config_ = *context_params->initial_ssl_config;
     receiver_.Bind(std::move(context_params->ssl_config_client_receiver));
+
+    if (GetParam() || content::IsInProcessNetworkService()) {
+      // TODO(https://crbug.com/1085233): when the CertVerifierService is moved
+      // out of process, the ScopedTestEVPolicy needs to be instantiated in
+      // that process.
+      ev_test_policy_ = std::make_unique<net::ScopedTestEVPolicy>(
+          net::EVRootCAMetadata::GetInstance(), kTestRootCertHash,
+          kOCSPTestCertPolicy);
+    } else {
+      content::GetNetworkService()->BindTestInterface(
+          network_service_test_.BindNewPipeAndPassReceiver());
+      mojo::ScopedAllowSyncCallForTesting allow_sync_call;
+      EXPECT_TRUE(network_service_test_->SetEVPolicy(
+          std::vector<uint8_t>(
+              kTestRootCertHash.data,
+              kTestRootCertHash.data + sizeof(kTestRootCertHash.data)),
+          kOCSPTestCertPolicy));
+    }
   }
 
   // Sets the policy identified by |policy_name| to be true, ensuring
@@ -126,8 +164,7 @@ class OCSPBrowserTest : public PlatformBrowserTest,
     server.AddDefaultHandlers(GetChromeTestDataDir());
     ASSERT_TRUE(server.Start());
 
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(
-        browser(), server.GetURL("/ssl/google.html")));
+    ui_test_utils::NavigateToURL(browser(), server.GetURL("/ssl/google.html"));
   }
 
   net::CertStatus GetCurrentCertStatus() {
@@ -164,7 +201,11 @@ class OCSPBrowserTest : public PlatformBrowserTest,
     content::FlushNetworkServiceInstanceForTesting();
   }
 
-  testing::NiceMock<policy::MockConfigurationPolicyProvider> policy_provider_;
+  policy::MockConfigurationPolicyProvider policy_provider_;
+
+  std::unique_ptr<net::ScopedTestEVPolicy> ev_test_policy_;
+  base::test::ScopedFeatureList scoped_feature_list_;
+  mojo::Remote<network::mojom::NetworkServiceTest> network_service_test_;
 
   base::RepeatingClosure ssl_config_updated_callback_;
   network::mojom::SSLConfig last_ssl_config_;
@@ -173,7 +214,7 @@ class OCSPBrowserTest : public PlatformBrowserTest,
 
 // Visits a page with revocation checking set to the default value (disabled)
 // and a revoked OCSP response.
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPRevokedButNotChecked) {
+IN_PROC_BROWSER_TEST_P(OCSPBrowserTest, TestHTTPSOCSPRevokedButNotChecked) {
   // OCSP checking is disabled by default.
   EXPECT_FALSE(last_ssl_config().rev_checking_enabled);
   EXPECT_FALSE(g_browser_process->system_network_context_manager()
@@ -194,10 +235,11 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPRevokedButNotChecked) {
 }
 
 // Visits a page with revocation checking enabled and a valid OCSP response.
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPOk) {
+IN_PROC_BROWSER_TEST_P(OCSPBrowserTest, TestHTTPSOCSPOk) {
   EnableRevocationChecking();
 
   net::EmbeddedTestServer::ServerCertificateConfig ok_cert_config;
+  ok_cert_config.policy_oids = {kOCSPTestCertPolicy};
   ok_cert_config.ocsp_config = net::EmbeddedTestServer::OCSPConfig(
       {{net::OCSPRevocationStatus::GOOD,
         net::EmbeddedTestServer::OCSPConfig::SingleResponse::Date::kValid}});
@@ -208,14 +250,17 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPOk) {
       chrome_test_utils::GetActiveWebContents(this), AuthState::NONE);
 
   net::CertStatus cert_status = GetCurrentCertStatus();
+  EXPECT_EQ(ssl_test_util::SystemUsesChromiumEVMetadata(),
+            static_cast<bool>(cert_status & net::CERT_STATUS_IS_EV));
   EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
 }
 
 // Visits a page with revocation checking enabled and a revoked OCSP response.
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPRevoked) {
+IN_PROC_BROWSER_TEST_P(OCSPBrowserTest, TestHTTPSOCSPRevoked) {
   EnableRevocationChecking();
 
   net::EmbeddedTestServer::ServerCertificateConfig revoked_cert_config;
+  revoked_cert_config.policy_oids = {kOCSPTestCertPolicy};
   revoked_cert_config.ocsp_config = net::EmbeddedTestServer::OCSPConfig(
       {{net::OCSPRevocationStatus::REVOKED,
         net::EmbeddedTestServer::OCSPConfig::SingleResponse::Date::kValid}});
@@ -227,13 +272,15 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPRevoked) {
       AuthState::SHOWING_INTERSTITIAL);
 
   net::CertStatus cert_status = GetCurrentCertStatus();
+  EXPECT_FALSE(cert_status & net::CERT_STATUS_IS_EV);
   EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
 }
 
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPInvalid) {
+IN_PROC_BROWSER_TEST_P(OCSPBrowserTest, TestHTTPSOCSPInvalid) {
   EnableRevocationChecking();
 
   net::EmbeddedTestServer::ServerCertificateConfig invalid_cert_config;
+  invalid_cert_config.policy_oids = {kOCSPTestCertPolicy};
   invalid_cert_config.ocsp_config = net::EmbeddedTestServer::OCSPConfig(
       net::EmbeddedTestServer::OCSPConfig::ResponseType::kInvalidResponse);
 
@@ -243,14 +290,16 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPInvalid) {
       chrome_test_utils::GetActiveWebContents(this), AuthState::NONE);
 
   net::CertStatus cert_status = GetCurrentCertStatus();
+  EXPECT_FALSE(cert_status & net::CERT_STATUS_IS_EV);
   EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
 }
 
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPIntermediateValid) {
+IN_PROC_BROWSER_TEST_P(OCSPBrowserTest, TestHTTPSOCSPIntermediateValid) {
   EnableRevocationChecking();
 
   net::EmbeddedTestServer::ServerCertificateConfig
       intermediate_invalid_cert_config;
+  intermediate_invalid_cert_config.policy_oids = {kOCSPTestCertPolicy};
   intermediate_invalid_cert_config.intermediate =
       net::EmbeddedTestServer::IntermediateType::kInHandshake;
   intermediate_invalid_cert_config
@@ -268,14 +317,17 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPIntermediateValid) {
       chrome_test_utils::GetActiveWebContents(this), AuthState::NONE);
 
   net::CertStatus cert_status = GetCurrentCertStatus();
+  EXPECT_EQ(ssl_test_util::SystemUsesChromiumEVMetadata(),
+            static_cast<bool>(cert_status & net::CERT_STATUS_IS_EV));
   EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
 }
 
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest,
+IN_PROC_BROWSER_TEST_P(OCSPBrowserTest,
                        TestHTTPSOCSPIntermediateResponseOldButStillValid) {
   EnableRevocationChecking();
 
   net::EmbeddedTestServer::ServerCertificateConfig cert_config;
+  cert_config.policy_oids = {kOCSPTestCertPolicy};
   cert_config.intermediate =
       net::EmbeddedTestServer::IntermediateType::kInHandshake;
   cert_config.ocsp_config = net::EmbeddedTestServer::OCSPConfig(
@@ -284,80 +336,60 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest,
   // Use an OCSP response for the intermediate that would be too old for a leaf
   // cert, but is still valid for an intermediate.
   cert_config.intermediate_ocsp_config = net::EmbeddedTestServer::OCSPConfig(
-      {{net::OCSPRevocationStatus::REVOKED,
+      {{net::OCSPRevocationStatus::GOOD,
         net::EmbeddedTestServer::OCSPConfig::SingleResponse::Date::kLong}});
 
   DoConnection(cert_config);
 
-  net::CertStatus cert_status = GetCurrentCertStatus();
-  if (ssl_test_util::UsingBuiltinCertVerifier()) {
-    ssl_test_util::CheckAuthenticationBrokenState(
-        chrome_test_utils::GetActiveWebContents(this), net::CERT_STATUS_REVOKED,
-        AuthState::SHOWING_INTERSTITIAL);
-  } else {
-#if BUILDFLAG(IS_WIN)
-    // TODO(mattm): Seems to be flaky on Windows. Either returns
-    // CERT_STATUS_UNABLE_TO_CHECK_REVOCATION (which gets masked off due to
-    // soft-fail), or CERT_STATUS_REVOKED.
-    EXPECT_THAT(cert_status & net::CERT_STATUS_ALL_ERRORS,
-                ::testing::AnyOf(0u, net::CERT_STATUS_REVOKED));
-#else
-    ssl_test_util::CheckAuthenticationBrokenState(
-        chrome_test_utils::GetActiveWebContents(this), net::CERT_STATUS_REVOKED,
-        AuthState::SHOWING_INTERSTITIAL);
-#endif
-  }
+  ssl_test_util::CheckAuthenticatedState(
+      chrome_test_utils::GetActiveWebContents(this), AuthState::NONE);
 
+  net::CertStatus cert_status = GetCurrentCertStatus();
+  EXPECT_EQ(ssl_test_util::SystemUsesChromiumEVMetadata(),
+            static_cast<bool>(cert_status & net::CERT_STATUS_IS_EV));
   EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
 }
 
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest,
+IN_PROC_BROWSER_TEST_P(OCSPBrowserTest,
                        TestHTTPSOCSPIntermediateResponseTooOld) {
   EnableRevocationChecking();
 
   net::EmbeddedTestServer::ServerCertificateConfig cert_config;
+  cert_config.policy_oids = {kOCSPTestCertPolicy};
   cert_config.intermediate =
       net::EmbeddedTestServer::IntermediateType::kInHandshake;
   cert_config.ocsp_config = net::EmbeddedTestServer::OCSPConfig(
       {{net::OCSPRevocationStatus::GOOD,
         net::EmbeddedTestServer::OCSPConfig::SingleResponse::Date::kValid}});
-  // OCSP Response is too old and so should be ignored.
   cert_config.intermediate_ocsp_config = net::EmbeddedTestServer::OCSPConfig(
-      {{net::OCSPRevocationStatus::REVOKED,
+      {{net::OCSPRevocationStatus::GOOD,
         net::EmbeddedTestServer::OCSPConfig::SingleResponse::Date::kLonger}});
 
   DoConnection(cert_config);
+
+  ssl_test_util::CheckAuthenticatedState(
+      chrome_test_utils::GetActiveWebContents(this), AuthState::NONE);
+
   net::CertStatus cert_status = GetCurrentCertStatus();
-
   if (ssl_test_util::UsingBuiltinCertVerifier()) {
-    // The builtin verifier enforces the baseline requirements for max age
-    // of an intermediate's OCSP response.
-    ssl_test_util::CheckAuthenticatedState(
-        chrome_test_utils::GetActiveWebContents(this), AuthState::NONE);
+    // The builtin verifier enforces the baseline requirements for max age of an
+    // intermediate's OCSP response, so the connection is considered non-EV.
+    EXPECT_EQ(0u, cert_status & net::CERT_STATUS_ALL_ERRORS);
+    EXPECT_EQ(0u, cert_status & net::CERT_STATUS_IS_EV);
   } else {
-#if BUILDFLAG(IS_WIN)
-    // TODO(mattm): Seems to be flaky on Windows. Either returns
-    // CERT_STATUS_UNABLE_TO_CHECK_REVOCATION (which gets masked off due to
-    // soft-fail), or CERT_STATUS_REVOKED.
-
-    EXPECT_THAT(cert_status & net::CERT_STATUS_ALL_ERRORS,
-                ::testing::AnyOf(0u, net::CERT_STATUS_REVOKED));
-#else
     // The platform verifiers are more lenient.
-    ssl_test_util::CheckAuthenticationBrokenState(
-        chrome_test_utils::GetActiveWebContents(this), net::CERT_STATUS_REVOKED,
-        AuthState::SHOWING_INTERSTITIAL);
-
-#endif
+    EXPECT_EQ(0u, cert_status & net::CERT_STATUS_ALL_ERRORS);
+    EXPECT_EQ(ssl_test_util::SystemUsesChromiumEVMetadata(),
+              static_cast<bool>(cert_status & net::CERT_STATUS_IS_EV));
   }
-
   EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
 }
 
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPIntermediateRevoked) {
+IN_PROC_BROWSER_TEST_P(OCSPBrowserTest, TestHTTPSOCSPIntermediateRevoked) {
   EnableRevocationChecking();
 
   net::EmbeddedTestServer::ServerCertificateConfig cert_config;
+  cert_config.policy_oids = {kOCSPTestCertPolicy};
   cert_config.intermediate =
       net::EmbeddedTestServer::IntermediateType::kInHandshake;
   cert_config.ocsp_config = net::EmbeddedTestServer::OCSPConfig(
@@ -370,27 +402,24 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPIntermediateRevoked) {
   DoConnection(cert_config);
 
   net::CertStatus cert_status = GetCurrentCertStatus();
-  if (ssl_test_util::UsingBuiltinCertVerifier()) {
-    ssl_test_util::CheckAuthenticationBrokenState(
-        chrome_test_utils::GetActiveWebContents(this), net::CERT_STATUS_REVOKED,
-        AuthState::SHOWING_INTERSTITIAL);
-  } else {
-#if BUILDFLAG(IS_WIN)
-    // TODO(mattm): Seems to be flaky on Windows. Either returns
-    // CERT_STATUS_UNABLE_TO_CHECK_REVOCATION (which gets masked off due to
-    // soft-fail), or CERT_STATUS_REVOKED.
-    EXPECT_THAT(cert_status & net::CERT_STATUS_ALL_ERRORS,
-                ::testing::AnyOf(0u, net::CERT_STATUS_REVOKED));
+
+#if defined(OS_WIN)
+  // TODO(mattm): Seems to be flaky on Windows. Either returns
+  // CERT_STATUS_UNABLE_TO_CHECK_REVOCATION (which gets masked off due to
+  // soft-fail), or CERT_STATUS_REVOKED.
+  EXPECT_THAT(cert_status & net::CERT_STATUS_ALL_ERRORS,
+              ::testing::AnyOf(0u, net::CERT_STATUS_REVOKED));
 #else
-    ssl_test_util::CheckAuthenticationBrokenState(
-        chrome_test_utils::GetActiveWebContents(this), net::CERT_STATUS_REVOKED,
-        AuthState::SHOWING_INTERSTITIAL);
+  ssl_test_util::CheckAuthenticationBrokenState(
+      chrome_test_utils::GetActiveWebContents(this), net::CERT_STATUS_REVOKED,
+      AuthState::SHOWING_INTERSTITIAL);
 #endif
-  }
+
+  EXPECT_EQ(0u, cert_status & net::CERT_STATUS_IS_EV);
   EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
 }
 
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPValidStapled) {
+IN_PROC_BROWSER_TEST_P(OCSPBrowserTest, TestHTTPSOCSPValidStapled) {
   if (!ssl_test_util::SystemSupportsOCSPStapling()) {
     LOG(WARNING)
         << "Skipping test because system doesn't support OCSP stapling";
@@ -400,6 +429,7 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPValidStapled) {
   EnableRevocationChecking();
 
   net::EmbeddedTestServer::ServerCertificateConfig cert_config;
+  cert_config.policy_oids = {kOCSPTestCertPolicy};
 
   // AIA OCSP url is included, but does not return a successful ocsp response.
   cert_config.ocsp_config = net::EmbeddedTestServer::OCSPConfig(
@@ -415,10 +445,12 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPValidStapled) {
       chrome_test_utils::GetActiveWebContents(this), AuthState::NONE);
 
   net::CertStatus cert_status = GetCurrentCertStatus();
+  EXPECT_EQ(ssl_test_util::SystemUsesChromiumEVMetadata(),
+            static_cast<bool>(cert_status & net::CERT_STATUS_IS_EV));
   EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
 }
 
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPRevokedStapled) {
+IN_PROC_BROWSER_TEST_P(OCSPBrowserTest, TestHTTPSOCSPRevokedStapled) {
   if (!ssl_test_util::SystemSupportsOCSPStapling()) {
     LOG(WARNING)
         << "Skipping test because system doesn't support OCSP stapling";
@@ -428,6 +460,7 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPRevokedStapled) {
   EnableRevocationChecking();
 
   net::EmbeddedTestServer::ServerCertificateConfig cert_config;
+  cert_config.policy_oids = {kOCSPTestCertPolicy};
 
   // AIA OCSP url is included, but does not return a successful ocsp response.
   cert_config.ocsp_config = net::EmbeddedTestServer::OCSPConfig(
@@ -444,10 +477,11 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPRevokedStapled) {
       AuthState::SHOWING_INTERSTITIAL);
 
   net::CertStatus cert_status = GetCurrentCertStatus();
+  EXPECT_FALSE(cert_status & net::CERT_STATUS_IS_EV);
   EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
 }
 
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPOldStapledAndInvalidAIA) {
+IN_PROC_BROWSER_TEST_P(OCSPBrowserTest, TestHTTPSOCSPOldStapledAndInvalidAIA) {
   if (!ssl_test_util::SystemSupportsOCSPStapling()) {
     LOG(WARNING)
         << "Skipping test because system doesn't support OCSP stapling";
@@ -457,6 +491,7 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPOldStapledAndInvalidAIA) {
   EnableRevocationChecking();
 
   net::EmbeddedTestServer::ServerCertificateConfig cert_config;
+  cert_config.policy_oids = {kOCSPTestCertPolicy};
   // Stapled response indicates good, but is too old.
   cert_config.stapled_ocsp_config = net::EmbeddedTestServer::OCSPConfig(
       {{net::OCSPRevocationStatus::GOOD,
@@ -471,10 +506,11 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPOldStapledAndInvalidAIA) {
       chrome_test_utils::GetActiveWebContents(this), AuthState::NONE);
 
   net::CertStatus cert_status = GetCurrentCertStatus();
+  EXPECT_FALSE(cert_status & net::CERT_STATUS_IS_EV);
   EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
 }
 
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPOldStapledButValidAIA) {
+IN_PROC_BROWSER_TEST_P(OCSPBrowserTest, TestHTTPSOCSPOldStapledButValidAIA) {
   if (!ssl_test_util::SystemSupportsOCSPStapling()) {
     LOG(WARNING)
         << "Skipping test because system doesn't support OCSP stapling";
@@ -484,6 +520,7 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPOldStapledButValidAIA) {
   EnableRevocationChecking();
 
   net::EmbeddedTestServer::ServerCertificateConfig cert_config;
+  cert_config.policy_oids = {kOCSPTestCertPolicy};
 
   // Stapled response indicates good, but response is too old.
   cert_config.stapled_ocsp_config = net::EmbeddedTestServer::OCSPConfig(
@@ -500,12 +537,12 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, TestHTTPSOCSPOldStapledButValidAIA) {
       chrome_test_utils::GetActiveWebContents(this), AuthState::NONE);
 
   net::CertStatus cert_status = GetCurrentCertStatus();
+  EXPECT_EQ(ssl_test_util::SystemUsesChromiumEVMetadata(),
+            static_cast<bool>(cert_status & net::CERT_STATUS_IS_EV));
   EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
 }
 
-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN) || \
-    BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(IS_MAC)
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, HardFailOnOCSPInvalid) {
+IN_PROC_BROWSER_TEST_P(OCSPBrowserTest, HardFailOnOCSPInvalid) {
   if (!ssl_test_util::SystemSupportsHardFailRevocationChecking()) {
     LOG(WARNING) << "Skipping test because system doesn't support hard fail "
                  << "revocation checking";
@@ -533,6 +570,7 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, HardFailOnOCSPInvalid) {
                   ->initial_ssl_config->rev_checking_required_local_anchors);
 
   net::EmbeddedTestServer::ServerCertificateConfig cert_config;
+  cert_config.policy_oids = {kOCSPTestCertPolicy};
   cert_config.ocsp_config = net::EmbeddedTestServer::OCSPConfig(
       net::EmbeddedTestServer::OCSPConfig::ResponseType::kInvalidResponse);
 
@@ -544,174 +582,16 @@ IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, HardFailOnOCSPInvalid) {
       AuthState::SHOWING_INTERSTITIAL);
 
   net::CertStatus cert_status = GetCurrentCertStatus();
+  // Without a positive OCSP response, we shouldn't show the EV status.
+  EXPECT_FALSE(cert_status & net::CERT_STATUS_IS_EV);
   EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
 }
 
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest, HardFailOCSPInvalidUseStapled) {
-  if (!ssl_test_util::SystemSupportsHardFailRevocationChecking()) {
-    LOG(WARNING) << "Skipping test because system doesn't support hard fail "
-                 << "revocation checking";
-    return;
-  }
-
-  if (!ssl_test_util::SystemSupportsOCSPStapling()) {
-    LOG(WARNING)
-        << "Skipping test because system doesn't support OCSP stapling";
-    return;
-  }
-
-  // OCSP checking is disabled by default.
-  EXPECT_FALSE(last_ssl_config().rev_checking_required_local_anchors);
-  EXPECT_FALSE(g_browser_process->system_network_context_manager()
-                   ->CreateDefaultNetworkContextParams()
-                   ->initial_ssl_config->rev_checking_required_local_anchors);
-
-  // Enable hard-fail, and make sure the default network context params reflect
-  // the change.
-  base::RunLoop run_loop;
-  set_ssl_config_updated_callback(run_loop.QuitClosure());
-  ASSERT_NO_FATAL_FAILURE(
-      EnablePolicy(g_browser_process->local_state(),
-                   policy::key::kRequireOnlineRevocationChecksForLocalAnchors,
-                   prefs::kCertRevocationCheckingRequiredLocalAnchors));
-  run_loop.Run();
-  EXPECT_TRUE(last_ssl_config().rev_checking_required_local_anchors);
-  EXPECT_TRUE(g_browser_process->system_network_context_manager()
-                  ->CreateDefaultNetworkContextParams()
-                  ->initial_ssl_config->rev_checking_required_local_anchors);
-
-  net::EmbeddedTestServer::ServerCertificateConfig cert_config;
-
-  // AIA OCSP url is included, but does not return a successful ocsp response.
-  cert_config.ocsp_config = net::EmbeddedTestServer::OCSPConfig(
-      net::EmbeddedTestServer::OCSPConfig::ResponseType::kTryLater);
-
-  cert_config.stapled_ocsp_config = net::EmbeddedTestServer::OCSPConfig(
-      {{net::OCSPRevocationStatus::GOOD,
-        net::EmbeddedTestServer::OCSPConfig::SingleResponse::Date::kValid}});
-
-  DoConnection(cert_config);
-
-  ssl_test_util::CheckAuthenticatedState(
-      chrome_test_utils::GetActiveWebContents(this), AuthState::NONE);
-
-  net::CertStatus cert_status = GetCurrentCertStatus();
-  EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
-}
-
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest,
-                       HardFailTestHTTPSOCSPOldStapledAndInvalidAIA) {
-  if (!ssl_test_util::SystemSupportsHardFailRevocationChecking()) {
-    LOG(WARNING) << "Skipping test because system doesn't support hard fail "
-                 << "revocation checking";
-    return;
-  }
-
-  if (!ssl_test_util::SystemSupportsOCSPStapling()) {
-    LOG(WARNING)
-        << "Skipping test because system doesn't support OCSP stapling";
-    return;
-  }
-
-  // OCSP checking is disabled by default.
-  EXPECT_FALSE(last_ssl_config().rev_checking_required_local_anchors);
-  EXPECT_FALSE(g_browser_process->system_network_context_manager()
-                   ->CreateDefaultNetworkContextParams()
-                   ->initial_ssl_config->rev_checking_required_local_anchors);
-
-  // Enable hard-fail, and make sure the default network context params reflect
-  // the change.
-  base::RunLoop run_loop;
-  set_ssl_config_updated_callback(run_loop.QuitClosure());
-  ASSERT_NO_FATAL_FAILURE(
-      EnablePolicy(g_browser_process->local_state(),
-                   policy::key::kRequireOnlineRevocationChecksForLocalAnchors,
-                   prefs::kCertRevocationCheckingRequiredLocalAnchors));
-  run_loop.Run();
-  EXPECT_TRUE(last_ssl_config().rev_checking_required_local_anchors);
-  EXPECT_TRUE(g_browser_process->system_network_context_manager()
-                  ->CreateDefaultNetworkContextParams()
-                  ->initial_ssl_config->rev_checking_required_local_anchors);
-
-  net::EmbeddedTestServer::ServerCertificateConfig cert_config;
-  // Stapled response indicates good, but is too old.
-  cert_config.stapled_ocsp_config = net::EmbeddedTestServer::OCSPConfig(
-      {{net::OCSPRevocationStatus::GOOD,
-        net::EmbeddedTestServer::OCSPConfig::SingleResponse::Date::kOld}});
-
-  // AIA OCSP url is included, but does not return a successful ocsp response.
-  cert_config.ocsp_config = net::EmbeddedTestServer::OCSPConfig(
-      net::EmbeddedTestServer::OCSPConfig::ResponseType::kTryLater);
-
-  DoConnection(cert_config);
-  ssl_test_util::CheckAuthenticationBrokenState(
-      chrome_test_utils::GetActiveWebContents(this),
-      net::CERT_STATUS_UNABLE_TO_CHECK_REVOCATION,
-      AuthState::SHOWING_INTERSTITIAL);
-
-  net::CertStatus cert_status = GetCurrentCertStatus();
-  EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
-}
-
-IN_PROC_BROWSER_TEST_F(OCSPBrowserTest,
-                       HardFailTestHTTPSOCSPOldStapledButValidAIA) {
-  if (!ssl_test_util::SystemSupportsHardFailRevocationChecking()) {
-    LOG(WARNING) << "Skipping test because system doesn't support hard fail "
-                 << "revocation checking";
-    return;
-  }
-
-  if (!ssl_test_util::SystemSupportsOCSPStapling()) {
-    LOG(WARNING)
-        << "Skipping test because system doesn't support OCSP stapling";
-    return;
-  }
-
-  // OCSP checking is disabled by default.
-  EXPECT_FALSE(last_ssl_config().rev_checking_required_local_anchors);
-  EXPECT_FALSE(g_browser_process->system_network_context_manager()
-                   ->CreateDefaultNetworkContextParams()
-                   ->initial_ssl_config->rev_checking_required_local_anchors);
-
-  // Enable hard-fail, and make sure the default network context params reflect
-  // the change.
-  base::RunLoop run_loop;
-  set_ssl_config_updated_callback(run_loop.QuitClosure());
-  ASSERT_NO_FATAL_FAILURE(
-      EnablePolicy(g_browser_process->local_state(),
-                   policy::key::kRequireOnlineRevocationChecksForLocalAnchors,
-                   prefs::kCertRevocationCheckingRequiredLocalAnchors));
-  run_loop.Run();
-  EXPECT_TRUE(last_ssl_config().rev_checking_required_local_anchors);
-  EXPECT_TRUE(g_browser_process->system_network_context_manager()
-                  ->CreateDefaultNetworkContextParams()
-                  ->initial_ssl_config->rev_checking_required_local_anchors);
-
-  net::EmbeddedTestServer::ServerCertificateConfig cert_config;
-
-  // Stapled response indicates good, but response is too old.
-  cert_config.stapled_ocsp_config = net::EmbeddedTestServer::OCSPConfig(
-      {{net::OCSPRevocationStatus::GOOD,
-        net::EmbeddedTestServer::OCSPConfig::SingleResponse::Date::kOld}});
-
-  // AIA OCSP url is included, and returns a successful ocsp response.
-  cert_config.ocsp_config = net::EmbeddedTestServer::OCSPConfig(
-      {{net::OCSPRevocationStatus::GOOD,
-        net::EmbeddedTestServer::OCSPConfig::SingleResponse::Date::kValid}});
-
-  DoConnection(cert_config);
-  ssl_test_util::CheckAuthenticatedState(
-      chrome_test_utils::GetActiveWebContents(this), AuthState::NONE);
-
-  net::CertStatus cert_status = GetCurrentCertStatus();
-  EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
-}
-#endif  // BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
-        // || BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(IS_MAC)
+INSTANTIATE_TEST_SUITE_P(/* no prefix */, OCSPBrowserTest, ::testing::Bool());
 
 using AIABrowserTest = OCSPBrowserTest;
 
-IN_PROC_BROWSER_TEST_F(AIABrowserTest, TestHTTPSAIA) {
+IN_PROC_BROWSER_TEST_P(AIABrowserTest, TestHTTPSAIA) {
   net::EmbeddedTestServer::ServerCertificateConfig cert_config;
   cert_config.intermediate = net::EmbeddedTestServer::IntermediateType::kByAIA;
 
@@ -720,84 +600,4 @@ IN_PROC_BROWSER_TEST_F(AIABrowserTest, TestHTTPSAIA) {
       chrome_test_utils::GetActiveWebContents(this), AuthState::NONE);
 }
 
-class EVBrowserTest : public OCSPBrowserTest {
- public:
-  void SetUpOnMainThread() override {
-    OCSPBrowserTest::SetUpOnMainThread();
-
-    // TODO(https://crbug.com/1085233): when the CertVerifierService is moved
-    // out of process, the ScopedTestEVPolicy needs to be instantiated in
-    // that process.
-    scoped_refptr<net::X509Certificate> root_cert = net::ImportCertFromFile(
-        net::GetTestCertsDirectory(), "root_ca_cert.pem");
-    ASSERT_TRUE(root_cert);
-
-    ev_test_policy_ = std::make_unique<net::ScopedTestEVPolicy>(
-        net::EVRootCAMetadata::GetInstance(),
-        net::X509Certificate::CalculateFingerprint256(root_cert->cert_buffer()),
-        kOCSPTestCertPolicy);
-  }
-
- private:
-  std::unique_ptr<net::ScopedTestEVPolicy> ev_test_policy_;
-};
-
-IN_PROC_BROWSER_TEST_F(EVBrowserTest, TestHTTPSEVNoPolicySet) {
-  // OCSP checking is disabled by default.
-  EXPECT_FALSE(last_ssl_config().rev_checking_enabled);
-  EXPECT_FALSE(g_browser_process->system_network_context_manager()
-                   ->CreateDefaultNetworkContextParams()
-                   ->initial_ssl_config->rev_checking_enabled);
-
-  net::EmbeddedTestServer::ServerCertificateConfig ok_cert_config;
-  DoConnection(ok_cert_config);
-
-  ssl_test_util::CheckAuthenticatedState(
-      chrome_test_utils::GetActiveWebContents(this), AuthState::NONE);
-
-  net::CertStatus cert_status = GetCurrentCertStatus();
-  EXPECT_FALSE(cert_status & net::CERT_STATUS_IS_EV);
-  EXPECT_FALSE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
-}
-
-IN_PROC_BROWSER_TEST_F(EVBrowserTest, TestHTTPSEVNoOCSPCheck) {
-  // OCSP checking is disabled by default.
-  EXPECT_FALSE(last_ssl_config().rev_checking_enabled);
-  EXPECT_FALSE(g_browser_process->system_network_context_manager()
-                   ->CreateDefaultNetworkContextParams()
-                   ->initial_ssl_config->rev_checking_enabled);
-
-  net::EmbeddedTestServer::ServerCertificateConfig ok_cert_config;
-  ok_cert_config.policy_oids = {kOCSPTestCertPolicy};
-  DoConnection(ok_cert_config);
-
-  ssl_test_util::CheckAuthenticatedState(
-      chrome_test_utils::GetActiveWebContents(this), AuthState::NONE);
-
-  net::CertStatus cert_status = GetCurrentCertStatus();
-  EXPECT_EQ(ssl_test_util::SystemUsesChromiumEVMetadata(),
-            static_cast<bool>(cert_status & net::CERT_STATUS_IS_EV));
-  EXPECT_FALSE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
-}
-
-// Test EV checking when revocation checking is explicitly enabled and we have a
-// revoked OCSP response.
-IN_PROC_BROWSER_TEST_F(EVBrowserTest, TestHTTPSOCSPRevoked) {
-  EnableRevocationChecking();
-
-  net::EmbeddedTestServer::ServerCertificateConfig revoked_cert_config;
-  revoked_cert_config.policy_oids = {kOCSPTestCertPolicy};
-  revoked_cert_config.ocsp_config = net::EmbeddedTestServer::OCSPConfig(
-      {{net::OCSPRevocationStatus::REVOKED,
-        net::EmbeddedTestServer::OCSPConfig::SingleResponse::Date::kValid}});
-
-  DoConnection(revoked_cert_config);
-
-  ssl_test_util::CheckAuthenticationBrokenState(
-      chrome_test_utils::GetActiveWebContents(this), net::CERT_STATUS_REVOKED,
-      AuthState::SHOWING_INTERSTITIAL);
-
-  net::CertStatus cert_status = GetCurrentCertStatus();
-  EXPECT_FALSE(cert_status & net::CERT_STATUS_IS_EV);
-  EXPECT_TRUE(cert_status & net::CERT_STATUS_REV_CHECKING_ENABLED);
-}
+INSTANTIATE_TEST_SUITE_P(/* no prefix */, AIABrowserTest, ::testing::Bool());

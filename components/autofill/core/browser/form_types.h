@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,17 +9,17 @@
 
 namespace autofill {
 
-enum class FormType : int {
-  kUnknownFormType,
-  kAddressForm,
-  kCreditCardForm,
-  kPasswordForm,
-  kMaxValue = kPasswordForm
+enum FormType : int {
+  UNKNOWN_FORM_TYPE,
+  ADDRESS_FORM,
+  CREDIT_CARD_FORM,
+  PASSWORD_FORM
 };
 
-FormType FieldTypeGroupToFormType(FieldTypeGroup field_type_group);
-
-base::StringPiece FormTypeToStringPiece(FormType form_type);
+class FormTypes {
+ public:
+  static FormType FieldTypeGroupToFormType(FieldTypeGroup field_type_group);
+};
 
 }  // namespace autofill
 

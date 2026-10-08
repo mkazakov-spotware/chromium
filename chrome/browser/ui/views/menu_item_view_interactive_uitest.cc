@@ -1,12 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
-#include "build/build_config.h"
 #include "chrome/browser/ui/views/menu_test_base.h"
-#include "ui/base/themed_vector_icon.h"
+#include "ui/native_theme/themed_vector_icon.h"
 #include "ui/views/controls/menu/menu_item_view.h"
 #include "ui/views/controls/menu/submenu_view.h"
 
@@ -25,10 +24,10 @@ class MenuItemViewTestBasic : public MenuTestBase {
 
   // MenuTestBase implementation
   void BuildMenu(views::MenuItemView* menu) override {
-    menu->AppendMenuItem(1, u"item 1");
-    menu->AppendMenuItem(2, u"item 2");
+    menu->AppendMenuItem(1, ASCIIToUTF16("item 1"));
+    menu->AppendMenuItem(2, ASCIIToUTF16("item 2"));
     menu->AppendSeparator();
-    menu->AppendMenuItem(3, u"item 3");
+    menu->AppendMenuItem(3, ASCIIToUTF16("item 3"));
   }
 
   // Click on item INDEX.
@@ -59,6 +58,8 @@ using MenuItemViewTestBasic2 = MenuItemViewTestBasic<2>;
 // If this flakes, disable and log details in http://crbug.com/523255.
 VIEW_TEST(MenuItemViewTestBasic0, SelectItem0)
 VIEW_TEST(MenuItemViewTestBasic1, SelectItem1)
+
+// If this flakes, disable and log details in http://crbug.com/523255.
 VIEW_TEST(MenuItemViewTestBasic2, SelectItem2)
 
 // Test class for inserting a menu item while the menu is open.
@@ -72,8 +73,8 @@ class MenuItemViewTestInsert : public MenuTestBase {
 
   // MenuTestBase implementation
   void BuildMenu(views::MenuItemView* menu) override {
-    menu->AppendMenuItem(1, u"item 1");
-    menu->AppendMenuItem(2, u"item 2");
+    menu->AppendMenuItem(1, ASCIIToUTF16("item 1"));
+    menu->AppendMenuItem(2, ASCIIToUTF16("item 2"));
   }
 
   // Insert item at INSERT_INDEX and click item at SELECT_INDEX.
@@ -85,9 +86,10 @@ class MenuItemViewTestInsert : public MenuTestBase {
     ASSERT_EQ(2u, submenu->GetMenuItems().size());
 
     inserted_item_ = menu()->AddMenuItemAt(
-        INSERT_INDEX, 1000, u"inserted item", std::u16string(),
-        std::u16string(), ui::ImageModel(), ui::ImageModel(),
-        views::MenuItemView::Type::kNormal, ui::NORMAL_SEPARATOR);
+        INSERT_INDEX, 1000, ASCIIToUTF16("inserted item"), base::string16(),
+        base::string16(), ui::ThemedVectorIcon(), gfx::ImageSkia(),
+        ui::ThemedVectorIcon(), views::MenuItemView::Type::kNormal,
+        ui::NORMAL_SEPARATOR);
     ASSERT_TRUE(inserted_item_);
     menu()->ChildrenChanged();
 
@@ -117,7 +119,7 @@ class MenuItemViewTestInsert : public MenuTestBase {
   }
 
  private:
-  raw_ptr<views::MenuItemView> inserted_item_ = nullptr;
+  views::MenuItemView* inserted_item_ = nullptr;
 };
 
 // MenuItemViewTestInsertXY inserts an item at index X and selects the
@@ -162,10 +164,10 @@ class MenuItemViewTestInsertWithSubmenu : public MenuTestBase {
 
   // MenuTestBase implementation
   void BuildMenu(views::MenuItemView* menu) override {
-    submenu_ = menu->AppendSubMenu(1, u"My Submenu");
-    submenu_->AppendMenuItem(101, u"submenu item 1");
-    submenu_->AppendMenuItem(101, u"submenu item 2");
-    menu->AppendMenuItem(2, u"item 2");
+    submenu_ = menu->AppendSubMenu(1, ASCIIToUTF16("My Submenu"));
+    submenu_->AppendMenuItem(101, ASCIIToUTF16("submenu item 1"));
+    submenu_->AppendMenuItem(101, ASCIIToUTF16("submenu item 2"));
+    menu->AppendMenuItem(2, ASCIIToUTF16("item 2"));
     EXPECT_EQ(GetAXEventCount(ax::mojom::Event::kMenuStart), 0);
     EXPECT_EQ(GetAXEventCount(ax::mojom::Event::kMenuPopupStart), 0);
     EXPECT_EQ(GetAXEventCount(ax::mojom::Event::kMenuPopupEnd), 0);
@@ -185,9 +187,10 @@ class MenuItemViewTestInsertWithSubmenu : public MenuTestBase {
   // Insert item at INSERT_INDEX.
   void Step2() {
     inserted_item_ = menu()->AddMenuItemAt(
-        INSERT_INDEX, 1000, u"inserted item", std::u16string(),
-        std::u16string(), ui::ImageModel(), ui::ImageModel(),
-        views::MenuItemView::Type::kNormal, ui::NORMAL_SEPARATOR);
+        INSERT_INDEX, 1000, ASCIIToUTF16("inserted item"), base::string16(),
+        base::string16(), ui::ThemedVectorIcon(), gfx::ImageSkia(),
+        ui::ThemedVectorIcon(), views::MenuItemView::Type::kNormal,
+        ui::NORMAL_SEPARATOR);
     ASSERT_TRUE(inserted_item_);
     menu()->ChildrenChanged();
 
@@ -204,8 +207,8 @@ class MenuItemViewTestInsertWithSubmenu : public MenuTestBase {
   }
 
  private:
-  raw_ptr<views::MenuItemView> submenu_ = nullptr;
-  raw_ptr<views::MenuItemView> inserted_item_ = nullptr;
+  views::MenuItemView* submenu_ = nullptr;
+  views::MenuItemView* inserted_item_ = nullptr;
 };
 
 // MenuItemViewTestInsertWithSubmenuX posts a menu and its submenu,
@@ -217,13 +220,7 @@ using MenuItemViewTestInsertWithSubmenu1 = MenuItemViewTestInsertWithSubmenu<1>;
 VIEW_TEST(MenuItemViewTestInsertWithSubmenu0, InsertItemWithSubmenu0)
 
 // If this flakes, disable and log details in http://crbug.com/523255.
-// Failing on Linux Ozone Tester (Wayland) (See crbug.com/1236048).
-#if BUILDFLAG(IS_OZONE)
-#define MAYBE_InsertItemWithSubmenu1 DISABLED_InsertItemWithSubmenu1
-#else
-#define MAYBE_InsertItemWithSubmenu1 InsertItemWithSubmenu1
-#endif
-VIEW_TEST(MenuItemViewTestInsertWithSubmenu1, MAYBE_InsertItemWithSubmenu1)
+VIEW_TEST(MenuItemViewTestInsertWithSubmenu1, InsertItemWithSubmenu1)
 
 // Test class for removing a menu item while the menu is open.
 template <int REMOVE_INDEX, int SELECT_INDEX>
@@ -236,9 +233,9 @@ class MenuItemViewTestRemove : public MenuTestBase {
 
   // MenuTestBase implementation
   void BuildMenu(views::MenuItemView* menu) override {
-    menu->AppendMenuItem(1, u"item 1");
-    menu->AppendMenuItem(2, u"item 2");
-    menu->AppendMenuItem(3, u"item 3");
+    menu->AppendMenuItem(1, ASCIIToUTF16("item 1"));
+    menu->AppendMenuItem(2, ASCIIToUTF16("item 2"));
+    menu->AppendMenuItem(3, ASCIIToUTF16("item 3"));
   }
 
   // Remove item at REMOVE_INDEX and click item at SELECT_INDEX.
@@ -311,10 +308,10 @@ class MenuItemViewTestRemoveWithSubmenu : public MenuTestBase {
 
   // MenuTestBase implementation
   void BuildMenu(views::MenuItemView* menu) override {
-    menu->AppendMenuItem(1, u"item 1");
-    submenu_ = menu->AppendSubMenu(2, u"My Submenu");
-    submenu_->AppendMenuItem(101, u"submenu item 1");
-    submenu_->AppendMenuItem(102, u"submenu item 2");
+    menu->AppendMenuItem(1, ASCIIToUTF16("item 1"));
+    submenu_ = menu->AppendSubMenu(2, ASCIIToUTF16("My Submenu"));
+    submenu_->AppendMenuItem(101, ASCIIToUTF16("submenu item 1"));
+    submenu_->AppendMenuItem(102, ASCIIToUTF16("submenu item 2"));
   }
 
   // Post submenu.
@@ -353,7 +350,7 @@ class MenuItemViewTestRemoveWithSubmenu : public MenuTestBase {
   }
 
  private:
-  raw_ptr<views::MenuItemView> submenu_ = nullptr;
+  views::MenuItemView* submenu_ = nullptr;
 };
 
 using MenuItemViewTestRemoveWithSubmenu0 = MenuItemViewTestRemoveWithSubmenu<0>;
@@ -363,10 +360,4 @@ using MenuItemViewTestRemoveWithSubmenu1 = MenuItemViewTestRemoveWithSubmenu<1>;
 VIEW_TEST(MenuItemViewTestRemoveWithSubmenu0, RemoveItemWithSubmenu0)
 
 // If this flakes, disable and log details in http://crbug.com/523255.
-// TODO(https://crbug.com/1379761): Flaky on Wayland.
-#if BUILDFLAG(IS_OZONE)
-#define MAYBE_RemoveItemWithSubmenu1 DISABLED_RemoveItemWithSubmenu1
-#else
-#define MAYBE_RemoveItemWithSubmenu1 RemoveItemWithSubmenu1
-#endif
-VIEW_TEST(MenuItemViewTestRemoveWithSubmenu1, MAYBE_RemoveItemWithSubmenu1)
+VIEW_TEST(MenuItemViewTestRemoveWithSubmenu1, RemoveItemWithSubmenu1)

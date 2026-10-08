@@ -1,7 +1,7 @@
 AXWebArea
 ++AXGroup
 ++++AXStaticText AXValue='This is '
-++++AXStaticText AXValue='%E2%80%9C'
+++++AXStaticText AXValue='"'
 ++++AXStaticText AXValue='Chromium Blink'
-++++AXStaticText AXValue='%E2%80%9D'
+++++AXStaticText AXValue='"'
 ++++AXStaticText AXValue=' based browser.'

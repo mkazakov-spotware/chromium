@@ -1,8 +1,6 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include <tuple>
 
 #include "base/test/scoped_feature_list.h"
 #include "content/browser/web_contents/web_contents_impl.h"
@@ -55,20 +53,12 @@ namespace content {
 class WheelEventListenerBrowserTest : public ContentBrowserTest {
  public:
   WheelEventListenerBrowserTest() = default;
-
-  WheelEventListenerBrowserTest(const WheelEventListenerBrowserTest&) = delete;
-  WheelEventListenerBrowserTest& operator=(
-      const WheelEventListenerBrowserTest&) = delete;
-
   ~WheelEventListenerBrowserTest() override = default;
 
  protected:
   RenderWidgetHostImpl* GetWidgetHost() {
-    return RenderWidgetHostImpl::From(shell()
-                                          ->web_contents()
-                                          ->GetPrimaryMainFrame()
-                                          ->GetRenderViewHost()
-                                          ->GetWidget());
+    return RenderWidgetHostImpl::From(
+        shell()->web_contents()->GetRenderViewHost()->GetWidget());
   }
 
   void LoadURL(const std::string& page_data) {
@@ -78,9 +68,9 @@ class WheelEventListenerBrowserTest : public ContentBrowserTest {
     RenderWidgetHostImpl* host = GetWidgetHost();
     host->GetView()->SetSize(gfx::Size(400, 400));
 
-    std::u16string ready_title(u"ready");
+    base::string16 ready_title(base::ASCIIToUTF16("ready"));
     TitleWatcher watcher(shell()->web_contents(), ready_title);
-    std::ignore = watcher.WaitAndGetTitle();
+    ignore_result(watcher.WaitAndGetTitle());
 
     MainThreadFrameObserver main_thread_sync(host);
     main_thread_sync.Wait();
@@ -105,7 +95,7 @@ class WheelEventListenerBrowserTest : public ContentBrowserTest {
   void WaitForScroll() {
     RenderFrameSubmissionObserver observer(
         GetWidgetHost()->render_frame_metadata_provider());
-    gfx::PointF default_scroll_offset;
+    gfx::Vector2dF default_scroll_offset;
     while (observer.LastRenderFrameMetadata()
                .root_scroll_offset.value_or(default_scroll_offset)
                .y() <= 0) {
@@ -115,6 +105,7 @@ class WheelEventListenerBrowserTest : public ContentBrowserTest {
 
  private:
   base::test::ScopedFeatureList feature_list_;
+  DISALLOW_COPY_AND_ASSIGN(WheelEventListenerBrowserTest);
 };
 
 IN_PROC_BROWSER_TEST_F(WheelEventListenerBrowserTest,

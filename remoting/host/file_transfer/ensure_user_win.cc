@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 
 namespace remoting {
 
-protocol::FileTransferResult<absl::monostate> EnsureUserContext() {
+protocol::FileTransferResult<Monostate> EnsureUserContext() {
   // Impersonate the currently logged-in user, or fail if there is none.
   HANDLE user_token = nullptr;
   if (!WTSQueryUserToken(WTS_CURRENT_SESSION, &user_token)) {

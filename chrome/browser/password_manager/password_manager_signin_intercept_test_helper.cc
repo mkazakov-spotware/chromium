@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,16 +6,16 @@
 
 #include "base/check.h"
 #include "base/command_line.h"
+#include "base/optional.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/password_manager/password_manager_test_base.h"
-#include "chrome/browser/password_manager/passwords_navigation_observer.h"
-#include "chrome/browser/profiles/profile_attributes_init_params.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/signin/dice_web_signin_interceptor.h"
 #include "chrome/browser/signin/dice_web_signin_interceptor_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
+#include "chrome/browser/signin/signin_features.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/pref_names.h"
@@ -29,15 +29,12 @@
 #include "google_apis/gaia/gaia_auth_util.h"
 #include "google_apis/gaia/gaia_switches.h"
 #include "google_apis/gaia/gaia_urls.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 namespace {
 
 constexpr char kGaiaUsername[] = "username";
-constexpr char16_t kGaiaUsername16[] = u"username";
 constexpr char kGaiaEmail[] = "username@gmail.com";
-constexpr char16_t kGaiaEmail16[] = u"username@gmail.com";
 constexpr char kGaiaId[] = "test_gaia_id";
 
 }  // namespace
@@ -46,6 +43,7 @@ PasswordManagerSigninInterceptTestHelper::
     PasswordManagerSigninInterceptTestHelper(
         net::test_server::EmbeddedTestServer* https_test_server)
     : https_test_server_(https_test_server) {
+  feature_list_.InitAndEnableFeature(kDiceWebSigninInterceptionFeature);
 }
 
 PasswordManagerSigninInterceptTestHelper::
@@ -70,8 +68,8 @@ void PasswordManagerSigninInterceptTestHelper::StoreGaiaCredentials(
     scoped_refptr<password_manager::TestPasswordStore> password_store) {
   password_manager::PasswordForm signin_form;
   signin_form.signon_realm = GaiaUrls::GetInstance()->gaia_url().spec();
-  signin_form.username_value = kGaiaUsername16;
-  signin_form.password_value = u"pw";
+  signin_form.username_value = base::ASCIIToUTF16(kGaiaUsername);
+  signin_form.password_value = base::ASCIIToUTF16("pw");
   password_store->AddLogin(signin_form);
 }
 
@@ -80,11 +78,11 @@ void PasswordManagerSigninInterceptTestHelper::NavigateToGaiaSigninPage(
   std::string path = "/password/password_form.html";
   GURL https_url(https_test_server_->GetURL(path));
   DCHECK(https_url.SchemeIs(url::kHttpsScheme));
-  DCHECK(gaia::HasGaiaSchemeHostPort(https_url));
+  DCHECK(gaia::IsGaiaSignonRealm(https_url.GetOrigin()));
 
-  PasswordsNavigationObserver navigation_observer(contents);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      chrome::FindBrowserWithWebContents(contents), https_url));
+  NavigationObserver navigation_observer(contents);
+  ui_test_utils::NavigateToURL(chrome::FindBrowserWithWebContents(contents),
+                               https_url);
   navigation_observer.Wait();
 }
 
@@ -98,15 +96,14 @@ void PasswordManagerSigninInterceptTestHelper::SetupProfilesForInterception(
       &profile_manager->GetProfileAttributesStorage();
   const base::FilePath profile_path =
       profile_manager->GenerateNextProfileDirectoryPath();
-  ProfileAttributesInitParams params;
-  params.profile_path = profile_path;
-  params.profile_name = u"TestProfileName";
-  params.gaia_id = kGaiaId;
-  params.user_name = kGaiaEmail16;
-  profile_storage->AddProfile(std::move(params));
+  profile_storage->AddProfile(
+      profile_path, base::UTF8ToUTF16("TestProfileName"), kGaiaId,
+      base::UTF8ToUTF16(kGaiaEmail),
+      /*is_consented_primary_account=*/false, /*icon_index=*/0,
+      /*supervised_user_id=*/std::string(), EmptyAccountId());
 
   // Check that the signin qualifies for interception.
-  absl::optional<SigninInterceptionHeuristicOutcome> outcome =
+  base::Optional<SigninInterceptionHeuristicOutcome> outcome =
       GetSigninInterceptor(current_profile)
           ->GetHeuristicOutcome(
               /*is_new_account=*/true, /*is_sync_signin=*/false, kGaiaUsername);

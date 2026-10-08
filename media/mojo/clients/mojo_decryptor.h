@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread_checker.h"
 #include "media/base/decryptor.h"
@@ -30,10 +31,6 @@ class MojoDecryptor final : public Decryptor {
   // will be used.
   MojoDecryptor(mojo::PendingRemote<mojom::Decryptor> remote_decryptor,
                 uint32_t writer_capacity = 0);
-
-  MojoDecryptor(const MojoDecryptor&) = delete;
-  MojoDecryptor& operator=(const MojoDecryptor&) = delete;
-
   ~MojoDecryptor() final;
 
   // Decryptor implementation.
@@ -46,13 +43,23 @@ class MojoDecryptor final : public Decryptor {
   void InitializeVideoDecoder(const VideoDecoderConfig& config,
                               DecoderInitCB init_cb) final;
   void DecryptAndDecodeAudio(scoped_refptr<DecoderBuffer> encrypted,
-                             AudioDecodeCB audio_decode_cb) final;
+                             const AudioDecodeCB& audio_decode_cb) final;
   void DecryptAndDecodeVideo(scoped_refptr<DecoderBuffer> encrypted,
-                             VideoDecodeCB video_decode_cb) final;
+                             const VideoDecodeCB& video_decode_cb) final;
   void ResetDecoder(StreamType stream_type) final;
   void DeinitializeDecoder(StreamType stream_type) final;
 
  private:
+  // These are once callbacks corresponding to repeating callbacks DecryptCB,
+  // DecoderInitCB, AudioDecodeCB and VideoDecodeCB. They are needed so that we
+  // can use WrapCallbackWithDefaultInvokeIfNotRun to make sure callbacks always
+  // run.
+  // TODO(xhwang): Update Decryptor to use OnceCallback. The change is easy,
+  // but updating tests is hard given gmock doesn't support move-only types.
+  // See http://crbug.com/751838
+  using AudioDecodeOnceCB = base::OnceCallback<AudioDecodeCB::RunType>;
+  using VideoDecodeOnceCB = base::OnceCallback<VideoDecodeCB::RunType>;
+
   // Called when a buffer is decrypted.
   void OnBufferDecrypted(DecryptCB decrypt_cb,
                          Status status,
@@ -60,11 +67,11 @@ class MojoDecryptor final : public Decryptor {
   void OnBufferRead(DecryptCB decrypt_cb,
                     Status status,
                     scoped_refptr<DecoderBuffer> buffer);
-  void OnAudioDecoded(AudioDecodeCB audio_decode_cb,
+  void OnAudioDecoded(AudioDecodeOnceCB audio_decode_cb,
                       Status status,
                       std::vector<mojom::AudioBufferPtr> audio_buffers);
   void OnVideoDecoded(
-      VideoDecodeCB video_decode_cb,
+      VideoDecodeOnceCB video_decode_cb,
       Status status,
       const scoped_refptr<VideoFrame>& video_frame,
       mojo::PendingRemote<mojom::FrameResourceReleaser> releaser);
@@ -90,6 +97,8 @@ class MojoDecryptor final : public Decryptor {
   std::unique_ptr<MojoDecoderBufferReader> decrypted_buffer_reader_;
 
   base::WeakPtrFactory<MojoDecryptor> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MojoDecryptor);
 };
 
 }  // namespace media

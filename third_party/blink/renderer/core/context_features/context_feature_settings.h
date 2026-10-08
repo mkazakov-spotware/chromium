@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,23 +31,13 @@ class CORE_EXPORT ContextFeatureSettings final
   static ContextFeatureSettings* From(ExecutionContext*, CreationMode);
 
   // ContextEnabled=MojoJS feature
-  void EnableMojoJS(bool enable) { enable_mojo_js_ = enable; }
+  void enableMojoJS(bool enable) { enable_mojo_js_ = enable; }
   bool isMojoJSEnabled() const { return enable_mojo_js_; }
-
-  // ContextEnabled=MojoJSFileSystemAccessHelper
-  void EnableMojoJSFileSystemAccessHelper(bool enable) {
-    DCHECK(enable_mojo_js_);
-    enable_mojo_js_file_system_access_helper_ = enable;
-  }
-  bool isMojoJSFileSystemAccessHelperEnabled() const {
-    return enable_mojo_js_file_system_access_helper_;
-  }
 
   void Trace(Visitor*) const override;
 
  private:
   bool enable_mojo_js_ = false;
-  bool enable_mojo_js_file_system_access_helper_ = false;
 };
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,7 +40,7 @@ class WebstoreReinstallerBrowserTest : public WebstoreInstallerTest {
             kNonAppDomain) {}
   ~WebstoreReinstallerBrowserTest() override {}
 
-  void OnInstallCompletion(base::OnceClosure quit_closure,
+  void OnInstallCompletion(const base::Closure& quit_closure,
                            bool success,
                            const std::string& error,
                            webstore_install::Result result);
@@ -52,28 +52,27 @@ class WebstoreReinstallerBrowserTest : public WebstoreInstallerTest {
 };
 
 void WebstoreReinstallerBrowserTest::OnInstallCompletion(
-    base::OnceClosure quit_closure,
+    const base::Closure& quit_closure,
     bool success,
     const std::string& error,
     webstore_install::Result result) {
   last_install_result_ = success;
-  std::move(quit_closure).Run();
+  quit_closure.Run();
 }
 
 IN_PROC_BROWSER_TEST_F(WebstoreReinstallerBrowserTest, TestWebstoreReinstall) {
   // Build an extension with the same id as our test extension and add it.
   const std::string kExtensionName("ReinstallerExtension");
   scoped_refptr<const Extension> extension =
-      ExtensionBuilder()
-          .SetLocation(mojom::ManifestLocation::kInternal)
-          .SetID(kTestExtensionId)
-          .SetManifest(DictionaryBuilder()
-                           .Set("name", kExtensionName)
-                           .Set("description", "Foo")
-                           .Set("manifest_version", 2)
-                           .Set("version", "1.0")
-                           .Build())
-          .Build();
+      ExtensionBuilder().SetLocation(Manifest::INTERNAL)
+                      .SetID(kTestExtensionId)
+                      .SetManifest(
+                          DictionaryBuilder().Set("name", kExtensionName)
+                                             .Set("description", "Foo")
+                                             .Set("manifest_version", 2)
+                                             .Set("version", "1.0")
+                                             .Build())
+                      .Build();
   extension_service()->AddExtension(extension.get());
   ExtensionRegistry* registry = ExtensionRegistry::Get(profile());
   ASSERT_TRUE(registry->enabled_extensions().GetByID(kTestExtensionId));

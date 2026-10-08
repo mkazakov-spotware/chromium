@@ -6,13 +6,13 @@ This module provides an API to check flags and switches from Java code.
 
 Feature flags and switches are used to control application behavior. They are
 extensive described in the
-[Configuration Documentation](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/docs/configuration.md).
+[Configuration Documentation](https://chromium.googlesource.com/chromium/src/+/refs/heads/master/docs/configuration.md).
 
 ## Feature Flags
 
 Feature flags are declared in C++ as a `base::Feature`. How to declare them is
 covered in
-[Adding a new feature flag](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/docs/how_to_add_your_feature_flag.md).
+[Adding a new feature flag](https://chromium.googlesource.com/chromium/src/+/refs/heads/master/docs/how_to_add_your_feature_flag.md).
 
 To check the flag state in native code, call
 `FeatureList::IsEnabled(kMyFeature))`.
@@ -33,9 +33,9 @@ Note that this call requires native to be initialized. If native might not be
 initialized when the check is run, there are two ways of proceeding:
 
 1.  Use a cached value of the flag from the previous run by calling
-    [`ChromeFeatureList.sMyFeature.isEnabled()`](https://cs.chromium.org/chromium/src/chrome/browser/flags/android/java/src/org/chromium/chrome/browser/flags/CachedFlag.java).
+    [`CachedFeatureFlags.isEnabled(ChromeFeatureList.MY_FEATURE)`](https://cs.chromium.org/chromium/src/chrome/browser/flags/android/java/src/org/chromium/chrome/browser/flags/CachedFeatureFlags.java).
     This caching is only done for a subset of the flags. To register your flag,
-    create a CachedFlag object in ChromeFeatureList and add it to
+    specify a default value in `CachedFeatureFlags.sDefaults` and add it to
     [`ChromeCachedFlags.cacheNativeFlags()`](https://cs.chromium.org/chromium/src/chrome/android/java/src/org/chromium/chrome/browser/app/flags/ChromeCachedFlags.java)
 2.  Check
     [`FeatureList.isInitialized()`](https://cs.chromium.org/chromium/src/base/android/java/src/org/chromium/base/FeatureList.java)

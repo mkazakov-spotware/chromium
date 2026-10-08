@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,6 +21,7 @@ constexpr CGFloat kStackViewSpacingAfterIllustration = 32;
   self.customSpacingAfterImage = kStackViewSpacingAfterIllustration;
 
   self.helpButtonAvailable = NO;
+  self.primaryActionAvailable = NO;
   NSString* titleString =
       NSLocalizedString(@"IDS_IOS_CREDENTIAL_PROVIDER_STALE_CREDENTIALS_TITLE",
                         @"The title in the stale credentials screen.");
@@ -29,6 +30,12 @@ constexpr CGFloat kStackViewSpacingAfterIllustration = 32;
       @"The subtitle in the stale credentials screen.");
   self.titleString = titleString;
   self.subtitleString = subtitleString;
+
+#if defined(__IPHONE_13_4)
+  if (@available(iOS 13.4, *)) {
+    self.pointerInteractionEnabled = YES;
+  }
+#endif  // defined(__IPHONE_13_4)
 
   [super loadView];
 }

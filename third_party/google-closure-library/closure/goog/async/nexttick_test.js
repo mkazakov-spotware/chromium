@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2013 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 goog.module('goog.async.nextTickTest');
 goog.setTestOnly();
 
@@ -25,14 +33,13 @@ testSuite({
     clock = null;
   },
 
-  /** @suppress {visibility} */
   tearDown() {
     if (clock) {
       clock.uninstall();
     }
     // Unset the cached setImmediate_ behavior so it's re-evaluated for each
     // test.
-    nextTick.setImmediate_ = /** @type {?} */ (undefined);
+    nextTick.setImmediate_ = undefined;
     propertyReplacer.reset();
   },
 
@@ -145,7 +152,7 @@ testSuite({
         errorHandlerCallbackCalled = true;
       });
 
-      // MS Edge will always use globalThis.setImmediate, so ensure we get
+      // MS Edge will always use goog.global.setImmediate, so ensure we get
       // to setImmediate_ here. See useSetImmediate_ implementation for details
       // on Edge special casing.
       propertyReplacer.set(nextTick, 'useSetImmediate_', () => false);
@@ -233,7 +240,7 @@ testSuite({
   },
 
   testBehaviorOnPagesWithOverriddenWindowConstructor() {
-    propertyReplacer.set(globalThis, 'Window', {});
+    propertyReplacer.set(goog.global, 'Window', {});
     this.testNextTick();
     this.testNextTickSetImmediate();
     this.testNextTickMockClock();

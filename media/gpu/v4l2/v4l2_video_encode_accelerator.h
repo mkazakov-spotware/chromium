@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,17 +15,18 @@
 #include "base/containers/circular_deque.h"
 #include "base/containers/queue.h"
 #include "base/files/scoped_file.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/thread.h"
 #include "base/time/time.h"
 #include "media/gpu/chromeos/image_processor.h"
 #include "media/gpu/media_gpu_export.h"
 #include "media/gpu/v4l2/v4l2_device.h"
 #include "media/video/video_encode_accelerator.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/gfx/geometry/size.h"
 
 namespace media {
@@ -42,21 +43,14 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
     : public VideoEncodeAccelerator {
  public:
   explicit V4L2VideoEncodeAccelerator(scoped_refptr<V4L2Device> device);
-
-  V4L2VideoEncodeAccelerator(const V4L2VideoEncodeAccelerator&) = delete;
-  V4L2VideoEncodeAccelerator& operator=(const V4L2VideoEncodeAccelerator&) =
-      delete;
-
   ~V4L2VideoEncodeAccelerator() override;
 
   // VideoEncodeAccelerator implementation.
   VideoEncodeAccelerator::SupportedProfiles GetSupportedProfiles() override;
-  bool Initialize(const Config& config,
-                  Client* client,
-                  std::unique_ptr<MediaLog> media_log) override;
+  bool Initialize(const Config& config, Client* client) override;
   void Encode(scoped_refptr<VideoFrame> frame, bool force_keyframe) override;
   void UseOutputBitstreamBuffer(BitstreamBuffer buffer) override;
-  void RequestEncodingParametersChange(const Bitrate& bitrate,
+  void RequestEncodingParametersChange(uint32_t bitrate,
                                        uint32_t framerate) override;
   void Destroy() override;
   void Flush(FlushCallback flush_callback) override;
@@ -76,7 +70,7 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
 
     // This is valid only if image processor is used. The buffer associated with
     // this index can be reused in Dequeue().
-    absl::optional<size_t> ip_output_buffer_index;
+    base::Optional<size_t> ip_output_buffer_index;
   };
 
   // Store all the information of input frame passed to Encode().
@@ -93,7 +87,7 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
 
     // This is valid only if image processor is used. This info needs to be
     // propagated to InputRecord.
-    absl::optional<size_t> ip_output_buffer_index;
+    base::Optional<size_t> ip_output_buffer_index;
   };
 
   enum {
@@ -196,11 +190,13 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
   void MaybeFlushImageProcessor();
 
   // Change encoding parameters.
-  void RequestEncodingParametersChangeTask(const Bitrate& bitrate,
+  void RequestEncodingParametersChangeTask(uint32_t bitrate,
                                            uint32_t framerate);
 
   // Do several initializations (e.g. set up format) on |encoder_task_runner_|.
-  void InitializeTask(const Config& config);
+  void InitializeTask(const Config& config,
+                      bool* result,
+                      base::WaitableEvent* done);
 
   // Set up formats and initialize the device for them.
   bool SetFormats(VideoPixelFormat input_format,
@@ -213,9 +209,9 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
   // Try to set up the device to the input format we were Initialized() with,
   // or if the device doesn't support it, use one it can support, so that we
   // can later instantiate an ImageProcessor to convert to it. Return
-  // absl::nullopt if no format is supported, otherwise return v4l2_format
+  // base::nullopt if no format is supported, otherwise return v4l2_format
   // adjusted by the driver.
-  absl::optional<struct v4l2_format> NegotiateInputFormat(
+  base::Optional<struct v4l2_format> NegotiateInputFormat(
       VideoPixelFormat input_format,
       const gfx::Size& frame_size);
 
@@ -227,12 +223,6 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
 
   // Initialize device controls with |config| or default values.
   bool InitControls(const Config& config);
-
-  // Initialize device controls with |config| or default values.
-  bool InitControlsH264(const Config& config);
-
-  // Initialize device controls with |config| or default values.
-  void InitControlsVP8(const Config& config);
 
   // Create the buffers we need.
   bool CreateInputBuffers();
@@ -260,14 +250,6 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
   // Initializes input_memory_type_.
   bool InitInputMemoryType(const Config& config);
 
-  // Having too many encoder instances at once may cause us to run out of FDs
-  // and subsequently crash (crbug.com/1289465). To avoid that, we limit the
-  // maximum number of encoder instances that can exist at once.
-  // |num_instances_| tracks that number.
-  static constexpr int kMaxNumOfInstances = 10;
-  static base::AtomicRefCount num_instances_;
-  const bool can_use_encoder_;
-
   // Our original calling task runner for the child thread and its checker.
   const scoped_refptr<base::SingleThreadTaskRunner> child_task_runner_;
   SEQUENCE_CHECKER(child_sequence_checker_);
@@ -276,17 +258,13 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
   // time Encode() if the coded size is different from the expected one by VEA.
   // For example, it happens in WebRTC simulcast case.
   gfx::Size input_frame_size_;
-  // A natural_size() of VideoFrame on VEA::Encode(). This is updated on the
-  // first time Encode() always. The natural_size() of VideoFrames fed by
-  // VEA::Encode() must be the same as |input_natural_size_|.
-  gfx::Size input_natural_size_;
 
   // Visible rectangle of VideoFrame to be fed to an encoder driver, in other
   // words, a visible rectangle that output encoded bitstream buffers represent.
   gfx::Rect encoder_input_visible_rect_;
 
   // Layout of device accepted input VideoFrame.
-  absl::optional<VideoFrameLayout> device_input_layout_;
+  base::Optional<VideoFrameLayout> device_input_layout_;
 
   // Stands for whether an input buffer is native graphic buffer.
   bool native_input_mode_;
@@ -294,7 +272,7 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
   size_t output_buffer_byte_size_;
   uint32_t output_format_fourcc_;
 
-  Bitrate current_bitrate_;
+  size_t current_bitrate_;
   size_t current_framerate_;
 
   // Encoder state, owned and operated by |encoder_task_runner_|.
@@ -372,6 +350,8 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
   // |encoder_task_runner_|.
   base::WeakPtr<V4L2VideoEncodeAccelerator> weak_this_;
   base::WeakPtrFactory<V4L2VideoEncodeAccelerator> weak_this_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(V4L2VideoEncodeAccelerator);
 };
 
 }  // namespace media

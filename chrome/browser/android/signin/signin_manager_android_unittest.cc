@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 #include <set>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/browsing_data/chrome_browsing_data_remover_delegate_factory.h"
@@ -53,10 +53,6 @@ std::unique_ptr<KeyedService> BuildOfflinePageModel(SimpleFactoryKey* key) {
 class SigninManagerAndroidTest : public ::testing::Test {
  public:
   SigninManagerAndroidTest() = default;
-
-  SigninManagerAndroidTest(const SigninManagerAndroidTest&) = delete;
-  SigninManagerAndroidTest& operator=(const SigninManagerAndroidTest&) = delete;
-
   ~SigninManagerAndroidTest() override = default;
 
   void SetUp() override {
@@ -86,9 +82,11 @@ class SigninManagerAndroidTest : public ::testing::Test {
         BookmarkModelFactory::GetForBrowserContext(profile());
     bookmarks::test::WaitForBookmarkModelToLoad(bookmark_model);
 
-    bookmark_model->AddURL(bookmark_model->bookmark_bar_node(), 0, u"Example 1",
+    bookmark_model->AddURL(bookmark_model->bookmark_bar_node(), 0,
+                           base::ASCIIToUTF16("Example 1"),
                            GURL("https://example.org/1"));
-    bookmark_model->AddURL(bookmark_model->bookmark_bar_node(), 1, u"Example 2",
+    bookmark_model->AddURL(bookmark_model->bookmark_bar_node(), 1,
+                           base::ASCIIToUTF16("Example 2"),
                            GURL("https://example.com/2"));
 
     return bookmark_model;
@@ -105,6 +103,8 @@ class SigninManagerAndroidTest : public ::testing::Test {
  private:
   content::BrowserTaskEnvironment task_environment_;
   std::unique_ptr<TestingProfile> profile_;
+
+  DISALLOW_COPY_AND_ASSIGN(SigninManagerAndroidTest);
 };
 
 // TODO(crbug.com/929456): This test does not actually test anything; the
@@ -138,12 +138,13 @@ TEST_F(SigninManagerAndroidTest, DISABLED_DeleteGoogleServiceWorkerCaches) {
   // be able to observe deletions.
   // Add service workers.
   auto helper = base::MakeRefCounted<browsing_data::CannedCacheStorageHelper>(
-      profile()->GetDefaultStoragePartition());
+      content::BrowserContext::GetDefaultStoragePartition(profile())
+          ->GetCacheStorageContext());
 
   for (const TestCase& test_case : kTestCases)
     helper->Add(url::Origin::Create(GURL(test_case.worker_url)));
 
-  ASSERT_EQ(std::size(kTestCases), helper->GetCount());
+  ASSERT_EQ(base::size(kTestCases), helper->GetCount());
 
   // Delete service workers and wait for completion.
   base::RunLoop run_loop;

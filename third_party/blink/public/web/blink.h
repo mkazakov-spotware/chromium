@@ -31,21 +31,15 @@
 #ifndef THIRD_PARTY_BLINK_PUBLIC_WEB_BLINK_H_
 #define THIRD_PARTY_BLINK_PUBLIC_WEB_BLINK_H_
 
-#include "third_party/blink/public/platform/web_common.h"
+#include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/platform/web_string.h"
-#include "v8/include/v8-isolate.h"
+#include "v8/include/v8.h"
 
 namespace mojo {
 class BinderMap;
 }
 
 namespace blink {
-
-namespace scheduler {
-class WebThreadScheduler;
-}  // namespace scheduler
-
-class Platform;
 
 // Initialize the entire Blink (wtf, platform, core, modules and web).
 // If you just need wtf and platform, use Platform::Initialize instead.
@@ -76,9 +70,6 @@ BLINK_EXPORT v8::Isolate* MainThreadIsolate();
 BLINK_EXPORT void SetWebTestMode(bool);
 BLINK_EXPORT bool WebTestMode();
 
-// Alters whether the browser can handle focus events while running web tests.
-BLINK_EXPORT void SetBrowserCanHandleFocusForWebTest(bool);
-
 // Alters the rendering of fonts for web tests.
 BLINK_EXPORT void SetFontAntialiasingEnabledForTest(bool);
 BLINK_EXPORT bool FontAntialiasingEnabledForTest();
@@ -96,8 +87,8 @@ BLINK_EXPORT void DecommitFreeableMemory();
 BLINK_EXPORT void MemoryPressureNotificationToWorkerThreadIsolates(
     v8::MemoryPressureLevel);
 
-// Logs stats. Intended to be called during shutdown.
-BLINK_EXPORT void LogStatsDuringShutdown();
+// Logs Runtime Call Stats table for Blink.
+BLINK_EXPORT void LogRuntimeCallStats();
 
 // Allows disabling domain relaxation.
 BLINK_EXPORT void SetDomainRelaxationForbiddenForTest(bool forbidden,
@@ -121,14 +112,8 @@ BLINK_EXPORT void ForceNextDrawingBufferCreationToFailForTest();
 // agents, not both.
 // This is called at most once. This is called earlier than any frame commit.
 BLINK_EXPORT void SetIsCrossOriginIsolated(bool value);
-
-// Set whether this renderer process is allowed to use Isolated Context APIs.
-// Similarly to the `SetIsCrossOriginIsolated()` method above, this flag is
-// process global, and called at most once, prior to committing a frame.
-//
-// TODO(mkwst): We need a specification for this restriction.
-BLINK_EXPORT void SetIsIsolatedContext(bool value);
+BLINK_EXPORT bool IsCrossOriginIsolated();
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_BLINK_H_
+#endif

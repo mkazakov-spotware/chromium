@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,8 +37,6 @@ SharedWorkerDevToolsAgentHost::SharedWorkerDevToolsAgentHost(
     SharedWorkerHost* worker_host,
     const base::UnguessableToken& devtools_worker_token)
     : DevToolsAgentHostImpl(devtools_worker_token.ToString()),
-      auto_attacher_(std::make_unique<protocol::RendererAutoAttacherBase>(
-          GetRendererChannel())),
       state_(WORKER_NOT_READY),
       worker_host_(worker_host),
       devtools_worker_token_(devtools_worker_token),
@@ -68,8 +66,8 @@ GURL SharedWorkerDevToolsAgentHost::GetURL() {
   return instance_.url();
 }
 
-blink::StorageKey SharedWorkerDevToolsAgentHost::GetStorageKey() const {
-  return instance_.storage_key();
+url::Origin SharedWorkerDevToolsAgentHost::GetConstructorOrigin() {
+  return instance_.constructor_origin();
 }
 
 bool SharedWorkerDevToolsAgentHost::Activate() {
@@ -87,20 +85,20 @@ bool SharedWorkerDevToolsAgentHost::Close() {
 
 bool SharedWorkerDevToolsAgentHost::AttachSession(DevToolsSession* session,
                                                   bool acquire_wake_lock) {
-  session->CreateAndAddHandler<protocol::IOHandler>(GetIOContext());
-  session->CreateAndAddHandler<protocol::InspectorHandler>();
-  session->CreateAndAddHandler<protocol::NetworkHandler>(
+  session->AddHandler(std::make_unique<protocol::IOHandler>(GetIOContext()));
+  session->AddHandler(std::make_unique<protocol::InspectorHandler>());
+  session->AddHandler(std::make_unique<protocol::NetworkHandler>(
       GetId(), devtools_worker_token_, GetIOContext(),
-      base::BindRepeating([] {}), session->GetClient()->MayReadLocalFiles());
+      base::BindRepeating([] {})));
   // TODO(crbug.com/1143100): support pushing updated loader factories down to
   // renderer.
-  session->CreateAndAddHandler<protocol::FetchHandler>(
+  session->AddHandler(std::make_unique<protocol::FetchHandler>(
       GetIOContext(),
-      base::BindRepeating([](base::OnceClosure cb) { std::move(cb).Run(); }));
-  session->CreateAndAddHandler<protocol::SchemaHandler>();
-  session->CreateAndAddHandler<protocol::TargetHandler>(
+      base::BindRepeating([](base::OnceClosure cb) { std::move(cb).Run(); })));
+  session->AddHandler(std::make_unique<protocol::SchemaHandler>());
+  session->AddHandler(std::make_unique<protocol::TargetHandler>(
       protocol::TargetHandler::AccessMode::kAutoAttachOnly, GetId(),
-      auto_attacher_.get(), session);
+      GetRendererChannel(), session->GetRootSession()));
   return true;
 }
 
@@ -111,7 +109,7 @@ void SharedWorkerDevToolsAgentHost::DetachSession(DevToolsSession* session) {
 bool SharedWorkerDevToolsAgentHost::Matches(SharedWorkerHost* worker_host) {
   return instance_.Matches(worker_host->instance().url(),
                            worker_host->instance().name(),
-                           worker_host->instance().storage_key());
+                           worker_host->instance().constructor_origin());
 }
 
 void SharedWorkerDevToolsAgentHost::WorkerReadyForInspection(
@@ -150,17 +148,13 @@ void SharedWorkerDevToolsAgentHost::WorkerDestroyed() {
 DevToolsAgentHostImpl::NetworkLoaderFactoryParamsAndInfo
 SharedWorkerDevToolsAgentHost::CreateNetworkFactoryParamsForDevTools() {
   DCHECK(worker_host_);
-  return {GetStorageKey().origin(), net::SiteForCookies::FromUrl(GetURL()),
+  return {GetConstructorOrigin(), net::SiteForCookies::FromUrl(GetURL()),
           worker_host_->CreateNetworkFactoryParamsForSubresources()};
 }
 
 RenderProcessHost* SharedWorkerDevToolsAgentHost::GetProcessHost() {
   DCHECK(worker_host_);
   return worker_host_->GetProcessHost();
-}
-
-protocol::TargetAutoAttacher* SharedWorkerDevToolsAgentHost::auto_attacher() {
-  return auto_attacher_.get();
 }
 
 }  // namespace content

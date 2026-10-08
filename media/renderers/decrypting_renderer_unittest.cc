@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/gmock_callback_support.h"
 #include "base/test/mock_callback.h"
 #include "base/test/task_environment.h"
@@ -95,7 +94,7 @@ class DecryptingRendererTest : public testing::Test {
   StrictMock<MockDecryptor> decryptor_;
   StrictMock<MockMediaResource> media_resource_;
   StrictMock<MockRendererClient> renderer_client_;
-  raw_ptr<StrictMock<MockRenderer>> renderer_;
+  StrictMock<MockRenderer>* renderer_;
   std::unique_ptr<DecryptingRenderer> decrypting_renderer_;
   std::vector<std::unique_ptr<StrictMock<MockDemuxerStream>>> streams_;
 };
@@ -106,7 +105,7 @@ TEST_F(DecryptingRendererTest, ClearStreams_NoCdm) {
 
   EXPECT_CALL(*renderer_, OnInitialize(_, _, _))
       .WillOnce(RunOnceCallback<2>(PIPELINE_OK));
-  EXPECT_CALL(renderer_init_cb_, Run(HasStatusCode(PIPELINE_OK)));
+  EXPECT_CALL(renderer_init_cb_, Run(PIPELINE_OK));
 
   decrypting_renderer_->Initialize(&media_resource_, &renderer_client_,
                                    renderer_init_cb_.Get());
@@ -123,7 +122,7 @@ TEST_F(DecryptingRendererTest, ClearStreams_AesDecryptor) {
   EXPECT_CALL(*renderer_, OnInitialize(_, _, _))
       .WillOnce(RunOnceCallback<2>(PIPELINE_OK));
   EXPECT_CALL(set_cdm_cb_, Run(true));
-  EXPECT_CALL(renderer_init_cb_, Run(HasStatusCode(PIPELINE_OK)));
+  EXPECT_CALL(renderer_init_cb_, Run(PIPELINE_OK));
 
   decrypting_renderer_->SetCdm(&cdm_context_, set_cdm_cb_.Get());
   decrypting_renderer_->Initialize(&media_resource_, &renderer_client_,
@@ -140,7 +139,7 @@ TEST_F(DecryptingRendererTest, ClearStreams_OtherCdm) {
   EXPECT_CALL(*renderer_, OnInitialize(_, _, _))
       .WillOnce(RunOnceCallback<2>(PIPELINE_OK));
   EXPECT_CALL(*renderer_, OnSetCdm(_, _)).WillOnce(RunOnceCallback<1>(true));
-  EXPECT_CALL(renderer_init_cb_, Run(HasStatusCode(PIPELINE_OK)));
+  EXPECT_CALL(renderer_init_cb_, Run(PIPELINE_OK));
   EXPECT_CALL(set_cdm_cb_, Run(true));
 
   decrypting_renderer_->Initialize(&media_resource_, &renderer_client_,
@@ -169,7 +168,7 @@ TEST_F(DecryptingRendererTest, EncryptedStreams_AesDecryptor) {
 
   EXPECT_CALL(*renderer_, OnInitialize(_, _, _))
       .WillOnce(RunOnceCallback<2>(PIPELINE_OK));
-  EXPECT_CALL(renderer_init_cb_, Run(HasStatusCode(PIPELINE_OK)));
+  EXPECT_CALL(renderer_init_cb_, Run(PIPELINE_OK));
   EXPECT_CALL(set_cdm_cb_, Run(true));
 
   decrypting_renderer_->Initialize(&media_resource_, &renderer_client_,
@@ -187,7 +186,7 @@ TEST_F(DecryptingRendererTest, EncryptedStreams_OtherCdm) {
   EXPECT_CALL(*renderer_, OnInitialize(_, _, _))
       .WillOnce(RunOnceCallback<2>(PIPELINE_OK));
   EXPECT_CALL(*renderer_, OnSetCdm(_, _)).WillOnce(RunOnceCallback<1>(true));
-  EXPECT_CALL(renderer_init_cb_, Run(HasStatusCode(PIPELINE_OK)));
+  EXPECT_CALL(renderer_init_cb_, Run(PIPELINE_OK));
   EXPECT_CALL(set_cdm_cb_, Run(true));
 
   decrypting_renderer_->Initialize(&media_resource_, &renderer_client_,
@@ -205,7 +204,7 @@ TEST_F(DecryptingRendererTest, EncryptedStreams_AesDecryptor_CdmSetBeforeInit) {
 
   EXPECT_CALL(*renderer_, OnInitialize(_, _, _))
       .WillOnce(RunOnceCallback<2>(PIPELINE_OK));
-  EXPECT_CALL(renderer_init_cb_, Run(HasStatusCode(PIPELINE_OK)));
+  EXPECT_CALL(renderer_init_cb_, Run(PIPELINE_OK));
   EXPECT_CALL(set_cdm_cb_, Run(true));
 
   decrypting_renderer_->SetCdm(&cdm_context_, set_cdm_cb_.Get());
@@ -223,7 +222,7 @@ TEST_F(DecryptingRendererTest, EncryptedStreams_OtherCdm_CdmSetBeforeInit) {
   EXPECT_CALL(*renderer_, OnInitialize(_, _, _))
       .WillOnce(RunOnceCallback<2>(PIPELINE_OK));
   EXPECT_CALL(*renderer_, OnSetCdm(_, _)).WillOnce(RunOnceCallback<1>(true));
-  EXPECT_CALL(renderer_init_cb_, Run(HasStatusCode(PIPELINE_OK)));
+  EXPECT_CALL(renderer_init_cb_, Run(PIPELINE_OK));
   EXPECT_CALL(set_cdm_cb_, Run(true));
 
   decrypting_renderer_->SetCdm(&cdm_context_, set_cdm_cb_.Get());
@@ -241,7 +240,7 @@ TEST_F(DecryptingRendererTest, EncryptedAndClearStream_OtherCdm) {
   EXPECT_CALL(*renderer_, OnInitialize(_, _, _))
       .WillOnce(RunOnceCallback<2>(PIPELINE_OK));
   EXPECT_CALL(*renderer_, OnSetCdm(_, _)).WillOnce(RunOnceCallback<1>(true));
-  EXPECT_CALL(renderer_init_cb_, Run(HasStatusCode(PIPELINE_OK)));
+  EXPECT_CALL(renderer_init_cb_, Run(PIPELINE_OK));
   EXPECT_CALL(set_cdm_cb_, Run(true));
 
   decrypting_renderer_->Initialize(&media_resource_, &renderer_client_,
@@ -257,8 +256,7 @@ TEST_F(DecryptingRendererTest, DecryptingMediaResourceInitFails) {
   AddStream(DemuxerStream::VIDEO, /* encrypted = */ true);
   UseAesDecryptor(true);
 
-  EXPECT_CALL(renderer_init_cb_,
-              Run(HasStatusCode(PIPELINE_ERROR_INITIALIZATION_FAILED)));
+  EXPECT_CALL(renderer_init_cb_, Run(PIPELINE_ERROR_INITIALIZATION_FAILED));
 
   decrypting_renderer_->Initialize(&media_resource_, &renderer_client_,
                                    renderer_init_cb_.Get());

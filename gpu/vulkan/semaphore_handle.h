@@ -1,26 +1,26 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef GPU_VULKAN_SEMAPHORE_HANDLE_H_
 #define GPU_VULKAN_SEMAPHORE_HANDLE_H_
 
-#include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan.h>
 #include <utility>
 
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "build/build_config.h"
-#include "ui/gfx/gpu_fence_handle.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include "base/files/scoped_file.h"
 #endif
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 #include <lib/zx/event.h>
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/scoped_handle.h"
 #endif
 
@@ -32,22 +32,18 @@ namespace gpu {
 // used other handles types.
 class COMPONENT_EXPORT(VULKAN) SemaphoreHandle {
  public:
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   using PlatformHandle = base::ScopedFD;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   using PlatformHandle = base::win::ScopedHandle;
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   using PlatformHandle = zx::event;
 #endif
 
   SemaphoreHandle();
   SemaphoreHandle(VkExternalSemaphoreHandleTypeFlagBits type,
                   PlatformHandle handle);
-  explicit SemaphoreHandle(gfx::GpuFenceHandle fence);
   SemaphoreHandle(SemaphoreHandle&&);
-
-  SemaphoreHandle(const SemaphoreHandle&) = delete;
-  SemaphoreHandle& operator=(const SemaphoreHandle&) = delete;
 
   ~SemaphoreHandle();
 
@@ -56,7 +52,7 @@ class COMPONENT_EXPORT(VULKAN) SemaphoreHandle {
   VkExternalSemaphoreHandleTypeFlagBits vk_handle_type() { return type_; }
 
   bool is_valid() const {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     return handle_.IsValid();
 #else
     return handle_.is_valid();
@@ -67,16 +63,13 @@ class COMPONENT_EXPORT(VULKAN) SemaphoreHandle {
   // becomes false after this function returns.
   PlatformHandle TakeHandle() { return std::move(handle_); }
 
-  // Moves platform specific instances to gfx::GpuFenceHandle.
-  gfx::GpuFenceHandle ToGpuFenceHandle() &&;
-
   SemaphoreHandle Duplicate() const;
 
  private:
-  void Init(VkExternalSemaphoreHandleTypeFlagBits type, PlatformHandle handle);
-
   VkExternalSemaphoreHandleTypeFlagBits type_;
   PlatformHandle handle_;
+
+  DISALLOW_COPY_AND_ASSIGN(SemaphoreHandle);
 };
 
 }  // namespace gpu

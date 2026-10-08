@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -23,6 +23,9 @@ component("init") {
   ]
 
   deps = []
+  if (use_x11) {
+    deps += [ "//gpu/vulkan/x" ]
+  }
   if (is_android) {
     deps += [ "//gpu/vulkan/android" ]
   }
@@ -34,9 +37,6 @@ component("init") {
   }
   if (is_win) {
     deps += [ "//gpu/vulkan/win32" ]
-  }
-  if (is_apple) {
-    deps += [ "//gpu/vulkan/mac" ]
   }
 }
 

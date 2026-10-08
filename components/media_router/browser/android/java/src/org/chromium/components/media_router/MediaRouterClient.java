@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.media_router;
 
 import android.annotation.SuppressLint;
-import android.content.Context;
 import android.content.Intent;
 
 import androidx.fragment.app.FragmentManager;
@@ -33,14 +32,6 @@ public abstract class MediaRouterClient {
     }
 
     /**
-     * Returns a context that can be passed to {@link CastContext}.
-     *
-     * The value that {@link getApplicationContext()} returns for this context must be an {@link
-     * Application}.
-     */
-    public abstract Context getContextForRemoting();
-
-    /**
      * @param webContents a {@link WebContents} in a tab.
      * @return a unique integer identifier for the associated tab.
      */
@@ -53,7 +44,7 @@ public abstract class MediaRouterClient {
     public abstract Intent createBringTabToFrontIntent(int tabId);
 
     /**
-     * @param notificationInfo contains contents and metadata about a media notification
+     * @param MediaNotificationInfo contains contents and metadata about a media notification
      *         that should be shown.
      */
     public abstract void showNotification(MediaNotificationInfo notificationInfo);
@@ -70,10 +61,4 @@ public abstract class MediaRouterClient {
      *         DialogFragment} in.
      */
     public abstract FragmentManager getSupportFragmentManager(WebContents initiator);
-
-    /** Runs deferredTask on the main thread when the main thread is idle. */
-    public abstract void addDeferredTask(Runnable deferredTask);
-
-    /** @return true if the kCafMRPDeferredDiscovery feature flag is enabled. */
-    public abstract boolean isCafMrpDeferredDiscoveryEnabled();
 }

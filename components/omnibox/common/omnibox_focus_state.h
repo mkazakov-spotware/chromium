@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,7 @@ enum OmniboxFocusState {
   // Invisibly focused, i.e. focused with a hidden caret.
   //
   // Omnibox will not look focused visibly but any user key strokes will go to
-  // the omnibox. Only used on desktop by search providers supplying a custom
-  // new tab page with a fakebox.
+  // the omnibox.
   OMNIBOX_FOCUS_INVISIBLE,
 
   OMNIBOX_FOCUS_STATE_LAST = OMNIBOX_FOCUS_INVISIBLE
@@ -49,10 +48,11 @@ enum class OmniboxFocusSource {
   // Focus originated from user clicking on the omnibox.
   OMNIBOX = 1,
 
-  // Focus originated from user clicking on the fakebox. Only used on Android,
-  // iOS, and on desktop by search providers supplying a custom new tab page
-  // with a fakebox.
+  // Focus originated from user clicking on the fakebox.
   FAKEBOX = 2,
+
+  // Focus originated from user clicking on the search button.
+  SEARCH_BUTTON = 3,
 };
 
 #endif  // COMPONENTS_OMNIBOX_COMMON_OMNIBOX_FOCUS_STATE_H_

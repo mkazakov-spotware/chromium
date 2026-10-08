@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/hash/hash.h"
+#include "base/macros.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -33,25 +34,23 @@ namespace webui {
 class LogWebUIUrlTest : public InProcessBrowserTest {
  public:
   LogWebUIUrlTest() {}
-
-  LogWebUIUrlTest(const LogWebUIUrlTest&) = delete;
-  LogWebUIUrlTest& operator=(const LogWebUIUrlTest&) = delete;
-
   ~LogWebUIUrlTest() override {}
 
   void RunTest(int title_ids, const GURL& url) {
     auto* tab = browser()->tab_strip_model()->GetActiveWebContents();
-    std::u16string title = l10n_util::GetStringUTF16(title_ids);
+    base::string16 title = l10n_util::GetStringUTF16(title_ids);
     content::TitleWatcher title_watcher(tab, title);
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+    ui_test_utils::NavigateToURL(browser(), url);
     ASSERT_EQ(title, title_watcher.WaitAndGetTitle());
-    uint32_t origin_hash = base::Hash(url.DeprecatedGetOriginAsURL().spec());
+    uint32_t origin_hash = base::Hash(url.GetOrigin().spec());
     EXPECT_THAT(histogram_tester_.GetAllSamples(webui::kWebUICreatedForUrl),
                 ElementsAre(Bucket(origin_hash, 1)));
   }
 
  private:
   base::HistogramTester histogram_tester_;
+
+  DISALLOW_COPY_AND_ASSIGN(LogWebUIUrlTest);
 };
 
 IN_PROC_BROWSER_TEST_F(LogWebUIUrlTest, TestExtensionsPage) {

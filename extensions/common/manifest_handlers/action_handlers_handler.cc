@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,10 +42,10 @@ ActionHandlersHandler::ActionHandlersHandler() = default;
 
 ActionHandlersHandler::~ActionHandlersHandler() = default;
 
-bool ActionHandlersHandler::Parse(Extension* extension, std::u16string* error) {
+bool ActionHandlersHandler::Parse(Extension* extension, base::string16* error) {
   const base::Value* entries = nullptr;
   if (!extension->manifest()->GetList(keys::kActionHandlers, &entries)) {
-    *error = errors::kInvalidActionHandlersType;
+    *error = base::ASCIIToUTF16(errors::kInvalidActionHandlersType);
     return false;
   }
 
@@ -57,7 +57,7 @@ bool ActionHandlersHandler::Parse(Extension* extension, std::u16string* error) {
       const base::Value* action_value = wrapped_value.FindKeyOfType(
           keys::kActionHandlerActionKey, base::Value::Type::STRING);
       if (!action_value) {
-        *error = errors::kInvalidActionHandlerDictionary;
+        *error = base::ASCIIToUTF16(errors::kInvalidActionHandlerDictionary);
         return false;
       }
       value = action_value->GetString();
@@ -70,7 +70,7 @@ bool ActionHandlersHandler::Parse(Extension* extension, std::u16string* error) {
     } else if (wrapped_value.is_string()) {
       value = wrapped_value.GetString();
     } else {
-      *error = errors::kInvalidActionHandlersType;
+      *error = base::ASCIIToUTF16(errors::kInvalidActionHandlersType);
       return false;
     }
 

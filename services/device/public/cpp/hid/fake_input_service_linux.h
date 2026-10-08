@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,10 +21,6 @@ class FakeInputServiceLinux : public mojom::InputDeviceManager {
   using DeviceMap = std::map<std::string, mojom::InputDeviceInfoPtr>;
 
   FakeInputServiceLinux();
-
-  FakeInputServiceLinux(const FakeInputServiceLinux&) = delete;
-  FakeInputServiceLinux& operator=(const FakeInputServiceLinux&) = delete;
-
   ~FakeInputServiceLinux() override;
 
   // mojom::InputDeviceManager implementation:
@@ -42,6 +38,8 @@ class FakeInputServiceLinux : public mojom::InputDeviceManager {
  private:
   mojo::ReceiverSet<mojom::InputDeviceManager> receivers_;
   mojo::AssociatedRemoteSet<mojom::InputDeviceManagerClient> clients_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeInputServiceLinux);
 };
 
 }  // namespace device

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,8 +18,6 @@ int GetFourCCFormatFromBufferFormat(gfx::BufferFormat format) {
       return DRM_FORMAT_R16;
     case gfx::BufferFormat::RG_88:
       return DRM_FORMAT_GR88;
-    case gfx::BufferFormat::RG_1616:
-      return DRM_FORMAT_GR1616;
     case gfx::BufferFormat::BGR_565:
       return DRM_FORMAT_RGB565;
     case gfx::BufferFormat::RGBA_4444:
@@ -42,8 +40,6 @@ int GetFourCCFormatFromBufferFormat(gfx::BufferFormat format) {
       return DRM_FORMAT_YVU420;
     case gfx::BufferFormat::YUV_420_BIPLANAR:
       return DRM_FORMAT_NV12;
-    case gfx::BufferFormat::YUVA_420_TRIPLANAR:
-      return DRM_FORMAT_INVALID;
     case gfx::BufferFormat::P010:
       return DRM_FORMAT_P010;
   }
@@ -100,6 +96,7 @@ bool IsValidBufferFormat(uint32_t current_format) {
     default:
       return false;
   }
+  return false;
 }
 
 }  // namespace ui

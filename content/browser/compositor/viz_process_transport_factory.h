@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,15 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "components/viz/common/surfaces/frame_sink_id_allocator.h"
-#include "components/viz/common/surfaces/subtree_capture_id_allocator.h"
+#include "components/viz/service/main/viz_compositor_thread_runner_impl.h"
 #include "content/browser/compositor/image_transport_factory.h"
 #include "gpu/command_buffer/common/context_result.h"
-#include "gpu/ipc/client/gpu_channel_host.h"
+#include "mojo/public/cpp/bindings/associated_remote.h"
+#include "services/viz/privileged/mojom/compositing/display_private.mojom.h"
+#include "services/viz/privileged/mojom/compositing/external_begin_frame_controller.mojom.h"
 #include "services/viz/privileged/mojom/compositing/frame_sink_manager.mojom.h"
 #include "services/viz/public/mojom/compositing/compositor_frame_sink.mojom.h"
 #include "ui/compositor/compositor.h"
@@ -51,11 +53,6 @@ class VizProcessTransportFactory : public ui::ContextFactory,
       gpu::GpuChannelEstablishFactory* gpu_channel_establish_factory,
       scoped_refptr<base::SingleThreadTaskRunner> resize_task_runner,
       viz::CompositingModeReporterImpl* compositing_mode_reporter);
-
-  VizProcessTransportFactory(const VizProcessTransportFactory&) = delete;
-  VizProcessTransportFactory& operator=(const VizProcessTransportFactory&) =
-      delete;
-
   ~VizProcessTransportFactory() override;
 
   // Connects HostFrameSinkManager to FrameSinkManagerImpl in viz process.
@@ -73,7 +70,6 @@ class VizProcessTransportFactory : public ui::ContextFactory,
   gpu::GpuMemoryBufferManager* GetGpuMemoryBufferManager() override;
   cc::TaskGraphRunner* GetTaskGraphRunner() override;
   viz::FrameSinkId AllocateFrameSinkId() override;
-  viz::SubtreeCaptureId AllocateSubtreeCaptureId() override;
   viz::HostFrameSinkManager* GetHostFrameSinkManager() override;
 
   // ImageTransportFactory implementation.
@@ -87,7 +83,12 @@ class VizProcessTransportFactory : public ui::ContextFactory,
     CompositorData& operator=(CompositorData&& other);
     ~CompositorData();
 
+    // Privileged interface that controls the display for a root
+    // CompositorFrameSink.
+    mojo::AssociatedRemote<viz::mojom::DisplayPrivate> display_private;
     std::unique_ptr<viz::HostDisplayClient> display_client;
+    mojo::AssociatedRemote<viz::mojom::ExternalBeginFrameController>
+        external_begin_frame_controller;
   };
 
   // Disables GPU compositing. This notifies UI and renderer compositors to drop
@@ -116,16 +117,14 @@ class VizProcessTransportFactory : public ui::ContextFactory,
   gpu::ContextResult TryCreateContextsForGpuCompositing(
       scoped_refptr<gpu::GpuChannelHost> gpu_channel_host);
 
-  const raw_ptr<gpu::GpuChannelEstablishFactory> gpu_channel_establish_factory_;
+  gpu::GpuChannelEstablishFactory* const gpu_channel_establish_factory_;
 
   // Controls the compositing mode based on what mode the display compositors
   // are using.
-  [[maybe_unused]] const raw_ptr<viz::CompositingModeReporterImpl>
-      compositing_mode_reporter_;
+  viz::CompositingModeReporterImpl* const compositing_mode_reporter_;
 
   // ContextProvider used on worker threads for rasterization.
-  scoped_refptr<cc::RasterContextProviderWrapper>
-      worker_context_provider_wrapper_;
+  scoped_refptr<viz::RasterContextProvider> worker_context_provider_;
 
   // ContextProvider used on the main thread. Shared by ui::Compositors and also
   // returned from GetSharedMainThreadContextProvider().
@@ -133,17 +132,22 @@ class VizProcessTransportFactory : public ui::ContextFactory,
 
   std::unique_ptr<cc::SingleThreadTaskGraphRunner> task_graph_runner_;
 
+  // Will start and run the VizCompositorThread for using an in-process display
+  // compositor.
+  std::unique_ptr<viz::VizCompositorThreadRunnerImpl> viz_compositor_thread_;
+
   base::flat_map<ui::Compositor*, CompositorData> compositor_data_map_;
 
   viz::FrameSinkIdAllocator frame_sink_id_allocator_;
-  viz::SubtreeCaptureIdAllocator subtree_capture_id_allocator_;
-  const raw_ptr<viz::HostFrameSinkManager> host_frame_sink_manager_;
+  viz::HostFrameSinkManager* const host_frame_sink_manager_;
 
   scoped_refptr<base::SingleThreadTaskRunner> const resize_task_runner_;
 
   bool is_gpu_compositing_disabled_ = false;
 
   base::WeakPtrFactory<VizProcessTransportFactory> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(VizProcessTransportFactory);
 };
 
 }  // namespace content

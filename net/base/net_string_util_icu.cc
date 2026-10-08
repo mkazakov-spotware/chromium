@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -51,19 +51,19 @@ bool ConvertToUtf8AndNormalize(base::StringPiece text,
 
 bool ConvertToUTF16(base::StringPiece text,
                     const char* charset,
-                    std::u16string* output) {
+                    base::string16* output) {
   return base::CodepageToUTF16(text, charset,
                                base::OnStringConversionError::FAIL, output);
 }
 
 bool ConvertToUTF16WithSubstitutions(base::StringPiece text,
                                      const char* charset,
-                                     std::u16string* output) {
+                                     base::string16* output) {
   return base::CodepageToUTF16(
       text, charset, base::OnStringConversionError::SUBSTITUTE, output);
 }
 
-bool ToUpper(base::StringPiece16 str, std::u16string* output) {
+bool ToUpper(base::StringPiece16 str, base::string16* output) {
   *output = base::i18n::ToUpper(str);
   return true;
 }

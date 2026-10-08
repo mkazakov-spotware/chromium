@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "ui/gfx/image/image.h"
 
 namespace gfx {
@@ -19,19 +20,18 @@ struct SharingApp {
  public:
   SharingApp(const gfx::VectorIcon* vector_icon,
              const gfx::Image& image,
-             std::u16string name,
+             base::string16 name,
              std::string identifier);
   SharingApp(SharingApp&& other);
-
-  SharingApp(const SharingApp&) = delete;
-  SharingApp& operator=(const SharingApp&) = delete;
-
   ~SharingApp();
 
-  raw_ptr<const gfx::VectorIcon> vector_icon = nullptr;
+  const gfx::VectorIcon* vector_icon = nullptr;
   gfx::Image image;
-  std::u16string name;
+  base::string16 name;
   std::string identifier;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SharingApp);
 };
 
 #endif  // CHROME_BROWSER_SHARING_SHARING_APP_H_

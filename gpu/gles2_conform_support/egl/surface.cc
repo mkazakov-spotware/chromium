@@ -1,11 +1,10 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "gpu/gles2_conform_support/egl/surface.h"
 #include "ui/gl/gl_surface.h"
 
-namespace gles2_conform_support {
 namespace egl {
 
 Surface::Surface(gl::GLSurface* gl_surface, const Config* config)
@@ -46,4 +45,3 @@ bool Surface::ValidateWindowAttributeList(const EGLint* attrib_list) {
   return true;
 }
 }  // namespace egl
-}  // namespace gles2_conform_support

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,15 +16,15 @@ namespace blink {
 namespace {
 
 unsigned Specificity(const String& selector_text) {
-  CSSSelectorList* selector_list =
+  CSSSelectorList selector_list =
       css_test_helpers::ParseSelectorList(selector_text);
-  return selector_list->First()->Specificity();
+  return selector_list.First()->Specificity();
 }
 
 bool HasLinkOrVisited(const String& selector_text) {
-  CSSSelectorList* selector_list =
+  CSSSelectorList selector_list =
       css_test_helpers::ParseSelectorList(selector_text);
-  return selector_list->First()->HasLinkOrVisited();
+  return selector_list.First()->HasLinkOrVisited();
 }
 
 }  // namespace
@@ -45,6 +45,7 @@ TEST(CSSSelector, Representations) {
       "#id.class { }"
       "[attr]#id { }"
       "div[attr]#id { }"
+      "div::content { }"
       "div::first-line { }"
       ".a.b.c { }"
       "div:not(.a) { }"        // without class a
@@ -66,7 +67,7 @@ TEST(CSSSelector, Representations) {
       ".a.b .c {}";
 
   sheet.AddCSSRules(css_rules);
-  EXPECT_EQ(29u,
+  EXPECT_EQ(30u,
             sheet.GetRuleSet().RuleCount());  // .a, .b counts as two rules.
 #ifndef NDEBUG
   sheet.GetRuleSet().Show();
@@ -127,18 +128,6 @@ TEST(CSSSelector, Specificity_Slotted) {
   EXPECT_EQ(Specificity("::slotted(*)"), Specificity("::first-line"));
 }
 
-TEST(CSSSelector, Specificity_Host) {
-  EXPECT_EQ(Specificity(":host"), Specificity(".host"));
-  EXPECT_EQ(Specificity(":host(.a)"), Specificity(".host .a"));
-  EXPECT_EQ(Specificity(":host(div#a.b)"), Specificity(".host div#a.b"));
-}
-
-TEST(CSSSelector, Specificity_HostContext) {
-  EXPECT_EQ(Specificity(":host-context(.a)"), Specificity(".host-context .a"));
-  EXPECT_EQ(Specificity(":host-context(div#a.b)"),
-            Specificity(".host-context div#a.b"));
-}
-
 TEST(CSSSelector, Specificity_Not) {
   EXPECT_EQ(Specificity(":not(div)"), Specificity(":is(div)"));
   EXPECT_EQ(Specificity(":not(.a)"), Specificity(":is(.a)"));
@@ -150,24 +139,6 @@ TEST(CSSSelector, Specificity_Not) {
             Specificity(".a :is(.e+.f, .g>.b, .h#i)"));
   EXPECT_EQ(Specificity(":not(.c + .c + .c, .b + .c:not(span), .b + .c + .e)"),
             Specificity(":is(.c + .c + .c, .b + .c:not(span), .b + .c + .e)"));
-}
-
-TEST(CSSSelector, Specificity_Has) {
-  EXPECT_EQ(Specificity(":has(div)"), Specificity("div"));
-  EXPECT_EQ(Specificity(":has(div)"), Specificity("* div"));
-  EXPECT_EQ(Specificity(":has(~ div)"), Specificity("* ~ div"));
-  EXPECT_EQ(Specificity(":has(> .a)"), Specificity("* > .a"));
-  EXPECT_EQ(Specificity(":has(+ div.a)"), Specificity("* + div.a"));
-  EXPECT_EQ(Specificity(".a :has(.b, div.c)"), Specificity(".a div.c"));
-  EXPECT_EQ(Specificity(".a :has(.c#d, .e)"), Specificity(".a .c#d"));
-  EXPECT_EQ(Specificity(":has(.e+.f, .g>.b, .h)"), Specificity(".e+.f"));
-  EXPECT_EQ(Specificity(".a :has(.e+.f, .g>.b, .h#i)"), Specificity(".a .h#i"));
-  EXPECT_EQ(Specificity(".a+:has(.b+span.f, :has(.c>.e, .g))"),
-            Specificity(".a+.b+span.f"));
-  EXPECT_EQ(Specificity("div > :has(div, div:where(span:where(.b ~ .c)))"),
-            Specificity("div > div"));
-  EXPECT_EQ(Specificity(":has(.c + .c + .c, .b + .c:not(span), .b + .c + .e)"),
-            Specificity(".c + .c + .c"));
 }
 
 TEST(CSSSelector, HasLinkOrVisited) {
@@ -193,45 +164,6 @@ TEST(CSSSelector, HasLinkOrVisited) {
   EXPECT_TRUE(HasLinkOrVisited("::cue(:link)"));
   EXPECT_TRUE(HasLinkOrVisited(":host(:link)"));
   EXPECT_TRUE(HasLinkOrVisited(":host-context(:link)"));
-}
-
-TEST(CSSSelector, CueDefaultNamespace) {
-  css_test_helpers::TestStyleSheet sheet;
-
-  sheet.AddCSSRules(R"HTML(
-    @namespace "http://www.w3.org/1999/xhtml";
-    video::cue(b) {}
-  )HTML");
-
-  const CSSSelector& cue_selector =
-      sheet.GetRuleSet().CuePseudoRules()[0].Selector();
-  EXPECT_EQ(cue_selector.GetPseudoType(), CSSSelector::kPseudoCue);
-
-  const CSSSelectorList* cue_arguments = cue_selector.SelectorList();
-  ASSERT_TRUE(cue_arguments);
-  const CSSSelector* vtt_type_selector = cue_arguments->First();
-  ASSERT_TRUE(vtt_type_selector);
-  EXPECT_EQ(vtt_type_selector->TagQName().LocalName(), "b");
-  // Default namespace should not affect VTT node type selector.
-  EXPECT_EQ(vtt_type_selector->TagQName().NamespaceURI(), g_star_atom);
-}
-
-TEST(CSSSelector, CopyInvalidList) {
-  CSSSelectorList* list = CSSSelectorList::Empty();
-  EXPECT_FALSE(list->IsValid());
-  EXPECT_FALSE(list->Copy()->IsValid());
-}
-
-TEST(CSSSelector, CopyValidList) {
-  CSSSelectorList* list = css_test_helpers::ParseSelectorList(".a");
-  EXPECT_TRUE(list->IsValid());
-  EXPECT_TRUE(list->Copy()->IsValid());
-}
-
-TEST(CSSSelector, FirstInInvalidList) {
-  CSSSelectorList* list = CSSSelectorList::Empty();
-  EXPECT_FALSE(list->IsValid());
-  EXPECT_FALSE(list->First());
 }
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,31 +10,27 @@
 
 #include <stddef.h>
 
-#include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
-#include "base/allocator/partition_allocator/partition_alloc_base/component_export.h"
+#include "base/base_export.h"
+#include "base/compiler_specific.h"
 #include "build/build_config.h"
 
-namespace partition_alloc {
+namespace base {
 
-using OomFunction = void (*)(size_t);
+typedef void (*OomFunction)(size_t);
 
 namespace internal {
 
 // g_oom_handling_function is invoked when PartitionAlloc hits OutOfMemory.
-extern OomFunction g_oom_handling_function;
+static OomFunction g_oom_handling_function = nullptr;
 
-[[noreturn]] PA_COMPONENT_EXPORT(PARTITION_ALLOC) PA_NOINLINE
-    void PartitionExcessiveAllocationSize(size_t size);
+BASE_EXPORT NOINLINE void PartitionExcessiveAllocationSize(size_t size);
 
 #if !defined(ARCH_CPU_64_BITS)
-[[noreturn]] PA_NOINLINE void PartitionOutOfMemoryWithLotsOfUncommitedPages(
-    size_t size);
-[[noreturn]] PA_NOINLINE void PartitionOutOfMemoryWithLargeVirtualSize(
-    size_t virtual_size);
+NOINLINE void PartitionOutOfMemoryWithLotsOfUncommitedPages(size_t size);
 #endif
 
 }  // namespace internal
 
-}  // namespace partition_alloc
+}  // namespace base
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_OOM_H_

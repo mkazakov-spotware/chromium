@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,8 @@
 
 #include "base/strings/string_number_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
-#include "chrome/browser/ui/browser_element_identifiers.h"
+#include "chrome/browser/themes/theme_properties.h"
 #include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/tabs/tab_types.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
@@ -20,10 +18,8 @@
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/variations/variations_associated_data.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/pointer/touch_ui_controller.h"
 #include "ui/base/theme_provider.h"
-#include "ui/compositor/compositor.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/scoped_canvas.h"
 #include "ui/views/animation/flood_fill_ink_drop_ripple.h"
@@ -31,13 +27,15 @@
 #include "ui/views/animation/ink_drop_impl.h"
 #include "ui/views/animation/ink_drop_mask.h"
 #include "ui/views/controls/highlight_path_generator.h"
-#include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "ui/display/win/screen_win.h"
 #include "ui/views/win/hwnd_util.h"
 #endif
+
+// static
+constexpr char NewTabButton::kClassName[];
 
 // static
 const gfx::Size NewTabButton::kButtonSize{28, 28};
@@ -59,9 +57,7 @@ class NewTabButton::HighlightPathGenerator
 NewTabButton::NewTabButton(TabStrip* tab_strip, PressedCallback callback)
     : views::ImageButton(std::move(callback)), tab_strip_(tab_strip) {
   SetAnimateOnStateChange(true);
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
   SetTriggerableEventFlags(GetTriggerableEventFlags() |
                            ui::EF_MIDDLE_MOUSE_BUTTON);
 #endif
@@ -69,38 +65,33 @@ NewTabButton::NewTabButton(TabStrip* tab_strip, PressedCallback callback)
   ink_drop_container_ =
       AddChildView(std::make_unique<views::InkDropContainerView>());
 
-  views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::ON);
-  views::InkDrop::Get(this)->SetHighlightOpacity(0.16f);
-  views::InkDrop::Get(this)->SetVisibleOpacity(0.14f);
+  SetInkDropMode(InkDropMode::ON);
+  SetInkDropHighlightOpacity(0.16f);
+  SetInkDropVisibleOpacity(0.14f);
 
   SetInstallFocusRingOnFocus(true);
   views::HighlightPathGenerator::Install(
       this, std::make_unique<NewTabButton::HighlightPathGenerator>());
 
   SetFocusBehavior(FocusBehavior::ACCESSIBLE_ONLY);
-
-  SetProperty(views::kElementIdentifierKey, kNewTabButtonElementId);
 }
 
 NewTabButton::~NewTabButton() {
-  // TODO(pbos): Revisit explicit removal of InkDrop for classes that override
-  // Add/RemoveLayerBeneathView(). This is done so that the InkDrop doesn't
-  // access the non-override versions in ~View.
-  views::InkDrop::Remove(this);
+  if (destroyed_)
+    *destroyed_ = true;
 }
 
 void NewTabButton::FrameColorsChanged() {
-  const auto* const color_provider = GetColorProvider();
-  views::FocusRing::Get(this)->SetColorId(kColorNewTabButtonFocusRing);
-  views::InkDrop::Get(this)->SetBaseColor(
-      color_provider->GetColor(tab_strip_->ShouldPaintAsActiveFrame()
-                                   ? kColorNewTabButtonInkDropFrameActive
-                                   : kColorNewTabButtonInkDropFrameInactive));
+  UpdateInkDropBaseColor();
   SchedulePaint();
 }
 
-void NewTabButton::AnimateToStateForTesting(views::InkDropState state) {
-  views::InkDrop::Get(this)->GetInkDrop()->AnimateToState(state);
+void NewTabButton::AnimateInkDropToStateForTesting(views::InkDropState state) {
+  GetInkDrop()->AnimateToState(state);
+}
+
+const char* NewTabButton::GetClassName() const {
+  return kClassName;
 }
 
 void NewTabButton::AddLayerBeneathView(ui::Layer* new_layer) {
@@ -112,7 +103,10 @@ void NewTabButton::RemoveLayerBeneathView(ui::Layer* old_layer) {
 }
 
 SkColor NewTabButton::GetForegroundColor() const {
-  return tab_strip_->GetTabForegroundColor(TabActive::kInactive);
+  const SkColor background_color = tab_strip_->GetTabBackgroundColor(
+      TabActive::kInactive, BrowserFrameActiveState::kUseCurrent);
+  return tab_strip_->GetTabForegroundColor(TabActive::kInactive,
+                                           background_color);
 }
 
 void NewTabButton::OnBoundsChanged(const gfx::Rect& previous_bounds) {
@@ -120,7 +114,7 @@ void NewTabButton::OnBoundsChanged(const gfx::Rect& previous_bounds) {
   ink_drop_container_->SetBoundsRect(GetLocalBounds());
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void NewTabButton::OnMouseReleased(const ui::MouseEvent& event) {
   if (!event.IsOnlyRightMouseButton()) {
     views::ImageButton::OnMouseReleased(event);
@@ -132,11 +126,11 @@ void NewTabButton::OnMouseReleased(const ui::MouseEvent& event) {
   gfx::Point point = event.location();
   views::View::ConvertPointToScreen(this, &point);
   point = display::win::ScreenWin::DIPToScreenPoint(point);
-  auto weak_this = weak_factory_.GetWeakPtr();
+  bool destroyed = false;
+  destroyed_ = &destroyed;
   views::ShowSystemMenuAtScreenPixelLocation(views::HWNDForView(this), point);
-  if (!weak_this)
-    return;
-  SetState(views::Button::STATE_NORMAL);
+  if (!destroyed)
+    SetState(views::Button::STATE_NORMAL);
 }
 #endif
 
@@ -149,8 +143,7 @@ void NewTabButton::OnGestureEvent(ui::GestureEvent* event) {
 
 void NewTabButton::NotifyClick(const ui::Event& event) {
   ImageButton::NotifyClick(event);
-  views::InkDrop::Get(this)->GetInkDrop()->AnimateToState(
-      views::InkDropState::ACTION_TRIGGERED);
+  GetInkDrop()->AnimateToState(views::InkDropState::ACTION_TRIGGERED);
 }
 
 void NewTabButton::PaintButtonContents(gfx::Canvas* canvas) {
@@ -170,11 +163,9 @@ gfx::Size NewTabButton::CalculatePreferredSize() const {
 bool NewTabButton::GetHitTestMask(SkPath* mask) const {
   DCHECK(mask);
 
-  gfx::Point origin = GetContentsBounds().origin();
-  if (base::i18n::IsRTL())
-    origin.set_x(GetInsets().right());
   const float scale = GetWidget()->GetCompositor()->device_scale_factor();
-  SkPath border = GetBorderPath(origin, scale,
+  // TODO(pkasting): Fitts' Law horizontally when appropriate.
+  SkPath border = GetBorderPath(GetContentsBounds().origin(), scale,
                                 tab_strip_->controller()->IsFrameCondensed());
   mask->addPath(border, SkMatrix::Scale(1 / scale, 1 / scale));
   return true;
@@ -182,7 +173,7 @@ bool NewTabButton::GetHitTestMask(SkPath* mask) const {
 
 int NewTabButton::GetCornerRadius() const {
   return ChromeLayoutProvider::Get()->GetCornerRadiusMetric(
-      views::Emphasis::kMaximum, GetContentsBounds().size());
+      views::EMPHASIS_MAXIMUM, GetContentsBounds().size());
 }
 
 void NewTabButton::PaintFill(gfx::Canvas* canvas) const {
@@ -192,7 +183,7 @@ void NewTabButton::PaintFill(gfx::Canvas* canvas) const {
   flags.setAntiAlias(true);
 
   const float scale = canvas->image_scale();
-  const absl::optional<int> bg_id =
+  const base::Optional<int> bg_id =
       tab_strip_->GetCustomBackgroundId(BrowserFrameActiveState::kUseCurrent);
   if (bg_id.has_value()) {
     float x_scale = scale;
@@ -215,10 +206,7 @@ void NewTabButton::PaintFill(gfx::Canvas* canvas) const {
         contents_bounds.y(), x_scale, scale, 0, 0, SkTileMode::kRepeat,
         SkTileMode::kRepeat, &flags);
   } else {
-    flags.setColor(GetColorProvider()->GetColor(
-        tab_strip_->ShouldPaintAsActiveFrame()
-            ? kColorNewTabButtonBackgroundFrameActive
-            : kColorNewTabButtonBackgroundFrameInactive));
+    flags.setColor(GetButtonFillColor());
   }
 
   canvas->DrawPath(GetBorderPath(gfx::Point(), scale, false), flags);
@@ -247,6 +235,14 @@ void NewTabButton::PaintIcon(gfx::Canvas* canvas) {
   canvas->DrawLine(gfx::PointF(center, start), gfx::PointF(center, end), flags);
 }
 
+SkColor NewTabButton::GetButtonFillColor() const {
+  return GetThemeProvider()->GetDisplayProperty(
+             ThemeProperties::SHOULD_FILL_BACKGROUND_TAB_COLOR)
+             ? tab_strip_->GetTabBackgroundColor(
+                   TabActive::kInactive, BrowserFrameActiveState::kUseCurrent)
+             : SK_ColorTRANSPARENT;
+}
+
 SkPath NewTabButton::GetBorderPath(const gfx::Point& origin,
                                    float scale,
                                    bool extend_to_top) const {
@@ -270,5 +266,7 @@ SkPath NewTabButton::GetBorderPath(const gfx::Point& origin,
   return path;
 }
 
-BEGIN_METADATA(NewTabButton, views::ImageButton)
-END_METADATA
+void NewTabButton::UpdateInkDropBaseColor() {
+  SetInkDropBaseColor(
+      color_utils::GetColorWithMaxContrast(GetButtonFillColor()));
+}

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,10 @@
 
 #include "base/callback.h"
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
+#include "base/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "net/base/upload_progress.h"
@@ -37,11 +38,7 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) UploadProgressTracker {
                         UploadProgressReportCallback report_progress,
                         net::URLRequest* request,
                         scoped_refptr<base::SequencedTaskRunner> task_runner =
-                            base::SequencedTaskRunner::GetCurrentDefault());
-
-  UploadProgressTracker(const UploadProgressTracker&) = delete;
-  UploadProgressTracker& operator=(const UploadProgressTracker&) = delete;
-
+                            base::SequencedTaskRunnerHandle::Get());
   virtual ~UploadProgressTracker();
 
   void OnAckReceived();
@@ -56,7 +53,7 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) UploadProgressTracker {
 
   void ReportUploadProgressIfNeeded();
 
-  raw_ptr<net::URLRequest> request_;  // Not owned.
+  net::URLRequest* request_;  // Not owned.
 
   uint64_t last_upload_position_ = 0;
   bool waiting_for_upload_progress_ack_ = false;
@@ -64,6 +61,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) UploadProgressTracker {
   base::RepeatingTimer progress_timer_;
 
   UploadProgressReportCallback report_progress_;
+
+  DISALLOW_COPY_AND_ASSIGN(UploadProgressTracker);
 };
 
 }  // namespace network

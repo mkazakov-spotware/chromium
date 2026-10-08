@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.autofill.mojom.FocusedFieldType;
-import org.chromium.base.supplier.Supplier;
 import org.chromium.base.test.params.ParameterAnnotations;
 import org.chromium.base.test.params.ParameterProvider;
 import org.chromium.base.test.params.ParameterSet;
@@ -39,7 +38,7 @@ import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
-import org.chromium.base.test.util.DisabledTest;
+import org.chromium.base.test.util.FlakyTest;
 import org.chromium.chrome.browser.ChromeWindow;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
@@ -64,8 +63,7 @@ import java.util.concurrent.TimeoutException;
  */
 @RunWith(ParameterizedRunner.class)
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
-@EnableFeatures({ChromeFeatureList.AUTOFILL_KEYBOARD_ACCESSORY,
-        ChromeFeatureList.AUTOFILL_MANUAL_FALLBACK_ANDROID, ChromeFeatureList.PORTALS,
+@EnableFeatures({ChromeFeatureList.AUTOFILL_KEYBOARD_ACCESSORY, ChromeFeatureList.PORTALS,
         ChromeFeatureList.PORTALS_CROSS_ORIGIN})
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class AutofillKeyboardAccessoryIntegrationTest {
@@ -114,9 +112,8 @@ public class AutofillKeyboardAccessoryIntegrationTest {
      * being the upper half in multi-window mode.
      */
     private static class MultiWindowKeyboard extends FakeKeyboard {
-        public MultiWindowKeyboard(WeakReference<Activity> activity,
-                Supplier<ManualFillingComponent> manualFillingComponentSupplier) {
-            super(activity, manualFillingComponentSupplier);
+        public MultiWindowKeyboard(WeakReference<Activity> activity) {
+            super(activity);
         }
 
         @Override
@@ -135,9 +132,7 @@ public class AutofillKeyboardAccessoryIntegrationTest {
         if (enabledFeature == EnabledFeature.PORTALS) {
             mHelper.loadTestPage(PORTAL_TEST_PAGE, false, false, keyboardDelegate);
             SwapWebContentsObserver observer = new SwapWebContentsObserver();
-            TestThreadUtils.runOnUiThreadBlocking(() -> {
-                mActivityTestRule.getActivity().getActivityTab().addObserver(observer);
-            });
+            mActivityTestRule.getActivity().getActivityTab().addObserver(observer);
             DOMUtils.clickNode(mHelper.getWebContents(), "ACTIVATE");
             CriteriaHelper.pollUiThread(
                     () -> { return observer.mCallbackHelper.getCallCount() == 1; });
@@ -170,7 +165,7 @@ public class AutofillKeyboardAccessoryIntegrationTest {
     @MediumTest
     public void testTapInputFieldShowsKeyboardAccessory() throws TimeoutException {
         loadTestPage(FakeKeyboard::new);
-        mHelper.clickNodeAndShowKeyboard("NAME_FIRST", 1);
+        mHelper.clickNodeAndShowKeyboard("NAME_FIRST");
         mHelper.waitForKeyboardAccessoryToBeShown();
     }
 
@@ -179,10 +174,10 @@ public class AutofillKeyboardAccessoryIntegrationTest {
      */
     @Test
     @MediumTest
-    @DisabledTest(message = "https://crbug.com/984489")
+    @FlakyTest(message = "https://crbug.com/984489")
     public void testSwitchFieldsRescrollsKeyboardAccessory() throws TimeoutException {
         loadTestPage(FakeKeyboard::new);
-        mHelper.clickNodeAndShowKeyboard("EMAIL_ADDRESS", 8);
+        mHelper.clickNodeAndShowKeyboard("EMAIL_ADDRESS");
         mHelper.waitForKeyboardAccessoryToBeShown(true);
 
         // Scroll to the second position and check it actually happened.
@@ -193,7 +188,7 @@ public class AutofillKeyboardAccessoryIntegrationTest {
         }, "Should keep the manual scroll position.");
 
         // Clicking any other node should now scroll the items back to the initial position.
-        mHelper.clickNodeAndShowKeyboard("NAME_LAST", 2);
+        mHelper.clickNodeAndShowKeyboard("NAME_LAST");
         CriteriaHelper.pollUiThread(() -> {
             return mHelper.getAccessoryBarView().computeHorizontalScrollOffset() == 0;
         }, "Should be scrolled back to position 0.");
@@ -213,7 +208,7 @@ public class AutofillKeyboardAccessoryIntegrationTest {
     testSelectSuggestionHidesKeyboardAccessory(@EnabledFeature int enabledFeature)
             throws ExecutionException, TimeoutException {
         loadTestPage(FakeKeyboard::new, enabledFeature);
-        mHelper.clickNodeAndShowKeyboard("NAME_FIRST", 1);
+        mHelper.clickNodeAndShowKeyboard("NAME_FIRST");
         mHelper.waitForKeyboardAccessoryToBeShown(true);
 
         TestThreadUtils.runOnUiThreadBlocking(
@@ -227,7 +222,7 @@ public class AutofillKeyboardAccessoryIntegrationTest {
             throws ExecutionException, TimeoutException {
         MultiWindowUtils.getInstance().setIsInMultiWindowModeForTesting(true);
         loadTestPage(MultiWindowKeyboard::new);
-        mHelper.clickNode("NAME_FIRST", 1, FocusedFieldType.FILLABLE_NON_SEARCH_FIELD);
+        mHelper.clickNode("NAME_FIRST", FocusedFieldType.FILLABLE_NON_SEARCH_FIELD);
         mHelper.waitForKeyboardAccessoryToBeShown(true);
 
         TestThreadUtils.runOnUiThreadBlocking(
@@ -237,14 +232,10 @@ public class AutofillKeyboardAccessoryIntegrationTest {
 
     @Test
     @SmallTest
-    // clang-format off
-    @DisableIf.Build(hardware_is = "bullhead", sdk_is_greater_than = VERSION_CODES.LOLLIPOP_MR1,
-        sdk_is_less_than = VERSION_CODES.N, message = "https://crbug.com/1216008")
     public void testPressingBackButtonHidesAccessoryWithAutofillSuggestions()
             throws TimeoutException, ExecutionException {
-        // clang-format on
         loadTestPage(MultiWindowKeyboard::new);
-        mHelper.clickNodeAndShowKeyboard("NAME_FIRST", 1);
+        mHelper.clickNodeAndShowKeyboard("NAME_FIRST");
         mHelper.waitForKeyboardAccessoryToBeShown(true);
 
         whenDisplayed(withId(R.id.bar_items_view))
@@ -254,26 +245,17 @@ public class AutofillKeyboardAccessoryIntegrationTest {
         whenDisplayed(withChild(withId(R.id.keyboard_accessory_sheet)));
 
         assertTrue(TestThreadUtils.runOnUiThreadBlocking(
-                ()
-                        -> mHelper.getManualFillingCoordinator()
-                                   .getHandleBackPressChangedSupplier()
-                                   .get()));
-        assertTrue(TestThreadUtils.runOnUiThreadBlocking(
-                () -> mHelper.getManualFillingCoordinator().onBackPressed()));
+                () -> mHelper.getManualFillingCoordinator().handleBackPress()));
 
         waitToBeHidden(withChild(withId(R.id.keyboard_accessory_sheet)));
     }
 
     @Test
     @MediumTest
-    // clang-format off
-    @DisableIf.Build(hardware_is = "bullhead", sdk_is_greater_than = VERSION_CODES.LOLLIPOP_MR1,
-        sdk_is_less_than = VERSION_CODES.N, message = "https://crbug.com/1216008")
     public void testSheetHasMinimumSizeWhenTriggeredBySuggestion() throws TimeoutException {
-        // clang-format on
         MultiWindowUtils.getInstance().setIsInMultiWindowModeForTesting(true);
         loadTestPage(MultiWindowKeyboard::new);
-        mHelper.clickNode("NAME_FIRST", 1, FocusedFieldType.FILLABLE_NON_SEARCH_FIELD);
+        mHelper.clickNode("NAME_FIRST", FocusedFieldType.FILLABLE_NON_SEARCH_FIELD);
         mHelper.waitForKeyboardAccessoryToBeShown(true);
 
         whenDisplayed(withId(R.id.bar_items_view))

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "extensions/common/activation_sequence.h"
 #include "extensions/renderer/v8_schema_registry.h"
 
@@ -23,10 +24,6 @@ class ServiceWorkerData {
       ActivationSequence activation_sequence,
       ScriptContext* context,
       std::unique_ptr<NativeExtensionBindingsSystem> bindings_system);
-
-  ServiceWorkerData(const ServiceWorkerData&) = delete;
-  ServiceWorkerData& operator=(const ServiceWorkerData&) = delete;
-
   ~ServiceWorkerData();
 
   V8SchemaRegistry* v8_schema_registry() { return v8_schema_registry_.get(); }
@@ -48,6 +45,8 @@ class ServiceWorkerData {
 
   std::unique_ptr<V8SchemaRegistry> v8_schema_registry_;
   std::unique_ptr<NativeExtensionBindingsSystem> bindings_system_;
+
+  DISALLOW_COPY_AND_ASSIGN(ServiceWorkerData);
 };
 
 }  // namespace extensions

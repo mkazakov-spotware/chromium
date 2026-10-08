@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,9 @@
 
 namespace content {
 
-size_t GetMinForegroundThreadsInRendererThreadPool() {
+int GetMinForegroundThreadsInRendererThreadPool() {
   // Assume a busy main thread.
-  return static_cast<size_t>(
-      std::max(1, base::SysInfo::NumberOfProcessors() - 1));
+  return std::max(1, base::SysInfo::NumberOfProcessors() - 1);
 }
 
 }  // namespace content

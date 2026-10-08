@@ -1,13 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/base/schemeful_site.h"
 
 #include "base/check.h"
-#include "base/metrics/histogram_macros.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
-#include "net/base/url_util.h"
 #include "url/gurl.h"
 #include "url/url_canon.h"
 #include "url/url_constants.h"
@@ -24,6 +22,11 @@ namespace net {
 // https://html.spec.whatwg.org/multipage/origin.html#obtain-a-site
 SchemefulSite::ObtainASiteResult SchemefulSite::ObtainASite(
     const url::Origin& origin) {
+  // There is currently no reason for getting the schemeful site of a web
+  // socket, so disallow passing in websocket origins.
+  DCHECK_NE(origin.scheme(), url::kWsScheme);
+  DCHECK_NE(origin.scheme(), url::kWssScheme);
+
   // 1. If origin is an opaque origin, then return origin.
   if (origin.opaque())
     return {origin, false /* used_registerable_domain */};
@@ -31,11 +34,12 @@ SchemefulSite::ObtainASiteResult SchemefulSite::ObtainASite(
   std::string registerable_domain;
 
   // Non-normative step.
-  // We only lookup the registerable domain for schemes with network hosts, this
-  // is non-normative. Other schemes for non-opaque origins do not
+  // We only lookup the registerable domain for HTTP/HTTPS schemes, this is
+  // non-normative. Other schemes for non-opaque origins like "file" do not
   // meaningfully have a registerable domain for their host, so they are
   // skipped.
-  if (IsStandardSchemeWithNetworkHost(origin.scheme())) {
+  if (origin.scheme() == url::kHttpsScheme ||
+      origin.scheme() == url::kHttpScheme) {
     registerable_domain = GetDomainAndRegistry(
         origin, net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
   }
@@ -74,42 +78,17 @@ SchemefulSite::SchemefulSite(const GURL& url)
     : SchemefulSite(url::Origin::Create(url)) {}
 
 SchemefulSite::SchemefulSite(const SchemefulSite& other) = default;
-SchemefulSite::SchemefulSite(SchemefulSite&& other) noexcept = default;
+SchemefulSite::SchemefulSite(SchemefulSite&& other) = default;
 
 SchemefulSite& SchemefulSite::operator=(const SchemefulSite& other) = default;
-SchemefulSite& SchemefulSite::operator=(SchemefulSite&& other) noexcept =
-    default;
+SchemefulSite& SchemefulSite::operator=(SchemefulSite&& other) = default;
 
-// static
-bool SchemefulSite::FromWire(const url::Origin& site_as_origin,
-                             SchemefulSite* out) {
-  // The origin passed into this constructor may not match the
-  // `site_as_origin_` used as the internal representation of the schemeful
-  // site. However, a valid SchemefulSite's internal origin should result in a
-  // match if used to construct another SchemefulSite. Thus, if there is a
-  // mismatch here, we must indicate a failure.
-  SchemefulSite candidate(site_as_origin);
-  if (candidate.site_as_origin_ != site_as_origin)
-    return false;
-
-  *out = std::move(candidate);
-  return true;
-}
-
-absl::optional<SchemefulSite> SchemefulSite::CreateIfHasRegisterableDomain(
+base::Optional<SchemefulSite> SchemefulSite::CreateIfHasRegisterableDomain(
     const url::Origin& origin) {
   ObtainASiteResult result = ObtainASite(origin);
   if (!result.used_registerable_domain)
-    return absl::nullopt;
+    return base::nullopt;
   return SchemefulSite(std::move(result));
-}
-
-void SchemefulSite::ConvertWebSocketToHttp() {
-  if (site_as_origin_.scheme() == url::kWsScheme ||
-      site_as_origin_.scheme() == url::kWssScheme) {
-    site_as_origin_ = url::Origin::Create(
-        ChangeWebSocketSchemeToHttpScheme(site_as_origin_.GetURL()));
-  }
 }
 
 // static
@@ -121,17 +100,8 @@ std::string SchemefulSite::Serialize() const {
   return site_as_origin_.Serialize();
 }
 
-std::string SchemefulSite::SerializeFileSiteWithHost() const {
-  DCHECK_EQ(url::kFileScheme, site_as_origin_.scheme());
-  return site_as_origin_.GetTupleOrPrecursorTupleIfOpaque().Serialize();
-}
-
 std::string SchemefulSite::GetDebugString() const {
   return site_as_origin_.GetDebugString();
-}
-
-GURL SchemefulSite::GetURL() const {
-  return site_as_origin_.GetURL();
 }
 
 const url::Origin& SchemefulSite::GetInternalOriginForTesting() const {
@@ -153,25 +123,16 @@ bool SchemefulSite::operator<(const SchemefulSite& other) const {
 }
 
 // static
-absl::optional<SchemefulSite> SchemefulSite::DeserializeWithNonce(
+base::Optional<SchemefulSite> SchemefulSite::DeserializeWithNonce(
     const std::string& value) {
-  absl::optional<url::Origin> result = url::Origin::Deserialize(value);
+  base::Optional<url::Origin> result = url::Origin::Deserialize(value);
   if (!result)
-    return absl::nullopt;
+    return base::nullopt;
   return SchemefulSite(result.value());
 }
 
-absl::optional<std::string> SchemefulSite::SerializeWithNonce() {
+base::Optional<std::string> SchemefulSite::SerializeWithNonce() {
   return site_as_origin_.SerializeWithNonceAndInitIfNeeded();
-}
-
-bool SchemefulSite::SchemelesslyEqual(const SchemefulSite& other) const {
-  return site_as_origin_.host() == other.site_as_origin_.host();
-}
-
-std::ostream& operator<<(std::ostream& os, const SchemefulSite& ss) {
-  os << ss.Serialize();
-  return os;
 }
 
 }  // namespace net

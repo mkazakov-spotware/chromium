@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,13 @@ namespace webapk {
 
 const char kInstallDurationHistogram[] = "WebApk.Install.InstallDuration";
 const char kInstallEventHistogram[] = "WebApk.Install.InstallEvent";
-const char kInstallResultHistogram[] = "WebApk.Install.InstallResult";
 
 void TrackRequestTokenDuration(base::TimeDelta delta,
                                const std::string& webapk_package) {
-  UMA_HISTOGRAM_MEDIUM_TIMES("WebApk.Install.RequestTokenDurationV2", delta);
+  if (base::EndsWith(webapk_package, "_v2"))
+    UMA_HISTOGRAM_MEDIUM_TIMES("WebApk.Install.RequestTokenDurationV2", delta);
+  else
+    UMA_HISTOGRAM_TIMES("WebApk.Install.RequestTokenDuration", delta);
 }
 
 void TrackInstallDuration(base::TimeDelta delta) {
@@ -26,8 +28,4 @@ void TrackInstallEvent(InstallEvent event) {
   UMA_HISTOGRAM_ENUMERATION(kInstallEventHistogram, event, INSTALL_EVENT_MAX);
 }
 
-void TrackInstallResult(webapps::WebApkInstallResult result) {
-  UMA_HISTOGRAM_ENUMERATION(kInstallResultHistogram, result,
-                            webapps::WebApkInstallResult::RESULT_MAX);
-}
 }  // namespace webapk

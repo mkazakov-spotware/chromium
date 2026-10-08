@@ -1,9 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/controls/menu/menu_config.h"
 
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "ui/views/controls/menu/menu_controller.h"
 #include "ui/views/controls/menu/menu_item_view.h"
@@ -17,19 +18,15 @@ MenuConfig::MenuConfig() {
 MenuConfig::~MenuConfig() = default;
 
 int MenuConfig::CornerRadiusForMenu(const MenuController* controller) const {
-  if (controller && controller->use_ash_system_ui_layout()) {
-    return controller->rounded_corners().has_value() ? 0
-                                                     : touchable_corner_radius;
-  }
-
-  if (controller && (controller->IsCombobox() ||
-                     (!win11_style_menus && controller->IsContextMenu())))
+  if (controller && controller->use_touchable_layout())
+    return touchable_corner_radius;
+  if (controller && (controller->IsCombobox() || controller->IsContextMenu()))
     return auxiliary_corner_radius;
   return corner_radius;
 }
 
 bool MenuConfig::ShouldShowAcceleratorText(const MenuItemView* item,
-                                           std::u16string* text) const {
+                                           base::string16* text) const {
   if (!show_accelerators || !item->GetDelegate() || !item->GetCommand())
     return false;
   ui::Accelerator accelerator;

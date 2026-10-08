@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,7 @@ enum class UIState {
   // Autofill Assistant UI is not being shown.
   kNotShown = 0,
   // Autofill Assistant UI is being shown.
-  kShown = 1,
-  // Autofill Assistant UI is being shown but no browsing feature suppression
-  // (such as Autofill, translation, etc.) is expected.
-  kShownWithoutBrowsingFeatureSuppression = 2,
+  kShown
 };
 }  // namespace autofill_assistant
 

@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "test/multiprocess.h"
 #include "test/process_type.h"
@@ -88,9 +89,6 @@ class MultiprocessExec : public Multiprocess {
  public:
   MultiprocessExec();
 
-  MultiprocessExec(const MultiprocessExec&) = delete;
-  MultiprocessExec& operator=(const MultiprocessExec&) = delete;
-
   //! \brief Sets the command to `exec()` in the child.
   //!
   //! This method must be called before the test can be Run().
@@ -141,11 +139,13 @@ class MultiprocessExec : public Multiprocess {
 
   base::FilePath command_;
   std::vector<std::string> arguments_;
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   std::vector<const char*> argv_;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   std::wstring command_line_;
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX
+
+  DISALLOW_COPY_AND_ASSIGN(MultiprocessExec);
 };
 
 }  // namespace test

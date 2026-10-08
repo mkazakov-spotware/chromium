@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,7 @@
 #include <string>
 
 #include "base/trace_event/memory_usage_estimator.h"
-#include "components/sync/protocol/data_type_progress_marker.pb.h"
-#include "components/sync/protocol/entity_metadata.pb.h"
-#include "components/sync/protocol/entity_specifics.pb.h"
-#include "components/sync/protocol/model_type_state.pb.h"
-#include "components/sync/protocol/persisted_entity_data.pb.h"
 #include "components/sync/protocol/proto_visitors.h"
-#include "components/sync/protocol/sync_entity.pb.h"
-#include "components/sync/protocol/unique_position.pb.h"
 
 namespace {
 
@@ -29,7 +22,7 @@ namespace {
 //
 class MemoryUsageVisitor {
  public:
-  MemoryUsageVisitor() = default;
+  MemoryUsageVisitor() : memory_usage_(0) {}
 
   size_t memory_usage() const { return memory_usage_; }
 
@@ -109,7 +102,7 @@ class MemoryUsageVisitor {
   }
 
  private:
-  size_t memory_usage_ = 0;
+  size_t memory_usage_;
 };
 
 }  // namespace

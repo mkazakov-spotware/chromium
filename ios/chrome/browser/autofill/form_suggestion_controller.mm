@@ -1,23 +1,25 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/autofill/form_suggestion_controller.h"
 
-#import <memory>
+#include <memory>
 
-#import "base/mac/foundation_util.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
-#import "components/autofill/core/browser/ui/autofill_popup_delegate.h"
-#import "components/autofill/core/browser/ui/popup_types.h"
+#include "base/mac/foundation_util.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
+#include "components/autofill/core/browser/ui/autofill_popup_delegate.h"
 #import "components/autofill/ios/browser/form_suggestion.h"
 #import "components/autofill/ios/browser/form_suggestion_provider.h"
-#import "components/autofill/ios/form_util/form_activity_params.h"
+#include "components/autofill/ios/form_util/form_activity_params.h"
 #import "ios/chrome/browser/autofill/form_input_navigator.h"
 #import "ios/chrome/browser/autofill/form_input_suggestions_provider.h"
+#import "ios/chrome/browser/autofill/form_suggestion_view.h"
 #import "ios/chrome/browser/passwords/password_generation_utils.h"
+#include "ios/chrome/browser/ui/util/ui_util.h"
 #import "ios/web/common/url_scheme_util.h"
+#import "ios/web/public/deprecated/crw_js_injection_receiver.h"
 #import "ios/web/public/js_messaging/web_frames_manager.h"
 #import "ios/web/public/ui/crw_web_view_proxy.h"
 #import "ios/web/public/web_state.h"
@@ -26,8 +28,8 @@
 #error "This file requires ARC support."
 #endif
 
-using autofill::FieldRendererId;
 using autofill::FormRendererId;
+using autofill::FieldRendererId;
 
 namespace {
 
@@ -51,7 +53,7 @@ struct AutofillSuggestionState {
   std::string frame_identifier;
   // The user-typed value in the field.
   std::string typed_value;
-  // The suggestions for the form field. An array of `FormSuggestion`.
+  // The suggestions for the form field. An array of |FormSuggestion|.
   NSArray* suggestions;
 };
 
@@ -89,10 +91,10 @@ AutofillSuggestionState::AutofillSuggestionState(
 // Unique id of the last request.
 @property(nonatomic, assign) NSUInteger requestIdentifier;
 
-// Updates keyboard for `suggestionState`.
+// Updates keyboard for |suggestionState|.
 - (void)updateKeyboard:(AutofillSuggestionState*)suggestionState;
 
-// Updates keyboard with `suggestions`.
+// Updates keyboard with |suggestions|.
 - (void)updateKeyboardWithSuggestions:(NSArray*)suggestions;
 
 // Clears state in between page loads.
@@ -108,6 +110,9 @@ AutofillSuggestionState::AutofillSuggestionState(
   // Bridge to observe the web state from Objective-C.
   std::unique_ptr<web::WebStateObserverBridge> _webStateObserverBridge;
 
+  // Manager for FormSuggestion JavaScripts.
+  JsSuggestionManager* _jsSuggestionManager;
+
   // The provider for the current set of suggestions.
   __weak id<FormSuggestionProvider> _provider;
 }
@@ -115,7 +120,8 @@ AutofillSuggestionState::AutofillSuggestionState(
 @synthesize formInputNavigator = _formInputNavigator;
 
 - (instancetype)initWithWebState:(web::WebState*)webState
-                       providers:(NSArray*)providers {
+                       providers:(NSArray*)providers
+             JsSuggestionManager:(JsSuggestionManager*)jsSuggestionManager {
   self = [super init];
   if (self) {
     DCHECK(webState);
@@ -124,9 +130,22 @@ AutofillSuggestionState::AutofillSuggestionState(
         std::make_unique<web::WebStateObserverBridge>(self);
     _webState->AddObserver(_webStateObserverBridge.get());
     _webViewProxy = webState->GetWebViewProxy();
+    _jsSuggestionManager = jsSuggestionManager;
     _suggestionProviders = [providers copy];
   }
   return self;
+}
+
+- (instancetype)initWithWebState:(web::WebState*)webState
+                       providers:(NSArray*)providers {
+  JsSuggestionManager* jsSuggestionManager =
+      base::mac::ObjCCast<JsSuggestionManager>(
+          [webState->GetJSInjectionReceiver()
+              instanceOfClass:[JsSuggestionManager class]]);
+  [jsSuggestionManager setWebFramesManager:webState->GetWebFramesManager()];
+  return [self initWithWebState:webState
+                      providers:providers
+            JsSuggestionManager:jsSuggestionManager];
 }
 
 - (void)dealloc {
@@ -145,7 +164,8 @@ AutofillSuggestionState::AutofillSuggestionState(
   }
 }
 
-#pragma mark - CRWWebStateObserver
+#pragma mark -
+#pragma mark CRWWebStateObserver
 
 - (void)webStateDestroyed:(web::WebState*)webState {
   DCHECK_EQ(_webState, webState);
@@ -183,6 +203,7 @@ AutofillSuggestionState::AutofillSuggestionState(
                            _suggestionState.get()->typed_value)
                frameID:base::SysUTF8ToNSString(params.frame_id)];
 
+  BOOL isMainFrame = params.is_main_frame;
   BOOL hasUserGesture = params.has_user_gesture;
 
   // Build a block for each provider that will invoke its completion with YES
@@ -190,20 +211,23 @@ AutofillSuggestionState::AutofillSuggestionState(
   // and NO otherwise.
   NSMutableArray* findProviderBlocks = [[NSMutableArray alloc] init];
   for (NSUInteger i = 0; i < [_suggestionProviders count]; i++) {
-    passwords::PipelineBlock block = ^(void (^completion)(BOOL success)) {
-      // Access all the providers through `self` to guarantee that both
-      // `self` and all the providers exist when the block is executed.
-      // `_suggestionProviders` is immutable, so the subscripting is
-      // always valid.
-      FormSuggestionController* strongSelf = weakSelf;
-      if (!strongSelf)
-        return;
-      id<FormSuggestionProvider> provider = strongSelf->_suggestionProviders[i];
-      [provider checkIfSuggestionsAvailableForForm:formQuery
-                                    hasUserGesture:hasUserGesture
-                                          webState:webState
-                                 completionHandler:completion];
-    };
+    passwords::PipelineBlock block =
+        ^(void (^completion)(BOOL success)) {
+          // Access all the providers through |self| to guarantee that both
+          // |self| and all the providers exist when the block is executed.
+          // |_suggestionProviders| is immutable, so the subscripting is
+          // always valid.
+          FormSuggestionController* strongSelf = weakSelf;
+          if (!strongSelf)
+            return;
+          id<FormSuggestionProvider> provider =
+              strongSelf->_suggestionProviders[i];
+          [provider checkIfSuggestionsAvailableForForm:formQuery
+                                           isMainFrame:isMainFrame
+                                        hasUserGesture:hasUserGesture
+                                              webState:webState
+                                     completionHandler:completion];
+        };
     [findProviderBlocks addObject:block];
   }
 
@@ -234,9 +258,9 @@ AutofillSuggestionState::AutofillSuggestionState(
                        completionHandler:readyCompletion];
   };
 
-  // Run all the blocks in `findProviderBlocks` until one invokes its
+  // Run all the blocks in |findProviderBlocks| until one invokes its
   // completion with YES. The first one to do so will be passed to
-  // `completion`.
+  // |completion|.
   passwords::RunSearchPipeline(findProviderBlocks, completion);
 }
 
@@ -251,11 +275,11 @@ AutofillSuggestionState::AutofillSuggestionState(
 - (void)onSuggestionsReady:(NSArray<FormSuggestion*>*)suggestions
                   provider:(id<FormSuggestionProvider>)provider {
   // TODO(ios): crbug.com/249916. If we can also pass in the form/field for
-  // which `suggestions` are, we should check here if `suggestions` are for
-  // the current active element. If not, reset `_suggestionState`.
+  // which |suggestions| are, we should check here if |suggestions| are for
+  // the current active element. If not, reset |_suggestionState|.
   if (!_suggestionState) {
     // The suggestion state was reset in between the call to Autofill API (e.g.
-    // OnAskForValuesToFill) and this method being called back. Results are
+    // OnQueryFormFieldAutofill) and this method being called back. Results are
     // therefore no longer relevant.
     return;
   }
@@ -314,7 +338,7 @@ AutofillSuggestionState::AutofillSuggestionState(
         }];
 }
 
-#pragma mark - FormInputSuggestionsProvider
+#pragma mark FormInputSuggestionsProvider
 
 - (void)retrieveSuggestionsForForm:(const autofill::FormActivityParams&)params
                           webState:(web::WebState*)webState
@@ -331,15 +355,6 @@ AutofillSuggestionState::AutofillSuggestionState(
 - (void)inputAccessoryViewControllerDidReset {
   _accessoryViewUpdateBlock = nil;
   [self resetSuggestionState];
-}
-
-- (SuggestionProviderType)type {
-  return _provider ? _provider.type : SuggestionProviderTypeUnknown;
-}
-
-- (autofill::PopupType)suggestionType {
-  return _provider ? _provider.suggestionType
-                   : autofill::PopupType::kUnspecified;
 }
 
 @end

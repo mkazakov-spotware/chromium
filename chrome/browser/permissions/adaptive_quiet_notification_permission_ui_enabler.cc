@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,13 +13,13 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/containers/adapters.h"
-#include "base/json/values_util.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/time/time.h"
+#include "base/stl_util.h"
+#include "base/time/default_clock.h"
+#include "base/util/values/values_util.h"
 #include "base/values.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
-#include "chrome/browser/permissions/permission_actions_history_factory.h"
 #include "chrome/browser/permissions/quiet_notification_permission_ui_config.h"
 #include "chrome/browser/permissions/quiet_notification_permission_ui_state.h"
 #include "chrome/browser/profiles/incognito_helpers.h"
@@ -28,17 +28,10 @@
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/pref_names.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
-#include "components/permissions/permission_actions_history.h"
-#include "components/permissions/permission_request_enums.h"
 #include "components/permissions/permission_util.h"
-#include "components/permissions/request_type.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/scoped_user_pref_update.h"
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/profiles/profile_helper.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 namespace {
 
@@ -47,19 +40,53 @@ using EnablingMethod = QuietNotificationPermissionUiState::EnablingMethod;
 // Enable the quiet UX after 3 consecutive denies in adapative activation mode.
 constexpr int kConsecutiveDeniesThresholdForActivation = 3u;
 
+// Inner structure of |prefs::kNotificationPermissionActions| containing a
+// history of past permission actions. It is a JSON list with the format:
+//
+//   "profile.content_settings.permission_actions.notifications": [
+//     { "time": "1333333333337", "action": 1 },
+//     { "time": "1567957177000", "action": 3 },
+//     ...
+//   ]
+//
+constexpr char kPermissionActionEntryActionKey[] = "action";
+constexpr char kPermissionActionEntryTimestampKey[] = "time";
+
+// Entries in permission actions expire after they become this old.
+constexpr base::TimeDelta kPermissionActionMaxAge =
+    base::TimeDelta::FromDays(90);
+
 constexpr char kDidAdaptivelyEnableQuietUiInPrefs[] =
     "Permissions.QuietNotificationPrompts.DidEnableAdapativelyInPrefs";
 constexpr char kIsQuietUiEnabledInPrefs[] =
-    "Permissions.QuietNotificationPrompts.RegularProfile.IsEnabledInPrefs";
+    "Permissions.QuietNotificationPrompts.IsEnabledInPrefs";
 constexpr char kQuietUiEnabledStateInPrefsChangedTo[] =
     "Permissions.QuietNotificationPrompts.EnabledStateInPrefsChangedTo";
 
-bool DidDenyLastThreeTimes(
-    const std::vector<permissions::PermissionActionsHistory::Entry>&
-        permission_actions) {
+bool DidDenyLastThreeTimes(base::Value::ConstListView permission_actions,
+                           base::Clock* clock_) {
+  // Limit how old actions are to be taken into consideration. Default 90 days
+  // old. The value could be changed based on Finch experiment but specifying >
+  // 90 days is meaningless, as only 90 days worth of history is stored.
+  const base::Time cutoff =
+      clock_->Now() -
+      QuietNotificationPermissionUiConfig::GetAdaptiveActivationWindowSize();
   size_t rolling_denies_in_a_row = 0u;
-  for (const auto& entry : base::Reversed(permission_actions)) {
-    switch (entry.action) {
+  for (const auto& action : base::Reversed(permission_actions)) {
+    const base::Optional<base::Time> timestamp =
+        util::ValueToTime(action.FindKey(kPermissionActionEntryTimestampKey));
+
+    if (!timestamp || *timestamp < cutoff)
+      return false;
+
+    const base::Optional<int> past_action_as_int =
+        action.FindIntKey(kPermissionActionEntryActionKey);
+    DCHECK(past_action_as_int);
+
+    const permissions::PermissionAction past_action =
+        static_cast<permissions::PermissionAction>(*past_action_as_int);
+
+    switch (past_action) {
       case permissions::PermissionAction::DENIED:
         ++rolling_denies_in_a_row;
         break;
@@ -101,9 +128,9 @@ AdaptiveQuietNotificationPermissionUiEnabler::Factory::GetInstance() {
 }
 
 AdaptiveQuietNotificationPermissionUiEnabler::Factory::Factory()
-    : ProfileKeyedServiceFactory(
+    : BrowserContextKeyedServiceFactory(
           "AdaptiveQuietNotificationPermissionUiEnabler",
-          ProfileSelections::BuildRedirectedInIncognito()) {
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(HostContentSettingsMapFactory::GetInstance());
 }
 
@@ -116,6 +143,12 @@ AdaptiveQuietNotificationPermissionUiEnabler::Factory::BuildServiceInstanceFor(
       static_cast<Profile*>(context));
 }
 
+content::BrowserContext*
+AdaptiveQuietNotificationPermissionUiEnabler::Factory::GetBrowserContextToUse(
+    content::BrowserContext* context) const {
+  return chrome::GetBrowserContextRedirectedInIncognito(context);
+}
+
 // AdaptiveQuietNotificationPermissionUiEnabler ------------------------------
 
 // static
@@ -125,36 +158,27 @@ AdaptiveQuietNotificationPermissionUiEnabler::GetForProfile(Profile* profile) {
       profile);
 }
 
-void AdaptiveQuietNotificationPermissionUiEnabler::PermissionPromptResolved() {
-  if ((!QuietNotificationPermissionUiConfig::
-           IsAdaptiveActivationDryRunEnabled() ||
-       profile_->GetPrefs()->GetBoolean(
-           prefs::kHadThreeConsecutiveNotificationPermissionDenies)) &&
-      (!QuietNotificationPermissionUiConfig::IsAdaptiveActivationEnabled() ||
-       profile_->GetPrefs()->GetBoolean(
-           prefs::kEnableQuietNotificationPermissionUi))) {
-    return;
-  }
+void AdaptiveQuietNotificationPermissionUiEnabler::
+    RecordPermissionPromptOutcome(permissions::PermissionAction action) {
+  ListPrefUpdate update(profile_->GetPrefs(),
+                        prefs::kNotificationPermissionActions);
+  // Discard permission actions older than |kPermissionActionMaxAge|.
+  const base::Time cutoff = clock_->Now() - kPermissionActionMaxAge;
+  update->EraseListValueIf([cutoff](const base::Value& entry) {
+    const base::Optional<base::Time> timestamp =
+        util::ValueToTime(entry.FindKey(kPermissionActionEntryTimestampKey));
+    return !timestamp || *timestamp < cutoff;
+  });
 
-  // If the user has disabled the quiet UI, only count events after that
-  // occurred.
-  const base::Time disable_time = profile_->GetPrefs()->GetTime(
-      prefs::kQuietNotificationPermissionUiDisabledTime);
+  // Record the new permission action.
+  base::DictionaryValue new_action_attributes;
+  new_action_attributes.SetKey(kPermissionActionEntryTimestampKey,
+                               util::TimeToValue(clock_->Now()));
+  new_action_attributes.SetIntKey(kPermissionActionEntryActionKey,
+                                  static_cast<int>(action));
+  update->Append(std::move(new_action_attributes));
 
-  // Limit how old actions are to be taken into consideration. Default 90 days
-  // old. The value could be changed based on Finch experiment but specifying >
-  // 90 days is meaningless, as only 90 days worth of history is stored.
-  const base::Time cutoff =
-      base::Time::Now() -
-      QuietNotificationPermissionUiConfig::GetAdaptiveActivationWindowSize();
-
-  const auto actions =
-      PermissionActionsHistoryFactory::GetForProfile(profile_)->GetHistory(
-          std::max(cutoff, disable_time),
-          permissions::RequestType::kNotifications,
-          permissions::PermissionActionsHistory::EntryFilter::WANT_ALL_PROMPTS);
-
-  if (!DidDenyLastThreeTimes(actions)) {
+  if (!DidDenyLastThreeTimes(update->GetList(), clock_)) {
     return;
   }
 
@@ -182,9 +206,30 @@ void AdaptiveQuietNotificationPermissionUiEnabler::PermissionPromptResolved() {
   }
 }
 
+void AdaptiveQuietNotificationPermissionUiEnabler::ClearInteractionHistory(
+    const base::Time& delete_begin,
+    const base::Time& delete_end) {
+  DCHECK(!delete_end.is_null());
+
+  if (delete_begin.is_null() && delete_end.is_max()) {
+    profile_->GetPrefs()->ClearPref(prefs::kNotificationPermissionActions);
+    return;
+  }
+
+  ListPrefUpdate update(profile_->GetPrefs(),
+                        prefs::kNotificationPermissionActions);
+
+  update->EraseListValueIf([delete_begin, delete_end](const auto& entry) {
+    const base::Optional<base::Time> timestamp =
+        util::ValueToTime(entry.FindKey(kPermissionActionEntryTimestampKey));
+    return (!timestamp ||
+            (*timestamp >= delete_begin && *timestamp < delete_end));
+  });
+}
+
 AdaptiveQuietNotificationPermissionUiEnabler::
     AdaptiveQuietNotificationPermissionUiEnabler(Profile* profile)
-    : profile_(profile) {
+    : profile_(profile), clock_(base::DefaultClock::GetInstance()) {
   pref_change_registrar_ = std::make_unique<PrefChangeRegistrar>();
   pref_change_registrar_->Init(profile_->GetPrefs());
   pref_change_registrar_->Add(
@@ -193,32 +238,18 @@ AdaptiveQuietNotificationPermissionUiEnabler::
           &AdaptiveQuietNotificationPermissionUiEnabler::OnQuietUiStateChanged,
           base::Unretained(this)));
 
-  bool should_record_metrics = profile_->IsRegularProfile();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  // ChromeOS creates various irregular profiles (login, lock screen...); they
-  // are of type kRegular (returns true for `Profile::IsRegular()`), that aren't
-  // used to browse the web and users can't configure. Don't collect metrics
-  // about them.
-  should_record_metrics =
-      should_record_metrics && ash::ProfileHelper::IsUserProfile(profile_);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-  if (should_record_metrics) {
-    // Record whether the quiet UI is enabled, but only when notifications are
-    // not completely blocked.
-    auto* host_content_settings_map =
-        HostContentSettingsMapFactory::GetForProfile(profile_);
-    const ContentSetting notifications_setting =
-        host_content_settings_map->GetDefaultContentSetting(
-            ContentSettingsType::NOTIFICATIONS, nullptr /* provider_id */);
-
-    if (notifications_setting != CONTENT_SETTING_BLOCK) {
-      const bool is_quiet_ui_enabled_in_prefs =
-          profile_->GetPrefs()->GetBoolean(
-              prefs::kEnableQuietNotificationPermissionUi);
-      base::UmaHistogramBoolean(kIsQuietUiEnabledInPrefs,
-                                is_quiet_ui_enabled_in_prefs);
-    }
+  // Record whether the quiet UI is enabled, but only when notifications are not
+  // completely blocked.
+  auto* host_content_settings_map =
+      HostContentSettingsMapFactory::GetForProfile(profile_);
+  const ContentSetting notifications_setting =
+      host_content_settings_map->GetDefaultContentSetting(
+          ContentSettingsType::NOTIFICATIONS, nullptr /* provider_id */);
+  if (notifications_setting != CONTENT_SETTING_BLOCK) {
+    const bool is_quiet_ui_enabled_in_prefs = profile_->GetPrefs()->GetBoolean(
+        prefs::kEnableQuietNotificationPermissionUi);
+    base::UmaHistogramBoolean(kIsQuietUiEnabledInPrefs,
+                              is_quiet_ui_enabled_in_prefs);
   }
 
   BackfillEnablingMethodIfMissing();
@@ -250,11 +281,10 @@ void AdaptiveQuietNotificationPermissionUiEnabler::OnQuietUiStateChanged() {
     profile_->GetPrefs()->ClearPref(
         prefs::kQuietNotificationPermissionUiEnablingMethod);
 
-    // If the users has just turned off the quiet UI remember the time when it
-    // happened. Only actions taking place after this point will be considered
-    // from now on.
-    profile_->GetPrefs()->SetTime(
-        prefs::kQuietNotificationPermissionUiDisabledTime, base::Time::Now());
+    // If the users has just turned off the quiet UI, clear interaction history
+    // so that if we are in adaptive mode, and the triggering conditions are
+    // met, we won't turn it back on immediately.
+    ClearInteractionHistory(base::Time(), base::Time::Max());
   }
 }
 
@@ -266,9 +296,9 @@ void AdaptiveQuietNotificationPermissionUiEnabler::
   }
 
   // `kQuietNotificationPermissionUiEnablingMethod` was not populated prior to
-  // M88, but `kQuietNotificationPermissionShouldShowPromo` is a solid
-  // indicator as to how the setting was enabled in the first place because
-  // it's only set to true when the quiet UI has been enabled adaptively.
+  // M88, but `kQuietNotificationPermissionShouldShowPromo` is a solid indicator
+  // as to how the setting was enabled in the first place because it's only set
+  // to true when the quiet UI has been enabled adaptively.
   const bool has_enabled_adaptively = profile_->GetPrefs()->GetBoolean(
       prefs::kQuietNotificationPermissionShouldShowPromo);
 

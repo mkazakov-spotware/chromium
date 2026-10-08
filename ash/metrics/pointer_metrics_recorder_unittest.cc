@@ -1,13 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/metrics/pointer_metrics_recorder.h"
 
-#include <memory>
-
-#include "ash/constants/app_types.h"
 #include "ash/display/screen_orientation_controller_test_api.h"
+#include "ash/public/cpp/app_types.h"
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
@@ -29,11 +27,6 @@ const char kCombinationHistogramName[] =
 class PointerMetricsRecorderTest : public AshTestBase {
  public:
   PointerMetricsRecorderTest();
-
-  PointerMetricsRecorderTest(const PointerMetricsRecorderTest&) = delete;
-  PointerMetricsRecorderTest& operator=(const PointerMetricsRecorderTest&) =
-      delete;
-
   ~PointerMetricsRecorderTest() override;
 
   // AshTestBase:
@@ -53,6 +46,9 @@ class PointerMetricsRecorderTest : public AshTestBase {
 
   // Where down events are dispatched to.
   std::unique_ptr<views::Widget> widget_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PointerMetricsRecorderTest);
 };
 
 PointerMetricsRecorderTest::PointerMetricsRecorderTest() = default;
@@ -61,8 +57,8 @@ PointerMetricsRecorderTest::~PointerMetricsRecorderTest() = default;
 
 void PointerMetricsRecorderTest::SetUp() {
   AshTestBase::SetUp();
-  pointer_metrics_recorder_ = std::make_unique<PointerMetricsRecorder>();
-  histogram_tester_ = std::make_unique<base::HistogramTester>();
+  pointer_metrics_recorder_.reset(new PointerMetricsRecorder());
+  histogram_tester_.reset(new base::HistogramTester());
   widget_ = CreateTestWidget();
 }
 

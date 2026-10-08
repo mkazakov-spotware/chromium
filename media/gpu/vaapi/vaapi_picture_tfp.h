@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include <stdint.h>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "media/gpu/vaapi/vaapi_picture.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/x/connection.h"
@@ -36,25 +36,24 @@ class VaapiTFPPicture : public VaapiPicture {
                   uint32_t client_texture_id,
                   uint32_t texture_target);
 
-  VaapiTFPPicture(const VaapiTFPPicture&) = delete;
-  VaapiTFPPicture& operator=(const VaapiTFPPicture&) = delete;
-
   ~VaapiTFPPicture() override;
 
   // VaapiPicture implementation.
-  VaapiStatus Allocate(gfx::BufferFormat format) override;
+  Status Allocate(gfx::BufferFormat format) override;
   bool ImportGpuMemoryBufferHandle(
       gfx::BufferFormat format,
       gfx::GpuMemoryBufferHandle gpu_memory_buffer_handle) override;
   bool DownloadFromSurface(scoped_refptr<VASurface> va_surface) override;
 
  private:
-  VaapiStatus Initialize();
+  Status Initialize();
 
-  const raw_ptr<x11::Connection> connection_;
+  x11::Connection* const connection_;
 
   x11::Pixmap x_pixmap_;
   scoped_refptr<gl::GLImageGLX> glx_image_;
+
+  DISALLOW_COPY_AND_ASSIGN(VaapiTFPPicture);
 };
 
 }  // namespace media

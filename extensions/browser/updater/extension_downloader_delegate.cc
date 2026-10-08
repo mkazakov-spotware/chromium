@@ -1,11 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/browser/updater/extension_downloader_delegate.h"
 
 #include "base/version.h"
-#include "net/base/net_errors.h"
 
 namespace extensions {
 
@@ -15,22 +14,6 @@ ExtensionDownloaderDelegate::PingResult::~PingResult() = default;
 
 ExtensionDownloaderDelegate::FailureData::FailureData()
     : network_error_code(0), fetch_tries(0) {}
-
-// static
-ExtensionDownloaderDelegate::FailureData
-ExtensionDownloaderDelegate::FailureData::CreateFromNetworkResponse(
-    int net_error,
-    int response_code,
-    int failure_count) {
-  return ExtensionDownloaderDelegate::FailureData(
-      -net_error,
-      (net_error == net::Error::ERR_HTTP_RESPONSE_CODE_FAILURE &&
-       response_code > 0)
-          ? absl::optional<int>(response_code)
-          : absl::nullopt,
-      failure_count);
-}
-
 ExtensionDownloaderDelegate::FailureData::FailureData(
     const FailureData& other) = default;
 ExtensionDownloaderDelegate::FailureData::FailureData(const int net_error_code,
@@ -39,7 +22,7 @@ ExtensionDownloaderDelegate::FailureData::FailureData(const int net_error_code,
 
 ExtensionDownloaderDelegate::FailureData::FailureData(
     const int net_error_code,
-    const absl::optional<int> response,
+    const base::Optional<int> response,
     const int fetch_attempts)
     : network_error_code(net_error_code),
       response_code(response),
@@ -78,16 +61,17 @@ void ExtensionDownloaderDelegate::OnExtensionDownloadFailed(
     const std::set<int>& request_id,
     const FailureData& data) {}
 
-void ExtensionDownloaderDelegate::OnExtensionDownloadRetry(
-    const ExtensionId& id,
-    const FailureData& data) {}
-
 void ExtensionDownloaderDelegate::OnExtensionDownloadRetryForTests() {}
 
 bool ExtensionDownloaderDelegate::GetPingDataForExtension(
     const ExtensionId& id,
-    DownloadPingData* ping) {
+    ManifestFetchData::PingData* ping) {
   return false;
+}
+
+std::string ExtensionDownloaderDelegate::GetUpdateUrlData(
+    const ExtensionId& id) {
+  return std::string();
 }
 
 }  // namespace extensions

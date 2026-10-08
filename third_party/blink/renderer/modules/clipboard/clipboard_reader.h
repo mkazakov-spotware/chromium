@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include "base/sequence_checker.h"
 #include "third_party/blink/renderer/core/fileapi/blob.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -20,10 +20,8 @@ class ClipboardPromise;
 // Reading a type from the system clipboard to a Blob is accomplished by:
 // (1) Reading - the format from the system clipboard.
 // (2) Encoding - the system clipboard's contents for a format. Encoding may be
-//     time-consuming, so it is done on a background thread whenever possible.
-//     An example where encoding is done on the main thread is HTML, where
-//     Blink's HTML encoder can only be used on the main thread.
-// (3) Writing - the encoded contents to a Blob.
+//     time-consuming, and so is done on a background thread whenever possible.
+// (3) Writing - the decoded contents to a Blob.
 //
 // ClipboardReader takes as input a ClipboardPromise, from which it expects
 // a clipboard format, and to which it provides a Blob containing an encoded
@@ -40,7 +38,7 @@ class ClipboardPromise;
 //     ClipboardReader::NextRead().
 class ClipboardReader : public GarbageCollected<ClipboardReader> {
  public:
-  // ClipboardWriter::IsValidType() must return true for `mime_type`.
+  // Returns nullptr if there is no implementation for the given mime_type.
   static ClipboardReader* Create(SystemClipboard* system_clipboard,
                                  const String& mime_type,
                                  ClipboardPromise* promise);
@@ -61,12 +59,9 @@ class ClipboardReader : public GarbageCollected<ClipboardReader> {
   virtual void NextRead(Vector<uint8_t> utf8_bytes) = 0;
 
   SystemClipboard* system_clipboard() { return system_clipboard_; }
-  // This ClipboardPromise owns this ClipboardReader. Subclasses use `promise_`
-  // to report the Blob output, or to obtain the execution context.
+  // This ClipboardPromise owns this ClipboardReader.
   Member<ClipboardPromise> promise_;
 
-  // Every subclass method that runs on the main thread should
-  // DCHECK_CALLED_ON_VALID_SEQUENCE with this checker.
   SEQUENCE_CHECKER(sequence_checker_);
 
  private:

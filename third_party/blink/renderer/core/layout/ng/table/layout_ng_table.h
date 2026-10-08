@@ -1,14 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_TABLE_LAYOUT_NG_TABLE_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_TABLE_LAYOUT_NG_TABLE_H_
 
-#include "base/dcheck_is_on.h"
-#include "base/notreached.h"
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/layout/ng/layout_ng_block.h"
+#include "third_party/blink/renderer/core/layout/layout_block.h"
+#include "third_party/blink/renderer/core/layout/ng/layout_ng_mixin.h"
 #include "third_party/blink/renderer/core/layout/ng/table/layout_ng_table_interface.h"
 #include "third_party/blink/renderer/core/layout/ng/table/ng_table_layout_algorithm_types.h"
 
@@ -32,11 +31,19 @@ class NGTableBorders;
 // on LayoutObject. They are invalidated inside
 // LayoutObject::SetNeeds*Layout.
 
-class CORE_EXPORT LayoutNGTable : public LayoutNGBlock,
+class CORE_EXPORT LayoutNGTable : public LayoutNGMixin<LayoutBlock>,
                                   public LayoutNGTableInterface {
  public:
   explicit LayoutNGTable(Element*);
-  ~LayoutNGTable() override;
+
+  // TODO(atotic) Replace all H/VBorderSpacing with BorderSpacing?
+  LogicalSize BorderSpacing() const {
+    NOT_DESTROYED();
+    if (ShouldCollapseBorders())
+      return LogicalSize();
+    return LogicalSize(LayoutUnit(HBorderSpacing()),
+                       LayoutUnit(VBorderSpacing()));
+  }
 
   wtf_size_t ColumnCount() const;
 
@@ -59,10 +66,6 @@ class CORE_EXPORT LayoutNGTable : public LayoutNGBlock,
   // might have changed.
   void TableGridStructureChanged();
 
-  // Table paints column backgrounds.
-  // Returns true if table, or columns' style.HasBackground().
-  bool HasBackgroundForPaint() const;
-
   // LayoutBlock methods start.
 
   const char* GetName() const override {
@@ -83,6 +86,8 @@ class CORE_EXPORT LayoutNGTable : public LayoutNGBlock,
   LayoutBox* CreateAnonymousBoxWithSameTypeAs(
       const LayoutObject* parent) const override;
 
+  void Paint(const PaintInfo&) const final;
+
   LayoutUnit BorderTop() const override;
 
   LayoutUnit BorderBottom() const override;
@@ -91,41 +96,14 @@ class CORE_EXPORT LayoutNGTable : public LayoutNGBlock,
 
   LayoutUnit BorderRight() const override;
 
-  // The collapsing border model disallows paddings on table.
-  // See http://www.w3.org/TR/CSS2/tables.html#collapsing-borders.
-  LayoutUnit PaddingTop() const override;
-
-  LayoutUnit PaddingBottom() const override;
-
-  LayoutUnit PaddingLeft() const override;
-
-  LayoutUnit PaddingRight() const override;
-
   LayoutRectOutsets BorderBoxOutsets() const override;
-
-  // TODO(1151101)
-  // ClientLeft/Top are incorrect for tables, but cannot be fixed
-  // by subclassing ClientLeft/Top.
 
   PhysicalRect OverflowClipRect(const PhysicalOffset&,
                                 OverlayScrollbarClipBehavior) const override;
 
-#if DCHECK_IS_ON()
   void AddVisualEffectOverflow() final;
-#endif
 
   bool VisualRectRespectsVisibility() const override {
-    NOT_DESTROYED();
-    return false;
-  }
-
-  // Whether a table has opaque foreground depends on many factors, e.g. border
-  // spacing, missing cells, etc. For simplicity, just conservatively assume
-  // foreground of all tables are not opaque.
-  // Copied from LayoutTable.
-  bool ForegroundIsKnownToBeOpaqueInRect(
-      const PhysicalRect& local_rect,
-      unsigned max_depth_to_test) const override {
     NOT_DESTROYED();
     return false;
   }
@@ -155,8 +133,22 @@ class CORE_EXPORT LayoutNGTable : public LayoutNGBlock,
     return StyleRef().BorderCollapse() == EBorderCollapse::kCollapse;
   }
 
-  bool HasCollapsedBorders() const;
+  // Used in table painting for invalidation. Should not be needed by NG.
+  bool HasCollapsedBorders() const final {
+    NOTREACHED();
+    return false;
+  }
 
+  bool HasColElements() const final {
+    NOTREACHED();
+    return false;
+  }
+
+  bool IsFixedTableLayout() const final {
+    NOT_DESTROYED();
+    return StyleRef().TableLayout() == ETableLayout::kFixed &&
+           !StyleRef().LogicalWidth().IsAuto();
+  }
   int16_t HBorderSpacing() const final {
     NOT_DESTROYED();
     return ShouldCollapseBorders() ? 0 : StyleRef().HorizontalBorderSpacing();
@@ -166,24 +158,28 @@ class CORE_EXPORT LayoutNGTable : public LayoutNGBlock,
     return ShouldCollapseBorders() ? 0 : StyleRef().VerticalBorderSpacing();
   }
 
+  // Legacy had a concept of colspan column compression. This is a legacy
+  // method to map between absolute and compressed columns.
+  // Because NG does not compress columns, absolute and effective are the same.
   unsigned AbsoluteColumnToEffectiveColumn(
-      unsigned absolute_column_index) const final;
+      unsigned absolute_column_index) const final {
+    NOT_DESTROYED();
+    return absolute_column_index;
+  }
 
-  // NG does not need this method. Sections are not cached.
-  void RecalcSectionsIfNeeded() const final { NOT_DESTROYED(); }
+  // Legacy caches sections. Might not be needed by NG.
+  void RecalcSectionsIfNeeded() const final { NOTIMPLEMENTED(); }
 
-  // Not used by NG. Legacy caches sections.
-  void ForceSectionsRecalc() final { NOT_DESTROYED(); }
+  // Legacy caches sections. Might not be needed by NG.
+  void ForceSectionsRecalc() final { NOTIMPLEMENTED(); }
 
   // Used in paint for printing. Should not be needed by NG.
   LayoutUnit RowOffsetFromRepeatingFooter() const final {
-    NOT_DESTROYED();
     NOTIMPLEMENTED();  // OK, never used.
     return LayoutUnit();
   }
   // Used in paint for printing. Should not be needed by NG.
   LayoutUnit RowOffsetFromRepeatingHeader() const final {
-    NOT_DESTROYED();
     NOTIMPLEMENTED();  // OK, never used.
     return LayoutUnit();
   }
@@ -192,18 +188,27 @@ class CORE_EXPORT LayoutNGTable : public LayoutNGBlock,
 
   LayoutNGTableSectionInterface* FirstBodyInterface() const final;
 
-  LayoutNGTableSectionInterface* FirstSectionInterface() const final;
-  LayoutNGTableSectionInterface* FirstNonEmptySectionInterface() const final;
-  LayoutNGTableSectionInterface* LastSectionInterface() const final;
-  LayoutNGTableSectionInterface* LastNonEmptySectionInterface() const final;
+  LayoutNGTableSectionInterface* TopSectionInterface() const final;
 
-  LayoutNGTableSectionInterface* NextSectionInterface(
+  LayoutNGTableSectionInterface* SectionBelowInterface(
       const LayoutNGTableSectionInterface*,
       SkipEmptySectionsValue) const final;
 
-  LayoutNGTableSectionInterface* PreviousSectionInterface(
-      const LayoutNGTableSectionInterface*,
-      SkipEmptySectionsValue) const final;
+  // Following methods are called during printing, not in TablesNG.
+  LayoutNGTableSectionInterface* TopNonEmptySectionInterface() const final {
+    NOTREACHED();
+    return nullptr;
+  }
+
+  LayoutNGTableSectionInterface* BottomSectionInterface() const final {
+    NOTREACHED();
+    return nullptr;
+  }
+
+  LayoutNGTableSectionInterface* BottomNonEmptySectionInterface() const final {
+    NOTREACHED();
+    return nullptr;
+  }
 
   // LayoutNGTableInterface methods end.
 

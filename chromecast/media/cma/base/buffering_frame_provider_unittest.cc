@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,10 +14,12 @@
 #include "base/bind.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/task/current_thread.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "chromecast/media/cma/test/frame_generator_for_test.h"
 #include "chromecast/media/cma/test/mock_frame_consumer.h"
@@ -34,11 +36,6 @@ namespace media {
 class BufferingFrameProviderTest : public testing::Test {
  public:
   BufferingFrameProviderTest();
-
-  BufferingFrameProviderTest(const BufferingFrameProviderTest&) = delete;
-  BufferingFrameProviderTest& operator=(const BufferingFrameProviderTest&) =
-      delete;
-
   ~BufferingFrameProviderTest() override;
 
   // Setup the test.
@@ -57,6 +54,8 @@ class BufferingFrameProviderTest : public testing::Test {
  private:
   void OnTestTimeout();
   void OnTestCompleted();
+
+  DISALLOW_COPY_AND_ASSIGN(BufferingFrameProviderTest);
 };
 
 BufferingFrameProviderTest::BufferingFrameProviderTest() {
@@ -75,7 +74,7 @@ void BufferingFrameProviderTest::Configure(
   std::vector<FrameGeneratorForTest::FrameSpec> frame_specs(frame_count);
   for (size_t k = 0; k < frame_specs.size() - 1; k++) {
     frame_specs[k].has_config = (k == 0);
-    frame_specs[k].timestamp = base::Milliseconds(40) * k;
+    frame_specs[k].timestamp = base::TimeDelta::FromMilliseconds(40) * k;
     frame_specs[k].size = 512;
     frame_specs[k].has_decrypt_config = ((k % 3) == 0);
   }
@@ -123,15 +122,15 @@ TEST_F(BufferingFrameProviderTest, FastProviderSlowConsumer) {
 
   const size_t frame_count = 100u;
   Configure(frame_count,
-            std::vector<bool>(
-                provider_delayed_pattern,
-                provider_delayed_pattern + std::size(provider_delayed_pattern)),
+            std::vector<bool>(provider_delayed_pattern,
+                              provider_delayed_pattern +
+                                  base::size(provider_delayed_pattern)),
             std::vector<bool>(consumer_delayed_pattern,
                               consumer_delayed_pattern +
-                                  std::size(consumer_delayed_pattern)));
+                                  base::size(consumer_delayed_pattern)));
 
   base::test::SingleThreadTaskEnvironment task_environment;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&BufferingFrameProviderTest::Start,
                                 base::Unretained(this)));
   base::RunLoop().Run();
@@ -143,15 +142,15 @@ TEST_F(BufferingFrameProviderTest, SlowProviderFastConsumer) {
 
   const size_t frame_count = 100u;
   Configure(frame_count,
-            std::vector<bool>(
-                provider_delayed_pattern,
-                provider_delayed_pattern + std::size(provider_delayed_pattern)),
+            std::vector<bool>(provider_delayed_pattern,
+                              provider_delayed_pattern +
+                                  base::size(provider_delayed_pattern)),
             std::vector<bool>(consumer_delayed_pattern,
                               consumer_delayed_pattern +
-                                  std::size(consumer_delayed_pattern)));
+                                  base::size(consumer_delayed_pattern)));
 
   base::test::SingleThreadTaskEnvironment task_environment;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&BufferingFrameProviderTest::Start,
                                 base::Unretained(this)));
   base::RunLoop().Run();
@@ -170,15 +169,15 @@ TEST_F(BufferingFrameProviderTest, SlowFastProducerConsumer) {
 
   const size_t frame_count = 100u;
   Configure(frame_count,
-            std::vector<bool>(
-                provider_delayed_pattern,
-                provider_delayed_pattern + std::size(provider_delayed_pattern)),
+            std::vector<bool>(provider_delayed_pattern,
+                              provider_delayed_pattern +
+                                  base::size(provider_delayed_pattern)),
             std::vector<bool>(consumer_delayed_pattern,
                               consumer_delayed_pattern +
-                                  std::size(consumer_delayed_pattern)));
+                                  base::size(consumer_delayed_pattern)));
 
   base::test::SingleThreadTaskEnvironment task_environment;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&BufferingFrameProviderTest::Start,
                                 base::Unretained(this)));
   base::RunLoop().Run();

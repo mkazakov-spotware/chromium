@@ -10,10 +10,8 @@
       ]
     },
     {
-      "name": "LayoutNGBlockFlow HTML",
-      "bounds": [600, 8],
-      "contentsOpaqueForText": true,
-      "drawsContent": false
+      "name": "Scrolling Contents Layer",
+      "bounds": [600, 250]
     }
   ]
 }
@@ -29,10 +27,8 @@
       ]
     },
     {
-      "name": "LayoutNGBlockFlow HTML",
-      "bounds": [400, 8],
-      "contentsOpaqueForText": true,
-      "drawsContent": false
+      "name": "Scrolling Contents Layer",
+      "bounds": [400, 250]
     }
   ]
 }
@@ -48,10 +44,8 @@
       ]
     },
     {
-      "name": "LayoutNGBlockFlow HTML",
-      "bounds": [400, 8],
-      "contentsOpaqueForText": true,
-      "drawsContent": false
+      "name": "Scrolling Contents Layer",
+      "bounds": [400, 600]
     }
   ]
 }
@@ -67,10 +61,8 @@
       ]
     },
     {
-      "name": "LayoutNGBlockFlow HTML",
-      "bounds": [800, 8],
-      "contentsOpaqueForText": true,
-      "drawsContent": false
+      "name": "Scrolling Contents Layer",
+      "bounds": [800, 600]
     }
   ]
 }

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,18 +12,16 @@
 #include <utility>
 
 #include "base/callback.h"
+#include "base/check_op.h"
+#include "base/compiler_specific.h"
 #include "base/component_export.h"
-#include "base/containers/span.h"
-#include "base/dcheck_is_on.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
-#include "base/strings/string_piece_forward.h"
-#include "base/synchronization/lock.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/thread_annotations.h"
+#include "base/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "mojo/public/cpp/bindings/connection_error_callback.h"
@@ -33,10 +31,7 @@
 #include "mojo/public/cpp/bindings/lib/control_message_proxy.h"
 #include "mojo/public/cpp/bindings/message.h"
 #include "mojo/public/cpp/bindings/message_dispatcher.h"
-#include "mojo/public/cpp/bindings/message_metadata_helpers.h"
 #include "mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h"
-#include "mojo/public/cpp/bindings/thread_safe_proxy.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace mojo {
 
@@ -45,62 +40,49 @@ class InterfaceEndpointController;
 
 // InterfaceEndpointClient handles message sending and receiving of an interface
 // endpoint, either the implementation side or the client side.
+// It should only be accessed and destructed on the creating sequence.
 class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
     : public MessageReceiverWithResponder {
  public:
-  // Constructs a new InterfaceEndpointClient for use on `task_runner`. Unless
-  // otherwise noted, all methods (including the destructor) must be called on
-  // `task_runner`. This does not need to run tasks on the same sequence that
-  // called the constructor.
-  //
-  // `receiver` may be null, but if non-null it must outlive this object.
+  // |receiver| is okay to be null. If it is not null, it must outlive this
+  // object.
   InterfaceEndpointClient(ScopedInterfaceEndpointHandle handle,
                           MessageReceiverWithResponderStatus* receiver,
                           std::unique_ptr<MessageReceiver> payload_validator,
-                          base::span<const uint32_t> sync_method_ordinals,
-                          scoped_refptr<base::SequencedTaskRunner> task_runner,
+                          bool expect_sync_requests,
+                          scoped_refptr<base::SequencedTaskRunner> runner,
                           uint32_t interface_version,
-                          const char* interface_name,
-                          MessageToMethodInfoCallback method_info_callback,
-                          MessageToMethodNameCallback method_name_callback);
-
-  InterfaceEndpointClient(const InterfaceEndpointClient&) = delete;
-  InterfaceEndpointClient& operator=(const InterfaceEndpointClient&) = delete;
-
+                          const char* interface_name);
   ~InterfaceEndpointClient() override;
 
   // Sets the error handler to receive notifications when an error is
   // encountered.
   void set_connection_error_handler(base::OnceClosure error_handler) {
-    CHECK(sequence_checker_.CalledOnValidSequence());
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     error_handler_ = std::move(error_handler);
     error_with_reason_handler_.Reset();
   }
 
   void set_connection_error_with_reason_handler(
       ConnectionErrorWithReasonCallback error_handler) {
-    CHECK(sequence_checker_.CalledOnValidSequence());
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     error_with_reason_handler_ = std::move(error_handler);
     error_handler_.Reset();
   }
 
   // Returns true if an error was encountered.
   bool encountered_error() const {
-    CHECK(sequence_checker_.CalledOnValidSequence());
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     return encountered_error_;
   }
 
   // Returns true if this endpoint has any pending callbacks.
   bool has_pending_responders() const {
-    CHECK(sequence_checker_.CalledOnValidSequence());
-    base::AutoLock lock(async_responders_lock_);
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     return !async_responders_.empty() || !sync_responses_.empty();
   }
 
   AssociatedGroup* associated_group();
-
-  scoped_refptr<ThreadSafeProxy> CreateThreadSafeProxy(
-      scoped_refptr<ThreadSafeProxy::Target> target);
 
   // Sets a MessageFilter which can filter a message after validation but
   // before dispatch.
@@ -113,7 +95,7 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
   // and notifies all interfaces running on this pipe.
   void RaiseError();
 
-  void CloseWithReason(uint32_t custom_reason, base::StringPiece description);
+  void CloseWithReason(uint32_t custom_reason, const std::string& description);
 
   // Used by ControlMessageProxy to send messages through this endpoint.
   void SendControlMessage(Message* message);
@@ -129,23 +111,10 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
   bool AcceptWithResponder(Message* message,
                            std::unique_ptr<MessageReceiver> responder) override;
 
-  // Controls how sync messages are forwarded.
-  enum class SyncSendMode {
-    // Allows the InterfaceEndpointClient to do its own internal sync wait when
-    // sending a sync message. Used in the common case where the reply is waited
-    // upon from the InterfaceEndpointClient's bound sequence.
-    kAllowSyncWait,
-
-    // Forces the InterfaceEndpointClient to send a sync message as if it were
-    // async, leaving any waiting up to the caller.
-    kForceAsync,
-  };
-
   // Implementations used by both SendControlMessage* and Accept* above.
   bool SendMessage(Message* message, bool is_control_message);
   bool SendMessageWithResponder(Message* message,
                                 bool is_control_message,
-                                SyncSendMode sync_send_mode,
                                 std::unique_ptr<MessageReceiver> responder);
 
   // The following methods are called by the router. They must be called
@@ -153,7 +122,7 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
 
   // NOTE: |message| must have passed message header validation.
   bool HandleIncomingMessage(Message* message);
-  void NotifyError(const absl::optional<DisconnectReason>& reason);
+  void NotifyError(const base::Optional<DisconnectReason>& reason);
 
   // The following methods send interface control messages.
   // They must only be called when the handle is not in pending association
@@ -194,11 +163,9 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
   void MaybeSendNotifyIdle();
 
   const char* interface_name() const { return interface_name_; }
-  MessageToMethodInfoCallback method_info_callback() const {
-    return method_info_callback_;
-  }
-  MessageToMethodNameCallback method_name_callback() const {
-    return method_name_callback_;
+
+  void force_outgoing_messages_async(bool force) {
+    force_outgoing_messages_async_ = force;
   }
 
 #if DCHECK_IS_ON()
@@ -207,55 +174,24 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
   }
 #endif
 
-  // This allows the endpoint to be reset from a sequence other than the one on
-  // which it was bound. This should only be used with caution, and it is
-  // critical that the calling sequence cannot run tasks concurrently with the
-  // bound sequence. There's no practical way for this to be asserted, so we
-  // have to take your word for it. If this constraint is not upheld, there will
-  // be data races internal to the bindings object which can lead to UAFs or
-  // surprise message dispatches.
-  void ResetFromAnotherSequenceUnsafe();
-
-  // Tells the client to forget about a pending async request for which it still
-  // hasn't seen a response. Called by the router, possibly from other threads.
-  // The router lock must be held when calling this.
-  void ForgetAsyncRequest(uint64_t request_id);
-
-  base::span<const uint32_t> sync_method_ordinals() const {
-    return sync_method_ordinals_;
-  }
-
  private:
-  struct PendingAsyncResponse {
-   public:
-    PendingAsyncResponse(uint32_t request_message_name,
-                         std::unique_ptr<MessageReceiver> responder);
-    PendingAsyncResponse(PendingAsyncResponse&&);
-    PendingAsyncResponse(const PendingAsyncResponse&) = delete;
-    PendingAsyncResponse& operator=(PendingAsyncResponse&&);
-    PendingAsyncResponse& operator=(const PendingAsyncResponse&) = delete;
-    ~PendingAsyncResponse();
-
-    uint32_t request_message_name;
-    std::unique_ptr<MessageReceiver> responder;
-  };
-
-  using AsyncResponderMap = std::map<uint64_t, PendingAsyncResponse>;
+  // Maps from the id of a response to the MessageReceiver that handles the
+  // response.
+  using AsyncResponderMap =
+      std::map<uint64_t, std::unique_ptr<MessageReceiver>>;
 
   struct SyncResponseInfo {
    public:
-    SyncResponseInfo(uint32_t request_message_name, bool* in_response_received);
-
-    SyncResponseInfo(const SyncResponseInfo&) = delete;
-    SyncResponseInfo& operator=(const SyncResponseInfo&) = delete;
-
+    explicit SyncResponseInfo(bool* in_response_received);
     ~SyncResponseInfo();
 
-    uint32_t request_message_name;
     Message response;
 
     // Points to a stack-allocated variable.
-    raw_ptr<bool> response_received;
+    bool* response_received;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(SyncResponseInfo);
   };
 
   using SyncResponseMap = std::map<uint64_t, std::unique_ptr<SyncResponseInfo>>;
@@ -265,18 +201,15 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
   class HandleIncomingMessageThunk : public MessageReceiver {
    public:
     explicit HandleIncomingMessageThunk(InterfaceEndpointClient* owner);
-
-    HandleIncomingMessageThunk(const HandleIncomingMessageThunk&) = delete;
-    HandleIncomingMessageThunk& operator=(const HandleIncomingMessageThunk&) =
-        delete;
-
     ~HandleIncomingMessageThunk() override;
 
     // MessageReceiver implementation:
     bool Accept(Message* message) override;
 
    private:
-    const raw_ptr<InterfaceEndpointClient> owner_;
+    InterfaceEndpointClient* const owner_;
+
+    DISALLOW_COPY_AND_ASSIGN(HandleIncomingMessageThunk);
   };
 
   void InitControllerIfNecessary();
@@ -286,7 +219,7 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
 
   bool HandleValidatedMessage(Message* message);
 
-  const base::span<const uint32_t> sync_method_ordinals_;
+  const bool expect_sync_requests_ = false;
 
   // The callback to invoke when our peer endpoint sends us NotifyIdle and we
   // have no outstanding unacked messages. If null, no callback has been set and
@@ -300,11 +233,11 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
 
   // The timeout to wait for continuous idling before notiftying our peer that
   // we're idle.
-  absl::optional<base::TimeDelta> idle_timeout_;
+  base::Optional<base::TimeDelta> idle_timeout_;
 
   // The current idle timer, valid only while we're idle. If this fires, we send
   // a NotifyIdle to our peer.
-  absl::optional<base::OneShotTimer> notify_idle_timer_;
+  base::Optional<base::OneShotTimer> notify_idle_timer_;
 
   // A ref to a ConnectionGroup used to track the idle state of this endpoint,
   // if any. Only non-null if an EnableIdleTracking message has been received.
@@ -318,19 +251,13 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
 
   ScopedInterfaceEndpointHandle handle_;
   std::unique_ptr<AssociatedGroup> associated_group_;
-  // `controller_` is not a raw_ptr<...> for performance reasons (based on
-  // analysis of sampling profiler data).
-  RAW_PTR_EXCLUSION InterfaceEndpointController* controller_ = nullptr;
+  InterfaceEndpointController* controller_ = nullptr;
 
-  // `incoming_receiver_` is not a raw_ptr<...> for performance reasons (based
-  // on analysis of sampling profiler data).
-  RAW_PTR_EXCLUSION MessageReceiverWithResponderStatus* const
-      incoming_receiver_ = nullptr;
+  MessageReceiverWithResponderStatus* const incoming_receiver_ = nullptr;
   HandleIncomingMessageThunk thunk_{this};
   MessageDispatcher dispatcher_;
 
-  mutable base::Lock async_responders_lock_;
-  AsyncResponderMap async_responders_ GUARDED_BY(async_responders_lock_);
+  AsyncResponderMap async_responders_;
   SyncResponseMap sync_responses_;
 
   uint64_t next_request_id_ = 1;
@@ -339,13 +266,11 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
   ConnectionErrorWithReasonCallback error_with_reason_handler_;
   bool encountered_error_ = false;
 
-  const scoped_refptr<base::SequencedTaskRunner> task_runner_;
+  scoped_refptr<base::SequencedTaskRunner> task_runner_;
 
   internal::ControlMessageProxy control_message_proxy_{this};
   internal::ControlMessageHandler control_message_handler_;
   const char* interface_name_;
-  const MessageToMethodInfoCallback method_info_callback_;
-  const MessageToMethodNameCallback method_name_callback_;
 
 #if DCHECK_IS_ON()
   // The code location of the the most recent call into a method on this
@@ -354,11 +279,22 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
   base::Location next_call_location_;
 #endif
 
-  // We use SequenceCheckerImpl directly, to assert some sequence checks even in
-  // release builds. See https://crbug.com/1325096.
-  base::SequenceCheckerImpl sequence_checker_;
+  // If set to |true|, the endpoint ignores the sync flag when sending messages.
+  // This means that all messages are sent as if they were async, and all
+  // incoming replies are treated as if they replied to an async message. It is
+  // NOT appropriate to call generated sync method signatures (i.e. mojom
+  // interface methods with output arguments) on such endpoints.
+  //
+  // This exists only to facilitate APIs forwarding opaque sync messages through
+  // the endpoint from some other sequence which blocks on the reply, such as
+  // with sync calls on a SharedRemote.
+  bool force_outgoing_messages_async_ = false;
+
+  SEQUENCE_CHECKER(sequence_checker_);
 
   base::WeakPtrFactory<InterfaceEndpointClient> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(InterfaceEndpointClient);
 };
 
 }  // namespace mojo

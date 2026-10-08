@@ -41,11 +41,11 @@ class Extension;
 
 namespace blink {
 
-class BLINK_EXPORT WebScriptController {
+class WebScriptController {
  public:
   // Registers a v8 extension to be available on webpages. Will only affect
   // v8 contexts initialized after this call.
-  static void RegisterExtension(std::unique_ptr<v8::Extension>);
+  BLINK_EXPORT static void RegisterExtension(std::unique_ptr<v8::Extension>);
 
  private:
   WebScriptController() = delete;
@@ -53,4 +53,4 @@ class BLINK_EXPORT WebScriptController {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_SCRIPT_CONTROLLER_H_
+#endif

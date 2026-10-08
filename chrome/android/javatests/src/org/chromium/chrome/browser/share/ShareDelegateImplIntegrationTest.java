@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,17 +15,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.Callback;
-import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.MetricsUtils.HistogramDelta;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
-import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.share.ShareDelegateImpl.ShareSheetDelegate;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
@@ -122,9 +119,8 @@ public class ShareDelegateImplIntegrationTest {
                 void share(ShareParams params, ChromeShareExtras chromeShareParams,
                         BottomSheetController controller,
                         ActivityLifecycleDispatcher lifecycleDispatcher, Supplier<Tab> tabProvider,
-                        Supplier<TabModelSelector> tabModelSelectorProvider,
-                        Supplier<Profile> profileSupplier, Callback<Tab> printCallback,
-                        int shareOrigin, long shareStartTime, boolean sharingHubEnabled) {
+                        Callback<Tab> printCallback, int shareOrigin, boolean syncState,
+                        long shareStartTime, boolean sharingHubEnabled) {
                     paramsRef.set(params);
                     helper.notifyCalled();
                 }
@@ -134,9 +130,7 @@ public class ShareDelegateImplIntegrationTest {
                                           .getRootUiCoordinatorForTesting()
                                           .getBottomSheetController(),
                     mActivityTestRule.getActivity().getLifecycleDispatcher(),
-                    mActivityTestRule.getActivity().getActivityTabProvider(),
-                    mActivityTestRule.getActivity().getTabModelSelectorSupplier(),
-                    new ObservableSupplierImpl<>(), delegate, false)
+                    mActivityTestRule.getActivity().getActivityTabProvider(), delegate, false)
                     .share(mActivityTestRule.getActivity().getActivityTab(), false,
                             /*shareOrigin=*/0);
         });

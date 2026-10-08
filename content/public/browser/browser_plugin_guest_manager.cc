@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 namespace content {
 
-bool BrowserPluginGuestManager::ForEachGuest(WebContents* owner_web_contents,
+bool BrowserPluginGuestManager::ForEachGuest(WebContents* embedder_web_contents,
                                              const GuestCallback& callback) {
   return false;
 }
@@ -16,4 +16,5 @@ WebContents* BrowserPluginGuestManager::GetFullPageGuest(
   return nullptr;
 }
 
-}  // namespace content
+}  // content
+

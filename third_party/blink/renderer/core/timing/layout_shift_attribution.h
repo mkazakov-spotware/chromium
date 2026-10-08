@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,10 @@
 
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
 
 namespace blink {
 
 class DOMRectReadOnly;
-class Node;
 class ScriptState;
 class ScriptValue;
 
@@ -29,9 +27,6 @@ class CORE_EXPORT LayoutShiftAttribution : public ScriptWrappable {
   ~LayoutShiftAttribution() override;
 
   Node* node() const;
-  // Return node_ unconditionally, skipping the checks that apply
-  // to exposing it through bindings.
-  Node* rawNodeForInspector() const;
   DOMRectReadOnly* previousRect() const;
   DOMRectReadOnly* currentRect() const;
 

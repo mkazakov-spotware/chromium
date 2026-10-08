@@ -1,10 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ppapi/proxy/audio_input_resource.h"
 
-#include <memory>
 #include <string>
 
 #include "base/bind.h"
@@ -184,7 +183,7 @@ void AudioInputResource::OnPluginMsgOpenReply(
 void AudioInputResource::SetStreamInfo(
     base::ReadOnlySharedMemoryRegion shared_memory_region,
     base::SyncSocket::Handle socket_handle) {
-  socket_ = std::make_unique<base::CancelableSyncSocket>(socket_handle);
+  socket_.reset(new base::CancelableSyncSocket(socket_handle));
   DCHECK(!shared_memory_mapping_.IsValid());
 
   // Ensure that the allocated memory is enough for the audio bus and buffer
@@ -233,8 +232,8 @@ void AudioInputResource::StartThread() {
     return;
   }
   DCHECK(!audio_input_thread_.get());
-  audio_input_thread_ = std::make_unique<base::DelegateSimpleThread>(
-      this, "plugin_audio_input_thread");
+  audio_input_thread_.reset(new base::DelegateSimpleThread(
+      this, "plugin_audio_input_thread"));
   audio_input_thread_->Start();
 }
 
@@ -350,8 +349,8 @@ int32_t AudioInputResource::CommonOpen(
       enter_config.object()->GetSampleFrameCount());
   Call<PpapiPluginMsg_AudioInput_OpenReply>(
       RENDERER, msg,
-      base::BindOnce(&AudioInputResource::OnPluginMsgOpenReply,
-                     base::Unretained(this)));
+      base::Bind(&AudioInputResource::OnPluginMsgOpenReply,
+                 base::Unretained(this)));
   return PP_OK_COMPLETIONPENDING;
 }
 }  // namespace proxy

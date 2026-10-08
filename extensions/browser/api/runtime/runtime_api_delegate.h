@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include "base/callback.h"
 #include "base/version.h"
-#include "extensions/common/api/runtime.h"
 
 class GURL;
 
@@ -16,6 +15,12 @@ class BrowserContext;
 }
 
 namespace extensions {
+
+namespace api {
+namespace runtime {
+struct PlatformInfo;
+}
+}
 
 class Extension;
 class UpdateObserver;
@@ -26,18 +31,19 @@ class UpdateObserver;
 class RuntimeAPIDelegate {
  public:
   struct UpdateCheckResult {
-    api::runtime::RequestUpdateCheckStatus status;
+    bool success;
+    std::string response;
     std::string version;
 
-    UpdateCheckResult(const api::runtime::RequestUpdateCheckStatus& status,
+    UpdateCheckResult(bool success,
+                      const std::string& response,
                       const std::string& version);
   };
 
   virtual ~RuntimeAPIDelegate() {}
 
   // The callback given to RequestUpdateCheck.
-  using UpdateCheckCallback =
-      base::OnceCallback<void(const UpdateCheckResult&)>;
+  typedef base::Callback<void(const UpdateCheckResult&)> UpdateCheckCallback;
 
   // Registers an UpdateObserver on behalf of the runtime API.
   virtual void AddUpdateObserver(UpdateObserver* observer) = 0;
@@ -52,7 +58,7 @@ class RuntimeAPIDelegate {
   // are disabled. Otherwise |callback| is called with the result of the
   // update check.
   virtual bool CheckForUpdates(const std::string& extension_id,
-                               UpdateCheckCallback callback) = 0;
+                               const UpdateCheckCallback& callback) = 0;
 
   // Navigates the browser to a URL on behalf of the runtime API.
   virtual void OpenURL(const GURL& uninstall_url) = 0;

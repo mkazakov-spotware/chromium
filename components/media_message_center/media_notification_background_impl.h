@@ -1,18 +1,16 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_MEDIA_MESSAGE_CENTER_MEDIA_NOTIFICATION_BACKGROUND_IMPL_H_
 #define COMPONENTS_MEDIA_MESSAGE_CENTER_MEDIA_NOTIFICATION_BACKGROUND_IMPL_H_
 
-#include "base/component_export.h"
-#include "base/gtest_prod_util.h"
-#include "components/media_message_center/media_notification_background.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/skia/include/core/SkColor.h"
-#include "ui/gfx/image/image_skia.h"
+#include <vector>
 
-struct SkPoint;
+#include "base/component_export.h"
+#include "base/optional.h"
+#include "components/media_message_center/media_notification_background.h"
+#include "ui/gfx/image/image_skia.h"
 
 namespace gfx {
 class Rect;
@@ -34,12 +32,6 @@ class COMPONENT_EXPORT(MEDIA_MESSAGE_CENTER) MediaNotificationBackgroundImpl
   MediaNotificationBackgroundImpl(int top_radius,
                                   int bottom_radius,
                                   double artwork_max_width_pct);
-
-  MediaNotificationBackgroundImpl(const MediaNotificationBackgroundImpl&) =
-      delete;
-  MediaNotificationBackgroundImpl& operator=(
-      const MediaNotificationBackgroundImpl&) = delete;
-
   ~MediaNotificationBackgroundImpl() override;
 
   // views::Background
@@ -83,8 +75,10 @@ class COMPONENT_EXPORT(MEDIA_MESSAGE_CENTER) MediaNotificationBackgroundImpl
   double artwork_max_width_pct_;
   bool audio_device_selector_availability_ = false;
 
-  absl::optional<SkColor> background_color_;
-  absl::optional<SkColor> foreground_color_;
+  base::Optional<SkColor> background_color_;
+  base::Optional<SkColor> foreground_color_;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaNotificationBackgroundImpl);
 };
 
 }  // namespace media_message_center

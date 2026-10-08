@@ -1,13 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_PAINT_FILTER_OPERATION_H_
 #define CC_PAINT_FILTER_OPERATION_H_
 
-#include <array>
 #include <memory>
-#include <utility>
 #include <vector>
 
 #include "base/check_op.h"
@@ -16,7 +14,7 @@
 #include "cc/paint/paint_filter.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkScalar.h"
-#include "third_party/skia/include/core/SkTileMode.h"
+#include "third_party/skia/include/effects/SkBlurImageFilter.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/rect.h"
 
@@ -30,8 +28,7 @@ namespace cc {
 
 class CC_PAINT_EXPORT FilterOperation {
  public:
-  // 4x5 color matrix equivalent to SkColorMatrix.
-  using Matrix = std::array<float, 20>;
+  using Matrix = SkScalar[20];
   using ShapeRects = std::vector<gfx::Rect>;
   enum FilterType {
     GRAYSCALE,
@@ -76,7 +73,7 @@ class CC_PAINT_EXPORT FilterOperation {
     return drop_shadow_offset_;
   }
 
-  SkColor4f drop_shadow_color() const {
+  SkColor drop_shadow_color() const {
     DCHECK_EQ(type_, DROP_SHADOW);
     return drop_shadow_color_;
   }
@@ -101,7 +98,7 @@ class CC_PAINT_EXPORT FilterOperation {
     return shape_;
   }
 
-  SkTileMode blur_tile_mode() const {
+  SkBlurImageFilter::TileMode blur_tile_mode() const {
     DCHECK_EQ(type_, BLUR);
     return blur_tile_mode_;
   }
@@ -140,13 +137,14 @@ class CC_PAINT_EXPORT FilterOperation {
 
   static FilterOperation CreateBlurFilter(
       float amount,
-      SkTileMode tile_mode = SkTileMode::kDecal) {
+      SkBlurImageFilter::TileMode tile_mode =
+          SkBlurImageFilter::kClampToBlack_TileMode) {
     return FilterOperation(BLUR, amount, tile_mode);
   }
 
   static FilterOperation CreateDropShadowFilter(const gfx::Point& offset,
                                                 float std_deviation,
-                                                SkColor4f color) {
+                                                SkColor color) {
     return FilterOperation(DROP_SHADOW, offset, std_deviation, color);
   }
 
@@ -203,7 +201,7 @@ class CC_PAINT_EXPORT FilterOperation {
     drop_shadow_offset_ = offset;
   }
 
-  void set_drop_shadow_color(SkColor4f color) {
+  void set_drop_shadow_color(SkColor color) {
     DCHECK_EQ(type_, DROP_SHADOW);
     drop_shadow_color_ = color;
   }
@@ -229,7 +227,7 @@ class CC_PAINT_EXPORT FilterOperation {
     shape_ = shape;
   }
 
-  void set_blur_tile_mode(SkTileMode tile_mode) {
+  void set_blur_tile_mode(SkBlurImageFilter::TileMode tile_mode) {
     DCHECK_EQ(type_, BLUR);
     blur_tile_mode_ = tile_mode;
   }
@@ -257,12 +255,14 @@ class CC_PAINT_EXPORT FilterOperation {
  private:
   FilterOperation(FilterType type, float amount);
 
-  FilterOperation(FilterType type, float amount, SkTileMode tile_mode);
+  FilterOperation(FilterType type,
+                  float amount,
+                  SkBlurImageFilter::TileMode tile_mode);
 
   FilterOperation(FilterType type,
                   const gfx::Point& offset,
                   float stdDeviation,
-                  SkColor4f color);
+                  SkColor color);
 
   FilterOperation(FilterType, const Matrix& matrix);
 
@@ -279,14 +279,14 @@ class CC_PAINT_EXPORT FilterOperation {
   float amount_;
   float outer_threshold_;
   gfx::Point drop_shadow_offset_;
-  SkColor4f drop_shadow_color_;
+  SkColor drop_shadow_color_;
   sk_sp<PaintFilter> image_filter_;
   Matrix matrix_;
   int zoom_inset_;
 
   // Use a collection of |gfx::Rect| to make serialization simpler.
   ShapeRects shape_;
-  SkTileMode blur_tile_mode_;
+  SkBlurImageFilter::TileMode blur_tile_mode_;
 };
 
 }  // namespace cc

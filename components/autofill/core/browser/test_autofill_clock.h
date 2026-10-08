@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,11 @@
 
 #include <memory>
 
-#include "base/time/time.h"
+#include "base/macros.h"
+#include "base/test/simple_test_clock.h"
 
 namespace base {
-class SimpleTestClock;
+class Time;
 }  // namespace base
 
 namespace autofill {
@@ -21,12 +22,7 @@ namespace autofill {
 // destroyed.
 class TestAutofillClock {
  public:
-  explicit TestAutofillClock(base::Time now = {});
-  explicit TestAutofillClock(std::unique_ptr<base::SimpleTestClock> test_clock);
-
-  TestAutofillClock(const TestAutofillClock&) = delete;
-  TestAutofillClock& operator=(const TestAutofillClock&) = delete;
-
+  TestAutofillClock();
   ~TestAutofillClock();
 
   // Set the time to be returned from AutofillClock::Now() calls.
@@ -36,7 +32,9 @@ class TestAutofillClock {
   void Advance(base::TimeDelta delta);
 
  private:
-  std::unique_ptr<base::SimpleTestClock> test_clock_;
+  base::SimpleTestClock test_clock_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestAutofillClock);
 };
 
 }  // namespace autofill

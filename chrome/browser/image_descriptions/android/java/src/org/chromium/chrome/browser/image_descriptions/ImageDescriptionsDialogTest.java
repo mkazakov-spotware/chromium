@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,16 +7,10 @@ package org.chromium.chrome.browser.image_descriptions;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
-import static androidx.test.espresso.matcher.RootMatchers.withDecorView;
-import static androidx.test.espresso.matcher.ViewMatchers.isDescendantOfA;
-import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
+import static androidx.test.espresso.matcher.ViewMatchers.thatMatchesFirst;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
-import static org.hamcrest.CoreMatchers.allOf;
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -28,7 +22,6 @@ import android.widget.CheckBox;
 
 import androidx.test.filters.SmallTest;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -37,29 +30,29 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import org.chromium.base.test.BaseJUnit4ClassRunner;
+import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.JniMocker;
-import org.chromium.chrome.browser.device.DeviceConditions;
+import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.browser_ui.modaldialog.AppModalPresenter;
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescription;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.components.user_prefs.UserPrefsJni;
-import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
-import org.chromium.net.ConnectionType;
 import org.chromium.ui.modaldialog.ModalDialogManager;
-import org.chromium.ui.test.util.BlankUiTestActivityTestCase;
+import org.chromium.ui.test.util.DummyUiActivityTestCase;
 
 /**
  *  Unit tests for {@link ImageDescriptionsDialog}
  */
-@RunWith(BaseJUnit4ClassRunner.class)
-public class ImageDescriptionsDialogTest extends BlankUiTestActivityTestCase {
+@RunWith(ChromeJUnit4ClassRunner.class)
+@CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
+public class ImageDescriptionsDialogTest extends DummyUiActivityTestCase {
     @Rule
     public JniMocker mJniMocker = new JniMocker();
 
@@ -74,9 +67,6 @@ public class ImageDescriptionsDialogTest extends BlankUiTestActivityTestCase {
 
     @Mock
     private PrefService mPrefService;
-
-    @Mock
-    private WebContents mWebContents;
 
     private SharedPreferencesManager mManager;
     private ImageDescriptionsController mController;
@@ -93,21 +83,13 @@ public class ImageDescriptionsDialogTest extends BlankUiTestActivityTestCase {
         Profile.setLastUsedProfileForTesting(mProfile);
         when(mUserPrefsJniMock.get(mProfile)).thenReturn(mPrefService);
 
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            mAppModalPresenter = new AppModalPresenter(getActivity());
-            mModalDialogManager = new ModalDialogManager(
-                    mAppModalPresenter, ModalDialogManager.ModalDialogType.APP);
-        });
+        mAppModalPresenter = new AppModalPresenter(getActivity());
+        mModalDialogManager =
+                new ModalDialogManager(mAppModalPresenter, ModalDialogManager.ModalDialogType.APP);
 
         mManager = SharedPreferencesManager.getInstance();
         mController = ImageDescriptionsController.getInstance();
         mController.setDelegateForTesting(mDelegate);
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> DeviceConditions.sForceConnectionTypeForTesting = false);
     }
 
     // Helper methods for driving dialog control
@@ -118,8 +100,7 @@ public class ImageDescriptionsDialogTest extends BlankUiTestActivityTestCase {
                     .thenReturn(false);
             mManager.writeInt(ChromePreferenceKeys.IMAGE_DESCRIPTIONS_JUST_ONCE_COUNT, 0);
             mManager.writeBoolean(ChromePreferenceKeys.IMAGE_DESCRIPTIONS_DONT_ASK_AGAIN, false);
-            mController.onImageDescriptionsMenuItemSelected(
-                    getActivity(), mModalDialogManager, mWebContents);
+            mController.onImageDescriptionsMenuItemSelected(getActivity(), mModalDialogManager);
         });
     }
 
@@ -128,8 +109,7 @@ public class ImageDescriptionsDialogTest extends BlankUiTestActivityTestCase {
             when(mPrefService.getBoolean(Pref.ACCESSIBILITY_IMAGE_LABELS_ENABLED_ANDROID))
                     .thenReturn(false);
             mManager.writeInt(ChromePreferenceKeys.IMAGE_DESCRIPTIONS_JUST_ONCE_COUNT, 5);
-            mController.onImageDescriptionsMenuItemSelected(
-                    getActivity(), mModalDialogManager, mWebContents);
+            mController.onImageDescriptionsMenuItemSelected(getActivity(), mModalDialogManager);
         });
     }
 
@@ -173,8 +153,7 @@ public class ImageDescriptionsDialogTest extends BlankUiTestActivityTestCase {
     @SmallTest
     public void testHeaderAndButtonContent() {
         showDialog();
-        onView(allOf(isDescendantOfA(withId(org.chromium.chrome.R.id.title_container)),
-                       withId(org.chromium.chrome.R.id.title)))
+        onView(thatMatchesFirst(withId(org.chromium.chrome.R.id.title)))
                 .check(matches(withText("Get image descriptions?")));
         onView(withId(R.id.image_descriptions_dialog_content))
                 .check(matches(
@@ -303,10 +282,10 @@ public class ImageDescriptionsDialogTest extends BlankUiTestActivityTestCase {
         // User clicks "No thanks", dialog should dismiss with no action taken.
         clickNegativeButton();
 
-        verify(mDelegate, never()).enableImageDescriptions(any());
-        verify(mDelegate, never()).disableImageDescriptions(any());
-        verify(mDelegate, never()).setOnlyOnWifiRequirement(anyBoolean(), any());
-        verify(mDelegate, never()).getImageDescriptionsJustOnce(anyBoolean(), any());
+        verify(mDelegate, never()).enableImageDescriptions();
+        verify(mDelegate, never()).disableImageDescriptions();
+        verify(mDelegate, never()).setOnlyOnWifiRequirement(anyBoolean());
+        verify(mDelegate, never()).getImageDescriptionsJustOnce(anyBoolean());
     }
 
     @Test
@@ -323,14 +302,10 @@ public class ImageDescriptionsDialogTest extends BlankUiTestActivityTestCase {
         // User clicks "Get descriptions"
         clickPositiveButton();
 
-        verify(mDelegate, never()).enableImageDescriptions(any());
-        verify(mDelegate, never()).disableImageDescriptions(any());
-        verify(mDelegate, never()).setOnlyOnWifiRequirement(anyBoolean(), any());
-        verify(mDelegate, times(1)).getImageDescriptionsJustOnce(false, mWebContents);
-
-        onView(withText(R.string.image_descriptions_toast_just_once))
-                .inRoot(withDecorView(not(is(getActivity().getWindow().getDecorView()))))
-                .check(matches(isDisplayed()));
+        verify(mDelegate, never()).enableImageDescriptions();
+        verify(mDelegate, never()).disableImageDescriptions();
+        verify(mDelegate, never()).setOnlyOnWifiRequirement(anyBoolean());
+        verify(mDelegate, times(1)).getImageDescriptionsJustOnce(false);
     }
 
     @Test
@@ -351,14 +326,10 @@ public class ImageDescriptionsDialogTest extends BlankUiTestActivityTestCase {
         // User clicks "Get descriptions"
         clickPositiveButton();
 
-        verify(mDelegate, never()).enableImageDescriptions(any());
-        verify(mDelegate, never()).disableImageDescriptions(any());
-        verify(mDelegate, never()).setOnlyOnWifiRequirement(anyBoolean(), any());
-        verify(mDelegate, times(1)).getImageDescriptionsJustOnce(true, mWebContents);
-
-        onView(withText(R.string.image_descriptions_toast_just_once))
-                .inRoot(withDecorView(not(is(getActivity().getWindow().getDecorView()))))
-                .check(matches(isDisplayed()));
+        verify(mDelegate, never()).enableImageDescriptions();
+        verify(mDelegate, never()).disableImageDescriptions();
+        verify(mDelegate, never()).setOnlyOnWifiRequirement(anyBoolean());
+        verify(mDelegate, times(1)).getImageDescriptionsJustOnce(true);
     }
 
     @Test
@@ -383,14 +354,10 @@ public class ImageDescriptionsDialogTest extends BlankUiTestActivityTestCase {
         // User clicks "Get descriptions"
         clickPositiveButton();
 
-        verify(mDelegate, times(1)).enableImageDescriptions(mProfile);
-        verify(mDelegate, never()).disableImageDescriptions(any());
-        verify(mDelegate, times(1)).setOnlyOnWifiRequirement(false, mProfile);
-        verify(mDelegate, never()).getImageDescriptionsJustOnce(anyBoolean(), any());
-
-        onView(withText(R.string.image_descriptions_toast_on))
-                .inRoot(withDecorView(not(is(getActivity().getWindow().getDecorView()))))
-                .check(matches(isDisplayed()));
+        verify(mDelegate, times(1)).enableImageDescriptions();
+        verify(mDelegate, times(1)).setOnlyOnWifiRequirement(false);
+        verify(mDelegate, never()).disableImageDescriptions();
+        verify(mDelegate, never()).getImageDescriptionsJustOnce(anyBoolean());
     }
 
     @Test
@@ -401,50 +368,12 @@ public class ImageDescriptionsDialogTest extends BlankUiTestActivityTestCase {
         // User clicks on the "Always" option, keeps the "Only on Wi-Fi" option checked
         onView(withId(R.id.image_descriptions_dialog_radio_button_always)).perform(click());
 
-        // Setup wifi condition.
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            DeviceConditions.sForceConnectionTypeForTesting = true;
-            DeviceConditions.mConnectionTypeForTesting = ConnectionType.CONNECTION_WIFI;
-        });
-
         // User clicks "Get descriptions"
         clickPositiveButton();
 
-        verify(mDelegate, times(1)).enableImageDescriptions(mProfile);
-        verify(mDelegate, never()).disableImageDescriptions(any());
-        verify(mDelegate, times(1)).setOnlyOnWifiRequirement(true, mProfile);
-        verify(mDelegate, never()).getImageDescriptionsJustOnce(anyBoolean(), any());
-
-        onView(withText(R.string.image_descriptions_toast_on))
-                .inRoot(withDecorView(not(is(getActivity().getWindow().getDecorView()))))
-                .check(matches(isDisplayed()));
-    }
-
-    @Test
-    @SmallTest
-    public void testUserInteraction_userGetsDescriptions_alwaysOnlyOnWifi_noWifi()
-            throws Exception {
-        showDialog();
-
-        // User clicks on the "Always" option, keeps the "Only on Wi-Fi" option checked
-        onView(withId(R.id.image_descriptions_dialog_radio_button_always)).perform(click());
-
-        // Setup no wifi condition.
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            DeviceConditions.sForceConnectionTypeForTesting = true;
-            DeviceConditions.mConnectionTypeForTesting = ConnectionType.CONNECTION_NONE;
-        });
-
-        // User clicks "Get descriptions"
-        clickPositiveButton();
-
-        verify(mDelegate, times(1)).enableImageDescriptions(mProfile);
-        verify(mDelegate, never()).disableImageDescriptions(any());
-        verify(mDelegate, times(1)).setOnlyOnWifiRequirement(true, mProfile);
-        verify(mDelegate, never()).getImageDescriptionsJustOnce(anyBoolean(), any());
-
-        onView(withText(R.string.image_descriptions_toast_on_no_wifi))
-                .inRoot(withDecorView(not(is(getActivity().getWindow().getDecorView()))))
-                .check(matches(isDisplayed()));
+        verify(mDelegate, times(1)).enableImageDescriptions();
+        verify(mDelegate, times(1)).setOnlyOnWifiRequirement(true);
+        verify(mDelegate, never()).disableImageDescriptions();
+        verify(mDelegate, never()).getImageDescriptionsJustOnce(anyBoolean());
     }
 }

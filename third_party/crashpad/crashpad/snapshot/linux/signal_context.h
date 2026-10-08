@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -119,11 +119,11 @@ template <typename Traits>
 struct Sigset<
     Traits,
     typename std::enable_if<std::is_base_of<Traits64, Traits>::value>::type> {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   uint64_t val;
 #else
   typename Traits::ULong val[16];
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // OS_ANDROID
 };
 
 #if defined(ARCH_CPU_X86_FAMILY)

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,27 +13,13 @@
 #include "base/process/kill.h"
 #include "base/process/process.h"
 #include "base/process/process_handle.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/threading/thread.h"
 #include "base/threading/thread_task_runner_handle.h"
 
 namespace browser_watcher {
-namespace {
-constexpr char kBrowserExitCodeHistogramName[] = "Stability.BrowserExitCodes";
-bool WriteProcessExitCode(int exit_code) {
-  if (exit_code != STILL_ACTIVE) {
-    // Record the exit codes in a sparse stability histogram, as the range of
-    // values used to report failures is large.
-    base::HistogramBase* exit_code_histogram =
-        base::SparseHistogram::FactoryGet(
-            kBrowserExitCodeHistogramName,
-            base::HistogramBase::kUmaStabilityHistogramFlag);
-    exit_code_histogram->Add(exit_code);
-    return true;
-  }
-  return false;
-}
-}  // namespace
+
+const char kBrowserExitCodeHistogramName[] = "Stability.BrowserExitCodes";
 
 ExitCodeWatcher::ExitCodeWatcher()
     : background_thread_("ExitCodeWatcherThread"),
@@ -100,6 +86,20 @@ void ExitCodeWatcher::WaitForExit() {
   } else if (wait_result == base::Process::WaitExitStatus::FAILED) {
     LOG(ERROR) << "Failed to wait for process exit or stop event";
   }
+}
+
+bool ExitCodeWatcher::WriteProcessExitCode(int exit_code) {
+  if (exit_code != STILL_ACTIVE) {
+    // Record the exit codes in a sparse stability histogram, as the range of
+    // values used to report failures is large.
+    base::HistogramBase* exit_code_histogram =
+        base::SparseHistogram::FactoryGet(
+            kBrowserExitCodeHistogramName,
+            base::HistogramBase::kUmaStabilityHistogramFlag);
+    exit_code_histogram->Add(exit_code);
+    return true;
+  }
+  return false;
 }
 
 }  // namespace browser_watcher

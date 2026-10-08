@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "cc/test/fake_picture_layer.h"
 #include "cc/test/layer_tree_test.h"
 #include "cc/trees/transform_node.h"
-#include "third_party/skia/include/core/SkTextBlob.h"
 
 namespace cc {
 namespace {
@@ -39,9 +38,7 @@ class FakeCaptureContentLayerClient : public FakeContentLayerClient {
       display_list->StartPaint();
       display_list->push<DrawTextBlobOp>(
           SkTextBlob::MakeFromString(holder.text().data(), SkFont()),
-          static_cast<float>(holder.rect().x()),
-          static_cast<float>(holder.rect().y()), holder.node_id(),
-          PaintFlags());
+          holder.rect().x(), holder.rect().y(), holder.node_id(), PaintFlags());
       display_list->EndPaintOfUnpaired(holder.rect());
     }
     display_list->Finalize();
@@ -74,8 +71,7 @@ class LayerTreeHostCaptureContentTest : public LayerTreeTest {
     root->AddChild(root_picture_layer_);
 
     layer_tree_host()->SetRootLayer(root);
-    layer_tree_host()->SetVisualDeviceViewportIntersectionRect(
-        gfx::Rect(device_bounds_));
+    layer_tree_host()->SetViewportVisibleRect(gfx::Rect(device_bounds_));
   }
 
   void VerifyCapturedContent(std::vector<FakeTextHolder>* expected_result) {
@@ -193,13 +189,11 @@ class LayerTreeHostCaptureContentTestTwoLayers
     TransformNode transform_node;
     transform_node.local.Translate(translate);
     transform_node.id =
-        layer_tree_host()->property_trees()->transform_tree_mutable().Insert(
+        layer_tree_host()->property_trees()->transform_tree.Insert(
             transform_node, 0);
     picture_layer->SetTransformTreeIndex(transform_node.id);
-    layer_tree_host()
-        ->property_trees()
-        ->transform_tree_mutable()
-        .UpdateTransforms(transform_node.id);
+    layer_tree_host()->property_trees()->transform_tree.UpdateTransforms(
+        transform_node.id);
   }
 
   void SetupSecondaryPictureLayer(const gfx::Size& size) {

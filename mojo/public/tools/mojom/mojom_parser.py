@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# Copyright 2020 The Chromium Authors
+#!/usr/bin/env python
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Parses mojom IDL files.
@@ -11,31 +11,18 @@ generate usable language bindings.
 """
 
 import argparse
-import builtins
 import codecs
 import errno
 import json
-import logging
-import multiprocessing
 import os
 import os.path
 import sys
-import traceback
 from collections import defaultdict
 
 from mojom.generate import module
 from mojom.generate import translate
 from mojom.parse import parser
 from mojom.parse import conditional_features
-
-
-# Disable this for easier debugging.
-_ENABLE_MULTIPROCESSING = True
-
-# https://docs.python.org/3/library/multiprocessing.html#:~:text=bpo-33725
-if __name__ == '__main__' and sys.platform == 'darwin':
-  multiprocessing.set_start_method('fork')
-_MULTIPROCESSING_USES_FORK = multiprocessing.get_start_method() == 'fork'
 
 
 def _ResolveRelativeImportPath(path, roots):
@@ -137,7 +124,7 @@ def _EnsureInputLoaded(mojom_abspath, module_path, abs_paths, asts,
     # Already done.
     return
 
-  for dep_abspath, dep_path in sorted(dependencies[mojom_abspath]):
+  for dep_abspath, dep_path in dependencies[mojom_abspath]:
     if dep_abspath not in loaded_modules:
       _EnsureInputLoaded(dep_abspath, dep_path, abs_paths, asts, dependencies,
                          loaded_modules, module_metadata)
@@ -157,19 +144,11 @@ def _CollectAllowedImportsFromBuildMetadata(build_metadata_filename):
 
   def collect(metadata_filename):
     processed_deps.add(metadata_filename)
-
-    # Paths in the metadata file are relative to the metadata file's dir.
-    metadata_dir = os.path.abspath(os.path.dirname(metadata_filename))
-
-    def to_abs(s):
-      return os.path.normpath(os.path.join(metadata_dir, s))
-
     with open(metadata_filename) as f:
       metadata = json.load(f)
       allowed_imports.update(
-          [os.path.normcase(to_abs(s)) for s in metadata['sources']])
+          map(os.path.normcase, map(os.path.normpath, metadata['sources'])))
       for dep_metadata in metadata['deps']:
-        dep_metadata = to_abs(dep_metadata)
         if dep_metadata not in processed_deps:
           collect(dep_metadata)
 
@@ -177,89 +156,9 @@ def _CollectAllowedImportsFromBuildMetadata(build_metadata_filename):
   return allowed_imports
 
 
-# multiprocessing helper.
-def _ParseAstHelper(mojom_abspath, enabled_features):
-  with codecs.open(mojom_abspath, encoding='utf-8') as f:
-    ast = parser.Parse(f.read(), mojom_abspath)
-    conditional_features.RemoveDisabledDefinitions(ast, enabled_features)
-    return mojom_abspath, ast
-
-
-# multiprocessing helper.
-def _SerializeHelper(mojom_abspath, mojom_path):
-  module_path = os.path.join(_SerializeHelper.output_root_path,
-                             _GetModuleFilename(mojom_path))
-  module_dir = os.path.dirname(module_path)
-  if not os.path.exists(module_dir):
-    try:
-      # Python 2 doesn't support exist_ok on makedirs(), so we just ignore
-      # that failure if it happens. It's possible during build due to races
-      # among build steps with module outputs in the same directory.
-      os.makedirs(module_dir)
-    except OSError as e:
-      if e.errno != errno.EEXIST:
-        raise
-  with open(module_path, 'wb') as f:
-    _SerializeHelper.loaded_modules[mojom_abspath].Dump(f)
-
-
-class _ExceptionWrapper:
-  def __init__(self):
-    # Do not capture exception object to ensure pickling works.
-    self.formatted_trace = traceback.format_exc()
-
-
-class _FuncWrapper:
-  """Marshals exceptions and spreads args."""
-
-  def __init__(self, func):
-    self._func = func
-
-  def __call__(self, args):
-    # multiprocessing does not gracefully handle excptions.
-    # https://crbug.com/1219044
-    try:
-      return self._func(*args)
-    except:  # pylint: disable=bare-except
-      return _ExceptionWrapper()
-
-
-def _Shard(target_func, arg_list, processes=None):
-  arg_list = list(arg_list)
-  if processes is None:
-    processes = multiprocessing.cpu_count()
-  # Seems optimal to have each process perform at least 2 tasks.
-  processes = min(processes, len(arg_list) // 2)
-
-  if sys.platform == 'win32':
-    # TODO(crbug.com/1190269) - we can't use more than 56
-    # cores on Windows or Python3 may hang.
-    processes = min(processes, 56)
-
-  # Don't spin up processes unless there is enough work to merit doing so.
-  if not _ENABLE_MULTIPROCESSING or processes < 2:
-    for arg_tuple in arg_list:
-      yield target_func(*arg_tuple)
-    return
-
-  pool = multiprocessing.Pool(processes=processes)
-  try:
-    wrapped_func = _FuncWrapper(target_func)
-    for result in pool.imap_unordered(wrapped_func, arg_list):
-      if isinstance(result, _ExceptionWrapper):
-        sys.stderr.write(result.formatted_trace)
-        sys.exit(1)
-      yield result
-  finally:
-    pool.close()
-    pool.join()  # Needed on Windows to avoid WindowsError during terminate.
-    pool.terminate()
-
-
 def _ParseMojoms(mojom_files,
                  input_root_paths,
                  output_root_path,
-                 module_root_paths,
                  enabled_features,
                  module_metadata,
                  allowed_imports=None):
@@ -275,10 +174,8 @@ def _ParseMojoms(mojom_files,
         are based on the mojom's relative path, rebased onto this path.
         Additionally, the script expects this root to contain already-generated
         modules for any transitive dependencies not listed in mojom_files.
-    module_root_paths: A list of absolute filesystem paths which contain
-        already-generated modules for any non-transitive dependencies.
     enabled_features: A list of enabled feature names, controlling which AST
-        nodes are filtered by [EnableIf] or [EnableIfNot] attributes.
+        nodes are filtered by [EnableIf] attributes.
     module_metadata: A list of 2-tuples representing metadata key-value pairs to
         attach to each compiled module output.
 
@@ -298,50 +195,46 @@ def _ParseMojoms(mojom_files,
                               for abs_path in mojom_files)
   abs_paths = dict(
       (path, abs_path) for abs_path, path in mojom_files_to_parse.items())
+  for mojom_abspath, _ in mojom_files_to_parse.items():
+    with codecs.open(mojom_abspath, encoding='utf-8') as f:
+      ast = parser.Parse(''.join(f.readlines()), mojom_abspath)
+      conditional_features.RemoveDisabledDefinitions(ast, enabled_features)
+      loaded_mojom_asts[mojom_abspath] = ast
+      invalid_imports = []
+      for imp in ast.import_list:
+        import_abspath = _ResolveRelativeImportPath(imp.import_filename,
+                                                    input_root_paths)
+        if allowed_imports and import_abspath not in allowed_imports:
+          invalid_imports.append(imp.import_filename)
 
-  logging.info('Parsing %d .mojom into ASTs', len(mojom_files_to_parse))
-  map_args = ((mojom_abspath, enabled_features)
-              for mojom_abspath in mojom_files_to_parse)
-  for mojom_abspath, ast in _Shard(_ParseAstHelper, map_args):
-    loaded_mojom_asts[mojom_abspath] = ast
+        abs_paths[imp.import_filename] = import_abspath
+        if import_abspath in mojom_files_to_parse:
+          # This import is in the input list, so we're going to translate it
+          # into a module below; however it's also a dependency of another input
+          # module. We retain record of dependencies to help with input
+          # processing later.
+          input_dependencies[mojom_abspath].add((import_abspath,
+                                                 imp.import_filename))
+        else:
+          # We have an import that isn't being parsed right now. It must already
+          # be parsed and have a module file sitting in a corresponding output
+          # location.
+          module_path = _GetModuleFilename(imp.import_filename)
+          module_abspath = _ResolveRelativeImportPath(module_path,
+                                                      [output_root_path])
+          with open(module_abspath, 'rb') as module_file:
+            loaded_modules[import_abspath] = module.Module.Load(module_file)
 
-  logging.info('Processing dependencies')
-  for mojom_abspath, ast in sorted(loaded_mojom_asts.items()):
-    invalid_imports = []
-    for imp in ast.import_list:
-      import_abspath = _ResolveRelativeImportPath(imp.import_filename,
-                                                  input_root_paths)
-      if allowed_imports and import_abspath not in allowed_imports:
-        invalid_imports.append(imp.import_filename)
+      if invalid_imports:
+        raise ValueError(
+            '\nThe file %s imports the following files not allowed by build '
+            'dependencies:\n\n%s\n' % (mojom_abspath,
+                                       '\n'.join(invalid_imports)))
 
-      abs_paths[imp.import_filename] = import_abspath
-      if import_abspath in mojom_files_to_parse:
-        # This import is in the input list, so we're going to translate it
-        # into a module below; however it's also a dependency of another input
-        # module. We retain record of dependencies to help with input
-        # processing later.
-        input_dependencies[mojom_abspath].add(
-            (import_abspath, imp.import_filename))
-      elif import_abspath not in loaded_modules:
-        # We have an import that isn't being parsed right now. It must already
-        # be parsed and have a module file sitting in a corresponding output
-        # location.
-        module_path = _GetModuleFilename(imp.import_filename)
-        module_abspath = _ResolveRelativeImportPath(
-            module_path, module_root_paths + [output_root_path])
-        with open(module_abspath, 'rb') as module_file:
-          loaded_modules[import_abspath] = module.Module.Load(module_file)
-
-    if invalid_imports:
-      raise ValueError(
-          '\nThe file %s imports the following files not allowed by build '
-          'dependencies:\n\n%s\n' % (mojom_abspath, '\n'.join(invalid_imports)))
-  logging.info('Loaded %d modules from dependencies', len(loaded_modules))
 
   # At this point all transitive imports not listed as inputs have been loaded
   # and we have a complete dependency tree of the unprocessed inputs. Now we can
   # load all the inputs, resolving dependencies among them recursively as we go.
-  logging.info('Ensuring inputs are loaded')
   num_existing_modules_loaded = len(loaded_modules)
   for mojom_abspath, mojom_path in mojom_files_to_parse.items():
     _EnsureInputLoaded(mojom_abspath, mojom_path, abs_paths, loaded_mojom_asts,
@@ -351,26 +244,23 @@ def _ParseMojoms(mojom_files,
 
   # Now we have fully translated modules for every input and every transitive
   # dependency. We can dump the modules to disk for other tools to use.
-  logging.info('Serializing %d modules', len(mojom_files_to_parse))
-
-  # Windows does not use fork() for multiprocessing, so we'd need to pass
-  # loaded_module via IPC rather than via globals. Doing so is slower than not
-  # using multiprocessing.
-  _SerializeHelper.loaded_modules = loaded_modules
-  _SerializeHelper.output_root_path = output_root_path
-  # Doesn't seem to help past 4. Perhaps IO bound here?
-  processes = 4 if _MULTIPROCESSING_USES_FORK else 0
-  map_args = mojom_files_to_parse.items()
-  for _ in _Shard(_SerializeHelper, map_args, processes=processes):
-    pass
+  for mojom_abspath, mojom_path in mojom_files_to_parse.items():
+    module_path = os.path.join(output_root_path, _GetModuleFilename(mojom_path))
+    module_dir = os.path.dirname(module_path)
+    if not os.path.exists(module_dir):
+      try:
+        # Python 2 doesn't support exist_ok on makedirs(), so we just ignore
+        # that failure if it happens. It's possible during build due to races
+        # among build steps with module outputs in the same directory.
+        os.makedirs(module_dir)
+      except OSError as e:
+        if e.errno != errno.EEXIST:
+          raise
+    with open(module_path, 'wb') as f:
+      loaded_modules[mojom_abspath].Dump(f)
 
 
 def Run(command_line):
-  debug_logging = os.environ.get('MOJOM_PARSER_DEBUG', '0') != '0'
-  logging.basicConfig(level=logging.DEBUG if debug_logging else logging.WARNING,
-                      format='%(levelname).1s %(relativeCreated)6d %(message)s')
-  logging.info('Started (%s)', os.path.basename(sys.argv[0]))
-
   arg_parser = argparse.ArgumentParser(
       description="""
 Parses one or more mojom files and produces corresponding module outputs fully
@@ -403,15 +293,6 @@ already present in the provided output root.""")
       'ROOT is also searched for existing modules of any transitive imports '
       'which were not included in the set of inputs.')
   arg_parser.add_argument(
-      '--module-root',
-      default=[],
-      action='append',
-      metavar='ROOT',
-      dest='module_root_paths',
-      help='Adds ROOT to the set of root paths to search for existing modules '
-      'of non-transitive imports. Provided root paths are always searched in '
-      'order from longest absolute path to shortest.')
-  arg_parser.add_argument(
       '--mojoms',
       nargs='+',
       dest='mojom_files',
@@ -437,9 +318,9 @@ already present in the provided output root.""")
       help='Enables a named feature when parsing the given mojoms. Features '
       'are identified by arbitrary string values. Specifying this flag with a '
       'given FEATURE name will cause the parser to process any syntax elements '
-      'tagged with an [EnableIf=FEATURE] or [EnableIfNot] attribute. If this '
-      'flag is not provided for a given FEATURE, such tagged elements are '
-      'discarded by the parser and will not be present in the compiled output.')
+      'tagged with an [EnableIf=FEATURE] attribute. If this flag is not '
+      'provided for a given FEATURE, such tagged elements are discarded by the '
+      'parser and will not be present in the compiled output.')
   arg_parser.add_argument(
       '--check-imports',
       dest='build_metadata_filename',
@@ -477,7 +358,6 @@ already present in the provided output root.""")
   mojom_files = list(map(os.path.abspath, args.mojom_files))
   input_roots = list(map(os.path.abspath, args.input_root_paths))
   output_root = os.path.abspath(args.output_root_path)
-  module_roots = list(map(os.path.abspath, args.module_root_paths))
 
   if args.build_metadata_filename:
     allowed_imports = _CollectAllowedImportsFromBuildMetadata(
@@ -485,18 +365,10 @@ already present in the provided output root.""")
   else:
     allowed_imports = None
 
-  module_metadata = list(
-      map(lambda kvp: tuple(kvp.split('=')), args.module_metadata))
-  _ParseMojoms(mojom_files, input_roots, output_root, module_roots,
-               args.enabled_features, module_metadata, allowed_imports)
-  logging.info('Finished')
+  module_metadata = map(lambda kvp: tuple(kvp.split('=')), args.module_metadata)
+  _ParseMojoms(mojom_files, input_roots, output_root, args.enabled_features,
+               module_metadata, allowed_imports)
 
 
 if __name__ == '__main__':
   Run(sys.argv[1:])
-  # Exit without running GC, which can save multiple seconds due to the large
-  # number of object created. But flush is necessary as os._exit doesn't do
-  # that.
-  sys.stdout.flush()
-  sys.stderr.flush()
-  os._exit(0)

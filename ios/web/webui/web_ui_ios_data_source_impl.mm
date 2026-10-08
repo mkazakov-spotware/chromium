@@ -1,18 +1,18 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/web/webui/web_ui_ios_data_source_impl.h"
+#include "ios/web/webui/web_ui_ios_data_source_impl.h"
 
-#import <string>
+#include <string>
 
-#import "base/bind.h"
-#import "base/memory/ref_counted_memory.h"
-#import "base/strings/string_util.h"
-#import "base/strings/utf_string_conversions.h"
+#include "base/bind.h"
+#include "base/memory/ref_counted_memory.h"
+#include "base/strings/string_util.h"
+#include "base/strings/utf_string_conversions.h"
 #import "ios/web/public/web_client.h"
-#import "ui/base/webui/jstemplate_builder.h"
-#import "ui/base/webui/web_ui_util.h"
+#include "ui/base/webui/jstemplate_builder.h"
+#include "ui/base/webui/web_ui_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -51,9 +51,6 @@ class WebUIIOSDataSourceImpl::InternalDataSource : public URLDataSourceIOS {
   bool ShouldReplaceExistingSource() const override {
     return parent_->replace_existing_source_;
   }
-  bool ShouldReplaceI18nInJS() const override {
-    return parent_->ShouldReplaceI18nInJS();
-  }
   bool AllowCaching() const override { return false; }
   bool ShouldDenyXFrameOptions() const override {
     return parent_->deny_xframe_options_;
@@ -69,33 +66,32 @@ WebUIIOSDataSourceImpl::WebUIIOSDataSourceImpl(const std::string& source_name)
       default_resource_(-1),
       deny_xframe_options_(true),
       load_time_data_defaults_added_(false),
-      replace_existing_source_(true),
-      should_replace_i18n_in_js_(false) {}
+      replace_existing_source_(true) {}
 
 WebUIIOSDataSourceImpl::~WebUIIOSDataSourceImpl() {}
 
 void WebUIIOSDataSourceImpl::AddString(const std::string& name,
-                                       const std::u16string& value) {
-  localized_strings_.Set(name, value);
+                                       const base::string16& value) {
+  localized_strings_.SetString(name, value);
   replacements_[name] = base::UTF16ToUTF8(value);
 }
 
 void WebUIIOSDataSourceImpl::AddString(const std::string& name,
                                        const std::string& value) {
-  localized_strings_.Set(name, value);
+  localized_strings_.SetString(name, value);
   replacements_[name] = value;
 }
 
 void WebUIIOSDataSourceImpl::AddLocalizedString(const std::string& name,
                                                 int ids) {
-  localized_strings_.Set(name, GetWebClient()->GetLocalizedString(ids));
+  localized_strings_.SetString(name, GetWebClient()->GetLocalizedString(ids));
   replacements_[name] =
       base::UTF16ToUTF8(GetWebClient()->GetLocalizedString(ids));
 }
 
 void WebUIIOSDataSourceImpl::AddLocalizedStrings(
-    const base::Value::Dict& localized_strings) {
-  localized_strings_.Merge(localized_strings.Clone());
+    const base::DictionaryValue& localized_strings) {
+  localized_strings_.MergeDictionary(&localized_strings);
   ui::TemplateReplacementsFromDictionaryValue(localized_strings,
                                               &replacements_);
 }
@@ -108,19 +104,11 @@ void WebUIIOSDataSourceImpl::AddLocalizedStrings(
 }
 
 void WebUIIOSDataSourceImpl::AddBoolean(const std::string& name, bool value) {
-  localized_strings_.Set(name, value);
+  localized_strings_.SetBoolean(name, value);
 }
 
 void WebUIIOSDataSourceImpl::UseStringsJs() {
   use_strings_js_ = true;
-}
-
-void WebUIIOSDataSourceImpl::EnableReplaceI18nInJS() {
-  should_replace_i18n_in_js_ = true;
-}
-
-bool WebUIIOSDataSourceImpl::ShouldReplaceI18nInJS() const {
-  return should_replace_i18n_in_js_;
 }
 
 void WebUIIOSDataSourceImpl::AddResourcePath(const std::string& path,
@@ -169,7 +157,7 @@ void WebUIIOSDataSourceImpl::EnsureLoadTimeDataDefaultsAdded() {
     return;
 
   load_time_data_defaults_added_ = true;
-  base::Value::Dict defaults;
+  base::DictionaryValue defaults;
   webui::SetLoadTimeDataDefaults(web::GetWebClient()->GetApplicationLocale(),
                                  &defaults);
   AddLocalizedStrings(defaults);
@@ -199,9 +187,8 @@ void WebUIIOSDataSourceImpl::SendLocalizedStringsAsJSON(
     URLDataSourceIOS::GotDataCallback callback,
     bool from_js_module) {
   std::string template_data;
-  webui::AppendJsonJS(localized_strings_, &template_data, from_js_module);
-  std::move(callback).Run(
-      base::MakeRefCounted<base::RefCountedString>(std::move(template_data)));
+  webui::AppendJsonJS(&localized_strings_, &template_data, from_js_module);
+  std::move(callback).Run(base::RefCountedString::TakeString(&template_data));
 }
 
 int WebUIIOSDataSourceImpl::PathToIdrOrDefault(const std::string& path) const {

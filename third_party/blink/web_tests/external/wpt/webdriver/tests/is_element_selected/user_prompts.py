@@ -3,6 +3,7 @@
 import pytest
 
 from tests.support.asserts import assert_error, assert_dialog_handled, assert_success
+from tests.support.inline import inline
 
 
 def is_element_selected(session, element_id):
@@ -13,7 +14,7 @@ def is_element_selected(session, element_id):
 
 
 @pytest.fixture
-def check_user_prompt_closed_without_exception(session, create_dialog, inline):
+def check_user_prompt_closed_without_exception(session, create_dialog):
     def check_user_prompt_closed_without_exception(dialog_type, retval):
         session.url = inline("<input id=foo type=checkbox checked>")
         element = session.find.css("#foo", all=False)
@@ -30,7 +31,7 @@ def check_user_prompt_closed_without_exception(session, create_dialog, inline):
 
 
 @pytest.fixture
-def check_user_prompt_closed_with_exception(session, create_dialog, inline):
+def check_user_prompt_closed_with_exception(session, create_dialog):
     def check_user_prompt_closed_with_exception(dialog_type, retval):
         session.url = inline("<input id=foo type=checkbox checked>")
         element = session.find.css("#foo", all=False)
@@ -46,7 +47,7 @@ def check_user_prompt_closed_with_exception(session, create_dialog, inline):
 
 
 @pytest.fixture
-def check_user_prompt_not_closed_but_exception(session, create_dialog, inline):
+def check_user_prompt_not_closed_but_exception(session, create_dialog):
     def check_user_prompt_not_closed_but_exception(dialog_type):
         session.url = inline("<input id=foo type=checkbox checked>")
         element = session.find.css("#foo", all=False)

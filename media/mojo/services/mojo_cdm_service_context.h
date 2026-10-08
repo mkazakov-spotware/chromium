@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,10 @@
 #include <map>
 #include <memory>
 
+#include "base/macros.h"
 #include "base/unguessable_token.h"
-#include "build/chromeos_buildflags.h"
 #include "media/media_buildflags.h"
 #include "media/mojo/services/media_mojo_export.h"
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chromeos/components/cdm_factory_daemon/remote_cdm_context.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 namespace media {
 
@@ -28,10 +24,6 @@ class MojoCdmService;
 class MEDIA_MOJO_EXPORT MojoCdmServiceContext {
  public:
   MojoCdmServiceContext();
-
-  MojoCdmServiceContext(const MojoCdmServiceContext&) = delete;
-  MojoCdmServiceContext& operator=(const MojoCdmServiceContext&) = delete;
-
   ~MojoCdmServiceContext();
 
   // Registers the |cdm_service| and returns a unique (per-process) CDM ID.
@@ -39,21 +31,6 @@ class MEDIA_MOJO_EXPORT MojoCdmServiceContext {
 
   // Unregisters the CDM. Must be called before the CDM is destroyed.
   void UnregisterCdm(const base::UnguessableToken& cdm_id);
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  // Registers the |remote_context| and returns a unique (per-process) CDM ID.
-  // This is used with out-of-process video decoding with HWDRM. We run
-  // MojoCdmServiceContext in the GPU process which works with MojoCdmService.
-  // We also run MojoCdmServiceContext in the Video Decoder process which
-  // doesn't use MojoCdmService, which is why we need to deal with
-  // RemoteCdmContext directly.
-  base::UnguessableToken RegisterRemoteCdmContext(
-      chromeos::RemoteCdmContext* remote_context);
-
-  // Unregisters the RemoteCdmContext. Must be called before the
-  // RemoteCdmContext is destroyed.
-  void UnregisterRemoteCdmContext(const base::UnguessableToken& cdm_id);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
   // Returns the CdmContextRef associated with |cdm_id|.
   std::unique_ptr<CdmContextRef> GetCdmContextRef(
@@ -63,11 +40,7 @@ class MEDIA_MOJO_EXPORT MojoCdmServiceContext {
   // A map between CDM ID and MojoCdmService.
   std::map<base::UnguessableToken, MojoCdmService*> cdm_services_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  // A map between CDM ID and RemoteCdmContext.
-  std::map<base::UnguessableToken, chromeos::RemoteCdmContext*>
-      remote_cdm_contexts_;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+  DISALLOW_COPY_AND_ASSIGN(MojoCdmServiceContext);
 };
 
 }  // namespace media

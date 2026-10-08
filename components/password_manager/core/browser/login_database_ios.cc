@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,8 +31,8 @@ namespace password_manager {
 // TODO(ios): Use |Encryptor| to encrypt the login database. b/6976257
 
 LoginDatabase::EncryptionResult LoginDatabase::EncryptedString(
-    const std::u16string& plain_text,
-    std::string* cipher_text) {
+    const base::string16& plain_text,
+    std::string* cipher_text) const {
   if (plain_text.size() == 0) {
     *cipher_text = std::string();
     return ENCRYPTION_RESULT_SUCCESS;
@@ -74,9 +74,9 @@ LoginDatabase::EncryptionResult LoginDatabase::EncryptedString(
 
 LoginDatabase::EncryptionResult LoginDatabase::DecryptedString(
     const std::string& cipher_text,
-    std::u16string* plain_text) {
+    base::string16* plain_text) const {
   if (cipher_text.size() == 0) {
-    *plain_text = std::u16string();
+    *plain_text = base::string16();
     return ENCRYPTION_RESULT_SUCCESS;
   }
 

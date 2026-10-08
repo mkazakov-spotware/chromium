@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,19 +28,19 @@ class SuggestionVectorMembersAreMatcher
                                     EltType Suggestion::*elt)
       : container_matcher_(seq_matcher), element_(elt) {}
 
-  bool MatchAndExplain(const std::vector<Suggestion>& suggestions,
-                       testing::MatchResultListener* listener) const override {
+  virtual bool MatchAndExplain(const std::vector<Suggestion>& suggestions,
+                               testing::MatchResultListener* listener) const {
     Container container;
     for (const auto& suggestion : suggestions)
       container.push_back(suggestion.*element_);
     return container_matcher_.MatchAndExplain(container, listener);
   }
 
-  void DescribeTo(::std::ostream* os) const override {
+  virtual void DescribeTo(::std::ostream* os) const {
     container_matcher_.DescribeTo(os);
   }
 
-  void DescribeNegationTo(::std::ostream* os) const override {
+  virtual void DescribeNegationTo(::std::ostream* os) const {
     container_matcher_.DescribeNegationTo(os);
   }
 
@@ -60,22 +60,22 @@ inline testing::Matcher<const std::vector<Suggestion>&> SuggestionVectorIdsAre(
       elts_are_matcher, &Suggestion::frontend_id));
 }
 
-// Like SuggestionVectorIdsAre above, but tests the main_texts.
+// Like SuggestionVectorIdsAre above, but tests the values.
 template <class EltsAreMatcher>
 inline testing::Matcher<const std::vector<Suggestion>&>
-SuggestionVectorMainTextsAre(const EltsAreMatcher& elts_are_matcher) {
+SuggestionVectorValuesAre(const EltsAreMatcher& elts_are_matcher) {
   return testing::MakeMatcher(
-      new SuggestionVectorMembersAreMatcher<Suggestion::Text>(
-          elts_are_matcher, &Suggestion::main_text));
+      new SuggestionVectorMembersAreMatcher<base::string16>(
+          elts_are_matcher, &Suggestion::value));
 }
 
 // Like SuggestionVectorIdsAre above, but tests the labels.
 template <class EltsAreMatcher>
 inline testing::Matcher<const std::vector<Suggestion>&>
 SuggestionVectorLabelsAre(const EltsAreMatcher& elts_are_matcher) {
-  return testing::MakeMatcher(new SuggestionVectorMembersAreMatcher<
-                              std::vector<std::vector<Suggestion::Text>>>(
-      elts_are_matcher, &Suggestion::labels));
+  return testing::MakeMatcher(
+      new SuggestionVectorMembersAreMatcher<base::string16>(
+          elts_are_matcher, &Suggestion::label));
 }
 
 // Like SuggestionVectorIdsAre above, but tests the icons.
@@ -85,15 +85,6 @@ SuggestionVectorIconsAre(const EltsAreMatcher& elts_are_matcher) {
   return testing::MakeMatcher(
       new SuggestionVectorMembersAreMatcher<std::string>(elts_are_matcher,
                                                          &Suggestion::icon));
-}
-
-// Like SuggestionVectorIdsAre above, but tests the trailing_icon.
-template <class EltsAreMatcher>
-inline testing::Matcher<const std::vector<Suggestion>&>
-SuggestionVectorStoreIndicatorIconsAre(const EltsAreMatcher& elts_are_matcher) {
-  return testing::MakeMatcher(
-      new SuggestionVectorMembersAreMatcher<std::string>(
-          elts_are_matcher, &Suggestion::trailing_icon));
 }
 
 }  // namespace autofill

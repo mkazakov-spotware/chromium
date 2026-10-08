@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,15 @@ import org.chromium.base.Callback;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.chrome.browser.download.DownloadManagerService;
+import org.chromium.chrome.browser.flags.CachedFeatureFlags;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.offlinepages.prefetch.PrefetchConfiguration;
 import org.chromium.chrome.browser.profiles.ProfileKey;
 import org.chromium.components.background_task_scheduler.NativeBackgroundTask;
 import org.chromium.components.background_task_scheduler.TaskParameters;
 import org.chromium.components.download.DownloadTaskType;
 import org.chromium.components.download.internal.BatteryStatusListenerAndroid;
+import org.chromium.content_public.browser.BrowserStartupController;
 
 /**
  * Entry point for the download service to perform desired action when the task is fired by the
@@ -25,6 +29,9 @@ public class DownloadBackgroundTask extends NativeBackgroundTask {
     @DownloadTaskType
     private int mCurrentTaskType;
 
+    // Whether only service manager is required to start.
+    private boolean mStartsServiceManagerOnly;
+
     @Override
     protected @StartBeforeNativeResult int onStartTaskBeforeNativeLoaded(
             Context context, TaskParameters taskParameters, TaskFinishedCallback callback) {
@@ -33,6 +40,12 @@ public class DownloadBackgroundTask extends NativeBackgroundTask {
         int optimalBatteryPercentage = taskParameters.getExtras().getInt(
                 DownloadTaskScheduler.EXTRA_OPTIMAL_BATTERY_PERCENTAGE);
         mCurrentTaskType = taskParameters.getExtras().getInt(DownloadTaskScheduler.EXTRA_TASK_TYPE);
+        // The feature value could change during native initialization, store it first.
+        mStartsServiceManagerOnly =
+                (mCurrentTaskType == DownloadTaskType.DOWNLOAD_AUTO_RESUMPTION_TASK
+                        || mCurrentTaskType == DownloadTaskType.DOWNLOAD_LATER_TASK)
+                ? CachedFeatureFlags.isEnabled(ChromeFeatureList.SERVICE_MANAGER_FOR_DOWNLOAD)
+                : PrefetchConfiguration.isServiceManagerForBackgroundPrefetchEnabled();
         // Reschedule if minimum battery level is not satisfied.
         if (!requiresCharging
                 && BatteryStatusListenerAndroid.getBatteryPercentage() < optimalBatteryPercentage) {
@@ -48,6 +61,8 @@ public class DownloadBackgroundTask extends NativeBackgroundTask {
         // In case of future upgrades, we would need to build an intent for the old version and
         // validate that this code still works. This would require decoupling this immediate class
         // from native as well.
+        assert BrowserStartupController.getInstance().isFullBrowserStarted()
+                || mStartsServiceManagerOnly;
         DownloadManagerService.getDownloadManagerService().initForBackgroundTask();
         ProfileKey key = ProfileKey.getLastUsedRegularProfileKey();
         DownloadBackgroundTaskJni.get().startBackgroundTask(DownloadBackgroundTask.this, key,
@@ -55,8 +70,8 @@ public class DownloadBackgroundTask extends NativeBackgroundTask {
     }
 
     @Override
-    protected boolean supportsMinimalBrowser() {
-        return true;
+    protected boolean supportsServiceManagerOnly() {
+        return mStartsServiceManagerOnly;
     }
 
     @Override

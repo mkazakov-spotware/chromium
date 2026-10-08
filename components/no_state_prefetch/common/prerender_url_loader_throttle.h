@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,14 @@
 
 #include "base/callback.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/optional.h"
+#include "base/sequenced_task_runner.h"
 #include "base/timer/timer.h"
 #include "components/no_state_prefetch/common/prerender_canceler.mojom.h"
+#include "components/no_state_prefetch/common/prerender_types.mojom.h"
 #include "net/base/request_priority.h"
-#include "services/network/public/mojom/fetch_api.mojom-shared.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/loader/url_loader_throttle.h"
+#include "third_party/blink/public/mojom/loader/resource_load_info.mojom-shared.h"
 
 namespace prerender {
 
@@ -22,6 +23,7 @@ class PrerenderURLLoaderThrottle
       public base::SupportsWeakPtr<PrerenderURLLoaderThrottle> {
  public:
   PrerenderURLLoaderThrottle(
+      prerender::mojom::PrerenderMode mode,
       const std::string& histogram_prefix,
       mojo::PendingRemote<prerender::mojom::PrerenderCanceler> canceler);
   ~PrerenderURLLoaderThrottle() override;
@@ -39,7 +41,6 @@ class PrerenderURLLoaderThrottle
   void DetachFromCurrentSequence() override;
   void WillStartRequest(network::ResourceRequest* request,
                         bool* defer) override;
-  const char* NameForLoggingWillStartRequest() override;
   void WillRedirectRequest(
       net::RedirectInfo* redirect_info,
       const network::mojom::URLResponseHead& response_head,
@@ -53,18 +54,19 @@ class PrerenderURLLoaderThrottle
 
   void OnTimedOut();
 
+  prerender::mojom::PrerenderMode mode_;
   std::string histogram_prefix_;
 
   bool deferred_ = false;
   int redirect_count_ = 0;
-  network::mojom::RequestDestination request_destination_;
+  blink::mojom::ResourceType resource_type_;
 
   mojo::PendingRemote<prerender::mojom::PrerenderCanceler> canceler_;
 
   // The throttle changes most request priorities to IDLE during prerendering.
   // The priority is reset back to the original priority when prerendering is
   // finished.
-  absl::optional<net::RequestPriority> original_request_priority_;
+  base::Optional<net::RequestPriority> original_request_priority_;
 
   base::OnceClosure destruction_closure_;
 

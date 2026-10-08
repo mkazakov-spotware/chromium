@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -424,8 +424,8 @@ TEST_P(ParameterizedLayoutTextFragmentTest, SetTextWithFirstLetter) {
                   ->IsRemainingTextLayoutObject());
   ASSERT_TRUE(letter_a.GetLayoutObject()->GetFirstLetterPart());
   EXPECT_EQ("a", letter_a.GetLayoutObject()->GetFirstLetterPart()->GetText());
-  EXPECT_FALSE(letter_x.GetLayoutObject())
-      << "We don't have layout text for empty Text node.";
+  EXPECT_TRUE(letter_x.GetLayoutObject()->IsTextFragment());
+  EXPECT_FALSE(letter_x.GetLayoutObject()->GetFirstLetterPart());
 
   // Make <div>"x" "a"</div>
   letter_x.setTextContent("x");

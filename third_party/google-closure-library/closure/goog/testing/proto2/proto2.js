@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2012 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Test helpers to compare goog.proto2.Messages.
@@ -26,11 +34,10 @@ goog.require('goog.testing.asserts');
  * @private
  */
 goog.testing.proto2.findDifferences_ = function(expected, actual, path) {
-  'use strict';
-  const fields = expected.getDescriptor().getFields();
-  for (let i = 0; i < fields.length; i++) {
-    const field = fields[i];
-    const newPath = (path ? path + '/' : '') + field.getName();
+  var fields = expected.getDescriptor().getFields();
+  for (var i = 0; i < fields.length; i++) {
+    var field = fields[i];
+    var newPath = (path ? path + '/' : '') + field.getName();
 
     if (expected.has(field) && !actual.has(field)) {
       return newPath + ' should be present';
@@ -40,21 +47,21 @@ goog.testing.proto2.findDifferences_ = function(expected, actual, path) {
     }
 
     if (expected.has(field)) {
-      const isComposite = field.isCompositeType();
+      var isComposite = field.isCompositeType();
 
       if (field.isRepeated()) {
-        const expectedCount = expected.countOf(field);
-        const actualCount = actual.countOf(field);
+        var expectedCount = expected.countOf(field);
+        var actualCount = actual.countOf(field);
         if (expectedCount != actualCount) {
           return newPath + ' should have ' + expectedCount + ' items, ' +
               'but has ' + actualCount;
         }
 
-        for (let j = 0; j < expectedCount; j++) {
-          const expectedItem = expected.get(field, j);
-          const actualItem = actual.get(field, j);
+        for (var j = 0; j < expectedCount; j++) {
+          var expectedItem = expected.get(field, j);
+          var actualItem = actual.get(field, j);
           if (isComposite) {
-            const itemDiff = goog.testing.proto2.findDifferences_(
+            var itemDiff = goog.testing.proto2.findDifferences_(
                 /** @type {!goog.proto2.Message} */ (expectedItem),
                 /** @type {!goog.proto2.Message} */ (actualItem),
                 newPath + '[' + j + ']');
@@ -69,10 +76,10 @@ goog.testing.proto2.findDifferences_ = function(expected, actual, path) {
           }
         }
       } else {
-        const expectedValue = expected.get(field);
-        const actualValue = actual.get(field);
+        var expectedValue = expected.get(field);
+        var actualValue = actual.get(field);
         if (isComposite) {
-          const diff = goog.testing.proto2.findDifferences_(
+          var diff = goog.testing.proto2.findDifferences_(
               /** @type {!goog.proto2.Message} */ (expectedValue),
               /** @type {!goog.proto2.Message} */ (actualValue), newPath);
           if (diff) {
@@ -102,8 +109,7 @@ goog.testing.proto2.findDifferences_ = function(expected, actual, path) {
  */
 goog.testing.proto2.assertEquals = function(
     expected, actual, opt_failureMessage) {
-  'use strict';
-  const failureSummary = opt_failureMessage || '';
+  var failureSummary = opt_failureMessage || '';
   if (!(expected instanceof goog.proto2.Message) ||
       !(actual instanceof goog.proto2.Message)) {
     goog.testing.asserts.raiseException(
@@ -116,7 +122,7 @@ goog.testing.proto2.assertEquals = function(
             expected.getDescriptor().getFullName() + ' != ' +
             actual.getDescriptor().getFullName());
   }
-  const diff = goog.testing.proto2.findDifferences_(expected, actual, '');
+  var diff = goog.testing.proto2.findDifferences_(expected, actual, '');
   if (diff) {
     goog.testing.asserts.raiseException(failureSummary, diff);
   }
@@ -132,10 +138,9 @@ goog.testing.proto2.assertEquals = function(
  * @template MessageType
  */
 goog.testing.proto2.fromObject = function(messageCtor, json) {
-  'use strict';
-  const serializer = new goog.proto2.ObjectSerializer(
+  var serializer = new goog.proto2.ObjectSerializer(
       goog.proto2.ObjectSerializer.KeyOption.NAME);
-  const message = new messageCtor;
+  var message = new messageCtor;
   serializer.deserializeTo(message, json);
   return message;
 };

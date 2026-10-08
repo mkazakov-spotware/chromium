@@ -1,24 +1,22 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stdint.h>
-
 #include <map>
-#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "base/bind.h"
-#include "base/strings/escape.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_tokenizer.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "google_apis/gcm/engine/gcm_registration_request_handler.h"
 #include "google_apis/gcm/engine/gcm_request_test_base.h"
 #include "google_apis/gcm/engine/instance_id_get_token_request_handler.h"
 #include "google_apis/gcm/monitoring/fake_gcm_stats_recorder.h"
+#include "net/base/escape.h"
 #include "net/base/load_flags.h"
 #include "net/base/net_errors.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
@@ -58,6 +56,7 @@ class RegistrationRequestTest : public GCMRequestTestBase {
   RegistrationRequest::Status status_;
   std::string registration_id_;
   bool callback_called_;
+  std::map<std::string, std::string> extras_;
   std::unique_ptr<RegistrationRequest> request_;
   FakeGCMStatsRecorder recorder_;
 };
@@ -103,14 +102,13 @@ void GCMRegistrationRequestTest::CreateRequest(const std::string& sender_ids) {
                                                 std::string() /* subtype */);
   std::unique_ptr<GCMRegistrationRequestHandler> request_handler(
       new GCMRegistrationRequestHandler(sender_ids));
-  request_ = std::make_unique<RegistrationRequest>(
+  request_.reset(new RegistrationRequest(
       GURL(kRegistrationURL), request_info, std::move(request_handler),
       GetBackoffPolicy(),
       base::BindOnce(&RegistrationRequestTest::RegistrationCallback,
                      base::Unretained(this)),
       max_retry_count_, url_loader_factory(),
-      base::SingleThreadTaskRunner::GetCurrentDefault(), &recorder_,
-      sender_ids);
+      base::ThreadTaskRunnerHandle::Get(), &recorder_, sender_ids));
 }
 
 TEST_F(GCMRegistrationRequestTest, RequestSuccessful) {
@@ -167,7 +165,7 @@ TEST_F(GCMRegistrationRequestTest, RequestRegistrationWithMultipleSenderIds) {
     continue;
 
   ASSERT_TRUE(data_tokenizer.GetNext());
-  std::string senders(base::UnescapeBinaryURLComponent(data_tokenizer.token()));
+  std::string senders(net::UnescapeBinaryURLComponent(data_tokenizer.token()));
   base::StringTokenizer sender_tokenizer(senders, ",");
   ASSERT_TRUE(sender_tokenizer.GetNext());
   EXPECT_EQ("sender1", sender_tokenizer.token());
@@ -406,7 +404,8 @@ class InstanceIDGetTokenRequestTest : public RegistrationRequestTest {
                      const std::string& instance_id,
                      const std::string& authorized_entity,
                      const std::string& scope,
-                     base::TimeDelta time_to_live);
+                     base::TimeDelta time_to_live,
+                     const std::map<std::string, std::string>& options);
 };
 
 InstanceIDGetTokenRequestTest::InstanceIDGetTokenRequestTest() {
@@ -420,28 +419,32 @@ void InstanceIDGetTokenRequestTest::CreateRequest(
     const std::string& instance_id,
     const std::string& authorized_entity,
     const std::string& scope,
-    base::TimeDelta time_to_live) {
+    base::TimeDelta time_to_live,
+    const std::map<std::string, std::string>& options) {
   std::string category = use_subtype ? kProductCategoryForSubtypes : kAppId;
   std::string subtype = use_subtype ? kAppId : std::string();
   RegistrationRequest::RequestInfo request_info(kAndroidId, kSecurityToken,
                                                 category, subtype);
   std::unique_ptr<InstanceIDGetTokenRequestHandler> request_handler(
       new InstanceIDGetTokenRequestHandler(instance_id, authorized_entity,
-                                           scope, kGCMVersion, time_to_live));
-  request_ = std::make_unique<RegistrationRequest>(
+                                           scope, kGCMVersion, time_to_live,
+                                           options));
+  request_.reset(new RegistrationRequest(
       GURL(kRegistrationURL), request_info, std::move(request_handler),
       GetBackoffPolicy(),
       base::BindOnce(&RegistrationRequestTest::RegistrationCallback,
                      base::Unretained(this)),
       max_retry_count_, url_loader_factory(),
-      base::SingleThreadTaskRunner::GetCurrentDefault(), &recorder_,
-      authorized_entity);
+      base::ThreadTaskRunnerHandle::Get(), &recorder_, authorized_entity));
 }
 
 TEST_F(InstanceIDGetTokenRequestTest, RequestSuccessful) {
+  std::map<std::string, std::string> options;
+  options["Foo"] = "Bar";
+
   set_max_retry_count(0);
   CreateRequest(false /* use_subtype */, kInstanceId, kDeveloperId, kScope,
-                /*time_to_live=*/base::TimeDelta());
+                /*time_to_live=*/base::TimeDelta(), options);
   request_->Start();
 
   SetResponseForURLAndComplete(kRegistrationURL, net::HTTP_OK, "token=2501");
@@ -451,8 +454,10 @@ TEST_F(InstanceIDGetTokenRequestTest, RequestSuccessful) {
 }
 
 TEST_F(InstanceIDGetTokenRequestTest, RequestDataAndURL) {
+  std::map<std::string, std::string> options;
+  options["Foo"] = "Bar";
   CreateRequest(false /* use_subtype */, kInstanceId, kDeveloperId, kScope,
-                /*time_to_live=*/base::TimeDelta());
+                /*time_to_live=*/base::TimeDelta(), options);
   request_->Start();
 
   // Verify that the no-cookie flag is set.
@@ -484,6 +489,7 @@ TEST_F(InstanceIDGetTokenRequestTest, RequestDataAndURL) {
   expected_pairs["appid"] = kInstanceId;
   expected_pairs["scope"] = kScope;
   expected_pairs["X-scope"] = kScope;
+  expected_pairs["X-Foo"] = "Bar";
 
   ASSERT_NO_FATAL_FAILURE(
       VerifyFetcherUploadDataForURL(kRegistrationURL, &expected_pairs));
@@ -491,7 +497,8 @@ TEST_F(InstanceIDGetTokenRequestTest, RequestDataAndURL) {
 
 TEST_F(InstanceIDGetTokenRequestTest, RequestDataWithTTL) {
   CreateRequest(false, kInstanceId, kDeveloperId, kScope,
-                /*time_to_live=*/base::Seconds(100));
+                /*time_to_live=*/base::TimeDelta::FromSeconds(100),
+                /*options=*/{});
   request_->Start();
 
   // Same as RequestDataAndURL except "ttl" and "X-Foo".
@@ -510,8 +517,10 @@ TEST_F(InstanceIDGetTokenRequestTest, RequestDataWithTTL) {
 }
 
 TEST_F(InstanceIDGetTokenRequestTest, RequestDataWithSubtype) {
+  std::map<std::string, std::string> options;
+  options["Foo"] = "Bar";
   CreateRequest(true /* use_subtype */, kInstanceId, kDeveloperId, kScope,
-                /*time_to_live=*/base::TimeDelta());
+                /*time_to_live=*/base::TimeDelta(), options);
   request_->Start();
 
   // Same as RequestDataAndURL except "app" and "X-subtype".
@@ -524,6 +533,7 @@ TEST_F(InstanceIDGetTokenRequestTest, RequestDataWithSubtype) {
   expected_pairs["appid"] = kInstanceId;
   expected_pairs["scope"] = kScope;
   expected_pairs["X-scope"] = kScope;
+  expected_pairs["X-Foo"] = "Bar";
 
   // Verify data was formatted properly.
   std::string upload_data;
@@ -542,8 +552,9 @@ TEST_F(InstanceIDGetTokenRequestTest, RequestDataWithSubtype) {
 }
 
 TEST_F(InstanceIDGetTokenRequestTest, ResponseHttpStatusNotOK) {
+  std::map<std::string, std::string> options;
   CreateRequest(false /* use_subtype */, kInstanceId, kDeveloperId, kScope,
-                /*time_to_live=*/base::TimeDelta());
+                /*time_to_live=*/base::TimeDelta(), options);
   request_->Start();
 
   SetResponseForURLAndComplete(kRegistrationURL, net::HTTP_UNAUTHORIZED,

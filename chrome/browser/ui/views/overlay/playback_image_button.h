@@ -1,28 +1,23 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_OVERLAY_PLAYBACK_IMAGE_BUTTON_H_
 #define CHROME_BROWSER_UI_VIEWS_OVERLAY_PLAYBACK_IMAGE_BUTTON_H_
 
-#include "chrome/browser/ui/views/overlay/overlay_window_image_button.h"
-#include "chrome/browser/ui/views/overlay/video_overlay_window_views.h"
-#include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/base/models/image_model.h"
+#include "chrome/browser/ui/views/overlay/overlay_window_views.h"
+#include "ui/views/controls/button/image_button.h"
+
+namespace views {
 
 // A resizable playback button with 3 states: play/pause/replay.
-class PlaybackImageButton : public OverlayWindowImageButton {
+class PlaybackImageButton : public views::ImageButton {
  public:
-  METADATA_HEADER(PlaybackImageButton);
-
   explicit PlaybackImageButton(PressedCallback callback);
-  PlaybackImageButton(const PlaybackImageButton&) = delete;
-  PlaybackImageButton& operator=(const PlaybackImageButton&) = delete;
   ~PlaybackImageButton() override = default;
 
   // Show appropriate images based on playback state.
-  void SetPlaybackState(
-      const VideoOverlayWindowViews::PlaybackState playback_state);
+  void SetPlaybackState(const OverlayWindowViews::PlaybackState playback_state);
 
  protected:
   // Overridden from views::View.
@@ -31,12 +26,16 @@ class PlaybackImageButton : public OverlayWindowImageButton {
  private:
   void UpdateImageAndTooltipText();
 
-  VideoOverlayWindowViews::PlaybackState playback_state_ =
-      VideoOverlayWindowViews::PlaybackState::kEndOfVideo;
+  OverlayWindowViews::PlaybackState playback_state_ =
+      OverlayWindowViews::PlaybackState::kEndOfVideo;
 
-  ui::ImageModel play_image_;
-  ui::ImageModel pause_image_;
-  ui::ImageModel replay_image_;
+  gfx::ImageSkia play_image_;
+  gfx::ImageSkia pause_image_;
+  gfx::ImageSkia replay_image_;
+
+  DISALLOW_COPY_AND_ASSIGN(PlaybackImageButton);
 };
+
+}  // namespace views
 
 #endif  // CHROME_BROWSER_UI_VIEWS_OVERLAY_PLAYBACK_IMAGE_BUTTON_H_

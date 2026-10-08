@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,14 +19,14 @@ OpenFileHandleContext::OpenFileHandleContext(
       append_mode_write_amount_(0),
       platform_path_(platform_path),
       reservation_buffer_(reservation_buffer) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
 
   base::GetFileSize(platform_path, &initial_file_size_);
   maximum_written_offset_ = initial_file_size_;
 }
 
 int64_t OpenFileHandleContext::UpdateMaxWrittenOffset(int64_t offset) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   if (offset <= maximum_written_offset_)
     return 0;
 
@@ -36,22 +36,22 @@ int64_t OpenFileHandleContext::UpdateMaxWrittenOffset(int64_t offset) {
 }
 
 void OpenFileHandleContext::AddAppendModeWriteAmount(int64_t amount) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   append_mode_write_amount_ += amount;
 }
 
 int64_t OpenFileHandleContext::GetEstimatedFileSize() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   return maximum_written_offset_ + append_mode_write_amount_;
 }
 
 int64_t OpenFileHandleContext::GetMaxWrittenOffset() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   return maximum_written_offset_;
 }
 
 OpenFileHandleContext::~OpenFileHandleContext() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
 
   // TODO(tzik): Optimize this for single operation.
 

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,44 +8,36 @@
 #include <memory>
 #include <utility>
 
+#if defined(OS_ANDROID)
+#include "base/android/android_hardware_buffer_compat.h"
+#endif
+
 #include "base/callback_helpers.h"
-#include "base/containers/contains.h"
-#include "base/cxx17_backports.h"
-#include "base/logging.h"
-#include "base/observer_list.h"
+#include "base/numerics/ranges.h"
 #include "build/build_config.h"
 #include "content/browser/xr/service/vr_service_impl.h"
 #include "content/browser/xr/xr_utils.h"
-#include "content/public/browser/browser_xr_runtime.h"
 #include "content/public/browser/xr_install_helper.h"
 #include "content/public/browser/xr_integration_client.h"
 #include "content/public/common/content_features.h"
 #include "device/vr/buildflags/buildflags.h"
 #include "device/vr/public/cpp/session_mode.h"
-#include "device/vr/public/mojom/vr_service.mojom-shared.h"
-#include "ui/gfx/geometry/decomposed_transform.h"
-#include "ui/gfx/geometry/transform.h"
-
-#if BUILDFLAG(IS_WIN)
-#include "base/win/windows_types.h"
-#endif
-
-#if BUILDFLAG(IS_ANDROID)
-#include "base/android/android_hardware_buffer_compat.h"
-#endif
+#include "ui/gfx/transform.h"
+#include "ui/gfx/transform_util.h"
 
 namespace content {
 namespace {
-bool IsValidTransform(const gfx::Transform& transform) {
+bool IsValidTransform(const gfx::Transform& transform,
+                      float max_translate_meters) {
   if (!transform.IsInvertible() || transform.HasPerspective())
     return false;
 
-  absl::optional<gfx::DecomposedTransform> decomp = transform.Decompose();
-  if (!decomp)
+  gfx::DecomposedTransform decomp;
+  if (!DecomposeTransform(&decomp, transform))
     return false;
 
   float kEpsilon = 0.1f;
-  if (abs(decomp->perspective[3] - 1) > kEpsilon) {
+  if (abs(decomp.perspective[3] - 1) > kEpsilon) {
     // If testing with unexpectedly high values, catch on debug builds rather
     // than silently change data.  On release builds its better to be safe and
     // validate.
@@ -53,11 +45,13 @@ bool IsValidTransform(const gfx::Transform& transform) {
     return false;
   }
   for (int i = 0; i < 3; ++i) {
-    if (abs(decomp->scale[i] - 1) > kEpsilon)
+    if (abs(decomp.scale[i] - 1) > kEpsilon)
       return false;
-    if (abs(decomp->skew[i]) > kEpsilon)
+    if (abs(decomp.skew[i]) > kEpsilon)
       return false;
-    if (abs(decomp->perspective[i]) > kEpsilon)
+    if (abs(decomp.perspective[i]) > kEpsilon)
+      return false;
+    if (abs(decomp.translate[i]) > max_translate_meters)
       return false;
   }
 
@@ -65,31 +59,30 @@ bool IsValidTransform(const gfx::Transform& transform) {
   return true;
 }
 
-device::mojom::XRViewPtr ValidateXRView(const device::mojom::XRView* view) {
-  if (!view) {
+device::mojom::VREyeParametersPtr ValidateEyeParameters(
+    const device::mojom::VREyeParameters* eye) {
+  if (!eye)
     return nullptr;
-  }
-  device::mojom::XRViewPtr ret = device::mojom::XRView::New();
-  ret->eye = view->eye;
+  device::mojom::VREyeParametersPtr ret = device::mojom::VREyeParameters::New();
   // FOV
   float kDefaultFOV = 45;
   ret->field_of_view = device::mojom::VRFieldOfView::New();
-  if (view->field_of_view->up_degrees < 90 &&
-      view->field_of_view->up_degrees > -90 &&
-      view->field_of_view->up_degrees > -view->field_of_view->down_degrees &&
-      view->field_of_view->down_degrees < 90 &&
-      view->field_of_view->down_degrees > -90 &&
-      view->field_of_view->down_degrees > -view->field_of_view->up_degrees &&
-      view->field_of_view->left_degrees < 90 &&
-      view->field_of_view->left_degrees > -90 &&
-      view->field_of_view->left_degrees > -view->field_of_view->right_degrees &&
-      view->field_of_view->right_degrees < 90 &&
-      view->field_of_view->right_degrees > -90 &&
-      view->field_of_view->right_degrees > -view->field_of_view->left_degrees) {
-    ret->field_of_view->up_degrees = view->field_of_view->up_degrees;
-    ret->field_of_view->down_degrees = view->field_of_view->down_degrees;
-    ret->field_of_view->left_degrees = view->field_of_view->left_degrees;
-    ret->field_of_view->right_degrees = view->field_of_view->right_degrees;
+  if (eye->field_of_view->up_degrees < 90 &&
+      eye->field_of_view->up_degrees > -90 &&
+      eye->field_of_view->up_degrees > -eye->field_of_view->down_degrees &&
+      eye->field_of_view->down_degrees < 90 &&
+      eye->field_of_view->down_degrees > -90 &&
+      eye->field_of_view->down_degrees > -eye->field_of_view->up_degrees &&
+      eye->field_of_view->left_degrees < 90 &&
+      eye->field_of_view->left_degrees > -90 &&
+      eye->field_of_view->left_degrees > -eye->field_of_view->right_degrees &&
+      eye->field_of_view->right_degrees < 90 &&
+      eye->field_of_view->right_degrees > -90 &&
+      eye->field_of_view->right_degrees > -eye->field_of_view->left_degrees) {
+    ret->field_of_view->up_degrees = eye->field_of_view->up_degrees;
+    ret->field_of_view->down_degrees = eye->field_of_view->down_degrees;
+    ret->field_of_view->left_degrees = eye->field_of_view->left_degrees;
+    ret->field_of_view->right_degrees = eye->field_of_view->right_degrees;
   } else {
     ret->field_of_view->up_degrees = kDefaultFOV;
     ret->field_of_view->down_degrees = kDefaultFOV;
@@ -97,40 +90,107 @@ device::mojom::XRViewPtr ValidateXRView(const device::mojom::XRView* view) {
     ret->field_of_view->right_degrees = kDefaultFOV;
   }
 
-  if (IsValidTransform(view->mojo_from_view)) {
-    ret->mojo_from_view = view->mojo_from_view;
+  // Head-from-Eye Transform
+  // Maximum 10m translation.
+  if (IsValidTransform(eye->head_from_eye, 10)) {
+    ret->head_from_eye = eye->head_from_eye;
   }
-  // else, ret->mojo_from_view remains the identity transform
+  // else, ret->head_from_eye remains the identity transform
 
   // Renderwidth/height
-  int kMaxSize = 16384;
-  int kMinSize = 2;
+  uint32_t kMaxSize = 16384;
+  uint32_t kMinSize = 2;
   // DCHECK on debug builds to catch legitimate large sizes, but clamp on
   // release builds to ensure valid state.
-  DCHECK_LT(view->viewport.width() + view->viewport.x(), kMaxSize);
-  DCHECK_LT(view->viewport.height() + view->viewport.y(), kMaxSize);
-  DCHECK_GT(view->viewport.width() + view->viewport.x(), kMinSize);
-  DCHECK_GT(view->viewport.height() + view->viewport.y(), kMinSize);
-  ret->viewport =
-      gfx::Rect(base::clamp(view->viewport.x(), 0, kMaxSize),
-                base::clamp(view->viewport.y(), 0, kMaxSize),
-                base::clamp(view->viewport.width(), kMinSize, kMaxSize),
-                base::clamp(view->viewport.height(), kMinSize, kMaxSize));
+  DCHECK(eye->render_width < kMaxSize);
+  DCHECK(eye->render_height < kMaxSize);
+  ret->render_width = base::ClampToRange(eye->render_width, kMinSize, kMaxSize);
+  ret->render_height =
+      base::ClampToRange(eye->render_height, kMinSize, kMaxSize);
   return ret;
 }
 
+device::mojom::VRDisplayInfoPtr ValidateVRDisplayInfo(
+    const device::mojom::VRDisplayInfo* info) {
+  if (!info)
+    return nullptr;
+
+  device::mojom::VRDisplayInfoPtr ret = device::mojom::VRDisplayInfo::New();
+
+  ret->left_eye = ValidateEyeParameters(info->left_eye.get());
+  ret->right_eye = ValidateEyeParameters(info->right_eye.get());
+  return ret;
+}
+
+// TODO(crbug.com/995377): Report these from the device runtime instead.
+constexpr device::mojom::XRSessionFeature kOrientationDeviceFeatures[] = {
+    device::mojom::XRSessionFeature::REF_SPACE_VIEWER,
+    device::mojom::XRSessionFeature::REF_SPACE_LOCAL,
+    device::mojom::XRSessionFeature::REF_SPACE_LOCAL_FLOOR,
+};
+
+constexpr device::mojom::XRSessionFeature kGVRDeviceFeatures[] = {
+    device::mojom::XRSessionFeature::REF_SPACE_VIEWER,
+    device::mojom::XRSessionFeature::REF_SPACE_LOCAL,
+    device::mojom::XRSessionFeature::REF_SPACE_LOCAL_FLOOR,
+};
+
+constexpr device::mojom::XRSessionFeature kARCoreDeviceFeatures[] = {
+    device::mojom::XRSessionFeature::REF_SPACE_VIEWER,
+    device::mojom::XRSessionFeature::REF_SPACE_LOCAL,
+    device::mojom::XRSessionFeature::REF_SPACE_LOCAL_FLOOR,
+    device::mojom::XRSessionFeature::REF_SPACE_UNBOUNDED,
+    device::mojom::XRSessionFeature::DOM_OVERLAY,
+    device::mojom::XRSessionFeature::LIGHT_ESTIMATION,
+    device::mojom::XRSessionFeature::ANCHORS,
+    device::mojom::XRSessionFeature::PLANE_DETECTION,
+    device::mojom::XRSessionFeature::DEPTH,
+    device::mojom::XRSessionFeature::IMAGE_TRACKING,
+};
+
+#if BUILDFLAG(ENABLE_WINDOWS_MR)
+constexpr device::mojom::XRSessionFeature kWindowsMixedRealityFeatures[] = {
+    device::mojom::XRSessionFeature::REF_SPACE_VIEWER,
+    device::mojom::XRSessionFeature::REF_SPACE_LOCAL,
+    device::mojom::XRSessionFeature::REF_SPACE_LOCAL_FLOOR,
+    device::mojom::XRSessionFeature::REF_SPACE_BOUNDED_FLOOR,
+};
+#endif
+
+#if BUILDFLAG(ENABLE_OPENXR)
+constexpr device::mojom::XRSessionFeature kOpenXRFeatures[] = {
+    device::mojom::XRSessionFeature::REF_SPACE_VIEWER,
+    device::mojom::XRSessionFeature::REF_SPACE_LOCAL,
+    device::mojom::XRSessionFeature::REF_SPACE_LOCAL_FLOOR,
+    device::mojom::XRSessionFeature::REF_SPACE_BOUNDED_FLOOR,
+    device::mojom::XRSessionFeature::REF_SPACE_UNBOUNDED,
+};
+#endif
+
+bool ContainsFeature(
+    base::span<const device::mojom::XRSessionFeature> feature_list,
+    device::mojom::XRSessionFeature feature) {
+  return std::find(feature_list.begin(), feature_list.end(), feature) !=
+         feature_list.end();
+}
 }  // anonymous namespace
 
 BrowserXRRuntimeImpl::BrowserXRRuntimeImpl(
     device::mojom::XRDeviceId id,
     device::mojom::XRDeviceDataPtr device_data,
-    mojo::PendingRemote<device::mojom::XRRuntime> runtime)
+    mojo::PendingRemote<device::mojom::XRRuntime> runtime,
+    device::mojom::VRDisplayInfoPtr display_info)
     : id_(id),
       device_data_(std::move(device_data)),
-      runtime_(std::move(runtime)) {
+      runtime_(std::move(runtime)),
+      display_info_(ValidateVRDisplayInfo(display_info.get())) {
   DVLOG(2) << __func__ << ": id=" << id;
-
-  runtime_->ListenToDeviceChanges(receiver_.BindNewEndpointAndPassRemote());
+  // Unretained is safe because we are calling through an InterfacePtr we own,
+  // so we won't be called after runtime_ is destroyed.
+  runtime_->ListenToDeviceChanges(
+      receiver_.BindNewEndpointAndPassRemote(),
+      base::BindOnce(&BrowserXRRuntimeImpl::OnDisplayInfoChanged,
+                     base::Unretained(this)));
 
   // TODO(crbug.com/1031622): Convert this to a query for the client off of
   // ContentBrowserClient once BrowserXRRuntimeImpl moves to content.
@@ -138,20 +198,11 @@ BrowserXRRuntimeImpl::BrowserXRRuntimeImpl(
 
   if (integration_client) {
     install_helper_ = integration_client->GetInstallHelper(id_);
-    runtime_observer_ = integration_client->CreateRuntimeObserver();
-
-    if (runtime_observer_) {
-      AddObserver(runtime_observer_.get());
-    }
   }
 }
 
 BrowserXRRuntimeImpl::~BrowserXRRuntimeImpl() {
   DVLOG(2) << __func__ << ": id=" << id_;
-
-  if (runtime_observer_) {
-    RemoveObserver(runtime_observer_.get());
-  }
 
   if (install_finished_callback_) {
     std::move(install_finished_callback_).Run(false);
@@ -168,11 +219,44 @@ void BrowserXRRuntimeImpl::ExitActiveImmersiveSession() {
 
 bool BrowserXRRuntimeImpl::SupportsFeature(
     device::mojom::XRSessionFeature feature) const {
-  if(id_ == device::mojom::XRDeviceId::WEB_TEST_DEVICE_ID ||
-     id_ == device::mojom::XRDeviceId::FAKE_DEVICE_ID)
+  switch (id_) {
+    // Test/fake devices support all features.
+    case device::mojom::XRDeviceId::WEB_TEST_DEVICE_ID:
+    case device::mojom::XRDeviceId::FAKE_DEVICE_ID:
       return true;
+    case device::mojom::XRDeviceId::ARCORE_DEVICE_ID:
+      // Only support hit test if the feature flag is enabled.
+      if (feature == device::mojom::XRSessionFeature::HIT_TEST) {
+        return base::FeatureList::IsEnabled(features::kWebXrHitTest);
+      }
 
-  return base::Contains(device_data_->supported_features, feature);
+#if defined(OS_ANDROID)
+      // Only support camera access if the feature flag is enabled & the device
+      // supports shared buffers.
+      if (feature == device::mojom::XRSessionFeature::CAMERA_ACCESS) {
+        return base::FeatureList::IsEnabled(features::kWebXrIncubations) &&
+               base::AndroidHardwareBufferCompat::IsSupportAvailable();
+      }
+#endif
+
+      return ContainsFeature(kARCoreDeviceFeatures, feature);
+    case device::mojom::XRDeviceId::ORIENTATION_DEVICE_ID:
+      return ContainsFeature(kOrientationDeviceFeatures, feature);
+    case device::mojom::XRDeviceId::GVR_DEVICE_ID:
+      return ContainsFeature(kGVRDeviceFeatures, feature);
+
+#if BUILDFLAG(ENABLE_WINDOWS_MR)
+    case device::mojom::XRDeviceId::WINDOWS_MIXED_REALITY_ID:
+      return ContainsFeature(kWindowsMixedRealityFeatures, feature);
+#endif
+
+#if BUILDFLAG(ENABLE_OPENXR)
+    case device::mojom::XRDeviceId::OPENXR_DEVICE_ID:
+      return ContainsFeature(kOpenXRFeatures, feature);
+#endif
+  }
+
+  NOTREACHED();
 }
 
 bool BrowserXRRuntimeImpl::SupportsAllFeatures(
@@ -193,6 +277,10 @@ bool BrowserXRRuntimeImpl::SupportsCustomIPD() const {
     case device::mojom::XRDeviceId::ORIENTATION_DEVICE_ID:
     case device::mojom::XRDeviceId::GVR_DEVICE_ID:
       return false;
+#if BUILDFLAG(ENABLE_WINDOWS_MR)
+    case device::mojom::XRDeviceId::WINDOWS_MIXED_REALITY_ID:
+      return true;
+#endif
 #if BUILDFLAG(ENABLE_OPENXR)
     case device::mojom::XRDeviceId::OPENXR_DEVICE_ID:
       return true;
@@ -210,6 +298,9 @@ bool BrowserXRRuntimeImpl::SupportsNonEmulatedHeight() const {
     case device::mojom::XRDeviceId::ORIENTATION_DEVICE_ID:
       return false;
     case device::mojom::XRDeviceId::GVR_DEVICE_ID:
+#if BUILDFLAG(ENABLE_WINDOWS_MR)
+    case device::mojom::XRDeviceId::WINDOWS_MIXED_REALITY_ID:
+#endif
 #if BUILDFLAG(ENABLE_OPENXR)
     case device::mojom::XRDeviceId::OPENXR_DEVICE_ID:
 #endif
@@ -223,17 +314,25 @@ bool BrowserXRRuntimeImpl::SupportsArBlendMode() {
   return device_data_->is_ar_blend_mode_supported;
 }
 
+void BrowserXRRuntimeImpl::OnDisplayInfoChanged(
+    device::mojom::VRDisplayInfoPtr vr_device_info) {
+  bool had_display_info = !!display_info_;
+  display_info_ = ValidateVRDisplayInfo(vr_device_info.get());
+  if (had_display_info) {
+    for (VRServiceImpl* service : services_) {
+      service->OnDisplayInfoChanged();
+    }
+  }
+
+  // Notify observers of the new display info.
+  for (Observer& observer : observers_) {
+    observer.SetVRDisplayInfo(display_info_.Clone());
+  }
+}
+
 void BrowserXRRuntimeImpl::StopImmersiveSession(
     VRServiceImpl::ExitPresentCallback on_exited) {
   DVLOG(2) << __func__;
-
-  if (immersive_session_has_camera_access_) {
-    for (Observer& observer : observers_) {
-      observer.WebXRCameraInUseChanged(nullptr, false);
-    }
-    immersive_session_has_camera_access_ = false;
-  }
-
   if (immersive_session_controller_) {
     immersive_session_controller_.reset();
     if (presenting_service_) {
@@ -242,7 +341,7 @@ void BrowserXRRuntimeImpl::StopImmersiveSession(
     }
 
     for (Observer& observer : observers_) {
-      observer.WebXRWebContentsChanged(nullptr);
+      observer.SetWebXRWebContents(nullptr);
     }
   }
   std::move(on_exited).Run();
@@ -273,15 +372,7 @@ void BrowserXRRuntimeImpl::OnServiceRemoved(VRServiceImpl* service) {
   DCHECK(service);
   services_.erase(service);
   if (service == presenting_service_) {
-    presenting_service_ = nullptr;
-    // Note that we replicate the logic in ExitPresent because we need to clear
-    // our presenting_service_ as it is no longer valid. However, the Runtime
-    // may still need to be notified to terminate its session. ExitPresent may
-    // be called when the service *is* still valid and would need to be notified
-    // of this shutdown.
-    runtime_->ShutdownSession(
-        base::BindOnce(&BrowserXRRuntimeImpl::StopImmersiveSession,
-                       weak_ptr_factory_.GetWeakPtr(), base::DoNothing()));
+    ExitPresent(service, base::DoNothing());
   }
 }
 
@@ -301,20 +392,14 @@ void BrowserXRRuntimeImpl::SetFramesThrottled(const VRServiceImpl* service,
                                               bool throttled) {
   if (service == presenting_service_) {
     for (Observer& observer : observers_) {
-      observer.WebXRFramesThrottledChanged(throttled);
+      observer.SetFramesThrottled(throttled);
     }
   }
 }
 
-void BrowserXRRuntimeImpl::RequestInlineSession(
-    device::mojom::XRRuntimeSessionOptionsPtr options,
-    device::mojom::XRRuntime::RequestSessionCallback callback) {
-  runtime_->RequestSession(std::move(options), std::move(callback));
-}
-
-void BrowserXRRuntimeImpl::RequestImmersiveSession(
+void BrowserXRRuntimeImpl::RequestSession(
     VRServiceImpl* service,
-    device::mojom::XRRuntimeSessionOptionsPtr options,
+    const device::mojom::XRRuntimeSessionOptionsPtr& options,
     RequestSessionCallback callback) {
   DVLOG(2) << __func__ << ": id=" << id_;
   // base::Unretained is safe because we won't be called back after runtime_ is
@@ -330,47 +415,34 @@ void BrowserXRRuntimeImpl::OnRequestSessionResult(
     base::WeakPtr<VRServiceImpl> service,
     device::mojom::XRRuntimeSessionOptionsPtr options,
     RequestSessionCallback callback,
-    device::mojom::XRRuntimeSessionResultPtr session_result) {
-  if (session_result && service) {
+    device::mojom::XRSessionPtr session,
+    mojo::PendingRemote<device::mojom::XRSessionController>
+        immersive_session_controller) {
+  if (session && service) {
     DVLOG(2) << __func__ << ": id=" << id_;
     if (device::XRSessionModeUtils::IsImmersive(options->mode)) {
       presenting_service_ = service.get();
-      immersive_session_controller_.Bind(std::move(session_result->controller));
+      immersive_session_controller_.Bind(
+          std::move(immersive_session_controller));
       immersive_session_controller_.set_disconnect_handler(
           base::BindOnce(&BrowserXRRuntimeImpl::OnImmersiveSessionError,
                          base::Unretained(this)));
 
-      std::vector<device::mojom::XRViewPtr>& views =
-          session_result->session->device_config->views;
-
-      for (device::mojom::XRViewPtr& view : views) {
-        view = ValidateXRView(view.get());
-      }
-
       // Notify observers that we have started presentation.
       content::WebContents* web_contents = service->GetWebContents();
       for (Observer& observer : observers_) {
-        observer.SetDefaultXrViews(views);
-        observer.WebXRWebContentsChanged(web_contents);
-      }
-
-      immersive_session_has_camera_access_ =
-          base::Contains(session_result->session->enabled_features,
-                         device::mojom::XRSessionFeature::CAMERA_ACCESS);
-      if (immersive_session_has_camera_access_) {
-        for (Observer& observer : observers_) {
-          observer.WebXRCameraInUseChanged(web_contents, true);
-        }
+        observer.SetWebXRWebContents(web_contents);
       }
     }
 
-    std::move(callback).Run(std::move(session_result));
+    std::move(callback).Run(std::move(session));
   } else {
     std::move(callback).Run(nullptr);
-    if (session_result) {
+    if (session) {
       // The service has been removed, but we still got a session, so make
       // sure to clean up this weird state.
-      immersive_session_controller_.Bind(std::move(session_result->controller));
+      immersive_session_controller_.Bind(
+          std::move(immersive_session_controller));
       StopImmersiveSession(base::DoNothing());
     }
   }
@@ -380,8 +452,6 @@ void BrowserXRRuntimeImpl::EnsureInstalled(
     int render_process_id,
     int render_frame_id,
     base::OnceCallback<void(bool)> install_callback) {
-  DVLOG(2) << __func__;
-
   // If there's no install helper, then we can assume no install is needed.
   if (!install_helper_) {
     std::move(install_callback).Run(true);
@@ -421,6 +491,7 @@ void BrowserXRRuntimeImpl::OnImmersiveSessionError() {
 
 void BrowserXRRuntimeImpl::AddObserver(Observer* observer) {
   observers_.AddObserver(observer);
+  observer->SetVRDisplayInfo(display_info_.Clone());
 }
 
 void BrowserXRRuntimeImpl::RemoveObserver(Observer* observer) {
@@ -438,8 +509,8 @@ void BrowserXRRuntimeImpl::BeforeRuntimeRemoved() {
   StopImmersiveSession(base::DoNothing());
 }
 
-#if BUILDFLAG(IS_WIN)
-absl::optional<CHROME_LUID> BrowserXRRuntimeImpl::GetLuid() const {
+#if defined(OS_WIN)
+base::Optional<LUID> BrowserXRRuntimeImpl::GetLuid() const {
   return device_data_->luid;
 }
 #endif

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,13 @@
 
 #include "base/command_line.h"
 #include "base/strings/string_piece_forward.h"
-#include "build/build_config.h"
 #include "gpu/vulkan/init/vulkan_factory.h"
 #include "gpu/vulkan/tests/native_window.h"
 #include "gpu/vulkan/vulkan_surface.h"
 #include "ui/gfx/geometry/rect.h"
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
+#include "ui/base/ui_base_features.h"
 #include "ui/ozone/public/ozone_platform.h"
 #endif
 
@@ -24,10 +24,12 @@ BasicVulkanTest::~BasicVulkanTest() {}
 
 void BasicVulkanTest::SetUp() {
   bool supports_swapchain = true;
-#if BUILDFLAG(IS_OZONE)
-  supports_swapchain = ui::OzonePlatform::GetInstance()
-                           ->GetPlatformProperties()
-                           .supports_vulkan_swap_chain;
+#if defined(USE_OZONE)
+  if (features::IsUsingOzonePlatform()) {
+    supports_swapchain = ui::OzonePlatform::GetInstance()
+                             ->GetPlatformProperties()
+                             .supports_vulkan_swap_chain;
+  }
 #endif
 
   bool use_swiftshader =

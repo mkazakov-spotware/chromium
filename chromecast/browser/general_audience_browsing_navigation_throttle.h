@@ -1,10 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROMECAST_BROWSER_GENERAL_AUDIENCE_BROWSING_NAVIGATION_THROTTLE_H_
 #define CHROMECAST_BROWSER_GENERAL_AUDIENCE_BROWSING_NAVIGATION_THROTTLE_H_
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "content/public/browser/navigation_throttle.h"
 
@@ -22,12 +23,6 @@ class GeneralAudienceBrowsingNavigationThrottle
   GeneralAudienceBrowsingNavigationThrottle(
       content::NavigationHandle* navigation_handle,
       GeneralAudienceBrowsingService* general_audience_browsing_service);
-
-  GeneralAudienceBrowsingNavigationThrottle(
-      const GeneralAudienceBrowsingNavigationThrottle&) = delete;
-  GeneralAudienceBrowsingNavigationThrottle& operator=(
-      const GeneralAudienceBrowsingNavigationThrottle&) = delete;
-
   ~GeneralAudienceBrowsingNavigationThrottle() override;
 
   // NavigationThrottle overrides.
@@ -53,6 +48,8 @@ class GeneralAudienceBrowsingNavigationThrottle
 
   base::WeakPtrFactory<GeneralAudienceBrowsingNavigationThrottle>
       weak_ptr_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(GeneralAudienceBrowsingNavigationThrottle);
 };
 
 }  // namespace chromecast

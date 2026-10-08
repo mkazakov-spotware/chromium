@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <list>
 #include <memory>
 #include <vector>
 
@@ -15,9 +16,10 @@
 #include "base/containers/circular_deque.h"
 #include "base/containers/queue.h"
 #include "base/containers/span.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "device/fido/fido_constants.h"
 #include "device/fido/hid/fido_hid_packet.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace device {
 
@@ -26,21 +28,17 @@ namespace device {
 class COMPONENT_EXPORT(DEVICE_FIDO) FidoHidMessage {
  public:
   // Static functions to create CTAP/U2F HID commands.
-  static absl::optional<FidoHidMessage> Create(uint32_t channel_id,
+  static base::Optional<FidoHidMessage> Create(uint32_t channel_id,
                                                FidoHidDeviceCommand cmd,
                                                size_t max_report_size,
                                                base::span<const uint8_t> data);
 
   // Reconstruct a message from serialized message data.
-  static absl::optional<FidoHidMessage> CreateFromSerializedData(
+  static base::Optional<FidoHidMessage> CreateFromSerializedData(
       base::span<const uint8_t> serialized_data);
 
   FidoHidMessage(FidoHidMessage&& that);
   FidoHidMessage& operator=(FidoHidMessage&& other);
-
-  FidoHidMessage(const FidoHidMessage&) = delete;
-  FidoHidMessage& operator=(const FidoHidMessage&) = delete;
-
   ~FidoHidMessage();
 
   bool MessageComplete() const;
@@ -70,6 +68,8 @@ class COMPONENT_EXPORT(DEVICE_FIDO) FidoHidMessage {
   FidoHidDeviceCommand cmd_ = FidoHidDeviceCommand::kMsg;
   base::circular_deque<std::unique_ptr<FidoHidPacket>> packets_;
   size_t remaining_size_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(FidoHidMessage);
 };
 
 }  // namespace device

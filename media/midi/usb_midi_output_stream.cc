@@ -1,10 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/midi/usb_midi_output_stream.h"
 
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "media/midi/message_util.h"
 #include "media/midi/usb_midi_device.h"
 
@@ -14,6 +15,8 @@ UsbMidiOutputStream::UsbMidiOutputStream(const UsbMidiJack& jack)
     : jack_(jack), pending_size_(0), is_sending_sysex_(false) {}
 
 void UsbMidiOutputStream::Send(const std::vector<uint8_t>& data) {
+  // To prevent link errors caused by DCHECK_*.
+  const size_t kPacketContentSize = UsbMidiOutputStream::kPacketContentSize;
   DCHECK_LT(jack_.cable_number, 16u);
 
   std::vector<uint8_t> data_to_send;
@@ -81,7 +84,7 @@ bool UsbMidiOutputStream::PushSysExMessage(const std::vector<uint8_t>& data,
       *current = index;
       data_to_send->push_back((jack_.cable_number << 4) | 0x4);
       data_to_send->insert(data_to_send->end(), message,
-                           message + std::size(message));
+                           message + base::size(message));
       is_sending_sysex_ = true;
       return true;
     }
@@ -99,7 +102,7 @@ bool UsbMidiOutputStream::PushSysExMessage(const std::vector<uint8_t>& data,
       DCHECK(code_index == 0x5 || code_index == 0x6 || code_index == 0x7);
       data_to_send->push_back((jack_.cable_number << 4) | code_index);
       data_to_send->insert(data_to_send->end(), message,
-                           message + std::size(message));
+                           message + base::size(message));
       *current = index + 1;
       is_sending_sysex_ = false;
       return true;

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define CHROME_BROWSER_VR_VR_WEB_CONTENTS_OBSERVER_H_
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/vr/vr_export.h"
 #include "content/public/browser/web_contents_observer.h"
 
@@ -25,10 +25,6 @@ class VR_EXPORT VrWebContentsObserver : public content::WebContentsObserver {
                         BrowserUiInterface* ui_interface,
                         LocationBarHelper* toolbar,
                         base::OnceClosure on_destroy);
-
-  VrWebContentsObserver(const VrWebContentsObserver&) = delete;
-  VrWebContentsObserver& operator=(const VrWebContentsObserver&) = delete;
-
   ~VrWebContentsObserver() override;
 
  private:
@@ -49,10 +45,12 @@ class VR_EXPORT VrWebContentsObserver : public content::WebContentsObserver {
                              content::RenderViewHost* new_host) override;
 
   // This class does not own these pointers.
-  raw_ptr<BrowserUiInterface> ui_interface_;
-  raw_ptr<LocationBarHelper> toolbar_;
+  BrowserUiInterface* ui_interface_;
+  LocationBarHelper* toolbar_;
 
   base::OnceClosure on_destroy_;
+
+  DISALLOW_COPY_AND_ASSIGN(VrWebContentsObserver);
 };
 
 }  // namespace vr

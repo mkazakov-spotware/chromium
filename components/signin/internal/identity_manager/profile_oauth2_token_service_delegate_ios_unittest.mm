@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,11 @@
 #include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
+#include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/signin/internal/identity_manager/account_tracker_service.h"
 #include "components/signin/internal/identity_manager/profile_oauth2_token_service_observer.h"
+#include "components/signin/public/base/signin_pref_names.h"
 #include "components/signin/public/base/test_signin_client.h"
 #include "components/signin/public/identity_manager/ios/fake_device_accounts_provider.h"
 #include "google_apis/gaia/gaia_urls.h"
@@ -44,6 +46,11 @@ class ProfileOAuth2TokenServiceIOSDelegateTest
     AccountTrackerService::RegisterPrefs(prefs_.registry());
     account_tracker_.Initialize(&prefs_, base::FilePath());
 
+    prefs_.registry()->RegisterBooleanPref(
+        prefs::kTokenServiceExcludeAllSecondaryAccounts, false);
+    prefs_.registry()->RegisterListPref(
+        prefs::kTokenServiceExcludedSecondaryAccounts);
+
     fake_provider_ = new FakeDeviceAccountsProvider();
     oauth2_delegate_.reset(new ProfileOAuth2TokenServiceIOSDelegate(
         &client_, base::WrapUnique(fake_provider_), &account_tracker_));
@@ -64,10 +71,6 @@ class ProfileOAuth2TokenServiceIOSDelegateTest
   void OnGetTokenFailure(const GoogleServiceAuthError& error) override {
     ++access_token_failure_;
     last_access_token_error_ = error;
-  }
-
-  std::string GetConsumerName() const override {
-    return "profile_oauth2_token_service_delegate_ios_unittest";
   }
 
   // ProfileOAuth2TokenServiceObserver implementation.
@@ -117,8 +120,7 @@ class ProfileOAuth2TokenServiceIOSDelegateTest
 TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest,
        LoadRevokeCredentialsOneAccount) {
   ProviderAccount account = fake_provider_->AddAccount("gaia_1", "email_1@x");
-  oauth2_delegate_->LoadCredentials(GetAccountId(account),
-                                    /*is_syncing=*/false);
+  oauth2_delegate_->LoadCredentials(GetAccountId(account));
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1, token_available_count_);
   EXPECT_EQ(1, tokens_loaded_count_);
@@ -141,8 +143,7 @@ TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest,
   ProviderAccount account1 = fake_provider_->AddAccount("gaia_1", "email_1@x");
   ProviderAccount account2 = fake_provider_->AddAccount("gaia_2", "email_2@x");
   ProviderAccount account3 = fake_provider_->AddAccount("gaia_3", "email_3@x");
-  oauth2_delegate_->LoadCredentials(GetAccountId(account1),
-                                    /*is_syncing=*/false);
+  oauth2_delegate_->LoadCredentials(GetAccountId(account1));
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(3, token_available_count_);
   EXPECT_EQ(1, tokens_loaded_count_);
@@ -169,43 +170,11 @@ TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest,
       oauth2_delegate_->RefreshTokenIsAvailable(GetAccountId(account3)));
 }
 
-TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest,
-       LoadCredentialsPrimaryAccountMissing) {
-  CoreAccountId primary_account =
-      account_tracker_.SeedAccountInfo("gaia_1", "email_1@x");
-  oauth2_delegate_->LoadCredentials(primary_account, /*is_syncing=*/false);
-  base::RunLoop().RunUntilIdle();
-  EXPECT_EQ(1, token_available_count_);
-  EXPECT_EQ(1, tokens_loaded_count_);
-  EXPECT_EQ(0, token_revoked_count_);
-  EXPECT_EQ(1, auth_error_changed_count_);
-  EXPECT_EQ(1U, oauth2_delegate_->GetAccounts().size());
-  EXPECT_TRUE(oauth2_delegate_->RefreshTokenIsAvailable(primary_account));
-  EXPECT_EQ(GoogleServiceAuthError::INVALID_GAIA_CREDENTIALS,
-            oauth2_delegate_->GetAuthError(primary_account).state());
-  ResetObserverCounts();
-
-  // Reloading the account should not remove the primary account even if it is
-  // missing from the device.
-  oauth2_delegate_->ReloadAllAccountsFromSystemWithPrimaryAccount(
-      primary_account);
-  base::RunLoop().RunUntilIdle();
-  EXPECT_EQ(0, token_available_count_);
-  EXPECT_EQ(0, tokens_loaded_count_);
-  EXPECT_EQ(0, token_revoked_count_);
-  EXPECT_EQ(0, auth_error_changed_count_);
-  EXPECT_EQ(1U, oauth2_delegate_->GetAccounts().size());
-  EXPECT_TRUE(oauth2_delegate_->RefreshTokenIsAvailable(primary_account));
-  EXPECT_EQ(GoogleServiceAuthError::INVALID_GAIA_CREDENTIALS,
-            oauth2_delegate_->GetAuthError(primary_account).state());
-}
-
-TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest, ReloadAllAccountsFromSystem) {
+TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest, ReloadCredentials) {
   ProviderAccount account1 = fake_provider_->AddAccount("gaia_1", "email_1@x");
   ProviderAccount account2 = fake_provider_->AddAccount("gaia_2", "email_2@x");
   ProviderAccount account3 = fake_provider_->AddAccount("gaia_3", "email_3@x");
-  oauth2_delegate_->LoadCredentials(GetAccountId(account1),
-                                    /*is_syncing=*/false);
+  oauth2_delegate_->LoadCredentials(GetAccountId(account1));
   base::RunLoop().RunUntilIdle();
 
   // Change the accounts.
@@ -213,8 +182,7 @@ TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest, ReloadAllAccountsFromSystem) {
   fake_provider_->ClearAccounts();
   fake_provider_->AddAccount(account1.gaia, account1.email);
   ProviderAccount account4 = fake_provider_->AddAccount("gaia_4", "email_4@x");
-  oauth2_delegate_->ReloadAllAccountsFromSystemWithPrimaryAccount(
-      GetAccountId(account1));
+  oauth2_delegate_->ReloadCredentials();
 
   EXPECT_EQ(1, token_available_count_);
   EXPECT_EQ(0, tokens_loaded_count_);
@@ -231,11 +199,10 @@ TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest, ReloadAllAccountsFromSystem) {
 }
 
 TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest,
-       ReloadAllAccountsFromSystemWithPrimaryAccountId) {
+       ReloadCredentialsWithPrimaryAccountId) {
   ProviderAccount account1 = fake_provider_->AddAccount("gaia_1", "email_1@x");
   ProviderAccount account2 = fake_provider_->AddAccount("gaia_2", "email_2@x");
-  oauth2_delegate_->ReloadAllAccountsFromSystemWithPrimaryAccount(
-      GetAccountId(account1));
+  oauth2_delegate_->ReloadCredentials();
 
   EXPECT_EQ(2, token_available_count_);
   EXPECT_EQ(0, tokens_loaded_count_);
@@ -249,8 +216,7 @@ TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest,
 
 TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest, StartRequestSuccess) {
   ProviderAccount account1 = fake_provider_->AddAccount("gaia_1", "email_1@x");
-  oauth2_delegate_->LoadCredentials(GetAccountId(account1),
-                                    /*is_syncing=*/false);
+  oauth2_delegate_->LoadCredentials(GetAccountId(account1));
   base::RunLoop().RunUntilIdle();
 
   // Fetch access tokens.
@@ -274,8 +240,7 @@ TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest, StartRequestSuccess) {
 
 TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest, StartRequestFailure) {
   ProviderAccount account1 = fake_provider_->AddAccount("gaia_1", "email_1@x");
-  oauth2_delegate_->LoadCredentials(GetAccountId(account1),
-                                    /*is_syncing=*/false);
+  oauth2_delegate_->LoadCredentials(GetAccountId(account1));
   base::RunLoop().RunUntilIdle();
 
   // Fetch access tokens.
@@ -302,8 +267,7 @@ TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest, StartRequestFailure) {
 TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest,
        UpdateAuthErrorAfterRevokeCredentials) {
   ProviderAccount account1 = fake_provider_->AddAccount("gaia_1", "email_1@x");
-  oauth2_delegate_->LoadCredentials(GetAccountId(account1),
-                                    /*is_syncing=*/false);
+  oauth2_delegate_->ReloadCredentials();
   base::RunLoop().RunUntilIdle();
 
   ResetObserverCounts();
@@ -321,8 +285,7 @@ TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest,
 TEST_F(ProfileOAuth2TokenServiceIOSDelegateTest, GetAuthError) {
   // Accounts have no error by default.
   ProviderAccount account1 = fake_provider_->AddAccount("gaia_1", "email_1@x");
-  oauth2_delegate_->LoadCredentials(GetAccountId(account1),
-                                    /*is_syncing=*/false);
+  oauth2_delegate_->ReloadCredentials();
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(GoogleServiceAuthError::AuthErrorNone(),
             oauth2_delegate_->GetAuthError(GetAccountId(account1)));

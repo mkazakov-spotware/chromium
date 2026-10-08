@@ -34,7 +34,6 @@
 #import <Cocoa/Cocoa.h>
 
 #include "base/mac/foundation_util.h"
-#include "third_party/blink/renderer/core/css/properties/longhands.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/dom/node.h"
@@ -49,7 +48,7 @@
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/frame/visual_viewport.h"
-#include "third_party/blink/renderer/core/frame/web_frame_widget_impl.h"
+#include "third_party/blink/renderer/core/frame/web_frame_widget_base.h"
 #include "third_party/blink/renderer/core/html/html_element.h"
 #include "third_party/blink/renderer/core/layout/hit_test_result.h"
 #include "third_party/blink/renderer/core/layout/layout_object.h"
@@ -62,12 +61,9 @@ namespace blink {
 
 namespace {
 
-NSString* const kCrBaselineOffset = @"kCrBaselineOffset";
-
-NSAttributedString* AttributedSubstringFromRange(LocalFrame* frame,
-                                                 const EphemeralRange& range) {
-  NSMutableAttributedString* string =
-      [[[NSMutableAttributedString alloc] init] autorelease];
+NSAttributedString* AttributedSubstringFromRange(const EphemeralRange& range,
+                                                 float font_scale) {
+  NSMutableAttributedString* string = [[NSMutableAttributedString alloc] init];
   NSMutableDictionary* attrs = [NSMutableDictionary dictionary];
   size_t length = range.EndPosition().ComputeOffsetInContainerNode() -
                   range.StartPosition().ComputeOffsetInContainerNode();
@@ -86,44 +82,16 @@ NSAttributedString* AttributedSubstringFromRange(LocalFrame* frame,
       continue;
 
     const Node& container = it.CurrentContainer();
-    const LayoutObject* layout_object = container.GetLayoutObject();
+    LayoutObject* layout_object = container.GetLayoutObject();
+    DCHECK(layout_object);
     if (!layout_object)
       continue;
 
-    // There are two ways that the size of text can be affected by the user. One
-    // is the page scale factor, which is what the user changes by pinching on
-    // the trackpad. The other is zooming, which combines 1. the effect of users
-    // using ⌘+/⌘- and 2. implementing the device scale factor (this is an
-    // implementation feature called "zoom-for-dsf"). The zoom value is baked
-    // into the font size, so to calculate the font size needed for display, the
-    // device scale factor must be divided out from the font size and the page
-    // scale factor must be multiplied in.
-
     const ComputedStyle* style = layout_object->Style();
-    const SimpleFontData* primaryFont = style->GetFont().PrimaryFont();
-    const FontPlatformData& font_platform_data = primaryFont->PlatformData();
-
-    const float page_scale_factor = frame->GetPage()->PageScaleFactor();
-    const float device_scale_factor =
-        frame->GetWidgetForLocalRoot()->DIPsToBlinkSpace(1.0f);
-
-    attrs[kCrBaselineOffset] =
-        @(primaryFont->GetFontMetrics().Descent() * page_scale_factor);
-
-    NSFont* original_font = base::mac::CFToNSCast(font_platform_data.CtFont());
-    const CGFloat desired_size =
-        font_platform_data.size() * page_scale_factor / device_scale_factor;
-
-    NSFont* font = nil;
-    if (original_font) {
-      if (@available(macos 10.15, *)) {
-        font = [original_font fontWithSize:desired_size];
-      } else {
-        font = [NSFontManager.sharedFontManager convertFont:original_font
-                                                     toSize:desired_size];
-      }
-    }
-
+    FontPlatformData font_platform_data =
+        style->GetFont().PrimaryFont()->PlatformData();
+    font_platform_data.text_size_ *= font_scale;
+    NSFont* font = base::mac::CFToNSCast(font_platform_data.CtFont());
     // If the platform font can't be loaded, or the size is incorrect comparing
     // to the computed style, it's likely that the site is using a web font.
     // For now, just use the default font instead.
@@ -132,52 +100,52 @@ NSAttributedString* AttributedSubstringFromRange(LocalFrame* frame,
     // TODO(shuchen): Support scaling the font as necessary according to CSS
     // transforms, not just pinch-zoom.
     if (!font || floor(font_platform_data.size()) !=
-                     floor(original_font.fontDescriptor.pointSize)) {
+                     floor([[font fontDescriptor] pointSize])) {
       font = [NSFont systemFontOfSize:style->GetFont()
                                           .GetFontDescription()
                                           .ComputedSize() *
-                                      page_scale_factor / device_scale_factor];
+                                      font_scale];
     }
-    attrs[NSFontAttributeName] = font;
+    [attrs setObject:font forKey:NSFontAttributeName];
 
     if (style->VisitedDependentColor(GetCSSPropertyColor()).Alpha())
-      attrs[NSForegroundColorAttributeName] =
-          NsColor(style->VisitedDependentColor(GetCSSPropertyColor()));
+      [attrs
+          setObject:NsColor(style->VisitedDependentColor(GetCSSPropertyColor()))
+             forKey:NSForegroundColorAttributeName];
     else
       [attrs removeObjectForKey:NSForegroundColorAttributeName];
     if (style->VisitedDependentColor(GetCSSPropertyBackgroundColor()).Alpha())
-      attrs[NSBackgroundColorAttributeName] = NsColor(
-          style->VisitedDependentColor(GetCSSPropertyBackgroundColor()));
+      [attrs setObject:NsColor(style->VisitedDependentColor(
+                           GetCSSPropertyBackgroundColor()))
+                forKey:NSBackgroundColorAttributeName];
     else
       [attrs removeObjectForKey:NSBackgroundColorAttributeName];
 
     String characters = it.GetTextState().GetTextForTesting();
     characters.Ensure16Bit();
     NSString* substring =
-        [[[NSString alloc] initWithCharacters:reinterpret_cast<const UniChar*>(
-                                                  characters.Characters16())
+        [[[NSString alloc] initWithCharacters:characters.Characters16()
                                        length:characters.length()] autorelease];
     [string replaceCharactersInRange:NSMakeRange(position, 0)
                           withString:substring];
     [string setAttributes:attrs range:NSMakeRange(position, num_characters)];
     position += num_characters;
   }
-  return string;
+  return [string autorelease];
 }
 
 gfx::Point GetBaselinePoint(LocalFrameView* frame_view,
                             const EphemeralRange& range,
                             NSAttributedString* string) {
-  gfx::Rect string_rect = frame_view->FrameToViewport(FirstRectForRange(range));
-  gfx::Point string_point = string_rect.bottom_left();
+  IntRect string_rect = frame_view->FrameToViewport(FirstRectForRange(range));
+  IntPoint string_point = string_rect.MinXMaxYCorner();
 
   // Adjust for the font's descender. AppKit wants the baseline point.
   if ([string length]) {
     NSDictionary* attributes = [string attributesAtIndex:0
                                           effectiveRange:nullptr];
-    if (NSNumber* descender = attributes[kCrBaselineOffset]) {
-      string_point.Offset(0, -ceil(descender.doubleValue));
-    }
+    if (NSFont* font = [attributes objectForKey:NSFontAttributeName])
+      string_point.Move(0, ceil([font descender]));
   }
   return string_point;
 }
@@ -185,10 +153,11 @@ gfx::Point GetBaselinePoint(LocalFrameView* frame_view,
 }  // namespace
 
 NSAttributedString* SubstringUtil::AttributedWordAtPoint(
-    WebFrameWidgetImpl* frame_widget,
+    WebFrameWidgetBase* frame_widget,
     gfx::Point point,
     gfx::Point& baseline_point) {
-  HitTestResult result = frame_widget->CoreHitTestResultAt(gfx::PointF(point));
+  HitTestResult result =
+      frame_widget->CoreHitTestResultAt(FloatPoint(IntPoint(point)));
 
   if (!result.InnerNode())
     return nil;
@@ -199,23 +168,32 @@ NSAttributedString* SubstringUtil::AttributedWordAtPoint(
     return nil;
 
   // Expand to word under point.
-  const SelectionInDOMTree selection = ExpandWithGranularity(
+  const VisibleSelection& selection = CreateVisibleSelectionWithGranularity(
       SelectionInDOMTree::Builder().SetBaseAndExtent(range).Build(),
       TextGranularity::kWord);
-  const EphemeralRange word_range = NormalizeRange(selection);
+  const EphemeralRange word_range = selection.ToNormalizedEphemeralRange();
 
   // Convert to NSAttributedString.
-  NSAttributedString* string = AttributedSubstringFromRange(frame, word_range);
+  NSAttributedString* string = AttributedSubstringFromRange(
+      word_range, frame->GetPage()->GetVisualViewport().Scale());
   baseline_point = GetBaselinePoint(frame->View(), word_range, string);
   return string;
 }
 
+NSAttributedString* SubstringUtil::AttributedSubstringInRange(LocalFrame* frame,
+                                                              size_t location,
+                                                              size_t length) {
+  return SubstringUtil::AttributedSubstringInRange(frame, location, length,
+                                                   nil);
+}
+
 NSAttributedString* SubstringUtil::AttributedSubstringInRange(
     LocalFrame* frame,
-    wtf_size_t location,
-    wtf_size_t length,
-    gfx::Point& baseline_point) {
-  frame->View()->UpdateStyleAndLayout();
+    size_t location,
+    size_t length,
+    gfx::Point* baseline_point) {
+  if (frame->View()->NeedsLayout())
+    frame->View()->UpdateLayout();
 
   Element* editable = frame->Selection().RootEditableElementOrDocumentElement();
   if (!editable)
@@ -225,10 +203,11 @@ NSAttributedString* SubstringUtil::AttributedSubstringInRange(
   if (ephemeral_range.IsNull())
     return nil;
 
-  NSAttributedString* string =
-      AttributedSubstringFromRange(frame, ephemeral_range);
-  baseline_point = GetBaselinePoint(frame->View(), ephemeral_range, string);
-  return string;
+  NSAttributedString* result = AttributedSubstringFromRange(
+      ephemeral_range, frame->GetPage()->GetVisualViewport().Scale());
+  if (baseline_point)
+    *baseline_point = GetBaselinePoint(frame->View(), ephemeral_range, result);
+  return result;
 }
 
 }  // namespace blink

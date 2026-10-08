@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/location.h"
-#include "base/strings/string_piece.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace base {
@@ -24,7 +23,9 @@ class RunChecker {
   explicit RunChecker(const Location& location,
                       StringPiece message,
                       bool is_repeating)
-      : location_(location), message_(message), is_repeating_(is_repeating) {}
+      : location_(location),
+        message_(message.as_string()),
+        is_repeating_(is_repeating) {}
 
   ~RunChecker() {
     if (!called_) {
@@ -65,7 +66,7 @@ RepeatingClosure MakeExpectedNotRunClosure(const Location& location,
       [](const Location& location, StringPiece message) {
         ADD_FAILURE_AT(location.file_name(), location.line_number()) << message;
       },
-      location, std::string(message));
+      location, message.as_string());
 }
 
 }  // namespace base

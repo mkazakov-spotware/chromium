@@ -1,5 +1,15 @@
 from tests.support.asserts import assert_error, assert_success
-from . import execute_script
+
+
+def execute_script(session, script, args=None):
+    if args is None:
+        args = []
+    body = {"script": script, "args": args}
+
+    return session.transport.send(
+        "POST", "/session/{session_id}/execute/sync".format(
+            session_id=session.session_id),
+        body)
 
 
 def test_promise_resolve(session):

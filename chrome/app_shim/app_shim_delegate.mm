@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "base/mac/foundation_util.h"
 #include "chrome/app_shim/app_shim_controller.h"
-#include "net/base/mac/url_conversions.h"
 
 @implementation AppShimDelegate
 
@@ -35,14 +34,6 @@
   [app replyToOpenOrPrint:NSApplicationDelegateReplySuccess];
 }
 
-- (void)application:(NSApplication*)app openURLs:(NSArray<NSURL*>*)urls {
-  std::vector<GURL> urls_to_open;
-  for (NSURL* url in urls)
-    urls_to_open.push_back(net::GURLWithNSURL(url));
-  _appShimController->OpenUrls(urls_to_open);
-  [app replyToOpenOrPrint:NSApplicationDelegateReplySuccess];
-}
-
 - (void)applicationWillBecomeActive:(NSNotification*)notification {
   return _appShimController->host()->FocusApp();
 }
@@ -55,10 +46,6 @@
 
 - (BOOL)validateUserInterfaceItem:(id<NSValidatedUserInterfaceItem>)item {
   return NO;
-}
-
-- (NSMenu*)applicationDockMenu:(NSApplication*)sender {
-  return _appShimController->GetApplicationDockMenu();
 }
 
 @end

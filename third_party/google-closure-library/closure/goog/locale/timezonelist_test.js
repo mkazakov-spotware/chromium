@@ -1,21 +1,30 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.locale.TimeZoneListTest');
 goog.setTestOnly();
 
+/** @suppress {extraRequire} */
+const TimeZoneList = goog.require('goog.locale.TimeZoneList');
 const locale = goog.require('goog.locale');
 const testSuite = goog.require('goog.testing.testSuite');
-const timezonelist = goog.require('goog.locale.timezonelist');
 
 /* Uncomment to display complete listing in the unit tested invocations.
 
 document.write('Shortnames in German for France:<br>');
 
-var idlist = goog.locale.timezonelist.getTimeZoneSelectedShortNames('FR');
+var idlist = goog.locale.getTimeZoneSelectedShortNames('FR');
 
 for (var i = 0; i < idlist.length; i++) {
   document.write(i + ') ' + idlist[i].id + ' = ' + idlist[i].name + '<br>');
@@ -24,7 +33,7 @@ for (var i = 0; i < idlist.length; i++) {
 document.write('<hr>');
 
 document.write('long names in German for all en speakers:<br>');
-var idlist = goog.locale.timezonelist.getTimeZoneSelectedLongNames('en');
+var idlist = goog.locale.getTimeZoneSelectedLongNames('en');
 
 for (var i = 0; i < idlist.length; i++) {
   document.write(i + ') ' + idlist[i].id + ' = ' + idlist[i].name + '<br>');
@@ -33,7 +42,7 @@ for (var i = 0; i < idlist.length; i++) {
 document.write('<hr>');
 
 document.write('Longnames in German for germans:<br>');
-var idlist = goog.locale.timezonelist.getTimeZoneSelectedLongNames();
+var idlist = goog.locale.getTimeZoneSelectedLongNames();
 
 for (var i = 0; i < idlist.length; i++) {
   document.write(i + ') ' + idlist[i].id + ' = ' + idlist[i].name + '<br>');
@@ -42,7 +51,7 @@ for (var i = 0; i < idlist.length; i++) {
 document.write('<hr>');
 
 document.write('All longnames in German:<br>');
-var idlist = goog.locale.timezonelist.getTimeZoneAllLongNames();
+var idlist = goog.locale.getTimeZoneAllLongNames();
 
 for (var i = 0; i < idlist.length; i++) {
   var pair = idlist[i];
@@ -115,37 +124,25 @@ testSuite({
     locale.setLocale('de_DE');
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testTimeZoneSelectedShortNames() {
     // Shortnames in German for France.
-    const result = timezonelist.getTimeZoneSelectedShortNames('FR');
+    const result = locale.getTimeZoneSelectedShortNames('FR');
     assertEquals('Honolulu (Vereinigte Staaten)', result[3].name);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testTimeZoneSelectedLongNames() {
     // Long names in German for all English speaking regions.
-    let result = timezonelist.getTimeZoneSelectedLongNames('en');
+    let result = locale.getTimeZoneSelectedLongNames('en');
     assertEquals('GMT-11:00 Midway (Amerikanisch-Ozeanien)', result[1].name);
 
     // Long names in German for germans.
-    result = timezonelist.getTimeZoneSelectedLongNames();
+    result = locale.getTimeZoneSelectedLongNames();
     assertEquals('GMT-10:00 Adak (Vereinigte Staaten)', result[2].name);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testTimeZoneAllLongNames() {
     // All longnames in German
-    const result = timezonelist.getTimeZoneAllLongNames();
+    const result = locale.getTimeZoneAllLongNames();
     assertEquals('GMT-10:00 Tokelau', result[7].name);
   },
 });

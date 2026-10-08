@@ -1,9 +1,8 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <iostream>
-#include <iterator>
 #include <set>
 #include <string>
 #include <tuple>
@@ -13,36 +12,26 @@
 #include "base/compiler_specific.h"
 #include "base/containers/span.h"
 #include "base/memory/ptr_util.h"
+#include "base/stl_util.h"
+#include "base/strings/nullable_string16.h"
 #include "base/strings/string_util.h"
-#include "base/types/id_type.h"
 #include "base/unguessable_token.h"
+#include "base/util/type_safety/id_type.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "components/content_settings/core/common/content_settings_pattern.h"
-#include "components/viz/common/surfaces/frame_sink_id.h"
-#include "components/viz/common/surfaces/local_surface_id.h"
-#include "gpu/ipc/common/gpu_param_traits_macros.h"
 #include "ipc/ipc_message.h"
 #include "ipc/ipc_message_utils.h"
-#include "ipc/ipc_platform_file.h"
 #include "ipc/ipc_sync_channel.h"
 #include "ipc/ipc_sync_message.h"
-#include "media/gpu/ipc/common/media_param_traits.h"
-#include "ppapi/buildflags/buildflags.h"
 #include "printing/mojom/print.mojom-shared.h"
-#include "services/device/public/mojom/screen_orientation_lock_types.mojom-shared.h"
-#include "third_party/blink/public/common/page_state/page_state.h"
-#include "third_party/blink/public/mojom/widget/device_emulation_params.mojom-shared.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "tools/ipc_fuzzer/fuzzer/fuzzer.h"
 #include "tools/ipc_fuzzer/fuzzer/rand_util.h"
 #include "tools/ipc_fuzzer/message_lib/message_cracker.h"
 #include "tools/ipc_fuzzer/message_lib/message_file.h"
 #include "ui/gfx/geometry/point.h"
-#include "ui/gfx/range/range.h"
-#include "ui/latency/latency_info.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <unistd.h>
 #endif
 
@@ -223,8 +212,8 @@ struct FuzzTraits<std::string> {
 };
 
 template <>
-struct FuzzTraits<std::u16string> {
-  static bool Fuzz(std::u16string* p, Fuzzer* fuzzer) {
+struct FuzzTraits<base::string16> {
+  static bool Fuzz(base::string16* p, Fuzzer* fuzzer) {
     fuzzer->FuzzString16(p);
     return true;
   }
@@ -454,6 +443,20 @@ struct FuzzTraits<base::File::Info> {
 };
 
 template <>
+struct FuzzTraits<base::NullableString16> {
+  static bool Fuzz(base::NullableString16* p, Fuzzer* fuzzer) {
+    base::string16 string = p->string();
+    bool is_null = p->is_null();
+    if (!FuzzParam(&string, fuzzer))
+      return false;
+    if (!FuzzParam(&is_null, fuzzer))
+      return false;
+    *p = base::NullableString16(string, is_null);
+    return true;
+  }
+};
+
+template <>
 struct FuzzTraits<base::Time> {
   static bool Fuzz(base::Time* p, Fuzzer* fuzzer) {
     int64_t internal_value = p->ToInternalValue();
@@ -487,83 +490,149 @@ struct FuzzTraits<base::TimeTicks> {
 };
 
 template <>
-struct FuzzTraits<base::Value> {
-  static bool Fuzz(base::Value* p, Fuzzer* fuzzer) {
-    DCHECK(p->type() == base::Value::Type::LIST ||
-           p->type() == base::Value::Type::DICTIONARY);
-
+struct FuzzTraits<base::ListValue> {
+  static bool Fuzz(base::ListValue* p, Fuzzer* fuzzer) {
     // TODO(mbarbella): Support mutation.
     if (!fuzzer->ShouldGenerate())
       return true;
 
-    if (g_depth > 2)
-      return true;
-
-    g_depth++;
-
-    const size_t kMaxSize = 8;
-    size_t random_size = RandInRange(kMaxSize);
-    for (size_t i = 0; i < random_size; i++) {
-      base::Value random_value;
-      const size_t kNumValueTypes = 8;
-      switch (static_cast<base::Value::Type>(RandInRange(kNumValueTypes))) {
+    ++g_depth;
+    size_t list_length = p->GetSize();
+    if (fuzzer->ShouldGenerate())
+      list_length = g_depth > 3 ? 0 : RandInRange(8);
+    for (size_t index = 0; index < list_length; ++index) {
+      switch (static_cast<base::Value::Type>(RandInRange(8))) {
         case base::Value::Type::BOOLEAN: {
           bool tmp;
+          p->GetBoolean(index, &tmp);
           fuzzer->FuzzBool(&tmp);
-          random_value = base::Value(tmp);
+          p->Set(index, std::make_unique<base::Value>(tmp));
           break;
         }
         case base::Value::Type::INTEGER: {
           int tmp;
+          p->GetInteger(index, &tmp);
           fuzzer->FuzzInt(&tmp);
-          random_value = base::Value(tmp);
+          p->Set(index, std::make_unique<base::Value>(tmp));
           break;
         }
         case base::Value::Type::DOUBLE: {
           double tmp;
+          p->GetDouble(index, &tmp);
           fuzzer->FuzzDouble(&tmp);
-          random_value = base::Value(tmp);
+          p->Set(index, std::make_unique<base::Value>(tmp));
+          break;
+        }
+        case base::Value::Type::STRING: {
+          std::string tmp;
+          p->GetString(index, &tmp);
+          fuzzer->FuzzString(&tmp);
+          p->Set(index, std::make_unique<base::Value>(tmp));
           break;
         }
         case base::Value::Type::BINARY: {
           char tmp[200];
           size_t bin_length = RandInRange(sizeof(tmp));
           fuzzer->FuzzData(tmp, bin_length);
-          random_value =
-              base::Value(base::as_bytes(base::make_span(tmp, bin_length)));
-          break;
-        }
-        case base::Value::Type::STRING: {
-          random_value = base::Value(base::Value::Type::STRING);
-          fuzzer->FuzzString(&random_value.GetString());
+          p->Set(index, base::Value::ToUniquePtrValue(base::Value(
+                            base::as_bytes(base::make_span(tmp, bin_length)))));
           break;
         }
         case base::Value::Type::DICTIONARY: {
-          random_value = base::Value(base::Value::Type::DICTIONARY);
-          FuzzParam(&random_value, fuzzer);
+          base::DictionaryValue* dict_weak = nullptr;
+          if (p->GetDictionary(index, &dict_weak)) {
+            FuzzParam(dict_weak, fuzzer);
+          } else {
+            auto dict = std::make_unique<base::DictionaryValue>();
+            FuzzParam(dict.get(), fuzzer);
+            p->Set(index, std::move(dict));
+          }
           break;
         }
         case base::Value::Type::LIST: {
-          random_value = base::Value(base::Value::Type::LIST);
-          FuzzParam(&random_value, fuzzer);
+          base::ListValue* list_weak = nullptr;
+          if (p->GetList(index, &list_weak)) {
+            FuzzParam(list_weak, fuzzer);
+          } else {
+            auto list = std::make_unique<base::ListValue>();
+            FuzzParam(list.get(), fuzzer);
+            p->Set(index, std::move(list));
+          }
           break;
         }
         case base::Value::Type::NONE:
-          // |random_value| already has type NONE, nothing to do.
+        default:
           break;
       }
+    }
+    --g_depth;
+    return true;
+  }
+};
 
-      // Add |random_value| to the container.
-      if (p->type() == base::Value::Type::LIST) {
-        p->Append(std::move(random_value));
-      } else {
-        // |p| is a dictionary, a fuzzed key is also required.
-        std::string key;
-        fuzzer->FuzzString(&key);
-        p->SetKey(key, std::move(random_value));
+template <>
+struct FuzzTraits<base::DictionaryValue> {
+  static bool Fuzz(base::DictionaryValue* p, Fuzzer* fuzzer) {
+    // TODO(mbarbella): Support mutation.
+    if (!fuzzer->ShouldGenerate())
+      return true;
+
+    ++g_depth;
+    size_t dict_length = g_depth > 3 ? 0 : RandInRange(8);
+    for (size_t index = 0; index < dict_length; ++index) {
+      std::string property;
+      fuzzer->FuzzString(&property);
+      switch (static_cast<base::Value::Type>(RandInRange(8))) {
+        case base::Value::Type::BOOLEAN: {
+          bool tmp;
+          fuzzer->FuzzBool(&tmp);
+          p->SetKey(property, base::Value(tmp));
+          break;
+        }
+        case base::Value::Type::INTEGER: {
+          int tmp;
+          fuzzer->FuzzInt(&tmp);
+          p->SetKey(property, base::Value(tmp));
+          break;
+        }
+        case base::Value::Type::DOUBLE: {
+          double tmp;
+          fuzzer->FuzzDouble(&tmp);
+          p->SetKey(property, base::Value(tmp));
+          break;
+        }
+        case base::Value::Type::STRING: {
+          std::string tmp;
+          fuzzer->FuzzString(&tmp);
+          p->SetKey(property, base::Value(tmp));
+          break;
+        }
+        case base::Value::Type::BINARY: {
+          char tmp[200];
+          size_t bin_length = RandInRange(sizeof(tmp));
+          fuzzer->FuzzData(tmp, bin_length);
+          p->SetWithoutPathExpansion(
+              property, base::Value::ToUniquePtrValue(base::Value(
+                            base::as_bytes(base::make_span(tmp, bin_length)))));
+          break;
+        }
+        case base::Value::Type::DICTIONARY: {
+          auto tmp = std::make_unique<base::DictionaryValue>();
+          FuzzParam(tmp.get(), fuzzer);
+          p->SetWithoutPathExpansion(property, std::move(tmp));
+          break;
+        }
+        case base::Value::Type::LIST: {
+          auto tmp = std::make_unique<base::ListValue>();
+          FuzzParam(tmp.get(), fuzzer);
+          p->SetWithoutPathExpansion(property, std::move(tmp));
+          break;
+        }
+        case base::Value::Type::NONE:
+        default:
+          break;
       }
     }
-
     --g_depth;
     return true;
   }
@@ -639,6 +708,15 @@ struct FuzzTraits<viz::LocalSurfaceId> {
 };
 
 template <>
+struct FuzzTraits<viz::ResourceFormat> {
+  static bool Fuzz(viz::ResourceFormat* p, Fuzzer* fuzzer) {
+    int format = RandInRange(viz::ResourceFormat::RESOURCE_FORMAT_MAX + 1);
+    *p = static_cast<viz::ResourceFormat>(format);
+    return true;
+  }
+};
+
+template <>
 struct FuzzTraits<blink::PageState> {
   static bool Fuzz(blink::PageState* p, Fuzzer* fuzzer) {
     std::string data = p->ToEncodedData();
@@ -666,6 +744,26 @@ struct FuzzTraits<ContentSettingsPattern> {
   static bool Fuzz(ContentSettingsPattern* p, Fuzzer* fuzzer) {
     // TODO(mbarbella): This can crash if a pattern is generated from a random
     // string. We could carefully generate a pattern or fix pattern generation.
+    return true;
+  }
+};
+
+template <>
+struct FuzzTraits<ExtensionMsg_PermissionSetStruct> {
+  static bool Fuzz(ExtensionMsg_PermissionSetStruct* p,
+                       Fuzzer* fuzzer) {
+    // TODO(mbarbella): This should actually do something.
+    return true;
+  }
+};
+
+template <>
+struct FuzzTraits<extensions::URLPatternSet> {
+  static bool Fuzz(extensions::URLPatternSet* p, Fuzzer* fuzzer) {
+    std::set<URLPattern> patterns = p->patterns();
+    if (!FuzzParam(&patterns, fuzzer))
+      return false;
+    *p = extensions::URLPatternSet(patterns);
     return true;
   }
 };
@@ -792,6 +890,19 @@ struct FuzzTraits<gfx::PointF> {
 };
 
 template <>
+struct FuzzTraits<gfx::PresentationFeedback> {
+  static bool Fuzz(gfx::PresentationFeedback* p, Fuzzer* fuzzer) {
+    if (!FuzzParam(&p->timestamp, fuzzer))
+      return false;
+    if (!FuzzParam(&p->interval, fuzzer))
+      return false;
+    if (!FuzzParam(&p->flags, fuzzer))
+      return false;
+    return true;
+  }
+};
+
+template <>
 struct FuzzTraits<gfx::Rect> {
   static bool Fuzz(gfx::Rect* p, Fuzzer* fuzzer) {
     gfx::Point origin = p->origin();
@@ -900,11 +1011,16 @@ struct FuzzTraits<gfx::SwapTimings> {
 template <>
 struct FuzzTraits<gfx::Transform> {
   static bool Fuzz(gfx::Transform* p, Fuzzer* fuzzer) {
-    float matrix[16];
-    p->GetColMajorF(matrix);
-    if (!FuzzParamArray(&matrix[0], std::size(matrix), fuzzer))
+    SkScalar matrix[16];
+    for (size_t i = 0; i < base::size(matrix); i++) {
+      matrix[i] = p->matrix().get(i / 4, i % 4);
+    }
+    if (!FuzzParamArray(&matrix[0], base::size(matrix), fuzzer))
       return false;
-    *p = gfx::Transform::ColMajorF(matrix);
+    *p = gfx::Transform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4],
+                        matrix[5], matrix[6], matrix[7], matrix[8], matrix[9],
+                        matrix[10], matrix[11], matrix[12], matrix[13],
+                        matrix[14], matrix[15]);
     return true;
   }
 };
@@ -938,8 +1054,8 @@ struct FuzzTraits<gfx::Vector2dF> {
 };
 
 template <typename TypeMarker, typename WrappedType, WrappedType kInvalidValue>
-struct FuzzTraits<base::IdType<TypeMarker, WrappedType, kInvalidValue>> {
-  using param_type = base::IdType<TypeMarker, WrappedType, kInvalidValue>;
+struct FuzzTraits<util::IdType<TypeMarker, WrappedType, kInvalidValue>> {
+  using param_type = util::IdType<TypeMarker, WrappedType, kInvalidValue>;
   static bool Fuzz(param_type* id, Fuzzer* fuzzer) {
     WrappedType raw_value = id->GetUnsafeValue();
     if (!FuzzParam(&raw_value, fuzzer))
@@ -950,13 +1066,13 @@ struct FuzzTraits<base::IdType<TypeMarker, WrappedType, kInvalidValue>> {
 };
 
 template <>
-struct FuzzTraits<base::StrongAlias<extensions::ActivationSequenceTag, int>> {
-  static bool Fuzz(base::StrongAlias<extensions::ActivationSequenceTag, int>* p,
+struct FuzzTraits<util::StrongAlias<extensions::ActivationSequenceTag, int>> {
+  static bool Fuzz(util::StrongAlias<extensions::ActivationSequenceTag, int>* p,
                    Fuzzer* fuzzer) {
     int value;
     if (!FuzzParam(&value, fuzzer))
       return false;
-    *p = base::StrongAlias<extensions::ActivationSequenceTag, int>(value);
+    *p = util::StrongAlias<extensions::ActivationSequenceTag, int>(value);
     return true;
   }
 };
@@ -1063,6 +1179,16 @@ struct FuzzTraits<gpu::Mailbox> {
 };
 
 template <>
+struct FuzzTraits<gpu::SchedulingPriority> {
+  static bool Fuzz(gpu::SchedulingPriority* p, Fuzzer* fuzzer) {
+    int priority =
+        RandInRange(static_cast<int>(gpu::SchedulingPriority::kLast) + 1);
+    *p = static_cast<gpu::SchedulingPriority>(priority);
+    return true;
+  }
+};
+
+template <>
 struct FuzzTraits<gpu::SwapBuffersCompleteParams> {
   static bool Fuzz(gpu::SwapBuffersCompleteParams* p, Fuzzer* fuzzer) {
     if (!FuzzParam(&p->swap_response, fuzzer))
@@ -1141,7 +1267,21 @@ struct FuzzTraits<GURL> {
   }
 };
 
-#if BUILDFLAG(IS_WIN)
+template <>
+struct FuzzTraits<HostID> {
+  static bool Fuzz(HostID* p, Fuzzer* fuzzer) {
+    HostID::HostType type = p->type();
+    std::string id = p->id();
+    if (!FuzzParam(&type, fuzzer))
+      return false;
+    if (!FuzzParam(&id, fuzzer))
+      return false;
+    *p = HostID(type, id);
+    return true;
+  }
+};
+
+#if defined(OS_WIN)
 template <>
 struct FuzzTraits<HWND> {
   static bool Fuzz(HWND* p, Fuzzer* fuzzer) {
@@ -1190,7 +1330,7 @@ struct FuzzTraits<IPC::ChannelHandle> {
   }
 };
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 template <>
 struct FuzzTraits<LOGFONT> {
   static bool Fuzz(LOGFONT* p, Fuzzer* fuzzer) {
@@ -1226,8 +1366,9 @@ struct FuzzTraits<media::AudioParameters> {
       return false;
     media::AudioParameters params(
         static_cast<media::AudioParameters::Format>(format),
-        {static_cast<media::ChannelLayout>(channel_layout), channels},
-        sample_rate, frames_per_buffer);
+        static_cast<media::ChannelLayout>(channel_layout), sample_rate,
+        frames_per_buffer);
+    params.set_channels_for_discrete(channels);
     params.set_effects(effects);
     *p = params;
     return true;
@@ -1275,8 +1416,8 @@ struct FuzzTraits<net::LoadTimingInfo> {
            FuzzParam(&p->request_start, fuzzer) &&
            FuzzParam(&p->proxy_resolve_start, fuzzer) &&
            FuzzParam(&p->proxy_resolve_end, fuzzer) &&
-           FuzzParam(&p->connect_timing.domain_lookup_start, fuzzer) &&
-           FuzzParam(&p->connect_timing.domain_lookup_end, fuzzer) &&
+           FuzzParam(&p->connect_timing.dns_start, fuzzer) &&
+           FuzzParam(&p->connect_timing.dns_end, fuzzer) &&
            FuzzParam(&p->connect_timing.connect_start, fuzzer) &&
            FuzzParam(&p->connect_timing.connect_end, fuzzer) &&
            FuzzParam(&p->connect_timing.ssl_start, fuzzer) &&
@@ -1329,7 +1470,6 @@ struct FuzzTraits<net::IPEndPoint> {
   }
 };
 
-#if BUILDFLAG(ENABLE_PPAPI)
 // PP_ traits.
 template <>
 struct FuzzTraits<PP_Bool> {
@@ -1354,6 +1494,15 @@ struct FuzzTraits<PP_NetAddress_Private> {
 template <>
 struct FuzzTraits<ppapi::PPB_X509Certificate_Fields> {
   static bool Fuzz(ppapi::PPB_X509Certificate_Fields* p,
+                       Fuzzer* fuzzer) {
+    // TODO(mbarbella): This should actually do something.
+    return true;
+  }
+};
+
+template <>
+struct FuzzTraits<ppapi::proxy::PPBFlash_DrawGlyphs_Params> {
+  static bool Fuzz(ppapi::proxy::PPBFlash_DrawGlyphs_Params* p,
                        Fuzzer* fuzzer) {
     // TODO(mbarbella): This should actually do something.
     return true;
@@ -1491,7 +1640,6 @@ struct FuzzTraits<ppapi::SocketOptionData> {
     return true;
   }
 };
-#endif  // BUILDFLAG(ENABLE_PPAPI)
 
 template <>
 struct FuzzTraits<printing::mojom::MarginType> {
@@ -1508,6 +1656,51 @@ struct FuzzTraits<SkBitmap> {
   static bool Fuzz(SkBitmap* p, Fuzzer* fuzzer) {
     // TODO(mbarbella): This should actually do something.
     return true;
+  }
+};
+
+template <>
+struct FuzzTraits<network::DataElement> {
+  static bool Fuzz(network::DataElement* p, Fuzzer* fuzzer) {
+    // TODO(mbarbella): Support mutation.
+    if (!fuzzer->ShouldGenerate())
+      return true;
+
+    switch (RandInRange(2)) {
+      case 0: {
+        // network::DataElement::Type::TYPE_BYTES
+        if (RandEvent(2)) {
+          p->SetToEmptyBytes();
+        } else {
+          char data[256];
+          int data_len = RandInRange(sizeof(data));
+          fuzzer->FuzzBytes(&data[0], data_len);
+          p->SetToBytes(&data[0], data_len);
+        }
+        return true;
+      }
+      case 1: {
+        // network::DataElement::Type::TYPE_FILE
+        base::FilePath path;
+        uint64_t offset;
+        uint64_t length;
+        base::Time modification_time;
+        if (!FuzzParam(&path, fuzzer))
+          return false;
+        if (!FuzzParam(&offset, fuzzer))
+          return false;
+        if (!FuzzParam(&length, fuzzer))
+          return false;
+        if (!FuzzParam(&modification_time, fuzzer))
+          return false;
+        p->SetToFilePathRange(path, offset, length, modification_time);
+        return true;
+      }
+      default: {
+        NOTREACHED();
+        return false;
+      }
+    }
   }
 };
 
@@ -1545,17 +1738,15 @@ struct FuzzTraits<url::Origin> {
     if (!FuzzParam(&port, fuzzer))
       return false;
 
-    absl::optional<url::Origin> origin;
+    base::Optional<url::Origin> origin;
     if (!opaque) {
       origin = url::Origin::UnsafelyCreateTupleOriginWithoutNormalization(
           scheme, host, port);
     } else {
-      absl::optional<base::UnguessableToken> token;
-      if (auto* nonce = p->GetNonceForSerialization()) {
-        token = *nonce;
-      } else {
+      base::Optional<base::UnguessableToken> token =
+          p->GetNonceForSerialization();
+      if (!token)
         token = base::UnguessableToken::Deserialize(RandU64(), RandU64());
-      }
       if (!FuzzParam(&(*token), fuzzer))
         return false;
       origin = url::Origin::UnsafelyCreateOpaqueOriginWithoutNormalization(
@@ -1576,6 +1767,29 @@ struct FuzzTraits<url::Origin> {
     }
 
     *p = std::move(origin).value();
+    return true;
+  }
+};
+
+template <>
+struct FuzzTraits<URLPattern> {
+  static bool Fuzz(URLPattern* p, Fuzzer* fuzzer) {
+    int valid_schemes = p->valid_schemes();
+    std::string host = p->host();
+    std::string port = p->port();
+    std::string path = p->path();
+    if (!FuzzParam(&valid_schemes, fuzzer))
+      return false;
+    if (!FuzzParam(&host, fuzzer))
+      return false;
+    if (!FuzzParam(&port, fuzzer))
+      return false;
+    if (!FuzzParam(&path, fuzzer))
+      return false;
+    *p = URLPattern(valid_schemes);
+    p->SetHost(host);
+    p->SetPort(port);
+    p->SetPath(path);
     return true;
   }
 };

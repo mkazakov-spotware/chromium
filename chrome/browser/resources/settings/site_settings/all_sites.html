@@ -1,8 +1,4 @@
     <style include="settings-shared md-select clear-storage-dialog-shared">
-      cr-dialog div[slot=title] {
-          line-height: 20px;
-      }
-
       #sort {
         align-items: center;
         display: flex;
@@ -30,19 +26,11 @@
         padding-inline-end: var(--cr-section-padding);
         padding-inline-start: var(--cr-section-padding);
       }
-
-      #fpsLearnMore {
-        margin: 0 var(--cr-icon-button-margin-start);
-        padding-bottom: 16px;
-        padding-inline-end: var(--cr-section-padding);
-        padding-inline-start: var(--cr-section-padding);
-        width: 60%;
-      }
     </style>
     <div id="sort">
       <label id="sortLabel">$i18n{siteSettingsAllSitesSort}</label>
       <select id="sortMethod" class="md-select" aria-labelledby="sortLabel"
-          on-change="onSortMethodChanged_">
+        on-change="onSortMethodChanged_">
         <option value="[[sortMethods_.MOST_VISITED]]">
           $i18n{siteSettingsAllSitesSortMethodMostVisited}
         </option>
@@ -54,29 +42,20 @@
         </option>
       </select>
     </div>
-    <div id="clearAllContainer">
+    <div id="clearAllContainer" hidden$="[[!storagePressureFlagEnabled_]]">
       <div id="clearLabel">
-          [[getClearStorageDescription_(totalUsage_, filter)]]
+        $i18n{siteSettingsClearAllStorageDescription} [[totalUsage_]]
       </div>
       <div id="clearAllButton">
         <cr-button type="button" on-click="onConfirmClearAllData_">
-          [[getClearDataButtonString_(filter)]]
+          $i18n{siteSettingsClearAllStorageLabel}
         </cr-button>
       </div>
-    </div>
-    <div id="fpsLearnMore"
-        hidden$="[[!shouldShowFpsLearnMore_(filter, filteredList_)]]">
-      [[getFpsLearnMoreLabel_(filter)]]
-      <a href="$i18n{cookiesSettingsHelpCenterURL}"
-          aria-label="$i18n{siteSettingsFirstPartySetsLearnMoreAccessibility}">
-        $i18n{learnMore}
-      </a>
     </div>
     <div class="list-frame" hidden$="[[!siteGroupMapEmpty_(siteGroupMap)]]">
       <div class="list-item secondary">$i18n{emptyAllSitesPage}</div>
     </div>
-    <div id="noSitesFoundText" class="list-frame"
-     hidden$="[[!noSearchResultFound_(filteredList_)]]">
+    <div class="list-frame" hidden$="[[!noSearchResultFound_(filteredList_)]]">
       <div class="list-item secondary">$i18n{noSitesFound}</div>
     </div>
     <div class="list-frame without-heading" id="listContainer">
@@ -101,46 +80,90 @@
       <template>
         <cr-action-menu role-description="$i18n{menu}">
           <button class="dropdown-item" role="menuitem"
-              on-click="onShowRelatedSites_">
-            $i18n{firstPartySetsShowRelatedSitesButton}
+              on-click="onConfirmResetSettings_">
+            $i18n{siteSettingsSiteGroupReset}
           </button>
-          <button class="dropdown-item" role="menuitem" on-click="onRemove_">
-            $i18n{firstPartySetsSiteClearStorageButton}
+          <button class="dropdown-item" role="menuitem"
+              on-click="onConfirmClearData_">
+            $i18n{siteSettingsSiteGroupDelete}
           </button>
         </cr-action-menu>
       </template>
     </cr-lazy-render>
 
-    <!-- Confirm remove site dialog. -->
-    <cr-lazy-render id="confirmRemoveSite">
+    <!-- Confirm reset settings dialog. -->
+    <cr-lazy-render id="confirmResetSettings">
       <template>
         <cr-dialog close-text="$i18n{close}">
-          <div id="removeSiteTitle" slot="title">
-            [[getRemoveSiteTitle_(actionMenuModel_)]]
+          <div slot="title">
+            $i18n{siteSettingsSiteGroupResetDialogTitle}
           </div>
           <div slot="body">
-            <div id="logoutBulletPoint" class="detail">
-              <iron-icon icon="all-sites:logout" aria-hidden="true"
-                role="presentation"></iron-icon>
-              [[getRemoveSiteLogoutBulletPoint_(actionMenuModel_)]]
-            </div>
-            <div class="detail">
-              <iron-icon icon="all-sites:offline" aria-hidden="true"
-                role="presentation"></iron-icon>
-              $i18n{siteSettingsRemoveSiteOfflineData}
-            </div>
-            <div id="permissionsBulletPoint" class="detail"
-                hidden$="[[!showPermissionsBulletPoint_(actionMenuModel_)]]">
-              <iron-icon icon="settings:permissions"></iron-icon>
-              $i18n{siteSettingsRemoveSitePermissions}
+            [[getResetPermissionsLabel_(actionMenuModel_)]]
+          </div>
+          <div slot="button-container">
+            <cr-button class="cancel-button" on-click="onCloseDialog_">
+              $i18n{cancel}
+            </cr-button>
+            <cr-button class="action-button" on-click="onResetSettings_">
+              $i18n{siteSettingsSiteResetAll}
+            </cr-button>
+          </div>
+        </cr-dialog>
+      </template>
+    </cr-lazy-render>
+
+    <!-- Confirm clear data dialog. -->
+    <cr-lazy-render id="confirmClearData">
+      <template>
+        <cr-dialog close-text="$i18n{close}">
+          <div slot="title">
+            $i18n{siteSettingsSiteGroupDeleteDialogTitle}
+          </div>
+          <div slot="body">
+            [[getClearDataLabel_(
+                actionMenuModel_, storagePressureFlagEnabled_)]]
+          </div>
+          <div slot="button-container">
+            <cr-button class="cancel-button" on-click="onCloseDialog_">
+              $i18n{cancel}
+            </cr-button>
+            <cr-button class="action-button" on-click="onClearData_">
+              $i18n{siteSettingsSiteClearStorage}
+            </cr-button>
+          </div>
+        </cr-dialog>
+      </template>
+    </cr-lazy-render>
+
+    <!-- New version of confirm clear data dialog to show if storage
+         pressure UI flag is enabled. -->
+    <cr-lazy-render id="confirmClearDataNew">
+      <template>
+        <cr-dialog close-text="$i18n{close}">
+          <div slot="title">
+            $i18n{siteSettingsSiteGroupDeleteDialogTitle}
+          </div>
+          <div slot="body">
+            [[getClearDataLabel_(
+                actionMenuModel_, storagePressureFlagEnabled_)]]
+            <div class="detail-list">
+              <div class="detail">
+                <iron-icon icon="all-sites:logout"></iron-icon>
+                [[getLogoutLabel_()]]
+              </div>
+              <div class="detail">
+                <iron-icon icon="all-sites:offline"></iron-icon>
+                $i18n{siteSettingsSiteGroupDeleteOfflineData}
+              </div>
             </div>
           </div>
           <div slot="button-container">
             <cr-button class="cancel-button" on-click="onCloseDialog_">
               $i18n{cancel}
             </cr-button>
-            <cr-button class="action-button" on-click="onConfirmRemoveSite_">
-              $i18n{siteSettingsRemoveSiteConfirm}
+            <cr-button class="action-button" on-click="onClearData_">
+              $i18n{siteSettingsSiteClearStorage}
             </cr-button>
           </div>
         </cr-dialog>
@@ -151,21 +174,18 @@
     <cr-lazy-render id="confirmClearAllData">
       <template>
         <cr-dialog close-text="$i18n{close}">
-          <div slot="title">[[getClearAllStorageDialogTitle_(filter)]]</div>
+          <div slot="title">
+            $i18n{siteSettingsClearAllStorageDialogTitle}
+          </div>
           <div slot="body">
-            <div id="clearAllStorageDialogDescription">
-              [[getClearAllStorageDialogDescription_(totalUsage_,
-                  filteredList_)]]
-            </div>
+            <div>[[getClearAllDataLabel_(totalUsage_)]]</div>
             <div class="detail-list">
-              <div id="clearAllStorageDialogSignOutLabel" class="detail">
-                <iron-icon icon="all-sites:logout" aria-hidden="true"
-                  role="presentation"></iron-icon>
-                [[getClearAllStorageDialogSignOutLabel_(filter)]]
+              <div class="detail">
+                <iron-icon icon="all-sites:logout"></iron-icon>
+                $i18n{siteSettingsClearAllStorageSignOut}
               </div>
               <div class="detail">
-                <iron-icon icon="all-sites:offline" aria-hidden="true"
-                  role="presentation"></iron-icon>
+                <iron-icon icon="all-sites:offline"></iron-icon>
                 $i18n{siteSettingsSiteGroupDeleteOfflineData}
               </div>
             </div>

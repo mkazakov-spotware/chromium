@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,11 @@
 #define COMPONENTS_VIZ_HOST_HOST_DISPLAY_CLIENT_H_
 
 #include <memory>
+#include <vector>
 
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/viz/host/viz_host_export.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -25,47 +26,37 @@ class LayeredWindowUpdaterImpl;
 class VIZ_HOST_EXPORT HostDisplayClient : public mojom::DisplayClient {
  public:
   explicit HostDisplayClient(gfx::AcceleratedWidget widget);
-
-  HostDisplayClient(const HostDisplayClient&) = delete;
-  HostDisplayClient& operator=(const HostDisplayClient&) = delete;
-
   ~HostDisplayClient() override;
 
   mojo::PendingRemote<mojom::DisplayClient> GetBoundRemote(
       scoped_refptr<base::SingleThreadTaskRunner> task_runner);
 
- protected:
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_WIN)
-  gfx::AcceleratedWidget widget() const { return widget_; }
-#endif
-
  private:
   // mojom::DisplayClient implementation:
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   void OnDisplayReceivedCALayerParams(
       const gfx::CALayerParams& ca_layer_params) override;
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   void CreateLayeredWindowUpdater(
       mojo::PendingReceiver<mojom::LayeredWindowUpdater> receiver) override;
-  void AddChildWindowToBrowser(gpu::SurfaceHandle child_window) override;
 #endif
 
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
   void DidCompleteSwapWithNewSize(const gfx::Size& size) override;
 #endif
 
   mojo::Receiver<mojom::DisplayClient> receiver_{this};
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_WIN)
+#if defined(OS_APPLE) || defined(OS_WIN)
   gfx::AcceleratedWidget widget_;
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   std::unique_ptr<LayeredWindowUpdaterImpl> layered_window_updater_;
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(HostDisplayClient);
 };
 
 }  // namespace viz

@@ -1,9 +1,3 @@
-ellyjones@chromium.org
-jeffreycohen@chromium.org
-sebsg@chromium.org
-skare@chromium.org
-sophey@chromium.org
-wiss@chromium.org
-wry@chromium.org
+file://components/send_tab_to_self/OWNERS
 
-per-file *.gni=file://components/paint_preview/OWNERS
+# COMPONENT: UI>Browser>Sharing

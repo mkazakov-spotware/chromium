@@ -1,10 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -20,7 +20,6 @@
 #include "ui/views/controls/webview/webview.h"
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/view.h"
-#include "ui/views/view_utils.h"
 #include "url/gurl.h"
 
 const char kSimplePage[] = "/focus/page_with_focus.html";
@@ -28,15 +27,14 @@ const char kSimplePage[] = "/focus/page_with_focus.html";
 class BrowserViewFocusTest : public InProcessBrowserTest {
  public:
   BrowserViewFocusTest() = default;
-
-  BrowserViewFocusTest(const BrowserViewFocusTest&) = delete;
-  BrowserViewFocusTest& operator=(const BrowserViewFocusTest&) = delete;
-
   ~BrowserViewFocusTest() override = default;
 
   bool IsViewFocused(ViewID vid) {
     return ui_test_utils::IsViewFocused(browser(), vid);
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BrowserViewFocusTest);
 };
 
 IN_PROC_BROWSER_TEST_F(BrowserViewFocusTest, BrowsersRememberFocus) {
@@ -45,7 +43,7 @@ IN_PROC_BROWSER_TEST_F(BrowserViewFocusTest, BrowsersRememberFocus) {
 
   // First we navigate to our test page.
   GURL url = embedded_test_server()->GetURL(kSimplePage);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
 
   gfx::NativeWindow window = browser()->window()->GetNativeWindow();
 
@@ -65,14 +63,14 @@ IN_PROC_BROWSER_TEST_F(BrowserViewFocusTest, BrowsersRememberFocus) {
 
   // The rest of this test does not make sense on Linux because the behavior
   // of Activate() is not well defined and can vary by window manager.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Open a new browser window.
   Browser* browser2 =
       Browser::Create(Browser::CreateParams(browser()->profile(), true));
   ASSERT_TRUE(browser2);
   chrome::AddTabAt(browser2, GURL(), -1, true);
   browser2->window()->Show();
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser2, url));
+  ui_test_utils::NavigateToURL(browser2, url);
 
   gfx::NativeWindow window2 = browser2->window()->GetNativeWindow();
   BrowserView* browser_view2 = BrowserView::GetBrowserViewForBrowser(browser2);
@@ -112,14 +110,11 @@ class FocusedViewClassRecorder : public views::FocusChangeListener {
     focus_manager_->AddFocusChangeListener(this);
   }
 
-  FocusedViewClassRecorder(const FocusedViewClassRecorder&) = delete;
-  FocusedViewClassRecorder& operator=(const FocusedViewClassRecorder&) = delete;
   ~FocusedViewClassRecorder() override {
     focus_manager_->RemoveFocusChangeListener(this);
   }
 
-  bool GetHasFocusedOnNonWebView() { return has_focused_on_non_webview_; }
-  int GetFocusChangeCount() { return focus_change_count; }
+  std::vector<std::string>& GetFocusClasses() { return focus_classes_; }
 
  private:
   // Inherited from views::FocusChangeListener
@@ -127,17 +122,16 @@ class FocusedViewClassRecorder : public views::FocusChangeListener {
                          views::View* focused_now) override {}
   void OnDidChangeFocus(views::View* focused_before,
                         views::View* focused_now) override {
+    std::string class_name;
     if (focused_now)
-      if (!views::IsViewClass<views::WebView>(focused_now))
-        // Focused views could be destroyed. Track what we want to test for when
-        // OnDidChangeFocus is called.
-        has_focused_on_non_webview_ = true;
-    focus_change_count++;
+      class_name = focused_now->GetClassName();
+    focus_classes_.push_back(class_name);
   }
 
-  raw_ptr<views::FocusManager> focus_manager_;
-  bool has_focused_on_non_webview_ = false;
-  int focus_change_count = 0;
+  views::FocusManager* focus_manager_;
+  std::vector<std::string> focus_classes_;
+
+  DISALLOW_COPY_AND_ASSIGN(FocusedViewClassRecorder);
 };
 
 // Switching tabs does not focus views unexpectedly.
@@ -148,10 +142,10 @@ IN_PROC_BROWSER_TEST_F(BrowserViewFocusTest, TabChangesAvoidSpuriousFocus) {
 
   // First we navigate to our test page.
   GURL url = embedded_test_server()->GetURL(kSimplePage);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
 
   // Create another tab.
-  ASSERT_TRUE(AddTabAtIndex(1, url, ui::PAGE_TRANSITION_TYPED));
+  AddTabAtIndex(1, url, ui::PAGE_TRANSITION_TYPED);
 
   // Begin recording focus changes.
   gfx::NativeWindow window = browser()->window()->GetNativeWindow();
@@ -163,7 +157,16 @@ IN_PROC_BROWSER_TEST_F(BrowserViewFocusTest, TabChangesAvoidSpuriousFocus) {
   ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_TAB, true,
                                               false, false, false));
 
-  // Everything that was focused on must be a WebView.
-  EXPECT_FALSE(focus_change_recorder.GetHasFocusedOnNonWebView());
-  EXPECT_EQ(focus_change_recorder.GetFocusChangeCount(), 2);
+  std::vector<std::string>& focused_classes =
+      focus_change_recorder.GetFocusClasses();
+
+  // Everything before the last focus must be either "" (nothing) or a WebView.
+  for (size_t index = 0; index < focused_classes.size() - 1; index++) {
+    EXPECT_THAT(focused_classes[index],
+                testing::AnyOf("", views::WebView::kViewClassName));
+  }
+
+  // Must end up focused on a WebView.
+  ASSERT_FALSE(focused_classes.empty());
+  EXPECT_EQ(views::WebView::kViewClassName, focused_classes.back());
 }

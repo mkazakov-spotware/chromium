@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/core/fetch/bytes_consumer_test_util.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
-#include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/testing/page_test_base.h"
 #include "third_party/blink/renderer/platform/blob/blob_data.h"
 #include "third_party/blink/renderer/platform/loader/testing/bytes_consumer_test_reader.h"
@@ -37,7 +36,7 @@ class BytesConsumerTestClient final
 class BytesConsumerTeeTest : public PageTestBase {
  public:
   using Command = ReplayingBytesConsumer::Command;
-  void SetUp() override { PageTestBase::SetUp(gfx::Size()); }
+  void SetUp() override { PageTestBase::SetUp(IntSize()); }
 };
 
 class FakeBlobBytesConsumer : public BytesConsumer {
@@ -137,10 +136,10 @@ TEST_F(BytesConsumerTeeTest, CreateDone) {
   auto result2 = (MakeGarbageCollected<BytesConsumerTestReader>(dest2))->Run();
 
   EXPECT_EQ(Result::kDone, result1.first);
-  EXPECT_TRUE(result1.second.empty());
+  EXPECT_TRUE(result1.second.IsEmpty());
   EXPECT_EQ(BytesConsumer::PublicState::kClosed, dest1->GetPublicState());
   EXPECT_EQ(Result::kDone, result2.first);
-  EXPECT_TRUE(result2.second.empty());
+  EXPECT_TRUE(result2.second.IsEmpty());
   EXPECT_EQ(BytesConsumer::PublicState::kClosed, dest2->GetPublicState());
   EXPECT_FALSE(src->IsCancelled());
 
@@ -238,10 +237,10 @@ TEST_F(BytesConsumerTeeTest, Error) {
   auto result2 = (MakeGarbageCollected<BytesConsumerTestReader>(dest2))->Run();
 
   EXPECT_EQ(Result::kError, result1.first);
-  EXPECT_TRUE(result1.second.empty());
+  EXPECT_TRUE(result1.second.IsEmpty());
   EXPECT_EQ(BytesConsumer::PublicState::kErrored, dest1->GetPublicState());
   EXPECT_EQ(Result::kError, result2.first);
-  EXPECT_TRUE(result2.second.empty());
+  EXPECT_TRUE(result2.second.IsEmpty());
   EXPECT_EQ(BytesConsumer::PublicState::kErrored, dest2->GetPublicState());
   EXPECT_FALSE(src->IsCancelled());
 

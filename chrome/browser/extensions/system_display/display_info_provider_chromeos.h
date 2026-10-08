@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,9 @@
 #include <map>
 #include <memory>
 
+#include "ash/public/mojom/cros_display_config.mojom.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "chromeos/crosapi/mojom/cros_display_config.mojom.h"
 #include "extensions/browser/api/system_display/display_info_provider.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -19,16 +20,11 @@ namespace extensions {
 
 class DisplayInfoProviderChromeOS
     : public DisplayInfoProvider,
-      public crosapi::mojom::CrosDisplayConfigObserver {
+      public ash::mojom::CrosDisplayConfigObserver {
  public:
   explicit DisplayInfoProviderChromeOS(
-      mojo::PendingRemote<crosapi::mojom::CrosDisplayConfigController>
+      mojo::PendingRemote<ash::mojom::CrosDisplayConfigController>
           display_config);
-
-  DisplayInfoProviderChromeOS(const DisplayInfoProviderChromeOS&) = delete;
-  DisplayInfoProviderChromeOS& operator=(const DisplayInfoProviderChromeOS&) =
-      delete;
-
   ~DisplayInfoProviderChromeOS() override;
 
   // DisplayInfoProvider implementation.
@@ -62,33 +58,33 @@ class DisplayInfoProviderChromeOS
   void StartObserving() override;
   void StopObserving() override;
 
-  // crosapi::mojom::CrosDisplayConfigObserver
+  // ash::mojom::CrosDisplayConfigObserver
   void OnDisplayConfigChanged() override;
 
  private:
-  void CallSetDisplayLayoutInfo(
-      crosapi::mojom::DisplayLayoutInfoPtr layout_info,
-      ErrorCallback callback,
-      crosapi::mojom::DisplayLayoutInfoPtr cur_info);
+  void CallSetDisplayLayoutInfo(ash::mojom::DisplayLayoutInfoPtr layout_info,
+                                ErrorCallback callback,
+                                ash::mojom::DisplayLayoutInfoPtr cur_info);
   void CallGetDisplayUnitInfoList(
       bool single_unified,
       base::OnceCallback<void(DisplayUnitInfoList result)> callback,
-      crosapi::mojom::DisplayLayoutInfoPtr layout);
+      ash::mojom::DisplayLayoutInfoPtr layout);
   void OnGetDisplayUnitInfoList(
-      crosapi::mojom::DisplayLayoutInfoPtr layout,
+      ash::mojom::DisplayLayoutInfoPtr layout,
       base::OnceCallback<void(DisplayUnitInfoList)> callback,
-      std::vector<crosapi::mojom::DisplayUnitInfoPtr> info_list);
+      std::vector<ash::mojom::DisplayUnitInfoPtr> info_list);
   void CallTouchCalibration(const std::string& id,
-                            crosapi::mojom::DisplayConfigOperation op,
-                            crosapi::mojom::TouchCalibrationPtr calibration,
+                            ash::mojom::DisplayConfigOperation op,
+                            ash::mojom::TouchCalibrationPtr calibration,
                             ErrorCallback callback);
 
-  mojo::Remote<crosapi::mojom::CrosDisplayConfigController>
-      cros_display_config_;
-  mojo::AssociatedReceiver<crosapi::mojom::CrosDisplayConfigObserver>
+  mojo::Remote<ash::mojom::CrosDisplayConfigController> cros_display_config_;
+  mojo::AssociatedReceiver<ash::mojom::CrosDisplayConfigObserver>
       cros_display_config_observer_receiver_{this};
   std::string touch_calibration_target_id_;
   base::WeakPtrFactory<DisplayInfoProviderChromeOS> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DisplayInfoProviderChromeOS);
 };
 
 }  // namespace extensions

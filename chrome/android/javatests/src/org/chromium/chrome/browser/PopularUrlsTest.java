@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,6 @@ import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.ui.base.PageTransition;
-import org.chromium.url.GURL;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -237,7 +236,7 @@ public class PopularUrlsTest {
 
         tab.addObserver(new EmptyTabObserver() {
             @Override
-            public void onPageLoadFinished(Tab tab, GURL url) {
+            public void onPageLoadFinished(Tab tab, String url) {
                 loadedCallback.notifyCalled();
             }
 
@@ -356,8 +355,7 @@ public class PopularUrlsTest {
                 loadUrl(page, failureWriter);
                 long stopTime = System.currentTimeMillis();
 
-                String currentUrl =
-                        mActivityTestRule.getActivity().getActivityTab().getUrl().getSpec();
+                String currentUrl = mActivityTestRule.getActivity().getActivityTab().getUrlString();
                 Log.i(TAG, "Finish: " + currentUrl);
                 logToStream(page + "|" + (stopTime - startTime) + NEW_LINE, outputWriter);
                 mStatus.incrementPage();

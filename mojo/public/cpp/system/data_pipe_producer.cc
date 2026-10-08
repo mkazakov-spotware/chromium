@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,10 +14,12 @@
 #include "base/location.h"
 #include "base/memory/ref_counted_delete_on_sequence.h"
 #include "base/numerics/safe_conversions.h"
+#include "base/sequenced_task_runner.h"
 #include "base/synchronization/lock.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/thread_annotations.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "mojo/public/cpp/system/simple_watcher.h"
 
 namespace mojo {
@@ -48,9 +50,6 @@ class DataPipeProducer::SequenceState
         producer_handle_(std::move(producer_handle)),
         callback_(std::move(callback)) {}
 
-  SequenceState(const SequenceState&) = delete;
-  SequenceState& operator=(const SequenceState&) = delete;
-
   void Cancel() {
     base::AutoLock lock(lock_);
     is_cancelled_ = true;
@@ -78,7 +77,7 @@ class DataPipeProducer::SequenceState
       // watcher and complete the read asynchronously.
       watcher_ = std::make_unique<SimpleWatcher>(
           FROM_HERE, SimpleWatcher::ArmingPolicy::AUTOMATIC,
-          base::SequencedTaskRunner::GetCurrentDefault());
+          base::SequencedTaskRunnerHandle::Get());
       watcher_->Watch(producer_handle_.get(), MOJO_HANDLE_SIGNAL_WRITABLE,
                       MOJO_WATCH_CONDITION_SATISFIED,
                       base::BindRepeating(&SequenceState::OnHandleReady, this));
@@ -111,16 +110,7 @@ class DataPipeProducer::SequenceState
       // Lock as much of the pipe as we can.
       void* pipe_buffer;
       uint32_t size = kDefaultMaxReadSize;
-
-      DCHECK_LE(bytes_transferred_, data_source_->GetLength());
-      const uint64_t max_data_size =
-          data_source_->GetLength() - bytes_transferred_;
-      if (max_data_size == 0) {
-        // There's no more data to transfer.
-        Finish(MOJO_RESULT_OK);
-        return;
-      }
-
+      uint64_t max_data_size = data_source_->GetLength();
       if (static_cast<uint64_t>(size) > max_data_size)
         size = static_cast<uint32_t>(max_data_size);
 
@@ -145,6 +135,13 @@ class DataPipeProducer::SequenceState
       }
 
       bytes_transferred_ += result.bytes_read;
+
+      if (result.bytes_read < read_buffer.size()) {
+        // DataSource::Read makes a best effort to read all requested bytes. We
+        // reasonably assume if it fails to read what we ask for, we've hit EOF.
+        Finish(MOJO_RESULT_OK);
+        return;
+      }
     }
   }
 
@@ -174,6 +171,8 @@ class DataPipeProducer::SequenceState
 
   base::Lock lock_;
   bool is_cancelled_ GUARDED_BY(lock_) = false;
+
+  DISALLOW_COPY_AND_ASSIGN(SequenceState);
 };
 
 DataPipeProducer::DataPipeProducer(ScopedDataPipeProducerHandle producer)
@@ -201,7 +200,7 @@ void DataPipeProducer::InitializeNewRequest(CompletionCallback callback) {
       std::move(producer_), file_task_runner,
       base::BindOnce(&DataPipeProducer::OnWriteComplete,
                      weak_factory_.GetWeakPtr(), std::move(callback)),
-      base::SequencedTaskRunner::GetCurrentDefault());
+      base::SequencedTaskRunnerHandle::Get());
 }
 
 void DataPipeProducer::OnWriteComplete(CompletionCallback callback,

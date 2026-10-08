@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,16 +9,15 @@
 #include "base/path_service.h"
 #include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/path_utils.h"
 #include "base/base_paths_android.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/base_paths_win.h"
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "base/nix/xdg_util.h"
 #endif
 
@@ -27,16 +26,16 @@ namespace weblayer {
 namespace {
 
 bool GetDefaultUserDataDirectory(base::FilePath* result) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // No need to append "weblayer" here. It's done in java with
   // PathUtils.setPrivateDataDirectorySuffix.
   return base::PathService::Get(base::DIR_ANDROID_APP_DATA, result);
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   if (!base::PathService::Get(base::DIR_LOCAL_APP_DATA, result))
     return false;
   *result = result->AppendASCII("weblayer");
   return true;
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS)
   std::unique_ptr<base::Environment> env(base::Environment::Create());
   base::FilePath config_dir(base::nix::GetXDGDirectory(
       env.get(), base::nix::kXdgConfigHomeEnvVar, base::nix::kDotConfigDir));
@@ -68,7 +67,7 @@ bool PathProvider(int key, base::FilePath* result) {
         WebLayerPathProvider::CreateDir(*result);
       return rv;
     }
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
     case DIR_CRASH_DUMPS:
       if (!base::android::GetCacheDirectory(&cur))
         return false;

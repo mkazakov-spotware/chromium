@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include "base/strings/string16.h"
 #include "compat/non_win/minwinbase.h"
 
 //! \brief Information about a time zone and its daylight saving rules.
@@ -26,7 +27,7 @@ struct TIME_ZONE_INFORMATION {
 
   //! \brief The UTF-16-encoded name of the time zone when observing standard
   //!     time.
-  char16_t StandardName[32];
+  base::char16 StandardName[32];
 
   //! \brief The date and time to switch from daylight saving time to standard
   //!     time.
@@ -44,7 +45,7 @@ struct TIME_ZONE_INFORMATION {
 
   //! \brief The UTF-16-encoded name of the time zone when observing daylight
   //!     saving time.
-  char16_t DaylightName[32];
+  base::char16 DaylightName[32];
 
   //! \brief The date and time to switch from standard time to daylight saving
   //!     time.

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,10 @@
 
 #include <memory>
 
-#include "base/base_export.h"
 #include "base/containers/buffer_iterator.h"
 #include "base/containers/span.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/macros.h"
+#include "base/optional.h"
 
 namespace base {
 
@@ -41,15 +41,11 @@ class BASE_EXPORT ArmCFITable {
   ArmCFITable(span<const uint32_t> function_addresses,
               span<const uint16_t> entry_data_indices,
               span<const uint8_t> entry_data);
-
-  ArmCFITable(const ArmCFITable&) = delete;
-  ArmCFITable& operator=(const ArmCFITable&) = delete;
-
   ~ArmCFITable();
 
   // Finds the CFI row for the given |address| in terms of offset from the
   // start of the current binary. Concurrent calls are thread safe.
-  absl::optional<FrameEntry> FindEntryForAddress(uintptr_t address) const;
+  Optional<FrameEntry> FindEntryForAddress(uintptr_t address) const;
 
   size_t GetTableSizeForTesting() const { return function_addresses_.size(); }
 
@@ -70,6 +66,8 @@ class BASE_EXPORT ArmCFITable {
   // corresponds to a function, which in turn corresponds to an array of
   // CFIDataRows. (see arm_cfi_reader.cc).
   const span<const uint8_t> entry_data_;
+
+  DISALLOW_COPY_AND_ASSIGN(ArmCFITable);
 };
 
 }  // namespace base

@@ -35,6 +35,7 @@
 #include "third_party/blink/renderer/core/dom/whitespace_attacher.h"
 #include "third_party/blink/renderer/core/layout/layout_object_factory.h"
 #include "third_party/blink/renderer/core/layout/layout_text.h"
+#include "third_party/blink/renderer/core/layout/layout_text_combine.h"
 #include "third_party/blink/renderer/core/layout/layout_text_fragment.h"
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_inline_text.h"
 #include "third_party/blink/renderer/core/svg/svg_foreign_object_element.h"
@@ -47,10 +48,6 @@ namespace blink {
 
 Text* Text::Create(Document& document, const String& data) {
   return MakeGarbageCollected<Text>(document, data, kCreateText);
-}
-
-Text* Text::Create(Document& document, String&& data) {
-  return MakeGarbageCollected<Text>(document, std::move(data), kCreateText);
 }
 
 Text* Text::CreateEditingText(Document& document, const String& data) {
@@ -127,13 +124,8 @@ Text* Text::splitText(unsigned offset, ExceptionState& exception_state) {
   if (exception_state.HadException())
     return nullptr;
 
-  if (GetLayoutObject()) {
+  if (GetLayoutObject())
     GetLayoutObject()->SetTextWithOffset(DataImpl(), 0, old_str.length());
-    if (ContainsOnlyWhitespaceOrEmpty()) {
-      // To avoid |LayoutText| has empty text, we rebuild layout tree.
-      SetForceReattachLayoutTree();
-    }
-  }
 
   if (parentNode())
     GetDocument().DidSplitTextNode(*this);
@@ -199,7 +191,7 @@ String Text::wholeText() const {
   }
   DCHECK_EQ(result.length(), result_length);
 
-  return result.ReleaseString();
+  return result.ToString();
 }
 
 Text* Text::ReplaceWholeText(const String& new_text) {
@@ -230,7 +222,7 @@ Text* Text::ReplaceWholeText(const String& new_text) {
     }
   }
 
-  if (new_text.empty()) {
+  if (new_text.IsEmpty()) {
     if (parent && parentNode() == parent)
       parent->RemoveChild(this, IGNORE_EXCEPTION_FOR_TESTING);
     return nullptr;
@@ -242,6 +234,10 @@ Text* Text::ReplaceWholeText(const String& new_text) {
 
 String Text::nodeName() const {
   return "#text";
+}
+
+Node::NodeType Text::getNodeType() const {
+  return kTextNode;
 }
 
 Node* Text::Clone(Document& factory, CloneChildrenFlag) const {
@@ -262,8 +258,8 @@ static inline bool CanHaveWhitespaceChildren(
     return true;
 
   if (parent.IsTable() || parent.IsTableRow() || parent.IsTableSection() ||
-      parent.IsLayoutTableCol() || parent.IsFrameSetIncludingNG() ||
-      parent.IsFlexibleBoxIncludingNG() || parent.IsLayoutGridIncludingNG() ||
+      parent.IsLayoutTableCol() || parent.IsFrameSet() ||
+      parent.IsFlexibleBoxIncludingNG() || parent.IsLayoutGrid() ||
       parent.IsSVGRoot() || parent.IsSVGContainer() || parent.IsSVGImage() ||
       parent.IsSVGShape()) {
     if (!context.use_previous_in_flow || !context.previous_in_flow ||
@@ -279,6 +275,8 @@ static inline bool CanHaveWhitespaceChildren(
 
 bool Text::TextLayoutObjectIsNeeded(const AttachContext& context,
                                     const ComputedStyle& style) const {
+  DCHECK(!GetDocument().ChildNeedsDistributionRecalc());
+
   const LayoutObject& parent = *context.parent;
   if (!parent.CanHaveChildren())
     return false;
@@ -331,10 +329,10 @@ static bool IsSVGText(Text* text) {
 LayoutText* Text::CreateTextLayoutObject(const ComputedStyle& style,
                                          LegacyLayout legacy) {
   if (IsSVGText(this))
-    return MakeGarbageCollected<LayoutSVGInlineText>(this, DataImpl());
+    return new LayoutSVGInlineText(this, DataImpl());
 
   if (style.HasTextCombine())
-    return LayoutObjectFactory::CreateTextCombine(this, DataImpl(), legacy);
+    return new LayoutTextCombine(this, DataImpl());
 
   return LayoutObjectFactory::CreateText(this, DataImpl(), legacy);
 }
@@ -343,13 +341,7 @@ void Text::AttachLayoutTree(AttachContext& context) {
   if (context.parent) {
     ContainerNode* style_parent = LayoutTreeBuilderTraversal::Parent(*this);
     if (style_parent) {
-      // To handle <body> to <html> writing-mode propagation, we should use
-      // style in layout object instead of |Node::GetComputedStyle()|.
-      // See http://crbug.com/988585
-      const ComputedStyle* const style =
-          IsA<HTMLHtmlElement>(style_parent) && style_parent->GetLayoutObject()
-              ? style_parent->GetLayoutObject()->Style()
-              : style_parent->GetComputedStyle();
+      const ComputedStyle* style = style_parent->GetComputedStyle();
       DCHECK(style);
       if (TextLayoutObjectIsNeeded(context, *style)) {
         LayoutTreeBuilderForText(*this, context, style).CreateLayoutObject();
@@ -437,40 +429,25 @@ static bool ShouldUpdateLayoutByReattaching(const Text& text_node,
   DCHECK_EQ(text_node.GetLayoutObject(), text_layout_object);
   if (!text_layout_object)
     return true;
+  // In general we do not want to branch on lifecycle states such as
+  // |ChildNeedsDistributionRecalc|, but this code tries to figure out if we can
+  // use an optimized code path that avoids reattach.
   Node::AttachContext context;
   context.parent = text_layout_object->Parent();
-  if (!text_node.TextLayoutObjectIsNeeded(context,
+  if (!text_node.GetDocument().ChildNeedsDistributionRecalc() &&
+      !text_node.TextLayoutObjectIsNeeded(context,
                                           *text_layout_object->Style())) {
     return true;
   }
   if (text_layout_object->IsTextFragment()) {
-    // Changes of |text_node| may change first letter part, so we should
-    // reattach. Note: When |text_node| is empty or holds collapsed whitespaces
+    // Changes of |textNode| may change first letter part, so we should
+    // reattach. Note: When |textNode| is empty or holds collapsed white spaces
     // |text_fragment_layout_object| represents first-letter part but it isn't
     // inside first-letter-pseudo element. See http://crbug.com/978947
     const auto& text_fragment_layout_object =
         *To<LayoutTextFragment>(text_layout_object);
     return text_fragment_layout_object.GetFirstLetterPseudoElement() ||
            !text_fragment_layout_object.IsRemainingTextLayoutObject();
-  }
-  // If we force a re-attach for password inputs and other elements hiding text
-  // input via -webkit-text-security, the last character input will be hidden
-  // immediately, even if the passwordEchoEnabled setting is enabled.
-  // ::first-letter do not seem to apply to text inputs, so for those skipping
-  // the re-attachment should be safe.
-  // We can possibly still cause DCHECKs for mismatch of first letter text in
-  // editing with the combination of -webkit-text-security in author styles on
-  // other elements in combination with ::first-letter.
-  // See crbug.com/1240988
-  if (text_layout_object->IsSecure())
-    return false;
-  if (!FirstLetterPseudoElement::FirstLetterLength(
-          text_layout_object->GetText()) &&
-      FirstLetterPseudoElement::FirstLetterLength(text_node.data())) {
-    // We did not previously apply ::first-letter styles to this |text_node|,
-    // and if there was no first formatted letter, but now is, we may need to
-    // reattach.
-    return true;
   }
   return false;
 }

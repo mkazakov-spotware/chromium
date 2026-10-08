@@ -1,15 +1,6 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {FileType} from 'chrome://file-manager/common/js/file_type.js';
-import {assert, assertInstanceof} from 'chrome://resources/js/assert.js';
-
-import {ImageCache} from './cache.js';
-import {ImageLoaderUtil} from './image_loader_util.js';
-import {ImageOrientation} from './image_orientation.js';
-import {LoadImageRequest, LoadImageResponse, LoadImageResponseStatus} from './load_image_request.js';
-import {PiexLoader} from './piex_loader.js';
 
 /**
  * Creates and starts downloading and then resizing of the image. Finally,
@@ -21,7 +12,7 @@ import {PiexLoader} from './piex_loader.js';
  * @param {function(!LoadImageResponse)} callback Response handler.
  * @constructor
  */
-export function ImageRequestTask(id, cache, request, callback) {
+function ImageRequestTask(id, cache, request, callback) {
   /**
    * Global ID (concatenated client ID and client request ID).
    * @type {string}
@@ -92,11 +83,6 @@ export function ImageRequestTask(id, cache, request, callback) {
       /** @type {CanvasRenderingContext2D} */ (this.canvas_.getContext('2d'));
 
   /**
-   * @type {ImageOrientation|null}
-   */
-  this.renderOrientation_ = null;
-
-  /**
    * Callback to be called once downloading is finished.
    * @type {?function()}
    * @private
@@ -131,7 +117,7 @@ ImageRequestTask.MAX_MILLISECONDS_TO_LOAD_VIDEO = 3000;
 /**
  * The default size (width and height) of a square thumbnail. The value is set
  * to match the behavior of drivefs thumbnail generation.
- * See chromeos/ash/components/drivefs/mojom/drivefs.mojom
+ * See chromeos/components/drivefs/mojom/drivefs.mojom
  * @const
  * @type {number}
  */
@@ -140,7 +126,7 @@ ImageRequestTask.DEFAULT_THUMBNAIL_SQUARE_SIZE = 360;
 /**
  * The default width of a non-square thumbnail. The value is set to match the
  * behavior of drivefs thumbnail generation.
- * See chromeos/ash/components/drivefs/mojom/drivefs.mojom
+ * See chromeos/components/drivefs/mojom/drivefs.mojom
  * @const
  * @type {number}
  */
@@ -149,7 +135,7 @@ ImageRequestTask.DEFAULT_THUMBNAIL_WIDTH = 500;
 /**
  * The default height of a non-square thumbnail. The value is set to match the
  * behavior of drivefs thumbnail generation.
- * See chromeos/ash/components/drivefs/mojom/drivefs.mojom
+ * See chromeos/components/drivefs/mojom/drivefs.mojom
  * @const
  * @type {number}
  */
@@ -165,7 +151,7 @@ ImageRequestTask.ExtensionContentTypeMap = {
   svg: 'image/svg',
   bmp: 'image/bmp',
   jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
+  jpeg: 'image/jpeg'
 };
 
 /**
@@ -347,14 +333,14 @@ ImageRequestTask.prototype.downloadThumbnail_ = function(onSuccess, onFailure) {
 
   const resolveLocalFileSystemUrl = (url, onResolveSuccess) => {
     window.webkitResolveLocalFileSystemURL(url, onResolveSuccess, error => {
-      console.warn(error);
+      console.error(error);
       onFailure();
     });
   };
 
   const onExternalThumbnail = (dataUrl) => {
     if (chrome.runtime.lastError) {
-      console.warn(chrome.runtime.lastError.message);
+      console.error(chrome.runtime.lastError.message);
       onFailure();
     } else if (dataUrl) {
       this.image_.src = dataUrl;
@@ -405,7 +391,7 @@ ImageRequestTask.prototype.downloadThumbnail_ = function(onSuccess, onFailure) {
     PiexLoader.load(this.request_.url, chrome.runtime.reload)
         .then(
             function(data) {
-              this.renderOrientation_ =
+              this.request_.orientation =
                   ImageOrientation.fromExifOrientation(data.orientation);
               this.ifd_ = data.ifd;
               this.contentType_ = data.mimeType;
@@ -413,7 +399,7 @@ ImageRequestTask.prototype.downloadThumbnail_ = function(onSuccess, onFailure) {
               this.image_.src = URL.createObjectURL(blob);
             }.bind(this),
             function() {
-              // PiexLoader calls console.warn on errors.
+              // PiexLoader calls console.error on errors.
               onFailure();
             });
     return;
@@ -426,7 +412,7 @@ ImageRequestTask.prototype.downloadThumbnail_ = function(onSuccess, onFailure) {
           this.image_.src = url;
         }.bind(this))
         .catch(function(error) {
-          console.warn('Video thumbnail error: ', error);
+          console.error('Video thumbnail error: ', error);
           onFailure();
         });
     return;
@@ -436,9 +422,6 @@ ImageRequestTask.prototype.downloadThumbnail_ = function(onSuccess, onFailure) {
   this.load(this.request_.url, (contentType, blob) => {
     this.image_.src = blob ? URL.createObjectURL(blob) : '!';
     this.contentType_ = contentType || null;
-    if (this.contentType_ === 'image/jpeg') {
-      this.renderOrientation_ = ImageOrientation.fromExifOrientation(1);
-    }
   }, onFailure);
 };
 
@@ -472,7 +455,7 @@ ImageRequestTask.prototype.createVideoThumbnailUrl_ = function(url) {
           video.src =
               '';  // Make sure to stop loading remaining part of the video.
           throw new Error('Seeking video failed.');
-        }),
+        })
       ])
       .then(() => {
         const canvas = assertInstanceof(
@@ -636,13 +619,6 @@ ImageRequestTask.prototype.sendImageData_ = function(width, height, data) {
  * @private
  */
 ImageRequestTask.prototype.onImageLoad_ = function() {
-  const requestOrientation = this.request_.orientation;
-
-  // Override the request orientation before processing if needed.
-  if (this.renderOrientation_) {
-    this.request_.orientation = this.renderOrientation_;
-  }
-
   // Perform processing if the url is not a data url, or if there are some
   // operations requested.
   let imageChanged = false;
@@ -654,12 +630,6 @@ ImageRequestTask.prototype.onImageLoad_ = function() {
     imageChanged = true;  // The image is now on the <canvas>.
   }
 
-  // Restore the request orientation after processing.
-  if (this.renderOrientation_) {
-    this.request_.orientation = requestOrientation;
-  }
-
-  // Finalize the request.
   this.sendImage_(imageChanged);
   this.cleanup_();
   this.downloadCallback_();

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,7 @@
 #include "base/mac/scoped_mach_port.h"
 #include "base/threading/platform_thread.h"
 #include "base/time/time.h"
-#include "chrome/updater/updater_branding.h"
-#include "chrome/updater/updater_scope.h"
+#include "chrome/updater/updater_version.h"
 
 namespace {
 
@@ -23,7 +22,8 @@ constexpr char kPrefsLockMachServiceName[] =
 
 // Interval to poll for lock availability if it is not immediately available.
 // Final interval will be truncated to fit the available timeout.
-constexpr base::TimeDelta kPrefsLockPollingInterval = base::Seconds(3);
+constexpr base::TimeDelta kPrefsLockPollingInterval =
+    base::TimeDelta::FromSeconds(3);
 
 //
 // Attempts to acquire the receive right to a named Mach service.
@@ -105,7 +105,6 @@ ScopedPrefsLock::ScopedPrefsLock(std::unique_ptr<ScopedPrefsLockImpl> impl)
 ScopedPrefsLock::~ScopedPrefsLock() = default;
 
 std::unique_ptr<ScopedPrefsLock> AcquireGlobalPrefsLock(
-    UpdaterScope scope,
     base::TimeDelta timeout) {
   // First, try to acquire the lock. If the timeout is zero or negative,
   // this is the only attempt we will make.

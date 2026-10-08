@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include <utility>
 
-#include "ash/constants/ash_switches.h"
+#include "ash/public/cpp/ash_switches.h"
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/shell.h"
 #include "ash/wm/window_animations.h"
@@ -40,8 +40,11 @@ const int SessionStateAnimator::kAllNonRootContainersMask =
     SessionStateAnimator::NON_LOCK_SCREEN_CONTAINERS;
 
 SessionStateAnimator::AnimationSequence::AnimationSequence(
-    AnimationCallback callback)
-    : callback_(std::move(callback)) {}
+    base::OnceClosure callback)
+    : sequence_ended_(false),
+      animation_completed_(false),
+      invoke_callback_(false),
+      callback_(std::move(callback)) {}
 
 SessionStateAnimator::AnimationSequence::~AnimationSequence() = default;
 
@@ -51,19 +54,21 @@ void SessionStateAnimator::AnimationSequence::EndSequence() {
 }
 
 void SessionStateAnimator::AnimationSequence::OnAnimationCompleted() {
-  animation_finished_ = true;
+  animation_completed_ = true;
+  invoke_callback_ = true;
   CleanupIfSequenceCompleted();
 }
 
 void SessionStateAnimator::AnimationSequence::OnAnimationAborted() {
-  animation_finished_ = true;
-  animation_aborted_ = true;
+  animation_completed_ = true;
+  invoke_callback_ = false;
   CleanupIfSequenceCompleted();
 }
 
 void SessionStateAnimator::AnimationSequence::CleanupIfSequenceCompleted() {
-  if (sequence_ended_ && animation_finished_) {
-    std::move(callback_).Run(animation_aborted_);
+  if (sequence_ended_ && animation_completed_) {
+    if (invoke_callback_)
+      std::move(callback_).Run();
     delete this;
   }
 }
@@ -78,16 +83,22 @@ base::TimeDelta SessionStateAnimator::GetDuration(
     case ANIMATION_SPEED_IMMEDIATE:
       return base::TimeDelta();
     case ANIMATION_SPEED_UNDOABLE:
-      return base::Milliseconds(400);
+      return base::TimeDelta::FromMilliseconds(400);
+    case ANIMATION_SPEED_REVERT:
+      return base::TimeDelta::FromMilliseconds(150);
+    case ANIMATION_SPEED_FAST:
+      return base::TimeDelta::FromMilliseconds(150);
+    case ANIMATION_SPEED_SHOW_LOCK_SCREEN:
+      return base::TimeDelta::FromMilliseconds(200);
     case ANIMATION_SPEED_MOVE_WINDOWS:
-      return base::Milliseconds(350);
+      return base::TimeDelta::FromMilliseconds(350);
     case ANIMATION_SPEED_UNDO_MOVE_WINDOWS:
-      return base::Milliseconds(350);
+      return base::TimeDelta::FromMilliseconds(350);
     case ANIMATION_SPEED_SHUTDOWN:
-      return IsTabletModeEnabled() ? base::Milliseconds(1500)
-                                   : base::Milliseconds(1000);
+      return IsTabletModeEnabled() ? base::TimeDelta::FromMilliseconds(1500)
+                                   : base::TimeDelta::FromMilliseconds(1000);
     case ANIMATION_SPEED_REVERT_SHUTDOWN:
-      return base::Milliseconds(500);
+      return base::TimeDelta::FromMilliseconds(500);
   }
   // Satisfy compilers that do not understand that we will return from switch
   // above anyway.

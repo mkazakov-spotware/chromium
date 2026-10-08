@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,7 @@
 // intervening calls to Delete or Take, or the calls will fail.
 
 #include "base/base_export.h"
+#include "base/compiler_specific.h"
 #include "base/files/file_path.h"
 
 namespace base {
@@ -35,17 +36,17 @@ class BASE_EXPORT ScopedTempDir {
 
   // Creates a unique directory in TempPath, and takes ownership of it.
   // See file_util::CreateNewTemporaryDirectory.
-  [[nodiscard]] bool CreateUniqueTempDir();
+  bool CreateUniqueTempDir() WARN_UNUSED_RESULT;
 
   // Creates a unique directory under a given path, and takes ownership of it.
-  [[nodiscard]] bool CreateUniqueTempDirUnderPath(const FilePath& path);
+  bool CreateUniqueTempDirUnderPath(const FilePath& path) WARN_UNUSED_RESULT;
 
   // Takes ownership of directory at |path|, creating it if necessary.
   // Don't call multiple times unless Take() has been called first.
-  [[nodiscard]] bool Set(const FilePath& path);
+  bool Set(const FilePath& path) WARN_UNUSED_RESULT;
 
   // Deletes the temporary directory wrapped by this object.
-  [[nodiscard]] bool Delete();
+  bool Delete() WARN_UNUSED_RESULT;
 
   // Caller takes ownership of the temporary directory so it won't be destroyed
   // when this object goes out of scope.

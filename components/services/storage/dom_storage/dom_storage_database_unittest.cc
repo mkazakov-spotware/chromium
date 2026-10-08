@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,10 @@
 
 #include "base/files/file_path.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/string_piece.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
@@ -57,7 +59,7 @@ DomStorageDatabase::KeyValuePair MakeKeyValuePair(base::StringPiece key,
 }
 
 std::string MakePrefixedKey(base::StringPiece prefix, base::StringPiece key) {
-  return std::string(prefix) + std::string(key);
+  return prefix.as_string() + key.as_string();
 }
 
 class StorageServiceDomStorageDatabaseTest : public testing::Test {
@@ -66,11 +68,6 @@ class StorageServiceDomStorageDatabaseTest : public testing::Test {
       : blocking_task_runner_(base::ThreadPool::CreateSequencedTaskRunner(
             {base::MayBlock(), base::TaskShutdownBehavior::BLOCK_SHUTDOWN})) {}
 
-  StorageServiceDomStorageDatabaseTest(
-      const StorageServiceDomStorageDatabaseTest&) = delete;
-  StorageServiceDomStorageDatabaseTest& operator=(
-      const StorageServiceDomStorageDatabaseTest&) = delete;
-
  protected:
   // Helper for tests to block on the result of an OpenInMemory call.
   base::SequenceBound<DomStorageDatabase> OpenInMemorySync(
@@ -78,7 +75,7 @@ class StorageServiceDomStorageDatabaseTest : public testing::Test {
     base::SequenceBound<DomStorageDatabase> result;
     base::RunLoop loop;
     DomStorageDatabase::OpenInMemory(
-        db_name, /*memory_dump_id=*/absl::nullopt, blocking_task_runner_,
+        db_name, /*memory_dump_id=*/base::nullopt, blocking_task_runner_,
         base::BindLambdaForTesting(
             [&](base::SequenceBound<DomStorageDatabase> database,
                 leveldb::Status status) {
@@ -97,7 +94,7 @@ class StorageServiceDomStorageDatabaseTest : public testing::Test {
     base::SequenceBound<DomStorageDatabase> result;
     base::RunLoop loop;
     DomStorageDatabase::OpenDirectory(
-        directory, db_name, options, /*memory_dump_id=*/absl::nullopt,
+        directory, db_name, options, /*memory_dump_id=*/base::nullopt,
         blocking_task_runner_,
         base::BindLambdaForTesting(
             [&](base::SequenceBound<DomStorageDatabase> database,
@@ -131,6 +128,7 @@ class StorageServiceDomStorageDatabaseTest : public testing::Test {
                      Func operation) {
     base::RunLoop loop;
     database.PostTaskWithThisObject(
+        FROM_HERE,
         base::BindLambdaForTesting([&](const DomStorageDatabase& database) {
           operation(database);
           loop.Quit();
@@ -141,6 +139,8 @@ class StorageServiceDomStorageDatabaseTest : public testing::Test {
  private:
   base::test::TaskEnvironment task_environment_;
   scoped_refptr<base::SequencedTaskRunner> blocking_task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(StorageServiceDomStorageDatabaseTest);
 };
 
 }  // namespace
@@ -168,16 +168,18 @@ TEST_F(StorageServiceDomStorageDatabaseTest, BasicOpenDirectory) {
       OpenDirectorySync(temp_dir.GetPath(), kTestDbName, options);
   EXPECT_TRUE(database);
 
-  database.Reset();
+  // Because the database owns filesystem artifacts in the temp directory, we
+  // will wait for the DomStorageDatabase instance to actually be destroyed
+  // before completing the test.
+  base::RunLoop loop;
+  database.ResetWithCallbackAfterDestruction(loop.QuitClosure());
 
   // Destroy the database. Note that this should be safe to call immediately
   // after |Reset()| as long as the same TaskRunner is used to open and destroy
   // the database.
-  //
-  // Because the database owns filesystem artifacts in the temp directory, we
-  // will wait for the DomStorageDatabase instance to actually be destroyed
-  // before completing the test.
   EXPECT_STATUS_OK(DestroySync(temp_dir.GetPath(), kTestDbName));
+
+  loop.Run();
 
   // Verify that the database can't be reopened.
   options.create_if_missing = false;
@@ -248,7 +250,9 @@ TEST_F(StorageServiceDomStorageDatabaseTest, Reopen) {
   // Because the database owns filesystem artifacts in the temp directory, block
   // scope teardown until the DomStorageDatabase instance is actually destroyed
   // on its background sequence.
-  database.SynchronouslyResetForTest();
+  base::RunLoop loop;
+  database.ResetWithCallbackAfterDestruction(loop.QuitClosure());
+  loop.Run();
 }
 
 TEST_F(StorageServiceDomStorageDatabaseTest, GetPrefixed) {

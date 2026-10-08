@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 
 #include <utility>
 
-#include "base/containers/contains.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 
 namespace content {
 
@@ -74,7 +73,8 @@ base::ScopedFD PosixFileDescriptorInfoImpl::ReleaseFD(base::PlatformFile file) {
   DCHECK(OwnsFD(file));
 
   base::ScopedFD fd;
-  auto found = base::ranges::find(owned_descriptors_, file);
+  auto found =
+      std::find(owned_descriptors_.begin(), owned_descriptors_.end(), file);
 
   std::swap(*found, fd);
   owned_descriptors_.erase(found);

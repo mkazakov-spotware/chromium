@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-#include "components/viz/common/buildflags.h"
 #include "components/viz/common/viz_common_export.h"
 
 namespace viz {
@@ -21,12 +20,8 @@ enum class OverlayStrategy {
   kFullscreen = 2,
   kSingleOnTop = 3,
   kUnderlay = 4,
-#if BUILDFLAG(ENABLE_CAST_OVERLAY_STRATEGY)
   kUnderlayCast = 5,
-#endif
-  kNoStrategyAllFail = 6,
-  kNoStrategyFailMin = 7,
-  kMaxValue = kNoStrategyFailMin,
+  kMaxValue = kUnderlayCast,
 };
 
 // Parses a comma separated list of overlay strategy types and returns a list

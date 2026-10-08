@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,17 +9,17 @@
 #include <vector>
 
 namespace media {
-class KeySystemInfo;
+class KeySystemProperties;
 }
 
 namespace chromecast {
 namespace media {
 
 void AddChromecastKeySystems(
-    std::vector<std::unique_ptr<::media::KeySystemInfo>>*
+    std::vector<std::unique_ptr<::media::KeySystemProperties>>*
         key_systems_properties,
     bool enable_persistent_license_support,
-    bool enable_playready);
+    bool force_software_crypto);
 
 }  // namespace media
 }  // namespace chromecast

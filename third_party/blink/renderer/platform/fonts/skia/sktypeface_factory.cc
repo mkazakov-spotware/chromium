@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,8 +15,8 @@ namespace blink {
 sk_sp<SkTypeface> SkTypeface_Factory::FromFontConfigInterfaceIdAndTtcIndex(
     int config_id,
     int ttc_index) {
-#if !BUILDFLAG(IS_MAC) && !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_WIN) && \
-    !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_MAC) && !defined(OS_ANDROID) && !defined(OS_WIN) && \
+    !defined(OS_FUCHSIA)
   sk_sp<SkFontConfigInterface> fci(SkFontConfigInterface::RefGlobal());
   SkFontConfigInterface::FontIdentity font_identity;
   font_identity.fID = config_id;
@@ -32,8 +32,8 @@ sk_sp<SkTypeface> SkTypeface_Factory::FromFontConfigInterfaceIdAndTtcIndex(
 sk_sp<SkTypeface> SkTypeface_Factory::FromFilenameAndTtcIndex(
     const std::string& filename,
     int ttc_index) {
-#if !BUILDFLAG(IS_WIN) && !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_FUCHSIA) && \
-    !BUILDFLAG(IS_MAC)
+#if !defined(OS_WIN) && !defined(OS_ANDROID) && !defined(OS_FUCHSIA) && \
+    !defined(OS_MAC)
   return SkTypeface::MakeFromFile(filename.c_str(), ttc_index);
 #else
   NOTREACHED();
@@ -45,7 +45,7 @@ sk_sp<SkTypeface> SkTypeface_Factory::FromFilenameAndTtcIndex(
 sk_sp<SkTypeface> SkTypeface_Factory::FromFamilyNameAndFontStyle(
     const std::string& family_name,
     const SkFontStyle& font_style) {
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
   auto fm(SkFontMgr::RefDefault());
   return fm->legacyMakeTypeface(family_name.c_str(), font_style);
 #else

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,9 @@
 #include "base/bind.h"
 #include "base/check_op.h"
 #include "base/mac/foundation_util.h"
-#include "base/numerics/safe_conversions.h"
 #include "base/strings/sys_string_conversions.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/accelerators/platform_accelerator_cocoa.h"
-#include "ui/base/interaction/element_tracker_mac.h"
 #include "ui/base/l10n/l10n_util_mac.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/models/simple_menu_model.h"
@@ -36,8 +34,8 @@ NSMenu* MakeEmptySubmenu() {
 // Called when adding a submenu to the menu and checks if the submenu, via its
 // |model|, has visible child items.
 bool MenuHasVisibleItems(const ui::MenuModel* model) {
-  size_t count = model->GetItemCount();
-  for (size_t index = 0; index < count; ++index) {
+  int count = model->GetItemCount();
+  for (int index = 0; index < count; index++) {
     if (model->IsVisibleAt(index))
       return true;
   }
@@ -92,19 +90,17 @@ bool MenuHasVisibleItems(const ui::MenuModel* model) {
 // Adds the item at |index| in |model| as an NSMenuItem at |index| of |menu|.
 // Associates a submenu if the MenuModel::ItemType is TYPE_SUBMENU.
 - (void)addItemToMenu:(NSMenu*)menu
-              atIndex:(size_t)index
-            fromModel:(ui::MenuModel*)model
-    withColorProvider:(const ui::ColorProvider*)colorProvider;
+              atIndex:(NSInteger)index
+            fromModel:(ui::MenuModel*)model;
 
 // Creates a NSMenu from the given model. If the model has submenus, this can
 // be invoked recursively.
-- (NSMenu*)menuFromModel:(ui::MenuModel*)model
-       withColorProvider:(const ui::ColorProvider*)colorProvider;
+- (NSMenu*)menuFromModel:(ui::MenuModel*)model;
 
 // Adds a separator item at the given index. As the separator doesn't need
 // anything from the model, this method doesn't need the model index as the
 // other method below does.
-- (void)addSeparatorToMenu:(NSMenu*)menu atIndex:(size_t)index;
+- (void)addSeparatorToMenu:(NSMenu*)menu atIndex:(int)index;
 
 // Called when the user chooses a particular menu item. AppKit sends this only
 // after the menu has fully faded out. |sender| is the menu item chosen.
@@ -136,23 +132,12 @@ bool MenuHasVisibleItems(const ui::MenuModel* model) {
 
 - (instancetype)initWithModel:(ui::MenuModel*)model
                      delegate:(id<MenuControllerCocoaDelegate>)delegate
-                colorProvider:(const ui::ColorProvider*)colorProvider
-       useWithPopUpButtonCell:(BOOL)useWithCell {
-  if ((self = [self initWithModel:model
-                         delegate:delegate
-           useWithPopUpButtonCell:useWithCell])) {
-    [self maybeBuildWithColorProvider:colorProvider];
-  }
-  return self;
-}
-
-- (instancetype)initWithModel:(ui::MenuModel*)model
-                     delegate:(id<MenuControllerCocoaDelegate>)delegate
        useWithPopUpButtonCell:(BOOL)useWithCell {
   if ((self = [super init])) {
     _model = model->AsWeakPtr();
     _delegate = delegate;
     _useWithPopUpButtonCell = useWithCell;
+    [self menu];
   }
   return self;
 }
@@ -181,38 +166,30 @@ bool MenuHasVisibleItems(const ui::MenuModel* model) {
   }
 }
 
-- (NSMenu*)menuFromModel:(ui::MenuModel*)model
-       withColorProvider:(const ui::ColorProvider*)colorProvider {
+- (NSMenu*)menuFromModel:(ui::MenuModel*)model {
   NSMenu* menu = [[[NSMenu alloc] initWithTitle:@""] autorelease];
 
-  const size_t count = model->GetItemCount();
-  for (size_t index = 0; index < count; ++index) {
-    if (model->GetTypeAt(index) == ui::MenuModel::TYPE_SEPARATOR) {
+  const int count = model->GetItemCount();
+  for (int index = 0; index < count; index++) {
+    if (model->GetTypeAt(index) == ui::MenuModel::TYPE_SEPARATOR)
       [self addSeparatorToMenu:menu atIndex:index];
-    } else {
-      [self addItemToMenu:menu
-                    atIndex:index
-                  fromModel:model
-          withColorProvider:colorProvider];
-    }
+    else
+      [self addItemToMenu:menu atIndex:index fromModel:model];
   }
 
   return menu;
 }
 
-- (void)addSeparatorToMenu:(NSMenu*)menu atIndex:(size_t)index {
+- (void)addSeparatorToMenu:(NSMenu*)menu
+                   atIndex:(int)index {
   NSMenuItem* separator = [NSMenuItem separatorItem];
-  [menu insertItem:separator atIndex:base::checked_cast<NSInteger>(index)];
+  [menu insertItem:separator atIndex:index];
 }
 
 - (void)addItemToMenu:(NSMenu*)menu
-              atIndex:(size_t)index
-            fromModel:(ui::MenuModel*)model
-    withColorProvider:(const ui::ColorProvider*)colorProvider {
-  auto rawLabel = model->GetLabelAt(index);
-  NSString* label = model->MayHaveMnemonicsAt(index)
-                        ? l10n_util::FixUpWindowsStyleLabel(rawLabel)
-                        : base::SysUTF16ToNSString(rawLabel);
+              atIndex:(NSInteger)index
+            fromModel:(ui::MenuModel*)model {
+  NSString* label = l10n_util::FixUpWindowsStyleLabel(model->GetLabelAt(index));
   base::scoped_nsobject<NSMenuItem> item([[NSMenuItem alloc]
       initWithTitle:label
              action:@selector(itemSelected:)
@@ -224,14 +201,12 @@ bool MenuHasVisibleItems(const ui::MenuModel* model) {
     [item setImage:icon.GetImage().ToNSImage()];
 
   ui::MenuModel::ItemType type = model->GetTypeAt(index);
-  const NSInteger modelIndex = base::checked_cast<NSInteger>(index);
   if (type == ui::MenuModel::TYPE_SUBMENU && model->IsVisibleAt(index)) {
     ui::MenuModel* submenuModel = model->GetSubmenuModelAt(index);
 
     // If there are visible items, recursively build the submenu.
     NSMenu* submenu = MenuHasVisibleItems(submenuModel)
-                          ? [self menuFromModel:submenuModel
-                                withColorProvider:colorProvider]
+                          ? [self menuFromModel:submenuModel]
                           : MakeEmptySubmenu();
 
     [item setTarget:nil];
@@ -250,7 +225,7 @@ bool MenuHasVisibleItems(const ui::MenuModel* model) {
     // the model so hierarchical menus check the correct index in the correct
     // model. Setting the target to |self| allows this class to participate
     // in validation of the menu items.
-    [item setTag:modelIndex];
+    [item setTag:index];
     [item setTarget:self];
     [item setRepresentedObject:[WeakPtrToMenuModelAsNSObject
                                    weakPtrForModel:model]];
@@ -269,14 +244,10 @@ bool MenuHasVisibleItems(const ui::MenuModel* model) {
     }
   }
 
-  if (_delegate) {
-    [_delegate controllerWillAddItem:item
-                           fromModel:model
-                             atIndex:index
-                   withColorProvider:colorProvider];
-  }
+  if (_delegate)
+    [_delegate controllerWillAddItem:item fromModel:model atIndex:index];
 
-  [menu insertItem:item atIndex:modelIndex];
+  [menu insertItem:item atIndex:index];
 }
 
 - (BOOL)validateUserInterfaceItem:(id<NSValidatedUserInterfaceItem>)item {
@@ -284,16 +255,16 @@ bool MenuHasVisibleItems(const ui::MenuModel* model) {
   if (action != @selector(itemSelected:))
     return NO;
 
+  NSInteger modelIndex = [item tag];
   ui::MenuModel* model =
       [WeakPtrToMenuModelAsNSObject getFrom:[(id)item representedObject]];
+
   if (!model)
     return NO;
 
-  const size_t modelIndex = base::checked_cast<size_t>([item tag]);
   BOOL checked = model->IsItemCheckedAt(modelIndex);
   DCHECK([(id)item isKindOfClass:[NSMenuItem class]]);
-  [(id)item
-      setState:(checked ? NSControlStateValueOn : NSControlStateValueOff)];
+  [(id)item setState:(checked ? NSOnState : NSOffState)];
   [(id)item setHidden:(!model->IsVisibleAt(modelIndex))];
   if (model->IsItemDynamicAt(modelIndex)) {
     // Update the label and the icon.
@@ -317,49 +288,30 @@ bool MenuHasVisibleItems(const ui::MenuModel* model) {
 }
 
 - (void)itemSelected:(id)sender {
+  NSInteger modelIndex = [sender tag];
   ui::MenuModel* model =
       [WeakPtrToMenuModelAsNSObject getFrom:[sender representedObject]];
   DCHECK(model);
-  const size_t modelIndex = base::checked_cast<size_t>([sender tag]);
-  const ui::ElementIdentifier identifier =
-      model->GetElementIdentifierAt(modelIndex);
-  if (identifier) {
-    ui::ElementTrackerMac::GetInstance()->NotifyMenuItemActivated([sender menu],
-                                                                  identifier);
-  }
-  model->ActivatedAt(modelIndex,
-                     ui::EventFlagsFromNative([NSApp currentEvent]));
+  if (model)
+    model->ActivatedAt(modelIndex,
+                       ui::EventFlagsFromNative([NSApp currentEvent]));
   // Note: |self| may be destroyed by the call to ActivatedAt().
 }
 
-- (void)maybeBuildWithColorProvider:(const ui::ColorProvider*)colorProvider {
-  if (_menu || !_model)
-    return;
-
-  _menu.reset([[self menuFromModel:_model.get()
-                 withColorProvider:colorProvider] retain]);
-  [_menu setDelegate:self];
-
-  // TODO(dfried): Ideally we'd do this after each submenu is created.
-  // However, the way we currently hook menu events only supports the root
-  // menu. Therefore we call this method here and submenus are not supported
-  // for auto-highlighting or ElementTracker events.
-  if (_delegate)
-    [_delegate controllerWillAddMenu:_menu fromModel:_model.get()];
-
-  // If this is to be used with a NSPopUpButtonCell, add an item at the 0th
-  // position that's empty. Doing it after the menu has been constructed won't
-  // complicate creation logic, and since the tags are model indexes, they
-  // are unaffected by the extra item.
-  if (_useWithPopUpButtonCell) {
-    base::scoped_nsobject<NSMenuItem> blankItem(
-        [[NSMenuItem alloc] initWithTitle:@"" action:nil keyEquivalent:@""]);
-    [_menu insertItem:blankItem atIndex:0];
-  }
-}
-
 - (NSMenu*)menu {
-  [self maybeBuildWithColorProvider:nullptr];
+  if (!_menu && _model) {
+    _menu.reset([[self menuFromModel:_model.get()] retain]);
+    [_menu setDelegate:self];
+    // If this is to be used with a NSPopUpButtonCell, add an item at the 0th
+    // position that's empty. Doing it after the menu has been constructed won't
+    // complicate creation logic, and since the tags are model indexes, they
+    // are unaffected by the extra item.
+    if (_useWithPopUpButtonCell) {
+      base::scoped_nsobject<NSMenuItem> blankItem(
+          [[NSMenuItem alloc] initWithTitle:@"" action:nil keyEquivalent:@""]);
+      [_menu insertItem:blankItem atIndex:0];
+    }
+  }
   return _menu.get();
 }
 
@@ -383,10 +335,3 @@ bool MenuHasVisibleItems(const ui::MenuModel* model) {
 
 @end
 
-@implementation MenuControllerCocoa (TestingAPI)
-
-- (BOOL)isMenuBuiltForTesting {
-  return _menu != nil;
-}
-
-@end

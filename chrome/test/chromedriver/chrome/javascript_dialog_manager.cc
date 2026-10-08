@@ -1,9 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/test/chromedriver/chrome/javascript_dialog_manager.h"
 
+#include "base/values.h"
 #include "chrome/test/chromedriver/chrome/browser_info.h"
 #include "chrome/test/chromedriver/chrome/devtools_client.h"
 #include "chrome/test/chromedriver/chrome/status.h"
@@ -42,12 +43,12 @@ Status JavaScriptDialogManager::HandleDialog(bool accept,
   if (!IsDialogOpen())
     return Status(kNoSuchAlert);
 
-  base::Value::Dict params;
-  params.Set("accept", accept);
+  base::DictionaryValue params;
+  params.SetBoolean("accept", accept);
   if (text)
-    params.Set("promptText", *text);
+    params.SetString("promptText", *text);
   else
-    params.Set("promptText", prompt_text_);
+    params.SetString("promptText", prompt_text_);
   Status status = client_->SendCommand("Page.handleJavaScriptDialog", params);
   if (status.IsError()) {
     // Retry once to work around
@@ -71,32 +72,29 @@ Status JavaScriptDialogManager::HandleDialog(bool accept,
 Status JavaScriptDialogManager::OnConnected(DevToolsClient* client) {
   unhandled_dialog_queue_.clear();
   dialog_type_queue_.clear();
-  base::Value::Dict params;
+  base::DictionaryValue params;
   return client_->SendCommand("Page.enable", params);
 }
 
 Status JavaScriptDialogManager::OnEvent(DevToolsClient* client,
                                         const std::string& method,
-                                        const base::Value::Dict& params) {
+                                        const base::DictionaryValue& params) {
   if (method == "Page.javascriptDialogOpening") {
-    const std::string* message = params.FindString("message");
-    if (!message)
+    std::string message;
+    if (!params.GetString("message", &message))
       return Status(kUnknownError, "dialog event missing or invalid 'message'");
 
-    unhandled_dialog_queue_.push_back(*message);
+    unhandled_dialog_queue_.push_back(message);
 
-    const std::string* type = params.FindString("type");
-    if (!type)
+    std::string type;
+    if (!params.GetString("type", &type))
       return Status(kUnknownError, "dialog has invalid 'type'");
 
-    dialog_type_queue_.push_back(*type);
+    dialog_type_queue_.push_back(type);
 
-    const std::string* prompt_text = params.FindString("defaultPrompt");
-    if (!prompt_text) {
+    if (!params.GetString("defaultPrompt", &prompt_text_))
       return Status(kUnknownError,
                     "dialog event missing or invalid 'defaultPrompt'");
-    }
-    prompt_text_ = *prompt_text;
   } else if (method == "Page.javascriptDialogClosed") {
     // Inspector only sends this event when all dialogs have been closed.
     // Clear the unhandled queue in case the user closed a dialog manually.

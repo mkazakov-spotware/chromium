@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,25 +11,13 @@
 #include <memory>
 
 #include "base/containers/span.h"
+#include "base/macros.h"
+#include "base/stl_util.h"
 #include "base/test/task_environment.h"
 #include "base/test/values_test_util.h"
 #include "base/values.h"
-#include "gin/public/isolate_holder.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "v8/include/v8-array-buffer.h"
-#include "v8/include/v8-container.h"
-#include "v8/include/v8-context.h"
-#include "v8/include/v8-date.h"
-#include "v8/include/v8-isolate.h"
-#include "v8/include/v8-local-handle.h"
-#include "v8/include/v8-microtask-queue.h"
-#include "v8/include/v8-object.h"
-#include "v8/include/v8-persistent-handle.h"
-#include "v8/include/v8-primitive.h"
-#include "v8/include/v8-regexp.h"
-#include "v8/include/v8-script.h"
-#include "v8/include/v8-template.h"
-#include "v8/include/v8-typed-array.h"
+#include "v8/include/v8.h"
 
 namespace content {
 
@@ -44,16 +32,12 @@ class ScopedAvoidIdentityHashForTesting {
   // must outlive the created instance of this helper.
   explicit ScopedAvoidIdentityHashForTesting(
       content::V8ValueConverterImpl* converter);
-
-  ScopedAvoidIdentityHashForTesting(const ScopedAvoidIdentityHashForTesting&) =
-      delete;
-  ScopedAvoidIdentityHashForTesting& operator=(
-      const ScopedAvoidIdentityHashForTesting&) = delete;
-
   ~ScopedAvoidIdentityHashForTesting();
 
  private:
   content::V8ValueConverterImpl* converter_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedAvoidIdentityHashForTesting);
 };
 
 ScopedAvoidIdentityHashForTesting::ScopedAvoidIdentityHashForTesting(
@@ -70,10 +54,8 @@ ScopedAvoidIdentityHashForTesting::~ScopedAvoidIdentityHashForTesting() {
 class V8ValueConverterImplTest : public testing::Test {
  public:
   V8ValueConverterImplTest()
-      : isolate_holder_(task_environment_.GetMainThreadTaskRunner(),
-                        gin::IsolateHolder::IsolateType::kTest),
-        isolate_scope_(isolate_holder_.isolate()),
-        isolate_(isolate_holder_.isolate()) {}
+      : isolate_(v8::Isolate::GetCurrent()) {
+  }
 
  protected:
   void SetUp() override {
@@ -84,13 +66,13 @@ class V8ValueConverterImplTest : public testing::Test {
 
   void TearDown() override { context_.Reset(); }
 
-  std::string GetString(base::Value::Dict* value, const std::string& key) {
-    std::string* temp = value->FindString(key);
-    if (!temp) {
+  std::string GetString(base::DictionaryValue* value, const std::string& key) {
+    std::string temp;
+    if (!value->GetString(key, &temp)) {
       ADD_FAILURE();
       return std::string();
     }
-    return *temp;
+    return temp;
   }
 
   std::string GetString(v8::Local<v8::Object> value, const std::string& key) {
@@ -108,12 +90,13 @@ class V8ValueConverterImplTest : public testing::Test {
     return std::string(*utf8, utf8.length());
   }
 
-  std::string GetString(const base::Value::List& value_list, uint32_t index) {
-    if (index >= value_list.size() || !value_list[index].is_string()) {
+  std::string GetString(base::ListValue* value, uint32_t index) {
+    std::string temp;
+    if (!value->GetString(static_cast<size_t>(index), &temp)) {
       ADD_FAILURE();
       return std::string();
     }
-    return value_list[index].GetString();
+    return temp;
   }
 
   std::string GetString(v8::Local<v8::Array> value, uint32_t index) {
@@ -149,9 +132,9 @@ class V8ValueConverterImplTest : public testing::Test {
     return temp.As<v8::Int32>()->Value();
   }
 
-  bool IsNull(base::Value::Dict* value, const std::string& key) {
-    base::Value* child = value->Find(key);
-    if (!child) {
+  bool IsNull(base::DictionaryValue* value, const std::string& key) {
+    base::Value* child = nullptr;
+    if (!value->Get(key, &child)) {
       ADD_FAILURE();
       return false;
     }
@@ -172,17 +155,13 @@ class V8ValueConverterImplTest : public testing::Test {
     return child->IsNull();
   }
 
-  bool IsNull(const base::Value::List& list, uint32_t index) {
-    if (list.size() <= index) {
+  bool IsNull(base::ListValue* value, uint32_t index) {
+    base::Value* child = nullptr;
+    if (!value->Get(static_cast<size_t>(index), &child)) {
       ADD_FAILURE();
       return false;
     }
-    return list[index].type() == base::Value::Type::NONE;
-  }
-
-  // Deprecated. Convert callers to use base::Value::List and remove.
-  bool IsNullDeprecated(base::ListValue* value, uint32_t index) {
-    return IsNull(value->GetList(), index);
+    return child->type() == base::Value::Type::NONE;
   }
 
   bool IsNull(v8::Local<v8::Array> value, uint32_t index) {
@@ -204,7 +183,7 @@ class V8ValueConverterImplTest : public testing::Test {
 
     if (expected_value) {
       ASSERT_TRUE(raw.get());
-      EXPECT_TRUE(*expected_value == *raw);
+      EXPECT_TRUE(expected_value->Equals(raw.get()));
       EXPECT_EQ(expected_type, raw->type());
     } else {
       EXPECT_FALSE(raw.get());
@@ -218,36 +197,35 @@ class V8ValueConverterImplTest : public testing::Test {
                   .ToLocalChecked(),
               val)
         .Check();
-    std::unique_ptr<base::Value> dictionary(
-        converter.FromV8Value(object, context));
+    std::unique_ptr<base::DictionaryValue> dictionary(
+        base::DictionaryValue::From(converter.FromV8Value(object, context)));
     ASSERT_TRUE(dictionary.get());
-    ASSERT_TRUE(dictionary->is_dict());
 
     if (expected_value) {
-      const base::Value* temp = dictionary->FindKey("test");
-      ASSERT_TRUE(temp);
+      base::Value* temp = nullptr;
+      ASSERT_TRUE(dictionary->Get("test", &temp));
       EXPECT_EQ(expected_type, temp->type());
-      EXPECT_EQ(*expected_value, *temp);
+      EXPECT_TRUE(expected_value->Equals(temp));
     } else {
-      EXPECT_FALSE(dictionary->FindKey("test"));
+      EXPECT_FALSE(dictionary->HasKey("test"));
     }
 
     v8::Local<v8::Array> array(v8::Array::New(isolate_));
     array->Set(context, 0, val).Check();
-    std::unique_ptr<base::Value> list(converter.FromV8Value(array, context));
+    std::unique_ptr<base::ListValue> list(
+        base::ListValue::From(converter.FromV8Value(array, context)));
     ASSERT_TRUE(list.get());
-    ASSERT_TRUE(list->is_list());
     if (expected_value) {
-      ASSERT_FALSE(list->GetList().empty());
-      const base::Value& temp = list->GetList()[0];
-      EXPECT_EQ(expected_type, temp.type());
-      EXPECT_EQ(*expected_value, temp);
+      base::Value* temp = nullptr;
+      ASSERT_TRUE(list->Get(0, &temp));
+      EXPECT_EQ(expected_type, temp->type());
+      EXPECT_TRUE(expected_value->Equals(temp));
     } else {
       // Arrays should preserve their length, and convert unconvertible
       // types into null.
-      ASSERT_FALSE(list->GetList().empty());
-      const base::Value& temp = list->GetList()[0];
-      EXPECT_EQ(base::Value::Type::NONE, temp.type());
+      base::Value* temp = nullptr;
+      ASSERT_TRUE(list->Get(0, &temp));
+      EXPECT_EQ(base::Value::Type::NONE, temp->type());
     }
   }
 
@@ -263,16 +241,15 @@ class V8ValueConverterImplTest : public testing::Test {
   }
 
   base::test::TaskEnvironment task_environment_;
-  gin::IsolateHolder isolate_holder_;
-  v8::Isolate::Scope isolate_scope_;
-  v8::Isolate* isolate_ = nullptr;
+
+  v8::Isolate* isolate_;
 
   // Context for the JavaScript in the test.
   v8::Persistent<v8::Context> context_;
 };
 
 TEST_F(V8ValueConverterImplTest, BasicRoundTrip) {
-  const base::Value original_root = base::test::ParseJson(
+  std::unique_ptr<base::Value> original_root = base::test::ParseJsonDeprecated(
       "{ \n"
       "  \"null\": null, \n"
       "  \"true\": true, \n"
@@ -292,7 +269,6 @@ TEST_F(V8ValueConverterImplTest, BasicRoundTrip) {
       "  \"list\": [ \"bar\", \"foo\" ], \n"
       "  \"empty-list\": [], \n"
       "}");
-  ASSERT_TRUE(original_root.is_dict());
 
   v8::HandleScope handle_scope(isolate_);
   v8::Local<v8::Context> context =
@@ -301,10 +277,10 @@ TEST_F(V8ValueConverterImplTest, BasicRoundTrip) {
 
   V8ValueConverterImpl converter;
   v8::Local<v8::Object> v8_object =
-      converter.ToV8Value(original_root, context).As<v8::Object>();
+      converter.ToV8Value(original_root.get(), context).As<v8::Object>();
   ASSERT_FALSE(v8_object.IsEmpty());
 
-  EXPECT_EQ(original_root.DictSize(),
+  EXPECT_EQ(static_cast<const base::DictionaryValue&>(*original_root).size(),
             v8_object->GetPropertyNames(context).ToLocalChecked()->Length());
   EXPECT_TRUE(
       v8_object
@@ -407,13 +383,13 @@ TEST_F(V8ValueConverterImplTest, BasicRoundTrip) {
 
   std::unique_ptr<base::Value> new_root(
       converter.FromV8Value(v8_object, context));
-  EXPECT_EQ(original_root, *new_root);
+  EXPECT_NE(original_root.get(), new_root.get());
+  EXPECT_TRUE(original_root->Equals(new_root.get()));
 }
 
 TEST_F(V8ValueConverterImplTest, KeysWithDots) {
-  const base::Value original =
-      base::test::ParseJson("{ \"foo.bar\": \"baz\" }");
-  ASSERT_TRUE(original.is_dict());
+  std::unique_ptr<base::Value> original =
+      base::test::ParseJsonDeprecated("{ \"foo.bar\": \"baz\" }");
 
   v8::HandleScope handle_scope(isolate_);
   v8::Local<v8::Context> context =
@@ -421,10 +397,10 @@ TEST_F(V8ValueConverterImplTest, KeysWithDots) {
   v8::Context::Scope context_scope(context);
 
   V8ValueConverterImpl converter;
-  std::unique_ptr<base::Value> copy(
-      converter.FromV8Value(converter.ToV8Value(original, context), context));
+  std::unique_ptr<base::Value> copy(converter.FromV8Value(
+      converter.ToV8Value(original.get(), context), context));
 
-  EXPECT_EQ(original, *copy);
+  EXPECT_TRUE(original->Equals(copy.get()));
 }
 
 TEST_F(V8ValueConverterImplTest, ObjectExceptions) {
@@ -436,7 +412,7 @@ TEST_F(V8ValueConverterImplTest, ObjectExceptions) {
       isolate_, v8::MicrotasksScope::kDoNotRunMicrotasks);
 
   // Set up objects to throw when reading or writing 'foo'.
-  const char source[] =
+  const char* source =
       "Object.prototype.__defineSetter__('foo', "
       "    function() { throw new Error('muah!'); });"
       "Object.prototype.__defineGetter__('foo', "
@@ -452,21 +428,19 @@ TEST_F(V8ValueConverterImplTest, ObjectExceptions) {
 
   // Converting from v8 value should replace the foo property with null.
   V8ValueConverterImpl converter;
-  std::unique_ptr<base::Value> base_value =
-      converter.FromV8Value(object, context);
-  base::Value::Dict* converted = base_value->GetIfDict();
-  ASSERT_TRUE(converted);
-
+  std::unique_ptr<base::DictionaryValue> converted(
+      base::DictionaryValue::From(converter.FromV8Value(object, context)));
+  EXPECT_TRUE(converted.get());
   // http://code.google.com/p/v8/issues/detail?id=1342
-  // EXPECT_EQ(2u, converted);
-  // EXPECT_TRUE(IsNull(*converted, "foo"));
+  // EXPECT_EQ(2u, converted->size());
+  // EXPECT_TRUE(IsNull(converted.get(), "foo"));
   EXPECT_EQ(1u, converted->size());
-  EXPECT_EQ("bar", GetString(converted, "bar"));
+  EXPECT_EQ("bar", GetString(converted.get(), "bar"));
 
   // Converting to v8 value should not trigger the setter.
-  converted->Set("foo", "foo");
+  converted->SetString("foo", "foo");
   v8::Local<v8::Object> copy =
-      converter.ToV8Value(*converted, context).As<v8::Object>();
+      converter.ToV8Value(converted.get(), context).As<v8::Object>();
   EXPECT_FALSE(copy.IsEmpty());
   EXPECT_EQ(2u, copy->GetPropertyNames(context).ToLocalChecked()->Length());
   EXPECT_EQ("foo", GetString(copy, "foo"));
@@ -481,8 +455,7 @@ TEST_F(V8ValueConverterImplTest, ArrayExceptions) {
   v8::MicrotasksScope microtasks(
       isolate_, v8::MicrotasksScope::kDoNotRunMicrotasks);
 
-  const char source[] =
-      "(function() {"
+  const char* source = "(function() {"
       "var arr = [];"
       "arr.__defineSetter__(0, "
       "    function() { throw new Error('muah!'); });"
@@ -496,20 +469,20 @@ TEST_F(V8ValueConverterImplTest, ArrayExceptions) {
 
   // Converting from v8 value should replace the first item with null.
   V8ValueConverterImpl converter;
-  std::unique_ptr<base::Value> converted =
-      converter.FromV8Value(array, context);
-  ASSERT_TRUE(converted);
-  ASSERT_TRUE(converted->is_list());
+  std::unique_ptr<base::ListValue> converted(
+      base::ListValue::From(converter.FromV8Value(array, context)));
+  ASSERT_TRUE(converted.get());
   // http://code.google.com/p/v8/issues/detail?id=1342
-  EXPECT_EQ(2u, converted->GetList().size());
-  EXPECT_TRUE(IsNull(converted->GetList(), 0));
+  EXPECT_EQ(2u, converted->GetSize());
+  EXPECT_TRUE(IsNull(converted.get(), 0));
 
   // Converting to v8 value should not be affected by the getter/setter
   // because the setters/getters are defined on the array instance, not
   // on the Array's prototype.
-  *converted = base::test::ParseJson("[ \"foo\", \"bar\" ]");
+  converted.reset(static_cast<base::ListValue*>(
+      base::test::ParseJsonDeprecated("[ \"foo\", \"bar\" ]").release()));
   v8::Local<v8::Array> copy =
-      converter.ToV8Value(*converted, context).As<v8::Array>();
+      converter.ToV8Value(converted.get(), context).As<v8::Array>();
   ASSERT_FALSE(copy.IsEmpty());
   EXPECT_EQ(2u, copy->Length());
   EXPECT_EQ("foo", GetString(copy, 0));
@@ -521,8 +494,6 @@ TEST_F(V8ValueConverterImplTest, WeirdTypes) {
   v8::Local<v8::Context> context =
       v8::Local<v8::Context>::New(isolate_, context_);
   v8::Context::Scope context_scope(context);
-  v8::MicrotasksScope microtasks(isolate_,
-                                 v8::MicrotasksScope::kDoNotRunMicrotasks);
 
   v8::Local<v8::RegExp> regex(
       v8::RegExp::New(context, v8::String::NewFromUtf8Literal(isolate_, "."),
@@ -535,17 +506,18 @@ TEST_F(V8ValueConverterImplTest, WeirdTypes) {
                 std::unique_ptr<base::Value>());
   TestWeirdType(converter, v8::Date::New(context, 1000).ToLocalChecked(),
                 base::Value::Type::DICTIONARY,
-                std::make_unique<base::Value>(base::Value::Type::DICT));
+                std::unique_ptr<base::Value>(new base::DictionaryValue()));
   TestWeirdType(converter, regex, base::Value::Type::DICTIONARY,
-                std::make_unique<base::Value>(base::Value::Type::DICT));
+                std::unique_ptr<base::Value>(new base::DictionaryValue()));
 
   converter.SetDateAllowed(true);
   TestWeirdType(converter, v8::Date::New(context, 1000).ToLocalChecked(),
-                base::Value::Type::DOUBLE, std::make_unique<base::Value>(1.0));
+                base::Value::Type::DOUBLE,
+                std::unique_ptr<base::Value>(new base::Value(1.0)));
 
   converter.SetRegExpAllowed(true);
   TestWeirdType(converter, regex, base::Value::Type::STRING,
-                std::make_unique<base::Value>("/./"));
+                std::unique_ptr<base::Value>(new base::Value("/./")));
 }
 
 TEST_F(V8ValueConverterImplTest, Prototype) {
@@ -556,8 +528,7 @@ TEST_F(V8ValueConverterImplTest, Prototype) {
   v8::MicrotasksScope microtasks(
       isolate_, v8::MicrotasksScope::kDoNotRunMicrotasks);
 
-  const char source[] =
-      "(function() {"
+  const char* source = "(function() {"
       "Object.prototype.foo = 'foo';"
       "return {};"
       "})();";
@@ -565,17 +536,15 @@ TEST_F(V8ValueConverterImplTest, Prototype) {
   v8::Local<v8::Object> object = CompileRun<v8::Object>(context, source);
 
   V8ValueConverterImpl converter;
-  std::unique_ptr<base::Value> base_value =
-      converter.FromV8Value(object, context);
-  base::Value::Dict* result = base_value->GetIfDict();
-  ASSERT_TRUE(result);
-  EXPECT_TRUE(result->empty());
+  std::unique_ptr<base::DictionaryValue> result(
+      base::DictionaryValue::From(converter.FromV8Value(object, context)));
+  ASSERT_TRUE(result.get());
+  EXPECT_EQ(0u, result->size());
 }
 
 TEST_F(V8ValueConverterImplTest, ObjectPrototypeSetter) {
-  const base::Value original =
-      base::test::ParseJson("{ \"foo\": \"good value\" }");
-  ASSERT_TRUE(original.is_dict());
+  std::unique_ptr<base::Value> original =
+      base::test::ParseJsonDeprecated("{ \"foo\": \"good value\" }");
 
   v8::HandleScope handle_scope(isolate_);
   v8::Local<v8::Context> context =
@@ -584,7 +553,7 @@ TEST_F(V8ValueConverterImplTest, ObjectPrototypeSetter) {
   v8::MicrotasksScope microtasks(isolate_,
                                  v8::MicrotasksScope::kDoNotRunMicrotasks);
 
-  const char source[] =
+  const char* source =
       "var result = { getters: 0, setters: 0 };"
       "Object.defineProperty(Object.prototype, 'foo', {"
       "  get() { ++result.getters; return 'bogus'; },"
@@ -592,7 +561,7 @@ TEST_F(V8ValueConverterImplTest, ObjectPrototypeSetter) {
       "});"
       "result;";
 
-  const char source_sanity[] =
+  const char* source_sanity =
       "({}).foo = 'Trigger setter';"
       "({}).foo;";
 
@@ -605,7 +574,7 @@ TEST_F(V8ValueConverterImplTest, ObjectPrototypeSetter) {
 
   V8ValueConverterImpl converter;
   v8::Local<v8::Object> converted =
-      converter.ToV8Value(original, context).As<v8::Object>();
+      converter.ToV8Value(original.get(), context).As<v8::Object>();
   EXPECT_FALSE(converted.IsEmpty());
 
   // Getters/setters shouldn't be triggered.
@@ -621,10 +590,10 @@ TEST_F(V8ValueConverterImplTest, ObjectPrototypeSetter) {
   EXPECT_EQ(1, GetInt(result, "setters"));
 
   // Repeat the same exercise with a dictionary without the key.
-  base::Value::Dict missing_key_dict;
-  missing_key_dict.Set("otherkey", "hello");
+  base::DictionaryValue missing_key_dict;
+  missing_key_dict.SetString("otherkey", "hello");
   v8::Local<v8::Object> converted2 =
-      converter.ToV8Value(missing_key_dict, context).As<v8::Object>();
+      converter.ToV8Value(&missing_key_dict, context).As<v8::Object>();
   EXPECT_FALSE(converted2.IsEmpty());
 
   // Getters/setters shouldn't be triggered.
@@ -642,8 +611,8 @@ TEST_F(V8ValueConverterImplTest, ObjectPrototypeSetter) {
 }
 
 TEST_F(V8ValueConverterImplTest, ArrayPrototypeSetter) {
-  const base::Value original = base::test::ParseJson("[100, 200, 300]");
-  ASSERT_TRUE(original.is_list());
+  std::unique_ptr<base::Value> original =
+      base::test::ParseJsonDeprecated("[100, 200, 300]");
 
   v8::HandleScope handle_scope(isolate_);
   v8::Local<v8::Context> context =
@@ -652,7 +621,7 @@ TEST_F(V8ValueConverterImplTest, ArrayPrototypeSetter) {
   v8::MicrotasksScope microtasks(isolate_,
                                  v8::MicrotasksScope::kDoNotRunMicrotasks);
 
-  const char source[] =
+  const char* source =
       "var result = { getters: 0, setters: 0 };"
       "Object.defineProperty(Array.prototype, '1', {"
       "  get() { ++result.getters; return 1337; },"
@@ -660,7 +629,7 @@ TEST_F(V8ValueConverterImplTest, ArrayPrototypeSetter) {
       "});"
       "result;";
 
-  const char source_sanity[] =
+  const char* source_sanity =
       "[][1] = 'Trigger setter';"
       "[][1];";
 
@@ -673,7 +642,7 @@ TEST_F(V8ValueConverterImplTest, ArrayPrototypeSetter) {
 
   V8ValueConverterImpl converter;
   v8::Local<v8::Array> converted =
-      converter.ToV8Value(original, context).As<v8::Array>();
+      converter.ToV8Value(original.get(), context).As<v8::Array>();
   EXPECT_FALSE(converted.IsEmpty());
 
   // Getters/setters shouldn't be triggered during the conversion.
@@ -690,10 +659,10 @@ TEST_F(V8ValueConverterImplTest, ArrayPrototypeSetter) {
   EXPECT_EQ(1, GetInt(result, "setters"));
 
   // Try again, using an array without the index.
-  base::Value::List one_item_list;
-  one_item_list.Append(123456);
+  base::ListValue one_item_list;
+  one_item_list.AppendInteger(123456);
   v8::Local<v8::Array> converted2 =
-      converter.ToV8Value(one_item_list, context).As<v8::Array>();
+      converter.ToV8Value(&one_item_list, context).As<v8::Array>();
   EXPECT_FALSE(converted2.IsEmpty());
 
   // Getters/setters shouldn't be triggered during the conversion.
@@ -717,8 +686,7 @@ TEST_F(V8ValueConverterImplTest, StripNullFromObjects) {
   v8::MicrotasksScope microtasks(
       isolate_, v8::MicrotasksScope::kDoNotRunMicrotasks);
 
-  const char source[] =
-      "(function() {"
+  const char* source = "(function() {"
       "return { foo: undefined, bar: null };"
       "})();";
 
@@ -726,11 +694,11 @@ TEST_F(V8ValueConverterImplTest, StripNullFromObjects) {
 
   V8ValueConverterImpl converter;
   converter.SetStripNullFromObjects(true);
-  std::unique_ptr<base::Value> base_value =
-      converter.FromV8Value(object, context);
-  base::Value::Dict* result = base_value->GetIfDict();
-  ASSERT_TRUE(result);
-  EXPECT_TRUE(result->empty());
+
+  std::unique_ptr<base::DictionaryValue> result(
+      base::DictionaryValue::From(converter.FromV8Value(object, context)));
+  ASSERT_TRUE(result.get());
+  EXPECT_EQ(0u, result->size());
 }
 
 TEST_F(V8ValueConverterImplTest, RecursiveObjects) {
@@ -738,8 +706,6 @@ TEST_F(V8ValueConverterImplTest, RecursiveObjects) {
   v8::Local<v8::Context> context =
       v8::Local<v8::Context>::New(isolate_, context_);
   v8::Context::Scope context_scope(context);
-  v8::MicrotasksScope microtasks(isolate_,
-                                 v8::MicrotasksScope::kDoNotRunMicrotasks);
 
   V8ValueConverterImpl converter;
 
@@ -760,12 +726,11 @@ TEST_F(V8ValueConverterImplTest, RecursiveObjects) {
             object)
       .Check();
 
-  std::unique_ptr<base::Value> base_value =
-      converter.FromV8Value(object, context);
-  base::Value::Dict* object_result = base_value->GetIfDict();
-  ASSERT_TRUE(object_result);
+  std::unique_ptr<base::DictionaryValue> object_result(
+      base::DictionaryValue::From(converter.FromV8Value(object, context)));
+  ASSERT_TRUE(object_result.get());
   EXPECT_EQ(2u, object_result->size());
-  EXPECT_TRUE(IsNull(object_result, "obj"));
+  EXPECT_TRUE(IsNull(object_result.get(), "obj"));
 
   v8::Local<v8::Array> array = v8::Array::New(isolate_).As<v8::Array>();
   ASSERT_FALSE(array.IsEmpty());
@@ -775,8 +740,8 @@ TEST_F(V8ValueConverterImplTest, RecursiveObjects) {
   std::unique_ptr<base::ListValue> list_result(
       base::ListValue::From(converter.FromV8Value(array, context)));
   ASSERT_TRUE(list_result.get());
-  EXPECT_EQ(2u, list_result->GetList().size());
-  EXPECT_TRUE(IsNullDeprecated(list_result.get(), 1));
+  EXPECT_EQ(2u, list_result->GetSize());
+  EXPECT_TRUE(IsNull(list_result.get(), 1));
 }
 
 TEST_F(V8ValueConverterImplTest, WeirdProperties) {
@@ -787,15 +752,14 @@ TEST_F(V8ValueConverterImplTest, WeirdProperties) {
   v8::MicrotasksScope microtasks(
       isolate_, v8::MicrotasksScope::kDoNotRunMicrotasks);
 
-  const char source[] =
-      "(function() {"
+  const char* source = "(function() {"
       "return {"
-      "  1: 'foo',"
-      "  '2': 'bar',"
-      "  true: 'baz',"
-      "  false: 'qux',"
-      "  null: 'quux',"
-      "  undefined: 'oops'"
+        "1: 'foo',"
+        "'2': 'bar',"
+        "true: 'baz',"
+        "false: 'qux',"
+        "null: 'quux',"
+        "undefined: 'oops'"
       "};"
       "})();";
 
@@ -804,7 +768,7 @@ TEST_F(V8ValueConverterImplTest, WeirdProperties) {
   V8ValueConverterImpl converter;
   std::unique_ptr<base::Value> actual(converter.FromV8Value(object, context));
 
-  const base::Value expected = base::test::ParseJson(
+  std::unique_ptr<base::Value> expected = base::test::ParseJsonDeprecated(
       "{ \n"
       "  \"1\": \"foo\", \n"
       "  \"2\": \"bar\", \n"
@@ -814,7 +778,7 @@ TEST_F(V8ValueConverterImplTest, WeirdProperties) {
       "  \"undefined\": \"oops\", \n"
       "}");
 
-  EXPECT_EQ(expected, *actual);
+  EXPECT_TRUE(expected->Equals(actual.get()));
 }
 
 TEST_F(V8ValueConverterImplTest, ArrayGetters) {
@@ -825,8 +789,7 @@ TEST_F(V8ValueConverterImplTest, ArrayGetters) {
   v8::MicrotasksScope microtasks(
       isolate_, v8::MicrotasksScope::kDoNotRunMicrotasks);
 
-  const char source[] =
-      "(function() {"
+  const char* source = "(function() {"
       "var a = [0];"
       "a.__defineGetter__(1, function() { return 'bar'; });"
       "return a;"
@@ -838,7 +801,7 @@ TEST_F(V8ValueConverterImplTest, ArrayGetters) {
   std::unique_ptr<base::ListValue> result(
       base::ListValue::From(converter.FromV8Value(array, context)));
   ASSERT_TRUE(result.get());
-  EXPECT_EQ(2u, result->GetList().size());
+  EXPECT_EQ(2u, result->GetSize());
 }
 
 TEST_F(V8ValueConverterImplTest, UndefinedValueBehavior) {
@@ -851,8 +814,7 @@ TEST_F(V8ValueConverterImplTest, UndefinedValueBehavior) {
 
   v8::Local<v8::Object> object;
   {
-    const char source[] =
-        "(function() {"
+    const char* source = "(function() {"
         "return { foo: undefined, bar: null, baz: function(){} };"
         "})();";
     object = CompileRun<v8::Object>(context, source);
@@ -860,8 +822,7 @@ TEST_F(V8ValueConverterImplTest, UndefinedValueBehavior) {
 
   v8::Local<v8::Array> array;
   {
-    const char source[] =
-        "(function() {"
+    const char* source = "(function() {"
         "return [ undefined, null, function(){} ];"
         "})();";
     array = CompileRun<v8::Array>(context, source);
@@ -869,8 +830,7 @@ TEST_F(V8ValueConverterImplTest, UndefinedValueBehavior) {
 
   v8::Local<v8::Array> sparse_array;
   {
-    const char source[] =
-        "(function() {"
+    const char* source = "(function() {"
         "return new Array(3);"
         "})();";
     sparse_array = CompileRun<v8::Array>(context, source);
@@ -880,16 +840,18 @@ TEST_F(V8ValueConverterImplTest, UndefinedValueBehavior) {
 
   std::unique_ptr<base::Value> actual_object(
       converter.FromV8Value(object, context));
-  EXPECT_EQ(base::test::ParseJson("{ \"bar\": null }"), *actual_object);
+  EXPECT_EQ(*base::test::ParseJsonDeprecated("{ \"bar\": null }"),
+            *actual_object);
 
   // Everything is null because JSON stringification preserves array length.
   std::unique_ptr<base::Value> actual_array(
       converter.FromV8Value(array, context));
-  EXPECT_EQ(base::test::ParseJson("[ null, null, null ]"), *actual_array);
+  EXPECT_EQ(*base::test::ParseJsonDeprecated("[ null, null, null ]"),
+            *actual_array);
 
   std::unique_ptr<base::Value> actual_sparse_array(
       converter.FromV8Value(sparse_array, context));
-  EXPECT_EQ(base::test::ParseJson("[ null, null, null ]"),
+  EXPECT_EQ(*base::test::ParseJsonDeprecated("[ null, null, null ]"),
             *actual_sparse_array);
 }
 
@@ -898,8 +860,6 @@ TEST_F(V8ValueConverterImplTest, ObjectsWithClashingIdentityHash) {
   v8::Local<v8::Context> context =
       v8::Local<v8::Context>::New(isolate_, context_);
   v8::Context::Scope context_scope(context);
-  v8::MicrotasksScope microtasks(isolate_,
-                                 v8::MicrotasksScope::kDoNotRunMicrotasks);
   V8ValueConverterImpl converter;
 
   // We check that the converter checks identity correctly by disabling the
@@ -918,14 +878,15 @@ TEST_F(V8ValueConverterImplTest, ObjectsWithClashingIdentityHash) {
       .Check();
 
   // The expected base::Value result.
-  const base::Value expected = base::test::ParseJson("[{},{},[],[]]");
-  ASSERT_TRUE(expected.is_list());
+  std::unique_ptr<base::Value> expected =
+      base::test::ParseJsonDeprecated("[{},{},[],[]]");
+  ASSERT_TRUE(expected.get());
 
   // The actual result.
   std::unique_ptr<base::Value> value(converter.FromV8Value(root, context));
-  ASSERT_TRUE(value);
+  ASSERT_TRUE(value.get());
 
-  EXPECT_EQ(expected, *value);
+  EXPECT_TRUE(expected->Equals(value.get()));
 }
 
 TEST_F(V8ValueConverterImplTest, DetectCycles) {
@@ -933,8 +894,6 @@ TEST_F(V8ValueConverterImplTest, DetectCycles) {
   v8::Local<v8::Context> context =
       v8::Local<v8::Context>::New(isolate_, context_);
   v8::Context::Scope context_scope(context);
-  v8::MicrotasksScope microtasks(isolate_,
-                                 v8::MicrotasksScope::kDoNotRunMicrotasks);
   V8ValueConverterImpl converter;
 
   // Create a recursive array.
@@ -942,15 +901,15 @@ TEST_F(V8ValueConverterImplTest, DetectCycles) {
   recursive_array->Set(context, 0, recursive_array).Check();
 
   // The first repetition should be trimmed and replaced by a null value.
-  base::Value::List expected_list;
-  expected_list.Append(base::Value());
+  base::ListValue expected_list;
+  expected_list.Append(std::make_unique<base::Value>());
 
   // The actual result.
   std::unique_ptr<base::Value> actual_list(
       converter.FromV8Value(recursive_array, context));
   ASSERT_TRUE(actual_list.get());
 
-  EXPECT_TRUE(expected_list == actual_list->GetList());
+  EXPECT_TRUE(expected_list.Equals(actual_list.get()));
 
   // Now create a recursive object
   const std::string key("key");
@@ -965,15 +924,15 @@ TEST_F(V8ValueConverterImplTest, DetectCycles) {
       .Check();
 
   // The first repetition should be trimmed and replaced by a null value.
-  base::Value::Dict expected_dictionary;
-  expected_dictionary.Set(key, base::Value());
+  base::DictionaryValue expected_dictionary;
+  expected_dictionary.Set(key, std::make_unique<base::Value>());
 
   // The actual result.
-  std::unique_ptr<base::Value> base_value =
-      converter.FromV8Value(recursive_object, context);
-  base::Value::Dict* actual_dictionary = base_value->GetIfDict();
-  ASSERT_TRUE(actual_dictionary);
-  EXPECT_EQ(expected_dictionary, *actual_dictionary);
+  std::unique_ptr<base::Value> actual_dictionary(
+      converter.FromV8Value(recursive_object, context));
+  ASSERT_TRUE(actual_dictionary.get());
+
+  EXPECT_TRUE(expected_dictionary.Equals(actual_dictionary.get()));
 }
 
 // Tests that reused object values with no cycles do not get nullified.
@@ -988,8 +947,7 @@ TEST_F(V8ValueConverterImplTest, ReuseObjects) {
 
   // Object with reused values in different keys.
   {
-    const char source[] =
-        "(function() {"
+    const char* source = "(function() {"
         "var objA = {key: 'another same value'};"
         "var obj = {one: objA, two: objA};"
         "return obj;"
@@ -997,30 +955,28 @@ TEST_F(V8ValueConverterImplTest, ReuseObjects) {
     v8::Local<v8::Object> object = CompileRun<v8::Object>(context, source);
 
     // The actual result.
-    std::unique_ptr<base::Value> base_value =
-        converter.FromV8Value(object, context);
-    base::Value::Dict* result = base_value->GetIfDict();
-    ASSERT_TRUE(result);
+    std::unique_ptr<base::DictionaryValue> result(
+        base::DictionaryValue::From(converter.FromV8Value(object, context)));
+    ASSERT_TRUE(result.get());
     EXPECT_EQ(2u, result->size());
 
     {
-      const char key1[] = "one";
-      base::Value::Dict* one_dict = result->FindDict(key1);
-      ASSERT_TRUE(one_dict);
+      base::DictionaryValue* one_dict = nullptr;
+      const char* key1 = "one";
+      ASSERT_TRUE(result->GetDictionary(key1, &one_dict));
       EXPECT_EQ("another same value", GetString(one_dict, "key"));
     }
     {
-      const char key2[] = "two";
-      base::Value::Dict* two_dict = result->FindDict(key2);
-      ASSERT_TRUE(two_dict);
+      base::DictionaryValue* two_dict = nullptr;
+      const char* key2 = "two";
+      ASSERT_TRUE(result->GetDictionary(key2, &two_dict));
       EXPECT_EQ("another same value", GetString(two_dict, "key"));
     }
   }
 
   // Array with reused values.
   {
-    const char source[] =
-        "(function() {"
+    const char* source = "(function() {"
         "var objA = {key: 'same value'};"
         "var arr = [objA, objA];"
         "return arr;"
@@ -1031,12 +987,12 @@ TEST_F(V8ValueConverterImplTest, ReuseObjects) {
     std::unique_ptr<base::ListValue> list_result(
         base::ListValue::From(converter.FromV8Value(array, context)));
     ASSERT_TRUE(list_result.get());
-    ASSERT_EQ(2u, list_result->GetList().size());
-    for (size_t i = 0; i < list_result->GetList().size(); ++i) {
-      ASSERT_FALSE(IsNullDeprecated(list_result.get(), i));
-      base::Value::Dict* dict_value = list_result->GetList()[0].GetIfDict();
-      ASSERT_TRUE(dict_value);
-      EXPECT_STREQ("same value", dict_value->FindString("key")->c_str());
+    ASSERT_EQ(2u, list_result->GetSize());
+    for (size_t i = 0; i < list_result->GetSize(); ++i) {
+      ASSERT_FALSE(IsNull(list_result.get(), i));
+      base::DictionaryValue* dict_value = nullptr;
+      ASSERT_TRUE(list_result->GetDictionary(0u, &dict_value));
+      EXPECT_EQ("same value", GetString(dict_value, "key"));
     }
   }
 }
@@ -1046,8 +1002,6 @@ TEST_F(V8ValueConverterImplTest, MaxRecursionDepth) {
   v8::Local<v8::Context> context =
       v8::Local<v8::Context>::New(isolate_, context_);
   v8::Context::Scope context_scope(context);
-  v8::MicrotasksScope microtasks(isolate_,
-                                 v8::MicrotasksScope::kDoNotRunMicrotasks);
 
   // Must larger than kMaxRecursionDepth in v8_value_converter_impl.cc.
   int kDepth = 1000;
@@ -1075,16 +1029,16 @@ TEST_F(V8ValueConverterImplTest, MaxRecursionDepth) {
   // Expected depth is kMaxRecursionDepth in v8_value_converter_impl.cc.
   int kExpectedDepth = 100;
 
-  const base::Value* current = value.get();
+  base::Value* current = value.get();
   for (int i = 1; i < kExpectedDepth; ++i) {
-    ASSERT_TRUE(current->is_dict()) << i;
-    const base::Value::Dict& current_as_object = current->GetDict();
-    current = current_as_object.Find(kKey);
-    ASSERT_TRUE(current) << i;
+    base::DictionaryValue* current_as_object = nullptr;
+    ASSERT_TRUE(current->GetAsDictionary(&current_as_object)) << i;
+    ASSERT_TRUE(current_as_object->Get(kKey, &current)) << i;
   }
 
   // The leaf node shouldn't have any properties.
-  EXPECT_EQ(base::Value(base::Value::Dict()), *current) << *current;
+  base::DictionaryValue empty;
+  EXPECT_EQ(empty, *current) << *current;
 }
 
 TEST_F(V8ValueConverterImplTest, NegativeZero) {
@@ -1095,7 +1049,7 @@ TEST_F(V8ValueConverterImplTest, NegativeZero) {
                                  v8::MicrotasksScope::kDoNotRunMicrotasks);
 
   v8::Context::Scope context_scope(context);
-  const char source[] = "(function() { return -0; })();";
+  const char* source = "(function() { return -0; })();";
 
   v8::Local<v8::Value> value = CompileRun<v8::Value>(context, source);
 
@@ -1247,20 +1201,22 @@ TEST_F(V8ValueConverterImplTest, StrategyBypass) {
   std::unique_ptr<base::Value> object_value(
       converter.FromV8Value(object, context));
   ASSERT_TRUE(object_value);
-  const base::Value reference_object_value = base::test::ParseJson("{}");
-  EXPECT_EQ(reference_object_value, *object_value);
+  std::unique_ptr<base::Value> reference_object_value(
+      base::test::ParseJsonDeprecated("{}"));
+  EXPECT_EQ(*reference_object_value, *object_value);
 
   v8::Local<v8::Array> array(v8::Array::New(isolate_));
   std::unique_ptr<base::Value> array_value(
       converter.FromV8Value(array, context));
   ASSERT_TRUE(array_value);
-  const base::Value reference_array_value = base::test::ParseJson("[]");
-  EXPECT_EQ(reference_array_value, *array_value);
+  std::unique_ptr<base::Value> reference_array_value(
+      base::test::ParseJsonDeprecated("[]"));
+  EXPECT_EQ(*reference_array_value, *array_value);
 
   const char kExampleData[] = {1, 2, 3, 4, 5};
   v8::Local<v8::ArrayBuffer> array_buffer(
       v8::ArrayBuffer::New(isolate_, sizeof(kExampleData)));
-  memcpy(array_buffer->GetBackingStore()->Data(), kExampleData,
+  memcpy(array_buffer->GetContents().Data(), kExampleData,
          sizeof(kExampleData));
   std::unique_ptr<base::Value> binary_value(
       converter.FromV8Value(array_buffer, context));
@@ -1282,8 +1238,9 @@ TEST_F(V8ValueConverterImplTest, StrategyBypass) {
   std::unique_ptr<base::Value> number_value(
       converter.FromV8Value(number, context));
   ASSERT_TRUE(number_value);
-  const base::Value reference_number_value = base::test::ParseJson("0");
-  EXPECT_EQ(reference_number_value, *number_value);
+  std::unique_ptr<base::Value> reference_number_value(
+      base::test::ParseJsonDeprecated("0"));
+  EXPECT_EQ(*reference_number_value, *number_value);
 
   v8::Local<v8::Primitive> undefined(v8::Undefined(isolate_));
   std::unique_ptr<base::Value> undefined_value(

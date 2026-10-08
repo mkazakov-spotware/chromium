@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 
 #include "base/bind.h"
 #include "base/check.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "components/cronet/native/generated/cronet.idl_impl_interface.h"
@@ -20,10 +21,6 @@ namespace {
 class RunnablesTest : public ::testing::Test {
  public:
   RunnablesTest() = default;
-
-  RunnablesTest(const RunnablesTest&) = delete;
-  RunnablesTest& operator=(const RunnablesTest&) = delete;
-
   ~RunnablesTest() override {}
 
  protected:
@@ -50,6 +47,7 @@ class RunnablesTest : public ::testing::Test {
 
  private:
   bool callback_called_ = false;
+  DISALLOW_COPY_AND_ASSIGN(RunnablesTest);
 };
 
 class OnRedirectReceived_Runnable : public Cronet_Runnable {

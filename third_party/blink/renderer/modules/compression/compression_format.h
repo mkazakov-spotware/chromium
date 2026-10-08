@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,8 +17,7 @@ class ExceptionState;
 enum class CompressionFormat {
   kGzip = 0,
   kDeflate = 1,
-  kDeflateRaw = 2,
-  kMaxValue = kDeflateRaw,
+  kMaxValue = kDeflate,
 };
 
 // Converts the JavaScript name |format| to the equivalent enum value. If the

@@ -1,11 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/css/cssom/style_property_map.h"
-
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_union_cssstylevalue_string.h"
 #include "third_party/blink/renderer/core/css/cssom/css_keyword_value.h"
 #include "third_party/blink/renderer/core/css/cssom/inline_style_property_map.h"
 #include "third_party/blink/renderer/core/html/html_element.h"
@@ -19,14 +17,12 @@ class StylePropertyMapTest : public PageTestBase {};
 TEST_F(StylePropertyMapTest, SetRevertWithFeatureEnabled) {
   DummyExceptionStateForTesting exception_state;
 
-  HeapVector<Member<V8UnionCSSStyleValueOrString>> revert_string;
-  revert_string.push_back(
-      MakeGarbageCollected<V8UnionCSSStyleValueOrString>(" revert"));
+  HeapVector<CSSStyleValueOrString> revert_string;
+  revert_string.push_back(CSSStyleValueOrString::FromString(" revert"));
 
-  HeapVector<Member<V8UnionCSSStyleValueOrString>> revert_style_value;
-  revert_style_value.push_back(
-      MakeGarbageCollected<V8UnionCSSStyleValueOrString>(
-          CSSKeywordValue::Create("revert", exception_state)));
+  HeapVector<CSSStyleValueOrString> revert_style_value;
+  revert_style_value.push_back(CSSStyleValueOrString::FromCSSStyleValue(
+      CSSKeywordValue::Create("revert", exception_state)));
 
   auto* map =
       MakeGarbageCollected<InlineStylePropertyMap>(GetDocument().body());
@@ -53,11 +49,12 @@ TEST_F(StylePropertyMapTest, SetRevertWithFeatureEnabled) {
 }
 
 TEST_F(StylePropertyMapTest, SetOverflowClipString) {
+  ScopedOverflowClipForTest overflow_clip_feature_enabler(true);
+
   DummyExceptionStateForTesting exception_state;
 
-  HeapVector<Member<V8UnionCSSStyleValueOrString>> clip_string;
-  clip_string.push_back(
-      MakeGarbageCollected<V8UnionCSSStyleValueOrString>(" clip"));
+  HeapVector<CSSStyleValueOrString> clip_string;
+  clip_string.push_back(CSSStyleValueOrString::FromString(" clip"));
 
   auto* map =
       MakeGarbageCollected<InlineStylePropertyMap>(GetDocument().body());
@@ -75,10 +72,12 @@ TEST_F(StylePropertyMapTest, SetOverflowClipString) {
 }
 
 TEST_F(StylePropertyMapTest, SetOverflowClipStyleValue) {
+  ScopedOverflowClipForTest overflow_clip_feature_enabler(true);
+
   DummyExceptionStateForTesting exception_state;
 
-  HeapVector<Member<V8UnionCSSStyleValueOrString>> clip_style_value;
-  clip_style_value.push_back(MakeGarbageCollected<V8UnionCSSStyleValueOrString>(
+  HeapVector<CSSStyleValueOrString> clip_style_value;
+  clip_style_value.push_back(CSSStyleValueOrString::FromCSSStyleValue(
       CSSKeywordValue::Create("clip", exception_state)));
 
   auto* map =

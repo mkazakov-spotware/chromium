@@ -1,12 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_CREDENTIAL_PROVIDER_TEST_TEST_CREDENTIAL_H_
 #define CHROME_CREDENTIAL_PROVIDER_TEST_TEST_CREDENTIAL_H_
 
-#include "base/win/atl.h"
-
+#include <atlbase.h>
+#include <atlcom.h>
 #include <atlcomcli.h>
 #include <credentialprovider.h>
 
@@ -14,6 +14,7 @@
 #include <string>
 
 #include "base/command_line.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "base/synchronization/waitable_event.h"
 #include "chrome/credential_provider/common/gcp_strings.h"
@@ -40,7 +41,7 @@ class DECLSPEC_UUID("3710aa3a-13c7-44c2-bc38-09ba137804d8") ITestCredential
   SetGaiaFullNameOverride(const std::string& full_name) = 0;
   virtual HRESULT STDMETHODCALLTYPE WaitForGls() = 0;
   virtual HRESULT STDMETHODCALLTYPE
-  SetStartGlsEventName(const std::wstring& event_name) = 0;
+  SetStartGlsEventName(const base::string16& event_name) = 0;
   virtual HRESULT STDMETHODCALLTYPE FailLoadingGaiaLogonStub() = 0;
   virtual HRESULT STDMETHODCALLTYPE
   UseRealGlsBaseCommandLine(bool use_real_gls_base_command_line) = 0;
@@ -85,7 +86,8 @@ class ATL_NO_VTABLE CTestCredentialBase : public T, public ITestCredential {
   IFACEMETHODIMP SetGaiaFullNameOverride(const std::string& full_name) override;
   IFACEMETHODIMP FailLoadingGaiaLogonStub() override;
   IFACEMETHODIMP WaitForGls() override;
-  IFACEMETHODIMP SetStartGlsEventName(const std::wstring& event_name) override;
+  IFACEMETHODIMP SetStartGlsEventName(
+      const base::string16& event_name) override;
   IFACEMETHODIMP UseRealGlsBaseCommandLine(
       bool use_real_gls_base_command_line) override;
   BSTR STDMETHODCALLTYPE GetFinalUsername() override;
@@ -135,7 +137,7 @@ class ATL_NO_VTABLE CTestCredentialBase : public T, public ITestCredential {
   std::string full_name_override_;
   base::WaitableEvent gls_done_;
   base::win::ScopedHandle process_continue_event_;
-  std::wstring start_gls_event_name_;
+  base::string16 start_gls_event_name_;
   CComBSTR error_text_;
   bool gls_process_started_ = false;
   bool ignore_expected_gaia_id_ = false;
@@ -197,14 +199,15 @@ HRESULT CTestCredentialBase<T>::SetGaiaFullNameOverride(
 
 template <class T>
 HRESULT CTestCredentialBase<T>::WaitForGls() {
-  return !gls_process_started_ || gls_done_.TimedWait(base::Seconds(30))
+  return !gls_process_started_ ||
+                 gls_done_.TimedWait(base::TimeDelta::FromSeconds(30))
              ? S_OK
              : HRESULT_FROM_WIN32(WAIT_TIMEOUT);
 }
 
 template <class T>
 HRESULT CTestCredentialBase<T>::SetStartGlsEventName(
-    const std::wstring& event_name) {
+    const base::string16& event_name) {
   if (!start_gls_event_name_.empty())
     return HRESULT_FROM_WIN32(ERROR_INVALID_PARAMETER);
   start_gls_event_name_ = event_name;

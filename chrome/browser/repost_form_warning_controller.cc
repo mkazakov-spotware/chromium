@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,20 +11,22 @@
 
 RepostFormWarningController::RepostFormWarningController(
     content::WebContents* web_contents)
-    : TabModalConfirmDialogDelegate(web_contents) {}
+    : TabModalConfirmDialogDelegate(web_contents),
+      content::WebContentsObserver(web_contents) {
+}
 
 RepostFormWarningController::~RepostFormWarningController() {
 }
 
-std::u16string RepostFormWarningController::GetTitle() {
+base::string16 RepostFormWarningController::GetTitle() {
   return l10n_util::GetStringUTF16(IDS_HTTP_POST_WARNING_TITLE);
 }
 
-std::u16string RepostFormWarningController::GetDialogMessage() {
+base::string16 RepostFormWarningController::GetDialogMessage() {
   return l10n_util::GetStringUTF16(IDS_HTTP_POST_WARNING);
 }
 
-std::u16string RepostFormWarningController::GetAcceptButtonTitle() {
+base::string16 RepostFormWarningController::GetAcceptButtonTitle() {
   return l10n_util::GetStringUTF16(IDS_HTTP_POST_WARNING_RESEND);
 }
 

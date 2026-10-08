@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,12 @@
 #include "ash/ash_export.h"
 #include "ash/public/cpp/metrics_util.h"
 #include "ash/wm/desks/desk_animation_base.h"
-#include "ash/wm/desks/desks_controller.h"
 #include "ash/wm/desks/desks_histogram_enums.h"
-#include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
-
-namespace ui {
-class PresentationTimeRecorder;
-}
 
 namespace ash {
+
+class DesksController;
+class PresentationTimeRecorder;
 
 class ASH_EXPORT DeskActivationAnimation : public DeskAnimationBase {
  public:
@@ -36,13 +32,9 @@ class ASH_EXPORT DeskActivationAnimation : public DeskAnimationBase {
   bool EndSwipeAnimation() override;
   void OnStartingDeskScreenshotTakenInternal(int ending_desk_index) override;
   void OnDeskSwitchAnimationFinishedInternal() override;
-  LatencyReportCallback GetLatencyReportCallback() const override;
-  metrics_util::ReportCallback GetSmoothnessReportCallback() const override;
+  metrics_util::ReportCallback GetReportCallback() const override;
 
  private:
-  FRIEND_TEST_ALL_PREFIXES(DeskActivationAnimationTest,
-                           AnimatingAfterFastSwipe);
-
   // Prepares the desk associated with |index| for taking a screenshot. Exits
   // overview and splitview if necessary and then activates the desk. Restores
   // splitview if necessary after activating the desk.
@@ -55,18 +47,8 @@ class ASH_EXPORT DeskActivationAnimation : public DeskAnimationBase {
   // when the desk is switched.
   const bool update_window_activation_;
 
-  // The index of the desk that is most visible to the user based on the
-  // transform of the animation layer.
-  int visible_desk_index_;
-
-  // The last time an animation has been started or replaced. This is used to
-  // help determine which desk to animate to when EndSwipeAnimation is called.
-  base::TimeTicks last_start_or_replace_time_;
-
   // Used to measure the presentation time of a continuous gesture swipe.
-  std::unique_ptr<ui::PresentationTimeRecorder> presentation_time_recorder_;
-
-  base::WeakPtrFactory<DeskActivationAnimation> weak_ptr_factory_{this};
+  std::unique_ptr<PresentationTimeRecorder> presentation_time_recorder_;
 };
 
 class DeskRemovalAnimation : public DeskAnimationBase {
@@ -74,8 +56,7 @@ class DeskRemovalAnimation : public DeskAnimationBase {
   DeskRemovalAnimation(DesksController* controller,
                        int desk_to_remove_index,
                        int desk_to_activate_index,
-                       DesksCreationRemovalSource source,
-                       DeskCloseType close_type);
+                       DesksCreationRemovalSource source);
   DeskRemovalAnimation(const DeskRemovalAnimation&) = delete;
   DeskRemovalAnimation& operator=(const DeskRemovalAnimation&) = delete;
   ~DeskRemovalAnimation() override;
@@ -83,13 +64,11 @@ class DeskRemovalAnimation : public DeskAnimationBase {
   // DeskAnimationBase:
   void OnStartingDeskScreenshotTakenInternal(int ending_desk_index) override;
   void OnDeskSwitchAnimationFinishedInternal() override;
-  LatencyReportCallback GetLatencyReportCallback() const override;
-  metrics_util::ReportCallback GetSmoothnessReportCallback() const override;
+  metrics_util::ReportCallback GetReportCallback() const override;
 
  private:
   const int desk_to_remove_index_;
   const DesksCreationRemovalSource request_source_;
-  const DeskCloseType close_type_;
 };
 
 }  // namespace ash

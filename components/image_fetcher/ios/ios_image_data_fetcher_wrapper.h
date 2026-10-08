@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,11 +25,6 @@ class IOSImageDataFetcherWrapper {
   // The TaskRunner is used to decode the image if it is WebP-encoded.
   explicit IOSImageDataFetcherWrapper(
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory);
-
-  IOSImageDataFetcherWrapper(const IOSImageDataFetcherWrapper&) = delete;
-  IOSImageDataFetcherWrapper& operator=(const IOSImageDataFetcherWrapper&) =
-      delete;
-
   virtual ~IOSImageDataFetcherWrapper();
 
   // Helper to start downloading and possibly decoding the image without a
@@ -60,6 +55,8 @@ class IOSImageDataFetcherWrapper {
       ImageDataFetcherBlock callback);
 
   ImageDataFetcher image_data_fetcher_;
+
+  DISALLOW_COPY_AND_ASSIGN(IOSImageDataFetcherWrapper);
 };
 
 }  // namespace image_fetcher

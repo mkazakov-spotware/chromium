@@ -1,4 +1,4 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -24,10 +24,6 @@
 #       The compiler will try the directories in the order given, and if all
 #       fail it will try to load relative to the directory of the schema file
 #       being parsed.
-#
-#   mutable (optional)
-#       Boolean to compile flatbuffers with the "--gen-mutable" argument, which
-#       generates non-const accessors for mutating FlatBuffers in-place.
 #
 #   deps (optional)
 #       Additional dependencies.
@@ -92,14 +88,6 @@ template("flatbuffer") {
           rebase_path(include_dir, root_build_dir),
         ]
       }
-    }
-
-    if (defined(invoker.mutable) && invoker.mutable) {
-      args += [ "--gen-mutable" ]
-    }
-
-    if (defined(invoker.args)) {
-      args += invoker.args
     }
 
     args += [ "{{source}}" ]

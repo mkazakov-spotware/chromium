@@ -25,6 +25,9 @@
 #ifndef THIRD_PARTY_BLINK_PUBLIC_PLATFORM_MODULES_MEDIASTREAM_WEB_MEDIA_STREAM_TRACK_H_
 #define THIRD_PARTY_BLINK_PUBLIC_PLATFORM_MODULES_MEDIASTREAM_WEB_MEDIA_STREAM_TRACK_H_
 
+#include <memory>
+
+#include "base/optional.h"
 #include "media/mojo/mojom/display_media_information.mojom-shared.h"
 #include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/platform/web_private_ptr.h"
@@ -32,14 +35,15 @@
 namespace blink {
 
 class MediaStreamComponent;
+class WebAudioSourceProvider;
 class WebMediaStreamSource;
 
-class BLINK_PLATFORM_EXPORT WebMediaStreamTrack {
+class WebMediaStreamTrack {
  public:
   enum class FacingMode { kNone, kUser, kEnvironment, kLeft, kRight };
 
-  static const char kResizeModeNone[];
-  static const char kResizeModeRescale[];
+  BLINK_PLATFORM_EXPORT static const char kResizeModeNone[];
+  BLINK_PLATFORM_EXPORT static const char kResizeModeRescale[];
 
   enum class ContentHintType {
     kNone,
@@ -58,18 +62,23 @@ class BLINK_PLATFORM_EXPORT WebMediaStreamTrack {
     Assign(other);
     return *this;
   }
-  void Assign(const WebMediaStreamTrack&);
+  BLINK_PLATFORM_EXPORT void Assign(const WebMediaStreamTrack&);
 
-  void Reset();
+  BLINK_PLATFORM_EXPORT void Reset();
   bool IsNull() const { return private_.IsNull(); }
 
-  WebMediaStreamSource Source() const;
+  BLINK_PLATFORM_EXPORT WebMediaStreamSource Source() const;
+
+  // The lifetime of the WebAudioSourceProvider should outlive the
+  // WebMediaStreamTrack, and clients are responsible for calling
+  // SetSourceProvider(0) before the WebMediaStreamTrack is going away.
+  BLINK_PLATFORM_EXPORT void SetSourceProvider(WebAudioSourceProvider*);
 
 #if INSIDE_BLINK
-  explicit WebMediaStreamTrack(MediaStreamComponent*);
-  WebMediaStreamTrack& operator=(MediaStreamComponent*);
-  operator scoped_refptr<MediaStreamComponent>() const;
-  operator MediaStreamComponent*() const;
+  BLINK_PLATFORM_EXPORT explicit WebMediaStreamTrack(MediaStreamComponent*);
+  BLINK_PLATFORM_EXPORT WebMediaStreamTrack& operator=(MediaStreamComponent*);
+  BLINK_PLATFORM_EXPORT operator scoped_refptr<MediaStreamComponent>() const;
+  BLINK_PLATFORM_EXPORT operator MediaStreamComponent*() const;
 #endif
 
  private:

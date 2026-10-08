@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,23 +26,25 @@ class BLINK_COMMON_EXPORT IdentifiabilityStudySettingsProvider {
   // Only meaningful if IsActive() returns true.
   virtual bool IsAnyTypeOrSurfaceBlocked() const = 0;
 
-  // Returns true if the given surface should be sampled.
+  // Returns true if the given surface is allowed to be sampled.
   //
   // If IsActive() is false, this method will not be called.
   virtual bool IsSurfaceAllowed(IdentifiableSurface surface) const = 0;
 
-  // Returns true if the given surface type should be sampled.
+  // Returns true if the given surface type is allowed to be sampled.
   //
   // If IsActive() is false, this method will not be called.
   virtual bool IsTypeAllowed(IdentifiableSurface::Type type) const = 0;
 
-  // Returns true if surfaces should be actively sampled.
-  virtual bool ShouldActivelySample() const = 0;
+  // Returns the sample rate of the given surface.
+  //
+  // If IsActive() is false, this method will return 0.
+  virtual int SampleRate(IdentifiableSurface surface) const = 0;
 
-  // Returns the list of font families which should be actively sampled.
-  virtual std::vector<std::string> FontFamiliesToActivelySample() const {
-    return std::vector<std::string>();
-  }
+  // Returns the sample rate of the given surface type.
+  //
+  // If IsActive() is false, this method will return 0.
+  virtual int SampleRate(IdentifiableSurface::Type type) const = 0;
 };
 
 }  // namespace blink

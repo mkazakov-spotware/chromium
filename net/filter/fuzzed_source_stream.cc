@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,7 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/ranges/algorithm.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
 
@@ -26,7 +25,10 @@ const Error kReadErrors[] = {OK, ERR_FAILED, ERR_CONTENT_DECODING_FAILED};
 }  // namespace
 
 FuzzedSourceStream::FuzzedSourceStream(FuzzedDataProvider* data_provider)
-    : SourceStream(SourceStream::TYPE_NONE), data_provider_(data_provider) {}
+    : SourceStream(SourceStream::TYPE_NONE),
+      data_provider_(data_provider),
+      read_pending_(false),
+      end_returned_(false) {}
 
 FuzzedSourceStream::~FuzzedSourceStream() {
   DCHECK(!read_pending_);
@@ -49,7 +51,7 @@ int FuzzedSourceStream::Read(IOBuffer* buf,
 
   if (sync) {
     if (result > 0) {
-      base::ranges::copy(data, buf->data());
+      std::copy(data.data(), data.data() + data.size(), buf->data());
     } else {
       end_returned_ = true;
     }
@@ -60,7 +62,7 @@ int FuzzedSourceStream::Read(IOBuffer* buf,
 
   read_pending_ = true;
   // |this| is owned by the caller so use base::Unretained is safe.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&FuzzedSourceStream::OnReadComplete,
                                 base::Unretained(this), std::move(callback),
                                 data, pending_read_buf, result));

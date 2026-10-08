@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,6 @@
 #include "third_party/blink/public/platform/modules/webrtc/webrtc_logging.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/web/web_local_frame.h"
-#include "third_party/blink/renderer/core/execution_context/execution_context.h"
-#include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/modules/mediastream/media_stream_video_renderer_sink.h"
 #include "third_party/blink/renderer/modules/mediastream/media_stream_video_track.h"
@@ -35,10 +33,9 @@ namespace {
 // be rendered to a matching output device, should one exist.
 // Note that if there are more than one open capture devices the function
 // will not be able to pick an appropriate device and return 0.
-base::UnguessableToken GetSessionIdForWebRtcAudioRenderer(
-    ExecutionContext& context) {
+base::UnguessableToken GetSessionIdForWebRtcAudioRenderer() {
   WebRtcAudioDeviceImpl* audio_device =
-      PeerConnectionDependencyFactory::From(context).GetWebRtcAudioDevice();
+      PeerConnectionDependencyFactory::GetInstance()->GetWebRtcAudioDevice();
   return audio_device
              ? audio_device->GetAuthorizedDeviceSessionIdForAudioRenderer()
              : base::UnguessableToken();
@@ -58,7 +55,7 @@ scoped_refptr<WebMediaStreamVideoRenderer>
 MediaStreamRendererFactory::GetVideoRenderer(
     const WebMediaStream& web_stream,
     const WebMediaStreamVideoRenderer::RepaintCB& repaint_cb,
-    scoped_refptr<base::SequencedTaskRunner> video_task_runner,
+    scoped_refptr<base::SingleThreadTaskRunner> io_task_runner,
     scoped_refptr<base::SingleThreadTaskRunner> main_render_task_runner) {
   DCHECK(!web_stream.IsNull());
 
@@ -67,14 +64,14 @@ MediaStreamRendererFactory::GetVideoRenderer(
 
   MediaStreamDescriptor& descriptor = *web_stream;
   auto video_components = descriptor.VideoComponents();
-  if (video_components.empty() ||
+  if (video_components.IsEmpty() ||
       !MediaStreamVideoTrack::GetTrack(
           WebMediaStreamTrack(video_components[0].Get()))) {
     return nullptr;
   }
 
   return new MediaStreamVideoRendererSink(video_components[0].Get(), repaint_cb,
-                                          std::move(video_task_runner),
+                                          std::move(io_task_runner),
                                           std::move(main_render_task_runner));
 }
 
@@ -91,13 +88,13 @@ MediaStreamRendererFactory::GetAudioRenderer(
 
   MediaStreamDescriptor& descriptor = *web_stream;
   auto audio_components = descriptor.AudioComponents();
-  if (audio_components.empty()) {
+  if (audio_components.IsEmpty()) {
     // The stream contains no audio tracks. Log error message if the stream
     // contains no video tracks either. Without this extra check, video-only
     // streams would generate error messages at this stage and we want to
     // avoid that.
     auto video_tracks = descriptor.VideoComponents();
-    if (video_tracks.empty()) {
+    if (video_tracks.IsEmpty()) {
       SendLogMessage(String::Format(
           "%s => (ERROR: no audio tracks in media stream)", __func__));
     }
@@ -121,9 +118,6 @@ MediaStreamRendererFactory::GetAudioRenderer(
     return nullptr;
   }
 
-  auto* frame = To<LocalFrame>(WebLocalFrame::ToCoreFrame(*web_frame));
-  DCHECK(frame);
-
   // If the track has a local source, or is a remote track that does not use the
   // WebRTC audio pipeline, return a new TrackAudioRenderer instance.
   if (!PeerConnectionRemoteAudioTrack::From(audio_track)) {
@@ -133,27 +127,19 @@ MediaStreamRendererFactory::GetAudioRenderer(
         "%s => (creating TrackAudioRenderer for %s audio track)", __func__,
         audio_track->is_local_track() ? "local" : "remote"));
 
-    return new TrackAudioRenderer(audio_components[0].Get(), *frame,
+    auto* frame =
+        web_frame
+            ? static_cast<LocalFrame*>(WebLocalFrame::ToCoreFrame(*web_frame))
+            : nullptr;
+    return new TrackAudioRenderer(audio_components[0].Get(), frame,
                                   /*session_id=*/base::UnguessableToken(),
                                   String(device_id),
                                   std::move(on_render_error_callback));
   }
 
-  // Get the AudioDevice associated with the frame where this track was created,
-  // in case the track has been moved to eg a same origin iframe. Without this,
-  // one can get into a situation where media is piped to a different audio
-  // device to that where control signals are sent, leading to no audio being
-  // played out - see crbug/1239207.
-  WebLocalFrame* track_creation_frame =
-      audio_components[0].Get()->CreationFrame();
-  if (track_creation_frame) {
-    frame = To<LocalFrame>(WebLocalFrame::ToCoreFrame(*track_creation_frame));
-  }
-
   // This is a remote WebRTC media stream.
   WebRtcAudioDeviceImpl* audio_device =
-      PeerConnectionDependencyFactory::From(*frame->DomWindow())
-          .GetWebRtcAudioDevice();
+      PeerConnectionDependencyFactory::GetInstance()->GetWebRtcAudioDevice();
   DCHECK(audio_device);
   SendLogMessage(String::Format(
       "%s => (media stream is a remote WebRTC stream)", __func__));
@@ -170,11 +156,9 @@ MediaStreamRendererFactory::GetAudioRenderer(
         __func__));
 
     renderer = new WebRtcAudioRenderer(
-        PeerConnectionDependencyFactory::From(*frame->DomWindow())
-            .GetWebRtcSignalingTaskRunner(),
-        web_stream, *web_frame,
-
-        GetSessionIdForWebRtcAudioRenderer(*frame->DomWindow()),
+        PeerConnectionDependencyFactory::GetInstance()
+            ->GetWebRtcSignalingTaskRunner(),
+        web_stream, web_frame, GetSessionIdForWebRtcAudioRenderer(),
         String(device_id), std::move(on_render_error_callback));
 
     if (!audio_device->SetAudioRenderer(renderer.get())) {

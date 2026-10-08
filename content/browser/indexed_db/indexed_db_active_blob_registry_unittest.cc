@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,12 @@
 #include <set>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
+#include "base/macros.h"
+#include "base/stl_util.h"
 #include "base/test/task_environment.h"
 #include "content/browser/indexed_db/indexed_db_active_blob_registry.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "url/origin.h"
 
 namespace content {
 
@@ -64,11 +66,6 @@ class IndexedDBActiveBlobRegistryTest : public testing::Test {
                                 &report_outstanding_state_),
             base::BindRepeating(&ReportUnusedBlob, &unused_blobs_))) {}
 
-  IndexedDBActiveBlobRegistryTest(const IndexedDBActiveBlobRegistryTest&) =
-      delete;
-  IndexedDBActiveBlobRegistryTest& operator=(
-      const IndexedDBActiveBlobRegistryTest&) = delete;
-
   void RunUntilIdle() { task_environment_.RunUntilIdle(); }
   IndexedDBActiveBlobRegistry* registry() const { return registry_.get(); }
 
@@ -80,6 +77,8 @@ class IndexedDBActiveBlobRegistryTest : public testing::Test {
   base::test::TaskEnvironment task_environment_;
 
   std::unique_ptr<IndexedDBActiveBlobRegistry> registry_;
+
+  DISALLOW_COPY_AND_ASSIGN(IndexedDBActiveBlobRegistryTest);
 };
 
 TEST_F(IndexedDBActiveBlobRegistryTest, DeleteUnused) {

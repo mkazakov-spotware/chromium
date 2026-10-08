@@ -1,9 +1,14 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import os
-import pickle
+import sys
+
+if sys.version_info.major == 2:
+    import cPickle as pickle  # 'cPickle' is faster than 'pickle' on Py2
+else:
+    import pickle
 
 
 def read_pickle_file(filepath):

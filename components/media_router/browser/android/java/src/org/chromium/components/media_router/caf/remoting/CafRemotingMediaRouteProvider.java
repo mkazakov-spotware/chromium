@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,7 +41,7 @@ public class CafRemotingMediaRouteProvider extends CafBaseMediaRouteProvider {
     @Override
     public void joinRoute(
             String sourceId, String presentationId, String origin, int tabId, int nativeRequestId) {
-        mManager.onJoinRouteRequestError(
+        mManager.onRouteRequestError(
                 "Remote playback doesn't support joining routes", nativeRequestId);
     }
 

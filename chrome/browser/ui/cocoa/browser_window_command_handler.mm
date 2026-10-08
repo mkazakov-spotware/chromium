@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,15 +25,13 @@ void SetToggleState(bool toggled, id item) {
   NSMenuItem* menuItem = base::mac::ObjCCast<NSMenuItem>(item);
   NSButton* buttonItem = base::mac::ObjCCast<NSButton>(item);
   if (menuItem) {
-    NSControlStateValue old_state = [menuItem state];
-    NSControlStateValue new_state =
-        toggled ? NSControlStateValueOn : NSControlStateValueOff;
+    NSInteger old_state = [menuItem state];
+    NSInteger new_state = toggled ? NSOnState : NSOffState;
     if (old_state != new_state)
       [menuItem setState:new_state];
   } else if (buttonItem) {
-    NSControlStateValue old_state = [buttonItem state];
-    NSControlStateValue new_state =
-        toggled ? NSControlStateValueOn : NSControlStateValueOff;
+    NSInteger old_state = [buttonItem state];
+    NSInteger new_state = toggled ? NSOnState : NSOffState;
     if (old_state != new_state)
       [buttonItem setState:new_state];
   }
@@ -125,16 +123,15 @@ remote_cocoa::NativeWidgetNSWindowBridge* FindBridgeForSender(
   NSInteger command = [sender tag];
   NSUInteger modifierFlags = [[NSApp currentEvent] modifierFlags];
   if ((command == IDC_RELOAD) &&
-      (modifierFlags &
-       (NSEventModifierFlagShift | NSEventModifierFlagControl))) {
+      (modifierFlags & (NSShiftKeyMask | NSControlKeyMask))) {
     command = IDC_RELOAD_BYPASSING_CACHE;
     // Mask off Shift and Control so they don't affect the disposition below.
-    modifierFlags &= ~(NSEventModifierFlagShift | NSEventModifierFlagControl);
+    modifierFlags &= ~(NSShiftKeyMask | NSControlKeyMask);
   }
   if (![[sender window] isMainWindow]) {
     // Remove the command key from the flags, it means "keep the window in
     // the background" in this case.
-    modifierFlags &= ~NSEventModifierFlagCommand;
+    modifierFlags &= ~NSCommandKeyMask;
   }
 
   bool was_executed = false;

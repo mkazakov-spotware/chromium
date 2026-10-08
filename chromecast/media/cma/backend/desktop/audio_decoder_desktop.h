@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "chromecast/public/media/media_pipeline_backend.h"
 
@@ -18,10 +19,6 @@ class MediaSinkDesktop;
 class AudioDecoderDesktop : public MediaPipelineBackend::AudioDecoder {
  public:
   AudioDecoderDesktop();
-
-  AudioDecoderDesktop(const AudioDecoderDesktop&) = delete;
-  AudioDecoderDesktop& operator=(const AudioDecoderDesktop&) = delete;
-
   ~AudioDecoderDesktop() override;
 
   void Start(base::TimeDelta start_pts);
@@ -37,12 +34,11 @@ class AudioDecoderDesktop : public MediaPipelineBackend::AudioDecoder {
   bool SetConfig(const AudioConfig& config) override;
   bool SetVolume(float multiplier) override;
   RenderingDelay GetRenderingDelay() override;
-  AudioTrackTimestamp GetAudioTrackTimestamp() override;
-  int GetStartThresholdInFrames() override;
 
  private:
   Delegate* delegate_;
   std::unique_ptr<MediaSinkDesktop> sink_;
+  DISALLOW_COPY_AND_ASSIGN(AudioDecoderDesktop);
 };
 
 }  // namespace media

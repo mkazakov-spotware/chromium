@@ -25,17 +25,14 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CLIPBOARD_DATA_TRANSFER_H_
 
 #include <memory>
-
 #include "third_party/blink/public/common/page/drag_operation.h"
 #include "third_party/blink/renderer/core/clipboard/data_object.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/loader/resource/image_resource_content.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/geometry/int_point.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
-#include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
-#include "ui/base/dragdrop/mojom/drag_drop_types.mojom-blink-forward.h"
-#include "ui/gfx/geometry/point.h"
 
 namespace blink {
 
@@ -80,13 +77,15 @@ class CORE_EXPORT DataTransfer final : public ScriptWrappable,
   bool IsForCopyAndPaste() const { return transfer_type_ == kCopyAndPaste; }
   bool IsForDragAndDrop() const { return transfer_type_ == kDragAndDrop; }
 
-  AtomicString dropEffect() const {
-    return DropEffectIsInitialized() ? drop_effect_ : "none";
+  String dropEffect() const {
+    return DropEffectIsUninitialized() ? "none" : drop_effect_;
   }
-  void setDropEffect(const AtomicString&);
-  bool DropEffectIsInitialized() const { return !drop_effect_.IsNull(); }
-  AtomicString effectAllowed() const { return effect_allowed_; }
-  void setEffectAllowed(const AtomicString&);
+  void setDropEffect(const String&);
+  bool DropEffectIsUninitialized() const {
+    return drop_effect_ == "uninitialized";
+  }
+  String effectAllowed() const { return effect_allowed_; }
+  void setEffectAllowed(const String&);
 
   void clearData(const String& type = String());
   String getData(const String& type) const;
@@ -98,17 +97,13 @@ class CORE_EXPORT DataTransfer final : public ScriptWrappable,
   Vector<String> types();
   FileList* files() const;
 
-  // Returns drag location (offset) within the dragged object.  This is (0,0)
-  // unless set by setDragImage().
-  gfx::Point DragLocation() const { return drag_loc_; }
-
+  IntPoint DragLocation() const { return drag_loc_; }
   void setDragImage(Element*, int x, int y);
   void ClearDragImage();
-  void SetDragImageResource(ImageResourceContent*, const gfx::Point&);
-  void SetDragImageElement(Node*, const gfx::Point&);
+  void SetDragImageResource(ImageResourceContent*, const IntPoint&);
+  void SetDragImageElement(Node*, const IntPoint&);
 
-  std::unique_ptr<DragImage> CreateDragImage(gfx::Point& drag_location,
-                                             float device_scale_factor,
+  std::unique_ptr<DragImage> CreateDragImage(IntPoint& drag_location,
                                              LocalFrame*) const;
   void DeclareAndWriteDragImage(Element*,
                                 const KURL& link_url,
@@ -128,27 +123,34 @@ class CORE_EXPORT DataTransfer final : public ScriptWrappable,
   // anyway.
   bool CanSetDragImage() const;
 
-  DragOperationsMask SourceOperation() const;
-  ui::mojom::blink::DragOperation DestinationOperation() const;
-  void SetSourceOperation(DragOperationsMask);
-  void SetDestinationOperation(ui::mojom::blink::DragOperation);
+  DragOperation SourceOperation() const;
+  DragOperation DestinationOperation() const;
+  void SetSourceOperation(DragOperation);
+  void SetDestinationOperation(DragOperation);
+
+  bool HasDropZoneType(const String&);
 
   DataTransferItemList* items();
 
   DataObject* GetDataObject() const;
 
   // Clip to the visible area of the visual viewport.
-  static gfx::RectF ClipByVisualViewport(const gfx::RectF& rect_in_document,
-                                         const LocalFrame&);
+  static FloatRect ClipByVisualViewport(const FloatRect& rect_in_document,
+                                        const LocalFrame&);
 
-  // |layout_size| is the size of the image in layout pixels.
-  // |paint_offset| is the offset from the origin of the dragged object of the
-  // PaintRecordBuilder.
+  // Returns the size with device scale factor and page scale factor applied.
+  static FloatSize DeviceSpaceSize(const FloatSize& css_size,
+                                   const LocalFrame&);
+
+  // |css_size| is the size of the image in CSS pixels.
+  // |paint_offset| is the offset from the origin of the dragged
+  // object of the PaintRecordBuilder.
   static std::unique_ptr<DragImage> CreateDragImageForFrame(
       LocalFrame&,
       float,
-      const gfx::SizeF& layout_size,
-      const gfx::Vector2dF& paint_offset,
+      RespectImageOrientationEnum,
+      const FloatSize& css_size,
+      const FloatPoint& paint_offset,
       PaintRecordBuilder&,
       const PropertyTreeState&);
   static std::unique_ptr<DragImage> NodeImage(LocalFrame&, Node&);
@@ -156,7 +158,7 @@ class CORE_EXPORT DataTransfer final : public ScriptWrappable,
   void Trace(Visitor*) const override;
 
  private:
-  void setDragImage(ImageResourceContent*, Node*, const gfx::Point&);
+  void setDragImage(ImageResourceContent*, Node*, const IntPoint&);
 
   bool HasFileOfType(const String&) const;
   bool HasStringOfType(const String&) const;
@@ -167,18 +169,21 @@ class CORE_EXPORT DataTransfer final : public ScriptWrappable,
   // Instead of using this member directly, prefer to use the can*() methods
   // above.
   DataTransferAccessPolicy policy_;
-  AtomicString drop_effect_;
-  AtomicString effect_allowed_;
+  String drop_effect_;
+  String effect_allowed_;
   DataTransferType transfer_type_;
   Member<DataObject> data_object_;
 
   bool data_store_item_list_changed_;
 
-  gfx::Point drag_loc_;
+  IntPoint drag_loc_;
   Member<ImageResourceContent> drag_image_;
   Member<Node> drag_image_element_;
-  Member<FileList> files_;
 };
+
+DragOperation ConvertDropZoneOperationToDragOperation(
+    const String& drag_operation);
+String ConvertDragOperationToDropZoneOperation(DragOperation);
 
 }  // namespace blink
 

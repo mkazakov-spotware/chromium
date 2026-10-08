@@ -30,8 +30,6 @@ function testShapeMarginInlineStyle(value, expected) {
     div.style.setProperty('shape-outside', "border-box inset(10px)");
     div.style.setProperty('shape-margin', value);
     var actual = div.style.getPropertyValue('shape-margin');
-    actual = roundResultStr(actual);
-    expected = roundResultStr(expected);
     assert_equals(actual, expected);
 }
 
@@ -324,20 +322,15 @@ function setUnit(str, convert, unit1, unit2, unit3) {
     return retStr;
 }
 
-function roundCssNumber(n) {
-    // See https://drafts.csswg.org/cssom/#serializing-css-values for numbers.
-    return parseFloat(n.toPrecision(6));
-}
-
 function convertToPx(origValue) {
 
-    var valuesToConvert = origValue.match(/[0-9]+(\.[0-9]+)?([a-z]{2,4}|%|)/g);
+    var valuesToConvert = origValue.match(/[0-9]+(\.[0-9]+)?([a-z]{2,4}|%)/g);
     if(!valuesToConvert)
         return origValue;
 
     var retStr = origValue;
     for(var i = 0; i < valuesToConvert.length; i++) {
-        var unit = (valuesToConvert[i].match(/[a-z]{2,4}|%/) || '').toString();
+        var unit = valuesToConvert[i].match(/[a-z]{2,4}|%/).toString();
         var numberStr = valuesToConvert[i].match(/[0-9]+(\.[0-9]+)?/)[0];
 
         var number = parseFloat(numberStr);
@@ -374,7 +367,7 @@ function convertToPx(origValue) {
              else {
                  convertedUnit = unit;
              }
-            number = roundCssNumber(number);
+            number = Math.round(number * 1000) / 1000;
             var find = valuesToConvert[i];
             var replace = number.toString() + convertedUnit;
             retStr = retStr.replace(valuesToConvert[i], number.toString() + convertedUnit);
@@ -395,7 +388,7 @@ function roundResultStr(str) {
     for(var i = 0; i < numbersToRound.length; i++) {
         num = parseFloat(numbersToRound[i]);
         if( !isNaN(num) ) {
-            roundedNum = roundCssNumber(num);
+            roundedNum = Math.round(num*1000)/1000;
             retStr = retStr.replace(numbersToRound[i].toString(), roundedNum.toString());
         }
     }

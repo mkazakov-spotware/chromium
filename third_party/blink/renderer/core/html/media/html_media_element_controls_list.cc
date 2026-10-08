@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,10 @@ namespace {
 
 const char kNoDownload[] = "nodownload";
 const char kNoFullscreen[] = "nofullscreen";
-const char kNoPlaybackRate[] = "noplaybackrate";
 const char kNoRemotePlayback[] = "noremoteplayback";
 
 const char* const kSupportedTokens[] = {kNoDownload, kNoFullscreen,
-                                        kNoPlaybackRate, kNoRemotePlayback};
+                                        kNoRemotePlayback};
 
 }  // namespace
 
@@ -42,17 +41,8 @@ bool HTMLMediaElementControlsList::ShouldHideFullscreen() const {
   return contains(kNoFullscreen);
 }
 
-bool HTMLMediaElementControlsList::ShouldHidePlaybackRate() const {
-  return contains(kNoPlaybackRate);
-}
-
 bool HTMLMediaElementControlsList::ShouldHideRemotePlayback() const {
   return contains(kNoRemotePlayback);
-}
-
-bool HTMLMediaElementControlsList::CanShowAllControls() const {
-  return ShouldHideDownload() || ShouldHideFullscreen() ||
-         ShouldHidePlaybackRate() || ShouldHideRemotePlayback();
 }
 
 }  // namespace blink

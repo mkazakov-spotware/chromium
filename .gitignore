@@ -39,62 +39,41 @@
 .cipd
 .classpath
 .code-coverage
-.coverage
 .cproject
-.dir-locals.el
 .emulator_sdk
 .gdb_history
 .gdbinit
 .landmines
 .metadata
 .project
-.projectile
 .pydevproject
 .checkstyle
 *.class
 compile_commands.json
 cscope.*
-child_pool-0.profraw
-child_pool-1.profraw
-child_pool-2.profraw
-child_pool-3.profraw
-default.profraw
 GPATH
 GRTAGS
 GSYMS
 GTAGS
 Session.vim
 tags
-TAGS
 Thumbs.db
-rust-project.json
 v8.log
 vs-chromium-project.txt
-# Store android emulator artifacts, used by //tools/android/avd/avd.py
-/.android_emulator/
-/.clangd
 /.clangd/
 /.clangd-index/
 # Settings directories for eclipse
 /.externalToolBuilders/
 /.settings/
 /.vs/
+algo/win/.vs/
+sandbox/win/.vs/
+*.htm
 # Visual Studio Code
-# No trailing slash to also ignore symlinks, which is useful in conjunction with
-# gclient-new-workdir.
-.vscode
-.vscode-server
-
+.vscode/
 /_out
 /android_emulator_sdk
 /ash/ash_unittests_run.xml
-/ash/webui/eche_app_ui/resources/app
-/ash/webui/eche_app_ui/resources/prod
-/ash/webui/help_app_ui/resources/prod
-/ash/webui/media_app_ui/resources/prod
-/ash/webui/media_app_ui/resources/app
-/ash/webui/media_app_ui/resources/pkg
-/ash/webui/projector_app/resources/prod
 /base/base_unittests_run.xml
 # See build/.gitignore for entries covering src/build.
 
@@ -106,6 +85,11 @@ vs-chromium-project.txt
 /chrome/android/profiles/afdo.prof
 /chrome/android/profiles/local.txt
 /chrome/angle_unittests_run.xml
+/chrome/app/vector_icons/google_chrome/
+/chrome/build/chrome.x64.orderfile
+/chrome/build/chrome.x86.orderfile
+/chrome/build/chrome_child.x64.orderfile
+/chrome/build/chrome_child.x86.orderfile
 /chrome/build/pgo_profiles/
 /chrome/gl_tests_run.xml
 /chrome/gles2_conform_test_run.xml
@@ -116,18 +100,19 @@ vs-chromium-project.txt
 /chrome/app/theme/google_chrome
 /chrome/browser/chromeos/arc/voice_interaction/internal
 /chrome/browser/chromeos/assistant/internal
-/chrome/browser/enterprise/connectors/internal
+/chrome/browser/chromeos/login/screenshot_testing/golden_screenshots/*.png
+/chrome/browser/chromeos/login/screenshot_testing/artifacts
 /chrome/browser/extensions/api/ledger/
 /chrome/browser/extensions/default_extensions/chromeos
 /chrome/browser/google/linkdoctor_internal
 /chrome/browser/internal
 /chrome/browser/media/engagement_internal
+/chrome/browser/media/kaleidoscope/internal
 /chrome/browser/performance_monitor/performance_monitor.xml
 /chrome/browser/protector/internal
 /chrome/browser/resources/chromeos/quickoffice
 /chrome/browser/resources/pdf/html_office
 /chrome/browser/resources/media_router/extension/src/
-/chrome/browser/resources/preinstalled_web_apps/internal/
 /chrome/browser/resources/media_router_internal/
 /chrome/browser/resources/settings_internal/
 /chrome/browser/resources/software_rendering_list
@@ -154,7 +139,6 @@ vs-chromium-project.txt
 /chrome/installer_util_strings.xml
 /chrome/interactive_ui_tests_run.xml
 /chrome/services/soda/internal
-/chrome/services/speech/internal
 /chrome/setup.xml
 /chrome/setup_unittests.xml
 /chrome/sync_integration_tests_run.xml
@@ -196,19 +180,21 @@ vs-chromium-project.txt
 /chromeos/assistant/internal
 /chromeos/components/help_app_ui/resources/app
 /chromeos/components/help_app_ui/resources/prod
+/chromeos/components/media_app_ui/resources/prod
+/chromeos/components/media_app_ui/resources/app
+/chromeos/components/media_app_ui/resources/pkg
 /chromeos/profiles/chromeos.orderfile.txt
 /chromeos/profiles/*.local.txt
 /chromeos/profiles/*.afdo.prof
 /cipd_cache/
 /clank
-/components/autofill/core/browser/form_parsing/internal_resources
+/cloud_print/cloud_print_version_resources.xml
 /components/chrome_settings_proto_generated_compile.xml
 /components/cloud_policy_proto_generated_compile.xml
 /components/gcm_driver.xml
-/components/history_clusters/internal
 /components/leveldb_proto_test_support.xml
 /components/ntp_tiles/resources/internal
-/components/optimization_guide/internal
+/components/rappor.xml
 /components/resources/default_100_percent/google_chrome
 /components/resources/default_200_percent/google_chrome
 /components/resources/default_300_percent/google_chrome
@@ -216,7 +202,6 @@ vs-chromium-project.txt
 /components/site_isolation/internal
 /components/suggestions.xml
 /components/variations.xml
-/components/vector_icons/google_chrome/
 /components/zucchini/testdata/*.exe
 /content/browser/service_worker/proto.xml
 /content/content_browsertests_run.xml
@@ -224,16 +209,12 @@ vs-chromium-project.txt
 /content/content_unittests_run.xml
 /content/test/data/gpu/generated/
 /content/test/data/gpu/gpu_reference/
-/content/test/data/gpu/mediapipe/
-/content/test/data/gpu/mediapipe_zip/mediapipe_chromium_tests.zip
 /content/test/data/layout_tests/
 /content/test/data/plugin/
-/content/test/gpu/.webgpu_typescript/
 /content/web_ui_test_mojo_bindings.xml
 /data
 /delegate_execute
 /device/serial/device_serial_mojo.xml
-/docs/website
 /google_apis/gcm/gcm.xml
 /google_apis/internal
 /googleurl
@@ -242,8 +223,9 @@ vs-chromium-project.txt
 /ios/third_party/earl_grey/src
 /ios/third_party/earl_grey2/src
 /ios/third_party/edo/src
+/ios/third_party/fishhook/src
+/ios/third_party/gcdwebserver/src
 /ios/third_party/gtx/src
-/ios/third_party/lottie/src
 /ios/third_party/material_components_ios/src
 /ios/third_party/material_font_disk_loader_ios/src
 /ios/third_party/material_internationalization_ios/src
@@ -278,7 +260,6 @@ vs-chromium-project.txt
 /ppapi/native_client/ppapi_lib.xml
 /remoting/android/internal/
 /remoting/appengine/
-/remoting/host/installer/chrome-remote-desktop_*.buildinfo
 /remoting/host/installer/linux/internal/
 /remoting/ios/internal/
 /remoting/internal/
@@ -306,8 +287,6 @@ vs-chromium-project.txt
 /sql/sql_unittests_run.xml
 /sync/sync.xml
 /testing/libfuzzer/fuzzer_corpus_for_bots/
-/testing/location_tags.json
-/testing/rts/
 /testserver.log
 # See third_party/.gitignore for entries covering src/third_party.
 /tools/.bisect-builds-cache.json
@@ -321,17 +300,14 @@ vs-chromium-project.txt
 /tools/json_schema_compiler/test/json_schema_compiler_tests.xml
 /tools/metrics/actions/actions.old.xml
 /tools/metrics/histograms/histograms.before.pretty-print.xml
-/tools/metrics/histograms/metadata/*.before.pretty-print.xml
-/tools/metrics/histograms/metadata/*/*.before.pretty-print.xml
+/tools/metrics/histograms/histograms_xml/*.before.pretty-print.xml
 /tools/metrics/histograms/enums.before.pretty-print.xml
 /tools/page_cycler/acid3
-/tools/bluetooth
-/tools/reclient
 /tools/skia_goldctl/
+/tools/swarming_client
 /tools/tryserver
 /tools/win/link_limiter/build
 /ui/file_manager/internal
-/ui/file_manager/tsconfig.json
 /ui/keyboard/keyboard_mojom_bindings.xml
 /ui/surface/surface.xml
 /ui/surface/surface_gpu_tests.xml
@@ -356,3 +332,5 @@ vs-chromium-project.txt
 
 # Ignore the default results output directory for tools/run-swarmed.py
 /results
+bin
+obj

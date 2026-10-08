@@ -1,15 +1,15 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chromecast/media/audio/capture_service/capture_service_receiver.h"
 
 #include <cstddef>
-#include <cstdint>
 #include <memory>
 
 #include "base/big_endian.h"
 #include "base/run_loop.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/test/task_environment.h"
 #include "chromecast/media/audio/capture_service/message_parsing_utils.h"
@@ -28,26 +28,24 @@ namespace capture_service {
 namespace {
 
 constexpr StreamInfo kStreamInfo =
-    StreamInfo{.stream_type = StreamType::kSoftwareEchoCancelled,
-               .audio_codec = AudioCodec::kPcm,
-               .num_channels = 1,
-               .sample_format = SampleFormat::PLANAR_FLOAT,
-               .sample_rate = 16000,
-               .frames_per_buffer = 160};
-constexpr HandshakePacket kHandshakePacket = HandshakePacket{
-    .size = 0,  // dummy
-    .message_type = static_cast<uint8_t>(MessageType::kHandshake),
-    .stream_type = static_cast<uint8_t>(kStreamInfo.stream_type),
-    .audio_codec = static_cast<uint8_t>(kStreamInfo.audio_codec),
-    .sample_format = static_cast<uint8_t>(kStreamInfo.sample_format),
-    .num_channels = kStreamInfo.num_channels,
-    .num_frames = kStreamInfo.frames_per_buffer,
-    .sample_rate = kStreamInfo.sample_rate};
-constexpr PcmPacketHeader kPcmAudioPacketHeader = PcmPacketHeader{
-    .size = 0,  // dummy
-    .message_type = static_cast<uint8_t>(MessageType::kPcmAudio),
-    .stream_type = static_cast<uint8_t>(kStreamInfo.stream_type),
-    .timestamp_us = 0};
+    StreamInfo{StreamType::kSoftwareEchoCancelled,
+               AudioCodec::kPcm,
+               1,
+               SampleFormat::PLANAR_FLOAT,
+               16000,
+               160};
+constexpr HandshakePacket kHandshakePacket =
+    HandshakePacket{0,
+                    static_cast<uint8_t>(MessageType::kHandshake),
+                    static_cast<uint8_t>(kStreamInfo.stream_type),
+                    static_cast<uint8_t>(kStreamInfo.audio_codec),
+                    static_cast<uint8_t>(kStreamInfo.sample_format),
+                    kStreamInfo.num_channels,
+                    kStreamInfo.frames_per_buffer,
+                    kStreamInfo.sample_rate};
+constexpr PcmPacketHeader kPcmAudioPacketHeader =
+    PcmPacketHeader{0, static_cast<uint8_t>(MessageType::kPcmAudio),
+                    static_cast<uint8_t>(kStreamInfo.stream_type), 0};
 
 class MockStreamSocket : public chromecast::MockStreamSocket {
  public:
@@ -64,7 +62,6 @@ class MockCaptureServiceReceiverDelegate
   MOCK_METHOD(bool, OnInitialStreamInfo, (const StreamInfo&), (override));
   MOCK_METHOD(bool, OnCaptureData, (const char*, size_t), (override));
   MOCK_METHOD(void, OnCaptureError, (), (override));
-  MOCK_METHOD(void, OnCaptureMetadata, (const char*, size_t), (override));
 };
 
 class CaptureServiceReceiverTest : public ::testing::Test {
@@ -127,7 +124,7 @@ TEST_F(CaptureServiceReceiverTest, SendRequest) {
                           net::CompletionOnceCallback,
                           const net::NetworkTrafficAnnotationTag&) {
         EXPECT_EQ(buf_len, static_cast<int>(sizeof(HandshakePacket)));
-        auto* data = reinterpret_cast<const uint8_t*>(buf->data());
+        const char* data = buf->data();
         uint16_t size;
         base::ReadBigEndian(data, &size);
         EXPECT_EQ(size, sizeof(HandshakePacket) - sizeof(size));
@@ -206,7 +203,6 @@ TEST_F(CaptureServiceReceiverTest, ReceiveMetadataMessage) {
   // Neither OnCaptureError nor OnCaptureData will be called.
   EXPECT_CALL(delegate_, OnCaptureError).Times(0);
   EXPECT_CALL(delegate_, OnCaptureData).Times(0);
-  EXPECT_CALL(delegate_, OnCaptureMetadata).Times(1);
 
   receiver_.StartWithSocket(std::move(socket));
   task_environment_.RunUntilIdle();

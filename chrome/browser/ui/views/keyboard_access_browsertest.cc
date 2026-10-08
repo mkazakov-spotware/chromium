@@ -1,16 +1,16 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -50,11 +50,8 @@ class ViewFocusChangeWaiter : public views::FocusChangeListener {
     focus_manager_->AddFocusChangeListener(this);
     // Call the focus change notification once in case the focus has
     // already changed.
-    OnWillChangeFocus(nullptr, focus_manager_->GetFocusedView());
+    OnWillChangeFocus(NULL, focus_manager_->GetFocusedView());
   }
-
-  ViewFocusChangeWaiter(const ViewFocusChangeWaiter&) = delete;
-  ViewFocusChangeWaiter& operator=(const ViewFocusChangeWaiter&) = delete;
 
   ~ViewFocusChangeWaiter() override {
     focus_manager_->RemoveFocusChangeListener(this);
@@ -72,14 +69,16 @@ class ViewFocusChangeWaiter : public views::FocusChangeListener {
   void OnDidChangeFocus(views::View* focused_before,
                         views::View* focused_now) override {
     if (focused_now && focused_now->GetID() != previous_view_id_) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::RunLoop::QuitCurrentWhenIdleClosureDeprecated());
     }
   }
 
-  raw_ptr<views::FocusManager> focus_manager_;
+  views::FocusManager* focus_manager_;
   int previous_view_id_;
   base::WeakPtrFactory<ViewFocusChangeWaiter> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ViewFocusChangeWaiter);
 };
 
 class SendKeysMenuListener : public AppMenuButtonObserver {
@@ -90,11 +89,8 @@ class SendKeysMenuListener : public AppMenuButtonObserver {
       : browser_(browser),
         menu_open_count_(0),
         test_dismiss_menu_(test_dismiss_menu) {
-    observation_.Observe(app_menu_button);
+    observer_.Add(app_menu_button);
   }
-
-  SendKeysMenuListener(const SendKeysMenuListener&) = delete;
-  SendKeysMenuListener& operator=(const SendKeysMenuListener&) = delete;
 
   ~SendKeysMenuListener() override = default;
 
@@ -103,12 +99,11 @@ class SendKeysMenuListener : public AppMenuButtonObserver {
     menu_open_count_++;
     if (test_dismiss_menu_) {
       SendKeyPress(browser_, ui::VKEY_ESCAPE);
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
           FROM_HERE, base::RunLoop::QuitCurrentWhenIdleClosureDeprecated(),
-          base::Milliseconds(200));
+          base::TimeDelta::FromMilliseconds(200));
     } else {
-      DCHECK(observation_.IsObserving());
-      observation_.Reset();
+      observer_.RemoveAll();
       // Press DOWN to select the first item, then RETURN to select it.
       SendKeyPress(browser_, ui::VKEY_DOWN);
       SendKeyPress(browser_, ui::VKEY_RETURN);
@@ -118,23 +113,21 @@ class SendKeysMenuListener : public AppMenuButtonObserver {
   int menu_open_count() const { return menu_open_count_; }
 
  private:
-  raw_ptr<Browser> browser_;
+  Browser* browser_;
   // Keeps track of the number of times the menu was opened.
   int menu_open_count_;
   // If this is set then on receiving a notification that the menu was opened
   // we dismiss it by sending the ESC key.
   bool test_dismiss_menu_;
 
-  base::ScopedObservation<AppMenuButton, AppMenuButtonObserver> observation_{
-      this};
+  ScopedObserver<AppMenuButton, AppMenuButtonObserver> observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SendKeysMenuListener);
 };
 
 class KeyboardAccessTest : public InProcessBrowserTest {
  public:
   KeyboardAccessTest() {}
-
-  KeyboardAccessTest(const KeyboardAccessTest&) = delete;
-  KeyboardAccessTest& operator=(const KeyboardAccessTest&) = delete;
 
   // Use the keyboard to select "New Tab" from the app menu.
   // This test depends on the fact that there is one menu and that
@@ -167,7 +160,7 @@ class KeyboardAccessTest : public InProcessBrowserTest {
     waiter.Wait();
   }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Opens the system menu on Windows with the Alt Space combination and selects
   // the New Tab option from the menu.
   void TestSystemMenuWithKeyboard();
@@ -178,6 +171,9 @@ class KeyboardAccessTest : public InProcessBrowserTest {
   // It verifies that the menu when dismissed by sending the ESC key it does
   // not display twice.
   void TestMenuKeyboardAccessAndDismiss();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(KeyboardAccessTest);
 };
 
 void KeyboardAccessTest::TestMenuKeyboardAccess(bool alternate_key_sequence,
@@ -185,8 +181,7 @@ void KeyboardAccessTest::TestMenuKeyboardAccess(bool alternate_key_sequence,
                                                 bool focus_omnibox) {
   // Navigate to a page in the first tab, which makes sure that focus is
   // set to the browser window.
-  ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser(), GURL("chrome://version/")));
+  ui_test_utils::NavigateToURL(browser(), GURL("chrome://version/"));
 
   // The initial tab index should be 0.
   ASSERT_EQ(0, browser()->tab_strip_model()->active_index());
@@ -207,7 +202,7 @@ void KeyboardAccessTest::TestMenuKeyboardAccess(bool alternate_key_sequence,
   if (focus_omnibox)
     browser()->window()->GetLocationBar()->FocusLocation(false);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // Chrome OS doesn't have a way to just focus the app menu, so we use Alt+F to
   // bring up the menu.
   ASSERT_TRUE(ui_test_utils::SendKeyPressSync(
@@ -232,7 +227,7 @@ void KeyboardAccessTest::TestMenuKeyboardAccess(bool alternate_key_sequence,
 
   // See above comment. Since we already brought up the menu, no need to do this
   // on ChromeOS.
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
   if (alternate_key_sequence)
     SendKeyPress(browser(), ui::VKEY_DOWN);
   else
@@ -246,7 +241,7 @@ void KeyboardAccessTest::TestMenuKeyboardAccess(bool alternate_key_sequence,
   ASSERT_EQ(1, browser()->tab_strip_model()->active_index());
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 // This CBT hook is set for the duration of the TestSystemMenuWithKeyboard test
 LRESULT CALLBACK SystemMenuTestCBTHook(int n_code,
@@ -257,8 +252,8 @@ LRESULT CALLBACK SystemMenuTestCBTHook(int n_code,
   if (n_code == HCBT_ACTIVATE || n_code == HCBT_CREATEWND) {
     wchar_t class_name[MAX_PATH] = {0};
     GetClassName(reinterpret_cast<HWND>(w_param), class_name,
-                 std::size(class_name));
-    if (base::EqualsCaseInsensitiveASCII(class_name, "#32768")) {
+                 base::size(class_name));
+    if (base::LowerCaseEqualsASCII(class_name, "#32768")) {
       // Select the New Tab option and then send the enter key to execute it.
       ::PostMessage(reinterpret_cast<HWND>(w_param), WM_CHAR, 'T', 0);
       ::PostMessage(reinterpret_cast<HWND>(w_param), WM_KEYDOWN, VK_RETURN, 0);
@@ -271,8 +266,7 @@ LRESULT CALLBACK SystemMenuTestCBTHook(int n_code,
 void KeyboardAccessTest::TestSystemMenuWithKeyboard() {
   // Navigate to a page in the first tab, which makes sure that focus is
   // set to the browser window.
-  ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser(), GURL("chrome://version/")));
+  ui_test_utils::NavigateToURL(browser(), GURL("chrome://version/"));
 
   ASSERT_TRUE(ui_test_utils::BringBrowserWindowToFront(browser()));
 
@@ -309,8 +303,8 @@ LRESULT CALLBACK SystemMenuReopenClosedTabTestCBTHook(int n_code,
   if (n_code == HCBT_ACTIVATE || n_code == HCBT_CREATEWND) {
     wchar_t class_name[MAX_PATH] = {0};
     GetClassName(reinterpret_cast<HWND>(w_param), class_name,
-                 std::size(class_name));
-    if (base::EqualsCaseInsensitiveASCII(class_name, "#32768")) {
+                 base::size(class_name));
+    if (base::LowerCaseEqualsASCII(class_name, "#32768")) {
       // Send 'E' for the Reopen closed tab option.
       ::PostMessage(reinterpret_cast<HWND>(w_param), WM_CHAR, 'E', 0);
     }
@@ -321,8 +315,7 @@ LRESULT CALLBACK SystemMenuReopenClosedTabTestCBTHook(int n_code,
 void KeyboardAccessTest::TestSystemMenuReopenClosedTabWithKeyboard() {
   // Navigate to a page in the first tab, which makes sure that focus is
   // set to the browser window.
-  ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser(), GURL("chrome://version/")));
+  ui_test_utils::NavigateToURL(browser(), GURL("chrome://version/"));
 
   ui_test_utils::NavigateToURLWithDisposition(
       browser(), GURL("chrome://version/"),
@@ -365,8 +358,7 @@ void KeyboardAccessTest::TestSystemMenuReopenClosedTabWithKeyboard() {
 #endif
 
 void KeyboardAccessTest::TestMenuKeyboardAccessAndDismiss() {
-  ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser(), GURL("chrome://version/")));
+  ui_test_utils::NavigateToURL(browser(), GURL("chrome://version/"));
 
   ASSERT_EQ(0, browser()->tab_strip_model()->active_index());
 
@@ -392,9 +384,9 @@ void KeyboardAccessTest::TestMenuKeyboardAccessAndDismiss() {
 }
 
 // http://crbug.com/62310.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #define MAYBE_TestMenuKeyboardAccess DISABLED_TestMenuKeyboardAccess
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
 // No keyboard shortcut for the Chrome menu on Mac: http://crbug.com/823952
 #define MAYBE_TestMenuKeyboardAccess DISABLED_TestMenuKeyboardAccess
 #else
@@ -406,9 +398,9 @@ IN_PROC_BROWSER_TEST_F(KeyboardAccessTest, MAYBE_TestMenuKeyboardAccess) {
 }
 
 // http://crbug.com/62310.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #define MAYBE_TestAltMenuKeyboardAccess DISABLED_TestAltMenuKeyboardAccess
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
 // No keyboard shortcut for the Chrome menu on Mac: http://crbug.com/823952
 #define MAYBE_TestAltMenuKeyboardAccess DISABLED_TestAltMenuKeyboardAccess
 #else
@@ -419,7 +411,7 @@ IN_PROC_BROWSER_TEST_F(KeyboardAccessTest, MAYBE_TestAltMenuKeyboardAccess) {
 }
 
 // If this flakes, use http://crbug.com/62311.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_TestShiftAltMenuKeyboardAccess DISABLED_TestShiftAltMenuKeyboardAccess
 #else
 #define MAYBE_TestShiftAltMenuKeyboardAccess TestShiftAltMenuKeyboardAccess
@@ -429,7 +421,7 @@ IN_PROC_BROWSER_TEST_F(KeyboardAccessTest,
   TestMenuKeyboardAccess(true, true, false);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 IN_PROC_BROWSER_TEST_F(KeyboardAccessTest,
                        DISABLED_TestAltMenuKeyboardAccessFocusOmnibox) {
   TestMenuKeyboardAccess(true, false, true);
@@ -445,7 +437,7 @@ IN_PROC_BROWSER_TEST_F(KeyboardAccessTest,
 }
 #endif
 
-#if !BUILDFLAG(IS_WIN) && defined(USE_AURA)
+#if !defined(OS_WIN) && defined(USE_AURA)
 IN_PROC_BROWSER_TEST_F(KeyboardAccessTest, TestMenuKeyboardOpenDismiss) {
   TestMenuKeyboardAccessAndDismiss();
 }
@@ -479,7 +471,7 @@ IN_PROC_BROWSER_TEST_F(KeyboardAccessTest, ReserveKeyboardAccelerators) {
   ASSERT_EQ(2, browser()->tab_strip_model()->active_index());
 
   ASSERT_TRUE(ui_test_utils::SendKeyPressSync(
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
       browser(), ui::VKEY_W, false, false, false, true));
 #else
       browser(), ui::VKEY_W, true, false, false, false));
@@ -487,14 +479,13 @@ IN_PROC_BROWSER_TEST_F(KeyboardAccessTest, ReserveKeyboardAccelerators) {
   ASSERT_EQ(0, browser()->tab_strip_model()->active_index());
 }
 
-#if BUILDFLAG(IS_WIN)  // These keys are Windows-only.
+#if defined(OS_WIN)  // These keys are Windows-only.
 IN_PROC_BROWSER_TEST_F(KeyboardAccessTest, BackForwardKeys) {
   // Navigate to create some history.
-  ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser(), GURL("chrome://version/")));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome://about/")));
+  ui_test_utils::NavigateToURL(browser(), GURL("chrome://version/"));
+  ui_test_utils::NavigateToURL(browser(), GURL("chrome://about/"));
 
-  std::u16string before_back;
+  base::string16 before_back;
   ASSERT_TRUE(ui_test_utils::GetCurrentTabTitle(browser(), &before_back));
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
@@ -506,7 +497,7 @@ IN_PROC_BROWSER_TEST_F(KeyboardAccessTest, BackForwardKeys) {
         browser(), ui::VKEY_BROWSER_BACK, false, false, false, false));
     navigation_observer.Wait();
 
-    std::u16string after_back;
+    base::string16 after_back;
     ASSERT_TRUE(ui_test_utils::GetCurrentTabTitle(browser(), &after_back));
 
     EXPECT_NE(before_back, after_back);
@@ -519,7 +510,7 @@ IN_PROC_BROWSER_TEST_F(KeyboardAccessTest, BackForwardKeys) {
         browser(), ui::VKEY_BROWSER_FORWARD, false, false, false, false));
     navigation_observer.Wait();
 
-    std::u16string after_forward;
+    base::string16 after_forward;
     ASSERT_TRUE(ui_test_utils::GetCurrentTabTitle(browser(), &after_forward));
 
     EXPECT_EQ(before_back, after_forward);

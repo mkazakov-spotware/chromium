@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <string>
 
 #include "base/containers/flat_set.h"
-#include "base/types/optional_util.h"
+#include "base/no_destructor.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/mojom/network_context.mojom.h"
@@ -17,19 +17,9 @@
 
 namespace network {
 
-namespace {
-
-base::debug::CrashKeyString* GetRequestInitiatorOriginLockCrashKey() {
-  static auto* crash_key = base::debug::AllocateCrashKeyString(
-      "request_initiator_origin_lock", base::debug::CrashKeySize::Size64);
-  return crash_key;
-}
-
-}  // namespace
-
 InitiatorLockCompatibility VerifyRequestInitiatorLock(
-    const absl::optional<url::Origin>& request_initiator_origin_lock,
-    const absl::optional<url::Origin>& request_initiator) {
+    const base::Optional<url::Origin>& request_initiator_origin_lock,
+    const base::Optional<url::Origin>& request_initiator) {
   if (!request_initiator_origin_lock.has_value())
     return InitiatorLockCompatibility::kNoLock;
   const url::Origin& lock = request_initiator_origin_lock.value();
@@ -54,17 +44,24 @@ InitiatorLockCompatibility VerifyRequestInitiatorLock(
   return InitiatorLockCompatibility::kIncorrectLock;
 }
 
-namespace debug {
+url::Origin GetTrustworthyInitiator(
+    const base::Optional<url::Origin>& request_initiator_origin_lock,
+    const base::Optional<url::Origin>& request_initiator) {
+  // Returning a unique origin as a fallback should be safe - such origin will
+  // be considered cross-origin from all other origins.
+  url::Origin unique_origin_fallback;
 
-ScopedRequestInitiatorOriginLockCrashKey::
-    ScopedRequestInitiatorOriginLockCrashKey(
-        const absl::optional<url::Origin>& request_initiator_origin_lock)
-    : ScopedOriginCrashKey(GetRequestInitiatorOriginLockCrashKey(),
-                           base::OptionalToPtr(request_initiator_origin_lock)) {
+  if (!request_initiator.has_value())
+    return unique_origin_fallback;
+
+  InitiatorLockCompatibility initiator_compatibility =
+      VerifyRequestInitiatorLock(request_initiator_origin_lock,
+                                 request_initiator);
+  if (initiator_compatibility == InitiatorLockCompatibility::kIncorrectLock)
+    return unique_origin_fallback;
+
+  // If all the checks above passed, then |request_initiator| is trustworthy.
+  return request_initiator.value();
 }
 
-ScopedRequestInitiatorOriginLockCrashKey::
-    ~ScopedRequestInitiatorOriginLockCrashKey() = default;
-
-}  // namespace debug
 }  // namespace network

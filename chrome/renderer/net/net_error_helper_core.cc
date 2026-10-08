@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,13 @@
 
 #include <stddef.h>
 
-#include <memory>
-
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/command_line.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
-#include "build/build_config.h"
+#include "base/stl_util.h"
 #include "components/error_page/common/localized_error.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/renderer/render_thread.h"
@@ -59,7 +57,7 @@ NetErrorHelperCore::NetErrorHelperCore(Delegate* delegate)
       last_probe_status_(error_page::DNS_PROBE_POSSIBLE),
       can_show_network_diagnostics_dialog_(false),
       navigation_from_button_(NO_BUTTON)
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
       ,
       page_auto_fetcher_helper_(
           std::make_unique<PageAutoFetcherHelper>(delegate->GetRenderFrame()))
@@ -73,7 +71,7 @@ void NetErrorHelperCore::OnCommitLoad(FrameType frame_type, const GURL& url) {
   if (frame_type != MAIN_FRAME)
     return;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // Don't need this state. It will be refreshed if another error page is
   // loaded.
   available_content_helper_.Reset();
@@ -105,7 +103,7 @@ void NetErrorHelperCore::ErrorPageLoadedWithFinalErrorCode() {
   if (page_info->page_state.is_offline_error)
     RecordEvent(error_page::NETWORK_ERROR_PAGE_OFFLINE_ERROR_SHOWN);
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // The fetch functions shouldn't be triggered multiple times per page load.
   if (page_info->page_state.offline_content_feature_enabled) {
     available_content_helper_.FetchAvailableContent(base::BindOnce(
@@ -118,7 +116,7 @@ void NetErrorHelperCore::ErrorPageLoadedWithFinalErrorCode() {
         false, base::BindOnce(&Delegate::SetAutoFetchState,
                               base::Unretained(delegate_)));
   }
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
   if (page_info->page_state.download_button_shown)
     RecordEvent(error_page::NETWORK_ERROR_PAGE_DOWNLOAD_BUTTON_SHOWN);
@@ -154,24 +152,17 @@ void NetErrorHelperCore::OnFinishLoad(FrameType frame_type) {
   }
 }
 
-void NetErrorHelperCore::PrepareErrorPage(
-    FrameType frame_type,
-    const error_page::Error& error,
-    bool is_failed_post,
-    content::mojom::AlternativeErrorPageOverrideInfoPtr
-        alternative_error_page_info,
-    std::string* error_html) {
+void NetErrorHelperCore::PrepareErrorPage(FrameType frame_type,
+                                          const error_page::Error& error,
+                                          bool is_failed_post,
+                                          std::string* error_html) {
   if (frame_type == MAIN_FRAME) {
-    pending_error_page_info_ =
-        std::make_unique<ErrorPageInfo>(error, is_failed_post);
-    PrepareErrorPageForMainFrame(pending_error_page_info_.get(),
-                                 std::move(alternative_error_page_info),
-                                 error_html);
+    pending_error_page_info_.reset(new ErrorPageInfo(error, is_failed_post));
+    PrepareErrorPageForMainFrame(pending_error_page_info_.get(), error_html);
   } else if (error_html) {
     delegate_->GenerateLocalizedErrorPage(
         error, is_failed_post,
-        false /* No diagnostics dialogs allowed for subframes. */,
-        std::move(alternative_error_page_info), error_html);
+        false /* No diagnostics dialogs allowed for subframes. */, error_html);
   }
 }
 
@@ -205,14 +196,11 @@ void NetErrorHelperCore::OnEasterEggHighScoreReceived(int high_score) {
 
 void NetErrorHelperCore::PrepareErrorPageForMainFrame(
     ErrorPageInfo* pending_error_page_info,
-    content::mojom::AlternativeErrorPageOverrideInfoPtr
-        alternative_error_page_info,
     std::string* error_html) {
   std::string error_param;
   error_page::Error error = pending_error_page_info->error;
 
-  if (!alternative_error_page_info &&
-      IsNetDnsError(pending_error_page_info->error)) {
+  if (IsNetDnsError(pending_error_page_info->error)) {
     // The last probe status needs to be reset if this is a DNS error.  This
     // means that if a DNS error page is committed but has not yet finished
     // loading, a DNS probe status scheduled to be sent to it may be thrown
@@ -225,8 +213,7 @@ void NetErrorHelperCore::PrepareErrorPageForMainFrame(
   if (error_html) {
     pending_error_page_info->page_state = delegate_->GenerateLocalizedErrorPage(
         error, pending_error_page_info->was_failed_post,
-        can_show_network_diagnostics_dialog_,
-        std::move(alternative_error_page_info), error_html);
+        can_show_network_diagnostics_dialog_, error_html);
   }
 }
 
@@ -276,7 +263,7 @@ void NetErrorHelperCore::Reload() {
   delegate_->ReloadFrame();
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 void NetErrorHelperCore::SetPageAutoFetcherHelperForTesting(
     std::unique_ptr<PageAutoFetcherHelper> page_auto_fetcher_helper) {
   page_auto_fetcher_helper_ = std::move(page_auto_fetcher_helper);
@@ -317,19 +304,19 @@ void NetErrorHelperCore::ExecuteButtonPress(Button button) {
 
 void NetErrorHelperCore::LaunchOfflineItem(const std::string& id,
                                            const std::string& name_space) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   available_content_helper_.LaunchItem(id, name_space);
 #endif
 }
 
 void NetErrorHelperCore::LaunchDownloadsPage() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   available_content_helper_.LaunchDownloadsPage();
 #endif
 }
 
 void NetErrorHelperCore::SavePageForLater() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   page_auto_fetcher_helper_->TrySchedule(
       /*user_requested=*/true, base::BindOnce(&Delegate::SetAutoFetchState,
                                               base::Unretained(delegate_)));
@@ -337,13 +324,13 @@ void NetErrorHelperCore::SavePageForLater() {
 }
 
 void NetErrorHelperCore::CancelSavePage() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   page_auto_fetcher_helper_->CancelSchedule();
 #endif
 }
 
 void NetErrorHelperCore::ListVisibilityChanged(bool is_visible) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   available_content_helper_.ListVisibilityChanged(is_visible);
 #endif
 }

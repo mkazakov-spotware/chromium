@@ -1,4 +1,4 @@
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -6,14 +6,11 @@
 
 See http://dev.chromium.org/developers/how-tos/depottools/presubmit-scripts
 for more details about the presubmit API built into depot_tools, and see
-https://chromium.googlesource.com/chromium/src/+/main/styleguide/web/web.md
+https://chromium.googlesource.com/chromium/src/+/master/styleguide/web/web.md
 for the rules we're checking against here.
 """
 
 import os
-
-USE_PYTHON3 = True
-
 
 def GetPathsToPrepend(input_api):
   web_dev_style_path = input_api.os_path.join(

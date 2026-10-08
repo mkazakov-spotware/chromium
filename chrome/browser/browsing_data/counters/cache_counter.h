@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <stdint.h>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "components/browsing_data/core/counters/browsing_data_counter.h"
 
@@ -20,10 +19,6 @@ class CacheCounter : public browsing_data::BrowsingDataCounter {
     CacheResult(const CacheCounter* source,
                 int64_t cache_size,
                 bool is_upper_limit);
-
-    CacheResult(const CacheResult&) = delete;
-    CacheResult& operator=(const CacheResult&) = delete;
-
     ~CacheResult() override;
 
     int64_t cache_size() const { return cache_size_; }
@@ -32,6 +27,8 @@ class CacheCounter : public browsing_data::BrowsingDataCounter {
    private:
     int64_t cache_size_;
     bool is_upper_limit_;
+
+    DISALLOW_COPY_AND_ASSIGN(CacheResult);
   };
 
   explicit CacheCounter(Profile* profile);
@@ -43,7 +40,7 @@ class CacheCounter : public browsing_data::BrowsingDataCounter {
   void Count() override;
   void OnCacheSizeCalculated(bool is_upper_limit, int64_t cache_bytes);
 
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
   int64_t calculated_size_;
   bool is_upper_limit_;
   int pending_sources_;

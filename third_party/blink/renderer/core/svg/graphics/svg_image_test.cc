@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,7 @@
 #include <memory>
 
 #include "base/memory/ptr_util.h"
-#include "base/test/metrics/histogram_tester.h"
-#include "cc/paint/paint_flags.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/scheme_registry.h"
 #include "third_party/blink/public/platform/scheduler/test/renderer_scheduler_test_support.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/frame/visual_viewport.h"
@@ -24,14 +21,14 @@
 #include "third_party/blink/renderer/core/svg/svg_svg_element.h"
 #include "third_party/blink/renderer/core/testing/sim/sim_request.h"
 #include "third_party/blink/renderer/core/testing/sim/sim_test.h"
-#include "third_party/blink/renderer/platform/graphics/graphics_context.h"
+#include "third_party/blink/renderer/platform/geometry/float_rect.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_canvas.h"
+#include "third_party/blink/renderer/platform/graphics/paint/paint_flags.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
 #include "third_party/blink/renderer/platform/timer.h"
 #include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/utils/SkNullCanvas.h"
-#include "ui/gfx/geometry/rect_f.h"
 
 namespace blink {
 
@@ -61,9 +58,11 @@ class SVGImageTest : public testing::Test, private ScopedMockOverlayScrollbars {
     Image* image = image_.get();
     std::unique_ptr<SkCanvas> null_canvas = SkMakeNullCanvas();
     SkiaPaintCanvas canvas(null_canvas.get());
-    cc::PaintFlags flags;
-    gfx::RectF dummy_rect(0, 0, 100, 100);
-    image->Draw(&canvas, flags, dummy_rect, dummy_rect, ImageDrawOptions());
+    PaintFlags flags;
+    FloatRect dummy_rect(0, 0, 100, 100);
+    image->Draw(&canvas, flags, dummy_rect, dummy_rect,
+                kRespectImageOrientation, Image::kDoNotClampImageToSourceRect,
+                Image::kSyncDecode);
   }
 
  private:
@@ -115,29 +114,28 @@ TEST_F(SVGImageTest, TimelineSuspendAndResume) {
   const bool kShouldPause = true;
   Load(kAnimatedDocument, kShouldPause);
   SVGImageChromeClient& chrome_client = GetImage().ChromeClientForTesting();
-  DisallowNewWrapper<HeapTaskRunnerTimer<SVGImageChromeClient>>* timer =
-      MakeGarbageCollected<
-          DisallowNewWrapper<HeapTaskRunnerTimer<SVGImageChromeClient>>>(
+  TaskRunnerTimer<SVGImageChromeClient>* timer =
+      new TaskRunnerTimer<SVGImageChromeClient>(
           scheduler::GetSingleThreadTaskRunnerForTesting(), &chrome_client,
           &SVGImageChromeClient::AnimationTimerFired);
-  chrome_client.SetTimerForTesting(timer);
+  chrome_client.SetTimer(base::WrapUnique(timer));
 
   // Simulate a draw. Cause a frame (timer) to be scheduled.
   PumpFrame();
   EXPECT_TRUE(GetImage().MaybeAnimated());
-  EXPECT_TRUE(timer->Value().IsActive());
+  EXPECT_TRUE(timer->IsActive());
 
   // Fire the timer/trigger a frame update. Since the observer always returns
   // true for shouldPauseAnimation, this will result in the timeline being
   // suspended.
-  test::RunDelayedTasks(base::Milliseconds(1) +
-                        timer->Value().NextFireInterval());
+  test::RunDelayedTasks(base::TimeDelta::FromMilliseconds(1) +
+                        timer->NextFireInterval());
   EXPECT_TRUE(chrome_client.IsSuspended());
-  EXPECT_FALSE(timer->Value().IsActive());
+  EXPECT_FALSE(timer->IsActive());
 
   // Simulate a draw. This should resume the animation again.
   PumpFrame();
-  EXPECT_TRUE(timer->Value().IsActive());
+  EXPECT_TRUE(timer->IsActive());
   EXPECT_FALSE(chrome_client.IsSuspended());
 }
 
@@ -145,35 +143,34 @@ TEST_F(SVGImageTest, ResetAnimation) {
   const bool kShouldPause = false;
   Load(kAnimatedDocument, kShouldPause);
   SVGImageChromeClient& chrome_client = GetImage().ChromeClientForTesting();
-  DisallowNewWrapper<HeapTaskRunnerTimer<SVGImageChromeClient>>* timer =
-      MakeGarbageCollected<
-          DisallowNewWrapper<HeapTaskRunnerTimer<SVGImageChromeClient>>>(
+  TaskRunnerTimer<SVGImageChromeClient>* timer =
+      new TaskRunnerTimer<SVGImageChromeClient>(
           scheduler::GetSingleThreadTaskRunnerForTesting(), &chrome_client,
           &SVGImageChromeClient::AnimationTimerFired);
-  chrome_client.SetTimerForTesting(timer);
+  chrome_client.SetTimer(base::WrapUnique(timer));
 
   // Simulate a draw. Cause a frame (timer) to be scheduled.
   PumpFrame();
   EXPECT_TRUE(GetImage().MaybeAnimated());
-  EXPECT_TRUE(timer->Value().IsActive());
+  EXPECT_TRUE(timer->IsActive());
 
   // Reset the animation. This will suspend the timeline but not cancel the
   // timer.
   GetImage().ResetAnimation();
   EXPECT_TRUE(chrome_client.IsSuspended());
-  EXPECT_TRUE(timer->Value().IsActive());
+  EXPECT_TRUE(timer->IsActive());
 
   // Fire the timer/trigger a frame update. The timeline will remain
   // suspended and no frame will be scheduled.
-  test::RunDelayedTasks(base::Milliseconds(1) +
-                        timer->Value().NextFireInterval());
+  test::RunDelayedTasks(base::TimeDelta::FromMillisecondsD(1) +
+                        timer->NextFireInterval());
   EXPECT_TRUE(chrome_client.IsSuspended());
-  EXPECT_FALSE(timer->Value().IsActive());
+  EXPECT_FALSE(timer->IsActive());
 
   // Simulate a draw. This should resume the animation again.
   PumpFrame();
   EXPECT_FALSE(chrome_client.IsSuspended());
-  EXPECT_TRUE(timer->Value().IsActive());
+  EXPECT_TRUE(timer->IsActive());
 }
 
 TEST_F(SVGImageTest, SupportsSubsequenceCaching) {
@@ -249,8 +246,7 @@ TEST_F(SVGImageTest, PaintFrameForCurrentFrameWithMQAndZoom) {
        kShouldPause);
 
   scoped_refptr<SVGImageForContainer> container = SVGImageForContainer::Create(
-      &GetImage(), gfx::SizeF(100, 100), 2, NullURL(),
-      mojom::blink::PreferredColorScheme::kLight);
+      &GetImage(), FloatSize(100, 100), 2, NullURL());
   SkBitmap bitmap =
       container->AsSkBitmapForCurrentFrame(kDoNotRespectImageOrientation);
   ASSERT_EQ(bitmap.width(), 100);
@@ -259,36 +255,6 @@ TEST_F(SVGImageTest, PaintFrameForCurrentFrameWithMQAndZoom) {
   EXPECT_EQ(bitmap.getColor(90, 10), SK_ColorBLUE);
   EXPECT_EQ(bitmap.getColor(10, 90), SK_ColorBLUE);
   EXPECT_EQ(bitmap.getColor(90, 90), SK_ColorBLUE);
-}
-
-TEST_F(SVGImageTest, SVGWithSmilAnimationIsAnimated) {
-  const bool kShouldPause = true;
-  Load(R"SVG(
-         <svg xmlns="http://www.w3.org/2000/svg">
-           <rect width="10" height="10"/>
-           <animateTransform attributeName="transform" type="rotate"
-                             from="0 5 5" to="360 5 5" dur="1s"
-                             repeatCount="indefinite"/>
-         </svg>)SVG",
-       kShouldPause);
-
-  EXPECT_TRUE(GetImage().MaybeAnimated());
-}
-
-TEST_F(SVGImageTest, NestedSVGWithSmilAnimationIsAnimated) {
-  const bool kShouldPause = true;
-  Load(R"SVG(
-         <svg xmlns="http://www.w3.org/2000/svg">
-           <svg>
-             <rect width="10" height="10"/>
-             <animateTransform attributeName="transform" type="rotate"
-                               from="0 5 5" to="360 5 5" dur="1s"
-                               repeatCount="indefinite"/>
-           </svg>
-         </svg>)SVG",
-       kShouldPause);
-
-  EXPECT_TRUE(GetImage().MaybeAnimated());
 }
 
 class SVGImageSimTest : public SimTest, private ScopedMockOverlayScrollbars {};
@@ -316,11 +282,12 @@ TEST_F(SVGImageSimTest, PageVisibilityHiddenToVisible) {
   ASSERT_TRUE(IsA<SVGImage>(image));
   SVGImageChromeClient& svg_image_chrome_client =
       To<SVGImage>(*image).ChromeClientForTesting();
-  TimerBase& timer = svg_image_chrome_client.GetTimerForTesting();
+  TimerBase* timer = svg_image_chrome_client.GetTimerForTesting();
 
   // Wait for the next animation frame to be triggered, and then trigger a new
   // frame. The image animation timeline should be running.
-  test::RunDelayedTasks(base::Milliseconds(1) + timer.NextFireInterval());
+  test::RunDelayedTasks(base::TimeDelta::FromMilliseconds(1) +
+                        timer->NextFireInterval());
   Compositor().BeginFrame();
 
   EXPECT_FALSE(svg_image_chrome_client.IsSuspended());
@@ -330,7 +297,8 @@ TEST_F(SVGImageSimTest, PageVisibilityHiddenToVisible) {
   // animation timeline.)
   WebView().SetVisibilityState(mojom::blink::PageVisibilityState::kHidden,
                                /*initial_state=*/false);
-  test::RunDelayedTasks(base::Milliseconds(1) + timer.NextFireInterval());
+  test::RunDelayedTasks(base::TimeDelta::FromMilliseconds(1) +
+                        timer->NextFireInterval());
 
   EXPECT_TRUE(svg_image_chrome_client.IsSuspended());
 
@@ -338,7 +306,8 @@ TEST_F(SVGImageSimTest, PageVisibilityHiddenToVisible) {
   // frame and resume the image animation.
   WebView().SetVisibilityState(mojom::blink::PageVisibilityState::kVisible,
                                /*initial_state=*/false);
-  test::RunDelayedTasks(base::Milliseconds(1) + timer.NextFireInterval());
+  test::RunDelayedTasks(base::TimeDelta::FromMilliseconds(1) +
+                        timer->NextFireInterval());
   Compositor().BeginFrame();
 
   EXPECT_FALSE(svg_image_chrome_client.IsSuspended());
@@ -364,43 +333,6 @@ TEST_F(SVGImageSimTest, TwoImagesSameSVGImageDifferentSize) {
   // The previous frame should result in a stable state and should not schedule
   // new visual updates.
   EXPECT_FALSE(Compositor().NeedsBeginFrame());
-}
-
-TEST_F(SVGImageSimTest, SVGWithXSLT) {
-  // To make "https" scheme counted as "Blink.UseCounter.Extensions.Features",
-  // we should make it recognized as an extension.
-  CommonSchemeRegistry::RegisterURLSchemeAsExtension("https");
-
-  SimRequest main_resource("https://example.com/", "text/html");
-  SimSubresourceRequest image_resource("https://example.com/image.svg",
-                                       "image/svg+xml");
-
-  base::HistogramTester histograms;
-  LoadURL("https://example.com/");
-  main_resource.Complete(R"HTML(
-    <img src="image.svg">
-  )HTML");
-  image_resource.Complete(R"SVG(<?xml version="1.0"?>
-<?xml-stylesheet type="text/xsl" href="#stylesheet"?>
-<!DOCTYPE svg [
-<!ATTLIST xsl:stylesheet
-id ID #REQUIRED>
-]>
-<svg>
-    <xsl:stylesheet id="stylesheet" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:svg="http://www.w3.org/2000/svg"></xsl:stylesheet>
-</svg>)SVG");
-
-  Compositor().BeginFrame();
-  test::RunPendingTasks();
-  // The previous frame should result in a stable state and should not schedule
-  // new visual updates.
-  EXPECT_FALSE(Compositor().NeedsBeginFrame());
-
-  // Ensure |UseCounter.DidCommitLoad| is called once.
-  // Since we cannot use |UseCounter.IsCounted(WebFeature::kPageVisits)|, we
-  // check the histogram updated in |DidCommitLoad|.
-  histograms.ExpectBucketCount("Blink.UseCounter.Extensions.Features",
-                               WebFeature::kPageVisits, 1);
 }
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <memory>
 
-#include "base/containers/contains.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -72,9 +71,6 @@ class FakeServerSocket : public mojom::ServerSocket {
   // mojom::ServerSocket:
   void Accept(AcceptCallback callback) override {
     std::move(callback).Run(/*result=*/nullptr);
-  }
-  void Disconnect(DisconnectCallback callback) override {
-    std::move(callback).Run();
   }
 };
 
@@ -143,7 +139,6 @@ void FakeAdapter::SetName(const std::string& name, SetNameCallback callback) {
 }
 
 void FakeAdapter::StartDiscoverySession(
-    const std::string& client_name,
     StartDiscoverySessionCallback callback) {
   DCHECK(!discovery_session_);
 
@@ -167,7 +162,6 @@ void FakeAdapter::StartDiscoverySession(
 void FakeAdapter::ConnectToServiceInsecurely(
     const std::string& address,
     const device::BluetoothUUID& service_uuid,
-    bool should_unbond_on_error,
     ConnectToServiceInsecurelyCallback callback) {
   if (!base::Contains(allowed_connections_for_address_and_uuid_pair_,
                       std::make_pair(address, service_uuid))) {
@@ -177,15 +171,16 @@ void FakeAdapter::ConnectToServiceInsecurely(
 
   mojo::ScopedDataPipeProducerHandle receive_pipe_producer_handle;
   mojo::ScopedDataPipeConsumerHandle receive_pipe_consumer_handle;
-  ASSERT_EQ(MOJO_RESULT_OK, mojo::CreateDataPipe(/*options=*/nullptr,
-                                                 receive_pipe_producer_handle,
-                                                 receive_pipe_consumer_handle));
+  ASSERT_EQ(
+      MOJO_RESULT_OK,
+      mojo::CreateDataPipe(/*options=*/nullptr, &receive_pipe_producer_handle,
+                           &receive_pipe_consumer_handle));
 
   mojo::ScopedDataPipeProducerHandle send_pipe_producer_handle;
   mojo::ScopedDataPipeConsumerHandle send_pipe_consumer_handle;
-  ASSERT_EQ(MOJO_RESULT_OK,
-            mojo::CreateDataPipe(/*options=*/nullptr, send_pipe_producer_handle,
-                                 send_pipe_consumer_handle));
+  ASSERT_EQ(MOJO_RESULT_OK, mojo::CreateDataPipe(/*options=*/nullptr,
+                                                 &send_pipe_producer_handle,
+                                                 &send_pipe_consumer_handle));
 
   mojo::PendingRemote<mojom::Socket> pending_socket;
 

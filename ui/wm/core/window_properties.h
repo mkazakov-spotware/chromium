@@ -1,13 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_WM_CORE_WINDOW_PROPERTIES_H_
 #define UI_WM_CORE_WINDOW_PROPERTIES_H_
 
-#include "base/component_export.h"
-#include "base/time/time.h"
 #include "ui/base/class_property.h"
+#include "ui/wm/core/wm_core_export.h"
 
 namespace wm {
 
@@ -24,34 +23,28 @@ enum WindowVisibilityAnimationTransition {
 
 // Property to tell if the container uses screen coordinates for the child
 // windows.
-COMPONENT_EXPORT(UI_WM)
-extern const ui::ClassProperty<bool>* const kUsesScreenCoordinatesKey;
+WM_CORE_EXPORT extern const ui::ClassProperty<bool>* const
+    kUsesScreenCoordinatesKey;
 
-COMPONENT_EXPORT(UI_WM)
-extern const ui::ClassProperty<base::TimeDelta>* const
+WM_CORE_EXPORT extern const ui::ClassProperty<base::TimeDelta>* const
     kWindowVisibilityAnimationDurationKey;
 
-COMPONENT_EXPORT(UI_WM)
-extern const ui::ClassProperty<WindowVisibilityAnimationTransition>* const
+WM_CORE_EXPORT extern const ui::ClassProperty<
+    WindowVisibilityAnimationTransition>* const
     kWindowVisibilityAnimationTransitionKey;
 
-COMPONENT_EXPORT(UI_WM)
-extern const ui::ClassProperty<int>* const kWindowVisibilityAnimationTypeKey;
+WM_CORE_EXPORT extern const ui::ClassProperty<int>* const
+    kWindowVisibilityAnimationTypeKey;
 
 // Used if the animation-type is WINDOW_VISIBILITY_ANIMATION_TYPE_VERTICAL.
-COMPONENT_EXPORT(UI_WM)
-extern const ui::ClassProperty<float>* const
+WM_CORE_EXPORT extern const ui::ClassProperty<float>* const
     kWindowVisibilityAnimationVerticalPositionKey;
-
-// The number of hiding animations in progress on the window.
-COMPONENT_EXPORT(UI_WM)
-extern const ui::ClassProperty<int32_t>* const kWindowHidingAnimationCountKey;
 
 }  // namespace wm
 
 // These need to be declared here for jumbo builds.
-DECLARE_EXPORTED_UI_CLASS_PROPERTY_TYPE(COMPONENT_EXPORT(UI_WM),
+DECLARE_EXPORTED_UI_CLASS_PROPERTY_TYPE(WM_CORE_EXPORT,
                                         wm::WindowVisibilityAnimationTransition)
-DECLARE_EXPORTED_UI_CLASS_PROPERTY_TYPE(COMPONENT_EXPORT(UI_WM), float)
+DECLARE_EXPORTED_UI_CLASS_PROPERTY_TYPE(WM_CORE_EXPORT, float)
 
 #endif  // UI_WM_CORE_WINDOW_PROPERTIES_H_

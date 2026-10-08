@@ -27,6 +27,7 @@
 #include "third_party/blink/renderer/core/dom/events/add_event_listener_options_resolved.h"
 #include "third_party/blink/renderer/core/dom/events/event.h"
 #include "third_party/blink/renderer/core/dom/events/event_listener.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
 
@@ -49,9 +50,6 @@ RegisteredEventListener::RegisteredEventListener(
       passive_forced_for_document_target_(
           options->PassiveForcedForDocumentTarget()),
       passive_specified_(options->PassiveSpecified()) {}
-
-RegisteredEventListener::RegisteredEventListener(
-    const RegisteredEventListener& that) = default;
 
 RegisteredEventListener& RegisteredEventListener::operator=(
     const RegisteredEventListener& that) = default;
@@ -87,16 +85,16 @@ bool RegisteredEventListener::Matches(
 
 bool RegisteredEventListener::ShouldFire(const Event& event) const {
   if (event.FireOnlyCaptureListenersAtTarget()) {
-    DCHECK_EQ(event.eventPhase(), Event::PhaseType::kAtTarget);
+    DCHECK_EQ(event.eventPhase(), Event::kAtTarget);
     return Capture();
   }
   if (event.FireOnlyNonCaptureListenersAtTarget()) {
-    DCHECK_EQ(event.eventPhase(), Event::PhaseType::kAtTarget);
+    DCHECK_EQ(event.eventPhase(), Event::kAtTarget);
     return !Capture();
   }
-  if (event.eventPhase() == Event::PhaseType::kCapturingPhase)
+  if (event.eventPhase() == Event::kCapturingPhase)
     return Capture();
-  if (event.eventPhase() == Event::PhaseType::kBubblingPhase)
+  if (event.eventPhase() == Event::kBubblingPhase)
     return !Capture();
   return true;
 }

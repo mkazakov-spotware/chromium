@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,11 @@
 
 #import <WebKit/WebKit.h>
 
-#import "base/bind.h"
+#include "base/bind.h"
 #import "base/test/ios/wait_util.h"
-#import "base/test/task_environment.h"
-#import "ios/web/common/uikit_ui_util.h"
-#import "ios/web/public/test/fakes/fake_browser_state.h"
-#import "testing/platform_test.h"
+#include "base/test/task_environment.h"
+#include "ios/web/public/test/fakes/test_browser_state.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -24,7 +23,8 @@ namespace {
 
 // Makes sure that the DataStore is created, otherwise cookies can't be set in
 // some cases.
-[[nodiscard]] bool FetchCookieStore() {
+bool FetchCookieStore() WARN_UNUSED_RESULT;
+bool FetchCookieStore() {
   __block bool fetch_done = false;
 
   NSSet* data_types = [NSSet setWithObject:WKWebsiteDataTypeCookies];
@@ -39,8 +39,9 @@ namespace {
 }
 
 // Adds cookies to the default data store. Returns whether it succeed to add
-// cookies.
-[[nodiscard]] bool AddCookie() {
+// cookies. Declare the function to have the "WARN_UNUSED_RESULT".
+bool AddCookie() WARN_UNUSED_RESULT;
+bool AddCookie() {
   NSHTTPCookie* cookie = [NSHTTPCookie cookieWithProperties:@{
     NSHTTPCookiePath : @"path",
     NSHTTPCookieName : @"cookieName",
@@ -60,8 +61,9 @@ namespace {
 }
 
 // Checks that the cookies data store has cookies or not, depending on
-// `should_have_cookies`.
-[[nodiscard]] bool HasCookies(bool should_have_cookies) {
+// |should_have_cookies|. Declare the function to have the "WARN_UNUSED_RESULT".
+bool HasCookies(bool should_have_cookies) WARN_UNUSED_RESULT;
+bool HasCookies(bool should_have_cookies) {
   __block bool has_cookies = false;
   __block bool completion_called = false;
 
@@ -78,19 +80,22 @@ namespace {
   return completed && (has_cookies == should_have_cookies);
 }
 
-// Removes the `types` from the data remover associated with `browser_state`.
+// Removes the |types| from the data remover associated with |browser_state|.
 // Returns whether the completion block of the clear browsing data has been
-// called.
-[[nodiscard]] bool RemoveCookies(web::BrowserState* browser_state,
-                                 web::ClearBrowsingDataMask types) {
+// called. Declare the function to have the "WARN_UNUSED_RESULT".
+bool RemoveCookies(web::BrowserState* browser_state,
+                   web::ClearBrowsingDataMask types) WARN_UNUSED_RESULT;
+bool RemoveCookies(web::BrowserState* browser_state,
+                   web::ClearBrowsingDataMask types) {
   web::BrowsingDataRemover* remover =
       web::BrowsingDataRemover::FromBrowserState(browser_state);
   __block bool closure_called = false;
   base::OnceClosure closure = base::BindOnce(^{
     closure_called = true;
   });
-  remover->ClearBrowsingData(types, base::Time::Now() - base::Minutes(1),
-                             std::move(closure));
+  remover->ClearBrowsingData(
+      types, base::Time::Now() - base::TimeDelta::FromMinutes(1),
+      std::move(closure));
 
   return WaitUntilConditionOrTimeout(kWaitForCookiesTimeout, ^bool {
     return closure_called;
@@ -105,10 +110,11 @@ class BrowsingDataRemoverTest : public PlatformTest {
  public:
   void SetUp() override {
     PlatformTest::SetUp();
-    original_root_view_controller_ = GetAnyKeyWindow().rootViewController;
+    original_root_view_controller_ =
+        UIApplication.sharedApplication.keyWindow.rootViewController;
 
     UIViewController* controller = [[UIViewController alloc] init];
-    GetAnyKeyWindow().rootViewController = controller;
+    UIApplication.sharedApplication.keyWindow.rootViewController = controller;
     WKWebViewConfiguration* config = [[WKWebViewConfiguration alloc] init];
     WKWebView* web_view = [[WKWebView alloc] initWithFrame:CGRectZero
                                              configuration:config];
@@ -132,7 +138,8 @@ class BrowsingDataRemoverTest : public PlatformTest {
 
   void TearDown() override {
     if (original_root_view_controller_) {
-      GetAnyKeyWindow().rootViewController = original_root_view_controller_;
+      UIApplication.sharedApplication.keyWindow.rootViewController =
+          original_root_view_controller_;
       original_root_view_controller_ = nil;
     }
     PlatformTest::TearDown();
@@ -144,15 +151,15 @@ class BrowsingDataRemoverTest : public PlatformTest {
   }
 
   base::test::TaskEnvironment task_environment_;
-  FakeBrowserState browser_state_;
+  TestBrowserState browser_state_;
   // The key window's original root view controller, to be  restored at the end
   // of the test.
   UIViewController* original_root_view_controller_;
 };
 
 TEST_F(BrowsingDataRemoverTest, DifferentRemoverForDifferentBrowserState) {
-  FakeBrowserState browser_state_1;
-  FakeBrowserState browser_state_2;
+  TestBrowserState browser_state_1;
+  TestBrowserState browser_state_2;
 
   BrowsingDataRemover* remover_1 =
       BrowsingDataRemover::FromBrowserState(&browser_state_1);

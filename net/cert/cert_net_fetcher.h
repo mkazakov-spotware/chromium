@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "net/base/net_errors.h"
 #include "net/base/net_export.h"
@@ -31,7 +32,7 @@ class NET_EXPORT CertNetFetcher
  public:
   class Request {
    public:
-    virtual ~Request() = default;
+    virtual ~Request() {}
 
     // WaitForResult() can be called at most once.
     //
@@ -43,10 +44,7 @@ class NET_EXPORT CertNetFetcher
   // This value can be used in place of timeout or max size limits.
   enum { DEFAULT = -1 };
 
-  CertNetFetcher() = default;
-
-  CertNetFetcher(const CertNetFetcher&) = delete;
-  CertNetFetcher& operator=(const CertNetFetcher&) = delete;
+  CertNetFetcher() {}
 
   // Shuts down the CertNetFetcher and cancels outstanding network requests. It
   // is not guaranteed that any outstanding or subsequent
@@ -67,26 +65,27 @@ class NET_EXPORT CertNetFetcher
   //     size is exceeded then the request will fail. To use a default timeout
   //     pass DEFAULT.
 
-  [[nodiscard]] virtual std::unique_ptr<Request> FetchCaIssuers(
+  virtual WARN_UNUSED_RESULT std::unique_ptr<Request> FetchCaIssuers(
       const GURL& url,
       int timeout_milliseconds,
       int max_response_bytes) = 0;
 
-  [[nodiscard]] virtual std::unique_ptr<Request> FetchCrl(
+  virtual WARN_UNUSED_RESULT std::unique_ptr<Request> FetchCrl(
       const GURL& url,
       int timeout_milliseconds,
       int max_response_bytes) = 0;
 
-  [[nodiscard]] virtual std::unique_ptr<Request> FetchOcsp(
+  virtual WARN_UNUSED_RESULT std::unique_ptr<Request> FetchOcsp(
       const GURL& url,
       int timeout_milliseconds,
       int max_response_bytes) = 0;
 
  protected:
-  virtual ~CertNetFetcher() = default;
+  virtual ~CertNetFetcher() {}
 
  private:
   friend class base::RefCountedThreadSafe<CertNetFetcher>;
+  DISALLOW_COPY_AND_ASSIGN(CertNetFetcher);
 };
 
 }  // namespace net

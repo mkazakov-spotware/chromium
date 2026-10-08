@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "ppapi/c/ppb_input_event.h"
 #include "ppapi/shared_impl/resource.h"
 #include "ppapi/thunk/ppb_input_event_api.h"
@@ -70,14 +71,9 @@ class PPAPI_SHARED_EXPORT PPB_InputEvent_Shared
     : public Resource,
       public thunk::PPB_InputEvent_API {
  public:
-  PPB_InputEvent_Shared() = delete;
-
   PPB_InputEvent_Shared(ResourceObjectType type,
                         PP_Instance instance,
                         const InputEventData& data);
-
-  PPB_InputEvent_Shared(const PPB_InputEvent_Shared&) = delete;
-  PPB_InputEvent_Shared& operator=(const PPB_InputEvent_Shared&) = delete;
 
   // Resource overrides.
   PPB_InputEvent_API* AsPPB_InputEvent_API() override;
@@ -159,6 +155,8 @@ class PPAPI_SHARED_EXPORT PPB_InputEvent_Shared
   TouchPointWithTilt* GetTouchByTypeAndId(PP_TouchListType type, uint32_t id);
 
   InputEventData data_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(PPB_InputEvent_Shared);
 };
 
 }  // namespace ppapi

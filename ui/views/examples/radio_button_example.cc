@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 
 #include <memory>
 
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/views/controls/button/label_button.h"
@@ -22,7 +22,8 @@
 using l10n_util::GetStringUTF16;
 using l10n_util::GetStringUTF8;
 
-namespace views::examples {
+namespace views {
+namespace examples {
 
 namespace {
 
@@ -68,4 +69,5 @@ void RadioButtonExample::StatusButtonPressed() {
               BoolToOnOff(radio_buttons_[2]->GetChecked()));
 }
 
-}  // namespace views::examples
+}  // namespace examples
+}  // namespace views

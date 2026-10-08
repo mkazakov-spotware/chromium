@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 
 #include "base/bind.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/task/thread_pool.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "extensions/browser/api/extensions_api_client.h"
 #include "extensions/browser/extensions_browser_client.h"
 #include "extensions/common/api/system_display.h"
@@ -38,11 +37,7 @@ int RotationToDegrees(display::Display::Rotation rotation) {
 
 }  // namespace
 
-DisplayInfoProvider::DisplayInfoProvider(display::Screen* screen)
-    : screen_(screen ? screen : display::Screen::GetScreen()) {
-  // Do not use/call on the screen object in this constructor yet because a
-  // subclass may pass not-yet-initialized screen instance.
-}
+DisplayInfoProvider::DisplayInfoProvider() = default;
 
 DisplayInfoProvider::~DisplayInfoProvider() = default;
 
@@ -113,48 +108,40 @@ void DisplayInfoProvider::SetDisplayLayout(const DisplayLayoutList& layouts,
 
 void DisplayInfoProvider::EnableUnifiedDesktop(bool enable) {}
 
-DisplayInfoProvider::DisplayUnitInfoList
-DisplayInfoProvider::GetAllDisplaysInfoList(
-    const std::vector<display::Display>& displays,
-    int64_t primary_id) const {
-  DisplayUnitInfoList all_displays;
-
-  for (const display::Display& display : displays) {
-    api::system_display::DisplayUnitInfo unit =
-        CreateDisplayUnitInfo(display, primary_id);
-    all_displays.push_back(std::move(unit));
-  }
-  UpdateDisplayUnitInfoForPlatform(displays, all_displays);
-  return all_displays;
-}
-
 void DisplayInfoProvider::GetAllDisplaysInfo(
     bool /* single_unified*/,
     base::OnceCallback<void(DisplayUnitInfoList result)> callback) {
-  int64_t primary_id = screen_->GetPrimaryDisplay().id();
-  std::vector<display::Display> displays = screen_->GetAllDisplays();
+  display::Screen* screen = display::Screen::GetScreen();
+  int64_t primary_id = screen->GetPrimaryDisplay().id();
+  std::vector<display::Display> displays = screen->GetAllDisplays();
   DisplayUnitInfoList all_displays;
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE,
-      base::BindOnce(&DisplayInfoProvider::GetAllDisplaysInfoList,
-                     base::Unretained(this),  // `this` is a global singleton.
-                     displays, primary_id),
-      std::move(callback));
+  for (const display::Display& display : displays) {
+    api::system_display::DisplayUnitInfo unit =
+        CreateDisplayUnitInfo(display, primary_id);
+    UpdateDisplayUnitInfoForPlatform(display, &unit);
+    all_displays.push_back(std::move(unit));
+  }
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
+      FROM_HERE, base::BindOnce(std::move(callback), std::move(all_displays)));
 }
 
 void DisplayInfoProvider::GetDisplayLayout(
     base::OnceCallback<void(DisplayLayoutList result)> callback) {
   NOTREACHED();  // Implemented on Chrome OS only in override.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), DisplayLayoutList()));
 }
 
 void DisplayInfoProvider::StartObserving() {
-  display_observer_.emplace(this);
+  display::Screen* screen = display::Screen::GetScreen();
+  if (screen)
+    screen->AddObserver(this);
 }
 
 void DisplayInfoProvider::StopObserving() {
-  display_observer_.reset();
+  display::Screen* screen = display::Screen::GetScreen();
+  if (screen)
+    screen->RemoveObserver(this);
 }
 
 bool DisplayInfoProvider::OverscanCalibrationStart(const std::string& id) {
@@ -201,7 +188,7 @@ void DisplayInfoProvider::SetMirrorMode(
     const api::system_display::MirrorModeInfo& info,
     ErrorCallback callback) {
   NOTREACHED();  // Implemented on Chrome OS only in override.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), "Not supported"));
 }
 
@@ -215,12 +202,12 @@ void DisplayInfoProvider::DispatchOnDisplayChangedEvent() {
   ExtensionsBrowserClient::Get()->BroadcastEventToRenderers(
       events::SYSTEM_DISPLAY_ON_DISPLAY_CHANGED,
       extensions::api::system_display::OnDisplayChanged::kEventName,
-      base::Value::List(), dispatch_to_off_the_record_profiles);
+      std::make_unique<base::ListValue>(), dispatch_to_off_the_record_profiles);
 }
 
 void DisplayInfoProvider::UpdateDisplayUnitInfoForPlatform(
-    const std::vector<display::Display>& displays,
-    DisplayUnitInfoList& units) const {
+    const display::Display& display,
+    extensions::api::system_display::DisplayUnitInfo* unit) {
   NOTIMPLEMENTED_LOG_ONCE();
 }
 

@@ -1,10 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef NET_SOCKET_UDP_SOCKET_GLOBAL_LIMITS_H_
 #define NET_SOCKET_UDP_SOCKET_GLOBAL_LIMITS_H_
 
+#include "base/compiler_specific.h"
 #include "net/base/net_errors.h"
 #include "net/base/net_export.h"
 
@@ -63,7 +64,8 @@ class NET_EXPORT OwnedUDPSocketCount {
 // successfully called Open(), and has not yet called Close(). This is
 // analogous to the number of open platform socket handles, and in practice
 // should also be a good proxy for the number of consumed UDP ports.
-[[nodiscard]] NET_EXPORT OwnedUDPSocketCount TryAcquireGlobalUDPSocketCount();
+NET_EXPORT OwnedUDPSocketCount TryAcquireGlobalUDPSocketCount()
+    WARN_UNUSED_RESULT;
 
 // Returns the current count of open UDP sockets (for testing only).
 NET_EXPORT int GetGlobalUDPSocketCountForTesting();

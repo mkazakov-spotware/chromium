@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@ class WebContents;
 }
 
 class Browser;
-struct CoreAccountId;
 
 class DiceWebSigninInterceptorDelegate
     : public DiceWebSigninInterceptor::Delegate {
@@ -23,21 +22,15 @@ class DiceWebSigninInterceptorDelegate
   ~DiceWebSigninInterceptorDelegate() override;
 
   // DiceWebSigninInterceptor::Delegate
-  std::unique_ptr<ScopedDiceWebSigninInterceptionBubbleHandle>
-  ShowSigninInterceptionBubble(
+  void ShowSigninInterceptionBubble(
       content::WebContents* web_contents,
       const BubbleParameters& bubble_parameters,
       base::OnceCallback<void(SigninInterceptionResult)> callback) override;
-  void ShowFirstRunExperienceInNewProfile(
-      Browser* browser,
-      const CoreAccountId& account_id,
-      DiceWebSigninInterceptor::SigninInterceptionType interception_type)
-      override;
+  void ShowProfileCustomizationBubble(Browser* browser) override;
 
  private:
   // Implemented in dice_web_signin_interception_bubble_view.cc
-  std::unique_ptr<ScopedDiceWebSigninInterceptionBubbleHandle>
-  ShowSigninInterceptionBubbleInternal(
+  void ShowSigninInterceptionBubbleInternal(
       Browser* browser,
       const BubbleParameters& bubble_parameters,
       base::OnceCallback<void(SigninInterceptionResult)> callback);

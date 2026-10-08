@@ -1,15 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_CSS_PARSER_CSS_PARSER_FAST_PATHS_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_PARSER_CSS_PARSER_FAST_PATHS_H_
 
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
-#include "third_party/blink/renderer/core/css/properties/css_bitset.h"
 #include "third_party/blink/renderer/core/css_value_keywords.h"
 #include "third_party/blink/renderer/platform/graphics/color.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 
@@ -25,22 +24,19 @@ class CORE_EXPORT CSSParserFastPaths {
   // about handling any property completely.
   static CSSValue* MaybeParseValue(CSSPropertyID, const String&, CSSParserMode);
 
-  // NOTE: Properties handled here shouldn't be explicitly handled in
-  // CSSPropertyParser, so if this returns true, the fast path is the only path.
-  static bool IsHandledByKeywordFastPath(CSSPropertyID property_id) {
-    return handled_by_keyword_fast_paths_properties_.Has(property_id);
-  }
+  // Properties handled here shouldn't be explicitly handled in
+  // CSSPropertyParser
+  static bool IsKeywordPropertyID(CSSPropertyID);
+
+  // Returns if a property should be handled by the fast path, but have other
+  // non-keyword values which should be handled by the CSSPropertyParser.
+  static bool IsPartialKeywordPropertyID(CSSPropertyID);
 
   static bool IsValidKeywordPropertyAndValue(CSSPropertyID,
                                              CSSValueID,
                                              CSSParserMode);
 
-  static bool IsValidSystemFont(CSSValueID);
-
   static CSSValue* ParseColor(const String&, CSSParserMode);
-
- private:
-  static CSSBitset handled_by_keyword_fast_paths_properties_;
 };
 
 }  // namespace blink

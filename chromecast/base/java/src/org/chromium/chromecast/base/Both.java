@@ -1,16 +1,15 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chromecast.base;
 
+import android.annotation.SuppressLint;
+
+import org.chromium.base.Consumer;
+import org.chromium.base.Function;
+
 import java.util.Objects;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
-import java.util.function.BiPredicate;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  * Represents a structure containing an instance of both A and B.
@@ -62,6 +61,7 @@ public class Both<A, B> {
         return false;
     }
 
+    @SuppressLint("NewApi")
     @Override
     public int hashCode() {
         return Objects.hash(this.first, this.second);

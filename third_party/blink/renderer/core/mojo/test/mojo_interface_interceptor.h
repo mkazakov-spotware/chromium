@@ -1,14 +1,13 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_MOJO_TEST_MOJO_INTERFACE_INTERCEPTOR_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_MOJO_TEST_MOJO_INTERFACE_INTERCEPTOR_H_
 
-#include "base/types/strong_alias.h"
+#include "base/util/type_safety/strong_alias.h"
 #include "mojo/public/cpp/system/message_pipe.h"
 #include "third_party/blink/renderer/bindings/core/v8/active_script_wrappable.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_mojo_interface_interceptor_scope.h"
 #include "third_party/blink/renderer/core/dom/events/event_listener.h"
 #include "third_party/blink/renderer/core/dom/events/event_target.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
@@ -33,15 +32,14 @@ class MojoInterfaceInterceptor final
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  using Scope = V8MojoInterfaceInterceptorScope;
   static MojoInterfaceInterceptor* Create(ExecutionContext*,
                                           const String& interface_name,
-                                          const Scope& scope,
+                                          const String& scope,
                                           ExceptionState&);
 
   MojoInterfaceInterceptor(ExecutionContext*,
                            const String& interface_name,
-                           Scope::Enum scope);
+                           bool process_scope);
   ~MojoInterfaceInterceptor() override;
 
   void start(ExceptionState&);
@@ -67,7 +65,7 @@ class MojoInterfaceInterceptor final
 
   const String interface_name_;
   bool started_ = false;
-  Scope::Enum scope_ = Scope::Enum::kContext;
+  bool process_scope_ = false;
 };
 
 }  // namespace blink

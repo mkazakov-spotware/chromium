@@ -1,17 +1,16 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <memory>
-#include <string>
 
 #include "base/values.h"
 #include "components/sync/driver/sync_internals_util.h"
-#include "components/sync/test/test_sync_service.h"
+#include "components/sync/driver/test_sync_service.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace syncer::sync_ui_util {
-
+namespace syncer {
+namespace sync_ui_util {
 namespace {
 
 TEST(SyncUIUtilTestAbout, ConstructAboutInformationWithUnrecoverableErrorTest) {
@@ -19,12 +18,12 @@ TEST(SyncUIUtilTestAbout, ConstructAboutInformationWithUnrecoverableErrorTest) {
   service.SetDisableReasons(
       syncer::SyncService::DISABLE_REASON_UNRECOVERABLE_ERROR);
 
-  base::Value::Dict strings = ConstructAboutInformation(
-      IncludeSensitiveData(true), &service, std::string());
+  std::unique_ptr<base::DictionaryValue> strings(ConstructAboutInformation(
+      IncludeSensitiveData(true), &service, version_info::Channel::UNKNOWN));
 
-  EXPECT_TRUE(strings.Find("unrecoverable_error_detected"));
+  EXPECT_TRUE(strings->HasKey("unrecoverable_error_detected"));
 }
 
 }  // namespace
-
-}  // namespace syncer::sync_ui_util
+}  // namespace sync_ui_util
+}  // namespace syncer

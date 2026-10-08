@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,22 +6,26 @@
 #define NET_DNS_DNS_CONFIG_WATCHER_MAC_H_
 
 #include "base/callback_forward.h"
+#include "net/dns/dns_config_service_posix.h"
 #include "net/dns/notify_watcher_mac.h"
 
-namespace net::internal {
+namespace net {
+namespace internal {
 
 // Watches DNS configuration on Mac.
 class DnsConfigWatcher {
  public:
   bool Watch(const base::RepeatingCallback<void(bool succeeded)>& callback);
 
-  // Returns false iff a valid config could not be determined.
-  static bool CheckDnsConfig(bool& out_unhandled_options);
+  // Returns an error if the DNS configuration is invalid.
+  // Returns CONFIG_PARSE_POSIX_OK otherwise.
+  static ConfigParsePosixResult CheckDnsConfig();
 
  private:
   NotifyWatcherMac watcher_;
 };
 
-}  // namespace net::internal
+}  // namespace internal
+}  // namespace net
 
 #endif  // NET_DNS_DNS_CONFIG_WATCHER_MAC_H_

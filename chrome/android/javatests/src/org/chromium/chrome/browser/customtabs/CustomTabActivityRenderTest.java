@@ -1,11 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.customtabs;
 
-import static org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider.CLOSE_BUTTON_POSITION_END;
-import static org.chromium.chrome.browser.customtabs.CustomTabIntentDataProvider.EXTRA_CLOSE_BUTTON_POSITION;
 import static org.chromium.chrome.browser.customtabs.CustomTabsTestUtils.createTestBitmap;
 
 import android.app.PendingIntent;
@@ -13,7 +11,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.support.test.InstrumentationRegistry;
@@ -29,7 +26,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.IntentUtils;
 import org.chromium.base.test.params.ParameterAnnotations;
 import org.chromium.base.test.params.ParameterSet;
 import org.chromium.base.test.params.ParameterizedRunner;
@@ -62,7 +58,6 @@ public class CustomTabActivityRenderTest {
     private static final int PORT_NO = 31415;
 
     private final boolean mRunWithHttps;
-    private String mUrl;
     private Intent mIntent;
 
     static class CustomTabTopActionIconHelper {
@@ -73,13 +68,12 @@ public class CustomTabActivityRenderTest {
 
         public static void addMaxTopActionIconToIntent(Intent intent) {
             ArrayList<Bundle> toolbarItems = new ArrayList<>(2);
-            PendingIntent pendingIntent =
-                    PendingIntent.getBroadcast(InstrumentationRegistry.getTargetContext(), 0,
-                            new Intent(), IntentUtils.getPendingIntentMutabilityFlag(true));
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                    InstrumentationRegistry.getTargetContext(), 0, new Intent(), 0);
 
-            toolbarItems.add(CustomTabsIntentTestUtils.makeToolbarItemBundle(
+            toolbarItems.add(CustomTabsTestUtils.makeToolbarItemBundle(
                     ICON_CREDIT_CARD, "Top Action #1", pendingIntent, 1));
-            toolbarItems.add(CustomTabsIntentTestUtils.makeToolbarItemBundle(
+            toolbarItems.add(CustomTabsTestUtils.makeToolbarItemBundle(
                     ICON_EMAIL, "Top Action #2", pendingIntent, 2));
             intent.putParcelableArrayListExtra(CustomTabsIntent.EXTRA_TOOLBAR_ITEMS, toolbarItems);
         }
@@ -93,11 +87,7 @@ public class CustomTabActivityRenderTest {
     public final EmbeddedTestServerRule mEmbeddedTestServerRule = new EmbeddedTestServerRule();
 
     @Rule
-    public final RenderTestRule mRenderTestRule =
-            RenderTestRule.Builder.withPublicCorpus()
-                    .setRevision(1)
-                    .setBugComponent(RenderTestRule.Component.UI_BROWSER_MOBILE_CUSTOM_TABS)
-                    .build();
+    public final RenderTestRule mRenderTestRule = RenderTestRule.Builder.withPublicCorpus().build();
 
     @Before
     public void setUp() {
@@ -125,9 +115,9 @@ public class CustomTabActivityRenderTest {
     }
 
     private void prepareCCTIntent() {
-        mUrl = mEmbeddedTestServerRule.getServer().getURL(TEST_PAGE);
-        mIntent = CustomTabsIntentTestUtils.createMinimalCustomTabIntent(
-                InstrumentationRegistry.getContext(), mUrl);
+        String url = mEmbeddedTestServerRule.getServer().getURL(TEST_PAGE);
+        mIntent = CustomTabsTestUtils.createMinimalCustomTabIntent(
+                InstrumentationRegistry.getContext(), url);
     }
 
     private void startActivityAndRenderToolbar(String renderTestId) throws IOException {
@@ -173,36 +163,5 @@ public class CustomTabActivityRenderTest {
         startActivityAndRenderToolbar(
                 "cct_toolbar_with_custom_close_button_and_max_top_action_icon_and_with_https_"
                 + mRunWithHttps);
-    }
-
-    @Test
-    @MediumTest
-    @Feature("RenderTest")
-    public void testCCTToolbarWithEndCloseButton() throws IOException {
-        mIntent.putExtra(EXTRA_CLOSE_BUTTON_POSITION, CLOSE_BUTTON_POSITION_END);
-
-        startActivityAndRenderToolbar("cct_close_button_end_with_https_" + mRunWithHttps);
-    }
-
-    @Test
-    @MediumTest
-    @Feature("RenderTest")
-    public void custom_color_red() throws IOException {
-        Context context = InstrumentationRegistry.getContext();
-        mIntent = CustomTabsIntentTestUtils.createCustomTabIntent(
-                context, mUrl, true, builder -> { builder.setToolbarColor(Color.RED); });
-
-        startActivityAndRenderToolbar("cct_red" + mRunWithHttps);
-    }
-
-    @Test
-    @MediumTest
-    @Feature("RenderTest")
-    public void custom_color_black() throws IOException {
-        Context context = InstrumentationRegistry.getContext();
-        mIntent = CustomTabsIntentTestUtils.createCustomTabIntent(
-                context, mUrl, true, builder -> { builder.setToolbarColor(Color.BLACK); });
-
-        startActivityAndRenderToolbar("cct_black" + mRunWithHttps);
     }
 }

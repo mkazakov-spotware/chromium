@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,9 @@
 #include "net/base/net_export.h"
 #include "net/cert/signed_certificate_timestamp.h"
 
-namespace net::ct {
+namespace net {
+
+namespace ct {
 
 static const uint8_t kSthRootHashLength = 32;
 
@@ -55,6 +57,8 @@ NET_EXPORT bool operator==(const SignedTreeHead& lhs,
 NET_EXPORT bool operator!=(const SignedTreeHead& lhs,
                            const SignedTreeHead& rhs);
 
-}  // namespace net::ct
+}  // namespace ct
+
+}  // namespace net
 
 #endif  // NET_CERT_SIGNED_TREE_HEAD_H_

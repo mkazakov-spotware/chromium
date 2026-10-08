@@ -1,17 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_PERFORMANCE_MANAGER_PUBLIC_RENDER_PROCESS_HOST_ID_H_
 #define COMPONENTS_PERFORMANCE_MANAGER_PUBLIC_RENDER_PROCESS_HOST_ID_H_
 
-#include "base/types/id_type.h"
+#include "base/util/type_safety/id_type.h"
 #include "content/public/common/child_process_host.h"
 
 namespace performance_manager {
 
 using RenderProcessHostIdBase =
-    base::IdType<class RenderProcessHostIdTag,
+    util::IdType<class RenderProcessHostIdTag,
                  int32_t,
                  content::ChildProcessHost::kInvalidUniqueID,
                  1>;

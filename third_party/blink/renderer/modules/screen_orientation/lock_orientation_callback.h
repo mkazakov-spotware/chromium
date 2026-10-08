@@ -1,10 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_SCREEN_ORIENTATION_LOCK_ORIENTATION_CALLBACK_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_SCREEN_ORIENTATION_LOCK_ORIENTATION_CALLBACK_H_
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "third_party/blink/renderer/modules/screen_orientation/web_lock_orientation_callback.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
@@ -21,10 +22,6 @@ class LockOrientationCallback final : public WebLockOrientationCallback {
 
  public:
   explicit LockOrientationCallback(ScriptPromiseResolver*);
-
-  LockOrientationCallback(const LockOrientationCallback&) = delete;
-  LockOrientationCallback& operator=(const LockOrientationCallback&) = delete;
-
   ~LockOrientationCallback() override;
 
   void OnSuccess() override;
@@ -32,6 +29,8 @@ class LockOrientationCallback final : public WebLockOrientationCallback {
 
  private:
   Persistent<ScriptPromiseResolver> resolver_;
+
+  DISALLOW_COPY_AND_ASSIGN(LockOrientationCallback);
 };
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 
 #include <ApplicationServices/ApplicationServices.h>
 #include <Carbon/Carbon.h>
-#include "base/memory/raw_ptr.h"
-
 #import <Cocoa/Cocoa.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/hidsystem/ev_keymap.h>
@@ -15,6 +13,7 @@
 #include "base/containers/flat_set.h"
 #include "base/logging.h"
 #include "ui/base/accelerators/accelerator.h"
+#include "ui/base/accelerators/system_media_controls_media_keys_listener.h"
 
 namespace ui {
 
@@ -42,14 +41,12 @@ class MediaKeysListenerImpl : public MediaKeysListener {
  public:
   MediaKeysListenerImpl(MediaKeysListener::Delegate* delegate, Scope scope);
 
-  MediaKeysListenerImpl(const MediaKeysListenerImpl&) = delete;
-  MediaKeysListenerImpl& operator=(const MediaKeysListenerImpl&) = delete;
-
   ~MediaKeysListenerImpl() override;
 
   // MediaKeysListener:
   bool StartWatchingMediaKey(KeyboardCode key_code) override;
   void StopWatchingMediaKey(KeyboardCode key_code) override;
+  void SetIsMediaPlaying(bool is_playing) override {}
 
  private:
   // Callback on media key event.
@@ -65,12 +62,14 @@ class MediaKeysListenerImpl : public MediaKeysListener {
   void StartEventTapIfNecessary();
   void StopEventTapIfNecessary();
 
-  raw_ptr<MediaKeysListener::Delegate> delegate_;
+  MediaKeysListener::Delegate* delegate_;
   const Scope scope_;
   // Event tap for intercepting mac media keys.
   CFMachPortRef event_tap_ = nullptr;
   CFRunLoopSourceRef event_tap_source_ = nullptr;
   base::flat_set<KeyboardCode> key_codes_;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaKeysListenerImpl);
 };
 
 MediaKeysListenerImpl::MediaKeysListenerImpl(
@@ -183,7 +182,7 @@ CGEventRef MediaKeysListenerImpl::EventTapCallback(CGEventTapProxy proxy,
   }
 
   // Ignore events that are not system defined media keys.
-  if (type != NX_SYSDEFINED || [ns_event type] != NSEventTypeSystemDefined ||
+  if (type != NX_SYSDEFINED || [ns_event type] != NSSystemDefined ||
       [ns_event subtype] != kSystemDefinedEventMediaKeysSubtype) {
     return event;
   }
@@ -222,6 +221,16 @@ CGEventRef MediaKeysListenerImpl::EventTapCallback(CGEventTapProxy proxy,
 std::unique_ptr<MediaKeysListener> MediaKeysListener::Create(
     MediaKeysListener::Delegate* delegate,
     MediaKeysListener::Scope scope) {
+  // For Mac OS 10.12.2 or later, we want to use MPRemoteCommandCenter for
+  // getting media keys globally if there is a RemoteCommandCenterDelegate
+  // available.
+  if (scope == Scope::kGlobal) {
+    auto listener =
+        std::make_unique<SystemMediaControlsMediaKeysListener>(delegate);
+    if (listener->Initialize())
+      return listener;
+  }
+
   return std::make_unique<MediaKeysListenerImpl>(delegate, scope);
 }
 

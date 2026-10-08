@@ -1,31 +1,34 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/ntp/incognito_view.h"
 
-#import "base/ios/ns_range.h"
-#import "components/content_settings/core/common/features.h"
-#import "components/google/core/common/google_util.h"
-#import "components/strings/grit/components_strings.h"
-#import "ios/chrome/browser/application_context/application_context.h"
+#include "base/feature_list.h"
+#include "components/content_settings/core/common/features.h"
+#include "components/google/core/common/google_util.h"
+#include "components/strings/grit/components_strings.h"
+#include "ios/chrome/browser/application_context.h"
+#include "ios/chrome/browser/drag_and_drop/drag_and_drop_flag.h"
 #import "ios/chrome/browser/drag_and_drop/url_drag_drop_handler.h"
-#import "ios/chrome/browser/ui/icons/symbols.h"
-#import "ios/chrome/browser/ui/ntp/new_tab_page_url_loader_delegate.h"
+#import "ios/chrome/browser/ui/page_info/features.h"
 #import "ios/chrome/browser/ui/toolbar/public/toolbar_constants.h"
 #import "ios/chrome/browser/ui/toolbar/public/toolbar_utils.h"
-#import "ios/chrome/browser/ui/util/rtl_geometry.h"
+#include "ios/chrome/browser/ui/ui_feature_flags.h"
+#include "ios/chrome/browser/ui/util/rtl_geometry.h"
+#include "ios/chrome/browser/ui/util/ui_util.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
+#import "ios/chrome/browser/url_loading/url_loading_browser_agent.h"
 #import "ios/chrome/browser/url_loading/url_loading_params.h"
 #import "ios/chrome/common/string_util.h"
+#import "ios/chrome/common/ui/colors/dynamic_color_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
-#import "ios/chrome/grit/ios_strings.h"
 #import "ios/web/public/navigation/navigation_manager.h"
-#import "ios/web/public/navigation/referrer.h"
+#include "ios/web/public/navigation/referrer.h"
 #import "net/base/mac/url_conversions.h"
-#import "ui/base/l10n/l10n_util.h"
-#import "url/gurl.h"
+#include "ui/base/l10n/l10n_util.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -39,9 +42,6 @@ const CGFloat kStackViewDefaultSpacing = 20.0;
 const CGFloat kStackViewImageSpacing = 22.0;
 const CGFloat kLayoutGuideVerticalMargin = 8.0;
 const CGFloat kLayoutGuideMinHeight = 12.0;
-
-// The size of the incognito symbol image.
-NSInteger kIncognitoSymbolImagePointSize = 72;
 
 // The URL for the the Learn More page shown on incognito new tab.
 // Taken from ntp_resource_cache.cc.
@@ -62,7 +62,9 @@ UIFont* TitleFont() {
 
 // Returns the color to use for body text.
 UIColor* BodyTextColor() {
-  return [UIColor colorNamed:kTextSecondaryColor];
+  return color::DarkModeDynamicColor(
+      [UIColor colorNamed:kTextSecondaryColor], true,
+      [UIColor colorNamed:kTextSecondaryDarkColor]);
 }
 
 // Returns a font, scaled to the current dynamic type settings, that is suitable
@@ -78,7 +80,7 @@ UIFont* BoldBodyFont() {
       preferredFontDescriptorWithTextStyle:UIFontTextStyleSubheadline];
   UIFontDescriptor* styleDescriptor = [baseDescriptor
       fontDescriptorWithSymbolicTraits:UIFontDescriptorTraitBold];
-  // Use a `size` of 0.0 to use the default size for the descriptor.
+  // Use a |size| of 0.0 to use the default size for the descriptor.
   return [UIFont fontWithDescriptor:styleDescriptor size:0.0];
 }
 
@@ -102,18 +104,18 @@ NSAttributedString* FormatHTMLListForUILabel(NSString* listString) {
       stringByTrimmingCharactersInSet:[NSCharacterSet
                                           whitespaceAndNewlineCharacterSet]];
 
-  const StringWithTag parsedString =
-      ParseStringWithTag(listString, @"<em>", @"</em>");
-
+  NSRange emphasisRange;
+  listString =
+      ParseStringWithTag(listString, &emphasisRange, @"<em>", @"</em>");
   NSMutableAttributedString* attributedText =
-      [[NSMutableAttributedString alloc] initWithString:parsedString.string];
+      [[NSMutableAttributedString alloc] initWithString:listString];
   [attributedText addAttribute:NSFontAttributeName
                          value:BodyFont()
                          range:NSMakeRange(0, attributedText.length)];
-  if (parsedString.range != NSMakeRange(NSNotFound, 0)) {
+  if (emphasisRange.location != NSNotFound) {
     [attributedText addAttribute:NSFontAttributeName
                            value:BoldBodyFont()
-                           range:parsedString.range];
+                           range:emphasisRange];
   }
   return attributedText;
 }
@@ -137,34 +139,31 @@ NSAttributedString* FormatHTMLListForUILabel(NSString* listString) {
   // Height constraint for adding margins for the bottom toolbar.
   NSLayoutConstraint* _bottomToolbarMarginHeight;
 
-  // Constraint ensuring that `containerView` is at least as high as the
+  // Constraint ensuring that |containerView| is at least as high as the
   // superview of the IncognitoNTPView, i.e. the Incognito panel.
   // This ensures that if the Incognito panel is higher than a compact
-  // `containerView`, the `containerView`'s `topGuide` and `bottomGuide` are
+  // |containerView|, the |containerView|'s |topGuide| and |bottomGuide| are
   // forced to expand, centering the views in between them.
   NSArray<NSLayoutConstraint*>* _superViewConstraints;
+
+  // The UrlLoadingService associated with this view.
+  UrlLoadingBrowserAgent* _URLLoader;  // weak
 
   // Handles drop interactions for this view.
   URLDragDropHandler* _dragDropHandler;
 }
-
-- (instancetype)initWithFrame:(CGRect)frame {
-  return [self initWithFrame:frame
-      showTopIncognitoImageAndTitle:YES
-          stackViewHorizontalMargin:kStackViewHorizontalMargin
-                  stackViewMaxWidth:kStackViewMaxWidth];
-}
-
 - (instancetype)initWithFrame:(CGRect)frame
-    showTopIncognitoImageAndTitle:(BOOL)showTopIncognitoImageAndTitle
-        stackViewHorizontalMargin:(CGFloat)stackViewHorizontalMargin
-                stackViewMaxWidth:(CGFloat)stackViewMaxWidth {
+                    URLLoader:(UrlLoadingBrowserAgent*)URLLoader {
   self = [super initWithFrame:frame];
   if (self) {
-    _dragDropHandler = [[URLDragDropHandler alloc] init];
-    _dragDropHandler.dropDelegate = self;
-    [self addInteraction:[[UIDropInteraction alloc]
-                             initWithDelegate:_dragDropHandler]];
+    _URLLoader = URLLoader;
+
+    if (DragAndDropIsEnabled()) {
+      _dragDropHandler = [[URLDragDropHandler alloc] init];
+      _dragDropHandler.dropDelegate = self;
+      [self addInteraction:[[UIDropInteraction alloc]
+                               initWithDelegate:_dragDropHandler]];
+    }
 
     self.alwaysBounceVertical = YES;
     // The bottom safe area is taken care of with the bottomUnsafeArea guides.
@@ -184,40 +183,21 @@ NSAttributedString* FormatHTMLListForUILabel(NSString* listString) {
     _stackView.alignment = UIStackViewAlignmentCenter;
     [_containerView addSubview:_stackView];
 
-    if (showTopIncognitoImageAndTitle) {
-      // Incognito image.
-      UIImage* incognitoImage;
-      if (UseSymbols()) {
-        UIImageSymbolConfiguration* configuration = [UIImageSymbolConfiguration
-            configurationWithPointSize:kIncognitoSymbolImagePointSize
-                                weight:UIImageSymbolWeightLight
-                                 scale:UIImageSymbolScaleMedium];
-        if (@available(iOS 15, *)) {
-          incognitoImage =
-              SymbolWithPalette(CustomSymbolWithConfiguration(
-                                    kIncognitoCircleFillSymbol, configuration),
-                                LargeIncognitoPalette());
-        } else {
-          incognitoImage = [CustomSymbolWithConfiguration(
-              kIncognitoCircleFilliOS14Symbol, configuration)
-              imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-        }
-      } else {
-        incognitoImage = [[UIImage imageNamed:@"incognito_icon"]
-            imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-      }
+    // Incognito image.
+    UIImage* incognitoImage = [[UIImage imageNamed:@"incognito_icon"]
+        imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    UIImageView* incognitoImageView =
+        [[UIImageView alloc] initWithImage:incognitoImage];
+    incognitoImageView.tintColor = color::DarkModeDynamicColor(
+        [UIColor colorNamed:kTextPrimaryColor], true,
+        [UIColor colorNamed:kTextPrimaryDarkColor]);
+    [_stackView addArrangedSubview:incognitoImageView];
+    [_stackView setCustomSpacing:kStackViewImageSpacing
+                       afterView:incognitoImageView];
 
-      UIImageView* incognitoImageView =
-          [[UIImageView alloc] initWithImage:incognitoImage];
-      incognitoImageView.tintColor = [UIColor colorNamed:kTextPrimaryColor];
-      [_stackView addArrangedSubview:incognitoImageView];
-      [_stackView setCustomSpacing:kStackViewImageSpacing
-                         afterView:incognitoImageView];
-    }
+    [self addTextSections];
 
-    [self addTextSectionsWithTitleShown:showTopIncognitoImageAndTitle];
-
-    // `topGuide` and `bottomGuide` exist to vertically position the stackview
+    // |topGuide| and |bottomGuide| exist to vertically position the stackview
     // inside the container scrollview.
     UILayoutGuide* topGuide = [[UILayoutGuide alloc] init];
     UILayoutGuide* bottomGuide = [[UILayoutGuide alloc] init];
@@ -260,10 +240,10 @@ NSAttributedString* FormatHTMLListForUILabel(NSString* listString) {
       // Center the stackview horizontally with a minimum margin.
       [_stackView.leadingAnchor
           constraintGreaterThanOrEqualToAnchor:_containerView.leadingAnchor
-                                      constant:stackViewHorizontalMargin],
+                                      constant:kStackViewHorizontalMargin],
       [_stackView.trailingAnchor
           constraintLessThanOrEqualToAnchor:_containerView.trailingAnchor
-                                   constant:-stackViewHorizontalMargin],
+                                   constant:-kStackViewHorizontalMargin],
       [_stackView.centerXAnchor
           constraintEqualToAnchor:_containerView.centerXAnchor],
 
@@ -279,7 +259,7 @@ NSAttributedString* FormatHTMLListForUILabel(NSString* listString) {
 
       // Ensure that the stackview width is constrained.
       [_stackView.widthAnchor
-          constraintLessThanOrEqualToConstant:stackViewMaxWidth],
+          constraintLessThanOrEqualToConstant:kStackViewMaxWidth],
 
       // Activate the height constraints.
       _bottomToolbarMarginHeight,
@@ -354,7 +334,7 @@ NSAttributedString* FormatHTMLListForUILabel(NSString* listString) {
 - (void)contentSizeCategoryDidChange {
   UIColor* bodyTextColor = BodyTextColor();
 
-  // Recompute the text for `_notSavedLabel` and `_visibleDataLabel`, as these
+  // Recompute the text for |_notSavedLabel| and |_visibleDataLabel|, as these
   // two include font information in their attributedText.
   _notSavedLabel.attributedText = FormatHTMLListForUILabel(
       l10n_util::GetNSString(IDS_NEW_TAB_OTR_NOT_SAVED));
@@ -371,7 +351,7 @@ NSAttributedString* FormatHTMLListForUILabel(NSString* listString) {
 }
 
 - (void)view:(UIView*)view didDropURL:(const GURL&)URL atPoint:(CGPoint)point {
-  [self.URLLoaderDelegate loadURLInTab:URL];
+  _URLLoader->Load(UrlLoadParams::InCurrentTab(URL));
 }
 
 #pragma mark - Private
@@ -387,27 +367,29 @@ NSAttributedString* FormatHTMLListForUILabel(NSString* listString) {
 
 // Triggers a navigation to the help page.
 - (void)learnMoreButtonPressed {
-  [self.URLLoaderDelegate
-      loadURLInTab:GetUrlWithLang(GURL(kLearnMoreIncognitoUrl))];
+  _URLLoader->Load(UrlLoadParams::InCurrentTab(
+      GetUrlWithLang(GURL(kLearnMoreIncognitoUrl))));
 }
 
-// Adds views containing the text of the incognito page to `_stackView`.
-- (void)addTextSectionsWithTitleShown:(BOOL)showTitle {
+// Adds views containing the text of the incognito page to |_stackView|.
+- (void)addTextSections {
+  UIColor* titleTextColor =
+      color::DarkModeDynamicColor([UIColor colorNamed:kTextPrimaryColor], true,
+                                  [UIColor colorNamed:kTextPrimaryDarkColor]);
   UIColor* bodyTextColor = BodyTextColor();
-  UIColor* linkTextColor = [UIColor colorNamed:kBlueColor];
+  UIColor* linkTextColor =
+      color::DarkModeDynamicColor([UIColor colorNamed:kBlueColor], true,
+                                  [UIColor colorNamed:kBlueDarkColor]);
 
   // Title.
-  if (showTitle) {
-    UIColor* titleTextColor = [UIColor colorNamed:kTextPrimaryColor];
-    UILabel* titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    titleLabel.font = TitleFont();
-    titleLabel.textColor = titleTextColor;
-    titleLabel.numberOfLines = 0;
-    titleLabel.textAlignment = NSTextAlignmentCenter;
-    titleLabel.text = l10n_util::GetNSString(IDS_NEW_TAB_OTR_TITLE);
-    titleLabel.adjustsFontForContentSizeCategory = YES;
-    [_stackView addArrangedSubview:titleLabel];
-  }
+  UILabel* titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+  titleLabel.font = TitleFont();
+  titleLabel.textColor = titleTextColor;
+  titleLabel.numberOfLines = 0;
+  titleLabel.textAlignment = NSTextAlignmentCenter;
+  titleLabel.text = l10n_util::GetNSString(IDS_NEW_TAB_OTR_TITLE);
+  titleLabel.adjustsFontForContentSizeCategory = YES;
+  [_stackView addArrangedSubview:titleLabel];
 
   // The Subtitle and Learn More link have no vertical spacing between them,
   // so they are embedded in a separate stack view.
@@ -415,14 +397,11 @@ NSAttributedString* FormatHTMLListForUILabel(NSString* listString) {
   subtitleLabel.font = BodyFont();
   subtitleLabel.textColor = bodyTextColor;
   subtitleLabel.numberOfLines = 0;
-  subtitleLabel.text =
-      l10n_util::GetNSString(IDS_NEW_TAB_OTR_SUBTITLE_WITH_READING_LIST);
+  subtitleLabel.text = l10n_util::GetNSString(IDS_NEW_TAB_OTR_SUBTITLE);
   subtitleLabel.adjustsFontForContentSizeCategory = YES;
 
   UIButton* learnMoreButton = [UIButton buttonWithType:UIButtonTypeCustom];
   learnMoreButton.accessibilityTraits = UIAccessibilityTraitLink;
-  learnMoreButton.accessibilityHint =
-      l10n_util::GetNSString(IDS_IOS_INCOGNITO_INTERSTITIAL_LEARN_MORE_HINT);
   [learnMoreButton
       setTitle:l10n_util::GetNSString(IDS_NEW_TAB_OTR_LEARN_MORE_LINK)
       forState:UIControlStateNormal];
@@ -432,8 +411,14 @@ NSAttributedString* FormatHTMLListForUILabel(NSString* listString) {
   [learnMoreButton addTarget:self
                       action:@selector(learnMoreButtonPressed)
             forControlEvents:UIControlEventTouchUpInside];
-  // TODO(crbug.com/1075616): Style as a link rather than a button.
-  learnMoreButton.pointerInteractionEnabled = YES;
+#if defined(__IPHONE_13_4)
+  if (@available(iOS 13.4, *)) {
+    if (base::FeatureList::IsEnabled(kPointerSupport)) {
+      // TODO(crbug.com/1075616): Style as a link rather than a button.
+      learnMoreButton.pointerInteractionEnabled = YES;
+    }
+  }
+#endif  // defined(__IPHONE_13_4)
 
   UIStackView* subtitleStackView = [[UIStackView alloc]
       initWithArrangedSubviews:@[ subtitleLabel, learnMoreButton ]];
@@ -467,8 +452,8 @@ NSAttributedString* FormatHTMLListForUILabel(NSString* listString) {
   _visibleDataLabel.textColor = bodyTextColor;
   [_stackView addArrangedSubview:_visibleDataLabel];
 
-  // `_notSavedLabel` and `visibleDataLabel` should have the same width as
-  // `subtitleStackView`, even if they can be constrained narrower.
+  // |_notSavedLabel| and |visibleDataLabel| should have the same width as
+  // |subtitleStackView|, even if they can be constrained narrower.
   [NSLayoutConstraint activateConstraints:@[
     [_notSavedLabel.widthAnchor
         constraintEqualToAnchor:subtitleStackView.widthAnchor],

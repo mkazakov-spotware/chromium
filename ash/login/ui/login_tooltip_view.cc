@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,29 +24,29 @@ constexpr int kInfoIconSizeDp = 20;
 
 }  // namespace
 
-LoginTooltipView::LoginTooltipView(const std::u16string& message,
-                                   base::WeakPtr<views::View> anchor_view)
-    : LoginBaseBubbleView(std::move(anchor_view)) {
-  info_icon_ = AddChildView(std::make_unique<views::ImageView>());
-  info_icon_->SetPreferredSize(gfx::Size(kInfoIconSizeDp, kInfoIconSizeDp));
+LoginTooltipView::LoginTooltipView(const base::string16& message,
+                                   views::View* anchor_view)
+    : LoginBaseBubbleView(anchor_view) {
+  views::ImageView* info_icon = new views::ImageView();
+  info_icon->SetPreferredSize(gfx::Size(kInfoIconSizeDp, kInfoIconSizeDp));
+  info_icon->SetImage(gfx::CreateVectorIcon(
+      views::kInfoIcon,
+      AshColorProvider::Get()->GetContentLayerColor(
+          AshColorProvider::ContentLayerType::kIconColorPrimary)));
+  AddChildView(info_icon);
 
-  label_ = AddChildView(login_views_utils::CreateBubbleLabel(message, this));
+  label_ = login_views_utils::CreateBubbleLabel(message, this);
+  AddChildView(label_);
 }
 
 LoginTooltipView::~LoginTooltipView() = default;
 
-void LoginTooltipView::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  node_data->role = ax::mojom::Role::kTooltip;
+void LoginTooltipView::SetText(const base::string16& message) {
+  label_->SetText(message);
 }
 
-void LoginTooltipView::OnThemeChanged() {
-  LoginBaseBubbleView::OnThemeChanged();
-  info_icon_->SetImage(gfx::CreateVectorIcon(
-      views::kInfoIcon,
-      AshColorProvider::Get()->GetContentLayerColor(
-          AshColorProvider::ContentLayerType::kIconColorPrimary)));
-  label_->SetEnabledColor(AshColorProvider::Get()->GetContentLayerColor(
-      AshColorProvider::ContentLayerType::kTextColorPrimary));
+void LoginTooltipView::GetAccessibleNodeData(ui::AXNodeData* node_data) {
+  node_data->role = ax::mojom::Role::kTooltip;
 }
 
 }  // namespace ash

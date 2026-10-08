@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,7 +56,7 @@ EventMonitorMac::EventMonitorMac(ui::EventObserver* event_observer,
     return event;
   };
 
-  monitor_ = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskAny
+  monitor_ = [NSEvent addLocalMonitorForEventsMatchingMask:NSAnyEventMask
                                                    handler:block];
 }
 

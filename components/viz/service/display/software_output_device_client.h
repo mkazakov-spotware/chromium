@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@ namespace viz {
 
 class SoftwareOutputDeviceClient {
  public:
-  virtual ~SoftwareOutputDeviceClient() = default;
+  virtual ~SoftwareOutputDeviceClient() {}
 
   // Specify the CALayer parameters used to display the content drawn by this
   // device on macOS.

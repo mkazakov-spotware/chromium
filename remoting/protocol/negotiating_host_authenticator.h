@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "remoting/protocol/authenticator.h"
 #include "remoting/protocol/negotiating_authenticator_base.h"
 #include "remoting/protocol/pairing_registry.h"
@@ -27,10 +28,6 @@ class TokenValidatorFactory;
 // See comments in negotiating_authenticator_base.h for a general explanation.
 class NegotiatingHostAuthenticator : public NegotiatingAuthenticatorBase {
  public:
-  NegotiatingHostAuthenticator(const NegotiatingHostAuthenticator&) = delete;
-  NegotiatingHostAuthenticator& operator=(const NegotiatingHostAuthenticator&) =
-      delete;
-
   ~NegotiatingHostAuthenticator() override;
 
   // Creates a host authenticator, using a PIN or access code. If
@@ -85,6 +82,8 @@ class NegotiatingHostAuthenticator : public NegotiatingAuthenticatorBase {
   scoped_refptr<PairingRegistry> pairing_registry_;
 
   std::string client_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(NegotiatingHostAuthenticator);
 };
 
 }  // namespace protocol

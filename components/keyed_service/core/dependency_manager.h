@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <set>
 #include <string>
 
-#include "base/dcheck_is_on.h"
+#include "base/macros.h"
 #include "components/keyed_service/core/dependency_graph.h"
 #include "components/keyed_service/core/keyed_service_export.h"
 
@@ -27,9 +27,6 @@ class PrefRegistrySyncable;
 // a safe order based on the stated dependencies.
 class KEYED_SERVICE_EXPORT DependencyManager {
  public:
-  DependencyManager(const DependencyManager&) = delete;
-  DependencyManager& operator=(const DependencyManager&) = delete;
-
   // Shuts down all keyed services managed by two
   // DependencyManagers (DMs), then destroys them. The order of execution is:
   // - Shutdown services in DM1
@@ -41,9 +38,6 @@ class KEYED_SERVICE_EXPORT DependencyManager {
       void* context1,
       DependencyManager* dependency_manager2,
       void* context2);
-
-  // Returns the dependency graph for Keyed Services Factory testing purposes.
-  DependencyGraph& GetDependencyGraphForTesting();
 
  protected:
   DependencyManager();
@@ -78,8 +72,8 @@ class KEYED_SERVICE_EXPORT DependencyManager {
   void DestroyContextServices(void* context);
 
   // Runtime assertion called as a part of GetServiceForContext() to check if
-  // |context| is considered stale. This will CHECK(false) to avoid a potential 
-  // use-after-free from services created after context destruction.
+  // |context| is considered stale. This will NOTREACHED() or
+  // base::debug::DumpWithoutCrashing() depending on the DCHECK_IS_ON() value.
   void AssertContextWasntDestroyed(void* context) const;
 
   // Marks |context| as live (i.e., not stale). This method can be called as a
@@ -123,9 +117,7 @@ class KEYED_SERVICE_EXPORT DependencyManager {
   // with them.
   std::set<void*> dead_context_pointers_;
 
-#if DCHECK_IS_ON()
-  bool context_services_created_ = false;
-#endif
+  DISALLOW_COPY_AND_ASSIGN(DependencyManager);
 };
 
 #endif  // COMPONENTS_KEYED_SERVICE_CORE_DEPENDENCY_MANAGER_H_

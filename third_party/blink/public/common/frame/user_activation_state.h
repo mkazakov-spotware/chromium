@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_PUBLIC_COMMON_FRAME_USER_ACTIVATION_STATE_H_
 #define THIRD_PARTY_BLINK_PUBLIC_COMMON_FRAME_USER_ACTIVATION_STATE_H_
 
-#include "base/time/time.h"
 #include "base/time/time_override.h"
 #include "third_party/blink/public/common/common_export.h"
 #include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom-forward.h"
@@ -60,7 +59,7 @@ namespace blink {
 // ==========================================
 //
 // The user activation state is replicated in the browser process (in
-// |RenderFrameHostImpl|) and in the renderer processes (in |LocalFrame| and
+// |FrameTreeNode|) and in the renderer processes (in |LocalFrame| and
 // |RemoteFrame|).  The replicated states across the browser and renderer
 // processes are kept in sync as follows:
 //
@@ -95,9 +94,6 @@ class BLINK_COMMON_EXPORT UserActivationState {
   // true and updates the transient state timestamp to "now".
   //
   // The |notification_type| parameter is used for histograms only.
-  //
-  // TODO(mustaq): When removing |notification_type|, explicitly pass
-  // |is_restricted| as a parameter here.
   void Activate(mojom::UserActivationNotificationType notification_type);
 
   void Clear();
@@ -114,21 +110,6 @@ class BLINK_COMMON_EXPORT UserActivationState {
   // successfully consumed.
   bool ConsumeIfActive();
 
-  // Indicates if the last user activation notification was restricted in
-  // nature.  This is a non-spec-compliant state, added only for compat reasons.
-  //
-  // Please don't add any new dependency to it!
-  //
-  // More details: A user activation on a frame is marked as restricted when the
-  // frame is neither an ancestor nor of the same-origin w.r.t. the frame where
-  // user interaction happened.  In other words, the restricted activation does
-  // not follow the tracking mechanism mentioned in the HTML spec and above.
-  // This non-standard activation in Chrome prevents breaking old extensions
-  // that (historically) expect a synthetic user activation to be available in
-  // an "unexposed" script-context (say in an extension's background script)
-  // after receiving an extension message under certain conditions.
-  bool LastActivationWasRestricted() const;
-
   // Records UMA stats related to consumption.  Must be called:
   // - before |ConsumeIfActive()| to record correct stats, and
   // - only once during consumption propagation to suppress over-counting.
@@ -144,8 +125,6 @@ class BLINK_COMMON_EXPORT UserActivationState {
 
   bool has_been_active_ = false;
   base::TimeTicks transient_state_expiry_time_;
-
-  bool last_activation_was_restricted_ = false;
 
   // Tracks the expiry of |kInteraction| notification for UMA data.
   base::TimeTicks transient_state_expiry_time_for_interaction_;

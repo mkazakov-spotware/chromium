@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,10 +15,8 @@
 namespace payments {
 
 TestDownloader::TestDownloader(
-    base::WeakPtr<CSPChecker> csp_checker,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory)
     : PaymentManifestDownloader(std::make_unique<ErrorLogger>(),
-                                csp_checker,
                                 url_loader_factory) {}
 
 TestDownloader::~TestDownloader() {}
@@ -26,6 +24,17 @@ TestDownloader::~TestDownloader() {}
 void TestDownloader::AddTestServerURL(const std::string& prefix,
                                       const GURL& test_server_url) {
   test_server_url_[prefix] = test_server_url;
+}
+
+void TestDownloader::InitiateDownload(
+    const url::Origin& request_initiator,
+    const GURL& url,
+    Download::Type download_type,
+    int allowed_number_of_redirects,
+    PaymentManifestDownloadCallback callback) {
+  PaymentManifestDownloader::InitiateDownload(
+      request_initiator, FindTestServerURL(url), download_type,
+      allowed_number_of_redirects, std::move(callback));
 }
 
 GURL TestDownloader::FindTestServerURL(const GURL& url) const {
@@ -43,25 +52,6 @@ GURL TestDownloader::FindTestServerURL(const GURL& url) const {
   }
 
   return url;
-}
-
-void TestDownloader::SetCSPCheckerForTesting(
-    base::WeakPtr<CSPChecker> csp_checker) {
-  csp_checker_ = csp_checker;
-}
-
-void TestDownloader::InitiateDownload(
-    const url::Origin& request_initiator,
-    const GURL& url,
-    const GURL& url_before_redirects,
-    bool did_follow_redirect,
-    Download::Type download_type,
-    int allowed_number_of_redirects,
-    PaymentManifestDownloadCallback callback) {
-  PaymentManifestDownloader::InitiateDownload(
-      request_initiator, FindTestServerURL(url),
-      FindTestServerURL(url_before_redirects), did_follow_redirect,
-      download_type, allowed_number_of_redirects, std::move(callback));
 }
 
 }  // namespace payments

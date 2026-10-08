@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,20 +11,17 @@
 #include <string>
 
 #include "base/command_line.h"
-#include "base/memory/raw_ptr.h"
+#include "base/strings/string16.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_io_thread.h"
 #include "build/build_config.h"
 #include "content/public/browser/native_web_keyboard_event.h"
 #include "content/public/common/main_function_params.h"
-#include "content/public/test/mock_policy_container_host.h"
 #include "content/public/test/mock_render_thread.h"
 #include "mojo/core/embedder/scoped_ipc_support.h"
-#include "mojo/public/cpp/bindings/associated_remote.h"
 #include "mojo/public/cpp/bindings/binder_map.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/page_state/page_state.h"
-#include "third_party/blink/public/mojom/page/page.mojom.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/web/web_frame.h"
 
@@ -42,7 +39,6 @@ class WebMouseEvent;
 
 namespace gfx {
 class Rect;
-class Size;
 }
 
 namespace content {
@@ -50,11 +46,11 @@ class AgentSchedulingGroup;
 class ContentBrowserClient;
 class ContentClient;
 class ContentRendererClient;
+class CompositorDependencies;
 class FakeRenderWidgetHost;
 class RendererMainPlatformDelegate;
 class RendererBlinkPlatformImpl;
 class RendererBlinkPlatformImplTestOverrideImpl;
-class RenderFrame;
 class RenderProcess;
 class RenderView;
 
@@ -90,7 +86,6 @@ class RenderViewTest : public testing::Test {
  protected:
   // Returns a pointer to the main frame.
   blink::WebLocalFrame* GetMainFrame();
-  RenderFrame* GetMainRenderFrame();
 
   // Executes the given JavaScript in the context of the main frame. The input
   // is a NULL-terminated UTF-8 string.
@@ -100,14 +95,14 @@ class RenderViewTest : public testing::Test {
   // |result|.
   // Returns true if the JavaScript was evaluated correctly to an int value,
   // false otherwise.
-  bool ExecuteJavaScriptAndReturnIntValue(const std::u16string& script,
+  bool ExecuteJavaScriptAndReturnIntValue(const base::string16& script,
                                           int* result);
 
   // Executes the given JavaScript and sets the number value it evaluates to in
   // |result|.
   // Returns true if the JavaScript was evaluated correctly to an number value,
   // false otherwise.
-  bool ExecuteJavaScriptAndReturnNumberValue(const std::u16string& script,
+  bool ExecuteJavaScriptAndReturnNumberValue(const base::string16& script,
                                              double* result);
 
   // Loads |html| into the main frame as a data: URL and blocks until the
@@ -192,6 +187,9 @@ class RenderViewTest : public testing::Test {
   void OnSameDocumentNavigation(blink::WebLocalFrame* frame,
                                 bool is_new_navigation);
 
+  // Enables to use zoom for device scale.
+  void SetUseZoomForDSFEnabled(bool zoom_for_dsf);
+
   blink::WebFrameWidget* GetWebFrameWidget();
 
   // Allows a subclass to override the various content client implementations.
@@ -203,6 +201,10 @@ class RenderViewTest : public testing::Test {
   // Allows a subclass to customize the initial size of the RenderView.
   virtual blink::VisualProperties InitialVisualProperties();
 
+  // Override this to change the CompositorDependencies for the test.
+  virtual std::unique_ptr<CompositorDependencies>
+  CreateCompositorDependencies();
+
   // testing::Test
   void SetUp() override;
 
@@ -213,11 +215,11 @@ class RenderViewTest : public testing::Test {
 
   base::test::TaskEnvironment task_environment_;
 
+  std::unique_ptr<CompositorDependencies> compositor_deps_;
   std::unique_ptr<RenderProcess> process_;
-  // `web_view` is owned by the associated `RenderView` (which we do not store).
-  // All allocated `RenderView`s will be destroyed in the `TearDown` method.
-  mojo::AssociatedRemote<blink::mojom::PageBroadcast> page_broadcast_;
-  raw_ptr<blink::WebView> web_view_ = nullptr;
+  // We use a naked pointer because we don't want to expose RenderViewImpl in
+  // the embedder's namespace.
+  RenderView* view_ = nullptr;
   RendererBlinkPlatformImplTestOverride blink_platform_impl_;
   std::unique_ptr<ContentClient> content_client_;
   std::unique_ptr<ContentBrowserClient> content_browser_client_;
@@ -225,9 +227,6 @@ class RenderViewTest : public testing::Test {
   std::unique_ptr<MockRenderThread> render_thread_;
   std::unique_ptr<AgentSchedulingGroup> agent_scheduling_group_;
   std::unique_ptr<FakeRenderWidgetHost> render_widget_host_;
-
-  // The PolicyContainerHost for the main RenderFrameHost.
-  std::unique_ptr<MockPolicyContainerHost> policy_container_host_;
 
   // Used to setup the process so renderers can run.
   std::unique_ptr<RendererMainPlatformDelegate> platform_;
@@ -239,7 +238,7 @@ class RenderViewTest : public testing::Test {
   std::unique_ptr<mojo::core::ScopedIPCSupport> ipc_support_;
   mojo::BinderMap binders_;
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   std::unique_ptr<base::mac::ScopedNSAutoreleasePool> autorelease_pool_;
 #endif
 

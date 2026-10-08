@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,6 @@
 #include "base/bits.h"
 #include "base/compiler_specific.h"
 #include "base/logging.h"
-#include "base/ranges/algorithm.h"
-#include "base/strings/string_util.h"
-#include "ui/base/l10n/l10n_util.h"
 #include "ui/base/x/x11_util.h"
 #include "ui/display/util/display_util.h"
 #include "ui/display/util/edid_parser.h"
@@ -23,8 +20,6 @@
 #include "ui/gfx/geometry/vector3d_f.h"
 #include "ui/gfx/x/randr.h"
 #include "ui/gfx/x/x11_atom_cache.h"
-#include "ui/gfx/x/xproto_util.h"
-#include "ui/strings/grit/ui_strings.h"
 
 namespace ui {
 
@@ -57,8 +52,8 @@ void ClipWorkArea(std::vector<display::Display>* displays,
                   float scale) {
   x11::Window x_root_window = ui::GetX11RootWindow();
 
-  std::vector<int32_t> value;
-  if (!GetArrayProperty(x_root_window, x11::GetAtom("_NET_WORKAREA"), &value) ||
+  std::vector<int> value;
+  if (!ui::GetIntArrayProperty(x_root_window, "_NET_WORKAREA", &value) ||
       value.size() < 4) {
     return;
   }
@@ -67,19 +62,20 @@ void ClipWorkArea(std::vector<display::Display>* displays,
 
   // If the work area entirely contains exactly one display, assume it's meant
   // for that display (and so do nothing).
-  if (base::ranges::count_if(*displays, [&](const display::Display& display) {
-        return work_area.Contains(display.bounds());
-      }) == 1) {
+  if (std::count_if(displays->begin(), displays->end(),
+                    [&](const display::Display& display) {
+                      return work_area.Contains(display.bounds());
+                    }) == 1) {
     return;
   }
 
   // If the work area is entirely contained within exactly one display, assume
   // it's meant for that display and intersect the work area with only that
   // display.
-  const auto found =
-      base::ranges::find_if(*displays, [&](const display::Display& display) {
-        return display.bounds().Contains(work_area);
-      });
+  auto found = std::find_if(displays->begin(), displays->end(),
+                            [&](const display::Display& display) {
+                              return display.bounds().Contains(work_area);
+                            });
 
   // If the work area spans multiple displays, intersect the work area with the
   // primary display, like GTK does.
@@ -143,7 +139,7 @@ std::vector<uint8_t> GetEDIDProperty(x11::RandR* randr,
                                      x11::RandR::Output output) {
   auto future = randr->GetOutputProperty(x11::RandR::GetOutputPropertyRequest{
       .output = output,
-      .property = x11::GetAtom(kRandrEdidProperty),
+      .property = gfx::GetAtom(kRandrEdidProperty),
       .long_length = 128});
   auto response = future.Sync();
   std::vector<uint8_t> edid;
@@ -202,7 +198,7 @@ std::vector<display::Display> BuildDisplaysFromXRandRInfo(
   DCHECK_GE(version, kMinVersionXrandr);
   auto* connection = x11::Connection::Get();
   auto& randr = connection->randr();
-  auto x_root_window = ui::GetX11RootWindow();
+  auto x_root_window = static_cast<x11::Window>(ui::GetX11RootWindow());
   std::vector<display::Display> displays;
   auto resources = randr.GetScreenResourcesCurrent({x_root_window}).Sync();
   if (!resources) {
@@ -251,7 +247,7 @@ std::vector<display::Display> BuildDisplaysFromXRandRInfo(
         GetEDIDProperty(&randr, static_cast<x11::RandR::Output>(output_id)));
     auto output_32 = static_cast<uint32_t>(output_id);
     int64_t display_id =
-        output_32 > 0xff ? 0 : edid_parser.GetIndexBasedDisplayId(output_32);
+        output_32 > 0xff ? 0 : edid_parser.GetDisplayId(output_32);
     // It isn't ideal, but if we can't parse the EDID data, fall back on the
     // display number.
     if (!display_id)
@@ -266,7 +262,6 @@ std::vector<display::Display> BuildDisplaysFromXRandRInfo(
           gfx::ScaleToEnclosingRect(crtc_bounds, 1.0f / scale));
     }
 
-    display.set_audio_formats(edid_parser.audio_formats());
     switch (crtc->rotation) {
       case x11::RandR::Rotation::Rotate_0:
         display.set_rotation(display::Display::ROTATE_0);
@@ -288,22 +283,12 @@ std::vector<display::Display> BuildDisplaysFromXRandRInfo(
     if (is_primary_display)
       explicit_primary_display_index = displays.size();
 
-    const std::string name(output_info->name.begin(), output_info->name.end());
-    if (base::StartsWith(name, "eDP") || base::StartsWith(name, "LVDS")) {
-      display::SetInternalDisplayIds({display_id});
-      // Use localized variant of "Built-in display" for internal displays.
-      // This follows the ozone DRM behavior (i.e. ChromeOS).
-      display.set_label(l10n_util::GetStringUTF8(IDS_DISPLAY_NAME_INTERNAL));
-    } else {
-      display.set_label(edid_parser.display_name());
-    }
-
     auto monitor_iter =
         output_to_monitor.find(static_cast<x11::RandR::Output>(output_id));
     if (monitor_iter != output_to_monitor.end() && monitor_iter->second == 0)
       monitor_order_primary_display_index = displays.size();
 
-    if (!display::HasForceDisplayColorProfile()) {
+    if (!display::Display::HasForceDisplayColorProfile()) {
       gfx::ICCProfile icc_profile = ui::GetICCProfileForMonitor(
           monitor_iter == output_to_monitor.end() ? 0 : monitor_iter->second);
       gfx::ColorSpace color_space = icc_profile.GetPrimariesOnlyColorSpace();
@@ -343,9 +328,10 @@ std::vector<display::Display> BuildDisplaysFromXRandRInfo(
 }
 
 base::TimeDelta GetPrimaryDisplayRefreshIntervalFromXrandr() {
-  constexpr base::TimeDelta kDefaultInterval = base::Seconds(1. / 60);
+  constexpr base::TimeDelta kDefaultInterval =
+      base::TimeDelta::FromSecondsD(1. / 60);
   x11::RandR randr = x11::Connection::Get()->randr();
-  auto root = ui::GetX11RootWindow();
+  auto root = static_cast<x11::Window>(ui::GetX11RootWindow());
   auto resources = randr.GetScreenResourcesCurrent({root}).Sync();
   if (!resources)
     return kDefaultInterval;
@@ -386,7 +372,7 @@ base::TimeDelta GetPrimaryDisplayRefreshIntervalFromXrandr() {
     if (refresh_rate == 0)
       continue;
 
-    return base::Seconds(1. / refresh_rate);
+    return base::TimeDelta::FromSecondsD(1. / refresh_rate);
   }
   return kDefaultInterval;
 }

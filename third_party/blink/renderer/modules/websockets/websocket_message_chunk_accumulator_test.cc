@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/websockets/websocket_message_chunk_accumulator.h"
 
-#include "base/time/time.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/platform/scheduler/test/fake_task_runner.h"
 
@@ -19,7 +18,7 @@ class WebSocketMessageChunkAccumulatorTest : public testing::Test {
   static Vector<char> Flatten(const Vector<base::span<const char>>& chunks) {
     Vector<char> v;
     for (const auto& chunk : chunks) {
-      v.Append(chunk.data(), base::checked_cast<wtf_size_t>(chunk.size()));
+      v.Append(chunk.data(), chunk.size());
     }
     return v;
   }
@@ -34,12 +33,11 @@ constexpr size_t WebSocketMessageChunkAccumulatorTest::kSegmentSize;
 constexpr base::TimeDelta WebSocketMessageChunkAccumulatorTest::kFreeDelay;
 
 TEST_F(WebSocketMessageChunkAccumulatorTest, Empty) {
-  auto task_runner = base::MakeRefCounted<FakeTaskRunner>();
-  WebSocketMessageChunkAccumulator chunks(task_runner);
-  chunks.SetTaskRunnerForTesting(task_runner, task_runner->GetMockTickClock());
+  WebSocketMessageChunkAccumulator chunks(
+      base::MakeRefCounted<FakeTaskRunner>());
 
   EXPECT_EQ(chunks.GetSize(), 0u);
-  EXPECT_TRUE(chunks.GetView().empty());
+  EXPECT_TRUE(chunks.GetView().IsEmpty());
 }
 
 TEST_F(WebSocketMessageChunkAccumulatorTest, Append) {
@@ -58,9 +56,8 @@ TEST_F(WebSocketMessageChunkAccumulatorTest, Append) {
 }
 
 TEST_F(WebSocketMessageChunkAccumulatorTest, AppendChunkWithInternalChunkSize) {
-  auto task_runner = base::MakeRefCounted<FakeTaskRunner>();
-  WebSocketMessageChunkAccumulator chunks(task_runner);
-  chunks.SetTaskRunnerForTesting(task_runner, task_runner->GetMockTickClock());
+  WebSocketMessageChunkAccumulator chunks(
+      base::MakeRefCounted<FakeTaskRunner>());
 
   Vector<char> chunk(kSegmentSize, 'y');
 
@@ -73,9 +70,8 @@ TEST_F(WebSocketMessageChunkAccumulatorTest, AppendChunkWithInternalChunkSize) {
 }
 
 TEST_F(WebSocketMessageChunkAccumulatorTest, AppendLargeChunk) {
-  auto task_runner = base::MakeRefCounted<FakeTaskRunner>();
-  WebSocketMessageChunkAccumulator chunks(task_runner);
-  chunks.SetTaskRunnerForTesting(task_runner, task_runner->GetMockTickClock());
+  WebSocketMessageChunkAccumulator chunks(
+      base::MakeRefCounted<FakeTaskRunner>());
 
   Vector<char> chunk(kSegmentSize * 2 + 2, 'y');
 
@@ -90,9 +86,8 @@ TEST_F(WebSocketMessageChunkAccumulatorTest, AppendLargeChunk) {
 }
 
 TEST_F(WebSocketMessageChunkAccumulatorTest, AppendRepeatedly) {
-  auto task_runner = base::MakeRefCounted<FakeTaskRunner>();
-  WebSocketMessageChunkAccumulator chunks(task_runner);
-  chunks.SetTaskRunnerForTesting(task_runner, task_runner->GetMockTickClock());
+  WebSocketMessageChunkAccumulator chunks(
+      base::MakeRefCounted<FakeTaskRunner>());
 
   Vector<char> chunk1(8, 'a');
   Vector<char> chunk2(4, 'b');
@@ -163,9 +158,8 @@ TEST_F(WebSocketMessageChunkAccumulatorTest, AppendRepeatedly) {
 }
 
 TEST_F(WebSocketMessageChunkAccumulatorTest, ClearAndAppend) {
-  auto task_runner = base::MakeRefCounted<FakeTaskRunner>();
-  WebSocketMessageChunkAccumulator chunks(task_runner);
-  chunks.SetTaskRunnerForTesting(task_runner, task_runner->GetMockTickClock());
+  WebSocketMessageChunkAccumulator chunks(
+      base::MakeRefCounted<FakeTaskRunner>());
 
   Vector<char> chunk1(8, 'x');
   Vector<char> chunk2(3, 'y');
@@ -200,7 +194,6 @@ TEST_F(WebSocketMessageChunkAccumulatorTest, ClearAndAppend) {
 TEST_F(WebSocketMessageChunkAccumulatorTest, ClearTimer) {
   auto task_runner = base::MakeRefCounted<FakeTaskRunner>();
   WebSocketMessageChunkAccumulator chunks(task_runner);
-  chunks.SetTaskRunnerForTesting(task_runner, task_runner->GetMockTickClock());
 
   Vector<char> chunk1(kSegmentSize * 4, 'x');
   Vector<char> chunk2(kSegmentSize * 3, 'x');

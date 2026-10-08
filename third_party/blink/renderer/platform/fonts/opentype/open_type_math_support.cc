@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,7 +40,8 @@ bool OpenTypeMathSupport::HasMathData(const HarfBuzzFace* harfbuzz_face) {
   if (!harfbuzz_face)
     return false;
 
-  hb_font_t* font = harfbuzz_face->GetScaledFont();
+  hb_font_t* font =
+      harfbuzz_face->GetScaledFont(nullptr, HarfBuzzFace::NoVerticalLayout);
   DCHECK(font);
   hb_face_t* face = hb_font_get_face(font);
   DCHECK(face);
@@ -48,13 +49,14 @@ bool OpenTypeMathSupport::HasMathData(const HarfBuzzFace* harfbuzz_face) {
   return hb_ot_math_has_data(face);
 }
 
-absl::optional<float> OpenTypeMathSupport::MathConstant(
+base::Optional<float> OpenTypeMathSupport::MathConstant(
     const HarfBuzzFace* harfbuzz_face,
     MathConstants constant) {
   if (!HasMathData(harfbuzz_face))
-    return absl::nullopt;
+    return base::nullopt;
 
-  hb_font_t* const font = harfbuzz_face->GetScaledFont();
+  hb_font_t* font =
+      harfbuzz_face->GetScaledFont(nullptr, HarfBuzzFace::NoVerticalLayout);
   DCHECK(font);
 
   hb_position_t harfbuzz_value = hb_ot_math_get_constant(
@@ -64,7 +66,7 @@ absl::optional<float> OpenTypeMathSupport::MathConstant(
     case kScriptPercentScaleDown:
     case kScriptScriptPercentScaleDown:
     case kRadicalDegreeBottomRaisePercent:
-      return absl::optional<float>(harfbuzz_value / 100.0);
+      return base::Optional<float>(harfbuzz_value / 100.0);
     case kDelimitedSubFormulaMinHeight:
     case kDisplayOperatorMinHeight:
     case kMathLeading:
@@ -118,22 +120,23 @@ absl::optional<float> OpenTypeMathSupport::MathConstant(
     case kRadicalExtraAscender:
     case kRadicalKernBeforeDegree:
     case kRadicalKernAfterDegree:
-      return absl::optional<float>(HarfBuzzUnitsToFloat(harfbuzz_value));
+      return base::Optional<float>(HarfBuzzUnitsToFloat(harfbuzz_value));
     default:
       NOTREACHED();
   }
-  return absl::nullopt;
+  return base::nullopt;
 }
 
-absl::optional<float> OpenTypeMathSupport::MathItalicCorrection(
+base::Optional<float> OpenTypeMathSupport::MathItalicCorrection(
     const HarfBuzzFace* harfbuzz_face,
     Glyph glyph) {
   if (!harfbuzz_face)
-    return absl::nullopt;
+    return base::nullopt;
 
-  hb_font_t* const font = harfbuzz_face->GetScaledFont();
+  hb_font_t* font =
+      harfbuzz_face->GetScaledFont(nullptr, HarfBuzzFace::NoVerticalLayout);
 
-  return absl::optional<float>(HarfBuzzUnitsToFloat(
+  return base::Optional<float>(HarfBuzzUnitsToFloat(
       hb_ot_math_get_glyph_italics_correction(font, glyph)));
 }
 
@@ -157,8 +160,9 @@ Vector<RecordType> GetHarfBuzzMathRecord(
     OpenTypeMathStretchData::StretchAxis stretch_axis,
     GetHarfBuzzMathRecordGetter<HarfBuzzRecordType> getter,
     HarfBuzzMathRecordConverter<HarfBuzzRecordType, RecordType> converter,
-    absl::optional<RecordType> prepended_record) {
-  hb_font_t* const hb_font = harfbuzz_face->GetScaledFont();
+    base::Optional<RecordType> prepended_record) {
+  hb_font_t* hb_font =
+      harfbuzz_face->GetScaledFont(nullptr, HarfBuzzFace::NoVerticalLayout);
   DCHECK(hb_font);
 
   hb_direction_t hb_stretch_axis = HarfBuzzDirection(stretch_axis);
@@ -201,7 +205,7 @@ OpenTypeMathSupport::GetGlyphVariantRecords(
   return GetHarfBuzzMathRecord(
       harfbuzz_face, base_glyph, stretch_axis, std::move(getter),
       std::move(converter),
-      absl::optional<OpenTypeMathStretchData::GlyphVariantRecord>(base_glyph));
+      base::Optional<OpenTypeMathStretchData::GlyphVariantRecord>(base_glyph));
 }
 
 Vector<OpenTypeMathStretchData::GlyphPartRecord>
@@ -225,19 +229,20 @@ OpenTypeMathSupport::GetGlyphPartRecords(
   auto converter =
       base::BindRepeating([](hb_ot_math_glyph_part_t record)
                               -> OpenTypeMathStretchData::GlyphPartRecord {
-        return {static_cast<Glyph>(record.glyph),
+        return {record.glyph,
                 HarfBuzzUnitsToFloat(record.start_connector_length),
                 HarfBuzzUnitsToFloat(record.end_connector_length),
                 HarfBuzzUnitsToFloat(record.full_advance),
-                !!(record.flags & HB_MATH_GLYPH_PART_FLAG_EXTENDER)};
+                record.flags & HB_MATH_GLYPH_PART_FLAG_EXTENDER};
       });
   Vector<OpenTypeMathStretchData::GlyphPartRecord> parts =
       GetHarfBuzzMathRecord(
           harfbuzz_face, base_glyph, stretch_axis, std::move(getter),
           std::move(converter),
-          absl::optional<OpenTypeMathStretchData::GlyphPartRecord>());
-  if (italic_correction && !parts.empty()) {
-    hb_font_t* const hb_font = harfbuzz_face->GetScaledFont();
+          base::Optional<OpenTypeMathStretchData::GlyphPartRecord>());
+  if (italic_correction && !parts.IsEmpty()) {
+    hb_font_t* hb_font =
+        harfbuzz_face->GetScaledFont(nullptr, HarfBuzzFace::NoVerticalLayout);
     // A GlyphAssembly subtable exists for the specified font, glyph and stretch
     // axis since it has been possible to retrieve the GlyphPartRecords. This
     // means that the following call is guaranteed to get an italic correction.

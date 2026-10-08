@@ -1,18 +1,17 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/browser/api/declarative/rules_registry_service.h"
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/check_op.h"
-#include "base/containers/contains.h"
 #include "base/lazy_instance.h"
-#include "base/observer_list.h"
-#include "base/ranges/algorithm.h"
+#include "base/task/post_task.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_process_host.h"
@@ -21,7 +20,6 @@
 #include "extensions/browser/api/declarative_webrequest/webrequest_rules_registry.h"
 #include "extensions/browser/api/extensions_api_client.h"
 #include "extensions/browser/api/web_request/web_request_api.h"
-#include "extensions/browser/extension_util.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/features/feature.h"
 #include "extensions/common/features/feature_provider.h"
@@ -47,8 +45,7 @@ RulesRegistryService::RulesRegistryService(content::BrowserContext* context)
       content_rules_registry_(nullptr),
       browser_context_(context) {
   if (browser_context_) {
-    extension_registry_observation_.Observe(
-        ExtensionRegistry::Get(browser_context_));
+    extension_registry_observer_.Add(ExtensionRegistry::Get(browser_context_));
     EnsureDefaultRulesRegistriesRegistered();
   }
 }
@@ -137,11 +134,10 @@ void RulesRegistryService::RemoveRulesRegistriesByID(int rules_registry_id) {
 }
 
 bool RulesRegistryService::HasAnyRegisteredRules() const {
-  return base::ranges::any_of(
-      cache_delegates_,
-      [](const std::unique_ptr<RulesCacheDelegate>& delegate) {
-        return delegate->HasRules();
-      });
+  return std::any_of(cache_delegates_.begin(), cache_delegates_.end(),
+                     [](const std::unique_ptr<RulesCacheDelegate>& delegate) {
+                       return delegate->HasRules();
+                     });
 }
 
 void RulesRegistryService::AddObserver(Observer* observer) {
@@ -157,13 +153,6 @@ void RulesRegistryService::RemoveObserver(Observer* observer) {
 void RulesRegistryService::SimulateExtensionUninstalled(
     const Extension* extension) {
   NotifyRegistriesHelper(&RulesRegistry::OnExtensionUninstalled, extension);
-}
-
-bool RulesRegistryService::HasRulesRegistryForTesting(
-    int rules_registry_id,
-    const std::string& event_name) {
-  return base::Contains(rule_registries_,
-                        RulesRegistryKey(event_name, rules_registry_id));
 }
 
 void RulesRegistryService::OnUpdateRules() {
@@ -207,8 +196,7 @@ void RulesRegistryService::EnsureDefaultRulesRegistriesRegistered() {
   // declarativeWebRequest API is enabled. See crbug.com/693243.
   const bool is_api_enabled =
       FeatureProvider::GetAPIFeature("declarativeWebRequest")
-          ->IsAvailableToEnvironment(
-              util::GetBrowserContextId(browser_context_))
+          ->IsAvailableToEnvironment()
           .is_available();
   if (is_api_enabled) {
     // Persist the cache since it pertains to regular pages (i.e. not webviews).
@@ -241,8 +229,7 @@ void RulesRegistryService::NotifyRegistriesHelper(
     if (content::BrowserThread::CurrentlyOn(registry->owner_thread())) {
       (registry.get()->*notification_callback)(extension);
     } else {
-      content::BrowserThread::GetTaskRunnerForThread(registry->owner_thread())
-          ->PostTask(FROM_HERE,
+      base::PostTask(FROM_HERE, {registry->owner_thread()},
                      base::BindOnce(&NotifyWithExtensionSafe,
                                     base::WrapRefCounted(extension),
                                     notification_callback, registry));

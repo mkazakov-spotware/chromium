@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,8 @@ namespace blink {
 
 namespace {
 
-constexpr base::TimeDelta kDelayForPurgeAfterFreeze = base::Minutes(1);
+constexpr base::TimeDelta kDelayForPurgeAfterFreeze =
+    base::TimeDelta::FromMinutes(1);
 
 class MemoryPurgeManagerTest : public testing::Test {
  public:
@@ -25,8 +26,6 @@ class MemoryPurgeManagerTest : public testing::Test {
       : task_environment_(base::test::TaskEnvironment::MainThreadType::UI,
                           base::test::TaskEnvironment::TimeSource::MOCK_TIME),
         memory_purge_manager_(task_environment_.GetMainThreadTaskRunner()) {}
-  MemoryPurgeManagerTest(const MemoryPurgeManagerTest&) = delete;
-  MemoryPurgeManagerTest& operator=(const MemoryPurgeManagerTest&) = delete;
 
   void SetUp() override {
     memory_pressure_listener_ = std::make_unique<base::MemoryPressureListener>(
@@ -68,6 +67,8 @@ class MemoryPurgeManagerTest : public testing::Test {
   void OnMemoryPressure(base::MemoryPressureListener::MemoryPressureLevel) {
     memory_pressure_count_++;
   }
+
+  DISALLOW_COPY_AND_ASSIGN(MemoryPurgeManagerTest);
 };
 
 // Verify that OnPageFrozen() triggers a memory pressure notification in a
@@ -80,7 +81,7 @@ TEST_F(MemoryPurgeManagerTest, PageFrozenInBackgroundedRenderer) {
   memory_purge_manager_.OnPageCreated(PageLifecycleState::kActive);
   memory_purge_manager_.SetRendererBackgrounded(true);
   memory_purge_manager_.OnPageFrozen();
-  FastForwardBy(base::Minutes(0));
+  FastForwardBy(base::TimeDelta::FromMinutes(0));
   EXPECT_EQ(1U, MemoryPressureCount());
 }
 
@@ -94,7 +95,7 @@ TEST_F(MemoryPurgeManagerTest, PageFrozenInForegroundedRenderer) {
   memory_purge_manager_.OnPageCreated(PageLifecycleState::kActive);
   memory_purge_manager_.SetRendererBackgrounded(false);
   memory_purge_manager_.OnPageFrozen();
-  FastForwardBy(base::Minutes(0));
+  FastForwardBy(base::TimeDelta::FromMinutes(0));
   EXPECT_EQ(0U, MemoryPressureCount());
 }
 
@@ -107,7 +108,7 @@ TEST_F(MemoryPurgeManagerTest, PageResumedUndoMemoryPressureSuppression) {
 
   memory_purge_manager_.SetRendererBackgrounded(true);
   memory_purge_manager_.OnPageFrozen();
-  FastForwardBy(base::Minutes(0));
+  FastForwardBy(base::TimeDelta::FromMinutes(0));
   EXPECT_EQ(1U, MemoryPressureCount());
 
   EXPECT_TRUE(base::MemoryPressureListener::AreNotificationsSuppressed());
@@ -131,17 +132,17 @@ TEST_F(MemoryPurgeManagerTest, PageFrozenPurgeMemoryAllPagesFrozenDisabled) {
   memory_purge_manager_.OnPageCreated(PageLifecycleState::kActive);
 
   memory_purge_manager_.OnPageFrozen();
-  FastForwardBy(base::Minutes(0));
+  FastForwardBy(base::TimeDelta::FromMinutes(0));
   EXPECT_EQ(1U, MemoryPressureCount());
   EXPECT_FALSE(base::MemoryPressureListener::AreNotificationsSuppressed());
 
   memory_purge_manager_.OnPageFrozen();
-  FastForwardBy(base::Minutes(0));
+  FastForwardBy(base::TimeDelta::FromMinutes(0));
   EXPECT_EQ(2U, MemoryPressureCount());
   EXPECT_FALSE(base::MemoryPressureListener::AreNotificationsSuppressed());
 
   memory_purge_manager_.OnPageFrozen();
-  FastForwardBy(base::Minutes(0));
+  FastForwardBy(base::TimeDelta::FromMinutes(0));
   EXPECT_EQ(3U, MemoryPressureCount());
   EXPECT_TRUE(base::MemoryPressureListener::AreNotificationsSuppressed());
 
@@ -172,17 +173,17 @@ TEST_F(MemoryPurgeManagerTest, PageFrozenPurgeMemoryAllPagesFrozenEnabled) {
   memory_purge_manager_.OnPageCreated(PageLifecycleState::kActive);
 
   memory_purge_manager_.OnPageFrozen();
-  FastForwardBy(base::Minutes(0));
+  FastForwardBy(base::TimeDelta::FromMinutes(0));
   EXPECT_EQ(0U, MemoryPressureCount());
   EXPECT_FALSE(base::MemoryPressureListener::AreNotificationsSuppressed());
 
   memory_purge_manager_.OnPageFrozen();
-  FastForwardBy(base::Minutes(0));
+  FastForwardBy(base::TimeDelta::FromMinutes(0));
   EXPECT_EQ(0U, MemoryPressureCount());
   EXPECT_FALSE(base::MemoryPressureListener::AreNotificationsSuppressed());
 
   memory_purge_manager_.OnPageFrozen();
-  FastForwardBy(base::Minutes(0));
+  FastForwardBy(base::TimeDelta::FromMinutes(0));
   EXPECT_EQ(1U, MemoryPressureCount());
   EXPECT_TRUE(base::MemoryPressureListener::AreNotificationsSuppressed());
 
@@ -209,7 +210,7 @@ TEST_F(MemoryPurgeManagerTest, MemoryPurgeWithDelay) {
   memory_purge_manager_.OnPageFrozen();
 
   // The memory pressure notification should not occur immediately
-  FastForwardBy(base::Minutes(0));
+  FastForwardBy(base::TimeDelta::FromMinutes(0));
   EXPECT_EQ(0U, MemoryPressureCount());
 
   // The memory pressure notification should occur after 1 minute
@@ -226,13 +227,13 @@ TEST_F(MemoryPurgeManagerTest, CancelMemoryPurgeWithDelay) {
 
   memory_purge_manager_.SetRendererBackgrounded(true);
   memory_purge_manager_.OnPageFrozen();
-  FastForwardBy(base::Seconds(40));
+  FastForwardBy(base::TimeDelta::FromSeconds(40));
   EXPECT_EQ(0U, MemoryPressureCount());
 
   // If the page is resumed before the memory purge timer expires, the purge
   // should be cancelled.
   memory_purge_manager_.OnPageResumed();
-  FastForwardBy(base::Minutes(0));
+  FastForwardBy(base::TimeDelta::FromMinutes(0));
   EXPECT_EQ(0U, MemoryPressureCount());
 
   memory_purge_manager_.OnPageDestroyed(PageLifecycleState::kActive);
@@ -245,7 +246,7 @@ TEST_F(MemoryPurgeManagerTest, MemoryPurgeWithDelayNewActivePageCreated) {
 
   memory_purge_manager_.SetRendererBackgrounded(true);
   memory_purge_manager_.OnPageFrozen();
-  FastForwardBy(base::Seconds(40));
+  FastForwardBy(base::TimeDelta::FromSeconds(40));
   EXPECT_EQ(0U, MemoryPressureCount());
 
   // All pages are no longer frozen, the memory purge should be cancelled.
@@ -264,7 +265,7 @@ TEST_F(MemoryPurgeManagerTest, MemoryPurgeWithDelayNewFrozenPageCreated) {
 
   memory_purge_manager_.SetRendererBackgrounded(true);
   memory_purge_manager_.OnPageFrozen();
-  FastForwardBy(base::Seconds(40));
+  FastForwardBy(base::TimeDelta::FromSeconds(40));
   EXPECT_EQ(0U, MemoryPressureCount());
 
   // All pages are still frozen and the memory purge should occur.
@@ -282,7 +283,7 @@ TEST_F(MemoryPurgeManagerTest, PurgeRendererMemoryWhenBackgroundedEnabled) {
       {} /* disabled */);
 
   memory_purge_manager_.SetRendererBackgrounded(true);
-  FastForwardBy(base::Minutes(
+  FastForwardBy(base::TimeDelta::FromMinutes(
       MemoryPurgeManager::kDefaultMaxTimeToPurgeAfterBackgrounded));
   // No page, no memory pressure.
   EXPECT_EQ(0U, MemoryPressureCount());
@@ -305,7 +306,7 @@ TEST_F(MemoryPurgeManagerTest,
       {} /* disabled */);
 
   memory_purge_manager_.SetRendererBackgrounded(true);
-  FastForwardBy(base::Seconds(30));
+  FastForwardBy(base::TimeDelta::FromSeconds(30));
   EXPECT_EQ(0U, MemoryPressureCount());
 
   memory_purge_manager_.SetRendererBackgrounded(false);
@@ -314,9 +315,10 @@ TEST_F(MemoryPurgeManagerTest,
 }
 
 TEST_F(MemoryPurgeManagerTest, PageFrozenAndResumedWhileBackgrounded) {
-  constexpr base::TimeDelta kFreezePurgeDelay = base::Minutes(10);
+  constexpr base::TimeDelta kFreezePurgeDelay =
+      base::TimeDelta::FromMinutes(10);
   constexpr base::TimeDelta kBeforeBackgroundPurgeDelay =
-      base::Minutes(
+      base::TimeDelta::FromMinutes(
           MemoryPurgeManager::kDefaultMinTimeToPurgeAfterBackgrounded) /
       2;
 
@@ -336,7 +338,7 @@ TEST_F(MemoryPurgeManagerTest, PageFrozenAndResumedWhileBackgrounded) {
 
   memory_purge_manager_.OnPageResumed();
   FastForwardBy(
-      base::Minutes(
+      base::TimeDelta::FromMinutes(
           MemoryPurgeManager::kDefaultMaxTimeToPurgeAfterBackgrounded) -
       kBeforeBackgroundPurgeDelay);
   // Since the renderer is still backgrounded, the memory purge should happen
@@ -348,7 +350,8 @@ TEST_F(MemoryPurgeManagerTest, PageFrozenAndResumedWhileBackgrounded) {
 
 TEST_F(MemoryPurgeManagerTest,
        PageFrozenAndRendererBackgroundedShorterBackgroundedDelay) {
-  constexpr base::TimeDelta kFreezePurgeDelay = base::Minutes(10);
+  constexpr base::TimeDelta kFreezePurgeDelay =
+      base::TimeDelta::FromMinutes(10);
   scoped_feature_list_.InitWithFeaturesAndParameters(
       {{features::kFreezePurgeMemoryAllPagesFrozen,
         {{"delay-in-minutes",
@@ -360,7 +363,7 @@ TEST_F(MemoryPurgeManagerTest,
 
   memory_purge_manager_.SetRendererBackgrounded(true);
   memory_purge_manager_.OnPageFrozen();
-  FastForwardBy(base::Minutes(
+  FastForwardBy(base::TimeDelta::FromMinutes(
       MemoryPurgeManager::kDefaultMaxTimeToPurgeAfterBackgrounded));
   EXPECT_EQ(1U, MemoryPressureCount());
 
@@ -372,7 +375,7 @@ TEST_F(MemoryPurgeManagerTest,
 
 TEST_F(MemoryPurgeManagerTest,
        PageFrozenAndRendererBackgroundedShorterFreezeDelay) {
-  constexpr base::TimeDelta kFreezePurgeDelay = base::Minutes(
+  constexpr base::TimeDelta kFreezePurgeDelay = base::TimeDelta::FromMinutes(
       MemoryPurgeManager::kDefaultMinTimeToPurgeAfterBackgrounded);
   scoped_feature_list_.InitWithFeaturesAndParameters(
       {{features::kFreezePurgeMemoryAllPagesFrozen,
@@ -406,7 +409,7 @@ TEST_F(MemoryPurgeManagerTest, NoMemoryPurgeIfNoPage) {
   memory_purge_manager_.OnPageFrozen();
   memory_purge_manager_.OnPageDestroyed(PageLifecycleState::kFrozen);
 
-  FastForwardBy(base::Minutes(0));
+  FastForwardBy(base::TimeDelta::FromMinutes(0));
   EXPECT_EQ(0U, MemoryPressureCount());
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,30 +12,18 @@
 #include <utility>
 #include <vector>
 
-#include "ash/constants/ash_features.h"
 #include "base/bind.h"
-#include "base/command_line.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
-#include "base/location.h"
-#include "base/notreached.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/rand_util.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/bind_post_task.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/trace_event/trace_event.h"
-#include "chromeos/components/sensors/sensor_util.h"
-#include "components/device_event_log/device_event_log.h"
-#include "media/base/bind_to_current_loop.h"
 #include "media/capture/video/chromeos/mojom/camera_common.mojom.h"
-#include "media/capture/video/chromeos/mojom/cros_camera_client.mojom.h"
-#include "media/capture/video/chromeos/mojom/cros_camera_service.mojom.h"
-#include "media/capture/video/chromeos/mojom/effects_pipeline.mojom.h"
-#include "media/capture/video/chromeos/video_capture_features_chromeos.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/platform/named_platform_channel.h"
 #include "mojo/public/cpp/platform/platform_channel.h"
@@ -47,24 +35,8 @@ namespace media {
 namespace {
 
 const base::FilePath::CharType kArcCamera3SocketPath[] =
-    "/run/camera/camera3.sock";
+    "/var/run/camera/camera3.sock";
 const char kArcCameraGroup[] = "arc-camera";
-const base::FilePath::CharType kForceEnableAePath[] =
-    "/run/camera/force_enable_face_ae";
-const base::FilePath::CharType kForceDisableAePath[] =
-    "/run/camera/force_disable_face_ae";
-const base::FilePath::CharType kForceEnableHdrNetPath[] =
-    "/run/camera/force_enable_hdrnet";
-const base::FilePath::CharType kForceDisableHdrNetPath[] =
-    "/run/camera/force_disable_hdrnet";
-const base::FilePath::CharType kForceEnableAutoFramingPath[] =
-    "/run/camera/force_enable_auto_framing";
-const base::FilePath::CharType kForceDisableAutoFramingPath[] =
-    "/run/camera/force_disable_auto_framing";
-const base::FilePath::CharType kForceEnableEffectsPath[] =
-    "/run/camera/force_enable_effects";
-const base::FilePath::CharType kForceDisableEffectsPath[] =
-    "/run/camera/force_disable_effects";
 
 std::string GenerateRandomToken() {
   char random_bytes[16];
@@ -78,11 +50,10 @@ std::string GenerateRandomToken() {
 // to here, and the write side will be closed in such a case.
 bool WaitForSocketReadable(int raw_socket_fd, int raw_cancel_fd) {
   struct pollfd fds[2] = {
-      {raw_socket_fd, POLLIN, 0},
-      {raw_cancel_fd, POLLIN, 0},
+      {raw_socket_fd, POLLIN, 0}, {raw_cancel_fd, POLLIN, 0},
   };
 
-  if (HANDLE_EINTR(poll(fds, std::size(fds), -1)) <= 0) {
+  if (HANDLE_EINTR(poll(fds, base::size(fds), -1)) <= 0) {
     PLOG(ERROR) << "poll()";
     return false;
   }
@@ -96,27 +67,11 @@ bool WaitForSocketReadable(int raw_socket_fd, int raw_cancel_fd) {
   return true;
 }
 
-bool HasCrosCameraTest() {
-  static constexpr char kCrosCameraTestPath[] =
-      "/usr/local/bin/cros_camera_test";
-
-  base::FilePath path(kCrosCameraTestPath);
-  return base::PathExists(path);
-}
-
 class MojoCameraClientObserver : public CameraClientObserver {
  public:
-  MojoCameraClientObserver() = delete;
-
   explicit MojoCameraClientObserver(
-      mojo::PendingRemote<cros::mojom::CameraHalClient> client,
-      cros::mojom::CameraClientType type,
-      base::UnguessableToken auth_token)
-      : CameraClientObserver(type, std::move(auth_token)),
-        client_(std::move(client)) {}
-
-  MojoCameraClientObserver(const MojoCameraClientObserver&) = delete;
-  MojoCameraClientObserver& operator=(const MojoCameraClientObserver&) = delete;
+      mojo::PendingRemote<cros::mojom::CameraHalClient> client)
+      : client_(std::move(client)) {}
 
   void OnChannelCreated(
       mojo::PendingRemote<cros::mojom::CameraModule> camera_module) override {
@@ -127,42 +82,12 @@ class MojoCameraClientObserver : public CameraClientObserver {
 
  private:
   mojo::Remote<cros::mojom::CameraHalClient> client_;
+  DISALLOW_IMPLICIT_CONSTRUCTORS(MojoCameraClientObserver);
 };
 
 }  // namespace
 
 CameraClientObserver::~CameraClientObserver() = default;
-
-bool CameraClientObserver::Authenticate(TokenManager* token_manager) {
-  auto authenticated_type =
-      token_manager->AuthenticateClient(type_, auth_token_);
-  if (!authenticated_type) {
-    return false;
-  }
-  type_ = authenticated_type.value();
-  return true;
-}
-
-FailedCameraHalServerCallbacks::FailedCameraHalServerCallbacks()
-    : callbacks_(this) {}
-FailedCameraHalServerCallbacks::~FailedCameraHalServerCallbacks() = default;
-
-mojo::PendingRemote<cros::mojom::CameraHalServerCallbacks>
-FailedCameraHalServerCallbacks::GetRemote() {
-  return callbacks_.BindNewPipeAndPassRemote();
-}
-
-void FailedCameraHalServerCallbacks::CameraDeviceActivityChange(
-    int32_t camera_id,
-    bool opened,
-    cros::mojom::CameraClientType type) {}
-
-void FailedCameraHalServerCallbacks::CameraPrivacySwitchStateChange(
-    cros::mojom::CameraPrivacySwitchState state,
-    int32_t camera_id) {}
-
-void FailedCameraHalServerCallbacks::CameraSWPrivacySwitchStateChange(
-    cros::mojom::CameraPrivacySwitchState state) {}
 
 // static
 CameraHalDispatcherImpl* CameraHalDispatcherImpl::GetInstance() {
@@ -194,121 +119,10 @@ bool CameraHalDispatcherImpl::Start(
   if (!StartThreads()) {
     return false;
   }
-
-  {
-    base::FilePath enable_file_path(kForceEnableAePath);
-    base::FilePath disable_file_path(kForceDisableAePath);
-    if (!base::DeleteFile(enable_file_path)) {
-      LOG(WARNING) << "Could not delete " << kForceEnableAePath;
-    }
-    if (!base::DeleteFile(disable_file_path)) {
-      LOG(WARNING) << "Could not delete " << kForceDisableAePath;
-    }
-    const base::CommandLine* command_line =
-        base::CommandLine::ForCurrentProcess();
-    if (command_line->HasSwitch(media::switches::kForceControlFaceAe)) {
-      if (command_line->GetSwitchValueASCII(
-              media::switches::kForceControlFaceAe) == "enable") {
-        base::File file(enable_file_path, base::File::FLAG_CREATE_ALWAYS |
-                                              base::File::FLAG_WRITE);
-        file.Close();
-      } else {
-        base::File file(disable_file_path, base::File::FLAG_CREATE_ALWAYS |
-                                               base::File::FLAG_WRITE);
-        file.Close();
-      }
-    }
-  }
-
-  {
-    base::FilePath enable_file_path(kForceEnableHdrNetPath);
-    base::FilePath disable_file_path(kForceDisableHdrNetPath);
-    if (!base::DeleteFile(enable_file_path)) {
-      LOG(WARNING) << "Could not delete " << kForceEnableHdrNetPath;
-    }
-    if (!base::DeleteFile(disable_file_path)) {
-      LOG(WARNING) << "Could not delete " << kForceDisableHdrNetPath;
-    }
-    const base::CommandLine* command_line =
-        base::CommandLine::ForCurrentProcess();
-    if (command_line->HasSwitch(media::switches::kHdrNetOverride)) {
-      std::string value =
-          command_line->GetSwitchValueASCII(switches::kHdrNetOverride);
-      if (value == switches::kHdrNetForceEnabled) {
-        base::File file(enable_file_path, base::File::FLAG_CREATE_ALWAYS |
-                                              base::File::FLAG_WRITE);
-        file.Close();
-      } else if (value == switches::kHdrNetForceDisabled) {
-        base::File file(disable_file_path, base::File::FLAG_CREATE_ALWAYS |
-                                               base::File::FLAG_WRITE);
-        file.Close();
-      }
-    }
-  }
-
-  {
-    base::FilePath enable_file_path(kForceEnableAutoFramingPath);
-    base::FilePath disable_file_path(kForceDisableAutoFramingPath);
-    if (!base::DeleteFile(enable_file_path)) {
-      LOG(WARNING) << "Could not delete " << kForceEnableAutoFramingPath;
-    }
-    if (!base::DeleteFile(disable_file_path)) {
-      LOG(WARNING) << "Could not delete " << kForceDisableAutoFramingPath;
-    }
-    const base::CommandLine* command_line =
-        base::CommandLine::ForCurrentProcess();
-    if (command_line->HasSwitch(media::switches::kAutoFramingOverride)) {
-      std::string value =
-          command_line->GetSwitchValueASCII(switches::kAutoFramingOverride);
-      if (value == switches::kAutoFramingForceEnabled) {
-        base::File file(enable_file_path, base::File::FLAG_CREATE_ALWAYS |
-                                              base::File::FLAG_WRITE);
-        file.Close();
-      } else if (value == switches::kAutoFramingForceDisabled) {
-        base::File file(disable_file_path, base::File::FLAG_CREATE_ALWAYS |
-                                               base::File::FLAG_WRITE);
-        file.Close();
-      }
-    }
-  }
-
-  {
-    base::FilePath enable_file_path(kForceEnableEffectsPath);
-    base::FilePath disable_file_path(kForceDisableEffectsPath);
-    if (!base::DeleteFile(enable_file_path)) {
-      LOG(WARNING) << "Could not delete " << kForceEnableEffectsPath;
-    }
-    if (!base::DeleteFile(disable_file_path)) {
-      LOG(WARNING) << "Could not delete " << kForceDisableEffectsPath;
-    }
-    base::File file(ash::features::IsVCBackgroundBlurEnabled() ||
-                            ash::features::IsVCBackgroundReplaceEnabled() ||
-                            ash::features::IsVCPortraitRelightingEnabled()
-                        ? enable_file_path
-                        : disable_file_path,
-                    base::File::FLAG_CREATE_ALWAYS | base::File::FLAG_WRITE);
-    file.Close();
-  }
-
   jda_factory_ = std::move(jda_factory);
   jea_factory_ = std::move(jea_factory);
-  base::WaitableEvent started;
-  // It's important we generate tokens before creating the socket, because once
-  // it is available, everyone connecting to socket would start fetching
-  // tokens.
-  if (!token_manager_.GenerateServerToken()) {
-    LOG(ERROR) << "Failed to generate authentication token for server";
-    return false;
-  }
-  if (HasCrosCameraTest() && !token_manager_.GenerateTestClientToken()) {
-    LOG(ERROR) << "Failed to generate token for test client";
-    return false;
-  }
-  if (!token_manager_.GenerateServerSensorClientToken()) {
-    LOG(ERROR) << "Failed to generate authentication token for server as a "
-                  "sensor client";
-  }
-
+  base::WaitableEvent started(base::WaitableEvent::ResetPolicy::MANUAL,
+                              base::WaitableEvent::InitialState::NOT_SIGNALED);
   blocking_io_task_runner_->PostTask(
       FROM_HERE,
       base::BindOnce(&CameraHalDispatcherImpl::CreateSocket,
@@ -318,18 +132,14 @@ bool CameraHalDispatcherImpl::Start(
 }
 
 void CameraHalDispatcherImpl::AddClientObserver(
-    CameraClientObserver* observer,
-    base::OnceCallback<void(int32_t)> result_callback) {
+    std::unique_ptr<CameraClientObserver> observer) {
   // If |proxy_thread_| fails to start in Start() then CameraHalDelegate will
   // not be created, and this function will not be called.
   DCHECK(proxy_thread_.IsRunning());
-  base::WaitableEvent added;
-  proxy_task_runner_->PostTask(
+  proxy_thread_.task_runner()->PostTask(
       FROM_HERE,
       base::BindOnce(&CameraHalDispatcherImpl::AddClientObserverOnProxyThread,
-                     base::Unretained(this), observer,
-                     std::move(result_callback), base::Unretained(&added)));
-  added.Wait();
+                     base::Unretained(this), std::move(observer)));
 }
 
 bool CameraHalDispatcherImpl::IsStarted() {
@@ -337,201 +147,60 @@ bool CameraHalDispatcherImpl::IsStarted() {
          proxy_fd_.is_valid();
 }
 
-void CameraHalDispatcherImpl::AddActiveClientObserver(
-    CameraActiveClientObserver* observer) {
-  base::AutoLock lock(opened_camera_id_map_lock_);
-  for (auto& [camera_client_type, camera_id_set] : opened_camera_id_map_) {
-    if (!camera_id_set.empty()) {
-      observer->OnActiveClientChange(camera_client_type,
-                                     /*is_new_active_client=*/true,
-                                     GetDeviceIdsFromCameraIds(camera_id_set));
-    }
-  }
-  active_client_observers_->AddObserver(observer);
-}
-
-void CameraHalDispatcherImpl::RemoveActiveClientObserver(
-    CameraActiveClientObserver* observer) {
-  active_client_observers_->RemoveObserver(observer);
-}
-
-base::flat_map<std::string, cros::mojom::CameraPrivacySwitchState>
-CameraHalDispatcherImpl::AddCameraPrivacySwitchObserver(
-    CameraPrivacySwitchObserver* observer) {
-  privacy_switch_observers_->AddObserver(observer);
-  base::AutoLock lock(device_id_to_hw_privacy_switch_state_lock_);
-  return device_id_to_hw_privacy_switch_state_;
-}
-
-void CameraHalDispatcherImpl::RemoveCameraPrivacySwitchObserver(
-    CameraPrivacySwitchObserver* observer) {
-  privacy_switch_observers_->RemoveObserver(observer);
-}
-
-void CameraHalDispatcherImpl::GetCameraSWPrivacySwitchState(
-    cros::mojom::CameraHalServer::GetCameraSWPrivacySwitchStateCallback
-        callback) {
-  if (!proxy_thread_.IsRunning()) {
-    LOG(ERROR) << "CameraProxyThread is not started. Failed to query the "
-                  "camera SW privacy switch state";
-    std::move(callback).Run(cros::mojom::CameraPrivacySwitchState::UNKNOWN);
-    return;
-  }
-  // Unretained reference is safe here because CameraHalDispatcherImpl owns
-  // |proxy_thread_|.
-  proxy_task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(
-          &CameraHalDispatcherImpl::GetCameraSWPrivacySwitchStateOnProxyThread,
-          base::Unretained(this), std::move(callback)));
-}
-
-void CameraHalDispatcherImpl::SetCameraSWPrivacySwitchState(
-    cros::mojom::CameraPrivacySwitchState state) {
-  if (!proxy_thread_.IsRunning()) {
-    LOG(ERROR) << "CameraProxyThread is not started. "
-                  "SetCameraSWPrivacySwitchState request was aborted";
-    return;
-  }
-  // Unretained reference is safe here because CameraHalDispatcherImpl owns
-  // |proxy_thread_|.
-  proxy_task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(
-          &CameraHalDispatcherImpl::SetCameraSWPrivacySwitchStateOnProxyThread,
-          base::Unretained(this), state));
-}
-
-void CameraHalDispatcherImpl::RegisterPluginVmToken(
-    const base::UnguessableToken& token) {
-  token_manager_.RegisterPluginVmToken(token);
-}
-
-void CameraHalDispatcherImpl::UnregisterPluginVmToken(
-    const base::UnguessableToken& token) {
-  token_manager_.UnregisterPluginVmToken(token);
-}
-
-void CameraHalDispatcherImpl::AddCameraIdToDeviceIdEntry(
-    int32_t camera_id,
-    const std::string& device_id) {
-  base::AutoLock lock(camera_id_to_device_id_lock_);
-  camera_id_to_device_id_[camera_id] = device_id;
-}
-
-void CameraHalDispatcherImpl::DisableSensorForTesting() {
-  sensor_enabled_ = false;
-}
-
 CameraHalDispatcherImpl::CameraHalDispatcherImpl()
     : proxy_thread_("CameraProxyThread"),
-      blocking_io_thread_("CameraBlockingIOThread"),
-      main_task_runner_(base::SequencedTaskRunner::GetCurrentDefault()),
-      camera_hal_server_callbacks_(this),
-      active_client_observers_(
-          new base::ObserverListThreadSafe<CameraActiveClientObserver>()),
-      privacy_switch_observers_(
-          new base::ObserverListThreadSafe<CameraPrivacySwitchObserver>()) {}
+      blocking_io_thread_("CameraBlockingIOThread") {
+  // This event is for adding camera category to categories list.
+  TRACE_EVENT0("camera", "CameraHalDispatcherImpl");
+  base::trace_event::TraceLog::GetInstance()->AddEnabledStateObserver(this);
+}
 
 CameraHalDispatcherImpl::~CameraHalDispatcherImpl() {
   VLOG(1) << "Stopping CameraHalDispatcherImpl...";
   if (proxy_thread_.IsRunning()) {
-    proxy_task_runner_->PostTask(
+    proxy_thread_.task_runner()->PostTask(
         FROM_HERE, base::BindOnce(&CameraHalDispatcherImpl::StopOnProxyThread,
                                   base::Unretained(this)));
     proxy_thread_.Stop();
   }
   blocking_io_thread_.Stop();
-  CAMERA_LOG(EVENT) << "CameraHalDispatcherImpl stopped";
+  base::trace_event::TraceLog::GetInstance()->RemoveEnabledStateObserver(this);
+  VLOG(1) << "CameraHalDispatcherImpl stopped";
 }
 
 void CameraHalDispatcherImpl::RegisterServer(
     mojo::PendingRemote<cros::mojom::CameraHalServer> camera_hal_server) {
   DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-  LOG(ERROR) << "CameraHalDispatcher::RegisterServer is deprecated. "
-                "CameraHalServer will not be registered.";
-}
-
-void CameraHalDispatcherImpl::RegisterServerWithToken(
-    mojo::PendingRemote<cros::mojom::CameraHalServer> camera_hal_server,
-    const base::UnguessableToken& token,
-    RegisterServerWithTokenCallback callback) {
-  DCHECK(proxy_task_runner_->BelongsToCurrentThread());
 
   if (camera_hal_server_) {
     LOG(ERROR) << "Camera HAL server is already registered";
-    std::move(callback).Run(-EALREADY,
-                            failed_camera_hal_server_callbacks_.GetRemote());
-    return;
-  }
-  if (!token_manager_.AuthenticateServer(token)) {
-    LOG(ERROR) << "Failed to authenticate server";
-    std::move(callback).Run(-EPERM,
-                            failed_camera_hal_server_callbacks_.GetRemote());
     return;
   }
   camera_hal_server_.Bind(std::move(camera_hal_server));
   camera_hal_server_.set_disconnect_handler(
       base::BindOnce(&CameraHalDispatcherImpl::OnCameraHalServerConnectionError,
                      base::Unretained(this)));
-  if (auto_framing_supported_callback_) {
-    camera_hal_server_->GetAutoFramingSupported(
-        std::move(auto_framing_supported_callback_));
-  }
-  camera_hal_server_->SetAutoFramingState(current_auto_framing_state_);
-
-  // Should only be called when current_effects_ is set before.
-  if (!current_effects_.is_null()) {
-    cros::mojom::EffectsConfigPtr config = current_effects_.Clone();
-
-    // We want to reset current_effects_ so that:
-    // (1) if SetCameraEffect succeeds, current_effects_ will be assigned as
-    // config in the callback; so that its value is kept.
-    // (2) if SetCameraEffect fails, current_effects_ stays as null;
-    // which is also consistent with the real camera effects.
-    current_effects_.reset();
-
-    camera_hal_server_->SetCameraEffect(
-        config.Clone(),
-        base::BindOnce(
-            &CameraHalDispatcherImpl::OnSetCameraEffectsCompleteOnProxyThread,
-            base::Unretained(this), config.Clone()));
-  }
-
-  CAMERA_LOG(EVENT) << "Camera HAL server registered";
-  std::move(callback).Run(
-      0, camera_hal_server_callbacks_.BindNewPipeAndPassRemote());
+  VLOG(1) << "Camera HAL server registered";
 
   // Set up the Mojo channels for clients which registered before the server
   // registers.
-  for (auto* client_observer : client_observers_) {
-    EstablishMojoChannel(client_observer);
+  for (auto& client_observer : client_observers_) {
+    EstablishMojoChannel(client_observer.get());
   }
 }
 
 void CameraHalDispatcherImpl::RegisterClient(
     mojo::PendingRemote<cros::mojom::CameraHalClient> client) {
-  NOTREACHED() << "RegisterClient() is disabled";
-}
-
-void CameraHalDispatcherImpl::RegisterClientWithToken(
-    mojo::PendingRemote<cros::mojom::CameraHalClient> client,
-    cros::mojom::CameraClientType type,
-    const base::UnguessableToken& auth_token,
-    RegisterClientWithTokenCallback callback) {
-  base::UnguessableToken client_auth_token = auth_token;
-  // Unretained reference is safe here because CameraHalDispatcherImpl owns
+  // RegisterClient can be called locally by ArcCameraBridge. Unretained
+  // reference is safe here because CameraHalDispatcherImpl owns
   // |proxy_thread_|.
   proxy_task_runner_->PostTask(
       FROM_HERE,
-      base::BindOnce(
-          &CameraHalDispatcherImpl::RegisterClientWithTokenOnProxyThread,
-          base::Unretained(this), std::move(client), type,
-          std::move(client_auth_token),
-          media::BindToCurrentLoop(std::move(callback))));
+      base::BindOnce(&CameraHalDispatcherImpl::RegisterClientOnProxyThread,
+                     base::Unretained(this), std::move(client)));
 }
 
-void CameraHalDispatcherImpl::GetMjpegDecodeAccelerator(
+void CameraHalDispatcherImpl::GetJpegDecodeAccelerator(
     mojo::PendingReceiver<chromeos_camera::mojom::MjpegDecodeAccelerator>
         jda_receiver) {
   jda_factory_.Run(std::move(jda_receiver));
@@ -543,92 +212,18 @@ void CameraHalDispatcherImpl::GetJpegEncodeAccelerator(
   jea_factory_.Run(std::move(jea_receiver));
 }
 
-void CameraHalDispatcherImpl::RegisterSensorClientWithToken(
-    mojo::PendingRemote<chromeos::sensors::mojom::SensorHalClient> client,
-    const base::UnguessableToken& auth_token,
-    RegisterSensorClientWithTokenCallback callback) {
-  DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-
-  if (!sensor_enabled_) {
-    std::move(callback).Run(-EPERM);
-    return;
-  }
-
-  main_task_runner_->PostTask(
+void CameraHalDispatcherImpl::OnTraceLogEnabled() {
+  proxy_task_runner_->PostTask(
       FROM_HERE,
-      base::BindOnce(
-          &CameraHalDispatcherImpl::RegisterSensorClientWithTokenOnUIThread,
-          weak_factory_.GetWeakPtr(), std::move(client), auth_token,
-          BindToCurrentLoop(std::move(callback))));
+      base::BindOnce(&CameraHalDispatcherImpl::OnTraceLogEnabledOnProxyThread,
+                     base::Unretained(this)));
 }
 
-void CameraHalDispatcherImpl::CameraDeviceActivityChange(
-    int32_t camera_id,
-    bool opened,
-    cros::mojom::CameraClientType type) {
-  VLOG(1) << type << (opened ? " opened " : " closed ") << "camera "
-          << camera_id;
-  base::AutoLock lock(opened_camera_id_map_lock_);
-  auto& camera_id_set = opened_camera_id_map_[type];
-  if (opened) {
-    auto result = camera_id_set.insert(camera_id);
-    if (!result.second) {  // No element inserted.
-      LOG(WARNING) << "Received duplicated open notification for camera "
-                   << camera_id;
-      return;
-    }
-    if (camera_id_set.size() == 1) {
-      VLOG(1) << type << " is active";
-    }
-  } else {
-    auto it = camera_id_set.find(camera_id);
-    if (it == camera_id_set.end()) {
-      // This can happen if something happened to the client process and it
-      // simultaneous lost connections to both CameraHalDispatcher and
-      // CameraHalServer.
-      LOG(WARNING) << "Received close notification for camera " << camera_id
-                   << " which is not opened";
-      return;
-    }
-    camera_id_set.erase(it);
-    if (camera_id_set.empty()) {
-      VLOG(1) << type << " is inactive";
-    }
-  }
-  bool is_new_active_client = camera_id_set.size() == 1 && opened;
-  active_client_observers_->Notify(
-      FROM_HERE, &CameraActiveClientObserver::OnActiveClientChange, type,
-      is_new_active_client, GetDeviceIdsFromCameraIds(camera_id_set));
-}
-
-void CameraHalDispatcherImpl::CameraPrivacySwitchStateChange(
-    cros::mojom::CameraPrivacySwitchState state,
-    int32_t camera_id) {
-  DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-  const std::string& device_id = GetDeviceIdFromCameraId(camera_id);
-  base::AutoLock lock(device_id_to_hw_privacy_switch_state_lock_);
-  device_id_to_hw_privacy_switch_state_[device_id] = state;
-  privacy_switch_observers_->Notify(
+void CameraHalDispatcherImpl::OnTraceLogDisabled() {
+  proxy_task_runner_->PostTask(
       FROM_HERE,
-      &CameraPrivacySwitchObserver::OnCameraHWPrivacySwitchStateChanged,
-      device_id, state);
-  CAMERA_LOG(EVENT) << "Camera privacy switch state changed: " << state;
-}
-
-void CameraHalDispatcherImpl::CameraSWPrivacySwitchStateChange(
-    cros::mojom::CameraPrivacySwitchState state) {
-  DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-
-  privacy_switch_observers_->Notify(
-      FROM_HERE,
-      &CameraPrivacySwitchObserver::OnCameraSWPrivacySwitchStateChanged, state);
-  CAMERA_LOG(EVENT) << "Camera software privacy switch state changed: "
-                    << state;
-}
-
-base::UnguessableToken CameraHalDispatcherImpl::GetTokenForTrustedClient(
-    cros::mojom::CameraClientType type) {
-  return token_manager_.GetTokenForTrustedClient(type);
+      base::BindOnce(&CameraHalDispatcherImpl::OnTraceLogDisabledOnProxyThread,
+                     base::Unretained(this)));
 }
 
 void CameraHalDispatcherImpl::CreateSocket(base::WaitableEvent* started) {
@@ -752,73 +347,33 @@ void CameraHalDispatcherImpl::StartServiceLoop(base::ScopedFD socket_fd,
   }
 }
 
-void CameraHalDispatcherImpl::GetCameraSWPrivacySwitchStateOnProxyThread(
-    cros::mojom::CameraHalServer::GetCameraSWPrivacySwitchStateCallback
-        callback) {
+void CameraHalDispatcherImpl::RegisterClientOnProxyThread(
+    mojo::PendingRemote<cros::mojom::CameraHalClient> client) {
   DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-  if (!camera_hal_server_) {
-    LOG(ERROR) << "Camera HAL server is not registered";
-    std::move(callback).Run(cros::mojom::CameraPrivacySwitchState::UNKNOWN);
-    return;
-  }
-  camera_hal_server_->GetCameraSWPrivacySwitchState(std::move(callback));
-}
-
-void CameraHalDispatcherImpl::SetCameraSWPrivacySwitchStateOnProxyThread(
-    cros::mojom::CameraPrivacySwitchState state) {
-  DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-  if (!camera_hal_server_) {
-    LOG(ERROR) << "Camera HAL server is not registered";
-    return;
-  }
-  camera_hal_server_->SetCameraSWPrivacySwitchState(state);
-}
-
-void CameraHalDispatcherImpl::RegisterClientWithTokenOnProxyThread(
-    mojo::PendingRemote<cros::mojom::CameraHalClient> client,
-    cros::mojom::CameraClientType type,
-    base::UnguessableToken auth_token,
-    RegisterClientWithTokenCallback callback) {
-  DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-  auto client_observer = std::make_unique<MojoCameraClientObserver>(
-      std::move(client), type, std::move(auth_token));
+  auto client_observer =
+      std::make_unique<MojoCameraClientObserver>(std::move(client));
   client_observer->client().set_disconnect_handler(base::BindOnce(
       &CameraHalDispatcherImpl::OnCameraHalClientConnectionError,
       base::Unretained(this), base::Unretained(client_observer.get())));
-  AddClientObserverOnProxyThread(client_observer.get(), std::move(callback),
-                                 nullptr);
-  mojo_client_observers_[client_observer.get()] = std::move(client_observer);
+  AddClientObserver(std::move(client_observer));
+  VLOG(1) << "Camera HAL client registered";
 }
 
 void CameraHalDispatcherImpl::AddClientObserverOnProxyThread(
-    CameraClientObserver* observer,
-    base::OnceCallback<void(int32_t)> result_callback,
-    base::WaitableEvent* added) {
+    std::unique_ptr<CameraClientObserver> observer) {
   DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-  if (!observer->Authenticate(&token_manager_)) {
-    LOG(ERROR) << "Failed to authenticate camera client observer";
-    std::move(result_callback).Run(-EPERM);
-    return;
-  }
   if (camera_hal_server_) {
-    EstablishMojoChannel(observer);
+    EstablishMojoChannel(observer.get());
   }
-  client_observers_.insert(observer);
-  std::move(result_callback).Run(0);
-  CAMERA_LOG(EVENT) << "Camera HAL client registered";
-  if (added) {
-    added->Signal();
-  }
+  client_observers_.insert(std::move(observer));
 }
 
 void CameraHalDispatcherImpl::EstablishMojoChannel(
     CameraClientObserver* client_observer) {
   DCHECK(proxy_task_runner_->BelongsToCurrentThread());
   mojo::PendingRemote<cros::mojom::CameraModule> camera_module;
-  const auto& type = client_observer->GetType();
-  CAMERA_LOG(EVENT) << "Establishing server channel for " << type;
   camera_hal_server_->CreateChannel(
-      camera_module.InitWithNewPipeAndPassReceiver(), type);
+      camera_module.InitWithNewPipeAndPassReceiver());
   client_observer->OnChannelCreated(std::move(camera_module));
 }
 
@@ -833,112 +388,18 @@ void CameraHalDispatcherImpl::OnPeerConnected(
 
 void CameraHalDispatcherImpl::OnCameraHalServerConnectionError() {
   DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-  {
-    base::AutoLock lock(opened_camera_id_map_lock_);
-    CAMERA_LOG(EVENT) << "Camera HAL server connection lost";
-    camera_hal_server_.reset();
-    camera_hal_server_callbacks_.reset();
-    for (auto& [camera_client_type, camera_id_set] : opened_camera_id_map_) {
-      if (!camera_id_set.empty()) {
-        active_client_observers_->Notify(
-            FROM_HERE, &CameraActiveClientObserver::OnActiveClientChange,
-            camera_client_type, /*is_new_active_client=*/false,
-            /*active_device_ids=*/base::flat_set<std::string>());
-      }
-    }
-    opened_camera_id_map_.clear();
-  }
-
-  {
-    base::AutoLock lock(device_id_to_hw_privacy_switch_state_lock_);
-    device_id_to_hw_privacy_switch_state_.clear();
-  }
-  privacy_switch_observers_->Notify(
-      FROM_HERE,
-      &CameraPrivacySwitchObserver::OnCameraHWPrivacySwitchStateChanged,
-      std::string(), cros::mojom::CameraPrivacySwitchState::UNKNOWN);
+  VLOG(1) << "Camera HAL server connection lost";
+  camera_hal_server_.reset();
 }
 
 void CameraHalDispatcherImpl::OnCameraHalClientConnectionError(
     CameraClientObserver* client_observer) {
   DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-  CleanupClientOnProxyThread(client_observer);
-}
-
-void CameraHalDispatcherImpl::CleanupClientOnProxyThread(
-    CameraClientObserver* client_observer) {
-  DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-  base::AutoLock lock(opened_camera_id_map_lock_);
-  auto camera_client_type = client_observer->GetType();
-  auto opened_it = opened_camera_id_map_.find(camera_client_type);
-  if (opened_it != opened_camera_id_map_.end()) {
-    const auto& camera_id_set = opened_it->second;
-    if (!camera_id_set.empty()) {
-      active_client_observers_->Notify(
-          FROM_HERE, &CameraActiveClientObserver::OnActiveClientChange,
-          camera_client_type,
-          /*is_new_active_client=*/false,
-          /*active_device_ids=*/base::flat_set<std::string>());
-    }
-    opened_camera_id_map_.erase(opened_it);
-  }
-
-  if (mojo_client_observers_.find(client_observer) !=
-      mojo_client_observers_.end()) {
-    mojo_client_observers_[client_observer].reset();
-    mojo_client_observers_.erase(client_observer);
-  }
-
   auto it = client_observers_.find(client_observer);
   if (it != client_observers_.end()) {
     client_observers_.erase(it);
-    CAMERA_LOG(EVENT) << "Camera HAL client connection lost";
+    VLOG(1) << "Camera HAL client connection lost";
   }
-}
-
-void CameraHalDispatcherImpl::RemoveClientObserversOnProxyThread(
-    std::vector<CameraClientObserver*> client_observers,
-    base::WaitableEvent* removed) {
-  DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-  for (auto* client_observer : client_observers) {
-    CleanupClientOnProxyThread(client_observer);
-  }
-  removed->Signal();
-}
-
-void CameraHalDispatcherImpl::RemoveClientObservers(
-    std::vector<CameraClientObserver*> client_observers) {
-  if (client_observers.empty())
-    return;
-  DCHECK(proxy_thread_.IsRunning());
-  base::WaitableEvent removed;
-  proxy_task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(
-          &CameraHalDispatcherImpl::RemoveClientObserversOnProxyThread,
-          base::Unretained(this), client_observers,
-          base::Unretained(&removed)));
-  removed.Wait();
-}
-
-void CameraHalDispatcherImpl::RegisterSensorClientWithTokenOnUIThread(
-    mojo::PendingRemote<chromeos::sensors::mojom::SensorHalClient> client,
-    const base::UnguessableToken& auth_token,
-    RegisterSensorClientWithTokenCallback callback) {
-  DCHECK(main_task_runner_->RunsTasksInCurrentSequence());
-
-  if (!token_manager_.AuthenticateServerSensorClient(auth_token)) {
-    std::move(callback).Run(-EPERM);
-    return;
-  }
-
-  if (!chromeos::sensors::BindSensorHalClient(std::move(client))) {
-    LOG(ERROR) << "Failed to bind SensorHalClient to SensorHalDispatcher";
-    std::move(callback).Run(-ENOSYS);
-    return;
-  }
-
-  std::move(callback).Run(0);
 }
 
 void CameraHalDispatcherImpl::StopOnProxyThread() {
@@ -960,159 +421,29 @@ void CameraHalDispatcherImpl::StopOnProxyThread() {
   }
   // Close |cancel_pipe_| to quit the loop in WaitForIncomingConnection.
   cancel_pipe_.reset();
-  mojo_client_observers_.clear();
   client_observers_.clear();
-  camera_hal_server_callbacks_.reset();
   camera_hal_server_.reset();
   receiver_set_.Clear();
-  {
-    base::AutoLock lock(device_id_to_hw_privacy_switch_state_lock_);
-    device_id_to_hw_privacy_switch_state_.clear();
-  }
 }
 
-void CameraHalDispatcherImpl::SetAutoFramingState(
-    cros::mojom::CameraAutoFramingState state) {
-  if (!proxy_thread_.IsRunning()) {
-    // The camera hal dispatcher is not running, ignore the request.
-    // TODO(pihsun): Any better way?
-    return;
-  }
-  proxy_task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(&CameraHalDispatcherImpl::SetAutoFramingStateOnProxyThread,
-                     base::Unretained(this), state));
-}
-
-void CameraHalDispatcherImpl::SetAutoFramingStateOnProxyThread(
-    cros::mojom::CameraAutoFramingState state) {
-  DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-
-  current_auto_framing_state_ = state;
-  if (camera_hal_server_) {
-    camera_hal_server_->SetAutoFramingState(state);
-  }
-}
-
-void CameraHalDispatcherImpl::GetAutoFramingSupported(
-    cros::mojom::CameraHalServer::GetAutoFramingSupportedCallback callback) {
-  if (!proxy_thread_.IsRunning()) {
-    std::move(callback).Run(false);
-    return;
-  }
-  // Unretained reference is safe here because CameraHalDispatcherImpl owns
-  // |proxy_thread_|.
-  proxy_task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(
-          &CameraHalDispatcherImpl::GetAutoFramingSupportedOnProxyThread,
-          base::Unretained(this),
-          // Make sure to hop back to the current thread for the reply.
-          base::BindPostTask(base::SequencedTaskRunner::GetCurrentDefault(),
-                             std::move(callback), FROM_HERE)));
-}
-
-void CameraHalDispatcherImpl::GetAutoFramingSupportedOnProxyThread(
-    cros::mojom::CameraHalServer::GetAutoFramingSupportedCallback callback) {
+void CameraHalDispatcherImpl::OnTraceLogEnabledOnProxyThread() {
   DCHECK(proxy_task_runner_->BelongsToCurrentThread());
   if (!camera_hal_server_) {
-    // TODO(pihsun): Currently only AutozoomControllerImpl calls
-    // GetAutoFramingSupported. Support multiple call to the function using
-    // CallbackList if it's needed.
-    DCHECK(!auto_framing_supported_callback_);
-    auto_framing_supported_callback_ = std::move(callback);
     return;
   }
-  camera_hal_server_->GetAutoFramingSupported(std::move(callback));
-}
-
-void CameraHalDispatcherImpl::SetCameraEffectsControllerCallback(
-    CameraHalDispatcherImpl::CameraEffectsControllerCallback
-        camera_effects_controller_callback) {
-  camera_effects_controller_callback_ =
-      std::move(camera_effects_controller_callback);
-}
-
-void CameraHalDispatcherImpl::SetCameraEffects(
-    cros::mojom::EffectsConfigPtr config) {
-  // `camera_effects_controller_callback_` should be set before calling
-  // SetCameraEffects.
-  if (camera_effects_controller_callback_.is_null())
-    return;
-
-  if (!proxy_thread_.IsRunning()) {
-    // The camera hal dispatcher is not running, ignore the request.
-    camera_effects_controller_callback_.Run(
-        current_effects_.Clone(), cros::mojom::SetEffectResult::kError);
-    return;
+  bool camera_event_enabled = false;
+  TRACE_EVENT_CATEGORY_GROUP_ENABLED("camera", &camera_event_enabled);
+  if (camera_event_enabled) {
+    camera_hal_server_->SetTracingEnabled(true);
   }
-
-  proxy_task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(&CameraHalDispatcherImpl::SetCameraEffectsOnProxyThread,
-                     base::Unretained(this), std::move(config)));
 }
 
-void CameraHalDispatcherImpl::SetCameraEffectsOnProxyThread(
-    cros::mojom::EffectsConfigPtr config) {
+void CameraHalDispatcherImpl::OnTraceLogDisabledOnProxyThread() {
   DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-
-  if (camera_hal_server_) {
-    camera_hal_server_->SetCameraEffect(
-        config.Clone(),
-        base::BindOnce(
-            &CameraHalDispatcherImpl::OnSetCameraEffectsCompleteOnProxyThread,
-            base::Unretained(this), config.Clone()));
-
-  } else {
-    OnSetCameraEffectsCompleteOnProxyThread(
-        std::move(config), cros::mojom::SetEffectResult::kError);
-  }
-}
-
-void CameraHalDispatcherImpl::OnSetCameraEffectsCompleteOnProxyThread(
-    cros::mojom::EffectsConfigPtr config,
-    cros::mojom::SetEffectResult result) {
-  DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-
-  // Directly return if SetCameraEffect failed.
-  if (result == cros::mojom::SetEffectResult::kError) {
-    LOG(ERROR) << "SetCameraEffect failed.";
-    camera_effects_controller_callback_.Run(
-        current_effects_.Clone(), cros::mojom::SetEffectResult::kError);
+  if (!camera_hal_server_) {
     return;
   }
-
-  // Record latest successful camera effects.
-  current_effects_ = std::move(config);
-
-  camera_effects_controller_callback_.Run(current_effects_.Clone(),
-                                          cros::mojom::SetEffectResult::kOk);
-}
-
-std::string CameraHalDispatcherImpl::GetDeviceIdFromCameraId(
-    int32_t camera_id) {
-  base::AutoLock lock(camera_id_to_device_id_lock_);
-  auto it = camera_id_to_device_id_.find(camera_id);
-  if (it == camera_id_to_device_id_.end()) {
-    LOG(ERROR) << "Could not find device_id corresponding to camera_id: "
-               << camera_id;
-    return std::string();
-  }
-  return it->second;
-}
-
-base::flat_set<std::string> CameraHalDispatcherImpl::GetDeviceIdsFromCameraIds(
-    base::flat_set<int32_t> camera_ids) {
-  base::flat_set<std::string> device_ids;
-  for (const auto& camera_id : camera_ids) {
-    device_ids.insert(GetDeviceIdFromCameraId(camera_id));
-  }
-  return device_ids;
-}
-
-TokenManager* CameraHalDispatcherImpl::GetTokenManagerForTesting() {
-  return &token_manager_;
+  camera_hal_server_->SetTracingEnabled(false);
 }
 
 }  // namespace media

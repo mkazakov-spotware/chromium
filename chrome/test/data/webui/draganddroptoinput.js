@@ -1,32 +1,32 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-console.info('start guest js');
+console.log('start guest js');
 
-let embedder = null;
+var embedder = null;
 window.addEventListener('message', function(e) {
-  const data = JSON.parse(e.data)[0];
-  window.console.info('guest gets message ' + data);
+  var data = JSON.parse(e.data)[0];
+  window.console.log('guest gets message ' + data);
   if (data === 'create-channel') {
     embedder = e.source;
     doPostMessage('connected');
   }
 });
 
-function doPostMessage(msg) {
-  window.console.info('guest posts message: ' + msg);
+var doPostMessage = function(msg) {
+  window.console.log('guest posts message: ' + msg);
   embedder.postMessage(JSON.stringify([msg]), '*');
-}
+};
 
 document.body.style.background = '#EEEEEE';
 document.body.innerHTML +=
     '<input class="destination" id="dest">destination</input>';
 
-const destNode = document.getElementById('dest');
-let testStep = 0;
+var destNode = document.getElementById('dest');
+var testStep = 0;
 destNode.addEventListener('dragenter', function(e) {
-  console.info('node drag enter');
+  console.log('node drag enter');
   if (testStep === 0) {
     doPostMessage('Step1: destNode gets dragenter');
     testStep = 1;
@@ -47,4 +47,4 @@ destNode.addEventListener('drop', function(e) {
   }
 });
 
-console.info('finish guest js');
+console.log('finish guest js');

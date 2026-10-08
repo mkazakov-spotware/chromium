@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,15 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/base/models/menu_model.h"
 #include "ui/views/controls/combobox/combobox.h"
 #include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/controls/menu/menu_runner_handler.h"
 #include "ui/views/test/menu_runner_test_api.h"
 
-namespace views::test {
+namespace views {
+namespace test {
 namespace {
 
 // An dummy implementation of MenuRunnerHandler to check if the dropdown menu is
@@ -24,10 +25,6 @@ class TestMenuRunnerHandler : public MenuRunnerHandler {
  public:
   explicit TestMenuRunnerHandler(int* show_counter)
       : show_counter_(show_counter) {}
-
-  TestMenuRunnerHandler(const TestMenuRunnerHandler&) = delete;
-  TestMenuRunnerHandler& operator=(const TestMenuRunnerHandler&) = delete;
-
   void RunMenuAt(Widget* parent,
                  MenuButtonController* button_controller,
                  const gfx::Rect& bounds,
@@ -38,7 +35,9 @@ class TestMenuRunnerHandler : public MenuRunnerHandler {
   }
 
  private:
-  raw_ptr<int> show_counter_;
+  int* show_counter_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestMenuRunnerHandler);
 };
 
 }  // namespace
@@ -63,4 +62,5 @@ ui::MenuModel* ComboboxTestApi::menu_model() {
   return combobox_->menu_model_.get();
 }
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views

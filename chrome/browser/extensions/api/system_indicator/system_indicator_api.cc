@@ -1,9 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/api/system_indicator/system_indicator_api.h"
 
+#include "base/no_destructor.h"
 #include "chrome/browser/extensions/api/system_indicator/system_indicator_manager.h"
 #include "chrome/browser/extensions/api/system_indicator/system_indicator_manager_factory.h"
 #include "chrome/common/extensions/api/system_indicator/system_indicator_handler.h"
@@ -26,20 +27,21 @@ ExtensionFunction::ResponseAction SystemIndicatorSetIconFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(extension());
   EXTENSION_FUNCTION_VALIDATE(HasSystemIndicator(*extension()));
 
-  EXTENSION_FUNCTION_VALIDATE(args().size() == 1);
-  EXTENSION_FUNCTION_VALIDATE(args()[0].is_dict());
+  EXTENSION_FUNCTION_VALIDATE(args_->GetList().size() == 1);
+  EXTENSION_FUNCTION_VALIDATE(args_->GetList()[0].is_dict());
 
-  const base::Value::Dict& set_icon_details = args()[0].GetDict();
+  const base::Value& set_icon_details = args_->GetList()[0];
 
   // NOTE: For historical reasons, this code is primarily taken from
   // ExtensionActionSetIconFunction.
   // setIcon can take a variant argument: either a dictionary of canvas
   // ImageData, or an icon index.
-  if (const base::Value::Dict* canvas_set =
-          set_icon_details.FindDict("imageData")) {
+  if (const base::Value* canvas_set = set_icon_details.FindKeyOfType(
+          "imageData", base::Value::Type::DICTIONARY)) {
     gfx::ImageSkia icon;
     EXTENSION_FUNCTION_VALIDATE(
-        ExtensionAction::ParseIconFromCanvasDictionary(*canvas_set, &icon) ==
+        ExtensionAction::ParseIconFromCanvasDictionary(
+            static_cast<const base::DictionaryValue&>(*canvas_set), &icon) ==
         ExtensionAction::IconParseResult::kSuccess);
 
     if (icon.isNull())
@@ -47,7 +49,8 @@ ExtensionFunction::ResponseAction SystemIndicatorSetIconFunction::Run() {
 
     SystemIndicatorManagerFactory::GetForContext(browser_context())
         ->SetSystemIndicatorDynamicIcon(*extension(), gfx::Image(icon));
-  } else if (set_icon_details.FindInt("iconIndex")) {
+  } else if (set_icon_details.FindKeyOfType("iconIndex",
+                                            base::Value::Type::INTEGER)) {
     // Obsolete argument: ignore it.
     // TODO(devlin): Do we need this here? Does any systemIndicator extension
     // use it?

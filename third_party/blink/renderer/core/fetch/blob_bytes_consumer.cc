@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -83,7 +83,7 @@ BytesConsumer::Result BlobBytesConsumer::BeginRead(const char** buffer,
     mojo::ScopedDataPipeConsumerHandle consumer_handle;
     mojo::ScopedDataPipeProducerHandle producer_handle;
     MojoResult rv =
-        mojo::CreateDataPipe(&options, producer_handle, consumer_handle);
+        mojo::CreateDataPipe(&options, &producer_handle, &consumer_handle);
     if (rv != MOJO_RESULT_OK)
       return Result::kError;
 

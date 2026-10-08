@@ -1,15 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SERVICES_APP_SERVICE_PUBLIC_CPP_URL_HANDLER_INFO_H_
 #define COMPONENTS_SERVICES_APP_SERVICE_PUBLIC_CPP_URL_HANDLER_INFO_H_
 
-#include <string>
+#include <ostream>
 #include <vector>
 
-#include "base/compiler_specific.h"
-#include "base/values.h"
 #include "url/origin.h"
 
 namespace apps {
@@ -18,12 +16,6 @@ namespace apps {
 // its web app manifest.
 struct UrlHandlerInfo {
   UrlHandlerInfo();
-  explicit UrlHandlerInfo(const url::Origin& origin);
-  UrlHandlerInfo(const url::Origin& origin, bool has_origin_wildcard);
-  UrlHandlerInfo(const url::Origin& origin,
-                 bool has_origin_wildcard,
-                 std::vector<std::string> paths,
-                 std::vector<std::string> exclude_paths);
   // Copyable to support web_app::WebApp being copyable as it has a UrlHandlers
   // member variable.
   UrlHandlerInfo(const UrlHandlerInfo&);
@@ -35,17 +27,7 @@ struct UrlHandlerInfo {
 
   ~UrlHandlerInfo();
 
-  // Reset the url handler to its default state.
-  REINITIALIZES_AFTER_MOVE void Reset();
-
-  base::Value AsDebugValue() const;
-
   url::Origin origin;
-
-  bool has_origin_wildcard = false;
-
-  std::vector<std::string> paths;
-  std::vector<std::string> exclude_paths;
 };
 
 using UrlHandlers = std::vector<UrlHandlerInfo>;
@@ -56,11 +38,8 @@ bool operator==(const UrlHandlerInfo& url_handler1,
 bool operator!=(const UrlHandlerInfo& url_handler1,
                 const UrlHandlerInfo& url_handler2);
 
-// Allow UrlHandlerInfo to be used as a key in STL (for example, a std::set or
-// std::map).
-bool operator<(const UrlHandlerInfo& url_handler1,
-               const UrlHandlerInfo& url_handler2);
-
+std::ostream& operator<<(std::ostream& out,
+                         const UrlHandlerInfo& url_handler_info);
 }  // namespace apps
 
 #endif  // COMPONENTS_SERVICES_APP_SERVICE_PUBLIC_CPP_URL_HANDLER_INFO_H_

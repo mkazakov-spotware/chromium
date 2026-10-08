@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,10 +13,10 @@
 #include "third_party/skia/include/core/SkRRect.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/insets.h"
-#include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/gfx/image/canvas_image_source.h"
 #include "ui/gfx/shadow_value.h"
 #include "ui/gfx/skia_paint_util.h"
+#include "ui/gfx/skia_util.h"
 
 namespace gfx {
 namespace {
@@ -33,10 +33,6 @@ class ShadowNineboxSource : public CanvasImageSource {
         corner_radius_(corner_radius) {
     DCHECK(!shadows.empty());
   }
-
-  ShadowNineboxSource(const ShadowNineboxSource&) = delete;
-  ShadowNineboxSource& operator=(const ShadowNineboxSource&) = delete;
-
   ~ShadowNineboxSource() override {}
 
   // CanvasImageSource overrides:
@@ -73,6 +69,8 @@ class ShadowNineboxSource : public CanvasImageSource {
   const std::vector<ShadowValue> shadows_;
 
   const float corner_radius_;
+
+  DISALLOW_COPY_AND_ASSIGN(ShadowNineboxSource);
 };
 
 // Map from elevation/corner radius pair to a cached shadow.
@@ -86,9 +84,7 @@ ShadowDetails::ShadowDetails() {}
 ShadowDetails::ShadowDetails(const ShadowDetails& other) = default;
 ShadowDetails::~ShadowDetails() {}
 
-const ShadowDetails& ShadowDetails::Get(int elevation,
-                                        int corner_radius,
-                                        ShadowStyle style) {
+const ShadowDetails& ShadowDetails::Get(int elevation, int corner_radius) {
   auto iter =
       g_shadow_cache.Get().find(std::make_pair(elevation, corner_radius));
   if (iter != g_shadow_cache.Get().end())
@@ -98,21 +94,7 @@ const ShadowDetails& ShadowDetails::Get(int elevation,
       std::make_pair(elevation, corner_radius), ShadowDetails());
   DCHECK(insertion.second);
   ShadowDetails* shadow = &insertion.first->second;
-
-  // Generate shadow values according to the give shadow style.
-  switch (style) {
-    case ShadowStyle::kMaterialDesign:
-      shadow->values = ShadowValue::MakeMdShadowValues(elevation);
-      break;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-    case ShadowStyle::kChromeOSSystemUI:
-      shadow->values = ShadowValue::MakeChromeOSSystemUIShadowValues(elevation);
-      break;
-#endif
-    default:
-      NOTREACHED() << "Unknown shadow style.";
-  }
-
+  shadow->values = ShadowValue::MakeMdShadowValues(elevation);
   auto* source = new ShadowNineboxSource(shadow->values, corner_radius);
   shadow->ninebox_image = ImageSkia(base::WrapUnique(source), source->size());
   return *shadow;

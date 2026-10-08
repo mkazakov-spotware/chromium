@@ -1,23 +1,18 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/timing/performance_navigation_timing.h"
 
-#include "base/containers/contains.h"
-#include "third_party/blink/public/web/web_navigation_type.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_object_builder.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/document_timing.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
-#include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/loader/document_load_timing.h"
 #include "third_party/blink/renderer/core/loader/document_loader.h"
 #include "third_party/blink/renderer/core/performance_entry_names.h"
 #include "third_party/blink/renderer/core/timing/performance.h"
-#include "third_party/blink/renderer/core/timing/performance_navigation_timing_activation_start.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_timing_info.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 
 namespace blink {
@@ -54,21 +49,15 @@ PerformanceNavigationTiming::PerformanceNavigationTiming(
     LocalDOMWindow* window,
     ResourceTimingInfo* info,
     base::TimeTicks time_origin,
-    bool cross_origin_isolated_capability,
-    HeapVector<Member<PerformanceServerTiming>> server_timing,
-    network::mojom::NavigationDeliveryType navigation_delivery_type)
+    HeapVector<Member<PerformanceServerTiming>> server_timing)
     : PerformanceResourceTiming(
           info ? AtomicString(
                      info->FinalResponse().CurrentRequestUrl().GetString())
                : g_empty_atom,
           time_origin,
-          cross_origin_isolated_capability,
-          info->CacheState(),
-          base::Contains(url::GetSecureSchemes(),
-                         window->Url().Protocol().Ascii()),
+          SecurityOrigin::IsSecure(window->Url()),
           std::move(server_timing),
-          window,
-          navigation_delivery_type),
+          window),
       ExecutionContextClient(window),
       resource_timing_info_(info) {
   DCHECK(window);
@@ -77,7 +66,7 @@ PerformanceNavigationTiming::PerformanceNavigationTiming(
 
 PerformanceNavigationTiming::~PerformanceNavigationTiming() = default;
 
-const AtomicString& PerformanceNavigationTiming::entryType() const {
+AtomicString PerformanceNavigationTiming::entryType() const {
   return performance_entry_names::kNavigation;
 }
 
@@ -119,8 +108,7 @@ bool PerformanceNavigationTiming::DidReuseConnection() const {
 }
 
 uint64_t PerformanceNavigationTiming::GetTransferSize() const {
-  return PerformanceResourceTiming::GetTransferSize(
-      resource_timing_info_->FinalResponse().EncodedBodyLength(), CacheState());
+  return resource_timing_info_->TransferSize();
 }
 
 uint64_t PerformanceNavigationTiming::GetEncodedBodySize() const {
@@ -132,16 +120,16 @@ uint64_t PerformanceNavigationTiming::GetDecodedBodySize() const {
 }
 
 AtomicString PerformanceNavigationTiming::GetNavigationType(
-    WebNavigationType type) {
+    WebNavigationType type,
+    const Document* document) {
   switch (type) {
     case kWebNavigationTypeReload:
-    case kWebNavigationTypeFormResubmittedReload:
       return "reload";
     case kWebNavigationTypeBackForward:
-    case kWebNavigationTypeFormResubmittedBackForward:
       return "back_forward";
     case kWebNavigationTypeLinkClicked:
     case kWebNavigationTypeFormSubmitted:
+    case kWebNavigationTypeFormResubmitted:
     case kWebNavigationTypeOther:
       return "navigate";
   }
@@ -153,7 +141,7 @@ AtomicString PerformanceNavigationTiming::initiatorType() const {
   return performance_entry_names::kNavigation;
 }
 
-bool PerformanceNavigationTiming::AllowRedirectDetails() const {
+bool PerformanceNavigationTiming::GetAllowRedirectDetails() const {
   if (!GetExecutionContext())
     return false;
   // TODO(sunjian): Think about how to make this flag deterministic.
@@ -163,9 +151,6 @@ bool PerformanceNavigationTiming::AllowRedirectDetails() const {
   return AllowNavigationTimingRedirect(resource_timing_info_->RedirectChain(),
                                        resource_timing_info_->FinalResponse(),
                                        *security_origin);
-}
-bool PerformanceNavigationTiming::AllowNegativeValue() const {
-  return false;
 }
 
 AtomicString PerformanceNavigationTiming::AlpnNegotiatedProtocol() const {
@@ -177,27 +162,26 @@ AtomicString PerformanceNavigationTiming::ConnectionInfo() const {
 }
 
 DOMHighResTimeStamp PerformanceNavigationTiming::unloadEventStart() const {
-  bool allow_redirect_details = AllowRedirectDetails();
+  bool allow_redirect_details = GetAllowRedirectDetails();
   DocumentLoadTiming* timing = GetDocumentLoadTiming();
 
   if (!allow_redirect_details || !timing ||
-      !timing->CanRequestFromPreviousDocument())
+      !timing->HasSameOriginAsPreviousDocument())
     return 0;
   return Performance::MonotonicTimeToDOMHighResTimeStamp(
-      TimeOrigin(), timing->UnloadEventStart(), AllowNegativeValue(),
-      CrossOriginIsolatedCapability());
+      TimeOrigin(), timing->UnloadEventStart(),
+      false /* allow_negative_value */);
 }
 
 DOMHighResTimeStamp PerformanceNavigationTiming::unloadEventEnd() const {
-  bool allow_redirect_details = AllowRedirectDetails();
+  bool allow_redirect_details = GetAllowRedirectDetails();
   DocumentLoadTiming* timing = GetDocumentLoadTiming();
 
   if (!allow_redirect_details || !timing ||
-      !timing->CanRequestFromPreviousDocument())
+      !timing->HasSameOriginAsPreviousDocument())
     return 0;
   return Performance::MonotonicTimeToDOMHighResTimeStamp(
-      TimeOrigin(), timing->UnloadEventEnd(), AllowNegativeValue(),
-      CrossOriginIsolatedCapability());
+      TimeOrigin(), timing->UnloadEventEnd(), false /* allow_negative_value */);
 }
 
 DOMHighResTimeStamp PerformanceNavigationTiming::domInteractive() const {
@@ -205,8 +189,7 @@ DOMHighResTimeStamp PerformanceNavigationTiming::domInteractive() const {
   if (!timing)
     return 0.0;
   return Performance::MonotonicTimeToDOMHighResTimeStamp(
-      TimeOrigin(), timing->DomInteractive(), AllowNegativeValue(),
-      CrossOriginIsolatedCapability());
+      TimeOrigin(), timing->DomInteractive(), false /* allow_negative_value */);
 }
 
 DOMHighResTimeStamp PerformanceNavigationTiming::domContentLoadedEventStart()
@@ -215,8 +198,8 @@ DOMHighResTimeStamp PerformanceNavigationTiming::domContentLoadedEventStart()
   if (!timing)
     return 0.0;
   return Performance::MonotonicTimeToDOMHighResTimeStamp(
-      TimeOrigin(), timing->DomContentLoadedEventStart(), AllowNegativeValue(),
-      CrossOriginIsolatedCapability());
+      TimeOrigin(), timing->DomContentLoadedEventStart(),
+      false /* allow_negative_value */);
 }
 
 DOMHighResTimeStamp PerformanceNavigationTiming::domContentLoadedEventEnd()
@@ -225,8 +208,8 @@ DOMHighResTimeStamp PerformanceNavigationTiming::domContentLoadedEventEnd()
   if (!timing)
     return 0.0;
   return Performance::MonotonicTimeToDOMHighResTimeStamp(
-      TimeOrigin(), timing->DomContentLoadedEventEnd(), AllowNegativeValue(),
-      CrossOriginIsolatedCapability());
+      TimeOrigin(), timing->DomContentLoadedEventEnd(),
+      false /* allow_negative_value */);
 }
 
 DOMHighResTimeStamp PerformanceNavigationTiming::domComplete() const {
@@ -234,8 +217,7 @@ DOMHighResTimeStamp PerformanceNavigationTiming::domComplete() const {
   if (!timing)
     return 0.0;
   return Performance::MonotonicTimeToDOMHighResTimeStamp(
-      TimeOrigin(), timing->DomComplete(), AllowNegativeValue(),
-      CrossOriginIsolatedCapability());
+      TimeOrigin(), timing->DomComplete(), false /* allow_negative_value */);
 }
 
 DOMHighResTimeStamp PerformanceNavigationTiming::loadEventStart() const {
@@ -243,8 +225,7 @@ DOMHighResTimeStamp PerformanceNavigationTiming::loadEventStart() const {
   if (!timing)
     return 0.0;
   return Performance::MonotonicTimeToDOMHighResTimeStamp(
-      TimeOrigin(), timing->LoadEventStart(), AllowNegativeValue(),
-      CrossOriginIsolatedCapability());
+      TimeOrigin(), timing->LoadEventStart(), false /* allow_negative_value */);
 }
 
 DOMHighResTimeStamp PerformanceNavigationTiming::loadEventEnd() const {
@@ -252,19 +233,19 @@ DOMHighResTimeStamp PerformanceNavigationTiming::loadEventEnd() const {
   if (!timing)
     return 0.0;
   return Performance::MonotonicTimeToDOMHighResTimeStamp(
-      TimeOrigin(), timing->LoadEventEnd(), AllowNegativeValue(),
-      CrossOriginIsolatedCapability());
+      TimeOrigin(), timing->LoadEventEnd(), false /* allow_negative_value */);
 }
 
 AtomicString PerformanceNavigationTiming::type() const {
   if (DomWindow()) {
-    return GetNavigationType(GetDocumentLoader()->GetNavigationType());
+    return GetNavigationType(GetDocumentLoader()->GetNavigationType(),
+                             DomWindow()->document());
   }
   return "navigate";
 }
 
 uint16_t PerformanceNavigationTiming::redirectCount() const {
-  bool allow_redirect_details = AllowRedirectDetails();
+  bool allow_redirect_details = GetAllowRedirectDetails();
   DocumentLoadTiming* timing = GetDocumentLoadTiming();
   if (!allow_redirect_details || !timing)
     return 0;
@@ -272,23 +253,21 @@ uint16_t PerformanceNavigationTiming::redirectCount() const {
 }
 
 DOMHighResTimeStamp PerformanceNavigationTiming::redirectStart() const {
-  bool allow_redirect_details = AllowRedirectDetails();
+  bool allow_redirect_details = GetAllowRedirectDetails();
   DocumentLoadTiming* timing = GetDocumentLoadTiming();
   if (!allow_redirect_details || !timing)
     return 0;
   return Performance::MonotonicTimeToDOMHighResTimeStamp(
-      TimeOrigin(), timing->RedirectStart(), AllowNegativeValue(),
-      CrossOriginIsolatedCapability());
+      TimeOrigin(), timing->RedirectStart(), false /* allow_negative_value */);
 }
 
 DOMHighResTimeStamp PerformanceNavigationTiming::redirectEnd() const {
-  bool allow_redirect_details = AllowRedirectDetails();
+  bool allow_redirect_details = GetAllowRedirectDetails();
   DocumentLoadTiming* timing = GetDocumentLoadTiming();
   if (!allow_redirect_details || !timing)
     return 0;
   return Performance::MonotonicTimeToDOMHighResTimeStamp(
-      TimeOrigin(), timing->RedirectEnd(), AllowNegativeValue(),
-      CrossOriginIsolatedCapability());
+      TimeOrigin(), timing->RedirectEnd(), false /* allow_negative_value */);
 }
 
 DOMHighResTimeStamp PerformanceNavigationTiming::fetchStart() const {
@@ -296,8 +275,7 @@ DOMHighResTimeStamp PerformanceNavigationTiming::fetchStart() const {
   if (!timing)
     return 0.0;
   return Performance::MonotonicTimeToDOMHighResTimeStamp(
-      TimeOrigin(), timing->FetchStart(), AllowNegativeValue(),
-      CrossOriginIsolatedCapability());
+      TimeOrigin(), timing->FetchStart(), false /* allow_negative_value */);
 }
 
 DOMHighResTimeStamp PerformanceNavigationTiming::responseEnd() const {
@@ -305,71 +283,12 @@ DOMHighResTimeStamp PerformanceNavigationTiming::responseEnd() const {
   if (!timing)
     return 0.0;
   return Performance::MonotonicTimeToDOMHighResTimeStamp(
-      TimeOrigin(), timing->ResponseEnd(), AllowNegativeValue(),
-      CrossOriginIsolatedCapability());
+      TimeOrigin(), timing->ResponseEnd(), false /* allow_negative_value */);
 }
 
 // Overriding PerformanceEntry's attributes.
 DOMHighResTimeStamp PerformanceNavigationTiming::duration() const {
   return loadEventEnd();
-}
-
-ScriptValue PerformanceNavigationTiming::notRestoredReasons(
-    ScriptState* script_state) const {
-  DocumentLoader* loader = GetDocumentLoader();
-  if (!loader || !loader->GetFrame()->IsOutermostMainFrame())
-    return ScriptValue::CreateNull(script_state->GetIsolate());
-
-  // TODO(crbug.com/1370954): Save NotRestoredReasons in Document instead of
-  // Frame.
-  return NotRestoredReasonsBuilder(script_state,
-                                   loader->GetFrame()->GetNotRestoredReasons());
-}
-
-ScriptValue PerformanceNavigationTiming::NotRestoredReasonsBuilder(
-    ScriptState* script_state,
-    const mojom::blink::BackForwardCacheNotRestoredReasonsPtr& reasons) const {
-  if (!reasons)
-    return ScriptValue::CreateNull(script_state->GetIsolate());
-  V8ObjectBuilder builder(script_state);
-  switch (reasons->blocked) {
-    case mojom::blink::BFCacheBlocked::kYes:
-    case mojom::blink::BFCacheBlocked::kNo:
-      builder.AddBoolean(
-          "blocked", reasons->blocked == mojom::blink::BFCacheBlocked::kYes);
-      break;
-    case mojom::blink::BFCacheBlocked::kMasked:
-      // |blocked| can be null when masking the value.
-      builder.AddNull("blocked");
-      break;
-  }
-  builder.AddString("url", AtomicString(reasons->same_origin_details
-                                            ? reasons->same_origin_details->url
-                                            : ""));
-  builder.AddString("src", AtomicString(reasons->same_origin_details
-                                            ? reasons->same_origin_details->src
-                                            : ""));
-  builder.AddString("id", AtomicString(reasons->same_origin_details
-                                           ? reasons->same_origin_details->id
-                                           : ""));
-  builder.AddString("name",
-                    AtomicString(reasons->same_origin_details
-                                     ? reasons->same_origin_details->name
-                                     : ""));
-  Vector<AtomicString> reason_strings;
-  Vector<v8::Local<v8::Value>> children_result;
-  if (reasons->same_origin_details) {
-    for (const auto& reason : reasons->same_origin_details->reasons) {
-      reason_strings.push_back(reason);
-    }
-    for (const auto& child : reasons->same_origin_details->children) {
-      children_result.push_back(
-          NotRestoredReasonsBuilder(script_state, child).V8Value());
-    }
-  }
-  builder.Add("reasons", reason_strings);
-  builder.Add("children", children_result);
-  return builder.GetScriptValue();
 }
 
 void PerformanceNavigationTiming::BuildJSONValue(
@@ -385,21 +304,5 @@ void PerformanceNavigationTiming::BuildJSONValue(
   builder.AddNumber("loadEventEnd", loadEventEnd());
   builder.AddString("type", type());
   builder.AddNumber("redirectCount", redirectCount());
-
-  if (RuntimeEnabledFeatures::Prerender2RelatedFeaturesEnabled(
-          ExecutionContext::From(builder.GetScriptState()))) {
-    builder.AddNumber(
-        "activationStart",
-        PerformanceNavigationTimingActivationStart::activationStart(*this));
-  }
-
-  if (RuntimeEnabledFeatures::BackForwardCacheNotRestoredReasonsEnabled(
-          ExecutionContext::From(builder.GetScriptState()))) {
-    builder.Add("notRestoredReasons",
-                notRestoredReasons(builder.GetScriptState()));
-    ExecutionContext::From(builder.GetScriptState())
-        ->CountUse(WebFeature::kBackForwardCacheNotRestoredReasons);
-  }
 }
-
 }  // namespace blink

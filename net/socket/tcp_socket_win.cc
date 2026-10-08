@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,13 @@
 #include <errno.h>
 #include <mstcpip.h>
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/check_op.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "net/base/address_list.h"
 #include "net/base/io_buffer.h"
 #include "net/base/ip_endpoint.h"
@@ -30,7 +28,6 @@
 #include "net/log/net_log_event_type.h"
 #include "net/log/net_log_source.h"
 #include "net/log/net_log_source_type.h"
-#include "net/log/net_log_values.h"
 #include "net/socket/socket_descriptor.h"
 #include "net/socket/socket_net_log_params.h"
 #include "net/socket/socket_options.h"
@@ -108,9 +105,6 @@ class TCPSocketWin::Core : public base::RefCounted<Core> {
  public:
   explicit Core(TCPSocketWin* socket);
 
-  Core(const Core&) = delete;
-  Core& operator=(const Core&) = delete;
-
   // Start watching for the end of a read or write operation.
   void WatchForRead();
   void WatchForWrite();
@@ -133,10 +127,10 @@ class TCPSocketWin::Core : public base::RefCounted<Core> {
   // The buffers used in Read() and Write().
   scoped_refptr<IOBuffer> read_iobuffer_;
   scoped_refptr<IOBuffer> write_iobuffer_;
-  int read_buffer_length_ = 0;
-  int write_buffer_length_ = 0;
+  int read_buffer_length_;
+  int write_buffer_length_;
 
-  bool non_blocking_reads_initialized_ = false;
+  bool non_blocking_reads_initialized_;
 
  private:
   friend class base::RefCounted<Core>;
@@ -144,31 +138,31 @@ class TCPSocketWin::Core : public base::RefCounted<Core> {
   class ReadDelegate : public base::win::ObjectWatcher::Delegate {
    public:
     explicit ReadDelegate(Core* core) : core_(core) {}
-    ~ReadDelegate() override = default;
+    ~ReadDelegate() override {}
 
     // base::ObjectWatcher::Delegate methods:
     void OnObjectSignaled(HANDLE object) override;
 
    private:
-    const raw_ptr<Core> core_;
+    Core* const core_;
   };
 
   class WriteDelegate : public base::win::ObjectWatcher::Delegate {
    public:
     explicit WriteDelegate(Core* core) : core_(core) {}
-    ~WriteDelegate() override = default;
+    ~WriteDelegate() override {}
 
     // base::ObjectWatcher::Delegate methods:
     void OnObjectSignaled(HANDLE object) override;
 
    private:
-    const raw_ptr<Core> core_;
+    Core* const core_;
   };
 
   ~Core();
 
   // The socket that created this object.
-  raw_ptr<TCPSocketWin> socket_;
+  TCPSocketWin* socket_;
 
   // |reader_| handles the signals from |read_watcher_|.
   ReadDelegate reader_;
@@ -179,10 +173,15 @@ class TCPSocketWin::Core : public base::RefCounted<Core> {
   base::win::ObjectWatcher read_watcher_;
   // |write_watcher_| watches for events from Write();
   base::win::ObjectWatcher write_watcher_;
+
+  DISALLOW_COPY_AND_ASSIGN(Core);
 };
 
 TCPSocketWin::Core::Core(TCPSocketWin* socket)
     : read_event_(WSACreateEvent()),
+      read_buffer_length_(0),
+      write_buffer_length_(0),
+      non_blocking_reads_initialized_(false),
       socket_(socket),
       reader_(this),
       writer_(this) {
@@ -260,6 +259,13 @@ TCPSocketWin::TCPSocketWin(
     : socket_(INVALID_SOCKET),
       socket_performance_watcher_(std::move(socket_performance_watcher)),
       accept_event_(WSA_INVALID_EVENT),
+      accept_socket_(nullptr),
+      accept_address_(nullptr),
+      waiting_connect_(false),
+      waiting_read_(false),
+      waiting_write_(false),
+      connect_os_error_(0),
+      logging_multiple_connect_attempts_(false),
       net_log_(NetLogWithSource::Make(net_log, NetLogSourceType::SOCKET)) {
   net_log_.BeginEventReferencingSource(NetLogEventType::SOCKET_ALIVE, source);
   EnsureWinsockInit();
@@ -307,8 +313,8 @@ int TCPSocketWin::AdoptConnectedSocket(SocketDescriptor socket,
     return result;
   }
 
-  core_ = base::MakeRefCounted<Core>(this);
-  peer_address_ = std::make_unique<IPEndPoint>(peer_address);
+  core_ = new Core(this);
+  peer_address_.reset(new IPEndPoint(peer_address));
 
   return OK;
 }
@@ -418,7 +424,7 @@ int TCPSocketWin::Connect(const IPEndPoint& address,
   if (!logging_multiple_connect_attempts_)
     LogConnectBegin(AddressList(address));
 
-  peer_address_ = std::make_unique<IPEndPoint>(address);
+  peer_address_.reset(new IPEndPoint(address));
 
   int rv = DoConnect();
   if (rv == ERR_IO_PENDING) {
@@ -518,7 +524,7 @@ int TCPSocketWin::ReadIfReady(IOBuffer* buf,
   } else {
     net_log_.AddByteTransferEvent(NetLogEventType::SOCKET_BYTES_RECEIVED, rv,
                                   buf->data());
-    activity_monitor::IncrementBytesReceived(rv);
+    NetworkActivityMonitor::GetInstance()->IncrementBytesReceived(rv);
     return rv;
   }
 
@@ -555,6 +561,8 @@ int TCPSocketWin::Write(
   write_buffer.len = buf_len;
   write_buffer.buf = buf->data();
 
+  // TODO(wtc): Remove the assertion after enough testing.
+  AssertEventNotSignaled(core_->write_overlapped_.hEvent);
   DWORD num;
   int rv = WSASend(socket_, &write_buffer, 1, &num, 0,
                    &core_->write_overlapped_, nullptr);
@@ -571,6 +579,7 @@ int TCPSocketWin::Write(
       }
       net_log_.AddByteTransferEvent(NetLogEventType::SOCKET_BYTES_SENT, rv,
                                     buf->data());
+      NetworkActivityMonitor::GetInstance()->IncrementBytesSent(rv);
       return rv;
     }
   } else {
@@ -781,8 +790,8 @@ int TCPSocketWin::AcceptInternal(std::unique_ptr<TCPSocketWin>* socket,
     net_log_.EndEventWithNetErrorCode(NetLogEventType::TCP_ACCEPT, net_error);
     return net_error;
   }
-  auto tcp_socket = std::make_unique<TCPSocketWin>(nullptr, net_log_.net_log(),
-                                                   net_log_.source());
+  std::unique_ptr<TCPSocketWin> tcp_socket(
+      new TCPSocketWin(nullptr, net_log_.net_log(), net_log_.source()));
   int adopt_result = tcp_socket->AdoptConnectedSocket(new_socket, ip_end_point);
   if (adopt_result != OK) {
     net_log_.EndEventWithNetErrorCode(NetLogEventType::TCP_ACCEPT,
@@ -830,7 +839,7 @@ int TCPSocketWin::DoConnect() {
     return CreateNetLogIPEndPointParams(peer_address_.get());
   });
 
-  core_ = base::MakeRefCounted<Core>(this);
+  core_ = new Core(this);
 
   // WSAEventSelect sets the socket to non-blocking mode as a side effect.
   // Our connect() and recv() calls require that the socket be non-blocking.
@@ -896,15 +905,22 @@ void TCPSocketWin::LogConnectEnd(int net_error) {
     return;
   }
 
+  struct sockaddr_storage source_address;
+  socklen_t addrlen = sizeof(source_address);
+  int rv = getsockname(
+      socket_, reinterpret_cast<struct sockaddr*>(&source_address), &addrlen);
+  int os_error = WSAGetLastError();
+  if (rv != 0) {
+    LOG(ERROR) << "getsockname() [rv: " << rv << "] error: " << os_error;
+    NOTREACHED();
+    net_log_.EndEventWithNetErrorCode(NetLogEventType::TCP_CONNECT, rv);
+    return;
+  }
+
   net_log_.EndEvent(NetLogEventType::TCP_CONNECT, [&] {
-    net::IPEndPoint local_address;
-    int net_error = GetLocalAddress(&local_address);
-    net::IPEndPoint remote_address;
-    if (net_error == net::OK)
-      net_error = GetPeerAddress(&remote_address);
-    if (net_error != net::OK)
-      return NetLogParamsWithInt("get_address_net_error", net_error);
-    return CreateNetLogAddressPairParams(local_address, remote_address);
+    return CreateNetLogSourceAddressParams(
+        reinterpret_cast<const struct sockaddr*>(&source_address),
+        sizeof(source_address));
   });
 }
 
@@ -979,6 +995,7 @@ void TCPSocketWin::DidCompleteWrite() {
     } else {
       net_log_.AddByteTransferEvent(NetLogEventType::SOCKET_BYTES_SENT,
                                     num_bytes, core_->write_iobuffer_->data());
+      NetworkActivityMonitor::GetInstance()->IncrementBytesSent(num_bytes);
     }
   }
 
@@ -1039,11 +1056,6 @@ void TCPSocketWin::ApplySocketTag(const SocketTag& tag) {
   // Windows does not support any specific SocketTags so fail if any non-default
   // tag is applied.
   CHECK(tag == SocketTag());
-}
-
-int TCPSocketWin::BindToNetwork(handles::NetworkHandle network) {
-  NOTIMPLEMENTED();
-  return ERR_NOT_IMPLEMENTED;
 }
 
 }  // namespace net

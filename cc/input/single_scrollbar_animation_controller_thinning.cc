@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 
 #include <algorithm>
 
-#include "base/cxx17_backports.h"
 #include "base/memory/ptr_util.h"
+#include "base/numerics/ranges.h"
 #include "base/time/time.h"
 #include "cc/input/scrollbar_animation_controller.h"
 #include "cc/layers/layer_impl.h"
@@ -99,8 +99,7 @@ float SingleScrollbarAnimationControllerThinning::AnimationProgressAtTime(
     return 1.0f;
 
   const base::TimeDelta delta = now - last_awaken_time_;
-  return base::clamp(static_cast<float>(delta / thinning_duration_), 0.0f,
-                     1.0f);
+  return base::ClampToRange(float{delta / thinning_duration_}, 0.0f, 1.0f);
 }
 
 void SingleScrollbarAnimationControllerThinning::RunAnimationFrame(
@@ -143,10 +142,7 @@ void SingleScrollbarAnimationControllerThinning::DidMouseUp() {
   captured_ = false;
   StopAnimation();
 
-  const bool thickness_should_decrease = client_->IsFluentScrollbar()
-                                             ? !mouse_is_near_scrollbar_track_
-                                             : !mouse_is_near_scrollbar_thumb_;
-  if (thickness_should_decrease) {
+  if (!mouse_is_near_scrollbar_thumb_) {
     thickness_change_ = AnimationChange::DECREASE;
     StartAnimation();
   } else {
@@ -155,11 +151,7 @@ void SingleScrollbarAnimationControllerThinning::DidMouseUp() {
 }
 
 void SingleScrollbarAnimationControllerThinning::DidMouseLeave() {
-  if (client_->IsFluentScrollbar() && !mouse_is_near_scrollbar_track_)
-    return;
-
-  if (!client_->IsFluentScrollbar() && !mouse_is_over_scrollbar_thumb_ &&
-      !mouse_is_near_scrollbar_thumb_)
+  if (!mouse_is_over_scrollbar_thumb_ && !mouse_is_near_scrollbar_thumb_)
     return;
 
   mouse_is_over_scrollbar_thumb_ = false;
@@ -180,50 +172,35 @@ void SingleScrollbarAnimationControllerThinning::DidMouseMove(
   if (!scrollbar)
     return;
 
-  const float distance_to_scrollbar_track =
+  float distance_to_scrollbar_track =
       DistanceToScrollbarPart(device_viewport_point, *scrollbar,
                               ScrollbarPart::TRACK_BUTTONS_TICKMARKS);
-  const float distance_to_scrollbar_thumb = DistanceToScrollbarPart(
+  float distance_to_scrollbar_thumb = DistanceToScrollbarPart(
       device_viewport_point, *scrollbar, ScrollbarPart::THUMB);
 
-  const bool mouse_is_near_scrollbar_track =
-      distance_to_scrollbar_track <= MouseMoveDistanceToTriggerFadeIn();
+  mouse_is_near_scrollbar_track_ =
+      distance_to_scrollbar_track <
+      ScrollbarAnimationController::kMouseMoveDistanceToTriggerFadeIn;
 
-  const bool mouse_is_over_scrollbar_thumb =
-      distance_to_scrollbar_thumb == 0.0f;
-  const bool mouse_is_near_scrollbar_thumb =
-      distance_to_scrollbar_thumb <= MouseMoveDistanceToTriggerExpand();
-  const bool thickness_should_change =
-      client_->IsFluentScrollbar()
-          ? (mouse_is_near_scrollbar_track_ != mouse_is_near_scrollbar_track)
-          : (mouse_is_near_scrollbar_thumb_ != mouse_is_near_scrollbar_thumb);
+  bool mouse_is_over_scrollbar_thumb = distance_to_scrollbar_thumb == 0.0f;
+  bool mouse_is_near_scrollbar_thumb =
+      distance_to_scrollbar_thumb < kMouseMoveDistanceToTriggerExpand;
 
-  if (!captured_ && thickness_should_change) {
-    const bool thickness_should_increase = client_->IsFluentScrollbar()
-                                               ? mouse_is_near_scrollbar_track
-                                               : mouse_is_near_scrollbar_thumb;
-    thickness_change_ = thickness_should_increase ? AnimationChange::INCREASE
-                                                  : AnimationChange::DECREASE;
+  if (!captured_ &&
+      mouse_is_near_scrollbar_thumb != mouse_is_near_scrollbar_thumb_) {
+    thickness_change_ = mouse_is_near_scrollbar_thumb
+                            ? AnimationChange::INCREASE
+                            : AnimationChange::DECREASE;
     StartAnimation();
   }
-
-  mouse_is_near_scrollbar_track_ = mouse_is_near_scrollbar_track;
   mouse_is_near_scrollbar_thumb_ = mouse_is_near_scrollbar_thumb;
   mouse_is_over_scrollbar_thumb_ = mouse_is_over_scrollbar_thumb;
 }
 
-float SingleScrollbarAnimationControllerThinning::
-    ThumbThicknessScaleByMouseDistanceToScrollbar() const {
-  const bool mouse_is_near_scrollbar_part =
-      client_->IsFluentScrollbar() ? mouse_is_near_scrollbar_track_
-                                   : mouse_is_near_scrollbar_thumb_;
-  return mouse_is_near_scrollbar_part ? 1.f : kIdleThicknessScale;
-}
-
 float SingleScrollbarAnimationControllerThinning::ThumbThicknessScaleAt(
-    float progress) const {
+    float progress) {
   if (thickness_change_ == AnimationChange::NONE)
-    return ThumbThicknessScaleByMouseDistanceToScrollbar();
+    return mouse_is_near_scrollbar_thumb_ ? 1.f : kIdleThicknessScale;
   float factor = thickness_change_ == AnimationChange::INCREASE
                      ? progress
                      : (1.f - progress);
@@ -254,7 +231,8 @@ float SingleScrollbarAnimationControllerThinning::AdjustScale(
 
 void SingleScrollbarAnimationControllerThinning::UpdateThumbThicknessScale() {
   StopAnimation();
-  ApplyThumbThicknessScale(ThumbThicknessScaleByMouseDistanceToScrollbar());
+  ApplyThumbThicknessScale(
+      mouse_is_near_scrollbar_thumb_ ? 1.f : kIdleThicknessScale);
 }
 
 void SingleScrollbarAnimationControllerThinning::ApplyThumbThicknessScale(
@@ -270,16 +248,6 @@ void SingleScrollbarAnimationControllerThinning::ApplyThumbThicknessScale(
 
     scrollbar->SetThumbThicknessScaleFactor(scale);
   }
-}
-
-float SingleScrollbarAnimationControllerThinning::
-    MouseMoveDistanceToTriggerExpand() {
-  return client_->IsFluentScrollbar() ? 0.0f : 25.0f;
-}
-
-float SingleScrollbarAnimationControllerThinning::
-    MouseMoveDistanceToTriggerFadeIn() {
-  return client_->IsFluentScrollbar() ? 0.0f : 30.0f;
 }
 
 }  // namespace cc

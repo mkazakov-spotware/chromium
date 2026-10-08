@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <libxml/xmlversion.h>
 #include <libxml/parser.h>
+#include <libxml/xlink.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -98,7 +99,8 @@ XMLPUBFUN void XMLCALL
 XMLPUBFUN void XMLCALL
 		xmlSAX2EndDocument		(void *ctx);
 #if defined(LIBXML_SAX1_ENABLED) || defined(LIBXML_HTML_ENABLED) || \
-    defined(LIBXML_WRITER_ENABLED) || defined(LIBXML_LEGACY_ENABLED)
+    defined(LIBXML_WRITER_ENABLED) || defined(LIBXML_DOCB_ENABLED) || \
+    defined(LIBXML_LEGACY_ENABLED)
 XMLPUBFUN void XMLCALL
 		xmlSAX2StartElement		(void *ctx,
 						 const xmlChar *fullname,
@@ -146,7 +148,6 @@ XMLPUBFUN void XMLCALL
 						 int len);
 
 #ifdef LIBXML_SAX1_ENABLED
-XML_DEPRECATED
 XMLPUBFUN int XMLCALL
 		xmlSAXDefaultVersion		(int version);
 #endif /* LIBXML_SAX1_ENABLED */
@@ -160,11 +161,15 @@ XMLPUBFUN void XMLCALL
 #ifdef LIBXML_HTML_ENABLED
 XMLPUBFUN void XMLCALL
 		xmlSAX2InitHtmlDefaultSAXHandler(xmlSAXHandler *hdlr);
-XML_DEPRECATED
 XMLPUBFUN void XMLCALL
 		htmlDefaultSAXHandlerInit	(void);
 #endif
-XML_DEPRECATED
+#ifdef LIBXML_DOCB_ENABLED
+XMLPUBFUN void XMLCALL
+		xmlSAX2InitDocbDefaultSAXHandler(xmlSAXHandler *hdlr);
+XMLPUBFUN void XMLCALL
+		docbDefaultSAXHandlerInit	(void);
+#endif
 XMLPUBFUN void XMLCALL
 		xmlDefaultSAXHandlerInit	(void);
 #ifdef __cplusplus

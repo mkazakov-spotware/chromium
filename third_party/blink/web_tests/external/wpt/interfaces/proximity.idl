@@ -3,9 +3,8 @@
 // (https://github.com/w3c/webref)
 // Source: Proximity Sensor (https://w3c.github.io/proximity/)
 
-[SecureContext, Exposed=Window]
+[Constructor(optional SensorOptions sensorOptions = {}), SecureContext, Exposed=Window]
 interface ProximitySensor : Sensor {
-  constructor(optional SensorOptions sensorOptions = {});
   readonly attribute double? distance;
   readonly attribute double? max;
   readonly attribute boolean? near;

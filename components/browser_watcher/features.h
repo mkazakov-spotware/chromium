@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@ namespace browser_watcher {
 
 // Enables activity tracking and extending crash reports with structured
 // high-level program state.
-BASE_DECLARE_FEATURE(kExtendedCrashReportingFeature);
+extern const base::Feature kExtendedCrashReportingFeature;
 
 // Name of an experiment parameter that controls whether to record browser
 // activity in-memory only.

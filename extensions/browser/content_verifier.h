@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,10 @@
 #include <set>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "base/version.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/content_verifier/content_hash.h"
@@ -73,10 +73,6 @@ class ContentVerifier : public base::RefCountedThreadSafe<ContentVerifier>,
 
   ContentVerifier(content::BrowserContext* context,
                   std::unique_ptr<ContentVerifierDelegate> delegate);
-
-  ContentVerifier(const ContentVerifier&) = delete;
-  ContentVerifier& operator=(const ContentVerifier&) = delete;
-
   void Start();
   void Shutdown();
 
@@ -121,10 +117,6 @@ class ContentVerifier : public base::RefCountedThreadSafe<ContentVerifier>,
   // arbitrary time, we are only allowed to do it during installation.
   bool ShouldComputeHashesOnInstall(const Extension& extension);
 
-  // Returns public key used to check content verification data. Normally it's
-  // Chrome Web Store key, but may be overridden in tests via delegate.
-  ContentVerifierKey GetContentVerifierKey();
-
   GURL GetSignatureFetchUrlForTest(const ExtensionId& extension_id,
                                    const base::Version& extension_version);
 
@@ -147,9 +139,6 @@ class ContentVerifier : public base::RefCountedThreadSafe<ContentVerifier>,
       const std::string& extension_id,
       const base::FilePath& extension_root,
       const std::set<base::FilePath>& relative_unix_paths);
-
-  void OverrideDelegateForTesting(
-      std::unique_ptr<ContentVerifierDelegate> delegate);
 
  private:
   friend class base::RefCountedThreadSafe<ContentVerifier>;
@@ -211,7 +200,7 @@ class ContentVerifier : public base::RefCountedThreadSafe<ContentVerifier>,
   // Updated and accessed only on IO thread.
   bool shutdown_on_io_ = false;
 
-  const raw_ptr<content::BrowserContext, DanglingUntriaged> context_;
+  content::BrowserContext* const context_;
 
   // Guards creation of |hash_helper_|, limiting number of creation to <= 1.
   // Accessed only on IO thread.
@@ -226,11 +215,12 @@ class ContentVerifier : public base::RefCountedThreadSafe<ContentVerifier>,
   std::unique_ptr<ContentVerifierDelegate> delegate_;
 
   // For observing the ExtensionRegistry.
-  base::ScopedObservation<ExtensionRegistry, ExtensionRegistryObserver>
-      observation_{this};
+  ScopedObserver<ExtensionRegistry, ExtensionRegistryObserver> observer_{this};
 
   // Data that should only be used on the IO thread.
   ContentVerifierIOData io_data_;
+
+  DISALLOW_COPY_AND_ASSIGN(ContentVerifier);
 };
 
 }  // namespace extensions

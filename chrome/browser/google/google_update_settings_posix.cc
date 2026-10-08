@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "base/synchronization/lock.h"
 #include "base/task/lazy_thread_pool_task_runner.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/common/chrome_paths.h"
 #include "components/crash/core/app/crashpad.h"
 
@@ -33,7 +32,7 @@ base::LazyInstance<base::Lock>::Leaky g_posix_client_id_lock =
 const char kConsentToSendStats[] = "Consent To Send Stats";
 
 void SetConsentFilePermissionIfNeeded(const base::FilePath& consent_file) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // The consent file needs to be world readable. See http://crbug.com/383003
   int permissions;
   if (base::GetPosixFilePermissions(consent_file, &permissions) &&
@@ -76,8 +75,12 @@ bool GoogleUpdateSettings::GetCollectStatsConsent() {
 
 // static
 bool GoogleUpdateSettings::SetCollectStatsConsent(bool consented) {
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+#if defined(OS_MAC)
   crash_reporter::SetUploadConsent(consented);
+#elif defined(OS_LINUX) && !defined(OS_CHROMEOS)
+  if (crash_reporter::IsCrashpadEnabled()) {
+    crash_reporter::SetUploadConsent(consented);
+  }
 #endif
 
   base::FilePath consent_dir;
@@ -109,7 +112,7 @@ bool GoogleUpdateSettings::SetCollectStatsConsent(bool consented) {
 // TODO(gab): Implement storing/loading for all ClientInfo fields on POSIX.
 std::unique_ptr<metrics::ClientInfo>
 GoogleUpdateSettings::LoadMetricsClientInfo() {
-  auto client_info = std::make_unique<metrics::ClientInfo>();
+  std::unique_ptr<metrics::ClientInfo> client_info(new metrics::ClientInfo);
 
   base::AutoLock lock(g_posix_client_id_lock.Get());
   if (g_posix_client_id.Get().empty())

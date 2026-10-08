@@ -1,4 +1,4 @@
-// Copyright 2010 The Chromium Authors
+// Copyright (c) 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,8 @@ namespace ui {
 
 class MenuModelDelegate {
  public:
-  // Invoked when an icon has been loaded from history. The |command_id|
-  // may be part of a submenu, which is why we use command id here rather
-  // than index.
-  virtual void OnIconChanged(int command_id) = 0;
+  // Invoked when an icon has been loaded from history.
+  virtual void OnIconChanged(int index) = 0;
 
   // Invoked after items in |MenuModel| have been removed and/or added,
   // delegate should assume the entire contents of the model has changed.
@@ -23,7 +21,7 @@ class MenuModelDelegate {
   virtual void OnMenuClearingDelegate() {}
 
  protected:
-  virtual ~MenuModelDelegate() = default;
+  virtual ~MenuModelDelegate() {}
 };
 
 }  // namespace ui

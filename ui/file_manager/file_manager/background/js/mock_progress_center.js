@@ -1,18 +1,14 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-
-import {ProgressCenterItem, ProgressItemState} from '../../common/js/progress_center_common.js';
-import {ProgressCenter} from '../../externs/background/progress_center.js';
-
+'use strict';
 
 /**
  * Mock implementation of {ProgressCenter} for tests.
  * @implements {ProgressCenter}
  * @final
  */
-export class MockProgressCenter {
+class MockProgressCenter {
   constructor() {
     /**
      * Items stored in the progress center.

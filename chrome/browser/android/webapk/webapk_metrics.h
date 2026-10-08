@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <string>
 
 #include "base/time/time.h"
-#include "components/webapps/browser/android/webapk/webapk_types.h"
 
 namespace webapk {
 
@@ -30,7 +29,6 @@ void TrackRequestTokenDuration(base::TimeDelta delta,
                                const std::string& webapk_package);
 void TrackInstallDuration(base::TimeDelta delta);
 void TrackInstallEvent(InstallEvent event);
-void TrackInstallResult(webapps::WebApkInstallResult result);
 
 }  // namespace webapk
 

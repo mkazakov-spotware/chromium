@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,13 +29,12 @@ IN_PROC_BROWSER_TEST_F(WebClipboardImplTest, PasteRTF) {
   const std::string rtf_content = "{\\rtf1\\ansi Hello, {\\b world.}}";
   clipboard.SetRtf(rtf_content);
 
-  FrameFocusedObserver focus_observer(
-      shell()->web_contents()->GetPrimaryMainFrame());
+  FrameFocusedObserver focus_observer(shell()->web_contents()->GetMainFrame());
   // paste_listener.html takes RTF from the clipboard and sets the title.
   EXPECT_TRUE(NavigateToURL(shell(), GetTestUrl(".", "paste_listener.html")));
   focus_observer.Wait();
 
-  const std::u16string expected_title = base::UTF8ToUTF16(rtf_content);
+  const base::string16 expected_title = base::UTF8ToUTF16(rtf_content);
   TitleWatcher title_watcher(shell()->web_contents(), expected_title);
   shell()->web_contents()->Paste();
   EXPECT_EQ(expected_title, title_watcher.WaitAndGetTitle());

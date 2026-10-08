@@ -1,18 +1,16 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 'use strict';
-
-import {AppManagementStore, updateSelectedAppId, getPermissionValueBool, convertOptionalBoolToBool} from 'chrome://os-settings/chromeos/os_settings.js';
-import {setupFakeHandler, replaceStore, replaceBody, getPermissionCrToggleByType, getPermissionToggleByType} from './test_util.js';
 
 suite('<app-management-pwa-detail-view>', function() {
   let pwaPermissionView;
   let fakeHandler;
 
   function getPermissionBoolByType(permissionType) {
-    return getPermissionValueBool(pwaPermissionView.app_, permissionType);
+    return app_management.util.getPermissionValueBool(
+        pwaPermissionView.app_, permissionType);
   }
 
   async function clickToggle(permissionType) {
@@ -21,7 +19,7 @@ suite('<app-management-pwa-detail-view>', function() {
   }
 
   function getSelectedAppFromStore() {
-    const storeData = AppManagementStore.getInstance().data;
+    const storeData = app_management.Store.getInstance().data;
     return storeData.apps[storeData.selectedAppId];
   }
 
@@ -31,7 +29,8 @@ suite('<app-management-pwa-detail-view>', function() {
 
     // Add an app, and make it the currently selected app.
     const app = await fakeHandler.addApp();
-    AppManagementStore.getInstance().dispatch(updateSelectedAppId(app.id));
+    app_management.Store.getInstance().dispatch(
+        app_management.actions.updateSelectedAppId(app.id));
 
     pwaPermissionView =
         document.createElement('app-management-pwa-detail-view');
@@ -40,7 +39,7 @@ suite('<app-management-pwa-detail-view>', function() {
 
   test('App is rendered correctly', function() {
     assertEquals(
-        AppManagementStore.getInstance().data.selectedAppId,
+        app_management.Store.getInstance().data.selectedAppId,
         pwaPermissionView.app_.id);
   });
 
@@ -63,10 +62,10 @@ suite('<app-management-pwa-detail-view>', function() {
                      .checked);
     };
 
-    await checkToggle('kNotifications');
-    await checkToggle('kLocation');
-    await checkToggle('kCamera');
-    await checkToggle('kMicrophone');
+    await checkToggle('NOTIFICATIONS');
+    await checkToggle('GEOLOCATION');
+    await checkToggle('MEDIASTREAM_CAMERA');
+    await checkToggle('MEDIASTREAM_MIC');
   });
 
   test('Pin to shelf toggle', async function() {
@@ -76,18 +75,21 @@ suite('<app-management-pwa-detail-view>', function() {
     assertFalse(toggle.checked);
     assertEquals(
         toggle.checked,
-        convertOptionalBoolToBool(getSelectedAppFromStore().isPinned));
+        app_management.util.convertOptionalBoolToBool(
+            getSelectedAppFromStore().isPinned));
     pinToShelfItem.click();
     await fakeHandler.flushPipesForTesting();
     assertTrue(toggle.checked);
     assertEquals(
         toggle.checked,
-        convertOptionalBoolToBool(getSelectedAppFromStore().isPinned));
+        app_management.util.convertOptionalBoolToBool(
+            getSelectedAppFromStore().isPinned));
     pinToShelfItem.click();
     await fakeHandler.flushPipesForTesting();
     assertFalse(toggle.checked);
     assertEquals(
         toggle.checked,
-        convertOptionalBoolToBool(getSelectedAppFromStore().isPinned));
+        app_management.util.convertOptionalBoolToBool(
+            getSelectedAppFromStore().isPinned));
   });
 });

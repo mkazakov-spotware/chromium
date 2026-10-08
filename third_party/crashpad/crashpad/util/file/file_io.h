@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,9 +21,9 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include "base/files/scoped_file.h"
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include <windows.h>
 #include "util/win/scoped_handle.h"
 #endif
@@ -34,7 +34,7 @@ class FilePath;
 
 namespace crashpad {
 
-#if BUILDFLAG(IS_POSIX) || DOXYGEN
+#if defined(OS_POSIX) || DOXYGEN
 
 //! \brief Platform-specific alias for a low-level file handle.
 using FileHandle = int;
@@ -51,7 +51,7 @@ using FileOperationResult = ssize_t;
 //! \brief A value that can never be a valid FileHandle.
 const FileHandle kInvalidFileHandle = -1;
 
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 
 using FileHandle = HANDLE;
 using FileOffset = LONGLONG;
@@ -96,28 +96,6 @@ enum class FileLocking : bool {
   kExclusive,
 };
 
-//! \brief Determines if LoggingLockFile will block.
-enum class FileLockingBlocking : bool {
-  //! \brief Block until the lock is acquired
-  kBlocking = false,
-
-  //! \brief Do not block when attempting to acquire a lock.
-  kNonBlocking = true,
-};
-
-//! \brief The return value for LoggingLockFile.
-enum class FileLockingResult : int {
-  //! \brief The lock was acquired successfully.
-  kSuccess,
-
-  //! \brief In non-blocking mode only, the file was already locked. Locking
-  //!     would block, so the lock was not acquired.
-  kWouldBlock,
-
-  //! \brief The lock was not acquired.
-  kFailure,
-};
-
 //! \brief Determines the FileHandle that StdioFileHandle() returns.
 enum class StdioStream {
   //! \brief Standard input, or `stdin`.
@@ -132,7 +110,7 @@ enum class StdioStream {
 
 namespace internal {
 
-#if BUILDFLAG(IS_POSIX) || DOXYGEN
+#if defined(OS_POSIX) || DOXYGEN
 
 //! \brief The name of the native read function used by ReadFile().
 //!
@@ -148,7 +126,7 @@ constexpr char kNativeReadFunctionName[] = "read";
 //! \sa kNativeReadFunctionName
 constexpr char kNativeWriteFunctionName[] = "write";
 
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 
 constexpr char kNativeReadFunctionName[] = "ReadFile";
 constexpr char kNativeWriteFunctionName[] = "WriteFile";
@@ -164,9 +142,6 @@ constexpr char kNativeWriteFunctionName[] = "WriteFile";
 //! FileReaderInterface::ReadExactly() instead.
 class ReadExactlyInternal {
  public:
-  ReadExactlyInternal(const ReadExactlyInternal&) = delete;
-  ReadExactlyInternal& operator=(const ReadExactlyInternal&) = delete;
-
   //! \brief Calls Read(), retrying following a short read, ensuring that
   //!     exactly \a size bytes are read.
   //!
@@ -185,6 +160,8 @@ class ReadExactlyInternal {
   //! \return The number of bytes read and placed into \a buffer, or `-1` on
   //!     error. When returning `-1`, if \a can_log is `true`, logs a message.
   virtual FileOperationResult Read(void* buffer, size_t size, bool can_log) = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(ReadExactlyInternal);
 };
 
 //! \brief The internal implementation of WriteFile() and its wrappers.
@@ -195,9 +172,6 @@ class ReadExactlyInternal {
 //! FileWriterInterface::Write() instead.
 class WriteAllInternal {
  public:
-  WriteAllInternal(const WriteAllInternal&) = delete;
-  WriteAllInternal& operator=(const WriteAllInternal&) = delete;
-
   //! \brief Calls Write(), retrying following a short write, ensuring that
   //!     exactly \a size bytes are written.
   //!
@@ -214,6 +188,8 @@ class WriteAllInternal {
   //!
   //! \return The number of bytes written from \a buffer, or `-1` on error.
   virtual FileOperationResult Write(const void* buffer, size_t size) = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(WriteAllInternal);
 };
 
 //! \brief Writes to a file, retrying when interrupted on POSIX.
@@ -422,7 +398,7 @@ FileHandle LoggingOpenFileForWrite(const base::FilePath& path,
                                    FileWriteMode mode,
                                    FilePermissions permissions);
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 //! \brief Opens an in-memory file for input and output.
 //!
 //! This function first attempts to open the file with `memfd_create()`. If
@@ -444,7 +420,7 @@ FileHandle LoggingOpenFileForWrite(const base::FilePath& path,
 //! \sa LoggingOpenFileForWrite
 //! \sa LoggingOpenFileForReadAndWrite
 FileHandle LoggingOpenMemoryFileForReadAndWrite(const base::FilePath& name);
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // OS_LINUX || OS_CHROMEOS
 
 //! \brief Wraps OpenFileForReadAndWrite(), logging an error if the operation
 //!     fails.
@@ -461,15 +437,14 @@ FileHandle LoggingOpenFileForReadAndWrite(const base::FilePath& path,
 // Fuchsia does not currently support any sort of file locking. See
 // https://crashpad.chromium.org/bug/196 and
 // https://crashpad.chromium.org/bug/217.
-#if CRASHPAD_FLOCK_ALWAYS_SUPPORTED
+#if !defined(OS_FUCHSIA)
 
 //! \brief Locks the given \a file using `flock()` on POSIX or `LockFileEx()` on
 //!     Windows.
 //!
 //! It is an error to attempt to lock a file in a different mode when it is
-//! already locked. This call will block until the lock is acquired unless
-//! \a blocking is FileLockingBlocking::kNonBlocking. The entire file is
-//! locked.
+//! already locked. This call will block until the lock is acquired. The
+//! entire file is locked.
 //!
 //! If \a locking is FileLocking::kShared, \a file must have been opened for
 //! reading, and if it's FileLocking::kExclusive, \a file must have been opened
@@ -478,16 +453,9 @@ FileHandle LoggingOpenFileForReadAndWrite(const base::FilePath& path,
 //! \param[in] file The open file handle to be locked.
 //! \param[in] locking Controls whether the lock is a shared reader lock, or an
 //!     exclusive writer lock.
-//! \param[in] blocking Controls whether a locked file will result in blocking
-//!     or an immediate return.
 //!
-//! \return kSuccess if a lock is acquired. If a lock could not be acquired
-//!     because \a blocking is FileLockingBlocking::kNonBlocking and acquiring
-//!     the lock would block, returns kWouldBlock. If a lock fails for any other
-//!     reason, returns kFailure and a message will be logged.
-FileLockingResult LoggingLockFile(FileHandle file,
-                                  FileLocking locking,
-                                  FileLockingBlocking blocking);
+//! \return `true` on success, or `false` and a message will be logged.
+bool LoggingLockFile(FileHandle file, FileLocking locking);
 
 //! \brief Unlocks a file previously locked with LoggingLockFile().
 //!
@@ -500,7 +468,7 @@ FileLockingResult LoggingLockFile(FileHandle file,
 //! \return `true` on success, or `false` and a message will be logged.
 bool LoggingUnlockFile(FileHandle file);
 
-#endif  // CRASHPAD_FLOCK_ALWAYS_SUPPORTED
+#endif  // !OS_FUCHSIA
 
 //! \brief Wraps `lseek()` or `SetFilePointerEx()`. Logs an error if the
 //!     operation fails.

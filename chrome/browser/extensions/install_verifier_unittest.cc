@@ -1,9 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/install_verifier.h"
 
+#include "base/macros.h"
 #include "base/values.h"
 #include "chrome/browser/extensions/extension_management.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
@@ -18,17 +19,11 @@
 #include "extensions/common/value_builder.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-using extensions::mojom::ManifestLocation;
-
 namespace extensions {
 
 class InstallVerifierTest : public ExtensionServiceTestBase {
  public:
   InstallVerifierTest() = default;
-
-  InstallVerifierTest(const InstallVerifierTest&) = delete;
-  InstallVerifierTest& operator=(const InstallVerifierTest&) = delete;
-
   ~InstallVerifierTest() override = default;
 
   void SetUp() override {
@@ -53,6 +48,8 @@ class InstallVerifierTest : public ExtensionServiceTestBase {
       ScopedInstallVerifierBypassForTest::kForceOn};
   std::unique_ptr<ExtensionManagement> extension_management_;
   std::unique_ptr<TestingPrefServiceSimple> pref_service_;
+
+  DISALLOW_COPY_AND_ASSIGN(InstallVerifierTest);
 };
 
 // Test the behavior of the InstallVerifier for various extensions.
@@ -71,28 +68,27 @@ TEST_F(InstallVerifierTest, TestIsFromStoreAndMustRemainDisabled) {
   GURL non_store_update_url("https://example.com");
   struct {
     const char* test_name;
-    ManifestLocation location;
-    absl::optional<GURL> update_url;
+    Manifest::Location location;
+    base::Optional<GURL> update_url;
     FromStoreStatus expected_from_store_status;
     MustRemainDisabledStatus expected_must_remain_disabled_status;
   } test_cases[] = {
-      {"internal from store", ManifestLocation::kInternal, store_update_url,
-       FROM_STORE, CAN_BE_ENABLED},
-      {"internal non-store update url", ManifestLocation::kInternal,
+      {"internal from store", Manifest::INTERNAL, store_update_url, FROM_STORE,
+       CAN_BE_ENABLED},
+      {"internal non-store update url", Manifest::INTERNAL,
        non_store_update_url, NOT_FROM_STORE, MUST_REMAIN_DISABLED},
-      {"internal no update url", ManifestLocation::kInternal, absl::nullopt,
+      {"internal no update url", Manifest::INTERNAL, base::nullopt,
        NOT_FROM_STORE, MUST_REMAIN_DISABLED},
-      {"unpacked from store", ManifestLocation::kUnpacked, store_update_url,
-       FROM_STORE, CAN_BE_ENABLED},
-      {"unpacked non-store update url", ManifestLocation::kUnpacked,
+      {"unpacked from store", Manifest::UNPACKED, store_update_url, FROM_STORE,
+       CAN_BE_ENABLED},
+      {"unpacked non-store update url", Manifest::UNPACKED,
        non_store_update_url, NOT_FROM_STORE, CAN_BE_ENABLED},
-      {"unpacked no update url", ManifestLocation::kUnpacked, absl::nullopt,
+      {"unpacked no update url", Manifest::UNPACKED, base::nullopt,
        NOT_FROM_STORE, CAN_BE_ENABLED},
-      {"external from store", ManifestLocation::kExternalPolicyDownload,
+      {"external from store", Manifest::EXTERNAL_POLICY_DOWNLOAD,
        store_update_url, FROM_STORE, CAN_BE_ENABLED},
-      {"external non-store update url",
-       ManifestLocation::kExternalPolicyDownload, non_store_update_url,
-       NOT_FROM_STORE, CAN_BE_ENABLED},
+      {"external non-store update url", Manifest::EXTERNAL_POLICY_DOWNLOAD,
+       non_store_update_url, NOT_FROM_STORE, CAN_BE_ENABLED},
   };
 
   InstallVerifier* install_verifier = InstallVerifier::Get(profile());
@@ -110,9 +106,9 @@ TEST_F(InstallVerifierTest, TestIsFromStoreAndMustRemainDisabled) {
       AddExtensionAsPolicyInstalled(extension->id());
 
     EXPECT_EQ(test_case.expected_from_store_status == FROM_STORE,
-              InstallVerifier::IsFromStore(*extension, profile()));
+              InstallVerifier::IsFromStore(*extension));
     disable_reason::DisableReason disable_reason;
-    std::u16string error;
+    base::string16 error;
     EXPECT_EQ(
         test_case.expected_must_remain_disabled_status == MUST_REMAIN_DISABLED,
         install_verifier->MustRemainDisabled(extension.get(), &disable_reason,

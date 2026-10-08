@@ -1,18 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'chrome://diagnostics/percent_bar_chart.js';
-import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
 
-import {PercentBarChartElement} from 'chrome://diagnostics/percent_bar_chart.js';
-import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
-
-import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chromeos/chai_assert.js';
+import {assertEquals, assertFalse, assertTrue} from '../../chai_assert.js';
+import {flushTasks} from '../../test_util.m.js';
 
 import * as dx_utils from './diagnostics_test_utils.js';
 
-suite('percentBarChartTestSuite', function() {
+export function percentBarChartTestSuite() {
   /** @type {?PercentBarChartElement} */
   let percentBarChartElement = null;
 
@@ -31,8 +28,9 @@ suite('percentBarChartTestSuite', function() {
    * @param {string} header
    * @param {number} value
    * @param {number} max
+   * @param {string=} headerIcon
    */
-  function initializePercentBarChart(header, value, max) {
+  function initializePercentBarChart(header, value, max, headerIcon) {
     assertFalse(!!percentBarChartElement);
 
     // Add the element to the DOM.
@@ -42,6 +40,7 @@ suite('percentBarChartTestSuite', function() {
     percentBarChartElement.header = header;
     percentBarChartElement.value = value;
     percentBarChartElement.max = max;
+    percentBarChartElement.headerIcon = headerIcon || '';
     document.body.appendChild(percentBarChartElement);
 
     return flushTasks();
@@ -53,26 +52,29 @@ suite('percentBarChartTestSuite', function() {
     const max = 30;
     const percent = Math.round(100 * value / max);
     return initializePercentBarChart(header, value, max).then(() => {
-      const paperProgress =
-          percentBarChartElement.shadowRoot.querySelector('paper-progress');
+      const paperProgress = percentBarChartElement.$$('paper-progress');
       assertEquals(value, paperProgress.value);
       assertEquals(max, paperProgress.max);
 
       assertEquals(
-          header,
-          percentBarChartElement.shadowRoot.querySelector('#chartName')
-              .textContent.trim());
+          header, percentBarChartElement.$$('#chartName').textContent.trim());
+      dx_utils.assertElementContainsText(
+          /** @type {!HTMLElement} */ (
+              percentBarChartElement.$$('#percentageLabel')),
+          `${percent}`);
+
+      assertFalse(!!percentBarChartElement.$$('#headerIcon'));
     });
   });
 
-  test('ClampsToMaxValue', () => {
+  test('WithHeaderIcon', () => {
     const header = 'Test header';
-    const value = 101;
-    const max = 100;
-    return initializePercentBarChart(header, value, max).then(() => {
-      const paperProgress =
-          percentBarChartElement.shadowRoot.querySelector('paper-progress');
-      assertEquals(paperProgress.value, paperProgress.max);
+    const value = 10;
+    const max = 30;
+    const icon = 'cr:warning';
+    return initializePercentBarChart(header, value, max, icon).then(() => {
+      assertEquals(icon, percentBarChartElement.headerIcon);
+      assertTrue(!!percentBarChartElement.$$('#headerIcon'));
     });
   });
-});
+}

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,17 +11,16 @@
 #include <string>
 #include <vector>
 
-#include "base/no_destructor.h"
+#include "base/macros.h"
 #include "content/browser/tracing/background_tracing_config_impl.h"
-#include "content/common/content_export.h"
 #include "content/public/browser/background_tracing_manager.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "services/tracing/public/cpp/perfetto/trace_event_data_source.h"
 #include "services/tracing/public/mojom/background_tracing_agent.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
-class Value;
+template <typename T>
+class NoDestructor;
 }  // namespace base
 
 namespace tracing {
@@ -88,35 +87,26 @@ class BackgroundTracingManagerImpl : public BackgroundTracingManager {
     LARGE_UPLOAD_WAITING_TO_RETRY = 13,
     SYSTEM_TRIGGERED = 14,
     REACHED_CODE_SCENARIO_TRIGGERED = 15,
-    FINALIZATION_STARTED_WITH_LOCAL_OUTPUT = 16,
     NUMBER_OF_BACKGROUND_TRACING_METRICS,
   };
   static void RecordMetric(Metrics metric);
 
-  CONTENT_EXPORT static BackgroundTracingManagerImpl& GetInstance();
-
-  BackgroundTracingManagerImpl(const BackgroundTracingManagerImpl&) = delete;
-  BackgroundTracingManagerImpl& operator=(const BackgroundTracingManagerImpl&) =
-      delete;
+  CONTENT_EXPORT static BackgroundTracingManagerImpl* GetInstance();
 
   // Callable from any thread.
   static void ActivateForProcess(int child_process_id,
                                  mojom::ChildProcess* child_process);
 
   bool SetActiveScenario(std::unique_ptr<BackgroundTracingConfig>,
+                         ReceiveCallback,
                          DataFiltering data_filtering) override;
-  bool SetActiveScenarioWithReceiveCallback(
-      std::unique_ptr<BackgroundTracingConfig>,
-      ReceiveCallback receive_callback,
-      DataFiltering data_filtering) override;
   void AbortScenario();
   bool HasActiveScenario() override;
 
   // Named triggers
   void TriggerNamedEvent(TriggerHandle, StartedFinalizingCallback) override;
-  TriggerHandle RegisterTriggerType(base::StringPiece trigger_name) override;
-  const std::string& GetTriggerNameFromHandle(
-      TriggerHandle trigger_handle) override;
+  TriggerHandle RegisterTriggerType(const char* trigger_name) override;
+  std::string GetTriggerNameFromHandle(TriggerHandle handle) const;
 
   void OnHistogramTrigger(const std::string& histogram_name);
 
@@ -143,7 +133,7 @@ class BackgroundTracingManagerImpl : public BackgroundTracingManager {
 
   void AddMetadataGeneratorFunction();
 
-  bool IsAllowedFinalization(bool is_crash_scenario) const;
+  bool IsAllowedFinalization() const;
 
   // Called by BackgroundTracingActiveScenario
   void OnStartTracingDone(BackgroundTracingConfigImpl::CategoryPreset preset);
@@ -165,8 +155,9 @@ class BackgroundTracingManagerImpl : public BackgroundTracingManager {
   BackgroundTracingManagerImpl();
   ~BackgroundTracingManagerImpl() override;
 
+  void ValidateStartupScenario();
   bool IsSupportedConfig(BackgroundTracingConfigImpl* config);
-  absl::optional<base::Value::Dict> GenerateMetadataDict();
+  std::unique_ptr<base::DictionaryValue> GenerateMetadataDict();
   void GenerateMetadataProto(
       perfetto::protos::pbzero::ChromeMetadataPacket* metadata,
       bool privacy_filtering_enabled);
@@ -202,6 +193,8 @@ class BackgroundTracingManagerImpl : public BackgroundTracingManager {
 
   // Callback to override the background tracing config for testing.
   ConfigTextFilterForTesting config_text_filter_for_testing_;
+
+  DISALLOW_COPY_AND_ASSIGN(BackgroundTracingManagerImpl);
 };
 
 }  // namespace content

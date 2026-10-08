@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <CoreVideo/CVPixelBuffer.h>
 
 #include "base/mac/scoped_cftyperef.h"
-#include "base/memory/scoped_refptr.h"
 #include "media/base/media_export.h"
 
 namespace media {
@@ -24,7 +23,7 @@ class VideoFrame;
 // (the visible rect's size does not match the coded size) are not supported.
 // If an unsupported frame is specified, null is returned.
 MEDIA_EXPORT base::ScopedCFTypeRef<CVPixelBufferRef>
-WrapVideoFrameInCVPixelBuffer(scoped_refptr<VideoFrame> frame);
+WrapVideoFrameInCVPixelBuffer(const VideoFrame& frame);
 
 }  // namespace media
 

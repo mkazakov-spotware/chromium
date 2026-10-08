@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "content/common/content_export.h"
 #include "third_party/blink/public/common/input/web_touch_event.h"
 #include "ui/events/gesture_detection/motion_event.h"
@@ -18,10 +19,6 @@ namespace content {
 class CONTENT_EXPORT MotionEventWeb : public ui::MotionEvent {
  public:
   explicit MotionEventWeb(const blink::WebTouchEvent& event);
-
-  MotionEventWeb(const MotionEventWeb&) = delete;
-  MotionEventWeb& operator=(const MotionEventWeb&) = delete;
-
   ~MotionEventWeb() override;
 
   // ui::MotionEvent
@@ -52,6 +49,8 @@ class CONTENT_EXPORT MotionEventWeb : public ui::MotionEvent {
   Action cached_action_;
   int cached_action_index_;
   const uint32_t unique_event_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(MotionEventWeb);
 };
 
 }  // namespace content

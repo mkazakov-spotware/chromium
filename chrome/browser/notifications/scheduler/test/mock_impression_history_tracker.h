@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,12 +25,11 @@ class MockImpressionHistoryTracker : public ImpressionHistoryTracker {
                     const std::string&,
                     const Impression::ImpressionResultMap&,
                     const Impression::CustomData&,
-                    absl::optional<base::TimeDelta> ignore_timeout_duration));
+                    base::Optional<base::TimeDelta> ignore_timeout_duration));
   MOCK_METHOD0(AnalyzeImpressionHistory, void());
   MOCK_CONST_METHOD1(GetClientStates,
                      void(std::map<SchedulerClientType, const ClientState*>*));
-  MOCK_METHOD2(GetImpression,
-               const Impression*(SchedulerClientType, const std::string&));
+  MOCK_CONST_METHOD1(GetImpression, Impression*(const std::string&));
   MOCK_METHOD2(GetImpressionDetail,
                void(SchedulerClientType,
                     ImpressionDetail::ImpressionDetailCallback));

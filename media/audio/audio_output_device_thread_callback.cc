@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,8 @@
 #include <utility>
 
 #include "base/logging.h"
-#include "base/metrics/histogram_functions.h"
-#include "base/time/time.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/trace_event/trace_event.h"
-#include "media/base/audio_glitch_info.h"
 
 namespace media {
 
@@ -24,16 +22,13 @@ AudioOutputDeviceThreadCallback::AudioOutputDeviceThreadCallback(
           /*segment count*/ 1),
       shared_memory_region_(std::move(shared_memory_region)),
       render_callback_(render_callback),
-      create_time_(base::TimeTicks::Now()) {
+      callback_num_(0) {
   // CHECK that the shared memory is large enough. The memory allocated must be
   // at least as large as expected.
   CHECK(memory_length_ <= shared_memory_region_.GetSize());
 }
 
-AudioOutputDeviceThreadCallback::~AudioOutputDeviceThreadCallback() {
-  UmaHistogramLongTimes("Media.Audio.Render.OutputStreamDuration2",
-                        base::TimeTicks::Now() - create_time_);
-}
+AudioOutputDeviceThreadCallback::~AudioOutputDeviceThreadCallback() = default;
 
 void AudioOutputDeviceThreadCallback::MapSharedMemory() {
   CHECK_EQ(total_segments_, 1u);
@@ -51,44 +46,39 @@ void AudioOutputDeviceThreadCallback::MapSharedMemory() {
 void AudioOutputDeviceThreadCallback::Process(uint32_t control_signal) {
   callback_num_++;
 
-  // Read and reset the glitch info.
+  // Read and reset the number of frames skipped.
   media::AudioOutputBuffer* buffer =
       reinterpret_cast<media::AudioOutputBuffer*>(
           shared_memory_mapping_.memory());
-  media::AudioGlitchInfo glitch_info{
-      .duration = base::Microseconds(buffer->params.glitch_duration_us),
-      .count = buffer->params.glitch_count};
-  buffer->params.glitch_duration_us = {};
-  buffer->params.glitch_count = 0;
+  uint32_t frames_skipped = buffer->params.frames_skipped;
+  buffer->params.frames_skipped = 0;
 
   TRACE_EVENT_BEGIN2("audio", "AudioOutputDevice::FireRenderCallback",
-                     "callback_num", callback_num_, "glitches",
-                     glitch_info.count);
+                     "callback_num", callback_num_, "frames skipped",
+                     frames_skipped);
 
-  base::TimeDelta delay = base::Microseconds(buffer->params.delay_us);
+  base::TimeDelta delay =
+      base::TimeDelta::FromMicroseconds(buffer->params.delay_us);
 
   base::TimeTicks delay_timestamp =
-      base::TimeTicks() + base::Microseconds(buffer->params.delay_timestamp_us);
+      base::TimeTicks() +
+      base::TimeDelta::FromMicroseconds(buffer->params.delay_timestamp_us);
 
-  DVLOG(4) << __func__ << " delay:" << delay << " delay_timestamp:" << delay;
+  DVLOG(4) << __func__ << " delay:" << delay << " delay_timestamp:" << delay
+           << " frames_skipped:" << frames_skipped;
 
   // When playback starts, we get an immediate callback to Process to make sure
   // that we have some data, we'll get another one after the device is awake and
   // ingesting data, which is what we want to track with this trace.
-  if (callback_num_ == 2) {
-    TRACE_EVENT_NESTABLE_ASYNC_END0("audio", "StartingPlayback",
-                                    TRACE_ID_LOCAL(this));
-    if (first_play_start_time_) {
-      UmaHistogramTimes("Media.Audio.Render.OutputDeviceStartTime2",
-                        base::TimeTicks::Now() - *first_play_start_time_);
-    }
-  }
+  if (callback_num_ == 2)
+    TRACE_EVENT_ASYNC_END0("audio", "StartingPlayback", this);
 
   // Update the audio-delay measurement, inform about the number of skipped
   // frames, and ask client to render audio.  Since |output_bus_| is wrapping
   // the shared memory the Render() call is writing directly into the shared
   // memory.
-  render_callback_->Render(delay, delay_timestamp, 0, output_bus_.get());
+  render_callback_->Render(delay, delay_timestamp, frames_skipped,
+                           output_bus_.get());
 
   if (audio_parameters_.IsBitstreamFormat()) {
     buffer->params.bitstream_data_size = output_bus_->GetBitstreamDataSize();
@@ -105,14 +95,6 @@ bool AudioOutputDeviceThreadCallback::CurrentThreadIsAudioDeviceThread() {
   return thread_checker_.CalledOnValidThread();
 }
 
-void AudioOutputDeviceThreadCallback::InitializePlayStartTime() {
-  if (first_play_start_time_)
-    return;
-
-  DCHECK(!callback_num_);
-  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("audio", "StartingPlayback",
-                                    TRACE_ID_LOCAL(this));
-  first_play_start_time_ = base::TimeTicks::Now();
-}
+void AudioOutputDeviceThreadCallback::InitializePlayStartTime() {}
 
 }  // namespace media

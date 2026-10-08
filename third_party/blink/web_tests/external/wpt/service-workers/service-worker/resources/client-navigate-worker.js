@@ -3,8 +3,6 @@ importScripts("test-helpers.sub.js");
 importScripts("/common/get-host-info.sub.js")
 importScripts("testharness-helpers.js")
 
-setup({ explicit_done: true });
-
 self.onfetch = function(e) {
   if (e.request.url.indexOf("client-navigate-frame.html") >= 0) {
     return;
@@ -37,7 +35,6 @@ self.onmessage = function(e) {
                  })
                  .catch(unreached_rejection(t));
     }, "Return value should be instance of WindowClient");
-    done();
   } else if (test === "test_client_navigate_cross_origin") {
     promise_test(function(t) {
       this.add_cleanup(() => port.postMessage(pass(test, clientUrl)));
@@ -52,7 +49,6 @@ self.onmessage = function(e) {
                  })
                  .catch(unreached_rejection(t));
     }, "Navigating to different origin should resolve with null");
-    done();
   } else if (test === "test_client_navigate_about_blank") {
     promise_test(function(t) {
       this.add_cleanup(function() { port.postMessage(pass(test, "")); });
@@ -60,7 +56,6 @@ self.onmessage = function(e) {
                  .then(client => promise_rejects_js(t, TypeError, client.navigate("about:blank")))
                  .catch(unreached_rejection(t));
     }, "Navigating to about:blank should reject with TypeError");
-    done();
   } else if (test === "test_client_navigate_mixed_content") {
     promise_test(function(t) {
       this.add_cleanup(function() { port.postMessage(pass(test, "")); });
@@ -72,7 +67,6 @@ self.onmessage = function(e) {
                  .then(client => promise_rejects_js(t, TypeError, client.navigate(url)))
                  .catch(unreached_rejection(t));
     }, "Navigating to mixed-content iframe should reject with TypeError");
-    done();
   } else if (test === "test_client_navigate_redirect") {
     var host_info = get_host_info();
     var url = new URL(host_info['HTTPS_REMOTE_ORIGIN']).toString() +
@@ -87,6 +81,5 @@ self.onmessage = function(e) {
                  })
                  .catch(unreached_rejection(t));
     }, "Redirecting to another origin should resolve with null");
-    done();
   }
 };

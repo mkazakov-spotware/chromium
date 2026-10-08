@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,12 @@
 #include "ash/shelf/shelf_button_pressed_metric_tracker_test_api.h"
 #include "ash/shelf/shelf_view_test_api.h"
 #include "ash/test/ash_test_base.h"
+#include "base/macros.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/metrics/user_action_tester.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/events/event.h"
-#include "ui/events/test/test_event.h"
 #include "ui/views/controls/button/button.h"
 
 namespace ash {
@@ -26,11 +26,33 @@ class DummyButton : public views::Button {
  public:
   DummyButton();
 
-  DummyButton(const DummyButton&) = delete;
-  DummyButton& operator=(const DummyButton&) = delete;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DummyButton);
 };
 
 DummyButton::DummyButton() : views::Button(views::Button::PressedCallback()) {}
+
+// A simple light weight test double dummy for a ui::Event.
+class DummyEvent : public ui::Event {
+ public:
+  DummyEvent();
+  ~DummyEvent() override;
+  int unique_id() const { return unique_id_; }
+
+ private:
+  static int next_unique_id_;
+  int unique_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(DummyEvent);
+};
+
+int DummyEvent::next_unique_id_ = 0;
+
+DummyEvent::DummyEvent()
+    : Event(ui::ET_GESTURE_TAP, base::TimeTicks(), 0),
+      unique_id_(next_unique_id_++) {}
+
+DummyEvent::~DummyEvent() = default;
 
 // Test fixture for the ShelfButtonPressedMetricTracker class. Relies on
 // AshTestBase to initilize the UserMetricsRecorder and it's dependencies.
@@ -40,12 +62,6 @@ class ShelfButtonPressedMetricTrackerTest : public AshTestBase {
       kTimeBetweenWindowMinimizedAndActivatedActionsHistogramName;
 
   ShelfButtonPressedMetricTrackerTest();
-
-  ShelfButtonPressedMetricTrackerTest(
-      const ShelfButtonPressedMetricTrackerTest&) = delete;
-  ShelfButtonPressedMetricTrackerTest& operator=(
-      const ShelfButtonPressedMetricTrackerTest&) = delete;
-
   ~ShelfButtonPressedMetricTrackerTest() override;
 
   // AshTestBase:
@@ -70,6 +86,9 @@ class ShelfButtonPressedMetricTrackerTest : public AshTestBase {
 
   // The TickClock injected in to the test target.
   base::SimpleTestTickClock tick_clock_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ShelfButtonPressedMetricTrackerTest);
 };
 
 const char* ShelfButtonPressedMetricTrackerTest::
@@ -97,7 +116,7 @@ void ShelfButtonPressedMetricTrackerTest::SetUp() {
 
   // Ensure the TickClock->NowTicks() doesn't return base::TimeTicks because
   // ShelfButtonPressedMetricTracker interprets that value as unset.
-  tick_clock_.Advance(base::Milliseconds(100));
+  tick_clock_.Advance(base::TimeDelta::FromMilliseconds(100));
 }
 
 void ShelfButtonPressedMetricTrackerTest::TearDown() {
@@ -112,7 +131,7 @@ void ShelfButtonPressedMetricTrackerTest::ButtonPressed(
 
 void ShelfButtonPressedMetricTrackerTest::ButtonPressed(
     ShelfAction performed_action) {
-  const ui::test::TestEvent kDummyEvent(ui::ET_GESTURE_TAP);
+  const DummyEvent kDummyEvent;
   const DummyButton kDummyButton;
   metric_tracker_->ButtonPressed(kDummyEvent, &kDummyButton, performed_action);
 }
@@ -120,7 +139,7 @@ void ShelfButtonPressedMetricTrackerTest::ButtonPressed(
 void ShelfButtonPressedMetricTrackerTest::ButtonPressed(
     const views::Button* sender,
     ShelfAction performed_action) {
-  const ui::test::TestEvent kDummyEvent(ui::ET_GESTURE_TAP);
+  const DummyEvent kDummyEvent;
   metric_tracker_->ButtonPressed(kDummyEvent, sender, performed_action);
 }
 
@@ -256,7 +275,8 @@ TEST_F(ShelfButtonPressedMetricTrackerTest,
   base::HistogramTester histogram_tester;
 
   ButtonPressed(&kDummyButton, SHELF_ACTION_WINDOW_MINIMIZED);
-  tick_clock_.Advance(base::Milliseconds(kTimeDeltaInMilliseconds));
+  tick_clock_.Advance(
+      base::TimeDelta::FromMilliseconds(kTimeDeltaInMilliseconds));
   ButtonPressed(&kDummyButton, SHELF_ACTION_WINDOW_ACTIVATED);
 
   histogram_tester.ExpectTotalCount(

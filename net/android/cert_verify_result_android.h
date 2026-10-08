@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,9 @@
 
 #include "base/android/scoped_java_ref.h"
 
-namespace net::android {
+namespace net {
+
+namespace android {
 
 // The list of certificate verification results returned from Java side to the
 // C++ side.
@@ -44,6 +46,8 @@ void ExtractCertVerifyResult(const base::android::JavaRef<jobject>& result,
                              bool* is_issued_by_known_root,
                              std::vector<std::string>* verified_chain);
 
-}  // namespace net::android
+}  // namespace android
+
+}  // namespace net
 
 #endif  // NET_ANDROID_CERT_VERIFY_RESULT_ANDROID_H_

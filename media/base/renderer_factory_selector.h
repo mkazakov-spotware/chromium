@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,10 @@
 #include <map>
 
 #include "base/callback.h"
+#include "base/optional.h"
 #include "build/build_config.h"
-#include "media/base/media_export.h"
 #include "media/base/media_status.h"
-#include "media/base/renderer.h"
 #include "media/base/renderer_factory.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace media {
 
@@ -32,42 +30,58 @@ namespace media {
 //
 // Notes:
 // - One and at most one base factory must be set.
-// - The base factory can be changed by calling SetBaseRendererType().
+// - The base factory can be changed by calling SetBaseFactoryType().
 // - Multiple conditional factories are supported but there should be at most
 //   one conditional factory for any factory type. If multiple conditions are
 //   met, it's up to the implementation detail which factory will be returned.
+
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+enum class RendererFactoryType {
+  kDefault = 0,          // DefaultRendererFactory
+  kMojo = 1,             // MojoRendererFactory
+  kMediaPlayer = 2,      // MediaPlayerRendererClientFactory
+  kCourier = 3,          // CourierRendererFactory
+  kFlinging = 4,         // FlingingRendererClientFactory
+  kCast = 5,             // CastRendererClientFactory
+  kMediaFoundation = 6,  // MediaFoundationRendererClientFactory
+  kFuchsia = 7,          // FuchsiaRendererFactory
+  kRemoting = 8,         // RemotingRendererFactory
+  kMaxValue = kRemoting,
+};
+
 class MEDIA_EXPORT RendererFactorySelector {
  public:
   using ConditionalFactoryCB = base::RepeatingCallback<bool()>;
 
   RendererFactorySelector();
-
-  RendererFactorySelector(const RendererFactorySelector&) = delete;
-  RendererFactorySelector& operator=(const RendererFactorySelector&) = delete;
-
-  virtual ~RendererFactorySelector();
+  ~RendererFactorySelector();
 
   // See file level comments above.
-  void AddBaseFactory(RendererType type,
+  void AddBaseFactory(RendererFactoryType type,
                       std::unique_ptr<RendererFactory> factory);
-  void AddConditionalFactory(RendererType type,
+  void AddConditionalFactory(RendererFactoryType type,
                              std::unique_ptr<RendererFactory> factory,
                              ConditionalFactoryCB callback);
-  void AddFactory(RendererType type, std::unique_ptr<RendererFactory> factory);
+  void AddFactory(RendererFactoryType type,
+                  std::unique_ptr<RendererFactory> factory);
 
   // Sets the base factory to be returned, when there are no signals telling us
   // to select any specific factory.
-  void SetBaseRendererType(RendererType type);
+  // NOTE: |type| can be different than FactoryType::kDefault. kDefault is used
+  // to identify the DefaultRendererFactory, not to indicate that a factory
+  // should be used by default.
+  void SetBaseFactoryType(RendererFactoryType type);
 
-  // Returns the type of the Renderer for what GetCurrentFactory() would return.
-  // NOTE: SetBaseRendererType() must be called before calling this method.
-  virtual RendererType GetCurrentRendererType();
+  // Returns the type of the factory that GetCurrentFactory() would return.
+  // NOTE: SetBaseFactoryType() must be called before calling this method.
+  RendererFactoryType GetCurrentFactoryType();
 
   // Updates |current_factory_| if necessary, and returns its value.
-  // NOTE: SetBaseRendererType() must be called before calling this method.
-  virtual RendererFactory* GetCurrentFactory();
+  // NOTE: SetBaseFactoryType() must be called before calling this method.
+  RendererFactory* GetCurrentFactory();
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // Starts a request to receive a RemotePlayStateChangeCB, to be fulfilled
   // later by passing a request via SetRemotePlayStateChangeCB().
   // NOTE: There should be no pending request (this new one would overwrite it).
@@ -80,16 +94,19 @@ class MEDIA_EXPORT RendererFactorySelector {
 #endif
 
  private:
-  absl::optional<RendererType> base_renderer_type_;
+  base::Optional<RendererFactoryType> base_factory_type_;
 
-  // Use a map to avoid duplicate entries for the same RendererType.
-  std::map<RendererType, ConditionalFactoryCB> conditional_factories_;
+  // Use a map to avoid duplicate entires for the same FactoryType.
+  std::map<RendererFactoryType, ConditionalFactoryCB>
+      conditional_factory_types_;
 
   RequestRemotePlayStateChangeCB remote_play_state_change_cb_request_;
 
-  std::map<RendererType, std::unique_ptr<RendererFactory>> factories_;
+  std::map<RendererFactoryType, std::unique_ptr<RendererFactory>> factories_;
+
+  DISALLOW_COPY_AND_ASSIGN(RendererFactorySelector);
 };
 
 }  // namespace media
 
-#endif  // MEDIA_BASE_RENDERER_FACTORY_SELECTOR_H_
+#endif  // MEDIA_BASE_RENDERER_FACTORY_H_

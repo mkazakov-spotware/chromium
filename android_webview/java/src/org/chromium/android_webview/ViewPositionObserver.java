@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -99,5 +99,12 @@ public class ViewPositionObserver {
         if (mPosition[0] != previousPositionX || mPosition[1] != previousPositionY) {
             notifyListeners();
         }
+    }
+
+    /**
+     * Clears installed listener(s).
+     */
+    public void clearListener() {
+        mListeners.clear();
     }
 }

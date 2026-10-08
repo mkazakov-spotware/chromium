@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,14 @@
 
 class FakeUrlLoadingBrowserAgent : public UrlLoadingBrowserAgent {
  public:
-  // Injects an instance attached to `browser`, using the superclass user data
+  // Injects an instance attached to |browser|, using the superclass user data
   // key.
   static void InjectForBrowser(Browser* browser);
 
   static FakeUrlLoadingBrowserAgent* FromUrlLoadingBrowserAgent(
       UrlLoadingBrowserAgent*);
 
-  // These are the last parameters passed to `SwitchToTab`,
-  // `LoadUrlInCurrentTab` or `LoadUrlInNewTab`.
+  // These are the last parameters passed to |OpenUrl|.
   UrlLoadParams last_params;
 
   // Call counts for overridden methods.
@@ -29,13 +28,13 @@ class FakeUrlLoadingBrowserAgent : public UrlLoadingBrowserAgent {
  private:
   explicit FakeUrlLoadingBrowserAgent(Browser* browser);
 
-  // Switches to a tab that matches `params.web_params` or opens in a new tab.
+  // Switches to a tab that matches |params.web_params| or opens in a new tab.
   void SwitchToTab(const UrlLoadParams& params) override;
 
-  // Opens a url based on `params` in current tab.
+  // Opens a url based on |params| in current tab.
   void LoadUrlInCurrentTab(const UrlLoadParams& params) override;
 
-  // Opens a url based on `params` in a new tab.
+  // Opens a url based on |params| in a new tab.
   void LoadUrlInNewTab(const UrlLoadParams& params) override;
 };
 

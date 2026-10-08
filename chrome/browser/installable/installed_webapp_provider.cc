@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,10 @@
 #include <utility>
 #include <vector>
 
+#include "base/feature_list.h"
+#include "base/macros.h"
 #include "base/values.h"
+#include "chrome/browser/flags/android/chrome_feature_list.h"
 #include "chrome/browser/installable/installed_webapp_bridge.h"
 #include "components/content_settings/core/browser/content_settings_rule.h"
 #include "components/content_settings/core/common/content_settings_pattern.h"
@@ -22,10 +25,6 @@ class InstalledWebappIterator : public content_settings::RuleIterator {
  public:
   explicit InstalledWebappIterator(InstalledWebappProvider::RuleList rules)
       : rules_(std::move(rules)) {}
-
-  InstalledWebappIterator(const InstalledWebappIterator&) = delete;
-  InstalledWebappIterator& operator=(const InstalledWebappIterator&) = delete;
-
   ~InstalledWebappIterator() override = default;
 
   bool HasNext() const override { return index_ < rules_.size(); }
@@ -38,12 +37,15 @@ class InstalledWebappIterator : public content_settings::RuleIterator {
 
     return content_settings::Rule(
         ContentSettingsPattern::FromURLNoWildcard(origin),
-        ContentSettingsPattern::Wildcard(), base::Value(setting), {});
+        ContentSettingsPattern::Wildcard(), base::Value(setting), base::Time(),
+        content_settings::SessionModel::Durable);
   }
 
  private:
   size_t index_ = 0;
   InstalledWebappProvider::RuleList rules_;
+
+  DISALLOW_COPY_AND_ASSIGN(InstalledWebappIterator);
 };
 
 bool IsSupportedContentType(ContentSettingsType content_type) {
@@ -51,7 +53,8 @@ bool IsSupportedContentType(ContentSettingsType content_type) {
     case ContentSettingsType::NOTIFICATIONS:
       return true;
     case ContentSettingsType::GEOLOCATION:
-      return true;
+      return base::FeatureList::IsEnabled(
+          chrome::android::kTrustedWebActivityLocationDelegation);
     default:
       return false;
   }
@@ -83,7 +86,7 @@ bool InstalledWebappProvider::SetWebsiteSetting(
     const ContentSettingsPattern& primary_pattern,
     const ContentSettingsPattern& secondary_pattern,
     ContentSettingsType content_type,
-    base::Value&& value,
+    std::unique_ptr<base::Value>&& value,
     const content_settings::ContentSettingConstraints& constraints) {
   // You can't set settings through this provider.
   return false;
@@ -100,6 +103,6 @@ void InstalledWebappProvider::ShutdownOnUIThread() {
 }
 
 void InstalledWebappProvider::Notify(ContentSettingsType content_type) {
-  NotifyObservers(ContentSettingsPattern::Wildcard(),
-                  ContentSettingsPattern::Wildcard(), content_type);
+  NotifyObservers(ContentSettingsPattern(), ContentSettingsPattern(),
+                  content_type);
 }

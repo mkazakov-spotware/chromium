@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,15 @@
 #include <string>
 
 #include "base/callback_forward.h"
-#include "base/values.h"
+#include "base/memory/ref_counted.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "services/device/public/mojom/usb_device.mojom.h"
+
+namespace base {
+class DictionaryValue;
+class ListValue;
+class Value;
+}
 
 namespace content {
 class BrowserContext;
@@ -27,19 +33,19 @@ namespace extensions {
 class PrinterProviderAPI : public KeyedService {
  public:
   using GetPrintersCallback =
-      base::RepeatingCallback<void(base::Value::List printers, bool done)>;
+      base::RepeatingCallback<void(const base::ListValue& printers, bool done)>;
   using GetCapabilityCallback =
-      base::OnceCallback<void(const base::Value::Dict capability)>;
+      base::OnceCallback<void(const base::DictionaryValue& capability)>;
   using PrintCallback = base::OnceCallback<void(const base::Value& error)>;
   using GetPrinterInfoCallback =
-      base::OnceCallback<void(const base::Value::Dict printer_info)>;
+      base::OnceCallback<void(const base::DictionaryValue& printer_info)>;
 
   static PrinterProviderAPI* Create(content::BrowserContext* context);
 
   // Returns generic error string for print request.
   static std::string GetDefaultPrintError();
 
-  ~PrinterProviderAPI() override = default;
+  ~PrinterProviderAPI() override {}
 
   // Requests list of supported printers from extensions implementing
   // chrome.printerProvider API. It dispatches

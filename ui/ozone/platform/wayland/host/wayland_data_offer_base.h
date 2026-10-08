@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/files/scoped_file.h"
+#include "base/macros.h"
 
 namespace ui {
 
@@ -17,10 +18,6 @@ namespace ui {
 class WaylandDataOfferBase {
  public:
   WaylandDataOfferBase();
-
-  WaylandDataOfferBase(const WaylandDataOfferBase&) = delete;
-  WaylandDataOfferBase& operator=(const WaylandDataOfferBase&) = delete;
-
   virtual ~WaylandDataOfferBase();
 
   const std::vector<std::string>& mime_types() const { return mime_types_; }
@@ -49,6 +46,8 @@ class WaylandDataOfferBase {
 
   // Whether "text/plain" had been inserted forcibly.
   bool text_plain_mime_type_inserted_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(WaylandDataOfferBase);
 };
 
 }  // namespace ui

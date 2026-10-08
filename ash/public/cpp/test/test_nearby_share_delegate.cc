@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,10 +18,6 @@ bool TestNearbyShareDelegate::IsPodButtonVisible() {
 
 bool TestNearbyShareDelegate::IsHighVisibilityOn() {
   return is_high_visibility_on_;
-}
-
-bool TestNearbyShareDelegate::IsEnableHighVisibilityRequestActive() const {
-  return is_enable_high_visibility_request_active_;
 }
 
 base::TimeTicks TestNearbyShareDelegate::HighVisibilityShutoffTime() const {

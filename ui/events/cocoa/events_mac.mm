@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,40 +24,40 @@ namespace ui {
 EventType EventTypeFromNative(const PlatformEvent& native_event) {
   NSEventType type = [native_event type];
   switch (type) {
-    case NSEventTypeKeyDown:
-    case NSEventTypeKeyUp:
-    case NSEventTypeFlagsChanged:
+    case NSKeyDown:
+    case NSKeyUp:
+    case NSFlagsChanged:
       return IsKeyUpEvent(native_event) ? ET_KEY_RELEASED : ET_KEY_PRESSED;
-    case NSEventTypeLeftMouseDown:
-    case NSEventTypeRightMouseDown:
-    case NSEventTypeOtherMouseDown:
+    case NSLeftMouseDown:
+    case NSRightMouseDown:
+    case NSOtherMouseDown:
       return ET_MOUSE_PRESSED;
-    case NSEventTypeLeftMouseUp:
-    case NSEventTypeRightMouseUp:
-    case NSEventTypeOtherMouseUp:
+    case NSLeftMouseUp:
+    case NSRightMouseUp:
+    case NSOtherMouseUp:
       return ET_MOUSE_RELEASED;
-    case NSEventTypeLeftMouseDragged:
-    case NSEventTypeRightMouseDragged:
-    case NSEventTypeOtherMouseDragged:
+    case NSLeftMouseDragged:
+    case NSRightMouseDragged:
+    case NSOtherMouseDragged:
       return ET_MOUSE_DRAGGED;
-    case NSEventTypeMouseMoved:
+    case NSMouseMoved:
       return ET_MOUSE_MOVED;
-    case NSEventTypeScrollWheel:
+    case NSScrollWheel:
       return ET_SCROLL;
-    case NSEventTypeMouseEntered:
+    case NSMouseEntered:
       return ET_MOUSE_ENTERED;
-    case NSEventTypeMouseExited:
+    case NSMouseExited:
       return ET_MOUSE_EXITED;
     case NSEventTypeSwipe:
       return ET_SCROLL_FLING_START;
-    case NSEventTypeAppKitDefined:
-    case NSEventTypeSystemDefined:
+    case NSAppKitDefined:
+    case NSSystemDefined:
       return ET_UNKNOWN;
-    case NSEventTypeApplicationDefined:
-    case NSEventTypePeriodic:
-    case NSEventTypeCursorUpdate:
-    case NSEventTypeTabletPoint:
-    case NSEventTypeTabletProximity:
+    case NSApplicationDefined:
+    case NSPeriodic:
+    case NSCursorUpdate:
+    case NSTabletPoint:
+    case NSTabletProximity:
     case NSEventTypeGesture:
     case NSEventTypeMagnify:
     case NSEventTypeRotate:
@@ -84,11 +84,6 @@ base::TimeTicks EventTimeFromNative(const PlatformEvent& native_event) {
   return timestamp;
 }
 
-base::TimeTicks EventLatencyTimeFromNative(const PlatformEvent& native_event,
-                                           base::TimeTicks current_time) {
-  return EventTimeFromNative(native_event);
-}
-
 gfx::PointF EventLocationFromNative(const PlatformEvent& native_event) {
   NSWindow* window = [native_event window];
   NSPoint location = [native_event locationInWindow];
@@ -112,17 +107,17 @@ int EventButtonFromNative(const PlatformEvent& native_event) {
 int GetChangedMouseButtonFlagsFromNative(const PlatformEvent& native_event) {
   NSEventType type = [native_event type];
   switch (type) {
-    case NSEventTypeLeftMouseDown:
-    case NSEventTypeLeftMouseUp:
-    case NSEventTypeLeftMouseDragged:
+    case NSLeftMouseDown:
+    case NSLeftMouseUp:
+    case NSLeftMouseDragged:
       return EF_LEFT_MOUSE_BUTTON;
-    case NSEventTypeRightMouseDown:
-    case NSEventTypeRightMouseUp:
-    case NSEventTypeRightMouseDragged:
+    case NSRightMouseDown:
+    case NSRightMouseUp:
+    case NSRightMouseDragged:
       return EF_RIGHT_MOUSE_BUTTON;
-    case NSEventTypeOtherMouseDown:
-    case NSEventTypeOtherMouseUp:
-    case NSEventTypeOtherMouseDragged:
+    case NSOtherMouseDown:
+    case NSOtherMouseUp:
+    case NSOtherMouseDragged:
       return EF_MIDDLE_MOUSE_BUTTON;
     default:
       break;
@@ -269,7 +264,7 @@ uint32_t WindowsKeycodeFromNative(const PlatformEvent& native_event) {
 
 uint16_t TextFromNative(const PlatformEvent& native_event) {
   NSString* text = @"";
-  if ([native_event type] != NSEventTypeFlagsChanged)
+  if ([native_event type] != NSFlagsChanged)
     text = [native_event characters];
 
   // These exceptions are based on web_input_event_builders_mac.mm:
@@ -288,7 +283,7 @@ uint16_t TextFromNative(const PlatformEvent& native_event) {
 
 uint16_t UnmodifiedTextFromNative(const PlatformEvent& native_event) {
   NSString* text = @"";
-  if ([native_event type] != NSEventTypeFlagsChanged)
+  if ([native_event type] != NSFlagsChanged)
     text = [native_event charactersIgnoringModifiers];
 
   // These exceptions are based on web_input_event_builders_mac.mm:

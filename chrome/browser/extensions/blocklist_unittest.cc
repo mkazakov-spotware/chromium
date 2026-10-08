@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@
 
 #include "base/bind.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/stl_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/extensions/blocklist_state_fetcher.h"
 #include "chrome/browser/extensions/fake_safe_browsing_database_manager.h"
-#include "chrome/browser/extensions/scoped_database_manager_for_test.h"
 #include "chrome/browser/extensions/test_blocklist.h"
 #include "chrome/browser/extensions/test_blocklist_state_fetcher.h"
 #include "chrome/browser/extensions/test_extension_prefs.h"
@@ -22,8 +22,7 @@ namespace {
 
 class BlocklistTest : public testing::Test {
  public:
-  BlocklistTest()
-      : test_prefs_(base::SingleThreadTaskRunner::GetCurrentDefault()) {}
+  BlocklistTest() : test_prefs_(base::ThreadTaskRunnerHandle::Get()) {}
 
  protected:
   ExtensionPrefs* prefs() { return test_prefs_.prefs(); }
@@ -61,7 +60,7 @@ TEST_F(BlocklistTest, OnlyIncludesRequestedIDs) {
 
   std::set<std::string> blocklisted_ids;
   blocklist.GetMalwareIDs(
-      {a, c}, base::BindOnce(&Assign<std::set<std::string>>, &blocklisted_ids));
+      {a, c}, base::Bind(&Assign<std::set<std::string>>, &blocklisted_ids));
   base::RunLoop().RunUntilIdle();
 
   EXPECT_EQ((std::set<std::string>{a}), blocklisted_ids);
@@ -111,10 +110,10 @@ TEST_F(BlocklistTest, GetBlocklistStates) {
   Blocklist::BlocklistStateMap states_bcd;
   blocklist.GetBlocklistedIDs(
       {a, b, c, e},
-      base::BindOnce(&Assign<Blocklist::BlocklistStateMap>, &states_abc));
+      base::Bind(&Assign<Blocklist::BlocklistStateMap>, &states_abc));
   blocklist.GetBlocklistedIDs(
       {b, c, d, e},
-      base::BindOnce(&Assign<Blocklist::BlocklistStateMap>, &states_bcd));
+      base::Bind(&Assign<Blocklist::BlocklistStateMap>, &states_bcd));
   base::RunLoop().RunUntilIdle();
 
   EXPECT_EQ(BLOCKLISTED_MALWARE, states_abc[a]);
@@ -129,8 +128,7 @@ TEST_F(BlocklistTest, GetBlocklistStates) {
   int old_request_count = tester.fetcher()->request_count();
   Blocklist::BlocklistStateMap states_ad;
   blocklist.GetBlocklistedIDs(
-      {a, d, e},
-      base::BindOnce(&Assign<Blocklist::BlocklistStateMap>, &states_ad));
+      {a, d, e}, base::Bind(&Assign<Blocklist::BlocklistStateMap>, &states_ad));
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(BLOCKLISTED_MALWARE, states_ad[a]);
   EXPECT_EQ(BLOCKLISTED_POTENTIALLY_UNWANTED, states_ad[d]);
@@ -144,7 +142,7 @@ TEST_F(BlocklistTest, FetchBlocklistStates) {
   Blocklist blocklist(prefs());
   scoped_refptr<FakeSafeBrowsingDatabaseManager> blocklist_db(
       new FakeSafeBrowsingDatabaseManager(true));
-  ScopedDatabaseManagerForTest scoped_blocklist_db(blocklist_db);
+  Blocklist::ScopedDatabaseManagerForTest scoped_blocklist_db(blocklist_db);
 
   std::string a = AddExtension("a");
   std::string b = AddExtension("b");
@@ -165,8 +163,7 @@ TEST_F(BlocklistTest, FetchBlocklistStates) {
 
   Blocklist::BlocklistStateMap states;
   blocklist.GetBlocklistedIDs(
-      {a, b, c},
-      base::BindOnce(&Assign<Blocklist::BlocklistStateMap>, &states));
+      {a, b, c}, base::Bind(&Assign<Blocklist::BlocklistStateMap>, &states));
   base::RunLoop().RunUntilIdle();
 
   // Two fetchers should be created.
@@ -181,7 +178,7 @@ TEST_F(BlocklistTest, FetchBlocklistStates) {
 
   blocklist.GetBlocklistedIDs(
       {a, b, c},
-      base::BindOnce(&Assign<Blocklist::BlocklistStateMap>, &cached_states));
+      base::Bind(&Assign<Blocklist::BlocklistStateMap>, &cached_states));
   base::RunLoop().RunUntilIdle();
 
   // No new fetchers.

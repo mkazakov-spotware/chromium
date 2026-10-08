@@ -1,5 +1,4 @@
-#!/usr/bin/env vpython3
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -35,48 +34,25 @@ class UnitTest(unittest.TestCase):
   def test_compose_test_result(self):
     """Tests compose_test_result function."""
     # Test a test result without log_path.
-    test_result = result_sink_util._compose_test_result(
-        'TestCase/testSomething', 'PASS', True)
+    test_result = result_sink_util.compose_test_result('TestCase/testSomething',
+                                                       'PASS', True)
     expected = {
         'testId': 'TestCase/testSomething',
         'status': 'PASS',
         'expected': True,
         'tags': [],
-        'testMetadata': {
-            'name': 'TestCase/testSomething',
-            'location': None,
-        },
     }
     self.assertEqual(test_result, expected)
-    short_log = 'Some logs.'
     # Tests a test result with log_path.
-    test_result = result_sink_util._compose_test_result(
-        'TestCase/testSomething',
-        'PASS',
-        True,
-        test_log=short_log,
-        duration=1233,
-        file_artifacts={'name': '/path/to/name'})
+    test_result = result_sink_util.compose_test_result('TestCase/testSomething',
+                                                       'PASS', True,
+                                                       'Some logs.')
     expected = {
         'testId': 'TestCase/testSomething',
         'status': 'PASS',
         'expected': True,
-        'summaryHtml': '<text-artifact artifact-id="Test Log" />',
-        'artifacts': {
-            'Test Log': {
-                'contents':
-                    base64.b64encode(short_log.encode('utf-8')).decode('utf-8')
-            },
-            'name': {
-                'filePath': '/path/to/name'
-            },
-        },
-        'duration': '1.233000000s',
+        'summaryHtml': '<pre>Some logs.</pre>',
         'tags': [],
-        'testMetadata': {
-            'name': 'TestCase/testSomething',
-            'location': None,
-        },
     }
     self.assertEqual(test_result, expected)
 
@@ -86,48 +62,45 @@ class UnitTest(unittest.TestCase):
     self.assertEqual(len(len_32_str), 32)
     len_4128_str = (4 * 32 + 1) * len_32_str
     self.assertEqual(len(len_4128_str), 4128)
+    expected_summary_html = ('<pre>' + len_32_str * 126 + 'This is a stri' +
+                             '...Full output in "Test Log" Artifact.</pre>')
 
     expected = {
         'testId': 'TestCase/testSomething',
         'status': 'PASS',
         'expected': True,
-        'summaryHtml': '<text-artifact artifact-id="Test Log" />',
+        'summaryHtml': expected_summary_html,
         'artifacts': {
             'Test Log': {
-                'contents':
-                    base64.b64encode(len_4128_str.encode('utf-8')
-                                    ).decode('utf-8')
+                'contents': base64.b64encode(len_4128_str)
             },
         },
         'tags': [],
-        'testMetadata': {
-            'name': 'TestCase/testSomething',
-            'location': None,
-        },
     }
-    test_result = result_sink_util._compose_test_result(
-        'TestCase/testSomething', 'PASS', True, test_log=len_4128_str)
+    test_result = result_sink_util.compose_test_result('TestCase/testSomething',
+                                                       'PASS', True,
+                                                       len_4128_str)
     self.assertEqual(test_result, expected)
 
   def test_compose_test_result_assertions(self):
     """Tests invalid status is rejected"""
     with self.assertRaises(AssertionError):
-      test_result = result_sink_util._compose_test_result(
+      test_result = result_sink_util.compose_test_result(
           'TestCase/testSomething', 'SOME_INVALID_STATUS', True)
 
     with self.assertRaises(AssertionError):
-      test_result = result_sink_util._compose_test_result(
+      test_result = result_sink_util.compose_test_result(
           'TestCase/testSomething', 'PASS', True, tags=('a', 'b'))
 
     with self.assertRaises(AssertionError):
-      test_result = result_sink_util._compose_test_result(
+      test_result = result_sink_util.compose_test_result(
           'TestCase/testSomething',
           'PASS',
           True,
           tags=[('a', 'b', 'c'), ('d', 'e')])
 
     with self.assertRaises(AssertionError):
-      test_result = result_sink_util._compose_test_result(
+      test_result = result_sink_util.compose_test_result(
           'TestCase/testSomething', 'PASS', True, tags=[('a', 'b'), ('c', 3)])
 
   def test_composed_with_tags(self):
@@ -139,40 +112,12 @@ class UnitTest(unittest.TestCase):
         'tags': [{
             'key': 'disabled_test',
             'value': 'true',
-        }],
-        'testMetadata': {
-            'name': 'TestCase/testSomething',
-            'location': None,
-        },
+        }]
     }
-    test_result = result_sink_util._compose_test_result(
+    test_result = result_sink_util.compose_test_result(
         'TestCase/testSomething',
         'SKIP',
         True,
-        tags=[('disabled_test', 'true')])
-    self.assertEqual(test_result, expected)
-
-  def test_composed_with_location(self):
-    """Tests with test locations"""
-    test_loc = {'repo': 'https://test', 'fileName': '//test.cc'}
-    expected = {
-        'testId': 'TestCase/testSomething',
-        'status': 'SKIP',
-        'expected': True,
-        'tags': [{
-            'key': 'disabled_test',
-            'value': 'true',
-        }],
-        'testMetadata': {
-            'name': 'TestCase/testSomething',
-            'location': test_loc,
-        },
-    }
-    test_result = result_sink_util._compose_test_result(
-        'TestCase/testSomething',
-        'SKIP',
-        True,
-        test_loc=test_loc,
         tags=[('disabled_test', 'true')])
     self.assertEqual(test_result, expected)
 
@@ -180,7 +125,7 @@ class UnitTest(unittest.TestCase):
   @mock.patch('%s.open' % 'result_sink_util',
               mock.mock_open(read_data=LUCI_CONTEXT_FILE_DATA))
   @mock.patch('os.environ.get', return_value='filename')
-  def test_post_test_result(self, mock_open_file, mock_session_post):
+  def test_post(self, mock_open_file, mock_session_post):
     test_result = {
         'testId': 'TestCase/testSomething',
         'status': 'SKIP',
@@ -188,15 +133,11 @@ class UnitTest(unittest.TestCase):
         'tags': [{
             'key': 'disabled_test',
             'value': 'true',
-        }],
-        'testMetadata': {
-            'name': 'TestCase/testSomething',
-            'location': None,
-        },
+        }]
     }
     client = result_sink_util.ResultSinkClient()
 
-    client._post_test_result(test_result)
+    client.post(test_result)
     mock_session_post.assert_called_with(
         url=SINK_POST_URL,
         headers=HEADERS,
@@ -211,39 +152,11 @@ class UnitTest(unittest.TestCase):
 
     client = result_sink_util.ResultSinkClient()
 
-    client._post_test_result({'some': 'result'})
+    client.post({'some': 'result'})
     mock_session_post.assert_called()
 
     client.close()
     mock_session_close.assert_called()
-
-  def test_post(self):
-    client = result_sink_util.ResultSinkClient()
-    client.sink = 'Make sink not None so _compose_test_result will be called'
-    client._post_test_result = mock.MagicMock()
-
-    client.post(
-        'testname',
-        'PASS',
-        True,
-        test_log='some_log',
-        tags=[('tag key', 'tag value')])
-    client._post_test_result.assert_called_with(
-        result_sink_util._compose_test_result(
-            'testname',
-            'PASS',
-            True,
-            test_log='some_log',
-            tags=[('tag key', 'tag value')]))
-
-    client.post('testname', 'PASS', True, test_log='some_log')
-    client._post_test_result.assert_called_with(
-        result_sink_util._compose_test_result(
-            'testname', 'PASS', True, test_log='some_log'))
-
-    client.post('testname', 'PASS', True)
-    client._post_test_result.assert_called_with(
-        result_sink_util._compose_test_result('testname', 'PASS', True))
 
 
 if __name__ == '__main__':

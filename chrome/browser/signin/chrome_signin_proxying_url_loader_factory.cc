@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,7 @@
 #include "base/barrier_closure.h"
 #include "base/bind.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/supports_user_data.h"
-#include "build/build_config.h"
 #include "build/buildflag.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/chrome_signin_helper.h"
@@ -21,21 +19,10 @@
 #include "content/public/browser/render_process_host.h"
 #include "extensions/browser/guest_view/web_view/web_view_renderer_state.h"
 #include "extensions/buildflags/buildflags.h"
-#include "google_apis/gaia/gaia_urls.h"
-#include "mojo/public/cpp/bindings/pending_receiver.h"
+#include "google_apis/gaia/gaia_auth_util.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "net/base/net_errors.h"
-#include "services/network/public/cpp/resource_request.h"
-#include "services/network/public/mojom/early_hints.mojom.h"
-#include "services/network/public/mojom/fetch_api.mojom-shared.h"
 #include "services/network/public/mojom/url_loader.mojom.h"
-#include "services/network/public/mojom/url_loader_factory.mojom.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
-
-#if BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/android/tab_android.h"
-#include "chrome/browser/android/tab_web_contents_delegate_android.h"
-#endif
 
 namespace signin {
 
@@ -47,9 +34,6 @@ const void* const kBrowserContextUserDataKey = &kBrowserContextUserDataKey;
 // Owns all of the ProxyingURLLoaderFactorys for a given Profile.
 class BrowserContextData : public base::SupportsUserData::Data {
  public:
-  BrowserContextData(const BrowserContextData&) = delete;
-  BrowserContextData& operator=(const BrowserContextData&) = delete;
-
   ~BrowserContextData() override {}
 
   static void StartProxying(
@@ -64,22 +48,7 @@ class BrowserContextData : public base::SupportsUserData::Data {
       profile->SetUserData(kBrowserContextUserDataKey, base::WrapUnique(self));
     }
 
-#if BUILDFLAG(IS_ANDROID)
-    bool is_custom_tab = false;
-    content::WebContents* web_contents = web_contents_getter.Run();
-    if (web_contents) {
-      auto* delegate =
-          TabAndroid::FromWebContents(web_contents)
-              ? static_cast<android::TabWebContentsDelegateAndroid*>(
-                    web_contents->GetDelegate())
-              : nullptr;
-      is_custom_tab = delegate && delegate->IsCustomTab();
-    }
-    auto delegate = std::make_unique<HeaderModificationDelegateImpl>(
-        profile, /*incognito_enabled=*/!is_custom_tab);
-#else
     auto delegate = std::make_unique<HeaderModificationDelegateImpl>(profile);
-#endif
     auto proxy = std::make_unique<ProxyingURLLoaderFactory>(
         std::move(delegate), std::move(web_contents_getter),
         std::move(receiver), std::move(target_factory),
@@ -101,6 +70,8 @@ class BrowserContextData : public base::SupportsUserData::Data {
       proxies_;
 
   base::WeakPtrFactory<BrowserContextData> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(BrowserContextData);
 };
 
 }  // namespace
@@ -113,14 +84,12 @@ class ProxyingURLLoaderFactory::InProgressRequest
   InProgressRequest(
       ProxyingURLLoaderFactory* factory,
       mojo::PendingReceiver<network::mojom::URLLoader> loader_receiver,
+      int32_t routing_id,
       int32_t request_id,
       uint32_t options,
       const network::ResourceRequest& request,
       mojo::PendingRemote<network::mojom::URLLoaderClient> client,
       const net::MutableNetworkTrafficAnnotationTag& traffic_annotation);
-
-  InProgressRequest(const InProgressRequest&) = delete;
-  InProgressRequest& operator=(const InProgressRequest&) = delete;
 
   ~InProgressRequest() override {
     if (destruction_callback_)
@@ -132,7 +101,7 @@ class ProxyingURLLoaderFactory::InProgressRequest
       const std::vector<std::string>& removed_headers,
       const net::HttpRequestHeaders& modified_headers,
       const net::HttpRequestHeaders& modified_cors_exempt_headers,
-      const absl::optional<GURL>& new_url) override;
+      const base::Optional<GURL>& new_url) override;
 
   void SetPriority(net::RequestPriority priority,
                    int32_t intra_priority_value) override {
@@ -148,13 +117,7 @@ class ProxyingURLLoaderFactory::InProgressRequest
   }
 
   // network::mojom::URLLoaderClient:
-  void OnReceiveEarlyHints(network::mojom::EarlyHintsPtr early_hints) override {
-    target_client_->OnReceiveEarlyHints(std::move(early_hints));
-  }
-  void OnReceiveResponse(
-      network::mojom::URLResponseHeadPtr head,
-      mojo::ScopedDataPipeConsumerHandle body,
-      absl::optional<mojo_base::BigBuffer> cached_metadata) override;
+  void OnReceiveResponse(network::mojom::URLResponseHeadPtr head) override;
   void OnReceiveRedirect(const net::RedirectInfo& redirect_info,
                          network::mojom::URLResponseHeadPtr head) override;
 
@@ -165,8 +128,17 @@ class ProxyingURLLoaderFactory::InProgressRequest
                                      std::move(callback));
   }
 
+  void OnReceiveCachedMetadata(mojo_base::BigBuffer data) override {
+    target_client_->OnReceiveCachedMetadata(std::move(data));
+  }
+
   void OnTransferSizeUpdated(int32_t transfer_size_diff) override {
     target_client_->OnTransferSizeUpdated(transfer_size_diff);
+  }
+
+  void OnStartLoadingResponseBody(
+      mojo::ScopedDataPipeConsumerHandle body) override {
+    target_client_->OnStartLoadingResponseBody(std::move(body));
   }
 
   void OnComplete(const network::URLLoaderCompletionStatus& status) override {
@@ -183,18 +155,17 @@ class ProxyingURLLoaderFactory::InProgressRequest
   }
 
   // Back pointer to the factory which owns this class.
-  const raw_ptr<ProxyingURLLoaderFactory> factory_;
+  ProxyingURLLoaderFactory* const factory_;
 
   // Information about the current request.
   GURL request_url_;
   GURL response_url_;
-  GURL referrer_;
+  GURL referrer_origin_;
   net::HttpRequestHeaders headers_;
   net::HttpRequestHeaders cors_exempt_headers_;
   net::RedirectInfo redirect_info_;
-  const network::mojom::RequestDestination request_destination_;
-  const bool is_outermost_main_frame_;
-  const bool is_fetch_like_api_;
+  const blink::mojom::ResourceType resource_type_;
+  const bool is_main_frame_;
 
   base::OnceClosure destruction_callback_;
 
@@ -205,6 +176,8 @@ class ProxyingURLLoaderFactory::InProgressRequest
   // Messages received by |loader_receiver_| are forwarded to |target_loader_|.
   mojo::Receiver<network::mojom::URLLoader> loader_receiver_;
   mojo::Remote<network::mojom::URLLoader> target_loader_;
+
+  DISALLOW_COPY_AND_ASSIGN(InProgressRequest);
 };
 
 class ProxyingURLLoaderFactory::InProgressRequest::ProxyRequestAdapter
@@ -224,28 +197,19 @@ class ProxyingURLLoaderFactory::InProgressRequest::ProxyRequestAdapter
     DCHECK(in_progress_request_);
   }
 
-  ProxyRequestAdapter(const ProxyRequestAdapter&) = delete;
-  ProxyRequestAdapter& operator=(const ProxyRequestAdapter&) = delete;
-
   ~ProxyRequestAdapter() override = default;
 
   content::WebContents::Getter GetWebContentsGetter() const override {
     return in_progress_request_->factory_->web_contents_getter_;
   }
 
-  network::mojom::RequestDestination GetRequestDestination() const override {
-    return in_progress_request_->request_destination_;
+  blink::mojom::ResourceType GetResourceType() const override {
+    return in_progress_request_->resource_type_;
   }
 
-  bool IsOutermostMainFrame() const override {
-    return in_progress_request_->is_outermost_main_frame_;
+  GURL GetReferrerOrigin() const override {
+    return in_progress_request_->referrer_origin_;
   }
-
-  bool IsFetchLikeAPI() const override {
-    return in_progress_request_->is_fetch_like_api_;
-  }
-
-  GURL GetReferrer() const override { return in_progress_request_->referrer_; }
 
   void SetDestructionCallback(base::OnceClosure closure) override {
     if (!in_progress_request_->destruction_callback_)
@@ -253,7 +217,9 @@ class ProxyingURLLoaderFactory::InProgressRequest::ProxyRequestAdapter
   }
 
  private:
-  const raw_ptr<InProgressRequest> in_progress_request_;
+  InProgressRequest* const in_progress_request_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProxyRequestAdapter);
 };
 
 class ProxyingURLLoaderFactory::InProgressRequest::ProxyResponseAdapter
@@ -266,9 +232,6 @@ class ProxyingURLLoaderFactory::InProgressRequest::ProxyResponseAdapter
     DCHECK(headers_);
   }
 
-  ProxyResponseAdapter(const ProxyResponseAdapter&) = delete;
-  ProxyResponseAdapter& operator=(const ProxyResponseAdapter&) = delete;
-
   ~ProxyResponseAdapter() override = default;
 
   // signin::ResponseAdapter
@@ -276,11 +239,13 @@ class ProxyingURLLoaderFactory::InProgressRequest::ProxyResponseAdapter
     return in_progress_request_->factory_->web_contents_getter_;
   }
 
-  bool IsOutermostMainFrame() const override {
-    return in_progress_request_->is_outermost_main_frame_;
+  bool IsMainFrame() const override {
+    return in_progress_request_->is_main_frame_;
   }
 
-  GURL GetURL() const override { return in_progress_request_->response_url_; }
+  GURL GetOrigin() const override {
+    return in_progress_request_->response_url_.GetOrigin();
+  }
 
   const net::HttpResponseHeaders* GetHeaders() const override {
     return headers_;
@@ -301,13 +266,16 @@ class ProxyingURLLoaderFactory::InProgressRequest::ProxyResponseAdapter
   }
 
  private:
-  const raw_ptr<InProgressRequest, DanglingUntriaged> in_progress_request_;
-  const raw_ptr<net::HttpResponseHeaders, DanglingUntriaged> headers_;
+  InProgressRequest* const in_progress_request_;
+  net::HttpResponseHeaders* const headers_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProxyResponseAdapter);
 };
 
 ProxyingURLLoaderFactory::InProgressRequest::InProgressRequest(
     ProxyingURLLoaderFactory* factory,
     mojo::PendingReceiver<network::mojom::URLLoader> loader_receiver,
+    int32_t routing_id,
     int32_t request_id,
     uint32_t options,
     const network::ResourceRequest& request,
@@ -316,10 +284,10 @@ ProxyingURLLoaderFactory::InProgressRequest::InProgressRequest(
     : factory_(factory),
       request_url_(request.url),
       response_url_(request.url),
-      referrer_(request.referrer),
-      request_destination_(request.destination),
-      is_outermost_main_frame_(request.is_outermost_main_frame),
-      is_fetch_like_api_(request.is_fetch_like_api),
+      referrer_origin_(request.referrer.GetOrigin()),
+      resource_type_(
+          static_cast<blink::mojom::ResourceType>(request.resource_type)),
+      is_main_frame_(request.is_main_frame),
       target_client_(std::move(client)),
       loader_receiver_(this, std::move(loader_receiver)) {
   mojo::PendingRemote<network::mojom::URLLoaderClient> proxy_client =
@@ -333,8 +301,8 @@ ProxyingURLLoaderFactory::InProgressRequest::InProgressRequest(
 
   if (modified_headers.IsEmpty() && removed_headers.empty()) {
     factory_->target_factory_->CreateLoaderAndStart(
-        target_loader_.BindNewPipeAndPassReceiver(), request_id, options,
-        request, std::move(proxy_client), traffic_annotation);
+        target_loader_.BindNewPipeAndPassReceiver(), routing_id, request_id,
+        options, request, std::move(proxy_client), traffic_annotation);
 
     // We need to keep a full copy of the request headers in case there is a
     // redirect and the request headers need to be modified again.
@@ -349,8 +317,8 @@ ProxyingURLLoaderFactory::InProgressRequest::InProgressRequest(
     }
 
     factory_->target_factory_->CreateLoaderAndStart(
-        target_loader_.BindNewPipeAndPassReceiver(), request_id, options,
-        request_copy, std::move(proxy_client), traffic_annotation);
+        target_loader_.BindNewPipeAndPassReceiver(), routing_id, request_id,
+        options, request_copy, std::move(proxy_client), traffic_annotation);
 
     headers_.Swap(&request_copy.headers);
     cors_exempt_headers_.Swap(&request_copy.cors_exempt_headers);
@@ -367,7 +335,7 @@ void ProxyingURLLoaderFactory::InProgressRequest::FollowRedirect(
     const std::vector<std::string>& removed_headers_ext,
     const net::HttpRequestHeaders& modified_headers_ext,
     const net::HttpRequestHeaders& modified_cors_exempt_headers_ext,
-    const absl::optional<GURL>& opt_new_url) {
+    const base::Optional<GURL>& opt_new_url) {
   std::vector<std::string> removed_headers = removed_headers_ext;
   net::HttpRequestHeaders modified_headers = modified_headers_ext;
   net::HttpRequestHeaders modified_cors_exempt_headers =
@@ -387,19 +355,16 @@ void ProxyingURLLoaderFactory::InProgressRequest::FollowRedirect(
                                  modified_cors_exempt_headers, opt_new_url);
 
   request_url_ = redirect_info_.new_url;
-  referrer_ = GURL(redirect_info_.new_referrer);
+  referrer_origin_ = GURL(redirect_info_.new_referrer).GetOrigin();
 }
 
 void ProxyingURLLoaderFactory::InProgressRequest::OnReceiveResponse(
-    network::mojom::URLResponseHeadPtr head,
-    mojo::ScopedDataPipeConsumerHandle body,
-    absl::optional<mojo_base::BigBuffer> cached_metadata) {
+    network::mojom::URLResponseHeadPtr head) {
   // Even though |head| is const we can get a non-const pointer to the headers
   // and modifications we made are passed to the target client.
   ProxyResponseAdapter adapter(this, head->headers.get());
   factory_->delegate_->ProcessResponse(&adapter, GURL() /* redirect_url */);
-  target_client_->OnReceiveResponse(std::move(head), std::move(body),
-                                    std::move(cached_metadata));
+  target_client_->OnReceiveResponse(std::move(head));
 }
 
 void ProxyingURLLoaderFactory::InProgressRequest::OnReceiveRedirect(
@@ -411,7 +376,7 @@ void ProxyingURLLoaderFactory::InProgressRequest::OnReceiveRedirect(
   factory_->delegate_->ProcessResponse(&adapter, redirect_info.new_url);
   target_client_->OnReceiveRedirect(redirect_info, std::move(head));
 
-  // The request URL returned by ProxyResponseAdapter::GetURL() is updated
+  // The request URL returned by ProxyResponseAdapter::GetOrigin() is updated
   // immediately but the URL and referrer
   redirect_info_ = redirect_info;
   response_url_ = redirect_info.new_url;
@@ -461,7 +426,7 @@ bool ProxyingURLLoaderFactory::MaybeProxyRequest(
 
   // This proxy should only be installed for subresource requests from a frame
   // that is rendering the GAIA signon realm.
-  if (request_initiator != GaiaUrls::GetInstance()->gaia_origin())
+  if (!gaia::IsGaiaSignonRealm(request_initiator.GetURL()))
     return false;
 
   auto* web_contents =
@@ -496,14 +461,15 @@ bool ProxyingURLLoaderFactory::MaybeProxyRequest(
 
 void ProxyingURLLoaderFactory::CreateLoaderAndStart(
     mojo::PendingReceiver<network::mojom::URLLoader> loader_receiver,
+    int32_t routing_id,
     int32_t request_id,
     uint32_t options,
     const network::ResourceRequest& request,
     mojo::PendingRemote<network::mojom::URLLoaderClient> client,
     const net::MutableNetworkTrafficAnnotationTag& traffic_annotation) {
   requests_.insert(std::make_unique<InProgressRequest>(
-      this, std::move(loader_receiver), request_id, options, request,
-      std::move(client), traffic_annotation));
+      this, std::move(loader_receiver), routing_id, request_id, options,
+      request, std::move(client), traffic_annotation));
 }
 
 void ProxyingURLLoaderFactory::Clone(

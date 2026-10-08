@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 #define NET_SSL_CLIENT_CERT_STORE_WIN_H_
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/win/wincrypt_shim.h"
-#include "crypto/scoped_capi_types.h"
 #include "net/base/net_export.h"
 #include "net/ssl/client_cert_store.h"
 #include "net/ssl/ssl_cert_request_info.h"
@@ -20,12 +20,10 @@ class NET_EXPORT ClientCertStoreWin : public ClientCertStore {
   ClientCertStoreWin();
 
   // Calls |cert_store_callback| on the platform key thread to determine the
-  // certificate store.
+  // certificate store. ClientCertStoreWin takes ownership of the resulting
+  // |HCERTSTORE| and closes it when the operation is finished.
   explicit ClientCertStoreWin(
-      base::RepeatingCallback<crypto::ScopedHCERTSTORE()> cert_store_callback);
-
-  ClientCertStoreWin(const ClientCertStoreWin&) = delete;
-  ClientCertStoreWin& operator=(const ClientCertStoreWin&) = delete;
+      base::RepeatingCallback<HCERTSTORE()> cert_store_callback);
 
   ~ClientCertStoreWin() override;
 
@@ -41,8 +39,7 @@ class NET_EXPORT ClientCertStoreWin : public ClientCertStore {
   // Opens the cert store and uses it to lookup the client certs.
   static ClientCertIdentityList GetClientCertsWithCertStore(
       const SSLCertRequestInfo& request,
-      const base::RepeatingCallback<crypto::ScopedHCERTSTORE()>&
-          cert_store_callback);
+      const base::RepeatingCallback<HCERTSTORE()>& cert_store_callback);
 
   // A hook for testing. Filters |input_certs| using the logic being used to
   // filter the system store when GetClientCerts() is called.
@@ -52,7 +49,9 @@ class NET_EXPORT ClientCertStoreWin : public ClientCertStore {
                                    const SSLCertRequestInfo& cert_request_info,
                                    ClientCertIdentityList* selected_identities);
 
-  base::RepeatingCallback<crypto::ScopedHCERTSTORE()> cert_store_callback_;
+  base::RepeatingCallback<HCERTSTORE()> cert_store_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(ClientCertStoreWin);
 };
 
 }  // namespace net

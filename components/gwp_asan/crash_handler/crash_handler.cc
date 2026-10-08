@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "base/compiler_specific.h"
 #include "base/logging.h"
 #include "components/gwp_asan/crash_handler/crash.pb.h"
 #include "components/gwp_asan/crash_handler/crash_analyzer.h"
@@ -25,24 +26,22 @@ class BufferExtensionStreamDataSource final
  public:
   BufferExtensionStreamDataSource(uint32_t stream_type, const Crash& crash);
 
-  BufferExtensionStreamDataSource(const BufferExtensionStreamDataSource&) =
-      delete;
-  BufferExtensionStreamDataSource& operator=(
-      const BufferExtensionStreamDataSource&) = delete;
-
   size_t StreamDataSize() override;
   bool ReadStreamData(Delegate* delegate) override;
 
  private:
   std::string data_;
+
+  DISALLOW_COPY_AND_ASSIGN(BufferExtensionStreamDataSource);
 };
 
 BufferExtensionStreamDataSource::BufferExtensionStreamDataSource(
     uint32_t stream_type,
     const Crash& crash)
     : crashpad::MinidumpUserExtensionStreamDataSource(stream_type) {
-  [[maybe_unused]] bool result = crash.SerializeToString(&data_);
+  bool result = crash.SerializeToString(&data_);
   DCHECK(result);
+  ALLOW_UNUSED_LOCAL(result);
 }
 
 size_t BufferExtensionStreamDataSource::StreamDataSize() {

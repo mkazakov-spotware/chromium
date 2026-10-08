@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,8 @@
 namespace {
 
 const SkColor kSearchBackgroundColor = SkColorSetRGB(0xee, 0xee, 0xee);
+const SkColor kSearchBarBackgroundColor = SkColorSetRGB(0xff, 0xff, 0xff);
+const SkColor kBarBannerRippleBackgroundColor = SkColorSetRGB(0x42, 0x85, 0xF4);
 const SkColor kTouchHighlightColor = SkColorSetARGB(0x33, 0x99, 0x99, 0x99);
 
 }  // namespace
@@ -39,26 +41,27 @@ void ContextualSearchLayer::SetProperties(
     int search_bar_shadow_resource_id,
     int search_provider_icon_resource_id,
     int quick_action_icon_resource_id,
+    int arrow_up_resource_id,
     int drag_handlebar_resource_id,
     int open_tab_icon_resource_id,
     int close_icon_resource_id,
     int progress_bar_background_resource_id,
-    int progress_bar_background_tint,
     int progress_bar_resource_id,
-    int progress_bar_tint,
     int search_promo_resource_id,
+    int bar_banner_ripple_resource_id,
+    int bar_banner_text_resource_id,
     float dp_to_px,
     const scoped_refptr<cc::Layer>& content_layer,
     bool search_promo_visible,
     float search_promo_height,
     float search_promo_opacity,
     int search_promo_background_color,
-    // Related Searches
-    int related_searches_in_bar_resource_id,
-    bool related_searches_in_bar_visible,
-    float related_searches_in_bar_height,
-    float related_searches_in_bar_redundant_padding,
-    // Position etc
+    bool search_bar_banner_visible,
+    float search_bar_banner_height,
+    float search_bar_banner_padding,
+    float search_bar_banner_ripple_width,
+    float search_bar_banner_ripple_opacity,
+    float search_bar_banner_text_opacity,
     float search_panel_x,
     float search_panel_y,
     float search_panel_width,
@@ -80,11 +83,18 @@ void ContextualSearchLayer::SetProperties(
     int bar_image_size,
     int icon_color,
     int drag_handlebar_color,
+    float arrow_icon_opacity,
+    float arrow_icon_rotation,
     float close_icon_opacity,
     bool progress_bar_visible,
     float progress_bar_height,
     float progress_bar_opacity,
     float progress_bar_completion,
+    float divider_line_visibility_percentage,
+    float divider_line_width,
+    float divider_line_height,
+    int divider_line_color,
+    float divider_line_x_offset,
     bool touch_highlight_visible,
     float touch_highlight_x_offset,
     float touch_highlight_width,
@@ -93,7 +103,7 @@ void ContextualSearchLayer::SetProperties(
   // Round values to avoid pixel gap between layers.
   search_bar_height = floor(search_bar_height);
 
-  float search_bar_top = 0.f;
+  float search_bar_top = search_bar_banner_height;
   float search_bar_bottom = search_bar_top + search_bar_height;
   bool should_render_progress_bar =
       progress_bar_visible && progress_bar_opacity > 0.f;
@@ -104,7 +114,6 @@ void ContextualSearchLayer::SetProperties(
       search_provider_icon_resource_id, drag_handlebar_resource_id,
       open_tab_icon_resource_id, close_icon_resource_id);
 
-  //  TODO(donnd): Update when moving Related Searches.
   float content_view_top = search_bar_bottom + search_promo_height;
   float should_render_bar_border = search_bar_border_visible
       && !should_render_progress_bar;
@@ -118,14 +127,102 @@ void ContextualSearchLayer::SetProperties(
       search_bar_margin_side, search_bar_margin_top, search_bar_height,
       search_bar_top, search_term_opacity, should_render_bar_border,
       search_bar_border_height, icon_color, drag_handlebar_color,
-      close_icon_opacity, separator_line_color, related_searches_in_bar_height);
+      close_icon_opacity, separator_line_color);
 
   // -----------------------------------------------------------------
-  // Content setup, to center in space below drag handle.
+  // Content setup, to center in space below drag handle (when present).
   // -----------------------------------------------------------------
-  int content_height = search_bar_height - search_bar_margin_top -
-                       related_searches_in_bar_height;
+  bool is_rtl = l10n_util::IsLayoutRtl();
+  int content_height = search_bar_height - search_bar_margin_top;
   int content_top = search_bar_top + search_bar_margin_top;
+
+  // -----------------------------------------------------------------
+  // Bar Banner -- obsolete.  TODO(donnd): remove.
+  // -----------------------------------------------------------------
+  if (search_bar_banner_visible) {
+    // Grabs the Bar Banner resource.
+    ui::Resource* bar_banner_text_resource = resource_manager_->GetResource(
+        ui::ANDROID_RESOURCE_TYPE_DYNAMIC, bar_banner_text_resource_id);
+
+    ui::NinePatchResource* bar_banner_ripple_resource =
+        ui::NinePatchResource::From(resource_manager_->GetResource(
+            ui::ANDROID_RESOURCE_TYPE_STATIC, bar_banner_ripple_resource_id));
+
+    // -----------------------------------------------------------------
+    // Bar Banner Container
+    // -----------------------------------------------------------------
+    if (bar_banner_container_->parent() != layer_) {
+      layer_->AddChild(bar_banner_container_);
+    }
+
+    gfx::Size bar_banner_size(search_panel_width, search_bar_banner_height);
+    bar_banner_container_->SetBounds(bar_banner_size);
+    bar_banner_container_->SetPosition(gfx::PointF(0.f, 0.f));
+    bar_banner_container_->SetMasksToBounds(true);
+
+    // Apply a blend based on the ripple opacity. The resulting color will
+    // be an interpolation between the background color of the Search Bar and
+    // a lighter shade of the background color of the Ripple.
+    bar_banner_container_->SetBackgroundColor(color_utils::AlphaBlend(
+        kBarBannerRippleBackgroundColor, search_bar_background_color,
+        0.25f * search_bar_banner_ripple_opacity));
+
+    // -----------------------------------------------------------------
+    // Bar Banner Ripple
+    // -----------------------------------------------------------------
+    gfx::Size bar_banner_ripple_size(search_bar_banner_ripple_width,
+                                     search_bar_banner_height);
+    gfx::Rect bar_banner_ripple_border(
+        bar_banner_ripple_resource->Border(bar_banner_ripple_size));
+
+    // Add padding so the ripple will occupy the whole width at 100%.
+    bar_banner_ripple_size.set_width(bar_banner_ripple_size.width() +
+                                     bar_banner_ripple_border.width());
+
+    float ripple_rotation = 0.f;
+    float ripple_left = 0.f;
+    if (is_rtl) {
+      // Rotate the ripple 180 degrees to make it point to the left side.
+      ripple_rotation = 180.f;
+      ripple_left = search_panel_width - bar_banner_ripple_size.width();
+    }
+
+    bar_banner_ripple_->SetUIResourceId(
+        bar_banner_ripple_resource->ui_resource()->id());
+    bar_banner_ripple_->SetBorder(bar_banner_ripple_border);
+    bar_banner_ripple_->SetAperture(bar_banner_ripple_resource->aperture());
+    bar_banner_ripple_->SetBounds(bar_banner_ripple_size);
+    bar_banner_ripple_->SetPosition(gfx::PointF(ripple_left, 0.f));
+    bar_banner_ripple_->SetOpacity(search_bar_banner_ripple_opacity);
+
+    if (ripple_rotation != 0.f) {
+      // Apply rotation about the center of the resource.
+      float pivot_x = floor(bar_banner_ripple_size.width() / 2);
+      float pivot_y = floor(bar_banner_ripple_size.height() / 2);
+      gfx::PointF pivot_origin(pivot_x, pivot_y);
+      gfx::Transform transform;
+      transform.Translate(pivot_origin.x(), pivot_origin.y());
+      transform.RotateAboutZAxis(ripple_rotation);
+      transform.Translate(-pivot_origin.x(), -pivot_origin.y());
+      bar_banner_ripple_->SetTransform(transform);
+    }
+
+    // -----------------------------------------------------------------
+    // Bar Banner Text
+    // -----------------------------------------------------------------
+    if (bar_banner_text_resource) {
+      bar_banner_text_->SetUIResourceId(
+          bar_banner_text_resource->ui_resource()->id());
+      bar_banner_text_->SetBounds(bar_banner_text_resource->size());
+      bar_banner_text_->SetPosition(
+          gfx::PointF(0.f, search_bar_banner_padding));
+      bar_banner_text_->SetOpacity(search_bar_banner_text_opacity);
+    }
+  } else {
+    // Bar Banner Container
+    if (bar_banner_container_.get() && bar_banner_container_->parent())
+      bar_banner_container_->RemoveFromParent();
+  }
 
   // ---------------------------------------------------------------------------
   // Search Term, Context and Search Caption
@@ -137,34 +234,44 @@ void ContextualSearchLayer::SetProperties(
                      search_context_resource_id, search_context_opacity,
                      search_term_caption_spacing);
 
-  // Tracks the top of the next section to draw.
-  int next_section_top = search_bar_bottom;
+  // ---------------------------------------------------------------------------
+  // Arrow Icon.  Deprecated -- old layout only.
+  // ---------------------------------------------------------------------------
+  // Grabs the arrow icon resource.
+  ui::Resource* arrow_icon_resource =
+      resource_manager_->GetStaticResourceWithTint(arrow_up_resource_id,
+                                                   icon_color);
 
-  // ---------------------------------------------------------------------------
-  // Related Searches In-Bar Control
-  // ---------------------------------------------------------------------------
-  if (related_searches_in_bar_visible) {
-    // Grabs the Related Searches in-bar resource.
-    ui::Resource* related_searches_resource = resource_manager_->GetResource(
-        ui::ANDROID_RESOURCE_TYPE_DYNAMIC, related_searches_in_bar_resource_id);
-    DCHECK(related_searches_resource);
-    if (related_searches_resource) {
-      gfx::Size related_searches_size(
-          search_panel_width, related_searches_resource->size().height());
-      if (related_searches_in_bar_->parent() != layer_) {
-        layer_->AddChild(related_searches_in_bar_);
-      }
-      related_searches_in_bar_->SetUIResourceId(
-          related_searches_resource->ui_resource()->id());
-      related_searches_in_bar_->SetBounds(related_searches_size);
-      related_searches_in_bar_->SetPosition(
-          gfx::PointF(0.f, search_bar_bottom - related_searches_in_bar_height -
-                               related_searches_in_bar_redundant_padding));
-    }
-  } else if (related_searches_in_bar_.get() &&
-             related_searches_in_bar_->parent()) {
-    related_searches_in_bar_->RemoveFromParent();
+  // Positions the icon at the end of the bar.
+  float arrow_icon_left;
+  if (is_rtl) {
+    arrow_icon_left = search_bar_margin_side;
+  } else {
+    arrow_icon_left = search_panel_width - arrow_icon_resource->size().width() -
+                      search_bar_margin_side;
   }
+
+  // Centers the Arrow Icon vertically in the bar.
+  float arrow_icon_top = search_bar_top + search_bar_height / 2 -
+                         arrow_icon_resource->size().height() / 2;
+
+  arrow_icon_->SetUIResourceId(arrow_icon_resource->ui_resource()->id());
+  arrow_icon_->SetBounds(arrow_icon_resource->size());
+  arrow_icon_->SetPosition(
+      gfx::PointF(arrow_icon_left, arrow_icon_top));
+  arrow_icon_->SetOpacity(arrow_icon_opacity);
+
+  gfx::Transform transform;
+  if (arrow_icon_rotation != 0.f) {
+    // Apply rotation about the center of the icon.
+    float pivot_x = floor(arrow_icon_resource->size().width() / 2);
+    float pivot_y = floor(arrow_icon_resource->size().height() / 2);
+    gfx::PointF pivot_origin(pivot_x, pivot_y);
+    transform.Translate(pivot_origin.x(), pivot_origin.y());
+    transform.RotateAboutZAxis(arrow_icon_rotation);
+    transform.Translate(-pivot_origin.x(), -pivot_origin.y());
+  }
+  arrow_icon_->SetTransform(transform);
 
   // ---------------------------------------------------------------------------
   // Search Promo
@@ -175,22 +282,19 @@ void ContextualSearchLayer::SetProperties(
         ui::ANDROID_RESOURCE_TYPE_DYNAMIC, search_promo_resource_id);
     // Search Promo Container
     if (search_promo_container_->parent() != layer_) {
-      // NOTE(donnd): This layer can appear just below the Bar so it should be
-      // always placed before the Search Bar Shadow to make sure it won't
-      // occlude the shadow. Since layer 0 is the shadow for the sheet itself,
-      // this needs to be layer 1.
-      layer_->InsertChild(search_promo_container_, 1);
+      // NOTE(pedrosimonetti): The Promo layer should be always placed before
+      // Search Bar Shadow to make sure it won't occlude the shadow.
+      layer_->InsertChild(search_promo_container_, 0);
     }
 
     if (search_promo_resource) {
       int search_promo_content_height = search_promo_resource->size().height();
       gfx::Size search_promo_size(search_panel_width, search_promo_height);
       search_promo_container_->SetBounds(search_promo_size);
-      search_promo_container_->SetPosition(gfx::PointF(0.f, next_section_top));
+      search_promo_container_->SetPosition(gfx::PointF(0.f, search_bar_bottom));
       search_promo_container_->SetMasksToBounds(true);
-      // TODO(crbug/1308932): Remove FromColor and make all SkColor4f.
       search_promo_container_->SetBackgroundColor(
-          SkColor4f::FromColor(search_promo_background_color));
+          search_promo_background_color);
 
       // Search Promo
       if (search_promo_->parent() != search_promo_container_)
@@ -200,12 +304,10 @@ void ContextualSearchLayer::SetProperties(
           search_promo_resource->ui_resource()->id());
       search_promo_->SetBounds(search_promo_resource->size());
       // Align promo at the bottom of the container so the confirmation button
-      // is not clipped when resizing the promo.
+      // is is not clipped when resizing the promo.
       search_promo_->SetPosition(
           gfx::PointF(0.f, search_promo_height - search_promo_content_height));
       search_promo_->SetOpacity(search_promo_opacity);
-      // Next section goes beyond this section.
-      next_section_top += search_promo_content_height;
     }
   } else {
     // Search Promo Container
@@ -217,10 +319,33 @@ void ContextualSearchLayer::SetProperties(
   // Progress Bar
   // ---------------------------------------------------------------------------
   OverlayPanelLayer::SetProgressBar(
-      progress_bar_background_resource_id, progress_bar_background_tint,
-      progress_bar_resource_id, progress_bar_tint, progress_bar_visible,
-      search_bar_bottom, progress_bar_height, progress_bar_opacity,
-      progress_bar_completion, search_panel_width);
+      progress_bar_background_resource_id, progress_bar_resource_id,
+      progress_bar_visible, search_bar_bottom, progress_bar_height,
+      progress_bar_opacity, progress_bar_completion, search_panel_width);
+
+  // ---------------------------------------------------------------------------
+  // Divider Line separator.  Deprecated -- old layout only.
+  // ---------------------------------------------------------------------------
+  if (divider_line_visibility_percentage > 0.f) {
+    if (divider_line_->parent() != layer_)
+      layer_->AddChild(divider_line_);
+
+    // The divider line animates in from the bottom.
+    float divider_line_y_offset =
+        ((search_bar_height - divider_line_height) / 2) +
+        (divider_line_height * (1.f - divider_line_visibility_percentage));
+    divider_line_->SetPosition(gfx::PointF(divider_line_x_offset,
+                                           divider_line_y_offset));
+
+    // The divider line should not draw below its final resting place.
+    // Set bounds to restrict the vertical draw position.
+    divider_line_->SetBounds(
+        gfx::Size(divider_line_width,
+                  divider_line_height * divider_line_visibility_percentage));
+    divider_line_->SetBackgroundColor(divider_line_color);
+  } else if (divider_line_->parent()) {
+    divider_line_->RemoveFromParent();
+  }
 
   // ---------------------------------------------------------------------------
   // Touch Highlight Layer
@@ -565,26 +690,39 @@ ContextualSearchLayer::ContextualSearchLayer(
       search_provider_icon_layer_(cc::UIResourceLayer::Create()),
       thumbnail_layer_(cc::UIResourceLayer::Create()),
       quick_action_icon_layer_(cc::UIResourceLayer::Create()),
+      arrow_icon_(cc::UIResourceLayer::Create()),
       search_promo_(cc::UIResourceLayer::Create()),
       search_promo_container_(cc::SolidColorLayer::Create()),
-      related_searches_in_bar_(cc::UIResourceLayer::Create()),
+      bar_banner_container_(cc::SolidColorLayer::Create()),
+      bar_banner_ripple_(cc::NinePatchLayer::Create()),
+      bar_banner_text_(cc::UIResourceLayer::Create()),
       search_caption_(cc::UIResourceLayer::Create()),
       text_layer_(cc::UIResourceLayer::Create()),
+      divider_line_(cc::SolidColorLayer::Create()),
       touch_highlight_layer_(cc::SolidColorLayer::Create()) {
+  // Search Bar Banner
+  bar_banner_container_->SetIsDrawable(true);
+  bar_banner_container_->SetBackgroundColor(kSearchBarBackgroundColor);
+  bar_banner_ripple_->SetIsDrawable(true);
+  bar_banner_ripple_->SetFillCenter(true);
+  bar_banner_text_->SetIsDrawable(true);
+  bar_banner_container_->AddChild(bar_banner_ripple_);
+  bar_banner_container_->AddChild(bar_banner_text_);
+
   // Search Bar Text
   search_context_->SetIsDrawable(true);
 
   // Search Bar Caption
   search_caption_->SetIsDrawable(true);
 
+  // Arrow Icon
+  arrow_icon_->SetIsDrawable(true);
+  layer_->AddChild(arrow_icon_);
+
   // Search Opt Out Promo
   search_promo_container_->SetIsDrawable(true);
-  search_promo_container_->SetBackgroundColor(
-      SkColor4f::FromColor(kSearchBackgroundColor));
+  search_promo_container_->SetBackgroundColor(kSearchBackgroundColor);
   search_promo_->SetIsDrawable(true);
-
-  // Related Searches sections
-  related_searches_in_bar_->SetIsDrawable(true);
 
   // Icon - holds thumbnail, search provider icon and/or quick action icon
   icon_layer_->SetIsDrawable(true);
@@ -599,6 +737,9 @@ ContextualSearchLayer::ContextualSearchLayer(
   // Quick action icon
   quick_action_icon_layer_->SetIsDrawable(true);
 
+  // Divider line
+  divider_line_->SetIsDrawable(true);
+
   // Content layer
   text_layer_->SetIsDrawable(true);
   // NOTE(mdjones): This can be called multiple times to add other text layers.
@@ -607,8 +748,7 @@ ContextualSearchLayer::ContextualSearchLayer(
 
   // Touch Highlight Layer
   touch_highlight_layer_->SetIsDrawable(true);
-  touch_highlight_layer_->SetBackgroundColor(
-      SkColor4f::FromColor(kTouchHighlightColor));
+  touch_highlight_layer_->SetBackgroundColor(kTouchHighlightColor);
 }
 
 ContextualSearchLayer::~ContextualSearchLayer() {

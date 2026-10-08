@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include <windows.devices.bluetooth.advertisement.h>
 #include <wrl/implements.h>
+
+#include "base/macros.h"
 
 namespace device {
 
@@ -24,14 +26,6 @@ class FakeBluetoothLEAdvertisementPublisherStatusChangedEventArgsWinrt
       ABI::Windows::Devices::Bluetooth::Advertisement::
           BluetoothLEAdvertisementPublisherStatus status,
       ABI::Windows::Devices::Bluetooth::BluetoothError error);
-
-  FakeBluetoothLEAdvertisementPublisherStatusChangedEventArgsWinrt(
-      const FakeBluetoothLEAdvertisementPublisherStatusChangedEventArgsWinrt&) =
-      delete;
-  FakeBluetoothLEAdvertisementPublisherStatusChangedEventArgsWinrt& operator=(
-      const FakeBluetoothLEAdvertisementPublisherStatusChangedEventArgsWinrt&) =
-      delete;
-
   ~FakeBluetoothLEAdvertisementPublisherStatusChangedEventArgsWinrt() override;
 
   // IBluetoothLEAdvertisementPublisherStatusChangedEventArgs:
@@ -49,6 +43,9 @@ class FakeBluetoothLEAdvertisementPublisherStatusChangedEventArgsWinrt
 
   ABI::Windows::Devices::Bluetooth::BluetoothError error_ =
       ABI::Windows::Devices::Bluetooth::BluetoothError_Success;
+
+  DISALLOW_COPY_AND_ASSIGN(
+      FakeBluetoothLEAdvertisementPublisherStatusChangedEventArgsWinrt);
 };
 
 }  // namespace device

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 #include "base/values.h"
 
-namespace invalidation {
+namespace syncer {
 
 TopicInvalidationMap::TopicInvalidationMap() = default;
 
@@ -37,7 +37,7 @@ void TopicInvalidationMap::Insert(const Invalidation& invalidation) {
 
 TopicInvalidationMap TopicInvalidationMap::GetSubsetWithTopics(
     const Topics& topics) const {
-  std::map<Topic, SingleTopicInvalidationSet> new_map;
+  std::map<Topic, SingleObjectInvalidationSet> new_map;
   for (const auto& topic : topics) {
     auto lookup = map_.find(topic.first);
     if (lookup != map_.end()) {
@@ -49,7 +49,7 @@ TopicInvalidationMap TopicInvalidationMap::GetSubsetWithTopics(
 
 TopicInvalidationMap TopicInvalidationMap::GetSubsetWithTopics(
     const TopicSet& topics) const {
-  std::map<Topic, SingleTopicInvalidationSet> new_map;
+  std::map<Topic, SingleObjectInvalidationSet> new_map;
   for (const auto& topic : topics) {
     auto lookup = map_.find(topic);
     if (lookup != map_.end()) {
@@ -59,7 +59,7 @@ TopicInvalidationMap TopicInvalidationMap::GetSubsetWithTopics(
   return TopicInvalidationMap(new_map);
 }
 
-const SingleTopicInvalidationSet& TopicInvalidationMap::ForTopic(
+const SingleObjectInvalidationSet& TopicInvalidationMap::ForTopic(
     Topic topic) const {
   auto lookup = map_.find(topic);
   DCHECK(lookup != map_.end());
@@ -68,7 +68,7 @@ const SingleTopicInvalidationSet& TopicInvalidationMap::ForTopic(
 }
 
 void TopicInvalidationMap::GetAllInvalidations(
-    std::vector<Invalidation>* out) const {
+    std::vector<syncer::Invalidation>* out) const {
   for (const auto& topic_to_invalidations : map_) {
     out->insert(out->begin(), topic_to_invalidations.second.begin(),
                 topic_to_invalidations.second.end());
@@ -87,18 +87,18 @@ bool TopicInvalidationMap::operator==(const TopicInvalidationMap& other) const {
   return map_ == other.map_;
 }
 
-base::Value::List TopicInvalidationMap::ToValue() const {
-  base::Value::List value;
+std::unique_ptr<base::ListValue> TopicInvalidationMap::ToValue() const {
+  std::unique_ptr<base::ListValue> value(new base::ListValue());
   for (const auto& topic_to_invalidations : map_) {
     for (const Invalidation& invalidation : topic_to_invalidations.second) {
-      value.Append(invalidation.ToValue());
+      value->Append(invalidation.ToValue());
     }
   }
   return value;
 }
 
 TopicInvalidationMap::TopicInvalidationMap(
-    const std::map<Topic, SingleTopicInvalidationSet>& map)
+    const std::map<Topic, SingleObjectInvalidationSet>& map)
     : map_(map) {}
 
-}  // namespace invalidation
+}  // namespace syncer

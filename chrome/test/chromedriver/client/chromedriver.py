@@ -1,4 +1,4 @@
-# Copyright 2013 The Chromium Authors
+# Copyright 2013 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -6,19 +6,61 @@ import platform
 import sys
 import util
 
-import psutil
-
 import command_executor
 from command_executor import Command
 from webelement import WebElement
-from webshadowroot import WebShadowRoot
 from websocket_connection import WebSocketConnection
-from exceptions import *
 
 ELEMENT_KEY_W3C = "element-6066-11e4-a52e-4f735466cecf"
 ELEMENT_KEY = "ELEMENT"
-SHADOW_KEY = "shadow-6066-11e4-a52e-4f735466cecf"
-MAX_RETRY_COUNT = 5
+MAX_RETRY_COUNT = 3
+
+class ChromeDriverException(Exception):
+  pass
+class NoSuchElement(ChromeDriverException):
+  pass
+class NoSuchFrame(ChromeDriverException):
+  pass
+class UnknownCommand(ChromeDriverException):
+  pass
+class StaleElementReference(ChromeDriverException):
+  pass
+class ElementNotVisible(ChromeDriverException):
+  pass
+class InvalidElementState(ChromeDriverException):
+  pass
+class UnknownError(ChromeDriverException):
+  pass
+class JavaScriptError(ChromeDriverException):
+  pass
+class XPathLookupError(ChromeDriverException):
+  pass
+class Timeout(ChromeDriverException):
+  pass
+class NoSuchWindow(ChromeDriverException):
+  pass
+class InvalidCookieDomain(ChromeDriverException):
+  pass
+class ScriptTimeout(ChromeDriverException):
+  pass
+class InvalidSelector(ChromeDriverException):
+  pass
+class SessionNotCreated(ChromeDriverException):
+  pass
+class InvalidSessionId(ChromeDriverException):
+  pass
+class UnexpectedAlertOpen(ChromeDriverException):
+  pass
+class NoSuchAlert(ChromeDriverException):
+  pass
+class NoSuchCookie(ChromeDriverException):
+  pass
+class InvalidArgument(ChromeDriverException):
+  pass
+class ElementNotInteractable(ChromeDriverException):
+  pass
+class UnsupportedOperation(ChromeDriverException):
+  pass
 
 def _ExceptionForLegacyResponse(response):
   exception_class_map = {
@@ -73,8 +115,6 @@ def _ExceptionForStandardResponse(response):
     'invalid argument': InvalidArgument,
     'element not interactable': ElementNotInteractable,
     'unsupported operation': UnsupportedOperation,
-    'no such shadow root': NoSuchShadowRoot,
-    'detached shadow root': DetachedShadowRoot,
   }
 
   error = response['value']['error']
@@ -87,43 +127,21 @@ class ChromeDriver(object):
   retry_count = 0
   retried_tests = []
 
-  def __init__(self, server_url, server_pid, **kwargs):
+  def __init__(self, *args, **kwargs):
     try:
-      self._InternalInit(server_url, **kwargs)
+      self._InternalInit(*args, **kwargs)
     except Exception as e:
-      if not str(e).startswith('timed out'):
+      if not e.message.startswith('timed out'):
         raise
       else:
-        # Kill ChromeDriver child processes recursively
-        # (i.e. browsers and their child processes etc)
-        # when there is a timeout for launching browser
-        if server_pid:
-          processes = psutil.Process(server_pid).children(recursive=True)
-          if len(processes):
-            print('Terminating', len(processes), 'processes')
-            for p in processes:
-              p.terminate()
-
-            gone, alive = psutil.wait_procs(processes, timeout=3)
-            if len(alive):
-              print('Killing', len(alive), 'processes')
-              for p in alive:
-                p.kill()
-
         if ChromeDriver.retry_count < MAX_RETRY_COUNT:
+          ChromeDriver.retry_count = ChromeDriver.retry_count + 1
           ChromeDriver.retried_tests.append(kwargs.get('test_name'))
-          try:
-            self._InternalInit(server_url, **kwargs)
-          except:
-            # Only count it as retry if failed
-            print('Retry', ChromeDriver.retry_count, 'failed')
-            ChromeDriver.retry_count = ChromeDriver.retry_count + 1
-            raise
+          self._InternalInit(*args, **kwargs)
         else:
           raise
 
-  def _InternalInit(self, server_url,
-      chrome_binary=None, android_package=None,
+  def _InternalInit(self, server_url, chrome_binary=None, android_package=None,
       android_activity=None, android_process=None,
       android_use_running_app=None, chrome_switches=None,
       chrome_extensions=None, chrome_log_path=None,
@@ -137,6 +155,7 @@ class ChromeDriver(object):
     self._executor = command_executor.CommandExecutor(server_url)
     self._server_url = server_url
     self.w3c_compliant = False
+    self._websocket = None
 
     options = {}
 
@@ -166,9 +185,6 @@ class ChromeDriver(object):
     if chrome_switches is None:
       chrome_switches = []
     chrome_switches.append('force-color-profile=srgb')
-
-    # Resampling can change the distance of a synthetic scroll.
-    chrome_switches.append('disable-features=ResamplingScrollEvents')
 
     if chrome_switches:
       assert type(chrome_switches) is list
@@ -284,8 +300,6 @@ class ChromeDriver(object):
         return {ELEMENT_KEY_W3C: value._id}
       else:
         return {ELEMENT_KEY: value._id}
-    elif isinstance(value, WebShadowRoot):
-        return {SHADOW_KEY: value._id}
     elif isinstance(value, list):
       return list(self._WrapValue(item) for item in value)
     else:
@@ -296,13 +310,10 @@ class ChromeDriver(object):
       if (self.w3c_compliant and len(value) == 1
           and ELEMENT_KEY_W3C in value
           and isinstance(
-            value[ELEMENT_KEY_W3C], str)):
+            value[ELEMENT_KEY_W3C], basestring)):
         return WebElement(self, value[ELEMENT_KEY_W3C])
-      elif (len(value) == 1 and SHADOW_KEY in value
-            and isinstance(value[SHADOW_KEY], str)):
-        return WebShadowRoot(self, value[SHADOW_KEY])
       elif (len(value) == 1 and ELEMENT_KEY in value
-            and isinstance(value[ELEMENT_KEY], str)):
+            and isinstance(value[ELEMENT_KEY], basestring)):
         return WebElement(self, value[ELEMENT_KEY])
       else:
         unwraped = {}
@@ -319,7 +330,7 @@ class ChromeDriver(object):
     try:
       response = self._executor.Execute(command, params)
     except Exception as e:
-      if str(e).startswith('timed out'):
+      if e.message.startswith('timed out'):
         self._RequestCrash()
       raise e
 
@@ -335,7 +346,7 @@ class ChromeDriver(object):
     # Can't issue a new command without session_id
     if not hasattr(self, '_session_id') or self._session_id == None:
       return
-    tempDriver = ChromeDriver(self._server_url, None,
+    tempDriver = ChromeDriver(self._server_url,
       debugger_address=self.debuggerAddress, test_name='_forceCrash')
     try:
       tempDriver.SendCommandAndGetResult("Page.crash", {})
@@ -345,9 +356,8 @@ class ChromeDriver(object):
       # In some cases, Chrome will not honor the request
       # Print the exception as it may give information on the Chrome state
       # but Page.crash will also generate exception, so filter that out
-      message = str(e)
-      if 'session deleted because of page crash' not in message:
-        print('\n Exception from Page.crash: ' + message + '\n')
+      if 'session deleted because of page crash' not in e.message:
+        print '\n Exception from Page.crash: ' + str(e.message) + '\n'
     tempDriver.Quit()
 
   def ExecuteCommand(self, command, params={}):
@@ -356,7 +366,11 @@ class ChromeDriver(object):
     return self._UnwrapValue(response['value'])
 
   def CreateWebSocketConnection(self):
-    return WebSocketConnection(self._server_url, self._session_id)
+    if self._websocket:
+      return self._websocket
+    else:
+      self._websocket = WebSocketConnection(self._server_url, self._session_id)
+      return self._websocket
 
   def GetWindowHandles(self):
     return self.ExecuteCommand(Command.GET_WINDOW_HANDLES)
@@ -394,7 +408,7 @@ class ChromeDriver(object):
         {'script': script, 'args': converted_args})
 
   def SwitchToFrame(self, id_or_name):
-    if isinstance(id_or_name, str) and self.w3c_compliant:
+    if isinstance(id_or_name, basestring) and self.w3c_compliant:
         try:
           id_or_name = self.FindElement('css selector',
                                         '[id="%s"]' % id_or_name)
@@ -651,8 +665,8 @@ class ChromeDriver(object):
   def GenerateTestReport(self, message):
     self.ExecuteCommand(Command.GENERATE_TEST_REPORT, {'message': message})
 
-  def SetTimeZone(self, timeZone):
-    return self.ExecuteCommand(Command.SET_TIME_ZONE, {'time_zone': timeZone})
+  def SetTimezone(self, timezone):
+    return self.ExecuteCommand(Command.SET_TIMEZONE, {'timezone': timezone})
 
   def AddVirtualAuthenticator(self, protocol=None, transport=None,
                               hasResidentKey=None, hasUserVerification=None,
@@ -720,22 +734,8 @@ class ChromeDriver(object):
               'isUserVerified': isUserVerified}
     return self.ExecuteCommand(Command.SET_USER_VERIFIED, params)
 
-  def SetSPCTransactionMode(self, mode):
-    params = {'mode': mode}
-    return self.ExecuteCommand(Command.SET_SPC_TRANSACTION_MODE, params)
-
   def GetSessionId(self):
     if not hasattr(self, '_session_id'):
       return None
     return self._session_id
-
-  def GetCastSinks(self, vendorId):
-    params = {'vendorId': vendorId}
-    return self.ExecuteCommand(Command.GET_CAST_SINKS, params)
-
-  def __enter__(self):
-    return self
-
-  def __exit__(self, *args):
-    self.Quit()
 

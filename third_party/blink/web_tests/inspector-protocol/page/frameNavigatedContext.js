@@ -1,5 +1,5 @@
-(async function (testRunner) {
-  var { page, session, dp } = await testRunner.startBlank(`Tests context lifetime events relative to frame's ones.`);
+(async function(testRunner) {
+  var {page, session, dp} = await testRunner.startBlank(`Tests context lifetime events relative to frame's ones.`);
 
   await dp.Runtime.enable();
   await dp.Page.enable();
@@ -25,7 +25,6 @@
     window.frame = document.createElement('iframe');
     frame.src = '${testRunner.url('../resources/blank.html')}';
     document.body.appendChild(frame);
-
   `);
 
   await dp.Runtime.onceExecutionContextCreated();
@@ -38,10 +37,7 @@
   await dp.Runtime.onceExecutionContextCreated();
 
   testRunner.log('\nUnloading iframe');
-  session.evaluate(`
-    frame.remove();
-    GCController.collectAll();
-  `);
+  session.evaluate(`frame.remove();`);
 
   await dp.Runtime.onceExecutionContextDestroyed();
 

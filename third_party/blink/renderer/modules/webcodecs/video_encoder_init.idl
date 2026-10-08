@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 dictionary VideoEncoderInit {
   // Called whenever there is a new encoded video chunk available.
-  required EncodedVideoChunkOutputCallback output;
+  required VideoEncoderOutputCallback output;
 
   // Called when there is a decoding error.
   required WebCodecsErrorCallback error;

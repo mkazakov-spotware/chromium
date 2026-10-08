@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/time/default_tick_clock.h"
 #include "base/time/time.h"
 #include "remoting/codec/scoped_vpx_codec.h"
@@ -29,9 +29,6 @@ class VideoEncoderVpx : public VideoEncoder {
   // Create encoder for the specified protocol.
   static std::unique_ptr<VideoEncoderVpx> CreateForVP8();
   static std::unique_ptr<VideoEncoderVpx> CreateForVP9();
-
-  VideoEncoderVpx(const VideoEncoderVpx&) = delete;
-  VideoEncoderVpx& operator=(const VideoEncoderVpx&) = delete;
 
   ~VideoEncoderVpx() override;
 
@@ -91,7 +88,9 @@ class VideoEncoderVpx : public VideoEncoder {
   // Used to help initialize VideoPackets from DesktopFrames.
   VideoEncoderHelper helper_;
 
-  raw_ptr<const base::TickClock> clock_;
+  const base::TickClock* clock_;
+
+  DISALLOW_COPY_AND_ASSIGN(VideoEncoderVpx);
 };
 
 }  // namespace remoting

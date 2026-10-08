@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,31 +9,31 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
-#include "base/scoped_observation.h"
-#include "components/value_store/value_store_frontend.h"
+#include "base/scoped_observer.h"
+#include "content/public/browser/notification_observer.h"
+#include "content/public/browser/notification_registrar.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
+#include "extensions/browser/value_store/value_store_frontend.h"
 
 namespace content {
 class BrowserContext;
 }
 
-namespace value_store {
-class ValueStore;
-class ValueStoreFactory;
-}  // namespace value_store
-
 namespace extensions {
 
-// A storage area for per-extension state that needs to be persisted to disk.
-class StateStore : public ExtensionRegistryObserver {
- public:
-  typedef value_store::ValueStoreFrontend::ReadCallback ReadCallback;
+class ValueStoreFactory;
 
-  // The kind of extensions data stored in a backend.
-  enum class BackendType { RULES, STATE, SCRIPTS };
+// A storage area for per-extension state that needs to be persisted to disk.
+class StateStore : public base::SupportsWeakPtr<StateStore>,
+                   public ExtensionRegistryObserver,
+                   public content::NotificationObserver {
+ public:
+  typedef ValueStoreFrontend::ReadCallback ReadCallback;
 
   class TestObserver {
    public:
@@ -42,20 +42,21 @@ class StateStore : public ExtensionRegistryObserver {
                                        const std::string& key) = 0;
   };
 
-  // If |deferred_load| is true, we will defer the database loading until the
-  // application is less busy on startup.
+  // If |deferred_load| is true, we won't load the database until the first
+  // page has been loaded.
   StateStore(content::BrowserContext* context,
-             const scoped_refptr<value_store::ValueStoreFactory>& store_factory,
-             BackendType backend_type,
+             const scoped_refptr<ValueStoreFactory>& store_factory,
+             ValueStoreFrontend::BackendType backend_type,
              bool deferred_load);
   // This variant is useful for testing (using a mock ValueStore).
   StateStore(content::BrowserContext* context,
-             absl::optional<base::Value> store);
-
-  StateStore(const StateStore&) = delete;
-  StateStore& operator=(const StateStore&) = delete;
-
+             std::unique_ptr<ValueStore> store);
   ~StateStore() override;
+
+  // Requests that the state store to be initialized after its usual delay. Can
+  // be explicitly called by an embedder when the embedder does not trigger the
+  // usual page load notifications.
+  void RequestInitAfterDelay();
 
   // Register a key for removal upon extension install/uninstall. We remove
   // for install to reset state when an extension upgrades.
@@ -70,7 +71,7 @@ class StateStore : public ExtensionRegistryObserver {
   // Sets a value for a given extension and key.
   void SetExtensionValue(const std::string& extension_id,
                          const std::string& key,
-                         base::Value value);
+                         std::unique_ptr<base::Value> value);
 
   // Removes a value for a given extension and key.
   void RemoveExtensionValue(const std::string& extension_id,
@@ -89,7 +90,16 @@ class StateStore : public ExtensionRegistryObserver {
  private:
   class DelayedTaskQueue;
 
+  // content::NotificationObserver
+  void Observe(int type,
+               const content::NotificationSource& source,
+               const content::NotificationDetails& details) override;
+
   void Init();
+
+  // When StateStore is constructed with |deferred_load| its initialization is
+  // delayed to avoid slowing down startup.
+  void InitAfterDelay();
 
   // Removes all keys registered for the given extension.
   void RemoveKeysForExtension(const std::string& extension_id);
@@ -104,7 +114,7 @@ class StateStore : public ExtensionRegistryObserver {
                                   const std::string& old_name) override;
 
   // The store that holds our key/values.
-  std::unique_ptr<value_store::ValueStoreFrontend> store_;
+  std::unique_ptr<ValueStoreFrontend> store_;
 
   // List of all known keys. They will be cleared for each extension when it is
   // (un)installed.
@@ -115,10 +125,12 @@ class StateStore : public ExtensionRegistryObserver {
 
   base::ObserverList<TestObserver>::Unchecked observers_;
 
-  base::ScopedObservation<ExtensionRegistry, ExtensionRegistryObserver>
-      extension_registry_observation_{this};
+  content::NotificationRegistrar registrar_;
 
-  base::WeakPtrFactory<StateStore> weak_ptr_factory_{this};
+  ScopedObserver<ExtensionRegistry, ExtensionRegistryObserver>
+      extension_registry_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(StateStore);
 };
 
 }  // namespace extensions

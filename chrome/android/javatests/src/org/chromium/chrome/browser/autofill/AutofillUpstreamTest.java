@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -66,7 +66,7 @@ public class AutofillUpstreamTest {
         mServer.stopAndDestroyServer();
     }
 
-    private void assertInfoBarPrimaryButtonLabel(String buttonLabel) {
+    private void assertPrimaryButtonLabel(String buttonLabel) {
         InfoBarLayout view = (InfoBarLayout) getAutofillSaveCardInfoBar().getView();
         ButtonCompat primaryButton = view.getPrimaryButton();
         Assert.assertEquals(buttonLabel, primaryButton.getText().toString());
@@ -111,7 +111,8 @@ public class AutofillUpstreamTest {
         DOMUtils.clickNode(webContents, "fill_form");
         DOMUtils.clickNode(webContents, "submit");
         waitForSaveCardInfoBar();
-        assertInfoBarPrimaryButtonLabel(SAVE_BUTTON_LABEL);
+
+        assertPrimaryButtonLabel(SAVE_BUTTON_LABEL);
     }
 
     @Test
@@ -122,12 +123,12 @@ public class AutofillUpstreamTest {
         final WebContents webContents = mActivityTestRule.getActivity().getCurrentWebContents();
 
         DOMUtils.clickNode(webContents, "fill_form");
-        // Clear the month field.
+        // Clear the month field
         DOMUtils.clickNode(webContents, "clear_month");
         DOMUtils.clickNode(webContents, "submit");
         waitForSaveCardInfoBar();
 
-        assertInfoBarPrimaryButtonLabel(CONTINUE_BUTTON_LABEL);
+        assertPrimaryButtonLabel(CONTINUE_BUTTON_LABEL);
     }
 
     @Test
@@ -138,12 +139,12 @@ public class AutofillUpstreamTest {
         final WebContents webContents = mActivityTestRule.getActivity().getCurrentWebContents();
 
         DOMUtils.clickNode(webContents, "fill_form");
-        // Clear the year field.
+        // Clear the year field
         DOMUtils.clickNode(webContents, "clear_year");
         DOMUtils.clickNode(webContents, "submit");
         waitForSaveCardInfoBar();
 
-        assertInfoBarPrimaryButtonLabel(CONTINUE_BUTTON_LABEL);
+        assertPrimaryButtonLabel(CONTINUE_BUTTON_LABEL);
     }
 
     @Test
@@ -154,12 +155,12 @@ public class AutofillUpstreamTest {
         final WebContents webContents = mActivityTestRule.getActivity().getCurrentWebContents();
 
         DOMUtils.clickNode(webContents, "fill_form");
-        // Clear the month and year field.
+        // Clear the month and year field
         DOMUtils.clickNode(webContents, "clear_expiration_date");
         DOMUtils.clickNode(webContents, "submit");
         waitForSaveCardInfoBar();
 
-        assertInfoBarPrimaryButtonLabel(CONTINUE_BUTTON_LABEL);
+        assertPrimaryButtonLabel(CONTINUE_BUTTON_LABEL);
     }
 
     @Test
@@ -171,16 +172,16 @@ public class AutofillUpstreamTest {
         final WebContents webContents = mActivityTestRule.getActivity().getCurrentWebContents();
 
         DOMUtils.clickNode(webContents, "fill_form");
-        // Clear the month and year field.
+        // Clear the month and year field
         DOMUtils.clickNode(webContents, "clear_expiration_date");
         DOMUtils.clickNode(webContents, "submit");
         waitForSaveCardInfoBar();
-        // Click on the continue button.
+        // Click on the continue button
         TestThreadUtils.runOnUiThreadBlocking(
                 () -> getAutofillSaveCardInfoBar().onButtonClicked(true));
         PropertyModel fixflowPromptPropertyModel = getPropertyModelForDialog();
 
-        // Verify that dialog is not null.
+        // Verify that dialog is not null
         Assert.assertNotNull(fixflowPromptPropertyModel);
     }
 
@@ -192,12 +193,12 @@ public class AutofillUpstreamTest {
         final WebContents webContents = mActivityTestRule.getActivity().getCurrentWebContents();
 
         DOMUtils.clickNode(webContents, "fill_form");
-        // Clear the name field.
+        // Clear the name field
         DOMUtils.clickNode(webContents, "clear_name");
         DOMUtils.clickNode(webContents, "submit");
         waitForSaveCardInfoBar();
 
-        assertInfoBarPrimaryButtonLabel(CONTINUE_BUTTON_LABEL);
+        assertPrimaryButtonLabel(CONTINUE_BUTTON_LABEL);
     }
 
     @Test
@@ -209,16 +210,16 @@ public class AutofillUpstreamTest {
         final WebContents webContents = mActivityTestRule.getActivity().getCurrentWebContents();
 
         DOMUtils.clickNode(webContents, "fill_form");
-        // Clear the name field.
+        // Clear the name field
         DOMUtils.clickNode(webContents, "clear_name");
         DOMUtils.clickNode(webContents, "submit");
         waitForSaveCardInfoBar();
-        // Click on the continue button.
+        // Click on the continue button
         TestThreadUtils.runOnUiThreadBlocking(
                 () -> getAutofillSaveCardInfoBar().onButtonClicked(true));
         PropertyModel fixflowPromptPropertyModel = getPropertyModelForDialog();
 
-        // Verify that dialog is not null.
+        // Verify that dialog is not null
         Assert.assertNotNull(fixflowPromptPropertyModel);
     }
 }

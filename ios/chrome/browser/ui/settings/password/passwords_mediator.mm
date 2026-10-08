@@ -1,37 +1,30 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/settings/password/passwords_mediator.h"
 
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
-#import "base/time/time.h"
-#import "components/password_manager/core/browser/leak_detection_dialog_utils.h"
-#import "components/password_manager/core/browser/password_manager_util.h"
-#import "components/password_manager/core/common/password_manager_features.h"
-#import "components/signin/public/identity_manager/objc/identity_manager_observer_bridge.h"
-#import "components/sync/driver/sync_service_utils.h"
-#import "ios/chrome/browser/favicon/favicon_loader.h"
-#import "ios/chrome/browser/net/crurl.h"
-#import "ios/chrome/browser/passwords/password_check_observer_bridge.h"
-#import "ios/chrome/browser/passwords/password_manager_util_ios.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
+#include "base/time/time.h"
+#include "components/password_manager/core/browser/leak_detection_dialog_utils.h"
+#include "components/password_manager/core/browser/password_store.h"
+#include "components/password_manager/core/common/password_manager_features.h"
+#include "ios/chrome/browser/passwords/password_check_observer_bridge.h"
+#include "ios/chrome/browser/passwords/password_store_observer_bridge.h"
 #import "ios/chrome/browser/passwords/save_passwords_consumer.h"
 #import "ios/chrome/browser/signin/authentication_service.h"
-#import "ios/chrome/browser/sync/sync_observer_bridge.h"
-#import "ios/chrome/browser/sync/sync_setup_service.h"
+#include "ios/chrome/browser/sync/sync_setup_service.h"
 #import "ios/chrome/browser/ui/settings/password/passwords_consumer.h"
-#import "ios/chrome/browser/ui/settings/password/saved_passwords_presenter_observer.h"
-#import "ios/chrome/browser/ui/settings/utils/password_auto_fill_status_manager.h"
+#include "ios/chrome/browser/ui/ui_feature_flags.h"
 #import "ios/chrome/common/string_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/chrome/common/ui/favicon/favicon_constants.h"
-#import "ios/chrome/grit/ios_chromium_strings.h"
-#import "ios/chrome/grit/ios_strings.h"
+#include "ios/chrome/grit/ios_chromium_strings.h"
+#include "ios/chrome/grit/ios_strings.h"
 #import "net/base/mac/url_conversions.h"
-#import "ui/base/l10n/l10n_util_mac.h"
-#import "ui/base/l10n/time_format.h"
-#import "url/gurl.h"
+#include "ui/base/l10n/l10n_util_mac.h"
+#include "ui/base/l10n/time_format.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -39,131 +32,98 @@
 
 namespace {
 // Amount of time after which timestamp is shown instead of "just now".
-constexpr base::TimeDelta kJustCheckedTimeThresholdInMinutes = base::Minutes(1);
+constexpr base::TimeDelta kJustCheckedTimeThresholdInMinutes =
+    base::TimeDelta::FromMinutes(1);
 }  // namespace
 
-@interface PasswordsMediator () <IdentityManagerObserverBridgeDelegate,
-                                 PasswordCheckObserver,
-                                 SavedPasswordsPresenterObserver,
-                                 SyncObserverModelBridge> {
+@interface PasswordsMediator () <PasswordCheckObserver,
+                                 PasswordStoreObserver,
+                                 SavePasswordsConsumerDelegate> {
   // The service responsible for password check feature.
   scoped_refptr<IOSChromePasswordCheckManager> _passwordCheckManager;
 
-  // Service to check if passwords are synced.
-  SyncSetupService* _syncSetupService;
+  // The interface for getting and manipulating a user's saved passwords.
+  scoped_refptr<password_manager::PasswordStore> _passwordStore;
 
-  password_manager::SavedPasswordsPresenter* _savedPasswordsPresenter;
+  // Service used to check if user is signed in.
+  AuthenticationService* _authService;
+
+  // Service to check if passwords are synced.
+  SyncSetupService* _syncService;
 
   // A helper object for passing data about changes in password check status
   // and changes to compromised credentials list.
   std::unique_ptr<PasswordCheckObserverBridge> _passwordCheckObserver;
 
   // A helper object for passing data about saved passwords from a finished
-  // password store request to the PasswordManagerViewController.
-  std::unique_ptr<SavedPasswordsPresenterObserverBridge>
-      _passwordsPresenterObserver;
+  // password store request to the PasswordsTableViewController.
+  std::unique_ptr<ios::SavePasswordsConsumer> _savedPasswordsConsumer;
+
+  // A helper object which listens to the password store changes.
+  std::unique_ptr<PasswordStoreObserverBridge> _passwordStoreObserver;
 
   // Current state of password check.
   PasswordCheckState _currentState;
-
-  // IdentityManager observer.
-  std::unique_ptr<signin::IdentityManagerObserverBridge>
-      _identityManagerObserver;
-
-  // Sync observer
-  std::unique_ptr<SyncObserverBridge> _syncObserver;
 }
 
 // Object storing the time of the previous successful re-authentication.
-// This is meant to be used by the `ReauthenticationModule` for keeping
+// This is meant to be used by the |ReauthenticationModule| for keeping
 // re-authentications valid for a certain time interval within the scope
 // of the Passwords Screen.
 @property(nonatomic, strong, readonly) NSDate* successfulReauthTime;
-
-// FaviconLoader is a keyed service that uses LargeIconService to retrieve
-// favicon images.
-@property(nonatomic, assign) FaviconLoader* faviconLoader;
-
-// Service to know whether passwords are synced.
-@property(nonatomic, assign) syncer::SyncService* syncService;
 
 @end
 
 @implementation PasswordsMediator
 
 - (instancetype)
-    initWithPasswordCheckManager:
-        (scoped_refptr<IOSChromePasswordCheckManager>)passwordCheckManager
-                syncSetupService:(SyncSetupService*)syncSetupService
-                   faviconLoader:(FaviconLoader*)faviconLoader
-                 identityManager:(signin::IdentityManager*)identityManager
-                     syncService:(syncer::SyncService*)syncService {
+    initWithPasswordStore:
+        (scoped_refptr<password_manager::PasswordStore>)passwordStore
+     passwordCheckManager:
+         (scoped_refptr<IOSChromePasswordCheckManager>)passwordCheckManager
+              authService:(AuthenticationService*)authService
+              syncService:(SyncSetupService*)syncService {
   self = [super init];
   if (self) {
+    _passwordStore = passwordStore;
+    _authService = authService;
     _syncService = syncService;
-    _faviconLoader = faviconLoader;
-    _identityManagerObserver =
-        std::make_unique<signin::IdentityManagerObserverBridge>(identityManager,
-                                                                self);
-    _syncObserver = std::make_unique<SyncObserverBridge>(self, syncService);
-
-    _syncSetupService = syncSetupService;
-
+    _savedPasswordsConsumer =
+        std::make_unique<ios::SavePasswordsConsumer>(self);
+    _passwordStoreObserver =
+        std::make_unique<PasswordStoreObserverBridge>(self);
+    _passwordStore->AddObserver(_passwordStoreObserver.get());
     _passwordCheckManager = passwordCheckManager;
-    _savedPasswordsPresenter =
-        passwordCheckManager->GetSavedPasswordsPresenter();
-    DCHECK(_savedPasswordsPresenter);
-
     _passwordCheckObserver = std::make_unique<PasswordCheckObserverBridge>(
         self, _passwordCheckManager.get());
-    _passwordsPresenterObserver =
-        std::make_unique<SavedPasswordsPresenterObserverBridge>(
-            self, _savedPasswordsPresenter);
-    [[PasswordAutoFillStatusManager sharedManager] addObserver:self];
   }
   return self;
 }
 
 - (void)dealloc {
-  if (_passwordsPresenterObserver) {
-    _savedPasswordsPresenter->RemoveObserver(_passwordsPresenterObserver.get());
+  if (_passwordStoreObserver) {
+    _passwordStore->RemoveObserver(_passwordStoreObserver.get());
   }
   if (_passwordCheckObserver) {
     _passwordCheckManager->RemoveObserver(_passwordCheckObserver.get());
   }
-  [[PasswordAutoFillStatusManager sharedManager] removeObserver:self];
 }
 
 - (void)setConsumer:(id<PasswordsConsumer>)consumer {
   if (_consumer == consumer)
     return;
   _consumer = consumer;
-
-  [self providePasswordsToConsumer];
+  [self loginsDidChange];
 
   _currentState = _passwordCheckManager->GetPasswordCheckState();
-  [self updateConsumerPasswordCheckState:_currentState];
+  [self.consumer setPasswordCheckUIState:
+                     [self computePasswordCheckUIStateWith:_currentState]
+               compromisedPasswordsCount:_passwordCheckManager
+                                             ->GetCompromisedCredentials()
+                                             .size()];
 }
 
-- (void)deleteCredential:
-    (const password_manager::CredentialUIEntry&)credential {
-  _savedPasswordsPresenter->RemoveCredential(credential);
-}
-
-- (void)disconnect {
-  _identityManagerObserver.reset();
-  _syncObserver.reset();
-  _syncService = nullptr;
-}
-
-#pragma mark - PasswordManagerViewControllerDelegate
-
-- (void)deleteCredentials:
-    (const std::vector<password_manager::CredentialUIEntry>&)credentials {
-  for (const auto& credential : credentials) {
-    _savedPasswordsPresenter->RemoveCredential(credential);
-  }
-}
+#pragma mark - PasswordsTableViewControllerDelegate
 
 - (void)startPasswordCheck {
   _passwordCheckManager->StartPasswordCheck();
@@ -180,7 +140,7 @@ constexpr base::TimeDelta kJustCheckedTimeThresholdInMinutes = base::Minutes(1);
   base::TimeDelta elapsedTime = base::Time::Now() - lastCompletedCheck;
 
   NSString* timestamp;
-  // If check finished in less than `kJustCheckedTimeThresholdInMinutes` show
+  // If check finished in less than |kJustCheckedTimeThresholdInMinutes| show
   // "just now" instead of timestamp.
   if (elapsedTime < kJustCheckedTimeThresholdInMinutes)
     timestamp = l10n_util::GetNSString(IDS_IOS_CHECK_FINISHED_JUST_NOW);
@@ -195,15 +155,11 @@ constexpr base::TimeDelta kJustCheckedTimeThresholdInMinutes = base::Minutes(1);
 }
 
 - (NSAttributedString*)passwordCheckErrorInfo {
-  if (!_passwordCheckManager->GetUnmutedCompromisedCredentials().empty())
+  if (!_passwordCheckManager->GetCompromisedCredentials().empty())
     return nil;
 
   NSString* message;
-  NSDictionary* textAttributes = @{
-    NSForegroundColorAttributeName : [UIColor colorNamed:kTextSecondaryColor],
-    NSFontAttributeName :
-        [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline]
-  };
+  GURL linkURL;
 
   switch (_currentState) {
     case PasswordCheckState::kRunning:
@@ -221,14 +177,8 @@ constexpr base::TimeDelta kJustCheckedTimeThresholdInMinutes = base::Minutes(1);
       if ([self canUseAccountPasswordCheckup]) {
         message = l10n_util::GetNSString(
             IDS_IOS_PASSWORD_CHECK_ERROR_QUOTA_LIMIT_VISIT_GOOGLE);
-        NSDictionary* linkAttributes = @{
-          NSLinkAttributeName :
-              net::NSURLWithGURL(password_manager::GetPasswordCheckupURL(
-                  password_manager::PasswordCheckupReferrer::kPasswordCheck))
-        };
-
-        return AttributedStringFromStringWithLink(message, textAttributes,
-                                                  linkAttributes);
+        linkURL = password_manager::GetPasswordCheckupURL(
+            password_manager::PasswordCheckupReferrer::kPasswordCheck);
       } else {
         message =
             l10n_util::GetNSString(IDS_IOS_PASSWORD_CHECK_ERROR_QUOTA_LIMIT);
@@ -238,26 +188,7 @@ constexpr base::TimeDelta kJustCheckedTimeThresholdInMinutes = base::Minutes(1);
       message = l10n_util::GetNSString(IDS_IOS_PASSWORD_CHECK_ERROR_OTHER);
       break;
   }
-  return [[NSMutableAttributedString alloc] initWithString:message
-                                                attributes:textAttributes];
-}
-
-// Returns the on-device encryption state according to the sync service.
-- (OnDeviceEncryptionState)onDeviceEncryptionState {
-  if (ShouldOfferTrustedVaultOptIn(_syncService)) {
-    return OnDeviceEncryptionStateOfferOptIn;
-  }
-  syncer::SyncUserSettings* syncUserSettings = _syncService->GetUserSettings();
-  if (syncUserSettings->GetPassphraseType() ==
-      syncer::PassphraseType::kTrustedVaultPassphrase) {
-    return OnDeviceEncryptionStateOptedIn;
-  }
-  return OnDeviceEncryptionStateNotShown;
-}
-
-- (BOOL)isSyncingPasswords {
-  return password_manager_util::GetPasswordSyncState(_syncService) !=
-         password_manager::SyncState::kNotSyncing;
+  return [self configureTextWithLink:message link:linkURL];
 }
 
 #pragma mark - PasswordCheckObserver
@@ -266,64 +197,29 @@ constexpr base::TimeDelta kJustCheckedTimeThresholdInMinutes = base::Minutes(1);
   if (state == _currentState)
     return;
 
-  [self updateConsumerPasswordCheckState:state];
+  DCHECK(self.consumer);
+  [self.consumer
+        setPasswordCheckUIState:[self computePasswordCheckUIStateWith:state]
+      compromisedPasswordsCount:_passwordCheckManager
+                                    ->GetCompromisedCredentials()
+                                    .size()];
 }
 
-- (void)compromisedCredentialsDidChange {
+- (void)compromisedCredentialsDidChange:
+    (password_manager::InsecureCredentialsManager::CredentialsView)credentials {
   // Compromised passwords changes has no effect on UI while check is running.
   if (_passwordCheckManager->GetPasswordCheckState() ==
       PasswordCheckState::kRunning)
     return;
 
-  [self updateConsumerPasswordCheckState:_currentState];
-}
-
-#pragma mark - PasswordAutoFillStatusObserver
-
-- (void)passwordAutoFillStatusDidChange {
-  // Since this action is appended to the main queue, at this stage,
-  // self.consumer should have already been setup.
   DCHECK(self.consumer);
-  [self.consumer updatePasswordsInOtherAppsDetailedText];
+
+  [self.consumer setPasswordCheckUIState:
+                     [self computePasswordCheckUIStateWith:_currentState]
+               compromisedPasswordsCount:credentials.size()];
 }
 
 #pragma mark - Private Methods
-
-// Provides passwords and blocked forms to the '_consumer'.
-- (void)providePasswordsToConsumer {
-  if (base::FeatureList::IsEnabled(
-          password_manager::features::kPasswordsGrouping)) {
-    [_consumer
-        setAffiliatedGroups:_savedPasswordsPresenter->GetAffiliatedGroups()
-               blockedSites:_savedPasswordsPresenter->GetBlockedSites()];
-  } else {
-    std::vector<password_manager::CredentialUIEntry> passwords, blockedSites;
-    for (const auto& credential :
-         _savedPasswordsPresenter->GetSavedCredentials()) {
-      if (credential.blocked_by_user) {
-        blockedSites.push_back(std::move(credential));
-      } else {
-        passwords.push_back(std::move(credential));
-      }
-    }
-    [_consumer setPasswords:std::move(passwords)
-               blockedSites:std::move(blockedSites)];
-  }
-}
-
-// Updates the `_consumer` Password Check UI State and Unmuted Compromised
-// Passwords.
-- (void)updateConsumerPasswordCheckState:
-    (PasswordCheckState)passwordCheckState {
-  DCHECK(self.consumer);
-
-  PasswordCheckUIState passwordCheckUIState =
-      [self computePasswordCheckUIStateWith:passwordCheckState];
-  NSInteger unmutedCompromisedPasswordsCount =
-      _passwordCheckManager->GetUnmutedCompromisedCredentials().size();
-  [self.consumer setPasswordCheckUIState:passwordCheckUIState
-        unmutedCompromisedPasswordsCount:unmutedCompromisedPasswordsCount];
-}
 
 // Returns PasswordCheckUIState based on PasswordCheckState.
 - (PasswordCheckUIState)computePasswordCheckUIStateWith:
@@ -340,12 +236,12 @@ constexpr base::TimeDelta kJustCheckedTimeThresholdInMinutes = base::Minutes(1);
     case PasswordCheckState::kOffline:
     case PasswordCheckState::kQuotaLimit:
     case PasswordCheckState::kOther:
-      return _passwordCheckManager->GetUnmutedCompromisedCredentials().empty()
+      return _passwordCheckManager->GetCompromisedCredentials().empty()
                  ? PasswordCheckStateError
                  : PasswordCheckStateUnSafe;
     case PasswordCheckState::kCanceled:
     case PasswordCheckState::kIdle: {
-      if (!_passwordCheckManager->GetUnmutedCompromisedCredentials().empty()) {
+      if (!_passwordCheckManager->GetCompromisedCredentials().empty()) {
         return PasswordCheckStateUnSafe;
       } else if (_currentState == PasswordCheckState::kIdle) {
         // Safe state is only possible after the state transitioned from
@@ -359,14 +255,53 @@ constexpr base::TimeDelta kJustCheckedTimeThresholdInMinutes = base::Minutes(1);
 
 // Compute whether user is capable to run password check in Google Account.
 - (BOOL)canUseAccountPasswordCheckup {
-  return _syncSetupService->CanSyncFeatureStart() &&
-         !_syncSetupService->IsEncryptEverythingEnabled();
+  return _authService->IsAuthenticated() && _syncService->IsSyncEnabled() &&
+         !_syncService->IsEncryptEverythingEnabled();
 }
 
-#pragma mark - SavedPasswordsPresenterObserver
+// Configures text for Error Info Popover.
+- (NSAttributedString*)configureTextWithLink:(NSString*)text link:(GURL)link {
+  NSRange range;
 
-- (void)savedPasswordsDidChange {
-  [self providePasswordsToConsumer];
+  NSString* strippedText = ParseStringWithLink(text, &range);
+
+  NSRange fullRange = NSMakeRange(0, strippedText.length);
+  NSMutableAttributedString* attributedText =
+      [[NSMutableAttributedString alloc] initWithString:strippedText];
+  [attributedText addAttribute:NSForegroundColorAttributeName
+                         value:[UIColor colorNamed:kTextSecondaryColor]
+                         range:fullRange];
+
+  [attributedText
+      addAttribute:NSFontAttributeName
+             value:[UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline]
+             range:fullRange];
+
+  if (range.location != NSNotFound && range.length != 0) {
+    NSURL* URL = net::NSURLWithGURL(link);
+    id linkValue = URL ? URL : @"";
+    [attributedText addAttribute:NSLinkAttributeName
+                           value:linkValue
+                           range:range];
+  }
+
+  return attributedText;
+}
+
+#pragma mark - PasswordStoreObserver
+
+- (void)loginsDidChange {
+  // Cancel ongoing requests to the password store and issue a new request.
+  _savedPasswordsConsumer->cancelable_task_tracker()->TryCancelAll();
+  _passwordStore->GetAllLogins(_savedPasswordsConsumer.get());
+}
+
+#pragma mark - SavePasswordsConsumerDelegate
+
+- (void)onGetPasswordStoreResults:
+    (std::vector<std::unique_ptr<password_manager::PasswordForm>>)results {
+  DCHECK(self.consumer);
+  [self.consumer setPasswordsForms:std::move(results)];
 }
 
 #pragma mark SuccessfulReauthTimeAccessor
@@ -377,31 +312,6 @@ constexpr base::TimeDelta kJustCheckedTimeThresholdInMinutes = base::Minutes(1);
 
 - (NSDate*)lastSuccessfulReauthTime {
   return [self successfulReauthTime];
-}
-
-#pragma mark - TableViewFaviconDataSource
-
-- (void)faviconForURL:(CrURL*)URL
-           completion:(void (^)(FaviconAttributes*))completion {
-  syncer::SyncService* syncService = self.syncService;
-  BOOL isPasswordSyncEnabled =
-      password_manager_util::IsPasswordSyncNormalEncryptionEnabled(syncService);
-  self.faviconLoader->FaviconForPageUrl(
-      URL.gurl, kDesiredMediumFaviconSizePt, kMinFaviconSizePt,
-      /*fallback_to_google_server=*/isPasswordSyncEnabled, completion);
-}
-
-#pragma mark - IdentityManagerObserverBridgeDelegate
-
-- (void)onPrimaryAccountChanged:
-    (const signin::PrimaryAccountChangeEvent&)event {
-  [self.consumer updateOnDeviceEncryptionSessionAndUpdateTableView];
-}
-
-#pragma mark - SyncObserverModelBridge
-
-- (void)onSyncStateChanged {
-  [self.consumer updateOnDeviceEncryptionSessionAndUpdateTableView];
 }
 
 @end

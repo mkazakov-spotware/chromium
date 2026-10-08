@@ -1,20 +1,23 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.contextmenu;
 
-import android.os.SystemClock;
 import android.util.Pair;
 import android.view.View;
 
-import androidx.annotation.VisibleForTesting;
-
 import org.chromium.base.Callback;
+import org.chromium.base.Log;
+import org.chromium.base.TimeUtilsJni;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.PostTask;
+import org.chromium.base.task.TaskTraits;
+import org.chromium.chrome.browser.crash.PureJavaExceptionReporter;
+import org.chromium.chrome.browser.performance_hints.PerformanceHintsObserver;
+import org.chromium.chrome.browser.share.LensUtils;
 import org.chromium.components.embedder_support.contextmenu.ContextMenuParams;
 import org.chromium.content_public.browser.RenderFrameHost;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
@@ -23,12 +26,17 @@ import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
- * A helper class that handles generating and dismissing context menus for {@link WebContents}.
+ * A helper class that handles generating context menus for {@link WebContents}s.
  */
 public class ContextMenuHelper {
-    private static Callback<ContextMenuCoordinator> sMenuShownCallbackForTests;
+    public static Callback<RevampedContextMenuCoordinator> sRevampedContextMenuShownCallback;
+
+    private static final String TAG = "ContextMenuHelper";
+
+    private boolean mDismissedFromHere;
 
     private final WebContents mWebContents;
     private long mNativeContextMenuHelper;
@@ -60,7 +68,13 @@ public class ContextMenuHelper {
 
     @CalledByNative
     private void destroy() {
-        dismissContextMenu();
+        if (mCurrentContextMenu != null) {
+            Thread.dumpStack();
+            Log.i(TAG, "Dismissing context menu " + mCurrentContextMenu);
+            mDismissedFromHere = true;
+            mCurrentContextMenu.dismiss();
+            mCurrentContextMenu = null;
+        }
         if (mCurrentNativeDelegate != null) mCurrentNativeDelegate.destroy();
         if (mPopulatorFactory != null) mPopulatorFactory.onDestroy();
         mNativeContextMenuHelper = 0;
@@ -68,7 +82,16 @@ public class ContextMenuHelper {
 
     @CalledByNative
     private void setPopulatorFactory(ContextMenuPopulatorFactory populatorFactory) {
-        dismissContextMenu();
+        if (mCurrentContextMenu != null) {
+            // TODO(crbug.com/1154731): Clean the debugging statements once we figure out the cause
+            // of the crash.
+            Thread.dumpStack();
+            Log.i(TAG, "Dismissing context menu " + mCurrentContextMenu);
+            mDismissedFromHere = true;
+
+            mCurrentContextMenu.dismiss();
+            mCurrentContextMenu = null;
+        }
         if (mCurrentNativeDelegate != null) mCurrentNativeDelegate.destroy();
         mCurrentPopulator = null;
         if (mPopulatorFactory != null) mPopulatorFactory.onDestroy();
@@ -86,7 +109,6 @@ public class ContextMenuHelper {
     private void showContextMenu(final ContextMenuParams params, RenderFrameHost renderFrameHost,
             View view, float topContentOffsetPx) {
         if (params.isFile()) return;
-
         final WindowAndroid windowAndroid = mWebContents.getTopLevelNativeWindow();
 
         if (view == null || view.getVisibility() != View.VISIBLE || view.getParent() == null
@@ -104,21 +126,54 @@ public class ContextMenuHelper {
         mCurrentContextMenuParams = params;
         mWindow = windowAndroid;
         mCallback = (result) -> {
-            if (mCurrentPopulator == null) return;
+            if (mCurrentPopulator == null) {
+                Log.i(TAG, "mCurrentPopulator was null when mCallback was called.");
+                Log.i(TAG, "mCurrentContextMenu is " + mCurrentContextMenu);
+                Log.i(TAG,
+                        "ContextMenuHelper is " + (mNativeContextMenuHelper == 0 ? "" : "NOT")
+                                + " destroyed.");
+                Log.i(TAG,
+                        "Context menu was "
+                                + (mCurrentContextMenu != null && mCurrentContextMenu.isDismissed()
+                                                ? ""
+                                                : "NOT")
+                                + " dismissed.");
+
+                Throwable throwable = new Throwable(
+                        "This is not a crash. See https://crbug.com/1153706 for details."
+                        + "\nmCurrentContextMenu is " + mCurrentContextMenu
+                        + "\nmCurrentPopulator was null when mCallback was called."
+                        + "\nContextMenuHelper is " + (mNativeContextMenuHelper == 0 ? "" : "NOT")
+                        + " destroyed."
+                        + "\nContext menu was "
+                        + (mCurrentContextMenu != null && mCurrentContextMenu.isDismissed() ? ""
+                                                                                            : "NOT")
+                        + " dismissed."
+                        + "\nContext menu was " + (mDismissedFromHere ? "" : "NOT")
+                        + " dismissed by ContextMenuHelper.");
+                PostTask.postTask(TaskTraits.BEST_EFFORT_MAY_BLOCK,
+                        () -> PureJavaExceptionReporter.reportJavaException(throwable));
+
+                return;
+            }
 
             mSelectedItemBeforeDismiss = true;
             mCurrentPopulator.onItemSelected(result);
         };
         mOnMenuShown = () -> {
             mSelectedItemBeforeDismiss = false;
-            mMenuShownTimeMs = SystemClock.uptimeMillis();
+            mMenuShownTimeMs =
+                    TimeUnit.MICROSECONDS.toMillis(TimeUtilsJni.get().getTimeTicksNowUs());
             RecordHistogram.recordBooleanHistogram("ContextMenu.Shown", mWebContents != null);
-            recordContextMenuShownType(params);
-            if (sMenuShownCallbackForTests != null) {
-                sMenuShownCallbackForTests.onResult((ContextMenuCoordinator) mCurrentContextMenu);
+            if (LensUtils.isInShoppingAllowlist(mCurrentContextMenuParams.getPageUrl())) {
+                RecordHistogram.recordBooleanHistogram(
+                        "ContextMenu.Shown.ShoppingDomain", mWebContents != null);
             }
         };
         mOnMenuClosed = () -> {
+            Log.i(TAG, "mCurrentPopulator was " + mCurrentPopulator + " when the menu closed.");
+            Log.i(TAG, "mCurrentContextMenu was " + mCurrentContextMenu + " when the menu closed.");
+
             recordTimeToTakeActionHistogram(mSelectedItemBeforeDismiss);
             mCurrentContextMenu = null;
             if (mCurrentNativeDelegate != null) {
@@ -139,43 +194,22 @@ public class ContextMenuHelper {
                     mNativeContextMenuHelper, ContextMenuHelper.this);
         };
 
-        displayContextMenu(topContentOffsetPx);
+        displayRevampedContextMenu(topContentOffsetPx);
     }
 
-    @CalledByNative
-    private void dismissContextMenu() {
-        if (mCurrentContextMenu != null) {
-            mCurrentContextMenu.dismiss();
-            mCurrentContextMenu = null;
-        }
-    }
-
-    /**
-     * Record a histogram for a context menu shown even sliced by type.
-     */
-    private void recordContextMenuShownType(final ContextMenuParams params) {
-        RecordHistogram.recordBooleanHistogram(
-                String.format("ContextMenu.Shown.%s",
-                        ContextMenuUtils.getContextMenuTypeForHistogram(params)),
-                mWebContents != null);
-    }
-
-    private void displayContextMenu(float topContentOffsetPx) {
+    private void displayRevampedContextMenu(float topContentOffsetPx) {
         List<Pair<Integer, ModelList>> items = mCurrentPopulator.buildContextMenu();
         if (items.isEmpty()) {
             PostTask.postTask(UiThreadTaskTraits.DEFAULT, mOnMenuClosed);
-            // Only call if no items are populated. Otherwise call in mOnMenuShown callback.
-            if (sMenuShownCallbackForTests != null) {
-                sMenuShownCallbackForTests.onResult(null);
-            }
             return;
         }
 
-        final ContextMenuCoordinator menuCoordinator =
-                new ContextMenuCoordinator(topContentOffsetPx, mCurrentNativeDelegate);
+        final RevampedContextMenuCoordinator menuCoordinator =
+                new RevampedContextMenuCoordinator(topContentOffsetPx, mCurrentNativeDelegate);
         mCurrentContextMenu = menuCoordinator;
         mChipDelegate = mCurrentPopulator.getChipDelegate();
-
+        // TODO(crbug/1158604): Remove leftover Lens dependencies.
+        LensUtils.startLensConnectionIfNecessary(mIsIncognito);
         if (mChipDelegate != null) {
             menuCoordinator.displayMenuWithChip(mWindow, mWebContents, mCurrentContextMenuParams,
                     items, mCallback, mOnMenuShown, mOnMenuClosed, mChipDelegate);
@@ -183,32 +217,26 @@ public class ContextMenuHelper {
             menuCoordinator.displayMenu(mWindow, mWebContents, mCurrentContextMenuParams, items,
                     mCallback, mOnMenuShown, mOnMenuClosed);
         }
+
+        if (sRevampedContextMenuShownCallback != null) {
+            sRevampedContextMenuShownCallback.onResult(menuCoordinator);
+        }
     }
 
     private void recordTimeToTakeActionHistogram(boolean selectedItem) {
         final String histogramName =
                 "ContextMenu.TimeToTakeAction." + (selectedItem ? "SelectedItem" : "Abandoned");
-        final long timeToTakeActionMs = SystemClock.uptimeMillis() - mMenuShownTimeMs;
+        final long timeToTakeActionMs =
+                TimeUnit.MICROSECONDS.toMillis(TimeUtilsJni.get().getTimeTicksNowUs())
+                - mMenuShownTimeMs;
         RecordHistogram.recordTimesHistogram(histogramName, timeToTakeActionMs);
-    }
-
-    @VisibleForTesting
-    public static void setMenuShownCallbackForTests(Callback<ContextMenuCoordinator> callback) {
-        sMenuShownCallbackForTests = callback;
-    }
-
-    @VisibleForTesting
-    public static ContextMenuHelper createForTesting(
-            long nativeContextMenuHelper, WebContents webContents) {
-        return create(nativeContextMenuHelper, webContents);
-    }
-
-    @VisibleForTesting
-    void showContextMenuForTesting(ContextMenuPopulatorFactory populatorFactory,
-            final ContextMenuParams params, RenderFrameHost renderFrameHost, View view,
-            float topContentOffsetPx) {
-        setPopulatorFactory(populatorFactory);
-        showContextMenu(params, renderFrameHost, view, topContentOffsetPx);
+        if (mCurrentContextMenuParams.isAnchor()
+                && PerformanceHintsObserver.getPerformanceClassForURL(
+                           mWebContents, mCurrentContextMenuParams.getLinkUrl())
+                        == PerformanceHintsObserver.PerformanceClass.PERFORMANCE_FAST) {
+            RecordHistogram.recordTimesHistogram(
+                    histogramName + ".PerformanceClassFast", timeToTakeActionMs);
+        }
     }
 
     @NativeMethods

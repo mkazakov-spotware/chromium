@@ -1,8 +1,7 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/no_destructor.h"
 #include "chrome/browser/profiles/profile.h"
 
 #include <stddef.h>
@@ -12,54 +11,46 @@
 #include "base/bind.h"
 #include "base/check.h"
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/json/json_reader.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
-#include "base/scoped_multi_source_observation.h"
+#include "base/sequenced_task_runner.h"
+#include "base/stl_util.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/test/bind.h"
-#include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/values.h"
 #include "base/version.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
-#include "chrome/browser/browser_features.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/profiles/chrome_version_service.h"
-#include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
-#include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "chrome/browser/profiles/profile_destroyer.h"
 #include "chrome/browser/profiles/profile_impl.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_observer.h"
-#include "chrome/browser/profiles/profile_test_util.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_constants.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
-#include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/ui_test_utils.h"
-#include "components/keep_alive_registry/keep_alive_types.h"
-#include "components/keep_alive_registry/scoped_keep_alive.h"
 #include "components/prefs/pref_service.h"
-#include "components/profile_metrics/browser_profile_type.h"
 #include "components/version_info/version_info.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/notification_observer.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
@@ -78,11 +69,10 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
-#include "url/url_constants.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "ash/constants/ash_switches.h"
-#include "chrome/browser/ash/profiles/profile_helper.h"
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/profiles/profile_helper.h"
+#include "chromeos/constants/chromeos_switches.h"
 #endif
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -91,20 +81,6 @@
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/value_builder.h"
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "base/strings/utf_string_conversions.h"
-#include "chrome/browser/profiles/profile_attributes_entry.h"
-#include "chrome/browser/profiles/profile_attributes_storage.h"
-#include "chromeos/crosapi/mojom/crosapi.mojom.h"
-#include "chromeos/startup/browser_init_params.h"
-#include "chromeos/startup/browser_params_proxy.h"
-#include "components/account_id/account_id.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
-
-#if BUILDFLAG(ENABLE_SESSION_SERVICE)
-#include "chrome/browser/sessions/exit_type_service.h"
 #endif
 
 namespace {
@@ -141,9 +117,6 @@ class SimpleURLLoaderHelper {
                                 base::Unretained(this)));
   }
 
-  SimpleURLLoaderHelper(const SimpleURLLoaderHelper&) = delete;
-  SimpleURLLoaderHelper& operator=(const SimpleURLLoaderHelper&) = delete;
-
   void OnSimpleLoaderComplete(std::unique_ptr<std::string> response_body) {
     EXPECT_EQ(expected_error_code_, loader_->NetError());
     is_complete_ = true;
@@ -160,26 +133,22 @@ class SimpleURLLoaderHelper {
 
   bool is_complete_;
   std::unique_ptr<network::SimpleURLLoader> loader_;
+
+  DISALLOW_COPY_AND_ASSIGN(SimpleURLLoaderHelper);
 };
 
 class MockProfileDelegate : public Profile::Delegate {
  public:
-  MOCK_METHOD2(OnProfileCreationStarted, void(Profile*, Profile::CreateMode));
-  MOCK_METHOD4(OnProfileCreationFinished,
-               void(Profile*, Profile::CreateMode, bool, bool));
+  MOCK_METHOD1(OnPrefsLoaded, void(Profile*));
+  MOCK_METHOD3(OnProfileCreated, void(Profile*, bool, bool));
 };
 
 class ProfileDestructionWatcher : public ProfileObserver {
  public:
   ProfileDestructionWatcher() = default;
-
-  ProfileDestructionWatcher(const ProfileDestructionWatcher&) = delete;
-  ProfileDestructionWatcher& operator=(const ProfileDestructionWatcher&) =
-      delete;
-
   ~ProfileDestructionWatcher() override = default;
 
-  void Watch(Profile* profile) { observed_profiles_.AddObservation(profile); }
+  void Watch(Profile* profile) { observed_profiles_.Add(profile); }
 
   bool destroyed() const { return destroyed_; }
 
@@ -191,13 +160,14 @@ class ProfileDestructionWatcher : public ProfileObserver {
     DCHECK(!destroyed_) << "Double profile destruction";
     destroyed_ = true;
     run_loop_.Quit();
-    observed_profiles_.RemoveObservation(profile);
+    observed_profiles_.Remove(profile);
   }
 
   bool destroyed_ = false;
   base::RunLoop run_loop_;
-  base::ScopedMultiSourceObservation<Profile, ProfileObserver>
-      observed_profiles_{this};
+  ScopedObserver<Profile, ProfileObserver> observed_profiles_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ProfileDestructionWatcher);
 };
 
 // Creates a prefs file in the given directory.
@@ -207,7 +177,7 @@ void CreatePrefsFileInDirectory(const base::FilePath& directory_path) {
   ASSERT_TRUE(base::WriteFile(pref_path, data));
 }
 
-void CheckChromeVersion(Profile* profile, bool is_new) {
+void CheckChromeVersion(Profile *profile, bool is_new) {
   std::string created_by_version;
   if (is_new) {
     created_by_version = version_info::GetVersionNumber();
@@ -243,38 +213,14 @@ void SpinThreads() {
   base::ThreadPoolInstance::Get()->FlushForTesting();
 }
 
-class BrowserCloseObserver : public BrowserListObserver {
- public:
-  explicit BrowserCloseObserver(Browser* browser) : browser_(browser) {
-    BrowserList::AddObserver(this);
-  }
-
-  BrowserCloseObserver(const BrowserCloseObserver&) = delete;
-  BrowserCloseObserver& operator=(const BrowserCloseObserver&) = delete;
-
-  ~BrowserCloseObserver() override { BrowserList::RemoveObserver(this); }
-
-  void Wait() { run_loop_.Run(); }
-
-  // BrowserListObserver implementation.
-  void OnBrowserRemoved(Browser* browser) override {
-    if (browser == browser_)
-      run_loop_.Quit();
-  }
-
- private:
-  raw_ptr<Browser, DanglingUntriaged> browser_;
-  base::RunLoop run_loop_;
-};
-
 }  // namespace
 
 class ProfileBrowserTest : public InProcessBrowserTest {
  protected:
   void SetUpCommandLine(base::CommandLine* command_line) override {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
     command_line->AppendSwitch(
-        ash::switches::kIgnoreUserProfileMappingForTests);
+        chromeos::switches::kIgnoreUserProfileMappingForTests);
 #endif
   }
 
@@ -365,22 +311,13 @@ class ProfileBrowserTest : public InProcessBrowserTest {
 
 // Test OnProfileCreate is called with is_new_profile set to true when
 // creating a new profile synchronously.
-// TODO(crbug.com/1218591): Flaky on ChromeOS-Ash.
-// TODO(crbug.com/1304167): Failing on Mac.
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_MAC)
-#define MAYBE_CreateNewProfileSynchronous DISABLED_CreateNewProfileSynchronous
-#else
-#define MAYBE_CreateNewProfileSynchronous CreateNewProfileSynchronous
-#endif
-IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, MAYBE_CreateNewProfileSynchronous) {
+IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, CreateNewProfileSynchronous) {
   base::ScopedAllowBlockingForTesting allow_blocking;
   base::ScopedTempDir temp_dir;
   ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
 
   MockProfileDelegate delegate;
-  EXPECT_CALL(delegate, OnProfileCreationFinished(
-                            testing::NotNull(),
-                            Profile::CREATE_MODE_SYNCHRONOUS, true, true));
+  EXPECT_CALL(delegate, OnProfileCreated(testing::NotNull(), true, true));
 
   {
     std::unique_ptr<Profile> profile(CreateProfile(
@@ -398,23 +335,14 @@ IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, MAYBE_CreateNewProfileSynchronous) {
 
 // Test OnProfileCreate is called with is_new_profile set to false when
 // creating a profile synchronously with an existing prefs file.
-// TODO(crbug.com/1304167): Failing on Mac.
-// TODO(crbug.com/): Flaky on linux-chromeos-rel.
-#if BUILDFLAG(IS_MAC) || (BUILDFLAG(IS_CHROMEOS) && !defined(NDEBUG))
-#define MAYBE_CreateOldProfileSynchronous DISABLED_CreateOldProfileSynchronous
-#else
-#define MAYBE_CreateOldProfileSynchronous CreateOldProfileSynchronous
-#endif
-IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, MAYBE_CreateOldProfileSynchronous) {
+IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, CreateOldProfileSynchronous) {
   base::ScopedAllowBlockingForTesting allow_blocking;
   base::ScopedTempDir temp_dir;
   ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
   CreatePrefsFileInDirectory(temp_dir.GetPath());
 
   MockProfileDelegate delegate;
-  EXPECT_CALL(delegate, OnProfileCreationFinished(
-                            testing::NotNull(),
-                            Profile::CREATE_MODE_SYNCHRONOUS, true, false));
+  EXPECT_CALL(delegate, OnProfileCreated(testing::NotNull(), true, false));
 
   {
     std::unique_ptr<Profile> profile(CreateProfile(
@@ -430,108 +358,136 @@ IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, MAYBE_CreateOldProfileSynchronous) {
   FlushIoTaskRunnerAndSpinThreads();
 }
 
+// Flaky: http://crbug.com/393177
 // Test OnProfileCreate is called with is_new_profile set to true when
 // creating a new profile asynchronously.
-// TODO(crbug.com/1280223): Flaky on ChromeOS-Ash.
-// TODO(crbug.com/1304167): Failing on Mac.
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_MAC)
-#define MAYBE_CreateNewProfileAsynchronous DISABLED_CreateNewProfileAsynchronous
-#else
-#define MAYBE_CreateNewProfileAsynchronous CreateNewProfileAsynchronous
-#endif
-IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, MAYBE_CreateNewProfileAsynchronous) {
+IN_PROC_BROWSER_TEST_F(ProfileBrowserTest,
+                       DISABLED_CreateNewProfileAsynchronous) {
   base::ScopedAllowBlockingForTesting allow_blocking;
   base::ScopedTempDir temp_dir;
   ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
 
   MockProfileDelegate delegate;
-  base::RunLoop run_loop;
-  EXPECT_CALL(delegate, OnProfileCreationFinished(
-                            testing::NotNull(),
-                            Profile::CREATE_MODE_ASYNCHRONOUS, true, true))
-      .WillOnce(testing::InvokeWithoutArgs([&run_loop]() { run_loop.Quit(); }));
+  EXPECT_CALL(delegate, OnProfileCreated(testing::NotNull(), true, true));
 
-  std::unique_ptr<Profile> profile(CreateProfile(
-      temp_dir.GetPath(), &delegate, Profile::CREATE_MODE_ASYNCHRONOUS));
+  {
+    content::WindowedNotificationObserver observer(
+        chrome::NOTIFICATION_PROFILE_CREATED,
+        content::NotificationService::AllSources());
 
-  // Wait for the profile to be created.
-  run_loop.Run();
-  CheckChromeVersion(profile.get(), true);
+    std::unique_ptr<Profile> profile(CreateProfile(
+        temp_dir.GetPath(), &delegate, Profile::CREATE_MODE_ASYNCHRONOUS));
 
-  // Let all posted tasks complete before the profile is destroyed.
+    // Wait for the profile to be created.
+    observer.Wait();
+    CheckChromeVersion(profile.get(), true);
+  }
+
   FlushIoTaskRunnerAndSpinThreads();
 }
 
-// TODO(crbug.com/1282123): Flaky on ChromeOS-Ash.
-// TODO(crbug.com/1218591): Flaky on Mac.
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_MAC)
-#define MAYBE_CreateOldProfileAsynchronous DISABLED_CreateOldProfileAsynchronous
-#else
-#define MAYBE_CreateOldProfileAsynchronous CreateOldProfileAsynchronous
-#endif
+
+// Flaky: http://crbug.com/393177
 // Test OnProfileCreate is called with is_new_profile set to false when
 // creating a profile asynchronously with an existing prefs file.
-IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, MAYBE_CreateOldProfileAsynchronous) {
+IN_PROC_BROWSER_TEST_F(ProfileBrowserTest,
+                       DISABLED_CreateOldProfileAsynchronous) {
   base::ScopedAllowBlockingForTesting allow_blocking;
   base::ScopedTempDir temp_dir;
   ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
   CreatePrefsFileInDirectory(temp_dir.GetPath());
 
   MockProfileDelegate delegate;
-  base::RunLoop run_loop;
-  EXPECT_CALL(delegate, OnProfileCreationFinished(
-                            testing::NotNull(),
-                            Profile::CREATE_MODE_ASYNCHRONOUS, true, false))
-      .WillOnce(testing::InvokeWithoutArgs([&run_loop]() { run_loop.Quit(); }));
+  EXPECT_CALL(delegate, OnProfileCreated(testing::NotNull(), true, false));
 
-  std::unique_ptr<Profile> profile(CreateProfile(
-      temp_dir.GetPath(), &delegate, Profile::CREATE_MODE_ASYNCHRONOUS));
+  {
+    content::WindowedNotificationObserver observer(
+        chrome::NOTIFICATION_PROFILE_CREATED,
+        content::NotificationService::AllSources());
 
-  // Wait for the profile to be created.
-  run_loop.Run();
-  CheckChromeVersion(profile.get(), false);
+    std::unique_ptr<Profile> profile(CreateProfile(
+        temp_dir.GetPath(), &delegate, Profile::CREATE_MODE_ASYNCHRONOUS));
 
-  // Let all posted tasks complete before the profile is destroyed.
+    // Wait for the profile to be created.
+    observer.Wait();
+    CheckChromeVersion(profile.get(), false);
+  }
+
   FlushIoTaskRunnerAndSpinThreads();
 }
 
+// Flaky: http://crbug.com/393177
 // Test that a README file is created for profiles that didn't have it.
-// TODO(https://crbug.com/1289754): Flaky on ChromeOS-Ash.
-// TODO(https://crbug.com/1304167): Failing on Mac.
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_MAC)
-#define MAYBE_ProfileReadmeCreated DISABLED_ProfileReadmeCreated
-#else
-#define MAYBE_ProfileReadmeCreated ProfileReadmeCreated
-#endif
-IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, MAYBE_ProfileReadmeCreated) {
+IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, DISABLED_ProfileReadmeCreated) {
   base::ScopedAllowBlockingForTesting allow_blocking;
   base::ScopedTempDir temp_dir;
   ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
 
   MockProfileDelegate delegate;
-  base::RunLoop run_loop;
-  EXPECT_CALL(delegate, OnProfileCreationFinished(
-                            testing::NotNull(),
-                            Profile::CREATE_MODE_ASYNCHRONOUS, true, true))
-      .WillOnce(testing::InvokeWithoutArgs([&run_loop]() { run_loop.Quit(); }));
+  EXPECT_CALL(delegate, OnProfileCreated(testing::NotNull(), true, true));
 
-  std::unique_ptr<Profile> profile(CreateProfile(
-      temp_dir.GetPath(), &delegate, Profile::CREATE_MODE_ASYNCHRONOUS));
+  {
+    content::WindowedNotificationObserver observer(
+        chrome::NOTIFICATION_PROFILE_CREATED,
+        content::NotificationService::AllSources());
 
-  // Wait for the profile to be created.
-  run_loop.Run();
+    std::unique_ptr<Profile> profile(CreateProfile(
+        temp_dir.GetPath(), &delegate, Profile::CREATE_MODE_ASYNCHRONOUS));
 
-  // Wait until README is created on a background thread.
+    // Wait for the profile to be created.
+    observer.Wait();
+
+    // Verify that README exists.
+    EXPECT_TRUE(
+        base::PathExists(temp_dir.GetPath().Append(chrome::kReadmeFilename)));
+  }
+
   FlushIoTaskRunnerAndSpinThreads();
+}
 
-  // Verify that README exists.
-  EXPECT_TRUE(
-      base::PathExists(temp_dir.GetPath().Append(chrome::kReadmeFilename)));
+// Test that repeated setting of exit type is handled correctly.
+IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, ExitType) {
+  base::ScopedAllowBlockingForTesting allow_blocking;
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+
+  MockProfileDelegate delegate;
+  EXPECT_CALL(delegate, OnProfileCreated(testing::NotNull(), true, true));
+  {
+    std::unique_ptr<Profile> profile(CreateProfile(
+        temp_dir.GetPath(), &delegate, Profile::CREATE_MODE_SYNCHRONOUS));
+
+    PrefService* prefs = profile->GetPrefs();
+    // The initial state is crashed; store for later reference.
+    std::string crash_value(prefs->GetString(prefs::kSessionExitType));
+
+    // The first call to a type other than crashed should change the value.
+    profile->SetExitType(Profile::EXIT_SESSION_ENDED);
+    std::string first_call_value(prefs->GetString(prefs::kSessionExitType));
+    EXPECT_NE(crash_value, first_call_value);
+
+    // Subsequent calls to a non-crash value should be ignored.
+    profile->SetExitType(Profile::EXIT_NORMAL);
+    std::string second_call_value(prefs->GetString(prefs::kSessionExitType));
+    EXPECT_EQ(first_call_value, second_call_value);
+
+    // Setting back to a crashed value should work.
+    profile->SetExitType(Profile::EXIT_CRASHED);
+    std::string final_value(prefs->GetString(prefs::kSessionExitType));
+    EXPECT_EQ(crash_value, final_value);
+
+    // Creating a profile causes an implicit connection attempt to a Mojo
+    // service, which occurs as part of a new task. Before deleting |profile|,
+    // ensure this task runs to prevent a crash.
+    FlushIoTaskRunnerAndSpinThreads();
+  }
+
+  FlushIoTaskRunnerAndSpinThreads();
 }
 
 // The EndSession IO synchronization is only critical on Windows, but also
-// happens under the USE_OZONE define. See BrowserProcessImpl::EndSession.
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_OZONE)
+// happens under the USE_X11 define. See BrowserProcessImpl::EndSession.
+#if defined(USE_X11) || defined(OS_WIN) || defined(USE_OZONE)
 
 namespace {
 
@@ -542,20 +498,19 @@ std::string GetExitTypePreferenceFromDisk(Profile* profile) {
   if (!base::ReadFileToString(prefs_path, &prefs))
     return std::string();
 
-  absl::optional<base::Value> value = base::JSONReader::Read(prefs);
+  std::unique_ptr<base::Value> value = base::JSONReader::ReadDeprecated(prefs);
   if (!value)
     return std::string();
 
-  base::Value::Dict* dict = value->GetIfDict();
-  if (!dict)
+  base::DictionaryValue* dict = NULL;
+  if (!value->GetAsDictionary(&dict) || !dict)
     return std::string();
 
-  const std::string* exit_type =
-      dict->FindStringByDottedPath("profile.exit_type");
-  if (!exit_type)
+  std::string exit_type;
+  if (!dict->GetString("profile.exit_type", &exit_type))
     return std::string();
 
-  return *exit_type;
+  return exit_type;
 }
 
 }  // namespace
@@ -573,9 +528,9 @@ IN_PROC_BROWSER_TEST_F(ProfileBrowserTest,
   ASSERT_NE(loaded_profiles.size(), 0UL);
   Profile* profile = loaded_profiles[0];
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   for (auto* loaded_profile : loaded_profiles) {
-    if (!ash::ProfileHelper::IsSigninProfile(loaded_profile)) {
+    if (!chromeos::ProfileHelper::IsSigninProfile(loaded_profile)) {
       profile = loaded_profile;
       break;
     }
@@ -592,7 +547,7 @@ IN_PROC_BROWSER_TEST_F(ProfileBrowserTest,
       : public base::SupportsWeakPtr<FailsIfCalledWhileOnStack> {
     void Fail() { ADD_FAILURE(); }
   } fails_if_called_while_on_stack;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&FailsIfCalledWhileOnStack::Fail,
                                 fails_if_called_while_on_stack.AsWeakPtr()));
 
@@ -601,10 +556,7 @@ IN_PROC_BROWSER_TEST_F(ProfileBrowserTest,
   bool succeeded = false;
   for (size_t retries = 0; !succeeded && retries < 3; ++retries) {
     // Flush the profile data to disk for all loaded profiles.
-#if BUILDFLAG(ENABLE_SESSION_SERVICE)
-    ExitTypeService::GetInstanceForProfile(profile)->SetCurrentSessionExitType(
-        ExitType::kCrashed);
-#endif
+    profile->SetExitType(Profile::EXIT_CRASHED);
     profile->GetPrefs()->CommitPendingWrite();
     FlushTaskRunner(profile->GetIOTaskRunner().get());
 
@@ -625,7 +577,7 @@ IN_PROC_BROWSER_TEST_F(ProfileBrowserTest,
     // This helps against flakes, and also ensures that if the IO thread starts
     // blocking systemically for that length of time (e.g. deadlocking or such),
     // we'll get a consistent test failure.
-    if (end - start > base::Seconds(5))
+    if (end - start > base::TimeDelta::FromSeconds(5))
       continue;
 
     // Make sure that the prefs file was written with the expected key/value.
@@ -638,7 +590,7 @@ IN_PROC_BROWSER_TEST_F(ProfileBrowserTest,
   ASSERT_TRUE(succeeded) << "profile->EndSession() timed out too often.";
 }
 
-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_OZONE)
+#endif  // defined(USE_X11) || defined(OS_WIN) || defined(USE_OZONE)
 
 // The following tests make sure that it's safe to shut down while one of the
 // Profile's URLLoaderFactories is in use by a SimpleURLLoader.
@@ -646,9 +598,7 @@ IN_PROC_BROWSER_TEST_F(ProfileBrowserTest,
                        SimpleURLLoaderUsingMainContextDuringShutdown) {
   ASSERT_TRUE(embedded_test_server()->Start());
   StartActiveLoaderDuringProfileShutdownTest(
-      browser()
-          ->profile()
-          ->GetDefaultStoragePartition()
+      content::BrowserContext::GetDefaultStoragePartition(browser()->profile())
           ->GetURLLoaderFactoryForBrowserProcess()
           .get());
 }
@@ -662,8 +612,8 @@ IN_PROC_BROWSER_TEST_F(ProfileBrowserTest,
       OpenURLOffTheRecord(browser()->profile(), GURL("about:blank"));
   RunURLLoaderActiveDuringIncognitoTeardownTest(
       embedded_test_server(), incognito_browser,
-      incognito_browser->profile()
-          ->GetDefaultStoragePartition()
+      content::BrowserContext::GetDefaultStoragePartition(
+          incognito_browser->profile())
           ->GetURLLoaderFactoryForBrowserProcess()
           .get());
 }
@@ -752,25 +702,101 @@ IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, LastSelectedDirectory) {
   ASSERT_EQ(profile_impl->last_selected_directory(), home);
 }
 
+IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, Notifications) {
+  base::ScopedAllowBlockingForTesting allow_blocking;
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+
+  // Create the profile and check that a notification is received for it.
+  std::unique_ptr<Profile> profile;
+  {
+    content::WindowedNotificationObserver profile_created_observer(
+        chrome::NOTIFICATION_PROFILE_CREATED,
+        content::NotificationService::AllSources());
+
+    profile = CreateProfile(temp_dir.GetPath(), nullptr,
+                            Profile::CREATE_MODE_SYNCHRONOUS);
+    profile_created_observer.Wait();
+
+    EXPECT_EQ(profile_created_observer.source(),
+              content::Source<Profile>(profile.get()));
+  }
+
+  // Now retrieve the off-the-record profile, which will be created because it
+  // doesn't exist yet.
+  Profile* otr_profile = nullptr;
+  {
+    content::WindowedNotificationObserver profile_created_observer(
+        chrome::NOTIFICATION_PROFILE_CREATED,
+        content::NotificationService::AllSources());
+
+    otr_profile = profile->GetPrimaryOTRProfile();
+    profile_created_observer.Wait();
+
+    EXPECT_EQ(profile_created_observer.source(),
+              content::Source<Profile>(otr_profile));
+    EXPECT_TRUE(profile->HasPrimaryOTRProfile());
+    EXPECT_TRUE(otr_profile->IsOffTheRecord());
+    EXPECT_TRUE(otr_profile->IsPrimaryOTRProfile());
+    EXPECT_TRUE(otr_profile->IsIncognitoProfile());
+  }
+
+  // We are about to destroy a profile. In production that will only happen
+  // as part of the destruction of BrowserProcess's ProfileManager. This
+  // happens in PostMainMessageLoopRun(). This means that to have this test
+  // represent production we have to make sure that no tasks are pending on the
+  // main thread before we destroy the profile. We also would need to prohibit
+  // the posting of new tasks on the main thread as in production the main
+  // thread's message loop will not be accepting them. We fallback on flushing
+  // as many runners as possible here to avoid the posts coming from any of
+  // them.
+  FlushIoTaskRunnerAndSpinThreads();
+
+  // Destroy the off-the-record profile.
+  {
+    content::WindowedNotificationObserver profile_destroyed_observer(
+        chrome::NOTIFICATION_PROFILE_DESTROYED,
+        content::Source<Profile>(otr_profile));
+
+    if (profile->HasPrimaryOTRProfile()) {
+      profile->DestroyOffTheRecordProfile(profile->GetPrimaryOTRProfile());
+      profile_destroyed_observer.Wait();
+    }
+
+    EXPECT_FALSE(profile->HasPrimaryOTRProfile());
+  }
+
+  // Destroy the regular profile.
+  {
+    content::WindowedNotificationObserver profile_destroyed_observer(
+        chrome::NOTIFICATION_PROFILE_DESTROYED,
+        content::Source<Profile>(profile.get()));
+
+    profile.reset();
+    profile_destroyed_observer.Wait();
+  }
+
+  // Pending tasks related to |profile| could depend on |temp_dir|. We need to
+  // let them complete before |temp_dir| goes out of scope.
+  FlushIoTaskRunnerAndSpinThreads();
+}
+
 // Verifies creating an OTR with non-primary id results in a different profile
 // from incognito profile.
 IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, CreateNonPrimaryOTR) {
-  auto otr_profile_id = Profile::OTRProfileID::CreateUniqueForTesting();
+  Profile::OTRProfileID otr_profile_id("profile::otr");
 
   Profile* regular_profile = browser()->profile();
   EXPECT_FALSE(regular_profile->HasAnyOffTheRecordProfile());
 
-  EXPECT_FALSE(regular_profile->GetOffTheRecordProfile(
-      otr_profile_id, /*create_if_needed=*/false));
-  Profile* otr_profile = regular_profile->GetOffTheRecordProfile(
-      otr_profile_id, /*create_if_needed=*/true);
+  Profile* otr_profile =
+      regular_profile->GetOffTheRecordProfile(otr_profile_id);
   EXPECT_TRUE(regular_profile->HasAnyOffTheRecordProfile());
   EXPECT_TRUE(otr_profile->IsOffTheRecord());
   EXPECT_EQ(otr_profile_id, otr_profile->GetOTRProfileID());
   EXPECT_TRUE(regular_profile->HasOffTheRecordProfile(otr_profile_id));
-  EXPECT_NE(otr_profile,
-            regular_profile->GetOffTheRecordProfile(
-                Profile::OTRProfileID::PrimaryID(), /*create_if_needed=*/true));
+  EXPECT_NE(otr_profile, regular_profile->GetOffTheRecordProfile(
+                             Profile::OTRProfileID::PrimaryID()));
 
   regular_profile->DestroyOffTheRecordProfile(otr_profile);
   EXPECT_FALSE(regular_profile->HasOffTheRecordProfile(otr_profile_id));
@@ -781,19 +807,15 @@ IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, CreateNonPrimaryOTR) {
 
 // Verifies creating two OTRs with different ids results in different profiles.
 IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, CreateTwoNonPrimaryOTRs) {
-  auto otr_profile_id1 = Profile::OTRProfileID::CreateUniqueForTesting();
-  auto otr_profile_id2 = Profile::OTRProfileID::CreateUniqueForTesting();
+  Profile::OTRProfileID otr_profile_id1("profile::otr1");
+  Profile::OTRProfileID otr_profile_id2("profile::otr2");
 
   Profile* regular_profile = browser()->profile();
 
-  Profile* otr_profile1 = regular_profile->GetOffTheRecordProfile(
-      otr_profile_id1, /*create_if_needed=*/true);
-
-  EXPECT_FALSE(regular_profile->GetOffTheRecordProfile(
-      otr_profile_id2, /*create_if_needed=*/false));
-
-  Profile* otr_profile2 = regular_profile->GetOffTheRecordProfile(
-      otr_profile_id2, /*create_if_needed=*/true);
+  Profile* otr_profile1 =
+      regular_profile->GetOffTheRecordProfile(otr_profile_id1);
+  Profile* otr_profile2 =
+      regular_profile->GetOffTheRecordProfile(otr_profile_id2);
 
   EXPECT_NE(otr_profile1, otr_profile2);
   EXPECT_TRUE(regular_profile->HasOffTheRecordProfile(otr_profile_id1));
@@ -804,31 +826,11 @@ IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, CreateTwoNonPrimaryOTRs) {
   EXPECT_TRUE(regular_profile->HasOffTheRecordProfile(otr_profile_id2));
 }
 
-class ProfileBrowserTestWithoutDestroyProfile : public ProfileBrowserTest {
- public:
-  ProfileBrowserTestWithoutDestroyProfile() {
-    scoped_feature_list_.InitAndDisableFeature(
-        features::kDestroyProfileOnBrowserClose);
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
 // Verifies destroying regular profile will result in destruction of OTR
 // profiles.
-// TODO(crbug.com/1225252): Flakily fails on ASAN/LSAN builds
-// TODO(crbug.com/1304167): Failing on Mac.
-#if defined(ADDRESS_SANITIZER) || BUILDFLAG(IS_MAC)
-#define MAYBE_DestroyRegularProfileBeforeOTRs \
-  DISABLED_DestroyRegularProfileBeforeOTRs
-#else
-#define MAYBE_DestroyRegularProfileBeforeOTRs DestroyRegularProfileBeforeOTRs
-#endif
-IN_PROC_BROWSER_TEST_F(ProfileBrowserTestWithoutDestroyProfile,
-                       MAYBE_DestroyRegularProfileBeforeOTRs) {
-  auto otr_profile_id1 = Profile::OTRProfileID::CreateUniqueForTesting();
-  auto otr_profile_id2 = Profile::OTRProfileID::CreateUniqueForTesting();
+IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, DestroyRegularProfileBeforeOTRs) {
+  Profile::OTRProfileID otr_profile_id1("profile::otr1");
+  Profile::OTRProfileID otr_profile_id2("profile::otr2");
 
   base::ScopedAllowBlockingForTesting allow_blocking;
   base::ScopedTempDir temp_dir;
@@ -843,201 +845,35 @@ IN_PROC_BROWSER_TEST_F(ProfileBrowserTestWithoutDestroyProfile,
   // ensure this task runs to prevent a crash.
   FlushIoTaskRunnerAndSpinThreads();
 
-  Profile* otr_profile1 = regular_profile->GetOffTheRecordProfile(
-      otr_profile_id1, /*create_if_needed=*/true);
-  Profile* otr_profile2 = regular_profile->GetOffTheRecordProfile(
-      otr_profile_id2, /*create_if_needed=*/true);
+  Profile* otr_profile1 =
+      regular_profile->GetOffTheRecordProfile(otr_profile_id1);
+  Profile* otr_profile2 =
+      regular_profile->GetOffTheRecordProfile(otr_profile_id2);
 
   ProfileDestructionWatcher watcher1;
   ProfileDestructionWatcher watcher2;
   watcher1.Watch(otr_profile1);
   watcher2.Watch(otr_profile2);
 
-  ProfileDestroyer::DestroyOriginalProfileWhenAppropriate(
-      std::move(regular_profile));
+  ProfileDestroyer::DestroyProfileWhenAppropriate(regular_profile.release());
 
   EXPECT_TRUE(watcher1.destroyed());
   EXPECT_TRUE(watcher2.destroyed());
 }
 
-// Regression test for: https://crbug.com/1357476
-IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, DestroyOnOTRProfileAmongMany) {
-  // Create 3 OTR profiles. The first is the "primary" OTR profile. It is used
-  // to create a RenderProcessHost depending on it, holding it alive.
-  Profile* otr_profile[3] = {
-      browser()->profile()->GetOffTheRecordProfile(
-          Profile::OTRProfileID::PrimaryID(), true),
-      browser()->profile()->GetOffTheRecordProfile(
-          Profile::OTRProfileID::CreateUniqueForTesting(), true),
-      browser()->profile()->GetOffTheRecordProfile(
-          Profile::OTRProfileID::CreateUniqueForTesting(), true),
-  };
-  Browser* incognito_browser =
-      OpenURLOffTheRecord(browser()->profile(), GURL(url::kAboutBlankURL));
-
-  ProfileDestructionWatcher watcher[3];
-  watcher[0].Watch(otr_profile[0]);
-  watcher[1].Watch(otr_profile[1]);
-  watcher[2].Watch(otr_profile[2]);
-
-  scoped_refptr<base::SequencedTaskRunner> profile_task_runner =
-      incognito_browser->profile()->GetIOTaskRunner();
-
-  // Request the destruction of one OTR profile:
-  ProfileDestroyer::DestroyOTRProfileWhenAppropriate(otr_profile[1]);
-  EXPECT_FALSE(watcher[0].destroyed());
-  EXPECT_TRUE(watcher[1].destroyed());
-  EXPECT_FALSE(watcher[2].destroyed());
-  // The `watcher` are not observing the real destruction of the Profile. Make
-  // sure no crash are happening during the real destruction of the Profile.
-  // This is needed to reproduce: https://crbug.com/1357476
-  base::RunLoop loop;
-  profile_task_runner->PostDelayedTask(FROM_HERE, loop.QuitClosure(),
-                                       base::Milliseconds(2100));
-  loop.Run();
-
-  // Request the destruction of the primary OTR profile. This happens
-  // synchronously, because it requires releasing the RenderProcessHost used.
-  incognito_browser->tab_strip_model()->CloseAllTabs();
-  EXPECT_FALSE(watcher[0].destroyed());
-  EXPECT_TRUE(watcher[1].destroyed());
-  EXPECT_FALSE(watcher[2].destroyed());
-
-  watcher[0].WaitForDestruction();
-  EXPECT_TRUE(watcher[0].destroyed());
-  EXPECT_TRUE(watcher[1].destroyed());
-  EXPECT_FALSE(watcher[2].destroyed());
-
-  // Cleanup
-  ProfileDestroyer::DestroyOTRProfileWhenAppropriate(otr_profile[2]);
-  watcher[2].WaitForDestruction();
-}
-
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-class ProfileBrowserTestWithDestroyProfile : public ProfileBrowserTest {
- public:
-  ProfileBrowserTestWithDestroyProfile() {
-    keep_alive_ = std::make_unique<ScopedKeepAlive>(
-        KeepAliveOrigin::BROWSER, KeepAliveRestartOption::DISABLED);
-
-    scoped_feature_list_.InitAndEnableFeature(
-        features::kDestroyProfileOnBrowserClose);
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-
-  std::unique_ptr<ScopedKeepAlive> keep_alive_;
-};
-
-// Main profile is not yet destroyed on Lacros, test below to test destroying
-// secondary profiles  on Lacros`LacrosSecondaryProfilesDestroyOnBrowserClose`.
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
-// Verifies the regular Profile doesn't get destroyed as long as there's an OTR
-// Profile around.
-IN_PROC_BROWSER_TEST_F(ProfileBrowserTestWithDestroyProfile,
-                       OTRProfileKeepsRegularProfileAlive) {
-  Profile* regular_profile = browser()->profile();
-  ProfileManager* profile_manager = g_browser_process->profile_manager();
-  EXPECT_FALSE(profile_manager->HasKeepAliveForTesting(
-      regular_profile, ProfileKeepAliveOrigin::kOffTheRecordProfile));
-
-  auto otr_profile_id = Profile::OTRProfileID::CreateUniqueForTesting();
-  Profile* otr_profile = regular_profile->GetOffTheRecordProfile(
-      otr_profile_id, /*create_if_needed=*/true);
-
-  ProfileDestructionWatcher regular_watcher;
-  ProfileDestructionWatcher otr_watcher;
-  regular_watcher.Watch(regular_profile);
-  otr_watcher.Watch(otr_profile);
-
-  EXPECT_TRUE(profile_manager->HasKeepAliveForTesting(
-      regular_profile, ProfileKeepAliveOrigin::kBrowserWindow));
-  EXPECT_TRUE(profile_manager->HasKeepAliveForTesting(
-      regular_profile, ProfileKeepAliveOrigin::kOffTheRecordProfile));
-
-  // Close the browser. Because there's an OTR profile open, the regular Profile
-  // shouldn't get deleted.
-  browser()->tab_strip_model()->CloseAllTabs();
-  base::RunLoop().RunUntilIdle();
-  EXPECT_FALSE(profile_manager->HasKeepAliveForTesting(
-      regular_profile, ProfileKeepAliveOrigin::kBrowserWindow));
-  EXPECT_TRUE(profile_manager->HasKeepAliveForTesting(
-      regular_profile, ProfileKeepAliveOrigin::kOffTheRecordProfile));
-
-  // Destroy the OTR profile. *Now* the regular Profile should get deleted.
-  ProfileDestroyer::DestroyOTRProfileWhenAppropriate(otr_profile);
-  otr_watcher.WaitForDestruction();
-  regular_watcher.WaitForDestruction();
-
-  EXPECT_TRUE(regular_watcher.destroyed());
-  EXPECT_TRUE(otr_watcher.destroyed());
-}
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-//  Test secondary profiles deleted on browser close on lacros.
-//  Main profile remains alive.
-IN_PROC_BROWSER_TEST_F(ProfileBrowserTestWithDestroyProfile,
-                       LacrosSecondaryProfilesDestroyOnBrowserClose) {
-  Profile* main_profile = browser()->profile();
-  ASSERT_TRUE(Profile::IsMainProfilePath(main_profile->GetPath()));
-
-  ProfileManager* profile_manager = g_browser_process->profile_manager();
-  // Create a secondary profile.
-  Profile* secondary_profile = profiles::testing::CreateProfileSync(
-      profile_manager, profile_manager->GenerateNextProfileDirectoryPath());
-  ASSERT_FALSE(Profile::IsMainProfilePath(secondary_profile->GetPath()));
-
-  // Creates a browser for the secondary profile.
-  Browser* secondary_browser = CreateBrowser(secondary_profile);
-  Browser* main_browser = browser();
-
-  EXPECT_TRUE(profile_manager->HasKeepAliveForTesting(
-      main_profile, ProfileKeepAliveOrigin::kLacrosMainProfile));
-  EXPECT_FALSE(profile_manager->HasKeepAliveForTesting(
-      secondary_profile, ProfileKeepAliveOrigin::kLacrosMainProfile));
-
-  // Destruction Watchers for both profiles.
-  ProfileDestructionWatcher main_watcher;
-  ProfileDestructionWatcher secondary_watcher;
-  main_watcher.Watch(main_profile);
-  secondary_watcher.Watch(secondary_profile);
-
-  // Close both browsers.
-  CloseBrowserSynchronously(secondary_browser);
-  CloseBrowserSynchronously(main_browser);
-  base::RunLoop().RunUntilIdle();
-
-  // Main profile has no more active browsers.
-  EXPECT_FALSE(profile_manager->HasKeepAliveForTesting(
-      main_profile, ProfileKeepAliveOrigin::kBrowserWindow));
-  // But still has the `ProfileKeepAliveOrigin::kLacrosMainProfile` KeepAlive
-  EXPECT_TRUE(profile_manager->HasKeepAliveForTesting(
-      main_profile, ProfileKeepAliveOrigin::kLacrosMainProfile));
-  // So the profile is not destroyed on browser close.
-  EXPECT_FALSE(main_watcher.destroyed());
-
-  // The secondary profile is destroyed on browser close.
-  EXPECT_TRUE(secondary_watcher.destroyed());
-}
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
-
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
-
 // Tests Profile::GetAllOffTheRecordProfiles
 IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, TestGetAllOffTheRecordProfiles) {
-  auto otr_profile_id1 = Profile::OTRProfileID::CreateUniqueForTesting();
-  auto otr_profile_id2 = Profile::OTRProfileID::CreateUniqueForTesting();
+  Profile::OTRProfileID otr_profile_id1("profile::otr1");
+  Profile::OTRProfileID otr_profile_id2("profile::otr2");
 
   Profile* regular_profile = browser()->profile();
 
-  Profile* otr_profile1 = regular_profile->GetOffTheRecordProfile(
-      otr_profile_id1, /*create_if_needed=*/true);
-  Profile* otr_profile2 = regular_profile->GetOffTheRecordProfile(
-      otr_profile_id2, /*create_if_needed=*/true);
+  Profile* otr_profile1 =
+      regular_profile->GetOffTheRecordProfile(otr_profile_id1);
+  Profile* otr_profile2 =
+      regular_profile->GetOffTheRecordProfile(otr_profile_id2);
   Profile* incognito_profile = regular_profile->GetOffTheRecordProfile(
-      Profile::OTRProfileID::PrimaryID(), /*create_if_needed=*/true);
+      Profile::OTRProfileID::PrimaryID());
 
   std::vector<Profile*> all_otrs =
       regular_profile->GetAllOffTheRecordProfiles();
@@ -1050,13 +886,12 @@ IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, TestGetAllOffTheRecordProfiles) {
 
 // Tests Profile::IsSameOrParent
 IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, TestIsSameOrParent) {
-  auto otr_profile_id = Profile::OTRProfileID::CreateUniqueForTesting();
+  Profile::OTRProfileID otr_profile_id("profile::otr");
 
   Profile* regular_profile = browser()->profile();
-  Profile* otr_profile = regular_profile->GetOffTheRecordProfile(
-      otr_profile_id, /*create_if_needed=*/true);
-  Profile* incognito_profile =
-      regular_profile->GetPrimaryOTRProfile(/*create_if_needed=*/true);
+  Profile* otr_profile =
+      regular_profile->GetOffTheRecordProfile(otr_profile_id);
+  Profile* incognito_profile = regular_profile->GetPrimaryOTRProfile();
 
   EXPECT_TRUE(regular_profile->IsSameOrParent(otr_profile));
   EXPECT_TRUE(otr_profile->IsSameOrParent(regular_profile));
@@ -1071,205 +906,69 @@ IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, TestIsSameOrParent) {
 // Tests if browser creation using non primary OTRs is blocked.
 IN_PROC_BROWSER_TEST_F(ProfileBrowserTest,
                        TestCreatingBrowserUsingNonPrimaryOffTheRecordProfile) {
-  auto otr_profile_id = Profile::OTRProfileID::CreateUniqueForTesting();
-  Profile* otr_profile = browser()->profile()->GetOffTheRecordProfile(
-      otr_profile_id, /*create_if_needed=*/true);
+  Profile::OTRProfileID otr_profile_id("profile::otr");
+  Profile* otr_profile =
+      browser()->profile()->GetOffTheRecordProfile(otr_profile_id);
 
-  EXPECT_EQ(Browser::CreationStatus::kErrorProfileUnsuitable,
-            Browser::GetCreationStatusForProfile(otr_profile));
+  EXPECT_EQ(Browser::BrowserCreationStatus::kErrorProfileUnsuitable,
+            Browser::GetBrowserCreationStatusForProfile(otr_profile));
 }
 
-// Tests if profile type returned by |profile_metrics::GetBrowserProfileType| is
-// correct.
-IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, TestProfileTypes) {
-  Profile* regular_profile = browser()->profile();
-  EXPECT_EQ(profile_metrics::BrowserProfileType::kRegular,
-            profile_metrics::GetBrowserProfileType(regular_profile));
-
-  Profile* incognito_profile =
-      browser()->profile()->GetPrimaryOTRProfile(/*create_if_needed=*/true);
-  EXPECT_EQ(profile_metrics::BrowserProfileType::kIncognito,
-            profile_metrics::GetBrowserProfileType(incognito_profile));
-
-  Profile* otr_profile = browser()->profile()->GetOffTheRecordProfile(
-      Profile::OTRProfileID::CreateUniqueForTesting(),
-      /*create_if_needed=*/true);
-  EXPECT_EQ(profile_metrics::BrowserProfileType::kOtherOffTheRecordProfile,
-            profile_metrics::GetBrowserProfileType(otr_profile));
-
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
-  base::HistogramTester tester;
-  Browser* guest_browser = CreateGuestBrowser();
-
-  EXPECT_EQ(profile_metrics::BrowserProfileType::kGuest,
-            profile_metrics::GetBrowserProfileType(guest_browser->profile()));
-
-  // Verify that both a parent and a child profile creation are recorded
-  EXPECT_THAT(tester.GetAllSamples("Profile.Guest.TypeCreated"),
-              ::testing::ElementsAre(base::Bucket(0, 1), base::Bucket(1, 1)));
-#endif
-}
-
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
-
-IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, UnderOneMinute) {
-  base::HistogramTester tester;
-  Browser* browser = CreateGuestBrowser();
-  BrowserCloseObserver close_observer(browser);
-
-  BrowserList::CloseAllBrowsersWithProfile(browser->profile());
-  close_observer.Wait();
-  tester.ExpectUniqueSample("Profile.Guest.OTR.Lifetime", 0, 1);
-}
-
-IN_PROC_BROWSER_TEST_F(ProfileBrowserTest, OneHour) {
-  base::HistogramTester tester;
-  Browser* browser = CreateGuestBrowser();
-  BrowserCloseObserver close_observer(browser);
-
-  browser->profile()->SetCreationTimeForTesting(base::Time::Now() -
-                                                base::Seconds(60) * 60);
-  BrowserList::CloseAllBrowsersWithProfile(browser->profile());
-  close_observer.Wait();
-  tester.ExpectUniqueSample("Profile.Guest.OTR.Lifetime", 60, 1);
-}
-
-#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-IN_PROC_BROWSER_TEST_F(ProfileBrowserTest,
-                       IsMainProfileReturnsFalseForNonDefaultPaths) {
-  base::ScopedAllowBlockingForTesting allow_blocking;
-  base::ScopedTempDir temp_dir;
-  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
-
-  {
-    base::FilePath profile_path = temp_dir.GetPath().Append("1Default");
-    std::unique_ptr<Profile> profile(
-        CreateProfile(profile_path, /* delegate= */ nullptr,
-                      Profile::CREATE_MODE_SYNCHRONOUS));
-
-    EXPECT_FALSE(profile->IsMainProfile());
-
-    // Creating a profile causes an implicit connection attempt to a Mojo
-    // service, which occurs as part of a new task. Before deleting |profile|,
-    // ensure this task runs to prevent a crash.
-    FlushIoTaskRunnerAndSpinThreads();
+#if !defined(OS_ANDROID) && !defined(OS_CHROMEOS)
+class EphemeralGuestProfileBrowserTest : public ProfileBrowserTest {
+ public:
+  EphemeralGuestProfileBrowserTest() {
+    scoped_feature_list_.InitAndEnableFeature(
+        features::kEnableEphemeralGuestProfilesOnDesktop);
   }
-  FlushIoTaskRunnerAndSpinThreads();
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+// Tests profile type functions on an ephemeral Guest profile.
+IN_PROC_BROWSER_TEST_F(EphemeralGuestProfileBrowserTest, TestProfileType) {
+  Profile* guest_profile = CreateGuestBrowser()->profile();
+
+  EXPECT_TRUE(guest_profile->IsRegularProfile());
+  EXPECT_FALSE(guest_profile->IsOffTheRecord());
+  EXPECT_FALSE(guest_profile->IsGuestSession());
+  EXPECT_TRUE(guest_profile->IsEphemeralGuestProfile());
 }
 
-IN_PROC_BROWSER_TEST_F(ProfileBrowserTest,
-                       IsMainProfileReturnsTrueForPublicSessions) {
-  base::ScopedAllowBlockingForTesting allow_blocking;
-  base::ScopedTempDir temp_dir;
-  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+// Tests if ephemeral Guest profile paths are persistent as long as one does not
+// close all Guest browsers.
+IN_PROC_BROWSER_TEST_F(EphemeralGuestProfileBrowserTest,
+                       TestProfilePathIsStableWhileNotClosed) {
+  Browser* guest1 = CreateGuestBrowser();
+  base::FilePath guest_path1 = guest1->profile()->GetPath();
 
-  {
-    base::FilePath profile_path =
-        temp_dir.GetPath().Append(chrome::kInitialProfile);
-    std::unique_ptr<Profile> profile(
-        CreateProfile(profile_path, /* delegate= */ nullptr,
-                      Profile::CREATE_MODE_SYNCHRONOUS));
+  Browser* guest2 = CreateGuestBrowser();
+  base::FilePath guest_path2 = guest2->profile()->GetPath();
 
-    crosapi::mojom::BrowserInitParamsPtr init_params =
-        crosapi::mojom::BrowserInitParams::New();
-    init_params->session_type = crosapi::mojom::SessionType::kPublicSession;
-    chromeos::BrowserInitParams::SetInitParamsForTests(std::move(init_params));
+  EXPECT_EQ(guest_path1, guest_path2);
 
-    EXPECT_EQ(chromeos::BrowserParamsProxy::Get()->SessionType(),
-              crosapi::mojom::SessionType::kPublicSession);
-    EXPECT_TRUE(profile->IsMainProfile());
+  CloseBrowserSynchronously(guest1);
 
-    // Creating a profile causes an implicit connection attempt to a Mojo
-    // service, which occurs as part of a new task. Before deleting |profile|,
-    // ensure this task runs to prevent a crash.
-    FlushIoTaskRunnerAndSpinThreads();
-  }
-  FlushIoTaskRunnerAndSpinThreads();
+  Browser* guest3 = CreateGuestBrowser();
+  base::FilePath guest_path3 = guest3->profile()->GetPath();
+
+  EXPECT_EQ(guest_path1, guest_path3);
 }
 
-IN_PROC_BROWSER_TEST_F(ProfileBrowserTest,
-                       IsMainProfileReturnsTrueForWebKioskSession) {
-  base::ScopedAllowBlockingForTesting allow_blocking;
-  base::ScopedTempDir temp_dir;
-  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+// Tests if closing all ephemeral Guest profiles will result in a new path for
+// the next ephemeral Guest profile.
+IN_PROC_BROWSER_TEST_F(EphemeralGuestProfileBrowserTest,
+                       TestGuestGetsNewPathAfterClosing) {
+  Browser* guest1 = CreateGuestBrowser();
+  base::FilePath guest_path1 = guest1->profile()->GetPath();
 
-  {
-    base::FilePath profile_path =
-        temp_dir.GetPath().Append(chrome::kInitialProfile);
-    std::unique_ptr<Profile> profile(
-        CreateProfile(profile_path, /* delegate= */ nullptr,
-                      Profile::CREATE_MODE_SYNCHRONOUS));
+  CloseBrowserSynchronously(guest1);
 
-    crosapi::mojom::BrowserInitParamsPtr init_params =
-        crosapi::mojom::BrowserInitParams::New();
-    init_params->session_type = crosapi::mojom::SessionType::kWebKioskSession;
-    chromeos::BrowserInitParams::SetInitParamsForTests(std::move(init_params));
+  Browser* guest2 = CreateGuestBrowser();
+  base::FilePath guest_path2 = guest2->profile()->GetPath();
 
-    EXPECT_EQ(chromeos::BrowserParamsProxy::Get()->SessionType(),
-              crosapi::mojom::SessionType::kWebKioskSession);
-    EXPECT_TRUE(profile->IsMainProfile());
-
-    // Creating a profile causes an implicit connection attempt to a Mojo
-    // service, which occurs as part of a new task. Before deleting |profile|,
-    // ensure this task runs to prevent a crash.
-    FlushIoTaskRunnerAndSpinThreads();
-  }
-  FlushIoTaskRunnerAndSpinThreads();
+  EXPECT_NE(guest_path1, guest_path2);
 }
 
-IN_PROC_BROWSER_TEST_F(
-    ProfileBrowserTest,
-    IsMainProfileReturnsTrueForActiveDirectoryEnrolledDevices) {
-  base::ScopedAllowBlockingForTesting allow_blocking;
-  base::ScopedTempDir temp_dir;
-  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
-
-  {
-    base::FilePath profile_path =
-        temp_dir.GetPath().Append(chrome::kInitialProfile);
-    std::unique_ptr<Profile> profile(
-        CreateProfile(profile_path, /* delegate= */ nullptr,
-                      Profile::CREATE_MODE_SYNCHRONOUS));
-
-    crosapi::mojom::BrowserInitParamsPtr init_params =
-        crosapi::mojom::BrowserInitParams::New();
-    init_params->session_type = crosapi::mojom::SessionType::kRegularSession;
-    init_params->device_mode =
-        crosapi::mojom::DeviceMode::kEnterpriseActiveDirectory;
-    chromeos::BrowserInitParams::SetInitParamsForTests(std::move(init_params));
-
-    EXPECT_EQ(chromeos::BrowserParamsProxy::Get()->SessionType(),
-              crosapi::mojom::SessionType::kRegularSession);
-    EXPECT_TRUE(profile->IsMainProfile());
-
-    // Creating a profile causes an implicit connection attempt to a Mojo
-    // service, which occurs as part of a new task. Before deleting |profile|,
-    // ensure this task runs to prevent a crash.
-    FlushIoTaskRunnerAndSpinThreads();
-  }
-  FlushIoTaskRunnerAndSpinThreads();
-}
-
-IN_PROC_BROWSER_TEST_F(
-    ProfileBrowserTest,
-    IsMainProfileReturnsTrueForMainProfileInRegularSessions) {
-  const base::FilePath profile_path =
-      browser()->profile()->GetPath().DirName().Append(chrome::kInitialProfile);
-  Profile* profile =
-      g_browser_process->profile_manager()->GetProfileByPath(profile_path);
-  EXPECT_TRUE(profile->IsMainProfile());
-}
-
-IN_PROC_BROWSER_TEST_F(
-    ProfileBrowserTest,
-    IsMainProfileReturnsFalseForOTRProfileInRegularSessions) {
-  const base::FilePath profile_path =
-      browser()->profile()->GetPath().DirName().Append(chrome::kInitialProfile);
-  Profile* profile =
-      g_browser_process->profile_manager()->GetProfileByPath(profile_path);
-  EXPECT_FALSE(profile->GetPrimaryOTRProfile(/*create_if_needed=*/true)
-                   ->IsMainProfile());
-}
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
+#endif  // !defined(OS_ANDROID) && !defined(OS_CHROMEOS)

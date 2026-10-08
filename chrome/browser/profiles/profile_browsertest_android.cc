@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,10 @@
 #include "base/files/file_path.h"
 #include "base/files/file_path_watcher.h"
 #include "base/files/file_util.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
@@ -66,9 +68,6 @@ class FileDestructionWatcher {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   }
 
-  FileDestructionWatcher(const FileDestructionWatcher&) = delete;
-  FileDestructionWatcher& operator=(const FileDestructionWatcher&) = delete;
-
   void WaitForDestruction() {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     DCHECK(!watcher_);
@@ -96,7 +95,7 @@ class FileDestructionWatcher {
     // destroyed between the existence check and when we start watching, if the
     // order were reversed.
     EXPECT_TRUE(watcher_->Watch(
-        watched_file_path_, base::FilePathWatcher::Type::kNonRecursive,
+        watched_file_path_, false /* recursive */,
         base::BindRepeating(&FileDestructionWatcher::OnPathChanged,
                             base::Unretained(this))));
     CheckIfPathExists();
@@ -124,6 +123,8 @@ class FileDestructionWatcher {
   // Created and destroyed off of the UI thread, on the sequence used to watch
   // for changes.
   std::unique_ptr<base::FilePathWatcher> watcher_;
+
+  DISALLOW_COPY_AND_ASSIGN(FileDestructionWatcher);
 };
 
 }  // namespace
@@ -132,8 +133,8 @@ IN_PROC_BROWSER_TEST_F(ProfileDeleteMediaBrowserTest, DeleteMediaCache) {
   // Make sure the legacy media cache directory (created in SetUp) gets deleted
   // properly.
   base::FilePath cache_base;
-  chrome::GetUserCacheDirectory(
-      TabModelList::models()[0]->GetProfile()->GetPath(), &cache_base);
+  chrome::GetUserCacheDirectory(TabModelList::get(0)->GetProfile()->GetPath(),
+                                &cache_base);
 
   // |cache_base_| computation in SetUp() makes assumptions on implementation
   // details to be able to run that early, so verify its result is sane.

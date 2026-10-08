@@ -1,7 +1,7 @@
 const HeapSnapshotLoader = (function (exports) {
   'use strict';
 
-  // Copyright 2020 The Chromium Authors
+  // Copyright (c) 2020 The Chromium Authors. All rights reserved.
   // Use of this source code is governed by a BSD-style license that can be
   // found in the LICENSE file.
 
@@ -390,6 +390,20 @@ const HeapSnapshotLoader = (function (exports) {
       return String(this);
     }
     return this.substr(0, maxLength - 1) + '…';
+  };
+
+  /**
+   * @param {string} other
+   * @return {number}
+   */
+  String.prototype.compareTo = function(other) {
+    if (this > other) {
+      return 1;
+    }
+    if (this < other) {
+      return -1;
+    }
+    return 0;
   };
 
   /**

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -151,9 +151,11 @@ void GamepadSharedMemoryReader::GamepadDisconnected(
     listener_->DidDisconnectGamepad(index, gamepad);
 }
 
-void GamepadSharedMemoryReader::GamepadChanged(
-    device::mojom::blink::GamepadChangesPtr change) {
-  // TODO(crbug.com/856290): use these calls to Generate Button Event.
+void GamepadSharedMemoryReader::GamepadButtonOrAxisChanged(
+    uint32_t index,
+    const device::Gamepad& gamepad) {
+  if (listener_)
+    listener_->ButtonOrAxisDidChange(index, gamepad);
 }
 
 }  // namespace blink

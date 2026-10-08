@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 
 // This is a helper utility to wrap a base::OnceCallback such that if the
@@ -81,9 +82,6 @@ class CallbackWithDeleteHelper<void(Args...)> {
       : callback_(std::move(callback)),
         delete_callback_(std::move(delete_callback)) {}
 
-  CallbackWithDeleteHelper(const CallbackWithDeleteHelper&) = delete;
-  CallbackWithDeleteHelper& operator=(const CallbackWithDeleteHelper&) = delete;
-
   ~CallbackWithDeleteHelper() {
     if (delete_callback_)
       std::move(delete_callback_).Run();
@@ -97,6 +95,8 @@ class CallbackWithDeleteHelper<void(Args...)> {
  private:
   CallbackType callback_;
   base::OnceClosure delete_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(CallbackWithDeleteHelper);
 };
 
 }  // namespace internal

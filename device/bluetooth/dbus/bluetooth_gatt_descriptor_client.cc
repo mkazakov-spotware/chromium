@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/values.h"
@@ -52,11 +52,6 @@ class BluetoothGattDescriptorClientImpl
       public dbus::ObjectManager::Interface {
  public:
   BluetoothGattDescriptorClientImpl() : object_manager_(nullptr) {}
-
-  BluetoothGattDescriptorClientImpl(const BluetoothGattDescriptorClientImpl&) =
-      delete;
-  BluetoothGattDescriptorClientImpl& operator=(
-      const BluetoothGattDescriptorClientImpl&) = delete;
 
   ~BluetoothGattDescriptorClientImpl() override {
     object_manager_->UnregisterInterface(
@@ -108,7 +103,8 @@ class BluetoothGattDescriptorClientImpl
 
     // Append empty option dict
     dbus::MessageWriter writer(&method_call);
-    dbus::AppendValueData(&writer, base::Value::Dict());
+    base::DictionaryValue dict;
+    dbus::AppendValueData(&writer, dict);
 
     object_proxy->CallMethodWithErrorCallback(
         &method_call, dbus::ObjectProxy::TIMEOUT_USE_DEFAULT,
@@ -138,7 +134,8 @@ class BluetoothGattDescriptorClientImpl
     writer.AppendArrayOfBytes(value.data(), value.size());
 
     // Append empty option dict
-    dbus::AppendValueData(&writer, base::Value::Dict());
+    base::DictionaryValue dict;
+    dbus::AppendValueData(&writer, dict);
 
     object_proxy->CallMethodWithErrorCallback(
         &method_call, dbus::ObjectProxy::TIMEOUT_USE_DEFAULT,
@@ -224,7 +221,7 @@ class BluetoothGattDescriptorClientImpl
     if (bytes)
       value.assign(bytes, bytes + length);
 
-    std::move(callback).Run(/*error_code=*/absl::nullopt, value);
+    std::move(callback).Run(value);
   }
 
   // Called when a response for a failed method call is received.
@@ -243,7 +240,7 @@ class BluetoothGattDescriptorClientImpl
     std::move(error_callback).Run(error_name, error_message);
   }
 
-  raw_ptr<dbus::ObjectManager> object_manager_;
+  dbus::ObjectManager* object_manager_;
 
   // List of observers interested in event notifications from us.
   base::ObserverList<BluetoothGattDescriptorClient::Observer>::Unchecked
@@ -255,6 +252,8 @@ class BluetoothGattDescriptorClientImpl
   // invalidate its weak pointers before any other members are destroyed.
   base::WeakPtrFactory<BluetoothGattDescriptorClientImpl> weak_ptr_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(BluetoothGattDescriptorClientImpl);
 };
 
 BluetoothGattDescriptorClient::BluetoothGattDescriptorClient() = default;

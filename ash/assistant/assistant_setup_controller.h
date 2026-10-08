@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,9 @@
 #include "ash/public/cpp/assistant/assistant_setup.h"
 #include "ash/public/cpp/assistant/controller/assistant_controller.h"
 #include "ash/public/cpp/assistant/controller/assistant_controller_observer.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 
 namespace ash {
 
@@ -24,10 +25,6 @@ class AssistantSetupController : public AssistantControllerObserver,
  public:
   explicit AssistantSetupController(
       AssistantControllerImpl* assistant_controller);
-
-  AssistantSetupController(const AssistantSetupController&) = delete;
-  AssistantSetupController& operator=(const AssistantSetupController&) = delete;
-
   ~AssistantSetupController() override;
 
   // AssistantControllerObserver:
@@ -47,10 +44,12 @@ class AssistantSetupController : public AssistantControllerObserver,
 
   AssistantControllerImpl* const assistant_controller_;  // Owned by Shell.
 
-  base::ScopedObservation<AssistantController, AssistantControllerObserver>
-      assistant_controller_observation_{this};
+  ScopedObserver<AssistantController, AssistantControllerObserver>
+      assistant_controller_observer_{this};
 
   base::WeakPtrFactory<AssistantSetupController> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AssistantSetupController);
 };
 
 }  // namespace ash

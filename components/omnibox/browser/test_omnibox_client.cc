@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/callback.h"
 #include "components/omnibox/browser/autocomplete_controller.h"
 #include "components/omnibox/browser/autocomplete_scheme_classifier.h"
 #include "components/omnibox/browser/mock_autocomplete_provider_client.h"
@@ -36,16 +35,20 @@ TestOmniboxClient::~TestOmniboxClient() {
 
 std::unique_ptr<AutocompleteProviderClient>
 TestOmniboxClient::CreateAutocompleteProviderClient() {
-  auto provider_client = std::make_unique<MockAutocompleteProviderClient>();
+  std::unique_ptr<MockAutocompleteProviderClient> provider_client(
+      new MockAutocompleteProviderClient());
   EXPECT_CALL(*provider_client, GetBuiltinURLs())
-      .WillRepeatedly(testing::Return(std::vector<std::u16string>()));
+      .WillRepeatedly(testing::Return(std::vector<base::string16>()));
   EXPECT_CALL(*provider_client, GetSchemeClassifier())
       .WillRepeatedly(testing::ReturnRef(scheme_classifier_));
 
-  auto template_url_service = std::make_unique<TemplateURLService>(
-      nullptr /* PrefService */, std::make_unique<SearchTermsData>(),
-      nullptr /* KeywordWebDataService */,
-      std::unique_ptr<TemplateURLServiceClient>(), base::RepeatingClosure());
+  std::unique_ptr<TemplateURLService> template_url_service(
+      new TemplateURLService(
+          nullptr /* PrefService */,
+          std::unique_ptr<SearchTermsData>(new SearchTermsData),
+          nullptr /* KeywordWebDataService */,
+          std::unique_ptr<TemplateURLServiceClient>(),
+          base::RepeatingClosure()));
 
   // Save a reference to the created TemplateURLService for test use.
   template_url_service_ = template_url_service.get();
@@ -53,6 +56,15 @@ TestOmniboxClient::CreateAutocompleteProviderClient() {
   provider_client->set_template_url_service(std::move(template_url_service));
 
   return std::move(provider_client);
+}
+
+std::unique_ptr<OmniboxNavigationObserver>
+TestOmniboxClient::CreateOmniboxNavigationObserver(
+    const base::string16& text,
+    const AutocompleteMatch& match,
+    const AutocompleteMatch& alternate_nav_match) {
+  alternate_nav_match_ = alternate_nav_match;
+  return nullptr;
 }
 
 bool TestOmniboxClient::IsPasteAndGoEnabled() const {
@@ -84,18 +96,6 @@ const AutocompleteSchemeClassifier& TestOmniboxClient::GetSchemeClassifier()
 
 AutocompleteClassifier* TestOmniboxClient::GetAutocompleteClassifier() {
   return &autocomplete_classifier_;
-}
-
-bool TestOmniboxClient::ShouldDefaultTypedNavigationsToHttps() const {
-  return false;
-}
-
-int TestOmniboxClient::GetHttpsPortForTesting() const {
-  return 0;
-}
-
-bool TestOmniboxClient::IsUsingFakeHttpsForHttpsUpgradeTesting() const {
-  return false;
 }
 
 gfx::Image TestOmniboxClient::GetSizedIcon(

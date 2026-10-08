@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,6 @@ namespace extensions {
 
 MockManifestPermission::MockManifestPermission(const std::string& name)
     : name_(name) {}
-
-MockManifestPermission::MockManifestPermission(const std::string& name,
-                                               const std::string& value)
-    : name_(name), value_(value) {}
 
 std::string MockManifestPermission::name() const {
   return name_;
@@ -29,14 +25,11 @@ PermissionIDSet MockManifestPermission::GetPermissions() const {
 }
 
 bool MockManifestPermission::FromValue(const base::Value* value) {
-  if (!value || !value->is_string())
-    return false;
-  value_ = value->GetString();
   return true;
 }
 
 std::unique_ptr<base::Value> MockManifestPermission::ToValue() const {
-  return std::make_unique<base::Value>(value_);
+  return std::make_unique<base::Value>();
 }
 
 std::unique_ptr<ManifestPermission> MockManifestPermission::Diff(
@@ -52,7 +45,7 @@ std::unique_ptr<ManifestPermission> MockManifestPermission::Union(
   const MockManifestPermission* other =
       static_cast<const MockManifestPermission*>(rhs);
   EXPECT_EQ(name_, other->name_);
-  return std::make_unique<MockManifestPermission>(name_, value_);
+  return std::make_unique<MockManifestPermission>(name_);
 }
 
 std::unique_ptr<ManifestPermission> MockManifestPermission::Intersect(
@@ -60,7 +53,7 @@ std::unique_ptr<ManifestPermission> MockManifestPermission::Intersect(
   const MockManifestPermission* other =
       static_cast<const MockManifestPermission*>(rhs);
   EXPECT_EQ(name_, other->name_);
-  return std::make_unique<MockManifestPermission>(name_, value_);
+  return std::make_unique<MockManifestPermission>(name_);
 }
 
 bool MockManifestPermission::RequiresManagementUIWarning() const {

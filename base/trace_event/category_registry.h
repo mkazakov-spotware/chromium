@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <atomic>
-
+#include "base/atomicops.h"
 #include "base/base_export.h"
 #include "base/check_op.h"
-#include "base/memory/raw_ptr.h"
+#include "base/stl_util.h"
 #include "base/trace_event/builtin_categories.h"
 #include "base/trace_event/common/trace_event_common.h"
 #include "base/trace_event/trace_category.h"
@@ -42,8 +41,8 @@ class BASE_EXPORT CategoryRegistry {
     TraceCategory* end() const { return end_; }
 
    private:
-    const raw_ptr<TraceCategory, DanglingUntriaged> begin_;
-    const raw_ptr<TraceCategory, DanglingUntriaged> end_;
+    TraceCategory* const begin_;
+    TraceCategory* const end_;
   };
 
   // Known categories.
@@ -71,8 +70,8 @@ class BASE_EXPORT CategoryRegistry {
   // TraceCategory owned by the registry.
   static constexpr TraceCategory* GetBuiltinCategoryByName(
       const char* category_group) {
-#if BUILDFLAG(IS_WIN) && defined(COMPONENT_BUILD)
-    // The address cannot be evaluated at compile-time in Windows component
+#if defined(OS_WIN) && defined(COMPONENT_BUILD)
+    // The address cannot be evaluated at compile-time in Windows compoment
     // builds.
     return nullptr;
 #else
@@ -94,7 +93,7 @@ class BASE_EXPORT CategoryRegistry {
   using CategoryInitializerFn = void (*)(TraceCategory*);
 
   // The max number of trace categories that can be recorded.
-  static constexpr size_t kMaxCategories = 350;
+  static constexpr size_t kMaxCategories = 300;
 
   // Checks that there is enough space for all builtin categories.
   static_assert(BuiltinCategories::Size() <= kMaxCategories,
@@ -126,7 +125,7 @@ class BASE_EXPORT CategoryRegistry {
   static TraceCategory categories_[kMaxCategories];
 
   // Contains the number of created categories.
-  static std::atomic<size_t> category_index_;
+  static base::subtle::AtomicWord category_index_;
 };
 
 }  // namespace trace_event

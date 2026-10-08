@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <vector>
 
 #include "base/logging.h"
-#include "build/build_config.h"
 #include "media/capture/video/mac/pixel_buffer_pool_mac.h"
 #include "media/capture/video/mac/test/pixel_buffer_test_utils_mac.h"
 #include "media/capture/video/mac/video_capture_device_avfoundation_utils_mac.h"
@@ -60,14 +59,7 @@ TEST(PixelBufferTransfererTest, CanCopyYuvsAndVerifyColor) {
                                          kColorR, kColorG, kColorB));
 }
 
-#if defined(ARCH_CPU_ARM64)
-// Bulk-disabled as part of arm64 bot stabilization: https://crbug.com/1154345
-#define MAYBE_CanScaleYuvsAndVerifyColor DISABLED_CanScaleYuvsAndVerifyColor
-#else
-#define MAYBE_CanScaleYuvsAndVerifyColor CanScaleYuvsAndVerifyColor
-#endif
-
-TEST(PixelBufferTransfererTest, MAYBE_CanScaleYuvsAndVerifyColor) {
+TEST(PixelBufferTransfererTest, CanScaleYuvsAndVerifyColor) {
   constexpr OSType kPixelFormat = kPixelFormatYuvs;
   constexpr int kSourceWidth = 32;
   constexpr int kSourceHeight = 32;
@@ -112,7 +104,9 @@ TEST(PixelBufferTransfererTest, CanScaleYuvsAndVerifyCheckerPattern) {
           ->CreateBuffer();
   EXPECT_TRUE(transferer.TransferImage(source->pixel_buffer, destination));
   // Verify the result has the same number of checker tiles.
-  auto [num_tiles_across_x, num_tiles_across_y] =
+  int num_tiles_across_x;
+  int num_tiles_across_y;
+  std::tie(num_tiles_across_x, num_tiles_across_y) =
       GetCheckerPatternNumTilesAccross(
           CreateArgbBufferFromYuvsIOSurface(
               CVPixelBufferGetIOSurface(destination)),
@@ -121,16 +115,7 @@ TEST(PixelBufferTransfererTest, CanScaleYuvsAndVerifyCheckerPattern) {
   EXPECT_EQ(num_tiles_across_y, kSourceNumTilesAcross);
 }
 
-#if defined(ARCH_CPU_ARM64)
-// Bulk-disabled as part of arm64 bot stabilization: https://crbug.com/1154345
-#define MAYBE_CanStretchYuvsAndVerifyCheckerPattern \
-  DISABLED_CanStretchYuvsAndVerifyCheckerPattern
-#else
-#define MAYBE_CanStretchYuvsAndVerifyCheckerPattern \
-  CanStretchYuvsAndVerifyCheckerPattern
-#endif
-
-TEST(PixelBufferTransfererTest, MAYBE_CanStretchYuvsAndVerifyCheckerPattern) {
+TEST(PixelBufferTransfererTest, CanStretchYuvsAndVerifyCheckerPattern) {
   // Note: The ARGB -> YUVS -> ARGB conversions results in a small loss of
   // information, so for the checker pattern to be intact the buffer can't be
   // tiny (e.g. 4x4).
@@ -153,7 +138,9 @@ TEST(PixelBufferTransfererTest, MAYBE_CanStretchYuvsAndVerifyCheckerPattern) {
           ->CreateBuffer();
   EXPECT_TRUE(transferer.TransferImage(source->pixel_buffer, destination));
   // Verify the result has the same number of checker tiles.
-  auto [num_tiles_across_x, num_tiles_across_y] =
+  int num_tiles_across_x;
+  int num_tiles_across_y;
+  std::tie(num_tiles_across_x, num_tiles_across_y) =
       GetCheckerPatternNumTilesAccross(
           CreateArgbBufferFromYuvsIOSurface(
               CVPixelBufferGetIOSurface(destination)),
@@ -162,14 +149,7 @@ TEST(PixelBufferTransfererTest, MAYBE_CanStretchYuvsAndVerifyCheckerPattern) {
   EXPECT_EQ(num_tiles_across_y, kSourceNumTilesAcross);
 }
 
-#if defined(ARCH_CPU_ARM64)
-// Bulk-disabled as part of arm64 bot stabilization: https://crbug.com/1154345
-#define MAYBE_CanStretchYuvsAndVerifyColor DISABLED_CanStretchYuvsAndVerifyColor
-#else
-#define MAYBE_CanStretchYuvsAndVerifyColor CanStretchYuvsAndVerifyColor
-#endif
-
-TEST(PixelBufferTransfererTest, MAYBE_CanStretchYuvsAndVerifyColor) {
+TEST(PixelBufferTransfererTest, CanStretchYuvsAndVerifyColor) {
   constexpr OSType kPixelFormat = kPixelFormatYuvs;
   constexpr int kSourceWidth = 32;
   constexpr int kSourceHeight = 32;
@@ -221,7 +201,9 @@ class PixelBufferTransfererParameterizedTest
 // YUVS -> X -> Y -> YUVS
 TEST_P(PixelBufferTransfererParameterizedTest,
        CanConvertFromXToYAndVerifyColor) {
-  auto [pixel_format_from, pixel_format_to] = GetParam();
+  OSType pixel_format_from;
+  OSType pixel_format_to;
+  std::tie(pixel_format_from, pixel_format_to) = GetParam();
   LOG(INFO) << "Running Test: " << MacFourCCToString(pixel_format_from)
             << " -> " << MacFourCCToString(pixel_format_to);
 

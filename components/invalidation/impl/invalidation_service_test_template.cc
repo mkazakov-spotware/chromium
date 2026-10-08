@@ -1,32 +1,27 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/invalidation/impl/invalidation_service_test_template.h"
 
-namespace invalidation {
+namespace internal {
 
 BoundFakeInvalidationHandler::BoundFakeInvalidationHandler(
-    const InvalidationService& invalidator,
-    const std::string& owner)
-    : FakeInvalidationHandler(owner),
-      invalidator_(invalidator),
-      last_retrieved_state_(DEFAULT_INVALIDATION_ERROR) {}
+    const invalidation::InvalidationService& invalidator)
+    : invalidator_(invalidator),
+      last_retrieved_state_(syncer::DEFAULT_INVALIDATION_ERROR) {}
 
-BoundFakeInvalidationHandler::~BoundFakeInvalidationHandler() = default;
+BoundFakeInvalidationHandler::~BoundFakeInvalidationHandler() {}
 
-InvalidatorState BoundFakeInvalidationHandler::GetLastRetrievedState() const {
+syncer::InvalidatorState
+BoundFakeInvalidationHandler::GetLastRetrievedState() const {
   return last_retrieved_state_;
 }
 
 void BoundFakeInvalidationHandler::OnInvalidatorStateChange(
-    InvalidatorState state) {
+    syncer::InvalidatorState state) {
   FakeInvalidationHandler::OnInvalidatorStateChange(state);
-  last_retrieved_state_ = invalidator_->GetInvalidatorState();
+  last_retrieved_state_ = invalidator_.GetInvalidatorState();
 }
 
-// This suite is instantiated in binaries that use
-// //components/invalidation/impl:test_support.
-GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(InvalidationServiceTest);
-
-}  // namespace invalidation
+}  // namespace internal

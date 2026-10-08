@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #import "ios/chrome/browser/sessions/session_ios.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/web_state_list/web_state_list_serialization.h"
-#import "ios/web/public/web_state.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -20,7 +19,6 @@
 
 @implementation SessionIOSFactory {
   WebStateList* _webStateList;
-  NSMutableSet<NSString*>* _dirtyWebStates;
 }
 
 #pragma mark - Initialization
@@ -29,7 +27,6 @@
   if (self = [super init]) {
     DCHECK(webStateList);
     _webStateList = webStateList;
-    _dirtyWebStates = [[NSMutableSet alloc] init];
   }
   return self;
 }
@@ -47,22 +44,14 @@
   // be done on a separate thread.
   // TODO(crbug.com/661986): This could get expensive especially since this
   // window may never be saved (if another call comes in before the delay).
-  SessionIOS* session = [[SessionIOS alloc]
-      initWithWindows:@[ SerializeWebStateList(_webStateList,
-                                               _dirtyWebStates) ]];
-  [_dirtyWebStates removeAllObjects];
-  return session;
-}
-
-- (void)markWebStateDirty:(web::WebState*)webState {
-  NSString* webStateID = webState->GetStableIdentifier();
-  [_dirtyWebStates addObject:webStateID];
+  return [[SessionIOS alloc]
+      initWithWindows:@[ SerializeWebStateList(_webStateList) ]];
 }
 
 #pragma mark - Private
 
 - (BOOL)canSaveCurrentSession {
-  // The `_webStateList` needs to be alive for the session to be saved.
+  // The |_webStateList| needs to be alive for the session to be saved.
   if (!_webStateList)
     return NO;
 

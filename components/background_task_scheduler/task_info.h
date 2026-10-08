@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,9 @@
 #include <stdint.h>
 #include <string>
 
+#include "base/macros.h"
+#include "base/optional.h"
 #include "components/background_task_scheduler/task_ids.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace background_task {
 
@@ -47,15 +48,7 @@ struct ExactInfo {
 struct TaskInfo {
   TaskInfo(int task_id, const PeriodicInfo& timing_info);
   TaskInfo(int task_id, const OneOffInfo& timing_info);
-  // TODO(crbug.com/1190755): Either remove this or make sure it's compatible
-  // with Android S.
-  // Warning: This functionality might get removed, check with OWNERS before
-  // using this in new code: //components/background_task_scheduler/OWNERS.
   TaskInfo(int task_id, const ExactInfo& timing_info);
-
-  TaskInfo(const TaskInfo&) = delete;
-  TaskInfo& operator=(const TaskInfo&) = delete;
-
   ~TaskInfo();
 
   // A Java counterpart will be generated for this enum.
@@ -77,9 +70,11 @@ struct TaskInfo {
   bool update_current;
   std::string extras;
 
-  absl::optional<PeriodicInfo> periodic_info;
-  absl::optional<OneOffInfo> one_off_info;
-  absl::optional<ExactInfo> exact_info;
+  base::Optional<PeriodicInfo> periodic_info;
+  base::Optional<OneOffInfo> one_off_info;
+  base::Optional<ExactInfo> exact_info;
+
+  DISALLOW_COPY_AND_ASSIGN(TaskInfo);
 };
 
 }  // namespace background_task

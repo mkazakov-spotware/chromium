@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/vr/browser_renderer.h"
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/vr/graphics_delegate.h"
 #include "chrome/browser/vr/input_delegate.h"
 #include "chrome/browser/vr/input_event.h"
@@ -87,9 +86,9 @@ class MockSchedulerDelegate : public SchedulerDelegate {
   MOCK_METHOD1(SetShowingVrDialog, void(bool));
   void SetBrowserRenderer(SchedulerBrowserRendererInterface*) override {}
   MOCK_METHOD2(SubmitDrawnFrame, void(FrameType, const gfx::Transform&));
-  void AddInputSourceState(
-      device::mojom::XRInputSourceStatePtr state) override {}
+  void AddInputSourceState(device::mojom::XRInputSourceStatePtr state) {}
   void ConnectPresentingService(
+      device::mojom::VRDisplayInfoPtr display_info,
       device::mojom::XRRuntimeSessionOptionsPtr options) override {}
 };
 
@@ -195,10 +194,10 @@ class BrowserRendererTest : public testing::Test {
   }
 
  protected:
-  raw_ptr<MockUi> ui_;
-  raw_ptr<MockSchedulerDelegate> scheduler_delegate_;
-  raw_ptr<MockGraphicsDelegate> graphics_delegate_;
-  raw_ptr<MockInputDelegate> input_delegate_;
+  MockUi* ui_;
+  MockSchedulerDelegate* scheduler_delegate_;
+  MockGraphicsDelegate* graphics_delegate_;
+  MockInputDelegate* input_delegate_;
 
  private:
   BuildParams build_params_;

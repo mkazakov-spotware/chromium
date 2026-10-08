@@ -32,8 +32,6 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_ANIMATION_KEYFRAME_EFFECT_MODEL_H_
 
 #include <memory>
-
-#include "base/functional/function_ref.h"
 #include "base/memory/scoped_refptr.h"
 #include "third_party/blink/renderer/core/animation/animation_effect.h"
 #include "third_party/blink/renderer/core/animation/effect_model.h"
@@ -43,8 +41,10 @@
 #include "third_party/blink/renderer/core/animation/transition_keyframe.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/animation/timing_function.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
+#include "third_party/blink/renderer/platform/wtf/hash_map.h"
+#include "third_party/blink/renderer/platform/wtf/hash_set.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace blink {
@@ -86,7 +86,7 @@ class CORE_EXPORT KeyframeEffectModelBase : public EffectModel {
 
   using KeyframeVector = HeapVector<Member<Keyframe>>;
   const KeyframeVector& GetFrames() const { return keyframes_; }
-  bool HasFrames() const { return !keyframes_.empty(); }
+  bool HasFrames() const { return !keyframes_.IsEmpty(); }
   template <class K>
   void SetFrames(HeapVector<K>& keyframes);
 
@@ -157,7 +157,7 @@ class CORE_EXPORT KeyframeEffectModelBase : public EffectModel {
     return has_revert_;
   }
 
-  bool RequiresPropertyNode() const;
+  bool HasNonVariableProperty() const;
 
   bool IsTransformRelatedEffect() const override;
 
@@ -190,25 +190,25 @@ class CORE_EXPORT KeyframeEffectModelBase : public EffectModel {
   // Clears the various bits of cached data that this class has.
   void ClearCachedData();
 
-  using ShouldSnapshotPropertyFunction =
-      base::FunctionRef<bool(const PropertyHandle&)>;
-  using ShouldSnapshotKeyframeFunction =
-      base::FunctionRef<bool(const PropertySpecificKeyframe&)>;
+  using ShouldSnapshotPropertyCallback =
+      std::function<bool(const PropertyHandle&)>;
+  using ShouldSnapshotKeyframeCallback =
+      std::function<bool(const PropertySpecificKeyframe&)>;
 
   bool SnapshotCompositableProperties(
       Element& element,
       const ComputedStyle& computed_style,
       const ComputedStyle* parent_style,
-      ShouldSnapshotPropertyFunction should_process_property,
-      ShouldSnapshotKeyframeFunction should_process_keyframe) const;
+      ShouldSnapshotPropertyCallback should_process_property_callback,
+      ShouldSnapshotKeyframeCallback should_process_keyframe_callback) const;
 
   bool SnapshotCompositorKeyFrames(
       const PropertyHandle& property,
       Element& element,
       const ComputedStyle& computed_style,
       const ComputedStyle* parent_style,
-      ShouldSnapshotPropertyFunction should_process_property,
-      ShouldSnapshotKeyframeFunction should_process_keyframe) const;
+      ShouldSnapshotPropertyCallback should_process_property_callback,
+      ShouldSnapshotKeyframeCallback should_process_keyframe_callback) const;
 
   KeyframeVector keyframes_;
   // The spec describes filtering the normalized keyframes at sampling time

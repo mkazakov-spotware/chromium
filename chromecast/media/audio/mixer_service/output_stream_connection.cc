@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,8 @@
 
 #include "base/logging.h"
 #include "base/memory/aligned_memory.h"
-#include "chromecast/media/audio/mixer_service/mixer_service_transport.pb.h"
-#include "chromecast/media/audio/net/common.pb.h"
-#include "chromecast/media/audio/net/conversions.h"
-#include "chromecast/metrics/metrics_recorder.h"
+#include "chromecast/media/audio/mixer_service/conversions.h"
+#include "chromecast/media/audio/mixer_service/mixer_service.pb.h"
 #include "chromecast/net/io_buffer_pool.h"
 
 namespace chromecast {
@@ -22,8 +20,7 @@ namespace mixer_service {
 namespace {
 
 int GetFrameSize(const OutputStreamParams& params) {
-  return audio_service::GetSampleSizeBytes(params.sample_format()) *
-         params.num_channels();
+  return GetSampleSizeBytes(params.sample_format()) * params.num_channels();
 }
 
 int GetFillSizeFrames(const OutputStreamParams& params) {
@@ -33,17 +30,6 @@ int GetFillSizeFrames(const OutputStreamParams& params) {
   // Use 10 ms by default.
   return params.sample_rate() / 100;
 }
-
-enum MessageTypes : int {
-  kInitial = 1,
-  kStartTimestamp,
-  kPlaybackRate,
-  kAudioClockRate,
-  kStreamVolume,
-  kPauseResume,
-  kEndOfStream,
-  kTimestampAdjustment,
-};
 
 }  // namespace
 
@@ -90,21 +76,10 @@ void OutputStreamConnection::SendAudioBuffer(
   }
 
   if (filled_frames == 0) {
-    // Send explicit end-of-stream message.
     sent_eos_ = true;
-    Generic message;
-    message.mutable_eos_played_out();
-    socket_->SendProto(kEndOfStream, message);
-    return;
   }
-  if (socket_->SendAudioBuffer(std::move(audio_buffer),
-                               filled_frames * frame_size_, pts)) {
-    LOG_IF(INFO, dropping_audio_) << "Stopped dropping audio";
-    dropping_audio_ = false;
-  } else {
-    LOG_IF(WARNING, !dropping_audio_) << "Dropping audio";
-    dropping_audio_ = true;
-  }
+  socket_->SendAudioBuffer(std::move(audio_buffer), filled_frames * frame_size_,
+                           pts);
 }
 
 void OutputStreamConnection::SetVolumeMultiplier(float multiplier) {
@@ -112,7 +87,7 @@ void OutputStreamConnection::SetVolumeMultiplier(float multiplier) {
   if (socket_) {
     Generic message;
     message.mutable_set_stream_volume()->set_volume(multiplier);
-    socket_->SendProto(kStreamVolume, message);
+    socket_->SendProto(message);
   }
 }
 
@@ -125,7 +100,7 @@ void OutputStreamConnection::SetStartTimestamp(int64_t start_timestamp,
     Generic message;
     message.mutable_set_start_timestamp()->set_start_timestamp(start_timestamp);
     message.mutable_set_start_timestamp()->set_start_pts(pts);
-    socket_->SendProto(kStartTimestamp, message);
+    socket_->SendProto(message);
   }
 }
 
@@ -134,7 +109,7 @@ void OutputStreamConnection::SetPlaybackRate(float playback_rate) {
   if (socket_) {
     Generic message;
     message.mutable_set_playback_rate()->set_playback_rate(playback_rate);
-    socket_->SendProto(kPlaybackRate, message);
+    socket_->SendProto(message);
   }
 }
 
@@ -143,7 +118,7 @@ void OutputStreamConnection::SetAudioClockRate(double rate) {
   if (socket_) {
     Generic message;
     message.mutable_set_audio_clock_rate()->set_rate(rate);
-    socket_->SendProto(kAudioClockRate, message);
+    socket_->SendProto(message);
   }
 }
 
@@ -152,7 +127,7 @@ void OutputStreamConnection::Pause() {
   if (socket_) {
     Generic message;
     message.mutable_set_paused()->set_paused(true);
-    socket_->SendProto(kPauseResume, message);
+    socket_->SendProto(message);
   }
 }
 
@@ -160,19 +135,8 @@ void OutputStreamConnection::Resume() {
   paused_ = false;
   if (socket_) {
     Generic message;
-    auto* pause_message = message.mutable_set_paused();
-    pause_message->set_paused(false);
-    socket_->SendProto(kPauseResume, message);
-  }
-}
-
-void OutputStreamConnection::SendTimestampAdjustment(
-    int64_t timestamp_adjustment) {
-  if (socket_) {
-    Generic message;
-    auto* adjustment_message = message.mutable_timestamp_adjustment();
-    adjustment_message->set_adjustment(timestamp_adjustment);
-    socket_->SendProto(kTimestampAdjustment, message);
+    message.mutable_set_paused()->set_paused(false);
+    socket_->SendProto(message);
   }
 }
 
@@ -199,10 +163,10 @@ void OutputStreamConnection::OnConnected(std::unique_ptr<MixerSocket> socket) {
   if (paused_) {
     message.mutable_set_paused()->set_paused(true);
   }
-  socket_->SendProto(kInitial, message);
+  socket_->SendProto(message);
   delegate_->FillNextBuffer(
       audio_buffer_->data() + MixerSocket::kAudioMessageHeaderSize,
-      fill_size_frames_, std::numeric_limits<int64_t>::min(), 0);
+      fill_size_frames_, std::numeric_limits<int64_t>::min());
 }
 
 void OutputStreamConnection::OnConnectionError() {
@@ -223,8 +187,7 @@ bool OutputStreamConnection::HandleMetadata(const Generic& message) {
   if (message.has_push_result() && !sent_eos_) {
     delegate_->FillNextBuffer(
         audio_buffer_->data() + MixerSocket::kAudioMessageHeaderSize,
-        fill_size_frames_, message.push_result().delay_timestamp(),
-        message.push_result().delay());
+        fill_size_frames_, message.push_result().next_playback_timestamp());
   }
 
   if (message.has_ready_for_playback()) {
@@ -237,14 +200,6 @@ bool OutputStreamConnection::HandleMetadata(const Generic& message) {
   }
 
   if (message.has_mixer_underrun()) {
-    std::string metric_name =
-        (message.mixer_underrun().type() == MixerUnderrun::INPUT_UNDERRUN
-             ? "Platform.Audio.Mixer.StreamUnderrun"
-             : "Platform.Audio.Mixer.OutputUnderrun");
-    std::unique_ptr<CastEventBuilder> event = CreateCastEvent(metric_name);
-    delegate_->ProcessCastEvent(event.get());
-    RecordCastEvent(metric_name, std::move(event),
-                    /* verbose_log_level = */ 0);
     delegate_->OnMixerUnderrun(static_cast<Delegate::MixerUnderrunType>(
         message.mixer_underrun().type()));
   }

@@ -1,5 +1,5 @@
-#!/usr/bin/env vpython3
-# Copyright 2019 The Chromium Authors
+#!/usr/bin/env python
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -13,13 +13,37 @@ import os
 import re
 import sys
 
-import utils
+ROOT_PATH = os.path.join(os.path.dirname(__file__), '..', '..')
+PYJSON5_PATH = os.path.join(ROOT_PATH, 'third_party', 'pyjson5', 'src')
+DEPOT_TOOLS_PATH = os.path.join(ROOT_PATH, 'third_party', 'depot_tools')
 
-DEPOT_TOOLS_PATH = os.path.join(utils.ROOT_PATH, 'third_party', 'depot_tools')
-
+sys.path.append(PYJSON5_PATH)
 sys.path.append(DEPOT_TOOLS_PATH)
 
-import owners_client
+import json5
+import owners
+
+
+def load_metadata():
+  flags_path = os.path.join(ROOT_PATH, 'chrome', 'browser',
+                            'flag-metadata.json')
+  return json5.load(open(flags_path))
+
+
+def keep_expired_by(flags, mstone):
+  """Filter flags to contain only flags that expire by mstone.
+
+  Only flags that either never expire or have an expiration milestone <= mstone
+  are in the returned list.
+
+  >>> keep_expired_by([{'expiry_milestone': 3}], 2)
+  []
+  >>> keep_expired_by([{'expiry_milestone': 3}], 3)
+  [{'expiry_milestone': 3}]
+  >>> keep_expired_by([{'expiry_milestone': -1}], 3)
+  []
+  """
+  return [f for f in flags if -1 != f['expiry_milestone'] <= mstone]
 
 
 def keep_never_expires(flags):
@@ -42,26 +66,20 @@ def resolve_owners(flags):
   * Passing any other type of entry through unmodified
   """
 
-  owners_db = owners_client.GetCodeOwnersClient(
-      root=utils.ROOT_PATH,
-      upstream="",
-      host="chromium-review.googlesource.com",
-      project="chromium/src",
-      branch="main")
+  owners_db = owners.Database(ROOT_PATH, open, os.path)
 
   new_flags = []
   for f in flags:
     new_flag = f.copy()
-    new_owners = set()
+    new_owners = []
     for o in f['owners']:
-      # Assume any filepath is to an OWNERS file.
-      if '/' in o:
-        new_owners.update(set(owners_db.ListBestOwners(re.sub('//', '', o))))
+      if o.startswith('//') or '/' in o:
+        new_owners += owners_db.owners_rooted_at_file(re.sub('//', '', o))
       elif '@' not in o:
-        new_owners.add(o + '@chromium.org')
+        new_owners.append(o + '@chromium.org')
       else:
-        new_owners.add(o)
-    new_flag['resolved_owners'] = sorted(new_owners)
+        new_owners.append(o)
+    new_flag['resolved_owners'] = new_owners
     new_flags.append(new_flag)
   return new_flags
 
@@ -71,7 +89,7 @@ def find_unused(flags):
       'chrome/browser/about_flags.cc',
       'ios/chrome/browser/flags/about_flags.mm',
   ]
-  flag_files_data = [open(f, 'r', encoding='utf-8').read() for f in FLAG_FILES]
+  flag_files_data = [open(f, 'rb').read().decode('utf-8') for f in FLAG_FILES]
   unused_flags = []
   for flag in flags:
     # Search for the name in quotes.
@@ -85,9 +103,7 @@ def print_flags(flags, verbose):
   """Prints the supplied list of flags.
 
   In verbose mode, prints name, expiry, and owner list; in non-verbose mode,
-  prints just the name. Verbose mode is actually tab-separated values, with
-  commas used as separators within individual fields - this is the format the
-  rest of the flags automation consumes most readily.
+  prints just the name.
 
   >>> f1 = {'name': 'foo', 'expiry_milestone': 73, 'owners': ['bar', 'baz']}
   >>> f1['resolved_owners'] = ['bar@c.org', 'baz@c.org']
@@ -95,17 +111,17 @@ def print_flags(flags, verbose):
   >>> f2['resolved_owners'] = ['quxx@c.org']
   >>> print_flags([f1], False)
   foo
-  >>> print_flags([f1], True) # doctest: +NORMALIZE_WHITESPACE
-  foo 73 bar,baz bar@c.org,baz@c.org
+  >>> print_flags([f1], True)
+  foo,73,bar baz,bar@c.org baz@c.org
   >>> print_flags([f2], False)
   bar
-  >>> print_flags([f2], True) # doctest: +NORMALIZE_WHITESPACE
-  bar 74 //quxx/OWNERS quxx@c.org
+  >>> print_flags([f2], True)
+  bar,74,//quxx/OWNERS,quxx@c.org
   """
   for f in flags:
     if verbose:
-      print('%s\t%d\t%s\t%s' % (f['name'], f['expiry_milestone'], ','.join(
-          f['owners']), ','.join(f['resolved_owners'])))
+      print('%s,%d,%s,%s' % (f['name'], f['expiry_milestone'], ' '.join(
+          f['owners']), ' '.join(f['resolved_owners'])))
     else:
       print(f['name'])
 
@@ -126,9 +142,9 @@ def main():
   if args.testonly:
     return
 
-  flags = utils.load_metadata()
+  flags = load_metadata()
   if args.expired_by:
-    flags = utils.keep_expired_by(flags, args.expired_by)
+    flags = keep_expired_by(flags, args.expired_by)
   if args.never_expires:
     flags = keep_never_expires(flags)
   if args.find_unused:

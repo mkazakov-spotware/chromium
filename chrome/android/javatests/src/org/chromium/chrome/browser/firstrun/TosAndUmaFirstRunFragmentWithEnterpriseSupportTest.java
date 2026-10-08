@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
 
 import android.app.Activity;
 import android.app.Instrumentation;
@@ -18,6 +17,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
+import android.os.Bundle;
 import android.os.SystemClock;
 import android.support.test.InstrumentationRegistry;
 import android.view.View;
@@ -46,32 +46,27 @@ import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.customtabs.CustomTabsIntentTestUtils;
-import org.chromium.chrome.browser.enterprise.util.EnterpriseInfo;
-import org.chromium.chrome.browser.enterprise.util.FakeEnterpriseInfo;
+import org.chromium.chrome.browser.customtabs.CustomTabsTestUtils;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.init.BrowserParts;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
+import org.chromium.chrome.browser.policy.EnterpriseInfo;
 import org.chromium.chrome.browser.policy.PolicyServiceFactory;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
-import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManagerImpl;
-import org.chromium.chrome.browser.signin.services.FREMobileIdentityConsistencyFieldTrial;
+import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManager;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.util.ChromeRenderTestRule;
-import org.chromium.chrome.test.util.browser.signin.AccountManagerTestRule;
-import org.chromium.components.externalauth.ExternalAuthUtils;
 import org.chromium.components.policy.PolicyService;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.ui.test.util.DisableAnimationsTestRule;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeoutException;
 
 /**
  * Test for first run activity and {@link TosAndUmaFirstRunFragmentWithEnterpriseSupport}.
@@ -99,19 +94,12 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
         int SLOWER = 2;
     }
 
-    private static final int RENDER_TEST_REVISION = 2;
-    private static final String RENDER_TEST_REVISION_DESCRIPTION =
-            "Change the button padding and font family.";
+    @Rule
+    public DisableAnimationsTestRule mDisableAnimationsTestRule = new DisableAnimationsTestRule();
 
     @Rule
     public ChromeRenderTestRule mRenderTestRule =
-            ChromeRenderTestRule.Builder.withPublicCorpus()
-                    .setRevision(RENDER_TEST_REVISION)
-                    .setDescription(RENDER_TEST_REVISION_DESCRIPTION)
-                    .setBugComponent(ChromeRenderTestRule.Component.UI_BROWSER_FIRST_RUN)
-                    .build();
-    @Rule
-    public final AccountManagerTestRule mAccountManagerTestRule = new AccountManagerTestRule();
+            ChromeRenderTestRule.Builder.withPublicCorpus().build();
 
     @Mock
     public FirstRunAppRestrictionInfo mMockAppRestrictionInfo;
@@ -120,31 +108,26 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
     @Mock
     public FirstRunUtils.Natives mFirstRunUtils;
     @Mock
-    private PrivacyPreferencesManagerImpl mPrivacyPreferencesManagerMock;
-    @Mock
-    private ExternalAuthUtils mExternalAuthUtilsMock;
+    public EnterpriseInfo mMockEnterpriseInfo;
 
     @Spy
     public ChromeBrowserInitializer mInitializer;
     @Captor
     public ArgumentCaptor<BrowserParts> mBrowserParts;
 
-    public FakeEnterpriseInfo mFakeEnterpriseInfo = new FakeEnterpriseInfo();
     private FirstRunActivity mActivity;
     private final List<PolicyService.Observer> mPolicyServiceObservers = new ArrayList<>();
     private final List<Callback<Boolean>> mAppRestrictionsCallbacks = new ArrayList<>();
     private final List<Callback<Long>> mAppRestrictionsDurationCallbacks = new ArrayList<>();
+    private final List<Callback<EnterpriseInfo.OwnedState>> mOwnedStateCallbacks =
+            new ArrayList<>();
     private final CallbackHelper mAcceptTosCallbackHelper = new CallbackHelper();
-    private CallbackHelper mOnNativeInitializedHelper = new CallbackHelper();
-    private CallbackHelper mOnPolicyServiceInitializedHelper = new CallbackHelper();
-    private CallbackHelper mOnHideLoadingUICompleteHelper = new CallbackHelper();
     private int mExitCount;
 
     private View mTosText;
     private View mAcceptButton;
     private View mLowerSpinner;
     private View mCenterSpinner;
-    private View mPrivacyDisclaimer;
     private CheckBox mUmaCheckBox;
 
     @Before
@@ -159,62 +142,40 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
                 .handlePostNativeStartup(anyBoolean(), any(BrowserParts.class));
         ChromeBrowserInitializer.setForTesting(mInitializer);
 
-        when(mExternalAuthUtilsMock.canUseGooglePlayServices(any())).thenReturn(true);
-        ExternalAuthUtils.setInstanceForTesting(mExternalAuthUtilsMock);
         FirstRunAppRestrictionInfo.setInitializedInstanceForTest(mMockAppRestrictionInfo);
         ToSAndUMAFirstRunFragment.setShowUmaCheckBoxForTesting(true);
         PolicyServiceFactory.setPolicyServiceForTest(mPolicyService);
-        FirstRunUtils.setDisableDelayOnExitFreForTest(true);
         FirstRunUtilsJni.TEST_HOOKS.setInstanceForTesting(mFirstRunUtils);
-
-        EnterpriseInfo.setInstanceForTest(mFakeEnterpriseInfo);
-
-        FREMobileIdentityConsistencyFieldTrial.setFirstRunTrialGroupForTesting(
-                FREMobileIdentityConsistencyFieldTrial.DISABLED_GROUP);
+        EnterpriseInfo.setInstanceForTest(mMockEnterpriseInfo);
 
         setAppRestrictionsMockNotInitialized();
         setPolicyServiceMockNotInitialized();
+        setEnterpriseInfoNotInitialized();
 
         // TODO(https://crbug.com/1113229): Rework this to not depend on {@link FirstRunActivity}
         // implementation details.
         mExitCount = 0;
         FirstRunActivity.setObserverForTest(new FirstRunActivity.FirstRunActivityObserver() {
             @Override
-            public void onCreatePostNativeAndPoliciesPageSequence(FirstRunActivity caller) {}
+            public void onFlowIsKnown(Bundle freProperties) {}
 
             @Override
-            public void onAcceptTermsOfService(FirstRunActivity caller) {
+            public void onAcceptTermsOfService() {
                 mAcceptTosCallbackHelper.notifyCalled();
             }
 
             @Override
-            public void onJumpToPage(FirstRunActivity caller, int position) {}
+            public void onJumpToPage(int position) {}
 
             @Override
-            public void onUpdateCachedEngineName(FirstRunActivity caller) {}
+            public void onUpdateCachedEngineName() {}
 
             @Override
-            public void onAbortFirstRunExperience(FirstRunActivity caller) {}
+            public void onAbortFirstRunExperience() {}
 
             @Override
-            public void onExitFirstRun(FirstRunActivity caller) {
+            public void onExitFirstRun() {
                 mExitCount++;
-            }
-        });
-        ToSAndUMAFirstRunFragment.setObserverForTesting(new ToSAndUMAFirstRunFragment.Observer() {
-            @Override
-            public void onNativeInitialized() {
-                mOnNativeInitializedHelper.notifyCalled();
-            }
-
-            @Override
-            public void onPolicyServiceInitialized() {
-                mOnPolicyServiceInitializedHelper.notifyCalled();
-            }
-
-            @Override
-            public void onHideLoadingUIComplete() {
-                mOnHideLoadingUICompleteHelper.notifyCalled();
             }
         });
     }
@@ -223,19 +184,17 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
     public void tearDown() {
         FirstRunAppRestrictionInfo.setInitializedInstanceForTest(null);
         ToSAndUMAFirstRunFragment.setShowUmaCheckBoxForTesting(false);
-        TosAndUmaFirstRunFragmentWithEnterpriseSupport.setOverrideOnExitFreRunnableForTest(null);
         PolicyServiceFactory.setPolicyServiceForTest(null);
-        FirstRunUtils.setDisableDelayOnExitFreForTest(false);
         FirstRunUtilsJni.TEST_HOOKS.setInstanceForTesting(mFirstRunUtils);
         EnterpriseInfo.setInstanceForTest(null);
         SharedPreferencesManager.getInstance().writeBoolean(
-                ChromePreferenceKeys.PRIVACY_METRICS_REPORTING_PERMITTED_BY_USER, false);
+                ChromePreferenceKeys.PRIVACY_METRICS_REPORTING, false);
         if (mActivity != null) mActivity.finish();
     }
 
     @Test
     @SmallTest
-    public void testNoRestriction() throws Exception {
+    public void testNoRestriction() {
         launchFirstRunThroughCustomTab();
         assertUIState(FragmentState.LOADING);
 
@@ -244,63 +203,63 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
 
         assertHistograms(true, SpeedComparedToInflation.SLOWER,
                 SpeedComparedToInflation.NOT_RECORDED, SpeedComparedToInflation.NOT_RECORDED);
-        assertPolicyServiceInitDelayAfterNative(true, false);
+
+        SharedPreferencesManager.getInstance().writeBoolean(
+                ChromePreferenceKeys.PRIVACY_METRICS_REPORTING, false);
+        Assert.assertFalse("Crash report should be disabled by shared preference.",
+                PrivacyPreferencesManager.getInstance().isUsageAndCrashReportingPermittedByUser());
 
         // Try to accept ToS.
-        setMetricsReportDisabled();
         TestThreadUtils.runOnUiThreadBlocking((Runnable) mAcceptButton::performClick);
         Assert.assertTrue("Crash report should be enabled.",
-                PrivacyPreferencesManagerImpl.getInstance()
-                        .isUsageAndCrashReportingPermittedByUser());
+                PrivacyPreferencesManager.getInstance().isUsageAndCrashReportingPermittedByUser());
     }
 
     @Test
     @SmallTest
-    public void testNoRestriction_AcceptBeforeNative() throws Exception {
+    public void testNoRestriction_AcceptBeforeNative() {
         launchFirstRunThroughCustomTabPreNative();
         assertUIState(FragmentState.LOADING);
 
         setAppRestrictionsMockInitialized(false);
         assertUIState(FragmentState.NO_POLICY);
 
+        assertHistograms(true, SpeedComparedToInflation.SLOWER,
+                SpeedComparedToInflation.NOT_RECORDED, SpeedComparedToInflation.NOT_RECORDED);
+
+        SharedPreferencesManager.getInstance().writeBoolean(
+                ChromePreferenceKeys.PRIVACY_METRICS_REPORTING, false);
+        Assert.assertFalse("Crash report should be disabled by shared preference.",
+                PrivacyPreferencesManager.getInstance().isUsageAndCrashReportingPermittedByUser());
+
         // Try to accept ToS.
-        setMetricsReportDisabled();
         TestThreadUtils.runOnUiThreadBlocking((Runnable) mAcceptButton::performClick);
         assertUIState(FragmentState.WAITING_UNTIL_NEXT_PAGE);
         Assert.assertFalse("Crash report should not be enabled before native initialized.",
-                PrivacyPreferencesManagerImpl.getInstance()
-                        .isUsageAndCrashReportingPermittedByUser());
+                PrivacyPreferencesManager.getInstance().isUsageAndCrashReportingPermittedByUser());
 
         // ToS should be accepted when native is initialized.
         startNativeInitializationAndWait();
-        assertHistograms(true, SpeedComparedToInflation.SLOWER,
-                SpeedComparedToInflation.NOT_RECORDED, SpeedComparedToInflation.NOT_RECORDED);
-        assertPolicyServiceInitDelayAfterNative(false, false);
-        String histogram = "MobileFre.TosFragment.SpinnerVisibleDuration";
-        Assert.assertEquals(String.format("Histogram <%s> should be recorded.", histogram), 1,
-                RecordHistogram.getHistogramTotalCountForTesting(histogram));
         Assert.assertTrue("Crash report should be enabled.",
-                PrivacyPreferencesManagerImpl.getInstance()
-                        .isUsageAndCrashReportingPermittedByUser());
+                PrivacyPreferencesManager.getInstance().isUsageAndCrashReportingPermittedByUser());
     }
 
     @Test
     @SmallTest
-    public void testNoRestriction_BeforeInflation() throws Exception {
+    public void testNoRestriction_BeforeInflation() {
         setAppRestrictionsMockInitialized(false);
         launchFirstRunThroughCustomTab();
         assertUIState(FragmentState.NO_POLICY);
 
         assertHistograms(false, SpeedComparedToInflation.FASTER,
                 SpeedComparedToInflation.NOT_RECORDED, SpeedComparedToInflation.NOT_RECORDED);
-        assertPolicyServiceInitDelayAfterNative(false, false);
     }
 
     @Test
     @SmallTest
-    // TODO(https://crbug.com/1120859): Test the policy check when native initializes before
-    // inflation. This will be possible when FragmentScenario is available.
-    public void testDialogEnabled() throws Exception {
+    // TODO(crbug.com/1120859): Test the policy check when native initializes before inflation.
+    // This will be possible when FragmentScenario is available.
+    public void testDialogEnabled() {
         setAppRestrictionsMockInitialized(true);
         launchFirstRunThroughCustomTab();
         assertUIState(FragmentState.LOADING);
@@ -310,18 +269,16 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
 
         assertHistograms(true, SpeedComparedToInflation.FASTER,
                 SpeedComparedToInflation.NOT_RECORDED, SpeedComparedToInflation.SLOWER);
-        assertPolicyServiceInitDelayAfterNative(true, true);
 
-        // Try to accept ToS.
+        // Try to accept Tos.
         TestThreadUtils.runOnUiThreadBlocking((Runnable) mAcceptButton::performClick);
         Assert.assertTrue("Crash report should be enabled.",
-                PrivacyPreferencesManagerImpl.getInstance()
-                        .isUsageAndCrashReportingPermittedByUser());
+                PrivacyPreferencesManager.getInstance().isUsageAndCrashReportingPermittedByUser());
     }
 
     @Test
     @SmallTest
-    public void testDialogEnabled_BeforeAppRestrictions() throws Exception {
+    public void testDialogEnabled_BeforeAppRestrictions() {
         launchFirstRunThroughCustomTab();
         assertUIState(FragmentState.LOADING);
 
@@ -331,12 +288,11 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
 
         assertHistograms(true, SpeedComparedToInflation.NOT_RECORDED,
                 SpeedComparedToInflation.NOT_RECORDED, SpeedComparedToInflation.SLOWER);
-        assertPolicyServiceInitDelayAfterNative(true, true);
     }
 
     @Test
     @SmallTest
-    public void testNotOwnedDevice() throws Exception {
+    public void testNotOwnedDevice() {
         setAppRestrictionsMockInitialized(true);
         launchFirstRunThroughCustomTab();
         assertUIState(FragmentState.LOADING);
@@ -346,57 +302,29 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
 
         assertHistograms(true, SpeedComparedToInflation.FASTER, SpeedComparedToInflation.SLOWER,
                 SpeedComparedToInflation.NOT_RECORDED);
-        assertPolicyServiceInitDelayAfterNative(false, false);
-    }
-
-    @Test
-    @SmallTest
-    public void testNotOwnedDevice_AcceptBeforePolicy() throws Exception {
-        setAppRestrictionsMockInitialized(true);
-        launchFirstRunThroughCustomTab();
-        assertUIState(FragmentState.LOADING);
-
-        setEnterpriseInfoInitializedWithDeviceOwner(false);
-        assertUIState(FragmentState.NO_POLICY);
 
         // Try to accept Tos.
-        setMetricsReportDisabled();
         TestThreadUtils.runOnUiThreadBlocking((Runnable) mAcceptButton::performClick);
-        assertUIState(FragmentState.WAITING_UNTIL_NEXT_PAGE);
-
-        setPolicyServiceMockInitializedWithDialogEnabled(false);
-        CriteriaHelper.pollUiThread(()
-                                            -> PrivacyPreferencesManagerImpl.getInstance()
-                                                       .isUsageAndCrashReportingPermittedByUser());
-        String histogram = "MobileFre.TosFragment.SpinnerVisibleDuration";
-        Assert.assertEquals(String.format("Histogram <%s> should be recorded.", histogram), 1,
-                RecordHistogram.getHistogramTotalCountForTesting(histogram));
-
-        assertHistograms(true, SpeedComparedToInflation.FASTER, SpeedComparedToInflation.SLOWER,
-                SpeedComparedToInflation.SLOWER);
-        assertPolicyServiceInitDelayAfterNative(true, true);
+        Assert.assertTrue("Crash report should be enabled.",
+                PrivacyPreferencesManager.getInstance().isUsageAndCrashReportingPermittedByUser());
     }
 
     @Test
     @SmallTest
-    public void testNotOwnedDevice_InitBeforeInflation() throws Exception {
+    public void testNotOwnedDevice_beforeInflation() {
         setAppRestrictionsMockInitialized(true);
         setEnterpriseInfoInitializedWithDeviceOwner(false);
 
         launchFirstRunThroughCustomTab();
         assertUIState(FragmentState.NO_POLICY);
 
-        // Despite EnterpriseInfo being ready to report owned state before inflation, there is no
-        // gap on the UI thread between the request and inflation. So the posted response to the
-        // EnterpriseInfo request is always slower.
-        assertHistograms(true, SpeedComparedToInflation.FASTER, SpeedComparedToInflation.SLOWER,
+        assertHistograms(false, SpeedComparedToInflation.FASTER, SpeedComparedToInflation.FASTER,
                 SpeedComparedToInflation.NOT_RECORDED);
-        assertPolicyServiceInitDelayAfterNative(false, false);
     }
 
     @Test
     @SmallTest
-    public void testOwnedDevice_NoRestriction() throws Exception {
+    public void testOwnedDevice_NoRestriction() {
         setEnterpriseInfoInitializedWithDeviceOwner(true);
         launchFirstRunThroughCustomTab();
         assertUIState(FragmentState.LOADING);
@@ -404,14 +332,13 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
         setAppRestrictionsMockInitialized(false);
         assertUIState(FragmentState.NO_POLICY);
 
-        assertHistograms(true, SpeedComparedToInflation.SLOWER, SpeedComparedToInflation.SLOWER,
+        assertHistograms(true, SpeedComparedToInflation.SLOWER, SpeedComparedToInflation.FASTER,
                 SpeedComparedToInflation.NOT_RECORDED);
-        assertPolicyServiceInitDelayAfterNative(true, false);
     }
 
     @Test
     @SmallTest
-    public void testOwnedDevice_NoPolicy() throws Exception {
+    public void testOwnedDevice_NoPolicy() {
         setEnterpriseInfoInitializedWithDeviceOwner(true);
         launchFirstRunThroughCustomTab();
         assertUIState(FragmentState.LOADING);
@@ -422,14 +349,13 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
         setPolicyServiceMockInitializedWithDialogEnabled(true);
         assertUIState(FragmentState.NO_POLICY);
 
-        assertHistograms(true, SpeedComparedToInflation.SLOWER, SpeedComparedToInflation.SLOWER,
+        assertHistograms(true, SpeedComparedToInflation.SLOWER, SpeedComparedToInflation.FASTER,
                 SpeedComparedToInflation.SLOWER);
-        assertPolicyServiceInitDelayAfterNative(true, true);
     }
 
     @Test
     @SmallTest
-    public void testSkip_DeviceOwnedThenDialogPolicy() throws Exception {
+    public void testSkip_DeviceOwnedThenDialogPolicy() {
         setAppRestrictionsMockInitialized(true);
         launchFirstRunThroughCustomTab();
         assertUIState(FragmentState.LOADING);
@@ -442,15 +368,13 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
 
         assertHistograms(true, SpeedComparedToInflation.FASTER, SpeedComparedToInflation.SLOWER,
                 SpeedComparedToInflation.SLOWER);
-        assertPolicyServiceInitDelayAfterNative(true, true);
         Assert.assertFalse("Crash report should not be enabled.",
-                PrivacyPreferencesManagerImpl.getInstance()
-                        .isUsageAndCrashReportingPermittedByUser());
+                PrivacyPreferencesManager.getInstance().isUsageAndCrashReportingPermittedByUser());
     }
 
     @Test
     @SmallTest
-    public void testSkip_DialogPolicyThenDeviceOwned() throws Exception {
+    public void testSkip_DialogPolicyThenDeviceOwned() {
         setAppRestrictionsMockInitialized(true);
         launchFirstRunThroughCustomTab();
         assertUIState(FragmentState.LOADING);
@@ -463,15 +387,13 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
 
         assertHistograms(true, SpeedComparedToInflation.FASTER, SpeedComparedToInflation.SLOWER,
                 SpeedComparedToInflation.SLOWER);
-        assertPolicyServiceInitDelayAfterNative(true, true);
         Assert.assertFalse("Crash report should not be enabled.",
-                PrivacyPreferencesManagerImpl.getInstance()
-                        .isUsageAndCrashReportingPermittedByUser());
+                PrivacyPreferencesManager.getInstance().isUsageAndCrashReportingPermittedByUser());
     }
 
     @Test
     @SmallTest
-    public void testSkip_LateAppRestrictions() throws Exception {
+    public void testSkip_LateAppRestrictions() {
         launchFirstRunThroughCustomTab();
         assertUIState(FragmentState.LOADING);
 
@@ -484,7 +406,6 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
 
         assertHistograms(true, SpeedComparedToInflation.NOT_RECORDED,
                 SpeedComparedToInflation.SLOWER, SpeedComparedToInflation.SLOWER);
-        assertPolicyServiceInitDelayAfterNative(true, true);
 
         // assertUIState will verify that exit was not called a second time.
         setAppRestrictionsMockInitialized(true);
@@ -493,13 +414,12 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
         assertHistograms(true, SpeedComparedToInflation.SLOWER, SpeedComparedToInflation.SLOWER,
                 SpeedComparedToInflation.SLOWER);
         Assert.assertFalse("Crash report should not be enabled.",
-                PrivacyPreferencesManagerImpl.getInstance()
-                        .isUsageAndCrashReportingPermittedByUser());
+                PrivacyPreferencesManager.getInstance().isUsageAndCrashReportingPermittedByUser());
     }
 
     @Test
     @SmallTest
-    public void testNullOwnedState() throws Exception {
+    public void testNullOwnedState() {
         setAppRestrictionsMockInitialized(true);
         setPolicyServiceMockInitializedWithDialogEnabled(false);
         launchFirstRunThroughCustomTab();
@@ -507,13 +427,12 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
 
         // Null means loading checking if the device is owned failed. This should be treated the
         // same as not being owned, and no skipping should occur.
-        mFakeEnterpriseInfo.initialize(null);
+        setEnterpriseInfoInitializedWithOwnedState(null);
         assertUIState(FragmentState.NO_POLICY);
     }
 
     @Test
     @SmallTest
-    @DisabledTest(message = "Flaky test - see: https://crbug.com/1171147")
     public void testAcceptTosWithoutCrashUpload() throws Exception {
         setAppRestrictionsMockInitialized(true);
         setEnterpriseInfoInitializedWithDeviceOwner(true);
@@ -530,8 +449,7 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
 
         mAcceptTosCallbackHelper.waitForCallback("Accept Tos is never called.", 0);
         Assert.assertFalse("Crash report should not be enabled.",
-                PrivacyPreferencesManagerImpl.getInstance()
-                        .isUsageAndCrashReportingPermittedByUser());
+                PrivacyPreferencesManager.getInstance().isUsageAndCrashReportingPermittedByUser());
     }
 
     @Test
@@ -542,7 +460,6 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
         assertUIState(FragmentState.LOADING);
 
         // Clear the focus on view to avoid unexpected highlight on background.
-        // @TODO(https://crbug.com/c/1289293): Background sometimes are highlighted in render tests.
         View tosAndUmaFragment =
                 mActivity.getSupportFragmentManager().getFragments().get(0).getView();
         Assert.assertNotNull(tosAndUmaFragment);
@@ -555,162 +472,7 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
         renderWithPortraitAndLandscape(tosAndUmaFragment, "fre_tosanduma_nopolicy");
     }
 
-    /** Tests TosAndUmaFirstRunFragment with uma dialog */
-    @Test
-    @SmallTest
-    @Feature({"RenderTest", "FirstRun"})
-    public void testRenderWithUmaDialog() throws Exception {
-        FREMobileIdentityConsistencyFieldTrial.setFirstRunTrialGroupForTesting(
-                FREMobileIdentityConsistencyFieldTrial.OLD_FRE_WITH_UMA_DIALOG_GROUP);
-        launchFirstRunThroughCustomTab();
-        setAppRestrictionsMockInitialized(false);
-        // Clear the focus on view to avoid unexpected highlight on background.
-        View tosAndUmaFragment =
-                mActivity.getSupportFragmentManager().getFragments().get(0).getView();
-        Assert.assertNotNull(tosAndUmaFragment);
-        TestThreadUtils.runOnUiThreadBlocking(tosAndUmaFragment::clearFocus);
-
-        Assert.assertEquals(
-                "Uma checkbox should not be visible.", View.GONE, mUmaCheckBox.getVisibility());
-        renderWithPortraitAndLandscape(tosAndUmaFragment, "fre_tosandumadialog_nopolicy");
-    }
-
-    /** Tests TosAndUmaFirstRunFragment with uma dialog */
-    @Test
-    @SmallTest
-    @Feature({"RenderTest", "FirstRun"})
-    public void testRenderWithUmaDialogForChildAccount() throws Exception {
-        FREMobileIdentityConsistencyFieldTrial.setFirstRunTrialGroupForTesting(
-                FREMobileIdentityConsistencyFieldTrial.OLD_FRE_WITH_UMA_DIALOG_GROUP);
-        mAccountManagerTestRule.addAccount(
-                AccountManagerTestRule.generateChildEmail("account@gmail.com"));
-        launchFirstRunThroughCustomTab();
-        setAppRestrictionsMockInitialized(false);
-        // Clear the focus on view to avoid unexpected highlight on background.
-        View tosAndUmaFragment =
-                mActivity.getSupportFragmentManager().getFragments().get(0).getView();
-        Assert.assertNotNull(tosAndUmaFragment);
-        TestThreadUtils.runOnUiThreadBlocking(tosAndUmaFragment::clearFocus);
-
-        Assert.assertEquals(
-                "Uma checkbox should not be visible.", View.GONE, mUmaCheckBox.getVisibility());
-        renderWithPortraitAndLandscape(
-                tosAndUmaFragment, "fre_tosandumadialog_childaccount_nopolicy");
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"RenderTest", "FirstRun"})
-    public void testRenderWithPolicy() throws Exception {
-        final CallbackHelper onExitFreCallback = new CallbackHelper();
-        TosAndUmaFirstRunFragmentWithEnterpriseSupport.setOverrideOnExitFreRunnableForTest(
-                onExitFreCallback::notifyCalled);
-
-        setAppRestrictionsMockInitialized(true);
-        setEnterpriseInfoInitializedWithDeviceOwner(true);
-        launchFirstRunThroughCustomTab();
-        assertUIState(FragmentState.LOADING);
-
-        // Clear the focus on view to avoid unexpected highlight on background.
-        View tosAndUmaFragment =
-                mActivity.getSupportFragmentManager().getFragments().get(0).getView();
-        Assert.assertNotNull(tosAndUmaFragment);
-        TestThreadUtils.runOnUiThreadBlocking(tosAndUmaFragment::clearFocus);
-
-        setPolicyServiceMockInitializedWithDialogEnabled(false);
-        onExitFreCallback.waitForFirst("OnExitFreCallback is never invoked.");
-        Assert.assertEquals("Privacy disclaimer is not visible", mPrivacyDisclaimer.getVisibility(),
-                View.VISIBLE);
-
-        renderWithPortraitAndLandscape(tosAndUmaFragment, "fre_tosanduma_withpolicy");
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"RenderTest", "FirstRun"})
-    public void testRenderWhenMetricsReportingAreDisabled() throws Exception {
-        launchFirstRunThroughCustomTab();
-        assertUIState(FragmentState.LOADING);
-
-        // Clear the focus on view to avoid unexpected highlight on background.
-        View tosAndUmaFragment =
-                mActivity.getSupportFragmentManager().getFragments().get(0).getView();
-        Assert.assertNotNull(tosAndUmaFragment);
-        TestThreadUtils.runOnUiThreadBlocking(tosAndUmaFragment::clearFocus);
-
-        // Initialize policies.
-        Mockito.when(mPrivacyPreferencesManagerMock.isUsageAndCrashReportingPermittedByPolicy())
-                .thenReturn(false);
-        PrivacyPreferencesManagerImpl.setInstanceForTesting(mPrivacyPreferencesManagerMock);
-        setPolicyServiceMockInitializedWithDialogEnabled(true);
-        setAppRestrictionsMockInitialized(true);
-        mOnPolicyServiceInitializedHelper.waitForCallback("policy service never initialized.", 0);
-        mOnHideLoadingUICompleteHelper.waitForCallback("loading ui never hidden.", 0);
-
-        renderWithPortraitAndLandscape(tosAndUmaFragment, "fre_metricsreportingdisabled");
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"RenderTest", "FirstRun"})
-    public void testRenderWhenMetricsReportingAreDisabledWithUmaDialog() throws Exception {
-        FREMobileIdentityConsistencyFieldTrial.setFirstRunTrialGroupForTesting(
-                FREMobileIdentityConsistencyFieldTrial.OLD_FRE_WITH_UMA_DIALOG_GROUP);
-
-        launchFirstRunThroughCustomTab();
-        assertUIState(FragmentState.LOADING);
-
-        // Clear the focus on view to avoid unexpected highlight on background.
-        View tosAndUmaFragment =
-                mActivity.getSupportFragmentManager().getFragments().get(0).getView();
-        Assert.assertNotNull(tosAndUmaFragment);
-        TestThreadUtils.runOnUiThreadBlocking(tosAndUmaFragment::clearFocus);
-
-        // Initialize policies.
-        Mockito.when(mPrivacyPreferencesManagerMock.isUsageAndCrashReportingPermittedByPolicy())
-                .thenReturn(false);
-        PrivacyPreferencesManagerImpl.setInstanceForTesting(mPrivacyPreferencesManagerMock);
-        setPolicyServiceMockInitializedWithDialogEnabled(true);
-        setAppRestrictionsMockInitialized(true);
-        mOnPolicyServiceInitializedHelper.waitForCallback("policy service never initialized.", 0);
-        mOnHideLoadingUICompleteHelper.waitForCallback("loading ui never hidden.", 0);
-
-        renderWithPortraitAndLandscape(tosAndUmaFragment, "fre_metricsreportingdisabled_umadialog");
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"RenderTest", "FirstRun"})
-    public void testRenderWhenMetricsReportingAreDisabledWithUmaDialogForChildAccount()
-            throws Exception {
-        FREMobileIdentityConsistencyFieldTrial.setFirstRunTrialGroupForTesting(
-                FREMobileIdentityConsistencyFieldTrial.OLD_FRE_WITH_UMA_DIALOG_GROUP);
-        mAccountManagerTestRule.addAccount(
-                AccountManagerTestRule.generateChildEmail("account@gmail.com"));
-
-        launchFirstRunThroughCustomTab();
-        assertUIState(FragmentState.LOADING);
-
-        // Clear the focus on view to avoid unexpected highlight on background.
-        View tosAndUmaFragment =
-                mActivity.getSupportFragmentManager().getFragments().get(0).getView();
-        Assert.assertNotNull(tosAndUmaFragment);
-        TestThreadUtils.runOnUiThreadBlocking(tosAndUmaFragment::clearFocus);
-
-        // Initialize policies.
-        Mockito.when(mPrivacyPreferencesManagerMock.isUsageAndCrashReportingPermittedByPolicy())
-                .thenReturn(false);
-        PrivacyPreferencesManagerImpl.setInstanceForTesting(mPrivacyPreferencesManagerMock);
-        setPolicyServiceMockInitializedWithDialogEnabled(true);
-        setAppRestrictionsMockInitialized(true);
-        mOnPolicyServiceInitializedHelper.waitForCallback("policy service never initialized.", 0);
-        mOnHideLoadingUICompleteHelper.waitForCallback("loading ui never hidden.", 0);
-
-        renderWithPortraitAndLandscape(
-                tosAndUmaFragment, "fre_metricsreportingdisabled_umadialog_childaccount");
-    }
-
-    private void launchFirstRunThroughCustomTab() throws TimeoutException {
+    private void launchFirstRunThroughCustomTab() {
         launchFirstRunThroughCustomTabPreNative();
         startNativeInitializationAndWait();
     }
@@ -724,7 +486,7 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
 
         // Create an Intent that causes Chrome to run.
         Intent intent =
-                CustomTabsIntentTestUtils.createMinimalCustomTabIntent(context, "https://test.com");
+                CustomTabsTestUtils.createMinimalCustomTabIntent(context, "https://test.com");
 
         // Start the FRE.
         final ActivityMonitor freMonitor =
@@ -749,14 +511,11 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
         mAcceptButton = mActivity.findViewById(R.id.terms_accept);
         mLowerSpinner = mActivity.findViewById(R.id.progress_spinner);
         mCenterSpinner = mActivity.findViewById(R.id.progress_spinner_large);
-        mPrivacyDisclaimer = mActivity.findViewById(R.id.privacy_disclaimer);
     }
 
     private void assertUIState(@FragmentState int fragmentState) {
         int tosVisibility = (fragmentState == FragmentState.NO_POLICY) ? View.VISIBLE : View.GONE;
         int spinnerVisibility = (fragmentState == FragmentState.LOADING) ? View.VISIBLE : View.GONE;
-        int privacyVisibility =
-                (fragmentState == FragmentState.HAS_POLICY) ? View.VISIBLE : View.GONE;
         int lowerSpinnerVisibility =
                 (fragmentState == FragmentState.WAITING_UNTIL_NEXT_PAGE) ? View.VISIBLE : View.GONE;
 
@@ -774,17 +533,13 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
                 tosVisibility, mAcceptButton.getVisibility());
         Assert.assertEquals("Visibility of lower spinner is different than the test setting.",
                 lowerSpinnerVisibility, mLowerSpinner.getVisibility());
-        Assert.assertEquals("Visibility of privacy disclaimer is different than the test setting.",
-                privacyVisibility, mPrivacyDisclaimer.getVisibility());
-
         Assert.assertTrue("Uma Check Box should be checked.", mUmaCheckBox.isChecked());
 
         int expectedExitCount = fragmentState == FragmentState.HAS_POLICY ? 1 : 0;
-        CriteriaHelper.pollUiThread(
-                () -> Criteria.checkThat(mExitCount, Matchers.is(expectedExitCount)));
+        Assert.assertEquals(expectedExitCount, mExitCount);
     }
 
-    private void startNativeInitializationAndWait() throws TimeoutException {
+    private void startNativeInitializationAndWait() {
         Mockito.verify(mInitializer, Mockito.timeout(3000L))
                 .handlePostNativeStartup(eq(true), mBrowserParts.capture());
         Mockito.doCallRealMethod()
@@ -795,7 +550,8 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
                 ()
                         -> mInitializer.handlePostNativeStartup(
                                 /*isAsync*/ false, mBrowserParts.getValue()));
-        mOnNativeInitializedHelper.waitForCallback("native never initialized.", 0);
+        CriteriaHelper.pollUiThread(
+                (() -> mActivity.isNativeSideIsInitializedForTest()), "native never initialized.");
     }
 
     /**
@@ -835,19 +591,6 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
                 policyCheckMetricsState == SpeedComparedToInflation.FASTER);
         assertSingleHistogram("MobileFre.CctTos.EnterprisePolicyCheckSpeed2.SlowerThanInflation",
                 policyCheckMetricsState == SpeedComparedToInflation.SLOWER);
-    }
-
-    /**
-     * Assert MobileFre.PolicyServiceInitDelayAfterNative.* is recorded correctly. The histogram
-     * should be recorded when {@link PolicyLoadListener} is ready after native initialization.
-     * @param recorded Whether the histogram should be recorded.
-     * @param isPolicyFound Used to determine which suffix would have been used.
-     */
-    private void assertPolicyServiceInitDelayAfterNative(boolean recorded, boolean isPolicyFound) {
-        assertSingleHistogram("MobileFre.PolicyServiceInitDelayAfterNative.WithPolicy2",
-                recorded && isPolicyFound);
-        assertSingleHistogram("MobileFre.PolicyServiceInitDelayAfterNative.WithoutPolicy2",
-                recorded && !isPolicyFound);
     }
 
     private void assertSingleHistogram(String histogram, boolean recorded) {
@@ -929,16 +672,35 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupportTest {
         Mockito.when(mFirstRunUtils.getCctTosDialogEnabled()).thenReturn(cctTosDialogEnabled);
     }
 
-    private void setEnterpriseInfoInitializedWithDeviceOwner(boolean hasDeviceOwner) {
-        mFakeEnterpriseInfo.initialize(new EnterpriseInfo.OwnedState(hasDeviceOwner, false));
+    private void setEnterpriseInfoNotInitialized() {
+        Mockito.doAnswer(invocation -> {
+                   Callback<EnterpriseInfo.OwnedState> callback = invocation.getArgument(0);
+                   mOwnedStateCallbacks.add(callback);
+                   return null;
+               })
+                .when(mMockEnterpriseInfo)
+                .getDeviceEnterpriseInfo(any());
     }
 
-    private void setMetricsReportDisabled() {
-        SharedPreferencesManager.getInstance().writeBoolean(
-                ChromePreferenceKeys.PRIVACY_METRICS_REPORTING_PERMITTED_BY_USER, false);
-        Assert.assertFalse("Crash report should be disabled by shared preference.",
-                PrivacyPreferencesManagerImpl.getInstance()
-                        .isUsageAndCrashReportingPermittedByUser());
+    private void setEnterpriseInfoInitializedWithDeviceOwner(boolean hasDeviceOwner) {
+        setEnterpriseInfoInitializedWithOwnedState(
+                new EnterpriseInfo.OwnedState(hasDeviceOwner, false));
+    }
+
+    private void setEnterpriseInfoInitializedWithOwnedState(EnterpriseInfo.OwnedState ownedState) {
+        Mockito.doAnswer(invocation -> {
+                   Callback<EnterpriseInfo.OwnedState> callback = invocation.getArgument(0);
+                   callback.onResult(ownedState);
+                   return null;
+               })
+                .when(mMockEnterpriseInfo)
+                .getDeviceEnterpriseInfo(any());
+
+        TestThreadUtils.runOnUiThreadBlocking(() -> {
+            for (Callback<EnterpriseInfo.OwnedState> callback : mOwnedStateCallbacks) {
+                callback.onResult(ownedState);
+            }
+        });
     }
 
     private void renderWithPortraitAndLandscape(View tosAndUmaFragmentView, String testPrefix)

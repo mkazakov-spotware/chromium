@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,15 @@
 #include <algorithm>
 
 #include "base/memory/scoped_refptr.h"
-#include "build/build_config.h"
-#include "content/browser/browser_context_impl.h"
+#include "base/supports_user_data.h"
 #include "content/browser/storage_partition_impl.h"
 #include "content/public/browser/background_sync_controller.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
 
 namespace content {
+
+const char kBackgroundSyncSchedulerKey[] = "background-sync-scheduler";
 
 using DelayedProcessingInfoMap =
     std::map<StoragePartitionImpl*, std::unique_ptr<base::OneShotTimer>>;
@@ -25,7 +26,17 @@ BackgroundSyncScheduler* BackgroundSyncScheduler::GetFor(
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(browser_context);
 
-  return BrowserContextImpl::From(browser_context)->background_sync_scheduler();
+  if (!browser_context->GetUserData(kBackgroundSyncSchedulerKey)) {
+    scoped_refptr<BackgroundSyncScheduler> scheduler =
+        base::MakeRefCounted<BackgroundSyncScheduler>();
+    browser_context->SetUserData(
+        kBackgroundSyncSchedulerKey,
+        std::make_unique<base::UserDataAdapter<BackgroundSyncScheduler>>(
+            scheduler.get()));
+  }
+
+  return base::UserDataAdapter<BackgroundSyncScheduler>::Get(
+      browser_context, kBackgroundSyncSchedulerKey);
 }
 
 BackgroundSyncScheduler::BackgroundSyncScheduler() = default;
@@ -61,7 +72,7 @@ void BackgroundSyncScheduler::ScheduleDelayedProcessing(
                        storage_partition, std::move(delayed_task)));
   }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   ScheduleOrCancelBrowserWakeupForSyncType(sync_type, storage_partition);
 #endif
 }
@@ -86,7 +97,7 @@ void BackgroundSyncScheduler::CancelDelayedProcessing(
     delayed_processing_info.erase(storage_partition);
   }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   ScheduleOrCancelBrowserWakeupForSyncType(sync_type, storage_partition);
 #endif
 }
@@ -110,7 +121,7 @@ void BackgroundSyncScheduler::RunDelayedTaskAndPruneInfoMap(
   CancelDelayedProcessing(storage_partition, sync_type);
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 void BackgroundSyncScheduler::ScheduleOrCancelBrowserWakeupForSyncType(
     blink::mojom::BackgroundSyncType sync_type,
     StoragePartitionImpl* storage_partition) {

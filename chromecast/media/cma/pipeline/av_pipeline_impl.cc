@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chromecast/media/api/decoder_buffer_base.h"
 #include "chromecast/media/base/decrypt_context_impl.h"
 #include "chromecast/media/cdm/cast_cdm_context.h"
@@ -88,7 +89,7 @@ bool AvPipelineImpl::StartPlayingFrom(
   // Discard any previously pushed buffer and start feeding the pipeline.
   pushed_buffer_ = nullptr;
   enable_feeding_ = true;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&AvPipelineImpl::FetchBuffer, weak_this_));
 
   set_state(kPlaying);
@@ -264,7 +265,8 @@ void AvPipelineImpl::PushReadyBuffer(scoped_refptr<DecoderBufferBase> buffer) {
   DCHECK(!pushed_buffer_);
 
   if (!buffer->end_of_stream() && buffering_state_.get()) {
-    base::TimeDelta timestamp = base::Microseconds(buffer->timestamp());
+    base::TimeDelta timestamp =
+        base::TimeDelta::FromMicroseconds(buffer->timestamp());
     if (timestamp != ::media::kNoTimestamp)
       buffering_state_->SetMaxRenderingTime(timestamp);
   }
@@ -288,7 +290,7 @@ void AvPipelineImpl::OnBufferDecrypted(bool success,
 
   // Decryptor needs more data.
   if (buffers.empty()) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&AvPipelineImpl::FetchBuffer, weak_this_));
     return;
   }
@@ -307,7 +309,7 @@ void AvPipelineImpl::OnPushBufferComplete(BufferStatus status) {
     return;
   }
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       ready_buffers_.empty()
           ? base::BindOnce(&AvPipelineImpl::FetchBuffer, weak_this_)
@@ -316,7 +318,7 @@ void AvPipelineImpl::OnPushBufferComplete(BufferStatus status) {
 
 void AvPipelineImpl::OnEndOfStream() {
   if (!client_.eos_cb.is_null())
-    client_.eos_cb.Run();
+    std::move(client_.eos_cb).Run();
 }
 
 void AvPipelineImpl::OnDecoderError() {
@@ -368,8 +370,9 @@ void AvPipelineImpl::OnDataBuffered(
 
   if (!buffer->end_of_stream() &&
       (buffered_time_ == ::media::kNoTimestamp ||
-       buffered_time_ < base::Microseconds(buffer->timestamp()))) {
-    buffered_time_ = base::Microseconds(buffer->timestamp());
+       buffered_time_ <
+           base::TimeDelta::FromMicroseconds(buffer->timestamp()))) {
+    buffered_time_ = base::TimeDelta::FromMicroseconds(buffer->timestamp());
   }
 
   if (is_at_max_capacity)
@@ -406,10 +409,10 @@ void AvPipelineImpl::UpdatePlayableFrames() {
       }
 
       if (playable_buffered_time_ == ::media::kNoTimestamp ||
-          playable_buffered_time_ <
-              base::Microseconds(non_playable_frame->timestamp())) {
+          playable_buffered_time_ < base::TimeDelta::FromMicroseconds(
+                                        non_playable_frame->timestamp())) {
         playable_buffered_time_ =
-            base::Microseconds(non_playable_frame->timestamp());
+            base::TimeDelta::FromMicroseconds(non_playable_frame->timestamp());
         buffering_state_->SetBufferedTime(playable_buffered_time_);
       }
     }

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,17 +11,16 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
-#include "base/values.h"
-#include "extensions/browser/extension_api_frame_id_map.h"
+#include "base/optional.h"
 #include "extensions/common/constants.h"
-#include "extensions/common/mojom/code_injection.mojom.h"
-#include "extensions/common/mojom/css_origin.mojom-shared.h"
-#include "extensions/common/mojom/host_id.mojom-forward.h"
-#include "extensions/common/mojom/run_location.mojom-shared.h"
 #include "extensions/common/user_script.h"
 
 class GURL;
+struct ExtensionMsg_ExecuteCode_Params;
+
+namespace base {
+class ListValue;
+}  // namespace base
 
 namespace content {
 class WebContents;
@@ -41,15 +40,11 @@ using ScriptsExecutedNotification = base::RepeatingCallback<
     void(content::WebContents*, const ExecutingScriptsMap&, const GURL&)>;
 
 // Interface for executing extension content scripts (e.g. executeScript) as
-// described by the mojom::ExecuteCodeParams IPC, and notifying the
-// caller when responded with ExecuteCodeCallback.
+// described by the ExtensionMsg_ExecuteCode_Params IPC, and notifying the
+// caller when responded with ExtensionHostMsg_ExecuteCodeFinished.
 class ScriptExecutor {
  public:
   explicit ScriptExecutor(content::WebContents* web_contents);
-
-  ScriptExecutor(const ScriptExecutor&) = delete;
-  ScriptExecutor& operator=(const ScriptExecutor&) = delete;
-
   ~ScriptExecutor();
 
   // The scope of the script injection across the frames.
@@ -71,47 +66,19 @@ class ScriptExecutor {
     WEB_VIEW_PROCESS,
   };
 
-  struct FrameResult {
-    FrameResult();
-    FrameResult(FrameResult&&);
-    FrameResult& operator=(FrameResult&&);
-
-    // The ID of the frame of the injection. This is not consistent while
-    // executing content script, and the value represents the one that was set
-    // at the script injection was triggered.
-    int frame_id = -1;
-    // The document ID of the frame of the injection. This can be stale if the
-    // frame navigates and another document is created for the frame.
-    ExtensionApiFrameIdMap::DocumentId document_id;
-    // The error associated with the injection, if any. Empty if the injection
-    // succeeded.
-    std::string error;
-    // The URL of the frame from the injection. Only set if the frame exists.
-    GURL url;
-    // The result value from the injection, or null if the injection failed (or
-    // had no result).
-    base::Value value;
-    // Whether the frame responded to the attempted injection (which can fail if
-    // the frame was removed or never existed). Note this doesn't necessarily
-    // mean the injection succeeded, since it could fail due to other reasons
-    // (like permissions).
-    bool frame_responded = false;
+  // The type of result the caller is interested in.
+  enum ResultType {
+    NO_RESULT,
+    JSON_SERIALIZED_RESULT,
   };
 
-  using ScriptFinishedCallback =
-      base::OnceCallback<void(std::vector<FrameResult> frame_results)>;
+  // Callback from ExecuteScript. The arguments are (error, on_url, result).
+  // Success is implied by an empty error.
+  using ScriptFinishedCallback = base::OnceCallback<
+      void(const std::string&, const GURL&, const base::ListValue&)>;
 
-  // Generates an injection key based on the host ID and either the file URL, if
-  // available, or the code string. The format of the key is
-  // "<type><host_id><digest>", where <type> is one of "F" (file) and "C"
-  // (code), <host_id> is the host ID, and <digest> is an unspecified hash
-  // digest of the file URL or the code string, respectively.
-  static std::string GenerateInjectionKey(const mojom::HostID& host_id,
-                                          const GURL& script_url,
-                                          const std::string& code);
-
-  // Executes a script. The arguments match mojom::ExecuteCodeParams in
-  // frame.mojom (request_id is populated automatically).
+  // Executes a script. The arguments match ExtensionMsg_ExecuteCode_Params in
+  // extension_messages.h (request_id is populated automatically).
   //
   // The script will be executed in the frames identified by |frame_ids| (which
   // are extension API frame IDs). If |frame_scope| is INCLUDE_SUB_FRAMES,
@@ -121,14 +88,19 @@ class ScriptExecutor {
   // |callback| will always be called even if the IPC'd renderer is destroyed
   // before a response is received (in this case the callback will be with a
   // failure and appropriate error message).
-  void ExecuteScript(const mojom::HostID& host_id,
-                     mojom::CodeInjectionPtr injection,
+  void ExecuteScript(const HostID& host_id,
+                     UserScript::ActionType action_type,
+                     const std::string& code,
                      FrameScope frame_scope,
-                     const std::set<int>& frame_ids,
+                     const std::vector<int>& frame_ids,
                      MatchAboutBlank match_about_blank,
-                     mojom::RunLocation run_at,
+                     UserScript::RunLocation run_at,
                      ProcessType process_type,
                      const GURL& webview_src,
+                     const GURL& script_url,
+                     bool user_gesture,
+                     base::Optional<CSSOrigin> css_origin,
+                     ResultType result_type,
                      ScriptFinishedCallback callback);
 
   // Set the observer for ScriptsExecutedNotification callbacks.
@@ -137,9 +109,14 @@ class ScriptExecutor {
   }
 
  private:
-  raw_ptr<content::WebContents, DanglingUntriaged> web_contents_;
+  // The next value to use for request_id in ExtensionMsg_ExecuteCode_Params.
+  int next_request_id_ = 0;
+
+  content::WebContents* web_contents_;
 
   ScriptsExecutedNotification observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScriptExecutor);
 };
 
 }  // namespace extensions

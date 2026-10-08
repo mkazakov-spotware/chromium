@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@
 #include "util/stdlib/map_insert.h"
 #include "util/string/split_string.h"
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 #include <lib/fdio/spawn.h>
 #include <zircon/process.h>
 #include <zircon/syscalls.h>
@@ -43,23 +43,16 @@ namespace crashpad {
 namespace {
 
 void Usage(const std::string& me) {
-  // clang-format off
   fprintf(stderr,
 "Usage: %s [OPTION]... COMMAND [ARG]...\n"
 "Start a Crashpad handler and have it handle crashes from COMMAND.\n"
 "\n"
-  // clang-format on
-#if BUILDFLAG(IS_FUCHSIA)
-          // clang-format off
+#if defined(OS_FUCHSIA)
 "COMMAND is run via fdio_spawn, so must be a qualified path to the subprocess to\n"
 "be executed.\n"
-  // clang-format on
 #else
-          // clang-format off
 "COMMAND is run via execvp() so the PATH will be searched.\n"
-  // clang-format on
 #endif
-          // clang-format off
 "\n"
 "  -h, --handler=HANDLER       invoke HANDLER instead of crashpad_handler\n"
 "      --annotation=KEY=VALUE  passed to the handler as an --annotation argument\n"
@@ -69,7 +62,6 @@ void Usage(const std::string& me) {
 "      --help                  display this help and exit\n"
 "      --version               output version information and exit\n",
           me.c_str());
-  // clang-format on
   ToolSupport::UsageTail(me);
 }
 
@@ -197,7 +189,7 @@ int RunWithCrashpadMain(int argc, char* argv[]) {
     return kExitFailure;
   }
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
   // Fuchsia doesn't implement execvp(), launch with fdio_spawn here.
   zx_handle_t child = ZX_HANDLE_INVALID;
   zx_status_t status = fdio_spawn(

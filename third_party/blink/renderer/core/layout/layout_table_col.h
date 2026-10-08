@@ -26,7 +26,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LAYOUT_TABLE_COL_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LAYOUT_TABLE_COL_H_
 
-#include "base/notreached.h"
 #include "third_party/blink/renderer/core/layout/layout_table_box_component.h"
 
 namespace blink {
@@ -128,13 +127,8 @@ class LayoutTableCol final : public LayoutTableBoxComponent {
   unsigned span_;
 };
 
-template <>
-struct DowncastTraits<LayoutTableCol> {
-  static bool AllowFrom(const LayoutObject& object) {
-    return object.IsLayoutTableCol() && !object.IsLayoutNGObject();
-  }
-};
+DEFINE_LAYOUT_OBJECT_TYPE_CASTS(LayoutTableCol, IsLayoutTableCol());
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LAYOUT_TABLE_COL_H_
+#endif

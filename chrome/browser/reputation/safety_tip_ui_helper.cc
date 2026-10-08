@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
@@ -33,9 +33,8 @@ void LeaveSiteFromSafetyTip(content::WebContents* web_contents,
   if (navigated_to.is_empty()) {
     navigated_to = GURL(kSafetyTipLeaveSiteUrl);
 
-#if BUILDFLAG(IS_ANDROID)
-    TabAndroid* tab = TabAndroid::FromWebContents(web_contents);
-    if (tab && tab->IsCustomTab()) {
+#if defined(OS_ANDROID)
+    if (TabAndroid::FromWebContents(web_contents)->IsCustomTab()) {
       auto& controller = web_contents->GetController();
       // For CCTs, just go back if we can...
       if (controller.CanGoBack()) {
@@ -68,7 +67,7 @@ void OpenHelpCenterFromSafetyTip(content::WebContents* web_contents) {
       false /*is_renderer_initiated*/));
 }
 
-std::u16string GetSafetyTipTitle(
+base::string16 GetSafetyTipTitle(
     security_state::SafetyTipStatus safety_tip_status,
     const GURL& suggested_url) {
   switch (safety_tip_status) {
@@ -80,7 +79,6 @@ std::u16string GetSafetyTipTitle(
           IDS_PAGE_INFO_SAFETY_TIP_LOOKALIKE_TITLE,
           security_interstitials::common_string_util::GetFormattedHostName(
               suggested_url));
-    case security_state::SafetyTipStatus::kDigitalAssetLinkMatch:
     case security_state::SafetyTipStatus::kBadReputationIgnored:
     case security_state::SafetyTipStatus::kLookalikeIgnored:
     case security_state::SafetyTipStatus::kBadKeyword:
@@ -90,17 +88,16 @@ std::u16string GetSafetyTipTitle(
   }
 
   NOTREACHED();
-  return std::u16string();
+  return base::string16();
 }
 
-std::u16string GetSafetyTipDescription(
+base::string16 GetSafetyTipDescription(
     security_state::SafetyTipStatus warning_type,
     const GURL& suggested_url) {
   switch (warning_type) {
     case security_state::SafetyTipStatus::kBadReputation:
     case security_state::SafetyTipStatus::kLookalike:
       return l10n_util::GetStringUTF16(IDS_PAGE_INFO_SAFETY_TIP_DESCRIPTION);
-    case security_state::SafetyTipStatus::kDigitalAssetLinkMatch:
     case security_state::SafetyTipStatus::kBadReputationIgnored:
     case security_state::SafetyTipStatus::kLookalikeIgnored:
     case security_state::SafetyTipStatus::kBadKeyword:
@@ -109,7 +106,7 @@ std::u16string GetSafetyTipDescription(
       NOTREACHED();
   }
   NOTREACHED();
-  return std::u16string();
+  return base::string16();
 }
 
 int GetSafetyTipLeaveButtonId(security_state::SafetyTipStatus warning_type) {
@@ -118,7 +115,6 @@ int GetSafetyTipLeaveButtonId(security_state::SafetyTipStatus warning_type) {
       return IDS_PAGE_INFO_SAFETY_TIP_BAD_REPUTATION_LEAVE_BUTTON;
     case security_state::SafetyTipStatus::kLookalike:
       return IDS_PAGE_INFO_SAFETY_TIP_LOOKALIKE_LEAVE_BUTTON;
-    case security_state::SafetyTipStatus::kDigitalAssetLinkMatch:
     case security_state::SafetyTipStatus::kBadReputationIgnored:
     case security_state::SafetyTipStatus::kLookalikeIgnored:
     case security_state::SafetyTipStatus::kBadKeyword:

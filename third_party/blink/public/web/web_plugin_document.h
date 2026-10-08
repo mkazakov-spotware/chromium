@@ -31,7 +31,6 @@
 #ifndef THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_PLUGIN_DOCUMENT_H_
 #define THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_PLUGIN_DOCUMENT_H_
 
-#include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/web/web_document.h"
 
 namespace blink {
@@ -40,7 +39,7 @@ class PluginDocument;
 class WebPlugin;
 
 // Wraps a WebDocument for full page plugins.
-class BLINK_EXPORT WebPluginDocument final : public WebDocument {
+class WebPluginDocument final : public WebDocument {
  public:
   WebPluginDocument() = default;
   WebPluginDocument(const WebPluginDocument& e) = default;
@@ -51,7 +50,7 @@ class BLINK_EXPORT WebPluginDocument final : public WebDocument {
   }
   void Assign(const WebPluginDocument& d) { WebNode::Assign(d); }
 
-  WebPlugin* Plugin();
+  BLINK_EXPORT WebPlugin* Plugin();
 
 #if INSIDE_BLINK
   WebPluginDocument(PluginDocument*);
@@ -64,4 +63,4 @@ DECLARE_WEB_NODE_TYPE_CASTS(WebPluginDocument);
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_PLUGIN_DOCUMENT_H_
+#endif

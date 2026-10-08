@@ -1,4 +1,4 @@
-spec: https://w3c.github.io/webrtc-identity/identity.html
+spec: https://github.com/w3c/webrtc-identity
 suggested_reviewers:
   - martinthomson
   - jan-ivar

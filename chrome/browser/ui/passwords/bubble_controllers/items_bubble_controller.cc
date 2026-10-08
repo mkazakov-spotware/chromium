@@ -1,26 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/passwords/bubble_controllers/items_bubble_controller.h"
 
-#include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/favicon/favicon_service_factory.h"
-#include "chrome/browser/password_manager/account_password_store_factory.h"
-#include "chrome/browser/password_manager/password_store_factory.h"
 #include "chrome/browser/password_manager/password_store_utils.h"
-#include "chrome/browser/signin/identity_manager_factory.h"
-#include "chrome/browser/sync/sync_service_factory.h"
+#include "chrome/browser/ui/passwords/manage_passwords_view_utils.h"
 #include "chrome/browser/ui/passwords/passwords_model_delegate.h"
-#include "chrome/browser/ui/passwords/ui_utils.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/favicon/core/favicon_util.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_form_metrics_recorder.h"
-#include "components/password_manager/core/browser/password_manager_util.h"
-#include "components/password_manager/core/browser/password_store_interface.h"
-#include "components/signin/public/base/consent_level.h"
-#include "components/signin/public/identity_manager/identity_manager.h"
+#include "components/password_manager/core/browser/password_store.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
 
@@ -54,7 +46,8 @@ ItemsBubbleController::ItemsBubbleController(
                                             !local_credentials_.empty())) {}
 
 ItemsBubbleController::~ItemsBubbleController() {
-  OnBubbleClosing();
+  if (!interaction_reported_)
+    OnBubbleClosing();
 }
 
 void ItemsBubbleController::OnManageClicked(
@@ -70,14 +63,8 @@ void ItemsBubbleController::OnPasswordAction(
   Profile* profile = GetProfile();
   if (!profile)
     return;
-  scoped_refptr<password_manager::PasswordStoreInterface> password_store =
-      password_form.IsUsingAccountStore()
-          ? AccountPasswordStoreFactory::GetForProfile(
-                profile, ServiceAccessType::EXPLICIT_ACCESS)
-                .get()
-          : PasswordStoreFactory::GetForProfile(
-                profile, ServiceAccessType::EXPLICIT_ACCESS)
-                .get();
+  password_manager::PasswordStore* password_store =
+      GetPasswordStore(profile, password_form.IsUsingAccountStore()).get();
 
   DCHECK(password_store);
   if (action == PasswordAction::kRemovePassword)
@@ -99,32 +86,6 @@ void ItemsBubbleController::RequestFavicon(
       &favicon_tracker_);
 }
 
-password_manager::SyncState ItemsBubbleController::GetPasswordSyncState() {
-  const syncer::SyncService* sync_service =
-      SyncServiceFactory::GetForProfile(GetProfile());
-  return password_manager_util::GetPasswordSyncState(sync_service);
-}
-
-std::u16string ItemsBubbleController::GetPrimaryAccountEmail() {
-  Profile* profile = GetProfile();
-  if (!profile)
-    return std::u16string();
-  signin::IdentityManager* identity_manager =
-      IdentityManagerFactory::GetForProfile(profile);
-  if (!identity_manager)
-    return std::u16string();
-  return base::UTF8ToUTF16(
-      identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin)
-          .email);
-}
-
-void ItemsBubbleController::OnGooglePasswordManagerLinkClicked() {
-  if (delegate_) {
-    delegate_->NavigateToPasswordManagerSettingsPage(
-        password_manager::ManagePasswordsReferrer::kManagePasswordsBubble);
-  }
-}
-
 void ItemsBubbleController::OnFaviconReady(
     base::OnceCallback<void(const gfx::Image&)> favicon_ready_callback,
     const favicon_base::FaviconImageResult& result) {
@@ -138,6 +99,6 @@ void ItemsBubbleController::ReportInteractions() {
     metrics_recorder_->RecordUIDismissalReason(dismissal_reason_);
 }
 
-std::u16string ItemsBubbleController::GetTitle() const {
+base::string16 ItemsBubbleController::GetTitle() const {
   return title_;
 }

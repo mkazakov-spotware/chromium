@@ -1,21 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'chrome://diagnostics/routine_result_list.js';
-import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
 
+import {RoutineName, StandardRoutineResult} from 'chrome://diagnostics/diagnostics_types.js';
 import {ExecutionProgress, ResultStatusItem} from 'chrome://diagnostics/routine_list_executor.js';
-import {RoutineResultEntryElement} from 'chrome://diagnostics/routine_result_entry.js';
-import {RoutineResultListElement} from 'chrome://diagnostics/routine_result_list.js';
-import {RoutineResult, RoutineType, StandardRoutineResult} from 'chrome://diagnostics/system_routine_controller.mojom-webui.js';
-import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
 
-import {assertDeepEquals, assertEquals, assertFalse, assertNotEquals, assertTrue} from 'chrome://webui-test/chromeos/chai_assert.js';
+import {assertDeepEquals, assertEquals, assertFalse, assertNotEquals, assertTrue} from '../../chai_assert.js';
+import {flushTasks} from '../../test_util.m.js';
 
 import * as dx_utils from './diagnostics_test_utils.js';
 
-suite('routineResultListTestSuite', function() {
+export function routineResultListTestSuite() {
   /** @type {?RoutineResultListElement} */
   let routineResultListElement = null;
 
@@ -32,7 +29,7 @@ suite('routineResultListTestSuite', function() {
 
   /**
    * Initializes the routine-result-list and sets the list of routines.
-   * @param {!Array<!RoutineType>} routines
+   * @param {!Array<!RoutineName>} routines
    * @return {!Promise}
    */
   function initializeRoutineResultList(routines) {
@@ -70,8 +67,7 @@ suite('routineResultListTestSuite', function() {
   test('ElementRendered', () => {
     return initializeRoutineResultList([]).then(() => {
       // Verify the element rendered.
-      const div = routineResultListElement.shadowRoot.querySelector(
-          '#resultListContainer');
+      let div = routineResultListElement.$$('#resultListContainer');
       assertTrue(!!div);
     });
   });
@@ -80,17 +76,15 @@ suite('routineResultListTestSuite', function() {
     return initializeRoutineResultList([])
         .then(() => {
           assertFalse(routineResultListElement.hidden);
-          assertFalse(routineResultListElement.shadowRoot
-                          .querySelector('#resultListContainer')
-                          .hidden);
+          assertFalse(
+              routineResultListElement.$$('#resultListContainer').hidden);
           routineResultListElement.hidden = true;
           return flushTasks();
         })
         .then(() => {
           assertTrue(routineResultListElement.hidden);
-          assertTrue(routineResultListElement.shadowRoot
-                         .querySelector('#resultListContainer')
-                         .hidden);
+          assertTrue(
+              routineResultListElement.$$('#resultListContainer').hidden);
         });
   });
 
@@ -101,27 +95,28 @@ suite('routineResultListTestSuite', function() {
   });
 
   test('InitializedRoutines', () => {
-    /** @type {!Array<!RoutineType>} */
+    /** @type {!Array<!RoutineName>} */
     const routines = [
-      RoutineType.kCpuCache,
-      RoutineType.kCpuFloatingPoint,
+      RoutineName.kCpuCache,
+      RoutineName.kFloatingPoint,
     ];
 
     return initializeRoutineResultList(routines).then(() => {
       assertEquals(routines.length, getEntries().length);
       getEntries().forEach((entry, index) => {
         // Routines are initialized in the unstarted state.
-        const status = new ResultStatusItem(routines[index]);
+        let status = new ResultStatusItem(routines[index]);
+        status.progress = ExecutionProgress.kNotStarted;
         assertDeepEquals(status, entry.item);
       });
     });
   });
 
   test('InitializeThenClearRoutines', () => {
-    /** @type {!Array<!RoutineType>} */
+    /** @type {!Array<!RoutineName>} */
     const routines = [
-      RoutineType.kCpuCache,
-      RoutineType.kCpuFloatingPoint,
+      RoutineName.kCpuCache,
+      RoutineName.kFloatingPoint,
     ];
 
     return initializeRoutineResultList(routines)
@@ -136,10 +131,10 @@ suite('routineResultListTestSuite', function() {
   });
 
   test('VerifyStatusUpdates', () => {
-    /** @type {!Array<!RoutineType>} */
+    /** @type {!Array<!RoutineName>} */
     const routines = [
-      RoutineType.kCpuCache,
-      RoutineType.kCpuFloatingPoint,
+      RoutineName.kCpuCache,
+      RoutineName.kFloatingPoint,
     ];
 
     return initializeRoutineResultList(routines).then(() => {
@@ -147,24 +142,25 @@ suite('routineResultListTestSuite', function() {
       assertEquals(routines.length, getEntries().length);
       getEntries().forEach((entry, index) => {
         // Routines are initialized in the unstarted state.
-        const status = new ResultStatusItem(routines[index]);
+        let status = new ResultStatusItem(routines[index]);
+        status.progress = ExecutionProgress.kNotStarted;
         assertDeepEquals(status, entry.item);
       });
 
-      let status = new ResultStatusItem(routines[0], ExecutionProgress.RUNNING);
+      let status = new ResultStatusItem(routines[0]);
+      status.progress = ExecutionProgress.kRunning;
       routineResultListElement.onStatusUpdate(status);
       return flushTasks()
           .then(() => {
             // Verify first routine is running.
             assertEquals(
-                ExecutionProgress.RUNNING, getEntries()[0].item.progress);
+                ExecutionProgress.kRunning, getEntries()[0].item.progress);
             assertEquals(null, getEntries()[0].item.result);
 
             // Move the first routine to completed state.
-            status =
-                new ResultStatusItem(routines[0], ExecutionProgress.COMPLETED);
-            status.result = /** @type {!RoutineResult} */ (
-                {simpleResult: StandardRoutineResult.kTestPassed});
+            status = new ResultStatusItem(routines[0]);
+            status.progress = ExecutionProgress.kCompleted;
+            status.result = {simpleResult: StandardRoutineResult.kTestPassed};
             routineResultListElement.onStatusUpdate(status);
 
             return flushTasks();
@@ -172,14 +168,14 @@ suite('routineResultListTestSuite', function() {
           .then(() => {
             // Verify the first routine is completed.
             assertEquals(
-                ExecutionProgress.COMPLETED, getEntries()[0].item.progress);
+                ExecutionProgress.kCompleted, getEntries()[0].item.progress);
             assertNotEquals(null, getEntries()[0].item.result);
             assertEquals(
                 StandardRoutineResult.kTestPassed,
                 getEntries()[0].item.result.simpleResult);
 
-            status =
-                new ResultStatusItem(routines[1], ExecutionProgress.RUNNING);
+            status = new ResultStatusItem(routines[1]);
+            status.progress = ExecutionProgress.kRunning;
             routineResultListElement.onStatusUpdate(status);
 
             return flushTasks();
@@ -187,14 +183,13 @@ suite('routineResultListTestSuite', function() {
           .then(() => {
             // Verify second routine is running.
             assertEquals(
-                ExecutionProgress.RUNNING, getEntries()[1].item.progress);
+                ExecutionProgress.kRunning, getEntries()[1].item.progress);
             assertEquals(null, getEntries()[1].item.result);
 
             // Move the second routine to completed state.
-            status =
-                new ResultStatusItem(routines[1], ExecutionProgress.COMPLETED);
-            status.result = /** @type {!RoutineResult} */ (
-                {simpleResult: StandardRoutineResult.kTestPassed});
+            status = new ResultStatusItem(routines[1]);
+            status.progress = ExecutionProgress.kCompleted;
+            status.result = {simpleResult: StandardRoutineResult.kTestPassed};
             routineResultListElement.onStatusUpdate(status);
 
             return flushTasks();
@@ -202,7 +197,7 @@ suite('routineResultListTestSuite', function() {
           .then(() => {
             // Verify the second routine is completed.
             assertEquals(
-                ExecutionProgress.COMPLETED, getEntries()[1].item.progress);
+                ExecutionProgress.kCompleted, getEntries()[1].item.progress);
             assertNotEquals(null, getEntries()[1].item.result);
             assertEquals(
                 StandardRoutineResult.kTestPassed,
@@ -212,4 +207,4 @@ suite('routineResultListTestSuite', function() {
           });
     });
   });
-});
+}

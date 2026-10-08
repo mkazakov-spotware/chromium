@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,11 @@
 
 #include "net/base/net_export.h"
 
-namespace net::nqe::internal {
+namespace net {
+
+namespace nqe {
+
+namespace internal {
 
 // Holds an observation and its weight.
 struct NET_EXPORT_PRIVATE WeightedObservation {
@@ -17,7 +21,11 @@ struct NET_EXPORT_PRIVATE WeightedObservation {
   WeightedObservation(const WeightedObservation& other)
       : WeightedObservation(other.value, other.weight) {}
 
-  WeightedObservation& operator=(const WeightedObservation& other) = default;
+  WeightedObservation& operator=(const WeightedObservation& other) {
+    value = other.value;
+    weight = other.weight;
+    return *this;
+  }
 
   // Required for sorting the samples in the ascending order of values.
   bool operator<(const WeightedObservation& other) const {
@@ -32,6 +40,10 @@ struct NET_EXPORT_PRIVATE WeightedObservation {
   double weight;
 };
 
-}  // namespace net::nqe::internal
+}  // namespace internal
+
+}  // namespace nqe
+
+}  // namespace net
 
 #endif  // NET_NQE_WEIGHTED_OBSERVATION_H_

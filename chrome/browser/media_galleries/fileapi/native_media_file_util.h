@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,8 @@
 
 #include <memory>
 
-#include "base/task/sequenced_task_runner.h"
+#include "base/macros.h"
+#include "base/sequenced_task_runner.h"
 #include "storage/browser/file_system/async_file_util.h"
 
 namespace net {
@@ -27,10 +28,6 @@ class NativeMediaFileUtil : public storage::AsyncFileUtil {
   // be the same TaskRunner passed in each FileSystemOperationContext.
   explicit NativeMediaFileUtil(
       scoped_refptr<base::SequencedTaskRunner> media_task_runner);
-
-  NativeMediaFileUtil(const NativeMediaFileUtil&) = delete;
-  NativeMediaFileUtil& operator=(const NativeMediaFileUtil&) = delete;
-
   ~NativeMediaFileUtil() override;
 
   // Uses the MIME sniffer code, which actually looks into the file,
@@ -44,7 +41,7 @@ class NativeMediaFileUtil : public storage::AsyncFileUtil {
   // DeviceMediaAsyncFileUtil.
   static void CreatedSnapshotFileForCreateOrOpen(
       base::SequencedTaskRunner* media_task_runner,
-      uint32_t file_flags,
+      int file_flags,
       storage::AsyncFileUtil::CreateOrOpenCallback callback,
       base::File::Error result,
       const base::File::Info& file_info,
@@ -55,7 +52,7 @@ class NativeMediaFileUtil : public storage::AsyncFileUtil {
   void CreateOrOpen(
       std::unique_ptr<storage::FileSystemOperationContext> context,
       const storage::FileSystemURL& url,
-      uint32_t file_flags,
+      int file_flags,
       CreateOrOpenCallback callback) override;
   void EnsureFileExists(
       std::unique_ptr<storage::FileSystemOperationContext> context,
@@ -88,14 +85,14 @@ class NativeMediaFileUtil : public storage::AsyncFileUtil {
       std::unique_ptr<storage::FileSystemOperationContext> context,
       const storage::FileSystemURL& src_url,
       const storage::FileSystemURL& dest_url,
-      CopyOrMoveOptionSet options,
+      CopyOrMoveOption option,
       CopyFileProgressCallback progress_callback,
       StatusCallback callback) override;
   void MoveFileLocal(
       std::unique_ptr<storage::FileSystemOperationContext> context,
       const storage::FileSystemURL& src_url,
       const storage::FileSystemURL& dest_url,
-      CopyOrMoveOptionSet options,
+      CopyOrMoveOption option,
       StatusCallback callback) override;
   void CopyInForeignFile(
       std::unique_ptr<storage::FileSystemOperationContext> context,
@@ -125,6 +122,8 @@ class NativeMediaFileUtil : public storage::AsyncFileUtil {
 
   scoped_refptr<base::SequencedTaskRunner> media_task_runner_;
   std::unique_ptr<Core> core_;
+
+  DISALLOW_COPY_AND_ASSIGN(NativeMediaFileUtil);
 };
 
 #endif  // CHROME_BROWSER_MEDIA_GALLERIES_FILEAPI_NATIVE_MEDIA_FILE_UTIL_H_

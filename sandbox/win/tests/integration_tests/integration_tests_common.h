@@ -1,9 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef SANDBOX_WIN_TESTS_INTEGRATION_TESTS_INTEGRATION_TESTS_COMMON_H_
-#define SANDBOX_WIN_TESTS_INTEGRATION_TESTS_INTEGRATION_TESTS_COMMON_H_
+#ifndef SANDBOX_TESTS_INTEGRATION_TESTS_COMMON_H_
+#define SANDBOX_TESTS_INTEGRATION_TESTS_COMMON_H_
 
 #include <windows.h>
 
@@ -28,12 +28,7 @@ enum TestPolicy {
   TESTPOLICY_LOADNOLOW,
   TESTPOLICY_DYNAMICCODEOPTOUT,
   TESTPOLICY_LOADPREFERSYS32,
-  TESTPOLICY_RESTRICTINDIRECTBRANCHPREDICTION,
-  TESTPOLICY_CETDISABLED,
-  TESTPOLICY_CETDYNAMICAPIS,
-  TESTPOLICY_CETSTRICT,
-  TESTPOLICY_KTMCOMPONENTFILTER,
-  TESTPOLICY_PREANDPOSTSTARTUP,
+  TESTPOLICY_RESTRICTINDIRECTBRANCHPREDICTION
 };
 
 // Timeout for ::WaitForSingleObject synchronization.
@@ -50,18 +45,17 @@ public:
       ::WaitForSingleObject(mutex_, SboxTestEventTimeout()));
   }
 
-  ScopedTestMutex(const ScopedTestMutex&) = delete;
-  ScopedTestMutex& operator=(const ScopedTestMutex&) = delete;
-
   ~ScopedTestMutex() {
     EXPECT_TRUE(::ReleaseMutex(mutex_));
     EXPECT_TRUE(::CloseHandle(mutex_));
   }
 
 private:
- HANDLE mutex_;
+  HANDLE mutex_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedTestMutex);
 };
 
 }  // namespace sandbox
 
-#endif  // SANDBOX_WIN_TESTS_INTEGRATION_TESTS_INTEGRATION_TESTS_COMMON_H_
+#endif  // SANDBOX_TESTS_INTEGRATION_TESTS_COMMON_H_

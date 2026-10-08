@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,12 +22,12 @@ constexpr bool kDevicePolicyDefaultGcpwAutoUpdate = true;
 constexpr bool kDevicePolicyDefaultMultiUserLogin = true;
 
 // Read the list of domains allowed to login from registry.
-std::vector<std::wstring> GetRegistryEmailDomains() {
-  std::wstring email_domains_reg =
+std::vector<base::string16> GetRegistryEmailDomains() {
+  base::string16 email_domains_reg =
       GetGlobalFlagOrDefault(kEmailDomainsKey, L"");
-  std::wstring email_domains_reg_new =
+  base::string16 email_domains_reg_new =
       GetGlobalFlagOrDefault(kEmailDomainsKeyNew, L"");
-  std::wstring email_domains =
+  base::string16 email_domains =
       email_domains_reg.empty() ? email_domains_reg_new : email_domains_reg;
   return base::SplitString(email_domains, L",",
                            base::WhitespaceHandling::TRIM_WHITESPACE,
@@ -62,7 +62,7 @@ DevicePolicies::DevicePolicies()
   // Override with the policies set in the registry.
   domains_allowed_to_login = GetRegistryEmailDomains();
 
-  std::wstring mdm_url = GetGlobalFlagOrDefault(kRegMdmUrl, kDefaultMdmUrl);
+  base::string16 mdm_url = GetGlobalFlagOrDefault(kRegMdmUrl, kDefaultMdmUrl);
   DWORD reg_enable_dm_enrollment;
   HRESULT hr = GetGlobalFlag(kRegEnableDmEnrollment, &reg_enable_dm_enrollment);
   if (SUCCEEDED(hr)) {
@@ -99,7 +99,7 @@ bool DevicePolicies::operator==(const DevicePolicies& other) const {
          (domains_allowed_to_login == other.domains_allowed_to_login);
 }
 
-std::wstring DevicePolicies::GetAllowedDomainsStr() const {
+base::string16 DevicePolicies::GetAllowedDomainsStr() const {
   return base::JoinString(domains_allowed_to_login, L",");
 }
 

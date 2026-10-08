@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@ class MockGesturePropertiesService
     : public ui::ozone::mojom::GesturePropertiesService {
  public:
   MockGesturePropertiesService();
-  ~MockGesturePropertiesService() override;
+  ~MockGesturePropertiesService();
 
   MOCK_METHOD1(ListDevices, void(ListDevicesCallback));
   MOCK_METHOD2(ListProperties, void(int32_t, ListPropertiesCallback));

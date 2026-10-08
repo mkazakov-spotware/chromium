@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "ash/system/palette/palette_tool.h"
 #include "ash/system/palette/tools/create_note_action.h"
 #include "ash/test/ash_test_base.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "ui/views/view.h"
 
@@ -18,12 +19,6 @@ namespace ash {
 class TestNoteTakingControllerClient : public NoteTakingClient {
  public:
   TestNoteTakingControllerClient() = default;
-
-  TestNoteTakingControllerClient(const TestNoteTakingControllerClient&) =
-      delete;
-  TestNoteTakingControllerClient& operator=(
-      const TestNoteTakingControllerClient&) = delete;
-
   ~TestNoteTakingControllerClient() override = default;
 
   int GetCreateNoteCount() {
@@ -39,6 +34,8 @@ class TestNoteTakingControllerClient : public NoteTakingClient {
  private:
   bool can_create_ = true;
   int create_note_count_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(TestNoteTakingControllerClient);
 };
 
 namespace {
@@ -47,10 +44,6 @@ namespace {
 class CreateNoteTest : public AshTestBase {
  public:
   CreateNoteTest() = default;
-
-  CreateNoteTest(const CreateNoteTest&) = delete;
-  CreateNoteTest& operator=(const CreateNoteTest&) = delete;
-
   ~CreateNoteTest() override = default;
 
   void SetUp() override {
@@ -70,6 +63,9 @@ class CreateNoteTest : public AshTestBase {
  protected:
   std::unique_ptr<MockPaletteToolDelegate> palette_tool_delegate_;
   std::unique_ptr<PaletteTool> tool_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CreateNoteTest);
 };
 
 }  // namespace
@@ -139,20 +135,11 @@ TEST_F(CreateNoteTest, ToolIsEnabledWhenStylusButtonIsPressed) {
   std::unique_ptr<views::View> view = base::WrapUnique(tool_->CreateView());
 
   // Send a stylus button event.
-  PressAndReleaseKey(ui::VKEY_F19, ui::EF_IS_STYLUS_BUTTON);
+  ui::test::EventGenerator* generator = GetEventGenerator();
+  generator->PressKey(ui::VKEY_F19, ui::EF_IS_STYLUS_BUTTON);
+  generator->ReleaseKey(ui::VKEY_F19, ui::EF_IS_STYLUS_BUTTON);
 
   EXPECT_EQ(1, note_taking_client->GetCreateNoteCount());
 }
 
-// The note tool is only visible on the internal display
-TEST_F(CreateNoteTest, ViewOnlyAppearsOnInternalDisplay) {
-  auto note_taking_client = std::make_unique<TestNoteTakingControllerClient>();
-  std::unique_ptr<views::View> view = base::WrapUnique(tool_->CreateView());
-  EXPECT_TRUE(view);
-  tool_->OnViewDestroyed();
-
-  tool_->SetExternalDisplayForTest();
-  EXPECT_FALSE(tool_->CreateView());
-  tool_->OnViewDestroyed();
-}
 }  // namespace ash

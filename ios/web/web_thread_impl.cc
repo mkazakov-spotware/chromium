@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,10 @@
 #include "base/callback.h"
 #include "base/compiler_specific.h"
 #include "base/lazy_instance.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/task_executor.h"
 #include "base/time/time.h"
 #include "ios/web/public/thread/web_task_traits.h"
@@ -22,6 +24,53 @@
 namespace web {
 
 namespace {
+
+// An implementation of SingleThreadTaskRunner to be used in conjunction
+// with WebThread.
+class WebThreadTaskRunner : public base::SingleThreadTaskRunner {
+ public:
+  explicit WebThreadTaskRunner(WebThread::ID identifier) : id_(identifier) {}
+
+  // SingleThreadTaskRunner implementation.
+  bool PostDelayedTask(const base::Location& from_here,
+                       base::OnceClosure task,
+                       base::TimeDelta delay) override {
+    return base::PostDelayedTask(from_here, {id_}, std::move(task), delay);
+  }
+
+  bool PostNonNestableDelayedTask(const base::Location& from_here,
+                                  base::OnceClosure task,
+                                  base::TimeDelta delay) override {
+    return base::PostDelayedTask(from_here, {id_, NonNestable()},
+                                 std::move(task), delay);
+  }
+
+  bool RunsTasksInCurrentSequence() const override {
+    return WebThread::CurrentlyOn(id_);
+  }
+
+ protected:
+  ~WebThreadTaskRunner() override {}
+
+ private:
+  WebThread::ID id_;
+  DISALLOW_COPY_AND_ASSIGN(WebThreadTaskRunner);
+};
+
+// A separate helper is used just for the task runners, in order to avoid
+// needing to initialize the globals to create a task runner.
+struct WebThreadTaskRunners {
+  WebThreadTaskRunners() {
+    for (int i = 0; i < WebThread::ID_COUNT; ++i) {
+      task_runners[i] = new WebThreadTaskRunner(static_cast<WebThread::ID>(i));
+    }
+  }
+
+  scoped_refptr<base::SingleThreadTaskRunner> task_runners[WebThread::ID_COUNT];
+};
+
+base::LazyInstance<WebThreadTaskRunners>::Leaky g_task_runners =
+    LAZY_INSTANCE_INITIALIZER;
 
 // State of a given WebThread::ID.
 enum WebThreadState {
@@ -37,16 +86,16 @@ struct WebThreadGlobals {
   WebThreadGlobals() {
   }
 
-  // This lock protects `threads` and `states`. Do not read or modify those
+  // This lock protects |threads| and |states|. Do not read or modify those
   // arrays without holding this lock. Do not block while holding this lock.
   base::Lock lock;
 
-  // This array is protected by `lock`. This array is filled as WebThreadImpls
+  // This array is protected by |lock|. This array is filled as WebThreadImpls
   // are constructed and depopulated when they are destructed.
   scoped_refptr<base::SingleThreadTaskRunner>
       task_runners[WebThread::ID_COUNT] GUARDED_BY(lock);
 
-  // This array is protected by `lock`. Holds the state of each WebThread::ID.
+  // This array is protected by |lock|. Holds the state of each WebThread::ID.
   WebThreadState states[WebThread::ID_COUNT] GUARDED_BY(lock) = {};
 };
 
@@ -95,41 +144,6 @@ bool PostTaskHelper(WebThread::ID identifier,
   return accepting_tasks;
 }
 
-// An implementation of SingleThreadTaskRunner to be used in conjunction
-// with WebThread.
-class WebThreadTaskRunner : public base::SingleThreadTaskRunner {
- public:
-  explicit WebThreadTaskRunner(WebThread::ID identifier) : id_(identifier) {}
-
-  WebThreadTaskRunner(const WebThreadTaskRunner&) = delete;
-  WebThreadTaskRunner& operator=(const WebThreadTaskRunner&) = delete;
-
-  // SingleThreadTaskRunner implementation.
-  bool PostDelayedTask(const base::Location& from_here,
-                       base::OnceClosure task,
-                       base::TimeDelta delay) override {
-    return PostTaskHelper(id_, from_here, std::move(task), delay,
-                          true /* nestable */);
-  }
-
-  bool PostNonNestableDelayedTask(const base::Location& from_here,
-                                  base::OnceClosure task,
-                                  base::TimeDelta delay) override {
-    return PostTaskHelper(id_, from_here, std::move(task), delay,
-                          false /* nestable */);
-  }
-
-  bool RunsTasksInCurrentSequence() const override {
-    return WebThread::CurrentlyOn(id_);
-  }
-
- protected:
-  ~WebThreadTaskRunner() override {}
-
- private:
-  WebThread::ID id_;
-};
-
 class WebThreadTaskExecutor : public base::TaskExecutor {
  public:
   WebThreadTaskExecutor() {}
@@ -144,71 +158,29 @@ class WebThreadTaskExecutor : public base::TaskExecutor {
         GetWebThreadIdentifier(traits), from_here, std::move(task), delay,
         traits.GetExtension<WebTaskTraitsExtension>().nestable());
   }
+
   scoped_refptr<base::TaskRunner> CreateTaskRunner(
       const base::TaskTraits& traits) override {
-    return GetTaskRunner(GetWebThreadIdentifier(traits), traits);
+    return GetTaskRunnerForThread(GetWebThreadIdentifier(traits));
   }
+
   scoped_refptr<base::SequencedTaskRunner> CreateSequencedTaskRunner(
       const base::TaskTraits& traits) override {
-    return GetTaskRunner(GetWebThreadIdentifier(traits), traits);
+    return GetTaskRunnerForThread(GetWebThreadIdentifier(traits));
   }
+
   scoped_refptr<base::SingleThreadTaskRunner> CreateSingleThreadTaskRunner(
       const base::TaskTraits& traits,
       base::SingleThreadTaskRunnerThreadMode thread_mode) override {
     // It's not possible to request DEDICATED access to a WebThread.
     DCHECK_EQ(thread_mode, base::SingleThreadTaskRunnerThreadMode::SHARED);
-    return GetTaskRunner(GetWebThreadIdentifier(traits), traits);
-  }
-
-  scoped_refptr<base::SingleThreadTaskRunner> GetTaskRunner(
-      WebThread::ID identifier,
-      const base::TaskTraits& traits) const {
-    // //TODO(crbug.com/1304248): Unlike content, iOS never honored
-    // `traits.priority()`... but this is where it could.
-    // Ref. content::BaseBrowserTaskExecutor::GetTaskRunner()
-    switch (identifier) {
-      case WebThread::UI:
-        return ui_thread_task_runner_;
-      case WebThread::IO:
-        return io_thread_task_runner_;
-      case WebThread::ID_COUNT:
-        NOTREACHED();
-        return nullptr;
-    }
-  }
-
-  // A static getter that also verifies the instance was set and warns of steps
-  // to take if not.
-  static const WebThreadTaskExecutor* GetInstance() {
-    DCHECK(g_instance)
-        << "No web task executor created.\nHint: if this is in a unit test, "
-           "you're likely missing a WebTaskEnvironment member in  your "
-           "fixture.";
-    return g_instance;
-  }
-
-  // Creates the WebThreadTaskExecutor instance. It is intentionally leaked on
-  // shutdown, except in unit tests which can reset it via
-  // ResetInstanceForTesting().
-  static void CreateInstance() {
-    DCHECK(!g_instance);
-    g_instance = new WebThreadTaskExecutor();
-    base::RegisterTaskExecutor(WebTaskTraitsExtension::kExtensionId,
-                               g_instance);
-  }
-
-  static void ResetInstanceForTesting() {
-    DCHECK(g_instance);
-    base::UnregisterTaskExecutorForTesting(
-        WebTaskTraitsExtension::kExtensionId);
-    delete g_instance;
-    g_instance = nullptr;
+    return GetTaskRunnerForThread(GetWebThreadIdentifier(traits));
   }
 
  private:
   WebThread::ID GetWebThreadIdentifier(const base::TaskTraits& traits) {
     DCHECK_EQ(traits.extension_id(), WebTaskTraitsExtension::kExtensionId);
-    const WebThread::ID id =
+    WebThread::ID id =
         traits.GetExtension<WebTaskTraitsExtension>().web_thread();
     DCHECK_LT(id, WebThread::ID_COUNT);
 
@@ -228,30 +200,16 @@ class WebThreadTaskExecutor : public base::TaskExecutor {
     return id;
   }
 
-  static WebThreadTaskExecutor* g_instance;
-
-  scoped_refptr<WebThreadTaskRunner> ui_thread_task_runner_ =
-      base::MakeRefCounted<WebThreadTaskRunner>(WebThread::UI);
-  scoped_refptr<WebThreadTaskRunner> io_thread_task_runner_ =
-      base::MakeRefCounted<WebThreadTaskRunner>(WebThread::IO);
+  scoped_refptr<base::SingleThreadTaskRunner> GetTaskRunnerForThread(
+      WebThread::ID identifier) {
+    return g_task_runners.Get().task_runners[identifier];
+  }
 };
 
-// static
-WebThreadTaskExecutor* WebThreadTaskExecutor::g_instance = nullptr;
+// |g_web_thread_task_executor| is intentionally leaked on shutdown.
+WebThreadTaskExecutor* g_web_thread_task_executor = nullptr;
 
 }  // namespace
-
-scoped_refptr<base::SingleThreadTaskRunner> GetUIThreadTaskRunner(
-    const WebTaskTraits& traits) {
-  return WebThreadTaskExecutor::GetInstance()->GetTaskRunner(WebThread::UI,
-                                                             traits);
-}
-
-scoped_refptr<base::SingleThreadTaskRunner> GetIOThreadTaskRunner(
-    const WebTaskTraits& traits) {
-  return WebThreadTaskExecutor::GetInstance()->GetTaskRunner(WebThread::IO,
-                                                             traits);
-}
 
 WebThreadImpl::WebThreadImpl(
     ID identifier,
@@ -361,27 +319,23 @@ bool WebThread::GetCurrentThreadIdentifier(ID* identifier) {
 // static
 scoped_refptr<base::SingleThreadTaskRunner> WebThread::GetTaskRunnerForThread(
     ID identifier) {
-  DCHECK_GE(identifier, 0);
-  DCHECK_LT(identifier, ID_COUNT);
-  switch (identifier) {
-    case UI:
-      return GetUIThreadTaskRunner({});
-    case IO:
-      return GetIOThreadTaskRunner({});
-    case ID_COUNT:
-      NOTREACHED();
-      return nullptr;
-  }
+  return g_task_runners.Get().task_runners[identifier];
 }
 
 // static
 void WebThreadImpl::CreateTaskExecutor() {
-  WebThreadTaskExecutor::CreateInstance();
+  DCHECK(!g_web_thread_task_executor);
+  g_web_thread_task_executor = new WebThreadTaskExecutor();
+  base::RegisterTaskExecutor(WebTaskTraitsExtension::kExtensionId,
+                             g_web_thread_task_executor);
 }
 
 // static
 void WebThreadImpl::ResetTaskExecutorForTesting() {
-  WebThreadTaskExecutor::ResetInstanceForTesting();
+  DCHECK(g_web_thread_task_executor);
+  base::UnregisterTaskExecutorForTesting(WebTaskTraitsExtension::kExtensionId);
+  delete g_web_thread_task_executor;
+  g_web_thread_task_executor = nullptr;
 }
 
 }  // namespace web

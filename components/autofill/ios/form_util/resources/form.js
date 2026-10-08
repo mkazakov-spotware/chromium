@@ -1,10 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
  * @fileoverview Contains method needed to access the forms and their elements.
  */
+
+goog.provide('__crWeb.form');
 
 /**
  * Namespace for this file. It depends on |__gCrWeb| having already been
@@ -18,6 +20,8 @@ __gCrWeb.form = {};
 // minification.
 __gCrWeb['form'] = __gCrWeb.form;
 
+/** Beginning of anonymous object */
+(function() {
 /**
  * Prefix used in references to form elements that have no 'id' or 'name'
  */
@@ -273,13 +277,11 @@ __gCrWeb.form.getFormElementFromIdentifier = function(name) {
  * @return {HTMLFormElement} The original form element, if it can be determined.
  */
 __gCrWeb.form.getFormElementFromUniqueFormId = function(identifier) {
-  if (identifier.toString() === __gCrWeb.fill.RENDERER_ID_NOT_SET) {
-    return null;
-  }
   const forms = document.forms;
   for (let i = 0; i < forms.length; i++) {
     const form = forms[i];
-    if (identifier.toString() === __gCrWeb.fill.getUniqueID(form)) {
+    const uniqueID = Symbol.for(__gCrWeb.fill.UNIQUE_ID_SYMBOL_NAME);
+    if (identifier === form[uniqueID]) {
       return form;
     }
   }
@@ -301,3 +303,5 @@ __gCrWeb.form['fieldWasEditedByUser'] = function(element) {
   }
   return __gCrWeb.form.wasEditedByUser.get(element);
 };
+
+}());  // End of anonymous object

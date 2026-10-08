@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,32 +9,26 @@
 #include "device/vr/public/mojom/isolated_xr_service.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver.h"
-#include "mojo/public/cpp/bindings/remote.h"
 
 namespace device {
 
 class XrDeviceService : public mojom::XRDeviceService {
  public:
   explicit XrDeviceService(
-      mojo::PendingReceiver<mojom::XRDeviceService> receiver,
-      scoped_refptr<base::SingleThreadTaskRunner> io_task_runner);
-
-  XrDeviceService(const XrDeviceService&) = delete;
-  XrDeviceService& operator=(const XrDeviceService&) = delete;
-
+      mojo::PendingReceiver<mojom::XRDeviceService> receiver);
   ~XrDeviceService() override;
 
  private:
   // mojom::XRDeviceService implementation:
   void BindRuntimeProvider(
-      mojo::PendingReceiver<mojom::IsolatedXRRuntimeProvider> receiver,
-      mojo::PendingRemote<mojom::XRDeviceServiceHost> device_service_host)
+      mojo::PendingReceiver<mojom::IsolatedXRRuntimeProvider> receiver)
       override;
   void BindTestHook(mojo::PendingReceiver<device_test::mojom::XRServiceTestHook>
                         receiver) override;
 
   mojo::Receiver<mojom::XRDeviceService> receiver_;
-  scoped_refptr<base::SingleThreadTaskRunner> io_task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(XrDeviceService);
 };
 
 }  // namespace device

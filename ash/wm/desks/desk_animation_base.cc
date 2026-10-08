@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/wm/desks/desk_animation_base.h"
 
-#include "ash/constants/ash_features.h"
 #include "ash/shell.h"
 #include "ash/wm/desks/desk.h"
 #include "ash/wm/desks/desks_controller.h"
@@ -24,28 +23,23 @@ DeskAnimationBase::DeskAnimationBase(DesksController* controller,
           desks_util::GetSelectedCompositorForPerformanceMetrics()
               ->RequestNewThroughputTracker()) {
   DCHECK(controller_);
-  DCHECK_LE(ending_desk_index_, static_cast<int>(controller_->desks().size()));
+  DCHECK_LE(ending_desk_index_, int{controller_->desks().size()});
   DCHECK_GE(ending_desk_index_, 0);
 }
 
 DeskAnimationBase::~DeskAnimationBase() {
   for (auto& observer : controller_->observers_)
     observer.OnDeskSwitchAnimationFinished();
-
-  if (finished_callback_)
-    std::move(finished_callback_).Run();
 }
 
 void DeskAnimationBase::Launch() {
-  launch_time_ = base::TimeTicks::Now();
-
   for (auto& observer : controller_->observers_)
     observer.OnDeskSwitchAnimationLaunching();
 
   // The throughput tracker measures the animation when the user lifts their
   // fingers off the trackpad, which is done in EndSwipeAnimation.
   if (!is_continuous_gesture_animation_)
-    throughput_tracker_.Start(GetSmoothnessReportCallback());
+    throughput_tracker_.Start(GetReportCallback());
 
   // This step makes sure that the containers of the target desk are shown at
   // the beginning of the animation (but not actually visible to the user yet,
@@ -111,21 +105,11 @@ void DeskAnimationBase::OnEndingDeskScreenshotTaken() {
       return;
   }
 
-  // In the normal case for a continuous gesture animation, the ending desk
-  // screenshot will be taken while the user is still swiping. In this case, we
-  // want to skip the animation which will eventually delete `this`. There is a
-  // bug (https://crbug.com/1191545) where users who try to quickly swipe do not
-  // see an animation but expect to. If the gesture has ended, and has been
-  // determined to be fast, we will start the animation to delete `this`.
-  const bool skip_start_animation =
-      is_continuous_gesture_animation_ && !did_continuous_gesture_end_fast_;
-  if (skip_start_animation)
+  // Continuous gesture animations do not want to start an animation on
+  // creation/replacement (because they want to update). They will request an
+  // animation explicitly if they need (gesture end).
+  if (is_continuous_gesture_animation_)
     return;
-
-  if (!launch_time_.is_null()) {
-    GetLatencyReportCallback().Run(base::TimeTicks::Now() - launch_time_);
-    launch_time_ = base::TimeTicks();
-  }
 
   for (auto& animator : desk_switch_animators_)
     animator->StartAnimation();
@@ -152,6 +136,10 @@ void DeskAnimationBase::OnDeskSwitchAnimationFinished() {
 
   controller_->OnAnimationFinished(this);
   // `this` is now deleted.
+}
+
+void DeskAnimationBase::OnVisibleDeskChanged() {
+  ++visible_desk_changes_;
 }
 
 RootWindowDeskSwitchAnimator*

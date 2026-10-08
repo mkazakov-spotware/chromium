@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,31 +8,21 @@
 
 #include <memory>
 
-#include "base/command_line.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
-#include "build/build_config.h"
 #include "components/metrics/metrics_service_client.h"
-#include "components/metrics/metrics_switches.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/ukm/ukm_pref_names.h"
 #include "components/ukm/ukm_service.h"
 #include "components/ukm/unsent_log_store_metrics_impl.h"
 #include "third_party/zlib/google/compression_utils.h"
 
-#if BUILDFLAG(IS_IOS)
-#include "components/ukm/ios/ukm_reporting_ios_util.h"
-#endif
-
 namespace ukm {
 
 namespace {
 
 // The UKM server's URL.
-constexpr char kDefaultServerUrl[] = "https://clients4.google.com/ukm";
-
-// The UKM server's MIME type.
 constexpr char kMimeType[] = "application/vnd.chrome.ukm";
 
 // The number of UKM logs that will be stored in UnsentLogStore before logs
@@ -52,16 +42,7 @@ constexpr int kMinUnsentLogBytes = 300000;
 constexpr size_t kMaxLogRetransmitSize = 100 * 1024;
 
 GURL GetServerUrl() {
-#ifndef NDEBUG
-  // Only allow overriding the server URL through the command line in debug
-  // builds. This is to prevent, for example, rerouting metrics due to malware.
-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  if (command_line->HasSwitch(metrics::switches::kUkmServerUrl)) {
-    return GURL(
-        command_line->GetSwitchValueASCII(metrics::switches::kUkmServerUrl));
-  }
-#endif  // NDEBUG
-
+  constexpr char kDefaultServerUrl[] = "https://clients4.google.com/ukm";
   std::string server_url =
       base::GetFieldTrialParamValueByFeature(kUkmFeature, "ServerUrl");
   if (!server_url.empty())
@@ -80,10 +61,7 @@ void UkmReportingService::RegisterPrefs(PrefRegistrySimple* registry) {
 
 UkmReportingService::UkmReportingService(metrics::MetricsServiceClient* client,
                                          PrefService* local_state)
-    : ReportingService(client,
-                       local_state,
-                       kMaxLogRetransmitSize,
-                       /*logs_event_manager=*/nullptr),
+    : ReportingService(client, local_state, kMaxLogRetransmitSize),
       unsent_log_store_(std::make_unique<ukm::UnsentLogStoreMetricsImpl>(),
                         local_state,
                         prefs::kUkmUnsentLogStore,
@@ -91,8 +69,7 @@ UkmReportingService::UkmReportingService(metrics::MetricsServiceClient* client,
                         kMinUnsentLogCount,
                         kMinUnsentLogBytes,
                         kMaxLogRetransmitSize,
-                        client->GetUploadSigningKey(),
-                        /*logs_event_manager=*/nullptr) {}
+                        client->GetUploadSigningKey()) {}
 
 UkmReportingService::~UkmReportingService() {}
 
@@ -131,16 +108,11 @@ void UkmReportingService::LogResponseOrErrorCode(int response_code,
 }
 
 void UkmReportingService::LogSuccessLogSize(size_t log_size) {
-#if BUILDFLAG(IS_IOS)
-  IncrementUkmLogSizeOnSuccessCounter();
-#endif
   UMA_HISTOGRAM_COUNTS_10000("UKM.LogSize.OnSuccess", log_size / 1024);
 }
 
 void UkmReportingService::LogSuccessMetadata(const std::string& staged_log) {
   // Recover the report from the compressed staged log.
-  // Note: We don't use metrics::DecodeLogDataToProto() since we to use
-  // |uncompressed_log_data| later in the function.
   std::string uncompressed_log_data;
   bool uncompress_successful =
       compression::GzipUncompress(staged_log, &uncompressed_log_data);

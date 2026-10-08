@@ -38,16 +38,6 @@ namespace blink {
 class LightSource;
 
 class PLATFORM_EXPORT FELighting : public FilterEffect {
- public:
-  Color LightingColor() const;
-  bool SetLightingColor(const Color&);
-
-  float SurfaceScale() const;
-  bool SetSurfaceScale(float);
-
-  LightSource* GetLightSource() { return light_source_.get(); }
-  const LightSource* GetLightSource() const { return light_source_.get(); }
-
  protected:
   enum LightingType { kDiffuseLighting, kSpecularLighting };
 

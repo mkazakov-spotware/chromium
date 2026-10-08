@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,13 +14,14 @@
 
 #include "base/callback.h"
 #include "base/containers/flat_map.h"
+#include "base/containers/flat_set.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "base/sequence_checker.h"
-#include "base/synchronization/lock.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/sequence_bound.h"
+#include "base/threading/thread.h"
 #include "base/time/time.h"
 #include "chromecast/media/cma/backend/mixer/mixer_input.h"
 #include "chromecast/media/cma/backend/mixer/mixer_pipeline.h"
@@ -68,22 +69,17 @@ class StreamMixer {
  public:
   StreamMixer(
       scoped_refptr<base::SequencedTaskRunner> io_task_runner = nullptr);
-
-  StreamMixer(const StreamMixer&) = delete;
-  StreamMixer& operator=(const StreamMixer&) = delete;
-
   ~StreamMixer();
 
   int num_output_channels() const { return num_output_channels_; }
 
-  scoped_refptr<base::TaskRunner> task_runner() const {
+  scoped_refptr<base::SingleThreadTaskRunner> task_runner() const {
     return mixer_task_runner_;
   }
 
   // Adds an input source to the mixer. The |input_source| must live at least
   // until input_source->FinalizeAudioPlayback() is called.
-  void AddInput(MixerInput::Source* input_source)
-      LOCKS_EXCLUDED(input_creation_lock_);
+  void AddInput(MixerInput::Source* input_source);
   // Removes an input source from the mixer. The input source will be removed
   // asynchronously. Once it has been removed, FinalizeAudioPlayback() will be
   // called on it; at this point it is safe to delete the input source.
@@ -108,9 +104,6 @@ class StreamMixer {
   // Sets the per-stream volume multiplier for |source|.
   void SetVolumeMultiplier(MixerInput::Source* source, float multiplier);
 
-  // Sets the simulated audio clock rate for |source|.
-  void SetSimulatedClockRate(MixerInput::Source* source, double new_clock_rate);
-
   // Sends configuration string |config| to processor |name|.
   void SetPostProcessorConfig(std::string name, std::string config);
 
@@ -127,7 +120,8 @@ class StreamMixer {
   // Test-only methods.
   StreamMixer(
       std::unique_ptr<MixerOutputStream> output,
-      scoped_refptr<base::SequencedTaskRunner> mixer_task_runner,
+      std::unique_ptr<base::Thread> mixer_thread,
+      scoped_refptr<base::SingleThreadTaskRunner> mixer_task_runner,
       const std::string& pipeline_json,
       scoped_refptr<base::SequencedTaskRunner> io_task_runner = nullptr);
   void ResetPostProcessorsForTest(
@@ -146,8 +140,6 @@ class StreamMixer {
   };
   class ExternalMediaVolumeChangeRequestObserver;
 
-  class MixerThread;
-
   enum State {
     kStateStopped,
     kStateRunning,
@@ -160,50 +152,30 @@ class StreamMixer {
     bool muted = false;
   };
 
-  void SetNumOutputChannelsOnThread(int num_channels)
-      LOCKS_EXCLUDED(input_creation_lock_);
+  void SetNumOutputChannelsOnThread(int num_channels);
   void ResetPostProcessorsOnThread(CastMediaShlib::ResultCallback callback,
-                                   const std::string& override_config)
-      LOCKS_EXCLUDED(input_creation_lock_);
+                                   const std::string& override_config);
   void CreatePostProcessors(CastMediaShlib::ResultCallback callback,
                             const std::string& override_config,
-                            int expected_input_channels)
-      EXCLUSIVE_LOCKS_REQUIRED(input_creation_lock_);
-  void FinalizeOnMixerThread() LOCKS_EXCLUDED(input_creation_lock_);
-  void Start() LOCKS_EXCLUDED(input_creation_lock_);
-  void Stop(LoopbackInterruptReason reason)
-      EXCLUSIVE_LOCKS_REQUIRED(input_creation_lock_);
+                            int expected_input_channels);
+  void FinalizeOnMixerThread();
+  void Start();
+  void Stop(LoopbackInterruptReason reason);
   void CheckChangeOutputParams(int num_input_channels,
-                               int input_samples_per_second)
-      LOCKS_EXCLUDED(input_creation_lock_);
+                               int input_samples_per_second);
   void SignalError(MixerInput::Source::MixerError error);
   int GetEffectiveChannelCount(MixerInput::Source* input_source);
-  std::unique_ptr<MixerInput> CreateInput(MixerInput::Source* input_source);
-  void AddInputOnThread(MixerInput::Source* input_source,
-                        std::unique_ptr<MixerInput> input);
   void RemoveInputOnThread(MixerInput::Source* input_source);
   void SetCloseTimeout();
+  void UpdatePlayoutChannel();
 
-  void PlaybackLoop() LOCKS_EXCLUDED(input_creation_lock_);
+  void PlaybackLoop();
   void WriteOneBuffer();
   void WriteMixedPcm(int frames, int64_t expected_playback_time);
 
-  void UpdateStreamCountsOnThread();
-  void SetVolumeOnThread(AudioContentType type, float level);
-  void SetMutedOnThread(AudioContentType type, bool muted);
-  void SetOutputLimitOnThread(AudioContentType type, float limit);
-  void SetVolumeMultiplierOnThread(MixerInput::Source* source,
-                                   float multiplier);
-  void SetSimulatedClockRateOnThread(MixerInput::Source* source,
-                                     double new_clock_rate);
-  void SetPostProcessorConfigOnThread(std::string name, std::string config);
-  void AddAudioOutputRedirectorOnThread(
-      std::unique_ptr<AudioOutputRedirector> redirector);
   void RemoveAudioOutputRedirectorOnThread(AudioOutputRedirector* redirector);
 
   int GetSampleRateForDeviceId(const std::string& device);
-
-  void OnHealthCheckFailed();
 
   MediaPipelineBackend::AudioDecoder::RenderingDelay GetTotalRenderingDelay(
       FilterGroup* filter_group);
@@ -212,14 +184,15 @@ class StreamMixer {
   std::unique_ptr<PostProcessingPipelineFactory>
       post_processing_pipeline_factory_;
   std::unique_ptr<MixerPipeline> mixer_pipeline_;
-  SEQUENCE_CHECKER(mixer_sequence_checker_);
-  scoped_refptr<MixerThread> mixer_thread_;
-  scoped_refptr<base::TaskRunner> mixer_task_runner_;
+  std::unique_ptr<base::Thread> mixer_thread_;
+  scoped_refptr<base::SingleThreadTaskRunner> mixer_task_runner_;
   scoped_refptr<base::SequencedTaskRunner> io_task_runner_;
   std::unique_ptr<ThreadHealthChecker> health_checker_;
 
   std::unique_ptr<InterleavedChannelMixer> loopback_channel_mixer_;
   std::unique_ptr<InterleavedChannelMixer> output_channel_mixer_;
+
+  void OnHealthCheckFailed();
 
   bool enable_dynamic_channel_count_;
   const int low_sample_rate_cutoff_;
@@ -231,6 +204,7 @@ class StreamMixer {
   // AudioPostProcessors require stricter alignment conditions.
   const int filter_frame_alignment_;
 
+  int playout_channel_ = kChannelAll;
   int requested_input_channels_ = 0;
   int post_processor_input_channels_ = 0;
   int num_output_channels_ = 0;
@@ -247,8 +221,6 @@ class StreamMixer {
 
   State state_;
   base::TimeTicks close_timestamp_;
-
-  base::Lock input_creation_lock_;
 
   base::RepeatingClosure playback_loop_task_;
   base::flat_map<MixerInput::Source*, std::unique_ptr<MixerInput>> inputs_;
@@ -268,6 +240,8 @@ class StreamMixer {
   base::SequenceBound<MixerServiceReceiver> receiver_;
 
   base::WeakPtrFactory<StreamMixer> weak_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(StreamMixer);
 };
 
 }  // namespace media

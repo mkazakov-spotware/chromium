@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,17 +54,13 @@ ToplevelWindow::ToplevelWindow(const CreateParams& params)
   SetCanMaximize(params.can_maximize);
   SetCanMinimize(params.can_maximize);
   SetCanResize(params.can_resize);
-  SetTitle(u"Examples: Toplevel Window");
+  SetTitle(base::ASCIIToUTF16("Examples: Toplevel Window"));
 }
 
 ToplevelWindow::~ToplevelWindow() = default;
 
 void ToplevelWindow::OnPaint(gfx::Canvas* canvas) {
   canvas->FillRect(GetLocalBounds(), SK_ColorDKGRAY);
-}
-
-bool ToplevelWindow::ShouldSaveWindowPlacement() const {
-  return true;
 }
 
 void ToplevelWindow::SaveWindowPlacement(const gfx::Rect& bounds,

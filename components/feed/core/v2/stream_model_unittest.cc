@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,13 @@
 #include <utility>
 #include <vector>
 
+#include "base/optional.h"
 #include "base/strings/string_number_conversions.h"
 #include "components/feed/core/proto/v2/store.pb.h"
 #include "components/feed/core/proto/v2/wire/content_id.pb.h"
 #include "components/feed/core/v2/protocol_translator.h"
 #include "components/feed/core/v2/test/stream_builder.h"
-#include "components/feed/core/v2/types.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace feed {
 namespace {
@@ -42,15 +41,15 @@ class TestObserver : public StreamModel::Observer {
 
   // StreamModel::Observer.
   void OnUiUpdate(const UiUpdate& update) override { update_ = update; }
-  const absl::optional<UiUpdate>& GetUiUpdate() const { return update_; }
+  const base::Optional<UiUpdate>& GetUiUpdate() const { return update_; }
   bool ContentListChanged() const {
     return update_ && update_->content_list_changed;
   }
 
-  void Clear() { update_ = absl::nullopt; }
+  void Clear() { update_ = base::nullopt; }
 
  private:
-  absl::optional<UiUpdate> update_;
+  base::Optional<UiUpdate> update_;
 };
 
 class TestStoreObserver : public StreamModel::StoreObserver {
@@ -64,25 +63,23 @@ class TestStoreObserver : public StreamModel::StoreObserver {
     update_ = std::move(records);
   }
 
-  const absl::optional<StoreUpdate>& GetUpdate() const { return update_; }
+  const base::Optional<StoreUpdate>& GetUpdate() const { return update_; }
 
-  void Clear() { update_ = absl::nullopt; }
+  void Clear() { update_ = base::nullopt; }
 
  private:
-  absl::optional<StoreUpdate> update_;
+  base::Optional<StoreUpdate> update_;
 };
 
 TEST(StreamModelTest, ConstructEmptyModel) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
 
   EXPECT_EQ(0UL, model.GetContentList().size());
 }
 
 TEST(StreamModelTest, ExecuteOperationsTypicalStream) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
   TestStoreObserver store_observer(&model);
 
@@ -95,8 +92,7 @@ TEST(StreamModelTest, ExecuteOperationsTypicalStream) {
 }
 
 TEST(StreamModelTest, AddContentWithoutRoot) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
 
   std::vector<feedstore::DataOperation> operations{
@@ -112,8 +108,7 @@ TEST(StreamModelTest, AddContentWithoutRoot) {
 
 // Verify Stream -> Content works.
 TEST(StreamModelTest, AddStreamContent) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
 
   std::vector<feedstore::DataOperation> operations{
@@ -128,8 +123,7 @@ TEST(StreamModelTest, AddStreamContent) {
 
 TEST(StreamModelTest, AddRootAsChild) {
   // When the root is added as a child, it's no longer considered a root.
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
   feedstore::StreamStructure stream_with_parent = MakeStream();
   *stream_with_parent.mutable_parent_id() = MakeContentContentId(0);
@@ -145,9 +139,28 @@ TEST(StreamModelTest, AddRootAsChild) {
   EXPECT_EQ(std::vector<std::string>({}), GetContentFrames(model));
 }
 
+// Changing the STREAM root to CLUSTER means it is no longer eligible to be
+// the root.
+TEST(StreamModelTest, ChangeStreamToCluster) {
+  StreamModel model;
+  TestObserver observer(&model);
+  feedstore::StreamStructure stream_as_cluster = MakeStream();
+  stream_as_cluster.set_type(feedstore::StreamStructure::CLUSTER);
+
+  std::vector<feedstore::DataOperation> operations{
+      MakeOperation(MakeStream()),
+      MakeOperation(MakeContentNode(0, MakeRootId())),
+      MakeOperation(MakeContent(0)),
+      MakeOperation(stream_as_cluster),
+  };
+
+  model.ExecuteOperations(operations);
+
+  EXPECT_EQ(std::vector<std::string>({}), GetContentFrames(model));
+}
+
 TEST(StreamModelTest, RemoveCluster) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
 
   std::vector<feedstore::DataOperation> operations =
@@ -160,8 +173,7 @@ TEST(StreamModelTest, RemoveCluster) {
 }
 
 TEST(StreamModelTest, RemoveContent) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
 
   std::vector<feedstore::DataOperation> operations =
@@ -174,8 +186,7 @@ TEST(StreamModelTest, RemoveContent) {
 }
 
 TEST(StreamModelTest, RemoveRoot) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
 
   std::vector<feedstore::DataOperation> operations =
@@ -188,8 +199,7 @@ TEST(StreamModelTest, RemoveRoot) {
 }
 
 TEST(StreamModelTest, RemoveAndAddRoot) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
 
   std::vector<feedstore::DataOperation> operations =
@@ -202,52 +212,36 @@ TEST(StreamModelTest, RemoveAndAddRoot) {
   EXPECT_EQ(std::vector<std::string>({"f:0", "f:1"}), GetContentFrames(model));
 }
 
-TEST(StreamModelTest, SecondRootStreamIsIgnored) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+TEST(StreamModelTest, SwitchStreams) {
+  StreamModel model;
   TestObserver observer(&model);
 
-  // Add a second stream root, but it is ignored.
   std::vector<feedstore::DataOperation> operations =
       MakeTypicalStreamOperations();
-  feedstore::StreamStructure root2 = MakeStream(2);
-  root2.set_is_root(false);
-  operations.push_back(MakeOperation(root2));
-  operations.push_back(MakeOperation(MakeContentNode(9, MakeRootId(2))));
-  operations.push_back(MakeOperation(MakeContent(9)));
-  model.ExecuteOperations(operations);
-
-  EXPECT_EQ(std::vector<std::string>({"f:0", "f:1"}), GetContentFrames(model));
-
-  // Remove the first stream root, now the second root is used.
-  model.ExecuteOperations({MakeOperation(MakeRemove(MakeRootId()))});
-
-  EXPECT_EQ(std::vector<std::string>({"f:9"}), GetContentFrames(model));
-}
-
-TEST(StreamModelTest, SecondRootWithIsRootIsSelected) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
-  TestObserver observer(&model);
-
-  // Set up operations which add two roots. The second root is chosen because it
-  // has is_root=true set.
-  std::vector<feedstore::DataOperation> operations =
-      MakeTypicalStreamOperations();
-  operations[0].mutable_structure()->set_is_root(false);
   operations.push_back(MakeOperation(MakeStream(2)));
   operations.push_back(MakeOperation(MakeContentNode(9, MakeRootId(2))));
   operations.push_back(MakeOperation(MakeContent(9)));
+
   model.ExecuteOperations(operations);
 
+  // The last stream added becomes the root, so only children of 'root2' are
+  // included.
+  EXPECT_EQ(std::vector<std::string>({"f:9"}), GetContentFrames(model));
+
+  // Adding the original stream back will re-activate it.
+  model.ExecuteOperations({MakeOperation(MakeStream())});
+
+  EXPECT_EQ(std::vector<std::string>({"f:0", "f:1"}), GetContentFrames(model));
+
+  // Removing 'root' will now make 'root2' active again.
+  model.ExecuteOperations({MakeOperation(MakeRemove(MakeRootId()))});
   EXPECT_EQ(std::vector<std::string>({"f:9"}), GetContentFrames(model));
 }
 
 TEST(StreamModelTest, RemoveAndUpdateCluster) {
   // Remove a cluster and add it back. Adding it back keeps its original
   // placement.
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
 
   std::vector<feedstore::DataOperation> operations =
@@ -262,8 +256,7 @@ TEST(StreamModelTest, RemoveAndUpdateCluster) {
 
 TEST(StreamModelTest, RemoveAndAppendToNewParent) {
   // Attempt to re-parent a node. This is not allowed, the old parent remains.
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
 
   std::vector<feedstore::DataOperation> operations =
@@ -277,8 +270,7 @@ TEST(StreamModelTest, RemoveAndAppendToNewParent) {
 }
 
 TEST(StreamModelTest, EphemeralNewCluster) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
 
   model.ExecuteOperations(MakeTypicalStreamOperations());
@@ -296,8 +288,7 @@ TEST(StreamModelTest, EphemeralNewCluster) {
 }
 
 TEST(StreamModelTest, CommitEphemeralChange) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
 
   model.ExecuteOperations(MakeTypicalStreamOperations());
@@ -316,7 +307,7 @@ TEST(StreamModelTest, CommitEphemeralChange) {
   ASSERT_TRUE(store_observer.GetUpdate());
   const StoreUpdate& store_update = *store_observer.GetUpdate();
   ASSERT_EQ(3UL, store_update.operations.size());
-  EXPECT_EQ(feedstore::StreamStructure::GROUP,
+  EXPECT_EQ(feedstore::StreamStructure::CLUSTER,
             store_update.operations[0].structure().type());
   EXPECT_EQ(feedstore::StreamStructure::CONTENT,
             store_update.operations[1].structure().type());
@@ -329,8 +320,7 @@ TEST(StreamModelTest, CommitEphemeralChange) {
 }
 
 TEST(StreamModelTest, RejectEphemeralChange) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
 
   model.ExecuteOperations(MakeTypicalStreamOperations());
@@ -350,8 +340,7 @@ TEST(StreamModelTest, RejectEphemeralChange) {
 }
 
 TEST(StreamModelTest, RejectFirstEphemeralChange) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
 
   model.ExecuteOperations(MakeTypicalStreamOperations());
@@ -378,8 +367,7 @@ TEST(StreamModelTest, RejectFirstEphemeralChange) {
 }
 
 TEST(StreamModelTest, InitialLoad) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
   TestStoreObserver store_observer(&model);
   model.Update(MakeTypicalInitialModelState());
@@ -397,8 +385,7 @@ TEST(StreamModelTest, InitialLoad) {
 }
 
 TEST(StreamModelTest, StoreObserverReceivesIncreasingSequenceNumbers) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
   TestStoreObserver store_observer(&model);
 
@@ -423,8 +410,7 @@ TEST(StreamModelTest, StoreObserverReceivesIncreasingSequenceNumbers) {
 }
 
 TEST(StreamModelTest, SharedStateCanBeAddedOnlyOnce) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
   TestStoreObserver store_observer(&model);
 
@@ -446,31 +432,8 @@ TEST(StreamModelTest, SharedStateCanBeAddedOnlyOnce) {
   EXPECT_FALSE(observer.GetUiUpdate()->shared_states[0].updated);
 }
 
-TEST(StreamModelTest, SharedStateUpdatesKeepOriginal) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
-  TestObserver observer(&model);
-  TestStoreObserver store_observer(&model);
-  model.Update(MakeTypicalInitialModelState());
-  observer.Clear();
-  store_observer.Clear();
-  model.Update(MakeTypicalNextPageState(
-      2, kTestTimeEpoch, true, true, true,
-      StreamModelUpdateRequest::Source::kNetworkLoadMore));
-
-  EXPECT_EQ(2UL, observer.GetUiUpdate()->shared_states.size());
-  EXPECT_FALSE(observer.GetUiUpdate()->shared_states[0].updated);
-  EXPECT_TRUE(observer.GetUiUpdate()->shared_states[1].updated);
-
-  ASSERT_TRUE(store_observer.GetUpdate());
-  EXPECT_EQ(1, store_observer.GetUpdate()->sequence_number);
-  ASSERT_EQ(2, store_observer.GetUpdate()
-                   ->update_request->stream_data.shared_state_ids_size());
-}
-
 TEST(StreamModelTest, ClearAllErasesSharedStates) {
-  StreamModel::Context model_context;
-  StreamModel model(&model_context, LoggingParameters());
+  StreamModel model;
   TestObserver observer(&model);
   TestStoreObserver store_observer(&model);
   // CLEAR_ALL is the first operation in the typical initial model state.

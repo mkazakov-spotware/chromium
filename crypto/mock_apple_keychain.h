@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@
 #include <vector>
 
 #include "base/compiler_specific.h"
-#include "build/build_config.h"
 #include "crypto/apple_keychain.h"
 
 namespace crypto {
@@ -29,10 +28,6 @@ namespace crypto {
 class CRYPTO_EXPORT MockAppleKeychain : public AppleKeychain {
  public:
   MockAppleKeychain();
-
-  MockAppleKeychain(const MockAppleKeychain&) = delete;
-  MockAppleKeychain& operator=(const MockAppleKeychain&) = delete;
-
   ~MockAppleKeychain() override;
 
   // AppleKeychain implementation.
@@ -55,9 +50,9 @@ class CRYPTO_EXPORT MockAppleKeychain : public AppleKeychain {
   // Returns the password that OSCrypt uses to generate its encryption key.
   std::string GetEncryptionPassword() const;
 
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
   OSStatus ItemDelete(SecKeychainItemRef itemRef) const override;
-#endif  // !BUILDFLAG(IS_IOS)
+#endif  // !defined(OS_IOS)
 
   // |FindGenericPassword()| can return different results depending on user
   // interaction with the system Keychain.  For mocking purposes we allow the
@@ -84,6 +79,8 @@ class CRYPTO_EXPORT MockAppleKeychain : public AppleKeychain {
   // Tracks the allocations and frees of password data in |FindGenericPassword|
   // and |ItemFreeContent|.
   mutable int password_data_count_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockAppleKeychain);
 };
 
 }  // namespace crypto

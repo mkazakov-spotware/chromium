@@ -1,14 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SYSTEM_MEDIA_CONTROLS_SYSTEM_MEDIA_CONTROLS_H_
 #define COMPONENTS_SYSTEM_MEDIA_CONTROLS_SYSTEM_MEDIA_CONTROLS_H_
 
-#include <string>
-
 #include "base/component_export.h"
-#include "services/media_session/public/cpp/media_position.h"
+#include "base/strings/string16.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 
 namespace system_media_controls {
@@ -28,10 +26,8 @@ class COMPONENT_EXPORT(SYSTEM_MEDIA_CONTROLS) SystemMediaControls {
     kStopped,
   };
 
-  static std::unique_ptr<SystemMediaControls> Create(
-      const std::string& product_name);
-
-  virtual ~SystemMediaControls() = default;
+  // Returns the singleton instance, creating if necessary.
+  static SystemMediaControls* GetInstance();
 
   virtual void AddObserver(SystemMediaControlsObserver* observer) = 0;
   virtual void RemoveObserver(SystemMediaControlsObserver* observer) = 0;
@@ -44,21 +40,21 @@ class COMPONENT_EXPORT(SYSTEM_MEDIA_CONTROLS) SystemMediaControls {
   virtual void SetIsPreviousEnabled(bool value) = 0;
   virtual void SetIsPlayPauseEnabled(bool value) = 0;
   virtual void SetIsStopEnabled(bool value) = 0;
-  virtual void SetIsSeekToEnabled(bool value) {}
 
   // Setters for metadata.
   virtual void SetPlaybackStatus(PlaybackStatus value) = 0;
-  virtual void SetID(const std::string* value) {}
-  virtual void SetTitle(const std::u16string& value) = 0;
-  virtual void SetArtist(const std::u16string& value) = 0;
-  virtual void SetAlbum(const std::u16string& value) = 0;
+  virtual void SetTitle(const base::string16& value) = 0;
+  virtual void SetArtist(const base::string16& value) = 0;
+  virtual void SetAlbum(const base::string16& value) = 0;
   virtual void SetThumbnail(const SkBitmap& bitmap) = 0;
-  virtual void SetPosition(const media_session::MediaPosition& position) {}
 
   // Helpers for metadata
   virtual void ClearThumbnail() = 0;
   virtual void ClearMetadata() = 0;
   virtual void UpdateDisplay() = 0;
+
+ protected:
+  virtual ~SystemMediaControls() = default;
 };
 
 }  // namespace system_media_controls

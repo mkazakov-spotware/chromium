@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# Copyright 2019 The Chromium Authors
+#!/usr/bin/python3
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -24,8 +24,7 @@ _GSUTIL = os.path.join(_DIR_SOURCE_ROOT, 'third_party', 'depot_tools',
 
 
 def _WriteReportsJson(out):
-  output = subprocess.check_output([_GSUTIL, 'ls', '-R', _REPORTS_GS_URL],
-                                   encoding='utf8')
+  output = subprocess.check_output([_GSUTIL, 'ls', '-R', _REPORTS_GS_URL])
 
   reports = []
   report_re = re.compile(
@@ -44,7 +43,7 @@ def _WriteReportsJson(out):
 
 
 def _UploadReportsJson():
-  with tempfile.NamedTemporaryFile(mode='wt') as f:
+  with tempfile.NamedTemporaryFile() as f:
     _WriteReportsJson(f)
     f.flush()
     cmd = [
@@ -73,17 +72,16 @@ def main():
       '--version',
       required=True,
       help='Official build version to generate report for (ex. "72.0.3626.7").')
-  parser.add_argument('--size-path',
-                      required=True,
-                      action='append',
-                      help='Path to .size file for the given version.')
+  parser.add_argument(
+      '--size-path',
+      required=True,
+      help='Path to .size file for the given version.')
   parser.add_argument(
       '--arch', required=True, help='Compiler architecture of build.')
 
   args = parser.parse_args()
 
-  for size_path in args.size_path:
-    _UploadSizeFile(size_path, args.version, args.arch)
+  _UploadSizeFile(args.size_path, args.version, args.arch)
   _UploadReportsJson()
 
 

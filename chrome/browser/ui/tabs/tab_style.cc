@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,7 @@ int TabStyle::GetStandardWidth() {
 
 // static
 int TabStyle::GetPinnedWidth() {
-  constexpr int kTabPinnedContentWidth = 24;
+  constexpr int kTabPinnedContentWidth = 23;
   return kTabPinnedContentWidth + GetContentsHorizontalInsetSize() * 2;
 }
 
@@ -48,7 +48,7 @@ int TabStyle::GetDragHandleExtension(int height) {
 
 // static
 gfx::Insets TabStyle::GetTabInternalPadding() {
-  return gfx::Insets::VH(0, GetCornerRadius());
+  return gfx::Insets(0, GetCornerRadius());
 }
 
 // static
@@ -66,7 +66,7 @@ gfx::Size TabStyle::GetPreviewImageSize() {
 // static
 int TabStyle::GetCornerRadius() {
   return views::LayoutProvider::Get()->GetCornerRadiusMetric(
-      views::Emphasis::kHigh);
+      views::EMPHASIS_HIGH);
 }
 
 // static

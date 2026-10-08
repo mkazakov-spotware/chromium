@@ -1,25 +1,30 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/nqe/network_quality_observation.h"
 
 #include "base/check.h"
+#include "base/macros.h"
 #include "base/notreached.h"
 
-namespace net::nqe::internal {
+namespace net {
+
+namespace nqe {
+
+namespace internal {
 
 Observation::Observation(int32_t value,
                          base::TimeTicks timestamp,
                          int32_t signal_strength,
                          NetworkQualityObservationSource source)
-    : Observation(value, timestamp, signal_strength, source, absl::nullopt) {}
+    : Observation(value, timestamp, signal_strength, source, base::nullopt) {}
 
 Observation::Observation(int32_t value,
                          base::TimeTicks timestamp,
                          int32_t signal_strength,
                          NetworkQualityObservationSource source,
-                         const absl::optional<IPHash>& host)
+                         const base::Optional<IPHash>& host)
     : value_(value),
       timestamp_(timestamp),
       signal_strength_(signal_strength),
@@ -67,4 +72,8 @@ std::vector<ObservationCategory> Observation::GetObservationCategories() const {
   return observation_categories;
 }
 
-}  // namespace net::nqe::internal
+}  // namespace internal
+
+}  // namespace nqe
+
+}  // namespace net

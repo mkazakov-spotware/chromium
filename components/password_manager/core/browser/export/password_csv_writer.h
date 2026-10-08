@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,29 +10,28 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
+
 namespace password_manager {
 
-struct CredentialUIEntry;
+struct PasswordForm;
 
 // Static-only class bundling together the API for serializing passwords into
 // CSV format.
 class PasswordCSVWriter {
  public:
-  PasswordCSVWriter() = delete;
-  PasswordCSVWriter(const PasswordCSVWriter&) = delete;
-  PasswordCSVWriter& operator=(const PasswordCSVWriter&) = delete;
-
-  // Creates a CSV representation of the credential stored in |credentials|.
-  // Note that this loses all the metadata except for the origin, username and
-  // password.
+  // Creates a CSV representation of the forms stored in |password|. Note that
+  // this loses all the metadata except for the origin, username and password.
   static std::string SerializePasswords(
-      const std::vector<CredentialUIEntry>& credentials);
+      const std::vector<std::unique_ptr<PasswordForm>>& passwords);
 
  private:
-  // Converts |credential| into a single line in the CSV format. Metadata are
-  // lost, see SerializePasswords.
+  // Converts |form| into a single line in the CSV format. Metadata are lost,
+  // see SerializePasswords.
   static std::map<std::string, std::string> PasswordFormToRecord(
-      const CredentialUIEntry& credential);
+      const PasswordForm& form);
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(PasswordCSVWriter);
 };
 
 }  // namespace password_manager

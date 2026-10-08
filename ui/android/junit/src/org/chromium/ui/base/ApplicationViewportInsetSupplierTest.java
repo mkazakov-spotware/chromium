@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@ import static org.junit.Assert.assertEquals;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.robolectric.annotation.LooperMode;
 
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSupplierImpl;
@@ -17,7 +16,6 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
 
 /** Unit tests for the ApplicationViewportInsetSupplier. */
 @RunWith(BaseRobolectricTestRunner.class)
-@LooperMode(LooperMode.Mode.LEGACY)
 public class ApplicationViewportInsetSupplierTest {
     /** A callback with the ability to get the last value pushed to it. */
     private static class CapturingCallback<T> implements Callback<T> {
@@ -43,7 +41,7 @@ public class ApplicationViewportInsetSupplierTest {
         mFeatureInsetSupplier = new ObservableSupplierImpl<>();
         mWindowInsetObserver = new CapturingCallback<>();
 
-        mWindowApplicationInsetSupplier.addOverlappingSupplier(mFeatureInsetSupplier);
+        mWindowApplicationInsetSupplier.addSupplier(mFeatureInsetSupplier);
         mWindowApplicationInsetSupplier.addObserver(mWindowInsetObserver);
     }
 
@@ -63,7 +61,7 @@ public class ApplicationViewportInsetSupplierTest {
     @Test
     public void testSupplierTriggersObserver_multipleSuppliers_2() {
         ObservableSupplierImpl<Integer> secondSupplier = new ObservableSupplierImpl<>();
-        mWindowApplicationInsetSupplier.addOverlappingSupplier(secondSupplier);
+        mWindowApplicationInsetSupplier.addSupplier(secondSupplier);
 
         mFeatureInsetSupplier.set(5);
         secondSupplier.set(10);
@@ -75,10 +73,10 @@ public class ApplicationViewportInsetSupplierTest {
     @Test
     public void testSupplierTriggersObserver_multipleSuppliers_3() {
         ObservableSupplierImpl<Integer> secondSupplier = new ObservableSupplierImpl<>();
-        mWindowApplicationInsetSupplier.addOverlappingSupplier(secondSupplier);
+        mWindowApplicationInsetSupplier.addSupplier(secondSupplier);
 
         ObservableSupplierImpl<Integer> thirdSupplier = new ObservableSupplierImpl<>();
-        mWindowApplicationInsetSupplier.addOverlappingSupplier(thirdSupplier);
+        mWindowApplicationInsetSupplier.addSupplier(thirdSupplier);
 
         mFeatureInsetSupplier.set(5);
         secondSupplier.set(20);
@@ -93,7 +91,7 @@ public class ApplicationViewportInsetSupplierTest {
         ObservableSupplierImpl<Integer> supplier = new ObservableSupplierImpl<>();
         supplier.set(20);
 
-        mWindowApplicationInsetSupplier.addOverlappingSupplier(supplier);
+        mWindowApplicationInsetSupplier.addSupplier(supplier);
 
         assertEquals("The observer should have been triggered after the supplier was added.",
                 (Integer) 20, mWindowInsetObserver.getCapturedValue());
@@ -102,10 +100,10 @@ public class ApplicationViewportInsetSupplierTest {
     @Test
     public void testSupplierRemoveTriggersEvent() {
         ObservableSupplierImpl<Integer> secondSupplier = new ObservableSupplierImpl<>();
-        mWindowApplicationInsetSupplier.addOverlappingSupplier(secondSupplier);
+        mWindowApplicationInsetSupplier.addSupplier(secondSupplier);
 
         ObservableSupplierImpl<Integer> thirdSupplier = new ObservableSupplierImpl<>();
-        mWindowApplicationInsetSupplier.addOverlappingSupplier(thirdSupplier);
+        mWindowApplicationInsetSupplier.addSupplier(thirdSupplier);
 
         mFeatureInsetSupplier.set(5);
         secondSupplier.set(20);

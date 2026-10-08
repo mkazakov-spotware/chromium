@@ -1,13 +1,20 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/invalidation/impl/fake_invalidation_handler.h"
 
-namespace invalidation {
+namespace syncer {
+
+FakeInvalidationHandler::FakeInvalidationHandler()
+    : state_(DEFAULT_INVALIDATION_ERROR),
+      invalidation_count_(0),
+      owner_name_("Fake") {}
 
 FakeInvalidationHandler::FakeInvalidationHandler(const std::string& owner_name)
-    : owner_name_(owner_name) {}
+    : FakeInvalidationHandler() {
+  owner_name_ = owner_name;
+}
 
 FakeInvalidationHandler::~FakeInvalidationHandler() = default;
 
@@ -24,10 +31,6 @@ int FakeInvalidationHandler::GetInvalidationCount() const {
   return invalidation_count_;
 }
 
-const std::string& FakeInvalidationHandler::GetInvalidatorClientId() const {
-  return client_id_;
-}
-
 void FakeInvalidationHandler::OnInvalidatorStateChange(InvalidatorState state) {
   state_ = state;
 }
@@ -42,13 +45,8 @@ std::string FakeInvalidationHandler::GetOwnerName() const {
   return owner_name_;
 }
 
-bool FakeInvalidationHandler::IsPublicTopic(const Topic& topic) const {
+bool FakeInvalidationHandler::IsPublicTopic(const syncer::Topic& topic) const {
   return topic == "PREFERENCE";
 }
 
-void FakeInvalidationHandler::OnInvalidatorClientIdChange(
-    const std::string& client_id) {
-  client_id_ = client_id;
-}
-
-}  // namespace invalidation
+}  // namespace syncer

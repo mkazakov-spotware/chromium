@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/vr/base_scheduler_delegate.h"
 
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/trace_event/trace_event.h"
 #include "chrome/browser/vr/scheduler_ui_interface.h"
 
@@ -19,7 +18,7 @@ BaseSchedulerDelegate::BaseSchedulerDelegate(SchedulerUiInterface* ui,
       webxr_mode_(start_in_webxr_mode),
       webxr_spinner_timeout_seconds_(webxr_spinner_timeout),
       webxr_initial_frame_timeout_seconds_(webxr_initial_frame_timeout),
-      task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {}
+      task_runner_(base::ThreadTaskRunnerHandle::Get()) {}
 
 BaseSchedulerDelegate::~BaseSchedulerDelegate() = default;
 
@@ -41,14 +40,14 @@ void BaseSchedulerDelegate::ScheduleWebXrFrameTimeout() {
   DCHECK(ui_);
   webxr_spinner_timeout_closure_.Reset(base::BindOnce(
       &SchedulerUiInterface::OnWebXrTimeoutImminent, base::Unretained(ui_)));
-  task_runner_->PostDelayedTask(FROM_HERE,
-                                webxr_spinner_timeout_closure_.callback(),
-                                base::Seconds(webxr_spinner_timeout_seconds_));
+  task_runner_->PostDelayedTask(
+      FROM_HERE, webxr_spinner_timeout_closure_.callback(),
+      base::TimeDelta::FromSeconds(webxr_spinner_timeout_seconds_));
   webxr_frame_timeout_closure_.Reset(base::BindOnce(
       &SchedulerUiInterface::OnWebXrTimedOut, base::Unretained(ui_)));
   task_runner_->PostDelayedTask(
       FROM_HERE, webxr_frame_timeout_closure_.callback(),
-      base::Seconds(webxr_initial_frame_timeout_seconds_));
+      base::TimeDelta::FromSeconds(webxr_initial_frame_timeout_seconds_));
 }
 
 void BaseSchedulerDelegate::CancelWebXrFrameTimeout() {

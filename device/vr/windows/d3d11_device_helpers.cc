@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,7 @@
 #include <dxgi.h>
 #include <wrl.h>
 
-#include <iterator>
-
-#include "base/check.h"
+#include "base/stl_util.h"
 
 namespace vr {
 
@@ -29,7 +27,7 @@ void GetD3D11_1Adapter(int32_t* adapter_index, IDXGIAdapter** adapter) {
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> d3d11_device_context;
     if (SUCCEEDED(D3D11CreateDevice(
             *adapter, D3D_DRIVER_TYPE_UNKNOWN, NULL, flags, feature_levels,
-            std::size(feature_levels), D3D11_SDK_VERSION, &d3d11_device,
+            base::size(feature_levels), D3D11_SDK_VERSION, &d3d11_device,
             &feature_level_out, &d3d11_device_context))) {
       *adapter_index = i;
       return;

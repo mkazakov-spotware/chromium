@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 
 namespace updater {
 
-NSXPCInterface* GetXPCUpdateServicingInterface() {
+NSXPCInterface* GetXPCUpdateCheckingInterface() {
   NSXPCInterface* updateCheckingInterface =
-      [NSXPCInterface interfaceWithProtocol:@protocol(CRUUpdateServicing)];
+      [NSXPCInterface interfaceWithProtocol:@protocol(CRUUpdateChecking)];
   NSXPCInterface* updateStateObservingInterface =
       [NSXPCInterface interfaceWithProtocol:@protocol(CRUUpdateStateObserving)];
 
@@ -22,27 +22,16 @@ NSXPCInterface* GetXPCUpdateServicingInterface() {
 
   [updateCheckingInterface
        setInterface:updateStateObservingInterface
-        forSelector:@selector
-        (checkForUpdateWithAppId:
-                installDataIndex:priority:policySameVersionUpdate:updateState
-                                :reply:)
-      argumentIndex:4
+        forSelector:@selector(checkForUpdateWithAppID:
+                                             priority:updateState:reply:)
+      argumentIndex:2
             ofReply:NO];
 
-  [updateCheckingInterface
-       setInterface:updateStateObservingInterface
-        forSelector:@selector
-        (runInstallerWithAppId:
-                 installerPath:installArgs:installData:installSettings
-                              :updateState:reply:)
-      argumentIndex:5
-            ofReply:NO];
   return updateCheckingInterface;
 }
 
-NSXPCInterface* GetXPCUpdateServicingInternalInterface() {
-  return [NSXPCInterface
-      interfaceWithProtocol:@protocol(CRUUpdateServicingInternal)];
+NSXPCInterface* GetXPCControllingInterface() {
+  return [NSXPCInterface interfaceWithProtocol:@protocol(CRUControlling)];
 }
 
 }  // namespace updater

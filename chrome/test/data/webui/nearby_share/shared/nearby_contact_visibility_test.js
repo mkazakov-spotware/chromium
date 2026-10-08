@@ -1,43 +1,36 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://nearby/strings.m.js';
-
-import {setContactManagerForTesting} from 'chrome://nearby/shared/nearby_contact_manager.js';
-import {NearbyContactVisibilityElement} from 'chrome://nearby/shared/nearby_contact_visibility.js';
-import {setNearbyShareSettingsForTesting} from 'chrome://nearby/shared/nearby_share_settings.js';
-import {waitAfterNextRender} from 'chrome://webui-test/polymer_test_util.js';
-
-import {assertEquals, assertFalse, assertTrue} from '../../chromeos/chai_assert.js';
-import {isChildVisible} from '../../chromeos/test_util.js';
-
-import {FakeContactManager} from './fake_nearby_contact_manager.js';
-import {FakeNearbyShareSettings} from './fake_nearby_share_settings.js';
+// clang-format off
+// #import 'chrome://nearby/shared/nearby_contact_visibility.m.js';
+// #import {setContactManagerForTesting} from 'chrome://nearby/shared/nearby_contact_manager.m.js';
+// #import {setNearbyShareSettingsForTesting} from 'chrome://nearby/shared/nearby_share_settings.m.js';
+// #import {FakeContactManager} from './fake_nearby_contact_manager.m.js';
+// #import {FakeNearbyShareSettings} from './fake_nearby_share_settings.m.js';
+// #import {assertEquals, assertTrue, assertFalse} from '../../chai_assert.js';
+// #import {waitAfterNextRender, isChildVisible} from '../../test_util.m.js';
+// clang-format on
 
 suite('nearby-contact-visibility', () => {
   /** @type {!NearbyContactVisibilityElement} */
   let visibilityElement;
-  /** @type {!FakeContactManager} */
-  const fakeContactManager = new FakeContactManager();
+  /** @type {!nearby_share.FakeContactManager} */
+  const fakeContactManager = new nearby_share.FakeContactManager();
 
   setup(function() {
     document.body.innerHTML = '';
 
-    setContactManagerForTesting(fakeContactManager);
+    nearby_share.setContactManagerForTesting(fakeContactManager);
 
     visibilityElement = /** @type {!NearbyContactVisibilityElement} */ (
         document.createElement('nearby-contact-visibility'));
 
     visibilityElement.settings = {
       enabled: false,
-      fastInitiationNotificationState:
-          nearbyShare.mojom.FastInitiationNotificationState.kEnabled,
-      isFastInitiationHardwareSupported: true,
       deviceName: 'deviceName',
       dataUsage: nearbyShare.mojom.DataUsage.kOnline,
       visibility: nearbyShare.mojom.Visibility.kUnknown,
-      isOnboardingComplete: false,
       allowedContacts: [],
     };
 
@@ -53,35 +46,39 @@ suite('nearby-contact-visibility', () => {
    * @return {boolean} true when zero state elements are visible
    */
   function isNoContactsSectionVisible() {
-    return isChildVisible(visibilityElement, '#noContactsContainer', false);
+    return test_util.isChildVisible(
+        visibilityElement, '#noContactsContainer', false);
   }
 
   /**
    * @return {boolean} true when zero state elements are visible
    */
   function isZeroStateVisible() {
-    return isChildVisible(visibilityElement, '#zeroStateContainer', false);
+    return test_util.isChildVisible(
+        visibilityElement, '#zeroStateContainer', false);
   }
 
   /**
    * @return {boolean} true when failed download stat is visible
    */
   function isDownloadContactsFailedVisible() {
-    return isChildVisible(visibilityElement, '#contactsFailed', false);
+    return test_util.isChildVisible(
+        visibilityElement, '#contactsFailed', false);
   }
 
   /**
    * @return {boolean} true when pending contacts state is visible
    */
   function isDownloadContactsPendingVisible() {
-    return isChildVisible(visibilityElement, '#contactsPending', false);
+    return test_util.isChildVisible(
+        visibilityElement, '#contactsPending', false);
   }
 
   /**
    * @return {boolean} true when the checkboxes for contacts are visible
    */
   function areContactCheckBoxesVisible() {
-    const list = visibilityElement.shadowRoot.querySelector('#contactList');
+    const list = visibilityElement.$$('#contactList');
     if (!list) {
       return false;
     }
@@ -92,15 +89,7 @@ suite('nearby-contact-visibility', () => {
    * @return {boolean} true when visibility selection radio group is disabled
    */
   function isRadioGroupDisabled() {
-    return visibilityElement.shadowRoot.querySelector('#visibilityRadioGroup')
-        .disabled;
-  }
-
-  /**
-   * @return {boolean} true when the unreachable contacts message is visibile
-   */
-  function isUnreachableMessageVisible() {
-    return isChildVisible(visibilityElement, '#unreachableMessage', false);
+    return visibilityElement.$$('#visibilityRadioGroup').disabled;
   }
 
   /**
@@ -110,14 +99,9 @@ suite('nearby-contact-visibility', () => {
    * @param {boolean} no is noContacts check?
    */
   function assertToggleState(all, some, no) {
-    assertEquals(
-        all,
-        visibilityElement.shadowRoot.querySelector('#allContacts').checked);
-    assertEquals(
-        some,
-        visibilityElement.shadowRoot.querySelector('#someContacts').checked);
-    assertEquals(
-        no, visibilityElement.shadowRoot.querySelector('#noContacts').checked);
+    assertEquals(all, visibilityElement.$$('#allContacts').checked);
+    assertEquals(some, visibilityElement.$$('#someContacts').checked);
+    assertEquals(no, visibilityElement.$$('#noContacts').checked);
   }
 
 
@@ -126,7 +110,7 @@ suite('nearby-contact-visibility', () => {
     fakeContactManager.failDownload();
     visibilityElement.set(
         'settings.visibility', nearbyShare.mojom.Visibility.kSelectedContacts);
-    await waitAfterNextRender(visibilityElement);
+    await test_util.waitAfterNextRender(visibilityElement);
 
     assertToggleState(/*all=*/ false, /*some=*/ true, /*no=*/ false);
     assertFalse(isZeroStateVisible());
@@ -135,47 +119,46 @@ suite('nearby-contact-visibility', () => {
     assertFalse(isDownloadContactsPendingVisible());
 
     // If we click retry, we should go into pending state.
-    visibilityElement.shadowRoot.querySelector('#tryAgainLink').click();
-    await waitAfterNextRender(visibilityElement);
+    visibilityElement.$$('#tryAgainLink').click();
+    await test_util.waitAfterNextRender(visibilityElement);
 
     assertFalse(isDownloadContactsFailedVisible());
     assertTrue(isDownloadContactsPendingVisible());
 
     // If we succeed the download we should see results in the list.
     succeedContactDownload();
-    await waitAfterNextRender(visibilityElement);
+    await test_util.waitAfterNextRender(visibilityElement);
 
     assertFalse(isDownloadContactsFailedVisible());
     assertFalse(isDownloadContactsPendingVisible());
     assertTrue(areContactCheckBoxesVisible());
-    const items = visibilityElement.shadowRoot.querySelector('#contactList')
-                      .querySelectorAll('.contact-item');
-    assertEquals(fakeContactManager.contactRecords.length, items.length);
+    const list = visibilityElement.$$('#contactList');
+    assertEquals(fakeContactManager.contactRecords.length, list.items.length);
   });
 
   test('Radio group disabled until successful download', async function() {
     // Radio group disabled after download failure
     fakeContactManager.failDownload();
-    await waitAfterNextRender(visibilityElement);
+    await test_util.waitAfterNextRender(visibilityElement);
     assertTrue(isDownloadContactsFailedVisible());
     assertTrue(isRadioGroupDisabled());
 
     // Radio group disabled while downloading
-    visibilityElement.shadowRoot.querySelector('#tryAgainLink').click();
-    await waitAfterNextRender(visibilityElement);
+    visibilityElement.$$('#tryAgainLink').click();
+    await test_util.waitAfterNextRender(visibilityElement);
     assertTrue(isDownloadContactsPendingVisible());
     assertTrue(isRadioGroupDisabled());
 
     // Radio group enabled after successful download
     succeedContactDownload();
-    await waitAfterNextRender(visibilityElement);
+    await test_util.waitAfterNextRender(visibilityElement);
     assertFalse(isRadioGroupDisabled());
   });
 
   test('Visibility component shows zero state for kUnknown', async function() {
     succeedContactDownload();
     // need to wait for the next render to see if the zero
-    await waitAfterNextRender(visibilityElement);
+    await test_util.waitAfterNextRender(visibilityElement);
 
     assertToggleState(/*all=*/ false, /*some=*/ false, /*no=*/ false);
     assertTrue(isZeroStateVisible());
@@ -190,7 +173,7 @@ suite('nearby-contact-visibility', () => {
             'settings.visibility', nearbyShare.mojom.Visibility.kAllContacts);
 
         // need to wait for the next render to see results
-        await waitAfterNextRender(visibilityElement);
+        await test_util.waitAfterNextRender(visibilityElement);
 
         assertToggleState(/*all=*/ true, /*some=*/ false, /*no=*/ false);
         assertFalse(isZeroStateVisible());
@@ -207,7 +190,7 @@ suite('nearby-contact-visibility', () => {
             nearbyShare.mojom.Visibility.kSelectedContacts);
 
         // need to wait for the next render to see results
-        await waitAfterNextRender(visibilityElement);
+        await test_util.waitAfterNextRender(visibilityElement);
 
         assertToggleState(/*all=*/ false, /*some=*/ true, /*no=*/ false);
         assertFalse(isZeroStateVisible());
@@ -220,7 +203,7 @@ suite('nearby-contact-visibility', () => {
         'settings.visibility', nearbyShare.mojom.Visibility.kNoOne);
     succeedContactDownload();
     // need to wait for the next render to see results
-    await waitAfterNextRender(visibilityElement);
+    await test_util.waitAfterNextRender(visibilityElement);
 
     assertToggleState(/*all=*/ false, /*some=*/ false, /*no=*/ true);
     assertFalse(isZeroStateVisible());
@@ -238,95 +221,11 @@ suite('nearby-contact-visibility', () => {
         visibilityElement.set('contacts', []);
 
         // need to wait for the next render to see results
-        await waitAfterNextRender(visibilityElement);
+        await test_util.waitAfterNextRender(visibilityElement);
 
         assertToggleState(/*all=*/ true, /*some=*/ false, /*no=*/ false);
         assertFalse(isZeroStateVisible());
         assertFalse(areContactCheckBoxesVisible());
         assertTrue(isNoContactsSectionVisible());
-      });
-
-  test(
-      'Unreachable message appears for 1 unreachable contact',
-      async function() {
-        fakeContactManager.setupContactRecords();
-        fakeContactManager.setNumUnreachable(1);
-        fakeContactManager.completeDownload();
-        visibilityElement.set(
-            'settings.visibility', nearbyShare.mojom.Visibility.kAllContacts);
-
-        // need to wait for the next render to see results
-        await waitAfterNextRender(visibilityElement);
-
-        assertTrue(isUnreachableMessageVisible());
-      });
-
-  test(
-      'Unreachable message appears for more than 1 unreachable contact',
-      async function() {
-        fakeContactManager.setupContactRecords();
-        fakeContactManager.setNumUnreachable(3);
-        fakeContactManager.completeDownload();
-        visibilityElement.set(
-            'settings.visibility', nearbyShare.mojom.Visibility.kAllContacts);
-
-        // need to wait for the next render to see results
-        await waitAfterNextRender(visibilityElement);
-
-        assertTrue(isUnreachableMessageVisible());
-      });
-
-  test(
-      'Unreachable message hidden for 0 unreachable contacts',
-      async function() {
-        fakeContactManager.setupContactRecords();
-        fakeContactManager.setNumUnreachable(0);
-        fakeContactManager.completeDownload();
-        visibilityElement.set(
-            'settings.visibility', nearbyShare.mojom.Visibility.kAllContacts);
-
-        // need to wait for the next render to see results
-        await waitAfterNextRender(visibilityElement);
-
-        assertFalse(isUnreachableMessageVisible());
-      });
-
-  test(
-      'Save persists visibility setting and allowed contacts',
-      async function() {
-        fakeContactManager.setupContactRecords();
-        fakeContactManager.setNumUnreachable(0);
-        fakeContactManager.completeDownload();
-        visibilityElement.set(
-            'settings.visibility', nearbyShare.mojom.Visibility.kAllContacts);
-        await waitAfterNextRender(visibilityElement);
-
-        // visibility setting is not immediately updated
-        visibilityElement.shadowRoot.querySelector('#someContacts').click();
-        await waitAfterNextRender(visibilityElement);
-        assertTrue(areContactCheckBoxesVisible());
-        assertEquals(
-            visibilityElement.get('settings.visibility'),
-            nearbyShare.mojom.Visibility.kAllContacts);
-
-        // allow only contact 2, check that allowed contacts are not yet pushed
-        // to the contact manager
-        fakeContactManager.setAllowedContacts(['1']);
-        for (let i = 0; i < visibilityElement.contacts.length; ++i) {
-          visibilityElement.set(
-              ['contacts', i, 'checked'],
-              visibilityElement.contacts[i].id === '2');
-        }
-        await waitAfterNextRender(visibilityElement);
-        assertEquals(fakeContactManager.allowedContacts.length, 1);
-        assertEquals(fakeContactManager.allowedContacts[0], '1');
-
-        // after save, ui state is persisted
-        visibilityElement.saveVisibilityAndAllowedContacts();
-        assertEquals(
-            visibilityElement.get('settings.visibility'),
-            nearbyShare.mojom.Visibility.kSelectedContacts);
-        assertEquals(fakeContactManager.allowedContacts.length, 1);
-        assertEquals(fakeContactManager.allowedContacts[0], '2');
       });
 });

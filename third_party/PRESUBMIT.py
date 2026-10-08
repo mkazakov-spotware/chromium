@@ -1,14 +1,10 @@
-# Copyright 2011 The Chromium Authors
+# Copyright (c) 2011 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import os
 
-USE_PYTHON3 = True
-
-PRESUBMIT_VERSION = '2.0.0'
-
-ANDROID_ALLOWED_LICENSES = [
+ANDROID_WHITELISTED_LICENSES = [
   'A(pple )?PSL 2(\.0)?',
   'Android Software Development Kit License',
   'Apache( License)?,?( Version)? 2(\.0)?',
@@ -22,16 +18,14 @@ ANDROID_ALLOWED_LICENSES = [
   'Microsoft Permissive License',
   'Public Domain',
   'Python',
-  'SIL Open Font License, Version 1.1',
   'SGI Free Software License B',
-  'Unicode, Inc. License',
   'University of Illinois\/NCSA Open Source',
   'X11',
   'Zlib',
 ]
 
 def LicenseIsCompatibleWithAndroid(input_api, license):
-  regex = '^(%s)$' % '|'.join(ANDROID_ALLOWED_LICENSES)
+  regex = '^(%s)$' % '|'.join(ANDROID_WHITELISTED_LICENSES)
   tokens = \
     [x.strip() for x in input_api.re.split(' and |,', license) if len(x) > 0]
   has_compatible_license = False
@@ -41,7 +35,7 @@ def LicenseIsCompatibleWithAndroid(input_api, license):
       break
   return has_compatible_license
 
-def CheckThirdPartyReadmesUpdated(input_api, output_api):
+def _CheckThirdPartyReadmesUpdated(input_api, output_api):
   """
   Checks to make sure that README.chromium files are properly updated
   when dependencies in third_party are modified.
@@ -67,11 +61,7 @@ def CheckThirdPartyReadmesUpdated(input_api, output_api):
         not local_path.startswith('third_party' + input_api.os_path.sep +
                                   'feed_library' + input_api.os_path.sep) and
         not local_path.startswith('third_party' + input_api.os_path.sep +
-                                  'ipcz' + input_api.os_path.sep) and
-        # TODO(danakj): We should look for the README.chromium file in
-        # third_party/rust/CRATE_NAME/vVERSION/.
-        not local_path.startswith('third_party' + input_api.os_path.sep +
-                                  'rust' + input_api.os_path.sep) and
+                                  'mojo' + input_api.os_path.sep) and
         not local_path.startswith('third_party' + input_api.os_path.sep +
                                   'webxr_test_pages' + input_api.os_path.sep)):
       files.append(f)
@@ -92,7 +82,7 @@ def CheckThirdPartyReadmesUpdated(input_api, output_api):
     r'^Short Name: [a-zA-Z0-9_\-\.]+\r?$',
     input_api.re.IGNORECASE | input_api.re.MULTILINE)
   version_pattern = input_api.re.compile(
-    r'^Version: [a-zA-Z0-9_\-\+\.:/]+\r?$',
+    r'^Version: [a-zA-Z0-9_\-\+\.:]+\r?$',
     input_api.re.IGNORECASE | input_api.re.MULTILINE)
   release_pattern = input_api.re.compile(
     r'^Security Critical: (yes|no)\r?$',
@@ -163,3 +153,9 @@ def _IgnoreIfDeleting(input_api, output_api, affected_file, errors):
         errors.append(output_api.PresubmitError(
           'Third party README should only be removed when the whole\n'
           'directory is being removed.\n', [f, affected_file]))
+
+
+def CheckChangeOnUpload(input_api, output_api):
+  results = []
+  results.extend(_CheckThirdPartyReadmesUpdated(input_api, output_api))
+  return results

@@ -1,19 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/media/unified_media_controls_detailed_view_controller.h"
 
-#include <memory>
-
+#include "ash/public/cpp/media_notification_provider.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/style/ash_color_provider.h"
-#include "ash/system/media/media_notification_provider.h"
 #include "ash/system/media/unified_media_controls_detailed_view.h"
 #include "ash/system/tray/detailed_view_delegate.h"
 #include "ash/system/tray/tray_constants.h"
 #include "base/metrics/histogram_functions.h"
-#include "components/media_message_center/notification_theme.h"
+#include "components/media_message_center/media_notification_view_impl.h"
 #include "ui/base/l10n/l10n_util.h"
 
 namespace ash {
@@ -36,8 +34,7 @@ UnifiedMediaControlsDetailedViewController::
   MediaNotificationProvider::Get()->OnBubbleClosing();
 }
 
-std::unique_ptr<views::View>
-UnifiedMediaControlsDetailedViewController::CreateView() {
+views::View* UnifiedMediaControlsDetailedViewController::CreateView() {
   DCHECK(MediaNotificationProvider::Get());
 
   media_message_center::NotificationTheme theme;
@@ -58,13 +55,13 @@ UnifiedMediaControlsDetailedViewController::CreateView() {
       detailed_view_has_shown_);
   detailed_view_has_shown_ = true;
 
-  return std::make_unique<UnifiedMediaControlsDetailedView>(
+  return new UnifiedMediaControlsDetailedView(
       detailed_view_delegate_.get(),
       MediaNotificationProvider::Get()->GetMediaNotificationListView(
           kMenuSeparatorWidth));
 }
 
-std::u16string UnifiedMediaControlsDetailedViewController::GetAccessibleName()
+base::string16 UnifiedMediaControlsDetailedViewController::GetAccessibleName()
     const {
   return l10n_util::GetStringUTF16(
       IDS_ASH_QUICK_SETTINGS_BUBBLE_MEDIA_CONTROLS_SUB_MENU_ACCESSIBLE_DESCRIPTION);

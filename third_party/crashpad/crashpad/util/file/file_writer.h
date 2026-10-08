@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "base/files/file_path.h"
-#include "build/build_config.h"
+#include "base/macros.h"
 #include "util/file/file_io.h"
 #include "util/file/file_seeker.h"
 
@@ -82,10 +82,6 @@ class FileWriterInterface : public virtual FileSeekerInterface {
 class WeakFileHandleFileWriter : public FileWriterInterface {
  public:
   explicit WeakFileHandleFileWriter(FileHandle file_handle);
-
-  WeakFileHandleFileWriter(const WeakFileHandleFileWriter&) = delete;
-  WeakFileHandleFileWriter& operator=(const WeakFileHandleFileWriter&) = delete;
-
   ~WeakFileHandleFileWriter() override;
 
   // FileWriterInterface:
@@ -111,6 +107,8 @@ class WeakFileHandleFileWriter : public FileWriterInterface {
   // construction because no file descriptor will be available until
   // FileWriter::Open() is called.
   friend class FileWriter;
+
+  DISALLOW_COPY_AND_ASSIGN(WeakFileHandleFileWriter);
 };
 
 //! \brief A file writer implementation that wraps traditional system file
@@ -118,10 +116,6 @@ class WeakFileHandleFileWriter : public FileWriterInterface {
 class FileWriter : public FileWriterInterface {
  public:
   FileWriter();
-
-  FileWriter(const FileWriter&) = delete;
-  FileWriter& operator=(const FileWriter&) = delete;
-
   ~FileWriter() override;
 
   // FileWriterInterface:
@@ -137,7 +131,7 @@ class FileWriter : public FileWriterInterface {
             FileWriteMode write_mode,
             FilePermissions permissions);
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   //! \brief Wraps LoggingOpenMemoryFileForWrite().
   //!
   //! \return `true` if the operation succeeded, `false` if it failed, with an
@@ -185,6 +179,8 @@ class FileWriter : public FileWriterInterface {
  private:
   ScopedFileHandle file_;
   WeakFileHandleFileWriter weak_file_handle_file_writer_;
+
+  DISALLOW_COPY_AND_ASSIGN(FileWriter);
 };
 
 }  // namespace crashpad

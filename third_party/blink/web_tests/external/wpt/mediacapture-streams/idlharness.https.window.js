@@ -8,7 +8,7 @@
 
 idl_test(
   ['mediacapture-streams'],
-  ['webidl', 'dom', 'html'],
+  ['dom', 'html'],
   async idl_array => {
     const inputDevices = [];
     const outputDevices = [];
@@ -44,7 +44,6 @@ idl_test(
       MediaDeviceInfo: outputDevices,
       MediaStreamTrack: ['track'],
       MediaStreamTrackEvent: ['trackEvent'],
-      OverconstrainedError: ['new OverconstrainedError("constraint")'],
     });
   }
 );

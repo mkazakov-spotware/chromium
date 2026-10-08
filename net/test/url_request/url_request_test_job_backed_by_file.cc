@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,8 +24,9 @@
 #include "base/compiler_specific.h"
 #include "base/files/file_util.h"
 #include "base/strings/string_util.h"
+#include "base/strings/stringprintf.h"
 #include "base/synchronization/lock.h"
-#include "base/task/task_runner.h"
+#include "base/task_runner.h"
 #include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
 #include "net/base/file_stream.h"
@@ -39,13 +40,17 @@
 #include "net/url_request/url_request_error_job.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/shortcut.h"
 #endif
 
 namespace net {
 
-URLRequestTestJobBackedByFile::FileMetaInfo::FileMetaInfo() = default;
+URLRequestTestJobBackedByFile::FileMetaInfo::FileMetaInfo()
+    : file_size(0),
+      mime_type_result(false),
+      file_exists(false),
+      is_directory(false) {}
 
 URLRequestTestJobBackedByFile::URLRequestTestJobBackedByFile(
     URLRequest* request,
@@ -53,15 +58,19 @@ URLRequestTestJobBackedByFile::URLRequestTestJobBackedByFile(
     const scoped_refptr<base::TaskRunner>& file_task_runner)
     : URLRequestJob(request),
       file_path_(file_path),
-      stream_(std::make_unique<FileStream>(file_task_runner)),
-      file_task_runner_(file_task_runner) {}
+      stream_(new FileStream(file_task_runner)),
+      file_task_runner_(file_task_runner),
+      remaining_bytes_(0),
+      range_parse_result_(OK) {}
 
 void URLRequestTestJobBackedByFile::Start() {
-  file_task_runner_->PostTaskAndReplyWithResult(
+  FileMetaInfo* meta_info = new FileMetaInfo();
+  file_task_runner_->PostTaskAndReply(
       FROM_HERE,
-      base::BindOnce(&URLRequestTestJobBackedByFile::FetchMetaInfo, file_path_),
+      base::BindOnce(&URLRequestTestJobBackedByFile::FetchMetaInfo, file_path_,
+                     base::Unretained(meta_info)),
       base::BindOnce(&URLRequestTestJobBackedByFile::DidFetchMetaInfo,
-                     weak_ptr_factory_.GetWeakPtr()));
+                     weak_ptr_factory_.GetWeakPtr(), base::Owned(meta_info)));
 }
 
 void URLRequestTestJobBackedByFile::Kill() {
@@ -148,15 +157,15 @@ URLRequestTestJobBackedByFile::~URLRequestTestJobBackedByFile() = default;
 std::unique_ptr<SourceStream>
 URLRequestTestJobBackedByFile::SetUpSourceStream() {
   std::unique_ptr<SourceStream> source = URLRequestJob::SetUpSourceStream();
-  if (!base::EqualsCaseInsensitiveASCII(file_path_.Extension(), ".svgz"))
+  if (!base::LowerCaseEqualsASCII(file_path_.Extension(), ".svgz"))
     return source;
 
   return GzipSourceStream::Create(std::move(source), SourceStream::TYPE_GZIP);
 }
 
-std::unique_ptr<URLRequestTestJobBackedByFile::FileMetaInfo>
-URLRequestTestJobBackedByFile::FetchMetaInfo(const base::FilePath& file_path) {
-  auto meta_info = std::make_unique<FileMetaInfo>();
+void URLRequestTestJobBackedByFile::FetchMetaInfo(
+    const base::FilePath& file_path,
+    FileMetaInfo* meta_info) {
   base::File::Info file_info;
   meta_info->file_exists = base::GetFileInfo(file_path, &file_info);
   if (meta_info->file_exists) {
@@ -168,11 +177,10 @@ URLRequestTestJobBackedByFile::FetchMetaInfo(const base::FilePath& file_path) {
   meta_info->mime_type_result =
       GetMimeTypeFromFile(file_path, &meta_info->mime_type);
   meta_info->absolute_path = base::MakeAbsoluteFilePath(file_path);
-  return meta_info;
 }
 
 void URLRequestTestJobBackedByFile::DidFetchMetaInfo(
-    std::unique_ptr<FileMetaInfo> meta_info) {
+    const FileMetaInfo* meta_info) {
   meta_info_ = *meta_info;
 
   if (!meta_info_.file_exists) {

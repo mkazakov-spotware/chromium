@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/bind.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "remoting/android/jni_headers/NotificationPresenter_jni.h"
 #include "remoting/client/chromoting_client_runtime.h"
 #include "remoting/client/notification/notification_message.h"
@@ -22,7 +22,7 @@ JniNotificationPresenter::JniNotificationPresenter(
     : java_presenter_(java_presenter),
       notification_client_(
           ChromotingClientRuntime::GetInstance()->network_task_runner()),
-      sequence_(base::SequencedTaskRunner::GetCurrentDefault()) {}
+      sequence_(base::SequencedTaskRunnerHandle::Get()) {}
 
 JniNotificationPresenter::~JniNotificationPresenter() {
   DCHECK(sequence_->RunsTasksInCurrentSequence());
@@ -49,7 +49,7 @@ void JniNotificationPresenter::Destroy(JNIEnv* env) {
 }
 
 void JniNotificationPresenter::OnNotificationFetched(
-    absl::optional<NotificationMessage> notification) {
+    base::Optional<NotificationMessage> notification) {
   DCHECK(sequence_->RunsTasksInCurrentSequence());
   JNIEnv* env = base::android::AttachCurrentThread();
   auto java_presenter = java_presenter_.get(env);

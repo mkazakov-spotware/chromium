@@ -24,7 +24,7 @@
 
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/named_node_map.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -32,13 +32,17 @@ DocumentType::DocumentType(Document* document,
                            const String& name,
                            const String& public_id,
                            const String& system_id)
-    : Node(document, kCreateDocumentType),
+    : Node(document, kCreateOther),
       name_(name),
       public_id_(public_id),
       system_id_(system_id) {}
 
 String DocumentType::nodeName() const {
   return name();
+}
+
+Node::NodeType DocumentType::getNodeType() const {
+  return kDocumentTypeNode;
 }
 
 Node* DocumentType::Clone(Document& factory, CloneChildrenFlag) const {

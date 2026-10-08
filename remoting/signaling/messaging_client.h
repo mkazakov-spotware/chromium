@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,19 +24,28 @@ class MessagingClient {
       base::RepeatingCallback<void(const ftl::Id& sender_id,
                                    const std::string& sender_registration_id,
                                    const ftl::ChromotingMessage& message)>;
-  using MessageCallbackList = base::RepeatingCallbackList<
+  using MessageCallbackList = base::CallbackList<
       void(const ftl::Id&, const std::string&, const ftl::ChromotingMessage&)>;
+  using MessageCallbackSubscription = MessageCallbackList::Subscription;
   using DoneCallback =
       base::OnceCallback<void(const ProtobufHttpStatus& status)>;
 
   virtual ~MessagingClient() = default;
 
-  // Registers a callback which is run for each new message received. Simply
-  // delete the returned subscription object to unregister. The subscription
-  // object must be deleted before |this| is deleted.
-  virtual base::CallbackListSubscription RegisterMessageCallback(
+  // Registers a callback which is run for each new message received.
+  // Simply delete the returned subscription object to unregister. The
+  // subscription object must be deleted before |this| is deleted.
+  virtual std::unique_ptr<MessageCallbackSubscription> RegisterMessageCallback(
       const MessageCallback& callback) = 0;
 
+  // Retrieves messages from the user's inbox over slow path and calls the
+  // registered MessageCallback on every received message.
+  // |on_done| is called once the messages have been received and acked on the
+  // server's inbox.
+  // TODO(yuweih): PullMessages is not being used in production. Remove this and
+  // update unit tests to verify things with ReceiveMessages instead of
+  // PullMessages.
+  virtual void PullMessages(DoneCallback on_done) = 0;
   virtual void SendMessage(const std::string& destination,
                            const std::string& destination_registration_id,
                            const ftl::ChromotingMessage& message,

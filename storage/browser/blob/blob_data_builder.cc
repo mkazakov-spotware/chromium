@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 
 #include "base/files/file.h"
 #include "base/memory/ptr_util.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/numerics/safe_math.h"
 #include "base/strings/string_number_conversions.h"
@@ -142,6 +143,7 @@ BlobDataBuilder::FutureFile BlobDataBuilder::AppendFutureFile(
   total_size_ += length;
   transport_quota_needed_ += length;
   found_file_transport_ = true;
+  UMA_HISTOGRAM_BOOLEAN("Storage.BlobItemSize.File.Unknown", false);
 
   return FutureFile(std::move(item));
 }
@@ -160,6 +162,8 @@ void BlobDataBuilder::AppendFile(const FilePath& file_path,
   items_.push_back(std::move(shareable_item));
 
   total_size_ += length;
+  bool unknown_size = length == blink::BlobUtils::kUnknownSize;
+  UMA_HISTOGRAM_BOOLEAN("Storage.BlobItemSize.File.Unknown", unknown_size);
 }
 
 void BlobDataBuilder::AppendBlob(const std::string& uuid,
@@ -245,6 +249,7 @@ void BlobDataBuilder::SliceBlob(const BlobEntry* source,
     total_sliced += read_size;
 
     bool reusing_blob_item = (read_size == source_length);
+    UMA_HISTOGRAM_BOOLEAN("Storage.Blob.ReusedItem", reusing_blob_item);
     if (reusing_blob_item) {
       // We can share the entire item.
       items_.push_back(source_items[item_index]);

@@ -29,10 +29,11 @@
 #include "third_party/blink/public/common/page/drag_operation.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/page/drag_actions.h"
-#include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
+#include "third_party/blink/renderer/platform/geometry/float_point.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
+#include "third_party/blink/renderer/platform/wtf/hash_map.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
-#include "ui/gfx/geometry/point_f.h"
 
 namespace blink {
 
@@ -49,13 +50,13 @@ class CORE_EXPORT DragData {
   // clientPosition is taken to be the position of the drag event within the
   // target window, with (0,0) at the top left.
   DragData(DataObject*,
-           const gfx::PointF& client_position,
-           const gfx::PointF& global_position,
-           DragOperationsMask);
-  const gfx::PointF& ClientPosition() const { return client_position_; }
-  const gfx::PointF& GlobalPosition() const { return global_position_; }
+           const FloatPoint& client_position,
+           const FloatPoint& global_position,
+           DragOperation);
+  const FloatPoint& ClientPosition() const { return client_position_; }
+  const FloatPoint& GlobalPosition() const { return global_position_; }
   DataObject* PlatformData() const { return platform_drag_data_; }
-  DragOperationsMask DraggingSourceOperationMask() const {
+  DragOperation DraggingSourceOperationMask() const {
     return dragging_source_operation_mask_;
   }
   bool ContainsURL(
@@ -75,14 +76,14 @@ class CORE_EXPORT DragData {
   String DroppedFileSystemId() const;
 
  private:
-  const gfx::PointF client_position_;
-  const gfx::PointF global_position_;
+  const FloatPoint client_position_;
+  const FloatPoint global_position_;
   DataObject* const platform_drag_data_;
-  const DragOperationsMask dragging_source_operation_mask_;
+  const DragOperation dragging_source_operation_mask_;
 
   bool ContainsHTML() const;
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_PAGE_DRAG_DATA_H_
+#endif  // !DragData_h

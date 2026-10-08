@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,6 @@ import org.chromium.blink.mojom.DocumentMetadata;
 import org.chromium.blink.mojom.WebPage;
 import org.chromium.chrome.browser.historyreport.AppIndexingReporter;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.url.JUnitTestGURLs;
 import org.chromium.url.mojom.Url;
 
 /**
@@ -52,20 +51,20 @@ public class AppIndexingUtilTest {
         doReturn(true).when(mUtil).isEnabledForDevice();
         doReturn(false).when(mTab).isIncognito();
 
-        doReturn(JUnitTestGURLs.getGURL(JUnitTestGURLs.EXAMPLE_URL)).when(mTab).getUrl();
+        doReturn("http://www.test.com").when(mTab).getUrlString();
         doReturn("My neat website").when(mTab).getTitle();
         doReturn(0L).when(mUtil).getElapsedTime();
         doAnswer(invocation -> {
-            DocumentMetadata.GetEntities_Response callback =
-                    (DocumentMetadata.GetEntities_Response) invocation.getArguments()[0];
+            DocumentMetadata.GetEntitiesResponse callback =
+                    (DocumentMetadata.GetEntitiesResponse) invocation.getArguments()[0];
             WebPage webpage = new WebPage();
-            webpage.url = createUrl(JUnitTestGURLs.EXAMPLE_URL);
+            webpage.url = createUrl("http://www.test.com");
             webpage.title = "My neat website";
             callback.call(webpage);
             return null;
         })
                 .when(mDocumentMetadata)
-                .getEntities(any(DocumentMetadata.GetEntities_Response.class));
+                .getEntities(any(DocumentMetadata.GetEntitiesResponse.class));
     }
 
     @Test
@@ -80,14 +79,14 @@ public class AppIndexingUtilTest {
     @Test
     public void testExtractDocumentMetadata_NoCacheHit() {
         mUtil.extractDocumentMetadata(mTab);
-        verify(mDocumentMetadata).getEntities(any(DocumentMetadata.GetEntities_Response.class));
+        verify(mDocumentMetadata).getEntities(any(DocumentMetadata.GetEntitiesResponse.class));
         verify(mReporter).reportWebPage(any(WebPage.class));
     }
 
     @Test
     public void testExtractDocumentMetadata_CacheHit() {
         mUtil.extractDocumentMetadata(mTab);
-        verify(mDocumentMetadata).getEntities(any(DocumentMetadata.GetEntities_Response.class));
+        verify(mDocumentMetadata).getEntities(any(DocumentMetadata.GetEntitiesResponse.class));
         verify(mDocumentMetadata).close();
         verify(mReporter).reportWebPage(any(WebPage.class));
 
@@ -104,25 +103,25 @@ public class AppIndexingUtilTest {
         doReturn(60 * 60 * 1000L + 1).when(mUtil).getElapsedTime();
         mUtil.extractDocumentMetadata(mTab);
         verify(mDocumentMetadata, times(2))
-                .getEntities(any(DocumentMetadata.GetEntities_Response.class));
+                .getEntities(any(DocumentMetadata.GetEntitiesResponse.class));
     }
 
     @Test
     public void testExtractDocumentMetadata_CacheHit_NoEntity() {
         doAnswer(invocation -> {
-            DocumentMetadata.GetEntities_Response callback =
-                    (DocumentMetadata.GetEntities_Response) invocation.getArguments()[0];
+            DocumentMetadata.GetEntitiesResponse callback =
+                    (DocumentMetadata.GetEntitiesResponse) invocation.getArguments()[0];
             callback.call(null);
             return null;
         })
                 .when(mDocumentMetadata)
-                .getEntities(any(DocumentMetadata.GetEntities_Response.class));
+                .getEntities(any(DocumentMetadata.GetEntitiesResponse.class));
         mUtil.extractDocumentMetadata(mTab);
 
         doReturn(1L).when(mUtil).getElapsedTime();
         mUtil.extractDocumentMetadata(mTab);
         verify(mDocumentMetadata, times(1))
-                .getEntities(any(DocumentMetadata.GetEntities_Response.class));
+                .getEntities(any(DocumentMetadata.GetEntitiesResponse.class));
         verifyNoMoreInteractions(mReporter);
     }
 
@@ -137,7 +136,7 @@ public class AppIndexingUtilTest {
     @Test
     public void testReportPageView() {
         mUtil.reportPageView(mTab);
-        verify(mReporter).reportWebPageView(eq(JUnitTestGURLs.EXAMPLE_URL), eq("My neat website"));
+        verify(mReporter).reportWebPageView(eq("http://www.test.com"), eq("My neat website"));
     }
 
     private Url createUrl(String s) {

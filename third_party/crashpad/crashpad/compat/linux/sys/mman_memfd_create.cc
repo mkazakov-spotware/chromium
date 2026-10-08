@@ -1,4 +1,4 @@
-// Copyright 2019 The Crashpad Authors
+// Copyright 2019 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 
 extern "C" {
 
-int memfd_create(const char* name, unsigned int flags) __THROW {
+int memfd_create(const char* name, unsigned int flags) {
   static const crashpad::NoCfiIcall<decltype(memfd_create)*> next_memfd_create(
       dlsym(RTLD_NEXT, "memfd_create"));
   return next_memfd_create ? next_memfd_create(name, flags)

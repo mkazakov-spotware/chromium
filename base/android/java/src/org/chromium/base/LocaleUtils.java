@@ -1,9 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.base;
 
+import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.os.Build;
@@ -14,6 +15,7 @@ import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.annotations.CalledByNative;
+import org.chromium.base.annotations.VerifiesOnN;
 
 import java.util.ArrayList;
 import java.util.Locale;
@@ -37,8 +39,7 @@ public class LocaleUtils {
      */
     public static String getUpdatedLanguageForChromium(String language) {
         // IMPORTANT: Keep in sync with the mapping found in:
-        // build/android/gyp/util/resource_utils.py (Yiddish and Javanese are not possible Android
-        // languages but are possible Chromium languages, they do not need to be kept in sync).
+        // build/android/gyp/util/resource_utils.py
         switch (language) {
             case "iw":
                 return "he"; // Hebrew
@@ -48,8 +49,6 @@ public class LocaleUtils {
                 return "id"; // Indonesian
             case "tl":
                 return "fil"; // Filipino
-            case "jw":
-                return "jv"; // Javanese
             default:
                 return language;
         }
@@ -59,6 +58,7 @@ public class LocaleUtils {
      * @return a locale with updated language codes for Chromium, with translated modern language
      *         codes used by Chromium.
      */
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     @VisibleForTesting
     public static Locale getUpdatedLocaleForChromium(Locale locale) {
         String language = locale.getLanguage();
@@ -92,6 +92,7 @@ public class LocaleUtils {
      * @return a locale with updated language codes for Android, from translated modern language
      *         codes used by Chromium.
      */
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     @VisibleForTesting
     public static Locale getUpdatedLocaleForAndroid(Locale locale) {
         String language = locale.getLanguage();
@@ -166,7 +167,7 @@ public class LocaleUtils {
      * @return a well-formed IETF BCP 47 language tag with language and country code that
      *         represents this locale list.
      */
-    @RequiresApi(Build.VERSION_CODES.N)
+    @TargetApi(Build.VERSION_CODES.N)
     public static String toLanguageTags(LocaleList localeList) {
         ArrayList<String> newLocaleList = new ArrayList<>();
         for (int i = 0; i < localeList.size(); i++) {
@@ -177,25 +178,16 @@ public class LocaleUtils {
     }
 
     /**
-     * Extracts the base language from a BCP 47 language tag.
+     * Extracts language from a language tag.
      * @param languageTag language tag of the form xx-XX or xx.
      * @return the xx part of the language tag.
      */
-    public static String toBaseLanguage(String languageTag) {
+    public static String toLanguage(String languageTag) {
         int pos = languageTag.indexOf('-');
         if (pos < 0) {
             return languageTag;
         }
         return languageTag.substring(0, pos);
-    }
-
-    /**
-     * @param first A BCP 47 formated language tag.
-     * @param second A BCP 47 formated language tag.
-     * @return True if the base language (e.g. "en" for "en-AU") is the same for each tag.
-     */
-    public static boolean isBaseLanguageEqual(String first, String second) {
-        return TextUtils.equals(toBaseLanguage(first), toBaseLanguage(second));
     }
 
     /**
@@ -284,6 +276,7 @@ public class LocaleUtils {
      * Helper class for N only code that is not validated on pre-N devices.
      */
     @RequiresApi(Build.VERSION_CODES.N)
+    @VerifiesOnN
     @VisibleForTesting
     static class ApisN {
         static void setConfigLocales(Context base, Configuration config, String language) {

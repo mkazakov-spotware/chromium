@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/values.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "chrome/test/chromedriver/capabilities.h"
 #include "chrome/test/chromedriver/chrome/devtools_event_listener.h"
 #include "chrome/test/chromedriver/command_listener.h"
@@ -36,11 +36,7 @@ class PerformanceLogger : public DevToolsEventListener, public CommandListener {
   // Creates a |PerformanceLogger| with specific preferences.
   PerformanceLogger(Log* log,
                     const Session* session,
-                    const PerfLoggingPrefs& prefs,
-                    bool enable_service_worker = false);
-
-  PerformanceLogger(const PerformanceLogger&) = delete;
-  PerformanceLogger& operator=(const PerformanceLogger&) = delete;
+                    const PerfLoggingPrefs& prefs);
 
   // PerformanceLogger subscribes to browser-wide |DevToolsClient| for tracing.
   bool subscribes_to_browser() override;
@@ -52,7 +48,7 @@ class PerformanceLogger : public DevToolsEventListener, public CommandListener {
   // Calls HandleInspectorEvents or HandleTraceEvents depending on client type.
   Status OnEvent(DevToolsClient* client,
                  const std::string& method,
-                 const base::Value::Dict& params) override;
+                 const base::DictionaryValue& params) override;
 
   // Before allowed commands, if tracing enabled, calls CollectTraceEvents.
   Status BeforeCommand(const std::string& command_name) override;
@@ -61,11 +57,11 @@ class PerformanceLogger : public DevToolsEventListener, public CommandListener {
   void AddLogEntry(Log::Level level,
                    const std::string& webview,
                    const std::string& method,
-                   const base::Value::Dict& params);
+                   const base::DictionaryValue& params);
 
   void AddLogEntry(const std::string& webview,
                    const std::string& method,
-                   const base::Value::Dict& params);
+                   const base::DictionaryValue& params);
 
   // Enables Network and Page domains according to |PerfLoggingPrefs|.
   Status EnableInspectorDomains(DevToolsClient* client);
@@ -73,25 +69,25 @@ class PerformanceLogger : public DevToolsEventListener, public CommandListener {
   // Logs Network and Page events.
   Status HandleInspectorEvents(DevToolsClient* client,
                                const std::string& method,
-                               const base::Value::Dict& params);
+                               const base::DictionaryValue& params);
 
   // Logs trace events and monitors trace buffer usage.
   Status HandleTraceEvents(DevToolsClient* client,
                            const std::string& method,
-                           const base::Value::Dict& params);
+                           const base::DictionaryValue& params);
 
   bool ShouldReportTracingError();
   Status StartTrace();  // Must not call before browser-wide client connects.
   Status CollectTraceEvents();  // Ditto.
   Status IsTraceDone(bool* trace_done) const; // True if trace is not buffering.
 
-  raw_ptr<Log> log_;  // The log where to create entries.
-  raw_ptr<const Session> session_;
+  Log* log_;  // The log where to create entries.
+  const Session* session_;
   PerfLoggingPrefs prefs_;
-  raw_ptr<DevToolsClient>
-      browser_client_;    // Pointer to browser-wide |DevToolsClient|.
+  DevToolsClient* browser_client_; // Pointer to browser-wide |DevToolsClient|.
   bool trace_buffering_;  // True unless trace stopped and all events received.
-  bool enable_service_worker_;
+
+  DISALLOW_COPY_AND_ASSIGN(PerformanceLogger);
 };
 
 #endif  // CHROME_TEST_CHROMEDRIVER_PERFORMANCE_LOGGER_H_

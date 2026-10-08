@@ -5,7 +5,7 @@
         <script src="video-paint-test.js"></script>
         <script src="media-controls.js"></script>
     </head>
-    <body onload="setVideoSrcAndWaitForFirstFrame('content/test.ogv')">
+    <body onload="setSrcByTagName('video', 'content/test.ogv'); init()">
         <p>Drawing the controls in strict mode.</p>
         <video controls></video>
     </body>

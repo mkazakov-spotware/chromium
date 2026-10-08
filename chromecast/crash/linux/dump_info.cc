@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #include "chromecast/crash/linux/dump_info.h"
@@ -25,7 +25,6 @@ const char kDumpTimeKey[] = "dump_time";
 const char kDumpKey[] = "dump";
 const char kUptimeKey[] = "uptime";
 const char kLogfileKey[] = "logfile";
-const char kAttachmentsKey[] = "attachments";
 const char kSuffixKey[] = "suffix";
 const char kPrevAppNameKey[] = "prev_app_name";
 const char kCurAppNameKey[] = "cur_app_name";
@@ -34,66 +33,54 @@ const char kReleaseVersionKey[] = "release_version";
 const char kBuildNumberKey[] = "build_number";
 const char kReasonKey[] = "reason";
 const char kStadiaSessionIdKey[] = "stadia_session_id";
-const char kCrashProductNameKey[] = "crash_product_name";
-const char kExecNameKey[] = "exec_name";
-const char kSignatureKey[] = "signature";
 const char kExtraInfoKey[] = "extra_info";
 
 }  // namespace
 
-DumpInfo::DumpInfo(const base::Value* entry) : valid_(ParseEntry(entry)) {}
-
-DumpInfo::DumpInfo(const std::string& crashed_process_dump,
-                   const std::string& crashed_process_logfile,
-                   const base::Time& dump_time,
-                   const MinidumpParams& params,
-                   const std::vector<std::string>* attachments)
-    : crashed_process_dump_(crashed_process_dump),
-      logfile_(crashed_process_logfile),
-      dump_time_(dump_time),
-      params_(params),
-      valid_(true) {
-  if (attachments) {
-    attachments_ = *attachments;
-  }
+DumpInfo::DumpInfo(const base::Value* entry) : valid_(ParseEntry(entry)) {
 }
 
-DumpInfo::~DumpInfo() {}
+DumpInfo::DumpInfo(const std::string& crashed_process_dump,
+                   const std::string& logfile,
+                   const base::Time& dump_time,
+                   const MinidumpParams& params)
+    : crashed_process_dump_(crashed_process_dump),
+      logfile_(logfile),
+      dump_time_(dump_time),
+      params_(params),
+      valid_(true) {}
 
-base::Value DumpInfo::GetAsValue() const {
-  base::Value::Dict result;
+DumpInfo::~DumpInfo() {
+}
+
+std::unique_ptr<base::Value> DumpInfo::GetAsValue() const {
+  std::unique_ptr<base::Value> result =
+      std::make_unique<base::DictionaryValue>();
+  base::DictionaryValue* entry;
+  result->GetAsDictionary(&entry);
 
   base::Time::Exploded ex;
   dump_time_.LocalExplode(&ex);
   std::string dump_time =
       base::StringPrintf(kDumpTimeFormat, ex.year, ex.month, ex.day_of_month,
                          ex.hour, ex.minute, ex.second);
-  result.Set(kDumpTimeKey, dump_time);
+  entry->SetString(kDumpTimeKey, dump_time);
 
-  result.Set(kDumpKey, crashed_process_dump_);
+  entry->SetString(kDumpKey, crashed_process_dump_);
   std::string uptime = std::to_string(params_.process_uptime);
-  result.Set(kUptimeKey, uptime);
-  result.Set(kLogfileKey, logfile_);
+  entry->SetString(kUptimeKey, uptime);
+  entry->SetString(kLogfileKey, logfile_);
+  entry->SetString(kSuffixKey, params_.suffix);
+  entry->SetString(kPrevAppNameKey, params_.previous_app_name);
+  entry->SetString(kCurAppNameKey, params_.current_app_name);
+  entry->SetString(kLastAppNameKey, params_.last_app_name);
+  entry->SetString(kReleaseVersionKey, params_.cast_release_version);
+  entry->SetString(kBuildNumberKey, params_.cast_build_number);
+  entry->SetString(kReasonKey, params_.reason);
+  entry->SetString(kStadiaSessionIdKey, params_.stadia_session_id);
+  entry->SetString(kExtraInfoKey, params_.extra_info);
 
-  base::Value::List attachments_list;
-  for (const auto& attachment : attachments_) {
-    attachments_list.Append(attachment);
-  }
-  result.Set(kAttachmentsKey, std::move(attachments_list));
-  result.Set(kSuffixKey, params_.suffix);
-  result.Set(kPrevAppNameKey, params_.previous_app_name);
-  result.Set(kCurAppNameKey, params_.current_app_name);
-  result.Set(kLastAppNameKey, params_.last_app_name);
-  result.Set(kReleaseVersionKey, params_.cast_release_version);
-  result.Set(kBuildNumberKey, params_.cast_build_number);
-  result.Set(kReasonKey, params_.reason);
-  result.Set(kStadiaSessionIdKey, params_.stadia_session_id);
-  result.Set(kExecNameKey, params_.exec_name);
-  result.Set(kSignatureKey, params_.signature);
-  result.Set(kExtraInfoKey, params_.extra_info);
-  result.Set(kCrashProductNameKey, params_.crash_product_name);
-
-  return base::Value(std::move(result));
+  return result;
 }
 
 bool DumpInfo::ParseEntry(const base::Value* entry) {
@@ -129,14 +116,6 @@ bool DumpInfo::ParseEntry(const base::Value* entry) {
   size_t num_params = kNumRequiredParams;
 
   // Extract all other optional fields.
-  const base::ListValue* attachments_list;
-  if (dict->GetList(kAttachmentsKey, &attachments_list)) {
-    ++num_params;
-    for (const auto& attachment : attachments_list->GetList()) {
-      attachments_.push_back(attachment.GetString());
-    }
-  }
-
   std::string unused_process_name;
   if (dict->GetString(kNameKey, &unused_process_name))
     ++num_params;
@@ -156,17 +135,11 @@ bool DumpInfo::ParseEntry(const base::Value* entry) {
     ++num_params;
   if (dict->GetString(kStadiaSessionIdKey, &params_.stadia_session_id))
     ++num_params;
-  if (dict->GetString(kExecNameKey, &params_.exec_name))
-    ++num_params;
-  if (dict->GetString(kSignatureKey, &params_.signature))
-    ++num_params;
   if (dict->GetString(kExtraInfoKey, &params_.extra_info))
-    ++num_params;
-  if (dict->GetString(kCrashProductNameKey, &params_.crash_product_name))
     ++num_params;
 
   // Disallow extraneous params
-  if (dict->DictSize() != num_params)
+  if (dict->size() != num_params)
     return false;
 
   valid_ = true;

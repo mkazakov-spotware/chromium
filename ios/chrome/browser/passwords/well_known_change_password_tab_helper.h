@@ -1,9 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #ifndef IOS_CHROME_BROWSER_PASSWORDS_WELL_KNOWN_CHANGE_PASSWORD_TAB_HELPER_H_
 #define IOS_CHROME_BROWSER_PASSWORDS_WELL_KNOWN_CHANGE_PASSWORD_TAB_HELPER_H_
 
+#include "components/password_manager/core/browser/change_password_url_service.h"
 #include "components/password_manager/core/browser/well_known_change_password_state.h"
 #include "components/password_manager/core/browser/well_known_change_password_util.h"
 #include "ios/web/public/navigation/web_state_policy_decider.h"
@@ -11,8 +12,6 @@
 #import "ios/web/public/web_state_user_data.h"
 
 namespace password_manager {
-
-class AffiliationService;
 
 // This TabHelper checks whether a site supports the .well-known/change-password
 // url. To check whether a site supports the change-password url the TabHelper
@@ -31,13 +30,11 @@ class WellKnownChangePasswordTabHelper
  public:
   ~WellKnownChangePasswordTabHelper() override;
   // web::WebStatePolicyDecider:
-  void ShouldAllowRequest(
-      NSURLRequest* request,
-      web::WebStatePolicyDecider::RequestInfo request_info,
-      web::WebStatePolicyDecider::PolicyDecisionCallback callback) override;
+  PolicyDecision ShouldAllowRequest(NSURLRequest* request,
+                                    const RequestInfo& request_info) override;
   void ShouldAllowResponse(
       NSURLResponse* response,
-      web::WebStatePolicyDecider::ResponseInfo response_info,
+      bool for_main_frame,
       web::WebStatePolicyDecider::PolicyDecisionCallback callback) override;
   void WebStateDestroyed() override;
 
@@ -84,7 +81,7 @@ class WellKnownChangePasswordTabHelper
   web::WebStatePolicyDecider::PolicyDecisionCallback response_policy_callback_;
   password_manager::WellKnownChangePasswordState
       well_known_change_password_state_{this};
-  password_manager::AffiliationService* affiliation_service_ = nullptr;
+  ChangePasswordUrlService* change_password_url_service_;
   WEB_STATE_USER_DATA_KEY_DECL();
 };
 

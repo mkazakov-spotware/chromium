@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,9 @@
 
 #include "base/bind.h"
 #include "base/guid.h"
+#include "base/macros.h"
 #include "base/no_destructor.h"
+#include "base/optional.h"
 #include "base/process/process.h"
 #include "base/run_loop.h"
 #include "base/strings/strcat.h"
@@ -20,7 +22,6 @@
 #include "base/test/task_environment.h"
 #include "base/test/test_suite.h"
 #include "base/token.h"
-#include "build/build_config.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -35,7 +36,6 @@
 #include "services/service_manager/tests/connect/connect.test-mojom.h"
 #include "services/service_manager/tests/util.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 // Tests that multiple services can be packaged in a single service by
 // specifying the packaged service manifests within a parent manifest and
@@ -206,10 +206,10 @@ void ReceiveQueryResult(mojom::ServiceInfoPtr* out_info,
 }
 
 void ReceiveConnectionResult(mojom::ConnectResult* out_result,
-                             absl::optional<Identity>* out_target,
+                             base::Optional<Identity>* out_target,
                              base::RunLoop* loop,
                              int32_t in_result,
-                             const absl::optional<Identity>& in_identity) {
+                             const base::Optional<Identity>& in_identity) {
   *out_result = static_cast<mojom::ConnectResult>(in_result);
   *out_target = in_identity;
   loop->Quit();
@@ -217,9 +217,9 @@ void ReceiveConnectionResult(mojom::ConnectResult* out_result,
 
 void StartServiceResponse(base::RunLoop* quit_loop,
                           mojom::ConnectResult* out_result,
-                          absl::optional<Identity>* out_resolved_identity,
+                          base::Optional<Identity>* out_resolved_identity,
                           mojom::ConnectResult result,
-                          const absl::optional<Identity>& resolved_identity) {
+                          const base::Optional<Identity>& resolved_identity) {
   if (quit_loop)
     quit_loop->Quit();
   if (out_result)
@@ -236,10 +236,6 @@ class TestTargetService : public Service {
  public:
   explicit TestTargetService(mojo::PendingReceiver<mojom::Service> receiver)
       : receiver_(this, std::move(receiver)) {}
-
-  TestTargetService(const TestTargetService&) = delete;
-  TestTargetService& operator=(const TestTargetService&) = delete;
-
   ~TestTargetService() override = default;
 
   const Identity& identity() const { return receiver_.identity(); }
@@ -277,8 +273,10 @@ class TestTargetService : public Service {
   ServiceReceiver receiver_;
   base::RunLoop wait_for_start_loop_;
   base::RunLoop wait_for_disconnect_loop_;
-  absl::optional<base::RunLoop> wait_for_bind_interface_loop_;
+  base::Optional<base::RunLoop> wait_for_bind_interface_loop_;
   base::OnceClosure next_bind_interface_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestTargetService);
 };
 
 class ConnectTest : public testing::Test,
@@ -286,10 +284,6 @@ class ConnectTest : public testing::Test,
                     public test::mojom::ExposedInterface {
  public:
   ConnectTest() : test_service_manager_(GetTestManifests()) {}
-
-  ConnectTest(const ConnectTest&) = delete;
-  ConnectTest& operator=(const ConnectTest&) = delete;
-
   ~ConnectTest() override = default;
 
   Connector* connector() { return service_receiver_.GetConnector(); }
@@ -298,9 +292,9 @@ class ConnectTest : public testing::Test,
   void CompareConnectionState(
       const std::string& connection_local_name,
       const std::string& connection_remote_name,
-      const absl::optional<base::Token>& connection_remote_instance_group,
+      const base::Optional<base::Token>& connection_remote_instance_group,
       const std::string& initialize_local_name,
-      const absl::optional<base::Token>& initialize_local_instance_group) {
+      const base::Optional<base::Token>& initialize_local_instance_group) {
     EXPECT_EQ(connection_remote_name,
               connection_state_->connection_remote_name);
     EXPECT_EQ(connection_remote_instance_group,
@@ -353,6 +347,8 @@ class ConnectTest : public testing::Test,
   ServiceReceiver service_receiver_{this};
   mojo::ReceiverSet<test::mojom::ExposedInterface> receivers_;
   test::mojom::ConnectionStatePtr connection_state_;
+
+  DISALLOW_COPY_AND_ASSIGN(ConnectTest);
 };
 
 // Ensure the connection was properly established and that a round trip
@@ -414,8 +410,8 @@ TEST_F(ConnectTest, Instances) {
 }
 
 TEST_F(ConnectTest, ConnectWithGloballyUniqueId) {
-  absl::optional<TestTargetService> target(
-      absl::in_place, RegisterServiceInstance(kTestAppAName));
+  base::Optional<TestTargetService> target(
+      base::in_place, RegisterServiceInstance(kTestAppAName));
   target->WaitForStart();
 
   Identity specific_identity = target->identity();
@@ -463,7 +459,7 @@ TEST_F(ConnectTest, ConnectWithGloballyUniqueId) {
   connector()->Connect(
       specific_identity, proxy.BindNewPipeAndPassReceiver(),
       base::BindLambdaForTesting([&](mojom::ConnectResult result,
-                                     const absl::optional<Identity>& identity) {
+                                     const base::Optional<Identity>& identity) {
         EXPECT_EQ(mojom::ConnectResult::ACCESS_DENIED, result);
         wait_for_connect_loop.Quit();
       }));
@@ -529,7 +525,7 @@ TEST_F(ConnectTest, AlwaysAllowedInterface) {
 
 // Connects to an app provided by a package.
 TEST_F(ConnectTest, PackagedApp) {
-  absl::optional<Identity> resolved_identity;
+  base::Optional<Identity> resolved_identity;
   base::RunLoop run_loop;
   mojo::Remote<test::mojom::ConnectTestService> service_a;
   connector()->Connect(ServiceFilter::ByName(kTestAppAName),
@@ -601,7 +597,7 @@ TEST_F(ConnectTest, MAYBE_BlockedPackagedApplication) {
       ServiceFilter::ByName(kTestAppBName),
       service_b.BindNewPipeAndPassReceiver(),
       base::BindLambdaForTesting([&](mojom::ConnectResult result,
-                                     const absl::optional<Identity>& identity) {
+                                     const base::Optional<Identity>& identity) {
         EXPECT_EQ(mojom::ConnectResult::ACCESS_DENIED, result);
         run_loop.Quit();
       }));
@@ -649,7 +645,7 @@ TEST_F(ConnectTest, ConnectToDifferentGroup_Allowed) {
   mojom::ConnectResult result;
   auto filter = ServiceFilter::ByNameInGroup(kTestClassAppName,
                                              base::Token::CreateRandom());
-  absl::optional<Identity> result_identity;
+  base::Optional<Identity> result_identity;
   {
     base::RunLoop loop;
     identity_test->ConnectToClassAppWithFilter(
@@ -672,7 +668,7 @@ TEST_F(ConnectTest, ConnectToDifferentGroup_Blocked) {
   mojom::ConnectResult result;
   auto filter = ServiceFilter::ByNameInGroup(kTestClassAppName,
                                              base::Token::CreateRandom());
-  absl::optional<Identity> result_identity;
+  base::Optional<Identity> result_identity;
   {
     base::RunLoop loop;
     identity_test->ConnectToClassAppWithFilter(
@@ -692,7 +688,7 @@ TEST_F(ConnectTest, ConnectWithDifferentInstanceId_Blocked) {
   mojom::ConnectResult result;
   auto filter = ServiceFilter::ByNameWithId(kTestClassAppName,
                                             base::Token::CreateRandom());
-  absl::optional<Identity> result_identity;
+  base::Optional<Identity> result_identity;
   base::RunLoop loop;
   identity_test->ConnectToClassAppWithFilter(
       filter, base::BindOnce(&ReceiveConnectionResult, &result,
@@ -708,7 +704,7 @@ TEST_F(ConnectTest, ConnectToClientProcess_Blocked) {
   base::Process process;
   mojom::ConnectResult result =
       service_manager::test::LaunchAndConnectToProcess(
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
           base::StrCat({kTestExeName, ".exe"}),
 #else
           kTestExeName,
@@ -723,7 +719,7 @@ TEST_F(ConnectTest, ConnectToClientProcess_Blocked) {
 // "instance_sharing" option can receive connections from clients run as other
 // users.
 TEST_F(ConnectTest, AllUsersSingleton) {
-  absl::optional<Identity> first_resolved_identity;
+  base::Optional<Identity> first_resolved_identity;
   {
     base::RunLoop loop;
     const base::Token singleton_instance_group = base::Token::CreateRandom();
@@ -743,7 +739,7 @@ TEST_F(ConnectTest, AllUsersSingleton) {
   }
   {
     base::RunLoop loop;
-    absl::optional<Identity> resolved_identity;
+    base::Optional<Identity> resolved_identity;
     // This connects using the current client's instance group. It should be
     // get routed to the same service instance started above.
     connector()->WarmService(

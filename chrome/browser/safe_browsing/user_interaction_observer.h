@@ -1,19 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_SAFE_BROWSING_USER_INTERACTION_OBSERVER_H_
 #define CHROME_BROWSER_SAFE_BROWSING_USER_INTERACTION_OBSERVER_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/time/default_clock.h"
-#include "base/time/time.h"
+#include "chrome/browser/safe_browsing/ui_manager.h"
 #include "components/permissions/permission_request_manager.h"
-#include "components/safe_browsing/content/browser/ui_manager.h"
 #include "components/security_interstitials/core/unsafe_resource.h"
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "content/public/browser/web_contents_user_data.h"
+
+#include <memory>
 
 namespace blink {
 class WebMouseEvent;
@@ -62,9 +61,11 @@ enum class DelayedWarningEvent {
 // Name of the recorded histograms when the user did not disable URL elision via
 // "Always Show Full URLs" menu option or by installing Suspicious Site Reporter
 // extension.
+extern const char kDelayedWarningsHistogram[];
 extern const char kDelayedWarningsTimeOnPageHistogram[];
 
 // Same as above but only recorded if the user disabled URL elision.
+extern const char kDelayedWarningsWithElisionDisabledHistogram[];
 extern const char kDelayedWarningsTimeOnPageWithElisionDisabledHistogram[];
 
 // Observes user interactions and shows an interstitial if necessary.
@@ -72,7 +73,7 @@ extern const char kDelayedWarningsTimeOnPageWithElisionDisabledHistogram[];
 // due to the Delayed Warnings experiment. Deleted once the interstitial is
 // shown, or the tab is closed or navigated away.
 class SafeBrowsingUserInteractionObserver
-    : public content::WebContentsUserData<SafeBrowsingUserInteractionObserver>,
+    : public base::SupportsUserData::Data,
       public content::WebContentsObserver,
       public permissions::PermissionRequestManager::Observer {
  public:
@@ -87,11 +88,20 @@ class SafeBrowsingUserInteractionObserver
       bool is_main_frame,
       scoped_refptr<SafeBrowsingUIManager> ui_manager);
 
+  static SafeBrowsingUserInteractionObserver* FromWebContents(
+      content::WebContents* web_contents);
+
+  // See CreateForWebContents() for parameters. These need to be public.
+  SafeBrowsingUserInteractionObserver(
+      content::WebContents* web_contents,
+      const security_interstitials::UnsafeResource& resource,
+      bool is_main_frame,
+      scoped_refptr<SafeBrowsingUIManager> ui_manager);
   ~SafeBrowsingUserInteractionObserver() override;
 
   // content::WebContentsObserver methods:
-  void RenderFrameHostChanged(content::RenderFrameHost* old_frame,
-                              content::RenderFrameHost* new_frame) override;
+  void RenderViewHostChanged(content::RenderViewHost* old_host,
+                             content::RenderViewHost* new_host) override;
   void WebContentsDestroyed() override;
   void DidFinishNavigation(content::NavigationHandle* handle) override;
   void DidToggleFullscreenModeForTab(bool entered_fullscreen,
@@ -99,7 +109,7 @@ class SafeBrowsingUserInteractionObserver
   void OnPaste() override;
 
   // permissions::PermissionRequestManager::Observer methods:
-  void OnPromptAdded() override;
+  void OnBubbleAdded() override;
 
   // Called by the JavaScript dialog manager when the current page is about to
   // show a JavaScript dialog (alert, confirm or prompt). Shows the
@@ -120,16 +130,7 @@ class SafeBrowsingUserInteractionObserver
   base::Time GetCreationTimeForTesting() const;
 
  private:
-  friend class content::WebContentsUserData<
-      SafeBrowsingUserInteractionObserver>;
-  WEB_CONTENTS_USER_DATA_KEY_DECL();
-
-  // See CreateForWebContents() for parameters.
-  SafeBrowsingUserInteractionObserver(
-      content::WebContents* web_contents,
-      const security_interstitials::UnsafeResource& resource,
-      bool is_main_frame,
-      scoped_refptr<SafeBrowsingUIManager> ui_manager);
+  void RecordUMA(DelayedWarningEvent event);
 
   bool HandleKeyPress(const content::NativeWebKeyboardEvent& event);
   bool HandleMouseEvent(const blink::WebMouseEvent& event);
@@ -141,6 +142,7 @@ class SafeBrowsingUserInteractionObserver
   content::RenderWidgetHost::KeyPressEventCallback key_press_callback_;
   content::RenderWidgetHost::MouseEventCallback mouse_event_callback_;
 
+  content::WebContents* web_contents_;
   security_interstitials::UnsafeResource resource_;
   scoped_refptr<SafeBrowsingUIManager> ui_manager_;
   bool interstitial_shown_ = false;
@@ -160,7 +162,7 @@ class SafeBrowsingUserInteractionObserver
   base::Time creation_time_;
   // This clock is used to record the delta from |creation_time_| when the
   // observer is detached, and can be injected by tests.
-  raw_ptr<base::Clock> clock_;
+  base::Clock* clock_;
 };
 
 }  // namespace safe_browsing

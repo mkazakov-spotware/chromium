@@ -1,83 +1,93 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/peerconnection/rtc_stats.h"
 
+#include <algorithm>
 #include <set>
 #include <string>
 
 #include "base/check_op.h"
-#include "base/containers/contains.h"
-#include "base/containers/cxx20_erase.h"
-#include "base/numerics/safe_conversions.h"
-#include "base/strings/string_piece.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/time/time.h"
-#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/renderer/platform/peerconnection/rtc_scoped_refptr_cross_thread_copier.h"
 #include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
-#include "third_party/blink/renderer/platform/wtf/text/string_hash.h"
 #include "third_party/webrtc/api/stats/rtc_stats.h"
 #include "third_party/webrtc/api/stats/rtcstats_objects.h"
 
 namespace blink {
 
-// TODO(https://crbug.com/webrtc/14554): When there exists a flag in WebRTC to
-// not collect deprecated stats in the first place, make use of that flag and
-// unship the filtering mechanism controlled by `WebRtcUnshipDeprecatedStats`.
-BASE_FEATURE(WebRtcUnshipDeprecatedStats,
-             "WebRtcUnshipDeprecatedStats",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
 namespace {
 
-bool MemberIsReferenceToDeprecated(
-    const webrtc::RTCStatsMemberInterface* member) {
-  // ID references are strings with a defined value.
-  if (member->type() != webrtc::RTCStatsMemberInterface::Type::kString ||
-      !member->is_defined()) {
-    return false;
+class RTCStatsAllowlist {
+ public:
+  RTCStatsAllowlist() {
+    allowlisted_stats_types_.insert(webrtc::RTCCertificateStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCCodecStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCDataChannelStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCIceCandidatePairStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCIceCandidateStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCLocalIceCandidateStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCRemoteIceCandidateStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCMediaStreamStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCMediaStreamTrackStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCPeerConnectionStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCRTPStreamStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCInboundRTPStreamStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCOutboundRTPStreamStats::kType);
+    allowlisted_stats_types_.insert(
+        webrtc::RTCRemoteInboundRtpStreamStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCMediaSourceStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCAudioSourceStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCVideoSourceStats::kType);
+    allowlisted_stats_types_.insert(webrtc::RTCTransportStats::kType);
   }
-  const char* member_name = member->name();
-  size_t len = strlen(member_name);
-  // ID referenced end with "Id" by naming convention.
-  if (len < 2 || member_name[len - 2] != 'I' || member_name[len - 1] != 'd')
-    return false;
-  const std::string& id_reference =
-      *member->cast_to<webrtc::RTCStatsMember<std::string>>();
-  // starts_with()
-  return id_reference.rfind("DEPRECATED_", 0) == 0;
+
+  bool IsAllowlisted(const webrtc::RTCStats& stats) {
+    return allowlisted_stats_types_.find(stats.type()) !=
+           allowlisted_stats_types_.end();
+  }
+
+  void AllowStatsForTesting(const char* type) {
+    allowlisted_stats_types_.insert(type);
+  }
+
+ private:
+  std::set<std::string> allowlisted_stats_types_;
+};
+
+RTCStatsAllowlist* GetStatsAllowlist() {
+  static RTCStatsAllowlist* list = new RTCStatsAllowlist();
+  return list;
 }
 
-// Members are surfaced if one of the following is true:
-// - They're standardized and if `unship_deprecated_stats` is true they aren't
-//   references to a deprecated object.
-// - There is an active origin trial exposing that particular member.
-// - There is an active feature exposing non-standard stats.
+bool IsAllowlistedStats(const webrtc::RTCStats& stats) {
+  return GetStatsAllowlist()->IsAllowlisted(stats);
+}
+
+// Filters stats that should be surfaced to JS. Stats are surfaced if they're
+// standardized or if there is an active origin trial that enables a stat by
+// including one of its group IDs in |exposed_group_ids|.
 std::vector<const webrtc::RTCStatsMemberInterface*> FilterMembers(
     std::vector<const webrtc::RTCStatsMemberInterface*> stats_members,
-    const Vector<webrtc::NonStandardGroupId>& exposed_group_ids,
-    bool unship_deprecated_stats) {
-  if (base::FeatureList::IsEnabled(
-          blink::features::kWebRtcExposeNonStandardStats)) {
-    return stats_members;
-  }
+    const Vector<webrtc::NonStandardGroupId>& exposed_group_ids) {
+  // Note that using "is_standarized" avoids having to maintain an allowlist of
+  // every single standardized member, as we do at the "stats object" level
+  // with "RTCStatsAllowlist".
   base::EraseIf(
-      stats_members, [&exposed_group_ids, &unship_deprecated_stats](
-                         const webrtc::RTCStatsMemberInterface* member) {
+      stats_members,
+      [&exposed_group_ids](const webrtc::RTCStatsMemberInterface* member) {
         if (member->is_standardized()) {
-          // Standard members are only erased when filtering out "DEPRECATED_"
-          // ID references.
-          return unship_deprecated_stats &&
-                 MemberIsReferenceToDeprecated(member);
+          return false;
         }
-        // Non-standard members are erased unless part of the exposed groups.
+
         const std::vector<webrtc::NonStandardGroupId>& ids =
             member->group_ids();
         for (const webrtc::NonStandardGroupId& id : exposed_group_ids) {
-          if (base::Contains(ids, id)) {
+          if (std::find(ids.begin(), ids.end(), id) != ids.end()) {
             return false;
           }
         }
@@ -86,32 +96,22 @@ std::vector<const webrtc::RTCStatsMemberInterface*> FilterMembers(
   return stats_members;
 }
 
+size_t CountAllowlistedStats(
+    const scoped_refptr<const webrtc::RTCStatsReport>& stats_report) {
+  size_t size = 0;
+  for (const auto& stats : *stats_report) {
+    if (IsAllowlistedStats(stats)) {
+      ++size;
+    }
+  }
+  return size;
+}
+
 template <typename T>
 Vector<T> ToWTFVector(const std::vector<T>& vector) {
-  Vector<T> wtf_vector(base::checked_cast<WTF::wtf_size_t>(vector.size()));
+  Vector<T> wtf_vector(SafeCast<WTF::wtf_size_t>(vector.size()));
   std::move(vector.begin(), vector.end(), wtf_vector.begin());
   return wtf_vector;
-}
-
-bool ShouldExposeStatsObject(const webrtc::RTCStats& stats,
-                             bool unship_deprecated_stats) {
-  if (!unship_deprecated_stats)
-    return true;
-  // !starts_with()
-  return stats.id().rfind("DEPRECATED_", 0) != 0;
-}
-
-size_t CountExposedStatsObjects(
-    const scoped_refptr<const webrtc::RTCStatsReport>& stats_report,
-    bool unship_deprecated_stats) {
-  if (!unship_deprecated_stats)
-    return stats_report->size();
-  size_t count = 0u;
-  for (const auto& stats : *stats_report) {
-    if (ShouldExposeStatsObject(stats, unship_deprecated_stats))
-      ++count;
-  }
-  return count;
 }
 
 }  // namespace
@@ -119,13 +119,11 @@ size_t CountExposedStatsObjects(
 RTCStatsReportPlatform::RTCStatsReportPlatform(
     const scoped_refptr<const webrtc::RTCStatsReport>& stats_report,
     const Vector<webrtc::NonStandardGroupId>& exposed_group_ids)
-    : unship_deprecated_stats_(
-          base::FeatureList::IsEnabled(WebRtcUnshipDeprecatedStats)),
-      stats_report_(stats_report),
+    : stats_report_(stats_report),
       it_(stats_report_->begin()),
       end_(stats_report_->end()),
       exposed_group_ids_(exposed_group_ids),
-      size_(CountExposedStatsObjects(stats_report, unship_deprecated_stats_)) {
+      size_(CountAllowlistedStats(stats_report)) {
   DCHECK(stats_report_);
 }
 
@@ -140,19 +138,18 @@ std::unique_ptr<RTCStatsReportPlatform> RTCStatsReportPlatform::CopyHandle()
 std::unique_ptr<RTCStats> RTCStatsReportPlatform::GetStats(
     const String& id) const {
   const webrtc::RTCStats* stats = stats_report_->Get(id.Utf8());
-  if (!stats || !ShouldExposeStatsObject(*stats, unship_deprecated_stats_))
+  if (!stats || !IsAllowlistedStats(*stats))
     return std::unique_ptr<RTCStats>();
-  return std::make_unique<RTCStats>(stats_report_, stats, exposed_group_ids_,
-                                    unship_deprecated_stats_);
+  return std::make_unique<RTCStats>(stats_report_, stats, exposed_group_ids_);
 }
 
 std::unique_ptr<RTCStats> RTCStatsReportPlatform::Next() {
   while (it_ != end_) {
     const webrtc::RTCStats& next = *it_;
     ++it_;
-    if (ShouldExposeStatsObject(next, unship_deprecated_stats_)) {
-      return std::make_unique<RTCStats>(
-          stats_report_, &next, exposed_group_ids_, unship_deprecated_stats_);
+    if (IsAllowlistedStats(next)) {
+      return std::make_unique<RTCStats>(stats_report_, &next,
+                                        exposed_group_ids_);
     }
   }
   return std::unique_ptr<RTCStats>();
@@ -165,19 +162,16 @@ size_t RTCStatsReportPlatform::Size() const {
 RTCStats::RTCStats(
     const scoped_refptr<const webrtc::RTCStatsReport>& stats_owner,
     const webrtc::RTCStats* stats,
-    const Vector<webrtc::NonStandardGroupId>& exposed_group_ids,
-    bool unship_deprecated_stats)
+    const Vector<webrtc::NonStandardGroupId>& exposed_group_ids)
     : stats_owner_(stats_owner),
       stats_(stats),
-      stats_members_(FilterMembers(stats->Members(),
-                                   exposed_group_ids,
-                                   unship_deprecated_stats)) {
+      stats_members_(FilterMembers(stats->Members(), exposed_group_ids)) {
   DCHECK(stats_owner_);
   DCHECK(stats_);
   DCHECK(stats_owner_->Get(stats_->id()));
 }
 
-RTCStats::~RTCStats() = default;
+RTCStats::~RTCStats() {}
 
 String RTCStats::Id() const {
   return String::FromUTF8(stats_->id());
@@ -209,7 +203,7 @@ RTCStatsMember::RTCStatsMember(
   DCHECK(member_);
 }
 
-RTCStatsMember::~RTCStatsMember() = default;
+RTCStatsMember::~RTCStatsMember() {}
 
 String RTCStatsMember::GetName() const {
   return String::FromUTF8(member_->name());
@@ -305,46 +299,10 @@ Vector<String> RTCStatsMember::ValueSequenceString() const {
   DCHECK(IsDefined());
   const std::vector<std::string>& sequence =
       *member_->cast_to<webrtc::RTCStatsMember<std::vector<std::string>>>();
-  Vector<String> wtf_sequence(base::checked_cast<wtf_size_t>(sequence.size()));
-  for (wtf_size_t i = 0; i < wtf_sequence.size(); ++i)
+  Vector<String> wtf_sequence(sequence.size());
+  for (size_t i = 0; i < sequence.size(); ++i)
     wtf_sequence[i] = String::FromUTF8(sequence[i]);
   return wtf_sequence;
-}
-
-HashMap<String, uint64_t> RTCStatsMember::ValueMapStringUint64() const {
-  DCHECK(IsDefined());
-  const std::map<std::string, uint64_t>& map =
-      *member_
-           ->cast_to<webrtc::RTCStatsMember<std::map<std::string, uint64_t>>>();
-  HashMap<String, uint64_t> wtf_map;
-  wtf_map.ReserveCapacityForSize(base::checked_cast<unsigned>(map.size()));
-  for (auto& elem : map) {
-    wtf_map.insert(String::FromUTF8(elem.first), elem.second);
-  }
-  return wtf_map;
-}
-
-HashMap<String, double> RTCStatsMember::ValueMapStringDouble() const {
-  DCHECK(IsDefined());
-  const std::map<std::string, double>& map =
-      *member_
-           ->cast_to<webrtc::RTCStatsMember<std::map<std::string, double>>>();
-  HashMap<String, double> wtf_map;
-  wtf_map.ReserveCapacityForSize(base::checked_cast<unsigned>(map.size()));
-  for (auto& elem : map) {
-    wtf_map.insert(String::FromUTF8(elem.first), elem.second);
-  }
-  return wtf_map;
-}
-
-RTCStatsMember::ExposureRestriction RTCStatsMember::Restriction() const {
-  switch (member_->exposure_criteria()) {
-    case webrtc::StatExposureCriteria::kHardwareCapability:
-      return ExposureRestriction::kHardwareCapability;
-    case webrtc::StatExposureCriteria::kAlways:
-    default:
-      return ExposureRestriction::kNone;
-  }
 }
 
 rtc::scoped_refptr<webrtc::RTCStatsCollectorCallback>
@@ -386,6 +344,10 @@ void RTCStatsCollectorCallbackImpl::OnStatsDeliveredOnMainThread(
   // Make sure the callback is destroyed in the main thread as well.
   std::move(callback_).Run(std::make_unique<RTCStatsReportPlatform>(
       base::WrapRefCounted(report.get()), exposed_group_ids_));
+}
+
+void AllowStatsForTesting(const char* type) {
+  GetStatsAllowlist()->AllowStatsForTesting(type);
 }
 
 }  // namespace blink

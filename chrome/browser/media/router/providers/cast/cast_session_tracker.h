@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,16 +6,15 @@
 #define CHROME_BROWSER_MEDIA_ROUTER_PROVIDERS_CAST_CAST_SESSION_TRACKER_H_
 
 #include "base/containers/flat_map.h"
-#include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "base/sequence_checker.h"
 #include "base/values.h"
 #include "chrome/browser/media/router/providers/cast/cast_internal_message_util.h"
+#include "components/cast_channel/cast_message_handler.h"
+#include "components/cast_channel/cast_message_util.h"
 #include "components/media_router/common/discovery/media_sink_internal.h"
 #include "components/media_router/common/discovery/media_sink_service_base.h"
-#include "components/media_router/common/providers/cast/channel/cast_message_handler.h"
-#include "components/media_router/common/providers/cast/channel/cast_message_util.h"
 
 namespace media_router {
 
@@ -36,12 +35,9 @@ class CastSessionTracker : public MediaSinkServiceBase::Observer,
                                          const CastSession& session) = 0;
     virtual void OnSessionRemoved(const MediaSinkInternal& sink) = 0;
     virtual void OnMediaStatusUpdated(const MediaSinkInternal& sink,
-                                      const base::Value::Dict& media_status,
-                                      absl::optional<int> request_id) = 0;
+                                      const base::Value& media_status,
+                                      base::Optional<int> request_id) = 0;
   };
-
-  CastSessionTracker(const CastSessionTracker&) = delete;
-  CastSessionTracker& operator=(const CastSessionTracker&) = delete;
 
   ~CastSessionTracker() override;
 
@@ -74,11 +70,11 @@ class CastSessionTracker : public MediaSinkServiceBase::Observer,
 
   void InitOnIoThread();
   void HandleReceiverStatusMessage(const MediaSinkInternal& sink,
-                                   const base::Value::Dict& message);
+                                   const base::Value& message);
   void HandleMediaStatusMessage(const MediaSinkInternal& sink,
-                                const base::Value::Dict& message);
+                                const base::Value& message);
   void CopySavedMediaFieldsToMediaList(CastSession* session,
-                                       base::Value::List& media_list);
+                                       base::Value::ListView media_list);
   const MediaSinkInternal* GetSinkByChannelId(int channel_id) const;
 
   // MediaSinkServiceBase::Observer implementation
@@ -97,14 +93,15 @@ class CastSessionTracker : public MediaSinkServiceBase::Observer,
   // |SetInstanceForTest()|.
   static CastSessionTracker* instance_for_test_;
 
-  const raw_ptr<MediaSinkServiceBase> media_sink_service_;
-  const raw_ptr<cast_channel::CastMessageHandler> message_handler_;
+  MediaSinkServiceBase* const media_sink_service_;
+  cast_channel::CastMessageHandler* const message_handler_;
 
   SessionMap sessions_by_sink_id_;
 
   base::ObserverList<Observer> observers_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+  DISALLOW_COPY_AND_ASSIGN(CastSessionTracker);
   FRIEND_TEST_ALL_PREFIXES(AppActivityTest, SendAppMessageToReceiver);
   FRIEND_TEST_ALL_PREFIXES(CastMediaRouteProviderTest, GetState);
   FRIEND_TEST_ALL_PREFIXES(CastSessionTrackerTest, RemoveSession);

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,10 +29,6 @@ class SessionLengthLimitModel : public SessionObserver {
   enum LimitState { LIMIT_NONE, LIMIT_SET, LIMIT_EXPIRING_SOON };
 
   SessionLengthLimitModel();
-
-  SessionLengthLimitModel(const SessionLengthLimitModel&) = delete;
-  SessionLengthLimitModel& operator=(const SessionLengthLimitModel&) = delete;
-
   ~SessionLengthLimitModel() override;
 
   void AddObserver(Observer* observer);
@@ -57,6 +53,8 @@ class SessionLengthLimitModel : public SessionObserver {
   std::unique_ptr<base::RepeatingTimer> timer_;
 
   base::ObserverList<Observer>::Unchecked observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(SessionLengthLimitModel);
 };
 
 }  // namespace ash

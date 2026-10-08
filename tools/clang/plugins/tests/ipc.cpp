@@ -1,8 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Blocklisted typedefs
+// Blacklisted typedefs
 typedef __INTMAX_TYPE__ intmax_t;
 typedef __UINTMAX_TYPE__ uintmax_t;
 typedef int intptr_t;
@@ -166,9 +166,9 @@ void SomeWriteFunction(base::Pickle* pickle) {
 
 void TestWriteParamInTemplates() {
   // These specializations call WriteParam() on various banned types, either
-  // because they were specified directly (long) or because non-blocklisted
+  // because they were specified directly (long) or because non-blacklisted
   // typedef (uint64_t) was stripped down to its underlying type, which is
-  // blocklisted when used as is (unsigned long).
+  // blacklisted when used as is (unsigned long).
   // However, since it's hard (if not impossible) to check specializations
   // properly, we're simply not checking them.
   SomeClass<long>::Write(nullptr);
@@ -212,7 +212,7 @@ void TestWriteParamArgument() {
       IPC::WriteParam(nullptr, p); \
     }
 
-  // ERROR: blocklisted types / typedefs
+  // ERROR: blacklisted types / typedefs
   CALL_WRITEPARAM(long) // ERROR
   CALL_WRITEPARAM(unsigned long) // ERROR
   CALL_WRITEPARAM(intmax_t) // ERROR
@@ -230,7 +230,7 @@ void TestWriteParamArgument() {
   CALL_WRITEPARAM(time_t) // ERROR
   CALL_WRITEPARAM(suseconds_t) // ERROR
 
-  // ERROR: typedef to blocklisted typedef
+  // ERROR: typedef to blacklisted typedef
   typedef size_t my_size;
   CALL_WRITEPARAM(my_size) // ERROR
 
@@ -240,7 +240,7 @@ void TestWriteParamArgument() {
     IPC::WriteParam(nullptr, p + 1); // ERROR
   }
 
-  // ERROR: long chain of typedefs, ends up with blocklisted typedef
+  // ERROR: long chain of typedefs, ends up with blacklisted typedef
   {
     typedef size_t my_size_base;
     typedef const my_size_base my_size;
@@ -249,11 +249,11 @@ void TestWriteParamArgument() {
     IPC::WriteParam(nullptr, p); // ERROR
   }
 
-  // ERROR: template specialization references blocklisted type
+  // ERROR: template specialization references blacklisted type
   CALL_WRITEPARAM(std::vector<long>) // ERROR
   CALL_WRITEPARAM(std::vector<size_t>) // ERROR
 
-  // OK: typedef to blocklisted type
+  // OK: typedef to blacklisted type
   typedef long my_long;
   CALL_WRITEPARAM(my_long) // OK
 
@@ -261,9 +261,9 @@ void TestWriteParamArgument() {
   CALL_WRITEPARAM(char) // OK
   CALL_WRITEPARAM(int) // OK
   CALL_WRITEPARAM(uint32_t) // OK
-  CALL_WRITEPARAM(int64_t)  // OK
+  CALL_WRITEPARAM(int64_t) // OK
 
-  // OK: long chain of typedefs, ends up with non-blocklisted typedef
+  // OK: long chain of typedefs, ends up with non-blacklisted typedef
   {
     typedef uint32_t my_int_base;
     typedef const my_int_base my_int;
@@ -272,7 +272,7 @@ void TestWriteParamArgument() {
     IPC::WriteParam(nullptr, p); // OK
   }
 
-  // OK: template specialization references non-blocklisted type
+  // OK: template specialization references non-blacklisted type
   CALL_WRITEPARAM(std::vector<char>) // OK
   CALL_WRITEPARAM(std::vector<my_long>) // OK
 
@@ -326,13 +326,13 @@ void TestWriteParamMemberArgument() {
   IPC::WriteParam(nullptr, p.long_data); // ERROR
 
   // This one is flaky and depends on whether size_t is typedefed to a
-  // blocklisted type (unsigned long).
-  // IPC::WriteParam(nullptr, p.get<size_t>()); // ERROR
+  // blacklisted type (unsigned long).
+  //IPC::WriteParam(nullptr, p.get<size_t>()); // ERROR
   IPC::WriteParam(nullptr, p.get_size()); // ERROR
   IPC::WriteParam(nullptr, p.size_data); // ERROR
 
   // Information about uint64_t gets lost, and plugin sees WriteParam()
-  // call on unsigned long, which is blocklisted.
+  // call on unsigned long, which is blacklisted.
   IPC::WriteParam(nullptr, p.get<uint64_t>()); // ERROR
   IPC::WriteParam(nullptr, p.get_uint64()); // OK
   IPC::WriteParam(nullptr, p.uint64_data); // OK
@@ -343,8 +343,8 @@ void TestWriteParamMemberArgument() {
   IPC::WriteParam(nullptr, p.uint64s_data); // OK
 
   // This one is flaky and depends on whether size_t is typedefed to a
-  // blocklisted type (unsigned long).
-  // IPC::WriteParam(nullptr, p.get<std::vector<size_t>>());
+  // blacklisted type (unsigned long).
+  //IPC::WriteParam(nullptr, p.get<std::vector<size_t>>());
   IPC::WriteParam(nullptr, p.get_sizes()); // ERROR
   IPC::WriteParam(nullptr, p.sizes_data); // ERROR
 }

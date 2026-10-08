@@ -1,18 +1,19 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/location_bar/selected_keyword_view.h"
 
 #include "base/check.h"
-#include "chrome/browser/ui/color/chrome_color_id.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/ui/layout_constants.h"
+#include "chrome/browser/ui/omnibox/omnibox_theme.h"
+#include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/vector_icons/vector_icons.h"
-#include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/theme_provider.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/color_utils.h"
@@ -20,7 +21,7 @@
 
 // static
 SelectedKeywordView::KeywordLabelNames
-SelectedKeywordView::GetKeywordLabelNames(const std::u16string& keyword,
+SelectedKeywordView::GetKeywordLabelNames(const base::string16& keyword,
                                           TemplateURLService* service) {
   KeywordLabelNames names;
   if (service) {
@@ -35,12 +36,10 @@ SelectedKeywordView::GetKeywordLabelNames(const std::u16string& keyword,
   return names;
 }
 
-SelectedKeywordView::SelectedKeywordView(
-    IconLabelBubbleView::Delegate* delegate,
-    TemplateURLService* template_url_service,
-    const gfx::FontList& font_list)
-    : IconLabelBubbleView(font_list, delegate),
-      template_url_service_(template_url_service) {
+SelectedKeywordView::SelectedKeywordView(LocationBarView* location_bar,
+                                         const gfx::FontList& font_list)
+    : IconLabelBubbleView(font_list, location_bar),
+      location_bar_(location_bar) {
   full_label_.SetFontList(font_list);
   full_label_.SetVisible(false);
   partial_label_.SetFontList(font_list);
@@ -66,7 +65,7 @@ void SelectedKeywordView::OnBoundsChanged(const gfx::Rect& previous_bounds) {
 }
 
 SkColor SelectedKeywordView::GetForegroundColor() const {
-  return GetColorProvider()->GetColor(kColorOmniboxKeywordSelected);
+  return location_bar_->GetColor(OmniboxPart::LOCATION_BAR_SELECTED_KEYWORD);
 }
 
 gfx::Size SelectedKeywordView::CalculatePreferredSize() const {
@@ -85,18 +84,19 @@ void SelectedKeywordView::OnThemeChanged() {
     SetCustomImage(gfx::Image());
 }
 
-void SelectedKeywordView::SetKeyword(const std::u16string& keyword) {
-  if (keyword_ == keyword)
-    return;
+void SelectedKeywordView::SetKeyword(const base::string16& keyword,
+                                     Profile* profile) {
   keyword_ = keyword;
-  OnPropertyChanged(&keyword_, views::kPropertyEffectsNone);
-  // TODO(pkasting): Arguably, much of the code below would be better as
-  // property change handlers in file-scope subclasses of Label etc.
-  if (keyword.empty() || !template_url_service_)
+  if (keyword.empty())
     return;
 
-  KeywordLabelNames names =
-      GetKeywordLabelNames(keyword, template_url_service_);
+  DCHECK(profile);
+  TemplateURLService* service =
+      TemplateURLServiceFactory::GetForProfile(profile);
+  if (!service)
+    return;
+
+  KeywordLabelNames names = GetKeywordLabelNames(keyword, service);
   full_label_.SetText(names.full_name);
   partial_label_.SetText(names.short_name);
 
@@ -107,13 +107,13 @@ void SelectedKeywordView::SetKeyword(const std::u16string& keyword) {
   NotifyAccessibilityEvent(ax::mojom::Event::kLiveRegionChanged, true);
 }
 
-const std::u16string& SelectedKeywordView::GetKeyword() const {
-  return keyword_;
-}
-
 int SelectedKeywordView::GetExtraInternalSpacing() const {
   // Align the label text with the suggestion text.
   return 11;
+}
+
+const char* SelectedKeywordView::GetClassName() const {
+  return "SelectedKeywordView";
 }
 
 void SelectedKeywordView::SetLabelForCurrentWidth() {
@@ -125,7 +125,3 @@ void SelectedKeywordView::SetLabelForCurrentWidth() {
       GetSizeForLabelWidth(partial_label_.GetPreferredSize().width()).width();
   SetLabel(use_full_label ? full_label_.GetText() : partial_label_.GetText());
 }
-
-BEGIN_METADATA(SelectedKeywordView, IconLabelBubbleView)
-ADD_PROPERTY_METADATA(std::u16string, Keyword)
-END_METADATA

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,12 @@
 #include "components/os_crypt/libsecret_util_linux.h"
 
 namespace {
+
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+const char kApplicationName[] = "chrome";
+#else
+const char kApplicationName[] = "chromium";
+#endif
 
 const SecretSchema kKeystoreSchemaV2 = {
     "chrome_libsecret_os_crypt_password_v2",
@@ -58,41 +64,38 @@ void AnalyseKeyHistory(GList* secret_items) {
 
 }  // namespace
 
-KeyStorageLibsecret::KeyStorageLibsecret(std::string application_name)
-    : application_name_(std::move(application_name)) {}
-
-absl::optional<std::string>
+base::Optional<std::string>
 KeyStorageLibsecret::AddRandomPasswordInLibsecret() {
   std::string password;
   base::Base64Encode(base::RandBytesAsString(16), &password);
   GError* error = nullptr;
   bool success = LibsecretLoader::secret_password_store_sync(
       &kKeystoreSchemaV2, nullptr, KeyStorageLinux::kKey, password.c_str(),
-      nullptr, &error, "application", application_name_.c_str(), nullptr);
+      nullptr, &error, "application", kApplicationName, nullptr);
   if (error) {
     VLOG(1) << "Libsecret lookup failed: " << error->message;
     g_error_free(error);
-    return absl::nullopt;
+    return base::nullopt;
   }
   if (!success) {
     VLOG(1) << "Libsecret lookup failed.";
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   VLOG(1) << "OSCrypt generated a new password.";
   return password;
 }
 
-absl::optional<std::string> KeyStorageLibsecret::GetKeyImpl() {
+base::Optional<std::string> KeyStorageLibsecret::GetKeyImpl() {
   LibsecretAttributesBuilder attrs;
-  attrs.Append("application", application_name_);
+  attrs.Append("application", kApplicationName);
 
   LibsecretLoader::SearchHelper helper;
   helper.Search(&kKeystoreSchemaV2, attrs.Get(),
                 SECRET_SEARCH_UNLOCK | SECRET_SEARCH_LOAD_SECRETS);
   if (!helper.success()) {
     VLOG(1) << "Libsecret lookup failed: " << helper.error()->message;
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   SecretValue* password_libsecret = ToSingleSecret(helper.results());
@@ -100,7 +103,7 @@ absl::optional<std::string> KeyStorageLibsecret::GetKeyImpl() {
     return AddRandomPasswordInLibsecret();
   }
   AnalyseKeyHistory(helper.results());
-  absl::optional<std::string> password(
+  base::Optional<std::string> password(
       LibsecretLoader::secret_value_get_text(password_libsecret));
   LibsecretLoader::secret_value_unref(password_libsecret);
   return password;

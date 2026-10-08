@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 #define SANDBOX_WIN_SRC_INTERNAL_TYPES_H_
 
 #include <stdint.h>
-
-#include "base/memory/raw_ptr.h"
 
 namespace sandbox {
 
@@ -40,7 +38,7 @@ class CountedBuffer {
 
  private:
   uint32_t size_;
-  raw_ptr<void> buffer_;
+  void* buffer_;
 };
 
 // Helper class to convert void-pointer packed ints for both

@@ -1,17 +1,16 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_RENDERER_HOST_INPUT_MOCK_INPUT_ROUTER_H_
 #define CONTENT_BROWSER_RENDERER_HOST_INPUT_MOCK_INPUT_ROUTER_H_
 
-#include "base/memory/raw_ptr.h"
 #include "content/browser/renderer_host/input/input_router.h"
 
+#include "base/optional.h"
 #include "cc/input/touch_action.h"
 #include "content/browser/renderer_host/event_with_latency_info.h"
 #include "content/common/input/event_with_latency_info.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/mojom/input/touch_event.mojom.h"
 
 namespace content {
@@ -27,10 +26,6 @@ class MockInputRouter : public InputRouter {
         send_touch_event_not_cancelled_(false),
         has_handlers_(false),
         client_(client) {}
-
-  MockInputRouter(const MockInputRouter&) = delete;
-  MockInputRouter& operator=(const MockInputRouter&) = delete;
-
   ~MockInputRouter() override {}
 
   // InputRouter:
@@ -46,11 +41,12 @@ class MockInputRouter : public InputRouter {
   void NotifySiteIsMobileOptimized(bool is_mobile_optimized) override {}
   bool HasPendingEvents() const override;
   void SetDeviceScaleFactor(float device_scale_factor) override {}
-  absl::optional<cc::TouchAction> AllowedTouchAction() override;
-  absl::optional<cc::TouchAction> ActiveTouchAction() override;
+  void SetFrameTreeNodeId(int frameTreeNodeId) override {}
+  base::Optional<cc::TouchAction> AllowedTouchAction() override;
+  base::Optional<cc::TouchAction> ActiveTouchAction() override;
   void SetForceEnableZoom(bool enabled) override {}
-  mojo::PendingRemote<blink::mojom::WidgetInputHandlerHost> BindNewHost(
-      scoped_refptr<base::SequencedTaskRunner> task_runner) override;
+  mojo::PendingRemote<blink::mojom::WidgetInputHandlerHost> BindNewHost()
+      override;
   void StopFling() override {}
   void ForceSetTouchActionAuto() override {}
   void OnHasTouchEventConsumers(
@@ -66,7 +62,9 @@ class MockInputRouter : public InputRouter {
   bool has_handlers_;
 
  private:
-  raw_ptr<InputRouterClient> client_;
+  InputRouterClient* client_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockInputRouter);
 };
 
 }  // namespace content

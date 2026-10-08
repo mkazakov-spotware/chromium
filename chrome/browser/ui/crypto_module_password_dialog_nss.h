@@ -1,13 +1,15 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_CRYPTO_MODULE_PASSWORD_DIALOG_NSS_H_
 #define CHROME_BROWSER_UI_CRYPTO_MODULE_PASSWORD_DIALOG_NSS_H_
 
+#include <string>
 #include <vector>
 
 #include "base/callback_forward.h"
+#include "base/memory/ref_counted.h"
 #include "chrome/browser/ui/crypto_module_password_dialog.h"
 #include "crypto/scoped_nss_types.h"
 #include "net/base/host_port_pair.h"

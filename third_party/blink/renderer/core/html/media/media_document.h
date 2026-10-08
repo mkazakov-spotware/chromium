@@ -42,4 +42,4 @@ class MediaDocument final : public HTMLDocument {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_HTML_MEDIA_MEDIA_DOCUMENT_H_
+#endif

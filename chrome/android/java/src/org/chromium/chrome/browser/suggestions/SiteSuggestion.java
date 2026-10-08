@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,8 @@ import org.chromium.chrome.browser.suggestions.tile.TileSectionType;
 import org.chromium.chrome.browser.suggestions.tile.TileSource;
 import org.chromium.chrome.browser.suggestions.tile.TileTitleSource;
 import org.chromium.url.GURL;
+
+import java.util.Date;
 
 /**
  * Data class that holds the site suggestion data provided by the tiles component.
@@ -20,6 +22,12 @@ public class SiteSuggestion {
 
     /** URL of the suggested site. */
     public final GURL url;
+
+    /** Id of the favicon. It is optional and used when caching the favion on device. */
+    public int faviconId;
+
+    /** The path to the icon image file for whitelisted tile, empty string otherwise. */
+    public final String whitelistIconPath;
 
     /** The generated tile's title originated from this {@code TileTitleSource}. */
     @TileTitleSource
@@ -36,12 +44,20 @@ public class SiteSuggestion {
     @TileSectionType
     public final int sectionType;
 
-    public SiteSuggestion(String title, GURL url, int titleSource, int source, int sectionType) {
+    /** The instant in time representing when the tile was originally generated
+        (produced by a ranking algorithm). */
+    public final Date dataGenerationTime;
+
+    public SiteSuggestion(String title, GURL url, String whitelistIconPath, int titleSource,
+            int source, int sectionType, Date dataGenerationTime) {
         this.title = title;
         this.url = url;
+        this.faviconId = INVALID_FAVICON_ID;
+        this.whitelistIconPath = whitelistIconPath;
         this.source = source;
         this.titleSource = titleSource;
         this.sectionType = sectionType;
+        this.dataGenerationTime = (Date) dataGenerationTime.clone();
     }
 
     @Override
@@ -55,13 +71,15 @@ public class SiteSuggestion {
         if (titleSource != that.titleSource) return false;
         if (sectionType != that.sectionType) return false;
         if (!title.equals(that.title)) return false;
-        return url.equals(that.url);
+        if (!url.equals(that.url)) return false;
+        return whitelistIconPath.equals(that.whitelistIconPath);
     }
 
     @Override
     public int hashCode() {
         int result = title.hashCode();
         result = 31 * result + url.hashCode();
+        result = 31 * result + whitelistIconPath.hashCode();
         result = 31 * result + source;
         result = 31 * result + sectionType;
         result = 31 * result + titleSource;

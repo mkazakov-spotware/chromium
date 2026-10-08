@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,12 @@
  * @fileoverview Utility methods for accessing chrome.metricsPrivate API.
  *
  * To be included as a first script in main.html
+ *
+ * @suppress {uselessCode} Temporary suppress because of the line exporting.
  */
 
+// eslint-disable-next-line no-var
+var metrics;  // Needs to be defined in each window which uses metrics.
 const metricsBase = {};
 
 /**
@@ -62,7 +66,7 @@ metricsBase.call_ = (methodName, args) => {
     console.error(e.stack);
   }
   // Support writing metrics.log in manual testing to log method calls.
-  if (/** @type{{ log: (boolean|undefined) }} */ (metricsBase).log) {
+  if (/** @type{{ log: (boolean|undefined) }} */ (metrics).log) {
     console.log('chrome.metricsPrivate.' + methodName, args);
   }
 };
@@ -73,8 +77,7 @@ metricsBase.call_ = (methodName, args) => {
  * @param {number} value Value to be recorded.
  */
 metricsBase.recordMediumCount = (name, value) => {
-  metricsBase.call_(
-      'recordMediumCount', [metricsBase.convertName_(name), value]);
+  metrics.call_('recordMediumCount', [metrics.convertName_(name), value]);
 };
 
 /**
@@ -83,8 +86,7 @@ metricsBase.recordMediumCount = (name, value) => {
  * @param {number} value Value to be recorded.
  */
 metricsBase.recordSmallCount = (name, value) => {
-  metricsBase.call_(
-      'recordSmallCount', [metricsBase.convertName_(name), value]);
+  metrics.call_('recordSmallCount', [metrics.convertName_(name), value]);
 };
 
 /**
@@ -93,7 +95,7 @@ metricsBase.recordSmallCount = (name, value) => {
  * @param {number} time Time to be recorded in milliseconds.
  */
 metricsBase.recordTime = (name, time) => {
-  metricsBase.call_('recordTime', [metricsBase.convertName_(name), time]);
+  metrics.call_('recordTime', [metrics.convertName_(name), time]);
 };
 
 /**
@@ -102,7 +104,7 @@ metricsBase.recordTime = (name, time) => {
  * @param {boolean} value The value to be recorded.
  */
 metricsBase.recordBoolean = (name, value) => {
-  metricsBase.call_('recordBoolean', [metricsBase.convertName_(name), value]);
+  metrics.call_('recordBoolean', [metrics.convertName_(name), value]);
 };
 
 /**
@@ -110,76 +112,33 @@ metricsBase.recordBoolean = (name, value) => {
  * @param {string} name Short metric name.
  */
 metricsBase.recordUserAction = name => {
-  metricsBase.call_('recordUserAction', [metricsBase.convertName_(name)]);
+  metrics.call_('recordUserAction', [metrics.convertName_(name)]);
 };
 
 /**
  * Records an elapsed time of no more than 10 seconds.
  * @param {string} name Short metric name.
- * @param {!chrome.metricsPrivate.MetricTypeType} type
- * @param {number} min
- * @param {number} max
- * @param {number} buckets
  * @param {number} value Numeric value to be recorded in units
  *     that match the histogram definition (in histograms.xml).
  */
-metricsBase.recordValue = (name, type, min, max, buckets, value) => {
-  metricsBase.call_('recordValue', [
-    {
-      'metricName': metricsBase.convertName_(name),
-      'type': type,
-      'min': min,
-      'max': max,
-      'buckets': buckets,
-    },
-    value,
-  ]);
+metricsBase.recordValue = (name, value) => {
+  metrics.call_('recordValue', [metrics.convertName_(name), value]);
 };
 
 /**
  * Complete the time interval recording.
  *
- * Should be preceded by a call to startInterval with the same name.
+ * Should be preceded by a call to startInterval with the same name. *
  *
  * @param {string} name Unique interval name.
  */
 metricsBase.recordInterval = name => {
-  if (name in metricsBase.intervals) {
-    metricsBase.recordTime(name, Date.now() - metricsBase.intervals[name]);
+  if (name in metrics.intervals) {
+    metrics.recordTime(name, Date.now() - metrics.intervals[name]);
   } else {
     console.error('Unknown interval: ' + name);
   }
 };
-
-/**
- * Complete the time interval recording into appropriate bucket.
- *
- * Should be preceded by a call to startInterval with the same |name|.
- *
- * @param {string} name Unique interval name.
- * @param {number} numFiles The number of files in this current directory.
- * @param {!Array<number>} buckets Array of numbers that correspond to a bucket
- *    value, this will be suffixed to |name| when recorded.
- * @param {number=} tolerance Allowed tolerance for |value| to coalesce into a
- *    bucket.
- */
-metricsBase.recordDirectoryListLoadWithTolerance =
-    (name, numFiles, buckets, tolerance) => {
-      if (name in metricsBase.intervals) {
-        for (const bucketValue of buckets) {
-          const toleranceMargin = bucketValue * tolerance;
-          if (numFiles >= (bucketValue - toleranceMargin) &&
-              numFiles <= (bucketValue + toleranceMargin)) {
-            metricsBase.recordTime(
-                `${name}.${bucketValue}`,
-                Date.now() - metricsBase.intervals[name]);
-            return;
-          }
-        }
-      } else {
-        console.error('Interval not started:', name);
-      }
-    };
 
 /**
  * Record an enum value.
@@ -194,9 +153,9 @@ metricsBase.recordEnum = (name, value, opt_validValues) => {
   let index;
 
   let validValues = opt_validValues;
-  if (metricsBase.validEnumValues_ && name in metricsBase.validEnumValues_) {
+  if (metrics.validEnumValues_ && name in metrics.validEnumValues_) {
     console.assert(validValues === undefined);
-    validValues = metricsBase.validEnumValues_[name];
+    validValues = metrics.validEnumValues_[name];
   }
   console.assert(validValues !== undefined);
 
@@ -217,13 +176,14 @@ metricsBase.recordEnum = (name, value, opt_validValues) => {
   // bucket AND the underflow bucket.
   // (Source: UMA_HISTOGRAM_ENUMERATION definition in base/metrics/histogram.h)
   const metricDescr = {
-    'metricName': metricsBase.convertName_(name),
+    'metricName': metrics.convertName_(name),
     'type': chrome.metricsPrivate.MetricTypeType.HISTOGRAM_LINEAR,
     'min': 1,
     'max': boundaryValue - 1,
-    'buckets': boundaryValue,
+    'buckets': boundaryValue
   };
-  metricsBase.call_('recordValue', [metricDescr, index]);
+  metrics.call_('recordValue', [metricDescr, index]);
 };
 
-export {metricsBase};
+// eslint-disable-next-line semi,no-extra-semi
+/* #export */ {metricsBase};

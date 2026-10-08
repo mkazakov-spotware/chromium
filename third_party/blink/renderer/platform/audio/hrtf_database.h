@@ -31,6 +31,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "third_party/blink/renderer/platform/audio/hrtf_elevation.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
@@ -41,13 +42,11 @@ namespace blink {
 
 class HRTFKernel;
 
-class HRTFDatabase {
+class PLATFORM_EXPORT HRTFDatabase {
   USING_FAST_MALLOC(HRTFDatabase);
 
  public:
   explicit HRTFDatabase(float sample_rate);
-  HRTFDatabase(const HRTFDatabase&) = delete;
-  HRTFDatabase& operator=(const HRTFDatabase&) = delete;
 
   // getKernelsFromAzimuthElevation() returns a left and right ear kernel, and
   // an interpolated left and right frame delay for the given azimuth and
@@ -63,7 +62,7 @@ class HRTFDatabase {
                                       HRTFKernel*& kernel_l,
                                       HRTFKernel*& kernel_r,
                                       double& frame_delay_l,
-                                      double& frame_delay_r) const;
+                                      double& frame_delay_r);
 
   // Returns the number of different azimuth angles.
   static unsigned NumberOfAzimuths() {
@@ -93,6 +92,8 @@ class HRTFDatabase {
 
   Vector<std::unique_ptr<HRTFElevation>> elevations_;
   float sample_rate_;
+
+  DISALLOW_COPY_AND_ASSIGN(HRTFDatabase);
 };
 
 }  // namespace blink

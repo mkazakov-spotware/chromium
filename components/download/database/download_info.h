@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 
 #include <string>
 
+#include "base/optional.h"
 #include "components/download/database/in_progress/in_progress_info.h"
 #include "components/download/database/in_progress/ukm_info.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace download {
 
@@ -30,10 +30,10 @@ struct DownloadInfo {
   int id = -1;
 
   // UKM information for reporting.
-  absl::optional<UkmInfo> ukm_info;
+  base::Optional<UkmInfo> ukm_info;
 
   // In progress information for active download.
-  absl::optional<InProgressInfo> in_progress_info;
+  base::Optional<InProgressInfo> in_progress_info;
 };
 
 }  // namespace download

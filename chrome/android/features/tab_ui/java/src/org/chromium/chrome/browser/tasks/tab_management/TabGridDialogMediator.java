@@ -1,10 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.tasks.tab_management;
 
-import static org.chromium.chrome.browser.tasks.tab_management.TabSwitcherMediator.INITIAL_SCROLL_INDEX_OFFSET_GTS;
+import static org.chromium.chrome.browser.tasks.tab_management.TabSwitcherMediator.INITIAL_SCROLL_INDEX_OFFSET;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -19,55 +19,44 @@ import androidx.appcompat.content.res.AppCompatResources;
 
 import org.chromium.base.Callback;
 import org.chromium.base.metrics.RecordUserAction;
-import org.chromium.base.supplier.Supplier;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.chrome.browser.share.ChromeShareExtras;
 import org.chromium.chrome.browser.share.ShareDelegate;
-import org.chromium.chrome.browser.share.ShareDelegate.ShareOrigin;
+import org.chromium.chrome.browser.share.ShareDelegateImpl.ShareOrigin;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabCreationState;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab.TabSelectionType;
 import org.chromium.chrome.browser.tab.state.CriticalPersistedTabData;
+import org.chromium.chrome.browser.tabmodel.EmptyTabModelSelectorObserver;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabModelObserver;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorObserver;
-import org.chromium.chrome.browser.tasks.ReturnToChromeUtil;
 import org.chromium.chrome.browser.tasks.tab_groups.TabGroupModelFilter;
-import org.chromium.chrome.browser.tasks.tab_management.TabListRecyclerView.RecyclerViewPosition;
-import org.chromium.chrome.browser.tasks.tab_management.TabSelectionEditorAction.ButtonType;
-import org.chromium.chrome.browser.tasks.tab_management.TabSelectionEditorAction.IconPosition;
-import org.chromium.chrome.browser.tasks.tab_management.TabSelectionEditorAction.ShowMode;
-import org.chromium.chrome.browser.tasks.tab_management.TabSelectionEditorCoordinator.TabSelectionEditorController;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.tab_ui.R;
 import org.chromium.components.browser_ui.share.ShareParams;
-import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.ui.KeyboardVisibilityDelegate;
-import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.modelutil.PropertyModel;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * A mediator for the TabGridDialog component, responsible for communicating
  * with the components' coordinator as well as managing the business logic
  * for dialog show/hide.
  */
-public class TabGridDialogMediator
-        implements SnackbarManager.SnackbarController, TabGridDialogView.VisibilityListener {
+public class TabGridDialogMediator implements SnackbarManager.SnackbarController {
     /**
      * Defines an interface for a {@link TabGridDialogMediator} to control dialog.
      */
-    interface DialogController extends BackPressHandler {
+    interface DialogController {
         /**
          * Handles a reset event originated from {@link TabGridDialogMediator} and {@link
          * TabSwitcherMediator}.
@@ -83,24 +72,9 @@ public class TabGridDialogMediator
         void hideDialog(boolean showAnimation);
 
         /**
-         * Prepare the TabGridDialog before show.
-         */
-        void prepareDialog();
-
-        /**
-         * Cleanup post hiding dialog.
-         */
-        void postHiding();
-
-        /**
          * @return Whether or not the TabGridDialog consumed the event.
          */
         boolean handleBackPressed();
-
-        /**
-         * @return Whether the TabGridDialog is visible.
-         */
-        boolean isVisible();
     }
 
     /**
@@ -125,16 +99,15 @@ public class TabGridDialogMediator
     private final TabCreatorManager mTabCreatorManager;
     private final DialogController mDialogController;
     private final TabSwitcherMediator.ResetHandler mTabSwitcherResetHandler;
-    private final Supplier<RecyclerViewPosition> mRecyclerViewPositionSupplier;
     private final AnimationSourceViewProvider mAnimationSourceViewProvider;
     private final DialogHandler mTabGridDialogHandler;
-    private final Supplier<ShareDelegate> mShareDelegateSupplier;
+    private final ObservableSupplier<ShareDelegate> mShareDelegateSupplier;
     private final Runnable mScrimClickRunnable;
     private final String mComponentName;
 
     private TabGroupTitleEditor mTabGroupTitleEditor;
-    private Supplier<TabSelectionEditorController> mTabSelectionEditorControllerSupplier;
-    private boolean mTabSelectionEditorSetup;
+    private TabSelectionEditorCoordinator
+            .TabSelectionEditorController mTabSelectionEditorController;
     private KeyboardVisibilityDelegate.KeyboardVisibilityListener mKeyboardVisibilityListener;
     private int mCurrentTabId = Tab.INVALID_TAB_ID;
     private boolean mIsUpdatingTitle;
@@ -144,17 +117,15 @@ public class TabGridDialogMediator
     TabGridDialogMediator(Context context, DialogController dialogController, PropertyModel model,
             TabModelSelector tabModelSelector, TabCreatorManager tabCreatorManager,
             TabSwitcherMediator.ResetHandler tabSwitcherResetHandler,
-            Supplier<RecyclerViewPosition> recyclerViewPositionSupplier,
             AnimationSourceViewProvider animationSourceViewProvider,
-            Supplier<ShareDelegate> shareDelegateSupplier, SnackbarManager snackbarManager,
-            String componentName) {
+            ObservableSupplier<ShareDelegate> shareDelegateSupplier,
+            SnackbarManager snackbarManager, String componentName) {
         mContext = context;
         mModel = model;
         mTabModelSelector = tabModelSelector;
         mTabCreatorManager = tabCreatorManager;
         mDialogController = dialogController;
         mTabSwitcherResetHandler = tabSwitcherResetHandler;
-        mRecyclerViewPositionSupplier = recyclerViewPositionSupplier;
         mAnimationSourceViewProvider = animationSourceViewProvider;
         mTabGridDialogHandler = new DialogHandler();
         mShareDelegateSupplier = shareDelegateSupplier;
@@ -187,7 +158,7 @@ public class TabGridDialogMediator
             }
 
             @Override
-            public void willCloseTab(Tab tab, boolean animate, boolean didCloseAlone) {
+            public void willCloseTab(Tab tab, boolean animate) {
                 List<Tab> relatedTabs = getRelatedTabs(tab.getId());
                 // If the group is empty, update the animation and hide the dialog.
                 if (relatedTabs.size() == 0) {
@@ -206,49 +177,6 @@ public class TabGridDialogMediator
             @Override
             public void tabPendingClosure(Tab tab) {
                 if (!mModel.get(TabGridPanelProperties.IS_DIALOG_VISIBLE)) return;
-
-                showSingleTabClosureSnackbar(tab);
-            }
-
-            @Override
-            public void multipleTabsPendingClosure(List<Tab> closedTabs, boolean isAllTabs) {
-                if (!mModel.get(TabGridPanelProperties.IS_DIALOG_VISIBLE)) return;
-
-                if (closedTabs.size() == 1) {
-                    showSingleTabClosureSnackbar(closedTabs.get(0));
-                    return;
-                }
-
-                assert !isAllTabs;
-                String content = String.format(Locale.getDefault(), "%d", closedTabs.size());
-                snackbarManager.showSnackbar(
-                        Snackbar.make(content, TabGridDialogMediator.this, Snackbar.TYPE_ACTION,
-                                        Snackbar.UMA_TAB_CLOSE_MULTIPLE_UNDO)
-                                .setTemplateText(
-                                        mContext.getString(R.string.undo_bar_close_all_message))
-                                .setAction(mContext.getString(R.string.undo), closedTabs));
-            }
-
-            @Override
-            public void tabClosureCommitted(Tab tab) {
-                dismissSingleTabClosureSnackbar(tab.getId());
-            }
-
-            @Override
-            public void onFinishingMultipleTabClosure(List<Tab> tabs) {
-                if (tabs.size() == 1) {
-                    dismissSingleTabClosureSnackbar(tabs.get(0).getId());
-                    return;
-                }
-                snackbarManager.dismissSnackbars(TabGridDialogMediator.this, tabs);
-            }
-
-            @Override
-            public void allTabsClosureCommitted(boolean isIncognito) {
-                snackbarManager.dismissSnackbars(TabGridDialogMediator.this);
-            }
-
-            private void showSingleTabClosureSnackbar(Tab tab) {
                 snackbarManager.showSnackbar(
                         Snackbar.make(tab.getTitle(), TabGridDialogMediator.this,
                                         Snackbar.TYPE_ACTION, Snackbar.UMA_TAB_CLOSE_UNDO)
@@ -257,19 +185,46 @@ public class TabGridDialogMediator
                                 .setAction(mContext.getString(R.string.undo), tab.getId()));
             }
 
-            private void dismissSingleTabClosureSnackbar(int tabId) {
-                snackbarManager.dismissSnackbars(TabGridDialogMediator.this, tabId);
+            @Override
+            public void tabClosureCommitted(Tab tab) {
+                snackbarManager.dismissSnackbars(TabGridDialogMediator.this, tab.getId());
             }
         };
 
-        mTabModelSelectorObserver = new TabModelSelectorObserver() {
+        mTabModelSelectorObserver = new EmptyTabModelSelectorObserver() {
             @Override
             public void onTabModelSelected(TabModel newModel, TabModel oldModel) {
-                updateColorProperties(context, newModel.isIncognito());
+                boolean isIncognito = newModel.isIncognito();
+                int dialogBackgroundResource = isIncognito
+                        ? R.drawable.tab_grid_dialog_background_incognito
+                        : R.drawable.tab_grid_dialog_background;
+                ColorStateList tintList = isIncognito
+                        ? AppCompatResources.getColorStateList(
+                                mContext, R.color.default_icon_color_light_tint_list)
+                        : AppCompatResources.getColorStateList(
+                                mContext, R.color.default_icon_color_tint_list);
+                int ungroupBarBackgroundColorId = isIncognito
+                        ? R.color.tab_grid_dialog_background_color_incognito
+                        : R.color.tab_grid_dialog_background_color;
+                int ungroupBarHoveredBackgroundColorId = isIncognito
+                        ? R.color.tab_grid_card_selected_color_incognito
+                        : R.color.tab_grid_card_selected_color;
+                int ungroupBarTextAppearance = isIncognito
+                        ? R.style.TextAppearance_TextMediumThick_Blue_Light
+                        : R.style.TextAppearance_TextMediumThick_Blue;
+
+                mModel.set(TabGridPanelProperties.DIALOG_BACKGROUND_RESOURCE_ID,
+                        dialogBackgroundResource);
+                mModel.set(TabGridPanelProperties.TINT, tintList);
+                mModel.set(TabGridPanelProperties.DIALOG_UNGROUP_BAR_BACKGROUND_COLOR_ID,
+                        ungroupBarBackgroundColorId);
+                mModel.set(TabGridPanelProperties.DIALOG_UNGROUP_BAR_HOVERED_BACKGROUND_COLOR_ID,
+                        ungroupBarHoveredBackgroundColorId);
+                mModel.set(TabGridPanelProperties.DIALOG_UNGROUP_BAR_TEXT_APPEARANCE,
+                        ungroupBarTextAppearance);
             }
         };
         mTabModelSelector.addObserver(mTabModelSelectorObserver);
-        updateColorProperties(context, mTabModelSelector.isIncognitoSelected());
 
         // Setup ScrimView click Runnable.
         mScrimClickRunnable = () -> {
@@ -281,15 +236,12 @@ public class TabGridDialogMediator
             RecordUserAction.record("TabGridDialog.Exit");
         };
         mModel.set(TabGridPanelProperties.IS_DIALOG_VISIBLE, false);
-        if (DeviceFormFactor.isNonMultiDisplayContextOnTablet(mContext)) {
-            mModel.set(TabGridPanelProperties.VISIBILITY_LISTENER, this);
-        }
     }
 
-    public void initWithNative(
-            Supplier<TabSelectionEditorController> tabSelectionEditorControllerSupplier,
+    public void initWithNative(@Nullable TabSelectionEditorCoordinator
+                                       .TabSelectionEditorController tabSelectionEditorController,
             TabGroupTitleEditor tabGroupTitleEditor) {
-        mTabSelectionEditorControllerSupplier = tabSelectionEditorControllerSupplier;
+        mTabSelectionEditorController = tabSelectionEditorController;
         mTabGroupTitleEditor = tabGroupTitleEditor;
         mTabModelSelector.getTabModelFilterProvider().addTabModelFilterObserver(mTabModelObserver);
 
@@ -297,25 +249,14 @@ public class TabGridDialogMediator
                         instanceof TabGroupModelFilter;
 
         mToolbarMenuCallback = result -> {
-            if (result == R.id.ungroup_tab || result == R.id.select_tabs) {
+            if (result == R.id.ungroup_tab) {
                 if (!TabUiFeatureUtilities.isLaunchPolishEnabled()) {
                     mModel.set(TabGridPanelProperties.IS_KEYBOARD_VISIBLE, false);
                 }
                 mModel.set(TabGridPanelProperties.IS_TITLE_TEXT_FOCUSED, false);
                 List<Tab> tabs = getRelatedTabs(mCurrentTabId);
-                // Setup dialog selection editor.
-                setupDialogSelectionEditor();
-                if (mTabSelectionEditorControllerSupplier.get() != null) {
-                    boolean v2Enabled =
-                            TabUiFeatureUtilities.isTabSelectionEditorV2Enabled(mContext);
-                    mTabSelectionEditorControllerSupplier.get().show(tabs,
-                            /*preSelectedTabCount=*/0,
-                            v2Enabled ? mRecyclerViewPositionSupplier.get() : null);
-                    if (v2Enabled) {
-                        RecordUserAction.record("TabMultiSelectV2.OpenFromDialog");
-                    } else {
-                        RecordUserAction.record("TabMultiSelect.OpenFromDialog");
-                    }
+                if (mTabSelectionEditorController != null) {
+                    mTabSelectionEditorController.show(tabs);
                 }
             } else if (result == R.id.share_tab_group) {
                 Tab tab = mTabModelSelector.getTabById(mCurrentTabId);
@@ -355,16 +296,12 @@ public class TabGridDialogMediator
         // Setup toolbar button click listeners.
         setupToolbarClickHandlers();
 
-        if (TabUiFeatureUtilities.isTabGroupsAndroidContinuationEnabled(mContext)) {
+        if (TabUiFeatureUtilities.isTabGroupsAndroidContinuationEnabled()) {
             // Setup toolbar edit text.
             setupToolbarEditText();
-            if (!TabUiFeatureUtilities.isTabSelectionEditorV2Enabled(mContext)) {
-                // Eagerly set up the dialog selection editor to measure performance difference.
-                setupDialogSelectionEditor();
-            }
 
-            mModel.set(TabGridPanelProperties.MENU_CLICK_LISTENER, getMenuButtonClickListener());
-        } else if (TabUiFeatureUtilities.isTabSelectionEditorV2Enabled(mContext)) {
+            // Setup dialog selection editor.
+            setupDialogSelectionEditor();
             mModel.set(TabGridPanelProperties.MENU_CLICK_LISTENER, getMenuButtonClickListener());
         }
     }
@@ -379,32 +316,14 @@ public class TabGridDialogMediator
                         mAnimationSourceViewProvider.getAnimationSourceViewForTab(mCurrentTabId));
             }
         }
-        if (mTabSelectionEditorControllerSupplier != null
-                && mTabSelectionEditorControllerSupplier.hasValue()) {
-            mTabSelectionEditorControllerSupplier.get().hide();
+        if (mTabSelectionEditorController != null) {
+            mTabSelectionEditorController.hide();
         }
         saveCurrentGroupModifiedTitle();
         if (TabUiFeatureUtilities.isLaunchPolishEnabled()) {
             mModel.set(TabGridPanelProperties.IS_TITLE_TEXT_FOCUSED, false);
         }
-        if (mModel.get(TabGridPanelProperties.VISIBILITY_LISTENER) != null) {
-            // If visibility listener is registered, listener will handle controller invocations for
-            // hide. hide view first. Listener will reset tabs on #finishedHiding.
-            mModel.set(TabGridPanelProperties.IS_DIALOG_VISIBLE, false);
-        } else {
-            mDialogController.resetWithListOfTabs(null);
-        }
-    }
-
-    // @TabGridDialogView.VisibilityListener
-    @Override
-    public void finishedHidingDialogView() {
         mDialogController.resetWithListOfTabs(null);
-        mDialogController.postHiding();
-        if (ChromeFeatureList.sDiscardOccludedBitmaps.isEnabled()) {
-            // Purge the bitmap reference in the animation.
-            mModel.set(TabGridPanelProperties.ANIMATION_SOURCE_VIEW, null);
-        }
     }
 
     void onReset(@Nullable List<Tab> tabs) {
@@ -426,15 +345,9 @@ public class TabGridDialogMediator
             updateDialog();
             updateDialogScrollPosition();
             mModel.set(TabGridPanelProperties.SCRIMVIEW_CLICK_RUNNABLE, mScrimClickRunnable);
-            mDialogController.prepareDialog();
             mModel.set(TabGridPanelProperties.IS_DIALOG_VISIBLE, true);
-        } else if (mModel.get(TabGridPanelProperties.IS_DIALOG_VISIBLE)) {
+        } else {
             mModel.set(TabGridPanelProperties.IS_DIALOG_VISIBLE, false);
-            mDialogController.postHiding();
-            if (ChromeFeatureList.sDiscardOccludedBitmaps.isEnabled()) {
-                // Purge the bitmap reference in the animation.
-                mModel.set(TabGridPanelProperties.ANIMATION_SOURCE_VIEW, null);
-            }
         }
     }
 
@@ -494,34 +407,6 @@ public class TabGridDialogMediator
                         R.plurals.bottom_tab_grid_title_placeholder, tabsCount, tabsCount));
     }
 
-    private void updateColorProperties(Context context, boolean isIncognito) {
-        int dialogBackgroundColor =
-                TabUiThemeProvider.getTabGridDialogBackgroundColor(context, isIncognito);
-        ColorStateList tintList = isIncognito ? AppCompatResources.getColorStateList(
-                                          mContext, R.color.default_icon_color_light_tint_list)
-                                              : AppCompatResources.getColorStateList(mContext,
-                                                      R.color.default_icon_color_tint_list);
-        int ungroupBarBackgroundColor =
-                TabUiThemeProvider.getTabGridDialogUngroupBarBackgroundColor(context, isIncognito);
-        int ungroupBarHoveredBackgroundColor =
-                TabUiThemeProvider.getTabGridDialogUngroupBarHoveredBackgroundColor(
-                        context, isIncognito);
-        int ungroupBarTextColor =
-                TabUiThemeProvider.getTabGridDialogUngroupBarTextColor(context, isIncognito);
-        int ungroupBarHoveredTextColor =
-                TabUiThemeProvider.getTabGridDialogUngroupBarHoveredTextColor(context, isIncognito);
-
-        mModel.set(TabGridPanelProperties.DIALOG_BACKGROUND_COLOR, dialogBackgroundColor);
-        mModel.set(TabGridPanelProperties.TINT, tintList);
-        mModel.set(TabGridPanelProperties.DIALOG_UNGROUP_BAR_BACKGROUND_COLOR,
-                ungroupBarBackgroundColor);
-        mModel.set(TabGridPanelProperties.DIALOG_UNGROUP_BAR_HOVERED_BACKGROUND_COLOR,
-                ungroupBarHoveredBackgroundColor);
-        mModel.set(TabGridPanelProperties.DIALOG_UNGROUP_BAR_TEXT_COLOR, ungroupBarTextColor);
-        mModel.set(TabGridPanelProperties.DIALOG_UNGROUP_BAR_HOVERED_TEXT_COLOR,
-                ungroupBarHoveredTextColor);
-    }
-
     private static int getRootId(Tab tab) {
         return CriticalPersistedTabData.from(tab).getRootId();
     }
@@ -535,7 +420,7 @@ public class TabGridDialogMediator
         List<Tab> relatedTabs = getRelatedTabs(mCurrentTabId);
         Tab currentTab = mTabModelSelector.getTabById(mCurrentTabId);
         int initialPosition =
-                Math.max(relatedTabs.indexOf(currentTab) - INITIAL_SCROLL_INDEX_OFFSET_GTS, 0);
+                Math.max(relatedTabs.indexOf(currentTab) - INITIAL_SCROLL_INDEX_OFFSET, 0);
         mModel.set(TabGridPanelProperties.INITIAL_SCROLL_INDEX, initialPosition);
     }
 
@@ -546,38 +431,14 @@ public class TabGridDialogMediator
     }
 
     private void setupDialogSelectionEditor() {
-        assert mTabSelectionEditorControllerSupplier != null;
-
-        if (!mTabSelectionEditorControllerSupplier.hasValue() || mTabSelectionEditorSetup) {
-            return;
-        }
-
-        mTabSelectionEditorSetup = true;
-
-        if (TabUiFeatureUtilities.isTabSelectionEditorV2Enabled(mContext)) {
-            List<TabSelectionEditorAction> actions = new ArrayList<>();
-            actions.add(TabSelectionEditorSelectionAction.createAction(
-                    mContext, ShowMode.MENU_ONLY, ButtonType.ICON_AND_TEXT, IconPosition.END));
-            actions.add(TabSelectionEditorCloseAction.createAction(
-                    mContext, ShowMode.MENU_ONLY, ButtonType.ICON_AND_TEXT, IconPosition.START));
-            actions.add(TabSelectionEditorUngroupAction.createAction(
-                    mContext, ShowMode.MENU_ONLY, ButtonType.ICON_AND_TEXT, IconPosition.START));
-            if (TabUiFeatureUtilities.ENABLE_TAB_SELECTION_EDITOR_V2_SHARE.getValue()) {
-                actions.add(TabSelectionEditorShareAction.createAction(mContext, ShowMode.MENU_ONLY,
-                        ButtonType.ICON_AND_TEXT, IconPosition.START));
-            }
-            mTabSelectionEditorControllerSupplier.get().configureToolbarWithMenuItems(
-                    actions, null);
-            return;
-        }
-
+        assert mTabSelectionEditorController != null;
         TabSelectionEditorActionProvider actionProvider =
-                new TabSelectionEditorActionProvider(mTabSelectionEditorControllerSupplier.get(),
+                new TabSelectionEditorActionProvider(mTabSelectionEditorController,
                         TabSelectionEditorActionProvider.TabSelectionEditorAction.UNGROUP);
 
         String actionButtonText =
                 mContext.getString(R.string.tab_grid_dialog_selection_mode_remove);
-        mTabSelectionEditorControllerSupplier.get().configureToolbar(actionButtonText,
+        mTabSelectionEditorController.configureToolbar(actionButtonText,
                 R.plurals.accessibility_tab_selection_dialog_remove_button, actionProvider, 1,
                 null);
     }
@@ -650,16 +511,13 @@ public class TabGridDialogMediator
             Tab parentTabToAttach = relatedTabs.get(relatedTabs.size() - 1);
             mTabCreatorManager.getTabCreator(currentTab.isIncognito())
                     .createNewTab(new LoadUrlParams(UrlConstants.NTP_URL),
-                            TabLaunchType.FROM_TAB_GROUP_UI, parentTabToAttach);
+                            TabLaunchType.FROM_CHROME_UI, parentTabToAttach);
             RecordUserAction.record("MobileNewTabOpened." + mComponentName);
-            if (!currentTab.isIncognito()) {
-                ReturnToChromeUtil.onNewTabOpened();
-            }
         };
     }
 
     private View.OnClickListener getMenuButtonClickListener() {
-        assert mTabSelectionEditorControllerSupplier != null;
+        assert mTabSelectionEditorController != null;
         return TabGridDialogMenuCoordinator.getTabGridDialogMenuOnClickListener(
                 mToolbarMenuCallback);
     }
@@ -720,43 +578,19 @@ public class TabGridDialogMediator
     // SnackbarManager.SnackbarController implementation.
     @Override
     public void onAction(Object actionData) {
-        if (actionData instanceof Integer) {
-            int tabId = (Integer) actionData;
-            TabModel model = mTabModelSelector.getModelForTabId(tabId);
-            if (model == null) return;
-
+        int tabId = (int) actionData;
+        TabModel model = mTabModelSelector.getModelForTabId(tabId);
+        if (model != null) {
             model.cancelTabClosure(tabId);
-        } else {
-            List<Tab> tabs = (List<Tab>) actionData;
-            if (tabs.isEmpty()) return;
-
-            TabModel model = mTabModelSelector.getModelForTabId(tabs.get(0).getId());
-            if (model == null) return;
-
-            for (Tab tab : tabs) {
-                model.cancelTabClosure(tab.getId());
-            }
         }
     }
 
     @Override
     public void onDismissNoAction(Object actionData) {
-        if (actionData instanceof Integer) {
-            int tabId = (Integer) actionData;
-            TabModel model = mTabModelSelector.getModelForTabId(tabId);
-            if (model == null) return;
-
+        int tabId = (int) actionData;
+        TabModel model = mTabModelSelector.getModelForTabId(tabId);
+        if (model != null) {
             model.commitTabClosure(tabId);
-        } else {
-            List<Tab> tabs = (List<Tab>) actionData;
-            if (tabs.isEmpty()) return;
-
-            TabModel model = mTabModelSelector.getModelForTabId(tabs.get(0).getId());
-            if (model == null) return;
-
-            for (Tab tab : tabs) {
-                model.commitTabClosure(tab.getId());
-            }
         }
     }
 
@@ -782,7 +616,7 @@ public class TabGridDialogMediator
         List<Tab> tabgroup = getRelatedTabs(mCurrentTabId);
         assert tabgroup.size() > 0;
         for (int i = 0; i < tabgroup.size(); i++) {
-            sb.append(i + 1).append(". ").append(tabgroup.get(i).getUrl().getSpec()).append("\n");
+            sb.append(i + 1).append(". ").append(tabgroup.get(i).getUrlString()).append("\n");
         }
         return sb.toString();
     }

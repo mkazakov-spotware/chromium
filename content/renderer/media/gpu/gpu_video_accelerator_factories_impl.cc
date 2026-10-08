@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,13 @@
 #include "base/memory/ptr_util.h"
 #include "base/memory/unsafe_shared_memory_region.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/unguessable_token.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/viz/common/gpu/context_provider.h"
 #include "content/child/child_thread_impl.h"
 #include "content/public/common/content_features.h"
+#include "content/public/common/service_names.mojom.h"
 #include "content/renderer/render_thread_impl.h"
 #include "gpu/command_buffer/client/context_support.h"
 #include "gpu/command_buffer/client/gles2_interface.h"
@@ -28,6 +28,7 @@
 #include "gpu/ipc/common/gpu_memory_buffer_support.h"
 #include "media/base/bind_to_current_loop.h"
 #include "media/gpu/gpu_video_accelerator_util.h"
+#include "media/gpu/ipc/common/media_messages.h"
 #include "media/mojo/buildflags.h"
 #include "media/mojo/clients/mojo_video_decoder.h"
 #include "media/mojo/clients/mojo_video_encode_accelerator.h"
@@ -82,8 +83,7 @@ GpuVideoAcceleratorFactoriesImpl::Create(
     const scoped_refptr<viz::ContextProviderCommandBuffer>& context_provider,
     bool enable_video_gpu_memory_buffers,
     bool enable_media_stream_gpu_memory_buffers,
-    bool enable_video_decode_accelerator,
-    bool enable_video_encode_accelerator,
+    bool enable_video_accelerator,
     mojo::PendingRemote<media::mojom::InterfaceFactory>
         interface_factory_remote,
     mojo::PendingRemote<media::mojom::VideoEncodeAcceleratorProvider>
@@ -93,9 +93,8 @@ GpuVideoAcceleratorFactoriesImpl::Create(
   return base::WrapUnique(new GpuVideoAcceleratorFactoriesImpl(
       std::move(gpu_channel_host), main_thread_task_runner, task_runner,
       context_provider, enable_video_gpu_memory_buffers,
-      enable_media_stream_gpu_memory_buffers, enable_video_decode_accelerator,
-      enable_video_encode_accelerator, std::move(interface_factory_remote),
-      std::move(vea_provider_remote)));
+      enable_media_stream_gpu_memory_buffers, enable_video_accelerator,
+      std::move(interface_factory_remote), std::move(vea_provider_remote)));
 }
 
 GpuVideoAcceleratorFactoriesImpl::GpuVideoAcceleratorFactoriesImpl(
@@ -105,8 +104,7 @@ GpuVideoAcceleratorFactoriesImpl::GpuVideoAcceleratorFactoriesImpl(
     const scoped_refptr<viz::ContextProviderCommandBuffer>& context_provider,
     bool enable_video_gpu_memory_buffers,
     bool enable_media_stream_gpu_memory_buffers,
-    bool enable_video_decode_accelerator,
-    bool enable_video_encode_accelerator,
+    bool enable_video_accelerator,
     mojo::PendingRemote<media::mojom::InterfaceFactory>
         interface_factory_remote,
     mojo::PendingRemote<media::mojom::VideoEncodeAcceleratorProvider>
@@ -118,8 +116,7 @@ GpuVideoAcceleratorFactoriesImpl::GpuVideoAcceleratorFactoriesImpl(
       enable_video_gpu_memory_buffers_(enable_video_gpu_memory_buffers),
       enable_media_stream_gpu_memory_buffers_(
           enable_media_stream_gpu_memory_buffers),
-      video_decode_accelerator_enabled_(enable_video_decode_accelerator),
-      video_encode_accelerator_enabled_(enable_video_encode_accelerator),
+      video_accelerator_enabled_(enable_video_accelerator),
       gpu_memory_buffer_manager_(
           RenderThreadImpl::current()->GetGpuMemoryBufferManager()) {
   DCHECK(main_thread_task_runner_);
@@ -146,7 +143,7 @@ void GpuVideoAcceleratorFactoriesImpl::BindOnTaskRunner(
   interface_factory_.Bind(std::move(interface_factory_remote));
   vea_provider_.Bind(std::move(vea_provider_remote));
 
-  if (context_provider_->BindToCurrentSequence() !=
+  if (context_provider_->BindToCurrentThread() !=
       gpu::ContextResult::kSuccess) {
     OnDecoderSupportFailed();
     OnEncoderSupportFailed();
@@ -156,12 +153,16 @@ void GpuVideoAcceleratorFactoriesImpl::BindOnTaskRunner(
 
   context_provider_->AddObserver(this);
 
-  // Request the channel token.
-  context_provider_->GetCommandBufferProxy()->GetGpuChannel().GetChannelToken(
-      base::BindOnce(&GpuVideoAcceleratorFactoriesImpl::OnChannelTokenReady,
-                     base::Unretained(this)));
+  if (video_accelerator_enabled_) {
+    {
+      // TODO(crbug.com/709631): This should be removed.
+      base::AutoLock lock(supported_profiles_lock_);
+      supported_vea_profiles_ =
+          media::GpuVideoAcceleratorUtil::ConvertGpuToMediaEncodeProfiles(
+              gpu_channel_host_->gpu_info()
+                  .video_encode_accelerator_supported_profiles);
+    }
 
-  if (video_encode_accelerator_enabled_) {
     vea_provider_.set_disconnect_handler(base::BindOnce(
         &GpuVideoAcceleratorFactoriesImpl::OnEncoderSupportFailed,
         base::Unretained(this)));
@@ -174,21 +175,19 @@ void GpuVideoAcceleratorFactoriesImpl::BindOnTaskRunner(
   }
 
 #if BUILDFLAG(ENABLE_MOJO_VIDEO_DECODER)
-  if (video_decode_accelerator_enabled_) {
-    // Note: This is a bit of a hack, since we don't specify the implementation
-    // before asking for the map of supported configs.  We do this because it
-    // (a) saves an ipc call, and (b) makes the return of those configs atomic.
-    interface_factory_->CreateVideoDecoder(
-        video_decoder_.BindNewPipeAndPassReceiver(), /*dst_video_decoder=*/{});
-    video_decoder_.set_disconnect_handler(base::BindOnce(
-        &GpuVideoAcceleratorFactoriesImpl::OnDecoderSupportFailed,
-        base::Unretained(this)));
-    video_decoder_->GetSupportedConfigs(base::BindOnce(
-        &GpuVideoAcceleratorFactoriesImpl::OnSupportedDecoderConfigs,
-        base::Unretained(this)));
-  } else {
-    OnDecoderSupportFailed();
-  }
+  // Note: This is a bit of a hack, since we don't specify the implementation
+  // before asking for the map of supported configs.  We do this because it
+  // (a) saves an ipc call, and (b) makes the return of those configs atomic.
+  // Otherwise, we might have received configs for kDefault but not yet
+  // kAlternate, for example.
+  interface_factory_->CreateVideoDecoder(
+      video_decoder_.BindNewPipeAndPassReceiver());
+  video_decoder_.set_disconnect_handler(
+      base::BindOnce(&GpuVideoAcceleratorFactoriesImpl::OnDecoderSupportFailed,
+                     base::Unretained(this)));
+  video_decoder_->GetSupportedConfigs(base::BindOnce(
+      &GpuVideoAcceleratorFactoriesImpl::OnSupportedDecoderConfigs,
+      base::Unretained(this)));
 #else
   OnDecoderSupportFailed();
 #endif  // BUILDFLAG(ENABLE_MOJO_VIDEO_DECODER)
@@ -207,12 +206,10 @@ void GpuVideoAcceleratorFactoriesImpl::NotifyDecoderSupportKnown(
 }
 
 void GpuVideoAcceleratorFactoriesImpl::OnSupportedDecoderConfigs(
-    const media::SupportedVideoDecoderConfigs& supported_configs,
-    media::VideoDecoderType decoder_type) {
+    const media::SupportedVideoDecoderConfigMap& supported_configs) {
   base::AutoLock lock(supported_profiles_lock_);
   video_decoder_.reset();
   supported_decoder_configs_ = supported_configs;
-  video_decoder_type_ = decoder_type;
   decoder_support_notifier_.Notify();
 }
 
@@ -221,7 +218,7 @@ void GpuVideoAcceleratorFactoriesImpl::OnDecoderSupportFailed() {
   video_decoder_.reset();
   if (decoder_support_notifier_.is_notified())
     return;
-  supported_decoder_configs_ = media::SupportedVideoDecoderConfigs();
+  supported_decoder_configs_ = media::SupportedVideoDecoderConfigMap();
   decoder_support_notifier_.Notify();
 }
 
@@ -279,36 +276,21 @@ void GpuVideoAcceleratorFactoriesImpl::DestroyContext() {
       ContextProviderPhase::CONTEXT_PROVIDER_RELEASED);
 }
 
-bool GpuVideoAcceleratorFactoriesImpl::IsGpuVideoDecodeAcceleratorEnabled() {
-  return video_decode_accelerator_enabled_;
-}
-bool GpuVideoAcceleratorFactoriesImpl::IsGpuVideoEncodeAcceleratorEnabled() {
-  return video_encode_accelerator_enabled_;
+bool GpuVideoAcceleratorFactoriesImpl::IsGpuVideoAcceleratorEnabled() {
+  return video_accelerator_enabled_;
 }
 
-void GpuVideoAcceleratorFactoriesImpl::GetChannelToken(
-    gpu::mojom::GpuChannel::GetChannelTokenCallback cb) {
+base::UnguessableToken GpuVideoAcceleratorFactoriesImpl::GetChannelToken() {
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
-  if (CheckContextLost()) {
-    std::move(cb).Run(base::UnguessableToken());
-    return;
+  if (CheckContextLost())
+    return base::UnguessableToken();
+
+  if (channel_token_.is_empty()) {
+    context_provider_->GetCommandBufferProxy()->channel()->Send(
+        new GpuCommandBufferMsg_GetChannelToken(&channel_token_));
   }
 
-  if (!channel_token_.is_empty()) {
-    // Use cached token.
-    std::move(cb).Run(channel_token_);
-    return;
-  }
-
-  // Retrieve a channel token if needed.
-  channel_token_callbacks_.AddUnsafe(std::move(cb));
-}
-
-void GpuVideoAcceleratorFactoriesImpl::OnChannelTokenReady(
-    const base::UnguessableToken& token) {
-  channel_token_ = token;
-  channel_token_callbacks_.Notify(channel_token_);
-  DCHECK(channel_token_callbacks_.empty());
+  return channel_token_;
 }
 
 int32_t GpuVideoAcceleratorFactoriesImpl::GetCommandBufferRouteId() {
@@ -320,12 +302,10 @@ int32_t GpuVideoAcceleratorFactoriesImpl::GetCommandBufferRouteId() {
 
 media::GpuVideoAcceleratorFactories::Supported
 GpuVideoAcceleratorFactoriesImpl::IsDecoderConfigSupported(
+    media::VideoDecoderImplementation implementation,
     const media::VideoDecoderConfig& config) {
   // There is no support for alpha channel hardware decoding yet.
-  // HEVC is the codec that only has platform hardware decoder support, and
-  // macOS currently support HEVC with alpha, so don't block HEVC here.
-  if (config.alpha_mode() == media::VideoDecoderConfig::AlphaMode::kHasAlpha &&
-      config.codec() != media::VideoCodec::kHEVC) {
+  if (config.alpha_mode() == media::VideoDecoderConfig::AlphaMode::kHasAlpha) {
     DVLOG(1) << "Alpha transparency formats are not supported.";
     return Supported::kFalse;
   }
@@ -338,24 +318,26 @@ GpuVideoAcceleratorFactoriesImpl::IsDecoderConfigSupported(
   if (!supported_decoder_configs_)
     return Supported::kUnknown;
 
-  // Iterate over the supported configs.
-  for (const auto& supported : *supported_decoder_configs_) {
+  auto iter = supported_decoder_configs_->find(implementation);
+  // If the decoder implementation wasn't listed, then fail.  This means that
+  // there is no such decoder implementation.
+  if (iter == supported_decoder_configs_->end())
+    return Supported::kFalse;
+
+  // Iterate over the supported configs for |impl|.
+  for (const auto& supported : iter->second) {
     if (supported.Matches(config))
       return Supported::kTrue;
   }
   return Supported::kFalse;
 }
 
-media::VideoDecoderType GpuVideoAcceleratorFactoriesImpl::GetDecoderType() {
-  base::AutoLock lock(supported_profiles_lock_);
-  return video_decoder_type_;
-}
-
 std::unique_ptr<media::VideoDecoder>
 GpuVideoAcceleratorFactoriesImpl::CreateVideoDecoder(
     media::MediaLog* media_log,
+    media::VideoDecoderImplementation implementation,
     media::RequestOverlayInfoCB request_overlay_info_cb) {
-  DCHECK(video_decode_accelerator_enabled_);
+  DCHECK(video_accelerator_enabled_);
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
   DCHECK(interface_factory_.is_bound());
 
@@ -365,9 +347,9 @@ GpuVideoAcceleratorFactoriesImpl::CreateVideoDecoder(
 
   mojo::PendingRemote<media::mojom::VideoDecoder> video_decoder;
   interface_factory_->CreateVideoDecoder(
-      video_decoder.InitWithNewPipeAndPassReceiver(), /*dst_video_decoder=*/{});
+      video_decoder.InitWithNewPipeAndPassReceiver());
   return std::make_unique<media::MojoVideoDecoder>(
-      task_runner_, this, media_log, std::move(video_decoder),
+      task_runner_, this, media_log, std::move(video_decoder), implementation,
       std::move(request_overlay_info_cb), rendering_color_space_);
 #else
   return nullptr;
@@ -376,7 +358,7 @@ GpuVideoAcceleratorFactoriesImpl::CreateVideoDecoder(
 
 std::unique_ptr<media::VideoEncodeAccelerator>
 GpuVideoAcceleratorFactoriesImpl::CreateVideoEncodeAccelerator() {
-  DCHECK(video_encode_accelerator_enabled_);
+  DCHECK(video_accelerator_enabled_);
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
   DCHECK(vea_provider_.is_bound());
   if (CheckContextLost())
@@ -400,7 +382,10 @@ GpuVideoAcceleratorFactoriesImpl::CreateVideoEncodeAccelerator() {
     return nullptr;
 
   return std::unique_ptr<media::VideoEncodeAccelerator>(
-      new media::MojoVideoEncodeAccelerator(std::move(vea)));
+      new media::MojoVideoEncodeAccelerator(
+          std::move(vea),
+          supported_vea_profiles_.value_or(
+              media::VideoEncodeAccelerator::SupportedProfiles())));
 }
 
 std::unique_ptr<gfx::GpuMemoryBuffer>
@@ -409,7 +394,7 @@ GpuVideoAcceleratorFactoriesImpl::CreateGpuMemoryBuffer(
     gfx::BufferFormat format,
     gfx::BufferUsage usage) {
   return gpu_memory_buffer_manager_->CreateGpuMemoryBuffer(
-      size, format, usage, gpu::kNullSurfaceHandle, nullptr);
+      size, format, usage, gpu::kNullSurfaceHandle);
 }
 bool GpuVideoAcceleratorFactoriesImpl::ShouldUseGpuMemoryBuffersForVideoFrames(
     bool for_media_stream) const {
@@ -431,7 +416,7 @@ GpuVideoAcceleratorFactoriesImpl::VideoFrameOutputFormat(
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
   if (CheckContextLost())
     return media::GpuVideoAcceleratorFactories::OutputFormat::UNDEFINED;
-#if BUILDFLAG(IS_CHROMEOS_ASH) && BUILDFLAG(IS_OZONE)
+#if defined(OS_CHROMEOS) && defined(USE_OZONE)
   // TODO(sugoi): This configuration is currently used only for testing ChromeOS
   // on Linux and doesn't support hardware acceleration. OSMesa did not support
   // any hardware acceleration here, so this was never an issue, but SwiftShader
@@ -441,13 +426,14 @@ GpuVideoAcceleratorFactoriesImpl::VideoFrameOutputFormat(
     return media::GpuVideoAcceleratorFactories::OutputFormat::UNDEFINED;
   }
 #endif
-  const auto& capabilities = context_provider_->ContextCapabilities();
+  auto capabilities = context_provider_->ContextCapabilities();
   const size_t bit_depth = media::BitDepth(pixel_format);
   if (bit_depth > 8) {
+#if !defined(OS_MAC)
+    // TODO(crbug.com/1101041): Enable P010 support for macOS.
     if (capabilities.image_ycbcr_p010 && bit_depth == 10)
       return media::GpuVideoAcceleratorFactories::OutputFormat::P010;
 
-#if !BUILDFLAG(IS_MAC)
     // If high bit depth rendering is enabled, bail here, otherwise try and use
     // XR30 storage, and if not and we support RG textures, use those, albeit at
     // a reduced bit depth of 8 bits per component.
@@ -457,7 +443,7 @@ GpuVideoAcceleratorFactoriesImpl::VideoFrameOutputFormat(
       return media::GpuVideoAcceleratorFactories::OutputFormat::UNDEFINED;
 #endif
 
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
     // TODO(mcasas): enable Win https://crbug.com/803451.
     // TODO(mcasas): remove the |bit_depth| check when libyuv supports more than
     // just x010ToAR30 conversions, https://crbug.com/libyuv/751.
@@ -481,30 +467,13 @@ GpuVideoAcceleratorFactoriesImpl::VideoFrameOutputFormat(
 #endif
   }
 
-  if (capabilities.texture_rg ||
-      (capabilities.image_ycbcr_420v &&
-       !capabilities.image_ycbcr_420v_disabled_for_video_frames)) {
-    return media::GpuVideoAcceleratorFactories::OutputFormat::NV12;
+  if (capabilities.image_ycbcr_420v &&
+      !capabilities.image_ycbcr_420v_disabled_for_video_frames) {
+    return media::GpuVideoAcceleratorFactories::OutputFormat::NV12_SINGLE_GMB;
   }
+  if (capabilities.texture_rg)
+    return media::GpuVideoAcceleratorFactories::OutputFormat::NV12_DUAL_GMB;
   return media::GpuVideoAcceleratorFactories::OutputFormat::UNDEFINED;
-}
-
-bool GpuVideoAcceleratorFactoriesImpl::UseSharedImagePerPlane(
-    OutputFormat output_format) {
-  const auto& capabilities = context_provider_->ContextCapabilities();
-  // Use per plane shared image if we can't bind NV12 GMB as one shared image.
-  if (output_format == GpuVideoAcceleratorFactories::OutputFormat::NV12 &&
-      (!capabilities.image_ycbcr_420v ||
-       capabilities.image_ycbcr_420v_disabled_for_video_frames)) {
-    return true;
-  }
-  // Use per plane shared image if we can't bind P010 GMB as one shared image.
-  if (output_format == GpuVideoAcceleratorFactories::OutputFormat::P010 &&
-      !capabilities.image_ycbcr_p010) {
-    return true;
-  }
-  // Otherwise, bind each multi-planar GMB as a single shared image.
-  return false;
 }
 
 gpu::SharedImageInterface*
@@ -530,7 +499,7 @@ GpuVideoAcceleratorFactoriesImpl::GetTaskRunner() {
   return task_runner_;
 }
 
-absl::optional<media::VideoEncodeAccelerator::SupportedProfiles>
+base::Optional<media::VideoEncodeAccelerator::SupportedProfiles>
 GpuVideoAcceleratorFactoriesImpl::GetVideoEncodeAcceleratorSupportedProfiles() {
   base::AutoLock lock(supported_profiles_lock_);
   return supported_vea_profiles_;
@@ -541,21 +510,9 @@ GpuVideoAcceleratorFactoriesImpl::GetMediaContextProvider() {
   return CheckContextLost() ? nullptr : context_provider_.get();
 }
 
-const gpu::Capabilities*
-GpuVideoAcceleratorFactoriesImpl::ContextCapabilities() {
-  DCHECK(task_runner_->RunsTasksInCurrentSequence());
-  return CheckContextLost() ? nullptr
-                            : &(context_provider_->ContextCapabilities());
-}
-
 void GpuVideoAcceleratorFactoriesImpl::SetRenderingColorSpace(
     const gfx::ColorSpace& color_space) {
   rendering_color_space_ = color_space;
-}
-
-const gfx::ColorSpace&
-GpuVideoAcceleratorFactoriesImpl::GetRenderingColorSpace() const {
-  return rendering_color_space_;
 }
 
 bool GpuVideoAcceleratorFactoriesImpl::CheckContextProviderLostOnMainThread() {

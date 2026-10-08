@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@ import java.lang.annotation.RetentionPolicy;
 @IntDef({GoogleAccountServiceType.SIGNOUT, GoogleAccountServiceType.ADD_SESSION,
         GoogleAccountServiceType.DEFAULT})
 @Retention(RetentionPolicy.SOURCE)
-@interface GoogleAccountServiceType {
+public @interface GoogleAccountServiceType {
     /**
      * Logout all existing sessions.
      */

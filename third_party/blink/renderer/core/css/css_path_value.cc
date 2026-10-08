@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,8 +17,8 @@ namespace cssvalue {
 CSSPathValue::CSSPathValue(scoped_refptr<StylePath> style_path,
                            PathSerializationFormat serialization_format)
     : CSSValue(kPathClass),
-      serialization_format_(serialization_format),
-      style_path_(std::move(style_path)) {
+      style_path_(std::move(style_path)),
+      serialization_format_(serialization_format) {
   DCHECK(style_path_);
 }
 
@@ -41,7 +41,7 @@ CSSPathValue* CreatePathValue() {
 
 }  // namespace
 
-const CSSPathValue& CSSPathValue::EmptyPathValue() {
+CSSPathValue& CSSPathValue::EmptyPathValue() {
   DEFINE_STATIC_LOCAL(Persistent<CSSPathValue>, empty, (CreatePathValue()));
   return *empty;
 }
@@ -54,7 +54,7 @@ String CSSPathValue::CustomCSSText() const {
   result.Append("\"");
   result.Append(BuildStringFromByteStream(ByteStream(), serialization_format_));
   result.Append("\")");
-  return result.ReleaseString();
+  return result.ToString();
 }
 
 bool CSSPathValue::Equals(const CSSPathValue& other) const {

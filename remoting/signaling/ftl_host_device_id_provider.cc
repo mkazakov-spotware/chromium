@@ -1,23 +1,22 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/signaling/ftl_host_device_id_provider.h"
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
 namespace remoting {
 
 namespace {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 constexpr char kDeviceIdPrefix[] = "crd-win-host-";
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
 constexpr char kDeviceIdPrefix[] = "crd-mac-host-";
-#elif BUILDFLAG(IS_CHROMEOS_ASH)
+#elif defined(OS_CHROMEOS)
 constexpr char kDeviceIdPrefix[] = "crd-cros-host-";
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#elif defined(OS_LINUX)
 constexpr char kDeviceIdPrefix[] = "crd-linux-host-";
 #else
 constexpr char kDeviceIdPrefix[] = "crd-unknown-host-";

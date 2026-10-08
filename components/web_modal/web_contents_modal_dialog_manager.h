@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 
 #include "base/containers/circular_deque.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "components/web_modal/single_web_contents_dialog_manager.h"
 #include "components/web_modal/web_modal_export.h"
@@ -26,10 +26,6 @@ class WEB_MODAL_EXPORT WebContentsModalDialogManager
       public content::WebContentsObserver,
       public content::WebContentsUserData<WebContentsModalDialogManager> {
  public:
-  WebContentsModalDialogManager(const WebContentsModalDialogManager&) = delete;
-  WebContentsModalDialogManager& operator=(
-      const WebContentsModalDialogManager&) = delete;
-
   ~WebContentsModalDialogManager() override;
 
   WebContentsModalDialogManagerDelegate* delegate() const { return delegate_; }
@@ -58,16 +54,15 @@ class WEB_MODAL_EXPORT WebContentsModalDialogManager
     explicit TestApi(WebContentsModalDialogManager* manager)
         : manager_(manager) {}
 
-    TestApi(const TestApi&) = delete;
-    TestApi& operator=(const TestApi&) = delete;
-
     void CloseAllDialogs() { manager_->CloseAllDialogs(); }
     void WebContentsVisibilityChanged(content::Visibility visibility) {
       manager_->OnVisibilityChanged(visibility);
     }
 
    private:
-    raw_ptr<WebContentsModalDialogManager> manager_;
+    WebContentsModalDialogManager* manager_;
+
+    DISALLOW_COPY_AND_ASSIGN(TestApi);
   };
 
   // Closes all WebContentsModalDialogs.
@@ -100,8 +95,7 @@ class WEB_MODAL_EXPORT WebContentsModalDialogManager
   void WebContentsDestroyed() override;
 
   // Delegate for notifying our owner about stuff. Not owned by us.
-  raw_ptr<WebContentsModalDialogManagerDelegate, DanglingUntriaged> delegate_ =
-      nullptr;
+  WebContentsModalDialogManagerDelegate* delegate_;
 
   // All active dialogs.
   base::circular_deque<DialogState> child_dialogs_;
@@ -110,9 +104,11 @@ class WEB_MODAL_EXPORT WebContentsModalDialogManager
   bool web_contents_is_hidden_;
 
   // True while closing the dialogs on WebContents close.
-  bool closing_all_dialogs_ = false;
+  bool closing_all_dialogs_;
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
+
+  DISALLOW_COPY_AND_ASSIGN(WebContentsModalDialogManager);
 };
 
 }  // namespace web_modal

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/feature_list.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
@@ -22,20 +22,12 @@
 namespace base {
 class TaskRunner;
 class Value;
-}  // namespace base
+}
 
 namespace ownership {
 class OwnerKeyUtil;
 class PrivateKey;
 class PublicKey;
-
-// Feature flag to toggle Chrome-side owner key generation (see
-// go/generate-owner-key-in-chrome). If enabled, Chrome will take the
-// responsibility of generating the owner key from session_manager. If disabled,
-// Chrome will still load/generate the owner key using the new code in parallel,
-// but the result will be discarded (see OwnerKeyDarkLaunchTracker).
-OWNERSHIP_EXPORT
-BASE_DECLARE_FEATURE(kChromeSideOwnerKeyGeneration);
 
 // This class is a common interface for platform-specific classes
 // which deal with ownership, keypairs and owner-related settings.
@@ -60,18 +52,14 @@ class OWNERSHIP_EXPORT OwnerSettingsService : public KeyedService {
   };
 
   typedef base::OnceCallback<void(
-      scoped_refptr<ownership::PublicKey>,
-      std::unique_ptr<enterprise_management::PolicyFetchResponse>)>
+      std::unique_ptr<enterprise_management::PolicyFetchResponse>
+          policy_response)>
       AssembleAndSignPolicyAsyncCallback;
 
   using IsOwnerCallback = base::OnceCallback<void(bool is_owner)>;
 
   explicit OwnerSettingsService(
       const scoped_refptr<ownership::OwnerKeyUtil>& owner_key_util);
-
-  OwnerSettingsService(const OwnerSettingsService&) = delete;
-  OwnerSettingsService& operator=(const OwnerSettingsService&) = delete;
-
   ~OwnerSettingsService() override;
 
   base::WeakPtr<OwnerSettingsService> as_weak_ptr() {
@@ -131,23 +119,16 @@ class OWNERSHIP_EXPORT OwnerSettingsService : public KeyedService {
   bool SetDouble(const std::string& setting, double value);
   bool SetString(const std::string& setting, const std::string& value);
 
-  // Run callbacks in test setting. Mocks ownership when full device setup is
-  // not needed.
-  void RunPendingIsOwnerCallbacksForTesting(bool is_owner);
-
  protected:
   void ReloadKeypair();
 
-  // Stores the provided keys. Ensures that |public_key_| and |private_key_| are
-  // not null (even if the key objects themself are empty) to indicate that the
-  // key loading finished.
-  void OnKeypairLoaded(scoped_refptr<PublicKey> public_key,
-                       scoped_refptr<PrivateKey> private_key);
+  void OnKeypairLoaded(const scoped_refptr<PublicKey>& public_key,
+                       const scoped_refptr<PrivateKey>& private_key);
 
   // Platform-specific keypair loading algorithm.
   virtual void ReloadKeypairImpl(
-      base::OnceCallback<void(scoped_refptr<PublicKey> public_key,
-                              scoped_refptr<PrivateKey> private_key)>
+      base::OnceCallback<void(const scoped_refptr<PublicKey>& public_key,
+                              const scoped_refptr<PrivateKey>& private_key)>
           callback) = 0;
 
   // Plafrom-specific actions which should be performed when keypair is loaded.
@@ -167,6 +148,8 @@ class OWNERSHIP_EXPORT OwnerSettingsService : public KeyedService {
 
  private:
   base::WeakPtrFactory<OwnerSettingsService> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(OwnerSettingsService);
 };
 
 }  // namespace ownership

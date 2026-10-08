@@ -1,15 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_OZONE_PUBLIC_PLATFORM_GL_EGL_UTILITY_H_
 #define UI_OZONE_PUBLIC_PLATFORM_GL_EGL_UTILITY_H_
 
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "base/component_export.h"
-#include "base/scoped_environment_variable_override.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/khronos/EGL/egl.h"
 #include "ui/gfx/gpu_extra_info.h"
 
@@ -18,8 +18,7 @@ namespace ui {
 // Provides platform specific EGL attributes/configs.
 class COMPONENT_EXPORT(OZONE_BASE) PlatformGLEGLUtility {
  public:
-  PlatformGLEGLUtility();
-  virtual ~PlatformGLEGLUtility();
+  virtual ~PlatformGLEGLUtility() = default;
 
   // Gets additional display attributes based on |platform_type|.
   virtual void GetAdditionalEGLAttributes(
@@ -42,14 +41,6 @@ class COMPONENT_EXPORT(OZONE_BASE) PlatformGLEGLUtility {
   // X11 specific; returns whether the test configuration supports alpha for
   // window visuals.
   virtual bool X11DoesVisualHaveAlphaForTest() const = 0;
-
-  // X11 specific; returns whether the platform supports visuals.
-  virtual bool HasVisualManager();
-
-  // X11 specific; returns scoped unset display env variable if vulkan surface
-  // is not supported.
-  virtual absl::optional<base::ScopedEnvironmentVariableOverride>
-  MaybeGetScopedDisplayUnsetForVulkan();
 };
 
 }  // namespace ui

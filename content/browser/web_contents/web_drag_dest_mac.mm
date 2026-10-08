@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #import <Carbon/Carbon.h>
 
-#include "base/mac/scoped_nsobject.h"
+#include "base/optional.h"
 #include "base/strings/sys_string_conversions.h"
 #include "content/browser/renderer_host/render_view_host_impl.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
@@ -19,7 +19,6 @@
 #include "content/public/browser/web_drag_dest_delegate.h"
 #include "content/public/common/child_process_host.h"
 #include "content/public/common/drop_data.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 #import "third_party/mozilla/NSPasteboard+Utils.h"
 #include "ui/base/clipboard/clipboard_constants.h"
@@ -52,7 +51,6 @@ DropContext::DropContext(
       target_rwh(target_rwh) {}
 
 DropContext::DropContext(const DropContext& other) = default;
-DropContext::DropContext(DropContext&& other) = default;
 
 DropContext::~DropContext() = default;
 
@@ -92,16 +90,20 @@ content::GlobalRoutingID GetRenderViewHostID(content::RenderViewHost* rvh) {
                                   rvh->GetRoutingID());
 }
 
-void DropCompletionCallback(WebDragDest* drag_dest,
-                            const content::DropContext context,
-                            absl::optional<content::DropData> drop_data) {
+void DropCompletionCallback(
+    WebDragDest* drag_dest,
+    const content::DropContext context,
+    content::WebContentsViewDelegate::DropCompletionResult result) {
   // This is an async callback. Make sure RWH is still valid.
   if (!context.target_rwh ||
       ![drag_dest isValidDragTarget:context.target_rwh.get()]) {
     return;
   }
 
-  [drag_dest completeDropAsync:drop_data withContext:context];
+  bool success =
+      result ==
+      content::WebContentsViewDelegate::DropCompletionResult::kContinue;
+  [drag_dest completeDropAsync:success withContext:context];
 }
 
 }  // namespace
@@ -201,11 +203,8 @@ void DropCompletionCallback(WebDragDest* drag_dest,
   NSDragOperation mask = info->operation_mask;
 
   // Give the delegate an opportunity to cancel the drag.
-  if (auto* delegate = _webContents->GetDelegate()) {
-    _canceled = !delegate->CanDragEnter(_webContents, *dropData,
-                                        static_cast<DragOperationsMask>(mask));
-  }
-
+  _canceled = !_webContents->GetDelegate()->CanDragEnter(
+      _webContents, *dropData, static_cast<DragOperationsMask>(mask));
   if (_canceled)
     return NSDragOperationNone;
 
@@ -218,8 +217,7 @@ void DropCompletionCallback(WebDragDest* drag_dest,
 
   _currentRWHForDrag->DragTargetDragEnter(
       *_dropDataFiltered, transformedPt, info->location_in_screen,
-      static_cast<DragOperationsMask>(mask), GetModifierFlags(),
-      base::DoNothing());
+      static_cast<DragOperationsMask>(mask), GetModifierFlags());
 
   // We won't know the true operation (whether the drag is allowed) until we
   // hear back from the renderer. For now, be optimistic:
@@ -301,7 +299,7 @@ void DropCompletionCallback(WebDragDest* drag_dest,
   NSDragOperation mask = info->operation_mask;
   targetRWH->DragTargetDragOver(transformedPt, info->location_in_screen,
                                 static_cast<DragOperationsMask>(mask),
-                                GetModifierFlags(), base::DoNothing());
+                                GetModifierFlags());
 
   if (_delegate)
     _delegate->OnDragOver();
@@ -330,7 +328,7 @@ void DropCompletionCallback(WebDragDest* drag_dest,
     [self draggingEntered:info];
   }
 
-  _currentRVH = nullptr;
+  _currentRVH = NULL;
   _webContents->Focus();
 
   if (webContentsViewDelegate) {
@@ -339,17 +337,15 @@ void DropCompletionCallback(WebDragDest* drag_dest,
                                  /*screen_pt=*/info->location_in_screen,
                                  /*modifier_flags=*/GetModifierFlags(),
                                  /*target_rwh=*/targetRWH->GetWeakPtr());
-    // Use a separate variable since `context` is about to move.
-    content::DropData drop_data = context.drop_data;
+
     webContentsViewDelegate->OnPerformDrop(
-        std::move(drop_data),
-        base::BindOnce(&DropCompletionCallback, self, std::move(context)));
+        context.drop_data,
+        base::BindOnce(&DropCompletionCallback, self, context));
   } else {
     if (_delegate)
       _delegate->OnDrop();
     targetRWH->DragTargetDrop(*_dropDataFiltered, transformedPt,
-                              info->location_in_screen, GetModifierFlags(),
-                              base::DoNothing());
+                              info->location_in_screen, GetModifierFlags());
   }
   _dropDataUnfiltered.reset();
   _dropDataFiltered.reset();
@@ -357,14 +353,14 @@ void DropCompletionCallback(WebDragDest* drag_dest,
   return YES;
 }
 
-- (void)completeDropAsync:(absl::optional<content::DropData>)dropData
+- (void)completeDropAsync:(BOOL)success
               withContext:(const content::DropContext)context {
-  if (dropData.has_value()) {
+  if (success) {
     if (_delegate)
       _delegate->OnDrop();
-    context.target_rwh->DragTargetDrop(
-        dropData.value(), context.client_pt, context.screen_pt,
-        context.modifier_flags, base::DoNothing());
+    context.target_rwh->DragTargetDrop(context.drop_data, context.client_pt,
+                                       context.screen_pt,
+                                       context.modifier_flags);
   } else {
     if (_delegate)
       _delegate->OnDragLeave();
@@ -399,8 +395,7 @@ void PopulateDropDataFromPasteboard(content::DropData* data,
                                     NSPasteboard* pboard) {
   DCHECK(data);
   DCHECK(pboard);
-  // https://crbug.com/1016740#c21
-  base::scoped_nsobject<NSArray> types([[pboard types] retain]);
+  NSArray* types = [pboard types];
 
   data->did_originate_from_renderer =
       [types containsObject:ui::kChromeDragDummyPboardType];
@@ -439,9 +434,9 @@ void PopulateDropDataFromPasteboard(content::DropData* data,
         BOOL exists = [[NSFileManager defaultManager]
                            fileExistsAtPath:filename];
         if (exists) {
-          data->filenames.emplace_back(
+          data->filenames.push_back(ui::FileInfo(
               base::FilePath::FromUTF8Unsafe(base::SysNSStringToUTF8(filename)),
-              base::FilePath());
+              base::FilePath()));
         }
       }
     }

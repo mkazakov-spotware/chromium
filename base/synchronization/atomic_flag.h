@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <atomic>
 
 #include "base/base_export.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
 
 namespace base {
@@ -20,10 +21,6 @@ namespace base {
 class BASE_EXPORT AtomicFlag {
  public:
   AtomicFlag();
-
-  AtomicFlag(const AtomicFlag&) = delete;
-  AtomicFlag& operator=(const AtomicFlag&) = delete;
-
   ~AtomicFlag();
 
   // Set the flag. Must always be called from the same sequence.
@@ -44,6 +41,8 @@ class BASE_EXPORT AtomicFlag {
  private:
   std::atomic<uint_fast8_t> flag_{0};
   SEQUENCE_CHECKER(set_sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(AtomicFlag);
 };
 
 }  // namespace base

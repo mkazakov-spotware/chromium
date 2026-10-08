@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,18 +9,13 @@
 
 #include <memory>
 
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/display/display_observer.h"
 
 class ChromeBrowserMainParts;
-
-#if !BUILDFLAG(IS_ANDROID)
-class BatteryDischargeReporter;
-class PowerMetricsReporter;
-class ProcessMonitor;
-#endif
 
 namespace chrome {
 void AddMetricsExtraParts(ChromeBrowserMainParts* main_parts);
@@ -34,32 +29,23 @@ class ChromeBrowserMainExtraPartsMetrics : public ChromeBrowserMainExtraParts,
                                            public display::DisplayObserver {
  public:
   ChromeBrowserMainExtraPartsMetrics();
-
-  ChromeBrowserMainExtraPartsMetrics(
-      const ChromeBrowserMainExtraPartsMetrics&) = delete;
-  ChromeBrowserMainExtraPartsMetrics& operator=(
-      const ChromeBrowserMainExtraPartsMetrics&) = delete;
-
   ~ChromeBrowserMainExtraPartsMetrics() override;
 
   // Overridden from ChromeBrowserMainExtraParts:
-  void PostCreateMainMessageLoop() override;
   void PreProfileInit() override;
   void PreBrowserStart() override;
   void PostBrowserStart() override;
   void PreMainMessageLoopRun() override;
 
  private:
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // Records Mac specific metrics.
   void RecordMacMetrics();
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
   // DisplayObserver overrides.
   void OnDisplayAdded(const display::Display& new_display) override;
   void OnDisplayRemoved(const display::Display& old_display) override;
-  void OnDisplayMetricsChanged(const display::Display& display,
-                               uint32_t changed_metrics) override;
 
   // If the number of displays has changed, emit a UMA metric.
   void EmitDisplaysChangedMetric();
@@ -67,22 +53,15 @@ class ChromeBrowserMainExtraPartsMetrics : public ChromeBrowserMainExtraParts,
   // A cached value for the number of displays.
   int display_count_;
 
-  absl::optional<display::ScopedDisplayObserver> display_observer_;
+  // True iff |this| instance is registered as an observer of the native
+  // screen.
+  bool is_screen_observer_;
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE) || defined(USE_X11)
   std::unique_ptr<ui::InputDeviceEventObserver> input_device_event_observer_;
-#endif  // BUILDFLAG(IS_OZONE)
+#endif  // defined(USE_OZONE) || defined(USE_X11)
 
-#if !BUILDFLAG(IS_ANDROID)
-  // The process monitor instance. Allows collecting metrics about every child
-  // process.
-  std::unique_ptr<ProcessMonitor> process_monitor_;
-
-  // Reports power metrics.
-  std::unique_ptr<PowerMetricsReporter> power_metrics_reporter_;
-
-  std::unique_ptr<BatteryDischargeReporter> battery_discharge_reporter_;
-#endif  // !BUILDFLAG(IS_ANDROID)
+  DISALLOW_COPY_AND_ASSIGN(ChromeBrowserMainExtraPartsMetrics);
 };
 
 #endif  // CHROME_BROWSER_METRICS_CHROME_BROWSER_MAIN_EXTRA_PARTS_METRICS_H_

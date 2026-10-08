@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 
 #include <memory>
 
-#include "base/gtest_prod_util.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "chrome/browser/chrome_content_browser_client_parts.h"
-#include "components/download/public/common/quarantine_connection.h"
 #include "content/public/browser/browser_or_resource_context.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "services/network/public/mojom/network_context.mojom-forward.h"
@@ -20,22 +21,11 @@ namespace content {
 class RenderFrameHost;
 class RenderProcessHost;
 class VpnServiceProxy;
-class WebContents;
 }
 
 namespace url {
 class Origin;
 }
-
-namespace blink {
-class AssociatedInterfaceRegistry;
-}
-
-namespace service_manager {
-template <typename...>
-class BinderRegistryWithArgs;
-using BinderRegistry = BinderRegistryWithArgs<>;
-}  // namespace service_manager
 
 namespace extensions {
 
@@ -44,12 +34,6 @@ class ChromeContentBrowserClientExtensionsPart
     : public ChromeContentBrowserClientParts {
  public:
   ChromeContentBrowserClientExtensionsPart();
-
-  ChromeContentBrowserClientExtensionsPart(
-      const ChromeContentBrowserClientExtensionsPart&) = delete;
-  ChromeContentBrowserClientExtensionsPart& operator=(
-      const ChromeContentBrowserClientExtensionsPart&) = delete;
-
   ~ChromeContentBrowserClientExtensionsPart() override;
 
   // Corresponds to the ChromeContentBrowserClient function of the same name.
@@ -57,7 +41,7 @@ class ChromeContentBrowserClientExtensionsPart
   static bool ShouldCompareEffectiveURLsForSiteInstanceSelection(
       content::BrowserContext* browser_context,
       content::SiteInstance* candidate_site_instance,
-      bool is_outermost_main_frame,
+      bool is_main_frame,
       const GURL& candidate_url,
       const GURL& destination_url);
   static bool ShouldUseProcessPerSite(Profile* profile, const GURL& site_url);
@@ -66,14 +50,17 @@ class ChromeContentBrowserClientExtensionsPart
   static bool DoesSiteRequireDedicatedProcess(
       content::BrowserContext* browser_context,
       const GURL& effective_site_url);
+  static bool ShouldLockProcessToSite(content::BrowserContext* browser_context,
+                                      const GURL& effective_site_url);
   static bool CanCommitURL(content::RenderProcessHost* process_host,
                            const GURL& url);
   static bool IsSuitableHost(Profile* profile,
                              content::RenderProcessHost* process_host,
                              const GURL& site_url);
-  static size_t GetProcessCountToIgnoreForLimit();
-  static bool ShouldEmbeddedFramesTryToReuseExistingProcess(
-      content::RenderFrameHost* outermost_main_frame);
+  static bool ShouldTryToUseExistingProcessHost(Profile* profile,
+                                                const GURL& url);
+  static bool ShouldSubframesTryToReuseExistingProcess(
+      content::RenderFrameHost* main_frame);
   static bool ShouldSwapBrowsingInstancesForNavigation(
       content::SiteInstance* site_instance,
       const GURL& current_effective_url,
@@ -101,10 +88,6 @@ class ChromeContentBrowserClientExtensionsPart
   static bool IsBuiltinComponent(content::BrowserContext* browser_context,
                                  const url::Origin& origin);
 
-  // Checks if the given context support extensions, based on the profile type.
-  static bool AreExtensionsDisabledForProfile(
-      content::BrowserContext* browser_context);
-
  private:
   FRIEND_TEST_ALL_PREFIXES(ChromeContentBrowserClientExtensionsPartTest,
                            IsolatedOriginsAndHostedAppWebExtents);
@@ -113,11 +96,8 @@ class ChromeContentBrowserClientExtensionsPart
   void RenderProcessWillLaunch(content::RenderProcessHost* host) override;
   void SiteInstanceGotProcess(content::SiteInstance* site_instance) override;
   void SiteInstanceDeleting(content::SiteInstance* site_instance) override;
-  void OverrideWebkitPrefs(content::WebContents* web_contents,
+  void OverrideWebkitPrefs(content::RenderViewHost* rvh,
                            blink::web_pref::WebPreferences* web_prefs) override;
-  bool OverrideWebPreferencesAfterNavigation(
-      content::WebContents* web_contents,
-      blink::web_pref::WebPreferences* web_prefs) override;
   void BrowserURLHandlerCreated(content::BrowserURLHandler* handler) override;
   void GetAdditionalAllowedSchemesForFileSystem(
       std::vector<std::string>* additional_allowed_schemes) override;
@@ -126,17 +106,14 @@ class ChromeContentBrowserClientExtensionsPart
   void GetAdditionalFileSystemBackends(
       content::BrowserContext* browser_context,
       const base::FilePath& storage_partition_path,
-      download::QuarantineConnectionCallback quarantine_connection_callback,
       std::vector<std::unique_ptr<storage::FileSystemBackend>>*
           additional_backends) override;
   void AppendExtraRendererCommandLineSwitches(
       base::CommandLine* command_line,
       content::RenderProcessHost* process,
       Profile* profile) override;
-  void ExposeInterfacesToRenderer(
-      service_manager::BinderRegistry* registry,
-      blink::AssociatedInterfaceRegistry* associated_registry,
-      content::RenderProcessHost* render_process_host) override;
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeContentBrowserClientExtensionsPart);
 };
 
 }  // namespace extensions

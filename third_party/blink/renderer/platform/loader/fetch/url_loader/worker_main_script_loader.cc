@@ -1,30 +1,28 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/loader/fetch/url_loader/worker_main_script_loader.h"
 
-#include "services/network/public/cpp/header_util.h"
-#include "services/network/public/mojom/early_hints.mojom.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/loader/referrer_utils.h"
-#include "third_party/blink/public/mojom/loader/code_cache.mojom-blink.h"
+#include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/platform/resource_load_info_notifier_wrapper.h"
 #include "third_party/blink/public/platform/url_conversion.h"
 #include "third_party/blink/public/platform/web_url.h"
 #include "third_party/blink/public/platform/web_url_response.h"
 #include "third_party/blink/renderer/platform/loader/cors/cors.h"
-#include "third_party/blink/renderer/platform/loader/fetch/cached_metadata.h"
+#include "third_party/blink/renderer/platform/loader/fetch/cached_metadata_handler.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_context.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_initiator_type_names.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_parameters.h"
+#include "third_party/blink/renderer/platform/loader/fetch/resource_load_info.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_load_timing.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_request.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_timing_info.h"
 #include "third_party/blink/renderer/platform/loader/fetch/script_cached_metadata_handler.h"
-#include "third_party/blink/renderer/platform/loader/fetch/url_loader/cached_metadata_handler.h"
 #include "third_party/blink/renderer/platform/loader/fetch/url_loader/worker_main_script_loader_client.h"
-#include "third_party/blink/renderer/platform/wtf/functional.h"
 
 namespace blink {
 
@@ -33,7 +31,7 @@ WorkerMainScriptLoader::WorkerMainScriptLoader() = default;
 WorkerMainScriptLoader::~WorkerMainScriptLoader() = default;
 
 void WorkerMainScriptLoader::Start(
-    const FetchParameters& fetch_params,
+    FetchParameters& fetch_params,
     std::unique_ptr<WorkerMainScriptLoadParameters>
         worker_main_script_load_params,
     FetchContext* fetch_context,
@@ -41,22 +39,27 @@ void WorkerMainScriptLoader::Start(
     WorkerMainScriptLoaderClient* client) {
   DCHECK(resource_load_observer);
   DCHECK(client);
-  request_id_ = worker_main_script_load_params->request_id;
-  initial_request_ = fetch_params.GetResourceRequest();
+  initial_request_.CopyFrom(fetch_params.GetResourceRequest());
   resource_loader_options_ = fetch_params.Options();
   initial_request_url_ = fetch_params.GetResourceRequest().Url();
   last_request_url_ = initial_request_url_;
   resource_load_observer_ = resource_load_observer;
   fetch_context_ = fetch_context;
   client_ = client;
+
   resource_load_info_notifier_wrapper_ =
       fetch_context->CreateResourceLoadInfoNotifierWrapper();
 
   // TODO(crbug.com/929370): Support CSP check to post violation reports for
   // worker top-level scripts, if off-the-main-thread fetch is enabled.
 
+  resource_load_observer_->WillSendRequest(
+      initial_request_.InspectorId(), initial_request_,
+      /*redirect_response=*/ResourceResponse(), ResourceType::kScript,
+      resource_loader_options_.initiator_info);
+
   resource_load_info_notifier_wrapper_->NotifyResourceLoadInitiated(
-      request_id_, GURL(initial_request_url_),
+      /*request_id=*/-1, initial_request_url_,
       initial_request_.HttpMethod().Latin1(),
       WebStringToGURL(WebString(initial_request_.ReferrerString())),
       initial_request_.GetRequestDestination(), net::HIGHEST);
@@ -66,26 +69,26 @@ void WorkerMainScriptLoader::Start(
                        worker_main_script_load_params->redirect_responses);
   }
 
+  WebURLResponse response;
   auto response_head = std::move(worker_main_script_load_params->response_head);
-  WebURLResponse response =
-      WebURLResponse::Create(WebURL(last_request_url_), *response_head,
-                             response_head->ssl_info.has_value(), request_id_);
+  Platform::Current()->PopulateURLResponse(
+      WebURL(last_request_url_), *response_head, &response,
+      response_head->ssl_info.has_value(), /*request_id=*/-1);
   resource_response_ = response.ToResourceResponse();
   resource_load_info_notifier_wrapper_->NotifyResourceResponseReceived(
-      std::move(response_head));
+      std::move(response_head), PreviewsTypes::kPreviewsUnspecified);
 
-  ResourceRequest resource_request(initial_request_);
   resource_load_observer_->DidReceiveResponse(
-      initial_request_.InspectorId(), resource_request, resource_response_,
+      initial_request_.InspectorId(), initial_request_, resource_response_,
       /*resource=*/nullptr,
       ResourceLoadObserver::ResponseSource::kNotFromMemoryCache);
 
   if (resource_response_.IsHTTP() &&
-      !network::IsSuccessfulStatus(resource_response_.HttpStatusCode())) {
+      !cors::IsOkStatus(resource_response_.HttpStatusCode())) {
     client_->OnFailedLoadingWorkerMainScript();
     resource_load_observer_->DidFailLoading(
         initial_request_.Url(), initial_request_.InspectorId(),
-        ResourceError(net::ERR_FAILED, last_request_url_, absl::nullopt),
+        ResourceError(net::ERR_FAILED, last_request_url_, base::nullopt),
         resource_response_.EncodedDataLength(),
         ResourceLoadObserver::IsInternalRequest(
             resource_loader_options_.initiator_info.name ==
@@ -94,7 +97,7 @@ void WorkerMainScriptLoader::Start(
   }
 
   script_encoding_ =
-      resource_response_.TextEncodingName().empty()
+      resource_response_.TextEncodingName().IsEmpty()
           ? UTF8Encoding()
           : WTF::TextEncoding(resource_response_.TextEncodingName());
 
@@ -103,8 +106,8 @@ void WorkerMainScriptLoader::Start(
   receiver_.Bind(
       std::move(worker_main_script_load_params->url_loader_client_endpoints
                     ->url_loader_client));
-  receiver_.set_disconnect_handler(WTF::BindOnce(
-      &WorkerMainScriptLoader::OnConnectionClosed, WrapWeakPersistent(this)));
+  receiver_.set_disconnect_handler(base::BindOnce(
+      &WorkerMainScriptLoader::OnConnectionClosed, base::Unretained(this)));
   data_pipe_ = std::move(worker_main_script_load_params->response_body);
 
   client_->OnStartLoadingBody(resource_response_);
@@ -122,16 +125,8 @@ void WorkerMainScriptLoader::Cancel() {
   url_loader_remote_.reset();
 }
 
-void WorkerMainScriptLoader::OnReceiveEarlyHints(
-    network::mojom::EarlyHintsPtr early_hints) {
-  // This has already happened in the browser process.
-  NOTREACHED();
-}
-
 void WorkerMainScriptLoader::OnReceiveResponse(
-    network::mojom::URLResponseHeadPtr response_head,
-    mojo::ScopedDataPipeConsumerHandle handle,
-    absl::optional<mojo_base::BigBuffer> cached_metadata) {
+    network::mojom::URLResponseHeadPtr response_head) {
   // This has already happened in the browser process.
   NOTREACHED();
 }
@@ -151,7 +146,16 @@ void WorkerMainScriptLoader::OnUploadProgress(
   NOTREACHED();
 }
 
+void WorkerMainScriptLoader::OnReceiveCachedMetadata(
+    mojo_base::BigBuffer data) {}
+
 void WorkerMainScriptLoader::OnTransferSizeUpdated(int32_t transfer_size_diff) {
+}
+
+void WorkerMainScriptLoader::OnStartLoadingResponseBody(
+    mojo::ScopedDataPipeConsumerHandle handle) {
+  // This has already happened in the browser process.
+  NOTREACHED();
 }
 
 void WorkerMainScriptLoader::OnComplete(
@@ -160,13 +164,16 @@ void WorkerMainScriptLoader::OnComplete(
     has_seen_end_of_data_ = true;
 
   // Reports resource timing info for the worker main script.
-  scoped_refptr<ResourceTimingInfo> timing_info = ResourceTimingInfo::Create(
-      g_empty_atom, base::TimeTicks::Now(),
-      initial_request_.GetRequestContext(),
-      initial_request_.GetRequestDestination(), initial_request_.GetMode());
+  scoped_refptr<ResourceTimingInfo> timing_info =
+      ResourceTimingInfo::Create(g_empty_atom, base::TimeTicks::Now(),
+                                 initial_request_.GetRequestContext(),
+                                 initial_request_.GetRequestDestination());
+  const int64_t encoded_data_length = resource_response_.EncodedDataLength();
   timing_info->SetInitialURL(initial_request_url_);
   timing_info->SetFinalResponse(resource_response_);
   timing_info->SetLoadResponseEnd(status.completion_time);
+  timing_info->AddFinalTransferSize(
+      encoded_data_length == -1 ? 0 : encoded_data_length);
   fetch_context_->AddResourceTiming(*timing_info);
 
   has_received_completion_ = true;
@@ -174,7 +181,8 @@ void WorkerMainScriptLoader::OnComplete(
   NotifyCompletionIfAppropriate();
 }
 
-CachedMetadataHandler* WorkerMainScriptLoader::CreateCachedMetadataHandler() {
+SingleCachedMetadataHandler*
+WorkerMainScriptLoader::CreateCachedMetadataHandler() {
   // Currently we support the metadata caching only for HTTP family.
   if (!initial_request_url_.ProtocolIsInHTTPFamily() ||
       !resource_response_.CurrentRequestUrl().ProtocolIsInHTTPFamily()) {
@@ -183,7 +191,7 @@ CachedMetadataHandler* WorkerMainScriptLoader::CreateCachedMetadataHandler() {
 
   std::unique_ptr<CachedMetadataSender> cached_metadata_sender =
       CachedMetadataSender::Create(
-          resource_response_, mojom::blink::CodeCacheType::kJavascript,
+          resource_response_, blink::mojom::CodeCacheType::kJavascript,
           SecurityOrigin::Create(initial_request_url_));
   return MakeGarbageCollected<ScriptCachedMetadataHandler>(
       script_encoding_, std::move(cached_metadata_sender));
@@ -204,8 +212,8 @@ void WorkerMainScriptLoader::StartLoadingBody() {
       FROM_HERE, mojo::SimpleWatcher::ArmingPolicy::MANUAL);
   MojoResult rv =
       watcher_->Watch(data_pipe_.get(), MOJO_HANDLE_SIGNAL_READABLE,
-                      WTF::BindRepeating(&WorkerMainScriptLoader::OnReadable,
-                                         WrapWeakPersistent(this)));
+                      base::BindRepeating(&WorkerMainScriptLoader::OnReadable,
+                                          base::Unretained(this)));
   DCHECK_EQ(MOJO_RESULT_OK, rv);
   watcher_->ArmOrNotify();
 }
@@ -273,7 +281,7 @@ void WorkerMainScriptLoader::NotifyCompletionIfAppropriate() {
     client->OnFailedLoadingWorkerMainScript();
     resource_load_observer_->DidFailLoading(
         last_request_url_, initial_request_.InspectorId(),
-        ResourceError(status_.error_code, last_request_url_, absl::nullopt),
+        ResourceError(status_.error_code, last_request_url_, base::nullopt),
         resource_response_.EncodedDataLength(),
         ResourceLoadObserver::IsInternalRequest(
             ResourceLoadObserver::IsInternalRequest(
@@ -309,9 +317,13 @@ void WorkerMainScriptLoader::HandleRedirections(
             ReferrerUtils::NetToMojoReferrerPolicy(
                 redirect_info.new_referrer_policy),
             /*skip_service_worker=*/false);
-    WebURLResponse response = WebURLResponse::Create(
-        WebURL(last_request_url_), *redirect_response,
-        redirect_response->ssl_info.has_value(), request_id_);
+    WebURLResponse response;
+    Platform::Current()->PopulateURLResponse(
+        WebURL(last_request_url_), *redirect_response, &response,
+        redirect_response->ssl_info.has_value(), /*request_id=*/-1);
+    resource_load_observer_->WillSendRequest(
+        new_request->InspectorId(), *new_request, response.ToResourceResponse(),
+        ResourceType::kScript, resource_loader_options_.initiator_info);
     resource_load_info_notifier_wrapper_->NotifyResourceRedirectReceived(
         redirect_info, std::move(redirect_response));
   }

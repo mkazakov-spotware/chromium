@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -19,131 +19,53 @@ to set the default value. Can also be accessed through `try_.defaults`.
 
 load("./args.star", "args")
 load("./branches.star", "branches")
-load("./builders.star", "builders", "os", "os_category")
-load("./orchestrator.star", "register_compilator", "register_orchestrator")
-load("//project.star", "settings")
+load("./builders.star", "builders")
 
-def _default_location_filters(builder_name):
-    """Get the default location filters for a builder.
-
-    Args:
-      builder_name: The qualified-name of the builder to get the location
-        filters for. May be a bucket-qualified name (e.g. try/linux-rel) or a
-        project-qualified name (e.g. chromium/try/linux-rel).
-
-    Returns:
-      A list of cq.location_filter objects to use for the builder.
-    """
-    pieces = builder_name.split("/")
-    if len(pieces) == 2:
-        bucket, builder = pieces
-    elif len(pieces) == 3:
-        _, bucket, builder = pieces
-    else:
-        fail("builder_name must be a qualified builder name, got {}".format(builder_name))
-
-    def location_filter(*, path_regexp, exclude = False):
-        return cq.location_filter(
-            gerrit_host_regexp = ".*",
-            gerrit_project_regexp = ".*",
-            path_regexp = path_regexp,
-            exclude = exclude,
-        )
-
-    return [
-        # Contains documentation that doesn't affect the outputs
-        location_filter(path_regexp = "docs/.+", exclude = True),
-        # Contains configuration files that aren't active until after committed
-        location_filter(path_regexp = "infra/config/.+", exclude = True),
-        # Contains builder-specific files that can be consumed by the builder
-        # pre-submit
-        location_filter(path_regexp = "infra/config/generated/builders/{}/{}/.+".format(bucket, builder)),
-    ]
-
-def location_filters_without_defaults(tryjob_builder_proto):
-    default_filters = _default_location_filters(tryjob_builder_proto.name)
-    return [f for f in tryjob_builder_proto.location_filters if cq.location_filter(
-        gerrit_host_regexp = f.gerrit_host_regexp,
-        gerrit_project_regexp = f.gerrit_project_regexp,
-        path_regexp = f.path_regexp,
-        exclude = f.exclude,
-    ) not in default_filters]
-
-# Intended to be used for the `caches` builder arg when no source checkout is
-# required.
-#
-# Setting a cache with a "builder" path prevents buildbucket from automatically
-# creating a regular builder cache with a 4 minute wait_for_warm_cache.
-# `wait_for_warm_cache = None` ensures that swarming will not look for a bot
-# with a builder cache.
-SOURCELESS_BUILDER_CACHES = [
-    swarming.cache(
-        name = "unused_builder_cache",
-        path = "builder",
-        wait_for_warm_cache = None,
-    ),
+DEFAULT_EXCLUDE_REGEXPS = [
+    # Contains documentation that doesn't affect the outputs
+    ".+/[+]/docs/.+",
+    # Contains configuration files that aren't active until after committed
+    ".+/[+]/infra/config/.+",
 ]
 
 defaults = args.defaults(
     extends = builders.defaults,
-    check_for_flakiness = False,
     cq_group = None,
     main_list_view = None,
     subproject_list_view = None,
     resultdb_bigquery_exports = [],
-    # Default overrides for more specific wrapper functions. The value is set to
-    # args.DEFAULT so that when they are passed to the corresponding standard
-    # argument, if the more-specific default has not been set it will fall back
-    # to the standard default.
-    compilator_cores = args.DEFAULT,
-    compilator_goma_jobs = args.DEFAULT,
-    compilator_reclient_jobs = args.DEFAULT,
-    orchestrator_cores = args.DEFAULT,
 )
 
 def tryjob(
         *,
         disable_reuse = None,
         experiment_percentage = None,
-        location_filters = None,
+        location_regexp = None,
+        location_regexp_exclude = None,
         cancel_stale = None,
-        add_default_filters = True):
+        add_default_excludes = True):
     """Specifies the details of a tryjob verifier.
 
-    See https://chromium.googlesource.com/infra/luci/luci-go/+/HEAD/lucicfg/doc/README.md#luci.cq_tryjob_verifier
+    See https://chromium.googlesource.com/infra/luci/luci-go/+/refs/heads/master/lucicfg/doc/README.md#luci.cq_tryjob_verifier
     for details on the most of the arguments.
 
-    Args:
-      disable_reuse: See cq.tryjob_verifier.
-      experiment_percentage: See cq.tryjob_verifier.
-      location_filters: A list of cq.location_filter objects and/or strings.
-        This is the same as the location_filters value of cq.tryjob_verifier
-        except that strings can be provided, which will be converted to a
-        cq.location_filter with path_regexp set to the provided string.
-      cancel_stale: See cq.tryjob_verifier.
-      add_default_filters: A bool indicating whether to add default filters that
-        exclude certain directories that would have no impact when building
-        chromium with the patch applied (docs, config files that don't take
-        effect until landing, etc., see _default_location_filters).
+    Arguments:
+      add_default_excludes - A bool indicating whether to add exclude regexps
+        for certain directories that would have no impact when building chromium
+        with the patch applied (docs, config files that don't take effect until
+        landing, etc., see DEFAULT_EXCLUDE_REGEXPS).
 
     Returns:
       A struct that can be passed to the `tryjob` argument of `try_.builder` to
       enable the builder for CQ.
     """
-
-    def normalize_location_filter(f):
-        if type(f) == type(""):
-            return cq.location_filter(path_regexp = f)
-        return f
-
-    if location_filters:
-        location_filters = [normalize_location_filter(f) for f in location_filters]
-
+    if add_default_excludes:
+        location_regexp_exclude = DEFAULT_EXCLUDE_REGEXPS + (location_regexp_exclude or [])
     return struct(
         disable_reuse = disable_reuse,
         experiment_percentage = experiment_percentage,
-        add_default_filters = add_default_filters,
-        location_filters = location_filters,
+        location_regexp = location_regexp,
+        location_regexp_exclude = location_regexp_exclude,
         cancel_stale = cancel_stale,
     )
 
@@ -151,7 +73,6 @@ def try_builder(
         *,
         name,
         branch_selector = branches.MAIN,
-        check_for_flakiness = args.DEFAULT,
         cq_group = args.DEFAULT,
         list_view = args.DEFAULT,
         main_list_view = args.DEFAULT,
@@ -167,9 +88,6 @@ def try_builder(
       branch_selector - A branch selector value controlling whether the
         builder definition is executed. See branches.star for more
         information.
-      check_for_flakiness - If True, it checks for new tests in a given try
-        build and reruns them multiple times to ensure that they are not
-        flaky.
       cq_group - The CQ group to add the builder to. If tryjob is None, it will
         be added as includable_only.
       list_view - A string or list of strings identifying the ID(s) of the list
@@ -189,42 +107,26 @@ def try_builder(
         specifying additional parameters for exporting test results to BigQuery.
         Will always upload to the following tables in addition to any tables
         specified by the list's elements:
-          chrome-luci-data.chromium.try_test_results
-          chrome-luci-data.gpu_try_test_results
+          luci-resultdb.chromium.try_test_results
+          luci-resultdb.chromium.gpu_try_test_results
     """
     if not branches.matches(branch_selector):
         return
 
+    # Enable "chromium.resultdb.result_sink" on try builders at 50%.
     experiments = experiments or {}
-
-    # TODO(crbug.com/1346781): Remove when the experiment is the default.
-    experiments.setdefault("chromium_swarming.expose_merge_script_failures", 100)
-
-    # TODO(crbug.com/1314194): Enable weetbix everywhere. Remove once chromium
-    # recipe is updated to use this by default.
-    experiments.setdefault("weetbix.enable_weetbix_exonerations", 100)
-    experiments.setdefault("weetbix.retry_weak_exonerations", 100)
-    experiments.setdefault("enable_weetbix_queries", 100)
+    experiments.setdefault("chromium.resultdb.result_sink", 50)
 
     merged_resultdb_bigquery_exports = [
         resultdb.export_test_results(
-            bq_table = "chrome-luci-data.chromium.try_test_results",
+            bq_table = "luci-resultdb.chromium.try_test_results",
         ),
         resultdb.export_test_results(
-            bq_table = "chrome-luci-data.chromium.gpu_try_test_results",
+            bq_table = "luci-resultdb.chromium.gpu_try_test_results",
             predicate = resultdb.test_result_predicate(
-                # Only match the telemetry_gpu_integration_test target and its
-                # Fuchsia and Android variants that have a suffix added to the
-                # end. Those are caught with [^/]*.
-                test_id_regexp = "ninja://chrome/test:telemetry_gpu_integration_test[^/]*/.+",
-            ),
-        ),
-        resultdb.export_test_results(
-            bq_table = "chrome-luci-data.chromium.blink_web_tests_try_test_results",
-            predicate = resultdb.test_result_predicate(
-                # Match the "blink_web_tests" target and all of its
-                # flag-specific versions, e.g. "vulkan_swiftshader_blink_web_tests".
-                test_id_regexp = "(ninja://[^/]*blink_web_tests/.+)|(ninja://[^/]*blink_wpt_tests/.+)",
+                # Only match the telemetry_gpu_integration_test and
+                # fuchsia_telemetry_gpu_integration_test targets.
+                test_id_regexp = "ninja://(chrome/test:|content/test:fuchsia_)telemetry_gpu_integration_test/.+",
             ),
         ),
     ]
@@ -248,26 +150,6 @@ def try_builder(
     if subproject_list_view:
         list_view.append(subproject_list_view)
 
-    # in CQ/try, disable ATS on windows. http://b/183895446
-    goma_enable_ats = defaults.get_value_from_kwargs("goma_enable_ats", kwargs)
-    os = defaults.get_value_from_kwargs("os", kwargs)
-    if os and os.category == os_category.WINDOWS:
-        if goma_enable_ats == args.COMPUTE:
-            kwargs["goma_enable_ats"] = False
-        if kwargs["goma_enable_ats"] != False:
-            fail("Try Windows builder {} must disable ATS".format(name))
-
-    properties = kwargs.pop("properties", {})
-    properties = dict(properties)
-    check_for_flakiness = defaults.get_value(
-        "check_for_flakiness",
-        check_for_flakiness,
-    )
-    if check_for_flakiness:
-        properties["$build/flakiness"] = {
-            "check_for_flakiness": True,
-        }
-
     # Define the builder first so that any validation of luci.builder arguments
     # (e.g. bucket) occurs before we try to use it
     builders.builder(
@@ -276,8 +158,6 @@ def try_builder(
         list_view = list_view,
         resultdb_bigquery_exports = merged_resultdb_bigquery_exports,
         experiments = experiments,
-        resultdb_index_by_timestamp = True,
-        properties = properties,
         **kwargs
     )
 
@@ -285,16 +165,13 @@ def try_builder(
     builder = "{}/{}".format(bucket, name)
     cq_group = defaults.get_value("cq_group", cq_group)
     if tryjob != None:
-        location_filters = tryjob.location_filters
-        if tryjob.add_default_filters:
-            location_filters = (location_filters or []) + _default_location_filters(builder)
-
         luci.cq_tryjob_verifier(
             builder = builder,
             cq_group = cq_group,
             disable_reuse = tryjob.disable_reuse,
             experiment_percentage = tryjob.experiment_percentage,
-            location_filters = location_filters,
+            location_regexp = tryjob.location_regexp,
+            location_regexp_exclude = tryjob.location_regexp_exclude,
             cancel_stale = tryjob.cancel_stale,
         )
     else:
@@ -305,126 +182,219 @@ def try_builder(
             includable_only = True,
         )
 
-def _orchestrator_builder(
+def blink_builder(*, name, goma_backend = None, **kwargs):
+    return try_builder(
+        name = name,
+        builder_group = "tryserver.blink",
+        goma_backend = goma_backend,
+        **kwargs
+    )
+
+def blink_mac_builder(
         *,
         name,
-        compilator,
-        use_orchestrator_pool = False,
+        os = builders.os.MAC_ANY,
+        builderless = True,
         **kwargs):
-    """Define an orchestrator builder.
+    return blink_builder(
+        name = name,
+        cores = None,
+        goma_backend = builders.goma.backend.RBE_PROD,
+        os = os,
+        builderless = builderless,
+        ssd = True,
+        **kwargs
+    )
 
-    An orchestrator builder is part of a pair of try builders. The orchestrator
-    triggers an associated compilator builder, which performs compilation and
-    isolation on behalf of the orchestrator. The orchestrator extracts from the
-    compilator the information necessary to trigger tests. This allows the
-    orchestrator to run on a small machine and improves compilation times
-    because the compilator will be compiling more often and can run on a larger
-    machine.
+def chromium_builder(*, name, **kwargs):
+    return try_builder(
+        name = name,
+        builder_group = "tryserver.chromium",
+        builderless = True,
+        goma_backend = builders.goma.backend.RBE_PROD,
+        **kwargs
+    )
 
-    The properties set for the orchestrator will be copied to the compilator,
-    with the exception of the $build/orchestrator property that is automatically
-    added to the orchestrator.
+def chromium_android_builder(*, name, **kwargs):
+    return try_builder(
+        name = name,
+        builder_group = "tryserver.chromium.android",
+        goma_backend = builders.goma.backend.RBE_PROD,
+        **kwargs
+    )
 
+def chromium_angle_builder(*, name, **kwargs):
+    return try_builder(
+        name = name,
+        builder_group = "tryserver.chromium.angle",
+        builderless = False,
+        goma_backend = builders.goma.backend.RBE_PROD,
+        goma_jobs = builders.goma.jobs.J150,
+        service_account = "chromium-try-gpu-builder@chops-service-accounts.iam.gserviceaccount.com",
+        **kwargs
+    )
 
-    Args:
-      name: The name of the orchestrator.
-      compilator: A string identifying the associated compilator. Compilators
-        can be defined using try_.compilator_builder.
-      use_orchestrator_pool: Whether to use the bots in
-        luci.chromium.try.orchestrator pool. This kwarg should be taken out
-        once all CQ builders are migrated to be srcless (crbug/1287228)
-      **kwargs: Additional kwargs to be forwarded to try_.builder.
-        The following kwargs will have defaults applied if not set:
-        * builderless: True on branches, False on main
-        * cores: The orchestrator_cores module-level default.
-        * executable: "recipe:chromium/orchestrator"
-        * os: os.LINUX_DEFAULT
-        * service_account: "chromium-orchestrator@chops-service-accounts.iam.gserviceaccount.com"
-        * ssd: None
-    """
-    builder_group = defaults.get_value_from_kwargs("builder_group", kwargs)
-    if not builder_group:
-        fail("builder_group must be specified")
+def chromium_chromiumos_builder(*, name, **kwargs):
+    return try_builder(
+        name = name,
+        builder_group = "tryserver.chromium.chromiumos",
+        goma_backend = builders.goma.backend.RBE_PROD,
+        **kwargs
+    )
 
-    # TODO(crbug/1287228): Make this the default once all CQ builders are
-    # migrated to be srcless
-    if use_orchestrator_pool:
-        kwargs.setdefault("pool", "luci.chromium.try.orchestrator")
-        kwargs.setdefault("builderless", None)
+def chromium_dawn_builder(*, name, **kwargs):
+    return try_builder(
+        name = name,
+        builder_group = "tryserver.chromium.dawn",
+        builderless = False,
+        cores = None,
+        goma_backend = builders.goma.backend.RBE_PROD,
+        service_account = "chromium-try-gpu-builder@chops-service-accounts.iam.gserviceaccount.com",
+        **kwargs
+    )
 
-        # Orchestrator builders that don't use a src checkout don't need a
-        # builder cache.
-        kwargs.setdefault("caches", SOURCELESS_BUILDER_CACHES)
-    else:
-        kwargs.setdefault("builderless", not settings.is_main)
+def chromium_linux_builder(*, name, goma_backend = builders.goma.backend.RBE_PROD, **kwargs):
+    return try_builder(
+        name = name,
+        builder_group = "tryserver.chromium.linux",
+        goma_backend = goma_backend,
+        **kwargs
+    )
 
-    kwargs.setdefault("cores", defaults.orchestrator_cores.get())
-    kwargs.setdefault("executable", "recipe:chromium/orchestrator")
+def chromium_mac_builder(
+        *,
+        name,
+        builderless = True,
+        cores = None,
+        goma_backend = builders.goma.backend.RBE_PROD,
+        os = builders.os.MAC_ANY,
+        **kwargs):
+    return try_builder(
+        name = name,
+        builder_group = "tryserver.chromium.mac",
+        cores = cores,
+        goma_backend = goma_backend,
+        os = os,
+        builderless = builderless,
+        ssd = True,
+        **kwargs
+    )
 
-    kwargs.setdefault("goma_backend", None)
-    kwargs.setdefault("reclient_instance", None)
-    kwargs.setdefault("os", os.LINUX_DEFAULT)
-    kwargs.setdefault("service_account", "chromium-orchestrator@chops-service-accounts.iam.gserviceaccount.com")
-    kwargs.setdefault("ssd", None)
+def chromium_mac_ios_builder(
+        *,
+        name,
+        executable = "recipe:chromium_trybot",
+        goma_backend = builders.goma.backend.RBE_PROD,
+        os = builders.os.MAC_10_15,
+        xcode = builders.xcode.x12a7209,
+        **kwargs):
+    return try_builder(
+        name = name,
+        builder_group = "tryserver.chromium.mac",
+        cores = None,
+        executable = executable,
+        goma_backend = goma_backend,
+        os = os,
+        xcode = xcode,
+        **kwargs
+    )
 
-    ret = try_.builder(name = name, **kwargs)
+def chromium_swangle_builder(*, name, pinned = True, **kwargs):
+    builder_args = dict(kwargs)
+    builder_args.update(
+        name = name,
+        builder_group = "tryserver.chromium.swangle",
+        builderless = True,
+        service_account = "chromium-try-gpu-builder@chops-service-accounts.iam.gserviceaccount.com",
+    )
+    if pinned:
+        builder_args.update(executable = "recipe:angle_chromium_trybot")
+    return try_builder(**builder_args)
 
-    bucket = defaults.get_value_from_kwargs("bucket", kwargs)
+def chromium_swangle_linux_builder(*, name, **kwargs):
+    return chromium_swangle_builder(
+        name = name,
+        goma_backend = builders.goma.backend.RBE_PROD,
+        os = builders.os.LINUX_DEFAULT,
+        **kwargs
+    )
 
-    register_orchestrator(bucket, name, builder_group, compilator)
+def chromium_swangle_mac_builder(*, name, **kwargs):
+    return chromium_swangle_builder(
+        name = name,
+        cores = None,
+        goma_backend = builders.goma.backend.RBE_PROD,
+        os = builders.os.MAC_ANY,
+        **kwargs
+    )
 
-    return ret
+def chromium_swangle_windows_builder(*, name, **kwargs):
+    return chromium_swangle_builder(
+        name = name,
+        goma_backend = builders.goma.backend.RBE_PROD,
+        os = builders.os.WINDOWS_DEFAULT,
+        **kwargs
+    )
 
-def _compilator_builder(*, name, **kwargs):
-    """Define a compilator builder.
+def chromium_win_builder(
+        *,
+        name,
+        builderless = True,
+        goma_backend = builders.goma.backend.RBE_PROD,
+        os = builders.os.WINDOWS_DEFAULT,
+        **kwargs):
+    return try_builder(
+        name = name,
+        builder_group = "tryserver.chromium.win",
+        builderless = builderless,
+        goma_backend = goma_backend,
+        os = os,
+        **kwargs
+    )
 
-    An orchestrator builder is part of a pair of try builders. The compilator is
-    triggered by an associated compilator builder, which performs compilation and
-    isolation on behalf of the orchestrator. The orchestrator extracts from the
-    compilator the information necessary to trigger tests. This allows the
-    orchestrator to run on a small machine and improves compilation times
-    because the compilator will be compiling more often and can run on a larger
-    machine.
+def gpu_try_builder(*, name, builderless = False, execution_timeout = 6 * time.hour, **kwargs):
+    return try_builder(
+        name = name,
+        builderless = builderless,
+        execution_timeout = execution_timeout,
+        service_account = "chromium-try-gpu-builder@chops-service-accounts.iam.gserviceaccount.com",
+        **kwargs
+    )
 
-    The properties set for the orchestrator will be copied to the compilator,
-    with the exception of the $build/orchestrator property that is automatically
-    added to the orchestrator.
+def gpu_chromium_android_builder(*, name, **kwargs):
+    return gpu_try_builder(
+        name = name,
+        builder_group = "tryserver.chromium.android",
+        goma_backend = builders.goma.backend.RBE_PROD,
+        **kwargs
+    )
 
-    Args:
-      name: The name of the compilator.
-      **kwargs: Additional kwargs to be forwarded to try_.builder.
-        The following kwargs will have defaults applied if not set:
-        * builderless: True on branches, False on main
-        * cores: The compilator_cores module-level default.
-        * goma_jobs: The compilator_goma_jobs module-level default.
-        * reclient_jobs: The compilator_reclient_jobs module-level default.
-        * executable: "recipe:chromium/compilator"
-        * ssd: True
-    """
-    builder_group = defaults.get_value_from_kwargs("builder_group", kwargs)
-    if not builder_group:
-        fail("builder_group must be specified")
+def gpu_chromium_linux_builder(*, name, **kwargs):
+    return gpu_try_builder(
+        name = name,
+        builder_group = "tryserver.chromium.linux",
+        goma_backend = builders.goma.backend.RBE_PROD,
+        **kwargs
+    )
 
-    kwargs.setdefault("builderless", not settings.is_main)
-    kwargs.setdefault("cores", defaults.compilator_cores.get())
-    kwargs.setdefault("executable", "recipe:chromium/compilator")
-    kwargs.setdefault("goma_jobs", defaults.compilator_goma_jobs.get())
-    kwargs.setdefault("reclient_jobs", defaults.compilator_reclient_jobs.get())
-    kwargs.setdefault("ssd", True)
+def gpu_chromium_mac_builder(*, name, **kwargs):
+    return gpu_try_builder(
+        name = name,
+        builder_group = "tryserver.chromium.mac",
+        cores = None,
+        goma_backend = builders.goma.backend.RBE_PROD,
+        os = builders.os.MAC_ANY,
+        **kwargs
+    )
 
-    ret = try_.builder(name = name, **kwargs)
-
-    bucket = defaults.get_value_from_kwargs("bucket", kwargs)
-
-    register_compilator(bucket, name)
-
-    return ret
-
-def _gpu_optional_tests_builder(*, name, **kwargs):
-    kwargs.setdefault("builderless", False)
-    kwargs.setdefault("execution_timeout", 6 * time.hour)
-    kwargs.setdefault("service_account", try_.gpu.SERVICE_ACCOUNT)
-    return try_.builder(name = name, **kwargs)
+def gpu_chromium_win_builder(*, name, os = builders.os.WINDOWS_ANY, **kwargs):
+    return gpu_try_builder(
+        name = name,
+        builder_group = "tryserver.chromium.win",
+        goma_backend = builders.goma.backend.RBE_PROD,
+        os = os,
+        **kwargs
+    )
 
 try_ = struct(
     # Module-level defaults for try functions
@@ -433,16 +403,24 @@ try_ = struct(
     # Functions for declaring try builders
     builder = try_builder,
     job = tryjob,
-    orchestrator_builder = _orchestrator_builder,
-    compilator_builder = _compilator_builder,
 
-    # CONSTANTS
-    DEFAULT_EXECUTABLE = "recipe:chromium_trybot",
-    DEFAULT_EXECUTION_TIMEOUT = 4 * time.hour,
-    DEFAULT_POOL = "luci.chromium.try",
-    DEFAULT_SERVICE_ACCOUNT = "chromium-try-builder@chops-service-accounts.iam.gserviceaccount.com",
-    gpu = struct(
-        optional_tests_builder = _gpu_optional_tests_builder,
-        SERVICE_ACCOUNT = "chromium-try-gpu-builder@chops-service-accounts.iam.gserviceaccount.com",
-    ),
+    # More specific builder wrapper functions
+    blink_builder = blink_builder,
+    blink_mac_builder = blink_mac_builder,
+    chromium_builder = chromium_builder,
+    chromium_android_builder = chromium_android_builder,
+    chromium_angle_builder = chromium_angle_builder,
+    chromium_chromiumos_builder = chromium_chromiumos_builder,
+    chromium_dawn_builder = chromium_dawn_builder,
+    chromium_linux_builder = chromium_linux_builder,
+    chromium_mac_builder = chromium_mac_builder,
+    chromium_mac_ios_builder = chromium_mac_ios_builder,
+    chromium_swangle_linux_builder = chromium_swangle_linux_builder,
+    chromium_swangle_mac_builder = chromium_swangle_mac_builder,
+    chromium_swangle_windows_builder = chromium_swangle_windows_builder,
+    chromium_win_builder = chromium_win_builder,
+    gpu_chromium_android_builder = gpu_chromium_android_builder,
+    gpu_chromium_linux_builder = gpu_chromium_linux_builder,
+    gpu_chromium_mac_builder = gpu_chromium_mac_builder,
+    gpu_chromium_win_builder = gpu_chromium_win_builder,
 )

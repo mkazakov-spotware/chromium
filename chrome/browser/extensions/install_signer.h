@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,13 @@
 #include <string>
 #include <vector>
 
-#include "base/functional/callback.h"
-#include "base/time/time.h"
-#include "base/values.h"
+#include "base/callback.h"
+#include "base/macros.h"
 #include "extensions/common/extension_id.h"
+
+namespace base {
+class DictionaryValue;
+}
 
 namespace network {
 class SimpleURLLoader;
@@ -47,11 +50,11 @@ struct InstallSignature {
   InstallSignature(const InstallSignature& other);
   ~InstallSignature();
 
-  // Helper methods for serialization to/from a base::Value::Dict.
-  [[nodiscard]] base::Value::Dict ToDict() const;
+  // Helper methods for serialization to/from a base::DictionaryValue.
+  void ToValue(base::DictionaryValue* value) const;
 
-  static std::unique_ptr<InstallSignature> FromDict(
-      const base::Value::Dict& dict);
+  static std::unique_ptr<InstallSignature> FromValue(
+      const base::DictionaryValue& value);
 };
 
 // Objects of this class encapsulate an operation to get a signature proving
@@ -68,10 +71,6 @@ class InstallSigner {
   InstallSigner(
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
       const ExtensionIdSet& ids);
-
-  InstallSigner(const InstallSigner&) = delete;
-  InstallSigner& operator=(const InstallSigner&) = delete;
-
   ~InstallSigner();
 
   // Returns a set of ids that are forced to be considered not from webstore,
@@ -120,6 +119,8 @@ class InstallSigner {
 
   // The time the request to the server was started.
   base::Time request_start_time_;
+
+  DISALLOW_COPY_AND_ASSIGN(InstallSigner);
 };
 
 }  // namespace extensions

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -124,7 +124,7 @@ TEST(SearchMetadataSimpleTest, MultiTextBySingleQuery) {
       queries;
   queries.push_back(std::make_unique<
                     base::i18n::FixedPatternStringSearchIgnoringCaseAndAccents>(
-      u"hello"));
+      base::UTF8ToUTF16("hello")));
 
   std::string highlighted_text;
   EXPECT_TRUE(FindAndHighlight("hello", queries, &highlighted_text));
@@ -160,10 +160,10 @@ TEST(SearchMetadataSimpleTest, FindAndHighlight_MultipleQueries) {
       queries;
   queries.push_back(std::make_unique<
                     base::i18n::FixedPatternStringSearchIgnoringCaseAndAccents>(
-      u"hello"));
-  queries.push_back(
-      std::make_unique<
-          base::i18n::FixedPatternStringSearchIgnoringCaseAndAccents>(u"good"));
+      base::UTF8ToUTF16("hello")));
+  queries.push_back(std::make_unique<
+                    base::i18n::FixedPatternStringSearchIgnoringCaseAndAccents>(
+      base::UTF8ToUTF16("good")));
 
   std::string highlighted_text;
   EXPECT_TRUE(
@@ -177,10 +177,10 @@ TEST(SearchMetadataSimpleTest, FindAndHighlight_OverlappingHighlights) {
       queries;
   queries.push_back(std::make_unique<
                     base::i18n::FixedPatternStringSearchIgnoringCaseAndAccents>(
-      u"morning"));
-  queries.push_back(
-      std::make_unique<
-          base::i18n::FixedPatternStringSearchIgnoringCaseAndAccents>(u"ing,"));
+      base::UTF8ToUTF16("morning")));
+  queries.push_back(std::make_unique<
+                    base::i18n::FixedPatternStringSearchIgnoringCaseAndAccents>(
+      base::UTF8ToUTF16("ing,")));
 
   std::string highlighted_text;
   EXPECT_TRUE(

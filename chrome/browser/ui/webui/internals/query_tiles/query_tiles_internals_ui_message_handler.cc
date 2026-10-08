@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,56 +38,57 @@ void QueryTilesInternalsUIMessageHandler::RegisterMessages() {
 
   web_ui()->RegisterMessageCallback(
       "getServiceStatus",
-      base::BindRepeating(
-          &QueryTilesInternalsUIMessageHandler::HandleGetServiceStatus,
-          weak_ptr_factory_.GetWeakPtr()));
+      base::Bind(&QueryTilesInternalsUIMessageHandler::HandleGetServiceStatus,
+                 weak_ptr_factory_.GetWeakPtr()));
 
   web_ui()->RegisterMessageCallback(
       "getTileData",
-      base::BindRepeating(
-          &QueryTilesInternalsUIMessageHandler::HandleGetTileData,
-          weak_ptr_factory_.GetWeakPtr()));
+      base::Bind(&QueryTilesInternalsUIMessageHandler::HandleGetTileData,
+                 weak_ptr_factory_.GetWeakPtr()));
 
   web_ui()->RegisterMessageCallback(
       "setServerUrl",
-      base::BindRepeating(
-          &QueryTilesInternalsUIMessageHandler::HandleSetServerUrl,
-          weak_ptr_factory_.GetWeakPtr()));
+      base::Bind(&QueryTilesInternalsUIMessageHandler::HandleSetServerUrl,
+                 weak_ptr_factory_.GetWeakPtr()));
 }
 
 void QueryTilesInternalsUIMessageHandler::HandleGetTileData(
-    const base::Value::List& args) {
+    const base::ListValue* args) {
   AllowJavascript();
-  const base::Value& callback_id = args[0];
-  ResolveJavascriptCallback(callback_id,
+  const base::Value* callback_id;
+  auto result = args->Get(0, &callback_id);
+  DCHECK(result);
+  ResolveJavascriptCallback(*callback_id,
                             tile_service_->GetLogger()->GetTileData());
 }
 
 void QueryTilesInternalsUIMessageHandler::HandleGetServiceStatus(
-    const base::Value::List& args) {
+    const base::ListValue* args) {
   AllowJavascript();
-  const base::Value& callback_id = args[0];
-  ResolveJavascriptCallback(callback_id,
+  const base::Value* callback_id;
+  auto result = args->Get(0, &callback_id);
+  DCHECK(result);
+  ResolveJavascriptCallback(*callback_id,
                             tile_service_->GetLogger()->GetServiceStatus());
 }
 
 void QueryTilesInternalsUIMessageHandler::HandleStartFetch(
-    const base::Value::List& args) {
+    const base::ListValue* args) {
   AllowJavascript();
   tile_service_->StartFetchForTiles(false /*is_from_reduce_mode*/,
                                     base::BindOnce([](bool reschedule) {}));
 }
 
 void QueryTilesInternalsUIMessageHandler::HandlePurgeDb(
-    const base::Value::List& args) {
+    const base::ListValue* args) {
   tile_service_->PurgeDb();
 }
 
 void QueryTilesInternalsUIMessageHandler::HandleSetServerUrl(
-    const base::Value::List& args) {
+    const base::ListValue* args) {
   AllowJavascript();
-  DCHECK_EQ(args.size(), 1u) << "Missing argument server URL.";
-  tile_service_->SetServerUrl(args[0].GetString());
+  DCHECK_EQ(args->GetList().size(), 1u) << "Missing argument server URL.";
+  tile_service_->SetServerUrl(args->GetList()[0].GetString());
 }
 
 void QueryTilesInternalsUIMessageHandler::OnServiceStatusChanged(
@@ -101,9 +102,9 @@ void QueryTilesInternalsUIMessageHandler::OnTileDataAvailable(
 }
 
 void QueryTilesInternalsUIMessageHandler::OnJavascriptAllowed() {
-  logger_observation_.Observe(tile_service_->GetLogger());
+  logger_observer_.Add(tile_service_->GetLogger());
 }
 
 void QueryTilesInternalsUIMessageHandler::OnJavascriptDisallowed() {
-  logger_observation_.Reset();
+  logger_observer_.RemoveAll();
 }

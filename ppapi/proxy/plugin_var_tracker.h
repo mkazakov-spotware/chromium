@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include <string>
 
 #include "base/compiler_specific.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/unsafe_shared_memory_region.h"
 #include "ppapi/c/pp_stdint.h"
 #include "ppapi/c/pp_var.h"
@@ -34,10 +35,6 @@ class PluginDispatcher;
 class PPAPI_PROXY_EXPORT PluginVarTracker : public VarTracker {
  public:
   PluginVarTracker();
-
-  PluginVarTracker(const PluginVarTracker&) = delete;
-  PluginVarTracker& operator=(const PluginVarTracker&) = delete;
-
   ~PluginVarTracker() override;
 
   // Manages tracking for receiving a VARTYPE_OBJECT from the remote side
@@ -206,6 +203,8 @@ class PPAPI_PROXY_EXPORT PluginVarTracker : public VarTracker {
   typedef std::map<void*, PluginImplementedVar>
       UserDataToPluginImplementedVarMap;
   UserDataToPluginImplementedVarMap user_data_to_plugin_;
+
+  DISALLOW_COPY_AND_ASSIGN(PluginVarTracker);
 };
 
 }  // namespace proxy

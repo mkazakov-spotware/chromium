@@ -39,7 +39,7 @@
 #include "third_party/blink/renderer/core/frame/web_feature.h"
 #include "third_party/blink/renderer/platform/bindings/exception_messages.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 
 namespace blink {
@@ -56,7 +56,7 @@ RTCIceCandidate* RTCIceCandidate::Create(
 
   String sdp_mid = candidate_init->sdpMid();
 
-  absl::optional<uint16_t> sdp_m_line_index;
+  base::Optional<uint16_t> sdp_m_line_index;
   if (candidate_init->hasSdpMLineIndexNonNull()) {
     sdp_m_line_index = candidate_init->sdpMLineIndexNonNull();
   } else {
@@ -86,7 +86,7 @@ String RTCIceCandidate::sdpMid() const {
   return platform_candidate_->SdpMid();
 }
 
-absl::optional<uint16_t> RTCIceCandidate::sdpMLineIndex() const {
+base::Optional<uint16_t> RTCIceCandidate::sdpMLineIndex() const {
   return platform_candidate_->SdpMLineIndex();
 }
 
@@ -107,7 +107,7 @@ String RTCIceCandidate::component() const {
   return platform_candidate_->Component();
 }
 
-absl::optional<uint32_t> RTCIceCandidate::priority() const {
+base::Optional<uint32_t> RTCIceCandidate::priority() const {
   return platform_candidate_->Priority();
 }
 
@@ -119,7 +119,7 @@ String RTCIceCandidate::protocol() const {
   return platform_candidate_->Protocol();
 }
 
-absl::optional<uint16_t> RTCIceCandidate::port() const {
+base::Optional<uint16_t> RTCIceCandidate::port() const {
   return platform_candidate_->Port();
 }
 
@@ -127,7 +127,7 @@ String RTCIceCandidate::type() const {
   return platform_candidate_->Type();
 }
 
-absl::optional<String> RTCIceCandidate::tcpType() const {
+base::Optional<String> RTCIceCandidate::tcpType() const {
   return platform_candidate_->TcpType();
 }
 
@@ -135,7 +135,7 @@ String RTCIceCandidate::relatedAddress() const {
   return platform_candidate_->RelatedAddress();
 }
 
-absl::optional<uint16_t> RTCIceCandidate::relatedPort() const {
+base::Optional<uint16_t> RTCIceCandidate::relatedPort() const {
   return platform_candidate_->RelatedPort();
 }
 
@@ -149,7 +149,6 @@ ScriptValue RTCIceCandidate::toJSONForBinding(ScriptState* script_state) {
   result.AddString("sdpMid", platform_candidate_->SdpMid());
   if (platform_candidate_->SdpMLineIndex())
     result.AddNumber("sdpMLineIndex", *platform_candidate_->SdpMLineIndex());
-  result.AddString("usernameFragment", platform_candidate_->UsernameFragment());
   return result.GetScriptValue();
 }
 

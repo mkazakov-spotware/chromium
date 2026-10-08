@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 
 #include "base/base_export.h"
 #include "base/callback.h"
+#include "base/containers/queue.h"
 #include "base/location.h"
-#include "base/task/delay_policy.h"
+#include "base/optional.h"
 #include "base/time/time.h"
 
 namespace base {
@@ -26,22 +27,15 @@ struct BASE_EXPORT PendingTask {
   PendingTask();
   PendingTask(const Location& posted_from,
               OnceClosure task,
-              TimeTicks queue_time = TimeTicks(),
               TimeTicks delayed_run_time = TimeTicks(),
-              TimeDelta leeway = TimeDelta(),
-              subtle::DelayPolicy delay_policy =
-                  subtle::DelayPolicy::kFlexibleNoSooner);
+              Nestable nestable = Nestable::kNestable);
   PendingTask(PendingTask&& other);
   ~PendingTask();
 
   PendingTask& operator=(PendingTask&& other);
 
-  // Returns the time at which this task should run. This is |delayed_run_time|
-  // for a delayed task, |queue_time| otherwise.
-  base::TimeTicks GetDesiredExecutionTime() const;
-
-  TimeTicks earliest_delayed_run_time() const;
-  TimeTicks latest_delayed_run_time() const;
+  // Used to support sorting.
+  bool operator<(const PendingTask& other) const;
 
   // The task to run.
   OnceClosure task;
@@ -49,23 +43,16 @@ struct BASE_EXPORT PendingTask {
   // The site this PendingTask was posted from.
   Location posted_from;
 
-  // The time at which the task was queued, which happens at post time. For
-  // deferred non-nestable tasks, this is reset when the nested loop exits and
-  // the deferred tasks are pushed back at the front of the queue. This is not
-  // set for immediate SequenceManager tasks unless SetAddQueueTimeToTasks(true)
-  // was called. This defaults to a null TimeTicks if the task hasn't been
-  // inserted in a sequence yet.
-  TimeTicks queue_time;
-
   // The time when the task should be run. This is null for an immediate task.
   base::TimeTicks delayed_run_time;
 
-  // |leeway| and |delay_policy| determine the preferred time range for running
-  // the delayed task. A larger leeway provides more freedom to run the task at
-  // an optimal time for power consumption. These fields are ignored for an
-  // immediate (non-delayed) task.
-  TimeDelta leeway;
-  subtle::DelayPolicy delay_policy = subtle::DelayPolicy::kFlexibleNoSooner;
+  // The time at which the task was queued. For SequenceManager tasks and
+  // ThreadPool non-delayed tasks, this happens at post time. For
+  // ThreadPool delayed tasks, this happens some time after the task's delay
+  // has expired. This is not set for SequenceManager tasks if
+  // SetAddQueueTimeToTasks(true) wasn't call. This defaults to a null TimeTicks
+  // if the task hasn't been inserted in a sequence yet.
+  TimeTicks queue_time;
 
   // Chain of symbols of the parent tasks which led to this one being posted.
   static constexpr size_t kTaskBacktraceLength = 4;
@@ -85,7 +72,18 @@ struct BASE_EXPORT PendingTask {
   int sequence_num = 0;
 
   bool task_backtrace_overflow = false;
+
+  // OK to dispatch from a nested loop.
+  Nestable nestable;
+
+  // Needs high resolution timers.
+  bool is_high_res = false;
 };
+
+using TaskQueue = base::queue<PendingTask>;
+
+// PendingTasks are sorted by their |delayed_run_time| property.
+using DelayedTaskQueue = std::priority_queue<base::PendingTask>;
 
 }  // namespace base
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,9 @@
 #define CHROME_INSTALLER_UTIL_EXPERIMENT_STORAGE_H_
 
 #include <memory>
-#include <string>
 
-#include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
-#include "base/strings/string_piece_forward.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "base/win/scoped_handle.h"
 
 namespace installer {
@@ -51,9 +49,6 @@ class ExperimentStorage {
   // are expected to not hold an instance across any blocking operations.
   class Lock {
    public:
-    Lock(const Lock&) = delete;
-    Lock& operator=(const Lock&) = delete;
-
     ~Lock();
 
     // Reads the participation state for the install. Returns false in case of
@@ -87,14 +82,12 @@ class ExperimentStorage {
 
     explicit Lock(ExperimentStorage* storage);
 
-    raw_ptr<ExperimentStorage> storage_;
+    ExperimentStorage* storage_;
+
+    DISALLOW_COPY_AND_ASSIGN(Lock);
   };
 
   ExperimentStorage();
-
-  ExperimentStorage(const ExperimentStorage&) = delete;
-  ExperimentStorage& operator=(const ExperimentStorage&) = delete;
-
   ~ExperimentStorage();
 
   // Returns exclusive access to the experiment storage. The underlying
@@ -122,11 +115,11 @@ class ExperimentStorage {
 
   // Decodes |encoded_metrics| into |metrics|, return true on success. Returns
   // false if the encoding is malformed.
-  static bool DecodeMetrics(base::WStringPiece encoded_metrics,
+  static bool DecodeMetrics(base::StringPiece16 encoded_metrics,
                             ExperimentMetrics* metrics);
 
   // Returns the encoded form of |metrics|.
-  static std::wstring EncodeMetrics(const ExperimentMetrics& metrics);
+  static base::string16 EncodeMetrics(const ExperimentMetrics& metrics);
 
   // Loads the per-install experiment metrics into |metrics|. Returns true if a
   // value was read or if none was found, in which case |metrics| is set to the
@@ -147,6 +140,8 @@ class ExperimentStorage {
 
   // A global mutex with a distinct name for the current installation.
   base::win::ScopedHandle mutex_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExperimentStorage);
 };
 
 }  // namespace installer

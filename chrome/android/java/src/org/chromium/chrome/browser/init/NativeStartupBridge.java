@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ import org.chromium.content_public.browser.BrowserStartupController;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
 
 /**
- * A class for native code to request full browser start when running in minimal browser mode.
+ * A class for native code to request full browser start when running in service manager only mode.
  */
 public class NativeStartupBridge {
     private static final String TAG = "NativeStartupBridge";
@@ -23,8 +23,7 @@ public class NativeStartupBridge {
         PostTask.postTask(UiThreadTaskTraits.DEFAULT, new Runnable() {
             @Override
             public void run() {
-                ChromeBrowserInitializer.getInstance().handlePreNativeStartupAndLoadLibraries(
-                        parts);
+                ChromeBrowserInitializer.getInstance().handlePreNativeStartup(parts);
                 ChromeBrowserInitializer.getInstance().handlePostNativeStartup(
                         true /* isAsync */, parts);
             }

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "components/zucchini/buffer_view.h"
 #include "components/zucchini/disassembler.h"
 #include "components/zucchini/image_utils.h"
@@ -27,8 +28,6 @@ class TestDisassembler : public Disassembler {
                    const std::vector<Reference>& refs2,
                    const ReferenceTypeTraits& traits3,
                    const std::vector<Reference>& refs3);
-  TestDisassembler(const TestDisassembler&) = delete;
-  const TestDisassembler& operator=(const TestDisassembler&) = delete;
   ~TestDisassembler() override;
 
   // Disassembler:
@@ -70,6 +69,8 @@ class TestDisassembler : public Disassembler {
 
   ReferenceTypeTraits traits_[3];
   std::vector<Reference> refs_[3];
+
+  DISALLOW_COPY_AND_ASSIGN(TestDisassembler);
 };
 
 }  // namespace zucchini

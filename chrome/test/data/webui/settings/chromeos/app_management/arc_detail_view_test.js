@@ -1,13 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 'use strict';
-
-import {AppManagementStore, FakePageHandler, PermissionType, updateSelectedAppId, getPermissionValueBool} from 'chrome://os-settings/chromeos/os_settings.js';
-import {setupFakeHandler, replaceStore, replaceBody, isHiddenByDomIf, isHidden, getPermissionItemByType, getPermissionCrToggleByType} from './test_util.js';
-import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
-import {AppType} from 'chrome://resources/cr_components/app_management/app_management.mojom-webui.js';
 
 suite('<app-management-arc-detail-view>', () => {
   let arcPermissionView;
@@ -18,7 +13,8 @@ suite('<app-management-arc-detail-view>', () => {
   }
 
   function getPermissionBoolByType(permissionType) {
-    return getPermissionValueBool(arcPermissionView.app_, permissionType);
+    return app_management.util.getPermissionValueBool(
+        arcPermissionView.app_, permissionType);
   }
 
   async function clickPermissionToggle(permissionType) {
@@ -34,22 +30,25 @@ suite('<app-management-arc-detail-view>', () => {
   setup(async () => {
     fakeHandler = setupFakeHandler();
     replaceStore();
+    app_management.Store.getInstance().dispatch(
+        app_management.actions.updateArcSupported(true));
 
     // Create an ARC app without microphone permissions.
     const arcOptions = {
-      type: AppType.kArc,
-      permissions: FakePageHandler.createArcPermissions([
-        PermissionType.kCamera,
-        PermissionType.kLocation,
-        PermissionType.kNotifications,
-        PermissionType.kContacts,
-        PermissionType.kStorage,
-      ]),
+      type: apps.mojom.AppType.kArc,
+      permissions: app_management.FakePageHandler.createArcPermissions([
+        ArcPermissionType.CAMERA,
+        ArcPermissionType.LOCATION,
+        ArcPermissionType.NOTIFICATIONS,
+        ArcPermissionType.CONTACTS,
+        ArcPermissionType.STORAGE,
+      ])
     };
 
     // Add an arc app, and make it the currently selected app.
     const app = await fakeHandler.addApp(null, arcOptions);
-    AppManagementStore.getInstance().dispatch(updateSelectedAppId(app.id));
+    app_management.Store.getInstance().dispatch(
+        app_management.actions.updateSelectedAppId(app.id));
 
     arcPermissionView =
         document.createElement('app-management-arc-detail-view');
@@ -58,22 +57,20 @@ suite('<app-management-arc-detail-view>', () => {
 
   test('App is rendered correctly', () => {
     assertEquals(
-        AppManagementStore.getInstance().data.selectedAppId,
+        app_management.Store.getInstance().data.selectedAppId,
         arcPermissionView.app_.id);
   });
 
   test('Permissions are hidden correctly', () => {
     expandPermissions();
     assertTrue(
-        isHidden(getPermissionItemByType(arcPermissionView, 'kMicrophone')));
+        isHidden(getPermissionItemByType(arcPermissionView, 'MICROPHONE')));
     assertFalse(
-        isHidden(getPermissionItemByType(arcPermissionView, 'kLocation')));
+        isHidden(getPermissionItemByType(arcPermissionView, 'LOCATION')));
+    assertFalse(isHidden(getPermissionItemByType(arcPermissionView, 'CAMERA')));
     assertFalse(
-        isHidden(getPermissionItemByType(arcPermissionView, 'kCamera')));
-    assertFalse(
-        isHidden(getPermissionItemByType(arcPermissionView, 'kStorage')));
-    assertFalse(
-        isHidden(getPermissionItemByType(arcPermissionView, 'kCamera')));
+        isHidden(getPermissionItemByType(arcPermissionView, 'STORAGE')));
+    assertFalse(isHidden(getPermissionItemByType(arcPermissionView, 'CAMERA')));
   });
 
   test('Toggle works correctly', async () => {
@@ -96,9 +93,9 @@ suite('<app-management-arc-detail-view>', () => {
     };
 
     expandPermissions();
-    await checkPermissionToggle('kLocation');
-    await checkPermissionToggle('kCamera');
-    await checkPermissionToggle('kNotifications');
+    await checkPermissionToggle('LOCATION');
+    await checkPermissionToggle('CAMERA');
+    await checkPermissionToggle('NOTIFICATIONS');
   });
 
 
@@ -122,29 +119,48 @@ suite('<app-management-arc-detail-view>', () => {
     };
 
     expandPermissions();
-    await checkPermissionItemOnClick('kLocation');
-    await checkPermissionItemOnClick('kCamera');
-    await checkPermissionItemOnClick('kNotifications');
-    await checkPermissionItemOnClick('kContacts');
-    await checkPermissionItemOnClick('kStorage');
+    await checkPermissionItemOnClick('LOCATION');
+    await checkPermissionItemOnClick('CAMERA');
+    await checkPermissionItemOnClick('NOTIFICATIONS');
+    await checkPermissionItemOnClick('CONTACTS');
+    await checkPermissionItemOnClick('STORAGE');
+  });
+
+  test('Unsupported Arc hides correctly', () => {
+    assertFalse(
+        isHidden(getPermissionItemByType(arcPermissionView, 'NOTIFICATIONS')));
+    assertFalse(
+        isHidden(arcPermissionView.root.getElementById('permissions-card')));
+
+    app_management.Store.getInstance().dispatch(
+        app_management.actions.updateArcSupported(false));
+
+    assertTrue(
+        isHidden(getPermissionItemByType(arcPermissionView, 'NOTIFICATIONS')));
+    assertTrue(
+        isHidden(arcPermissionView.root.getElementById('permissions-card')));
+
+    app_management.Store.getInstance().dispatch(
+        app_management.actions.updateArcSupported(true));
   });
 
   test('No permissions requested label', async () => {
-    assertTrue(isHiddenByDomIf(
+    expectTrue(isHiddenByDomIf(
         arcPermissionView.root.querySelector('#no-permissions')));
 
     // Create an ARC app without any permissions.
     const arcOptions = {
-      type: AppType.kArc,
-      permissions: FakePageHandler.createArcPermissions([]),
+      type: apps.mojom.AppType.kArc,
+      permissions: app_management.FakePageHandler.createArcPermissions([])
     };
 
     // Add an arc app, and make it the currently selected app.
     const app = await fakeHandler.addApp(null, arcOptions);
-    AppManagementStore.getInstance().dispatch(updateSelectedAppId(app.id));
-    await flushTasks();
+    app_management.Store.getInstance().dispatch(
+        app_management.actions.updateSelectedAppId(app.id));
+    await test_util.flushTasks();
 
-    assertFalse(isHiddenByDomIf(
+    expectFalse(isHiddenByDomIf(
         arcPermissionView.root.querySelector('#no-permissions')));
   });
 });

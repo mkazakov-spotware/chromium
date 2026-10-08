@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,20 +6,20 @@
 
 #import <UIKit/UIKit.h>
 
-#import "base/compiler_specific.h"
+#include "base/compiler_specific.h"
 #import "base/test/ios/wait_util.h"
-#import "components/strings/grit/components_strings.h"
-#import "components/sync/test/mock_sync_service.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#include "components/strings/grit/components_strings.h"
+#include "components/sync/driver/mock_sync_service.h"
+#include "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
 #import "ios/chrome/browser/ui/settings/cells/byo_textfield_item.h"
 #import "ios/chrome/browser/ui/settings/cells/passphrase_error_item.h"
 #import "ios/chrome/browser/ui/settings/passphrase_table_view_controller_test.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "testing/gmock/include/gmock/gmock.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "testing/gmock/include/gmock/gmock.h"
 #import "testing/gtest_mac.h"
-#import "testing/platform_test.h"
-#import "ui/base/l10n/l10n_util.h"
-#import "ui/base/l10n/l10n_util_mac.h"
+#include "testing/platform_test.h"
+#include "ui/base/l10n/l10n_util.h"
+#include "ui/base/l10n/l10n_util_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -186,10 +186,10 @@ TEST_F(SyncCreatePassphraseTableViewControllerTest, TestOnStateChanged) {
   ON_CALL(*fake_sync_service_->GetMockUserSettings(), IsPassphraseRequired())
       .WillByDefault(Return(false));
   ON_CALL(*fake_sync_service_->GetMockUserSettings(),
-          IsUsingExplicitPassphrase())
+          IsUsingSecondaryPassphrase())
       .WillByDefault(Return(true));
   [sync_controller onSyncStateChanged];
-  // Calling -onStateChanged with an accepted explicit passphrase should
+  // Calling -onStateChanged with an accepted secondary passphrase should
   // cause the controller to be popped off the navigation stack.
   EXPECT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(
       base::test::ios::kWaitForUIElementTimeout, ^bool() {
@@ -197,9 +197,11 @@ TEST_F(SyncCreatePassphraseTableViewControllerTest, TestOnStateChanged) {
       }));
 }
 
+// TODO(crbug.com/658269): Re-enable test once it's been deflaked.
 // Verifies that sync errors don't make the navigation item disappear.
 // Regression test for http://crbug.com/501784.
-TEST_F(SyncCreatePassphraseTableViewControllerTest, TestOnStateChangedError) {
+TEST_F(SyncCreatePassphraseTableViewControllerTest,
+       DISABLED_TestOnStateChangedError) {
   SyncCreatePassphraseTableViewController* sync_controller = SyncController();
   SetUpNavigationController(sync_controller);
   EXPECT_EQ([nav_controller_ topViewController], sync_controller);
@@ -216,7 +218,7 @@ TEST_F(SyncCreatePassphraseTableViewControllerTest, TestOnStateChangedError) {
   ON_CALL(*fake_sync_service_->GetMockUserSettings(), IsPassphraseRequired())
       .WillByDefault(Return(false));
   ON_CALL(*fake_sync_service_->GetMockUserSettings(),
-          IsUsingExplicitPassphrase())
+          IsUsingSecondaryPassphrase())
       .WillByDefault(Return(false));
   [sync_controller onSyncStateChanged];
   EXPECT_EQ([nav_controller_ topViewController], sync_controller);

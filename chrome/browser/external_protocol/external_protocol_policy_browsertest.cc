@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/values.h"
 #include "chrome/browser/external_protocol/auto_launch_protocols_policy_handler.h"
-#include "chrome/browser/external_protocol/constants.h"
 #include "chrome/browser/external_protocol/external_protocol_handler.h"
 #include "chrome/browser/policy/policy_test_utils.h"
 #include "chrome/browser/ui/browser.h"
@@ -33,17 +32,17 @@ IN_PROC_BROWSER_TEST_F(ExternalProtocolPolicyBrowserTest,
   // in a list.
   base::DictionaryValue protocol_origins_map;
   // Set a protocol list with a matching protocol.
-  protocol_origins_map.SetStringKey(policy::external_protocol::kProtocolNameKey,
-                                    kExampleScheme);
+  protocol_origins_map.SetStringKey(
+      AutoLaunchProtocolsPolicyHandler::kProtocolNameKey, kExampleScheme);
   // Set origins list with a wildcard origin matching pattern.
-  base::Value::List origins;
+  base::ListValue origins;
   origins.Append(kWildcardOrigin);
-  protocol_origins_map.SetKey(policy::external_protocol::kOriginListKey,
-                              base::Value(std::move(origins)));
+  protocol_origins_map.SetKey(AutoLaunchProtocolsPolicyHandler::kOriginListKey,
+                              std::move(origins));
   PolicyMap policies;
   policies.Set(key::kAutoLaunchProtocolsFromOrigins, POLICY_LEVEL_MANDATORY,
                POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
-               base::Value(protocol_origins_map.Clone()), nullptr);
+               protocol_origins_map.Clone(), nullptr);
   UpdateProviderPolicy(policies);
 
   block_state = ExternalProtocolHandler::GetBlockState(
@@ -56,22 +55,22 @@ IN_PROC_BROWSER_TEST_F(ExternalProtocolPolicyBrowserTest,
   const char kWildcardOrigin[] = "*";
   const char kExampleScheme[] = "custom";
 
-  base::Value::List protocol_origins_map_list;
+  base::ListValue protocol_origins_map_list;
   // Single dictionary in the list for this test case.
   base::DictionaryValue protocol_origins_map;
   // Set a protocol.
-  protocol_origins_map.SetStringKey(policy::external_protocol::kProtocolNameKey,
-                                    kExampleScheme);
+  protocol_origins_map.SetStringKey(
+      AutoLaunchProtocolsPolicyHandler::kProtocolNameKey, kExampleScheme);
   // Set an origins list with the wildcard origin matching pattern.
-  base::Value::List origins;
+  base::ListValue origins;
   origins.Append(kWildcardOrigin);
-  protocol_origins_map.SetKey(policy::external_protocol::kOriginListKey,
-                              base::Value(std::move(origins)));
+  protocol_origins_map.SetKey(AutoLaunchProtocolsPolicyHandler::kOriginListKey,
+                              std::move(origins));
   protocol_origins_map_list.Append(std::move(protocol_origins_map));
   PolicyMap policies;
   policies.Set(key::kAutoLaunchProtocolsFromOrigins, POLICY_LEVEL_MANDATORY,
                POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
-               base::Value(protocol_origins_map_list.Clone()), nullptr);
+               protocol_origins_map_list.Clone(), nullptr);
   UpdateProviderPolicy(policies);
 
   // Calling GetBlockState with a null initiating_origin should
@@ -92,21 +91,21 @@ IN_PROC_BROWSER_TEST_F(ExternalProtocolPolicyBrowserTest,
                                              browser()->profile());
   EXPECT_EQ(ExternalProtocolHandler::UNKNOWN, block_state);
 
-  base::Value::List protocol_origins_map_list;
+  base::ListValue protocol_origins_map_list;
   // Single dictionary in the list for this test case.
   base::DictionaryValue protocol_origins_map;
   // Set a protocol list with a matching protocol.
-  protocol_origins_map.SetStringKey(policy::external_protocol::kProtocolNameKey,
-                                    kExampleScheme);
+  protocol_origins_map.SetStringKey(
+      AutoLaunchProtocolsPolicyHandler::kProtocolNameKey, kExampleScheme);
   // Set an empty origins list.
-  base::Value::List origins;
-  protocol_origins_map.SetKey(policy::external_protocol::kOriginListKey,
-                              base::Value(std::move(origins)));
+  base::ListValue origins;
+  protocol_origins_map.SetKey(AutoLaunchProtocolsPolicyHandler::kOriginListKey,
+                              std::move(origins));
   protocol_origins_map_list.Append(std::move(protocol_origins_map));
   PolicyMap policies;
   policies.Set(key::kAutoLaunchProtocolsFromOrigins, POLICY_LEVEL_MANDATORY,
                POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
-               base::Value(protocol_origins_map_list.Clone()), nullptr);
+               protocol_origins_map_list.Clone(), nullptr);
   UpdateProviderPolicy(policies);
 
   block_state = ExternalProtocolHandler::GetBlockState(
@@ -119,22 +118,22 @@ IN_PROC_BROWSER_TEST_F(ExternalProtocolPolicyBrowserTest,
   const char kWildcardOrigin[] = "*";
   const char kExampleScheme[] = "custom";
 
-  base::Value::List protocol_origins_map_list;
+  base::ListValue protocol_origins_map_list;
   // Single dictionary in the list for this test case.
   base::DictionaryValue protocol_origins_map;
   // Set a protocol to match the test.
-  protocol_origins_map.SetStringKey(policy::external_protocol::kProtocolNameKey,
-                                    kExampleScheme);
+  protocol_origins_map.SetStringKey(
+      AutoLaunchProtocolsPolicyHandler::kProtocolNameKey, kExampleScheme);
   // Set an origins list with the wildcard origin matching pattern.
-  base::Value::List origins;
+  base::ListValue origins;
   origins.Append(kWildcardOrigin);
-  protocol_origins_map.SetKey(policy::external_protocol::kOriginListKey,
-                              base::Value(std::move(origins)));
+  protocol_origins_map.SetKey(AutoLaunchProtocolsPolicyHandler::kOriginListKey,
+                              std::move(origins));
   protocol_origins_map_list.Append(std::move(protocol_origins_map));
   PolicyMap policies;
   policies.Set(key::kAutoLaunchProtocolsFromOrigins, POLICY_LEVEL_MANDATORY,
                POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
-               base::Value(protocol_origins_map_list.Clone()), nullptr);
+               protocol_origins_map_list.Clone(), nullptr);
   UpdateProviderPolicy(policies);
 
   url::Origin test_origin = url::Origin::Create(GURL("https://example.test"));
@@ -152,7 +151,7 @@ IN_PROC_BROWSER_TEST_F(ExternalProtocolPolicyBrowserTest,
   const char kWildcardOrigin[] = "*";
   const char kExampleScheme[] = "custom";
 
-  base::Value::List protocol_origins_map_list;
+  base::ListValue protocol_origins_map_list;
 
   // Three dictionaries in the list for this test case.
   base::DictionaryValue protocol_origins_map1;
@@ -161,33 +160,33 @@ IN_PROC_BROWSER_TEST_F(ExternalProtocolPolicyBrowserTest,
 
   // Set invalid protocols, each with the wildcard origin matching pattern.
   protocol_origins_map1.SetStringKey(
-      policy::external_protocol::kProtocolNameKey, kInvalidProtocol1);
-  base::Value::List origins1;
+      AutoLaunchProtocolsPolicyHandler::kProtocolNameKey, kInvalidProtocol1);
+  base::ListValue origins1;
   origins1.Append(kWildcardOrigin);
-  protocol_origins_map1.SetKey(policy::external_protocol::kOriginListKey,
-                               base::Value(std::move(origins1)));
+  protocol_origins_map1.SetKey(AutoLaunchProtocolsPolicyHandler::kOriginListKey,
+                               std::move(origins1));
   protocol_origins_map_list.Append(std::move(protocol_origins_map1));
 
   protocol_origins_map2.SetStringKey(
-      policy::external_protocol::kProtocolNameKey, kInvalidProtocol2);
-  base::Value::List origins2;
+      AutoLaunchProtocolsPolicyHandler::kProtocolNameKey, kInvalidProtocol2);
+  base::ListValue origins2;
   origins2.Append(kWildcardOrigin);
-  protocol_origins_map2.SetKey(policy::external_protocol::kOriginListKey,
-                               base::Value(std::move(origins2)));
+  protocol_origins_map2.SetKey(AutoLaunchProtocolsPolicyHandler::kOriginListKey,
+                               std::move(origins2));
   protocol_origins_map_list.Append(std::move(protocol_origins_map2));
 
   protocol_origins_map3.SetStringKey(
-      policy::external_protocol::kProtocolNameKey, kInvalidProtocol3);
-  base::Value::List origins3;
+      AutoLaunchProtocolsPolicyHandler::kProtocolNameKey, kInvalidProtocol3);
+  base::ListValue origins3;
   origins3.Append(kWildcardOrigin);
-  protocol_origins_map3.SetKey(policy::external_protocol::kOriginListKey,
-                               base::Value(std::move(origins3)));
+  protocol_origins_map3.SetKey(AutoLaunchProtocolsPolicyHandler::kOriginListKey,
+                               std::move(origins3));
   protocol_origins_map_list.Append(std::move(protocol_origins_map3));
 
   PolicyMap policies;
   policies.Set(key::kAutoLaunchProtocolsFromOrigins, POLICY_LEVEL_MANDATORY,
                POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
-               base::Value(protocol_origins_map_list.Clone()), nullptr);
+               protocol_origins_map_list.Clone(), nullptr);
   UpdateProviderPolicy(policies);
 
   url::Origin test_origin = url::Origin::Create(GURL("https://example.test"));
@@ -202,23 +201,23 @@ IN_PROC_BROWSER_TEST_F(ExternalProtocolPolicyBrowserTest,
   const char kExampleScheme[] = "custom";
   const char kHost[] = "www.example.test";
 
-  base::Value::List protocol_origins_map_list;
+  base::ListValue protocol_origins_map_list;
   // Single dictionary in the list for this test case.
   base::DictionaryValue protocol_origins_map;
   // Set a protocol to match the test.
-  protocol_origins_map.SetStringKey(policy::external_protocol::kProtocolNameKey,
-                                    kExampleScheme);
+  protocol_origins_map.SetStringKey(
+      AutoLaunchProtocolsPolicyHandler::kProtocolNameKey, kExampleScheme);
   // Set an origins list with an origin matching pattern that matches but is
   // only the host name.
-  base::Value::List origins;
+  base::ListValue origins;
   origins.Append(kHost);
-  protocol_origins_map.SetKey(policy::external_protocol::kOriginListKey,
-                              base::Value(std::move(origins)));
+  protocol_origins_map.SetKey(AutoLaunchProtocolsPolicyHandler::kOriginListKey,
+                              std::move(origins));
   protocol_origins_map_list.Append(std::move(protocol_origins_map));
   PolicyMap policies;
   policies.Set(key::kAutoLaunchProtocolsFromOrigins, POLICY_LEVEL_MANDATORY,
                POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
-               base::Value(protocol_origins_map_list.Clone()), nullptr);
+               protocol_origins_map_list.Clone(), nullptr);
   UpdateProviderPolicy(policies);
 
   // Test that secure origin matches.
@@ -247,23 +246,23 @@ IN_PROC_BROWSER_TEST_F(ExternalProtocolPolicyBrowserTest,
   const char kExampleScheme[] = "custom";
   const char kExactHostName[] = ".www.example.test";
 
-  base::Value::List protocol_origins_map_list;
+  base::ListValue protocol_origins_map_list;
   // Single dictionary in the list for this test case.
   base::DictionaryValue protocol_origins_map;
   // Set a protocol to match the test.
-  protocol_origins_map.SetStringKey(policy::external_protocol::kProtocolNameKey,
-                                    kExampleScheme);
+  protocol_origins_map.SetStringKey(
+      AutoLaunchProtocolsPolicyHandler::kProtocolNameKey, kExampleScheme);
   // Set an origins list with an origin matching pattern that matches exactly
   // but has no scheme.
-  base::Value::List origins;
+  base::ListValue origins;
   origins.Append(kExactHostName);
-  protocol_origins_map.SetKey(policy::external_protocol::kOriginListKey,
-                              base::Value(std::move(origins)));
+  protocol_origins_map.SetKey(AutoLaunchProtocolsPolicyHandler::kOriginListKey,
+                              std::move(origins));
   protocol_origins_map_list.Append(std::move(protocol_origins_map));
   PolicyMap policies;
   policies.Set(key::kAutoLaunchProtocolsFromOrigins, POLICY_LEVEL_MANDATORY,
                POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
-               base::Value(protocol_origins_map_list.Clone()), nullptr);
+               protocol_origins_map_list.Clone(), nullptr);
   UpdateProviderPolicy(policies);
 
   // Test that secure origin matches.
@@ -292,23 +291,23 @@ IN_PROC_BROWSER_TEST_F(ExternalProtocolPolicyBrowserTest,
   const char kExampleScheme[] = "custom";
   const char kParentDomain[] = "example.test";
 
-  base::Value::List protocol_origins_map_list;
+  base::ListValue protocol_origins_map_list;
   // Single dictionary in the list for this test case.
   base::DictionaryValue protocol_origins_map;
   // Set a protocol to match the test.
-  protocol_origins_map.SetStringKey(policy::external_protocol::kProtocolNameKey,
-                                    kExampleScheme);
+  protocol_origins_map.SetStringKey(
+      AutoLaunchProtocolsPolicyHandler::kProtocolNameKey, kExampleScheme);
   // Set an origins list with an origin matching pattern that is the parent
   // domain but should match subdomains.
-  base::Value::List origins;
+  base::ListValue origins;
   origins.Append(kParentDomain);
-  protocol_origins_map.SetKey(policy::external_protocol::kOriginListKey,
-                              base::Value(std::move(origins)));
+  protocol_origins_map.SetKey(AutoLaunchProtocolsPolicyHandler::kOriginListKey,
+                              std::move(origins));
   protocol_origins_map_list.Append(std::move(protocol_origins_map));
   PolicyMap policies;
   policies.Set(key::kAutoLaunchProtocolsFromOrigins, POLICY_LEVEL_MANDATORY,
                POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
-               base::Value(protocol_origins_map_list.Clone()), nullptr);
+               protocol_origins_map_list.Clone(), nullptr);
   UpdateProviderPolicy(policies);
 
   // Test that a subdomain matches.
@@ -325,23 +324,23 @@ IN_PROC_BROWSER_TEST_F(ExternalProtocolPolicyBrowserTest,
   const char kExampleScheme[] = "custom";
   const char kProtocolWithWildcardHostname[] = "https://*";
 
-  base::Value::List protocol_origins_map_list;
+  base::ListValue protocol_origins_map_list;
   // Single dictionary in the list for this test case.
   base::DictionaryValue protocol_origins_map;
   // Set a protocol to match the test.
-  protocol_origins_map.SetStringKey(policy::external_protocol::kProtocolNameKey,
-                                    kExampleScheme);
+  protocol_origins_map.SetStringKey(
+      AutoLaunchProtocolsPolicyHandler::kProtocolNameKey, kExampleScheme);
   // Set an origins list with an origin matching pattern that matches the scheme
   // and all hosts.
-  base::Value::List origins;
+  base::ListValue origins;
   origins.Append(kProtocolWithWildcardHostname);
-  protocol_origins_map.SetKey(policy::external_protocol::kOriginListKey,
-                              base::Value(std::move(origins)));
+  protocol_origins_map.SetKey(AutoLaunchProtocolsPolicyHandler::kOriginListKey,
+                              std::move(origins));
   protocol_origins_map_list.Append(std::move(protocol_origins_map));
   PolicyMap policies;
   policies.Set(key::kAutoLaunchProtocolsFromOrigins, POLICY_LEVEL_MANDATORY,
                POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
-               base::Value(protocol_origins_map_list.Clone()), nullptr);
+               protocol_origins_map_list.Clone(), nullptr);
   UpdateProviderPolicy(policies);
 
   // Test that secure origin matches.
@@ -364,23 +363,23 @@ IN_PROC_BROWSER_TEST_F(ExternalProtocolPolicyBrowserTest,
   const char kExampleScheme[] = "custom";
   const char kFullOrigin[] = "https://www.example.test:443";
 
-  base::Value::List protocol_origins_map_list;
+  base::ListValue protocol_origins_map_list;
   // Single dictionary in the list for this test case.
   base::DictionaryValue protocol_origins_map;
   // Set a protocol to match the test.
-  protocol_origins_map.SetStringKey(policy::external_protocol::kProtocolNameKey,
-                                    kExampleScheme);
+  protocol_origins_map.SetStringKey(
+      AutoLaunchProtocolsPolicyHandler::kProtocolNameKey, kExampleScheme);
   // Set an origins list with an origin matching pattern that matches the full
   // origin exactly.
-  base::Value::List origins;
+  base::ListValue origins;
   origins.Append(kFullOrigin);
-  protocol_origins_map.SetKey(policy::external_protocol::kOriginListKey,
-                              base::Value(std::move(origins)));
+  protocol_origins_map.SetKey(AutoLaunchProtocolsPolicyHandler::kOriginListKey,
+                              std::move(origins));
   protocol_origins_map_list.Append(std::move(protocol_origins_map));
   PolicyMap policies;
   policies.Set(key::kAutoLaunchProtocolsFromOrigins, POLICY_LEVEL_MANDATORY,
                POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
-               base::Value(protocol_origins_map_list.Clone()), nullptr);
+               protocol_origins_map_list.Clone(), nullptr);
   UpdateProviderPolicy(policies);
 
   // Test that default HTTPS port 443 matches.
@@ -409,23 +408,23 @@ IN_PROC_BROWSER_TEST_F(ExternalProtocolPolicyBrowserTest,
   const char kExampleScheme[] = "custom";
   const char kExactParentDomain[] = ".example.com";
 
-  base::Value::List protocol_origins_map_list;
+  base::ListValue protocol_origins_map_list;
   // Single dictionary in the list for this test case.
   base::DictionaryValue protocol_origins_map;
   // Set a protocol to match the test.
-  protocol_origins_map.SetStringKey(policy::external_protocol::kProtocolNameKey,
-                                    kExampleScheme);
+  protocol_origins_map.SetStringKey(
+      AutoLaunchProtocolsPolicyHandler::kProtocolNameKey, kExampleScheme);
   // Set an origins list with an origin matching pattern that doesn't match
   // because it is a parent domain that does not match subdomains.
-  base::Value::List origins;
+  base::ListValue origins;
   origins.Append(kExactParentDomain);
-  protocol_origins_map.SetKey(policy::external_protocol::kOriginListKey,
-                              base::Value(std::move(origins)));
+  protocol_origins_map.SetKey(AutoLaunchProtocolsPolicyHandler::kOriginListKey,
+                              std::move(origins));
   protocol_origins_map_list.Append(std::move(protocol_origins_map));
   PolicyMap policies;
   policies.Set(key::kAutoLaunchProtocolsFromOrigins, POLICY_LEVEL_MANDATORY,
                POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
-               base::Value(protocol_origins_map_list.Clone()), nullptr);
+               protocol_origins_map_list.Clone(), nullptr);
   UpdateProviderPolicy(policies);
 
   url::Origin test_origin =
@@ -441,23 +440,23 @@ IN_PROC_BROWSER_TEST_F(ExternalProtocolPolicyBrowserTest,
   const char kExampleScheme[] = "custom";
   const char kFullUrlWithPath[] = "https://example.test/home.html";
 
-  base::Value::List protocol_origins_map_list;
+  base::ListValue protocol_origins_map_list;
   // Single dictionary in the list for this test case.
   base::DictionaryValue protocol_origins_map;
   // Set a protocol to match the test.
-  protocol_origins_map.SetStringKey(policy::external_protocol::kProtocolNameKey,
-                                    kExampleScheme);
+  protocol_origins_map.SetStringKey(
+      AutoLaunchProtocolsPolicyHandler::kProtocolNameKey, kExampleScheme);
   // Set an origins list with an origin matching pattern that doesn't match
   // because it contains a [/path] element.
-  base::Value::List origins;
+  base::ListValue origins;
   origins.Append(kFullUrlWithPath);
-  protocol_origins_map.SetKey(policy::external_protocol::kOriginListKey,
-                              base::Value(std::move(origins)));
+  protocol_origins_map.SetKey(AutoLaunchProtocolsPolicyHandler::kOriginListKey,
+                              std::move(origins));
   protocol_origins_map_list.Append(std::move(protocol_origins_map));
   PolicyMap policies;
   policies.Set(key::kAutoLaunchProtocolsFromOrigins, POLICY_LEVEL_MANDATORY,
                POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
-               base::Value(protocol_origins_map_list.Clone()), nullptr);
+               protocol_origins_map_list.Clone(), nullptr);
   UpdateProviderPolicy(policies);
 
   url::Origin test_origin = url::Origin::Create(GURL(kFullUrlWithPath));

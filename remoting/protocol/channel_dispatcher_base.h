@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "remoting/protocol/errors.h"
 #include "remoting/protocol/message_pipe.h"
 
@@ -39,9 +39,6 @@ class ChannelDispatcherBase : public MessagePipe::EventHandler {
     // Called after the channel is closed.
     virtual void OnChannelClosed(ChannelDispatcherBase* channel_dispatcher) = 0;
   };
-
-  ChannelDispatcherBase(const ChannelDispatcherBase&) = delete;
-  ChannelDispatcherBase& operator=(const ChannelDispatcherBase&) = delete;
 
   ~ChannelDispatcherBase() override;
 
@@ -75,11 +72,13 @@ class ChannelDispatcherBase : public MessagePipe::EventHandler {
   void OnMessagePipeClosed() override;
 
   std::string channel_name_;
-  raw_ptr<MessageChannelFactory> channel_factory_ = nullptr;
-  raw_ptr<EventHandler> event_handler_ = nullptr;
+  MessageChannelFactory* channel_factory_ = nullptr;
+  EventHandler* event_handler_ = nullptr;
   bool is_connected_ = false;
 
   std::unique_ptr<MessagePipe> message_pipe_;
+
+  DISALLOW_COPY_AND_ASSIGN(ChannelDispatcherBase);
 };
 
 }  // namespace protocol

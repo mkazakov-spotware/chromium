@@ -1,9 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/macros.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -11,9 +11,11 @@
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chromeos/ash/components/dbus/update_engine/fake_update_engine_client.h"
-#include "chromeos/ash/components/dbus/update_engine/update_engine_client.h"
+#if defined(OS_CHROMEOS)
+#include "chromeos/dbus/dbus_thread_manager.h"
+#include "chromeos/dbus/fake_update_engine_client.h"
+
+using chromeos::UpdateEngineClient;
 #endif
 
 namespace extensions {
@@ -22,24 +24,21 @@ IN_PROC_BROWSER_TEST_F(ExtensionApiTest, GetIncognitoModeAvailability) {
   PrefService* pref_service = browser()->profile()->GetPrefs();
   pref_service->SetInteger(prefs::kIncognitoModeAvailability, 1);
 
-  EXPECT_TRUE(RunExtensionTest("system/get_incognito_mode_availability", {},
-                               {.load_as_component = true}))
-      << message_;
+  EXPECT_TRUE(RunComponentExtensionTest(
+      "system/get_incognito_mode_availability")) << message_;
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 
 class GetUpdateStatusApiTest : public ExtensionApiTest {
  public:
-  GetUpdateStatusApiTest() = default;
-
-  GetUpdateStatusApiTest(const GetUpdateStatusApiTest&) = delete;
-  GetUpdateStatusApiTest& operator=(const GetUpdateStatusApiTest&) = delete;
+  GetUpdateStatusApiTest() : fake_update_engine_client_(NULL) {}
 
   void SetUpInProcessBrowserTestFixture() override {
     ExtensionApiTest::SetUpInProcessBrowserTestFixture();
-    fake_update_engine_client_ =
-        ash::UpdateEngineClient::InitializeFakeForTest();
+    fake_update_engine_client_ = new chromeos::FakeUpdateEngineClient;
+    chromeos::DBusThreadManager::GetSetterForTesting()->SetUpdateEngineClient(
+        std::unique_ptr<UpdateEngineClient>(fake_update_engine_client_));
   }
 
   void TearDownInProcessBrowserTestFixture() override {
@@ -47,7 +46,10 @@ class GetUpdateStatusApiTest : public ExtensionApiTest {
   }
 
  protected:
-  ash::FakeUpdateEngineClient* fake_update_engine_client_ = nullptr;
+  chromeos::FakeUpdateEngineClient* fake_update_engine_client_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(GetUpdateStatusApiTest);
 };
 
 IN_PROC_BROWSER_TEST_F(GetUpdateStatusApiTest, Progress) {
@@ -65,9 +67,8 @@ IN_PROC_BROWSER_TEST_F(GetUpdateStatusApiTest, Progress) {
   fake_update_engine_client_->PushLastStatus(status_updating);
   fake_update_engine_client_->PushLastStatus(status_boot_needed);
 
-  ASSERT_TRUE(RunExtensionTest("system/get_update_status", {},
-                               {.load_as_component = true}))
-      << message_;
+  ASSERT_TRUE(RunComponentExtensionTest(
+      "system/get_update_status")) << message_;
 }
 
 #endif

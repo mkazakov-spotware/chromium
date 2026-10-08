@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -17,15 +17,16 @@
 #ifndef BASE_METRICS_BUCKET_RANGES_H_
 #define BASE_METRICS_BUCKET_RANGES_H_
 
-#include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include <atomic>
 #include <vector>
 
+#include <limits.h>
+
+#include "base/atomicops.h"
 #include "base/base_export.h"
-#include "base/check_op.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_base.h"
 
 namespace base {
@@ -35,10 +36,6 @@ class BASE_EXPORT BucketRanges {
   typedef std::vector<HistogramBase::Sample> Ranges;
 
   explicit BucketRanges(size_t num_ranges);
-
-  BucketRanges(const BucketRanges&) = delete;
-  BucketRanges& operator=(const BucketRanges&) = delete;
-
   ~BucketRanges();
 
   size_t size() const { return ranges_.size(); }
@@ -71,10 +68,10 @@ class BASE_EXPORT BucketRanges {
   // safety against overwriting an existing value since though it is wasteful
   // to have multiple identical persistent records, it is still safe.
   void set_persistent_reference(uint32_t ref) const {
-    persistent_reference_.store(ref, std::memory_order_release);
+    subtle::Release_Store(&persistent_reference_, ref);
   }
   uint32_t persistent_reference() const {
-    return persistent_reference_.load(std::memory_order_acquire);
+    return subtle::Acquire_Load(&persistent_reference_);
   }
 
  private:
@@ -94,7 +91,9 @@ class BASE_EXPORT BucketRanges {
   // information is stored. This allows for the record to be created once and
   // re-used simply by having all histograms with the same ranges use the
   // same reference.
-  mutable std::atomic<uint32_t> persistent_reference_{0};
+  mutable subtle::Atomic32 persistent_reference_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(BucketRanges);
 };
 
 }  // namespace base

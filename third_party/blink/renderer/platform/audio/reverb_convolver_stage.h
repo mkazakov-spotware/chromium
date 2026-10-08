@@ -30,6 +30,8 @@
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_AUDIO_REVERB_CONVOLVER_STAGE_H_
 
 #include <memory>
+
+#include "base/macros.h"
 #include "third_party/blink/renderer/platform/audio/audio_array.h"
 #include "third_party/blink/renderer/platform/audio/fft_frame.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
@@ -45,7 +47,7 @@ class DirectConvolver;
 // sub-section of a large impulse response.  It incorporates a delay line to
 // account for the offset of the sub-section within the larger impulse
 // response.
-class ReverbConvolverStage {
+class PLATFORM_EXPORT ReverbConvolverStage {
   USING_FAST_MALLOC(ReverbConvolverStage);
 
  public:
@@ -56,15 +58,13 @@ class ReverbConvolverStage {
                        size_t response_length,
                        size_t reverb_total_latency,
                        size_t stage_offset,
-                       unsigned stage_length,
-                       unsigned fft_size,
+                       size_t stage_length,
+                       size_t fft_size,
                        size_t render_phase,
-                       unsigned render_slice_size,
+                       size_t render_slice_size,
                        ReverbAccumulationBuffer*,
                        float scale,
                        bool direct_mode = false);
-  ReverbConvolverStage(const ReverbConvolverStage&) = delete;
-  ReverbConvolverStage& operator=(const ReverbConvolverStage&) = delete;
 
   // WARNING: framesToProcess must be such that it evenly divides the delay
   // buffer size (stage_offset).
@@ -76,7 +76,7 @@ class ReverbConvolverStage {
   void Reset();
 
   // Useful for background processing
-  size_t InputReadIndex() const { return input_read_index_; }
+  int InputReadIndex() const { return input_read_index_; }
 
  private:
   std::unique_ptr<FFTFrame> fft_kernel_;
@@ -85,8 +85,8 @@ class ReverbConvolverStage {
   AudioFloatArray pre_delay_buffer_;
 
   ReverbAccumulationBuffer* accumulation_buffer_;
-  uint32_t accumulation_read_index_;
-  size_t input_read_index_;
+  int accumulation_read_index_;
+  int input_read_index_;
 
   size_t pre_delay_length_;
   size_t post_delay_length_;
@@ -97,6 +97,8 @@ class ReverbConvolverStage {
 
   bool direct_mode_;
   std::unique_ptr<DirectConvolver> direct_convolver_;
+
+  DISALLOW_COPY_AND_ASSIGN(ReverbConvolverStage);
 };
 
 }  // namespace blink

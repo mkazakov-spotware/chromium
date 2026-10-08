@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,14 +22,16 @@
   function dumpListeners(listeners) {
     listeners.sort((a, b) => a.type().localeCompare(b.type()));
     for (var listener of listeners) {
-      const sourceURL = listener.sourceURL();
-      const sourceURLForOutput = sourceURL.substr(sourceURL.lastIndexOf('/') + 1);
+      delete listener._location.scriptId;
+      var sourceURL = listener._sourceURL;
+      sourceURL = sourceURL.substr(sourceURL.lastIndexOf('/') + 1);
+      listener._sourceURL = sourceURL;
 
       TestRunner.addResult('type: ' + listener.type());
       TestRunner.addResult('useCapture: ' + listener.useCapture());
       TestRunner.addResult(`location: ${listener.location().lineNumber}:${listener.location().columnNumber}`);
       TestRunner.addResult('handler: ' + listener.handler().description);
-      TestRunner.addResult('sourceURL: ' + sourceURLForOutput);
+      TestRunner.addResult('sourceURL: ' + listener.sourceURL());
       TestRunner.addResult('');
     }
   }

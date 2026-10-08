@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "base/callback.h"
 #include "components/speech/downstream_loader_client.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 
 namespace speech {
 

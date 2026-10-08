@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "base/win/registry.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 #include <windows.h>
 
@@ -41,15 +40,15 @@ bool DuplicateKeyHandle(HKEY source, base::win::RegKey* dest) {
 
 // Reads value |value_name| from |key| as a JSON string and returns it as
 // |base::Value|.
-absl::optional<base::Value::Dict> ReadValue(const base::win::RegKey& key,
-                                            const wchar_t* value_name) {
+std::unique_ptr<base::DictionaryValue> ReadValue(const base::win::RegKey& key,
+                                                 const wchar_t* value_name) {
   // presubmit: allow wstring
   std::wstring value_json;
   LONG result = key.ReadValue(value_name, &value_json);
   if (result != ERROR_SUCCESS) {
     SetLastError(result);
     PLOG(ERROR) << "Cannot read value '" << value_name << "'";
-    return absl::nullopt;
+    return nullptr;
   }
 
   // Parse the value.
@@ -62,25 +61,25 @@ absl::optional<base::Value::Dict> ReadValue(const base::win::RegKey& key,
   if (!value) {
     LOG(ERROR) << "Failed to parse '" << value_name << "': " << error_message
                << " (" << error_code << ").";
-    return absl::nullopt;
+    return nullptr;
   }
 
   if (!value->is_dict()) {
     LOG(ERROR) << "Failed to parse '" << value_name << "': not a dictionary.";
-    return absl::nullopt;
+    return nullptr;
   }
 
-  return std::move(*value).TakeDict();
+  return base::DictionaryValue::From(std::move(value));
 }
 
 // Serializes |value| into a JSON string and writes it as value |value_name|
 // under |key|.
 bool WriteValue(base::win::RegKey& key,
                 const wchar_t* value_name,
-                const base::Value::Dict& value) {
+                std::unique_ptr<base::DictionaryValue> value) {
   std::string value_json_utf8;
   JSONStringValueSerializer serializer(&value_json_utf8);
-  if (!serializer.Serialize(value)) {
+  if (!serializer.Serialize(*value)) {
     LOG(ERROR) << "Failed to serialize '" << value_name << "'";
     return false;
   }
@@ -124,8 +123,8 @@ bool PairingRegistryDelegateWin::SetRootKeys(HKEY privileged,
   return true;
 }
 
-base::Value::List PairingRegistryDelegateWin::LoadAll() {
-  base::Value::List pairings;
+std::unique_ptr<base::ListValue> PairingRegistryDelegateWin::LoadAll() {
+  std::unique_ptr<base::ListValue> pairings(new base::ListValue());
 
   // Enumerate and parse all values under the unprivileged key.
   DWORD count = unprivileged_.GetValueCount();
@@ -140,9 +139,8 @@ base::Value::List PairingRegistryDelegateWin::LoadAll() {
     }
 
     PairingRegistry::Pairing pairing = Load(base::WideToUTF8(value_name));
-    if (pairing.is_valid()) {
-      pairings.Append(pairing.ToValue());
-    }
+    if (pairing.is_valid())
+      pairings->Append(pairing.ToValue());
   }
 
   return pairings;
@@ -190,20 +188,20 @@ PairingRegistry::Pairing PairingRegistryDelegateWin::Load(
   std::wstring value_name = base::UTF8ToWide(client_id);
 
   // Read unprivileged fields first.
-  absl::optional<base::Value::Dict> pairing =
+  std::unique_ptr<base::DictionaryValue> pairing =
       ReadValue(unprivileged_, value_name.c_str());
   if (!pairing)
     return PairingRegistry::Pairing();
 
   // Read the shared secret.
   if (privileged_.Valid()) {
-    absl::optional<base::Value::Dict> secret =
+    std::unique_ptr<base::DictionaryValue> secret =
         ReadValue(privileged_, value_name.c_str());
     if (!secret)
       return PairingRegistry::Pairing();
 
     // Merge the two dictionaries.
-    pairing->Merge(std::move(*secret));
+    pairing->MergeDictionary(secret.get());
   }
 
   return PairingRegistry::Pairing::CreateFromValue(*pairing);
@@ -217,14 +215,14 @@ bool PairingRegistryDelegateWin::Save(const PairingRegistry::Pairing& pairing) {
   }
 
   // Convert pairing to JSON.
-  base::Value::Dict pairing_json = pairing.ToValue();
+  std::unique_ptr<base::DictionaryValue> pairing_json = pairing.ToValue();
 
   // Extract the shared secret to a separate dictionary.
-  absl::optional<base::Value> secret_key =
-      pairing_json.Extract(PairingRegistry::kSharedSecretKey);
-  CHECK(secret_key.has_value());
-  base::Value::Dict secret_json;
-  secret_json.Set(PairingRegistry::kSharedSecretKey, std::move(*secret_key));
+  std::unique_ptr<base::Value> secret_key;
+  CHECK(pairing_json->Remove(PairingRegistry::kSharedSecretKey, &secret_key));
+  std::unique_ptr<base::DictionaryValue> secret_json(
+      new base::DictionaryValue());
+  secret_json->Set(PairingRegistry::kSharedSecretKey, std::move(secret_key));
 
   // presubmit: allow wstring
   std::wstring value_name = base::UTF8ToWide(pairing.client_id());

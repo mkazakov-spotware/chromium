@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <string>
 
 #include "base/containers/queue.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "net/base/completion_once_callback.h"
 #include "net/base/net_errors.h"
 #include "net/filter/source_stream.h"
@@ -26,10 +27,6 @@ class MockSourceStream : public SourceStream {
     ASYNC,
   };
   MockSourceStream();
-
-  MockSourceStream(const MockSourceStream&) = delete;
-  MockSourceStream& operator=(const MockSourceStream&) = delete;
-
   // The destructor will crash in debug build if there is any pending read.
   ~MockSourceStream() override;
 
@@ -83,6 +80,8 @@ class MockSourceStream : public SourceStream {
   scoped_refptr<IOBuffer> dest_buffer_;
   CompletionOnceCallback callback_;
   int dest_buffer_size_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(MockSourceStream);
 };
 
 }  // namespace net

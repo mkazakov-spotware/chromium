@@ -1,17 +1,18 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 #include <stdint.h>
 
-#include <memory>
+#include <algorithm>
 #include <set>
 #include <string>
 #include <vector>
 
 #include "base/bind.h"
-#include "base/ranges/algorithm.h"
+#include "base/callback_forward.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "build/build_config.h"
@@ -23,7 +24,6 @@
 #include "chrome/browser/profiles/profile_statistics_factory.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/in_process_browser_test.h"
-#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/password_manager/core/browser/password_manager_test_utils.h"
 #include "components/password_manager/core/browser/test_password_store.h"
 #include "content/public/test/browser_test.h"
@@ -73,8 +73,11 @@ std::string ProfileCategoryStatToString(
     const char* expected_expression,
     const profiles::ProfileCategoryStats& actual_value,
     const profiles::ProfileCategoryStats& expected_value) {
-  if (base::ranges::is_permutation(actual_value, expected_value,
-                                   IsProfileCategoryStatEqual)) {
+  if (actual_value.size() == expected_value.size() &&
+      std::is_permutation(actual_value.cbegin(),
+                          actual_value.cend(),
+                          expected_value.cbegin(),
+                          IsProfileCategoryStatEqual)) {
     return ::testing::AssertionSuccess();
   } else {
     ::testing::AssertionResult result = testing::AssertionFailure();
@@ -106,7 +109,7 @@ class ProfileStatisticsAggregatorState {
   void SetRequiredStatCountAndCreateRunLoop(size_t required_stat_count) {
     EXPECT_GE(num_of_stats_categories_, required_stat_count);
     required_stat_count_ = required_stat_count;
-    run_loop_ = std::make_unique<base::RunLoop>();
+    run_loop_.reset(new base::RunLoop());
   }
 
   void WaitForStats() {
@@ -157,41 +160,32 @@ class ProfileStatisticsAggregatorState {
 
 class ProfileStatisticsBrowserTest : public InProcessBrowserTest {
  public:
-  void SetUpInProcessBrowserTestFixture() override {
-    InProcessBrowserTest::SetUpInProcessBrowserTestFixture();
-    create_services_subscription_ =
-        BrowserContextDependencyManager::GetInstance()
-            ->RegisterCreateServicesCallbackForTesting(
-                base::BindRepeating([](content::BrowserContext* context) {
-                  // Use TestPasswordStore to remove a possible race. Normally
-                  // the PasswordStore does its database manipulation on the DB
-                  // thread, which creates a possible race during navigation.
-                  // Specifically the PasswordManager will ignore any forms in a
-                  // page if the load from the PasswordStore has not completed.
-                  PasswordStoreFactory::GetInstance()->SetTestingFactory(
-                      context, base::BindRepeating(
-                                   &password_manager::BuildPasswordStore<
-                                       content::BrowserContext,
-                                       password_manager::TestPasswordStore>));
-                }));
+  void SetUpOnMainThread() override {
+    // Use TestPasswordStore to remove a possible race. Normally the
+    // PasswordStore does its database manipulation on the DB thread, which
+    // creates a possible race during navigation. Specifically the
+    // PasswordManager will ignore any forms in a page if the load from the
+    // PasswordStore has not completed.
+    PasswordStoreFactory::GetInstance()->SetTestingFactory(
+        browser()->profile(),
+        base::BindRepeating(
+            &password_manager::BuildPasswordStore<
+                content::BrowserContext, password_manager::TestPasswordStore>));
   }
-
- private:
-  base::CallbackListSubscription create_services_subscription_;
 };
 
 using ProfileStatisticsBrowserDeathTest = ProfileStatisticsBrowserTest;
 
 IN_PROC_BROWSER_TEST_F(ProfileStatisticsBrowserTest, GatherStatistics) {
-  Profile* profile = browser()->profile();
+  Profile* profile = ProfileManager::GetActiveUserProfile();
   ASSERT_TRUE(profile);
   ProfileStatistics* profile_stat =
       ProfileStatisticsFactory::GetForProfile(profile);
 
   ProfileStatisticsAggregatorState state;
   profile_stat->GatherStatistics(
-      base::BindRepeating(&ProfileStatisticsAggregatorState::StatsCallback,
-                          base::Unretained(&state)));
+      base::Bind(&ProfileStatisticsAggregatorState::StatsCallback,
+                 base::Unretained(&state)));
   state.WaitForStats();
 
   profiles::ProfileCategoryStats stats = state.GetStats();
@@ -202,7 +196,7 @@ IN_PROC_BROWSER_TEST_F(ProfileStatisticsBrowserTest, GatherStatistics) {
 
 IN_PROC_BROWSER_TEST_F(ProfileStatisticsBrowserTest,
                        GatherStatisticsTwoCallbacks) {
-  Profile* profile = browser()->profile();
+  Profile* profile = ProfileManager::GetActiveUserProfile();
   ASSERT_TRUE(profile);
   ProfileStatistics* profile_stat =
       ProfileStatisticsFactory::GetForProfile(profile);
@@ -211,15 +205,15 @@ IN_PROC_BROWSER_TEST_F(ProfileStatisticsBrowserTest,
   ProfileStatisticsAggregatorState state2;
 
   profile_stat->GatherStatistics(
-      base::BindRepeating(&ProfileStatisticsAggregatorState::StatsCallback,
-                          base::Unretained(&state1)));
+      base::Bind(&ProfileStatisticsAggregatorState::StatsCallback,
+                 base::Unretained(&state1)));
   state1.WaitForStats();
 
   state1.SetRequiredStatCountAndCreateRunLoop(stats_categories().size());
 
   profile_stat->GatherStatistics(
-      base::BindRepeating(&ProfileStatisticsAggregatorState::StatsCallback,
-                          base::Unretained(&state2)));
+      base::Bind(&ProfileStatisticsAggregatorState::StatsCallback,
+                 base::Unretained(&state2)));
   state1.WaitForStats();
   state2.WaitForStats();
 

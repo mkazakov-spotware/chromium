@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2013 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /** @fileoverview Unit tests for SafeHtml and its builders. */
 
@@ -41,13 +49,13 @@ testSuite({
     let safeHtml = testing.newSafeHtmlForTest('Hello <em>World</em>');
     assertSameHtml('Hello <em>World</em>', safeHtml);
     assertEquals('Hello <em>World</em>', SafeHtml.unwrap(safeHtml));
-    assertEquals('Hello <em>World</em>', String(safeHtml));
+    assertEquals('SafeHtml{Hello <em>World</em>}', String(safeHtml));
     assertNull(safeHtml.getDirection());
 
     safeHtml = testing.newSafeHtmlForTest('World <em>Hello</em>', Dir.RTL);
     assertSameHtml('World <em>Hello</em>', safeHtml);
     assertEquals('World <em>Hello</em>', SafeHtml.unwrap(safeHtml));
-    assertEquals('World <em>Hello</em>', String(safeHtml));
+    assertEquals('SafeHtml{World <em>Hello</em>}', String(safeHtml));
     assertEquals(Dir.RTL, safeHtml.getDirection());
 
     // Interface markers are present.
@@ -62,10 +70,13 @@ testSuite({
   /** @suppress {checkTypes} */
   testUnwrap() {
     const privateFieldName = 'privateDoNotAccessOrElseSafeHtmlWrappedValue_';
+    const markerFieldName = 'SAFE_HTML_TYPE_MARKER_GOOG_HTML_SECURITY_PRIVATE_';
     const propNames = googObject.getKeys(SafeHtml.htmlEscape(''));
     assertContains(privateFieldName, propNames);
+    assertContains(markerFieldName, propNames);
     const evil = {};
     evil[privateFieldName] = '<script>evil()</script';
+    evil[markerFieldName] = {};
 
     const exception = assertThrows(() => {
       SafeHtml.unwrap(evil);
@@ -73,26 +84,17 @@ testSuite({
     assertContains('expected object of type SafeHtml', exception.message);
   },
 
-  testUnwrapTrustedHTML_policyIsNull() {
-    stubs.set(trustedtypes, 'getPolicyPrivateDoNotAccessOrElse', function() {
-      return null;
-    });
-    const safeValue = SafeHtml.htmlEscape('HTML');
-    const trustedValue = SafeHtml.unwrapTrustedHTML(safeValue);
-    assertEquals('string', typeof trustedValue);
+  testUnwrapTrustedHTML() {
+    let safeValue = SafeHtml.htmlEscape('HTML');
+    let trustedValue = SafeHtml.unwrapTrustedHTML(safeValue);
     assertEquals(safeValue.getTypedStringValue(), trustedValue);
-  },
-
-  testUnwrapTrustedHTML_policyIsSet() {
-    stubs.set(trustedtypes, 'getPolicyPrivateDoNotAccessOrElse', function() {
-      return policy;
-    });
-    const safeValue = SafeHtml.htmlEscape('HTML');
-    const trustedValue = SafeHtml.unwrapTrustedHTML(safeValue);
+    stubs.set(trustedtypes, 'PRIVATE_DO_NOT_ACCESS_OR_ELSE_POLICY', policy);
+    safeValue = SafeHtml.htmlEscape('HTML');
+    trustedValue = SafeHtml.unwrapTrustedHTML(safeValue);
     assertEquals(safeValue.getTypedStringValue(), trustedValue.toString());
     assertTrue(
-        globalThis.TrustedHTML ? trustedValue instanceof TrustedHTML :
-                                 typeof trustedValue === 'string');
+        goog.global.TrustedHTML ? trustedValue instanceof TrustedHTML :
+                                  typeof trustedValue === 'string');
   },
 
   testHtmlEscape() {
@@ -105,7 +107,8 @@ testSuite({
     assertSameHtml(
         'Hello &lt;em&gt;&quot;&#39;&amp;World&lt;/em&gt;', safeHtml);
     assertEquals(
-        'Hello &lt;em&gt;&quot;&#39;&amp;World&lt;/em&gt;', String(safeHtml));
+        'SafeHtml{Hello &lt;em&gt;&quot;&#39;&amp;World&lt;/em&gt;}',
+        String(safeHtml));
 
     // Creating from a SafeUrl escapes and retains the known direction (which is
     // fixed to RTL for URLs).
@@ -321,16 +324,6 @@ testSuite({
         SafeHtml.createIframe(null, null, {'sandbox': null}, '<'));
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
-  testSafeHtmlCreateIframe_withMonkeypatchedObjectPrototype() {
-    stubs.set(Object.prototype, 'foo', 'bar');
-    const url = TrustedResourceUrl.fromConstant(
-        Const.from('https://google.com/trusted<'));
-    assertSameHtml(
-        '<iframe src="https://google.com/trusted&lt;"></iframe>',
-        SafeHtml.createIframe(url, null, {'sandbox': null}));
-  },
-
   /** @suppress {checkTypes} */
   testSafeHtmlcreateSandboxIframe() {
     function assertSameHtmlIfSupportsSandbox(
@@ -387,10 +380,6 @@ testSuite({
         () => SafeHtml.createSandboxIframe(null, null, null, '<'));
   },
 
-  /**
-     @suppress {strictPrimitiveOperators} suppression added to enable type
-     checking
-   */
   testSafeHtmlCanUseIframeSandbox() {
     // We know that the IE < 10 do not support the sandbox attribute, so use
     // them as a reference.
@@ -439,14 +428,6 @@ testSuite({
 
     // Directionality.
     assertEquals(Dir.NEUTRAL, scriptHtml.getDirection());
-  },
-
-  /** @suppress {checkTypes} suppression added to enable type checking */
-  testSafeHtmlCreateScript_withMonkeypatchedObjectPrototype() {
-    stubs.set(Object.prototype, 'foo', 'bar');
-    stubs.set(Object.prototype, 'type', 'baz');
-    const scriptHtml = SafeHtml.createScript(SafeScript.EMPTY, {'id': null});
-    assertSameHtml('<script></script>', scriptHtml);
   },
 
   /** @suppress {checkTypes} */
@@ -636,10 +617,6 @@ testSuite({
 
     assertSameHtml(
         'a &#160;b', SafeHtml.htmlEscapePreservingNewlinesAndSpaces('a  b'));
-  },
-
-  testComment() {
-    assertSameHtml('<!--&lt;script&gt;-->', SafeHtml.comment('<script>'));
   },
 
   testSafeHtmlConcatWithDir() {

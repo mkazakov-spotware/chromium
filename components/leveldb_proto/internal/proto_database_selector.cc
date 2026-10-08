@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -473,7 +473,7 @@ void ProtoDatabaseSelector::AddTransaction(base::OnceClosure task) {
       break;
     case InitStatus::NOT_STARTED:
       NOTREACHED();
-      [[fallthrough]];
+      FALLTHROUGH;
     case InitStatus::DONE:
       std::move(task).Run();
       break;
@@ -565,18 +565,6 @@ void ProtoDatabaseSelector::LoadKeysAndEntriesInRange(
     return;
   }
   db_->LoadKeysAndEntriesInRange(start, end, std::move(callback));
-}
-
-void ProtoDatabaseSelector::LoadKeysAndEntriesWhile(
-    const std::string& start,
-    const KeyIteratorController& controller,
-    typename Callbacks::LoadKeysAndEntriesCallback callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!db_) {
-    std::move(callback).Run(false, nullptr);
-    return;
-  }
-  db_->LoadKeysAndEntriesWhile(start, controller, std::move(callback));
 }
 
 void ProtoDatabaseSelector::LoadKeys(Callbacks::LoadKeysCallback callback) {

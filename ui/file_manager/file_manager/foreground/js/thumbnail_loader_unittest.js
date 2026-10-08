@@ -1,15 +1,6 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {ImageLoaderClient} from 'chrome-extension://pmfjbimdmchhbnneeidfognadeopoehp/image_loader_client.js';
-import {LoadImageRequest} from 'chrome-extension://pmfjbimdmchhbnneeidfognadeopoehp/load_image_request.js';
-import {assertEquals, assertTrue} from 'chrome://webui-test/chromeos/chai_assert.js';
-
-import {MockEntry, MockFileSystem} from '../../common/js/mock_entry.js';
-import {reportPromise} from '../../common/js/test_error_reporting.js';
-
-import {ThumbnailLoader} from './thumbnail_loader.js';
 
 function getLoadTarget(entry, metadata) {
   return new ThumbnailLoader(entry, ThumbnailLoader.LoaderType.CANVAS, metadata)
@@ -47,7 +38,7 @@ function installMockLoad(mockLoad) {
   };
 }
 
-export function testShouldUseMetadataThumbnail() {
+function testShouldUseMetadataThumbnail() {
   const mockFileSystem = new MockFileSystem('volumeId');
   const imageEntry = new MockEntry(mockFileSystem, '/test.jpg');
   const pdfEntry = new MockEntry(mockFileSystem, '/test.pdf');
@@ -75,7 +66,7 @@ export function testShouldUseMetadataThumbnail() {
           pdfEntry, {external: {thumbnailUrl: 'url', present: true}}));
 }
 
-export function testLoadAsDataUrlFromImageClient(callback) {
+function testLoadAsDataUrlFromImageClient(callback) {
   installMockLoad((request, callback) => {
     callback({status: 'success', data: 'imageDataUrl', width: 32, height: 32});
   });
@@ -91,7 +82,7 @@ export function testLoadAsDataUrlFromImageClient(callback) {
       callback);
 }
 
-export function testLoadAsDataUrlFromExifThumbnail(callback) {
+function testLoadAsDataUrlFromExifThumbnail(callback) {
   installMockLoad((request, callback) => {
     // Assert that data url is passed.
     assertTrue(/^data:/i.test(request.url));
@@ -115,8 +106,7 @@ export function testLoadAsDataUrlFromExifThumbnail(callback) {
       callback);
 }
 
-export function testLoadAsDataUrlFromExifThumbnailPropagatesTransform(
-    callback) {
+function testLoadAsDataUrlFromExifThumbnailPropagatesTransform(callback) {
   installMockLoad((request, callback) => {
     // Assert that data url and transform info is passed.
     assertTrue(/^data:/i.test(request.url));
@@ -125,7 +115,7 @@ export function testLoadAsDataUrlFromExifThumbnailPropagatesTransform(
       status: 'success',
       data: generateSampleImageDataUrl(32, 64),
       width: 32,
-      height: 64,
+      height: 64
     });
   });
 
@@ -136,8 +126,8 @@ export function testLoadAsDataUrlFromExifThumbnailPropagatesTransform(
         rotate90: 1,
         scaleX: 1,
         scaleY: -1,
-      },
-    },
+      }
+    }
   };
 
   const fileSystem = new MockFileSystem('volume-id');
@@ -153,7 +143,7 @@ export function testLoadAsDataUrlFromExifThumbnailPropagatesTransform(
       callback);
 }
 
-export function testLoadAsDataUrlFromExternal(callback) {
+function testLoadAsDataUrlFromExternal(callback) {
   const externalThumbnailUrl = 'https://external-thumbnail-url/';
   const externalCroppedThumbnailUrl = 'https://external-cropped-thumbnail-url/';
   const externalThumbnailDataUrl = generateSampleImageDataUrl(32, 32);
@@ -164,15 +154,15 @@ export function testLoadAsDataUrlFromExternal(callback) {
       status: 'success',
       data: externalThumbnailDataUrl,
       width: 32,
-      height: 32,
+      height: 32
     });
   });
 
   const metadata = {
     external: {
       thumbnailUrl: externalThumbnailUrl,
-      croppedThumbnailUrl: externalCroppedThumbnailUrl,
-    },
+      croppedThumbnailUrl: externalCroppedThumbnailUrl
+    }
   };
 
   const fileSystem = new MockFileSystem('volume-id');
@@ -186,8 +176,7 @@ export function testLoadAsDataUrlFromExternal(callback) {
       callback);
 }
 
-export function testLoadDetachedFromExifInCavnasModeThumbnailDoesNotRotate(
-    callback) {
+function testLoadDetachedFromExifInCavnasModeThumbnailDoesNotRotate(callback) {
   installMockLoad((request, callback) => {
     // Assert that data url is passed.
     assertTrue(/^data:/i.test(request.url));
@@ -198,7 +187,7 @@ export function testLoadDetachedFromExifInCavnasModeThumbnailDoesNotRotate(
       status: 'success',
       data: generateSampleImageDataUrl(32, 64),
       width: 32,
-      height: 64,
+      height: 64
     });
   });
 
@@ -209,8 +198,8 @@ export function testLoadDetachedFromExifInCavnasModeThumbnailDoesNotRotate(
         rotate90: 1,
         scaleX: 1,
         scaleY: -1,
-      },
-    },
+      }
+    }
   };
 
   const fileSystem = new MockFileSystem('volume-id');

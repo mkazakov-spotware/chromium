@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,10 @@ CookieAccessResult::CookieAccessResult() = default;
 CookieAccessResult::CookieAccessResult(
     CookieEffectiveSameSite effective_same_site,
     CookieInclusionStatus status,
-    CookieAccessSemantics access_semantics,
-    bool is_allowed_to_access_secure_cookies)
+    CookieAccessSemantics access_semantics)
     : status(status),
       effective_same_site(effective_same_site),
-      access_semantics(access_semantics),
-      is_allowed_to_access_secure_cookies(is_allowed_to_access_secure_cookies) {
-}
+      access_semantics(access_semantics) {}
 
 CookieAccessResult::CookieAccessResult(CookieInclusionStatus status)
     : status(status) {}

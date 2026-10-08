@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,35 +6,86 @@
 
 #include "base/time/time.h"
 #include "chrome/browser/performance_manager/decorators/page_aggregator.h"
-#include "chrome/browser/performance_manager/decorators/page_live_state_decorator_delegate_impl.h"
 #include "chrome/browser/performance_manager/policies/page_discarding_helper.h"
-#include "components/performance_manager/decorators/freezing_vote_decorator.h"
-#include "components/performance_manager/freezing/freezing_vote_aggregator.h"
 #include "components/performance_manager/graph/frame_node_impl.h"
-#include "components/performance_manager/graph/graph_impl.h"
 #include "components/performance_manager/graph/page_node_impl.h"
-#include "components/performance_manager/public/decorators/page_live_state_decorator.h"
 #include "components/performance_manager/test_support/graph_test_harness.h"
 
 namespace performance_manager {
 namespace testing {
 
+namespace {
+
+// Test version of the PageDiscardingHelper.
+class TestPageDiscardingHelper : public policies::PageDiscardingHelper {
+ public:
+  TestPageDiscardingHelper();
+  ~TestPageDiscardingHelper() override;
+  TestPageDiscardingHelper(const TestPageDiscardingHelper& other) = delete;
+  TestPageDiscardingHelper& operator=(const TestPageDiscardingHelper&) = delete;
+
+ protected:
+  const PageLiveStateDecorator::Data* GetPageNodeLiveStateData(
+      const PageNode* page_node) const override {
+    // Returns a fake version of the PageLiveStateDecorator::Data, create it if
+    // it doesn't exist. Tests that want to set some fake live state data should
+    // call |FakePageLiveStateData::GetOrCreate|.
+    return FakePageLiveStateData::GetOrCreate(
+        PageNodeImpl::FromNode(page_node));
+  }
+};
+
+}  // namespace
+
+FakePageLiveStateData::~FakePageLiveStateData() = default;
+
+// PageLiveStateDecorator::Data:
+bool FakePageLiveStateData::IsConnectedToUSBDevice() const {
+  return is_connected_to_usb_device_;
+}
+bool FakePageLiveStateData::IsConnectedToBluetoothDevice() const {
+  return is_connected_to_bluetooth_device_;
+}
+bool FakePageLiveStateData::IsCapturingVideo() const {
+  return is_capturing_video_;
+}
+bool FakePageLiveStateData::IsCapturingAudio() const {
+  return is_capturing_audio_;
+}
+bool FakePageLiveStateData::IsBeingMirrored() const {
+  return is_being_mirrored_;
+}
+bool FakePageLiveStateData::IsCapturingWindow() const {
+  return is_capturing_window_;
+}
+bool FakePageLiveStateData::IsCapturingDisplay() const {
+  return is_capturing_display_;
+}
+bool FakePageLiveStateData::IsAutoDiscardable() const {
+  return is_auto_discardable_;
+}
+bool FakePageLiveStateData::WasDiscarded() const {
+  return was_discarded_;
+}
+
+FakePageLiveStateData::FakePageLiveStateData(const PageNodeImpl* page_node) {}
+
 LenientMockPageDiscarder::LenientMockPageDiscarder() = default;
 LenientMockPageDiscarder::~LenientMockPageDiscarder() = default;
 
-void LenientMockPageDiscarder::DiscardPageNodes(
-    const std::vector<const PageNode*>& page_nodes,
+void LenientMockPageDiscarder::DiscardPageNode(
+    const PageNode* page_node,
     base::OnceCallback<void(bool)> post_discard_cb) {
-  bool result = false;
-  for (auto* node : page_nodes) {
-    if (DiscardPageNodeImpl(node))
-      result = true;
-  }
-  std::move(post_discard_cb).Run(result);
+  std::move(post_discard_cb).Run(DiscardPageNodeImpl(page_node));
 }
 
-GraphTestHarnessWithMockDiscarder::GraphTestHarnessWithMockDiscarder()
-    : GraphTestHarness(base::test::TaskEnvironment::TimeSource::MOCK_TIME) {}
+TestPageDiscardingHelper::TestPageDiscardingHelper() = default;
+TestPageDiscardingHelper::~TestPageDiscardingHelper() = default;
+
+GraphTestHarnessWithMockDiscarder::GraphTestHarnessWithMockDiscarder() {
+  // Some tests depends on the existence of the PageAggregator.
+  graph()->PassToGraph(std::make_unique<PageAggregator>());
+}
 
 GraphTestHarnessWithMockDiscarder::~GraphTestHarnessWithMockDiscarder() =
     default;
@@ -42,20 +93,12 @@ GraphTestHarnessWithMockDiscarder::~GraphTestHarnessWithMockDiscarder() =
 void GraphTestHarnessWithMockDiscarder::SetUp() {
   GraphTestHarness::SetUp();
 
-  // Some tests depends on the existence of the PageAggregator.
-  graph()->PassToGraph(std::make_unique<PageAggregator>());
-
   // Make the policy use a mock PageDiscarder.
   auto mock_discarder = std::make_unique<MockPageDiscarder>();
   mock_discarder_ = mock_discarder.get();
 
-  // The discarding logic relies on the existence of the page live state data.
-  graph()->PassToGraph(std::make_unique<PageLiveStateDecorator>(
-      PageLiveStateDelegateImpl::Create()));
-
   // Create the helper and pass it to the graph.
-  auto page_discarding_helper =
-      std::make_unique<policies::PageDiscardingHelper>();
+  auto page_discarding_helper = std::make_unique<TestPageDiscardingHelper>();
   page_discarding_helper->SetMockDiscarderForTesting(std::move(mock_discarder));
 
   graph()->PassToGraph(std::move(page_discarding_helper));
@@ -85,7 +128,7 @@ void MakePageNodeDiscardable(PageNodeImpl* page_node,
   page_node->OnMainFrameNavigationCommitted(false, base::TimeTicks::Now(), 42,
                                             kUrl, "text/html");
   (*page_node->main_frame_nodes().begin())->OnNavigationCommitted(kUrl, false);
-  task_env.FastForwardBy(base::Minutes(10));
+  task_env.FastForwardBy(base::TimeDelta::FromMinutes(10));
   DCHECK(policies::PageDiscardingHelper::GetFromGraph(page_node->graph())
              ->CanUrgentlyDiscardForTesting(page_node));
 }

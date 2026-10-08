@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include <utility>
 
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "device/fido/fido_authenticator.h"
@@ -31,10 +32,6 @@ class ConcreteFidoDiscovery : public FidoDeviceDiscovery {
  public:
   explicit ConcreteFidoDiscovery(FidoTransportProtocol transport)
       : FidoDeviceDiscovery(transport) {}
-
-  ConcreteFidoDiscovery(const ConcreteFidoDiscovery&) = delete;
-  ConcreteFidoDiscovery& operator=(const ConcreteFidoDiscovery&) = delete;
-
   ~ConcreteFidoDiscovery() override = default;
 
   MOCK_METHOD0(StartInternal, void());
@@ -42,6 +39,9 @@ class ConcreteFidoDiscovery : public FidoDeviceDiscovery {
   using FidoDeviceDiscovery::AddDevice;
   using FidoDeviceDiscovery::NotifyDiscoveryStarted;
   using FidoDeviceDiscovery::RemoveDevice;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ConcreteFidoDiscovery);
 };
 
 }  // namespace

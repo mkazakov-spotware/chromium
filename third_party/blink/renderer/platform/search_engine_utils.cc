@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,8 @@
 
 namespace blink {
 
-bool IsKnownSearchEngine(const String& url) {
-  GURL gurl(url.Utf8());
-  if (!gurl.is_valid()) {
-    return false;
-  }
+bool IsKnownSearchEngine(const AtomicString& url) {
+  GURL gurl(url.GetString().Utf8());
 
   return SearchEngineUtils::GetEngineType(gurl) > 0;
 }

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,9 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "base/strings/string_util.h"
 #include "mojo/public/cpp/bindings/lib/array_internal.h"
-#include "mojo/public/cpp/bindings/lib/message_fragment.h"
 #include "mojo/public/cpp/bindings/lib/serialization_forward.h"
 #include "mojo/public/cpp/bindings/lib/serialization_util.h"
-#include "mojo/public/cpp/bindings/lib/validation_errors.h"
 #include "mojo/public/cpp/bindings/string_data_view.h"
 #include "mojo/public/cpp/bindings/string_traits.h"
 
@@ -26,27 +23,23 @@ struct Serializer<StringDataView, MaybeConstUserType> {
   using Traits = StringTraits<UserType>;
 
   static void Serialize(MaybeConstUserType& input,
-                        MessageFragment<String_Data>& fragment) {
+                        Buffer* buffer,
+                        String_Data::BufferWriter* writer,
+                        SerializationContext* context) {
     if (CallIsNullIfExists<Traits>(input))
       return;
 
     auto r = Traits::GetUTF8(input);
-    fragment.AllocateArrayData(r.size());
-    if (r.size() > 0)
-      memcpy(fragment->storage(), r.data(), r.size());
+    writer->Allocate(r.size(), buffer);
+    memcpy((*writer)->storage(), r.data(), r.size());
   }
 
   static bool Deserialize(String_Data* input,
                           UserType* output,
-                          Message* message) {
+                          SerializationContext* context) {
     if (!input)
       return CallSetToNullIfExists<Traits>(output);
-    bool ok = Traits::Read(StringDataView(input, message), output);
-    if (ok && !base::IsStringUTF8(
-                  base::StringPiece(input->storage(), input->size()))) {
-      RecordInvalidStringDeserialization();
-    }
-    return ok;
+    return Traits::Read(StringDataView(input, context), output);
   }
 };
 

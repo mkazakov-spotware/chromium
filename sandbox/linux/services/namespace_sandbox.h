@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/command_line.h"
+#include "base/macros.h"
 #include "base/process/launch.h"
 #include "base/process/process.h"
 #include "sandbox/sandbox_export.h"
@@ -36,6 +37,7 @@ namespace sandbox {
 //    Credentials::DropAllCapabilities().
 class SANDBOX_EXPORT NamespaceSandbox {
  public:
+#if !defined(OS_NACL_NONSFI)
   struct Options {
     Options();
     ~Options();
@@ -47,10 +49,6 @@ class SANDBOX_EXPORT NamespaceSandbox {
     // Fail if any of the namespace types are not supported. Defaults to false.
     bool fail_on_unsupported_ns_type;
   };
-
-  NamespaceSandbox() = delete;
-  NamespaceSandbox(const NamespaceSandbox&) = delete;
-  NamespaceSandbox& operator=(const NamespaceSandbox&) = delete;
 
   // Launch a new process inside its own user/PID/network namespaces (depending
   // on kernel support). Requires at a minimum that user namespaces are
@@ -74,6 +72,7 @@ class SANDBOX_EXPORT NamespaceSandbox {
       const std::vector<std::string>& argv,
       const base::LaunchOptions& launch_options,
       const Options& ns_sandbox_options);
+#endif  // !defined(OS_NACL_NONSFI)
 
   // Forks a process in its own PID namespace. The child process is the init
   // process inside of the PID namespace, so if the child needs to fork further,
@@ -117,6 +116,9 @@ class SANDBOX_EXPORT NamespaceSandbox {
   static bool InNewUserNamespace();
   static bool InNewPidNamespace();
   static bool InNewNetNamespace();
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(NamespaceSandbox);
 };
 
 }  // namespace sandbox

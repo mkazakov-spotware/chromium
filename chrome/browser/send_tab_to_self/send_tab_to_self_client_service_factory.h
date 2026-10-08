@@ -1,11 +1,14 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_SEND_TAB_TO_SELF_SEND_TAB_TO_SELF_CLIENT_SERVICE_FACTORY_H_
 #define CHROME_BROWSER_SEND_TAB_TO_SELF_SEND_TAB_TO_SELF_CLIENT_SERVICE_FACTORY_H_
 
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include <memory>
+
+#include "base/macros.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 class Profile;
 
@@ -19,16 +22,12 @@ class SendTabToSelfClientService;
 
 // Singleton that owns the SendTabToSelfClientService and associates them with
 // Profile.
-class SendTabToSelfClientServiceFactory : public ProfileKeyedServiceFactory {
+class SendTabToSelfClientServiceFactory
+    : public BrowserContextKeyedServiceFactory {
  public:
   static send_tab_to_self::SendTabToSelfClientService* GetForProfile(
       Profile* profile);
   static SendTabToSelfClientServiceFactory* GetInstance();
-
-  SendTabToSelfClientServiceFactory(const SendTabToSelfClientServiceFactory&) =
-      delete;
-  SendTabToSelfClientServiceFactory& operator=(
-      const SendTabToSelfClientServiceFactory&) = delete;
 
  private:
   friend struct base::DefaultSingletonTraits<SendTabToSelfClientServiceFactory>;
@@ -43,6 +42,8 @@ class SendTabToSelfClientServiceFactory : public ProfileKeyedServiceFactory {
   bool ServiceIsCreatedWithBrowserContext() const override;
 
   bool ServiceIsNULLWhileTesting() const override;
+
+  DISALLOW_COPY_AND_ASSIGN(SendTabToSelfClientServiceFactory);
 };
 
 }  // namespace send_tab_to_self

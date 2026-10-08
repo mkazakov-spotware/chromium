@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -18,7 +18,7 @@
 #include "base/callback.h"
 #include "base/check.h"
 #include "base/cpu.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/strings/string_split.h"
@@ -45,8 +45,8 @@
 #include "services/device/public/mojom/geolocation.mojom.h"
 #include "services/device/public/mojom/geolocation_context.mojom.h"
 #include "services/device/public/mojom/geoposition.mojom.h"
+#include "third_party/blink/public/platform/web_rect.h"
 #include "ui/display/display.h"
-#include "ui/display/display_util.h"
 #include "ui/display/screen.h"
 #include "ui/gfx/geometry/rect.h"
 #include "url/gurl.h"
@@ -88,14 +88,18 @@ std::string GetOperatingSystemVersion() {
 }
 
 // Adds the list of |fonts| to the |machine|.
-void AddFontsToFingerprint(const base::Value::List& fonts,
+void AddFontsToFingerprint(const base::ListValue& fonts,
                            Fingerprint::MachineCharacteristics* machine) {
   for (const auto& it : fonts) {
     // Each item in the list is a two-element list such that the first element
     // is the font family and the second is the font name.
-    DCHECK(it.is_list());
+    const base::ListValue* font_description = nullptr;
+    bool success = it.GetAsList(&font_description);
+    DCHECK(success);
 
-    std::string font_name = it.GetList()[1].GetString();
+    std::string font_name;
+    success = font_description->GetString(1, &font_name);
+    DCHECK(success);
 
     machine->add_font(font_name);
   }
@@ -131,7 +135,7 @@ void AddAcceptLanguagesToFingerprint(
 //   (d) the size of the screen unavailable to web page content,
 //       i.e. the Taskbar size on Windows
 // into the |machine|.
-void AddScreenInfoToFingerprint(const display::ScreenInfo& screen_info,
+void AddScreenInfoToFingerprint(const blink::ScreenInfo& screen_info,
                                 Fingerprint::MachineCharacteristics* machine) {
   machine->set_screen_count(display::Screen::GetScreen()->GetNumDisplays());
 
@@ -183,7 +187,7 @@ class FingerprintDataLoader : public content::GpuDataManagerObserver {
       uint64_t obfuscated_gaia_id,
       const gfx::Rect& window_bounds,
       const gfx::Rect& content_bounds,
-      const display::ScreenInfo& screen_info,
+      const blink::ScreenInfo& screen_info,
       const std::string& version,
       const std::string& charset,
       const std::string& accept_languages,
@@ -193,9 +197,6 @@ class FingerprintDataLoader : public content::GpuDataManagerObserver {
       const base::TimeDelta& timeout,
       base::OnceCallback<void(std::unique_ptr<Fingerprint>)> callback);
 
-  FingerprintDataLoader(const FingerprintDataLoader&) = delete;
-  FingerprintDataLoader& operator=(const FingerprintDataLoader&) = delete;
-
  private:
   ~FingerprintDataLoader() override {}
 
@@ -203,7 +204,7 @@ class FingerprintDataLoader : public content::GpuDataManagerObserver {
   void OnGpuInfoUpdate() override;
 
   // Callbacks for asynchronously loaded data.
-  void OnGotFonts(base::Value::List fonts);
+  void OnGotFonts(std::unique_ptr<base::ListValue> fonts);
   void OnGotPlugins(const std::vector<content::WebPluginInfo>& plugins);
   void OnGotGeoposition(device::mojom::GeopositionPtr geoposition);
 
@@ -216,7 +217,7 @@ class FingerprintDataLoader : public content::GpuDataManagerObserver {
 
   // The GPU data provider.
   // Weak reference because the GpuDataManager class is a singleton.
-  const raw_ptr<content::GpuDataManager> gpu_data_manager_;
+  content::GpuDataManager* const gpu_data_manager_;
 
   // Ensures that any observer registrations for the GPU data are cleaned up by
   // the time this object is destroyed.
@@ -229,7 +230,7 @@ class FingerprintDataLoader : public content::GpuDataManagerObserver {
   const uint64_t obfuscated_gaia_id_;
   const gfx::Rect window_bounds_;
   const gfx::Rect content_bounds_;
-  const display::ScreenInfo screen_info_;
+  const blink::ScreenInfo screen_info_;
   const std::string version_;
   const std::string charset_;
   const std::string accept_languages_;
@@ -238,7 +239,7 @@ class FingerprintDataLoader : public content::GpuDataManagerObserver {
   const base::Time install_time_;
 
   // Data that will be loaded asynchronously.
-  std::unique_ptr<base::Value::List> fonts_;
+  std::unique_ptr<base::ListValue> fonts_;
   std::vector<content::WebPluginInfo> plugins_;
   bool waiting_on_plugins_;
   device::mojom::Geoposition geoposition_;
@@ -255,13 +256,15 @@ class FingerprintDataLoader : public content::GpuDataManagerObserver {
   // For invalidating asynchronous callbacks that might arrive after |this|
   // instance is destroyed.
   base::WeakPtrFactory<FingerprintDataLoader> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FingerprintDataLoader);
 };
 
 FingerprintDataLoader::FingerprintDataLoader(
     uint64_t obfuscated_gaia_id,
     const gfx::Rect& window_bounds,
     const gfx::Rect& content_bounds,
-    const display::ScreenInfo& screen_info,
+    const blink::ScreenInfo& screen_info,
     const std::string& version,
     const std::string& charset,
     const std::string& accept_languages,
@@ -293,7 +296,7 @@ FingerprintDataLoader::FingerprintDataLoader(
   // Load GPU data if needed.
   if (gpu_data_manager_->GpuAccessAllowed(nullptr) &&
       !gpu_data_manager_->IsEssentialGpuInfoAvailable()) {
-    gpu_observation_.Observe(gpu_data_manager_.get());
+    gpu_observation_.Observe(gpu_data_manager_);
     OnGpuInfoUpdate();
   }
 
@@ -324,14 +327,14 @@ void FingerprintDataLoader::OnGpuInfoUpdate() {
   if (!gpu_data_manager_->IsEssentialGpuInfoAvailable())
     return;
 
-  DCHECK(gpu_observation_.IsObservingSource(gpu_data_manager_.get()));
-  gpu_observation_.Reset();
+  DCHECK(gpu_observation_.IsObservingSource(gpu_data_manager_));
+  gpu_observation_.RemoveObservation();
   MaybeFillFingerprint();
 }
 
-void FingerprintDataLoader::OnGotFonts(base::Value::List fonts) {
+void FingerprintDataLoader::OnGotFonts(std::unique_ptr<base::ListValue> fonts) {
   DCHECK(!fonts_);
-  fonts_ = std::make_unique<base::Value::List>(std::move(fonts));
+  fonts_ = std::move(fonts);
   MaybeFillFingerprint();
 }
 
@@ -445,7 +448,7 @@ void GetFingerprintInternal(
     uint64_t obfuscated_gaia_id,
     const gfx::Rect& window_bounds,
     const gfx::Rect& content_bounds,
-    const display::ScreenInfo& screen_info,
+    const blink::ScreenInfo& screen_info,
     const std::string& version,
     const std::string& charset,
     const std::string& accept_languages,
@@ -475,26 +478,18 @@ void GetFingerprint(
     const std::string& app_locale,
     const std::string& user_agent,
     base::OnceCallback<void(std::unique_ptr<Fingerprint>)> callback) {
-  gfx::Rect content_bounds;
-  display::ScreenInfo screen_info;
+  gfx::Rect content_bounds = web_contents->GetContainerBounds();
 
-  // |web_contents| can be nullptr in the Clank settings page, as a user can
-  // open Clank settings without opening a tab. Thus, we will need to populate
-  // |screen_info| using display::DisplayUtil::GetDefaultScreenInfo().
-  if (web_contents) {
-    content_bounds = web_contents->GetContainerBounds();
-    base::raw_ptr<content::RenderWidgetHostView> host_view =
-        web_contents->GetRenderWidgetHostView();
-    if (host_view)
-      screen_info = host_view->GetRenderWidgetHost()->GetScreenInfo();
-  } else {
-    display::DisplayUtil::GetDefaultScreenInfo(&screen_info);
-  }
+  blink::ScreenInfo screen_info;
+  content::RenderWidgetHostView* host_view =
+      web_contents->GetRenderWidgetHostView();
+  if (host_view)
+    host_view->GetRenderWidgetHost()->GetScreenInfo(&screen_info);
 
   internal::GetFingerprintInternal(
       obfuscated_gaia_id, window_bounds, content_bounds, screen_info, version,
       charset, accept_languages, install_time, app_locale, user_agent,
-      base::Seconds(kTimeoutSeconds), std::move(callback));
+      base::TimeDelta::FromSeconds(kTimeoutSeconds), std::move(callback));
 }
 
 }  // namespace risk

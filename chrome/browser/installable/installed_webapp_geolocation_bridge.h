@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <jni.h>
 
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "services/device/public/mojom/geolocation.mojom.h"
 #include "services/device/public/mojom/geoposition.mojom.h"
@@ -64,7 +63,7 @@ class InstalledWebappGeolocationBridge : public device::mojom::Geolocation {
   void ReportCurrentPosition();
 
   // Owns this object.
-  raw_ptr<InstalledWebappGeolocationContext> context_;
+  InstalledWebappGeolocationContext* context_;
 
   // The callback passed to QueryNextPosition.
   QueryNextPositionCallback position_callback_;
@@ -75,7 +74,7 @@ class InstalledWebappGeolocationBridge : public device::mojom::Geolocation {
 
   device::mojom::Geoposition current_position_;
 
-  const GURL url_;
+  const GURL origin_;
 
   // Whether this instance is currently observing location updates with high
   // accuracy.

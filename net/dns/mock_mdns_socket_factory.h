@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,11 +29,18 @@ class MockMDnsDatagramServerSocket : public DatagramServerSocket {
   // DatagramServerSocket implementation:
   MOCK_METHOD1(Listen, int(const IPEndPoint& address));
 
-  MOCK_METHOD4(RecvFrom,
+  // GMock cannot handle move-only types like CompletionOnceCallback, so it
+  // needs to be converted into the copyable type CompletionRepeatingCallback.
+  int RecvFrom(IOBuffer* buffer,
+               int size,
+               IPEndPoint* address,
+               CompletionOnceCallback callback) override;
+
+  MOCK_METHOD4(RecvFromInternal,
                int(IOBuffer* buffer,
                    int size,
                    IPEndPoint* address,
-                   CompletionOnceCallback callback));
+                   CompletionRepeatingCallback callback));
 
   int SendTo(IOBuffer* buf,
              int buf_len,
@@ -43,7 +50,7 @@ class MockMDnsDatagramServerSocket : public DatagramServerSocket {
   MOCK_METHOD3(SendToInternal,
                int(const std::string& packet,
                    const std::string address,
-                   CompletionOnceCallback callback));
+                   CompletionRepeatingCallback callback));
 
   MOCK_METHOD1(SetReceiveBufferSize, int(int32_t size));
   MOCK_METHOD1(SetSendBufferSize, int(int32_t size));
@@ -55,6 +62,9 @@ class MockMDnsDatagramServerSocket : public DatagramServerSocket {
   MOCK_CONST_METHOD1(GetPeerAddress, int(IPEndPoint* address));
   int GetLocalAddress(IPEndPoint* address) const override;
   MOCK_METHOD0(UseNonBlockingIO, void());
+  MOCK_METHOD0(UseWriteBatching, void());
+  MOCK_METHOD0(UseMultiCore, void());
+  MOCK_METHOD0(UseSendmmsg, void());
   MOCK_CONST_METHOD0(NetLog, const NetLogWithSource&());
 
   MOCK_METHOD0(AllowAddressReuse, void());
@@ -77,12 +87,12 @@ class MockMDnsDatagramServerSocket : public DatagramServerSocket {
   int HandleRecvNow(IOBuffer* buffer,
                     int size,
                     IPEndPoint* address,
-                    CompletionOnceCallback callback);
+                    CompletionRepeatingCallback callback);
 
   int HandleRecvLater(IOBuffer* buffer,
                       int size,
                       IPEndPoint* address,
-                      CompletionOnceCallback callback);
+                      CompletionRepeatingCallback callback);
 
  private:
   std::string response_packet_;
@@ -111,7 +121,7 @@ class MockMDnsSocketFactory : public MDnsSocketFactory {
   int RecvFromInternal(IOBuffer* buffer,
                        int size,
                        IPEndPoint* address,
-                       CompletionOnceCallback callback);
+                       CompletionRepeatingCallback callback);
 
   void CreateSocket(
       AddressFamily address_family,
@@ -119,7 +129,7 @@ class MockMDnsSocketFactory : public MDnsSocketFactory {
 
   scoped_refptr<IOBuffer> recv_buffer_;
   int recv_buffer_size_;
-  CompletionOnceCallback recv_callback_;
+  CompletionRepeatingCallback recv_callback_;
 };
 
 }  // namespace net

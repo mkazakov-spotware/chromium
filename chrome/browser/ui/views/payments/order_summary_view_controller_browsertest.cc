@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,15 +14,17 @@
 
 namespace payments {
 
-using PaymentRequestOrderSummaryViewControllerTest =
-    PaymentRequestBrowserTestBase;
+class PaymentRequestOrderSummaryViewControllerTest
+    : public PaymentRequestBrowserTestBase {
+ protected:
+  PaymentRequestOrderSummaryViewControllerTest() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PaymentRequestOrderSummaryViewControllerTest);
+};
 
 IN_PROC_BROWSER_TEST_F(PaymentRequestOrderSummaryViewControllerTest,
                        OrderSummaryReflectsShippingOption) {
-  std::string payment_method_name;
-  InstallPaymentApp("a.com", "/payment_request_success_responder.js",
-                    &payment_method_name);
-
   NavigateTo("/payment_request_dynamic_shipping_test.html");
   // In MI state, shipping is $5.00.
   autofill::AutofillProfile michigan = autofill::test::GetFullProfile2();
@@ -33,20 +35,21 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestOrderSummaryViewControllerTest,
   california.set_use_count(50U);
   AddAutofillProfile(california);
 
-  InvokePaymentRequestUIWithJs("buyWithMethods([{supportedMethods:'" +
-                               payment_method_name + "'}]);");
+  InvokePaymentRequestUI();
 
   OpenOrderSummaryScreen();
 
   // No address is selected.
   // Verify the expected amounts are shown ('Total', 'Pending Shipping Price'
   // and 'Subtotal', respectively).
-  EXPECT_EQ(u"USD",
+  EXPECT_EQ(base::ASCIIToUTF16("USD"),
             GetLabelText(DialogViewID::ORDER_SUMMARY_TOTAL_CURRENCY_LABEL));
-  EXPECT_EQ(u"$5.00",
+  EXPECT_EQ(base::ASCIIToUTF16("$5.00"),
             GetLabelText(DialogViewID::ORDER_SUMMARY_TOTAL_AMOUNT_LABEL));
-  EXPECT_EQ(u"$0.00", GetLabelText(DialogViewID::ORDER_SUMMARY_LINE_ITEM_1));
-  EXPECT_EQ(u"$5.00", GetLabelText(DialogViewID::ORDER_SUMMARY_LINE_ITEM_2));
+  EXPECT_EQ(base::ASCIIToUTF16("$0.00"),
+            GetLabelText(DialogViewID::ORDER_SUMMARY_LINE_ITEM_1));
+  EXPECT_EQ(base::ASCIIToUTF16("$5.00"),
+            GetLabelText(DialogViewID::ORDER_SUMMARY_LINE_ITEM_2));
 
   // Go to the shipping address screen and select the first address (MI state).
   ClickOnBackArrow();
@@ -66,29 +69,33 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestOrderSummaryViewControllerTest,
   WaitForAnimation();
 
   // Michigan address is selected and has standard shipping.
-  std::vector<std::u16string> shipping_address_labels = GetProfileLabelValues(
+  std::vector<base::string16> shipping_address_labels = GetProfileLabelValues(
       DialogViewID::PAYMENT_SHEET_SHIPPING_ADDRESS_SECTION);
-  EXPECT_EQ(u"Jane A. Smith", shipping_address_labels[0]);
-  EXPECT_EQ(u"ACME, 123 Main Street, Unit 1, Greensdale, MI 48838",
-            shipping_address_labels[1]);
-  EXPECT_EQ(u"+1 310-555-7889", shipping_address_labels[2]);
-  std::vector<std::u16string> shipping_option_labels =
+  EXPECT_EQ(base::ASCIIToUTF16("Jane A. Smith"), shipping_address_labels[0]);
+  EXPECT_EQ(
+      base::ASCIIToUTF16("ACME, 123 Main Street, Unit 1, Greensdale, MI 48838"),
+      shipping_address_labels[1]);
+  EXPECT_EQ(base::ASCIIToUTF16("+1 310-555-7889"), shipping_address_labels[2]);
+  std::vector<base::string16> shipping_option_labels =
       GetShippingOptionLabelValues(
           DialogViewID::PAYMENT_SHEET_SHIPPING_OPTION_SECTION);
-  EXPECT_EQ(u"Standard shipping in US", shipping_option_labels[0]);
-  EXPECT_EQ(u"$5.00", shipping_option_labels[1]);
+  EXPECT_EQ(base::ASCIIToUTF16("Standard shipping in US"),
+            shipping_option_labels[0]);
+  EXPECT_EQ(base::ASCIIToUTF16("$5.00"), shipping_option_labels[1]);
 
   // Go back to Order Summary screen to see updated totals.
   OpenOrderSummaryScreen();
 
   // Verify the expected amounts are shown ('Total', 'Standard shipping in US'
   // and 'Subtotal', respectively).
-  EXPECT_EQ(u"USD",
+  EXPECT_EQ(base::ASCIIToUTF16("USD"),
             GetLabelText(DialogViewID::ORDER_SUMMARY_TOTAL_CURRENCY_LABEL));
-  EXPECT_EQ(u"$10.00",
+  EXPECT_EQ(base::ASCIIToUTF16("$10.00"),
             GetLabelText(DialogViewID::ORDER_SUMMARY_TOTAL_AMOUNT_LABEL));
-  EXPECT_EQ(u"$5.00", GetLabelText(DialogViewID::ORDER_SUMMARY_LINE_ITEM_1));
-  EXPECT_EQ(u"$5.00", GetLabelText(DialogViewID::ORDER_SUMMARY_LINE_ITEM_2));
+  EXPECT_EQ(base::ASCIIToUTF16("$5.00"),
+            GetLabelText(DialogViewID::ORDER_SUMMARY_LINE_ITEM_1));
+  EXPECT_EQ(base::ASCIIToUTF16("$5.00"),
+            GetLabelText(DialogViewID::ORDER_SUMMARY_LINE_ITEM_2));
 
   // Go to the shipping address screen and select the second address (CA state).
   ClickOnBackArrow();
@@ -110,26 +117,30 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestOrderSummaryViewControllerTest,
   // California address is selected and has free shipping.
   shipping_address_labels = GetProfileLabelValues(
       DialogViewID::PAYMENT_SHEET_SHIPPING_ADDRESS_SECTION);
-  EXPECT_EQ(u"John H. Doe", shipping_address_labels[0]);
-  EXPECT_EQ(u"Underworld, 666 Erebus St., Apt 8, Elysium, CA 91111",
+  EXPECT_EQ(base::ASCIIToUTF16("John H. Doe"), shipping_address_labels[0]);
+  EXPECT_EQ(base::ASCIIToUTF16(
+                "Underworld, 666 Erebus St., Apt 8, Elysium, CA 91111"),
             shipping_address_labels[1]);
-  EXPECT_EQ(u"+1 650-211-1111", shipping_address_labels[2]);
+  EXPECT_EQ(base::ASCIIToUTF16("+1 650-211-1111"), shipping_address_labels[2]);
   shipping_option_labels = GetShippingOptionLabelValues(
       DialogViewID::PAYMENT_SHEET_SHIPPING_OPTION_SECTION);
-  EXPECT_EQ(u"Free shipping in California", shipping_option_labels[0]);
-  EXPECT_EQ(u"$0.00", shipping_option_labels[1]);
+  EXPECT_EQ(base::ASCIIToUTF16("Free shipping in California"),
+            shipping_option_labels[0]);
+  EXPECT_EQ(base::ASCIIToUTF16("$0.00"), shipping_option_labels[1]);
 
   // Go back to Order Summary screen to see updated totals.
   OpenOrderSummaryScreen();
 
   // Verify the expected amounts are shown ('Total',
   // 'Free shipping in California' and 'Subtotal', respectively).
-  EXPECT_EQ(u"USD",
+  EXPECT_EQ(base::ASCIIToUTF16("USD"),
             GetLabelText(DialogViewID::ORDER_SUMMARY_TOTAL_CURRENCY_LABEL));
-  EXPECT_EQ(u"$5.00",
+  EXPECT_EQ(base::ASCIIToUTF16("$5.00"),
             GetLabelText(DialogViewID::ORDER_SUMMARY_TOTAL_AMOUNT_LABEL));
-  EXPECT_EQ(u"$0.00", GetLabelText(DialogViewID::ORDER_SUMMARY_LINE_ITEM_1));
-  EXPECT_EQ(u"$5.00", GetLabelText(DialogViewID::ORDER_SUMMARY_LINE_ITEM_2));
+  EXPECT_EQ(base::ASCIIToUTF16("$0.00"),
+            GetLabelText(DialogViewID::ORDER_SUMMARY_LINE_ITEM_1));
+  EXPECT_EQ(base::ASCIIToUTF16("$5.00"),
+            GetLabelText(DialogViewID::ORDER_SUMMARY_LINE_ITEM_2));
 }
 
 }  // namespace payments

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,13 @@
 #include <windows.h>
 #include <stdint.h>
 
+#include "base/macros.h"
+
 namespace remoting {
 
 // Provides callbacks for monitoring events on a WTS terminal.
 class WtsTerminalObserver {
  public:
-  WtsTerminalObserver(const WtsTerminalObserver&) = delete;
-  WtsTerminalObserver& operator=(const WtsTerminalObserver&) = delete;
-
   virtual ~WtsTerminalObserver() {}
 
   // Called when |session_id| attaches to the console.
@@ -26,6 +25,9 @@ class WtsTerminalObserver {
 
  protected:
   WtsTerminalObserver() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WtsTerminalObserver);
 };
 
 }  // namespace remoting

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,19 +6,15 @@
 #define ASH_SYSTEM_AUDIO_MIC_GAIN_SLIDER_VIEW_H_
 
 #include "ash/system/unified/unified_slider_view.h"
-#include "chromeos/ash/components/audio/cras_audio_handler.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "chromeos/audio/cras_audio_handler.h"
 
 namespace ash {
 
 class MicGainSliderController;
 
 class MicGainSliderView : public UnifiedSliderView,
-                          public CrasAudioHandler::AudioObserver {
+                          public chromeos::CrasAudioHandler::AudioObserver {
  public:
-  METADATA_HEADER(MicGainSliderView);
-
-  explicit MicGainSliderView(MicGainSliderController* controller);
   MicGainSliderView(MicGainSliderController* controller,
                     uint64_t device_id,
                     bool internal);
@@ -28,11 +24,11 @@ class MicGainSliderView : public UnifiedSliderView,
 
   // CrasAudioHandler::AudioObserver:
   void OnInputNodeGainChanged(uint64_t node_id, int gain) override;
-  void OnInputMuteChanged(
-      bool mute_on,
-      CrasAudioHandler::InputMuteChangeMethod method) override;
-  void OnInputMutedByMicrophoneMuteSwitchChanged(bool muted) override;
+  void OnInputMuteChanged(bool mute_on) override;
   void OnActiveInputNodeChanged() override;
+
+  // views::View:
+  const char* GetClassName() const override;
 
  private:
   void Update(bool by_user);
@@ -42,9 +38,6 @@ class MicGainSliderView : public UnifiedSliderView,
 
   // True if the audio device this slider represents is internal.
   const bool internal_;
-
-  // View used for a11y alert when mute state changes.
-  views::View* announcement_view_ = nullptr;
 };
 
 }  // namespace ash

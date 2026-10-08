@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,13 +29,6 @@ void WebTestShellPlatformDelegate::DidCreateOrAttachWebContents(
   WebTestControlHost::Get()->DidCreateOrAttachWebContents(web_contents);
 }
 
-void WebTestShellPlatformDelegate::DidCloseLastWindow() {
-  // Some tests, or some fuzzer's test cases are closing every window. When
-  // this happens, the test runner must run the next test. For this reason, this
-  // do not call Shell::Shutdown(). It will be called manually at the end of:
-  // WebTestBrowserMainRunner::RunBrowserMain().
-}
-
 std::unique_ptr<JavaScriptDialogManager>
 WebTestShellPlatformDelegate::CreateJavaScriptDialogManager(Shell* shell) {
   return std::make_unique<WebTestJavaScriptDialogManager>();
@@ -58,9 +51,9 @@ bool WebTestShellPlatformDelegate::HandleRequestToLockMouse(
 
 bool WebTestShellPlatformDelegate::ShouldAllowRunningInsecureContent(
     Shell* shell) {
-  WebTestControlHost* control_host = WebTestControlHost::Get();
-  return control_host->web_test_runtime_flags()
-      .running_insecure_content_allowed();
+  const base::DictionaryValue& flags =
+      WebTestControlHost::Get()->accumulated_web_test_runtime_flags_changes();
+  return flags.FindBoolPath("running_insecure_content_allowed").value_or(false);
 }
 
 }  // namespace content

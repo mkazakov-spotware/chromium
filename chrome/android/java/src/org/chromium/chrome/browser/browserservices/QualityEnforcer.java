@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.browserservices;
 
-import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -14,13 +13,10 @@ import androidx.annotation.VisibleForTesting;
 import androidx.browser.customtabs.CustomTabsSessionToken;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.base.PackageUtils;
 import org.chromium.base.Promise;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.browserservices.constants.QualityEnforcementViolationType;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.metrics.TrustedWebActivityUmaRecorder;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.browserservices.ui.controller.Verifier;
 import org.chromium.chrome.browser.browserservices.ui.controller.trustedwebactivity.ClientPackageNameProvider;
 import org.chromium.chrome.browser.customtabs.CustomTabsConnection;
@@ -34,9 +30,6 @@ import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.RenderFrameHost;
 import org.chromium.net.NetError;
 import org.chromium.ui.widget.Toast;
-import org.chromium.url.GURL;
-
-import java.util.List;
 
 import javax.inject.Inject;
 
@@ -58,7 +51,7 @@ public class QualityEnforcer {
     @VisibleForTesting
     static final String KEY_SUCCESS = "success";
 
-    private final Activity mActivity;
+    private final ChromeActivity<?> mActivity;
     private final Verifier mVerifier;
     private final CustomTabsConnection mConnection;
     private final CustomTabsSessionToken mSessionToken;
@@ -71,8 +64,9 @@ public class QualityEnforcer {
 
     private final CustomTabTabObserver mTabObserver = new CustomTabTabObserver() {
         @Override
-        public void onDidFinishNavigationInPrimaryMainFrame(Tab tab, NavigationHandle navigation) {
-            if (!navigation.hasCommitted() || navigation.isSameDocument()) {
+        public void onDidFinishNavigation(Tab tab, NavigationHandle navigation) {
+            if (!navigation.hasCommitted() || !navigation.isInMainFrame()
+                    || navigation.isSameDocument()) {
                 return;
             }
 
@@ -87,25 +81,20 @@ public class QualityEnforcer {
                 });
             }
 
-            GURL newUrl = tab.getOriginalUrl();
+            String newUrl = tab.getOriginalUrl();
             if (isNavigationInScope(newUrl)) {
                 if (navigation.httpStatusCode() == 404) {
-                    trigger(tab, QualityEnforcementViolationType.HTTP_ERROR404, newUrl.getSpec(),
+                    trigger(tab, QualityEnforcementViolationType.HTTP_ERROR404, newUrl,
                             navigation.httpStatusCode());
                 } else if (navigation.httpStatusCode() >= 500
                         && navigation.httpStatusCode() <= 599) {
-                    trigger(tab, QualityEnforcementViolationType.HTTP_ERROR5XX, newUrl.getSpec(),
+                    trigger(tab, QualityEnforcementViolationType.HTTP_ERROR5XX, newUrl,
                             navigation.httpStatusCode());
                 } else if (navigation.errorCode() == NetError.ERR_INTERNET_DISCONNECTED) {
-                    trigger(tab, QualityEnforcementViolationType.UNAVAILABLE_OFFLINE,
-                            newUrl.getSpec(), navigation.httpStatusCode());
+                    trigger(tab, QualityEnforcementViolationType.UNAVAILABLE_OFFLINE, newUrl,
+                            navigation.httpStatusCode());
                 }
             }
-        }
-
-        @Override
-        public void onDidFinishNavigationNoop(Tab tab, NavigationHandle navigation) {
-            if (!navigation.isInPrimaryMainFrame()) return;
         }
 
         @Override
@@ -116,7 +105,8 @@ public class QualityEnforcer {
     };
 
     @Inject
-    public QualityEnforcer(Activity activity, ActivityLifecycleDispatcher lifecycleDispatcher,
+    public QualityEnforcer(ChromeActivity<?> activity,
+            ActivityLifecycleDispatcher lifecycleDispatcher,
             TabObserverRegistrar tabObserverRegistrar,
             BrowserServicesIntentDataProvider intentDataProvider, CustomTabsConnection connection,
             Verifier verifier, ClientPackageNameProvider clientPackageNameProvider,
@@ -135,33 +125,14 @@ public class QualityEnforcer {
 
     private void trigger(
             Tab tab, @QualityEnforcementViolationType int type, String url, int httpStatusCode) {
-        mUmaRecorder.recordQualityEnforcementViolation(tab.getWebContents(), type);
+        mUmaRecorder.recordQualityEnforcementViolation(tab, type);
 
         if (ChromeFeatureList.isEnabled(
                     ChromeFeatureList.TRUSTED_WEB_ACTIVITY_QUALITY_ENFORCEMENT_WARNING)) {
             showErrorToast(getToastMessage(type, url, httpStatusCode));
-
             if (tab.getWebContents() != null) {
-                String packageName = null;
-                String signature = null;
-                // Only get the package name and signature when violation type is
-                // DIGITAL_ASSET_LINK. This is because computing the fingerprint is expensive.
-                // We should figure out how to reuse the existing one in OriginVerifier.
-                if (type == QualityEnforcementViolationType.DIGITAL_ASSET_LINK) {
-                    packageName = mClientPackageNameProvider.get();
-                    PackageManager pm = mActivity.getPackageManager();
-                    List<String> signatures =
-                            PackageUtils.getCertificateSHA256FingerprintForPackage(packageName);
-
-                    // Sometimes information about the current package cannot be found - perhaps
-                    // the user uninstalled the TWA while using it? See https://crbug.com/1358864.
-                    if (signatures != null && signatures.size() > 0) {
-                        signature = signatures.get(0);
-                    }
-                }
-
-                QualityEnforcerJni.get().reportDevtoolsIssue(tab.getWebContents().getMainFrame(),
-                        type, url, httpStatusCode, packageName, signature);
+                QualityEnforcerJni.get().reportDevtoolsIssue(
+                        tab.getWebContents().getMainFrame(), type, url, httpStatusCode);
             }
         }
 
@@ -204,11 +175,10 @@ public class QualityEnforcer {
      * Updates whether the current url is verified and returns whether the source and destination
      * are both on the verified origin.
      */
-    private boolean isNavigationInScope(GURL newUrl) {
-        if (newUrl.isEmpty()) return false;
+    private boolean isNavigationInScope(String newUrl) {
+        if (newUrl.equals("")) return false;
         boolean wasVerified = mOriginVerified;
-        // TODO(crbug/783819): Migrate Verifier to GURL.
-        Promise<Boolean> result = mVerifier.verify(newUrl.getSpec());
+        Promise<Boolean> result = mVerifier.verify(newUrl);
         mOriginVerified = !result.isFulfilled() || result.getResult();
         return wasVerified && mOriginVerified;
     }
@@ -262,7 +232,7 @@ public class QualityEnforcer {
 
     @NativeMethods
     interface Natives {
-        void reportDevtoolsIssue(RenderFrameHost renderFrameHost, int type, String url,
-                int httpStatusCode, String packageName, String signature);
+        void reportDevtoolsIssue(
+                RenderFrameHost renderFrameHost, int type, String url, int httpStatusCode);
     }
 }

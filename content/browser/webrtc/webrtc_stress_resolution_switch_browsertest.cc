@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/content_browser_test_utils.h"
 #include "content/public/test/test_utils.h"
-#include "third_party/blink/public/common/features.h"
 
 namespace content {
 
@@ -28,7 +27,7 @@ static const int kNumPeerConnections = 5;
 #endif
 }  // namespace
 
-#if BUILDFLAG(IS_ANDROID) && defined(ADDRESS_SANITIZER)
+#if defined(OS_ANDROID) && defined(ADDRESS_SANITIZER)
 // Renderer crashes under Android ASAN: https://crbug.com/408496.
 #define MAYBE_WebRtcStressResolutionSwitchBrowserTest \
   DISABLED_WebRtcStressResolutionSwitchBrowserTest

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,10 +20,8 @@ class ASH_EXPORT ShelfTooltipBubble : public ShelfBubble {
  public:
   ShelfTooltipBubble(views::View* anchor,
                      ShelfAlignment alignment,
-                     const std::u16string& text);
-
-  ShelfTooltipBubble(const ShelfTooltipBubble&) = delete;
-  ShelfTooltipBubble& operator=(const ShelfTooltipBubble&) = delete;
+                     SkColor background_color,
+                     const base::string16& text);
 
  protected:
   // ShelfBubble:
@@ -31,11 +29,10 @@ class ASH_EXPORT ShelfTooltipBubble : public ShelfBubble {
   bool ShouldCloseOnMouseExit() override;
 
  private:
-  // views::View overrides:
-  void OnThemeChanged() override;
-
   // BubbleDialogDelegateView overrides:
   gfx::Size CalculatePreferredSize() const override;
+
+  DISALLOW_COPY_AND_ASSIGN(ShelfTooltipBubble);
 };
 
 }  // namespace ash

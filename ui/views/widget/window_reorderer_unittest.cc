@@ -1,10 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "ui/aura/test/test_windows.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_event_dispatcher.h"
@@ -50,7 +49,7 @@ class WindowReordererTest : public ViewsTestBase {
   }
 
  private:
-  raw_ptr<aura::Window> parent_ = nullptr;
+  aura::Window* parent_ = nullptr;
 };
 
 // Test that views with layers and views with associated windows are reordered
@@ -97,24 +96,24 @@ TEST_F(WindowReordererTest, Basic) {
 
   // 2) Test the z-order of the windows and layers as a result of reordering the
   // views.
-  contents_view->ReorderChildView(host_view1, contents_view->children().size());
+  contents_view->ReorderChildView(host_view1, -1);
   EXPECT_EQ("w2 w1", ChildWindowNamesAsString(*parent_window));
   EXPECT_EQ("v w2 w1",
             ui::test::ChildLayerNamesAsString(*parent_window->layer()));
 
-  contents_view->ReorderChildView(host_view2, contents_view->children().size());
+  contents_view->ReorderChildView(host_view2, -1);
   EXPECT_EQ("w1 w2", ChildWindowNamesAsString(*parent_window));
   EXPECT_EQ("v w1 w2",
             ui::test::ChildLayerNamesAsString(*parent_window->layer()));
 
   // 3) Test the z-order of the windows and layers as a result of reordering the
   // views in situations where the window order remains unchanged.
-  contents_view->ReorderChildView(v, contents_view->children().size());
+  contents_view->ReorderChildView(v, -1);
   EXPECT_EQ("w1 w2", ChildWindowNamesAsString(*parent_window));
   EXPECT_EQ("w1 w2 v",
             ui::test::ChildLayerNamesAsString(*parent_window->layer()));
 
-  contents_view->ReorderChildView(host_view2, contents_view->children().size());
+  contents_view->ReorderChildView(host_view2, -1);
   EXPECT_EQ("w1 w2", ChildWindowNamesAsString(*parent_window));
   EXPECT_EQ("w1 v w2",
             ui::test::ChildLayerNamesAsString(*parent_window->layer()));

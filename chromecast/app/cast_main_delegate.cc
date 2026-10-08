@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,10 @@
 
 #include <algorithm>
 #include <string>
-#include <tuple>
 #include <vector>
 
 #include "base/command_line.h"
 #include "base/cpu.h"
-#include "base/debug/leak_annotations.h"
 #include "base/files/file.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
@@ -23,7 +21,6 @@
 #include "build/build_config.h"
 #include "chromecast/base/cast_paths.h"
 #include "chromecast/base/chromecast_switches.h"
-#include "chromecast/base/process_types.h"
 #include "chromecast/browser/cast_content_browser_client.h"
 #include "chromecast/browser/cast_feature_list_creator.h"
 #include "chromecast/chromecast_buildflags.h"
@@ -34,34 +31,33 @@
 #include "chromecast/utility/cast_content_utility_client.h"
 #include "components/crash/core/app/crash_reporter_client.h"
 #include "components/crash/core/common/crash_key.h"
-#include "content/public/app/initialize_mojo_core.h"
 #include "content/public/browser/browser_main_runner.h"
 #include "content/public/common/content_switches.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "ui/base/resource/resource_bundle.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/apk_assets.h"
 #include "chromecast/app/android/cast_crash_reporter_client_android.h"
+#include "chromecast/app/android/crash_handler.h"
 #include "ui/base/resource/resource_bundle_android.h"
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "chromecast/app/linux/cast_crash_reporter_client.h"
 #include "sandbox/policy/switches.h"
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 
 namespace {
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 chromecast::CastCrashReporterClient* GetCastCrashReporter() {
   static base::NoDestructor<chromecast::CastCrashReporterClient>
       crash_reporter_client;
   return crash_reporter_client.get();
 }
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 const int kMaxCrashFiles = 10;
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 }  // namespace
 
@@ -72,47 +68,26 @@ CastMainDelegate::CastMainDelegate() {}
 
 CastMainDelegate::~CastMainDelegate() {}
 
-absl::optional<int> CastMainDelegate::BasicStartupComplete() {
+bool CastMainDelegate::BasicStartupComplete(int* exit_code) {
   RegisterPathProvider();
 
   logging::LoggingSettings settings;
   settings.logging_dest =
       logging::LOG_TO_SYSTEM_DEBUG_LOG | logging::LOG_TO_STDERR;
-
+#if defined(OS_ANDROID)
   const base::CommandLine* command_line(base::CommandLine::ForCurrentProcess());
   std::string process_type =
       command_line->GetSwitchValueASCII(switches::kProcessType);
-
-  // Must be created outside of the if scope below to avoid lifetime concerns.
-  std::string log_path_as_string;
-  if (command_line->HasSwitch(switches::kLogFile)) {
-    auto file_path = command_line->GetSwitchValuePath(switches::kLogFile);
-    DCHECK(!file_path.empty());
-    log_path_as_string = file_path.value();
-
-    settings.logging_dest = logging::LOG_TO_ALL;
-    settings.log_file_path = log_path_as_string.c_str();
-    settings.lock_log = logging::DONT_LOCK_LOG_FILE;
-
-    // If this is the browser process, delete the old log file. Else, append to
-    // it.
-    settings.delete_old = process_type.empty()
-                              ? logging::DELETE_OLD_LOG_FILE
-                              : logging::APPEND_TO_OLD_LOG_FILE;
-  }
-
-#if BUILDFLAG(IS_ANDROID)
   // Browser process logs are recorded for attaching with crash dumps.
   if (process_type.empty()) {
     base::FilePath log_file;
     base::PathService::Get(FILE_CAST_ANDROID_LOG, &log_file);
     settings.logging_dest =
         logging::LOG_TO_SYSTEM_DEBUG_LOG | logging::LOG_TO_STDERR;
-    log_path_as_string = log_file.value();
-    settings.log_file_path = log_path_as_string.c_str();
+    settings.log_file_path = log_file.value().c_str();
     settings.delete_old = logging::DELETE_OLD_LOG_FILE;
   }
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
   logging::InitLogging(settings);
 #if BUILDFLAG(IS_CAST_DESKTOP_BUILD)
   logging::SetLogItems(true, true, true, false);
@@ -121,7 +96,7 @@ absl::optional<int> CastMainDelegate::BasicStartupComplete() {
   logging::SetLogItems(true, true, false, false);
 #endif  // BUILDFLAG(IS_CAST_DESKTOP_BUILD)
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // Only delete the old crash dumps if the current process is the browser
   // process. Empty |process_type| signifies browser process.
   if (process_type.empty()) {
@@ -155,17 +130,13 @@ absl::optional<int> CastMainDelegate::BasicStartupComplete() {
       }
     }
   }
-#endif  // BUILDFLAG(IS_ANDROID)
-
-  if (settings.logging_dest & logging::LOG_TO_FILE) {
-    LOG(INFO) << "Logging to file: " << settings.log_file_path;
-  }
-  return absl::nullopt;
+#endif  // defined(OS_ANDROID)
+  return false;
 }
 
 void CastMainDelegate::PreSandboxStartup() {
 #if defined(ARCH_CPU_ARM_FAMILY) && \
-    (BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS))
+    (defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_CHROMEOS))
   // Create an instance of the CPU class to parse /proc/cpuinfo and cache the
   // results. This data needs to be cached when file-reading is still allowed,
   // since base::CPU expects to be callable later, when file-reading is no
@@ -177,45 +148,51 @@ void CastMainDelegate::PreSandboxStartup() {
   std::string process_type =
       command_line->GetSwitchValueASCII(switches::kProcessType);
 
-  bool enable_crash_reporter =
-      !command_line->HasSwitch(switches::kDisableCrashReporter);
+  bool enable_crash_reporter = !command_line->HasSwitch(
+      switches::kDisableCrashReporter);
   if (enable_crash_reporter) {
-    // TODO(crbug.com/1226159): Complete crash reporting integration on Fuchsia.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-    crash_reporter::SetCrashReporterClient(GetCastCrashReporter());
+  // TODO(crbug.com/753619): Enable crash reporting on Fuchsia.
+#if defined(OS_ANDROID)
+    base::FilePath log_file;
+    base::PathService::Get(FILE_CAST_ANDROID_LOG, &log_file);
+    chromecast::CrashHandler::Initialize(process_type, log_file);
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS)
+  crash_reporter::SetCrashReporterClient(GetCastCrashReporter());
 
-    if (process_type != switches::kZygoteProcess) {
-      CastCrashReporterClient::InitCrashReporter(process_type);
-    }
+  if (process_type != switches::kZygoteProcess) {
+    CastCrashReporterClient::InitCrashReporter(process_type);
+  }
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+
     crash_reporter::InitializeCrashKeys();
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   }
 
   InitializeResourceBundle();
 }
 
-absl::variant<int, content::MainFunctionParams> CastMainDelegate::RunProcess(
+int CastMainDelegate::RunProcess(
     const std::string& process_type,
-    content::MainFunctionParams main_function_params) {
-#if BUILDFLAG(IS_ANDROID)
+    const content::MainFunctionParams& main_function_params) {
+#if defined(OS_ANDROID)
   if (!process_type.empty())
-    return std::move(main_function_params);
+    return -1;
 
   // Note: Android must handle running its own browser process.
   // See ChromeMainDelegateAndroid::RunProcess.
   browser_runner_ = content::BrowserMainRunner::Create();
-  int exit_code = browser_runner_->Initialize(std::move(main_function_params));
+  int exit_code = browser_runner_->Initialize(main_function_params);
   // On Android we do not run BrowserMain(), so the above initialization of a
-  // BrowserMainRunner is all we want to occur. Preserve any error codes > 0.
+  // BrowserMainRunner is all we want to occur. Return >= 0 to avoid running
+  // BrowserMain, while preserving any error codes > 0.
   if (exit_code > 0)
     return exit_code;
   return 0;
 #else
-  return std::move(main_function_params);
-#endif  // BUILDFLAG(IS_ANDROID)
+  return -1;
+#endif  // defined(OS_ANDROID)
 }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 void CastMainDelegate::ZygoteForked() {
   const base::CommandLine* command_line(base::CommandLine::ForCurrentProcess());
   bool enable_crash_reporter = !command_line->HasSwitch(
@@ -226,71 +203,41 @@ void CastMainDelegate::ZygoteForked() {
     CastCrashReporterClient::InitCrashReporter(process_type);
   }
 }
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 
-bool CastMainDelegate::ShouldCreateFeatureList(InvokedIn invoked_in) {
-  return absl::holds_alternative<InvokedInChildProcess>(invoked_in);
+bool CastMainDelegate::ShouldCreateFeatureList() {
+  return false;
 }
 
-bool CastMainDelegate::ShouldInitializeMojo(InvokedIn invoked_in) {
-  return ShouldCreateFeatureList(invoked_in);
-}
-
-absl::optional<int> CastMainDelegate::PostEarlyInitialization(
-    InvokedIn invoked_in) {
-  if (ShouldCreateFeatureList(invoked_in)) {
-    // content is handling the feature list.
-    return absl::nullopt;
-  }
-
+void CastMainDelegate::PostEarlyInitialization(bool is_running_tests) {
   DCHECK(cast_feature_list_creator_);
 
-#if !BUILDFLAG(IS_ANDROID)
-  // PrefService requires the home directory to be created before the pref store
-  // can be initialized properly.
+#if !defined(OS_ANDROID)
+  // PrefService requires home directory to be created before the pref
+  // store can be initialized properly.
   base::FilePath home_dir;
   CHECK(base::PathService::Get(DIR_CAST_HOME, &home_dir));
   CHECK(base::CreateDirectory(home_dir));
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
-  // TODO(crbug/1249485): If we're able to create the MetricsStateManager
-  // earlier, clean up the below if and else blocks and call
-  // MetricsStateManager::InstantiateFieldTrialList().
-  //
-  // The FieldTrialList is a dependency of the feature list. In tests, it is
-  // constructed as part of the test suite.
-  const auto* invoked_in_browser =
-      absl::get_if<InvokedInBrowserProcess>(&invoked_in);
-  if (invoked_in_browser && invoked_in_browser->is_running_test) {
+  // The |FieldTrialList| is a dependency of the feature list. In tests, it
+  // gets constructed as part of the test suite.
+  if (is_running_tests) {
     DCHECK(base::FieldTrialList::GetInstance());
   } else {
-    // This is intentionally leaked since it needs to live for the duration of
-    // the browser process and there's no benefit to cleaning it up at exit.
-    base::FieldTrialList* leaked_field_trial_list = new base::FieldTrialList();
-    ANNOTATE_LEAKING_OBJECT_PTR(leaked_field_trial_list);
-    std::ignore = leaked_field_trial_list;
+    field_trial_list_ = std::make_unique<base::FieldTrialList>(nullptr);
   }
 
   // Initialize the base::FeatureList and the PrefService (which it depends on),
   // so objects initialized after this point can use features from
   // base::FeatureList.
-  const base::CommandLine* command_line =
-      base::CommandLine::ForCurrentProcess();
-  const bool use_browser_config =
-      command_line->HasSwitch(switches::kUseCastBrowserPrefConfig);
-  ProcessType process_type = use_browser_config ? ProcessType::kCastBrowser
-                                                : ProcessType::kCastService;
-  cast_feature_list_creator_->CreatePrefServiceAndFeatureList(process_type);
-
-  content::InitializeMojoCore();
-
-  return absl::nullopt;
+  cast_feature_list_creator_->CreatePrefServiceAndFeatureList();
 }
 
 void CastMainDelegate::InitializeResourceBundle() {
   base::FilePath pak_file;
   CHECK(base::PathService::Get(FILE_CAST_PAK, &pak_file));
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // On Android, the renderer runs with a different UID and can never access
   // the file system. Use the file descriptor passed in at launch time.
   auto* global_descriptors = base::GlobalDescriptors::GetInstance();
@@ -303,7 +250,7 @@ void CastMainDelegate::InitializeResourceBundle() {
     ui::ResourceBundle::InitSharedInstanceWithPakFileRegion(
         android_pak_file.Duplicate(), pak_region);
     ui::ResourceBundle::GetSharedInstance().AddDataPackFromFileRegion(
-        std::move(android_pak_file), pak_region, ui::k100Percent);
+        std::move(android_pak_file), pak_region, ui::SCALE_FACTOR_100P);
     return;
   } else {
     pak_fd = base::android::OpenApkAsset("assets/cast_shell.pak", &pak_region);
@@ -318,7 +265,7 @@ void CastMainDelegate::InitializeResourceBundle() {
   }
 
   ui::SetLocalePaksStoredInApk(true);
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
   resource_delegate_.reset(new CastResourceDelegate());
   // TODO(gunsch): Use LOAD_COMMON_RESOURCES once ResourceBundle no longer
@@ -327,13 +274,13 @@ void CastMainDelegate::InitializeResourceBundle() {
       "en-US", resource_delegate_.get(),
       ui::ResourceBundle::DO_NOT_LOAD_COMMON_RESOURCES);
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   ui::ResourceBundle::GetSharedInstance().AddDataPackFromFileRegion(
-      base::File(pak_fd), pak_region, ui::kScaleFactorNone);
+      base::File(pak_fd), pak_region, ui::SCALE_FACTOR_NONE);
 #else
   ui::ResourceBundle::GetSharedInstance().AddDataPackFromPath(
-      pak_file, ui::kScaleFactorNone);
-#endif  // BUILDFLAG(IS_ANDROID)
+      pak_file, ui::SCALE_FACTOR_NONE);
+#endif  // defined(OS_ANDROID)
 }
 
 content::ContentClient* CastMainDelegate::CreateContentClient() {

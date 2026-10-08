@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 [
   Exposed=DedicatedWorker,
-  RuntimeEnabled=StorageFoundationAPI,
+  RuntimeEnabled=NativeIO,
   SecureContext
 ] interface NativeIOFileSync {
   void close();
@@ -20,14 +20,14 @@
   ] void setLength(unsigned long long length);
 
   [
-    CallWith=ScriptState, RaisesException, MeasureAs=StorageFoundationReadSync
-  ] NativeIOReadResult read(ArrayBufferView buffer,
+    RaisesException
+  ] unsigned long long read([AllowShared] ArrayBufferView buffer,
                             unsigned long long file_offset);
   [
-    CallWith=ScriptState, RaisesException, MeasureAs=StorageFoundationWriteSync
-  ] NativeIOWriteResult write(ArrayBufferView buffer,
+    RaisesException
+  ] unsigned long long write([AllowShared] ArrayBufferView buffer,
                              unsigned long long file_offset);
   [
-    RaisesException, MeasureAs=StorageFoundationFlushSync
+    RaisesException
   ] void flush();
 };

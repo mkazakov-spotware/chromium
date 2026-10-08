@@ -1,8 +1,6 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "media/filters/decrypting_demuxer_stream.h"
 
 #include <stdint.h>
 
@@ -12,6 +10,7 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "base/test/gmock_callback_support.h"
 #include "base/test/gmock_move_support.h"
 #include "base/test/task_environment.h"
@@ -21,6 +20,7 @@
 #include "media/base/mock_filters.h"
 #include "media/base/mock_media_log.h"
 #include "media/base/test_helpers.h"
+#include "media/filters/decrypting_demuxer_stream.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
 using ::base::test::RunCallback;
@@ -50,11 +50,11 @@ static scoped_refptr<DecoderBuffer> CreateFakeEncryptedStreamBuffer(
   std::string iv = is_clear
                        ? std::string()
                        : std::string(reinterpret_cast<const char*>(kFakeIv),
-                                     std::size(kFakeIv));
+                                     base::size(kFakeIv));
   if (!is_clear) {
     buffer->set_decrypt_config(DecryptConfig::CreateCencConfig(
         std::string(reinterpret_cast<const char*>(kFakeKeyId),
-                    std::size(kFakeKeyId)),
+                    base::size(kFakeKeyId)),
         iv, {}));
   }
   return buffer;
@@ -90,10 +90,6 @@ class DecryptingDemuxerStreamTest : public testing::Test {
         clear_encrypted_stream_buffer_(CreateFakeEncryptedStreamBuffer(true)),
         encrypted_buffer_(CreateFakeEncryptedStreamBuffer(false)),
         decrypted_buffer_(new DecoderBuffer(kFakeBufferSize)) {}
-
-  DecryptingDemuxerStreamTest(const DecryptingDemuxerStreamTest&) = delete;
-  DecryptingDemuxerStreamTest& operator=(const DecryptingDemuxerStreamTest&) =
-      delete;
 
   ~DecryptingDemuxerStreamTest() override {
     if (is_initialized_)
@@ -140,25 +136,20 @@ class DecryptingDemuxerStreamTest : public testing::Test {
   // function names. But for testing purpose, they all use an audio input
   // demuxer stream.
 
-  void Initialize(int audio_init_times = 1, int video_init_times = 1) {
+  void Initialize() {
     SetCdmType(CDM_WITH_DECRYPTOR);
     EXPECT_CALL(*cdm_context_, RegisterEventCB(_)).WillOnce([&](auto cb) {
       event_cb_ = cb;
       return std::make_unique<CallbackRegistration>();
     });
 
-    AudioDecoderConfig input_config(AudioCodec::kVorbis, kSampleFormatPlanarF32,
+    AudioDecoderConfig input_config(kCodecVorbis, kSampleFormatPlanarF32,
                                     CHANNEL_LAYOUT_STEREO, 44100,
                                     EmptyExtraData(), EncryptionScheme::kCenc);
-
-    EXPECT_MEDIA_LOG(HasSubstr("kAudioTracks")).Times(audio_init_times);
-    EXPECT_MEDIA_LOG(HasSubstr("kVideoTracks")).Times(video_init_times);
-
     InitializeAudioAndExpectStatus(input_config, PIPELINE_OK);
 
     const AudioDecoderConfig& output_config =
         demuxer_stream_->audio_decoder_config();
-
     EXPECT_EQ(DemuxerStream::AUDIO, demuxer_stream_->type());
     EXPECT_FALSE(output_config.is_encrypted());
     EXPECT_EQ(input_config.bits_per_channel(),
@@ -304,6 +295,9 @@ class DecryptingDemuxerStreamTest : public testing::Test {
   scoped_refptr<DecoderBuffer> clear_encrypted_stream_buffer_;
   scoped_refptr<DecoderBuffer> encrypted_buffer_;
   scoped_refptr<DecoderBuffer> decrypted_buffer_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DecryptingDemuxerStreamTest);
 };
 
 TEST_F(DecryptingDemuxerStreamTest, Initialize_NormalAudio) {
@@ -318,8 +312,6 @@ TEST_F(DecryptingDemuxerStreamTest, Initialize_NormalVideo) {
   });
 
   VideoDecoderConfig input_config = TestVideoConfig::NormalEncrypted();
-  EXPECT_MEDIA_LOG(HasSubstr("kAudioTracks"));
-  EXPECT_MEDIA_LOG(HasSubstr("kVideoTracks"));
   InitializeVideoAndExpectStatus(input_config, PIPELINE_OK);
 
   const VideoDecoderConfig& output_config =
@@ -337,11 +329,9 @@ TEST_F(DecryptingDemuxerStreamTest, Initialize_NormalVideo) {
 
 TEST_F(DecryptingDemuxerStreamTest, Initialize_CdmWithoutDecryptor) {
   SetCdmType(CDM_WITHOUT_DECRYPTOR);
-  AudioDecoderConfig input_config(AudioCodec::kVorbis, kSampleFormatPlanarF32,
+  AudioDecoderConfig input_config(kCodecVorbis, kSampleFormatPlanarF32,
                                   CHANNEL_LAYOUT_STEREO, 44100,
                                   EmptyExtraData(), EncryptionScheme::kCenc);
-  EXPECT_MEDIA_LOG(HasSubstr("kAudioTracks"));
-  EXPECT_MEDIA_LOG(HasSubstr("kVideoTracks"));
   InitializeAudioAndExpectStatus(input_config, DECODER_ERROR_NOT_SUPPORTED);
 }
 
@@ -515,9 +505,9 @@ TEST_F(DecryptingDemuxerStreamTest, Reset_DuringAbortedDemuxerRead) {
 
 // Test config change on the input demuxer stream.
 TEST_F(DecryptingDemuxerStreamTest, DemuxerRead_ConfigChanged) {
-  Initialize(2, 2);
+  Initialize();
 
-  AudioDecoderConfig new_config(AudioCodec::kVorbis, kSampleFormatPlanarF32,
+  AudioDecoderConfig new_config(kCodecVorbis, kSampleFormatPlanarF32,
                                 CHANNEL_LAYOUT_STEREO, 88200, EmptyExtraData(),
                                 EncryptionScheme::kCenc);
   input_audio_stream_->set_audio_decoder_config(new_config);
@@ -531,7 +521,7 @@ TEST_F(DecryptingDemuxerStreamTest, DemuxerRead_ConfigChanged) {
 
 // Test resetting when waiting for a config changed read.
 TEST_F(DecryptingDemuxerStreamTest, Reset_DuringConfigChangedDemuxerRead) {
-  Initialize(2, 2);
+  Initialize();
   EnterPendingReadState();
 
   // Make sure we get a |kConfigChanged| instead of a |kAborted|.

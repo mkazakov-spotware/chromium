@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/extensions/extension_context_menu_controller.h"
 
-#include "chrome/browser/extensions/extension_context_menu_model.h"
 #include "chrome/browser/ui/toolbar/toolbar_action_view_controller.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -19,10 +18,9 @@
 #include "ui/views/view_class_properties.h"
 
 ExtensionContextMenuController::ExtensionContextMenuController(
-    ToolbarActionViewController* controller,
-    extensions::ExtensionContextMenuModel::ContextMenuSource
-        context_menu_source)
-    : controller_(controller), context_menu_source_(context_menu_source) {}
+    ToolbarActionView::Delegate* delegate,
+    ToolbarActionViewController* controller)
+    : delegate_(delegate), controller_(controller) {}
 
 ExtensionContextMenuController::~ExtensionContextMenuController() = default;
 
@@ -30,7 +28,7 @@ void ExtensionContextMenuController::ShowContextMenuForViewImpl(
     views::View* source,
     const gfx::Point& point,
     ui::MenuSourceType source_type) {
-  ui::MenuModel* model = controller_->GetContextMenu(context_menu_source_);
+  ui::MenuModel* model = controller_->GetContextMenu();
 
   // It's possible the action doesn't have a context menu.
   if (!model)
@@ -39,7 +37,13 @@ void ExtensionContextMenuController::ShowContextMenuForViewImpl(
   int run_types =
       views::MenuRunner::HAS_MNEMONICS | views::MenuRunner::CONTEXT_MENU;
 
-  views::Widget* const parent = source->GetWidget();
+  views::Widget* parent;
+  if (delegate_ && delegate_->ShownInsideMenu()) {
+    run_types |= views::MenuRunner::IS_NESTED;
+    parent = delegate_->GetOverflowReferenceView()->GetWidget();
+  } else {
+    parent = source->GetWidget();
+  }
 
   // Unretained() is safe here as ToolbarActionView will always outlive the
   // menu. Any action that would lead to the deletion of |this| first triggers

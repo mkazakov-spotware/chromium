@@ -1,31 +1,22 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/fido/cable/v2_handshake.h"
 
-#include <inttypes.h>
-
-#include <algorithm>
 #include <array>
 #include <type_traits>
 
 #include "base/base64url.h"
 #include "base/bits.h"
-#include "base/numerics/safe_conversions.h"
 #include "base/numerics/safe_math.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_piece.h"
-#include "base/strings/string_util.h"
-#include "base/sys_byteorder.h"
 #include "components/cbor/reader.h"
 #include "components/cbor/values.h"
 #include "components/cbor/writer.h"
 #include "components/device_event_log/device_event_log.h"
 #include "crypto/aead.h"
-#include "device/fido/cable/v2_constants.h"
-#include "device/fido/features.h"
 #include "device/fido/fido_constants.h"
 #include "device/fido/fido_parsing_utils.h"
 #include "third_party/boringssl/src/include/openssl/aes.h"
@@ -51,24 +42,16 @@ namespace {
 // will ever reach.
 constexpr uint32_t kMaxSequence = (1 << 24) - 1;
 
-bool ConstructNonce(uint32_t counter,
-                    bool big_endian,
-                    base::span<uint8_t, 12> out_nonce) {
+bool ConstructNonce(uint32_t counter, base::span<uint8_t, 12> out_nonce) {
   if (counter > kMaxSequence) {
     return false;
   }
 
+  // Nonce is just a little-endian counter.
   std::array<uint8_t, sizeof(counter)> counter_bytes;
-  if (big_endian) {
-    std::fill(out_nonce.begin(), out_nonce.end(), 0);
-    counter = base::ByteSwap(counter);
-    memcpy(out_nonce.data() + out_nonce.size() - sizeof(counter), &counter,
-           sizeof(counter));
-  } else {
-    memcpy(counter_bytes.data(), &counter, sizeof(counter));
-    base::ranges::copy(counter_bytes, out_nonce.begin());
-    std::fill(out_nonce.begin() + counter_bytes.size(), out_nonce.end(), 0);
-  }
+  memcpy(counter_bytes.data(), &counter, sizeof(counter));
+  std::copy(counter_bytes.begin(), counter_bytes.end(), out_nonce.begin());
+  std::fill(out_nonce.begin() + counter_bytes.size(), out_nonce.end(), 0);
   return true;
 }
 
@@ -100,74 +83,30 @@ std::array<uint8_t, 32> PairingSignature(
 // ReservedBitsAreZero returns true if the currently unused bits in |eid| are
 // all set to zero.
 bool ReservedBitsAreZero(const CableEidArray& eid) {
-  return eid[0] == 0;
+  return eid[6] == 0 && eid[7] == 0 && (eid[2] >> 6) == 0;
 }
-
-bssl::UniquePtr<EC_KEY> ECKeyFromSeed(
-    base::span<const uint8_t, kQRSeedSize> seed) {
-  bssl::UniquePtr<EC_GROUP> p256(
-      EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1));
-  return bssl::UniquePtr<EC_KEY>(
-      EC_KEY_derive_from_secret(p256.get(), seed.data(), seed.size()));
-}
-
-// kAdditionalDataBytes is the AD input to the AEAD used in caBLEv2. We're
-// transitioning away from this towards not supplying an AD in order to better
-// match Noise.
-const uint8_t kAdditionalDataBytes[1] = {/*version=*/2};
 
 }  // namespace
 
 namespace tunnelserver {
 
-// kAssignedDomains is the list of defined tunnel server domains. These map
-// to values 0..256.
-static const char* kAssignedDomains[] = {"cable.ua5v.com", "cable.auth.com"};
-
-absl::optional<KnownDomainID> ToKnownDomainID(uint16_t domain) {
-  if (domain >= 256 || domain < std::size(kAssignedDomains)) {
-    return KnownDomainID(domain);
-  }
-  return absl::nullopt;
-}
-
-std::string DecodeDomain(KnownDomainID domain_id) {
-  const uint16_t domain = domain_id.value();
-  if (domain < 256) {
-    // The |KnownDomainID| type should only contain valid values for this but,
-    // just in case, CHECK it too.
-    CHECK_LT(domain, std::size(kAssignedDomains));
-    return kAssignedDomains[domain];
-  }
-
-  char templ[] = "caBLEv2 tunnel server domain\x00\x00";
-  memcpy(&templ[sizeof(templ) - 1 - sizeof(domain)], &domain, sizeof(domain));
-  uint8_t digest[SHA256_DIGEST_LENGTH];
-  // The input should be NUL-terminated, thus the trailing NUL in |templ| is
-  // included here.
-  SHA256(reinterpret_cast<const uint8_t*>(templ), sizeof(templ), digest);
-  uint64_t result;
-  static_assert(sizeof(result) <= sizeof(digest), "");
-  memcpy(&result, digest, sizeof(result));
-
+std::string DecodeDomain(uint32_t domain) {
   static const char kBase32Chars[33] = "abcdefghijklmnopqrstuvwxyz234567";
-  const int tld_value = result & 3;
-  result >>= 2;
 
   std::string ret = "cable.";
-  while (result != 0) {
-    ret.push_back(kBase32Chars[result & 31]);
-    result >>= 5;
-  }
+  ret.push_back(kBase32Chars[(domain >> 17) & 0x1f]);
+  ret.push_back(kBase32Chars[(domain >> 12) & 0x1f]);
+  ret.push_back(kBase32Chars[(domain >> 7) & 0x1f]);
+  ret.push_back(kBase32Chars[(domain >> 2) & 0x1f]);
   ret.push_back('.');
 
   static const char kTLDs[4][5] = {"com", "org", "net", "info"};
-  ret += kTLDs[tld_value];
+  ret += kTLDs[domain & 3];
 
   return ret;
 }
 
-GURL GetNewTunnelURL(KnownDomainID domain, base::span<const uint8_t, 16> id) {
+GURL GetNewTunnelURL(uint32_t domain, base::span<const uint8_t, 16> id) {
   std::string ret = "wss://" + DecodeDomain(domain) + "/cable/new/";
 
   ret += base::HexEncode(id);
@@ -176,7 +115,7 @@ GURL GetNewTunnelURL(KnownDomainID domain, base::span<const uint8_t, 16> id) {
   return url;
 }
 
-GURL GetConnectURL(KnownDomainID domain,
+GURL GetConnectURL(uint32_t domain,
                    std::array<uint8_t, kRoutingIdSize> routing_id,
                    base::span<const uint8_t, 16> id) {
   std::string ret = "wss://" + DecodeDomain(domain) + "/cable/connect/";
@@ -207,10 +146,6 @@ GURL GetContactURL(const std::string& tunnel_server,
 
 namespace eid {
 
-Components::Components() = default;
-Components::~Components() = default;
-Components::Components(const Components&) = default;
-
 std::array<uint8_t, kAdvertSize> Encrypt(
     const CableEidArray& eid,
     base::span<const uint8_t, kEIDKeySize> key) {
@@ -239,7 +174,7 @@ std::array<uint8_t, kAdvertSize> Encrypt(
   return ret;
 }
 
-absl::optional<CableEidArray> Decrypt(
+base::Optional<CableEidArray> Decrypt(
     const std::array<uint8_t, kAdvertSize>& advert,
     base::span<const uint8_t, kEIDKeySize> key) {
   // See |Encrypt| about the format.
@@ -253,7 +188,7 @@ absl::optional<CableEidArray> Decrypt(
   CHECK_EQ(calculated_hmac_len, sizeof(calculated_hmac));
 
   if (CRYPTO_memcmp(calculated_hmac, advert.data() + AES_BLOCK_SIZE, 4) != 0) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   AES_KEY aes_key;
@@ -267,57 +202,44 @@ absl::optional<CableEidArray> Decrypt(
   // code, thus authenticators should not be unilaterally setting any of these
   // bits.
   if (!ReservedBitsAreZero(plaintext)) {
-    return absl::nullopt;
-  }
-
-  uint16_t tunnel_server_domain;
-  static_assert(EXTENT(plaintext) >= sizeof(tunnel_server_domain), "");
-  memcpy(&tunnel_server_domain,
-         &plaintext[EXTENT(plaintext) - sizeof(tunnel_server_domain)],
-         sizeof(tunnel_server_domain));
-  if (!tunnelserver::ToKnownDomainID(tunnel_server_domain)) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   return plaintext;
 }
 
 CableEidArray FromComponents(const Components& components) {
-  CableEidArray eid;
-  static_assert(EXTENT(components.nonce) == kNonceSize, "");
-  static_assert(EXTENT(eid) == 1 + kNonceSize + sizeof(components.routing_id) +
-                                   sizeof(components.tunnel_server_domain),
-                "");
+  DCHECK_EQ(components.tunnel_server_domain >> 22, 0u);
 
-  eid[0] = 0;
-  memcpy(&eid[1], components.nonce.data(), kNonceSize);
-  memcpy(&eid[1 + kNonceSize], components.routing_id.data(),
-         sizeof(components.routing_id));
-  memcpy(&eid[1 + kNonceSize + sizeof(components.routing_id)],
-         &components.tunnel_server_domain,
-         sizeof(components.tunnel_server_domain));
+  CableEidArray eid;
+  static_assert(EXTENT(eid) == 16, "");
+  eid[0] = components.tunnel_server_domain;
+  eid[1] = components.tunnel_server_domain >> 8;
+  eid[2] = components.tunnel_server_domain >> 16;
+  static_assert(EXTENT(components.routing_id) == 3, "");
+  eid[3] = components.routing_id[0];
+  eid[4] = components.routing_id[1];
+  eid[5] = components.routing_id[2];
+  eid[6] = 0;
+  eid[7] = 0;
+  static_assert(EXTENT(eid) == 8 + kNonceSize, "");
+  memcpy(&eid[8], components.nonce.data(), kNonceSize);
 
   return eid;
 }
 
 Components ToComponents(const CableEidArray& eid) {
   Components ret;
-  static_assert(EXTENT(ret.nonce) == kNonceSize, "");
-  static_assert(EXTENT(eid) == 1 + kNonceSize + sizeof(ret.routing_id) +
-                                   sizeof(ret.tunnel_server_domain),
-                "");
+  static_assert(EXTENT(eid) == 16, "");
+  ret.tunnel_server_domain = static_cast<uint32_t>(eid[0]) |
+                             (static_cast<uint32_t>(eid[1]) << 8) |
+                             ((static_cast<uint32_t>(eid[2]) & 0x3f) << 16);
+  ret.routing_id[0] = eid[3];
+  ret.routing_id[1] = eid[4];
+  ret.routing_id[2] = eid[5];
 
-  memcpy(ret.nonce.data(), &eid[1], kNonceSize);
-  memcpy(ret.routing_id.data(), &eid[1 + kNonceSize], sizeof(ret.routing_id));
-
-  uint16_t tunnel_server_domain;
-  memcpy(&tunnel_server_domain, &eid[1 + kNonceSize + sizeof(ret.routing_id)],
-         sizeof(tunnel_server_domain));
-  // |eid| has been checked by |Decrypt| so the tunnel server domain must be
-  // valid.
-  ret.tunnel_server_domain =
-      *tunnelserver::ToKnownDomainID(tunnel_server_domain);
-
+  static_assert(EXTENT(eid) == 8 + kNonceSize, "");
+  memcpy(ret.nonce.data(), &eid[8], kNonceSize);
   return ret;
 }
 
@@ -325,15 +247,15 @@ Components ToComponents(const CableEidArray& eid) {
 
 namespace qr {
 
-constexpr char kPrefix[] = "FIDO:/";
+constexpr char kPrefix[] = "fido://";
 
 // DecompressPublicKey converts a compressed public key (from a scanned QR
 // code) into a standard, uncompressed one.
-static absl::optional<std::array<uint8_t, device::kP256X962Length>>
+static base::Optional<std::array<uint8_t, device::kP256X962Length>>
 DecompressPublicKey(base::span<const uint8_t> compressed_public_key) {
   if (compressed_public_key.size() !=
       device::cablev2::kCompressedPublicKeySize) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   bssl::UniquePtr<EC_GROUP> p256(
@@ -341,7 +263,7 @@ DecompressPublicKey(base::span<const uint8_t> compressed_public_key) {
   bssl::UniquePtr<EC_POINT> point(EC_POINT_new(p256.get()));
   if (!EC_POINT_oct2point(p256.get(), point.get(), compressed_public_key.data(),
                           compressed_public_key.size(), /*ctx=*/nullptr)) {
-    return absl::nullopt;
+    return base::nullopt;
   }
   std::array<uint8_t, device::kP256X962Length> ret;
   CHECK_EQ(
@@ -353,43 +275,49 @@ DecompressPublicKey(base::span<const uint8_t> compressed_public_key) {
 
 static std::array<uint8_t, device::cablev2::kCompressedPublicKeySize>
 SeedToCompressedPublicKey(base::span<const uint8_t, 32> seed) {
-  bssl::UniquePtr<EC_KEY> key = ECKeyFromSeed(seed);
+  bssl::UniquePtr<EC_GROUP> p256(
+      EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1));
+  bssl::UniquePtr<EC_KEY> key(
+      EC_KEY_derive_from_secret(p256.get(), seed.data(), seed.size()));
   const EC_POINT* public_key = EC_KEY_get0_public_key(key.get());
 
   std::array<uint8_t, device::cablev2::kCompressedPublicKeySize> ret;
-  CHECK_EQ(ret.size(),
-           EC_POINT_point2oct(EC_KEY_get0_group(key.get()), public_key,
-                              POINT_CONVERSION_COMPRESSED, ret.data(),
-                              ret.size(), /*ctx=*/nullptr));
+  CHECK_EQ(ret.size(), EC_POINT_point2oct(
+                           p256.get(), public_key, POINT_CONVERSION_COMPRESSED,
+                           ret.data(), ret.size(), /*ctx=*/nullptr));
   return ret;
 }
 
 // static
-absl::optional<Components> Parse(const std::string& qr_url) {
-  if (qr_url.size() < sizeof(kPrefix) - 1 ||
-      base::CompareCaseInsensitiveASCII(
-          kPrefix, qr_url.substr(0, sizeof(kPrefix) - 1)) != 0) {
-    return absl::nullopt;
+base::Optional<Components> Parse(const std::string& qr_url) {
+  if (qr_url.find(kPrefix) != 0) {
+    return base::nullopt;
   }
 
-  absl::optional<std::vector<uint8_t>> qr_bytes =
-      DigitsToBytes(qr_url.substr(sizeof(kPrefix) - 1));
-  if (!qr_bytes) {
-    return absl::nullopt;
+  base::StringPiece qr_url_base64(qr_url);
+  qr_url_base64 = qr_url_base64.substr(sizeof(kPrefix) - 1);
+  std::string qr_data_str;
+  if (!base::Base64UrlDecode(qr_url_base64,
+                             base::Base64UrlDecodePolicy::DISALLOW_PADDING,
+                             &qr_data_str)) {
+    return base::nullopt;
   }
 
-  absl::optional<cbor::Value> qr_contents = cbor::Reader::Read(*qr_bytes);
+  base::Optional<cbor::Value> qr_contents =
+      cbor::Reader::Read(base::span<const uint8_t>(
+          reinterpret_cast<const uint8_t*>(qr_data_str.data()),
+          qr_data_str.size()));
   if (!qr_contents || !qr_contents->is_map()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
   const cbor::Value::MapValue& qr_contents_map(qr_contents->GetMap());
 
   base::span<const uint8_t> values[2];
-  for (size_t i = 0; i < std::size(values); i++) {
+  for (size_t i = 0; i < base::size(values); i++) {
     const cbor::Value::MapValue::const_iterator it =
         qr_contents_map.find(cbor::Value(static_cast<int>(i)));
     if (it == qr_contents_map.end() || !it->second.is_bytestring()) {
-      return absl::nullopt;
+      return base::nullopt;
     }
     values[i] = it->second.GetBytestring();
   }
@@ -399,47 +327,22 @@ absl::optional<Components> Parse(const std::string& qr_url) {
 
   Components ret;
   if (qr_secret.size() != ret.secret.size()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
-  base::ranges::copy(qr_secret, ret.secret.begin());
+  std::copy(qr_secret.begin(), qr_secret.end(), ret.secret.begin());
 
-  absl::optional<std::array<uint8_t, device::kP256X962Length>> peer_identity =
+  base::Optional<std::array<uint8_t, device::kP256X962Length>> peer_identity =
       DecompressPublicKey(compressed_public_key);
   if (!peer_identity) {
     FIDO_LOG(ERROR) << "Invalid compressed public key in QR data";
-    return absl::nullopt;
+    return base::nullopt;
   }
+
   ret.peer_identity = *peer_identity;
-
-  auto it = qr_contents_map.find(cbor::Value(2));
-  if (it != qr_contents_map.end()) {
-    if (!it->second.is_integer()) {
-      return absl::nullopt;
-    }
-    ret.num_known_domains = it->second.GetInteger();
-  }
-
-  it = qr_contents_map.find(cbor::Value(4));
-  if (it != qr_contents_map.end()) {
-    if (!it->second.is_bool()) {
-      return absl::nullopt;
-    }
-    ret.supports_linking = it->second.GetBool();
-  }
-
-  it = qr_contents_map.find(cbor::Value(5));
-  if (it != qr_contents_map.end()) {
-    if (!it->second.is_string()) {
-      return absl::nullopt;
-    }
-    ret.request_type = RequestTypeFromString(it->second.GetString());
-  }
-
   return ret;
 }
 
-std::string Encode(base::span<const uint8_t, kQRKeySize> qr_key,
-                   CableRequestType request_type) {
+std::string Encode(base::span<const uint8_t, kQRKeySize> qr_key) {
   cbor::Value::MapValue qr_contents;
   qr_contents.emplace(
       0, SeedToCompressedPublicKey(
@@ -448,145 +351,19 @@ std::string Encode(base::span<const uint8_t, kQRKeySize> qr_key,
 
   qr_contents.emplace(1, qr_key.subspan(device::cablev2::kQRSeedSize));
 
-  qr_contents.emplace(
-      2, static_cast<int64_t>(std::size(tunnelserver::kAssignedDomains)));
-
-  qr_contents.emplace(3, static_cast<int64_t>(base::Time::Now().ToTimeT()));
-
-  qr_contents.emplace(4, true);  // client supports storing linking information.
-
-  qr_contents.emplace(5, RequestTypeToString(request_type));
-
-  if (request_type == CableRequestType::kMakeCredential &&
-      base::FeatureList::IsEnabled(
-          device::kWebAuthnNonDiscoverableMakeCredentialQRFlag)) {
-    qr_contents.emplace(6, true);
-  }
-
-  const absl::optional<std::vector<uint8_t>> qr_data =
+  const base::Optional<std::vector<uint8_t>> qr_data =
       cbor::Writer::Write(cbor::Value(std::move(qr_contents)));
-  return std::string(kPrefix) + BytesToDigits(*qr_data);
-}
 
-// When converting between bytes and digits, chunks of 7 bytes are turned into
-// 17 digits. See https://www.imperialviolet.org/2021/08/26/qrencoding.html.
-constexpr size_t kChunkSize = 7;
-constexpr size_t kChunkDigits = 17;
+  std::string base64_qr_data;
+  base::Base64UrlEncode(
+      base::StringPiece(reinterpret_cast<const char*>(qr_data->data()),
+                        qr_data->size()),
+      base::Base64UrlEncodePolicy::OMIT_PADDING, &base64_qr_data);
 
-std::string BytesToDigits(base::span<const uint8_t> in) {
-  std::string ret;
-  ret.reserve(((in.size() + kChunkSize - 1) / kChunkSize) * kChunkDigits);
-
-  while (in.size() >= kChunkSize) {
-    uint64_t v = 0;
-    static_assert(sizeof(v) >= kChunkSize, "");
-    memcpy(&v, in.data(), kChunkSize);
-
-    char digits[kChunkDigits + 1];
-    static_assert(kChunkDigits == 17, "Need to change next line");
-    CHECK_LT(snprintf(digits, sizeof(digits), "%017" PRIu64, v),
-             static_cast<int>(sizeof(digits)));
-    ret += digits;
-
-    in = in.subspan(kChunkSize);
-  }
-
-  if (in.size()) {
-    char format[16];
-    // kPartialChunkDigits is the number of digits needed to encode each length
-    // of trailing data from 6 bytes down to zero. I.e. it's 15, 13, 10, 8, 5,
-    // 3, 0 written in hex.
-    constexpr uint32_t kPartialChunkDigits = 0x0fda8530;
-    CHECK_LT(snprintf(format, sizeof(format), "%%0%d" PRIu64,
-                      15 & (kPartialChunkDigits >> (4 * in.size()))),
-             static_cast<int>(sizeof(format)));
-
-    uint64_t v = 0;
-    CHECK_LE(in.size(), sizeof(v));
-    memcpy(&v, in.data(), in.size());
-
-    char digits[kChunkDigits + 1];
-    CHECK_LT(snprintf(digits, sizeof(digits), format, v),
-             static_cast<int>(sizeof(digits)));
-    ret += digits;
-  }
-
-  return ret;
-}
-
-absl::optional<std::vector<uint8_t>> DigitsToBytes(base::StringPiece in) {
-  std::vector<uint8_t> ret;
-  ret.reserve(((in.size() + kChunkDigits - 1) / kChunkDigits) * kChunkSize);
-
-  while (in.size() >= kChunkDigits) {
-    uint64_t v;
-    if (!base::StringToUint64(in.substr(0, kChunkDigits), &v) ||
-        v >> (kChunkSize * 8) != 0) {
-      return absl::nullopt;
-    }
-    const uint8_t* const v_bytes = reinterpret_cast<uint8_t*>(&v);
-    ret.insert(ret.end(), v_bytes, v_bytes + kChunkSize);
-
-    in = in.substr(kChunkDigits);
-  }
-
-  if (in.size()) {
-    size_t remaining_bytes;
-    switch (in.size()) {
-      case 3:
-        remaining_bytes = 1;
-        break;
-      case 5:
-        remaining_bytes = 2;
-        break;
-      case 8:
-        remaining_bytes = 3;
-        break;
-      case 10:
-        remaining_bytes = 4;
-        break;
-      case 13:
-        remaining_bytes = 5;
-        break;
-      case 15:
-        remaining_bytes = 6;
-        break;
-      default:
-        return absl::nullopt;
-    }
-
-    uint64_t v;
-    if (!base::StringToUint64(in, &v) || v >> (remaining_bytes * 8) != 0) {
-      return absl::nullopt;
-    }
-
-    const uint8_t* const v_bytes = reinterpret_cast<uint8_t*>(&v);
-    ret.insert(ret.end(), v_bytes, v_bytes + remaining_bytes);
-  }
-
-  return ret;
+  return std::string(kPrefix) + base64_qr_data;
 }
 
 }  // namespace qr
-
-namespace sync {
-
-uint32_t IDNow() {
-  const base::Time now = base::Time::Now();
-  time_t utc_time = now.ToTimeT();
-  // The IDs, and thus Sync secret rotation, have a period of one day. These
-  // are lazily updated by the phone and don't cause additional Sync uploads.
-  utc_time /= 86400;
-  // A uint32_t can span about 11 million years.
-  return static_cast<uint32_t>(utc_time);
-}
-
-bool IDIsMoreThanNPeriodsOld(uint32_t candidate, unsigned periods) {
-  const uint32_t now = IDNow();
-  return candidate > now || (now - candidate) > periods;
-}
-
-}  // namespace sync
 
 namespace internal {
 
@@ -605,145 +382,53 @@ void Derive(uint8_t* out,
 
 }  // namespace internal
 
-const char* RequestTypeToString(CableRequestType request_type) {
-  switch (request_type) {
-    case CableRequestType::kMakeCredential:
-    case CableRequestType::kDiscoverableMakeCredential:
-      return "mc";
-    case CableRequestType::kGetAssertion:
-      return "ga";
-      // If adding a value here, also update `RequestTypeFromString`.
-  }
-}
-
-CableRequestType RequestTypeFromString(const std::string& s) {
-  if (s == "mc") {
-    return CableRequestType::kMakeCredential;
-  }
-  // kGetAssertion is the default if the value is unknown too.
-  return CableRequestType::kGetAssertion;
-}
-
-bssl::UniquePtr<EC_KEY> IdentityKey(base::span<const uint8_t, 32> root_secret) {
-  std::array<uint8_t, 32> seed;
-  seed = device::cablev2::Derive<EXTENT(seed)>(
-      root_secret, /*nonce=*/base::span<uint8_t>(),
-      device::cablev2::DerivedValueType::kIdentityKeySeed);
-  bssl::UniquePtr<EC_GROUP> p256(
-      EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1));
-  return bssl::UniquePtr<EC_KEY>(
-      EC_KEY_derive_from_secret(p256.get(), seed.data(), seed.size()));
-}
-
-absl::optional<std::vector<uint8_t>> EncodePaddedCBORMap(
+base::Optional<std::vector<uint8_t>> EncodePaddedCBORMap(
     cbor::Value::MapValue map) {
-  // The number of padding bytes is a uint16_t, so the granularity cannot be
-  // larger than that.
-  static_assert(kPostHandshakeMsgPaddingGranularity > 0, "");
-  static_assert(kPostHandshakeMsgPaddingGranularity - 1 <=
-                std::numeric_limits<uint16_t>::max());
-  // The granularity must also be a power of two.
-  static_assert((kPostHandshakeMsgPaddingGranularity &
-                 (kPostHandshakeMsgPaddingGranularity - 1)) == 0);
-
-  absl::optional<std::vector<uint8_t>> cbor_bytes =
+  // TODO: this should pad to 1K, not 256 bytes.
+  base::Optional<std::vector<uint8_t>> cbor_bytes =
       cbor::Writer::Write(cbor::Value(std::move(map)));
   if (!cbor_bytes) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   base::CheckedNumeric<size_t> padded_size_checked = cbor_bytes->size();
-  padded_size_checked += sizeof(uint16_t);  // padding-length bytes
-  padded_size_checked =
-      (padded_size_checked + kPostHandshakeMsgPaddingGranularity - 1) &
-      ~(kPostHandshakeMsgPaddingGranularity - 1);
+  padded_size_checked += 1;  // padding-length byte
+  padded_size_checked = (padded_size_checked + 255) & ~255;
   if (!padded_size_checked.IsValid()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   const size_t padded_size = padded_size_checked.ValueOrDie();
-  DCHECK_GE(padded_size, cbor_bytes->size() + sizeof(uint16_t));
-  const size_t extra_bytes = padded_size - cbor_bytes->size();
-  const size_t num_padding_bytes =
-      extra_bytes - sizeof(uint16_t) /* length of padding length */;
+  DCHECK_GT(padded_size, cbor_bytes->size());
+  const size_t extra_padding = padded_size - cbor_bytes->size();
 
   cbor_bytes->resize(padded_size);
-  const uint16_t num_padding_bytes16 =
-      base::checked_cast<uint16_t>(num_padding_bytes);
-  memcpy(&cbor_bytes.value()[padded_size - sizeof(num_padding_bytes16)],
-         &num_padding_bytes16, sizeof(num_padding_bytes16));
+  DCHECK_LE(extra_padding, 256u);
+  cbor_bytes->at(padded_size - 1) = static_cast<uint8_t>(extra_padding - 1);
 
   return *cbor_bytes;
 }
 
-namespace {
-
-// DecodePaddedCBORMap8 performs the actions of |DecodePaddedCBORMap| using the
-// old padding format. We still support this format for backwards compatibility.
-// See comment in |DecodePaddedCBORMap|.
-//
-// TODO(agl): remove support for this padding format. (Chromium started sending
-// the new format with M99.)
-absl::optional<cbor::Value> DecodePaddedCBORMap8(
-    const base::span<const uint8_t> input) {
+base::Optional<cbor::Value> DecodePaddedCBORMap(
+    base::span<const uint8_t> input) {
   if (input.empty()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   const size_t padding_length = input.back();
   if (padding_length + 1 > input.size()) {
-    return absl::nullopt;
-  }
-  auto unpadded_input = input.subspan(0, input.size() - padding_length - 1);
-
-  absl::optional<cbor::Value> payload = cbor::Reader::Read(unpadded_input);
-  if (!payload || !payload->is_map()) {
-    return absl::nullopt;
-  }
-
-  return payload;
-}
-
-// DecodePaddedCBORMap16 performs the actions of |DecodePaddedCBORMap| using the
-// new padding format. See comment in |DecodePaddedCBORMap|.
-absl::optional<cbor::Value> DecodePaddedCBORMap16(
-    base::span<const uint8_t> input) {
-  if (input.size() < sizeof(uint16_t)) {
-    return absl::nullopt;
-  }
-
-  uint16_t padding_length16;
-  memcpy(&padding_length16, &input[input.size() - sizeof(padding_length16)],
-         sizeof(padding_length16));
-  const size_t padding_length = padding_length16;
-  if (padding_length + sizeof(uint16_t) > input.size()) {
-    return absl::nullopt;
-  }
-  input = input.subspan(0, input.size() - padding_length - sizeof(uint16_t));
-
-  absl::optional<cbor::Value> payload = cbor::Reader::Read(input);
-  if (!payload || !payload->is_map()) {
-    return absl::nullopt;
-  }
-
-  return payload;
-}
-
-}  // namespace
-
-absl::optional<cbor::Value> DecodePaddedCBORMap(
-    base::span<const uint8_t> input) {
-  // Two padding formats are currently in use. They are unambiguous so we try
-  // each, new first. Eventually the old format can be removed once enough time
-  // has passed since M99.
-  absl::optional<cbor::Value> result = DecodePaddedCBORMap16(input);
-  if (!result) {
-    result = DecodePaddedCBORMap8(input);
-  }
-  if (!result) {
     FIDO_LOG(DEBUG) << "Invalid padding in caBLE handshake message";
+    return base::nullopt;
   }
-  return result;
+  input = input.subspan(0, input.size() - padding_length - 1);
+
+  base::Optional<cbor::Value> payload = cbor::Reader::Read(input);
+  if (!payload || !payload->is_map()) {
+    FIDO_LOG(DEBUG) << "CBOR parse failure in caBLE handshake message";
+    return base::nullopt;
+  }
+
+  return payload;
 }
 
 Crypter::Crypter(base::span<const uint8_t, 32> read_key,
@@ -785,7 +470,7 @@ bool Crypter::Encrypt(std::vector<uint8_t>* message_to_encrypt) {
   padded_message[padded_message.size() - 1] = static_cast<uint8_t>(num_zeros);
 
   std::array<uint8_t, 12> nonce;
-  if (!ConstructNonce(write_sequence_num_++, new_construction_, nonce)) {
+  if (!ConstructNonce(write_sequence_num_++, nonce)) {
     return false;
   }
 
@@ -793,11 +478,7 @@ bool Crypter::Encrypt(std::vector<uint8_t>* message_to_encrypt) {
   aes_key.Init(write_key_);
   DCHECK_EQ(nonce.size(), aes_key.NonceLength());
 
-  base::span<const uint8_t> additional_data;
-  if (!new_construction_) {
-    additional_data = kAdditionalDataBytes;
-  }
-
+  const uint8_t additional_data[1] = {/*version=*/2};
   std::vector<uint8_t> ciphertext =
       aes_key.Seal(padded_message, nonce, additional_data);
   message_to_encrypt->swap(ciphertext);
@@ -807,7 +488,7 @@ bool Crypter::Encrypt(std::vector<uint8_t>* message_to_encrypt) {
 bool Crypter::Decrypt(base::span<const uint8_t> ciphertext,
                       std::vector<uint8_t>* out_plaintext) {
   std::array<uint8_t, 12> nonce;
-  if (!ConstructNonce(read_sequence_num_, new_construction_, nonce)) {
+  if (!ConstructNonce(read_sequence_num_, nonce)) {
     return false;
   }
 
@@ -815,21 +496,11 @@ bool Crypter::Decrypt(base::span<const uint8_t> ciphertext,
   aes_key.Init(read_key_);
   DCHECK_EQ(nonce.size(), aes_key.NonceLength());
 
-  base::span<const uint8_t> additional_data;
-  if (!new_construction_) {
-    additional_data = kAdditionalDataBytes;
-  }
-
-  absl::optional<std::vector<uint8_t>> plaintext =
+  const uint8_t additional_data[1] = {/*version=*/2};
+  base::Optional<std::vector<uint8_t>> plaintext =
       aes_key.Open(ciphertext, nonce, additional_data);
 
   if (!plaintext) {
-    // We're transitioning to a different construction. If we failed to decrypt
-    // the first message with the old one, try again with the new.
-    if (!new_construction_ && read_sequence_num_ == 0) {
-      new_construction_ = true;
-      return Decrypt(ciphertext, out_plaintext);
-    }
     return false;
   }
   read_sequence_num_++;
@@ -850,24 +521,16 @@ bool Crypter::Decrypt(base::span<const uint8_t> ciphertext,
   return true;
 }
 
-void Crypter::UseNewConstruction() {
-  new_construction_ = true;
-}
-
 bool Crypter::IsCounterpartyOfForTesting(const Crypter& other) const {
   return read_key_ == other.write_key_ && write_key_ == other.read_key_;
 }
 
-bool& Crypter::GetNewConstructionFlagForTesting() {
-  return new_construction_;
-}
-
 HandshakeInitiator::HandshakeInitiator(
     base::span<const uint8_t, 32> psk,
-    absl::optional<base::span<const uint8_t, kP256X962Length>> peer_identity,
-    absl::optional<base::span<const uint8_t, kQRSeedSize>> identity_seed)
+    base::Optional<base::span<const uint8_t, kP256X962Length>> peer_identity,
+    bssl::UniquePtr<EC_KEY> local_identity)
     : psk_(fido_parsing_utils::Materialize(psk)),
-      local_identity_(identity_seed ? ECKeyFromSeed(*identity_seed) : nullptr) {
+      local_identity_(std::move(local_identity)) {
   DCHECK(peer_identity.has_value() ^ static_cast<bool>(local_identity_));
   if (peer_identity) {
     peer_identity_ =
@@ -877,7 +540,8 @@ HandshakeInitiator::HandshakeInitiator(
 
 HandshakeInitiator::~HandshakeInitiator() = default;
 
-std::vector<uint8_t> HandshakeInitiator::BuildInitialMessage() {
+std::vector<uint8_t> HandshakeInitiator::BuildInitialMessage(
+    base::span<const uint8_t> get_info_bytes) {
   uint8_t prologue[1];
 
   if (peer_identity_) {
@@ -920,8 +584,15 @@ std::vector<uint8_t> HandshakeInitiator::BuildInitialMessage() {
     noise_.MixKey(es_key);
   }
 
-  std::vector<uint8_t> ciphertext =
-      noise_.EncryptAndHash(base::span<const uint8_t>());
+  cbor::Value::MapValue payload;
+  payload.emplace(0, get_info_bytes);
+  base::Optional<std::vector<uint8_t>> plaintext =
+      EncodePaddedCBORMap(std::move(payload));
+  if (!plaintext) {
+    FIDO_LOG(ERROR) << "Failed to pad getInfo response";
+    return {};
+  }
+  std::vector<uint8_t> ciphertext = noise_.EncryptAndHash(*plaintext);
 
   std::vector<uint8_t> handshake_message;
   handshake_message.reserve(sizeof(ephemeral_key_public_bytes) +
@@ -935,12 +606,12 @@ std::vector<uint8_t> HandshakeInitiator::BuildInitialMessage() {
   return handshake_message;
 }
 
-HandshakeResult HandshakeInitiator::ProcessResponse(
-    base::span<const uint8_t> response) {
+base::Optional<std::pair<std::unique_ptr<Crypter>, HandshakeHash>>
+HandshakeInitiator::ProcessResponse(base::span<const uint8_t> response) {
   if (response.size() < kP256X962Length) {
     FIDO_LOG(DEBUG) << "Handshake response truncated (" << response.size()
                     << " bytes)";
-    return absl::nullopt;
+    return base::nullopt;
   }
   auto peer_point_bytes = response.subspan(0, kP256X962Length);
   auto ciphertext = response.subspan(kP256X962Length);
@@ -955,7 +626,7 @@ HandshakeResult HandshakeInitiator::ProcessResponse(
                        ephemeral_key_.get(),
                        /*kdf=*/nullptr) != sizeof(shared_key_ee)) {
     FIDO_LOG(DEBUG) << "Peer's P-256 point not on curve.";
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   noise_.MixHash(peer_point_bytes);
@@ -968,7 +639,7 @@ HandshakeResult HandshakeInitiator::ProcessResponse(
                          local_identity_.get(),
                          /*kdf=*/nullptr) != sizeof(shared_key_se)) {
       FIDO_LOG(DEBUG) << "ECDH_compute_key failed";
-      return absl::nullopt;
+      return base::nullopt;
     }
     noise_.MixKey(shared_key_se);
   }
@@ -976,28 +647,46 @@ HandshakeResult HandshakeInitiator::ProcessResponse(
   auto plaintext = noise_.DecryptAndHash(ciphertext);
   if (!plaintext || !plaintext->empty()) {
     FIDO_LOG(DEBUG) << "Invalid caBLE handshake message";
-    return absl::nullopt;
+    return base::nullopt;
   }
 
-  auto [write_key, read_key] = noise_.traffic_keys();
+  std::array<uint8_t, 32> read_key, write_key;
+  std::tie(write_key, read_key) = noise_.traffic_keys();
   return std::make_pair(std::make_unique<cablev2::Crypter>(read_key, write_key),
                         noise_.handshake_hash());
 }
 
-HandshakeResult RespondToHandshake(
+ResponderResult::ResponderResult(std::unique_ptr<Crypter> in_crypter,
+                                 std::vector<uint8_t> in_getinfo_bytes,
+                                 HandshakeHash in_handshake_hash)
+    : crypter(std::move(in_crypter)),
+      getinfo_bytes(std::move(in_getinfo_bytes)),
+      handshake_hash(in_handshake_hash) {}
+ResponderResult::~ResponderResult() = default;
+ResponderResult::ResponderResult(ResponderResult&&) = default;
+
+base::Optional<ResponderResult> RespondToHandshake(
     base::span<const uint8_t, 32> psk,
-    bssl::UniquePtr<EC_KEY> identity,
-    absl::optional<base::span<const uint8_t, kP256X962Length>> peer_identity,
+    base::Optional<base::span<const uint8_t, kQRSeedSize>> identity_seed,
+    base::Optional<base::span<const uint8_t, kP256X962Length>> peer_identity,
     base::span<const uint8_t> in,
     std::vector<uint8_t>* out_response) {
-  DCHECK(peer_identity.has_value() ^ static_cast<bool>(identity));
+  DCHECK(peer_identity.has_value() ^ identity_seed.has_value());
 
   if (in.size() < kP256X962Length) {
     FIDO_LOG(DEBUG) << "Handshake truncated (" << in.size() << " bytes)";
-    return absl::nullopt;
+    return base::nullopt;
   }
   auto peer_point_bytes = in.subspan(0, kP256X962Length);
   auto ciphertext = in.subspan(kP256X962Length);
+
+  bssl::UniquePtr<EC_KEY> identity;
+  if (identity_seed) {
+    bssl::UniquePtr<EC_GROUP> p256(
+        EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1));
+    identity.reset(EC_KEY_derive_from_secret(p256.get(), identity_seed->data(),
+                                             identity_seed->size()));
+  }
 
   Noise noise;
   uint8_t prologue[1];
@@ -1026,7 +715,7 @@ HandshakeResult RespondToHandshake(
                           peer_point_bytes.size(),
                           /*ctx=*/nullptr)) {
     FIDO_LOG(DEBUG) << "Peer's P-256 point not on curve.";
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   if (identity) {
@@ -1034,15 +723,26 @@ HandshakeResult RespondToHandshake(
     if (ECDH_compute_key(es_key, sizeof(es_key), peer_point.get(),
                          identity.get(),
                          /*kdf=*/nullptr) != sizeof(es_key)) {
-      return absl::nullopt;
+      return base::nullopt;
     }
     noise.MixKey(es_key);
   }
 
   auto plaintext = noise.DecryptAndHash(ciphertext);
-  if (!plaintext || !plaintext->empty()) {
+  if (!plaintext) {
     FIDO_LOG(DEBUG) << "Failed to decrypt handshake ciphertext.";
-    return absl::nullopt;
+    return base::nullopt;
+  }
+
+  base::Optional<cbor::Value> payload(DecodePaddedCBORMap(*plaintext));
+  if (!payload) {
+    return base::nullopt;
+  }
+  const cbor::Value::MapValue& payload_map(payload->GetMap());
+  const auto getinfo_it = payload_map.find(cbor::Value(0));
+  if (getinfo_it == payload_map.end() || !getinfo_it->second.is_bytestring()) {
+    FIDO_LOG(DEBUG) << "CBOR structure error in caBLE handshake message";
+    return base::nullopt;
   }
 
   uint8_t ephemeral_key_public_bytes[kP256X962Length];
@@ -1059,7 +759,7 @@ HandshakeResult RespondToHandshake(
   if (ECDH_compute_key(shared_key_ee, sizeof(shared_key_ee), peer_point.get(),
                        ephemeral_key.get(),
                        /*kdf=*/nullptr) != sizeof(shared_key_ee)) {
-    return absl::nullopt;
+    return base::nullopt;
   }
   noise.MixKey(shared_key_ee);
 
@@ -1072,7 +772,7 @@ HandshakeResult RespondToHandshake(
     if (ECDH_compute_key(shared_key_se, sizeof(shared_key_se),
                          peer_identity_point.get(), ephemeral_key.get(),
                          /*kdf=*/nullptr) != sizeof(shared_key_se)) {
-      return absl::nullopt;
+      return base::nullopt;
     }
     noise.MixKey(shared_key_se);
   }
@@ -1085,9 +785,11 @@ HandshakeResult RespondToHandshake(
   out_response->insert(out_response->end(), my_ciphertext.begin(),
                        my_ciphertext.end());
 
-  auto [read_key, write_key] = noise.traffic_keys();
-  return std::make_pair(std::make_unique<cablev2::Crypter>(read_key, write_key),
-                        noise.handshake_hash());
+  std::array<uint8_t, 32> read_key, write_key;
+  std::tie(read_key, write_key) = noise.traffic_keys();
+  return base::make_optional<ResponderResult>(
+      std::make_unique<Crypter>(read_key, write_key),
+      getinfo_it->second.GetBytestring(), noise.handshake_hash());
 }
 
 bool VerifyPairingSignature(
@@ -1098,14 +800,9 @@ bool VerifyPairingSignature(
     base::span<const uint8_t> signature) {
   bssl::UniquePtr<EC_GROUP> p256(
       EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1));
-  bssl::UniquePtr<EC_POINT> unused(EC_POINT_new(p256.get()));
-  if (EC_POINT_oct2point(p256.get(), unused.get(), peer_public_key_x962.data(),
-                         peer_public_key_x962.size(),
-                         /*ctx=*/nullptr) != 1) {
-    return false;
-  }
+  bssl::UniquePtr<EC_KEY> identity_key(EC_KEY_derive_from_secret(
+      p256.get(), identity_seed.data(), identity_seed.size()));
 
-  bssl::UniquePtr<EC_KEY> identity_key = ECKeyFromSeed(identity_seed);
   std::array<uint8_t, SHA256_DIGEST_LENGTH> expected_signature =
       PairingSignature(identity_key.get(), peer_public_key_x962,
                        handshake_hash);

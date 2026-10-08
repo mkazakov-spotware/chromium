@@ -11,7 +11,7 @@ function cast(i, t) {
 
 idl_test(
   ['generic-sensor'],
-  ['dom', 'html', 'webidl'],
+  ['dom', 'html', 'WebIDL'],
   idl_array => {
     idl_array.add_objects({
       Sensor: ['cast(new Accelerometer(), Sensor)'],

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,9 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/synchronization/lock.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
+#include "base/task_runner_util.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/time.h"
@@ -138,14 +140,11 @@ class PpdCacheImpl : public PpdCache {
         fetch_task_runner_(std::move(fetch_task_runner)),
         store_task_runner_(std::move(store_task_runner)) {}
 
-  PpdCacheImpl(const PpdCacheImpl&) = delete;
-  PpdCacheImpl& operator=(const PpdCacheImpl&) = delete;
-
   // Public API functions.
   void Find(const std::string& key, FindCallback cb) override {
-    fetch_task_runner_->PostTaskAndReplyWithResult(
-        FROM_HERE, base::BindOnce(&FindImpl, cache_base_dir_, key),
-        std::move(cb));
+    base::PostTaskAndReplyWithResult(
+        fetch_task_runner_.get(), FROM_HERE,
+        base::BindOnce(&FindImpl, cache_base_dir_, key), std::move(cb));
   }
 
   // Store the given contents at the given key.  If cb is non-null, it will
@@ -170,6 +169,8 @@ class PpdCacheImpl : public PpdCache {
   base::FilePath cache_base_dir_;
   scoped_refptr<base::SequencedTaskRunner> fetch_task_runner_;
   scoped_refptr<base::SequencedTaskRunner> store_task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(PpdCacheImpl);
 };
 
 }  // namespace

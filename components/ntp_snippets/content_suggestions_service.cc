@@ -1,21 +1,21 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/ntp_snippets/content_suggestions_service.h"
 
+#include <algorithm>
 #include <iterator>
 #include <set>
 #include <utility>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/location.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/strings/stringprintf.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/default_clock.h"
 #include "base/values.h"
 #include "components/favicon/core/large_icon_service.h"
@@ -118,11 +118,11 @@ CategoryStatus ContentSuggestionsService::GetCategoryStatus(
   return iterator->second->GetCategoryStatus(category);
 }
 
-absl::optional<CategoryInfo> ContentSuggestionsService::GetCategoryInfo(
+base::Optional<CategoryInfo> ContentSuggestionsService::GetCategoryInfo(
     Category category) const {
   auto iterator = providers_by_category_.find(category);
   if (iterator == providers_by_category_.end()) {
-    return absl::optional<CategoryInfo>();
+    return base::Optional<CategoryInfo>();
   }
   return iterator->second->GetCategoryInfo(category);
 }
@@ -142,7 +142,7 @@ void ContentSuggestionsService::FetchSuggestionImage(
   if (!providers_by_category_.count(suggestion_id.category())) {
     LOG(WARNING) << "Requested image for suggestion " << suggestion_id
                  << " for unavailable category " << suggestion_id.category();
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), gfx::Image()));
     return;
   }
@@ -156,7 +156,7 @@ void ContentSuggestionsService::FetchSuggestionImageData(
   if (!providers_by_category_.count(suggestion_id.category())) {
     LOG(WARNING) << "Requested image for suggestion " << suggestion_id
                  << " for unavailable category " << suggestion_id.category();
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), std::string()));
     return;
   }
@@ -172,7 +172,7 @@ void ContentSuggestionsService::FetchSuggestionFavicon(
     ImageFetchedCallback callback) {
   const GURL& domain_with_favicon = GetFaviconDomain(suggestion_id);
   if (!domain_with_favicon.is_valid() || !large_icon_service_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), gfx::Image()));
     return;
   }
@@ -187,7 +187,10 @@ GURL ContentSuggestionsService::GetFaviconDomain(
   const std::vector<ContentSuggestion>& suggestions =
       suggestions_by_category_[suggestion_id.category()];
   auto position =
-      base::ranges::find(suggestions, suggestion_id, &ContentSuggestion::id);
+      std::find_if(suggestions.begin(), suggestions.end(),
+                   [&suggestion_id](const ContentSuggestion& suggestion) {
+                     return suggestion_id == suggestion.id();
+                   });
   if (position != suggestions.end()) {
     return position->url_with_favicon();
   }
@@ -497,18 +500,14 @@ void ContentSuggestionsService::OnSuggestionInvalidated(
   }
 }
 // signin::IdentityManager::Observer implementation
-void ContentSuggestionsService::OnPrimaryAccountChanged(
-    const signin::PrimaryAccountChangeEvent& event_details) {
-  switch (event_details.GetEventTypeFor(signin::ConsentLevel::kSync)) {
-    case signin::PrimaryAccountChangeEvent::Type::kSet:
-      OnSignInStateChanged(/*has_signed_in=*/true);
-      break;
-    case signin::PrimaryAccountChangeEvent::Type::kCleared:
-      OnSignInStateChanged(/*has_signed_in=*/false);
-      break;
-    case signin::PrimaryAccountChangeEvent::Type::kNone:
-      break;
-  }
+void ContentSuggestionsService::OnPrimaryAccountSet(
+    const CoreAccountInfo& account_info) {
+  OnSignInStateChanged(/*has_signed_in=*/true);
+}
+
+void ContentSuggestionsService::OnPrimaryAccountCleared(
+    const CoreAccountInfo& account_info) {
+  OnSignInStateChanged(/*has_signed_in=*/false);
 }
 
 // history::HistoryServiceObserver implementation.
@@ -552,7 +551,7 @@ void ContentSuggestionsService::OnURLsDeleted(
 void ContentSuggestionsService::HistoryServiceBeingDeleted(
     history::HistoryService* history_service) {
   DCHECK(history_service_observation_.IsObservingSource(history_service));
-  history_service_observation_.Reset();
+  history_service_observation_.RemoveObservation();
 }
 
 bool ContentSuggestionsService::TryRegisterProviderForCategory(
@@ -606,7 +605,8 @@ void ContentSuggestionsService::UnregisterCategory(
 
   DCHECK_EQ(provider, providers_it->second);
   providers_by_category_.erase(providers_it);
-  categories_.erase(base::ranges::find(categories_, category));
+  categories_.erase(
+      std::find(categories_.begin(), categories_.end(), category));
   suggestions_by_category_.erase(category);
 }
 
@@ -615,7 +615,10 @@ bool ContentSuggestionsService::RemoveSuggestionByID(
   std::vector<ContentSuggestion>* suggestions =
       &suggestions_by_category_[suggestion_id.category()];
   auto position =
-      base::ranges::find(*suggestions, suggestion_id, &ContentSuggestion::id);
+      std::find_if(suggestions->begin(), suggestions->end(),
+                   [&suggestion_id](const ContentSuggestion& suggestion) {
+                     return suggestion_id == suggestion.id();
+                   });
   if (position == suggestions->end()) {
     return false;
   }
@@ -666,24 +669,24 @@ void ContentSuggestionsService::RestoreDismissedCategoriesFromPrefs() {
   DCHECK(dismissed_providers_by_category_.empty());
   DCHECK(providers_by_category_.empty());
 
-  const base::Value::List& list =
+  const base::ListValue* list =
       pref_service_->GetList(prefs::kDismissedCategories);
-  for (const base::Value& entry : list) {
-    if (!entry.is_int()) {
+  for (const base::Value& entry : *list) {
+    int id = 0;
+    if (!entry.GetAsInteger(&id)) {
       DLOG(WARNING) << "Invalid category pref value: " << entry;
       continue;
     }
 
     // When the provider is registered, it will be stored in this map.
-    dismissed_providers_by_category_[Category::FromIDValue(entry.GetInt())] =
-        nullptr;
+    dismissed_providers_by_category_[Category::FromIDValue(id)] = nullptr;
   }
 }
 
 void ContentSuggestionsService::StoreDismissedCategoriesToPrefs() {
   base::ListValue list;
   for (const auto& category_provider_pair : dismissed_providers_by_category_) {
-    list.Append(category_provider_pair.first.id());
+    list.AppendInteger(category_provider_pair.first.id());
   }
 
   pref_service_->Set(prefs::kDismissedCategories, list);
@@ -715,7 +718,7 @@ void ContentSuggestionsService::DestroyCategoryAndItsProvider(
 
   suggestions_by_category_.erase(category);
 
-  auto it = base::ranges::find(categories_, category);
+  auto it = std::find(categories_.begin(), categories_.end(), category);
   categories_.erase(it);
 
   // Notify observers that the category is gone.

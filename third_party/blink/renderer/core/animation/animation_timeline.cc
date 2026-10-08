@@ -1,18 +1,16 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/animation/animation_timeline.h"
 
 #include "base/trace_event/trace_event.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_union_cssnumericvalue_double.h"
 #include "third_party/blink/renderer/core/animation/document_animations.h"
 #include "third_party/blink/renderer/core/animation/keyframe_effect.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/page/page.h"
-#include "third_party/blink/renderer/core/page/page_animator.h"
 
 namespace blink {
 
@@ -42,51 +40,43 @@ bool CompareAnimations(const Member<Animation>& left,
       Animation::CompareAnimationsOrdering::kPointerOrder);
 }
 
-V8CSSNumberish* AnimationTimeline::currentTime() {
-  const absl::optional<base::TimeDelta>& result = CurrentPhaseAndTime().time;
-  if (result)
-    return MakeGarbageCollected<V8CSSNumberish>(result->InMillisecondsF());
-  return nullptr;
+void AnimationTimeline::currentTime(CSSNumberish& currentTime) {
+  base::Optional<base::TimeDelta> result = CurrentPhaseAndTime().time;
+  currentTime = result ? CSSNumberish::FromDouble(result->InMillisecondsF())
+                       : CSSNumberish();
 }
 
-absl::optional<AnimationTimeDelta> AnimationTimeline::CurrentTime() {
-  absl::optional<base::TimeDelta> result = CurrentPhaseAndTime().time;
-  return result ? absl::make_optional(AnimationTimeDelta(result.value()))
-                : absl::nullopt;
+base::Optional<double> AnimationTimeline::CurrentTimeMilliseconds() {
+  base::Optional<base::TimeDelta> result = CurrentPhaseAndTime().time;
+  return result ? base::make_optional(result->InMillisecondsF())
+                : base::nullopt;
 }
 
-absl::optional<double> AnimationTimeline::CurrentTimeMilliseconds() {
-  absl::optional<base::TimeDelta> result = CurrentPhaseAndTime().time;
-  return result ? absl::make_optional(result->InMillisecondsF())
-                : absl::nullopt;
+base::Optional<double> AnimationTimeline::CurrentTimeSeconds() {
+  base::Optional<base::TimeDelta> result = CurrentPhaseAndTime().time;
+  return result ? base::make_optional(result->InSecondsF()) : base::nullopt;
 }
 
-absl::optional<double> AnimationTimeline::CurrentTimeSeconds() {
-  absl::optional<base::TimeDelta> result = CurrentPhaseAndTime().time;
-  return result ? absl::make_optional(result->InSecondsF()) : absl::nullopt;
+void AnimationTimeline::duration(CSSNumberish& duration) {
+  duration = CSSNumberish();
 }
 
-V8CSSNumberish* AnimationTimeline::duration() {
-  return nullptr;
+String AnimationTimeline::phase() {
+  switch (CurrentPhaseAndTime().phase) {
+    case TimelinePhase::kInactive:
+      return "inactive";
+    case TimelinePhase::kBefore:
+      return "before";
+    case TimelinePhase::kActive:
+      return "active";
+    case TimelinePhase::kAfter:
+      return "after";
+  }
 }
 
 void AnimationTimeline::ClearOutdatedAnimation(Animation* animation) {
   DCHECK(!animation->Outdated());
   outdated_animation_count_--;
-}
-
-wtf_size_t AnimationTimeline::AnimationsNeedingUpdateCount() const {
-  wtf_size_t count = 0;
-  for (const auto& animation : animations_needing_update_) {
-    // Exclude animations which are not actively generating frames.
-    if ((!animation->CompositorPending() && !animation->Playing() &&
-         !IsScrollTimeline()) ||
-        animation->AnimationHasNoEffect()) {
-      continue;
-    }
-    count++;
-  }
-  return count;
 }
 
 bool AnimationTimeline::NeedsAnimationTimingUpdate() {
@@ -97,10 +87,10 @@ bool AnimationTimeline::NeedsAnimationTimingUpdate() {
   // We allow |last_current_phase_and_time_| to advance here when there
   // are no animations to allow animations spawned during style
   // recalc to not invalidate this flag.
-  if (animations_needing_update_.empty())
+  if (animations_needing_update_.IsEmpty())
     last_current_phase_and_time_ = current_phase_and_time;
 
-  return !animations_needing_update_.empty();
+  return !animations_needing_update_.IsEmpty();
 }
 
 void AnimationTimeline::ServiceAnimations(TimingUpdateReason reason) {
@@ -168,10 +158,8 @@ void AnimationTimeline::SetOutdatedAnimation(Animation* animation) {
   DCHECK(animation->Outdated());
   outdated_animation_count_++;
   animations_needing_update_.insert(animation);
-  if (IsActive() && document_->GetPage() &&
-      !document_->GetPage()->Animator().IsServicingAnimations()) {
+  if (IsActive() && !document_->GetPage()->Animator().IsServicingAnimations())
     ScheduleServiceOnNextFrame();
-  }
 }
 
 void AnimationTimeline::ScheduleServiceOnNextFrame() {
@@ -179,14 +167,12 @@ void AnimationTimeline::ScheduleServiceOnNextFrame() {
     document_->View()->ScheduleAnimation();
 }
 
-Animation* AnimationTimeline::Play(AnimationEffect* child,
-                                   ExceptionState& exception_state) {
-  Animation* animation = Animation::Create(child, this, exception_state);
-  if (animation) {
-    DCHECK(animations_.Contains(animation));
-    animation->play();
-    DCHECK(animations_needing_update_.Contains(animation));
-  }
+Animation* AnimationTimeline::Play(AnimationEffect* child) {
+  Animation* animation = Animation::Create(child, this);
+  DCHECK(animations_.Contains(animation));
+
+  animation->play();
+  DCHECK(animations_needing_update_.Contains(animation));
 
   return animation;
 }
@@ -194,14 +180,6 @@ Animation* AnimationTimeline::Play(AnimationEffect* child,
 void AnimationTimeline::MarkAnimationsCompositorPending(bool source_changed) {
   for (const auto& animation : animations_) {
     animation->SetCompositorPending(source_changed);
-  }
-}
-
-void AnimationTimeline::MarkPendingIfCompositorPropertyAnimationChanges(
-    const PaintArtifactCompositor* paint_artifact_compositor) {
-  for (const auto& animation : animations_) {
-    animation->MarkPendingIfCompositorPropertyAnimationChanges(
-        paint_artifact_compositor);
   }
 }
 

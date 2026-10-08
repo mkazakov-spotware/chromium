@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,11 @@
 #include <map>
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "base/sequence_checker.h"
+#include "base/time/time.h"
 #include "base/timer/timer.h"
-#include "base/values.h"
 #include "components/invalidation/impl/channels_states.h"
 #include "components/invalidation/impl/per_user_topic_subscription_request.h"
 #include "components/invalidation/public/identity_provider.h"
@@ -20,7 +20,6 @@
 #include "components/invalidation/public/invalidation_util.h"
 #include "components/invalidation/public/invalidator_state.h"
 #include "net/base/backoff_entry.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class PrefRegistrySimple;
 class PrefService;
@@ -30,7 +29,7 @@ class ActiveAccountAccessTokenFetcher;
 class IdentityProvider;
 }  // namespace invalidation
 
-namespace invalidation {
+namespace syncer {
 
 // A class that manages the subscription to topics for server-issued
 // notifications.
@@ -46,20 +45,17 @@ class INVALIDATION_EXPORT PerUserTopicSubscriptionManager {
   };
 
   PerUserTopicSubscriptionManager(
-      IdentityProvider* identity_provider,
+      invalidation::IdentityProvider* identity_provider,
       PrefService* pref_service,
       network::mojom::URLLoaderFactory* url_loader_factory,
       const std::string& project_id,
       bool migrate_prefs);
-  PerUserTopicSubscriptionManager(
-      const PerUserTopicSubscriptionManager& other) = delete;
-  PerUserTopicSubscriptionManager& operator=(
-      const PerUserTopicSubscriptionManager& other) = delete;
+
   virtual ~PerUserTopicSubscriptionManager();
 
   // Just calls std::make_unique. For ease of base::Bind'ing
   static std::unique_ptr<PerUserTopicSubscriptionManager> Create(
-      IdentityProvider* identity_provider,
+      invalidation::IdentityProvider* identity_provider,
       PrefService* pref_service,
       network::mojom::URLLoaderFactory* url_loader_factory,
       const std::string& project_id,
@@ -93,9 +89,9 @@ class INVALIDATION_EXPORT PerUserTopicSubscriptionManager {
   void AddObserver(Observer* observer);
   void RemoveObserver(Observer* observer);
 
-  base::Value::Dict CollectDebugData() const;
+  base::DictionaryValue CollectDebugData() const;
 
-  virtual absl::optional<Topic> LookupSubscribedPublicTopicByPrivateTopic(
+  virtual base::Optional<Topic> LookupSubscribedPublicTopicByPrivateTopic(
       const std::string& private_topic) const;
 
   TopicSet GetSubscribedTopicsForTest() const;
@@ -139,9 +135,9 @@ class INVALIDATION_EXPORT PerUserTopicSubscriptionManager {
   void NotifySubscriptionChannelStateChange(
       SubscriptionChannelState invalidator_state);
 
-  const raw_ptr<PrefService> pref_service_;
-  const raw_ptr<IdentityProvider> identity_provider_;
-  const raw_ptr<network::mojom::URLLoaderFactory> url_loader_factory_;
+  PrefService* const pref_service_;
+  invalidation::IdentityProvider* const identity_provider_;
+  network::mojom::URLLoaderFactory* const url_loader_factory_;
 
   const std::string project_id_;
 
@@ -161,7 +157,8 @@ class INVALIDATION_EXPORT PerUserTopicSubscriptionManager {
 
   // Cached OAuth2 access token, and/or pending request to fetch one.
   std::string access_token_;
-  std::unique_ptr<ActiveAccountAccessTokenFetcher> access_token_fetcher_;
+  std::unique_ptr<invalidation::ActiveAccountAccessTokenFetcher>
+      access_token_fetcher_;
   base::OneShotTimer request_access_token_retry_timer_;
   net::BackoffEntry request_access_token_backoff_;
 
@@ -170,8 +167,10 @@ class INVALIDATION_EXPORT PerUserTopicSubscriptionManager {
       SubscriptionChannelState::NOT_STARTED;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(PerUserTopicSubscriptionManager);
 };
 
-}  // namespace invalidation
+}  // namespace syncer
 
 #endif  // COMPONENTS_INVALIDATION_IMPL_PER_USER_TOPIC_SUBSCRIPTION_MANAGER_H_

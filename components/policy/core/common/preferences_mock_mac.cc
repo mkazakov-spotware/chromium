@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,19 +12,17 @@ MockPreferences::MockPreferences() {
   forced_.reset(CFSetCreateMutable(kCFAllocatorDefault,
                                    0,
                                    &kCFTypeSetCallBacks));
-  machine_.reset(
-      CFSetCreateMutable(kCFAllocatorDefault, 0, &kCFTypeSetCallBacks));
 }
 
 MockPreferences::~MockPreferences() {
 }
 
-Boolean MockPreferences::AppSynchronize(CFStringRef application_id) {
+Boolean MockPreferences::AppSynchronize(CFStringRef applicationID) {
   return true;
 }
 
 CFPropertyListRef MockPreferences::CopyAppValue(CFStringRef key,
-                                                CFStringRef application_id) {
+                                                CFStringRef applicationID) {
   CFPropertyListRef value;
   Boolean found = CFDictionaryGetValueIfPresent(values_,
                                                 key,
@@ -36,22 +34,14 @@ CFPropertyListRef MockPreferences::CopyAppValue(CFStringRef key,
 }
 
 Boolean MockPreferences::AppValueIsForced(CFStringRef key,
-                                          CFStringRef application_id) {
+                                          CFStringRef applicationID) {
   return CFSetContainsValue(forced_, key);
-}
-
-Boolean MockPreferences::IsManagedPolicyAvailableForMachineScope(
-    CFStringRef key) {
-  return CFSetContainsValue(machine_, key);
 }
 
 void MockPreferences::AddTestItem(CFStringRef key,
                                   CFPropertyListRef value,
-                                  bool is_forced,
-                                  bool is_machine) {
+                                  bool is_forced) {
   CFDictionarySetValue(values_, key, value);
   if (is_forced)
     CFSetAddValue(forced_, key);
-  if (is_machine)
-    CFSetAddValue(machine_, key);
 }

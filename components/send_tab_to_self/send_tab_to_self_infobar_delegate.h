@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,9 @@
 #define COMPONENTS_SEND_TAB_TO_SELF_SEND_TAB_TO_SELF_INFOBAR_DELEGATE_H_
 
 #include <memory>
-#include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "components/infobars/core/infobar_delegate.h"
 
 namespace content {
@@ -27,15 +27,10 @@ class SendTabToSelfInfoBarDelegate : public infobars::InfoBarDelegate {
   static std::unique_ptr<SendTabToSelfInfoBarDelegate> Create(
       content::WebContents* web_contents,
       const SendTabToSelfEntry* entry);
-
-  SendTabToSelfInfoBarDelegate(const SendTabToSelfInfoBarDelegate&) = delete;
-  SendTabToSelfInfoBarDelegate& operator=(const SendTabToSelfInfoBarDelegate&) =
-      delete;
-
   ~SendTabToSelfInfoBarDelegate() override;
 
   // Returns the message to be shown in the infobar.
-  std::u16string GetInfobarMessage() const;
+  base::string16 GetInfobarMessage() const;
 
   // Opens a tab to the url of the shared |entry_|.
   void OpenTab();
@@ -49,9 +44,11 @@ class SendTabToSelfInfoBarDelegate : public infobars::InfoBarDelegate {
                                         const SendTabToSelfEntry* entry);
 
   // The web_content the infobar is attached to. Must outlive this class.
-  raw_ptr<content::WebContents> web_contents_ = nullptr;
+  content::WebContents* web_contents_ = nullptr;
   // The entry that was share to this device. Must outlive this instance.
-  raw_ptr<const SendTabToSelfEntry> entry_ = nullptr;
+  const SendTabToSelfEntry* entry_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(SendTabToSelfInfoBarDelegate);
 };
 
 }  // namespace send_tab_to_self

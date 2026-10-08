@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,25 +6,21 @@
 
 #include <objc/runtime.h>
 #include <stddef.h>
-
+#include <algorithm>
 #include <vector>
 
 #include "base/check.h"
-#include "base/containers/contains.h"
+#include "base/mac/scoped_nsobject.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
-
-#if !defined(__has_feature) || !__has_feature(objc_arc)
-#error "This file requires ARC support."
-#endif
+#include "base/stl_util.h"
 
 @interface CRBProtocolObservers () {
-  Protocol* _protocol;
+  base::scoped_nsobject<Protocol> _protocol;
   // ivars declared here are private to the implementation but must be
   // public for allowing the C++ |Iterator| class access to those ivars.
  @public
   // vector of weak pointers to observers.
-  std::vector<__weak id> _observers;
+  std::vector<__unsafe_unretained id> _observers;
   // The nested level of observer iteration.
   // A depth of 0 means nobody is currently iterating on the list of observers.
   int _invocationDepth;
@@ -78,14 +74,14 @@ id Iterator::GetNext() {
 @interface CRBProtocolObservers ()
 
 // Designated initializer.
-- (instancetype)initWithProtocol:(Protocol*)protocol;
+- (id)initWithProtocol:(Protocol*)protocol;
 
 @end
 
 @implementation CRBProtocolObservers
 
 + (instancetype)observersWithProtocol:(Protocol*)protocol {
-  return [[self alloc] initWithProtocol:protocol];
+  return [[[self alloc] initWithProtocol:protocol] autorelease];
 }
 
 - (id)init {
@@ -96,13 +92,13 @@ id Iterator::GetNext() {
 - (id)initWithProtocol:(Protocol*)protocol {
   self = [super init];
   if (self) {
-    _protocol = protocol;
+    _protocol.reset([protocol retain]);
   }
   return self;
 }
 
 - (Protocol*)protocol {
-  return _protocol;
+  return _protocol.get();
 }
 
 - (void)addObserver:(id)observer {
@@ -117,7 +113,7 @@ id Iterator::GetNext() {
 
 - (void)removeObserver:(id)observer {
   DCHECK(observer);
-  auto it = base::ranges::find(_observers, observer);
+  auto it = std::find(_observers.begin(), _observers.end(), observer);
   if (it != _observers.end()) {
     if (_invocationDepth)
       *it = nil;

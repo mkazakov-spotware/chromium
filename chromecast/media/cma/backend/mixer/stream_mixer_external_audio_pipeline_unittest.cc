@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,11 @@
 #include <vector>
 
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chromecast/media/audio/fake_external_audio_pipeline_support.h"
 #include "chromecast/media/audio/mixer_service/loopback_connection.h"
 #include "chromecast/media/audio/mixer_service/mixer_socket.h"
@@ -41,10 +42,6 @@ class MockLoopbackAudioObserver
             this, &MockLoopbackAudioObserver::OnLoopbackAudioImpl));
   }
 
-  MockLoopbackAudioObserver(const MockLoopbackAudioObserver&) = delete;
-  MockLoopbackAudioObserver& operator=(const MockLoopbackAudioObserver&) =
-      delete;
-
   MOCK_METHOD6(OnLoopbackAudio,
                void(int64_t timestamp,
                     SampleFormat sample_format,
@@ -71,6 +68,8 @@ class MockLoopbackAudioObserver
   }
 
   std::vector<float> data_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockLoopbackAudioObserver);
 };
 
 class ExternalAudioPipelineTest : public ::testing::Test {
@@ -79,16 +78,12 @@ class ExternalAudioPipelineTest : public ::testing::Test {
       : external_audio_pipeline_support_(
             testing::GetFakeExternalAudioPipelineSupport()) {}
 
-  ExternalAudioPipelineTest(const ExternalAudioPipelineTest&) = delete;
-  ExternalAudioPipelineTest& operator=(const ExternalAudioPipelineTest&) =
-      delete;
-
   void SetUp() override {
     // Set that external library is supported.
     external_audio_pipeline_support_->SetSupported();
 
     mixer_ = std::make_unique<StreamMixer>(
-        nullptr, base::SingleThreadTaskRunner::GetCurrentDefault(), "{}");
+        nullptr, nullptr, base::ThreadTaskRunnerHandle::Get(), "{}");
   }
 
   void TearDown() override {
@@ -98,8 +93,8 @@ class ExternalAudioPipelineTest : public ::testing::Test {
   // Run async operations in the stream mixer.
   void RunLoopForMixer() {
     base::RunLoop run_loop;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, run_loop.QuitClosure());
+    base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                  run_loop.QuitClosure());
     run_loop.Run();
   }
 
@@ -118,8 +113,11 @@ class ExternalAudioPipelineTest : public ::testing::Test {
   testing::FakeExternalAudioPipelineSupport* const
       external_audio_pipeline_support_;
 
+ private:
   base::test::SingleThreadTaskEnvironment task_environment_{
       base::test::TaskEnvironment::MainThreadType::IO};
+
+  DISALLOW_COPY_AND_ASSIGN(ExternalAudioPipelineTest);
 };
 
 // Check that |expected| matches |actual| exactly.
@@ -229,7 +227,6 @@ TEST_F(ExternalAudioPipelineTest, ExternalAudioPipelineLoopbackData) {
   mixer_->RemoveInput(&input);
 
   RunLoopForMixer();
-  task_environment_.RunUntilIdle();
 }
 
 }  // namespace

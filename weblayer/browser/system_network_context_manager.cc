@@ -1,15 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/browser/system_network_context_manager.h"
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
-#include "components/net_log/net_export_file_writer.h"
 #include "components/variations/net/variations_http_headers.h"
 #include "content/public/browser/network_service_instance.h"
-#include "services/cert_verifier/public/mojom/cert_verifier_service_factory.mojom.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
 namespace weblayer {
@@ -55,7 +52,7 @@ SystemNetworkContextManager::CreateDefaultNetworkContextParams(
   network::mojom::NetworkContextParamsPtr network_context_params =
       network::mojom::NetworkContextParams::New();
   network_context_params->cert_verifier_params = content::GetCertVerifierParams(
-      cert_verifier::mojom::CertVerifierCreationParams::New());
+      network::mojom::CertVerifierCreationParams::New());
   ConfigureDefaultNetworkContextParams(network_context_params.get(),
                                        user_agent);
   variations::UpdateCorsExemptHeaderForVariations(network_context_params.get());
@@ -67,13 +64,10 @@ void SystemNetworkContextManager::ConfigureDefaultNetworkContextParams(
     network::mojom::NetworkContextParams* network_context_params,
     const std::string& user_agent) {
   network_context_params->user_agent = user_agent;
-// TODO(crbug.com/1052397): Revisit once build flag switch of lacros-chrome is
-// complete.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS) || BUILDFLAG(IS_WIN)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_WIN)
   // We're not configuring the cookie encryption on these platforms yet.
   network_context_params->enable_encrypted_cookies = false;
-#endif  // (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)) ||
-        // BUILDFLAG(IS_WIN)
+#endif // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_WIN)
 }
 
 SystemNetworkContextManager::SystemNetworkContextManager(
@@ -110,6 +104,9 @@ network::mojom::NetworkContextParamsPtr
 SystemNetworkContextManager::CreateSystemNetworkContextManagerParams() {
   network::mojom::NetworkContextParamsPtr network_context_params =
       CreateDefaultNetworkContextParams(user_agent_);
+
+  network_context_params->context_name = std::string("system");
+
   return network_context_params;
 }
 
@@ -128,14 +125,6 @@ SystemNetworkContextManager::GetSharedURLLoaderFactory() {
             url_loader_factory_.get());
   }
   return shared_url_loader_factory_;
-}
-
-net_log::NetExportFileWriter*
-SystemNetworkContextManager::GetNetExportFileWriter() {
-  if (!net_export_file_writer_) {
-    net_export_file_writer_ = std::make_unique<net_log::NetExportFileWriter>();
-  }
-  return net_export_file_writer_.get();
 }
 
 }  // namespace weblayer

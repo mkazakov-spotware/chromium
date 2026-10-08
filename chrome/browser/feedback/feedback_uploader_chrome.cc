@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,27 +6,24 @@
 
 #include "base/bind.h"
 #include "base/strings/stringprintf.h"
-#include "build/chromeos_buildflags.h"
-#include "build/config/chromebox_for_meetings/buildflags.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "components/feedback/feedback_report.h"
-#include "components/signin/public/base/consent_level.h"
+#include "components/signin/public/identity_manager/consent_level.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/signin/public/identity_manager/primary_account_access_token_fetcher.h"
 #include "components/signin/public/identity_manager/scope_set.h"
-#include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
-#include "content/public/browser/storage_partition.h"
-#include "google_apis/gaia/gaia_constants.h"
-#include "services/network/public/cpp/resource_request.h"
 
+#if defined(OS_CHROMEOS)
+#include "chromeos/components/chromebox_for_meetings/buildflags/buildflags.h"
 #if BUILDFLAG(PLATFORM_CFM)
-#include "chrome/browser/ash/policy/enrollment/enrollment_requisition_manager.h"
+#include "chrome/browser/chromeos/policy/enrollment_requisition_manager.h"
 #include "chrome/browser/device_identity/device_identity_provider.h"
 #include "chrome/browser/device_identity/device_oauth2_token_service_factory.h"
 #endif  // BUILDFLAG(PLATFORM_CFM)
+#endif  // defined(OS_CHROMEOS)
 
 namespace feedback {
 
@@ -37,6 +34,8 @@ constexpr char kAuthenticationErrorLogMessage[] =
 
 constexpr char kConsumer[] = "feedback_uploader_chrome";
 
+constexpr char kScope[] = "https://www.googleapis.com/auth/supportcontent";
+
 void QueueSingleReport(base::WeakPtr<feedback::FeedbackUploader> uploader,
                        scoped_refptr<FeedbackReport> report) {
   content::GetUIThreadTaskRunner({})->PostTask(
@@ -44,30 +43,15 @@ void QueueSingleReport(base::WeakPtr<feedback::FeedbackUploader> uploader,
                                 std::move(uploader), std::move(report)));
 }
 
-// Helper function to create an URLLoaderFactory for the FeedbackUploader from
-// the BrowserContext storage partition. As creating the storage partition can
-// be expensive, this is delayed so that it does not happen during startup.
-scoped_refptr<network::SharedURLLoaderFactory>
-CreateURLLoaderFactoryForBrowserContext(content::BrowserContext* context) {
-  return context->GetDefaultStoragePartition()
-      ->GetURLLoaderFactoryForBrowserProcess();
-}
-
 }  // namespace
 
-FeedbackUploaderChrome::FeedbackUploaderChrome(content::BrowserContext* context)
-    // The FeedbackUploaderChrome lifetime is bound to that of BrowserContext
-    // by the KeyedServiceFactory infrastructure. The FeedbackUploaderChrome
-    // will be destroyed before the BrowserContext, thus base::Unretained()
-    // usage is safe.
-    : FeedbackUploader(/*is_off_the_record=*/false,
-                       context->GetPath(),
-                       base::BindOnce(&CreateURLLoaderFactoryForBrowserContext,
-                                      base::Unretained(context))),
-      context_(context) {
-  DCHECK(!context_->IsOffTheRecord());
+FeedbackUploaderChrome::FeedbackUploaderChrome(
+    content::BrowserContext* context,
+    scoped_refptr<base::SingleThreadTaskRunner> task_runner)
+    : FeedbackUploader(context, task_runner) {
+  DCHECK(!context->IsOffTheRecord());
 
-  task_runner()->PostTask(
+  task_runner->PostTask(
       FROM_HERE,
       base::BindOnce(&FeedbackReport::LoadReportsAndQueue,
                      feedback_reports_path(),
@@ -84,6 +68,7 @@ void FeedbackUploaderChrome::PrimaryAccountAccessTokenAvailable(
   AccessTokenAvailable(error, access_token_info.token);
 }
 
+#if defined(OS_CHROMEOS)
 #if BUILDFLAG(PLATFORM_CFM)
 void FeedbackUploaderChrome::ActiveAccountAccessTokenAvailable(
     GoogleServiceAuthError error,
@@ -93,6 +78,7 @@ void FeedbackUploaderChrome::ActiveAccountAccessTokenAvailable(
   AccessTokenAvailable(error, token);
 }
 #endif  // BUILDFLAG(PLATFORM_CFM)
+#endif  // defined(OS_CHROMEOS)
 
 void FeedbackUploaderChrome::AccessTokenAvailable(GoogleServiceAuthError error,
                                                   std::string token) {
@@ -116,7 +102,7 @@ void FeedbackUploaderChrome::StartDispatchingReport() {
   // TODO(crbug.com/849591): Instead of getting the IdentityManager from the
   // profile, we should pass the IdentityManager to FeedbackUploaderChrome's
   // ctor.
-  Profile* profile = Profile::FromBrowserContext(context_);
+  Profile* profile = Profile::FromBrowserContext(context());
   DCHECK(profile);
   signin::IdentityManager* identity_manager =
       IdentityManagerFactory::GetForProfile(profile);
@@ -124,9 +110,9 @@ void FeedbackUploaderChrome::StartDispatchingReport() {
   // Sync consent is not required to send feedback because the feedback dialog
   // has its own privacy notice.
   if (identity_manager &&
-      identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
+      identity_manager->HasPrimaryAccount(signin::ConsentLevel::kNotRequired)) {
     signin::ScopeSet scopes;
-    scopes.insert(GaiaConstants::kSupportContentOAuth2Scope);
+    scopes.insert(kScope);
     primary_account_token_fetcher_ =
         std::make_unique<signin::PrimaryAccountAccessTokenFetcher>(
             kConsumer, identity_manager, scopes,
@@ -134,10 +120,11 @@ void FeedbackUploaderChrome::StartDispatchingReport() {
                 &FeedbackUploaderChrome::PrimaryAccountAccessTokenAvailable,
                 base::Unretained(this)),
             signin::PrimaryAccountAccessTokenFetcher::Mode::kImmediate,
-            signin::ConsentLevel::kSignin);
+            signin::ConsentLevel::kNotRequired);
     return;
   }
 
+#if defined(OS_CHROMEOS)
 #if BUILDFLAG(PLATFORM_CFM)
   // CFM Devices may need to acquire the auth token for their robot account
   // before they submit feedback.
@@ -152,7 +139,7 @@ void FeedbackUploaderChrome::StartDispatchingReport() {
       policy::EnrollmentRequisitionManager::IsRemoraRequisition();
   if (isMeetDevice && !device_identity_provider->GetActiveAccountId().empty()) {
     OAuth2AccessTokenManager::ScopeSet scopes;
-    scopes.insert(GaiaConstants::kSupportContentOAuth2Scope);
+    scopes.insert(kScope);
     active_account_token_fetcher_ = device_identity_provider->FetchAccessToken(
         kConsumer, scopes,
         base::BindOnce(
@@ -161,6 +148,7 @@ void FeedbackUploaderChrome::StartDispatchingReport() {
     return;
   }
 #endif  // BUILDFLAG(PLATFORM_CFM)
+#endif  // defined(OS_CHROMEOS)
 
   LOG(ERROR) << "Failed to request oauth access token. "
              << kAuthenticationErrorLogMessage;

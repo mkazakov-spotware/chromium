@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "base/values.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/zxcvbn-cpp/native-src/zxcvbn/frequency_lists.hpp"
 
 namespace component_updater {
@@ -36,7 +35,7 @@ class ZxcvbnDataComponentInstallerPolicyTest : public ::testing::Test {
 
   const base::Version& version() const { return version_; }
 
-  const base::Value& manifest() const { return manifest_; }
+  const base::DictionaryValue& manifest() const { return manifest_; }
 
   const base::FilePath& GetPath() const {
     return component_install_dir_.GetPath();
@@ -72,7 +71,7 @@ class ZxcvbnDataComponentInstallerPolicyTest : public ::testing::Test {
  private:
   base::test::TaskEnvironment task_env_;
   base::Version version_;
-  base::Value manifest_ = base::Value(base::Value::Type::DICTIONARY);
+  base::DictionaryValue manifest_;
   ZxcvbnDataComponentInstallerPolicy policy_;
   base::ScopedTempDir component_install_dir_;
 };
@@ -96,9 +95,9 @@ TEST_F(ZxcvbnDataComponentInstallerPolicyTest, VerifyInstallation) {
 // zxcvbn::default_ranked_dicts().
 TEST_F(ZxcvbnDataComponentInstallerPolicyTest, ComponentReady) {
   // Empty / non-existent files should result in empty dictionaries.
-  policy().ComponentReady(version(), GetPath(),
-                          base::Value(base::Value::Type::DICTIONARY));
+  policy().ComponentReady(version(), GetPath(), nullptr);
   task_env().RunUntilIdle();
+  EXPECT_THAT(zxcvbn::default_ranked_dicts(), ::testing::IsEmpty());
 
   // Populated files should be read and fed to the correct ranked zxcvbn
   // dictionary.
@@ -109,11 +108,11 @@ TEST_F(ZxcvbnDataComponentInstallerPolicyTest, ComponentReady) {
   base::WriteFile(
       GetPath().Append(
           ZxcvbnDataComponentInstallerPolicy::kFemaleNamesTxtFileName),
-      "female\nfnames");
+      "female\nnames");
   base::WriteFile(
       GetPath().Append(
           ZxcvbnDataComponentInstallerPolicy::kMaleNamesTxtFileName),
-      "male\nmnames");
+      "male\nnames");
   base::WriteFile(
       GetPath().Append(
           ZxcvbnDataComponentInstallerPolicy::kPasswordsTxtFileName),
@@ -126,23 +125,30 @@ TEST_F(ZxcvbnDataComponentInstallerPolicyTest, ComponentReady) {
           ZxcvbnDataComponentInstallerPolicy::kUsTvAndFilmTxtFileName),
       "us\ntv\nand\nfilm");
 
-  policy().ComponentReady(version(), GetPath(),
-                          base::Value(base::Value::Type::DICTIONARY));
+  policy().ComponentReady(version(), GetPath(), nullptr);
   task_env().RunUntilIdle();
 
-  zxcvbn::RankedDicts& ranked_dicts = zxcvbn::default_ranked_dicts();
-  EXPECT_EQ(ranked_dicts.Find("english"), 1UL);
-  EXPECT_EQ(ranked_dicts.Find("wikipedia"), 2UL);
-  EXPECT_EQ(ranked_dicts.Find("female"), 1UL);
-  EXPECT_EQ(ranked_dicts.Find("fnames"), 2UL);
-  EXPECT_EQ(ranked_dicts.Find("male"), 1UL);
-  EXPECT_EQ(ranked_dicts.Find("mnames"), 2UL);
-  EXPECT_EQ(ranked_dicts.Find("passwords"), 1UL);
-  EXPECT_EQ(ranked_dicts.Find("surnames"), 1UL);
-  EXPECT_EQ(ranked_dicts.Find("us"), 1UL);
-  EXPECT_EQ(ranked_dicts.Find("tv"), 2UL);
-  EXPECT_EQ(ranked_dicts.Find("and"), 3UL);
-  EXPECT_EQ(ranked_dicts.Find("film"), 4UL);
+  zxcvbn::RankedDicts ranked_dicts = zxcvbn::default_ranked_dicts();
+  EXPECT_THAT(
+      zxcvbn::default_ranked_dicts(),
+      UnorderedElementsAre(
+          Pair(zxcvbn::DictionaryTag::ENGLISH_WIKIPEDIA,
+               Pointee(UnorderedElementsAre(Pair("english", 1),
+                                            Pair("wikipedia", 2)))),
+          Pair(zxcvbn::DictionaryTag::FEMALE_NAMES,
+               Pointee(
+                   UnorderedElementsAre(Pair("female", 1), Pair("names", 2)))),
+          Pair(
+              zxcvbn::DictionaryTag::MALE_NAMES,
+              Pointee(UnorderedElementsAre(Pair("male", 1), Pair("names", 2)))),
+          Pair(zxcvbn::DictionaryTag::PASSWORDS,
+               Pointee(UnorderedElementsAre(Pair("passwords", 1)))),
+          Pair(zxcvbn::DictionaryTag::SURNAMES,
+               Pointee(UnorderedElementsAre(Pair("surnames", 1)))),
+          Pair(
+              zxcvbn::DictionaryTag::US_TV_AND_FILM,
+              Pointee(UnorderedElementsAre(Pair("us", 1), Pair("tv", 2),
+                                           Pair("and", 3), Pair("film", 4))))));
 }
 
 }  // namespace component_updater

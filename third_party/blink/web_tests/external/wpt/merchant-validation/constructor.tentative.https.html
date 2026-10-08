@@ -16,8 +16,8 @@ const applePay = Object.freeze({
     supportedNetworks: ["visa"],
   }
 });
-const examplePay = Object.freeze({ supportedMethods: "https://example.com/pay" });
-const defaultMethods = Object.freeze([examplePay, applePay]);
+const basicCard = Object.freeze({ supportedMethods: "basic-card" });
+const defaultMethods = Object.freeze([basicCard, applePay]);
 const defaultDetails = Object.freeze({
   total: {
     label: "Total",
@@ -110,7 +110,7 @@ test(() => {
     "https://example.com/pay",
     "https://example.com/pay?version=1",
     "https://example.com/pay/version/1",
-    "secure-payment-confirmation",
+    "basic-card",
     "https://apple.com/apple-pay",
     // special case for as default value
     "",
@@ -124,11 +124,11 @@ test(() => {
 test(() => {
   const invalidPMIs = [
     // ❌ Contains Unicode character outside the valid ranges.
-    "secure-💳",
+    "basic-💳",
     // ❌ Contains uppercase characters.
-    "Secure-Payment-Confirmation",
+    "Basic-Card",
     // ❌ Contains Unicode characters outside the valid ranges.
-    "¡secure-*-payment-confirmation!",
+    "¡basic-*-card!",
     // ❌ Uses http://, a username, and a password.
     "http://username:password@example.com/pay",
     // ❌ Uses unknown URI scheme.

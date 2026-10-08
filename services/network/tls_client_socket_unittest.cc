@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/bind.h"
 #include "base/check_op.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
@@ -18,7 +19,7 @@
 #include "mojo/public/cpp/bindings/remote.h"
 #include "net/base/completion_once_callback.h"
 #include "net/base/net_errors.h"
-#include "net/base/network_anonymization_key.h"
+#include "net/base/network_isolation_key.h"
 #include "net/base/test_completion_callback.h"
 #include "net/proxy_resolution/configured_proxy_resolution_service.h"
 #include "net/socket/server_socket.h"
@@ -27,13 +28,10 @@
 #include "net/test/embedded_test_server/http_request.h"
 #include "net/test/embedded_test_server/http_response.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
-#include "net/url_request/url_request_context.h"
-#include "net/url_request/url_request_context_builder.h"
 #include "net/url_request/url_request_test_util.h"
 #include "services/network/mojo_socket_test_util.h"
 #include "services/network/proxy_resolving_socket_factory_mojo.h"
 #include "services/network/public/mojom/network_service.mojom.h"
-#include "services/network/public/mojom/tls_socket.mojom.h"
 #include "services/network/socket_factory.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -55,11 +53,8 @@ class TLSClientSocketTestBase {
 
   explicit TLSClientSocketTestBase(Mode mode)
       : mode_(mode),
-        task_environment_(base::test::TaskEnvironment::MainThreadType::IO) {}
-
-  TLSClientSocketTestBase(const TLSClientSocketTestBase&) = delete;
-  TLSClientSocketTestBase& operator=(const TLSClientSocketTestBase&) = delete;
-
+        task_environment_(base::test::TaskEnvironment::MainThreadType::IO),
+        url_request_context_(true) {}
   virtual ~TLSClientSocketTestBase() {}
 
   Mode mode() { return mode_; }
@@ -79,23 +74,24 @@ class TLSClientSocketTestBase {
   // Initializes the test fixture. If |use_mock_sockets|, mock client socket
   // factory will be used.
   void Init(bool use_mock_sockets, bool configure_proxy) {
-    auto context_builder = net::CreateTestURLRequestContextBuilder();
     if (use_mock_sockets) {
       mock_client_socket_factory_.set_enable_read_if_ready(true);
-      context_builder->set_client_socket_factory_for_testing(
+      url_request_context_.set_client_socket_factory(
           &mock_client_socket_factory_);
     }
     if (configure_proxy) {
-      context_builder->set_proxy_resolution_service(
-          net::ConfiguredProxyResolutionService::CreateFixedForTest(
-              "http://proxy:8080", TRAFFIC_ANNOTATION_FOR_TESTS));
+      proxy_resolution_service_ =
+          net::ConfiguredProxyResolutionService::CreateFixed(
+              "http://proxy:8080", TRAFFIC_ANNOTATION_FOR_TESTS);
+      url_request_context_.set_proxy_resolution_service(
+          proxy_resolution_service_.get());
     }
-    url_request_context_ = context_builder->Build();
-    factory_ = std::make_unique<SocketFactory>(/*net_log=*/nullptr,
-                                               url_request_context_.get());
+    url_request_context_.Init();
+    factory_ = std::make_unique<SocketFactory>(nullptr /*net_log*/,
+                                               &url_request_context_);
     proxy_resolving_factory_ =
         std::make_unique<ProxyResolvingSocketFactoryMojo>(
-            url_request_context_.get());
+            &url_request_context_);
   }
 
   // Reads |num_bytes| from |handle| or reads until an error occurs. Returns the
@@ -154,14 +150,14 @@ class TLSClientSocketTestBase {
     base::RunLoop run_loop;
     int net_error = net::ERR_FAILED;
     factory_->CreateTCPConnectedSocket(
-        absl::nullopt /* local_addr */, remote_addr_list,
+        base::nullopt /* local_addr */, remote_addr_list,
         nullptr /* tcp_connected_socket_options */,
         TRAFFIC_ANNOTATION_FOR_TESTS, std::move(receiver),
         pre_tls_observer()->GetObserverRemote(),
         base::BindLambdaForTesting(
             [&](int result,
-                const absl::optional<net::IPEndPoint>& actual_local_addr,
-                const absl::optional<net::IPEndPoint>& peer_addr,
+                const base::Optional<net::IPEndPoint>& actual_local_addr,
+                const base::Optional<net::IPEndPoint>& peer_addr,
                 mojo::ScopedDataPipeConsumerHandle receive_pipe_handle,
                 mojo::ScopedDataPipeProducerHandle send_pipe_handle) {
               net_error = result;
@@ -180,13 +176,13 @@ class TLSClientSocketTestBase {
     base::RunLoop run_loop;
     int net_error = net::ERR_FAILED;
     proxy_resolving_factory_->CreateProxyResolvingSocket(
-        url, net::NetworkAnonymizationKey(), nullptr /* options */,
+        url, net::NetworkIsolationKey(), nullptr /* options */,
         net::MutableNetworkTrafficAnnotationTag(TRAFFIC_ANNOTATION_FOR_TESTS),
         std::move(receiver), mojo::NullRemote() /* observer */,
         base::BindLambdaForTesting(
             [&](int result,
-                const absl::optional<net::IPEndPoint>& actual_local_addr,
-                const absl::optional<net::IPEndPoint>& peer_addr,
+                const base::Optional<net::IPEndPoint>& actual_local_addr,
+                const base::Optional<net::IPEndPoint>& peer_addr,
                 mojo::ScopedDataPipeConsumerHandle receive_pipe_handle,
                 mojo::ScopedDataPipeProducerHandle send_pipe_handle) {
               net_error = result;
@@ -227,10 +223,10 @@ class TLSClientSocketTestBase {
             [](net::CompletionOnceCallback cb,
                mojo::ScopedDataPipeConsumerHandle* consumer_handle_out,
                mojo::ScopedDataPipeProducerHandle* producer_handle_out,
-               absl::optional<net::SSLInfo>* ssl_info_out, int result,
+               base::Optional<net::SSLInfo>* ssl_info_out, int result,
                mojo::ScopedDataPipeConsumerHandle receive_pipe_handle,
                mojo::ScopedDataPipeProducerHandle send_pipe_handle,
-               const absl::optional<net::SSLInfo>& ssl_info) {
+               const base::Optional<net::SSLInfo>& ssl_info) {
               *consumer_handle_out = std::move(receive_pipe_handle);
               *producer_handle_out = std::move(send_pipe_handle);
               *ssl_info_out = ssl_info;
@@ -282,7 +278,7 @@ class TLSClientSocketTestBase {
     return &post_tls_send_handle_;
   }
 
-  const absl::optional<net::SSLInfo>& ssl_info() { return ssl_info_; }
+  const base::Optional<net::SSLInfo>& ssl_info() { return ssl_info_; }
 
   net::MockClientSocketFactory* mock_client_socket_factory() {
     return &mock_client_socket_factory_;
@@ -303,14 +299,17 @@ class TLSClientSocketTestBase {
   mojo::ScopedDataPipeProducerHandle post_tls_send_handle_;
 
   // SSLInfo obtained from UpgradeToTLS.
-  absl::optional<net::SSLInfo> ssl_info_;
+  base::Optional<net::SSLInfo> ssl_info_;
 
+  std::unique_ptr<net::ProxyResolutionService> proxy_resolution_service_;
+  net::TestURLRequestContext url_request_context_;
   net::MockClientSocketFactory mock_client_socket_factory_;
-  std::unique_ptr<net::URLRequestContext> url_request_context_;
   std::unique_ptr<SocketFactory> factory_;
   std::unique_ptr<ProxyResolvingSocketFactoryMojo> proxy_resolving_factory_;
   TestSocketObserver pre_tls_observer_;
   TestSocketObserver post_tls_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(TLSClientSocketTestBase);
 };
 
 class TLSClientSocketTest
@@ -321,10 +320,10 @@ class TLSClientSocketTest
     Init(true /* use_mock_sockets */, false /* configure_proxy */);
   }
 
-  TLSClientSocketTest(const TLSClientSocketTest&) = delete;
-  TLSClientSocketTest& operator=(const TLSClientSocketTest&) = delete;
-
   ~TLSClientSocketTest() override {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TLSClientSocketTest);
 };
 
 // Basic test to call UpgradeToTLS, and then read/write after UpgradeToTLS is
@@ -442,7 +441,7 @@ TEST_P(TLSClientSocketTest, UpgradeToTLSTwice) {
     auto upgrade2_callback = base::BindLambdaForTesting(
         [&](int result, mojo::ScopedDataPipeConsumerHandle receive_pipe_handle,
             mojo::ScopedDataPipeProducerHandle send_pipe_handle,
-            const absl::optional<net::SSLInfo>& ssl_info) {
+            const base::Optional<net::SSLInfo>& ssl_info) {
           net_error = result;
           run_loop.Quit();
         });
@@ -482,8 +481,8 @@ TEST_P(TLSClientSocketTest, UpgradeToTLSWithCustomSSLConfig) {
   data_provider.set_connect_data(net::MockConnect(net::SYNCHRONOUS, net::OK));
   mock_client_socket_factory()->AddSocketDataProvider(&data_provider);
   net::SSLSocketDataProvider ssl_socket(net::ASYNC, net::OK);
-  ssl_socket.expected_ssl_version_min = net::SSL_PROTOCOL_VERSION_TLS1_2;
-  ssl_socket.expected_ssl_version_max = net::SSL_PROTOCOL_VERSION_TLS1_3;
+  ssl_socket.expected_ssl_version_min = net::SSL_PROTOCOL_VERSION_TLS1_1;
+  ssl_socket.expected_ssl_version_max = net::SSL_PROTOCOL_VERSION_TLS1_2;
   mock_client_socket_factory()->AddSSLSocketDataProvider(&ssl_socket);
 
   SocketHandle client_socket;
@@ -499,13 +498,13 @@ TEST_P(TLSClientSocketTest, UpgradeToTLSWithCustomSSLConfig) {
   base::RunLoop run_loop;
   mojom::TLSClientSocketOptionsPtr options =
       mojom::TLSClientSocketOptions::New();
-  options->version_min = mojom::SSLVersion::kTLS12;
-  options->version_max = mojom::SSLVersion::kTLS13;
+  options->version_min = mojom::SSLVersion::kTLS11;
+  options->version_max = mojom::SSLVersion::kTLS12;
   int net_error = net::ERR_FAILED;
   auto upgrade_callback = base::BindLambdaForTesting(
       [&](int result, mojo::ScopedDataPipeConsumerHandle receive_pipe_handle,
           mojo::ScopedDataPipeProducerHandle send_pipe_handle,
-          const absl::optional<net::SSLInfo>& ssl_info) {
+          const base::Optional<net::SSLInfo>& ssl_info) {
         net_error = result;
         run_loop.Quit();
       });
@@ -893,10 +892,10 @@ class TLSCLientSocketProxyTest : public ::testing::Test,
     Init(true /* use_mock_sockets*/, true /* configure_proxy */);
   }
 
-  TLSCLientSocketProxyTest(const TLSCLientSocketProxyTest&) = delete;
-  TLSCLientSocketProxyTest& operator=(const TLSCLientSocketProxyTest&) = delete;
-
   ~TLSCLientSocketProxyTest() override {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TLSCLientSocketProxyTest);
 };
 
 TEST_F(TLSCLientSocketProxyTest, UpgradeToTLS) {
@@ -952,11 +951,10 @@ class TLSClientSocketIoModeTest : public TLSClientSocketTestBase,
     Init(true /* use_mock_sockets*/, false /* configure_proxy */);
   }
 
-  TLSClientSocketIoModeTest(const TLSClientSocketIoModeTest&) = delete;
-  TLSClientSocketIoModeTest& operator=(const TLSClientSocketIoModeTest&) =
-      delete;
-
   ~TLSClientSocketIoModeTest() override {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TLSClientSocketIoModeTest);
 };
 
 INSTANTIATE_TEST_SUITE_P(All,
@@ -971,13 +969,15 @@ TEST_P(TLSClientSocketIoModeTest, MultipleWriteToTLSSocket) {
   net::IoMode mode = GetParam();
   for (int j = 0; j < kNumIterations; ++j) {
     for (size_t i = 0; i < kSecretMsgSize; ++i) {
-      writes.emplace_back(mode, &kSecretMsg[i], 1, sequence_number++);
+      writes.push_back(
+          net::MockWrite(mode, &kSecretMsg[i], 1, sequence_number++));
     }
     for (size_t i = 0; i < kSecretMsgSize; ++i) {
-      reads.emplace_back(net::ASYNC, &kSecretMsg[i], 1, sequence_number++);
+      reads.push_back(
+          net::MockRead(net::ASYNC, &kSecretMsg[i], 1, sequence_number++));
     }
     if (j == kNumIterations - 1) {
-      reads.emplace_back(mode, net::OK, sequence_number++);
+      reads.push_back(net::MockRead(mode, net::OK, sequence_number++));
     }
   }
   net::SequencedSocketData data_provider(reads, writes);
@@ -1069,16 +1069,11 @@ class TLSClientSocketTestWithEmbeddedTestServerBase
     Init(false /* use_mock_sockets */, false /* configure_proxy */);
   }
 
-  TLSClientSocketTestWithEmbeddedTestServerBase(
-      const TLSClientSocketTestWithEmbeddedTestServerBase&) = delete;
-  TLSClientSocketTestWithEmbeddedTestServerBase& operator=(
-      const TLSClientSocketTestWithEmbeddedTestServerBase&) = delete;
-
   ~TLSClientSocketTestWithEmbeddedTestServerBase() override {}
 
   // Starts the test server using the specified certificate.
-  [[nodiscard]] bool StartTestServer(
-      net::EmbeddedTestServer::ServerCertificate certificate) {
+  bool StartTestServer(net::EmbeddedTestServer::ServerCertificate certificate)
+      WARN_UNUSED_RESULT {
     server_.RegisterRequestHandler(
         base::BindRepeating([](const net::test_server::HttpRequest& request) {
           if (base::StartsWith(request.relative_url, "/secret",
@@ -1096,7 +1091,7 @@ class TLSClientSocketTestWithEmbeddedTestServerBase
   // Attempts to eastablish a TLS connection to the test server by first
   // establishing a TCP connection, and then upgrading it.  Returns the
   // resulting network error code.
-  [[nodiscard]] int CreateTLSSocket() {
+  int CreateTLSSocket() WARN_UNUSED_RESULT {
     SocketHandle client_socket;
     net::IPEndPoint server_addr(net::IPAddress::IPv4Localhost(),
                                 server_.port());
@@ -1113,8 +1108,8 @@ class TLSClientSocketTestWithEmbeddedTestServerBase
     return result;
   }
 
-  [[nodiscard]] int CreateTLSSocketWithOptions(
-      mojom::TLSClientSocketOptionsPtr options) {
+  int CreateTLSSocketWithOptions(mojom::TLSClientSocketOptionsPtr options)
+      WARN_UNUSED_RESULT {
     // Proxy connections don't support TLSClientSocketOptions.
     DCHECK_EQ(kDirect, mode());
 
@@ -1153,6 +1148,8 @@ class TLSClientSocketTestWithEmbeddedTestServerBase
   net::EmbeddedTestServer server_;
 
   mojo::Remote<mojom::TLSClientSocket> tls_socket_;
+
+  DISALLOW_COPY_AND_ASSIGN(TLSClientSocketTestWithEmbeddedTestServerBase);
 };
 
 class TLSClientSocketTestWithEmbeddedTestServer
@@ -1161,13 +1158,10 @@ class TLSClientSocketTestWithEmbeddedTestServer
  public:
   TLSClientSocketTestWithEmbeddedTestServer()
       : TLSClientSocketTestWithEmbeddedTestServerBase(GetParam()) {}
-
-  TLSClientSocketTestWithEmbeddedTestServer(
-      const TLSClientSocketTestWithEmbeddedTestServer&) = delete;
-  TLSClientSocketTestWithEmbeddedTestServer& operator=(
-      const TLSClientSocketTestWithEmbeddedTestServer&) = delete;
-
   ~TLSClientSocketTestWithEmbeddedTestServer() override {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TLSClientSocketTestWithEmbeddedTestServer);
 };
 
 TEST_P(TLSClientSocketTestWithEmbeddedTestServer, Basic) {
@@ -1205,13 +1199,10 @@ class TLSClientSocketDirectTestWithEmbeddedTestServer
  public:
   TLSClientSocketDirectTestWithEmbeddedTestServer()
       : TLSClientSocketTestWithEmbeddedTestServerBase(kDirect) {}
-
-  TLSClientSocketDirectTestWithEmbeddedTestServer(
-      const TLSClientSocketDirectTestWithEmbeddedTestServer&) = delete;
-  TLSClientSocketDirectTestWithEmbeddedTestServer& operator=(
-      const TLSClientSocketDirectTestWithEmbeddedTestServer&) = delete;
-
   ~TLSClientSocketDirectTestWithEmbeddedTestServer() override {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TLSClientSocketDirectTestWithEmbeddedTestServer);
 };
 
 TEST_F(TLSClientSocketDirectTestWithEmbeddedTestServer, SSLInfo) {

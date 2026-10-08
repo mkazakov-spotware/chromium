@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,13 @@
 
 #include "base/json/json_reader.h"
 #include "base/test/gtest_util.h"
-#include "build/build_config.h"
 #include "chrome/browser/media/router/test/provider_test_helpers.h"
-#include "components/media_router/common/providers/cast/channel/cast_test_util.h"
+#include "components/cast_channel/cast_test_util.h"
 #include "components/media_router/common/test/test_helper.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 using base::test::IsJson;
 using base::test::ParseJson;
-using base::test::ParseJsonDict;
 
 namespace media_router {
 
@@ -22,7 +20,7 @@ namespace {
 
 static constexpr char kReceiverIdToken[] = "token";
 
-base::Value::Dict ReceiverStatus() {
+base::Optional<base::Value> ReceiverStatus() {
   std::string receiver_status_str = R"({
       "applications": [{
         "appId": "ABCDEFGH",
@@ -36,13 +34,13 @@ base::Value::Dict ReceiverStatus() {
         "transportId":"transportId"
       }]
   })";
-  return ParseJsonDict(receiver_status_str);
+  return base::JSONReader::Read(receiver_status_str);
 }
 
 // appId: native app ID
 // universalAppId: web receiver app ID, which is appId in ReceiverStatus without
 // universalAppId or appType
-base::Value::Dict ReceiverStatusWithUniversalAppId() {
+base::Optional<base::Value> ReceiverStatusWithUniversalAppId() {
   std::string receiver_status_str = R"({
       "applications": [{
         "appId": "AD9AF8E0",
@@ -58,20 +56,20 @@ base::Value::Dict ReceiverStatusWithUniversalAppId() {
         "appType": "ANDROID_TV"
       }]
   })";
-  return ParseJsonDict(receiver_status_str);
+  return base::JSONReader::Read(receiver_status_str);
 }
 
 void ExpectNoCastSession(const MediaSinkInternal& sink,
                          const std::string& receiver_status_str,
                          const std::string& reason) {
-  auto session = CastSession::From(sink, ParseJsonDict(receiver_status_str));
+  auto session = CastSession::From(sink, ParseJson(receiver_status_str));
   EXPECT_FALSE(session) << "Shouldn't have created session because of "
                         << reason;
 }
 
 void ExpectInvalidCastInternalMessage(const std::string& message_str,
                                       const std::string& invalid_reason) {
-  EXPECT_FALSE(CastInternalMessage::From(ParseJsonDict(message_str)))
+  EXPECT_FALSE(CastInternalMessage::From(ParseJson(message_str)))
       << "message expected to be invlaid: " << invalid_reason;
 }
 
@@ -84,16 +82,8 @@ class CastInternalMessageUtilDeathTest : public testing::Test {
 
 }  // namespace
 
-// TODO(crbug.com/1377730): This test sometimes times out on the Win bot.
-#if BUILDFLAG(IS_WIN)
-#define MAYBE_CastInternalMessageFromAppMessageString \
-  DISABLED_CastInternalMessageFromAppMessageString
-#else
-#define MAYBE_CastInternalMessageFromAppMessageString \
-  CastInternalMessageFromAppMessageString
-#endif
 TEST_F(CastInternalMessageUtilDeathTest,
-       MAYBE_CastInternalMessageFromAppMessageString) {
+       CastInternalMessageFromAppMessageString) {
   std::string message_str = R"({
     "type": "app_message",
     "clientId": "12345",
@@ -105,15 +95,15 @@ TEST_F(CastInternalMessageUtilDeathTest,
     }
   })";
 
-  auto message = CastInternalMessage::From(ParseJsonDict(message_str));
+  auto message = CastInternalMessage::From(ParseJson(message_str));
   ASSERT_TRUE(message);
   EXPECT_EQ(CastInternalMessage::Type::kAppMessage, message->type());
   EXPECT_EQ("12345", message->client_id());
   EXPECT_EQ(999, message->sequence_number());
   EXPECT_EQ("urn:x-cast:com.google.foo", message->app_message_namespace());
   EXPECT_EQ("sessionId", message->session_id());
-  base::Value::Dict message_body;
-  message_body.Set("foo", base::Value("bar"));
+  base::Value message_body(base::Value::Type::DICTIONARY);
+  message_body.SetKey("foo", base::Value("bar"));
   EXPECT_EQ(message_body, message->app_message_body());
 
   EXPECT_DCHECK_DEATH(message->v2_message_type());
@@ -133,7 +123,7 @@ TEST_F(CastInternalMessageUtilDeathTest,
     }
   })";
 
-  auto message = CastInternalMessage::From(ParseJsonDict(message_str));
+  auto message = CastInternalMessage::From(ParseJson(message_str));
   ASSERT_TRUE(message);
   EXPECT_EQ(CastInternalMessage::Type::kV2Message, message->type());
   EXPECT_EQ("12345", message->client_id());
@@ -151,23 +141,15 @@ TEST_F(CastInternalMessageUtilDeathTest,
   EXPECT_DCHECK_DEATH(message->app_message_body());
 }
 
-// TODO(crbug.com/1378312): This test sometimes times out on the Win debug bot.
-#if BUILDFLAG(IS_WIN) && !defined(NDEBUG)
-#define MAYBE_CastInternalMessageFromClientConnectString \
-  DISABLED_CastInternalMessageFromClientConnectString
-#else
-#define MAYBE_CastInternalMessageFromClientConnectString \
-  CastInternalMessageFromClientConnectString
-#endif
 TEST_F(CastInternalMessageUtilDeathTest,
-       MAYBE_CastInternalMessageFromClientConnectString) {
+       CastInternalMessageFromClientConnectString) {
   std::string message_str = R"({
       "type": "client_connect",
       "clientId": "12345",
       "message": {}
     })";
 
-  auto message = CastInternalMessage::From(ParseJsonDict(message_str));
+  auto message = CastInternalMessage::From(ParseJson(message_str));
   ASSERT_TRUE(message);
   EXPECT_EQ(CastInternalMessage::Type::kClientConnect, message->type());
   EXPECT_EQ("12345", message->client_id());
@@ -251,14 +233,15 @@ TEST(CastInternalMessageUtilTest, CastSessionFromReceiverStatusNoStatusText) {
         "transportId":"transportId"
       }]
   })";
-  auto session = CastSession::From(sink, ParseJsonDict(receiver_status_str));
+  auto session = CastSession::From(sink, ParseJson(receiver_status_str));
   ASSERT_TRUE(session);
   EXPECT_EQ("sessionId", session->session_id());
   EXPECT_EQ("ABCDEFGH", session->app_id());
-  EXPECT_EQ("transportId", session->destination_id());
+  EXPECT_EQ("transportId", session->transport_id());
   base::flat_set<std::string> message_namespaces = {
       "urn:x-cast:com.google.cast.media", "urn:x-cast:com.google.foo"};
   EXPECT_EQ(message_namespaces, session->message_namespaces());
+  EXPECT_TRUE(session->value().is_dict());
   EXPECT_EQ("App display name", session->GetRouteDescription());
 }
 
@@ -386,7 +369,9 @@ TEST(CastInternalMessageUtilTest, CreateReceiverActionStopMessage) {
 TEST(CastInternalMessageUtilTest, CreateNewSessionMessage) {
   MediaSinkInternal sink = CreateCastSink(1);
   std::string client_id = "clientId";
-  auto session = CastSession::From(sink, ReceiverStatus());
+  base::Optional<base::Value> receiver_status = ReceiverStatus();
+  ASSERT_TRUE(receiver_status);
+  auto session = CastSession::From(sink, receiver_status.value());
   ASSERT_TRUE(session);
 
   auto message =
@@ -424,7 +409,10 @@ TEST(CastInternalMessageUtilTest, CreateNewSessionMessage) {
 TEST(CastInternalMessageUtilTest, CreateNewSessionMessageWithUniversalAppId) {
   MediaSinkInternal sink = CreateCastSink(1);
   std::string client_id = "clientId";
-  auto session = CastSession::From(sink, ReceiverStatusWithUniversalAppId());
+  base::Optional<base::Value> receiver_status =
+      ReceiverStatusWithUniversalAppId();
+  ASSERT_TRUE(receiver_status);
+  auto session = CastSession::From(sink, receiver_status.value());
   ASSERT_TRUE(session);
 
   auto message =
@@ -464,7 +452,9 @@ TEST(CastInternalMessageUtilTest, CreateNewSessionMessageWithUniversalAppId) {
 TEST(CastInternalMessageUtilTest, CreateUpdateSessionMessage) {
   MediaSinkInternal sink = CreateCastSink(1);
   std::string client_id = "clientId";
-  auto session = CastSession::From(sink, ReceiverStatus());
+  base::Optional<base::Value> receiver_status = ReceiverStatus();
+  ASSERT_TRUE(receiver_status);
+  auto session = CastSession::From(sink, receiver_status.value());
   ASSERT_TRUE(session);
 
   auto message =
@@ -516,11 +506,10 @@ TEST(CastInternalMessageUtilTest, CreateAppMessageAck) {
 TEST(CastInternalMessageUtilTest, CreateAppMessage) {
   std::string session_id = "sessionId";
   std::string client_id = "clientId";
-  base::Value::Dict message_body;
-  message_body.Set("foo", base::Value("bar"));
+  base::Value message_body(base::Value::Type::DICTIONARY);
+  message_body.SetKey("foo", base::Value("bar"));
   cast::channel::CastMessage cast_message = cast_channel::CreateCastMessage(
-      "urn:x-cast:com.google.foo", base::Value(std::move(message_body)),
-      "sourceId", "transportId");
+      "urn:x-cast:com.google.foo", message_body, "sourceId", "destinationId");
 
   auto message = CreateAppMessage(session_id, client_id, cast_message);
   EXPECT_THAT(message, IsPresentationConnectionMessage(R"({
@@ -536,8 +525,8 @@ TEST(CastInternalMessageUtilTest, CreateAppMessage) {
 }
 
 TEST(CastInternalMessageUtilTest, CreateV2Message) {
-  base::Value::Dict message_body;
-  message_body.Set("foo", base::Value("bar"));
+  base::Value message_body(base::Value::Type::DICTIONARY);
+  message_body.SetKey("foo", base::Value("bar"));
 
   auto message = CreateV2Message("client_id", message_body, 12345);
   EXPECT_THAT(message, IsPresentationConnectionMessage(R"({

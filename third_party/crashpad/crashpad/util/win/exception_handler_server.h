@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <set>
 #include <string>
 
+#include "base/macros.h"
 #include "base/synchronization/lock.h"
 #include "util/file/file_io.h"
 #include "util/win/address_types.h"
@@ -68,9 +69,6 @@ class ExceptionHandlerServer {
   //!     called. If `false`, Run() will return when all clients have exited,
   //!     although Run() will always wait for the first client to connect.
   explicit ExceptionHandlerServer(bool persistent);
-
-  ExceptionHandlerServer(const ExceptionHandlerServer&) = delete;
-  ExceptionHandlerServer& operator=(const ExceptionHandlerServer&) = delete;
 
   ~ExceptionHandlerServer();
 
@@ -133,6 +131,8 @@ class ExceptionHandlerServer {
   std::set<internal::ClientData*> clients_;
 
   bool persistent_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExceptionHandlerServer);
 };
 
 }  // namespace crashpad

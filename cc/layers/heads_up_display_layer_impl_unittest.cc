@@ -1,10 +1,8 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
-
-#include <utility>
 
 #include "cc/layers/append_quads_data.h"
 #include "cc/layers/heads_up_display_layer_impl.h"
@@ -31,9 +29,8 @@ void CheckDrawLayer(HeadsUpDisplayLayerImpl* layer,
     layer->AppendQuads(render_pass.get(), &data);
   viz::CompositorRenderPassList pass_list;
   pass_list.push_back(std::move(render_pass));
-  bool gpu_raster = context_provider != nullptr;
-  layer->UpdateHudTexture(draw_mode, frame_sink, resource_provider, gpu_raster,
-                          pass_list);
+  layer->UpdateHudTexture(draw_mode, frame_sink, resource_provider,
+                          context_provider, pass_list);
   if (will_draw)
     layer->DidDraw(resource_provider);
 
@@ -44,12 +41,7 @@ void CheckDrawLayer(HeadsUpDisplayLayerImpl* layer,
 }
 
 class HeadsUpDisplayLayerImplTest : public LayerTreeImplTestBase,
-                                    public ::testing::Test {
- public:
-  HeadsUpDisplayLayerImplTest()
-      : LayerTreeImplTestBase(
-            FakeLayerTreeFrameSink::Create3dForGpuRasterization()) {}
-};
+                                    public ::testing::Test {};
 
 TEST_F(HeadsUpDisplayLayerImplTest, ResourcelessSoftwareDrawAfterResourceLoss) {
   host_impl()->CreatePendingTree();

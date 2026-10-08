@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,16 @@
 #include <memory>
 
 #include "base/compiler_specific.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
 #include "net/log/net_log_with_source.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "remoting/protocol/p2p_stream_socket.h"
 #include "third_party/webrtc/p2p/base/pseudo_tcp.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 class P2PDatagramSocket;
 
@@ -29,10 +31,6 @@ class P2PDatagramSocket;
 class PseudoTcpAdapter : public P2PStreamSocket {
  public:
   explicit PseudoTcpAdapter(std::unique_ptr<P2PDatagramSocket> socket);
-
-  PseudoTcpAdapter(const PseudoTcpAdapter&) = delete;
-  PseudoTcpAdapter& operator=(const PseudoTcpAdapter&) = delete;
-
   ~PseudoTcpAdapter() override;
 
   // P2PStreamSocket implementation.
@@ -86,8 +84,11 @@ class PseudoTcpAdapter : public P2PStreamSocket {
   net::NetLogWithSource net_log_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(PseudoTcpAdapter);
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_PSEUDOTCP_ADAPTER_H_

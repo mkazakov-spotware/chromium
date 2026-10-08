@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -117,7 +117,8 @@ TEST_F(QueryTest, DISABLED_LatencyQueryBasic) {
   glBeginQueryEXT(GL_LATENCY_QUERY_CHROMIUM, query);
   // Usually, we want to measure gpu-side latency, but we fake it by
   // adding client side latency for our test because it's easier.
-  base::PlatformThread::Sleep(base::Microseconds(kExpectedLatencyMicroseconds));
+  base::PlatformThread::Sleep(
+      base::TimeDelta::FromMicroseconds(kExpectedLatencyMicroseconds));
   glEndQueryEXT(GL_LATENCY_QUERY_CHROMIUM);
 
   glFinish();

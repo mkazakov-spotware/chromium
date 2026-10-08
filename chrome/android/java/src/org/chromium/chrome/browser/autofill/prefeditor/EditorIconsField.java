@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@ import android.widget.TextView;
 import androidx.appcompat.content.res.AppCompatResources;
 
 import org.chromium.chrome.R;
-import org.chromium.components.autofill.prefeditor.EditorFieldModel;
 
 import java.util.List;
 
@@ -55,12 +54,10 @@ class EditorIconsField {
      * An instance of a {@link BaseAdapter} that provides a list of card icon views.
      */
     private static class IconListAdapter extends BaseAdapter {
-        private final Context mContext;
-        private final List<Integer> mIconResourceIds;
-        private final List<Integer> mIconDescriptionIds;
-        private final int mIconSize;
-        private final int mHorizontalPaddingInPixels;
-        private final int mVerticalPaddingInPixels;
+        private Context mContext;
+        private List<Integer> mIconResourceIds;
+        private List<Integer> mIconDescriptionIds;
+        private int mIconSize;
 
         public IconListAdapter(
                 Context context, List<Integer> iconResourceIds, List<Integer> iconDescriptionIds) {
@@ -69,10 +66,6 @@ class EditorIconsField {
             mIconDescriptionIds = iconDescriptionIds;
             mIconSize = mContext.getResources().getDimensionPixelSize(
                     R.dimen.editable_option_section_logo_width);
-            mHorizontalPaddingInPixels = mContext.getResources().getDimensionPixelSize(
-                    R.dimen.editable_option_section_logo_horizontal_padding);
-            mVerticalPaddingInPixels = mContext.getResources().getDimensionPixelSize(
-                    R.dimen.editable_option_section_logo_vertical_padding);
             assert mIconResourceIds.size() == mIconDescriptionIds.size();
         }
 
@@ -101,8 +94,6 @@ class EditorIconsField {
             iconView.setAdjustViewBounds(true);
             iconView.setMaxWidth(mIconSize);
             iconView.setMaxHeight(mIconSize);
-            iconView.setPadding(mHorizontalPaddingInPixels, mVerticalPaddingInPixels,
-                    mHorizontalPaddingInPixels, mVerticalPaddingInPixels);
             return iconView;
         }
     }

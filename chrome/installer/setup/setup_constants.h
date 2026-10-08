@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,6 +21,8 @@ extern const wchar_t kInstallSourceChromeDir[];
 
 extern const wchar_t kMediaPlayerRegPath[];
 
+extern const char kUninstallMetricsName[];
+
 // The range of error values among the installer, Courgette, BSDiff and
 // Zucchini overlap. These offset values disambiguate between different sets
 // of errors by shifting the values up with the specified offset.
@@ -35,20 +37,12 @@ extern const char kBsdiff[];
 extern const char kZucchini[];
 #endif  // BUILDFLAG(ZUCCHINI)
 
-// Older versions of User Chrome still look for the rename command line REG_SZ
-// "cmd" under the path "Software\Google\Update\Clients\<guid>" where "<guid>"
-// is the current install mode's appguid.
-extern const wchar_t kRegLegacyRenameCmd[];
-
 namespace switches {
 
+extern const char kDelay[];
 extern const char kSetDisplayVersionProduct[];
 extern const char kSetDisplayVersionValue[];
-extern const char kStartupEventHandle[];
 extern const char kUserExperiment[];
-
-extern const char kCleanupForDowngradeOperation[];
-extern const char kCleanupForDowngradeVersion[];
 
 }  // namespace switches
 

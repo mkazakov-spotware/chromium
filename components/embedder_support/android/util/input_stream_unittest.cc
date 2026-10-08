@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
 #include "components/embedder_support/android/native_j_unittests_jni_headers/InputStreamUnittest_jni.h"
 #include "components/embedder_support/android/util/input_stream.h"
 #include "net/base/io_buffer.h"
@@ -55,7 +54,7 @@ class InputStreamTest : public Test {
     return buffer;
   }
 
-  raw_ptr<JNIEnv> env_;
+  JNIEnv* env_;
 };
 
 TEST_F(InputStreamTest, ReadEmptyStream) {

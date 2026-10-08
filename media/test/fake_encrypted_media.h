@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef MEDIA_TEST_FAKE_ENCRYPTED_MEDIA_H_
 #define MEDIA_TEST_FAKE_ENCRYPTED_MEDIA_H_
 
-#include "base/memory/raw_ptr.h"
 #include "media/base/cdm_context.h"
 #include "media/base/content_decryption_module.h"
 
@@ -27,8 +26,7 @@ class FakeEncryptedMedia {
                                   const std::vector<uint8_t>& message,
                                   AesDecryptor* decryptor) = 0;
 
-    virtual void OnSessionClosed(const std::string& session_id,
-                                 CdmSessionClosedReason reason) = 0;
+    virtual void OnSessionClosed(const std::string& session_id) = 0;
 
     virtual void OnSessionKeysChange(const std::string& session_id,
                                      bool has_additional_usable_key,
@@ -43,19 +41,13 @@ class FakeEncryptedMedia {
   };
 
   FakeEncryptedMedia(AppBase* app);
-
-  FakeEncryptedMedia(const FakeEncryptedMedia&) = delete;
-  FakeEncryptedMedia& operator=(const FakeEncryptedMedia&) = delete;
-
   ~FakeEncryptedMedia();
   CdmContext* GetCdmContext();
-
   // Callbacks for firing session events. Delegate to |app_|.
   void OnSessionMessage(const std::string& session_id,
                         CdmMessageType message_type,
                         const std::vector<uint8_t>& message);
-  void OnSessionClosed(const std::string& session_id,
-                       CdmSessionClosedReason reason);
+  void OnSessionClosed(const std::string& session_id);
   void OnSessionKeysChange(const std::string& session_id,
                            bool has_additional_usable_key,
                            CdmKeysInfo keys_info);
@@ -71,12 +63,14 @@ class FakeEncryptedMedia {
     Decryptor* GetDecryptor() final;
 
    private:
-    raw_ptr<Decryptor> decryptor_;
+    Decryptor* decryptor_;
   };
 
   scoped_refptr<AesDecryptor> decryptor_;
   TestCdmContext cdm_context_;
   std::unique_ptr<AppBase> app_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeEncryptedMedia);
 };
 
 }  // namespace media

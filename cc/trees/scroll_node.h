@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "cc/input/scroll_snap_data.h"
 #include "cc/paint/element_id.h"
 #include "cc/paint/filter_operations.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/gfx/geometry/size.h"
 
 namespace base {
@@ -36,9 +35,6 @@ struct CC_EXPORT ScrollNode {
 
   // Size of the container area that the contents scrolls in, not including
   // non-overlay scrollbars. Overlay scrollbars do not affect these bounds.
-  // Note, use the ScrollTree::container_bounds function for the viewport
-  // scroll nodes to include the current bounds change due to top controls
-  // hiding / showing.
   gfx::Size container_bounds;
 
   // Size of the content that is scrolled within the container bounds.
@@ -65,7 +61,7 @@ struct CC_EXPORT ScrollNode {
 
   OverscrollBehavior overscroll_behavior;
 
-  absl::optional<SnapContainerData> snap_container_data;
+  base::Optional<SnapContainerData> snap_container_data;
 
   bool is_composited : 1;
 

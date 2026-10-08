@@ -25,15 +25,13 @@
 
 #include "third_party/blink/renderer/platform/fonts/unicode_range_set.h"
 
-#include <unicode/utf16.h>
-
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
 
 UnicodeRangeSet::UnicodeRangeSet(const Vector<UnicodeRange>& ranges)
     : ranges_(ranges) {
-  if (ranges_.empty())
+  if (ranges_.IsEmpty())
     return;
 
   std::sort(ranges_.begin(), ranges_.end());
@@ -64,7 +62,7 @@ bool UnicodeRangeSet::Contains(UChar32 c) const {
 }
 
 bool UnicodeRangeSet::IntersectsWith(const String& text) const {
-  if (text.empty())
+  if (text.IsEmpty())
     return false;
   if (IsEntireRange())
     return true;

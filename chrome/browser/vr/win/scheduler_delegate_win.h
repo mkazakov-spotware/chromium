@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_VR_WIN_SCHEDULER_DELEGATE_WIN_H_
 #define CHROME_BROWSER_VR_WIN_SCHEDULER_DELEGATE_WIN_H_
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/vr/scheduler_delegate.h"
 
 namespace vr {
@@ -34,10 +33,11 @@ class SchedulerDelegateWin : public SchedulerDelegate {
                         const gfx::Transform& head_pose) override;
   void AddInputSourceState(device::mojom::XRInputSourceStatePtr state) override;
   void ConnectPresentingService(
+      device::mojom::VRDisplayInfoPtr display_info,
       device::mojom::XRRuntimeSessionOptionsPtr options) override;
 
  private:
-  raw_ptr<SchedulerBrowserRendererInterface> browser_renderer_ = nullptr;
+  SchedulerBrowserRendererInterface* browser_renderer_ = nullptr;
   base::OnceCallback<void()> on_frame_ended_;
 };
 

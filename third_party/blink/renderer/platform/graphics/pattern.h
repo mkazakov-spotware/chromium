@@ -29,6 +29,7 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_PATTERN_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_PATTERN_H_
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "third_party/blink/renderer/platform/graphics/image.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_record.h"
@@ -55,13 +56,11 @@ class PLATFORM_EXPORT Pattern : public RefCounted<Pattern> {
                                                    RepeatMode = kRepeatModeXY);
   static scoped_refptr<Pattern> CreatePaintRecordPattern(
       sk_sp<PaintRecord>,
-      const gfx::RectF& record_bounds,
+      const FloatRect& record_bounds,
       RepeatMode = kRepeatModeXY);
-  Pattern(const Pattern&) = delete;
-  Pattern& operator=(const Pattern&) = delete;
   virtual ~Pattern();
 
-  void ApplyToFlags(cc::PaintFlags&, const SkMatrix&) const;
+  void ApplyToFlags(cc::PaintFlags&, const SkMatrix&);
 
   bool IsRepeatX() const { return repeat_mode_ & kRepeatModeX; }
   bool IsRepeatY() const { return repeat_mode_ & kRepeatModeY; }
@@ -70,15 +69,17 @@ class PLATFORM_EXPORT Pattern : public RefCounted<Pattern> {
   virtual bool IsTextureBacked() const { return false; }
 
  protected:
-  explicit Pattern(RepeatMode);
-
-  virtual sk_sp<PaintShader> CreateShader(const SkMatrix&) const = 0;
+  virtual sk_sp<PaintShader> CreateShader(const SkMatrix&) = 0;
 
   RepeatMode repeat_mode_;
 
+  Pattern(RepeatMode);
   mutable sk_sp<PaintShader> cached_shader_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(Pattern);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_PATTERN_H_
+#endif

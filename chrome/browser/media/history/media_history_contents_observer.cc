@@ -1,10 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media/history/media_history_contents_observer.h"
 
-#include "base/containers/contains.h"
+#include "base/stl_util.h"
 #include "chrome/browser/media/history/media_history_keyed_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "content/public/browser/browser_thread.h"
@@ -14,9 +14,7 @@
 
 MediaHistoryContentsObserver::MediaHistoryContentsObserver(
     content::WebContents* web_contents)
-    : content::WebContentsObserver(web_contents),
-      content::WebContentsUserData<MediaHistoryContentsObserver>(
-          *web_contents) {
+    : content::WebContentsObserver(web_contents), service_(nullptr) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   Profile* profile =
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
@@ -34,7 +32,7 @@ MediaHistoryContentsObserver::~MediaHistoryContentsObserver() = default;
 
 void MediaHistoryContentsObserver::DidStartNavigation(
     content::NavigationHandle* navigation_handle) {
-  if (!navigation_handle->IsInPrimaryMainFrame())
+  if (!navigation_handle->IsInMainFrame())
     return;
 
   frozen_ = true;
@@ -42,7 +40,7 @@ void MediaHistoryContentsObserver::DidStartNavigation(
 
 void MediaHistoryContentsObserver::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
-  if (!navigation_handle->IsInPrimaryMainFrame())
+  if (!navigation_handle->IsInMainFrame())
     return;
 
   MaybeCommitMediaSession();
@@ -71,16 +69,16 @@ void MediaHistoryContentsObserver::MediaSessionInfoChanged(
     has_been_active_ = true;
   }
 
-  if (base::Contains(*session_info->audio_video_states,
-                     media_session::mojom::MediaAudioVideoState::kAudioVideo)) {
-    has_audio_and_video_ = true;
+  if (session_info->audio_video_state ==
+      media_session::mojom::MediaAudioVideoState::kAudioVideo) {
+    has_video_ = true;
   } else {
-    has_audio_and_video_ = false;
+    has_video_ = false;
   }
 }
 
 void MediaHistoryContentsObserver::MediaSessionMetadataChanged(
-    const absl::optional<media_session::MediaMetadata>& metadata) {
+    const base::Optional<media_session::MediaMetadata>& metadata) {
   if (!metadata.has_value() || frozen_)
     return;
 
@@ -103,7 +101,7 @@ void MediaHistoryContentsObserver::MediaSessionImagesChanged(
 }
 
 void MediaHistoryContentsObserver::MediaSessionPositionChanged(
-    const absl::optional<media_session::MediaPosition>& position) {
+    const base::Optional<media_session::MediaPosition>& position) {
   if (!position.has_value() || frozen_)
     return;
 
@@ -114,7 +112,7 @@ void MediaHistoryContentsObserver::MaybeCommitMediaSession() {
   // If the media session has never played anything, does not have any metadata
   // or does not have video then we should not commit the media session.
   if (!has_been_active_ || !cached_metadata_ || cached_metadata_->IsEmpty() ||
-      !service_ || !has_audio_and_video_) {
+      !service_ || !has_video_) {
     return;
   }
 
@@ -122,4 +120,4 @@ void MediaHistoryContentsObserver::MaybeCommitMediaSession() {
                                 cached_position_, cached_artwork_);
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(MediaHistoryContentsObserver);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(MediaHistoryContentsObserver)

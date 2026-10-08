@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,50 +13,59 @@
 
 namespace ppapi {
 
-PPB_X509Certificate_Fields::PPB_X509Certificate_Fields() = default;
+PPB_X509Certificate_Fields::PPB_X509Certificate_Fields() {}
 
 PPB_X509Certificate_Fields::PPB_X509Certificate_Fields(
-    const PPB_X509Certificate_Fields& fields)
-    : values_(fields.values_.Clone()) {}
+    const PPB_X509Certificate_Fields& fields) {
+  std::unique_ptr<base::ListValue> new_values(fields.values_.DeepCopy());
+  values_.Swap(new_values.get());
+}
 
 void PPB_X509Certificate_Fields::SetField(
     PP_X509Certificate_Private_Field field,
-    base::Value value) {
+    std::unique_ptr<base::Value> value) {
   uint32_t index = static_cast<uint32_t>(field);
-  // Pad the list with null values if necessary.
-  while (index >= values_.size())
-    values_.Append(base::Value());
-  values_[index] = std::move(value);
+  bool success = values_.Set(index, std::move(value));
+  DCHECK(success);
 }
 
 PP_Var PPB_X509Certificate_Fields::GetFieldAsPPVar(
     PP_X509Certificate_Private_Field field) const {
   uint32_t index = static_cast<uint32_t>(field);
-  if (index >= values_.size()) {
+  const base::Value* value;
+  bool success = values_.Get(index, &value);
+  if (!success) {
     // Our list received might be smaller than the number of fields, so just
     // return null if the index is OOB.
     return PP_MakeNull();
   }
 
-  const base::Value& value = values_[index];
-  switch (value.type()) {
+  switch (value->type()) {
     case base::Value::Type::NONE:
       return PP_MakeNull();
     case base::Value::Type::BOOLEAN: {
-      return PP_MakeBool(PP_FromBool(value.GetBool()));
+      bool val;
+      value->GetAsBoolean(&val);
+      return PP_MakeBool(PP_FromBool(val));
     }
     case base::Value::Type::INTEGER: {
-      return PP_MakeInt32(value.GetInt());
+      int val;
+      value->GetAsInteger(&val);
+      return PP_MakeInt32(val);
     }
     case base::Value::Type::DOUBLE: {
-      return PP_MakeDouble(value.GetDouble());
+      double val;
+      value->GetAsDouble(&val);
+      return PP_MakeDouble(val);
     }
     case base::Value::Type::STRING: {
-      return StringVar::StringToPPVar(value.GetString());
+      std::string val;
+      value->GetAsString(&val);
+      return StringVar::StringToPPVar(val);
     }
     case base::Value::Type::BINARY: {
-      uint32_t size = static_cast<uint32_t>(value.GetBlob().size());
-      const uint8_t* buffer = value.GetBlob().data();
+      uint32_t size = static_cast<uint32_t>(value->GetBlob().size());
+      const uint8_t* buffer = value->GetBlob().data();
       PP_Var array_buffer =
           PpapiGlobals::Get()->GetVarTracker()->MakeArrayBufferPPVar(size,
                                                                      buffer);
@@ -64,6 +73,8 @@ PP_Var PPB_X509Certificate_Fields::GetFieldAsPPVar(
     }
     case base::Value::Type::DICTIONARY:
     case base::Value::Type::LIST:
+    // TODO(crbug.com/859477): Remove after root cause is found.
+    case base::Value::Type::DEAD:
       // Not handled.
       break;
   }

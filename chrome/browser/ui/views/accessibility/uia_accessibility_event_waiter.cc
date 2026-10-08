@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 #include <utility>
 
 #include "base/strings/string_util.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/win/scoped_bstr.h"
 #include "base/win/scoped_com_initializer.h"
 #include "base/win/scoped_variant.h"
@@ -38,7 +39,7 @@ void UiaAccessibilityEventWaiter::Wait() {
 
 void UiaAccessibilityEventWaiter::WaitWithTimeout(base::TimeDelta timeout) {
   // Pump messages via |shutdown_loop_| until the thread is complete.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE, shutdown_loop_.QuitClosure(), timeout);
   shutdown_loop_.Run();
   base::PlatformThread::Join(thread_handle_);
@@ -218,9 +219,9 @@ bool UiaAccessibilityEventWaiter::Thread::EventHandler::MatchesNameRole(
   sender->get_CachedAriaRole(aria_role.Receive());
   sender->get_CachedName(name.Receive());
 
-  if (std::wstring(aria_role.Get(), SysStringLen(aria_role.Get())) ==
+  if (base::string16(aria_role.Get(), SysStringLen(aria_role.Get())) ==
           owner_->info_.role &&
-      std::wstring(name.Get(), SysStringLen(name.Get())) ==
+      base::string16(name.Get(), SysStringLen(name.Get())) ==
           owner_->info_.name) {
     return true;
   }

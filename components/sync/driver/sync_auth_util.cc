@@ -1,40 +1,40 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/sync/driver/sync_auth_util.h"
 
-#include "base/feature_list.h"
-#include "components/signin/public/base/consent_level.h"
+#include <vector>
+
+#include "components/signin/public/identity_manager/accounts_in_cookie_jar_info.h"
+#include "components/signin/public/identity_manager/consent_level.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
-#include "components/sync/base/features.h"
+#include "google_apis/gaia/gaia_auth_util.h"
+#include "google_apis/gaia/google_service_auth_error.h"
 
 namespace syncer {
 
 SyncAccountInfo::SyncAccountInfo() = default;
 
 SyncAccountInfo::SyncAccountInfo(const CoreAccountInfo& account_info,
-                                 bool is_sync_consented)
-    : account_info(account_info), is_sync_consented(is_sync_consented) {}
+                                 bool is_primary)
+    : account_info(account_info), is_primary(is_primary) {}
 
 SyncAccountInfo DetermineAccountToUse(
     signin::IdentityManager* identity_manager) {
-  // TODO(crbug.com/1383977): During signout, it can happen that the primary
-  // account temporarily doesn't have a refresh token (before the account
-  // itself gets removed). As a workaround for crbug.com/1383912 /
-  // crbug.com/897628, do *not* use the account for Sync in this case. This
-  // ensures that Sync metadata gets properly cleared during signout.
-  if (identity_manager->AreRefreshTokensLoaded() &&
-      !identity_manager->HasPrimaryAccountWithRefreshToken(
-          signin::ConsentLevel::kSignin) &&
-      base::FeatureList::IsEnabled(kSyncIgnoreAccountWithoutRefreshToken)) {
-    return SyncAccountInfo();
-  }
+  return SyncAccountInfo(identity_manager->GetPrimaryAccountInfo(
+                             signin::ConsentLevel::kNotRequired),
+                         /*is_primary=*/identity_manager->HasPrimaryAccount());
+}
 
-  return SyncAccountInfo(
-      identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin),
-      /*is_sync_consented=*/identity_manager->HasPrimaryAccount(
-          signin::ConsentLevel::kSync));
+bool IsWebSignout(const GoogleServiceAuthError& auth_error) {
+  // The identity code sets an account's refresh token to be invalid (error
+  // CREDENTIALS_REJECTED_BY_CLIENT) if the user signs out of that account on
+  // the web.
+  return auth_error ==
+         GoogleServiceAuthError::FromInvalidGaiaCredentialsReason(
+             GoogleServiceAuthError::InvalidGaiaCredentialsReason::
+                 CREDENTIALS_REJECTED_BY_CLIENT);
 }
 
 }  // namespace syncer

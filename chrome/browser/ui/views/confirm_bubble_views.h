@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "ui/views/window/dialog_delegate.h"
 
 class ConfirmBubbleModel;
@@ -28,24 +28,26 @@ class Label;
 // TODO(msw): Remove this class or merge it with DialogDelegateView.
 class ConfirmBubbleViews : public views::DialogDelegateView {
  public:
-  METADATA_HEADER(ConfirmBubbleViews);
   explicit ConfirmBubbleViews(std::unique_ptr<ConfirmBubbleModel> model);
-  ConfirmBubbleViews(const ConfirmBubbleViews&) = delete;
-  ConfirmBubbleViews& operator=(const ConfirmBubbleViews&) = delete;
 
  protected:
   ~ConfirmBubbleViews() override;
 
-  // views::DialogDelegateView:
-  std::u16string GetWindowTitle() const override;
+  // views::WidgetDelegate implementation.
+  ui::ModalType GetModalType() const override;
+  base::string16 GetWindowTitle() const override;
   bool ShouldShowCloseButton() const override;
-  void OnWidgetInitialized() override;
+
+  // views::DialogDelegateView implementation.
+  void OnDialogInitialized() override;
 
  private:
   // The model to customize this bubble view.
   std::unique_ptr<ConfirmBubbleModel> model_;
 
-  raw_ptr<views::Label> label_;
+  views::Label* label_;
+
+  DISALLOW_COPY_AND_ASSIGN(ConfirmBubbleViews);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_CONFIRM_BUBBLE_VIEWS_H_

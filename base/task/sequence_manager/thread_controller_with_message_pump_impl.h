@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,13 @@
 
 #include <memory>
 
-#include "base/base_export.h"
-#include "base/memory/raw_ptr.h"
 #include "base/message_loop/message_pump.h"
 #include "base/message_loop/work_id_provider.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
 #include "base/task/common/checked_lock.h"
 #include "base/task/common/task_annotator.h"
+#include "base/task/sequence_manager/associated_thread_id.h"
 #include "base/task/sequence_manager/sequence_manager_impl.h"
 #include "base/task/sequence_manager/sequenced_task_source.h"
 #include "base/task/sequence_manager/thread_controller.h"
@@ -24,9 +24,7 @@
 #include "base/threading/platform_thread.h"
 #include "base/threading/sequence_local_storage_map.h"
 #include "base/threading/thread_task_runner_handle.h"
-#include "base/time/time.h"
 #include "build/build_config.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 namespace sequence_manager {
@@ -39,9 +37,6 @@ class BASE_EXPORT ThreadControllerWithMessagePumpImpl
       public RunLoop::Delegate,
       public RunLoop::NestingObserver {
  public:
-  static void InitializeFeatures();
-  static void ResetFeatures();
-
   ThreadControllerWithMessagePumpImpl(
       std::unique_ptr<MessagePump> message_pump,
       const SequenceManager::Settings& settings);
@@ -60,11 +55,12 @@ class BASE_EXPORT ThreadControllerWithMessagePumpImpl
   void SetSequencedTaskSource(SequencedTaskSource* task_source) override;
   void BindToCurrentThread(std::unique_ptr<MessagePump> message_pump) override;
   void SetWorkBatchSize(int work_batch_size) override;
-  void WillQueueTask(PendingTask* pending_task) override;
+  void WillQueueTask(PendingTask* pending_task,
+                     const char* task_queue_name) override;
   void ScheduleWork() override;
-  void SetNextDelayedDoWork(LazyNow* lazy_now,
-                            absl::optional<WakeUp> wake_up) override;
+  void SetNextDelayedDoWork(LazyNow* lazy_now, TimeTicks run_time) override;
   void SetTimerSlack(TimerSlack timer_slack) override;
+  const TickClock* GetClock() override;
   bool RunsTasksInCurrentSequence() override;
   void SetDefaultTaskRunner(
       scoped_refptr<SingleThreadTaskRunner> task_runner) override;
@@ -72,15 +68,14 @@ class BASE_EXPORT ThreadControllerWithMessagePumpImpl
   void RestoreDefaultTaskRunner() override;
   void AddNestingObserver(RunLoop::NestingObserver* observer) override;
   void RemoveNestingObserver(RunLoop::NestingObserver* observer) override;
+  const scoped_refptr<AssociatedThreadId>& GetAssociatedThread() const override;
   void SetTaskExecutionAllowed(bool allowed) override;
   bool IsTaskExecutionAllowed() const override;
   MessagePump* GetBoundMessagePump() const override;
-  void PrioritizeYieldingToNative(base::TimeTicks prioritize_until) override;
-  void EnablePeriodicYieldingToNative(base::TimeDelta delta) override;
-#if BUILDFLAG(IS_IOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_IOS) || defined(OS_ANDROID)
   void AttachToMessagePump() override;
 #endif
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   void DetachFromMessagePump() override;
 #endif
   bool ShouldQuitRunLoopWhenIdle() override;
@@ -94,14 +89,11 @@ class BASE_EXPORT ThreadControllerWithMessagePumpImpl
       const SequenceManager::Settings& settings);
 
   // MessagePump::Delegate implementation.
-  void OnBeginWorkItem() override;
-  void OnEndWorkItem() override;
+  void OnBeginNativeWork() override;
+  void OnEndNativeWork() override;
   void BeforeWait() override;
   MessagePump::Delegate::NextWorkInfo DoWork() override;
   bool DoIdleWork() override;
-
-  void OnBeginWorkItemImpl(LazyNow& lazy_now);
-  void OnEndWorkItemImpl(LazyNow& lazy_now);
 
   // RunLoop::Delegate implementation.
   void Run(bool application_tasks_allowed, TimeDelta timeout) override;
@@ -112,10 +104,9 @@ class BASE_EXPORT ThreadControllerWithMessagePumpImpl
     MainThreadOnly();
     ~MainThreadOnly();
 
-    raw_ptr<SequencedTaskSource> task_source = nullptr;            // Not owned.
-    raw_ptr<RunLoop::NestingObserver> nesting_observer = nullptr;  // Not owned.
-    std::unique_ptr<SingleThreadTaskRunner::CurrentDefaultHandle>
-        thread_task_runner_handle;
+    SequencedTaskSource* task_source = nullptr;            // Not owned.
+    RunLoop::NestingObserver* nesting_observer = nullptr;  // Not owned.
+    std::unique_ptr<ThreadTaskRunnerHandle> thread_task_runner_handle;
 
     // Indicates that we should yield DoWork between each task to let a possibly
     // nested RunLoop exit.
@@ -127,9 +118,8 @@ class BASE_EXPORT ThreadControllerWithMessagePumpImpl
     // Number of tasks processed in a single DoWork invocation.
     int work_batch_size = 1;
 
-    // While Now() is less than |yield_to_native_after_batch| we will request a
-    // yield to the MessagePump after |work_batch_size| work items.
-    base::TimeTicks yield_to_native_after_batch = base::TimeTicks();
+    // Tracks the number and state of each run-level managed by this instance.
+    RunLevelTracker run_level_tracker;
 
     // When the next scheduled delayed work should run, if any.
     TimeTicks next_delayed_do_work = TimeTicks::Max();
@@ -152,18 +142,12 @@ class BASE_EXPORT ThreadControllerWithMessagePumpImpl
   friend class DoWorkScope;
   friend class RunScope;
 
-  // Returns a WorkDetails which has WakeUp for the next pending task,
-  // is_immediate() if the next task can run immediately, or nullopt if there
-  // are no more immediate tasks or delayed, also has |work_interval| which
-  // represents the time it took to execute the current batch in the looper.
-  WorkDetails DoWorkImpl(LazyNow* continuation_lazy_now);
+  // Returns the delay till the next task. If there's no delay TimeDelta::Max()
+  // will be returned.
+  TimeDelta DoWorkImpl(LazyNow* continuation_lazy_now);
 
   void InitializeThreadTaskRunnerHandle()
       EXCLUSIVE_LOCKS_REQUIRED(task_runner_lock_);
-
-  // Returns the rate at which the thread controller should alternate between
-  // work batches and yielding to the MessagePump.
-  base::TimeDelta GetAlternationInterval();
 
   MainThreadOnly& main_thread_only() {
     DCHECK_CALLED_ON_VALID_THREAD(associated_thread_->thread_checker);
@@ -175,6 +159,12 @@ class BASE_EXPORT ThreadControllerWithMessagePumpImpl
     return main_thread_only_;
   }
 
+  // Instantiate a HangWatchScopeEnabled to cover the current work if hang
+  // watching is activated via finch and the current loop is not nested.
+  void MaybeStartHangWatchScopeEnabled();
+
+  // TODO(altimin): Merge with the one in SequenceManager.
+  scoped_refptr<AssociatedThreadId> associated_thread_;
   MainThreadOnly main_thread_only_;
 
   mutable base::internal::CheckedLock task_runner_lock_;
@@ -192,30 +182,27 @@ class BASE_EXPORT ThreadControllerWithMessagePumpImpl
 
   TaskAnnotator task_annotator_;
 
+#if DCHECK_IS_ON()
+  const bool log_runloop_quit_and_quit_when_idle_;
+  bool quit_when_idle_requested_ = false;
+#endif
+
+  const TickClock* time_source_;  // Not owned.
+
   // Non-null provider of id state for identifying distinct work items executed
   // by the message loop (task, event, etc.). Cached on the class to avoid TLS
   // lookups on task execution.
-  raw_ptr<WorkIdProvider> work_id_provider_ = nullptr;
+  WorkIdProvider* work_id_provider_ = nullptr;
 
-  // Required to register the current thread as a sequence. Must be declared
-  // after |main_thread_only_| so that the destructors of state stored in the
-  // map run while the main thread state is still valid (crbug.com/1221382)
+  // Required to register the current thread as a sequence.
   base::internal::SequenceLocalStorageMap sequence_local_storage_map_;
   std::unique_ptr<
       base::internal::ScopedSetSequenceLocalStorageMapForCurrentThread>
       scoped_set_sequence_local_storage_map_for_current_thread_;
 
-  // Reset at the start & end of each unit of work to cover the work itself and
-  // the overhead between each work item (no-op if HangWatcher is not enabled
-  // on this thread). Cleared when going to sleep and at the end of a Run()
-  // (i.e. when Quit()). Nested runs override their parent.
-  absl::optional<WatchHangsInScope> hang_watch_scope_;
-
-  // This time delta represents the interval after which the scheduler will
-  // yield to the native OS looper if we keep getting immediate tasks
-  // if kBrowserPeriodicYieldingToNative finch experiment is enabled.
-  base::TimeDelta periodic_yielding_to_native_interval_ =
-      base::TimeDelta::Max();
+  // Reset at the start of each unit of work to cover the work itself and then
+  // transition to the next one.
+  base::Optional<HangWatchScopeEnabled> hang_watch_scope_;
 };
 
 }  // namespace internal

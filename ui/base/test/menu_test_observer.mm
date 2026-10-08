@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ui/base/test/menu_test_observer.h"
 
 #include "base/check_op.h"
+#import "base/mac/objc_release_properties.h"
 
 @implementation MenuTestObserver
 
@@ -16,7 +17,7 @@
 
 - (instancetype)initWithMenu:(NSMenu*)menu {
   if ((self = [super init])) {
-    _menu = [menu retain];
+    _menu = menu;
 
     NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
     [center addObserver:self
@@ -33,8 +34,7 @@
 
 - (void)dealloc {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
-  [_menu release];
-  [_openCallback release];
+  base::mac::ReleaseProperties(self);
   [super dealloc];
 }
 

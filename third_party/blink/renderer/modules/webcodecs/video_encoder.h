@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,63 +7,40 @@
 
 #include <memory>
 
-#include "base/containers/lru_cache.h"
-#include "base/time/time.h"
+#include "base/optional.h"
+#include "media/base/media_log.h"
+#include "media/base/status.h"
 #include "media/base/video_codecs.h"
 #include "media/base/video_color_space.h"
 #include "media/base/video_encoder.h"
-#include "media/base/video_frame_pool.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_encoded_video_chunk_output_callback.h"
-#include "third_party/blink/renderer/modules/webcodecs/encoder_base.h"
-#include "third_party/blink/renderer/modules/webcodecs/hardware_preference.h"
+#include "third_party/blink/renderer/bindings/core/v8/active_script_wrappable.h"
+#include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_codec_state.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_video_encoder_output_callback.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_web_codecs_error_callback.h"
+#include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/modules/webcodecs/video_frame.h"
-#include "ui/gfx/color_space.h"
+#include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
+#include "third_party/blink/renderer/platform/context_lifecycle_observer.h"
 
 namespace media {
-class GpuVideoAcceleratorFactories;
 class VideoEncoder;
 struct VideoEncoderOutput;
 }  // namespace media
 
 namespace blink {
 
+class ExceptionState;
+enum class DOMExceptionCode;
 class VideoEncoderConfig;
 class VideoEncoderInit;
 class VideoEncoderEncodeOptions;
-class WebGraphicsContext3DVideoFramePool;
-class BackgroundReadback;
+class Visitor;
 
-class MODULES_EXPORT VideoEncoderTraits {
- public:
-  struct ParsedConfig final : public GarbageCollected<ParsedConfig> {
-    media::VideoCodec codec;
-    media::VideoCodecProfile profile;
-    uint8_t level;
-
-    HardwarePreference hw_pref;
-
-    media::VideoEncoder::Options options;
-    String codec_string;
-    absl::optional<gfx::Size> display_size;
-
-    void Trace(Visitor*) const {}
-  };
-
-  using Init = VideoEncoderInit;
-  using Config = VideoEncoderConfig;
-  using InternalConfig = ParsedConfig;
-  using Input = VideoFrame;
-  using EncodeOptions = VideoEncoderEncodeOptions;
-  using OutputChunk = EncodedVideoChunk;
-  using OutputCallback = V8EncodedVideoChunkOutputCallback;
-  using MediaEncoder = media::VideoEncoder;
-
-  // Can't be a virtual method, because it's used from base ctor.
-  static const char* GetName();
-};
-
-class MODULES_EXPORT VideoEncoder : public EncoderBase<VideoEncoderTraits> {
+class MODULES_EXPORT VideoEncoder final
+    : public ScriptWrappable,
+      public ActiveScriptWrappable<VideoEncoder>,
+      public ExecutionContextLifecycleObserver {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
@@ -73,12 +50,25 @@ class MODULES_EXPORT VideoEncoder : public EncoderBase<VideoEncoderTraits> {
   VideoEncoder(ScriptState*, const VideoEncoderInit*, ExceptionState&);
   ~VideoEncoder() override;
 
-  static ScriptPromise isConfigSupported(ScriptState*,
-                                         const VideoEncoderConfig*,
-                                         ExceptionState&);
+  // video_encoder.idl implementation.
+  int32_t encodeQueueSize();
 
-  // EventTarget interface
-  const AtomicString& InterfaceName() const override;
+  void encode(VideoFrame* frame,
+              const VideoEncoderEncodeOptions*,
+              ExceptionState&);
+
+  void configure(const VideoEncoderConfig*, ExceptionState&);
+
+  ScriptPromise flush(ExceptionState&);
+
+  void reset(ExceptionState&);
+
+  void close(ExceptionState&);
+
+  String state() { return state_; }
+
+  // ExecutionContextLifecycleObserver override.
+  void ContextDestroyed() override;
 
   // ScriptWrappable override.
   bool HasPendingActivity() const override;
@@ -86,77 +76,101 @@ class MODULES_EXPORT VideoEncoder : public EncoderBase<VideoEncoderTraits> {
   // GarbageCollected override.
   void Trace(Visitor*) const override;
 
- protected:
-  using Base = EncoderBase<VideoEncoderTraits>;
-  using ParsedConfig = VideoEncoderTraits::ParsedConfig;
+ private:
+  enum class AccelerationPreference { kAllow, kDeny, kRequire };
+
+  // TODO(ezemtsov): Replace this with a {Audio|Video}EncoderConfig.
+  struct ParsedConfig final : public GarbageCollected<ParsedConfig> {
+    media::VideoCodec codec;
+    media::VideoCodecProfile profile;
+    uint8_t level;
+    media::VideoColorSpace color_space;
+
+    AccelerationPreference acc_pref;
+
+    media::VideoEncoder::Options options;
+    String codec_string;
+
+    void Trace(Visitor*) const {}
+  };
+
+  struct Request final : public GarbageCollected<Request> {
+    enum class Type {
+      // Configure an encoder from scratch, possibly replacing the existing one.
+      kConfigure,
+      // Adjust options in the already configured encoder.
+      kReconfigure,
+      kEncode,
+      kFlush,
+    };
+
+    void Trace(Visitor*) const;
+
+    Type type;
+    // Current value of VideoEncoder.reset_count_ when request was created.
+    uint32_t reset_count = 0;
+    Member<VideoFrame> frame;                            // used by kEncode
+    Member<const VideoEncoderEncodeOptions> encodeOpts;  // used by kEncode
+    Member<ScriptPromiseResolver> resolver;              // used by kFlush
+  };
 
   void CallOutputCallback(
       ParsedConfig* active_config,
       uint32_t reset_count,
       media::VideoEncoderOutput output,
-      absl::optional<media::VideoEncoder::CodecDescription> codec_desc);
-  bool ReadyToProcessNextRequest() override;
-  void ProcessEncode(Request* request) override;
-  void ProcessConfigure(Request* request) override;
-  void ProcessReconfigure(Request* request) override;
-  void ResetInternal() override;
+      base::Optional<media::VideoEncoder::CodecDescription> codec_desc);
+  void HandleError(DOMException* ex);
+  void HandleError(std::string context, media::Status);
+  void EnqueueRequest(Request* request);
+  void ProcessRequests();
+  void ProcessEncode(Request* request);
+  void ProcessConfigure(Request* request);
+  void ProcessReconfigure(Request* request);
+  void ProcessFlush(Request* request);
 
-  void OnEncodeDone(Request* request, media::EncoderStatus status);
-  // This will execute shortly after the async readback completes.
-  void OnReadbackDone(bool keyframe,
-                      uint32_t reset_count,
-                      scoped_refptr<media::VideoFrame> txt_frame,
-                      media::VideoEncoder::EncoderStatusCB done_callback,
-                      scoped_refptr<media::VideoFrame> result_frame);
-  void OnMediaEncoderCreated(std::string encoder_name, bool is_hw_accelerated);
-  static std::unique_ptr<media::VideoEncoder> CreateSoftwareVideoEncoder(
-      VideoEncoder* self,
-      media::VideoCodec codec);
+  void UpdateEncoderLog(std::string encoder_name, bool is_hw_accelerated);
 
-  ParsedConfig* ParseConfig(const VideoEncoderConfig*,
-                            ExceptionState&) override;
-  bool VerifyCodecSupport(ParsedConfig*, ExceptionState&) override;
+  void ResetInternal();
+  ScriptPromiseResolver* MakePromise();
 
-  // Virtual for UTs.
-  virtual std::unique_ptr<media::VideoEncoder> CreateMediaVideoEncoder(
-      const ParsedConfig& config,
-      media::GpuVideoAcceleratorFactories* gpu_factories);
+  ParsedConfig* ParseConfig(const VideoEncoderConfig*, ExceptionState&);
+  bool VerifyCodecSupport(ParsedConfig*, ExceptionState&);
+  std::unique_ptr<media::VideoEncoder> CreateMediaVideoEncoder(
+      const ParsedConfig& config);
+  bool CanReconfigure(ParsedConfig& original_config, ParsedConfig& new_config);
 
-  void ContinueConfigureWithGpuFactories(
-      Request* request,
-      media::GpuVideoAcceleratorFactories* gpu_factories);
-  std::unique_ptr<media::VideoEncoder> CreateAcceleratedVideoEncoder(
-      media::VideoCodecProfile profile,
-      const media::VideoEncoder::Options& options,
-      media::GpuVideoAcceleratorFactories* gpu_factories,
-      HardwarePreference hw_pref);
-  bool CanReconfigure(ParsedConfig& original_config,
-                      ParsedConfig& new_config) override;
+  std::unique_ptr<media::VideoEncoder> media_encoder_;
+  bool is_hw_accelerated_ = false;
 
-  using ReadbackDoneCallback =
-      base::OnceCallback<void(scoped_refptr<media::VideoFrame>)>;
-  bool StartReadback(scoped_refptr<media::VideoFrame> frame,
-                     ReadbackDoneCallback result_cb);
+  // |parent_media_log_| must be destroyed if ever the ExecutionContext is
+  // destroyed, since the blink::MediaInspectorContext* pointer given to
+  // InspectorMediaEventHandler might no longer be valid.
+  // |parent_media_log_| should not be used directly. Use |media_log_| instead.
+  std::unique_ptr<media::MediaLog> parent_media_log_;
 
-  std::unique_ptr<WebGraphicsContext3DVideoFramePool> accelerated_frame_pool_;
-  Member<BackgroundReadback> background_readback_;
+  // We might destroy |parent_media_log_| at any point, so keep a clone which
+  // can be safely accessed, and whose raw pointer can be given callbacks.
+  std::unique_ptr<media::MediaLog> media_log_;
 
-  // True if an error occurs during frame pool usage.
-  bool disable_accelerated_frame_pool_ = false;
+  V8CodecState state_;
 
-  // The number of encoding requests currently handled by |media_encoder_|
-  // Should not exceed |kMaxActiveEncodes|.
-  int active_encodes_ = 0;
+  Member<ParsedConfig> active_config_;
+  Member<ScriptState> script_state_;
+  Member<V8VideoEncoderOutputCallback> output_callback_;
+  Member<V8WebCodecsErrorCallback> error_callback_;
+  HeapDeque<Member<Request>> requests_;
+  int32_t requested_encodes_ = 0;
+  // How many times reset() was called on the encoder. It's used to decide
+  // when a callback needs to be dismissed because reset() was called between
+  // an operation and its callback.
+  uint32_t reset_count_ = 0;
 
-  // Per-frame metadata to be applied to outputs, linked by timestamp.
-  struct FrameMetadata {
-    base::TimeDelta duration;
-  };
-  base::LRUCache<base::TimeDelta, FrameMetadata> frame_metadata_;
+  // Some kConfigure and kFlush requests can't be executed in parallel with
+  // kEncode. This flag stops processing of new requests in the requests_ queue
+  // till the current requests are finished.
+  bool stall_request_processing_ = false;
 
-  // The color space corresponding to the last emitted output. Used to update
-  // emitted VideoDecoderConfig when necessary.
-  gfx::ColorSpace last_output_color_space_;
+  SEQUENCE_CHECKER(sequence_checker_);
 };
 
 }  // namespace blink

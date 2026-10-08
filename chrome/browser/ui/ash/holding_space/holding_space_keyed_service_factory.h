@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,17 +22,13 @@ class HoldingSpaceKeyedServiceFactory
  public:
   static HoldingSpaceKeyedServiceFactory* GetInstance();
 
-  static TestingFactory GetDefaultTestingFactory();
-  static void SetTestingFactory(TestingFactory testing_factory);
-
   HoldingSpaceKeyedService* GetService(content::BrowserContext* context);
 
  protected:
   // BrowserContextKeyedServiceFactory:
-  content::BrowserContext* GetBrowserContextToUse(
-      content::BrowserContext* context) const override;
   KeyedService* BuildServiceInstanceFor(
       content::BrowserContext* context) const override;
+  bool ServiceIsCreatedWithBrowserContext() const override;
   void RegisterProfilePrefs(
       user_prefs::PrefRegistrySyncable* registry) override;
 
@@ -44,9 +40,6 @@ class HoldingSpaceKeyedServiceFactory
       const HoldingSpaceKeyedServiceFactory& other) = delete;
   HoldingSpaceKeyedServiceFactory& operator=(
       const HoldingSpaceKeyedServiceFactory& other) = delete;
-
-  static KeyedService* BuildServiceInstanceForInternal(
-      content::BrowserContext* context);
 };
 
 }  // namespace ash

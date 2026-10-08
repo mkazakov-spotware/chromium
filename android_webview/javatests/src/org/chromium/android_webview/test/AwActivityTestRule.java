@@ -1,13 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.android_webview.test;
 
+import static org.chromium.base.test.util.ScalableTimeout.scaleTimeout;
+
 import android.content.Context;
-import android.content.Intent;
 import android.support.test.InstrumentationRegistry;
-import android.support.test.runner.lifecycle.Stage;
+import android.support.test.rule.ActivityTestRule;
 import android.util.AndroidRuntimeException;
 import android.util.Base64;
 import android.view.ViewGroup;
@@ -27,12 +28,9 @@ import org.chromium.android_webview.AwSettings;
 import org.chromium.android_webview.test.util.GraphicsTestUtils;
 import org.chromium.android_webview.test.util.JSUtils;
 import org.chromium.base.Log;
-import org.chromium.base.test.BaseActivityTestRule;
-import org.chromium.base.test.util.ApplicationTestUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.InMemorySharedPreferences;
-import org.chromium.base.test.util.ScalableTimeout;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.test.util.TestCallbackHelperContainer.OnPageFinishedHelper;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
@@ -53,11 +51,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Custom ActivityTestRunner for WebView instrumentation tests */
-public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivity> {
-    public static final long WAIT_TIMEOUT_MS = 15000L;
-
-    // Only use scaled timeout if you are certain it's not being called further up the call stack.
-    public static final long SCALED_WAIT_TIMEOUT_MS = ScalableTimeout.scaleTimeout(15000L);
+public class AwActivityTestRule extends ActivityTestRule<AwTestRunnerActivity> {
+    public static final long WAIT_TIMEOUT_MS = scaleTimeout(15000L);
 
     public static final int CHECK_INTERVAL = 100;
 
@@ -83,7 +78,7 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
     private List<WeakReference<AwContents>> mAwContentsDestroyedInTearDown = new ArrayList<>();
 
     public AwActivityTestRule() {
-        super(AwTestRunnerActivity.class);
+        super(AwTestRunnerActivity.class, /* initialTouchMode */ false, /* launchActivity */ false);
     }
 
     @Override
@@ -125,28 +120,10 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
         TestThreadUtils.runOnUiThreadBlocking(() -> { mAwContentsDestroyedInTearDown.clear(); });
     }
 
-    public boolean needsHideActionBar() {
-        return false;
-    }
-
-    private Intent getLaunchIntent() {
-        if (needsHideActionBar()) {
-            Intent intent = getActivityIntent();
-            intent.putExtra(AwTestRunnerActivity.FLAG_HIDE_ACTION_BAR, true);
-            return intent;
-        }
-        return null;
-    }
-
-    @Override
-    public void launchActivity(Intent intent) {
-        if (getActivity() != null) return;
-        super.launchActivity(intent);
-        ApplicationTestUtils.waitForActivityState(getActivity(), Stage.RESUMED);
-    }
-
     public AwTestRunnerActivity launchActivity() {
-        launchActivity(getLaunchIntent());
+        if (getActivity() == null) {
+            return launchActivity(null);
+        }
         return getActivity();
     }
 
@@ -197,45 +174,22 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
     }
 
     public void startBrowserProcess() {
-        doStartBrowserProcess(false);
-    }
-
-    public void startBrowserProcessWithVulkan() {
-        doStartBrowserProcess(true);
-    }
-
-    private void doStartBrowserProcess(boolean useVulkan) {
         // The Activity must be launched in order for proper webview statics to be setup.
         launchActivity();
         if (!sBrowserProcessStarted) {
             sBrowserProcessStarted = true;
-            TestThreadUtils.runOnUiThreadBlocking(() -> {
-                AwTestContainerView.installDrawFnFunctionTable(useVulkan);
-                AwBrowserProcess.start();
-            });
+            TestThreadUtils.runOnUiThreadBlocking(() -> AwBrowserProcess.start());
         }
         if (mBrowserContext != null) {
             TestThreadUtils.runOnUiThreadBlocking(
-                    ()
-                            -> mBrowserContext.setNativePointer(
-                                    AwBrowserContext.getDefault()
-                                            .getNativeBrowserContextPointer()));
+                    () -> mBrowserContext.setNativePointer(
+                            AwBrowserContext.getDefault().getNativePointer()));
         }
-    }
-
-    public void runOnUiThread(Runnable r) {
-        TestThreadUtils.runOnUiThreadBlocking(r);
     }
 
     public static void enableJavaScriptOnUiThread(final AwContents awContents) {
         TestThreadUtils.runOnUiThreadBlocking(
                 () -> awContents.getSettings().setJavaScriptEnabled(true));
-    }
-
-    public static boolean getJavaScriptEnabledOnUiThread(final AwContents awContents)
-            throws ExecutionException {
-        return TestThreadUtils.runOnUiThreadBlocking(
-                () -> awContents.getSettings().getJavaScriptEnabled());
     }
 
     public static void setNetworkAvailableOnUiThread(
@@ -262,11 +216,11 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
     public void loadUrlSyncAndExpectError(final AwContents awContents,
             CallbackHelper onPageFinishedHelper, CallbackHelper onReceivedErrorHelper,
             final String url) throws Exception {
-        int onReceivedErrorCount = onReceivedErrorHelper.getCallCount();
+        int onErrorCallCount = onReceivedErrorHelper.getCallCount();
         int onFinishedCallCount = onPageFinishedHelper.getCallCount();
         loadUrlAsync(awContents, url);
         onReceivedErrorHelper.waitForCallback(
-                onReceivedErrorCount, 1, WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+                onErrorCallCount, 1, WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         onPageFinishedHelper.waitForCallback(
                 onFinishedCallCount, 1, WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
     }
@@ -512,33 +466,9 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
      */
     public String executeJavaScriptAndWaitForResult(final AwContents awContents,
             TestAwContentsClient viewClient, final String code) throws Exception {
-        return executeJavaScriptAndWaitForResult(
-                awContents, viewClient, code, /*shouldCheckSettings=*/true);
-    }
-
-    /**
-     * Like {@link #executeJavaScriptAndWaitForResult} but with a parameter to skip the call to
-     * {@link checkJavaScriptEnabled}. This is useful if your test expects JavaScript to be disabled
-     * (in which case the underlying executeJavaScriptAndWaitForResult() is expected to be a NOOP).
-     */
-    public String executeJavaScriptAndWaitForResult(final AwContents awContents,
-            TestAwContentsClient viewClient, final String code, boolean shouldCheckSettings)
-            throws Exception {
-        if (shouldCheckSettings) {
-            checkJavaScriptEnabled(awContents);
-        }
         return JSUtils.executeJavaScriptAndWaitForResult(
                 InstrumentationRegistry.getInstrumentation(), awContents,
                 viewClient.getOnEvaluateJavaScriptResultHelper(), code);
-    }
-
-    public static void checkJavaScriptEnabled(AwContents awContents) throws Exception {
-        boolean javaScriptEnabled = AwActivityTestRule.getJavaScriptEnabledOnUiThread(awContents);
-        if (!javaScriptEnabled) {
-            throw new IllegalStateException(
-                    "JavaScript is disabled in this AwContents; did you forget to call "
-                    + "AwActivityTestRule.enableJavaScriptOnUiThread()?");
-        }
     }
 
     /**
@@ -564,8 +494,7 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
      *        JavaScript code.
      */
     public static void addJavascriptInterfaceOnUiThread(final AwContents awContents,
-            final Object objectToInject, final String javascriptIdentifier) throws Exception {
-        checkJavaScriptEnabled(awContents);
+            final Object objectToInject, final String javascriptIdentifier) {
         TestThreadUtils.runOnUiThreadBlocking(
                 () -> awContents.addJavascriptInterface(objectToInject, javascriptIdentifier));
     }
@@ -604,7 +533,7 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
      */
     public static <T> T waitForFuture(Future<T> future) {
         try {
-            return future.get(SCALED_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            return future.get(WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
             // ExecutionException means this Future has an associated Exception that we should
             // re-throw on the current thread. We throw the cause instead of ExecutionException,
@@ -635,7 +564,7 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
      * Takes an element out of the {@link BlockingQueue} (or times out).
      */
     public static <T> T waitForNextQueueElement(BlockingQueue<T> queue) throws Exception {
-        T value = queue.poll(SCALED_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        T value = queue.poll(WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         if (value == null) {
             // {@code null} is the special value which means {@link BlockingQueue#poll} has timed
             // out (also: there's no risk for collision with real values, because BlockingQueue does

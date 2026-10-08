@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,21 +30,21 @@ struct EnvironmentParams {
   // the thread pool name concatenated to this.
   const char* name_suffix;
 
-  // Preferred type for threads in this environment; the actual thread type
-  // depends on shutdown state and platform capabilities.
-  ThreadType thread_type_hint;
+  // Preferred priority for threads in this environment; the actual thread
+  // priority depends on shutdown state and platform capabilities.
+  ThreadPriority priority_hint;
 };
 
 constexpr EnvironmentParams kEnvironmentParams[] = {
-    {"Foreground", base::ThreadType::kDefault},
-    {"ForegroundBlocking", base::ThreadType::kDefault},
-    {"Background", base::ThreadType::kBackground},
-    {"BackgroundBlocking", base::ThreadType::kBackground},
+    {"Foreground", base::ThreadPriority::NORMAL},
+    {"ForegroundBlocking", base::ThreadPriority::NORMAL},
+    {"Background", base::ThreadPriority::BACKGROUND},
+    {"BackgroundBlocking", base::ThreadPriority::BACKGROUND},
 };
 
 // Returns true if this platform supports having WorkerThreads running with a
 // background priority.
-bool BASE_EXPORT CanUseBackgroundThreadTypeForWorkerThread();
+bool BASE_EXPORT CanUseBackgroundPriorityForWorkerThread();
 
 }  // namespace internal
 }  // namespace base

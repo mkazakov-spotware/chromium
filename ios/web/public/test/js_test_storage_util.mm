@@ -1,18 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web/public/test/js_test_storage_util.h"
 
-#import "base/bind.h"
-#import "base/callback.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
+#include "base/bind.h"
+#include "base/callback.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "base/values.h"
-#import "ios/web/public/js_messaging/web_frame.h"
+#include "base/values.h"
+#include "ios/web/public/js_messaging/web_frame.h"
 #import "ios/web/public/web_state.h"
-#import "testing/gtest/include/gtest/gtest.h"
+#include "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -56,25 +56,26 @@ bool ExecuteJavaScriptInFrame(
 bool ExecuteJavaScriptInFrame(WebFrame* web_frame,
                               const std::string& name,
                               const std::vector<base::Value>& parameters) {
-  return ExecuteJavaScriptInFrame(web_frame, name, parameters,
-                                  base::BindOnce(^(const base::Value*){
-                                  }),
-                                  kWaitForJSCompletionTimeout);
+  return ExecuteJavaScriptInFrame(
+      web_frame, name, parameters,
+      base::BindOnce(^(const base::Value*){
+      }),
+      base::TimeDelta::FromSeconds(kWaitForJSCompletionTimeout));
 }
 
-// Saves `key`, `value` to a Javascript storage type in `web_frame` using the
-// __gCrWeb function `name`. Places any error message from the JavaScript into
-// `error_message`.
+// Saves |key|, |value| to a Javascript storage type in |web_frame| using the
+// __gCrWeb function |name|. Places any error message from the JavaScript into
+// |error_message|.
 bool SetStorage(WebFrame* web_frame,
                 const std::string& set_function,
                 NSString* key,
-                NSString* key_value,
+                NSString* value,
                 NSString** error_message) {
   __block NSString* block_error_message;
   __block bool set_success = false;
   std::vector<base::Value> params;
   params.push_back(base::Value(base::SysNSStringToUTF8(key)));
-  params.push_back(base::Value(base::SysNSStringToUTF8(key_value)));
+  params.push_back(base::Value(base::SysNSStringToUTF8(value)));
   bool success = ExecuteJavaScriptInFrame(
       web_frame, set_function, params,
       base::BindOnce(^(const base::Value* value) {
@@ -86,7 +87,7 @@ bool SetStorage(WebFrame* web_frame,
           set_success = true;
         }
       }),
-      kWaitForJSCompletionTimeout);
+      base::TimeDelta::FromSeconds(kWaitForJSCompletionTimeout));
   if (error_message) {
     *error_message = block_error_message;
   }
@@ -94,9 +95,9 @@ bool SetStorage(WebFrame* web_frame,
   return success && set_success;
 }
 
-// Reads the value for the given `key` from storage on `web_frame` using
-// the __gCrWeb function `name`. The read value will be placed in `result` and
-// any JavaScript error will be placed in `error_message`.
+// Reads the value for the given |key| from storage on |web_frame| using
+// the __gCrWeb function |name|. The read value will be placed in |result| and
+// any JavaScript error will be placed in |error_message|.
 bool GetStorage(WebFrame* web_frame,
                 const std::string& get_function,
                 NSString* key,
@@ -121,7 +122,7 @@ bool GetStorage(WebFrame* web_frame,
           lookup_success = false;
         }
       }),
-      kWaitForJSCompletionTimeout);
+      base::TimeDelta::FromSeconds(kWaitForJSCompletionTimeout));
 
   if (error_message) {
     *error_message = block_error_message;
@@ -132,10 +133,10 @@ bool GetStorage(WebFrame* web_frame,
   return success && lookup_success;
 }
 
-// Saves `key`, `value` to a Javascript storage type in `web_frame` and
-// `web_state` using the
-// __gCrWeb function `name`. The storage being used must be async. Places any
-// error message from the JavaScript into `error_message`.
+// Saves |key|, |value| to a Javascript storage type in |web_frame| and
+// |web_state| using the
+// __gCrWeb function |name|. The storage being used must be async. Places any
+// error message from the JavaScript into |error_message|.
 bool SetAsyncStorage(WebFrame* web_frame,
                      WebState* web_state,
                      const std::string& set_function,
@@ -146,29 +147,22 @@ bool SetAsyncStorage(WebFrame* web_frame,
   // when the async is done, so listen for that here.
   __block bool async_success = false;
   __block NSString* block_error_message;
-  base::CallbackListSubscription subscription_ =
+  std::unique_ptr<web::WebState::ScriptCommandSubscription> subscription_ =
       web_state->AddScriptCommandCallback(
-          base::BindRepeating(^(const base::Value& message,
+          base::BindRepeating(^(const base::DictionaryValue& message,
                                 const GURL& page_url, bool user_is_interacting,
                                 web::WebFrame* sender_frame) {
-            const base::Value* result = message.FindKey("result");
+            const base::Value* result = message.FindPath("result");
             if (!result) {
               return;
             }
             if (result->is_bool()) {
               async_success = result->GetBool();
-              return;
+            } else {
+              block_error_message = base::SysUTF8ToNSString(
+                  result->FindPath("message")->GetString());
+              async_success = true;
             }
-            if (result->is_dict()) {
-              const std::string* messageString =
-                  result->FindStringKey("message");
-              if (messageString) {
-                block_error_message = base::SysUTF8ToNSString(*messageString);
-                async_success = true;
-                return;
-              }
-            }
-            async_success = false;
           }),
           "cookieTest");
 
@@ -188,10 +182,10 @@ bool SetAsyncStorage(WebFrame* web_frame,
   return success;
 }
 
-// Reads the value for the given `key` from storage on `web_frame` using
-// the __gCrWeb function `name`. The storage type must be async. The read value
-// will be placed in `result` and any JavaScript error will be placed in
-// `error_message`.
+// Reads the value for the given |key| from storage on |web_frame| using
+// the __gCrWeb function |name|. The storage type must be async. The read value
+// will be placed in |result| and any JavaScript error will be placed in
+// |error_message|.
 bool GetAsyncStorage(WebFrame* web_frame,
                      WebState* web_state,
                      const std::string& get_function,
@@ -203,31 +197,26 @@ bool GetAsyncStorage(WebFrame* web_frame,
   __block bool async_success = false;
   __block NSString* block_result;
   __block NSString* block_error_message;
-  base::CallbackListSubscription subscription_ =
+  std::unique_ptr<web::WebState::ScriptCommandSubscription> subscription_ =
       web_state->AddScriptCommandCallback(
-          base::BindRepeating(^(const base::Value& message,
+          base::BindRepeating(^(const base::DictionaryValue& message,
                                 const GURL& page_url, bool user_is_interacting,
                                 web::WebFrame* sender_frame) {
-            const base::Value* resultValue = message.FindPath("result");
-            if (!resultValue) {
+            const base::Value* javascript_result = message.FindPath("result");
+            if (!javascript_result) {
               return;
             }
-            if (resultValue->is_string()) {
-              block_result = base::SysUTF8ToNSString(resultValue->GetString());
+            if (javascript_result->is_string()) {
+              block_result =
+                  base::SysUTF8ToNSString(javascript_result->GetString());
               async_success = true;
-              return;
+            } else if (javascript_result->is_dict()) {
+              block_error_message = base::SysUTF8ToNSString(
+                  javascript_result->FindPath("message")->GetString());
+              async_success = true;
+            } else {
+              async_success = false;
             }
-            if (resultValue->is_dict()) {
-              const std::string* messageStr =
-                  resultValue->FindStringKey("message");
-              if (messageStr) {
-                block_error_message = base::SysUTF8ToNSString(*messageStr);
-                async_success = true;
-                return;
-              }
-            }
-
-            async_success = false;
           }),
           "cookieTest");
 
@@ -270,7 +259,7 @@ bool GetCookies(WebFrame* web_frame, NSString** cookies) {
         ASSERT_TRUE(value->is_string());
         result = base::SysUTF8ToNSString(value->GetString());
       }),
-      kWaitForJSCompletionTimeout);
+      base::TimeDelta::FromSeconds(kWaitForJSCompletionTimeout));
   if (cookies) {
     *cookies = result;
   }

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,13 @@
 #include <utility>
 
 #include "base/callback.h"
+#include "base/compiler_specific.h"
 #include "base/component_export.h"
+#include "base/files/file.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/task_runner.h"
-#include "base/types/pass_key.h"
+#include "base/task_runner.h"
 #include "storage/browser/file_system/file_stream_writer.h"
 
 namespace net {
@@ -28,14 +30,6 @@ namespace storage {
 class COMPONENT_EXPORT(STORAGE_BROWSER) LocalFileStreamWriter
     : public FileStreamWriter {
  public:
-  LocalFileStreamWriter(base::TaskRunner* task_runner,
-                        const base::FilePath& file_path,
-                        int64_t initial_offset,
-                        OpenOrCreate open_or_create,
-                        base::PassKey<FileStreamWriter> pass_key);
-  LocalFileStreamWriter(const LocalFileStreamWriter&) = delete;
-  LocalFileStreamWriter& operator=(const LocalFileStreamWriter&) = delete;
-
   ~LocalFileStreamWriter() override;
 
   // FileStreamWriter overrides.
@@ -46,6 +40,14 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) LocalFileStreamWriter
   int Flush(net::CompletionOnceCallback callback) override;
 
  private:
+  friend class FileStreamWriter;
+  friend class LocalFileStreamWriterTest;
+
+  LocalFileStreamWriter(base::TaskRunner* task_runner,
+                        const base::FilePath& file_path,
+                        int64_t initial_offset,
+                        OpenOrCreate open_or_create);
+
   // Opens |file_path_| and if it succeeds, proceeds to InitiateSeek().
   // If failed, the error code is returned by calling |error_callback|.
   int InitiateOpen(base::OnceClosure main_operation);
@@ -53,7 +55,9 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) LocalFileStreamWriter
 
   // Seeks to |initial_offset_| and proceeds to |main_operation| if it succeeds.
   // If failed, the error code is returned by calling |error_callback|.
-  void InitiateSeek(base::OnceClosure main_operation);
+  void InitiateSeek(base::OnceClosure main_operation,
+                    std::unique_ptr<base::File::Info> file_info,
+                    int file_info_result);
   void DidSeek(base::OnceClosure main_operation, int64_t result);
 
   // Passed as the |main_operation| of InitiateOpen() function.
@@ -84,6 +88,7 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) LocalFileStreamWriter
   net::CompletionOnceCallback cancel_callback_;
 
   base::WeakPtrFactory<LocalFileStreamWriter> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(LocalFileStreamWriter);
 };
 
 }  // namespace storage

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -136,7 +136,7 @@ class FacetURI {
   FacetURI(const std::string& canonical_spec, bool is_valid);
 
   // Whether |canonical_spec_| contains a valid facet URI in canonical form.
-  bool is_valid_ = false;
+  bool is_valid_;
 
   // The text of the encapsulated canonical URI, valid if and only if
   // |is_valid_| is true.
@@ -177,21 +177,8 @@ struct Facet {
 // A collection of facets affiliated with each other, i.e. an equivalence class.
 using AffiliatedFacets = std::vector<Facet>;
 
-// A collection of grouped facets. Used to group passwords in the UI.
-struct GroupedFacets {
-  GroupedFacets();
-  ~GroupedFacets();
-  GroupedFacets(const GroupedFacets& other);
-  GroupedFacets(GroupedFacets&& other);
-  GroupedFacets& operator=(const GroupedFacets& other);
-  GroupedFacets& operator=(GroupedFacets&& other);
-
-  // Facets which are representing a group.
-  std::vector<Facet> facets;
-
-  // Group branding info.
-  FacetBrandingInfo branding_info;
-};
+// A collection of grouped facets.
+using GroupedFacets = std::vector<Facet>;
 
 // A collection of facets affiliated with each other, i.e. an equivalence class,
 // plus a timestamp that indicates the last time the data was updated from an

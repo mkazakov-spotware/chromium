@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Protocol Buffer 2 Serializer which serializes messages
@@ -15,6 +23,7 @@
 
 goog.provide('goog.proto2.TextFormatSerializer');
 
+goog.require('goog.array');
 goog.require('goog.asserts');
 goog.require('goog.math');
 goog.require('goog.object');
@@ -38,7 +47,6 @@ goog.require('goog.string');
  */
 goog.proto2.TextFormatSerializer = function(
     opt_ignoreMissingFields, opt_useEnumValues) {
-  'use strict';
   /**
    * Whether to ignore fields not defined on the proto when parsing the text
    * format.
@@ -69,7 +77,6 @@ goog.inherits(goog.proto2.TextFormatSerializer, goog.proto2.Serializer);
  */
 goog.proto2.TextFormatSerializer.prototype.deserializeTo = function(
     message, data) {
-  'use strict';
   var textData = data.toString();
   var parser = new goog.proto2.TextFormatSerializer.Parser();
   if (!parser.parse(message, textData, this.ignoreMissingFields_)) {
@@ -87,7 +94,6 @@ goog.proto2.TextFormatSerializer.prototype.deserializeTo = function(
  * @override
  */
 goog.proto2.TextFormatSerializer.prototype.serialize = function(message) {
-  'use strict';
   var printer = new goog.proto2.TextFormatSerializer.Printer_();
   this.serializeMessage_(message, printer);
   return printer.toString();
@@ -103,19 +109,16 @@ goog.proto2.TextFormatSerializer.prototype.serialize = function(message) {
  */
 goog.proto2.TextFormatSerializer.prototype.serializeMessage_ = function(
     message, printer) {
-  'use strict';
   var descriptor = message.getDescriptor();
   var fields = descriptor.getFields();
 
   // Add the defined fields, recursively.
-  fields.forEach(function(field) {
-    'use strict';
+  goog.array.forEach(fields, function(field) {
     this.printField_(message, field, printer);
   }, this);
 
   // Add the unknown fields, if any.
   message.forEachUnknown(function(tag, value) {
-    'use strict';
     this.serializeUnknown_(tag, value, goog.asserts.assert(printer));
   }, this);
 };
@@ -135,14 +138,12 @@ goog.proto2.TextFormatSerializer.prototype.serializeMessage_ = function(
  */
 goog.proto2.TextFormatSerializer.prototype.serializeUnknown_ = function(
     tag, value, printer) {
-  'use strict';
   if (value == null) {
     return;
   }
 
-  if (Array.isArray(value)) {
-    value.forEach(function(val) {
-      'use strict';
+  if (goog.isArray(value)) {
+    goog.array.forEach(value, function(val) {
       this.serializeUnknown_(tag, val, printer);
     }, this);
     return;
@@ -196,7 +197,6 @@ goog.proto2.TextFormatSerializer.prototype.serializeUnknown_ = function(
  */
 goog.proto2.TextFormatSerializer.prototype.printFieldValue_ = function(
     value, field, printer) {
-  'use strict';
   switch (field.getFieldType()) {
     case goog.proto2.FieldDescriptor.FieldType.DOUBLE:
     case goog.proto2.FieldDescriptor.FieldType.FLOAT:
@@ -225,7 +225,6 @@ goog.proto2.TextFormatSerializer.prototype.printFieldValue_ = function(
         // Search the enum type for a matching key.
         var found = false;
         goog.object.forEach(field.getNativeType(), function(eValue, key) {
-          'use strict';
           if (!found && eValue == value) {
             printer.append(key);
             found = true;
@@ -258,7 +257,6 @@ goog.proto2.TextFormatSerializer.prototype.printFieldValue_ = function(
  */
 goog.proto2.TextFormatSerializer.prototype.printField_ = function(
     message, field, printer) {
-  'use strict';
   // Skip fields not present.
   if (!message.has(field)) {
     return;
@@ -305,7 +303,6 @@ goog.proto2.TextFormatSerializer.prototype.printField_ = function(
  * @private
  */
 goog.proto2.TextFormatSerializer.Printer_ = function() {
-  'use strict';
   /**
    * The current indentation count.
    * @type {number}
@@ -334,7 +331,6 @@ goog.proto2.TextFormatSerializer.Printer_ = function() {
  * @override
  */
 goog.proto2.TextFormatSerializer.Printer_.prototype.toString = function() {
-  'use strict';
   return this.buffer_.join('');
 };
 
@@ -343,7 +339,6 @@ goog.proto2.TextFormatSerializer.Printer_.prototype.toString = function() {
  * Increases the indentation in the printer.
  */
 goog.proto2.TextFormatSerializer.Printer_.prototype.indent = function() {
-  'use strict';
   this.indentation_ += 2;
 };
 
@@ -352,7 +347,6 @@ goog.proto2.TextFormatSerializer.Printer_.prototype.indent = function() {
  * Decreases the indentation in the printer.
  */
 goog.proto2.TextFormatSerializer.Printer_.prototype.dedent = function() {
-  'use strict';
   this.indentation_ -= 2;
   goog.asserts.assert(this.indentation_ >= 0);
 };
@@ -364,7 +358,6 @@ goog.proto2.TextFormatSerializer.Printer_.prototype.dedent = function() {
  * @suppress {strictMissingProperties} Part of the go/strict_warnings_migration
  */
 goog.proto2.TextFormatSerializer.Printer_.prototype.append = function(value) {
-  'use strict';
   if (this.requiresIndentation_) {
     for (var i = 0; i < this.indentation_; ++i) {
       this.buffer_.push(' ');
@@ -380,7 +373,6 @@ goog.proto2.TextFormatSerializer.Printer_.prototype.append = function(value) {
  * Appends a newline to the printer.
  */
 goog.proto2.TextFormatSerializer.Printer_.prototype.appendLine = function() {
-  'use strict';
   this.buffer_.push('\n');
   this.requiresIndentation_ = true;
 };
@@ -402,7 +394,7 @@ goog.proto2.TextFormatSerializer.Printer_.prototype.appendLine = function() {
  */
 goog.proto2.TextFormatSerializer.Tokenizer_ = function(
     data, opt_ignoreWhitespace, opt_ignoreComments) {
-  'use strict';
+
   /**
    * Whether to skip whitespace tokens on output.
    * @private {boolean}
@@ -456,7 +448,6 @@ goog.proto2.TextFormatSerializer.Tokenizer_.Token;
  *     token.
  */
 goog.proto2.TextFormatSerializer.Tokenizer_.prototype.getCurrent = function() {
-  'use strict';
   return this.current_;
 };
 
@@ -491,7 +482,6 @@ goog.proto2.TextFormatSerializer.Tokenizer_.TokenTypes = {
  *    reached or no valid token was found.
  */
 goog.proto2.TextFormatSerializer.Tokenizer_.prototype.next = function() {
-  'use strict';
   var types = goog.proto2.TextFormatSerializer.Tokenizer_.TokenTypes;
 
   // Skip any whitespace if requested.
@@ -521,7 +511,6 @@ goog.proto2.TextFormatSerializer.Tokenizer_.prototype.next = function() {
  */
 goog.proto2.TextFormatSerializer.Tokenizer_.prototype.nextInternal_ =
     function() {
-  'use strict';
   if (this.index_ >= this.data_.length) {
     return false;
   }
@@ -533,7 +522,6 @@ goog.proto2.TextFormatSerializer.Tokenizer_.prototype.nextInternal_ =
   // Loop through each token type and try to match the beginning of the string
   // with the token's regular expression.
   goog.object.some(types, function(type, id) {
-    'use strict';
     if (next || type == types.END) {
       return false;
     }
@@ -569,7 +557,6 @@ goog.proto2.TextFormatSerializer.Tokenizer_.prototype.nextInternal_ =
  * @final
  */
 goog.proto2.TextFormatSerializer.Parser = function() {
-  'use strict';
   /**
    * The error during parsing, if any.
    * @type {?string}
@@ -604,7 +591,6 @@ goog.proto2.TextFormatSerializer.Parser = function() {
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.parse = function(
     message, data, opt_ignoreMissingFields) {
-  'use strict';
   this.error_ = null;
   this.ignoreMissingFields_ = !!opt_ignoreMissingFields;
   this.tokenizer_ =
@@ -618,7 +604,6 @@ goog.proto2.TextFormatSerializer.Parser.prototype.parse = function(
  * @return {?string} The parse error, if any.
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.getError = function() {
-  'use strict';
   return this.error_;
 };
 
@@ -629,7 +614,6 @@ goog.proto2.TextFormatSerializer.Parser.prototype.getError = function() {
  * @private
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.reportError_ = function(msg) {
-  'use strict';
   this.error_ = msg;
 };
 
@@ -645,7 +629,6 @@ goog.proto2.TextFormatSerializer.Parser.prototype.reportError_ = function(msg) {
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.consumeMessage_ = function(
     message, delimiter) {
-  'use strict';
   var types = goog.proto2.TextFormatSerializer.Tokenizer_.TokenTypes;
   while (!this.lookingAt_('>') && !this.lookingAt_('}') &&
          !this.lookingAtType_(types.END)) {
@@ -677,7 +660,6 @@ goog.proto2.TextFormatSerializer.Parser.prototype.consumeMessage_ = function(
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.consumeFieldValue_ = function(
     message, field) {
-  'use strict';
   var value = this.getFieldValue_(field);
   if (value === null) {
     return false;
@@ -700,7 +682,7 @@ goog.proto2.TextFormatSerializer.Parser.prototype.consumeFieldValue_ = function(
  * @private
  */
 goog.proto2.TextFormatSerializer.Parser.getNumberFromString_ = function(num) {
-  'use strict';
+
   var returnValue = goog.string.contains(num, '.') ?
       parseFloat(num) :           // num is a float.
       goog.string.parseInt(num);  // num is an int.
@@ -721,7 +703,6 @@ goog.proto2.TextFormatSerializer.Parser.getNumberFromString_ = function(num) {
  */
 goog.proto2.TextFormatSerializer.Parser.parseNumericalConstant_ = function(
     identifier) {
-  'use strict';
   if (/^-?inf(?:inity)?f?$/i.test(identifier)) {
     return Infinity * (goog.string.startsWith(identifier, '-') ? -1 : 1);
   }
@@ -742,7 +723,6 @@ goog.proto2.TextFormatSerializer.Parser.parseNumericalConstant_ = function(
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.getFieldValue_ = function(
     field) {
-  'use strict';
   var types = goog.proto2.TextFormatSerializer.Tokenizer_.TokenTypes;
   switch (field.getFieldType()) {
     case goog.proto2.FieldDescriptor.FieldType.DOUBLE:
@@ -846,7 +826,6 @@ goog.proto2.TextFormatSerializer.Parser.prototype.getFieldValue_ = function(
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.consumeNestedMessage_ =
     function(message, field) {
-  'use strict';
   var delimiter = '';
 
   // Messages support both < > and { } as delimiters for legacy reasons.
@@ -884,7 +863,6 @@ goog.proto2.TextFormatSerializer.Parser.prototype.consumeNestedMessage_ =
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.consumeUnknownFieldValue_ =
     function() {
-  'use strict';
   // : is optional.
   this.tryConsume_(':');
 
@@ -926,7 +904,6 @@ goog.proto2.TextFormatSerializer.Parser.prototype.consumeUnknownFieldValue_ =
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.consumeField_ = function(
     message) {
-  'use strict';
   var fieldName = this.consumeIdentifier_();
   if (!fieldName) {
     this.reportError_('Missing field name');
@@ -998,7 +975,6 @@ goog.proto2.TextFormatSerializer.Parser.prototype.consumeField_ = function(
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.tryConsume_ = function(
     value) {
-  'use strict';
   if (this.lookingAt_(value)) {
     this.tokenizer_.next();
     return true;
@@ -1016,7 +992,6 @@ goog.proto2.TextFormatSerializer.Parser.prototype.tryConsume_ = function(
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.consumeToken_ = function(
     type) {
-  'use strict';
   if (!this.lookingAtType_(type)) {
     this.reportError_('Expected token type: ' + type);
     return null;
@@ -1035,7 +1010,6 @@ goog.proto2.TextFormatSerializer.Parser.prototype.consumeToken_ = function(
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.consumeIdentifier_ =
     function() {
-  'use strict';
   var types = goog.proto2.TextFormatSerializer.Tokenizer_.TokenTypes;
   return this.consumeToken_(types.IDENTIFIER);
 };
@@ -1047,7 +1021,6 @@ goog.proto2.TextFormatSerializer.Parser.prototype.consumeIdentifier_ =
  * @private
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.consumeNumber_ = function() {
-  'use strict';
   var types = goog.proto2.TextFormatSerializer.Tokenizer_.TokenTypes;
   return this.consumeToken_(types.NUMBER);
 };
@@ -1061,7 +1034,6 @@ goog.proto2.TextFormatSerializer.Parser.prototype.consumeNumber_ = function() {
  * @suppress {strictMissingProperties} Part of the go/strict_warnings_migration
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.consumeString_ = function() {
-  'use strict';
   var types = goog.proto2.TextFormatSerializer.Tokenizer_.TokenTypes;
   var value = this.consumeToken_(types.STRING);
   if (!value) {
@@ -1085,7 +1057,6 @@ goog.proto2.TextFormatSerializer.Parser.prototype.consumeString_ = function() {
  * @private
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.consume_ = function(value) {
-  'use strict';
   if (!this.tryConsume_(value)) {
     this.reportError_('Expected token "' + value + '"');
     return false;
@@ -1101,7 +1072,6 @@ goog.proto2.TextFormatSerializer.Parser.prototype.consume_ = function(value) {
  * @private
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.lookingAt_ = function(value) {
-  'use strict';
   return this.tokenizer_.getCurrent().value == value;
 };
 
@@ -1114,6 +1084,5 @@ goog.proto2.TextFormatSerializer.Parser.prototype.lookingAt_ = function(value) {
  */
 goog.proto2.TextFormatSerializer.Parser.prototype.lookingAtType_ = function(
     type) {
-  'use strict';
   return this.tokenizer_.getCurrent().type == type;
 };

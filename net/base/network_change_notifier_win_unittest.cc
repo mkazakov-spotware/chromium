@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,8 @@
 
 #include "base/bind.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/win/windows_version.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/network_change_notifier.h"
 #include "net/base/network_change_notifier_factory.h"
 #include "net/test/test_with_task_environment.h"
@@ -31,9 +30,6 @@ class TestNetworkChangeNotifierWin : public NetworkChangeNotifierWin {
   TestNetworkChangeNotifierWin() {
     last_computed_connection_type_ = NetworkChangeNotifier::CONNECTION_UNKNOWN;
     last_announced_offline_ = false;
-    last_computed_connection_cost_ = ConnectionCost::CONNECTION_COST_UNKNOWN;
-    sequence_runner_for_registration_ =
-        base::SequencedTaskRunner::GetCurrentDefault();
   }
 
   TestNetworkChangeNotifierWin(const TestNetworkChangeNotifierWin&) = delete;
@@ -49,7 +45,7 @@ class TestNetworkChangeNotifierWin : public NetworkChangeNotifierWin {
   // From NetworkChangeNotifierWin.
   void RecomputeCurrentConnectionTypeOnBlockingSequence(
       base::OnceCallback<void(ConnectionType)> reply_callback) const override {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(reply_callback),
                                   NetworkChangeNotifier::CONNECTION_UNKNOWN));
   }
@@ -67,7 +63,7 @@ class TestIPAddressObserver : public NetworkChangeNotifier::IPAddressObserver {
   TestIPAddressObserver(const TestIPAddressObserver&) = delete;
   TestIPAddressObserver& operator=(const TestIPAddressObserver&) = delete;
 
-  ~TestIPAddressObserver() override {
+  ~TestIPAddressObserver() {
     NetworkChangeNotifier::RemoveIPAddressObserver(this);
   }
 
@@ -220,23 +216,6 @@ class NetworkChangeNotifierWinTest : public TestWithTaskEnvironment {
     base::RunLoop().RunUntilIdle();
   }
 
-  bool HasNetworkCostManager() {
-    return network_change_notifier_.network_cost_manager_.Get() != nullptr;
-  }
-
-  bool HasNetworkCostManagerEventSink() {
-    return network_change_notifier_.network_cost_manager_event_sink_.Get() !=
-           nullptr;
-  }
-
-  NetworkChangeNotifier::ConnectionCost LastComputedConnectionCost() {
-    return network_change_notifier_.last_computed_connection_cost_;
-  }
-
-  NetworkChangeNotifier::ConnectionCost GetCurrentConnectionCost() {
-    return network_change_notifier_.GetCurrentConnectionCost();
-  }
-
  private:
   // Note that the order of declaration here is important.
 
@@ -286,60 +265,6 @@ TEST_F(NetworkChangeNotifierWinTest, NetChangeWinFailSignalTwice) {
   SignalAndFail();
   RetryAndFail();
   RetryAndSucceed();
-}
-
-class TestConnectionCostObserver
-    : public NetworkChangeNotifier::ConnectionCostObserver {
- public:
-  TestConnectionCostObserver() {}
-
-  TestConnectionCostObserver(const TestConnectionCostObserver&) = delete;
-  TestConnectionCostObserver& operator=(const TestConnectionCostObserver&) =
-      delete;
-
-  ~TestConnectionCostObserver() override {
-    NetworkChangeNotifier::RemoveConnectionCostObserver(this);
-  }
-
-  void OnConnectionCostChanged(NetworkChangeNotifier::ConnectionCost) override {
-  }
-
-  void Register() { NetworkChangeNotifier::AddConnectionCostObserver(this); }
-};
-
-TEST_F(NetworkChangeNotifierWinTest, NetworkCostManagerIntegration) {
-  // NetworkCostManager integration only exist on Win10+.
-  if (base::win::GetVersion() < base::win::Version::WIN10)
-    return;
-
-  // Upon creation, none of the NetworkCostManager integration should be
-  // initialized yet.
-  ASSERT_FALSE(HasNetworkCostManager());
-  ASSERT_FALSE(HasNetworkCostManagerEventSink());
-  ASSERT_EQ(NetworkChangeNotifier::ConnectionCost::CONNECTION_COST_UNKNOWN,
-            LastComputedConnectionCost());
-
-  // Asking for the current connection cost should initialize the
-  // NetworkCostManager integration, but not the event sink.
-  // Note that the actual ConnectionCost value return is irrelevant beyond the
-  // fact that it shouldn't be UNKNOWN anymore if the integration is initialized
-  // properly.
-  NetworkChangeNotifier::ConnectionCost current_connection_cost =
-      GetCurrentConnectionCost();
-  EXPECT_NE(NetworkChangeNotifier::ConnectionCost::CONNECTION_COST_UNKNOWN,
-            current_connection_cost);
-  EXPECT_EQ(current_connection_cost, LastComputedConnectionCost());
-  EXPECT_TRUE(HasNetworkCostManager());
-  EXPECT_FALSE(HasNetworkCostManagerEventSink());
-
-  // Adding a ConnectionCostObserver should initialize the event sink. If the
-  // subsequent registration for updates fails, the event sink will get
-  // destroyed.
-  TestConnectionCostObserver test_connection_cost_observer;
-  test_connection_cost_observer.Register();
-  // The actual registration happens on a callback, so need to run until idle.
-  base::RunLoop().RunUntilIdle();
-  EXPECT_TRUE(HasNetworkCostManagerEventSink());
 }
 
 }  // namespace net

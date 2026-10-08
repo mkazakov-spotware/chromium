@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,8 +18,6 @@ import android.widget.ImageView;
 
 import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.core.view.ViewCompat;
-
-import org.chromium.ui.base.ViewUtils;
 
 /**
  * A helper class to simulate {@link View#getForeground()} on older versions of Android.  This class
@@ -127,7 +125,7 @@ public class ForegroundDrawableCompat
             }
             mDrawable.setCallback(mView);
         }
-        ViewUtils.requestLayout(mView, "ForegroundDrawableCompat.setDrawable");
+        mView.requestLayout();
         mView.invalidate();
     }
 

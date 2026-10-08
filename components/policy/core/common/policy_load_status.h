@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <bitset>
 
+#include "base/macros.h"
 #include "components/policy/policy_export.h"
 
 namespace policy {
@@ -45,8 +46,6 @@ class POLICY_EXPORT PolicyLoadStatusSampler {
   using StatusSet = std::bitset<POLICY_LOAD_STATUS_SIZE>;
 
   PolicyLoadStatusSampler();
-  PolicyLoadStatusSampler(const PolicyLoadStatusSampler&) = delete;
-  PolicyLoadStatusSampler& operator=(const PolicyLoadStatusSampler&) = delete;
   virtual ~PolicyLoadStatusSampler();
 
   // Adds a status code.
@@ -57,6 +56,7 @@ class POLICY_EXPORT PolicyLoadStatusSampler {
 
  private:
   StatusSet status_bits_;
+  DISALLOW_COPY_AND_ASSIGN(PolicyLoadStatusSampler);
 };
 
 // A helper for generating policy load status UMA statistics. On destruction,
@@ -65,10 +65,10 @@ class POLICY_EXPORT PolicyLoadStatusUmaReporter
     : public PolicyLoadStatusSampler {
  public:
   PolicyLoadStatusUmaReporter();
-  PolicyLoadStatusUmaReporter(const PolicyLoadStatusUmaReporter&) = delete;
-  PolicyLoadStatusUmaReporter& operator=(const PolicyLoadStatusUmaReporter&) =
-      delete;
   ~PolicyLoadStatusUmaReporter() override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PolicyLoadStatusUmaReporter);
 };
 
 }  // namespace policy

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,14 +12,13 @@
 #include "base/callback.h"
 #include "base/cancelable_callback.h"
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/read_only_shared_memory_region.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/memory/ref_counted.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/thread_checker.h"
-#include "base/time/time.h"
 #include "cc/trees/layer_tree_frame_sink.h"
 #include "cc/trees/managed_memory_policy.h"
-#include "components/power_scheduler/power_mode_voter.h"
 #include "components/viz/common/display/renderer_settings.h"
 #include "components/viz/common/frame_sinks/begin_frame_source.h"
 #include "components/viz/common/frame_timing_details_map.h"
@@ -31,11 +30,10 @@
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
-#include "mojo/public/cpp/bindings/remote.h"
 #include "services/viz/public/mojom/compositing/compositor_frame_sink.mojom-blink.h"
 #include "services/viz/public/mojom/compositing/compositor_frame_sink.mojom-forward.h"
 #include "third_party/blink/renderer/platform/widget/compositing/android_webview/synchronous_compositor_registry.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
 class SkCanvas;
 
@@ -58,9 +56,8 @@ class SynchronousLayerTreeFrameSinkClient {
   virtual void Invalidate(bool needs_draw) = 0;
   virtual void SubmitCompositorFrame(
       uint32_t layer_tree_frame_sink_id,
-      const viz::LocalSurfaceId& local_surface_id,
-      absl::optional<viz::CompositorFrame> frame,
-      absl::optional<viz::HitTestRegionList> hit_test_region_list) = 0;
+      base::Optional<viz::CompositorFrame> frame,
+      base::Optional<viz::HitTestRegionList> hit_test_region_list) = 0;
   virtual void SetNeedsBeginFrames(bool needs_begin_frames) = 0;
   virtual void SinkDestroyed() = 0;
 
@@ -83,8 +80,7 @@ class SynchronousLayerTreeFrameSink
  public:
   SynchronousLayerTreeFrameSink(
       scoped_refptr<viz::ContextProvider> context_provider,
-      scoped_refptr<cc::RasterContextProviderWrapper>
-          worker_context_provider_wrapper,
+      scoped_refptr<viz::RasterContextProvider> worker_context_provider,
       scoped_refptr<base::SingleThreadTaskRunner> compositor_task_runner,
       gpu::GpuMemoryBufferManager* gpu_memory_buffer_manager,
       uint32_t layer_tree_frame_sink_id,
@@ -94,9 +90,6 @@ class SynchronousLayerTreeFrameSink
           compositor_frame_sink_remote,
       mojo::PendingReceiver<viz::mojom::blink::CompositorFrameSinkClient>
           client_receiver);
-  SynchronousLayerTreeFrameSink(const SynchronousLayerTreeFrameSink&) = delete;
-  SynchronousLayerTreeFrameSink& operator=(
-      const SynchronousLayerTreeFrameSink&) = delete;
   ~SynchronousLayerTreeFrameSink() override;
 
   // cc::LayerTreeFrameSink implementation.
@@ -104,9 +97,9 @@ class SynchronousLayerTreeFrameSink
   void DetachFromClient() override;
   void SetLocalSurfaceId(const viz::LocalSurfaceId& local_surface_id) override;
   void SubmitCompositorFrame(viz::CompositorFrame frame,
-                             bool hit_test_data_changed) override;
-  void DidNotProduceFrame(const viz::BeginFrameAck& ack,
-                          cc::FrameSkippedReason reason) override;
+                             bool hit_test_data_changed,
+                             bool show_hit_test_borders) override;
+  void DidNotProduceFrame(const viz::BeginFrameAck& ack) override;
   void DidAllocateSharedBitmap(base::ReadOnlySharedMemoryRegion region,
                                const viz::SharedBitmapId& id) override;
   void DidDeleteSharedBitmap(const viz::SharedBitmapId& id) override;
@@ -114,14 +107,13 @@ class SynchronousLayerTreeFrameSink
 
   // viz::mojom::CompositorFrameSinkClient implementation.
   void DidReceiveCompositorFrameAck(
-      Vector<viz::ReturnedResource> resources) override;
+      const Vector<viz::ReturnedResource>& resources) override;
   void OnBeginFrame(const viz::BeginFrameArgs& args,
                     const HashMap<uint32_t, viz::FrameTimingDetails>&
                         timing_details) override;
-  void ReclaimResources(Vector<viz::ReturnedResource> resources) override;
+  void ReclaimResources(
+      const Vector<viz::ReturnedResource>& resources) override;
   void OnBeginFramePausedChanged(bool paused) override;
-  void OnCompositorFrameTransitionDirectiveProcessed(
-      uint32_t sequence_id) override {}
 
   // viz::ExternalBeginFrameSourceClient overrides.
   void OnNeedsBeginFrames(bool needs_begin_frames) override;
@@ -133,14 +125,10 @@ class SynchronousLayerTreeFrameSink
   void SetBeginFrameSourcePaused(bool paused);
   void SetMemoryPolicy(size_t bytes_limit);
   void ReclaimResources(uint32_t layer_tree_frame_sink_id,
-                        Vector<viz::ReturnedResource> resources);
-  void OnCompositorFrameTransitionDirectiveProcessed(
-      uint32_t layer_tree_frame_sink_id,
-      uint32_t sequence_id);
+                        const Vector<viz::ReturnedResource>& resources);
   void DemandDrawHw(const gfx::Size& viewport_size,
                     const gfx::Rect& viewport_rect_for_tile_priority,
-                    const gfx::Transform& transform_for_tile_priority,
-                    bool need_new_local_surface_id);
+                    const gfx::Transform& transform_for_tile_priority);
   void DemandDrawSw(SkCanvas* canvas);
   void DemandDrawSwZeroCopy();
   void WillSkipDraw();
@@ -176,7 +164,7 @@ class SynchronousLayerTreeFrameSink
       unbound_compositor_frame_sink_;
   mojo::PendingReceiver<viz::mojom::blink::CompositorFrameSinkClient>
       unbound_client_;
-  mojo::Remote<viz::mojom::blink::CompositorFrameSink> compositor_frame_sink_;
+  viz::mojom::blink::CompositorFrameSinkPtr compositor_frame_sink_;
   mojo::Receiver<viz::mojom::blink::CompositorFrameSinkClient> client_receiver_{
       this};
   viz::LocalSurfaceId local_surface_id_;
@@ -190,8 +178,6 @@ class SynchronousLayerTreeFrameSink
     void DisplayDidReceiveCALayerParams(
         const gfx::CALayerParams& ca_layer_params) override {}
     void DisplayDidCompleteSwapWithSize(const gfx::Size& pixel_size) override {}
-    void DisplayAddChildWindowToBrowser(
-        gpu::SurfaceHandle child_window) override {}
     void SetWideColorEnabled(bool enabled) override {}
     void SetPreferredFrameInterval(base::TimeDelta interval) override {}
     base::TimeDelta GetPreferredFrameIntervalForFrameSinkId(
@@ -235,12 +221,7 @@ class SynchronousLayerTreeFrameSink
   bool needs_begin_frames_ = false;
   const bool use_zero_copy_sw_draw_;
 
-  // Marks the beginning of the period between BeginFrame() and
-  // SubmitCompositorFrame(). Used for detecting no-op animations when this time
-  // period exceeds a given timeout.
-  base::TimeTicks nop_animation_timeout_start_;
-
-  power_scheduler::FrameProductionPowerModeVoter power_mode_voter_;
+  DISALLOW_COPY_AND_ASSIGN(SynchronousLayerTreeFrameSink);
 };
 
 }  // namespace blink

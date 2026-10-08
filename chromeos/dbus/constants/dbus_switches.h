@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,6 @@ namespace switches {
 
 COMPONENT_EXPORT(CHROMEOS_DBUS_CONSTANTS)
 extern const char kAttestationServer[];
-COMPONENT_EXPORT(CHROMEOS_DBUS_CONSTANTS)
-extern const char kBiodFake[];
-COMPONENT_EXPORT(CHROMEOS_DBUS_CONSTANTS)
-extern const char kCrosDisksFake[];
 COMPONENT_EXPORT(CHROMEOS_DBUS_CONSTANTS)
 extern const char kDbusStub[];
 COMPONENT_EXPORT(CHROMEOS_DBUS_CONSTANTS)

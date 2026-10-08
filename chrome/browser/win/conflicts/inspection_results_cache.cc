@@ -1,9 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/win/conflicts/inspection_results_cache.h"
 
+#include <algorithm>
 #include <string>
 #include <utility>
 
@@ -12,9 +13,7 @@
 #include "base/files/important_file_writer.h"
 #include "base/hash/md5.h"
 #include "base/pickle.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_piece.h"
-#include "base/strings/string_util.h"
 
 namespace {
 
@@ -78,7 +77,6 @@ bool DeserializeInspectionResult(uint32_t min_time_stamp,
   ModuleInspectionResult& inspection_result = value.second.first;
   uint32_t& time_stamp = value.second.second;
 
-  std::u16string location, basename;
   if (!pickle_iterator->ReadString16(&inspection_result.location) ||
       !pickle_iterator->ReadString16(&inspection_result.basename) ||
       !pickle_iterator->ReadString16(&inspection_result.product_name) ||
@@ -169,7 +167,8 @@ ReadCacheResult DeserializeInspectionResultsCache(
   base::MD5Digest md5_digest;
   base::MD5Sum(pickle.payload(), pickle.payload_size() - sizeof(md5_digest),
                &md5_digest);
-  if (!base::ranges::equal(read_md5_digest->a, md5_digest.a))
+  if (!std::equal(std::begin(read_md5_digest->a), std::end(read_md5_digest->a),
+                  std::begin(md5_digest.a), std::end(md5_digest.a)))
     return ReadCacheResult::kFailInvalidMD5;
 
   return ReadCacheResult::kSuccess;
@@ -189,10 +188,10 @@ void AddInspectionResultToCache(
   DCHECK(insert_result.second);
 }
 
-absl::optional<ModuleInspectionResult> GetInspectionResultFromCache(
+base::Optional<ModuleInspectionResult> GetInspectionResultFromCache(
     const ModuleInfoKey& module_key,
     InspectionResultsCache* inspection_results_cache) {
-  absl::optional<ModuleInspectionResult> inspection_result;
+  base::Optional<ModuleInspectionResult> inspection_result;
 
   auto it = inspection_results_cache->find(module_key);
   if (it != inspection_results_cache->end()) {

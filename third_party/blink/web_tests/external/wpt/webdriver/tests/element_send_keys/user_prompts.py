@@ -3,6 +3,7 @@
 import pytest
 
 from tests.support.asserts import assert_dialog_handled, assert_error, assert_success
+from tests.support.inline import inline
 
 
 def element_send_keys(session, element, text):
@@ -14,7 +15,7 @@ def element_send_keys(session, element, text):
 
 
 @pytest.fixture
-def check_user_prompt_closed_without_exception(session, create_dialog, inline):
+def check_user_prompt_closed_without_exception(session, create_dialog):
     def check_user_prompt_closed_without_exception(dialog_type, retval):
         session.url = inline("<input type=text>")
         element = session.find.css("input", all=False)
@@ -32,7 +33,7 @@ def check_user_prompt_closed_without_exception(session, create_dialog, inline):
 
 
 @pytest.fixture
-def check_user_prompt_closed_with_exception(session, create_dialog, inline):
+def check_user_prompt_closed_with_exception(session, create_dialog):
     def check_user_prompt_closed_with_exception(dialog_type, retval):
         session.url = inline("<input type=text>")
         element = session.find.css("input", all=False)
@@ -50,7 +51,7 @@ def check_user_prompt_closed_with_exception(session, create_dialog, inline):
 
 
 @pytest.fixture
-def check_user_prompt_not_closed_but_exception(session, create_dialog, inline):
+def check_user_prompt_not_closed_but_exception(session, create_dialog):
     def check_user_prompt_not_closed_but_exception(dialog_type):
         session.url = inline("<input type=text>")
         element = session.find.css("input", all=False)

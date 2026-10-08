@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef PPAPI_PROXY_PPP_INPUT_EVENT_PROXY_H_
 #define PPAPI_PROXY_PPP_INPUT_EVENT_PROXY_H_
 
+#include "base/macros.h"
 #include "ppapi/c/pp_instance.h"
 #include "ppapi/c/ppp_input_event.h"
 #include "ppapi/proxy/interface_proxy.h"
@@ -18,10 +19,6 @@ namespace proxy {
 class PPP_InputEvent_Proxy : public InterfaceProxy {
  public:
   explicit PPP_InputEvent_Proxy(Dispatcher* dispatcher);
-
-  PPP_InputEvent_Proxy(const PPP_InputEvent_Proxy&) = delete;
-  PPP_InputEvent_Proxy& operator=(const PPP_InputEvent_Proxy&) = delete;
-
   ~PPP_InputEvent_Proxy() override;
 
   static const PPP_InputEvent* GetProxyInterface();
@@ -41,6 +38,8 @@ class PPP_InputEvent_Proxy : public InterfaceProxy {
   // pointer so we don't have to retrieve it from the dispatcher each time.
   // In the host, this value is always NULL.
   const PPP_InputEvent* ppp_input_event_impl_;
+
+  DISALLOW_COPY_AND_ASSIGN(PPP_InputEvent_Proxy);
 };
 
 }  // namespace proxy

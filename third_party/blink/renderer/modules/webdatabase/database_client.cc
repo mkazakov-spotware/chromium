@@ -39,8 +39,7 @@
 
 namespace blink {
 
-DatabaseClient::DatabaseClient()
-    : Supplement(nullptr), inspector_agent_(nullptr) {}
+DatabaseClient::DatabaseClient() : inspector_agent_(nullptr) {}
 
 void DatabaseClient::Trace(Visitor* visitor) const {
   visitor->Trace(inspector_agent_);

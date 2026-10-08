@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,8 +40,8 @@ ModalType TestWebDialogDelegate::GetDialogModalType() const {
   return MODAL_TYPE_WINDOW;
 }
 
-std::u16string TestWebDialogDelegate::GetDialogTitle() const {
-  return u"Test";
+base::string16 TestWebDialogDelegate::GetDialogTitle() const {
+  return base::UTF8ToUTF16("Test");
 }
 
 GURL TestWebDialogDelegate::GetDialogContentURL() const {

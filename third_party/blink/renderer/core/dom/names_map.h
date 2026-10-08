@@ -1,11 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_DOM_NAMES_MAP_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_DOM_NAMES_MAP_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include <memory>
+
+#include "base/optional.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/dom/space_split_string.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
@@ -35,7 +37,7 @@ class CORE_EXPORT NamesMap {
   void Clear() { data_.clear(); }
   // Inserts value into the ordered set under key.
   void Add(const AtomicString& key, const AtomicString& value);
-  absl::optional<SpaceSplitString> Get(const AtomicString& key) const;
+  base::Optional<SpaceSplitString> Get(const AtomicString& key) const;
 
   size_t size() const { return data_.size(); }
 
@@ -43,7 +45,7 @@ class CORE_EXPORT NamesMap {
   template <typename CharacterType>
   void Set(const AtomicString&, const CharacterType*);
 
-  HashMap<AtomicString, absl::optional<SpaceSplitString>> data_;
+  HashMap<AtomicString, base::Optional<SpaceSplitString>> data_;
 };
 
 }  // namespace blink

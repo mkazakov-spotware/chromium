@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,13 +10,11 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/signin/dice_tab_helper.h"
 #include "chrome/browser/signin/dice_web_signin_interceptor.h"
 #include "chrome/browser/signin/dice_web_signin_interceptor_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
-#include "chrome/browser/ui/webui/signin/signin_ui_error.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "components/signin/public/base/account_consistency_method.h"
@@ -42,20 +40,13 @@ class TestDiceWebSigninInterceptorDelegate
     : public DiceWebSigninInterceptor::Delegate {
  public:
   ~TestDiceWebSigninInterceptorDelegate() override = default;
-  std::unique_ptr<ScopedDiceWebSigninInterceptionBubbleHandle>
-  ShowSigninInterceptionBubble(
+  void ShowSigninInterceptionBubble(
       content::WebContents* web_contents,
       const BubbleParameters& bubble_parameters,
       base::OnceCallback<void(SigninInterceptionResult)> callback) override {
     std::move(callback).Run(SigninInterceptionResult::kDeclined);
-    return nullptr;
   }
-
-  void ShowFirstRunExperienceInNewProfile(
-      Browser* browser,
-      const CoreAccountId& account_id,
-      DiceWebSigninInterceptor::SigninInterceptionType interception_type)
-      override {}
+  void ShowProfileCustomizationBubble(Browser* browser) override {}
 };
 
 class MockDiceWebSigninInterceptor : public DiceWebSigninInterceptor {
@@ -98,7 +89,7 @@ class ProcessDiceHeaderDelegateImplTest
       InitializeIdentityTestEnvironment();
     if (is_primary) {
       identity_test_environment_profile_adaptor_->identity_test_env()
-          ->SetPrimaryAccount(email_, signin::ConsentLevel::kSync);
+          ->SetPrimaryAccount(email_);
     } else {
       identity_test_environment_profile_adaptor_->identity_test_env()
           ->MakeAccountAvailable(email_);
@@ -115,7 +106,7 @@ class ProcessDiceHeaderDelegateImplTest
   std::unique_ptr<ProcessDiceHeaderDelegateImpl>
   CreateDelegateAndNavigateToSignin(
       bool is_sync_signin_tab,
-      Reason reason = Reason::kSigninPrimaryAccount) {
+      Reason reason = Reason::REASON_SIGNIN_PRIMARY_ACCOUNT) {
     signin_reason_ = reason;
     if (!identity_test_environment_profile_adaptor_)
       InitializeIdentityTestEnvironment();
@@ -177,11 +168,12 @@ class ProcessDiceHeaderDelegateImplTest
   // Callback for the ProcessDiceHeaderDelegateImpl.
   void ShowSigninErrorCallback(Profile* profile,
                                content::WebContents* contents,
-                               const SigninUIError& error) {
+                               const std::string& error_message,
+                               const std::string& email) {
     EXPECT_EQ(profile, this->profile());
     EXPECT_EQ(web_contents(), contents);
-    EXPECT_EQ(base::UTF8ToUTF16(auth_error_.ToString()), error.message());
-    EXPECT_EQ(base::UTF8ToUTF16(email_), error.email());
+    EXPECT_EQ(auth_error_.ToString(), error_message);
+    EXPECT_EQ(email_, email);
     show_error_called_ = true;
   }
 
@@ -199,7 +191,7 @@ class ProcessDiceHeaderDelegateImplTest
   CoreAccountId account_id_;
   std::string email_;
   GoogleServiceAuthError auth_error_;
-  Reason signin_reason_ = Reason::kSigninPrimaryAccount;
+  Reason signin_reason_ = Reason::REASON_SIGNIN_PRIMARY_ACCOUNT;
 };
 
 // Check that sync is enabled if the tab is closed during signin.
@@ -332,12 +324,12 @@ struct TokenExchangeSuccessConfiguration {
 
 TokenExchangeSuccessConfiguration kHandleTokenExchangeSuccessTestCases[] = {
     // clang-format off
-    // is_reauth | signin_tab |       reason               | sync_signin
-    {  false,      false,     Reason::kSigninPrimaryAccount, false },
-    {  false,      true,      Reason::kSigninPrimaryAccount, true },
-    {  false,      true,      Reason::kAddSecondaryAccount,  false },
-    {  true,       false,     Reason::kSigninPrimaryAccount, false },
-    {  true,       true,      Reason::kSigninPrimaryAccount, true },
+    // is_reauth | signin_tab |       reason                       | sync_signin
+    {  false,      false,     Reason::REASON_SIGNIN_PRIMARY_ACCOUNT, false },
+    {  false,      true,      Reason::REASON_SIGNIN_PRIMARY_ACCOUNT, true },
+    {  false,      true,      Reason::REASON_ADD_SECONDARY_ACCOUNT,  false },
+    {  true,       false,     Reason::REASON_SIGNIN_PRIMARY_ACCOUNT, false },
+    {  true,       true,      Reason::REASON_SIGNIN_PRIMARY_ACCOUNT, true },
     // clang-format on
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,9 @@
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/modules/service_worker/service_worker_registration.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_remote.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_wrapper_mode.h"
-#include "third_party/blink/renderer/platform/supplementable.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
@@ -23,17 +22,14 @@ class ExceptionState;
 class ScriptPromiseResolver;
 class ScriptState;
 
-class CookieStoreManager final : public ScriptWrappable,
-                                 public Supplement<ServiceWorkerRegistration> {
+class CookieStoreManager final : public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  static const char kSupplementName[];
-  // Web Exposed as registration.cookies
-  static CookieStoreManager* cookies(ServiceWorkerRegistration& registration);
-
-  explicit CookieStoreManager(ServiceWorkerRegistration& registration);
-
+  CookieStoreManager(
+      ServiceWorkerRegistration* registration,
+      HeapMojoRemote<mojom::blink::CookieStore,
+                     HeapMojoWrapperMode::kWithoutContextObserver> backend);
   ~CookieStoreManager() override = default;
 
   ScriptPromise subscribe(
@@ -67,7 +63,9 @@ class CookieStoreManager final : public ScriptWrappable,
   Member<ServiceWorkerRegistration> registration_;
 
   // Wraps a Mojo pipe for managing service worker cookie change subscriptions.
-  HeapMojoRemote<mojom::blink::CookieStore> backend_;
+  HeapMojoRemote<mojom::blink::CookieStore,
+                 HeapMojoWrapperMode::kWithoutContextObserver>
+      backend_;
 
   // Default for cookie_url in CookieStoreGetOptions.
   //

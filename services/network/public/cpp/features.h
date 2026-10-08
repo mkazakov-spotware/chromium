@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,35 +8,63 @@
 #include "base/component_export.h"
 #include "base/feature_list.h"
 #include "base/metrics/field_trial_params.h"
-#include "base/time/time.h"
 
 namespace network {
 namespace features {
 
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kExpectCTReporting);
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kNetworkErrorLogging);
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kReporting);
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kThrottleDelayable);
 COMPONENT_EXPORT(NETWORK_CPP)
-BASE_DECLARE_FEATURE(kDelayRequestsOnMultiplexedConnections);
+extern const base::Feature kExpectCTReporting;
 COMPONENT_EXPORT(NETWORK_CPP)
-BASE_DECLARE_FEATURE(kPauseBrowserInitiatedHeavyTrafficForP2P);
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kCORBProtectionSniffing);
+extern const base::Feature kNetworkErrorLogging;
 COMPONENT_EXPORT(NETWORK_CPP)
-BASE_DECLARE_FEATURE(kProactivelyThrottleLowPriorityRequests);
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kCrossOriginOpenerPolicy);
+extern const base::Feature kNetworkService;
 COMPONENT_EXPORT(NETWORK_CPP)
-BASE_DECLARE_FEATURE(kCrossOriginOpenerPolicyByDefault);
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kCoopRestrictProperties);
+extern const base::Feature kReporting;
 COMPONENT_EXPORT(NETWORK_CPP)
-BASE_DECLARE_FEATURE(kSplitAuthCacheByNetworkIsolationKey);
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kDnsOverHttpsUpgrade);
+extern const base::Feature kThrottleDelayable;
 COMPONENT_EXPORT(NETWORK_CPP)
-BASE_DECLARE_FEATURE(kMdnsResponderGeneratedNameListing);
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kOpaqueResponseBlockingV01);
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kOpaqueResponseBlockingV02);
+extern const base::Feature kDelayRequestsOnMultiplexedConnections;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kPauseBrowserInitiatedHeavyTrafficForP2P;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kCORBProtectionSniffing;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kProactivelyThrottleLowPriorityRequests;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kCrossOriginOpenerPolicy;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kCrossOriginOpenerPolicyReporting;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kCrossOriginOpenerPolicyReportingOriginTrial;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kCrossOriginOpenerPolicyAccessReporting;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kCrossOriginOpenerPolicyByDefault;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kCrossOriginEmbedderPolicy;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kCrossOriginIsolated;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kSplitAuthCacheByNetworkIsolationKey;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kDnsOverHttpsUpgrade;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kMdnsResponderGeneratedNameListing;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::FeatureParam<std::string>
+    kDnsOverHttpsUpgradeDisabledProvidersParam;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kDisableKeepaliveFetch;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature
+    kDeriveOriginFromUrlForNeitherGetNorHeadRequestWhenHavingSpecialAccess;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kRequestInitiatorSiteLockEnfocement;
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kCertVerifierService;
 
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kPrivateStateTokens);
+COMPONENT_EXPORT(NETWORK_CPP)
+extern const base::Feature kTrustTokens;
 
 enum class TrustTokenOriginTrialSpec {
   // See the .cc file for definitions.
@@ -51,70 +79,13 @@ COMPONENT_EXPORT(NETWORK_CPP)
 extern const base::FeatureParam<bool> kPlatformProvidedTrustTokenIssuance;
 
 COMPONENT_EXPORT(NETWORK_CPP)
-BASE_DECLARE_FEATURE(kWebSocketReassembleShortMessages);
-
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kAcceptCHFrame);
-
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kSCTAuditingRetryReports);
-
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kSCTAuditingPersistReports);
-
-enum class DataPipeAllocationSize {
-  kDefaultSizeOnly,
-  kLargerSizeIfPossible,
-};
+extern const base::Feature kOutOfBlinkCSPEE;
 
 COMPONENT_EXPORT(NETWORK_CPP)
-extern uint32_t GetDataPipeDefaultAllocationSize(
-    DataPipeAllocationSize = DataPipeAllocationSize::kDefaultSizeOnly);
+extern const base::Feature kWebSocketReassembleShortMessages;
 
 COMPONENT_EXPORT(NETWORK_CPP)
-extern uint32_t GetLoaderChunkSize();
-
-COMPONENT_EXPORT(NETWORK_CPP)
-BASE_DECLARE_FEATURE(kCorsNonWildcardRequestHeadersSupport);
-
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kBatchSimpleURLLoader);
-
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kNetworkServiceMemoryCache);
-
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kOmitCorsClientCert);
-
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kCacheTransparency);
-
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kPervasivePayloadsList);
-
-COMPONENT_EXPORT(NETWORK_CPP)
-extern const base::FeatureParam<std::string>
-    kCacheTransparencyPervasivePayloads;
-
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kReduceAcceptLanguage);
-COMPONENT_EXPORT(NETWORK_CPP)
-BASE_DECLARE_FEATURE(kReduceAcceptLanguageOriginTrial);
-
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kDisableResourceScheduler);
-
-COMPONENT_EXPORT(NETWORK_CPP)
-BASE_DECLARE_FEATURE(kPrivateNetworkAccessPreflightShortTimeout);
-
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kPreconnectInNetworkService);
-
-COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kPreconnectOnRedirect);
-
-COMPONENT_EXPORT(NETWORK_CPP)
-BASE_DECLARE_FEATURE(kOutOfProcessSystemDnsResolution);
-
-COMPONENT_EXPORT(NETWORK_CPP)
-BASE_DECLARE_FEATURE(kAccessControlAllowMethodsInCORSPreflightSpecConformant);
-
-// If enabled, then navigation requests should check the match responses in the
-// prefetch cache by using the No-Vary-Search rules if No-Vary-Search header
-// is specified in prefetched responses.
-// Feature Meta bug: crbug.com/1378072.
-// No-Vary-Search explainer:
-//   https://github.com/WICG/nav-speculation/blob/main/no-vary-search.md
-COMPONENT_EXPORT(NETWORK_CPP)
-BASE_DECLARE_FEATURE(kPrefetchNoVarySearch);
+extern const base::Feature kFirstPartySets;
 
 }  // namespace features
 }  // namespace network

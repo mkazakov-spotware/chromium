@@ -30,7 +30,6 @@
 
 namespace blink {
 
-class HTMLAttributesRanges;
 class HTMLTableCellElement;
 class HTMLTableSectionElement;
 class HTMLToken;
@@ -39,11 +38,7 @@ class CORE_EXPORT HTMLViewSourceDocument final : public HTMLDocument {
  public:
   HTMLViewSourceDocument(const DocumentInit&);
 
-  // `token_start` is the offset into the document the token started at.
-  void AddSource(const String&,
-                 HTMLToken&,
-                 const HTMLAttributesRanges& attributes_ranges,
-                 int token_start);
+  void AddSource(const String&, HTMLToken&);
 
   void Trace(Visitor*) const override;
 
@@ -52,10 +47,7 @@ class CORE_EXPORT HTMLViewSourceDocument final : public HTMLDocument {
 
   void ProcessDoctypeToken(const String& source, HTMLToken&);
   void ProcessEndOfFileToken(const String& source, HTMLToken&);
-  void ProcessTagToken(const String& source,
-                       const HTMLToken& token,
-                       const HTMLAttributesRanges& attributes_ranges,
-                       int token_start);
+  void ProcessTagToken(const String& source, HTMLToken&);
   void ProcessCommentToken(const String& source, HTMLToken&);
   void ProcessCharacterToken(const String& source, HTMLToken&);
 

@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Utility for running multiple test files that utilize the same
@@ -29,7 +37,6 @@ goog.require('goog.testing.TestCase');
 goog.require('goog.ui.Component');
 goog.require('goog.ui.ServerChart');
 goog.require('goog.ui.TableSorter');
-goog.requireType('goog.events.BrowserEvent');
 
 
 
@@ -41,7 +48,6 @@ goog.requireType('goog.events.BrowserEvent');
  * @final
  */
 goog.testing.MultiTestRunner = function(opt_domHelper) {
-  'use strict';
   goog.ui.Component.call(this, opt_domHelper);
 
   /**
@@ -351,7 +357,6 @@ goog.testing.MultiTestRunner.prototype.runTimeStatsBucketSize_ = 500;
  * @return {!goog.testing.MultiTestRunner} Instance for chaining.
  */
 goog.testing.MultiTestRunner.prototype.setName = function(name) {
-  'use strict';
   this.name_ = name;
   return this;
 };
@@ -362,7 +367,6 @@ goog.testing.MultiTestRunner.prototype.setName = function(name) {
  * @return {string} The name for the test suite.
  */
 goog.testing.MultiTestRunner.prototype.getName = function() {
-  'use strict';
   return this.name_;
 };
 
@@ -373,7 +377,6 @@ goog.testing.MultiTestRunner.prototype.getName = function() {
  * @return {!goog.testing.MultiTestRunner} Instance for chaining.
  */
 goog.testing.MultiTestRunner.prototype.setBasePath = function(path) {
-  'use strict';
   this.basePath_ = path;
   return this;
 };
@@ -385,7 +388,6 @@ goog.testing.MultiTestRunner.prototype.setBasePath = function(path) {
  *     with.
  */
 goog.testing.MultiTestRunner.prototype.getBasePath = function() {
-  'use strict';
   return this.basePath_;
 };
 
@@ -397,7 +399,6 @@ goog.testing.MultiTestRunner.prototype.getBasePath = function() {
  * @return {!goog.testing.MultiTestRunner} Instance for chaining.
  */
 goog.testing.MultiTestRunner.prototype.setVerbosePasses = function(verbose) {
-  'use strict';
   this.verbosePasses_ = verbose;
   return this;
 };
@@ -410,7 +411,6 @@ goog.testing.MultiTestRunner.prototype.setVerbosePasses = function(verbose) {
  *     tests that pass.
  */
 goog.testing.MultiTestRunner.prototype.getVerbosePasses = function() {
-  'use strict';
   return this.verbosePasses_;
 };
 
@@ -422,7 +422,6 @@ goog.testing.MultiTestRunner.prototype.getVerbosePasses = function() {
  * @return {!goog.testing.MultiTestRunner} Instance for chaining.
  */
 goog.testing.MultiTestRunner.prototype.setHidePasses = function(hide) {
-  'use strict';
   this.hidePasses_ = hide;
   return this;
 };
@@ -435,7 +434,6 @@ goog.testing.MultiTestRunner.prototype.setHidePasses = function(hide) {
  *     makes setVerbosePasses obsolete.
  */
 goog.testing.MultiTestRunner.prototype.getHidePasses = function() {
-  'use strict';
   return this.hidePasses_;
 };
 
@@ -447,7 +445,6 @@ goog.testing.MultiTestRunner.prototype.getHidePasses = function() {
  * @return {!goog.testing.MultiTestRunner} Instance for chaining.
  */
 goog.testing.MultiTestRunner.prototype.setStatsBucketSizes = function(f, t) {
-  'use strict';
   this.numFilesStatsBucketSize_ = f;
   this.runTimeStatsBucketSize_ = t;
   return this;
@@ -461,7 +458,6 @@ goog.testing.MultiTestRunner.prototype.setStatsBucketSizes = function(f, t) {
  * @return {!goog.testing.MultiTestRunner} Instance for chaining.
  */
 goog.testing.MultiTestRunner.prototype.setTimeout = function(timeout) {
-  'use strict';
   this.timeoutMs_ = timeout;
   return this;
 };
@@ -474,7 +470,6 @@ goog.testing.MultiTestRunner.prototype.setTimeout = function(timeout) {
  *     initialize and run the tests.
  */
 goog.testing.MultiTestRunner.prototype.getTimeout = function() {
-  'use strict';
   return this.timeoutMs_;
 };
 
@@ -486,7 +481,6 @@ goog.testing.MultiTestRunner.prototype.getTimeout = function() {
  * @return {!goog.testing.MultiTestRunner} Instance for chaining.
  */
 goog.testing.MultiTestRunner.prototype.setPoolSize = function(size) {
-  'use strict';
   this.poolSize_ = size;
   return this;
 };
@@ -500,7 +494,6 @@ goog.testing.MultiTestRunner.prototype.setPoolSize = function(size) {
  *     tests.
  */
 goog.testing.MultiTestRunner.prototype.getPoolSize = function() {
-  'use strict';
   return this.poolSize_;
 };
 
@@ -512,7 +505,6 @@ goog.testing.MultiTestRunner.prototype.getPoolSize = function() {
  * @return {!goog.testing.MultiTestRunner} Instance for chaining.
  */
 goog.testing.MultiTestRunner.prototype.setFilterFunction = function(filterFn) {
-  'use strict';
   this.filterFn_ = filterFn;
   return this;
 };
@@ -526,7 +518,6 @@ goog.testing.MultiTestRunner.prototype.setFilterFunction = function(filterFn) {
 
  */
 goog.testing.MultiTestRunner.prototype.getFilterFunction = function() {
-  'use strict';
   return this.filterFn_;
 };
 
@@ -537,7 +528,6 @@ goog.testing.MultiTestRunner.prototype.getFilterFunction = function() {
  * @return {!goog.testing.MultiTestRunner} Instance for chaining.
  */
 goog.testing.MultiTestRunner.prototype.addTests = function(tests) {
-  'use strict';
   goog.array.extend(this.allTests_, tests);
   return this;
 };
@@ -548,7 +538,6 @@ goog.testing.MultiTestRunner.prototype.addTests = function(tests) {
  * @return {Array<string>} The list of all tests added to the runner.
  */
 goog.testing.MultiTestRunner.prototype.getAllTests = function() {
-  'use strict';
   return this.allTests_;
 };
 
@@ -559,8 +548,7 @@ goog.testing.MultiTestRunner.prototype.getAllTests = function() {
  *     called.
  */
 goog.testing.MultiTestRunner.prototype.getTestsToRun = function() {
-  'use strict';
-  return this.allTests_.filter(this.filterFn_);
+  return goog.array.filter(this.allTests_, this.filterFn_);
 };
 
 
@@ -570,7 +558,6 @@ goog.testing.MultiTestRunner.prototype.getTestsToRun = function() {
  *     as failed.
  */
 goog.testing.MultiTestRunner.prototype.getTestsThatFailed = function() {
-  'use strict';
   var stats = this.stats_;
   var failedTests = [];
   if (stats) {
@@ -589,7 +576,6 @@ goog.testing.MultiTestRunner.prototype.getTestsThatFailed = function() {
  * @return {!Array<string>} A list of tests reports.
  */
 goog.testing.MultiTestRunner.prototype.getFailureReports = function() {
-  'use strict';
   return this.failureReports_;
 };
 
@@ -599,7 +585,6 @@ goog.testing.MultiTestRunner.prototype.getFailureReports = function() {
  * @return {!Array<!Object<string,!Array<!goog.testing.TestCase.IResult>>>}
  */
 goog.testing.MultiTestRunner.prototype.getAllTestResults = function() {
-  'use strict';
   return this.allTestResults_;
 };
 
@@ -609,7 +594,6 @@ goog.testing.MultiTestRunner.prototype.getAllTestResults = function() {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.resetProgressDom_ = function() {
-  'use strict';
   goog.dom.removeChildren(this.progressEl_);
   var progressTable = this.dom_.createDom(goog.dom.TagName.TABLE);
   var progressTBody = this.dom_.createDom(goog.dom.TagName.TBODY);
@@ -626,7 +610,6 @@ goog.testing.MultiTestRunner.prototype.resetProgressDom_ = function() {
 
 /** @override */
 goog.testing.MultiTestRunner.prototype.createDom = function() {
-  'use strict';
   goog.testing.MultiTestRunner.superClass_.createDom.call(this);
   var el = this.getElement();
   el.className = goog.getCssName('goog-testrunner');
@@ -678,12 +661,12 @@ goog.testing.MultiTestRunner.prototype.createDom = function() {
   this.eh_.listen(this.logTabEl_, 'click', this.onLogTabClicked_);
   this.eh_.listen(this.reportTabEl_, 'click', this.onReportTabClicked_);
   this.eh_.listen(this.statsTabEl_, 'click', this.onStatsTabClicked_);
+
 };
 
 
 /** @override */
 goog.testing.MultiTestRunner.prototype.disposeInternal = function() {
-  'use strict';
   goog.testing.MultiTestRunner.superClass_.disposeInternal.call(this);
   this.tableSorter_.dispose();
   this.eh_.dispose();
@@ -703,7 +686,6 @@ goog.testing.MultiTestRunner.prototype.disposeInternal = function() {
  * Starts executing the tests.
  */
 goog.testing.MultiTestRunner.prototype.start = function() {
-  'use strict';
   this.startButtonEl_.disabled = true;
   this.stopButtonEl_.disabled = false;
   this.stopped_ = false;
@@ -754,7 +736,6 @@ goog.testing.MultiTestRunner.prototype.start = function() {
  * @param {string} msg A message to log.
  */
 goog.testing.MultiTestRunner.prototype.log = function(msg) {
-  'use strict';
   if (msg != '.') {
     msg = this.getTimeStamp_() + ' : ' + msg;
   }
@@ -779,7 +760,6 @@ goog.testing.MultiTestRunner.prototype.log = function(msg) {
  *     finished.
  */
 goog.testing.MultiTestRunner.prototype.processResult = function(frame) {
-  'use strict';
   var success = frame.isSuccess();
   var report = frame.getReport();
   var test = frame.getTestFile();
@@ -824,7 +804,6 @@ goog.testing.MultiTestRunner.prototype.processResult = function(frame) {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.runNextTest_ = function(frame) {
-  'use strict';
   if (this.startedCount_ < this.activeTests_.length) {
     var nextTest = this.activeTests_[this.startedCount_++];
     this.log(this.trimFileName_(nextTest) + ' : Loading');
@@ -838,7 +817,6 @@ goog.testing.MultiTestRunner.prototype.runNextTest_ = function(frame) {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.finish_ = function() {
-  'use strict';
   if (this.stopped_) {
     this.log('Stopped');
   } else {
@@ -885,7 +863,6 @@ goog.testing.MultiTestRunner.prototype.finish_ = function() {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.resetReport_ = function() {
-  'use strict';
   goog.dom.removeChildren(this.reportEl_);
   var summary = this.dom_.createDom(goog.dom.TagName.DIV);
   summary.className = goog.getCssName('goog-testrunner-progress-summary');
@@ -899,7 +876,6 @@ goog.testing.MultiTestRunner.prototype.resetReport_ = function() {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.drawStats_ = function() {
-  'use strict';
   this.drawFilesHistogram_();
 
   // Only show time stats if pool size is 1, otherwise times are wrong.
@@ -917,7 +893,6 @@ goog.testing.MultiTestRunner.prototype.drawStats_ = function() {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.drawFilesHistogram_ = function() {
-  'use strict';
   this.drawStatsHistogram_(
       'numFilesLoaded', this.numFilesStatsBucketSize_, goog.functions.identity,
       500,
@@ -930,14 +905,10 @@ goog.testing.MultiTestRunner.prototype.drawFilesHistogram_ = function() {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.drawTimeHistogram_ = function() {
-  'use strict';
   this.drawStatsHistogram_(
       'totalTime', this.runTimeStatsBucketSize_,
-      function(x) {
-        'use strict';
-        return x / 1000;
-      },
-      500, 'Histogram showing distribution of\ntime spent running tests in s');
+      function(x) { return x / 1000; }, 500,
+      'Histogram showing distribution of\ntime spent running tests in s');
 };
 
 
@@ -953,7 +924,7 @@ goog.testing.MultiTestRunner.prototype.drawTimeHistogram_ = function() {
  */
 goog.testing.MultiTestRunner.prototype.drawStatsHistogram_ = function(
     statsField, bucketSize, valueTransformFn, width, title) {
-  'use strict';
+
   var hist = {}, data = [], xlabels = [], ylabels = [];
   var max = 0;
   for (var i = 0; i < this.stats_.length; i++) {
@@ -999,7 +970,6 @@ goog.testing.MultiTestRunner.prototype.drawStatsHistogram_ = function(
  * @private
  */
 goog.testing.MultiTestRunner.prototype.drawRunTimePie_ = function() {
-  'use strict';
   var totalTime = 0, runTime = 0;
   for (var i = 0; i < this.stats_.length; i++) {
     var stat = this.stats_[i];
@@ -1025,9 +995,7 @@ goog.testing.MultiTestRunner.prototype.drawRunTimePie_ = function() {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.drawWorstTestsTable_ = function() {
-  'use strict';
   this.stats_.sort(function(a, b) {
-    'use strict';
     return b['numFilesLoaded'] - a['numFilesLoaded'];
   });
 
@@ -1072,7 +1040,6 @@ goog.testing.MultiTestRunner.prototype.drawWorstTestsTable_ = function() {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.clearStats_ = function() {
-  'use strict';
   goog.dom.removeChildren(this.statsEl_);
   this.tableSorter_.exitDocument();
 };
@@ -1083,7 +1050,6 @@ goog.testing.MultiTestRunner.prototype.clearStats_ = function() {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.writeCurrentSummary_ = function() {
-  'use strict';
   var total = this.activeTests_.length;
   var executed = this.resultCount_;
   var passes = this.passes_;
@@ -1103,7 +1069,6 @@ goog.testing.MultiTestRunner.prototype.writeCurrentSummary_ = function() {
  */
 goog.testing.MultiTestRunner.prototype.drawProgressSegment_ = function(
     title, success) {
-  'use strict';
   var part = this.progressRow_.cells[this.resultCount_ - 1];
   part.title = title + ' : ' + (success ? 'SUCCESS' : 'FAILURE');
   part.style.backgroundColor = success ? '#090' : '#900';
@@ -1119,7 +1084,6 @@ goog.testing.MultiTestRunner.prototype.drawProgressSegment_ = function(
  */
 goog.testing.MultiTestRunner.prototype.drawTestResult_ = function(
     test, success, report) {
-  'use strict';
   var text = goog.string.isEmptyOrWhitespace(report) ?
       'No report for ' + test + '\n' :
       report;
@@ -1143,7 +1107,6 @@ goog.testing.MultiTestRunner.prototype.drawTestResult_ = function(
  * @private
  */
 goog.testing.MultiTestRunner.prototype.getTimeStamp_ = function() {
-  'use strict';
   var d = new Date;
   return goog.string.padNumber(d.getHours(), 2) + ':' +
       goog.string.padNumber(d.getMinutes(), 2) + ':' +
@@ -1159,7 +1122,6 @@ goog.testing.MultiTestRunner.prototype.getTimeStamp_ = function() {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.trimFileName_ = function(name) {
-  'use strict';
   if (name.length < 35) {
     return name;
   }
@@ -1178,7 +1140,6 @@ goog.testing.MultiTestRunner.prototype.trimFileName_ = function(name) {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.showTab_ = function(tab) {
-  'use strict';
   var activeTabCssClass = goog.getCssName('goog-testrunner-activetab');
 
   var logTabElement = goog.asserts.assert(this.logTabEl_);
@@ -1217,7 +1178,6 @@ goog.testing.MultiTestRunner.prototype.showTab_ = function(tab) {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.onStartClicked_ = function(e) {
-  'use strict';
   this.start();
 };
 
@@ -1228,7 +1188,6 @@ goog.testing.MultiTestRunner.prototype.onStartClicked_ = function(e) {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.onStopClicked_ = function(e) {
-  'use strict';
   this.stopped_ = true;
   this.finish_();
 };
@@ -1240,7 +1199,6 @@ goog.testing.MultiTestRunner.prototype.onStopClicked_ = function(e) {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.onLogTabClicked_ = function(e) {
-  'use strict';
   this.showTab_(0);
 };
 
@@ -1251,7 +1209,6 @@ goog.testing.MultiTestRunner.prototype.onLogTabClicked_ = function(e) {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.onReportTabClicked_ = function(e) {
-  'use strict';
   this.showTab_(1);
 };
 
@@ -1262,7 +1219,6 @@ goog.testing.MultiTestRunner.prototype.onReportTabClicked_ = function(e) {
  * @private
  */
 goog.testing.MultiTestRunner.prototype.onStatsTabClicked_ = function(e) {
-  'use strict';
   this.showTab_(2);
 };
 
@@ -1280,7 +1236,6 @@ goog.testing.MultiTestRunner.prototype.onStatsTabClicked_ = function(e) {
  */
 goog.testing.MultiTestRunner.TestFrame = function(
     basePath, timeoutMs, verbosePasses, opt_domHelper) {
-  'use strict';
   goog.ui.Component.call(this, opt_domHelper);
 
   /**
@@ -1411,7 +1366,6 @@ goog.testing.MultiTestRunner.TestFrame.prototype.currentState_ = 0;
 
 /** @override */
 goog.testing.MultiTestRunner.TestFrame.prototype.disposeInternal = function() {
-  'use strict';
   goog.testing.MultiTestRunner.TestFrame.superClass_.disposeInternal.call(this);
   this.dom_.removeNode(this.iframeEl_);
   this.eh_.dispose();
@@ -1424,7 +1378,6 @@ goog.testing.MultiTestRunner.TestFrame.prototype.disposeInternal = function() {
  * @param {string} testFile The test to run.
  */
 goog.testing.MultiTestRunner.TestFrame.prototype.runTest = function(testFile) {
-  'use strict';
   this.lastStateTime_ = this.startTime_ = goog.now();
 
   if (!this.iframeEl_) {
@@ -1456,7 +1409,6 @@ goog.testing.MultiTestRunner.TestFrame.prototype.runTest = function(testFile) {
  * @return {string} The test file the TestFrame is running.
  */
 goog.testing.MultiTestRunner.TestFrame.prototype.getTestFile = function() {
-  'use strict';
   return this.testFile_;
 };
 
@@ -1465,7 +1417,6 @@ goog.testing.MultiTestRunner.TestFrame.prototype.getTestFile = function() {
  * @return {!goog.testing.MultiTestRunner.StatsType_} Stats about the test run.
  */
 goog.testing.MultiTestRunner.TestFrame.prototype.getStats = function() {
-  'use strict';
   return {
     'testFile': this.testFile_,
     'success': this.isSuccess_,
@@ -1480,7 +1431,6 @@ goog.testing.MultiTestRunner.TestFrame.prototype.getStats = function() {
  * @return {string} The report for the test run.
  */
 goog.testing.MultiTestRunner.TestFrame.prototype.getReport = function() {
-  'use strict';
   return this.report_;
 };
 
@@ -1491,7 +1441,6 @@ goog.testing.MultiTestRunner.TestFrame.prototype.getReport = function() {
  *     with the test name, and the array holds failures.
  */
 goog.testing.MultiTestRunner.TestFrame.prototype.getTestResults = function() {
-  'use strict';
   var results = {};
   for (var testName in this.testResults_) {
     var testKey = this.testFile_.replace(/\.html$/, '');
@@ -1511,7 +1460,6 @@ goog.testing.MultiTestRunner.TestFrame.prototype.getTestResults = function() {
  * @return {?boolean} Whether the test frame had a success.
  */
 goog.testing.MultiTestRunner.TestFrame.prototype.isSuccess = function() {
-  'use strict';
   return this.isSuccess_;
 };
 
@@ -1521,7 +1469,6 @@ goog.testing.MultiTestRunner.TestFrame.prototype.isSuccess = function() {
  * @private
  */
 goog.testing.MultiTestRunner.TestFrame.prototype.finish_ = function() {
-  'use strict';
   this.totalTime_ = goog.now() - this.startTime_;
   var parent = this.getParent();
   if (parent instanceof goog.testing.MultiTestRunner) {
@@ -1535,7 +1482,6 @@ goog.testing.MultiTestRunner.TestFrame.prototype.finish_ = function() {
  * @private
  */
 goog.testing.MultiTestRunner.TestFrame.prototype.createIframe_ = function() {
-  'use strict';
   this.iframeEl_ = this.dom_.createDom(goog.dom.TagName.IFRAME);
   this.getElement().appendChild(this.iframeEl_);
   this.eh_.listen(this.iframeEl_, 'load', this.onIframeLoaded_);
@@ -1548,7 +1494,6 @@ goog.testing.MultiTestRunner.TestFrame.prototype.createIframe_ = function() {
  * @private
  */
 goog.testing.MultiTestRunner.TestFrame.prototype.onIframeLoaded_ = function(e) {
-  'use strict';
   this.iframeLoaded_ = true;
 };
 
@@ -1560,7 +1505,6 @@ goog.testing.MultiTestRunner.TestFrame.prototype.onIframeLoaded_ = function(e) {
  */
 goog.testing.MultiTestRunner.TestFrame.prototype.checkForCompletion_ =
     function() {
-  'use strict';
   var js = goog.dom.getFrameContentWindow(this.iframeEl_);
   switch (this.currentState_) {
     case 0:

@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Class for showing simple modal popup.
@@ -12,7 +20,6 @@ goog.provide('goog.ui.ModalPopup');
 
 goog.require('goog.Timer');
 goog.require('goog.asserts');
-goog.require('goog.dispose');
 goog.require('goog.dom');
 goog.require('goog.dom.TagName');
 goog.require('goog.dom.animationFrame');
@@ -28,8 +35,6 @@ goog.require('goog.ui.Component');
 goog.require('goog.ui.ModalAriaVisibilityHelper');
 goog.require('goog.ui.PopupBase');
 goog.require('goog.userAgent');
-goog.requireType('goog.events.BrowserEvent');
-goog.requireType('goog.events.EventTarget');
 
 
 
@@ -57,7 +62,6 @@ goog.requireType('goog.events.EventTarget');
  * @extends {goog.ui.Component}
  */
 goog.ui.ModalPopup = function(opt_useIframeMask, opt_domHelper) {
-  'use strict';
   goog.ui.ModalPopup.base(this, 'constructor', opt_domHelper);
 
   /**
@@ -85,6 +89,7 @@ goog.ui.ModalPopup = function(opt_useIframeMask, opt_domHelper) {
       {mutate: this.resizeBackground_}, this);
 };
 goog.inherits(goog.ui.ModalPopup, goog.ui.Component);
+goog.tagUnsealableClass(goog.ui.ModalPopup);
 
 
 /**
@@ -183,7 +188,6 @@ goog.ui.ModalPopup.prototype.modalAriaVisibilityHelper_;
  * @protected
  */
 goog.ui.ModalPopup.prototype.getCssClass = function() {
-  'use strict';
   return goog.getCssName('goog-modalpopup');
 };
 
@@ -194,7 +198,6 @@ goog.ui.ModalPopup.prototype.getCssClass = function() {
  *     null/undefined if the modal popup does not use iframe mask.
  */
 goog.ui.ModalPopup.prototype.getBackgroundIframe = function() {
-  'use strict';
   return this.bgIframeEl_;
 };
 
@@ -204,7 +207,6 @@ goog.ui.ModalPopup.prototype.getBackgroundIframe = function() {
  * @return {Element} The background mask element.
  */
 goog.ui.ModalPopup.prototype.getBackgroundElement = function() {
-  'use strict';
   return this.bgEl_;
 };
 
@@ -214,7 +216,6 @@ goog.ui.ModalPopup.prototype.getBackgroundElement = function() {
  * @override
  */
 goog.ui.ModalPopup.prototype.createDom = function() {
-  'use strict';
   // Create the modal popup element, and make sure it's hidden.
   goog.ui.ModalPopup.base(this, 'createDom');
 
@@ -236,7 +237,6 @@ goog.ui.ModalPopup.prototype.createDom = function() {
  * @private
  */
 goog.ui.ModalPopup.prototype.manageBackgroundDom_ = function() {
-  'use strict';
   if (this.useIframeMask_ && !this.bgIframeEl_) {
     // IE renders the iframe on top of the select elements while still
     // respecting the z-index of the other elements on the page.  See
@@ -263,7 +263,6 @@ goog.ui.ModalPopup.prototype.manageBackgroundDom_ = function() {
  * @private
  */
 goog.ui.ModalPopup.prototype.createTabCatcher_ = function() {
-  'use strict';
   // Creates tab catcher element.
   if (!this.tabCatcherElement_) {
     this.tabCatcherElement_ =
@@ -283,7 +282,6 @@ goog.ui.ModalPopup.prototype.createTabCatcher_ = function() {
  * @protected
  */
 goog.ui.ModalPopup.prototype.setupBackwardTabWrap = function() {
-  'use strict';
   this.backwardTabWrapInProgress_ = true;
   try {
     this.tabCatcherElement_.focus();
@@ -301,7 +299,6 @@ goog.ui.ModalPopup.prototype.setupBackwardTabWrap = function() {
  * @private
  */
 goog.ui.ModalPopup.prototype.resetBackwardTabWrap_ = function() {
-  'use strict';
   this.backwardTabWrapInProgress_ = false;
 };
 
@@ -311,7 +308,6 @@ goog.ui.ModalPopup.prototype.resetBackwardTabWrap_ = function() {
  * @private
  */
 goog.ui.ModalPopup.prototype.renderBackground_ = function() {
-  'use strict';
   goog.asserts.assert(!!this.bgEl_, 'Background element must not be null.');
   if (this.bgIframeEl_) {
     goog.dom.insertSiblingBefore(this.bgIframeEl_, this.getElement());
@@ -322,7 +318,6 @@ goog.ui.ModalPopup.prototype.renderBackground_ = function() {
 
 /** @override */
 goog.ui.ModalPopup.prototype.canDecorate = function(element) {
-  'use strict';
   // Assume we can decorate any DIV.
   return !!element && element.tagName == goog.dom.TagName.DIV;
 };
@@ -330,7 +325,6 @@ goog.ui.ModalPopup.prototype.canDecorate = function(element) {
 
 /** @override */
 goog.ui.ModalPopup.prototype.decorateInternal = function(element) {
-  'use strict';
   // Decorate the modal popup area element.
   goog.ui.ModalPopup.base(this, 'decorateInternal', element);
   var allClasses = goog.string.trim(this.getCssClass()).split(' ');
@@ -349,7 +343,6 @@ goog.ui.ModalPopup.prototype.decorateInternal = function(element) {
 
 /** @override */
 goog.ui.ModalPopup.prototype.enterDocument = function() {
-  'use strict';
   this.renderBackground_();
   goog.ui.ModalPopup.base(this, 'enterDocument');
 
@@ -369,7 +362,6 @@ goog.ui.ModalPopup.prototype.enterDocument = function() {
 
 /** @override */
 goog.ui.ModalPopup.prototype.exitDocument = function() {
-  'use strict';
   if (this.isVisible()) {
     this.setVisible(false);
   }
@@ -388,7 +380,6 @@ goog.ui.ModalPopup.prototype.exitDocument = function() {
  * @param {boolean} visible Whether the modal popup should be visible.
  */
 goog.ui.ModalPopup.prototype.setVisible = function(visible) {
-  'use strict';
   goog.asserts.assert(
       this.isInDocument(), 'ModalPopup must be rendered first.');
 
@@ -419,7 +410,6 @@ goog.ui.ModalPopup.prototype.setVisible = function(visible) {
  * @protected
  */
 goog.ui.ModalPopup.prototype.setA11YDetectBackground = function(hide) {
-  'use strict';
   if (!this.modalAriaVisibilityHelper_) {
     this.modalAriaVisibilityHelper_ = new goog.ui.ModalAriaVisibilityHelper(
         this.getElementStrict(), this.dom_);
@@ -442,7 +432,6 @@ goog.ui.ModalPopup.prototype.setA11YDetectBackground = function(hide) {
 goog.ui.ModalPopup.prototype.setTransition = function(
     popupShowTransition, popupHideTransition, bgShowTransition,
     bgHideTransition) {
-  'use strict';
   this.popupShowTransition_ = popupShowTransition;
   this.popupHideTransition_ = popupHideTransition;
   this.bgShowTransition_ = bgShowTransition;
@@ -455,7 +444,6 @@ goog.ui.ModalPopup.prototype.setTransition = function(
  * @private
  */
 goog.ui.ModalPopup.prototype.show_ = function() {
-  'use strict';
   if (!this.dispatchEvent(goog.ui.PopupBase.EventType.BEFORE_SHOW)) {
     return;
   }
@@ -499,7 +487,6 @@ goog.ui.ModalPopup.prototype.show_ = function() {
  * @private
  */
 goog.ui.ModalPopup.prototype.hide_ = function() {
-  'use strict';
   if (!this.dispatchEvent(goog.ui.PopupBase.EventType.BEFORE_HIDE)) {
     return;
   }
@@ -542,7 +529,6 @@ goog.ui.ModalPopup.prototype.hide_ = function() {
  * @private
  */
 goog.ui.ModalPopup.prototype.returnFocus_ = function() {
-  'use strict';
   try {
     var dom = this.getDomHelper();
     var body = dom.getDocument().body;
@@ -575,7 +561,6 @@ goog.ui.ModalPopup.prototype.returnFocus_ = function() {
  * @private
  */
 goog.ui.ModalPopup.prototype.showPopupElement_ = function(visible) {
-  'use strict';
   if (this.bgIframeEl_) {
     goog.style.setElementShown(this.bgIframeEl_, visible);
   }
@@ -593,7 +578,6 @@ goog.ui.ModalPopup.prototype.showPopupElement_ = function(visible) {
  * @protected
  */
 goog.ui.ModalPopup.prototype.onShow = function() {
-  'use strict';
   this.dispatchEvent(goog.ui.PopupBase.EventType.SHOW);
 };
 
@@ -604,7 +588,6 @@ goog.ui.ModalPopup.prototype.onShow = function() {
  * @protected
  */
 goog.ui.ModalPopup.prototype.onHide = function() {
-  'use strict';
   this.showPopupElement_(false);
   this.dispatchEvent(goog.ui.PopupBase.EventType.HIDE);
 };
@@ -614,7 +597,6 @@ goog.ui.ModalPopup.prototype.onHide = function() {
  * @return {boolean} Whether the modal popup is visible.
  */
 goog.ui.ModalPopup.prototype.isVisible = function() {
-  'use strict';
   return this.visible_;
 };
 
@@ -623,7 +605,6 @@ goog.ui.ModalPopup.prototype.isVisible = function() {
  * Focuses on the modal popup.
  */
 goog.ui.ModalPopup.prototype.focus = function() {
-  'use strict';
   this.focusElement_();
 };
 
@@ -638,7 +619,6 @@ goog.ui.ModalPopup.prototype.focus = function() {
  * @private
  */
 goog.ui.ModalPopup.prototype.resizeBackground_ = function() {
-  'use strict';
   if (this.bgIframeEl_) {
     goog.style.setElementShown(this.bgIframeEl_, false);
   }
@@ -676,7 +656,6 @@ goog.ui.ModalPopup.prototype.resizeBackground_ = function() {
  * Centers the modal popup in the viewport, taking scrolling into account.
  */
 goog.ui.ModalPopup.prototype.reposition = function() {
-  'use strict';
   // TODO(chrishenry): Make this use goog.positioning as in goog.ui.PopupBase?
 
   // Get the current viewport to obtain the scroll offset.
@@ -714,7 +693,6 @@ goog.ui.ModalPopup.prototype.reposition = function() {
  * @protected
  */
 goog.ui.ModalPopup.prototype.onFocus = function(e) {
-  'use strict';
   if (this.backwardTabWrapInProgress_) {
     this.resetBackwardTabWrap_();
   } else if (e.target == this.tabCatcherElement_) {
@@ -732,7 +710,6 @@ goog.ui.ModalPopup.prototype.onFocus = function(e) {
  * @protected
  */
 goog.ui.ModalPopup.prototype.getTabCatcherElement = function() {
-  'use strict';
   return this.tabCatcherElement_;
 };
 
@@ -742,7 +719,6 @@ goog.ui.ModalPopup.prototype.getTabCatcherElement = function() {
  * @private
  */
 goog.ui.ModalPopup.prototype.focusElement_ = function() {
-  'use strict';
   try {
     if (goog.userAgent.IE) {
       // In IE, we must first focus on the body or else focussing on a
@@ -758,7 +734,6 @@ goog.ui.ModalPopup.prototype.focusElement_ = function() {
 
 /** @override */
 goog.ui.ModalPopup.prototype.disposeInternal = function() {
-  'use strict';
   goog.dispose(this.popupShowTransition_);
   this.popupShowTransition_ = null;
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "storage/browser/file_system/sandbox_origin_database_interface.h"
 
@@ -35,10 +35,6 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) SandboxOriginDatabase
   // at a given time.
   SandboxOriginDatabase(const base::FilePath& file_system_directory,
                         leveldb::Env* env_override);
-
-  SandboxOriginDatabase(const SandboxOriginDatabase&) = delete;
-  SandboxOriginDatabase& operator=(const SandboxOriginDatabase&) = delete;
-
   ~SandboxOriginDatabase() override;
 
   // SandboxOriginDatabaseInterface overrides.
@@ -75,9 +71,10 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) SandboxOriginDatabase
   bool GetLastPathNumber(int* number);
 
   base::FilePath file_system_directory_;
-  raw_ptr<leveldb::Env> env_override_;
+  leveldb::Env* env_override_;
   std::unique_ptr<leveldb::DB> db_;
   base::Time last_reported_time_;
+  DISALLOW_COPY_AND_ASSIGN(SandboxOriginDatabase);
 };
 
 }  // namespace storage

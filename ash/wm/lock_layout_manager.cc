@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,7 @@ LockLayoutManager::LockLayoutManager(aura::Window* window, Shelf* shelf)
       root_window_(window->GetRootWindow()) {
   root_window_->AddObserver(this);
   keyboard::KeyboardUIController::Get()->AddObserver(this);
-  shelf_observation_.Observe(shelf);
+  shelf_observer_.Add(shelf);
 }
 
 LockLayoutManager::~LockLayoutManager() {
@@ -31,6 +31,7 @@ LockLayoutManager::~LockLayoutManager() {
 
   for (aura::Window* child : window_->children())
     child->RemoveObserver(this);
+
 }
 
 void LockLayoutManager::OnWindowResized() {

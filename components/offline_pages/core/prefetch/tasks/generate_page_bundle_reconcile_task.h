@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_OFFLINE_PAGES_CORE_PREFETCH_TASKS_GENERATE_PAGE_BUNDLE_RECONCILE_TASK_H_
 #define COMPONENTS_OFFLINE_PAGES_CORE_PREFETCH_TASKS_GENERATE_PAGE_BUNDLE_RECONCILE_TASK_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "components/offline_pages/task/task.h"
 
@@ -24,12 +23,6 @@ class GeneratePageBundleReconcileTask : public Task {
   GeneratePageBundleReconcileTask(
       PrefetchStore* prefetch_store,
       PrefetchNetworkRequestFactory* request_factory);
-
-  GeneratePageBundleReconcileTask(const GeneratePageBundleReconcileTask&) =
-      delete;
-  GeneratePageBundleReconcileTask& operator=(
-      const GeneratePageBundleReconcileTask&) = delete;
-
   ~GeneratePageBundleReconcileTask() override;
 
  private:
@@ -37,10 +30,11 @@ class GeneratePageBundleReconcileTask : public Task {
   void Run() override;
   void FinishedUpdate(bool success);
 
-  raw_ptr<PrefetchStore> prefetch_store_;
-  raw_ptr<PrefetchNetworkRequestFactory> request_factory_;
+  PrefetchStore* prefetch_store_;
+  PrefetchNetworkRequestFactory* request_factory_;
 
   base::WeakPtrFactory<GeneratePageBundleReconcileTask> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(GeneratePageBundleReconcileTask);
 };
 
 }  // namespace offline_pages

@@ -33,6 +33,7 @@
 #include <memory>
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/platform/web_data.h"
+#include "third_party/blink/public/platform/web_size.h"
 #include "third_party/blink/renderer/platform/image-decoders/image_decoder_test_helpers.h"
 #include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
@@ -288,6 +289,11 @@ TEST(GIFImageDecoderTest, randomDecodeAfterClearFrameBufferCache) {
       &CreateDecoder, kWebTestsResourcesDir, "animated-10color.gif");
 }
 
+TEST(GIFImageDecoderTest, resumePartialDecodeAfterClearFrameBufferCache) {
+  TestResumePartialDecodeAfterClearFrameBufferCache(
+      &CreateDecoder, kWebTestsResourcesDir, "animated-10color.gif");
+}
+
 // The first LZW codes in the image are invalid values that try to create a loop
 // in the dictionary. Decoding should fail, but not infinitely loop or corrupt
 // memory.
@@ -345,7 +351,7 @@ TEST(GIFImageDecoderTest, firstFrameHasGreaterSizeThanScreenSize) {
           ->CopyAs<Vector<char>>();
 
   std::unique_ptr<ImageDecoder> decoder;
-  gfx::Size frame_size;
+  IntSize frame_size;
 
   // Compute hashes when the file is truncated.
   for (size_t i = 1; i <= full_data.size(); ++i) {
@@ -354,27 +360,20 @@ TEST(GIFImageDecoderTest, firstFrameHasGreaterSizeThanScreenSize) {
         SharedBuffer::Create(full_data.data(), i);
     decoder->SetData(data.get(), i == full_data.size());
 
-    if (decoder->IsSizeAvailable() && !frame_size.width() &&
-        !frame_size.height()) {
+    if (decoder->IsSizeAvailable() && !frame_size.Width() &&
+        !frame_size.Height()) {
       frame_size = decoder->DecodedSize();
       continue;
     }
 
-    ASSERT_EQ(frame_size.width(), decoder->DecodedSize().width());
-    ASSERT_EQ(frame_size.height(), decoder->DecodedSize().height());
+    ASSERT_EQ(frame_size.Width(), decoder->DecodedSize().Width());
+    ASSERT_EQ(frame_size.Height(), decoder->DecodedSize().Height());
   }
 }
 
 TEST(GIFImageDecoderTest, verifyRepetitionCount) {
-  // full2loop.gif has 3 frames (it is an animated GIF) and an explicit loop
-  // count of 2.
   TestRepetitionCount(kWebTestsResourcesDir, "full2loop.gif", 2);
-  // radient.gif has 1 frame (it is a still GIF) and no explicit loop count.
-  // For still images, either kAnimationLoopInfinite or kAnimationNone are
-  // valid and equivalent, in that the pixels on screen do not change over
-  // time. It's arbitrary which one we pick: kAnimationLoopInfinite.
-  TestRepetitionCount(kDecodersTestingDir, "radient.gif",
-                      kAnimationLoopInfinite);
+  TestRepetitionCount(kDecodersTestingDir, "radient.gif", kAnimationNone);
 }
 
 TEST(GIFImageDecoderTest, repetitionCountChangesWhenSeen) {
@@ -476,7 +475,7 @@ TEST(GIFImageDecoderTest, externalAllocator) {
   decoder->SetMemoryAllocator(nullptr);
 
   ASSERT_TRUE(frame);
-  EXPECT_EQ(gfx::Rect(decoder->Size()), frame->OriginalFrameRect());
+  EXPECT_EQ(IntRect(IntPoint(), decoder->Size()), frame->OriginalFrameRect());
   EXPECT_FALSE(frame->HasAlpha());
 }
 

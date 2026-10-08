@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,6 @@
 #include "base/containers/flat_set.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/sequence_checker.h"
-#include "base/token.h"
-#include "base/unguessable_token.h"
 #include "content/public/browser/video_capture_device_launcher.h"
 #include "media/capture/mojom/video_capture.mojom.h"
 #include "media/capture/video/video_frame_receiver.h"
@@ -43,11 +41,6 @@ class SingleClientVideoCaptureHost final
   SingleClientVideoCaptureHost(const std::string& device_id,
                                blink::mojom::MediaStreamType type,
                                DeviceLauncherCreateCallback callback);
-
-  SingleClientVideoCaptureHost(const SingleClientVideoCaptureHost&) = delete;
-  SingleClientVideoCaptureHost& operator=(const SingleClientVideoCaptureHost&) =
-      delete;
-
   ~SingleClientVideoCaptureHost() override;
 
   // media::mojom::VideoCaptureHost implementations
@@ -66,7 +59,7 @@ class SingleClientVideoCaptureHost final
   void RequestRefreshFrame(const base::UnguessableToken& device_id) override;
   void ReleaseBuffer(const base::UnguessableToken& device_id,
                      int32_t buffer_id,
-                     const media::VideoCaptureFeedback& feedback) override;
+                     const media::VideoFrameFeedback& feedback) override;
   void GetDeviceSupportedFormats(
       const base::UnguessableToken& device_id,
       const base::UnguessableToken& session_id,
@@ -84,13 +77,15 @@ class SingleClientVideoCaptureHost final
   void OnNewBuffer(int buffer_id,
                    media::mojom::VideoBufferHandlePtr buffer_handle) override;
   void OnFrameReadyInBuffer(
-      media::ReadyFrameInBuffer frame,
-      std::vector<media::ReadyFrameInBuffer> scaled_frames) override;
+      int buffer_id,
+      int frame_feedback_id,
+      std::unique_ptr<
+          VideoCaptureDevice::Client::Buffer::ScopedAccessPermission>
+          buffer_read_permission,
+      media::mojom::VideoFrameInfoPtr frame_info) override;
   void OnBufferRetired(int buffer_id) override;
   void OnError(media::VideoCaptureError error) override;
   void OnFrameDropped(media::VideoCaptureFrameDropReason reason) override;
-  void OnNewCropVersion(uint32_t crop_version) override;
-  void OnFrameWithEmptyRegionCapture() override;
   void OnLog(const std::string& message) override;
   void OnStarted() override;
   void OnStartedUsingGpuDecode() override;
@@ -104,7 +99,7 @@ class SingleClientVideoCaptureHost final
  private:
   // Reports the |consumer_resource_utilization| and removes the buffer context.
   void OnFinishedConsumingBuffer(int buffer_context_id,
-                                 media::VideoCaptureFeedback feedback);
+                                 const media::VideoFrameFeedback& feedback);
 
   const std::string device_id_;
   const blink::mojom::MediaStreamType type_;
@@ -137,6 +132,8 @@ class SingleClientVideoCaptureHost final
   SEQUENCE_CHECKER(sequence_checker_);
 
   base::WeakPtrFactory<SingleClientVideoCaptureHost> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SingleClientVideoCaptureHost);
 };
 
 }  // namespace mirroring

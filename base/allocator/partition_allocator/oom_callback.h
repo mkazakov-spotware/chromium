@@ -1,26 +1,24 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef BASE_ALLOCATOR_PARTITION_ALLOCATOR_OOM_CALLBACK_H_
 #define BASE_ALLOCATOR_PARTITION_ALLOCATOR_OOM_CALLBACK_H_
 
-#include "base/allocator/partition_allocator/partition_alloc_base/component_export.h"
+#include "base/base_export.h"
 
-namespace partition_alloc {
-
-using PartitionAllocOomCallback = void (*)();
-
+namespace base {
+typedef void (*PartitionAllocOomCallback)();
 // Registers a callback to be invoked during an OOM_CRASH(). OOM_CRASH is
 // invoked by users of PageAllocator (including PartitionAlloc) to signify an
 // allocation failure from the platform.
-PA_COMPONENT_EXPORT(PARTITION_ALLOC)
-void SetPartitionAllocOomCallback(PartitionAllocOomCallback callback);
+BASE_EXPORT void SetPartitionAllocOomCallback(
+    PartitionAllocOomCallback callback);
 
 namespace internal {
-PA_COMPONENT_EXPORT(PARTITION_ALLOC) void RunPartitionAllocOomCallback();
+BASE_EXPORT void RunPartitionAllocOomCallback();
 }  // namespace internal
 
-}  // namespace partition_alloc
+}  // namespace base
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_OOM_CALLBACK_H_

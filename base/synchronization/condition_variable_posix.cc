@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,14 @@
 #include <stdint.h>
 #include <sys/time.h>
 
+#include "base/optional.h"
 #include "base/synchronization/lock.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if BUILDFLAG(IS_ANDROID) && __ANDROID_API__ < 21
+#if defined(OS_ANDROID) && __ANDROID_API__ < 21
 #define HAVE_PTHREAD_COND_TIMEDWAIT_MONOTONIC 1
 #endif
 
@@ -34,7 +34,7 @@ ConditionVariable::ConditionVariable(Lock* user_lock)
   // non-standard pthread_cond_timedwait_monotonic_np. Newer platform
   // versions have pthread_condattr_setclock.
   // Mac can use relative time deadlines.
-#if !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_NACL) && \
+#if !defined(OS_APPLE) && !defined(OS_NACL) && \
     !defined(HAVE_PTHREAD_COND_TIMEDWAIT_MONOTONIC)
   pthread_condattr_t attrs;
   rv = pthread_condattr_init(&attrs);
@@ -49,7 +49,7 @@ ConditionVariable::ConditionVariable(Lock* user_lock)
 }
 
 ConditionVariable::~ConditionVariable() {
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   // This hack is necessary to avoid a fatal pthreads subsystem bug in the
   // Darwin kernel. http://crbug.com/517681.
   {
@@ -68,7 +68,7 @@ ConditionVariable::~ConditionVariable() {
 }
 
 void ConditionVariable::Wait() {
-  absl::optional<internal::ScopedBlockingCallWithBaseSyncPrimitives>
+  Optional<internal::ScopedBlockingCallWithBaseSyncPrimitives>
       scoped_blocking_call;
   if (waiting_is_blocking_)
     scoped_blocking_call.emplace(FROM_HERE, BlockingType::MAY_BLOCK);
@@ -84,15 +84,14 @@ void ConditionVariable::Wait() {
 }
 
 void ConditionVariable::TimedWait(const TimeDelta& max_time) {
-  absl::optional<internal::ScopedBlockingCallWithBaseSyncPrimitives>
+  Optional<internal::ScopedBlockingCallWithBaseSyncPrimitives>
       scoped_blocking_call;
   if (waiting_is_blocking_)
     scoped_blocking_call.emplace(FROM_HERE, BlockingType::MAY_BLOCK);
 
   int64_t usecs = max_time.InMicroseconds();
   struct timespec relative_time;
-  relative_time.tv_sec =
-      static_cast<time_t>(usecs / Time::kMicrosecondsPerSecond);
+  relative_time.tv_sec = usecs / Time::kMicrosecondsPerSecond;
   relative_time.tv_nsec =
       (usecs % Time::kMicrosecondsPerSecond) * Time::kNanosecondsPerMicrosecond;
 
@@ -100,13 +99,13 @@ void ConditionVariable::TimedWait(const TimeDelta& max_time) {
   user_lock_->CheckHeldAndUnmark();
 #endif
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   int rv = pthread_cond_timedwait_relative_np(
       &condition_, user_mutex_, &relative_time);
 #else
   // The timeout argument to pthread_cond_timedwait is in absolute time.
   struct timespec absolute_time;
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL)
   // See comment in constructor for why this is different in NaCl.
   struct timeval now;
   gettimeofday(&now, NULL);
@@ -131,7 +130,7 @@ void ConditionVariable::TimedWait(const TimeDelta& max_time) {
 #else
   int rv = pthread_cond_timedwait(&condition_, user_mutex_, &absolute_time);
 #endif  // HAVE_PTHREAD_COND_TIMEDWAIT_MONOTONIC
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // OS_APPLE
 
   // On failure, we only expect the CV to timeout. Any other error value means
   // that we've unexpectedly woken up.

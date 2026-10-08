@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "snapshot/annotation_snapshot.h"
 #include "util/misc/address_types.h"
 #include "util/process/process_memory_range.h"
@@ -35,9 +36,6 @@ class ImageAnnotationReader {
   //!
   //! \param[in] memory A memory reader for the remote process.
   explicit ImageAnnotationReader(const ProcessMemoryRange* memory);
-
-  ImageAnnotationReader(const ImageAnnotationReader&) = delete;
-  ImageAnnotationReader& operator=(const ImageAnnotationReader&) = delete;
 
   ~ImageAnnotationReader();
 
@@ -69,6 +67,8 @@ class ImageAnnotationReader {
                           std::vector<AnnotationSnapshot>* annotations) const;
 
   const ProcessMemoryRange* memory_;  // weak
+
+  DISALLOW_COPY_AND_ASSIGN(ImageAnnotationReader);
 };
 
 }  // namespace crashpad

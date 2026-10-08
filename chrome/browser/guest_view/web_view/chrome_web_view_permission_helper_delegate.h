@@ -1,12 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_GUEST_VIEW_WEB_VIEW_CHROME_WEB_VIEW_PERMISSION_HELPER_DELEGATE_H_
 #define CHROME_BROWSER_GUEST_VIEW_WEB_VIEW_CHROME_WEB_VIEW_PERMISSION_HELPER_DELEGATE_H_
 
+#include "base/macros.h"
 #include "chrome/common/buildflags.h"
-#include "content/public/browser/render_frame_host_receiver_set.h"
+#include "components/content_settings/core/common/content_settings.h"
+#include "content/public/browser/web_contents_receiver_set.h"
 #include "extensions/browser/guest_view/web_view/web_view_permission_helper.h"
 #include "extensions/browser/guest_view/web_view/web_view_permission_helper_delegate.h"
 #include "ppapi/buildflags/buildflags.h"
@@ -27,20 +29,8 @@ class ChromeWebViewPermissionHelperDelegate
 #endif
 {
  public:
-#if BUILDFLAG(ENABLE_PLUGINS)
-  static void BindPluginAuthHost(
-      mojo::PendingAssociatedReceiver<chrome::mojom::PluginAuthHost> receiver,
-      content::RenderFrameHost* rfh);
-#endif
-
   explicit ChromeWebViewPermissionHelperDelegate(
       WebViewPermissionHelper* web_view_permission_helper);
-
-  ChromeWebViewPermissionHelperDelegate(
-      const ChromeWebViewPermissionHelperDelegate&) = delete;
-  ChromeWebViewPermissionHelperDelegate& operator=(
-      const ChromeWebViewPermissionHelperDelegate&) = delete;
-
   ~ChromeWebViewPermissionHelperDelegate() override;
 
   // WebViewPermissionHelperDelegate implementation.
@@ -52,9 +42,11 @@ class ChromeWebViewPermissionHelperDelegate
       bool last_unlocked_by_target,
       base::OnceCallback<void(bool)> callback) override;
   void RequestGeolocationPermission(
+      int bridge_id,
       const GURL& requesting_frame,
       bool user_gesture,
       base::OnceCallback<void(bool)> callback) override;
+  void CancelGeolocationPermissionRequest(int bridge_id) override;
   void RequestFileSystemPermission(
       const GURL& url,
       bool allowed_by_default,
@@ -63,10 +55,10 @@ class ChromeWebViewPermissionHelperDelegate
  private:
 #if BUILDFLAG(ENABLE_PLUGINS)
   // chrome::mojom::PluginAuthHost methods.
-  void BlockedUnauthorizedPlugin(const std::u16string& name,
+  void BlockedUnauthorizedPlugin(const base::string16& name,
                                  const std::string& identifier) override;
 
-  content::RenderFrameHostReceiverSet<chrome::mojom::PluginAuthHost>
+  content::WebContentsFrameReceiverSet<chrome::mojom::PluginAuthHost>
       plugin_auth_host_receivers_;
 
   void OnPermissionResponse(const std::string& identifier,
@@ -75,8 +67,9 @@ class ChromeWebViewPermissionHelperDelegate
 #endif  // BUILDFLAG(ENABLE_PLUGINS)
 
   void OnGeolocationPermissionResponse(
+      int bridge_id,
       bool user_gesture,
-      base::OnceCallback<void(blink::mojom::PermissionStatus)> callback,
+      base::OnceCallback<void(ContentSetting)> callback,
       bool allow,
       const std::string& user_input);
 
@@ -92,6 +85,11 @@ class ChromeWebViewPermissionHelperDelegate
                                        bool allow,
                                        const std::string& user_input);
 
+  // Bridge IDs correspond to a geolocation request. This method will remove
+  // the bookkeeping for a particular geolocation request associated with the
+  // provided |bridge_id|. It returns the request ID of the geolocation request.
+  int RemoveBridgeID(int bridge_id);
+
   void FileSystemAccessedAsyncResponse(int render_process_id,
                                        int render_frame_id,
                                        int request_id,
@@ -102,8 +100,12 @@ class ChromeWebViewPermissionHelperDelegate
     return web_view_permission_helper()->web_view_guest();
   }
 
+  std::map<int, int> bridge_id_to_request_id_map_;
+
   base::WeakPtrFactory<ChromeWebViewPermissionHelperDelegate> weak_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeWebViewPermissionHelperDelegate);
 };
 
 }  // namespace extensions

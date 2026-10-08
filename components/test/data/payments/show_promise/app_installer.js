@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Chromium Authors
+ * Copyright 2019 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -7,7 +7,7 @@
 /**
  * Installs the payment handler.
  */
-function install() {
+function install() { // eslint-disable-line no-unused-vars
   if (!navigator.serviceWorker) {
     output('install()', 'ServiceWorker API not found.');
     return;
@@ -34,11 +34,11 @@ function install() {
               }
 
               registration.paymentManager.instruments
-                  .set(
-                      '123456',
-                      {name: 'Echo Pay', method: window.location.href})
+                  .set('123456', {name: 'Echo Pay', method: 'basic-card'})
                   .then(() => {
-                    output('instruments.set()', 'Payment handler installed.');
+                    output(
+                        'instruments.set()',
+                        'Payment handler installed.');
                   })
                   .catch((error) => {
                     output('instruments.set()', error);

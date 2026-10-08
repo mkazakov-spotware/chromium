@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,10 @@
 #include "ash/public/cpp/shelf_config.h"
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/shelf/shelf_button_delegate.h"
-#include "ash/style/ash_color_provider.h"
-#include "base/i18n/rtl.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/image/image_skia_operations.h"
 #include "ui/gfx/paint_vector_icon.h"
-#include "ui/views/animation/ink_drop.h"
 
 namespace ash {
 
@@ -25,16 +22,14 @@ ScrollArrowView::ScrollArrowView(ArrowType arrow_type,
       arrow_type_(arrow_type),
       is_horizontal_alignment_(is_horizontal_alignment) {
   SetHasInkDropActionOnClick(true);
-  views::InkDrop::Get(this)->SetMode(
-      views::InkDropHost::InkDropMode::ON_NO_GESTURE_HANDLER);
+  SetInkDropMode(InkDropMode::ON_NO_GESTURE_HANDLER);
 }
 
 ScrollArrowView::~ScrollArrowView() = default;
 
 void ScrollArrowView::NotifyClick(const ui::Event& event) {
   Button::NotifyClick(event);
-  shelf_button_delegate()->ButtonPressed(
-      /*sender=*/this, event, views::InkDrop::Get(this)->GetInkDrop());
+  shelf_button_delegate()->ButtonPressed(/*sender=*/this, event, GetInkDrop());
 }
 
 void ScrollArrowView::PaintButtonContents(gfx::Canvas* canvas) {
@@ -42,8 +37,7 @@ void ScrollArrowView::PaintButtonContents(gfx::Canvas* canvas) {
                                (arrow_type_ == kRight && base::i18n::IsRTL());
   gfx::ImageSkia img = CreateVectorIcon(
       show_left_arrow ? kOverflowShelfLeftIcon : kOverflowShelfRightIcon,
-      AshColorProvider::Get()->GetContentLayerColor(
-          AshColorProvider::ContentLayerType::kIconColorPrimary));
+      SK_ColorWHITE);
 
   if (!is_horizontal_alignment_) {
     img = gfx::ImageSkiaOperations::CreateRotatedImage(
@@ -58,11 +52,6 @@ void ScrollArrowView::PaintButtonContents(gfx::Canvas* canvas) {
 
 const char* ScrollArrowView::GetClassName() const {
   return "ScrollArrowView";
-}
-
-void ScrollArrowView::OnThemeChanged() {
-  ShelfButton::OnThemeChanged();
-  SchedulePaint();
 }
 
 }  // namespace ash

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,12 @@
 
 namespace {
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 // File name of the nacl_helper and nacl_helper_bootstrap, Linux only.
 const base::FilePath::CharType kInternalNaClHelperFileName[] =
     FILE_PATH_LITERAL("nacl_helper");
+const base::FilePath::CharType kInternalNaClHelperNonSfiFileName[] =
+    FILE_PATH_LITERAL("nacl_helper_nonsfi");
 const base::FilePath::CharType kInternalNaClHelperBootstrapFileName[] =
     FILE_PATH_LITERAL("nacl_helper_bootstrap");
 
@@ -35,9 +37,11 @@ namespace nacl {
 
 bool PathProvider(int key, base::FilePath* result) {
   switch (key) {
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
     case FILE_NACL_HELPER:
       return GetNaClHelperPath(kInternalNaClHelperFileName, result);
+    case FILE_NACL_HELPER_NONSFI:
+      return GetNaClHelperPath(kInternalNaClHelperNonSfiFileName, result);
     case FILE_NACL_HELPER_BOOTSTRAP:
       return GetNaClHelperPath(kInternalNaClHelperBootstrapFileName, result);
 #endif

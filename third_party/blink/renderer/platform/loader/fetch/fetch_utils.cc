@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,8 +24,12 @@ bool IsHTTPWhitespace(UChar chr) {
 }  // namespace
 
 bool FetchUtils::IsForbiddenMethod(const String& method) {
-  DCHECK(IsValidHTTPToken(method));
-  return network::cors::IsForbiddenMethod(method.Latin1());
+  // http://fetch.spec.whatwg.org/#forbidden-method
+  // "A forbidden method is a method that is a byte case-insensitive match"
+  //  for one of `CONNECT`, `TRACE`, and `TRACK`."
+  return EqualIgnoringASCIICase(method, "TRACE") ||
+         EqualIgnoringASCIICase(method, "TRACK") ||
+         EqualIgnoringASCIICase(method, "CONNECT");
 }
 
 bool FetchUtils::IsForbiddenResponseHeaderName(const String& name) {

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,8 @@
 #include <map>
 #include <memory>
 
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "net/proxy_resolution/proxy_resolver.h"
 #include "services/proxy_resolver/public/mojom/proxy_resolver.mojom.h"
 
@@ -19,9 +21,6 @@ class ProxyResolverImpl : public mojom::ProxyResolver {
  public:
   explicit ProxyResolverImpl(std::unique_ptr<ProxyResolverV8Tracing> resolver);
 
-  ProxyResolverImpl(const ProxyResolverImpl&) = delete;
-  ProxyResolverImpl& operator=(const ProxyResolverImpl&) = delete;
-
   ~ProxyResolverImpl() override;
 
  private:
@@ -30,13 +29,15 @@ class ProxyResolverImpl : public mojom::ProxyResolver {
   // mojom::ProxyResolver overrides.
   void GetProxyForUrl(
       const GURL& url,
-      const net::NetworkAnonymizationKey& network_anonymization_key,
+      const net::NetworkIsolationKey& network_isolation_key,
       mojo::PendingRemote<mojom::ProxyResolverRequestClient> client) override;
 
   void DeleteJob(Job* job);
 
   std::unique_ptr<ProxyResolverV8Tracing> resolver_;
   std::map<Job*, std::unique_ptr<Job>> resolve_jobs_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProxyResolverImpl);
 };
 
 }  // namespace proxy_resolver

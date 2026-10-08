@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,9 @@
 
 #include "base/bind.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_checker.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
@@ -32,10 +30,6 @@ namespace viz {
 class Gpu::GpuPtrIO {
  public:
   GpuPtrIO() { DETACH_FROM_THREAD(thread_checker_); }
-
-  GpuPtrIO(const GpuPtrIO&) = delete;
-  GpuPtrIO& operator=(const GpuPtrIO&) = delete;
-
   ~GpuPtrIO() { DCHECK_CALLED_ON_VALID_THREAD(thread_checker_); }
 
   void Initialize(mojo::PendingRemote<mojom::Gpu> gpu_remote,
@@ -63,14 +57,14 @@ class Gpu::GpuPtrIO {
     }
   }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_ASH)
   void CreateJpegDecodeAccelerator(
       mojo::PendingReceiver<chromeos_camera::mojom::MjpegDecodeAccelerator>
           receiver) {
     DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
     gpu_remote_->CreateJpegDecodeAccelerator(std::move(receiver));
   }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_ASH)
 
   void CreateVideoEncodeAcceleratorProvider(
       mojo::PendingReceiver<media::mojom::VideoEncodeAcceleratorProvider>
@@ -93,6 +87,8 @@ class Gpu::GpuPtrIO {
   // callback fires or if an interface connection error occurs.
   scoped_refptr<EstablishRequest> establish_request_;
   THREAD_CHECKER(thread_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(GpuPtrIO);
 };
 
 // Encapsulates a single request to establish a GPU channel.
@@ -102,9 +98,6 @@ class Gpu::EstablishRequest
   EstablishRequest(Gpu* parent,
                    scoped_refptr<base::SingleThreadTaskRunner> main_task_runner)
       : parent_(parent), main_task_runner_(main_task_runner) {}
-
-  EstablishRequest(const EstablishRequest&) = delete;
-  EstablishRequest& operator=(const EstablishRequest&) = delete;
 
   const scoped_refptr<gpu::GpuChannelHost>& gpu_channel() {
     return gpu_channel_;
@@ -200,15 +193,17 @@ class Gpu::EstablishRequest
 
   virtual ~EstablishRequest() = default;
 
-  const raw_ptr<Gpu> parent_;
+  Gpu* const parent_;
   scoped_refptr<base::SingleThreadTaskRunner> main_task_runner_;
-  raw_ptr<base::WaitableEvent> establish_event_ = nullptr;
+  base::WaitableEvent* establish_event_ = nullptr;
 
   base::Lock lock_;
   bool received_ = false;
   bool finished_ = false;
 
   scoped_refptr<gpu::GpuChannelHost> gpu_channel_;
+
+  DISALLOW_COPY_AND_ASSIGN(EstablishRequest);
 };
 
 void Gpu::GpuPtrIO::ConnectionError() {
@@ -241,7 +236,7 @@ void Gpu::GpuPtrIO::OnEstablishedGpuChannel(
 
 Gpu::Gpu(mojo::PendingRemote<mojom::Gpu> gpu_remote,
          scoped_refptr<base::SingleThreadTaskRunner> task_runner)
-    : main_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+    : main_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       io_task_runner_(std::move(task_runner)),
       gpu_(new GpuPtrIO(), base::OnTaskRunnerDeleter(io_task_runner_)) {
   DCHECK(main_task_runner_);
@@ -292,7 +287,7 @@ std::unique_ptr<Gpu> Gpu::Create(
       new Gpu(std::move(remote), std::move(io_task_runner)));
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_ASH)
 void Gpu::CreateJpegDecodeAccelerator(
     mojo::PendingReceiver<chromeos_camera::mojom::MjpegDecodeAccelerator>
         jda_receiver) {
@@ -302,7 +297,7 @@ void Gpu::CreateJpegDecodeAccelerator(
       base::BindOnce(&GpuPtrIO::CreateJpegDecodeAccelerator,
                      base::Unretained(gpu_.get()), std::move(jda_receiver)));
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_ASH)
 
 void Gpu::CreateVideoEncodeAcceleratorProvider(
     mojo::PendingReceiver<media::mojom::VideoEncodeAcceleratorProvider>
@@ -334,7 +329,6 @@ scoped_refptr<gpu::GpuChannelHost> Gpu::EstablishGpuChannelSync() {
   if (channel)
     return channel;
 
-  SCOPED_UMA_HISTOGRAM_TIMER("GPU.EstablishGpuChannelSyncTime");
   SendEstablishGpuChannelRequest();
   base::WaitableEvent event(base::WaitableEvent::ResetPolicy::MANUAL,
                             base::WaitableEvent::InitialState::SIGNALED);

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,16 +11,13 @@ import android.os.Parcel;
 
 import androidx.annotation.Nullable;
 
-import org.chromium.blink_public.input.SelectionGranularity;
-import org.chromium.content_public.browser.GlobalRenderFrameHostId;
+import org.chromium.content_public.browser.AccessibilitySnapshotCallback;
 import org.chromium.content_public.browser.ImageDownloadCallback;
 import org.chromium.content_public.browser.JavaScriptCallback;
-import org.chromium.content_public.browser.MessagePayload;
 import org.chromium.content_public.browser.MessagePort;
 import org.chromium.content_public.browser.NavigationController;
 import org.chromium.content_public.browser.RenderFrameHost;
 import org.chromium.content_public.browser.RenderWidgetHostView;
-import org.chromium.content_public.browser.StylusWritingHandler;
 import org.chromium.content_public.browser.ViewEventSink;
 import org.chromium.content_public.browser.Visibility;
 import org.chromium.content_public.browser.WebContents;
@@ -29,7 +26,6 @@ import org.chromium.ui.OverscrollRefreshHandler;
 import org.chromium.ui.base.EventForwarder;
 import org.chromium.ui.base.ViewAndroidDelegate;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.ui.mojom.VirtualKeyboardMode;
 import org.chromium.url.GURL;
 
 import java.util.Collections;
@@ -41,15 +37,11 @@ import java.util.List;
 @SuppressLint("ParcelCreator")
 public class MockWebContents implements WebContents {
     public RenderFrameHost renderFrameHost;
-    private GURL mLastCommittedUrl;
 
     @Override
     public void initialize(String productVersion, ViewAndroidDelegate viewDelegate,
             ViewEventSink.InternalAccessDelegate accessDelegate, WindowAndroid windowAndroid,
             WebContents.InternalsHolder internalsHolder) {}
-
-    @Override
-    public void clearJavaWebContentsObservers() {}
 
     @Override
     public int describeContents() {
@@ -99,7 +91,7 @@ public class MockWebContents implements WebContents {
     }
 
     @Override
-    public RenderFrameHost getRenderFrameHostFromId(GlobalRenderFrameHostId id) {
+    public RenderFrameHost getRenderFrameHostFromId(int renderProcessId, int renderFrameId) {
         return null;
     }
 
@@ -126,13 +118,12 @@ public class MockWebContents implements WebContents {
 
     @Override
     public GURL getVisibleUrl() {
-        return GURL.emptyGURL();
+        return null;
     }
 
     @Override
-    @VirtualKeyboardMode.EnumType
-    public int getVirtualKeyboardMode() {
-        return VirtualKeyboardMode.UNSET;
+    public String getVisibleUrlString() {
+        return null;
     }
 
     @Override
@@ -146,7 +137,7 @@ public class MockWebContents implements WebContents {
     }
 
     @Override
-    public boolean shouldShowLoadingUI() {
+    public boolean isLoadingToDifferentDocument() {
         return false;
     }
 
@@ -191,20 +182,15 @@ public class MockWebContents implements WebContents {
     public void scrollFocusedEditableNodeIntoView() {}
 
     @Override
-    public void selectAroundCaret(@SelectionGranularity int granularity, boolean shouldShowHandle,
-            boolean shouldShowContextMenu) {}
+    public void selectWordAroundCaret() {}
 
     @Override
     public void adjustSelectionByCharacterOffset(
             int startAdjust, int endAdjust, boolean showSelectionMenu) {}
 
     @Override
-    public GURL getLastCommittedUrl() {
-        return mLastCommittedUrl;
-    }
-
-    public void setLastCommittedUrl(GURL url) {
-        mLastCommittedUrl = url;
+    public String getLastCommittedUrl() {
+        return null;
     }
 
     @Override
@@ -225,8 +211,8 @@ public class MockWebContents implements WebContents {
     public void addMessageToDevToolsConsole(int level, String message) {}
 
     @Override
-    public void postMessageToMainFrame(MessagePayload messagePayload, String sourceOrigin,
-            String targetOrigin, MessagePort[] ports) {}
+    public void postMessageToMainFrame(
+            String message, String sourceOrigin, String targetOrigin, MessagePort[] ports) {}
 
     @Override
     public MessagePort[] createMessageChannel() {
@@ -255,7 +241,7 @@ public class MockWebContents implements WebContents {
     public void setSmartClipResultHandler(Handler smartClipHandler) {}
 
     @Override
-    public void setStylusWritingHandler(StylusWritingHandler stylusWritingHandler) {}
+    public void requestAccessibilitySnapshot(AccessibilitySnapshotCallback callback) {}
 
     @Override
     public EventForwarder getEventForwarder() {
@@ -275,7 +261,7 @@ public class MockWebContents implements WebContents {
     public void setSpatialNavigationDisabled(boolean disabled) {}
 
     @Override
-    public int downloadImage(GURL url, boolean isFavicon, int maxBitmapSize, boolean bypassCache,
+    public int downloadImage(String url, boolean isFavicon, int maxBitmapSize, boolean bypassCache,
             ImageDownloadCallback callback) {
         return 0;
     }
@@ -319,7 +305,4 @@ public class MockWebContents implements WebContents {
 
     @Override
     public void notifyBrowserControlsHeightChanged() {}
-
-    @Override
-    public void tearDownDialogOverlays() {}
 }

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,10 +16,11 @@ namespace chrome_cleaner {
 // static
 scoped_refptr<MojoTaskRunner> MojoTaskRunner::Create() {
   // Ensures thread-safe and unique initialization of the mojo lib.
-  [[maybe_unused]] static bool mojo_initialization = []() {  // Leaked.
+  static bool mojo_initialization = []() {  // Leaked.
     mojo::core::Init();
     return true;
   }();
+  ANALYZER_ALLOW_UNUSED(mojo_initialization);
 
   scoped_refptr<MojoTaskRunner> mojo_task_runner(new MojoTaskRunner());
   return mojo_task_runner->Initialize() ? mojo_task_runner : nullptr;

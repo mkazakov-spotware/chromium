@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/task/common/checked_lock_impl.h"
 
-#include <ostream>
 #include <unordered_map>
 #include <vector>
 
@@ -24,9 +23,6 @@ namespace {
 class SafeAcquisitionTracker {
  public:
   SafeAcquisitionTracker() = default;
-
-  SafeAcquisitionTracker(const SafeAcquisitionTracker&) = delete;
-  SafeAcquisitionTracker& operator=(const SafeAcquisitionTracker&) = delete;
 
   void RegisterLock(const CheckedLockImpl* const lock,
                     const CheckedLockImpl* const predecessor) {
@@ -129,6 +125,8 @@ class SafeAcquisitionTracker {
   // A thread-local slot holding a vector of locks currently acquired on the
   // current thread.
   ThreadLocalOwnedPointer<LockVector> tls_acquired_locks_;
+
+  DISALLOW_COPY_AND_ASSIGN(SafeAcquisitionTracker);
 };
 
 LazyInstance<SafeAcquisitionTracker>::Leaky g_safe_acquisition_tracker =

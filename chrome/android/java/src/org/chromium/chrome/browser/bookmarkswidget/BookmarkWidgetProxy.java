@@ -1,41 +1,35 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.bookmarkswidget;
 
-import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Bundle;
 import android.util.Log;
 
-import org.chromium.chrome.browser.browserservices.intents.WebappConstants;
+import org.chromium.chrome.browser.ShortcutHelper;
+import org.chromium.chrome.browser.ShortcutSource;
 import org.chromium.chrome.browser.document.ChromeLauncherActivity;
-import org.chromium.components.webapps.ShortcutSource;
 
 /**
  * Proxy that responds to tapping on the Bookmarks widget.
  */
-public class BookmarkWidgetProxy extends Activity {
+public class BookmarkWidgetProxy extends BroadcastReceiver {
     private static final String TAG = "BookmarkWidgetProxy";
 
     @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        Intent intent = getIntent();
-
+    public void onReceive(Context context, Intent intent) {
         if (BookmarkWidgetServiceImpl.getChangeFolderAction().equals(intent.getAction())) {
             BookmarkWidgetServiceImpl.changeFolder(intent);
         } else {
             Intent view = new Intent(intent);
-            view.setClass(this, ChromeLauncherActivity.class);
-            view.putExtra(WebappConstants.EXTRA_SOURCE, ShortcutSource.BOOKMARK_NAVIGATOR_WIDGET);
-            view.putExtra(WebappConstants.REUSE_URL_MATCHING_TAB_ELSE_NEW_TAB, true);
-            startActivity(this, view);
+            view.setClass(context, ChromeLauncherActivity.class);
+            view.putExtra(ShortcutHelper.EXTRA_SOURCE, ShortcutSource.BOOKMARK_NAVIGATOR_WIDGET);
+            view.putExtra(ShortcutHelper.REUSE_URL_MATCHING_TAB_ELSE_NEW_TAB, true);
+            startActivity(context, view);
         }
-
-        finish();
     }
 
     void startActivity(Context context, Intent intent) {

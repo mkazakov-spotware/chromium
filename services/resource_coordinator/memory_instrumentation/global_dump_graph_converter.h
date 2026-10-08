@@ -1,10 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef SERVICES_RESOURCE_COORDINATOR_MEMORY_INSTRUMENTATION_GLOBAL_DUMP_GRAPH_CONVERTER_H_
 #define SERVICES_RESOURCE_COORDINATOR_MEMORY_INSTRUMENTATION_GLOBAL_DUMP_GRAPH_CONVERTER_H_
 
+#include <list>
 #include <map>
 #include <memory>
 #include <vector>

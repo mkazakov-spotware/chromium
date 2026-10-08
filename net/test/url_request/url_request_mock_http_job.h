@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -12,6 +12,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "net/test/url_request/url_request_test_job_backed_by_file.h"
 #include "url/gurl.h"
 
@@ -30,10 +31,6 @@ class URLRequestMockHTTPJob : public URLRequestTestJobBackedByFile {
   // Note that all file I/O is done using ThreadPool.
   URLRequestMockHTTPJob(URLRequest* request,
                         const base::FilePath& file_path);
-
-  URLRequestMockHTTPJob(const URLRequestMockHTTPJob&) = delete;
-  URLRequestMockHTTPJob& operator=(const URLRequestMockHTTPJob&) = delete;
-
   ~URLRequestMockHTTPJob() override;
 
   // URLRequestJob overrides.
@@ -78,6 +75,8 @@ class URLRequestMockHTTPJob : public URLRequestTestJobBackedByFile {
   int64_t total_received_bytes_ = 0;
 
   base::WeakPtrFactory<URLRequestMockHTTPJob> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(URLRequestMockHTTPJob);
 };
 
 }  // namespace net

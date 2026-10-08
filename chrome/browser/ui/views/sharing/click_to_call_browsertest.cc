@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,24 +6,25 @@
 #include <string>
 
 #include "base/callback_helpers.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "build/chromeos_buildflags.h"
+#include "base/test/scoped_feature_list.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/policy/policy_test_utils.h"
 #include "chrome/browser/renderer_context_menu/render_view_context_menu_test_util.h"
 #include "chrome/browser/sharing/click_to_call/click_to_call_metrics.h"
 #include "chrome/browser/sharing/click_to_call/click_to_call_ui_controller.h"
 #include "chrome/browser/sharing/click_to_call/click_to_call_utils.h"
+#include "chrome/browser/sharing/click_to_call/feature.h"
 #include "chrome/browser/sharing/features.h"
 #include "chrome/browser/sharing/sharing_constants.h"
 #include "chrome/browser/sharing/sharing_sync_preference.h"
 #include "chrome/browser/sync/test/integration/sessions_helper.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/views/controls/hover_button.h"
+#include "chrome/browser/ui/views/hover_button.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 #include "chrome/browser/ui/views/sharing/sharing_browsertest.h"
 #include "chrome/browser/ui/views/sharing/sharing_dialog_view.h"
@@ -31,12 +32,14 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/policy/policy_constants.h"
 #include "components/prefs/pref_service.h"
-#include "components/sync/driver/sync_service_impl.h"
+#include "components/sync/driver/profile_sync_service.h"
+#include "components/sync/driver/sync_driver_switches.h"
 #include "components/ukm/test_ukm_recorder.h"
 #include "content/public/test/browser_test.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "ui/events/base_event_utils.h"
+#include "ui/views/layout/grid_layout.h"
 #include "ui/views/test/button_test_api.h"
 #include "url/gurl.h"
 
@@ -57,10 +60,10 @@ enum class ClickToCallPolicy {
 
 }  // namespace
 
-// Browser tests for the Click To Call feature.
-class ClickToCallBrowserTest : public SharingBrowserTest {
+// Base browser tests for the Click To Call feature.
+class BaseClickToCallBrowserTest : public SharingBrowserTest {
  public:
-  ~ClickToCallBrowserTest() override = default;
+  ~BaseClickToCallBrowserTest() override {}
 
   std::string GetTestPageURL() const override {
     return std::string(kTestPageURL);
@@ -76,6 +79,8 @@ class ClickToCallBrowserTest : public SharingBrowserTest {
   }
 
  protected:
+  base::test::ScopedFeatureList feature_list_;
+
   std::string HistogramName(const char* suffix) {
     return base::StrCat({"Sharing.ClickToCall", suffix});
   }
@@ -84,6 +89,17 @@ class ClickToCallBrowserTest : public SharingBrowserTest {
       const base::HistogramTester& histograms) {
     return histograms.GetTotalCountsForPrefix(HistogramName(""));
   }
+};
+
+// Browser tests for the Click To Call feature.
+class ClickToCallBrowserTest : public BaseClickToCallBrowserTest {
+ public:
+  ClickToCallBrowserTest() {
+    feature_list_.InitAndEnableFeature(kClickToCallUI);
+  }
+
+ protected:
+  base::test::ScopedFeatureList feature_list_;
 };
 
 // TODO(himanshujaju): Add UI checks.
@@ -107,7 +123,7 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest,
   menu->ExecuteCommand(IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_SINGLE_DEVICE,
                        0);
   CheckLastReceiver(*devices[0]);
-  CheckLastSharingMessageSent(GURL(kTelUrl).GetContent());
+  CheckLastSharingMessageSent(GetUnescapedURLContent(GURL(kTelUrl)));
 }
 
 IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, ContextMenu_NoDevicesAvailable) {
@@ -123,42 +139,6 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, ContextMenu_NoDevicesAvailable) {
       IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_SINGLE_DEVICE));
   EXPECT_FALSE(menu->IsItemPresent(
       IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_MULTIPLE_DEVICES));
-}
-
-IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, ContextMenu_UnsafeTelLink) {
-  Init(sync_pb::SharingSpecificFields::CLICK_TO_CALL_V2,
-       sync_pb::SharingSpecificFields::UNKNOWN);
-  auto devices = sharing_service()->GetDeviceCandidates(
-      sync_pb::SharingSpecificFields::CLICK_TO_CALL_V2);
-  ASSERT_EQ(1u, devices.size());
-
-  std::unique_ptr<TestRenderViewContextMenu> menu = InitContextMenu(
-      GURL("tel:%23*999%23"), kLinkText, kTextWithoutPhoneNumber);
-  EXPECT_FALSE(menu->IsItemPresent(
-      IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_SINGLE_DEVICE));
-  EXPECT_FALSE(menu->IsItemPresent(
-      IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_MULTIPLE_DEVICES));
-}
-
-IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, ContextMenu_EscapedCharacters) {
-  Init(sync_pb::SharingSpecificFields::CLICK_TO_CALL_V2,
-       sync_pb::SharingSpecificFields::UNKNOWN);
-  auto devices = sharing_service()->GetDeviceCandidates(
-      sync_pb::SharingSpecificFields::CLICK_TO_CALL_V2);
-  ASSERT_EQ(1u, devices.size());
-
-  GURL phone_number("tel:%2B44%20123");
-  std::unique_ptr<TestRenderViewContextMenu> menu =
-      InitContextMenu(phone_number, kLinkText, kTextWithoutPhoneNumber);
-  ASSERT_TRUE(menu->IsItemPresent(
-      IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_SINGLE_DEVICE));
-  EXPECT_FALSE(menu->IsItemPresent(
-      IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_MULTIPLE_DEVICES));
-
-  menu->ExecuteCommand(IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_SINGLE_DEVICE,
-                       0);
-  CheckLastReceiver(*devices[0]);
-  CheckLastSharingMessageSent(phone_number.GetContent());
 }
 
 IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest,
@@ -203,19 +183,19 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest,
       IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_MULTIPLE_DEVICES));
 
   ui::MenuModel* sub_menu_model = nullptr;
-  size_t device_id = 0;
+  int device_id = -1;
   ASSERT_TRUE(menu->GetMenuModelAndItemIndex(kSubMenuFirstDeviceCommandId,
                                              &sub_menu_model, &device_id));
-  EXPECT_EQ(2u, sub_menu_model->GetItemCount());
-  EXPECT_EQ(0u, device_id);
+  EXPECT_EQ(2, sub_menu_model->GetItemCount());
+  EXPECT_EQ(0, device_id);
 
   for (auto& device : devices) {
-    EXPECT_EQ(kSubMenuFirstDeviceCommandId + static_cast<int>(device_id),
+    EXPECT_EQ(kSubMenuFirstDeviceCommandId + device_id,
               sub_menu_model->GetCommandIdAt(device_id));
     sub_menu_model->ActivatedAt(device_id);
 
     CheckLastReceiver(*device);
-    CheckLastSharingMessageSent(GURL(kTelUrl).GetContent());
+    CheckLastSharingMessageSent(GetUnescapedURLContent(GURL(kTelUrl)));
     device_id++;
   }
 }
@@ -236,19 +216,19 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest,
       IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_MULTIPLE_DEVICES));
 
   ui::MenuModel* sub_menu_model = nullptr;
-  size_t device_id = 0;
+  int device_id = -1;
   ASSERT_TRUE(menu->GetMenuModelAndItemIndex(kSubMenuFirstDeviceCommandId,
                                              &sub_menu_model, &device_id));
-  EXPECT_EQ(2u, sub_menu_model->GetItemCount());
-  EXPECT_EQ(0u, device_id);
+  EXPECT_EQ(2, sub_menu_model->GetItemCount());
+  EXPECT_EQ(0, device_id);
 
   for (auto& device : devices) {
-    EXPECT_EQ(kSubMenuFirstDeviceCommandId + static_cast<int>(device_id),
+    EXPECT_EQ(kSubMenuFirstDeviceCommandId + device_id,
               sub_menu_model->GetCommandIdAt(device_id));
     sub_menu_model->ActivatedAt(device_id);
 
     CheckLastReceiver(*device);
-    absl::optional<std::string> expected_number =
+    base::Optional<std::string> expected_number =
         ExtractPhoneNumberForClickToCall(GetProfile(0), kTextWithPhoneNumber);
     ASSERT_TRUE(expected_number.has_value());
     CheckLastSharingMessageSent(expected_number.value());
@@ -366,6 +346,7 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, ContextMenu_UKM) {
   EXPECT_EQ(true, *has_devices);
   EXPECT_EQ(static_cast<int64_t>(SharingClickToCallSelection::kDevice),
             *selection);
+  // TODO(knollr): mock apps and verify |has_apps| here too.
 }
 
 IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, CloseTabWithBubble) {
@@ -380,8 +361,9 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, CloseTabWithBubble) {
       ->set_on_dialog_shown_closure_for_testing(run_loop.QuitClosure());
 
   // Click on the tel link to trigger the bubble view.
-  web_contents()->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
-      u"document.querySelector('a').click();", base::NullCallback());
+  web_contents()->GetMainFrame()->ExecuteJavaScriptForTests(
+      base::ASCIIToUTF16("document.querySelector('a').click();"),
+      base::NullCallback());
   // Wait until the bubble is visible.
   run_loop.Run();
 
@@ -391,7 +373,7 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, CloseTabWithBubble) {
 }
 
 // TODO(himanshujaju) - Add chromeos test for same flow.
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
 IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, LeftClick_ChooseDevice) {
   Init(sync_pb::SharingSpecificFields::CLICK_TO_CALL_V2,
        sync_pb::SharingSpecificFields::UNKNOWN);
@@ -409,8 +391,9 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, LeftClick_ChooseDevice) {
   controller->set_on_dialog_shown_closure_for_testing(run_loop.QuitClosure());
 
   // Click on the tel link to trigger the bubble view.
-  web_contents()->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
-      u"document.querySelector('a').click();", base::NullCallback());
+  web_contents()->GetMainFrame()->ExecuteJavaScriptForTests(
+      base::ASCIIToUTF16("document.querySelector('a').click();"),
+      base::NullCallback());
   // Wait until the bubble is visible.
   run_loop.Run();
 
@@ -462,10 +445,15 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, OpenNewTabAndShowBubble) {
       GetPageActionIconView(PageActionIconType::kClickToCall)->GetBubble();
   ASSERT_NE(nullptr, bubble);
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
+  // Ensure that the dialog shows the origin in column id 1.
+  EXPECT_NE(nullptr, static_cast<views::GridLayout*>(
+                         bubble->GetContentsView()->GetLayoutManager())
+                         ->GetColumnSet(1));
+#else
   // Ensure that the dialog shows the origin in the footnote.
   EXPECT_NE(nullptr, bubble->GetFootnoteViewForTesting());
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 }
 
 IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, NavigateDifferentOrigin) {
@@ -479,8 +467,9 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, NavigateDifferentOrigin) {
       ->set_on_dialog_shown_closure_for_testing(run_loop.QuitClosure());
 
   // Click on the tel link to trigger the bubble view.
-  web_contents()->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
-      u"document.querySelector('a').click();", base::NullCallback());
+  web_contents()->GetMainFrame()->ExecuteJavaScriptForTests(
+      base::ASCIIToUTF16("document.querySelector('a').click();"),
+      base::NullCallback());
   // Wait until the bubble is visible.
   run_loop.Run();
   EXPECT_NE(nullptr, click_to_call_icon->GetBubble());
@@ -496,7 +485,9 @@ class ClickToCallPolicyTest
     : public policy::PolicyTest,
       public testing::WithParamInterface<ClickToCallPolicy> {
  public:
-  ClickToCallPolicyTest() = default;
+  ClickToCallPolicyTest() {
+    scoped_feature_list_.InitAndEnableFeature(kClickToCallUI);
+  }
   ~ClickToCallPolicyTest() override = default;
 
   void SetUpInProcessBrowserTestFixture() override {
@@ -515,6 +506,9 @@ class ClickToCallPolicyTest
 
     provider_.UpdateChromePolicy(policies);
   }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_P(ClickToCallPolicyTest, RunTest) {
@@ -531,7 +525,7 @@ IN_PROC_BROWSER_TEST_P(ClickToCallPolicyTest, RunTest) {
   EXPECT_EQ(expected_enabled, ShouldOfferClickToCallForURL(browser()->profile(),
                                                            GURL(kPhoneLink)));
 
-  absl::optional<std::string> extracted =
+  base::Optional<std::string> extracted =
       ExtractPhoneNumberForClickToCall(browser()->profile(), kPhoneNumber);
   if (expected_enabled)
     EXPECT_EQ(kPhoneNumber, extracted.value());

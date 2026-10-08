@@ -1,9 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef TESTS_NACL_IO_SOCKET_TEST_ECHO_SERVER_H_
-#define TESTS_NACL_IO_SOCKET_TEST_ECHO_SERVER_H_
+#ifndef ECHO_SERVER_H_
+#define ECHO_SERVER_H_
 
 #include "ppapi/cpp/instance.h"
 #include "ppapi/cpp/tcp_socket.h"
@@ -62,4 +62,4 @@ class EchoServer {
   LogFunction log_function_;
 };
 
-#endif  // TESTS_NACL_IO_SOCKET_TEST_ECHO_SERVER_H_
+#endif  // ECHO_SERVER_H_

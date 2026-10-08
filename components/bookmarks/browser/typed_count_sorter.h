@@ -1,11 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_BOOKMARKS_BROWSER_TYPED_COUNT_SORTER_H_
 #define COMPONENTS_BOOKMARKS_BROWSER_TYPED_COUNT_SORTER_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/bookmarks/browser/titled_url_node_sorter.h"
 
 namespace bookmarks {
@@ -18,10 +18,6 @@ class BookmarkClient;
 class TypedCountSorter : public TitledUrlNodeSorter {
  public:
   explicit TypedCountSorter(BookmarkClient* client);
-
-  TypedCountSorter(const TypedCountSorter&) = delete;
-  TypedCountSorter& operator=(const TypedCountSorter&) = delete;
-
   ~TypedCountSorter() override;
 
   // TitledUrlNodeSorter
@@ -29,7 +25,9 @@ class TypedCountSorter : public TitledUrlNodeSorter {
                    TitledUrlNodes* sorted_nodes) const override;
 
  private:
-  raw_ptr<BookmarkClient> client_;
+  BookmarkClient* client_;
+
+  DISALLOW_COPY_AND_ASSIGN(TypedCountSorter);
 };
 
 }

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,16 @@
 #include "base/location.h"
 #include "base/notreached.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "google_apis/drive/drive_api_parser.h"
 #include "google_apis/drive/drive_common_callbacks.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 using drive::FakeDriveService;
 using drive::UploadCompletionCallback;
-using google_apis::ApiErrorCode;
+using google_apis::CancelCallback;
 using google_apis::CancelCallbackOnce;
+using google_apis::DriveApiErrorCode;
 using google_apis::FileResource;
 using google_apis::FileResourceCallback;
 using google_apis::ProgressCallback;
@@ -28,26 +29,26 @@ namespace drive_backend {
 namespace {
 
 void DidAddFileOrDirectoryForMakingConflict(
-    ApiErrorCode error,
+    DriveApiErrorCode error,
     std::unique_ptr<FileResource> entry) {
   ASSERT_EQ(google_apis::HTTP_CREATED, error);
   ASSERT_TRUE(entry);
 }
 
 void DidAddFileForUploadNew(UploadCompletionCallback callback,
-                            ApiErrorCode error,
+                            DriveApiErrorCode error,
                             std::unique_ptr<FileResource> entry) {
   ASSERT_EQ(google_apis::HTTP_CREATED, error);
   ASSERT_TRUE(entry);
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), google_apis::HTTP_SUCCESS,
                                 GURL(), std::move(entry)));
 }
 
 void DidGetFileResourceForUploadExisting(UploadCompletionCallback callback,
-                                         ApiErrorCode error,
+                                         DriveApiErrorCode error,
                                          std::unique_ptr<FileResource> entry) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(std::move(callback), error, GURL(), std::move(entry)));
 }
@@ -55,7 +56,7 @@ void DidGetFileResourceForUploadExisting(UploadCompletionCallback callback,
 }  // namespace
 
 FakeDriveServiceWrapper::FakeDriveServiceWrapper()
-    : make_directory_conflict_(false) {}
+  : make_directory_conflict_(false) {}
 
 FakeDriveServiceWrapper::~FakeDriveServiceWrapper() {}
 
@@ -75,13 +76,16 @@ CancelCallbackOnce FakeDriveServiceWrapper::AddNewDirectory(
 
 FakeDriveUploader::FakeDriveUploader(
     FakeDriveServiceWrapper* fake_drive_service)
-    : fake_drive_service_(fake_drive_service), make_file_conflict_(false) {}
+    : fake_drive_service_(fake_drive_service),
+      make_file_conflict_(false) {}
 
 FakeDriveUploader::~FakeDriveUploader() {}
 
-void FakeDriveUploader::StartBatchProcessing() {}
+void FakeDriveUploader::StartBatchProcessing() {
+}
 
-void FakeDriveUploader::StopBatchProcessing() {}
+void FakeDriveUploader::StopBatchProcessing() {
+}
 
 CancelCallbackOnce FakeDriveUploader::UploadNewFile(
     const std::string& parent_resource_id,

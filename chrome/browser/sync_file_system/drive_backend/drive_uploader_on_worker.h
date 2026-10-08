@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
@@ -32,10 +33,6 @@ class DriveUploaderOnWorker : public drive::DriveUploaderInterface {
       const base::WeakPtr<DriveUploaderWrapper>& wrapper,
       base::SingleThreadTaskRunner* ui_task_runner,
       base::SequencedTaskRunner* worker_task_runner);
-
-  DriveUploaderOnWorker(const DriveUploaderOnWorker&) = delete;
-  DriveUploaderOnWorker& operator=(const DriveUploaderOnWorker&) = delete;
-
   ~DriveUploaderOnWorker() override;
 
   void StartBatchProcessing() override;
@@ -70,7 +67,9 @@ class DriveUploaderOnWorker : public drive::DriveUploaderInterface {
   scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner_;
   scoped_refptr<base::SequencedTaskRunner> worker_task_runner_;
 
-  SEQUENCE_CHECKER(sequece_checker_);
+  base::SequenceChecker sequece_checker_;
+
+  DISALLOW_COPY_AND_ASSIGN(DriveUploaderOnWorker);
 };
 
 }  // namespace drive_backend

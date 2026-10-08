@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,10 @@
 
 #include "base/bind.h"
 #include "base/trace_event/trace_event.h"
-#include "base/types/cxx23_to_underlying.h"
-#include "build/build_config.h"
-#include "components/viz/common/gpu/context_provider.h"
 #include "ui/gfx/geometry/angle_conversions.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "device/vr/windows/d3d11_texture_helper.h"
 #endif
 
@@ -26,11 +23,7 @@ device::mojom::XRRenderInfoPtr GetRenderInfo(
   device::mojom::XRRenderInfoPtr result = device::mojom::XRRenderInfo::New();
 
   result->frame_id = frame_data.frame_id;
-  result->mojo_from_viewer = frame_data.mojo_from_viewer.Clone();
-
-  for (size_t i = 0; i < frame_data.views.size(); i++) {
-    result->views.push_back(frame_data.views[i]->Clone());
-  }
+  result->pose = frame_data.pose.Clone();
 
   return result;
 }
@@ -44,6 +37,9 @@ mojom::XRFrameDataPtr XRDeviceAbstraction::GetNextFrameData() {
 }
 void XRDeviceAbstraction::OnSessionStart() {}
 void XRDeviceAbstraction::HandleDeviceLost() {}
+bool XRDeviceAbstraction::PreComposite() {
+  return true;
+}
 bool XRDeviceAbstraction::HasSessionEnded() {
   return false;
 }
@@ -66,8 +62,7 @@ XRCompositorCommon::OutstandingFrame::~OutstandingFrame() = default;
 
 XRCompositorCommon::XRCompositorCommon()
     : base::Thread("WindowsXRCompositor"),
-      main_thread_task_runner_(
-          base::SingleThreadTaskRunner::GetCurrentDefault()),
+      main_thread_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       webxr_js_time_(kSlidingAverageSize),
       webxr_gpu_time_(kSlidingAverageSize) {
   DCHECK(main_thread_task_runner_);
@@ -94,10 +89,6 @@ void XRCompositorCommon::ClearPendingFrame() {
   }
 }
 
-bool XRCompositorCommon::IsUsingSharedImages() const {
-  return false;
-}
-
 void XRCompositorCommon::SubmitFrameMissing(int16_t frame_index,
                                             const gpu::SyncToken& sync_token) {
   TRACE_EVENT_INSTANT0("xr", "SubmitFrameMissing", TRACE_EVENT_SCOPE_THREAD);
@@ -119,14 +110,13 @@ void XRCompositorCommon::SubmitFrameDrawnIntoTexture(
     int16_t frame_index,
     const gpu::SyncToken& sync_token,
     base::TimeDelta time_waited) {
+  // Not currently implemented for Windows.
   NOTREACHED();
 }
 
-#if BUILDFLAG(IS_WIN)
 void XRCompositorCommon::SubmitFrameWithTextureHandle(
     int16_t frame_index,
-    mojo::PlatformHandle texture_handle,
-    const gpu::SyncToken& sync_token) {
+    mojo::PlatformHandle texture_handle) {
   TRACE_EVENT1("xr", "SubmitFrameWithTextureHandle", "frameIndex", frame_index);
   webxr_has_pose_ = false;
   // Tell the browser that WebXR has submitted a frame.
@@ -148,17 +138,15 @@ void XRCompositorCommon::SubmitFrameWithTextureHandle(
   pending_frame_->waiting_for_webxr_ = false;
   pending_frame_->submit_frame_time_ = base::TimeTicks::Now();
 
-  base::win::ScopedHandle scoped_handle = texture_handle.is_valid()
-                                              ? texture_handle.TakeHandle()
-                                              : base::win::ScopedHandle();
-  texture_helper_.SetSourceTexture(std::move(scoped_handle), sync_token,
+#if defined(OS_WIN)
+  texture_helper_.SetSourceTexture(texture_handle.TakeHandle(),
                                    left_webxr_bounds_, right_webxr_bounds_);
   pending_frame_->webxr_submitted_ = true;
 
   // Regardless of success - try to composite what we have.
   MaybeCompositeAndSubmit();
-}
 #endif
+}
 
 void XRCompositorCommon::CleanUp() {
   submit_client_.reset();
@@ -209,6 +197,7 @@ void XRCompositorCommon::UpdateLayerBounds(int16_t frame_id,
 }
 
 void XRCompositorCommon::RequestSession(
+    base::OnceCallback<void()> on_presentation_ended,
     base::RepeatingCallback<void(mojom::XRVisibilityState)>
         on_visibility_state_changed,
     mojom::XRRuntimeSessionOptionsPtr options,
@@ -217,33 +206,19 @@ void XRCompositorCommon::RequestSession(
   presentation_receiver_.reset();
   frame_data_receiver_.reset();
 
-  EnableSupportedFeatures(options->required_features,
-                          options->optional_features);
-
-  // Call the subclass's StartRuntime method. Upon completion, StartRuntime will
-  // call the callback passed to its first parameter, start_runtime_callback.
-  // XRCompositorCommon::StartRuntimeFinish. We setup BindOnce such that all of
-  // the parameters give to us here in XRCompositorCommon::RequestSession are
-  // passed through to StartRuntimeFinish so that it can finish the job.
-  StartRuntime(base::BindOnce(&XRCompositorCommon::StartRuntimeFinish,
-                              base::Unretained(this),
-                              std::move(on_visibility_state_changed),
-                              std::move(options), std::move(callback)));
-}
-
-void XRCompositorCommon::StartRuntimeFinish(
-    base::RepeatingCallback<void(mojom::XRVisibilityState)>
-        on_visibility_state_changed,
-    mojom::XRRuntimeSessionOptionsPtr options,
-    RequestSessionCallback callback,
-    bool success) {
-  if (!success) {
+  if (!StartRuntime()) {
     TRACE_EVENT_INSTANT0("xr", "Failed to start runtime",
                          TRACE_EVENT_SCOPE_THREAD);
     main_thread_task_runner_->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), false, nullptr));
     return;
   }
+
+  // If on_presentation_ended_ is not already null, we won't call to notify the
+  // runtime that that session has completed.  This is ok because the XRRuntime
+  // knows it has requested a new session, and isn't expecting that callback to
+  // be called.
+  on_presentation_ended_ = std::move(on_presentation_ended);
 
   on_visibility_state_changed_ = std::move(on_visibility_state_changed);
 
@@ -257,15 +232,8 @@ void XRCompositorCommon::StartRuntimeFinish(
 
   device::mojom::XRPresentationTransportOptionsPtr transport_options =
       device::mojom::XRPresentationTransportOptions::New();
-
-  if (IsUsingSharedImages()) {
-    transport_options->transport_method =
-        device::mojom::XRPresentationTransportMethod::DRAW_INTO_TEXTURE_MAILBOX;
-  } else {
-    transport_options->transport_method =
-        device::mojom::XRPresentationTransportMethod::SUBMIT_AS_TEXTURE_HANDLE;
-  }
-
+  transport_options->transport_method =
+      device::mojom::XRPresentationTransportMethod::SUBMIT_AS_TEXTURE_HANDLE;
   // Only set boolean options that we need. Default is false, and we should be
   // able to safely ignore ones that our implementation doesn't care about.
   transport_options->wait_for_transfer_notification = true;
@@ -283,14 +251,21 @@ void XRCompositorCommon::StartRuntimeFinish(
   session->data_provider = frame_data_receiver_.BindNewPipeAndPassRemote();
   session->submit_frame_sink = std::move(submit_frame_sink);
 
+  // Currently, the initial filtering of supported devices happens on the
+  // browser side (BrowserXRRuntimeImpl::SupportsFeature()), so if we have
+  // reached this point, it is safe to assume that all requested features are
+  // enabled.
+  // TODO(https://crbug.com/995377): revisit the approach when the bug is fixed.
   session->enabled_features.insert(session->enabled_features.end(),
-                                   enabled_features_.begin(),
-                                   enabled_features_.end());
+                                   options->required_features.begin(),
+                                   options->required_features.end());
+  session->enabled_features.insert(session->enabled_features.end(),
+                                   options->optional_features.begin(),
+                                   options->optional_features.end());
 
   session->device_config = device::mojom::XRSessionDeviceConfig::New();
   session->device_config->uses_input_eventing = UsesInputEventing();
   session->device_config->enable_anti_aliasing = CanEnableAntiAliasing();
-  session->device_config->views = GetDefaultViews();
   session->enviroment_blend_mode = GetEnvironmentBlendMode(options->mode);
   session->interaction_mode = GetInteractionMode(options->mode);
 
@@ -301,17 +276,14 @@ void XRCompositorCommon::StartRuntimeFinish(
   texture_helper_.SetSourceAndOverlayVisible(webxr_visible_, overlay_visible_);
 }
 
-void XRCompositorCommon::ExitPresent(ExitXrPresentReason reason) {
-  TRACE_EVENT_INSTANT1("xr", "ExitPresent", TRACE_EVENT_SCOPE_THREAD, "reason",
-                       base::to_underlying(reason));
-  if (!is_presenting_)
-    return;
-
+void XRCompositorCommon::ExitPresent() {
+  TRACE_EVENT_INSTANT0("xr", "ExitPresent", TRACE_EVENT_SCOPE_THREAD);
   is_presenting_ = false;
   webxr_has_pose_ = false;
   presentation_receiver_.reset();
   frame_data_receiver_.reset();
   submit_client_.reset();
+  StopRuntime();
 
   pending_frame_.reset();
   delayed_get_frame_data_callback_.Reset();
@@ -325,12 +297,10 @@ void XRCompositorCommon::ExitPresent(ExitXrPresentReason reason) {
 
   texture_helper_.SetSourceAndOverlayVisible(false, false);
 
-  // Don't call StopRuntime until this thread has finished the rest of the work.
-  // This is to prevent the OpenXrApiWrapper from being deleted before its
-  // cleanup work has finished.
-  task_runner()->PostTask(
-      FROM_HERE,
-      base::BindOnce(&XRCompositorCommon::StopRuntime, base::Unretained(this)));
+  if (on_presentation_ended_) {
+    main_thread_task_runner_->PostTask(FROM_HERE,
+                                       std::move(on_presentation_ended_));
+  }
 }
 
 void XRCompositorCommon::SetVisibilityState(
@@ -343,11 +313,6 @@ void XRCompositorCommon::SetVisibilityState(
           base::BindOnce(on_visibility_state_changed_, visibility_state));
     }
   }
-}
-
-const mojom::VRStageParametersPtr&
-XRCompositorCommon::GetCurrentStageParameters() const {
-  return current_stage_parameters_;
 }
 
 void XRCompositorCommon::SetStageParameters(
@@ -383,7 +348,7 @@ void XRCompositorCommon::GetFrameData(
     mojom::XRFrameDataProvider::GetFrameDataCallback callback) {
   TRACE_EVENT0("xr", "GetFrameData");
   if (HasSessionEnded()) {
-    ExitPresent(ExitXrPresentReason::kGetFrameAfterSessionEnded);
+    ExitPresent();
     return;
   }
 
@@ -400,9 +365,7 @@ void XRCompositorCommon::GetFrameData(
     // There should only be one outstanding GetFrameData call at a time.  We
     // shouldn't get new ones until this resolves or presentation ends/restarts.
     if (delayed_get_frame_data_callback_) {
-      frame_data_receiver_.ReportBadMessage(
-          "Multiple outstanding GetFrameData calls");
-      return;
+      mojo::ReportBadMessage("Multiple outstanding GetFrameData calls");
     }
     delayed_get_frame_data_callback_ = base::BindOnce(
         &XRCompositorCommon::GetFrameData, base::Unretained(this),
@@ -415,21 +378,12 @@ void XRCompositorCommon::GetFrameData(
   pending_frame_->webxr_has_pose_ = true;
   pending_frame_->sent_frame_data_time_ = base::TimeTicks::Now();
 
-  // TODO(https://crbug.com/1218135): The lack of frame_data_ here indicates
-  // that we probably should have deferred this call, but it matches the
-  // behavior from before the stage parameters were updated in this function and
-  // avoids a crash. Likely the deferral above should check if we're awaiting
-  // either the webxr or overlay submit.
-  if (pending_frame_->frame_data_) {
-    // If the stage parameters have been updated since the last frame that was
-    // sent, send the updated values.
-    pending_frame_->frame_data_->stage_parameters_id = stage_parameters_id_;
-    if (options->stage_parameters_id != stage_parameters_id_) {
-      pending_frame_->frame_data_->stage_parameters =
-          current_stage_parameters_.Clone();
-    }
-  } else {
-    TRACE_EVENT0("xr", "GetFrameData Missing FrameData");
+  // If the stage parameters have been updated since the last frame that was
+  // sent, send the updated values.
+  pending_frame_->frame_data_->stage_parameters_id = stage_parameters_id_;
+  if (options->stage_parameters_id != stage_parameters_id_) {
+    pending_frame_->frame_data_->stage_parameters =
+        current_stage_parameters_.Clone();
   }
 
   // Yield here to let the event queue process pending mojo messages,
@@ -486,7 +440,6 @@ void XRCompositorCommon::GetEnvironmentIntegrationProvider(
 void XRCompositorCommon::SubmitOverlayTexture(
     int16_t frame_id,
     mojo::PlatformHandle texture_handle,
-    const gpu::SyncToken& sync_token,
     const gfx::RectF& left_bounds,
     const gfx::RectF& right_bounds,
     SubmitOverlayTextureCallback overlay_submit_callback) {
@@ -504,9 +457,9 @@ void XRCompositorCommon::SubmitOverlayTexture(
 
   pending_frame_->waiting_for_overlay_ = false;
 
-#if BUILDFLAG(IS_WIN)
-  texture_helper_.SetOverlayTexture(texture_handle.TakeHandle(), sync_token,
-                                    left_bounds, right_bounds);
+#if defined(OS_WIN)
+  texture_helper_.SetOverlayTexture(texture_handle.TakeHandle(), left_bounds,
+                                    right_bounds);
   pending_frame_->overlay_submitted_ = true;
 
   // Regardless of success - try to composite what we have.
@@ -586,11 +539,11 @@ void XRCompositorCommon::MaybeCompositeAndSubmit() {
     texture_helper_.CleanupNoSubmit();
   } else {
     copy_successful = texture_helper_.UpdateBackbufferSizes() &&
-                      texture_helper_.CompositeToBackBuffer();
+                      PreComposite() && texture_helper_.CompositeToBackBuffer();
     if (copy_successful) {
       pending_frame_->frame_ready_time_ = base::TimeTicks::Now();
       if (!SubmitCompositedFrame()) {
-        ExitPresent(ExitXrPresentReason::kSubmitFrameFailed);
+        ExitPresent();
         // ExitPresent() clears pending_frame_, so return here to avoid
         // accessing it below.
         return;

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/callback.h"
 #include "base/files/file_descriptor_watcher_posix.h"
+#include "base/macros.h"
 
 namespace net {
 
@@ -20,9 +21,6 @@ class NotifyWatcherMac {
   typedef base::RepeatingCallback<void(bool succeeded)> CallbackType;
 
   NotifyWatcherMac();
-
-  NotifyWatcherMac(const NotifyWatcherMac&) = delete;
-  NotifyWatcherMac& operator=(const NotifyWatcherMac&) = delete;
 
   // When deleted, automatically cancels.
   virtual ~NotifyWatcherMac();
@@ -42,6 +40,8 @@ class NotifyWatcherMac {
   int notify_token_;
   CallbackType callback_;
   std::unique_ptr<base::FileDescriptorWatcher::Controller> watcher_;
+
+  DISALLOW_COPY_AND_ASSIGN(NotifyWatcherMac);
 };
 
 }  // namespace net

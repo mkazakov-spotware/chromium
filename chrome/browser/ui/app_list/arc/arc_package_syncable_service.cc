@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,16 @@
 #include <utility>
 #include <vector>
 
-#include "ash/components/arc/arc_util.h"
-#include "ash/components/arc/session/connection_holder.h"
-#include "base/containers/contains.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_list_prefs.h"
 #include "chrome/browser/ui/app_list/arc/arc_package_syncable_service_factory.h"
 #include "chrome/common/pref_names.h"
+#include "components/arc/arc_util.h"
+#include "components/arc/session/connection_holder.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/sync/model/sync_change_processor.h"
 #include "components/sync/model/sync_data.h"
-#include "components/sync/protocol/arc_package_specifics.pb.h"
-#include "components/sync/protocol/entity_specifics.pb.h"
+#include "components/sync/protocol/sync.pb.h"
 
 namespace arc {
 
@@ -134,7 +132,7 @@ void ArcPackageSyncableService::WaitUntilReadyToSync(base::OnceClosure done) {
   wait_until_ready_to_sync_cb_ = std::move(done);
 }
 
-absl::optional<syncer::ModelError>
+base::Optional<syncer::ModelError>
 ArcPackageSyncableService::MergeDataAndStartSyncing(
     syncer::ModelType type,
     const syncer::SyncDataList& initial_sync_data,
@@ -189,7 +187,7 @@ ArcPackageSyncableService::MergeDataAndStartSyncing(
     sync_items_[local_package_name] = std::move(sync_item);
   }
   sync_processor_->ProcessSyncChanges(FROM_HERE, change_list);
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 void ArcPackageSyncableService::StopSyncing(syncer::ModelType type) {
@@ -204,7 +202,7 @@ void ArcPackageSyncableService::StopSyncing(syncer::ModelType type) {
   pending_uninstall_items_.clear();
 }
 
-absl::optional<syncer::ModelError>
+base::Optional<syncer::ModelError>
 ArcPackageSyncableService::ProcessSyncChanges(
     const base::Location& from_here,
     const syncer::SyncChangeList& change_list) {
@@ -234,7 +232,7 @@ ArcPackageSyncableService::ProcessSyncChanges(
     }
   }
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 bool ArcPackageSyncableService::SyncStarted() {

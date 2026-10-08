@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,22 +7,20 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-
 #include <algorithm>
-#include <memory>
 #include <string>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/command_line.h"
+#include "base/macros.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/test_mock_time_task_runner.h"
 #include "base/test/test_timeouts.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/tick_clock.h"
 #include "base/time/time.h"
-#include "build/build_config.h"
 #include "media/capture/video/mock_video_capture_device_client.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -30,10 +28,6 @@
 #include "third_party/webrtc/modules/desktop_capture/desktop_capturer.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_frame.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_geometry.h"
-
-#if BUILDFLAG(IS_OZONE)
-#include "ui/ozone/buildflags.h"
-#endif  // BUILDFLAG(IS_OZONE)
 
 using ::testing::_;
 using ::testing::AnyNumber;
@@ -57,7 +51,8 @@ const int kTestFrameHeight3 = 64;
 
 const int kFrameRate = 30;
 
-constexpr base::TimeDelta kVirtualTestDurationSeconds = base::Seconds(100);
+constexpr base::TimeDelta kVirtualTestDurationSeconds =
+    base::TimeDelta::FromSeconds(100);
 
 // The value of the padding bytes in unpacked frames.
 const uint8_t kFramePaddingValue = 0;
@@ -102,14 +97,12 @@ class InvertedDesktopFrame : public webrtc::DesktopFrame {
     mutable_updated_region()->Swap(frame->mutable_updated_region());
     original_frame_ = std::move(frame);
   }
-
-  InvertedDesktopFrame(const InvertedDesktopFrame&) = delete;
-  InvertedDesktopFrame& operator=(const InvertedDesktopFrame&) = delete;
-
   ~InvertedDesktopFrame() override {}
 
  private:
   std::unique_ptr<webrtc::DesktopFrame> original_frame_;
+
+  DISALLOW_COPY_AND_ASSIGN(InvertedDesktopFrame);
 };
 
 // DesktopFrame wrapper that copies the input frame and doubles the stride.
@@ -126,13 +119,12 @@ class UnpackedDesktopFrame : public webrtc::DesktopFrame {
     CopyPixelsFrom(*frame, webrtc::DesktopVector(),
                    webrtc::DesktopRect::MakeSize(size()));
   }
-
-  UnpackedDesktopFrame(const UnpackedDesktopFrame&) = delete;
-  UnpackedDesktopFrame& operator=(const UnpackedDesktopFrame&) = delete;
-
   ~UnpackedDesktopFrame() override {
     delete[] data_;
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(UnpackedDesktopFrame);
 };
 
 // TODO(sergeyu): Move this to a separate file where it can be reused.
@@ -168,13 +160,13 @@ class FakeScreenCapturer : public webrtc::DesktopCapturer {
     std::unique_ptr<webrtc::DesktopFrame> frame = CreateBasicFrame(size);
 
     if (generate_inverted_frames_) {
-      frame = std::make_unique<InvertedDesktopFrame>(std::move(frame));
+      frame.reset(new InvertedDesktopFrame(std::move(frame)));
     } else if (generate_cropped_frames_) {
-      frame = std::make_unique<UnpackedDesktopFrame>(std::move(frame));
+      frame.reset(new UnpackedDesktopFrame(std::move(frame)));
     }
 
     if (run_callback_asynchronously_) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(&FakeScreenCapturer::RunCallback,
                                     weak_factory_.GetWeakPtr(),
                                     webrtc::DesktopCapturer::Result::SUCCESS,
@@ -271,22 +263,18 @@ class DesktopCaptureDeviceTest : public testing::Test {
   std::unique_ptr<webrtc::DesktopFrame> output_frame_;
 };
 
-TEST_F(DesktopCaptureDeviceTest, Capture) {
+// There is currently no screen capturer implementation for ozone. So disable
+// the test that uses a real screen-capturer instead of FakeScreenCapturer.
+// http://crbug.com/260318
+#if defined(USE_OZONE)
+#define MAYBE_Capture DISABLED_Capture
+#else
+#define MAYBE_Capture Capture
+#endif
+TEST_F(DesktopCaptureDeviceTest, MAYBE_Capture) {
   std::unique_ptr<webrtc::DesktopCapturer> capturer(
       webrtc::DesktopCapturer::CreateScreenCapturer(
           webrtc::DesktopCaptureOptions::CreateDefault()));
-
-#if BUILDFLAG(IS_OZONE)
-#if !BUILDFLAG(OZONE_PLATFORM_X11)
-  // webrtc::DesktopCapturer is only supported on Ozone X11 by default.
-  // TODO(webrtc/13429): Enable for Wayland.
-  EXPECT_FALSE(capturer);
-  // Check return value to avoid compiler warnings.
-  if (!capturer)
-    return;
-#endif  // !BUILDFLAG(OZONE_PLATFORM_X11)
-#endif  // BUILDFLAG(IS_OZONE)
-
   CreateScreenCaptureDevice(std::move(capturer));
 
   media::VideoCaptureFormat format;
@@ -479,8 +467,8 @@ TEST_F(DesktopCaptureDeviceTest, UnpackedFrame) {
       base::WaitableEvent::InitialState::NOT_SIGNALED);
 
   int frame_size = 0;
-  output_frame_ = std::make_unique<webrtc::BasicDesktopFrame>(
-      webrtc::DesktopSize(kTestFrameWidth1, kTestFrameHeight1));
+  output_frame_.reset(new webrtc::BasicDesktopFrame(
+      webrtc::DesktopSize(kTestFrameWidth1, kTestFrameHeight1)));
 
   std::unique_ptr<media::MockVideoCaptureDeviceClient> client(
       CreateMockVideoCaptureDeviceClient());
@@ -528,8 +516,8 @@ TEST_F(DesktopCaptureDeviceTest, InvertedFrame) {
       base::WaitableEvent::InitialState::NOT_SIGNALED);
 
   int frame_size = 0;
-  output_frame_ = std::make_unique<webrtc::BasicDesktopFrame>(
-      webrtc::DesktopSize(kTestFrameWidth1, kTestFrameHeight1));
+  output_frame_.reset(new webrtc::BasicDesktopFrame(
+      webrtc::DesktopSize(kTestFrameWidth1, kTestFrameHeight1)));
 
   std::unique_ptr<media::MockVideoCaptureDeviceClient> client(
       CreateMockVideoCaptureDeviceClient());
@@ -597,8 +585,7 @@ class DesktopCaptureDeviceThrottledTest : public DesktopCaptureDeviceTest {
     EXPECT_CALL(*client, OnStarted())
         .WillOnce(InvokeWithoutArgs([this, &task_runner,
                                      &message_loop_task_runner] {
-          message_loop_task_runner =
-              base::SingleThreadTaskRunner::GetCurrentDefault();
+          message_loop_task_runner = base::ThreadTaskRunnerHandle::Get();
           task_runner = new base::TestMockTimeTaskRunner(
               base::Time::Now(), base::TimeTicks::Now(),
               base::TestMockTimeTaskRunner::Type::kStandalone);
@@ -619,7 +606,7 @@ class DesktopCaptureDeviceThrottledTest : public DesktopCaptureDeviceTest {
               // here in OnIncomingCapturedData is take into account for
               // the capture duration
               const base::TimeDelta device_capture_duration =
-                  base::Microseconds(static_cast<int64_t>(
+                  base::TimeDelta::FromMicroseconds(static_cast<int64_t>(
                       static_cast<double>(base::Time::kMicrosecondsPerSecond) /
                           kFrameRate +
                       0.5 /* round to nearest int */));

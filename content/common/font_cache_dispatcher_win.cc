@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,28 +6,25 @@
 
 #include <map>
 #include <memory>
-#include <string>
 #include <utility>
 #include <vector>
 
-#include "base/containers/contains.h"
 #include "base/logging.h"
-#include "base/memory/singleton.h"
+#include "base/macros.h"
 #include "base/numerics/checked_math.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
 #include "base/thread_annotations.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 
 namespace content {
 namespace {
-typedef std::vector<std::wstring> FontNameVector;
+typedef std::vector<base::string16> FontNameVector;
 typedef std::map<FontCacheDispatcher*, FontNameVector> DispatcherToFontNames;
 
 class FontCache {
  public:
   static FontCache* GetInstance() { return base::Singleton<FontCache>::get(); }
-
-  FontCache(const FontCache&) = delete;
-  FontCache& operator=(const FontCache&) = delete;
 
   void PreCacheFont(const LOGFONT& font, FontCacheDispatcher* dispatcher) {
     base::AutoLock lock(mutex_);
@@ -46,7 +43,7 @@ class FontCache {
     BOOL ret = GetTextMetrics(hdc, &tm);
     DCHECK(ret);
 
-    std::wstring font_name = font.lfFaceName;
+    base::string16 font_name = font.lfFaceName;
     bool inc_ref_count = true;
     if (!base::Contains(dispatcher_font_map_[dispatcher], font_name)) {
       // Requested font is new to cache.
@@ -72,7 +69,7 @@ class FontCache {
   }
 
   void ReleaseCachedFonts(FontCacheDispatcher* dispatcher) {
-    typedef std::map<std::wstring, FontCache::CacheElement> FontNameToElement;
+    typedef std::map<base::string16, FontCache::CacheElement> FontNameToElement;
 
     base::AutoLock lock(mutex_);
 
@@ -129,9 +126,11 @@ class FontCache {
   FontCache() {
   }
 
-  std::map<std::wstring, CacheElement> cache_ GUARDED_BY(mutex_);
+  std::map<base::string16, CacheElement> cache_ GUARDED_BY(mutex_);
   DispatcherToFontNames dispatcher_font_map_ GUARDED_BY(mutex_);
   base::Lock mutex_;
+
+  DISALLOW_COPY_AND_ASSIGN(FontCache);
 };
 
 }  // namespace

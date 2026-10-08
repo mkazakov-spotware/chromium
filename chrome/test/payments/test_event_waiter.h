@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,10 @@
 #include <iosfwd>
 #include <list>
 
+#include "base/location.h"
 #include "base/run_loop.h"
 #include "base/threading/thread_task_runner_handle.h"
+#include "base/time/time.h"
 
 namespace payments {
 
@@ -24,9 +26,8 @@ enum class TestEvent : int32_t {
   // Received when the list of available apps is created and .show() is called.
   // Note that this does not wait for the payment sheet UI to be actually shown.
   kAppListReady,
-  kErrorDisplayed,
   kPaymentCompleted,
-  kUIDisplayed,
+  kMinimalUIReady,
 };
 
 std::ostream& operator<<(std::ostream& out, TestEvent event);
@@ -40,9 +41,6 @@ class EventWaiter {
  public:
   EventWaiter(std::list<TestEvent> expected_event_sequence,
               bool wait_for_single_event);
-
-  EventWaiter(const EventWaiter&) = delete;
-  EventWaiter& operator=(const EventWaiter&) = delete;
 
   ~EventWaiter();
 
@@ -61,6 +59,8 @@ class EventWaiter {
   // When set to true, the event waiter ignores arrival of any other events
   // while waiting for the expected event to arrive.
   bool wait_for_single_event_;
+
+  DISALLOW_COPY_AND_ASSIGN(EventWaiter);
 };
 
 }  // namespace payments

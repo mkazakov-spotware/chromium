@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,7 @@
 #include "build/build_config.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/renderer_configuration.mojom.h"
-#include "services/network/public/cpp/resource_request.h"
 #include "testing/gtest/include/gtest/gtest.h"
-
-#if BUILDFLAG(IS_ANDROID)
-#include "ui/base/device_form_factor.h"
-#endif
 
 class GoogleURLLoaderThrottleTest : public testing::Test {
  public:
@@ -32,14 +27,12 @@ class GoogleURLLoaderThrottleTest : public testing::Test {
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-#if BUILDFLAG(IS_ANDROID)
-
-TEST_F(GoogleURLLoaderThrottleTest, RequestDesktopHeaderForLargeScreen) {
+#if defined(OS_ANDROID)
+TEST_F(GoogleURLLoaderThrottleTest, DarkSearchGoogleHomepage) {
   scoped_feature_list().Reset();
-  scoped_feature_list().InitAndEnableFeature(
-      features::kRequestDesktopSiteForTablets);
+  scoped_feature_list().InitAndEnableFeature(features::kAndroidDarkSearch);
   GoogleURLLoaderThrottle throttle(/* client_header= */ "",
-                                   /* is_tab_large_enough= */ true,
+                                   /* night_mode_enabled= */ true,
                                    chrome::mojom::DynamicParams());
 
   network::ResourceRequest request;
@@ -47,38 +40,36 @@ TEST_F(GoogleURLLoaderThrottleTest, RequestDesktopHeaderForLargeScreen) {
   bool defer = false;
 
   throttle.WillStartRequest(&request, &defer);
-
-  // Only set header for tablets, not for phone.
-  if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
-    std::string isTablet;
-    EXPECT_TRUE(request.headers.GetHeader("X-Eligible-Tablet", &isTablet));
-    EXPECT_EQ(isTablet, "1");
-  } else {
-    EXPECT_FALSE(request.headers.HasHeader("X-Eligible-Tablet"));
-  }
+  EXPECT_NE(std::string::npos, request.url.spec().find("cs=1"));
 }
 
-TEST_F(GoogleURLLoaderThrottleTest, RequestDesktopHeaderForSmallScreen) {
+TEST_F(GoogleURLLoaderThrottleTest, DarkSearchGoogleSearch) {
   scoped_feature_list().Reset();
-  scoped_feature_list().InitAndEnableFeature(
-      features::kRequestDesktopSiteForTablets);
+  scoped_feature_list().InitAndEnableFeature(features::kAndroidDarkSearch);
   GoogleURLLoaderThrottle throttle(/* client_header= */ "",
-                                   /* is_tab_large_enough= */ false,
+                                   /* night_mode_enabled= */ true,
                                    chrome::mojom::DynamicParams());
 
   network::ResourceRequest request;
-  request.url = GURL("https://www.google.com");
+  request.url = GURL("https://www.google.com/search?q=test");
   bool defer = false;
 
   throttle.WillStartRequest(&request, &defer);
+  EXPECT_NE(std::string::npos, request.url.spec().find("cs=1"));
+}
 
-  // Only set header for tablets, not for phone.
-  if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
-    std::string isTablet;
-    EXPECT_TRUE(request.headers.GetHeader("X-Eligible-Tablet", &isTablet));
-    EXPECT_EQ(isTablet, "0");
-  } else {
-    EXPECT_FALSE(request.headers.HasHeader("X-Eligible-Tablet"));
-  }
+TEST_F(GoogleURLLoaderThrottleTest, DarkSearchGoogleSource) {
+  scoped_feature_list().Reset();
+  scoped_feature_list().InitAndEnableFeature(features::kAndroidDarkSearch);
+  GoogleURLLoaderThrottle throttle(/* client_header= */ "",
+                                   /* night_mode_enabled= */ true,
+                                   chrome::mojom::DynamicParams());
+
+  network::ResourceRequest request;
+  request.url = GURL("https://code.google.com/");
+  bool defer = false;
+
+  throttle.WillStartRequest(&request, &defer);
+  EXPECT_EQ(std::string::npos, request.url.spec().find("cs=1"));
 }
 #endif

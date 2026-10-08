@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,6 @@ namespace testing {
 // passed the WebContents pointer associated with the PageNode to check.
 template <class T>
 void TestPageNodePropertyOnPMSequence(content::WebContents* contents,
-                                      T* (*data_getter)(const PageNode*),
                                       bool (T::*getter)() const,
                                       bool expected_value);
 
@@ -31,7 +30,6 @@ void TestPageNodePropertyOnPMSequence(content::WebContents* contents,
 // decorator and test if the property gets update.
 template <class T>
 void EndToEndBooleanPropertyTest(content::WebContents* contents,
-                                 T* (*data_getter)(const PageNode*),
                                  bool (T::*pm_getter)() const,
                                  void (*ui_thread_setter)(content::WebContents*,
                                                           bool),
@@ -41,19 +39,18 @@ void EndToEndBooleanPropertyTest(content::WebContents* contents,
 
 template <class T>
 void TestPageNodePropertyOnPMSequence(content::WebContents* contents,
-                                      T* (*data_getter)(const PageNode*),
                                       bool (T::*getter)() const,
                                       bool expected_value) {
   base::RunLoop run_loop;
   auto quit_closure = run_loop.QuitClosure();
 
   base::WeakPtr<PageNode> node =
-      PerformanceManager::GetPrimaryPageNodeForWebContents(contents);
+      PerformanceManager::GetPageNodeForWebContents(contents);
 
   PerformanceManager::CallOnGraph(
       FROM_HERE, base::BindLambdaForTesting([&]() {
         EXPECT_TRUE(node);
-        T* data = (*data_getter)(node.get());
+        auto* data = T::GetOrCreateForTesting(node.get());
         EXPECT_TRUE(data);
         EXPECT_EQ((data->*getter)(), expected_value);
         std::move(quit_closure).Run();
@@ -63,25 +60,21 @@ void TestPageNodePropertyOnPMSequence(content::WebContents* contents,
 
 template <class T>
 void EndToEndBooleanPropertyTest(content::WebContents* contents,
-                                 T* (*data_getter)(const PageNode*),
                                  bool (T::*pm_getter)() const,
                                  void (*ui_thread_setter)(content::WebContents*,
                                                           bool),
                                  bool default_state) {
   // By default all properties are set to the default value.
-  TestPageNodePropertyOnPMSequence(contents, data_getter, pm_getter,
-                                   default_state);
+  TestPageNodePropertyOnPMSequence(contents, pm_getter, default_state);
 
   // Pretend that the property changed and make sure that the PageNode data gets
   // updated.
   (*ui_thread_setter)(contents, !default_state);
-  TestPageNodePropertyOnPMSequence(contents, data_getter, pm_getter,
-                                   !default_state);
+  TestPageNodePropertyOnPMSequence(contents, pm_getter, !default_state);
 
   // Switch back to the default state.
   (*ui_thread_setter)(contents, default_state);
-  TestPageNodePropertyOnPMSequence(contents, data_getter, pm_getter,
-                                   default_state);
+  TestPageNodePropertyOnPMSequence(contents, pm_getter, default_state);
 }
 
 }  // namespace testing

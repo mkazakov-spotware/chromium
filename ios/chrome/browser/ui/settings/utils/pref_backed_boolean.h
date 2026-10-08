@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,16 +14,11 @@ class PrefService;
 // An observable boolean backed by a pref from a PrefService.
 @interface PrefBackedBoolean : NSObject<ObservableBoolean>
 
-// Returns a PrefBackedBoolean backed by `prefName` from `prefs`.
+// Returns a PrefBackedBoolean backed by |prefName| from |prefs|.
 - (instancetype)initWithPrefService:(PrefService*)prefs
                            prefName:(const char*)prefName
     NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
-
-// Stop observing the pref. Can be called before -dealloc to ensure
-// that the pref is no longer observed, even if the object survives
-// the PrefService (e.g. if the reference is captured by a block).
-- (void)stop;
 
 @end
 

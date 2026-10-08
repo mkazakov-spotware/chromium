@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -96,33 +96,38 @@ struct Serializer<MapDataView<Key, Value>, MaybeConstUserType> {
                       MapValueReader<MaybeConstUserType>>;
 
   static void Serialize(MaybeConstUserType& input,
-                        MessageFragment<Data>& fragment,
-                        const ContainerValidateParams* validate_params) {
+                        Buffer* buf,
+                        typename Data::BufferWriter* writer,
+                        const ContainerValidateParams* validate_params,
+                        SerializationContext* context) {
     DCHECK(validate_params->key_validate_params);
     DCHECK(validate_params->element_validate_params);
     if (CallIsNullIfExists<Traits>(input))
       return;
 
-    fragment.Allocate();
-    MessageFragment<typename MojomTypeTraits<ArrayDataView<Key>>::Data>
-        keys_fragment(fragment.message());
-    keys_fragment.AllocateArrayData(Traits::GetSize(input));
+    writer->Allocate(buf);
+    typename MojomTypeTraits<ArrayDataView<Key>>::Data::BufferWriter
+        keys_writer;
+    keys_writer.Allocate(Traits::GetSize(input), buf);
     MapKeyReader<MaybeConstUserType> key_reader(input);
-    KeyArraySerializer::SerializeElements(&key_reader, keys_fragment,
-                                          validate_params->key_validate_params);
-    fragment->keys.Set(keys_fragment.data());
+    KeyArraySerializer::SerializeElements(&key_reader, buf, &keys_writer,
+                                          validate_params->key_validate_params,
+                                          context);
+    (*writer)->keys.Set(keys_writer.data());
 
-    MessageFragment<typename MojomTypeTraits<ArrayDataView<Value>>::Data>
-        values_fragment(fragment.message());
-    values_fragment.AllocateArrayData(Traits::GetSize(input));
+    typename MojomTypeTraits<ArrayDataView<Value>>::Data::BufferWriter
+        values_writer;
+    values_writer.Allocate(Traits::GetSize(input), buf);
     MapValueReader<MaybeConstUserType> value_reader(input);
     ValueArraySerializer::SerializeElements(
-        &value_reader, values_fragment,
-        validate_params->element_validate_params);
-    fragment->values.Set(values_fragment.data());
+        &value_reader, buf, &values_writer,
+        validate_params->element_validate_params, context);
+    (*writer)->values.Set(values_writer.data());
   }
 
-  static bool Deserialize(Data* input, UserType* output, Message* message) {
+  static bool Deserialize(Data* input,
+                          UserType* output,
+                          SerializationContext* context) {
     if (!input)
       return CallSetToNullIfExists<Traits>(output);
 
@@ -130,9 +135,9 @@ struct Serializer<MapDataView<Key, Value>, MaybeConstUserType> {
     std::vector<UserValue> values;
 
     if (!KeyArraySerializer::DeserializeElements(input->keys.Get(), &keys,
-                                                 message) ||
+                                                 context) ||
         !ValueArraySerializer::DeserializeElements(input->values.Get(), &values,
-                                                   message)) {
+                                                   context)) {
       return false;
     }
 

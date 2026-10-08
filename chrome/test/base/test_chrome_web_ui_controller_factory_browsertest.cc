@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/web_ui_controller.h"
 #include "content/public/test/browser_test.h"
-#include "content/public/test/scoped_web_ui_controller_factory_registration.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
@@ -47,11 +46,10 @@ const std::string kChromeTestChromeWebUIControllerFactory =
 class TestChromeWebUIControllerFactoryTest : public InProcessBrowserTest {
  public:
   void SetUpOnMainThread() override {
+    content::WebUIControllerFactory::UnregisterFactoryForTesting(
+        ChromeWebUIControllerFactory::GetInstance());
     test_factory_ = std::make_unique<TestChromeWebUIControllerFactory>();
-    factory_registration_ =
-        std::make_unique<content::ScopedWebUIControllerFactoryRegistration>(
-            test_factory_.get(), ChromeWebUIControllerFactory::GetInstance());
-
+    content::WebUIControllerFactory::RegisterFactory(test_factory_.get());
     test_factory_->AddFactoryOverride(
         GURL(kChromeTestChromeWebUIControllerFactory).host(), &mock_provider_);
   }
@@ -59,13 +57,15 @@ class TestChromeWebUIControllerFactoryTest : public InProcessBrowserTest {
   void TearDownOnMainThread() override {
     test_factory_->RemoveFactoryOverride(
         GURL(kChromeTestChromeWebUIControllerFactory).host());
+    content::WebUIControllerFactory::UnregisterFactoryForTesting(
+        test_factory_.get());
+
+    test_factory_.reset();
   }
 
  protected:
   StrictMock<MockWebUIProvider> mock_provider_;
   std::unique_ptr<TestChromeWebUIControllerFactory> test_factory_;
-  std::unique_ptr<content::ScopedWebUIControllerFactoryRegistration>
-      factory_registration_;
 };
 
 }  // namespace
@@ -78,6 +78,6 @@ IN_PROC_BROWSER_TEST_F(TestChromeWebUIControllerFactoryTest,
   EXPECT_CALL(mock_provider_,
               NewWebUI(_, Eq(kChromeTestChromeWebUIControllerFactoryURL)))
       .WillOnce(ReturnNewWebUI());
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), kChromeTestChromeWebUIControllerFactoryURL));
+  ui_test_utils::NavigateToURL(browser(),
+                               kChromeTestChromeWebUIControllerFactoryURL);
 }

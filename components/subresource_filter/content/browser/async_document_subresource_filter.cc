@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "base/callback_helpers.h"
 #include "base/check_op.h"
 #include "base/location.h"
+#include "base/task_runner_util.h"
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "components/subresource_filter/core/common/memory_mapped_ruleset.h"
 #include "components/subresource_filter/core/common/scoped_timers.h"
@@ -87,7 +88,7 @@ AsyncDocumentSubresourceFilter::AsyncDocumentSubresourceFilter(
     InitializationParams params,
     base::OnceCallback<void(mojom::ActivationState)> activation_state_callback)
     : task_runner_(ruleset_handle->task_runner()),
-      core_(new Core(), base::OnTaskRunnerDeleter(task_runner_.get())) {
+      core_(new Core(), base::OnTaskRunnerDeleter(task_runner_)) {
   DCHECK_NE(mojom::ActivationLevel::kDisabled,
             params.parent_activation_state.activation_level);
 
@@ -95,8 +96,8 @@ AsyncDocumentSubresourceFilter::AsyncDocumentSubresourceFilter(
   // because a task to delete it can only be posted to (and, therefore,
   // processed by) |task_runner| after this method returns, hence after the
   // below task is posted.
-  task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  base::PostTaskAndReplyWithResult(
+      task_runner_, FROM_HERE,
       base::BindOnce(&Core::Initialize, base::Unretained(core_.get()),
                      std::move(params), ruleset_handle->ruleset_.get()),
       base::BindOnce(&AsyncDocumentSubresourceFilter::OnActivateStateCalculated,
@@ -109,7 +110,7 @@ AsyncDocumentSubresourceFilter::AsyncDocumentSubresourceFilter(
     const url::Origin& inherited_document_origin,
     const mojom::ActivationState& activation_state)
     : task_runner_(ruleset_handle->task_runner()),
-      core_(new Core(), base::OnTaskRunnerDeleter(task_runner_.get())) {
+      core_(new Core(), base::OnTaskRunnerDeleter(task_runner_)) {
   DCHECK_NE(mojom::ActivationLevel::kDisabled,
             activation_state.activation_level);
 
@@ -127,7 +128,7 @@ AsyncDocumentSubresourceFilter::AsyncDocumentSubresourceFilter(
 }
 
 AsyncDocumentSubresourceFilter::~AsyncDocumentSubresourceFilter() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
 }
 
 void AsyncDocumentSubresourceFilter::OnActivateStateCalculated(
@@ -140,12 +141,12 @@ void AsyncDocumentSubresourceFilter::OnActivateStateCalculated(
 void AsyncDocumentSubresourceFilter::GetLoadPolicyForSubdocument(
     const GURL& subdocument_url,
     LoadPolicyCallback result_callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
 
   // TODO(pkalinnikov): Think about avoiding copy of |subdocument_url| if it is
   // too big and won't be allowed anyway (e.g., it's a data: URI).
-  task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  base::PostTaskAndReplyWithResult(
+      task_runner_, FROM_HERE,
       base::BindOnce(
           [](AsyncDocumentSubresourceFilter::Core* core,
              const GURL& subdocument_url) {
@@ -158,20 +159,6 @@ void AsyncDocumentSubresourceFilter::GetLoadPolicyForSubdocument(
                        : LoadPolicy::ALLOW;
           },
           core_.get(), subdocument_url),
-      std::move(result_callback));
-}
-
-void AsyncDocumentSubresourceFilter::GetLoadPolicyForSubdocumentURLs(
-    const std::vector<GURL>& urls,
-    MultiLoadPolicyCallback result_callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  // TODO(pkalinnikov): Think about avoiding copying of |urls| if they are
-  // too big and won't be allowed anyway (e.g. data: URI).
-  task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
-      base::BindOnce(&AsyncDocumentSubresourceFilter::Core::GetLoadPolicies,
-                     base::Unretained(core_.get()), urls),
       std::move(result_callback));
 }
 
@@ -212,24 +199,11 @@ const mojom::ActivationState& AsyncDocumentSubresourceFilter::activation_state()
 // AsyncDocumentSubresourceFilter::Core ----------------------------------------
 
 AsyncDocumentSubresourceFilter::Core::Core() {
-  DETACH_FROM_SEQUENCE(sequence_checker_);
+  sequence_checker_.DetachFromSequence();
 }
 
 AsyncDocumentSubresourceFilter::Core::~Core() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-}
-
-std::vector<LoadPolicy> AsyncDocumentSubresourceFilter::Core::GetLoadPolicies(
-    const std::vector<GURL>& urls) {
-  std::vector<LoadPolicy> policies;
-  for (const auto& url : urls) {
-    auto policy =
-        filter() ? filter()->GetLoadPolicy(
-                       url, url_pattern_index::proto::ELEMENT_TYPE_SUBDOCUMENT)
-                 : LoadPolicy::ALLOW;
-    policies.push_back(policy);
-  }
-  return policies;
+  DCHECK(sequence_checker_.CalledOnValidSequence());
 }
 
 void AsyncDocumentSubresourceFilter::Core::SetActivationState(
@@ -241,7 +215,7 @@ void AsyncDocumentSubresourceFilter::Core::SetActivationState(
 mojom::ActivationState AsyncDocumentSubresourceFilter::Core::Initialize(
     InitializationParams params,
     VerifiedRuleset* verified_ruleset) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   DCHECK(verified_ruleset);
 
   if (!verified_ruleset->Get())
@@ -263,7 +237,7 @@ void AsyncDocumentSubresourceFilter::Core::InitializeWithActivation(
     mojom::ActivationState activation_state,
     const url::Origin& inherited_document_origin,
     VerifiedRuleset* verified_ruleset) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   DCHECK(verified_ruleset);
 
   // Avoids a crash in the rare case that the ruleset's status has changed to

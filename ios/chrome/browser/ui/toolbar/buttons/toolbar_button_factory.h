@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,13 +42,15 @@
 // Tab Grid ToolbarButton.
 - (ToolbarTabGridButton*)tabGridButton;
 // Tools Menu ToolbarButton.
-- (ToolbarButton*)toolsMenuButton;
+- (ToolbarToolsMenuButton*)toolsMenuButton;
 // Share ToolbarButton.
 - (ToolbarButton*)shareButton;
 // Reload ToolbarButton.
 - (ToolbarButton*)reloadButton;
 // Stop ToolbarButton.
 - (ToolbarButton*)stopButton;
+// Bookmark ToolbarButton.
+- (ToolbarButton*)bookmarkButton;
 // ToolbarButton to create a new tab.
 - (ToolbarButton*)openNewTabButton;
 // Button to cancel the edit of the location bar.

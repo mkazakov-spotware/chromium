@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -155,10 +155,7 @@ class AwGLSurfaceExternalStencil::FrameBuffer {
   gfx::Size size_;
 };
 
-AwGLSurfaceExternalStencil::AwGLSurfaceExternalStencil(
-    gl::GLDisplayEGL* display,
-    bool is_angle)
-    : AwGLSurface(display, is_angle) {}
+AwGLSurfaceExternalStencil::AwGLSurfaceExternalStencil() {}
 
 AwGLSurfaceExternalStencil::~AwGLSurfaceExternalStencil() = default;
 
@@ -176,18 +173,13 @@ unsigned int AwGLSurfaceExternalStencil::GetBackingFramebufferObject() {
 }
 
 gfx::SwapResult AwGLSurfaceExternalStencil::SwapBuffers(
-    PresentationCallback callback,
-    gl::FrameData frame_data) {
+    PresentationCallback callback) {
   const auto& stencil_state =
       android_webview::ScopedAppGLStateRestore::Current()->stencil_state();
 
   if (stencil_state.stencil_test_enabled) {
     DCHECK(framebuffer_);
     DCHECK(blit_context_);
-
-    // Flush skia renderer rendering. This is working around what appears to be
-    // a driver bug that causes rendering to break.
-    glFlush();
 
     // Restore stencil state.
     glEnable(GL_STENCIL_TEST);
@@ -260,7 +252,7 @@ gfx::SwapResult AwGLSurfaceExternalStencil::SwapBuffers(
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   }
 
-  return AwGLSurface::SwapBuffers(std::move(callback), std::move(frame_data));
+  return AwGLSurface::SwapBuffers(std::move(callback));
 }
 
 void AwGLSurfaceExternalStencil::RecalculateClipAndTransform(
@@ -298,12 +290,6 @@ void AwGLSurfaceExternalStencil::RecalculateClipAndTransform(
     // memory, assuming |stencil_test_enabled| doesn't change often.
     framebuffer_.reset();
   }
-}
-
-bool AwGLSurfaceExternalStencil::IsDrawingToFBO() {
-  const auto& stencil_state =
-      android_webview::ScopedAppGLStateRestore::Current()->stencil_state();
-  return stencil_state.stencil_test_enabled;
 }
 
 }  // namespace android_webview

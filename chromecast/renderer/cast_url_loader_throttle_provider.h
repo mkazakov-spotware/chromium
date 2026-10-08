@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,27 +8,30 @@
 #include <memory>
 #include <vector>
 
-#include "base/callback_forward.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/strings/string_piece.h"
 #include "base/threading/thread_checker.h"
-#include "third_party/blink/public/platform/url_loader_throttle_provider.h"
+#include "content/public/renderer/url_loader_throttle_provider.h"
 
 namespace chromecast {
 class CastActivityUrlFilterManager;
 
-class CastURLLoaderThrottleProvider : public blink::URLLoaderThrottleProvider {
+namespace shell {
+class IdentificationSettingsManagerStore;
+}  // namespace shell
+
+class CastURLLoaderThrottleProvider
+    : public content::URLLoaderThrottleProvider {
  public:
   CastURLLoaderThrottleProvider(
-      blink::URLLoaderThrottleProviderType type,
-      CastActivityUrlFilterManager* url_filter_manager);
+      content::URLLoaderThrottleProviderType type,
+      CastActivityUrlFilterManager* url_filter_manager,
+      shell::IdentificationSettingsManagerStore* settings_manager_store);
   ~CastURLLoaderThrottleProvider() override;
   CastURLLoaderThrottleProvider& operator=(
       const CastURLLoaderThrottleProvider&) = delete;
 
-  // blink::URLLoaderThrottleProvider implementation:
-  std::unique_ptr<blink::URLLoaderThrottleProvider> Clone() override;
-  blink::WebVector<std::unique_ptr<blink::URLLoaderThrottle>> CreateThrottles(
+  // content::URLLoaderThrottleProvider implementation:
+  std::unique_ptr<content::URLLoaderThrottleProvider> Clone() override;
+  std::vector<std::unique_ptr<blink::URLLoaderThrottle>> CreateThrottles(
       int render_frame_id,
       const blink::WebURLRequest& request) override;
   void SetOnline(bool is_online) override;
@@ -38,8 +41,9 @@ class CastURLLoaderThrottleProvider : public blink::URLLoaderThrottleProvider {
   // general use.
   CastURLLoaderThrottleProvider(const CastURLLoaderThrottleProvider& other);
 
-  blink::URLLoaderThrottleProviderType type_;
+  content::URLLoaderThrottleProviderType type_;
   CastActivityUrlFilterManager* const cast_activity_url_filter_manager_;
+  shell::IdentificationSettingsManagerStore* const settings_manager_store_;
 
   THREAD_CHECKER(thread_checker_);
 };

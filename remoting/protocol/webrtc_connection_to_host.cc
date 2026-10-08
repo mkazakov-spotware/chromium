@@ -1,15 +1,14 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/protocol/webrtc_connection_to_host.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/logging.h"
 #include "base/strings/string_util.h"
-#include "components/webrtc/thread_wrapper.h"
+#include "jingle/glue/thread_wrapper.h"
 #include "remoting/base/constants.h"
 #include "remoting/protocol/client_control_dispatcher.h"
 #include "remoting/protocol/client_event_dispatcher.h"
@@ -23,7 +22,8 @@
 #include "remoting/protocol/webrtc_transport.h"
 #include "remoting/protocol/webrtc_video_renderer_adapter.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 WebrtcConnectionToHost::WebrtcConnectionToHost() = default;
 WebrtcConnectionToHost::~WebrtcConnectionToHost() = default;
@@ -35,8 +35,8 @@ void WebrtcConnectionToHost::Connect(
   DCHECK(client_stub_);
   DCHECK(clipboard_stub_);
 
-  transport_ = std::make_unique<WebrtcTransport>(
-      webrtc::ThreadWrapper::current(), transport_context, nullptr, this);
+  transport_.reset(new WebrtcTransport(
+      jingle_glue::JingleThreadWrapper::current(), transport_context, this));
 
   if (audio_decode_task_runner_)
     transport_->audio_module()->SetAudioTaskRunner(audio_decode_task_runner_);
@@ -118,7 +118,7 @@ void WebrtcConnectionToHost::OnSessionStateChange(Session::State state) {
 }
 
 void WebrtcConnectionToHost::OnWebrtcTransportConnecting() {
-  event_dispatcher_ = std::make_unique<ClientEventDispatcher>();
+  event_dispatcher_.reset(new ClientEventDispatcher());
   event_dispatcher_->Init(
       transport_->CreateOutgoingChannel(event_dispatcher_->channel_name()),
       this);
@@ -137,7 +137,7 @@ void WebrtcConnectionToHost::OnWebrtcTransportIncomingDataChannel(
     const std::string& name,
     std::unique_ptr<MessagePipe> pipe) {
   if (!control_dispatcher_)
-    control_dispatcher_ = std::make_unique<ClientControlDispatcher>();
+    control_dispatcher_.reset(new ClientControlDispatcher());
 
   if (name == control_dispatcher_->channel_name() &&
       !control_dispatcher_->is_connected()) {
@@ -156,19 +156,18 @@ void WebrtcConnectionToHost::OnWebrtcTransportIncomingDataChannel(
 }
 
 void WebrtcConnectionToHost::OnWebrtcTransportMediaStreamAdded(
-    rtc::scoped_refptr<webrtc::MediaStreamInterface> stream) {
+    scoped_refptr<webrtc::MediaStreamInterface> stream) {
   if (stream->GetVideoTracks().size() > 0) {
     GetOrCreateVideoAdapter(stream->id())->SetMediaStream(stream);
   } else if (stream->GetAudioTracks().size() > 0) {
-    audio_adapter_ =
-        std::make_unique<WebrtcAudioSinkAdapter>(stream, audio_consumer_);
+    audio_adapter_.reset(new WebrtcAudioSinkAdapter(stream, audio_consumer_));
   } else {
     LOG(ERROR) << "Received MediaStream with no video or audio tracks.";
   }
 }
 
 void WebrtcConnectionToHost::OnWebrtcTransportMediaStreamRemoved(
-    rtc::scoped_refptr<webrtc::MediaStreamInterface> stream) {
+    scoped_refptr<webrtc::MediaStreamInterface> stream) {
   if (video_adapter_ && video_adapter_->label() == stream->id())
     video_adapter_.reset();
 }
@@ -211,8 +210,8 @@ WebrtcVideoRendererAdapter* WebrtcConnectionToHost::GetOrCreateVideoAdapter(
       LOG(WARNING) << "Received multiple media streams. Ignoring all except "
                       "the last one.";
     }
-    video_adapter_ =
-        std::make_unique<WebrtcVideoRendererAdapter>(label, video_renderer_);
+    video_adapter_.reset(
+        new WebrtcVideoRendererAdapter(label, video_renderer_));
   }
   return video_adapter_.get();
 }
@@ -235,4 +234,5 @@ void WebrtcConnectionToHost::SetState(State state, ErrorCode error) {
   }
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

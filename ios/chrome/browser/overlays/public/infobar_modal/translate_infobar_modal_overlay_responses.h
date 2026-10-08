@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,7 +44,7 @@ DEFINE_STATELESS_OVERLAY_RESPONSE_INFO(ToggleNeverTranslateSourceLanguage);
 
 // Response info used to create dispatched OverlayResponses that notify the
 // translate infobar to toggle the never translate site preference.
-DEFINE_STATELESS_OVERLAY_RESPONSE_INFO(ToggleNeverPromptSite);
+DEFINE_STATELESS_OVERLAY_RESPONSE_INFO(ToggleBlacklistSite);
 
 }  // namespace translate_infobar_modal_responses
 

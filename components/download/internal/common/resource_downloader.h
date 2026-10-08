@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,7 @@ class COMPONENTS_DOWNLOAD_EXPORT ResourceDownloader
       std::unique_ptr<network::ResourceRequest> request,
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
       const URLSecurityPolicy& url_security_policy,
-      const std::string& serialized_embedder_download_data,
+      const GURL& site_url,
       const GURL& tab_url,
       const GURL& tab_referrer_url,
       bool is_new_download,
@@ -49,7 +49,7 @@ class COMPONENTS_DOWNLOAD_EXPORT ResourceDownloader
       std::unique_ptr<network::ResourceRequest> resource_request,
       int render_process_id,
       int render_frame_id,
-      const std::string& serialized_embedder_download_data,
+      const GURL& site_url,
       const GURL& tab_url,
       const GURL& tab_referrer_url,
       std::vector<GURL> url_chain,
@@ -67,7 +67,7 @@ class COMPONENTS_DOWNLOAD_EXPORT ResourceDownloader
       std::unique_ptr<network::ResourceRequest> resource_request,
       int render_process_id,
       int render_frame_id,
-      const std::string& serialized_embedder_download_data,
+      const GURL& site_url,
       const GURL& tab_url,
       const GURL& tab_referrer_url,
       bool is_new_download,
@@ -75,10 +75,6 @@ class COMPONENTS_DOWNLOAD_EXPORT ResourceDownloader
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
       const URLSecurityPolicy& url_security_policy,
       mojo::PendingRemote<device::mojom::WakeLockProvider> wake_lock_provider);
-
-  ResourceDownloader(const ResourceDownloader&) = delete;
-  ResourceDownloader& operator=(const ResourceDownloader&) = delete;
-
   ~ResourceDownloader() override;
 
   // DownloadResponseHandler::Delegate
@@ -143,9 +139,8 @@ class COMPONENTS_DOWNLOAD_EXPORT ResourceDownloader
   int render_process_id_;
   int render_frame_id_;
 
-  // Serialized embedder data download for the site instance that initiated the
-  // download.
-  std::string serialized_embedder_download_data_;
+  // Site URL for the site instance that initiated the download.
+  GURL site_url_;
 
   // The URL of the tab that started us.
   GURL tab_url_;
@@ -154,7 +149,7 @@ class COMPONENTS_DOWNLOAD_EXPORT ResourceDownloader
   GURL tab_referrer_url_;
 
   // URLLoader status when intercepting the navigation request.
-  absl::optional<network::URLLoaderCompletionStatus> url_loader_status_;
+  base::Optional<network::URLLoaderCompletionStatus> url_loader_status_;
 
   // TaskRunner to post callbacks to the |delegate_|
   scoped_refptr<base::SingleThreadTaskRunner> delegate_task_runner_;
@@ -165,13 +160,15 @@ class COMPONENTS_DOWNLOAD_EXPORT ResourceDownloader
   // Used to check if the URL is safe to request.
   URLSecurityPolicy url_security_policy_;
 
-  // Whether download is initiated by the content on the page.
+  // Whether download is initated by the content on the page.
   bool is_content_initiated_;
 
   // Used to keep the system from sleeping while a download is ongoing. If the
   // system enters power saving mode while a download is alive, it can cause
   // download to be interrupted.
   mojo::Remote<device::mojom::WakeLock> wake_lock_;
+
+  DISALLOW_COPY_AND_ASSIGN(ResourceDownloader);
 };
 
 }  // namespace download

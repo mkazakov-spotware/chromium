@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,25 +18,24 @@
 #include "ash/public/cpp/assistant/controller/assistant_suggestions_controller.h"
 #include "ash/public/cpp/assistant/controller/assistant_ui_controller.h"
 #include "ash/strings/grit/ash_strings.h"
-#include "ash/style/ash_color_id.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/color/color_provider.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/box_layout.h"
-#include "ui/views/layout/table_layout_view.h"
+#include "ui/views/layout/grid_layout.h"
 
 namespace ash {
 
 namespace {
 
-using assistant::AssistantSuggestion;
-using assistant::AssistantSuggestionType;
+using chromeos::assistant::AssistantSuggestion;
+using chromeos::assistant::AssistantSuggestionType;
 
 // Greeting.
 constexpr int kGreetingLabelLineHeight = 28;
@@ -49,6 +48,7 @@ constexpr int kIntroLabelSizeDelta = 2;
 
 // Suggestions.
 constexpr int kSuggestionsColumnCount = 3;
+constexpr int kSuggestionsColumnSetId = 1;
 constexpr int kSuggestionsMaxCount = 6;
 constexpr int kSuggestionsMarginDip = 16;
 constexpr int kSuggestionsMarginTopDip = 32;
@@ -115,7 +115,7 @@ AssistantOnboardingView::AssistantOnboardingView(
   SetID(AssistantViewID::kOnboardingView);
   InitLayout();
 
-  assistant_controller_observation_.Observe(AssistantController::Get());
+  assistant_controller_observer_.Add(AssistantController::Get());
   AssistantSuggestionsController::Get()->GetModel()->AddObserver(this);
   AssistantUiController::Get()->GetModel()->AddObserver(this);
 }
@@ -140,21 +140,10 @@ void AssistantOnboardingView::ChildPreferredSizeChanged(views::View* child) {
   PreferredSizeChanged();
 }
 
-void AssistantOnboardingView::OnThemeChanged() {
-  views::View::OnThemeChanged();
-
-  SkColor greeting_color =
-      GetColorProvider()->GetColor(kColorAshAssistantGreetingEnabled);
-  greeting_->SetEnabledColor(greeting_color);
-  intro_->SetEnabledColor(greeting_color);
-}
-
 void AssistantOnboardingView::OnAssistantControllerDestroying() {
   AssistantUiController::Get()->GetModel()->RemoveObserver(this);
   AssistantSuggestionsController::Get()->GetModel()->RemoveObserver(this);
-  DCHECK(assistant_controller_observation_.IsObservingSource(
-      AssistantController::Get()));
-  assistant_controller_observation_.Reset();
+  assistant_controller_observer_.Remove(AssistantController::Get());
 }
 
 void AssistantOnboardingView::OnOnboardingSuggestionsChanged(
@@ -165,8 +154,8 @@ void AssistantOnboardingView::OnOnboardingSuggestionsChanged(
 void AssistantOnboardingView::OnUiVisibilityChanged(
     AssistantVisibility new_visibility,
     AssistantVisibility old_visibility,
-    absl::optional<AssistantEntryPoint> entry_point,
-    absl::optional<AssistantExitPoint> exit_point) {
+    base::Optional<AssistantEntryPoint> entry_point,
+    base::Optional<AssistantExitPoint> exit_point) {
   if (new_visibility != AssistantVisibility::kVisible)
     return;
 
@@ -179,11 +168,13 @@ void AssistantOnboardingView::OnUiVisibilityChanged(
 void AssistantOnboardingView::InitLayout() {
   SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical,
-      gfx::Insets::VH(0, assistant::ui::kHorizontalMargin)));
+      gfx::Insets(0, kHorizontalMarginDip)));
 
   // Greeting.
   greeting_ = AddChildView(std::make_unique<views::Label>());
   greeting_->SetAutoColorReadabilityEnabled(false);
+  greeting_->SetBackground(views::CreateSolidBackground(SK_ColorWHITE));
+  greeting_->SetEnabledColor(kTextColorPrimary);
   greeting_->SetFontList(assistant::ui::GetDefaultFontList()
                              .DeriveWithSizeDelta(kGreetingLabelSizeDelta)
                              .DeriveWithWeight(gfx::Font::Weight::MEDIUM));
@@ -192,42 +183,46 @@ void AssistantOnboardingView::InitLayout() {
   greeting_->SetText(base::UTF8ToUTF16(GetGreetingMessage(delegate_)));
 
   // Intro.
-  intro_ = AddChildView(std::make_unique<views::Label>());
-  intro_->SetAutoColorReadabilityEnabled(false);
-  intro_->SetBorder(views::CreateEmptyBorder(
-      gfx::Insets::TLBR(kIntroLabelMarginTopDip, 0, 0, 0)));
-  intro_->SetFontList(assistant::ui::GetDefaultFontList()
-                          .DeriveWithSizeDelta(kIntroLabelSizeDelta)
-                          .DeriveWithWeight(gfx::Font ::Weight::MEDIUM));
-  intro_->SetHorizontalAlignment(gfx::HorizontalAlignment::ALIGN_LEFT);
-  intro_->SetLineHeight(kIntroLabelLineHeight);
-  intro_->SetMultiLine(true);
-  intro_->SetText(
+  auto intro = std::make_unique<views::Label>();
+  intro->SetAutoColorReadabilityEnabled(false);
+  intro->SetBackground(views::CreateSolidBackground(SK_ColorWHITE));
+  intro->SetBorder(views::CreateEmptyBorder(kIntroLabelMarginTopDip, 0, 0, 0));
+  intro->SetEnabledColor(kTextColorPrimary);
+  intro->SetFontList(assistant::ui::GetDefaultFontList()
+                         .DeriveWithSizeDelta(kIntroLabelSizeDelta)
+                         .DeriveWithWeight(gfx::Font ::Weight::MEDIUM));
+  intro->SetHorizontalAlignment(gfx::HorizontalAlignment::ALIGN_LEFT);
+  intro->SetLineHeight(kIntroLabelLineHeight);
+  intro->SetMultiLine(true);
+  intro->SetText(
       l10n_util::GetStringUTF16(IDS_ASSISTANT_BETTER_ONBOARDING_INTRO));
+  AddChildView(std::move(intro));
 
   // Suggestions.
   UpdateSuggestions();
 }
 
 void AssistantOnboardingView::UpdateSuggestions() {
-  if (table_)
-    RemoveChildViewT(table_);
+  if (grid_)
+    RemoveChildViewT(grid_);
 
-  table_ = AddChildView(std::make_unique<views::TableLayoutView>());
-  table_->SetBorder(views::CreateEmptyBorder(
-      gfx::Insets::TLBR(kSuggestionsMarginTopDip, 0, 0, 0)));
+  grid_ = AddChildView(std::make_unique<views::View>());
+  grid_->SetBorder(views::CreateEmptyBorder(kSuggestionsMarginTopDip, 0, 0, 0));
+
+  auto* layout = grid_->SetLayoutManager(std::make_unique<views::GridLayout>());
+  auto* columns = layout->AddColumnSet(kSuggestionsColumnSetId);
 
   // Initialize columns.
   for (int i = 0; i < kSuggestionsColumnCount; ++i) {
     if (i > 0) {
-      table_->AddPaddingColumn(
-          /*horizontal_resize=*/views::TableLayout::kFixedSize,
+      columns->AddPaddingColumn(
+          /*resize_percent=*/views::GridLayout::kFixedSize,
           /*width=*/kSuggestionsMarginDip);
     }
-    table_->AddColumn(
-        /*h_align=*/views::LayoutAlignment::kStretch,
-        /*v_align=*/views::LayoutAlignment::kStretch, /*horizontal_resize=*/1.0,
-        /*size_type=*/views::TableLayout::ColumnSize::kFixed,
+    columns->AddColumn(
+        /*h_align=*/views::GridLayout::Alignment::FILL,
+        /*v_align=*/views::GridLayout::Alignment::FILL, /*resize_percent=*/1.0,
+        /*size_type=*/views::GridLayout::ColumnSize::kFixed,
         /*fixed_width=*/0, /*min_width=*/0);
   }
 
@@ -240,14 +235,17 @@ void AssistantOnboardingView::UpdateSuggestions() {
   for (size_t i = 0; i < suggestions.size() && i < kSuggestionsMaxCount; ++i) {
     if (i % kSuggestionsColumnCount == 0) {
       if (i > 0) {
-        table_->AddPaddingRow(
-            /*vertical_resize=*/views::TableLayout::kFixedSize,
-            /*height=*/kSuggestionsMarginDip);
+        layout->StartRowWithPadding(
+            /*vertical_resize=*/views::GridLayout::kFixedSize,
+            /*column_set_id=*/kSuggestionsColumnSetId,
+            /*padding_resize=*/views::GridLayout::kFixedSize,
+            /*padding=*/kSuggestionsMarginDip);
+      } else {
+        layout->StartRow(/*vertical_resize=*/views::GridLayout::kFixedSize,
+                         /*column_set_id=*/kSuggestionsColumnSetId);
       }
-      table_->AddRows(/*n=*/1,
-                      /*vertical_resize=*/views::TableLayout::kFixedSize);
     }
-    table_->AddChildView(std::make_unique<AssistantOnboardingSuggestionView>(
+    layout->AddView(std::make_unique<AssistantOnboardingSuggestionView>(
         delegate_, suggestions.at(i), i));
   }
 }

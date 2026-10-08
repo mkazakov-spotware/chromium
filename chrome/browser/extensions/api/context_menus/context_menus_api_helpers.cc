@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,11 +46,11 @@ MenuItem* GetParent(MenuItem::Id parent_id,
   if (!parent) {
     *error = ErrorUtils::FormatErrorMessage(
         kCannotFindItemError, GetIDString(parent_id));
-    return nullptr;
+    return NULL;
   }
   if (parent->type() != MenuItem::NORMAL) {
     *error = kParentsMustBeNormalError;
-    return nullptr;
+    return NULL;
   }
   return parent;
 }
@@ -58,8 +58,8 @@ MenuItem* GetParent(MenuItem::Id parent_id,
 MenuItem::ContextList GetContexts(const std::vector<
     extensions::api::context_menus::ContextType>& in_contexts) {
   MenuItem::ContextList contexts;
-  for (auto context : in_contexts) {
-    switch (context) {
+  for (size_t i = 0; i < in_contexts.size(); ++i) {
+    switch (in_contexts[i]) {
       case extensions::api::context_menus::CONTEXT_TYPE_ALL:
         contexts.Add(extensions::MenuItem::ALL);
         break;

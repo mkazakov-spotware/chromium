@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -51,7 +51,7 @@ Display ScreenBase::GetDisplayNearestPoint(const gfx::Point& point) const {
 }
 
 int ScreenBase::GetNumDisplays() const {
-  return static_cast<int>(GetAllDisplays().size());
+  return static_cast<int>(display_list_.displays().size());
 }
 
 const std::vector<Display>& ScreenBase::GetAllDisplays() const {
@@ -73,10 +73,6 @@ void ScreenBase::AddObserver(DisplayObserver* observer) {
 
 void ScreenBase::RemoveObserver(DisplayObserver* observer) {
   display_list_.RemoveObserver(observer);
-}
-
-bool ScreenBase::HasDisplayObservers() const {
-  return !display_list_.observers()->empty();
 }
 
 void ScreenBase::SetPanelRotationForTesting(int64_t display_id,

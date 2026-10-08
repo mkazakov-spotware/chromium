@@ -1,11 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // https://w3c.github.io/battery/#the-batterymanager-interface
 [
     ActiveScriptWrappable,
-    SecureContext,
     Exposed=Window
 ] interface BatteryManager : EventTarget {
     [HighEntropy=Direct, Measure] readonly attribute boolean charging;

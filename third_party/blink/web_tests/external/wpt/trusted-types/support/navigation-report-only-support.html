@@ -5,8 +5,7 @@
 <p>Support page for trusted-types-navigation-report-only.*.html tests.</p>
 <a id="anchor" href="#">link</a>
 <script>
-  const params = new URLSearchParams(location.search);
-  if (!!params.get("defaultpolicy")) {
+  if (location.search == "?defaultpolicy") {
     trustedTypes.createPolicy("default", {
         createScript: s => s.replace("continue", "defaultpolicywashere"),
     });
@@ -37,17 +36,9 @@
   // won't disturb delivery of that event to the opener.
   const anchor = document.getElementById("anchor");
   anchor.href = target;
-
-  if (!!params.get("frame")) {
-    const frame = document.createElement("iframe");
-    frame.src = "frame-without-trusted-types.html";
-    frames.name = "frame";
-    document.body.appendChild(frame);
-    anchor.target = "frame";
-  }
-
   if (!location.hash) {
     document.addEventListener("DOMContentLoaded", _ => anchor.click());
   }
 </script>
 </body>
+

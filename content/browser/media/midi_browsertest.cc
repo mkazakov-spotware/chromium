@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,23 +23,25 @@ class MidiBrowserTest : public ContentBrowserTest {
   ~MidiBrowserTest() override {}
 
   void NavigateAndCheckResult(const std::string& path) {
-    const std::u16string expected = u"pass";
+    const base::string16 expected = base::ASCIIToUTF16("pass");
     content::TitleWatcher watcher(shell()->web_contents(), expected);
-    const std::u16string failed = u"fail";
+    const base::string16 failed = base::ASCIIToUTF16("fail");
     watcher.AlsoWaitForTitle(failed);
 
     EXPECT_TRUE(NavigateToURL(shell(), https_test_server_->GetURL(path)));
 
-    const std::u16string result = watcher.WaitAndGetTitle();
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+    const base::string16 result = watcher.WaitAndGetTitle();
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
     // Try does not allow accessing /dev/snd/seq, and it results in a platform
     // specific initialization error. See http://crbug.com/371230.
     // Also, Chromecast does not support the feature and results in
     // NotSupportedError.
     EXPECT_TRUE(result == failed || result == expected);
     if (result == failed) {
-      std::string error_message =
-          EvalJs(shell(), "error_message").ExtractString();
+      std::string error_message;
+      ASSERT_TRUE(ExecuteScriptAndExtractString(
+          shell(), "domAutomationController.send(error_message)",
+          &error_message));
       EXPECT_TRUE("Platform dependent initialization failed." ==
                       error_message ||
                   "The implementation did not support the requested type of "
@@ -59,22 +61,11 @@ class MidiBrowserTest : public ContentBrowserTest {
   std::unique_ptr<net::EmbeddedTestServer> https_test_server_;
 };
 
-// TODO(https://crbug.com/1302995): MidiManager has no Fuchsia implementation.
-#if BUILDFLAG(IS_FUCHSIA)
-#define MAYBE_RequestMIDIAccess DISABLED_RequestMIDIAccess
-#else
-#define MAYBE_RequestMIDIAccess RequestMIDIAccess
-#endif
-IN_PROC_BROWSER_TEST_F(MidiBrowserTest, MAYBE_RequestMIDIAccess) {
+IN_PROC_BROWSER_TEST_F(MidiBrowserTest, RequestMIDIAccess) {
   NavigateAndCheckResult("/midi/request_midi_access.html");
 }
 
-#if BUILDFLAG(IS_FUCHSIA)
-#define MAYBE_SubscribeAll DISABLED_SubscribeAll
-#else
-#define MAYBE_SubscribeAll SubscribeAll
-#endif
-IN_PROC_BROWSER_TEST_F(MidiBrowserTest, MAYBE_SubscribeAll) {
+IN_PROC_BROWSER_TEST_F(MidiBrowserTest, SubscribeAll) {
   NavigateAndCheckResult("/midi/subscribe_all.html");
 }
 

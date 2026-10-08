@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/visitor.h"
 #include "v8/include/v8.h"
 
 namespace blink {
@@ -18,15 +17,19 @@ class ReadableStream;
 class ScriptPromise;
 class ScriptState;
 class StreamPromiseResolver;
+class Visitor;
 
+// The specification sometimes treats ReadableStreamDefaultReader and
+// ReadableStreamBYOBReader generically. Currently ReadableStreamBYOBReader
+// isn't implemented in Blink. In order to make the generic operations align
+// with the standard, ReadableStreamDefaultReader is implemented by the
+// ReadableStreamGenericReader class.
+// TODO(ricea): Refactor this when implementing ReadableStreamBYOBReader.
 class CORE_EXPORT ReadableStreamGenericReader : public ScriptWrappable {
 
  public:
   ReadableStreamGenericReader();
   ~ReadableStreamGenericReader() override;
-
-  virtual bool IsDefaultReader() const = 0;
-  virtual bool IsBYOBReader() const = 0;
 
   // https://streams.spec.whatwg.org/#generic-reader-closed
   ScriptPromise closed(ScriptState*) const;

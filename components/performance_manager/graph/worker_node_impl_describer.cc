@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -48,7 +48,8 @@ base::Value WorkerNodeImplDescriber::DescribeWorkerNodeData(
   ret.SetKey("url", base::Value(impl->url().spec()));
   ret.SetKey("worker_type",
              base::Value(WorkerTypeToString(impl->worker_type())));
-  ret.SetKey("priority", PriorityAndReasonToValue(impl->priority_and_reason()));
+  ret.SetKey("priority",
+             PriorityAndReasonToValue(impl->priority_and_reason_.value()));
 
   return ret;
 }

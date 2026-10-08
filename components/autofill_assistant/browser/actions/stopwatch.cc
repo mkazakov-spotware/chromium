@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,9 @@
 
 namespace autofill_assistant {
 
-Stopwatch::Stopwatch() = default;
+Stopwatch::Stopwatch() {
+  elapsed_time_.FromMilliseconds(0);
+}
 
 bool Stopwatch::Start() {
   if (running_) {
@@ -57,7 +59,7 @@ void Stopwatch::RemoveTime(base::TimeDelta time) {
   if (elapsed_time_ > time) {
     elapsed_time_ -= time;
   } else {
-    elapsed_time_ = base::Milliseconds(0);
+    elapsed_time_ = base::TimeDelta::FromMilliseconds(0);
     if (running_) {
       start_time_ += (time - elapsed_time_);
     }
@@ -70,7 +72,7 @@ void Stopwatch::RemoveTime(const Stopwatch& other) {
 
 void Stopwatch::Reset() {
   Stop();
-  elapsed_time_ = base::Milliseconds(0);
+  elapsed_time_ = base::TimeDelta::FromMilliseconds(0);
 }
 
 base::TimeDelta Stopwatch::TotalElapsed() const {
@@ -79,9 +81,10 @@ base::TimeDelta Stopwatch::TotalElapsed() const {
 
 base::TimeDelta Stopwatch::LastElapsedAt(base::TimeTicks time) const {
   if (!running_) {
-    return base::Milliseconds(0);
+    return base::TimeDelta::FromMilliseconds(0);
   }
-  return time > start_time_ ? time - start_time_ : base::Milliseconds(0);
+  return time > start_time_ ? time - start_time_
+                            : base::TimeDelta::FromMilliseconds(0);
 }
 
 bool Stopwatch::IsRunning() const {

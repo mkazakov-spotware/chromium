@@ -1,14 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_TABS_TAB_ICON_H_
 #define CHROME_BROWSER_UI_VIEWS_TABS_TAB_ICON_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "chrome/browser/ui/tabs/tab_network_state.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/gfx/animation/linear_animation.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/paint_throbber.h"
@@ -19,6 +17,7 @@ namespace base {
 class TickClock;
 }
 
+class GURL;
 struct TabRendererData;
 
 // View that displays the favicon, sad tab, throbber, and attention indicator
@@ -31,8 +30,6 @@ struct TabRendererData;
 // the bottom).
 class TabIcon : public views::View, public views::AnimationDelegateViews {
  public:
-  METADATA_HEADER(TabIcon);
-
   // Attention indicator types (use as a bitmask). There is only one visual
   // representation, but the state of each of these is tracked separately and
   // the indicator is shown as long as one is enabled.
@@ -54,8 +51,8 @@ class TabIcon : public views::View, public views::AnimationDelegateViews {
   // will be shown as long as any of the types are enabled.
   void SetAttention(AttentionType type, bool enabled);
 
-  bool GetShowingLoadingAnimation() const;
-  bool GetShowingAttentionIndicator() const;
+  bool ShowingLoadingAnimation() const;
+  bool ShowingAttentionIndicator() const;
 
   // Sets whether this object can paint to a layer. When the loading animation
   // is running, painting to a layer saves painting overhead. But if the tab is
@@ -97,10 +94,10 @@ class TabIcon : public views::View, public views::AnimationDelegateViews {
   void MaybePaintFavicon(gfx::Canvas* canvas,
                          const gfx::ImageSkia& icon,
                          const gfx::Rect& bounds);
-  bool GetNonDefaultFavicon() const;
+  bool HasNonDefaultFavicon() const;
 
-  // Sets the icon.
-  void SetIcon(const gfx::ImageSkia& icon, bool should_themify_favicon);
+  // Sets the icon. Depending on the URL the icon may be automatically themed.
+  void SetIcon(const GURL& url, const gfx::ImageSkia& favicon);
 
   // For certain types of tabs the loading animation is not desired so the
   // caller can set inhibit_loading_animation to true. When false, the loading
@@ -108,20 +105,21 @@ class TabIcon : public views::View, public views::AnimationDelegateViews {
   void SetNetworkState(TabNetworkState network_state);
 
   // Sets whether the tab should paint as crashed or not.
-  void SetCrashed(bool crashed);
-  bool GetCrashed() const;
+  void SetIsCrashed(bool is_crashed);
 
   // Creates or destroys the layer according to the current animation state and
   // whether a layer can be used.
   void RefreshLayer();
 
-  gfx::ImageSkia ThemeFavicon(const gfx::ImageSkia& source);
+  void UpdateThemedFavicon();
 
-  raw_ptr<const base::TickClock> clock_;
+  gfx::ImageSkia ThemeImage(const gfx::ImageSkia& source);
+
+  const base::TickClock* clock_;
 
   gfx::ImageSkia favicon_;
   TabNetworkState network_state_ = TabNetworkState::kNone;
-  bool crashed_ = false;
+  bool is_crashed_ = false;
   int attention_types_ = 0;  // Bitmask of AttentionType.
 
   // Value from last call to SetNetworkState. When true, the network loading

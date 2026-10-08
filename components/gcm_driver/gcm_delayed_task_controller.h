@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 
 namespace gcm {
 
@@ -15,10 +16,6 @@ namespace gcm {
 class GCMDelayedTaskController {
  public:
   GCMDelayedTaskController();
-
-  GCMDelayedTaskController(const GCMDelayedTaskController&) = delete;
-  GCMDelayedTaskController& operator=(const GCMDelayedTaskController&) = delete;
-
   ~GCMDelayedTaskController();
 
   // Adds a task that will be invoked once we're ready.
@@ -37,6 +34,8 @@ class GCMDelayedTaskController {
   bool ready_;
 
   std::vector<base::OnceClosure> delayed_tasks_;
+
+  DISALLOW_COPY_AND_ASSIGN(GCMDelayedTaskController);
 };
 
 }  // namespace gcm

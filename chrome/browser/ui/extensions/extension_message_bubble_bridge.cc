@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,21 +35,21 @@ bool ExtensionMessageBubbleBridge::IsPolicyIndicationNeeded(
          extensions::Manifest::IsPolicyLocation(extension->location());
 }
 
-std::u16string ExtensionMessageBubbleBridge::GetHeadingText() {
+base::string16 ExtensionMessageBubbleBridge::GetHeadingText() {
   return controller_->delegate()->GetTitle();
 }
 
-std::u16string ExtensionMessageBubbleBridge::GetBodyText(
+base::string16 ExtensionMessageBubbleBridge::GetBodyText(
     bool anchored_to_action) {
   return controller_->delegate()->GetMessageBody(
       anchored_to_action, controller_->GetExtensionIdList().size());
 }
 
-std::u16string ExtensionMessageBubbleBridge::GetItemListText() {
+base::string16 ExtensionMessageBubbleBridge::GetItemListText() {
   return controller_->GetExtensionListForDisplay();
 }
 
-std::u16string ExtensionMessageBubbleBridge::GetActionButtonText() {
+base::string16 ExtensionMessageBubbleBridge::GetActionButtonText() {
   const extensions::ExtensionIdList& list = controller_->GetExtensionIdList();
   DCHECK(!list.empty());
   // Normally, the extension is enabled, but this might not be the case (such as
@@ -64,11 +64,11 @@ std::u16string ExtensionMessageBubbleBridge::GetActionButtonText() {
   // An empty string is returned so that we don't display the button prompting
   // to remove policy-installed extensions.
   if (IsPolicyIndicationNeeded(extension))
-    return std::u16string();
+    return base::string16();
   return controller_->delegate()->GetActionButtonLabel();
 }
 
-std::u16string ExtensionMessageBubbleBridge::GetDismissButtonText() {
+base::string16 ExtensionMessageBubbleBridge::GetDismissButtonText() {
   return controller_->delegate()->GetDismissButtonLabel();
 }
 
@@ -85,8 +85,8 @@ std::string ExtensionMessageBubbleBridge::GetAnchorActionId() {
 }
 
 void ExtensionMessageBubbleBridge::OnBubbleShown(
-    base::OnceClosure close_bubble_callback) {
-  controller_->OnShown(std::move(close_bubble_callback));
+    const base::Closure& close_bubble_callback) {
+  controller_->OnShown(close_bubble_callback);
 }
 
 void ExtensionMessageBubbleBridge::OnBubbleClosed(CloseAction action) {

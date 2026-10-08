@@ -1,8 +1,6 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
-import("//testing/libfuzzer/fuzzer_test.gni")
 
 static_library("client_update_protocol") {
   sources = [
@@ -25,13 +23,5 @@ source_set("unit_tests") {
     "//base",
     "//crypto",
     "//testing/gtest",
-  ]
-}
-
-fuzzer_test("ecdsa_fuzzer") {
-  sources = [ "ecdsa_fuzzer.cc" ]
-  deps = [
-    ":client_update_protocol",
-    "//base",
   ]
 }

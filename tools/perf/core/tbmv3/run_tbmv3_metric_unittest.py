@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Integration tests for run_tbmv3_metric.py.
@@ -74,15 +74,3 @@ class RunTbmv3MetricIntegrationTests(unittest.TestCase):
             '--metric', name,
             '--outfile', self.outfile_path,
         ])
-
-  def testRunInternalTBMv3Metric(self):
-    """Run metric that is compiled into Trace Processor."""
-    # This won't produce any histograms because trace_metadata proto is not
-    # annotated. Check only that it doesn't throw errors. 'trace_metadata'
-    # metric is relatively unlikely to be removed from Perfetto, but if it
-    # is, we will have to pick a different metric.
-    run_tbmv3_metric.Main([
-        '--trace', self.trace_path,
-        '--metric', 'trace_metadata',
-        '--outfile', self.outfile_path,
-    ])

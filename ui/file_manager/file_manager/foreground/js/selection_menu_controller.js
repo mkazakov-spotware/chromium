@@ -1,22 +1,24 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {queryRequiredElement} from '../../common/js/dom_utils.js';
-import {util} from '../../common/js/util.js';
-import {FilesTooltip} from '../elements/files_tooltip.js';
-
-import {Menu} from './ui/menu.js';
-import {MultiMenuButton} from './ui/multi_menu_button.js';
-
-export class SelectionMenuController {
+class SelectionMenuController {
   /**
-   * @param {!MultiMenuButton} selectionMenuButton
-   * @param {!Menu} menu
+   * @param {!cr.ui.MultiMenuButton} selectionMenuButton
+   * @param {!cr.ui.Menu} menu
    */
   constructor(selectionMenuButton, menu) {
     /**
-     * @type {!Menu}
+     * @type {!FilesToggleRippleElement}
+     * @const
+     * @private
+     */
+    this.toggleRipple_ =
+        /** @type {!FilesToggleRippleElement} */ (
+            queryRequiredElement('files-toggle-ripple', selectionMenuButton));
+
+    /**
+     * @type {!cr.ui.Menu}
      * @const
      */
     this.menu_ = menu;
@@ -32,9 +34,9 @@ export class SelectionMenuController {
    */
   onShowMenu_() {
     this.menu_.classList.toggle('toolbar-menu', true);
+    this.toggleRipple_.activated = true;
     // crbug.com 752035 focus still on button, get rid of the tooltip
-    /** @type {!FilesTooltip} */ (document.querySelector('files-tooltip'))
-        .hideTooltip();
+    document.querySelector('files-tooltip').hideTooltip();
   }
 
   /**
@@ -47,5 +49,6 @@ export class SelectionMenuController {
     if (!this.menu_.classList.contains('animating')) {
       this.menu_.classList.toggle('toolbar-menu', false);
     }
+    this.toggleRipple_.activated = false;
   }
 }

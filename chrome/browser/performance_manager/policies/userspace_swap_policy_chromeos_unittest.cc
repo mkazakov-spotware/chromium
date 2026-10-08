@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,10 @@
 
 #include "base/allocator/buildflags.h"
 #include "base/system/sys_info.h"
+#include "base/task/post_task.h"
 #include "chrome/browser/performance_manager/policies/policy_features.h"
-#include "chromeos/ash/components/memory/userspace_swap/userspace_swap.h"
-#include "components/performance_manager/graph/graph_impl.h"
+#include "chrome/common/performance_manager/mojom/tcmalloc.mojom.h"
+#include "chromeos/memory/userspace_swap/userspace_swap.h"
 #include "components/performance_manager/graph/graph_impl_operations.h"
 #include "components/performance_manager/graph/page_node_impl.h"
 #include "components/performance_manager/graph/process_node_impl.h"
@@ -26,7 +27,7 @@ namespace performance_manager {
 namespace policies {
 
 namespace {
-using ::ash::memory::userspace_swap::UserspaceSwapConfig;
+using chromeos::memory::userspace_swap::UserspaceSwapConfig;
 using testing::_;
 using testing::Invoke;
 using testing::Return;
@@ -35,10 +36,6 @@ using testing::StrictMock;
 class MockUserspaceSwapPolicy : public UserspaceSwapPolicy {
  public:
   MockUserspaceSwapPolicy() : UserspaceSwapPolicy(InitTestConfig()) {}
-
-  MockUserspaceSwapPolicy(const MockUserspaceSwapPolicy&) = delete;
-  MockUserspaceSwapPolicy& operator=(const MockUserspaceSwapPolicy&) = delete;
-
   ~MockUserspaceSwapPolicy() override {}
 
   MOCK_METHOD0(SwapNodesOnGraph, void(void));
@@ -68,6 +65,10 @@ class MockUserspaceSwapPolicy : public UserspaceSwapPolicy {
     return UserspaceSwapPolicy::SwapNodesOnGraph();
   }
 
+  base::MemoryPressureListener& listener() {
+    return memory_pressure_listener_.value();
+  }
+
   base::TimeTicks get_last_graph_walk() { return last_graph_walk_; }
   void set_last_graph_walk(base::TimeTicks t) { last_graph_walk_ = t; }
 
@@ -82,25 +83,23 @@ class MockUserspaceSwapPolicy : public UserspaceSwapPolicy {
     memset(&test_config_, 0, sizeof(test_config_));
 
     test_config_.enabled = true;
-    test_config_.graph_walk_frequency = base::Seconds(10);
-    test_config_.invisible_time_before_swap = base::Seconds(30);
-    test_config_.process_swap_frequency = base::Seconds(60);
+    test_config_.graph_walk_frequency = base::TimeDelta::FromSeconds(10);
+    test_config_.invisible_time_before_swap = base::TimeDelta::FromSeconds(30);
+    test_config_.process_swap_frequency = base::TimeDelta::FromSeconds(60);
     test_config_.swap_on_freeze = true;
     test_config_.swap_on_moderate_pressure = true;
     return test_config_;
   }
 
   UserspaceSwapConfig test_config_ = {};
+
+  DISALLOW_COPY_AND_ASSIGN(MockUserspaceSwapPolicy);
 };
 
 class UserspaceSwapPolicyTest : public ::testing::Test {
  public:
   UserspaceSwapPolicyTest()
       : browser_env_(base::test::TaskEnvironment::TimeSource::MOCK_TIME) {}
-
-  UserspaceSwapPolicyTest(const UserspaceSwapPolicyTest&) = delete;
-  UserspaceSwapPolicyTest& operator=(const UserspaceSwapPolicyTest&) = delete;
-
   ~UserspaceSwapPolicyTest() override {}
 
   void SetUp() override {
@@ -115,14 +114,11 @@ class UserspaceSwapPolicyTest : public ::testing::Test {
     page_node_ = CreateNode<PageNodeImpl>();
     frame_node_ =
         graph()->CreateFrameNodeAutoId(process_node().get(), page_node().get());
-    system_node_ = std::make_unique<TestNodeWrapper<SystemNodeImpl>>(
-        TestNodeWrapper<SystemNodeImpl>::Create(graph()));
   }
 
   void AttachProcess() {
     // Create a process so this process node doesn't bail on Process.IsValid();
-    process_node()->SetProcess(base::Process::Current(),
-                               /* launch_time=*/base::TimeTicks::Now());
+    process_node()->SetProcess(base::Process::Current(), base::Time::Now());
   }
 
   void TearDown() override {
@@ -132,7 +128,6 @@ class UserspaceSwapPolicyTest : public ::testing::Test {
     frame_node_.reset();
     page_node_.reset();
     process_node_.reset();
-    system_node_.reset();
     graph_.TearDown();
   }
 
@@ -158,9 +153,6 @@ class UserspaceSwapPolicyTest : public ::testing::Test {
   TestNodeWrapper<ProcessNodeImpl>& process_node() { return process_node_; }
   TestNodeWrapper<PageNodeImpl>& page_node() { return page_node_; }
   TestNodeWrapper<FrameNodeImpl>& frame_node() { return frame_node_; }
-  TestNodeWrapper<SystemNodeImpl>& system_node() {
-    return *(system_node_.get());
-  }
 
   void FastForwardBy(base::TimeDelta delta) {
     browser_env()->FastForwardBy(delta);
@@ -176,7 +168,8 @@ class UserspaceSwapPolicyTest : public ::testing::Test {
   TestNodeWrapper<ProcessNodeImpl> process_node_;
   TestNodeWrapper<PageNodeImpl> page_node_;
   TestNodeWrapper<FrameNodeImpl> frame_node_;
-  std::unique_ptr<TestNodeWrapper<SystemNodeImpl>> system_node_;
+
+  DISALLOW_COPY_AND_ASSIGN(UserspaceSwapPolicyTest);
 };
 
 // This test validates that we only initialize a ProcessNode once.
@@ -193,7 +186,7 @@ TEST_F(UserspaceSwapPolicyTest, ValidateInitializeProcessOnlyOnce) {
 // This test validates that we only walk the graph under moderate pressure.
 TEST_F(UserspaceSwapPolicyTest, ValidateGraphWalkFrequencyNoPressure) {
   auto last_walk_time = base::TimeTicks::Now();
-  policy()->config().graph_walk_frequency = base::Seconds(1);
+  policy()->config().graph_walk_frequency = base::TimeDelta::FromSeconds(1);
   policy()->config().swap_on_moderate_pressure = true;
   policy()->set_last_graph_walk(last_walk_time);
 
@@ -211,24 +204,24 @@ TEST_F(UserspaceSwapPolicyTest, ValidateGraphWalkFrequencyNoPressure) {
 // This test validates that we only call WalkGraph every graph walk frequency
 // seconds when under moderate pressure.
 TEST_F(UserspaceSwapPolicyTest, ValidateGraphWalkFrequencyModeratePressure) {
-  policy()->config().graph_walk_frequency = base::Seconds(60);
+  policy()->config().graph_walk_frequency = base::TimeDelta::FromSeconds(60);
 
   // We expect that we will call SwapNodesOnGraph only 2 times.
   EXPECT_CALL(*policy(), SwapNodesOnGraph()).Times(2);
 
   // Triger memory pressure and we should observe the walk since we've never
   // walked before.
-  system_node()->OnMemoryPressureForTesting(
+  policy()->listener().SimulatePressureNotification(
       base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_MODERATE);
   auto initial_walk_time = base::TimeTicks::Now();
-  FastForwardBy(base::Seconds(1));
+  FastForwardBy(base::TimeDelta::FromSeconds(1));
   ASSERT_EQ(initial_walk_time, policy()->get_last_graph_walk());
 
   // We will fast forward less than the graph walk frequency and confirm we
   // don't walk again even when we receive another moderate pressure
   // notification.
-  FastForwardBy(base::Seconds(1));
-  system_node()->OnMemoryPressureForTesting(
+  FastForwardBy(base::TimeDelta::FromSeconds(1));
+  policy()->listener().SimulatePressureNotification(
       base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_MODERATE);
   // Since it's been less than the graph walk frequency we don't expect to walk.
   ASSERT_EQ(initial_walk_time, policy()->get_last_graph_walk());
@@ -236,16 +229,16 @@ TEST_F(UserspaceSwapPolicyTest, ValidateGraphWalkFrequencyModeratePressure) {
   // Finally we will advance by a graph walk frequency and confirm we walk
   // again.
   FastForwardBy(policy()->config().graph_walk_frequency);
-  system_node()->OnMemoryPressureForTesting(
+  policy()->listener().SimulatePressureNotification(
       base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_MODERATE);
 
-  FastForwardBy(base::Seconds(1));
+  FastForwardBy(base::TimeDelta::FromSeconds(1));
   ASSERT_NE(initial_walk_time, policy()->get_last_graph_walk());
 }
 
 // Validate we don't swap when not eligible.
 TEST_F(UserspaceSwapPolicyTest, OnlySwapWhenEligibleToSwap) {
-  policy()->config().graph_walk_frequency = base::Seconds(60);
+  policy()->config().graph_walk_frequency = base::TimeDelta::FromSeconds(60);
 
   // Dispatch to the default swap nodes on graph implementation.
   EXPECT_CALL(*policy(), SwapNodesOnGraph())
@@ -261,9 +254,9 @@ TEST_F(UserspaceSwapPolicyTest, OnlySwapWhenEligibleToSwap) {
   EXPECT_CALL(*policy(), SwapProcessNode(process_node().get())).Times(0);
 
   // Trigger moderate memory pressure to start the graph walk.
-  system_node()->OnMemoryPressureForTesting(
+  policy()->listener().SimulatePressureNotification(
       base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_MODERATE);
-  FastForwardBy(base::Seconds(1));
+  FastForwardBy(base::TimeDelta::FromSeconds(1));
 }
 
 TEST_F(UserspaceSwapPolicyTest, OnlySwapWhenEligibleToSwapTrue) {
@@ -281,16 +274,16 @@ TEST_F(UserspaceSwapPolicyTest, OnlySwapWhenEligibleToSwapTrue) {
   EXPECT_CALL(*policy(), SwapProcessNode(process_node().get())).Times(1);
 
   // Trigger moderate memory pressure to start the graph walk.
-  system_node()->OnMemoryPressureForTesting(
+  policy()->listener().SimulatePressureNotification(
       base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_MODERATE);
-  FastForwardBy(base::Seconds(1));
+  FastForwardBy(base::TimeDelta::FromSeconds(1));
 }
 
 // This test validates that we won't swap a node when it's visible.
 TEST_F(UserspaceSwapPolicyTest, DontSwapWhenVisible) {
   // We will only swap a renderer once every 3 graph walks.
-  policy()->config().graph_walk_frequency = base::Seconds(1);
-  policy()->config().process_swap_frequency = base::Seconds(1);
+  policy()->config().graph_walk_frequency = base::TimeDelta::FromSeconds(1);
+  policy()->config().process_swap_frequency = base::TimeDelta::FromSeconds(1);
 
   EXPECT_CALL(*policy(), InitializeProcessNode(process_node().get()))
       .WillOnce(Return(true));
@@ -310,8 +303,8 @@ TEST_F(UserspaceSwapPolicyTest, DontSwapWhenVisible) {
 // This test validates that we won't swap a node when it's audible.
 TEST_F(UserspaceSwapPolicyTest, DontSwapWhenAudible) {
   // We will only swap a renderer once every 3 graph walks.
-  policy()->config().graph_walk_frequency = base::Seconds(1);
-  policy()->config().process_swap_frequency = base::Seconds(1);
+  policy()->config().graph_walk_frequency = base::TimeDelta::FromSeconds(1);
+  policy()->config().process_swap_frequency = base::TimeDelta::FromSeconds(1);
 
   EXPECT_CALL(*policy(), InitializeProcessNode(process_node().get()))
       .WillOnce(Return(true));
@@ -333,8 +326,8 @@ TEST_F(UserspaceSwapPolicyTest, DontSwapWhenAudible) {
 // This test validates that we won't swap a node when it's loading.
 TEST_F(UserspaceSwapPolicyTest, DontSwapWhenLoading) {
   // We will only swap a renderer once every 3 graph walks.
-  policy()->config().graph_walk_frequency = base::Seconds(1);
-  policy()->config().process_swap_frequency = base::Seconds(1);
+  policy()->config().graph_walk_frequency = base::TimeDelta::FromSeconds(1);
+  policy()->config().process_swap_frequency = base::TimeDelta::FromSeconds(1);
 
   EXPECT_CALL(*policy(), InitializeProcessNode(process_node().get()))
       .WillOnce(Return(true));
@@ -352,7 +345,7 @@ TEST_F(UserspaceSwapPolicyTest, DontSwapWhenLoading) {
 // the configuration allows.
 TEST_F(UserspaceSwapPolicyTest, ValidateProcessSwapFrequency) {
   // We will only swap a renderer once every 3 graph walks.
-  policy()->config().graph_walk_frequency = base::Seconds(1);
+  policy()->config().graph_walk_frequency = base::TimeDelta::FromSeconds(1);
   policy()->config().process_swap_frequency =
       3 * policy()->config().graph_walk_frequency;
 
@@ -389,7 +382,7 @@ TEST_F(UserspaceSwapPolicyTest, ValidateProcessSwapFrequency) {
   // swap.
   for (int i = 0; i < 3; ++i) {
     FastForwardBy(policy()->config().graph_walk_frequency);
-    system_node()->OnMemoryPressureForTesting(
+    policy()->listener().SimulatePressureNotification(
         base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_MODERATE);
   }
 }
@@ -398,8 +391,8 @@ TEST_F(UserspaceSwapPolicyTest, ValidateProcessSwapFrequency) {
 // is below the limit.
 TEST_F(UserspaceSwapPolicyTest, DontSwapWhenDiskSpaceTooLow) {
   // We will only swap a renderer once every 3 graph walks.
-  policy()->config().graph_walk_frequency = base::Seconds(1);
-  policy()->config().process_swap_frequency = base::Seconds(1);
+  policy()->config().graph_walk_frequency = base::TimeDelta::FromSeconds(1);
+  policy()->config().process_swap_frequency = base::TimeDelta::FromSeconds(1);
 
   policy()->config().minimum_swap_disk_space_available = 1 << 30;  // 1 GB
 
@@ -423,8 +416,8 @@ TEST_F(UserspaceSwapPolicyTest, DontSwapWhenDiskSpaceTooLow) {
 // exceeding the individual renderer limit.
 TEST_F(UserspaceSwapPolicyTest, DontSwapWhenPerRendererSwapExceeded) {
   // We will only swap a renderer once every 3 graph walks.
-  policy()->config().graph_walk_frequency = base::Seconds(1);
-  policy()->config().process_swap_frequency = base::Seconds(1);
+  policy()->config().graph_walk_frequency = base::TimeDelta::FromSeconds(1);
+  policy()->config().process_swap_frequency = base::TimeDelta::FromSeconds(1);
 
   policy()->config().renderer_maximum_disk_swap_file_size_bytes =
       128 << 20;  // 128MB
@@ -449,8 +442,8 @@ TEST_F(UserspaceSwapPolicyTest, DontSwapWhenPerRendererSwapExceeded) {
 // global limit.
 TEST_F(UserspaceSwapPolicyTest, DontSwapWhenTotalRendererSwapExceeded) {
   // We will only swap a renderer once every 3 graph walks.
-  policy()->config().graph_walk_frequency = base::Seconds(1);
-  policy()->config().process_swap_frequency = base::Seconds(1);
+  policy()->config().graph_walk_frequency = base::TimeDelta::FromSeconds(1);
+  policy()->config().process_swap_frequency = base::TimeDelta::FromSeconds(1);
 
   policy()->config().maximum_swap_disk_space_bytes = 1 << 30;  // 1 GB
 

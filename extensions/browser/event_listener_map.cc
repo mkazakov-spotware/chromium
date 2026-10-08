@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include <utility>
 
-#include "base/containers/contains.h"
 #include "base/memory/ptr_util.h"
 #include "base/values.h"
 #include "content/public/browser/render_process_host.h"
@@ -30,17 +29,10 @@ std::unique_ptr<EventListener> EventListener::ForExtension(
     const std::string& extension_id,
     content::RenderProcessHost* process,
     std::unique_ptr<base::DictionaryValue> filter) {
-  // The process parameter is nullptr when creating lazy listener.
-  // TODO(richardzh): Update lazy listener creation to either calling
-  // ForExtensionServiceWorker instead, or update this method signature to add a
-  // BrowserContext parameter.
-  content::BrowserContext* browser_context =
-      process ? process->GetBrowserContext() : nullptr;
-
-  return base::WrapUnique(new EventListener(
-      event_name, extension_id, GURL(), process, browser_context, false,
-      blink::mojom::kInvalidServiceWorkerVersionId, kMainThreadId,
-      std::move(filter)));
+  return base::WrapUnique(
+      new EventListener(event_name, extension_id, GURL(), process, false,
+                        blink::mojom::kInvalidServiceWorkerVersionId,
+                        kMainThreadId, std::move(filter)));
 }
 
 // static
@@ -55,33 +47,26 @@ std::unique_ptr<EventListener> EventListener::ForURL(
   // we dispatched events to processes more intelligently this could be avoided.
   return base::WrapUnique(new EventListener(
       event_name, ExtensionId(), url::Origin::Create(listener_url).GetURL(),
-      process, process->GetBrowserContext(), false,
-      blink::mojom::kInvalidServiceWorkerVersionId, kMainThreadId,
-      std::move(filter)));
+      process, false, blink::mojom::kInvalidServiceWorkerVersionId,
+      kMainThreadId, std::move(filter)));
 }
 
 std::unique_ptr<EventListener> EventListener::ForExtensionServiceWorker(
     const std::string& event_name,
     const std::string& extension_id,
     content::RenderProcessHost* process,
-    content::BrowserContext* browser_context,
     const GURL& service_worker_scope,
     int64_t service_worker_version_id,
     int worker_thread_id,
     std::unique_ptr<base::DictionaryValue> filter) {
   return base::WrapUnique(new EventListener(
-      event_name, extension_id, service_worker_scope, process, browser_context,
-      true, service_worker_version_id, worker_thread_id, std::move(filter)));
+      event_name, extension_id, service_worker_scope, process, true,
+      service_worker_version_id, worker_thread_id, std::move(filter)));
 }
 
 EventListener::~EventListener() {}
 
 bool EventListener::Equals(const EventListener* other) const {
-  // TODO(richardzh): compare browser_context_. We are making a change with two
-  // steps here. The first step is simply add the browser_context_ member. The
-  // next step is to compare this member and create separate lazy listeners for
-  // regular and incognito(split) context.
-
   // We don't check matcher_id equality because we want a listener with a
   // filter that hasn't been added to EventFilter to match one that is
   // equivalent but has.
@@ -92,18 +77,17 @@ bool EventListener::Equals(const EventListener* other) const {
          service_worker_version_id_ == other->service_worker_version_id_ &&
          worker_thread_id_ == other->worker_thread_id_ &&
          ((!!filter_.get()) == (!!other->filter_.get())) &&
-         (!filter_.get() || *filter_ == *other->filter_);
+         (!filter_.get() || filter_->Equals(other->filter_.get()));
 }
 
 std::unique_ptr<EventListener> EventListener::Copy() const {
   std::unique_ptr<DictionaryValue> filter_copy;
   if (filter_)
-    filter_copy = base::DictionaryValue::From(
-        base::Value::ToUniquePtrValue(filter_->Clone()));
-  return base::WrapUnique(new EventListener(
-      event_name_, extension_id_, listener_url_, process_, browser_context_,
-      is_for_service_worker_, service_worker_version_id_, worker_thread_id_,
-      std::move(filter_copy)));
+    filter_copy = filter_->CreateDeepCopy();
+  return base::WrapUnique(
+      new EventListener(event_name_, extension_id_, listener_url_, process_,
+                        is_for_service_worker_, service_worker_version_id_,
+                        worker_thread_id_, std::move(filter_copy)));
 }
 
 bool EventListener::IsLazy() const {
@@ -121,11 +105,14 @@ void EventListener::MakeLazy() {
   process_ = nullptr;
 }
 
+content::BrowserContext* EventListener::GetBrowserContext() const {
+  return process_ ? process_->GetBrowserContext() : nullptr;
+}
+
 EventListener::EventListener(const std::string& event_name,
                              const std::string& extension_id,
                              const GURL& listener_url,
                              content::RenderProcessHost* process,
-                             content::BrowserContext* browser_context,
                              bool is_for_service_worker,
                              int64_t service_worker_version_id,
                              int worker_thread_id,
@@ -134,7 +121,6 @@ EventListener::EventListener(const std::string& event_name,
       extension_id_(extension_id),
       listener_url_(listener_url),
       process_(process),
-      browser_context_(browser_context),
       is_for_service_worker_(is_for_service_worker),
       service_worker_version_id_(service_worker_version_id),
       worker_thread_id_(worker_thread_id),
@@ -176,10 +162,8 @@ bool EventListenerMap::AddListener(std::unique_ptr<EventListener> listener) {
 
 std::unique_ptr<EventMatcher> EventListenerMap::ParseEventMatcher(
     DictionaryValue* filter_dict) {
-  return std::make_unique<EventMatcher>(
-      base::DictionaryValue::From(
-          base::Value::ToUniquePtrValue(filter_dict->Clone())),
-      MSG_ROUTING_NONE);
+  return std::make_unique<EventMatcher>(filter_dict->CreateDeepCopy(),
+                                        MSG_ROUTING_NONE);
 }
 
 bool EventListenerMap::RemoveListener(const EventListener* listener) {
@@ -217,19 +201,6 @@ bool EventListenerMap::HasListenerForExtension(
 
   for (const auto& listener_to_search : it->second) {
     if (listener_to_search->extension_id() == extension_id)
-      return true;
-  }
-  return false;
-}
-
-bool EventListenerMap::HasListenerForURL(const GURL& url,
-                                         const std::string& event_name) const {
-  auto it = listeners_.find(event_name);
-  if (it == listeners_.end())
-    return false;
-
-  for (const auto& listener_to_search : it->second) {
-    if (url::IsSameOriginWith(listener_to_search->listener_url(), url))
       return true;
   }
   return false;
@@ -296,12 +267,11 @@ void EventListenerMap::LoadUnfilteredLazyListeners(
 }
 
 void EventListenerMap::LoadUnfilteredWorkerListeners(
-    content::BrowserContext* browser_context,
     const ExtensionId& extension_id,
     const std::set<std::string>& event_names) {
   for (const auto& name : event_names) {
     AddListener(EventListener::ForExtensionServiceWorker(
-        name, extension_id, nullptr, browser_context,
+        name, extension_id, nullptr,
         // TODO(lazyboy): We need to store correct scopes of each worker into
         // ExtensionPrefs for events. This currently assumes all workers are
         // registered in the '/' scope. https://crbug.com/773103.
@@ -311,35 +281,31 @@ void EventListenerMap::LoadUnfilteredWorkerListeners(
 }
 
 void EventListenerMap::LoadFilteredLazyListeners(
-    content::BrowserContext* browser_context,
     const std::string& extension_id,
     bool is_for_service_worker,
     const DictionaryValue& filtered) {
-  for (const auto item : filtered.GetDict()) {
+  for (DictionaryValue::Iterator it(filtered); !it.IsAtEnd(); it.Advance()) {
     // We skip entries if they are malformed.
-    if (!item.second.is_list())
+    const base::ListValue* filter_list = nullptr;
+    if (!it.value().GetAsList(&filter_list))
       continue;
-    for (const base::Value& filter_value : item.second.GetList()) {
-      if (!filter_value.is_dict())
+    for (size_t i = 0; i < filter_list->GetSize(); i++) {
+      const DictionaryValue* filter = nullptr;
+      if (!filter_list->GetDictionary(i, &filter))
         continue;
-      const base::DictionaryValue* filter =
-          static_cast<const base::DictionaryValue*>(&filter_value);
       if (is_for_service_worker) {
         AddListener(EventListener::ForExtensionServiceWorker(
-            item.first, extension_id, nullptr, browser_context,
+            it.key(), extension_id, nullptr,
             // TODO(lazyboy): We need to store correct scopes of each worker
             // into ExtensionPrefs for events. This currently assumes all
             // workers are registered in the '/' scope.
             // https://crbug.com/773103.
             Extension::GetBaseURLFromExtensionId(extension_id),
             blink::mojom::kInvalidServiceWorkerVersionId, kMainThreadId,
-            base::DictionaryValue::From(
-                base::Value::ToUniquePtrValue(filter->Clone()))));
+            filter->CreateDeepCopy()));
       } else {
-        AddListener(EventListener::ForExtension(
-            item.first, extension_id, nullptr,
-            base::DictionaryValue::From(
-                base::Value::ToUniquePtrValue(filter->Clone()))));
+        AddListener(EventListener::ForExtension(it.key(), extension_id, nullptr,
+                                                filter->CreateDeepCopy()));
       }
     }
   }
@@ -350,8 +316,9 @@ std::set<const EventListener*> EventListenerMap::GetEventListeners(
   std::set<const EventListener*> interested_listeners;
   if (IsFilteredEvent(event)) {
     // Look up the interested listeners via the EventFilter.
-    std::set<MatcherID> ids = event_filter_.MatchEvent(
-        event.event_name, *event.filter_info, MSG_ROUTING_NONE);
+    std::set<MatcherID> ids =
+        event_filter_.MatchEvent(event.event_name, event.filter_info,
+            MSG_ROUTING_NONE);
     for (const MatcherID& id : ids) {
       EventListener* listener = listeners_by_matcher_id_[id];
       CHECK(listener);

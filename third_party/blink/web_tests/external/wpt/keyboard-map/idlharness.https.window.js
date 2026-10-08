@@ -7,7 +7,7 @@
 
 idl_test(
   ['keyboard-map'],
-  ['keyboard-lock', 'html', 'dom'],
+  ['html'],
   async idl_array => {
     idl_array.add_objects({
       Navigator: ['navigator'],

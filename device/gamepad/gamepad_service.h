@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,14 +13,17 @@
 
 #include "base/bind.h"
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/read_only_shared_memory_region.h"
 #include "base/memory/singleton.h"
-#include "base/sequence_checker.h"
 #include "device/gamepad/gamepad_data_fetcher.h"
 #include "device/gamepad/gamepad_export.h"
 #include "device/gamepad/gamepad_provider.h"
 #include "device/gamepad/public/mojom/gamepad.mojom-forward.h"
+
+namespace base {
+class SingleThreadTaskRunner;
+}  // namespace base
 
 namespace device {
 class GamepadConsumer;
@@ -29,7 +32,8 @@ class GamepadProvider;
 // Owns the GamepadProvider (the background polling thread) and keeps track of
 // the number of consumers currently using the data (and pausing the provider
 // when not in use).
-class DEVICE_GAMEPAD_EXPORT GamepadService : public GamepadChangeClient {
+class DEVICE_GAMEPAD_EXPORT GamepadService
+    : public device::GamepadConnectionChangeClient {
  public:
   // Returns the GamepadService singleton.
   static GamepadService* GetInstance();
@@ -112,9 +116,6 @@ class DEVICE_GAMEPAD_EXPORT GamepadService : public GamepadChangeClient {
   // provider, bypassing the default platform one.
   GamepadService(std::unique_ptr<GamepadDataFetcher> fetcher);
 
-  GamepadService(const GamepadService&) = delete;
-  GamepadService& operator=(const GamepadService&) = delete;
-
   virtual ~GamepadService();
 
  private:
@@ -125,8 +126,6 @@ class DEVICE_GAMEPAD_EXPORT GamepadService : public GamepadChangeClient {
 
   void OnUserGesture();
 
-  // GamepadChangeClient implementation.
-  void OnGamepadChange(mojom::GamepadChangesPtr change) override;
   void OnGamepadConnectionChange(bool connected,
                                  uint32_t index,
                                  const Gamepad& pad) override;
@@ -140,19 +139,19 @@ class DEVICE_GAMEPAD_EXPORT GamepadService : public GamepadChangeClient {
       return consumer < other.consumer;
     }
 
-    raw_ptr<GamepadConsumer> consumer;
+    device::GamepadConsumer* consumer;
     mutable bool is_active = false;
     mutable bool did_observe_user_gesture = false;
   };
 
   std::unique_ptr<GamepadProvider> provider_;
 
-  SEQUENCE_CHECKER(sequence_checker_);
+  scoped_refptr<base::SingleThreadTaskRunner> main_thread_task_runner_;
 
   typedef std::set<ConsumerInfo> ConsumerSet;
   ConsumerSet consumers_;
 
-  typedef std::unordered_map<GamepadConsumer*, std::vector<bool>>
+  typedef std::unordered_map<device::GamepadConsumer*, std::vector<bool>>
       ConsumerConnectedStateMap;
 
   ConsumerConnectedStateMap inactive_consumer_state_;
@@ -161,6 +160,8 @@ class DEVICE_GAMEPAD_EXPORT GamepadService : public GamepadChangeClient {
   int num_active_consumers_ = 0;
 
   bool gesture_callback_pending_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(GamepadService);
 };
 
 }  // namespace device

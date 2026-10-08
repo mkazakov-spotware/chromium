@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,11 +22,12 @@ using extensions::ManifestPermissionSet;
 using extensions::ManifestHandler;
 namespace errors = extensions::manifest_errors;
 
-bool CreateManifestPermission(const std::string& permission_name,
-                              const base::Value* permission_value,
-                              ManifestPermissionSet* manifest_permissions,
-                              std::u16string* error,
-                              std::vector<std::string>* unhandled_permissions) {
+bool CreateManifestPermission(
+    const std::string& permission_name,
+    const base::Value* permission_value,
+    ManifestPermissionSet* manifest_permissions,
+    base::string16* error,
+    std::vector<std::string>* unhandled_permissions) {
   std::unique_ptr<ManifestPermission> permission(
       ManifestHandler::CreatePermission(permission_name));
 
@@ -58,29 +59,28 @@ namespace extensions {
 
 // static
 bool ManifestPermissionSet::ParseFromJSON(
-    const base::Value::List& permissions,
+    const base::ListValue* permissions,
     ManifestPermissionSet* manifest_permissions,
-    std::u16string* error,
+    base::string16* error,
     std::vector<std::string>* unhandled_permissions) {
-  for (size_t i = 0; i < permissions.size(); ++i) {
-    const base::Value& value = permissions[i];
+  for (size_t i = 0; i < permissions->GetSize(); ++i) {
     std::string permission_name;
-    const base::Value* permission_value = nullptr;
-    // Permission `value` should be a string or a single key dict.
-    if (value.is_string()) {
-      permission_name = value.GetString();
-    } else if (value.is_dict() && value.DictSize() == 1u) {
-      auto dict_iter = value.DictItems().begin();
-      permission_name = dict_iter->first;
-      permission_value = &dict_iter->second;
-    } else {
-      if (error) {
-        *error = ErrorUtils::FormatErrorMessageUTF16(errors::kInvalidPermission,
-                                                     base::NumberToString(i));
-        return false;
+    const base::Value* permission_value = NULL;
+    if (!permissions->GetString(i, &permission_name)) {
+      const base::DictionaryValue* dict = NULL;
+      // permission should be a string or a single key dict.
+      if (!permissions->GetDictionary(i, &dict) || dict->size() != 1) {
+        if (error) {
+          *error = ErrorUtils::FormatErrorMessageUTF16(
+              errors::kInvalidPermission, base::NumberToString(i));
+          return false;
+        }
+        LOG(WARNING) << "Permission is not a string or single key dict.";
+        continue;
       }
-      LOG(WARNING) << "Permission is not a string or single key dict.";
-      continue;
+      base::DictionaryValue::Iterator it(*dict);
+      permission_name = it.key();
+      permission_value = &it.value();
     }
 
     if (!CreateManifestPermission(permission_name, permission_value,

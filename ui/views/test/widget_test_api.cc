@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,7 @@
 namespace views {
 
 void DisableActivationChangeHandlingForTests() {
-  Widget::SetDisableActivationChangeHandling(
-      Widget::DisableActivationChangeHandlingType::kIgnore);
+  Widget::g_disable_activation_change_handling_ = true;
 }
 
 }  // namespace views

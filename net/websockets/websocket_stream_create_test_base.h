@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/timer/timer.h"
 #include "net/socket/socket_test_util.h"
@@ -18,7 +18,6 @@
 #include "net/test/test_with_task_environment.h"
 #include "net/websockets/websocket_event_interface.h"
 #include "net/websockets/websocket_test_util.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class GURL;
 
@@ -38,11 +37,6 @@ class WebSocketStreamCreateTestBase : public WithTaskEnvironment {
   using HeaderKeyValuePair = std::pair<std::string, std::string>;
 
   WebSocketStreamCreateTestBase();
-
-  WebSocketStreamCreateTestBase(const WebSocketStreamCreateTestBase&) = delete;
-  WebSocketStreamCreateTestBase& operator=(
-      const WebSocketStreamCreateTestBase&) = delete;
-
   virtual ~WebSocketStreamCreateTestBase();
 
   // A wrapper for CreateAndConnectStreamForTesting that knows about our default
@@ -83,19 +77,19 @@ class WebSocketStreamCreateTestBase : public WithTaskEnvironment {
   // Only set if the connection failed.
   std::string failure_message_;
   int failure_response_code_ = -1;
-  bool has_failed_ = false;
+  bool has_failed_;
   std::unique_ptr<WebSocketHandshakeRequestInfo> request_info_;
   std::unique_ptr<WebSocketHandshakeResponseInfo> response_info_;
   std::unique_ptr<WebSocketEventInterface::SSLErrorCallbacks>
       ssl_error_callbacks_;
   SSLInfo ssl_info_;
-  bool ssl_fatal_ = false;
-  raw_ptr<URLRequest> url_request_ = nullptr;
+  bool ssl_fatal_;
+  URLRequest* url_request_;
   AuthChallengeInfo auth_challenge_info_;
   base::OnceCallback<void(const AuthCredentials*)> on_auth_required_callback_;
 
   // This value will be copied to |*credentials| on OnAuthRequired.
-  absl::optional<AuthCredentials> auth_credentials_;
+  base::Optional<AuthCredentials> auth_credentials_;
   // OnAuthRequired returns this value.
   int on_auth_required_rv_ = OK;
 
@@ -105,6 +99,7 @@ class WebSocketStreamCreateTestBase : public WithTaskEnvironment {
 
  private:
   class TestConnectDelegate;
+  DISALLOW_COPY_AND_ASSIGN(WebSocketStreamCreateTestBase);
 };
 
 }  // namespace net

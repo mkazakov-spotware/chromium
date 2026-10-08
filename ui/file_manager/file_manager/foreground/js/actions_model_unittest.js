@@ -1,25 +1,8 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.js';
-import {NativeEventTarget as EventTarget} from 'chrome://resources/ash/common/event_target.js';
-import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chromeos/chai_assert.js';
-
-import {MockDriveSyncHandler} from '../../background/js/mock_drive_sync_handler.js';
-import {MockVolumeManager} from '../../background/js/mock_volume_manager.js';
-import {metrics} from '../../common/js/metrics.js';
-import {installMockChrome, MockCommandLinePrivate} from '../../common/js/mock_chrome.js';
-import {MockDirectoryEntry, MockFileEntry} from '../../common/js/mock_entry.js';
-import {reportPromise} from '../../common/js/test_error_reporting.js';
-import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
-
-import {ActionsModel} from './actions_model.js';
-import {FolderShortcutsDataModel} from './folder_shortcuts_data_model.js';
-import {MockMetadataModel} from './metadata/mock_metadata.js';
-import {ActionModelUI} from './ui/action_model_ui.js';
-import {FilesAlertDialog} from './ui/files_alert_dialog.js';
-import {ListContainer} from './ui/list_container.js';
+'use strict';
 
 /**
  * @type {!MockVolumeManager}
@@ -46,7 +29,7 @@ let driveSyncHandler;
  * @returns {!FolderShortcutsDataModel}
  */
 function createFakeFolderShortcutsDataModel() {
-  class FakeFolderShortcutsModel extends EventTarget {
+  class FakeFolderShortcutsModel extends cr.EventTarget {
     constructor() {
       super();
       this.has = false;
@@ -82,7 +65,7 @@ class MockUI {
     this.listContainer = /** @type {!ListContainer} */ ({
       currentView: {
         updateListItemsMetadata: function() {},
-      },
+      }
     });
 
     this.alertDialog = /** @type {!FilesAlertDialog} */ ({
@@ -96,28 +79,45 @@ class MockUI {
  */
 let ui;
 
-export function setUp() {
+function setUp() {
+  // Mock loadTimeData strings.
+  window.loadTimeData.getString = id => id;
+  window.loadTimeData.data = {};
+
   // Mock Chrome APIs.
   const mockChrome = {
     runtime: {
       lastError: null,
     },
+    fileManagerPrivate: {
+      // The following closures are set per test case.
+      getCustomActions: null,
+      executeCustomAction: null,
+      pinDriveFile: null,
+      DriveConnectionStateType: {
+        ONLINE: 'ONLINE',
+        OFFLINE: 'OFFLINE',
+        METERED: 'METERED',
+      },
+      DriveOfflineReason: {
+        NOT_READY: 'NOT_READY',
+        NO_NETWORK: 'NO_NETWORK',
+        NO_SERVICE: 'NO_SERVICE',
+      },
+    },
   };
   installMockChrome(mockChrome);
   new MockCommandLinePrivate();
 
-  /**
-   * Mock metrics.recordBoolean.
-   * @param {string} name Short metric name.
-   * @param {boolean} value The value to be recorded.
-   */
-  metrics.recordBoolean = (name, value) => {
-    metrics.calls[name]++;
-  };
-
-  metrics.calls = {
-    DrivePinSuccess: 0,
-    DriveHostedFilePinSuccess: 0,
+  // Mock metrics.
+  window.metrics = {
+    calls: {
+      DrivePinSuccess: 0,
+      DriveHostedFilePinSuccess: 0,
+    },
+    recordBoolean: function(name) {
+      window.metrics.calls[name]++;
+    },
   };
 
   // Setup Drive file system.
@@ -141,7 +141,7 @@ export function setUp() {
 /**
  * Tests that the correct actions are available for a Google Drive directory.
  */
-export function testDriveDirectoryEntry(callback) {
+function testDriveDirectoryEntry(callback) {
   driveFileSystem.entries['/test'] =
       MockDirectoryEntry.create(driveFileSystem, '/test');
 
@@ -222,14 +222,13 @@ export function testDriveDirectoryEntry(callback) {
 /**
  * Tests that the correct actions are available for a Google Drive file.
  */
-export function testDriveFileEntry(callback) {
+function testDriveFileEntry(callback) {
   driveFileSystem.entries['/test.txt'] =
       MockFileEntry.create(driveFileSystem, '/test.txt');
 
   const metadataModel = new MockMetadataModel({
     hosted: false,
     pinned: false,
-    canPin: true,
   });
 
   let model = new ActionsModel(
@@ -277,8 +276,8 @@ export function testDriveFileEntry(callback) {
             assertTrue(metadataModel.properties.pinned);
             assertEquals(1, invalidated);
 
-            assertEquals(1, metrics.calls['DrivePinSuccess']);
-            assertEquals(0, metrics.calls['DriveHostedFilePinSuccess']);
+            assertEquals(1, window.metrics.calls['DrivePinSuccess']);
+            assertEquals(0, window.metrics.calls['DriveHostedFilePinSuccess']);
 
             // The model is invalidated, as list of actions have changed.
             // Recreated the model and check that the actions are updated.
@@ -329,15 +328,15 @@ export function testDriveFileEntry(callback) {
 /**
  * Tests that the correct actions are available for a Google Drive hosted file.
  */
-export function testDriveHostedFileEntry(callback) {
+function testDriveHostedFileEntry(callback) {
   const testDocument = MockFileEntry.create(driveFileSystem, '/test.gdoc');
   const testFile = MockFileEntry.create(driveFileSystem, '/test.txt');
   driveFileSystem.entries['/test.gdoc'] = testDocument;
   driveFileSystem.entries['/test.txt'] = testFile;
 
   const metadataModel = new MockMetadataModel({});
-  metadataModel.set(testDocument, {hosted: true, pinned: false, canPin: true});
-  metadataModel.set(testFile, {hosted: false, pinned: false, canPin: true});
+  metadataModel.set(testDocument, {hosted: true, pinned: false});
+  metadataModel.set(testFile, {hosted: false, pinned: false});
   volumeManager.driveConnectionState = {
     type: chrome.fileManagerPrivate.DriveConnectionStateType.ONLINE,
     hasCellularNetworkAccess: false,
@@ -397,8 +396,8 @@ export function testDriveHostedFileEntry(callback) {
             assertTrue(!!metadataModel.getCache([testDocument])[0].pinned);
             assertTrue(!!metadataModel.getCache([testFile])[0].pinned);
 
-            assertEquals(2, metrics.calls['DrivePinSuccess']);
-            assertEquals(1, metrics.calls['DriveHostedFilePinSuccess']);
+            assertEquals(2, window.metrics.calls['DrivePinSuccess']);
+            assertEquals(1, window.metrics.calls['DriveHostedFilePinSuccess']);
 
             model = new ActionsModel(
                 volumeManager, metadataModel, shortcutsModel, driveSyncHandler,
@@ -435,18 +434,18 @@ export function testDriveHostedFileEntry(callback) {
 }
 
 /**
- * Tests that the correct actions are available for a Drive file that cannot be
- * pinned.
+ * Tests that the correct actions are available for a Google Drive hosted file
+ * when the user does not have the required extension installed.
  */
-export function testUnpinnableDriveHostedFileEntry(callback) {
+function testDriveHostedFileEntryWithoutExtension(callback) {
   const testDocument = MockFileEntry.create(driveFileSystem, '/test.gdoc');
   const testFile = MockFileEntry.create(driveFileSystem, '/test.txt');
   driveFileSystem.entries['/test.gdoc'] = testDocument;
   driveFileSystem.entries['/test.txt'] = testFile;
 
   const metadataModel = new MockMetadataModel({});
-  metadataModel.set(testDocument, {hosted: true, pinned: false, canPin: false});
-  metadataModel.set(testFile, {hosted: false, pinned: false, canPin: true});
+  metadataModel.set(testDocument, {hosted: true, pinned: false});
+  metadataModel.set(testFile, {hosted: false, pinned: false});
   volumeManager.driveConnectionState = {
     type: chrome.fileManagerPrivate.DriveConnectionStateType.ONLINE,
     hasCellularNetworkAccess: false,
@@ -507,8 +506,8 @@ export function testUnpinnableDriveHostedFileEntry(callback) {
             assertFalse(!!metadataModel.getCache([testDocument])[0].pinned);
             assertTrue(!!metadataModel.getCache([testFile])[0].pinned);
 
-            assertEquals(1, metrics.calls['DrivePinSuccess']);
-            assertEquals(0, metrics.calls['DriveHostedFilePinSuccess']);
+            assertEquals(1, window.metrics.calls['DrivePinSuccess']);
+            assertEquals(0, window.metrics.calls['DriveHostedFilePinSuccess']);
 
             model = new ActionsModel(
                 volumeManager, metadataModel, shortcutsModel, driveSyncHandler,
@@ -549,7 +548,7 @@ export function testUnpinnableDriveHostedFileEntry(callback) {
 /**
  * Tests that a Team Drive Root entry has the correct actions available.
  */
-export function testTeamDriveRootEntry(callback) {
+function testTeamDriveRootEntry(callback) {
   driveFileSystem.entries['/team_drives/ABC Team'] =
       MockDirectoryEntry.create(driveFileSystem, '/team_drives/ABC Team');
 
@@ -584,14 +583,13 @@ export function testTeamDriveRootEntry(callback) {
 /**
  * Tests that a Team Drive directory entry has the correct actions available.
  */
-export function testTeamDriveDirectoryEntry(callback) {
+function testTeamDriveDirectoryEntry(callback) {
   driveFileSystem.entries['/team_drives/ABC Team/Folder 1'] =
       MockDirectoryEntry.create(
           driveFileSystem, '/team_drives/ABC Team/Folder 1');
 
   const metadataModel = new MockMetadataModel({
     canShare: true,
-    canPin: true,
   });
 
   const model = new ActionsModel(
@@ -638,7 +636,7 @@ export function testTeamDriveDirectoryEntry(callback) {
 /**
  * Tests that a Team Drive file entry has the correct actions available.
  */
-export function testTeamDriveFileEntry(callback) {
+function testTeamDriveFileEntry(callback) {
   driveFileSystem.entries['/team_drives/ABC Team/Folder 1/test.txt'] =
       MockFileEntry.create(
           driveFileSystem, '/team_drives/ABC Team/Folder 1/test.txt');
@@ -646,7 +644,6 @@ export function testTeamDriveFileEntry(callback) {
   const metadataModel = new MockMetadataModel({
     hosted: false,
     pinned: false,
-    canPin: true,
   });
 
   const model = new ActionsModel(
@@ -682,7 +679,7 @@ export function testTeamDriveFileEntry(callback) {
  * Tests that if actions are provided with getCustomActions(), they appear
  * correctly for the file.
  */
-export function testProvidedEntry(callback) {
+function testProvidedEntry(callback) {
   providedFileSystem.entries['/test'] =
       MockDirectoryEntry.create(providedFileSystem, '/test');
 
@@ -761,7 +758,7 @@ export function testProvidedEntry(callback) {
 /**
  * Tests that no actions are available when getCustomActions() throws an error.
  */
-export function testProvidedEntryWithError(callback) {
+function testProvidedEntryWithError(callback) {
   providedFileSystem.entries['/test'] =
       MockDirectoryEntry.create(providedFileSystem, '/test');
 

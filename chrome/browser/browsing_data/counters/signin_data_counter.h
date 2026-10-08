@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,27 +35,19 @@ class SigninDataCounter : public PasswordsCounter {
     ResultInt num_webauthn_credentials_;
   };
 
-  SigninDataCounter(
-      scoped_refptr<password_manager::PasswordStoreInterface> profile_store,
-      scoped_refptr<password_manager::PasswordStoreInterface> account_store,
+  explicit SigninDataCounter(
+      scoped_refptr<password_manager::PasswordStore> profile_store,
+      scoped_refptr<password_manager::PasswordStore> account_store,
       syncer::SyncService* sync_service,
       std::unique_ptr<::device::fido::PlatformCredentialStore>
           opt_platform_credential_store);
   ~SigninDataCounter() override;
 
  private:
-  void OnCountWebAuthnCredentialsFinished(size_t num_credentials);
-  void CountWebAuthnCredentials(base::Time start, base::Time end);
-  void Count() override;
-  void OnPasswordsFetchDone() override;
+  int CountWebAuthnCredentials();
   std::unique_ptr<PasswordsResult> MakeResult() override;
 
   std::unique_ptr<::device::fido::PlatformCredentialStore> credential_store_;
-  bool passwords_counter_fetch_done_ = false;
-  bool webauthn_credentials_fetch_done_ = false;
-  int num_webauthn_credentials_ = 0;
-
-  base::WeakPtrFactory<SigninDataCounter> weak_factory_{this};
 };
 
 }  // namespace browsing_data

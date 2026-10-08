@@ -1,11 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_LAYERS_PAINTED_OVERLAY_SCROLLBAR_LAYER_IMPL_H_
 #define CC_LAYERS_PAINTED_OVERLAY_SCROLLBAR_LAYER_IMPL_H_
-
-#include <memory>
 
 #include "cc/cc_export.h"
 #include "cc/input/scrollbar.h"
@@ -32,8 +30,7 @@ class CC_EXPORT PaintedOverlayScrollbarLayerImpl
   ~PaintedOverlayScrollbarLayerImpl() override;
 
   // LayerImpl implementation.
-  std::unique_ptr<LayerImpl> CreateLayerImpl(
-      LayerTreeImpl* tree_impl) const override;
+  std::unique_ptr<LayerImpl> CreateLayerImpl(LayerTreeImpl* tree_impl) override;
   void PushPropertiesTo(LayerImpl* layer) override;
 
   bool WillDraw(DrawMode draw_mode,

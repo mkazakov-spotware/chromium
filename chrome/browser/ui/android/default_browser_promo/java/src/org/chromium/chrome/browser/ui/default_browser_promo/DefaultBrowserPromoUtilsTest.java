@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,6 +25,7 @@ import org.robolectric.shadows.ShadowPackageManager;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.PackageManagerUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.chrome.browser.ui.default_browser_promo.DefaultBrowserPromoUtils.DefaultBrowserPromoAction;
 import org.chromium.chrome.browser.ui.default_browser_promo.DefaultBrowserPromoUtils.DefaultBrowserState;
 
 import java.util.ArrayList;
@@ -75,18 +76,17 @@ public class DefaultBrowserPromoUtilsTest {
         List<ResolveInfo> infoList = new ArrayList<>();
         ShadowPackageManager packageManager =
                 Shadows.shadowOf(RuntimeEnvironment.application.getPackageManager());
-        // Setting android_manifest in the junit_binary build rule causes the current package to
-        // appear in the PackageManager.
-        packageManager.deletePackage(RuntimeEnvironment.application.getPackageName());
 
         DefaultBrowserPromoDeps deps = DefaultBrowserPromoDeps.getInstance();
         infoList.add(createResolveInfo(DefaultBrowserPromoDeps.CHROME_STABLE_PACKAGE_NAME, 1));
-        packageManager.addResolveInfoForIntent(PackageManagerUtils.BROWSER_INTENT, infoList);
+        packageManager.addResolveInfoForIntent(
+                PackageManagerUtils.getQueryInstalledBrowsersIntent(), infoList);
         Assert.assertFalse("Chrome stable should not be counted as a pre-stable channel",
                 deps.isChromePreStableInstalled());
 
         infoList.add(createResolveInfo("com.android.chrome.123", 1));
-        packageManager.addResolveInfoForIntent(PackageManagerUtils.BROWSER_INTENT, infoList);
+        packageManager.addResolveInfoForIntent(
+                PackageManagerUtils.getQueryInstalledBrowsersIntent(), infoList);
         Assert.assertFalse("A random package should not be counted as a pre-stable channel",
                 deps.isChromePreStableInstalled());
 
@@ -94,7 +94,8 @@ public class DefaultBrowserPromoUtilsTest {
             if (name.equals(DefaultBrowserPromoDeps.CHROME_STABLE_PACKAGE_NAME)) continue;
             List<ResolveInfo> list = new ArrayList<>(infoList);
             list.add(createResolveInfo(name, 1));
-            packageManager.addResolveInfoForIntent(PackageManagerUtils.BROWSER_INTENT, list);
+            packageManager.addResolveInfoForIntent(
+                    PackageManagerUtils.getQueryInstalledBrowsersIntent(), list);
             Assert.assertTrue(name + " should be considered as a pre-stable channel",
                     deps.isChromePreStableInstalled());
         }
@@ -116,37 +117,79 @@ public class DefaultBrowserPromoUtilsTest {
     @Test
     public void testBasicPromo() {
         setDepsMockWithDefaultValues();
-        Assert.assertTrue("Should promo disambiguation sheet on Q.",
-                DefaultBrowserPromoUtils.shouldShowPromo(mDeps, null, false));
+        Assert.assertEquals("Should promo disambiguation sheet on P.",
+                DefaultBrowserPromoAction.DISAMBIGUATION_SHEET,
+                DefaultBrowserPromoUtils.decideNextAction(mDeps, null));
     }
 
     // --- Q above ---
     @Test
     public void testPromo_Q_No_Default() {
         setDepsMockWithDefaultValues();
+        when(mDeps.getSDKInt()).thenReturn(Build.VERSION_CODES.Q);
         when(mDeps.isRoleAvailable(any())).thenReturn(true);
-        Assert.assertTrue("Should promo role manager when there is no default browser on Q+.",
-                DefaultBrowserPromoUtils.shouldShowPromo(mDeps, null, false));
+        Assert.assertEquals("Should promo role manager when there is no default browser on Q+.",
+                DefaultBrowserPromoAction.ROLE_MANAGER,
+                DefaultBrowserPromoUtils.decideNextAction(mDeps, null));
     }
 
     @Test
     public void testPromo_Q_Other_Default() {
         setDepsMockWithDefaultValues();
+        when(mDeps.getSDKInt()).thenReturn(Build.VERSION_CODES.Q);
         when(mDeps.isRoleAvailable(any())).thenReturn(true);
         when(mDeps.getDefaultWebBrowserActivityResolveInfo())
                 .thenReturn(createResolveInfo("android", 1));
-        Assert.assertTrue("Should promo role manager when there is another default browser on Q+.",
-                DefaultBrowserPromoUtils.shouldShowPromo(mDeps, null, false));
+        Assert.assertEquals(
+                "Should promo role manager when there is another default browser on Q+.",
+                DefaultBrowserPromoAction.ROLE_MANAGER,
+                DefaultBrowserPromoUtils.decideNextAction(mDeps, null));
     }
 
     // --- P below ---
     @Test
-    public void testNoPromo_P() {
+    public void testPromo_P_otherDefaultSystemSettings() {
         setDepsMockWithDefaultValues();
-        when(mDeps.getSDKInt()).thenReturn(Build.VERSION_CODES.P);
-        when(mDeps.isRoleAvailable(any())).thenCallRealMethod();
-        Assert.assertFalse("Should not promo on P-.",
-                DefaultBrowserPromoUtils.shouldShowPromo(mDeps, null, false));
+        when(mDeps.getDefaultWebBrowserActivityResolveInfo())
+                .thenReturn(createResolveInfo("android", 1));
+        when(mDeps.promoActionOnP()).thenReturn(DefaultBrowserPromoAction.SYSTEM_SETTINGS);
+        Assert.assertEquals(
+                "Should promo system settings when there is another default browser on P-.",
+                DefaultBrowserPromoAction.SYSTEM_SETTINGS,
+                DefaultBrowserPromoUtils.decideNextAction(mDeps, null));
+    }
+
+    @Test
+    public void testNoPromo_P_noDefaultNoSystemSettings() {
+        setDepsMockWithDefaultValues();
+        when(mDeps.promoActionOnP()).thenReturn(DefaultBrowserPromoAction.SYSTEM_SETTINGS);
+        when(mDeps.doesManageDefaultAppsSettingsActivityExist()).thenReturn(false);
+        Assert.assertEquals(
+                "Should not promo system settings on P- when target system setting is not available.",
+                DefaultBrowserPromoAction.NO_ACTION,
+                DefaultBrowserPromoUtils.decideNextAction(mDeps, null));
+    }
+
+    @Test
+    public void testNoPromo_P_noDefaultDisabled() {
+        setDepsMockWithDefaultValues();
+        when(mDeps.promoActionOnP()).thenReturn(DefaultBrowserPromoAction.NO_ACTION);
+        Assert.assertEquals(
+                "Should not promo on P- when promoing on \'no default\' scenario is disabled.",
+                DefaultBrowserPromoAction.NO_ACTION,
+                DefaultBrowserPromoUtils.decideNextAction(mDeps, null));
+    }
+
+    @Test
+    public void testNoPromo_otherDefault_M() {
+        setDepsMockWithDefaultValues();
+        when(mDeps.getSDKInt()).thenReturn(Build.VERSION_CODES.M);
+        when(mDeps.doesManageDefaultAppsSettingsActivityExist()).thenCallRealMethod();
+        when(mDeps.getDefaultWebBrowserActivityResolveInfo())
+                .thenReturn(createResolveInfo("android", 1));
+        Assert.assertEquals("Should not promo on M- when there is another default browser.",
+                DefaultBrowserPromoAction.NO_ACTION,
+                DefaultBrowserPromoUtils.decideNextAction(mDeps, null));
     }
 
     // --- prerequisites ---
@@ -155,8 +198,9 @@ public class DefaultBrowserPromoUtilsTest {
         setDepsMockWithDefaultValues();
         when(mDeps.getMaxPromoCount()).thenReturn(100);
         when(mDeps.getPromoCount()).thenReturn(99);
-        Assert.assertTrue("Should promo when promo count does not reach the upper limit.",
-                DefaultBrowserPromoUtils.shouldShowPromo(mDeps, null, false));
+        Assert.assertNotEquals("Should promo when promo count does not reach the upper limit.",
+                DefaultBrowserPromoAction.NO_ACTION,
+                DefaultBrowserPromoUtils.decideNextAction(mDeps, null));
     }
 
     @Test
@@ -164,27 +208,18 @@ public class DefaultBrowserPromoUtilsTest {
         setDepsMockWithDefaultValues();
         when(mDeps.getPromoCount()).thenReturn(1);
         when(mDeps.getMaxPromoCount()).thenReturn(1);
-        Assert.assertFalse("Should not promo when promo count reaches the upper limit.",
-                DefaultBrowserPromoUtils.shouldShowPromo(mDeps, null, false));
-    }
-
-    @Test
-    public void testPromo_ignoreMaxCount() {
-        setDepsMockWithDefaultValues();
-        when(mDeps.getPromoCount()).thenReturn(1);
-        when(mDeps.getMaxPromoCount()).thenReturn(1);
-        when(mDeps.getSessionCount()).thenReturn(1);
-        when(mDeps.getMinSessionCount()).thenReturn(3);
-        Assert.assertTrue("Should promo when ignore max count is enabled.",
-                DefaultBrowserPromoUtils.shouldShowPromo(mDeps, null, true));
+        Assert.assertEquals("Should not promo when promo count reaches the upper limit.",
+                DefaultBrowserPromoAction.NO_ACTION,
+                DefaultBrowserPromoUtils.decideNextAction(mDeps, null));
     }
 
     @Test
     public void testNoPromo_featureDisabled() {
         setDepsMockWithDefaultValues();
         when(mDeps.isFeatureEnabled()).thenReturn(false);
-        Assert.assertFalse("Should not promo when the feature is disabled.",
-                DefaultBrowserPromoUtils.shouldShowPromo(mDeps, null, false));
+        Assert.assertEquals("Should not promo when the fearure is disabled.",
+                DefaultBrowserPromoAction.NO_ACTION,
+                DefaultBrowserPromoUtils.decideNextAction(mDeps, null));
     }
 
     @Test
@@ -192,9 +227,10 @@ public class DefaultBrowserPromoUtilsTest {
         setDepsMockWithDefaultValues();
         when(mDeps.getSessionCount()).thenReturn(1);
         when(mDeps.getMinSessionCount()).thenReturn(3);
-        Assert.assertFalse(
+        Assert.assertEquals(
                 "Should not promo when session count has not reached the required amount.",
-                DefaultBrowserPromoUtils.shouldShowPromo(mDeps, null, false));
+                DefaultBrowserPromoAction.NO_ACTION,
+                DefaultBrowserPromoUtils.decideNextAction(mDeps, null));
     }
 
     @Test
@@ -204,8 +240,10 @@ public class DefaultBrowserPromoUtilsTest {
                 .thenReturn(
                         createResolveInfo(DefaultBrowserPromoDeps.CHROME_STABLE_PACKAGE_NAME, 1));
         when(mDeps.isCurrentDefaultBrowserChrome(any())).thenCallRealMethod();
-        Assert.assertFalse("Should not promo when another chrome channel browser has been default.",
-                DefaultBrowserPromoUtils.shouldShowPromo(mDeps, null, false));
+        Assert.assertEquals(
+                "Should not promo when another chrome channel browser has been default.",
+                DefaultBrowserPromoAction.NO_ACTION,
+                DefaultBrowserPromoUtils.decideNextAction(mDeps, null));
     }
 
     @Test
@@ -214,16 +252,18 @@ public class DefaultBrowserPromoUtilsTest {
         when(mDeps.getDefaultWebBrowserActivityResolveInfo())
                 .thenReturn(createResolveInfo(
                         ContextUtils.getApplicationContext().getPackageName(), 1));
-        Assert.assertFalse("Should not promo when chrome has been default.",
-                DefaultBrowserPromoUtils.shouldShowPromo(mDeps, null, false));
+        Assert.assertEquals("Should not promo when chrome has been default.",
+                DefaultBrowserPromoAction.NO_ACTION,
+                DefaultBrowserPromoUtils.decideNextAction(mDeps, null));
     }
 
     @Test
     public void testNoPromo_webBrowserActivityNotExist() {
         setDepsMockWithDefaultValues();
         when(mDeps.getDefaultWebBrowserActivityResolveInfo()).thenReturn(null);
-        Assert.assertFalse("Should not promo when web browser activity does not exist.",
-                DefaultBrowserPromoUtils.shouldShowPromo(mDeps, null, false));
+        Assert.assertEquals("Should not promo when web browser activity does not exist.",
+                DefaultBrowserPromoAction.NO_ACTION,
+                DefaultBrowserPromoUtils.decideNextAction(mDeps, null));
     }
 
     private void setDepsMockWithDefaultValues() {
@@ -231,7 +271,8 @@ public class DefaultBrowserPromoUtilsTest {
         when(mDeps.getMinSessionCount()).thenReturn(3);
         when(mDeps.getSessionCount()).thenReturn(10);
         when(mDeps.doesManageDefaultAppsSettingsActivityExist()).thenReturn(true);
-        when(mDeps.getSDKInt()).thenReturn(Build.VERSION_CODES.Q);
+        when(mDeps.getSDKInt()).thenReturn(Build.VERSION_CODES.P);
+        when(mDeps.promoActionOnP()).thenReturn(DefaultBrowserPromoAction.DISAMBIGUATION_SHEET);
         when(mDeps.isChromeStable()).thenReturn(false);
         when(mDeps.getPromoCount()).thenReturn(0);
         when(mDeps.getMaxPromoCount()).thenReturn(1);
@@ -239,7 +280,6 @@ public class DefaultBrowserPromoUtilsTest {
         when(mDeps.getMinPromoInterval()).thenReturn(10);
         when(mDeps.isChromePreStableInstalled()).thenReturn(false);
         when(mDeps.isCurrentDefaultBrowserChrome(any())).thenReturn(false);
-        when(mDeps.isRoleAvailable(any())).thenReturn(true);
         // No Default
         when(mDeps.getDefaultWebBrowserActivityResolveInfo())
                 .thenReturn(createResolveInfo("android", 0));

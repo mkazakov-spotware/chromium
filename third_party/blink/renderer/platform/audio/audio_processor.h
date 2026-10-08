@@ -48,12 +48,10 @@ class PLATFORM_EXPORT AudioProcessor {
   USING_FAST_MALLOC(AudioProcessor);
 
  public:
-  AudioProcessor(float sample_rate,
-                 unsigned number_of_channels,
-                 unsigned render_quantum_frames)
-      : number_of_channels_(number_of_channels),
-        sample_rate_(sample_rate),
-        render_quantum_frames_(render_quantum_frames) {}
+  AudioProcessor(float sample_rate, unsigned number_of_channels)
+      : initialized_(false),
+        number_of_channels_(number_of_channels),
+        sample_rate_(sample_rate) {}
 
   virtual ~AudioProcessor();
 
@@ -82,17 +80,14 @@ class PLATFORM_EXPORT AudioProcessor {
 
   float SampleRate() const { return sample_rate_; }
 
-  unsigned RenderQuantumFrames() const { return render_quantum_frames_; }
-
   virtual double TailTime() const = 0;
   virtual double LatencyTime() const = 0;
   virtual bool RequiresTailProcessing() const = 0;
 
  protected:
-  bool initialized_ = false;
+  bool initialized_;
   unsigned number_of_channels_;
   float sample_rate_;
-  unsigned render_quantum_frames_;
 };
 
 }  // namespace blink

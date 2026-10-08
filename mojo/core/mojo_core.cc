@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,8 @@
 #include "base/debug/stack_trace.h"
 #include "base/feature_list.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/message_loop/message_pump_type.h"
-#include "base/metrics/field_trial.h"
 #include "base/no_destructor.h"
 #include "base/rand_util.h"
 #include "base/synchronization/waitable_event.h"
@@ -32,12 +32,9 @@ class IPCSupport {
  public:
   IPCSupport() : ipc_thread_("Mojo IPC") {
     base::Thread::Options options(base::MessagePumpType::IO, 0);
-    ipc_thread_.StartWithOptions(std::move(options));
+    ipc_thread_.StartWithOptions(options);
     mojo::core::Core::Get()->SetIOTaskRunner(ipc_thread_.task_runner());
   }
-
-  IPCSupport(const IPCSupport&) = delete;
-  IPCSupport& operator=(const IPCSupport&) = delete;
 
   ~IPCSupport() {
     base::WaitableEvent wait(base::WaitableEvent::ResetPolicy::MANUAL,
@@ -58,6 +55,8 @@ class IPCSupport {
 #endif  // !defined(COMPONENT_BUILD)
 
   base::Thread ipc_thread_;
+
+  DISALLOW_COPY_AND_ASSIGN(IPCSupport);
 };
 
 std::unique_ptr<IPCSupport>& GetIPCSupport() {
@@ -95,14 +94,14 @@ class GlobalStateInitializer {
                          true,   // Timestamp
                          true);  // Tick count
 
-#if !defined(OFFICIAL_BUILD) && !BUILDFLAG(IS_WIN)
+#if !defined(OFFICIAL_BUILD) && !defined(OS_WIN)
     // Correct stack dumping behavior requires symbol names in all loaded
     // libraries to be cached. We do this here in case the calling process will
     // imminently enter a sandbox.
     base::debug::EnableInProcessStackDumping();
 #endif
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
     // Tickle base's PRNG. This lazily opens a static handle to /dev/urandom.
     // Mojo Core uses the API internally, so it's important to warm the handle
     // before potentially entering a sandbox.
@@ -110,16 +109,6 @@ class GlobalStateInitializer {
 #endif
 
     base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-    // If FieldTrialList::GetInstance() returns nullptr,
-    // FeatureList::InitializeFromCommandLine(), used by FeatureList::
-    // InitializeInstance internally, creates no field trials. This causes
-    // DCHECK() failure if we have an command line like
-    // --enable-features=TestFeature:TestParam/TestValue.
-    // We don't need to care about FieldTrialList duplication here, because
-    // this code is available for static build. If base library is not shared,
-    // libmojo_core.so and the caller of LoadAndInitializeCoreLibrary doesn't
-    // share FieldTrialList::GetInstance().
-    field_trial_list_ = std::make_unique<base::FieldTrialList>();
     base::FeatureList::InitializeInstance(
         command_line->GetSwitchValueASCII(switches::kEnableFeatures),
         command_line->GetSwitchValueASCII(switches::kDisableFeatures));
@@ -129,7 +118,6 @@ class GlobalStateInitializer {
 
  private:
   bool initialized_ = false;
-  std::unique_ptr<base::FieldTrialList> field_trial_list_;
 };
 
 }  // namespace
@@ -158,9 +146,9 @@ MojoResult InitializeImpl(const struct MojoInitializeOptions* options) {
     argv = options->argv;
   }
 
-  static GlobalStateInitializer global_state_initializer;
+  static base::NoDestructor<GlobalStateInitializer> global_state_initializer;
   const bool was_global_state_already_initialized =
-      !global_state_initializer.Initialize(argc, argv);
+      !global_state_initializer->Initialize(argc, argv);
 
   if (!should_initialize_ipc_support) {
     if (was_global_state_already_initialized)
@@ -195,7 +183,7 @@ MojoResult ShutdownImpl(const struct MojoShutdownOptions* options) {
   return MOJO_RESULT_OK;
 }
 
-MojoSystemThunks2 g_thunks = {0};
+MojoSystemThunks g_thunks = {0};
 
 }  // namespace
 
@@ -205,7 +193,7 @@ MojoSystemThunks2 g_thunks = {0};
 #define EXPORT_FROM_MOJO_CORE __attribute__((visibility("default")))
 #endif
 
-EXPORT_FROM_MOJO_CORE void MojoGetSystemThunks(MojoSystemThunks2* thunks) {
+EXPORT_FROM_MOJO_CORE void MojoGetSystemThunks(MojoSystemThunks* thunks) {
   if (!g_thunks.size) {
     g_thunks = mojo::core::GetSystemThunks();
     g_thunks.Initialize = InitializeImpl;
@@ -214,7 +202,7 @@ EXPORT_FROM_MOJO_CORE void MojoGetSystemThunks(MojoSystemThunks2* thunks) {
 
   // Caller must provide a thunk structure at least large enough to hold Core
   // ABI version 0. SetQuota is the first function introduced in ABI version 1.
-  CHECK_GE(thunks->size, offsetof(MojoSystemThunks2, SetQuota));
+  CHECK_GE(thunks->size, offsetof(MojoSystemThunks, SetQuota));
 
   // NOTE: This also overrites |thunks->size| with the actual size of our own
   // thunks if smaller than the caller's. This informs the caller that we

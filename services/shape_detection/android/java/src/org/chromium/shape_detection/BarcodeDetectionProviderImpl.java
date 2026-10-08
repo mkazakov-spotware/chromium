@@ -1,16 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.shape_detection;
 
 import android.content.Context;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager.NameNotFoundException;
 
 import com.google.android.gms.common.GoogleApiAvailability;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
-import org.chromium.base.PackageUtils;
 import org.chromium.gms.ChromiumPlayServicesAvailability;
 import org.chromium.mojo.bindings.InterfaceRequest;
 import org.chromium.mojo.system.MojoException;
@@ -34,7 +35,7 @@ public class BarcodeDetectionProviderImpl implements BarcodeDetectionProvider {
     }
 
     @Override
-    public void enumerateSupportedFormats(EnumerateSupportedFormats_Response callback) {
+    public void enumerateSupportedFormats(EnumerateSupportedFormatsResponse callback) {
         // Keep this list in sync with the constants defined in
         // com.google.android.gms.vision.barcode.Barcode and the format hints
         // supported by BarcodeDetectionImpl.
@@ -58,15 +59,16 @@ public class BarcodeDetectionProviderImpl implements BarcodeDetectionProvider {
             Log.w(TAG, "Google Play Services not available");
             return null;
         }
-        int version =
-                PackageUtils.getPackageVersion(GoogleApiAvailability.GOOGLE_PLAY_SERVICES_PACKAGE);
-        if (version < 19742000) {
-            if (version < 0) {
-                Log.w(TAG, "Google Play Services not available");
-            } else {
+        try {
+            PackageInfo playServicesPackage = ctx.getPackageManager().getPackageInfo(
+                    GoogleApiAvailability.GOOGLE_PLAY_SERVICES_PACKAGE, 0);
+            if (playServicesPackage.versionCode < 19742000) {
                 // https://crbug.com/1020746
-                Log.w(TAG, "Detection disabled (%d < 19.7.42)", version);
+                Log.w(TAG, "Detection disabled (%s < 19.7.42)", playServicesPackage.versionName);
+                return null;
             }
+        } catch (NameNotFoundException e) {
+            Log.w(TAG, "Google Play Services not available");
             return null;
         }
         return new BarcodeDetectionProviderImpl();

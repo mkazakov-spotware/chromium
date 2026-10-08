@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,10 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "components/printing/browser/print_manager.h"
 #include "components/printing/common/print.mojom-forward.h"
+#include "components/printing/common/print_messages.h"
 #include "content/public/browser/web_contents_user_data.h"
 #include "printing/print_settings.h"
 
@@ -17,15 +19,11 @@ namespace android_webview {
 class AwPrintManager : public printing::PrintManager,
     public content::WebContentsUserData<AwPrintManager> {
  public:
-  AwPrintManager(const AwPrintManager&) = delete;
-  AwPrintManager& operator=(const AwPrintManager&) = delete;
-
   ~AwPrintManager() override;
 
-  static void BindPrintManagerHost(
-      mojo::PendingAssociatedReceiver<printing::mojom::PrintManagerHost>
-          receiver,
-      content::RenderFrameHost* rfh);
+  // mojom::PrintManagerHost:
+  void GetDefaultPrintSettings(
+      GetDefaultPrintSettingsCallback callback) override;
 
   // printing::PrintManager:
   void PdfWritingDone(int page_count) override;
@@ -42,17 +40,18 @@ class AwPrintManager : public printing::PrintManager,
 
   explicit AwPrintManager(content::WebContents* contents);
 
-  // mojom::PrintManagerHost:
-  void DidPrintDocument(printing::mojom::DidPrintDocumentParamsPtr params,
-                        DidPrintDocumentCallback callback) override;
-  void GetDefaultPrintSettings(
-      GetDefaultPrintSettingsCallback callback) override;
-  void ScriptedPrint(printing::mojom::ScriptedPrintParamsPtr params,
-                     ScriptedPrintCallback callback) override;
+  // printing::PrintManager:
+  void OnDidPrintDocument(
+      content::RenderFrameHost* render_frame_host,
+      const printing::mojom::DidPrintDocumentParams& params,
+      std::unique_ptr<DelayedFrameDispatchHelper> helper) override;
+  void OnScriptedPrint(content::RenderFrameHost* render_frame_host,
+                       const printing::mojom::ScriptedPrintParams& params,
+                       IPC::Message* reply_msg) override;
 
   static void OnDidPrintDocumentWritingDone(
       const PdfWritingDoneCallback& callback,
-      DidPrintDocumentCallback did_print_document_cb,
+      std::unique_ptr<DelayedFrameDispatchHelper> helper,
       uint32_t page_count);
 
   std::unique_ptr<printing::PrintSettings> settings_;
@@ -61,6 +60,8 @@ class AwPrintManager : public printing::PrintManager,
   int fd_ = -1;
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
+
+  DISALLOW_COPY_AND_ASSIGN(AwPrintManager);
 };
 
 }  // namespace android_webview

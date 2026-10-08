@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -9,19 +9,17 @@ import diff
 import models
 
 
-def _MakeSym(section, size, path, name=None, container=None):
+def _MakeSym(section, size, path, name=None):
   if name is None:
     # Trailing letter is important since diffing trims numbers.
     name = '{}_{}A'.format(section[1:], size)
-  ret = models.Symbol(section,
-                      size,
-                      full_name=name,
-                      template_name=name,
-                      name=name,
-                      object_path=path)
-  if container:
-    ret.container = container
-  return ret
+  return models.Symbol(
+      section,
+      size,
+      full_name=name,
+      template_name=name,
+      name=name,
+      object_path=path)
 
 
 def _SetName(symbol, full_name, name=None):
@@ -32,15 +30,14 @@ def _SetName(symbol, full_name, name=None):
   symbol.name = name
 
 
-def _CreateSizeInfo(aliases=None, containers=None):
+def _CreateSizeInfo(aliases=None):
   build_config = {}
   metadata = {}
   section_sizes = {'.text': 100, '.bss': 40}
-  if not containers:
-    containers = [
-        models.Container('', metadata=metadata, section_sizes=section_sizes)
-    ]
-  models.BaseContainer.AssignShortNames(containers)
+  containers = [
+      models.Container(name='', metadata=metadata, section_sizes=section_sizes)
+  ]
+  models.Container.AssignShortNames(containers)
   TEXT = models.SECTION_TEXT
   symbols = [
       _MakeSym(models.SECTION_DEX_METHOD, 10, 'a', 'com.Foo#bar()'),
@@ -50,8 +47,7 @@ def _CreateSizeInfo(aliases=None, containers=None):
       _MakeSym(TEXT, 50, 'b'),
       _MakeSym(TEXT, 60, ''),
   ]
-  for s in symbols:
-    s.container = containers[0]
+  # For simplicity, not associating |symbols| with |containers|.
   if aliases:
     for tup in aliases:
       syms = symbols[tup[0]:tup[1]]
@@ -112,17 +108,6 @@ class DiffTest(unittest.TestCase):
     d = diff.Diff(size_info1, size_info2)
     self.assertEqual((0, 1, 1), d.raw_symbols.CountsByDiffStatus()[1:])
     self.assertEqual(0, d.raw_symbols.size)
-
-  def testDontMatchAcrossContainers(self):
-    container_a = models.Container('A', metadata={}, section_sizes={})
-    container_b = models.Container('B', metadata={}, section_sizes={})
-    containers = [container_a, container_b]
-    size_info1 = _CreateSizeInfo(containers=containers)
-    size_info1.raw_symbols[0].container = container_b
-    size_info2 = _CreateSizeInfo(containers=containers)
-    d = diff.Diff(size_info1, size_info2)
-    # Should show as one add and one remove rather than a change.
-    self.assertEqual((0, 1, 1), d.raw_symbols.CountsByDiffStatus()[1:])
 
   def testAliases_Remove(self):
     size_info1 = _CreateSizeInfo(aliases=[(0, 3)])

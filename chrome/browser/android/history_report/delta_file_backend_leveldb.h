@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/trace_event/memory_dump_provider.h"
 
 class GURL;
@@ -27,10 +28,6 @@ class DeltaFileEntryWithData;
 class DeltaFileBackend : public base::trace_event::MemoryDumpProvider {
  public:
   explicit DeltaFileBackend(const base::FilePath& dir);
-
-  DeltaFileBackend(const DeltaFileBackend&) = delete;
-  DeltaFileBackend& operator=(const DeltaFileBackend&) = delete;
-
   ~DeltaFileBackend() override;
 
   // Adds new addition entry to delta file
@@ -69,6 +66,8 @@ class DeltaFileBackend : public base::trace_event::MemoryDumpProvider {
   base::FilePath path_;
   std::unique_ptr<leveldb::DB> db_;
   std::unique_ptr<DigitsComparator> leveldb_cmp_;
+
+  DISALLOW_COPY_AND_ASSIGN(DeltaFileBackend);
 };
 
 }  // namespace history_report

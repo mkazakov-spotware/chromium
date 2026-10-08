@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,7 +37,7 @@ class PasswordBubbleControllerBase {
   virtual ~PasswordBubbleControllerBase();
 
   // Subclasses must override this method to provide the proper title.
-  virtual std::u16string GetTitle() const = 0;
+  virtual base::string16 GetTitle() const = 0;
 
   // Subclasses must override this method to report their interactions.
   virtual void ReportInteractions() = 0;
@@ -50,8 +50,6 @@ class PasswordBubbleControllerBase {
   Profile* GetProfile() const;
   content::WebContents* GetWebContents() const;
 
-  bool interaction_reported() const { return interaction_reported_; }
-
  protected:
   // Reference to metrics recorder of the PasswordForm presented to the user by
   // |this|. We hold on to this because |delegate_| may not be able to provide
@@ -59,16 +57,15 @@ class PasswordBubbleControllerBase {
   scoped_refptr<password_manager::PasswordFormMetricsRecorder>
       metrics_recorder_;
 
+  // True if the model has already recorded all the necessary statistics when
+  // the bubble is closing.
+  bool interaction_reported_ = false;
+
   // True iff bubble should pop up with revealed password value.
   const bool are_passwords_revealed_when_bubble_is_opened_;
 
   // A bridge to ManagePasswordsUIController instance.
   base::WeakPtr<PasswordsModelDelegate> delegate_;
-
- private:
-  // True if the model has already recorded all the necessary statistics when
-  // the bubble is closing.
-  bool interaction_reported_ = false;
 };
 
 #endif  // CHROME_BROWSER_UI_PASSWORDS_BUBBLE_CONTROLLERS_PASSWORD_BUBBLE_CONTROLLER_BASE_H_

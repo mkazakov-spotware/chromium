@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,8 +19,8 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.UserData;
-import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.compositor.layouts.content.TabContentManager;
 import org.chromium.chrome.browser.infobar.InfoBarContainer;
 import org.chromium.chrome.browser.media.MediaCaptureDevicesDispatcherAndroid;
@@ -53,13 +53,11 @@ public class SuspendedTab extends EmptyTabObserver implements UserData, TabViewP
      * @return The SuspendedTab instance for the given Tab object. This can never return null, but
      *         is not safe to call if the tab has been destroyed.
      */
-    public static SuspendedTab from(
-            Tab tab, Supplier<TabContentManager> tabContentManagerSupplier) {
+    public static SuspendedTab from(Tab tab) {
         assert tab.isInitialized();
         SuspendedTab suspendedTab = get(tab);
         if (suspendedTab == null) {
-            suspendedTab = tab.getUserDataHost().setUserData(
-                    USER_DATA_KEY, new SuspendedTab(tab, tabContentManagerSupplier));
+            suspendedTab = tab.getUserDataHost().setUserData(USER_DATA_KEY, new SuspendedTab(tab));
         }
         return suspendedTab;
     }
@@ -69,13 +67,11 @@ public class SuspendedTab extends EmptyTabObserver implements UserData, TabViewP
     }
 
     private final Tab mTab;
-    private final Supplier<TabContentManager> mTabContentManagerSupplier;
     private View mView;
     private String mFqdn;
 
-    private SuspendedTab(Tab tab, Supplier<TabContentManager> tabContentManagerSupplier) {
+    private SuspendedTab(Tab tab) {
         mTab = tab;
-        mTabContentManagerSupplier = tabContentManagerSupplier;
     }
 
     /**
@@ -112,7 +108,9 @@ public class SuspendedTab extends EmptyTabObserver implements UserData, TabViewP
             attachView();
         }
 
-        TabContentManager tabContentManager = mTabContentManagerSupplier.get();
+        TabContentManager tabContentManager =
+                ((ChromeActivity) mTab.getWindowAndroid().getActivity().get())
+                        .getTabContentManager();
         if (tabContentManager != null) {
             // We have to wait for the view to layout to cache a new thumbnail for it; otherwise,
             // its width and height won't be available yet.

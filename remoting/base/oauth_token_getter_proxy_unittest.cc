@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/callback_helpers.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
@@ -20,16 +21,13 @@ namespace remoting {
 namespace {
 
 OAuthTokenGetter::TokenCallback GetDoNothingTokenCallback() {
-  return base::DoNothing();
+  return base::DoNothing::Repeatedly<OAuthTokenGetter::Status,
+                                     const std::string&, const std::string&>();
 }
 
 class FakeOAuthTokenGetter : public OAuthTokenGetter {
  public:
   FakeOAuthTokenGetter();
-
-  FakeOAuthTokenGetter(const FakeOAuthTokenGetter&) = delete;
-  FakeOAuthTokenGetter& operator=(const FakeOAuthTokenGetter&) = delete;
-
   ~FakeOAuthTokenGetter() override;
 
   void ResolveCallback(Status status,
@@ -51,6 +49,7 @@ class FakeOAuthTokenGetter : public OAuthTokenGetter {
   THREAD_CHECKER(thread_checker_);
 
   base::WeakPtrFactory<FakeOAuthTokenGetter> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(FakeOAuthTokenGetter);
 };
 
 FakeOAuthTokenGetter::FakeOAuthTokenGetter() {
@@ -96,11 +95,6 @@ base::WeakPtr<FakeOAuthTokenGetter> FakeOAuthTokenGetter::GetWeakPtr() {
 class OAuthTokenGetterProxyTest : public testing::Test {
  public:
   OAuthTokenGetterProxyTest() = default;
-
-  OAuthTokenGetterProxyTest(const OAuthTokenGetterProxyTest&) = delete;
-  OAuthTokenGetterProxyTest& operator=(const OAuthTokenGetterProxyTest&) =
-      delete;
-
   ~OAuthTokenGetterProxyTest() override = default;
 
   // testing::Test overrides.
@@ -142,6 +136,8 @@ class OAuthTokenGetterProxyTest : public testing::Test {
   std::unique_ptr<TokenCallbackResult> expected_callback_result_;
 
   base::test::SingleThreadTaskEnvironment task_environment_;
+
+  DISALLOW_COPY_AND_ASSIGN(OAuthTokenGetterProxyTest);
 };
 
 void OAuthTokenGetterProxyTest::SetUp() {

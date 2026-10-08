@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/win/scoped_com_initializer.h"
 #include "chrome/browser/status_icons/status_icon.h"
 #include "chrome/browser/ui/views/status_icons/status_icon_win.h"
@@ -22,10 +22,6 @@ class StatusTrayStateChangerWinTest : public testing::Test {
  public:
   StatusTrayStateChangerWinTest() {}
 
-  StatusTrayStateChangerWinTest(const StatusTrayStateChangerWinTest&) = delete;
-  StatusTrayStateChangerWinTest& operator=(
-      const StatusTrayStateChangerWinTest&) = delete;
-
   void SetUp() override {
     testing::Test::SetUp();
     com_ = std::make_unique<base::win::ScopedCOMInitializer>();
@@ -36,8 +32,9 @@ class StatusTrayStateChangerWinTest : public testing::Test {
     bitmap.allocN32Pixels(16, 16);
     bitmap.eraseColor(SK_ColorGREEN);
     status_icon_win_ = (StatusIconWin*)status_tray_->CreateStatusIcon(
-        StatusTray::OTHER_ICON, gfx::ImageSkia::CreateFrom1xBitmap(bitmap),
-        std::u16string());
+        StatusTray::OTHER_ICON,
+        gfx::ImageSkia::CreateFrom1xBitmap(bitmap),
+        base::string16());
     tray_watcher_ = Microsoft::WRL::Make<StatusTrayStateChangerWin>(
         status_icon_win_->icon_id(), status_icon_win_->window());
   }
@@ -85,7 +82,9 @@ class StatusTrayStateChangerWinTest : public testing::Test {
   std::unique_ptr<StatusTrayWin> status_tray_;
   Microsoft::WRL::ComPtr<StatusTrayStateChangerWin> tray_watcher_;
 
-  raw_ptr<StatusIconWin> status_icon_win_;
+  StatusIconWin* status_icon_win_;
+
+  DISALLOW_COPY_AND_ASSIGN(StatusTrayStateChangerWinTest);
 };
 
 // Test is disabled due to multiple COM initialization errors.  See

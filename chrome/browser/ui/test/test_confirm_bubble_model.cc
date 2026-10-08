@@ -1,11 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/test/test_confirm_bubble_model.h"
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 
 TestConfirmBubbleModel::TestConfirmBubbleModel(bool* model_deleted,
@@ -23,17 +22,18 @@ TestConfirmBubbleModel::~TestConfirmBubbleModel() {
     *model_deleted_ = true;
 }
 
-std::u16string TestConfirmBubbleModel::GetTitle() const {
-  return u"Test";
+base::string16 TestConfirmBubbleModel::GetTitle() const {
+  return base::ASCIIToUTF16("Test");
 }
 
-std::u16string TestConfirmBubbleModel::GetMessageText() const {
-  return u"Test Message";
+base::string16 TestConfirmBubbleModel::GetMessageText() const {
+  return base::ASCIIToUTF16("Test Message");
 }
 
-std::u16string TestConfirmBubbleModel::GetButtonLabel(
+base::string16 TestConfirmBubbleModel::GetButtonLabel(
     ui::DialogButton button) const {
-  return button == ui::DIALOG_BUTTON_OK ? u"OK" : u"Cancel";
+  return button == ui::DIALOG_BUTTON_OK ? base::ASCIIToUTF16("OK")
+                                        : base::ASCIIToUTF16("Cancel");
 }
 
 void TestConfirmBubbleModel::Accept() {
@@ -46,8 +46,8 @@ void TestConfirmBubbleModel::Cancel() {
     *cancel_clicked_ = true;
 }
 
-std::u16string TestConfirmBubbleModel::GetLinkText() const {
-  return u"Link";
+base::string16 TestConfirmBubbleModel::GetLinkText() const {
+  return base::ASCIIToUTF16("Link");
 }
 
 void TestConfirmBubbleModel::OpenHelpPage() {

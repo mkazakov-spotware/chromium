@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,9 +18,10 @@ TEST(CustomElementReactionQueueTest, invokeReactions_one) {
   Vector<char> log;
   CustomElementReactionQueue* queue =
       MakeGarbageCollected<CustomElementReactionQueue>();
-  HeapVector<Member<Command>> commands;
-  commands.push_back(MakeGarbageCollected<Log>('a', log));
-  queue->Add(*MakeGarbageCollected<TestReaction>(std::move(commands)));
+  HeapVector<Member<Command>>* commands =
+      MakeGarbageCollected<HeapVector<Member<Command>>>();
+  commands->push_back(MakeGarbageCollected<Log>('a', log));
+  queue->Add(*MakeGarbageCollected<TestReaction>(commands));
   Element* test_element = CreateElement(AtomicString("my-element"));
   queue->InvokeReactions(*test_element);
   EXPECT_EQ(log, Vector<char>({'a'}))
@@ -32,19 +33,22 @@ TEST(CustomElementReactionQueueTest, invokeReactions_many) {
   CustomElementReactionQueue* queue =
       MakeGarbageCollected<CustomElementReactionQueue>();
   {
-    HeapVector<Member<Command>> commands;
-    commands.push_back(MakeGarbageCollected<Log>('a', log));
-    queue->Add(*MakeGarbageCollected<TestReaction>(std::move(commands)));
+    HeapVector<Member<Command>>* commands =
+        MakeGarbageCollected<HeapVector<Member<Command>>>();
+    commands->push_back(MakeGarbageCollected<Log>('a', log));
+    queue->Add(*MakeGarbageCollected<TestReaction>(commands));
   }
   {
-    HeapVector<Member<Command>> commands;
-    commands.push_back(MakeGarbageCollected<Log>('b', log));
-    queue->Add(*MakeGarbageCollected<TestReaction>(std::move(commands)));
+    HeapVector<Member<Command>>* commands =
+        MakeGarbageCollected<HeapVector<Member<Command>>>();
+    commands->push_back(MakeGarbageCollected<Log>('b', log));
+    queue->Add(*MakeGarbageCollected<TestReaction>(commands));
   }
   {
-    HeapVector<Member<Command>> commands;
-    commands.push_back(MakeGarbageCollected<Log>('c', log));
-    queue->Add(*MakeGarbageCollected<TestReaction>(std::move(commands)));
+    HeapVector<Member<Command>>* commands =
+        MakeGarbageCollected<HeapVector<Member<Command>>>();
+    commands->push_back(MakeGarbageCollected<Log>('c', log));
+    queue->Add(*MakeGarbageCollected<TestReaction>(commands));
   }
   Element* test_element = CreateElement(AtomicString("my-element"));
   queue->InvokeReactions(*test_element);
@@ -57,24 +61,27 @@ TEST(CustomElementReactionQueueTest, invokeReactions_recursive) {
   CustomElementReactionQueue* queue =
       MakeGarbageCollected<CustomElementReactionQueue>();
 
-  HeapVector<Member<Command>> third_commands;
-  third_commands.push_back(MakeGarbageCollected<Log>('c', log));
-  third_commands.push_back(MakeGarbageCollected<Recurse>(queue));
-  CustomElementReaction* third = MakeGarbageCollected<TestReaction>(
-      std::move(third_commands));  // "Empty" recursion
+  HeapVector<Member<Command>>* third_commands =
+      MakeGarbageCollected<HeapVector<Member<Command>>>();
+  third_commands->push_back(MakeGarbageCollected<Log>('c', log));
+  third_commands->push_back(MakeGarbageCollected<Recurse>(queue));
+  CustomElementReaction* third =
+      MakeGarbageCollected<TestReaction>(third_commands);  // "Empty" recursion
 
-  HeapVector<Member<Command>> second_commands;
-  second_commands.push_back(MakeGarbageCollected<Log>('b', log));
-  second_commands.push_back(MakeGarbageCollected<Enqueue>(queue, third));
+  HeapVector<Member<Command>>* second_commands =
+      MakeGarbageCollected<HeapVector<Member<Command>>>();
+  second_commands->push_back(MakeGarbageCollected<Log>('b', log));
+  second_commands->push_back(MakeGarbageCollected<Enqueue>(queue, third));
   CustomElementReaction* second = MakeGarbageCollected<TestReaction>(
-      std::move(second_commands));  // Unwinds one level of recursion
+      second_commands);  // Unwinds one level of recursion
 
-  HeapVector<Member<Command>> first_commands;
-  first_commands.push_back(MakeGarbageCollected<Log>('a', log));
-  first_commands.push_back(MakeGarbageCollected<Enqueue>(queue, second));
-  first_commands.push_back(MakeGarbageCollected<Recurse>(queue));
+  HeapVector<Member<Command>>* first_commands =
+      MakeGarbageCollected<HeapVector<Member<Command>>>();
+  first_commands->push_back(MakeGarbageCollected<Log>('a', log));
+  first_commands->push_back(MakeGarbageCollected<Enqueue>(queue, second));
+  first_commands->push_back(MakeGarbageCollected<Recurse>(queue));
   CustomElementReaction* first = MakeGarbageCollected<TestReaction>(
-      std::move(first_commands));  // Non-empty recursion
+      first_commands);  // Non-empty recursion
 
   queue->Add(*first);
   Element* test_element = CreateElement(AtomicString("my-element"));
@@ -89,21 +96,24 @@ TEST(CustomElementReactionQueueTest, clear_duringInvoke) {
       MakeGarbageCollected<CustomElementReactionQueue>();
 
   {
-    HeapVector<Member<Command>> commands;
-    commands.push_back(MakeGarbageCollected<Log>('a', log));
-    queue->Add(*MakeGarbageCollected<TestReaction>(std::move(commands)));
+    HeapVector<Member<Command>>* commands =
+        MakeGarbageCollected<HeapVector<Member<Command>>>();
+    commands->push_back(MakeGarbageCollected<Log>('a', log));
+    queue->Add(*MakeGarbageCollected<TestReaction>(commands));
   }
   {
-    HeapVector<Member<Command>> commands;
-    commands.push_back(MakeGarbageCollected<Call>(WTF::BindOnce(
+    HeapVector<Member<Command>>* commands =
+        MakeGarbageCollected<HeapVector<Member<Command>>>();
+    commands->push_back(MakeGarbageCollected<Call>(WTF::Bind(
         [](CustomElementReactionQueue* queue, Element&) { queue->Clear(); },
         WrapPersistent(queue))));
-    queue->Add(*MakeGarbageCollected<TestReaction>(std::move(commands)));
+    queue->Add(*MakeGarbageCollected<TestReaction>(commands));
   }
   {
-    HeapVector<Member<Command>> commands;
-    commands.push_back(MakeGarbageCollected<Log>('b', log));
-    queue->Add(*MakeGarbageCollected<TestReaction>(std::move(commands)));
+    HeapVector<Member<Command>>* commands =
+        MakeGarbageCollected<HeapVector<Member<Command>>>();
+    commands->push_back(MakeGarbageCollected<Log>('b', log));
+    queue->Add(*MakeGarbageCollected<TestReaction>(commands));
   }
 
   Element* test_element = CreateElement(AtomicString("my-element"));

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,11 @@
 
 #include <dwrite.h>
 #include <wrl.h>
-#include <string>
 #include <utility>
 #include <vector>
+
+#include "base/macros.h"
+#include "base/strings/string16.h"
 
 namespace content {
 
@@ -20,9 +22,6 @@ class DWriteLocalizedStrings
           IDWriteLocalizedStrings> {
  public:
   DWriteLocalizedStrings();
-
-  DWriteLocalizedStrings& operator=(const DWriteLocalizedStrings&) = delete;
-
   ~DWriteLocalizedStrings() override;
 
   // IDWriteLocalizedStrings:
@@ -42,14 +41,16 @@ class DWriteLocalizedStrings
                                             UINT32* length) override;
 
   HRESULT STDMETHODCALLTYPE RuntimeClassInitialize(
-      std::vector<std::pair<std::u16string, std::u16string>>* strings);
+      std::vector<std::pair<base::string16, base::string16>>* strings);
 
  private:
   // List of strings. First element of each pair is the locale, and the second
   // element is the associated value. Use a vector because the expected number
   // of pairs is small (typically 1-2, rarely up to a few dozen?) and we need
   // index-based access.
-  std::vector<std::pair<std::u16string, std::u16string>> strings_;
+  std::vector<std::pair<base::string16, base::string16>> strings_;
+
+  DISALLOW_ASSIGN(DWriteLocalizedStrings);
 };
 
 }  // namespace content

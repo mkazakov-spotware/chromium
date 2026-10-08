@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,21 +6,21 @@
 
 #include "base/feature_list.h"
 #include "base/logging.h"
+#include "base/no_destructor.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/metrics/chrome_metrics_service_accessor.h"
 #include "chrome/browser/ui/ui_features.h"
 
 // Platform-specific headers for detecting tablet devices.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "ash/public/cpp/tablet_mode.h"
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include <windows.h>
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
 namespace {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 // Returns whether the screen supports touch input. Returns false if it
 // couldn't be checked.
@@ -44,13 +44,13 @@ bool HasBuiltInTouchScreen() {
   return (result & NID_INTEGRATED_TOUCH) != 0;
 }
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace
 
 // static
 void WebUITabStripFieldTrial::RegisterFieldTrialIfNecessary() {
-  static WebUITabStripFieldTrial instance;
+  static base::NoDestructor<WebUITabStripFieldTrial> instance;
 }
 
 WebUITabStripFieldTrial::WebUITabStripFieldTrial() {
@@ -78,9 +78,9 @@ WebUITabStripFieldTrial::WebUITabStripFieldTrial() {
 
 // static
 bool WebUITabStripFieldTrial::DeviceIsTabletModeCapable() {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   return ash::TabletMode::IsBoardTypeMarkedAsTabletCapable();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   return HasBuiltInTouchScreen();
 #else
   // No known way to determine tablet-capability on other platforms.
@@ -88,5 +88,5 @@ bool WebUITabStripFieldTrial::DeviceIsTabletModeCapable() {
   // devices, it'll do no better than the existing field trial. So,
   // return false and don't record this synthetic field trial.
   return false;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 }

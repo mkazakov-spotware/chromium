@@ -334,37 +334,37 @@ script2.js
 Content Scripts:
 -------- Setting mode: [frame]
 top
-  contentScript2.js?a=1
   contentScript.js?a=1
   contentScript.js?a=2
+  contentScript2.js?a=1
 Content Scripts:
 -------- Setting mode: [frame/domain]
 top
   localhost:8080
-    contentScript2.js?a=1
     contentScript.js?a=1
     contentScript.js?a=2
+    contentScript2.js?a=1
 Content Scripts:
 -------- Setting mode: [frame/domain/folder]
 top
   localhost:8080
     LayoutTests/inspector/debugger/foo/bar
-      contentScript2.js?a=1
       contentScript.js?a=1
       contentScript.js?a=2
+      contentScript2.js?a=1
 Content Scripts:
 -------- Setting mode: [domain]
 localhost:8080
-  contentScript2.js?a=1
   contentScript.js?a=1
   contentScript.js?a=2
+  contentScript2.js?a=1
 Content Scripts:
 -------- Setting mode: [domain/folder]
 localhost:8080
   LayoutTests/inspector/debugger/foo/bar
-    contentScript2.js?a=1
     contentScript.js?a=1
     contentScript.js?a=2
+    contentScript2.js?a=1
 
 
 ================================================
@@ -563,11 +563,11 @@ top
     ?a=b
   localhost:8080
     LayoutTests/inspector
-      debugger2/foo/bar
-        script.js
       debugger/foo/bar
         script.js
         script.js?a=2
+      debugger2/foo/bar
+        script.js
   childframe (post-message-listener.html)
     localhost:8080
       LayoutTests/inspector/debugger/foo
@@ -621,8 +621,6 @@ example.com
   ?a=b
 localhost:8080
   LayoutTests/inspector
-    debugger2/foo/bar
-      script.js
     debugger/foo
       bar
         script.js
@@ -630,6 +628,8 @@ localhost:8080
         script.js?a=2
       baz
         script.js
+    debugger2/foo/bar
+      script.js
 script1.js
   127.0.0.1:8000
     devtools/sources/debugger/resources
@@ -706,10 +706,10 @@ top
     ?a=b
   localhost:8080
     LayoutTests/inspector
-      debugger2/foo/bar
+      debugger/foo/bar
         script.js
         script.js?a=2
-      debugger/foo/bar
+      debugger2/foo/bar
         script.js
         script.js?a=2
   childframe (post-message-listener.html)
@@ -766,9 +766,6 @@ example.com
   ?a=b
 localhost:8080
   LayoutTests/inspector
-    debugger2/foo/bar
-      script.js
-      script.js?a=2
     debugger/foo
       bar
         script.js
@@ -776,6 +773,9 @@ localhost:8080
         script.js?a=2
       baz
         script.js
+    debugger2/foo/bar
+      script.js
+      script.js?a=2
 script1.js
   127.0.0.1:8000
     devtools/sources/debugger/resources
@@ -856,6 +856,9 @@ top
     ?a=b
   localhost:8080
     LayoutTests/inspector
+      debugger/foo/bar
+        script.js
+        script.js?a=2
       debugger2/foo
         bar
           script.js
@@ -863,9 +866,6 @@ top
           script.js?a=2
         baz
           script.js
-      debugger/foo/bar
-        script.js
-        script.js?a=2
   childframe (post-message-listener.html)
     localhost:8080
       LayoutTests/inspector/debugger/foo
@@ -922,14 +922,14 @@ example.com
   ?a=b
 localhost:8080
   LayoutTests/inspector
-    debugger2/foo
+    debugger/foo
       bar
         script.js
         script.js?a=1
         script.js?a=2
       baz
         script.js
-    debugger/foo
+    debugger2/foo
       bar
         script.js
         script.js?a=1
@@ -1021,6 +1021,9 @@ top
     ?a=b
   localhost:8080
     LayoutTests/inspector
+      debugger/foo/bar
+        script.js
+        script.js?a=2
       debugger2/foo
         bar
           script.js
@@ -1034,9 +1037,6 @@ top
             foo.js
           foo.js
         foo.js
-      debugger/foo/bar
-        script.js
-        script.js?a=2
   childframe (post-message-listener.html)
     localhost:8080
       LayoutTests/inspector/debugger/foo
@@ -1096,6 +1096,13 @@ example.com
   ?a=b
 localhost:8080
   LayoutTests/inspector
+    debugger/foo
+      bar
+        script.js
+        script.js?a=1
+        script.js?a=2
+      baz
+        script.js
     debugger2/foo
       bar
         script.js
@@ -1109,13 +1116,6 @@ localhost:8080
           foo.js
         foo.js
       foo.js
-    debugger/foo
-      bar
-        script.js
-        script.js?a=1
-        script.js?a=2
-      baz
-        script.js
 script1.js
   127.0.0.1:8000
     devtools/sources/debugger/resources
@@ -1202,6 +1202,9 @@ top
     ?a=b
   localhost:8080
     LayoutTests/inspector
+      debugger/foo/bar
+        script.js
+        script.js?a=2
       debugger2/foo
         bar
           script.js
@@ -1215,9 +1218,6 @@ top
             foo.js
           foo.js
         foo.js
-      debugger/foo/bar
-        script.js
-        script.js?a=2
   childframe (post-message-listener.html)
     localhost:8080
       LayoutTests/inspector/debugger/foo
@@ -1277,6 +1277,13 @@ example.com
   ?a=b
 localhost:8080
   LayoutTests/inspector
+    debugger/foo
+      bar
+        script.js
+        script.js?a=1
+        script.js?a=2
+      baz
+        script.js
     debugger2/foo
       bar
         script.js
@@ -1290,13 +1297,6 @@ localhost:8080
           foo.js
         foo.js
       foo.js
-    debugger/foo
-      bar
-        script.js
-        script.js?a=1
-        script.js?a=2
-      baz
-        script.js
 script1.js
   127.0.0.1:8000
     devtools/sources/debugger/resources
@@ -1308,37 +1308,37 @@ script2.js
 Content Scripts:
 -------- Setting mode: [frame]
 top
-  contentScript2.js?a=1
   contentScript.js?a=1
   contentScript.js?a=2
+  contentScript2.js?a=1
 Content Scripts:
 -------- Setting mode: [frame/domain]
 top
   localhost:8080
-    contentScript2.js?a=1
     contentScript.js?a=1
     contentScript.js?a=2
+    contentScript2.js?a=1
 Content Scripts:
 -------- Setting mode: [frame/domain/folder]
 top
   localhost:8080
     LayoutTests/inspector/debugger/foo/bar
-      contentScript2.js?a=1
       contentScript.js?a=1
       contentScript.js?a=2
+      contentScript2.js?a=1
 Content Scripts:
 -------- Setting mode: [domain]
 localhost:8080
-  contentScript2.js?a=1
   contentScript.js?a=1
   contentScript.js?a=2
+  contentScript2.js?a=1
 Content Scripts:
 -------- Setting mode: [domain/folder]
 localhost:8080
   LayoutTests/inspector/debugger/foo/bar
-    contentScript2.js?a=1
     contentScript.js?a=1
     contentScript.js?a=2
+    contentScript2.js?a=1
 
 
 ================================================
@@ -1407,6 +1407,9 @@ top
     ?a=b
   localhost:8080
     LayoutTests/inspector
+      debugger/foo/bar
+        script.js
+        script.js?a=2
       debugger2/foo
         bar
           script.js
@@ -1420,9 +1423,6 @@ top
             foo.js
           foo.js
         foo.js
-      debugger/foo/bar
-        script.js
-        script.js?a=2
   childframe (post-message-listener.html)
     localhost:8080
       LayoutTests/inspector/debugger/foo
@@ -1468,6 +1468,13 @@ example.com
   ?a=b
 localhost:8080
   LayoutTests/inspector
+    debugger/foo
+      bar
+        script.js
+        script.js?a=1
+        script.js?a=2
+      baz
+        script.js
     debugger2/foo
       bar
         script.js
@@ -1481,45 +1488,38 @@ localhost:8080
           foo.js
         foo.js
       foo.js
-    debugger/foo
-      bar
-        script.js
-        script.js?a=1
-        script.js?a=2
-      baz
-        script.js
 Content Scripts:
 -------- Setting mode: [frame]
 top
-  contentScript2.js?a=1
   contentScript.js?a=1
   contentScript.js?a=2
+  contentScript2.js?a=1
 Content Scripts:
 -------- Setting mode: [frame/domain]
 top
   localhost:8080
-    contentScript2.js?a=1
     contentScript.js?a=1
     contentScript.js?a=2
+    contentScript2.js?a=1
 Content Scripts:
 -------- Setting mode: [frame/domain/folder]
 top
   localhost:8080
     LayoutTests/inspector/debugger/foo/bar
-      contentScript2.js?a=1
       contentScript.js?a=1
       contentScript.js?a=2
+      contentScript2.js?a=1
 Content Scripts:
 -------- Setting mode: [domain]
 localhost:8080
-  contentScript2.js?a=1
   contentScript.js?a=1
   contentScript.js?a=2
+  contentScript2.js?a=1
 Content Scripts:
 -------- Setting mode: [domain/folder]
 localhost:8080
   LayoutTests/inspector/debugger/foo/bar
-    contentScript2.js?a=1
     contentScript.js?a=1
     contentScript.js?a=2
+    contentScript2.js?a=1
 

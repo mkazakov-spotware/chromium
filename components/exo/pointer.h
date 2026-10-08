@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,15 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/unguessable_token.h"
 #include "components/exo/surface_observer.h"
 #include "components/exo/surface_tree_host.h"
 #include "components/exo/wm_helper.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/aura/client/cursor_client_observer.h"
-#include "ui/aura/client/drag_drop_client_observer.h"
 #include "ui/aura/client/focus_change_observer.h"
 #include "ui/base/cursor/cursor.h"
 #include "ui/base/cursor/mojom/cursor_type.mojom-forward.h"
@@ -49,15 +49,10 @@ class SurfaceTreeHost;
 class Pointer : public SurfaceTreeHost,
                 public SurfaceObserver,
                 public ui::EventHandler,
-                public aura::client::DragDropClientObserver,
                 public aura::client::CursorClientObserver,
                 public aura::client::FocusChangeObserver {
  public:
   Pointer(PointerDelegate* delegate, Seat* seat);
-
-  Pointer(const Pointer&) = delete;
-  Pointer& operator=(const Pointer&) = delete;
-
   ~Pointer() override;
 
   PointerDelegate* delegate() const { return delegate_; }
@@ -87,10 +82,6 @@ class Pointer : public SurfaceTreeHost,
   void OnScrollEvent(ui::ScrollEvent* event) override;
   void OnGestureEvent(ui::GestureEvent* event) override;
 
-  // aura::client::DragDropClientObserver:
-  void OnDragStarted() override;
-  void OnDragCompleted(const ui::DropTargetEvent& event) override;
-
   // Overridden from aura::client::CursorClientObserver:
   void OnCursorSizeChanged(ui::CursorSize cursor_size) override;
   void OnCursorDisplayChanged(const display::Display& display) override;
@@ -106,43 +97,21 @@ class Pointer : public SurfaceTreeHost,
   // Enable the pointer constraint on the given surface. Returns true if the
   // lock was granted, false otherwise.
   //
-  // The delegate must call OnPointerConstraintDelegateDestroying() upon/before
-  // being destroyed, regardless of the return value of ConstrainPointer(),
-  // unless PointerConstraintDelegate::OnDefunct() is called first.
-  //
   // TODO(crbug.com/957455): For legacy reasons, locking the pointer will also
   // hide the cursor.
   bool ConstrainPointer(PointerConstraintDelegate* delegate);
 
-  // Notifies that |delegate| is being destroyed.
-  void OnPointerConstraintDelegateDestroying(
-      PointerConstraintDelegate* delegate);
-
-  // Disable the pointer constraint, notify the delegate, and do not permit
-  // the constraint to be re-established until the user acts on the surface
-  // (by clicking on it).
-  //
-  // Designed to be called by client code, on behalf of a user action to break
-  // the constraint.
-  //
-  // Returns true if an active pointer constraint was disabled.
-  bool UnconstrainPointerByUserAction();
+  // Disable the pointer constraint. This is designed to be called by the
+  // delegate, so it does not call OnConstraintBroken(), which should be done
+  // separately if the constraint was broken by something other than the
+  // delegate.
+  void UnconstrainPointer();
 
   // Set the stylus delegate for handling stylus events.
   void SetStylusDelegate(PointerStylusDelegate* delegate);
   bool HasStylusDelegate() const;
 
  private:
-  // Remove |delegate| from |constraints_|.
-  void RemoveConstraintDelegate(PointerConstraintDelegate* delegate);
-
-  // Disable the pointer constraint and notify the delegate.
-  void UnconstrainPointer();
-
-  // Try to reactivate a pointer constraint previously requested for the given
-  // surface, if any.
-  void MaybeReactivatePointerConstraint(Surface* surface);
-
   // Capture the pointer for the given surface. Returns true iff the capture
   // succeeded.
   bool EnablePointerCapture(Surface* capture_surface);
@@ -150,15 +119,12 @@ class Pointer : public SurfaceTreeHost,
   // Remove the currently active pointer capture (if there is one).
   void DisablePointerCapture();
 
-  // Returns the effective target for |event| and the event's location converted
-  // to the target's coordinates.
-  Surface* GetEffectiveTargetForEvent(const ui::LocatedEvent* event,
-                                      gfx::PointF* location_in_target) const;
+  // Returns the effective target for |event|.
+  Surface* GetEffectiveTargetForEvent(const ui::LocatedEvent* event) const;
 
   // Change pointer focus to |surface|.
   void SetFocus(Surface* surface,
-                const gfx::PointF& root_location,
-                const gfx::PointF& surface_location,
+                const gfx::PointF& location,
                 int button_flags);
 
   // Updates the root_surface in |SurfaceTreeHost| from which the cursor
@@ -176,6 +142,10 @@ class Pointer : public SurfaceTreeHost,
   // Update |cursor_| to |cursor_bitmap_| transformed for the current display.
   void UpdateCursor();
 
+  // Convert the given |location_in_target| to coordinates in the root window.
+  gfx::PointF GetLocationInRoot(Surface* target,
+                                gfx::PointF location_in_target);
+
   // Called to check if cursor should be moved to the center of the window when
   // sending relative movements.
   bool ShouldMoveToCenter();
@@ -190,13 +160,7 @@ class Pointer : public SurfaceTreeHost,
   bool HandleRelativePointerMotion(
       base::TimeTicks time_stamp,
       gfx::PointF location_in_target,
-      const absl::optional<gfx::Vector2dF>& ordinal_motion);
-
-  // Whether this Pointer should observe the given |surface|.
-  bool ShouldObserveSurface(Surface* surface);
-
-  // Stop observing |surface| if it's no longer relevant.
-  void MaybeRemoveSurfaceObserver(Surface* surface);
+      const base::Optional<gfx::Vector2dF>& ordinal_motion);
 
   // The delegate instance that all events are dispatched to.
   PointerDelegate* const delegate_;
@@ -209,12 +173,8 @@ class Pointer : public SurfaceTreeHost,
   // The delegate instance that relative movement events are dispatched to.
   RelativePointerDelegate* relative_pointer_delegate_ = nullptr;
 
-  // Delegate that owns the currently granted pointer lock, if any.
+  // The delegate instance that controls when to lock/unlock this pointer.
   PointerConstraintDelegate* pointer_constraint_delegate_ = nullptr;
-
-  // All delegates currently requesting a pointer locks, whether granted or
-  // not. Only one such request may exist per surface; others will be denied.
-  base::flat_map<Surface*, PointerConstraintDelegate*> constraints_;
 
   // The delegate instance that stylus/pen events are dispatched to.
   PointerStylusDelegate* stylus_delegate_ = nullptr;
@@ -222,25 +182,19 @@ class Pointer : public SurfaceTreeHost,
   // The current focus surface for the pointer.
   Surface* focus_surface_ = nullptr;
 
-  // The location of the pointer in the root window.
-  gfx::PointF location_in_root_;
+  // The location of the pointer in the current focus surface.
+  gfx::PointF location_;
 
   // The location of the pointer when pointer capture is first enabled.
-  absl::optional<gfx::Point> location_when_pointer_capture_enabled_;
+  base::Optional<gfx::Point> location_when_pointer_capture_enabled_;
 
   // If this is not nullptr, a synthetic move was sent and this points to the
   // location of a generated move that was sent which should not be forwarded.
-  absl::optional<gfx::Point> expected_next_mouse_location_;
+  base::Optional<gfx::Point> location_synthetic_move_;
 
   // The window with pointer capture. Pointer capture is enabled if and only if
   // this is not null.
   aura::Window* capture_window_ = nullptr;
-
-  // True if this pointer is permitted to be captured.
-  //
-  // Set false when a user action (except focus loss) breaks pointer capture.
-  // Set true when the user clicks in any Exo window.
-  bool capture_permitted_ = true;
 
   // The position of the pointer surface relative to the pointer location.
   gfx::Point hotspot_;
@@ -270,6 +224,8 @@ class Pointer : public SurfaceTreeHost,
 
   // Weak pointer factory used for cursor capture callbacks.
   base::WeakPtrFactory<Pointer> cursor_capture_weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(Pointer);
 };
 
 }  // namespace exo

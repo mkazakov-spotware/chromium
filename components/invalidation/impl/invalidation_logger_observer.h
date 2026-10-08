@@ -1,25 +1,22 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_INVALIDATION_IMPL_INVALIDATION_LOGGER_OBSERVER_H_
 #define COMPONENTS_INVALIDATION_IMPL_INVALIDATION_LOGGER_OBSERVER_H_
 
-#include <set>
-#include <string>
-
-#include "base/values.h"
 #include "components/invalidation/public/invalidation_util.h"
 #include "components/invalidation/public/invalidator_state.h"
 
 namespace base {
-class Time;
+class DictionaryValue;
 }  // namespace base
 
-namespace invalidation {
-
+namespace syncer {
 class TopicInvalidationMap;
+}  // namespace syncer
 
+namespace invalidation {
 // This class provides the possibility to register as an observer for the
 // InvalidationLogger notifications whenever an InvalidationService changes
 // its internal state.
@@ -27,17 +24,17 @@ class TopicInvalidationMap;
 class InvalidationLoggerObserver {
  public:
   virtual void OnRegistrationChange(
-      const std::set<std::string>& registered_handlers) = 0;
-  virtual void OnStateChange(const InvalidatorState& new_state,
+      const std::multiset<std::string>& registered_handlers) = 0;
+  virtual void OnStateChange(const syncer::InvalidatorState& new_state,
                              const base::Time& last_change_timestamp) = 0;
   virtual void OnUpdatedTopics(const std::string& handler_name,
-                               const TopicCountMap& details) = 0;
-  virtual void OnDebugMessage(const base::Value::Dict& details) = 0;
-  virtual void OnInvalidation(const TopicInvalidationMap& details) = 0;
-  virtual void OnDetailedStatus(base::Value::Dict details) = 0;
+                               const syncer::TopicCountMap& details) = 0;
+  virtual void OnDebugMessage(const base::DictionaryValue& details) = 0;
+  virtual void OnInvalidation(const syncer::TopicInvalidationMap& details) = 0;
+  virtual void OnDetailedStatus(const base::DictionaryValue& details) = 0;
 
  protected:
-  virtual ~InvalidationLoggerObserver() = default;
+  virtual ~InvalidationLoggerObserver() {}
 };
 
 }  // namespace invalidation

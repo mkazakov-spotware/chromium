@@ -67,7 +67,7 @@ window.onload = () => {
 
     await mouseMoveTo(x, y);
     await mouseDownAt(x, y);
-    await mouseMoveTo(x, y + MOUSE_DELTA, Buttons.LEFT);
+    await mouseMoveTo(x, y + MOUSE_DELTA);
     await mouseUpAt(x, y + MOUSE_DELTA);
     assert_approx_equals(standardDiv.scrollTop, EXPECTED_SCROLL_DELTA, 1, "Vertical thumb drag downwards did not scroll as expected");
 
@@ -93,7 +93,7 @@ window.onload = () => {
 
     await mouseMoveTo(x, y);
     await mouseDownAt(x, y);
-    await mouseMoveTo(x - MOUSE_DELTA, y, Buttons.LEFT);
+    await mouseMoveTo(x - MOUSE_DELTA, y);
     await mouseUpAt(x - MOUSE_DELTA, y);
     assert_approx_equals(rotatedDiv.scrollTop, EXPECTED_SCROLL_DELTA, 1, "Vertical thumb drag downwards on rotated scroller did not scroll as expected");
 
@@ -112,22 +112,19 @@ window.onload = () => {
 
     await mouseMoveTo(x, y);
     await mouseDownAt(x, y);
-    await mouseMoveTo(x, y + FIRST_DELTA, Buttons.LEFT);
+    await mouseMoveTo(x, y + FIRST_DELTA);
     await mouseUpAt(x, y + FIRST_DELTA);
 
-    var EXPECTED_FIRST_VIEWPORT_DELTA = {linux: 200, win: 200, mac: 192}[platform];
-    if (internals.runtimeFlags.fractionalScrollOffsetsEnabled) {
-      EXPECTED_FIRST_VIEWPORT_DELTA = {linux: 199.5, win: 199.5, mac: 192}[platform];
-    }
+    const EXPECTED_FIRST_VIEWPORT_DELTA = {linux: 200, win: 200, mac: 192}[platform];
 
     assert_equals(document.scrollingElement.scrollTop, 0,
         "Vertical thumb drag downwards on root scrollbars should not scroll layout viewport");
-    assert_approx_equals(visualViewport.pageTop, EXPECTED_FIRST_VIEWPORT_DELTA, 1,
-      "Vertical thumb drag downwards on root scroller did not scroll visual viewport as expected");
+    assert_equals(visualViewport.pageTop, EXPECTED_FIRST_VIEWPORT_DELTA,
+        "Vertical thumb drag downwards on root scroller did not scroll visual viewport as expected");
 
     await mouseMoveTo(x, y + FIRST_DELTA);
     await mouseDownAt(x, y + FIRST_DELTA);
-    await mouseMoveTo(x, y + TOTAL_ROOT_SCROLL_DELTA - FIRST_DELTA, Buttons.LEFT);
+    await mouseMoveTo(x, y + TOTAL_ROOT_SCROLL_DELTA - FIRST_DELTA);
     await mouseUpAt(x, y + TOTAL_ROOT_SCROLL_DELTA - FIRST_DELTA);
 
     // There are differences between main thread vs. compositor thread, in that
@@ -143,3 +140,4 @@ window.onload = () => {
   }, "Test mouse drags on root scrollbar thumb.");
 }
 </script>
+

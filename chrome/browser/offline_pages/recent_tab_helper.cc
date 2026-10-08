@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,12 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/system/sys_info.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
+#include "base/time/time.h"
 #include "chrome/browser/offline_pages/offline_page_mhtml_archiver.h"
 #include "chrome/browser/offline_pages/offline_page_model_factory.h"
 #include "chrome/browser/offline_pages/offline_page_utils.h"
@@ -96,7 +98,6 @@ struct RecentTabHelper::SnapshotProgressInfo {
 
 RecentTabHelper::RecentTabHelper(content::WebContents* web_contents)
     : content::WebContentsObserver(web_contents),
-      content::WebContentsUserData<RecentTabHelper>(*web_contents),
       delegate_(new DefaultRecentTabHelperDelegate()) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 }
@@ -167,7 +168,7 @@ bool RecentTabHelper::EnsureInitialized() {
     return snapshots_enabled_;
 
   snapshot_controller_ = std::make_unique<SnapshotController>(
-      base::SingleThreadTaskRunner::GetCurrentDefault(), this);
+      base::ThreadTaskRunnerHandle::Get(), this);
   snapshot_controller_->Stop();  // It is reset when navigation commits.
 
   int tab_id_number = 0;
@@ -191,11 +192,11 @@ bool RecentTabHelper::EnsureInitialized() {
 
 void RecentTabHelper::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
-  if (!navigation_handle->IsInPrimaryMainFrame() ||
+  if (!navigation_handle->IsInMainFrame() ||
       !navigation_handle->HasCommitted() ||
       navigation_handle->IsSameDocument()) {
-    DVLOG_IF(1, navigation_handle->IsInPrimaryMainFrame())
-        << "Primary main frame navigation ignored (reasons: "
+    DVLOG_IF(1, navigation_handle->IsInMainFrame())
+        << "Main frame navigation ignored (reasons: "
         << !navigation_handle->HasCommitted() << ", "
         << navigation_handle->IsSameDocument()
         << ") to: " << web_contents()->GetLastCommittedURL().spec();
@@ -263,20 +264,21 @@ void RecentTabHelper::DidFinishNavigation(
   // - Running on low end devices.
   // - Viewing POST content for privacy considerations.
   // - Disabled by flag.
-  last_n_listen_to_tab_hidden_ =
-      can_save && !delegate_->IsLowEndDevice() && !navigation_handle->IsPost();
+  last_n_listen_to_tab_hidden_ = can_save && !delegate_->IsLowEndDevice() &&
+                                 !navigation_handle->IsPost() &&
+                                 IsOffliningRecentPagesEnabled();
   DVLOG_IF(1, can_save && !last_n_listen_to_tab_hidden_)
       << " - Page can not be saved by last_n";
 }
 
-void RecentTabHelper::PrimaryMainDocumentElementAvailable() {
+void RecentTabHelper::DocumentAvailableInMainFrame() {
   EnsureInitialized();
-  snapshot_controller_->PrimaryMainDocumentElementAvailable();
+  snapshot_controller_->DocumentAvailableInMainFrame();
 }
 
-void RecentTabHelper::DocumentOnLoadCompletedInPrimaryMainFrame() {
+void RecentTabHelper::DocumentOnLoadCompletedInMainFrame() {
   EnsureInitialized();
-  snapshot_controller_->DocumentOnLoadCompletedInPrimaryMainFrame();
+  snapshot_controller_->DocumentOnLoadCompletedInMainFrame();
 }
 
 void RecentTabHelper::WebContentsDestroyed() {
@@ -300,6 +302,9 @@ void RecentTabHelper::OnVisibilityChanged(content::Visibility visibility) {
 }
 
 void RecentTabHelper::WebContentsWasHidden() {
+  if (!IsOffliningRecentPagesEnabled())
+    return;
+
   // Do not save a snapshots if any of these are true:
   // - Last_n is not listening to tab hidden events.
   // - A last_n snapshot is currently being saved.
@@ -567,6 +572,6 @@ void RecentTabHelper::CancelInFlightSnapshots() {
   last_n_ongoing_snapshot_info_.reset();
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(RecentTabHelper);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(RecentTabHelper)
 
 }  // namespace offline_pages

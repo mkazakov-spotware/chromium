@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "remoting/host/input_monitor/local_input_monitor.h"
 
@@ -41,4 +41,4 @@ class LocalPointerInputMonitor {
 
 }  // namespace remoting
 
-#endif  // REMOTING_HOST_INPUT_MONITOR_LOCAL_POINTER_INPUT_MONITOR_H_
+#endif  // REMOTING_HOST_INPUT_MONITOR_LOCAL_MOUSE_INPUT_MONITOR_H_

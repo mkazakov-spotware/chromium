@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_PAINT_SCOPED_PAINT_CHUNK_PROPERTIES_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_PAINT_SCOPED_PAINT_CHUNK_PROPERTIES_H_
 
+#include "base/macros.h"
 #include "third_party/blink/renderer/platform/graphics/paint/display_item.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_chunk.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_controller.h"
@@ -24,9 +25,8 @@ class ScopedPaintChunkProperties {
                              DisplayItem::Type type)
       : paint_controller_(paint_controller),
         previous_properties_(paint_controller.CurrentPaintChunkProperties()) {
-    PaintChunk::Id id(client.Id(), type);
-    paint_controller_.UpdateCurrentPaintChunkProperties(id, client, properties);
-    paint_controller_.RecordDebugInfo(client);
+    PaintChunk::Id id(client, type);
+    paint_controller_.UpdateCurrentPaintChunkProperties(&id, properties);
   }
 
   // Use new transform state, and keep the current other properties.
@@ -62,17 +62,14 @@ class ScopedPaintChunkProperties {
             client,
             type) {}
 
-  ScopedPaintChunkProperties(const ScopedPaintChunkProperties&) = delete;
-  ScopedPaintChunkProperties& operator=(const ScopedPaintChunkProperties&) =
-      delete;
-
   ~ScopedPaintChunkProperties() {
     // We should not return to the previous id, because that may cause a new
     // chunk to use the same id as that of the previous chunk before this
     // ScopedPaintChunkProperties. The painter should create another scope of
     // paint properties with new id, or the new chunk will use the id of the
     // first display item as its id.
-    paint_controller_.UpdateCurrentPaintChunkProperties(previous_properties_);
+    paint_controller_.UpdateCurrentPaintChunkProperties(nullptr,
+                                                        previous_properties_);
   }
 
  private:
@@ -105,6 +102,8 @@ class ScopedPaintChunkProperties {
 
   PaintController& paint_controller_;
   PropertyTreeStateOrAlias previous_properties_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedPaintChunkProperties);
 };
 
 }  // namespace blink

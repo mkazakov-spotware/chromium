@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/files/file_path.h"
 #include "base/files/memory_mapped_file.h"
+#include "base/macros.h"
 #include "media/base/test_data_util.h"
 #include "media/video/h264_parser.h"
 #include "media/video/h264_poc.h"
@@ -19,9 +20,6 @@ class H264POCTest : public testing::Test {
     // Default every frame to be a reference frame.
     slice_hdr_.nal_ref_idc = 1;
   }
-
-  H264POCTest(const H264POCTest&) = delete;
-  H264POCTest& operator=(const H264POCTest&) = delete;
 
  protected:
   void ComputePOC() {
@@ -45,11 +43,13 @@ class H264POCTest : public testing::Test {
     slice_hdr_.ref_pic_marking[2].memory_mgmnt_control_operation = 0;
   }
 
-  absl::optional<int32_t> poc_;
+  base::Optional<int32_t> poc_;
 
   H264SPS sps_;
   H264SliceHeader slice_hdr_;
   H264POC h264_poc_;
+
+  DISALLOW_COPY_AND_ASSIGN(H264POCTest);
 };
 
 TEST_F(H264POCTest, PicOrderCntType0) {

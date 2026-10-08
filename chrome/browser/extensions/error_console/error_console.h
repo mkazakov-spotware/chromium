@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,9 @@
 #include <set>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
-#include "base/scoped_multi_source_observation.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "base/threading/thread_checker.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_observer.h"
@@ -61,10 +60,6 @@ class ErrorConsole : public KeyedService,
   };
 
   explicit ErrorConsole(Profile* profile);
-
-  ErrorConsole(const ErrorConsole&) = delete;
-  ErrorConsole& operator=(const ErrorConsole&) = delete;
-
   ~ErrorConsole() override;
 
   // Convenience method to return the ErrorConsole for a given |context|.
@@ -189,19 +184,20 @@ class ErrorConsole : public KeyedService,
   // The profile with which the ErrorConsole is associated. Only collect errors
   // from extensions and RenderViews associated with this Profile (and it's
   // incognito fellow).
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   // The ExtensionPrefs with which the ErrorConsole is associated. This weak
   // pointer is safe because ErrorConsole is owned by ExtensionSystem, which
   // is dependent on ExtensionPrefs.
-  raw_ptr<ExtensionPrefs> prefs_;
+  ExtensionPrefs* prefs_;
 
-  base::ScopedMultiSourceObservation<Profile, ProfileObserver>
-      profile_observations_{this};
+  ScopedObserver<Profile, ProfileObserver> profile_observer_{this};
   PrefChangeRegistrar pref_registrar_;
 
-  base::ScopedObservation<ExtensionRegistry, ExtensionRegistryObserver>
-      registry_observation_{this};
+  ScopedObserver<ExtensionRegistry, ExtensionRegistryObserver>
+      registry_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ErrorConsole);
 };
 
 }  // namespace extensions

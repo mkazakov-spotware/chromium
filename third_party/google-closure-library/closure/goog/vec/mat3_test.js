@@ -1,15 +1,11 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+// Use of this source code is governed by the Apache License, Version 2.0.
 
 goog.module('goog.vec.Mat3Test');
 goog.setTestOnly();
 
 const Mat3 = goog.require('goog.vec.Mat3');
 const testSuite = goog.require('goog.testing.testSuite');
-const vec = goog.require('goog.vec');
 
 const randomMat3 = Mat3.createFloat32FromValues(
     0.8025078773498535, 0.7559120655059814, 0.15274643898010254,
@@ -321,13 +317,13 @@ testSuite({
     const m0 = Mat3.createFloat32();
     Mat3.makeRotate(m0, Math.PI / 2, 0, 0, 1);
     const v0 = [0, 1, 0, -1, 0, 0, 0, 0, 1];
-    assertElementsRoughlyEqual(m0, v0, vec.EPSILON);
+    assertElementsRoughlyEqual(m0, v0, goog.vec.EPSILON);
 
     const m1 = Mat3.createFloat32();
     Mat3.makeRotate(m1, -Math.PI / 4, 0, 0, 1);
     Mat3.multMat(m0, m1, m1);
     const v1 = [0.7071068, 0.7071068, 0, -0.7071068, 0.7071068, 0, 0, 0, 1];
-    assertElementsRoughlyEqual(m1, v1, vec.EPSILON);
+    assertElementsRoughlyEqual(m1, v1, goog.vec.EPSILON);
   },
 
   testMakeRotateX() {
@@ -336,7 +332,7 @@ testSuite({
 
     Mat3.makeRotateX(m0, Math.PI / 7);
     Mat3.makeRotate(m1, Math.PI / 7, 1, 0, 0);
-    assertElementsRoughlyEqual(m0, m1, vec.EPSILON);
+    assertElementsRoughlyEqual(m0, m1, goog.vec.EPSILON);
   },
 
   testMakeRotateY() {
@@ -345,7 +341,7 @@ testSuite({
 
     Mat3.makeRotateY(m0, Math.PI / 7);
     Mat3.makeRotate(m1, Math.PI / 7, 0, 1, 0);
-    assertElementsRoughlyEqual(m0, m1, vec.EPSILON);
+    assertElementsRoughlyEqual(m0, m1, goog.vec.EPSILON);
   },
 
   testMakeRotateZ() {
@@ -354,18 +350,19 @@ testSuite({
 
     Mat3.makeRotateZ(m0, Math.PI / 7);
     Mat3.makeRotate(m1, Math.PI / 7, 0, 0, 1);
-    assertElementsRoughlyEqual(m0, m1, vec.EPSILON);
+    assertElementsRoughlyEqual(m0, m1, goog.vec.EPSILON);
   },
 
   testRotate() {
     const m0 = Mat3.createIdentity();
     Mat3.rotate(m0, Math.PI / 2, 0, 0, 1);
-    assertElementsRoughlyEqual([0, 1, 0, -1, 0, 0, 0, 0, 1], m0, vec.EPSILON);
+    assertElementsRoughlyEqual(
+        [0, 1, 0, -1, 0, 0, 0, 0, 1], m0, goog.vec.EPSILON);
 
     Mat3.rotate(m0, -Math.PI / 4, 0, 0, 1);
     assertElementsRoughlyEqual(
         [0.7071068, 0.7071068, 0, -0.7071068, 0.7071068, 0, 0, 0, 1], m0,
-        vec.EPSILON);
+        goog.vec.EPSILON);
   },
 
   testRotateX() {
@@ -375,7 +372,7 @@ testSuite({
     Mat3.makeRotateX(m0, Math.PI / 7);
     Mat3.multMat(m1, m0, m0);
     Mat3.rotateX(m1, Math.PI / 7);
-    assertElementsRoughlyEqual(m0, m1, vec.EPSILON);
+    assertElementsRoughlyEqual(m0, m1, goog.vec.EPSILON);
   },
 
   testRotateY() {
@@ -385,7 +382,7 @@ testSuite({
     Mat3.makeRotateY(m0, Math.PI / 7);
     Mat3.multMat(m1, m0, m0);
     Mat3.rotateY(m1, Math.PI / 7);
-    assertElementsRoughlyEqual(m0, m1, vec.EPSILON);
+    assertElementsRoughlyEqual(m0, m1, goog.vec.EPSILON);
   },
 
   testRotateZ() {
@@ -395,7 +392,7 @@ testSuite({
     Mat3.makeRotateZ(m0, Math.PI / 7);
     Mat3.multMat(m1, m0, m0);
     Mat3.rotateZ(m1, Math.PI / 7);
-    assertElementsRoughlyEqual(m0, m1, vec.EPSILON);
+    assertElementsRoughlyEqual(m0, m1, goog.vec.EPSILON);
   },
 
   testMakeEulerZXZ() {
@@ -410,14 +407,14 @@ testSuite({
 
     const m1 = Mat3.createFloat32();
     Mat3.makeEulerZXZ(m1, roll, tilt, yaw);
-    assertElementsRoughlyEqual(m0, m1, vec.EPSILON);
+    assertElementsRoughlyEqual(m0, m1, goog.vec.EPSILON);
 
     let euler = [0, 0, 0];
     Mat3.toEulerZXZ(m0, euler);
 
-    assertRoughlyEquals(roll, euler[0], vec.EPSILON);
-    assertRoughlyEquals(tilt, euler[1], vec.EPSILON);
-    assertRoughlyEquals(yaw, euler[2], vec.EPSILON);
+    assertRoughlyEquals(roll, euler[0], goog.vec.EPSILON);
+    assertRoughlyEquals(tilt, euler[1], goog.vec.EPSILON);
+    assertRoughlyEquals(yaw, euler[2], goog.vec.EPSILON);
 
     // Test negative tilt now.
     Mat3.makeRotate(m0, roll, 0, 0, 1);
@@ -425,14 +422,14 @@ testSuite({
     Mat3.rotate(m0, yaw, 0, 0, 1);
 
     Mat3.makeEulerZXZ(m1, roll, -tilt, yaw);
-    assertElementsRoughlyEqual(m0, m1, vec.EPSILON);
+    assertElementsRoughlyEqual(m0, m1, goog.vec.EPSILON);
 
     euler = [0, 0, 0];
     Mat3.toEulerZXZ(m0, euler, true);
 
-    assertRoughlyEquals(roll, euler[0], vec.EPSILON);
-    assertRoughlyEquals(-tilt, euler[1], vec.EPSILON);
-    assertRoughlyEquals(yaw, euler[2], vec.EPSILON);
+    assertRoughlyEquals(roll, euler[0], goog.vec.EPSILON);
+    assertRoughlyEquals(-tilt, euler[1], goog.vec.EPSILON);
+    assertRoughlyEquals(yaw, euler[2], goog.vec.EPSILON);
   },
 
   testEulerZXZExtrema() {
@@ -442,8 +439,8 @@ testSuite({
     const euler = [0, 0, 0];
     Mat3.toEulerZXZ(m0, euler);
     assertElementsRoughlyEqual(
-        [Math.PI, Math.PI / 2, Math.PI], euler, vec.EPSILON);
+        [Math.PI, Math.PI / 2, Math.PI], euler, goog.vec.EPSILON);
     Mat3.makeEulerZXZ(m1, euler[0], euler[1], euler[2]);
-    assertElementsRoughlyEqual(m0, m1, vec.EPSILON);
+    assertElementsRoughlyEqual(m0, m1, goog.vec.EPSILON);
   },
 });

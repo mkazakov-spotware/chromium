@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,27 +11,27 @@ import android.support.test.InstrumentationRegistry;
 import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.library_loader.LibraryLoader;
+import org.chromium.base.library_loader.LibraryProcessType;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Feature;
-import org.chromium.content_public.browser.test.NativeLibraryTestUtils;
 
 /**
  * Unit tests for RoundedIconGenerator.
  */
 @RunWith(BaseJUnit4ClassRunner.class)
-@Batch(Batch.UNIT_TESTS)
 public class RoundedIconGeneratorTest {
-    private static Context sContext;
+    private Context mContext;
 
-    @BeforeClass
-    public static void setUp() {
-        sContext = InstrumentationRegistry.getTargetContext();
-        NativeLibraryTestUtils.loadNativeLibraryNoBrowserProcess();
+    @Before
+    public void setUp() {
+        mContext = InstrumentationRegistry.getTargetContext();
+        LibraryLoader.getInstance().setLibraryProcessType(LibraryProcessType.PROCESS_BROWSER);
+        LibraryLoader.getInstance().ensureInitialized();
     }
 
     private String getIconTextForUrl(String url, boolean includePrivateRegistries) {
@@ -82,7 +82,7 @@ public class RoundedIconGeneratorTest {
         final int iconTextSizeDp = 12;
 
         int iconColor = Color.GRAY;
-        RoundedIconGenerator generator = new RoundedIconGenerator(sContext.getResources(),
+        RoundedIconGenerator generator = new RoundedIconGenerator(mContext.getResources(),
                 iconSizeDp, iconSizeDp, iconCornerRadiusDp, iconColor, iconTextSizeDp);
 
         Assert.assertTrue(generator.generateIconForText("") != null);

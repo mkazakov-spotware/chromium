@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,9 @@
 
 #include "base/bind.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "media/capture/video/blob_utils.h"
 #include "media/capture/video/chromeos/camera_buffer_factory.h"
 #include "media/capture/video/chromeos/camera_device_context.h"
@@ -38,18 +38,15 @@ namespace {
 
 class MockStreamCaptureInterface : public StreamCaptureInterface {
  public:
-  void ProcessCaptureRequest(
-      cros::mojom::Camera3CaptureRequestPtr request,
-      base::OnceCallback<void(int32_t)> callback) override {
+  void ProcessCaptureRequest(cros::mojom::Camera3CaptureRequestPtr request,
+                             base::OnceCallback<void(int32_t)> callback) {
     DoProcessCaptureRequest(request, callback);
   }
   MOCK_METHOD2(DoProcessCaptureRequest,
                void(cros::mojom::Camera3CaptureRequestPtr& request,
                     base::OnceCallback<void(int32_t)>& callback));
 
-  void Flush(base::OnceCallback<void(int32_t)> callback) override {
-    DoFlush(callback);
-  }
+  void Flush(base::OnceCallback<void(int32_t)> callback) { DoFlush(callback); }
   MOCK_METHOD1(DoFlush, void(base::OnceCallback<void(int32_t)>& callback));
 };
 
@@ -68,8 +65,7 @@ class FakeCameraBufferFactory : public CameraBufferFactory {
       gfx::BufferFormat format,
       gfx::BufferUsage usage) override {
     return unittest_internal::MockGpuMemoryBufferManager::
-        CreateFakeGpuMemoryBuffer(size, format, usage, gpu::kNullSurfaceHandle,
-                                  nullptr);
+        CreateFakeGpuMemoryBuffer(size, format, usage, gpu::kNullSurfaceHandle);
   }
 
   ChromiumPixelFormat ResolveStreamBufferFormat(
@@ -91,16 +87,12 @@ class RequestManagerTest : public ::testing::Test {
   void SetUp() override {
     quit_ = false;
     client_type_ = ClientType::kPreviewClient;
-    VideoCaptureParams params;
-    params.requested_format = kDefaultCaptureFormat;
-    capture_params_[client_type_] = params;
     device_context_ = std::make_unique<CameraDeviceContext>();
     if (device_context_->AddClient(
             client_type_,
             std::make_unique<unittest_internal::MockVideoCaptureClient>())) {
-      std::string fake_device_id = "0";
       request_manager_ = std::make_unique<RequestManager>(
-          fake_device_id, mock_callback_ops_.BindNewPipeAndPassReceiver(),
+          mock_callback_ops_.BindNewPipeAndPassReceiver(),
           std::make_unique<MockStreamCaptureInterface>(), device_context_.get(),
           VideoCaptureBufferType::kSharedMemory,
           std::make_unique<FakeCameraBufferFactory>(),
@@ -108,8 +100,7 @@ class RequestManagerTest : public ::testing::Test {
               [](const uint8_t* buffer, const uint32_t bytesused,
                  const VideoCaptureFormat& capture_format,
                  const int rotation) { return mojom::Blob::New(); }),
-          base::SingleThreadTaskRunner::GetCurrentDefault(),
-          cros::mojom::CAMERA_DEVICE_API_VERSION_3_5);
+          base::ThreadTaskRunnerHandle::Get(), nullptr, client_type_);
     }
   }
 
@@ -119,7 +110,7 @@ class RequestManagerTest : public ::testing::Test {
   }
 
   void DoLoop() {
-    run_loop_ = std::make_unique<base::RunLoop>();
+    run_loop_.reset(new base::RunLoop());
     run_loop_->Run();
   }
 
@@ -254,9 +245,9 @@ class RequestManagerTest : public ::testing::Test {
         static_cast<uint64_t>(StreamType::kPreviewOutput);
     error_msg->error_code = error_code;
     auto notify_msg = cros::mojom::Camera3NotifyMsg::New();
+    notify_msg->message = cros::mojom::Camera3NotifyMsgMessage::New();
     notify_msg->type = cros::mojom::Camera3MsgType::CAMERA3_MSG_ERROR;
-    notify_msg->message =
-        cros::mojom::Camera3NotifyMsgMessage::NewError(std::move(error_msg));
+    notify_msg->message->set_error(std::move(error_msg));
     return notify_msg;
   }
 
@@ -267,9 +258,9 @@ class RequestManagerTest : public ::testing::Test {
     shutter_msg->frame_number = frame_number;
     shutter_msg->timestamp = timestamp;
     auto notify_msg = cros::mojom::Camera3NotifyMsg::New();
+    notify_msg->message = cros::mojom::Camera3NotifyMsgMessage::New();
     notify_msg->type = cros::mojom::Camera3MsgType::CAMERA3_MSG_SHUTTER;
-    notify_msg->message = cros::mojom::Camera3NotifyMsgMessage::NewShutter(
-        std::move(shutter_msg));
+    notify_msg->message->set_shutter(std::move(shutter_msg));
     return notify_msg;
   }
 
@@ -293,7 +284,6 @@ class RequestManagerTest : public ::testing::Test {
   mojo::Remote<cros::mojom::Camera3CallbackOps> mock_callback_ops_;
   std::unique_ptr<CameraDeviceContext> device_context_;
   ClientType client_type_;
-  base::flat_map<ClientType, VideoCaptureParams> capture_params_;
 
  private:
   std::unique_ptr<base::RunLoop> run_loop_;
@@ -310,7 +300,8 @@ TEST_F(RequestManagerTest, SimpleCaptureTest) {
       .WillRepeatedly(Invoke(this, &RequestManagerTest::ProcessCaptureRequest));
 
   request_manager_->SetUpStreamsAndBuffers(
-      capture_params_, GetFakeStaticMetadata(/* partial_result_count */ 1),
+      kDefaultCaptureFormat,
+      GetFakeStaticMetadata(/* partial_result_count */ 1),
       PrepareCaptureStream(/* max_buffers */ 1));
   request_manager_->StartPreview(cros::mojom::CameraMetadata::New());
 
@@ -352,7 +343,8 @@ TEST_F(RequestManagerTest, PartialResultTest) {
           }));
 
   request_manager_->SetUpStreamsAndBuffers(
-      capture_params_, GetFakeStaticMetadata(/* partial_result_count */ 3),
+      kDefaultCaptureFormat,
+      GetFakeStaticMetadata(/* partial_result_count */ 3),
       PrepareCaptureStream(/* max_buffers */ 1));
   request_manager_->StartPreview(cros::mojom::CameraMetadata::New());
 
@@ -383,7 +375,8 @@ TEST_F(RequestManagerTest, DeviceErrorTest) {
       }));
 
   request_manager_->SetUpStreamsAndBuffers(
-      capture_params_, GetFakeStaticMetadata(/* partial_result_count */ 1),
+      kDefaultCaptureFormat,
+      GetFakeStaticMetadata(/* partial_result_count */ 1),
       PrepareCaptureStream(/* max_buffers */ 1));
   request_manager_->StartPreview(cros::mojom::CameraMetadata::New());
 
@@ -422,7 +415,8 @@ TEST_F(RequestManagerTest, RequestErrorTest) {
       .WillRepeatedly(Invoke(this, &RequestManagerTest::ProcessCaptureRequest));
 
   request_manager_->SetUpStreamsAndBuffers(
-      capture_params_, GetFakeStaticMetadata(/* partial_result_count */ 1),
+      kDefaultCaptureFormat,
+      GetFakeStaticMetadata(/* partial_result_count */ 1),
       PrepareCaptureStream(/* max_buffers */ 1));
   request_manager_->StartPreview(cros::mojom::CameraMetadata::New());
 
@@ -462,7 +456,8 @@ TEST_F(RequestManagerTest, ResultErrorTest) {
       .WillRepeatedly(Invoke(this, &RequestManagerTest::ProcessCaptureRequest));
 
   request_manager_->SetUpStreamsAndBuffers(
-      capture_params_, GetFakeStaticMetadata(/* partial_result_count */ 2),
+      kDefaultCaptureFormat,
+      GetFakeStaticMetadata(/* partial_result_count */ 2),
       PrepareCaptureStream(/* max_buffers */ 1));
   request_manager_->StartPreview(cros::mojom::CameraMetadata::New());
 
@@ -504,7 +499,8 @@ TEST_F(RequestManagerTest, BufferErrorTest) {
       .WillRepeatedly(Invoke(this, &RequestManagerTest::ProcessCaptureRequest));
 
   request_manager_->SetUpStreamsAndBuffers(
-      capture_params_, GetFakeStaticMetadata(/* partial_result_count */ 1),
+      kDefaultCaptureFormat,
+      GetFakeStaticMetadata(/* partial_result_count */ 1),
       PrepareCaptureStream(/* max_buffers */ 1));
   request_manager_->StartPreview(cros::mojom::CameraMetadata::New());
 

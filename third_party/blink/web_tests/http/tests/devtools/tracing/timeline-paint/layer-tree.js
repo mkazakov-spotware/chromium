@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that LayerTreeModel successfully imports layers from a trace.\n`);
-  await TestRunner.loadLegacyModule('timeline'); await TestRunner.loadTestModule('performance_test_runner');
-  await TestRunner.loadTestModule('layers_test_runner');
+  await TestRunner.loadModule('performance_test_runner');
+  await TestRunner.loadModule('layers_test_runner');
   await TestRunner.showPanel('timeline');
   await TestRunner.loadHTML(`
       <div id="a" style="width: 200px; height: 200px" class="layer">
@@ -35,7 +35,7 @@
 
   await PerformanceTestRunner.invokeAsyncWithTimeline('doActions');
   const frames = PerformanceTestRunner.timelineFrameModel().frames();
-  const lastFrame = frames[frames.length - 1];
+  const lastFrame = PerformanceTestRunner.timelineFrameModel().frames().peekLast();
   const layerTreeModel = await lastFrame.layerTree.layerTreePromise();
   LayersTestRunner.dumpLayerTree(undefined, layerTreeModel.contentRoot());
 

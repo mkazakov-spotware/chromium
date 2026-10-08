@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,24 +6,21 @@
 
 #include <utility>
 
-#include "base/bind.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
-#include "ui/base/interaction/element_identifier.h"
 #include "ui/events/event_constants.h"
 #include "ui/events/types/event_type.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/button/button_controller_delegate.h"
 #include "ui/views/controls/button/menu_button.h"
-#include "ui/views/interaction/element_tracker_views.h"
 #include "ui/views/mouse_constants.h"
 #include "ui/views/style/platform_style.h"
-#include "ui/views/view_class_properties.h"
 #include "ui/views/widget/root_view.h"
 #include "ui/views/widget/widget.h"
 
+using base::TimeDelta;
 using base::TimeTicks;
 
 namespace views {
@@ -111,7 +108,7 @@ bool MenuButtonController::OnMousePressed(const ui::MouseEvent& event) {
 
   // If this is an unintentional trigger do not display the inkdrop.
   if (!is_intentional_menu_trigger_)
-    InkDrop::Get(button())->AnimateToState(InkDropState::HIDDEN, &event);
+    button()->AnimateInkDrop(InkDropState::HIDDEN, &event);
   return true;
 }
 
@@ -122,7 +119,7 @@ void MenuButtonController::OnMouseReleased(const ui::MouseEvent& event) {
     Activate(&event);
   } else {
     if (button()->GetHideInkDropWhenShowingContextMenu())
-      InkDrop::Get(button())->AnimateToState(InkDropState::HIDDEN, &event);
+      button()->AnimateInkDrop(InkDropState::HIDDEN, &event);
     ButtonController::OnMouseReleased(event);
   }
 }
@@ -226,22 +223,13 @@ bool MenuButtonController::Activate(const ui::Event* event) {
     // mouse target during the mouse press we explicitly set the mouse handler
     // to NULL.
     static_cast<internal::RootView*>(button()->GetWidget()->GetRootView())
-        ->SetMouseAndGestureHandler(nullptr);
+        ->SetMouseHandler(nullptr);
 
     DCHECK(increment_pressed_lock_called_ == nullptr);
     // Observe if IncrementPressedLocked() was called so we can trigger the
     // correct ink drop animations.
     bool increment_pressed_lock_called = false;
     increment_pressed_lock_called_ = &increment_pressed_lock_called;
-
-    // Since regular Button logic isn't used, we need to instead notify that the
-    // menu button was activated here.
-    const ui::ElementIdentifier id =
-        button()->GetProperty(views::kElementIdentifierKey);
-    if (id) {
-      views::ElementTrackerViews::GetInstance()->NotifyViewActivated(id,
-                                                                     button());
-    }
 
     // Allow for the button callback to delete this.
     auto ref = weak_factory_.GetWeakPtr();
@@ -264,8 +252,8 @@ bool MenuButtonController::Activate(const ui::Event* event) {
     increment_pressed_lock_called_ = nullptr;
 
     if (!increment_pressed_lock_called && pressed_lock_count_ == 0) {
-      InkDrop::Get(button())->AnimateToState(
-          InkDropState::ACTION_TRIGGERED, ui::LocatedEvent::FromIfValid(event));
+      button()->AnimateInkDrop(InkDropState::ACTION_TRIGGERED,
+                               ui::LocatedEvent::FromIfValid(event));
     }
 
     // We must return false here so that the RootView does not get stuck
@@ -274,8 +262,8 @@ bool MenuButtonController::Activate(const ui::Event* event) {
     return false;
   }
 
-  InkDrop::Get(button())->AnimateToState(InkDropState::HIDDEN,
-                                         ui::LocatedEvent::FromIfValid(event));
+  button()->AnimateInkDrop(InkDropState::HIDDEN,
+                           ui::LocatedEvent::FromIfValid(event));
   return true;
 }
 
@@ -318,7 +306,7 @@ void MenuButtonController::IncrementPressedLocked(
     if (snap_ink_drop_to_activated)
       delegate()->GetInkDrop()->SnapToActivated();
     else
-      InkDrop::Get(button())->AnimateToState(InkDropState::ACTIVATED, event);
+      button()->AnimateInkDrop(InkDropState::ACTIVATED, event);
   }
   button()->SetState(Button::STATE_PRESSED);
   delegate()->GetInkDrop()->SetHovered(false);
@@ -331,7 +319,7 @@ void MenuButtonController::DecrementPressedLocked() {
   // If this was the last lock, manually reset state to the desired state.
   if (pressed_lock_count_ == 0) {
     menu_closed_time_ = TimeTicks::Now();
-    state_changed_subscription_ = {};
+    state_changed_subscription_.reset();
     LabelButton::ButtonState desired_state = Button::STATE_NORMAL;
     if (should_disable_after_press_) {
       desired_state = Button::STATE_DISABLED;
@@ -346,8 +334,7 @@ void MenuButtonController::DecrementPressedLocked() {
     // The widget may be null during shutdown. If so, it doesn't make sense to
     // try to add an ink drop effect.
     if (button()->GetWidget() && button()->GetState() != Button::STATE_PRESSED)
-      InkDrop::Get(button())->AnimateToState(InkDropState::DEACTIVATED,
-                                             nullptr /* event */);
+      button()->AnimateInkDrop(InkDropState::DEACTIVATED, nullptr /* event */);
   }
 }
 

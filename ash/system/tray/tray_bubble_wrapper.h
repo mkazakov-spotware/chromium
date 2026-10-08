@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "ash/ash_export.h"
 #include "ash/system/tray/tray_bubble_base.h"
+#include "base/macros.h"
 #include "ui/views/widget/widget_observer.h"
 #include "ui/wm/public/activation_change_observer.h"
 
@@ -16,23 +17,15 @@ class TrayBackgroundView;
 class TrayBubbleView;
 
 // Creates and manages the Widget and EventFilter components of a bubble.
+// TODO(tetsui): Remove this and use TrayBubbleBase for all bubbles.
 class ASH_EXPORT TrayBubbleWrapper : public TrayBubbleBase,
+                                     public views::WidgetObserver,
                                      public ::wm::ActivationChangeObserver {
  public:
-  // `event_handling` When set to false disables the tray's event filtering
-  // and also ignores the activation events. Eche window is an example of a use
-  // case in which we do not want the keyboard events (both inside and outside
-  // of the bubble) be filtered and also we do not want activaion of other
-  // windows closes the bubble.
-  explicit TrayBubbleWrapper(TrayBackgroundView* tray,
-                             bool event_handling = true);
-
-  TrayBubbleWrapper(const TrayBubbleWrapper&) = delete;
-  TrayBubbleWrapper& operator=(const TrayBubbleWrapper&) = delete;
-
+  TrayBubbleWrapper(TrayBackgroundView* tray,
+                    TrayBubbleView* bubble_view,
+                    bool is_persistent);
   ~TrayBubbleWrapper() override;
-
-  void ShowBubble(std::unique_ptr<TrayBubbleView> bubble_view);
 
   // TrayBubbleBase overrides:
   TrayBackgroundView* GetTray() const override;
@@ -55,17 +48,11 @@ class ASH_EXPORT TrayBubbleWrapper : public TrayBubbleBase,
 
  private:
   TrayBackgroundView* tray_;
-  views::Widget* bubble_widget_ = nullptr;
+  TrayBubbleView* bubble_view_;  // unowned
+  views::Widget* bubble_widget_;
+  bool is_persistent_;
 
-  // Owned by `bubble_widget_`
-  TrayBubbleView* bubble_view_ = nullptr;
-
-  // When set to false disables the tray's event filtering
-  // and also ignores the activation events. Eche window is an example of a use
-  // case in which we do not want the keyboard events (both inside and outside
-  // of the bubble) be filtered and also we do not want activaion of other
-  // windows closes the bubble.
-  const bool event_handling_;
+  DISALLOW_COPY_AND_ASSIGN(TrayBubbleWrapper);
 };
 
 }  // namespace ash

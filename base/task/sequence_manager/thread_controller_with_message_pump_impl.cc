@@ -1,36 +1,24 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/task/sequence_manager/thread_controller_with_message_pump_impl.h"
 
 #include <algorithm>
-#include <string>
 #include <utility>
 
 #include "base/auto_reset.h"
-#include "base/feature_list.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ref.h"
 #include "base/message_loop/message_pump.h"
-#include "base/metrics/histogram.h"
-#include "base/metrics/histogram_macros.h"
-#include "base/task/common/task_annotator.h"
-#include "base/task/sequence_manager/sequence_manager_impl.h"
-#include "base/task/sequence_manager/tasks.h"
-#include "base/task/task_features.h"
 #include "base/threading/hang_watcher.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/tick_clock.h"
-#include "base/time/time.h"
 #include "base/trace_event/base_tracing.h"
 #include "build/build_config.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 #include "base/message_loop/message_pump_mac.h"
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
 #include "base/message_loop/message_pump_android.h"
 #endif
 
@@ -46,49 +34,21 @@ namespace {
 // event) and 99% of completed sleeps are the ones scheduled for <= 1 second.
 // Details @ https://crrev.com/c/1142589.
 TimeTicks CapAtOneDay(TimeTicks next_run_time, LazyNow* lazy_now) {
-  return std::min(next_run_time, lazy_now->Now() + Days(1));
-}
-
-// Feature to run tasks by batches before pumping out messages.
-BASE_FEATURE(kRunTasksByBatches,
-             "RunTasksByBatches",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-std::atomic_bool g_align_wake_ups = false;
-std::atomic_bool g_run_tasks_by_batches = false;
-
-TimeTicks WakeUpRunTime(const WakeUp& wake_up) {
-  if (g_align_wake_ups.load(std::memory_order_relaxed)) {
-    TimeTicks aligned_run_time = wake_up.earliest_time().SnappedToNextTick(
-        TimeTicks(), GetTaskLeewayForCurrentThread());
-    return std::min(aligned_run_time, wake_up.latest_time());
-  }
-  return wake_up.time;
+  return std::min(next_run_time, lazy_now->Now() + TimeDelta::FromDays(1));
 }
 
 }  // namespace
 
-// static
-void ThreadControllerWithMessagePumpImpl::InitializeFeatures() {
-  g_align_wake_ups = FeatureList::IsEnabled(kAlignWakeUps);
-  g_run_tasks_by_batches.store(FeatureList::IsEnabled(kRunTasksByBatches),
-                               std::memory_order_relaxed);
-}
-
-// static
-void ThreadControllerWithMessagePumpImpl::ResetFeatures() {
-  g_align_wake_ups.store(
-      kAlignWakeUps.default_state == FEATURE_ENABLED_BY_DEFAULT,
-      std::memory_order_relaxed);
-  g_run_tasks_by_batches.store(
-      kRunTasksByBatches.default_state == FEATURE_ENABLED_BY_DEFAULT,
-      std::memory_order_relaxed);
-}
-
 ThreadControllerWithMessagePumpImpl::ThreadControllerWithMessagePumpImpl(
     const SequenceManager::Settings& settings)
-    : ThreadController(settings.clock),
-      work_deduplicator_(associated_thread_) {}
+    : associated_thread_(AssociatedThreadId::CreateUnbound()),
+      work_deduplicator_(associated_thread_),
+#if DCHECK_IS_ON()
+      log_runloop_quit_and_quit_when_idle_(
+          settings.log_runloop_quit_and_quit_when_idle),
+#endif
+      time_source_(settings.clock) {
+}
 
 ThreadControllerWithMessagePumpImpl::ThreadControllerWithMessagePumpImpl(
     std::unique_ptr<MessagePump> message_pump,
@@ -102,13 +62,6 @@ ThreadControllerWithMessagePumpImpl::~ThreadControllerWithMessagePumpImpl() {
   // will do all the clean-up.
   // ScopedSetSequenceLocalStorageMapForCurrentThread destructor will
   // de-register the current thread as a sequence.
-
-#if BUILDFLAG(IS_WIN)
-  if (main_thread_only().in_high_res_mode) {
-    main_thread_only().in_high_res_mode = false;
-    Time::ActivateHighResolutionTimer(false);
-  }
-#endif
 }
 
 // static
@@ -163,8 +116,10 @@ void ThreadControllerWithMessagePumpImpl::SetTimerSlack(
 }
 
 void ThreadControllerWithMessagePumpImpl::WillQueueTask(
-    PendingTask* pending_task) {
-  task_annotator_.WillQueueTask("SequenceManager PostTask", pending_task);
+    PendingTask* pending_task,
+    const char* task_queue_name) {
+  task_annotator_.WillQueueTask("SequenceManager PostTask", pending_task,
+                                task_queue_name);
 }
 
 void ThreadControllerWithMessagePumpImpl::ScheduleWork() {
@@ -177,29 +132,30 @@ void ThreadControllerWithMessagePumpImpl::ScheduleWork() {
 
 void ThreadControllerWithMessagePumpImpl::SetNextDelayedDoWork(
     LazyNow* lazy_now,
-    absl::optional<WakeUp> wake_up) {
-  DCHECK(!wake_up || !wake_up->is_immediate());
-  TimeTicks run_time =
-      wake_up.has_value() ? WakeUpRunTime(*wake_up) : TimeTicks::Max();
+    TimeTicks run_time) {
   DCHECK_LT(lazy_now->Now(), run_time);
 
   if (main_thread_only().next_delayed_do_work == run_time)
     return;
+
+  // Cap at one day but remember the exact time for the above equality check on
+  // the next round.
   main_thread_only().next_delayed_do_work = run_time;
+  run_time = CapAtOneDay(run_time, lazy_now);
 
   // It's very rare for PostDelayedTask to be called outside of a DoWork in
   // production, so most of the time this does nothing.
   if (work_deduplicator_.OnDelayedWorkRequested() ==
       ShouldScheduleWork::kScheduleImmediate) {
-    // Cap at one day but remember the exact time for the above equality check
-    // on the next round.
-    if (!run_time.is_max())
-      run_time = CapAtOneDay(run_time, lazy_now);
     // |pump_| can't be null as all postTasks are cross-thread before binding,
     // and delayed cross-thread postTasks do the thread hop through an immediate
     // task.
-    pump_->ScheduleDelayedWork({run_time, lazy_now->Now()});
+    pump_->ScheduleDelayedWork(run_time);
   }
+}
+
+const TickClock* ThreadControllerWithMessagePumpImpl::GetClock() {
+  return time_source_;
 }
 
 bool ThreadControllerWithMessagePumpImpl::RunsTasksInCurrentSequence() {
@@ -222,11 +178,22 @@ void ThreadControllerWithMessagePumpImpl::InitializeThreadTaskRunnerHandle() {
   // so reset the old one.
   main_thread_only().thread_task_runner_handle.reset();
   main_thread_only().thread_task_runner_handle =
-      std::make_unique<SingleThreadTaskRunner::CurrentDefaultHandle>(
-          task_runner_);
+      std::make_unique<ThreadTaskRunnerHandle>(task_runner_);
   // When the task runner is known, bind the power manager. Power notifications
   // are received through that sequence.
   power_monitor_.BindToCurrentThread();
+}
+
+void ThreadControllerWithMessagePumpImpl::MaybeStartHangWatchScopeEnabled() {
+  // Nested runloops are covered by the parent loop hang watch scope.
+  // TODO(crbug/1034046): Provide more granular scoping that reuses the parent
+  // scope deadline.
+  // TODO(crbug/1034046): Also track native work outside a top-level RunLoop.
+  if (main_thread_only().run_level_tracker.num_run_levels() == 1 &&
+      base::HangWatcher::IsEnabled()) {
+    hang_watch_scope_.emplace(
+        base::HangWatchScopeEnabled::kDefaultHangWatchTime);
+  }
 }
 
 scoped_refptr<SingleThreadTaskRunner>
@@ -236,7 +203,8 @@ ThreadControllerWithMessagePumpImpl::GetDefaultTaskRunner() {
 }
 
 void ThreadControllerWithMessagePumpImpl::RestoreDefaultTaskRunner() {
-  // There is no default task runner (as opposed to ThreadControllerImpl).
+  // There's no default task runner unlike with the MessageLoop.
+  main_thread_only().thread_task_runner_handle.reset();
 }
 
 void ThreadControllerWithMessagePumpImpl::AddNestingObserver(
@@ -254,104 +222,74 @@ void ThreadControllerWithMessagePumpImpl::RemoveNestingObserver(
   RunLoop::RemoveNestingObserverOnCurrentThread(this);
 }
 
-void ThreadControllerWithMessagePumpImpl::OnBeginWorkItem() {
-  LazyNow lazy_now(time_source_);
-  OnBeginWorkItemImpl(lazy_now);
+const scoped_refptr<AssociatedThreadId>&
+ThreadControllerWithMessagePumpImpl::GetAssociatedThread() const {
+  return associated_thread_;
 }
 
-void ThreadControllerWithMessagePumpImpl::OnBeginWorkItemImpl(
-    LazyNow& lazy_now) {
-  hang_watch_scope_.emplace();
+void ThreadControllerWithMessagePumpImpl::OnBeginNativeWork() {
+  MaybeStartHangWatchScopeEnabled();
   work_id_provider_->IncrementWorkId();
-  run_level_tracker_.OnWorkStarted(lazy_now);
+  main_thread_only().run_level_tracker.OnTaskStarted();
 }
 
-void ThreadControllerWithMessagePumpImpl::OnEndWorkItem() {
-  LazyNow lazy_now(time_source_);
-  OnEndWorkItemImpl(lazy_now);
-}
-
-void ThreadControllerWithMessagePumpImpl::OnEndWorkItemImpl(LazyNow& lazy_now) {
-  // Work completed, begin a new hang watch until the next task (watching the
-  // pump's overhead).
-  hang_watch_scope_.emplace();
+void ThreadControllerWithMessagePumpImpl::OnEndNativeWork() {
   work_id_provider_->IncrementWorkId();
-  run_level_tracker_.OnWorkEnded(lazy_now);
+
+  // Nested runloops are covered by the parent loop hang watch scope.
+  // TODO(crbug/1034046): Provide more granular scoping that reuses the parent
+  // scope deadline.
+  if (main_thread_only().run_level_tracker.num_run_levels() == 1)
+    hang_watch_scope_.reset();
+
+  main_thread_only().run_level_tracker.OnTaskEnded();
 }
 
 void ThreadControllerWithMessagePumpImpl::BeforeWait() {
-  // In most cases, DoIdleWork() will already have cleared the
-  // `hang_watch_scope_` but in some cases where the native side of the
-  // MessagePump impl is instrumented, it's possible to get a BeforeWait()
-  // outside of a DoWork cycle (e.g. message_pump_win.cc :
-  // MessagePumpForUI::HandleWorkMessage).
-  hang_watch_scope_.reset();
-
   work_id_provider_->IncrementWorkId();
-  LazyNow lazy_now(time_source_);
-  run_level_tracker_.OnIdle(lazy_now);
+
+  // Nested runloops are covered by the parent loop hang watch scope.
+  // TODO(crbug/1034046): Provide more granular scoping that reuses the parent
+  // scope deadline.
+  // TODO(crbug/1034046): There should never be an outstanding
+  // |hang_watch_scope_| here, DCHECK?
+  if (main_thread_only().run_level_tracker.num_run_levels() == 1)
+    hang_watch_scope_.reset();
+
+  main_thread_only().run_level_tracker.OnIdle();
 }
 
 MessagePump::Delegate::NextWorkInfo
 ThreadControllerWithMessagePumpImpl::DoWork() {
-  MessagePump::Delegate::NextWorkInfo next_work_info{};
+  MaybeStartHangWatchScopeEnabled();
 
   work_deduplicator_.OnWorkStarted();
   LazyNow continuation_lazy_now(time_source_);
-  WorkDetails work_details = DoWorkImpl(&continuation_lazy_now);
-  absl::optional<WakeUp> next_wake_up = work_details.next_wake_up;
-  base::TimeDelta work_interval = work_details.work_interval;
-
-  // If we are yielding after DoWorkImpl (a work batch) set the flag boolean.
-  // This will inform the MessagePump to schedule a new continuation based on
-  // the information below, but even if its immediate let the native sequence
-  // have a chance to run.
-  bool yield_after_every_batch_of_one =
-      !main_thread_only().yield_to_native_after_batch.is_null() &&
-      continuation_lazy_now.Now() <
-          main_thread_only().yield_to_native_after_batch;
-  // When we have |g_run_tasks_by_batches| active we want to always set the flag
-  // to true to have a similar behavior on Android as on the desktop platforms
-  // for this experiment.
-  bool yield_after_every_batch_of_8_ms =
-      g_run_tasks_by_batches.load(std::memory_order_relaxed);
-  // if the periodic delta isn't max(), this means a valid value is in place and
-  // the controller should start alternating. Make sure we didn't terminate the
-  // loop by calling MoveReadyDelayedTasksToWorkQueues and not by executing for
-  // the allowed time
-  bool yield_with_delay_after_batch_of_period =
-      !periodic_yielding_to_native_interval_.is_max() &&
-      work_interval >= periodic_yielding_to_native_interval_;
-  // TODO(b/245151525): Only one of these experiments should probably exist,
-  // once we've got a production ready launchable experiment remove the others.
-  if (yield_after_every_batch_of_one || yield_after_every_batch_of_8_ms ||
-      yield_with_delay_after_batch_of_period) {
-    next_work_info.yield_to_native = true;
-    TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("sequence_manager"),
-                 "ThreadControllerImpl_YieldToNative");
-  }
+  TimeDelta delay_till_next_task = DoWorkImpl(&continuation_lazy_now);
   // Schedule a continuation.
   WorkDeduplicator::NextTask next_task =
-      (next_wake_up && next_wake_up->is_immediate())
-          ? WorkDeduplicator::NextTask::kIsImmediate
-          : WorkDeduplicator::NextTask::kIsDelayed;
+      delay_till_next_task.is_zero() ? WorkDeduplicator::NextTask::kIsImmediate
+                                     : WorkDeduplicator::NextTask::kIsDelayed;
   if (work_deduplicator_.DidCheckForMoreWork(next_task) ==
       ShouldScheduleWork::kScheduleImmediate) {
     // Need to run new work immediately, but due to the contract of DoWork
     // we only need to return a null TimeTicks to ensure that happens.
-    return next_work_info;
+    return MessagePump::Delegate::NextWorkInfo();
   }
 
-  // Special-casing here avoids unnecessarily sampling Now() when out of work.
-  if (!next_wake_up) {
+  // While the math below would saturate when |delay_till_next_task.is_max()|;
+  // special-casing here avoids unnecessarily sampling Now() when out of work.
+  if (delay_till_next_task.is_max()) {
     main_thread_only().next_delayed_do_work = TimeTicks::Max();
-    next_work_info.delayed_run_time = TimeTicks::Max();
-    return next_work_info;
+    return {TimeTicks::Max()};
   }
 
-  // The MessagePump will schedule the wake up on our behalf, so we need to
-  // update |main_thread_only().next_delayed_do_work|.
-  main_thread_only().next_delayed_do_work = WakeUpRunTime(*next_wake_up);
+  // The MessagePump will schedule the delay on our behalf, so we need to update
+  // |main_thread_only().next_delayed_do_work|.
+  // TODO(gab, alexclarke): Replace DelayTillNextTask() with NextTaskTime() to
+  // avoid converting back-and-forth between TimeTicks and TimeDelta.
+  main_thread_only().next_delayed_do_work =
+      continuation_lazy_now.Now() + delay_till_next_task;
 
   // Don't request a run time past |main_thread_only().quit_runloop_after|.
   if (main_thread_only().next_delayed_do_work >
@@ -359,19 +297,16 @@ ThreadControllerWithMessagePumpImpl::DoWork() {
     main_thread_only().next_delayed_do_work =
         main_thread_only().quit_runloop_after;
     // If we've passed |quit_runloop_after| there's no more work to do.
-    if (continuation_lazy_now.Now() >= main_thread_only().quit_runloop_after) {
-      next_work_info.delayed_run_time = TimeTicks::Max();
-      return next_work_info;
-    }
+    if (continuation_lazy_now.Now() >= main_thread_only().quit_runloop_after)
+      return {TimeTicks::Max()};
   }
 
-  next_work_info.delayed_run_time = CapAtOneDay(
-      main_thread_only().next_delayed_do_work, &continuation_lazy_now);
-  next_work_info.recent_now = continuation_lazy_now.Now();
-  return next_work_info;
+  return {CapAtOneDay(main_thread_only().next_delayed_do_work,
+                      &continuation_lazy_now),
+          continuation_lazy_now.Now()};
 }
 
-WorkDetails ThreadControllerWithMessagePumpImpl::DoWorkImpl(
+TimeDelta ThreadControllerWithMessagePumpImpl::DoWorkImpl(
     LazyNow* continuation_lazy_now) {
   TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("sequence_manager"),
                "ThreadControllerImpl::DoWork");
@@ -381,108 +316,68 @@ WorkDetails ThreadControllerWithMessagePumpImpl::DoWorkImpl(
     // helps spot nested loops that intentionally starve application tasks.
     TRACE_EVENT0("base", "ThreadController: application tasks disallowed");
     if (main_thread_only().quit_runloop_after == TimeTicks::Max())
-      return WorkDetails{absl::nullopt, Nanoseconds(0)};
-    return WorkDetails{WakeUp{main_thread_only().quit_runloop_after},
-                       Nanoseconds(0)};
+      return TimeDelta::Max();
+    return main_thread_only().quit_runloop_after - continuation_lazy_now->Now();
   }
 
   DCHECK(main_thread_only().task_source);
 
-  // Keep running tasks for up to 8ms before yielding to the pump when
-  // |g_run_tasks_by_batches| is true.
-  const base::TimeDelta batch_duration = GetAlternationInterval();
-
-  const absl::optional<base::TimeTicks> start_time =
-      batch_duration.is_zero()
-          ? absl::nullopt
-          : absl::optional<base::TimeTicks>(time_source_->NowTicks());
-  absl::optional<base::TimeTicks> recent_time = start_time;
-  base::TimeDelta work_executed = base::Milliseconds(0);
-  // Loops for |batch_duration|, or |work_batch_size| times if |batch_duration|
-  // is zero.
-  for (int num_tasks_executed = 0;
-       (!batch_duration.is_zero() && work_executed < batch_duration) ||
-       (batch_duration.is_zero() &&
-        num_tasks_executed < main_thread_only().work_batch_size);
-       ++num_tasks_executed) {
-    LazyNow lazy_now_select_task(recent_time, time_source_);
-    // Include SelectNextTask() in the scope of the work item. This ensures
-    // it's covered in tracing and hang reports. This is particularly
-    // important when SelectNextTask() finds no work immediately after a
-    // wakeup, otherwise the power-inefficient wakeup is invisible in
-    // tracing. OnApplicationTaskSelected() assumes this ordering as well.
-    OnBeginWorkItemImpl(lazy_now_select_task);
-
+  for (int i = 0; i < main_thread_only().work_batch_size; i++) {
     const SequencedTaskSource::SelectTaskOption select_task_option =
         power_monitor_.IsProcessInPowerSuspendState()
             ? SequencedTaskSource::SelectTaskOption::kSkipDelayedTask
             : SequencedTaskSource::SelectTaskOption::kDefault;
-    absl::optional<SequencedTaskSource::SelectedTask> selected_task =
-        main_thread_only().task_source->SelectNextTask(lazy_now_select_task,
-                                                       select_task_option);
-    LazyNow lazy_now_task_selected(time_source_);
-    run_level_tracker_.OnApplicationTaskSelected(
-        (selected_task && selected_task->task->delayed_run_time.is_null())
-            ? selected_task->task->queue_time
-            : TimeTicks(),
-        lazy_now_task_selected);
-    if (!selected_task) {
-      OnEndWorkItemImpl(lazy_now_task_selected);
+    Task* task =
+        main_thread_only().task_source->SelectNextTask(select_task_option);
+    if (!task)
       break;
-    }
 
-    // Execute the task and assume the worst: it is probably not reentrant.
-    AutoReset<bool> ban_nested_application_tasks(
-        &main_thread_only().task_execution_allowed, false);
+    work_id_provider_->IncrementWorkId();
 
-    // Trace-parsing tools (DevTools, Lighthouse, etc) consume this event to
-    // determine long tasks.
-    // See https://crbug.com/681863 and https://crbug.com/874982
-    TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("devtools.timeline"), "RunTask");
-
+    // [OnTaskStarted(), OnTaskEnded()] must outscope all other tracing calls
+    // so that the "ThreadController active" trace event lives on top of all
+    // "run task" events. It must also encompass DidRunTask() to cover
+    // microtasks.
+    main_thread_only().run_level_tracker.OnTaskStarted();
     {
-      // Always track the start of the task, as this is low-overhead.
-      TaskAnnotator::LongTaskTracker long_task_tracker(
-          time_source_, *selected_task->task, &task_annotator_);
+      // Execute the task and assume the worst: it is probably not reentrant.
+      main_thread_only().task_execution_allowed = false;
 
-      // Note: all arguments after task are just passed to a TRACE_EVENT for
-      // logging so lambda captures are safe as lambda is executed inline.
-      task_annotator_.RunTask(
-          "ThreadControllerImpl::RunTask", *selected_task->task,
-          [&selected_task](perfetto::EventContext& ctx) {
-            if (selected_task->task_execution_trace_logger)
-              selected_task->task_execution_trace_logger.Run(
-                  ctx, *selected_task->task);
-            SequenceManagerImpl::MaybeEmitTaskDetails(ctx,
-                                                      selected_task.value());
-          });
+      // Trace-parsing tools (DevTools, Lighthouse, etc) consume this event
+      // to determine long tasks.
+      // The event scope must span across DidRunTask call below to make sure
+      // it covers RunMicrotasks event.
+      // See https://crbug.com/681863 and https://crbug.com/874982
+      TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("devtools.timeline"), "RunTask");
+
+      {
+        // Trace events should finish before we call DidRunTask to ensure that
+        // SequenceManager trace events do not interfere with them.
+        TRACE_TASK_EXECUTION("ThreadControllerImpl::RunTask", *task);
+        task_annotator_.RunTask("SequenceManager RunTask", task);
+      }
+
+#if DCHECK_IS_ON()
+      if (log_runloop_quit_and_quit_when_idle_ && !quit_when_idle_requested_ &&
+          ShouldQuitWhenIdle()) {
+        DVLOG(1) << "ThreadControllerWithMessagePumpImpl::QuitWhenIdle";
+        quit_when_idle_requested_ = true;
+      }
+#endif
+
+      main_thread_only().task_execution_allowed = true;
+      main_thread_only().task_source->DidRunTask();
     }
+    main_thread_only().run_level_tracker.OnTaskEnded();
 
-    LazyNow lazy_now_after_run_task(time_source_);
-    main_thread_only().task_source->DidRunTask(lazy_now_after_run_task);
-    // End the work item scope after DidRunTask() as it can process microtasks
-    // (which are extensions of the RunTask).
-    OnEndWorkItemImpl(lazy_now_after_run_task);
-
-    // If DidRunTask() read the clock (lazy_now_after_run_task.has_value()) or
-    // if |batch_duration| > 0, store the clock value in `recent_time` so it can
-    // be reused by SelectNextTask() at the next loop iteration.
-    if (lazy_now_after_run_task.has_value() || !batch_duration.is_zero()) {
-      recent_time = lazy_now_after_run_task.Now();
-      // When |batch_duration| is zero |start_time| will be nullopt so rather
-      // than an additional conditional check here we just default to zero.
-      work_executed = recent_time.value() - start_time.value_or(*recent_time);
-    } else {
-      recent_time.reset();
-    }
-    // When Quit() is called we must stop running the batch because the
-    // caller expects per-task granularity.
+    // When Quit() is called we must stop running the batch because the caller
+    // expects per-task granularity.
     if (main_thread_only().quit_pending)
       break;
   }
 
   if (main_thread_only().quit_pending)
-    return {absl::nullopt, Nanoseconds(0)};
+    return TimeDelta::Max();
 
   work_deduplicator_.WillCheckForMoreWork();
 
@@ -492,40 +387,18 @@ WorkDetails ThreadControllerWithMessagePumpImpl::DoWorkImpl(
       power_monitor_.IsProcessInPowerSuspendState()
           ? SequencedTaskSource::SelectTaskOption::kSkipDelayedTask
           : SequencedTaskSource::SelectTaskOption::kDefault;
-  main_thread_only().task_source->RemoveAllCanceledDelayedTasksFromFront(
-      continuation_lazy_now);
-  return {main_thread_only().task_source->GetPendingWakeUp(
-              continuation_lazy_now, select_task_option),
-          work_executed};
+  TimeDelta do_work_delay = main_thread_only().task_source->DelayTillNextTask(
+      continuation_lazy_now, select_task_option);
+  DCHECK_GE(do_work_delay, TimeDelta());
+  return do_work_delay;
 }
 
 bool ThreadControllerWithMessagePumpImpl::DoIdleWork() {
-  struct OnIdle {
-    OnIdle(const TickClock* time_source, RunLevelTracker& run_level_tracker_ref)
-        : lazy_now(time_source), run_level_tracker(run_level_tracker_ref) {}
-
-    // Very last step before going idle, must be fast as this is hidden from the
-    // DoIdleWork trace event below.
-    ~OnIdle() { run_level_tracker->OnIdle(lazy_now); }
-
-    LazyNow lazy_now;
-
-   private:
-    const raw_ref<RunLevelTracker> run_level_tracker;
-  };
-  absl::optional<OnIdle> on_idle;
-
-  // Must be after `on_idle` as this trace event's scope must end before the END
-  // of the "ThreadController active" trace event emitted from
-  // `run_level_tracker_.OnIdle()`.
   TRACE_EVENT0("sequence_manager", "SequenceManager::DoIdleWork");
+  MaybeStartHangWatchScopeEnabled();
 
-  // A hang watch scope should already be in place in most cases but some
-  // MessagePump impls (e.g. Mac) can call DoIdleWork straight out of idle
-  // without first calling DoWork.
-  hang_watch_scope_.emplace();
-
-#if BUILDFLAG(IS_WIN)
+  work_id_provider_->IncrementWorkId();
+#if defined(OS_WIN)
   if (!power_monitor_.IsProcessInPowerSuspendState()) {
     // Avoid calling Time::ActivateHighResolutionTimer() between
     // suspend/resume as the system hangs if we do (crbug.com/1074028).
@@ -545,7 +418,7 @@ bool ThreadControllerWithMessagePumpImpl::DoIdleWork() {
       Time::ActivateHighResolutionTimer(need_high_res_mode);
     }
   }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   if (main_thread_only().task_source->OnSystemIdle()) {
     // The OnSystemIdle() callback resulted in more immediate work, so schedule
@@ -555,17 +428,11 @@ bool ThreadControllerWithMessagePumpImpl::DoIdleWork() {
     return false;
   }
 
-  // This is mostly redundant with the identical call in BeforeWait (upcoming)
-  // but some uninstrumented MessagePump impls don't call BeforeWait so it must
-  // also be done here.
-  hang_watch_scope_.reset();
-
-  // All return paths below are truly idle.
-  on_idle.emplace(time_source_, run_level_tracker_);
+  main_thread_only().run_level_tracker.OnIdle();
 
   // Check if any runloop timeout has expired.
   if (main_thread_only().quit_runloop_after != TimeTicks::Max() &&
-      main_thread_only().quit_runloop_after <= on_idle->lazy_now.Now()) {
+      main_thread_only().quit_runloop_after <= time_source_->NowTicks()) {
     Quit();
     return false;
   }
@@ -580,9 +447,6 @@ bool ThreadControllerWithMessagePumpImpl::DoIdleWork() {
 void ThreadControllerWithMessagePumpImpl::Run(bool application_tasks_allowed,
                                               TimeDelta timeout) {
   DCHECK(RunsTasksInCurrentSequence());
-
-  LazyNow lazy_now_run_loop_start(time_source_);
-
   // RunLoops can be nested so we need to restore the previous value of
   // |quit_runloop_after| upon exit. NB we could use saturated arithmetic here
   // but don't because we have some tests which assert the number of calls to
@@ -590,16 +454,19 @@ void ThreadControllerWithMessagePumpImpl::Run(bool application_tasks_allowed,
   AutoReset<TimeTicks> quit_runloop_after(
       &main_thread_only().quit_runloop_after,
       (timeout == TimeDelta::Max()) ? TimeTicks::Max()
-                                    : lazy_now_run_loop_start.Now() + timeout);
+                                    : time_source_->NowTicks() + timeout);
 
-  run_level_tracker_.OnRunLoopStarted(RunLevelTracker::kInBetweenWorkItems,
-                                      lazy_now_run_loop_start);
+#if DCHECK_IS_ON()
+  AutoReset<bool> quit_when_idle_requested(&quit_when_idle_requested_, false);
+#endif
+
+  main_thread_only().run_level_tracker.OnRunLoopStarted(
+      RunLevelTracker::kSelectingNextTask);
 
   // Quit may have been called outside of a Run(), so |quit_pending| might be
   // true here. We can't use InTopLevelDoWork() in Quit() as this call may be
   // outside top-level DoWork but still in Run().
   main_thread_only().quit_pending = false;
-  hang_watch_scope_.emplace();
   if (application_tasks_allowed && !main_thread_only().task_execution_allowed) {
     // Allow nested task execution as explicitly requested.
     DCHECK(RunLoop::IsNestedOnCurrentThread());
@@ -610,17 +477,19 @@ void ThreadControllerWithMessagePumpImpl::Run(bool application_tasks_allowed,
     pump_->Run(this);
   }
 
-  run_level_tracker_.OnRunLoopEnded();
+#if DCHECK_IS_ON()
+  if (log_runloop_quit_and_quit_when_idle_)
+    DVLOG(1) << "ThreadControllerWithMessagePumpImpl::Quit";
+#endif
+
+  main_thread_only().run_level_tracker.OnRunLoopEnded();
   main_thread_only().quit_pending = false;
 
-  // If this was a nested loop, hang watch the remainder of the task which
-  // caused it. Otherwise, stop watching as we're no longer running.
-  if (RunLoop::IsNestedOnCurrentThread()) {
-    hang_watch_scope_.emplace();
-  } else {
+  // Reset the hang watch scope upon exiting the outermost loop since the
+  // execution it covers is now completely over. TODO(crbug/1034046): There
+  // should never be an outstanding |hang_watch_scope_| here, DCHECK?
+  if (main_thread_only().run_level_tracker.num_run_levels() == 0)
     hang_watch_scope_.reset();
-  }
-  work_id_provider_->IncrementWorkId();
 }
 
 void ThreadControllerWithMessagePumpImpl::OnBeginNestedRunLoop() {
@@ -677,17 +546,7 @@ MessagePump* ThreadControllerWithMessagePumpImpl::GetBoundMessagePump() const {
   return pump_.get();
 }
 
-void ThreadControllerWithMessagePumpImpl::PrioritizeYieldingToNative(
-    base::TimeTicks prioritize_until) {
-  main_thread_only().yield_to_native_after_batch = prioritize_until;
-}
-
-void ThreadControllerWithMessagePumpImpl::EnablePeriodicYieldingToNative(
-    base::TimeDelta delta) {
-  periodic_yielding_to_native_interval_ = delta;
-}
-
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 void ThreadControllerWithMessagePumpImpl::AttachToMessagePump() {
   static_cast<MessagePumpCFRunLoopBase*>(pump_.get())->Attach(this);
 }
@@ -695,29 +554,14 @@ void ThreadControllerWithMessagePumpImpl::AttachToMessagePump() {
 void ThreadControllerWithMessagePumpImpl::DetachFromMessagePump() {
   static_cast<MessagePumpCFRunLoopBase*>(pump_.get())->Detach();
 }
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
 void ThreadControllerWithMessagePumpImpl::AttachToMessagePump() {
   static_cast<MessagePumpForUI*>(pump_.get())->Attach(this);
 }
 #endif
 
-base::TimeDelta ThreadControllerWithMessagePumpImpl::GetAlternationInterval() {
-#if BUILDFLAG(IS_ANDROID)
-  // TODO(b/245151525): If this experiment shows promise merge its behaviour
-  // with run_tasks_by_batches experiment below. For now we leave them separate
-  // for simplicity of evaluating the experiments separately.
-  return periodic_yielding_to_native_interval_.is_max()
-             ? base::Milliseconds(0)
-             : periodic_yielding_to_native_interval_;
-#else
-  return g_run_tasks_by_batches.load(std::memory_order_relaxed)
-             ? base::Milliseconds(8)
-             : base::Milliseconds(0);
-#endif
-}
-
 bool ThreadControllerWithMessagePumpImpl::ShouldQuitRunLoopWhenIdle() {
-  if (run_level_tracker_.num_run_levels() == 0)
+  if (main_thread_only().run_level_tracker.num_run_levels() == 0)
     return false;
   // It's only safe to call ShouldQuitWhenIdle() when in a RunLoop.
   return ShouldQuitWhenIdle();

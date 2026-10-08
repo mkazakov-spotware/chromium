@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * The default {@link TaskExecutor}.
- * TODO(crbug.com/1026641): Provide direct Java APIs for ThreadPool vs UI thread
- * task posting instead of sharding based on {@link TaskTraits}.
+ * The default {@link TaskExecutor} which maps directly to base/task/post_task.h.
  */
 class DefaultTaskExecutor implements TaskExecutor {
     private final Map<TaskTraits, TaskRunner> mTraitsToRunnerMap = new HashMap<>();

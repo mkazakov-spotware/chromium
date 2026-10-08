@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,16 +19,14 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/containers/queue.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
-#include "base/synchronization/waitable_event.h"
-#include "base/task/sequenced_task_runner.h"
-#include "media/base/win/dxgi_device_manager.h"
 #include "media/capture/capture_export.h"
 #include "media/capture/video/video_capture_device.h"
 #include "media/capture/video/win/capability_list_win.h"
 #include "media/capture/video/win/metrics.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "media/capture/video/win/video_capture_dxgi_device_manager.h"
 
 interface IMFSourceReader;
 
@@ -48,22 +46,15 @@ class CAPTURE_EXPORT VideoCaptureDeviceMFWin : public VideoCaptureDevice {
   static VideoCaptureControlSupport GetControlSupport(
       Microsoft::WRL::ComPtr<IMFMediaSource> source);
 
-  VideoCaptureDeviceMFWin() = delete;
-
   explicit VideoCaptureDeviceMFWin(
       const VideoCaptureDeviceDescriptor& device_descriptor,
       Microsoft::WRL::ComPtr<IMFMediaSource> source,
-      scoped_refptr<DXGIDeviceManager> dxgi_device_manager,
-      scoped_refptr<base::SequencedTaskRunner> main_thread_task_runner);
+      scoped_refptr<VideoCaptureDXGIDeviceManager> dxgi_device_manager);
   explicit VideoCaptureDeviceMFWin(
       const VideoCaptureDeviceDescriptor& device_descriptor,
       Microsoft::WRL::ComPtr<IMFMediaSource> source,
-      scoped_refptr<DXGIDeviceManager> dxgi_device_manager,
-      Microsoft::WRL::ComPtr<IMFCaptureEngine> engine,
-      scoped_refptr<base::SequencedTaskRunner> main_thread_task_runner);
-
-  VideoCaptureDeviceMFWin(const VideoCaptureDeviceMFWin&) = delete;
-  VideoCaptureDeviceMFWin& operator=(const VideoCaptureDeviceMFWin&) = delete;
+      scoped_refptr<VideoCaptureDXGIDeviceManager> dxgi_device_manager,
+      Microsoft::WRL::ComPtr<IMFCaptureEngine> engine);
 
   ~VideoCaptureDeviceMFWin() override;
 
@@ -79,10 +70,10 @@ class CAPTURE_EXPORT VideoCaptureDeviceMFWin : public VideoCaptureDevice {
   void GetPhotoState(GetPhotoStateCallback callback) override;
   void SetPhotoOptions(mojom::PhotoSettingsPtr settings,
                        SetPhotoOptionsCallback callback) override;
-  void OnUtilizationReport(media::VideoCaptureFeedback feedback) override;
 
   // Captured new video data.
-  void OnIncomingCapturedData(Microsoft::WRL::ComPtr<IMFMediaBuffer> buffer,
+  void OnIncomingCapturedData(const uint8_t* data,
+                              int length,
                               base::TimeTicks reference_time,
                               base::TimeDelta timestamp);
   void OnFrameDropped(VideoCaptureFrameDropReason reason);
@@ -110,11 +101,11 @@ class CAPTURE_EXPORT VideoCaptureDeviceMFWin : public VideoCaptureDevice {
   }
 
   void set_dxgi_device_manager_for_testing(
-      scoped_refptr<DXGIDeviceManager> dxgi_device_manager) {
+      scoped_refptr<VideoCaptureDXGIDeviceManager> dxgi_device_manager) {
     dxgi_device_manager_ = std::move(dxgi_device_manager);
   }
 
-  absl::optional<int> camera_rotation() const { return camera_rotation_; }
+  base::Optional<int> camera_rotation() const { return camera_rotation_; }
 
  private:
   HRESULT ExecuteHresultCallbackWithRetries(
@@ -141,33 +132,25 @@ class CAPTURE_EXPORT VideoCaptureDeviceMFWin : public VideoCaptureDevice {
                const char* message);
   void SendOnStartedIfNotYetSent();
   HRESULT WaitOnCaptureEvent(GUID capture_event_guid);
-  HRESULT DeliverTextureToClient(ID3D11Texture2D* texture,
-                                 base::TimeTicks reference_time,
-                                 base::TimeDelta timestamp);
-  void OnIncomingCapturedDataInternal(
-      Microsoft::WRL::ComPtr<IMFMediaBuffer> buffer,
-      base::TimeTicks reference_time,
-      base::TimeDelta timestamp);
-  bool RecreateMFSource();
-  void OnFrameDroppedInternal(VideoCaptureFrameDropReason reason);
-  void ProcessEventError(HRESULT hr);
 
-  VideoCaptureDeviceDescriptor device_descriptor_;
+  VideoFacingMode facing_mode_;
   CreateMFPhotoCallbackCB create_mf_photo_callback_;
   scoped_refptr<MFVideoCallback> video_callback_;
   bool is_initialized_;
   int max_retry_count_;
   int retry_delay_in_ms_;
 
+  // Guards the below variables from concurrent access between methods running
+  // on |sequence_checker_| and calls to OnIncomingCapturedData() and OnEvent()
+  // made by MediaFoundation on threads outside of our control.
+  base::Lock lock_;
+
   std::unique_ptr<VideoCaptureDevice::Client> client_;
-  Microsoft::WRL::ComPtr<IMFMediaSource> source_;
+  const Microsoft::WRL::ComPtr<IMFMediaSource> source_;
   Microsoft::WRL::ComPtr<IAMCameraControl> camera_control_;
   Microsoft::WRL::ComPtr<IAMVideoProcAmp> video_control_;
-  Microsoft::WRL::ComPtr<IMFExtendedCameraController>
-      extended_camera_controller_;
   Microsoft::WRL::ComPtr<IMFCaptureEngine> engine_;
   std::unique_ptr<CapabilityWin> selected_video_capability_;
-  gfx::ColorSpace color_space_;
   CapabilityList photo_capabilities_;
   std::unique_ptr<CapabilityWin> selected_photo_capability_;
   bool is_started_;
@@ -179,26 +162,12 @@ class CAPTURE_EXPORT VideoCaptureDeviceMFWin : public VideoCaptureDevice {
   base::queue<TakePhotoCallback> video_stream_take_photo_callbacks_;
   base::WaitableEvent capture_initialize_;
   base::WaitableEvent capture_error_;
-  base::WaitableEvent capture_stopped_;
-  base::WaitableEvent capture_started_;
-  HRESULT last_error_hr_ = S_OK;
-  scoped_refptr<DXGIDeviceManager> dxgi_device_manager_;
-  absl::optional<int> camera_rotation_;
-  VideoCaptureParams params_;
-  int num_restarts_ = 0;
-
-  // Main thread task runner, used to serialize work triggered by
-  // IMFCaptureEngine callbacks (OnEvent, OnSample) and work triggered
-  // by video capture service API calls (Init, AllocateAndStart,
-  // StopAndDeallocate) This can be left as nullptr in test environment where
-  // callbacks are called from the same thread as API methods.
-  scoped_refptr<base::SequencedTaskRunner> main_thread_task_runner_;
-
-  media::VideoCaptureFeedback last_feedback_;
+  scoped_refptr<VideoCaptureDXGIDeviceManager> dxgi_device_manager_;
+  base::Optional<int> camera_rotation_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 
-  base::WeakPtrFactory<VideoCaptureDeviceMFWin> weak_factory_{this};
+  DISALLOW_IMPLICIT_CONSTRUCTORS(VideoCaptureDeviceMFWin);
 };
 
 }  // namespace media

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 #include <memory>
 #include <utility>
 
-#include "base/time/time.h"
-#include "cc/test/mock_latency_info_swap_promise_monitor.h"
+#include "cc/trees/swap_promise_monitor.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -16,6 +15,16 @@ using ::testing::StrictMock;
 
 namespace cc {
 namespace {
+
+class MockSwapPromiseMonitor : public SwapPromiseMonitor {
+ public:
+  explicit MockSwapPromiseMonitor(SwapPromiseManager* manager)
+      : SwapPromiseMonitor(manager) {}
+  ~MockSwapPromiseMonitor() override = default;
+
+  MOCK_METHOD0(OnSetNeedsCommitOnMain, void());
+  void OnSetNeedsRedrawOnImpl() override {}
+};
 
 class MockSwapPromise : public SwapPromise {
  public:
@@ -25,22 +34,21 @@ class MockSwapPromise : public SwapPromise {
   void DidActivate() override {}
   void WillSwap(viz::CompositorFrameMetadata* metadata) override {}
   void DidSwap() override {}
-  DidNotSwapAction DidNotSwap(DidNotSwapReason reason,
-                              base::TimeTicks ts) override {
+  DidNotSwapAction DidNotSwap(DidNotSwapReason reason) override {
     return DidNotSwapAction::BREAK_PROMISE;
   }
   MOCK_METHOD0(OnCommit, void());
-  int64_t GetTraceId() const override { return 0; }
+  int64_t TraceId() const override { return 0; }
 };
 
 TEST(SwapPromiseManagerTest, SwapPromiseMonitors) {
   SwapPromiseManager manager;
-  StrictMock<MockLatencyInfoSwapPromiseMonitor> monitor(&manager);
+  StrictMock<MockSwapPromiseMonitor> monitor(&manager);
 
   EXPECT_CALL(monitor, OnSetNeedsCommitOnMain()).Times(2);
 
-  manager.NotifyLatencyInfoSwapPromiseMonitors();
-  manager.NotifyLatencyInfoSwapPromiseMonitors();
+  manager.NotifySwapPromiseMonitorsOfSetNeedsCommit();
+  manager.NotifySwapPromiseMonitorsOfSetNeedsCommit();
 }
 
 TEST(SwapPromiseManagerTest, SwapPromises) {

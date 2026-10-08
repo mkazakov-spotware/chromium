@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,13 @@
 
 #include <stdint.h>
 
+#include <string>
+
 #include "base/time/time.h"
 #include "remoting/protocol/port_range.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 struct NetworkSettings {
 
@@ -51,12 +54,13 @@ struct NetworkSettings {
   PortRange port_range;
 
   // ICE Timeout.
-  base::TimeDelta ice_timeout = base::Seconds(15);
+  base::TimeDelta ice_timeout = base::TimeDelta::FromSeconds(15);
 
   // ICE reconnect attempts.
   int ice_reconnect_attempts = 2;
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
-#endif  // REMOTING_PROTOCOL_NETWORK_SETTINGS_H_
+#endif  // REMOTING_HOST_NETWORK_SETTINGS_H_

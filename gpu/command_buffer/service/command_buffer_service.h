@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "gpu/command_buffer/common/command_buffer.h"
 #include "gpu/command_buffer/common/command_buffer_shared.h"
 #include "gpu/command_buffer/service/async_api_interface.h"
@@ -71,15 +71,10 @@ union CommandBufferEntry;
 // API to manage the put and get pointers.
 class GPU_EXPORT CommandBufferService : public CommandBufferServiceBase {
  public:
-  static const int kParseCommandsSliceSmall = 20;
-  static const int kParseCommandsSliceLarge = 100;
+  static const int kParseCommandsSlice = 20;
 
   CommandBufferService(CommandBufferServiceClient* client,
                        MemoryTracker* memory_tracker);
-
-  CommandBufferService(const CommandBufferService&) = delete;
-  CommandBufferService& operator=(const CommandBufferService&) = delete;
-
   ~CommandBufferService() override;
 
   // CommandBufferServiceBase implementation:
@@ -132,7 +127,7 @@ class GPU_EXPORT CommandBufferService : public CommandBufferServiceBase {
   size_t GetSharedMemoryBytesAllocated() const;
 
  private:
-  raw_ptr<CommandBufferServiceClient> client_;
+  CommandBufferServiceClient* client_;
   std::unique_ptr<TransferBufferManager> transfer_buffer_manager_;
 
   CommandBuffer::State state_;
@@ -140,14 +135,16 @@ class GPU_EXPORT CommandBufferService : public CommandBufferServiceBase {
 
   int32_t num_entries_ = 0;
   scoped_refptr<Buffer> ring_buffer_;
-  raw_ptr<volatile CommandBufferEntry> buffer_ = nullptr;
+  volatile CommandBufferEntry* buffer_ = nullptr;
 
   std::unique_ptr<BufferBacking> shared_state_buffer_;
-  raw_ptr<CommandBufferSharedState> shared_state_ = nullptr;
+  CommandBufferSharedState* shared_state_ = nullptr;
 
   // Whether the scheduler is currently able to process more commands.
   bool scheduled_ = true;
   bool paused_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(CommandBufferService);
 };
 
 }  // namespace gpu

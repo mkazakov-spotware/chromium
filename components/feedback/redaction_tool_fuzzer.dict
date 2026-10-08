@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -27,7 +27,6 @@ URL4="chrome://"
 URL5="chrome-extension://"
 URL6="android://"
 URL7="rtsp://"
-URL8="file://"
 URLHost="foo.com"
 URLPort=":80"
 URLQuery="?"

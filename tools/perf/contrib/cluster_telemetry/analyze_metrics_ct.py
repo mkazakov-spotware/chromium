@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# Copyright 2019 The Chromium Authors
+#!/usr/bin/env python
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -72,9 +72,10 @@ def main():
     if result.returncode != 0:
       print('histograms_to_csv.HistogramsToCsv returned %d' % result.returncode)
       return result.returncode
-    with open(args.output_csv, 'w') as f:
-      f.write(result.stdout.rstrip())
-    print('Output CSV created in file://' + args.output_csv)
+    else:
+      with open(args.output_csv, 'w') as f:
+        f.write(result.stdout.rstrip())
+      print('Output CSV created in file://' + args.output_csv)
 
 
 if __name__ == '__main__':

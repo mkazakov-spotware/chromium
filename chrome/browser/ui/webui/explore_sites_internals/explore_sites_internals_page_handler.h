@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_WEBUI_EXPLORE_SITES_INTERNALS_EXPLORE_SITES_INTERNALS_PAGE_HANDLER_H_
 #define CHROME_BROWSER_UI_WEBUI_EXPLORE_SITES_INTERNALS_EXPLORE_SITES_INTERNALS_PAGE_HANDLER_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/android/explore_sites/explore_sites_service.h"
 #include "chrome/browser/ui/webui/explore_sites_internals/explore_sites_internals.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -24,12 +24,6 @@ class ExploreSitesInternalsPageHandler
           receiver,
       ExploreSitesService* explore_sites_service,
       Profile* profile);
-
-  ExploreSitesInternalsPageHandler(const ExploreSitesInternalsPageHandler&) =
-      delete;
-  ExploreSitesInternalsPageHandler& operator=(
-      const ExploreSitesInternalsPageHandler&) = delete;
-
   ~ExploreSitesInternalsPageHandler() override;
 
  private:
@@ -42,8 +36,10 @@ class ExploreSitesInternalsPageHandler
   void ForceNetworkRequest(ForceNetworkRequestCallback) override;
 
   mojo::Receiver<explore_sites_internals::mojom::PageHandler> receiver_;
-  raw_ptr<ExploreSitesService> explore_sites_service_;
-  raw_ptr<Profile> profile_;
+  ExploreSitesService* explore_sites_service_;
+  Profile* profile_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExploreSitesInternalsPageHandler);
 };
 
 }  // namespace explore_sites

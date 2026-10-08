@@ -1,15 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "android_webview/browser/js_java_interaction/js_reply_proxy.h"
 
-#include <utility>
-
 #include "android_webview/browser_jni_headers/JsReplyProxy_jni.h"
 #include "base/android/jni_string.h"
+#include "components/js_injection/browser/web_message.h"
 #include "components/js_injection/browser/web_message_reply_proxy.h"
-#include "components/js_injection/common/interfaces.mojom.h"
 
 namespace android_webview {
 
@@ -35,9 +33,10 @@ base::android::ScopedJavaLocalRef<jobject> JsReplyProxy::GetJavaPeer() {
 void JsReplyProxy::PostMessage(
     JNIEnv* env,
     const base::android::JavaParamRef<jstring>& message) {
-  reply_proxy_->PostWebMessage(
-      js_injection::mojom::JsWebMessage::NewStringValue(
-          base::android::ConvertJavaStringToUTF16(env, message)));
+  std::unique_ptr<js_injection::WebMessage> web_message =
+      std::make_unique<js_injection::WebMessage>();
+  web_message->message = base::android::ConvertJavaStringToUTF16(env, message);
+  reply_proxy_->PostMessage(std::move(web_message));
 }
 
 }  // namespace android_webview

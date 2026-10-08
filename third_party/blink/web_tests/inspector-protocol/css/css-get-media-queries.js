@@ -14,12 +14,6 @@
         }
     }
 }
-
-@media (10px < width < 1000px) {
-  * {
-    color: green;
-  }
-}
 </style>
 `, 'Verify that media queries are reported properly.');
 

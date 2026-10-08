@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,10 @@
 #include <string>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "base/strings/string_number_conversions.h"
 #include "extensions/browser/api/idle/idle_api_constants.h"
 #include "extensions/browser/api/idle/idle_manager.h"
 #include "extensions/browser/api/idle/idle_manager_factory.h"
-#include "extensions/browser/api/idle/test_idle_provider.h"
 #include "extensions/browser/api_unittest.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extension_registry.h"
@@ -42,13 +40,61 @@ class MockEventDelegate : public IdleManager::EventDelegate {
   void UnregisterObserver(EventRouter::Observer* observer) override {}
 };
 
+class TestIdleProvider : public IdleManager::IdleTimeProvider {
+ public:
+  TestIdleProvider();
+  ~TestIdleProvider() override;
+  ui::IdleState CalculateIdleState(int idle_threshold) override;
+  int CalculateIdleTime() override;
+  bool CheckIdleStateIsLocked() override;
+
+  void set_idle_time(int idle_time);
+  void set_locked(bool locked);
+
+ private:
+  int idle_time_;
+  bool locked_;
+};
+
+TestIdleProvider::TestIdleProvider() : idle_time_(0), locked_(false) {
+}
+
+TestIdleProvider::~TestIdleProvider() {
+}
+
+ui::IdleState TestIdleProvider::CalculateIdleState(int idle_threshold) {
+  if (locked_) {
+    return ui::IDLE_STATE_LOCKED;
+  } else if (idle_time_ >= idle_threshold) {
+    return ui::IDLE_STATE_IDLE;
+  } else {
+    return ui::IDLE_STATE_ACTIVE;
+  }
+}
+
+int TestIdleProvider::CalculateIdleTime() {
+  return idle_time_;
+}
+
+bool TestIdleProvider::CheckIdleStateIsLocked() {
+  return locked_;
+}
+
+void TestIdleProvider::set_idle_time(int idle_time) {
+  idle_time_ = idle_time;
+}
+
+void TestIdleProvider::set_locked(bool locked) {
+  locked_ = locked;
+}
+
 class ScopedListen {
  public:
   ScopedListen(IdleManager* idle_manager, const std::string& extension_id);
   ~ScopedListen();
 
  private:
-  raw_ptr<IdleManager> idle_manager_;
+  IdleManager* idle_manager_;
   const std::string extension_id_;
 };
 
@@ -56,13 +102,13 @@ ScopedListen::ScopedListen(IdleManager* idle_manager,
                            const std::string& extension_id)
     : idle_manager_(idle_manager), extension_id_(extension_id) {
   const EventListenerInfo details(idle::OnStateChanged::kEventName,
-                                  extension_id_, GURL(), nullptr);
+                                  extension_id_, GURL(), NULL);
   idle_manager_->OnListenerAdded(details);
 }
 
 ScopedListen::~ScopedListen() {
   const EventListenerInfo details(idle::OnStateChanged::kEventName,
-                                  extension_id_, GURL(), nullptr);
+                                  extension_id_, GURL(), NULL);
   idle_manager_->OnListenerRemoved(details);
 }
 
@@ -78,9 +124,9 @@ class IdleTest : public ApiUnitTest {
   void SetUp() override;
 
  protected:
-  raw_ptr<IdleManager> idle_manager_;
-  raw_ptr<TestIdleProvider> idle_provider_;
-  raw_ptr<testing::StrictMock<MockEventDelegate>> event_delegate_;
+  IdleManager* idle_manager_;
+  TestIdleProvider* idle_provider_;
+  testing::StrictMock<MockEventDelegate>* event_delegate_;
 };
 
 void IdleTest::SetUp() {
@@ -104,11 +150,12 @@ TEST_F(IdleTest, QueryLockedActive) {
   idle_provider_->set_locked(true);
   idle_provider_->set_idle_time(0);
 
-  absl::optional<base::Value> result(
+  std::unique_ptr<base::Value> result(
       RunFunctionAndReturnValue(new IdleQueryStateFunction(), "[60]"));
 
-  ASSERT_TRUE(result->is_string());
-  EXPECT_EQ("locked", result->GetString());
+  std::string idle_state;
+  ASSERT_TRUE(result->GetAsString(&idle_state));
+  EXPECT_EQ("locked", idle_state);
 }
 
 // Verifies that "locked" takes priority over "idle".
@@ -116,11 +163,12 @@ TEST_F(IdleTest, QueryLockedIdle) {
   idle_provider_->set_locked(true);
   idle_provider_->set_idle_time(INT_MAX);
 
-  absl::optional<base::Value> result(
+  std::unique_ptr<base::Value> result(
       RunFunctionAndReturnValue(new IdleQueryStateFunction(), "[60]"));
 
-  ASSERT_TRUE(result->is_string());
-  EXPECT_EQ("locked", result->GetString());
+  std::string idle_state;
+  ASSERT_TRUE(result->GetAsString(&idle_state));
+  EXPECT_EQ("locked", idle_state);
 }
 
 // Verifies that any amount of idle time less than the detection interval
@@ -132,11 +180,12 @@ TEST_F(IdleTest, QueryActive) {
     SCOPED_TRACE(time);
     idle_provider_->set_idle_time(time);
 
-    absl::optional<base::Value> result(
+    std::unique_ptr<base::Value> result(
         RunFunctionAndReturnValue(new IdleQueryStateFunction(), "[60]"));
 
-    ASSERT_TRUE(result->is_string());
-    EXPECT_EQ("active", result->GetString());
+    std::string idle_state;
+    ASSERT_TRUE(result->GetAsString(&idle_state));
+    EXPECT_EQ("active", idle_state);
   }
 }
 
@@ -149,11 +198,12 @@ TEST_F(IdleTest, QueryIdle) {
     SCOPED_TRACE(time);
     idle_provider_->set_idle_time(time);
 
-    absl::optional<base::Value> result(
+    std::unique_ptr<base::Value> result(
         RunFunctionAndReturnValue(new IdleQueryStateFunction(), "[60]"));
 
-    ASSERT_TRUE(result->is_string());
-    EXPECT_EQ("idle", result->GetString());
+    std::string idle_state;
+    ASSERT_TRUE(result->GetAsString(&idle_state));
+    EXPECT_EQ("idle", idle_state);
   }
 }
 
@@ -169,13 +219,15 @@ TEST_F(IdleTest, QueryMinThreshold) {
       idle_provider_->set_idle_time(time);
 
       std::string args = "[" + base::NumberToString(threshold) + "]";
-      absl::optional<base::Value> result(
+      std::unique_ptr<base::Value> result(
           RunFunctionAndReturnValue(new IdleQueryStateFunction(), args));
+
+      std::string idle_state;
+      ASSERT_TRUE(result->GetAsString(&idle_state));
 
       int real_threshold = (threshold < 15) ? 15 : threshold;
       const char* expected = (time < real_threshold) ? "active" : "idle";
-      ASSERT_TRUE(result->is_string());
-      EXPECT_EQ(expected, result->GetString());
+      EXPECT_EQ(expected, idle_state);
     }
   }
 }
@@ -196,14 +248,16 @@ TEST_F(IdleTest, QueryMaxThreshold) {
       idle_provider_->set_idle_time(time);
 
       std::string args = "[" + base::NumberToString(threshold) + "]";
-      absl::optional<base::Value> result(
+      std::unique_ptr<base::Value> result(
           RunFunctionAndReturnValue(new IdleQueryStateFunction(), args));
+
+      std::string idle_state;
+      ASSERT_TRUE(result->GetAsString(&idle_state));
 
       int real_threshold =
           (threshold > kFourHoursInSeconds) ? kFourHoursInSeconds : threshold;
       const char* expected = (time < real_threshold) ? "active" : "idle";
-      ASSERT_TRUE(result->is_string());
-      EXPECT_EQ(expected, result->GetString());
+      EXPECT_EQ(expected, idle_state);
     }
   }
 }
@@ -345,7 +399,7 @@ TEST_F(IdleTest, SetDetectionInterval) {
   ScopedListen listen_default(idle_manager_, "default");
   ScopedListen listen_extension(idle_manager_, extension()->id());
 
-  absl::optional<base::Value> result(RunFunctionAndReturnValue(
+  std::unique_ptr<base::Value> result45(RunFunctionAndReturnValue(
       new IdleSetDetectionIntervalFunction(), "[45]"));
 
   idle_provider_->set_locked(false);
@@ -368,7 +422,7 @@ TEST_F(IdleTest, SetDetectionInterval) {
 // Verifies that setting the detection interval before creating the listener
 // works correctly.
 TEST_F(IdleTest, SetDetectionIntervalBeforeListener) {
-  absl::optional<base::Value> result(RunFunctionAndReturnValue(
+  std::unique_ptr<base::Value> result45(RunFunctionAndReturnValue(
       new IdleSetDetectionIntervalFunction(), "[45]"));
 
   ScopedListen listen_extension(idle_manager_, extension()->id());
@@ -388,7 +442,7 @@ TEST_F(IdleTest, SetDetectionIntervalBeforeListener) {
 TEST_F(IdleTest, SetDetectionIntervalMaximum) {
   ScopedListen listen_extension(idle_manager_, extension()->id());
 
-  absl::optional<base::Value> result(
+  std::unique_ptr<base::Value> result(
       RunFunctionAndReturnValue(new IdleSetDetectionIntervalFunction(),
                                 "[18000]"));  // five hours in seconds
 
@@ -407,7 +461,7 @@ TEST_F(IdleTest, SetDetectionIntervalMaximum) {
 TEST_F(IdleTest, SetDetectionIntervalMinimum) {
   ScopedListen listen_extension(idle_manager_, extension()->id());
 
-  absl::optional<base::Value> result(RunFunctionAndReturnValue(
+  std::unique_ptr<base::Value> result(RunFunctionAndReturnValue(
       new IdleSetDetectionIntervalFunction(), "[10]"));
 
   idle_provider_->set_locked(false);
@@ -425,7 +479,7 @@ TEST_F(IdleTest, UnloadCleanup) {
   {
     ScopedListen listen(idle_manager_, extension()->id());
 
-    absl::optional<base::Value> result(RunFunctionAndReturnValue(
+    std::unique_ptr<base::Value> result45(RunFunctionAndReturnValue(
         new IdleSetDetectionIntervalFunction(), "[15]"));
   }
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "chromecast/media/cma/backend/video_decoder_for_mixer.h"
@@ -32,11 +33,6 @@ class MediaPipelineBackendForMixer : public MediaPipelineBackend,
  public:
   explicit MediaPipelineBackendForMixer(
       const MediaPipelineDeviceParams& params);
-
-  MediaPipelineBackendForMixer(const MediaPipelineBackendForMixer&) = delete;
-  MediaPipelineBackendForMixer& operator=(const MediaPipelineBackendForMixer&) =
-      delete;
-
   ~MediaPipelineBackendForMixer() override;
 
   // MediaPipelineBackend implementation:
@@ -106,6 +102,8 @@ class MediaPipelineBackendForMixer : public MediaPipelineBackend,
 
   base::WeakPtr<MediaPipelineBackendForMixer> weak_this_;
   base::WeakPtrFactory<MediaPipelineBackendForMixer> weak_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaPipelineBackendForMixer);
 };
 
 }  // namespace media

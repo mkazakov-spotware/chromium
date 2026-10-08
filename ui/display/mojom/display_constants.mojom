@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,14 +42,5 @@ enum PanelOrientation {
 enum PrivacyScreenState {
   DISABLED = 0,
   ENABLED = 1,
-  DISABLED_LOCKED = 2,
-  ENABLED_LOCKED = 3,
-  NOT_SUPPORTED = 4
-};
-
-// Corresponds to display::VariableRefreshRateState
-enum VariableRefreshRateState {
-  kVrrDisabled = 0,
-  kVrrEnabled = 1,
-  kVrrNotCapable = 2,
+  NOT_SUPPORTED = 2
 };

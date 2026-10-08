@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,9 @@
 namespace extensions {
 class Extension;
 
+// Retrieves the manifest key for the given action |type|.
+const char* GetManifestKeyForActionType(ActionInfo::Type type);
+
 // Given an |action_type|, returns the corresponding API name to be referenced
 // from JavaScript.
 const char* GetAPINameForActionType(ActionInfo::Type action_type);
@@ -20,11 +23,6 @@ const char* GetAPINameForActionType(ActionInfo::Type action_type);
 // agnostic.
 const ActionInfo* GetActionInfoOfType(const Extension& extension,
                                       ActionInfo::Type type);
-
-// Retrieves the appropriate manifest version for the given |type|; necessary
-// because the chrome.action API is restricted to MV3, while browser and page
-// actions are restricted to MV2.
-int GetManifestVersionForActionType(ActionInfo::Type type);
 
 }  // namespace extensions
 

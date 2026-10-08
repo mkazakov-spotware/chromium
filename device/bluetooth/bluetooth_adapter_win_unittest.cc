@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/bind.h"
@@ -112,7 +111,6 @@ class BluetoothAdapterWinTest : public testing::Test {
 
   void CallStartDiscoverySession() {
     adapter_win_->StartDiscoverySession(
-        /*client_name=*/std::string(),
         base::BindOnce(
             &BluetoothAdapterWinTest::DiscoverySessionCallbackPassthrough,
             base::Unretained(this),
@@ -135,7 +133,7 @@ class BluetoothAdapterWinTest : public testing::Test {
   scoped_refptr<base::TestSimpleTaskRunner> ui_task_runner_;
   scoped_refptr<base::TestSimpleTaskRunner> bluetooth_task_runner_;
   scoped_refptr<BluetoothAdapter> adapter_;
-  raw_ptr<BluetoothAdapterWin> adapter_win_;
+  BluetoothAdapterWin* adapter_win_;
   TestBluetoothAdapterObserver observer_;
   bool init_callback_called_;
   int num_start_discovery_callbacks_;

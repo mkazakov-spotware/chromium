@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,18 +53,19 @@ void SessionOptions::Append(const std::string& key,
   options_[key] = value;
 }
 
-absl::optional<std::string> SessionOptions::Get(const std::string& key) const {
+base::Optional<std::string> SessionOptions::Get(
+    const std::string& key) const {
   auto it = options_.find(key);
   if (it == options_.end()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
   return it->second;
 }
 
-absl::optional<bool> SessionOptions::GetBool(const std::string& key) const {
-  absl::optional<std::string> value = Get(key);
+base::Optional<bool> SessionOptions::GetBool(const std::string& key) const {
+  base::Optional<std::string> value = Get(key);
   if (!value) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   const std::string lowercase_value = base::ToLowerASCII(*value);
@@ -78,17 +79,17 @@ absl::optional<bool> SessionOptions::GetBool(const std::string& key) const {
   }
   LOG(WARNING) << "Unexpected option received " << *value
                << " which cannot be converted to bool.";
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 bool SessionOptions::GetBoolValue(const std::string& key) const {
   return GetBool(key).value_or(false);
 }
 
-absl::optional<int> SessionOptions::GetInt(const std::string& key) const {
-  absl::optional<std::string> value = Get(key);
+base::Optional<int> SessionOptions::GetInt(const std::string& key) const {
+  base::Optional<std::string> value = Get(key);
   if (!value) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   int result;
@@ -97,7 +98,7 @@ absl::optional<int> SessionOptions::GetInt(const std::string& key) const {
   }
   LOG(WARNING) << "Unexpected option received " << *value
                << " which cannot be converted to integer.";
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 std::string SessionOptions::Export() const {

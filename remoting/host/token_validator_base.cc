@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,45 +12,36 @@
 #include "base/json/json_reader.h"
 #include "base/logging.h"
 #include "base/memory/weak_ptr.h"
-#include "base/strings/escape.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_util.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "crypto/crypto_buildflags.h"
+#include "net/base/escape.h"
 #include "net/base/io_buffer.h"
 #include "net/base/request_priority.h"
 #include "net/base/upload_bytes_element_reader.h"
 #include "net/base/upload_data_stream.h"
 #include "net/ssl/client_cert_store.h"
+#if defined(USE_NSS_CERTS)
+#include "net/ssl/client_cert_store_nss.h"
+#elif defined(OS_WIN)
+#include "net/ssl/client_cert_store_win.h"
+#elif defined(OS_APPLE)
+#include "net/ssl/client_cert_store_mac.h"
+#endif
 #include "net/ssl/ssl_cert_request_info.h"
 #include "net/ssl/ssl_private_key.h"
 #include "net/url_request/redirect_info.h"
 #include "net/url_request/url_request.h"
 #include "net/url_request/url_request_context.h"
 #include "remoting/base/logging.h"
-#include "remoting/protocol/authenticator.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(USE_NSS_CERTS)
-#include "net/ssl/client_cert_store_nss.h"
-#elif BUILDFLAG(IS_WIN)
-#include "net/ssl/client_cert_store_win.h"
-#elif BUILDFLAG(IS_APPLE)
-#include "net/ssl/client_cert_store_mac.h"
-#endif
-
-namespace remoting {
-
 namespace {
-
-using RejectionReason = protocol::Authenticator::RejectionReason;
 
 constexpr int kBufferSize = 4096;
 constexpr char kCertIssuerWildCard[] = "*";
 constexpr char kJsonSafetyPrefix[] = ")]}'\n";
-constexpr char kForbiddenExceptionToken[] = "ForbiddenException: ";
-constexpr char kLocationAuthzError[] = "Error Code 23:";
 
 // Returns a value from the issuer field for certificate selection, in order of
 // preference.  If the O or OU entries are populated with multiple values, we
@@ -106,15 +97,17 @@ bool WorseThan(const std::string& issuer,
   return c1->valid_expiry() < c2->valid_expiry();
 }
 
-#if BUILDFLAG(IS_WIN)
-crypto::ScopedHCERTSTORE OpenLocalMachineCertStore() {
-  return crypto::ScopedHCERTSTORE(::CertOpenStore(
+#if defined(OS_WIN)
+HCERTSTORE OpenLocalMachineCertStore() {
+  return ::CertOpenStore(
       CERT_STORE_PROV_SYSTEM, 0, NULL,
-      CERT_SYSTEM_STORE_LOCAL_MACHINE | CERT_STORE_READONLY_FLAG, L"MY"));
+      CERT_SYSTEM_STORE_LOCAL_MACHINE | CERT_STORE_READONLY_FLAG, L"MY");
 }
 #endif
 
 }  // namespace
+
+namespace remoting {
 
 TokenValidatorBase::TokenValidatorBase(
     const ThirdPartyAuthConfig& third_party_auth_config,
@@ -133,7 +126,8 @@ TokenValidatorBase::~TokenValidatorBase() = default;
 // TokenValidator interface.
 void TokenValidatorBase::ValidateThirdPartyToken(
     const std::string& token,
-    TokenValidatedCallback on_token_validated) {
+    base::OnceCallback<void(const std::string& shared_secret)>
+        on_token_validated) {
   DCHECK(!request_);
   DCHECK(!on_token_validated.is_null());
 
@@ -150,7 +144,7 @@ const std::string& TokenValidatorBase::token_scope() const {
   return token_scope_;
 }
 
-// URLRequest::Delegate interface.
+// URLFetcherDelegate interface.
 void TokenValidatorBase::OnResponseStarted(net::URLRequest* source,
                                            int net_result) {
   DCHECK_NE(net_result, net::ERR_IO_PENDING);
@@ -181,9 +175,9 @@ void TokenValidatorBase::OnReadCompleted(net::URLRequest* source,
     return;
 
   retrying_request_ = false;
-  auto validation_result = ProcessResponse(net_result);
+  std::string shared_token = ProcessResponse(net_result);
   request_.reset();
-  std::move(on_token_validated_).Run(validation_result);
+  std::move(on_token_validated_).Run(shared_token);
 }
 
 void TokenValidatorBase::OnReceivedRedirect(
@@ -208,10 +202,10 @@ void TokenValidatorBase::OnCertificateRequested(
   DCHECK_EQ(request_.get(), source);
 
   net::ClientCertStore* client_cert_store;
-#if BUILDFLAG(USE_NSS_CERTS)
+#if defined(USE_NSS_CERTS)
   client_cert_store = new net::ClientCertStoreNSS(
       net::ClientCertStoreNSS::PasswordDelegateFactory());
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   // The network process is running as "Local Service" whose "Current User"
   // cert store doesn't contain any certificates. Use the "Local Machine"
   // store instead.
@@ -219,7 +213,7 @@ void TokenValidatorBase::OnCertificateRequested(
   // Machine" cert store needs to allow access by "Local Service".
   client_cert_store = new net::ClientCertStoreWin(
       base::BindRepeating(&OpenLocalMachineCertStore));
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
   client_cert_store = new net::ClientCertStoreMac();
 #else
   // OpenSSL does not use the ClientCertStore infrastructure.
@@ -284,37 +278,18 @@ bool TokenValidatorBase::IsValidScope(const std::string& token_scope) {
   return token_scope == token_scope_;
 }
 
-protocol::TokenValidator::ValidationResult TokenValidatorBase::ProcessResponse(
-    int net_result) {
+std::string TokenValidatorBase::ProcessResponse(int net_result) {
   // Verify that we got a successful response.
   if (net_result != net::OK) {
     LOG(ERROR) << "Error validating token, err=" << net_result;
-    return RejectionReason::INVALID_CREDENTIALS;
+    return std::string();
   }
 
   int response = request_->GetResponseCode();
   if (response != 200) {
     LOG(ERROR) << "Error " << response << " validating token: '" << data_
                << "'";
-    // If we receive a 403, check to see if we can extract an error reason from
-    // the response. This isn't ideal but for error cases we don't receive a
-    // structured response so we need to inspect the response data. The error
-    // retrieved is used to provide some guidance on how to rectify the issue to
-    // the client user, it won't affect the outcome of this connection attempt.
-    if (response == 403) {
-      // The received response can have quite a bit of cruft before the error
-      // so seek forward to the exception info and then scan it for the code.
-      size_t start_pos = data_.find(kForbiddenExceptionToken);
-      if (start_pos != std::string::npos) {
-        if (data_.find(kLocationAuthzError, start_pos) != std::string::npos) {
-          return RejectionReason::LOCATION_AUTHZ_POLICY_CHECK_FAILED;
-        }
-
-        return RejectionReason::AUTHZ_POLICY_CHECK_FAILED;
-      }
-    }
-
-    return RejectionReason::INVALID_CREDENTIALS;
+    return std::string();
   }
 
   // Decode the JSON data from the response.
@@ -325,26 +300,25 @@ protocol::TokenValidator::ValidationResult TokenValidatorBase::ProcessResponse(
           ? data_.substr(sizeof(kJsonSafetyPrefix) - 1)
           : data_;
 
-  absl::optional<base::Value> value = base::JSONReader::Read(responseData);
-  if (!value || !value->is_dict()) {
+  base::Optional<base::Value> value = base::JSONReader::Read(responseData);
+  base::DictionaryValue* dict;
+  if (!value || !value->GetAsDictionary(&dict)) {
     LOG(ERROR) << "Invalid token validation response: '" << data_ << "'";
-    return RejectionReason::INVALID_CREDENTIALS;
+    return std::string();
   }
 
-  std::string* token_scope = value->FindStringKey("scope");
-  if (!token_scope || !IsValidScope(*token_scope)) {
-    LOG(ERROR) << "Invalid scope: '" << *token_scope << "', expected: '"
+  std::string token_scope;
+  dict->GetStringWithoutPathExpansion("scope", &token_scope);
+  if (!IsValidScope(token_scope)) {
+    LOG(ERROR) << "Invalid scope: '" << token_scope << "', expected: '"
                << token_scope_ << "'.";
-    return RejectionReason::INVALID_CREDENTIALS;
+    return std::string();
   }
 
+  std::string shared_secret;
   // Everything is valid, so return the shared secret to the caller.
-  std::string* shared_secret = value->FindStringKey("access_token");
-  if (shared_secret && !shared_secret->empty()) {
-    return *shared_secret;
-  }
-
-  return RejectionReason::INVALID_CREDENTIALS;
+  dict->GetStringWithoutPathExpansion("access_token", &shared_secret);
+  return shared_secret;
 }
 
 }  // namespace remoting

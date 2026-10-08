@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,13 @@
 
 #include <string>
 
-#include "base/containers/span.h"
+#include "base/compiler_specific.h"
 #include "base/strings/string_piece.h"
 #include "net/base/net_export.h"
 
-namespace net::der {
+namespace net {
+
+namespace der {
 
 // An opaque class that represents a fixed buffer of data of a fixed length,
 // to be used as an input to other operations. An Input object does not own
@@ -29,35 +31,32 @@ namespace net::der {
 class NET_EXPORT_PRIVATE Input {
  public:
   // Creates an empty Input, one from which no data can be read.
-  constexpr Input() = default;
+  Input();
 
   // Creates an Input from a constant array |data|.
   template <size_t N>
-  constexpr explicit Input(const uint8_t (&data)[N]) : data_(data), len_(N) {}
+  explicit Input(const uint8_t(&data)[N])
+      : data_(data), len_(N) {}
 
   // Creates an Input from the given |data| and |len|.
-  constexpr explicit Input(const uint8_t* data, size_t len)
-      : data_(data), len_(len) {}
+  explicit Input(const uint8_t* data, size_t len);
 
   // Creates an Input from a base::StringPiece.
-  explicit Input(base::StringPiece sp);
-
-  // Creates an Input from a std::string_view
-  explicit Input(std::string_view sp);
+  explicit Input(const base::StringPiece& sp);
 
   // Creates an Input from a std::string. The lifetimes are a bit subtle when
   // using this function: The constructed Input is only valid so long as |s| is
   // still alive and not mutated.
-  explicit Input(const std::string* s);
+  Input(const std::string* s);
 
   // Returns the length in bytes of an Input's data.
-  constexpr size_t Length() const { return len_; }
+  size_t Length() const { return len_; }
 
   // Returns a pointer to the Input's data. This method is marked as "unsafe"
   // because access to the Input's data should be done through ByteReader
   // instead. This method should only be used where using a ByteReader truly
   // is not an option.
-  constexpr const uint8_t* UnsafeData() const { return data_; }
+  const uint8_t* UnsafeData() const { return data_; }
 
   // Returns a copy of the data represented by this object as a std::string.
   std::string AsString() const;
@@ -67,16 +66,6 @@ class NET_EXPORT_PRIVATE Input {
   // Input.
   base::StringPiece AsStringPiece() const;
 
-  // Returns a std::string_view pointing to the same data as the Input. The
-  // resulting string_view must not outlive the data that was used to construct
-  // this Input.
-  std::string_view AsStringView() const;
-
-  // Returns a base::span pointing to the same data as the Input. The resulting
-  // base::span must not outlive the data that was used to construct this
-  // Input.
-  base::span<const uint8_t> AsSpan() const;
-
  private:
   // This constructor is deleted to prevent constructing an Input from a
   // std::string r-value. Since the Input points to memory owned by another
@@ -85,8 +74,8 @@ class NET_EXPORT_PRIVATE Input {
   // constructor because of StringPiece's implicit constructor.
   Input(std::string) = delete;
 
-  const uint8_t* data_ = nullptr;
-  size_t len_ = 0;
+  const uint8_t* data_;
+  size_t len_;
 };
 
 // Return true if |lhs|'s data and |rhs|'s data are byte-wise equal.
@@ -96,24 +85,7 @@ NET_EXPORT_PRIVATE bool operator==(const Input& lhs, const Input& rhs);
 NET_EXPORT_PRIVATE bool operator!=(const Input& lhs, const Input& rhs);
 
 // Returns true if |lhs|'s data is lexicographically less than |rhs|'s data.
-NET_EXPORT_PRIVATE constexpr bool operator<(const Input& lhs,
-                                            const Input& rhs) {
-  // This is `std::lexicographical_compare`, but that's not `constexpr` until
-  // C++-20.
-  auto* it1 = lhs.UnsafeData();
-  auto* it2 = rhs.UnsafeData();
-  const auto* end1 = lhs.UnsafeData() + lhs.Length();
-  const auto* end2 = rhs.UnsafeData() + rhs.Length();
-  for (; it1 != end1 && it2 != end2; ++it1, ++it2) {
-    if (*it1 < *it2) {
-      return true;
-    } else if (*it2 < *it1) {
-      return false;
-    }
-  }
-
-  return it2 != end2;
-}
+NET_EXPORT_PRIVATE bool operator<(const Input& lhs, const Input& rhs);
 
 // This class provides ways to read data from an Input in a bounds-checked way.
 // The ByteReader is designed to read through the input sequentially. Once a
@@ -139,12 +111,12 @@ class NET_EXPORT_PRIVATE ByteReader {
   // Reads a single byte from the input source, putting the byte read in
   // |*byte_p|. If a byte cannot be read from the input (because there is
   // no input left), then this method returns false.
-  [[nodiscard]] bool ReadByte(uint8_t* out);
+  bool ReadByte(uint8_t* out) WARN_UNUSED_RESULT;
 
   // Reads |len| bytes from the input source, and initializes an Input to
   // point to that data. If there aren't enough bytes left in the input source,
   // then this method returns false.
-  [[nodiscard]] bool ReadBytes(size_t len, Input* out);
+  bool ReadBytes(size_t len, Input* out) WARN_UNUSED_RESULT;
 
   // Returns how many bytes are left to read.
   size_t BytesLeft() const { return len_; }
@@ -159,6 +131,8 @@ class NET_EXPORT_PRIVATE ByteReader {
   size_t len_;
 };
 
-}  // namespace net::der
+}  // namespace der
+
+}  // namespace net
 
 #endif  // NET_DER_INPUT_H_

@@ -1,9 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <XCTest/XCTest.h>
-#import <map>
+#include <map>
 
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
@@ -11,7 +11,7 @@
 #import "ios/testing/earl_grey/disabled_test_macros.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
 #import "ios/web/public/test/http_server/http_server.h"
-#import "ios/web/public/test/http_server/http_server_util.h"
+#include "ios/web/public/test/http_server/http_server_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -51,11 +51,7 @@ id<GREYMatcher> PrintOptionsCancelButton() {
   [ChromeEarlGrey tapWebStateElementWithID:@"printButton"];
 
   // Test if print dialog appeared.
-  NSString* dialogTitle = @"Printer Options";
-  if (@available(iOS 15, *)) {
-    dialogTitle = @"Print Options";
-  }
-  [[EarlGrey selectElementWithMatcher:grey_accessibilityID(dialogTitle)]
+  [[EarlGrey selectElementWithMatcher:grey_accessibilityID(@"Printer Options")]
       assertWithMatcher:grey_sufficientlyVisible()];
 
   // Clean up and close print dialog.

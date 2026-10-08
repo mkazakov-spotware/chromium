@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <string>
 
 #include "base/compiler_specific.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
 #include "components/wifi/network_properties.h"
 #include "components/wifi/wifi_service.h"
 
@@ -19,34 +20,30 @@ namespace wifi {
 class FakeWiFiService : public WiFiService {
  public:
   FakeWiFiService();
-
-  FakeWiFiService(const FakeWiFiService&) = delete;
-  FakeWiFiService& operator=(const FakeWiFiService&) = delete;
-
   ~FakeWiFiService() override;
 
   void Initialize(
       scoped_refptr<base::SequencedTaskRunner> task_runner) override;
   void UnInitialize() override;
   void GetProperties(const std::string& network_guid,
-                     base::Value::Dict* properties,
+                     base::DictionaryValue* properties,
                      std::string* error) override;
   void GetManagedProperties(const std::string& network_guid,
-                            base::Value::Dict* managed_properties,
+                            base::DictionaryValue* managed_properties,
                             std::string* error) override;
   void GetState(const std::string& network_guid,
-                base::Value::Dict* properties,
+                base::DictionaryValue* properties,
                 std::string* error) override;
   void SetProperties(const std::string& network_guid,
-                     base::Value::Dict properties,
+                     std::unique_ptr<base::DictionaryValue> properties,
                      std::string* error) override;
   void CreateNetwork(bool shared,
-                     base::Value::Dict properties,
+                     std::unique_ptr<base::DictionaryValue> properties,
                      std::string* network_guid,
                      std::string* error) override;
   void GetVisibleNetworks(const std::string& network_type,
-                          bool include_details,
-                          base::Value::List* network_list) override;
+                          base::ListValue* network_list,
+                          bool include_details) override;
   void RequestNetworkScan() override;
   void StartConnect(const std::string& network_guid,
                     std::string* error) override;
@@ -78,6 +75,8 @@ class FakeWiFiService : public WiFiService {
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
   NetworkGuidListCallback networks_changed_observer_;
   NetworkGuidListCallback network_list_changed_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeWiFiService);
 };
 
 }  // namespace wifi

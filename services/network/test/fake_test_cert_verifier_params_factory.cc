@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/feature_list.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
-#include "mojo/public/cpp/bindings/remote.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "net/base/net_errors.h"
 #include "net/cert/cert_verify_result.h"
@@ -25,20 +24,24 @@ FakeTestCertVerifierParamsFactory::~FakeTestCertVerifierParamsFactory() =
     default;
 
 // static
-mojom::CertVerifierServiceRemoteParamsPtr
+mojom::CertVerifierParamsPtr
 FakeTestCertVerifierParamsFactory::GetCertVerifierParams() {
+  if (!base::FeatureList::IsEnabled(network::features::kCertVerifierService)) {
+    return mojom::CertVerifierParams::NewCreationParams(
+        mojom::CertVerifierCreationParams::New());
+  }
+
+  auto remote_params = mojom::CertVerifierServiceRemoteParams::New();
   mojo::PendingRemote<cert_verifier::mojom::CertVerifierService> cv_remote;
   mojo::MakeSelfOwnedReceiver(
       std::make_unique<FakeTestCertVerifierParamsFactory>(),
       cv_remote.InitWithNewPipeAndPassReceiver());
-  return mojom::CertVerifierServiceRemoteParams::New(std::move(cv_remote));
+  remote_params->cert_verifier_service = std::move(cv_remote);
+  return mojom::CertVerifierParams::NewRemoteParams(std::move(remote_params));
 }
 
 void FakeTestCertVerifierParamsFactory::Verify(
     const ::net::CertVerifier::RequestParams& params,
-    uint32_t netlog_source_type,
-    uint32_t netlog_source_id,
-    base::TimeTicks netlog_source_start_time,
     mojo::PendingRemote<cert_verifier::mojom::CertVerifierRequest>
         cert_verifier_request) {
   mojo::Remote<cert_verifier::mojom::CertVerifierRequest> request(

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,14 +14,13 @@ import static org.chromium.chrome.browser.autofill_assistant.AutofillAssistantUi
 
 import androidx.test.filters.MediumTest;
 
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.DisabledTest;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.chrome.browser.autofill_assistant.proto.ActionProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ChipProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.PromptProto;
@@ -41,38 +40,49 @@ import java.util.Collections;
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @RunWith(ChromeJUnit4ClassRunner.class)
 public class AutofillAssistantPromptNavigationIntegrationTest {
-    private static final String TEST_PAGE = "autofill_assistant_target_website.html";
-
-    private final CustomTabActivityTestRule mTestRule = new CustomTabActivityTestRule();
-
     @Rule
-    public final TestRule mRulesChain = RuleChain.outerRule(mTestRule).around(
-            new AutofillAssistantCustomTabTestRule(mTestRule, TEST_PAGE));
+    public CustomTabActivityTestRule mTestRule = new CustomTabActivityTestRule();
+
+    private static final String TEST_PAGE = "/components/test/data/autofill_assistant/html/"
+            + "autofill_assistant_target_website.html";
+
+    @Before
+    public void setUp() throws Exception {
+        AutofillAssistantPreferencesUtil.setInitialPreferences(true);
+        mTestRule.startCustomTabActivityWithIntent(
+                AutofillAssistantUiTestUtil.createMinimalCustomTabIntentForAutobot(
+                        mTestRule.getTestServer().getURL(TEST_PAGE),
+                        /* startImmediately = */ true));
+        mTestRule.getActivity()
+                .getRootUiCoordinatorForTesting()
+                .getScrimCoordinator()
+                .disableAnimationForTesting(true);
+    }
 
     /**
      * Integration test for ending a prompt action when a render side navigation occurs.
      */
     @Test
     @MediumTest
-    @DisabledTest(message = "https://crbug.com/1270760")
-    public void
-    reloadEndsPrompt() throws Exception {
+    @DisableIf.Build(sdk_is_less_than = 21)
+    public void reloadEndsPrompt() throws Exception {
         ArrayList<ActionProto> list = new ArrayList<>();
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setPrompt(PromptProto.newBuilder().setEndOnNavigation(true).addChoices(
                                  PromptProto.Choice.newBuilder().setChip(
                                          ChipProto.newBuilder().setText("Prompt 1"))))
                          .build());
-        list.add(ActionProto.newBuilder()
+        list.add((ActionProto) ActionProto.newBuilder()
                          .setPrompt(PromptProto.newBuilder().addChoices(
                                  PromptProto.Choice.newBuilder().setChip(
                                          ChipProto.newBuilder().setText("Prompt 2"))))
                          .build());
 
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
-                SupportedScriptProto.newBuilder()
+                (SupportedScriptProto) SupportedScriptProto.newBuilder()
                         .setPath(TEST_PAGE)
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Done")))
                         .build(),
                 list);
 

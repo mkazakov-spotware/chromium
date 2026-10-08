@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview This file contains classes to handle IPv4 and IPv6 addresses.
@@ -11,7 +19,7 @@
  */
 
 
-// TODO(user): We're trying to migrate all ES5 subclasses of Closure
+// TODO(b/130421259): We're trying to migrate all ES5 subclasses of Closure
 // Library to ES6. In ES6 this cannot be referenced before super is called. This
 // file has at least one this before a super call (in ES5) and cannot be
 // automatically upgraded to ES6 as a result. Please fix this if you have a
@@ -19,7 +27,9 @@
 // constructor at all. You can run the conversion tool yourself to see what it
 // does on this file: blaze run //javascript/refactoring/es6_classes:convert.
 
-goog.provide('goog.net.ipaddress');
+goog.provide('goog.net.IpAddress');
+goog.provide('goog.net.Ipv4Address');
+goog.provide('goog.net.Ipv6Address');
 
 goog.require('goog.array');
 goog.require('goog.math.Integer');
@@ -27,18 +37,18 @@ goog.require('goog.object');
 goog.require('goog.string');
 
 
+
 /**
  * Abstract class defining an IP Address.
  *
- * Please use goog.net.ipaddress.IpAddress static methods or
- * goog.net.ipaddress.Ipv4Address/Ipv6Address classes.
+ * Please use goog.net.IpAddress static methods or
+ * goog.net.Ipv4Address/Ipv6Address classes.
  *
  * @param {!goog.math.Integer} address The Ip Address.
  * @param {number} version The version number (4, 6).
  * @constructor
  */
-goog.net.ipaddress.IpAddress = function(address, version) {
-  'use strict';
+goog.net.IpAddress = function(address, version) {
   /**
    * The IP Address.
    * @type {!goog.math.Integer}
@@ -52,24 +62,23 @@ goog.net.ipaddress.IpAddress = function(address, version) {
    * @private
    */
   this.version_ = version;
+
 };
 
 
 /**
  * @return {number} The IP Address version.
  */
-goog.net.ipaddress.IpAddress.prototype.getVersion = function() {
-  'use strict';
+goog.net.IpAddress.prototype.getVersion = function() {
   return this.version_;
 };
 
 
 /**
- * @param {!goog.net.ipaddress.IpAddress} other The other IP Address.
+ * @param {!goog.net.IpAddress} other The other IP Address.
  * @return {boolean} true if the IP Addresses are equal.
  */
-goog.net.ipaddress.IpAddress.prototype.equals = function(other) {
-  'use strict';
+goog.net.IpAddress.prototype.equals = function(other) {
   return (
       this.version_ == other.getVersion() &&
       this.ip_.equals(other.toInteger()));
@@ -79,8 +88,7 @@ goog.net.ipaddress.IpAddress.prototype.equals = function(other) {
 /**
  * @return {!goog.math.Integer} The IP Address, as an Integer.
  */
-goog.net.ipaddress.IpAddress.prototype.toInteger = function() {
-  'use strict';
+goog.net.IpAddress.prototype.toInteger = function() {
   return /** @type {!goog.math.Integer} */ (goog.object.clone(this.ip_));
 };
 
@@ -88,26 +96,26 @@ goog.net.ipaddress.IpAddress.prototype.toInteger = function() {
 /**
  * @return {string} The IP Address, as an URI string following RFC 3986.
  */
-goog.net.ipaddress.IpAddress.prototype.toUriString = goog.abstractMethod;
+goog.net.IpAddress.prototype.toUriString = goog.abstractMethod;
 
 
 /**
  * @return {string} The IP Address, as a string.
  * @override
  */
-goog.net.ipaddress.IpAddress.prototype.toString = goog.abstractMethod;
+goog.net.IpAddress.prototype.toString = goog.abstractMethod;
 
 
 /**
  * @return {boolean} Whether or not the address is site-local.
  */
-goog.net.ipaddress.IpAddress.prototype.isSiteLocal = goog.abstractMethod;
+goog.net.IpAddress.prototype.isSiteLocal = goog.abstractMethod;
 
 
 /**
  * @return {boolean} Whether or not the address is link-local.
  */
-goog.net.ipaddress.IpAddress.prototype.isLinkLocal = goog.abstractMethod;
+goog.net.IpAddress.prototype.isLinkLocal = goog.abstractMethod;
 
 
 /**
@@ -116,18 +124,17 @@ goog.net.ipaddress.IpAddress.prototype.isLinkLocal = goog.abstractMethod;
  * instead of raising an exception.
  *
  * @param {string} address The IP Address.
- * @see {goog.net.ipaddress.Ipv4Address}
- * @see {goog.net.ipaddress.Ipv6Address}
- * @return {goog.net.ipaddress.IpAddress} The IP Address or null.
+ * @see {goog.net.Ipv4Address}
+ * @see {goog.net.Ipv6Address}
+ * @return {goog.net.IpAddress} The IP Address or null.
  */
-goog.net.ipaddress.IpAddress.fromString = function(address) {
-  'use strict';
+goog.net.IpAddress.fromString = function(address) {
   try {
     if (address.indexOf(':') != -1) {
-      return new goog.net.ipaddress.Ipv6Address(address);
+      return new goog.net.Ipv6Address(address);
     }
 
-    return new goog.net.ipaddress.Ipv4Address(address);
+    return new goog.net.Ipv4Address(address);
   } catch (e) {
     // Both constructors raise exception if the address is malformed (ie.
     // invalid). The user of this function should not care about catching
@@ -144,20 +151,18 @@ goog.net.ipaddress.IpAddress.fromString = function(address) {
  * instead of raising an exception.
  *
  * @param {string} address A RFC 3986 encoded IP address.
- * @see {goog.net.ipaddress.Ipv4Address}
- * @see {goog.net.ipaddress.Ipv6Address}
- * @return {goog.net.ipaddress.IpAddress} The IP Address.
+ * @see {goog.net.Ipv4Address}
+ * @see {goog.net.Ipv6Address}
+ * @return {goog.net.IpAddress} The IP Address.
  */
-goog.net.ipaddress.IpAddress.fromUriString = function(address) {
-  'use strict';
+goog.net.IpAddress.fromUriString = function(address) {
   try {
     if (goog.string.startsWith(address, '[') &&
         goog.string.endsWith(address, ']')) {
-      return new goog.net.ipaddress.Ipv6Address(
-          address.substring(1, address.length - 1));
+      return new goog.net.Ipv6Address(address.substring(1, address.length - 1));
     }
 
-    return new goog.net.ipaddress.Ipv4Address(address);
+    return new goog.net.Ipv4Address(address);
   } catch (e) {
     // Both constructors raise exception if the address is malformed (ie.
     // invalid). The user of this function should not care about catching
@@ -174,12 +179,11 @@ goog.net.ipaddress.IpAddress.fromUriString = function(address) {
  * This constructor accepts strings and instance of goog.math.Integer.
  * If you pass a goog.math.Integer, make sure that its sign is set to positive.
  * @param {(string|!goog.math.Integer)} address The address to store.
- * @extends {goog.net.ipaddress.IpAddress}
+ * @extends {goog.net.IpAddress}
  * @constructor
  * @final
  */
-goog.net.ipaddress.Ipv4Address = function(address) {
-  'use strict';
+goog.net.Ipv4Address = function(address) {
   /**
    * The cached string representation of the IP Address.
    * @type {?string}
@@ -187,38 +191,38 @@ goog.net.ipaddress.Ipv4Address = function(address) {
    */
   this.ipStr_ = null;
 
-  let ip = goog.math.Integer.ZERO;
+  var ip = goog.math.Integer.ZERO;
   if (address instanceof goog.math.Integer) {
     if (address.getSign() != 0 || address.lessThan(goog.math.Integer.ZERO) ||
-        address.greaterThan(goog.net.ipaddress.Ipv4Address.MAX_ADDRESS_)) {
+        address.greaterThan(goog.net.Ipv4Address.MAX_ADDRESS_)) {
       throw new Error('The address does not look like an IPv4.');
     } else {
       ip = goog.object.clone(address);
     }
   } else {
-    if (!goog.net.ipaddress.Ipv4Address.REGEX_.test(address)) {
+    if (!goog.net.Ipv4Address.REGEX_.test(address)) {
       throw new Error(address + ' does not look like an IPv4 address.');
     }
 
-    const octets = address.split('.');
+    var octets = address.split('.');
     if (octets.length != 4) {
       throw new Error(address + ' does not look like an IPv4 address.');
     }
 
-    for (let i = 0; i < octets.length; i++) {
-      const parsedOctet = goog.string.toNumber(octets[i]);
+    for (var i = 0; i < octets.length; i++) {
+      var parsedOctet = goog.string.toNumber(octets[i]);
       if (isNaN(parsedOctet) || parsedOctet < 0 || parsedOctet > 255 ||
           (octets[i].length != 1 && goog.string.startsWith(octets[i], '0'))) {
         throw new Error('In ' + address + ', octet ' + i + ' is not valid');
       }
-      const intOctet = goog.math.Integer.fromNumber(parsedOctet);
+      var intOctet = goog.math.Integer.fromNumber(parsedOctet);
       ip = ip.shiftLeft(8).or(intOctet);
     }
   }
-  goog.net.ipaddress.Ipv4Address.base(
+  goog.net.Ipv4Address.base(
       this, 'constructor', /** @type {!goog.math.Integer} */ (ip), 4);
 };
-goog.inherits(goog.net.ipaddress.Ipv4Address, goog.net.ipaddress.IpAddress);
+goog.inherits(goog.net.Ipv4Address, goog.net.IpAddress);
 
 
 /**
@@ -227,7 +231,7 @@ goog.inherits(goog.net.ipaddress.Ipv4Address, goog.net.ipaddress.IpAddress);
  * @private
  * @const
  */
-goog.net.ipaddress.Ipv4Address.REGEX_ = /^[0-9.]*$/;
+goog.net.Ipv4Address.REGEX_ = /^[0-9.]*$/;
 
 
 /**
@@ -235,7 +239,7 @@ goog.net.ipaddress.Ipv4Address.REGEX_ = /^[0-9.]*$/;
  * @type {number}
  * @const
  */
-goog.net.ipaddress.Ipv4Address.MAX_NETMASK_LENGTH = 32;
+goog.net.Ipv4Address.MAX_NETMASK_LENGTH = 32;
 
 
 /**
@@ -244,24 +248,22 @@ goog.net.ipaddress.Ipv4Address.MAX_NETMASK_LENGTH = 32;
  * @private
  * @const
  */
-goog.net.ipaddress.Ipv4Address.MAX_ADDRESS_ =
-    goog.math.Integer.ONE
-        .shiftLeft(goog.net.ipaddress.Ipv4Address.MAX_NETMASK_LENGTH)
+goog.net.Ipv4Address.MAX_ADDRESS_ =
+    goog.math.Integer.ONE.shiftLeft(goog.net.Ipv4Address.MAX_NETMASK_LENGTH)
         .subtract(goog.math.Integer.ONE);
 
 
 /**
  * @override
  */
-goog.net.ipaddress.Ipv4Address.prototype.toString = function() {
-  'use strict';
+goog.net.Ipv4Address.prototype.toString = function() {
   if (this.ipStr_) {
     return this.ipStr_;
   }
 
-  let ip = this.ip_.getBitsUnsigned(0);
-  const octets = [];
-  for (let i = 3; i >= 0; i--) {
+  var ip = this.ip_.getBitsUnsigned(0);
+  var octets = [];
+  for (var i = 3; i >= 0; i--) {
     octets[i] = String((ip & 0xff));
     ip = ip >>> 8;
   }
@@ -275,8 +277,7 @@ goog.net.ipaddress.Ipv4Address.prototype.toString = function() {
 /**
  * @override
  */
-goog.net.ipaddress.Ipv4Address.prototype.toUriString = function() {
-  'use strict';
+goog.net.Ipv4Address.prototype.toUriString = function() {
   return this.toString();
 };
 
@@ -284,10 +285,9 @@ goog.net.ipaddress.Ipv4Address.prototype.toUriString = function() {
 /**
  * @override
  */
-goog.net.ipaddress.Ipv4Address.prototype.isSiteLocal = function() {
-  'use strict';
+goog.net.Ipv4Address.prototype.isSiteLocal = function() {
   // Check for prefix 10/8, 172.16/12, or 192.168/16.
-  const ipInt = this.ip_.toInt();
+  var ipInt = this.ip_.toInt();
   return (((ipInt >>> 24) & 0xff) == 10) ||
       ((((ipInt >>> 24) & 0xff) == 172) && (((ipInt >>> 16) & 0xf0) == 16)) ||
       ((((ipInt >>> 24) & 0xff) == 192) && (((ipInt >>> 16) & 0xff) == 168));
@@ -297,10 +297,9 @@ goog.net.ipaddress.Ipv4Address.prototype.isSiteLocal = function() {
 /**
  * @override
  */
-goog.net.ipaddress.Ipv4Address.prototype.isLinkLocal = function() {
-  'use strict';
+goog.net.Ipv4Address.prototype.isLinkLocal = function() {
   // Check for prefix 169.254/16.
-  const ipInt = this.ip_.toInt();
+  var ipInt = this.ip_.toInt();
   return (((ipInt >>> 24) & 0xff) == 169) && (((ipInt >>> 16) & 0xff) == 254);
 };
 
@@ -312,11 +311,10 @@ goog.net.ipaddress.Ipv4Address.prototype.isLinkLocal = function() {
  * If you pass a goog.math.Integer, make sure that its sign is set to positive.
  * @param {(string|!goog.math.Integer)} address The address to store.
  * @constructor
- * @extends {goog.net.ipaddress.IpAddress}
+ * @extends {goog.net.IpAddress}
  * @final
  */
-goog.net.ipaddress.Ipv6Address = function(address) {
-  'use strict';
+goog.net.Ipv6Address = function(address) {
   /**
    * The cached string representation of the IP Address.
    * @type {?string}
@@ -324,37 +322,37 @@ goog.net.ipaddress.Ipv6Address = function(address) {
    */
   this.ipStr_ = null;
 
-  let ip = goog.math.Integer.ZERO;
+  var ip = goog.math.Integer.ZERO;
   if (address instanceof goog.math.Integer) {
     if (address.getSign() != 0 || address.lessThan(goog.math.Integer.ZERO) ||
-        address.greaterThan(goog.net.ipaddress.Ipv6Address.MAX_ADDRESS_)) {
+        address.greaterThan(goog.net.Ipv6Address.MAX_ADDRESS_)) {
       throw new Error('The address does not look like a valid IPv6.');
     } else {
       ip = goog.object.clone(address);
     }
   } else {
-    if (!goog.net.ipaddress.Ipv6Address.REGEX_.test(address)) {
+    if (!goog.net.Ipv6Address.REGEX_.test(address)) {
       throw new Error(address + ' is not a valid IPv6 address.');
     }
 
-    const splitColon = address.split(':');
+    var splitColon = address.split(':');
     if (splitColon[splitColon.length - 1].indexOf('.') != -1) {
-      const newHextets = goog.net.ipaddress.Ipv6Address.dottedQuadtoHextets_(
+      var newHextets = goog.net.Ipv6Address.dottedQuadtoHextets_(
           splitColon[splitColon.length - 1]);
       goog.array.removeAt(splitColon, splitColon.length - 1);
       goog.array.extend(splitColon, newHextets);
       address = splitColon.join(':');
     }
 
-    const splitDoubleColon = address.split('::');
+    var splitDoubleColon = address.split('::');
     if (splitDoubleColon.length > 2 ||
         (splitDoubleColon.length == 1 && splitColon.length != 8)) {
       throw new Error(address + ' is not a valid IPv6 address.');
     }
 
-    let ipArr;
+    var ipArr;
     if (splitDoubleColon.length > 1) {
-      ipArr = goog.net.ipaddress.Ipv6Address.explode_(splitDoubleColon);
+      ipArr = goog.net.Ipv6Address.explode_(splitDoubleColon);
     } else {
       ipArr = splitColon;
     }
@@ -363,21 +361,20 @@ goog.net.ipaddress.Ipv6Address = function(address) {
       throw new Error(address + ' is not a valid IPv6 address');
     }
 
-    for (let i = 0; i < ipArr.length; i++) {
-      const parsedHextet = goog.math.Integer.fromString(ipArr[i], 16);
+    for (var i = 0; i < ipArr.length; i++) {
+      var parsedHextet = goog.math.Integer.fromString(ipArr[i], 16);
       if (parsedHextet.lessThan(goog.math.Integer.ZERO) ||
-          parsedHextet.greaterThan(
-              goog.net.ipaddress.Ipv6Address.MAX_HEXTET_VALUE_)) {
+          parsedHextet.greaterThan(goog.net.Ipv6Address.MAX_HEXTET_VALUE_)) {
         throw new Error(
             ipArr[i] + ' in ' + address + ' is not a valid hextet.');
       }
       ip = ip.shiftLeft(16).or(parsedHextet);
     }
   }
-  goog.net.ipaddress.Ipv6Address.base(
+  goog.net.Ipv6Address.base(
       this, 'constructor', /** @type {!goog.math.Integer} */ (ip), 6);
 };
-goog.inherits(goog.net.ipaddress.Ipv6Address, goog.net.ipaddress.IpAddress);
+goog.inherits(goog.net.Ipv6Address, goog.net.IpAddress);
 
 
 /**
@@ -386,7 +383,7 @@ goog.inherits(goog.net.ipaddress.Ipv6Address, goog.net.ipaddress.IpAddress);
  * @private
  * @const
  */
-goog.net.ipaddress.Ipv6Address.REGEX_ = /^([a-fA-F0-9]*:){2}[a-fA-F0-9:.]*$/;
+goog.net.Ipv6Address.REGEX_ = /^([a-fA-F0-9]*:){2}[a-fA-F0-9:.]*$/;
 
 
 /**
@@ -394,7 +391,7 @@ goog.net.ipaddress.Ipv6Address.REGEX_ = /^([a-fA-F0-9]*:){2}[a-fA-F0-9:.]*$/;
  * @type {number}
  * @const
  */
-goog.net.ipaddress.Ipv6Address.MAX_NETMASK_LENGTH = 128;
+goog.net.Ipv6Address.MAX_NETMASK_LENGTH = 128;
 
 
 /**
@@ -403,8 +400,7 @@ goog.net.ipaddress.Ipv6Address.MAX_NETMASK_LENGTH = 128;
  * @private
  * @const
  */
-goog.net.ipaddress.Ipv6Address.MAX_HEXTET_VALUE_ =
-    goog.math.Integer.fromInt(65535);
+goog.net.Ipv6Address.MAX_HEXTET_VALUE_ = goog.math.Integer.fromInt(65535);
 
 
 /**
@@ -413,31 +409,29 @@ goog.net.ipaddress.Ipv6Address.MAX_HEXTET_VALUE_ =
  * @private
  * @const
  */
-goog.net.ipaddress.Ipv6Address.MAX_ADDRESS_ =
-    goog.math.Integer.ONE
-        .shiftLeft(goog.net.ipaddress.Ipv6Address.MAX_NETMASK_LENGTH)
+goog.net.Ipv6Address.MAX_ADDRESS_ =
+    goog.math.Integer.ONE.shiftLeft(goog.net.Ipv6Address.MAX_NETMASK_LENGTH)
         .subtract(goog.math.Integer.ONE);
 
 
 /**
  * @override
  */
-goog.net.ipaddress.Ipv6Address.prototype.toString = function() {
-  'use strict';
+goog.net.Ipv6Address.prototype.toString = function() {
   if (this.ipStr_) {
     return this.ipStr_;
   }
 
-  let outputArr = [];
-  for (let i = 3; i >= 0; i--) {
-    const bits = this.ip_.getBitsUnsigned(i);
-    const firstHextet = bits >>> 16;
-    const secondHextet = bits & 0xffff;
+  var outputArr = [];
+  for (var i = 3; i >= 0; i--) {
+    var bits = this.ip_.getBitsUnsigned(i);
+    var firstHextet = bits >>> 16;
+    var secondHextet = bits & 0xffff;
     outputArr.push(firstHextet.toString(16));
     outputArr.push(secondHextet.toString(16));
   }
 
-  outputArr = goog.net.ipaddress.Ipv6Address.compress_(outputArr);
+  outputArr = goog.net.Ipv6Address.compress_(outputArr);
   this.ipStr_ = outputArr.join(':');
   return this.ipStr_;
 };
@@ -446,8 +440,7 @@ goog.net.ipaddress.Ipv6Address.prototype.toString = function() {
 /**
  * @override
  */
-goog.net.ipaddress.Ipv6Address.prototype.toUriString = function() {
-  'use strict';
+goog.net.Ipv6Address.prototype.toUriString = function() {
   return '[' + this.toString() + ']';
 };
 
@@ -455,11 +448,10 @@ goog.net.ipaddress.Ipv6Address.prototype.toUriString = function() {
 /**
  * @override
  */
-goog.net.ipaddress.Ipv6Address.prototype.isSiteLocal = function() {
-  'use strict';
+goog.net.Ipv6Address.prototype.isSiteLocal = function() {
   // Check for prefix fd00::/8.
-  const firstDWord = this.ip_.getBitsUnsigned(3);
-  const firstHextet = firstDWord >>> 16;
+  var firstDWord = this.ip_.getBitsUnsigned(3);
+  var firstHextet = firstDWord >>> 16;
   return (firstHextet & 0xff00) == 0xfd00;
 };
 
@@ -467,11 +459,10 @@ goog.net.ipaddress.Ipv6Address.prototype.isSiteLocal = function() {
 /**
  * @override
  */
-goog.net.ipaddress.Ipv6Address.prototype.isLinkLocal = function() {
-  'use strict';
+goog.net.Ipv6Address.prototype.isLinkLocal = function() {
   // Check for prefix fe80::/10.
-  const firstDWord = this.ip_.getBitsUnsigned(3);
-  const firstHextet = firstDWord >>> 16;
+  var firstDWord = this.ip_.getBitsUnsigned(3);
+  var firstHextet = firstDWord >>> 16;
   return (firstHextet & 0xffc0) == 0xfe80;
 };
 
@@ -483,10 +474,9 @@ goog.net.ipaddress.Ipv6Address.prototype.isLinkLocal = function() {
  * @param {!Array<string>} address An IPv6 address split around '::'.
  * @return {!Array<string>} The expanded version of the IPv6.
  */
-goog.net.ipaddress.Ipv6Address.explode_ = function(address) {
-  'use strict';
-  let basePart = address[0].split(':');
-  let secondPart = address[1].split(':');
+goog.net.Ipv6Address.explode_ = function(address) {
+  var basePart = address[0].split(':');
+  var secondPart = address[1].split(':');
 
   if (basePart.length == 1 && basePart[0] == '') {
     basePart = [];
@@ -496,13 +486,13 @@ goog.net.ipaddress.Ipv6Address.explode_ = function(address) {
   }
 
   // Now we fill the gap with 0.
-  const gap = 8 - (basePart.length + secondPart.length);
+  var gap = 8 - (basePart.length + secondPart.length);
 
   if (gap < 1) {
     return [];
   }
 
-  return goog.array.join(basePart, (new Array(gap)).fill('0'), secondPart);
+  return goog.array.join(basePart, goog.array.repeat('0', gap), secondPart);
 };
 
 
@@ -512,13 +502,12 @@ goog.net.ipaddress.Ipv6Address.explode_ = function(address) {
  * @param {!Array<string>} hextets The array of hextet.
  * @return {!Array<string>} The compressed version of this array.
  */
-goog.net.ipaddress.Ipv6Address.compress_ = function(hextets) {
-  'use strict';
-  let bestStart = -1;
-  let start = -1;
-  let bestSize = 0;
-  let size = 0;
-  for (let i = 0; i < hextets.length; i++) {
+goog.net.Ipv6Address.compress_ = function(hextets) {
+  var bestStart = -1;
+  var start = -1;
+  var bestSize = 0;
+  var size = 0;
+  for (var i = 0; i < hextets.length; i++) {
     if (hextets[i] == '0') {
       size++;
       if (start == -1) {
@@ -556,11 +545,10 @@ goog.net.ipaddress.Ipv6Address.compress_ = function(hextets) {
  * @param {string} quads An IPv4 as a string.
  * @return {!Array<string>} A list of 2 hextets.
  */
-goog.net.ipaddress.Ipv6Address.dottedQuadtoHextets_ = function(quads) {
-  'use strict';
-  const ip4 = new goog.net.ipaddress.Ipv4Address(quads).toInteger();
-  const bits = ip4.getBitsUnsigned(0);
-  const hextets = [];
+goog.net.Ipv6Address.dottedQuadtoHextets_ = function(quads) {
+  var ip4 = new goog.net.Ipv4Address(quads).toInteger();
+  var bits = ip4.getBitsUnsigned(0);
+  var hextets = [];
 
   hextets.push(((bits >>> 16) & 0xffff).toString(16));
   hextets.push((bits & 0xffff).toString(16));
@@ -572,8 +560,7 @@ goog.net.ipaddress.Ipv6Address.dottedQuadtoHextets_ = function(quads) {
 /**
  * @return {boolean} true if the IPv6 contains a mapped IPv4.
  */
-goog.net.ipaddress.Ipv6Address.prototype.isMappedIpv4Address = function() {
-  'use strict';
+goog.net.Ipv6Address.prototype.isMappedIpv4Address = function() {
   return (
       this.ip_.getBitsUnsigned(3) == 0 && this.ip_.getBitsUnsigned(2) == 0 &&
       this.ip_.getBitsUnsigned(1) == 0xffff);
@@ -582,14 +569,13 @@ goog.net.ipaddress.Ipv6Address.prototype.isMappedIpv4Address = function() {
 
 /**
  * Will return the mapped IPv4 address in this IPv6 address.
- * @return {goog.net.ipaddress.Ipv4Address} an IPv4 or null.
+ * @return {goog.net.Ipv4Address} an IPv4 or null.
  */
-goog.net.ipaddress.Ipv6Address.prototype.getMappedIpv4Address = function() {
-  'use strict';
+goog.net.Ipv6Address.prototype.getMappedIpv4Address = function() {
   if (!this.isMappedIpv4Address()) {
     return null;
   }
 
-  const newIpv4 = new goog.math.Integer([this.ip_.getBitsUnsigned(0)], 0);
-  return new goog.net.ipaddress.Ipv4Address(newIpv4);
+  var newIpv4 = new goog.math.Integer([this.ip_.getBitsUnsigned(0)], 0);
+  return new goog.net.Ipv4Address(newIpv4);
 };

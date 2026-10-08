@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -62,8 +62,7 @@ IN_PROC_BROWSER_TEST_F(MDnsAPITest, RegisterListener) {
               RemoveObserver(A<DnsSdRegistry::DnsSdObserver*>()))
       .Times(1);
 
-  EXPECT_TRUE(
-      RunExtensionTest("mdns/api", {.extension_url = "register_listener.html"}))
+  EXPECT_TRUE(RunExtensionSubtest("mdns/api", "register_listener.html"))
       << message_;
 
   extensions::ResultCatcher catcher;
@@ -93,8 +92,7 @@ IN_PROC_BROWSER_TEST_F(MDnsAPITest, ForceDiscovery) {
               RemoveObserver(A<DnsSdRegistry::DnsSdObserver*>()))
       .Times(1);
 
-  EXPECT_TRUE(
-      RunExtensionTest("mdns/api", {.extension_url = "force_discovery.html"}))
+  EXPECT_TRUE(RunExtensionSubtest("mdns/api", "force_discovery.html"))
       << message_;
 
   extensions::ResultCatcher catcher;
@@ -126,8 +124,8 @@ IN_PROC_BROWSER_TEST_F(MDnsAPITest, RegisterMultipleListeners) {
               RemoveObserver(A<DnsSdRegistry::DnsSdObserver*>()))
       .Times(1);
 
-  EXPECT_TRUE(RunExtensionTest(
-      "mdns/api", {.extension_url = "register_multiple_listeners.html"}))
+  EXPECT_TRUE(RunExtensionSubtest("mdns/api",
+                                  "register_multiple_listeners.html"))
       << message_;
 
   extensions::ResultCatcher catcher;
@@ -152,13 +150,12 @@ IN_PROC_BROWSER_TEST_F(MDnsAPITest, RegisterTooManyListeners) {
               RemoveObserver(A<DnsSdRegistry::DnsSdObserver*>()))
       .Times(1);
 
-  EXPECT_TRUE(RunExtensionTest("mdns/api-packaged-apps",
-                               {.launch_as_platform_app = true}))
+  EXPECT_TRUE(RunPlatformAppTest("mdns/api-packaged-apps"))
       << message_;
 }
 
 // Test loading extension and registering multiple listeners.
 IN_PROC_BROWSER_TEST_F(MDnsAPITest, MaxServiceInstancesPerEventConst) {
-  EXPECT_TRUE(RunExtensionTest(
-      "mdns/api", {.extension_url = "get_max_service_instances.html"}));
+  EXPECT_TRUE(RunExtensionSubtest("mdns/api",
+                                  "get_max_service_instances.html"));
 }

@@ -1,5 +1,5 @@
-#!/usr/bin/env vpython3
-# Copyright 2016 The Chromium Authors
+#!/usr/bin/env vpython
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -9,15 +9,15 @@
 # //build/scripts/slave/slave_utils.py
 
 import json
-import optparse  # pylint: disable=deprecated-module
+import optparse
 import os
 import re
 import shutil
 import sys
 import tempfile
 import time
+import urllib
 import logging
-import six.moves.urllib.parse  # pylint: disable=import-error
 
 from core import results_dashboard
 
@@ -35,7 +35,6 @@ def _CommitPositionNumber(commit_pos):
   This is used to extract the number from got_revision_cp; This will be used
   as the value of "rev" in the data passed to results_dashboard.SendResults.
   """
-
   return int(re.search(r'{#(\d+)}', commit_pos).group(1))
 
 
@@ -53,9 +52,9 @@ def _GetDashboardJson(options):
   dashboard_json = {}
   if 'charts' not in results:
     # These are legacy results.
+    # pylint: disable=redefined-variable-type
     dashboard_json = results_dashboard.MakeListOfPoints(
       results, options.configuration_name, stripped_test_name,
-      options.project, options.buildbucket,
       options.buildername, options.buildnumber, {},
       options.perf_dashboard_machine_group,
       revisions_dict=revisions)
@@ -63,7 +62,6 @@ def _GetDashboardJson(options):
     dashboard_json = results_dashboard.MakeDashboardJsonV1(
       results,
       revisions, stripped_test_name, options.configuration_name,
-      options.project, options.buildbucket,
       options.buildername, options.buildnumber,
       {}, reference_build,
       perf_dashboard_machine_group=options.perf_dashboard_machine_group)
@@ -71,19 +69,16 @@ def _GetDashboardJson(options):
 
 
 def _GetDashboardHistogramData(options):
-  revisions = {}
+  revisions = {
+      '--chromium_commit_positions': _CommitPositionNumber(
+          options.got_revision_cp),
+      '--chromium_revisions': options.git_revision
+  }
 
-  if options.got_revision_cp:
-    revisions['--chromium_commit_positions'] = \
-        _CommitPositionNumber(options.got_revision_cp)
-  if options.git_revision:
-    revisions['--chromium_revisions'] = options.git_revision
   if options.got_webrtc_revision:
     revisions['--webrtc_revisions'] = options.got_webrtc_revision
   if options.got_v8_revision:
     revisions['--v8_revisions'] = options.got_v8_revision
-  if options.got_angle_revision:
-    revisions['--angle_revisions'] = options.got_angle_revision
 
   is_reference_build = 'reference' in options.name
   stripped_test_name = options.name.replace('.reference', '')
@@ -133,11 +128,9 @@ def _CreateParser():
   parser.add_option('--buildnumber')
   parser.add_option('--got-webrtc-revision')
   parser.add_option('--got-v8-revision')
-  parser.add_option('--got-angle-revision')
   parser.add_option('--git-revision')
   parser.add_option('--output-json-dashboard-url')
   parser.add_option('--send-as-histograms', action='store_true')
-  parser.add_option('--force-flask', action='store_true')
   return parser
 
 
@@ -188,8 +181,7 @@ def main(args):
           batch,
           options.name,
           options.results_url,
-          send_as_histograms=options.send_as_histograms,
-          force_flask=options.force_flask):
+          send_as_histograms=options.send_as_histograms):
         return 1
   else:
     # The upload didn't fail since there was no data to upload.
@@ -207,9 +199,9 @@ def GetDashboardUrl(name, configuration_name, results_url,
   """
   name = name.replace('.reference', '')
   dashboard_url = results_url + RESULTS_LINK_PATH % (
-      six.moves.urllib.parse.quote(perf_dashboard_machine_group),
-      six.moves.urllib.parse.quote(configuration_name),
-      six.moves.urllib.parse.quote(name),
+      urllib.quote(perf_dashboard_machine_group),
+      urllib.quote(configuration_name),
+      urllib.quote(name),
       _CommitPositionNumber(got_revision_cp))
 
   return dashboard_url
@@ -226,5 +218,7 @@ def _GetPerfDashboardRevisionsWithProperties(
   versions['git_revision'] = git_revision
   versions['point_id'] = point_id
   # There are a lot of "bad" revisions to check for, so clean them all up here.
-  new_versions = {k: v for k, v in versions.items() if v and v != 'undefined'}
-  return new_versions
+  for key in versions.keys():
+    if not versions[key] or versions[key] == 'undefined':
+      del versions[key]
+  return versions

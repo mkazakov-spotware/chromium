@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "content/common/content_export.h"
 #include "content/common/input/synthetic_gesture_params.h"
 #include "content/common/input/synthetic_pointer_action_params.h"
@@ -18,17 +19,10 @@ class SyntheticGestureTarget;
 class CONTENT_EXPORT SyntheticPointerDriver {
  public:
   SyntheticPointerDriver();
-
-  SyntheticPointerDriver(const SyntheticPointerDriver&) = delete;
-  SyntheticPointerDriver& operator=(const SyntheticPointerDriver&) = delete;
-
   virtual ~SyntheticPointerDriver();
 
   static std::unique_ptr<SyntheticPointerDriver> Create(
-      content::mojom::GestureSourceType gesture_source_type);
-  static std::unique_ptr<SyntheticPointerDriver> Create(
-      content::mojom::GestureSourceType gesture_source_type,
-      bool from_devtools_debugger);
+      SyntheticGestureParams::GestureSourceType gesture_source_type);
 
   virtual void DispatchEvent(SyntheticGestureTarget* target,
                              const base::TimeTicks& timestamp) = 0;
@@ -44,9 +38,6 @@ class CONTENT_EXPORT SyntheticPointerDriver {
       float height = 1.f,
       float rotation_angle = 0.f,
       float force = 1.f,
-      float tangential_pressure = 0.f,
-      int tilt_x = 0,
-      int tilt_y = 0,
       const base::TimeTicks& timestamp = base::TimeTicks::Now()) = 0;
   virtual void Move(float x,
                     float y,
@@ -55,12 +46,7 @@ class CONTENT_EXPORT SyntheticPointerDriver {
                     float width = 1.f,
                     float height = 1.f,
                     float rotation_angle = 0.f,
-                    float force = 1.f,
-                    float tangential_pressure = 0.f,
-                    int tilt_x = 0,
-                    int tilt_y = 0,
-                    SyntheticPointerActionParams::Button button =
-                        SyntheticPointerActionParams::Button::NO_BUTTON) = 0;
+                    float force = 1.f) = 0;
   virtual void Release(int index = 0,
                        SyntheticPointerActionParams::Button button =
                            SyntheticPointerActionParams::Button::LEFT,
@@ -76,8 +62,8 @@ class CONTENT_EXPORT SyntheticPointerDriver {
   virtual bool UserInputCheck(
       const SyntheticPointerActionParams& params) const = 0;
 
- protected:
-  bool from_devtools_debugger_ = false;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SyntheticPointerDriver);
 };
 
 }  // namespace content

@@ -14,13 +14,9 @@
 
 #include "third_party/private_membership/src/internal/hashed_bucket_id.h"
 
-#include <string>
-#include <utility>
-
 #include "third_party/private_membership/src/private_membership.pb.h"
 #include "third_party/private_membership/src/internal/rlwe_id_utils.h"
 #include "third_party/private_membership/src/internal/utils.h"
-#include "absl/strings/string_view.h"
 #include "third_party/shell-encryption/src/status_macros.h"
 
 namespace private_membership {
@@ -35,7 +31,7 @@ bool IsEmpty(absl::string_view hashed_bucket_id, int bit_length) {
 }  // namespace
 
 ::rlwe::StatusOr<HashedBucketId> HashedBucketId::Create(
-    absl::string_view hashed_bucket_id, int bit_length) {
+    const std::string& hashed_bucket_id, int bit_length) {
   // Allow "empty" hashed bucket id to be created. This case can occur if the
   // use case doesn't support bucketing by hashed bucket id. Otherwise, the
   // hashed bucket id/bit length pair must be valid.
@@ -58,12 +54,12 @@ bool IsEmpty(absl::string_view hashed_bucket_id, int bit_length) {
       std::string hashed_non_sensitive_id,
       rlwe::HashNonsensitiveIdWithSalt(
           id.non_sensitive_id(), params.non_sensitive_id_hash_type(), ctx));
-  auto hashed_bucket_id =
+  auto status_or_hashed_bucket_id =
       rlwe::Truncate(hashed_non_sensitive_id, params.hashed_bucket_id_length());
-  if (!hashed_bucket_id.ok()) {
-    return hashed_bucket_id.status();
+  if (!status_or_hashed_bucket_id.ok()) {
+    return status_or_hashed_bucket_id.status();
   }
-  return Create(std::move(hashed_bucket_id).value(),
+  return Create(std::move(status_or_hashed_bucket_id).ValueOrDie(),
                 params.hashed_bucket_id_length());
 }
 

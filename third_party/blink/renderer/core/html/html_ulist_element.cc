@@ -22,7 +22,6 @@
 
 #include "third_party/blink/renderer/core/html/html_ulist_element.h"
 
-#include "third_party/blink/renderer/core/css/css_custom_ident_value.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/css_value_keywords.h"
 #include "third_party/blink/renderer/core/html_names.h"
@@ -46,16 +45,13 @@ void HTMLUListElement::CollectStyleForPresentationAttribute(
   if (name == html_names::kTypeAttr) {
     if (EqualIgnoringASCIICase(value, "disc")) {
       AddPropertyToPresentationAttributeStyle(
-          style, CSSPropertyID::kListStyleType,
-          *MakeGarbageCollected<CSSCustomIdentValue>("disc"));
+          style, CSSPropertyID::kListStyleType, CSSValueID::kDisc);
     } else if (EqualIgnoringASCIICase(value, "circle")) {
       AddPropertyToPresentationAttributeStyle(
-          style, CSSPropertyID::kListStyleType,
-          *MakeGarbageCollected<CSSCustomIdentValue>("circle"));
+          style, CSSPropertyID::kListStyleType, CSSValueID::kCircle);
     } else if (EqualIgnoringASCIICase(value, "square")) {
       AddPropertyToPresentationAttributeStyle(
-          style, CSSPropertyID::kListStyleType,
-          *MakeGarbageCollected<CSSCustomIdentValue>("square"));
+          style, CSSPropertyID::kListStyleType, CSSValueID::kSquare);
     } else if (EqualIgnoringASCIICase(value, "none")) {
       AddPropertyToPresentationAttributeStyle(
           style, CSSPropertyID::kListStyleType, CSSValueID::kNone);

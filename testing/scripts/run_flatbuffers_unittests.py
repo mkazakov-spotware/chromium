@@ -1,16 +1,18 @@
 #!/usr/bin/env python
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 """Runs a python script under an isolate
 
 This script attempts to emulate the contract of gtest-style tests
-invoked via recipes.
+invoked via recipes. The main contract is that the caller passes the
+argument:
 
-If optional argument --isolated-script-test-output=[FILENAME] is passed
-to the script, json is written to that file in the format detailed in
-//docs/testing/json-test-results-format.md.
+  --isolated-script-test-output=[FILENAME]
+
+json is written to that file in the format produced by
+common.parse_common_test_results.
 
 This script is intended to be the base command invoked by the isolate,
 followed by a subsequent Python script."""
@@ -20,18 +22,16 @@ import json
 import os
 import sys
 
-# Add src/testing/ into sys.path for importing xvfb and common.
-sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
+import common
+
+# Add src/testing/ into sys.path for importing xvfb and test_env.
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import xvfb
-from scripts import common
-
-# pylint: disable=super-with-arguments
-
 
 def main():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--isolated-script-test-output', type=str)
+  parser.add_argument('--isolated-script-test-output', type=str,
+                      required=True)
   args, _ = parser.parse_known_args()
 
   if sys.platform == 'win32':
@@ -51,9 +51,8 @@ def main():
       if output != "ALL TESTS PASSED\n":
         failures = [output]
 
-  if args.isolated_script_test_output:
-    with open(args.isolated_script_test_output, 'w') as fp:
-      json.dump({'valid': True,'failures': failures}, fp)
+  with open(args.isolated_script_test_output, 'w') as fp:
+    json.dump({'valid': True,'failures': failures}, fp)
 
   return rc
 

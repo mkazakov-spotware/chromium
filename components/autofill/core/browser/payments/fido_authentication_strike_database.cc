@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,23 +20,22 @@ FidoAuthenticationStrikeDatabase::FidoAuthenticationStrikeDatabase(
   RemoveExpiredStrikes();
 }
 
-FidoAuthenticationStrikeDatabase::~FidoAuthenticationStrikeDatabase() = default;
+FidoAuthenticationStrikeDatabase::~FidoAuthenticationStrikeDatabase() {}
 
-std::string FidoAuthenticationStrikeDatabase::GetProjectPrefix() const {
+std::string FidoAuthenticationStrikeDatabase::GetProjectPrefix() {
   return "FidoAuthentication";
 }
 
-int FidoAuthenticationStrikeDatabase::GetMaxStrikesLimit() const {
+int FidoAuthenticationStrikeDatabase::GetMaxStrikesLimit() {
   return 3;
 }
 
-absl::optional<base::TimeDelta>
-FidoAuthenticationStrikeDatabase::GetExpiryTimeDelta() const {
+int64_t FidoAuthenticationStrikeDatabase::GetExpiryTimeMicros() {
   // Expiry time is six months.
-  return base::Days(183);
+  return (int64_t)1000000 * 60 * 60 * 24 * 30 * 6;
 }
 
-bool FidoAuthenticationStrikeDatabase::UniqueIdsRequired() const {
+bool FidoAuthenticationStrikeDatabase::UniqueIdsRequired() {
   return false;
 }
 

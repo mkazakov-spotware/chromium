@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "components/offline_pages/core/archive_manager.h"
 #include "components/offline_pages/core/offline_page_types.h"
 #include "components/offline_pages/task/task.h"
@@ -49,10 +48,6 @@ class ClearStorageTask : public Task {
                    ArchiveManager* archive_manager,
                    const base::Time& clearup_time,
                    ClearStorageCallback callback);
-
-  ClearStorageTask(const ClearStorageTask&) = delete;
-  ClearStorageTask& operator=(const ClearStorageTask&) = delete;
-
   ~ClearStorageTask() override;
 
  private:
@@ -64,14 +59,15 @@ class ClearStorageTask : public Task {
   void InformClearStorageDone(size_t pages_cleared, ClearStorageResult result);
 
   // The store containing the pages to be cleared. Not owned.
-  raw_ptr<OfflinePageMetadataStore> store_;
+  OfflinePageMetadataStore* store_;
   // The archive manager owning the archive directories to delete pages from.
   // Not owned.
-  raw_ptr<ArchiveManager> archive_manager_;
+  ArchiveManager* archive_manager_;
   ClearStorageCallback callback_;
   base::Time clearup_time_;
 
   base::WeakPtrFactory<ClearStorageTask> weak_ptr_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(ClearStorageTask);
 };
 
 }  // namespace offline_pages

@@ -1,15 +1,13 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/shell/browser/shell_desktop_controller_aura.h"
 
-#include <memory>
+#include <algorithm>
 #include <string>
 
 #include "base/check_op.h"
-#include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "build/chromeos_buildflags.h"
 #include "components/keep_alive_registry/keep_alive_registry.h"
@@ -17,10 +15,10 @@
 #include "extensions/browser/app_window/native_app_window.h"
 #include "extensions/shell/browser/shell_app_window_client.h"
 #include "ui/aura/client/cursor_client.h"
-#include "ui/aura/client/cursor_shape_client.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/base/cursor/cursor.h"
+#include "ui/base/cursor/cursor_loader.h"
 #include "ui/base/cursor/mojom/cursor_type.mojom-shared.h"
 #include "ui/base/ime/init/input_method_factory.h"
 #include "ui/base/ime/input_method.h"
@@ -30,7 +28,6 @@
 #include "ui/gfx/native_widget_types.h"
 #include "ui/wm/core/base_focus_rules.h"
 #include "ui/wm/core/compound_event_filter.h"
-#include "ui/wm/core/cursor_loader.h"
 #include "ui/wm/core/cursor_manager.h"
 #include "ui/wm/core/focus_controller.h"
 #include "ui/wm/core/native_cursor_manager.h"
@@ -53,7 +50,6 @@
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 namespace extensions {
-
 namespace {
 
 // A class that bridges the gap between CursorManager and Aura. It borrows
@@ -62,28 +58,21 @@ class ShellNativeCursorManager : public wm::NativeCursorManager {
  public:
   explicit ShellNativeCursorManager(
       ShellDesktopControllerAura* desktop_controller)
-      : desktop_controller_(desktop_controller) {
-    aura::client::SetCursorShapeClient(&cursor_loader_);
-  }
-
-  ShellNativeCursorManager(const ShellNativeCursorManager&) = delete;
-  ShellNativeCursorManager& operator=(const ShellNativeCursorManager&) = delete;
-
-  ~ShellNativeCursorManager() override {
-    aura::client::SetCursorShapeClient(nullptr);
-  }
+      : desktop_controller_(desktop_controller) {}
+  ~ShellNativeCursorManager() override {}
 
   // wm::NativeCursorManager overrides.
   void SetDisplay(const display::Display& display,
                   wm::NativeCursorManagerDelegate* delegate) override {
-    if (cursor_loader_.SetDisplayData(display.panel_rotation(),
-                                      display.device_scale_factor()))
+    if (cursor_loader_->SetDisplayData(display.panel_rotation(),
+                                       display.device_scale_factor()))
       SetCursor(delegate->GetCursor(), delegate);
   }
 
   void SetCursor(gfx::NativeCursor cursor,
                  wm::NativeCursorManagerDelegate* delegate) override {
-    cursor_loader_.SetPlatformCursor(&cursor);
+    cursor_loader_->SetPlatformCursor(&cursor);
+    cursor.set_image_scale_factor(cursor_loader_->scale());
     delegate->CommitCursor(cursor);
 
     if (delegate->IsCursorVisible())
@@ -98,14 +87,14 @@ class ShellNativeCursorManager : public wm::NativeCursorManager {
       SetCursor(delegate->GetCursor(), delegate);
     } else {
       gfx::NativeCursor invisible_cursor(ui::mojom::CursorType::kNone);
-      cursor_loader_.SetPlatformCursor(&invisible_cursor);
+      cursor_loader_->SetPlatformCursor(&invisible_cursor);
       SetCursorOnAllRootWindows(invisible_cursor);
     }
   }
 
   void SetCursorSize(ui::CursorSize cursor_size,
                      wm::NativeCursorManagerDelegate* delegate) override {
-    cursor_loader_.SetSize(cursor_size);
+    cursor_loader_->set_size(cursor_size);
     delegate->CommitCursorSize(cursor_size);
     if (delegate->IsCursorVisible())
       SetCursor(delegate->GetCursor(), delegate);
@@ -125,23 +114,25 @@ class ShellNativeCursorManager : public wm::NativeCursorManager {
       window->GetHost()->SetCursor(cursor);
   }
 
-  raw_ptr<ShellDesktopControllerAura> desktop_controller_;  // Not owned.
+  ShellDesktopControllerAura* desktop_controller_;  // Not owned.
 
-  wm::CursorLoader cursor_loader_{/*use_platform_cursors=*/false};
+  std::unique_ptr<ui::CursorLoader> cursor_loader_ =
+      ui::CursorLoader::Create(/*use_platform_cursors=*/false);
+
+  DISALLOW_COPY_AND_ASSIGN(ShellNativeCursorManager);
 };
 
 class AppsFocusRules : public wm::BaseFocusRules {
  public:
   AppsFocusRules() {}
-
-  AppsFocusRules(const AppsFocusRules&) = delete;
-  AppsFocusRules& operator=(const AppsFocusRules&) = delete;
-
   ~AppsFocusRules() override {}
 
   bool SupportsChildActivation(const aura::Window* window) const override {
     return true;
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AppsFocusRules);
 };
 
 }  // namespace
@@ -154,7 +145,7 @@ ShellDesktopControllerAura::ShellDesktopControllerAura(
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   chromeos::PowerManagerClient::Get()->AddObserver(this);
-  display_configurator_ = std::make_unique<display::DisplayConfigurator>();
+  display_configurator_.reset(new display::DisplayConfigurator);
   display_configurator_->Init(
       ui::OzonePlatform::GetInstance()->CreateNativeDisplayDelegate(), false);
   display_configurator_->ForceInitialConfigure();
@@ -169,19 +160,17 @@ ShellDesktopControllerAura::~ShellDesktopControllerAura() {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   chromeos::PowerManagerClient::Get()->RemoveObserver(this);
 #endif
-  extensions::AppWindowClient::Set(nullptr);
+  extensions::AppWindowClient::Set(NULL);
 }
 
-void ShellDesktopControllerAura::PreMainMessageLoopRun() {
+void ShellDesktopControllerAura::Run() {
   KeepAliveRegistry::GetInstance()->AddObserver(this);
-}
 
-void ShellDesktopControllerAura::WillRunMainMessageLoop(
-    std::unique_ptr<base::RunLoop>& run_loop) {
-  quit_when_idle_closure_ = run_loop->QuitWhenIdleClosure();
-}
+  base::RunLoop run_loop;
+  run_loop_ = &run_loop;
+  run_loop.Run();
+  run_loop_ = nullptr;
 
-void ShellDesktopControllerAura::PostMainMessageLoopRun() {
   KeepAliveRegistry::GetInstance()->SetIsShuttingDown(true);
   KeepAliveRegistry::GetInstance()->RemoveObserver(this);
 }
@@ -208,9 +197,11 @@ void ShellDesktopControllerAura::CloseAppWindows() {
 
 void ShellDesktopControllerAura::CloseRootWindowController(
     RootWindowController* root_window_controller) {
-  const auto it = base::ranges::find(
-      root_window_controllers_, root_window_controller,
-      [](const auto& candidate_pair) { return candidate_pair.second.get(); });
+  const auto it = std::find_if(
+      root_window_controllers_.cbegin(), root_window_controllers_.cend(),
+      [root_window_controller](const auto& candidate_pair) {
+        return candidate_pair.second.get() == root_window_controller;
+      });
   DCHECK(it != root_window_controllers_.end());
   TearDownRootWindowController(it->second.get());
   root_window_controllers_.erase(it);
@@ -221,7 +212,7 @@ void ShellDesktopControllerAura::CloseRootWindowController(
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 void ShellDesktopControllerAura::PowerButtonEventReceived(
     bool down,
-    base::TimeTicks timestamp) {
+    const base::TimeTicks& timestamp) {
   if (down) {
     chromeos::PowerManagerClient::Get()->RequestShutdown(
         power_manager::REQUEST_SHUTDOWN_FOR_USER, "AppShell power button");
@@ -331,7 +322,7 @@ void ShellDesktopControllerAura::InitWindowManager() {
     display::Screen::SetScreenInstance(screen_.get());
 #else
     // TODO(crbug.com/756680): Refactor DesktopScreen out of views.
-    screen_ = views::CreateDesktopScreen();
+    screen_.reset(views::CreateDesktopScreen());
 #endif
   }
 
@@ -390,7 +381,7 @@ ShellDesktopControllerAura::CreateRootWindowControllerForDisplay(
   aura::client::SetCursorClient(root_window, cursor_manager_.get());
 
   if (!input_method_) {
-    // Create an input method and become its key event dispatcher.
+    // Create an input method and become its delegate.
     input_method_ = ui::CreateInputMethod(
         this, root_window_controller->host()->GetAcceleratedWidget());
     root_window_controller->host()->SetSharedInputMethod(input_method_.get());
@@ -409,9 +400,9 @@ void ShellDesktopControllerAura::TearDownRootWindowController(
 void ShellDesktopControllerAura::MaybeQuit() {
   // Quit if there are no app windows open and no keep-alives waiting for apps
   // to relaunch.  |run_loop_| may be null in tests.
-  if (quit_when_idle_closure_ && root_window_controllers_.empty() &&
+  if (run_loop_ && root_window_controllers_.empty() &&
       !KeepAliveRegistry::GetInstance()->IsKeepingAlive()) {
-    std::move(quit_when_idle_closure_).Run();
+    run_loop_->QuitWhenIdle();
   }
 }
 

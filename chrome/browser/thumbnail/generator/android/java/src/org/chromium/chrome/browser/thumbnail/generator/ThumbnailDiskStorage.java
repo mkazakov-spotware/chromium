@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -86,18 +86,6 @@ public class ThumbnailDiskStorage implements ThumbnailGeneratorCallback {
     @VisibleForTesting
     long mSizeBytes;
 
-    // These references allow tests to wait on tasks instead of polling with CriteriaHelper.
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    AsyncTask<Void> mInitTask;
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    AsyncTask<Void> mLastClearTask;
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    AsyncTask<Void> mLastCacheThumbnailTask;
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    AsyncTask<Bitmap> mLastGetThumbnailTask;
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    AsyncTask<Void> mLastRemoveThumbnailTask;
-
     // Whether or not this class has been destroyed and should not be used.
     private boolean mDestroyed;
 
@@ -120,7 +108,8 @@ public class ThumbnailDiskStorage implements ThumbnailGeneratorCallback {
     /**
      * Writes to disk cache.
      */
-    private class CacheThumbnailTask extends BackgroundOnlyAsyncTask<Void> {
+    @VisibleForTesting
+    class CacheThumbnailTask extends BackgroundOnlyAsyncTask<Void> {
         private final String mContentId;
         private final Bitmap mBitmap;
         private final int mIconSizePx;
@@ -203,7 +192,7 @@ public class ThumbnailDiskStorage implements ThumbnailGeneratorCallback {
         mDelegate = delegate;
         mThumbnailGenerator = thumbnailGenerator;
         mMaxCacheBytes = maxCacheSizeBytes;
-        mInitTask = new InitTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR);
+        new InitTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR);
     }
 
     /**
@@ -229,7 +218,7 @@ public class ThumbnailDiskStorage implements ThumbnailGeneratorCallback {
      */
     public void clear() {
         ThreadUtils.assertOnUiThread();
-        mLastClearTask = new ClearTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR);
+        new ClearTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR);
     }
 
     /**
@@ -240,8 +229,7 @@ public class ThumbnailDiskStorage implements ThumbnailGeneratorCallback {
         ThreadUtils.assertOnUiThread();
         if (mDestroyed || TextUtils.isEmpty(request.getContentId())) return;
 
-        mLastGetThumbnailTask =
-                new GetThumbnailTask(request).executeOnExecutor(AsyncTask.SERIAL_EXECUTOR);
+        new GetThumbnailTask(request).executeOnExecutor(AsyncTask.SERIAL_EXECUTOR);
     }
 
     /**
@@ -260,8 +248,8 @@ public class ThumbnailDiskStorage implements ThumbnailGeneratorCallback {
 
         ThreadUtils.assertOnUiThread();
         if (bitmap != null && !TextUtils.isEmpty(contentId)) {
-            mLastCacheThumbnailTask = new CacheThumbnailTask(contentId, bitmap, iconSizePx)
-                                              .executeOnExecutor(AsyncTask.SERIAL_EXECUTOR);
+            new CacheThumbnailTask(contentId, bitmap, iconSizePx)
+                    .executeOnExecutor(AsyncTask.SERIAL_EXECUTOR);
         }
         mDelegate.onThumbnailRetrieved(contentId, bitmap);
     }
@@ -491,8 +479,7 @@ public class ThumbnailDiskStorage implements ThumbnailGeneratorCallback {
 
         if (!sIconSizesMap.containsKey(contentId)) return;
 
-        mLastRemoveThumbnailTask =
-                new RemoveThumbnailTask(contentId).executeOnExecutor(AsyncTask.SERIAL_EXECUTOR);
+        new RemoveThumbnailTask(contentId).executeOnExecutor(AsyncTask.SERIAL_EXECUTOR);
     }
 
     /**

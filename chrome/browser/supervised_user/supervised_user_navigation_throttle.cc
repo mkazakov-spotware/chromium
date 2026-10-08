@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,8 @@
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/supervised_user/supervised_user_interstitial.h"
 #include "chrome/browser/supervised_user/supervised_user_navigation_observer.h"
@@ -57,6 +58,7 @@ int GetHistogramValueForFilteringBehavior(
     bool uncertain) {
   switch (behavior) {
     case SupervisedUserURLFilter::ALLOW:
+    case SupervisedUserURLFilter::WARN:
       if (reason == supervised_user_error_page::ALLOWLIST)
         return FILTERING_BEHAVIOR_ALLOW_ALLOWLIST;
       return uncertain ? FILTERING_BEHAVIOR_ALLOW_UNCERTAIN
@@ -78,7 +80,7 @@ int GetHistogramValueForFilteringBehavior(
           // Should never happen, only used for requests from Webview
           NOTREACHED();
       }
-      [[fallthrough]];
+      FALLTHROUGH;
     case SupervisedUserURLFilter::INVALID:
       NOTREACHED();
   }
@@ -123,8 +125,15 @@ SupervisedUserNavigationThrottle::MaybeCreateThrottleFor(
   Profile* profile = Profile::FromBrowserContext(
       navigation_handle->GetWebContents()->GetBrowserContext());
 
-  if (!profile->IsChild())
+  if (!profile->IsSupervised())
     return nullptr;
+
+  if (!navigation_handle->IsInMainFrame()) {
+    SupervisedUserService* service =
+        SupervisedUserServiceFactory::GetForProfile(profile);
+    if (!service->IsSupervisedUserIframeFilterEnabled())
+      return nullptr;
+  }
 
   // Can't use std::make_unique because the constructor is private.
   return base::WrapUnique(
@@ -148,12 +157,6 @@ content::NavigationThrottle::ThrottleCheckResult
 SupervisedUserNavigationThrottle::CheckURL() {
   deferred_ = false;
   DCHECK_EQ(SupervisedUserURLFilter::INVALID, behavior_);
-
-  // We do not yet support prerendering for supervised users.
-  if (navigation_handle()->IsInPrerenderedMainFrame()) {
-    return NavigationThrottle::CANCEL;
-  }
-
   GURL url = navigation_handle()->GetURL();
 
   bool skip_manual_parent_filter =
@@ -161,7 +164,7 @@ SupervisedUserNavigationThrottle::CheckURL() {
           navigation_handle()->GetWebContents()->GetOutermostWebContents());
   bool got_result = false;
 
-  if (navigation_handle()->IsInPrimaryMainFrame()) {
+  if (navigation_handle()->IsInMainFrame()) {
     got_result = url_filter_->GetFilteringBehaviorForURLWithAsyncChecks(
         url,
         base::BindOnce(&SupervisedUserNavigationThrottle::OnCheckDone,
@@ -169,7 +172,7 @@ SupervisedUserNavigationThrottle::CheckURL() {
         skip_manual_parent_filter);
   } else {
     got_result = url_filter_->GetFilteringBehaviorForSubFrameURLWithAsyncChecks(
-        url, navigation_handle()->GetWebContents()->GetVisibleURL(),
+        url, navigation_handle()->GetWebContents()->GetURL(),
         base::BindOnce(&SupervisedUserNavigationThrottle::OnCheckDone,
                        weak_ptr_factory_.GetWeakPtr(), url));
   }
@@ -192,7 +195,7 @@ void SupervisedUserNavigationThrottle::ShowInterstitial(
   // NavigationThrottle. This also lets OnInterstitialResult to be invoked
   // synchronously, once a callback is passed into the
   // SupervisedUserNavigationObserver.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&SupervisedUserNavigationThrottle::ShowInterstitialAsync,
                      weak_ptr_factory_.GetWeakPtr(), reason));
@@ -207,9 +210,8 @@ void SupervisedUserNavigationThrottle::ShowInterstitialAsync(
       navigation_handle()->GetWebContents(), navigation_handle()->GetURL(),
       reason, navigation_handle()->GetNavigationId(),
       navigation_handle()->GetFrameTreeNodeId(),
-      base::BindRepeating(
-          &SupervisedUserNavigationThrottle::OnInterstitialResult,
-          weak_ptr_factory_.GetWeakPtr()));
+      base::Bind(&SupervisedUserNavigationThrottle::OnInterstitialResult,
+                 weak_ptr_factory_.GetWeakPtr()));
 }
 
 content::NavigationThrottle::ThrottleCheckResult
@@ -251,7 +253,7 @@ void SupervisedUserNavigationThrottle::OnCheckDone(
     RecordFilterResultEvent(true, behavior, reason, uncertain, transition);
   }
 
-  if (navigation_handle()->IsInPrimaryMainFrame()) {
+  if (navigation_handle()->IsInMainFrame()) {
     // Update navigation observer about the navigation state of the main frame.
     auto* navigation_observer =
         SupervisedUserNavigationObserver::FromWebContents(

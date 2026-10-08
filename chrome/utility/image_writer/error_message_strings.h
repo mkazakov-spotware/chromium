@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@ extern const char kOperationAlreadyInProgress[];
 extern const char kReadDevice[];
 extern const char kReadImage[];
 extern const char kWriteImage[];
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 extern const char kUnmountVolumes[];
 #endif
 extern const char kVerificationFailed[];

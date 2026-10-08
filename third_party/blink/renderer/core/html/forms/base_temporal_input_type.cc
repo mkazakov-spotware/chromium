@@ -67,13 +67,13 @@ double BaseTemporalInputType::ValueAsDate() const {
 }
 
 void BaseTemporalInputType::SetValueAsDate(
-    const absl::optional<base::Time>& value,
+    const base::Optional<base::Time>& value,
     ExceptionState&) const {
-  GetElement().SetValue(SerializeWithDate(value));
+  GetElement().setValue(SerializeWithDate(value));
 }
 
 double BaseTemporalInputType::ValueAsDouble() const {
-  const Decimal value = ParseToNumber(GetElement().Value(), Decimal::Nan());
+  const Decimal value = ParseToNumber(GetElement().value(), Decimal::Nan());
   return value.IsFinite() ? value.ToDouble()
                           : DateComponents::InvalidMilliseconds();
 }
@@ -87,11 +87,11 @@ void BaseTemporalInputType::SetValueAsDouble(
 }
 
 bool BaseTemporalInputType::TypeMismatchFor(const String& value) const {
-  return !value.empty() && !ParseToDateComponents(value, nullptr);
+  return !value.IsEmpty() && !ParseToDateComponents(value, nullptr);
 }
 
 bool BaseTemporalInputType::TypeMismatch() const {
-  return TypeMismatchFor(GetElement().Value());
+  return TypeMismatchFor(GetElement().value());
 }
 
 String BaseTemporalInputType::ValueNotEqualText(const Decimal& value) const {
@@ -124,6 +124,10 @@ Decimal BaseTemporalInputType::DefaultValueForStepUp() const {
       ConvertToLocalTime(base::Time::Now()).InMillisecondsF());
 }
 
+bool BaseTemporalInputType::IsSteppable() const {
+  return true;
+}
+
 Decimal BaseTemporalInputType::ParseToNumber(
     const String& source,
     const Decimal& default_value) const {
@@ -137,7 +141,7 @@ Decimal BaseTemporalInputType::ParseToNumber(
 
 bool BaseTemporalInputType::ParseToDateComponents(const String& source,
                                                   DateComponents* out) const {
-  if (source.empty())
+  if (source.IsEmpty())
     return false;
   DateComponents ignored_result;
   if (!out)
@@ -160,14 +164,14 @@ String BaseTemporalInputType::SerializeWithComponents(
   if (!GetElement().GetAllowedValueStep(&step))
     return date.ToString();
   if (step.Remainder(kMsecPerMinute).IsZero())
-    return date.ToString(DateComponents::SecondFormat::kNone);
+    return date.ToString(DateComponents::kNone);
   if (step.Remainder(kMsecPerSecond).IsZero())
-    return date.ToString(DateComponents::SecondFormat::kSecond);
-  return date.ToString(DateComponents::SecondFormat::kMillisecond);
+    return date.ToString(DateComponents::kSecond);
+  return date.ToString(DateComponents::kMillisecond);
 }
 
 String BaseTemporalInputType::SerializeWithDate(
-    const absl::optional<base::Time>& value) const {
+    const base::Optional<base::Time>& value) const {
   if (!value)
     return g_empty_string;
   return Serialize(Decimal::FromDouble(value->ToJsTimeIgnoringNull()));
@@ -180,11 +184,11 @@ String BaseTemporalInputType::LocalizeValue(
     return proposed_value;
 
   String localized = GetElement().GetLocale().FormatDateTime(date);
-  return localized.empty() ? proposed_value : localized;
+  return localized.IsEmpty() ? proposed_value : localized;
 }
 
 String BaseTemporalInputType::VisibleValue() const {
-  return LocalizeValue(GetElement().Value());
+  return LocalizeValue(GetElement().value());
 }
 
 String BaseTemporalInputType::SanitizeValue(
@@ -204,7 +208,7 @@ bool BaseTemporalInputType::ValueMissing(const String& value) const {
   // For text-mode input elements (including dates), the value is missing only
   // if it is mutable.
   // https://html.spec.whatwg.org/multipage/input.html#the-required-attribute
-  return GetElement().IsRequired() && value.empty() &&
+  return GetElement().IsRequired() && value.IsEmpty() &&
          !GetElement().IsDisabledOrReadOnly();
 }
 

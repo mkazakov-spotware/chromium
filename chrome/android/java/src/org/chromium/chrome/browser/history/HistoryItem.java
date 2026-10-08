@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,12 @@ import android.text.TextUtils;
 import org.chromium.base.ContextUtils;
 import org.chromium.chrome.R;
 import org.chromium.components.browser_ui.widget.DateDividedAdapter.TimedItem;
-import org.chromium.components.favicon.LargeIconBridge.LargeIconCallback;
-import org.chromium.url.GURL;
 
 import java.util.Arrays;
 
 /** Contains information about a single browsing history item. */
 public class HistoryItem extends TimedItem {
-    private final GURL mUrl;
+    private final String mUrl;
     private final String mDomain;
     private final String mTitle;
     private final boolean mWasBlockedVisit;
@@ -24,7 +22,7 @@ public class HistoryItem extends TimedItem {
     private final long[] mNativeTimestampList;
     private Long mStableId;
 
-    private HistoryContentManager mManager;
+    private HistoryManager mManager;
 
     /**
      * @param url The url for this item.
@@ -34,20 +32,20 @@ public class HistoryItem extends TimedItem {
      * @param nativeTimestamps Microsecond resolution navigation times.
      * @param blockedVisit Whether the visit to this item was blocked when it was attempted.
      */
-    public HistoryItem(GURL url, String domain, String title, long mostRecentJavaTimestamp,
+    public HistoryItem(String url, String domain, String title, long mostRecentJavaTimestamp,
             long[] nativeTimestamps, boolean blockedVisit) {
         mUrl = url;
         mDomain = domain;
         mTitle = blockedVisit ? ContextUtils.getApplicationContext().getString(
-                         R.string.android_history_blocked_site)
-                              : TextUtils.isEmpty(title) ? url.getSpec() : title;
+                R.string.android_history_blocked_site)
+                : TextUtils.isEmpty(title) ? url : title;
         mMostRecentJavaTimestamp = mostRecentJavaTimestamp;
         mNativeTimestampList = Arrays.copyOf(nativeTimestamps, nativeTimestamps.length);
         mWasBlockedVisit = blockedVisit;
     }
 
     /** @return The url for this item. */
-    public GURL getUrl() {
+    public String getUrl() {
         return mUrl;
     }
 
@@ -90,37 +88,30 @@ public class HistoryItem extends TimedItem {
     }
 
     /**
-     * @param manager The HistoryContentManager associated with this item.
+     * @param manager The HistoryManager associated with this item.
      */
-    public void setHistoryManager(HistoryContentManager manager) {
+    public void setHistoryManager(HistoryManager manager) {
         mManager = manager;
     }
 
-    /** Notifies when a history item was clicked. */
-    public void onItemClicked() {
+    /**
+     * Navigates a tab to this item's URL.
+     */
+    public void open() {
         if (mManager != null) {
-            mManager.onItemClicked(this);
+            mManager.recordUserActionWithOptionalSearch("OpenItem");
+            mManager.recordOpenedItemMetrics(this);
+            mManager.openUrl(mUrl, null, false);
         }
     }
 
     /**
      * Removes this item.
      */
-    public void onItemRemoved() {
+    public void remove() {
         if (mManager != null) {
-            mManager.onItemRemoved(this);
+            mManager.recordUserActionWithOptionalSearch("RemoveItem");
+            mManager.removeItem(this);
         }
-    }
-
-    /**
-     * Given a URL, returns a large icon for that URL if one is available.
-     * @param desiredSizePx The desired size of the icon in pixels.
-     * @param callback The method to call asynchronously when the result is available. This callback
-     *                 will not be called if this method returns false.
-     */
-    void getLargeIconForUrl(int desiredSizePx, final LargeIconCallback callback) {
-        if (mManager == null || mManager.getLargeIconBridge() == null) return;
-
-        mManager.getLargeIconBridge().getLargeIconForUrl(getUrl(), desiredSizePx, callback);
     }
 }

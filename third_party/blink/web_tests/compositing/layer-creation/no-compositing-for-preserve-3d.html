@@ -39,19 +39,21 @@
 </head>
 <body>
 
-  <div class="preserve3d" id="layer1">
+  <div class="preserve3d">
     This layer should not be composited.
-    <div class="box" id="box1"></div>
+    <div class="box"></div>
+    </div>
   </div>
 
-  <div class="preserve3d" id="layer2">
+  <div class="preserve3d">
     This layer should not be composited.
-    <div class="box" id="box2" style="transform: rotate(10deg)"></div>
+    <div class="box" style="transform: rotate(10deg)"></div>
+    </div>
   </div>
 
-  <div class="preserve3d" id="layer3">
+  <div class="preserve3d">
     This layer should be composited.
-    <div class="box" id="box3" style="transform: rotateY(10deg)"></div>
+    <div class="box" style="transform: rotateY(10deg)"></div>
   </div>
 <pre id="layers">Layer tree goes here in DRT</pre>
 

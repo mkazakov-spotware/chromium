@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,7 @@ namespace {
 
 bool ParseUuid(BluetoothManifestPermission* permission,
                const std::string& uuid,
-               std::u16string* error) {
+               base::string16* error) {
   device::BluetoothUUID bt_uuid(uuid);
   if (!bt_uuid.IsValid()) {
     *error = ErrorUtils::FormatErrorMessageUTF16(
@@ -42,10 +42,12 @@ bool ParseUuid(BluetoothManifestPermission* permission,
 }
 
 bool ParseUuidArray(BluetoothManifestPermission* permission,
-                    const std::vector<std::string>& uuids,
-                    std::u16string* error) {
-  for (const auto& uuid : uuids) {
-    if (!ParseUuid(permission, uuid, error)) {
+                    const std::unique_ptr<std::vector<std::string>>& uuids,
+                    base::string16* error) {
+  for (std::vector<std::string>::const_iterator it = uuids->begin();
+       it != uuids->end();
+       ++it) {
+    if (!ParseUuid(permission, *it, error)) {
       return false;
     }
   }
@@ -63,17 +65,17 @@ BluetoothManifestPermission::~BluetoothManifestPermission() {}
 // static
 std::unique_ptr<BluetoothManifestPermission>
 BluetoothManifestPermission::FromValue(const base::Value& value,
-                                       std::u16string* error) {
+                                       base::string16* error) {
   std::unique_ptr<api::extensions_manifest_types::Bluetooth> bluetooth =
       api::extensions_manifest_types::Bluetooth::FromValue(value, error);
   if (!bluetooth)
-    return nullptr;
+    return std::unique_ptr<BluetoothManifestPermission>();
 
   std::unique_ptr<BluetoothManifestPermission> result(
       new BluetoothManifestPermission());
   if (bluetooth->uuids) {
-    if (!ParseUuidArray(result.get(), *bluetooth->uuids, error)) {
-      return nullptr;
+    if (!ParseUuidArray(result.get(), bluetooth->uuids, error)) {
+      return std::unique_ptr<BluetoothManifestPermission>();
     }
   }
   if (bluetooth->socket) {
@@ -124,9 +126,9 @@ std::string BluetoothManifestPermission::id() const { return name(); }
 
 PermissionIDSet BluetoothManifestPermission::GetPermissions() const {
   PermissionIDSet permissions;
-  permissions.insert(mojom::APIPermissionID::kBluetooth);
+  permissions.insert(APIPermission::kBluetooth);
   if (!uuids_.empty()) {
-    permissions.insert(mojom::APIPermissionID::kBluetoothDevices);
+    permissions.insert(APIPermission::kBluetoothDevices);
   }
   return permissions;
 }
@@ -134,7 +136,7 @@ PermissionIDSet BluetoothManifestPermission::GetPermissions() const {
 bool BluetoothManifestPermission::FromValue(const base::Value* value) {
   if (!value)
     return false;
-  std::u16string error;
+  base::string16 error;
   std::unique_ptr<BluetoothManifestPermission> manifest_permission(
       BluetoothManifestPermission::FromValue(*value, &error));
 
@@ -147,8 +149,9 @@ bool BluetoothManifestPermission::FromValue(const base::Value* value) {
 
 std::unique_ptr<base::Value> BluetoothManifestPermission::ToValue() const {
   api::extensions_manifest_types::Bluetooth bluetooth;
-  bluetooth.uuids.emplace(uuids_.begin(), uuids_.end());
-  return std::make_unique<base::Value>(bluetooth.ToValue());
+  bluetooth.uuids.reset(new std::vector<std::string>(uuids_.begin(),
+                                                     uuids_.end()));
+  return bluetooth.ToValue();
 }
 
 std::unique_ptr<ManifestPermission> BluetoothManifestPermission::Diff(

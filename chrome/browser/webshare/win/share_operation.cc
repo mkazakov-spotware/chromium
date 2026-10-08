@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/bind.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/post_task.h"
 #include "base/win/core_winrt_util.h"
 #include "base/win/post_async_results.h"
 #include "base/win/scoped_hstring.h"
@@ -14,8 +15,6 @@
 #include "chrome/browser/webshare/share_service_impl.h"
 #include "chrome/browser/webshare/win/show_share_ui_for_window_operation.h"
 #include "content/public/browser/browser_task_traits.h"
-#include "content/public/browser/browser_thread.h"
-#include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #include "net/base/net_errors.h"
 #include "storage/browser/blob/blob_data_handle.h"
@@ -23,8 +22,6 @@
 #include "storage/browser/file_system/file_stream_writer.h"
 #include "storage/browser/file_system/file_writer_delegate.h"
 #include "storage/common/file_system/file_system_mount_option.h"
-#include "ui/accessibility/platform/ax_platform_node.h"
-#include "ui/accessibility/platform/ax_platform_node_delegate.h"
 #include "ui/views/win/hwnd_util.h"
 #include "url/gurl.h"
 
@@ -39,7 +36,6 @@
 #include <wrl/event.h>
 
 using ABI::Windows::ApplicationModel::DataTransfer::IDataPackage;
-using ABI::Windows::ApplicationModel::DataTransfer::IDataPackage2;
 using ABI::Windows::ApplicationModel::DataTransfer::IDataPackagePropertySet;
 using ABI::Windows::ApplicationModel::DataTransfer::IDataRequest;
 using ABI::Windows::ApplicationModel::DataTransfer::IDataRequestDeferral;
@@ -158,8 +154,8 @@ class DataWriterFileStreamWriter final : public storage::FileStreamWriter {
       return net::ERR_UNEXPECTED;
 
     flush_callback_ = std::move(callback);
-    base::win::PostAsyncHandlers(
-        flush_operation_.Get(),
+    base::win::PostAsyncResults(
+        flush_operation_,
         base::BindOnce(&DataWriterFileStreamWriter::OnFlushCompleted,
                        weak_factory_.GetWeakPtr()));
     return net::ERR_IO_PENDING;
@@ -192,8 +188,8 @@ class DataWriterFileStreamWriter final : public storage::FileStreamWriter {
       return net::ERR_UNEXPECTED;
 
     write_callback_ = std::move(callback);
-    base::win::PostAsyncHandlers(
-        write_operation_.Get(),
+    base::win::PostAsyncResults(
+        write_operation_,
         base::BindOnce(&DataWriterFileStreamWriter::OnWriteCompleted,
                        weak_factory_.GetWeakPtr()));
     return net::ERR_IO_PENDING;
@@ -253,8 +249,8 @@ class OutputStreamWriteOperation
                    base::OnceCallback<void()> on_complete) {
     stream_ = ComPtr<IOutputStream>(stream);
     on_complete_ = std::move(on_complete);
-    if (!content::GetIOThreadTaskRunner({})->PostTask(
-            FROM_HERE,
+    if (!base::PostTask(
+            FROM_HERE, {content::BrowserThread::IO},
             base::BindOnce(&OutputStreamWriteOperation::WriteStreamOnIOThread,
                            weak_factory_.GetWeakPtr())))
       Complete();
@@ -356,7 +352,7 @@ ShareOperation::ShareOperation(const std::string& title,
                                const GURL& url,
                                std::vector<blink::mojom::SharedFilePtr> files,
                                content::WebContents* web_contents)
-    : web_contents_(web_contents->GetWeakPtr()),
+    : content::WebContentsObserver(web_contents),
       title_(std::move(title)),
       text_(std::move(text)),
       url_(std::move(url)),
@@ -375,16 +371,12 @@ void ShareOperation::Run(blink::mojom::ShareService::ShareCallback callback) {
   DCHECK(!callback_);
   callback_ = std::move(callback);
 
-  // Ensure that the required WinRT functionality is available/loaded.
-  if (!base::win::ResolveCoreWinRTDelayload() ||
-      !base::win::ScopedHString::ResolveCoreWinRTStringDelayload()) {
-    Complete(blink::mojom::ShareError::INTERNAL_ERROR);
-    return;
-  }
-
-  // If the corresponding web_contents have already been cleaned up, cancel
-  // the operation.
-  if (!web_contents_) {
+  // If the required WinRT functionality is not available, or the corresponding
+  // web_contents have already been cleaned up, cancel the operation
+  const bool winrt_environment_ok =
+      base::win::ResolveCoreWinRTDelayload() &&
+      base::win::ScopedHString::ResolveCoreWinRTStringDelayload();
+  if (!winrt_environment_ok || !web_contents()) {
     Complete(blink::mojom::ShareError::CANCELED);
     return;
   }
@@ -394,11 +386,12 @@ void ShareOperation::Run(blink::mojom::ShareService::ShareCallback callback) {
     // If the source cannot be determined, does not appear to be valid,
     // or is longer than the max length supported by the IAttachmentExecute
     // service, use a generic value that reliably maps to the Internet zone.
-    GURL source_url = web_contents_->GetLastCommittedURL();
-    std::wstring source = (source_url.is_valid() &&
-                           source_url.spec().size() <= INTERNET_MAX_URL_LENGTH)
-                              ? base::UTF8ToWide(source_url.spec())
-                              : L"about:internet";
+    GURL source_url = web_contents()->GetLastCommittedURL();
+    base::string16 source =
+        (source_url.is_valid() &&
+         source_url.spec().size() <= INTERNET_MAX_URL_LENGTH)
+            ? base::UTF8ToUTF16(source_url.spec())
+            : L"about:internet";
 
     // For each "file", check against the OS that it is allowed
     // The same instance cannot be used to check multiple files, so this
@@ -416,7 +409,7 @@ void ShareOperation::Run(blink::mojom::ShareService::ShareCallback callback) {
         return;
       }
       if (FAILED(attachment_services->SetFileName(
-              file->name.path().value().c_str()))) {
+              base::UTF8ToWide(file->name).c_str()))) {
         Complete(blink::mojom::ShareError::INTERNAL_ERROR);
         return;
       }
@@ -427,33 +420,8 @@ void ShareOperation::Run(blink::mojom::ShareService::ShareCallback callback) {
     }
   }
 
-  // Attempt to fetch the accessibility HWND for these WebContents. For the
-  // sake of better communication with screen readers this HWND is (virtually)
-  // scoped to just the WebContents (rather than the entire actual window), so
-  // allows the resulting Share dialog to also better position/associate itself
-  // with the WebContents.
-  HWND hwnd = nullptr;
-  content::RenderWidgetHostView* host_view =
-      web_contents_->GetTopLevelRenderWidgetHostView();
-  if (host_view) {
-    ui::AXPlatformNode* platform_node =
-        ui::AXPlatformNode::FromNativeViewAccessible(
-            host_view->GetNativeViewAccessible());
-    if (platform_node) {
-      ui::AXPlatformNodeDelegate* delegate = platform_node->GetDelegate();
-      if (delegate) {
-        hwnd = delegate->GetTargetForNativeAccessibilityEvent();
-      }
-    }
-  }
-  // If we were unable to fetch the accessibility HWND, fall-back to the
-  // top-level HWND, which will still function appropriately, it just may not
-  // position as nicely. This is unexpected in most cases, but can happen if,
-  // for example, Windows has explicitly destroyed said HWND.
-  if (!hwnd) {
-    hwnd = views::HWNDForNativeWindow(web_contents_->GetTopLevelNativeWindow());
-  }
-
+  HWND hwnd =
+      views::HWNDForNativeWindow(web_contents()->GetTopLevelNativeWindow());
   show_share_ui_for_window_operation_ =
       std::make_unique<ShowShareUIForWindowOperation>(hwnd);
   show_share_ui_for_window_operation_->Run(base::BindOnce(
@@ -464,12 +432,14 @@ void ShareOperation::OnDataRequested(IDataRequestedEventArgs* event_args) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   blink::mojom::ShareError share_result;
-  if (!web_contents_) {
+  if (!event_args || !web_contents()) {
     share_result = blink::mojom::ShareError::CANCELED;
-  } else if (PutShareContentInEventArgs(event_args)) {
-    share_result = blink::mojom::ShareError::OK;
   } else {
-    share_result = blink::mojom::ShareError::INTERNAL_ERROR;
+    if (PutShareContentInEventArgs(event_args)) {
+      share_result = blink::mojom::ShareError::OK;
+    } else {
+      share_result = blink::mojom::ShareError::INTERNAL_ERROR;
+    }
   }
 
   // If the share operation failed or is not being deferred, mark it as complete
@@ -480,8 +450,6 @@ void ShareOperation::OnDataRequested(IDataRequestedEventArgs* event_args) {
 bool ShareOperation::PutShareContentInEventArgs(
     IDataRequestedEventArgs* event_args) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  if (!event_args)
-    return false;
 
   ComPtr<IDataRequest> data_request;
   if (FAILED(event_args->get_Request(&data_request)))
@@ -527,11 +495,7 @@ bool ShareOperation::PutShareContentInDataPackage(IDataRequest* data_request) {
     if (FAILED(uri_factory->CreateUri(url_h.get(), &uri)))
       return false;
 
-    ComPtr<IDataPackage2> data_package_2;
-    if (FAILED(data_package_.As(&data_package_2)))
-      return false;
-
-    if (FAILED(data_package_2->SetWebLink(uri.Get())))
+    if (FAILED(data_package_->SetUri(uri.Get())))
       return false;
   }
 
@@ -571,9 +535,10 @@ bool ShareOperation::PutShareContentInDataPackage(IDataRequest* data_request) {
       // target app has finished fully processing the shared content this could
       // be updated to be owned/maintained by this ShareOperation instance.
       auto operation = base::MakeRefCounted<OutputStreamWriteOperation>(
-          web_contents_->GetBrowserContext()->GetBlobStorageContext(),
+          content::BrowserContext::GetBlobStorageContext(
+              web_contents()->GetBrowserContext()),
           file_bytes_shared, file->blob->uuid);
-      auto name_h = base::win::ScopedHString::Create(file->name.path().value());
+      auto name_h = base::win::ScopedHString::Create(file->name);
       auto raw_data_requested_callback =
           Callback<IStreamedFileDataRequestedHandler>(
               [operation](IOutputStream* stream) -> HRESULT {
@@ -583,7 +548,8 @@ bool ShareOperation::PutShareContentInDataPackage(IDataRequest* data_request) {
                 operation->WriteStream(
                     stream,
                     base::BindOnce(
-                        [](scoped_refptr<OutputStreamWriteOperation>) {},
+                        base::DoNothing::Once<
+                            scoped_refptr<OutputStreamWriteOperation>>(),
                         operation));
                 return S_OK;
               });
@@ -597,14 +563,11 @@ bool ShareOperation::PutShareContentInDataPackage(IDataRequest* data_request) {
         return false;
       }
 
-      async_operations_.push_back(async_operation);
-
-      if (FAILED(base::win::PostAsyncHandlers(
-              async_operation.Get(),
+      if (FAILED(base::win::PostAsyncResults(
+              async_operation,
               base::BindOnce(&ShareOperation::OnStreamedFileCreated,
-                             weak_factory_.GetWeakPtr())))) {
+                             weak_factory_.GetWeakPtr()))))
         return false;
-      }
     }
   }
 

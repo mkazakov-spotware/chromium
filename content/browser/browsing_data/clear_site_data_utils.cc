@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/public/browser/clear_site_data_utils.h"
 
-#include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
@@ -25,29 +24,24 @@ namespace {
 // on the IO thread.
 class SiteDataClearer : public BrowsingDataRemover::Observer {
  public:
-  SiteDataClearer(
-      BrowserContext* browser_context,
-      const url::Origin& origin,
-      bool clear_cookies,
-      bool clear_storage,
-      bool clear_cache,
-      bool avoid_closing_connections,
-      const absl::optional<net::CookiePartitionKey>& cookie_partition_key,
-      const absl::optional<blink::StorageKey>& storage_key,
-      base::OnceClosure callback)
+  SiteDataClearer(BrowserContext* browser_context,
+                  const url::Origin& origin,
+                  bool clear_cookies,
+                  bool clear_storage,
+                  bool clear_cache,
+                  bool avoid_closing_connections,
+                  base::OnceClosure callback)
       : origin_(origin),
         clear_cookies_(clear_cookies),
         clear_storage_(clear_storage),
         clear_cache_(clear_cache),
         avoid_closing_connections_(avoid_closing_connections),
-        cookie_partition_key_(cookie_partition_key),
-        storage_key_(storage_key),
         callback_(std::move(callback)),
         pending_task_count_(0),
         remover_(nullptr) {
-    remover_ = browser_context->GetBrowsingDataRemover();
+    remover_ = BrowserContext::GetBrowsingDataRemover(browser_context);
     DCHECK(remover_);
-    scoped_observation_.Observe(remover_.get());
+    scoped_observation_.Observe(remover_);
   }
 
   ~SiteDataClearer() override {
@@ -74,13 +68,10 @@ class SiteDataClearer : public BrowsingDataRemover::Observer {
       if (domain.empty())
         domain = origin_.host();  // IP address or internal hostname.
 
-      std::unique_ptr<BrowsingDataFilterBuilder> cookie_filter_builder(
+      std::unique_ptr<BrowsingDataFilterBuilder> domain_filter_builder(
           BrowsingDataFilterBuilder::Create(
               BrowsingDataFilterBuilder::Mode::kDelete));
-      cookie_filter_builder->AddRegisterableDomain(domain);
-      cookie_filter_builder->SetCookiePartitionKeyCollection(
-          net::CookiePartitionKeyCollection::FromOptional(
-              cookie_partition_key_));
+      domain_filter_builder->AddRegisterableDomain(domain);
 
       pending_task_count_++;
       uint64_t remove_mask = BrowsingDataRemover::DATA_TYPE_COOKIES;
@@ -91,17 +82,13 @@ class SiteDataClearer : public BrowsingDataRemover::Observer {
           base::Time(), base::Time::Max(), remove_mask,
           BrowsingDataRemover::ORIGIN_TYPE_UNPROTECTED_WEB |
               BrowsingDataRemover::ORIGIN_TYPE_PROTECTED_WEB,
-          std::move(cookie_filter_builder), this);
+          std::move(domain_filter_builder), this);
     }
 
     // Delete origin-scoped data.
     uint64_t remove_mask = 0;
-    if (clear_storage_) {
+    if (clear_storage_)
       remove_mask |= BrowsingDataRemover::DATA_TYPE_DOM_STORAGE;
-      remove_mask |= BrowsingDataRemover::DATA_TYPE_PRIVACY_SANDBOX;
-      // Internal data should not be removed by site-initiated deletions.
-      remove_mask &= ~BrowsingDataRemover::DATA_TYPE_PRIVACY_SANDBOX_INTERNAL;
-    }
     if (clear_cache_)
       remove_mask |= BrowsingDataRemover::DATA_TYPE_CACHE;
 
@@ -110,7 +97,6 @@ class SiteDataClearer : public BrowsingDataRemover::Observer {
           BrowsingDataFilterBuilder::Create(
               BrowsingDataFilterBuilder::Mode::kDelete));
       origin_filter_builder->AddOrigin(origin_);
-      origin_filter_builder->SetStorageKey(storage_key_);
 
       pending_task_count_++;
       remover_->RemoveWithFilterAndReply(
@@ -139,11 +125,9 @@ class SiteDataClearer : public BrowsingDataRemover::Observer {
   bool clear_storage_;
   bool clear_cache_;
   bool avoid_closing_connections_;
-  absl::optional<net::CookiePartitionKey> cookie_partition_key_;
-  absl::optional<blink::StorageKey> storage_key_;
   base::OnceClosure callback_;
   int pending_task_count_;
-  raw_ptr<BrowsingDataRemover> remover_;
+  BrowsingDataRemover* remover_;
   base::ScopedObservation<BrowsingDataRemover, BrowsingDataRemover::Observer>
       scoped_observation_{this};
 };
@@ -157,8 +141,6 @@ void ClearSiteData(
     bool clear_storage,
     bool clear_cache,
     bool avoid_closing_connections,
-    const absl::optional<net::CookiePartitionKey>& cookie_partition_key,
-    const absl::optional<blink::StorageKey>& storage_key,
     base::OnceClosure callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   BrowserContext* browser_context = browser_context_getter.Run();
@@ -168,7 +150,7 @@ void ClearSiteData(
   }
   (new SiteDataClearer(browser_context, origin, clear_cookies, clear_storage,
                        clear_cache, avoid_closing_connections,
-                       cookie_partition_key, storage_key, std::move(callback)))
+                       std::move(callback)))
       ->RunAndDestroySelfWhenDone();
 }
 

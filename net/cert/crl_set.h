@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,14 +15,15 @@
 
 #include "base/memory/ref_counted.h"
 #include "base/strings/string_piece.h"
-#include "net/base/hash_value.h"
 #include "net/base/net_export.h"
+#include "net/cert/x509_cert_types.h"
 
 namespace net {
 
 // A CRLSet is a structure that lists the serial numbers of revoked
 // certificates from a number of issuers where issuers are identified by the
 // SHA256 of their SubjectPublicKeyInfo.
+// CRLSetStorage is responsible for creating CRLSet instances.
 class NET_EXPORT CRLSet : public base::RefCountedThreadSafe<CRLSet> {
  public:
   enum Result {
@@ -40,7 +41,7 @@ class NET_EXPORT CRLSet : public base::RefCountedThreadSafe<CRLSet> {
 
   // CheckSPKI checks whether the given SPKI has been listed as blocked.
   //   spki_hash: the SHA256 of the SubjectPublicKeyInfo of the certificate.
-  Result CheckSPKI(base::StringPiece spki_hash) const;
+  Result CheckSPKI(const base::StringPiece& spki_hash) const;
 
   // CheckSerial returns the information contained in the set for a given
   // certificate:
@@ -48,14 +49,14 @@ class NET_EXPORT CRLSet : public base::RefCountedThreadSafe<CRLSet> {
   //       value
   //   issuer_spki_hash: the SHA256 of the SubjectPublicKeyInfo of the CRL
   //       signer
-  Result CheckSerial(base::StringPiece serial_number,
-                     base::StringPiece issuer_spki_hash) const;
+  Result CheckSerial(const base::StringPiece& serial_number,
+                     const base::StringPiece& issuer_spki_hash) const;
 
   // CheckSubject returns the information contained in the set for a given,
-  // encoded subject name and SPKI SHA-256 hash. The subject name is encoded as
-  // a DER X.501 Name (see https://tools.ietf.org/html/rfc5280#section-4.1.2.4).
-  Result CheckSubject(base::StringPiece asn1_subject,
-                      base::StringPiece spki_hash) const;
+  // encoded subject name and SPKI hash. The subject name is encoded as a DER
+  // X.501 Name (see https://tools.ietf.org/html/rfc5280#section-4.1.2.4).
+  Result CheckSubject(const base::StringPiece& asn1_subject,
+                      const base::StringPiece& spki_hash) const;
 
   // Returns true if |spki_hash|, the SHA256 of the SubjectPublicKeyInfo,
   // is known to be used for interception by a party other than the device
@@ -75,7 +76,7 @@ class NET_EXPORT CRLSet : public base::RefCountedThreadSafe<CRLSet> {
 
   // CRLList contains a map of (issuer SPKI hash, revoked serial numbers)
   // pairs.
-  using CRLList = std::unordered_map<std::string, std::vector<std::string>>;
+  typedef std::unordered_map<std::string, std::vector<std::string>> CRLList;
 
   // crls returns the internal state of this CRLSet. It should only be used in
   // testing.
@@ -103,9 +104,9 @@ class NET_EXPORT CRLSet : public base::RefCountedThreadSafe<CRLSet> {
   static scoped_refptr<CRLSet> ForTesting(
       bool is_expired,
       const SHA256HashValue* issuer_spki,
-      base::StringPiece serial_number,
-      base::StringPiece utf8_common_name,
-      const std::vector<std::string>& acceptable_spki_hashes_for_cn);
+      const std::string& serial_number,
+      const std::string utf8_common_name,
+      const std::vector<std::string> acceptable_spki_hashes_for_cn);
 
  private:
   CRLSet();
@@ -113,10 +114,10 @@ class NET_EXPORT CRLSet : public base::RefCountedThreadSafe<CRLSet> {
 
   friend class base::RefCountedThreadSafe<CRLSet>;
 
-  uint32_t sequence_ = 0;
+  uint32_t sequence_;
   // not_after_ contains the time, in UNIX epoch seconds, after which the
   // CRLSet should be considered stale, or 0 if no such time was given.
-  uint64_t not_after_ = 0;
+  uint64_t not_after_;
   // crls_ is a map from the SHA-256 hash of an X.501 subject name to a list
   // of revoked serial numbers.
   CRLList crls_;

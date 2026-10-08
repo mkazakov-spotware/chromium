@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/files/file.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/read_only_shared_memory_region.h"
 #include "base/memory/unsafe_shared_memory_region.h"
@@ -21,13 +22,12 @@
 #include "base/path_service.h"
 #include "base/rand_util.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/test/test_timeouts.h"
 #include "build/build_config.h"
 #include "mojo/core/core.h"
-#include "mojo/core/embedder/embedder.h"
-#include "mojo/core/ipcz_driver/shared_buffer.h"
 #include "mojo/core/shared_buffer_dispatcher.h"
 #include "mojo/core/test/mojo_test_base.h"
 #include "mojo/public/c/system/core.h"
@@ -43,12 +43,6 @@ namespace {
 
 template <typename T>
 MojoResult CreateSharedBufferFromRegion(T&& region, MojoHandle* handle) {
-  if (IsMojoIpczEnabled()) {
-    *handle = ipcz_driver::SharedBuffer::Box(
-        ipcz_driver::SharedBuffer::MakeForRegion(std::move(region)));
-    return MOJO_RESULT_OK;
-  }
-
   scoped_refptr<SharedBufferDispatcher> buffer;
   MojoResult result =
       SharedBufferDispatcher::CreateFromPlatformSharedMemoryRegion(
@@ -62,26 +56,18 @@ MojoResult CreateSharedBufferFromRegion(T&& region, MojoHandle* handle) {
 
 template <typename T>
 MojoResult ExtractRegionFromSharedBuffer(MojoHandle handle, T* region) {
-  base::subtle::PlatformSharedMemoryRegion platform_region;
-  if (IsMojoIpczEnabled()) {
-    platform_region =
-        std::move(ipcz_driver::SharedBuffer::Unbox(handle)->region());
-  } else {
-    scoped_refptr<Dispatcher> dispatcher =
-        Core::Get()->GetAndRemoveDispatcher(handle);
-    if (!dispatcher || dispatcher->GetType() != Dispatcher::Type::SHARED_BUFFER)
-      return MOJO_RESULT_INVALID_ARGUMENT;
+  scoped_refptr<Dispatcher> dispatcher =
+      Core::Get()->GetAndRemoveDispatcher(handle);
+  if (!dispatcher || dispatcher->GetType() != Dispatcher::Type::SHARED_BUFFER)
+    return MOJO_RESULT_INVALID_ARGUMENT;
 
-    auto* buffer = static_cast<SharedBufferDispatcher*>(dispatcher.get());
-    platform_region = buffer->PassPlatformSharedMemoryRegion();
-  }
-
-  *region = T::Deserialize(std::move(platform_region));
+  auto* buffer = static_cast<SharedBufferDispatcher*>(dispatcher.get());
+  *region = T::Deserialize(buffer->PassPlatformSharedMemoryRegion());
   return MOJO_RESULT_OK;
 }
 
 // The multiprocess tests that use these don't compile on iOS.
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
 const char kHelloWorld[] = "hello world";
 const char kByeWorld[] = "bye world";
 #endif
@@ -193,7 +179,7 @@ TEST_F(EmbedderTest, ChannelsHandlePassing) {
 //  11.                                      (wait/cl.)
 //  12.                                                  (wait/cl.)
 
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
 
 TEST_F(EmbedderTest, MultiprocessChannels) {
   RunTestClient("MultiprocessChannelsClient", [&](MojoHandle server_mp) {
@@ -279,7 +265,6 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(MultiprocessChannelsClient,
   ASSERT_FALSE(state.satisfiable_signals & MOJO_HANDLE_SIGNAL_READABLE);
   ASSERT_FALSE(state.satisfiable_signals & MOJO_HANDLE_SIGNAL_WRITABLE);
   ASSERT_EQ(MOJO_RESULT_OK, MojoClose(mp1));
-  ASSERT_EQ(MOJO_RESULT_OK, MojoClose(client_mp));
 }
 
 TEST_F(EmbedderTest, MultiprocessBaseSharedMemory) {
@@ -355,10 +340,12 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(MultiprocessSharedMemoryClient,
 
   EXPECT_EQ("bye", ReadMessage(client_mp));
 
-  ASSERT_EQ(MOJO_RESULT_OK, MojoClose(client_mp));
+  // 6. Close |sb1|. Should fail because |ExtractRegionFromSharedBuffer()|
+  // should have closed the handle.
+  EXPECT_EQ(MOJO_RESULT_INVALID_ARGUMENT, MojoClose(sb1));
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 
 enum class HandleType {
   POSIX,
@@ -374,8 +361,8 @@ TEST_F(EmbedderTest, MultiprocessMixMachAndFds) {
   const size_t kShmSize = 1234;
   RunTestClient("MultiprocessMixMachAndFdsClient", [&](MojoHandle server_mp) {
     // 1. Create fds or Mach objects and mojo handles from them.
-    MojoHandle platform_handles[std::size(kTestHandleTypes)];
-    for (size_t i = 0; i < std::size(kTestHandleTypes); i++) {
+    MojoHandle platform_handles[base::size(kTestHandleTypes)];
+    for (size_t i = 0; i < base::size(kTestHandleTypes); i++) {
       const auto type = kTestHandleTypes[i];
       PlatformHandle scoped_handle;
       if (type == HandleType::POSIX) {
@@ -401,7 +388,7 @@ TEST_F(EmbedderTest, MultiprocessMixMachAndFds) {
 
     // 2. Send all the handles to the child.
     WriteMessageWithHandles(server_mp, "hello", platform_handles,
-                            std::size(kTestHandleTypes));
+                            base::size(kTestHandleTypes));
 
     // 3. Read a message from |server_mp|.
     EXPECT_EQ("bye", ReadMessage(server_mp));
@@ -411,7 +398,7 @@ TEST_F(EmbedderTest, MultiprocessMixMachAndFds) {
 DEFINE_TEST_CLIENT_TEST_WITH_PIPE(MultiprocessMixMachAndFdsClient,
                                   EmbedderTest,
                                   client_mp) {
-  const int kNumHandles = std::size(kTestHandleTypes);
+  const int kNumHandles = base::size(kTestHandleTypes);
   MojoHandle platform_handles[kNumHandles];
 
   // 1. Read from |client_mp|, which should have a message containing
@@ -433,12 +420,11 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(MultiprocessMixMachAndFdsClient,
 
   // 3. Say bye!
   WriteMessage(client_mp, "bye");
-  ASSERT_EQ(MOJO_RESULT_OK, MojoClose(client_mp));
 }
 
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
-#endif  // !BUILDFLAG(IS_IOS)
+#endif  // !defined(OS_IOS)
 
 }  // namespace
 }  // namespace core

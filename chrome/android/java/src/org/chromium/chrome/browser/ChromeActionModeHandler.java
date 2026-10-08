@@ -1,40 +1,33 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser;
 
 import android.content.pm.ResolveInfo;
-import android.graphics.Rect;
-import android.os.Build;
-import android.os.Handler;
 import android.text.TextUtils;
 import android.view.ActionMode;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
 
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
 import org.chromium.base.CollectionUtil;
+import org.chromium.base.Consumer;
 import org.chromium.base.PackageManagerUtils;
-import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.Supplier;
-import org.chromium.chrome.R;
 import org.chromium.chrome.browser.firstrun.FirstRunStatus;
 import org.chromium.chrome.browser.locale.LocaleManager;
 import org.chromium.chrome.browser.share.ChromeShareExtras;
 import org.chromium.chrome.browser.share.ShareDelegate;
-import org.chromium.chrome.browser.share.ShareDelegate.ShareOrigin;
+import org.chromium.chrome.browser.share.ShareDelegateImpl.ShareOrigin;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabUtils;
 import org.chromium.chrome.browser.tab.TabWebContentsObserver;
-import org.chromium.chrome.browser.user_education.IPHCommandBuilder;
-import org.chromium.chrome.browser.user_education.UserEducationHelper;
 import org.chromium.components.browser_ui.share.ShareParams;
-import org.chromium.components.feature_engagement.FeatureConstants;
+import org.chromium.content.R;
 import org.chromium.content_public.browser.ActionModeCallbackHelper;
 import org.chromium.content_public.browser.SelectionPopupController;
 import org.chromium.content_public.browser.WebContents;
@@ -63,11 +56,12 @@ public class ChromeActionModeHandler {
      *        notified when a share action is performed.
      */
     public ChromeActionModeHandler(ActivityTabProvider activityTabProvider,
-            Callback<String> searchCallback, Supplier<ShareDelegate> shareDelegateSupplier) {
+            Consumer<Boolean> actionBarObserver, Callback<String> searchCallback,
+            Supplier<ShareDelegate> shareDelegateSupplier) {
         mInitWebContentsObserver = (webContents) -> {
             SelectionPopupController.fromWebContents(webContents)
                     .setActionModeCallback(new ActionModeCallback(mActiveTab, webContents,
-                            searchCallback, shareDelegateSupplier));
+                            actionBarObserver, searchCallback, shareDelegateSupplier));
         };
 
         mActivityTabTabObserver =
@@ -92,7 +86,7 @@ public class ChromeActionModeHandler {
     }
 
     @VisibleForTesting
-    static class ActionModeCallback extends ActionMode.Callback2 {
+    static class ActionModeCallback implements ActionMode.Callback {
         /**
          * Android Intent size limitations prevent sending over a megabyte of data. Limit
          * query lengths to 100kB because other things may be added to the Intent.
@@ -101,16 +95,15 @@ public class ChromeActionModeHandler {
 
         private final Tab mTab;
         private final ActionModeCallbackHelper mHelper;
+        private final Consumer<Boolean> mActionBarObserver;
         private final Callback<String> mSearchCallback;
         private final Supplier<ShareDelegate> mShareDelegateSupplier;
 
-        // Used for recording UMA histograms.
-        private long mContextMenuStartTime;
-
-        ActionModeCallback(Tab tab, WebContents webContents, Callback<String> searchCallback,
-                Supplier<ShareDelegate> shareDelegateSupplier) {
+        ActionModeCallback(Tab tab, WebContents webContents, Consumer<Boolean> observer,
+                Callback<String> searchCallback, Supplier<ShareDelegate> shareDelegateSupplier) {
             mTab = tab;
             mHelper = getActionModeCallbackHelper(webContents);
+            mActionBarObserver = observer;
             mSearchCallback = searchCallback;
             mShareDelegateSupplier = shareDelegateSupplier;
         }
@@ -123,7 +116,7 @@ public class ChromeActionModeHandler {
 
         @Override
         public boolean onCreateActionMode(ActionMode mode, Menu menu) {
-            mContextMenuStartTime = System.currentTimeMillis();
+            notifyContextualActionBarVisibilityChanged(true);
 
             int allowedActionModes = ActionModeCallbackHelper.MENU_ITEM_PROCESS_TEXT
                     | ActionModeCallbackHelper.MENU_ITEM_SHARE;
@@ -141,6 +134,7 @@ public class ChromeActionModeHandler {
         @Override
         public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
             recordUserAction();
+            notifyContextualActionBarVisibilityChanged(true);
             boolean res = mHelper.onPrepareActionMode(mode, menu);
             Set<String> browsers = getPackageNames(PackageManagerUtils.queryAllWebBrowsersInfo());
             Set<String> launchers = getPackageNames(PackageManagerUtils.queryAllLaunchersInfo());
@@ -156,33 +150,7 @@ public class ChromeActionModeHandler {
                     item.setVisible(false);
                 }
             }
-            if (menu.findItem(R.id.select_action_menu_share) != null
-                    && isFloatingActionMode(mode)) {
-                showShareIph();
-            }
             return res;
-        }
-
-        private void showShareIph() {
-            View view = mTab.getView();
-            int padding = view.getResources().getDimensionPixelSize(
-                    R.dimen.iph_shared_highlighting_padding_top);
-            Rect anchorRect = new Rect(view.getWidth() / 2, padding, view.getWidth() / 2, padding);
-            UserEducationHelper mUserEducationHelper =
-                    new UserEducationHelper(TabUtils.getActivity(mTab), new Handler());
-            mUserEducationHelper.requestShowIPH(new IPHCommandBuilder(view.getResources(),
-                    FeatureConstants.SHARED_HIGHLIGHTING_BUILDER_FEATURE,
-                    R.string.iph_shared_highlighting_builder,
-                    R.string.iph_shared_highlighting_builder)
-                                                        .setAnchorRect(anchorRect)
-                                                        .setAnchorView(view)
-                                                        .setRemoveArrow(true)
-                                                        .build());
-        }
-
-        private boolean isFloatingActionMode(ActionMode mode) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false;
-            return mode.getType() == ActionMode.TYPE_FLOATING;
         }
 
         @Override
@@ -197,20 +165,16 @@ public class ChromeActionModeHandler {
                 LocaleManager.getInstance().showSearchEnginePromoIfNeeded(
                         TabUtils.getActivity(mTab), callback);
                 mHelper.finishActionMode();
-            } else if (mShareDelegateSupplier.get().isSharingHubEnabled()
+            } else if (mShareDelegateSupplier.get().isSharingHubV15Enabled()
                     && item.getItemId() == R.id.select_action_menu_share) {
                 RecordUserAction.record(SelectionPopupController.UMA_MOBILE_ACTION_MODE_SHARE);
-                RecordHistogram.recordMediumTimesHistogram("ContextMenu.TimeToSelectShare",
-                        System.currentTimeMillis() - mContextMenuStartTime);
                 mShareDelegateSupplier.get().share(
                         new ShareParams.Builder(mTab.getWindowAndroid(), /*url=*/"", /*title=*/"")
                                 .setText(sanitizeTextForShare(mHelper.getSelectedText()))
                                 .build(),
                         new ChromeShareExtras.Builder()
                                 .setSaveLastUsed(true)
-                                .setRenderFrameHost(mHelper.getRenderFrameHost())
-                                .setDetailedContentType(
-                                        ChromeShareExtras.DetailedContentType.HIGHLIGHTED_TEXT)
+                                .setIsUserHighlightedText(true)
                                 .build(),
                         ShareOrigin.MOBILE_ACTION_MODE);
             } else {
@@ -222,11 +186,11 @@ public class ChromeActionModeHandler {
         @Override
         public void onDestroyActionMode(ActionMode mode) {
             mHelper.onDestroyActionMode();
+            notifyContextualActionBarVisibilityChanged(false);
         }
 
-        @Override
-        public void onGetContentRect(ActionMode mode, View view, Rect outRect) {
-            mHelper.onGetContentRect(mode, view, outRect);
+        private void notifyContextualActionBarVisibilityChanged(boolean show) {
+            if (!mHelper.supportsFloatingActionMode()) mActionBarObserver.accept(show);
         }
 
         private Set<String> getPackageNames(List<ResolveInfo> list) {
@@ -241,7 +205,11 @@ public class ChromeActionModeHandler {
         }
 
         private void recordUserAction() {
-            RecordUserAction.record("MobileActionBarShown.Floating");
+            if (mHelper.supportsFloatingActionMode()) {
+                RecordUserAction.record("MobileActionBarShown.Floating");
+            } else {
+                RecordUserAction.record("MobileActionBarShown.Toolbar");
+            }
         }
 
         private static String sanitizeTextForShare(String text) {

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,10 @@
 #include <vector>
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "chrome/browser/sharing/click_to_call/click_to_call_metrics.h"
 #include "components/renderer_context_menu/render_view_context_menu_observer.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/base/models/simple_menu_model.h"
 
 namespace syncer {
@@ -29,26 +29,18 @@ class ClickToCallContextMenuObserver : public RenderViewContextMenuObserver {
   class SubMenuDelegate : public ui::SimpleMenuModel::Delegate {
    public:
     explicit SubMenuDelegate(ClickToCallContextMenuObserver* parent);
-
-    SubMenuDelegate(const SubMenuDelegate&) = delete;
-    SubMenuDelegate& operator=(const SubMenuDelegate&) = delete;
-
     ~SubMenuDelegate() override;
 
     bool IsCommandIdEnabled(int command_id) const override;
     void ExecuteCommand(int command_id, int event_flags) override;
 
    private:
-    const raw_ptr<ClickToCallContextMenuObserver> parent_;
+    ClickToCallContextMenuObserver* const parent_;
+
+    DISALLOW_COPY_AND_ASSIGN(SubMenuDelegate);
   };
 
   explicit ClickToCallContextMenuObserver(RenderViewContextMenuProxy* proxy);
-
-  ClickToCallContextMenuObserver(const ClickToCallContextMenuObserver&) =
-      delete;
-  ClickToCallContextMenuObserver& operator=(
-      const ClickToCallContextMenuObserver&) = delete;
-
   ~ClickToCallContextMenuObserver() override;
 
   // RenderViewContextMenuObserver implementation.
@@ -72,9 +64,9 @@ class ClickToCallContextMenuObserver : public RenderViewContextMenuObserver {
 
   void SendClickToCallMessage(int chosen_device_index);
 
-  raw_ptr<RenderViewContextMenuProxy> proxy_ = nullptr;
+  RenderViewContextMenuProxy* proxy_ = nullptr;
 
-  raw_ptr<ClickToCallUiController> controller_ = nullptr;
+  ClickToCallUiController* controller_ = nullptr;
 
   std::vector<std::unique_ptr<syncer::DeviceInfo>> devices_;
 
@@ -82,9 +74,11 @@ class ClickToCallContextMenuObserver : public RenderViewContextMenuObserver {
 
   std::string phone_number_;
   std::string selection_text_;
-  absl::optional<SharingClickToCallEntryPoint> entry_point_;
+  base::Optional<SharingClickToCallEntryPoint> entry_point_;
 
   std::unique_ptr<ui::SimpleMenuModel> sub_menu_model_;
+
+  DISALLOW_COPY_AND_ASSIGN(ClickToCallContextMenuObserver);
 };
 
 #endif  // CHROME_BROWSER_SHARING_CLICK_TO_CALL_CLICK_TO_CALL_CONTEXT_MENU_OBSERVER_H_

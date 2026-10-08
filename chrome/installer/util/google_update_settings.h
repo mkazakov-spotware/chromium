@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,12 @@
 #include <memory>
 #include <string>
 
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
+#include "base/sequenced_task_runner.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_piece.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "base/version.h"
 #include "build/build_config.h"
@@ -20,7 +24,7 @@
 #include "components/metrics/client_info.h"
 
 namespace installer {
-class AdditionalParameters;
+class ChannelInfo;
 class InstallationState;
 }  // namespace installer
 
@@ -68,10 +72,6 @@ class GoogleUpdateSettings {
     int last_extra_code;
   };
 
-  GoogleUpdateSettings() = delete;
-  GoogleUpdateSettings(const GoogleUpdateSettings&) = delete;
-  GoogleUpdateSettings& operator=(const GoogleUpdateSettings&) = delete;
-
   // Returns true if this install is system-wide, false if it is per-user.
   static bool IsSystemInstall();
 
@@ -93,14 +93,14 @@ class GoogleUpdateSettings {
   // false if the setting could not be recorded.
   static bool SetCollectStatsConsent(bool consented);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Returns the default (original) state of the "send usage stats" checkbox
   // shown to the user when they downloaded Chrome. The value is returned via
   // the out parameter |stats_consent_default|. This function returns true if
   // the default state is known and false otherwise. If false the out param
   // will not be set.
-  [[nodiscard]] static bool GetCollectStatsConsentDefault(
-      bool* stats_consent_default);
+  static bool GetCollectStatsConsentDefault(bool* stats_consent_default)
+      WARN_UNUSED_RESULT;
 #endif
 
   // Returns the metrics client info backed up in the registry. nullptr
@@ -135,19 +135,19 @@ class GoogleUpdateSettings {
 
   // Returns in |browser| the browser used to download chrome as recorded
   // Google Update. Returns false if the information is not available.
-  static bool GetBrowser(std::wstring* browser);
+  static bool GetBrowser(base::string16* browser);
 
   // Returns in |language| the language selected by the user when downloading
   // chrome. This information is collected by the web server used to download
   // the chrome installer. Returns false if the information is not available.
-  static bool GetLanguage(std::wstring* language);
+  static bool GetLanguage(base::string16* language);
 
   // Returns in |brand| the RLZ brand code or distribution tag that has been
   // assigned to a partner. Returns false if the information is not available.
   //
   // NOTE: This function is Windows only.  If the code you are writing is not
   // specifically for Windows, prefer calling google_brand::GetBrand().
-  static bool GetBrand(std::wstring* brand);
+  static bool GetBrand(base::string16* brand);
 
   // Returns in |brand| the RLZ reactivation brand code or distribution tag
   // that has been assigned to a partner for reactivating a dormant chrome
@@ -156,11 +156,11 @@ class GoogleUpdateSettings {
   // NOTE: This function is Windows only.  If the code you are writing is not
   // specifically for Windows, prefer calling
   // google_brand::GetReactivationBrand().
-  static bool GetReactivationBrand(std::wstring* brand);
+  static bool GetReactivationBrand(base::string16* brand);
 
   // Returns in 'client' the RLZ referral available for some distribution
   // partners. This value does not exist for most chrome or chromium installs.
-  static bool GetReferral(std::wstring* referral);
+  static bool GetReferral(base::string16* referral);
 
   // Overwrites the current value of the referral with an empty string. Returns
   // true if this operation succeeded.
@@ -177,14 +177,15 @@ class GoogleUpdateSettings {
   // - Unconditionally clear a legacy "-stage:" modifier.
   static void UpdateInstallStatus(bool system_install,
                                   installer::ArchiveType archive_type,
-                                  int install_return_code);
+                                  int install_return_code,
+                                  const base::string16& product_guid);
 
   // Sets the InstallerProgress value in the registry so that Google Update can
   // provide informative user feedback. |path| is the full path to the app's
   // ClientState key. |progress| should be a number between 0 and 100,
   // inclusive.
   static void SetProgress(bool system_install,
-                          const std::wstring& path,
+                          const base::string16& path,
                           int progress);
 
   // This method updates the value for Google Update "ap" key for Chrome
@@ -204,12 +205,12 @@ class GoogleUpdateSettings {
   // Returns true if |value| is modified.
   static bool UpdateGoogleUpdateApKey(installer::ArchiveType archive_type,
                                       int install_return_code,
-                                      installer::AdditionalParameters* value);
+                                      installer::ChannelInfo* value);
 
   // Returns the effective update policy for |app_guid| as dictated by
   // Group Policy settings.  |is_overridden|, if non-nullptr, is populated with
   // true if an app-specific policy override is in force, or false otherwise.
-  static UpdatePolicy GetAppUpdatePolicy(base::WStringPiece app_guid,
+  static UpdatePolicy GetAppUpdatePolicy(base::StringPiece16 app_guid,
                                          bool* is_overridden);
 
   // Returns true if Chrome should be updated automatically by Google Update
@@ -234,11 +235,11 @@ class GoogleUpdateSettings {
   // following regex:  `[a-zA-z]{0-32}`. The actual values for this policy
   // are specific to Google Update and documented as part of the Google Update
   // protocol.
-  static std::wstring GetDownloadPreference();
+  static base::string16 GetDownloadPreference();
 
   // Returns Google Update's uninstall command line, or an empty string if none
   // is found.
-  static std::wstring GetUninstallCommandLine(bool system_install);
+  static base::string16 GetUninstallCommandLine(bool system_install);
 
   // Returns the version of Google Update that is installed.
   static base::Version GetGoogleUpdateVersion(bool system_install);
@@ -272,7 +273,7 @@ class GoogleUpdateSettings {
   // |experiment_labels| is empty, this will delete the value instead. This will
   // return true if the label was successfully set (or deleted), false otherwise
   // (even if the label does not need to be set for this particular brand).
-  static bool SetExperimentLabels(const std::wstring& experiment_labels);
+  static bool SetExperimentLabels(const base::string16& experiment_labels);
 
   // Reads the Google Update experiment_labels value in the ClientState key for
   // this Chrome product and writes it into |experiment_labels|. If the key or
@@ -280,7 +281,10 @@ class GoogleUpdateSettings {
   // If this brand does not set the experiment_labels value, this will do
   // nothing to |experiment_labels|. This will return true if the label did not
   // exist, or was successfully read.
-  static bool ReadExperimentLabels(std::wstring* experiment_labels);
+  static bool ReadExperimentLabels(base::string16* experiment_labels);
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(GoogleUpdateSettings);
 };
 
 #endif  // CHROME_INSTALLER_UTIL_GOOGLE_UPDATE_SETTINGS_H_

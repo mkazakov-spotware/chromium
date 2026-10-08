@@ -1,17 +1,16 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stdint.h>
-
-#include <memory>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/apps/platform_apps/app_browsertest_util.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/sync_file_system/drive_backend/sync_engine.h"
@@ -30,8 +29,6 @@
 #include "storage/browser/quota/quota_manager.h"
 #include "third_party/leveldatabase/leveldb_chrome.h"
 
-using signin::PrimaryAccountChangeEvent;
-
 namespace sync_file_system {
 
 namespace {
@@ -44,9 +41,7 @@ class FakeDriveServiceFactory
   explicit FakeDriveServiceFactory(
       drive::FakeDriveService::ChangeObserver* change_observer)
       : change_observer_(change_observer) {}
-  FakeDriveServiceFactory(const FakeDriveServiceFactory&) = delete;
-  FakeDriveServiceFactory& operator=(const FakeDriveServiceFactory&) = delete;
-  ~FakeDriveServiceFactory() override = default;
+  ~FakeDriveServiceFactory() override {}
 
   std::unique_ptr<drive::DriveServiceInterface> CreateDriveService(
       signin::IdentityManager* identity_manager,
@@ -59,7 +54,9 @@ class FakeDriveServiceFactory
   }
 
  private:
-  raw_ptr<drive::FakeDriveService::ChangeObserver> change_observer_;
+  drive::FakeDriveService::ChangeObserver* change_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeDriveServiceFactory);
 };
 
 }  // namespace
@@ -67,9 +64,7 @@ class FakeDriveServiceFactory
 class SyncFileSystemTest : public extensions::PlatformAppBrowserTest,
                            public drive::FakeDriveService::ChangeObserver {
  public:
-  SyncFileSystemTest() = default;
-  SyncFileSystemTest(const SyncFileSystemTest&) = delete;
-  SyncFileSystemTest& operator=(const SyncFileSystemTest&) = delete;
+  SyncFileSystemTest() : remote_service_(nullptr) {}
 
   scoped_refptr<base::SequencedTaskRunner> MakeSequencedTaskRunner() {
     return base::ThreadPool::CreateSequencedTaskRunner(
@@ -93,10 +88,10 @@ class SyncFileSystemTest : public extensions::PlatformAppBrowserTest,
     std::unique_ptr<drive_backend::SyncEngine::DriveServiceFactory>
         drive_service_factory(new FakeDriveServiceFactory(this));
 
-    identity_test_env_ = std::make_unique<signin::IdentityTestEnvironment>();
+    identity_test_env_.reset(new signin::IdentityTestEnvironment);
 
     remote_service_ = new drive_backend::SyncEngine(
-        base::SingleThreadTaskRunner::GetCurrentDefault(),  // ui_task_runner
+        base::ThreadTaskRunnerHandle::Get(),  // ui_task_runner
         MakeSequencedTaskRunner(), MakeSequencedTaskRunner(),
         base_dir_.GetPath(),
         nullptr,  // task_logger
@@ -129,7 +124,12 @@ class SyncFileSystemTest : public extensions::PlatformAppBrowserTest,
   }
 
   void SignIn() {
-    identity_test_env_->SetPrimaryAccount(kEmail, signin::ConsentLevel::kSync);
+    identity_test_env_->SetPrimaryAccount(kEmail);
+
+    // It's necessary to invoke this method manually as the observer callback is
+    // not triggered on ChromeOS.
+    sync_engine()->OnPrimaryAccountSet(
+        identity_test_env_->identity_manager()->GetPrimaryAccountInfo());
   }
 
   void SetSyncEnabled(bool enabled) {
@@ -152,17 +152,18 @@ class SyncFileSystemTest : public extensions::PlatformAppBrowserTest,
 
   std::unique_ptr<signin::IdentityTestEnvironment> identity_test_env_;
 
-  raw_ptr<drive_backend::SyncEngine, DanglingUntriaged> remote_service_ =
-      nullptr;
+  drive_backend::SyncEngine* remote_service_;
+
+  DISALLOW_COPY_AND_ASSIGN(SyncFileSystemTest);
 };
 
 IN_PROC_BROWSER_TEST_F(SyncFileSystemTest, AuthorizationTest) {
   ExtensionTestMessageListener open_failure("checkpoint: Failed to get syncfs",
-                                            ReplyBehavior::kWillReply);
+                                            true);
   ExtensionTestMessageListener bar_created("checkpoint: \"/bar\" created",
-                                           ReplyBehavior::kWillReply);
+                                           true);
   ExtensionTestMessageListener foo_created("checkpoint: \"/foo\" created",
-                                           ReplyBehavior::kWillReply);
+                                           true);
   extensions::ResultCatcher catcher;
 
   LoadAndLaunchPlatformApp("sync_file_system/authorization_test", "Launched");
@@ -183,12 +184,8 @@ IN_PROC_BROWSER_TEST_F(SyncFileSystemTest, AuthorizationTest) {
   // service.  Wait for the completion and resume the app.
   WaitUntilIdle();
 
-  sync_engine()->OnPrimaryAccountChanged(
-      PrimaryAccountChangeEvent(PrimaryAccountChangeEvent::State(
-                                    identity_manager()->GetPrimaryAccountInfo(
-                                        signin::ConsentLevel::kSync),
-                                    signin::ConsentLevel::kSync),
-                                PrimaryAccountChangeEvent::State()));
+  sync_engine()->OnPrimaryAccountCleared(
+      identity_manager()->GetPrimaryAccountInfo());
   foo_created.Reply("resume");
 
   ASSERT_TRUE(bar_created.WaitUntilSatisfied());
@@ -201,12 +198,8 @@ IN_PROC_BROWSER_TEST_F(SyncFileSystemTest, AuthorizationTest) {
   EXPECT_EQ(REMOTE_SERVICE_AUTHENTICATION_REQUIRED,
             sync_engine()->GetCurrentState());
 
-  sync_engine()->OnPrimaryAccountChanged(
-      PrimaryAccountChangeEvent(PrimaryAccountChangeEvent::State(),
-                                PrimaryAccountChangeEvent::State(
-                                    identity_manager()->GetPrimaryAccountInfo(
-                                        signin::ConsentLevel::kSync),
-                                    signin::ConsentLevel::kSync)));
+  sync_engine()->OnPrimaryAccountSet(
+      identity_manager()->GetPrimaryAccountInfo());
   WaitUntilIdle();
 
   bar_created.Reply("resume");

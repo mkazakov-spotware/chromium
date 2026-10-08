@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/services/util_win/processor_metrics.h"
 
 #include <objbase.h>
-#include <sysinfoapi.h>
 #include <wbemidl.h>
 #include <wrl/client.h>
 
@@ -14,13 +13,8 @@
 #include "base/threading/scoped_blocking_call.h"
 #include "base/win/com_init_util.h"
 #include "base/win/scoped_bstr.h"
-#include "base/win/scoped_com_initializer.h"
 #include "base/win/scoped_variant.h"
-#include "base/win/windows_version.h"
 #include "base/win/wmi.h"
-#include "chrome/services/util_win/public/mojom/util_win.mojom.h"
-#include "mojo/public/cpp/bindings/pending_receiver.h"
-#include "mojo/public/cpp/bindings/receiver.h"
 
 using base::win::ScopedBstr;
 using base::win::ScopedVariant;
@@ -100,33 +94,7 @@ void RecordProcessorMetricsFromWMI(const ComPtr<IWbemServices>& services) {
   }
 }
 
-// TODO(crbug.com/1136224) Can be removed once CET support is stable.
-void RecordCetAvailability() {
-  bool available = false;
-  auto is_user_cet_available_in_environment =
-      reinterpret_cast<decltype(&IsUserCetAvailableInEnvironment)>(
-          ::GetProcAddress(::GetModuleHandleW(L"kernel32.dll"),
-                           "IsUserCetAvailableInEnvironment"));
-  auto get_process_mitigation_policy =
-      reinterpret_cast<decltype(&GetProcessMitigationPolicy)>(::GetProcAddress(
-          ::GetModuleHandleW(L"kernel32.dll"), "GetProcessMitigationPolicy"));
-
-  if (is_user_cet_available_in_environment) {
-    available = is_user_cet_available_in_environment(
-        USER_CET_ENVIRONMENT_WIN32_PROCESS);
-  }
-  base::UmaHistogramBoolean("Windows.CetAvailable", available);
-
-  if (available && get_process_mitigation_policy) {
-    PROCESS_MITIGATION_USER_SHADOW_STACK_POLICY policy = {0};
-    if (get_process_mitigation_policy(GetCurrentProcess(),
-                                      ProcessUserShadowStackPolicy, &policy,
-                                      sizeof(policy))) {
-      base::UmaHistogramBoolean("Windows.CetEnabled",
-                                policy.EnableUserShadowStack);
-    }
-  }
-}
+}  // namespace
 
 void RecordProcessorMetrics() {
   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
@@ -136,26 +104,4 @@ void RecordProcessorMetrics() {
     return;
   RecordProcessorMetricsFromWMI(wmi_services);
   RecordHypervStatusFromWMI(wmi_services);
-  RecordCetAvailability();
-}
-
-}  // namespace
-
-void RecordProcessorMetricsForTesting() {
-  RecordProcessorMetrics();
-}
-
-ProcessorMetricsImpl::ProcessorMetricsImpl(
-    mojo::PendingReceiver<chrome::mojom::ProcessorMetrics> receiver)
-    : receiver_(this, std::move(receiver)) {}
-
-ProcessorMetricsImpl::~ProcessorMetricsImpl() = default;
-
-void ProcessorMetricsImpl::RecordProcessorMetrics(
-    RecordProcessorMetricsCallback callback) {
-  // TODO(sebmarchand): Check if we should move the ScopedCOMInitializer to the
-  // ProcessorMetrics class.
-  base::win::ScopedCOMInitializer scoped_com_initializer;
-  ::RecordProcessorMetrics();
-  std::move(callback).Run();
 }

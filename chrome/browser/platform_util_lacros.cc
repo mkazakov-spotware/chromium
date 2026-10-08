@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,7 @@
 #include "base/notreached.h"
 #include "chrome/browser/platform_util_internal.h"
 #include "chromeos/crosapi/mojom/file_manager.mojom.h"
-#include "chromeos/lacros/lacros_service.h"
-#include "content/public/browser/browser_task_traits.h"
-#include "content/public/browser/browser_thread.h"
+#include "chromeos/lacros/lacros_chrome_service_impl.h"
 
 namespace platform_util {
 namespace {
@@ -26,52 +24,47 @@ void OnOpenResult(const base::FilePath& path,
   LOG(ERROR) << "Unable to open " << path.AsUTF8Unsafe() << " " << result;
 }
 
-// Requests that ash open an item at |path|.
-void OpenItemOnUiThread(const base::FilePath& path, OpenItemType type) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  auto* service = chromeos::LacrosService::Get();
+}  // namespace
+
+namespace internal {
+
+void PlatformOpenVerifiedItem(const base::FilePath& path, OpenItemType type) {
+  auto* service = chromeos::LacrosChromeServiceImpl::Get();
   if (service->GetInterfaceVersion(crosapi::mojom::FileManager::Uuid_) < 1) {
     LOG(ERROR) << "Unsupported ash version.";
     return;
   }
   switch (type) {
     case OPEN_FILE:
-      service->GetRemote<crosapi::mojom::FileManager>()->OpenFile(
+      service->file_manager_remote()->OpenFile(
           path, base::BindOnce(&OnOpenResult, path));
       break;
     case OPEN_FOLDER:
-      service->GetRemote<crosapi::mojom::FileManager>()->OpenFolder(
+      service->file_manager_remote()->OpenFolder(
           path, base::BindOnce(&OnOpenResult, path));
       break;
   }
-}
-
-}  // namespace
-
-namespace internal {
-
-void PlatformOpenVerifiedItem(const base::FilePath& path, OpenItemType type) {
-  // The file manager remote can only be accessed on the UI thread.
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE, base::BindOnce(&OpenItemOnUiThread, path, type));
 }
 
 }  // namespace internal
 
 void ShowItemInFolder(Profile* profile, const base::FilePath& full_path) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  auto* service = chromeos::LacrosService::Get();
+  auto* service = chromeos::LacrosChromeServiceImpl::Get();
   int interface_version =
       service->GetInterfaceVersion(crosapi::mojom::FileManager::Uuid_);
-  if (interface_version < 1) {
+  if (interface_version < 0) {
     DLOG(ERROR) << "Unsupported ash version.";
     return;
   }
-  service->GetRemote<crosapi::mojom::FileManager>()->ShowItemInFolder(
+  if (interface_version < 1) {
+    service->file_manager_remote()->DeprecatedShowItemInFolder(full_path);
+    return;
+  }
+  service->file_manager_remote()->ShowItemInFolder(
       full_path, base::BindOnce(&OnOpenResult, full_path));
 }
 
-void OpenExternal(const GURL& url) {
+void OpenExternal(Profile* profile, const GURL& url) {
   // TODO(https://crbug.com/1140585): Add crosapi for opening links with
   // external protocol handlers.
   NOTIMPLEMENTED();

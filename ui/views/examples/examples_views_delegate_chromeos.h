@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/aura/window_tree_host_observer.h"
 #include "ui/views/test/desktop_test_views_delegate.h"
@@ -16,7 +16,8 @@ namespace wm {
 class WMTestHelper;
 }
 
-namespace views::examples {
+namespace views {
+namespace examples {
 
 class ExamplesViewsDelegateChromeOS : public DesktopTestViewsDelegate,
                                       public aura::WindowTreeHostObserver {
@@ -32,11 +33,11 @@ class ExamplesViewsDelegateChromeOS : public DesktopTestViewsDelegate,
   // aura::WindowTreeHostObserver:
   void OnHostCloseRequested(aura::WindowTreeHost* host) override;
 
-  base::ScopedObservation<aura::WindowTreeHost, aura::WindowTreeHostObserver>
-      observation_{this};
+  ScopedObserver<aura::WindowTreeHost, aura::WindowTreeHostObserver> observer_;
   std::unique_ptr<wm::WMTestHelper> wm_helper_;
 };
 
-}  // namespace views::examples
+}  // namespace examples
+}  // namespace views
 
 #endif  // UI_VIEWS_EXAMPLES_EXAMPLES_VIEWS_DELEGATE_CHROMEOS_H_

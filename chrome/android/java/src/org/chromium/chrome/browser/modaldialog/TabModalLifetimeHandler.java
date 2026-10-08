@@ -1,46 +1,31 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.modaldialog;
 
-import android.app.Activity;
-
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.supplier.Supplier;
-import org.chromium.chrome.browser.back_press.BackPressManager;
-import org.chromium.chrome.browser.browser_controls.BrowserControlsVisibilityManager;
-import org.chromium.chrome.browser.contextualsearch.ContextualSearchManager;
-import org.chromium.chrome.browser.fullscreen.FullscreenManager;
-import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
-import org.chromium.chrome.browser.lifecycle.DestroyObserver;
+import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.lifecycle.Destroyable;
 import org.chromium.chrome.browser.lifecycle.NativeInitObserver;
-import org.chromium.chrome.browser.modaldialog.ChromeTabModalPresenter.TabModalBrowserControlsVisibilityDelegate;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tab.TabObscuringHandler;
 import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tab.TabSelectionType;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorTabModelObserver;
-import org.chromium.chrome.browser.toolbar.ToolbarManager;
+import org.chromium.chrome.browser.ui.TabObscuringHandler;
 import org.chromium.components.browser_ui.util.ComposedBrowserControlsVisibilityDelegate;
-import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
 import org.chromium.ui.modaldialog.ModalDialogManager;
-import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogManagerObserver;
 import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogType;
-import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.util.TokenHolder;
-import org.chromium.url.GURL;
 
 /**
  * Class responsible for handling dismissal of a tab modal dialog on user actions outside the tab
  * modal dialog.
  */
-public class TabModalLifetimeHandler implements NativeInitObserver, DestroyObserver,
-                                                ModalDialogManagerObserver, BackPressHandler {
+public class TabModalLifetimeHandler implements NativeInitObserver, Destroyable {
     /** The observer to dismiss all dialogs when the attached tab is not interactable. */
     private final TabObserver mTabObserver = new EmptyTabObserver() {
         @Override
@@ -58,78 +43,38 @@ public class TabModalLifetimeHandler implements NativeInitObserver, DestroyObser
         }
 
         @Override
-        public void onPageLoadStarted(Tab tab, GURL url) {
+        public void onPageLoadStarted(Tab tab, String url) {
             if (mActiveTab == tab) {
                 mManager.dismissDialogsOfType(ModalDialogType.TAB, DialogDismissalCause.NAVIGATE);
             }
         }
     };
 
-    private Activity mActivity;
-    private final ActivityLifecycleDispatcher mActivityLifecycleDispatcher;
+    private ChromeActivity mActivity;
     private final ModalDialogManager mManager;
-    private final Supplier<ComposedBrowserControlsVisibilityDelegate>
-            mAppVisibilityDelegateSupplier;
+    private final Supplier<ComposedBrowserControlsVisibilityDelegate> mAppVisibilityDelegate;
     private final Supplier<TabObscuringHandler> mTabObscuringHandlerSupplier;
-    private final Supplier<ToolbarManager> mToolbarManagerSupplier;
-    private final Supplier<ContextualSearchManager> mContextualSearchManagerSupplier;
-    private final Supplier<TabModelSelector> mTabModelSelectorSupplier;
-    private final Supplier<BrowserControlsVisibilityManager>
-            mBrowserControlsVisibilityManagerSupplier;
-    private final Supplier<FullscreenManager> mFullscreenManagerSupplier;
-    private final TabModalBrowserControlsVisibilityDelegate mVisibilityDelegate;
-    private final ObservableSupplierImpl<Boolean> mHandleBackPressChangedSupplier =
-            new ObservableSupplierImpl<>();
-    private final BackPressManager mBackPressManager;
     private ChromeTabModalPresenter mPresenter;
     private TabModelSelectorTabModelObserver mTabModelObserver;
     private Tab mActiveTab;
     private int mTabModalSuspendedToken;
 
     /**
-     * @param activity The {@link Activity} that this handler is attached to.
-     * @param activityLifecycleDispatcher The {@link ActivityLifecycleDispatcher} for the activity.
+     * @param activity The {@link ChromeActivity} that this handler is attached to.
      * @param manager The {@link ModalDialogManager} that this handler handles.
-     * @param appVisibilityDelegateSupplier Supplies the delegate that handles the application
-     *                                      browser controls visibility.
-     * @param tabObscuringHandlerSupplier Supplies the {@link TabObscuringHandler} object.
-     * @param toolbarManagerSupplier Supplies the {@link ToolbarManager} object.
-     * @param contextualSearchManagerSupplier Supplies the {@link ContextualSearchManager} object.
-     * @param tabModelSelectorSupplier Supplies the {@link TabModelSelector} object.
-     * @param browserControlsVisibilityManagerSupplier Supplies the
-     *                                                 {@link BrowserControlsVisibilityManager}.
-     * @param fullscreenManagerSupplier Supplies the {@link FullscreenManager} object.
-     * @param backPressManager The {@link BackPressManager} which can register {@link
-     *                         BackPressHandler}.
+     * @param appVisibilityDelegate The {@link ComposedBrowserControlsVisibilityDelegate} that
+     *                              handles the application browser controls visibility.
+     * @param tabObscuringHandler {@link TabObscuringHandler} object.
      */
-    public TabModalLifetimeHandler(Activity activity,
-            ActivityLifecycleDispatcher activityLifecycleDispatcher, ModalDialogManager manager,
-            Supplier<ComposedBrowserControlsVisibilityDelegate> appVisibilityDelegateSupplier,
-            Supplier<TabObscuringHandler> tabObscuringHandlerSupplier,
-            Supplier<ToolbarManager> toolbarManagerSupplier,
-            Supplier<ContextualSearchManager> contextualSearchManagerSupplier,
-            Supplier<TabModelSelector> tabModelSelectorSupplier,
-            Supplier<BrowserControlsVisibilityManager> browserControlsVisibilityManagerSupplier,
-            Supplier<FullscreenManager> fullscreenManagerSupplier,
-            BackPressManager backPressManager) {
+    public TabModalLifetimeHandler(ChromeActivity activity, ModalDialogManager manager,
+            Supplier<ComposedBrowserControlsVisibilityDelegate> appVisibilityDelegate,
+            Supplier<TabObscuringHandler> tabObscuringHandler) {
         mActivity = activity;
-        mActivityLifecycleDispatcher = activityLifecycleDispatcher;
-        mActivityLifecycleDispatcher.register(this);
         mManager = manager;
-        mAppVisibilityDelegateSupplier = appVisibilityDelegateSupplier;
-        mTabObscuringHandlerSupplier = tabObscuringHandlerSupplier;
+        mAppVisibilityDelegate = appVisibilityDelegate;
+        mTabObscuringHandlerSupplier = tabObscuringHandler;
+        activity.getLifecycleDispatcher().register(this);
         mTabModalSuspendedToken = TokenHolder.INVALID_TOKEN;
-        mToolbarManagerSupplier = toolbarManagerSupplier;
-        mFullscreenManagerSupplier = fullscreenManagerSupplier;
-        mBrowserControlsVisibilityManagerSupplier = browserControlsVisibilityManagerSupplier;
-        mVisibilityDelegate = new TabModalBrowserControlsVisibilityDelegate();
-        mContextualSearchManagerSupplier = contextualSearchManagerSupplier;
-        mTabModelSelectorSupplier = tabModelSelectorSupplier;
-        mBackPressManager = backPressManager;
-        if (BackPressManager.isEnabled()) {
-            mManager.addObserver(this);
-            backPressManager.addHandler(this, Type.TAB_MODAL_HANDLER);
-        }
     }
 
     /**
@@ -145,59 +90,26 @@ public class TabModalLifetimeHandler implements NativeInitObserver, DestroyObser
     /**
      * Handle a back press event.
      */
-    public boolean onBackPressed() {
-        if (!shouldInterceptBackPress()) return false;
+    public boolean handleBackPress() {
+        if (mPresenter == null || mPresenter.getDialogModel() == null) return false;
         mPresenter.dismissCurrentDialog(DialogDismissalCause.NAVIGATE_BACK_OR_TOUCH_OUTSIDE);
         return true;
     }
 
     @Override
-    public void handleBackPress() {
-        assert shouldInterceptBackPress();
-        mPresenter.dismissCurrentDialog(DialogDismissalCause.NAVIGATE_BACK_OR_TOUCH_OUTSIDE);
-    }
-
-    @Override
-    public ObservableSupplier<Boolean> getHandleBackPressChangedSupplier() {
-        return mHandleBackPressChangedSupplier;
-    }
-
-    @Override
-    public void onDialogAdded(PropertyModel model) {
-        mHandleBackPressChangedSupplier.set(shouldInterceptBackPress());
-    }
-
-    @Override
-    public void onDialogDismissed(PropertyModel model) {
-        mHandleBackPressChangedSupplier.set(shouldInterceptBackPress());
-    }
-
-    @Override
     public void onFinishNativeInitialization() {
-        assert mTabModelSelectorSupplier.hasValue();
-        TabModelSelector tabModelSelector = mTabModelSelectorSupplier.get();
-        assert mBrowserControlsVisibilityManagerSupplier.hasValue();
-        assert mFullscreenManagerSupplier.hasValue();
-        mPresenter = new ChromeTabModalPresenter(mActivity, mTabObscuringHandlerSupplier,
-                mToolbarManagerSupplier, mContextualSearchManagerSupplier,
-                mFullscreenManagerSupplier.get(), mBrowserControlsVisibilityManagerSupplier.get(),
-                tabModelSelector);
-        assert mAppVisibilityDelegateSupplier.hasValue();
-        mAppVisibilityDelegateSupplier.get().addDelegate(
-                mPresenter.getBrowserControlsVisibilityDelegate());
+        mPresenter = new ChromeTabModalPresenter(mActivity, mTabObscuringHandlerSupplier);
+        mAppVisibilityDelegate.get().addDelegate(mPresenter.getBrowserControlsVisibilityDelegate());
         mManager.registerPresenter(mPresenter, ModalDialogType.TAB);
 
-        handleTabChanged(tabModelSelector.getCurrentTab());
+        handleTabChanged(mActivity.getActivityTab());
+        TabModelSelector tabModelSelector = mActivity.getTabModelSelector();
         mTabModelObserver = new TabModelSelectorTabModelObserver(tabModelSelector) {
             @Override
             public void didSelectTab(Tab tab, @TabSelectionType int type, int lastId) {
                 handleTabChanged(tab);
             }
         };
-    }
-
-    private boolean shouldInterceptBackPress() {
-        return mPresenter != null && mPresenter.getDialogModel() != null;
     }
 
     private void handleTabChanged(Tab tab) {
@@ -216,7 +128,7 @@ public class TabModalLifetimeHandler implements NativeInitObserver, DestroyObser
     }
 
     @Override
-    public void onDestroy() {
+    public void destroy() {
         if (mTabModelObserver != null) mTabModelObserver.destroy();
         if (mPresenter != null) mPresenter.destroy();
 
@@ -224,13 +136,6 @@ public class TabModalLifetimeHandler implements NativeInitObserver, DestroyObser
             mActiveTab.removeObserver(mTabObserver);
             mActiveTab = null;
         }
-
-        if (mBackPressManager.has(Type.TAB_MODAL_HANDLER)) {
-            mManager.removeObserver(this);
-            mBackPressManager.removeHandler(Type.TAB_MODAL_HANDLER);
-        }
-
-        mActivityLifecycleDispatcher.unregister(this);
         mActivity = null;
     }
 

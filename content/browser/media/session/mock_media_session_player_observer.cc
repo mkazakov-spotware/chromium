@@ -1,25 +1,16 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/media/session/mock_media_session_player_observer.h"
-#include "content/public/browser/render_frame_host.h"
+
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace content {
 
 MockMediaSessionPlayerObserver::MockMediaSessionPlayerObserver(
-    RenderFrameHost* render_frame_host,
-    media::MediaContentType media_content_type)
-    : render_frame_host_global_id_(
-          render_frame_host
-              ? absl::make_optional(render_frame_host->GetGlobalId())
-              : absl::nullopt),
-      media_content_type_(media_content_type) {}
-
-MockMediaSessionPlayerObserver::MockMediaSessionPlayerObserver(
-    media::MediaContentType media_content_type)
-    : MockMediaSessionPlayerObserver(nullptr, media_content_type) {}
+    RenderFrameHost* render_frame_host)
+    : MediaSessionPlayerObserver(), render_frame_host_(render_frame_host) {}
 
 MockMediaSessionPlayerObserver::~MockMediaSessionPlayerObserver() = default;
 
@@ -51,13 +42,6 @@ void MockMediaSessionPlayerObserver::OnSeekBackward(int player_id,
   EXPECT_GE(player_id, 0);
   EXPECT_GT(players_.size(), static_cast<size_t>(player_id));
   ++received_seek_backward_calls_;
-}
-
-void MockMediaSessionPlayerObserver::OnSeekTo(int player_id,
-                                              base::TimeDelta seek_time) {
-  EXPECT_GE(player_id, 0);
-  EXPECT_GT(players_.size(), static_cast<size_t>(player_id));
-  ++received_seek_to_calls_;
 }
 
 void MockMediaSessionPlayerObserver::OnSetVolumeMultiplier(
@@ -98,17 +82,7 @@ void MockMediaSessionPlayerObserver::OnSetAudioSinkId(
   players_[player_id].audio_sink_id_ = raw_device_id;
 }
 
-void MockMediaSessionPlayerObserver::OnSetMute(int player_id, bool mute) {
-  EXPECT_GE(player_id, 0);
-  EXPECT_GT(players_.size(), static_cast<size_t>(player_id));
-}
-
-void MockMediaSessionPlayerObserver::OnRequestMediaRemoting(int player_id) {
-  EXPECT_GE(player_id, 0);
-  EXPECT_GT(players_.size(), static_cast<size_t>(player_id));
-}
-
-absl::optional<media_session::MediaPosition>
+base::Optional<media_session::MediaPosition>
 MockMediaSessionPlayerObserver::GetPosition(int player_id) const {
   EXPECT_GE(player_id, 0);
   EXPECT_GT(players_.size(), static_cast<size_t>(player_id));
@@ -123,10 +97,7 @@ bool MockMediaSessionPlayerObserver::IsPictureInPictureAvailable(
 }
 
 RenderFrameHost* MockMediaSessionPlayerObserver::render_frame_host() const {
-  if (render_frame_host_global_id_.has_value()) {
-    return RenderFrameHost::FromID(render_frame_host_global_id_.value());
-  }
-  return nullptr;
+  return render_frame_host_;
 }
 
 int MockMediaSessionPlayerObserver::StartNewPlayer() {
@@ -179,10 +150,6 @@ int MockMediaSessionPlayerObserver::received_seek_backward_calls() const {
   return received_seek_backward_calls_;
 }
 
-int MockMediaSessionPlayerObserver::received_seek_to_calls() const {
-  return received_seek_to_calls_;
-}
-
 int MockMediaSessionPlayerObserver::received_enter_picture_in_picture_calls()
     const {
   return received_enter_picture_in_picture_calls_;
@@ -195,12 +162,6 @@ int MockMediaSessionPlayerObserver::received_exit_picture_in_picture_calls()
 
 int MockMediaSessionPlayerObserver::received_set_audio_sink_id_calls() const {
   return received_set_audio_sink_id_calls_;
-}
-
-bool MockMediaSessionPlayerObserver::HasAudio(int player_id) const {
-  EXPECT_GE(player_id, 0);
-  EXPECT_GT(players_.size(), static_cast<size_t>(player_id));
-  return true;
 }
 
 bool MockMediaSessionPlayerObserver::HasVideo(int player_id) const {
@@ -221,16 +182,6 @@ bool MockMediaSessionPlayerObserver::SupportsAudioOutputDeviceSwitching(
   EXPECT_GE(player_id, 0);
   EXPECT_GT(players_.size(), static_cast<size_t>(player_id));
   return players_.at(player_id).supports_device_switching_;
-}
-
-media::MediaContentType MockMediaSessionPlayerObserver::GetMediaContentType()
-    const {
-  return media_content_type_;
-}
-
-void MockMediaSessionPlayerObserver::SetMediaContentType(
-    media::MediaContentType media_content_type) {
-  media_content_type_ = media_content_type;
 }
 
 MockMediaSessionPlayerObserver::MockPlayer::MockPlayer(bool is_playing,

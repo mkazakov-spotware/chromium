@@ -1,11 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_WEB_RESOURCE_EULA_ACCEPTED_NOTIFIER_H_
 #define COMPONENTS_WEB_RESOURCE_EULA_ACCEPTED_NOTIFIER_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/prefs/pref_change_registrar.h"
 
 class PrefService;
@@ -24,10 +24,6 @@ class EulaAcceptedNotifier {
   };
 
   explicit EulaAcceptedNotifier(PrefService* local_state);
-
-  EulaAcceptedNotifier(const EulaAcceptedNotifier&) = delete;
-  EulaAcceptedNotifier& operator=(const EulaAcceptedNotifier&) = delete;
-
   virtual ~EulaAcceptedNotifier();
 
   // Initializes this class with the given |observer|. Must be called before
@@ -52,13 +48,15 @@ class EulaAcceptedNotifier {
   void OnPrefChanged();
 
   // Local state pref service for querying the EULA accepted pref.
-  raw_ptr<PrefService> local_state_;
+  PrefService* local_state_;
 
   // Used to listen for the EULA accepted pref change notification.
   PrefChangeRegistrar registrar_;
 
   // Observer of the EULA accepted notification.
-  raw_ptr<Observer> observer_;
+  Observer* observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(EulaAcceptedNotifier);
 };
 
 }  // namespace web_resource

@@ -1,19 +1,25 @@
-<!DOCTYPE html>
-
-<input readonly>
-
+<html>
+<head>
 <script>
-window.onload = () => {
-  if (window.testRunner) {
-    testRunner.waitUntilDone();
-    testRunner.dumpAsText();
-  }
-  const input = document.querySelector('input');
-  input.onfocus = (e) => {
+function runTest() {
+  testRunner.dumpAsText();
+
+  var input = document.getElementById('i');
+  eventSender.mouseMoveTo(input.offsetLeft + input.offsetWidth / 2, input.offsetTop + input.offsetHeight / 2);
+  eventSender.mouseDown();
+  eventSender.mouseUp();
+}
+window.onload = function() {
+  var input = document.getElementById('i');
+  input.onfocus = function(e) {
     document.body.innerHTML = 'PASS';
-    if (window.testRunner)
-      window.testRunner.notifyDone();
   }
-  input.focus();
+  if (window.testRunner)
+    runTest();
 }
 </script>
+</head>
+<body>
+<input id="i" readonly>
+</body>
+</html>

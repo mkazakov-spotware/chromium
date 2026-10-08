@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,24 +7,21 @@
 #include <memory>
 
 #include "base/bind.h"
-#include "base/feature_list.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/constrained_window/constrained_window_views.h"
-#include "components/safe_browsing/core/common/features.h"
 #include "components/strings/grit/components_strings.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/base/window_open_disposition.h"
-#include "ui/base/window_open_disposition_utils.h"
 #include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/controls/styled_label.h"
+#include "ui/views/layout/grid_layout.h"
 #include "ui/views/window/dialog_delegate.h"
 
 namespace safe_browsing {
@@ -32,7 +29,7 @@ namespace safe_browsing {
 /*static*/
 void PromptForScanningModalDialog::ShowForWebContents(
     content::WebContents* web_contents,
-    const std::u16string& filename,
+    const base::string16& filename,
     base::OnceClosure accept_callback,
     base::OnceClosure open_now_callback) {
   constrained_window::ShowWebModalDialogViews(
@@ -44,11 +41,9 @@ void PromptForScanningModalDialog::ShowForWebContents(
 
 PromptForScanningModalDialog::PromptForScanningModalDialog(
     content::WebContents* web_contents,
-    const std::u16string& filename,
+    const base::string16& filename,
     base::OnceClosure accept_callback,
-    base::OnceClosure open_now_callback)
-    : open_now_callback_(std::move(open_now_callback)) {
-  SetModalType(ui::MODAL_TYPE_CHILD);
+    base::OnceClosure open_now_callback) {
   SetTitle(IDS_DEEP_SCANNING_INFO_DIALOG_TITLE);
   SetButtonLabel(
       ui::DIALOG_BUTTON_OK,
@@ -68,23 +63,29 @@ PromptForScanningModalDialog::PromptForScanningModalDialog(
           IDS_DEEP_SCANNING_INFO_DIALOG_OPEN_NOW_BUTTON)));
 
   set_margins(ChromeLayoutProvider::Get()->GetDialogInsetsForContentType(
-      views::DialogContentType::kText, views::DialogContentType::kText));
-  SetUseDefaultFillLayout(true);
+      views::TEXT, views::TEXT));
+  views::GridLayout* layout =
+      SetLayoutManager(std::make_unique<views::GridLayout>());
+
+  // Use a fixed maximum message width, so longer messages will wrap.
+  const int kMaxMessageWidth = 400;
+  views::ColumnSet* cs = layout->AddColumnSet(0);
+  cs->AddColumn(views::GridLayout::LEADING, views::GridLayout::CENTER,
+                views::GridLayout::kFixedSize,
+                views::GridLayout::ColumnSize::kFixed, kMaxMessageWidth, false);
 
   // Create the message label text.
   std::vector<size_t> offsets;
-  std::u16string message_text = base::ReplaceStringPlaceholders(
-      u"$1 $2",
+  base::string16 message_text = base::ReplaceStringPlaceholders(
+      base::ASCIIToUTF16("$1 $2"),
       {l10n_util::GetStringFUTF16(IDS_DEEP_SCANNING_INFO_DIALOG_MESSAGE,
                                   filename),
        l10n_util::GetStringUTF16(IDS_LEARN_MORE)},
       &offsets);
 
   // Add the message label.
-  auto* label = AddChildView(std::make_unique<views::StyledLabel>());
+  auto label = std::make_unique<views::StyledLabel>();
   label->SetText(message_text);
-  label->SetTextContext(views::style::CONTEXT_DIALOG_BODY_TEXT);
-  label->SetDefaultTextStyle(views::style::STYLE_PRIMARY);
 
   gfx::Range learn_more_range(offsets[1], message_text.length());
   views::StyledLabel::RangeStyleInfo link_style =
@@ -101,8 +102,9 @@ PromptForScanningModalDialog::PromptForScanningModalDialog(
   label->AddStyleRange(learn_more_range, link_style);
 
   label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-  constexpr int kMaxMessageWidth = 400;
   label->SizeToFit(kMaxMessageWidth);
+  layout->StartRow(views::GridLayout::kFixedSize, 0);
+  layout->AddView(std::move(label));
 }
 
 PromptForScanningModalDialog::~PromptForScanningModalDialog() = default;
@@ -116,7 +118,8 @@ bool PromptForScanningModalDialog::ShouldShowCloseButton() const {
   return false;
 }
 
-BEGIN_METADATA(PromptForScanningModalDialog, views::DialogDelegateView)
-END_METADATA
+ui::ModalType PromptForScanningModalDialog::GetModalType() const {
+  return ui::MODAL_TYPE_CHILD;
+}
 
 }  // namespace safe_browsing

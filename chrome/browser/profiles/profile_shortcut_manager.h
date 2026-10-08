@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@
 #define CHROME_BROWSER_PROFILES_PROFILE_SHORTCUT_MANAGER_H_
 
 #include <memory>
-#include <string>
 
 #include "base/callback.h"
 #include "base/files/file_path.h"
+#include "base/strings/string16.h"
 
 class ProfileManager;
 
@@ -32,6 +32,11 @@ class ProfileShortcutManager {
   // profile created.
   virtual void CreateProfileShortcut(const base::FilePath& profile_path) = 0;
 
+  // Create an incognito desktop shortcut for the profile with path
+  // |profile_path|
+  virtual void CreateIncognitoProfileShortcut(
+      const base::FilePath& profile_path) = 0;
+
   // Removes any desktop profile shortcuts for the profile corresponding to
   // |profile_path|.
   virtual void RemoveProfileShortcuts(const base::FilePath& profile_path) = 0;
@@ -39,14 +44,15 @@ class ProfileShortcutManager {
   // Checks if a profile at |profile_path| has any shortcuts and invokes
   // |callback| with the bool result some time later. Does not consider
   // non-profile specific shortcuts.
-  virtual void HasProfileShortcuts(const base::FilePath& profile_path,
-                                   base::OnceCallback<void(bool)> callback) = 0;
+  virtual void HasProfileShortcuts(
+      const base::FilePath& profile_path,
+      const base::Callback<void(bool)>& callback) = 0;
 
   // Populates the |command_line|, |name| and |icon_path| that a shortcut for
   // the given |profile_path| should use.
   virtual void GetShortcutProperties(const base::FilePath& profile_path,
                                      base::CommandLine* command_line,
-                                     std::wstring* name,
+                                     base::string16* name,
                                      base::FilePath* icon_path) = 0;
 
   // Any time a profile is created this class might do a lot of work in the

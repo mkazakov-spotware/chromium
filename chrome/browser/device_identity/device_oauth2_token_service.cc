@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,17 +11,18 @@
 #include "base/callback_helpers.h"
 #include "base/location.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/single_thread_task_runner.h"
-#include "build/chromeos_buildflags.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
+#include "base/time/time.h"
 #include "chrome/browser/device_identity/device_oauth2_token_store.h"
 #include "components/policy/proto/device_management_backend.pb.h"
 #include "components/prefs/pref_service.h"
-#include "google_apis/gaia/gaia_access_token_fetcher.h"
 #include "google_apis/gaia/gaia_constants.h"
 #include "google_apis/gaia/gaia_urls.h"
 #include "google_apis/gaia/google_service_auth_error.h"
 #include "google_apis/gaia/oauth2_access_token_consumer.h"
 #include "google_apis/gaia/oauth2_access_token_fetcher.h"
+#include "google_apis/gaia/oauth2_access_token_fetcher_impl.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
 struct DeviceOAuth2TokenService::PendingRequest {
@@ -126,7 +127,7 @@ OAuth2AccessTokenManager* DeviceOAuth2TokenService::GetAccessTokenManager() {
   return token_manager_.get();
 }
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
 void DeviceOAuth2TokenService::SetServiceAccountEmail(
     const std::string& account_email) {
   store_->SetAccountEmail(account_email);
@@ -141,15 +142,15 @@ void DeviceOAuth2TokenService::OnRefreshTokenResponse(
 }
 
 void DeviceOAuth2TokenService::OnGetTokenInfoResponse(
-    const base::Value::Dict& token_info) {
+    std::unique_ptr<base::DictionaryValue> token_info) {
+  std::string gaia_robot_id;
   // For robot accounts email id is the account id.
-  const std::string* robot_email = token_info.FindString("email");
+  token_info->GetString("email", &gaia_robot_id);
   gaia_oauth_client_.reset();
 
   store_->PrepareTrustedAccountId(base::BindRepeating(
       &DeviceOAuth2TokenService::OnPrepareTrustedAccountIdFinished,
-      weak_ptr_factory_.GetWeakPtr(),
-      CoreAccountId::FromRobotEmail(robot_email ? *robot_email : "")));
+      weak_ptr_factory_.GetWeakPtr(), CoreAccountId::FromEmail(gaia_robot_id)));
 }
 
 void DeviceOAuth2TokenService::OnOAuthError() {
@@ -227,9 +228,8 @@ DeviceOAuth2TokenService::CreateAccessTokenFetcher(
     OAuth2AccessTokenConsumer* consumer) {
   std::string refresh_token = GetRefreshToken();
   DCHECK(!refresh_token.empty());
-  return GaiaAccessTokenFetcher::
-      CreateExchangeRefreshTokenForAccessTokenInstance(
-          consumer, url_loader_factory, refresh_token);
+  return std::make_unique<OAuth2AccessTokenFetcherImpl>(
+      consumer, url_loader_factory, refresh_token);
 }
 
 bool DeviceOAuth2TokenService::HasRefreshToken(
@@ -311,7 +311,7 @@ void DeviceOAuth2TokenService::FlushPendingRequests(
           scoped_request->request.get(),
           scoped_request->request->GetAccountId(), GetURLLoaderFactory(),
           scoped_request->client_id, scoped_request->client_secret,
-          scoped_request->request->GetConsumerId(), scoped_request->scopes);
+          scoped_request->scopes);
     } else {
       FailRequest(scoped_request->request.get(), error);
     }
@@ -327,7 +327,7 @@ void DeviceOAuth2TokenService::FailRequest(
                 GoogleServiceAuthError::InvalidGaiaCredentialsReason::
                     CREDENTIALS_REJECTED_BY_SERVER)
           : GoogleServiceAuthError(error);
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&OAuth2AccessTokenManager::RequestImpl::InformConsumer,
                      request->AsWeakPtr(), auth_error,
@@ -372,7 +372,7 @@ void DeviceOAuth2TokenService::StartValidation() {
 
   gaia_oauth_client_->RefreshToken(
       client_info, store_->GetRefreshToken(),
-      std::vector<std::string>(1, GaiaConstants::kGoogleUserInfoEmail),
+      std::vector<std::string>(1, GaiaConstants::kOAuthWrapBridgeUserInfoScope),
       max_refresh_token_validation_retries_, this);
 }
 

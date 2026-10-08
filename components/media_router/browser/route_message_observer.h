@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 
 #include <stdint.h>
 
+#include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/media_router/common/media_route.h"
 #include "components/media_router/common/mojom/media_router.mojom.h"
 
@@ -25,9 +26,6 @@ class RouteMessageObserver {
   // |route_id|: ID of MediaRoute to listen for messages.
   RouteMessageObserver(MediaRouter* router, const MediaRoute::Id& route_id);
 
-  RouteMessageObserver(const RouteMessageObserver&) = delete;
-  RouteMessageObserver& operator=(const RouteMessageObserver&) = delete;
-
   virtual ~RouteMessageObserver();
 
   // Invoked by |router_| whenever messages are received from the route sink.
@@ -38,8 +36,10 @@ class RouteMessageObserver {
   const MediaRoute::Id& route_id() const { return route_id_; }
 
  private:
-  const raw_ptr<MediaRouter> router_;
+  MediaRouter* const router_;
   const MediaRoute::Id route_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(RouteMessageObserver);
 };
 
 }  // namespace media_router

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,17 @@
 
 #include "base/callback_helpers.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "chromecast/base/chromecast_switches.h"
 #include "chromecast/base/task_runner_impl.h"
 #include "chromecast/media/api/decoder_buffer_base.h"
-#include "chromecast/media/audio/mixer_service/mixer_service_transport.pb.h"
+#include "chromecast/media/audio/audio_clock_simulator.h"
+#include "chromecast/media/audio/mixer_service/conversions.h"
+#include "chromecast/media/audio/mixer_service/mixer_service.pb.h"
 #include "chromecast/media/audio/mixer_service/mixer_socket.h"
-#include "chromecast/media/audio/net/conversions.h"
 #include "chromecast/media/base/default_monotonic_clock.h"
 #include "chromecast/media/cma/backend/media_pipeline_backend_for_mixer.h"
 #include "chromecast/media/cma/base/decoder_buffer_adapter.h"
@@ -47,11 +49,8 @@ namespace {
 const int kInitialFillSizeFrames = 512;
 const double kPlaybackRateEpsilon = 0.001;
 
-constexpr double kMinAudioClockRate = 0.99;
-constexpr double kMaxAudioClockRate = 1.01;
-
 const int64_t kDefaultInputQueueMs = 200;
-constexpr base::TimeDelta kFadeTime = base::Milliseconds(5);
+constexpr base::TimeDelta kFadeTime = base::TimeDelta::FromMilliseconds(5);
 const int kDefaultStartThresholdMs = 70;
 
 const CastAudioDecoder::OutputFormat kDecoderSampleFormat =
@@ -84,7 +83,7 @@ int MaxQueuedFrames(int sample_rate) {
       switches::kMixerSourceInputQueueMs, kDefaultInputQueueMs);
 
   return ::media::AudioTimestampHelper::TimeToFrames(
-      base::Milliseconds(queue_ms), sample_rate);
+      base::TimeDelta::FromMilliseconds(queue_ms), sample_rate);
 }
 
 int StartThreshold(int sample_rate) {
@@ -92,7 +91,7 @@ int StartThreshold(int sample_rate) {
       switches::kMixerSourceAudioReadyThresholdMs, kDefaultStartThresholdMs);
 
   return ::media::AudioTimestampHelper::TimeToFrames(
-      base::Milliseconds(start_threshold_ms), sample_rate);
+      base::TimeDelta::FromMilliseconds(start_threshold_ms), sample_rate);
 }
 
 }  // namespace
@@ -144,7 +143,7 @@ void AudioDecoderForMixer::Initialize() {
 }
 
 bool AudioDecoderForMixer::Start(int64_t playback_start_pts,
-                                 bool av_sync_enabled) {
+                                 bool start_playback_asap) {
   TRACE_FUNCTION_ENTRY0();
   DCHECK(IsValidConfig(input_config_));
 
@@ -154,9 +153,9 @@ bool AudioDecoderForMixer::Start(int64_t playback_start_pts,
     CreateDecoder();
   }
   decoded_config_ = (decoder_ ? decoder_->GetOutputConfig() : input_config_);
-  CreateMixerInput(decoded_config_, av_sync_enabled);
+  CreateMixerInput(decoded_config_, start_playback_asap);
   playback_start_pts_ = playback_start_pts;
-  av_sync_enabled_ = av_sync_enabled;
+  start_playback_asap_ = start_playback_asap;
 
   return true;
 }
@@ -173,7 +172,7 @@ void AudioDecoderForMixer::CreateBufferPool(const AudioConfig& config,
 }
 
 void AudioDecoderForMixer::CreateMixerInput(const AudioConfig& config,
-                                            bool av_sync_enabled) {
+                                            bool start_playback_asap) {
   CreateBufferPool(config, buffer_pool_frames_);
   DCHECK_GT(buffer_pool_frames_, 0);
 
@@ -183,8 +182,8 @@ void AudioDecoderForMixer::CreateMixerInput(const AudioConfig& config,
           ? mixer_service::OutputStreamParams::STREAM_TYPE_DEFAULT
           : mixer_service::OutputStreamParams::STREAM_TYPE_SFX);
   params.set_content_type(
-      audio_service::ConvertContentType(backend_->ContentType()));
-  params.set_sample_format(audio_service::SAMPLE_FORMAT_FLOAT_P);
+      mixer_service::ConvertContentType(backend_->ContentType()));
+  params.set_sample_format(mixer_service::SAMPLE_FORMAT_FLOAT_P);
   params.set_device_id(backend_->DeviceId());
   params.set_sample_rate(config.samples_per_second);
   params.set_num_channels(config.channel_number);
@@ -194,8 +193,7 @@ void AudioDecoderForMixer::CreateMixerInput(const AudioConfig& config,
   params.set_max_buffered_frames(MaxQueuedFrames(config.samples_per_second));
   params.set_fade_frames(::media::AudioTimestampHelper::TimeToFrames(
       kFadeTime, config.samples_per_second));
-  params.set_use_start_timestamp(av_sync_enabled);
-  params.set_enable_audio_clock_simulation(av_sync_enabled);
+  params.set_use_start_timestamp(!start_playback_asap);
 
   mixer_input_ =
       std::make_unique<mixer_service::OutputStreamConnection>(this, params);
@@ -271,8 +269,8 @@ float AudioDecoderForMixer::SetPlaybackRate(float rate) {
 }
 
 double AudioDecoderForMixer::SetAvSyncPlaybackRate(double rate) {
-  av_sync_clock_rate_ =
-      std::max(kMinAudioClockRate, std::min(rate, kMaxAudioClockRate));
+  av_sync_clock_rate_ = std::max(AudioClockSimulator::kMinRate,
+                                 std::min(rate, AudioClockSimulator::kMaxRate));
   if (mixer_input_)
     mixer_input_->SetAudioClockRate(av_sync_clock_rate_);
   return av_sync_clock_rate_;
@@ -386,8 +384,8 @@ void AudioDecoderForMixer::ResetMixerInputForNewConfig(
   int64_t last_timestamp = last_push_playout_timestamp_;
   last_push_playout_timestamp_ = kInvalidTimestamp;
 
-  CreateMixerInput(config, av_sync_enabled_);
-  if (av_sync_enabled_) {
+  CreateMixerInput(config, start_playback_asap_);
+  if (!start_playback_asap_) {
     if (last_timestamp != kInvalidTimestamp &&
         last_push_pts_ != kInvalidTimestamp) {
       mixer_input_->SetStartTimestamp(last_timestamp, last_push_pts_);
@@ -446,15 +444,6 @@ AudioDecoderForMixer::RenderingDelay AudioDecoderForMixer::GetRenderingDelay() {
   }
 
   return delay;
-}
-
-AudioDecoderForMixer::AudioTrackTimestamp
-AudioDecoderForMixer::GetAudioTrackTimestamp() {
-  return AudioTrackTimestamp();
-}
-
-int AudioDecoderForMixer::GetStartThresholdInFrames() {
-  return 0;
 }
 
 void AudioDecoderForMixer::OnBufferDecoded(
@@ -574,11 +563,10 @@ void AudioDecoderForMixer::WritePcm(scoped_refptr<DecoderBufferBase> buffer) {
 
 void AudioDecoderForMixer::FillNextBuffer(void* buffer,
                                           int frames,
-                                          int64_t delay_timestamp,
-                                          int64_t delay) {
+                                          int64_t playout_timestamp) {
   DCHECK(task_runner_->BelongsToCurrentThread());
   pending_output_frames_ = kNoPendingOutput;
-  next_buffer_delay_ = RenderingDelay(delay, delay_timestamp);
+  next_buffer_delay_ = RenderingDelay(0, playout_timestamp);
   CheckBufferComplete();
 }
 

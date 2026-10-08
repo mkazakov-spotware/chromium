@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,13 @@
 #include <windows.h>
 
 #include "base/win/atl.h"
-#include "chrome/updater/win/ui/ui_constants.h"
+#include "chrome/updater/win/ui/constants.h"
 
 // These headers must be included after base/win/atl.h.
 #include "./atlapp.h"
-#include "./atltypes.h"
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-but-set-variable"
-#pragma clang diagnostic ignored "-Wmissing-braces"
 #include "./atlctrls.h"
 #include "./atlframe.h"
-#pragma clang diagnostic pop
+#include "./atltypes.h"
 
 namespace updater {
 namespace ui {

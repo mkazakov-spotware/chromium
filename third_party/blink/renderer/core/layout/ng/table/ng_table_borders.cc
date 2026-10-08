@@ -1,11 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/layout/ng/table/ng_table_borders.h"
 
-#include "third_party/blink/renderer/core/css/properties/longhands.h"
-#include "third_party/blink/renderer/core/frame/web_feature.h"
 #include "third_party/blink/renderer/core/layout/ng/ng_block_node.h"
 #include "third_party/blink/renderer/core/layout/ng/ng_constraint_space.h"
 #include "third_party/blink/renderer/core/layout/ng/ng_constraint_space_builder.h"
@@ -43,6 +41,73 @@ bool IsSourceMoreSpecificThanEdge(EBorderStyle source_style,
   if (source_width > edge_width)
     return true;
   return source_style > edge_border_style;
+}
+
+// Side of the style the collapsed border belongs to.
+enum class LogicalEdgeSide { kInlineStart, kInlineEnd, kBlockStart, kBlockEnd };
+
+NGTableBorders::EdgeSide LogicalEdgeToPhysical(
+    LogicalEdgeSide logical_side,
+    WritingDirectionMode table_writing_direction) {
+  // https://www.w3.org/TR/css-writing-modes-4/#logical-to-physical
+  switch (logical_side) {
+    case LogicalEdgeSide::kInlineStart:
+      switch (table_writing_direction.GetWritingMode()) {
+        case WritingMode::kHorizontalTb:
+          return table_writing_direction.Direction() == TextDirection::kLtr
+                     ? NGTableBorders::EdgeSide::kLeft
+                     : NGTableBorders::EdgeSide::kRight;
+        case WritingMode::kVerticalLr:
+        case WritingMode::kVerticalRl:
+        case WritingMode::kSidewaysRl:
+          return table_writing_direction.Direction() == TextDirection::kLtr
+                     ? NGTableBorders::EdgeSide::kTop
+                     : NGTableBorders::EdgeSide::kBottom;
+        case WritingMode::kSidewaysLr:
+          return table_writing_direction.Direction() == TextDirection::kLtr
+                     ? NGTableBorders::EdgeSide::kBottom
+                     : NGTableBorders::EdgeSide::kTop;
+      }
+    case LogicalEdgeSide::kInlineEnd:
+      switch (table_writing_direction.GetWritingMode()) {
+        case WritingMode::kHorizontalTb:
+          return table_writing_direction.Direction() == TextDirection::kLtr
+                     ? NGTableBorders::EdgeSide::kRight
+                     : NGTableBorders::EdgeSide::kLeft;
+        case WritingMode::kVerticalLr:
+        case WritingMode::kVerticalRl:
+        case WritingMode::kSidewaysRl:
+          return table_writing_direction.Direction() == TextDirection::kLtr
+                     ? NGTableBorders::EdgeSide::kBottom
+                     : NGTableBorders::EdgeSide::kTop;
+        case WritingMode::kSidewaysLr:
+          return table_writing_direction.Direction() == TextDirection::kLtr
+                     ? NGTableBorders::EdgeSide::kTop
+                     : NGTableBorders::EdgeSide::kBottom;
+      }
+    case LogicalEdgeSide::kBlockStart:
+      switch (table_writing_direction.GetWritingMode()) {
+        case WritingMode::kHorizontalTb:
+          return NGTableBorders::EdgeSide::kTop;
+        case WritingMode::kVerticalLr:
+        case WritingMode::kSidewaysLr:
+          return NGTableBorders::EdgeSide::kLeft;
+        case WritingMode::kVerticalRl:
+        case WritingMode::kSidewaysRl:
+          return NGTableBorders::EdgeSide::kRight;
+      }
+    case LogicalEdgeSide::kBlockEnd:
+      switch (table_writing_direction.GetWritingMode()) {
+        case WritingMode::kHorizontalTb:
+          return NGTableBorders::EdgeSide::kBottom;
+        case WritingMode::kVerticalLr:
+        case WritingMode::kSidewaysLr:
+          return NGTableBorders::EdgeSide::kRight;
+        case WritingMode::kVerticalRl:
+        case WritingMode::kSidewaysRl:
+          return NGTableBorders::EdgeSide::kLeft;
+      }
+  }
 }
 
 class ColBordersMarker {
@@ -115,24 +180,24 @@ class ColgroupBordersMarker {
 scoped_refptr<NGTableBorders> NGTableBorders::ComputeTableBorders(
     const NGBlockNode& table) {
   const ComputedStyle& table_style = table.Style();
-  const bool is_collapsed =
-      table_style.BorderCollapse() == EBorderCollapse::kCollapse;
+  NGBoxStrut intrinsic_borders(LayoutUnit(table_style.BorderStartWidth()),
+                               LayoutUnit(table_style.BorderEndWidth()),
+                               LayoutUnit(table_style.BorderBeforeWidth()),
+                               LayoutUnit(table_style.BorderAfterWidth()));
   scoped_refptr<NGTableBorders> table_borders =
-      base::MakeRefCounted<NGTableBorders>(
-          ComputeNonCollapsedTableBorders(table_style), is_collapsed);
+      base::MakeRefCounted<NGTableBorders>(table_style, intrinsic_borders);
 
-  if (!is_collapsed)
+  if (table_style.BorderCollapse() != EBorderCollapse::kCollapse)
     return table_borders;
 
   NGTableGroupedChildren grouped_children(table);
+  bool hide_empty_cells = table_style.EmptyCells() == EEmptyCells::kHide;
   WritingDirectionMode table_writing_direction =
       table.Style().GetWritingDirection();
-
   wtf_size_t box_order = 0;
-  wtf_size_t table_column_count =
-      NGTableAlgorithmUtils::ComputeMaximumNonMergeableColumnCount(
-          grouped_children.columns, table.Style().IsFixedTableLayout());
+  wtf_size_t table_column_count = 0;
   wtf_size_t table_row_index = 0;
+
   // Mark cell borders.
   bool found_multispan_cells = false;
   for (const NGBlockNode section : grouped_children) {
@@ -144,6 +209,11 @@ scoped_refptr<NGTableBorders> NGTableBorders::ComputeTableBorders(
       for (NGBlockNode cell = To<NGBlockNode>(row.FirstChild()); cell;
            cell = To<NGBlockNode>(cell.NextSibling())) {
         tabulator.FindNextFreeColumn();
+        // https://stackoverflow.com/questions/18758373/why-do-the-css-property-border-collapse-and-empty-cells-conflict
+        if (hide_empty_cells && !To<NGBlockNode>(cell).FirstChild()) {
+          tabulator.ProcessCell(cell);
+          continue;
+        }
         wtf_size_t cell_colspan = cell.TableCellColspan();
         found_multispan_cells |=
             cell.TableCellRowspan() > 1 || cell_colspan > 1;
@@ -169,8 +239,8 @@ scoped_refptr<NGTableBorders> NGTableBorders::ComputeTableBorders(
     table_borders->AddSection(section_start_row,
                               table_row_index - section_start_row);
   }
-
   table_borders->SetLastColumnIndex(table_column_count);
+
   wtf_size_t table_row_count = table_row_index;
   table_row_index = 0;
 
@@ -186,6 +256,10 @@ scoped_refptr<NGTableBorders> NGTableBorders::ComputeTableBorders(
         for (NGBlockNode cell = To<NGBlockNode>(row.FirstChild()); cell;
              cell = To<NGBlockNode>(cell.NextSibling())) {
           tabulator.FindNextFreeColumn();
+          if (hide_empty_cells && !To<NGBlockNode>(cell).FirstChild()) {
+            tabulator.ProcessCell(cell);
+            continue;
+          }
           table_borders->MergeBorders(
               table_row_index, tabulator.CurrentColumn(),
               cell.TableCellRowspan(), cell.TableCellColspan(), cell.Style(),
@@ -233,13 +307,13 @@ scoped_refptr<NGTableBorders> NGTableBorders::ComputeTableBorders(
                                       table_writing_direction,
                                       *table_borders.get());
   VisitLayoutNGTableColumn(
-      const_cast<HeapVector<NGBlockNode>&>(grouped_children.columns),
+      const_cast<Vector<NGBlockNode>&>(grouped_children.columns),
       table_column_count, &col_borders_marker);
   ColgroupBordersMarker colgroup_borders_marker(table_row_count, ++box_order,
                                                 table_writing_direction,
                                                 *table_borders.get());
   VisitLayoutNGTableColumn(
-      const_cast<HeapVector<NGBlockNode>&>(grouped_children.columns),
+      const_cast<Vector<NGBlockNode>&>(grouped_children.columns),
       table_column_count, &colgroup_borders_marker);
 
   // Mark table borders.
@@ -247,29 +321,17 @@ scoped_refptr<NGTableBorders> NGTableBorders::ComputeTableBorders(
                               table_style, NGTableBorders::EdgeSource::kTable,
                               ++box_order, table_writing_direction);
 
-  table_borders->UpdateTableBorder(table_row_count, table_column_count);
-
+  table_borders->ComputeCollapsedTableBorderPadding(table_row_count,
+                                                    table_column_count);
   return table_borders;
 }
 
-NGTableBorders::NGTableBorders(const NGBoxStrut& table_border,
-                               const bool is_collapsed)
-    : table_border_(table_border), is_collapsed_(is_collapsed) {}
-
-Color NGTableBorders::BorderColor(const ComputedStyle* style,
-                                  EdgeSide edge_side) {
-  switch (edge_side) {
-    case EdgeSide::kLeft:
-      return style->VisitedDependentColor(GetCSSPropertyBorderLeftColor());
-    case EdgeSide::kRight:
-      return style->VisitedDependentColor(GetCSSPropertyBorderRightColor());
-    case EdgeSide::kTop:
-      return style->VisitedDependentColor(GetCSSPropertyBorderTopColor());
-    case EdgeSide::kBottom:
-      return style->VisitedDependentColor(GetCSSPropertyBorderBottomColor());
-    case EdgeSide::kDoNotFill:
-      NOTREACHED();
-      return style->VisitedDependentColor(GetCSSPropertyBorderBottomColor());
+NGTableBorders::NGTableBorders(const ComputedStyle& table_style,
+                               const NGBoxStrut& table_border)
+    : is_collapsed_(table_style.BorderCollapse() ==
+                    EBorderCollapse::kCollapse) {
+  if (!is_collapsed_) {
+    cached_table_border_ = table_border;
   }
 }
 
@@ -317,23 +379,6 @@ String NGTableBorders::DumpEdges() {
 
 void NGTableBorders::ShowEdges() {
   LOG(INFO) << "\n" << DumpEdges().Utf8();
-}
-
-bool NGTableBorders::operator==(const NGTableBorders& other) const {
-  // Compare by traversal, because we must call edge comparsion function.
-  if (edges_.size() != other.edges_.size())
-    return false;
-  for (unsigned i = 0; i < edges_.size(); i++) {
-    if (edges_[i].edge_side != other.edges_[i].edge_side)
-      return false;
-    if (edges_[i].box_order != other.edges_[i].box_order)
-      return false;
-  }
-  return sections_ == other.sections_ &&
-         edges_per_row_ == other.edges_per_row_ &&
-         table_border_ == other.table_border_ &&
-         last_column_index_ == other.last_column_index_ &&
-         is_collapsed_ == other.is_collapsed_;
 }
 
 #endif
@@ -392,15 +437,32 @@ NGBoxStrut NGTableBorders::GetCellBorders(wtf_size_t row,
   return border_strut;
 }
 
-void NGTableBorders::UpdateTableBorder(wtf_size_t table_row_count,
-                                       wtf_size_t table_column_count) {
+void NGTableBorders::ComputeCollapsedTableBorderPadding(
+    wtf_size_t table_row_count,
+    wtf_size_t table_column_count) {
   DCHECK(is_collapsed_);
+  // https://www.w3.org/TR/CSS2/tables.html#collapsing-borders
+  // block[start|end] borders are computed by traversing all the edges.
+  // inline[start|end] borders are computed by looking at first/last edge.
   if (edges_per_row_ == 0) {
-    table_border_ = NGBoxStrut();
+    cached_table_border_ = NGBoxStrut();
     return;
   }
   DCHECK_GE((table_column_count + 1) * 2, edges_per_row_);
-  table_border_ = GetCellBorders(0, 0, table_row_count, table_column_count);
+  // We still need visual border rect.
+  NGBoxStrut borders =
+      GetCellBorders(0, 0, table_row_count, table_column_count);
+  collapsed_visual_inline_start_ = borders.inline_start;
+  collapsed_visual_inline_end_ = borders.inline_end;
+  wtf_size_t inline_start_edge = 0;
+  wtf_size_t inline_end_edge = 2 * table_column_count;
+  borders.inline_start = CanPaint(inline_start_edge)
+                             ? BorderWidth(inline_start_edge) / 2
+                             : LayoutUnit();
+  borders.inline_end = CanPaint(inline_end_edge)
+                           ? BorderWidth(inline_end_edge) / 2
+                           : LayoutUnit();
+  cached_table_border_ = borders;
 }
 
 NGBoxStrut NGTableBorders::CellBorder(
@@ -488,20 +550,22 @@ void NGTableBorders::MergeBorders(wtf_size_t cell_start_row,
       EnsureCellRowFits(cell_start_row + clamped_rowspan - 1);
     }
   }
-
-  PhysicalToLogical<EdgeSide> edge_side(table_writing_direction, EdgeSide::kTop,
-                                        EdgeSide::kRight, EdgeSide::kBottom,
-                                        EdgeSide::kLeft);
   MergeRowAxisBorder(cell_start_row, cell_start_column, clamped_colspan,
-                     source_style, box_order, edge_side.BlockStart());
+                     source_style, box_order,
+                     LogicalEdgeToPhysical(LogicalEdgeSide::kBlockStart,
+                                           table_writing_direction));
   MergeRowAxisBorder(cell_start_row + clamped_rowspan, cell_start_column,
                      clamped_colspan, source_style, box_order,
-                     edge_side.BlockEnd());
+                     LogicalEdgeToPhysical(LogicalEdgeSide::kBlockEnd,
+                                           table_writing_direction));
   MergeColumnAxisBorder(cell_start_row, cell_start_column, clamped_rowspan,
-                        source_style, box_order, edge_side.InlineStart());
+                        source_style, box_order,
+                        LogicalEdgeToPhysical(LogicalEdgeSide::kInlineStart,
+                                              table_writing_direction));
   MergeColumnAxisBorder(cell_start_row, cell_start_column + clamped_colspan,
                         clamped_rowspan, source_style, box_order,
-                        edge_side.InlineEnd());
+                        LogicalEdgeToPhysical(LogicalEdgeSide::kInlineEnd,
+                                              table_writing_direction));
   if (mark_inner_borders) {
     MarkInnerBordersAsDoNotFill(cell_start_row, cell_start_column,
                                 clamped_rowspan, clamped_colspan);

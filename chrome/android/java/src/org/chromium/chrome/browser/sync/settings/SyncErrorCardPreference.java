@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,17 +13,22 @@ import androidx.preference.Preference;
 import androidx.preference.PreferenceViewHolder;
 
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
-import org.chromium.chrome.browser.signin.services.ProfileDataCache;
-import org.chromium.chrome.browser.sync.SyncService;
+import org.chromium.chrome.browser.signin.IdentityServicesProvider;
+import org.chromium.chrome.browser.signin.PersonalizedSigninPromoView;
+import org.chromium.chrome.browser.signin.ProfileDataCache;
+import org.chromium.chrome.browser.sync.AndroidSyncSettings;
+import org.chromium.chrome.browser.sync.ProfileSyncService;
 import org.chromium.chrome.browser.sync.settings.SyncSettingsUtils.SyncError;
-import org.chromium.chrome.browser.ui.signin.PersonalizedSigninPromoView;
 import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.identitymanager.ConsentLevel;
 
+import java.util.Collections;
+
 public class SyncErrorCardPreference extends Preference
-        implements SyncService.SyncStateChangedListener, ProfileDataCache.Observer {
+        implements AndroidSyncSettings.AndroidSyncSettingsObserver,
+                   ProfileSyncService.SyncStateChangedListener, ProfileDataCache.Observer {
     /**
      * Listener for the buttons in the error card.
      */
@@ -53,9 +58,9 @@ public class SyncErrorCardPreference extends Preference
     public SyncErrorCardPreference(Context context, AttributeSet attrs) {
         super(context, attrs);
 
-        mProfileDataCache = ProfileDataCache.createWithDefaultImageSize(
+        mProfileDataCache = ProfileDataCache.createProfileDataCache(
                 context, R.drawable.ic_sync_badge_error_20dp);
-        setLayoutResource(R.layout.sync_promo_view_settings);
+        setLayoutResource(R.layout.personalized_signin_promo_view_settings);
         mSyncError = SyncError.NO_ERROR;
     }
 
@@ -63,7 +68,8 @@ public class SyncErrorCardPreference extends Preference
     public void onAttached() {
         super.onAttached();
         mProfileDataCache.addObserver(this);
-        SyncService syncService = SyncService.get();
+        AndroidSyncSettings.get().registerObserver(this);
+        ProfileSyncService syncService = ProfileSyncService.get();
         if (syncService != null) {
             syncService.addSyncStateChangedListener(this);
         }
@@ -74,7 +80,8 @@ public class SyncErrorCardPreference extends Preference
     public void onDetached() {
         super.onDetached();
         mProfileDataCache.removeObserver(this);
-        SyncService syncService = SyncService.get();
+        AndroidSyncSettings.get().unregisterObserver(this);
+        ProfileSyncService syncService = ProfileSyncService.get();
         if (syncService != null) {
             syncService.removeSyncStateChangedListener(this);
         }
@@ -94,6 +101,11 @@ public class SyncErrorCardPreference extends Preference
     }
 
     private void update() {
+        // If feature is not enabled keep the preference at the default hidden state.
+        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.MOBILE_IDENTITY_CONSISTENCY)) {
+            return;
+        }
+
         mSyncError = SyncSettingsUtils.getSyncError();
         boolean suppressSyncSetupIncompleteFromSigninPage =
                 (mSyncError == SyncError.SYNC_SETUP_INCOMPLETE)
@@ -116,20 +128,18 @@ public class SyncErrorCardPreference extends Preference
         if (signedInAccount == null) {
             return;
         }
+
+        mProfileDataCache.update(Collections.singletonList(signedInAccount));
         Drawable accountImage =
                 mProfileDataCache.getProfileDataOrDefault(signedInAccount).getImage();
         errorCardView.getImage().setImageDrawable(accountImage);
-        errorCardView.getIllustration().setVisibility(View.GONE);
 
         errorCardView.getDismissButton().setVisibility(View.GONE);
         if (mSyncError == SyncError.SYNC_SETUP_INCOMPLETE) {
-            errorCardView.getTitle().setVisibility(View.GONE);
+            errorCardView.getStatusMessage().setVisibility(View.GONE);
         } else {
-            errorCardView.getTitle().setVisibility(View.VISIBLE);
+            errorCardView.getStatusMessage().setVisibility(View.VISIBLE);
         }
-        errorCardView.getTitle().setText(
-                SyncSettingsUtils.getSyncErrorCardTitle(getContext(), mSyncError));
-
         errorCardView.getDescription().setText(
                 SyncSettingsUtils.getSyncErrorHint(getContext(), mSyncError));
 
@@ -155,7 +165,7 @@ public class SyncErrorCardPreference extends Preference
     }
 
     /**
-     * {@link SyncService.SyncStateChangedListener} implementation.
+     * {@link ProfileSyncServiceListener} implementation.
      */
     @Override
     public void syncStateChanged() {
@@ -163,10 +173,18 @@ public class SyncErrorCardPreference extends Preference
     }
 
     /**
+     * {@link AndroidSyncSettings.AndroidSyncSettingsObserver} implementation.
+     */
+    @Override
+    public void androidSyncSettingsChanged() {
+        update();
+    }
+
+    /**
      * {@link ProfileDataCache.Observer} implementation.
      */
     @Override
-    public void onProfileDataUpdated(String accountEmail) {
+    public void onProfileDataUpdated(String accountId) {
         update();
     }
 }

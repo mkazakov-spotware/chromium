@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define CONTENT_PUBLIC_BROWSER_SERIAL_CHOOSER_H_
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "content/common/content_export.h"
 #include "services/device/public/mojom/serial.mojom-forward.h"
 
@@ -20,11 +21,10 @@ class CONTENT_EXPORT SerialChooser {
   using Callback = base::OnceCallback<void(device::mojom::SerialPortInfoPtr)>;
 
   SerialChooser();
-
-  SerialChooser(const SerialChooser&) = delete;
-  SerialChooser& operator=(const SerialChooser&) = delete;
-
   virtual ~SerialChooser();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SerialChooser);
 };
 
 }  // namespace content

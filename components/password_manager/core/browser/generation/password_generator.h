@@ -1,12 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_GENERATION_PASSWORD_GENERATOR_H_
 #define COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_GENERATION_PASSWORD_GENERATOR_H_
 
-#include <string>
-
+#include "base/strings/string16.h"
 
 namespace autofill {
 
@@ -29,7 +28,7 @@ extern const uint32_t kDefaultPasswordLength;
 // - at least 1 upper case latin character
 // - at least 1 number (digit)
 // - no symbols
-std::u16string GeneratePassword(const PasswordRequirementsSpec& spec);
+base::string16 GeneratePassword(const PasswordRequirementsSpec& spec);
 
 }  // namespace autofill
 

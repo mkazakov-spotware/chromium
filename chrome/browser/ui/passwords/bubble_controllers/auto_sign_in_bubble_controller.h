@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,7 @@ class AutoSignInBubbleController : public PasswordBubbleControllerBase {
 
  private:
   // PasswordBubbleControllerBase methods:
-  std::u16string GetTitle() const override;
+  base::string16 GetTitle() const override;
   void ReportInteractions() override;
 
   password_manager::PasswordForm pending_password_;

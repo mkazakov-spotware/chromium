@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@ package org.chromium.webapk.shell_apk;
 
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
@@ -25,9 +26,6 @@ import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
-import androidx.annotation.RequiresApi;
-
-import org.chromium.components.webapk.lib.common.WebApkMetaDataKeys;
 import org.chromium.webapk.lib.common.WebApkConstants;
 
 import java.util.Collections;
@@ -67,7 +65,7 @@ public class ManageDataLauncherActivity extends Activity {
         mProviderPackage = getIntent().getStringExtra(EXTRA_PROVIDER_PACKAGE);
         mUrl = Uri.parse(getIntent().getStringExtra(EXTRA_SITE_SETTINGS_URL));
 
-        if (!siteSettingsShortcutEnabled(this, mProviderPackage)) {
+        if (!supportsLaunchSettings(this, mProviderPackage)) {
             handleNoSupportForLaunchSettings();
             return;
         }
@@ -128,13 +126,7 @@ public class ManageDataLauncherActivity extends Activity {
         }
     }
 
-    private static boolean siteSettingsShortcutEnabled(Context context, String providerPackage) {
-        Bundle metadata = WebApkUtils.readMetaData(context);
-        if (metadata == null
-                || !metadata.getBoolean(WebApkMetaDataKeys.ENABLE_SITE_SETTINGS_SHORTCUT, false)) {
-            return false;
-        }
-
+    private static boolean supportsLaunchSettings(Context context, String providerPackage) {
         Intent intent = new Intent(ACTION_CUSTOM_TABS_CONNECTION);
         intent.addCategory(CATEGORY_LAUNCH_WEBAPK_SITE_SETTINGS);
         intent.setPackage(providerPackage);
@@ -155,7 +147,7 @@ public class ManageDataLauncherActivity extends Activity {
      * the app's main activity will be used by default. This activity needs to define the
      * MAIN action and LAUNCHER category in order to attach the shortcut.
      */
-    @RequiresApi(Build.VERSION_CODES.N_MR1)
+    @TargetApi(Build.VERSION_CODES.N_MR1)
     private static ShortcutInfo createSiteSettingsShortcutInfo(
             Context context, String url, String providerPackage) {
         Intent siteSettingsIntent = new Intent(context, ManageDataLauncherActivity.class);
@@ -185,7 +177,7 @@ public class ManageDataLauncherActivity extends Activity {
         ShortcutManager shortcutManager = context.getSystemService(ShortcutManager.class);
 
         // Remove potentially existing shortcut if package does not support shortcuts.
-        if (!siteSettingsShortcutEnabled(context, params.getHostBrowserPackageName())) {
+        if (!supportsLaunchSettings(context, params.getHostBrowserPackageName())) {
             shortcutManager.removeDynamicShortcuts(Collections.singletonList(
                     ManageDataLauncherActivity.SITE_SETTINGS_SHORTCUT_ID));
             return;

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include "base/macros.h"
 #include "ppapi/c/pp_var.h"
 #include "ppapi/shared_impl/ppapi_shared_export.h"
 
@@ -59,10 +60,6 @@ class PPAPI_SHARED_EXPORT ScopedPPVarArray {
                    size_t size);
 
   explicit ScopedPPVarArray(size_t size);
-
-  ScopedPPVarArray(const ScopedPPVarArray&) = delete;
-  ScopedPPVarArray& operator=(const ScopedPPVarArray&) = delete;
-
   ~ScopedPPVarArray();
 
   // Passes ownership of the vars and the underlying array memory to the caller.
@@ -77,6 +74,9 @@ class PPAPI_SHARED_EXPORT ScopedPPVarArray {
   const PP_Var& operator[](size_t index) { return array_[index]; }
 
  private:
+  // TODO(raymes): Consider supporting copy/assign.
+  DISALLOW_COPY_AND_ASSIGN(ScopedPPVarArray);
+
   PP_Var* array_;
   size_t size_;
 };

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/callback_helpers.h"
+#include "base/stl_util.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "components/prefs/json_pref_store.h"
@@ -28,7 +29,9 @@ using testing::Mock;
 namespace {
 
 const char kPrefName[] = "pref.name";
-const char kStandaloneBrowserPref[] = "standalone_browser_pref";
+const char kManagedPref[] = "managed_pref";
+const char kRecommendedPref[] = "recommended_pref";
+const char kSupervisedPref[] = "supervised_pref";
 
 }  // namespace
 
@@ -90,7 +93,8 @@ TEST(PrefServiceTest, Observers) {
   const char pref_name[] = "homepage";
 
   TestingPrefServiceSimple prefs;
-  prefs.SetUserPref(pref_name, base::Value("http://www.cnn.com"));
+  prefs.SetUserPref(pref_name,
+                    std::make_unique<base::Value>("http://www.cnn.com"));
   prefs.registry()->RegisterStringPref(pref_name, std::string());
 
   const char new_pref_value[] = "http://www.google.com/";
@@ -126,7 +130,7 @@ TEST(PrefServiceTest, Observers) {
   obs2.Expect(pref_name, &expected_new_pref_value2);
   // This should fire the checks in obs and obs2 but with an unchanged value
   // as the recommended value is being overridden by the user-set value.
-  prefs.SetRecommendedPref(pref_name, recommended_pref_value.Clone());
+  prefs.SetRecommendedPref(pref_name, recommended_pref_value.CreateDeepCopy());
   Mock::VerifyAndClearExpectations(&obs);
   Mock::VerifyAndClearExpectations(&obs2);
 
@@ -148,14 +152,15 @@ TEST(PrefServiceTest, GetValueChangedType) {
   prefs.registry()->RegisterIntegerPref(kPrefName, kTestValue);
 
   // Check falling back to a recommended value.
-  prefs.SetUserPref(kPrefName, base::Value("not an integer"));
+  prefs.SetUserPref(kPrefName, std::make_unique<base::Value>("not an integer"));
   const PrefService::Preference* pref = prefs.FindPreference(kPrefName);
   ASSERT_TRUE(pref);
   const base::Value* value = pref->GetValue();
   ASSERT_TRUE(value);
   EXPECT_EQ(base::Value::Type::INTEGER, value->type());
-  ASSERT_TRUE(value->is_int());
-  EXPECT_EQ(kTestValue, value->GetInt());
+  int actual_int_value = -1;
+  EXPECT_TRUE(value->GetAsInteger(&actual_int_value));
+  EXPECT_EQ(kTestValue, actual_int_value);
 }
 
 TEST(PrefServiceTest, GetValueAndGetRecommendedValue) {
@@ -173,43 +178,48 @@ TEST(PrefServiceTest, GetValueAndGetRecommendedValue) {
   const base::Value* value = pref->GetValue();
   ASSERT_TRUE(value);
   EXPECT_EQ(base::Value::Type::INTEGER, value->type());
-  ASSERT_TRUE(value->is_int());
-  EXPECT_EQ(kDefaultValue, value->GetInt());
+  int actual_int_value = -1;
+  EXPECT_TRUE(value->GetAsInteger(&actual_int_value));
+  EXPECT_EQ(kDefaultValue, actual_int_value);
 
   // Check that GetRecommendedValue() returns no value.
   value = pref->GetRecommendedValue();
   ASSERT_FALSE(value);
 
   // Set a user-set value.
-  prefs.SetUserPref(kPrefName, base::Value(kUserValue));
+  prefs.SetUserPref(kPrefName, std::make_unique<base::Value>(kUserValue));
 
   // Check that GetValue() returns the user-set value.
   value = pref->GetValue();
   ASSERT_TRUE(value);
   EXPECT_EQ(base::Value::Type::INTEGER, value->type());
-  ASSERT_TRUE(value->is_int());
-  EXPECT_EQ(kUserValue, value->GetInt());
+  actual_int_value = -1;
+  EXPECT_TRUE(value->GetAsInteger(&actual_int_value));
+  EXPECT_EQ(kUserValue, actual_int_value);
 
   // Check that GetRecommendedValue() returns no value.
   value = pref->GetRecommendedValue();
   ASSERT_FALSE(value);
 
   // Set a recommended value.
-  prefs.SetRecommendedPref(kPrefName, base::Value(kRecommendedValue));
+  prefs.SetRecommendedPref(kPrefName,
+                           std::make_unique<base::Value>(kRecommendedValue));
 
   // Check that GetValue() returns the user-set value.
   value = pref->GetValue();
   ASSERT_TRUE(value);
   EXPECT_EQ(base::Value::Type::INTEGER, value->type());
-  ASSERT_TRUE(value->is_int());
-  EXPECT_EQ(kUserValue, value->GetInt());
+  actual_int_value = -1;
+  EXPECT_TRUE(value->GetAsInteger(&actual_int_value));
+  EXPECT_EQ(kUserValue, actual_int_value);
 
   // Check that GetRecommendedValue() returns the recommended value.
   value = pref->GetRecommendedValue();
   ASSERT_TRUE(value);
   EXPECT_EQ(base::Value::Type::INTEGER, value->type());
-  ASSERT_TRUE(value->is_int());
-  EXPECT_EQ(kRecommendedValue, value->GetInt());
+  actual_int_value = -1;
+  EXPECT_TRUE(value->GetAsInteger(&actual_int_value));
+  EXPECT_EQ(kRecommendedValue, actual_int_value);
 
   // Remove the user-set value.
   prefs.RemoveUserPref(kPrefName);
@@ -218,15 +228,17 @@ TEST(PrefServiceTest, GetValueAndGetRecommendedValue) {
   value = pref->GetValue();
   ASSERT_TRUE(value);
   EXPECT_EQ(base::Value::Type::INTEGER, value->type());
-  ASSERT_TRUE(value->is_int());
-  EXPECT_EQ(kRecommendedValue, value->GetInt());
+  actual_int_value = -1;
+  EXPECT_TRUE(value->GetAsInteger(&actual_int_value));
+  EXPECT_EQ(kRecommendedValue, actual_int_value);
 
   // Check that GetRecommendedValue() returns the recommended value.
   value = pref->GetRecommendedValue();
   ASSERT_TRUE(value);
   EXPECT_EQ(base::Value::Type::INTEGER, value->type());
-  ASSERT_TRUE(value->is_int());
-  EXPECT_EQ(kRecommendedValue, value->GetInt());
+  actual_int_value = -1;
+  EXPECT_TRUE(value->GetAsInteger(&actual_int_value));
+  EXPECT_EQ(kRecommendedValue, actual_int_value);
 }
 
 TEST(PrefServiceTest, SetTimeValue_RegularTime) {
@@ -246,8 +258,8 @@ TEST(PrefServiceTest, SetTimeValue_NullTime) {
   TestingPrefServiceSimple prefs;
 
   // Register a non-null time as the default.
-  const base::Time default_time =
-      base::Time::FromDeltaSinceWindowsEpoch(base::Microseconds(12345));
+  const base::Time default_time = base::Time::FromDeltaSinceWindowsEpoch(
+      base::TimeDelta::FromMicroseconds(12345));
   prefs.registry()->RegisterTimePref(kPrefName, default_time);
   EXPECT_FALSE(prefs.GetTime(kPrefName).is_null());
 
@@ -274,7 +286,8 @@ TEST(PrefServiceTest, SetTimeDeltaValue_ZeroTimeDelta) {
   TestingPrefServiceSimple prefs;
 
   // Register a non-zero time delta as the default.
-  const base::TimeDelta default_delta = base::Microseconds(12345);
+  const base::TimeDelta default_delta =
+      base::TimeDelta::FromMicroseconds(12345);
   prefs.registry()->RegisterTimeDeltaPref(kPrefName, default_delta);
   EXPECT_FALSE(prefs.GetTimeDelta(kPrefName).is_zero());
 
@@ -295,13 +308,13 @@ class WriteFlagChecker : public TestingPrefStore {
   }
 
   void SetValue(const std::string& key,
-                base::Value value,
+                std::unique_ptr<base::Value> value,
                 uint32_t flags) override {
     SetLastWriteFlags(flags);
   }
 
   void SetValueSilently(const std::string& key,
-                        base::Value value,
+                        std::unique_ptr<base::Value> value,
                         uint32_t flags) override {
     SetLastWriteFlags(flags);
   }
@@ -365,7 +378,7 @@ TEST(PrefServiceTest, WriteablePrefStoreFlags) {
        PrefRegistry::LOSSY_PREF | kCustomRegistrationFlag,
        WriteablePrefStore::LOSSY_PREF_WRITE_FLAG}};
 
-  for (size_t i = 0; i < std::size(kRegistrationToWriteFlags); ++i) {
+  for (size_t i = 0; i < base::size(kRegistrationToWriteFlags); ++i) {
     RegistrationToWriteFlags entry = kRegistrationToWriteFlags[i];
     registry->RegisterDictionaryPref(entry.pref_name,
                                      entry.registration_flags);
@@ -467,7 +480,7 @@ TEST_F(PrefServiceSetValueTest, SetListValue) {
   Mock::VerifyAndClearExpectations(&observer_);
 
   base::ListValue new_value;
-  new_value.Append(kValue);
+  new_value.AppendString(kValue);
   observer_.Expect(kName, &new_value);
   prefs_.Set(kName, new_value);
   Mock::VerifyAndClearExpectations(&observer_);
@@ -482,56 +495,130 @@ TEST_F(PrefServiceSetValueTest, SetListValue) {
   Mock::VerifyAndClearExpectations(&observer_);
 }
 
-class PrefStandaloneBrowserPrefsTest : public testing::Test {
+class PrefValueStoreChangeTest : public testing::Test {
  protected:
-  PrefStandaloneBrowserPrefsTest()
+  PrefValueStoreChangeTest()
       : user_pref_store_(base::MakeRefCounted<TestingPrefStore>()),
-        standalone_browser_pref_store_(
-            base::MakeRefCounted<TestingPrefStore>()),
         pref_registry_(base::MakeRefCounted<PrefRegistrySimple>()) {}
 
-  ~PrefStandaloneBrowserPrefsTest() override = default;
+  ~PrefValueStoreChangeTest() override = default;
 
   void SetUp() override {
     auto pref_notifier = std::make_unique<PrefNotifierImpl>();
     auto pref_value_store = std::make_unique<PrefValueStore>(
         nullptr /* managed_prefs */, nullptr /* supervised_user_prefs */,
-        nullptr /* extension_prefs */, standalone_browser_pref_store_.get(),
-        new TestingPrefStore(), user_pref_store_.get(),
-        nullptr /* recommended_prefs */, pref_registry_->defaults().get(),
-        pref_notifier.get());
+        nullptr /* extension_prefs */, new TestingPrefStore(),
+        user_pref_store_.get(), nullptr /* recommended_prefs */,
+        pref_registry_->defaults().get(), pref_notifier.get());
     pref_service_ = std::make_unique<PrefService>(
         std::move(pref_notifier), std::move(pref_value_store), user_pref_store_,
-        standalone_browser_pref_store_, pref_registry_, base::DoNothing(),
-        false);
-    pref_registry_->RegisterIntegerPref(kStandaloneBrowserPref, 4);
+        pref_registry_, base::DoNothing(), false);
+    pref_registry_->RegisterIntegerPref(kManagedPref, 1);
+    pref_registry_->RegisterIntegerPref(kRecommendedPref, 2);
+    pref_registry_->RegisterIntegerPref(kSupervisedPref, 3);
   }
 
   std::unique_ptr<PrefService> pref_service_;
   scoped_refptr<TestingPrefStore> user_pref_store_;
-  scoped_refptr<TestingPrefStore> standalone_browser_pref_store_;
   scoped_refptr<PrefRegistrySimple> pref_registry_;
 };
 
-// Check that the standalone browser pref store is correctly initialized,
-// written to, read, and has correct precedence.
-TEST_F(PrefStandaloneBrowserPrefsTest, CheckStandaloneBrowserPref) {
+// Check that value from the new PrefValueStore will be correctly retrieved.
+TEST_F(PrefValueStoreChangeTest, ChangePrefValueStore) {
   const PrefService::Preference* preference =
-      pref_service_->FindPreference(kStandaloneBrowserPref);
+      pref_service_->FindPreference(kManagedPref);
   EXPECT_TRUE(preference->IsDefaultValue());
-  EXPECT_EQ(base::Value(4), *(preference->GetValue()));
-  user_pref_store_->SetInteger(kStandaloneBrowserPref, 11);
-  EXPECT_EQ(base::Value(11), *(preference->GetValue()));
-  // The standalone_browser_pref_store has higher precedence.
-  standalone_browser_pref_store_->SetInteger(kStandaloneBrowserPref, 10);
+  EXPECT_EQ(base::Value(1), *(preference->GetValue()));
+  const PrefService::Preference* supervised =
+      pref_service_->FindPreference(kSupervisedPref);
+  EXPECT_TRUE(supervised->IsDefaultValue());
+  EXPECT_EQ(base::Value(3), *(supervised->GetValue()));
+  const PrefService::Preference* recommended =
+      pref_service_->FindPreference(kRecommendedPref);
+  EXPECT_TRUE(recommended->IsDefaultValue());
+  EXPECT_EQ(base::Value(2), *(recommended->GetValue()));
+
+  user_pref_store_->SetInteger(kManagedPref, 10);
+  EXPECT_TRUE(preference->IsUserControlled());
   ASSERT_EQ(base::Value(10), *(preference->GetValue()));
-  // Removing user_pref_store value shouldn't change the pref value.
-  user_pref_store_->RemoveValue(kStandaloneBrowserPref,
-                                WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
+
+  scoped_refptr<TestingPrefStore> managed_pref_store =
+      base::MakeRefCounted<TestingPrefStore>();
+  pref_service_->ChangePrefValueStore(
+      managed_pref_store.get(), nullptr /* supervised_user_prefs */,
+      nullptr /* extension_prefs */, nullptr /* recommended_prefs */);
+  EXPECT_TRUE(preference->IsUserControlled());
   ASSERT_EQ(base::Value(10), *(preference->GetValue()));
-  // Now removing the standalone_browser_pref_store value should revert the
-  // value to default.
-  standalone_browser_pref_store_->RemoveValue(
-      kStandaloneBrowserPref, WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
-  EXPECT_EQ(base::Value(4), *(preference->GetValue()));
+
+  // Test setting a managed pref after overriding the managed PrefStore.
+  managed_pref_store->SetInteger(kManagedPref, 20);
+  EXPECT_TRUE(preference->IsManaged());
+  ASSERT_EQ(base::Value(20), *(preference->GetValue()));
+
+  // Test overriding the supervised and recommended PrefStore with already set
+  // prefs.
+  scoped_refptr<TestingPrefStore> supervised_pref_store =
+      base::MakeRefCounted<TestingPrefStore>();
+  scoped_refptr<TestingPrefStore> recommened_pref_store =
+      base::MakeRefCounted<TestingPrefStore>();
+  supervised_pref_store->SetInteger(kManagedPref, 30);
+  supervised_pref_store->SetInteger(kSupervisedPref, 31);
+  recommened_pref_store->SetInteger(kManagedPref, 40);
+  recommened_pref_store->SetInteger(kRecommendedPref, 41);
+  pref_service_->ChangePrefValueStore(
+      nullptr /* managed_prefs */, supervised_pref_store.get(),
+      nullptr /* extension_prefs */, recommened_pref_store.get());
+  EXPECT_TRUE(preference->IsManaged());
+  ASSERT_EQ(base::Value(20), *(preference->GetValue()));
+  EXPECT_TRUE(supervised->IsManagedByCustodian());
+  EXPECT_EQ(base::Value(31), *(supervised->GetValue()));
+  EXPECT_TRUE(recommended->IsRecommended());
+  EXPECT_EQ(base::Value(41), *(recommended->GetValue()));
+}
+
+// Tests that PrefChangeRegistrar works after PrefValueStore is changed.
+TEST_F(PrefValueStoreChangeTest, PrefChangeRegistrar) {
+  MockPrefChangeCallback obs(pref_service_.get());
+  PrefChangeRegistrar registrar;
+  registrar.Init(pref_service_.get());
+  registrar.Add(kManagedPref, obs.GetCallback());
+  registrar.Add(kSupervisedPref, obs.GetCallback());
+  registrar.Add(kRecommendedPref, obs.GetCallback());
+
+  base::Value expected_value(10);
+  obs.Expect(kManagedPref, &expected_value);
+  user_pref_store_->SetInteger(kManagedPref, 10);
+  Mock::VerifyAndClearExpectations(&obs);
+  expected_value = base::Value(11);
+  obs.Expect(kRecommendedPref, &expected_value);
+  user_pref_store_->SetInteger(kRecommendedPref, 11);
+  Mock::VerifyAndClearExpectations(&obs);
+
+  // Test overriding the managed and supervised PrefStore with already set
+  // prefs.
+  scoped_refptr<TestingPrefStore> managed_pref_store =
+      base::MakeRefCounted<TestingPrefStore>();
+  scoped_refptr<TestingPrefStore> supervised_pref_store =
+      base::MakeRefCounted<TestingPrefStore>();
+  // Update |kManagedPref| before changing the PrefValueStore, the
+  // PrefChangeRegistrar should get notified on |kManagedPref| as its value
+  // changes.
+  managed_pref_store->SetInteger(kManagedPref, 20);
+  // Due to store precedence, the value of |kRecommendedPref| will not be
+  // changed so PrefChangeRegistrar will not be notified.
+  managed_pref_store->SetInteger(kRecommendedPref, 11);
+  supervised_pref_store->SetInteger(kManagedPref, 30);
+  supervised_pref_store->SetInteger(kRecommendedPref, 21);
+  expected_value = base::Value(20);
+  obs.Expect(kManagedPref, &expected_value);
+  pref_service_->ChangePrefValueStore(
+      managed_pref_store.get(), supervised_pref_store.get(),
+      nullptr /* extension_prefs */, nullptr /* recommended_prefs */);
+  Mock::VerifyAndClearExpectations(&obs);
+
+  // Update a pref value after PrefValueStore change, it should also work.
+  expected_value = base::Value(31);
+  obs.Expect(kSupervisedPref, &expected_value);
+  supervised_pref_store->SetInteger(kSupervisedPref, 31);
+  Mock::VerifyAndClearExpectations(&obs);
 }

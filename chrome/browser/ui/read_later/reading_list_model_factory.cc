@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,24 +8,26 @@
 #include <utility>
 
 #include "base/command_line.h"
+#include "base/deferred_sequenced_task_runner.h"
 #include "base/memory/singleton.h"
-#include "base/task/deferred_sequenced_task_runner.h"
 #include "base/time/default_clock.h"
 #include "base/values.h"
 #include "build/build_config.h"
+#include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sync/model_type_store_service_factory.h"
 #include "chrome/common/channel_info.h"
 #include "chrome/common/chrome_switches.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
 #include "components/reading_list/core/reading_list_model.h"
 #include "components/reading_list/core/reading_list_model_impl.h"
 #include "components/reading_list/core/reading_list_pref_names.h"
-#include "components/reading_list/core/reading_list_sync_bridge.h"
+#include "components/reading_list/core/reading_list_store.h"
 #include "components/sync/base/report_unrecoverable_error.h"
-#include "components/sync/model/client_tag_based_model_type_processor.h"
 #include "components/sync/model/model_type_store_service.h"
+#include "components/sync/model_impl/client_tag_based_model_type_processor.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 
@@ -41,12 +43,11 @@ std::unique_ptr<KeyedService> BuildReadingListModel(
           syncer::READING_LIST,
           base::BindRepeating(&syncer::ReportUnrecoverableError,
                               chrome::GetChannel()));
-  auto bridge = std::make_unique<ReadingListSyncBridge>(
+  std::unique_ptr<ReadingListStore> store = std::make_unique<ReadingListStore>(
       std::move(store_factory), std::move(change_processor));
 
   return std::make_unique<ReadingListModelImpl>(
-      std::move(bridge), profile->GetPrefs(),
-      base::DefaultClock::GetInstance());
+      std::move(store), profile->GetPrefs(), base::DefaultClock::GetInstance());
 }
 
 }  // namespace
@@ -70,9 +71,9 @@ ReadingListModelFactory::GetDefaultFactoryForTesting() {
 }
 
 ReadingListModelFactory::ReadingListModelFactory()
-    : ProfileKeyedServiceFactory(
+    : BrowserContextKeyedServiceFactory(
           "ReadingListModel",
-          ProfileSelections::BuildRedirectedInIncognito()) {
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(ModelTypeStoreServiceFactory::GetInstance());
 }
 
@@ -88,11 +89,11 @@ void ReadingListModelFactory::RegisterProfilePrefs(
   registry->RegisterBooleanPref(
       reading_list::prefs::kReadingListHasUnseenEntries, false,
       PrefRegistry::NO_REGISTRATION_FLAGS);
-#if !BUILDFLAG(IS_ANDROID)
-  registry->RegisterBooleanPref(
-      reading_list::prefs::kReadingListDesktopFirstUseExperienceShown, false,
-      PrefRegistry::NO_REGISTRATION_FLAGS);
-#endif  // !BUILDFLAG(IS_ANDROID)
+}
+
+content::BrowserContext* ReadingListModelFactory::GetBrowserContextToUse(
+    content::BrowserContext* context) const {
+  return chrome::GetBrowserContextRedirectedInIncognito(context);
 }
 
 bool ReadingListModelFactory::ServiceIsNULLWhileTesting() const {

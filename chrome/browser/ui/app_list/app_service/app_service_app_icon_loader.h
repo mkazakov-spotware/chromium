@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,11 @@
 #include <set>
 #include <string>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/app_icon_loader.h"
 #include "components/services/app_service/public/cpp/app_registry_cache.h"
 #include "components/services/app_service/public/cpp/app_update.h"
-#include "components/services/app_service/public/cpp/icon_types.h"
 #include "ui/gfx/image/image_skia.h"
 
 class Profile;
@@ -22,15 +22,9 @@ class Profile;
 class AppServiceAppIconLoader : public AppIconLoader,
                                 private apps::AppRegistryCache::Observer {
  public:
-  static bool CanLoadImage(Profile* profile, const std::string& id);
-
   AppServiceAppIconLoader(Profile* profile,
                           int resource_size_in_dip,
                           AppIconLoaderDelegate* delegate);
-
-  AppServiceAppIconLoader(const AppServiceAppIconLoader&) = delete;
-  AppServiceAppIconLoader& operator=(const AppServiceAppIconLoader&) = delete;
-
   ~AppServiceAppIconLoader() override;
 
   // AppIconLoader overrides:
@@ -52,7 +46,8 @@ class AppServiceAppIconLoader : public AppIconLoader,
   void CallLoadIcon(const std::string& app_id, bool allow_placeholder_icon);
 
   // Callback invoked when the icon is loaded.
-  void OnLoadIcon(const std::string& app_id, apps::IconValuePtr icon_value);
+  void OnLoadIcon(const std::string& app_id,
+                  apps::mojom::IconValuePtr icon_value);
 
   // Returns true if the app_id does exist in icon_map_.
   bool Exist(const std::string& app_id);
@@ -64,6 +59,8 @@ class AppServiceAppIconLoader : public AppIconLoader,
   AppIDToIconMap icon_map_;
 
   base::WeakPtrFactory<AppServiceAppIconLoader> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AppServiceAppIconLoader);
 };
 
 #endif  // CHROME_BROWSER_UI_APP_LIST_APP_SERVICE_APP_SERVICE_APP_ICON_LOADER_H_

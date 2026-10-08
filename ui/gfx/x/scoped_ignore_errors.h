@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define UI_GFX_X_SCOPED_IGNORE_ERRORS_H_
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
 #include "ui/gfx/x/connection.h"
 
 namespace x11 {
@@ -18,7 +17,7 @@ class COMPONENT_EXPORT(X11) ScopedIgnoreErrors {
   ~ScopedIgnoreErrors();
 
  private:
-  const raw_ptr<Connection> connection_;
+  Connection* const connection_;
   Connection::ErrorHandler old_error_handler_;
 };
 

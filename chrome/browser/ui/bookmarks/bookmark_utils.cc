@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,10 @@
 
 #include <stddef.h>
 
-#include "base/bind.h"
 #include "base/check.h"
-#include "base/feature_list.h"
 #include "base/notreached.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search/search.h"
@@ -25,38 +22,34 @@
 #include "components/dom_distiller/core/url_utils.h"
 #include "components/prefs/pref_service.h"
 #include "components/search/search.h"
-#include "components/strings/grit/components_strings.h"
 #include "components/url_formatter/url_formatter.h"
 #include "components/user_prefs/user_prefs.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
 #include "ui/base/dragdrop/drop_target_event.h"
-#include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
-#include "ui/base/l10n/l10n_util.h"
 #include "ui/base/pointer/touch_ui_controller.h"
 
 #if defined(TOOLKIT_VIEWS)
-#include "chrome/grit/theme_resources.h"
-#include "ui/base/resource/resource_bundle.h"
-#include "ui/base/themed_vector_icon.h"
-#include "ui/color/color_id.h"
-#include "ui/color/color_provider.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_utils.h"
-#include "ui/gfx/image/image_skia_rep.h"
 #include "ui/gfx/image/image_skia_source.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/scoped_canvas.h"
+#endif
+
+#if defined(OS_WIN) || defined(OS_MAC)
+#include "chrome/grit/theme_resources.h"
+#include "ui/base/resource/resource_bundle.h"
 #include "ui/resources/grit/ui_resources.h"
 #endif
 
-namespace chrome {
-namespace {
+using bookmarks::BookmarkModel;
+using bookmarks::BookmarkNode;
 
-using ::bookmarks::BookmarkModel;
-using ::bookmarks::BookmarkNode;
-using ::ui::mojom::DragOperation;
+namespace chrome {
+
+namespace {
 
 #if defined(TOOLKIT_VIEWS)
 // Image source that flips the supplied source image in RTL.
@@ -77,6 +70,13 @@ class RTLFlipSource : public gfx::ImageSkiaSource {
  private:
   const gfx::ImageSkia source_;
 };
+
+#if !defined(OS_WIN) && !defined(OS_MAC)
+gfx::ImageSkia GetFolderIcon(const gfx::VectorIcon& icon, SkColor text_color) {
+  return gfx::CreateVectorIcon(icon,
+                               color_utils::DeriveDefaultIconColor(text_color));
+}
+#endif  // !defined(OS_WIN) && !defined(OS_MAC)
 #endif  // defined(TOOLKIT_VIEWS)
 
 }  // namespace
@@ -87,37 +87,26 @@ GURL GetURLToBookmark(content::WebContents* web_contents) {
     return GURL(kChromeUINewTabURL);
   // Users cannot bookmark Reader Mode pages directly, so the bookmark
   // interaction is as if it were with the original page.
-  if (dom_distiller::url_utils::IsDistilledPage(
-          web_contents->GetVisibleURL())) {
+  if (dom_distiller::url_utils::IsDistilledPage(web_contents->GetURL())) {
     return dom_distiller::url_utils::GetOriginalUrlFromDistillerUrl(
-        web_contents->GetVisibleURL());
+        web_contents->GetURL());
   }
-  return web_contents->GetVisibleURL();
+  return web_contents->GetURL();
 }
 
-bool GetURLAndTitleToBookmark(content::WebContents* web_contents,
+void GetURLAndTitleToBookmark(content::WebContents* web_contents,
                               GURL* url,
-                              std::u16string* title) {
-  GURL u = GetURLToBookmark(web_contents);
-  if (!u.is_valid())
-    return false;
-  *url = u;
-  if (dom_distiller::url_utils::IsDistilledPage(
-          web_contents->GetVisibleURL())) {
+                              base::string16* title) {
+  *url = GetURLToBookmark(web_contents);
+  if (dom_distiller::url_utils::IsDistilledPage(web_contents->GetURL())) {
     // Users cannot bookmark Reader Mode pages directly. Instead, a bookmark
     // is added for the original page and original title.
     *title =
         base::UTF8ToUTF16(dom_distiller::url_utils::GetTitleFromDistillerUrl(
-            web_contents->GetVisibleURL()));
+            web_contents->GetURL()));
   } else {
     *title = web_contents->GetTitle();
   }
-
-  // Use "New tab" as title if the current page is NTP even in incognito mode.
-  if (u == GURL(chrome::kChromeUINewTabURL))
-    *title = l10n_util::GetStringUTF16(IDS_NEW_TAB_TITLE);
-
-  return true;
 }
 
 void ToggleBookmarkBarWhenVisible(content::BrowserContext* browser_context) {
@@ -129,7 +118,7 @@ void ToggleBookmarkBarWhenVisible(content::BrowserContext* browser_context) {
   prefs->SetBoolean(bookmarks::prefs::kShowBookmarkBar, always_show);
 }
 
-std::u16string FormatBookmarkURLForDisplay(const GURL& url) {
+base::string16 FormatBookmarkURLForDisplay(const GURL& url) {
   // Because this gets re-parsed by FixupURL(), it's safe to omit the scheme
   // and trailing slash, and unescape most characters. However, it's
   // important not to drop any username/password, or unescape anything that
@@ -143,12 +132,17 @@ std::u16string FormatBookmarkURLForDisplay(const GURL& url) {
   if (url.has_username())
     format_types &= ~url_formatter::kFormatUrlOmitHTTP;
 
-  return url_formatter::FormatUrl(url, format_types, base::UnescapeRule::SPACES,
+  return url_formatter::FormatUrl(url, format_types, net::UnescapeRule::SPACES,
                                   nullptr, nullptr, nullptr);
 }
 
 bool IsAppsShortcutEnabled(Profile* profile) {
-#if BUILDFLAG(IS_CHROMEOS)
+  // Legacy supervised users can not have apps installed currently so there's no
+  // need to show the apps shortcut.
+  if (profile->IsLegacySupervised())
+    return false;
+
+#if defined(OS_CHROMEOS)
   // Chrome OS uses the app list / app launcher.
   return false;
 #else
@@ -178,37 +172,36 @@ int GetBookmarkDragOperation(content::BrowserContext* browser_context,
   return ui::DragDropTypes::DRAG_COPY | move;
 }
 
-DragOperation GetPreferredBookmarkDropOperation(int source_operations,
-                                                int operations) {
+int GetPreferredBookmarkDropOperation(int source_operations, int operations) {
   int common_ops = (source_operations & operations);
   if (!common_ops)
-    return DragOperation::kNone;
+    return ui::DragDropTypes::DRAG_NONE;
   if (ui::DragDropTypes::DRAG_COPY & common_ops)
-    return DragOperation::kCopy;
+    return ui::DragDropTypes::DRAG_COPY;
   if (ui::DragDropTypes::DRAG_LINK & common_ops)
-    return DragOperation::kLink;
+    return ui::DragDropTypes::DRAG_LINK;
   if (ui::DragDropTypes::DRAG_MOVE & common_ops)
-    return DragOperation::kMove;
-  return DragOperation::kNone;
+    return ui::DragDropTypes::DRAG_MOVE;
+  return ui::DragDropTypes::DRAG_NONE;
 }
 
-DragOperation GetBookmarkDropOperation(Profile* profile,
-                                       const ui::DropTargetEvent& event,
-                                       const bookmarks::BookmarkNodeData& data,
-                                       const BookmarkNode* parent,
-                                       size_t index) {
+int GetBookmarkDropOperation(Profile* profile,
+                             const ui::DropTargetEvent& event,
+                             const bookmarks::BookmarkNodeData& data,
+                             const BookmarkNode* parent,
+                             size_t index) {
   const base::FilePath& profile_path = profile->GetPath();
 
   if (data.IsFromProfilePath(profile_path) && data.size() > 1)
     // Currently only accept one dragged node at a time.
-    return DragOperation::kNone;
+    return ui::DragDropTypes::DRAG_NONE;
 
   if (!IsValidBookmarkDropLocation(profile, data, parent, index))
-    return DragOperation::kNone;
+    return ui::DragDropTypes::DRAG_NONE;
 
   BookmarkModel* model = BookmarkModelFactory::GetForBrowserContext(profile);
   if (!model->client()->CanBeEditedByUser(parent))
-    return DragOperation::kNone;
+    return ui::DragDropTypes::DRAG_NONE;
 
   const BookmarkNode* dragged_node =
       data.GetFirstNode(model, profile->GetPath());
@@ -217,9 +210,9 @@ DragOperation GetBookmarkDropOperation(Profile* profile,
     if (!model->client()->CanBeEditedByUser(dragged_node)) {
       // Do a copy instead of a move when dragging bookmarks that the user can't
       // modify.
-      return DragOperation::kCopy;
+      return ui::DragDropTypes::DRAG_COPY;
     }
-    return DragOperation::kMove;
+    return ui::DragDropTypes::DRAG_MOVE;
   }
 
   // User is dragging from another app, copy.
@@ -250,13 +243,11 @@ bool IsValidBookmarkDropLocation(Profile* profile,
       // Don't allow the drop if the user is attempting to drop on one of the
       // nodes being dragged.
       const BookmarkNode* node = nodes[i];
-      absl::optional<size_t> node_index =
-          (drop_parent == node->parent()) ? drop_parent->GetIndexOf(nodes[i])
-                                          : absl::nullopt;
-      if (node_index.has_value() &&
-          (index == node_index.value() || index == node_index.value() + 1)) {
+      int node_index = (drop_parent == node->parent()) ?
+          drop_parent->GetIndexOf(nodes[i]) : -1;
+      if (node_index != -1 &&
+          (index == size_t{node_index} || index == size_t{node_index} + 1))
         return false;
-      }
 
       // drop_parent can't accept a child that is an ancestor.
       if (drop_parent->HasAncestor(node))
@@ -269,65 +260,54 @@ bool IsValidBookmarkDropLocation(Profile* profile,
 }
 
 #if defined(TOOLKIT_VIEWS)
-ui::ImageModel GetBookmarkFolderIcon(
-    BookmarkFolderIconType icon_type,
-    absl::variant<ui::ColorId, SkColor> color) {
-  int default_id = IDR_FOLDER_CLOSED;
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-  // This block must be #ifdefed because only these platforms actually have this
-  // resource ID.
-  if (icon_type == BookmarkFolderIconType::kManaged)
-    default_id = IDR_BOOKMARK_BAR_FOLDER_MANAGED;
-#endif
-  const auto generator = [](int default_id, BookmarkFolderIconType icon_type,
-                            absl::variant<ui::ColorId, SkColor> color,
-                            const ui::ColorProvider* color_provider) {
-    gfx::ImageSkia folder;
-#if BUILDFLAG(IS_WIN)
-    // TODO(bsep): vectorize the Windows versions: crbug.com/564112
-    folder =
-        *ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(default_id);
-#elif BUILDFLAG(IS_MAC)
-    SkColor sk_color;
-    if (absl::holds_alternative<SkColor>(color)) {
-      sk_color = absl::get<SkColor>(color);
-    } else {
-      DCHECK(color_provider);
-      sk_color = color_provider->GetColor(absl::get<ui::ColorId>(color));
-    }
-    const int white_id = (icon_type == BookmarkFolderIconType::kNormal)
-                             ? IDR_FOLDER_CLOSED_WHITE
-                             : IDR_BOOKMARK_BAR_FOLDER_MANAGED_WHITE;
-    const int resource_id =
-        color_utils::IsDark(sk_color) ? default_id : white_id;
-    folder = *ui::ResourceBundle::GetSharedInstance()
-                  .GetNativeImageNamed(resource_id)
-                  .ToImageSkia();
+// TODO(bsep): vectorize the Windows versions: crbug.com/564112
+ui::ImageModel GetBookmarkFolderIcon(SkColor text_color) {
+  gfx::ImageSkia folder;
+#if defined(OS_WIN)
+  folder = *ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(
+      IDR_FOLDER_CLOSED);
+#elif defined(OS_MAC)
+  int resource_id = color_utils::IsDark(text_color) ? IDR_FOLDER_CLOSED
+                                                    : IDR_FOLDER_CLOSED_WHITE;
+  folder = *ui::ResourceBundle::GetSharedInstance()
+                .GetNativeImageNamed(resource_id)
+                .ToImageSkia();
 #else
-    const gfx::VectorIcon* id;
-    if (icon_type == BookmarkFolderIconType::kNormal) {
-      id = ui::TouchUiController::Get()->touch_ui()
-               ? &vector_icons::kFolderTouchIcon
-               : &vector_icons::kFolderIcon;
-    } else {
-      id = ui::TouchUiController::Get()->touch_ui()
-               ? &vector_icons::kFolderManagedTouchIcon
-               : &vector_icons::kFolderManagedIcon;
-    }
-    const ui::ThemedVectorIcon icon =
-        absl::holds_alternative<SkColor>(color)
-            ? ui::ThemedVectorIcon(id, absl::get<SkColor>(color))
-            : ui::ThemedVectorIcon(id, absl::get<ui::ColorId>(color));
-    folder = icon.GetImageSkia(color_provider);
+  folder = GetFolderIcon(ui::TouchUiController::Get()->touch_ui()
+                             ? vector_icons::kFolderTouchIcon
+                             : vector_icons::kFolderIcon,
+                         text_color);
 #endif
-    return gfx::ImageSkia(std::make_unique<RTLFlipSource>(folder),
-                          folder.size());
-  };
-  const gfx::Size size =
-      ui::ResourceBundle::GetSharedInstance().GetImageNamed(default_id).Size();
-  return ui::ImageModel::FromImageGenerator(
-      base::BindRepeating(generator, default_id, icon_type, std::move(color)),
-      size);
+  // TODO(crbug.com/1119823): Return the unflipped image here
+  // (as a vector if possible); callers should have the responsibility to flip
+  // when painting as necessary.
+  return ui::ImageModel::FromImageSkia(
+      gfx::ImageSkia(std::make_unique<RTLFlipSource>(folder), folder.size()));
+}
+
+ui::ImageModel GetBookmarkManagedFolderIcon(SkColor text_color) {
+  gfx::ImageSkia folder;
+#if defined(OS_WIN)
+  folder = *ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(
+      IDR_BOOKMARK_BAR_FOLDER_MANAGED);
+#elif defined(OS_MAC)
+  int resource_id = color_utils::IsDark(text_color)
+                        ? IDR_BOOKMARK_BAR_FOLDER_MANAGED
+                        : IDR_BOOKMARK_BAR_FOLDER_MANAGED_WHITE;
+  folder = *ui::ResourceBundle::GetSharedInstance()
+                .GetNativeImageNamed(resource_id)
+                .ToImageSkia();
+#else
+  folder = GetFolderIcon(ui::TouchUiController::Get()->touch_ui()
+                             ? vector_icons::kFolderManagedTouchIcon
+                             : vector_icons::kFolderManagedIcon,
+                         text_color);
+#endif
+  // TODO(crbug.com/1119823): Return the unflipped image here
+  // (as a vector if possible); callers should have the responsibility to flip
+  // when painting as necessary.
+  return ui::ImageModel::FromImageSkia(
+      gfx::ImageSkia(std::make_unique<RTLFlipSource>(folder), folder.size()));
 }
 #endif
 

@@ -1,14 +1,13 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import re
+import test_util
 import time
 from absl import app
 from selenium import webdriver
 from pywinauto.application import Application
-
-from test_util import create_chrome_webdriver
 
 UnsafePageLink = "http://testsafebrowsing.appspot.com/s/malware.html"
 UnsafePageLinkTabText = "Security error"
@@ -32,7 +31,7 @@ def main(argv):
   chrome_options = webdriver.ChromeOptions()
   chrome_options.add_experimental_option("excludeSwitches", exclude_switches)
 
-  driver = create_chrome_webdriver(chrome_options=chrome_options)
+  driver = test_util.create_chrome_webdriver(chrome_options=chrome_options)
 
   app = Application(backend="uia")
   app.connect(title_re='.*Chrome|.*Chromium')

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,73 +9,70 @@
 namespace download {
 namespace features {
 
-BASE_FEATURE(kUseDownloadOfflineContentProvider,
-             "UseDownloadOfflineContentProvider",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+const base::Feature kUseDownloadOfflineContentProvider{
+    "UseDownloadOfflineContentProvider", base::FEATURE_DISABLED_BY_DEFAULT};
 
-BASE_FEATURE(kDownloadAutoResumptionNative,
-             "DownloadsAutoResumptionNative",
-#if BUILDFLAG(IS_ANDROID)
-             base::FEATURE_ENABLED_BY_DEFAULT
+const base::Feature kDownloadAutoResumptionNative {
+  "DownloadsAutoResumptionNative",
+#if defined(OS_ANDROID)
+      base::FEATURE_DISABLED_BY_DEFAULT
 #else
-             base::FEATURE_DISABLED_BY_DEFAULT
+      base::FEATURE_DISABLED_BY_DEFAULT
 #endif
-);
+};
 
-BASE_FEATURE(kParallelDownloading,
-             "ParallelDownloading",
-#if BUILDFLAG(IS_ANDROID)
-             base::FEATURE_ENABLED_BY_DEFAULT
+const base::Feature kParallelDownloading {
+  "ParallelDownloading",
+#if defined(OS_ANDROID)
+      base::FEATURE_ENABLED_BY_DEFAULT
 #else
-             base::FEATURE_DISABLED_BY_DEFAULT
+      base::FEATURE_DISABLED_BY_DEFAULT
 #endif
-);
+};
 
-#if BUILDFLAG(IS_ANDROID)
-BASE_FEATURE(kSmartSuggestionForLargeDownloads,
-             "SmartSuggestionForLargeDownloads",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kDownloadLater{"DownloadLater",
+                                   base::FEATURE_DISABLED_BY_DEFAULT};
 
-BASE_FEATURE(kRefreshExpirationDate,
-             "RefreshExpirationDate",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+#if defined(OS_ANDROID)
+const base::Feature kSmartSuggestionForLargeDownloads{
+    "SmartSuggestionForLargeDownloads", base::FEATURE_DISABLED_BY_DEFAULT};
+
+const base::Feature kRefreshExpirationDate{"RefreshExpirationDate",
+                                           base::FEATURE_ENABLED_BY_DEFAULT};
 #endif
 
-BASE_FEATURE(kUseInProgressDownloadManagerForDownloadService,
-             "UseInProgressDownloadManagerForDownloadService",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kUseInProgressDownloadManagerForDownloadService{
+    "UseInProgressDownloadManagerForDownloadService",
+    base::FEATURE_DISABLED_BY_DEFAULT};
 
-BASE_FEATURE(kAllowDownloadResumptionWithoutStrongValidators,
-             "AllowDownloadResumptionWithoutStrongValidators",
-#if BUILDFLAG(IS_ANDROID)
-             base::FEATURE_ENABLED_BY_DEFAULT
+const base::Feature kAllowDownloadResumptionWithoutStrongValidators{
+  "AllowDownloadResumptionWithoutStrongValidators",
+#if defined(OS_ANDROID)
+      base::FEATURE_ENABLED_BY_DEFAULT
 #else
-             base::FEATURE_DISABLED_BY_DEFAULT
+      base::FEATURE_DISABLED_BY_DEFAULT
 #endif
-);
+};
 
-BASE_FEATURE(kUseParallelRequestsForHTTP2,
-             "UseParallelRequestsForHTTP2",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+const base::Feature kUseParallelRequestsForUnknwonRangeSupport{
+    "UseParallelRequestForUnknownRangeSupport",
+    base::FEATURE_ENABLED_BY_DEFAULT};
 
-BASE_FEATURE(kUseParallelRequestsForQUIC,
-             "UseParallelRequestsForQUIC",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+const base::Feature kUseParallelRequestsForHTTP2{
+    "UseParallelRequestsForHTTP2", base::FEATURE_ENABLED_BY_DEFAULT};
 
-BASE_FEATURE(kDeleteExpiredDownloads,
-             "DeleteExpiredDownloads",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+const base::Feature kUseParallelRequestsForQUIC{
+    "UseParallelRequestsForQUIC", base::FEATURE_ENABLED_BY_DEFAULT};
 
-BASE_FEATURE(kDeleteOverwrittenDownloads,
-             "DeleteOverwrittenDownloads",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-BASE_FEATURE(kAllowFileBufferSizeControl,
-             "AllowFileBufferSizeControl",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-BASE_FEATURE(kDownloadRange, "DownloadRange", base::FEATURE_ENABLED_BY_DEFAULT);
+const base::Feature kDeleteExpiredDownloads{"DeleteExpiredDownloads",
+                                            base::FEATURE_ENABLED_BY_DEFAULT};
 
 }  // namespace features
+
+namespace switches {
+
+const char kDownloadLaterDebugOnWifi[] = "download-later-debug-on-wifi";
+
+}  // namespace switches
 
 }  // namespace download

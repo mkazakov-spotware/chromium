@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,12 @@
 
 #include <stddef.h>
 
-#include "base/notreached.h"
 #include "base/trace_event/trace_event.h"
 #include "cc/raster/raster_source.h"
 #include "components/viz/common/resources/platform_color.h"
 #include "components/viz/common/resources/resource_format_utils.h"
 #include "skia/ext/legacy_display_globals.h"
 #include "third_party/skia/include/core/SkCanvas.h"
-#include "third_party/skia/include/core/SkColorSpace.h"
 #include "third_party/skia/include/core/SkMath.h"
 #include "third_party/skia/include/core/SkSurface.h"
 #include "ui/gfx/geometry/axis_transform2d.h"
@@ -40,7 +38,6 @@ bool IsSupportedPlaybackToMemoryFormat(viz::ResourceFormat format) {
     case viz::RED_8:
     case viz::LUMINANCE_F16:
     case viz::R16_EXT:
-    case viz::RG16_EXT:
     case viz::BGR_565:
     case viz::RG_88:
     case viz::RGBX_8888:
@@ -49,7 +46,6 @@ bool IsSupportedPlaybackToMemoryFormat(viz::ResourceFormat format) {
     case viz::BGRA_1010102:
     case viz::YVU_420:
     case viz::YUV_420_BIPLANAR:
-    case viz::YUVA_420_TRIPLANAR:
     case viz::P010:
       return false;
   }
@@ -131,7 +127,7 @@ void RasterBufferProvider::PlaybackToMemory(
       SkPaint paint;
       paint.setDither(true);
       paint.setBlendMode(SkBlendMode::kSrc);
-      surface->draw(dst_canvas.get(), 0, 0, SkSamplingOptions(), &paint);
+      surface->draw(dst_canvas.get(), 0, 0, &paint);
       return;
     }
     case viz::ETC1:
@@ -141,7 +137,6 @@ void RasterBufferProvider::PlaybackToMemory(
     case viz::RED_8:
     case viz::LUMINANCE_F16:
     case viz::R16_EXT:
-    case viz::RG16_EXT:
     case viz::BGR_565:
     case viz::RG_88:
     case viz::RGBX_8888:
@@ -150,7 +145,6 @@ void RasterBufferProvider::PlaybackToMemory(
     case viz::BGRA_1010102:
     case viz::YVU_420:
     case viz::YUV_420_BIPLANAR:
-    case viz::YUVA_420_TRIPLANAR:
     case viz::P010:
       NOTREACHED();
       return;

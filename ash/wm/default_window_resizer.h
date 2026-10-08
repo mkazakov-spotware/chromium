@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,6 +38,6 @@ class ASH_EXPORT DefaultWindowResizer : public WindowResizer {
   bool did_move_or_resize_ = false;
 };
 
-}  // namespace ash
+}  // namespace aura
 
 #endif  // ASH_WM_DEFAULT_WINDOW_RESIZER_H_

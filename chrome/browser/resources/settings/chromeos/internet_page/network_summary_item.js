@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,184 +9,132 @@
  * section. See crbug.com/726380.
  */
 
-import 'chrome://resources/ash/common/network/network_icon.js';
-import 'chrome://resources/ash/common/network/network_siminfo.js';
-import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
-import 'chrome://resources/cr_elements/cr_toggle/cr_toggle.js';
-import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
-import 'chrome://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
+(function() {
 
-import {getSimSlotCount} from 'chrome://resources/ash/common/network/cellular_utils.js';
-import {CrPolicyNetworkBehaviorMojo, CrPolicyNetworkBehaviorMojoInterface} from 'chrome://resources/ash/common/network/cr_policy_network_behavior_mojo.js';
-import {OncMojo} from 'chrome://resources/ash/common/network/onc_mojo.js';
-import {I18nBehavior, I18nBehaviorInterface} from 'chrome://resources/ash/common/i18n_behavior.js';
-import {CrPolicyIndicatorType} from 'chrome://resources/ash/common/cr_policy_indicator_behavior.js';
-import {assert, assertNotReached} from 'chrome://resources/js/assert.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {GlobalPolicy, VpnType} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
-import {ConnectionStateType, DeviceStateType, NetworkType, OncSource, PortalState} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/network_types.mojom-webui.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+const mojom = chromeos.networkConfig.mojom;
 
-import {InternetPageBrowserProxy, InternetPageBrowserProxyImpl} from './internet_page_browser_proxy.js';
+Polymer({
+  is: 'network-summary-item',
 
-/**
- * @constructor
- * @extends {PolymerElement}
- * @implements {CrPolicyNetworkBehaviorMojoInterface}
- * @implements {I18nBehaviorInterface}
- */
-const NetworkSummaryItemElementBase =
-    mixinBehaviors([CrPolicyNetworkBehaviorMojo, I18nBehavior], PolymerElement);
+  behaviors: [
+    CrPolicyNetworkBehaviorMojo,
+    I18nBehavior,
+  ],
 
-/** @polymer */
-export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
-  static get is() {
-    return 'network-summary-item';
-  }
+  properties: {
+    /**
+     * Device state for the network type. This might briefly be undefined if
+     * a device becomes unavailable.
+     * @type {!OncMojo.DeviceStateProperties|undefined}
+     */
+    deviceState: {
+      type: Object,
+      notify: true,
+    },
 
-  static get template() {
-    return html`{__html_template__}`;
-  }
+    /**
+     * If both Cellular and Tether technologies exist, we combine the
+     * sections and set this to the device state for Tether.
+     * @type {!OncMojo.DeviceStateProperties|undefined}
+     */
+    tetherDeviceState: Object,
 
-  static get properties() {
-    return {
-      /**
-       * Device state for the network type. This might briefly be undefined if
-       * a device becomes unavailable.
-       * @type {!OncMojo.DeviceStateProperties|undefined}
-       */
-      deviceState: {
-        type: Object,
-        notify: true,
+    /**
+     * Network state for the active network.
+     * @type {!OncMojo.NetworkStateProperties|undefined}
+     */
+    activeNetworkState: Object,
+
+    /**
+     * List of all network state data for the network type.
+     * @type {!Array<!OncMojo.NetworkStateProperties>}
+     */
+    networkStateList: {
+      type: Array,
+      value() {
+        return [];
       },
+    },
 
-      /**
-       * If both Cellular and Tether technologies exist, we combine the
-       * sections and set this to the device state for Tether.
-       * @type {!OncMojo.DeviceStateProperties|undefined}
-       */
-      tetherDeviceState: Object,
+    /**
+     * Title line describing the network type to appear in the row's top
+     * line. If it is undefined, the title text is set to a default value.
+     * @type {string|undefined}
+     */
+    networkTitleText: String,
 
-      /**
-       * Network state for the active network.
-       * @type {!OncMojo.NetworkStateProperties|undefined}
-       */
-      activeNetworkState: Object,
-
-      /**
-       * List of all network state data for the network type.
-       * @type {!Array<!OncMojo.NetworkStateProperties>}
-       */
-      networkStateList: {
-        type: Array,
-        value() {
-          return [];
-        },
-      },
-
-      /**
-       * Title line describing the network type to appear in the row's top
-       * line. If it is undefined, the title text is set to a default value.
-       * @type {string|undefined}
-       */
-      networkTitleText: String,
-
-      /**
-       * Whether to show technology badge on mobile network icon.
-       * @private
-       */
-      showTechnologyBadge_: {
-        type: Boolean,
-        value() {
-          return loadTimeData.valueExists('showTechnologyBadge') &&
-              loadTimeData.getBoolean('showTechnologyBadge');
-        },
-      },
-
-      /**
-       * Return true if captivePortalUI2022 feature flag is enabled.
-       * @private
-       */
-      isCaptivePortalUI2022Enabled_: {
-        type: Boolean,
-        value() {
-          return loadTimeData.valueExists('captivePortalUI2022') &&
-              loadTimeData.getBoolean('captivePortalUI2022');
-        },
-      },
-
-      /** @private {!GlobalPolicy|undefined} */
-      globalPolicy: Object,
-    };
-  }
-
-  constructor() {
-    super();
-
-    /** @private  {!InternetPageBrowserProxy} */
-    this.browserProxy_ = InternetPageBrowserProxyImpl.getInstance();
-  }
+    /**
+     * Whether to show technology badge on mobile network icon.
+     * @private
+     */
+    showTechnologyBadge_: {
+      type: Boolean,
+      value() {
+        return loadTimeData.valueExists('showTechnologyBadge') &&
+            loadTimeData.getBoolean('showTechnologyBadge');
+      }
+    },
+  },
 
   /*
    * Returns the device enabled toggle element.
    * @return {?CrToggleElement}
    */
   getDeviceEnabledToggle() {
-    return this.shadowRoot.querySelector('#deviceEnabledButton');
-  }
+    return this.$$('#deviceEnabledButton');
+  },
 
   /**
    * @return {string}
    * @private
    */
   getNetworkStateText_() {
-    // If SIM Locked, show warning message instead of connection state.
-    if (this.shouldShowLockedWarningMessage_(this.deviceState)) {
-      return this.i18n('networkSimLockedSubtitle');
-    }
-    if (OncMojo.deviceIsInhibited(this.deviceState)) {
-      return this.i18n('internetDeviceBusy');
-    }
-
-    if (this.isCaptivePortalUI2022Enabled_ &&
-        this.isPortalState_(this.activeNetworkState.portalState)) {
-      return this.i18n('networkListItemSignIn');
-    }
-
-    const stateText = this.getConnectionStateText_(this.activeNetworkState);
+    const stateText =
+        this.getConnectionStateText_(this.activeNetworkState, this.deviceState);
     if (stateText) {
       return stateText;
     }
     // No network state, use device state.
     const deviceState = this.deviceState;
     if (deviceState) {
-      if (deviceState.type === NetworkType.kTether) {
-        if (deviceState.deviceState === DeviceStateType.kUninitialized) {
+      // Type specific scanning or initialization states.
+      if (deviceState.type === mojom.NetworkType.kCellular) {
+        if (deviceState.scanning) {
+          return this.i18n('internetMobileSearching');
+        }
+        if (deviceState.deviceState === mojom.DeviceStateType.kUninitialized) {
+          return this.i18n('internetDeviceInitializing');
+        }
+        if (deviceState.deviceState === mojom.DeviceStateType.kDisabling) {
+          return this.i18n('internetDeviceDisabling');
+        }
+      } else if (deviceState.type === mojom.NetworkType.kTether) {
+        if (deviceState.deviceState === mojom.DeviceStateType.kUninitialized) {
           return this.i18n('tetherEnableBluetooth');
         }
       }
-
       // Enabled or enabling states.
-      if (deviceState.deviceState === DeviceStateType.kEnabled) {
-        return this.networkStateList.length > 0 ?
-            this.i18n('networkListItemNotConnected') :
-            this.i18n('networkListItemNoNetwork');
+      if (deviceState.deviceState === mojom.DeviceStateType.kEnabled) {
+        if (this.networkStateList.length > 0) {
+          return this.i18n('networkListItemNotConnected');
+        }
+        return this.i18n('networkListItemNoNetwork');
       }
-
-      if (deviceState.deviceState === DeviceStateType.kEnabling) {
+      if (deviceState.deviceState === mojom.DeviceStateType.kEnabling) {
         return this.i18n('internetDeviceEnabling');
       }
     }
     // No device or unknown device state, use 'off'.
     return this.i18n('deviceOff');
-  }
+  },
 
   /**
    * @param {!OncMojo.NetworkStateProperties|undefined} networkState
+   * @param {!OncMojo.DeviceStateProperties|undefined} deviceState
    * @return {string}
    * @private
    */
-  getConnectionStateText_(networkState) {
+  getConnectionStateText_(networkState, deviceState) {
     if (!networkState || !networkState.guid) {
       return '';
     }
@@ -196,16 +144,20 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
       // Ethernet networks always have the display name 'Ethernet' so we use the
       // state text 'Connected' to avoid repeating the label in the sublabel.
       // See http://crbug.com/989907 for details.
-      return networkState.type === NetworkType.kEthernet ?
+      return networkState.type === mojom.NetworkType.kEthernet ?
           this.i18n('networkListItemConnected') :
           name;
     }
-    if (connectionState === ConnectionStateType.kConnecting) {
+    if (connectionState === mojom.ConnectionStateType.kConnecting) {
       return name ? this.i18n('networkListItemConnectingTo', name) :
                     this.i18n('networkListItemConnecting');
     }
+    if (networkState.type === mojom.NetworkType.kCellular && deviceState &&
+        deviceState.scanning) {
+      return this.i18n('internetMobileSearching');
+    }
     return this.i18n('networkListItemNotConnected');
-  }
+  },
 
   /**
    * @param {!OncMojo.NetworkStateProperties} activeNetworkState
@@ -218,7 +170,7 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
                 activeNetworkState.connectionState)) ||
         this.isPolicySource(activeNetworkState.source) ||
         this.isProhibitedVpn_();
-  }
+  },
 
   /**
    * @param {!OncMojo.NetworkStateProperties} activeNetworkState
@@ -229,10 +181,11 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
    */
   getPolicyIndicatorType_(activeNetworkState) {
     if (this.isProhibitedVpn_()) {
-      return this.getIndicatorTypeForSource(OncSource.kDevicePolicy);
+      return this.getIndicatorTypeForSource(
+          chromeos.networkConfig.mojom.OncSource.kDevicePolicy);
     }
     return this.getIndicatorTypeForSource(activeNetworkState.source);
-  }
+  },
 
   /**
    * @param {!OncMojo.DeviceStateProperties|undefined} deviceState
@@ -240,73 +193,34 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
    * @private
    */
   showSimInfo_(deviceState) {
-    if (!deviceState || deviceState.type !== NetworkType.kCellular) {
+    if (!deviceState || deviceState.type !== mojom.NetworkType.kCellular) {
       return false;
     }
-
-    const {pSimSlots, eSimSlots} = getSimSlotCount(deviceState);
-    if (eSimSlots > 0) {
-      // Do not show simInfo if we are using an eSIM enabled device.
-      return false;
-    }
-    return this.simLocked_(deviceState);
-  }
+    return this.simLockedOrAbsent_(deviceState);
+  },
 
   /**
-   * @param {!OncMojo.NetworkStateProperties|undefined} activeNetworkState
-   * @param {!OncMojo.DeviceStateProperties|undefined} deviceState
-   * @return {string}
-   * @private
-   */
-  getNetworkStateClass_(activeNetworkState, deviceState) {
-    if ((this.isCaptivePortalUI2022Enabled_ &&
-         this.isPortalState_(activeNetworkState.portalState)) ||
-        this.shouldShowLockedWarningMessage_(deviceState)) {
-      return 'warning-message';
-    }
-    return 'network-state';
-  }
-
-  /**
-   * @param {!OncMojo.DeviceStateProperties|undefined} deviceState
+   * @param {!OncMojo.DeviceStateProperties} deviceState
    * @return {boolean}
    * @private
    */
-  shouldShowLockedWarningMessage_(deviceState) {
-    if (!deviceState || deviceState.type !== NetworkType.kCellular ||
-        !deviceState.simLockStatus) {
+  simLockedOrAbsent_(deviceState) {
+    if (this.deviceIsEnabled_(deviceState)) {
       return false;
     }
-
-    // If the device is eSIM capable, never show message.
-    const {eSimSlots} = getSimSlotCount(deviceState);
-    if (eSimSlots > 0) {
-      return false;
-    }
-
-    return !!deviceState.simLockStatus.lockType;
-  }
-
-  /**
-   * @param {!OncMojo.DeviceStateProperties|undefined} deviceState
-   * @return {boolean}
-   * @private
-   */
-  simLocked_(deviceState) {
-    if (!deviceState) {
-      return false;
+    if (deviceState.simAbsent) {
+      return true;
     }
     if (!deviceState.simLockStatus) {
       return false;
     }
     const simLockType = deviceState.simLockStatus.lockType;
     return simLockType === 'sim-pin' || simLockType === 'sim-puk';
-  }
+  },
 
   /**
    * @param {!OncMojo.DeviceStateProperties|undefined} deviceState
-   * @return {boolean} True if the device is enabled or if it is a VPN or if
-   *     we are in the state of inhibited. Note:
+   * @return {boolean} True if the device is enabled or if it is a VPN. Note:
    *     This function will always return true for VPNs because VPNs can be
    *     disabled by policy only for built-in VPNs (OpenVPN & L2TP), but always
    *     enabled for other VPN providers. To know whether built-in VPNs are
@@ -315,10 +229,9 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
    */
   deviceIsEnabled_(deviceState) {
     return !!deviceState &&
-        (deviceState.type === NetworkType.kVPN ||
-         deviceState.deviceState === DeviceStateType.kEnabled ||
-         OncMojo.deviceIsInhibited(deviceState));
-  }
+        (deviceState.type === mojom.NetworkType.kVPN ||
+         deviceState.deviceState === mojom.DeviceStateType.kEnabled);
+  },
 
   /**
    * @param {!OncMojo.DeviceStateProperties|undefined} deviceState
@@ -330,28 +243,21 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
       return false;
     }
     switch (deviceState.type) {
-      case NetworkType.kEthernet:
-      case NetworkType.kVPN:
+      case mojom.NetworkType.kEthernet:
+      case mojom.NetworkType.kVPN:
         return false;
-
-      case NetworkType.kTether:
+      case mojom.NetworkType.kTether:
         return true;
-
-      case NetworkType.kWiFi:
-        return deviceState.deviceState !== DeviceStateType.kUninitialized;
-
-      case NetworkType.kCellular:
-        if (deviceState.deviceState === DeviceStateType.kUninitialized) {
-          return false;
-        }
-
-        // Toggle should be shown as long as we are not also showing the UI for
-        // unlocking the SIM.
-        return !this.showSimInfo_(deviceState);
+      case mojom.NetworkType.kWiFi:
+        return deviceState.deviceState !== mojom.DeviceStateType.kUninitialized;
+      case mojom.NetworkType.kCellular:
+        return deviceState.deviceState !==
+            mojom.DeviceStateType.kUninitialized &&
+            !this.simLockedOrAbsent_(deviceState);
     }
     assertNotReached();
     return false;
-  }
+  },
 
   /**
    * @param {!OncMojo.DeviceStateProperties|undefined} deviceState
@@ -360,10 +266,9 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
    */
   enableToggleIsEnabled_(deviceState) {
     return this.enableToggleIsVisible_(deviceState) &&
-        deviceState.deviceState !== DeviceStateType.kProhibited &&
-        !OncMojo.deviceIsInhibited(deviceState) &&
+        deviceState.deviceState !== mojom.DeviceStateType.kProhibited &&
         !OncMojo.deviceStateIsIntermediate(deviceState.deviceState);
-  }
+  },
 
   /**
    * @param {!OncMojo.DeviceStateProperties|undefined} deviceState
@@ -375,15 +280,15 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
       return '';
     }
     switch (deviceState.type) {
-      case NetworkType.kTether:
-      case NetworkType.kCellular:
+      case mojom.NetworkType.kTether:
+      case mojom.NetworkType.kCellular:
         return this.i18n('internetToggleMobileA11yLabel');
-      case NetworkType.kWiFi:
+      case mojom.NetworkType.kWiFi:
         return this.i18n('internetToggleWiFiA11yLabel');
     }
     assertNotReached();
     return '';
-  }
+  },
 
   /**
    * @param {!OncMojo.DeviceStateProperties|undefined} deviceState
@@ -394,12 +299,12 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
     // Use network state text to describe toggle for uninitialized tether
     // device. This announces details about enabling bluetooth.
     if (this.enableToggleIsVisible_(deviceState) &&
-        deviceState.type === NetworkType.kTether &&
-        deviceState.deviceState === DeviceStateType.kUninitialized) {
+        deviceState.type === mojom.NetworkType.kTether &&
+        deviceState.deviceState === mojom.DeviceStateType.kUninitialized) {
       return 'networkState';
     }
     return '';
-  }
+  },
 
   /**
    * @return {boolean} True if VPNs are disabled by policy and the current
@@ -407,18 +312,20 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
    * @private
    */
   isProhibitedVpn_() {
-    return !!this.deviceState && this.deviceState.type === NetworkType.kVPN &&
+    return !!this.deviceState &&
+        this.deviceState.type === mojom.NetworkType.kVPN &&
         this.builtInVpnProhibited_(this.deviceState);
-  }
+  },
 
   /**
-   * @param {!VpnType} vpnType
+   * @param {!chromeos.networkConfig.mojom.VpnType} vpnType
    * @return {boolean}
    * @private
    */
   isBuiltInVpnType_(vpnType) {
-    return vpnType === VpnType.kL2TPIPsec || vpnType === VpnType.kOpenVPN;
-  }
+    return vpnType === chromeos.networkConfig.mojom.VpnType.kL2TPIPsec ||
+        vpnType === chromeos.networkConfig.mojom.VpnType.kOpenVPN;
+  },
 
   /**
    * @param {!Array<!OncMojo.NetworkStateProperties>} networkStateList
@@ -430,7 +337,7 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
       return !this.isBuiltInVpnType_(networkState.typeState.vpn.type);
     });
     return nonBuiltInVpnIndex !== -1;
-  }
+  },
 
   /**
    * @param {!OncMojo.DeviceStateProperties|undefined} deviceState
@@ -439,8 +346,9 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
    */
   builtInVpnProhibited_(deviceState) {
     return !!deviceState &&
-        deviceState.deviceState === DeviceStateType.kProhibited;
-  }
+        deviceState.deviceState ===
+        chromeos.networkConfig.mojom.DeviceStateType.kProhibited;
+  },
 
   /**
    * @param {!OncMojo.DeviceStateProperties|undefined} deviceState
@@ -454,7 +362,7 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
     return this.hasNonBuiltInVpn_(networkStateList) ||
         (!this.builtInVpnProhibited_(deviceState) &&
          networkStateList.length > 0);
-  }
+  },
 
   /**
    * @param {!OncMojo.NetworkStateProperties|undefined} activeNetworkState
@@ -464,13 +372,13 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
    * @private
    */
   shouldShowDetails_(activeNetworkState, deviceState, networkStateList) {
-    if (!!deviceState && deviceState.type === NetworkType.kVPN) {
+    if (!!deviceState && deviceState.type === mojom.NetworkType.kVPN) {
       return this.anyVpnExists_(deviceState, networkStateList);
     }
 
     return this.deviceIsEnabled_(deviceState) &&
         (!!activeNetworkState.guid || networkStateList.length > 0);
-  }
+  },
 
   /**
    * @param {!OncMojo.DeviceStateProperties|undefined} deviceState
@@ -483,34 +391,19 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
       return false;
     }
     const type = deviceState.type;
-
-    if (type === NetworkType.kTether ||
-        (type === NetworkType.kCellular && this.tetherDeviceState)) {
+    if (type === mojom.NetworkType.kTether ||
+        (type === mojom.NetworkType.kCellular && this.tetherDeviceState)) {
       // The "Mobile data" subpage should always be shown if Tether is
       // available, even if there are currently no associated networks.
       return true;
     }
 
-    if (type === NetworkType.kCellular) {
-      if (OncMojo.deviceIsInhibited(deviceState)) {
-        // The "Mobile data" subpage should be shown if the device state is
-        // inhibited.
-        return true;
-      }
-      // When network type is Cellular, always show "Mobile data" subpage, when
-      // at least one eSIM or pSIM slot is available
-      const {pSimSlots, eSimSlots} = getSimSlotCount(deviceState);
-      if (eSimSlots > 0 || pSimSlots > 0) {
-        return true;
-      }
-    }
-
-    if (type === NetworkType.kVPN) {
+    if (type === mojom.NetworkType.kVPN) {
       return this.anyVpnExists_(deviceState, networkStateList);
     }
 
     let minlen;
-    if (type === NetworkType.kWiFi) {
+    if (type === mojom.NetworkType.kWiFi) {
       // WiFi subpage includes 'Known Networks' so always show, even if the
       // technology is still enabling / scanning, or none are visible.
       minlen = 0;
@@ -519,7 +412,7 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
       minlen = 2;
     }
     return networkStateList.length >= minlen;
-  }
+  },
 
   /**
    * This handles clicking the network summary item row. Clicking this row can
@@ -533,86 +426,22 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
     if (!this.deviceIsEnabled_(this.deviceState)) {
       if (this.enableToggleIsEnabled_(this.deviceState)) {
         const type = this.deviceState.type;
-        const deviceEnabledToggledEvent =
-            new CustomEvent('device-enabled-toggled', {
-              bubbles: true,
-              composed: true,
-              detail: {enabled: true, type: type},
-            });
-        this.dispatchEvent(deviceEnabledToggledEvent);
+        this.fire('device-enabled-toggled', {enabled: true, type: type});
       }
-    } else if (
-        this.isCaptivePortalUI2022Enabled_ &&
-        this.isPortalState_(this.activeNetworkState.portalState)) {
-      this.browserProxy_.showPortalSignin(this.activeNetworkState.guid);
     } else if (this.shouldShowSubpage_(
                    this.deviceState, this.networkStateList)) {
-      const showNetworksEvent = new CustomEvent('show-networks', {
-        bubbles: true,
-        composed: true,
-        detail: this.deviceState.type,
-      });
-      this.dispatchEvent(showNetworksEvent);
+      this.fire('show-networks', this.deviceState.type);
     } else if (this.shouldShowDetails_(
                    this.activeNetworkState, this.deviceState,
                    this.networkStateList)) {
       if (this.activeNetworkState.guid) {
-        const showDetailEvent = new CustomEvent('show-detail', {
-          bubbles: true,
-          composed: true,
-          detail: this.activeNetworkState,
-        });
-        this.dispatchEvent(showDetailEvent);
+        this.fire('show-detail', this.activeNetworkState);
       } else if (this.networkStateList.length > 0) {
-        const showDetailEvent = new CustomEvent('show-detail', {
-          bubbles: true,
-          composed: true,
-          detail: this.networkStateList[0],
-        });
-        this.dispatchEvent(showDetailEvent);
+        this.fire('show-detail', this.networkStateList[0]);
       }
     }
     event.stopPropagation();
-  }
-
-  /**
-   * This handles clicking the subpage arrow. Clicking this icon can lead
-   * to showing the corresponding networks list or showing details about
-   * a network or doing nothing based on the device and networks states.
-   * TODO(b/253326370) Cleanup duplicate functionality between this
-   * function and `onShowDetailsTap_`.
-   * @param {!Event} event The enable button event.
-   * @private
-   */
-  onShowDetailsArrowTap_(event) {
-    if (this.shouldShowSubpage_(this.deviceState, this.networkStateList)) {
-      const showNetworksEvent = new CustomEvent('show-networks', {
-        bubbles: true,
-        composed: true,
-        detail: this.deviceState.type,
-      });
-      this.dispatchEvent(showNetworksEvent);
-    } else if (this.shouldShowDetails_(
-                   this.activeNetworkState, this.deviceState,
-                   this.networkStateList)) {
-      if (this.activeNetworkState.guid) {
-        const showDetailEvent = new CustomEvent('show-detail', {
-          bubbles: true,
-          composed: true,
-          detail: this.activeNetworkState,
-        });
-        this.dispatchEvent(showDetailEvent);
-      } else if (this.networkStateList.length > 0) {
-        const showDetailEvent = new CustomEvent('show-detail', {
-          bubbles: true,
-          composed: true,
-          detail: this.networkStateList[0],
-        });
-        this.dispatchEvent(showDetailEvent);
-      }
-    }
-    event.stopPropagation();
-  }
+  },
 
   /**
    * @param {!OncMojo.NetworkStateProperties} activeNetworkState
@@ -631,18 +460,12 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
       return this.enableToggleIsEnabled_(this.deviceState);
     }
 
-    // Item is actionable if tapping should show the user to the portal signin.
-    if (this.isCaptivePortalUI2022Enabled_ &&
-        this.isPortalState_(this.activeNetworkState.portalState)) {
-      return true;
-    }
-
     // Item is actionable if tapping should show either networks subpage or the
     // network details page.
     return this.shouldShowSubpage_(this.deviceState, this.networkStateList) ||
         this.shouldShowDetails_(
             activeNetworkState, deviceState, networkStateList);
-  }
+  },
 
   /**
    * @param {!OncMojo.NetworkStateProperties} activeNetworkState
@@ -652,18 +475,13 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
    * @private
    */
   showArrowButton_(activeNetworkState, deviceState, networkStateList) {
-    // If SIM info is shown on the right side of the item, no arrow should be
-    // shown.
-    if (this.showSimInfo_(deviceState)) {
-      return false;
-    }
     if (!this.deviceIsEnabled_(deviceState)) {
       return false;
     }
     return this.shouldShowSubpage_(deviceState, networkStateList) ||
         this.shouldShowDetails_(
             activeNetworkState, deviceState, networkStateList);
-  }
+  },
 
   /**
    * Event triggered when the enable button is toggled.
@@ -673,37 +491,23 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
   onDeviceEnabledChange_(event) {
     assert(this.deviceState);
     const deviceIsEnabled = this.deviceIsEnabled_(this.deviceState);
-    const deviceEnabledToggledEvent =
-        new CustomEvent('device-enabled-toggled', {
-          bubbles: true,
-          composed: true,
-          detail: {enabled: !deviceIsEnabled, type: this.deviceState.type},
-        });
-    this.dispatchEvent(deviceEnabledToggledEvent);
-
+    this.fire(
+        'device-enabled-toggled',
+        {enabled: !deviceIsEnabled, type: this.deviceState.type});
     // Set the device state to enabling or disabling until updated.
     this.deviceState.deviceState = deviceIsEnabled ?
-        DeviceStateType.kDisabling :
-        DeviceStateType.kEnabling;
-  }
+        mojom.DeviceStateType.kDisabling :
+        mojom.DeviceStateType.kEnabling;
+  },
 
   /**
    * @return {string}
    * @private
    */
   getTitleText_() {
-    if (this.networkTitleText) {
-      return this.networkTitleText;
-    }
-    if (this.isCaptivePortalUI2022Enabled_ &&
-        this.isPortalState_(this.activeNetworkState.portalState)) {
-      const stateText = this.getConnectionStateText_(this.activeNetworkState);
-      if (stateText) {
-        return stateText;
-      }
-    }
-    return this.getNetworkTypeString_(this.activeNetworkState.type);
-  }
+    return this.networkTitleText ||
+        this.getNetworkTypeString_(this.activeNetworkState.type);
+  },
 
   /**
    * Make sure events in embedded components do not propagate to onDetailsTap_.
@@ -712,10 +516,10 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
    */
   doNothing_(event) {
     event.stopPropagation();
-  }
+  },
 
   /**
-   * @param {!NetworkType} type
+   * @param {!mojom.NetworkType} type
    * @return {string}
    * @private
    */
@@ -723,22 +527,11 @@ export class NetworkSummaryItemElement extends NetworkSummaryItemElementBase {
     // The shared Cellular/Tether subpage is referred to as "Mobile".
     // TODO(khorimoto): Remove once Cellular/Tether are split into their own
     // sections.
-    if (type === NetworkType.kCellular || type === NetworkType.kTether) {
-      type = NetworkType.kMobile;
+    if (type === mojom.NetworkType.kCellular ||
+        type === mojom.NetworkType.kTether) {
+      type = mojom.NetworkType.kMobile;
     }
     return this.i18n('OncType' + OncMojo.getNetworkTypeString(type));
-  }
-
-  /**
-   * Return true if portalState is either kPortal or kProxyAuthRequired.
-   * @param {!PortalState} portalState
-   * @return {boolean}
-   * @private
-   */
-  isPortalState_(portalState) {
-    return portalState === PortalState.kPortal ||
-        portalState === PortalState.kProxyAuthRequired;
-  }
-}
-
-customElements.define(NetworkSummaryItemElement.is, NetworkSummaryItemElement);
+  },
+});
+})();

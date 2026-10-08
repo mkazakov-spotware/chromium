@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests node xPath construction\n`);
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
   await TestRunner.showPanel('elements');
   await TestRunner.navigatePromise('resources/node-xpath.xhtml');
 
@@ -13,7 +13,7 @@
 
   function dumpNodes(prefix, node) {
     if (!doc) {
-      doc = ElementsTestRunner.getDocumentElement();
+      doc = getDocumentElement();
       node = doc;
     }
     dumpNodeData(node, prefix);
@@ -22,6 +22,16 @@
       dumpNodes(prefix + '  ', children[i]);
     if (node === doc)
       TestRunner.completeTest();
+  }
+
+  function getDocumentElement() {
+    var map = TestRunner.domModel._idToDOMNode;
+    for (var id in map) {
+      if (map[id].nodeName() === '#document')
+        return map[id];
+    }
+
+    return null;
   }
 
   function dumpNodeData(node, prefix) {

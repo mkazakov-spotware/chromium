@@ -1,8 +1,6 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {EventHandler} from '../../common/event_handler.js';
 
 /**
  * The hex color for the focus rings.
@@ -21,7 +19,7 @@ const AUTOCLICK_FOCUS_RING_DISPLAY_TIME_MS = 250;
 /**
  * Class to manage Automatic Clicks' interaction with the accessibility tree.
  */
-export class Autoclick {
+class Autoclick {
   constructor() {
     /**
      * Whether to blink the focus rings. Disabled during tests due to
@@ -45,7 +43,7 @@ export class Autoclick {
      */
     this.hitTestHandler_ = new EventHandler(
         [], chrome.automation.EventType.MOUSE_PRESSED,
-        event => this.onAutomationHitTestResult_(event), {capture: true});
+        this.onAutomationHitTestResult_.bind(this), {capture: true});
 
     this.init_();
   }
@@ -72,10 +70,10 @@ export class Autoclick {
    * @private
    */
   init_() {
-    this.scrollableBoundsListener_ = (x, y) =>
-        this.findScrollingContainerForPoint_(x, y);
+    this.scrollableBoundsListener_ =
+        this.findScrollingContainerForPoint_.bind(this);
 
-    chrome.automation.getDesktop(desktop => {
+    chrome.automation.getDesktop((desktop) => {
       this.desktop_ = desktop;
 
       // We use a hit test at a point to determine what automation node is

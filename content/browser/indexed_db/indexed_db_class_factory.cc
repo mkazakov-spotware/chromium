@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -91,13 +91,13 @@ IndexedDBClassFactory::transactional_leveldb_factory() {
 
 std::pair<std::unique_ptr<IndexedDBDatabase>, leveldb::Status>
 IndexedDBClassFactory::CreateIndexedDBDatabase(
-    const std::u16string& name,
+    const base::string16& name,
     IndexedDBBackingStore* backing_store,
     IndexedDBFactory* factory,
     TasksAvailableCallback tasks_available_callback,
     std::unique_ptr<IndexedDBMetadataCoding> metadata_coding,
     const IndexedDBDatabase::Identifier& unique_identifier,
-    PartitionedLockManager* transaction_lock_manager) {
+    ScopesLockManager* transaction_lock_manager) {
   DCHECK(backing_store);
   DCHECK(factory);
   std::unique_ptr<IndexedDBDatabase> database =

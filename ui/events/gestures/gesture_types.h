@@ -1,11 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_EVENTS_GESTURES_GESTURE_TYPES_H_
 #define UI_EVENTS_GESTURES_GESTURE_TYPES_H_
-
-#include <string>
 
 #include "ui/events/events_export.h"
 
@@ -38,8 +36,6 @@ class EVENTS_EXPORT GestureConsumer {
   // Returns true if the consumer wants to receive double tap gesture events.
   // Defaults to false.
   virtual bool RequiresDoubleTapGestureEvents() const;
-
-  virtual const std::string& GetName() const;
 };
 
 // GestureEventHelper creates implementation-specific gesture events and

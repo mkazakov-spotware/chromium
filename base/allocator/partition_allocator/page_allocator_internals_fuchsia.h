@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -15,14 +15,12 @@
 #include <lib/zx/vmar.h>
 #include <lib/zx/vmo.h>
 
-#include <cstdint>
-
 #include "base/allocator/partition_allocator/page_allocator.h"
-#include "base/allocator/partition_allocator/partition_alloc_base/fuchsia/fuchsia_logging.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
-#include "base/allocator/partition_allocator/partition_alloc_notreached.h"
+#include "base/fuchsia/fuchsia_logging.h"
+#include "base/notreached.h"
 
-namespace partition_alloc::internal {
+namespace base {
 
 namespace {
 
@@ -45,21 +43,19 @@ const char* PageTagToName(PageTag tag) {
 
 zx_vm_option_t PageAccessibilityToZxVmOptions(
     PageAccessibilityConfiguration accessibility) {
-  switch (accessibility.permissions) {
-    case PageAccessibilityConfiguration::kRead:
+  switch (accessibility) {
+    case PageRead:
       return ZX_VM_PERM_READ;
-    case PageAccessibilityConfiguration::kReadWrite:
-    case PageAccessibilityConfiguration::kReadWriteTagged:
+    case PageReadWrite:
       return ZX_VM_PERM_READ | ZX_VM_PERM_WRITE;
-    case PageAccessibilityConfiguration::kReadExecuteProtected:
-    case PageAccessibilityConfiguration::kReadExecute:
+    case PageReadExecute:
       return ZX_VM_PERM_READ | ZX_VM_PERM_EXECUTE;
-    case PageAccessibilityConfiguration::kReadWriteExecute:
+    case PageReadWriteExecute:
       return ZX_VM_PERM_READ | ZX_VM_PERM_WRITE | ZX_VM_PERM_EXECUTE;
     default:
-      PA_NOTREACHED();
-      [[fallthrough]];
-    case PageAccessibilityConfiguration::kInaccessible:
+      NOTREACHED();
+      FALLTHROUGH;
+    case PageInaccessible:
       return 0;
   }
 }
@@ -72,17 +68,15 @@ constexpr bool kHintIsAdvisory = false;
 
 std::atomic<int32_t> s_allocPageErrorCode{0};
 
-uintptr_t SystemAllocPagesInternal(
-    uintptr_t hint,
-    size_t length,
-    PageAccessibilityConfiguration accessibility,
-    PageTag page_tag,
-    [[maybe_unused]] int file_descriptor_for_shared_alloc) {
+void* SystemAllocPagesInternal(void* hint,
+                               size_t length,
+                               PageAccessibilityConfiguration accessibility,
+                               PageTag page_tag) {
   zx::vmo vmo;
   zx_status_t status = zx::vmo::create(length, 0, &vmo);
   if (status != ZX_OK) {
-    PA_ZX_DLOG(INFO, status) << "zx_vmo_create";
-    return 0;
+    ZX_DLOG(INFO, status) << "zx_vmo_create";
+    return nullptr;
   }
 
   const char* vmo_name = PageTagToName(page_tag);
@@ -90,15 +84,15 @@ uintptr_t SystemAllocPagesInternal(
 
   // VMO names are used only for debugging, so failure to set a name is not
   // fatal.
-  PA_ZX_DCHECK(status == ZX_OK, status);
+  ZX_DCHECK(status == ZX_OK, status);
 
   if (page_tag == PageTag::kV8) {
     // V8 uses JIT. Call zx_vmo_replace_as_executable() to allow code execution
     // in the new VMO.
     status = vmo.replace_as_executable(zx::resource(), &vmo);
     if (status != ZX_OK) {
-      PA_ZX_DLOG(INFO, status) << "zx_vmo_replace_as_executable";
-      return 0;
+      ZX_DLOG(INFO, status) << "zx_vmo_replace_as_executable";
+      return nullptr;
     }
   }
 
@@ -106,7 +100,7 @@ uintptr_t SystemAllocPagesInternal(
 
   uint64_t vmar_offset = 0;
   if (hint) {
-    vmar_offset = hint;
+    vmar_offset = reinterpret_cast<uint64_t>(hint);
     options |= ZX_VM_SPECIFIC;
   }
 
@@ -117,126 +111,91 @@ uintptr_t SystemAllocPagesInternal(
   if (status != ZX_OK) {
     // map() is expected to fail if |hint| is set to an already-in-use location.
     if (!hint) {
-      PA_ZX_DLOG(ERROR, status) << "zx_vmar_map";
+      ZX_DLOG(ERROR, status) << "zx_vmar_map";
     }
-    return 0;
+    return nullptr;
   }
 
-  return address;
+  return reinterpret_cast<void*>(address);
 }
 
-uintptr_t TrimMappingInternal(uintptr_t base_address,
-                              size_t base_length,
-                              size_t trim_length,
-                              PageAccessibilityConfiguration accessibility,
-                              size_t pre_slack,
-                              size_t post_slack) {
+void* TrimMappingInternal(void* base,
+                          size_t base_length,
+                          size_t trim_length,
+                          PageAccessibilityConfiguration accessibility,
+                          size_t pre_slack,
+                          size_t post_slack) {
   PA_DCHECK(base_length == trim_length + pre_slack + post_slack);
+
+  uint64_t base_address = reinterpret_cast<uint64_t>(base);
 
   // Unmap head if necessary.
   if (pre_slack) {
     zx_status_t status = zx::vmar::root_self()->unmap(base_address, pre_slack);
-    PA_ZX_CHECK(status == ZX_OK, status);
+    ZX_CHECK(status == ZX_OK, status);
   }
 
   // Unmap tail if necessary.
   if (post_slack) {
     zx_status_t status = zx::vmar::root_self()->unmap(
         base_address + pre_slack + trim_length, post_slack);
-    PA_ZX_CHECK(status == ZX_OK, status);
+    ZX_CHECK(status == ZX_OK, status);
   }
 
-  return base_address + pre_slack;
+  return reinterpret_cast<void*>(base_address + pre_slack);
 }
 
 bool TrySetSystemPagesAccessInternal(
-    uint64_t address,
+    void* address,
     size_t length,
     PageAccessibilityConfiguration accessibility) {
-  zx_status_t status = zx::vmar::root_self()->protect(
-      PageAccessibilityToZxVmOptions(accessibility), address, length);
+  zx_status_t status = zx::vmar::root_self()->protect2(
+      PageAccessibilityToZxVmOptions(accessibility),
+      reinterpret_cast<uint64_t>(address), length);
   return status == ZX_OK;
 }
 
 void SetSystemPagesAccessInternal(
-    uint64_t address,
+    void* address,
     size_t length,
     PageAccessibilityConfiguration accessibility) {
-  zx_status_t status = zx::vmar::root_self()->protect(
-      PageAccessibilityToZxVmOptions(accessibility), address, length);
-  PA_ZX_CHECK(status == ZX_OK, status);
+  zx_status_t status = zx::vmar::root_self()->protect2(
+      PageAccessibilityToZxVmOptions(accessibility),
+      reinterpret_cast<uint64_t>(address), length);
+  ZX_CHECK(status == ZX_OK, status);
 }
 
-void FreePagesInternal(uint64_t address, size_t length) {
-  zx_status_t status = zx::vmar::root_self()->unmap(address, length);
-  PA_ZX_CHECK(status == ZX_OK, status);
+void FreePagesInternal(void* address, size_t length) {
+  uint64_t address_int = reinterpret_cast<uint64_t>(address);
+  zx_status_t status = zx::vmar::root_self()->unmap(address_int, length);
+  ZX_CHECK(status == ZX_OK, status);
 }
 
-void DiscardSystemPagesInternal(uint64_t address, size_t length) {
+void DiscardSystemPagesInternal(void* address, size_t length) {
   // TODO(https://crbug.com/1022062): Mark pages as discardable, rather than
   // forcibly de-committing them immediately, when Fuchsia supports it.
+  uint64_t address_int = reinterpret_cast<uint64_t>(address);
   zx_status_t status = zx::vmar::root_self()->op_range(
-      ZX_VMO_OP_DECOMMIT, address, length, nullptr, 0);
-  PA_ZX_CHECK(status == ZX_OK, status);
+      ZX_VMO_OP_DECOMMIT, address_int, length, nullptr, 0);
+  ZX_CHECK(status == ZX_OK, status);
 }
 
-void DecommitSystemPagesInternal(
-    uint64_t address,
-    size_t length,
-    PageAccessibilityDisposition accessibility_disposition) {
-  if (accessibility_disposition ==
-      PageAccessibilityDisposition::kRequireUpdate) {
-    SetSystemPagesAccess(address, length,
-                         PageAccessibilityConfiguration(
-                             PageAccessibilityConfiguration::kInaccessible));
-  }
-
+void DecommitSystemPagesInternal(void* address, size_t length) {
   // TODO(https://crbug.com/1022062): Review whether this implementation is
   // still appropriate once DiscardSystemPagesInternal() migrates to a "lazy"
   // discardable API.
   DiscardSystemPagesInternal(address, length);
+
+  SetSystemPagesAccessInternal(address, length, PageInaccessible);
 }
 
-void DecommitAndZeroSystemPagesInternal(uintptr_t address, size_t length) {
-  SetSystemPagesAccess(address, length,
-                       PageAccessibilityConfiguration(
-                           PageAccessibilityConfiguration::kInaccessible));
-
-  // TODO(https://crbug.com/1022062): this implementation will likely no longer
-  // be appropriate once DiscardSystemPagesInternal() migrates to a "lazy"
-  // discardable API.
-  DiscardSystemPagesInternal(address, length);
-}
-
-void RecommitSystemPagesInternal(
-    uintptr_t address,
-    size_t length,
-    PageAccessibilityConfiguration accessibility,
-    PageAccessibilityDisposition accessibility_disposition) {
-  // On Fuchsia systems, the caller needs to simply read the memory to recommit
-  // it. However, if decommit changed the permissions, recommit has to change
-  // them back.
-  if (accessibility_disposition ==
-      PageAccessibilityDisposition::kRequireUpdate) {
-    SetSystemPagesAccess(address, length, accessibility);
-  }
-}
-
-bool TryRecommitSystemPagesInternal(
-    uintptr_t address,
-    size_t length,
-    PageAccessibilityConfiguration accessibility,
-    PageAccessibilityDisposition accessibility_disposition) {
-  // On Fuchsia systems, the caller needs to simply read the memory to recommit
-  // it. However, if decommit changed the permissions, recommit has to change
-  // them back.
-  if (accessibility_disposition ==
-      PageAccessibilityDisposition::kRequireUpdate) {
-    return TrySetSystemPagesAccess(address, length, accessibility);
-  }
+bool RecommitSystemPagesInternal(void* address,
+                                 size_t length,
+                                 PageAccessibilityConfiguration accessibility) {
+  SetSystemPagesAccessInternal(address, length, accessibility);
   return true;
 }
 
-}  // namespace partition_alloc::internal
+}  // namespace base
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_PAGE_ALLOCATOR_INTERNALS_FUCHSIA_H_

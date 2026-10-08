@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,13 @@
 #include "remoting/proto/internal.pb.h"
 #include "third_party/webrtc/rtc_base/byte_order.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
-MessageDecoder::MessageDecoder() = default;
+MessageDecoder::MessageDecoder()
+    : next_payload_(0),
+      next_payload_known_(false) {
+}
 
 MessageDecoder::~MessageDecoder() = default;
 
@@ -64,4 +68,5 @@ bool MessageDecoder::GetPayloadSize(int* size) {
   return true;
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

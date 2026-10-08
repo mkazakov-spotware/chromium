@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/tab_ui_helper.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/l10n/l10n_util_mac.h"
@@ -31,13 +30,13 @@ void UpdateItemForWebContents(NSMenuItem* item,
     // speaker-playing-sound icon or a muted-speaker icon to its title to make
     // it easy to find the tabs playing sound in the Tab menu.
     int title_id;
-    std::u16string emoji;
+    base::string16 emoji;
     if (web_contents->IsAudioMuted()) {
       title_id = IDS_WINDOW_AUDIO_MUTING_MAC;
-      emoji = u"\U0001F507";
+      emoji = base::WideToUTF16(L"\U0001F507");
     } else {
       title_id = IDS_WINDOW_AUDIO_PLAYING_MAC;
-      emoji = u"\U0001F50A";
+      emoji = base::WideToUTF16(L"\U0001F50A");
     }
 
     item.title =
@@ -46,14 +45,6 @@ void UpdateItemForWebContents(NSMenuItem* item,
     item.title = base::SysUTF16ToNSString(tab_ui_helper->GetTitle());
   }
   item.image = tab_ui_helper->GetFavicon().AsNSImage();
-}
-
-void RemoveMenuItems(NSArray* menu_items) {
-  NSMenu* tab_menu = [[menu_items firstObject] menu];
-
-  for (NSMenuItem* item in menu_items) {
-    [tab_menu removeItem:item];
-  }
 }
 
 }  // namespace
@@ -82,70 +73,47 @@ void RemoveMenuItems(NSArray* menu_items) {
 TabMenuBridge::TabMenuBridge(TabStripModel* model, NSMenuItem* menu_item)
     : model_(model), menu_item_(menu_item) {
   menu_listener_.reset([[TabMenuListener alloc]
-      initWithCallback:base::BindRepeating(
-                           &TabMenuBridge::OnDynamicItemChosen,
-                           // Unretained is safe here: this class owns
-                           // MenuListener, which holds the callback
-                           // being constructed here, so the callback
-                           // will be destructed before this class.
-                           base::Unretained(this))]);
+      initWithCallback:base::Bind(&TabMenuBridge::OnDynamicItemChosen,
+                                  // Unretained is safe here: this class owns
+                                  // MenuListener, which holds the callback
+                                  // being constructed here, so the callback
+                                  // will be destructed before this class.
+                                  base::Unretained(this))]);
   model_->AddObserver(this);
 }
 
 TabMenuBridge::~TabMenuBridge() {
   if (model_)
     model_->RemoveObserver(this);
-  RemoveMenuItems(DynamicMenuItems());
+  RemoveAllDynamicItems();
 }
 
 void TabMenuBridge::BuildMenu() {
   DCHECK(model_);
+  RemoveAllDynamicItems();
   AddDynamicItemsFromModel();
 }
 
-NSMutableArray* TabMenuBridge::DynamicMenuItems() {
-  NSMenu* tabMenu = menu_item_.submenu;
-  NSMutableArray* array = [[[NSMutableArray alloc]
-      initWithCapacity:[tabMenu numberOfItems]] autorelease];
-
+void TabMenuBridge::RemoveAllDynamicItems() {
   for (NSMenuItem* item in menu_item_.submenu.itemArray) {
     if (item.target == menu_listener_.get())
-      [array addObject:item];
+      [menu_item_.submenu removeItem:item];
   }
-
-  return array;
 }
 
 void TabMenuBridge::AddDynamicItemsFromModel() {
-  NSMutableArray* recyclable_items = DynamicMenuItems();
-  NSMenu* tabMenu = menu_item_.submenu;
-
-  dynamic_items_start_ = tabMenu.numberOfItems - recyclable_items.count;
+  dynamic_items_start_ = menu_item_.submenu.numberOfItems;
   for (int i = 0; i < model_->count(); ++i) {
-    base::scoped_nsobject<NSMenuItem> item;
-
-    if (recyclable_items.count) {
-      item.reset([[recyclable_items firstObject] retain]);
-      [recyclable_items removeObjectAtIndex:0];
-      [item setState:NSControlStateValueOff];
-    } else {
-      item.reset([[NSMenuItem alloc] initWithTitle:@""
-                                            action:@selector(activateTab:)
-                                     keyEquivalent:@""]);
-      [item setTarget:menu_listener_.get()];
-    }
-
-    if (model_->active_index() == i) {
-      [item setState:NSControlStateValueOn];
-    }
+    base::scoped_nsobject<NSMenuItem> item([[NSMenuItem alloc]
+        initWithTitle:@""
+               action:@selector(activateTab:)
+        keyEquivalent:@""]);
+    [item setTarget:menu_listener_.get()];
+    if (model_->active_index() == i)
+      [item setState:NSOnState];
     UpdateItemForWebContents(item, model_->GetWebContentsAt(i));
-
-    if ([item menu] == nil) {
-      [tabMenu addItem:item.get()];
-    }
+    [menu_item_.submenu addItem:item.get()];
   }
-
-  RemoveMenuItems(recyclable_items);
 }
 
 void TabMenuBridge::OnDynamicItemChosen(NSMenuItem* item) {
@@ -154,9 +122,8 @@ void TabMenuBridge::OnDynamicItemChosen(NSMenuItem* item) {
 
   DCHECK_EQ(item.target, menu_listener_.get());
   int index = [menu_item_.submenu indexOfItem:item] - dynamic_items_start_;
-  model_->ActivateTabAt(index,
-                        TabStripUserGestureDetails(
-                            TabStripUserGestureDetails::GestureType::kTabMenu));
+  model_->ActivateTabAt(index, TabStripModel::UserGestureDetails(
+                                   TabStripModel::GestureType::kTabMenu));
 }
 
 void TabMenuBridge::OnTabStripModelChanged(
@@ -176,6 +143,9 @@ void TabMenuBridge::OnTabStripModelChanged(
     return;
   }
 
+  // Rather than doing clever updating from |change|, just destroy the dynamic
+  // menu items and re-add them.
+  RemoveAllDynamicItems();
   AddDynamicItemsFromModel();
 }
 

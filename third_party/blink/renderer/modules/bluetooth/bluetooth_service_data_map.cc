@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,7 @@
 namespace blink {
 
 class BluetoothServiceDataMapIterationSource final
-    : public PairIterable<String, IDLString, Member<DOMDataView>, DOMDataView>::
-          IterationSource {
+    : public PairIterable<String, Member<DOMDataView>>::IterationSource {
  public:
   BluetoothServiceDataMapIterationSource(const BluetoothServiceDataMap& map)
       : map_(map), iterator_(map_->Map().begin()) {}
@@ -31,8 +30,7 @@ class BluetoothServiceDataMapIterationSource final
 
   void Trace(Visitor* visitor) const override {
     visitor->Trace(map_);
-    PairIterable<String, IDLString, Member<DOMDataView>,
-                 DOMDataView>::IterationSource::Trace(visitor);
+    PairIterable<String, Member<DOMDataView>>::IterationSource::Trace(visitor);
   }
 
  private:
@@ -47,9 +45,8 @@ BluetoothServiceDataMap::BluetoothServiceDataMap(
 
 BluetoothServiceDataMap::~BluetoothServiceDataMap() {}
 
-PairIterable<String, IDLString, Member<DOMDataView>, DOMDataView>::
-    IterationSource*
-    BluetoothServiceDataMap::StartIteration(ScriptState*, ExceptionState&) {
+PairIterable<String, Member<DOMDataView>>::IterationSource*
+BluetoothServiceDataMap::StartIteration(ScriptState*, ExceptionState&) {
   return MakeGarbageCollected<BluetoothServiceDataMapIterationSource>(*this);
 }
 

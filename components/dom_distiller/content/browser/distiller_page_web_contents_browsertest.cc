@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,12 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "components/dom_distiller/content/browser/distiller_javascript_utils.h"
@@ -120,7 +120,7 @@ class DistillerPageWebContentsTest : public ContentBrowserTest {
                                     bool expect_new_web_contents,
                                     bool wait_for_document_loaded);
 
-  raw_ptr<DistillerPageWebContents, DanglingUntriaged> distiller_page_;
+  DistillerPageWebContents* distiller_page_;
   std::unique_ptr<proto::DomDistillerResult> distiller_result_;
 };
 
@@ -152,7 +152,7 @@ class TestDistillerPageWebContents : public DistillerPageWebContents {
   bool new_web_contents_created_;
 };
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_BasicDistillationWorks DISABLED_BasicDistillationWorks
 #else
 #define MAYBE_BasicDistillationWorks BasicDistillationWorks
@@ -178,7 +178,7 @@ IN_PROC_BROWSER_TEST_F(DistillerPageWebContentsTest,
   EXPECT_EQ("", distiller_result_->pagination_info().prev_page());
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_HandlesRelativeLinks DISABLED_HandlesRelativeLinks
 #else
 #define MAYBE_HandlesRelativeLinks HandlesRelativeLinks
@@ -202,7 +202,7 @@ IN_PROC_BROWSER_TEST_F(DistillerPageWebContentsTest,
               HasSubstr("href=\"http://www.google.com/absolutelink.html\""));
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_HandlesRelativeImages DISABLED_HandlesRelativeImages
 #else
 #define MAYBE_HandlesRelativeImages HandlesRelativeImages
@@ -226,7 +226,7 @@ IN_PROC_BROWSER_TEST_F(DistillerPageWebContentsTest,
               HasSubstr("src=\"http://www.google.com/absoluteimage.png\""));
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_HandlesRelativeVideos DISABLED_HandlesRelativeVideos
 #else
 #define MAYBE_HandlesRelativeVideos HandlesRelativeVideos
@@ -255,7 +255,7 @@ IN_PROC_BROWSER_TEST_F(DistillerPageWebContentsTest,
               HasSubstr("src=\"http://www.google.com/absolute_track_fr.vtt\""));
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_VisibilityDetection DISABLED_VisibilityDetection
 #else
 #define MAYBE_VisibilityDetection VisibilityDetection
@@ -288,7 +288,7 @@ IN_PROC_BROWSER_TEST_F(DistillerPageWebContentsTest,
   }
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_UsingCurrentWebContentsWrongUrl \
   DISABLED_UsingCurrentWebContentsWrongUrl
 #else
@@ -303,7 +303,7 @@ IN_PROC_BROWSER_TEST_F(DistillerPageWebContentsTest,
                                wait_for_document_loaded);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_UsingCurrentWebContentsNotFinishedLoadingYet \
   DISABLED_UsingCurrentWebContentsNotFinishedLoadingYet
 #else
@@ -319,7 +319,7 @@ IN_PROC_BROWSER_TEST_F(DistillerPageWebContentsTest,
                                wait_for_document_loaded);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_UsingCurrentWebContentsReadyForDistillation \
   DISABLED_UsingCurrentWebContentsReadyForDistillation
 #else
@@ -367,7 +367,7 @@ void DistillerPageWebContentsTest::RunUseCurrentWebContentsTest(
   EXPECT_EQ("Test Page Title", distiller_result_->title());
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_PageDestroyedBeforeFinishDistillation \
   DISABLED_PageDestroyedBeforeFinishDistillation
 #else
@@ -402,13 +402,13 @@ IN_PROC_BROWSER_TEST_F(DistillerPageWebContentsTest,
   delete distiller_page_;
 
   // Make sure the test ends when it does not crash.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-      FROM_HERE, run_loop.QuitClosure(), base::Seconds(2));
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+      FROM_HERE, run_loop.QuitClosure(), base::TimeDelta::FromSeconds(2));
 
   run_loop.Run();
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_MarkupInfo DISABLED_MarkupInfo
 #else
 #define MAYBE_MarkupInfo MarkupInfo

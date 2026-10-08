@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.proto2.PbLiteSerializerTest');
 goog.setTestOnly();
@@ -168,7 +176,7 @@ testSuite({
     const serializer = new PbLiteSerializer();
     const pblite = serializer.serialize(message);
 
-    assertTrue(Array.isArray(pblite));
+    assertTrue(goog.isArray(pblite));
 
     // Assert that everything serialized properly.
     assertEquals(101, pblite[1]);
@@ -202,7 +210,6 @@ testSuite({
 
     const serializer2 = new PbLiteSerializer();
     // Deserialize.
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const messageCopy =
         serializer2.deserialize(TestAllTypes.getDescriptor(), pblite);
 
@@ -211,10 +218,6 @@ testSuite({
     assertDeserializationMatches(messageCopy);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testZeroBasedSerializationAndDeserialization() {
     const message = createPopulatedMessage();
 
@@ -224,7 +227,7 @@ testSuite({
 
     const pblite = serializer.serialize(message);
 
-    assertTrue(Array.isArray(pblite));
+    assertTrue(goog.isArray(pblite));
 
     // Assert that everything serialized properly.
     assertEquals(101, pblite[0]);
@@ -257,7 +260,6 @@ testSuite({
     assertEquals('bar', pblite[43][1]);
 
     // Deserialize.
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const messageCopy =
         serializer.deserialize(TestAllTypes.getDescriptor(), pblite);
 
@@ -267,10 +269,6 @@ testSuite({
     assertDeserializationMatches(messageCopy);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testDeserializationFromExternalSource() {
     // Test deserialization where the JSON array is initialized from something
     // outside the Closure proto2 library, such as the JsPbLite library, or
@@ -345,7 +343,6 @@ testSuite({
 
     // Deserialize.
     const serializer = new PbLiteSerializer();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const messageCopy =
         serializer.deserialize(TestAllTypes.getDescriptor(), pblite);
 
@@ -377,10 +374,6 @@ testSuite({
     assertEquals(1234, messageCopy.getOptionalInt32());
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testModifyLazyDeserializedMessage() {
     const pblite = [
       ,        // 0
@@ -452,7 +445,6 @@ testSuite({
 
     // Deserialize.
     const serializer = new PbLiteSerializer();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const message =
         serializer.deserialize(TestAllTypes.getDescriptor(), pblite);
 
@@ -487,10 +479,6 @@ testSuite({
     assertEquals(101, messageCopy.getRepeatedInt32(0));
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testModifyLazyDeserializedMessageByAddingMessage() {
     const pblite = [
       ,        // 0
@@ -562,7 +550,6 @@ testSuite({
 
     // Deserialize.
     const serializer = new PbLiteSerializer();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const message =
         serializer.deserialize(TestAllTypes.getDescriptor(), pblite);
 
@@ -609,7 +596,6 @@ testSuite({
     target.setOptionalNestedEnum(TestAllTypes.NestedEnum.BAR);
     target.addRepeatedInt32(1);
     const pbliteTarget = serializer.serialize(target);
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const lazyTarget =
         serializer.deserialize(TestAllTypes.getDescriptor(), pbliteTarget);
 

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,13 +13,13 @@
 #include "ash/public/cpp/keyboard/keyboard_controller.h"
 #include "ash/public/cpp/keyboard/keyboard_controller_observer.h"
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/observer_list_types.h"
+#include "base/optional.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/session_manager/core/session_manager_observer.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 class ChromeKeyboardWebContents;
@@ -37,19 +37,16 @@ class ChromeKeyboardControllerClient
       public session_manager::SessionManagerObserver {
  public:
   // Convenience observer allowing UI classes to observe the global instance of
-  // this class.
+  // this class instead of setting up mojo bindings.
   class Observer : public base::CheckedObserver {
    public:
     ~Observer() override = default;
 
-    // Forwards the 'OnKeyboardVisibilityChanged' observer method.
+    // Forwards the 'OnKeyboardVisibilityChanged' mojo observer method.
     // This is used by oobe and login to adjust the UI.
     virtual void OnKeyboardVisibilityChanged(bool visible) {}
 
-    virtual void OnKeyboardVisibleBoundsChanged(
-        const gfx::Rect& screen_bounds) {}
-
-    // Forwards the 'OnKeyboardOccludedBoundsChanged' observer method.
+    // Forwards the 'OnKeyboardOccludedBoundsChanged' mojo observer method.
     // This is used to update the insets of browser and app windows when the
     // keyboard is shown.
     virtual void OnKeyboardOccludedBoundsChanged(
@@ -59,9 +56,6 @@ class ChromeKeyboardControllerClient
     // loaded. Note: if the content is already loaded when the observer is
     // added, this will not be triggered, but see is_keyboard_loaded().
     virtual void OnKeyboardLoaded() {}
-
-    // Forwards the 'OnKeyboardEnabledChanged' observer method.
-    virtual void OnKeyboardEnabledChanged(bool enabled) {}
   };
 
   // Creates the singleton instance for chrome or browser tests.
@@ -78,11 +72,6 @@ class ChromeKeyboardControllerClient
 
   // Used in tests to determine whether this has been instantiated.
   static bool HasInstance();
-
-  ChromeKeyboardControllerClient(const ChromeKeyboardControllerClient&) =
-      delete;
-  ChromeKeyboardControllerClient& operator=(
-      const ChromeKeyboardControllerClient&) = delete;
 
   ~ChromeKeyboardControllerClient() override;
 
@@ -190,13 +179,13 @@ class ChromeKeyboardControllerClient
 
   PrefChangeRegistrar pref_change_registrar_;
 
-  raw_ptr<ash::KeyboardController> keyboard_controller_ = nullptr;
+  ash::KeyboardController* keyboard_controller_ = nullptr;
 
   // Set when the WS is used and OnLoadKeyboardContentsRequested is called.
   std::unique_ptr<ChromeKeyboardWebContents> keyboard_contents_;
 
   // Cached copy of the latest config provided by KeyboardController.
-  absl::optional<keyboard::KeyboardConfig> cached_keyboard_config_;
+  base::Optional<keyboard::KeyboardConfig> cached_keyboard_config_;
 
   // Cached copy of the active enabled flags provided by KeyboardController.
   std::set<keyboard::KeyboardEnableFlag> keyboard_enable_flags_;
@@ -212,10 +201,12 @@ class ChromeKeyboardControllerClient
 
   base::ObserverList<Observer> observers_;
 
-  raw_ptr<Profile> profile_for_test_ = nullptr;
+  Profile* profile_for_test_ = nullptr;
   GURL virtual_keyboard_url_for_test_;
 
   base::WeakPtrFactory<ChromeKeyboardControllerClient> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeKeyboardControllerClient);
 };
 
 #endif  // CHROME_BROWSER_UI_ASH_KEYBOARD_CHROME_KEYBOARD_CONTROLLER_CLIENT_H_

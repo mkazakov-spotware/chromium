@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@ void WaitForTemplateURLServiceToLoad(TemplateURLService* service) {
     return;
   scoped_refptr<content::MessageLoopRunner> message_loop_runner =
       new content::MessageLoopRunner;
-  base::CallbackListSubscription subscription =
+  std::unique_ptr<TemplateURLService::Subscription> subscription =
       service->RegisterOnLoadedCallback(
           base::BindLambdaForTesting([&]() { message_loop_runner->Quit(); }));
   service->Load();

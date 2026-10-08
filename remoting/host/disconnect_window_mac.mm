@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/bind.h"
 #include "base/compiler_specific.h"
 #include "base/i18n/rtl.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
@@ -48,10 +49,6 @@ namespace remoting {
 class DisconnectWindowMac : public HostWindow {
  public:
   DisconnectWindowMac();
-
-  DisconnectWindowMac(const DisconnectWindowMac&) = delete;
-  DisconnectWindowMac& operator=(const DisconnectWindowMac&) = delete;
-
   ~DisconnectWindowMac() override;
 
   // HostWindow overrides.
@@ -59,10 +56,14 @@ class DisconnectWindowMac : public HostWindow {
       override;
 
  private:
-  DisconnectWindowController* window_controller_ = nil;
+  DisconnectWindowController* window_controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(DisconnectWindowMac);
 };
 
-DisconnectWindowMac::DisconnectWindowMac() = default;
+DisconnectWindowMac::DisconnectWindowMac()
+    : window_controller_(nil) {
+}
 
 DisconnectWindowMac::~DisconnectWindowMac() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -89,7 +90,7 @@ void DisconnectWindowMac::Start(
   NSRect frame = NSMakeRect(0, 0, 466, 40);
   DisconnectWindow* window =
       [[[DisconnectWindow alloc] initWithContentRect:frame
-                                           styleMask:NSWindowStyleMaskBorderless
+                                           styleMask:NSBorderlessWindowMask
                                              backing:NSBackingStoreBuffered
                                                defer:NO] autorelease];
   window_controller_ = [[DisconnectWindowController alloc]
@@ -111,9 +112,9 @@ std::unique_ptr<HostWindow> HostWindow::CreateDisconnectWindow() {
 @synthesize connectedToField = _connectedToField;
 @synthesize disconnectButton = _disconnectButton;
 
-- (instancetype)initWithCallback:(base::OnceClosure)disconnect_callback
-                        username:(const std::string&)username
-                          window:(NSWindow*)window {
+- (id)initWithCallback:(base::OnceClosure)disconnect_callback
+              username:(const std::string&)username
+                window:(NSWindow*)window {
   self = [super initWithWindow:(NSWindow*)window];
   if (self) {
     _disconnect_callback = std::move(disconnect_callback);
@@ -123,8 +124,6 @@ std::unique_ptr<HostWindow> HostWindow::CreateDisconnectWindow() {
 }
 
 - (void)dealloc {
-  [_connectedToField release];
-  [_disconnectButton release];
   [super dealloc];
 }
 
@@ -164,39 +163,40 @@ std::unique_ptr<HostWindow> HostWindow::CreateDisconnectWindow() {
   self.disconnectButton.target = self;
   [self.window.contentView addSubview:self.disconnectButton];
 
-  self.connectedToField.stringValue =
-      l10n_util::GetNSStringF(IDS_MESSAGE_SHARED, _username);
-  self.disconnectButton.title = l10n_util::GetNSString(IDS_STOP_SHARING_BUTTON);
+  [_connectedToField setStringValue:l10n_util::GetNSStringF(IDS_MESSAGE_SHARED,
+                                                            _username)];
+  [_disconnectButton setTitle:l10n_util::GetNSString(IDS_STOP_SHARING_BUTTON)];
 
   // Resize the window dynamically based on the content.
-  CGFloat oldConnectedWidth = NSWidth(self.connectedToField.bounds);
-  [self.connectedToField sizeToFit];
-  NSRect connectedToFrame = self.connectedToField.frame;
+  CGFloat oldConnectedWidth = NSWidth([_connectedToField bounds]);
+  [_connectedToField sizeToFit];
+  NSRect connectedToFrame = [_connectedToField frame];
   CGFloat newConnectedWidth = NSWidth(connectedToFrame);
 
   // Set a max width for the connected to text field.
   if (newConnectedWidth > kMaximumConnectedNameWidthInPixels) {
     newConnectedWidth = kMaximumConnectedNameWidthInPixels;
     connectedToFrame.size.width = newConnectedWidth;
-    self.connectedToField.frame = connectedToFrame;
+    [_connectedToField setFrame:connectedToFrame];
   }
 
-  CGFloat oldDisconnectWidth = NSWidth(self.disconnectButton.bounds);
-  [self.disconnectButton sizeToFit];
-  NSRect disconnectFrame = self.disconnectButton.frame;
+  CGFloat oldDisconnectWidth = NSWidth([_disconnectButton bounds]);
+  [_disconnectButton sizeToFit];
+  NSRect disconnectFrame = [_disconnectButton frame];
   CGFloat newDisconnectWidth = NSWidth(disconnectFrame);
 
   // Move the disconnect button appropriately.
   disconnectFrame.origin.x += newConnectedWidth - oldConnectedWidth;
   disconnectFrame.origin.y =
       (NSHeight(self.window.contentView.frame) - NSHeight(disconnectFrame)) / 2;
-  self.disconnectButton.frame = disconnectFrame;
+  [_disconnectButton setFrame:disconnectFrame];
 
   // Then resize the window appropriately
-  NSRect windowFrame = self.window.frame;
+  NSWindow *window = [self window];
+  NSRect windowFrame = [window frame];
   windowFrame.size.width += (newConnectedWidth - oldConnectedWidth +
                              newDisconnectWidth - oldDisconnectWidth);
-  [self.window setFrame:windowFrame display:NO];
+  [window setFrame:windowFrame display:NO];
 
   if ([self isRToL]) {
     // Handle right to left case
@@ -205,16 +205,16 @@ std::unique_ptr<HostWindow> HostWindow::CreateDisconnectWindow() {
         = NSMinX(disconnectFrame) - NSMaxX(connectedToFrame);
     disconnectFrame.origin.x = buttonInset;
     connectedToFrame.origin.x = NSMaxX(disconnectFrame) + buttonTextSpacing;
-    self.connectedToField.frame = connectedToFrame;
-    self.disconnectButton.frame = disconnectFrame;
+    [_connectedToField setFrame:connectedToFrame];
+    [_disconnectButton setFrame:disconnectFrame];
   }
 
   // Center the window at the bottom of the screen, above the dock (if present).
-  NSRect desktopRect = NSScreen.mainScreen.visibleFrame;
-  NSRect windowRect = self.window.frame;
+  NSRect desktopRect = [[NSScreen mainScreen] visibleFrame];
+  NSRect windowRect = [[self window] frame];
   CGFloat x = (NSWidth(desktopRect) - NSWidth(windowRect)) / 2;
   CGFloat y = NSMinY(desktopRect);
-  [self.window setFrameOrigin:NSMakePoint(x, y)];
+  [[self window] setFrameOrigin:NSMakePoint(x, y)];
 }
 
 - (void)windowWillClose:(NSNotification*)notification {
@@ -231,13 +231,13 @@ std::unique_ptr<HostWindow> HostWindow::CreateDisconnectWindow() {
 
 @implementation DisconnectWindow
 
-- (instancetype)initWithContentRect:(NSRect)contentRect
-                          styleMask:(NSUInteger)aStyle
-                            backing:(NSBackingStoreType)bufferingType
-                              defer:(BOOL)flag {
-  // Pass NSWindowStyleMaskBorderless for the styleMask to remove the title bar.
+- (id)initWithContentRect:(NSRect)contentRect
+                styleMask:(NSUInteger)aStyle
+                  backing:(NSBackingStoreType)bufferingType
+                  defer:(BOOL)flag {
+  // Pass NSBorderlessWindowMask for the styleMask to remove the title bar.
   self = [super initWithContentRect:contentRect
-                          styleMask:NSWindowStyleMaskBorderless
+                          styleMask:NSBorderlessWindowMask
                             backing:bufferingType
                               defer:flag];
 

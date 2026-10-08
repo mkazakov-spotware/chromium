@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,13 @@
 #include <utility>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/numerics/math_constants.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread.h"
 #include "base/threading/thread_checker.h"
-#include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "build/build_config.h"
 #include "remoting/base/constants.h"
@@ -21,7 +20,6 @@
 #include "remoting/protocol/audio_source.h"
 #include "remoting/protocol/audio_stream.h"
 #include "remoting/protocol/audio_stub.h"
-#include "remoting/protocol/desktop_capturer.h"
 #include "remoting/protocol/fake_session.h"
 #include "remoting/protocol/fake_video_renderer.h"
 #include "remoting/protocol/ice_connection_to_client.h"
@@ -33,6 +31,7 @@
 #include "remoting/protocol/webrtc_connection_to_host.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/webrtc/modules/desktop_capture/desktop_capturer.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_frame.h"
 
 using ::testing::_;
@@ -40,7 +39,8 @@ using ::testing::InvokeWithoutArgs;
 using ::testing::NotNull;
 using ::testing::StrictMock;
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 
@@ -71,7 +71,7 @@ class MockConnectionToHostEventCallback
                     const TransportRoute& route));
 };
 
-class TestScreenCapturer : public DesktopCapturer {
+class TestScreenCapturer : public webrtc::DesktopCapturer {
  public:
   TestScreenCapturer() = default;
   ~TestScreenCapturer() override = default;
@@ -127,7 +127,7 @@ static constexpr int kSamplesPerAudioPacket =
     kAudioSampleRate * kAudioPacketDurationMs /
     base::Time::kMillisecondsPerSecond;
 static constexpr base::TimeDelta kAudioPacketDuration =
-    base::Milliseconds(kAudioPacketDurationMs);
+    base::TimeDelta::FromMilliseconds(kAudioPacketDurationMs);
 
 static const int kAudioChannels = 2;
 
@@ -251,7 +251,7 @@ class FakeAudioPlayer : public AudioStub {
  private:
   base::ThreadChecker thread_checker_;
   std::vector<char> data_;
-  raw_ptr<base::RunLoop> run_loop_ = nullptr;
+  base::RunLoop* run_loop_ = nullptr;
   size_t samples_expected_ = 0;
 
   base::WeakPtrFactory<FakeAudioPlayer> weak_factory_{this};
@@ -272,9 +272,6 @@ class ConnectionTest : public testing::Test,
     audio_decode_thread_.Start();
   }
 
-  ConnectionTest(const ConnectionTest&) = delete;
-  ConnectionTest& operator=(const ConnectionTest&) = delete;
-
   void DestroyHost() {
     host_connection_.reset();
     run_loop_->Quit();
@@ -286,7 +283,7 @@ class ConnectionTest : public testing::Test,
   void SetUp() override {
     // Create fake sessions.
     host_session_ = new FakeSession();
-    owned_client_session_ = std::make_unique<FakeSession>();
+    owned_client_session_.reset(new FakeSession());
     client_session_ = owned_client_session_.get();
 
     // Create Connection objects.
@@ -294,18 +291,20 @@ class ConnectionTest : public testing::Test,
       // Set the polling interval to zero to prevent hangs from PostDelayedTask.
       WebrtcTransport::SetDataChannelPollingIntervalForTests(base::TimeDelta());
 
-      host_connection_ = std::make_unique<WebrtcConnectionToClient>(
-          base::WrapUnique(host_session_.get()),
-          TransportContext::ForTests(protocol::TransportRole::SERVER),
-          task_environment_.GetMainThreadTaskRunner());
-      client_connection_ = std::make_unique<WebrtcConnectionToHost>();
-    } else {
-      host_connection_ = std::make_unique<IceConnectionToClient>(
-          base::WrapUnique(host_session_.get()),
+      host_connection_.reset(new WebrtcConnectionToClient(
+          base::WrapUnique(host_session_),
           TransportContext::ForTests(protocol::TransportRole::SERVER),
           task_environment_.GetMainThreadTaskRunner(),
-          task_environment_.GetMainThreadTaskRunner());
-      client_connection_ = std::make_unique<IceConnectionToHost>();
+          task_environment_.GetMainThreadTaskRunner()));
+      client_connection_.reset(new WebrtcConnectionToHost());
+
+    } else {
+      host_connection_.reset(new IceConnectionToClient(
+          base::WrapUnique(host_session_),
+          TransportContext::ForTests(protocol::TransportRole::SERVER),
+          task_environment_.GetMainThreadTaskRunner(),
+          task_environment_.GetMainThreadTaskRunner()));
+      client_connection_.reset(new IceConnectionToHost());
     }
 
     // Setup host side.
@@ -354,7 +353,7 @@ class ConnectionTest : public testing::Test,
         &client_event_handler_);
     client_session_->SimulateConnection(host_session_);
 
-    run_loop_ = std::make_unique<base::RunLoop>();
+    run_loop_.reset(new base::RunLoop());
     run_loop_->Run();
 
     EXPECT_TRUE(client_connected_);
@@ -447,7 +446,7 @@ class ConnectionTest : public testing::Test,
   MockHostStub host_stub_;
   MockInputStub host_input_stub_;
   std::unique_ptr<ConnectionToClient> host_connection_;
-  raw_ptr<FakeSession> host_session_;  // Owned by |host_connection_|.
+  FakeSession* host_session_;  // Owned by |host_connection_|.
   bool host_connected_ = false;
 
   MockConnectionToHostEventCallback client_event_handler_;
@@ -456,13 +455,16 @@ class ConnectionTest : public testing::Test,
   FakeVideoRenderer client_video_renderer_;
   FakeAudioPlayer client_audio_player_;
   std::unique_ptr<ConnectionToHost> client_connection_;
-  raw_ptr<FakeSession> client_session_;  // Owned by |client_connection_|.
+  FakeSession* client_session_;  // Owned by |client_connection_|.
   std::unique_ptr<FakeSession> owned_client_session_;
   bool client_connected_ = false;
 
   base::Thread video_encode_thread_;
   base::Thread audio_encode_thread_;
   base::Thread audio_decode_thread_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ConnectionTest);
 };
 
 INSTANTIATE_TEST_SUITE_P(Ice, ConnectionTest, ::testing::Values(false));
@@ -481,13 +483,7 @@ TEST_P(ConnectionTest, RejectConnection) {
   client_session_->event_handler()->OnSessionStateChange(Session::CLOSED);
 }
 
-// crbug.com/1224862: Tests are flaky on Mac.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_Disconnect DISABLED_Disconnect
-#else
-#define MAYBE_Disconnect Disconnect
-#endif
-TEST_P(ConnectionTest, MAYBE_Disconnect) {
+TEST_P(ConnectionTest, Disconnect) {
   Connect();
 
   EXPECT_CALL(client_event_handler_,
@@ -498,13 +494,7 @@ TEST_P(ConnectionTest, MAYBE_Disconnect) {
   base::RunLoop().RunUntilIdle();
 }
 
-// crbug.com/1224862: Tests are flaky on Mac.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_Control DISABLED_Control
-#else
-#define MAYBE_Control Control
-#endif
-TEST_P(ConnectionTest, MAYBE_Control) {
+TEST_P(ConnectionTest, Control) {
   Connect();
 
   Capabilities capabilities_msg;
@@ -522,13 +512,7 @@ TEST_P(ConnectionTest, MAYBE_Control) {
   run_loop.Run();
 }
 
-// crbug.com/1224862: Tests are flaky on Mac.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_Events DISABLED_Events
-#else
-#define MAYBE_Events Events
-#endif
-TEST_P(ConnectionTest, MAYBE_Events) {
+TEST_P(ConnectionTest, Events) {
   Connect();
 
   KeyEvent event;
@@ -546,18 +530,13 @@ TEST_P(ConnectionTest, MAYBE_Events) {
   run_loop.Run();
 }
 
-// crbug.com/1224862: Tests are flaky on Mac.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_Video DISABLED_Video
-#else
-#define MAYBE_Video Video
-#endif
-TEST_P(ConnectionTest, MAYBE_Video) {
+// TODO(crbug.com/1143311): Test is flaky.
+TEST_P(ConnectionTest, DISABLED_Video) {
   Connect();
 
   std::unique_ptr<VideoStream> video_stream =
       host_connection_->StartVideoStream(
-          "stream", std::make_unique<TestScreenCapturer>());
+          std::make_unique<TestScreenCapturer>());
 
   // Receive 5 frames.
   for (int i = 0; i < 5; ++i) {
@@ -565,35 +544,24 @@ TEST_P(ConnectionTest, MAYBE_Video) {
   }
 }
 
-// crbug.com/1224862: Tests are flaky on Mac.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_VideoWithSlowSignaling DISABLED_VideoWithSlowSignaling
-#else
-#define MAYBE_VideoWithSlowSignaling VideoWithSlowSignaling
-#endif
+// TODO(crbug.com/1143311): Test is flaky.
 // Verifies that the VideoStream doesn't loose any video frames while the
 // connection is being established.
-TEST_P(ConnectionTest, MAYBE_VideoWithSlowSignaling) {
+TEST_P(ConnectionTest, DISABLED_VideoWithSlowSignaling) {
   // Add signaling delay to slow down connection handshake.
-  host_session_->set_signaling_delay(base::Milliseconds(100));
-  client_session_->set_signaling_delay(base::Milliseconds(100));
+  host_session_->set_signaling_delay(base::TimeDelta::FromMilliseconds(100));
+  client_session_->set_signaling_delay(base::TimeDelta::FromMilliseconds(100));
 
   Connect();
 
   std::unique_ptr<VideoStream> video_stream =
       host_connection_->StartVideoStream(
-          "stream", base::WrapUnique(new TestScreenCapturer()));
+          base::WrapUnique(new TestScreenCapturer()));
 
   WaitNextVideoFrame();
 }
 
-// crbug.com/1224862: Tests are flaky on Mac.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_DestroyOnIncomingMessage DISABLED_DestroyOnIncomingMessage
-#else
-#define MAYBE_DestroyOnIncomingMessage DestroyOnIncomingMessage
-#endif
-TEST_P(ConnectionTest, MAYBE_DestroyOnIncomingMessage) {
+TEST_P(ConnectionTest, DestroyOnIncomingMessage) {
   Connect();
 
   KeyEvent event;
@@ -632,7 +600,7 @@ TEST_P(ConnectionTest, DISABLED_VideoStats) {
 
   std::unique_ptr<VideoStream> video_stream =
       host_connection_->StartVideoStream(
-          "stream", std::make_unique<TestScreenCapturer>());
+          std::make_unique<TestScreenCapturer>());
   video_stream->SetEventTimestampsSource(input_event_timestamps_source);
 
   WaitNextVideoFrame();
@@ -667,11 +635,9 @@ TEST_P(ConnectionTest, DISABLED_VideoStats) {
   EXPECT_LE(stats.client_stats.time_rendered, finish_time);
 }
 
-// Slow/fails on Linux ASan/TSan (crbug.com/1045344) and flaky on Mac
-// (crbug.com/1237376).
-#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) &&               \
-        (defined(ADDRESS_SANITIZER) || defined(THREAD_SANITIZER)) || \
-    BUILDFLAG(IS_MAC)
+// Slow/fails on Linux ASan/TSan (http://crbug.com/1045344).
+#if (defined(OS_LINUX) || defined(OS_CHROMEOS)) && \
+    (defined(ADDRESS_SANITIZER) || defined(THREAD_SANITIZER))
 #define MAYBE_Audio DISABLED_Audio
 #else
 #define MAYBE_Audio Audio
@@ -694,8 +660,7 @@ TEST_P(ConnectionTest, DISABLED_FirstCaptureFailed) {
 
   auto capturer = std::make_unique<TestScreenCapturer>();
   capturer->FailNthFrame(0);
-  auto video_stream =
-      host_connection_->StartVideoStream("stream", std::move(capturer));
+  auto video_stream = host_connection_->StartVideoStream(std::move(capturer));
 
   WaitNextVideoFrame();
 }
@@ -707,11 +672,11 @@ TEST_P(ConnectionTest, DISABLED_SecondCaptureFailed) {
 
   auto capturer = std::make_unique<TestScreenCapturer>();
   capturer->FailNthFrame(1);
-  auto video_stream =
-      host_connection_->StartVideoStream("stream", std::move(capturer));
+  auto video_stream = host_connection_->StartVideoStream(std::move(capturer));
 
   WaitNextVideoFrame();
   WaitNextVideoFrame();
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

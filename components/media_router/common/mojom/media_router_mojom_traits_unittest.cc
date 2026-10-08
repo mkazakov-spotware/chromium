@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,10 +22,6 @@ class MediaRouterStructTraitsTest
  public:
   MediaRouterStructTraitsTest() {}
 
-  MediaRouterStructTraitsTest(const MediaRouterStructTraitsTest&) = delete;
-  MediaRouterStructTraitsTest& operator=(const MediaRouterStructTraitsTest&) =
-      delete;
-
  protected:
   mojo::Remote<mojom::MediaRouterTraitsTestService> GetTraitsTestRemote() {
     mojo::Remote<mojom::MediaRouterTraitsTestService> remote;
@@ -42,13 +38,15 @@ class MediaRouterStructTraitsTest
 
   base::test::TaskEnvironment task_environment_;
   mojo::ReceiverSet<MediaRouterTraitsTestService> traits_test_receivers_;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaRouterStructTraitsTest);
 };
 
 TEST_F(MediaRouterStructTraitsTest, DialMediaSink) {
   MediaSink::Id sink_id("sinkId123");
   std::string sink_name("The sink");
-  SinkIconType icon_type(SinkIconType::GENERIC);
-  mojom::MediaRouteProviderId provider_id(mojom::MediaRouteProviderId::DIAL);
+  SinkIconType icon_type(SinkIconType::CAST);
+  MediaRouteProviderId provider_id(MediaRouteProviderId::EXTENSION);
   std::string ip_address("192.168.1.2");
   std::string model_name("model name");
   GURL app_url("https://example.com");
@@ -73,7 +71,7 @@ TEST_F(MediaRouterStructTraitsTest, CastMediaSink) {
   MediaSink::Id sink_id("sinkId123");
   std::string sink_name("The sink");
   SinkIconType icon_type(SinkIconType::CAST);
-  mojom::MediaRouteProviderId provider_id(mojom::MediaRouteProviderId::CAST);
+  MediaRouteProviderId provider_id(MediaRouteProviderId::EXTENSION);
   std::string model_name("model name");
 
   MediaSink sink(sink_id, sink_name, icon_type, provider_id);
@@ -96,9 +94,8 @@ TEST_F(MediaRouterStructTraitsTest, CastMediaSink) {
 TEST_F(MediaRouterStructTraitsTest, GenericMediaSink) {
   MediaSink::Id sink_id("sinkId123");
   std::string sink_name("The sink");
-  SinkIconType icon_type(SinkIconType::GENERIC);
-  mojom::MediaRouteProviderId provider_id(
-      mojom::MediaRouteProviderId::WIRED_DISPLAY);
+  SinkIconType icon_type(SinkIconType::CAST);
+  MediaRouteProviderId provider_id(MediaRouteProviderId::EXTENSION);
 
   MediaSink sink(sink_id, sink_name, icon_type, provider_id);
   MediaSinkInternal generic_sink;

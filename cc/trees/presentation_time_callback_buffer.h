@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #ifndef CC_TREES_PRESENTATION_TIME_CALLBACK_BUFFER_H_
@@ -6,27 +6,23 @@
 
 #include <vector>
 
-#include "base/callback_forward.h"
 #include "base/containers/circular_deque.h"
 #include "base/sequence_checker.h"
-#include "base/time/time.h"
-#include "cc/cc_export.h"
-#include "ui/gfx/presentation_feedback.h"
+#include "cc/trees/layer_tree_host.h"
 
 namespace cc {
 
 // Maintains a queue of callbacks and compositor frame times that we want to
 // buffer until a relevant frame is presented.
 //
-// Callbacks are queued through `RegisterMainThreadCallbacks()` or
-// `RegisterMainThreadSuccessfulCallbacks()` if the they are to be run on the
-// main thread and `RegisterCompositorThreadSuccessfulCallbacks()` if they are
-// to be run on the compositor thread.
+// Callbacks are queued through |RegisterMainThreadPresentationCallbacks| and
+// |RegisterCompositorPresentationCallbacks| if the callback is to be run on
+// the main thread or compositor thread respectively.
 //
 // Once a frame is presented, users of this class can call
-// `PopPendingCallbacks()` to get their callbacks back. This class never runs
-// callbacks itself so it's up to calling code to `PostTask()` or call `Run()`
-// as needed.
+// |PopPendingCallbacks| to get their callbacks back. This class never runs
+// callbacks itself so it's up to calling code to |PostTask| or call |Run()| as
+// needed.
 //
 // This class is thread unsafe so concurrent access would require external
 // synchronization. In practice, however, instances of this class are only used
@@ -36,13 +32,7 @@ namespace cc {
 // CC_EXPORT is only needed for testing.
 class CC_EXPORT PresentationTimeCallbackBuffer {
  public:
-  // Maximum expected buffer size for presentation callbacks. We generally
-  // don't expect many frames waiting for a presentation feedback, hence we
-  // don't expect many presentation callbacks waiting for a frame presentation.
-  static constexpr size_t kMaxBufferSize = 60u;
-
-  using Callback = base::OnceCallback<void(const gfx::PresentationFeedback&)>;
-  using SuccessfulCallback = base::OnceCallback<void(base::TimeTicks)>;
+  using CallbackType = LayerTreeHost::PresentationTimeCallback;
 
   PresentationTimeCallbackBuffer();
 
@@ -56,25 +46,25 @@ class CC_EXPORT PresentationTimeCallbackBuffer {
 
   ~PresentationTimeCallbackBuffer();
 
-  // Buffers the given `callbacks` in preparation for a presentation at or after
-  // the given `frame_token`. The presentation is not necessarily successful.
-  // Calling code posts these callbacks to the main thread once they're popped.
-  void RegisterMainThreadCallbacks(uint32_t frame_token,
-                                   std::vector<Callback> callbacks);
-
-  // Buffers the given `callbacks` in preparation for a successful presentation
-  // at or after the given `frame_token`. Calling code posts these callbacks to
-  // the main thread once they're popped.
-  void RegisterMainThreadSuccessfulCallbacks(
+  // Buffers the given |callbacks| in preparation for a GPU frame swap at or
+  // after the given |frame_token|. Calling code posts these callbacks to the
+  // main thread once they're popped.
+  void RegisterMainThreadPresentationCallbacks(
       uint32_t frame_token,
-      std::vector<SuccessfulCallback> callbacks);
+      std::vector<CallbackType> callbacks);
 
-  // Buffers the given `callbacks` in preparation for a successful presentation
-  // at or after the given `frame_token`. Calling code invokes these callbacks
-  // on the compositor thread once they're popped.
-  void RegisterCompositorThreadSuccessfulCallbacks(
+  // Buffers the given |callbacks| in preparation for a GPU frame swap at or
+  // after the given |frame_token|. Calling code invokes these callbacks on the
+  // compositor thread once they're popped.
+  void RegisterCompositorPresentationCallbacks(
       uint32_t frame_token,
-      std::vector<SuccessfulCallback> callbacks);
+      std::vector<CallbackType> callbacks);
+
+  // The given |frame_time| is associated with the given |frame_token| and will
+  // be exposed through |PopPendingCallbacks| if there is an exact frame token
+  // match. Note that it is an error to register distinct |frame_time|s against
+  // the same |frame_token|.
+  void RegisterFrameTime(uint32_t frame_token, base::TimeTicks frame_time);
 
   // Structured return value for |PopPendingCallbacks|. CC_EXPORT is only
   // needed for testing.
@@ -90,33 +80,28 @@ class CC_EXPORT PresentationTimeCallbackBuffer {
     ~PendingCallbacks();
 
     // Holds callbacks registered through
-    // `RegisterMainThreadPresentationCallbacks()`.
-    std::vector<Callback> main_callbacks;
+    // |RegisterMainThreadPresentationCallbacks|.
+    std::vector<CallbackType> main_thread_callbacks;
 
     // Holds callbacks registered through
-    // `RegisterMainThreadSuccessfulPresentationCallbacks()`.
-    std::vector<SuccessfulCallback> main_successful_callbacks;
+    // |RegisterCompositorPresentationCallbacks|.
+    std::vector<CallbackType> compositor_thread_callbacks;
 
-    // Holds callbacks registered through
-    // `RegisterCompositorThreadSuccessfulPresentationCallbacks()`.
-    std::vector<SuccessfulCallback> compositor_successful_callbacks;
+    // Note: calling code needs to test against frame_time.is_null() because
+    // frame_time is not always defined. See |PopPendingCallbacks|.
+    base::TimeTicks frame_time;
   };
 
-  // Call this once the presentation for the given `frame_token` has completed.
+  // Call this once the presentation for the given |frame_token| has completed.
   // Yields any pending callbacks that were registered against a frame token
-  // that was less than or equal to the given `frame_token`. If
-  // `presentation_failed` is true, successful presentation time callbacks are
-  // not returned. They are only returned on successful presentations. Note that
-  // since failed presentation feedbacks can arrive out of order (i.e. earlier
-  // than previous frames that might get presented successfully), when called on
-  // a failed presentation, this might return callbacks for previous frames that
-  // are still in flight. This is okay for now as we aim to only allow
-  // registering callbacks for successful presentations which will make this a
-  // non-issue.
-  // It is the caller's responsibility to run the callbacks on the right
-  // threads/sequences.
-  PendingCallbacks PopPendingCallbacks(uint32_t frame_token,
-                                       bool presentation_failed);
+  // that was less than or equal to the given |frame_token|. It is the caller's
+  // responsibility to run the callbacks on the right threads/sequences. When
+  // the given |frame_token| is an exact match to a registered entry,
+  // |frame_time| will be set to the frame time supplied through
+  // |RegisterFrameTime|. Otherwise, |frame_time| will be default constructed
+  // and should not be used. Calling code can assume |frame_time| is meaningful
+  // iff frame_time.is_null() returns false.
+  PendingCallbacks PopPendingCallbacks(uint32_t frame_token);
 
  private:
   // Stores information needed once we get a response for a particular
@@ -133,14 +118,16 @@ class CC_EXPORT PresentationTimeCallbackBuffer {
     // presentation feedback with the relevant compositor frame.
     uint32_t token;
 
-    // The presentation callbacks to send back to the main thread.
-    std::vector<Callback> main_callbacks;
+    // A copy of the |frame_time| from the |BeginFrameArgs| associated with
+    // frame. Useful for tracking latency between frame requests and frame
+    // presentations.
+    base::TimeTicks frame_time;
 
-    // The successful presentation callbacks to send back to the main thread.
-    std::vector<SuccessfulCallback> main_successful_callbacks;
+    // The callbacks to send back to the main thread.
+    std::vector<CallbackType> main_thread_callbacks;
 
-    // The successful presentation callbacks to invoke on the compositor thread.
-    std::vector<SuccessfulCallback> compositor_successful_callbacks;
+    // The callbacks to invoke on the compositor thread.
+    std::vector<CallbackType> compositor_thread_callbacks;
   };
 
   // Returns a reference to a |FrameTokenInfo| with the given |frame_token|.

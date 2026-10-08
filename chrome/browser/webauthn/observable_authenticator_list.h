@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 
 #include <stddef.h>
 
+#include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "chrome/browser/webauthn/authenticator_reference.h"
 
@@ -21,13 +22,6 @@ class AuthenticatorListObserver;
 class ObservableAuthenticatorList {
  public:
   ObservableAuthenticatorList();
-
-  ObservableAuthenticatorList(const ObservableAuthenticatorList&);
-  ObservableAuthenticatorList(ObservableAuthenticatorList&&);
-  ObservableAuthenticatorList& operator=(const ObservableAuthenticatorList&) =
-      delete;
-  ObservableAuthenticatorList& operator=(ObservableAuthenticatorList&&);
-
   ~ObservableAuthenticatorList();
 
   void AddAuthenticator(AuthenticatorReference authenticator);
@@ -52,7 +46,9 @@ class ObservableAuthenticatorList {
       base::StringPiece authenticator_id);
 
   std::vector<AuthenticatorReference> authenticator_list_;
-  raw_ptr<AuthenticatorListObserver> observer_ = nullptr;
+  AuthenticatorListObserver* observer_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(ObservableAuthenticatorList);
 };
 
 #endif  // CHROME_BROWSER_WEBAUTHN_OBSERVABLE_AUTHENTICATOR_LIST_H_

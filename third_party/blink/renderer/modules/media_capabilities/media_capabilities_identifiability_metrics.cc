@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,6 @@
 #include "third_party/blink/renderer/bindings/modules/v8/v8_media_key_system_media_capability.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_video_configuration.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
-#include "third_party/blink/renderer/modules/encryptedmedia/media_key_system_access.h"
 #include "third_party/blink/renderer/platform/privacy_budget/identifiability_digest_helpers.h"
 
 namespace blink {
@@ -26,12 +25,12 @@ namespace media_capabilities_identifiability_metrics {
 namespace {
 
 bool IsDecodingInfoTypeAllowed() {
-  return IdentifiabilityStudySettings::Get()->ShouldSampleType(
+  return IdentifiabilityStudySettings::Get()->IsTypeAllowed(
       IdentifiableSurface::Type::kMediaCapabilities_DecodingInfo);
 }
 
 bool ShouldSampleDecodingInfoType() {
-  return IdentifiabilityStudySettings::Get()->ShouldSampleType(
+  return IdentifiabilityStudySettings::Get()->ShouldSample(
       IdentifiableSurface::Type::kMediaCapabilities_DecodingInfo);
 }
 
@@ -40,7 +39,7 @@ void RecordDecodingIdentifiabilityMetric(ExecutionContext* context,
                                          IdentifiableToken output_token) {
   DCHECK(IsDecodingInfoTypeAllowed());
   IdentifiabilityMetricBuilder(context->UkmSourceID())
-      .Add(IdentifiableSurface::FromTypeAndToken(
+      .Set(IdentifiableSurface::FromTypeAndToken(
                IdentifiableSurface::Type::kMediaCapabilities_DecodingInfo,
                input_token),
            output_token)
@@ -57,33 +56,26 @@ IdentifiableToken ComputeToken(const VideoConfiguration* configuration) {
   IdentifiableTokenBuilder builder;
   builder
       .AddToken(IdentifiabilityBenignStringToken(configuration->contentType()))
-      .AddValue(configuration->width())
-      .AddValue(configuration->height())
-      .AddValue(configuration->bitrate())
-      .AddValue(configuration->framerate());
+      .AddToken(
+          IdentifiabilityBenignStringToken(configuration->hdrMetadataType()))
+      .AddToken(IdentifiabilityBenignStringToken(configuration->colorGamut()))
+      .AddToken(
+          IdentifiabilityBenignStringToken(configuration->transferFunction()));
 
-  // While the above are always present, we need to check the other properties'
-  // presence explicitly.
-  builder.AddValue(configuration->hasHdrMetadataType())
-      .AddValue(configuration->hasColorGamut())
-      .AddValue(configuration->hasTransferFunction())
-      .AddValue(configuration->hasScalabilityMode());
-  if (configuration->hasHdrMetadataType()) {
-    builder.AddToken(
-        IdentifiabilityBenignStringToken(configuration->hdrMetadataType()));
-  }
-  if (configuration->hasColorGamut()) {
-    builder.AddToken(
-        IdentifiabilityBenignStringToken(configuration->colorGamut()));
-  }
-  if (configuration->hasTransferFunction()) {
-    builder.AddToken(
-        IdentifiabilityBenignStringToken(configuration->transferFunction()));
-  }
-  if (configuration->hasScalabilityMode()) {
-    builder.AddToken(
-        IdentifiabilityBenignStringToken(configuration->scalabilityMode()));
-  }
+  // While the strings above will be null if not present, we need to check
+  // the presence of numerical types explicitly.
+  builder.AddValue(configuration->hasWidth())
+      .AddValue(configuration->hasHeight())
+      .AddValue(configuration->hasBitrate())
+      .AddValue(configuration->hasFramerate());
+  if (configuration->hasWidth())
+    builder.AddValue(configuration->width());
+  if (configuration->hasHeight())
+    builder.AddValue(configuration->height());
+  if (configuration->hasBitrate())
+    builder.AddValue(configuration->bitrate());
+  if (configuration->hasFramerate())
+    builder.AddValue(configuration->framerate());
   return builder.GetToken();
 }
 
@@ -93,18 +85,14 @@ IdentifiableToken ComputeToken(const AudioConfiguration* configuration) {
     return IdentifiableToken();
 
   IdentifiableTokenBuilder builder;
-  builder.AddToken(
-      IdentifiabilityBenignStringToken(configuration->contentType()));
+  builder
+      .AddToken(IdentifiabilityBenignStringToken(configuration->contentType()))
+      .AddToken(IdentifiabilityBenignStringToken(configuration->channels()));
 
   // While the strings above will be null if not present, we need to check
   // the presence of numerical types explicitly.
-  builder.AddValue(configuration->hasChannels())
-      .AddValue(configuration->hasBitrate())
+  builder.AddValue(configuration->hasBitrate())
       .AddValue(configuration->hasSamplerate());
-  if (configuration->hasChannels()) {
-    builder.AddToken(
-        IdentifiabilityBenignStringToken(configuration->channels()));
-  }
   if (configuration->hasBitrate())
     builder.AddValue(configuration->bitrate());
   if (configuration->hasSamplerate())
@@ -201,19 +189,13 @@ IdentifiableToken ComputeToken(
       .AddToken(IdentifiabilityBenignStringToken(configuration->initDataType()))
       .AddToken(IdentifiabilityBenignStringToken(
           configuration->distinctiveIdentifier()))
-      .AddToken(
-          IdentifiabilityBenignStringToken(configuration->persistentState()))
       .AddValue(configuration->hasSessionTypes())
-      .AddValue(configuration->hasAudio())
-      .AddValue(configuration->hasVideo());
+      .AddToken(ComputeToken(configuration->audio()))
+      .AddToken(ComputeToken(configuration->video()));
   if (configuration->hasSessionTypes()) {
     builder.AddToken(
         IdentifiabilityBenignStringVectorToken(configuration->sessionTypes()));
   }
-  if (configuration->hasAudio())
-    builder.AddToken(ComputeToken(configuration->audio()));
-  if (configuration->hasVideo())
-    builder.AddToken(ComputeToken(configuration->video()));
   return builder.GetToken();
 }
 
@@ -225,15 +207,9 @@ IdentifiableToken ComputeToken(
 
   IdentifiableTokenBuilder builder;
   builder.AddToken(IdentifiabilityBenignStringToken(configuration->type()))
-      .AddValue(configuration->hasKeySystemConfiguration())
-      .AddValue(configuration->hasAudio())
-      .AddValue(configuration->hasVideo());
-  if (configuration->hasKeySystemConfiguration())
-    builder.AddToken(ComputeToken(configuration->keySystemConfiguration()));
-  if (configuration->hasAudio())
-    builder.AddToken(ComputeToken(configuration->audio()));
-  if (configuration->hasVideo())
-    builder.AddToken(ComputeToken(configuration->video()));
+      .AddToken(ComputeToken(configuration->keySystemConfiguration()))
+      .AddToken(ComputeToken(configuration->video()))
+      .AddToken(ComputeToken(configuration->audio()));
   return builder.GetToken();
 }
 
@@ -263,7 +239,7 @@ void ReportDecodingInfoResult(ExecutionContext* context,
 }
 
 void ReportDecodingInfoResult(ExecutionContext* context,
-                              absl::optional<IdentifiableToken> input_token,
+                              base::Optional<IdentifiableToken> input_token,
                               const MediaCapabilitiesDecodingInfo* output) {
   DCHECK_EQ(IsDecodingInfoTypeAllowed(), input_token.has_value());
   if (!input_token.has_value() || !ShouldSampleDecodingInfoType())
@@ -273,10 +249,10 @@ void ReportDecodingInfoResult(ExecutionContext* context,
                                       IdentifiableToken());
 }
 
-absl::optional<IdentifiableToken> ComputeDecodingInfoInputToken(
+base::Optional<IdentifiableToken> ComputeDecodingInfoInputToken(
     const MediaDecodingConfiguration* input) {
   if (!IsDecodingInfoTypeAllowed() || !ShouldSampleDecodingInfoType())
-    return absl::nullopt;
+    return base::nullopt;
 
   return ComputeToken(input);
 }

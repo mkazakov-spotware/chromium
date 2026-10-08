@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <utility>
 
-#include "base/metrics/histogram_functions.h"
 #include "third_party/blink/renderer/core/content_capture/content_capture_task_histogram_reporter.h"
 
 namespace blink {
@@ -18,8 +17,14 @@ constexpr char ContentCaptureTaskHistogramReporter::kTaskDelayInMs[];
 constexpr char ContentCaptureTaskHistogramReporter::kTaskRunsPerCapture[];
 
 ContentCaptureTaskHistogramReporter::ContentCaptureTaskHistogramReporter()
-    : capture_content_time_histogram_(kCaptureContentTime, 0, 50000, 50),
+    : capture_content_delay_time_histogram_(kCaptureContentDelayTime,
+                                            500,
+                                            30000,
+                                            50),
+      capture_content_time_histogram_(kCaptureContentTime, 0, 50000, 50),
       send_content_time_histogram_(kSendContentTime, 0, 50000, 50),
+      sent_content_count_histogram_(kSentContentCount, 0, 10000, 50),
+      task_delay_time_in_ms_histogram_(kTaskDelayInMs, 1, 128000, 100),
       task_runs_per_capture_histogram_(kTaskRunsPerCapture, 0, 100, 50) {}
 
 ContentCaptureTaskHistogramReporter::~ContentCaptureTaskHistogramReporter() =
@@ -40,9 +45,9 @@ void ContentCaptureTaskHistogramReporter::OnTaskScheduled(
 
 void ContentCaptureTaskHistogramReporter::OnTaskRun() {
   if (!task_scheduled_time_.is_null()) {
-    base::UmaHistogramCustomTimes(
-        kTaskDelayInMs, base::TimeTicks::Now() - task_scheduled_time_,
-        base::Milliseconds(1), base::Seconds(128), 100);
+    task_delay_time_in_ms_histogram_.CountMilliseconds(base::TimeTicks::Now() -
+                                                       task_scheduled_time_);
+    task_scheduled_time_ = base::TimeTicks();
   }
   task_runs_per_capture_++;
 }
@@ -76,9 +81,8 @@ void ContentCaptureTaskHistogramReporter::OnSendContentEnded(
   if (captured_content_change_time_) {
     base::TimeTicks content_change_time = captured_content_change_time_.value();
     captured_content_change_time_.reset();
-    base::UmaHistogramCustomTimes(
-        kCaptureContentDelayTime, now - content_change_time,
-        base::Milliseconds(500), base::Seconds(30), 50);
+    capture_content_delay_time_histogram_.CountMilliseconds(
+        now - content_change_time);
   }
   if (!sent_content_count)
     return;
@@ -92,8 +96,8 @@ void ContentCaptureTaskHistogramReporter::OnAllCapturedContentSent() {
 }
 
 void ContentCaptureTaskHistogramReporter::RecordsSentContentCountPerDocument(
-    int sent_content_count) {
-  base::UmaHistogramCounts10000(kSentContentCount, sent_content_count);
+    size_t sent_content_count) {
+  sent_content_count_histogram_.Count(sent_content_count);
 }
 
 }  // namespace blink

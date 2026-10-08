@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,12 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/containers/adapters.h"
 #include "base/logging.h"
-#include "base/strings/string_piece.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/task_runner_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/url_util.h"
 #include "url/url_util.h"
 
@@ -65,9 +64,10 @@ void InsertRuleToTrie(const std::vector<base::StringPiece>& components,
                       TrieNode* root,
                       bool match_prefix) {
   TrieNode* node = root;
-  for (const auto& hostcomp : base::Reversed(components)) {
+  for (auto hostcomp = components.rbegin(); hostcomp != components.rend();
+       ++hostcomp) {
     DCHECK(!node->match_prefix);
-    std::string component(hostcomp);
+    std::string component = hostcomp->as_string();
     auto child_node = node->children.find(component);
     if (child_node == node->children.end()) {
       std::unique_ptr<TrieNode> temp = std::make_unique<TrieNode>();
@@ -117,7 +117,7 @@ bool AddRuleToAllowlist(base::StringPiece rule, TrieNode* root) {
     started_with_dot = true;
   }
   // With the dot removed |rule| should look like a hostname.
-  GURL test_url("http://" + std::string(rule));
+  GURL test_url("http://" + rule.as_string());
   if (!test_url.is_valid()) {
     return false;
   }
@@ -157,11 +157,12 @@ bool AddRules(const std::vector<std::string>& rules, TrieNode* root) {
 
 bool IsAllowed(const GURL& url, const TrieNode* node) {
   std::vector<base::StringPiece> components = SplitHost(url);
-  for (const base::StringPiece& component : base::Reversed(components)) {
+  for (auto component = components.rbegin(); component != components.rend();
+       ++component) {
     if (node->match_prefix) {
       return true;
     }
-    auto child_node = node->children.find(std::string(component));
+    auto child_node = node->children.find(component->as_string());
     if (child_node == node->children.end()) {
       return false;
     } else {
@@ -183,7 +184,7 @@ AwSafeBrowsingAllowlistManager::AwSafeBrowsingAllowlistManager(
     const scoped_refptr<base::SequencedTaskRunner>& io_task_runner)
     : background_task_runner_(background_task_runner),
       io_task_runner_(io_task_runner),
-      ui_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+      ui_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       allowlist_(std::make_unique<TrieNode>()) {}
 
 AwSafeBrowsingAllowlistManager::~AwSafeBrowsingAllowlistManager() {}

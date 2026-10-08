@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,7 @@ void MockAffiliationConsumer::ExpectFailure() {
       .Times(1);
 }
 
-AffiliationService::ResultCallback
+AndroidAffiliationService::ResultCallback
 MockAffiliationConsumer::GetResultCallback() {
   return base::BindOnce(&MockAffiliationConsumer::OnResultCallback,
                         base::Unretained(this));

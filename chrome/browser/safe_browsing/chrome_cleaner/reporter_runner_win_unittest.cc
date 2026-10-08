@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,9 +14,6 @@
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/task_traits.h"
-#include "base/task/thread_pool.h"
-#include "base/test/bind.h"
 #include "base/test/multiprocess_test.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_timeouts.h"
@@ -25,8 +22,6 @@
 #include "chrome/browser/safe_browsing/chrome_cleaner/sw_reporter_invocation_win.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/multiprocess_func_list.h"
-
-#include <windows.h>
 
 using ::testing::AssertionFailure;
 using ::testing::AssertionResult;
@@ -112,13 +107,16 @@ class LaunchReporterDelegate : public internal::SwReporterTestingDelegate {
     return grandchild;
   }
 
-  bool WaitForReporterExit(const base::Process& process,
-                           base::TimeDelta timeout,
-                           int* exit_code) override {
-    return process.WaitForExitWithTimeout(timeout, exit_code);
+  int WaitForReporterExit(const base::Process& process) const override {
+    int exit_code;
+    process.WaitForExit(&exit_code);
+    return exit_code;
   }
 
-  base::Time Now() const override { return base::Time::Now(); }
+  base::Time Now() const override {
+    NOTREACHED();
+    return base::Time::Now();
+  }
 
   base::TaskRunner* BlockingTaskRunner() const override {
     NOTREACHED();
@@ -139,10 +137,9 @@ class LaunchReporterDelegate : public internal::SwReporterTestingDelegate {
 // On success |child| will be set to the child process object and |grandchild|
 // will be set to the grandchild process object. Both of these processes will
 // be valid and running.
-AssertionResult CreateRunningProcesses(const std::string& child_function,
-                                       base::Process* child,
-                                       base::Process* grandchild) {
-  base::test::TaskEnvironment task_environment;
+AssertionResult CreateRunningProcesseses(const std::string& child_function,
+                                         base::Process* child,
+                                         base::Process* grandchild) {
   base::CommandLine child_command_line =
       base::GetMultiProcessTestChildBaseCommandLine();
   base::LaunchOptions options;
@@ -187,27 +184,10 @@ AssertionResult CreateRunningProcesses(const std::string& child_function,
   }
 
   // Read the grandchild handle from the child.
-  base::RunLoop run_loop;
-  uint32_t grandchild_handle = 0;
+  uint32_t grandchild_handle;
   constexpr int handle_size = sizeof(grandchild_handle);
-  int bytes_read = 0;
-  auto read_grandchild_handle = [&]() {
-    bytes_read = read_pipe.ReadAtCurrentPos(
-        reinterpret_cast<char*>(&grandchild_handle), handle_size);
-  };
-  base::ThreadPool::PostTask(FROM_HERE, {base::MayBlock()},
-                             base::BindLambdaForTesting(read_grandchild_handle)
-                                 .Then(run_loop.QuitClosure()));
-
-  // TaskEnvironment applies a default timeout to the run loop.
-  run_loop.Run();
-
-  if (!bytes_read) {
-    return AssertionFailure()
-           << "Timed out waiting for grandchild handle. Child process "
-           << (child->IsRunning() ? "never sent it" : "died before sending it");
-  }
-
+  int bytes_read = read_pipe.ReadAtCurrentPos(
+      reinterpret_cast<char*>(&grandchild_handle), handle_size);
   if (bytes_read != handle_size) {
     return AssertionFailure() << "Failure reading grandchild handle. Expected "
                               << handle_size << " bytes, read " << bytes_read;
@@ -265,12 +245,12 @@ TEST(ReporterRunnerLaunchTest, ValidateDefaultBehaviour) {
   if (!safe_browsing::internal::ReporterTerminatesOnBrowserExit()) {
     // No point testing the default behaviour if we won't run the
     // TerminateWhileRunning test.
-    GTEST_SKIP();
+    return;
   }
 
   base::Process child, grandchild;
   ASSERT_TRUE(
-      CreateRunningProcesses("DefaultBehaviourChild", &child, &grandchild));
+      CreateRunningProcesseses("DefaultBehaviourChild", &child, &grandchild));
 
   ASSERT_TRUE(child.Terminate(/*exit_code=*/0, /*wait=*/true));
 
@@ -279,7 +259,7 @@ TEST(ReporterRunnerLaunchTest, ValidateDefaultBehaviour) {
   // for it to exit.
   base::WaitableEvent pause;
   pause.TimedWait(TestTimeouts::tiny_timeout());
-  ASSERT_TRUE(grandchild.IsRunning());
+  EXPECT_TRUE(grandchild.IsRunning());
 
   grandchild.Terminate(/*exit_code=*/0, /*wait=*/false);
 }
@@ -298,7 +278,7 @@ MULTIPROCESS_TEST_MAIN(SwReporterChild) {
   // object by pretending it's a program path.
   const SwReporterInvocation invocation(base::CommandLine(
       base::FilePath(FILE_PATH_LITERAL("InfiniteSubprocess"))));
-  return safe_browsing::internal::LaunchAndWaitForExit(invocation).exit_code;
+  return safe_browsing::internal::LaunchAndWaitForExit(invocation);
 }
 
 // Parent process.
@@ -306,14 +286,13 @@ TEST(ReporterRunnerLaunchTest, TerminateWhileRunning) {
   if (!safe_browsing::internal::ReporterTerminatesOnBrowserExit()) {
     // Skip the test since the code being tested isn't enabled in this
     // configuration.
-    GTEST_SKIP();
+    return;
   }
 
   base::Process child, grandchild;
-  ASSERT_TRUE(CreateRunningProcesses("SwReporterChild", &child, &grandchild));
-  ASSERT_TRUE(child.Terminate(/*exit_code=*/0, /*wait=*/false));
-  ASSERT_TRUE(
-      child.WaitForExitWithTimeout(TestTimeouts::action_timeout(), nullptr));
+  ASSERT_TRUE(CreateRunningProcesseses("SwReporterChild", &child, &grandchild));
+
+  ASSERT_TRUE(child.Terminate(/*exit_code=*/0, /*wait=*/true));
 
   // The child process called safe_browsing::internal::LaunchReporter which
   // should set things up so that the grandchild is automatically killed when

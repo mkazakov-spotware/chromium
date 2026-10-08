@@ -1,9 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/vr/openxr/openxr_input_helper.h"
 
+#include "base/stl_util.h"
 #include "device/gamepad/public/cpp/gamepad.h"
 #include "device/vr/openxr/openxr_util.h"
 #include "device/vr/util/xr_standard_gamepad_builder.h"
@@ -11,13 +12,13 @@
 namespace device {
 
 namespace {
-absl::optional<GamepadBuilder::ButtonData> GetAxisButtonData(
+base::Optional<GamepadBuilder::ButtonData> GetAxisButtonData(
     OpenXrAxisType openxr_button_type,
-    absl::optional<GamepadButton> button_data,
+    base::Optional<GamepadButton> button_data,
     std::vector<double> axis) {
   GamepadBuilder::ButtonData data;
   if (!button_data || axis.size() != 2) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   switch (openxr_button_type) {
@@ -38,65 +39,55 @@ absl::optional<GamepadBuilder::ButtonData> GetAxisButtonData(
   return data;
 }
 
-absl::optional<Gamepad> GetXrStandardGamepad(
+base::Optional<Gamepad> GetXrStandardGamepad(
     const OpenXrController& controller) {
   XRStandardGamepadBuilder builder(controller.GetHandness());
 
-  absl::optional<GamepadButton> trigger_button =
+  base::Optional<GamepadButton> trigger_button =
       controller.GetButton(OpenXrButtonType::kTrigger);
   if (!trigger_button)
-    return absl::nullopt;
+    return base::nullopt;
   builder.SetPrimaryButton(trigger_button.value());
 
-  absl::optional<GamepadButton> squeeze_button =
+  base::Optional<GamepadButton> squeeze_button =
       controller.GetButton(OpenXrButtonType::kSqueeze);
   if (squeeze_button)
     builder.SetSecondaryButton(squeeze_button.value());
 
-  absl::optional<GamepadButton> trackpad_button =
+  base::Optional<GamepadButton> trackpad_button =
       controller.GetButton(OpenXrButtonType::kTrackpad);
   std::vector<double> trackpad_axis =
       controller.GetAxis(OpenXrAxisType::kTrackpad);
-  absl::optional<GamepadBuilder::ButtonData> trackpad_button_data =
+  base::Optional<GamepadBuilder::ButtonData> trackpad_button_data =
       GetAxisButtonData(OpenXrAxisType::kTrackpad, trackpad_button,
                         trackpad_axis);
   if (trackpad_button_data)
     builder.SetTouchpadData(trackpad_button_data.value());
 
-  absl::optional<GamepadButton> thumbstick_button =
+  base::Optional<GamepadButton> thumbstick_button =
       controller.GetButton(OpenXrButtonType::kThumbstick);
   std::vector<double> thumbstick_axis =
       controller.GetAxis(OpenXrAxisType::kThumbstick);
-  absl::optional<GamepadBuilder::ButtonData> thumbstick_button_data =
+  base::Optional<GamepadBuilder::ButtonData> thumbstick_button_data =
       GetAxisButtonData(OpenXrAxisType::kThumbstick, thumbstick_button,
                         thumbstick_axis);
   if (thumbstick_button_data)
     builder.SetThumbstickData(thumbstick_button_data.value());
 
-  absl::optional<GamepadButton> x_button =
+  base::Optional<GamepadButton> x_button =
       controller.GetButton(OpenXrButtonType::kButton1);
   if (x_button)
     builder.AddOptionalButtonData(x_button.value());
 
-  absl::optional<GamepadButton> y_button =
+  base::Optional<GamepadButton> y_button =
       controller.GetButton(OpenXrButtonType::kButton2);
   if (y_button)
     builder.AddOptionalButtonData(y_button.value());
 
-  absl::optional<GamepadButton> thumbrest_button =
+  base::Optional<GamepadButton> thumbrest_button =
       controller.GetButton(OpenXrButtonType::kThumbrest);
   if (thumbrest_button)
     builder.AddOptionalButtonData(thumbrest_button.value());
-
-  absl::optional<GamepadButton> grasp_button =
-      controller.GetButton(OpenXrButtonType::kGrasp);
-  if (grasp_button)
-    builder.AddOptionalButtonData(grasp_button.value());
-
-  absl::optional<GamepadButton> shoulder_button =
-      controller.GetButton(OpenXrButtonType::kShoulder);
-  if (shoulder_button)
-    builder.AddOptionalButtonData(shoulder_button.value());
 
   return builder.GetGamepad();
 }
@@ -105,7 +96,6 @@ absl::optional<Gamepad> GetXrStandardGamepad(
 
 XrResult OpenXRInputHelper::CreateOpenXRInputHelper(
     XrInstance instance,
-    XrSystemId system,
     const OpenXrExtensionHelper& extension_helper,
     XrSession session,
     XrSpace local_space,
@@ -113,8 +103,7 @@ XrResult OpenXRInputHelper::CreateOpenXRInputHelper(
   std::unique_ptr<OpenXRInputHelper> new_helper =
       std::make_unique<OpenXRInputHelper>(session, local_space);
 
-  RETURN_IF_XR_FAILED(
-      new_helper->Initialize(instance, system, extension_helper));
+  RETURN_IF_XR_FAILED(new_helper->Initialize(instance, extension_helper));
   *helper = std::move(new_helper);
   return XR_SUCCESS;
 }
@@ -128,9 +117,8 @@ OpenXRInputHelper::~OpenXRInputHelper() = default;
 
 XrResult OpenXRInputHelper::Initialize(
     XrInstance instance,
-    XrSystemId system,
     const OpenXrExtensionHelper& extension_helper) {
-  RETURN_IF_XR_FAILED(path_helper_->Initialize(instance, system));
+  RETURN_IF_XR_FAILED(path_helper_->Initialize(instance));
 
   // This map is used to store bindings for different kinds of interaction
   // profiles. This allows the runtime to choose a different input sources based
@@ -142,7 +130,6 @@ XrResult OpenXRInputHelper::Initialize(
         static_cast<OpenXrHandednessType>(i), instance, session_,
         path_helper_.get(), extension_helper, &bindings));
     controller_states_[i].primary_button_pressed = false;
-    controller_states_[i].squeeze_button_pressed = false;
   }
 
   for (auto it = bindings.begin(); it != bindings.end(); it++) {
@@ -171,13 +158,11 @@ XrResult OpenXRInputHelper::Initialize(
 }
 
 std::vector<mojom::XRInputSourceStatePtr> OpenXRInputHelper::GetInputState(
-    bool hand_input_enabled,
     XrTime predicted_display_time) {
   std::vector<mojom::XRInputSourceStatePtr> input_states;
   if (XR_FAILED(SyncActions(predicted_display_time))) {
     for (OpenXrControllerState& state : controller_states_) {
       state.primary_button_pressed = false;
-      state.squeeze_button_pressed = false;
     }
     return input_states;
   }
@@ -185,10 +170,8 @@ std::vector<mojom::XRInputSourceStatePtr> OpenXRInputHelper::GetInputState(
   for (uint32_t i = 0; i < controller_states_.size(); i++) {
     device::OpenXrController* controller = &controller_states_[i].controller;
 
-    absl::optional<GamepadButton> primary_button =
+    base::Optional<GamepadButton> primary_button =
         controller->GetButton(OpenXrButtonType::kTrigger);
-    absl::optional<GamepadButton> squeeze_button =
-        controller->GetButton(OpenXrButtonType::kSqueeze);
 
     // Having a trigger button is the minimum for an webxr input.
     // No trigger button indicates input is not connected.
@@ -215,52 +198,41 @@ std::vector<mojom::XRInputSourceStatePtr> OpenXRInputHelper::GetInputState(
         controller_states_[i].primary_button_pressed &&
         !state->primary_input_pressed;
     controller_states_[i].primary_button_pressed = state->primary_input_pressed;
-    if (squeeze_button) {
-      state->primary_squeeze_pressed = squeeze_button.value().pressed;
-      state->primary_squeeze_clicked =
-          controller_states_[i].squeeze_button_pressed &&
-          !state->primary_squeeze_pressed;
-      controller_states_[i].squeeze_button_pressed =
-          state->primary_squeeze_pressed;
-    }
-
     state->gamepad = GetWebXRGamepad(*controller);
-
-    // Return hand state if controller is a hand and the hand tracking feature
-    // was requested for the session
-    if (hand_input_enabled) {
-      state->hand_tracking_data =
-          controller->GetHandTrackingData(local_space_, predicted_display_time);
-    }
-
     input_states.push_back(std::move(state));
   }
 
   return input_states;
 }
 
-XrResult OpenXRInputHelper::OnInteractionProfileChanged() {
+void OpenXRInputHelper::OnInteractionProfileChanged(XrResult* xr_result) {
   for (OpenXrControllerState& controller_state : controller_states_) {
-    RETURN_IF_XR_FAILED(controller_state.controller.UpdateInteractionProfile());
+    *xr_result = controller_state.controller.UpdateInteractionProfile();
+    if (XR_FAILED(*xr_result)) {
+      return;
+    }
   }
-  return XR_SUCCESS;
 }
 
-absl::optional<Gamepad> OpenXRInputHelper ::GetWebXRGamepad(
+base::WeakPtr<OpenXRInputHelper> OpenXRInputHelper::GetWeakPtr() {
+  return weak_ptr_factory_.GetWeakPtr();
+}
+
+base::Optional<Gamepad> OpenXRInputHelper ::GetWebXRGamepad(
     const OpenXrController& controller) {
   OpenXrInteractionProfileType cur_type = controller.interaction_profile();
-  for (auto& it : GetOpenXrControllerInteractionProfiles()) {
+  for (auto& it : kOpenXrControllerInteractionProfiles) {
     if (it.type == cur_type) {
       if (it.mapping == GamepadMapping::kXrStandard) {
         return GetXrStandardGamepad(controller);
       } else {
         // if mapping is kNone
-        return absl::nullopt;
+        return base::nullopt;
       }
     }
   }
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 XrResult OpenXRInputHelper::SyncActions(XrTime predicted_display_time) {

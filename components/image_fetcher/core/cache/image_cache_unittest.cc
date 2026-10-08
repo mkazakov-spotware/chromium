@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,11 @@
 
 #include "base/bind.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/simple_test_clock.h"
 #include "base/test/task_environment.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "components/image_fetcher/core/cache/image_data_store_disk.h"
 #include "components/image_fetcher/core/cache/image_metadata_store_leveldb.h"
 #include "components/image_fetcher/core/cache/proto/cached_image_metadata.pb.h"
@@ -46,11 +45,6 @@ class CachedImageFetcherImageCacheTest : public testing::Test {
  public:
   CachedImageFetcherImageCacheTest() {}
 
-  CachedImageFetcherImageCacheTest(const CachedImageFetcherImageCacheTest&) =
-      delete;
-  CachedImageFetcherImageCacheTest& operator=(
-      const CachedImageFetcherImageCacheTest&) = delete;
-
   void SetUp() override { ASSERT_TRUE(temp_dir_.CreateUniqueTempDir()); }
 
   void CreateImageCache() {
@@ -63,13 +57,13 @@ class CachedImageFetcherImageCacheTest : public testing::Test {
     metadata_store_ = metadata_store.get();
 
     auto data_store = std::make_unique<ImageDataStoreDisk>(
-        temp_dir_.GetPath(), base::SequencedTaskRunner::GetCurrentDefault());
+        temp_dir_.GetPath(), base::SequencedTaskRunnerHandle::Get());
     data_store_ = data_store.get();
 
     ImageCache::RegisterProfilePrefs(test_prefs_.registry());
     image_cache_ = base::MakeRefCounted<ImageCache>(
         std::move(data_store), std::move(metadata_store), &test_prefs_, &clock_,
-        base::SequencedTaskRunner::GetCurrentDefault());
+        base::SequencedTaskRunnerHandle::Get());
   }
 
   void InitializeImageCache() {
@@ -84,7 +78,7 @@ class CachedImageFetcherImageCacheTest : public testing::Test {
     InitializeImageCache();
 
     image_cache()->SaveImage(kImageUrl, kImageData, needs_transcoding,
-                             absl::nullopt /* expiration_interval */);
+                             base::nullopt /* expiration_interval */);
     RunUntilIdle();
 
     ASSERT_TRUE(IsMetadataPresent(kImageUrlHashed));
@@ -160,7 +154,7 @@ class CachedImageFetcherImageCacheTest : public testing::Test {
 
   void InjectMetadata(std::string key, int data_size, bool needs_transcoding) {
     metadata_store_->SaveImageMetadata(key, data_size, needs_transcoding,
-                                       absl::nullopt /* expiration_interval */);
+                                       base::nullopt /* expiration_interval */);
   }
 
   void InjectData(std::string key, std::string data, bool needs_transcoding) {
@@ -182,17 +176,19 @@ class CachedImageFetcherImageCacheTest : public testing::Test {
 
  private:
   scoped_refptr<ImageCache> image_cache_;
-  raw_ptr<ImageMetadataStoreLevelDB> metadata_store_;
-  raw_ptr<ImageDataStoreDisk> data_store_;
+  ImageMetadataStoreLevelDB* metadata_store_;
+  ImageDataStoreDisk* data_store_;
   base::SimpleTestClock clock_;
 
   TestingPrefServiceSimple test_prefs_;
   base::ScopedTempDir temp_dir_;
-  raw_ptr<FakeDB<CachedImageMetadataProto>> db_;
+  FakeDB<CachedImageMetadataProto>* db_;
   std::map<std::string, CachedImageMetadataProto> db_store_;
 
   base::test::TaskEnvironment task_environment_;
   base::HistogramTester histogram_tester_;
+
+  DISALLOW_COPY_AND_ASSIGN(CachedImageFetcherImageCacheTest);
 };
 
 TEST_F(CachedImageFetcherImageCacheTest, HashUrlToKeyTest) {
@@ -206,7 +202,7 @@ TEST_F(CachedImageFetcherImageCacheTest, SanityTest) {
 
   image_cache()->SaveImage(kImageUrl, kImageData,
                            /* needs_transcoding */ false,
-                           /* expiration_interval */ absl::nullopt);
+                           /* expiration_interval */ base::nullopt);
   RunUntilIdle();
 
   LoadImage(kImageUrl, kImageData);
@@ -228,7 +224,7 @@ TEST_F(CachedImageFetcherImageCacheTest, SaveCallsInitialization) {
   ASSERT_FALSE(IsCacheInitialized());
   image_cache()->SaveImage(kImageUrl, kImageData,
                            /* needs_transcoding */ false,
-                           /* expiration_interval */ absl::nullopt);
+                           /* expiration_interval */ base::nullopt);
   db()->InitStatusCallback(leveldb_proto::Enums::InitStatus::kOK);
   RunUntilIdle();
 
@@ -241,7 +237,7 @@ TEST_F(CachedImageFetcherImageCacheTest, Save) {
 
   image_cache()->SaveImage(kImageUrl, kImageData,
                            /* needs_transcoding */ false,
-                           /* expiration_interval */ absl::nullopt);
+                           /* expiration_interval */ base::nullopt);
   LoadImage(kImageUrl, kImageData);
 }
 
@@ -249,7 +245,7 @@ TEST_F(CachedImageFetcherImageCacheTest, Load) {
   PrepareImageCache(false);
   auto metadata_before = GetMetadata(kImageUrlHashed);
 
-  clock()->SetNow(clock()->Now() + base::Hours(1));
+  clock()->SetNow(clock()->Now() + base::TimeDelta::FromHours(1));
   LoadImage(kImageUrl, kImageData);
   db()->LoadCallback(true);
   db()->UpdateCallback(true);
@@ -263,7 +259,7 @@ TEST_F(CachedImageFetcherImageCacheTest, LoadReadOnly) {
   PrepareImageCache(false);
   auto metadata_before = GetMetadata(kImageUrlHashed);
 
-  clock()->SetNow(clock()->Now() + base::Hours(1));
+  clock()->SetNow(clock()->Now() + base::TimeDelta::FromHours(1));
   LoadImage(kImageUrl, kImageData);
 
   auto metadata_after = GetMetadata(kImageUrlHashed);
@@ -283,7 +279,7 @@ TEST_F(CachedImageFetcherImageCacheTest, Delete) {
 TEST_F(CachedImageFetcherImageCacheTest, Eviction) {
   PrepareImageCache(false);
 
-  clock()->SetNow(clock()->Now() + base::Days(7));
+  clock()->SetNow(clock()->Now() + base::TimeDelta::FromDays(7));
   RunEvictionOnStartup(/* success */ true);
   ASSERT_EQ(clock()->Now(), prefs()->GetTime(kPrefLastStartupEviction));
 
@@ -299,16 +295,17 @@ TEST_F(CachedImageFetcherImageCacheTest, Eviction) {
 // Verifies eviction for CacheStrategy::HOLD_UNTIL_EXPIRED.
 TEST_F(CachedImageFetcherImageCacheTest, EvictionHoldUtilExpires) {
   PrepareImageCache(false);
-  clock()->SetNow(clock()->Now() + base::Days(2));
+  clock()->SetNow(clock()->Now() + base::TimeDelta::FromDays(2));
 
-  image_cache()->SaveImage(kImageUrl, "image_data", false, base::Days(10));
+  image_cache()->SaveImage(kImageUrl, "image_data", false,
+                           base::TimeDelta::FromDays(10));
 
   image_cache()->SaveImage(kOtherImageUrl, "other_image_data", false,
-                           base::Hours(1));
+                           base::TimeDelta::FromHours(1));
   RunUntilIdle();
 
   // Forward the clock to make image with |kOtherImageUrl| expired.
-  clock()->SetNow(clock()->Now() + base::Hours(3));
+  clock()->SetNow(clock()->Now() + base::TimeDelta::FromHours(3));
   RunEvictionOnStartup(/* success */ true);
   LoadImage(kImageUrl, "image_data");
   LoadImage(kOtherImageUrl, "");
@@ -317,7 +314,7 @@ TEST_F(CachedImageFetcherImageCacheTest, EvictionHoldUtilExpires) {
 TEST_F(CachedImageFetcherImageCacheTest, EvictionWhenFull) {
   PrepareImageCache(false);
   InjectMetadata(kImageUrl, kOverMaxCacheSize, /* needs_transcoding */ false);
-  clock()->SetNow(clock()->Now() + base::Days(6));
+  clock()->SetNow(clock()->Now() + base::TimeDelta::FromDays(6));
   RunEvictionWhenFull(/* success */ true);
 
   // The data should be removed because it's over the allowed limit.
@@ -327,7 +324,7 @@ TEST_F(CachedImageFetcherImageCacheTest, EvictionWhenFull) {
 TEST_F(CachedImageFetcherImageCacheTest, EvictionTooSoon) {
   PrepareImageCache(false);
 
-  clock()->SetNow(clock()->Now() + base::Days(6));
+  clock()->SetNow(clock()->Now() + base::TimeDelta::FromDays(6));
   RunEvictionOnStartup(/* success */ true);
 
   LoadImage(kImageUrl, kImageData);
@@ -338,7 +335,7 @@ TEST_F(CachedImageFetcherImageCacheTest, EvictionWhenEvictionAlreadyPerformed) {
 
   prefs()->SetTime("cached_image_fetcher_last_startup_eviction_time",
                    clock()->Now());
-  clock()->SetNow(clock()->Now() + base::Hours(23));
+  clock()->SetNow(clock()->Now() + base::TimeDelta::FromHours(23));
   RunEvictionOnStartup(/* success */ false);
   LoadImage(kImageUrl, kImageData);
 }

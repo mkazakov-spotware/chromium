@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/url_matcher/url_matcher.h"
 #include "extensions/browser/api/declarative/declarative_rule.h"
 #include "extensions/browser/api/declarative_webrequest/webrequest_condition_attribute.h"
@@ -29,10 +29,10 @@ struct WebRequestData {
   ~WebRequestData();
 
   // The network request that is currently being processed.
-  raw_ptr<const WebRequestInfo> request;
+  const WebRequestInfo* request;
   // The stage (progress) of the network request.
   RequestStage stage;
-  raw_ptr<const net::HttpResponseHeaders> original_response_headers;
+  const net::HttpResponseHeaders* original_response_headers;
 };
 
 // Adds information about URL matches to WebRequestData.
@@ -40,8 +40,8 @@ struct WebRequestDataWithMatchIds {
   explicit WebRequestDataWithMatchIds(const WebRequestData* request_data);
   ~WebRequestDataWithMatchIds();
 
-  raw_ptr<const WebRequestData> data;
-  std::set<base::MatcherStringPattern::ID> url_match_ids;
+  const WebRequestData* data;
+  std::set<url_matcher::URLMatcherConditionSet::ID> url_match_ids;
 };
 
 // Representation of a condition in the Declarative WebRequest API. A condition
@@ -68,10 +68,6 @@ class WebRequestCondition {
   WebRequestCondition(
       scoped_refptr<url_matcher::URLMatcherConditionSet> url_matcher_conditions,
       const WebRequestConditionAttributes& condition_attributes);
-
-  WebRequestCondition(const WebRequestCondition&) = delete;
-  WebRequestCondition& operator=(const WebRequestCondition&) = delete;
-
   ~WebRequestCondition();
 
   // Factory method that instantiates a WebRequestCondition according to
@@ -104,6 +100,8 @@ class WebRequestCondition {
   // Bit vector indicating all RequestStage during which all
   // |condition_attributes_| can be evaluated.
   int applicable_request_stages_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebRequestCondition);
 };
 
 typedef DeclarativeConditionSet<WebRequestCondition> WebRequestConditionSet;

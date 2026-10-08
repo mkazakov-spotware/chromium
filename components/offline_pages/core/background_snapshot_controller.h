@@ -1,14 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_OFFLINE_PAGES_CORE_BACKGROUND_SNAPSHOT_CONTROLLER_H_
 #define COMPONENTS_OFFLINE_PAGES_CORE_BACKGROUND_SNAPSHOT_CONTROLLER_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 
 namespace offline_pages {
 
@@ -48,6 +47,11 @@ class BackgroundSnapshotController {
     // Invoked at a good moment to start a snapshot.
     virtual void StartSnapshot() = 0;
 
+    // Invoked when the page is sufficiently loaded for running
+    // renovations. The client should call the RenovationsCompleted()
+    // when they finish.
+    virtual void RunRenovations() = 0;
+
    protected:
     virtual ~Client() {}
   };
@@ -56,11 +60,6 @@ class BackgroundSnapshotController {
       const scoped_refptr<base::SingleThreadTaskRunner>& task_runner,
       BackgroundSnapshotController::Client* client,
       bool renovations_enabled);
-
-  BackgroundSnapshotController(const BackgroundSnapshotController&) = delete;
-  BackgroundSnapshotController& operator=(const BackgroundSnapshotController&) =
-      delete;
-
   virtual ~BackgroundSnapshotController();
 
   // Resets the 'session', returning controller to initial state.
@@ -75,8 +74,8 @@ class BackgroundSnapshotController {
   // The Client calls this when renovations have completed.
   void RenovationsCompleted();
 
-  // Invoked from WebContentObserver::DocumentOnLoadCompletedInPrimaryMainFrame
-  void DocumentOnLoadCompletedInPrimaryMainFrame();
+  // Invoked from WebContentObserver::DocumentOnLoadCompletedInMainFrame
+  void DocumentOnLoadCompletedInMainFrame();
 
   int64_t GetDelayAfterDocumentOnLoadCompletedForTest();
   int64_t GetDelayAfterRenovationsCompletedForTest();
@@ -87,12 +86,15 @@ class BackgroundSnapshotController {
 
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
   // Client owns this class.
-  raw_ptr<BackgroundSnapshotController::Client> client_;
+  BackgroundSnapshotController::Client* client_;
   BackgroundSnapshotController::State state_;
   int64_t delay_after_document_on_load_completed_ms_;
   int64_t delay_after_renovations_completed_ms_;
+  bool renovations_enabled_;
 
   base::WeakPtrFactory<BackgroundSnapshotController> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(BackgroundSnapshotController);
 };
 
 }  // namespace offline_pages

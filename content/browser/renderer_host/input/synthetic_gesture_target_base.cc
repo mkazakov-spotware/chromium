@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "content/browser/renderer_host/render_widget_host_input_event_router.h"
 #include "content/browser/renderer_host/render_widget_host_view_base.h"
 #include "content/browser/renderer_host/ui_events_helper.h"
+#include "content/common/input_messages.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 #include "ui/events/blink/web_input_event_traits.h"
 #include "ui/events/event.h"
@@ -81,7 +82,7 @@ void SyntheticGestureTargetBase::DispatchInputEventToPlatform(
       // RenderWidgetHostInputEventRouter attached to the RenderWidgetHostImpl.
 
       DCHECK(host_->delegate());
-      DCHECK(host_->delegate()->IsWidgetForPrimaryMainFrame(host_));
+      DCHECK(host_->delegate()->IsWidgetForMainFrame(host_));
       DCHECK(host_->delegate()->GetInputEventRouter());
 
       std::unique_ptr<WebInputEvent> wheel_evt_ptr = web_wheel.Clone();
@@ -130,7 +131,7 @@ void SyntheticGestureTargetBase::DispatchInputEventToPlatform(
 
 base::TimeDelta SyntheticGestureTargetBase::PointerAssumedStoppedTime()
     const {
-  return base::Milliseconds(kPointerAssumedStoppedTimeMs);
+  return base::TimeDelta::FromMilliseconds(kPointerAssumedStoppedTimeMs);
 }
 
 float SyntheticGestureTargetBase::GetSpanSlopInDips() const {
@@ -145,7 +146,7 @@ int SyntheticGestureTargetBase::GetMouseWheelMinimumGranularity() const {
 
 void SyntheticGestureTargetBase::WaitForTargetAck(
     SyntheticGestureParams::GestureType type,
-    content::mojom::GestureSourceType source,
+    SyntheticGestureParams::GestureSourceType source,
     base::OnceClosure callback) const {
   host_->WaitForInputProcessed(type, source, std::move(callback));
 }

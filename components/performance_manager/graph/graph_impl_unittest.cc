@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/performance_manager/graph/graph_impl.h"
 
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/process/process.h"
 #include "base/time/time.h"
 #include "components/performance_manager/graph/frame_node_impl.h"
@@ -27,9 +26,13 @@ TEST_F(GraphImplTest, SafeCasting) {
   EXPECT_EQ(graph(), GraphImpl::FromGraph(graph_base));
 }
 
-TEST_F(GraphImplTest, GetSystemNodeImpl) {
-  // The SystemNode singleton should be created by default.
-  EXPECT_NE(nullptr, graph()->GetSystemNodeImpl());
+TEST_F(GraphImplTest, FindOrCreateSystemNode) {
+  EXPECT_TRUE(graph()->IsEmpty());
+  SystemNodeImpl* system_node = graph()->FindOrCreateSystemNodeImpl();
+  EXPECT_FALSE(graph()->IsEmpty());
+
+  // A second request should return the same instance.
+  EXPECT_EQ(system_node, graph()->FindOrCreateSystemNodeImpl());
 }
 
 TEST_F(GraphImplTest, GetProcessNodeByPid) {
@@ -41,8 +44,7 @@ TEST_F(GraphImplTest, GetProcessNodeByPid) {
   const base::Process self = base::Process::Current();
 
   EXPECT_EQ(nullptr, graph()->GetProcessNodeByPid(self.Pid()));
-  process->SetProcess(self.Duplicate(),
-                      /* launch_time=*/base::TimeTicks::Now());
+  process->SetProcess(self.Duplicate(), base::Time::Now());
   EXPECT_TRUE(process->process().IsValid());
   EXPECT_EQ(self.Pid(), process->process_id());
   EXPECT_EQ(process.get(), graph()->GetProcessNodeByPid(self.Pid()));
@@ -69,8 +71,7 @@ TEST_F(GraphImplTest, PIDReuse) {
   TestNodeWrapper<ProcessNodeImpl> process2 =
       TestNodeWrapper<ProcessNodeImpl>::Create(graph());
 
-  process1->SetProcess(self.Duplicate(),
-                       /* launch_time=*/base::TimeTicks::Now());
+  process1->SetProcess(self.Duplicate(), base::Time::Now());
   EXPECT_EQ(process1.get(), graph()->GetProcessNodeByPid(self.Pid()));
 
   // First process exits, but hasn't been deleted yet.
@@ -78,8 +79,7 @@ TEST_F(GraphImplTest, PIDReuse) {
   EXPECT_EQ(process1.get(), graph()->GetProcessNodeByPid(self.Pid()));
 
   // The second registration for the same PID should override the first one.
-  process2->SetProcess(self.Duplicate(),
-                       /* launch_time=*/base::TimeTicks::Now());
+  process2->SetProcess(self.Duplicate(), base::Time::Now());
   EXPECT_EQ(process2.get(), graph()->GetProcessNodeByPid(self.Pid()));
 
   // The destruction of the first process node shouldn't clear the PID
@@ -124,7 +124,7 @@ using testing::Invoke;
 }  // namespace
 
 TEST_F(GraphImplTest, ObserverWorks) {
-  std::unique_ptr<GraphImpl> graph = std::make_unique<GraphImpl>();
+  std::unique_ptr<GraphImpl> graph = base::WrapUnique(new GraphImpl());
   Graph* raw_graph = graph.get();
 
   MockObserver obs;
@@ -159,7 +159,7 @@ class Foo : public GraphOwned {
  private:
   bool passed_to_called_ = false;
   bool taken_from_called_ = false;
-  raw_ptr<int> destructor_count_ = nullptr;
+  int* destructor_count_ = nullptr;
 };
 
 }  // namespace
@@ -167,13 +167,13 @@ class Foo : public GraphOwned {
 TEST_F(GraphImplTest, GraphOwned) {
   int destructor_count = 0;
 
-  std::unique_ptr<Foo> foo1 = std::make_unique<Foo>(&destructor_count);
-  std::unique_ptr<Foo> foo2 = std::make_unique<Foo>(&destructor_count);
+  std::unique_ptr<Foo> foo1 = base::WrapUnique(new Foo(&destructor_count));
+  std::unique_ptr<Foo> foo2 = base::WrapUnique(new Foo(&destructor_count));
   auto* raw1 = foo1.get();
   auto* raw2 = foo2.get();
 
   // Pass both objects to the graph.
-  std::unique_ptr<GraphImpl> graph = std::make_unique<GraphImpl>();
+  std::unique_ptr<GraphImpl> graph = base::WrapUnique(new GraphImpl());
   EXPECT_EQ(0u, graph->GraphOwnedCountForTesting());
   EXPECT_FALSE(raw1->passed_to_called());
   graph->PassToGraph(std::move(foo1));
@@ -255,7 +255,7 @@ void AssertDictValueContainsListKey(const base::Value& descr,
   const base::Value* v = descr.FindListKey(key);
   ASSERT_NE(nullptr, v);
 
-  const auto& list = v->GetList();
+  const auto list = v->GetList();
   ASSERT_EQ(2u, list.size());
   ASSERT_EQ(list[0], base::Value(s1));
   ASSERT_EQ(list[1], base::Value(s2));
@@ -291,7 +291,7 @@ TEST_F(GraphImplTest, NodeDataDescribers) {
   AssertDictValueContainsListKey(descr, "d1", "d1", "ProcessNode");
   EXPECT_EQ(1u, descr.DictSize());
 
-  descr = registry->DescribeNodeData(graph()->GetSystemNode());
+  descr = registry->DescribeNodeData(graph()->FindOrCreateSystemNodeImpl());
   AssertDictValueContainsListKey(descr, "d1", "d1", "SystemNode");
   EXPECT_EQ(1u, descr.DictSize());
 
@@ -322,7 +322,7 @@ TEST_F(GraphImplTest, NodeDataDescribers) {
   EXPECT_EQ(0u, descr.DictSize());
 }
 
-TEST_F(GraphImplTest, OpenersAndEmbeddersClearedOnTeardown) {
+TEST_F(GraphImplTest, OpenersClearedOnTeardown) {
   auto process = CreateNode<ProcessNodeImpl>();
   auto pageA = CreateNode<PageNodeImpl>();
   auto frameA1 = CreateFrameNodeAutoId(process.get(), pageA.get());
@@ -333,12 +333,13 @@ TEST_F(GraphImplTest, OpenersAndEmbeddersClearedOnTeardown) {
   auto pageC = CreateNode<PageNodeImpl>();
   auto frameC1 = CreateFrameNodeAutoId(process.get(), pageC.get());
 
-  // Set up some embedder relationships. These should be gracefully torn down as
+  // Set up some opener relationships. These should be gracefully torn down as
   // the graph cleans up nodes, otherwise the frame and page node destructors
   // will explode.
-  pageB->SetEmbedderFrameNodeAndEmbeddingType(
-      frameA1.get(), PageNode::EmbeddingType::kGuestView);
-  pageC->SetOpenerFrameNode(frameA2.get());
+  pageB->SetOpenerFrameNodeAndOpenedType(frameA1.get(),
+                                         PageNode::OpenedType::kGuestView);
+  pageC->SetOpenerFrameNodeAndOpenedType(frameA2.get(),
+                                         PageNode::OpenedType::kPopup);
 }
 
 }  // namespace performance_manager

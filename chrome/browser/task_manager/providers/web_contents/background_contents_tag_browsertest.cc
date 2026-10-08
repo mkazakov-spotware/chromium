@@ -1,7 +1,8 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "chrome/browser/task_manager/mock_web_contents_task_manager.h"
@@ -22,11 +23,8 @@ namespace task_manager {
 // BackgroundContentsTask.
 class BackgroundContentsTagTest : public extensions::ExtensionBrowserTest {
  public:
-  BackgroundContentsTagTest() = default;
-  BackgroundContentsTagTest(const BackgroundContentsTagTest&) = delete;
-  BackgroundContentsTagTest& operator=(const BackgroundContentsTagTest&) =
-      delete;
-  ~BackgroundContentsTagTest() override = default;
+  BackgroundContentsTagTest() {}
+  ~BackgroundContentsTagTest() override {}
 
   const extensions::Extension* LoadBackgroundExtension() {
     auto* extension = LoadExtension(
@@ -34,7 +32,7 @@ class BackgroundContentsTagTest : public extensions::ExtensionBrowserTest {
     return extension;
   }
 
-  std::u16string GetBackgroundTaskExpectedName(
+  base::string16 GetBackgroundTaskExpectedName(
       const extensions::Extension* extension) {
     return l10n_util::GetStringFUTF16(IDS_TASK_MANAGER_BACKGROUND_APP_PREFIX,
                                       base::UTF8ToUTF16(extension->name()));
@@ -54,6 +52,9 @@ class BackgroundContentsTagTest : public extensions::ExtensionBrowserTest {
     command_line->AppendSwitch(embedder_support::kDisablePopupBlocking);
     command_line->AppendSwitch(extensions::switches::kAllowHTTPBackgroundPage);
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BackgroundContentsTagTest);
 };
 
 // Tests that loading an extension that has a background contents will result in

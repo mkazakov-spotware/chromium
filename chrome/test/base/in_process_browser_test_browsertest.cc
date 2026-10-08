@@ -1,18 +1,18 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "chrome/test/base/in_process_browser_test.h"
 
 #include <stddef.h>
 #include <string.h>
 
 #include "base/files/file_util.h"
 #include "base/path_service.h"
+#include "base/stl_util.h"
 #include "build/build_config.h"
 #include "chrome/browser/after_startup_task_utils.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_view_host.h"
@@ -92,13 +92,13 @@ IN_PROC_BROWSER_TEST_F(InProcessBrowserTest, ExternalConnectionFail) {
     "http://www.google.com/",
     "http://www.cnn.com/"
   };
-  for (size_t i = 0; i < std::size(kURLs); ++i) {
+  for (size_t i = 0; i < base::size(kURLs); ++i) {
     GURL url(kURLs[i]);
     LoadFailObserver observer(contents);
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+    ui_test_utils::NavigateToURL(browser(), url);
     EXPECT_TRUE(observer.failed_load());
-    EXPECT_EQ(net::ERR_NAME_NOT_RESOLVED, observer.error_code());
-    EXPECT_EQ(net::ERR_NAME_NOT_RESOLVED, observer.resolve_error_info().error);
+    EXPECT_EQ(net::ERR_NOT_IMPLEMENTED, observer.error_code());
+    EXPECT_EQ(net::ERR_NOT_IMPLEMENTED, observer.resolve_error_info().error);
     EXPECT_EQ(url, observer.validated_url());
   }
 }
@@ -111,7 +111,7 @@ IN_PROC_BROWSER_TEST_F(InProcessBrowserTest, AfterStartupTaskUtils) {
 
 // On Mac this crashes inside cc::SingleThreadProxy::SetNeedsCommit. See
 // https://ci.chromium.org/b/8923336499994443392
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
 class SingleProcessBrowserTest : public InProcessBrowserTest {
  public:
   void SetUpCommandLine(base::CommandLine* command_line) override {
@@ -119,12 +119,14 @@ class SingleProcessBrowserTest : public InProcessBrowserTest {
   }
 };
 
-// TODO(https://crbug.com/1231009): Flaky / times out on many bots.
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_WIN)
+// TODO(https://crbug.com/931233): Reenable on Linux.
+// TODO(https://crbug.com/987448): Reenable on Windows.
 #define MAYBE_Test DISABLED_Test
 #else
 #define MAYBE_Test Test
 #endif
+
 IN_PROC_BROWSER_TEST_F(SingleProcessBrowserTest, MAYBE_Test) {
   // Should not crash.
 }

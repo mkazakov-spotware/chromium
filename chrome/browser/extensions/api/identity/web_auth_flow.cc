@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,30 +8,30 @@
 #include <utility>
 
 #include "base/base64.h"
-#include "base/feature_list.h"
 #include "base/location.h"
 #include "base/notreached.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/trace_event.h"
 #include "chrome/browser/extensions/component_loader.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
-#include "chrome/browser/ui/scoped_tabbed_browser_displayer.h"
 #include "chrome/common/extensions/api/identity_private.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "chrome/grit/browser_resources.h"
 #include "components/guest_view/browser/guest_view_base.h"
 #include "content/public/browser/browser_context.h"
-#include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/navigation_details.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
+#include "content/public/browser/notification_details.h"
+#include "content/public/browser/notification_service.h"
+#include "content/public/browser/notification_source.h"
+#include "content/public/browser/notification_types.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/browser/web_contents_observer.h"
 #include "crypto/random.h"
 #include "extensions/browser/app_window/app_window.h"
 #include "extensions/browser/event_router.h"
@@ -50,23 +50,7 @@ using guest_view::GuestViewBase;
 namespace extensions {
 
 namespace {
-
-// Returns whether `partition` should be persisted on disk.
-bool ShouldPersistStorage(WebAuthFlow::Partition partition) {
-  switch (partition) {
-    case WebAuthFlow::LAUNCH_WEB_AUTH_FLOW:
-      return base::FeatureList::IsEnabled(kPersistentStorageForWebAuthFlow);
-    case WebAuthFlow::GET_AUTH_TOKEN:
-      return false;
-  }
-
-  NOTREACHED() << "Unexpected partition value " << partition;
-  return false;
-}
-
-// Returns a unique identifier of the storage partition corresponding to
-// `partition`.
-std::string GetStoragePartitionId(WebAuthFlow::Partition partition) {
+std::string GetPartitionName(WebAuthFlow::Partition partition) {
   switch (partition) {
     case WebAuthFlow::LAUNCH_WEB_AUTH_FLOW:
       return "launchWebAuthFlow";
@@ -77,25 +61,9 @@ std::string GetStoragePartitionId(WebAuthFlow::Partition partition) {
   NOTREACHED() << "Unexpected partition value " << partition;
   return std::string();
 }
-
-// Returns a partition name suitable to use in the `webview.partition`
-// parameter.
-std::string GetPartitionNameForWebView(WebAuthFlow::Partition partition) {
-  std::string persist_prefix =
-      ShouldPersistStorage(partition) ? "persist:" : "";
-  return persist_prefix + GetStoragePartitionId(partition);
-}
 }  // namespace
 
 namespace identity_private = api::identity_private;
-
-BASE_FEATURE(kPersistentStorageForWebAuthFlow,
-             "PersistentStorageForWebAuthFlow",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kWebAuthFlowInBrowserTab,
-             "WebAuthFlowInBrowserTab",
-             base::FeatureState::FEATURE_DISABLED_BY_DEFAULT);
 
 WebAuthFlow::WebAuthFlow(Delegate* delegate,
                          Profile* profile,
@@ -106,19 +74,17 @@ WebAuthFlow::WebAuthFlow(Delegate* delegate,
       profile_(profile),
       provider_url_(provider_url),
       mode_(mode),
-      partition_(partition) {
+      partition_(partition),
+      embedded_window_created_(false) {
   TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("identity", "WebAuthFlow", this);
 }
 
 WebAuthFlow::~WebAuthFlow() {
   DCHECK(!delegate_);
 
-  if (using_auth_with_browser_tab_ && web_contents()) {
-    web_contents()->Close();
-  }
-
   // Stop listening to notifications first since some of the code
   // below may generate notifications.
+  registrar_.RemoveAll();
   WebContentsObserver::Observe(nullptr);
 
   if (!app_window_key_.empty()) {
@@ -131,22 +97,6 @@ WebAuthFlow::~WebAuthFlow() {
 }
 
 void WebAuthFlow::Start() {
-  DCHECK(profile_);
-  DCHECK(!profile_->IsOffTheRecord());
-
-  if (partition_ == WebAuthFlow::Partition::LAUNCH_WEB_AUTH_FLOW &&
-      base::FeatureList::IsEnabled(kWebAuthFlowInBrowserTab)) {
-    using_auth_with_browser_tab_ = true;
-
-    content::WebContents::CreateParams params(profile_);
-    web_contents_ = content::WebContents::Create(params);
-    WebContentsObserver::Observe(web_contents_.get());
-
-    content::NavigationController::LoadURLParams load_params(provider_url_);
-    web_contents_->GetController().LoadURLWithParams(load_params);
-    return;
-  }
-
   AppWindowRegistry::Get(profile_)->AddObserver(this);
 
   // Attach a random ID string to the window so we can recognize it
@@ -156,14 +106,14 @@ void WebAuthFlow::Start() {
   base::Base64Encode(random_bytes, &app_window_key_);
 
   // identityPrivate.onWebFlowRequest(app_window_key, provider_url_, mode_)
-  base::Value::List args;
-  args.Append(app_window_key_);
-  args.Append(provider_url_.spec());
+  std::unique_ptr<base::ListValue> args(new base::ListValue());
+  args->AppendString(app_window_key_);
+  args->AppendString(provider_url_.spec());
   if (mode_ == WebAuthFlow::INTERACTIVE)
-    args.Append("interactive");
+    args->AppendString("interactive");
   else
-    args.Append("silent");
-  args.Append(GetPartitionNameForWebView(partition_));
+    args->AppendString("silent");
+  args->AppendString(GetPartitionName(partition_));
 
   auto event =
       std::make_unique<Event>(events::IDENTITY_PRIVATE_ON_WEB_FLOW_REQUEST,
@@ -185,18 +135,12 @@ void WebAuthFlow::Start() {
 
 void WebAuthFlow::DetachDelegateAndDelete() {
   delegate_ = nullptr;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE,
-                                                                this);
+  base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE, this);
 }
 
 content::StoragePartition* WebAuthFlow::GetGuestPartition() {
-  // When using the Auth through the Browser Tab, the guest partition shouldn't
-  // be used, consider using `Profile::GetDefaultStoragePartition()` instead.
-  if (base::FeatureList::IsEnabled(kWebAuthFlowInBrowserTab))
-    return nullptr;
-
-  return profile_->GetStoragePartition(
-      GetWebViewPartitionConfig(partition_, profile_));
+  return content::BrowserContext::GetStoragePartition(
+      profile_, GetWebViewPartitionConfig(partition_, profile_));
 }
 
 const std::string& WebAuthFlow::GetAppWindowKey() const {
@@ -210,9 +154,8 @@ content::StoragePartitionConfig WebAuthFlow::GetWebViewPartitionConfig(
   // This has to mirror the logic in WebViewGuest::CreateWebContents for
   // creating the correct StoragePartitionConfig.
   auto result = content::StoragePartitionConfig::Create(
-      browser_context, extension_misc::kIdentityApiUiAppId,
-      GetStoragePartitionId(partition),
-      /*in_memory=*/!ShouldPersistStorage(partition));
+      extension_misc::kIdentityApiUiAppId, GetPartitionName(partition),
+      /*in_memory=*/true);
   result.set_fallback_to_partition_domain_for_blob_urls(
       browser_context->IsOffTheRecord()
           ? content::StoragePartitionConfig::FallbackMode::
@@ -227,6 +170,11 @@ void WebAuthFlow::OnAppWindowAdded(AppWindow* app_window) {
       app_window->extension_id() == extension_misc::kIdentityApiUiAppId) {
     app_window_ = app_window;
     WebContentsObserver::Observe(app_window->web_contents());
+
+    registrar_.Add(
+        this,
+        content::NOTIFICATION_WEB_CONTENTS_RENDER_VIEW_HOST_CREATED,
+        content::NotificationService::AllBrowserContextsAndSources());
   }
 }
 
@@ -234,6 +182,7 @@ void WebAuthFlow::OnAppWindowRemoved(AppWindow* app_window) {
   if (app_window->window_key() == app_window_key_ &&
       app_window->extension_id() == extension_misc::kIdentityApiUiAppId) {
     app_window_ = nullptr;
+    registrar_.RemoveAll();
     WebContentsObserver::Observe(nullptr);
 
     if (delegate_)
@@ -241,58 +190,42 @@ void WebAuthFlow::OnAppWindowRemoved(AppWindow* app_window) {
   }
 }
 
-bool WebAuthFlow::IsObservingProviderWebContents() const {
-  return web_contents() &&
-         (embedded_window_created_ || using_auth_with_browser_tab_);
-}
-
 void WebAuthFlow::BeforeUrlLoaded(const GURL& url) {
-  if (delegate_ && IsObservingProviderWebContents())
+  if (delegate_ && embedded_window_created_)
     delegate_->OnAuthFlowURLChange(url);
 }
 
 void WebAuthFlow::AfterUrlLoaded() {
-  if (delegate_ && IsObservingProviderWebContents() &&
-      mode_ == WebAuthFlow::SILENT) {
+  if (delegate_ && embedded_window_created_ && mode_ == WebAuthFlow::SILENT)
     delegate_->OnAuthFlowFailure(WebAuthFlow::INTERACTION_REQUIRED);
-  }
-
-  // If `web_contents_` is nullptr, this means that the interactive tab has
-  // already been opened once.
-  if (delegate_ && using_auth_with_browser_tab_ &&
-      mode_ == WebAuthFlow::INTERACTIVE && web_contents_) {
-    chrome::ScopedTabbedBrowserDisplayer browser_displayer(profile_);
-    NavigateParams params(browser_displayer.browser(),
-                          std::move(web_contents_));
-    Navigate(&params);
-  }
 }
 
-void WebAuthFlow::InnerWebContentsCreated(
-    content::WebContents* inner_web_contents) {
+void WebAuthFlow::Observe(int type,
+                          const content::NotificationSource& source,
+                          const content::NotificationDetails& details) {
+  DCHECK_EQ(content::NOTIFICATION_WEB_CONTENTS_RENDER_VIEW_HOST_CREATED, type);
   DCHECK(app_window_);
 
   if (!delegate_ || embedded_window_created_)
     return;
 
+  RenderViewHost* render_view(content::Details<RenderViewHost>(details).ptr());
+  WebContents* web_contents = WebContents::FromRenderViewHost(render_view);
+  GuestViewBase* guest = GuestViewBase::FromWebContents(web_contents);
+  WebContents* owner = guest ? guest->owner_web_contents() : nullptr;
+  if (!web_contents || owner != WebContentsObserver::web_contents())
+    return;
+
   // Switch from watching the app window to the guest inside it.
   embedded_window_created_ = true;
-  WebContentsObserver::Observe(inner_web_contents);
+  WebContentsObserver::Observe(web_contents);
+
+  registrar_.RemoveAll();
 }
 
-void WebAuthFlow::PrimaryMainFrameRenderProcessGone(
-    base::TerminationStatus status) {
-  // When in `using_auth_with_browser_tab_` mode,
-  // `WebAuthFlow::WebContentsDestroyed()` takes care of this flow.
-  if (delegate_ && !using_auth_with_browser_tab_)
+void WebAuthFlow::RenderProcessGone(base::TerminationStatus status) {
+  if (delegate_)
     delegate_->OnAuthFlowFailure(WebAuthFlow::WINDOW_CLOSED);
-}
-
-void WebAuthFlow::WebContentsDestroyed() {
-  WebContentsObserver::Observe(nullptr);
-  if (delegate_) {
-    delegate_->OnAuthFlowFailure(WebAuthFlow::WINDOW_CLOSED);
-  }
 }
 
 void WebAuthFlow::TitleWasSet(content::NavigationEntry* entry) {
@@ -306,14 +239,13 @@ void WebAuthFlow::DidStopLoading() {
 
 void WebAuthFlow::DidStartNavigation(
     content::NavigationHandle* navigation_handle) {
-  if (navigation_handle->IsInPrimaryMainFrame())
+  if (navigation_handle->IsInMainFrame())
     BeforeUrlLoaded(navigation_handle->GetURL());
 }
 
 void WebAuthFlow::DidRedirectNavigation(
     content::NavigationHandle* navigation_handle) {
-  if (navigation_handle->IsInPrimaryMainFrame())
-    BeforeUrlLoaded(navigation_handle->GetURL());
+  BeforeUrlLoaded(navigation_handle->GetURL());
 }
 
 void WebAuthFlow::DidFinishNavigation(
@@ -321,7 +253,7 @@ void WebAuthFlow::DidFinishNavigation(
   // Websites may create and remove <iframe> during the auth flow. In
   // particular, to integrate CAPTCHA tests. Chrome shouldn't abort the auth
   // flow if a navigation failed in a sub-frame. https://crbug.com/1049565.
-  if (!navigation_handle->IsInPrimaryMainFrame())
+  if (!navigation_handle->IsInMainFrame())
     return;
 
   bool failed = false;

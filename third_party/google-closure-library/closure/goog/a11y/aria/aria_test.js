@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.a11y.ariaTest');
 goog.setTestOnly();
@@ -36,7 +44,6 @@ testSuite({
     htmlButton = null;
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testGetSetRole() {
     assertNull('someDiv\'s role should be null', aria.getRole(someDiv));
     assertNull('someSpan\'s role should be null', aria.getRole(someSpan));
@@ -60,24 +67,13 @@ testSuite({
         aria.getRole(dom.getElement('anotherSpan')));
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testGetSetToggleState() {
-    assertThrows(
-        'Should throw because no state is specified.',
-        /**
-         * @suppress {checkTypes} suppression added to enable type checking
-         */
-        () => {
-          aria.getState(someDiv);
-        });
-    assertThrows(
-        'Should throw because no state is specified.',
-        /**
-         * @suppress {checkTypes} suppression added to enable type checking
-         */
-        () => {
-          aria.getState(someDiv);
-        });
+    assertThrows('Should throw because no state is specified.', () => {
+      aria.getState(someDiv);
+    });
+    assertThrows('Should throw because no state is specified.', () => {
+      aria.getState(someDiv);
+    });
     aria.setState(someDiv, State.LABELLEDBY, 'someSpan');
 
     assertEquals(
@@ -130,7 +126,6 @@ testSuite({
     assertEquals('true', aria.getState(someDiv, State.RELEVANT));
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testGetStateString() {
     aria.setState(someDiv, State.LABEL, 'test_label');
     aria.setState(
@@ -165,7 +160,6 @@ testSuite({
     assertTrue('invalid use of getStateString on numbers.', thrown);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testGetStateStringArray() {
     aria.setState(someDiv, State.LABELLEDBY, ['1', '2']);
     aria.setState(
@@ -190,7 +184,6 @@ testSuite({
         aria.getStringArrayStateInternalUtil(someSpan, State.LABELLEDBY));
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testGetStateNumber() {
     aria.setState(someDiv, State.LEVEL, 1);
     aria.setState(
@@ -228,7 +221,6 @@ testSuite({
     assertTrue('invalid use of getStateNumber on strings.', thrown);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testGetStateBoolean() {
     assertNull(aria.getStateBoolean(someDiv, State.MULTILINE));
 
@@ -272,7 +264,6 @@ testSuite({
     assertTrue('invalid use of getStateBoolean on strings.', thrown);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testGetSetActiveDescendant() {
     aria.setActiveDescendant(someDiv, null);
     assertNull(
@@ -286,7 +277,6 @@ testSuite({
         aria.getActiveDescendant(someDiv));
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testGetSetLabel() {
     assertEquals('someDiv\'s label should be ""', '', aria.getLabel(someDiv));
 
@@ -296,7 +286,6 @@ testSuite({
         aria.getLabel(someDiv));
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testHasState() {
     aria.setState(someDiv, State.EXPANDED, false);
     assertTrue(aria.hasState(someDiv, State.EXPANDED));

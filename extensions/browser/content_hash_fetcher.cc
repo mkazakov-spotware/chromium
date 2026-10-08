@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,10 @@
 #include "base/bind.h"
 #include "base/files/file_util.h"
 #include "base/json/json_reader.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/macros.h"
+#include "base/sequenced_task_runner.h"
+#include "base/task/post_task.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/content_verifier/content_hash.h"
 #include "extensions/browser/content_verifier_delegate.h"
@@ -27,7 +30,6 @@
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/simple_url_loader.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 
 namespace extensions {
 
@@ -35,7 +37,7 @@ namespace internals {
 
 ContentHashFetcher::ContentHashFetcher(ContentHash::FetchKey key)
     : fetch_key_(std::move(key)),
-      response_task_runner_(base::SequencedTaskRunner::GetCurrentDefault()) {}
+      response_task_runner_(base::SequencedTaskRunnerHandle::Get()) {}
 
 void ContentHashFetcher::OnSimpleLoaderComplete(
     std::unique_ptr<std::string> response_body) {

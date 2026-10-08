@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,11 @@
 
 #include "base/base64.h"
 #include "base/bind.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/logging.h"
+#include "base/metrics/histogram_macros.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "components/gcm_driver/gcm_driver.h"
 #include "crypto/random.h"
 
@@ -90,25 +91,29 @@ void InstanceIDImpl::DoGetCreationTime(GetCreationTimeCallback callback) {
 void InstanceIDImpl::GetToken(const std::string& authorized_entity,
                               const std::string& scope,
                               base::TimeDelta time_to_live,
+                              const std::map<std::string, std::string>& options,
                               std::set<Flags> flags,
                               GetTokenCallback callback) {
   DCHECK(!authorized_entity.empty());
   DCHECK(!scope.empty());
 
-  RunWhenReady(base::BindOnce(&InstanceIDImpl::DoGetToken,
-                              weak_ptr_factory_.GetWeakPtr(), authorized_entity,
-                              scope, time_to_live, std::move(callback)));
+  UMA_HISTOGRAM_COUNTS_100("InstanceID.GetToken.OptionsCount", options.size());
+
+  RunWhenReady(base::BindOnce(
+      &InstanceIDImpl::DoGetToken, weak_ptr_factory_.GetWeakPtr(),
+      authorized_entity, scope, time_to_live, options, std::move(callback)));
 }
 
 void InstanceIDImpl::DoGetToken(
     const std::string& authorized_entity,
     const std::string& scope,
     base::TimeDelta time_to_live,
+    const std::map<std::string, std::string>& options,
     GetTokenCallback callback) {
   EnsureIDGenerated();
 
   Handler()->GetToken(
-      app_id(), authorized_entity, scope, time_to_live,
+      app_id(), authorized_entity, scope, time_to_live, options,
       base::BindOnce(&InstanceIDImpl::OnGetTokenCompleted,
                      weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
 }
@@ -269,8 +274,7 @@ void InstanceIDImpl::RunWhenReady(base::OnceClosure task) {
   if (!delayed_task_controller_.CanRunTaskWithoutDelay())
     delayed_task_controller_.AddTask(std::move(task));
   else
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, std::move(task));
+    base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE, std::move(task));
 }
 
 }  // namespace instance_id

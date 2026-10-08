@@ -1,9 +1,8 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/browser_extension_window_controller.h"
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -16,7 +15,7 @@
 #include "ui/base/test/ui_controls.h"
 #include "ui/events/event_constants.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include <Carbon/Carbon.h>
 #include "base/mac/mac_util.h"
 #endif
@@ -31,7 +30,7 @@ typedef ExtensionApiTest GlobalCommandsApiTest;
 // extension.
 //
 // Doesn't work in CrOS builds, http://crbug.com/619784
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #define MAYBE_GlobalCommand DISABLED_GlobalCommand
 #else
 #define MAYBE_GlobalCommand GlobalCommand
@@ -42,7 +41,7 @@ IN_PROC_BROWSER_TEST_F(GlobalCommandsApiTest, MAYBE_GlobalCommand) {
   ASSERT_TRUE(RunExtensionTest("keybinding/global")) << message_;
   ASSERT_TRUE(catcher.GetNextResult());
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
+#if defined(OS_WIN) || defined(OS_CHROMEOS) || defined(OS_LINUX)
   // Our infrastructure for sending keys expects a browser to send them to, but
   // to properly test global shortcuts you need to send them to another target.
   // So, create an incognito browser to use as a target to send the shortcuts
@@ -63,7 +62,7 @@ IN_PROC_BROWSER_TEST_F(GlobalCommandsApiTest, MAYBE_GlobalCommand) {
   // Activate the shortcut (Ctrl+Shift+8). This should have an effect.
   ASSERT_TRUE(ui_test_utils::SendKeyPressSync(
       incognito_browser, ui::VKEY_8, true, true, false, false));
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
   // ui_test_utils::SendGlobalKeyEventsAndWait() hangs the test on macOS 10.14 -
   // https://crbug.com/904403
   if (base::mac::IsAtLeastOS10_14())
@@ -95,7 +94,7 @@ IN_PROC_BROWSER_TEST_F(GlobalCommandsApiTest, MAYBE_GlobalCommand) {
   ASSERT_TRUE(catcher.GetNextResult()) << catcher.message();
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // Feature only fully implemented on Windows, other platforms coming.
 // TODO(smus): On mac, SendKeyPress must first support media keys.
 #define MAYBE_GlobalDuplicatedMediaKey GlobalDuplicatedMediaKey

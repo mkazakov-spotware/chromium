@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,7 +39,7 @@ void MockLoginScreenClient::AuthenticateUserWithChallengeResponse(
   AuthenticateUserWithChallengeResponse_(account_id, callback);
 }
 
-ParentCodeValidationResult MockLoginScreenClient::ValidateParentAccessCode(
+bool MockLoginScreenClient::ValidateParentAccessCode(
     const AccountId& account_id,
     const std::string& code,
     base::Time validation_time) {

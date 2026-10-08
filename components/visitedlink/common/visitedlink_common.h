@@ -1,4 +1,4 @@
-// Copyright 2006-2008 The Chromium Authors
+// Copyright (c) 2006-2008 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 
 class GURL;
 
@@ -59,10 +59,6 @@ class VisitedLinkCommon {
   static const Hash null_hash_;
 
   VisitedLinkCommon();
-
-  VisitedLinkCommon(const VisitedLinkCommon&) = delete;
-  VisitedLinkCommon& operator=(const VisitedLinkCommon&) = delete;
-
   virtual ~VisitedLinkCommon();
 
   // Returns the fingerprint for the given URL.
@@ -129,13 +125,16 @@ class VisitedLinkCommon {
   }
 
   // pointer to the first item
-  raw_ptr<VisitedLinkCommon::Fingerprint> hash_table_;
+  VisitedLinkCommon::Fingerprint* hash_table_;
 
   // the number of items in the hash table
   int32_t table_length_;
 
   // salt used for each URL when computing the fingerprint
   uint8_t salt_[LINK_SALT_LENGTH];
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(VisitedLinkCommon);
 };
 
 }  // namespace visitedlink

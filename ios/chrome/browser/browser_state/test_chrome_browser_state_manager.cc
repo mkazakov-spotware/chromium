@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,7 @@ TestChromeBrowserStateManager::TestChromeBrowserStateManager(
   if (browser_state_) {
     browser_state_info_cache_.AddBrowserState(browser_state_->GetStatePath(),
                                               /*gaia_id=*/std::string(),
-                                              /*user_name=*/std::u16string());
+                                              /*user_name=*/base::string16());
   }
 }
 

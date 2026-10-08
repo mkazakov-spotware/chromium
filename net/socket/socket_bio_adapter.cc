@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "base/check_op.h"
 #include "base/location.h"
 #include "base/notreached.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
 #include "net/socket/socket.h"
@@ -62,7 +62,11 @@ SocketBIOAdapter::SocketBIOAdapter(StreamSocket* socket,
                                    Delegate* delegate)
     : socket_(socket),
       read_buffer_capacity_(read_buffer_capacity),
+      read_offset_(0),
+      read_result_(0),
       write_buffer_capacity_(write_buffer_capacity),
+      write_buffer_used_(0),
+      write_error_(OK),
       delegate_(delegate) {
   bio_.reset(BIO_new(&kBIOMethod));
   bio_->ptr = this;
@@ -261,7 +265,7 @@ int SocketBIOAdapter::BIOWrite(const char* in, int len) {
   // reentrancy by deferring it to a later event loop iteration.
   if (write_error_ != OK && write_error_ != ERR_IO_PENDING &&
       read_result_ == ERR_IO_PENDING) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&SocketBIOAdapter::CallOnReadReady,
                                   weak_factory_.GetWeakPtr()));
   }

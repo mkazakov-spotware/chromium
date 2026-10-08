@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,6 @@ public class PlayerFrameScrollController {
     private final Runnable mOnScrollListener;
     private final Runnable mOnFlingListener;
     private boolean mAcceptUserInput;
-    private Runnable mOnScrollCallbackForAccessibility;
 
     PlayerFrameScrollController(OverScroller scroller, PlayerFrameMediatorDelegate mediatorDelegate,
             @Nullable Runnable onScrollListener, @Nullable Runnable onFlingListener) {
@@ -106,43 +105,8 @@ public class PlayerFrameScrollController {
         mAcceptUserInput = acceptUserInput;
     }
 
-    /**
-     * Ensures that the given {@link Rect} is visible by scrolling the viewport to include it.
-     */
-    void scrollToMakeRectVisibleForAccessibility(Rect rect) {
-        if (rect == null) return;
-
-        float scaleFactor = mViewport.getScale();
-        Rect targetRect = new Rect((int) (rect.left * scaleFactor), (int) (rect.top * scaleFactor),
-                (int) (rect.right * scaleFactor), (int) (rect.bottom * scaleFactor));
-        Rect viewportRect = mViewport.asRect();
-
-        if (viewportRect.contains(targetRect)) return;
-
-        float scrollX;
-        float scrollY;
-
-        if (targetRect.top < viewportRect.top) {
-            scrollY = targetRect.top - viewportRect.top;
-        } else {
-            scrollY = targetRect.top + targetRect.height() - viewportRect.bottom;
-        }
-
-        if (targetRect.left < viewportRect.left) {
-            scrollX = targetRect.left - viewportRect.left;
-        } else {
-            scrollX = targetRect.left + targetRect.width() - viewportRect.right;
-        }
-
-        scrollBy(scrollX, scrollY);
-    }
-
-    void setOnScrollCallbackForAccessibility(Runnable onScrollCallback) {
-        mOnScrollCallbackForAccessibility = onScrollCallback;
-    }
-
     private boolean maybeHandleOverscroll(float distanceY) {
-        if (mOverscrollHandler == null || mViewport.getTransY() >= 1f) return false;
+        if (mOverscrollHandler == null || mViewport.getTransY() != 0f) return false;
 
         // Ignore if there is no active overscroll and the direction is down.
         if (!mIsOverscrolling && distanceY <= 0) return false;
@@ -197,7 +161,6 @@ public class PlayerFrameScrollController {
         mMediatorDelegate.offsetBitmapScaleMatrix(validDistanceX, validDistanceY);
         mViewport.offset(validDistanceX, validDistanceY);
         mMediatorDelegate.updateVisuals(false);
-        if (mOnScrollCallbackForAccessibility != null) mOnScrollCallbackForAccessibility.run();
         return true;
     }
 

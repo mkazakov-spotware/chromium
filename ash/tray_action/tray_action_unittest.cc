@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "ash/test/ash_test_base.h"
 #include "ash/tray_action/test_tray_action_client.h"
 #include "ash/tray_action/tray_action_observer.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 
 using ash::mojom::TrayActionState;
@@ -25,9 +26,6 @@ class ScopedTestStateObserver : public TrayActionObserver {
       : tray_action_(tray_action) {
     tray_action_->AddObserver(this);
   }
-
-  ScopedTestStateObserver(const ScopedTestStateObserver&) = delete;
-  ScopedTestStateObserver& operator=(const ScopedTestStateObserver&) = delete;
 
   ~ScopedTestStateObserver() override { tray_action_->RemoveObserver(this); }
 
@@ -46,6 +44,8 @@ class ScopedTestStateObserver : public TrayActionObserver {
   TrayAction* tray_action_;
 
   std::vector<TrayActionState> observed_states_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedTestStateObserver);
 };
 
 using TrayActionTest = AshTestBase;

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "ui/events/event_processor.h"
 
 namespace ui {
@@ -15,10 +16,6 @@ namespace test {
 class TestEventProcessor : public EventProcessor {
  public:
   TestEventProcessor();
-
-  TestEventProcessor(const TestEventProcessor&) = delete;
-  TestEventProcessor& operator=(const TestEventProcessor&) = delete;
-
   ~TestEventProcessor() override;
 
   int num_times_processing_started() const {
@@ -43,9 +40,7 @@ class TestEventProcessor : public EventProcessor {
   EventTargeter* GetDefaultEventTargeter() override;
   EventDispatchDetails OnEventFromSource(Event* event) override;
   void OnEventProcessingStarted(Event* event) override;
-  void OnEventProcessingFinished(Event* event,
-                                 EventTarget* target,
-                                 const EventDispatchDetails& details) override;
+  void OnEventProcessingFinished(Event* event) override;
 
  private:
   std::unique_ptr<EventTarget> root_;
@@ -59,6 +54,8 @@ class TestEventProcessor : public EventProcessor {
 
   // Counts the number of times OnEventProcessingFinished() has been called.
   int num_times_processing_finished_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestEventProcessor);
 };
 
 }  // namespace test

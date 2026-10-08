@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,35 +28,36 @@ UninstallAppTask::UninstallAppTask(SyncEngineContext* sync_context,
       uninstall_flag_(uninstall_flag),
       app_root_tracker_id_(0) {}
 
-UninstallAppTask::~UninstallAppTask() {}
+UninstallAppTask::~UninstallAppTask() {
+}
 
-void UninstallAppTask::RunExclusive(SyncStatusCallback callback) {
+void UninstallAppTask::RunExclusive(const SyncStatusCallback& callback) {
   if (!IsContextReady()) {
-    std::move(callback).Run(SYNC_STATUS_FAILED);
+    callback.Run(SYNC_STATUS_FAILED);
     return;
   }
 
   if (uninstall_flag_ == RemoteFileSyncService::UNINSTALL_AND_KEEP_REMOTE) {
     SyncStatusCode status = metadata_database()->UnregisterApp(app_id_);
-    std::move(callback).Run(status);
+    callback.Run(status);
     return;
   }
   DCHECK_EQ(RemoteFileSyncService::UNINSTALL_AND_PURGE_REMOTE, uninstall_flag_);
 
   int64_t sync_root_tracker_id = metadata_database()->GetSyncRootTrackerID();
   TrackerIDSet trackers;
-  if (!metadata_database()->FindTrackersByParentAndTitle(sync_root_tracker_id,
-                                                         app_id_, &trackers) ||
+  if (!metadata_database()->FindTrackersByParentAndTitle(
+          sync_root_tracker_id, app_id_, &trackers) ||
       !trackers.has_active()) {
-    std::move(callback).Run(SYNC_STATUS_OK);
+    callback.Run(SYNC_STATUS_OK);
     return;
   }
 
   FileTracker app_root_tracker;
-  if (!metadata_database()->FindTrackerByTrackerID(trackers.active_tracker(),
-                                                   &app_root_tracker)) {
+  if (!metadata_database()->FindTrackerByTrackerID(
+          trackers.active_tracker(), &app_root_tracker)) {
     NOTREACHED();
-    std::move(callback).Run(SYNC_STATUS_FAILED);
+    callback.Run(SYNC_STATUS_FAILED);
     return;
   }
   app_root_tracker_id_ = app_root_tracker.tracker_id();
@@ -65,27 +66,29 @@ void UninstallAppTask::RunExclusive(SyncStatusCallback callback) {
   drive_service()->DeleteResource(
       app_root_tracker.file_id(),
       std::string(),  // etag
-      base::BindOnce(&UninstallAppTask::DidDeleteAppRoot,
-                     weak_ptr_factory_.GetWeakPtr(), std::move(callback),
-                     metadata_database()->GetLargestKnownChangeID()));
+      base::Bind(&UninstallAppTask::DidDeleteAppRoot,
+                 weak_ptr_factory_.GetWeakPtr(),
+                 callback,
+                 metadata_database()->GetLargestKnownChangeID()));
 }
 
-void UninstallAppTask::DidDeleteAppRoot(SyncStatusCallback callback,
+void UninstallAppTask::DidDeleteAppRoot(const SyncStatusCallback& callback,
                                         int64_t change_id,
-                                        google_apis::ApiErrorCode error) {
-  SyncStatusCode status = ApiErrorCodeToSyncStatusCode(error);
-  if (status != SYNC_STATUS_OK && error != google_apis::HTTP_NOT_FOUND) {
-    std::move(callback).Run(SYNC_STATUS_FAILED);
+                                        google_apis::DriveApiErrorCode error) {
+  SyncStatusCode status = DriveApiErrorCodeToSyncStatusCode(error);
+  if (status != SYNC_STATUS_OK &&
+      error != google_apis::HTTP_NOT_FOUND) {
+    callback.Run(SYNC_STATUS_FAILED);
     return;
   }
 
   status = metadata_database()->UnregisterApp(app_id_);
-  std::move(callback).Run(status);
+  callback.Run(status);
 }
 
 bool UninstallAppTask::IsContextReady() {
   return sync_context_->GetMetadataDatabase() &&
-         sync_context_->GetDriveService();
+      sync_context_->GetDriveService();
 }
 
 MetadataDatabase* UninstallAppTask::metadata_database() {

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,8 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/time/time.h"
 
 namespace media {
@@ -39,10 +40,6 @@ class EsParserTestBase {
   };
 
   EsParserTestBase();
-
-  EsParserTestBase(const EsParserTestBase&) = delete;
-  EsParserTestBase& operator=(const EsParserTestBase&) = delete;
-
   virtual ~EsParserTestBase();
 
  protected:
@@ -85,6 +82,8 @@ class EsParserTestBase {
  private:
   // Timestamps of buffers generated while parsing the ES stream.
   std::stringstream buffer_timestamps_stream_;
+
+  DISALLOW_COPY_AND_ASSIGN(EsParserTestBase);
 };
 
 }  // namespace mp2t

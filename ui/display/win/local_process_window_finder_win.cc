@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,16 +7,16 @@
 #include "base/win/windows_version.h"
 #include "ui/display/win/screen_win.h"
 #include "ui/display/win/topmost_window_finder_win.h"
-#include "ui/gfx/win/hwnd_util.h"
 
-namespace display::win {
+namespace display {
+namespace win {
 
 // static
 gfx::NativeWindow LocalProcessWindowFinder::GetProcessWindowAtPoint(
     const gfx::Point& screen_loc,
     const std::set<HWND>& ignore,
     ScreenWin* screen_win) {
-  LocalProcessWindowFinder finder(screen_loc, screen_win, ignore);
+  LocalProcessWindowFinder finder(screen_loc, ignore);
   // Windows 8 has a window that appears first in the list of iterated
   // windows, yet is not visually on top of everything.
   // TODO(sky): figure out a better way to ignore this window.
@@ -30,41 +30,38 @@ gfx::NativeWindow LocalProcessWindowFinder::GetProcessWindowAtPoint(
 }
 
 bool LocalProcessWindowFinder::ShouldStopIterating(HWND hwnd) {
-  // If the host knows `hwnd` is not on the current_workspace, return.
-  gfx::NativeWindow native_win = screen_win_->GetNativeWindowFromHWND(hwnd);
-  absl::optional<bool> on_current_workspace;
-  if (native_win) {
-    on_current_workspace =
-        screen_win_->IsWindowOnCurrentVirtualDesktop(native_win);
-  }
-  if (on_current_workspace == false)
-    return false;
-
-  // Ignore non visible  and cloaked windows. This will include windows not on
-  // the current virtual desktop, which are cloaked.
   RECT r;
-  if (!IsWindowVisible(hwnd) || gfx::IsWindowCloaked(hwnd) ||
-      !GetWindowRect(hwnd, &r) || !PtInRect(&r, screen_loc_.ToPOINT())) {
-    return false;  // Window is not at `screen_loc_`.
+
+  // Make sure the window is on the same virtual desktop.
+  if (virtual_desktop_manager_) {
+    BOOL on_current_desktop;
+    if (SUCCEEDED(virtual_desktop_manager_->IsWindowOnCurrentVirtualDesktop(
+            hwnd, &on_current_desktop)) &&
+        !on_current_desktop) {
+      return false;
+    }
   }
 
-  // The window is at the correct position on the screen.
-  // Don't set `result_` if the window is occluded, because there is at least
-  // one window covering the browser window. E.g., tab drag drop shouldn't
-  // drop on an occluded browser window.
-  if (!native_win || !screen_win_->IsNativeWindowOccluded(native_win))
+  if (IsWindowVisible(hwnd) && GetWindowRect(hwnd, &r) &&
+      PtInRect(&r, screen_loc_.ToPOINT())) {
     result_ = hwnd;
-  return true;
+    return true;
+  }
+  return false;
 }
 
 LocalProcessWindowFinder::LocalProcessWindowFinder(const gfx::Point& screen_loc,
-                                                   ScreenWin* screen_win,
                                                    const std::set<HWND>& ignore)
-    : BaseWindowFinderWin(ignore), result_(nullptr), screen_win_(screen_win) {
+    : BaseWindowFinderWin(ignore), result_(nullptr) {
+  if (base::win::GetVersion() >= base::win::Version::WIN10) {
+    ::CoCreateInstance(__uuidof(VirtualDesktopManager), nullptr, CLSCTX_ALL,
+                       IID_PPV_ARGS(&virtual_desktop_manager_));
+  }
   screen_loc_ = display::win::ScreenWin::DIPToScreenPoint(screen_loc);
   EnumThreadWindows(GetCurrentThreadId(), WindowCallbackProc, as_lparam());
 }
 
 LocalProcessWindowFinder::~LocalProcessWindowFinder() = default;
 
-}  // namespace display::win
+}  // namespace win
+}  // namespace display

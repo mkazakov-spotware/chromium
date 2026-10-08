@@ -1,10 +1,8 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/protocol/pairing_host_authenticator.h"
-
-#include <utility>
 
 #include "base/bind.h"
 #include "base/logging.h"
@@ -12,7 +10,8 @@
 #include "remoting/protocol/channel_authenticator.h"
 #include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 PairingHostAuthenticator::PairingHostAuthenticator(
     scoped_refptr<PairingRegistry> pairing_registry,
@@ -43,7 +42,7 @@ void PairingHostAuthenticator::Initialize(
       client_id,
       base::BindOnce(&PairingHostAuthenticator::InitializeWithPairing,
                      weak_factory_.GetWeakPtr(), preferred_initial_state,
-                     std::move(resume_callback)));
+                     base::Passed(std::move(resume_callback))));
 }
 
 PairingHostAuthenticator::~PairingHostAuthenticator() = default;
@@ -60,7 +59,7 @@ Authenticator::State PairingHostAuthenticator::state() const {
 Authenticator::RejectionReason
 PairingHostAuthenticator::rejection_reason() const {
   if (protocol_error_) {
-    return RejectionReason::PROTOCOL_ERROR;
+    return PROTOCOL_ERROR;
   }
   return PairingAuthenticatorBase::rejection_reason();
 }
@@ -95,4 +94,5 @@ void PairingHostAuthenticator::InitializeWithPairing(
   std::move(resume_callback).Run();
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

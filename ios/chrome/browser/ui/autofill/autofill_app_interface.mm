@@ -1,35 +1,33 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/autofill/autofill_app_interface.h"
 
-#import "base/memory/singleton.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
+#include "base/memory/singleton.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "components/autofill/core/browser/autofill_test_utils.h"
-#import "components/autofill/core/browser/form_data_importer.h"
-#import "components/autofill/core/browser/payments/credit_card_save_manager.h"
-#import "components/autofill/core/browser/personal_data_manager.h"
-#import "components/autofill/core/common/autofill_prefs.h"
-#import "components/autofill/ios/browser/autofill_driver_ios.h"
+#include "components/autofill/core/browser/autofill_test_utils.h"
+#include "components/autofill/core/browser/form_data_importer.h"
+#include "components/autofill/core/browser/payments/credit_card_save_manager.h"
+#include "components/autofill/core/browser/personal_data_manager.h"
+#include "components/autofill/ios/browser/autofill_driver_ios.h"
 #import "components/autofill/ios/browser/credit_card_save_manager_test_observer_bridge.h"
-#import "components/autofill/ios/browser/ios_test_event_waiter.h"
-#import "components/keyed_service/core/service_access_type.h"
-#import "components/password_manager/core/browser/password_store_consumer.h"
-#import "components/password_manager/core/browser/password_store_interface.h"
-#import "ios/chrome/browser/application_context/application_context.h"
-#import "ios/chrome/browser/autofill/personal_data_manager_factory.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/passwords/ios_chrome_password_store_factory.h"
+#include "components/autofill/ios/browser/ios_test_event_waiter.h"
+#include "components/keyed_service/core/service_access_type.h"
+#include "components/password_manager/core/browser/password_store.h"
+#include "components/password_manager/core/browser/password_store_consumer.h"
+#include "ios/chrome/browser/application_context.h"
+#include "ios/chrome/browser/autofill/personal_data_manager_factory.h"
+#include "ios/chrome/browser/passwords/ios_chrome_password_store_factory.h"
 #import "ios/chrome/test/app/chrome_test_util.h"
 #import "ios/chrome/test/app/tab_test_util.h"
-#import "ios/public/provider/chrome/browser/risk_data/risk_data_api.h"
+#include "ios/public/provider/chrome/browser/chrome_browser_provider.h"
 #import "ios/web/public/js_messaging/web_frames_manager.h"
 #import "ios/web/public/web_state.h"
-#import "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
-#import "services/network/test/test_url_loader_factory.h"
+#include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
+#include "services/network/test/test_url_loader_factory.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -37,11 +35,11 @@
 
 namespace {
 
-const char16_t kExampleUsername[] = u"concrete username";
-const char16_t kExamplePassword[] = u"concrete password";
+const char kExampleUsername[] = "concrete username";
+const char kExamplePassword[] = "concrete password";
 
 // Gets the current password store.
-scoped_refptr<password_manager::PasswordStoreInterface> GetPasswordStore() {
+scoped_refptr<password_manager::PasswordStore> GetPasswordStore() {
   // ServiceAccessType governs behaviour in Incognito: only modifications with
   // EXPLICIT_ACCESS, which correspond to user's explicit gesture, succeed.
   // This test does not deal with Incognito, and should not run in Incognito
@@ -66,7 +64,7 @@ class TestStoreConsumer : public password_manager::PasswordStoreConsumer {
   const std::vector<password_manager::PasswordForm>& GetStoreResults() {
     results_.clear();
     ResetObtained();
-    GetPasswordStore()->GetAllLogins(weak_ptr_factory_.GetWeakPtr());
+    GetPasswordStore()->GetAllLogins(this);
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-result"
     base::test::ios::WaitUntilConditionOrTimeout(
@@ -79,14 +77,14 @@ class TestStoreConsumer : public password_manager::PasswordStoreConsumer {
   }
 
  private:
-  // Puts `obtained_` in a known state not corresponding to any PasswordStore
+  // Puts |obtained_| in a known state not corresponding to any PasswordStore
   // state.
   void ResetObtained() {
     obtained_.clear();
     obtained_.emplace_back(nullptr);
   }
 
-  // Returns true if `obtained_` are in the reset state.
+  // Returns true if |obtained_| are in the reset state.
   bool AreObtainedReset() { return obtained_.size() == 1 && !obtained_[0]; }
 
   void AppendObtainedToResults() {
@@ -101,15 +99,13 @@ class TestStoreConsumer : public password_manager::PasswordStoreConsumer {
 
   // Combination of fillable and blocked credentials from the store.
   std::vector<password_manager::PasswordForm> results_;
-
-  base::WeakPtrFactory<TestStoreConsumer> weak_ptr_factory_{this};
 };
 
-// Saves `form` to the password store and waits until the async processing is
+// Saves |form| to the password store and waits until the async processing is
 // done.
 void SaveToPasswordStore(const password_manager::PasswordForm& form) {
   GetPasswordStore()->AddLogin(form);
-  // When we retrieve the form from the store, `in_store` should be set.
+  // When we retrieve the form from the store, |in_store| should be set.
   password_manager::PasswordForm expected_form = form;
   expected_form.in_store = password_manager::PasswordForm::Store::kProfileStore;
   // Check the result and ensure PasswordStore processed this.
@@ -123,8 +119,8 @@ void SaveToPasswordStore(const password_manager::PasswordForm& form) {
 // Saves an example form in the store.
 void SaveExamplePasswordForm() {
   password_manager::PasswordForm example;
-  example.username_value = kExampleUsername;
-  example.password_value = kExamplePassword;
+  example.username_value = base::ASCIIToUTF16(kExampleUsername);
+  example.password_value = base::ASCIIToUTF16(kExamplePassword);
   example.url = GURL("https://example.com/");
   example.signon_realm = example.url.spec();
   SaveToPasswordStore(example);
@@ -133,8 +129,8 @@ void SaveExamplePasswordForm() {
 // Saves an example form in the store for the passed URL.
 void SaveLocalPasswordForm(const GURL& url) {
   password_manager::PasswordForm localForm;
-  localForm.username_value = kExampleUsername;
-  localForm.password_value = kExamplePassword;
+  localForm.username_value = base::ASCIIToUTF16(kExampleUsername);
+  localForm.password_value = base::ASCIIToUTF16(kExamplePassword);
   localForm.url = url;
   localForm.signon_realm = localForm.url.spec();
   SaveToPasswordStore(localForm);
@@ -143,7 +139,7 @@ void SaveLocalPasswordForm(const GURL& url) {
 // Removes all credentials stored.
 void ClearPasswordStore() {
   GetPasswordStore()->RemoveLoginsCreatedBetween(base::Time(), base::Time(),
-                                                 base::DoNothing());
+                                                 base::OnceClosure());
   TestStoreConsumer consumer;
 }
 
@@ -164,17 +160,19 @@ void AddAutofillProfile(autofill::PersonalDataManager* personalDataManager) {
   ConditionBlock conditionBlock = ^bool {
     return profileCount < personalDataManager->GetProfiles().size();
   };
-  base::test::ios::TimeUntilCondition(nil, conditionBlock, false,
-                                      base::test::ios::kWaitForActionTimeout);
+  base::test::ios::TimeUntilCondition(
+      nil, conditionBlock, false,
+      base::TimeDelta::FromSeconds(base::test::ios::kWaitForActionTimeout));
 }
 
 }  // namespace
 
 namespace autofill {
 
-// Helper class that provides access to private members of
-// BrowserAutofillManager, FormDataImporter and CreditCardSaveManager. This
-// class is friend with some autofill internal classes to access private fields.
+// Helper class that provides access to private members of AutofillManager,
+// FormDataImporter and CreditCardSaveManager.
+// This class is friend with some autofill internal classes to access private
+// fields.
 class SaveCardInfobarEGTestHelper
     : public CreditCardSaveManager::ObserverForTest {
  public:
@@ -230,8 +228,8 @@ class SaveCardInfobarEGTestHelper
                                           max);
   }
 
-  // Reset the IOSTestEventWaiter and make it watch `events`.
-  void ResetEventWaiterForEvents(NSArray* events, base::TimeDelta timeout) {
+  // Reset the IOSTestEventWaiter and make it watch |events|.
+  void ResetEventWaiterForEvents(NSArray* events, NSTimeInterval timeout) {
     std::list<CreditCardSaveManagerObserverEvent> events_list;
     for (NSNumber* e : events) {
       events_list.push_back(
@@ -273,7 +271,7 @@ class SaveCardInfobarEGTestHelper
     OnEvent(CreditCardSaveManagerObserverEvent::kOnStrikeChangeCompleteCalled);
   }
 
-  // Triggers `event` on the IOSTestEventWaiter.
+  // Triggers |event| on the IOSTestEventWaiter.
   bool OnEvent(CreditCardSaveManagerObserverEvent event) {
     return event_waiter_->OnEvent(event);
   }
@@ -350,13 +348,6 @@ class SaveCardInfobarEGTestHelper
   return personalDataManager->GetProfiles().size();
 }
 
-+ (void)setAutoAcceptAddressImports:(BOOL)autoAccept {
-  autofill::PersonalDataManager* personalDataManager =
-      [self personalDataManager];
-  return personalDataManager->set_auto_accept_address_imports_for_testing(
-      autoAccept);
-}
-
 + (void)clearProfilesStore {
   ChromeBrowserState* browserState =
       chrome_test_util::GetOriginalBrowserState();
@@ -369,10 +360,9 @@ class SaveCardInfobarEGTestHelper
   ConditionBlock conditionBlock = ^bool {
     return 0 == personalDataManager->GetProfiles().size();
   };
-  base::test::ios::TimeUntilCondition(nil, conditionBlock, false,
-                                      base::test::ios::kWaitForActionTimeout);
-
-  autofill::prefs::SetAutofillProfileEnabled(browserState->GetPrefs(), YES);
+  base::test::ios::TimeUntilCondition(
+      nil, conditionBlock, false,
+      base::TimeDelta::FromSeconds(base::test::ios::kWaitForActionTimeout));
 }
 
 + (void)saveExampleProfile {
@@ -381,7 +371,7 @@ class SaveCardInfobarEGTestHelper
 
 + (NSString*)exampleProfileName {
   autofill::AutofillProfile profile = autofill::test::GetFullProfile();
-  std::u16string name =
+  base::string16 name =
       profile.GetInfo(autofill::AutofillType(autofill::NAME_FULL),
                       GetApplicationContext()->GetApplicationLocale());
   return base::SysUTF16ToNSString(name);
@@ -393,10 +383,6 @@ class SaveCardInfobarEGTestHelper
   for (const auto* creditCard : personalDataManager->GetCreditCards()) {
     personalDataManager->RemoveByGUID(creditCard->guid());
   }
-
-  ChromeBrowserState* browserState =
-      chrome_test_util::GetOriginalBrowserState();
-  autofill::prefs::SetAutofillCreditCardEnabled(browserState->GetPrefs(), YES);
 }
 
 + (NSString*)saveLocalCreditCard {
@@ -410,7 +396,8 @@ class SaveCardInfobarEGTestHelper
   };
   base::test::ios::TimeUntilCondition(
       nil, conditionBlock, false,
-      base::test::ios::kWaitForFileOperationTimeout);
+      base::TimeDelta::FromSeconds(
+          base::test::ios::kWaitForFileOperationTimeout));
   personalDataManager->NotifyPersonalDataObserver();
   return base::SysUTF16ToNSString(card.NetworkAndLastFourDigits());
 }
@@ -439,7 +426,7 @@ class SaveCardInfobarEGTestHelper
 }
 
 + (void)resetEventWaiterForEvents:(NSArray*)events
-                          timeout:(base::TimeDelta)timeout {
+                          timeout:(NSTimeInterval)timeout {
   autofill::SaveCardInfobarEGTestHelper::SharedInstance()
       ->ResetEventWaiterForEvents(events, timeout);
 }
@@ -467,7 +454,8 @@ class SaveCardInfobarEGTestHelper
 }
 
 + (NSString*)paymentsRiskData {
-  return ios::provider::GetRiskData();
+  return base::SysUTF8ToNSString(
+      ios::GetChromeBrowserProvider()->GetRiskData());
 }
 
 #pragma mark - Private

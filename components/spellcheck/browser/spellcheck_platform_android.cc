@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -48,7 +48,8 @@ bool SpellingPanelVisible() {
 void ShowSpellingPanel(bool show) {
 }
 
-void UpdateSpellingPanelWithMisspelledWord(const std::u16string& word) {}
+void UpdateSpellingPanelWithMisspelledWord(const base::string16& word) {
+}
 
 void PlatformSupportsLanguage(PlatformSpellChecker* spell_checker_instance,
                               const std::string& current_language,
@@ -65,32 +66,33 @@ void SetLanguage(PlatformSpellChecker* spell_checker_instance,
 void DisableLanguage(PlatformSpellChecker* spell_checker_instance,
                      const std::string& lang_to_disable) {}
 
-bool CheckSpelling(const std::u16string& word_to_check, int tag) {
+bool CheckSpelling(const base::string16& word_to_check, int tag) {
   return true;
 }
 
-void FillSuggestionList(const std::u16string& wrong_word,
-                        std::vector<std::u16string>* optional_suggestions) {}
+void FillSuggestionList(const base::string16& wrong_word,
+                        std::vector<base::string16>* optional_suggestions) {
+}
 
 void AddWord(PlatformSpellChecker* spell_checker_instance,
-             const std::u16string& word) {}
+             const base::string16& word) {}
 
 void RemoveWord(PlatformSpellChecker* spell_checker_instance,
-                const std::u16string& word) {}
+                const base::string16& word) {}
 
 int GetDocumentTag() {
   return 1;
 }
 
 void IgnoreWord(PlatformSpellChecker* spell_checker_instance,
-                const std::u16string& word) {}
+                const base::string16& word) {}
 
 void CloseDocumentWithTag(int tag) {
 }
 
 void RequestTextCheck(PlatformSpellChecker* spell_checker_instance,
                       int document_tag,
-                      const std::u16string& text,
+                      const base::string16& text,
                       TextCheckCompleteCallback callback) {}
 
 }  // namespace spellcheck_platform

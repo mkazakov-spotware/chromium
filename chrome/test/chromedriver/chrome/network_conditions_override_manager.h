@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,13 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/values.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "chrome/test/chromedriver/chrome/devtools_event_listener.h"
+
+namespace base {
+class DictionaryValue;
+}
 
 class DevToolsClient;
 struct NetworkConditions;
@@ -21,12 +25,6 @@ class Status;
 class NetworkConditionsOverrideManager : public DevToolsEventListener {
  public:
   explicit NetworkConditionsOverrideManager(DevToolsClient* client);
-
-  NetworkConditionsOverrideManager(const NetworkConditionsOverrideManager&) =
-      delete;
-  NetworkConditionsOverrideManager& operator=(
-      const NetworkConditionsOverrideManager&) = delete;
-
   ~NetworkConditionsOverrideManager() override;
 
   Status OverrideNetworkConditions(const NetworkConditions& network_conditions);
@@ -35,14 +33,16 @@ class NetworkConditionsOverrideManager : public DevToolsEventListener {
   Status OnConnected(DevToolsClient* client) override;
   Status OnEvent(DevToolsClient* client,
                  const std::string& method,
-                 const base::Value::Dict& params) override;
+                 const base::DictionaryValue& params) override;
 
  private:
   Status ApplyOverrideIfNeeded();
   Status ApplyOverride(const NetworkConditions* network_conditions);
 
-  raw_ptr<DevToolsClient> client_;
-  raw_ptr<const NetworkConditions> overridden_network_conditions_;
+  DevToolsClient* client_;
+  const NetworkConditions* overridden_network_conditions_;
+
+  DISALLOW_COPY_AND_ASSIGN(NetworkConditionsOverrideManager);
 };
 
 #endif  // CHROME_TEST_CHROMEDRIVER_CHROME_NETWORK_CONDITIONS_OVERRIDE_MANAGER_H_

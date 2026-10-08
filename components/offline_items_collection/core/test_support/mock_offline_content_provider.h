@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_OFFLINE_ITEMS_COLLECTION_CORE_TEST_SUPPORT_MOCK_OFFLINE_CONTENT_PROVIDER_H_
 #define COMPONENTS_OFFLINE_ITEMS_COLLECTION_CORE_TEST_SUPPORT_MOCK_OFFLINE_CONTENT_PROVIDER_H_
 
+#include "base/observer_list.h"
 #include "components/offline_items_collection/core/offline_content_provider.h"
 #include "components/offline_items_collection/core/offline_item.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -23,16 +24,13 @@ class MockOfflineContentProvider : public OfflineContentProvider {
     MOCK_METHOD1(OnItemsAdded, void(const OfflineItemList&));
     MOCK_METHOD1(OnItemRemoved, void(const ContentId&));
     MOCK_METHOD2(OnItemUpdated,
-                 void(const OfflineItem&, const absl::optional<UpdateDelta>&));
-    MOCK_METHOD0(OnContentProviderGoingDown, void());
+                 void(const OfflineItem&, const base::Optional<UpdateDelta>&));
   };
 
   MockOfflineContentProvider();
   ~MockOfflineContentProvider() override;
 
-  // Expose this protected method for tests.
-  using OfflineContentProvider::HasObserver;
-
+  bool HasObserver(Observer* observer);
   void SetItems(const OfflineItemList& items);
   // Sets visuals returned by |GetVisualsForItem()|. If this is not called,
   // then the mocked method |GetVisualsForItem_()| is called instead.
@@ -40,7 +38,7 @@ class MockOfflineContentProvider : public OfflineContentProvider {
   void NotifyOnItemsAdded(const OfflineItemList& items);
   void NotifyOnItemRemoved(const ContentId& id);
   void NotifyOnItemUpdated(const OfflineItem& item,
-                           const absl::optional<UpdateDelta>& update_delta);
+                           const base::Optional<UpdateDelta>& update_delta);
 
   // OfflineContentProvider implementation.
   MOCK_METHOD2(OpenItem, void(const OpenParams&, const ContentId&));
@@ -58,10 +56,17 @@ class MockOfflineContentProvider : public OfflineContentProvider {
   MOCK_METHOD2(GetShareInfoForItem, void(const ContentId&, ShareCallback));
   void GetAllItems(MultipleItemCallback callback) override;
   void GetItemById(const ContentId& id, SingleItemCallback callback) override;
+  void AddObserver(Observer* observer) override;
+  void RemoveObserver(Observer* observer) override;
   MOCK_METHOD3(RenameItem,
                void(const ContentId&, const std::string&, RenameCallback));
+  MOCK_METHOD(void,
+              ChangeSchedule,
+              (const ContentId&, base::Optional<OfflineItemSchedule>),
+              (override));
 
  private:
+  base::ObserverList<Observer>::Unchecked observers_;
   OfflineItemList items_;
   std::map<ContentId, OfflineItemVisuals> visuals_;
   bool override_visuals_ = false;

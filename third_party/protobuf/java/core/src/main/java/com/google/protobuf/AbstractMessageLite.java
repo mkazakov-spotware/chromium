@@ -89,9 +89,9 @@ public abstract class AbstractMessageLite<
     final int serialized = getSerializedSize();
     final int bufferSize =
         CodedOutputStream.computePreferredBufferSize(
-            CodedOutputStream.computeUInt32SizeNoTag(serialized) + serialized);
+            CodedOutputStream.computeRawVarint32Size(serialized) + serialized);
     final CodedOutputStream codedOutput = CodedOutputStream.newInstance(output, bufferSize);
-    codedOutput.writeUInt32NoTag(serialized);
+    codedOutput.writeRawVarint32(serialized);
     writeTo(codedOutput);
     codedOutput.flush();
   }
@@ -144,15 +144,6 @@ public abstract class AbstractMessageLite<
 
   protected static <T> void addAll(final Iterable<T> values, final List<? super T> list) {
     Builder.addAll(values, list);
-  }
-
-  /** Interface for an enum which signifies which field in a {@code oneof} was specified. */
-  protected interface InternalOneOfEnum {
-    /**
-     * Retrieves the field number of the field which was set in this {@code oneof}, or {@code 0} if
-     * none were.
-     */
-    int getNumber();
   }
 
   /**
@@ -316,11 +307,8 @@ public abstract class AbstractMessageLite<
 
       @Override
       public long skip(final long n) throws IOException {
-        // because we take the minimum of an int and a long, result is guaranteed to be
-        // less than or equal to Integer.MAX_INT so this cast is safe
-        int result = (int) super.skip(Math.min(n, limit));
+        final long result = super.skip(Math.min(n, limit));
         if (result >= 0) {
-          // if the superclass adheres to the contract for skip, this condition is always true
           limit -= result;
         }
         return result;

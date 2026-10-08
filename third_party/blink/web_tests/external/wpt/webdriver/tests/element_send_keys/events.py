@@ -5,6 +5,7 @@ from tests.support.asserts import (
     assert_events_equal,
     assert_success,
 )
+from tests.support.inline import inline
 
 from . import map_files_to_multiline_text
 
@@ -30,7 +31,7 @@ def element_send_keys(session, element, text):
         {"text": text})
 
 
-def test_file_upload(session, create_files, add_event_listeners, tracked_events, inline):
+def test_file_upload(session, create_files, add_event_listeners, tracked_events):
     expected_events = [
         "input",
         "change",
@@ -49,7 +50,7 @@ def test_file_upload(session, create_files, add_event_listeners, tracked_events,
 
 
 @pytest.mark.parametrize("tag", ["input", "textarea"])
-def test_form_control_send_text(session, add_event_listeners, tracked_events, inline, tag):
+def test_form_control_send_text(session, add_event_listeners, tracked_events, tag):
     expected_events = [
         "focus",
         "keydown",
@@ -76,7 +77,7 @@ def test_form_control_send_text(session, add_event_listeners, tracked_events, in
 
 
 @pytest.mark.parametrize("tag", ["input", "textarea"])
-def test_not_blurred(session, inline, tag):
+def test_not_blurred(session, tag):
     session.url = inline("<%s>" % tag)
     element = session.find.css(tag, all=False)
 

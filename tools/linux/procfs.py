@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2013 The Chromium Authors
+# Copyright 2013 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -28,7 +28,7 @@ _LOGGER = logging.getLogger('procfs')
 _LOGGER.addHandler(_NullHandler())
 
 
-class ProcStat:
+class ProcStat(object):
   """Reads and stores information in /proc/pid/stat."""
   _PATTERN = re.compile(r'^'
                         '(?P<PID>-?[0-9]+) '
@@ -116,7 +116,7 @@ class ProcStat:
     return int(self._rss)
 
 
-class ProcStatm:
+class ProcStatm(object):
   """Reads and stores information in /proc/pid/statm."""
   _PATTERN = re.compile(r'^'
                         '(?P<SIZE>[0-9]+) '
@@ -194,7 +194,7 @@ class ProcStatm:
     return int(self._dt)
 
 
-class ProcStatus:
+class ProcStatus(object):
   """Reads and stores information in /proc/pid/status."""
   _PATTERN = re.compile(r'^(?P<NAME>[A-Za-z0-9_]+):\s+(?P<VALUE>.*)')
 
@@ -270,7 +270,7 @@ class ProcStatus:
     raise ValueError('VmRSS is not in kB.')
 
 
-class ProcMapsEntry:
+class ProcMapsEntry(object):
   """A class representing one line in /proc/pid/maps."""
 
   def __init__(
@@ -304,7 +304,7 @@ class ProcMapsEntry:
     }
 
 
-class ProcMaps:
+class ProcMaps(object):
   """Reads and stores information in /proc/pid/maps."""
 
   MAPS_PATTERN = re.compile(
@@ -372,7 +372,8 @@ class ProcMaps:
           int(matched.group(10), 10), # inode
           matched.group(11)           # name
           )
-    return None
+    else:
+      return None
 
   @staticmethod
   def constants(entry):
@@ -394,11 +395,11 @@ class ProcMaps:
     self._dictionary[entry.begin] = entry
 
 
-class ProcSmaps:
+class ProcSmaps(object):
   """Reads and stores information in /proc/pid/smaps."""
   _SMAPS_PATTERN = re.compile(r'^(?P<NAME>[A-Za-z0-9_]+):\s+(?P<VALUE>.*)')
 
-  class VMA:
+  class VMA(object):
     def __init__(self):
       self._size = 0
       self._rss = 0
@@ -418,26 +419,23 @@ class ProcSmaps:
       if name in dct:
         self.__setattr__(dct[name], value)
 
-    def as_int_without_kb(arg):
-      """Returns `arg` as an int, with its "kB" suffix removed if present."""
-      # The redundant use of `str(arg)` here (when `arg` is already known to be
-      # a string per `isinstance()`) is a workaround for a PyLint bug:
-      # https://github.com/PyCQA/pylint/issues/1162.
-      if isinstance(arg, str) and str(arg).endswith('kB'):
-        return int(str(arg).split()[0])
-      return int(arg)
-
     @property
     def size(self):
-      return self.as_int_without_kb(self._size)
+      if self._size.endswith('kB'):
+        return int(self._size.split()[0])
+      return int(self._size)
 
     @property
     def rss(self):
-      return self.as_int_without_kb(self._rss)
+      if self._rss.endswith('kB'):
+        return int(self._rss.split()[0])
+      return int(self._rss)
 
     @property
     def pss(self):
-      return self.as_int_without_kb(self._pss)
+      if self._pss.endswith('kB'):
+        return int(self._pss.split()[0])
+      return int(self._pss)
 
   def __init__(self, raw, total_dct, maps, vma_internals):
     self._raw = raw
@@ -512,7 +510,7 @@ class ProcSmaps:
     return self._vma_internals
 
 
-class ProcPagemap:
+class ProcPagemap(object):
   """Reads and stores partial information in /proc/pid/pagemap.
 
   It picks up virtual addresses to read based on ProcMaps (/proc/pid/maps).
@@ -528,7 +526,7 @@ class ProcPagemap:
   _MASK_SOFTDIRTY = 1 << 55
   _MASK_PFN = (1 << 55) - 1
 
-  class VMA:
+  class VMA(object):
     def __init__(self, vsize, present, swapped, pageframes):
       self._vsize = vsize
       self._present = present
@@ -633,7 +631,7 @@ class ProcPagemap:
     return self._vma_internals
 
 
-class _ProcessMemory:
+class _ProcessMemory(object):
   """Aggregates process memory information from /proc for manual testing."""
   def __init__(self, pid):
     self._pid = pid
@@ -718,8 +716,8 @@ def main(argv):
   for arg in argv[1:]:
     try:
       pid = int(arg)
-    except ValueError as value_error:
-      raise SyntaxError("%s is not an integer." % arg) from value_error
+    except ValueError:
+      raise SyntaxError("%s is not an integer." % arg)
     else:
       pids.append(pid)
 

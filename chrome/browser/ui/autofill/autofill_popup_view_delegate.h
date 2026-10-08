@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,11 @@
 #define CHROME_BROWSER_UI_AUTOFILL_AUTOFILL_POPUP_VIEW_DELEGATE_H_
 
 #include <stddef.h>
+#include <vector>
 
 #include "components/autofill/core/browser/ui/popup_types.h"
 #include "ui/gfx/native_widget_types.h"
+#include "ui/gfx/text_constants.h"
 
 namespace gfx {
 class Point;
@@ -30,7 +32,7 @@ class AutofillPopupViewDelegate {
   // whether to defer that.
   virtual void Hide(PopupHidingReason reason) = 0;
 
-  // Called when the popup view was destroyed.
+  // Called whent the popup view was destroyed.
   virtual void ViewDestroyed() = 0;
 
   // The user cleared the current selection, e.g. by moving the mouse cursor
@@ -50,7 +52,7 @@ class AutofillPopupViewDelegate {
   virtual bool IsRTL() const = 0;
 
  protected:
-  virtual ~AutofillPopupViewDelegate() = default;
+  virtual ~AutofillPopupViewDelegate() {}
 };
 
 }  // namespace autofill

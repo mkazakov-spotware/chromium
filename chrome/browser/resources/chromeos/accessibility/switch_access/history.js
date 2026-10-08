@@ -1,25 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {SACache} from './cache.js';
-import {Navigator} from './navigator.js';
-import {DesktopNode} from './nodes/desktop_node.js';
-import {SAChildNode, SARootNode} from './nodes/switch_access_node.js';
-import {SwitchAccessPredicate} from './switch_access_predicate.js';
-
-const AutomationNode = chrome.automation.AutomationNode;
-
 /** This class is a structure to store previous state for restoration. */
-export class FocusData {
+class FocusData {
   /**
    * @param {!SARootNode} group
    * @param {!SAChildNode} focus Must be a child of |group|.
    */
   constructor(group, focus) {
-    /** @type {!SARootNode} */
+    /** @public {!SARootNode} */
     this.group = group;
-    /** @type {!SAChildNode} */
+    /** @public {!SAChildNode} */
     this.focus = focus;
   }
 
@@ -35,7 +27,7 @@ export class FocusData {
 }
 
 /** This class handles saving and retrieving FocusData. */
-export class FocusHistory {
+class FocusHistory {
   constructor() {
     /** @private {!Array<!FocusData>} */
     this.dataStack_ = [];
@@ -129,7 +121,7 @@ export class FocusHistory {
     }
 
     // If we don't have any valid history entries, fallback to the desktop node.
-    const desktop = new DesktopNode(Navigator.byItem.desktopNode);
+    const desktop = new DesktopNode(NavigationManager.desktopNode);
     return new FocusData(desktop, desktop.firstChild);
   }
 

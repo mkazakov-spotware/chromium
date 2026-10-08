@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -90,8 +90,7 @@ TEST_F(AcceleratorCommandsTest, CycleSwapPrimaryDisplay) {
       .SetFirstDisplayAsInternalDisplay();
   UpdateDisplay("800x600,800x600,800x600");
 
-  display::DisplayIdList id_list =
-      display_manager()->GetConnectedDisplayIdList();
+  display::DisplayIdList id_list = display_manager()->GetCurrentDisplayIdList();
 
   ShiftPrimaryDisplay();
   int64_t primary_id = display::Screen::GetScreen()->GetPrimaryDisplay().id();
@@ -108,15 +107,14 @@ TEST_F(AcceleratorCommandsTest, CycleSwapPrimaryDisplay) {
 
 TEST_F(AcceleratorCommandsTest, CycleMixedMirrorModeSwapPrimaryDisplay) {
   UpdateDisplay("300x400,400x500,500x600");
-  display::DisplayIdList id_list =
-      display_manager()->GetConnectedDisplayIdList();
+  display::DisplayIdList id_list = display_manager()->GetCurrentDisplayIdList();
 
   // Turn on mixed mirror mode. (Mirror from the first display to the second
   // display)
   display::DisplayIdList dst_ids;
   dst_ids.emplace_back(id_list[1]);
-  absl::optional<display::MixedMirrorModeParams> mixed_params(
-      absl::in_place, id_list[0], dst_ids);
+  base::Optional<display::MixedMirrorModeParams> mixed_params(
+      base::in_place, id_list[0], dst_ids);
 
   display_manager()->SetMirrorMode(display::MirrorMode::kMixed, mixed_params);
 

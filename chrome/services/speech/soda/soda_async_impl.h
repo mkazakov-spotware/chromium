@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 extern "C" {
 
 typedef void (*RecognitionResultHandler)(const char*, const bool, void*);
-typedef void (*SerializedSodaEventHandler)(const char*, int, void*);
 
 typedef struct {
   // The channel count and sample rate of the audio stream. SODA does not
@@ -27,36 +26,19 @@ typedef struct {
 
   // The callback that gets executed on a recognition event. It takes in a
   // char*, representing the transcribed text; a bool, representing whether the
-  // result is final or not; and a void pointer to the object that is associated
-  // with the callback.
+  // result is final or not; and a void* pointer to the SodaRecognizerImpl
+  // instance associated with the stream.
   RecognitionResultHandler callback;
 
-  // A void pointer to the object that is associated with the callback.
-  // Ownership is not taken.
+  // A void pointer to the SodaRecognizerImpl instance associated with the
+  // stream.
   void* callback_handle;
 
-  // The API key used to verify that the binary is called by Chrome.
   const char* api_key;
 } SodaConfig;
 
-typedef struct {
-  // A ExtendedSodaConfigMsg that's been serialized as a string. Not owned.
-  const char* soda_config;
-
-  // length of char* in soda_config.
-  int soda_config_size;
-
-  // The callback that gets executed on a SODA event. It takes in a
-  // char*, which is a serialized SodaResponse proto, an int specifying the
-  // length of the char* and a void pointer to the object that is associated
-  // with the callback.
-  SerializedSodaEventHandler callback;
-
-  // A void pointer to the object that is associated with the callback.
-  void* callback_handle;
-} SerializedSodaConfig;
-
-void* CreateSoda(SerializedSodaConfig config);
+// Creates and instantiates an instance of SODA.
+void* CreateSodaAsync(SodaConfig config);
 
 // Destroys the instance of SODA, called on the destruction of the SodaClient.
 void DeleteSodaAsync(void* soda_async_handle);

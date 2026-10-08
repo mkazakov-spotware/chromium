@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,6 @@
 #include "extensions/common/manifest_url_handlers.h"
 #include "extensions/common/permissions/permissions_data.h"
 
-using extensions::mojom::ManifestLocation;
-
 namespace em = ::enterprise_management;
 
 namespace enterprise_reporting {
@@ -22,26 +20,26 @@ namespace enterprise_reporting {
 namespace {
 
 em::Extension_InstallType GetExtensionInstallType(
-    ManifestLocation extension_location) {
+    extensions::Manifest::Location extension_location) {
   switch (extension_location) {
-    case ManifestLocation::kInternal:
+    case extensions::Manifest::INTERNAL:
       return em::Extension_InstallType_TYPE_NORMAL;
-    case ManifestLocation::kUnpacked:
-    case ManifestLocation::kCommandLine:
+    case extensions::Manifest::UNPACKED:
+    case extensions::Manifest::COMMAND_LINE:
       return em::Extension_InstallType_TYPE_DEVELOPMENT;
-    case ManifestLocation::kExternalPref:
-    case ManifestLocation::kExternalRegistry:
-    case ManifestLocation::kExternalPrefDownload:
+    case extensions::Manifest::EXTERNAL_PREF:
+    case extensions::Manifest::EXTERNAL_REGISTRY:
+    case extensions::Manifest::EXTERNAL_PREF_DOWNLOAD:
       return em::Extension_InstallType_TYPE_SIDELOAD;
-    case ManifestLocation::kExternalPolicy:
-    case ManifestLocation::kExternalPolicyDownload:
+    case extensions::Manifest::EXTERNAL_POLICY:
+    case extensions::Manifest::EXTERNAL_POLICY_DOWNLOAD:
       return em::Extension_InstallType_TYPE_ADMIN;
-    default:
+    case extensions::Manifest::NUM_LOCATIONS:
       NOTREACHED();
-      [[fallthrough]];
-    case ManifestLocation::kInvalidLocation:
-    case ManifestLocation::kComponent:
-    case ManifestLocation::kExternalComponent:
+      FALLTHROUGH;
+    case extensions::Manifest::INVALID_LOCATION:
+    case extensions::Manifest::COMPONENT:
+    case extensions::Manifest::EXTERNAL_COMPONENT:
       return em::Extension_InstallType_TYPE_OTHER;
   }
 }
@@ -85,7 +83,6 @@ void AddExtensions(const extensions::ExtensionSet& extensions,
     AddPermission(extension.get(), extension_info);
     AddHostPermission(extension.get(), extension_info);
     extension_info->set_from_webstore(extension->from_webstore());
-    extension_info->set_manifest_version(extension->manifest_version());
   }
 }
 
@@ -111,8 +108,6 @@ em::Extension_ExtensionType ConvertExtensionTypeToProto(
       return em::Extension_ExtensionType_TYPE_PLATFORM_APP;
     case extensions::Manifest::TYPE_LOGIN_SCREEN_EXTENSION:
       return em::Extension_ExtensionType_TYPE_LOGIN_SCREEN_EXTENSION;
-    case extensions::Manifest::TYPE_CHROMEOS_SYSTEM_EXTENSION:
-      return em::Extension_ExtensionType_TYPE_CHROMEOS_SYSTEM_EXTENSION;
     case extensions::Manifest::NUM_LOAD_TYPES:
       NOTREACHED();
       return em::Extension_ExtensionType_TYPE_UNKNOWN;

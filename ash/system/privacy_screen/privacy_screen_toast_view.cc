@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/privacy_screen/privacy_screen_toast_view.h"
 
-#include "ash/constants/ash_features.h"
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/style/ash_color_provider.h"
@@ -12,7 +11,6 @@
 #include "ash/system/tray/tray_constants.h"
 #include "ash/system/unified/feature_pod_button.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/compositor/layer.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/image_view.h"
@@ -132,12 +130,8 @@ PrivacyScreenToastView::PrivacyScreenToastView(
   label_ = new PrivacyScreenToastLabelView();
   AddChildView(label_);
 
-  // In dark light mode, we switch TrayBubbleView to use a textured layer
-  // instead of solid color layer, so no need to create an extra layer here.
-  if (!features::IsDarkLightModeEnabled()) {
-    SetPaintToLayer();
-    layer()->SetFillsBoundsOpaquely(false);
-  }
+  SetPaintToLayer();
+  layer()->SetFillsBoundsOpaquely(false);
 }
 
 PrivacyScreenToastView::~PrivacyScreenToastView() {
@@ -151,7 +145,7 @@ void PrivacyScreenToastView::SetPrivacyScreenEnabled(bool enabled,
   button_->SetToggled(enabled);
   label_->SetPrivacyScreenEnabled(enabled, managed);
 
-  std::u16string state = l10n_util::GetStringUTF16(
+  base::string16 state = l10n_util::GetStringUTF16(
       is_enabled_ ? IDS_ASH_STATUS_TRAY_PRIVACY_SCREEN_ON_STATE
                   : IDS_ASH_STATUS_TRAY_PRIVACY_SCREEN_OFF_STATE);
   button_->SetTooltipText(l10n_util::GetStringFUTF16(
@@ -160,14 +154,14 @@ void PrivacyScreenToastView::SetPrivacyScreenEnabled(bool enabled,
   Layout();
 }
 
-std::u16string PrivacyScreenToastView::GetAccessibleName() {
-  std::u16string enabled_state = l10n_util::GetStringUTF16(
+base::string16 PrivacyScreenToastView::GetAccessibleName() {
+  base::string16 enabled_state = l10n_util::GetStringUTF16(
       is_enabled_ ? IDS_ASH_STATUS_TRAY_PRIVACY_SCREEN_ON_STATE
                   : IDS_ASH_STATUS_TRAY_PRIVACY_SCREEN_OFF_STATE);
-  std::u16string managed_state =
+  base::string16 managed_state =
       is_managed_ ? l10n_util::GetStringUTF16(
                         IDS_ASH_STATUS_TRAY_PRIVACY_SCREEN_ENTERPRISE_MANAGED)
-                  : std::u16string();
+                  : base::string16();
   return l10n_util::GetStringFUTF16(
       IDS_ASH_STATUS_TRAY_PRIVACY_SCREEN_TOAST_ACCESSIBILITY_TEXT,
       enabled_state, managed_state);

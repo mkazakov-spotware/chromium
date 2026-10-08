@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/i18n/rtl.h"
 #include "base/lazy_instance.h"
+#include "base/macros.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -23,16 +24,13 @@ namespace {
 class OverrideLocaleHolder {
  public:
   OverrideLocaleHolder() {}
-
-  OverrideLocaleHolder(const OverrideLocaleHolder&) = delete;
-  OverrideLocaleHolder& operator=(const OverrideLocaleHolder&) = delete;
-
   const std::vector<std::string>& value() const { return value_; }
   void swap_value(std::vector<std::string>* override_value) {
     value_.swap(*override_value);
   }
  private:
   std::vector<std::string> value_;
+  DISALLOW_COPY_AND_ASSIGN(OverrideLocaleHolder);
 };
 
 base::LazyInstance<OverrideLocaleHolder>::DestructorAtExit
@@ -46,12 +44,12 @@ int GetExtendedStyles() {
   return !base::i18n::IsRTL() ? 0 : WS_EX_LAYOUTRTL | WS_EX_RTLREADING;
 }
 
-DWORD GetExtendedTooltipStyles() {
-  return base::i18n::IsRTL() ? WS_EX_LAYOUTRTL : 0;
+int GetExtendedTooltipStyles() {
+  return !base::i18n::IsRTL() ? 0 : WS_EX_LAYOUTRTL;
 }
 
 void HWNDSetRTLLayout(HWND hwnd) {
-  LONG ex_style = ::GetWindowLong(hwnd, GWL_EXSTYLE);
+  DWORD ex_style = ::GetWindowLong(hwnd, GWL_EXSTYLE);
 
   // We don't have to do anything if the style is already set for the HWND.
   if (!(ex_style & WS_EX_LAYOUTRTL)) {

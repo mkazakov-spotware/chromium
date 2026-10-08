@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,13 @@
 
 #include <memory>
 #include <utility>
-#include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/sync/engine/model_type_processor.h"
 #include "components/sync/model/data_type_activation_request.h"
 #include "components/sync/model/model_type_controller_delegate.h"
 #include "components/sync/nigori/nigori_local_change_processor.h"
+#include "components/sync/protocol/entity_metadata.pb.h"
 #include "components/sync/protocol/model_type_state.pb.h"
 
 namespace syncer {
@@ -26,10 +26,6 @@ class NigoriModelTypeProcessor : public ModelTypeProcessor,
                                  public NigoriLocalChangeProcessor {
  public:
   NigoriModelTypeProcessor();
-
-  NigoriModelTypeProcessor(const NigoriModelTypeProcessor&) = delete;
-  NigoriModelTypeProcessor& operator=(const NigoriModelTypeProcessor&) = delete;
-
   ~NigoriModelTypeProcessor() override;
 
   // ModelTypeProcessor implementation.
@@ -42,12 +38,7 @@ class NigoriModelTypeProcessor : public ModelTypeProcessor,
       const CommitResponseDataList& committed_response_list,
       const FailedCommitResponseDataList& error_response_list) override;
   void OnUpdateReceived(const sync_pb::ModelTypeState& type_state,
-                        UpdateResponseDataList updates,
-                        absl::optional<sync_pb::GarbageCollectionDirective>
-                            gc_directive) override;
-  void StorePendingInvalidations(
-      std::vector<sync_pb::ModelTypeState::Invalidation> invalidations_to_store)
-      override;
+                        UpdateResponseDataList updates) override;
 
   // ModelTypeControllerDelegate implementation.
   void OnSyncStarting(const DataTypeActivationRequest& request,
@@ -89,7 +80,7 @@ class NigoriModelTypeProcessor : public ModelTypeProcessor,
 
   // The bridge owns this processor instance so the pointer should never become
   // invalid.
-  raw_ptr<NigoriSyncBridge> bridge_;
+  NigoriSyncBridge* bridge_;
 
   // The model type metadata (progress marker, initial sync done, etc).
   sync_pb::ModelTypeState model_type_state_;
@@ -106,7 +97,7 @@ class NigoriModelTypeProcessor : public ModelTypeProcessor,
 
   // The first model error that occurred, if any. Stored to track model state
   // and so it can be passed to sync if it happened prior to sync being ready.
-  absl::optional<ModelError> model_error_;
+  base::Optional<ModelError> model_error_;
 
   std::unique_ptr<ProcessorEntity> entity_;
 
@@ -122,6 +113,8 @@ class NigoriModelTypeProcessor : public ModelTypeProcessor,
   // invalidated during destruction).
   base::WeakPtrFactory<ModelTypeControllerDelegate>
       weak_ptr_factory_for_controller_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(NigoriModelTypeProcessor);
 };
 
 }  // namespace syncer

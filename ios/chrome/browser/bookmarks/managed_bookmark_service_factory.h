@@ -1,10 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_BROWSER_BOOKMARKS_MANAGED_BOOKMARK_SERVICE_FACTORY_H_
 #define IOS_CHROME_BROWSER_BOOKMARKS_MANAGED_BOOKMARK_SERVICE_FACTORY_H_
 
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
 
@@ -23,10 +24,6 @@ class ManagedBookmarkServiceFactory : public BrowserStateKeyedServiceFactory {
 
   static ManagedBookmarkServiceFactory* GetInstance();
 
-  ManagedBookmarkServiceFactory(const ManagedBookmarkServiceFactory&) = delete;
-  ManagedBookmarkServiceFactory& operator=(
-      const ManagedBookmarkServiceFactory&) = delete;
-
  private:
   friend class base::NoDestructor<ManagedBookmarkServiceFactory>;
 
@@ -37,6 +34,8 @@ class ManagedBookmarkServiceFactory : public BrowserStateKeyedServiceFactory {
   std::unique_ptr<KeyedService> BuildServiceInstanceFor(
       web::BrowserState* context) const override;
   bool ServiceIsNULLWhileTesting() const override;
+
+  DISALLOW_COPY_AND_ASSIGN(ManagedBookmarkServiceFactory);
 };
 
 #endif  // IOS_CHROME_BROWSER_BOOKMARKS_MANAGED_BOOKMARK_SERVICE_FACTORY_H_

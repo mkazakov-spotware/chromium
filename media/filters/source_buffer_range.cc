@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <string>
 
 #include "base/logging.h"
-#include "media/base/stream_parser_buffer.h"
 #include "media/base/timestamp_constants.h"
 
 namespace media {
@@ -118,7 +117,7 @@ void SourceBufferRange::AppendBuffersToEnd(
   for (BufferQueue::const_iterator itr = new_buffers.begin();
        itr != new_buffers.end(); ++itr) {
     DCHECK((*itr)->timestamp() != kNoTimestamp);
-    DCHECK((*itr)->GetDecodeTimestamp() != kNoDecodeTimestamp);
+    DCHECK((*itr)->GetDecodeTimestamp() != kNoDecodeTimestamp());
 
     buffers_.push_back(*itr);
     UpdateEndTime(*itr);
@@ -538,7 +537,7 @@ base::TimeDelta SourceBufferRange::GetBufferedEndTimestamp() const {
   // report 1 microsecond for the last buffer's duration if it is a 0 duration
   // buffer.
   if (duration.is_zero())
-    duration = base::Microseconds(1);
+    duration = base::TimeDelta::FromMicroseconds(1);
 
   return GetEndTimestamp() + duration;
 }
@@ -952,9 +951,9 @@ std::string SourceBufferRange::ToStringForDebugging() const {
          << ", buffers.size()=" << buffers_.size()
          << ", keyframe_map_.size()=" << keyframe_map_.size()
          << ", keyframe_map_:\n";
-  for (const auto& [time_delta, idx] : keyframe_map_) {
-    result << "\t pts " << time_delta.InMicroseconds()
-           << ", unadjusted idx = " << idx << "\n";
+  for (const auto& entry : keyframe_map_) {
+    result << "\t pts " << entry.first.InMicroseconds()
+           << ", unadjusted idx = " << entry.second << "\n";
   }
 #endif  // !defined(NDEBUG) || defined(DCHECK_ALWAYS_ON)
 

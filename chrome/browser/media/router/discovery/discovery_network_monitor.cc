@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,15 +11,14 @@
 #include "base/hash/sha1.h"
 #include "base/lazy_instance.h"
 #include "base/memory/ptr_util.h"
-#include "base/observer_list.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
-#include "base/task/task_runner_util.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
+#include "base/task_runner_util.h"
 #include "base/time/default_tick_clock.h"
 #include "chrome/browser/media/router/discovery/discovery_network_list.h"
+#include "chrome/browser/media/router/discovery/discovery_network_monitor_metric_observer.h"
 #include "content/public/browser/network_service_instance.h"
 #include "net/base/network_interfaces.h"
 
@@ -31,8 +30,10 @@ std::string ComputeNetworkId(
   if (network_info_list.empty()) {
     return DiscoveryNetworkMonitor::kNetworkIdDisconnected;
   }
-  if (base::ranges::all_of(network_info_list, &std::string::empty,
-                           &DiscoveryNetworkInfo::network_id)) {
+  if (std::find_if(network_info_list.begin(), network_info_list.end(),
+                   [](const DiscoveryNetworkInfo& network_info) {
+                     return !network_info.network_id.empty();
+                   }) == network_info_list.end()) {
     return DiscoveryNetworkMonitor::kNetworkIdUnknown;
   }
 
@@ -99,8 +100,12 @@ DiscoveryNetworkMonitor::DiscoveryNetworkMonitor(NetworkInfoFunction strategy)
       task_runner_(base::ThreadPool::CreateSequencedTaskRunner(
           {base::MayBlock(),
            base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN})),
-      network_info_function_(strategy) {
+      network_info_function_(strategy),
+      metric_observer_(std::make_unique<DiscoveryNetworkMonitorMetricObserver>(
+          base::DefaultTickClock::GetInstance(),
+          std::make_unique<DiscoveryNetworkMonitorMetrics>())) {
   DETACH_FROM_SEQUENCE(sequence_checker_);
+  AddObserver(metric_observer_.get());
 
   content::GetNetworkConnectionTracker()
       ->AddLeakyNetworkConnectionObserver(this);

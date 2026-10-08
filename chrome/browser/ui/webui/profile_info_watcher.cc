@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,9 +15,9 @@
 #include "components/signin/public/base/signin_pref_names.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 
-ProfileInfoWatcher::ProfileInfoWatcher(Profile* profile,
-                                       base::RepeatingClosure callback)
-    : profile_(profile), callback_(std::move(callback)) {
+ProfileInfoWatcher::ProfileInfoWatcher(
+    Profile* profile, const base::Closure& callback)
+    : profile_(profile), callback_(callback) {
   DCHECK(profile_);
   DCHECK(!callback_.is_null());
 
@@ -47,11 +47,8 @@ void ProfileInfoWatcher::OnProfileAuthInfoChanged(
 std::string ProfileInfoWatcher::GetAuthenticatedUsername() const {
   std::string username;
   auto* identity_manager = GetIdentityManager();
-  if (identity_manager) {
-    username =
-        identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSync)
-            .email;
-  }
+  if (identity_manager)
+    username = identity_manager->GetPrimaryAccountInfo().email;
   return username;
 }
 

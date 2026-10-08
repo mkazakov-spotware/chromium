@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,19 +12,10 @@
 @protocol PasswordDetailsHandler;
 @protocol PasswordDetailsTableViewControllerDelegate;
 @protocol ReauthenticationProtocol;
-@protocol SnackbarCommands;
 
 // Screen which shows password details and allows to edit it.
 @interface PasswordDetailsTableViewController
     : AutofillEditTableViewController <PasswordDetailsConsumer>
-
-// The designated initializer.
-// `syncingUserEmail` stores the user email if the user is authenticated and
-// syncing passwords.
-- (instancetype)initWithSyncingUserEmail:(NSString*)syncingUserEmail
-    NS_DESIGNATED_INITIALIZER;
-
-- (instancetype)initWithStyle:(UITableViewStyle)style NS_UNAVAILABLE;
 
 // Handler for PasswordDetails related actions.
 @property(nonatomic, weak) id<PasswordDetailsHandler> handler;
@@ -33,11 +24,9 @@
 @property(nonatomic, weak) id<PasswordDetailsTableViewControllerDelegate>
     delegate;
 
-// ApplicationCommands handler.
-@property(nonatomic, weak) id<ApplicationCommands> applicationCommandsHandler;
-
-// SnackbarCommands handler.
-@property(nonatomic, weak) id<SnackbarCommands> snackbarCommandsHandler;
+// Dispatcher for this ViewController.
+@property(nonatomic, weak) id<ApplicationCommands, BrowserCommands>
+    commandsHandler;
 
 // Module containing the reauthentication mechanism for interactions
 // with password.
@@ -45,9 +34,6 @@
 
 // Called by coordinator when the user confirmed password editing from alert.
 - (void)passwordEditingConfirmed;
-
-// Shows the password details in edit mode without requiring any authentication.
-- (void)showEditViewWithoutAuthentication;
 
 @end
 

@@ -1,10 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/base/cdm_session_tracker.h"
-
-#include "base/callback.h"
 
 namespace media {
 
@@ -26,13 +24,12 @@ void CdmSessionTracker::RemoveSession(const std::string& session_id) {
 }
 
 void CdmSessionTracker::CloseRemainingSessions(
-    const SessionClosedCB& session_closed_cb,
-    CdmSessionClosedReason reason) {
+    const SessionClosedCB& session_closed_cb) {
   std::unordered_set<std::string> session_ids;
   session_ids.swap(session_ids_);
 
   for (const auto& session_id : session_ids)
-    session_closed_cb.Run(session_id, reason);
+    session_closed_cb.Run(session_id);
 }
 
 bool CdmSessionTracker::HasRemainingSessions() const {

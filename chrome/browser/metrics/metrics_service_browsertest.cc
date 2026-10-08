@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,12 +30,10 @@
 #include "chrome/common/url_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
-#include "components/metrics/enabled_state_provider.h"
 #include "components/metrics/metrics_pref_names.h"
 #include "components/metrics/metrics_reporting_default_state.h"
 #include "components/metrics/metrics_switches.h"
 #include "components/metrics/persistent_histograms.h"
-#include "components/metrics/stability_metrics_helper.h"
 #include "components/prefs/json_pref_store.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/common/content_switches.h"
@@ -44,19 +42,18 @@
 #include "net/base/filename_util.h"
 #include "testing/gmock/include/gmock/gmock-matchers.h"
 #include "testing/gmock/include/gmock/gmock.h"
-#include "third_party/blink/public/common/chrome_debug_urls.h"
 #include "ui/base/window_open_disposition.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <sys/wait.h>
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "sandbox/win/src/sandbox_types.h"
 #endif
 
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_MAC) || defined(OS_LINUX) || defined(OS_CHROMEOS)
 namespace {
 
 // Check CrashExitCodes.Renderer histogram for a single bucket entry and then
@@ -74,7 +71,7 @@ void VerifyRendererExitCodeIsSignal(
 }
 
 }  // namespace
-#endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_MAC) || defined(OS_LINUX) || defined(OS_CHROMEOS)
 
 // This test class verifies that metrics reporting works correctly for various
 // renderer behaviors such as page loads, recording crashed tabs, and browser
@@ -89,13 +86,9 @@ class MetricsServiceBrowserTest : public InProcessBrowserTest {
  public:
   MetricsServiceBrowserTest() {}
 
-  MetricsServiceBrowserTest(const MetricsServiceBrowserTest&) = delete;
-  MetricsServiceBrowserTest& operator=(const MetricsServiceBrowserTest&) =
-      delete;
-
   void SetUpCommandLine(base::CommandLine* command_line) override {
     // Enable the metrics service for testing (in recording-only mode).
-    metrics::EnableMetricsRecordingOnlyForTesting(command_line);
+    command_line->AppendSwitch(metrics::switches::kMetricsRecordingOnly);
   }
 
   void SetUp() override {
@@ -115,13 +108,19 @@ class MetricsServiceBrowserTest : public InProcessBrowserTest {
         browser()->tab_strip_model()->GetActiveWebContents(),
         content::RenderProcessHostWatcher::WATCH_FOR_PROCESS_EXIT);
     // Opens one tab.
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(crashy_url)));
+    ui_test_utils::NavigateToURL(browser(), GURL(crashy_url));
     observer.Wait();
 
-    // The MetricsService listens for the same notification, so the observer
-    // might finish waiting before the MetricsService has processed the
-    // notification. To avoid racing here, we repeatedly run the message loop.
-    content::RunAllPendingInMessageLoop();
+    // The MetricsService listens for the same notification, so the |observer|
+    // might finish waiting before the MetricsService has a chance to process
+    // the notification.  To avoid racing here, we repeatedly run the message
+    // loop until the MetricsService catches up.  This should happen "real soon
+    // now", since the notification is posted to all observers essentially
+    // simultaneously... so busy waiting here shouldn't be too bad.
+    const PrefService* prefs = g_browser_process->local_state();
+    while (!prefs->GetInteger(metrics::prefs::kStabilityRendererCrashCount)) {
+      content::RunAllPendingInMessageLoop();
+    }
   }
 
   // Open a couple of tabs of random content.
@@ -151,23 +150,24 @@ class MetricsServiceBrowserTest : public InProcessBrowserTest {
 
  private:
   bool metrics_consent_ = true;
+
+  DISALLOW_COPY_AND_ASSIGN(MetricsServiceBrowserTest);
 };
 
 IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserTest, CloseRenderersNormally) {
-  base::HistogramTester histogram_tester;
   OpenThreeTabs();
 
   // Verify that the expected stability metrics were recorded.
-  histogram_tester.ExpectBucketCount("Stability.Counts2",
-                                     metrics::StabilityEventType::kPageLoad, 2);
-  histogram_tester.ExpectBucketCount(
-      "Stability.Counts2", metrics::StabilityEventType::kRendererCrash, 0);
+  const PrefService* prefs = g_browser_process->local_state();
+  EXPECT_EQ(1, prefs->GetInteger(metrics::prefs::kStabilityLaunchCount));
+  EXPECT_EQ(3, prefs->GetInteger(metrics::prefs::kStabilityPageLoadCount));
+  EXPECT_EQ(0, prefs->GetInteger(metrics::prefs::kStabilityRendererCrashCount));
 }
 
 // Flaky on Linux. See http://crbug.com/131094
 // Child crashes fail the process on ASan (see crbug.com/411251,
 // crbug.com/368525).
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || defined(ADDRESS_SANITIZER)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(ADDRESS_SANITIZER)
 #define MAYBE_CrashRenderers DISABLED_CrashRenderers
 #define MAYBE_CheckCrashRenderers DISABLED_CheckCrashRenderers
 #else
@@ -178,79 +178,84 @@ IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserTest, CloseRenderersNormally) {
 IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserTest, MAYBE_CrashRenderers) {
   base::HistogramTester histogram_tester;
 
-  OpenTabsAndNavigateToCrashyUrl(blink::kChromeUICrashURL);
+  OpenTabsAndNavigateToCrashyUrl(content::kChromeUICrashURL);
 
   // Verify that the expected stability metrics were recorded.
+  const PrefService* prefs = g_browser_process->local_state();
+  EXPECT_EQ(1, prefs->GetInteger(metrics::prefs::kStabilityLaunchCount));
   // The three tabs from OpenTabs() and the one tab to open chrome://crash/.
-  histogram_tester.ExpectBucketCount("Stability.Counts2",
-                                     metrics::StabilityEventType::kPageLoad, 3);
-  histogram_tester.ExpectBucketCount(
-      "Stability.Counts2", metrics::StabilityEventType::kRendererCrash, 1);
+  EXPECT_EQ(4, prefs->GetInteger(metrics::prefs::kStabilityPageLoadCount));
+  EXPECT_EQ(1, prefs->GetInteger(metrics::prefs::kStabilityRendererCrashCount));
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Consult Stability Team before changing this test as it's recorded to
   // histograms and used for stability measurement.
   histogram_tester.ExpectUniqueSample(
       "CrashExitCodes.Renderer",
       std::abs(static_cast<int32_t>(STATUS_ACCESS_VIOLATION)), 1);
-#elif BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#elif defined(OS_MAC) || defined(OS_LINUX) || defined(OS_CHROMEOS)
   VerifyRendererExitCodeIsSignal(histogram_tester, SIGSEGV);
 #endif
+  histogram_tester.ExpectUniqueSample("Tabs.SadTab.CrashCreated", 1, 1);
 }
 
 // Test is disabled on Windows AMR64 because
 // TerminateWithHeapCorruption() isn't expected to work there.
 // See: https://crbug.com/1054423
-//
-// This test is disabled on Windows because it flakes.
-// See: https://crbug.com/1277825
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
+#if defined(ARCH_CPU_ARM64)
+#define MAYBE_HeapCorruptionInRenderer DISABLED_HeapCorruptionInRenderer
+#else
+#define MAYBE_HeapCorruptionInRenderer HeapCorruptionInRenderer
+#endif
 IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserTest,
-                       DISABLED_HeapCorruptionInRenderer) {
+                       MAYBE_HeapCorruptionInRenderer) {
   base::HistogramTester histogram_tester;
 
-  OpenTabsAndNavigateToCrashyUrl(blink::kChromeUIHeapCorruptionCrashURL);
+  OpenTabsAndNavigateToCrashyUrl(content::kChromeUIHeapCorruptionCrashURL);
 
   // Verify that the expected stability metrics were recorded.
+  const PrefService* prefs = g_browser_process->local_state();
+  EXPECT_EQ(1, prefs->GetInteger(metrics::prefs::kStabilityLaunchCount));
   // The three tabs from OpenTabs() and the one tab to open chrome://crash/.
-  histogram_tester.ExpectBucketCount("Stability.Counts2",
-                                     metrics::StabilityEventType::kPageLoad, 3);
-  histogram_tester.ExpectBucketCount(
-      "Stability.Counts2", metrics::StabilityEventType::kRendererCrash, 1);
+  EXPECT_EQ(4, prefs->GetInteger(metrics::prefs::kStabilityPageLoadCount));
+  EXPECT_EQ(1, prefs->GetInteger(metrics::prefs::kStabilityRendererCrashCount));
 
   histogram_tester.ExpectUniqueSample(
       "CrashExitCodes.Renderer",
       std::abs(static_cast<int32_t>(STATUS_HEAP_CORRUPTION)), 1);
+  histogram_tester.ExpectUniqueSample("Tabs.SadTab.CrashCreated", 1, 1);
   LOG(INFO) << histogram_tester.GetAllHistogramsRecorded();
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
 IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserTest, MAYBE_CheckCrashRenderers) {
   base::HistogramTester histogram_tester;
 
-  OpenTabsAndNavigateToCrashyUrl(blink::kChromeUICheckCrashURL);
+  OpenTabsAndNavigateToCrashyUrl(content::kChromeUICheckCrashURL);
 
   // Verify that the expected stability metrics were recorded.
+  const PrefService* prefs = g_browser_process->local_state();
+  EXPECT_EQ(1, prefs->GetInteger(metrics::prefs::kStabilityLaunchCount));
   // The three tabs from OpenTabs() and the one tab to open
   // chrome://checkcrash/.
-  histogram_tester.ExpectBucketCount("Stability.Counts2",
-                                     metrics::StabilityEventType::kPageLoad, 3);
-  histogram_tester.ExpectBucketCount(
-      "Stability.Counts2", metrics::StabilityEventType::kRendererCrash, 1);
+  EXPECT_EQ(4, prefs->GetInteger(metrics::prefs::kStabilityPageLoadCount));
+  EXPECT_EQ(1, prefs->GetInteger(metrics::prefs::kStabilityRendererCrashCount));
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Consult Stability Team before changing this test as it's recorded to
   // histograms and used for stability measurement.
   histogram_tester.ExpectUniqueSample(
       "CrashExitCodes.Renderer",
       std::abs(static_cast<int32_t>(STATUS_BREAKPOINT)), 1);
-#elif BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#elif defined(OS_MAC) || defined(OS_LINUX) || defined(OS_CHROMEOS)
   VerifyRendererExitCodeIsSignal(histogram_tester, SIGTRAP);
 #endif
+  histogram_tester.ExpectUniqueSample("Tabs.SadTab.CrashCreated", 1, 1);
 }
 
 // OOM code only works on Windows.
-#if BUILDFLAG(IS_WIN) && !defined(ADDRESS_SANITIZER)
+#if defined(OS_WIN) && !defined(ADDRESS_SANITIZER)
 IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserTest, OOMRenderers) {
   // Disable stack traces during this test since DbgHelp is unreliable in
   // low-memory conditions (see crbug.com/692564).
@@ -259,15 +264,15 @@ IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserTest, OOMRenderers) {
 
   base::HistogramTester histogram_tester;
 
-  OpenTabsAndNavigateToCrashyUrl(blink::kChromeUIMemoryExhaustURL);
+  OpenTabsAndNavigateToCrashyUrl(content::kChromeUIMemoryExhaustURL);
 
   // Verify that the expected stability metrics were recorded.
+  const PrefService* prefs = g_browser_process->local_state();
+  EXPECT_EQ(1, prefs->GetInteger(metrics::prefs::kStabilityLaunchCount));
   // The three tabs from OpenTabs() and the one tab to open
   // chrome://memory-exhaust/.
-  histogram_tester.ExpectBucketCount("Stability.Counts2",
-                                     metrics::StabilityEventType::kPageLoad, 3);
-  histogram_tester.ExpectBucketCount(
-      "Stability.Counts2", metrics::StabilityEventType::kRendererCrash, 1);
+  EXPECT_EQ(4, prefs->GetInteger(metrics::prefs::kStabilityPageLoadCount));
+  EXPECT_EQ(1, prefs->GetInteger(metrics::prefs::kStabilityRendererCrashCount));
 
 // On 64-bit, the Job object should terminate the renderer on an OOM. However,
 // if the system is low on memory already, then the allocator might just return
@@ -288,8 +293,10 @@ IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserTest, OOMRenderers) {
 
   EXPECT_THAT(histogram_tester.GetAllSamples("CrashExitCodes.Renderer"),
               ::testing::IsSubsetOf(expected_possible_exit_codes));
+
+  histogram_tester.ExpectUniqueSample("Tabs.SadTab.OomCreated", 1, 1);
 }
-#endif  // BUILDFLAG(IS_WIN) && !defined(ADDRESS_SANITIZER)
+#endif  // OS_WIN && !ADDRESS_SANITIZER
 
 // Base class for testing if browser-metrics files get removed or not.
 // The code under tests is run before any actual test methods so the test
@@ -299,11 +306,6 @@ class MetricsServiceBrowserFilesTest : public InProcessBrowserTest {
 
  public:
   MetricsServiceBrowserFilesTest() {}
-
-  MetricsServiceBrowserFilesTest(const MetricsServiceBrowserFilesTest&) =
-      delete;
-  MetricsServiceBrowserFilesTest& operator=(
-      const MetricsServiceBrowserFilesTest&) = delete;
 
   bool SetUpUserDataDirectory() override {
     if (!super::SetUpUserDataDirectory())
@@ -322,8 +324,10 @@ class MetricsServiceBrowserFilesTest : public InProcessBrowserTest {
       base::test::TaskEnvironment task_env;
       auto state = base::MakeRefCounted<JsonPrefStore>(
           user_dir.Append(FILE_PATH_LITERAL("Local State")));
-      state->SetValue(metrics::prefs::kMetricsDefaultOptIn,
-                      base::Value(metrics::EnableMetricsDefault::OPT_OUT), 0);
+      state->SetValue(
+          metrics::prefs::kMetricsDefaultOptIn,
+          std::make_unique<base::Value>(metrics::EnableMetricsDefault::OPT_OUT),
+          0);
     }
 
     // Create the upload dir. Note that ASSERT macros won't fail in SetUp,
@@ -345,7 +349,6 @@ class MetricsServiceBrowserFilesTest : public InProcessBrowserTest {
   void SetUp() override {
     ChromeMetricsServiceAccessor::SetMetricsAndCrashReportingForTesting(
         &metrics_consent_);
-    metrics::EnabledStateProvider::SetIgnoreForceFieldTrialsForTesting(true);
     super::SetUp();
   }
 
@@ -375,6 +378,8 @@ class MetricsServiceBrowserFilesTest : public InProcessBrowserTest {
  private:
   bool metrics_consent_ = true;
   base::FilePath upload_dir_;
+
+  DISALLOW_COPY_AND_ASSIGN(MetricsServiceBrowserFilesTest);
 };
 
 // Specific class for testing when metrics upload is fully enabled.
@@ -382,11 +387,6 @@ class MetricsServiceBrowserDoUploadTest
     : public MetricsServiceBrowserFilesTest {
  public:
   MetricsServiceBrowserDoUploadTest() {}
-
-  MetricsServiceBrowserDoUploadTest(const MetricsServiceBrowserDoUploadTest&) =
-      delete;
-  MetricsServiceBrowserDoUploadTest& operator=(
-      const MetricsServiceBrowserDoUploadTest&) = delete;
 
   void SetUp() override {
     set_metrics_consent(true);
@@ -397,6 +397,8 @@ class MetricsServiceBrowserDoUploadTest
 
  private:
   base::test::ScopedFeatureList feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(MetricsServiceBrowserDoUploadTest);
 };
 
 IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserDoUploadTest, FilesRemain) {
@@ -410,11 +412,6 @@ class MetricsServiceBrowserNoUploadTest
  public:
   MetricsServiceBrowserNoUploadTest() {}
 
-  MetricsServiceBrowserNoUploadTest(const MetricsServiceBrowserNoUploadTest&) =
-      delete;
-  MetricsServiceBrowserNoUploadTest& operator=(
-      const MetricsServiceBrowserNoUploadTest&) = delete;
-
   void SetUp() override {
     set_metrics_consent(false);
     feature_list_.InitAndEnableFeature(
@@ -424,11 +421,11 @@ class MetricsServiceBrowserNoUploadTest
 
  private:
   base::test::ScopedFeatureList feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(MetricsServiceBrowserNoUploadTest);
 };
 
-// TODO(crbug.com/1378228): Fix flakiness.
-IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserNoUploadTest,
-                       DISABLED_FilesRemoved) {
+IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserNoUploadTest, FilesRemoved) {
   // SetUp() has removed consent and made metrics "sampled-in" (enabled).
   EXPECT_FALSE(HasNonPMAFiles());
 }
@@ -439,11 +436,6 @@ class MetricsServiceBrowserSampledOutTest
  public:
   MetricsServiceBrowserSampledOutTest() {}
 
-  MetricsServiceBrowserSampledOutTest(
-      const MetricsServiceBrowserSampledOutTest&) = delete;
-  MetricsServiceBrowserSampledOutTest& operator=(
-      const MetricsServiceBrowserSampledOutTest&) = delete;
-
   void SetUp() override {
     set_metrics_consent(true);
     feature_list_.InitAndDisableFeature(
@@ -453,16 +445,11 @@ class MetricsServiceBrowserSampledOutTest
 
  private:
   base::test::ScopedFeatureList feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(MetricsServiceBrowserSampledOutTest);
 };
 
-// TODO(crbug.com/1380375): Flaky on Mac, fix flakiness and re-enable the test.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_FilesRemoved DISABLED_FilesRemoved
-#else
-#define MAYBE_FilesRemoved FilesRemoved
-#endif
-IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserSampledOutTest,
-                       MAYBE_FilesRemoved) {
+IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserSampledOutTest, FilesRemoved) {
   // SetUp() has provided consent and made metrics "sampled-out" (disabled).
   EXPECT_FALSE(HasNonPMAFiles());
 }

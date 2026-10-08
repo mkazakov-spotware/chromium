@@ -1,2 +1,2 @@
-Accept-CH: sec-ch-device-memory, device-memory, Sec-CH-DPR, DPR
+Accept-CH: device-memory, DPR
 Access-Control-Allow-Origin: *

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -186,18 +186,14 @@ public class ViewResourceInflater {
 
         unregisterResource();
 
-        // Ensure the view isn't detached in the middle of a layout pass by posting. See
-        // https://crbug.com/1234713 for details.
-        mView.post(() -> {
-            detachView();
-            mView = null;
-            mContainer = null;
-        });
+        detachView();
+        mView = null;
 
         mLayoutId = INVALID_ID;
         mViewId = INVALID_ID;
 
         mContext = null;
+        mContainer = null;
         mResourceLoader = null;
     }
 
@@ -401,7 +397,7 @@ public class ViewResourceInflater {
         }
 
         @Override
-        public void onCaptureEnd() {
+        protected void onCaptureEnd() {
             ViewResourceInflater.this.onCaptureEnd();
         }
     }

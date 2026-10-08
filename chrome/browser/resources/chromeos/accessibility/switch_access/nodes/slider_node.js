@@ -1,25 +1,16 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {EventGenerator} from '../../common/event_generator.js';
-import {KeyCode} from '../../common/key_code.js';
-import {SAConstants, SwitchAccessMenuAction} from '../switch_access_constants.js';
-
-import {BasicNode} from './basic_node.js';
-import {SAChildNode, SARootNode} from './switch_access_node.js';
-
-const AutomationNode = chrome.automation.AutomationNode;
-
 /** This class handles interactions with sliders. */
-export class SliderNode extends BasicNode {
+class SliderNode extends BasicNode {
   /**
    * @param {!AutomationNode} baseNode
    * @param {?SARootNode} parent
    */
   constructor(baseNode, parent) {
     super(baseNode, parent);
-    this.isCustomSlider_ = Boolean(baseNode.htmlAttributes.role);
+    this.isCustomSlider_ = !!baseNode.htmlAttributes.role;
   }
 
   /** @override */
@@ -46,8 +37,3 @@ export class SliderNode extends BasicNode {
     return super.performAction(action);
   }
 }
-
-BasicNode.creators.push({
-  predicate: baseNode => baseNode.role === chrome.automation.RoleType.SLIDER,
-  creator: (node, parent) => new SliderNode(node, parent),
-});

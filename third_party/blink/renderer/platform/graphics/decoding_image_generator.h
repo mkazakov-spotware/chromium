@@ -26,6 +26,7 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_DECODING_IMAGE_GENERATOR_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_DECODING_IMAGE_GENERATOR_H_
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "third_party/blink/public/platform/web_vector.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_image.h"
@@ -65,8 +66,6 @@ class PLATFORM_EXPORT DecodingImageGenerator final
       bool can_yuv_decode,
       const cc::ImageHeaderMetadata& image_metadata);
 
-  DecodingImageGenerator(const DecodingImageGenerator&) = delete;
-  DecodingImageGenerator& operator=(const DecodingImageGenerator&) = delete;
   ~DecodingImageGenerator() override;
 
   // PaintImageGenerator implementation.
@@ -84,8 +83,7 @@ class PLATFORM_EXPORT DecodingImageGenerator final
 
   bool GetYUVAPlanes(const SkYUVAPixmaps& pixmaps,
                      size_t frame_index,
-                     uint32_t lazy_pixel_ref,
-                     PaintImage::GeneratorClientId client_id) override;
+                     uint32_t lazy_pixel_ref) override;
 
   SkISize GetSupportedDecodeSize(const SkISize& requested_size) const override;
   PaintImage::ContentId GetContentIdForFrame(size_t frame_index) const override;
@@ -113,6 +111,8 @@ class PLATFORM_EXPORT DecodingImageGenerator final
   // useful for deciding which kind of decoding can be used (i.e. hardware
   // acceleration or normal).
   const cc::ImageHeaderMetadata image_metadata_;
+
+  DISALLOW_COPY_AND_ASSIGN(DecodingImageGenerator);
 };
 
 }  // namespace blink

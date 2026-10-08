@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,67 +8,41 @@
 
 #include "base/bind.h"
 #include "base/values.h"
-#include "chrome/browser/devtools/devtools_settings.h"
 
 namespace {
 
 using DispatchCallback = DevToolsEmbedderMessageDispatcher::DispatchCallback;
 
 bool GetValue(const base::Value& value, std::string* result) {
-  if (result && value.is_string()) {
-    *result = value.GetString();
-    return true;
-  }
-  return value.is_string();
+  return value.GetAsString(result);
 }
 
 bool GetValue(const base::Value& value, int* result) {
-  if (result && value.is_int()) {
-    *result = value.GetInt();
-    return true;
-  }
-  return value.is_int();
+  return value.GetAsInteger(result);
 }
 
 bool GetValue(const base::Value& value, double* result) {
-  if (result && (value.is_double() || value.is_int())) {
-    *result = value.GetDouble();
-    return true;
-  }
-  return value.is_double() || value.is_int();
+  return value.GetAsDouble(result);
 }
 
 bool GetValue(const base::Value& value, bool* result) {
-  if (result && value.is_bool()) {
-    *result = value.GetBool();
-    return true;
-  }
-  return value.is_bool();
+  return value.GetAsBoolean(result);
 }
 
 bool GetValue(const base::Value& value, gfx::Rect* rect) {
-  if (!value.is_dict())
+  const base::DictionaryValue* dict;
+  if (!value.GetAsDictionary(&dict))
     return false;
-  absl::optional<int> x = value.FindIntKey("x");
-  absl::optional<int> y = value.FindIntKey("y");
-  absl::optional<int> width = value.FindIntKey("width");
-  absl::optional<int> height = value.FindIntKey("height");
-  if (!x.has_value() || !y.has_value() || !width.has_value() ||
-      !height.has_value()) {
+  int x = 0;
+  int y = 0;
+  int width = 0;
+  int height = 0;
+  if (!dict->GetInteger("x", &x) ||
+      !dict->GetInteger("y", &y) ||
+      !dict->GetInteger("width", &width) ||
+      !dict->GetInteger("height", &height))
     return false;
-  }
-
-  rect->SetRect(x.value(), y.value(), width.value(), height.value());
-  return true;
-}
-
-bool GetValue(const base::Value& value, RegisterOptions* options) {
-  if (!value.is_dict())
-    return false;
-
-  const bool synced = value.FindBoolKey("synced").value_or(false);
-  options->sync_mode = synced ? RegisterOptions::SyncMode::kSync
-                              : RegisterOptions::SyncMode::kDontSync;
+  rect->SetRect(x, y, width, height);
   return true;
 }
 
@@ -84,37 +58,37 @@ struct StorageTraits<const T&> {
 
 template <typename... Ts>
 struct ParamTuple {
-  bool Parse(const base::Value::List& list,
-             const base::Value::List::const_iterator& it) {
+  bool Parse(const base::ListValue& list,
+             const base::ListValue::const_iterator& it) {
     return it == list.end();
   }
 
   template <typename H, typename... As>
   void Apply(const H& handler, As... args) {
-    handler.Run(std::forward<As>(args)...);
+    handler.Run(args...);
   }
 };
 
 template <typename T, typename... Ts>
 struct ParamTuple<T, Ts...> {
-  bool Parse(const base::Value::List& list,
-             const base::Value::List::const_iterator& it) {
+  bool Parse(const base::ListValue& list,
+             const base::ListValue::const_iterator& it) {
     return it != list.end() && GetValue(*it, &head) && tail.Parse(list, it + 1);
   }
 
   template <typename H, typename... As>
   void Apply(const H& handler, As... args) {
-    tail.template Apply<H, As..., T>(handler, std::forward<As>(args)..., head);
+    tail.template Apply<H, As..., T>(handler, args..., head);
   }
 
   typename StorageTraits<T>::StorageType head;
   ParamTuple<Ts...> tail;
 };
 
-template <typename... As>
-bool ParseAndHandle(const base::RepeatingCallback<void(As...)>& handler,
-                    DispatchCallback callback,
-                    const base::Value::List& list) {
+template<typename... As>
+bool ParseAndHandle(const base::Callback<void(As...)>& handler,
+                    const DispatchCallback& callback,
+                    const base::ListValue& list) {
   ParamTuple<As...> tuple;
   if (!tuple.Parse(list, list.begin()))
     return false;
@@ -122,15 +96,15 @@ bool ParseAndHandle(const base::RepeatingCallback<void(As...)>& handler,
   return true;
 }
 
-template <typename... As>
+template<typename... As>
 bool ParseAndHandleWithCallback(
-    const base::RepeatingCallback<void(DispatchCallback, As...)>& handler,
-    DispatchCallback callback,
-    const base::Value::List& list) {
+    const base::Callback<void(const DispatchCallback&, As...)>& handler,
+    const DispatchCallback& callback,
+    const base::ListValue& list) {
   ParamTuple<As...> tuple;
   if (!tuple.Parse(list, list.begin()))
     return false;
-  tuple.Apply(handler, std::move(callback));
+  tuple.Apply(handler, callback);
   return true;
 }
 
@@ -146,37 +120,38 @@ bool ParseAndHandleWithCallback(
  */
 class DispatcherImpl : public DevToolsEmbedderMessageDispatcher {
  public:
-  ~DispatcherImpl() override = default;
+  ~DispatcherImpl() override {}
 
-  bool Dispatch(DispatchCallback callback,
+  bool Dispatch(const DispatchCallback& callback,
                 const std::string& method,
-                const base::Value::List& params) override {
+                const base::ListValue* params) override {
     auto it = handlers_.find(method);
-    return it != handlers_.end() && it->second.Run(std::move(callback), params);
+    return it != handlers_.end() && it->second.Run(callback, *params);
   }
 
   template<typename... As>
   void RegisterHandler(const std::string& method,
                        void (Delegate::*handler)(As...),
                        Delegate* delegate) {
-    handlers_[method] = base::BindRepeating(
-        &ParseAndHandle<As...>,
-        base::BindRepeating(handler, base::Unretained(delegate)));
+    handlers_[method] = base::Bind(&ParseAndHandle<As...>,
+                                   base::Bind(handler,
+                                              base::Unretained(delegate)));
   }
 
-  template <typename... As>
-  void RegisterHandlerWithCallback(const std::string& method,
-                                   void (Delegate::*handler)(DispatchCallback,
-                                                             As...),
-                                   Delegate* delegate) {
-    handlers_[method] = base::BindRepeating(
-        &ParseAndHandleWithCallback<As...>,
-        base::BindRepeating(handler, base::Unretained(delegate)));
+  template<typename... As>
+  void RegisterHandlerWithCallback(
+      const std::string& method,
+      void (Delegate::*handler)(const DispatchCallback&, As...),
+      Delegate* delegate) {
+    handlers_[method] = base::Bind(&ParseAndHandleWithCallback<As...>,
+                                   base::Bind(handler,
+                                              base::Unretained(delegate)));
   }
+
 
  private:
-  using Handler =
-      base::RepeatingCallback<bool(DispatchCallback, const base::Value::List&)>;
+  using Handler = base::Callback<bool(const DispatchCallback&,
+                                      const base::ListValue&)>;
   using HandlerMap = std::map<std::string, Handler>;
   HandlerMap handlers_;
 };
@@ -241,20 +216,14 @@ DevToolsEmbedderMessageDispatcher::CreateForDevToolsFrontend(
                      &Delegate::RecordUserMetricsAction, delegate);
   d->RegisterHandlerWithCallback("sendJsonRequest",
                                  &Delegate::SendJsonRequest, delegate);
-  d->RegisterHandler("registerPreference", &Delegate::RegisterPreference,
-                     delegate);
   d->RegisterHandlerWithCallback("getPreferences",
                                  &Delegate::GetPreferences, delegate);
-  d->RegisterHandlerWithCallback("getPreference", &Delegate::GetPreference,
-                                 delegate);
   d->RegisterHandler("setPreference",
                      &Delegate::SetPreference, delegate);
   d->RegisterHandler("removePreference",
                      &Delegate::RemovePreference, delegate);
   d->RegisterHandler("clearPreferences",
                      &Delegate::ClearPreferences, delegate);
-  d->RegisterHandlerWithCallback("getSyncInformation",
-                                 &Delegate::GetSyncInformation, delegate);
   d->RegisterHandlerWithCallback("reattach",
                                  &Delegate::Reattach, delegate);
   d->RegisterHandler("readyForTest",

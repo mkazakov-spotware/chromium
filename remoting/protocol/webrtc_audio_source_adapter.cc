@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,20 +8,20 @@
 
 #include "base/bind.h"
 #include "base/check_op.h"
-#include "base/observer_list.h"
 #include "base/synchronization/lock.h"
 #include "base/threading/thread_checker.h"
-#include "base/time/time.h"
 #include "remoting/proto/audio.pb.h"
 #include "remoting/protocol/audio_source.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 static const int kChannels = 2;
 static const int kBytesPerSample = 2;
 
 // Frame size expected by webrtc::AudioTrackSinkInterface.
-static constexpr base::TimeDelta kAudioFrameDuration = base::Milliseconds(10);
+static constexpr base::TimeDelta kAudioFrameDuration =
+    base::TimeDelta::FromMilliseconds(10);
 
 class WebrtcAudioSourceAdapter::Core {
  public:
@@ -52,27 +52,27 @@ class WebrtcAudioSourceAdapter::Core {
   base::ObserverList<webrtc::AudioTrackSinkInterface>::Unchecked audio_sinks_;
   base::Lock audio_sinks_lock_;
 
-  THREAD_CHECKER(thread_checker_);
+  base::ThreadChecker thread_checker_;
 };
 
 WebrtcAudioSourceAdapter::Core::Core() {
-  DETACH_FROM_THREAD(thread_checker_);
+  thread_checker_.DetachFromThread();
 }
 
 WebrtcAudioSourceAdapter::Core::~Core() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
 }
 
 void WebrtcAudioSourceAdapter::Core::Start(
     std::unique_ptr<AudioSource> audio_source) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   audio_source_ = std::move(audio_source);
   audio_source_->Start(
       base::BindRepeating(&Core::OnAudioPacket, base::Unretained(this)));
 }
 
 void WebrtcAudioSourceAdapter::Core::Pause(bool pause) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   paused_ = pause;
 }
 
@@ -92,7 +92,7 @@ void WebrtcAudioSourceAdapter::Core::RemoveSink(
 
 void WebrtcAudioSourceAdapter::Core::OnAudioPacket(
     std::unique_ptr<AudioPacket> packet) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
 
   if (paused_)
     return;
@@ -192,4 +192,5 @@ void WebrtcAudioSourceAdapter::RegisterObserver(
 void WebrtcAudioSourceAdapter::UnregisterObserver(
     webrtc::ObserverInterface* observer) {}
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -70,21 +70,15 @@ class TestShardingMapGenerator(unittest.TestCase):
     ]
     sharding_map = sharding_map_generator.generate_sharding_map(
         benchmarks_data, timing_data, 3, None)
-    self.assertEqual(
-        sharding_map['0']['benchmarks'],
-        collections.OrderedDict([('a_benchmark', {
-            'abridged': False
-        })]))
-    self.assertEqual(
-        sharding_map['1']['benchmarks'],
-        collections.OrderedDict([('b_benchmark', {
-            'abridged': False
-        })]))
-    self.assertEqual(
-        sharding_map['2']['benchmarks'],
-        collections.OrderedDict([('c_benchmark', {
-            'abridged': False
-        })]))
+    self.assertEquals(
+      sharding_map['0']['benchmarks'],
+      collections.OrderedDict([('a_benchmark', {'abridged': False})]))
+    self.assertEquals(
+      sharding_map['1']['benchmarks'],
+      collections.OrderedDict([('b_benchmark', {'abridged': False})]))
+    self.assertEquals(
+      sharding_map['2']['benchmarks'],
+      collections.OrderedDict([('c_benchmark', {'abridged': False})]))
 
   def testGeneratePerfSharding(self):
     test_data_dir = os.path.join(os.path.dirname(__file__), 'test_data')
@@ -110,69 +104,3 @@ class TestShardingMapGenerator(unittest.TestCase):
     for shard in results:
       shards_timing.append(results[shard]['full_time'])
     self.assertTrue(max(shards_timing) - min(shards_timing) < 600)
-
-  def testGenerateAndTestShardingMapWithCrossDeviceTargetCap(self):
-    benchmarks_data, timing_data, = self._generate_test_data(
-        [[10, 20, 30], [45, 35, 25, 15], [50, 40, 30, 42, 10]])
-    target_devices = {'benchmark_2': {'story_0': 5}}
-    sharding_map = sharding_map_generator.generate_sharding_map(
-        benchmarks_data, timing_data, 3, None, target_devices)
-    self.assertIn('benchmark_2', sharding_map['0']['benchmarks'])
-    self.assertIn('benchmark_2', sharding_map['1']['benchmarks'])
-    self.assertIn('benchmark_2', sharding_map['2']['benchmarks'])
-
-  def testGenerateAndTestShardingMapWithCrossDevice(self):
-    benchmarks_data, timing_data, = self._generate_test_data(
-        [[10, 20, 30], [45, 35, 25, 15], [50, 40, 30, 20, 10]])
-    repeat_config = {
-        'benchmark_0': {
-            'story_1': 2
-        },
-        'benchmark_1': {
-            'story_2': 3
-        }
-    }
-    sharding_map = sharding_map_generator.generate_sharding_map(
-        benchmarks_data, timing_data, 3, None, repeat_config)
-    self.assertIn('benchmark_0', sharding_map['0']['benchmarks'])
-    self.assertIn('benchmark_0', sharding_map['1']['benchmarks'])
-    self.assertNotIn('benchmark_0', sharding_map['2']['benchmarks'])
-    self.assertIn('benchmark_1', sharding_map['0']['benchmarks'])
-    self.assertIn('benchmark_1', sharding_map['1']['benchmarks'])
-    self.assertIn('benchmark_1', sharding_map['2']['benchmarks'])
-
-  def testGenerateAndTestShardingMapWithBenchmarkRepeats(self):
-    benchmarks_data, timing_data, = self._generate_test_data(
-        [[10, 20, 30], [45, 35, 25, 15], [50, 40, 30, 20, 10]])
-    repeat_config = {'benchmark_0': 2, 'benchmark_1': {'story_2': 3}}
-    sharding_map = sharding_map_generator.generate_sharding_map(
-        benchmarks_data, timing_data, 3, None, repeat_config)
-    self.assertIn('benchmark_0', sharding_map['0']['benchmarks'])
-    # only the 'abridged' key when the whole benchmark is on this shard
-    self.assertEqual(1, len(sharding_map['0']['benchmarks']['benchmark_0']))
-    self.assertIn('benchmark_0', sharding_map['1']['benchmarks'])
-    self.assertEqual(1, len(sharding_map['1']['benchmarks']['benchmark_0']))
-    self.assertNotIn('benchmark_0', sharding_map['2']['benchmarks'])
-    self.assertIn('benchmark_1', sharding_map['0']['benchmarks'])
-    self.assertIn('benchmark_1', sharding_map['1']['benchmarks'])
-    self.assertIn('benchmark_1', sharding_map['2']['benchmarks'])
-
-  def testGenerateAndTestShardingMapWithBenchmarkRepeatsCrossShards(self):
-    benchmarks_data, timing_data, = self._generate_test_data(
-        [[10, 20, 30], [65, 55, 5, 45], [50, 40, 30, 20, 10]])
-    repeat_config = {'benchmark_1': {'story_2': 10}, 'benchmark_2': 2}
-    sharding_map = sharding_map_generator.generate_sharding_map(
-        benchmarks_data, timing_data, 5, None, repeat_config)
-    # benchmark_2 takes two shards, and thus will be in 4 shards
-    self.assertIn('benchmark_2', sharding_map['0']['benchmarks'])
-    self.assertIn('benchmark_2', sharding_map['1']['benchmarks'])
-    self.assertIn('benchmark_2', sharding_map['2']['benchmarks'])
-    self.assertIn('benchmark_2', sharding_map['3']['benchmarks'])
-    self.assertNotIn('benchmark_2', sharding_map['4']['benchmarks'])
-    self.assertNotIn('benchmark_0', sharding_map['0']['benchmarks'])
-    self.assertIn('benchmark_0', sharding_map['1']['benchmarks'])
-    self.assertIn('benchmark_1', sharding_map['0']['benchmarks'])
-    self.assertIn('benchmark_1', sharding_map['1']['benchmarks'])
-    self.assertIn('benchmark_1', sharding_map['2']['benchmarks'])
-    self.assertIn('benchmark_1', sharding_map['3']['benchmarks'])
-    self.assertIn('benchmark_1', sharding_map['4']['benchmarks'])

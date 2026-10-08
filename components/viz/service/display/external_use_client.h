@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,23 +9,18 @@
 #include <utility>
 #include <vector>
 
-#include "base/check.h"
-#include "base/memory/raw_ptr.h"
-#include "components/viz/common/resources/shared_image_format.h"
+#include "base/macros.h"
+#include "base/optional.h"
+#include "components/viz/common/resources/resource_format.h"
 #include "components/viz/service/viz_service_export.h"
 #include "gpu/command_buffer/common/mailbox_holder.h"
 #include "gpu/ipc/common/vulkan_ycbcr_info.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/skia/include/core/SkImage.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
 #include "third_party/skia/include/gpu/GrBackendSurface.h"
 #include "third_party/skia/include/gpu/GrTypes.h"
 #include "ui/gfx/geometry/size.h"
-
-namespace cc {
-class PaintOpBuffer;
-}
 
 namespace viz {
 
@@ -40,13 +35,9 @@ class VIZ_SERVICE_EXPORT ExternalUseClient {
    public:
     ImageContext(const gpu::MailboxHolder& mailbox_holder,
                  const gfx::Size& size,
-                 SharedImageFormat format,
-                 const absl::optional<gpu::VulkanYCbCrInfo>& ycbcr_info,
+                 ResourceFormat resource_format,
+                 const base::Optional<gpu::VulkanYCbCrInfo>& ycbcr_info,
                  sk_sp<SkColorSpace> color_space);
-
-    ImageContext(const ImageContext&) = delete;
-    ImageContext& operator=(const ImageContext&) = delete;
-
     virtual ~ImageContext();
     virtual void OnContextLost();
 
@@ -59,8 +50,8 @@ class VIZ_SERVICE_EXPORT ExternalUseClient {
     const gpu::MailboxHolder& mailbox_holder() const { return mailbox_holder_; }
     gpu::MailboxHolder* mutable_mailbox_holder() { return &mailbox_holder_; }
     const gfx::Size& size() const { return size_; }
-    SharedImageFormat format() const { return format_; }
-    sk_sp<SkColorSpace> color_space() const;
+    ResourceFormat resource_format() const { return resource_format_; }
+    sk_sp<SkColorSpace> color_space() const { return color_space_; }
 
     SkAlphaType alpha_type() const { return alpha_type_; }
     void set_alpha_type(SkAlphaType alpha_type) {
@@ -74,31 +65,19 @@ class VIZ_SERVICE_EXPORT ExternalUseClient {
       origin_ = origin;
     }
 
-    absl::optional<gpu::VulkanYCbCrInfo> ycbcr_info() { return ycbcr_info_; }
+    base::Optional<gpu::VulkanYCbCrInfo> ycbcr_info() { return ycbcr_info_; }
 
     bool has_image() { return !!image_; }
     sk_sp<SkImage> image() { return image_; }
     void SetImage(sk_sp<SkImage> image, GrBackendFormat backend_format);
     void clear_image() { image_.reset(); }
     const GrBackendFormat& backend_format() { return backend_format_; }
-    const cc::PaintOpBuffer* paint_op_buffer() const {
-      return paint_op_buffer_;
-    }
-    void set_paint_op_buffer(const cc::PaintOpBuffer* buffer) {
-      paint_op_buffer_ = buffer;
-    }
-    const absl::optional<SkColor4f>& clear_color() const {
-      return clear_color_;
-    }
-    void set_clear_color(const absl::optional<SkColor4f>& color) {
-      clear_color_ = color;
-    }
 
    private:
     gpu::MailboxHolder mailbox_holder_;
 
     const gfx::Size size_;
-    const SharedImageFormat format_;
+    const ResourceFormat resource_format_;
     const sk_sp<SkColorSpace> color_space_;
 
     SkAlphaType alpha_type_ = kPremul_SkAlphaType;
@@ -106,25 +85,21 @@ class VIZ_SERVICE_EXPORT ExternalUseClient {
 
     // Sampler conversion information which is used in vulkan context for
     // android video.
-    absl::optional<gpu::VulkanYCbCrInfo> ycbcr_info_;
+    base::Optional<gpu::VulkanYCbCrInfo> ycbcr_info_;
 
     // The promise image which is used on display thread.
     sk_sp<SkImage> image_;
     GrBackendFormat backend_format_;
-    raw_ptr<const cc::PaintOpBuffer> paint_op_buffer_ = nullptr;
-    absl::optional<SkColor4f> clear_color_;
+
+    DISALLOW_COPY_AND_ASSIGN(ImageContext);
   };
 
-  // If |maybe_concurrent_reads| is true then there can be concurrent reads to
-  // the texture that modify GL texture parameters.
   virtual std::unique_ptr<ImageContext> CreateImageContext(
       const gpu::MailboxHolder& holder,
       const gfx::Size& size,
-      SharedImageFormat format,
-      bool maybe_concurrent_reads,
-      const absl::optional<gpu::VulkanYCbCrInfo>& ycbcr_info,
-      sk_sp<SkColorSpace> color_space,
-      bool raw_draw_if_possible) = 0;
+      ResourceFormat format,
+      const base::Optional<gpu::VulkanYCbCrInfo>& ycbcr_info,
+      sk_sp<SkColorSpace> color_space) = 0;
 
   virtual gpu::SyncToken ReleaseImageContexts(
       std::vector<std::unique_ptr<ImageContext>> image_contexts) = 0;

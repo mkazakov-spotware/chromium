@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -29,7 +29,7 @@ def root_permissions():
         groups = "all",
     )
 
-def pool_realm(*, name, extends = None, groups = None, users = None, projects = None):
+def pool_realm(*, name, groups = None, users = None, projects = None):
     """Declares a realm with permissions for a Swarming pool.
 
     `groups`, `users` and `projects` define who has "swarming.poolUser" role
@@ -48,7 +48,6 @@ def pool_realm(*, name, extends = None, groups = None, users = None, projects = 
 
     luci.realm(
         name = name,
-        extends = extends,
         bindings = [
             luci.binding(
                 roles = "role/swarming.poolUser",

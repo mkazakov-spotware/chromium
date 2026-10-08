@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,9 @@
 #include <dbt.h>
 #include <stddef.h>
 
-#include <memory>
-
 #include "base/logging.h"
 #include "base/no_destructor.h"
+#include "base/stl_util.h"
 #include "base/system/system_monitor.h"
 #include "base/win/wrapped_window_proc.h"
 #include "media/audio/win/core_audio_util_win.h"
@@ -39,15 +38,10 @@ const std::vector<DeviceCategoryToType>& GetDeviceCategoryToType() {
 // Manages the device notification handles for SystemMessageWindowWin.
 class SystemMessageWindowWin::DeviceNotifications {
  public:
-  DeviceNotifications() = delete;
-
   explicit DeviceNotifications(HWND hwnd)
-      : notifications_(std::size(GetDeviceCategoryToType())) {
+      : notifications_(base::size(GetDeviceCategoryToType())) {
     Register(hwnd);
   }
-
-  DeviceNotifications(const DeviceNotifications&) = delete;
-  DeviceNotifications& operator=(const DeviceNotifications&) = delete;
 
   ~DeviceNotifications() { Unregister(); }
 
@@ -87,6 +81,8 @@ class SystemMessageWindowWin::DeviceNotifications {
 
  private:
   std::vector<HDEVNOTIFY> notifications_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(DeviceNotifications);
 };
 
 SystemMessageWindowWin::SystemMessageWindowWin() {
@@ -102,7 +98,7 @@ SystemMessageWindowWin::SystemMessageWindowWin() {
   window_ =
       CreateWindow(kWindowClassName, 0, 0, 0, 0, 0, 0, 0, 0, instance_, 0);
   SetWindowLongPtr(window_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
-  device_notifications_ = std::make_unique<DeviceNotifications>(window_);
+  device_notifications_.reset(new DeviceNotifications(window_));
 }
 
 SystemMessageWindowWin::~SystemMessageWindowWin() {

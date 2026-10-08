@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,8 @@
 // arbitrary code, please refrain from #including this header in
 // another header.
 
-#include "base/memory/raw_ptr.h"
+#include "base/callback.h"
+#include "base/macros.h"
 #include "ui/gfx/x/connection.h"
 
 namespace remoting {
@@ -21,26 +22,17 @@ namespace remoting {
 class ScopedXGrabServer {
  public:
   explicit ScopedXGrabServer(x11::Connection* connection);
-
-  ScopedXGrabServer(const ScopedXGrabServer&) = delete;
-  ScopedXGrabServer& operator=(const ScopedXGrabServer&) = delete;
-
   ~ScopedXGrabServer();
 
  private:
-  raw_ptr<x11::Connection> connection_;
+  x11::Connection* connection_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedXGrabServer);
 };
 
 // Make a connection to the X Server impervious to X Server grabs. Returns
 // true if successful or false if the required XTEST extension is not present.
 bool IgnoreXServerGrabs(x11::Connection* connection, bool ignore);
-
-// Returns whether the host is running under a virtual session.
-bool IsVirtualSession(x11::Connection* connection);
-
-// Returns whether the video dummy driver is being used (all outputs are
-// DUMMY*).
-bool IsUsingVideoDummyDriver(x11::Connection* connection);
 
 }  // namespace remoting
 

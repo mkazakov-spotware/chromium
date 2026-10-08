@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,12 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/no_destructor.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/synchronization/lock.h"
+#include "base/task/post_task.h"
 #include "ios/web/public/browser_state.h"
 #include "ios/web/public/thread/web_task_traits.h"
 #include "ios/web/public/thread/web_thread.h"
@@ -66,8 +67,8 @@ URLDataManagerIOS::~URLDataManagerIOS() {
 
 void URLDataManagerIOS::AddDataSource(URLDataSourceIOSImpl* source) {
   DCHECK_CURRENTLY_ON(web::WebThread::UI);
-  web::GetIOThreadTaskRunner({})->PostTask(
-      FROM_HERE,
+  base::PostTask(
+      FROM_HERE, {web::WebThread::IO},
       base::BindOnce(&AddDataSourceOnIOThread, base::Unretained(browser_state_),
                      base::WrapRefCounted(source)));
 }
@@ -108,8 +109,8 @@ void URLDataManagerIOS::DeleteDataSource(
   }
   if (schedule_delete) {
     // Schedule a task to delete the DataSource back on the UI thread.
-    web::GetUIThreadTaskRunner({})->PostTask(
-        FROM_HERE, base::BindOnce(&URLDataManagerIOS::DeleteDataSources));
+    base::PostTask(FROM_HERE, {web::WebThread::UI},
+                   base::BindOnce(&URLDataManagerIOS::DeleteDataSources));
   }
 }
 

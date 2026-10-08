@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,12 @@
 #include <memory>
 #include <string>
 
+#include "base/compiler_specific.h"
 #include "chrome/test/chromedriver/chrome/devtools_client.h"
+
+namespace base {
+class DictionaryValue;
+}
 
 class Status;
 
@@ -21,48 +26,44 @@ class StubDevToolsClient : public DevToolsClient {
 
   // Overridden from DevToolsClient:
   const std::string& GetId() override;
-  const std::string& SessionId() const override;
-  const std::string& TunnelSessionId() const override;
-  Status SetTunnelSessionId(std::string session_id) override;
-  Status StartBidiServer(std::string bidi_mapper_script) override;
-  bool IsNull() const override;
   bool WasCrashed() override;
   Status ConnectIfNecessary() override;
-  Status PostBidiCommand(base::Value::Dict command) override;
-  Status SendCommand(const std::string& method,
-                     const base::Value::Dict& params) override;
+  Status SetUpDevTools() override;
+  Status SendCommand(
+      const std::string& method,
+      const base::DictionaryValue& params) override;
   Status SendCommandFromWebSocket(const std::string& method,
-                                  const base::Value::Dict& params,
+                                  const base::DictionaryValue& params,
                                   const int client_command_id) override;
-  Status SendCommandWithTimeout(const std::string& method,
-                                const base::Value::Dict& params,
-                                const Timeout* timeout) override;
-  Status SendAsyncCommand(const std::string& method,
-                          const base::Value::Dict& params) override;
-  Status SendCommandAndGetResult(const std::string& method,
-                                 const base::Value::Dict& params,
-                                 base::Value* result) override;
-  Status SendCommandAndGetResultWithTimeout(const std::string& method,
-                                            const base::Value::Dict& params,
-                                            const Timeout* timeout,
-                                            base::Value* result) override;
-  Status SendCommandAndIgnoreResponse(const std::string& method,
-                                      const base::Value::Dict& params) override;
+  Status SendCommandWithTimeout(
+      const std::string& method,
+      const base::DictionaryValue& params,
+      const Timeout* timeout) override;
+  Status SendAsyncCommand(
+      const std::string& method,
+      const base::DictionaryValue& params) override;
+  Status SendCommandAndGetResult(
+      const std::string& method,
+      const base::DictionaryValue& params,
+      std::unique_ptr<base::DictionaryValue>* result) override;
+  Status SendCommandAndGetResultWithTimeout(
+      const std::string& method,
+      const base::DictionaryValue& params,
+      const Timeout* timeout,
+      std::unique_ptr<base::DictionaryValue>* result) override;
+  Status SendCommandAndIgnoreResponse(
+      const std::string& method,
+      const base::DictionaryValue& params) override;
   void AddListener(DevToolsEventListener* listener) override;
   Status HandleEventsUntil(const ConditionalFunc& conditional_func,
                            const Timeout& timeout) override;
   Status HandleReceivedEvents() override;
   void SetDetached() override;
   void SetOwner(WebViewImpl* owner) override;
-  WebViewImpl* GetOwner() const override;
   DevToolsClient* GetRootClient() override;
-  DevToolsClient* GetParentClient() const override;
-  bool IsMainPage() const override;
 
  protected:
   const std::string id_;
-  std::string session_id_;
-  std::string tunnel_session_id_;
   std::list<DevToolsEventListener*> listeners_;
 };
 

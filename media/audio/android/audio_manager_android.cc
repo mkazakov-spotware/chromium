@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,22 +45,16 @@ static const base::FilePath::CharType kAaudioLib[] =
 namespace media {
 namespace {
 
-// Maximum number of output streams that can be open simultaneously.
-const int kMaxOutputStreams = 10;
-
-const int kDefaultInputBufferSize = 1024;
-const int kDefaultOutputBufferSize = 2048;
-
 void AddDefaultDevice(AudioDeviceNames* device_names) {
   DCHECK(device_names->empty());
   device_names->push_front(AudioDeviceName::CreateDefault());
 }
 
-// Returns whether the currently connected device is an audio sink.
-bool IsAudioSinkConnected() {
-  return Java_AudioManagerAndroid_isAudioSinkConnected(
-      base::android::AttachCurrentThread());
-}
+// Maximum number of output streams that can be open simultaneously.
+const int kMaxOutputStreams = 10;
+
+const int kDefaultInputBufferSize = 1024;
+const int kDefaultOutputBufferSize = 2048;
 
 }  // namespace
 
@@ -172,7 +166,7 @@ AudioParameters AudioManagerAndroid::GetInputStreamParameters(
   // resources. Using mono also avoids a driver issue seen on Samsung
   // Galaxy S3 and S4 devices. See http://crbug.com/256851 for details.
   JNIEnv* env = AttachCurrentThread();
-  constexpr ChannelLayout channel_layout = CHANNEL_LAYOUT_MONO;
+  ChannelLayout channel_layout = CHANNEL_LAYOUT_MONO;
   int buffer_size = Java_AudioManagerAndroid_getMinInputFrameSize(
       env, GetNativeOutputSampleRate(),
       ChannelLayoutToChannelCount(channel_layout));
@@ -186,8 +180,7 @@ AudioParameters AudioManagerAndroid::GetInputStreamParameters(
   if (user_buffer_size)
     buffer_size = user_buffer_size;
 
-  AudioParameters params(AudioParameters::AUDIO_PCM_LOW_LATENCY,
-                         ChannelLayoutConfig::FromLayout<channel_layout>(),
+  AudioParameters params(AudioParameters::AUDIO_PCM_LOW_LATENCY, channel_layout,
                          GetNativeOutputSampleRate(), buffer_size);
   params.set_effects(effects);
   DVLOG(1) << params.AsHumanReadableString();
@@ -355,7 +348,7 @@ bool AudioManagerAndroid::HasOutputVolumeOverride(double* out_volume) const {
 base::TimeDelta AudioManagerAndroid::GetOutputLatency() {
   DCHECK(GetTaskRunner()->BelongsToCurrentThread());
   JNIEnv* env = AttachCurrentThread();
-  return base::Milliseconds(
+  return base::TimeDelta::FromMilliseconds(
       Java_AudioManagerAndroid_getOutputLatency(env, GetJavaAudioManager()));
 }
 
@@ -366,17 +359,22 @@ AudioParameters AudioManagerAndroid::GetPreferredOutputStreamParameters(
   // TODO(tommi): Support |output_device_id|.
   DCHECK(GetTaskRunner()->BelongsToCurrentThread());
   DLOG_IF(ERROR, !output_device_id.empty()) << "Not implemented!";
-  ChannelLayoutConfig channel_layout_config = ChannelLayoutConfig::Stereo();
+  ChannelLayout channel_layout = CHANNEL_LAYOUT_STEREO;
   int sample_rate = GetNativeOutputSampleRate();
   int buffer_size = GetOptimalOutputFrameSize(sample_rate, 2);
   if (input_params.IsValid()) {
     // Use the client's input parameters if they are valid.
     sample_rate = input_params.sample_rate();
 
+    // Pre-Lollipop devices don't support > stereo OpenSLES output and the
     // AudioManager APIs for GetOptimalOutputFrameSize() don't support channel
     // layouts greater than stereo unless low latency audio is supported.
-    if (input_params.channels() <= 2 || IsAudioLowLatencySupported())
-      channel_layout_config = input_params.channel_layout_config();
+    if (input_params.channels() <= 2 ||
+        (base::android::BuildInfo::GetInstance()->sdk_int() >=
+             base::android::SDK_VERSION_LOLLIPOP &&
+         IsAudioLowLatencySupported())) {
+      channel_layout = input_params.channel_layout();
+    }
 
     // For high latency playback on supported platforms, pass through the
     // requested buffer size; this provides significant power savings (~25%) and
@@ -385,8 +383,8 @@ AudioParameters AudioManagerAndroid::GetPreferredOutputStreamParameters(
         input_params.latency_tag() == AudioLatency::LATENCY_PLAYBACK) {
       buffer_size = input_params.frames_per_buffer();
     } else {
-      buffer_size = GetOptimalOutputFrameSize(sample_rate,
-                                              channel_layout_config.channels());
+      buffer_size = GetOptimalOutputFrameSize(
+          sample_rate, ChannelLayoutToChannelCount(channel_layout));
     }
   }
 
@@ -394,14 +392,8 @@ AudioParameters AudioManagerAndroid::GetPreferredOutputStreamParameters(
   if (user_buffer_size)
     buffer_size = user_buffer_size;
 
-  // Check if device supports additional audio encodings.
-  if (IsAudioSinkConnected()) {
-    return GetAudioFormatsSupportedBySinkDevice(
-        output_device_id, channel_layout_config, sample_rate, buffer_size);
-  }
-
-  return AudioParameters(AudioParameters::AUDIO_PCM_LOW_LATENCY,
-                         channel_layout_config, sample_rate, buffer_size);
+  return AudioParameters(AudioParameters::AUDIO_PCM_LOW_LATENCY, channel_layout,
+                         sample_rate, buffer_size);
 }
 
 bool AudioManagerAndroid::HasNoAudioInputStreams() {
@@ -472,31 +464,6 @@ int AudioManagerAndroid::GetOptimalOutputFrameSize(int sample_rate,
                       sample_rate, channels));
 }
 
-// Returns a bit mask of AudioParameters::Format enum values sink device
-// supports.
-int AudioManagerAndroid::GetSinkAudioEncodingFormats() {
-  JNIEnv* env = AttachCurrentThread();
-  return Java_AudioManagerAndroid_getAudioEncodingFormatsSupported(env);
-}
-
-// Returns encoding bitstream formats supported by Sink device. Returns
-// AudioParameters structure.
-AudioParameters AudioManagerAndroid::GetAudioFormatsSupportedBySinkDevice(
-    const std::string& output_device_id,
-    const ChannelLayoutConfig& channel_layout_config,
-    int sample_rate,
-    int buffer_size) {
-  int formats = GetSinkAudioEncodingFormats();
-  DVLOG(1) << __func__ << ": IsAudioSinkConnected()==true, output_device_id="
-           << output_device_id << ", Supported Encodings=" << formats;
-
-  return AudioParameters(
-      AudioParameters::AUDIO_PCM_LOW_LATENCY, channel_layout_config,
-      sample_rate, buffer_size,
-      AudioParameters::HardwareCapabilities(formats,
-                                            /*require_encapsulation=*/false));
-}
-
 void AudioManagerAndroid::DoSetMuteOnAudioThread(bool muted) {
   DCHECK(GetTaskRunner()->BelongsToCurrentThread());
   for (OutputStreams::iterator it = streams_.begin();
@@ -520,8 +487,7 @@ bool AudioManagerAndroid::UseAAudio() {
   if (!base::FeatureList::IsEnabled(features::kUseAAudioDriver))
     return false;
 
-  if (base::android::BuildInfo::GetInstance()->sdk_int() <
-      base::android::SDK_VERSION_Q) {
+  if (!base::android::BuildInfo::GetInstance()->is_at_least_q()) {
     // We need APIs that weren't added until API Level 28. Also, AAudio crashes
     // on Android P, so only consider Q and above.
     return false;

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 
 #include "base/containers/span.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/version.h"
 #include "extensions/browser/content_verifier/content_verifier_utils.h"
 
@@ -27,9 +28,6 @@ using CanonicalRelativePath = content_verifier_utils::CanonicalRelativePath;
 // corruption of extension files on local disk.
 class VerifiedContents {
  public:
-  VerifiedContents(const VerifiedContents&) = delete;
-  VerifiedContents& operator=(const VerifiedContents&) = delete;
-
   ~VerifiedContents();
 
   // Returns verified contents after successfully parsing verified_contents.json
@@ -37,16 +35,9 @@ class VerifiedContents {
   // failure.
   // Note: |public_key| must remain valid for the lifetime of the returned
   // object.
-  static std::unique_ptr<VerifiedContents> CreateFromFile(
-      base::span<const uint8_t> public_key,
-      const base::FilePath& path);
-
-  // Returns verified contents after successfully parsing |contents| and
-  // validating the enclosed signature. Returns nullptr on failure. Note:
-  // |public_key| must remain valid for the lifetime of the returned object.
   static std::unique_ptr<VerifiedContents> Create(
       base::span<const uint8_t> public_key,
-      base::StringPiece contents);
+      const base::FilePath& path);
 
   int block_size() const { return block_size_; }
   const std::string& extension_id() const { return extension_id_; }
@@ -69,9 +60,9 @@ class VerifiedContents {
   // Note: the public_key must remain valid for the lifetime of this object.
   explicit VerifiedContents(base::span<const uint8_t> public_key);
 
-  // Returns the base64url-decoded "payload" field from the |contents|, if
+  // Returns the base64url-decoded "payload" field from the json at |path|, if
   // the signature was valid.
-  bool GetPayload(base::StringPiece contents, std::string* payload);
+  bool GetPayload(const base::FilePath& path, std::string* payload);
 
   // The |protected_value| and |payload| arguments should be base64url encoded
   // strings, and |signature_bytes| should be a byte array. See comments in the
@@ -109,6 +100,8 @@ class VerifiedContents {
   // statically detect.
   typedef std::multimap<CanonicalRelativePath, std::string> RootHashes;
   RootHashes root_hashes_;
+
+  DISALLOW_COPY_AND_ASSIGN(VerifiedContents);
 };
 
 }  // namespace extensions

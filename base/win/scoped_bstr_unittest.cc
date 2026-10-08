@@ -1,4 +1,4 @@
-// Copyright 2010 The Chromium Authors
+// Copyright (c) 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 
 #include <stddef.h>
 
-#include <iterator>
-
+#include "base/stl_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace base {
@@ -17,8 +16,8 @@ namespace {
 
 constexpr wchar_t kTestString1[] = L"123";
 constexpr wchar_t kTestString2[] = L"456789";
-constexpr size_t test1_len = std::size(kTestString1) - 1;
-constexpr size_t test2_len = std::size(kTestString2) - 1;
+constexpr size_t test1_len = size(kTestString1) - 1;
+constexpr size_t test2_len = size(kTestString2) - 1;
 
 }  // namespace
 

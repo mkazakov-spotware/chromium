@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/containers/span.h"
 #include "base/strings/string_piece.h"
 #include "base/sys_byteorder.h"
-#include "base/template_util.h"
 #include "third_party/blink/public/common/common_export.h"
 #include "third_party/blink/public/common/privacy_budget/identifiability_internal_templates.h"
 #include "third_party/blink/public/common/privacy_budget/identifiable_token.h"
@@ -85,9 +84,7 @@ class BLINK_COMMON_EXPORT IdentifiableTokenBuilder {
   // when |token| is computed in parallel in order to preserve the ordering of
   // values that were seen in a concurrent sequence that cannot be
   // deterministically interleaved into the primary stream.
-  IdentifiableTokenBuilder& AddToken(IdentifiableToken token) {
-    return AddValue(token.value_);
-  }
+  IdentifiableTokenBuilder& AddToken(IdentifiableToken token);
 
   // Helper for feeding primitive types by value efficiently. Anything more
   // complicated than that should be passed in as a base::span<const uint8_t>.
@@ -96,7 +93,7 @@ class BLINK_COMMON_EXPORT IdentifiableTokenBuilder {
   // all of the bytes, pads the remainder with NUL bytes.
   template <typename T,
             typename std::enable_if_t<
-                std::is_same<T, base::remove_cvref_t<T>>::value &&
+                std::is_same<T, internal::remove_cvref_t<T>>::value &&
                 internal::has_unique_object_representations<T>::value &&
                 sizeof(T) <= sizeof(uint64_t)>* = nullptr>
   IdentifiableTokenBuilder& AddValue(T in) {

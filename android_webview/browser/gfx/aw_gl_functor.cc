@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include "android_webview/browser_jni_headers/AwGLFunctor_jni.h"
 #include "android_webview/public/browser/draw_gl.h"
-#include "base/trace_event/trace_event.h"
+#include "base/stl_util.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 
@@ -83,8 +83,7 @@ void AwGLFunctor::DeleteHardwareRenderer(
   if (!draw_functor_succeeded) {
     LOG(ERROR) << "Unable to free GL resources. Has the Window leaked?";
     // Calling release on wrong thread intentionally.
-    render_thread_manager_.DestroyHardwareRendererOnRT(
-        true /* save_restore */, false /* abandon_context */);
+    render_thread_manager_.DestroyHardwareRendererOnRT(true /* save_restore */);
   }
 }
 
@@ -99,25 +98,22 @@ void AwGLFunctor::DrawGL(AwDrawGLInfo* draw_info) {
       break;
     case AwDrawGLInfo::kModeProcessNoContext:
       LOG(ERROR) << "Received unexpected kModeProcessNoContext";
-      render_thread_manager_.DestroyHardwareRendererOnRT(
-          save_restore, true /* abandon_context */);
-      break;
+      FALLTHROUGH;
     case AwDrawGLInfo::kModeProcess:
-      render_thread_manager_.DestroyHardwareRendererOnRT(
-          save_restore, false /* abandon_context */);
+      render_thread_manager_.DestroyHardwareRendererOnRT(save_restore);
       break;
     case AwDrawGLInfo::kModeDraw: {
       HardwareRendererDrawParams params{
           draw_info->clip_left,   draw_info->clip_top, draw_info->clip_right,
           draw_info->clip_bottom, draw_info->width,    draw_info->height,
       };
-      static_assert(std::size(decltype(draw_info->transform){}) ==
-                        std::size(params.transform),
+      static_assert(base::size(decltype(draw_info->transform){}) ==
+                        base::size(params.transform),
                     "transform size mismatch");
-      for (unsigned int i = 0; i < std::size(params.transform); ++i) {
+      for (unsigned int i = 0; i < base::size(params.transform); ++i) {
         params.transform[i] = draw_info->transform[i];
       }
-      render_thread_manager_.DrawOnRT(save_restore, params, OverlaysParams());
+      render_thread_manager_.DrawOnRT(save_restore, &params);
       break;
     }
   }

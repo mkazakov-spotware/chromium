@@ -1,8 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser;
+
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
@@ -11,10 +14,11 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.base.PackageUtils;
 import org.chromium.base.annotations.CalledByNative;
+import org.chromium.chrome.browser.banners.AppDetailsDelegate;
 import org.chromium.chrome.browser.customtabs.CustomTabsConnection;
 import org.chromium.chrome.browser.directactions.DirectActionCoordinator;
+import org.chromium.chrome.browser.externalauth.ExternalAuthUtils;
 import org.chromium.chrome.browser.feedback.FeedbackReporter;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherImpl;
@@ -23,27 +27,32 @@ import org.chromium.chrome.browser.historyreport.AppIndexingReporter;
 import org.chromium.chrome.browser.init.ChromeStartupDelegate;
 import org.chromium.chrome.browser.init.ProcessInitializationHandler;
 import org.chromium.chrome.browser.instantapps.InstantAppsHandler;
+import org.chromium.chrome.browser.lens.LensController;
+import org.chromium.chrome.browser.locale.LocaleManager;
 import org.chromium.chrome.browser.metrics.VariationsSession;
 import org.chromium.chrome.browser.notifications.chime.ChimeDelegate;
 import org.chromium.chrome.browser.omaha.RequestGenerator;
 import org.chromium.chrome.browser.partnerbookmarks.PartnerBookmark;
 import org.chromium.chrome.browser.partnerbookmarks.PartnerBookmarksProviderIterator;
+import org.chromium.chrome.browser.partnercustomizations.PartnerBrowserCustomizations;
 import org.chromium.chrome.browser.password_manager.GooglePasswordManagerUIProvider;
 import org.chromium.chrome.browser.policy.PolicyAuditor;
 import org.chromium.chrome.browser.rlz.RevenueStats;
+import org.chromium.chrome.browser.signin.GoogleActivityController;
 import org.chromium.chrome.browser.survey.SurveyController;
 import org.chromium.chrome.browser.sync.TrustedVaultClient;
-import org.chromium.chrome.browser.ui.signin.GoogleActivityController;
+import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.usage_stats.DigitalWellbeingClient;
 import org.chromium.chrome.browser.webapps.GooglePlayWebApkInstallDelegate;
 import org.chromium.chrome.browser.xsurface.ProcessScope;
 import org.chromium.chrome.browser.xsurface.ProcessScopeDependencyProvider;
 import org.chromium.chrome.modules.image_editor.ImageEditorModuleProvider;
+import org.chromium.components.browser_ui.widget.FeatureHighlightProvider;
+import org.chromium.components.external_intents.AuthenticatorNavigationInterceptor;
 import org.chromium.components.policy.AppRestrictionsProvider;
 import org.chromium.components.policy.CombinedPolicyProvider;
 import org.chromium.components.signin.AccountManagerDelegate;
 import org.chromium.components.signin.SystemAccountManagerDelegate;
-import org.chromium.components.webapps.AppDetailsDelegate;
 
 import java.util.Collections;
 import java.util.List;
@@ -52,12 +61,12 @@ import java.util.List;
  * Base class for defining methods where different behavior is required by downstream targets.
  * The correct version of {@link AppHooksImpl} will be determined at compile time via build rules.
  * See http://crbug/560466.
- *
- * Note that new functionality should not be added to AppHooks. Instead the delegate pattern in
- * go/apphooks-migration should be followed to solve this class of problems.
  */
 public abstract class AppHooks {
     private static AppHooksImpl sInstance;
+
+    @Nullable
+    private ExternalAuthUtils mExternalAuthUtils;
 
     /**
      * Sets a mocked instance for testing.
@@ -98,6 +107,14 @@ public abstract class AppHooks {
     }
 
     /**
+     * Return a {@link AuthenticatorNavigationInterceptor} for the given {@link Tab}.
+     * This can be null if there are no applicable interceptor to be built.
+     */
+    public AuthenticatorNavigationInterceptor createAuthenticatorNavigationInterceptor(Tab tab) {
+        return null;
+    }
+
+    /**
      * @return An instance of {@link CustomTabsConnection}. Should not be called
      * outside of {@link CustomTabsConnection#getInstance()}.
      */
@@ -119,6 +136,24 @@ public abstract class AppHooks {
      */
     public SurveyController createSurveyController() {
         return new SurveyController();
+    }
+
+    /**
+     * @return An instance of ExternalAuthUtils to be installed as a singleton.
+     */
+    protected ExternalAuthUtils createExternalAuthUtils() {
+        return new ExternalAuthUtils();
+    }
+
+    /**
+     * @return The singleton instance of ExternalAuthUtils.
+     */
+    public ExternalAuthUtils getExternalAuthUtils() {
+        if (mExternalAuthUtils == null) {
+            mExternalAuthUtils = createExternalAuthUtils();
+        }
+
+        return mExternalAuthUtils;
     }
 
     /**
@@ -152,6 +187,17 @@ public abstract class AppHooks {
 
     public InstantAppsHandler createInstantAppsHandler() {
         return new InstantAppsHandler();
+    }
+
+    public LensController createLensController() {
+        return new LensController();
+    }
+
+    /**
+     * @return An instance of {@link LocaleManager} that handles customized locale related logic.
+     */
+    public LocaleManager createLocaleManager() {
+        return new LocaleManager();
     }
 
     /**
@@ -201,12 +247,33 @@ public abstract class AppHooks {
      * Only applicable when the user has a policy active, that is tracking the activity.
      */
     public PolicyAuditor getPolicyAuditor() {
-        return null;
+        // This class has a protected constructor to prevent accidental instantiation.
+        return new PolicyAuditor() {};
     }
 
     public void registerPolicyProviders(CombinedPolicyProvider combinedProvider) {
         combinedProvider.registerProvider(
                 new AppRestrictionsProvider(ContextUtils.getApplicationContext()));
+    }
+
+    /**
+     * TODO(crbug.com/1102812) : Remove this method after updating the downstream to use the new
+     * method {@link getOfflinePagesCctAllowlist} instead.
+     * @return A list of allowlisted apps that are allowed to receive notification when the
+     * set of offlined pages downloaded on their behalf has changed. Apps are listed by their
+     * package name.
+     */
+    public List<String> getOfflinePagesCctWhitelist() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * @return A list of allowlisted apps that are allowed to receive notification when the
+     * set of offlined pages downloaded on their behalf has changed. Apps are listed by their
+     * package name.
+     */
+    public List<String> getOfflinePagesCctAllowlist() {
+        return Collections.emptyList();
     }
 
     /**
@@ -223,6 +290,21 @@ public abstract class AppHooks {
     @Nullable
     public PartnerBookmark.BookmarkIterator getPartnerBookmarkIterator() {
         return PartnerBookmarksProviderIterator.createIfAvailable();
+    }
+
+    /**
+     * @return An instance of PartnerBrowserCustomizations.Provider that provides customizations
+     * specified by partners.
+     */
+    public PartnerBrowserCustomizations.Provider getCustomizationProvider() {
+        return new PartnerBrowserCustomizations.ProviderPackage();
+    }
+
+    /**
+     * @return A new {@link FeatureHighlightProvider}.
+     */
+    public FeatureHighlightProvider createFeatureHighlightProvider() {
+        return new FeatureHighlightProvider();
     }
 
     /**
@@ -245,11 +327,16 @@ public abstract class AppHooks {
      * same as {@link GoogleApiAvailability#isGooglePlayServicesAvailable()}.
      */
     public int isGoogleApiAvailableWithMinApkVersion(int minApkVersion) {
-        int apkVersion =
-                PackageUtils.getPackageVersion(GoogleApiAvailability.GOOGLE_PLAY_SERVICES_PACKAGE);
-        return apkVersion < 0                ? ConnectionResult.SERVICE_MISSING
-                : apkVersion < minApkVersion ? ConnectionResult.SERVICE_VERSION_UPDATE_REQUIRED
-                                             : ConnectionResult.SUCCESS;
+        try {
+            PackageInfo gmsPackageInfo =
+                    ContextUtils.getApplicationContext().getPackageManager().getPackageInfo(
+                            GoogleApiAvailability.GOOGLE_PLAY_SERVICES_PACKAGE, /* flags= */ 0);
+            int apkVersion = gmsPackageInfo.versionCode;
+            if (apkVersion >= minApkVersion) return ConnectionResult.SUCCESS;
+        } catch (PackageManager.NameNotFoundException e) {
+            return ConnectionResult.SERVICE_MISSING;
+        }
+        return ConnectionResult.SERVICE_VERSION_UPDATE_REQUIRED;
     }
 
     /**
@@ -260,7 +347,8 @@ public abstract class AppHooks {
     }
 
     /**
-     * This is deprecated, and should not be called. Use FeedHooks instead.
+     * Returns a new {@link SurfaceRenderer} if the xsurface implementation is included in the
+     * apk. Otherwise null is returned.
      */
     public @Nullable ProcessScope getExternalSurfaceProcessScope(
             ProcessScopeDependencyProvider dependencies) {
@@ -288,14 +376,4 @@ public abstract class AppHooks {
     public ChromeStartupDelegate createChromeStartupDelegate() {
         return new ChromeStartupDelegate();
     }
-
-    public boolean canStartForegroundServiceWhileInvisible() {
-        return true;
-    }
-
-    public String getDefaultQueryTilesServerUrl() {
-        return "";
-    }
-
-    // Stop! Do not add new methods to AppHooks anymore. Follow go/apphooks-migration instead.
 }

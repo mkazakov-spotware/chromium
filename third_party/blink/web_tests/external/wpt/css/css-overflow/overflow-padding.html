@@ -49,8 +49,8 @@
 </style>
 <body onload="runTest()">
 <p><span style="background:green">green</span> blocks get scrollbars, <span style="background:yellow">yellow</span> do not.</p>
-<p>Block child gets block and inline padding.</p>
-<div class="container" data-scrollbar="hv">
+<p>Block child gets only block padding.</p>
+<div class="container" data-scrollbar="v">
   <div class="big"></div>
 </div>
 <div class="container" data-scrollbar="">
@@ -84,10 +84,10 @@
 </div>
 <script>
   function hasHorizontalScrollbar(el) {
-    return (el.scrollWidth - el.offsetWidth) > 0;
+    return (el.offsetHeight - el.clientHeight) > 0;
   }
   function hasVerticalScrollbar(el) {
-    return (el.scrollHeight - el.offsetHeight) > 0;
+    return (el.offsetWidth - el.clientWidth) > 0;
   }
   // Tests needs to be run after load.
   function runTest() {

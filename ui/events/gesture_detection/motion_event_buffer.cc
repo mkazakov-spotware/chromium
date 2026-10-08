@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -179,8 +179,9 @@ std::unique_ptr<MotionEventGeneric> ConsumeSamplesAndTryResampling(
 
     const base::TimeTicks time1 = event1->GetEventTime();
     base::TimeTicks max_predict =
-        time1 + std::min((event1->GetEventTime() - event0->GetEventTime()) / 2,
-                         base::Milliseconds(kResampleMaxPredictionMs));
+        time1 +
+        std::min((event1->GetEventTime() - event0->GetEventTime()) / 2,
+                 base::TimeDelta::FromMilliseconds(kResampleMaxPredictionMs));
     if (resample_time > max_predict) {
       TRACE_EVENT_INSTANT2("input",
                            "MotionEventBuffer::TryResample prediction adjust",
@@ -203,7 +204,7 @@ std::unique_ptr<MotionEventGeneric> ConsumeSamplesAndTryResampling(
   const base::TimeTicks time0 = event0->GetEventTime();
   const base::TimeTicks time1 = event1->GetEventTime();
   base::TimeDelta delta = time1 - time0;
-  if (delta < base::Milliseconds(kResampleMinDeltaMs)) {
+  if (delta < base::TimeDelta::FromMilliseconds(kResampleMinDeltaMs)) {
     TRACE_EVENT_INSTANT1("input",
                          "MotionEventBuffer::TryResample failure",
                          TRACE_EVENT_SCOPE_THREAD,
@@ -274,7 +275,7 @@ void MotionEventBuffer::Flush(base::TimeTicks frame_time) {
   // Shifting the sample time back slightly minimizes the potential for
   // misprediction when extrapolating events.
   if (resample_)
-    frame_time -= base::Milliseconds(kResampleLatencyMs);
+    frame_time -= base::TimeDelta::FromMilliseconds(kResampleLatencyMs);
 
   // TODO(jdduke): Use a persistent MotionEventVector vector for temporary
   // storage.

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,15 +12,14 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/compiler_specific.h"
+#include "base/files/file_descriptor_watcher_posix.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
-#include "base/task/single_thread_task_runner.h"
-#include "remoting/host/input_monitor/local_input_monitor_x11_common.h"
+#include "base/single_thread_task_runner.h"
+#include "ui/events/devices/x11/xinput_util.h"
 #include "ui/gfx/x/connection.h"
-#include "ui/gfx/x/event.h"
-#include "ui/gfx/x/future.h"
 #include "ui/gfx/x/keysyms/keysyms.h"
 #include "ui/gfx/x/xinput.h"
 
@@ -34,24 +33,16 @@ class LocalHotkeyInputMonitorX11 : public LocalHotkeyInputMonitor {
       scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner,
       scoped_refptr<base::SingleThreadTaskRunner> input_task_runner,
       base::OnceClosure disconnect_callback);
-
-  LocalHotkeyInputMonitorX11(const LocalHotkeyInputMonitorX11&) = delete;
-  LocalHotkeyInputMonitorX11& operator=(const LocalHotkeyInputMonitorX11&) =
-      delete;
-
   ~LocalHotkeyInputMonitorX11() override;
 
  private:
   // The implementation resides in LocalHotkeyInputMonitorX11::Core class.
   class Core : public base::RefCountedThreadSafe<Core>,
-               public x11::EventObserver {
+               public x11::Connection::Delegate {
    public:
     Core(scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner,
          scoped_refptr<base::SingleThreadTaskRunner> input_task_runner,
          base::OnceClosure disconnect_callback);
-
-    Core(const Core&) = delete;
-    Core& operator=(const Core&) = delete;
 
     void Start();
     void Stop();
@@ -63,8 +54,12 @@ class LocalHotkeyInputMonitorX11 : public LocalHotkeyInputMonitor {
     void StartOnInputThread();
     void StopOnInputThread();
 
-    // x11::EventObserver:
-    void OnEvent(const x11::Event& event) override;
+    // Called when there are pending X events.
+    void OnConnectionData();
+
+    // x11::Connection::Delegate:
+    bool ShouldContinueStream() const override;
+    void DispatchXEvent(x11::Event* event) override;
 
     // Task runner on which public methods of this class must be called.
     scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner_;
@@ -75,18 +70,25 @@ class LocalHotkeyInputMonitorX11 : public LocalHotkeyInputMonitor {
     // Used to send session disconnect requests.
     base::OnceClosure disconnect_callback_;
 
+    // Controls watching X events.
+    std::unique_ptr<base::FileDescriptorWatcher::Controller> controller_;
+
     // True when Alt is pressed.
     bool alt_pressed_ = false;
 
     // True when Ctrl is pressed.
     bool ctrl_pressed_ = false;
 
-    raw_ptr<x11::Connection> connection_ = nullptr;
+    std::unique_ptr<x11::Connection> connection_;
+
+    DISALLOW_COPY_AND_ASSIGN(Core);
   };
 
   scoped_refptr<Core> core_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(LocalHotkeyInputMonitorX11);
 };
 
 LocalHotkeyInputMonitorX11::LocalHotkeyInputMonitorX11(
@@ -129,51 +131,69 @@ void LocalHotkeyInputMonitorX11::Core::Stop() {
                                base::BindOnce(&Core::StopOnInputThread, this));
 }
 
-LocalHotkeyInputMonitorX11::Core::~Core() = default;
+LocalHotkeyInputMonitorX11::Core::~Core() {
+  DCHECK(!connection_);
+}
 
 void LocalHotkeyInputMonitorX11::Core::StartOnInputThread() {
   DCHECK(input_task_runner_->BelongsToCurrentThread());
   DCHECK(!connection_);
 
-  connection_ = x11::Connection::Get();
-  connection_->AddEventObserver(this);
+  // TODO(jamiewalch): We should pass the connection in.
+  connection_ = std::make_unique<x11::Connection>();
 
   if (!connection_->xinput().present()) {
-    LOG(ERROR) << "X Input extension not available.";
+    LOG(ERROR) << "X Record extension not available.";
     return;
   }
   // Let the server know the client XInput version.
   connection_->xinput().XIQueryVersion(
       {x11::Input::major_version, x11::Input::minor_version});
 
-  auto mask = CommonXIEventMaskForRootWindow();
+  x11::Input::XIEventMask mask;
+  ui::SetXinputMask(&mask, x11::Input::RawDeviceEvent::RawKeyPress);
+  ui::SetXinputMask(&mask, x11::Input::RawDeviceEvent::RawKeyRelease);
   connection_->xinput().XISelectEvents(
       {connection_->default_root(),
        {{x11::Input::DeviceId::AllMaster, {mask}}}});
   connection_->Flush();
+
+  // Register OnConnectionData() to be called every time there is
+  // something to read from |connection_|.
+  controller_ = base::FileDescriptorWatcher::WatchReadable(
+      connection_->GetFd(),
+      base::BindRepeating(&Core::OnConnectionData, base::Unretained(this)));
+
+  // Fetch pending events if any.
+  OnConnectionData();
 }
 
 void LocalHotkeyInputMonitorX11::Core::StopOnInputThread() {
   DCHECK(input_task_runner_->BelongsToCurrentThread());
-  connection_->RemoveEventObserver(this);
+  controller_.reset();
+  connection_.reset();
 }
 
-void LocalHotkeyInputMonitorX11::Core::OnEvent(const x11::Event& event) {
+void LocalHotkeyInputMonitorX11::Core::OnConnectionData() {
+  DCHECK(input_task_runner_->BelongsToCurrentThread());
+  connection_->Dispatch(this);
+}
+
+bool LocalHotkeyInputMonitorX11::Core::ShouldContinueStream() const {
+  return true;
+}
+
+void LocalHotkeyInputMonitorX11::Core::DispatchXEvent(x11::Event* event) {
   DCHECK(input_task_runner_->BelongsToCurrentThread());
 
   // Ignore input if we've already initiated a disconnect.
   if (!disconnect_callback_)
     return;
 
-  const auto* raw = event.As<x11::Input::RawDeviceEvent>();
-  // The X server may send unsolicited MappingNotify events without having
-  // selected them.
-  if (!raw)
-    return;
-  if (raw->opcode != x11::Input::RawDeviceEvent::RawKeyPress &&
-      raw->opcode != x11::Input::RawDeviceEvent::RawKeyRelease) {
-    return;
-  }
+  const auto* raw = event->As<x11::Input::RawDeviceEvent>();
+  DCHECK(raw);
+  DCHECK(raw->opcode == x11::Input::RawDeviceEvent::RawKeyPress ||
+         raw->opcode == x11::Input::RawDeviceEvent::RawKeyRelease);
 
   const bool down = raw->opcode == x11::Input::RawDeviceEvent::RawKeyPress;
   const auto key_sym =

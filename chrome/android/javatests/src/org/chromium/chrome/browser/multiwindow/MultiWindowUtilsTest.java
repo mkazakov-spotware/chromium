@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -218,9 +218,7 @@ public class MultiWindowUtilsTest {
                         }
                     }
                 };
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            ApplicationStatus.registerStateListenerForActivity(activity1StateListener, activity1);
-        });
+        ApplicationStatus.registerStateListenerForActivity(activity1StateListener, activity1);
 
         // Starting activity2 will stop activity1 as this is not truly multi-window mode.
         int activity1CallCount = activity1StoppedCallback.getCallCount();
@@ -241,9 +239,7 @@ public class MultiWindowUtilsTest {
                         }
                     }
                 };
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            ApplicationStatus.registerStateListenerForActivity(activity2StateListener, activity2);
-        });
+        ApplicationStatus.registerStateListenerForActivity(activity2StateListener, activity2);
 
         // activity1 may have been destroyed in the background. After destroying activity2 it is
         // necessary to make sure activity1 gets resumed.
@@ -300,9 +296,7 @@ public class MultiWindowUtilsTest {
                         }
                     }
                 };
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            ApplicationStatus.registerStateListenerForActivity(activity1StateListener, activity1);
-        });
+        ApplicationStatus.registerStateListenerForActivity(activity1StateListener, activity1);
 
         // Starting activity2 will stop activity1 as this is not truly multi-window mode.
         // activity1 may be killed in the background, but since it is never foregrounded again
@@ -324,9 +318,7 @@ public class MultiWindowUtilsTest {
                         }
                     }
                 };
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            ApplicationStatus.registerStateListenerForActivity(activity2StateListener, activity2);
-        });
+        ApplicationStatus.registerStateListenerForActivity(activity2StateListener, activity2);
 
         activity1.finishAndRemoveTask();
         activity1DestroyedCallback.waitForFirst();

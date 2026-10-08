@@ -1,11 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SYNC_DRIVER_MODEL_LOAD_MANAGER_H_
 #define COMPONENTS_SYNC_DRIVER_MODEL_LOAD_MANAGER_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/sync/driver/configure_context.h"
 #include "components/sync/driver/data_type_controller.h"
@@ -44,17 +44,13 @@ class ModelLoadManager {
  public:
   ModelLoadManager(const DataTypeController::TypeMap* controllers,
                    ModelLoadManagerDelegate* delegate);
-
-  ModelLoadManager(const ModelLoadManager&) = delete;
-  ModelLoadManager& operator=(const ModelLoadManager&) = delete;
-
   virtual ~ModelLoadManager();
 
-  // Stops any data types that are *not* in |preferred_types_without_errors|,
-  // then kicks off loading of all |preferred_types_without_errors|.
-  // |preferred_types_without_errors| must be a subset of |preferred_types|.
+  // Stops any data types that are *not* in |desired_types|, then kicks off
+  // loading of all |desired_types|.
+  // |desired_types| must be a subset of |preferred_types|.
   // |preferred_types| contains all types selected by the user.
-  void Initialize(ModelTypeSet preferred_types_without_errors,
+  void Initialize(ModelTypeSet desired_types,
                   ModelTypeSet preferred_types,
                   const ConfigureContext& context);
 
@@ -68,8 +64,7 @@ class ModelLoadManager {
                     SyncError error);
 
  private:
-  // Start loading non-running types that are in
-  // |preferred_types_without_errors_|.
+  // Start loading non-running types that are in |desired_types_|.
   void LoadDesiredTypes();
 
   // Callback that will be invoked when the model for |type| finishes loading.
@@ -83,21 +78,20 @@ class ModelLoadManager {
                         DataTypeController::StopCallback callback);
 
   // Calls delegate's OnAllDataTypesReadyForConfigure if all datatypes from
-  // |preferred_types_without_errors_| are loaded. Ensures that
-  // OnAllDataTypesReadyForConfigure is called at most once for every call to
-  // Initialize().
+  // |desired_types_| are loaded. Ensures that OnAllDataTypesReadyForConfigure
+  // is called at most once for every call to Initialize().
   void NotifyDelegateIfReadyForConfigure();
 
   // Set of all registered controllers.
-  const raw_ptr<const DataTypeController::TypeMap> controllers_;
+  const DataTypeController::TypeMap* const controllers_;
 
   // The delegate in charge of handling model load results.
-  const raw_ptr<ModelLoadManagerDelegate> delegate_;
+  ModelLoadManagerDelegate* const delegate_;
 
   ConfigureContext configure_context_;
 
   // Data types that are enabled.
-  ModelTypeSet preferred_types_without_errors_;
+  ModelTypeSet desired_types_;
 
   // Data types that are loaded.
   ModelTypeSet loaded_types_;
@@ -105,6 +99,8 @@ class ModelLoadManager {
   bool notified_about_ready_for_configure_ = false;
 
   base::WeakPtrFactory<ModelLoadManager> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ModelLoadManager);
 };
 
 }  // namespace syncer

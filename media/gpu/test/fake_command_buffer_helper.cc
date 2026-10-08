@@ -1,13 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/gpu/test/fake_command_buffer_helper.h"
+#include "gpu/command_buffer/service/shared_image_backing.h"
+#include "gpu/command_buffer/service/shared_image_representation.h"
 
 #include "base/logging.h"
-#include "build/build_config.h"
-#include "gpu/command_buffer/service/shared_image/shared_image_backing.h"
-#include "gpu/command_buffer/service/shared_image/shared_image_representation.h"
 
 namespace media {
 
@@ -71,13 +70,6 @@ gpu::SharedImageStub* FakeCommandBufferHelper::GetSharedImageStub() {
   return nullptr;
 }
 
-#if BUILDFLAG(IS_WIN)
-gpu::DXGISharedHandleManager*
-FakeCommandBufferHelper::GetDXGISharedHandleManager() {
-  return nullptr;
-}
-#endif
-
 bool FakeCommandBufferHelper::HasStub() {
   return has_stub_;
 }
@@ -132,20 +124,9 @@ void FakeCommandBufferHelper::SetCleared(GLuint service_id) {
   DCHECK(service_ids_.count(service_id));
 }
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-bool FakeCommandBufferHelper::BindDecoderManagedImage(GLuint service_id,
-                                                      gl::GLImage* image) {
-  return BindImageInternal(service_id, image);
-}
-#else
-bool FakeCommandBufferHelper::BindClientManagedImage(GLuint service_id,
-                                                     gl::GLImage* image) {
-  return BindImageInternal(service_id, image);
-}
-#endif
-
-bool FakeCommandBufferHelper::BindImageInternal(GLuint service_id,
-                                                gl::GLImage* image) {
+bool FakeCommandBufferHelper::BindImage(GLuint service_id,
+                                        gl::GLImage* image,
+                                        bool client_managed) {
   DVLOG(2) << __func__ << "(" << service_id << ")";
   DCHECK(task_runner_->BelongsToCurrentThread());
   DCHECK(service_ids_.count(service_id));
@@ -159,6 +140,13 @@ gpu::Mailbox FakeCommandBufferHelper::CreateMailbox(GLuint service_id) {
   if (!has_stub_)
     return gpu::Mailbox();
   return gpu::Mailbox::Generate();
+}
+
+void FakeCommandBufferHelper::ProduceTexture(const gpu::Mailbox& mailbox,
+                                             GLuint service_id) {
+  DVLOG(2) << __func__ << "(" << service_id << ")";
+  DCHECK(task_runner_->BelongsToCurrentThread());
+  DCHECK(service_ids_.count(service_id));
 }
 
 void FakeCommandBufferHelper::WaitForSyncToken(gpu::SyncToken sync_token,

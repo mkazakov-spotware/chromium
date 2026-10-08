@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "components/keyed_service/core/simple_keyed_service_factory.h"
 
 namespace base {
@@ -37,9 +38,6 @@ class OfflinePageModelFactory : public SimpleKeyedServiceFactory {
   static OfflinePageModel* GetForBrowserContext(
       content::BrowserContext* browser_context);
 
-  OfflinePageModelFactory(const OfflinePageModelFactory&) = delete;
-  OfflinePageModelFactory& operator=(const OfflinePageModelFactory&) = delete;
-
  private:
   friend struct base::DefaultSingletonTraits<OfflinePageModelFactory>;
 
@@ -48,6 +46,8 @@ class OfflinePageModelFactory : public SimpleKeyedServiceFactory {
 
   std::unique_ptr<KeyedService> BuildServiceInstanceFor(
       SimpleFactoryKey* key) const override;
+
+  DISALLOW_COPY_AND_ASSIGN(OfflinePageModelFactory);
 };
 
 }  // namespace offline_pages

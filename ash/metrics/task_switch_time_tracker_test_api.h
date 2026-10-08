@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "base/time/time.h"
 
@@ -21,10 +22,6 @@ class TaskSwitchTimeTrackerTestAPI {
   // Creates a TaskSwitchTimeTracker with the given |histogram_name| and injects
   // a base::SimpleTestTickClock that can be controlled.
   explicit TaskSwitchTimeTrackerTestAPI(const std::string& histogram_name);
-
-  TaskSwitchTimeTrackerTestAPI(const TaskSwitchTimeTrackerTestAPI&) = delete;
-  TaskSwitchTimeTrackerTestAPI& operator=(const TaskSwitchTimeTrackerTestAPI&) =
-      delete;
 
   ~TaskSwitchTimeTrackerTestAPI();
 
@@ -41,6 +38,8 @@ class TaskSwitchTimeTrackerTestAPI {
 
   // The TaskSwitchTimeTracker to provide internal access to.
   std::unique_ptr<TaskSwitchTimeTracker> time_tracker_;
+
+  DISALLOW_COPY_AND_ASSIGN(TaskSwitchTimeTrackerTestAPI);
 };
 
 }  // namespace ash

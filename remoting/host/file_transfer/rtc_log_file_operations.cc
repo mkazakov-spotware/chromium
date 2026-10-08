@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,10 @@
 
 #include "base/bind.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/notreached.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/time.h"
 #include "remoting/protocol/connection_to_client.h"
 #include "remoting/protocol/file_transfer_helpers.h"
@@ -48,7 +47,7 @@ class RtcLogFileReader : public FileOperations::Reader {
   // if the end is reached. Returns 0 if there is no more data to be read.
   int ReadPartially(int maximum_to_read, std::vector<std::uint8_t>& output);
 
-  raw_ptr<protocol::ConnectionToClient> connection_;
+  protocol::ConnectionToClient* connection_;
   base::FilePath filename_;
   base::circular_deque<LogSection> data_;
   FileOperations::State state_ = FileOperations::kCreated;
@@ -91,7 +90,7 @@ RtcLogFileReader::~RtcLogFileReader() = default;
 
 void RtcLogFileReader::Open(OpenCallback callback) {
   state_ = FileOperations::kBusy;
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&RtcLogFileReader::DoOpen, weak_factory_.GetWeakPtr(),
                      std::move(callback)));
@@ -99,7 +98,7 @@ void RtcLogFileReader::Open(OpenCallback callback) {
 
 void RtcLogFileReader::ReadChunk(std::size_t size, ReadCallback callback) {
   state_ = FileOperations::kBusy;
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&RtcLogFileReader::DoReadChunk, weak_factory_.GetWeakPtr(),
                      size, std::move(callback)));
@@ -195,7 +194,7 @@ int RtcLogFileReader::ReadPartially(int maximum_to_read,
 }
 
 void RtcLogFileWriter::Open(const base::FilePath& filename, Callback callback) {
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(
           std::move(callback),

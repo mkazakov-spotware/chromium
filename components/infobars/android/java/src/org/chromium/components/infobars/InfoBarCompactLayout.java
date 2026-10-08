@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -147,9 +147,9 @@ public class InfoBarCompactLayout extends LinearLayout implements View.OnClickLi
         public MessageBuilder withLink(CharSequence label, Callback<View> onTapCallback) {
             assert mLink == null;
 
-            final Context context = mLayout.getContext();
+            final Resources resources = mLayout.getResources();
             SpannableString link = new SpannableString(label);
-            link.setSpan(new NoUnderlineClickableSpan(context, onTapCallback), 0, label.length(),
+            link.setSpan(new NoUnderlineClickableSpan(resources, onTapCallback), 0, label.length(),
                     Spanned.SPAN_INCLUSIVE_EXCLUSIVE);
             mLink = link;
 

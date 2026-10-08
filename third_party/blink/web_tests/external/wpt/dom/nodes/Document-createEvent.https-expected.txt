@@ -122,6 +122,13 @@ PASS createEvent('textevent') should be initialized correctly.
 FAIL TEXTEVENT should be an alias for CompositionEvent. assert_equals: expected object "[object CompositionEvent]" but got object "[object TextEvent]"
 PASS createEvent('TEXTEVENT') should be initialized correctly.
 PASS Should throw NOT_SUPPORTED_ERR for pluralized legacy event interface "TextEvents"
+PASS TouchEvent should be an alias for TouchEvent.
+PASS createEvent('TouchEvent') should be initialized correctly.
+PASS touchevent should be an alias for TouchEvent.
+PASS createEvent('touchevent') should be initialized correctly.
+PASS TOUCHEVENT should be an alias for TouchEvent.
+PASS createEvent('TOUCHEVENT') should be initialized correctly.
+PASS Should throw NOT_SUPPORTED_ERR for pluralized legacy event interface "TouchEvents"
 PASS UIEvent should be an alias for UIEvent.
 PASS createEvent('UIEvent') should be initialized correctly.
 PASS uievent should be an alias for UIEvent.
@@ -134,13 +141,6 @@ PASS uievents should be an alias for UIEvent.
 PASS createEvent('uievents') should be initialized correctly.
 PASS UIEVENTS should be an alias for UIEvent.
 PASS createEvent('UIEVENTS') should be initialized correctly.
-PASS TouchEvent should be an alias for TouchEvent.
-PASS createEvent('TouchEvent') should be initialized correctly.
-PASS touchevent should be an alias for TouchEvent.
-PASS createEvent('touchevent') should be initialized correctly.
-PASS TOUCHEVENT should be an alias for TouchEvent.
-PASS createEvent('TOUCHEVENT') should be initialized correctly.
-PASS Should throw NOT_SUPPORTED_ERR for pluralized legacy event interface "TouchEvents"
 PASS Should throw NOT_SUPPORTED_ERR for unrecognized arguments
 FAIL Should throw NOT_SUPPORTED_ERR for non-legacy event interface "AnimationEvent" assert_throws_dom: function "function () {
       var evt = document.createEvent(eventInterface);

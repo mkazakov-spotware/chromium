@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <memory>
 #include <vector>
 
 #include "base/android/jni_android.h"
@@ -47,9 +46,9 @@ HistoryReportJniBridge::HistoryReportJniBridge(JNIEnv* env, jobject obj)
   Profile* profile = g_browser_process->profile_manager()->
       GetLastUsedProfile()->GetOriginalProfile();
 
-  delta_file_service_ = std::make_unique<DeltaFileService>(profile->GetPath());
-  usage_reports_buffer_service_ =
-      std::make_unique<UsageReportsBufferService>(profile->GetPath());
+  delta_file_service_.reset(new DeltaFileService(profile->GetPath()));
+  usage_reports_buffer_service_.reset(
+      new UsageReportsBufferService(profile->GetPath()));
   usage_reports_buffer_service_->Init();
   bookmark_model_.reset(BookmarkModelFactory::GetForBrowserContext(profile));
   base::RepeatingCallback<void(void)> on_change = base::BindRepeating(
@@ -64,12 +63,13 @@ HistoryReportJniBridge::HistoryReportJniBridge(JNIEnv* env, jobject obj)
   history::HistoryService* history_service =
       HistoryServiceFactory::GetForProfile(profile,
                                            ServiceAccessType::EXPLICIT_ACCESS);
-  data_observer_ = std::make_unique<DataObserver>(
+  data_observer_.reset(new DataObserver(
       std::move(on_change), std::move(on_clear), std::move(stop_reporting),
       delta_file_service_.get(), usage_reports_buffer_service_.get(),
-      bookmark_model_.get(), history_service);
-  data_provider_ = std::make_unique<DataProvider>(
-      profile, delta_file_service_.get(), bookmark_model_.get());
+      bookmark_model_.get(), history_service));
+  data_provider_.reset(new DataProvider(profile,
+                                        delta_file_service_.get(),
+                                        bookmark_model_.get()));
 }
 
 HistoryReportJniBridge::~HistoryReportJniBridge() {}

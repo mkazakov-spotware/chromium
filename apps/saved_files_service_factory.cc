@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include "apps/saved_files_service.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "content/public/browser/browser_context.h"
-#include "extensions/browser/extension_host_registry.h"
 #include "extensions/browser/extensions_browser_client.h"
 
 namespace apps {
@@ -34,9 +33,7 @@ SavedFilesServiceFactory* SavedFilesServiceFactory::GetInstance() {
 SavedFilesServiceFactory::SavedFilesServiceFactory()
     : BrowserContextKeyedServiceFactory(
           "SavedFilesService",
-          BrowserContextDependencyManager::GetInstance()) {
-  DependsOn(extensions::ExtensionHostRegistry::GetFactory());
-}
+          BrowserContextDependencyManager::GetInstance()) {}
 
 SavedFilesServiceFactory::~SavedFilesServiceFactory() = default;
 

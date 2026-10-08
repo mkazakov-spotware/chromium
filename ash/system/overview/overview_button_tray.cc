@@ -1,11 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/overview/overview_button_tray.h"
 
-#include "ash/constants/ash_features.h"
-#include "ash/constants/tray_background_view_catalog.h"
+#include "ash/metrics/user_metrics_recorder.h"
 #include "ash/public/cpp/shelf_config.h"
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/session/session_controller_impl.h"
@@ -14,7 +13,6 @@
 #include "ash/style/ash_color_provider.h"
 #include "ash/system/tray/tray_constants.h"
 #include "ash/system/tray/tray_container.h"
-#include "ash/wm/desks/desks_restore_util.h"
 #include "ash/wm/mru_window_tracker.h"
 #include "ash/wm/overview/overview_controller.h"
 #include "ash/wm/overview/overview_session.h"
@@ -24,7 +22,6 @@
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/border.h"
@@ -33,68 +30,26 @@
 
 namespace ash {
 
-namespace {
-
-gfx::ImageSkia GetIconImage() {
-  return gfx::CreateVectorIcon(
-      kShelfOverviewIcon,
-      AshColorProvider::Get()->GetContentLayerColor(
-          AshColorProvider::ContentLayerType::kButtonIconColor));
-}
-
-bool ShouldButtonBeVisible() {
-  auto* shell = Shell::Get();
-  SessionControllerImpl* session_controller = shell->session_controller();
-  if (session_controller->GetSessionState() !=
-          session_manager::SessionState::ACTIVE ||
-      session_controller->IsRunningInAppMode()) {
-    return false;
-  }
-
-  // Check whether the button should be visible for 'kOverviewButton' feature,
-  // which is running as an experiment now. It is only enabled for a specific
-  // group of existing desks users, see `kUserHasUsedDesksRecently` for more
-  // details. But we also want to enable it if the user has explicitly enabled
-  // `kOverviewButton` from chrome://flags or from the command line. Even though
-  // the user is not in the group of existing desks users. Note, can be removed
-  // once the experiment is done. Note, only check whether the feature is
-  // overridden from command line if the FeatureList is initialized.
-  const base::FeatureList* feature_list = base::FeatureList::GetInstance();
-  if ((feature_list && feature_list->IsFeatureOverriddenFromCommandLine(
-                           features::kOverviewButton.name,
-                           base::FeatureList::OVERRIDE_ENABLE_FEATURE)) ||
-      (base::FeatureList::IsEnabled(features::kOverviewButton) &&
-       desks_restore_util::HasPrimaryUserUsedDesksRecently())) {
-    return true;
-  }
-
-  return shell->tablet_mode_controller()->ShouldShowOverviewButton() &&
-         ShelfConfig::Get()->shelf_controls_shown();
-}
-
-}  // namespace
-
 constexpr base::TimeDelta OverviewButtonTray::kDoubleTapThresholdMs;
 
 OverviewButtonTray::OverviewButtonTray(Shelf* shelf)
-    : TrayBackgroundView(shelf, TrayBackgroundViewCatalogName::kOverview),
+    : TrayBackgroundView(shelf),
       icon_(new views::ImageView()),
       scoped_session_observer_(this) {
-  SetPressedCallback(base::BindRepeating(&OverviewButtonTray::OnButtonPressed,
-                                         base::Unretained(this)));
-
-  const gfx::ImageSkia image = GetIconImage();
+  gfx::ImageSkia image = gfx::CreateVectorIcon(
+      kShelfOverviewIcon,
+      AshColorProvider::Get()->GetContentLayerColor(
+          AshColorProvider::ContentLayerType::kButtonIconColor));
+  icon_->SetImage(image);
   const int vertical_padding = (kTrayItemSize - image.height()) / 2;
   const int horizontal_padding = (kTrayItemSize - image.width()) / 2;
   icon_->SetBorder(views::CreateEmptyBorder(
-      gfx::Insets::VH(vertical_padding, horizontal_padding)));
+      gfx::Insets(vertical_padding, horizontal_padding)));
   tray_container()->AddChildView(icon_);
 
   // Since OverviewButtonTray is located on the rightmost position of a
   // horizontal shelf, no separator is required.
   set_separator_visibility(false);
-
-  set_use_bounce_in_animation(false);
 
   Shell::Get()->overview_controller()->AddObserver(this);
   Shell::Get()->tablet_mode_controller()->AddObserver(this);
@@ -114,13 +69,11 @@ void OverviewButtonTray::UpdateAfterLoginStatusChange() {
 }
 
 void OverviewButtonTray::SnapRippleToActivated() {
-  views::InkDrop::Get(this)->GetInkDrop()->SnapToActivated();
+  GetInkDrop()->SnapToActivated();
 }
 
 void OverviewButtonTray::OnGestureEvent(ui::GestureEvent* event) {
   Button::OnGestureEvent(event);
-  // TODO(crbug/1374368): React to long press via `OnButtonPressed()` once this
-  // is enabled.
   if (event->type() == ui::ET_GESTURE_LONG_PRESS) {
     // TODO(crbug.com/970013): Properly implement the multi-display behavior (in
     // tablet position with an external pointing device).
@@ -129,50 +82,7 @@ void OverviewButtonTray::OnGestureEvent(ui::GestureEvent* event) {
   }
 }
 
-void OverviewButtonTray::HandlePerformActionResult(bool action_performed,
-                                                   const ui::Event& event) {
-  // Do nothing, prevent the default ripple handling.
-}
-
-void OverviewButtonTray::OnSessionStateChanged(
-    session_manager::SessionState state) {
-  UpdateIconVisibility();
-}
-
-void OverviewButtonTray::OnTabletModeEventsBlockingChanged() {
-  UpdateIconVisibility();
-}
-
-void OverviewButtonTray::OnShelfConfigUpdated() {
-  UpdateIconVisibility();
-}
-
-void OverviewButtonTray::OnOverviewModeStarting() {
-  SetIsActive(true);
-}
-
-void OverviewButtonTray::OnOverviewModeEnded() {
-  SetIsActive(false);
-}
-
-void OverviewButtonTray::ClickedOutsideBubble() {}
-
-std::u16string OverviewButtonTray::GetAccessibleNameForTray() {
-  return l10n_util::GetStringUTF16(IDS_ASH_OVERVIEW_BUTTON_ACCESSIBLE_NAME);
-}
-
-void OverviewButtonTray::HandleLocaleChange() {}
-
-void OverviewButtonTray::HideBubbleWithView(const TrayBubbleView* bubble_view) {
-  // This class has no bubbles to hide.
-}
-
-void OverviewButtonTray::OnThemeChanged() {
-  TrayBackgroundView::OnThemeChanged();
-  icon_->SetImage(GetIconImage());
-}
-
-void OverviewButtonTray::OnButtonPressed(const ui::Event& event) {
+bool OverviewButtonTray::PerformAction(const ui::Event& event) {
   DCHECK(event.type() == ui::ET_MOUSE_RELEASED ||
          event.type() == ui::ET_GESTURE_TAP);
 
@@ -217,32 +127,88 @@ void OverviewButtonTray::OnButtonPressed(const ui::Event& event) {
         }
       }
 
-      views::InkDrop::Get(this)->AnimateToState(
-          views::InkDropState::DEACTIVATED, nullptr);
+      AnimateInkDrop(views::InkDropState::DEACTIVATED, nullptr);
       wm::ActivateWindow(new_active_window);
-      last_press_event_time_ = absl::nullopt;
-      return;
+      last_press_event_time_ = base::nullopt;
+      return true;
     }
   }
 
   // If not in overview mode record the time of this tap. A subsequent tap will
   // be checked against this to see if we should quick switch.
   last_press_event_time_ = overview_controller->InOverviewSession()
-                               ? absl::nullopt
-                               : absl::make_optional(event.time_stamp());
+                               ? base::nullopt
+                               : base::make_optional(event.time_stamp());
 
   if (overview_controller->InOverviewSession())
-    overview_controller->EndOverview(OverviewEndAction::kOverviewButton);
+    overview_controller->EndOverview();
   else
-    overview_controller->StartOverview(OverviewStartAction::kOverviewButton);
-  base::RecordAction(base::UserMetricsAction("Tray_Overview"));
+    overview_controller->StartOverview();
+  Shell::Get()->metrics()->RecordUserMetricsAction(UMA_TRAY_OVERVIEW);
+
+  // The return value doesn't matter here. OnOverviewModeStarting() and
+  // OnOverviewModeEnded() will do the right thing to set the button state.
+  return true;
+}
+
+void OverviewButtonTray::HandlePerformActionResult(bool action_performed,
+                                                   const ui::Event& event) {}
+
+void OverviewButtonTray::OnSessionStateChanged(
+    session_manager::SessionState state) {
+  UpdateIconVisibility();
+}
+
+void OverviewButtonTray::OnTabletModeEventsBlockingChanged() {
+  UpdateIconVisibility();
+}
+
+void OverviewButtonTray::OnShelfConfigUpdated() {
+  UpdateIconVisibility();
+}
+
+void OverviewButtonTray::OnOverviewModeStarting() {
+  SetIsActive(true);
+}
+
+void OverviewButtonTray::OnOverviewModeEnded() {
+  SetIsActive(false);
+}
+
+void OverviewButtonTray::ClickedOutsideBubble() {}
+
+base::string16 OverviewButtonTray::GetAccessibleNameForTray() {
+  return l10n_util::GetStringUTF16(IDS_ASH_OVERVIEW_BUTTON_ACCESSIBLE_NAME);
+}
+
+void OverviewButtonTray::HandleLocaleChange() {}
+
+void OverviewButtonTray::HideBubbleWithView(const TrayBubbleView* bubble_view) {
+  // This class has no bubbles to hide.
+}
+
+const char* OverviewButtonTray::GetClassName() const {
+  return "OverviewButtonTray";
 }
 
 void OverviewButtonTray::UpdateIconVisibility() {
-  SetVisiblePreferred(ShouldButtonBeVisible());
-}
+  // The visibility of the OverviewButtonTray has diverged from
+  // OverviewController::CanSelect. The visibility of the button should
+  // not change during transient times in which CanSelect is false. Such as when
+  // a modal dialog is present.
+  SessionControllerImpl* session_controller =
+      Shell::Get()->session_controller();
+  bool active_session = session_controller->GetSessionState() ==
+                        session_manager::SessionState::ACTIVE;
+  bool app_mode = session_controller->IsRunningInAppMode();
 
-BEGIN_METADATA(OverviewButtonTray, TrayBackgroundView)
-END_METADATA
+  bool should_show =
+      Shell::Get()->tablet_mode_controller()->ShouldShowOverviewButton();
+
+  bool shelf_controls_shown = ShelfConfig::Get()->shelf_controls_shown();
+
+  SetVisiblePreferred(should_show && active_session && shelf_controls_shown &&
+                      !app_mode);
+}
 
 }  // namespace ash

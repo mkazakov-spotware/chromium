@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,28 +15,19 @@ SyntheticPointerDriver::~SyntheticPointerDriver() {}
 
 // static
 std::unique_ptr<SyntheticPointerDriver> SyntheticPointerDriver::Create(
-    content::mojom::GestureSourceType gesture_source_type) {
+    SyntheticGestureParams::GestureSourceType gesture_source_type) {
   switch (gesture_source_type) {
-    case content::mojom::GestureSourceType::kTouchInput:
+    case SyntheticGestureParams::TOUCH_INPUT:
       return std::make_unique<SyntheticTouchDriver>();
-    case content::mojom::GestureSourceType::kMouseInput:
+    case SyntheticGestureParams::MOUSE_INPUT:
       return std::make_unique<SyntheticMouseDriver>();
-    case content::mojom::GestureSourceType::kPenInput:
+    case SyntheticGestureParams::PEN_INPUT:
       return std::make_unique<SyntheticPenDriver>();
-    case content::mojom::GestureSourceType::kDefaultInput:
-      return nullptr;
+    case SyntheticGestureParams::DEFAULT_INPUT:
+      return std::unique_ptr<SyntheticPointerDriver>();
   }
   NOTREACHED();
-  return nullptr;
-}
-
-// static
-std::unique_ptr<SyntheticPointerDriver> SyntheticPointerDriver::Create(
-    content::mojom::GestureSourceType gesture_source_type,
-    bool from_devtools_debugger) {
-  auto driver = Create(gesture_source_type);
-  driver->from_devtools_debugger_ = from_devtools_debugger;
-  return driver;
+  return std::unique_ptr<SyntheticPointerDriver>();
 }
 
 }  // namespace content

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <string>
 
-namespace invalidation {
+namespace syncer {
 
 // Status of the message arrived from FCM.
 // Used by UMA histogram, so entries shouldn't be reordered or removed.
@@ -55,6 +55,6 @@ struct Status {
   // Copy and assignment allowed.
 };
 
-}  // namespace invalidation
+}  // namespace syncer
 
 #endif  // COMPONENTS_INVALIDATION_IMPL_STATUS_H_

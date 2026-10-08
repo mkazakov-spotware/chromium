@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
 #include "base/threading/thread_checker.h"
 
 namespace autofill {
@@ -27,10 +26,6 @@ class AddressNormalizationManager {
   // valid. The AddressNormalizationManager does not own |address_normalizer|.
   AddressNormalizationManager(AddressNormalizer* address_normalizer,
                               const std::string& app_locale);
-
-  AddressNormalizationManager(const AddressNormalizationManager&) = delete;
-  AddressNormalizationManager& operator=(const AddressNormalizationManager&) =
-      delete;
 
   ~AddressNormalizationManager();
 
@@ -65,9 +60,10 @@ class AddressNormalizationManager {
   std::vector<std::unique_ptr<NormalizerDelegate>> delegates_;
 
   // An unowned raw pointer to the AddressNormalizer to use.
-  raw_ptr<AddressNormalizer> address_normalizer_;
+  AddressNormalizer* address_normalizer_;
 
   THREAD_CHECKER(thread_checker_);
+  DISALLOW_COPY_AND_ASSIGN(AddressNormalizationManager);
 };
 
 }  // namespace autofill

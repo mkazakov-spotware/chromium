@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,8 +23,6 @@ import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.filters.SmallTest;
 
-import com.google.android.material.color.MaterialColors;
-
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Test;
@@ -33,15 +31,14 @@ import org.junit.runner.RunWith;
 import org.chromium.base.test.UiThreadTest;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.chrome.browser.tasks.tab_management.TabGridDialogView.VisibilityListener;
-import org.chromium.chrome.browser.theme.ThemeUtils;
+import org.chromium.chrome.browser.toolbar.ToolbarColors;
 import org.chromium.chrome.tab_ui.R;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.browser_ui.widget.scrim.ScrimCoordinator;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
-import org.chromium.ui.test.util.BlankUiTestActivityTestCase;
+import org.chromium.ui.test.util.DummyUiActivityTestCase;
 import org.chromium.ui.widget.ChromeImageView;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -50,10 +47,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Tests for {@link TabGridPanelViewBinder}.
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
-public class TabGridPanelViewBinderTest extends BlankUiTestActivityTestCase {
-    private static final String TAG = "TGPVBT";
+public class TabGridPanelViewBinderTest extends DummyUiActivityTestCase {
     private static final int CONTENT_TOP_MARGIN = 56;
-
     private PropertyModel mModel;
     private PropertyModelChangeProcessor mMCP;
     private TabGroupUiToolbarView mToolbarView;
@@ -176,7 +171,7 @@ public class TabGridPanelViewBinderTest extends BlankUiTestActivityTestCase {
     @SmallTest
     @UiThreadTest
     public void testSetTint() {
-        ColorStateList tint = ThemeUtils.getThemedToolbarIconTint(getActivity(), true);
+        ColorStateList tint = ToolbarColors.getThemedToolbarIconTint(getActivity(), true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Assert.assertNotEquals(tint, mLeftButton.getImageTintList());
             Assert.assertNotEquals(tint, mRightButton.getImageTintList());
@@ -293,83 +288,66 @@ public class TabGridPanelViewBinderTest extends BlankUiTestActivityTestCase {
     @Test
     @SmallTest
     @UiThreadTest
-    public void testSetDialogBackgroundColor() {
-        int normalColor = MaterialColors.getColor(getActivity(), R.attr.colorSurface, TAG);
-        int incognitoColor = ContextCompat.getColor(
-                getActivity(), R.color.incognito_tab_grid_dialog_background_color);
+    public void testSetDialogBackgroundResource() {
+        int normalResourceId = R.drawable.tab_grid_dialog_background;
+        int incognitoResourceId = R.drawable.tab_grid_dialog_background_incognito;
         // Default setup is in normal mode.
-        Assert.assertEquals(normalColor, mTabGridDialogView.getBackgroundColorForTesting());
+        Assert.assertEquals(
+                normalResourceId, mTabGridDialogView.getBackgroundDrawableResourceIdForTesting());
 
-        mModel.set(TabGridPanelProperties.DIALOG_BACKGROUND_COLOR, incognitoColor);
+        mModel.set(TabGridPanelProperties.DIALOG_BACKGROUND_RESOURCE_ID, incognitoResourceId);
 
-        Assert.assertEquals(incognitoColor, mTabGridDialogView.getBackgroundColorForTesting());
+        Assert.assertEquals(incognitoResourceId,
+                mTabGridDialogView.getBackgroundDrawableResourceIdForTesting());
     }
 
     @Test
     @SmallTest
     @UiThreadTest
     public void testSetUngroupbarBackgroundColor() {
-        int normalColor = MaterialColors.getColor(getActivity(), R.attr.colorSurface, TAG);
-        int incognitoColor = ContextCompat.getColor(
-                getActivity(), R.color.incognito_tab_grid_dialog_background_color);
+        int normalColorId = R.color.tab_grid_dialog_background_color;
+        int incognitoColorId = R.color.tab_grid_dialog_background_color_incognito;
         // Default setup is in normal mode.
-        Assert.assertEquals(
-                normalColor, mTabGridDialogView.getUngroupBarBackgroundColorForTesting());
+        Assert.assertEquals(normalColorId,
+                mTabGridDialogView.getUngroupBarBackgroundColorResourceIdForTesting());
 
-        mModel.set(TabGridPanelProperties.DIALOG_UNGROUP_BAR_BACKGROUND_COLOR, incognitoColor);
+        mModel.set(TabGridPanelProperties.DIALOG_UNGROUP_BAR_BACKGROUND_COLOR_ID, incognitoColorId);
 
-        Assert.assertEquals(
-                incognitoColor, mTabGridDialogView.getUngroupBarBackgroundColorForTesting());
+        Assert.assertEquals(incognitoColorId,
+                mTabGridDialogView.getUngroupBarBackgroundColorResourceIdForTesting());
     }
 
     @Test
     @SmallTest
     @UiThreadTest
     public void testSetUngroupbarHoveredBackgroundColor() {
-        int normalColor = MaterialColors.getColor(getActivity(), R.attr.colorPrimary, TAG);
-        int incognitoColor = ContextCompat.getColor(
-                getActivity(), R.color.incognito_tab_grid_dialog_ungroup_bar_bg_hovered_color);
+        int normalColorId = R.color.tab_grid_card_selected_color;
+        int incognitoColorId = R.color.tab_grid_card_selected_color_incognito;
         // Default setup is in normal mode.
-        Assert.assertEquals(
-                normalColor, mTabGridDialogView.getUngroupBarHoveredBackgroundColorForTesting());
+        Assert.assertEquals(normalColorId,
+                mTabGridDialogView.getUngroupBarHoveredBackgroundColorResourceIdForTesting());
 
-        mModel.set(
-                TabGridPanelProperties.DIALOG_UNGROUP_BAR_HOVERED_BACKGROUND_COLOR, incognitoColor);
+        mModel.set(TabGridPanelProperties.DIALOG_UNGROUP_BAR_HOVERED_BACKGROUND_COLOR_ID,
+                incognitoColorId);
 
-        Assert.assertEquals(
-                incognitoColor, mTabGridDialogView.getUngroupBarHoveredBackgroundColorForTesting());
+        Assert.assertEquals(incognitoColorId,
+                mTabGridDialogView.getUngroupBarHoveredBackgroundColorResourceIdForTesting());
     }
 
     @Test
     @SmallTest
     @UiThreadTest
-    public void testSetUngroupbarTextColor() {
-        int normalColor = MaterialColors.getColor(getActivity(), R.attr.colorPrimary, TAG);
-        int incognitoColor = ContextCompat.getColor(
-                getActivity(), R.color.incognito_tab_grid_dialog_ungroup_bar_text_color);
-        // Default setup is in normal mode.
-        Assert.assertEquals(normalColor, mTabGridDialogView.getUngroupBarTextColorForTesting());
-
-        mModel.set(TabGridPanelProperties.DIALOG_UNGROUP_BAR_TEXT_COLOR, incognitoColor);
-
-        Assert.assertEquals(incognitoColor, mTabGridDialogView.getUngroupBarTextColorForTesting());
-    }
-
-    @Test
-    @SmallTest
-    @UiThreadTest
-    public void testSetUngroupbarHoveredTextColor() {
-        int normalColor = MaterialColors.getColor(getActivity(), R.attr.colorOnPrimary, TAG);
-        int incognitoColor = ContextCompat.getColor(
-                getActivity(), R.color.incognito_tab_grid_dialog_ungroup_bar_text_hovered_color);
+    public void testSetUngroupbarTextAppearance() {
+        int normalStyleId = R.style.TextAppearance_TextMediumThick_Blue;
+        int incognitoStyleId = R.style.TextAppearance_TextMediumThick_Blue_Light;
         // Default setup is in normal mode.
         Assert.assertEquals(
-                normalColor, mTabGridDialogView.getUngroupBarHoveredTextColorForTesting());
+                normalStyleId, mTabGridDialogView.getUngroupBarTextAppearanceForTesting());
 
-        mModel.set(TabGridPanelProperties.DIALOG_UNGROUP_BAR_HOVERED_TEXT_COLOR, incognitoColor);
+        mModel.set(TabGridPanelProperties.DIALOG_UNGROUP_BAR_TEXT_APPEARANCE, incognitoStyleId);
 
         Assert.assertEquals(
-                incognitoColor, mTabGridDialogView.getUngroupBarHoveredTextColorForTesting());
+                incognitoStyleId, mTabGridDialogView.getUngroupBarTextAppearanceForTesting());
     }
 
     @Test
@@ -456,21 +434,9 @@ public class TabGridPanelViewBinderTest extends BlankUiTestActivityTestCase {
         Assert.assertFalse(mTitleTextView.isFocused());
     }
 
-    @Test
-    @SmallTest
-    @UiThreadTest
-    public void testSetVisibilityListener() {
-        mModel.set(TabGridPanelProperties.VISIBILITY_LISTENER, new VisibilityListener() {
-            @Override
-            public void finishedHidingDialogView() {}
-        });
-
-        Assert.assertNotNull(mTabGridDialogView.getVisibilityListenerForTesting());
-    }
-
     @Override
     public void tearDownTest() throws Exception {
-        TestThreadUtils.runOnUiThreadBlocking(mMCP::destroy);
+        mMCP.destroy();
         super.tearDownTest();
     }
 }

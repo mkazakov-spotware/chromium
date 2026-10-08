@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,10 +24,10 @@ AddressPhoneFormLabelFormatter::AddressPhoneFormLabelFormatter(
 
 AddressPhoneFormLabelFormatter::~AddressPhoneFormLabelFormatter() {}
 
-std::u16string AddressPhoneFormLabelFormatter::GetLabelForProfile(
+base::string16 AddressPhoneFormLabelFormatter::GetLabelForProfile(
     const AutofillProfile& profile,
     FieldTypeGroup focused_group) const {
-  return focused_group == FieldTypeGroup::kAddressHome &&
+  return focused_group == ADDRESS_HOME &&
                  !IsStreetAddressPart(focused_field_type())
              ? GetLabelForProfileOnFocusedNonStreetAddress(
                    form_has_street_address_, profile, app_locale(),
@@ -40,23 +40,22 @@ std::u16string AddressPhoneFormLabelFormatter::GetLabelForProfile(
 // Note that the order--name, phone, and address--in which parts of the label
 // are added ensures that the label is formatted correctly for |focused_group|,
 // |focused_field_type_| and for this kind of formatter.
-std::u16string AddressPhoneFormLabelFormatter::
+base::string16 AddressPhoneFormLabelFormatter::
     GetLabelForProfileOnFocusedNamePhoneOrStreetAddress(
         const AutofillProfile& profile,
         FieldTypeGroup focused_group) const {
-  std::vector<std::u16string> label_parts;
-  if (focused_group != FieldTypeGroup::kName &&
-      data_util::ContainsName(groups())) {
+  std::vector<base::string16> label_parts;
+  if (focused_group != NAME && data_util::ContainsName(groups())) {
     AddLabelPartIfNotEmpty(
         GetLabelName(field_types_for_labels(), profile, app_locale()),
         &label_parts);
   }
 
-  if (focused_group != FieldTypeGroup::kPhoneHome) {
+  if (focused_group != PHONE_HOME) {
     AddLabelPartIfNotEmpty(GetLabelPhone(profile, app_locale()), &label_parts);
   }
 
-  if (focused_group != FieldTypeGroup::kAddressHome) {
+  if (focused_group != ADDRESS_HOME) {
     AddLabelPartIfNotEmpty(
         GetLabelAddress(form_has_street_address_, profile, app_locale(),
                         field_types_for_labels()),

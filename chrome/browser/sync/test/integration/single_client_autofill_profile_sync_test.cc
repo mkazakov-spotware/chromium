@@ -1,18 +1,21 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "chrome/browser/sync/test/integration/autofill_helper.h"
+#include "chrome/browser/sync/test/integration/feature_toggler.h"
+#include "chrome/browser/sync/test/integration/profile_sync_service_harness.h"
 #include "chrome/browser/sync/test/integration/single_client_status_change_checker.h"
-#include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "components/autofill/core/browser/data_model/autofill_profile.h"
 #include "components/autofill/core/browser/personal_data_manager.h"
 #include "components/autofill/core/common/autofill_prefs.h"
 #include "components/prefs/pref_service.h"
 #include "components/sync/base/model_type.h"
-#include "components/sync/driver/sync_service_impl.h"
+#include "components/sync/driver/profile_sync_service.h"
+#include "components/sync/driver/sync_driver_switches.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -21,7 +24,7 @@ namespace {
 
 class AutofillProfileDisabledChecker : public SingleClientStatusChangeChecker {
  public:
-  explicit AutofillProfileDisabledChecker(syncer::SyncServiceImpl* service)
+  explicit AutofillProfileDisabledChecker(syncer::ProfileSyncService* service)
       : SingleClientStatusChangeChecker(service) {}
   ~AutofillProfileDisabledChecker() override = default;
 
@@ -37,17 +40,14 @@ class AutofillProfileDisabledChecker : public SingleClientStatusChangeChecker {
 class SingleClientAutofillProfileSyncTest : public SyncTest {
  public:
   SingleClientAutofillProfileSyncTest() : SyncTest(SINGLE_CLIENT) {}
+  ~SingleClientAutofillProfileSyncTest() override {}
 
-  SingleClientAutofillProfileSyncTest(
-      const SingleClientAutofillProfileSyncTest&) = delete;
-  SingleClientAutofillProfileSyncTest& operator=(
-      const SingleClientAutofillProfileSyncTest&) = delete;
-
-  ~SingleClientAutofillProfileSyncTest() override = default;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SingleClientAutofillProfileSyncTest);
 };
 
 IN_PROC_BROWSER_TEST_F(SingleClientAutofillProfileSyncTest,
-                       DisablingAutofillDoesNotDisableSyncing) {
+                       DisablingAutofillAlsoDisablesSyncing) {
   ASSERT_TRUE(SetupSync());
   ASSERT_TRUE(GetClient(0)->service()->GetActiveDataTypes().Has(
       syncer::AUTOFILL_PROFILE));
@@ -62,16 +62,16 @@ IN_PROC_BROWSER_TEST_F(SingleClientAutofillProfileSyncTest,
   // Disable autofill (e.g. via chrome://settings).
   autofill::prefs::SetAutofillProfileEnabled(GetProfile(0)->GetPrefs(), false);
 
+  // Wait for Sync to get reconfigured.
+  AutofillProfileDisabledChecker(GetClient(0)->service()).Wait();
+
   ASSERT_EQ(syncer::SyncService::TransportState::ACTIVE,
             GetClient(0)->service()->GetTransportState());
 
-  // This should not disable syncing of autofill profiles. Otherwise, if the
-  // user deletes profiles while Autofill is disabled and then re-enables
-  // Autofill, sync retrieves the seemingly deleted profiles
-  // (crbug.com/1320097).
-  EXPECT_TRUE(GetClient(0)->service()->GetActiveDataTypes().Has(
+  // This should also disable syncing of autofill profiles.
+  EXPECT_FALSE(GetClient(0)->service()->GetActiveDataTypes().Has(
       syncer::AUTOFILL_PROFILE));
-  // The autofill profile itself should still be there.
+  // The autofill profile itself should still be there though.
   EXPECT_EQ(1uL, pdm->GetProfiles().size());
 }
 

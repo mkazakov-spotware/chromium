@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,7 @@
 #include "ash/ash_export.h"
 #include "ash/system/model/update_model.h"
 #include "base/files/file_path.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-
-namespace gfx {
-struct VectorIcon;
-}
-namespace message_center {
-enum class SystemNotificationWarningLevel;
-}
+#include "base/macros.h"
 
 namespace ash {
 
@@ -25,11 +18,6 @@ class ShutdownConfirmationDialog;
 class ASH_EXPORT UpdateNotificationController : public UpdateObserver {
  public:
   UpdateNotificationController();
-
-  UpdateNotificationController(const UpdateNotificationController&) = delete;
-  UpdateNotificationController& operator=(const UpdateNotificationController&) =
-      delete;
-
   ~UpdateNotificationController() override;
 
   // UpdateObserver:
@@ -45,14 +33,13 @@ class ASH_EXPORT UpdateNotificationController : public UpdateObserver {
   friend class UpdateNotificationControllerTest;
 
   bool ShouldShowUpdate() const;
-  bool ShouldShowDeferredUpdate() const;
-  std::u16string GetTitle() const;
-  std::u16string GetMessage() const;
-  const gfx::VectorIcon& GetIcon() const;
-  message_center::SystemNotificationWarningLevel GetWarningLevel() const;
-  void HandleNotificationClick(absl::optional<int> index);
+  base::string16 GetNotificationTitle() const;
+  base::string16 GetNotificationMessage() const;
+  void HandleNotificationClick(base::Optional<int> index);
   void GenerateUpdateNotification(
-      absl::optional<bool> slow_boot_file_path_exists);
+      base::Optional<bool> slow_boot_file_path_exists);
+
+  static const char kNotificationId[];
 
   UpdateModel* const model_;
 
@@ -61,6 +48,8 @@ class ASH_EXPORT UpdateNotificationController : public UpdateObserver {
   ShutdownConfirmationDialog* confirmation_dialog_ = nullptr;
 
   base::WeakPtrFactory<UpdateNotificationController> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(UpdateNotificationController);
 };
 
 }  // namespace ash

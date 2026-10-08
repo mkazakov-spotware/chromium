@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,16 +17,17 @@ using extensions::ProcessManager;
 ContextMenuContentTypePlatformApp::ContextMenuContentTypePlatformApp(
     content::WebContents* web_contents,
     const content::ContextMenuParams& params)
-    : ContextMenuContentType(params, false),
-      source_web_contents_(web_contents) {}
+    : ContextMenuContentType(web_contents, params, false) {
+}
 
 ContextMenuContentTypePlatformApp::~ContextMenuContentTypePlatformApp() {
 }
 
 const Extension* ContextMenuContentTypePlatformApp::GetExtension() {
   ProcessManager* process_manager =
-      ProcessManager::Get(source_web_contents_->GetBrowserContext());
-  return process_manager->GetExtensionForWebContents(source_web_contents_);
+      ProcessManager::Get(source_web_contents()->GetBrowserContext());
+  return process_manager->GetExtensionForWebContents(
+      source_web_contents());
 }
 
 bool ContextMenuContentTypePlatformApp::SupportsGroup(int group) {

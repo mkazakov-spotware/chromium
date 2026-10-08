@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "remoting/base/compound_buffer.h"
@@ -18,21 +18,22 @@ namespace net {
 class IOBuffer;
 }  // namespace net
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 class P2PStreamSocket;
 
-// MessageReader reads data from the socket asynchronously and calls the
-// callback for each message it receives. It stops calling the callback as soon
-// as the socket is closed, so the socket should always be closed before the
-// callback handler is destroyed.
+// MessageReader reads data from the socket asynchronously and calls
+// callback for each message it receives. It stops calling the
+// callback as soon as the socket is closed, so the socket should
+// always be closed before the callback handler is destroyed.
 //
-// In order to throttle the stream, MessageReader doesn't try to read new data
-// from the socket until all previously received messages are processed by the
-// receiver (|done_task| is called for each message). It is still possible that
-// the MessageReceivedCallback is called twice (so that there is more than one
-// outstanding message), e.g. when we the sender sends multiple messages in one
-// TCP packet.
+// In order to throttle the stream, MessageReader doesn't try to read
+// new data from the socket until all previously received messages are
+// processed by the receiver (|done_task| is called for each message).
+// It is still possible that the MessageReceivedCallback is called
+// twice (so that there is more than one outstanding message),
+// e.g. when we the sender sends multiple messages in one TCP packet.
 class MessageReader {
  public:
   typedef base::RepeatingCallback<void(std::unique_ptr<CompoundBuffer> message)>
@@ -40,10 +41,6 @@ class MessageReader {
   typedef base::OnceCallback<void(int)> ReadFailedCallback;
 
   MessageReader();
-
-  MessageReader(const MessageReader&) = delete;
-  MessageReader& operator=(const MessageReader&) = delete;
-
   virtual ~MessageReader();
 
   // Starts reading from |socket|.
@@ -63,7 +60,7 @@ class MessageReader {
 
   ReadFailedCallback read_failed_callback_;
 
-  raw_ptr<P2PStreamSocket> socket_ = nullptr;
+  P2PStreamSocket* socket_ = nullptr;
 
   // Set to true, when we have a socket read pending, and expecting
   // OnRead() to be called when new data is received.
@@ -80,8 +77,11 @@ class MessageReader {
   SEQUENCE_CHECKER(sequence_checker_);
 
   base::WeakPtrFactory<MessageReader> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MessageReader);
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_MESSAGE_READER_H_

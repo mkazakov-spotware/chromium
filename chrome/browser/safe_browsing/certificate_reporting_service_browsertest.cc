@@ -1,14 +1,14 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/safe_browsing/certificate_reporting_service.h"
 
-#include <memory>
-
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/feature_list.h"
+#include "base/macros.h"
+#include "base/task/post_task.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_clock.h"
@@ -46,6 +46,12 @@ using certificate_reporting_test_utils::EventHistogramTester;
 using certificate_reporting_test_utils::ReportExpectation;
 using certificate_reporting_test_utils::RetryStatus;
 
+namespace {
+
+const char* kFailedReportHistogram = "SSL.CertificateErrorReportFailure";
+
+}  // namespace
+
 namespace safe_browsing {
 
 // These tests check the whole mechanism to send and queue invalid certificate
@@ -61,17 +67,7 @@ class CertificateReportingServiceBrowserTest : public InProcessBrowserTest {
   CertificateReportingServiceBrowserTest()
       : https_server_(net::EmbeddedTestServer::TYPE_HTTPS) {
     CertReportHelper::SetFakeOfficialBuildForTesting();
-
-    // Setting the sending threshold to 1.0 ensures reporting is enabled.
-    variations::testing::VariationParamsManager::SetVariationParams(
-        "ReportCertificateErrors", "ShowAndPossiblySend",
-        {{"sendingThreshold", "1.0"}});
   }
-
-  CertificateReportingServiceBrowserTest(
-      const CertificateReportingServiceBrowserTest&) = delete;
-  CertificateReportingServiceBrowserTest& operator=(
-      const CertificateReportingServiceBrowserTest&) = delete;
 
   void SetUpOnMainThread() override {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
@@ -95,7 +91,7 @@ class CertificateReportingServiceBrowserTest : public InProcessBrowserTest {
     CertificateReportingServiceFactory::GetInstance()
         ->SetURLLoaderFactoryForTesting(test_helper_);
 
-    event_histogram_tester_ = std::make_unique<EventHistogramTester>();
+    event_histogram_tester_.reset(new EventHistogramTester());
     InProcessBrowserTest::SetUpOnMainThread();
   }
 
@@ -103,7 +99,24 @@ class CertificateReportingServiceBrowserTest : public InProcessBrowserTest {
     test_helper()->ExpectNoRequests(service());
     EXPECT_GE(num_expected_failed_report_, 0)
         << "Don't forget to set expected failed report count.";
+    // Check the histogram as the last thing. This makes sure no in-flight
+    // report is missed.
+    if (num_expected_failed_report_ != 0) {
+      histogram_tester_.ExpectUniqueSample(kFailedReportHistogram,
+                                           -net::ERR_SSL_PROTOCOL_ERROR,
+                                           num_expected_failed_report_);
+    } else {
+      histogram_tester_.ExpectTotalCount(kFailedReportHistogram, 0);
+    }
+
     event_histogram_tester_.reset();
+  }
+
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    // Setting the sending threshold to 1.0 ensures reporting is enabled.
+    variations::testing::VariationParamsManager::AppendVariationParams(
+        "ReportCertificateErrors", "ShowAndPossiblySend",
+        {{"sendingThreshold", "1.0"}}, command_line);
   }
 
   CertificateReportingServiceTestHelper* test_helper() {
@@ -138,10 +151,10 @@ class CertificateReportingServiceBrowserTest : public InProcessBrowserTest {
         url::SchemeHostPort("https", hostname, https_server_.port()).GetURL());
 
     // Navigate to the page with SSL error.
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), kCertErrorURL));
+    ui_test_utils::NavigateToURL(browser(), kCertErrorURL);
 
     // Navigate away from the interstitial to trigger report upload.
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
+    ui_test_utils::NavigateToURL(browser(), GURL("about:blank"));
   }
 
   void SendPendingReports() {
@@ -218,6 +231,8 @@ class CertificateReportingServiceBrowserTest : public InProcessBrowserTest {
   std::unique_ptr<EventHistogramTester> event_histogram_tester_;
 
   base::test::ScopedFeatureList scoped_feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(CertificateReportingServiceBrowserTest);
 };
 
 // Tests that report send attempt should be cancelled when extended
@@ -439,7 +454,7 @@ IN_PROC_BROWSER_TEST_F(CertificateReportingServiceBrowserTest,
   factory()->SetClockForTesting(&clock);
 
   // The service should ignore reports older than 24 hours.
-  factory()->SetQueuedReportTTLForTesting(base::Hours(24));
+  factory()->SetQueuedReportTTLForTesting(base::TimeDelta::FromHours(24));
 
   certificate_reporting_test_utils::SetCertReportingOptIn(
       browser(), certificate_reporting_test_utils::EXTENDED_REPORTING_OPT_IN);
@@ -454,14 +469,14 @@ IN_PROC_BROWSER_TEST_F(CertificateReportingServiceBrowserTest,
       ReportExpectation::Failed({{"report0", RetryStatus::NOT_RETRIED}}));
 
   // Advance the clock a bit and trigger another failed report.
-  clock.Advance(base::Hours(5));
+  clock.Advance(base::TimeDelta::FromHours(5));
   SendReport("report1");
   test_helper()->WaitForRequestsDestroyed(
       ReportExpectation::Failed({{"report1", RetryStatus::NOT_RETRIED}}));
 
   // Advance the clock to 20 hours, putting it 25 hours ahead of the reference
   // time. This makes report0 older than 24 hours. report1 is now 20 hours.
-  clock.Advance(base::Hours(20));
+  clock.Advance(base::TimeDelta::FromHours(20));
 
   // Send pending reports. report0 should be discarded since it's too old.
   // report1 should be queued again.
@@ -475,7 +490,7 @@ IN_PROC_BROWSER_TEST_F(CertificateReportingServiceBrowserTest,
       ReportExpectation::Failed({{"report2", RetryStatus::NOT_RETRIED}}));
 
   // Advance the clock 5 hours. report1 will now be 25 hours old.
-  clock.Advance(base::Hours(5));
+  clock.Advance(base::TimeDelta::FromHours(5));
 
   // Send pending reports. report1 should be discarded since it's too old.
   // report2 should be queued again.
@@ -485,7 +500,7 @@ IN_PROC_BROWSER_TEST_F(CertificateReportingServiceBrowserTest,
 
   // Advance the clock 20 hours again so that report2 is 25 hours old and is
   // older than max age (24 hours).
-  clock.Advance(base::Hours(20));
+  clock.Advance(base::TimeDelta::FromHours(20));
 
   // Send pending reports. report2 should be discarded since it's too old. No
   // other reports remain. If any report is sent, test teardown will catch it.
@@ -523,7 +538,7 @@ IN_PROC_BROWSER_TEST_F(CertificateReportingServiceBrowserTest,
 
   // The service should queue a maximum of 3 reports and ignore reports older
   // than 24 hours.
-  factory()->SetQueuedReportTTLForTesting(base::Hours(24));
+  factory()->SetQueuedReportTTLForTesting(base::TimeDelta::FromHours(24));
   factory()->SetMaxQueuedReportCountForTesting(3);
 
   certificate_reporting_test_utils::SetCertReportingOptIn(
@@ -543,13 +558,13 @@ IN_PROC_BROWSER_TEST_F(CertificateReportingServiceBrowserTest,
   // report1 is 5 hours after reference time (10 hours old).
   // report2 is 10 hours after reference time (5 hours old).
   // report3 is 15 hours after reference time (0 hours old).
-  clock.Advance(base::Hours(5));
+  clock.Advance(base::TimeDelta::FromHours(5));
   SendReport("report1");
 
-  clock.Advance(base::Hours(5));
+  clock.Advance(base::TimeDelta::FromHours(5));
   SendReport("report2");
 
-  clock.Advance(base::Hours(5));
+  clock.Advance(base::TimeDelta::FromHours(5));
   SendReport("report3");
 
   test_helper()->WaitForRequestsDestroyed(
@@ -575,7 +590,7 @@ IN_PROC_BROWSER_TEST_F(CertificateReportingServiceBrowserTest,
   // report1 is 25 hours old.
   // report2 is 20 hours old.
   // report3 is 15 hours old.
-  clock.Advance(base::Hours(15));
+  clock.Advance(base::TimeDelta::FromHours(15));
 
   // Send pending reports. Only reports 2 and 3 should be sent, report 1
   // should be ignored because it's too old.

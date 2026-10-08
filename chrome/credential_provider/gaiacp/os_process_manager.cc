@@ -1,33 +1,37 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/credential_provider/gaiacp/os_process_manager.h"
 
 #include <Windows.h>
+#include <Winternl.h>
 
 #include <MDMRegistration.h>
 #include <Shellapi.h>  // For CommandLineToArgvW()
 #include <Shlobj.h>
-#include <Winternl.h>
 #include <aclapi.h>
-#include <atlconv.h>
 #include <dpapi.h>
-#include <malloc.h>
-#include <memory.h>
 #include <sddl.h>
 #include <security.h>
-#include <stdlib.h>
 #include <userenv.h>
 #include <wincred.h>
+
+#include <atlconv.h>
+
+#include <malloc.h>
+#include <memory.h>
+#include <stdlib.h>
 
 #include <iomanip>
 #include <memory>
 
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/process/launch.h"
 #include "base/scoped_native_library.h"
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/win/registry.h"
@@ -55,7 +59,7 @@ HRESULT GetTokenLogonSID(const base::win::ScopedHandle& token, PSID* sid) {
   char buffer[256];
   DWORD returned_length;
   if (!::GetTokenInformation(token.Get(), TokenLogonSid, &buffer,
-                             std::size(buffer), &returned_length)) {
+                             base::size(buffer), &returned_length)) {
     HRESULT hr = HRESULT_FROM_WIN32(::GetLastError());
     LOGFN(ERROR) << "GetTokenInformation hr=" << putHR(hr);
     return hr;
@@ -193,9 +197,9 @@ HRESULT AllowLogonSIDOnLocalBasedNamedObjects(PSID sid) {
   UNICODE_STRING name;
   wchar_t name_buffer[64];
   if (session_id == 0) {
-    _snwprintf_s(name_buffer, std::size(name_buffer), L"\\BaseNamedObjects");
+    _snwprintf_s(name_buffer, base::size(name_buffer), L"\\BaseNamedObjects");
   } else {
-    _snwprintf_s(name_buffer, std::size(name_buffer),
+    _snwprintf_s(name_buffer, base::size(name_buffer),
                  L"\\Sessions\\%d\\BaseNamedObjects", session_id);
   }
   InitWindowsStringWithString(name_buffer, &name);
@@ -247,7 +251,7 @@ HRESULT AllowLogonSIDOnLocalBasedNamedObjects(PSID sid) {
                           nullptr);
   ::LocalFree(new_dacl);
   if (err != ERROR_SUCCESS) {
-    hr = HRESULT_FROM_NT(err);
+    HRESULT hr = HRESULT_FROM_NT(err);
     LOGFN(ERROR) << "SetSecurityInfo hr=" << putHR(hr);
     return hr;
   }
@@ -301,7 +305,7 @@ HRESULT AllowLogonSIDOnWinSta0(PSID sid) {
                           nullptr);
   ::LocalFree(new_dacl);
   if (err != ERROR_SUCCESS) {
-    hr = HRESULT_FROM_NT(err);
+    HRESULT hr = HRESULT_FROM_NT(err);
     LOGFN(ERROR) << "SetSecurityInfo hr=" << putHR(hr);
     return hr;
   }
@@ -372,7 +376,7 @@ HDESK GetAndAllowLogonSIDOnDesktop(const wchar_t* desktop_name,
                           nullptr);
   ::LocalFree(new_dacl);
   if (err != ERROR_SUCCESS) {
-    hr = HRESULT_FROM_NT(err);
+    HRESULT hr = HRESULT_FROM_NT(err);
     LOGFN(ERROR) << "SetSecurityInfo hr=" << putHR(hr);
     return nullptr;
   }
@@ -403,7 +407,7 @@ HRESULT SetupPermissionsForLogonSid(PSID sid) {
     desktop.Set(
         GetAndAllowLogonSIDOnDesktop(kDesktopName, sid, DESKTOP_SWITCHDESKTOP));
     if (!desktop.IsValid()) {
-      hr = HRESULT_FROM_WIN32(::GetLastError());
+      HRESULT hr = HRESULT_FROM_WIN32(::GetLastError());
       LOGFN(ERROR) << "GetAndAllowLogonSIDOnDesktop hr=" << putHR(hr);
       return hr;
     }
@@ -475,7 +479,7 @@ HRESULT OSProcessManager::CreateRunningProcess(
   // code.  However this function is called to execute rundll32 which parses
   // command lines in a special way and fails when the first arg is double
   // quoted.  Therefore the command line is built manually here.
-  std::wstring unquoted_cmdline;
+  base::string16 unquoted_cmdline;
   base::StringAppendF(&unquoted_cmdline, L"\"%ls\"",
                       command_line.GetProgram().value().c_str());
   for (const auto& arg : command_line.GetArgs()) {

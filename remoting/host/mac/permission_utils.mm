@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "remoting/host/mac/permission_utils.h"
 
-#import <AVFoundation/AVFoundation.h>
 #import <Cocoa/Cocoa.h>
 
 #include "base/bind.h"
@@ -15,9 +14,8 @@
 #include "base/mac/scoped_cftyperef.h"
 #include "base/mac/scoped_nsobject.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/sys_string_conversions.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
 #include "remoting/base/string_resources.h"
 #include "ui/base/cocoa/permissions_utils.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -62,8 +60,11 @@ void ShowAccessibilityPermissionDialog() {
   [alert setAlertStyle:NSAlertStyleWarning];
   [alert_window makeKeyWindow];
   if ([alert runModal] == NSAlertFirstButtonReturn) {
-    base::mac::OpenSystemSettingsPane(
-        base::mac::SystemSettingsPane::kPrivacySecurity_Accessibility);
+    // Launch the Security and Preferences pane with Accessibility selected.
+    [[NSWorkspace sharedWorkspace]
+        openURL:
+            [NSURL URLWithString:@"x-apple.systempreferences:com.apple."
+                                 @"preference.security?Privacy_Accessibility"]];
   }
 }
 
@@ -98,8 +99,11 @@ void ShowScreenRecordingPermissionDialog() {
   [alert setAlertStyle:NSAlertStyleWarning];
   [alert_window makeKeyWindow];
   if ([alert runModal] == NSAlertFirstButtonReturn) {
-    base::mac::OpenSystemSettingsPane(
-        base::mac::SystemSettingsPane::kPrivacySecurity_ScreenRecording);
+    // Launch the Security and Preferences pane with Accessibility selected.
+    [[NSWorkspace sharedWorkspace]
+        openURL:
+            [NSURL URLWithString:@"x-apple.systempreferences:com.apple."
+                                 @"preference.security?Privacy_ScreenCapture"]];
   }
 }
 
@@ -154,32 +158,6 @@ void PromptUserToChangeTrustStateIfNeeded(
     scoped_refptr<base::SingleThreadTaskRunner> task_runner) {
   PromptUserForAccessibilityPermissionIfNeeded(task_runner);
   PromptUserForScreenRecordingPermissionIfNeeded(task_runner);
-}
-
-bool CanCaptureAudio() {
-  if (@available(macOS 10.14, *)) {
-    NSInteger auth_status =
-        [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
-    return auth_status == AVAuthorizationStatusAuthorized;
-  }
-  return true;
-}
-
-void RequestAudioCapturePermission(base::OnceCallback<void(bool)> callback) {
-  if (@available(macOS 10.14, *)) {
-    auto task_runner = base::SequencedTaskRunner::GetCurrentDefault();
-    __block auto block_callback = std::move(callback);
-    [AVCaptureDevice
-        requestAccessForMediaType:AVMediaTypeAudio
-                completionHandler:^(BOOL granted) {
-                  task_runner->PostTask(
-                      FROM_HERE,
-                      base::BindOnce(std::move(block_callback), granted));
-                }];
-    return;
-  }
-  // CanCaptureAudio() returns true for older OSes.
-  NOTREACHED();
 }
 
 }  // namespace mac

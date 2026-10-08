@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,13 @@
 #include "components/autofill/core/browser/geo/country_names.h"
 #include "components/autofill_assistant/browser/actions/mock_action_delegate.h"
 #include "components/autofill_assistant/browser/service.pb.h"
-#include "components/autofill_assistant/browser/user_model.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
 namespace autofill_assistant {
 namespace {
 
 using ::testing::_;
+using ::testing::Invoke;
 using ::testing::Property;
 using ::testing::Return;
 
@@ -28,7 +28,7 @@ class ShowDetailsActionTest : public testing::Test {
   void SetUp() override {
     autofill::CountryNames::SetLocaleString("us-en");
 
-    ON_CALL(mock_action_delegate_, SetDetails(_, _)).WillByDefault(Return());
+    ON_CALL(mock_action_delegate_, SetDetails(_)).WillByDefault(Return());
     ON_CALL(mock_action_delegate_, GetUserData)
         .WillByDefault(Return(&user_data_));
     ON_CALL(mock_action_delegate_, GetLastSuccessfulUserDataOptions)
@@ -57,7 +57,6 @@ class ShowDetailsActionTest : public testing::Test {
   }
 
   UserData user_data_;
-  UserModel user_model_;
   CollectUserDataOptions user_data_options_;
   MockActionDelegate mock_action_delegate_;
   base::MockCallback<Action::ProcessActionCallback> callback_;
@@ -65,7 +64,7 @@ class ShowDetailsActionTest : public testing::Test {
 };
 
 TEST_F(ShowDetailsActionTest, EmptyIsValid) {
-  EXPECT_CALL(mock_action_delegate_, SetDetails(_, _));
+  EXPECT_CALL(mock_action_delegate_, SetDetails(_));
   EXPECT_CALL(
       callback_,
       Run(Pointee(Property(&ProcessedActionProto::status, ACTION_APPLIED))));
@@ -75,7 +74,7 @@ TEST_F(ShowDetailsActionTest, EmptyIsValid) {
 TEST_F(ShowDetailsActionTest, DetailsCase) {
   proto_.mutable_details();
 
-  EXPECT_CALL(mock_action_delegate_, SetDetails(_, _));
+  EXPECT_CALL(mock_action_delegate_, SetDetails(_));
   EXPECT_CALL(
       callback_,
       Run(Pointee(Property(&ProcessedActionProto::status, ACTION_APPLIED))));
@@ -84,11 +83,10 @@ TEST_F(ShowDetailsActionTest, DetailsCase) {
 
 TEST_F(ShowDetailsActionTest, ContactDetailsCase) {
   proto_.set_contact_details("contact");
-  user_model_.SetSelectedAutofillProfile("contact", MakeAutofillProfile(),
-                                         &user_data_);
+  user_data_.selected_addresses_["contact"] = MakeAutofillProfile();
   user_data_options_.request_payer_name = true;
 
-  EXPECT_CALL(mock_action_delegate_, SetDetails(_, _));
+  EXPECT_CALL(mock_action_delegate_, SetDetails(_));
   EXPECT_CALL(
       callback_,
       Run(Pointee(Property(&ProcessedActionProto::status, ACTION_APPLIED))));
@@ -97,10 +95,9 @@ TEST_F(ShowDetailsActionTest, ContactDetailsCase) {
 
 TEST_F(ShowDetailsActionTest, ShippingAddressCase) {
   proto_.set_shipping_address("shipping");
-  user_model_.SetSelectedAutofillProfile("shipping", MakeAutofillProfile(),
-                                         &user_data_);
+  user_data_.selected_addresses_["shipping"] = MakeAutofillProfile();
 
-  EXPECT_CALL(mock_action_delegate_, SetDetails(_, _));
+  EXPECT_CALL(mock_action_delegate_, SetDetails(_));
   EXPECT_CALL(
       callback_,
       Run(Pointee(Property(&ProcessedActionProto::status, ACTION_APPLIED))));
@@ -109,9 +106,9 @@ TEST_F(ShowDetailsActionTest, ShippingAddressCase) {
 
 TEST_F(ShowDetailsActionTest, CreditCardCase) {
   proto_.set_credit_card(true);
-  user_model_.SetSelectedCreditCard(MakeCreditCard(), &user_data_);
+  user_data_.selected_card_ = MakeCreditCard();
 
-  EXPECT_CALL(mock_action_delegate_, SetDetails(_, _));
+  EXPECT_CALL(mock_action_delegate_, SetDetails(_));
   EXPECT_CALL(
       callback_,
       Run(Pointee(Property(&ProcessedActionProto::status, ACTION_APPLIED))));
@@ -120,7 +117,7 @@ TEST_F(ShowDetailsActionTest, CreditCardCase) {
 
 TEST_F(ShowDetailsActionTest, CreditCardRequestedButNotAvailable) {
   proto_.set_credit_card(true);
-  EXPECT_CALL(mock_action_delegate_, SetDetails(_, _)).Times(0);
+  EXPECT_CALL(mock_action_delegate_, SetDetails(_)).Times(0);
   EXPECT_CALL(
       callback_,
       Run(Pointee(Property(&ProcessedActionProto::status, INVALID_ACTION))));

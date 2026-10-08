@@ -1,14 +1,8 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.net;
-
-import static io.netty.buffer.Unpooled.copiedBuffer;
-import static io.netty.buffer.Unpooled.unreleasableBuffer;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static io.netty.handler.logging.LogLevel.INFO;
 
 import org.chromium.base.Log;
 
@@ -18,7 +12,12 @@ import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
+
+import static io.netty.buffer.Unpooled.copiedBuffer;
+import static io.netty.buffer.Unpooled.unreleasableBuffer;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.netty.handler.logging.LogLevel.INFO;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
@@ -50,7 +49,6 @@ public final class Http2TestHandler extends Http2ConnectionHandler implements Ht
     public static final String REPORTING_COLLECTOR_PATH = "/reporting-collector";
     public static final String SUCCESS_WITH_NEL_HEADERS_PATH = "/success-with-nel";
     public static final String COMBINED_HEADERS_PATH = "/combinedheaders";
-    public static final String HANGING_REQUEST_PATH = "/hanging-request";
 
     private static final String TAG = Http2TestHandler.class.getSimpleName();
     private static final Http2FrameLogger sLogger =
@@ -62,7 +60,6 @@ public final class Http2TestHandler extends Http2ConnectionHandler implements Ht
 
     private ReportingCollector mReportingCollector;
     private String mServerUrl;
-    private CountDownLatch mHangingUrlLatch;
 
     /**
      * Builder for HTTP/2 test handler.
@@ -83,11 +80,6 @@ public final class Http2TestHandler extends Http2ConnectionHandler implements Ht
             return this;
         }
 
-        public Builder setHangingUrlLatch(CountDownLatch hangingUrlLatch) {
-            mHangingUrlLatch = hangingUrlLatch;
-            return this;
-        }
-
         @Override
         public Http2TestHandler build() {
             return super.build();
@@ -96,15 +88,14 @@ public final class Http2TestHandler extends Http2ConnectionHandler implements Ht
         @Override
         protected Http2TestHandler build(Http2ConnectionDecoder decoder,
                 Http2ConnectionEncoder encoder, Http2Settings initialSettings) {
-            Http2TestHandler handler = new Http2TestHandler(decoder, encoder, initialSettings,
-                    mReportingCollector, mServerUrl, mHangingUrlLatch);
+            Http2TestHandler handler = new Http2TestHandler(
+                    decoder, encoder, initialSettings, mReportingCollector, mServerUrl);
             frameListener(handler);
             return handler;
         }
 
         private ReportingCollector mReportingCollector;
         private String mServerUrl;
-        private CountDownLatch mHangingUrlLatch;
     }
 
     private class RequestResponder {
@@ -166,17 +157,6 @@ public final class Http2TestHandler extends Http2ConnectionHandler implements Ht
             encoder().writeHeaders(ctx, streamId, responseHeaders, 0, false, ctx.newPromise());
             encoder().writeData(ctx, streamId, content, 0, true, ctx.newPromise());
             ctx.flush();
-        }
-    }
-
-    private class HangingRequestResponder extends RequestResponder {
-        @Override
-        void onHeadersRead(ChannelHandlerContext ctx, int streamId, boolean endOfStream,
-                Http2Headers headers) {
-            try {
-                mHangingUrlLatch.await();
-            } catch (InterruptedException e) {
-            }
         }
     }
 
@@ -342,12 +322,11 @@ public final class Http2TestHandler extends Http2ConnectionHandler implements Ht
     }
 
     private Http2TestHandler(Http2ConnectionDecoder decoder, Http2ConnectionEncoder encoder,
-            Http2Settings initialSettings, ReportingCollector reportingCollector, String serverUrl,
-            CountDownLatch hangingUrlLatch) {
+            Http2Settings initialSettings, ReportingCollector reportingCollector,
+            String serverUrl) {
         super(decoder, encoder, initialSettings);
         mReportingCollector = reportingCollector;
         mServerUrl = serverUrl;
-        mHangingUrlLatch = hangingUrlLatch;
     }
 
     @Override
@@ -391,8 +370,6 @@ public final class Http2TestHandler extends Http2ConnectionHandler implements Ht
             responder = new SuccessWithNELHeadersResponder();
         } else if (path.startsWith(COMBINED_HEADERS_PATH)) {
             responder = new CombinedHeadersResponder();
-        } else if (path.startsWith(HANGING_REQUEST_PATH)) {
-            responder = new HangingRequestResponder();
         } else {
             responder = new RequestResponder();
         }

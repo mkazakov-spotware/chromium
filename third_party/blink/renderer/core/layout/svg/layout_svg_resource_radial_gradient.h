@@ -32,7 +32,6 @@ class LayoutSVGResourceRadialGradient final : public LayoutSVGResourceGradient {
  public:
   explicit LayoutSVGResourceRadialGradient(SVGRadialGradientElement*);
   ~LayoutSVGResourceRadialGradient() override;
-  void Trace(Visitor*) const override;
 
   const char* GetName() const override {
     NOT_DESTROYED();
@@ -57,13 +56,13 @@ class LayoutSVGResourceRadialGradient final : public LayoutSVGResourceGradient {
   void CollectGradientAttributes() override;
   scoped_refptr<Gradient> BuildGradient() const override;
 
-  gfx::PointF CenterPoint(const RadialGradientAttributes&) const;
-  gfx::PointF FocalPoint(const RadialGradientAttributes&) const;
+  FloatPoint CenterPoint(const RadialGradientAttributes&) const;
+  FloatPoint FocalPoint(const RadialGradientAttributes&) const;
   float Radius(const RadialGradientAttributes&) const;
   float FocalRadius(const RadialGradientAttributes&) const;
 
  private:
-  Member<RadialGradientAttributesWrapper> attributes_wrapper_;
+  Persistent<RadialGradientAttributesWrapper> attributes_wrapper_;
 
   RadialGradientAttributes& MutableAttributes() {
     NOT_DESTROYED();
@@ -75,13 +74,9 @@ class LayoutSVGResourceRadialGradient final : public LayoutSVGResourceGradient {
   }
 };
 
-template <>
-struct DowncastTraits<LayoutSVGResourceRadialGradient> {
-  static bool AllowFrom(const LayoutSVGResourceContainer& container) {
-    return container.ResourceType() == kRadialGradientResourceType;
-  }
-};
+DEFINE_LAYOUT_SVG_RESOURCE_TYPE_CASTS(LayoutSVGResourceRadialGradient,
+                                      kRadialGradientResourceType);
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_SVG_LAYOUT_SVG_RESOURCE_RADIAL_GRADIENT_H_
+#endif

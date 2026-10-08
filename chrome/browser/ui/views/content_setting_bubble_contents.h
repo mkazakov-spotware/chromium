@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,13 @@
 
 #include <map>
 #include <memory>
-#include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/ui/content_settings/content_setting_bubble_model.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/controls/button/checkbox.h"
 #include "ui/views/controls/button/radio_button.h"
@@ -38,15 +38,11 @@ class ContentSettingBubbleContents : public content::WebContentsObserver,
                                      public views::BubbleDialogDelegateView,
                                      public ContentSettingBubbleModel::Owner {
  public:
-  METADATA_HEADER(ContentSettingBubbleContents);
   ContentSettingBubbleContents(
       std::unique_ptr<ContentSettingBubbleModel> content_setting_bubble_model,
       content::WebContents* web_contents,
       views::View* anchor_view,
       views::BubbleBorder::Arrow arrow);
-  ContentSettingBubbleContents(const ContentSettingBubbleContents&) = delete;
-  ContentSettingBubbleContents& operator=(const ContentSettingBubbleContents&) =
-      delete;
   ~ContentSettingBubbleContents() override;
 
   // views::BubbleDialogDelegateView:
@@ -58,19 +54,9 @@ class ContentSettingBubbleContents : public content::WebContentsObserver,
   void OnListItemRemovedAt(int index) override;
   int GetSelectedRadioOption() override;
 
-  void managed_button_clicked_for_test() {
-    content_setting_bubble_model_->is_UMA_for_test = true;
-    content_setting_bubble_model_->OnManageButtonClicked();
-  }
-
-  void learn_more_button_clicked_for_test() {
-    content_setting_bubble_model_->is_UMA_for_test = true;
-    content_setting_bubble_model_->OnLearnMoreClicked();
-  }
-
  protected:
   // views::WidgetDelegate:
-  std::u16string GetWindowTitle() const override;
+  base::string16 GetWindowTitle() const override;
   bool ShouldShowCloseButton() const override;
 
   // views::BubbleDialogDelegateView:
@@ -93,20 +79,23 @@ class ContentSettingBubbleContents : public content::WebContentsObserver,
   void OnPerformAction(views::Combobox* combobox);
 
   // content::WebContentsObserver:
-  void PrimaryPageChanged(content::Page& page) override;
+  void DidFinishNavigation(
+      content::NavigationHandle* navigation_handle) override;
   void OnVisibilityChanged(content::Visibility visibility) override;
   void WebContentsDestroyed() override;
 
   // Provides data for this bubble.
   std::unique_ptr<ContentSettingBubbleModel> content_setting_bubble_model_;
 
-  raw_ptr<ListItemContainer, DanglingUntriaged> list_item_container_ = nullptr;
+  ListItemContainer* list_item_container_ = nullptr;
 
   typedef std::vector<views::RadioButton*> RadioGroup;
   RadioGroup radio_group_;
-  raw_ptr<views::LabelButton, DanglingUntriaged> manage_button_ = nullptr;
-  raw_ptr<views::Checkbox, DanglingUntriaged> manage_checkbox_ = nullptr;
-  raw_ptr<views::ImageButton, DanglingUntriaged> learn_more_button_ = nullptr;
+  views::LabelButton* manage_button_ = nullptr;
+  views::Checkbox* manage_checkbox_ = nullptr;
+  views::ImageButton* learn_more_button_ = nullptr;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ContentSettingBubbleContents);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_CONTENT_SETTING_BUBBLE_CONTENTS_H_

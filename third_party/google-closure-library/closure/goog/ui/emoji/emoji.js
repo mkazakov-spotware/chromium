@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Emoji implementation.
@@ -29,7 +37,6 @@ goog.provide('goog.ui.emoji.Emoji');
  * @final
  */
 goog.ui.emoji.Emoji = function(url, id, opt_height, opt_width, opt_altText) {
-  'use strict';
   /**
    * The URL pointing to the source image for the emoji
    *
@@ -92,7 +99,6 @@ goog.ui.emoji.Emoji.DATA_ATTRIBUTE = 'data-' + goog.ui.emoji.Emoji.ATTRIBUTE;
  * @return {string} The URL for this emoji.
  */
 goog.ui.emoji.Emoji.prototype.getUrl = function() {
-  'use strict';
   return this.url_;
 };
 
@@ -101,7 +107,6 @@ goog.ui.emoji.Emoji.prototype.getUrl = function() {
  * @return {string} The id of this emoji.
  */
 goog.ui.emoji.Emoji.prototype.getId = function() {
-  'use strict';
   return this.id_;
 };
 
@@ -110,7 +115,6 @@ goog.ui.emoji.Emoji.prototype.getId = function() {
  * @return {?number} The height of this emoji.
  */
 goog.ui.emoji.Emoji.prototype.getHeight = function() {
-  'use strict';
   return this.height_;
 };
 
@@ -119,7 +123,6 @@ goog.ui.emoji.Emoji.prototype.getHeight = function() {
  * @return {?number} The width of this emoji.
  */
 goog.ui.emoji.Emoji.prototype.getWidth = function() {
-  'use strict';
   return this.width_;
 };
 
@@ -129,6 +132,5 @@ goog.ui.emoji.Emoji.prototype.getWidth = function() {
  *     representation of the emoji.
  */
 goog.ui.emoji.Emoji.prototype.getAltText = function() {
-  'use strict';
   return this.altText_;
 };

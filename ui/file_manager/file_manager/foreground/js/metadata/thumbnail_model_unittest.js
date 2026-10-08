@@ -1,27 +1,19 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chromeos/chai_assert.js';
-
-import {reportPromise} from '../../../common/js/test_error_reporting.js';
-
-import {MetadataItem} from './metadata_item.js';
-import {MetadataModel} from './metadata_model.js';
-import {ThumbnailModel} from './thumbnail_model.js';
 
 const imageEntry = {
   name: 'image.jpg',
   toURL: function() {
     return 'filesystem://A';
-  },
+  }
 };
 
 const nonImageEntry = {
   name: 'note.txt',
   toURL: function() {
     return 'filesystem://B';
-  },
+  }
 };
 
 const contentThumbnailTransform = {
@@ -40,7 +32,7 @@ let metadata;
 let contentMetadata;
 let thumbnailModel;
 
-export function setUp() {
+function setUp() {
   metadata = new MetadataItem();
   metadata.modificationTime = new Date(2015, 0, 1);
   metadata.present = true;
@@ -58,11 +50,11 @@ export function setUp() {
         result[name] = metadata[name];
       }
       return Promise.resolve([result]);
-    },
+    }
   }));
 }
 
-export function testThumbnailModelGetBasic(callback) {
+function testThumbnailModelGetBasic(callback) {
   reportPromise(
       thumbnailModel.get([imageEntry]).then(results => {
         assertEquals(1, results.length);
@@ -80,7 +72,7 @@ export function testThumbnailModelGetBasic(callback) {
       callback);
 }
 
-export function testThumbnailModelGetNotPresent(callback) {
+function testThumbnailModelGetNotPresent(callback) {
   metadata.present = false;
   reportPromise(
       thumbnailModel.get([imageEntry]).then(results => {
@@ -99,7 +91,7 @@ export function testThumbnailModelGetNotPresent(callback) {
       callback);
 }
 
-export function testThumbnailModelGetNonImage(callback) {
+function testThumbnailModelGetNonImage(callback) {
   reportPromise(
       thumbnailModel.get([nonImageEntry]).then(results => {
         assertEquals(1, results.length);

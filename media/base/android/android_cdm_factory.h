@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "base/containers/flat_map.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "media/base/android/media_drm_bridge_factory.h"
 #include "media/base/cdm_factory.h"
@@ -20,23 +21,20 @@ namespace media {
 
 struct CdmConfig;
 
-class MEDIA_EXPORT AndroidCdmFactory final : public CdmFactory {
+class MEDIA_EXPORT AndroidCdmFactory : public CdmFactory {
  public:
   AndroidCdmFactory(CreateFetcherCB create_fetcher_cb,
                     CreateStorageCB create_storage_cb);
-
-  AndroidCdmFactory(const AndroidCdmFactory&) = delete;
-  AndroidCdmFactory& operator=(const AndroidCdmFactory&) = delete;
-
-  ~AndroidCdmFactory() override;
+  ~AndroidCdmFactory() final;
 
   // CdmFactory implementation.
-  void Create(const CdmConfig& cdm_config,
+  void Create(const std::string& key_system,
+              const CdmConfig& cdm_config,
               const SessionMessageCB& session_message_cb,
               const SessionClosedCB& session_closed_cb,
               const SessionKeysChangeCB& session_keys_change_cb,
               const SessionExpirationUpdateCB& session_expiration_update_cb,
-              CdmCreatedCB cdm_created_cb) override;
+              CdmCreatedCB cdm_created_cb) final;
 
  private:
   // Callback for MediaDrmBridgeFactory::Create().
@@ -55,6 +53,8 @@ class MEDIA_EXPORT AndroidCdmFactory final : public CdmFactory {
   base::flat_map<uint32_t, PendingCreation> pending_creations_;
 
   base::WeakPtrFactory<AndroidCdmFactory> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AndroidCdmFactory);
 };
 
 }  // namespace media

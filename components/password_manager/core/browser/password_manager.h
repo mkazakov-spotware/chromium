@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,14 +11,15 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/callback_list.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/observer_list.h"
+#include "base/strings/string16.h"
 #include "build/build_config.h"
 #include "components/autofill/core/common/password_form_fill_data.h"
 #include "components/autofill/core/common/password_generation_util.h"
+#include "components/autofill/core/common/renderer_id.h"
 #include "components/autofill/core/common/signatures.h"
-#include "components/autofill/core/common/unique_ids.h"
 #include "components/password_manager/core/browser/credential_cache.h"
 #include "components/password_manager/core/browser/form_parsing/password_field_prediction.h"
 #include "components/password_manager/core/browser/form_submission_observer.h"
@@ -45,6 +46,7 @@ class FormStructure;
 
 namespace password_manager {
 
+class BrowserSavePasswordProgressLogger;
 class PasswordManagerClient;
 class PasswordManagerDriver;
 class PasswordFormManagerForUI;
@@ -63,10 +65,6 @@ class PasswordManager : public PasswordManagerInterface {
   static void RegisterLocalPrefs(PrefRegistrySimple* registry);
 
   explicit PasswordManager(PasswordManagerClient* client);
-
-  PasswordManager(const PasswordManager&) = delete;
-  PasswordManager& operator=(const PasswordManager&) = delete;
-
   ~PasswordManager() override;
 
   // FormSubmissionObserver:
@@ -78,42 +76,32 @@ class PasswordManager : public PasswordManagerInterface {
       const std::vector<autofill::FormData>& forms_data) override;
   void OnPasswordFormsRendered(
       PasswordManagerDriver* driver,
-      const std::vector<autofill::FormData>& visible_forms_data) override;
+      const std::vector<autofill::FormData>& visible_forms_data,
+      bool did_stop_loading) override;
   void OnPasswordFormSubmitted(PasswordManagerDriver* driver,
                                const autofill::FormData& form_data) override;
-  void OnPasswordFormCleared(PasswordManagerDriver* driver,
-                             const autofill::FormData& form_data) override;
-  void SetGenerationElementAndTypeForForm(
+#if defined(OS_IOS)
+  void OnPasswordFormSubmittedNoChecksForiOS(
       PasswordManagerDriver* driver,
-      autofill::FormRendererId form_id,
-      autofill::FieldRendererId generation_element,
-      autofill::password_generation::PasswordGenerationType type) override;
-
-  PasswordManagerClient* GetClient() override;
-#if BUILDFLAG(IS_IOS)
-  void OnSubframeFormSubmission(PasswordManagerDriver* driver,
-                                const autofill::FormData& form_data) override;
+      const autofill::FormData& form_data) override;
   void PresaveGeneratedPassword(
       PasswordManagerDriver* driver,
       const autofill::FormData& form,
-      const std::u16string& generated_password,
+      const base::string16& generated_password,
       autofill::FieldRendererId generation_element) override;
   void UpdateStateOnUserInput(PasswordManagerDriver* driver,
                               autofill::FormRendererId form_id,
                               autofill::FieldRendererId field_id,
-                              const std::u16string& field_value) override;
+                              const base::string16& field_value) override;
   void OnPasswordNoLongerGenerated(PasswordManagerDriver* driver) override;
   void OnPasswordFormRemoved(
       PasswordManagerDriver* driver,
-      const autofill::FieldDataManager& field_data_manager,
+      const autofill::FieldDataManager* field_data_manager,
       autofill::FormRendererId form_id) override;
   void OnIframeDetach(
       const std::string& frame_id,
       PasswordManagerDriver* driver,
-      const autofill::FieldDataManager& field_data_manager) override;
-  void PropagateFieldDataManagerInfo(
-      const autofill::FieldDataManager& field_data_manager,
-      const PasswordManagerDriver* driver) override;
+      const autofill::FieldDataManager* field_data_manager) override;
 #endif
 
   // Notifies the renderer to start the generation flow or pops up additional UI
@@ -122,40 +110,48 @@ class PasswordManager : public PasswordManagerInterface {
       PasswordManagerDriver* driver,
       const autofill::FormData& form_data,
       autofill::FieldRendererId generation_element_id,
-      const std::u16string& password);
+      const base::string16& password);
 
   // Presaves the form with generated password. |driver| is needed to find the
   // matched form manager.
   void OnPresaveGeneratedPassword(PasswordManagerDriver* driver,
                                   const autofill::FormData& form,
-                                  const std::u16string& generated_password);
+                                  const base::string16& generated_password);
 
   // Stops treating a password as generated. |driver| is needed to find the
   // matched form manager.
   void OnPasswordNoLongerGenerated(PasswordManagerDriver* driver,
                                    const autofill::FormData& form_data);
 
+  // Update the `generation_element` and `type` for `form_data`.
+  void SetGenerationElementAndTypeForForm(
+      PasswordManagerDriver* driver,
+      const autofill::FormData& form_data,
+      autofill::FieldRendererId generation_element,
+      autofill::password_generation::PasswordGenerationType type);
+
   // Called upon navigation to persist the state from |CredentialCache|
   // used to decide when to record
   // |PasswordManager.ResultOfSavingFlowAfterUnblacklistin|.
-  void MarkWasUnblocklistedInFormManagers(CredentialCache* credential_cache);
+  void MarkWasUnblacklistedInFormManagers(CredentialCache* credential_cache);
 
-  // Handles a dynamic form submission. In contrast to OnPasswordFormSubmitted()
-  // this method does not wait for OnPasswordFormsRendered() before invoking
-  // OnLoginSuccessful(), provided that a password form was provisionally saved
-  // in the past. Since this is commonly invoked for same document navigations,
-  // detachment of frames or hiding a form following an XHR, it does not make
-  // sense to await a full page navigation event.
-  void OnDynamicFormSubmission(PasswordManagerDriver* driver,
-                               autofill::mojom::SubmissionIndicatorEvent event);
+  // Handles a password form being submitted, assumes that submission is
+  // successful and does not do any checks on success of submission. For
+  // example, this is called if |password_form| was filled upon in-page
+  // navigation. This often means history.pushState being called from
+  // JavaScript.
+  // TODO(crbug.com/949519): Rename this method together with
+  // SameDocumentNavigation in autofill::mojom::PasswordManagerDriver
+  void OnPasswordFormSubmittedNoChecks(
+      PasswordManagerDriver* driver,
+      autofill::mojom::SubmissionIndicatorEvent event);
 
   // Called when a user changed a value in a non-password field. The field is in
   // a frame corresponding to |driver| and has a renderer id |renderer_id|.
   // |value| is the current value of the field.
   void OnUserModifiedNonPasswordField(PasswordManagerDriver* driver,
                                       autofill::FieldRendererId renderer_id,
-                                      const std::u16string& field_name,
-                                      const std::u16string& value);
+                                      const base::string16& value);
 
   // Handles user input and decides whether to show manual fallback for password
   // saving, i.e. the omnibox icon with the anchored hidden prompt.
@@ -164,12 +160,6 @@ class PasswordManager : public PasswordManagerInterface {
 
   // Handles a request to hide manual fallback for password saving.
   void HideManualFallbackForSaving();
-
-  // Checks whether all |FormFetcher|s belonging to the |driver|-corresponding
-  // frame have finished fetching logins.
-  // Used to determine whether manual password generation can be offered
-  // Automatic password generation already waits for that signal.
-  bool HaveFormManagersReceivedData(const PasswordManagerDriver* driver);
 
   void ProcessAutofillPredictions(
       PasswordManagerDriver* driver,
@@ -186,6 +176,8 @@ class PasswordManager : public PasswordManagerInterface {
   // Returns true if password element is detected on the current page.
   bool IsPasswordFieldDetectedOnPage();
 
+  PasswordManagerClient* client() { return client_; }
+
 #if defined(UNIT_TEST)
   const std::vector<std::unique_ptr<PasswordFormManager>>& form_managers()
       const {
@@ -199,16 +191,17 @@ class PasswordManager : public PasswordManagerInterface {
   void set_leak_factory(std::unique_ptr<LeakDetectionCheckFactory> factory) {
     leak_delegate_.set_leak_factory(std::move(factory));
   }
+
 #endif  // defined(UNIT_TEST)
 
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
   // Reports the success from the renderer's PasswordAutofillAgent to fill
   // credentials into a site. This may be called multiple times, but only
   // the first result will be recorded for each PasswordFormManager.
   void LogFirstFillingResult(PasswordManagerDriver* driver,
                              autofill::FormRendererId form_renderer_id,
                              int32_t result);
-#endif  // !BUILDFLAG(IS_IOS)
+#endif  // !defined(OS_IOS)
 
   // Notifies that Credential Management API function store() is called.
   void NotifyStorePasswordCalled();
@@ -216,23 +209,12 @@ class PasswordManager : public PasswordManagerInterface {
   // Resets pending credentials.
   void ResetPendingCredentials();
 
+  // Notification that password form was cleared by the website.
+  void OnPasswordFormCleared(PasswordManagerDriver* driver,
+                             const autofill::FormData& form_data);
+
   // Returns true if a form manager is processing a password update.
   bool IsFormManagerPendingPasswordUpdate() const;
-
-  // Returns true if password manager has recorded a submitted manager.
-  bool HasSubmittedManager() const;
-
-  // Returns true if the password manager has recorded a submitted form
-  // and the new password in that form is the same as the old one.
-  bool HasSubmittedManagerWithSamePassword() const;
-
-  // Returns the submitted PasswordForm if there exists one.
-  // TODO (crbug.com/1310169): Eliminate "HasSubmittedManager".
-  absl::optional<PasswordForm> GetSubmittedCredentials();
-
-  // Saves the current submitted password to the disk. Password manager must
-  // have a submitted manager.
-  void SaveSubmittedManager();
 
  private:
   FRIEND_TEST_ALL_PREFIXES(
@@ -299,10 +281,6 @@ class PasswordManager : public PasswordManagerInterface {
   // gone.
   PasswordFormManager* GetSubmittedManager() const;
 
-  // Resets the form manager that corresponds to the submitted form, if it's
-  // available.
-  void ResetSubmittedManager();
-
   // Returns the form manager that corresponds to the submitted form. It also
   // sets |submitted_form_manager_| to nullptr.
   // TODO(https://crbug.com/831123): Remove when the old PasswordFormManager is
@@ -313,12 +291,17 @@ class PasswordManager : public PasswordManagerInterface {
   // |main_frame_url_|.
   void RecordProvisionalSaveFailure(
       PasswordManagerMetricsRecorder::ProvisionalSaveFailure failure,
-      const GURL& form_origin);
+      const GURL& form_origin,
+      BrowserSavePasswordProgressLogger* logger);
 
-  // Returns the manager which manages |form_id|. |driver| is needed to
-  // determine the match. Returns nullptr when no matched manager is found.
+  // Returns the manager which manages |form|. |driver| is needed to determine
+  // the match. Returns nullptr when no matched manager is found.
   PasswordFormManager* GetMatchedManager(PasswordManagerDriver* driver,
-                                         autofill::FormRendererId form_id);
+                                         const autofill::FormData& form);
+
+  // Log a frame (main frame, iframe) of a submitted password form.
+  void ReportSubmittedFormFrameMetric(const PasswordManagerDriver* driver,
+                                      const PasswordForm& form);
 
   //  If |possible_username_.form_predictions| is missing, this functions tries
   //  to find predictions for the form which contains |possible_username_| in
@@ -330,22 +313,17 @@ class PasswordManager : public PasswordManagerInterface {
   void ShowManualFallbackForSaving(PasswordFormManager* form_manager,
                                    const autofill::FormData& form_data);
 
-  // Returns true if |form_data| contains forms that are parsed for the first
-  // time and have no dedicated PasswordFormsManagers yet.
-  bool NewFormsParsed(PasswordManagerDriver* driver,
-                      const std::vector<autofill::FormData>& form_data);
-
   // Returns the timeout for the disabling Password Manager's prompts.
   base::TimeDelta GetTimeoutForDisablingPrompts();
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   // Even though the formal submission might not happen, the manager
   // could still be provisionally saved on user input or have autofilled data,
   // in this case submission might be considered successful and a save prompt
   // might be shown.
   bool DetectPotentialSubmission(
       PasswordFormManager* form_manager,
-      const autofill::FieldDataManager& field_data_manager,
+      const autofill::FieldDataManager* field_data_manager,
       PasswordManagerDriver* driver);
 #endif
 
@@ -376,9 +354,7 @@ class PasswordManager : public PasswordManagerInterface {
   std::unique_ptr<PasswordFormManager> owned_submitted_form_manager_;
 
   // The embedder-level client. Must outlive this class.
-  const raw_ptr<PasswordManagerClient> client_;
-
-  const base::CallbackListSubscription account_store_cb_list_subscription_;
+  PasswordManagerClient* const client_;
 
   // Records all visible forms seen during a page load, in all frames of the
   // page. When the page stops loading, the password manager checks if one of
@@ -400,7 +376,9 @@ class PasswordManager : public PasswordManagerInterface {
   // Helper for making the requests on leak detection.
   LeakDetectionDelegate leak_delegate_;
 
-  absl::optional<PossibleUsernameData> possible_username_;
+  base::Optional<PossibleUsernameData> possible_username_;
+
+  DISALLOW_COPY_AND_ASSIGN(PasswordManager);
 };
 
 }  // namespace password_manager

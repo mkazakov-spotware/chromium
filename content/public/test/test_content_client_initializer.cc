@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "content/public/browser/network_service_instance.h"
 #include "content/public/common/content_client.h"
 #include "content/public/test/mock_render_process_host.h"
-#include "content/test/mock_agent_scheduling_group_host.h"
 #include "content/test/test_content_browser_client.h"
 #include "content/test/test_content_client.h"
 #include "content/test/test_render_view_host_factory.h"
@@ -23,12 +22,12 @@ TestContentClientInitializer::TestContentClientInitializer() {
   SetNetworkConnectionTrackerForTesting(
       network::TestNetworkConnectionTracker::GetInstance());
 
-  notification_service_ = std::make_unique<NotificationServiceImpl>();
+  notification_service_.reset(new NotificationServiceImpl());
 
-  content_client_ = std::make_unique<TestContentClient>();
+  content_client_.reset(new TestContentClient);
   SetContentClient(content_client_.get());
 
-  content_browser_client_ = std::make_unique<TestContentBrowserClient>();
+  content_browser_client_.reset(new TestContentBrowserClient());
   content::SetBrowserClientForTesting(content_browser_client_.get());
 }
 
@@ -47,10 +46,9 @@ TestContentClientInitializer::~TestContentClientInitializer() {
 }
 
 void TestContentClientInitializer::CreateTestRenderViewHosts() {
-  rph_factory_ = std::make_unique<MockRenderProcessHostFactory>();
-  asgh_factory_ = std::make_unique<MockAgentSchedulingGroupHostFactory>();
-  test_render_view_host_factory_ = std::make_unique<TestRenderViewHostFactory>(
-      rph_factory_.get(), asgh_factory_.get());
+  rph_factory_.reset(new MockRenderProcessHostFactory());
+  test_render_view_host_factory_.reset(
+      new TestRenderViewHostFactory(rph_factory_.get()));
 }
 
 }  // namespace content

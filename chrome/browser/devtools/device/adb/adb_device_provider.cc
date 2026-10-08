@@ -1,11 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/devtools/device/adb/adb_device_provider.h"
 
 #include "base/bind.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/stringprintf.h"
 #include "chrome/browser/devtools/device/adb/adb_client_socket.h"
@@ -20,18 +19,19 @@ const int kAdbPort = 5037;
 
 static void RunCommand(const std::string& serial,
                        const std::string& command,
-                       AdbDeviceProvider::CommandCallback callback) {
+                       const AdbDeviceProvider::CommandCallback& callback) {
   std::string query = base::StringPrintf(
       kHostTransportCommand, serial.c_str(), command.c_str());
-  AdbClientSocket::AdbQuery(kAdbPort, query, std::move(callback));
+  AdbClientSocket::AdbQuery(kAdbPort, query, callback);
 }
 
-static void ReceivedAdbDevices(AdbDeviceProvider::SerialsCallback callback,
-                               int result_code,
-                               const std::string& response) {
+static void ReceivedAdbDevices(
+    const AdbDeviceProvider::SerialsCallback& callback,
+    int result_code,
+    const std::string& response) {
   std::vector<std::string> result;
   if (result_code < 0) {
-    std::move(callback).Run(std::move(result));
+    callback.Run(result);
     return;
   }
   for (const base::StringPiece& line :
@@ -40,32 +40,30 @@ static void ReceivedAdbDevices(AdbDeviceProvider::SerialsCallback callback,
     std::vector<base::StringPiece> tokens =
         base::SplitStringPiece(line, "\t ", base::KEEP_WHITESPACE,
                                base::SPLIT_WANT_NONEMPTY);
-    result.push_back(std::string(tokens[0]));
+    result.push_back(tokens[0].as_string());
   }
-  std::move(callback).Run(std::move(result));
+  callback.Run(result);
 }
 
 } // namespace
 
-void AdbDeviceProvider::QueryDevices(SerialsCallback callback) {
+void AdbDeviceProvider::QueryDevices(const SerialsCallback& callback) {
   AdbClientSocket::AdbQuery(
-      kAdbPort, kHostDevicesCommand,
-      base::BindOnce(&ReceivedAdbDevices, std::move(callback)));
+      kAdbPort, kHostDevicesCommand, base::Bind(&ReceivedAdbDevices, callback));
 }
 
 void AdbDeviceProvider::QueryDeviceInfo(const std::string& serial,
-                                        DeviceInfoCallback callback) {
-  AndroidDeviceManager::QueryDeviceInfo(base::BindOnce(&RunCommand, serial),
-                                        std::move(callback));
+                                        const DeviceInfoCallback& callback) {
+  AndroidDeviceManager::QueryDeviceInfo(base::Bind(&RunCommand, serial),
+                                        callback);
 }
 
 void AdbDeviceProvider::OpenSocket(const std::string& serial,
                                    const std::string& socket_name,
-                                   SocketCallback callback) {
+                                   const SocketCallback& callback) {
   std::string request =
       base::StringPrintf(kLocalAbstractCommand, socket_name.c_str());
-  AdbClientSocket::TransportQuery(kAdbPort, serial, request,
-                                  std::move(callback));
+  AdbClientSocket::TransportQuery(kAdbPort, serial, request, callback);
 }
 
 AdbDeviceProvider::~AdbDeviceProvider() {

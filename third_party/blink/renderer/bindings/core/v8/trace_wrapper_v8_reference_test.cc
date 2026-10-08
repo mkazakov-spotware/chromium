@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_testing.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
 
 namespace blink {
@@ -70,7 +68,7 @@ TEST_F(TraceWrapperV8ReferenceTest, CtorWithValue) {
   RunV8FullGC();
   CHECK(!holder1->ref()->IsEmpty());
   CHECK(!observer.IsEmpty());
-  holder1->ref()->Reset();
+  holder1->ref()->Clear();
   RunV8FullGC();
   CHECK(holder1->ref()->IsEmpty());
   CHECK(observer.IsEmpty());

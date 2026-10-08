@@ -1,71 +1,77 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {DragWrapper, DragWrapperDelegate} from 'chrome://resources/js/drag_wrapper.js';
-import {getCurrentlyDraggingTile, setCurrentDropEffect} from './tile_page.js';
 
 /**
  * @fileoverview Trash
  * This is the class for the trash can that appears when dragging an app.
  */
 
-
-/**
- * @constructor
- * @extends {HTMLDivElement}
- * @implements {DragWrapperDelegate}
- */
-export function Trash(trash) {
-  trash.__proto__ = Trash.prototype;
-  trash.initialize();
-  return trash;
-}
-
-Trash.prototype = {
-  __proto__: HTMLDivElement.prototype,
-
-  initialize(element) {
-    this.dragWrapper_ = new DragWrapper(this, this);
-  },
+cr.define('ntp', function() {
+  'use strict';
 
   /**
-   * Determines whether we are interested in the drag data for |e|.
-   * @param {Event} e The event from drag enter.
-   * @return {boolean} True if we are interested in the drag data for |e|.
+   * @constructor
+   * @extends {HTMLDivElement}
+   * @implements {cr.ui.DragWrapperDelegate}
    */
-  shouldAcceptDrag(e) {
-    const tile = getCurrentlyDraggingTile();
-    if (!tile) {
-      return false;
-    }
+  function Trash(trash) {
+    trash.__proto__ = Trash.prototype;
+    trash.initialize();
+    return trash;
+  }
 
-    return tile.firstChild.canBeRemoved();
-  },
+  Trash.prototype = {
+    __proto__: HTMLDivElement.prototype,
 
-  /** @override */
-  doDragOver(e) {
-    getCurrentlyDraggingTile().dragClone.classList.add('hovering-on-trash');
-    setCurrentDropEffect(e.dataTransfer, 'move');
-    e.preventDefault();
-  },
+    initialize(element) {
+      this.dragWrapper_ = new cr.ui.DragWrapper(this, this);
+    },
 
-  /** @override */
-  doDragEnter(e) {
-    this.doDragOver(e);
-  },
+    /**
+     * Determines whether we are interested in the drag data for |e|.
+     * @param {Event} e The event from drag enter.
+     * @return {boolean} True if we are interested in the drag data for |e|.
+     */
+    shouldAcceptDrag(e) {
+      const tile = ntp.getCurrentlyDraggingTile();
+      if (!tile) {
+        return false;
+      }
 
-  /** @override */
-  doDrop(e) {
-    e.preventDefault();
+      return tile.firstChild.canBeRemoved();
+    },
 
-    const tile = getCurrentlyDraggingTile();
-    tile.firstChild.removeFromChrome();
-    tile.landedOnTrash = true;
-  },
+    /** @override */
+    doDragOver(e) {
+      ntp.getCurrentlyDraggingTile().dragClone.classList.add(
+          'hovering-on-trash');
+      ntp.setCurrentDropEffect(e.dataTransfer, 'move');
+      e.preventDefault();
+    },
 
-  /** @override */
-  doDragLeave(e) {
-    getCurrentlyDraggingTile().dragClone.classList.remove('hovering-on-trash');
-  },
-};
+    /** @override */
+    doDragEnter(e) {
+      this.doDragOver(e);
+    },
+
+    /** @override */
+    doDrop(e) {
+      e.preventDefault();
+
+      const tile = ntp.getCurrentlyDraggingTile();
+      tile.firstChild.removeFromChrome();
+      tile.landedOnTrash = true;
+    },
+
+    /** @override */
+    doDragLeave(e) {
+      ntp.getCurrentlyDraggingTile().dragClone.classList.remove(
+          'hovering-on-trash');
+    },
+  };
+
+  return {
+    Trash: Trash,
+  };
+});

@@ -1,9 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef SERVICES_AUDIO_SNOOPABLE_H_
 #define SERVICES_AUDIO_SNOOPABLE_H_
+
+#include <string>
 
 #include "base/time/time.h"
 
@@ -32,6 +34,9 @@ class Snoopable {
   // must not change for the lifetime of this group member, but can be different
   // than those of other members.
   virtual const media::AudioParameters& GetAudioParameters() const = 0;
+
+  // Returns the id of the device the snoopable stream is connected to.
+  virtual std::string GetDeviceId() const = 0;
 
   // Starts/Stops snooping on the audio data flowing through this group member.
   virtual void StartSnooping(Snooper* snooper) = 0;

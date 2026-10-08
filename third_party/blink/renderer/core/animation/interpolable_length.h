@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,8 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_ANIMATION_INTERPOLABLE_LENGTH_H_
 
 #include <memory>
-
-#include "base/notreached.h"
 #include "third_party/blink/renderer/core/animation/interpolation_value.h"
 #include "third_party/blink/renderer/core/animation/pairwise_interpolation_value.h"
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/css_primitive_value.h"
 #include "third_party/blink/renderer/platform/geometry/length.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
@@ -42,11 +39,11 @@ class CORE_EXPORT InterpolableLength final : public InterpolableValue {
       std::unique_ptr<InterpolableValue> end);
 
   Length CreateLength(const CSSToLengthConversionData& conversion_data,
-                      Length::ValueRange range) const;
+                      ValueRange range) const;
 
   // Unlike CreateLength() this preserves all specified unit types via calc()
   // expressions.
-  const CSSPrimitiveValue* CreateCSSValue(Length::ValueRange range) const;
+  const CSSPrimitiveValue* CreateCSSValue(ValueRange range) const;
 
   void SetHasPercentage();
   bool HasPercentage() const;

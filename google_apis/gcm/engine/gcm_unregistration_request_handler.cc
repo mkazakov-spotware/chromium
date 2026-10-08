@@ -1,12 +1,13 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "google_apis/gcm/engine/gcm_unregistration_request_handler.h"
 
-#include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/stl_util.h"
 #include "google_apis/gcm/base/gcm_util.h"
+#include "net/url_request/url_fetcher.h"
 
 namespace gcm {
 
@@ -38,8 +39,8 @@ UnregistrationRequest::Status GCMUnregistrationRequestHandler::ParseResponse(
     const std::string& response) {
   DVLOG(1) << "Parsing unregistration response.";
   if (response.find(kDeletedPrefix) != std::string::npos) {
-    std::string deleted_app_id = response.substr(response.find(kDeletedPrefix) +
-                                                 std::size(kDeletedPrefix) - 1);
+    std::string deleted_app_id = response.substr(
+        response.find(kDeletedPrefix) + base::size(kDeletedPrefix) - 1);
     return deleted_app_id == app_id_ ?
         UnregistrationRequest::SUCCESS :
         UnregistrationRequest::INCORRECT_APP_ID;

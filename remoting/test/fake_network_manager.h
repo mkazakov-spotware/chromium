@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,8 +22,7 @@ class FakeNetworkManager : public rtc::NetworkManager {
   // rtc::NetworkManager interface.
   void StartUpdating() override;
   void StopUpdating() override;
-  std::vector<const rtc::Network*> GetNetworks() const override;
-  std::vector<const rtc::Network*> GetAnyAddressNetworks() override;
+  void GetNetworks(NetworkList* networks) const override;
 
  protected:
   void SendNetworksChangedSignal();

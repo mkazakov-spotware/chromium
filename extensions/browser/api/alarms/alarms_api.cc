@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,13 +35,12 @@ bool ValidateAlarmCreateInfo(const std::string& alarm_name,
                              const Extension* extension,
                              std::string* error,
                              std::vector<std::string>* warnings) {
-  if (create_info.delay_in_minutes && create_info.when) {
+  if (create_info.delay_in_minutes.get() && create_info.when.get()) {
     *error = kBothRelativeAndAbsoluteTime;
     return false;
   }
-  if (!create_info.delay_in_minutes.has_value() &&
-      !create_info.when.has_value() &&
-      !create_info.period_in_minutes.has_value()) {
+  if (create_info.delay_in_minutes == NULL && create_info.when == NULL &&
+      create_info.period_in_minutes == NULL) {
     *error = kNoScheduledTime;
     return false;
   }
@@ -52,7 +51,7 @@ bool ValidateAlarmCreateInfo(const std::string& alarm_name,
   // compute a long-enough timeout, but then the call into the alarms interface
   // gets delayed past the boundary).  However, it's still worth warning about
   // relative delays that are shorter than we'll honor.
-  if (create_info.delay_in_minutes) {
+  if (create_info.delay_in_minutes.get()) {
     if (*create_info.delay_in_minutes <
         alarms_api_constants::kReleaseDelayMinimum) {
       if (Manifest::IsUnpackedLocation(extension->location())) {
@@ -64,7 +63,7 @@ bool ValidateAlarmCreateInfo(const std::string& alarm_name,
       }
     }
   }
-  if (create_info.period_in_minutes) {
+  if (create_info.period_in_minutes.get()) {
     if (*create_info.period_in_minutes <
         alarms_api_constants::kReleaseDelayMinimum) {
       if (Manifest::IsUnpackedLocation(extension->location())) {
@@ -92,9 +91,10 @@ AlarmsCreateFunction::~AlarmsCreateFunction() {}
 
 ExtensionFunction::ResponseAction AlarmsCreateFunction::Run() {
   std::unique_ptr<alarms::Create::Params> params(
-      alarms::Create::Params::Create(args()));
+      alarms::Create::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params.get());
-  const std::string& alarm_name = params->name.value_or(kDefaultAlarmName);
+  const std::string& alarm_name =
+      params->name.get() ? *params->name : kDefaultAlarmName;
   std::vector<std::string> warnings;
   std::string error;
   if (!ValidateAlarmCreateInfo(alarm_name, params->alarm_info, extension(),
@@ -107,12 +107,14 @@ ExtensionFunction::ResponseAction AlarmsCreateFunction::Run() {
 
   const int kSecondsPerMinute = 60;
   base::TimeDelta granularity =
-      base::Seconds((Manifest::IsUnpackedLocation(extension()->location())
-                         ? alarms_api_constants::kDevDelayMinimum
-                         : alarms_api_constants::kReleaseDelayMinimum)) *
+      base::TimeDelta::FromSecondsD(
+          (Manifest::IsUnpackedLocation(extension()->location())
+               ? alarms_api_constants::kDevDelayMinimum
+               : alarms_api_constants::kReleaseDelayMinimum)) *
       kSecondsPerMinute;
 
-  Alarm alarm(alarm_name, params->alarm_info, granularity, clock_->Now());
+  std::unique_ptr<Alarm> alarm(
+      new Alarm(alarm_name, params->alarm_info, granularity, clock_->Now()));
   AlarmManager::Get(browser_context())
       ->AddAlarm(extension_id(), std::move(alarm),
                  base::BindOnce(&AlarmsCreateFunction::Callback, this));
@@ -127,10 +129,10 @@ void AlarmsCreateFunction::Callback() {
 
 ExtensionFunction::ResponseAction AlarmsGetFunction::Run() {
   std::unique_ptr<alarms::Get::Params> params(
-      alarms::Get::Params::Create(args()));
+      alarms::Get::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params.get());
 
-  std::string name = params->name.value_or(kDefaultAlarmName);
+  std::string name = params->name.get() ? *params->name : kDefaultAlarmName;
   AlarmManager::Get(browser_context())
       ->GetAlarm(extension_id(), name,
                  base::BindOnce(&AlarmsGetFunction::Callback, this, name));
@@ -141,11 +143,10 @@ ExtensionFunction::ResponseAction AlarmsGetFunction::Run() {
 
 void AlarmsGetFunction::Callback(const std::string& name,
                                  extensions::Alarm* alarm) {
-  if (alarm) {
+  if (alarm)
     Respond(ArgumentList(alarms::Get::Results::Create(*alarm->js_alarm)));
-  } else {
+  else
     Respond(NoArguments());
-  }
 }
 
 ExtensionFunction::ResponseAction AlarmsGetAllFunction::Run() {
@@ -157,20 +158,21 @@ ExtensionFunction::ResponseAction AlarmsGetAllFunction::Run() {
 }
 
 void AlarmsGetAllFunction::Callback(const AlarmList* alarms) {
-  base::Value::List alarms_value;
+  auto alarms_value = std::make_unique<base::ListValue>();
   if (alarms) {
-    for (const auto& alarm : *alarms)
-      alarms_value.Append(alarm.js_alarm->ToValue());
+    for (const std::unique_ptr<Alarm>& alarm : *alarms)
+      alarms_value->Append(alarm->js_alarm->ToValue());
   }
-  Respond(OneArgument(base::Value(std::move(alarms_value))));
+  Respond(
+      OneArgument(base::Value::FromUniquePtrValue(std::move(alarms_value))));
 }
 
 ExtensionFunction::ResponseAction AlarmsClearFunction::Run() {
   std::unique_ptr<alarms::Clear::Params> params(
-      alarms::Clear::Params::Create(args()));
+      alarms::Clear::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params.get());
 
-  std::string name = params->name.value_or(kDefaultAlarmName);
+  std::string name = params->name.get() ? *params->name : kDefaultAlarmName;
   AlarmManager::Get(browser_context())
       ->RemoveAlarm(extension_id(), name,
                     base::BindOnce(&AlarmsClearFunction::Callback, this, name));

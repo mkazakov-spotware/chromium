@@ -1,12 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <utility>
 
 #include "third_party/blink/renderer/modules/peerconnection/fake_rtc_rtp_transceiver_impl.h"
-#include "third_party/blink/renderer/platform/mediastream/media_stream_audio_track.h"
-#include "third_party/blink/renderer/platform/mediastream/media_stream_component_impl.h"
 #include "third_party/blink/renderer/platform/mediastream/media_stream_source.h"
 #include "third_party/blink/renderer/platform/peerconnection/rtc_dtmf_sender_handler.h"
 
@@ -15,22 +13,22 @@ namespace blink {
 MediaStreamComponent* CreateMediaStreamComponent(
     const std::string& id,
     scoped_refptr<base::SingleThreadTaskRunner> task_runner) {
+  auto* source = MakeGarbageCollected<MediaStreamSource>(
+      String::FromUTF8(id), MediaStreamSource::kTypeAudio,
+      String::FromUTF8("audio_track"), false);
   auto audio_source = std::make_unique<blink::MediaStreamAudioSource>(
       std::move(task_runner), true /* is_local_source */);
   auto* audio_source_ptr = audio_source.get();
-  auto* source = MakeGarbageCollected<MediaStreamSource>(
-      String::FromUTF8(id), MediaStreamSource::kTypeAudio,
-      String::FromUTF8("audio_track"), false, std::move(audio_source));
+  source->SetPlatformSource(std::move(audio_source));
 
-  auto* component = MakeGarbageCollected<MediaStreamComponentImpl>(
-      source->Id(), source,
-      std::make_unique<MediaStreamAudioTrack>(true /* is_local_track */));
-  audio_source_ptr->ConnectToInitializedTrack(component);
+  auto* component =
+      MakeGarbageCollected<MediaStreamComponent>(source->Id(), source);
+  audio_source_ptr->ConnectToTrack(component);
   return component;
 }
 
 FakeRTCRtpSenderImpl::FakeRTCRtpSenderImpl(
-    absl::optional<std::string> track_id,
+    base::Optional<std::string> track_id,
     std::vector<std::string> stream_ids,
     scoped_refptr<base::SingleThreadTaskRunner> task_runner)
     : track_id_(std::move(track_id)),
@@ -96,7 +94,8 @@ FakeRTCRtpSenderImpl::GetDtmfSender() const {
 
 std::unique_ptr<webrtc::RtpParameters> FakeRTCRtpSenderImpl::GetParameters()
     const {
-  return std::make_unique<webrtc::RtpParameters>();
+  NOTIMPLEMENTED();
+  return nullptr;
 }
 
 void FakeRTCRtpSenderImpl::SetParameters(
@@ -159,9 +158,8 @@ MediaStreamComponent* FakeRTCRtpReceiverImpl::Track() const {
 }
 
 Vector<String> FakeRTCRtpReceiverImpl::StreamIds() const {
-  Vector<String> wtf_stream_ids(
-      base::checked_cast<wtf_size_t>(stream_ids_.size()));
-  for (wtf_size_t i = 0; i < wtf_stream_ids.size(); ++i) {
+  Vector<String> wtf_stream_ids(stream_ids_.size());
+  for (size_t i = 0; i < stream_ids_.size(); ++i) {
     wtf_stream_ids[i] = String::FromUTF8(stream_ids_[i]);
   }
   return wtf_stream_ids;
@@ -185,23 +183,30 @@ std::unique_ptr<webrtc::RtpParameters> FakeRTCRtpReceiverImpl::GetParameters()
 }
 
 void FakeRTCRtpReceiverImpl::SetJitterBufferMinimumDelay(
-    absl::optional<double> delay_seconds) {
+    base::Optional<double> delay_seconds) {
   NOTIMPLEMENTED();
 }
 
 FakeRTCRtpTransceiverImpl::FakeRTCRtpTransceiverImpl(
-    absl::optional<std::string> mid,
+    base::Optional<std::string> mid,
     FakeRTCRtpSenderImpl sender,
     FakeRTCRtpReceiverImpl receiver,
+    bool stopped,
     webrtc::RtpTransceiverDirection direction,
-    absl::optional<webrtc::RtpTransceiverDirection> current_direction)
+    base::Optional<webrtc::RtpTransceiverDirection> current_direction)
     : mid_(std::move(mid)),
       sender_(std::move(sender)),
       receiver_(std::move(receiver)),
+      stopped_(stopped),
       direction_(std::move(direction)),
       current_direction_(std::move(current_direction)) {}
 
 FakeRTCRtpTransceiverImpl::~FakeRTCRtpTransceiverImpl() {}
+
+RTCRtpTransceiverPlatformImplementationType
+FakeRTCRtpTransceiverImpl::ImplementationType() const {
+  return RTCRtpTransceiverPlatformImplementationType::kFullTransceiver;
+}
 
 uintptr_t FakeRTCRtpTransceiverImpl::Id() const {
   NOTIMPLEMENTED();
@@ -222,6 +227,10 @@ std::unique_ptr<RTCRtpReceiverPlatform> FakeRTCRtpTransceiverImpl::Receiver()
   return receiver_.ShallowCopy();
 }
 
+bool FakeRTCRtpTransceiverImpl::Stopped() const {
+  return stopped_;
+}
+
 webrtc::RtpTransceiverDirection FakeRTCRtpTransceiverImpl::Direction() const {
   return direction_;
 }
@@ -232,30 +241,15 @@ webrtc::RTCError FakeRTCRtpTransceiverImpl::SetDirection(
   return webrtc::RTCError::OK();
 }
 
-absl::optional<webrtc::RtpTransceiverDirection>
+base::Optional<webrtc::RtpTransceiverDirection>
 FakeRTCRtpTransceiverImpl::CurrentDirection() const {
   return current_direction_;
 }
 
-absl::optional<webrtc::RtpTransceiverDirection>
+base::Optional<webrtc::RtpTransceiverDirection>
 FakeRTCRtpTransceiverImpl::FiredDirection() const {
   NOTIMPLEMENTED();
-  return absl::nullopt;
-}
-
-webrtc::RTCError FakeRTCRtpTransceiverImpl::SetOfferedRtpHeaderExtensions(
-    Vector<webrtc::RtpHeaderExtensionCapability> header_extensions) {
-  return webrtc::RTCError(webrtc::RTCErrorType::UNSUPPORTED_OPERATION);
-}
-
-Vector<webrtc::RtpHeaderExtensionCapability>
-FakeRTCRtpTransceiverImpl::HeaderExtensionsNegotiated() const {
-  return {};
-}
-
-Vector<webrtc::RtpHeaderExtensionCapability>
-FakeRTCRtpTransceiverImpl::HeaderExtensionsToOffer() const {
-  return {};
+  return base::nullopt;
 }
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,12 @@
 #define CHROME_BROWSER_PERMISSIONS_CONTEXTUAL_NOTIFICATION_PERMISSION_UI_SELECTOR_H_
 
 #include "base/callback.h"
-#include "chrome/browser/permissions/crowd_deny_preload_data.h"
+#include "base/optional.h"
 #include "chrome/browser/permissions/crowd_deny_safe_browsing_request.h"
-#include "components/permissions/permission_ui_selector.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "components/permissions/notification_permission_ui_selector.h"
 
 namespace permissions {
 class PermissionRequest;
-enum class RequestType;
 }
 
 namespace url {
@@ -30,7 +28,7 @@ class Origin;
 // Each instance of this class is long-lived and can support multiple requests,
 // but only one at a time.
 class ContextualNotificationPermissionUiSelector
-    : public permissions::PermissionUiSelector {
+    : public permissions::NotificationPermissionUiSelector {
  public:
   ContextualNotificationPermissionUiSelector();
   ~ContextualNotificationPermissionUiSelector() override;
@@ -40,9 +38,6 @@ class ContextualNotificationPermissionUiSelector
                      DecisionMadeCallback callback) override;
 
   void Cancel() override;
-
-  bool IsPermissionRequestSupported(
-      permissions::RequestType request_type) override;
 
  private:
   ContextualNotificationPermissionUiSelector(
@@ -56,14 +51,8 @@ class ContextualNotificationPermissionUiSelector
       CrowdDenySafeBrowsingRequest::Verdict verdict);
   void Notify(const Decision& decision);
 
-  void OnSiteReputationReady(
-      const url::Origin& origin,
-      const CrowdDenyPreloadData::SiteReputation* reputation);
-
-  absl::optional<CrowdDenySafeBrowsingRequest> safe_browsing_request_;
+  base::Optional<CrowdDenySafeBrowsingRequest> safe_browsing_request_;
   DecisionMadeCallback callback_;
-  base::WeakPtrFactory<ContextualNotificationPermissionUiSelector>
-      weak_factory_{this};
 };
 
 #endif  // CHROME_BROWSER_PERMISSIONS_CONTEXTUAL_NOTIFICATION_PERMISSION_UI_SELECTOR_H_

@@ -1,39 +1,41 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/thumbnails/thumbnail_tab_helper.h"
 
-#include <stdint.h>
 #include <algorithm>
 #include <set>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/check_op.h"
-#include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/no_destructor.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/timer/timer.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/resource_coordinator/tab_load_tracker.h"
 #include "chrome/browser/ui/tabs/tab_style.h"
-#include "chrome/browser/ui/thumbnails/background_thumbnail_video_capturer.h"
 #include "chrome/browser/ui/thumbnails/thumbnail_capture_driver.h"
 #include "chrome/browser/ui/thumbnails/thumbnail_readiness_tracker.h"
 #include "chrome/browser/ui/thumbnails/thumbnail_scheduler.h"
 #include "chrome/browser/ui/thumbnails/thumbnail_scheduler_impl.h"
+#include "components/history/core/common/thumbnail_score.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "media/capture/mojom/video_capture_types.mojom.h"
+#include "mojo/public/cpp/bindings/remote.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/gfx/geometry/size_f.h"
-#include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/gfx/scrollbar_size.h"
+#include "ui/gfx/skia_util.h"
 #include "ui/native_theme/native_theme.h"
 
 namespace {
@@ -55,6 +57,34 @@ gfx::Size GetMinimumThumbnailSize() {
 
   return min_target_size;
 }
+
+// Manages increment/decrement of video capture state on a WebContents.
+// Acquires (if possible) on construction, releases (if acquired) on
+// destruction.
+class ScopedThumbnailCapture {
+ public:
+  explicit ScopedThumbnailCapture(
+      content::WebContentsObserver* web_contents_observer)
+      : web_contents_observer_(web_contents_observer) {
+    auto* const contents = web_contents_observer->web_contents();
+    if (contents) {
+      contents->IncrementCapturerCount(gfx::Size(), /* stay_hidden */ true);
+      captured_ = true;
+    }
+  }
+
+  ~ScopedThumbnailCapture() {
+    auto* const contents = web_contents_observer_->web_contents();
+    if (captured_ && contents)
+      contents->DecrementCapturerCount(/* stay_hidden */ true);
+  }
+
+ private:
+  // We track a web contents observer because it's an easy way to see if the
+  // web contents has disappeared without having to add another observer.
+  content::WebContentsObserver* const web_contents_observer_;
+  bool captured_ = false;
+};
 
 }  // anonymous namespace
 
@@ -81,10 +111,9 @@ class ThumbnailTabHelper::TabStateTracker
                   content::WebContents* contents)
       : content::WebContentsObserver(contents),
         thumbnail_tab_helper_(thumbnail_tab_helper),
-        readiness_tracker_(
-            contents,
-            base::BindRepeating(&TabStateTracker::PageReadinessChanged,
-                                base::Unretained(this))) {
+        readiness_tracker_(contents,
+                           base::Bind(&TabStateTracker::PageReadinessChanged,
+                                      base::Unretained(this))) {
     visible_ =
         (web_contents()->GetVisibility() == content::Visibility::VISIBLE);
   }
@@ -94,7 +123,7 @@ class ThumbnailTabHelper::TabStateTracker
   // none.
   content::RenderWidgetHostView* GetView() {
     auto* const contents = web_contents();
-    return contents ? contents->GetPrimaryMainFrame()
+    return contents ? contents->GetMainFrame()
                           ->GetRenderViewHost()
                           ->GetWidget()
                           ->GetView()
@@ -103,7 +132,7 @@ class ThumbnailTabHelper::TabStateTracker
 
   // Returns true if we are capturing thumbnails from a tab and should continue
   // to do so, false if we should stop.
-  bool ShouldContinueVideoCapture() const { return !!scoped_capture_; }
+  bool ShouldContinueVideoCapture() const { return scoped_capture_ != nullptr; }
 
   // Tells our scheduling logic that a frame was received.
   void OnFrameCaptured(CaptureType capture_type) {
@@ -112,15 +141,12 @@ class ThumbnailTabHelper::TabStateTracker
   }
 
  private:
-  using CaptureReadinesss = ThumbnailImage::CaptureReadiness;
+  using PageReadiness = ThumbnailReadinessTracker::Readiness;
 
   // ThumbnailCaptureDriver::Client:
   void RequestCapture() override {
-    if (!scoped_capture_) {
-      scoped_capture_ = web_contents()->IncrementCapturerCount(
-          gfx::Size(), /*stay_hidden=*/true,
-          /*stay_awake=*/false);
-    }
+    if (!scoped_capture_)
+      scoped_capture_ = std::make_unique<ScopedThumbnailCapture>(this);
   }
 
   void StartCapture() override {
@@ -130,7 +156,7 @@ class ThumbnailTabHelper::TabStateTracker
 
   void StopCapture() override {
     thumbnail_tab_helper_->StopVideoCapture();
-    scoped_capture_.RunAndReset();
+    scoped_capture_.reset();
   }
 
   // content::WebContentsObserver:
@@ -141,14 +167,13 @@ class ThumbnailTabHelper::TabStateTracker
 
     visible_ = new_visible;
     capture_driver_.UpdatePageVisibility(visible_);
-    if (!visible_ && page_readiness_ != CaptureReadinesss::kNotReady)
+    if (!visible_ && page_readiness_ != PageReadiness::kNotReady)
       thumbnail_tab_helper_->CaptureThumbnailOnTabHidden();
   }
 
   void RenderViewReady() override { capture_driver_.SetCanCapture(true); }
 
-  void PrimaryMainFrameRenderProcessGone(
-      base::TerminationStatus status) override {
+  void RenderProcessGone(base::TerminationStatus status) override {
     // TODO(crbug.com/1073141): determine if there are other ways to
     // lose the view.
     capture_driver_.SetCanCapture(false);
@@ -161,22 +186,12 @@ class ThumbnailTabHelper::TabStateTracker
       web_contents()->GetController().LoadIfNecessary();
   }
 
-  ThumbnailImage::CaptureReadiness GetCaptureReadiness() const override {
-    return page_readiness_;
-  }
-
-  void PageReadinessChanged(CaptureReadinesss readiness) {
-    if (page_readiness_ == readiness)
-      return;
-    // If we transition back to a kNotReady state, clear any existing thumbnail,
-    // as it will contain an old snapshot, possibly from a different domain.
-    if (readiness == CaptureReadinesss::kNotReady)
-      thumbnail_tab_helper_->ClearData();
+  void PageReadinessChanged(PageReadiness readiness) {
     page_readiness_ = readiness;
     capture_driver_.UpdatePageReadiness(readiness);
   }
 
-  const raw_ptr<ThumbnailTabHelper> thumbnail_tab_helper_;
+  ThumbnailTabHelper* const thumbnail_tab_helper_;
 
   ThumbnailCaptureDriver capture_driver_{
       this, &thumbnail_tab_helper_->GetScheduler()};
@@ -186,26 +201,29 @@ class ThumbnailTabHelper::TabStateTracker
   bool visible_ = false;
 
   // Where we are in the page lifecycle.
-  CaptureReadinesss page_readiness_ = CaptureReadinesss::kNotReady;
+  PageReadiness page_readiness_ = PageReadiness::kNotReady;
 
-  // Scoped request for video capture.
-  base::ScopedClosureRunner scoped_capture_;
+  // Scoped request for video capture. Ensures we always decrement the counter
+  // once per increment.
+  std::unique_ptr<ScopedThumbnailCapture> scoped_capture_;
 };
 
 // ThumbnailTabHelper ----------------------------------------------------
 
 ThumbnailTabHelper::ThumbnailTabHelper(content::WebContents* contents)
-    : content::WebContentsUserData<ThumbnailTabHelper>(*contents),
-      state_(std::make_unique<TabStateTracker>(this, contents)),
-      background_capturer_(std::make_unique<BackgroundThumbnailVideoCapturer>(
-          contents,
-          base::BindRepeating(
-              &ThumbnailTabHelper::StoreThumbnailForBackgroundCapture,
-              base::Unretained(this)))),
+    : state_(std::make_unique<TabStateTracker>(this, contents)),
       thumbnail_(base::MakeRefCounted<ThumbnailImage>(state_.get())) {}
 
 ThumbnailTabHelper::~ThumbnailTabHelper() {
   StopVideoCapture();
+}
+
+// Called when a thumbnail is published to observers. Records what
+// method was used to capture the thumbnail.
+//
+// static
+void ThumbnailTabHelper::RecordCaptureType(CaptureType type) {
+  UMA_HISTOGRAM_ENUMERATION("Tab.Preview.CaptureType", type);
 }
 
 // static
@@ -246,58 +264,177 @@ void ThumbnailTabHelper::StoreThumbnailForTabSwitch(base::TimeTicks start_time,
                                                     const SkBitmap& bitmap) {
   UMA_HISTOGRAM_CUSTOM_TIMES("Tab.Preview.TimeToStoreAfterTabSwitch",
                              base::TimeTicks::Now() - start_time,
-                             base::Milliseconds(1), base::Seconds(1), 50);
-  StoreThumbnail(CaptureType::kCopyFromView, bitmap, absl::nullopt);
-}
-
-void ThumbnailTabHelper::StoreThumbnailForBackgroundCapture(
-    const SkBitmap& bitmap,
-    uint64_t frame_id) {
-  StoreThumbnail(CaptureType::kVideoFrame, bitmap, frame_id);
+                             base::TimeDelta::FromMilliseconds(1),
+                             base::TimeDelta::FromSeconds(1), 50);
+  StoreThumbnail(CaptureType::kCopyFromView, bitmap);
 }
 
 void ThumbnailTabHelper::StoreThumbnail(CaptureType type,
-                                        const SkBitmap& bitmap,
-                                        absl::optional<uint64_t> frame_id) {
-  // Failed requests will return an empty bitmap. In tests this can be triggered
-  // on threads other than the UI thread.
+                                        const SkBitmap& bitmap) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+
   if (bitmap.drawsNothing())
     return;
 
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-
+  RecordCaptureType(type);
   state_->OnFrameCaptured(type);
-  thumbnail_->AssignSkBitmap(bitmap, frame_id);
-}
-
-void ThumbnailTabHelper::ClearData() {
-  thumbnail_->ClearData();
+  thumbnail_->AssignSkBitmap(bitmap);
 }
 
 void ThumbnailTabHelper::StartVideoCapture() {
+  if (video_capturer_)
+    return;
+
+  // This pointer can become null before this method is called - see
+  // RenderWidgetHost::GetView() for details.
   content::RenderWidgetHostView* const source_view = state_->GetView();
   if (!source_view)
     return;
 
+  // Get the source size and scale.
   const float scale_factor = source_view->GetDeviceScaleFactor();
   const gfx::Size source_size = source_view->GetViewBounds().size();
   if (source_size.IsEmpty())
     return;
 
-  last_frame_capture_info_ = GetInitialCaptureInfo(
-      source_size, scale_factor, /* include_scrollbars_in_capture */ true);
-  background_capturer_->Start(last_frame_capture_info_);
+  start_video_capture_time_ = base::TimeTicks::Now();
+  got_first_frame_ = false;
+
+  // Figure out how large we want the capture target to be.
+  last_frame_capture_info_ =
+      GetInitialCaptureInfo(source_size, scale_factor,
+                            /* include_scrollbars_in_capture */ true);
+
+  const gfx::Size& target_size = last_frame_capture_info_.target_size;
+  constexpr int kMaxFrameRate = 2;
+  video_capturer_ = source_view->CreateVideoCapturer();
+  video_capturer_->SetResolutionConstraints(target_size, target_size, false);
+  video_capturer_->SetAutoThrottlingEnabled(false);
+  video_capturer_->SetMinSizeChangePeriod(base::TimeDelta());
+  video_capturer_->SetFormat(media::PIXEL_FORMAT_ARGB,
+                             gfx::ColorSpace::CreateREC709());
+  video_capturer_->SetMinCapturePeriod(base::TimeDelta::FromSeconds(1) /
+                                       kMaxFrameRate);
+  video_capturer_->Start(this);
 }
 
 void ThumbnailTabHelper::StopVideoCapture() {
-  background_capturer_->Stop();
+  if (!video_capturer_) {
+    DCHECK_EQ(start_video_capture_time_, base::TimeTicks());
+    return;
+  }
+
+  video_capturer_->Stop();
+  video_capturer_.reset();
+
+  UMA_HISTOGRAM_MEDIUM_TIMES(
+      "Tab.Preview.VideoCaptureDuration",
+      base::TimeTicks::Now() - start_video_capture_time_);
+
+  start_video_capture_time_ = base::TimeTicks();
 }
 
+void ThumbnailTabHelper::OnFrameCaptured(
+    base::ReadOnlySharedMemoryRegion data,
+    ::media::mojom::VideoFrameInfoPtr info,
+    const gfx::Rect& content_rect,
+    mojo::PendingRemote<::viz::mojom::FrameSinkVideoConsumerFrameCallbacks>
+        callbacks) {
+  CHECK(video_capturer_);
+  const base::TimeTicks time_of_call = base::TimeTicks::Now();
+
+  mojo::Remote<::viz::mojom::FrameSinkVideoConsumerFrameCallbacks>
+      callbacks_remote(std::move(callbacks));
+
+  // Process captured image.
+  if (!data.IsValid()) {
+    callbacks_remote->Done();
+    return;
+  }
+  base::ReadOnlySharedMemoryMapping mapping = data.Map();
+  if (!mapping.IsValid()) {
+    DLOG(ERROR) << "Shared memory mapping failed.";
+    return;
+  }
+  if (mapping.size() <
+      media::VideoFrame::AllocationSize(info->pixel_format, info->coded_size)) {
+    DLOG(ERROR) << "Shared memory size was less than expected.";
+    return;
+  }
+  if (!info->color_space) {
+    DLOG(ERROR) << "Missing mandatory color space info.";
+    return;
+  }
+
+  if (!got_first_frame_) {
+    UMA_HISTOGRAM_TIMES("Tab.Preview.TimeToFirstUsableFrameAfterStartCapture",
+                        time_of_call - start_video_capture_time_);
+    got_first_frame_ = true;
+  }
+
+  // The SkBitmap's pixels will be marked as immutable, but the installPixels()
+  // API requires a non-const pointer. So, cast away the const.
+  void* const pixels = const_cast<void*>(mapping.memory());
+
+  // Call installPixels() with a |releaseProc| that: 1) notifies the capturer
+  // that this consumer has finished with the frame, and 2) releases the shared
+  // memory mapping.
+  struct FramePinner {
+    // Keeps the shared memory that backs |frame_| mapped.
+    base::ReadOnlySharedMemoryMapping mapping;
+    // Prevents FrameSinkVideoCapturer from recycling the shared memory that
+    // backs |frame_|.
+    mojo::PendingRemote<viz::mojom::FrameSinkVideoConsumerFrameCallbacks>
+        releaser;
+  };
+
+  // Subtract back out the scroll bars if we decided there was enough canvas to
+  // account for them and still have a decent preview image.
+  const float scale_ratio = float{content_rect.width()} /
+                            float{last_frame_capture_info_.copy_rect.width()};
+
+  const gfx::Insets original_scroll_insets =
+      last_frame_capture_info_.scrollbar_insets;
+  const gfx::Insets scroll_insets(
+      0, 0, std::round(original_scroll_insets.width() * scale_ratio),
+      std::round(original_scroll_insets.height() * scale_ratio));
+  gfx::Rect effective_content_rect = content_rect;
+  effective_content_rect.Inset(scroll_insets);
+
+  const gfx::Size bitmap_size(content_rect.right(), content_rect.bottom());
+  SkBitmap frame;
+  frame.installPixels(
+      SkImageInfo::MakeN32(bitmap_size.width(), bitmap_size.height(),
+                           kPremul_SkAlphaType,
+                           info->color_space->ToSkColorSpace()),
+      pixels,
+      media::VideoFrame::RowBytes(media::VideoFrame::kARGBPlane,
+                                  info->pixel_format, info->coded_size.width()),
+      [](void* addr, void* context) {
+        delete static_cast<FramePinner*>(context);
+      },
+      new FramePinner{std::move(mapping), callbacks_remote.Unbind()});
+  frame.setImmutable();
+
+  SkBitmap cropped_frame;
+  if (frame.extractSubset(&cropped_frame,
+                          gfx::RectToSkIRect(effective_content_rect))) {
+    UMA_HISTOGRAM_CUSTOM_MICROSECONDS_TIMES(
+        "Tab.Preview.TimeToStoreAfterFrameReceived",
+        base::TimeTicks::Now() - time_of_call,
+        base::TimeDelta::FromMicroseconds(10),
+        base::TimeDelta::FromMilliseconds(10), 50);
+    StoreThumbnail(CaptureType::kVideoFrame, cropped_frame);
+  }
+}
+
+void ThumbnailTabHelper::OnStopped() {}
+
 // static
-ThumbnailCaptureInfo ThumbnailTabHelper::GetInitialCaptureInfo(
-    const gfx::Size& source_size,
-    float scale_factor,
-    bool include_scrollbars_in_capture) {
+ThumbnailTabHelper::ThumbnailCaptureInfo
+ThumbnailTabHelper::GetInitialCaptureInfo(const gfx::Size& source_size,
+                                          float scale_factor,
+                                          bool include_scrollbars_in_capture) {
   ThumbnailCaptureInfo capture_info;
   capture_info.source_size = source_size;
 
@@ -340,11 +477,10 @@ ThumbnailCaptureInfo ThumbnailTabHelper::GetInitialCaptureInfo(
   // Calculate the target size to be the smallest size which meets the minimum
   // requirements but has the same aspect ratio as the source (with or without
   // scrollbars).
-  const float width_ratio = static_cast<float>(capture_info.copy_rect.width()) /
-                            min_target_size.width();
+  const float width_ratio =
+      float{capture_info.copy_rect.width()} / min_target_size.width();
   const float height_ratio =
-      static_cast<float>(capture_info.copy_rect.height()) /
-      min_target_size.height();
+      float{capture_info.copy_rect.height()} / min_target_size.height();
   const float scale_ratio = std::min(width_ratio, height_ratio);
   capture_info.target_size =
       scale_ratio <= 1.0f
@@ -355,4 +491,4 @@ ThumbnailCaptureInfo ThumbnailTabHelper::GetInitialCaptureInfo(
   return capture_info;
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(ThumbnailTabHelper);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(ThumbnailTabHelper)

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "base/file_version_info.h"
 #include "base/files/file_path.h"
 #include "base/notreached.h"
-#include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/win/registry.h"
 #include "build/branding_buildflags.h"
@@ -19,26 +18,26 @@ namespace credential_provider {
 GcpCrashReporterClient::~GcpCrashReporterClient() = default;
 
 base::FilePath GcpCrashReporterClient::GetPathForFileVersionInfo(
-    const std::wstring& exe_path) {
+    const base::string16& exe_path) {
   return base::FilePath(exe_path);
 }
 
 bool GcpCrashReporterClient::ShouldCreatePipeName(
-    const std::wstring& process_type) {
+    const base::string16& process_type) {
   return true;
 }
 
 bool GcpCrashReporterClient::GetAlternativeCrashDumpLocation(
-    std::wstring* crash_dir) {
+    base::string16* crash_dir) {
   return false;
 }
 
 void GcpCrashReporterClient::GetProductNameAndVersion(
-    const std::wstring& exe_path,
-    std::wstring* product_name,
-    std::wstring* version,
-    std::wstring* special_build,
-    std::wstring* channel_name) {
+    const base::string16& exe_path,
+    base::string16* product_name,
+    base::string16* version,
+    base::string16* special_build,
+    base::string16* channel_name) {
   DCHECK(product_name);
   DCHECK(version);
   DCHECK(special_build);
@@ -53,15 +52,15 @@ void GcpCrashReporterClient::GetProductNameAndVersion(
           GetPathForFileVersionInfo(exe_path)));
 
   if (version_info) {
-    *version = base::AsWString(version_info->product_version());
-    *special_build = base::AsWString(version_info->special_build());
+    *version = version_info->product_version();
+    *special_build = version_info->special_build();
   } else {
     *version = L"0.0.0.0-devel";
   }
 }
 
-bool GcpCrashReporterClient::ShouldShowRestartDialog(std::wstring* title,
-                                                     std::wstring* message,
+bool GcpCrashReporterClient::ShouldShowRestartDialog(base::string16* title,
+                                                     base::string16* message,
                                                      bool* is_rtl_locale) {
   // There is no UX associated with GCPW, so no dialog should be shown.
   return false;
@@ -87,7 +86,7 @@ int GcpCrashReporterClient::GetResultCodeRespawnFailed() {
   return 0;
 }
 
-bool GcpCrashReporterClient::GetCrashDumpLocation(std::wstring* crash_dir) {
+bool GcpCrashReporterClient::GetCrashDumpLocation(base::string16* crash_dir) {
   base::FilePath crash_directory_path = GetFolderForCrashDumps();
   if (crash_directory_path.empty())
     return false;

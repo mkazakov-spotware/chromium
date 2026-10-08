@@ -1,12 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/touch/touch_hud_renderer.h"
 
-#include <memory>
-
-#include "base/scoped_observation.h"
 #include "base/time/time.h"
 #include "third_party/skia/include/effects/SkGradientShader.h"
 #include "ui/compositor/layer.h"
@@ -15,7 +12,7 @@
 #include "ui/gfx/animation/linear_animation.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/size.h"
-#include "ui/gfx/geometry/skia_conversions.h"
+#include "ui/gfx/skia_util.h"
 #include "ui/views/animation/animation_delegate_views.h"
 #include "ui/views/view.h"
 #include "ui/views/widget/widget.h"
@@ -24,10 +21,11 @@
 namespace ash {
 
 constexpr int kPointRadius = 20;
-constexpr SkColor4f kProjectionFillColor{0.96f, 0.96f, 0.86f, 1.0f};
-constexpr SkColor4f kProjectionStrokeColor = SkColors::kGray;
+constexpr SkColor kProjectionFillColor = SkColorSetRGB(0xF5, 0xF5, 0xDC);
+constexpr SkColor kProjectionStrokeColor = SK_ColorGRAY;
 constexpr int kProjectionAlpha = 0xB0;
-constexpr base::TimeDelta kFadeoutDuration = base::Milliseconds(250);
+constexpr base::TimeDelta kFadeoutDuration =
+    base::TimeDelta::FromMilliseconds(250);
 constexpr int kFadeoutFrameRate = 60;
 
 // TouchPointView draws a single touch point.
@@ -42,11 +40,8 @@ class TouchPointView : public views::View,
 
     SetSize(gfx::Size(2 * kPointRadius + 2, 2 * kPointRadius + 2));
 
-    widget_observation_.Observe(parent_widget);
+    widget_observer_.Add(parent_widget);
   }
-
-  TouchPointView(const TouchPointView&) = delete;
-  TouchPointView& operator=(const TouchPointView&) = delete;
 
   ~TouchPointView() override = default;
 
@@ -56,8 +51,8 @@ class TouchPointView : public views::View,
   void FadeOut(std::unique_ptr<TouchPointView> self) {
     DCHECK_EQ(this, self.get());
     owned_self_reference_ = std::move(self);
-    fadeout_ = std::make_unique<gfx::LinearAnimation>(kFadeoutDuration,
-                                                      kFadeoutFrameRate, this);
+    fadeout_.reset(
+        new gfx::LinearAnimation(kFadeoutDuration, kFadeoutFrameRate, this));
     fadeout_->Start();
   }
 
@@ -78,15 +73,15 @@ class TouchPointView : public views::View,
     cc::PaintFlags fill_flags;
     fill_flags.setAlpha(alpha);
 
-    constexpr SkColor4f gradient_colors[2] = {kProjectionFillColor,
-                                              kProjectionStrokeColor};
+    constexpr SkColor gradient_colors[2] = {kProjectionFillColor,
+                                            kProjectionStrokeColor};
     constexpr SkScalar gradient_pos[2] = {SkFloatToScalar(0.9f),
                                           SkFloatToScalar(1.0f)};
     constexpr gfx::Point center(kPointRadius + 1, kPointRadius + 1);
 
     fill_flags.setShader(cc::PaintShader::MakeRadialGradient(
         gfx::PointToSkPoint(center), SkIntToScalar(kPointRadius),
-        gradient_colors, gradient_pos, std::size(gradient_colors),
+        gradient_colors, gradient_pos, base::size(gradient_colors),
         SkTileMode::kMirror));
     canvas->DrawCircle(center, SkIntToScalar(kPointRadius), fill_flags);
 
@@ -123,8 +118,9 @@ class TouchPointView : public views::View,
   // itself. This should be non-null when fading out, and null otherwise.
   std::unique_ptr<TouchPointView> owned_self_reference_;
 
-  base::ScopedObservation<views::Widget, views::WidgetObserver>
-      widget_observation_{this};
+  ScopedObserver<views::Widget, views::WidgetObserver> widget_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(TouchPointView);
 };
 
 TouchHudRenderer::TouchHudRenderer(views::Widget* parent_widget)

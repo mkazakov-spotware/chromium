@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "base/notreached.h"
 
 namespace video_tutorials {
+namespace {
 
 FeatureType ToFeatureType(proto::FeatureType type) {
   switch (type) {
@@ -50,7 +51,23 @@ proto::FeatureType FromFeatureType(FeatureType type) {
   }
 }
 
-void TutorialFromProto(const proto::VideoTutorial* proto, Tutorial* tutorial) {
+}  // namespace
+
+void TutorialToProto(Tutorial* tutorial, TutorialProto* proto) {
+  DCHECK(tutorial);
+  DCHECK(proto);
+  proto->set_feature(FromFeatureType(tutorial->feature));
+  proto->set_title(tutorial->title);
+  proto->set_video_url(tutorial->video_url.spec());
+  proto->set_share_url(tutorial->share_url.spec());
+  proto->set_poster_url(tutorial->poster_url.spec());
+  proto->set_animated_gif_url(tutorial->animated_gif_url.spec());
+  proto->set_thumbnail_url(tutorial->thumbnail_url.spec());
+  proto->set_caption_url(tutorial->caption_url.spec());
+  proto->set_video_length(tutorial->video_length);
+}
+
+void TutorialFromProto(TutorialProto* proto, Tutorial* tutorial) {
   DCHECK(tutorial);
   DCHECK(proto);
   tutorial->feature = ToFeatureType(proto->feature());
@@ -64,16 +81,36 @@ void TutorialFromProto(const proto::VideoTutorial* proto, Tutorial* tutorial) {
   tutorial->video_length = proto->video_length();
 }
 
-std::vector<Tutorial> TutorialsFromProto(
-    const proto::VideoTutorialGroup* proto) {
-  std::vector<Tutorial> tutorials;
+void TutorialGroupToProto(TutorialGroup* group, TutorialGroupProto* proto) {
+  DCHECK(group);
   DCHECK(proto);
-  for (const auto& tutorial_proto : proto->tutorials()) {
+  proto->set_language(group->language);
+  proto->clear_tutorials();
+  for (auto& tutorial : group->tutorials)
+    TutorialToProto(&tutorial, proto->add_tutorials());
+}
+
+void TutorialGroupFromProto(TutorialGroupProto* proto, TutorialGroup* group) {
+  DCHECK(group);
+  DCHECK(proto);
+  group->language = proto->language();
+  group->tutorials.clear();
+  for (auto tutorial_proto : proto->tutorials()) {
     Tutorial tutorial;
     TutorialFromProto(&tutorial_proto, &tutorial);
-    tutorials.emplace_back(std::move(tutorial));
+    group->tutorials.emplace_back(std::move(tutorial));
   }
-  return tutorials;
+}
+
+void TutorialGroupsFromServerResponseProto(ServerResponseProto* proto,
+                                           std::vector<TutorialGroup>* groups) {
+  DCHECK(groups);
+  DCHECK(proto);
+  for (auto group_proto : proto->tutorial_groups()) {
+    TutorialGroup group;
+    TutorialGroupFromProto(&group_proto, &group);
+    groups->emplace_back(group);
+  }
 }
 
 }  // namespace video_tutorials

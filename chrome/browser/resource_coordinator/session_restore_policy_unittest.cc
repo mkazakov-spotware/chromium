@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,14 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/rand_util.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "build/build_config.h"
-#if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/notifications/notification_permission_context.h"
+#if !defined(OS_ANDROID)
 #include "chrome/browser/performance_manager/test_support/site_data_utils.h"
 #endif
 #include "chrome/browser/resource_coordinator/tab_helper.h"
@@ -26,7 +26,6 @@
 #include "components/performance_manager/public/decorators/site_data_recorder.h"
 #include "components/performance_manager/public/performance_manager.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/test/mock_permission_controller.h"
 #include "content/public/test/web_contents_tester.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -39,9 +38,6 @@ namespace {
 class TestDelegate : public SessionRestorePolicy::Delegate {
  public:
   explicit TestDelegate(base::TickClock* clock) : clock_(clock) {}
-
-  TestDelegate(const TestDelegate&) = delete;
-  TestDelegate& operator=(const TestDelegate&) = delete;
 
   ~TestDelegate() override {}
 
@@ -69,8 +65,10 @@ class TestDelegate : public SessionRestorePolicy::Delegate {
  private:
   size_t number_of_cores_ = 1;
   size_t free_memory_mb_ = 0;
-  raw_ptr<base::TickClock> clock_ = nullptr;
+  base::TickClock* clock_ = nullptr;
   size_t site_engagement_score_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(TestDelegate);
 };
 
 class LenientTabScoreChangeMock {
@@ -109,9 +107,6 @@ class TestSessionRestorePolicy : public SessionRestorePolicy {
   TestSessionRestorePolicy(bool policy_enabled, const Delegate* delegate)
       : SessionRestorePolicy(policy_enabled, delegate) {}
 
-  TestSessionRestorePolicy(const TestSessionRestorePolicy&) = delete;
-  TestSessionRestorePolicy& operator=(const TestSessionRestorePolicy&) = delete;
-
   ~TestSessionRestorePolicy() override {}
 
   using RescoreTabCallback =
@@ -137,6 +132,8 @@ class TestSessionRestorePolicy : public SessionRestorePolicy {
 
  private:
   RescoreTabCallback rescore_tab_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestSessionRestorePolicy);
 };
 
 }  // namespace
@@ -145,15 +142,12 @@ class SessionRestorePolicyTest : public ChromeRenderViewHostTestHarness {
  public:
   SessionRestorePolicyTest() : delegate_(&clock_) {}
 
-  SessionRestorePolicyTest(const SessionRestorePolicyTest&) = delete;
-  SessionRestorePolicyTest& operator=(const SessionRestorePolicyTest&) = delete;
-
   ~SessionRestorePolicyTest() override {}
 
   void SetUp() override {
     ChromeRenderViewHostTestHarness::SetUp();
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
     // Some tests requires the SiteData database to be initialized.
     site_data_harness_.SetUp();
 #endif
@@ -164,13 +158,13 @@ class SessionRestorePolicyTest : public ChromeRenderViewHostTestHarness {
     delegate_.SetSiteEngagementScore(30);
 
     // Put the clock in the future so that we can LastActiveTimes in the past.
-    clock_.Advance(base::Days(1));
+    clock_.Advance(base::TimeDelta::FromDays(1));
 
     CreateTestContents();
   }
 
   void TearDown() override {
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
     performance_manager::MarkWebContentsAsUnloadedInBackgroundInSiteDataDb(
         contents1_.get());
     performance_manager::MarkWebContentsAsUnloadedInBackgroundInSiteDataDb(
@@ -189,7 +183,7 @@ class SessionRestorePolicyTest : public ChromeRenderViewHostTestHarness {
 
     tab_for_scoring_.clear();
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
     site_data_harness_.TearDown(profile());
 #endif
     ChromeRenderViewHostTestHarness::TearDown();
@@ -197,11 +191,14 @@ class SessionRestorePolicyTest : public ChromeRenderViewHostTestHarness {
 
   void CreateTestContents() {
     contents1_ = CreateAndInitTestWebContents(
-        GURL("https://a.com"), clock_.NowTicks() - base::Hours(1));
+        GURL("https://a.com"),
+        clock_.NowTicks() - base::TimeDelta::FromHours(1));
     contents2_ = CreateAndInitTestWebContents(
-        GURL("https://b.com"), clock_.NowTicks() - base::Hours(2));
+        GURL("https://b.com"),
+        clock_.NowTicks() - base::TimeDelta::FromHours(2));
     contents3_ = CreateAndInitTestWebContents(
-        GURL("https://c.com"), clock_.NowTicks() - base::Hours(3));
+        GURL("https://c.com"),
+        clock_.NowTicks() - base::TimeDelta::FromHours(3));
 
     tab_for_scoring_ = {contents1_.get(), contents2_.get(), contents3_.get()};
   }
@@ -213,7 +210,7 @@ class SessionRestorePolicyTest : public ChromeRenderViewHostTestHarness {
     auto* tester = content::WebContentsTester::For(contents.get());
     tester->SetLastActiveTime(last_active);
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
     tester->NavigateAndCommit(url);
     performance_manager::MarkWebContentsAsLoadedInBackgroundInSiteDataDb(
         contents.get());
@@ -234,7 +231,8 @@ class SessionRestorePolicyTest : public ChromeRenderViewHostTestHarness {
     policy_->min_tabs_to_restore_ = 2;
     policy_->max_tabs_to_restore_ = 30;
     policy_->mb_free_memory_per_tab_to_restore_ = 150;
-    policy_->max_time_since_last_use_to_restore_ = base::Hours(6);
+    policy_->max_time_since_last_use_to_restore_ =
+        base::TimeDelta::FromHours(6);
     policy_->min_site_engagement_to_restore_ = 15;
 
     // Ensure the simultaneous tab loads is properly calculated wrt the above
@@ -264,7 +262,7 @@ class SessionRestorePolicyTest : public ChromeRenderViewHostTestHarness {
   base::SimpleTestTickClock clock_;
   TestDelegate delegate_;
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   performance_manager::SiteDataTestHarness site_data_harness_;
 #endif
 
@@ -276,6 +274,9 @@ class SessionRestorePolicyTest : public ChromeRenderViewHostTestHarness {
   std::unique_ptr<content::WebContents> contents3_;
 
   std::vector<content::WebContents*> tab_for_scoring_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SessionRestorePolicyTest);
 };
 
 TEST_F(SessionRestorePolicyTest, CalculateSimultaneousTabLoads) {
@@ -358,7 +359,8 @@ TEST_F(SessionRestorePolicyTest, ShouldLoadFeatureEnabled) {
   // Reset and impose a max time since use policy. The contents have ages of 1,
   // 2 and 3 hours respectively.
   policy_->SetTabLoadsStartedForTesting(0);
-  policy_->max_time_since_last_use_to_restore_ = base::Minutes(90);
+  policy_->max_time_since_last_use_to_restore_ =
+      base::TimeDelta::FromMinutes(90);
   EXPECT_TRUE(policy_->ShouldLoad(contents1_.get()));
   policy_->NotifyTabLoadStarted();
   EXPECT_FALSE(policy_->ShouldLoad(contents2_.get()));
@@ -395,7 +397,8 @@ TEST_F(SessionRestorePolicyTest, ShouldLoadFeatureDisabled) {
   policy_->min_tabs_to_restore_ = 0;
   policy_->max_tabs_to_restore_ = 1;
   policy_->mb_free_memory_per_tab_to_restore_ = 1024;
-  policy_->max_time_since_last_use_to_restore_ = base::Minutes(1);
+  policy_->max_time_since_last_use_to_restore_ =
+      base::TimeDelta::FromMinutes(1);
   policy_->min_site_engagement_to_restore_ = 100;
 
   // Make the system look like its effectively out of memory as well.
@@ -457,8 +460,12 @@ TEST_F(SessionRestorePolicyTest, NotificationPermissionSetUsedInBgBit) {
 
   // Allow |contents1_| to display notifications, this should cause the
   // |used_in_bg| bit to change to true.
-  GetBrowserContext()->SetPermissionControllerForTesting(
-      std::make_unique<content::MockPermissionController>());
+
+  const GURL kTestURL("https://foo.com/");
+  NotificationPermissionContext::UpdatePermission(profile(), kTestURL,
+                                                  CONTENT_SETTING_ALLOW);
+  content::WebContentsTester::For(contents1_.get())
+      ->SetLastCommittedURL(kTestURL);
 
   // Adding/Removing the tab for scoring will cause the callback to be called a
   // few times, ignore this.
@@ -472,6 +479,9 @@ TEST_F(SessionRestorePolicyTest, NotificationPermissionSetUsedInBgBit) {
   iter = policy_->tab_data_.find(contents1_.get());
   EXPECT_TRUE(iter != policy_->tab_data_.end());
   EXPECT_TRUE(iter->second->UsedInBg());
+
+  NotificationPermissionContext::UpdatePermission(profile(), kTestURL,
+                                                  CONTENT_SETTING_DEFAULT);
 }
 
 TEST_F(SessionRestorePolicyTest, MultipleAllTabsDoneCallbacks) {
@@ -509,35 +519,35 @@ TEST_F(SessionRestorePolicyTest, CalculateAgeScore) {
 
   // Generate some known edge cases.
   size_t i = 0;
-  tab_data[i++]->last_active = base::Milliseconds(-1001);
-  tab_data[i++]->last_active = base::Milliseconds(-1000);
-  tab_data[i++]->last_active = base::Milliseconds(-999);
-  tab_data[i++]->last_active = base::Milliseconds(-500);
-  tab_data[i++]->last_active = base::Milliseconds(0);
-  tab_data[i++]->last_active = base::Milliseconds(500);
-  tab_data[i++]->last_active = base::Milliseconds(999);
-  tab_data[i++]->last_active = base::Milliseconds(1000);
-  tab_data[i++]->last_active = base::Milliseconds(1001);
+  tab_data[i++]->last_active = base::TimeDelta::FromMilliseconds(-1001);
+  tab_data[i++]->last_active = base::TimeDelta::FromMilliseconds(-1000);
+  tab_data[i++]->last_active = base::TimeDelta::FromMilliseconds(-999);
+  tab_data[i++]->last_active = base::TimeDelta::FromMilliseconds(-500);
+  tab_data[i++]->last_active = base::TimeDelta::FromMilliseconds(0);
+  tab_data[i++]->last_active = base::TimeDelta::FromMilliseconds(500);
+  tab_data[i++]->last_active = base::TimeDelta::FromMilliseconds(999);
+  tab_data[i++]->last_active = base::TimeDelta::FromMilliseconds(1000);
+  tab_data[i++]->last_active = base::TimeDelta::FromMilliseconds(1001);
 
   // Generate a logarithmic selection of ages to test the whole range.
-  tab_data[i++]->last_active = base::Seconds(-1000000);
-  tab_data[i++]->last_active = base::Seconds(-100000);
-  tab_data[i++]->last_active = base::Seconds(-10000);
-  tab_data[i++]->last_active = base::Seconds(-1000);
-  tab_data[i++]->last_active = base::Seconds(-100);
-  tab_data[i++]->last_active = base::Seconds(-10);
-  tab_data[i++]->last_active = base::Seconds(10);
-  tab_data[i++]->last_active = base::Seconds(100);
-  tab_data[i++]->last_active = base::Seconds(1000);
-  tab_data[i++]->last_active = base::Seconds(10000);
-  tab_data[i++]->last_active = base::Seconds(100000);
-  tab_data[i++]->last_active = base::Seconds(1000000);
-  tab_data[i++]->last_active = base::Seconds(10000000);
+  tab_data[i++]->last_active = base::TimeDelta::FromSeconds(-1000000);
+  tab_data[i++]->last_active = base::TimeDelta::FromSeconds(-100000);
+  tab_data[i++]->last_active = base::TimeDelta::FromSeconds(-10000);
+  tab_data[i++]->last_active = base::TimeDelta::FromSeconds(-1000);
+  tab_data[i++]->last_active = base::TimeDelta::FromSeconds(-100);
+  tab_data[i++]->last_active = base::TimeDelta::FromSeconds(-10);
+  tab_data[i++]->last_active = base::TimeDelta::FromSeconds(10);
+  tab_data[i++]->last_active = base::TimeDelta::FromSeconds(100);
+  tab_data[i++]->last_active = base::TimeDelta::FromSeconds(1000);
+  tab_data[i++]->last_active = base::TimeDelta::FromSeconds(10000);
+  tab_data[i++]->last_active = base::TimeDelta::FromSeconds(100000);
+  tab_data[i++]->last_active = base::TimeDelta::FromSeconds(1000000);
+  tab_data[i++]->last_active = base::TimeDelta::FromSeconds(10000000);
 
   // Generate a bunch more random ages.
   for (; i < tab_data.size(); ++i) {
-    tab_data[i]->last_active =
-        base::Seconds(base::RandInt(-kMonthInSeconds, kMonthInSeconds));
+    tab_data[i]->last_active = base::TimeDelta::FromSeconds(
+        base::RandInt(-kMonthInSeconds, kMonthInSeconds));
   }
 
   // Calculate the tab scores.
@@ -564,13 +574,13 @@ TEST_F(SessionRestorePolicyTest, ScoreTab) {
 
   TabData td_bg;
   td_bg.used_in_bg = true;
-  td_bg.last_active = base::Days(30);
+  td_bg.last_active = base::TimeDelta::FromDays(30);
   EXPECT_TRUE(TestSessionRestorePolicy::ScoreTab(&td_bg));
 
   TabData td_normal_young;
   TabData td_normal_old;
-  td_normal_young.last_active = base::Seconds(1);
-  td_normal_old.last_active = base::Days(7);
+  td_normal_young.last_active = base::TimeDelta::FromSeconds(1);
+  td_normal_old.last_active = base::TimeDelta::FromDays(7);
   EXPECT_TRUE(TestSessionRestorePolicy::ScoreTab(&td_normal_young));
   EXPECT_TRUE(TestSessionRestorePolicy::ScoreTab(&td_normal_old));
 
@@ -611,7 +621,7 @@ TEST_F(SessionRestorePolicyTest, RescoringSendsNotification) {
   WaitForFinalTabScores();
 }
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 TEST_F(SessionRestorePolicyTest, FeatureUsageSetUsedInBgBit) {
   CreatePolicy(true);
   WaitForFinalTabScores();
@@ -625,20 +635,20 @@ TEST_F(SessionRestorePolicyTest, FeatureUsageSetUsedInBgBit) {
 
   base::RunLoop run_loop;
   performance_manager::PerformanceManager::CallOnGraph(
-      FROM_HERE, base::BindOnce(
-                     [](base::WeakPtr<performance_manager::PageNode> page_node,
-                        base::OnceClosure closure) {
-                       EXPECT_TRUE(page_node);
-                       auto* impl =
-                           performance_manager::GetSiteDataImplForPageNode(
-                               page_node.get());
-                       EXPECT_TRUE(impl);
-                       impl->NotifyUpdatesTitleInBackground();
-                       std::move(closure).Run();
-                     },
-                     performance_manager::PerformanceManager::
-                         GetPrimaryPageNodeForWebContents(contents1_.get()),
-                     run_loop.QuitClosure()));
+      FROM_HERE,
+      base::BindOnce(
+          [](base::WeakPtr<performance_manager::PageNode> page_node,
+             base::OnceClosure closure) {
+            EXPECT_TRUE(page_node);
+            auto* impl = performance_manager::GetSiteDataImplForPageNode(
+                page_node.get());
+            EXPECT_TRUE(impl);
+            impl->NotifyUpdatesTitleInBackground();
+            std::move(closure).Run();
+          },
+          performance_manager::PerformanceManager::GetPageNodeForWebContents(
+              contents1_.get()),
+          run_loop.QuitClosure()));
   run_loop.Run();
 
   // Adding/Removing the tab for scoring will cause the callback to be called a
@@ -687,8 +697,8 @@ TEST_F(SessionRestorePolicyTest, UnknownUsageSetUsedInBgBit) {
                 title_feature_usage);
             std::move(closure).Run();
           },
-          performance_manager::PerformanceManager::
-              GetPrimaryPageNodeForWebContents(contents.get()),
+          performance_manager::PerformanceManager::GetPageNodeForWebContents(
+              contents.get()),
           run_loop.QuitClosure()));
   run_loop.Run();
 

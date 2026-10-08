@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_INLINE_NG_INLINE_CHILD_LAYOUT_CONTEXT_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_INLINE_NG_INLINE_CHILD_LAYOUT_CONTEXT_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/ng/inline/ng_fragment_items_builder.h"
 #include "third_party/blink/renderer/core/layout/ng/inline/ng_inline_box_state.h"
@@ -25,11 +24,16 @@ class CORE_EXPORT NGInlineChildLayoutContext {
   STACK_ALLOCATED();
 
  public:
-  NGInlineChildLayoutContext(const NGInlineNode& node,
-                             NGBoxFragmentBuilder* container_builder);
+  NGInlineChildLayoutContext();
   ~NGInlineChildLayoutContext();
 
-  NGFragmentItemsBuilder* ItemsBuilder() { return &items_builder_; }
+  NGFragmentItemsBuilder* ItemsBuilder() { return items_builder_; }
+  void SetItemsBuilder(NGFragmentItemsBuilder* builder) {
+    DCHECK(!items_builder_ || !builder);
+    items_builder_ = builder;
+    if (builder)
+      builder->AddLogicalLineItemsPool(&logical_line_items_);
+  }
 
   // Returns an instance of |NGLogicalLineItems|. This is reused when laying out
   // the next line.
@@ -46,35 +50,34 @@ class CORE_EXPORT NGInlineChildLayoutContext {
   // To determine this, callers must call |SetItemIndex| to set the end of the
   // current line.
   NGInlineLayoutStateStack* BoxStatesIfValidForItemIndex(
-      const HeapVector<NGInlineItem>& items,
+      const Vector<NGInlineItem>& items,
       unsigned item_index);
-  void SetItemIndex(const HeapVector<NGInlineItem>& items,
-                    unsigned item_index) {
+  void SetItemIndex(const Vector<NGInlineItem>& items, unsigned item_index) {
     items_ = &items;
     item_index_ = item_index;
   }
 
-  const HeapVector<Member<const NGBlockBreakToken>>& PropagatedBreakTokens()
+  const Vector<scoped_refptr<const NGBlockBreakToken>>& PropagatedBreakTokens()
       const {
     return propagated_float_break_tokens_;
   }
   void ClearPropagatedBreakTokens();
-  void PropagateBreakToken(const NGBlockBreakToken*);
+  void PropagateBreakToken(scoped_refptr<const NGBlockBreakToken>);
 
  private:
-  NGBoxFragmentBuilder* container_builder_ = nullptr;
-  NGFragmentItemsBuilder items_builder_;
+  // TODO(kojii): Probably better to own |NGInlineChildLayoutContext|. While we
+  // transit, allocating separately is easier.
+  NGFragmentItemsBuilder* items_builder_ = nullptr;
 
-  NGLogicalLineItems& logical_line_items_ =
-      *MakeGarbageCollected<NGLogicalLineItems>();
+  NGLogicalLineItems logical_line_items_;
 
-  absl::optional<NGInlineLayoutStateStack> box_states_;
+  base::Optional<NGInlineLayoutStateStack> box_states_;
 
   // The items and its index this context is set up for.
-  const HeapVector<NGInlineItem>* items_ = nullptr;
+  const Vector<NGInlineItem>* items_ = nullptr;
   unsigned item_index_ = 0;
 
-  HeapVector<Member<const NGBlockBreakToken>> propagated_float_break_tokens_;
+  Vector<scoped_refptr<const NGBlockBreakToken>> propagated_float_break_tokens_;
 };
 
 }  // namespace blink

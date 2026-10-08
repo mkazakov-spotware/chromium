@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,10 @@
 #include "ash/ash_export.h"
 #include "ash/wm/overview/delayed_animation_observer.h"
 #include "ash/wm/overview/overview_delegate.h"
-#include "ash/wm/overview/overview_metrics.h"
 #include "ash/wm/overview/overview_observer.h"
 #include "ash/wm/overview/overview_session.h"
 #include "ash/wm/overview/overview_types.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/time/time.h"
@@ -31,21 +31,14 @@ class ASH_EXPORT OverviewController : public OverviewDelegate,
                                       public ::wm::ActivationChangeObserver {
  public:
   OverviewController();
-
-  OverviewController(const OverviewController&) = delete;
-  OverviewController& operator=(const OverviewController&) = delete;
-
   ~OverviewController() override;
 
-  // Starts/Ends overview with `type`. Returns true if enter or exit overview
-  // successful. Depending on `type` the enter/exit animation will look
-  // different. `action` is used by UMA to record the reasons that trigger
-  // overview starts or ends. E.g, pressing the overview button.
+  // Starts/Ends overview with |type|. Returns true if enter or exit overview
+  // successful. Depending on |type| the enter/exit animation will look
+  // different.
   bool StartOverview(
-      OverviewStartAction action,
       OverviewEnterExitType type = OverviewEnterExitType::kNormal);
-  bool EndOverview(OverviewEndAction action,
-                   OverviewEnterExitType type = OverviewEnterExitType::kNormal);
+  bool EndOverview(OverviewEnterExitType type = OverviewEnterExitType::kNormal);
 
   // Returns true if overview mode is active.
   bool InOverviewSession() const;
@@ -95,8 +88,8 @@ class ASH_EXPORT OverviewController : public OverviewDelegate,
 
   OverviewSession* overview_session() { return overview_session_.get(); }
 
-  bool disable_app_id_check_for_saved_desks() const {
-    return disable_app_id_check_for_saved_desks_;
+  OverviewWallpaperController* overview_wallpaper_controller() {
+    return overview_wallpaper_controller_.get();
   }
 
   void set_occlusion_pause_duration_for_end_for_test(base::TimeDelta duration) {
@@ -109,13 +102,10 @@ class ASH_EXPORT OverviewController : public OverviewDelegate,
   // Gets the windows list that are shown in the overview windows grids if the
   // overview mode is active for testing.
   std::vector<aura::Window*> GetWindowsListInOverviewGridsForTest();
+  std::vector<aura::Window*> GetItemWindowListInOverviewGridsForTest();
 
  private:
-  friend class SavedDeskTest;
-
-  void set_disable_app_id_check_for_saved_desks(bool val) {
-    disable_app_id_check_for_saved_desks_ = val;
-  }
+  friend class OverviewSessionTest;
 
   // Toggle overview mode. Depending on |type| the enter/exit animation will
   // look different.
@@ -170,15 +160,9 @@ class ASH_EXPORT OverviewController : public OverviewDelegate,
 
   std::unique_ptr<views::Widget::PaintAsActiveLock> paint_as_active_lock_;
 
-  // In ash unittests, the `FullRestoreSaveHandler` isn't hooked up so
-  // initialized windows lack an app id. If a window doesn't have a valid app
-  // id, then it won't be tracked by `OverviewGrid` as a supported window and
-  // those windows will be deemed unsupported for Saved Desks. If
-  // `disable_app_id_check_for_saved_desks_` is true, then this check is
-  // omitted so we can test Saved Desks.
-  bool disable_app_id_check_for_saved_desks_ = false;
-
   base::WeakPtrFactory<OverviewController> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(OverviewController);
 };
 
 }  // namespace ash

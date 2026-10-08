@@ -1,10 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.device_dialog;
 
-import android.app.Activity;
 import android.app.Dialog;
 import android.graphics.drawable.Drawable;
 import android.text.SpannableString;
@@ -31,21 +30,18 @@ import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
-import org.chromium.components.permissions.DeviceItemAdapter;
-import org.chromium.components.permissions.ItemChooserDialog;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.browser.test.util.TouchCommon;
 import org.chromium.ui.widget.TextViewWithClickableSpans;
 
 /**
  * Tests for the ItemChooserDialog class.
- *
- * TODO(crbug.com/1222669): Componentize this test.
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
@@ -98,9 +94,9 @@ public class ItemChooserDialogTest implements ItemChooserDialog.ItemSelectedCall
     }
 
     private Drawable getNewTestDrawable() {
-        final Activity activity = sActivityTestRule.getActivity();
-        Drawable drawable = VectorDrawableCompat.create(
-                activity.getResources(), R.drawable.ic_bluetooth_connected, activity.getTheme());
+        Drawable drawable =
+                VectorDrawableCompat.create(sActivityTestRule.getActivity().getResources(),
+                        R.drawable.ic_bluetooth_connected, null);
         // Calling mutate() on a Drawable should typically create a new ConstantState
         // for that Drawable. Ensure the new drawable doesn't share a state with other
         // drwables.
@@ -115,14 +111,15 @@ public class ItemChooserDialogTest implements ItemChooserDialog.ItemSelectedCall
         SpannableString statusIdleNoneFound = new SpannableString("statusIdleNoneFound");
         SpannableString statusIdleSomeFound = new SpannableString("statusIdleSomeFound");
         String positiveButton = new String("positiveButton");
-        ItemChooserDialog.ItemChooserLabels labels =
+        final ItemChooserDialog.ItemChooserLabels labels =
                 new ItemChooserDialog.ItemChooserLabels(title, searching, noneFound, statusActive,
                         statusIdleNoneFound, statusIdleSomeFound, positiveButton);
-        Activity activity = sActivityTestRule.getActivity();
-        return TestThreadUtils.runOnUiThreadBlockingNoException(() -> {
-            return new ItemChooserDialog(
-                    activity, activity.getWindow(), ItemChooserDialogTest.this, labels);
+        ItemChooserDialog dialog = TestThreadUtils.runOnUiThreadBlockingNoException(() -> {
+            ItemChooserDialog dialog1 = new ItemChooserDialog(
+                    sActivityTestRule.getActivity(), ItemChooserDialogTest.this, labels);
+            return dialog1;
         });
+        return dialog;
     }
 
     private void selectItem(Dialog dialog, int position, String expectedItemId,
@@ -462,6 +459,7 @@ public class ItemChooserDialogTest implements ItemChooserDialog.ItemSelectedCall
 
     @Test
     @SmallTest
+    @DisabledTest(message = "crbug.com/958558")
     public void testSimpleItemSelection() {
         Dialog dialog = mChooserDialog.getDialogForTesting();
         Assert.assertTrue(dialog.isShowing());
@@ -483,7 +481,7 @@ public class ItemChooserDialogTest implements ItemChooserDialog.ItemSelectedCall
         });
 
         // Two items showing, the empty view should be no more and the button
-        // remains disabled.
+        // should now be enabled.
         Assert.assertEquals(View.VISIBLE, items.getVisibility());
         Assert.assertEquals(View.GONE, items.getEmptyView().getVisibility());
         Assert.assertEquals("statusActive", statusView.getText().toString());
@@ -499,11 +497,9 @@ public class ItemChooserDialogTest implements ItemChooserDialog.ItemSelectedCall
         Assert.assertEquals("statusIdleSomeFound", statusView.getText().toString());
         Assert.assertFalse(button.isEnabled());
 
-        // Select the first item and verify it got selected. The "Pair" button
-        // should now be enabled.
+        // Select the first item and verify it got selected.
         selectItem(dialog, 1, "key1", true);
         Assert.assertTrue(getDescriptionTextView(dialog, 1).isSelected());
-        Assert.assertTrue(button.isEnabled());
     }
 
     @Test

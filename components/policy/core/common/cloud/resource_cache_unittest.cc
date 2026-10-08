@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,10 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_simple_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -55,9 +56,8 @@ class ResourceCacheTest : public testing::Test {
 };
 
 TEST_F(ResourceCacheTest, StoreAndLoad) {
-  ResourceCache cache(temp_dir_.GetPath(),
-                      base::SingleThreadTaskRunner::GetCurrentDefault(),
-                      /* max_cache_size */ absl::nullopt);
+  ResourceCache cache(temp_dir_.GetPath(), base::ThreadTaskRunnerHandle::Get(),
+                      /* max_cache_size */ base::nullopt);
 
   // No data initially.
   std::string data;
@@ -145,9 +145,8 @@ TEST_F(ResourceCacheTest, StoreAndLoad) {
 }
 
 TEST_F(ResourceCacheTest, FilterSubkeys) {
-  ResourceCache cache(temp_dir_.GetPath(),
-                      base::SingleThreadTaskRunner::GetCurrentDefault(),
-                      /* max_cache_size */ absl::nullopt);
+  ResourceCache cache(temp_dir_.GetPath(), base::ThreadTaskRunnerHandle::Get(),
+                      /* max_cache_size */ base::nullopt);
 
   // Store some data.
   EXPECT_FALSE(cache.Store(kKey1, kSubA, kData0).empty());
@@ -183,8 +182,7 @@ TEST_F(ResourceCacheTest, FilterSubkeys) {
 }
 
 TEST_F(ResourceCacheTest, StoreWithEnabledCacheLimit) {
-  ResourceCache cache(temp_dir_.GetPath(),
-                      base::SingleThreadTaskRunner::GetCurrentDefault(),
+  ResourceCache cache(temp_dir_.GetPath(), base::ThreadTaskRunnerHandle::Get(),
                       kMaxCacheSize);
   task_environment_.RunUntilIdle();
 
@@ -221,7 +219,7 @@ TEST_F(ResourceCacheTest, StoreWithEnabledCacheLimit) {
   EXPECT_FALSE(cache.Store(kKey1, kSubB, kData1).empty());
 }
 
-#if BUILDFLAG(IS_POSIX)  // Because of symbolic links.
+#if defined(OS_POSIX)  // Because of symbolic links.
 
 TEST_F(ResourceCacheTest, StoreInDirectoryWithCycleSymlinks) {
   base::FilePath inner_dir = temp_dir_.GetPath().AppendASCII("inner");
@@ -229,8 +227,7 @@ TEST_F(ResourceCacheTest, StoreInDirectoryWithCycleSymlinks) {
   base::FilePath symlink_to_parent = inner_dir.AppendASCII("symlink");
   ASSERT_TRUE(base::CreateSymbolicLink(temp_dir_.GetPath(), symlink_to_parent));
 
-  ResourceCache cache(temp_dir_.GetPath(),
-                      base::SingleThreadTaskRunner::GetCurrentDefault(),
+  ResourceCache cache(temp_dir_.GetPath(), base::ThreadTaskRunnerHandle::Get(),
                       kMaxCacheSize);
   task_environment_.RunUntilIdle();
 
@@ -245,8 +242,7 @@ TEST_F(ResourceCacheTest, StoreInDirectoryWithSymlinkToRoot) {
   base::FilePath symlink_to_root = temp_dir_.GetPath().AppendASCII("symlink");
   ASSERT_TRUE(base::CreateSymbolicLink(root_path, symlink_to_root));
 
-  ResourceCache cache(temp_dir_.GetPath(),
-                      base::SingleThreadTaskRunner::GetCurrentDefault(),
+  ResourceCache cache(temp_dir_.GetPath(), base::ThreadTaskRunnerHandle::Get(),
                       kMaxCacheSize);
   task_environment_.RunUntilIdle();
 
@@ -254,6 +250,6 @@ TEST_F(ResourceCacheTest, StoreInDirectoryWithSymlinkToRoot) {
   EXPECT_FALSE(cache.Store(kKey1, kSubA, kData10Kb).empty());
 }
 
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // defined(OS_POSIX)
 
 }  // namespace policy

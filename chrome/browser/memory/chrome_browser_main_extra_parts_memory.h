@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,19 +7,18 @@
 
 #include <memory>
 
-#include "build/chromeos_buildflags.h"
+#include "base/macros.h"
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-namespace ash {
+#if defined(OS_CHROMEOS)
+namespace chromeos {
 namespace memory {
 class SystemMemoryPressureEvaluator;
 }
-}  // namespace ash
+}  // namespace chromeos
 #endif
 
 namespace memory {
-class MemoryAblationStudy;
 class EnterpriseMemoryLimitPrefObserver;
 }  // namespace memory
 
@@ -27,12 +26,6 @@ class EnterpriseMemoryLimitPrefObserver;
 class ChromeBrowserMainExtraPartsMemory : public ChromeBrowserMainExtraParts {
  public:
   ChromeBrowserMainExtraPartsMemory();
-
-  ChromeBrowserMainExtraPartsMemory(const ChromeBrowserMainExtraPartsMemory&) =
-      delete;
-  ChromeBrowserMainExtraPartsMemory& operator=(
-      const ChromeBrowserMainExtraPartsMemory&) = delete;
-
   ~ChromeBrowserMainExtraPartsMemory() override;
 
  private:
@@ -49,11 +42,12 @@ class ChromeBrowserMainExtraPartsMemory : public ChromeBrowserMainExtraParts {
   std::unique_ptr<memory::EnterpriseMemoryLimitPrefObserver>
       memory_limit_pref_observer_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  std::unique_ptr<ash::memory::SystemMemoryPressureEvaluator> cros_evaluator_;
+#if defined(OS_CHROMEOS)
+  std::unique_ptr<chromeos::memory::SystemMemoryPressureEvaluator>
+      cros_evaluator_;
 #endif
 
-  std::unique_ptr<memory::MemoryAblationStudy> memory_ablation_study_;
+  DISALLOW_COPY_AND_ASSIGN(ChromeBrowserMainExtraPartsMemory);
 };
 
 #endif  // CHROME_BROWSER_MEMORY_CHROME_BROWSER_MAIN_EXTRA_PARTS_MEMORY_H_

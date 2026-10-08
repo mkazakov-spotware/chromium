@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@ namespace WTF {
 class PartitionsTest : public ::testing::Test {
  protected:
   void TearDown() override {
-    ::partition_alloc::MemoryReclaimer::Instance()->ReclaimAll();
+    base::PartitionAllocMemoryReclaimer::Instance()->Reclaim();
   }
 };
 
@@ -48,9 +48,7 @@ TEST_F(PartitionsTest, MemoryIsInitiallyCommitted) {
 
   // Decommit is not triggered by deallocation.
   size_t committed_after_free = Partitions::TotalSizeOfCommittedPages();
-  // >0 rather than equal to |committed_after|, since total waste in empty slot
-  // spans is capped.
-  EXPECT_GT(committed_after_free, 0u);
+  EXPECT_EQ(committed_after_free, committed_after);
 }
 
 TEST_F(PartitionsTest, Decommit) {
@@ -70,7 +68,7 @@ TEST_F(PartitionsTest, Decommit) {
   // Decommit is not triggered by deallocation.
   EXPECT_GT(committed_after, committed_before);
   // Decommit works.
-  ::partition_alloc::MemoryReclaimer::Instance()->ReclaimAll();
+  base::PartitionAllocMemoryReclaimer::Instance()->Reclaim();
   EXPECT_LT(Partitions::TotalSizeOfCommittedPages(), committed_after);
 }
 

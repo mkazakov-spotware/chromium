@@ -1,14 +1,14 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_COMPRESSION_INFLATE_TRANSFORMER_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_COMPRESSION_INFLATE_TRANSFORMER_H_
 
-#include "base/types/strong_alias.h"
+#include "base/util/type_safety/strong_alias.h"
+
 #include "third_party/blink/renderer/core/streams/transform_stream_transformer.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_typed_array.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 #include "third_party/zlib/zlib.h"
 
@@ -19,10 +19,6 @@ enum class CompressionFormat;
 class InflateTransformer final : public TransformStreamTransformer {
  public:
   InflateTransformer(ScriptState*, CompressionFormat);
-
-  InflateTransformer(const InflateTransformer&) = delete;
-  InflateTransformer& operator=(const InflateTransformer&) = delete;
-
   ~InflateTransformer() override;
 
   ScriptPromise Transform(v8::Local<v8::Value> chunk,
@@ -37,7 +33,7 @@ class InflateTransformer final : public TransformStreamTransformer {
   void Trace(Visitor*) const override;
 
  private:
-  using IsFinished = base::StrongAlias<class IsFinishedTag, bool>;
+  using IsFinished = util::StrongAlias<class IsFinishedTag, bool>;
 
   void Inflate(const uint8_t*,
                wtf_size_t,
@@ -60,6 +56,8 @@ class InflateTransformer final : public TransformStreamTransformer {
 
   // This buffer size has been experimentally verified to be optimal.
   static constexpr wtf_size_t kBufferSize = 65536;
+
+  DISALLOW_COPY_AND_ASSIGN(InflateTransformer);
 };
 
 }  // namespace blink

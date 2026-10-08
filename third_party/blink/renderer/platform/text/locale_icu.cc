@@ -33,11 +33,12 @@
 #include <unicode/udatpg.h>
 #include <unicode/udisplaycontext.h>
 #include <unicode/uloc.h>
-
 #include <limits>
 #include <memory>
 
 #include "base/memory/ptr_util.h"
+#include "base/stl_util.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/date_math.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_buffer.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
@@ -143,7 +144,7 @@ UDateFormat* LocaleICU::OpenDateFormat(UDateFormatStyle time_style,
   const UChar kGmtTimezone[3] = {'G', 'M', 'T'};
   UErrorCode status = U_ZERO_ERROR;
   return udat_open(time_style, date_style, locale_.c_str(), kGmtTimezone,
-                   std::size(kGmtTimezone), nullptr, -1, &status);
+                   base::size(kGmtTimezone), nullptr, -1, &status);
 }
 
 // We cannot use udat_*Symbols API to get standalone month names to use in
@@ -190,7 +191,7 @@ std::unique_ptr<Vector<String>> LocaleICU::CreateLabelVector(
     return std::unique_ptr<Vector<String>>();
 
   std::unique_ptr<Vector<String>> labels = std::make_unique<Vector<String>>();
-  labels->reserve(size);
+  labels->ReserveCapacity(size);
   bool is_stand_alone_month = (type == UDAT_STANDALONE_MONTHS) ||
                               (type == UDAT_STANDALONE_SHORT_MONTHS);
   for (int32_t i = 0; i < size; ++i) {
@@ -225,7 +226,7 @@ std::unique_ptr<Vector<String>> LocaleICU::CreateLabelVector(
 
 static std::unique_ptr<Vector<String>> CreateFallbackWeekDayShortLabels() {
   std::unique_ptr<Vector<String>> labels = std::make_unique<Vector<String>>();
-  labels->reserve(7);
+  labels->ReserveCapacity(7);
   labels->push_back("Sun");
   labels->push_back("Mon");
   labels->push_back("Tue");
@@ -249,16 +250,21 @@ void LocaleICU::InitializeCalendar() {
                                          UCAL_FIRST_DAY_OF_WEEK) -
                        UCAL_SUNDAY;
 
-  week_day_short_labels_ = CreateLabelVector(
-      short_date_format_, UDAT_NARROW_WEEKDAYS, UCAL_SUNDAY, 7);
+  if (features::IsFormControlsRefreshEnabled()) {
+    week_day_short_labels_ = CreateLabelVector(
+        short_date_format_, UDAT_NARROW_WEEKDAYS, UCAL_SUNDAY, 7);
+  } else {
+    week_day_short_labels_ = CreateLabelVector(
+        short_date_format_, UDAT_SHORT_WEEKDAYS, UCAL_SUNDAY, 7);
+  }
   if (!week_day_short_labels_)
     week_day_short_labels_ = CreateFallbackWeekDayShortLabels();
 }
 
 static std::unique_ptr<Vector<String>> CreateFallbackMonthLabels() {
   std::unique_ptr<Vector<String>> labels = std::make_unique<Vector<String>>();
-  labels->reserve(std::size(WTF::kMonthFullName));
-  for (unsigned i = 0; i < std::size(WTF::kMonthFullName); ++i)
+  labels->ReserveCapacity(base::size(WTF::kMonthFullName));
+  for (unsigned i = 0; i < base::size(WTF::kMonthFullName); ++i)
     labels->push_back(WTF::kMonthFullName[i]);
   return labels;
 }
@@ -294,7 +300,7 @@ bool LocaleICU::IsRTL() {
 
 static std::unique_ptr<Vector<String>> CreateFallbackAMPMLabels() {
   std::unique_ptr<Vector<String>> labels = std::make_unique<Vector<String>>();
-  labels->reserve(2);
+  labels->ReserveCapacity(2);
   labels->push_back("AM");
   labels->push_back("PM");
   return labels;
@@ -405,7 +411,7 @@ String LocaleICU::DateTimeFormatWithoutSeconds() {
 }
 
 const Vector<String>& LocaleICU::ShortMonthLabels() {
-  if (!short_month_labels_.empty())
+  if (!short_month_labels_.IsEmpty())
     return short_month_labels_;
   if (InitializeShortDateFormat()) {
     if (std::unique_ptr<Vector<String>> labels = CreateLabelVector(
@@ -414,14 +420,14 @@ const Vector<String>& LocaleICU::ShortMonthLabels() {
       return short_month_labels_;
     }
   }
-  short_month_labels_.reserve(std::size(WTF::kMonthName));
-  for (unsigned i = 0; i < std::size(WTF::kMonthName); ++i)
+  short_month_labels_.ReserveCapacity(base::size(WTF::kMonthName));
+  for (unsigned i = 0; i < base::size(WTF::kMonthName); ++i)
     short_month_labels_.push_back(WTF::kMonthName[i]);
   return short_month_labels_;
 }
 
 const Vector<String>& LocaleICU::StandAloneMonthLabels() {
-  if (!stand_alone_month_labels_.empty())
+  if (!stand_alone_month_labels_.IsEmpty())
     return stand_alone_month_labels_;
   UDateFormat* month_formatter = OpenDateFormatForStandAloneMonthLabels(false);
   if (month_formatter) {
@@ -438,7 +444,7 @@ const Vector<String>& LocaleICU::StandAloneMonthLabels() {
 }
 
 const Vector<String>& LocaleICU::ShortStandAloneMonthLabels() {
-  if (!short_stand_alone_month_labels_.empty())
+  if (!short_stand_alone_month_labels_.IsEmpty())
     return short_stand_alone_month_labels_;
   UDateFormat* month_formatter = OpenDateFormatForStandAloneMonthLabels(true);
   if (month_formatter) {

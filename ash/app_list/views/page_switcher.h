@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define ASH_APP_LIST_VIEWS_PAGE_SWITCHER_H_
 
 #include "ash/public/cpp/pagination/pagination_model_observer.h"
-#include "ui/gfx/color_palette.h"
+#include "base/macros.h"
 #include "ui/views/view.h"
 
 namespace views {
@@ -22,9 +22,12 @@ class PaginationModel;
 class PageSwitcher : public views::View,
                      public PaginationModelObserver {
  public:
-  static constexpr int kMaxButtonRadius = 16;
+  static constexpr int kMaxButtonRadiusForRootGrid = 16;
+  static constexpr int kMaxButtonRadiusForFolderGrid = 10;
 
-  explicit PageSwitcher(PaginationModel* model);
+  PageSwitcher(PaginationModel* model,
+               bool is_root_app_grid_page_switcher,
+               bool is_tablet_mode);
   PageSwitcher(const PageSwitcher&) = delete;
   PageSwitcher& operator=(const PageSwitcher&) = delete;
   ~PageSwitcher() override;
@@ -33,11 +36,13 @@ class PageSwitcher : public views::View,
   gfx::Size CalculatePreferredSize() const override;
   void Layout() override;
   const char* GetClassName() const override;
-  void OnThemeChanged() override;
+
+  void set_ignore_button_press(bool ignore) { ignore_button_press_ = ignore; }
+  void set_is_tablet_mode(bool started) { is_tablet_mode_ = started; }
 
  private:
   // Button pressed callback.
-  void HandlePageSwitch(const ui::Event& event);
+  void OnButtonPressed(views::Button* sender, const ui::Event& event);
 
   // Overridden from PaginationModelObserver:
   void TotalPagesChanged(int previous_page_count, int new_page_count) override;
@@ -45,6 +50,15 @@ class PageSwitcher : public views::View,
 
   PaginationModel* model_;       // Owned by AppsGridView.
   views::View* buttons_;         // Owned by views hierarchy.
+
+  // True if the page switcher's root view is the AppsGridView.
+  const bool is_root_app_grid_page_switcher_;
+
+  // True if button press should be ignored.
+  bool ignore_button_press_ = false;
+
+  // Whether tablet mode is enabled.
+  bool is_tablet_mode_;
 };
 
 }  // namespace ash

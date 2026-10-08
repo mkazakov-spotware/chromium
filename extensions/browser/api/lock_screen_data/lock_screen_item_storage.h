@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,11 +13,10 @@
 
 #include "base/callback.h"
 #include "base/files/file_path.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/values.h"
+#include "base/scoped_observer.h"
+#include "base/sequenced_task_runner.h"
 #include "extensions/browser/api/lock_screen_data/data_item.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
@@ -51,9 +50,9 @@ enum class OperationResult;
 class LockScreenItemStorage : public ExtensionRegistryObserver {
  public:
   using CreateCallback =
-      base::OnceCallback<void(OperationResult result, const DataItem* item)>;
+      base::Callback<void(OperationResult result, const DataItem* item)>;
   using DataItemListCallback =
-      base::OnceCallback<void(const std::vector<const DataItem*>& items)>;
+      base::Callback<void(const std::vector<const DataItem*>& items)>;
   using WriteCallback = DataItem::WriteCallback;
   using ReadCallback = DataItem::ReadCallback;
 
@@ -90,10 +89,6 @@ class LockScreenItemStorage : public ExtensionRegistryObserver {
                         const std::string& crypto_key,
                         const base::FilePath& deprecated_storage_root,
                         const base::FilePath& storage_root);
-
-  LockScreenItemStorage(const LockScreenItemStorage&) = delete;
-  LockScreenItemStorage& operator=(const LockScreenItemStorage&) = delete;
-
   ~LockScreenItemStorage() override;
 
   // Updates the LockScreenItemStorage's view of whether the user session is
@@ -101,29 +96,30 @@ class LockScreenItemStorage : public ExtensionRegistryObserver {
   void SetSessionLocked(bool session_locked);
 
   // Creates a new data item for the extension.
-  void CreateItem(const std::string& extension_id, CreateCallback callback);
+  void CreateItem(const std::string& extension_id,
+                  const CreateCallback& callback);
 
   // Returns all existing data items associated with the extension.
   void GetAllForExtension(const std::string& extension_id,
-                          DataItemListCallback callback);
+                          const DataItemListCallback& callback);
 
   // Updates the content of the item identified by |item_id| that is associated
   // with the provided extension.
   void SetItemContent(const std::string& extension_id,
                       const std::string& item_id,
                       const std::vector<char>& data,
-                      WriteCallback callback);
+                      const WriteCallback& callback);
 
   // Retrieves the content of the item identified by |item_id| that is
   // associated with the provided extension.
   void GetItemContent(const std::string& extension_id,
                       const std::string& item_id,
-                      ReadCallback callback);
+                      const ReadCallback& callback);
 
   // Deletes the data item associated with the extension.
   void DeleteItem(const std::string& extension_id,
                   const std::string& item_id,
-                  WriteCallback callback);
+                  const WriteCallback& callback);
 
   // extensions::ExtensionRegistryObserver:
   void OnExtensionUninstalled(content::BrowserContext* browser_context,
@@ -132,28 +128,27 @@ class LockScreenItemStorage : public ExtensionRegistryObserver {
 
   // Used in tests to inject fake/stub data value store.
   using ValueStoreCacheFactoryCallback =
-      base::RepeatingCallback<std::unique_ptr<LocalValueStoreCache>(
+      base::Callback<std::unique_ptr<LocalValueStoreCache>(
           const base::FilePath& root)>;
   static void SetValueStoreCacheFactoryForTesting(
       ValueStoreCacheFactoryCallback* factory_callback);
 
   // Used in tests to inject fake value store migrator implementation.
   using ValueStoreMigratorFactoryCallback =
-      base::RepeatingCallback<std::unique_ptr<LockScreenValueStoreMigrator>()>;
+      base::Callback<std::unique_ptr<LockScreenValueStoreMigrator>()>;
   static void SetValueStoreMigratorFactoryForTesting(
       ValueStoreMigratorFactoryCallback* factory_callback);
 
   // Used in tests to inject fake data items implementations.
-  using ItemFactoryCallback = base::RepeatingCallback<std::unique_ptr<DataItem>(
-      const std::string& id,
-      const std::string& extension_id,
-      const std::string& crypto_key)>;
-  using RegisteredItemsGetter = base::RepeatingCallback<void(
-      const std::string& extension_id,
-      DataItem::RegisteredValuesCallback callback)>;
-  using ItemStoreDeleter =
-      base::RepeatingCallback<void(const std::string& extension_id,
-                                   base::OnceClosure callback)>;
+  using ItemFactoryCallback =
+      base::Callback<std::unique_ptr<DataItem>(const std::string& id,
+                                               const std::string& extension_id,
+                                               const std::string& crypto_key)>;
+  using RegisteredItemsGetter =
+      base::Callback<void(const std::string& extension_id,
+                          const DataItem::RegisteredValuesCallback& callback)>;
+  using ItemStoreDeleter = base::Callback<void(const std::string& extension_id,
+                                               const base::Closure& callback)>;
   static void SetItemProvidersForTesting(
       RegisteredItemsGetter* item_fetch_callback,
       ItemFactoryCallback* factory_callback,
@@ -190,7 +185,7 @@ class LockScreenItemStorage : public ExtensionRegistryObserver {
     // When the initial data item list is being loaded, contains the callback
     // waiting for the load to finish. When the initial data item set is loaded,
     // all of the callbacks in this list will be run.
-    std::vector<base::OnceClosure> load_callbacks;
+    std::vector<base::Closure> load_callbacks;
   };
 
   // Maps an extension ID to data items associated with the extension.
@@ -211,50 +206,51 @@ class LockScreenItemStorage : public ExtensionRegistryObserver {
 
   // Implementations for data item management methods - called when the data
   // cache for the associated extension was initialized:
-  void CreateItemImpl(const std::string& extension_id, CreateCallback callback);
+  void CreateItemImpl(const std::string& extension_id,
+                      const CreateCallback& callback);
   void GetAllForExtensionImpl(const std::string& extension_id,
-                              DataItemListCallback callback);
+                              const DataItemListCallback& callback);
   void SetItemContentImpl(const std::string& extension_id,
                           const std::string& item_id,
                           const std::vector<char>& data,
-                          WriteCallback callback);
+                          const WriteCallback& callback);
   void GetItemContentImpl(const std::string& extension_id,
                           const std::string& item_id,
-                          ReadCallback callback);
+                          const ReadCallback& callback);
   void DeleteItemImpl(const std::string& extension_id,
                       const std::string& item_id,
-                      WriteCallback callback);
+                      const WriteCallback& callback);
 
   // Defers |callback| until the cached data item set is loaded for the
   // extension. If the data is already loaded, |callback| will be run
   // immediately.
   void EnsureCacheForExtensionLoaded(const std::string& extension_id,
-                                     base::OnceClosure callback);
+                                     const base::Closure& callback);
 
   // Callback for loading initial set of known data items for an extension.
   void OnGotExtensionItems(const std::string& extension_id,
                            const base::TimeTicks& start_time,
                            OperationResult result,
-                           base::Value::Dict items);
+                           std::unique_ptr<base::DictionaryValue> items);
 
   // Callback for registration operation of a newly created data item - it adds
   // the item to the cached data item state, and invoked the callback.
   void OnItemRegistered(std::unique_ptr<DataItem> item,
                         const std::string& extension_id,
                         const base::TimeTicks& start_time,
-                        CreateCallback callback,
+                        const CreateCallback& callback,
                         OperationResult result);
 
   // Callback for data item write operation - it invokes the callback with the
   // operation result.
   void OnItemWritten(const base::TimeTicks& start_time,
-                     WriteCallback callback,
+                     const WriteCallback& callback,
                      OperationResult result);
 
   // Callback for data item read operation - it invokes the callback with the
   // operation result.
   void OnItemRead(const base::TimeTicks& start_time,
-                  ReadCallback callback,
+                  const ReadCallback& callback,
                   OperationResult result,
                   std::unique_ptr<std::vector<char>> data);
 
@@ -263,7 +259,7 @@ class LockScreenItemStorage : public ExtensionRegistryObserver {
   void OnItemDeleted(const std::string& extension_id,
                      const std::string& item_id,
                      const base::TimeTicks& start_time,
-                     WriteCallback callback,
+                     const WriteCallback& callback,
                      OperationResult result);
 
   // Finds a data item associated with the extension.
@@ -313,8 +309,8 @@ class LockScreenItemStorage : public ExtensionRegistryObserver {
 
   SessionLockedState session_locked_state_ = SessionLockedState::kUnknown;
 
-  base::ScopedObservation<ExtensionRegistry, ExtensionRegistryObserver>
-      extension_registry_observation_{this};
+  ScopedObserver<ExtensionRegistry, ExtensionRegistryObserver>
+      extension_registry_observer_{this};
 
   // The deprecated (shared) lock screen data value store cache. Items in this
   // value store should be migrated to |value_store_cache_|.
@@ -334,6 +330,8 @@ class LockScreenItemStorage : public ExtensionRegistryObserver {
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
 
   base::WeakPtrFactory<LockScreenItemStorage> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(LockScreenItemStorage);
 };
 
 }  // namespace lock_screen_data

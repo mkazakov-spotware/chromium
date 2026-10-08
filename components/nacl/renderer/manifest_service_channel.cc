@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,8 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/synchronization/waitable_event.h"
-#include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
+#include "content/public/common/sandbox_init.h"
 #include "content/public/renderer/render_thread.h"
 #include "ipc/ipc_channel.h"
 #include "ipc/ipc_platform_file.h"
@@ -33,7 +32,7 @@ ManifestServiceChannel::ManifestServiceChannel(
           IPC::Channel::MODE_CLIENT,
           this,
           content::RenderThread::Get()->GetIOTaskRunner(),
-          base::SingleThreadTaskRunner::GetCurrentDefault(),
+          base::ThreadTaskRunnerHandle::Get(),
           true,
           waitable_event)),
       peer_pid_(base::kNullProcessId) {}

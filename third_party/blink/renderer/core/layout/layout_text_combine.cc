@@ -20,6 +20,7 @@
 
 #include "third_party/blink/renderer/core/layout/layout_text_combine.h"
 
+#include "base/stl_util.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_context.h"
 
 namespace blink {
@@ -79,7 +80,7 @@ float LayoutTextCombine::Width(unsigned from,
                                LayoutUnit x_position,
                                TextDirection direction,
                                HashSet<const SimpleFontData*>* fallback_fonts,
-                               gfx::RectF* glyph_bounds,
+                               FloatRect* glyph_bounds,
                                float) const {
   NOT_DESTROYED();
   if (!length)
@@ -149,7 +150,7 @@ void LayoutTextCombine::TransformToInlineCoordinates(
   }
 
   if (clip)
-    context.Clip(gfx::RectF(box_rect.X(), box_rect.Y(), width, cell_height));
+    context.Clip(FloatRect(box_rect.X(), box_rect.Y(), width, cell_height));
 }
 
 void LayoutTextCombine::UpdateIsCombined() {
@@ -163,28 +164,27 @@ void LayoutTextCombine::UpdateIsCombined() {
 void LayoutTextCombine::UpdateFontStyleForCombinedText() {
   NOT_DESTROYED();
   DCHECK(is_combined_);
-  const ComputedStyle& original_style = StyleRef();
+
+  scoped_refptr<ComputedStyle> style = ComputedStyle::Clone(StyleRef());
+  SetStyleInternal(style);
 
   unsigned offset = 0;
-  TextRun run =
-      ConstructTextRun(original_style.GetFont(), this, offset, TextLength(),
-                       original_style, original_style.Direction());
-  FontDescription description = original_style.GetFont().GetFontDescription();
+  TextRun run = ConstructTextRun(style->GetFont(), this, offset, TextLength(),
+                                 *style, style->Direction());
+  FontDescription description = style->GetFont().GetFontDescription();
   float em_width = description.ComputedSize();
-  if (!EnumHasFlags(
-          original_style.TextDecorationsInEffect(),
-          TextDecorationLine::kUnderline | TextDecorationLine::kOverline))
+  if (!EnumHasFlags(style->TextDecorationsInEffect(),
+                    TextDecoration::kUnderline | TextDecoration::kOverline))
     em_width *= kTextCombineMargin;
 
   // We are going to draw combined text horizontally.
   description.SetOrientation(FontOrientation::kHorizontal);
-  combined_text_width_ = original_style.GetFont().Width(run);
+  combined_text_width_ = style->GetFont().Width(run);
 
-  FontSelector* font_selector = original_style.GetFont().GetFontSelector();
+  FontSelector* font_selector = style->GetFont().GetFontSelector();
 
   // Need to change font orientation to horizontal.
-  ComputedStyleBuilder builder(original_style);
-  builder.SetFontDescription(description);
+  style->SetFontDescription(description);
 
   if (combined_text_width_ <= em_width) {
     scale_x_ = 1.0f;
@@ -192,7 +192,7 @@ void LayoutTextCombine::UpdateFontStyleForCombinedText() {
     // Need to try compressed glyphs.
     static const FontWidthVariant kWidthVariants[] = {kHalfWidth, kThirdWidth,
                                                       kQuarterWidth};
-    for (size_t i = 0; i < std::size(kWidthVariants); ++i) {
+    for (size_t i = 0; i < base::size(kWidthVariants); ++i) {
       description.SetWidthVariant(kWidthVariants[i]);
       Font compressed_font(description, font_selector);
       float run_width = compressed_font.Width(run);
@@ -200,7 +200,7 @@ void LayoutTextCombine::UpdateFontStyleForCombinedText() {
         combined_text_width_ = run_width;
 
         // Replace my font with the new one.
-        builder.SetFontDescription(description);
+        style->SetFontDescription(description);
         break;
       }
     }
@@ -215,8 +215,6 @@ void LayoutTextCombine::UpdateFontStyleForCombinedText() {
       scale_x_ = 1.0f;
     }
   }
-
-  SetStyleInternal(builder.TakeStyle());
 }
 
 }  // namespace blink

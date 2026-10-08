@@ -1,20 +1,19 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "sql/recover_module/parsing.h"
 
 #include <cstddef>
-#include <ostream>
 #include <tuple>
 #include <utility>
 
 #include "base/check.h"
 #include "base/notreached.h"
+#include "base/optional.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_piece.h"
 #include "sql/recover_module/record.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace sql {
 namespace recover {
@@ -63,7 +62,7 @@ constexpr base::StringPiece kStrictSql("STRICT");
 constexpr base::StringPiece kNonNullSql1("NOT");
 constexpr base::StringPiece kNonNullSql2("NULL");
 
-absl::optional<ModuleColumnType> ParseColumnType(
+base::Optional<ModuleColumnType> ParseColumnType(
     base::StringPiece column_type_sql) {
   if (column_type_sql == kIntegerSql)
     return ModuleColumnType::kInteger;
@@ -80,7 +79,7 @@ absl::optional<ModuleColumnType> ParseColumnType(
   if (column_type_sql == kAnySql)
     return ModuleColumnType::kAny;
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 // Returns a view into a SQL string representing the column type.
@@ -141,8 +140,10 @@ bool RecoveredColumnSpec::IsAcceptableValue(ValueType value_type) const {
 RecoveredColumnSpec ParseColumnSpec(const char* sqlite_arg) {
   // The result is invalid until its |name| member is set.
   RecoveredColumnSpec result;
+  base::StringPiece sql(sqlite_arg);
 
-  auto [column_name, sql] = SplitToken(sqlite_arg);
+  base::StringPiece column_name;
+  std::tie(column_name, sql) = SplitToken(sql);
   if (column_name.empty()) {
     // Empty column names are invalid.
     DCHECK(!result.IsValid());
@@ -151,7 +152,7 @@ RecoveredColumnSpec ParseColumnSpec(const char* sqlite_arg) {
 
   base::StringPiece column_type_sql;
   std::tie(column_type_sql, sql) = SplitToken(sql);
-  absl::optional<ModuleColumnType> column_type =
+  base::Optional<ModuleColumnType> column_type =
       ParseColumnType(column_type_sql);
   if (!column_type.has_value()) {
     // Invalid column type.
@@ -191,7 +192,7 @@ RecoveredColumnSpec ParseColumnSpec(const char* sqlite_arg) {
     result.is_non_null = true;
   }
 
-  result.name = std::string(column_name);
+  result.name = column_name.as_string();
   return result;
 }
 
@@ -211,7 +212,7 @@ TargetTableSpec ParseTableSpec(const char* sqlite_arg) {
 
   base::StringPiece db_name = sql.substr(0, separator_pos);
   base::StringPiece table_name = sql.substr(separator_pos + 1);
-  return TargetTableSpec{std::string(db_name), std::string(table_name)};
+  return TargetTableSpec{db_name.as_string(), table_name.as_string()};
 }
 
 }  // namespace recover

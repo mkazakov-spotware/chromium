@@ -1,27 +1,32 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 
+#include "base/macros.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/sync/test/integration/autofill_helper.h"
 #include "chrome/browser/sync/test/integration/bookmarks_helper.h"
 #include "chrome/browser/sync/test/integration/performance/sync_timing_helper.h"
+#include "chrome/browser/sync/test/integration/profile_sync_service_harness.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "components/autofill/core/browser/autofill_test_utils.h"
 #include "components/autofill/core/browser/data_model/autofill_profile.h"
 #include "components/autofill/core/browser/webdata/autofill_entry.h"
+#include "components/sync/driver/sync_driver_switches.h"
 #include "content/public/test/browser_test.h"
 #include "testing/perf/perf_result_reporter.h"
 
 namespace {
 
+using autofill::ServerFieldType;
 using autofill::AutofillKey;
 using autofill::AutofillProfile;
 using autofill_helper::GetAllAutoFillProfiles;
+using autofill_helper::GetAllKeys;
 using autofill_helper::GetKeyCount;
 using autofill_helper::GetProfileCount;
 using autofill_helper::RemoveKeys;
@@ -67,11 +72,8 @@ void ForceSync(int profile) {
 
 class AutofillProfileSyncPerfTest : public SyncTest {
  public:
-  AutofillProfileSyncPerfTest() : SyncTest(TWO_CLIENT) {}
-
-  AutofillProfileSyncPerfTest(const AutofillProfileSyncPerfTest&) = delete;
-  AutofillProfileSyncPerfTest& operator=(const AutofillProfileSyncPerfTest&) =
-      delete;
+  AutofillProfileSyncPerfTest()
+      : SyncTest(TWO_CLIENT), guid_number_(0), name_number_(0) {}
 
   // Adds |num_profiles| new autofill profiles to the sync profile |profile|.
   void AddProfiles(int profile, int num_profiles);
@@ -95,16 +97,17 @@ class AutofillProfileSyncPerfTest : public SyncTest {
   // Returns a new unused unique name.
   const std::string NextName();
 
-  int guid_number_ = 0;
-  int name_number_ = 0;
+  int guid_number_;
+  int name_number_;
+  DISALLOW_COPY_AND_ASSIGN(AutofillProfileSyncPerfTest);
 };
 
 void AutofillProfileSyncPerfTest::AddProfiles(int profile, int num_profiles) {
   const std::vector<AutofillProfile*>& all_profiles =
       GetAllAutoFillProfiles(profile);
   std::vector<AutofillProfile> autofill_profiles;
-  for (AutofillProfile* autofill_profile : all_profiles) {
-    autofill_profiles.push_back(*autofill_profile);
+  for (size_t i = 0; i < all_profiles.size(); ++i) {
+    autofill_profiles.push_back(*all_profiles[i]);
   }
   for (int i = 0; i < num_profiles; ++i) {
     autofill_profiles.push_back(NextAutofillProfile());
@@ -116,8 +119,8 @@ void AutofillProfileSyncPerfTest::UpdateProfiles(int profile) {
   const std::vector<AutofillProfile*>& all_profiles =
       GetAllAutoFillProfiles(profile);
   std::vector<AutofillProfile> autofill_profiles;
-  for (AutofillProfile* autofill_profile : all_profiles) {
-    autofill_profiles.push_back(*autofill_profile);
+  for (size_t i = 0; i < all_profiles.size(); ++i) {
+    autofill_profiles.push_back(*all_profiles[i]);
     autofill_profiles.back().SetRawInfo(autofill::NAME_FIRST,
                                         base::UTF8ToUTF16(NextName()));
   }
@@ -152,7 +155,7 @@ const std::string AutofillProfileSyncPerfTest::NextName() {
 IN_PROC_BROWSER_TEST_F(AutofillProfileSyncPerfTest, P0) {
   ASSERT_TRUE(SetupSync()) << "SetupSync() failed.";
 
-  perf_test::PerfResultReporter reporter =
+  auto reporter =
       SetUpReporter(base::NumberToString(kNumProfiles) + "_profiles");
   AddProfiles(0, kNumProfiles);
   base::TimeDelta dt = TimeMutualSyncCycle(GetClient(0), GetClient(1));
@@ -172,10 +175,7 @@ IN_PROC_BROWSER_TEST_F(AutofillProfileSyncPerfTest, P0) {
 
 class AutocompleteSyncPerfTest : public SyncTest {
  public:
-  AutocompleteSyncPerfTest() : SyncTest(TWO_CLIENT) {}
-
-  AutocompleteSyncPerfTest(const AutocompleteSyncPerfTest&) = delete;
-  AutocompleteSyncPerfTest& operator=(const AutocompleteSyncPerfTest&) = delete;
+  AutocompleteSyncPerfTest() : SyncTest(TWO_CLIENT), name_number_(0) {}
 
   // Adds |num_keys| new autofill keys to the sync profile |profile|.
   void AddKeys(int profile, int num_keys);
@@ -187,7 +187,8 @@ class AutocompleteSyncPerfTest : public SyncTest {
   // Returns a new unused unique name.
   const std::string NextName();
 
-  int name_number_ = 0;
+  int name_number_;
+  DISALLOW_COPY_AND_ASSIGN(AutocompleteSyncPerfTest);
 };
 
 void AutocompleteSyncPerfTest::AddKeys(int profile, int num_keys) {
@@ -209,8 +210,7 @@ const std::string AutocompleteSyncPerfTest::NextName() {
 IN_PROC_BROWSER_TEST_F(AutocompleteSyncPerfTest, P0) {
   ASSERT_TRUE(SetupSync()) << "SetupSync() failed.";
 
-  perf_test::PerfResultReporter reporter =
-      SetUpReporter(base::NumberToString(kNumKeys) + "_keys");
+  auto reporter = SetUpReporter(base::NumberToString(kNumKeys) + "_keys");
   AddKeys(0, kNumKeys);
   // TODO(lipalani): fix this. The following line is added to force sync.
   ForceSync(0);

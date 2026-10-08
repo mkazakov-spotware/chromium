@@ -1,18 +1,19 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <map>
 #include <memory>
+#include <vector>
 
-#include "ash/constants/ash_switches.h"
 #include "ash/shell.h"
 #include "base/command_line.h"
-#include "chrome/browser/ash/accessibility/accessibility_manager.h"
+#include "base/macros.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/chromeos/accessibility/accessibility_manager.h"
 #include "chrome/test/base/in_process_browser_test.h"
-#include "chromeos/ash/components/audio/cras_audio_handler.h"
-#include "chromeos/ash/components/audio/sounds.h"
+#include "chromeos/audio/chromeos_sounds.h"
+#include "chromeos/audio/cras_audio_handler.h"
+#include "chromeos/constants/chromeos_switches.h"
 #include "content/public/test/browser_test.h"
 #include "services/audio/public/cpp/sounds/sounds_manager.h"
 #include "ui/base/accelerators/accelerator.h"
@@ -20,14 +21,11 @@
 
 namespace {
 
-using ::ash::AccessibilityManager;
-
 class SoundsManagerTestImpl : public audio::SoundsManager {
  public:
-  SoundsManagerTestImpl() = default;
-
-  SoundsManagerTestImpl(const SoundsManagerTestImpl&) = delete;
-  SoundsManagerTestImpl& operator=(const SoundsManagerTestImpl&) = delete;
+  SoundsManagerTestImpl()
+      : is_sound_initialized_(chromeos::SOUND_COUNT),
+        num_play_requests_(chromeos::SOUND_COUNT) {}
 
   ~SoundsManagerTestImpl() override {}
 
@@ -47,26 +45,26 @@ class SoundsManagerTestImpl : public audio::SoundsManager {
     return base::TimeDelta();
   }
 
-  bool is_sound_initialized(SoundKey key) { return is_sound_initialized_[key]; }
+  bool is_sound_initialized(SoundKey key) const {
+    return is_sound_initialized_[key];
+  }
 
-  int num_play_requests(SoundKey key) { return num_play_requests_[key]; }
+  int num_play_requests(SoundKey key) const { return num_play_requests_[key]; }
 
  private:
-  std::map<SoundKey, bool> is_sound_initialized_;
-  std::map<SoundKey, int> num_play_requests_;
+  std::vector<bool> is_sound_initialized_;
+  std::vector<int> num_play_requests_;
+
+  DISALLOW_COPY_AND_ASSIGN(SoundsManagerTestImpl);
 };
 
 class VolumeControllerTest : public InProcessBrowserTest {
  public:
   VolumeControllerTest() {}
-
-  VolumeControllerTest(const VolumeControllerTest&) = delete;
-  VolumeControllerTest& operator=(const VolumeControllerTest&) = delete;
-
   ~VolumeControllerTest() override {}
 
   void SetUpOnMainThread() override {
-    audio_handler_ = ash::CrasAudioHandler::Get();
+    audio_handler_ = chromeos::CrasAudioHandler::Get();
   }
 
   void VolumeUp() {
@@ -85,35 +83,25 @@ class VolumeControllerTest : public InProcessBrowserTest {
   }
 
  protected:
-  ash::CrasAudioHandler* audio_handler_;  // Not owned.
+  chromeos::CrasAudioHandler* audio_handler_;  // Not owned.
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(VolumeControllerTest);
 };
 
 IN_PROC_BROWSER_TEST_F(VolumeControllerTest, VolumeUpAndDown) {
   // Set initial value as 50%
   const int kInitVolume = 50;
   audio_handler_->SetOutputVolumePercent(kInitVolume);
-  int current_volume = audio_handler_->GetOutputVolumePercent();
-  EXPECT_EQ(current_volume, kInitVolume);
 
-  current_volume = audio_handler_->GetOutputVolumePercent();
+  EXPECT_EQ(audio_handler_->GetOutputVolumePercent(), kInitVolume);
+
   VolumeUp();
-  // number_of_volume_step = 25 mean we split volume into 25 level,
-  // and The volume goes up one level each for VolumeUp/VolumeDown event.
-  // For initial value is 48 - 51 volume will increase to 52,
-  // because 48 - 51 share same level,
-  // VolumeUp will increase to the min volume of next level, which is 52
-  // Original behavior will set volume to 54
-  EXPECT_LT(current_volume, audio_handler_->GetOutputVolumePercent());
-
-  current_volume = audio_handler_->GetOutputVolumePercent();
+  EXPECT_LT(kInitVolume, audio_handler_->GetOutputVolumePercent());
   VolumeDown();
-  // VolumeUp will decrease to the min volume of previous level, which is 48
-  // Original behavior will set volume to 50
-  EXPECT_GT(current_volume, audio_handler_->GetOutputVolumePercent());
-
-  current_volume = audio_handler_->GetOutputVolumePercent();
+  EXPECT_EQ(kInitVolume, audio_handler_->GetOutputVolumePercent());
   VolumeDown();
-  EXPECT_GT(current_volume, audio_handler_->GetOutputVolumePercent());
+  EXPECT_GT(kInitVolume, audio_handler_->GetOutputVolumePercent());
 }
 
 IN_PROC_BROWSER_TEST_F(VolumeControllerTest, VolumeDownToZero) {
@@ -171,12 +159,7 @@ IN_PROC_BROWSER_TEST_F(VolumeControllerTest, Mutes) {
 
 class VolumeControllerSoundsTest : public VolumeControllerTest {
  public:
-  VolumeControllerSoundsTest() : sounds_manager_(nullptr) {}
-
-  VolumeControllerSoundsTest(const VolumeControllerSoundsTest&) = delete;
-  VolumeControllerSoundsTest& operator=(const VolumeControllerSoundsTest&) =
-      delete;
-
+  VolumeControllerSoundsTest() : sounds_manager_(NULL) {}
   ~VolumeControllerSoundsTest() override {}
 
   void SetUpInProcessBrowserTestFixture() override {
@@ -185,28 +168,28 @@ class VolumeControllerSoundsTest : public VolumeControllerTest {
   }
 
   bool is_sound_initialized() const {
-    return sounds_manager_->is_sound_initialized(
-        static_cast<int>(ash::Sound::kVolumeAdjust));
+    return sounds_manager_->is_sound_initialized(chromeos::SOUND_VOLUME_ADJUST);
   }
 
   int num_play_requests() const {
-    return sounds_manager_->num_play_requests(
-        static_cast<int>(ash::Sound::kVolumeAdjust));
+    return sounds_manager_->num_play_requests(chromeos::SOUND_VOLUME_ADJUST);
   }
 
  private:
   SoundsManagerTestImpl* sounds_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(VolumeControllerSoundsTest);
 };
 
 IN_PROC_BROWSER_TEST_F(VolumeControllerSoundsTest, Simple) {
   audio_handler_->SetOutputVolumePercent(50);
 
-  AccessibilityManager::Get()->EnableSpokenFeedback(false);
+  chromeos::AccessibilityManager::Get()->EnableSpokenFeedback(false);
   VolumeUp();
   VolumeDown();
   EXPECT_EQ(0, num_play_requests());
 
-  AccessibilityManager::Get()->EnableSpokenFeedback(true);
+  chromeos::AccessibilityManager::Get()->EnableSpokenFeedback(true);
   VolumeUp();
   VolumeDown();
   EXPECT_EQ(2, num_play_requests());
@@ -214,7 +197,7 @@ IN_PROC_BROWSER_TEST_F(VolumeControllerSoundsTest, Simple) {
 
 IN_PROC_BROWSER_TEST_F(VolumeControllerSoundsTest, EdgeCases) {
   EXPECT_TRUE(is_sound_initialized());
-  AccessibilityManager::Get()->EnableSpokenFeedback(true);
+  chromeos::AccessibilityManager::Get()->EnableSpokenFeedback(true);
 
   // Check that sound is played on volume up and volume down.
   audio_handler_->SetOutputVolumePercent(50);
@@ -247,18 +230,15 @@ IN_PROC_BROWSER_TEST_F(VolumeControllerSoundsTest, EdgeCases) {
 class VolumeControllerSoundsDisabledTest : public VolumeControllerSoundsTest {
  public:
   VolumeControllerSoundsDisabledTest() {}
-
-  VolumeControllerSoundsDisabledTest(
-      const VolumeControllerSoundsDisabledTest&) = delete;
-  VolumeControllerSoundsDisabledTest& operator=(
-      const VolumeControllerSoundsDisabledTest&) = delete;
-
   ~VolumeControllerSoundsDisabledTest() override {}
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
     VolumeControllerSoundsTest::SetUpCommandLine(command_line);
-    command_line->AppendSwitch(ash::switches::kDisableVolumeAdjustSound);
+    command_line->AppendSwitch(chromeos::switches::kDisableVolumeAdjustSound);
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(VolumeControllerSoundsDisabledTest);
 };
 
 IN_PROC_BROWSER_TEST_F(VolumeControllerSoundsDisabledTest, VolumeAdjustSounds) {

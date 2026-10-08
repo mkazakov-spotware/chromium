@@ -1,9 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
 #include "content/browser/web_contents/web_contents_impl.h"
@@ -14,7 +15,6 @@
 #include "content/public/test/content_browser_test.h"
 #include "content/public/test/content_browser_test_utils.h"
 #include "content/shell/browser/shell.h"
-#include "ui/accessibility/ax_common.h"
 #include "ui/accessibility/ax_node.h"
 #include "ui/accessibility/ax_tree.h"
 
@@ -24,28 +24,24 @@ class AccessibilityIpcErrorBrowserTest : public ContentBrowserTest {
  public:
   AccessibilityIpcErrorBrowserTest() {}
 
-  AccessibilityIpcErrorBrowserTest(const AccessibilityIpcErrorBrowserTest&) =
-      delete;
-  AccessibilityIpcErrorBrowserTest& operator=(
-      const AccessibilityIpcErrorBrowserTest&) = delete;
-
  protected:
   // Convenience method to get the value of a particular AXNode
   // attribute as a UTF-8 string.
   std::string GetAttr(const ui::AXNode* node,
                       const ax::mojom::StringAttribute attr) {
-    for (const auto& attribute_pair : node->GetStringAttributes()) {
-      if (attribute_pair.first == attr)
-        return attribute_pair.second;
+    const ui::AXNodeData& data = node->data();
+    for (size_t i = 0; i < data.string_attributes.size(); ++i) {
+      if (data.string_attributes[i].first == attr)
+        return data.string_attributes[i].second;
     }
     return std::string();
   }
+
+  DISALLOW_COPY_AND_ASSIGN(AccessibilityIpcErrorBrowserTest);
 };
 
 // Failed on Android x86 in crbug.com/1123641.
-// Do not test on AX_FAIL_FAST_BUILDS, where the BAD IPC will simply assert.
-#if (BUILDFLAG(IS_ANDROID) && defined(ARCH_CPU_X86)) || \
-    defined(AX_FAIL_FAST_BUILD)
+#if defined(OS_ANDROID) && defined(ARCH_CPU_X86)
 #define MAYBE_ResetBrowserAccessibilityManager \
   DISABLED_ResetBrowserAccessibilityManager
 #else
@@ -70,7 +66,7 @@ IN_PROC_BROWSER_TEST_F(AccessibilityIpcErrorBrowserTest,
   // Simulate a condition where the RFH can't create a
   // BrowserAccessibilityManager - like if there's no view.
   RenderFrameHostImpl* frame = static_cast<RenderFrameHostImpl*>(
-      shell()->web_contents()->GetPrimaryMainFrame());
+      shell()->web_contents()->GetMainFrame());
   frame->set_no_create_browser_accessibility_manager_for_testing(true);
   ASSERT_EQ(nullptr, frame->GetOrCreateBrowserAccessibilityManager());
 
@@ -81,7 +77,7 @@ IN_PROC_BROWSER_TEST_F(AccessibilityIpcErrorBrowserTest,
     AccessibilityNotificationWaiter waiter(shell()->web_contents(),
                                            ui::kAXModeComplete,
                                            ax::mojom::Event::kLayoutComplete);
-    ASSERT_TRUE(waiter.WaitForNotification());
+    waiter.WaitForNotification();
   }
 
   // Make sure we still didn't create a BrowserAccessibilityManager.
@@ -101,10 +97,10 @@ IN_PROC_BROWSER_TEST_F(AccessibilityIpcErrorBrowserTest,
     // notification triggered by the hide.
     AccessibilityNotificationWaiter waiter(shell()->web_contents(),
                                            ui::kAXModeComplete,
-                                           ax::mojom::Event::kLayoutComplete);
-    ASSERT_TRUE(ExecJs(
+                                           ax::mojom::Event::kChildrenChanged);
+    ASSERT_TRUE(ExecuteScript(
         shell(), "document.getElementById('p1').style.display = 'none';"));
-    ASSERT_TRUE(waiter.WaitForNotification());
+    waiter.WaitForNotification();
   }
 
   // Show that accessibility was reset because the frame doesn't have a
@@ -119,8 +115,9 @@ IN_PROC_BROWSER_TEST_F(AccessibilityIpcErrorBrowserTest,
     // Because we missed one IPC message, AXTree::Unserialize() will fail.
     AccessibilityNotificationWaiter waiter(
         shell()->web_contents(), ui::kAXModeComplete, ax::mojom::Event::kFocus);
-    ASSERT_TRUE(ExecJs(shell(), "document.getElementById('button').focus();"));
-    ASSERT_TRUE(waiter.WaitForNotification());
+    ASSERT_TRUE(
+        ExecuteScript(shell(), "document.getElementById('button').focus();"));
+    waiter.WaitForNotification();
     tree = &waiter.GetAXTree();
   }
 
@@ -131,28 +128,27 @@ IN_PROC_BROWSER_TEST_F(AccessibilityIpcErrorBrowserTest,
   // Use this for debugging if the test fails.
   VLOG(1) << tree->ToString();
 
-  EXPECT_EQ(ax::mojom::Role::kRootWebArea, root->GetRole());
+  EXPECT_EQ(ax::mojom::Role::kRootWebArea, root->data().role);
   ASSERT_EQ(2u, root->GetUnignoredChildCount());
 
   const ui::AXNode* live_region = root->GetUnignoredChildAtIndex(0);
   ASSERT_EQ(1u, live_region->GetUnignoredChildCount());
-  EXPECT_EQ(ax::mojom::Role::kGenericContainer, live_region->GetRole());
+  EXPECT_EQ(ax::mojom::Role::kGenericContainer, live_region->data().role);
 
   const ui::AXNode* para = live_region->GetUnignoredChildAtIndex(0);
-  EXPECT_EQ(ax::mojom::Role::kParagraph, para->GetRole());
+  EXPECT_EQ(ax::mojom::Role::kParagraph, para->data().role);
 
   const ui::AXNode* button = root->GetUnignoredChildAtIndex(1);
-  EXPECT_EQ(ax::mojom::Role::kButton, button->GetRole());
+  EXPECT_EQ(ax::mojom::Role::kButton, button->data().role);
 }
 
-// Do not test on AX_FAIL_FAST_BUILDS, where the BAD IPC will simply assert.
-#if BUILDFLAG(IS_LINUX) && !defined(AX_FAIL_FAST_BUILD)
-#define MAYBE_MultipleBadAccessibilityIPCsKillsRenderer \
-  MultipleBadAccessibilityIPCsKillsRenderer
-#else
-// http://crbug.com/542704, http://crbug.com/1281355
+#if defined(OS_ANDROID)
+// http://crbug.com/542704
 #define MAYBE_MultipleBadAccessibilityIPCsKillsRenderer \
   DISABLED_MultipleBadAccessibilityIPCsKillsRenderer
+#else
+#define MAYBE_MultipleBadAccessibilityIPCsKillsRenderer \
+  MultipleBadAccessibilityIPCsKillsRenderer
 #endif
 IN_PROC_BROWSER_TEST_F(AccessibilityIpcErrorBrowserTest,
                        MAYBE_MultipleBadAccessibilityIPCsKillsRenderer) {
@@ -168,7 +164,7 @@ IN_PROC_BROWSER_TEST_F(AccessibilityIpcErrorBrowserTest,
   GURL url(url_str);
   EXPECT_TRUE(NavigateToURL(shell(), url));
   RenderFrameHostImpl* frame = static_cast<RenderFrameHostImpl*>(
-      shell()->web_contents()->GetPrimaryMainFrame());
+      shell()->web_contents()->GetMainFrame());
 
   {
     // Enable accessibility (passing ui::kAXModeComplete to
@@ -177,7 +173,7 @@ IN_PROC_BROWSER_TEST_F(AccessibilityIpcErrorBrowserTest,
     AccessibilityNotificationWaiter waiter(shell()->web_contents(),
                                            ui::kAXModeComplete,
                                            ax::mojom::Event::kLayoutComplete);
-    ASSERT_TRUE(waiter.WaitForNotification());
+    waiter.WaitForNotification();
   }
 
   // Construct a bad accessibility message that BrowserAccessibilityManager
@@ -209,7 +205,7 @@ IN_PROC_BROWSER_TEST_F(AccessibilityIpcErrorBrowserTest,
     AccessibilityNotificationWaiter waiter(shell()->web_contents(),
                                            ui::kAXModeComplete,
                                            ax::mojom::Event::kLoadComplete);
-    ASSERT_TRUE(waiter.WaitForNotification());
+    waiter.WaitForNotification();
   }
 
   // Wait for the renderer to be killed.

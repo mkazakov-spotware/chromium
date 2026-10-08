@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,8 +17,11 @@ ScopedScreenWin::ScopedScreenWin() : ScreenWin(false) {
       CreateMonitorInfo(kPixelBounds, kPixelWork, L"primary");
   UpdateFromDisplayInfos(
       {{monitor_info, /*device_scale_factor=*/1.0f, 1.0f, Display::ROTATE_0, 60,
-        gfx::Vector2dF(96.0, 96.0), DISPLAYCONFIG_OUTPUT_TECHNOLOGY_OTHER,
-        std::string()}});
+        gfx::Vector2dF(96.0, 96.0), DISPLAYCONFIG_OUTPUT_TECHNOLOGY_OTHER}});
+}
+
+ScopedScreenWin::~ScopedScreenWin() {
+  Screen::SetScreenInstance(old_screen_);
 }
 
 }  // namespace test

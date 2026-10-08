@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "ash/ash_export.h"
 #include "ash/wm/splitview/split_view_controller.h"
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/rect.h"
 
@@ -32,11 +33,10 @@ enum class IndicatorType {
   kRightText = 8
 };
 
-// An overlay in which guides users while they are attempting to enter
-// splitview. Displays text and highlights when dragging an overview window.
-// Displays a highlight of where the window will end up when a window has
-// entered a snap region. Shown when the user is dragging an overview window,
-// dragging a floated window, or dragging a window from the shelf.
+// An overlay in overview mode which guides users while they are attempting to
+// enter splitview. Displays text and highlights when dragging an overview
+// window. Displays a highlight of where the window will end up when an overview
+// window has entered a snap region.
 class ASH_EXPORT SplitViewDragIndicators {
  public:
   // Enum for purposes of providing |SplitViewDragIndicators| with information
@@ -65,48 +65,32 @@ class ASH_EXPORT SplitViewDragIndicators {
     // snapped in split view.
     kFromShelf,
 
-    // Started dragging from the float window state via the caption. Split view
-    // is supported. If this is the state, the window will not be snapped when
-    // released; it will either not be in the snapping region, or in the
-    // snapping region but not snappable.
-    kFromFloat,
+    // Currently dragging in the |SplitViewController::LEFT| snap area, and the
+    // dragged window is eligible to be snapped in split view.
+    kToSnapLeft,
 
-    // Currently dragging in the |SplitViewController::SnapPosition::kPrimary|
-    // snap area, and the dragged window is eligible to be snapped in split
-    // view.
-    kToSnapPrimary,
-
-    // Currently dragging in the |SplitViewController::SnapPosition::kSecondary|
-    // snap area, and the dragged window is eligible to be snapped in split
-    // view.
-    kToSnapSecondary
+    // Currently dragging in the |SplitViewController::RIGHT| snap area, and the
+    // dragged window is eligible to be snapped in split view.
+    kToSnapRight
   };
 
-  // |SplitViewController::SnapPosition::kPrimary|, if |window_dragging_state|
-  // is |kToSnapLeft| |SplitViewController::SnapPosition::kSecondary|, if
-  // |window_dragging_state| is |kToSnapRight|
-  // |SplitViewController::SnapPosition::kNone| otherwise
+  // |SplitViewController::LEFT|, if |window_dragging_state| is |kToSnapLeft|
+  // |SplitViewController::RIGHT|, if |window_dragging_state| is |kToSnapRight|
+  // |SplitViewController::NONE| otherwise
   static SplitViewController::SnapPosition GetSnapPosition(
       WindowDraggingState window_dragging_state);
 
   // |kNoDrag| if |is_dragging| is false or split view is unsupported. If
   // |is_dragging| is true and split view is supported, then:
-  // |non_snap_state|, if |snap_position| is
-  // |SplitViewController::SnapPosition::kNone|
-  // |kToSnapLeft|, if |snap_position| is
-  // |SplitViewController::SnapPosition::kPrimary|
-  // |kToSnapRight|, if |snap_position| is
-  // |SplitViewController::SnapPosition::kSecondary|
+  // |non_snap_state|, if |snap_position| is |SplitViewController::NONE|
+  // |kToSnapLeft|, if |snap_position| is |SplitViewController::LEFT|
+  // |kToSnapRight|, if |snap_position| is |SplitViewController::RIGHT|
   static WindowDraggingState ComputeWindowDraggingState(
       bool is_dragging,
       WindowDraggingState non_snap_state,
       SplitViewController::SnapPosition snap_position);
 
-  explicit SplitViewDragIndicators(aura::Window* root_window);
-
-  SplitViewDragIndicators(const SplitViewDragIndicators&) = delete;
-  SplitViewDragIndicators& operator=(const SplitViewDragIndicators&) = delete;
-
+  SplitViewDragIndicators(aura::Window* root_window);
   ~SplitViewDragIndicators();
 
   void SetDraggedWindow(aura::Window* dragged_window);
@@ -134,6 +118,8 @@ class ASH_EXPORT SplitViewDragIndicators {
   // and displays regions and text indicating where users should drag windows
   // enter split view.
   std::unique_ptr<views::Widget> widget_;
+
+  DISALLOW_COPY_AND_ASSIGN(SplitViewDragIndicators);
 };
 
 }  // namespace ash

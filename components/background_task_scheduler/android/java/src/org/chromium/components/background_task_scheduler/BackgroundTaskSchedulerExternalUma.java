@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@ import androidx.annotation.VisibleForTesting;
  */
 public abstract class BackgroundTaskSchedulerExternalUma {
     // BackgroundTaskId defined in tools/metrics/histograms/enums.xml
-    public static final int BACKGROUND_TASK_NOT_FOUND = -1;
     public static final int BACKGROUND_TASK_TEST = 0;
     public static final int BACKGROUND_TASK_OMAHA = 1;
     public static final int BACKGROUND_TASK_GCM = 2;
@@ -26,7 +25,7 @@ public abstract class BackgroundTaskSchedulerExternalUma {
     public static final int BACKGROUND_TASK_WEBVIEW_VARIATIONS = 10;
     public static final int BACKGROUND_TASK_OFFLINE_CONTENT_NOTIFICATION = 11;
     public static final int BACKGROUND_TASK_WEBAPK_UPDATE = 12;
-    public static final int BACKGROUND_TASK_DEPRECATED_DOWNLOAD_RESUMPTION = 13;
+    public static final int BACKGROUND_TASK_DOWNLOAD_RESUMPTION = 13;
     public static final int BACKGROUND_TASK_FEED_REFRESH = 14;
     public static final int BACKGROUND_TASK_COMPONENT_UPDATE = 15;
     public static final int BACKGROUND_TASK_DEPRECATED_EXPLORE_SITES_REFRESH = 16;
@@ -39,48 +38,62 @@ public abstract class BackgroundTaskSchedulerExternalUma {
     public static final int BACKGROUND_TASK_QUERY_TILE = 23;
     public static final int BACKGROUND_TASK_FEEDV2_REFRESH = 24;
     public static final int BACKGROUND_TASK_DOWNLOAD_LATER = 25;
-    public static final int BACKGROUND_TASK_OFFLINE_MEASUREMENTS = 26;
-    public static final int BACKGROUND_TASK_WEBVIEW_COMPONENT_UPDATE = 27;
-    public static final int BACKGROUND_TASK_ATTRIBUTION_PROVIDER_FLUSH = 28;
     // Keep this one at the end and increment appropriately when adding new tasks.
-    public static final int BACKGROUND_TASK_COUNT = 29;
+    public static final int BACKGROUND_TASK_COUNT = 26;
 
     protected BackgroundTaskSchedulerExternalUma() {}
 
     /**
      * Reports metrics for when a NativeBackgroundTask loads the native library.
      * @param taskId An id from {@link TaskIds}.
-     * @param minimalBrowserMode Whether the task will start native in Minimal Browser Mode
+     * @param serviceManagerOnlyMode Whether the task will start native in Service Manager Only Mode
      *                              (Reduced Mode) instead of Full Browser Mode.
      */
-    public abstract void reportTaskStartedNative(int taskId, boolean minimalBrowserMode);
+    public abstract void reportTaskStartedNative(int taskId, boolean serviceManagerOnlyMode);
 
     /**
      * Report metrics for starting a NativeBackgroundTask. This does not consider tasks that are
      * short-circuited before any work is done.
      * @param taskId An id from {@link TaskIds}.
-     * @param minimalBrowserMode Whether the task will run in Minimal Browser Mode (Reduced
+     * @param serviceManagerOnlyMode Whether the task will run in Service Manager Only Mode (Reduced
      *                               Mode) instead of Full Browser Mode.
      */
-    public abstract void reportNativeTaskStarted(int taskId, boolean minimalBrowserMode);
+    public abstract void reportNativeTaskStarted(int taskId, boolean serviceManagerOnlyMode);
 
     /**
      * Reports metrics that a NativeBackgroundTask has been finished cleanly (i.e., no unexpected
      * exits because of chrome crash or OOM). This includes tasks that have been stopped due to
      * timeout.
      * @param taskId An id from {@link TaskIds}.
-     * @param minimalBrowserMode Whether the task will run in Minimal Browser Mode (Reduced
+     * @param serviceManagerOnlyMode Whether the task will run in Service Manager Only Mode (Reduced
      *                               Mode) instead of Full Browser Mode.
      */
-    public abstract void reportNativeTaskFinished(int taskId, boolean minimalBrowserMode);
+    public abstract void reportNativeTaskFinished(int taskId, boolean serviceManagerOnlyMode);
 
     /**
-     * Reports metrics of how Chrome is launched, either in minimal browser mode or as full
+     * Reports metrics of how Chrome is launched, either in ServiceManager only mode or as full
      * browser, as well as either cold start or warm start.
      * See {@link org.chromium.content.browser.ServicificationStartupUma} for more details.
      * @param startupMode Chrome's startup mode.
      */
     public abstract void reportStartupMode(int startupMode);
+
+    /**
+     * Returns an affix identifying a given task type in names of memory histograms specific to that
+     * task type. Adding an affix here causes Memory.BackgroundTask.[affix].* histograms to be
+     * emitted. They still need to be added to histograms.xml.
+     * @param taskId The task type.
+     * @return A string with the affix, without separators added, or null if there is no affix
+     * defined for that task type.
+     */
+    public static String toMemoryHistogramAffixFromTaskId(int taskId) {
+        switch (taskId) {
+            case TaskIds.OFFLINE_PAGES_PREFETCH_JOB_ID:
+                return "OfflinePrefetch";
+            default:
+                return null;
+        }
+    }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     public static int toUmaEnumValueFromTaskId(int taskId) {
@@ -115,8 +128,8 @@ public abstract class BackgroundTaskSchedulerExternalUma {
                 return BACKGROUND_TASK_OFFLINE_CONTENT_NOTIFICATION;
             case TaskIds.WEBAPK_UPDATE_JOB_ID:
                 return BACKGROUND_TASK_WEBAPK_UPDATE;
-            case TaskIds.DEPRECATED_DOWNLOAD_RESUMPTION_JOB_ID:
-                return BACKGROUND_TASK_DEPRECATED_DOWNLOAD_RESUMPTION;
+            case TaskIds.DOWNLOAD_RESUMPTION_JOB_ID:
+                return BACKGROUND_TASK_DOWNLOAD_RESUMPTION;
             case TaskIds.FEED_REFRESH_JOB_ID:
                 return BACKGROUND_TASK_FEED_REFRESH;
             case TaskIds.COMPONENT_UPDATE_JOB_ID:
@@ -137,77 +150,10 @@ public abstract class BackgroundTaskSchedulerExternalUma {
                 return BACKGROUND_TASK_QUERY_TILE;
             case TaskIds.FEEDV2_REFRESH_JOB_ID:
                 return BACKGROUND_TASK_FEEDV2_REFRESH;
-            case TaskIds.WEBVIEW_COMPONENT_UPDATE_JOB_ID:
-                return BACKGROUND_TASK_WEBVIEW_COMPONENT_UPDATE;
+            default:
+                assert false;
         }
         // Returning a value that is not expected to ever be reported.
-        return BACKGROUND_TASK_NOT_FOUND;
-    }
-
-    /**
-     * Keep this in sync with TaskType variant in
-     * //tools/metrics/histograms/metadata/android/histograms.xml.
-     * @return The histogram pattern to be used for the given {@code taskId}.
-     */
-    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
-    public String getHistogramPatternForTaskId(int taskId) {
-        switch (taskId) {
-            case TaskIds.TEST:
-                return "Test";
-            case TaskIds.OMAHA_JOB_ID:
-                return "Omaha";
-            case TaskIds.GCM_BACKGROUND_TASK_JOB_ID:
-                return "Gcm";
-            case TaskIds.NOTIFICATION_SERVICE_JOB_ID:
-                return "NotificationService";
-            case TaskIds.WEBVIEW_MINIDUMP_UPLOADING_JOB_ID:
-                return "WebviewMinidumpUploading";
-            case TaskIds.CHROME_MINIDUMP_UPLOADING_JOB_ID:
-                return "ChromeMinidumpUploading";
-            case TaskIds.OFFLINE_PAGES_BACKGROUND_JOB_ID:
-                return "OfflinePages";
-            case TaskIds.OFFLINE_PAGES_PREFETCH_JOB_ID:
-                return "OfflinePagesPrefetch";
-            case TaskIds.DOWNLOAD_SERVICE_JOB_ID:
-                return "DownloadService";
-            case TaskIds.DOWNLOAD_CLEANUP_JOB_ID:
-                return "DownloadCleanup";
-            case TaskIds.DOWNLOAD_AUTO_RESUMPTION_JOB_ID:
-                return "DownloadAutoResumption";
-            case TaskIds.DOWNLOAD_LATER_JOB_ID:
-                return "DownloadLater";
-            case TaskIds.WEBVIEW_VARIATIONS_SEED_FETCH_JOB_ID:
-                return "WebviewVariationsSeedFetch";
-            case TaskIds.OFFLINE_PAGES_PREFETCH_NOTIFICATION_JOB_ID:
-                return "OfflinePagesPrefetchNotification";
-            case TaskIds.WEBAPK_UPDATE_JOB_ID:
-                return "WebApkUpdate";
-            case TaskIds.DEPRECATED_DOWNLOAD_RESUMPTION_JOB_ID:
-                return "DeprecatedDownloadResumption";
-            case TaskIds.FEED_REFRESH_JOB_ID:
-                return "FeedRefresh";
-            case TaskIds.COMPONENT_UPDATE_JOB_ID:
-                return "ComponentUpdate";
-            case TaskIds.DEPRECATED_EXPLORE_SITES_REFRESH_JOB_ID:
-                return "DeprecatedExploreSitesRefresh";
-            case TaskIds.EXPLORE_SITES_REFRESH_JOB_ID:
-                return "ExploreSitesRefresh";
-            case TaskIds.BACKGROUND_SYNC_ONE_SHOT_JOB_ID:
-                return "BackgroundSyncOneShot";
-            case TaskIds.NOTIFICATION_SCHEDULER_JOB_ID:
-                return "NotificationScheduler";
-            case TaskIds.NOTIFICATION_TRIGGER_JOB_ID:
-                return "NotificationTrigger";
-            case TaskIds.PERIODIC_BACKGROUND_SYNC_CHROME_WAKEUP_TASK_JOB_ID:
-                return "PeriodicBackgroundSyncChromeWakeup";
-            case TaskIds.QUERY_TILE_JOB_ID:
-                return "QueryTile";
-            case TaskIds.FEEDV2_REFRESH_JOB_ID:
-                return "FeedV2Refresh";
-            case TaskIds.WEBVIEW_COMPONENT_UPDATE_JOB_ID:
-                return "WebviewComponentUpdate";
-        }
-        assert false;
-        return null;
+        return BACKGROUND_TASK_TEST;
     }
 }

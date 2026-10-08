@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,15 +19,15 @@ namespace {
 class DirectoryAccessConfirmationDialog : public TabModalConfirmDialogDelegate {
  public:
   DirectoryAccessConfirmationDialog(bool writable,
-                                    const std::u16string& app_name,
+                                    const base::string16& app_name,
                                     content::WebContents* web_contents,
                                     base::OnceClosure on_accept,
                                     base::OnceClosure on_cancel);
 
-  std::u16string GetTitle() override;
-  std::u16string GetDialogMessage() override;
-  std::u16string GetAcceptButtonTitle() override;
-  std::u16string GetCancelButtonTitle() override;
+  base::string16 GetTitle() override;
+  base::string16 GetDialogMessage() override;
+  base::string16 GetAcceptButtonTitle() override;
+  base::string16 GetCancelButtonTitle() override;
 
  private:
   void OnAccepted() override;
@@ -37,12 +37,12 @@ class DirectoryAccessConfirmationDialog : public TabModalConfirmDialogDelegate {
   base::OnceClosure on_accept_;
   base::OnceClosure on_cancel_;
   const bool writable_;
-  const std::u16string app_name_;
+  const base::string16 app_name_;
 };
 
 DirectoryAccessConfirmationDialog::DirectoryAccessConfirmationDialog(
     bool writable,
-    const std::u16string& app_name,
+    const base::string16& app_name,
     content::WebContents* web_contents,
     base::OnceClosure on_accept,
     base::OnceClosure on_cancel)
@@ -52,12 +52,12 @@ DirectoryAccessConfirmationDialog::DirectoryAccessConfirmationDialog(
       writable_(writable),
       app_name_(app_name) {}
 
-std::u16string DirectoryAccessConfirmationDialog::GetTitle() {
+base::string16 DirectoryAccessConfirmationDialog::GetTitle() {
   return l10n_util::GetStringUTF16(
       IDS_EXTENSIONS_DIRECTORY_CONFIRMATION_DIALOG_TITLE);
 }
 
-std::u16string DirectoryAccessConfirmationDialog::GetDialogMessage() {
+base::string16 DirectoryAccessConfirmationDialog::GetDialogMessage() {
   if (writable_) {
     return l10n_util::GetStringFUTF16(
         IDS_EXTENSIONS_DIRECTORY_CONFIRMATION_DIALOG_MESSAGE_WRITABLE,
@@ -69,10 +69,10 @@ std::u16string DirectoryAccessConfirmationDialog::GetDialogMessage() {
   }
 }
 
-std::u16string DirectoryAccessConfirmationDialog::GetAcceptButtonTitle() {
+base::string16 DirectoryAccessConfirmationDialog::GetAcceptButtonTitle() {
   return l10n_util::GetStringUTF16(IDS_CONFIRM_MESSAGEBOX_YES_BUTTON_LABEL);
 }
-std::u16string DirectoryAccessConfirmationDialog::GetCancelButtonTitle() {
+base::string16 DirectoryAccessConfirmationDialog::GetCancelButtonTitle() {
   return l10n_util::GetStringUTF16(IDS_CONFIRM_MESSAGEBOX_NO_BUTTON_LABEL);
 }
 
@@ -91,7 +91,7 @@ void DirectoryAccessConfirmationDialog::OnClosed() {
 }  // namespace
 
 void CreateDirectoryAccessConfirmationDialog(bool writable,
-                                             const std::u16string& app_name,
+                                             const base::string16& app_name,
                                              content::WebContents* web_contents,
                                              base::OnceClosure on_accept,
                                              base::OnceClosure on_cancel) {

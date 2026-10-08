@@ -28,19 +28,15 @@
 #include <memory>
 #include <utility>
 
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/metrics/histogram_macros.h"
-#include "base/time/time.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/renderer/platform/graphics/decoding_image_generator.h"
 #include "third_party/blink/renderer/platform/graphics/image_decoding_store.h"
 #include "third_party/blink/renderer/platform/graphics/image_frame_generator.h"
-#include "third_party/blink/renderer/platform/graphics/parkable_image_manager.h"
 #include "third_party/blink/renderer/platform/graphics/skia/skia_utils.h"
 #include "third_party/blink/renderer/platform/image-decoders/segment_reader.h"
 #include "third_party/blink/renderer/platform/instrumentation/histogram.h"
 #include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
-#include "third_party/skia/include/core/SkColorSpace.h"
 #include "third_party/skia/include/core/SkImage.h"
 
 namespace blink {
@@ -49,30 +45,71 @@ namespace {
 
 // Do not rename entries or reuse numeric values to ensure the histogram is
 // consistent over time.
-enum class IncrementalDecodePerImageType {
+enum IncrementalDecodePerImageType {
   kJpegIncrementalNeeded = 0,
   kJpegAllDataReceivedInitially = 1,
   kWebPIncrementalNeeded = 2,
   kWebPAllDataReceivedInitially = 3,
-  kMaxValue = kWebPAllDataReceivedInitially,
+  kBoundaryValue
 };
 
 void ReportIncrementalDecodeNeeded(bool all_data_received,
                                    const String& image_type) {
   DCHECK(IsMainThread());
-  absl::optional<IncrementalDecodePerImageType> status;
+  DEFINE_STATIC_LOCAL(EnumerationHistogram, incremental_decode_needed_histogram,
+                      ("Blink.ImageDecoders.IncrementalDecodeNeeded",
+                       IncrementalDecodePerImageType::kBoundaryValue));
   if (image_type == "jpg") {
-    status = all_data_received
-                 ? IncrementalDecodePerImageType::kJpegAllDataReceivedInitially
-                 : IncrementalDecodePerImageType::kJpegIncrementalNeeded;
+    incremental_decode_needed_histogram.Count(
+        all_data_received
+            ? IncrementalDecodePerImageType::kJpegAllDataReceivedInitially
+            : IncrementalDecodePerImageType::kJpegIncrementalNeeded);
   } else if (image_type == "webp") {
-    status = all_data_received
-                 ? IncrementalDecodePerImageType::kWebPAllDataReceivedInitially
-                 : IncrementalDecodePerImageType::kWebPIncrementalNeeded;
+    incremental_decode_needed_histogram.Count(
+        all_data_received
+            ? IncrementalDecodePerImageType::kWebPAllDataReceivedInitially
+            : IncrementalDecodePerImageType::kWebPIncrementalNeeded);
   }
-  if (status) {
-    UMA_HISTOGRAM_ENUMERATION("Blink.ImageDecoders.IncrementalDecodeNeeded",
-                              *status);
+}
+
+void RecordByteSizeAndWhetherIncrementalDecode(const String& image_type,
+                                               bool incrementally_decoded,
+                                               size_t bytes) {
+  DCHECK(IsMainThread());
+  // A base::HistogramBase::Sample may not fit the number of bytes of the image.
+  base::HistogramBase::Sample sample_bytes =
+      base::saturated_cast<base::HistogramBase::Sample>(bytes);
+  if (image_type == "jpg") {
+    if (incrementally_decoded) {
+      DEFINE_STATIC_LOCAL(
+          CustomCountHistogram, jpeg_byte_size_incrementally_decoded_histogram,
+          ("Blink.ImageDecoders.IncrementallyDecodedByteSize.Jpeg",
+           125 /* min */, 15000000 /* 15 MB */, 100 /* bucket count */));
+      jpeg_byte_size_incrementally_decoded_histogram.Count(sample_bytes);
+    } else {
+      DEFINE_STATIC_LOCAL(
+          CustomCountHistogram,
+          jpeg_byte_size_initially_fully_decoded_histogram,
+          ("Blink.ImageDecoders.InitiallyFullyDecodedByteSize.Jpeg",
+           125 /* min */, 15000000 /* 15 MB */, 100 /* bucket count */));
+      jpeg_byte_size_initially_fully_decoded_histogram.Count(sample_bytes);
+    }
+  } else {
+    DCHECK_EQ(image_type, "webp");
+    if (incrementally_decoded) {
+      DEFINE_STATIC_LOCAL(
+          CustomCountHistogram, webp_byte_size_incrementally_decoded_histogram,
+          ("Blink.ImageDecoders.IncrementallyDecodedByteSize.WebP",
+           125 /* min */, 15000000 /* 15 MB */, 100 /* bucket count */));
+      webp_byte_size_incrementally_decoded_histogram.Count(sample_bytes);
+    } else {
+      DEFINE_STATIC_LOCAL(
+          CustomCountHistogram,
+          webp_byte_size_initially_fully_decoded_histogram,
+          ("Blink.ImageDecoders.InitiallyFullyDecodedByteSize.WebP",
+           125 /* min */, 15000000 /* 15 MB */, 100 /* bucket count */));
+      webp_byte_size_initially_fully_decoded_histogram.Count(sample_bytes);
+    }
   }
 }
 
@@ -84,13 +121,14 @@ struct DeferredFrameData {
  public:
   DeferredFrameData()
       : orientation_(ImageOrientationEnum::kDefault), is_received_(false) {}
-  DeferredFrameData(const DeferredFrameData&) = delete;
-  DeferredFrameData& operator=(const DeferredFrameData&) = delete;
 
   ImageOrientation orientation_;
-  gfx::Size density_corrected_size_;
+  IntSize density_corrected_size_;
   base::TimeDelta duration_;
   bool is_received_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DeferredFrameData);
 };
 
 std::unique_ptr<DeferredImageDecoder> DeferredImageDecoder::Create(
@@ -129,11 +167,9 @@ DeferredImageDecoder::DeferredImageDecoder(
       can_yuv_decode_(false),
       has_hot_spot_(false),
       image_is_high_bit_depth_(false),
-      complete_frame_content_id_(PaintImage::GetNextContentId()) {
-}
+      complete_frame_content_id_(PaintImage::GetNextContentId()) {}
 
-DeferredImageDecoder::~DeferredImageDecoder() {
-}
+DeferredImageDecoder::~DeferredImageDecoder() = default;
 
 String DeferredImageDecoder::FilenameExtension() const {
   return metadata_decoder_ ? metadata_decoder_->FilenameExtension()
@@ -144,7 +180,7 @@ sk_sp<PaintImageGenerator> DeferredImageDecoder::CreateGenerator() {
   if (frame_generator_ && frame_generator_->DecodeFailed())
     return nullptr;
 
-  if (invalid_image_ || frame_data_.empty())
+  if (invalid_image_ || frame_data_.IsEmpty())
     return nullptr;
 
   DCHECK(frame_generator_);
@@ -152,8 +188,9 @@ sk_sp<PaintImageGenerator> DeferredImageDecoder::CreateGenerator() {
   DCHECK_GT(decoded_size.width(), 0);
   DCHECK_GT(decoded_size.height(), 0);
 
+  sk_sp<SkROBuffer> ro_buffer(rw_buffer_->makeROBufferSnapshot());
   scoped_refptr<SegmentReader> segment_reader =
-      parkable_image_->MakeROSnapshot();
+      SegmentReader::CreateFromSkROBuffer(std::move(ro_buffer));
 
   SkImageInfo info =
       SkImageInfo::MakeN32(decoded_size.width(), decoded_size.height(),
@@ -162,7 +199,7 @@ sk_sp<PaintImageGenerator> DeferredImageDecoder::CreateGenerator() {
     info = info.makeColorType(kRGBA_F16_SkColorType);
 
   WebVector<FrameMetadata> frames(frame_data_.size());
-  for (wtf_size_t i = 0; i < frame_data_.size(); ++i) {
+  for (size_t i = 0; i < frame_data_.size(); ++i) {
     frames[i].complete = frame_data_[i].is_received_;
     frames[i].duration = FrameDurationAtIndex(i);
   }
@@ -198,20 +235,27 @@ sk_sp<PaintImageGenerator> DeferredImageDecoder::CreateGenerator() {
       *image_metadata_);
   first_decoding_generator_created_ = true;
 
+  size_t image_byte_size = ByteSize();
+  if (all_data_received_ && (image_type == "jpg" || image_type == "webp")) {
+    DCHECK(incremental_decode_needed_.has_value());
+    DCHECK(image_byte_size);
+    RecordByteSizeAndWhetherIncrementalDecode(
+        image_type, incremental_decode_needed_.value(), image_byte_size);
+  }
+
   return generator;
 }
 
 scoped_refptr<SharedBuffer> DeferredImageDecoder::Data() {
-  return parkable_image_ ? parkable_image_->Data() : nullptr;
-}
-
-bool DeferredImageDecoder::HasData() const {
-  return parkable_image_ != nullptr;
-}
-
-size_t DeferredImageDecoder::DataSize() const {
-  DCHECK(parkable_image_);
-  return parkable_image_->size();
+  if (!rw_buffer_)
+    return nullptr;
+  sk_sp<SkROBuffer> ro_buffer(rw_buffer_->makeROBufferSnapshot());
+  scoped_refptr<SharedBuffer> shared_buffer = SharedBuffer::Create();
+  SkROBuffer::Iter it(ro_buffer.get());
+  do {
+    shared_buffer->Append(static_cast<const char*>(it.data()), it.size());
+  } while (it.next());
+  return shared_buffer;
 }
 
 void DeferredImageDecoder::SetData(scoped_refptr<SharedBuffer> data,
@@ -222,8 +266,6 @@ void DeferredImageDecoder::SetData(scoped_refptr<SharedBuffer> data,
 void DeferredImageDecoder::SetDataInternal(scoped_refptr<SharedBuffer> data,
                                            bool all_data_received,
                                            bool push_data_to_decoder) {
-  // Once all the data has been received, the image should not change.
-  DCHECK(!all_data_received_);
   if (metadata_decoder_) {
     all_data_received_ = all_data_received;
     if (push_data_to_decoder)
@@ -232,14 +274,16 @@ void DeferredImageDecoder::SetDataInternal(scoped_refptr<SharedBuffer> data,
   }
 
   if (frame_generator_) {
-    if (!parkable_image_)
-      parkable_image_ = ParkableImage::Create(data->size());
+    if (!rw_buffer_)
+      rw_buffer_ = std::make_unique<SkRWBuffer>(data->size());
 
-    parkable_image_->Append(data.get(), parkable_image_->size());
+    for (auto it = data->GetIteratorAt(rw_buffer_->size()); it != data->cend();
+         ++it) {
+      DCHECK_GE(data->size(), rw_buffer_->size() + it->size());
+      const size_t remaining = data->size() - rw_buffer_->size() - it->size();
+      rw_buffer_->append(it->data(), it->size(), remaining);
+    }
   }
-
-  if (all_data_received && parkable_image_)
-    parkable_image_->Freeze();
 }
 
 bool DeferredImageDecoder::IsSizeAvailable() {
@@ -253,17 +297,17 @@ bool DeferredImageDecoder::HasEmbeddedColorProfile() const {
                            : has_embedded_color_profile_;
 }
 
-gfx::Size DeferredImageDecoder::Size() const {
+IntSize DeferredImageDecoder::Size() const {
   return metadata_decoder_ ? metadata_decoder_->Size() : size_;
 }
 
-gfx::Size DeferredImageDecoder::FrameSizeAtIndex(wtf_size_t index) const {
+IntSize DeferredImageDecoder::FrameSizeAtIndex(size_t index) const {
   // FIXME: LocalFrame size is assumed to be uniform. This might not be true for
   // future supported codecs.
   return metadata_decoder_ ? metadata_decoder_->FrameSizeAtIndex(index) : size_;
 }
 
-wtf_size_t DeferredImageDecoder::FrameCount() {
+size_t DeferredImageDecoder::FrameCount() {
   return metadata_decoder_ ? metadata_decoder_->FrameCount()
                            : frame_data_.size();
 }
@@ -287,7 +331,7 @@ SkAlphaType DeferredImageDecoder::AlphaType() const {
   return alpha_type;
 }
 
-bool DeferredImageDecoder::FrameIsReceivedAtIndex(wtf_size_t index) const {
+bool DeferredImageDecoder::FrameIsReceivedAtIndex(size_t index) const {
   if (metadata_decoder_)
     return metadata_decoder_->FrameIsReceivedAtIndex(index);
   if (index < frame_data_.size())
@@ -295,8 +339,7 @@ bool DeferredImageDecoder::FrameIsReceivedAtIndex(wtf_size_t index) const {
   return false;
 }
 
-base::TimeDelta DeferredImageDecoder::FrameDurationAtIndex(
-    wtf_size_t index) const {
+base::TimeDelta DeferredImageDecoder::FrameDurationAtIndex(size_t index) const {
   base::TimeDelta duration;
   if (metadata_decoder_)
     duration = metadata_decoder_->FrameDurationAtIndex(index);
@@ -307,14 +350,13 @@ base::TimeDelta DeferredImageDecoder::FrameDurationAtIndex(
   // possible. We follow Firefox's behavior and use a duration of 100 ms for any
   // frames that specify a duration of <= 10 ms. See <rdar://problem/7689300>
   // and <http://webkit.org/b/36082> for more information.
-  if (duration <= base::Milliseconds(10))
-    duration = base::Milliseconds(100);
+  if (duration <= base::TimeDelta::FromMilliseconds(10))
+    duration = base::TimeDelta::FromMilliseconds(100);
 
   return duration;
 }
 
-ImageOrientation DeferredImageDecoder::OrientationAtIndex(
-    wtf_size_t index) const {
+ImageOrientation DeferredImageDecoder::OrientationAtIndex(size_t index) const {
   if (metadata_decoder_)
     return metadata_decoder_->Orientation();
   if (index < frame_data_.size())
@@ -322,8 +364,7 @@ ImageOrientation DeferredImageDecoder::OrientationAtIndex(
   return ImageOrientationEnum::kDefault;
 }
 
-gfx::Size DeferredImageDecoder::DensityCorrectedSizeAtIndex(
-    wtf_size_t index) const {
+IntSize DeferredImageDecoder::DensityCorrectedSizeAtIndex(size_t index) const {
   if (metadata_decoder_)
     return metadata_decoder_->DensityCorrectedSize();
   if (index < frame_data_.size())
@@ -331,8 +372,9 @@ gfx::Size DeferredImageDecoder::DensityCorrectedSizeAtIndex(
   return Size();
 }
 
+
 size_t DeferredImageDecoder::ByteSize() const {
-  return parkable_image_ ? parkable_image_->size() : 0u;
+  return rw_buffer_ ? rw_buffer_->size() : 0u;
 }
 
 void DeferredImageDecoder::ActivateLazyDecoding() {
@@ -350,8 +392,8 @@ void DeferredImageDecoder::ActivateLazyDecoding() {
       metadata_decoder_->RepetitionCount() == kAnimationNone ||
       (all_data_received_ && metadata_decoder_->FrameCount() == 1u);
   const SkISize decoded_size =
-      SkISize::Make(metadata_decoder_->DecodedSize().width(),
-                    metadata_decoder_->DecodedSize().height());
+      SkISize::Make(metadata_decoder_->DecodedSize().Width(),
+                    metadata_decoder_->DecodedSize().Height());
   frame_generator_ = ImageFrameGenerator::Create(
       decoded_size, !is_single_frame, metadata_decoder_->GetColorBehavior(),
       metadata_decoder_->GetSupportedDecodeSizes());
@@ -377,7 +419,7 @@ void DeferredImageDecoder::PrepareLazyDecodedFrames() {
 
   ActivateLazyDecoding();
 
-  const wtf_size_t previous_size = frame_data_.size();
+  const size_t previous_size = frame_data_.size();
   frame_data_.resize(metadata_decoder_->FrameCount());
 
   // The decoder may be invalidated during a FrameCount(). Simply bail if so.
@@ -392,17 +434,19 @@ void DeferredImageDecoder::PrepareLazyDecodedFrames() {
     return;
   }
 
-  for (wtf_size_t i = previous_size; i < frame_data_.size(); ++i) {
+  for (size_t i = previous_size; i < frame_data_.size(); ++i) {
     frame_data_[i].duration_ = metadata_decoder_->FrameDurationAtIndex(i);
     frame_data_[i].orientation_ = metadata_decoder_->Orientation();
-    frame_data_[i].density_corrected_size_ =
-        metadata_decoder_->DensityCorrectedSize();
+    frame_data_[i].density_corrected_size_ = metadata_decoder_->DensityCorrectedSize();
+    frame_data_[i].is_received_ = metadata_decoder_->FrameIsReceivedAtIndex(i);
   }
 
-  // Update the is_received_ state of incomplete frames.
-  while (received_frame_count_ < frame_data_.size() &&
-         metadata_decoder_->FrameIsReceivedAtIndex(received_frame_count_)) {
-    frame_data_[received_frame_count_++].is_received_ = true;
+  // The last lazy decoded frame created from previous call might be
+  // incomplete so update its state.
+  if (previous_size) {
+    const size_t last_frame = previous_size - 1;
+    frame_data_[last_frame].is_received_ =
+        metadata_decoder_->FrameIsReceivedAtIndex(last_frame);
   }
 
   can_yuv_decode_ =
@@ -418,7 +462,7 @@ void DeferredImageDecoder::PrepareLazyDecodedFrames() {
   }
 }
 
-bool DeferredImageDecoder::HotSpot(gfx::Point& hot_spot) const {
+bool DeferredImageDecoder::HotSpot(IntPoint& hot_spot) const {
   if (metadata_decoder_)
     return metadata_decoder_->HotSpot(hot_spot);
   if (has_hot_spot_)

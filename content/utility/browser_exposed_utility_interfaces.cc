@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,17 +10,15 @@
 
 #include "base/bind.h"
 #include "base/command_line.h"
-#include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "content/public/common/content_client.h"
 #include "content/public/utility/content_utility_client.h"
 #include "mojo/public/cpp/bindings/binder_map.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
-#include "sandbox/policy/mojom/sandbox.mojom.h"
-#include "sandbox/policy/sandbox_type.h"
+#include "sandbox/policy/switches.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 #include "content/public/common/resource_usage_reporter.mojom.h"
 #include "services/proxy_resolver/proxy_resolver_v8.h"  // nogncheck (bug 12345)
 #endif
@@ -29,7 +27,7 @@ namespace content {
 
 namespace {
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 class ResourceUsageReporterImpl : public mojom::ResourceUsageReporter {
  public:
   ResourceUsageReporterImpl() = default;
@@ -58,26 +56,18 @@ void CreateResourceUsageReporter(
   mojo::MakeSelfOwnedReceiver(std::make_unique<ResourceUsageReporterImpl>(),
                               std::move(receiver));
 }
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
 }  // namespace
 
 void ExposeUtilityInterfacesToBrowser(mojo::BinderMap* binders) {
-#if !BUILDFLAG(IS_ANDROID)
-  bool bind_usage_reporter = true;
-#if BUILDFLAG(IS_WIN)
-  auto& cmd_line = *base::CommandLine::ForCurrentProcess();
-  if (sandbox::policy::SandboxTypeFromCommandLine(cmd_line) ==
-      sandbox::mojom::Sandbox::kNoSandboxAndElevatedPrivileges) {
-    bind_usage_reporter = false;
+#if !defined(OS_ANDROID)
+  if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
+          sandbox::policy::switches::kNoneSandboxAndElevatedPrivileges)) {
+    binders->Add(base::BindRepeating(&CreateResourceUsageReporter),
+                 base::ThreadTaskRunnerHandle::Get());
   }
-#endif  // BUILDFLAG(IS_WIN)
-  if (bind_usage_reporter) {
-    binders->Add<mojom::ResourceUsageReporter>(
-        base::BindRepeating(&CreateResourceUsageReporter),
-        base::SingleThreadTaskRunner::GetCurrentDefault());
-  }
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
   GetContentClient()->utility()->ExposeInterfacesToBrowser(binders);
 }

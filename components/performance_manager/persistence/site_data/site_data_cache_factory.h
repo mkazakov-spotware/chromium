@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,13 @@
 #include "base/callback.h"
 #include "base/containers/flat_map.h"
 #include "base/files/file_path.h"
+#include "base/location.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "components/performance_manager/persistence/site_data/site_data_cache.h"
 #include "content/public/browser/browser_context.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace content {
 class BrowserContext;
@@ -32,10 +34,6 @@ class SiteDataCacheInspector;
 class SiteDataCacheFactory {
  public:
   SiteDataCacheFactory();
-
-  SiteDataCacheFactory(const SiteDataCacheFactory&) = delete;
-  SiteDataCacheFactory& operator=(const SiteDataCacheFactory&) = delete;
-
   ~SiteDataCacheFactory();
 
   // Returns a pointer to the global instance.
@@ -77,20 +75,21 @@ class SiteDataCacheFactory {
   // that runs on this object's task runner.
   void OnBrowserContextCreated(const std::string& browser_context_id,
                                const base::FilePath& context_path,
-                               absl::optional<std::string> parent_context_id);
+                               base::Optional<std::string> parent_context_id);
   void OnBrowserContextDestroyed(const std::string& browser_context_id);
 
  private:
   // A map that associates a BrowserContext's ID with a SiteDataCache. This
   // object owns the caches.
-  base::flat_map<std::string, std::unique_ptr<SiteDataCache>> data_cache_map_
-      GUARDED_BY_CONTEXT(sequence_checker_);
+  base::flat_map<std::string, std::unique_ptr<SiteDataCache>> data_cache_map_;
 
   // A map that associates a BrowserContext's ID with a SiteDataCacheInspector.
-  base::flat_map<std::string, SiteDataCacheInspector*> data_cache_inspector_map_
-      GUARDED_BY_CONTEXT(sequence_checker_);
+  base::flat_map<std::string, SiteDataCacheInspector*>
+      data_cache_inspector_map_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(SiteDataCacheFactory);
 };
 
 }  // namespace performance_manager

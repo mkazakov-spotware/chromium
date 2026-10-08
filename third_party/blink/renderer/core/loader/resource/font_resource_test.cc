@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,6 +25,7 @@
 #include "third_party/blink/renderer/platform/loader/testing/mock_resource_client.h"
 #include "third_party/blink/renderer/platform/loader/testing/test_loader_factory.h"
 #include "third_party/blink/renderer/platform/loader/testing/test_resource_fetcher_properties.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/testing/mock_context_lifecycle_notifier.h"
 #include "third_party/blink/renderer/platform/testing/url_test_helpers.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
@@ -65,13 +66,12 @@ TEST_F(FontResourceTest,
 
   MockFetchContext* context = MakeGarbageCollected<MockFetchContext>();
   auto* properties = MakeGarbageCollected<TestResourceFetcherProperties>();
-  auto* fetcher = MakeGarbageCollected<ResourceFetcher>(
-      ResourceFetcherInit(properties->MakeDetachable(), context,
-                          base::MakeRefCounted<scheduler::FakeTaskRunner>(),
-                          base::MakeRefCounted<scheduler::FakeTaskRunner>(),
-                          MakeGarbageCollected<TestLoaderFactory>(),
-                          MakeGarbageCollected<MockContextLifecycleNotifier>(),
-                          nullptr /* back_forward_cache_loader_helper */));
+  auto* fetcher = MakeGarbageCollected<ResourceFetcher>(ResourceFetcherInit(
+      properties->MakeDetachable(), context,
+      base::MakeRefCounted<scheduler::FakeTaskRunner>(),
+      base::MakeRefCounted<scheduler::FakeTaskRunner>(),
+      MakeGarbageCollected<TestLoaderFactory>(),
+      MakeGarbageCollected<MockContextLifecycleNotifier>()));
 
   // Fetch to cache a resource.
   ResourceRequest request1(url);
@@ -118,7 +118,7 @@ TEST_F(FontResourceTest,
   EXPECT_TRUE(resource2->IsLoaded());
   EXPECT_FALSE(resource2->ErrorOccurred());
 
-  MemoryCache::Get()->Remove(resource1);
+  GetMemoryCache()->Remove(resource1);
 }
 
 // Tests if cache-aware font loading works correctly.
@@ -131,8 +131,7 @@ TEST_F(CacheAwareFontResourceTest, CacheAwareFontLoading) {
   url_test_helpers::RegisterMockedURLLoadWithCustomResponse(
       url, "", WrappedResourceResponse(response));
 
-  auto dummy_page_holder =
-      std::make_unique<DummyPageHolder>(gfx::Size(800, 600));
+  auto dummy_page_holder = std::make_unique<DummyPageHolder>(IntSize(800, 600));
   Document& document = dummy_page_holder->GetDocument();
   ResourceFetcher* fetcher = document.Fetcher();
   CSSFontFaceSrcValue* src_value = CSSFontFaceSrcValue::Create(
@@ -191,7 +190,7 @@ TEST_F(CacheAwareFontResourceTest, CacheAwareFontLoading) {
   EXPECT_TRUE(client3->FontLoadLongLimitExceededCalled());
 
   url_test_helpers::ServeAsynchronousRequests();
-  MemoryCache::Get()->Remove(&resource);
+  GetMemoryCache()->Remove(&resource);
 }
 
 }  // namespace blink

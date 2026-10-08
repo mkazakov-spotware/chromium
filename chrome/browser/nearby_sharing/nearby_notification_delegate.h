@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <string>
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 
 // Notification delegate that handles specific click and close events.
 class NearbyNotificationDelegate {
@@ -19,7 +19,7 @@ class NearbyNotificationDelegate {
   // When the click is on the notification itself |action_index| is nullopt.
   // Otherwise |action_index| contains the index of the pressed button.
   virtual void OnClick(const std::string& notification_id,
-                       const absl::optional<int>& action_index) = 0;
+                       const base::Optional<int>& action_index) = 0;
 
   // Called when the notification with |notification_id| got closed by either
   // the user, the system or Chrome itself.

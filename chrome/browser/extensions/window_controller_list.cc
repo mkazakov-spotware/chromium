@@ -1,12 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/window_controller_list.h"
 
-#include "base/containers/contains.h"
-#include "base/observer_list.h"
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "chrome/browser/extensions/api/tabs/windows_util.h"
 #include "chrome/browser/extensions/chrome_extension_function_details.h"
 #include "chrome/browser/extensions/window_controller_list_observer.h"
@@ -38,7 +37,7 @@ void WindowControllerList::AddExtensionWindow(WindowController* window) {
 }
 
 void WindowControllerList::RemoveExtensionWindow(WindowController* window) {
-  auto iter = base::ranges::find(windows_, window);
+  auto iter = std::find(windows_.begin(), windows_.end(), window);
   if (iter != windows_.end()) {
     windows_.erase(iter);
     for (auto& observer : observers_)
@@ -47,7 +46,8 @@ void WindowControllerList::RemoveExtensionWindow(WindowController* window) {
 }
 
 void WindowControllerList::NotifyWindowBoundsChanged(WindowController* window) {
-  if (base::Contains(windows_, window)) {
+  auto iter = std::find(windows_.begin(), windows_.end(), window);
+  if (iter != windows_.end()) {
     for (auto& observer : observers_)
       observer.OnWindowBoundsChanged(window);
   }

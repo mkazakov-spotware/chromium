@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/logging.h"
 #include "base/no_destructor.h"
 #include "library_loaders/xlib_loader.h"
-#include "library_loaders/xlib_xcb_loader.h"
 
 namespace x11 {
 
@@ -25,23 +24,15 @@ XlibLoader* GetXlibLoader() {
   return xlib_loader.get();
 }
 
-XlibXcbLoader* GetXlibXcbLoader() {
-  static base::NoDestructor<XlibXcbLoader> xlib_xcb_loader;
-  return xlib_xcb_loader.get();
-}
-
 }  // namespace
 
-DISABLE_CFI_DLSYM
+DISABLE_CFI_ICALL
 void InitXlib() {
   auto* xlib_loader = GetXlibLoader();
   if (xlib_loader->loaded())
     return;
 
   CHECK(xlib_loader->Load("libX11.so.6"));
-
-  auto* xlib_xcb_loader = GetXlibXcbLoader();
-  CHECK(xlib_xcb_loader->Load("libX11-xcb.so.1"));
 
   CHECK(xlib_loader->XInitThreads());
 
@@ -53,17 +44,12 @@ void InitXlib() {
   SetXlibErrorHandler();
 }
 
-DISABLE_CFI_DLSYM
+DISABLE_CFI_ICALL
 void SetXlibErrorHandler() {
   GetXlibLoader()->XSetErrorHandler(XlibErrorHandler);
 }
 
-DISABLE_CFI_DLSYM
-void XlibFree(void* data) {
-  GetXlibLoader()->XFree(data);
-}
-
-DISABLE_CFI_DLSYM
+DISABLE_CFI_ICALL
 XlibDisplay::XlibDisplay(const std::string& address) {
   InitXlib();
 
@@ -71,22 +57,13 @@ XlibDisplay::XlibDisplay(const std::string& address) {
                                                            : address.c_str());
 }
 
-DISABLE_CFI_DLSYM
+DISABLE_CFI_ICALL
 XlibDisplay::~XlibDisplay() {
-  if (!display_)
-    return;
-
-  auto* loader = GetXlibLoader();
-  // Events are not processed on |display_|, so if any client asks to receive
-  // events, they will just queue up and leak memory.  This check makes sure
-  // |display_| never had any pending events before it is closed.
-  CHECK(!loader->XPending(display_));
-  // ExtractAsDangling clears the underlying pointer and returns another raw_ptr
-  // instance that is allowed to dangle.
-  loader->XCloseDisplay(display_.ExtractAsDangling());
+  if (display_)
+    GetXlibLoader()->XCloseDisplay(display_);
 }
 
-DISABLE_CFI_DLSYM
+DISABLE_CFI_ICALL
 XlibDisplayWrapper::XlibDisplayWrapper(struct _XDisplay* display,
                                        XlibDisplayType type)
     : display_(display), type_(type) {
@@ -96,7 +73,7 @@ XlibDisplayWrapper::XlibDisplayWrapper(struct _XDisplay* display,
     GetXlibLoader()->XSynchronize(display_, true);
 }
 
-DISABLE_CFI_DLSYM
+DISABLE_CFI_ICALL
 XlibDisplayWrapper::~XlibDisplayWrapper() {
   if (!display_)
     return;
@@ -119,11 +96,6 @@ XlibDisplayWrapper& XlibDisplayWrapper::operator=(XlibDisplayWrapper&& other) {
   other.display_ = nullptr;
   other.type_ = XlibDisplayType::kNormal;
   return *this;
-}
-
-DISABLE_CFI_DLSYM
-struct xcb_connection_t* XlibDisplayWrapper::GetXcbConnection() {
-  return GetXlibXcbLoader()->XGetXCBConnection(display_);
 }
 
 }  // namespace x11

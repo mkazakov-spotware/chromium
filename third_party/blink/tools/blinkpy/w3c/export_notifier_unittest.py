@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -19,7 +19,8 @@ class ExportNotifierTest(LoggingTestCase):
         self.notifier = ExportNotifier(self.host, self.git, self.gerrit)
 
     def test_get_gerrit_sha_from_comment_success(self):
-        gerrit_comment = self.generate_notifier_comment(123, {}, 'SHA', None)
+        gerrit_comment = self.generate_notifier_comment(
+            123, 'checks', 'SHA', None)
 
         actual = PRStatusInfo.get_gerrit_sha_from_comment(gerrit_comment)
 
@@ -34,8 +35,9 @@ class ExportNotifierTest(LoggingTestCase):
 
     def test_to_gerrit_comment(self):
         checks_results = {'key1': 'val1', 'key2': 'val2'}
+        result_comment = '\nkey2 (val2)\nkey1 (val1)'
         pr_status_info = PRStatusInfo(checks_results, 123, 'SHA')
-        expected = self.generate_notifier_comment(123, checks_results, 'SHA',
+        expected = self.generate_notifier_comment(123, result_comment, 'SHA',
                                                   None)
 
         actual = pr_status_info.to_gerrit_comment()
@@ -44,8 +46,9 @@ class ExportNotifierTest(LoggingTestCase):
 
     def test_to_gerrit_comment_latest(self):
         checks_results = {'key1': 'val1', 'key2': 'val2'}
+        result_comment = '\nkey2 (val2)\nkey1 (val1)'
         pr_status_info = PRStatusInfo(checks_results, 123, None)
-        expected = self.generate_notifier_comment(123, checks_results,
+        expected = self.generate_notifier_comment(123, result_comment,
                                                   'Latest', None)
 
         actual = pr_status_info.to_gerrit_comment()
@@ -54,8 +57,9 @@ class ExportNotifierTest(LoggingTestCase):
 
     def test_to_gerrit_comment_with_patchset(self):
         checks_results = {'key1': 'val1', 'key2': 'val2'}
+        result_comment = '\nkey2 (val2)\nkey1 (val1)'
         pr_status_info = PRStatusInfo(checks_results, 123, 'SHA')
-        expected = self.generate_notifier_comment(123, checks_results, 'SHA',
+        expected = self.generate_notifier_comment(123, result_comment, 'SHA',
                                                   3)
 
         actual = pr_status_info.to_gerrit_comment(3)
@@ -74,31 +78,17 @@ class ExportNotifierTest(LoggingTestCase):
                 "conclusion": "failure",
                 "name": "wpt-firefox-nightly-stability"
             },
-            {
-                "id": "3",
-                "conclusion": "failure",
-                "name": "lint"
-            },
-            {
-                "id": "4",
-                "conclusion": "failure",
-                "name": "infrastructure/ tests"
-            },
         ]
         expected = {
             'wpt-chrome-dev-stability':
-            'https://github.com/web-platform-tests/wpt/runs/1',
+            'https://github.com/web-platform-tests/wpt/pull/123/checks?check_run_id=1',
             'wpt-firefox-nightly-stability':
-            'https://github.com/web-platform-tests/wpt/runs/2',
-            'lint':
-            'https://github.com/web-platform-tests/wpt/runs/3',
-            'infrastructure/ tests':
-            'https://github.com/web-platform-tests/wpt/runs/4',
+            'https://github.com/web-platform-tests/wpt/pull/123/checks?check_run_id=2'
         }
 
         self.assertEqual(
             self.notifier.get_relevant_failed_taskcluster_checks(
-                check_runs), expected)
+                check_runs, 123), expected)
 
     def test_get_relevant_failed_taskcluster_checks_empty(self):
         check_runs = [
@@ -116,7 +106,7 @@ class ExportNotifierTest(LoggingTestCase):
 
         self.assertEqual(
             self.notifier.get_relevant_failed_taskcluster_checks(
-                check_runs), {})
+                check_runs, 123), {})
 
     def test_has_latest_taskcluster_status_commented_false(self):
         pr_status_info = PRStatusInfo('bar', 123, 'SHA')
@@ -141,7 +131,8 @@ class ExportNotifierTest(LoggingTestCase):
             },
             {
                 "date": "2019-08-21 17:41:05.000000000",
-                "message": self.generate_notifier_comment(123, {}, 'SHA', 3),
+                "message":
+                self.generate_notifier_comment(123, 'result', 'SHA', 3),
                 "_revision_number": 2
             },
         ]
@@ -175,32 +166,36 @@ class ExportNotifierTest(LoggingTestCase):
 
     def test_process_failing_prs_success(self):
         checks_results = {'key1': 'val1', 'key2': 'val2'}
+        result_comment = '\nkey2 (val2)\nkey1 (val1)'
         self.notifier.dry_run = False
         self.notifier.gerrit = MockGerritAPI()
-        self.notifier.gerrit.cl = MockGerritCL(data={
-            'change_id':
-            'abc',
-            'messages': [
-                {
-                    "date": "2019-08-20 17:42:05.000000000",
-                    "message": "Uploaded patch set 1.\nInitial upload",
-                    "_revision_number": 1
-                },
-                {
-                    "date": "2019-08-21 17:41:05.000000000",
-                    "message":
-                    self.generate_notifier_comment(123, {}, 'notnum', 3),
-                    "_revision_number": 2
-                },
-            ],
-            'revisions': {
-                'SHA': {
-                    '_number': 1
+        self.notifier.gerrit.cl = MockGerritCL(
+            data={
+                'change_id':
+                'abc',
+                'messages': [
+                    {
+                        "date": "2019-08-20 17:42:05.000000000",
+                        "message": "Uploaded patch set 1.\nInitial upload",
+                        "_revision_number": 1
+                    },
+                    {
+                        "date":
+                        "2019-08-21 17:41:05.000000000",
+                        "message": self.generate_notifier_comment(123, 'notbar', 'notnum', 3),
+                        "_revision_number":
+                        2
+                    },
+                ],
+                'revisions': {
+                    'SHA': {
+                        '_number': 1
+                    }
                 }
-            }
-        }, api=self.notifier.gerrit)
+            },
+            api=self.notifier.gerrit)
         gerrit_dict = {'abc': PRStatusInfo(checks_results, 123, 'SHA')}
-        expected = self.generate_notifier_comment(123, checks_results, 'SHA',
+        expected = self.generate_notifier_comment(123, result_comment, 'SHA',
                                                   1)
 
         self.notifier.process_failing_prs(gerrit_dict)
@@ -214,28 +209,31 @@ class ExportNotifierTest(LoggingTestCase):
     def test_process_failing_prs_has_commented(self):
         self.notifier.dry_run = False
         self.notifier.gerrit = MockGerritAPI()
-        self.notifier.gerrit.cl = MockGerritCL(data={
-            'change_id':
-            'abc',
-            'messages': [
-                {
-                    "date": "2019-08-20 17:42:05.000000000",
-                    "message": "Uploaded patch set 1.\nInitial upload",
-                    "_revision_number": 1
-                },
-                {
-                    "date": "2019-08-21 17:41:05.000000000",
-                    "message":
-                    self.generate_notifier_comment(123, {}, 'SHA', 3),
-                    "_revision_number": 2
-                },
-            ],
-            'revisions': {
-                'SHA': {
-                    '_number': 1
+        self.notifier.gerrit.cl = MockGerritCL(
+            data={
+                'change_id':
+                'abc',
+                'messages': [
+                    {
+                        "date": "2019-08-20 17:42:05.000000000",
+                        "message": "Uploaded patch set 1.\nInitial upload",
+                        "_revision_number": 1
+                    },
+                    {
+                        "date":
+                        "2019-08-21 17:41:05.000000000",
+                        "message": self.generate_notifier_comment(123, 'bar', 'SHA', 3),
+                        "_revision_number":
+                        2
+                    },
+                ],
+                'revisions': {
+                    'SHA': {
+                        '_number': 1
+                    }
                 }
-            }
-        }, api=self.notifier.gerrit)
+            },
+            api=self.notifier.gerrit)
         gerrit_dict = {'abc': PRStatusInfo('bar', 123, 'SHA')}
 
         self.notifier.process_failing_prs(gerrit_dict)
@@ -246,30 +244,34 @@ class ExportNotifierTest(LoggingTestCase):
     def test_process_failing_prs_with_latest_sha(self):
         self.notifier.dry_run = False
         self.notifier.gerrit = MockGerritAPI()
-        self.notifier.gerrit.cl = MockGerritCL(data={
-            'change_id':
-            'abc',
-            'messages': [
-                {
-                    "date": "2019-08-20 17:42:05.000000000",
-                    "message": "Uploaded patch set 1.\nInitial upload",
-                    "_revision_number": 1
-                },
-                {
-                    "date": "2019-08-21 17:41:05.000000000",
-                    "message":
-                    self.generate_notifier_comment(123, {}, 'notnum', 3),
-                    "_revision_number": 2
-                },
-            ],
-            'revisions': {
-                'SHA': {
-                    '_number': 1
+        self.notifier.gerrit.cl = MockGerritCL(
+            data={
+                'change_id':
+                'abc',
+                'messages': [
+                    {
+                        "date": "2019-08-20 17:42:05.000000000",
+                        "message": "Uploaded patch set 1.\nInitial upload",
+                        "_revision_number": 1
+                    },
+                    {
+                        "date":
+                        "2019-08-21 17:41:05.000000000",
+                        "message": self.generate_notifier_comment(123, 'notbar', 'notnum', 3),
+                        "_revision_number":
+                        2
+                    },
+                ],
+                'revisions': {
+                    'SHA': {
+                        '_number': 1
+                    }
                 }
-            }
-        }, api=self.notifier.gerrit)
+            },
+            api=self.notifier.gerrit)
         checks_results = {'key1': 'val1', 'key2': 'val2'}
-        expected = self.generate_notifier_comment(123, checks_results,
+        result_comment = '\nkey2 (val2)\nkey1 (val1)'
+        expected = self.generate_notifier_comment(123, result_comment,
                                                   'Latest')
         gerrit_dict = {'abc': PRStatusInfo(checks_results, 123, None)}
 
@@ -292,8 +294,7 @@ class ExportNotifierTest(LoggingTestCase):
         self.assertEqual(self.notifier.gerrit.request_posted, [])
         self.assertLog([
             'INFO: Processing 1 CLs with failed Taskcluster checks.\n',
-            'INFO: Change-Id: abc\n',
-            'ERROR: Could not process Gerrit CL abc: Error from query_cl\n',
+            'ERROR: Could not process Gerrit CL abc: Error from query_cl\n'
         ])
 
     def test_export_notifier_success(self):
@@ -318,39 +319,39 @@ class ExportNotifierTest(LoggingTestCase):
                 "name": "firefox"
             },
         ]
-        checks_results = {
-            'wpt-chrome-dev-stability':
-            'https://github.com/web-platform-tests/wpt/runs/123'
-        }
+        checks_results_comment = ('\nwpt-chrome-dev-stability ('
+                                  'https://github.com/web-platform-tests/wpt'
+                                  '/pull/1234/checks?check_run_id=123)')
 
         self.notifier.dry_run = False
         self.notifier.gerrit = MockGerritAPI()
-        self.notifier.gerrit.cl = MockGerritCL(data={
-            'change_id':
-            'decafbad',
-            'messages': [
-                {
-                    "date": "2019-08-20 17:42:05.000000000",
-                    "message": "Uploaded patch set 1.\nInitial upload",
-                    "_revision_number": 1
-                },
-                {
-                    "date":
-                    "2019-08-21 17:41:05.000000000",
-                    "message":
-                    self.generate_notifier_comment(1234, {}, 'notnum', 3),
-                    "_revision_number":
-                    2
-                },
-            ],
-            'revisions': {
-                'hash': {
-                    '_number': 2
+        self.notifier.gerrit.cl = MockGerritCL(
+            data={
+                'change_id':
+                'decafbad',
+                'messages': [
+                    {
+                        "date": "2019-08-20 17:42:05.000000000",
+                        "message": "Uploaded patch set 1.\nInitial upload",
+                        "_revision_number": 1
+                    },
+                    {
+                        "date":
+                        "2019-08-21 17:41:05.000000000",
+                        "message": self.generate_notifier_comment(1234, 'notbar', 'notnum', 3),
+                        "_revision_number":
+                        2
+                    },
+                ],
+                'revisions': {
+                    'hash': {
+                        '_number': 2
+                    }
                 }
-            }
-        }, api=self.notifier.gerrit)
-        expected = self.generate_notifier_comment(1234, checks_results, 'hash',
-                                                  2)
+            },
+            api=self.notifier.gerrit)
+        expected = self.generate_notifier_comment(1234, checks_results_comment,
+                                                  'hash', 2)
 
         exit_code = self.notifier.main()
 
@@ -368,13 +369,9 @@ class ExportNotifierTest(LoggingTestCase):
 
     def generate_notifier_comment(self,
                                   pr_number,
-                                  checks_results,
+                                  checks_results_comment,
                                   sha,
                                   patchset=None):
-        checks_results_comment = ''
-        for check, url in checks_results.items():
-            checks_results_comment += '\n%s (%s)' % (check, url)
-
         if patchset:
             comment = (
                 'The exported PR, https://github.com/web-platform-tests/wpt/pull/{}, '

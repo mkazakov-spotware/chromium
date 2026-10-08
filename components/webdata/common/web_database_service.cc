@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "components/webdata/common/web_data_request_manager.h"
 #include "components/webdata/common/web_data_results.h"
 #include "components/webdata/common/web_data_service_consumer.h"
@@ -22,8 +22,7 @@ class WebDatabaseService::BackendDelegate
  public:
   BackendDelegate(const base::WeakPtr<WebDatabaseService>& web_database_service)
       : web_database_service_(web_database_service),
-        callback_task_runner_(
-            base::SingleThreadTaskRunner::GetCurrentDefault()) {}
+        callback_task_runner_(base::ThreadTaskRunnerHandle::Get()) {}
 
   void DBLoaded(sql::InitStatus status,
                 const std::string& diagnostics) override {

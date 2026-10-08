@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,96 +14,65 @@
  * a disabled toggle and the wifi sync localized string component that is a
  * special case containing two links.
  */
+Polymer({
+  is: 'settings-multidevice-wifi-sync-item',
 
-import './multidevice_feature_item.js';
-import './multidevice_wifi_sync_disabled_link.js';
-import 'chrome://resources/cr_elements/cr_toggle/cr_toggle.js';
-import '../../settings_shared.css.js';
+  behaviors: [
+    MultiDeviceFeatureBehavior,
+    WebUIListenerBehavior,
+  ],
 
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {WebUIListenerBehavior, WebUIListenerBehaviorInterface} from 'chrome://resources/ash/common/web_ui_listener_behavior.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+  properties: {
+    /** @private */
+    isWifiSyncV1Enabled_: Boolean,
+  },
 
-import {SyncBrowserProxyImpl} from '../../people_page/sync_browser_proxy.js';
-import {OsSyncBrowserProxy, OsSyncBrowserProxyImpl, OsSyncPrefs} from '../os_people_page/os_sync_browser_proxy.js';
+  /** @private {?settings.OsSyncBrowserProxy} */
+  osSyncBrowserProxy_: null,
 
-import {MultiDeviceFeatureBehavior, MultiDeviceFeatureBehaviorInterface} from './multidevice_feature_behavior.js';
-
-/**
- * @constructor
- * @extends {PolymerElement}
- * @implements {MultiDeviceFeatureBehaviorInterface}
- * @implements {WebUIListenerBehaviorInterface}
- */
-const SettingsMultideviceWifiSyncItemElementBase = mixinBehaviors(
-    [MultiDeviceFeatureBehavior, WebUIListenerBehavior], PolymerElement);
-
-/** @polymer */
-class SettingsMultideviceWifiSyncItemElement extends
-    SettingsMultideviceWifiSyncItemElementBase {
-  static get is() {
-    return 'settings-multidevice-wifi-sync-item';
-  }
-
-  static get template() {
-    return html`{__html_template__}`;
-  }
-
-  static get properties() {
-    return {
-      /** @private */
-      isWifiSyncV1Enabled_: Boolean,
-    };
-  }
+  /** @private {?settings.SyncBrowserProxy} */
+  syncBrowserProxy_: null,
 
   /** @override */
-  constructor() {
-    super();
-
-    /** @private {?OsSyncBrowserProxy} */
-    this.osSyncBrowserProxy_ = null;
-
-    /** @private {?SyncBrowserProxy} */
-    this.syncBrowserProxy_ = null;
-
-    this.osSyncBrowserProxy_ = OsSyncBrowserProxyImpl.getInstance();
-  }
+  attached() {
+    if (loadTimeData.getBoolean('splitSettingsSyncEnabled')) {
+      this.addWebUIListener(
+          'os-sync-prefs-changed', this.handleOsSyncPrefsChanged_.bind(this));
+      this.osSyncBrowserProxy_.sendOsSyncPrefsChanged();
+    } else {
+      this.addWebUIListener(
+          'sync-prefs-changed', this.handleSyncPrefsChanged_.bind(this));
+      this.syncBrowserProxy_.sendSyncPrefsChanged();
+    }
+  },
 
   /** @override */
-  connectedCallback() {
-    super.connectedCallback();
-
-    this.addWebUIListener(
-        'os-sync-prefs-changed', this.handleOsSyncPrefsChanged_.bind(this));
-    this.osSyncBrowserProxy_.sendOsSyncPrefsChanged();
-  }
+  created() {
+    if (loadTimeData.getBoolean('splitSettingsSyncEnabled')) {
+      this.osSyncBrowserProxy_ = settings.OsSyncBrowserProxyImpl.getInstance();
+    } else {
+      this.syncBrowserProxy_ = settings.SyncBrowserProxyImpl.getInstance();
+    }
+  },
 
   /**
    * Handler for when the sync preferences are updated.
-   * @param {!SyncPrefs} syncPrefs
+   * @param {!settings.SyncPrefs} syncPrefs
    * @private
    */
   handleSyncPrefsChanged_(syncPrefs) {
     this.isWifiSyncV1Enabled_ =
         !!syncPrefs && syncPrefs.wifiConfigurationsSynced;
-  }
+  },
 
   /**
    * Handler for when os sync preferences are updated.
-   * @param {!OsSyncPrefs} osSyncPrefs
+   * @param {!settings.OsSyncPrefs} osSyncPrefs
+   * @param {!boolean} osSyncFeatureEnabled
    * @private
    */
-  handleOsSyncPrefsChanged_(osSyncPrefs) {
-    this.isWifiSyncV1Enabled_ =
-        !!osSyncPrefs && osSyncPrefs.osWifiConfigurationsSynced;
-  }
-
-  /** @override */
-  focus() {
-    this.shadowRoot.querySelector('settings-multidevice-feature-item').focus();
-  }
-}
-
-customElements.define(
-    SettingsMultideviceWifiSyncItemElement.is,
-    SettingsMultideviceWifiSyncItemElement);
+  handleOsSyncPrefsChanged_(osSyncFeatureEnabled, osSyncPrefs) {
+    this.isWifiSyncV1Enabled_ = osSyncFeatureEnabled && !!osSyncPrefs &&
+        osSyncPrefs.osWifiConfigurationsSynced;
+  },
+});

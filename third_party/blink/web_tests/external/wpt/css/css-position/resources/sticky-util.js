@@ -25,10 +25,7 @@ function setupStickyTest(stickyDirection, stickyOffset) {
   elements.scroller.style.position = 'relative';
   elements.scroller.style.width = (inline ? '200px' : '100px');
   elements.scroller.style.height = (inline ? '100px' : '200px');
-
-  // 'hidden' is used here instead of 'scroll' because this prevents
-  // scrollbars from affecting the size and offset of sticky items.
-  elements.scroller.style.overflow = 'hidden';
+  elements.scroller.style.overflow = 'scroll';
 
   elements.contents = document.createElement('div');
   elements.contents.style.height = (inline ? '100%' : '500px');

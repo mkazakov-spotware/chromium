@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 
 #include "base/callback.h"
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "remoting/protocol/input_filter.h"
 
 namespace remoting {
@@ -23,10 +24,6 @@ class KeyEventMapper : public protocol::InputFilter {
  public:
   KeyEventMapper();
   explicit KeyEventMapper(InputStub* input_stub);
-
-  KeyEventMapper(const KeyEventMapper&) = delete;
-  KeyEventMapper& operator=(const KeyEventMapper&) = delete;
-
   ~KeyEventMapper() override;
 
   // Callback type for use with SetTrapCallback(), below.
@@ -51,6 +48,8 @@ class KeyEventMapper : public protocol::InputFilter {
   std::map<uint32_t, uint32_t> mapped_keys;
   std::set<uint32_t> trapped_keys;
   KeyTrapCallback trap_callback;
+
+  DISALLOW_COPY_AND_ASSIGN(KeyEventMapper);
 };
 
 }  // namespace remoting

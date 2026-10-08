@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media/router/providers/cast/cast_media_route_provider_metrics.h"
 
-#include "base/containers/contains.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/time/time.h"
@@ -44,7 +43,7 @@ void RecordLaunchSessionResponseAppType(const base::Value* app_type) {
   if (!app_type) {
     return;
   }
-  absl::optional<ReceiverAppType> type =
+  base::Optional<ReceiverAppType> type =
       cast_util::StringToEnum<ReceiverAppType>(app_type->GetString());
   if (type) {
     base::UmaHistogramEnumeration(kHistogramCastAppType, *type);

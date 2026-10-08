@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_PREDICTORS_PREDICTOR_DATABASE_H_
 #define CHROME_BROWSER_PREDICTORS_PREDICTOR_DATABASE_H_
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "components/keyed_service/core/keyed_service.h"
 
@@ -28,10 +29,6 @@ class PredictorDatabase : public KeyedService {
  public:
   PredictorDatabase(Profile* profile,
                     scoped_refptr<base::SequencedTaskRunner> db_task_runner);
-
-  PredictorDatabase(const PredictorDatabase&) = delete;
-  PredictorDatabase& operator=(const PredictorDatabase&) = delete;
-
   ~PredictorDatabase() override;
 
   scoped_refptr<AutocompleteActionPredictorTable> autocomplete_table();
@@ -45,6 +42,8 @@ class PredictorDatabase : public KeyedService {
   void Shutdown() override;
 
   scoped_refptr<PredictorDatabaseInternal> db_;
+
+  DISALLOW_COPY_AND_ASSIGN(PredictorDatabase);
 };
 
 }  // namespace predictors

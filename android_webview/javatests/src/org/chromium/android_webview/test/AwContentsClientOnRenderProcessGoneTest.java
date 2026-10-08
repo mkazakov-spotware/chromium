@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,10 +19,12 @@ import org.junit.runner.RunWith;
 
 import org.chromium.android_webview.AwContents;
 import org.chromium.android_webview.AwRenderProcess;
+import org.chromium.android_webview.AwRenderProcessGoneDetail;
 import org.chromium.android_webview.renderer_priority.RendererPriority;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
@@ -43,14 +45,14 @@ public class AwContentsClientOnRenderProcessGoneTest {
     public AwActivityTestRule mActivityTestRule = new AwActivityTestRule();
 
     private TestWebServer mWebServer;
-    private TestAwContentsClient mContentsClient;
+    private RenderProcessGoneTestAwContentsClient mContentsClient;
     private AwTestContainerView mTestView;
     private AwContents mAwContents;
 
     @Before
     public void setUp() throws Exception {
         mWebServer = TestWebServer.start();
-        mContentsClient = new TestAwContentsClient();
+        mContentsClient = new RenderProcessGoneTestAwContentsClient();
         mTestView = mActivityTestRule.createAwTestContainerViewOnMainSync(mContentsClient);
         mAwContents = mTestView.getAwContents();
     }
@@ -67,15 +69,46 @@ public class AwContentsClientOnRenderProcessGoneTest {
         return mWebServer.setResponse(httpPath, html, headers);
     }
 
+    private static class GetRenderProcessGoneHelper extends CallbackHelper {
+        private AwRenderProcessGoneDetail mDetail;
+
+        public AwRenderProcessGoneDetail getAwRenderProcessGoneDetail() {
+            assert getCallCount() > 0;
+            return mDetail;
+        }
+
+        public void notifyCalled(AwRenderProcessGoneDetail detail) {
+            mDetail = detail;
+            notifyCalled();
+        }
+    }
+
+    private static class RenderProcessGoneTestAwContentsClient extends TestAwContentsClient {
+
+        private GetRenderProcessGoneHelper mGetRenderProcessGoneHelper;
+
+        public RenderProcessGoneTestAwContentsClient() {
+            mGetRenderProcessGoneHelper = new GetRenderProcessGoneHelper();
+        }
+
+        public GetRenderProcessGoneHelper getGetRenderProcessGoneHelper() {
+            return mGetRenderProcessGoneHelper;
+        }
+
+        @Override
+        public boolean onRenderProcessGone(AwRenderProcessGoneDetail detail) {
+            mGetRenderProcessGoneHelper.notifyCalled(detail);
+            return true;
+        }
+    }
+
     interface Terminator {
         void terminate();
     }
 
     private AwRenderProcess createAndTerminateRenderProcess(
             Terminator terminator, boolean expectCrash) throws Throwable {
-        TestAwContentsClient.RenderProcessGoneHelper helper =
-                mContentsClient.getRenderProcessGoneHelper();
-        helper.setResponse(true); // Don't automatically kill the browser process.
+        GetRenderProcessGoneHelper helper = mContentsClient.getGetRenderProcessGoneHelper();
 
         final AwRenderProcess renderProcess =
                 TestThreadUtils.runOnUiThreadBlocking(() -> mAwContents.getRenderProcess());
@@ -100,6 +133,7 @@ public class AwContentsClientOnRenderProcessGoneTest {
     }
 
     @Test
+    @DisabledTest // http://crbug.com/689292
     @Feature({"AndroidWebView"})
     @SmallTest
     @OnlyRunIn(MULTI_PROCESS)
@@ -168,8 +202,8 @@ public class AwContentsClientOnRenderProcessGoneTest {
     @SmallTest
     @OnlyRunIn(MULTI_PROCESS)
     // The RenderDocument feature has a "level" parameter. This enables the feature and sets the
-    // default level to "crashed-frame" to enable replacing the RenderFrameHost of crashed frames
-    // with a new RenderFrameHost (instead of resuing the old one). See
+    // default level to "crashed-frame" to enable replacing the render frame host of crashed frames
+    // with a new render frame host (instead of resuing the old one). See
     // https://go/force-field-trials-docs for the syntax of these flags.
     @CommandLineFlags.Add({
             "enable-features=RenderDocument<RenderDocument",

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@
 
 #include <memory>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/files/file_path.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "remoting/base/auto_thread.h"
 #include "remoting/base/auto_thread_task_runner.h"
 #include "remoting/host/setup/daemon_controller.h"
@@ -21,21 +23,16 @@ class PermissionWizard;
 class DaemonControllerDelegateMac : public DaemonController::Delegate {
  public:
   DaemonControllerDelegateMac();
-
-  DaemonControllerDelegateMac(const DaemonControllerDelegateMac&) = delete;
-  DaemonControllerDelegateMac& operator=(const DaemonControllerDelegateMac&) =
-      delete;
-
   ~DaemonControllerDelegateMac() override;
 
   // DaemonController::Delegate interface.
   DaemonController::State GetState() override;
-  absl::optional<base::Value::Dict> GetConfig() override;
+  std::unique_ptr<base::DictionaryValue> GetConfig() override;
   void CheckPermission(bool it2me, DaemonController::BoolCallback) override;
-  void SetConfigAndStart(base::Value::Dict config,
+  void SetConfigAndStart(std::unique_ptr<base::DictionaryValue> config,
                          bool consent,
                          DaemonController::CompletionCallback done) override;
-  void UpdateConfig(base::Value::Dict config,
+  void UpdateConfig(std::unique_ptr<base::DictionaryValue> config,
                     DaemonController::CompletionCallback done) override;
   void Stop(DaemonController::CompletionCallback done) override;
   DaemonController::UsageStatsConsent GetUsageStatsConsent() override;
@@ -47,6 +44,8 @@ class DaemonControllerDelegateMac : public DaemonController::Delegate {
   // thread.
   scoped_refptr<AutoThreadTaskRunner> io_task_runner_;
   AutoThread io_thread_;
+
+  DISALLOW_COPY_AND_ASSIGN(DaemonControllerDelegateMac);
 };
 
 }  // namespace remoting

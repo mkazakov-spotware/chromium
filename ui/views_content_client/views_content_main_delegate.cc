@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,21 +12,20 @@
 #include "base/path_service.h"
 #include "build/build_config.h"
 #include "content/public/common/content_switches.h"
-#include "content/shell/browser/shell_paths.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_paths.h"
 #include "ui/views_content_client/views_content_browser_client.h"
 #include "ui/views_content_client/views_content_client.h"
 #include "ui/views_content_client/views_content_client_main_parts.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/logging_win.h"
 #endif
 
 namespace ui {
 namespace {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // {83FAC8EE-7A0E-4dbb-A3F6-6F500D7CAB1A}
 const GUID kViewsContentClientProviderName =
     { 0x83fac8ee, 0x7a0e, 0x4dbb,
@@ -43,7 +42,7 @@ ViewsContentMainDelegate::ViewsContentMainDelegate(
 ViewsContentMainDelegate::~ViewsContentMainDelegate() {
 }
 
-absl::optional<int> ViewsContentMainDelegate::BasicStartupComplete() {
+bool ViewsContentMainDelegate::BasicStartupComplete(int* exit_code) {
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();
   std::string process_type =
@@ -54,13 +53,11 @@ absl::optional<int> ViewsContentMainDelegate::BasicStartupComplete() {
       logging::LOG_TO_SYSTEM_DEBUG_LOG | logging::LOG_TO_STDERR;
   bool success = logging::InitLogging(settings);
   CHECK(success);
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   logging::LogEventProvider::Initialize(kViewsContentClientProviderName);
 #endif
 
-  content::RegisterShellPathProvider();
-
-  return absl::nullopt;
+  return false;
 }
 
 void ViewsContentMainDelegate::PreSandboxStartup() {
@@ -70,29 +67,24 @@ void ViewsContentMainDelegate::PreSandboxStartup() {
 
   // Load content resources to provide, e.g., sandbox configuration data on Mac.
   base::FilePath content_resources_pak_path;
-  base::PathService::Get(base::DIR_ASSETS, &content_resources_pak_path);
+  base::PathService::Get(base::DIR_MODULE, &content_resources_pak_path);
   ui::ResourceBundle::GetSharedInstance().AddDataPackFromPath(
       content_resources_pak_path.AppendASCII("content_resources.pak"),
-      ui::k100Percent);
+      ui::SCALE_FACTOR_100P);
 
-  if (ui::ResourceBundle::IsScaleFactorSupported(ui::k200Percent)) {
+  if (ui::ResourceBundle::IsScaleFactorSupported(ui::SCALE_FACTOR_200P)) {
     base::FilePath ui_test_resources_200 = ui_test_pak_path.DirName().Append(
         FILE_PATH_LITERAL("ui_test_200_percent.pak"));
     ui::ResourceBundle::GetSharedInstance().AddDataPackFromPath(
-        ui_test_resources_200, ui::k200Percent);
+        ui_test_resources_200, ui::SCALE_FACTOR_200P);
   }
 
   views_content_client_->OnResourcesLoaded();
 }
 
-absl::optional<int> ViewsContentMainDelegate::PreBrowserMain() {
-  absl::optional<int> exit_code =
-      content::ContentMainDelegate::PreBrowserMain();
-  if (exit_code.has_value())
-    return exit_code;
-
-  ViewsContentClientMainParts::PreBrowserMain();
-  return absl::nullopt;
+void ViewsContentMainDelegate::PreCreateMainMessageLoop() {
+  content::ContentMainDelegate::PreCreateMainMessageLoop();
+  ViewsContentClientMainParts::PreCreateMainMessageLoop();
 }
 
 content::ContentClient* ViewsContentMainDelegate::CreateContentClient() {

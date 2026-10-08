@@ -20,11 +20,13 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_VIBRATION_VIBRATION_CONTROLLER_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_VIBRATION_VIBRATION_CONTROLLER_H_
 
+#include "base/macros.h"
 #include "services/device/public/mojom/vibration_manager.mojom-blink.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
 #include "third_party/blink/renderer/core/page/page_visibility_observer.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_remote.h"
 #include "third_party/blink/renderer/platform/supplementable.h"
 #include "third_party/blink/renderer/platform/timer.h"
@@ -33,7 +35,7 @@
 namespace blink {
 
 class Navigator;
-class V8UnionUnsignedLongOrUnsignedLongSequence;
+class UnsignedLongOrUnsignedLongSequence;
 
 class MODULES_EXPORT VibrationController final
     : public GarbageCollected<VibrationController>,
@@ -50,14 +52,10 @@ class MODULES_EXPORT VibrationController final
   static bool vibrate(Navigator&, const VibrationPattern&);
 
   explicit VibrationController(Navigator&);
-
-  VibrationController(const VibrationController&) = delete;
-  VibrationController& operator=(const VibrationController&) = delete;
-
-  ~VibrationController() override;
+  virtual ~VibrationController();
 
   static VibrationPattern SanitizeVibrationPattern(
-      const V8UnionUnsignedLongOrUnsignedLongSequence* input);
+      const UnsignedLongOrUnsignedLongSequence&);
 
   void DoVibrate(TimerBase*);
   void DidVibrate();
@@ -97,7 +95,7 @@ class MODULES_EXPORT VibrationController final
   // Timer for calling |doVibrate| after a delay. It is safe to call
   // |startOneshot| when the timer is already running: it may affect the time
   // at which it fires, but |doVibrate| will still be called only once.
-  HeapTaskRunnerTimer<VibrationController> timer_do_vibrate_;
+  TaskRunnerTimer<VibrationController> timer_do_vibrate_;
 
   // Whether a pattern is being processed. The vibration hardware may
   // currently be active, or during a pause it may be inactive.
@@ -110,6 +108,8 @@ class MODULES_EXPORT VibrationController final
   bool is_calling_vibrate_;
 
   VibrationPattern pattern_;
+
+  DISALLOW_COPY_AND_ASSIGN(VibrationController);
 };
 
 }  // namespace blink

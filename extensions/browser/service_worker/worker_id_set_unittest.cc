@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
 #include <memory>
 #include <string>
 
-#include "base/containers/contains.h"
 #include "extensions/browser/service_worker/worker_id_set.h"
 #include "extensions/common/extension_id.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -29,10 +29,6 @@ class VectorWorkerIdListImpl {
  public:
   explicit VectorWorkerIdListImpl(const std::vector<WorkerId> worker_ids)
       : workers_(worker_ids) {}
-
-  VectorWorkerIdListImpl(const VectorWorkerIdListImpl&) = delete;
-  VectorWorkerIdListImpl& operator=(const VectorWorkerIdListImpl&) = delete;
-
   ~VectorWorkerIdListImpl() = default;
 
   std::vector<WorkerId> GetAllForExtension(const ExtensionId& extension_id,
@@ -48,11 +44,14 @@ class VectorWorkerIdListImpl {
   }
 
   bool Contains(const WorkerId& worker_id) const {
-    return base::Contains(workers_, worker_id);
+    return std::find(workers_.begin(), workers_.end(), worker_id) !=
+           workers_.end();
   }
 
  private:
   std::vector<WorkerId> workers_;
+
+  DISALLOW_COPY_AND_ASSIGN(VectorWorkerIdListImpl);
 };
 
 std::vector<WorkerId> GenerateWorkerIds(
@@ -88,9 +87,6 @@ class WorkerIdSetTest : public testing::Test {
  public:
   WorkerIdSetTest() = default;
 
-  WorkerIdSetTest(const WorkerIdSetTest&) = delete;
-  WorkerIdSetTest& operator=(const WorkerIdSetTest&) = delete;
-
   bool AreWorkerIdsEqual(const std::vector<WorkerId>& expected,
                          const std::vector<WorkerId>& actual) {
     if (expected.size() != actual.size())
@@ -102,6 +98,9 @@ class WorkerIdSetTest : public testing::Test {
     std::sort(actual_copy.begin(), actual_copy.end());
     return expected_copy == actual_copy;
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WorkerIdSetTest);
 };
 
 TEST_F(WorkerIdSetTest, GetAllForExtension) {

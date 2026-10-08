@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/strings/string16.h"
 
 namespace autofill {
 // Encryptor used by Autofill table.
@@ -14,10 +15,10 @@ class AutofillTableEncryptor {
  public:
   virtual ~AutofillTableEncryptor() = default;
 
-  virtual bool EncryptString16(const std::u16string& plaintext,
+  virtual bool EncryptString16(const base::string16& plaintext,
                                std::string* ciphertext) const = 0;
   virtual bool DecryptString16(const std::string& ciphertext,
-                               std::u16string* plaintext) const = 0;
+                               base::string16* plaintext) const = 0;
 };
 
 }  // namespace autofill

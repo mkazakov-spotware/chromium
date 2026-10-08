@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,12 @@
 #include "build/build_config.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
-#include "third_party/blink/public/mojom/drag/drag.mojom.h"
 #include "third_party/blink/public/mojom/frame/viewport_intersection_state.mojom.h"
+#include "third_party/blink/public/mojom/page/drag.mojom.h"
 #include "third_party/blink/public/mojom/page/widget.mojom.h"
 #include "ui/base/ui_base_types.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "ui/base/mojom/attributed_string.mojom.h"
 #endif
 
@@ -33,7 +33,7 @@ class FakeFrameWidget : public blink::mojom::FrameWidget {
   const blink::mojom::ViewportIntersectionStatePtr& GetIntersectionState()
       const;
 
-  absl::optional<bool> GetActive() const;
+  base::Optional<bool> GetActive() const;
 
  private:
   void DragTargetDragEnter(
@@ -42,7 +42,7 @@ class FakeFrameWidget : public blink::mojom::FrameWidget {
       const gfx::PointF& screen_point,
       blink::DragOperationsMask operations_allowed,
       uint32_t key_modifiers,
-      base::OnceCallback<void(ui::mojom::DragOperation)> callback) override {}
+      base::OnceCallback<void(blink::DragOperation)> callback) override {}
   void DragTargetDragOver(const gfx::PointF& point_in_viewport,
                           const gfx::PointF& screen_point,
                           blink::DragOperationsMask operations_allowed,
@@ -53,24 +53,21 @@ class FakeFrameWidget : public blink::mojom::FrameWidget {
   void DragTargetDrop(blink::mojom::DragDataPtr drag_data,
                       const gfx::PointF& point_in_viewport,
                       const gfx::PointF& screen_point,
-                      uint32_t key_modifiers,
-                      base::OnceClosure callback) override {}
+                      uint32_t key_modifiers) override {}
   void DragSourceEndedAt(const gfx::PointF& client_point,
                          const gfx::PointF& screen_point,
-                         ui::mojom::DragOperation operation,
-                         base::OnceClosure callback) override {}
+                         blink::DragOperation operation) override {}
   void DragSourceSystemDragEnded() override {}
-  void OnStartStylusWriting(OnStartStylusWritingCallback callback) override {}
   void SetBackgroundOpaque(bool value) override {}
   void SetTextDirection(base::i18n::TextDirection direction) override;
   void SetActive(bool active) override;
   void SetInheritedEffectiveTouchActionForSubFrame(
       const cc::TouchAction touch_action) override {}
-  void UpdateRenderThrottlingStatusForSubFrame(bool is_throttled,
-                                               bool subtree_throttled,
-                                               bool display_locked) override {}
+  void UpdateRenderThrottlingStatusForSubFrame(
+      bool is_throttled,
+      bool subtree_throttled) override {}
   void SetIsInertForSubFrame(bool inert) override {}
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   void GetStringAtPoint(const gfx::Point& point_in_local_root,
                         GetStringAtPointCallback callback) override;
 #endif
@@ -85,14 +82,12 @@ class FakeFrameWidget : public blink::mojom::FrameWidget {
   void BindInputTargetClient(
       mojo::PendingReceiver<viz::mojom::InputTargetClient> receiver) override {}
   void SetViewportIntersection(
-      blink::mojom::ViewportIntersectionStatePtr intersection_state,
-      const absl::optional<blink::VisualProperties>& visual_properties)
-      override;
+      blink::mojom::ViewportIntersectionStatePtr intersection_state) override;
 
   mojo::AssociatedReceiver<blink::mojom::FrameWidget> receiver_;
   base::i18n::TextDirection text_direction_ =
       base::i18n::TextDirection::UNKNOWN_DIRECTION;
-  absl::optional<bool> active_;
+  base::Optional<bool> active_;
   blink::mojom::ViewportIntersectionStatePtr intersection_state_;
 };
 

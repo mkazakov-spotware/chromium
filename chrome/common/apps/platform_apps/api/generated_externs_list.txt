@@ -1,4 +1,3 @@
 # All APIs that have their externs generated.
-# TODO(crbug.com/1368872): Remove these as we migrate all consumers towards
-# typescript definitions.
+# TODO(rdevlin.cronin): Add more!
 arc_apps_private.idl

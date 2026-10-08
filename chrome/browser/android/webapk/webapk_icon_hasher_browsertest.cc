@@ -1,12 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "components/webapps/browser/android/webapk/webapk_icon_hasher.h"
+#include "chrome/browser/android/webapk/webapk_icon_hasher.h"
 
-#include <limits>
 #include <set>
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/run_loop.h"
 #include "base/test/scoped_feature_list.h"
@@ -31,14 +31,11 @@ class WebApkIconHasherBrowserTest : public PlatformBrowserTest {
  public:
   WebApkIconHasherBrowserTest()
       : http_server_(net::EmbeddedTestServer::TYPE_HTTP) {
-    scoped_feature_list_.InitAndEnableFeature(
-        net::features::kSplitCacheByNetworkIsolationKey);
+    scoped_feature_list_.InitWithFeatures(
+        {net::features::kSplitCacheByNetworkIsolationKey,
+         net::features::kAppendFrameOriginToNetworkIsolationKey},
+        {});
   }
-
-  WebApkIconHasherBrowserTest(const WebApkIconHasherBrowserTest&) = delete;
-  WebApkIconHasherBrowserTest& operator=(const WebApkIconHasherBrowserTest&) =
-      delete;
-
   ~WebApkIconHasherBrowserTest() override = default;
 
   void SetUpOnMainThread() override {
@@ -69,6 +66,8 @@ class WebApkIconHasherBrowserTest : public PlatformBrowserTest {
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebApkIconHasherBrowserTest);
 };
 
 namespace {
@@ -80,8 +79,7 @@ void OnDownloadedManifestIcon(base::OnceClosure callback,
 
 void OnGotMurmur2Hash(
     base::OnceClosure callback,
-    absl::optional<std::map<std::string, webapps::WebApkIconHasher::Icon>>
-        hashes) {
+    base::Optional<std::map<std::string, WebApkIconHasher::Icon>> hashes) {
   std::move(callback).Run();
 }
 
@@ -100,7 +98,7 @@ IN_PROC_BROWSER_TEST_F(WebApkIconHasherBrowserTest,
   {
     base::RunLoop run_loop;
     content::ManifestIconDownloader::Download(
-        web_contents, kIconUrl, 0, 0, std::numeric_limits<int>::max(),
+        web_contents, kIconUrl, 0, 0,
         base::BindOnce(&OnDownloadedManifestIcon, run_loop.QuitClosure()),
         false /* square_only */);
     run_loop.Run();
@@ -111,14 +109,13 @@ IN_PROC_BROWSER_TEST_F(WebApkIconHasherBrowserTest,
 
   {
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory =
-        web_contents->GetBrowserContext()
-            ->GetDefaultStoragePartition()
+        content::BrowserContext::GetDefaultStoragePartition(
+            web_contents->GetBrowserContext())
             ->GetURLLoaderFactoryForBrowserProcess();
 
     base::RunLoop run_loop;
-    webapps::WebApkIconHasher::DownloadAndComputeMurmur2Hash(
-        url_loader_factory.get(), web_contents->GetWeakPtr(),
-        url::Origin::Create(kIconUrl), {kIconUrl},
+    WebApkIconHasher::DownloadAndComputeMurmur2Hash(
+        url_loader_factory.get(), url::Origin::Create(kIconUrl), {kIconUrl},
         base::BindOnce(&OnGotMurmur2Hash, run_loop.QuitClosure()));
     run_loop.Run();
   }

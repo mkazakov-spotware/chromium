@@ -33,7 +33,7 @@ from blinkpy.common.net.web_test_results import WebTestResults
 
 class WebTestResultsTest(unittest.TestCase):
     # The real files have no whitespace, but newlines make this much more readable.
-    example_full_results_json = b"""ADD_RESULTS({
+    example_full_results_json = """ADD_RESULTS({
     "tests": {
         "fast": {
             "dom": {
@@ -128,10 +128,12 @@ class WebTestResultsTest(unittest.TestCase):
     def test_was_interrupted(self):
         self.assertTrue(
             WebTestResults.results_from_string(
-                b'ADD_RESULTS({"tests":{},"interrupted":true});').interrupted)
+                'ADD_RESULTS({"tests":{},"interrupted":true});').
+            run_was_interrupted())
         self.assertFalse(
             WebTestResults.results_from_string(
-                b'ADD_RESULTS({"tests":{},"interrupted":false});').interrupted)
+                'ADD_RESULTS({"tests":{},"interrupted":false});').
+            run_was_interrupted())
 
     def test_chromium_revision(self):
         self.assertEqual(

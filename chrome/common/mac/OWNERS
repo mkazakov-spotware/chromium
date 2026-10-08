@@ -1,6 +1,7 @@
 mark@chromium.org
 rsesek@chromium.org
 tapted@chromium.org
+thomasvl@chromium.org
 thakis@chromium.org
 
 per-file *_param_traits*.*=set noparent
@@ -11,3 +12,4 @@ per-file *.mojom=set noparent
 per-file *.mojom=file://ipc/SECURITY_OWNERS
 per-file *.typemap=set noparent
 per-file *.typemap=file://ipc/SECURITY_OWNERS
+# COMPONENT: Internals>PlatformIntegration

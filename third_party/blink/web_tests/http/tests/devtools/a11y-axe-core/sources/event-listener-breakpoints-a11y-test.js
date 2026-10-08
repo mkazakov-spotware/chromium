@@ -1,16 +1,16 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function () {
-  await TestRunner.loadTestModule('axe_core_test_runner');
+  await TestRunner.loadModule('axe_core_test_runner');
   await TestRunner.showPanel('sources');
-  await TestRunner.loadLegacyModule('browser_debugger');
 
   await UI.viewManager.showView('sources.eventListenerBreakpoints');
-  const eventListenerWidget = BrowserDebugger.EventListenerBreakpointsSidebarPane.instance();
+  const eventListenerWidget = self.runtime.sharedInstance(
+      BrowserDebugger.EventListenerBreakpointsSidebarPane);
   TestRunner.addResult('Setting event listener breakpoints.');
-  const {checkbox, element} = eventListenerWidget.categories.get('Animation');
+  const {checkbox, element} = eventListenerWidget._categories.get('Animation');
   element.revealAndSelect();
   checkbox.click();
 

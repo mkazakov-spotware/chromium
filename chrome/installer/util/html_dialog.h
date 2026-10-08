@@ -1,18 +1,17 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_INSTALLER_UTIL_HTML_DIALOG_H_
 #define CHROME_INSTALLER_UTIL_HTML_DIALOG_H_
 
-#include <string>
+#include "base/macros.h"
+#include "base/strings/string16.h"
 
 // This is the interface for creating HTML-based Dialogs *before* Chrome has
 // been installed or when there is a suspicion chrome is not working. In
 // other words, the dialogs use another native html rendering engine. In the
 // case of Windows it is the the Internet Explorer control.
-
-#include "base/memory/raw_ptr.h"
 
 namespace installer {
 
@@ -54,14 +53,14 @@ class HTMLDialog {
 
   // If the result of ShowModal() was EXTRA, the information is available
   // as a string using this method.
-  virtual std::wstring GetExtraResult() = 0;
+  virtual base::string16 GetExtraResult() = 0;
 };
 
 // Factory method for the native HTML Dialog. When done with the object use
 // regular 'delete' operator to destroy the object. It might choose a
 // different underlying implementation according to the url protocol.
-HTMLDialog* CreateNativeHTMLDialog(const std::wstring& url,
-                                   const std::wstring& param);
+HTMLDialog* CreateNativeHTMLDialog(const base::string16& url,
+                                   const base::string16& param);
 
 // This class leverages HTMLDialog to create a dialog that is suitable
 // for a end-user-agreement modal dialog. The html shows a fairly standard
@@ -72,11 +71,7 @@ class EulaHTMLDialog {
   // |file| points to an html file on disk or to a resource via res:// spec.
   // |param| is a string that will be passed to the dialog as a parameter via
   //         the window.dialogArguments property.
-  EulaHTMLDialog(const std::wstring& file, const std::wstring& param);
-
-  EulaHTMLDialog(const EulaHTMLDialog&) = delete;
-  EulaHTMLDialog& operator=(const EulaHTMLDialog&) = delete;
-
+  EulaHTMLDialog(const base::string16& file, const base::string16& param);
   ~EulaHTMLDialog();
 
   enum Outcome {
@@ -96,7 +91,8 @@ class EulaHTMLDialog {
     void OnBeforeDisplay(void* window) override;
   };
 
-  raw_ptr<HTMLDialog> dialog_;
+  HTMLDialog* dialog_;
+  DISALLOW_COPY_AND_ASSIGN(EulaHTMLDialog);
 };
 
 }  // namespace installer

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "third_party/blink/renderer/core/dom/shadow_root.h"
 #include "third_party/blink/renderer/core/html/html_slot_element.h"
 #include "third_party/blink/renderer/core/inspector/inspector_trace_events.h"
+#include "third_party/blink/renderer/core/layout/layout_object.h"
 
 namespace blink {
 
@@ -92,6 +93,10 @@ ALWAYS_INLINE bool StyleInvalidator::MatchesCurrentInvalidationSets(
                                                     kInvalidateCustomPseudo);
     return true;
   }
+
+  if (invalidation_flags_.InsertionPointCrossing() &&
+      element.IsV0InsertionPoint())
+    return true;
 
   for (auto* const invalidation_set : invalidation_sets_) {
     if (invalidation_set->InvalidatesElement(element))
@@ -183,15 +188,11 @@ void StyleInvalidator::PushInvalidationSetsForContainerNode(
     ContainerNode& node,
     SiblingData& sibling_data) {
   auto pending_invalidations_iterator = pending_invalidation_map_.find(&node);
-  if (pending_invalidations_iterator == pending_invalidation_map_.end()) {
-    NOTREACHED() << "We should strictly not have marked an element for "
-                    "invalidation without any pending invalidations.";
-    return;
-  }
+  DCHECK(pending_invalidations_iterator != pending_invalidation_map_.end());
   NodeInvalidationSets& pending_invalidations =
       pending_invalidations_iterator->value;
 
-  DCHECK(pending_nth_sets_.empty());
+  DCHECK(pending_nth_sets_.IsEmpty());
 
   for (const auto& invalidation_set : pending_invalidations.Siblings()) {
     CHECK(invalidation_set->IsAlive());
@@ -207,17 +208,18 @@ void StyleInvalidator::PushInvalidationSetsForContainerNode(
   if (node.GetStyleChangeType() == kSubtreeStyleChange)
     return;
 
-  if (!pending_invalidations.Descendants().empty()) {
+  if (!pending_invalidations.Descendants().IsEmpty()) {
     for (const auto& invalidation_set : pending_invalidations.Descendants()) {
       CHECK(invalidation_set->IsAlive());
       PushInvalidationSet(*invalidation_set);
     }
     if (UNLIKELY(*g_style_invalidator_tracing_enabled)) {
-      DEVTOOLS_TIMELINE_TRACE_EVENT_INSTANT_WITH_CATEGORIES(
+      TRACE_EVENT_INSTANT1(
           TRACE_DISABLED_BY_DEFAULT("devtools.timeline.invalidationTracking"),
-          "StyleInvalidatorInvalidationTracking",
-          inspector_style_invalidator_invalidate_event::InvalidationList, node,
-          pending_invalidations.Descendants());
+          "StyleInvalidatorInvalidationTracking", TRACE_EVENT_SCOPE_THREAD,
+          "data",
+          inspector_style_invalidator_invalidate_event::InvalidationList(
+              node, pending_invalidations.Descendants()));
     }
   }
 }
@@ -295,9 +297,23 @@ void StyleInvalidator::Invalidate(Element& element, SiblingData& sibling_data) {
     if (UNLIKELY(element.NeedsStyleInvalidation()))
       PushInvalidationSetsForContainerNode(element, sibling_data);
 
+    // When a slot element is invalidated, the slotted elements are also
+    // invalidated by HTMLSlotElement::DidRecalcStyle. So if WholeSubtreeInvalid
+    // is true, they will be included even though they are not part of the
+    // subtree. It's not necessary to fully recalc style for the slotted
+    // elements in that case as they just need to pick up changed inherited
+    // styles but we do it. If we ever stop doing that then this code and the
+    // PushInvalidationSetsForContainerNode above need to move out of the
+    // if-block.
     auto* html_slot_element = DynamicTo<HTMLSlotElement>(element);
     if (html_slot_element && InvalidatesSlotted())
       InvalidateSlotDistributedElements(*html_slot_element);
+
+    if (InsertionPointCrossing() && element.IsV0InsertionPoint()) {
+      element.SetNeedsStyleRecalc(kSubtreeStyleChange,
+                                  StyleChangeReasonForTracing::Create(
+                                      style_change_reason::kStyleInvalidator));
+    }
   }
 
   // We need to recurse into children if:

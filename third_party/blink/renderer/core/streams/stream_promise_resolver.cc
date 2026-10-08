@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,9 @@
 
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
+#include "third_party/blink/renderer/platform/heap/visitor.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 
 namespace blink {
 
@@ -33,20 +34,11 @@ StreamPromiseResolver* StreamPromiseResolver::CreateRejected(
   return promise;
 }
 
-StreamPromiseResolver* StreamPromiseResolver::CreateRejectedAndSilent(
-    ScriptState* script_state,
-    v8::Local<v8::Value> reason) {
-  auto* promise = MakeGarbageCollected<StreamPromiseResolver>(script_state);
-  promise->MarkAsSilent(script_state->GetIsolate());
-  promise->Reject(script_state, reason);
-  return promise;
-}
-
 StreamPromiseResolver::StreamPromiseResolver(ScriptState* script_state) {
   v8::Local<v8::Promise::Resolver> resolver;
   if (v8::Promise::Resolver::New(script_state->GetContext())
           .ToLocal(&resolver)) {
-    resolver_.Reset(script_state->GetIsolate(), resolver);
+    resolver_.Set(script_state->GetIsolate(), resolver);
   }
 }
 
@@ -59,12 +51,8 @@ void StreamPromiseResolver::Resolve(ScriptState* script_state,
     return;
   }
   is_settled_ = true;
-  v8::Isolate* isolate = script_state->GetIsolate();
-  v8::MicrotasksScope microtasks_scope(
-      isolate, ToMicrotaskQueue(script_state),
-      v8::MicrotasksScope::kDoNotRunMicrotasks);
-  auto result =
-      resolver_.Get(isolate)->Resolve(script_state->GetContext(), value);
+  auto result = resolver_.NewLocal(script_state->GetIsolate())
+                    ->Resolve(script_state->GetContext(), value);
   if (result.IsNothing()) {
     DVLOG(3) << "Assuming JS shutdown and ignoring failed Resolve";
   }
@@ -83,12 +71,8 @@ void StreamPromiseResolver::Reject(ScriptState* script_state,
     return;
   }
   is_settled_ = true;
-  v8::Isolate* isolate = script_state->GetIsolate();
-  v8::MicrotasksScope microtasks_scope(
-      isolate, ToMicrotaskQueue(script_state),
-      v8::MicrotasksScope::kDoNotRunMicrotasks);
-  auto result =
-      resolver_.Get(isolate)->Reject(script_state->GetContext(), reason);
+  auto result = resolver_.NewLocal(script_state->GetIsolate())
+                    ->Reject(script_state->GetContext(), reason);
   if (result.IsNothing()) {
     DVLOG(3) << "Assuming JS shutdown and ignoring failed Reject";
   }
@@ -104,7 +88,7 @@ v8::Local<v8::Promise> StreamPromiseResolver::V8Promise(
   if (resolver_.IsEmpty()) {
     return v8::Local<v8::Promise>();
   }
-  return resolver_.Get(isolate)->GetPromise();
+  return resolver_.NewLocal(isolate)->GetPromise();
 }
 
 void StreamPromiseResolver::MarkAsHandled(v8::Isolate* isolate) {
@@ -113,14 +97,6 @@ void StreamPromiseResolver::MarkAsHandled(v8::Isolate* isolate) {
     return;
   }
   promise->MarkAsHandled();
-}
-
-void StreamPromiseResolver::MarkAsSilent(v8::Isolate* isolate) {
-  v8::Local<v8::Promise> promise = V8Promise(isolate);
-  if (promise.IsEmpty()) {
-    return;
-  }
-  promise->MarkAsSilent();
 }
 
 v8::Promise::PromiseState StreamPromiseResolver::State(

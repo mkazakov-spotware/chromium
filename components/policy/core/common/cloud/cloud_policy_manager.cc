@@ -1,16 +1,17 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/policy/core/common/cloud/cloud_policy_manager.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/check_op.h"
 #include "base/files/file_path.h"
+#include "base/optional.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "build/build_config.h"
@@ -19,9 +20,8 @@
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/core/common/schema_registry.h"
 #include "components/prefs/pref_service.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+#if !defined(OS_ANDROID) && !defined(OS_IOS)
 #include "components/policy/core/common/cloud/resource_cache.h"
 #endif
 
@@ -41,10 +41,6 @@ CloudPolicyManager::CloudPolicyManager(
       waiting_for_policy_refresh_(false) {}
 
 CloudPolicyManager::~CloudPolicyManager() {}
-
-bool CloudPolicyManager::IsClientRegistered() const {
-  return client() && client()->is_registered();
-}
 
 void CloudPolicyManager::Init(SchemaRegistry* registry) {
   ConfigurationPolicyProvider::Init(registry);
@@ -111,25 +107,26 @@ void CloudPolicyManager::OnComponentCloudPolicyUpdated() {
 void CloudPolicyManager::CheckAndPublishPolicy() {
   if (IsInitializationComplete(POLICY_DOMAIN_CHROME) &&
       !waiting_for_policy_refresh_) {
-    PolicyBundle bundle;
+    std::unique_ptr<PolicyBundle> bundle(new PolicyBundle);
     GetChromePolicy(
-        &bundle.Get(PolicyNamespace(POLICY_DOMAIN_CHROME, std::string())));
+        &bundle->Get(PolicyNamespace(POLICY_DOMAIN_CHROME, std::string())));
     if (component_policy_service_)
-      bundle.MergeFrom(component_policy_service_->policy());
+      bundle->MergeFrom(component_policy_service_->policy());
     UpdatePolicy(std::move(bundle));
   }
 }
 
 void CloudPolicyManager::GetChromePolicy(PolicyMap* policy_map) {
-  *policy_map = store()->policy_map().Clone();
+  policy_map->CopyFrom(store()->policy_map());
 }
 
 void CloudPolicyManager::CreateComponentCloudPolicyService(
     const std::string& policy_type,
     const base::FilePath& policy_cache_path,
+    PolicySource policy_source,
     CloudPolicyClient* client,
     SchemaRegistry* schema_registry) {
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+#if !defined(OS_ANDROID) && !defined(OS_IOS)
   // Init() must have been called.
   CHECK(schema_registry);
   // Called at most once.
@@ -150,20 +147,20 @@ void CloudPolicyManager::CreateComponentCloudPolicyService(
   const auto task_runner =
       base::ThreadPool::CreateSequencedTaskRunner({base::MayBlock()});
   std::unique_ptr<ResourceCache> resource_cache(new ResourceCache(
-      policy_cache_path, task_runner, /* max_cache_size */ absl::nullopt));
-  component_policy_service_ = std::make_unique<ComponentCloudPolicyService>(
-      policy_type, this, schema_registry, core(), client,
-      std::move(resource_cache), task_runner);
-#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+      policy_cache_path, task_runner, /* max_cache_size */ base::nullopt));
+  component_policy_service_.reset(new ComponentCloudPolicyService(
+      policy_type, policy_source, this, schema_registry, core(), client,
+      std::move(resource_cache), task_runner));
+#endif  // !defined(OS_ANDROID) && !defined(OS_IOS)
 }
 
 void CloudPolicyManager::ClearAndDestroyComponentCloudPolicyService() {
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+#if !defined(OS_ANDROID) && !defined(OS_IOS)
   if (component_policy_service_) {
     component_policy_service_->ClearCache();
     component_policy_service_.reset();
   }
-#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+#endif  // !defined(OS_ANDROID) && !defined(OS_IOS)
 }
 
 void CloudPolicyManager::OnRefreshComplete(bool success) {

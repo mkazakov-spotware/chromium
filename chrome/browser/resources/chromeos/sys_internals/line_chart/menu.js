@@ -1,19 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {createElementWithClassName} from 'chrome://resources/ash/common/util.js';
-
-import {MENU_TEXT_COLOR_DARK, MENU_TEXT_COLOR_LIGHT} from './constants.js';
-import {DataSeries} from './data_series.js';
+(function() {
+'use strict';
 
 /**
- * Create by |LineChart|.
+ * Create by |LineChart.LineChart|.
  * A menu to show and to control the visibility of the data series in current
  * line chart.
  * @const
  */
-export class Menu {
+LineChart.Menu = class {
   constructor(/** function(): undefined */ callback) {
     /**
      * Handle the menu status changed event, include clicking button, hiding or
@@ -36,7 +34,7 @@ export class Menu {
     this.rootDiv_.appendChild(this.handleDiv_);
     this.handleDiv_.addEventListener('click', this.handleOnClick_.bind(this));
 
-    /** @type {Array<DataSeries>} */
+    /** @type {Array<LineChart.DataSeries>} */
     this.dataSeries_ = [];
 
     /** @type {Array<Element>} - Buttons of data series. */
@@ -45,7 +43,7 @@ export class Menu {
 
   /**
    * Handle menu showing and hiding.
-   * @this {Menu}
+   * @this {LineChart.Menu}
    */
   handleOnClick_() {
     const /** string|null */ hiddenAttr =
@@ -70,13 +68,12 @@ export class Menu {
 
   /**
    * Add a data series to the menu.
-   * @param {DataSeries} dataSeries
+   * @param {LineChart.DataSeries} dataSeries
    */
   addDataSeries(dataSeries) {
     const /** number */ idx = this.dataSeries_.indexOf(dataSeries);
-    if (idx != -1) {
+    if (idx != -1)
       return;
-    }
     const /** Element */ button = this.createButton_(dataSeries);
     this.buttons_.push(button);
     this.buttonOuterDiv_.appendChild(button);
@@ -88,7 +85,7 @@ export class Menu {
 
   /**
    * Create a button to control the data series.
-   * @param {DataSeries} dataSeries
+   * @param {LineChart.DataSeries} dataSeries
    * @return {Element}
    */
   createButton_(dataSeries) {
@@ -108,7 +105,7 @@ export class Menu {
   /**
    * Add a onclick handler to the button.
    * @param {Element} button
-   * @param {DataSeries} dataSeries
+   * @param {LineChart.DataSeries} dataSeries
    */
   setupButtonOnClickHandler_(button, dataSeries) {
     const /** function(Event): undefined */ handler = function(event) {
@@ -123,35 +120,36 @@ export class Menu {
   /**
    * Update the button style with the visibility of data series.
    * @param {Element} button
-   * @param {DataSeries} dataSeries
+   * @param {LineChart.DataSeries} dataSeries
    * @param {boolean} visible
    */
   updateButtonStyle_(button, dataSeries, visible) {
     if (visible) {
       button.style.backgroundColor = dataSeries.getColor();
       const /** string */ color = dataSeries.isMenuTextBlack() ?
-          MENU_TEXT_COLOR_DARK :
-          MENU_TEXT_COLOR_LIGHT;
+          LineChart.MENU_TEXT_COLOR_DARK :
+          LineChart.MENU_TEXT_COLOR_LIGHT;
       button.style.color = color;
     } else {
-      button.style.backgroundColor = MENU_TEXT_COLOR_LIGHT;
-      button.style.color = MENU_TEXT_COLOR_DARK;
+      button.style.backgroundColor = LineChart.MENU_TEXT_COLOR_LIGHT;
+      button.style.color = LineChart.MENU_TEXT_COLOR_DARK;
     }
   }
 
   /**
    * Remove a data series from the menu.
-   * @param {DataSeries} dataSeries
+   * @param {LineChart.DataSeries} dataSeries
    */
   removeDataSeries(dataSeries) {
     const /** number */ idx = this.dataSeries_.indexOf(dataSeries);
-    if (idx == -1) {
+    if (idx == -1)
       return;
-    }
     this.dataSeries_.splice(idx, 1);
     const /** Element */ button = this.buttons_.splice(idx, 1)[0];
     this.buttonOuterDiv_.removeChild(button);
     /* Width may change. */
     this.callback_();
   }
-}
+};
+
+})();

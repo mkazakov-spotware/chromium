@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,30 +10,28 @@
 #include "base/base64.h"
 #include "base/bind.h"
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/strings/escape.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/time/time.h"
 #include "chrome/browser/password_manager/account_password_store_factory.h"
 #include "chrome/browser/password_manager/password_store_factory.h"
+#include "chrome/browser/sync/profile_sync_service_factory.h"
+#include "chrome/browser/sync/test/integration/profile_sync_service_harness.h"
 #include "chrome/browser/sync/test/integration/sync_datatype_helper.h"
-#include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_manager_test_utils.h"
+#include "components/password_manager/core/browser/password_store.h"
 #include "components/password_manager/core/browser/password_store_consumer.h"
-#include "components/password_manager/core/browser/password_store_interface.h"
-#include "components/password_manager/core/browser/sync/password_proto_utils.h"
-#include "components/sync/engine/loopback_server/persistent_unique_client_entity.h"
-#include "components/sync/engine/nigori/key_derivation_params.h"
+#include "components/sync/engine_impl/loopback_server/persistent_unique_client_entity.h"
 #include "components/sync/nigori/cryptographer_impl.h"
-#include "components/sync/protocol/entity_specifics.pb.h"
-#include "components/sync/protocol/password_specifics.pb.h"
 #include "content/public/test/test_utils.h"
+#include "net/base/escape.h"
 #include "url/gurl.h"
 
 using password_manager::PasswordForm;
-using password_manager::PasswordStoreInterface;
+using password_manager::PasswordStore;
 using sync_datatype_helper::test;
 
 namespace {
@@ -41,14 +39,18 @@ namespace {
 const char kFakeSignonRealm[] = "http://fake-signon-realm.google.com/";
 const char kIndexedFakeOrigin[] = "http://fake-signon-realm.google.com/%d";
 
+// We use a WaitableEvent to wait when logins are added, removed, or updated
+// instead of running the UI message loop because of a restriction that
+// prevents a DB thread from initiating a quit of the UI message loop.
+void PasswordStoreCallback(base::WaitableEvent* wait_event) {
+  // Wake up passwords_helper::AddLogin.
+  wait_event->Signal();
+}
+
 class PasswordStoreConsumerHelper
     : public password_manager::PasswordStoreConsumer {
  public:
-  PasswordStoreConsumerHelper() = default;
-
-  PasswordStoreConsumerHelper(const PasswordStoreConsumerHelper&) = delete;
-  PasswordStoreConsumerHelper& operator=(const PasswordStoreConsumerHelper&) =
-      delete;
+  PasswordStoreConsumerHelper() {}
 
   void OnGetPasswordStoreResults(
       std::vector<std::unique_ptr<PasswordForm>> results) override {
@@ -58,21 +60,55 @@ class PasswordStoreConsumerHelper
 
   std::vector<std::unique_ptr<PasswordForm>> WaitForResult() {
     DCHECK(!run_loop_.running());
-    run_loop_.Run();
+    content::RunThisRunLoop(&run_loop_);
     return std::move(result_);
   }
 
-  base::WeakPtr<password_manager::PasswordStoreConsumer> GetWeakPtr() {
-    return weak_ptr_factory_.GetWeakPtr();
-  }
-
  private:
-  // This RunLoop uses kNestableTasksAllowed because it runs nested within
-  // another RunLoop.
-  base::RunLoop run_loop_{base::RunLoop::Type::kNestableTasksAllowed};
+  base::RunLoop run_loop_;
   std::vector<std::unique_ptr<PasswordForm>> result_;
-  base::WeakPtrFactory<PasswordStoreConsumerHelper> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PasswordStoreConsumerHelper);
 };
+
+// PasswordForm::date_synced is a local field. Therefore it may be different
+// across clients.
+void ClearSyncDateField(std::vector<std::unique_ptr<PasswordForm>>* forms) {
+  for (auto& form : *forms) {
+    form->date_synced = base::Time();
+  }
+}
+
+sync_pb::PasswordSpecificsData SpecificsDataFromPasswordForm(
+    const password_manager::PasswordForm& password_form) {
+  sync_pb::PasswordSpecificsData password_data;
+  password_data.set_scheme(static_cast<int>(password_form.scheme));
+  password_data.set_signon_realm(password_form.signon_realm);
+  password_data.set_origin(password_form.url.spec());
+  password_data.set_action(password_form.action.spec());
+  password_data.set_username_element(
+      base::UTF16ToUTF8(password_form.username_element));
+  password_data.set_password_element(
+      base::UTF16ToUTF8(password_form.password_element));
+  password_data.set_username_value(
+      base::UTF16ToUTF8(password_form.username_value));
+  password_data.set_password_value(
+      base::UTF16ToUTF8(password_form.password_value));
+  password_data.set_date_last_used(
+      password_form.date_last_used.ToDeltaSinceWindowsEpoch().InMicroseconds());
+  password_data.set_date_created(
+      password_form.date_created.ToDeltaSinceWindowsEpoch().InMicroseconds());
+  password_data.set_blacklisted(password_form.blocked_by_user);
+  password_data.set_type(static_cast<int>(password_form.type));
+  password_data.set_times_used(password_form.times_used);
+  password_data.set_display_name(base::UTF16ToUTF8(password_form.display_name));
+  password_data.set_avatar_url(password_form.icon_url.spec());
+  password_data.set_federation_url(
+      password_form.federation_origin.opaque()
+          ? std::string()
+          : password_form.federation_origin.Serialize());
+  return password_data;
+}
 
 sync_pb::EntitySpecifics EncryptPasswordSpecifics(
     const sync_pb::PasswordSpecificsData& password_data,
@@ -93,53 +129,95 @@ sync_pb::EntitySpecifics EncryptPasswordSpecifics(
 }
 
 std::string GetClientTag(const sync_pb::PasswordSpecificsData& password_data) {
-  return base::EscapePath(GURL(password_data.origin()).spec()) + "|" +
-         base::EscapePath(password_data.username_element()) + "|" +
-         base::EscapePath(password_data.username_value()) + "|" +
-         base::EscapePath(password_data.password_element()) + "|" +
-         base::EscapePath(password_data.signon_realm());
+  return net::EscapePath(GURL(password_data.origin()).spec()) + "|" +
+         net::EscapePath(password_data.username_element()) + "|" +
+         net::EscapePath(password_data.username_value()) + "|" +
+         net::EscapePath(password_data.password_element()) + "|" +
+         net::EscapePath(password_data.signon_realm());
 }
 
 }  // namespace
 
 namespace passwords_helper {
 
-std::vector<std::unique_ptr<PasswordForm>> GetLogins(
-    PasswordStoreInterface* store) {
+void AddLogin(PasswordStore* store, const PasswordForm& form) {
+  ASSERT_TRUE(store);
+  base::WaitableEvent wait_event(
+      base::WaitableEvent::ResetPolicy::MANUAL,
+      base::WaitableEvent::InitialState::NOT_SIGNALED);
+  store->AddLogin(form);
+  store->ScheduleTask(base::BindOnce(&PasswordStoreCallback, &wait_event));
+  wait_event.Wait();
+}
+
+void UpdateLogin(PasswordStore* store, const PasswordForm& form) {
+  ASSERT_TRUE(store);
+  base::WaitableEvent wait_event(
+      base::WaitableEvent::ResetPolicy::MANUAL,
+      base::WaitableEvent::InitialState::NOT_SIGNALED);
+  store->UpdateLogin(form);
+  store->ScheduleTask(base::BindOnce(&PasswordStoreCallback, &wait_event));
+  wait_event.Wait();
+}
+
+void UpdateLoginWithPrimaryKey(PasswordStore* store,
+                               const PasswordForm& new_form,
+                               const PasswordForm& old_form) {
+  ASSERT_TRUE(store);
+  base::WaitableEvent wait_event(
+      base::WaitableEvent::ResetPolicy::MANUAL,
+      base::WaitableEvent::InitialState::NOT_SIGNALED);
+  store->UpdateLoginWithPrimaryKey(new_form, old_form);
+  store->ScheduleTask(base::BindOnce(&PasswordStoreCallback, &wait_event));
+  wait_event.Wait();
+}
+
+std::vector<std::unique_ptr<PasswordForm>> GetLogins(PasswordStore* store) {
   EXPECT_TRUE(store);
-  password_manager::PasswordFormDigest matcher_form = {
+  password_manager::PasswordStore::FormDigest matcher_form = {
       PasswordForm::Scheme::kHtml, kFakeSignonRealm, GURL()};
   PasswordStoreConsumerHelper consumer;
-  store->GetLogins(matcher_form, consumer.GetWeakPtr());
+  store->GetLogins(matcher_form, &consumer);
   return consumer.WaitForResult();
 }
 
-std::vector<std::unique_ptr<PasswordForm>> GetAllLogins(
-    PasswordStoreInterface* store) {
+std::vector<std::unique_ptr<PasswordForm>> GetAllLogins(PasswordStore* store) {
   EXPECT_TRUE(store);
   PasswordStoreConsumerHelper consumer;
-  store->GetAllLogins(consumer.GetWeakPtr());
+  store->GetAllLogins(&consumer);
   return consumer.WaitForResult();
 }
 
-void RemoveLogins(PasswordStoreInterface* store) {
-  // Null Time values enforce unbounded deletion in both direction
-  store->RemoveLoginsCreatedBetween(/*delete_begin=*/base::Time(),
-                                    /*delete_end=*/base::Time::Max());
+void RemoveLogin(PasswordStore* store, const PasswordForm& form) {
+  ASSERT_TRUE(store);
+  base::WaitableEvent wait_event(
+      base::WaitableEvent::ResetPolicy::MANUAL,
+      base::WaitableEvent::InitialState::NOT_SIGNALED);
+  store->RemoveLogin(form);
+  store->ScheduleTask(base::BindOnce(&PasswordStoreCallback, &wait_event));
+  wait_event.Wait();
 }
-PasswordStoreInterface* GetProfilePasswordStoreInterface(int index) {
+
+void RemoveLogins(PasswordStore* store) {
+  std::vector<std::unique_ptr<PasswordForm>> forms = GetLogins(store);
+  for (const auto& form : forms) {
+    RemoveLogin(store, *form);
+  }
+}
+
+PasswordStore* GetPasswordStore(int index) {
   return PasswordStoreFactory::GetForProfile(test()->GetProfile(index),
                                              ServiceAccessType::IMPLICIT_ACCESS)
       .get();
 }
 
-PasswordStoreInterface* GetVerifierProfilePasswordStoreInterface() {
+PasswordStore* GetVerifierPasswordStore() {
   return PasswordStoreFactory::GetForProfile(test()->verifier(),
                                              ServiceAccessType::IMPLICIT_ACCESS)
       .get();
 }
 
-PasswordStoreInterface* GetAccountPasswordStoreInterface(int index) {
+PasswordStore* GetAccountPasswordStore(int index) {
   return AccountPasswordStoreFactory::GetForProfile(
              test()->GetProfile(index), ServiceAccessType::IMPLICIT_ACCESS)
       .get();
@@ -147,9 +225,10 @@ PasswordStoreInterface* GetAccountPasswordStoreInterface(int index) {
 
 bool ProfileContainsSamePasswordFormsAsVerifier(int index) {
   std::vector<std::unique_ptr<PasswordForm>> verifier_forms =
-      GetLogins(GetVerifierProfilePasswordStoreInterface());
+      GetLogins(GetVerifierPasswordStore());
   std::vector<std::unique_ptr<PasswordForm>> forms =
-      GetLogins(GetProfilePasswordStoreInterface(index));
+      GetLogins(GetPasswordStore(index));
+  ClearSyncDateField(&forms);
 
   std::ostringstream mismatch_details_stream;
   bool is_matching = password_manager::ContainsEqualPasswordFormsUnordered(
@@ -164,9 +243,11 @@ bool ProfileContainsSamePasswordFormsAsVerifier(int index) {
 
 bool ProfilesContainSamePasswordForms(int index_a, int index_b) {
   std::vector<std::unique_ptr<PasswordForm>> forms_a =
-      GetLogins(GetProfilePasswordStoreInterface(index_a));
+      GetLogins(GetPasswordStore(index_a));
   std::vector<std::unique_ptr<PasswordForm>> forms_b =
-      GetLogins(GetProfilePasswordStoreInterface(index_b));
+      GetLogins(GetPasswordStore(index_b));
+  ClearSyncDateField(&forms_a);
+  ClearSyncDateField(&forms_b);
 
   std::ostringstream mismatch_details_stream;
   bool is_matching = password_manager::ContainsEqualPasswordFormsUnordered(
@@ -206,11 +287,11 @@ bool AllProfilesContainSamePasswordForms() {
 }
 
 int GetPasswordCount(int index) {
-  return GetLogins(GetProfilePasswordStoreInterface(index)).size();
+  return GetLogins(GetPasswordStore(index)).size();
 }
 
 int GetVerifierPasswordCount() {
-  return GetLogins(GetVerifierProfilePasswordStoreInterface()).size();
+  return GetLogins(GetVerifierPasswordStore()).size();
 }
 
 PasswordForm CreateTestPasswordForm(int index) {
@@ -231,11 +312,9 @@ void InjectEncryptedServerPassword(
     const std::string& encryption_passphrase,
     const syncer::KeyDerivationParams& key_derivation_params,
     fake_server::FakeServer* fake_server) {
-  sync_pb::PasswordSpecificsData password_data =
-      password_manager::SpecificsFromPassword(form, /*base_password_data=*/{})
-          .client_only_encrypted_data();
-  InjectEncryptedServerPassword(password_data, encryption_passphrase,
-                                key_derivation_params, fake_server);
+  InjectEncryptedServerPassword(SpecificsDataFromPasswordForm(form),
+                                encryption_passphrase, key_derivation_params,
+                                fake_server);
 }
 
 void InjectEncryptedServerPassword(
@@ -256,10 +335,8 @@ void InjectEncryptedServerPassword(
 void InjectKeystoreEncryptedServerPassword(
     const password_manager::PasswordForm& form,
     fake_server::FakeServer* fake_server) {
-  sync_pb::PasswordSpecificsData password_data =
-      password_manager::SpecificsFromPassword(form, /*base_password_data=*/{})
-          .client_only_encrypted_data();
-  InjectKeystoreEncryptedServerPassword(password_data, fake_server);
+  InjectKeystoreEncryptedServerPassword(SpecificsDataFromPasswordForm(form),
+                                        fake_server);
 }
 
 void InjectKeystoreEncryptedServerPassword(
@@ -273,7 +350,7 @@ void InjectKeystoreEncryptedServerPassword(
 }  // namespace passwords_helper
 
 PasswordSyncActiveChecker::PasswordSyncActiveChecker(
-    syncer::SyncServiceImpl* service)
+    syncer::ProfileSyncService* service)
     : SingleClientStatusChangeChecker(service) {}
 PasswordSyncActiveChecker::~PasswordSyncActiveChecker() = default;
 
@@ -283,15 +360,15 @@ bool PasswordSyncActiveChecker::IsExitConditionSatisfied(std::ostream* os) {
 
 SamePasswordFormsChecker::SamePasswordFormsChecker()
     : MultiClientStatusChangeChecker(
-          sync_datatype_helper::test()->GetSyncServices()) {}
-
-SamePasswordFormsChecker::~SamePasswordFormsChecker() = default;
+          sync_datatype_helper::test()->GetSyncServices()),
+      in_progress_(false),
+      needs_recheck_(false) {}
 
 // This method needs protection against re-entrancy.
 //
 // This function indirectly calls GetLogins(), which starts a RunLoop on the UI
 // thread.  This can be a problem, since the next task to execute could very
-// well contain a SyncServiceObserver::OnStateChanged() event, which would
+// well contain a ProfileSyncService::OnStateChanged() event, which would
 // trigger another call to this here function, and start another layer of
 // nested RunLoops.  That makes the StatusChangeChecker's Quit() method
 // ineffective.
@@ -360,10 +437,11 @@ PasswordFormsChecker::PasswordFormsChecker(
       index_(index),
       in_progress_(false),
       needs_recheck_(false) {
-  for (const password_manager::PasswordForm& password_form : expected_forms) {
+  for (auto& password_form : expected_forms) {
     expected_forms_.push_back(
         std::make_unique<password_manager::PasswordForm>(password_form));
   }
+  ClearSyncDateField(&expected_forms_);
 }
 
 PasswordFormsChecker::~PasswordFormsChecker() = default;
@@ -391,8 +469,8 @@ bool PasswordFormsChecker::IsExitConditionSatisfied(std::ostream* os) {
 
 bool PasswordFormsChecker::IsExitConditionSatisfiedImpl(std::ostream* os) {
   std::vector<std::unique_ptr<PasswordForm>> forms =
-      passwords_helper::GetLogins(
-          passwords_helper::GetProfilePasswordStoreInterface(index_));
+      passwords_helper::GetLogins(passwords_helper::GetPasswordStore(index_));
+  ClearSyncDateField(&forms);
 
   std::ostringstream mismatch_details_stream;
   bool is_matching = password_manager::ContainsEqualPasswordFormsUnordered(
@@ -400,67 +478,6 @@ bool PasswordFormsChecker::IsExitConditionSatisfiedImpl(std::ostream* os) {
   if (!is_matching) {
     *os << "Profile " << index_
         << " does not contain the same Password forms as expected. "
-        << mismatch_details_stream.str();
-  }
-  return is_matching;
-}
-
-ServerPasswordsEqualityChecker::ServerPasswordsEqualityChecker(
-    const std::vector<password_manager::PasswordForm>& expected_forms,
-    const std::string& encryption_passphrase,
-    const syncer::KeyDerivationParams& key_derivation_params)
-    : cryptographer_(syncer::CryptographerImpl::FromSingleKeyForTesting(
-          encryption_passphrase,
-          key_derivation_params)) {
-  for (const password_manager::PasswordForm& password_form : expected_forms) {
-    expected_forms_.push_back(
-        std::make_unique<password_manager::PasswordForm>(password_form));
-    // |in_store| field is specific for the clients, clean it up, since server
-    // specifics don't have it.
-    expected_forms_.back()->in_store =
-        password_manager::PasswordForm::Store::kNotSet;
-  }
-}
-
-ServerPasswordsEqualityChecker::~ServerPasswordsEqualityChecker() = default;
-
-bool ServerPasswordsEqualityChecker::IsExitConditionSatisfied(
-    std::ostream* os) {
-  *os << "Waiting for server passwords to match the expected value.";
-
-  std::vector<sync_pb::SyncEntity> entities =
-      fake_server()->GetSyncEntitiesByModelType(syncer::PASSWORDS);
-  if (expected_forms_.size() != entities.size()) {
-    *os << "Server doesn't not contain same amount of passwords ("
-        << entities.size() << ") as expected (" << expected_forms_.size()
-        << ").";
-    return false;
-  }
-
-  std::vector<std::unique_ptr<password_manager::PasswordForm>>
-      server_password_forms;
-  for (const auto& entity : entities) {
-    if (!entity.specifics().has_password()) {
-      *os << "Server stores corrupted password.";
-      return false;
-    }
-
-    sync_pb::PasswordSpecificsData decrypted;
-    if (!cryptographer_->Decrypt(entity.specifics().password().encrypted(),
-                                 &decrypted)) {
-      *os << "Can't decrypt server password.";
-      return false;
-    }
-    server_password_forms.push_back(
-        std::make_unique<password_manager::PasswordForm>(
-            password_manager::PasswordFromSpecifics(decrypted)));
-  }
-
-  std::ostringstream mismatch_details_stream;
-  bool is_matching = password_manager::ContainsEqualPasswordFormsUnordered(
-      expected_forms_, server_password_forms, &mismatch_details_stream);
-  if (!is_matching) {
-    *os << "Server does not contain the same Password forms as expected. "
         << mismatch_details_stream.str();
   }
   return is_matching;

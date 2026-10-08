@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,7 @@ import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
 public class GlobalNightModeStateProviderHolderTest {
     @After
     public void tearDown() {
-        GlobalNightModeStateProviderHolder.setInstanceForTesting(null);
+        GlobalNightModeStateProviderHolder.resetInstanceForTesting();
         NightModeUtils.setNightModeSupportedForTesting(null);
         SharedPreferencesManager.getInstance().removeKey(UI_THEME_SETTING);
     }

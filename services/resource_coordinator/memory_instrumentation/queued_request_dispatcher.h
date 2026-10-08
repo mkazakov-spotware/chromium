@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,10 @@
 #include <vector>
 
 #include "base/containers/flat_map.h"
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "base/trace_event/memory_dump_request_args.h"
 #include "services/resource_coordinator/memory_instrumentation/coordinator_impl.h"
 #include "services/resource_coordinator/memory_instrumentation/queued_request.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/perfetto/include/perfetto/ext/trace_processor/importers/memory_tracker/graph.h"
 
 namespace memory_instrumentation {
@@ -42,14 +41,14 @@ class QueuedRequestDispatcher {
     ClientInfo(mojom::ClientProcess* client,
                base::ProcessId pid,
                mojom::ProcessType process_type,
-               absl::optional<std::string> service_name);
+               base::Optional<std::string> service_name);
     ClientInfo(ClientInfo&& other);
     ~ClientInfo();
 
-    const raw_ptr<mojom::ClientProcess> client;
+    mojom::ClientProcess* const client;
     const base::ProcessId pid;
     const mojom::ProcessType process_type;
-    const absl::optional<std::string> service_name;
+    const base::Optional<std::string> service_name;
   };
 
   // Sets up the parameters of the queued |request| using |clients| and then

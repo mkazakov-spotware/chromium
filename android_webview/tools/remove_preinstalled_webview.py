@@ -1,6 +1,6 @@
-#!/usr/bin/env vpython3
+#!/usr/bin/env python
 #
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -36,10 +36,10 @@ import sys
 
 sys.path.append(os.path.join(
     os.path.dirname(__file__), os.pardir, os.pardir, 'build', 'android'))
-# pylint: disable=wrong-import-position,import-error
 import devil_chromium
 from devil.android import device_errors
 from devil.android import device_utils
+from devil.android.sdk import keyevent
 from devil.android.tools import script_common
 from devil.android.tools import system_app
 from devil.utils import logging_common
@@ -47,13 +47,15 @@ from devil.utils import logging_common
 WEBVIEW_PACKAGES = ['com.android.webview', 'com.google.android.webview']
 
 
+def _UnlockDevice(device):
+  device.SendKeyEvent(keyevent.KEYCODE_MENU)
+
+
 def UninstallWebViewSystemImages(device):
   """Uninstalls system images for known WebView packages."""
   print('Removing system images from %s...' % device.serial)
   system_app.RemoveSystemApps(device, WEBVIEW_PACKAGES)
-  # Removing system apps will reboot the device, so we try to unlock the device
-  # once that's done.
-  device.Unlock()
+  _UnlockDevice(device)
 
 
 def UninstallWebViewUpdates(device):
@@ -85,13 +87,13 @@ def RemovePreinstalledWebViews(device):
     UninstallWebViewSystemImages(device)
     CheckWebViewIsUninstalled(device)
   except device_errors.CommandFailedError:
-    if device.is_emulator:
+    if device.adb.is_emulator:
       # Point the user to documentation, since there's a good chance they can
       # workaround this. Use lots of newlines to make sure this message doesn't
       # get lost.
       logging.error('Did you start the emulator with "-writable-system?"\n'
                     'See https://chromium.googlesource.com/chromium/src/+/'
-                    'main/docs/android_emulator.md#writable-system-partition'
+                    'master/docs/android_emulator.md#writable-system-partition'
                     '\n')
     raise
   device.SetWebViewFallbackLogic(False)  # Allow standalone WebView on N+
@@ -116,4 +118,4 @@ development.
 
 
 if __name__ == '__main__':
-  main()
+  sys.exit(main())

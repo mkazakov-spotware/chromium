@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,9 @@
 #include <sstream>
 
 #include "base/bind.h"
+#include "base/callback_helpers.h"
 #include "base/memory/ptr_util.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "media/base/video_types.h"
@@ -18,8 +20,6 @@
 namespace media {
 
 namespace {
-
-using PortConfig = ImageProcessorBackend::PortConfig;
 
 // Verify if the format of |frame| matches |config|.
 bool CheckVideoFrameFormat(const ImageProcessor::PortConfig& config,
@@ -36,13 +36,6 @@ bool CheckVideoFrameFormat(const ImageProcessor::PortConfig& config,
   if (frame.layout().coded_size() != config.size) {
     VLOGF(1) << "Invalid frame size=" << frame.layout().coded_size().ToString()
              << ", expected=" << config.size.ToString();
-    return false;
-  }
-
-  if (frame.visible_rect() != config.visible_rect) {
-    VLOGF(1) << "Invalid frame visible rectangle="
-             << frame.visible_rect().ToString()
-             << ", expected=" << config.visible_rect.ToString();
     return false;
   }
 
@@ -64,20 +57,17 @@ std::unique_ptr<ImageProcessor> ImageProcessor::Create(
     CreateBackendCB create_backend_cb,
     const PortConfig& input_config,
     const PortConfig& output_config,
-    OutputMode output_mode,
+    const std::vector<OutputMode>& preferred_output_modes,
     VideoRotation relative_rotation,
     ErrorCB error_cb,
     scoped_refptr<base::SequencedTaskRunner> client_task_runner) {
-  // Note: we use a single thread task runner because the GL context is thread
-  // local, so we need to make sure we run the GLImageProcessorBackend on the
-  // same thread each time.
   scoped_refptr<base::SequencedTaskRunner> backend_task_runner =
-      base::ThreadPool::CreateSingleThreadTaskRunner({});
+      base::ThreadPool::CreateSequencedTaskRunner({});
   auto wrapped_error_cb = base::BindRepeating(
       base::IgnoreResult(&base::SequencedTaskRunner::PostTask),
       client_task_runner, FROM_HERE, std::move(error_cb));
   std::unique_ptr<ImageProcessorBackend> backend = create_backend_cb.Run(
-      input_config, output_config, output_mode, relative_rotation,
+      input_config, output_config, preferred_output_modes, relative_rotation,
       std::move(wrapped_error_cb), backend_task_runner);
   if (!backend)
     return nullptr;
@@ -93,9 +83,7 @@ ImageProcessor::ImageProcessor(
     scoped_refptr<base::SequencedTaskRunner> backend_task_runner)
     : backend_(std::move(backend)),
       client_task_runner_(std::move(client_task_runner)),
-      backend_task_runner_(std::move(backend_task_runner)),
-      needs_linear_output_buffers_(backend_ &&
-                                   backend_->needs_linear_output_buffers()) {
+      backend_task_runner_(std::move(backend_task_runner)) {
   DVLOGF(2);
   DETACH_FROM_SEQUENCE(client_sequence_checker_);
 
@@ -109,7 +97,11 @@ ImageProcessor::~ImageProcessor() {
   weak_this_factory_.InvalidateWeakPtrs();
 
   // Delete |backend_| on |backend_task_runner_|.
-  backend_task_runner_->DeleteSoon(FROM_HERE, std::move(backend_));
+  backend_task_runner_->PostTask(
+      FROM_HERE,
+      base::BindOnce(
+          base::DoNothing::Once<std::unique_ptr<ImageProcessorBackend>>(),
+          std::move(backend_)));
 }
 
 bool ImageProcessor::Process(scoped_refptr<VideoFrame> input_frame,
@@ -139,7 +131,7 @@ bool ImageProcessor::Process(scoped_refptr<VideoFrame> input_frame,
 // static
 void ImageProcessor::OnProcessDoneThunk(
     scoped_refptr<base::SequencedTaskRunner> task_runner,
-    absl::optional<base::WeakPtr<ImageProcessor>> weak_this,
+    base::Optional<base::WeakPtr<ImageProcessor>> weak_this,
     int cb_index,
     scoped_refptr<VideoFrame> frame) {
   DVLOGF(4);
@@ -186,7 +178,7 @@ bool ImageProcessor::Process(scoped_refptr<VideoFrame> frame,
 // static
 void ImageProcessor::OnProcessLegacyDoneThunk(
     scoped_refptr<base::SequencedTaskRunner> task_runner,
-    absl::optional<base::WeakPtr<ImageProcessor>> weak_this,
+    base::Optional<base::WeakPtr<ImageProcessor>> weak_this,
     int cb_index,
     size_t buffer_id,
     scoped_refptr<VideoFrame> frame) {
@@ -239,14 +231,6 @@ int ImageProcessor::StoreCallback(ClientCallback cb) {
   int cb_index = next_cb_index_++;
   pending_cbs_.emplace(cb_index, std::move(cb));
   return cb_index;
-}
-
-const PortConfig& ImageProcessor::input_config() const {
-  return backend_->input_config();
-}
-
-const PortConfig& ImageProcessor::output_config() const {
-  return backend_->output_config();
 }
 
 }  // namespace media

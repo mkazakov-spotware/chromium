@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,8 +22,6 @@ HeadlessDevToolsSession::HeadlessDevToolsSession(
     base::WeakPtr<HeadlessBrowserImpl> browser,
     content::DevToolsAgentHostClientChannel* channel)
     : browser_(browser), dispatcher_(this), client_channel_(channel) {
-  CHECK(client_channel_->GetClient()->IsTrusted())
-      << "Connection to headless requires a trusted client";
   content::DevToolsAgentHost* agent_host = channel->GetAgentHost();
   if (agent_host->GetWebContents() &&
       agent_host->GetType() == content::DevToolsAgentHost::kTypePage) {
@@ -32,8 +30,10 @@ HeadlessDevToolsSession::HeadlessDevToolsSession(
     AddHandler(std::make_unique<PageHandler>(agent_host,
                                              agent_host->GetWebContents()));
   }
-  AddHandler(
-      std::make_unique<BrowserHandler>(browser_.get(), agent_host->GetId()));
+  if (channel->GetClient()->MayAttachToBrowser()) {
+    AddHandler(
+        std::make_unique<BrowserHandler>(browser_.get(), agent_host->GetId()));
+  }
   AddHandler(std::make_unique<TargetHandler>(browser_.get()));
 }
 

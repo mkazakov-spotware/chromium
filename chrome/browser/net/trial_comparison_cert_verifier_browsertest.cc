@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "chrome/browser/net/trial_comparison_cert_verifier_controller.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/metrics/content/subprocess_metrics_provider.h"
@@ -30,8 +31,8 @@ class TrialComparisonCertVerifierTest : public InProcessBrowserTest {
 IN_PROC_BROWSER_TEST_F(TrialComparisonCertVerifierTest, TrialDisabled) {
   ASSERT_TRUE(https_test_server_.Start());
   base::HistogramTester histograms;
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), https_test_server_.GetURL("/title1.html")));
+  ui_test_utils::NavigateToURL(browser(),
+                               https_test_server_.GetURL("/title1.html"));
   metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
   histograms.ExpectTotalCount("Net.CertVerifier_Job_Latency", 1);
   histograms.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 0);
@@ -45,20 +46,8 @@ class TrialComparisonCertVerifierFeatureEnabledTest
     scoped_feature_ = std::make_unique<base::test::ScopedFeatureList>();
     // None of these tests should generate a report, but set the trial to
     // uma_only mode anyway just to be safe.
-    scoped_feature_->InitWithFeaturesAndParameters(
-        /*enabled_features=*/{{net::features::kCertDualVerificationTrialFeature,
-                               {{"uma_only", "true"}}}},
-        // This test suite tests enabling the TrialComparisonCertVerifier,
-        // which can only be done when KChromeRootStoreUsed is not enabled.
-        // There are separate tests below
-        // (TrialComparisonCertVerifierFeatureOverridenBy*) for testing that
-        // the TrialComparisonCertVerifier is not used when that feature is
-        // enabled.
-        /*disabled_features=*/{
-#if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
-          net::features::kChromeRootStoreUsed,
-#endif
-        });
+    scoped_feature_->InitAndEnableFeatureWithParameters(
+        features::kCertDualVerificationTrialFeature, {{"uma_only", "true"}});
   }
 
   ~TrialComparisonCertVerifierFeatureEnabledTest() override {
@@ -74,8 +63,8 @@ IN_PROC_BROWSER_TEST_F(TrialComparisonCertVerifierFeatureEnabledTest,
                        TrialEnabledPrefDisabled) {
   ASSERT_TRUE(https_test_server_.Start());
   base::HistogramTester histograms;
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), https_test_server_.GetURL("/title1.html")));
+  ui_test_utils::NavigateToURL(browser(),
+                               https_test_server_.GetURL("/title1.html"));
   metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
   histograms.ExpectTotalCount("Net.CertVerifier_Job_Latency", 1);
   histograms.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 0);
@@ -88,31 +77,39 @@ IN_PROC_BROWSER_TEST_F(TrialComparisonCertVerifierFeatureEnabledTest,
 
   ASSERT_TRUE(https_test_server_.Start());
   base::HistogramTester histograms;
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), https_test_server_.GetURL("/title1.html")));
+  ui_test_utils::NavigateToURL(browser(),
+                               https_test_server_.GetURL("/title1.html"));
   metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
   histograms.ExpectTotalCount("Net.CertVerifier_Job_Latency", 1);
+#if BUILDFLAG(BUILTIN_CERT_VERIFIER_FEATURE_SUPPORTED)
+  if (base::FeatureList::IsEnabled(
+          net::features::kCertVerifierBuiltinFeature)) {
+    // If both the dual cert verifier trial feature and the builtin verifier
+    // feature are enabled, the dual cert verifier trial should not be used.
+    histograms.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 0);
+    return;
+  }
+#endif
   histograms.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 1);
 }
 
-#if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
-class TrialComparisonCertVerifierFeatureOverridenByChromeRootStoreTest
+#if BUILDFLAG(BUILTIN_CERT_VERIFIER_FEATURE_SUPPORTED)
+class TrialComparisonCertVerifierFeatureOverridenByBuiltinVerifierTest
     : public TrialComparisonCertVerifierTest {
  public:
-  TrialComparisonCertVerifierFeatureOverridenByChromeRootStoreTest() {
+  TrialComparisonCertVerifierFeatureOverridenByBuiltinVerifierTest() {
     TrialComparisonCertVerifierController::SetFakeOfficialBuildForTesting(true);
     scoped_feature_ = std::make_unique<base::test::ScopedFeatureList>();
     scoped_feature_->InitWithFeaturesAndParameters(
         // None of these tests should generate a report, but set the trial to
         // uma_only mode anyway just to be safe.
-        {{net::features::kCertDualVerificationTrialFeature,
-          {{"uma_only", "true"}}},
-         // Enable the Chrome Root Store.
-         {net::features::kChromeRootStoreUsed, {}}},
+        {{features::kCertDualVerificationTrialFeature, {{"uma_only", "true"}}},
+         // Enable the builtin verifier.
+         {net::features::kCertVerifierBuiltinFeature, {}}},
         {});
   }
 
-  ~TrialComparisonCertVerifierFeatureOverridenByChromeRootStoreTest() override {
+  ~TrialComparisonCertVerifierFeatureOverridenByBuiltinVerifierTest() override {
     TrialComparisonCertVerifierController::SetFakeOfficialBuildForTesting(
         false);
   }
@@ -122,19 +119,19 @@ class TrialComparisonCertVerifierFeatureOverridenByChromeRootStoreTest
 };
 
 IN_PROC_BROWSER_TEST_F(
-    TrialComparisonCertVerifierFeatureOverridenByChromeRootStoreTest,
+    TrialComparisonCertVerifierFeatureOverridenByBuiltinVerifierTest,
     TrialEnabledPrefEnabledBuiltVerifierEnabled) {
   safe_browsing::SetExtendedReportingPrefForTests(
       browser()->profile()->GetPrefs(), true);
 
   ASSERT_TRUE(https_test_server_.Start());
   base::HistogramTester histograms;
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), https_test_server_.GetURL("/title1.html")));
+  ui_test_utils::NavigateToURL(browser(),
+                               https_test_server_.GetURL("/title1.html"));
   metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
   histograms.ExpectTotalCount("Net.CertVerifier_Job_Latency", 1);
-  // If both the dual cert verifier trial feature and the Chrome Root Store
+  // If both the dual cert verifier trial feature and the builtin verifier
   // feature are enabled, the dual cert verifier trial should not be used.
   histograms.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 0);
 }
-#endif  // BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
+#endif

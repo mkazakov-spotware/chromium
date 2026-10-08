@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,10 +46,10 @@ float DisplaySize::GetScalingFactor() const {
   return (float)dpi_ / (float)kDefaultDpi;
 }
 
-std::ostream& operator<<(std::ostream& out, const DisplaySize& size) {
+}  // namespace remoting
+
+std::ostream& operator<<(std::ostream& out, const remoting::DisplaySize& size) {
   out << size.WidthAsDips() << "x" << size.HeightAsDips() << " @"
       << size.GetDpi();
   return out;
 }
-
-}  // namespace remoting

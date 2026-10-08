@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,7 +49,6 @@ class MODULES_EXPORT MediaRecorder
   String state() const;
   uint32_t videoBitsPerSecond() const { return video_bits_per_second_; }
   uint32_t audioBitsPerSecond() const { return audio_bits_per_second_; }
-  String audioBitrateMode() const;
 
   DEFINE_ATTRIBUTE_EVENT_LISTENER(start, kStart)
   DEFINE_ATTRIBUTE_EVENT_LISTENER(stop, kStop)
@@ -75,7 +74,7 @@ class MODULES_EXPORT MediaRecorder
   void ContextDestroyed() override;
 
   // ScriptWrappable
-  bool HasPendingActivity() const final { return state_ != State::kInactive; }
+  bool HasPendingActivity() const final { return !stopped_; }
 
   virtual void WriteData(const char* data,
                          size_t length,
@@ -98,8 +97,9 @@ class MODULES_EXPORT MediaRecorder
 
   Member<MediaStream> stream_;
   String mime_type_;
-  uint32_t audio_bits_per_second_{0};
-  uint32_t video_bits_per_second_{0};
+  bool stopped_;
+  int audio_bits_per_second_;
+  int video_bits_per_second_;
 
   State state_;
   bool first_write_received_ = false;

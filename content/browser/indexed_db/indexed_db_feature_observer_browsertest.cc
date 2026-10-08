@@ -1,13 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/test/test_timeouts.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
+#include "components/network_session_configurator/common/network_switches.h"
 #include "content/browser/feature_observer.h"
-#include "content/public/browser/back_forward_cache.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/feature_observer_client.h"
 #include "content/public/browser/render_process_host.h"
@@ -16,14 +15,13 @@
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/content_browser_test.h"
 #include "content/public/test/content_browser_test_utils.h"
-#include "content/public/test/content_mock_cert_verifier.h"
 #include "content/shell/browser/shell.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/build_info.h"
 #endif
 
@@ -33,7 +31,7 @@ namespace {
 
 void RunLoopWithTimeout() {
   base::RunLoop run_loop;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE, run_loop.QuitClosure(), TestTimeouts::tiny_timeout());
   run_loop.Run();
 }
@@ -52,7 +50,7 @@ class TestBrowserClient : public ContentBrowserClient {
   TestBrowserClient& operator=(const TestBrowserClient&) = delete;
 
  private:
-  raw_ptr<FeatureObserverClient> feature_observer_client_;
+  FeatureObserverClient* feature_observer_client_;
 };
 
 class MockObserverClient : public FeatureObserverClient {
@@ -62,10 +60,10 @@ class MockObserverClient : public FeatureObserverClient {
 
   // PerformanceManagerFeatureObserver implementation:
   MOCK_METHOD2(OnStartUsing,
-               void(GlobalRenderFrameHostId id,
+               void(GlobalFrameRoutingId id,
                     blink::mojom::ObservedFeatureType type));
   MOCK_METHOD2(OnStopUsing,
-               void(GlobalRenderFrameHostId id,
+               void(GlobalFrameRoutingId id,
                     blink::mojom::ObservedFeatureType type));
 };
 
@@ -74,10 +72,31 @@ class IndexedDBFeatureObserverBrowserTest : public ContentBrowserTest {
   IndexedDBFeatureObserverBrowserTest() = default;
   ~IndexedDBFeatureObserverBrowserTest() override = default;
 
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    ContentBrowserTest::SetUpCommandLine(command_line);
+    command_line->AppendSwitch(switches::kIgnoreCertificateErrors);
+  }
+
+  void SetUpOnMainThread() override {
+    ContentBrowserTest::SetUpOnMainThread();
+
+    original_client_ = SetBrowserClientForTesting(&test_browser_client_);
+
+    host_resolver()->AddRule("*", "127.0.0.1");
+    server_.ServeFilesFromSourceDirectory(GetTestDataFilePath());
+    ASSERT_TRUE(server_.Start());
+  }
+
+  void TearDownOnMainThread() override {
+    ContentBrowserTest::TearDownOnMainThread();
+    if (original_client_)
+      SetBrowserClientForTesting(original_client_);
+  }
+
   // Check if the test can run on the current system. If the test can run,
   // navigates to the test page and returns true. Otherwise, returns false.
   bool CheckShouldRunTestAndNavigate() const {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
     // Don't run the test if we couldn't override BrowserClient. It happens only
     // on Android Kitkat or older systems.
     if (!original_client_)
@@ -89,7 +108,7 @@ class IndexedDBFeatureObserverBrowserTest : public ContentBrowserTest {
         base::android::SDK_VERSION_KITKAT) {
       return false;
     }
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
     EXPECT_TRUE(NavigateToURL(shell(), GetTestURL("a.com")));
     return true;
   }
@@ -99,44 +118,11 @@ class IndexedDBFeatureObserverBrowserTest : public ContentBrowserTest {
                           "/indexeddb/open_connection/open_connection.html");
   }
 
- protected:
   testing::StrictMock<MockObserverClient> mock_observer_client_;
 
  private:
-  void SetUpOnMainThread() override {
-    ContentBrowserTest::SetUpOnMainThread();
-    mock_cert_verifier_.mock_cert_verifier()->set_default_result(net::OK);
-    original_client_ = SetBrowserClientForTesting(&test_browser_client_);
-
-    host_resolver()->AddRule("*", "127.0.0.1");
-    server_.ServeFilesFromSourceDirectory(GetTestDataFilePath());
-    ASSERT_TRUE(server_.Start());
-  }
-
-  void TearDownOnMainThread() override {
-    if (original_client_)
-      SetBrowserClientForTesting(original_client_);
-    ContentBrowserTest::TearDownOnMainThread();
-  }
-
-  void SetUpCommandLine(base::CommandLine* command_line) override {
-    ContentBrowserTest::SetUpCommandLine(command_line);
-    mock_cert_verifier_.SetUpCommandLine(command_line);
-  }
-
-  void SetUpInProcessBrowserTestFixture() override {
-    ContentBrowserTest::SetUpInProcessBrowserTestFixture();
-    mock_cert_verifier_.SetUpInProcessBrowserTestFixture();
-  }
-
-  void TearDownInProcessBrowserTestFixture() override {
-    ContentBrowserTest::TearDownInProcessBrowserTestFixture();
-    mock_cert_verifier_.TearDownInProcessBrowserTestFixture();
-  }
-
-  content::ContentMockCertVerifier mock_cert_verifier_;
   net::EmbeddedTestServer server_{net::EmbeddedTestServer::TYPE_HTTPS};
-  raw_ptr<ContentBrowserClient> original_client_ = nullptr;
+  ContentBrowserClient* original_client_ = nullptr;
   TestBrowserClient test_browser_client_{&mock_observer_client_};
 
   IndexedDBFeatureObserverBrowserTest(
@@ -172,20 +158,22 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
   if (!CheckShouldRunTestAndNavigate())
     return;
 
-  RenderFrameHost* rfh = shell()->web_contents()->GetPrimaryMainFrame();
-  GlobalRenderFrameHostId rfh_id = rfh->GetGlobalId();
+  RenderFrameHost* rfh = shell()->web_contents()->GetMainFrame();
+  GlobalFrameRoutingId routing_id(rfh->GetProcess()->GetID(),
+                                  rfh->GetRoutingID());
 
   {
     // Open a connection. Expect observer notification.
     base::RunLoop run_loop;
     EXPECT_CALL(
         mock_observer_client_,
-        OnStartUsing(rfh_id,
+        OnStartUsing(routing_id,
                      blink::mojom::ObservedFeatureType::kIndexedDBConnection))
-        .WillOnce([&](GlobalRenderFrameHostId,
-                      blink::mojom::ObservedFeatureType) { run_loop.Quit(); });
+        .WillOnce([&](GlobalFrameRoutingId, blink::mojom::ObservedFeatureType) {
+          run_loop.Quit();
+        });
     EXPECT_TRUE(OpenConnectionA(rfh));
-    // Quit when OnFrameStartsHoldingIndexedDBConnections(rfh_id)
+    // Quit when OnFrameStartsHoldingIndexedDBConnections(routing_id)
     // is invoked.
     run_loop.Run();
   }
@@ -195,12 +183,13 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
     base::RunLoop run_loop;
     EXPECT_CALL(
         mock_observer_client_,
-        OnStopUsing(rfh_id,
+        OnStopUsing(routing_id,
                     blink::mojom::ObservedFeatureType::kIndexedDBConnection))
-        .WillOnce([&](GlobalRenderFrameHostId,
-                      blink::mojom::ObservedFeatureType) { run_loop.Quit(); });
+        .WillOnce([&](GlobalFrameRoutingId, blink::mojom::ObservedFeatureType) {
+          run_loop.Quit();
+        });
     EXPECT_TRUE(ExecJs(rfh, "CloseConnection('A');"));
-    // Quit when OnFrameStopsHoldingIndexedDBConnections(rfh_id)
+    // Quit when OnFrameStopsHoldingIndexedDBConnections(routing_id)
     // is invoked.
     run_loop.Run();
   }
@@ -210,7 +199,7 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
 // IndexedDB connections (notifications only when the number of held connections
 // switches between zero and non-zero).
 // Disabled on ChromeOS release build for flakiness. See crbug.com/1030733.
-#if BUILDFLAG(IS_CHROMEOS_ASH) && defined(NDEBUG)
+#if defined(OS_CHROMEOS) && defined(NDEBUG)
 #define MAYBE_ObserverTwoLocks DISABLED_ObserverTwoLocks
 #else
 #define MAYBE_ObserverTwoLocks ObserverTwoLocks
@@ -220,20 +209,22 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
   if (!CheckShouldRunTestAndNavigate())
     return;
 
-  RenderFrameHost* rfh = shell()->web_contents()->GetPrimaryMainFrame();
-  GlobalRenderFrameHostId rfh_id = rfh->GetGlobalId();
+  RenderFrameHost* rfh = shell()->web_contents()->GetMainFrame();
+  GlobalFrameRoutingId routing_id(rfh->GetProcess()->GetID(),
+                                  rfh->GetRoutingID());
 
   {
     // Open a connection. Expect observer notification.
     base::RunLoop run_loop;
     EXPECT_CALL(
         mock_observer_client_,
-        OnStartUsing(rfh_id,
+        OnStartUsing(routing_id,
                      blink::mojom::ObservedFeatureType::kIndexedDBConnection))
-        .WillOnce([&](GlobalRenderFrameHostId,
-                      blink::mojom::ObservedFeatureType) { run_loop.Quit(); });
+        .WillOnce([&](GlobalFrameRoutingId, blink::mojom::ObservedFeatureType) {
+          run_loop.Quit();
+        });
     EXPECT_TRUE(OpenConnectionA(rfh));
-    // Quit when OnFrameStartsHoldingIndexedDBConnections(rfh_id)
+    // Quit when OnFrameStartsHoldingIndexedDBConnections(routing_id)
     // is invoked.
     run_loop.Run();
   }
@@ -253,12 +244,13 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
     base::RunLoop run_loop;
     EXPECT_CALL(
         mock_observer_client_,
-        OnStopUsing(rfh_id,
+        OnStopUsing(routing_id,
                     blink::mojom::ObservedFeatureType::kIndexedDBConnection))
-        .WillOnce([&](GlobalRenderFrameHostId,
-                      blink::mojom::ObservedFeatureType) { run_loop.Quit(); });
+        .WillOnce([&](GlobalFrameRoutingId, blink::mojom::ObservedFeatureType) {
+          run_loop.Quit();
+        });
     EXPECT_TRUE(ExecJs(rfh, "CloseConnection('A');"));
-    // Quit when OnFrameStopsHoldingIndexedDBConnections(rfh_id)
+    // Quit when OnFrameStopsHoldingIndexedDBConnections(routing_id)
     // is invoked.
     run_loop.Run();
   }
@@ -267,32 +259,25 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
 // Verify that content::FeatureObserver is notified when a frame with active
 // IndexedDB connections is navigated away.
 IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest, ObserverNavigate) {
-  // The test expects the OnStopUsing() method to be called, which won't happen
-  // if the BackForwardCache is enabled.
-  // TODO(https://crbug.com/1228693): Figure out why this is happening.
-  shell()
-      ->web_contents()
-      ->GetController()
-      .GetBackForwardCache()
-      .DisableForTesting(content::BackForwardCache::TEST_REQUIRES_NO_CACHING);
-
   if (!CheckShouldRunTestAndNavigate())
     return;
 
-  RenderFrameHost* rfh = shell()->web_contents()->GetPrimaryMainFrame();
-  GlobalRenderFrameHostId rfh_id = rfh->GetGlobalId();
+  RenderFrameHost* rfh = shell()->web_contents()->GetMainFrame();
+  GlobalFrameRoutingId routing_id(rfh->GetProcess()->GetID(),
+                                  rfh->GetRoutingID());
 
   {
     // Open a connection. Expect observer notification.
     base::RunLoop run_loop;
     EXPECT_CALL(
         mock_observer_client_,
-        OnStartUsing(rfh_id,
+        OnStartUsing(routing_id,
                      blink::mojom::ObservedFeatureType::kIndexedDBConnection))
-        .WillOnce([&](GlobalRenderFrameHostId,
-                      blink::mojom::ObservedFeatureType) { run_loop.Quit(); });
+        .WillOnce([&](GlobalFrameRoutingId, blink::mojom::ObservedFeatureType) {
+          run_loop.Quit();
+        });
     EXPECT_TRUE(OpenConnectionA(rfh));
-    // Quit when OnFrameStartsHoldingIndexedDBConnections(rfh_id)
+    // Quit when OnFrameStartsHoldingIndexedDBConnections(routing_id)
     // is invoked.
     run_loop.Run();
   }
@@ -302,12 +287,13 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest, ObserverNavigate) {
     base::RunLoop run_loop;
     EXPECT_CALL(
         mock_observer_client_,
-        OnStopUsing(rfh_id,
+        OnStopUsing(routing_id,
                     blink::mojom::ObservedFeatureType::kIndexedDBConnection))
-        .WillOnce([&](GlobalRenderFrameHostId,
-                      blink::mojom::ObservedFeatureType) { run_loop.Quit(); });
+        .WillOnce([&](GlobalFrameRoutingId, blink::mojom::ObservedFeatureType) {
+          run_loop.Quit();
+        });
     EXPECT_TRUE(NavigateToURL(shell(), GetTestURL("b.com")));
-    // Quit when OnFrameStopsHoldingIndexedDBConnections(rfh_id)
+    // Quit when OnFrameStopsHoldingIndexedDBConnections(routing_id)
     // is invoked.
     run_loop.Run();
   }
@@ -320,7 +306,7 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
   if (!CheckShouldRunTestAndNavigate())
     return;
 
-  RenderFrameHost* rfh = shell()->web_contents()->GetPrimaryMainFrame();
+  RenderFrameHost* rfh = shell()->web_contents()->GetMainFrame();
 
   // Use EvalJs() instead of ExecJs() to ensure that this doesn't return before
   // the lock is acquired and released by the worker.
@@ -337,7 +323,7 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
 }
 
 // SharedWorkers are not enabled on Android. https://crbug.com/154571
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 // Verify that content::FeatureObserver is *not* notified when a shared worker
 // opens/closes an IndexedDB connection.
 IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
@@ -345,7 +331,7 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
   if (!CheckShouldRunTestAndNavigate())
     return;
 
-  RenderFrameHost* rfh = shell()->web_contents()->GetPrimaryMainFrame();
+  RenderFrameHost* rfh = shell()->web_contents()->GetMainFrame();
 
   // Use EvalJs() instead of ExecJs() to ensure that this doesn't return before
   // the lock is acquired and released by the worker.
@@ -360,7 +346,7 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
   // Wait a short timeout to make sure that the observer is not notified.
   RunLoopWithTimeout();
 }
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
 // Verify that content::FeatureObserver is *not* notified when a service worker
 // opens/closes an IndexedDB connection.
@@ -369,7 +355,7 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
   if (!CheckShouldRunTestAndNavigate())
     return;
 
-  RenderFrameHost* rfh = shell()->web_contents()->GetPrimaryMainFrame();
+  RenderFrameHost* rfh = shell()->web_contents()->GetMainFrame();
 
   // Use EvalJs() instead of ExecJs() to ensure that this doesn't return before
   // the lock is acquired and released by the worker.

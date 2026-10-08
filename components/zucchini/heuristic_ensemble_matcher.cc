@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
-#include "base/memory/raw_ref.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "components/zucchini/binary_data_histogram.h"
@@ -27,9 +26,9 @@ namespace {
 /******** Helper Functions ********/
 
 // Uses |detector| to find embedded executables inside |image|, and returns the
-// result on success, or absl::nullopt on failure,  which occurs if too many (>
+// result on success, or base::nullopt on failure,  which occurs if too many (>
 // |kElementLimit|) elements are found.
-absl::optional<std::vector<Element>> FindEmbeddedElements(
+base::Optional<std::vector<Element>> FindEmbeddedElements(
     ConstBufferView image,
     const std::string& name,
     ElementDetector&& detector) {
@@ -47,7 +46,7 @@ absl::optional<std::vector<Element>> FindEmbeddedElements(
   }
   if (elements.size() >= kElementLimit) {
     LOG(WARNING) << name << ": Found too many elements.";
-    return absl::nullopt;
+    return base::nullopt;
   }
   LOG(INFO) << name << ": Found " << elements.size() << " elements.";
   return elements;
@@ -84,8 +83,6 @@ std::ostream& operator<<(std::ostream& stream, const Element& elt) {
 class MatchingInfoOut {
  protected:
   MatchingInfoOut() = default;
-  MatchingInfoOut(const MatchingInfoOut&) = delete;
-  const MatchingInfoOut& operator=(const MatchingInfoOut&) = delete;
 
  public:
   virtual ~MatchingInfoOut() = default;
@@ -111,6 +108,9 @@ class MatchingInfoOut {
   virtual void OutputScores(const std::string& stats) {}
 
   virtual void OutputTextGrid() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MatchingInfoOut);
 };
 
 /******** MatchingInfoTerse ********/
@@ -119,13 +119,14 @@ class MatchingInfoOut {
 class MatchingInfoOutTerse : public MatchingInfoOut {
  public:
   MatchingInfoOutTerse() = default;
-  MatchingInfoOutTerse(const MatchingInfoOutTerse&) = delete;
-  const MatchingInfoOutTerse& operator=(const MatchingInfoOutTerse&) = delete;
   ~MatchingInfoOutTerse() override = default;
 
   void OutputScores(const std::string& stats) override {
     LOG(INFO) << "Best dists: " << stats;
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MatchingInfoOutTerse);
 };
 
 /******** MatchingInfoOutVerbose ********/
@@ -136,15 +137,12 @@ class MatchingInfoOutTerse : public MatchingInfoOut {
 class MatchingInfoOutVerbose : public MatchingInfoOut {
  public:
   explicit MatchingInfoOutVerbose(std::ostream& out) : out_(out) {}
-  MatchingInfoOutVerbose(const MatchingInfoOutVerbose&) = delete;
-  const MatchingInfoOutVerbose& operator=(const MatchingInfoOutVerbose&) =
-      delete;
   ~MatchingInfoOutVerbose() override = default;
 
   // Outputs sizes and initializes |text_grid_|.
   void InitSizes(size_t old_size, size_t new_size) override {
-    *out_ << "Comparing old (" << old_size << " elements) and new (" << new_size
-          << " elements)" << std::endl;
+    out_ << "Comparing old (" << old_size << " elements) and new (" << new_size
+         << " elements)" << std::endl;
     text_grid_.assign(new_size, std::string(old_size, '-'));
     best_dist_.assign(new_size, -1.0);
   }
@@ -176,8 +174,8 @@ class MatchingInfoOutVerbose : public MatchingInfoOut {
   void OutputCompare(const Element& old_element,
                      const Element& new_element,
                      double dist) override {
-    *out_ << "Compare old" << old_element << " to new" << new_element << " --> "
-          << base::StringPrintf("%.5f", dist) << std::endl;
+    out_ << "Compare old" << old_element << " to new" << new_element << " --> "
+         << base::StringPrintf("%.5f", dist) << std::endl;
   }
 
   void OutputMatch(const Element& best_old_element,
@@ -185,42 +183,42 @@ class MatchingInfoOutVerbose : public MatchingInfoOut {
                    bool is_identical,
                    double best_dist) override {
     if (is_identical) {
-      *out_ << "Skipped old" << best_old_element << " - identical to new"
-            << new_element;
+      out_ << "Skipped old" << best_old_element << " - identical to new"
+           << new_element;
     } else {
-      *out_ << "Matched old" << best_old_element << " to new" << new_element
-            << " --> " << base::StringPrintf("%.5f", best_dist);
+      out_ << "Matched old" << best_old_element << " to new" << new_element
+           << " --> " << base::StringPrintf("%.5f", best_dist);
     }
-    *out_ << std::endl;
+    out_ << std::endl;
   }
 
   void OutputScores(const std::string& stats) override {
-    *out_ << "Best dists: " << stats << std::endl;
+    out_ << "Best dists: " << stats << std::endl;
   }
 
   void OutputTextGrid() override {
     int new_size = static_cast<int>(text_grid_.size());
     for (int inew = 0; inew < new_size; ++inew) {
       const std::string& line = text_grid_[inew];
-      *out_ << "  ";
+      out_ << "  ";
       for (char ch : line) {
         char prefix = (ch == 'I' || ch == 'M') ? '(' : ' ';
         char suffix = (ch == 'I' || ch == 'M') ? ')' : ' ';
-        *out_ << prefix << ch << suffix;
+        out_ << prefix << ch << suffix;
       }
       if (best_dist_[inew] >= 0)
-        *out_ << "   " << base::StringPrintf("%.5f", best_dist_[inew]);
-      *out_ << std::endl;
+        out_ << "   " << base::StringPrintf("%.5f", best_dist_[inew]);
+      out_ << std::endl;
     }
     if (!text_grid_.empty()) {
-      *out_ << "  Legend: I = identical, M = matched, T = type mismatch, "
-               "U = unsafe distance, C = candidate, O = outlier, - = skipped."
-            << std::endl;
+      out_ << "  Legend: I = identical, M = matched, T = type mismatch, "
+              "U = unsafe distance, C = candidate, O = outlier, - = skipped."
+           << std::endl;
     }
   }
 
  private:
-  const raw_ref<std::ostream> out_;
+  std::ostream& out_;
 
   // Text grid representation of matches. Rows correspond to "old" and columns
   // correspond to "new".
@@ -228,6 +226,9 @@ class MatchingInfoOutVerbose : public MatchingInfoOut {
 
   // For each "new" element, distance of best match. -1 denotes no match.
   std::vector<double> best_dist_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MatchingInfoOutVerbose);
 };
 
 }  // namespace
@@ -245,12 +246,12 @@ bool HeuristicEnsembleMatcher::RunMatch(ConstBufferView old_image,
   LOG(INFO) << "Start matching.";
 
   // Find all elements in "old" and "new".
-  absl::optional<std::vector<Element>> old_elements =
+  base::Optional<std::vector<Element>> old_elements =
       FindEmbeddedElements(old_image, "Old file",
                            base::BindRepeating(DetectElementFromDisassembler));
   if (!old_elements.has_value())
     return false;
-  absl::optional<std::vector<Element>> new_elements =
+  base::Optional<std::vector<Element>> new_elements =
       FindEmbeddedElements(new_image, "New file",
                            base::BindRepeating(DetectElementFromDisassembler));
   if (!new_elements.has_value())

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "courgette/courgette.h"
 #include "courgette/region.h"
 #include "courgette/streams.h"
@@ -22,10 +23,6 @@ class EncodedProgram;
 class RegionBuffer : public BasicBuffer {
  public:
   explicit RegionBuffer(const Region& region) : region_(region) {}
-
-  RegionBuffer(const RegionBuffer&) = delete;
-  RegionBuffer& operator=(const RegionBuffer&) = delete;
-
   ~RegionBuffer() override {}
 
   // BasicBuffer:
@@ -34,6 +31,8 @@ class RegionBuffer : public BasicBuffer {
 
  private:
   Region region_;
+
+  DISALLOW_COPY_AND_ASSIGN(RegionBuffer);
 };
 
 // CourgetteFlow stores Courgette data arranged into groups, and exposes
@@ -64,10 +63,6 @@ class CourgetteFlow {
   };
 
   CourgetteFlow();
-
-  CourgetteFlow(const CourgetteFlow&) = delete;
-  CourgetteFlow& operator=(const CourgetteFlow&) = delete;
-
   ~CourgetteFlow();
 
   static const char* name(Group group);
@@ -146,6 +141,8 @@ class CourgetteFlow {
   Data data_only_;
   Data data_old_;
   Data data_new_;
+
+  DISALLOW_COPY_AND_ASSIGN(CourgetteFlow);
 };
 
 }  // namespace courgette

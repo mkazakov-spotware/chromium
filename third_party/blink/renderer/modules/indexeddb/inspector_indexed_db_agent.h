@@ -31,10 +31,8 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_INDEXEDDB_INSPECTOR_INDEXED_DB_AGENT_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_INDEXEDDB_INSPECTOR_INDEXED_DB_AGENT_H_
 
-#include <memory>
-
 #include "third_party/blink/renderer/core/inspector/inspector_base_agent.h"
-#include "third_party/blink/renderer/core/inspector/protocol/indexed_db.h"
+#include "third_party/blink/renderer/core/inspector/protocol/IndexedDB.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
@@ -58,15 +56,12 @@ class MODULES_EXPORT InspectorIndexedDBAgent final
   protocol::Response enable() override;
   protocol::Response disable() override;
   void requestDatabaseNames(
-      protocol::Maybe<String> security_origin,
-      protocol::Maybe<String> storage_key,
+      const String& security_origin,
       std::unique_ptr<RequestDatabaseNamesCallback>) override;
-  void requestDatabase(protocol::Maybe<String> security_origin,
-                       protocol::Maybe<String> storage_key,
+  void requestDatabase(const String& security_origin,
                        const String& database_name,
                        std::unique_ptr<RequestDatabaseCallback>) override;
-  void requestData(protocol::Maybe<String> security_origin,
-                   protocol::Maybe<String> storage_key,
+  void requestData(const String& security_origin,
                    const String& database_name,
                    const String& object_store_name,
                    const String& index_name,
@@ -74,25 +69,21 @@ class MODULES_EXPORT InspectorIndexedDBAgent final
                    int page_size,
                    protocol::Maybe<protocol::IndexedDB::KeyRange>,
                    std::unique_ptr<RequestDataCallback>) override;
-  void getMetadata(protocol::Maybe<String> security_origin,
-                   protocol::Maybe<String> storage_key,
+  void getMetadata(const String& security_origin,
                    const String& database_name,
                    const String& object_store_name,
                    std::unique_ptr<GetMetadataCallback>) override;
   void deleteObjectStoreEntries(
-      protocol::Maybe<String> security_origin,
-      protocol::Maybe<String> storage_key,
+      const String& security_origin,
       const String& database_name,
       const String& object_store_name,
       std::unique_ptr<protocol::IndexedDB::KeyRange>,
       std::unique_ptr<DeleteObjectStoreEntriesCallback>) override;
-  void clearObjectStore(protocol::Maybe<String> security_origin,
-                        protocol::Maybe<String> storage_key,
+  void clearObjectStore(const String& security_origin,
                         const String& database_name,
                         const String& object_store_name,
                         std::unique_ptr<ClearObjectStoreCallback>) override;
-  void deleteDatabase(protocol::Maybe<String> security_origin,
-                      protocol::Maybe<String> storage_key,
+  void deleteDatabase(const String& security_origin,
                       const String& database_name,
                       std::unique_ptr<DeleteDatabaseCallback>) override;
 

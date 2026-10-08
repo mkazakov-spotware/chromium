@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,19 +10,16 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
-#include "base/scoped_observation.h"
 #include "base/sequence_checker.h"
 #include "extensions/browser/api/declarative_net_request/constants.h"
-#include "extensions/browser/api/declarative_net_request/file_backed_ruleset_source.h"
 #include "extensions/browser/api/declarative_net_request/request_action.h"
 #include "extensions/browser/api/declarative_net_request/ruleset_manager.h"
 #include "extensions/browser/warning_service.h"
 #include "extensions/common/api/declarative_net_request.h"
 #include "extensions/common/api/declarative_net_request/constants.h"
 #include "extensions/common/extension_id.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace content {
 class BrowserContext;
@@ -34,9 +31,8 @@ class Extension;
 
 namespace declarative_net_request {
 
-class FileBackedRulesetSource;
+class RulesetSource;
 class RulesetMatcher;
-struct RulesCountPair;
 struct TestRule;
 
 // Enum specifying the extension load type. Used for parameterized tests.
@@ -60,34 +56,30 @@ std::ostream& operator<<(std::ostream& output, RequestAction::Type type);
 std::ostream& operator<<(std::ostream& output, const RequestAction& action);
 std::ostream& operator<<(std::ostream& output, const ParseResult& result);
 std::ostream& operator<<(std::ostream& output,
-                         const absl::optional<RequestAction>& action);
+                         const base::Optional<RequestAction>& action);
 std::ostream& operator<<(std::ostream& output, LoadRulesetResult result);
-std::ostream& operator<<(std::ostream& output, const RulesCountPair& count);
 
 // Returns true if the given extension's indexed static rulesets are all valid.
 // Should be called on a sequence where file IO is allowed.
-bool AreAllIndexedStaticRulesetsValid(
-    const Extension& extension,
-    content::BrowserContext* browser_context,
-    FileBackedRulesetSource::RulesetFilter ruleset_filter);
+bool AreAllIndexedStaticRulesetsValid(const Extension& extension,
+                                      content::BrowserContext* browser_context);
 
 // Helper to create a verified ruleset matcher. Populates |matcher| and
 // |expected_checksum|. Returns true on success.
 bool CreateVerifiedMatcher(const std::vector<TestRule>& rules,
-                           const FileBackedRulesetSource& source,
+                           const RulesetSource& source,
                            std::unique_ptr<RulesetMatcher>* matcher,
                            int* expected_checksum = nullptr);
 
-// Helper to return a FileBackedRulesetSource bound to temporary files.
-FileBackedRulesetSource CreateTemporarySource(
-    RulesetID id = kMinValidStaticRulesetID,
-    size_t rule_count_limit = 100,
-    ExtensionId extension_id = "extensionid");
+// Helper to return a RulesetSource bound to temporary files.
+RulesetSource CreateTemporarySource(RulesetID id = kMinValidStaticRulesetID,
+                                    size_t rule_count_limit = 100,
+                                    ExtensionId extension_id = "extensionid");
 
 api::declarative_net_request::ModifyHeaderInfo CreateModifyHeaderInfo(
     api::declarative_net_request::HeaderOperation operation,
     std::string header,
-    absl::optional<std::string> value);
+    base::Optional<std::string> value);
 
 bool EqualsForTesting(
     const api::declarative_net_request::ModifyHeaderInfo& lhs,
@@ -118,9 +110,9 @@ class RulesetManagerObserver : public RulesetManager::TestObserver {
   void OnEvaluateRequest(const WebRequestInfo& request,
                          bool is_incognito_context) override;
 
-  const raw_ptr<RulesetManager> manager_;
+  RulesetManager* const manager_;
   size_t current_count_ = 0;
-  absl::optional<size_t> expected_count_;
+  base::Optional<size_t> expected_count_;
   std::unique_ptr<base::RunLoop> run_loop_;
   std::vector<GURL> observed_requests_;
   SEQUENCE_CHECKER(sequence_checker_);
@@ -144,8 +136,7 @@ class WarningServiceObserver : public WarningService::Observer {
   void ExtensionWarningsChanged(
       const ExtensionIdSet& affected_extensions) override;
 
-  base::ScopedObservation<WarningService, WarningService::Observer>
-      observation_{this};
+  ScopedObserver<WarningService, WarningService::Observer> observer_;
   const ExtensionId extension_id_;
   base::RunLoop run_loop_;
 };

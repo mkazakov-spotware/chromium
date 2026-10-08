@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,18 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/callback_list.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "base/notreached.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/apps/app_shim/app_shim_manager_mac.h"
+#include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
-#include "chrome/browser/lifetime/application_lifetime_desktop.h"
-#include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/browser_list_observer.h"
 #include "chrome/common/mac/app_mode_common.h"
+#include "content/public/browser/notification_observer.h"
+#include "content/public/browser/notification_registrar.h"
+#include "content/public/browser/notification_service.h"
 
 namespace apps {
 
@@ -29,46 +30,56 @@ void TerminateIfNoAppWindows() {
 }
 
 class AppShimTerminationManagerImpl : public AppShimTerminationManager,
-                                      public BrowserListObserver {
+                                      public content::NotificationObserver {
  public:
   AppShimTerminationManagerImpl() {
-    BrowserList::AddObserver(this);
-
-    closing_all_browsers_subscription_ =
-        chrome::AddClosingAllBrowsersCallback(base::BindRepeating(
-            &AppShimTerminationManagerImpl::OnClosingAllBrowsersChanged,
-            base::Unretained(this)));
+    registrar_.Add(
+        this, chrome::NOTIFICATION_BROWSER_OPENED,
+        content::NotificationService::AllBrowserContextsAndSources());
+    registrar_.Add(
+        this, chrome::NOTIFICATION_CLOSE_ALL_BROWSERS_REQUEST,
+        content::NotificationService::AllBrowserContextsAndSources());
+    registrar_.Add(
+        this, chrome::NOTIFICATION_BROWSER_CLOSE_CANCELLED,
+        content::NotificationService::AllBrowserContextsAndSources());
   }
 
-  AppShimTerminationManagerImpl(const AppShimTerminationManagerImpl&) = delete;
-  AppShimTerminationManagerImpl& operator=(
-      const AppShimTerminationManagerImpl&) = delete;
   ~AppShimTerminationManagerImpl() override { NOTREACHED(); }
 
-  // AppShimTerminationManager:
+ private:
+  // AppShimTerminationManager
   void MaybeTerminate() override {
     if (!browser_session_running_) {
       // Post this to give AppWindows a chance to remove themselves from the
       // registry.
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(&TerminateIfNoAppWindows));
     }
   }
 
   bool ShouldRestoreSession() override { return !browser_session_running_; }
 
-  // BrowserListObserver:
-  void OnBrowserAdded(Browser* browser) override {
-    browser_session_running_ = true;
+  // content::NotificationObserver override:
+  void Observe(int type,
+               const content::NotificationSource& source,
+               const content::NotificationDetails& details) override {
+    switch (type) {
+      case chrome::NOTIFICATION_BROWSER_OPENED:
+      case chrome::NOTIFICATION_BROWSER_CLOSE_CANCELLED:
+        browser_session_running_ = true;
+        break;
+      case chrome::NOTIFICATION_CLOSE_ALL_BROWSERS_REQUEST:
+        browser_session_running_ = false;
+        break;
+      default:
+        NOTREACHED();
+    }
   }
 
- private:
-  void OnClosingAllBrowsersChanged(bool closing) {
-    browser_session_running_ = !closing;
-  }
-
-  base::CallbackListSubscription closing_all_browsers_subscription_;
+  content::NotificationRegistrar registrar_;
   bool browser_session_running_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(AppShimTerminationManagerImpl);
 };
 
 }  // namespace

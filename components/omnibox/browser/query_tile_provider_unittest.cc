@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,8 +40,7 @@ class QueryTileProviderTest : public testing::Test,
 
  protected:
   // AutocompleteProviderListener overrides.
-  void OnProviderUpdate(bool updated_matches,
-                        const AutocompleteProvider* provider) override {}
+  void OnProviderUpdate(bool updated_matches) override {}
 
   void RunUntilIdle() { task_environment_.RunUntilIdle(); }
 

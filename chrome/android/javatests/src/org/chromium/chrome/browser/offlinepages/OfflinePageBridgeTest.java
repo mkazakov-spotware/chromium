@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@ import androidx.test.filters.MediumTest;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -21,7 +20,6 @@ import org.junit.runner.RunWith;
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.Callback;
 import org.chromium.base.task.PostTask;
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
@@ -33,7 +31,6 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileKey;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.components.offlinepages.DeletePageResult;
 import org.chromium.components.offlinepages.SavePageResult;
 import org.chromium.content_public.browser.LoadUrlParams;
@@ -61,15 +58,9 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Unit tests for {@link OfflinePageBridge}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@Batch(Batch.PER_CLASS)
 public class OfflinePageBridgeTest {
-    @ClassRule
-    public static ChromeTabbedActivityTestRule sActivityTestRule =
-            new ChromeTabbedActivityTestRule();
-
     @Rule
-    public final BlankCTATabInitialStateRule mInitialStateRule =
-            new BlankCTATabInitialStateRule(sActivityTestRule, false);
+    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
 
     private static final String TEST_PAGE = "/chrome/test/data/android/about.html";
     private static final int TIMEOUT_MS = 5000;
@@ -127,6 +118,8 @@ public class OfflinePageBridgeTest {
 
     @Before
     public void setUp() throws Exception {
+        mActivityTestRule.startMainActivityOnBlankPage();
+
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             // Ensure we start in an offline state.
             NetworkChangeNotifier.forceConnectivityState(false);
@@ -139,11 +132,6 @@ public class OfflinePageBridgeTest {
                 () -> { mProfile = Profile.getLastUsedRegularProfile(); });
 
         initializeBridgeForProfile();
-        List<Long> ids = new ArrayList<>();
-        for (OfflinePageItem page : OfflineTestUtil.getAllPages()) {
-            ids.add(page.getOfflineId());
-        }
-        deletePages(ids);
 
         mTestServer = EmbeddedTestServer.createAndStartServer(InstrumentationRegistry.getContext());
         mTestPage = mTestServer.getURL(TEST_PAGE);
@@ -171,7 +159,7 @@ public class OfflinePageBridgeTest {
     @Test
     @MediumTest
     public void testAddOfflinePageAndLoad() throws Exception {
-        sActivityTestRule.loadUrl(mTestPage);
+        mActivityTestRule.loadUrl(mTestPage);
         savePage(SavePageResult.SUCCESS, mTestPage);
         List<OfflinePageItem> allPages = OfflineTestUtil.getAllPages();
         OfflinePageItem offlinePage = allPages.get(0);
@@ -182,7 +170,7 @@ public class OfflinePageBridgeTest {
     @Test
     @MediumTest
     public void testGetPageByBookmarkId() throws Exception {
-        sActivityTestRule.loadUrl(mTestPage);
+        mActivityTestRule.loadUrl(mTestPage);
         savePage(SavePageResult.SUCCESS, mTestPage);
         OfflinePageItem offlinePage = OfflineTestUtil.getPageByClientId(TEST_CLIENT_ID);
         Assert.assertEquals("Offline page item url incorrect.", mTestPage, offlinePage.getUrl());
@@ -195,7 +183,7 @@ public class OfflinePageBridgeTest {
     @MediumTest
     public void testDeleteOfflinePage() throws Exception {
         deletePage(TEST_CLIENT_ID, DeletePageResult.SUCCESS);
-        sActivityTestRule.loadUrl(mTestPage);
+        mActivityTestRule.loadUrl(mTestPage);
         savePage(SavePageResult.SUCCESS, mTestPage);
         Assert.assertNotNull("Offline page should be available, but it is not.",
                 OfflineTestUtil.getPageByClientId(TEST_CLIENT_ID));
@@ -207,10 +195,8 @@ public class OfflinePageBridgeTest {
     @Test
     @MediumTest
     public void testOfflinePageBridgeDisabled_InIncognitoTabbedActivity() throws Exception {
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            mProfile = Profile.getLastUsedRegularProfile().getPrimaryOTRProfile(
-                    /*createIfNeeded=*/true);
-        });
+        TestThreadUtils.runOnUiThreadBlocking(
+                () -> { mProfile = Profile.getLastUsedRegularProfile().getPrimaryOTRProfile(); });
         initializeBridgeForProfile();
         Assert.assertEquals(null, mOfflinePageBridge);
     }
@@ -219,10 +205,8 @@ public class OfflinePageBridgeTest {
     @MediumTest
     public void testOfflinePageBridgeForProfileKeyDisabled_InIncognitoTabbedActivity()
             throws Exception {
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            mProfile = Profile.getLastUsedRegularProfile().getPrimaryOTRProfile(
-                    /*createIfNeeded=*/true);
-        });
+        TestThreadUtils.runOnUiThreadBlocking(
+                () -> { mProfile = Profile.getLastUsedRegularProfile().getPrimaryOTRProfile(); });
         OfflinePageBridge offlinePageBridgeRetrievedByKey = getBridgeForProfileKey();
         Assert.assertNull(offlinePageBridgeRetrievedByKey);
     }
@@ -232,8 +216,7 @@ public class OfflinePageBridgeTest {
     public void testOfflinePageBridgeDisabled_InIncognitoCCT() throws Exception {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             OTRProfileID otrProfileID = OTRProfileID.createUnique("CCT:Incognito");
-            mProfile = Profile.getLastUsedRegularProfile().getOffTheRecordProfile(
-                    otrProfileID, /*createIfNeeded=*/true);
+            mProfile = Profile.getLastUsedRegularProfile().getOffTheRecordProfile(otrProfileID);
             Assert.assertTrue(mProfile.isOffTheRecord());
             Assert.assertFalse(mProfile.isPrimaryOTRProfile());
         });
@@ -246,8 +229,7 @@ public class OfflinePageBridgeTest {
     public void testOfflinePageBridgeForProfileKeyDisabled_InIncognitoCCT() throws Exception {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             OTRProfileID otrProfileID = OTRProfileID.createUnique("CCT:Incognito");
-            mProfile = Profile.getLastUsedRegularProfile().getOffTheRecordProfile(
-                    otrProfileID, /*createIfNeeded=*/true);
+            mProfile = Profile.getLastUsedRegularProfile().getOffTheRecordProfile(otrProfileID);
             Assert.assertTrue(mProfile.isOffTheRecord());
             Assert.assertFalse(mProfile.isPrimaryOTRProfile());
         });
@@ -266,7 +248,7 @@ public class OfflinePageBridgeTest {
         int pagesToDeleteCount = pageUrls.size();
         List<Long> offlineIdsToDelete = new ArrayList<>();
         for (String url : pageUrls) {
-            sActivityTestRule.loadUrl(url);
+            mActivityTestRule.loadUrl(url);
             offlineIdsToDelete.add(savePage(SavePageResult.SUCCESS, url));
         }
         Assert.assertEquals("The pages should exist now that we saved them.", pagesToDeleteCount,
@@ -278,7 +260,7 @@ public class OfflinePageBridgeTest {
         pageUrlsToSave.add(pageToSave);
         int pagesToSaveCount = pageUrlsToSave.size();
         for (String url : pageUrlsToSave) {
-            sActivityTestRule.loadUrl(url);
+            mActivityTestRule.loadUrl(url);
             savePage(SavePageResult.SUCCESS, pageToSave);
         }
         Assert.assertEquals("The pages should exist now that we saved them.", pagesToSaveCount,
@@ -301,13 +283,13 @@ public class OfflinePageBridgeTest {
         Set<Long> offlineIdsToFetch = new HashSet<>();
         for (int i = 0; i < 3; i++) {
             String url = mTestPage + "?foo=" + i;
-            sActivityTestRule.loadUrl(url);
+            mActivityTestRule.loadUrl(url);
             offlineIdsToFetch.add(savePage(SavePageResult.SUCCESS, url));
         }
 
         // Save a page in a different namespace.
         String urlToIgnore = mTestPage + "?bar=1";
-        sActivityTestRule.loadUrl(urlToIgnore);
+        mActivityTestRule.loadUrl(urlToIgnore);
         long offlineIdToIgnore = savePage(SavePageResult.SUCCESS, urlToIgnore,
                 new ClientId(OfflinePageBridge.ASYNC_NAMESPACE, "-42"));
 
@@ -337,14 +319,14 @@ public class OfflinePageBridgeTest {
     public void testDownloadPage() throws Exception {
         final OfflinePageOrigin origin =
                 new OfflinePageOrigin("abc.xyz", new String[] {"deadbeef"});
-        sActivityTestRule.loadUrl(mTestPage);
+        mActivityTestRule.loadUrl(mTestPage);
         final String originString = origin.encodeAsJsonString();
         final Semaphore semaphore = new Semaphore(0);
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            Assert.assertNotNull("Tab is null", sActivityTestRule.getActivity().getActivityTab());
+            Assert.assertNotNull("Tab is null", mActivityTestRule.getActivity().getActivityTab());
             Assert.assertEquals("URL does not match requested.", mTestPage,
-                    sActivityTestRule.getActivity().getActivityTab().getUrl().getSpec());
-            Assert.assertNotNull("WebContents is null", sActivityTestRule.getWebContents());
+                    mActivityTestRule.getActivity().getActivityTab().getUrlString());
+            Assert.assertNotNull("WebContents is null", mActivityTestRule.getWebContents());
 
             mOfflinePageBridge.addObserver(new OfflinePageModelObserver() {
                 @Override
@@ -355,7 +337,7 @@ public class OfflinePageBridgeTest {
             });
 
             OfflinePageDownloadBridge.startDownload(
-                    sActivityTestRule.getActivity().getActivityTab(), origin);
+                    mActivityTestRule.getActivity().getActivityTab(), origin);
         });
         Assert.assertTrue("Semaphore acquire failed. Timed out.",
                 semaphore.tryAcquire(TIMEOUT_MS, TimeUnit.MILLISECONDS));
@@ -369,7 +351,7 @@ public class OfflinePageBridgeTest {
     public void testSavePageWithRequestOrigin() throws Exception {
         final OfflinePageOrigin origin =
                 new OfflinePageOrigin("abc.xyz", new String[] {"deadbeef"});
-        sActivityTestRule.loadUrl(mTestPage);
+        mActivityTestRule.loadUrl(mTestPage);
         final String originString = origin.encodeAsJsonString();
         final Semaphore semaphore = new Semaphore(0);
         TestThreadUtils.runOnUiThreadBlocking(() -> {
@@ -380,7 +362,7 @@ public class OfflinePageBridgeTest {
                     semaphore.release();
                 }
             });
-            mOfflinePageBridge.savePage(sActivityTestRule.getWebContents(), TEST_CLIENT_ID, origin,
+            mOfflinePageBridge.savePage(mActivityTestRule.getWebContents(), TEST_CLIENT_ID, origin,
                     new SavePageCallback() {
                         @Override
                         public void onSavePageDone(int savePageResult, String url, long offlineId) {
@@ -398,7 +380,7 @@ public class OfflinePageBridgeTest {
     @MediumTest
     @DisabledTest(message = "crbug.com/842801")
     public void testSavePageNoOrigin() throws Exception {
-        sActivityTestRule.loadUrl(mTestPage);
+        mActivityTestRule.loadUrl(mTestPage);
         savePage(SavePageResult.SUCCESS, mTestPage);
         List<OfflinePageItem> pages = OfflineTestUtil.getAllPages();
         Assert.assertEquals("", pages.get(0).getRequestOrigin());
@@ -407,7 +389,7 @@ public class OfflinePageBridgeTest {
     @Test
     @MediumTest
     public void testGetLoadUrlParamsForOpeningMhtmlFileUrl() throws Exception {
-        sActivityTestRule.loadUrl(mTestPage);
+        mActivityTestRule.loadUrl(mTestPage);
         savePage(SavePageResult.SUCCESS, mTestPage);
         List<OfflinePageItem> allPages = OfflineTestUtil.getAllPages();
         Assert.assertEquals(1, allPages.size());
@@ -476,13 +458,13 @@ public class OfflinePageBridgeTest {
         final Semaphore semaphore = new Semaphore(0);
         final AtomicLong result = new AtomicLong(-1);
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            Assert.assertNotNull("Tab is null", sActivityTestRule.getActivity().getActivityTab());
+            Assert.assertNotNull("Tab is null", mActivityTestRule.getActivity().getActivityTab());
             Assert.assertEquals("URL does not match requested.", expectedUrl,
-                    sActivityTestRule.getActivity().getActivityTab().getUrl().getSpec());
-            Assert.assertNotNull("WebContents is null", sActivityTestRule.getWebContents());
+                    mActivityTestRule.getActivity().getActivityTab().getUrlString());
+            Assert.assertNotNull("WebContents is null", mActivityTestRule.getWebContents());
 
             mOfflinePageBridge.savePage(
-                    sActivityTestRule.getWebContents(), clientId, new SavePageCallback() {
+                    mActivityTestRule.getWebContents(), clientId, new SavePageCallback() {
                         @Override
                         public void onSavePageDone(int savePageResult, String url, long offlineId) {
                             Assert.assertEquals(

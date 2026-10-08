@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,10 @@
 #include <string>
 #include <utility>
 
-#include "base/containers/fixed_flat_map.h"
+#include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
-#include "base/strings/string_piece.h"
+#include "base/no_destructor.h"
+#include "base/optional.h"
 #include "base/strings/string_util.h"
 #include "components/password_manager/core/browser/import/csv_field_parser.h"
 #include "components/password_manager/core/browser/import/csv_password.h"
@@ -20,34 +21,28 @@ namespace password_manager {
 
 namespace {
 
-// Given a CSV column |name|, returns a pointer to the matching
-// CSVPassword::Label or nullptr if the column name is not recognised.
-const CSVPassword::Label* NameToLabel(base::StringPiece name) {
+// Given a CSV column |name|, returns the matching CSVPassword::Label or nothing
+// if the column name is not recognised.
+base::Optional<CSVPassword::Label> NameToLabel(base::StringPiece name) {
   using Label = CSVPassword::Label;
   // Recognised column names for origin URL, usernames and passwords.
-  static constexpr auto kLabelMap =
-      base::MakeFixedFlatMap<base::StringPiece, Label>({
+  static const base::NoDestructor<base::flat_map<base::StringPiece, Label>>
+      kLabelMap({
           {"url", Label::kOrigin},
           {"website", Label::kOrigin},
           {"origin", Label::kOrigin},
           {"hostname", Label::kOrigin},
-          {"login_uri", Label::kOrigin},
 
           {"username", Label::kUsername},
           {"user", Label::kUsername},
           {"login", Label::kUsername},
           {"account", Label::kUsername},
-          {"login_username", Label::kUsername},
 
           {"password", Label::kPassword},
-          {"login_password", Label::kPassword},
       });
-
-  std::string trimmed_name;
-  // Trim leading/trailing whitespaces from |name|.
-  base::TrimString(name, " ", &trimmed_name);
-  auto* it = kLabelMap.find(base::ToLowerASCII(trimmed_name));
-  return it != kLabelMap.end() ? &it->second : nullptr;
+  auto it = kLabelMap->find(base::ToLowerASCII(name));
+  return it != kLabelMap->end() ? base::make_optional(it->second)
+                                : base::nullopt;
 }
 
 }  // namespace
@@ -70,9 +65,10 @@ CSVPasswordSequence::CSVPasswordSequence(std::string csv)
       result_ = CSVPassword::Status::kSyntaxError;
       return;
     }
-
-    if (const CSVPassword::Label* label = NameToLabel(name))
+    base::Optional<CSVPassword::Label> label = NameToLabel(name);
+    if (label) {
       map_[col_index] = *label;
+    }
   }
 
   // Check that each of the three labels is assigned to exactly one column.

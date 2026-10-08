@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,16 +11,12 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 
-#include <algorithm>
 #include <utility>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "base/posix/eintr_wrapper.h"
-#include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "media/base/bind_to_current_loop.h"
-#include "media/base/video_frame.h"
 #include "media/base/video_types.h"
 #include "media/capture/mojom/image_capture_types.h"
 #include "media/capture/video/blob_utils.h"
@@ -70,7 +66,6 @@ struct {
   size_t num_planes;
 } constexpr kSupportedFormatsAndPlanarity[] = {
     {V4L2_PIX_FMT_YUV420, PIXEL_FORMAT_I420, 1},
-    {V4L2_PIX_FMT_NV12, PIXEL_FORMAT_NV12, 1},
     {V4L2_PIX_FMT_Y16, PIXEL_FORMAT_Y16, 1},
     {V4L2_PIX_FMT_Z16, PIXEL_FORMAT_Y16, 1},
     {V4L2_PIX_FMT_INVZ, PIXEL_FORMAT_Y16, 1},
@@ -188,8 +183,8 @@ class V4L2CaptureDelegate::BufferTracker
   friend class base::RefCounted<BufferTracker>;
   virtual ~BufferTracker();
 
-  const raw_ptr<V4L2CaptureDevice> v4l2_;
-  raw_ptr<uint8_t> start_;
+  V4L2CaptureDevice* const v4l2_;
+  uint8_t* start_;
   size_t length_;
   size_t payload_size_;
 };
@@ -222,7 +217,7 @@ VideoPixelFormat V4L2CaptureDelegate::V4l2FourCcToChromiumPixelFormat(
 std::vector<uint32_t> V4L2CaptureDelegate::GetListOfUsableFourCcs(
     bool prefer_mjpeg) {
   std::vector<uint32_t> supported_formats;
-  supported_formats.reserve(std::size(kSupportedFormatsAndPlanarity));
+  supported_formats.reserve(base::size(kSupportedFormatsAndPlanarity));
 
   // Duplicate MJPEG on top of the list depending on |prefer_mjpeg|.
   if (prefer_mjpeg)
@@ -254,8 +249,6 @@ void V4L2CaptureDelegate::AllocateAndStart(
     int height,
     float frame_rate,
     std::unique_ptr<VideoCaptureDevice::Client> client) {
-  TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("video_and_image_capture"),
-               "V4L2CaptureDelegate::AllocateAndStart");
   DCHECK(v4l2_task_runner_->BelongsToCurrentThread());
   DCHECK(client);
   client_ = std::move(client);
@@ -271,18 +264,10 @@ void V4L2CaptureDelegate::AllocateAndStart(
 
   ResetUserAndCameraControlsToDefault();
 
-  // In theory, checking for CAPTURE/OUTPUT in caps.capabilities should only
-  // be done if V4L2_CAP_DEVICE_CAPS is not set. However, this was not done
-  // in the past and it is unclear if it breaks with existing devices. And if
-  // a device is accepted incorrectly then it will not have any usable
-  // formats and is skipped anyways.
   v4l2_capability cap = {};
   if (!(DoIoctl(VIDIOC_QUERYCAP, &cap) == 0 &&
-        (((cap.capabilities & V4L2_CAP_VIDEO_CAPTURE) &&
-          !(cap.capabilities & V4L2_CAP_VIDEO_OUTPUT)) ||
-         ((cap.capabilities & V4L2_CAP_DEVICE_CAPS) &&
-          (cap.device_caps & V4L2_CAP_VIDEO_CAPTURE) &&
-          !(cap.device_caps & V4L2_CAP_VIDEO_OUTPUT))))) {
+        ((cap.capabilities & V4L2_CAP_VIDEO_CAPTURE) &&
+         !(cap.capabilities & V4L2_CAP_VIDEO_OUTPUT)))) {
     device_fd_.reset();
     SetErrorState(VideoCaptureError::kV4L2ThisIsNotAV4L2VideoCaptureDevice,
                   FROM_HERE, "This is not a V4L2 video capture device");
@@ -378,8 +363,6 @@ void V4L2CaptureDelegate::AllocateAndStart(
 
 void V4L2CaptureDelegate::StopAndDeAllocate() {
   DCHECK(v4l2_task_runner_->BelongsToCurrentThread());
-  TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("video_and_image_capture"),
-               "V4L2CaptureDelegate::StopAndDeAllocate");
   StopStream();
   // At this point we can close the device.
   // This is also needed for correctly changing settings later via VIDIOC_S_FMT.
@@ -734,6 +717,7 @@ void V4L2CaptureDelegate::ResetUserAndCameraControlsToDefault() {
   if (DoIoctl(VIDIOC_S_EXT_CTRLS, &ext_controls) < 0)
     DPLOG(INFO) << "VIDIOC_S_EXT_CTRLS";
 
+  std::vector<struct v4l2_ext_control> camera_controls;
   for (const auto& control : kControls) {
     std::vector<struct v4l2_ext_control> camera_controls;
 
@@ -934,9 +918,7 @@ void V4L2CaptureDelegate::DoCapture() {
       client_->OnFrameDropped(
           VideoCaptureFrameDropReason::kV4L2BufferErrorFlagWasSet);
 #endif
-    } else if (buffer.bytesused <
-               media::VideoFrame::AllocationSize(capture_format_.pixel_format,
-                                                 capture_format_.frame_size)) {
+    } else if (buffer.bytesused < capture_format_.ImageAllocationSize()) {
       LOG(ERROR) << "Dequeued v4l2 buffer contains invalid length ("
                  << buffer.bytesused << " bytes).";
       buffer.bytesused = 0;
@@ -980,9 +962,7 @@ void V4L2CaptureDelegate::DoCapture() {
 
 bool V4L2CaptureDelegate::StopStream() {
   DCHECK(v4l2_task_runner_->BelongsToCurrentThread());
-  if (!is_capturing_)
-    return false;
-
+  DCHECK(is_capturing_);
   is_capturing_ = false;
 
   // The order is important: stop streaming, clear |buffer_pool_|,
@@ -1011,6 +991,7 @@ void V4L2CaptureDelegate::SetErrorState(VideoCaptureError error,
                                         const base::Location& from_here,
                                         const std::string& reason) {
   DCHECK(v4l2_task_runner_->BelongsToCurrentThread());
+  is_capturing_ = false;
   client_->OnError(error, from_here, reason);
 }
 

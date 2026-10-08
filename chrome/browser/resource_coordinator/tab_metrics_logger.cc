@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,11 @@
 #include <string>
 
 #include "base/check_op.h"
-#include "base/containers/contains.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "base/time/time.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/engagement/site_engagement_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
 #include "chrome/browser/resource_coordinator/tab_manager_features.h"
@@ -27,7 +28,6 @@
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "components/site_engagement/content/site_engagement_service.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
@@ -90,7 +90,7 @@ void PopulateTabFeaturesFromPageMetrics(
 void PopulateTabFeaturesFromWebContents(content::WebContents* web_contents,
                                         tab_ranker::TabFeatures* tab_features) {
   tab_features->has_before_unload_handler =
-      web_contents->GetPrimaryMainFrame()->GetSuddenTerminationDisablerState(
+      web_contents->GetMainFrame()->GetSuddenTerminationDisablerState(
           blink::mojom::SuddenTerminationDisablerType::kBeforeUnloadHandler);
   tab_features->has_form_entry =
       FormInteractionTabHelper::FromWebContents(web_contents)
@@ -99,7 +99,7 @@ void PopulateTabFeaturesFromWebContents(content::WebContents* web_contents,
   tab_features->navigation_entry_count =
       web_contents->GetController().GetEntryCount();
 
-  if (site_engagement::SiteEngagementService::IsEnabled()) {
+  if (SiteEngagementService::IsEnabled()) {
     tab_features->site_engagement_score =
         TabMetricsLogger::GetSiteEngagementScore(web_contents);
   }
@@ -141,12 +141,11 @@ TabMetricsLogger::~TabMetricsLogger() = default;
 // static
 int TabMetricsLogger::GetSiteEngagementScore(
     content::WebContents* web_contents) {
-  if (!site_engagement::SiteEngagementService::IsEnabled())
+  if (!SiteEngagementService::IsEnabled())
     return -1;
 
-  site_engagement::SiteEngagementService* service =
-      site_engagement::SiteEngagementService::Get(
-          Profile::FromBrowserContext(web_contents->GetBrowserContext()));
+  SiteEngagementService* service = SiteEngagementService::Get(
+      Profile::FromBrowserContext(web_contents->GetBrowserContext()));
   DCHECK(service);
 
   // Scores range from 0 to 100. Round down to a multiple of 10 to conform to
@@ -159,12 +158,12 @@ int TabMetricsLogger::GetSiteEngagementScore(
 }
 
 // static
-absl::optional<tab_ranker::TabFeatures> TabMetricsLogger::GetTabFeatures(
+base::Optional<tab_ranker::TabFeatures> TabMetricsLogger::GetTabFeatures(
     const PageMetrics& page_metrics,
     content::WebContents* web_contents) {
   Browser* browser = chrome::FindBrowserWithWebContents(web_contents);
   if (!browser)
-    return absl::nullopt;
+    return base::nullopt;
 
   tab_ranker::TabFeatures tab;
   PopulateTabFeaturesFromWebContents(web_contents, &tab);

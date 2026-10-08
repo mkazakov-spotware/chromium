@@ -1,5 +1,5 @@
-#!/usr/bin/env vpython3
-# Copyright 2016 The Chromium Authors
+#!/usr/bin/env vpython
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,9 +8,10 @@ import json
 import os
 import sys
 
+from gpu_tests import path_util
 import gpu_project_config
-import gpu_path_util
-from gpu_path_util import setup_telemetry_paths  # pylint: disable=unused-import
+
+path_util.SetupTelemetryPaths()
 
 from telemetry.testing import browser_test_runner
 from telemetry.testing import serially_executed_browser_test_case
@@ -33,7 +34,7 @@ def FailIfScreenLockedOnMac():
   # tests.
   if not sys.platform.startswith('darwin'):
     return
-  import Quartz  # pylint: disable=import-outside-toplevel,import-error
+  import Quartz
   current_session = Quartz.CGSessionCopyCurrentDictionary()
   if not current_session:
     # Using the logging module doesn't seem to be guaranteed to show up in
@@ -56,7 +57,6 @@ def FindTestCase(test_name):
     for cl in modules_to_classes.values():
       if cl.Name() == test_name:
         return cl
-  return None
 
 
 def ProcessArgs(args, parser=None):
@@ -86,7 +86,8 @@ def ProcessArgs(args, parser=None):
       rest_args_filtered.append('--retry-only-retry-on-failure-tests')
     rest_args_filtered.append('--retry-limit=2')
   rest_args_filtered.extend(
-      ['--repository-absolute-path', gpu_path_util.CHROMIUM_SRC_DIR])
+      ['--repository-absolute-path',
+       path_util.GetChromiumSrcDir()])
   return rest_args_filtered
 
 

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
-#include "base/time/time.h"
 #include "remoting/base/protobuf_http_client.h"
 #include "remoting/base/protobuf_http_request_config.h"
 #include "remoting/base/protobuf_http_status.h"

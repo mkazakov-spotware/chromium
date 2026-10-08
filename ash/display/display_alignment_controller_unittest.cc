@@ -1,14 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/display/display_alignment_controller.h"
 
-#include "ash/constants/ash_features.h"
 #include "ash/display/display_alignment_indicator.h"
+#include "ash/public/cpp/ash_features.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
-#include "base/ranges/algorithm.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/timer/mock_timer.h"
 #include "ui/display/display_layout_builder.h"
@@ -125,8 +124,10 @@ class DisplayAlignmentControllerTest : public AshTestBase {
         display_alignment_controller()->GetActiveIndicatorsForTesting();
 
     const auto& iter =
-        base::ranges::find(active_indicators_, target_display_id,
-                           &DisplayAlignmentIndicator::display_id);
+        std::find_if(active_indicators_.begin(), active_indicators_.end(),
+                     [target_display_id](const auto& indicator) {
+                       return target_display_id == indicator->display_id();
+                     });
 
     if (iter == active_indicators_.end()) {
       EXPECT_FALSE(is_visible);
@@ -443,7 +444,7 @@ TEST_F(DisplayAlignmentControllerTest, DragDisplayHideOldNeighbors) {
 }
 
 TEST_F(DisplayAlignmentControllerTest, DragDisplayNewNeighbor) {
-  UpdateDisplay("1000x900,1000x900,1000x100");
+  UpdateDisplay("1000x1000,1000x1000,1000x100");
   const auto& display_1 = display_manager()->GetDisplayAt(0);
   const auto& display_2 = display_manager()->GetDisplayAt(1);
   const auto& display_3 = display_manager()->GetDisplayAt(2);

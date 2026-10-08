@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,6 @@ import static org.chromium.chrome.browser.autofill_assistant.AutofillAssistantUi
 import static org.chromium.content_public.browser.test.util.TestThreadUtils.runOnUiThreadBlocking;
 
 import android.graphics.Typeface;
-import android.support.test.InstrumentationRegistry;
 import android.text.SpannedString;
 import android.text.style.StyleSpan;
 import android.widget.LinearLayout;
@@ -33,10 +32,8 @@ import org.junit.runner.RunWith;
 import org.chromium.base.Callback;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.chrome.browser.customtabs.CustomTabActivityTestRule;
-import org.chromium.chrome.browser.customtabs.CustomTabsIntentTestUtils;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.components.autofill_assistant.AssistantTextUtils;
 
 /** Tests for {@code AssistantTextUtils}. */
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
@@ -63,9 +60,7 @@ public class AutofillAssistantTextUtilsTest {
 
     @Before
     public void setUp() {
-        mTestRule.startCustomTabActivityWithIntent(
-                CustomTabsIntentTestUtils.createMinimalCustomTabIntent(
-                        InstrumentationRegistry.getTargetContext(), "about:blank"));
+        AutofillAssistantUiTestUtil.startOnBlankPage(mTestRule);
         runOnUiThreadBlocking(() -> {
             mTestLayout = new LinearLayout(mTestRule.getActivity());
             mTestLayout.setOrientation(LinearLayout.VERTICAL);

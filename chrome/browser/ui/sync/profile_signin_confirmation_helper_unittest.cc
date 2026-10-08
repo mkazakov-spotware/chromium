@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,12 +13,12 @@
 #include "base/compiler_specific.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/prefs/browser_prefs.h"
@@ -37,9 +37,9 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/login/users/scoped_test_user_manager.h"
-#include "chrome/browser/ash/settings/scoped_cros_settings_test_helper.h"
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/login/users/scoped_test_user_manager.h"
+#include "chrome/browser/chromeos/settings/scoped_cros_settings_test_helper.h"
 #endif
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -84,34 +84,40 @@ class TestingPrefStoreWithCustomReadError : public TestingPrefStore {
   }
   PrefReadError GetReadError() const override { return read_error_; }
   bool IsInitializationComplete() const override { return true; }
-  void set_read_error(PrefReadError read_error) { read_error_ = read_error; }
-
+  void set_read_error(PrefReadError read_error) {
+    read_error_ = read_error;
+  }
  private:
   ~TestingPrefStoreWithCustomReadError() override {}
   PrefReadError read_error_;
 };
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 const base::FilePath::CharType kExtensionFilePath[] =
     FILE_PATH_LITERAL("c:\\foo");
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
-const base::FilePath::CharType kExtensionFilePath[] = FILE_PATH_LITERAL("/oo");
+#elif defined(OS_POSIX)
+const base::FilePath::CharType kExtensionFilePath[] =
+    FILE_PATH_LITERAL("/oo");
 #endif
 
 static scoped_refptr<extensions::Extension> CreateExtension(
     const std::string& name,
     const std::string& id,
-    extensions::mojom::ManifestLocation location) {
+    extensions::Manifest::Location location) {
   base::DictionaryValue manifest;
-  manifest.SetStringPath(extensions::manifest_keys::kVersion, "1.0.0.0");
-  manifest.SetIntPath(extensions::manifest_keys::kManifestVersion, 2);
-  manifest.SetStringPath(extensions::manifest_keys::kName, name);
+  manifest.SetString(extensions::manifest_keys::kVersion, "1.0.0.0");
+  manifest.SetInteger(extensions::manifest_keys::kManifestVersion, 2);
+  manifest.SetString(extensions::manifest_keys::kName, name);
   std::string error;
   scoped_refptr<extensions::Extension> extension =
-      extensions::Extension::Create(
-          base::FilePath(kExtensionFilePath).AppendASCII(name), location,
-          manifest, extensions::Extension::NO_FLAGS, id, &error);
+    extensions::Extension::Create(
+        base::FilePath(kExtensionFilePath).AppendASCII(name),
+        location,
+        manifest,
+        extensions::Extension::NO_FLAGS,
+        id,
+        &error);
   return extension;
 }
 #endif
@@ -134,8 +140,7 @@ class ProfileSigninConfirmationHelperTest : public testing::Test {
         new sync_preferences::TestingPrefServiceSyncable(
             /*managed_prefs=*/new TestingPrefStore(),
             /*supervised_user_prefs=*/new TestingPrefStore(),
-            /*extension_prefs=*/new TestingPrefStore(),
-            /*standalone_browser_prefs=*/new TestingPrefStore(), user_prefs_,
+            /*extension_prefs=*/new TestingPrefStore(), user_prefs_,
             /*recommended_prefs=*/new TestingPrefStore(),
             new user_prefs::PrefRegistrySyncable(), new PrefNotifierImpl());
     RegisterUserProfilePrefs(pref_service->registry());
@@ -143,20 +148,20 @@ class ProfileSigninConfirmationHelperTest : public testing::Test {
         base::WrapUnique<sync_preferences::PrefServiceSyncable>(pref_service));
     builder.AddTestingFactory(BookmarkModelFactory::GetInstance(),
                               BookmarkModelFactory::GetDefaultFactory());
-    builder.AddTestingFactory(HistoryServiceFactory::GetInstance(),
-                              HistoryServiceFactory::GetDefaultFactory());
     profile_ = builder.Build();
 
     // Initialize the services we check.
     model_ = BookmarkModelFactory::GetForBrowserContext(profile_.get());
     bookmarks::test::WaitForBookmarkModelToLoad(model_);
+    ASSERT_TRUE(profile_->CreateHistoryService());
 #if BUILDFLAG(ENABLE_EXTENSIONS)
     extensions::TestExtensionSystem* system =
         static_cast<extensions::TestExtensionSystem*>(
             extensions::ExtensionSystem::Get(profile_.get()));
     base::CommandLine command_line(base::CommandLine::NO_PROGRAM);
     system->CreateExtensionService(&command_line,
-                                   base::FilePath(kExtensionFilePath), false);
+                                   base::FilePath(kExtensionFilePath),
+                                   false);
 #endif
   }
 
@@ -171,12 +176,12 @@ class ProfileSigninConfirmationHelperTest : public testing::Test {
   base::ScopedTempDir profile_dir_;
   content::BrowserTaskEnvironment task_environment_;
   std::unique_ptr<TestingProfile> profile_;
-  raw_ptr<TestingPrefStoreWithCustomReadError> user_prefs_;
-  raw_ptr<BookmarkModel> model_;
+  TestingPrefStoreWithCustomReadError* user_prefs_;
+  BookmarkModel* model_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  ash::ScopedCrosSettingsTestHelper cros_settings_test_helper_;
-  ash::ScopedTestUserManager test_user_manager_;
+#if defined OS_CHROMEOS
+  chromeos::ScopedCrosSettingsTestHelper cros_settings_test_helper_;
+  chromeos::ScopedTestUserManager test_user_manager_;
 #endif
 };
 
@@ -193,7 +198,8 @@ TEST_F(ProfileSigninConfirmationHelperTest, PromptForNewProfile_Bookmarks) {
 
   // Profile is new but has bookmarks.
   profile_->SetIsNewProfile(true);
-  model_->AddURL(model_->bookmark_bar_node(), 0, std::u16string(u"foo"),
+  model_->AddURL(model_->bookmark_bar_node(), 0,
+                 base::string16(base::ASCIIToUTF16("foo")),
                  GURL("http://foo.com"));
   EXPECT_TRUE(GetCallbackResult(
       base::BindOnce(&ui::CheckShouldPromptForNewProfile, profile_.get())));
@@ -208,16 +214,17 @@ TEST_F(ProfileSigninConfirmationHelperTest, PromptForNewProfile_Extensions) {
   // Profile is new but has synced extensions (The web store doesn't count).
   profile_->SetIsNewProfile(true);
   scoped_refptr<extensions::Extension> webstore =
-      CreateExtension("web store", extensions::kWebStoreAppId,
-                      extensions::mojom::ManifestLocation::kComponent);
+      CreateExtension("web store",
+                      extensions::kWebStoreAppId,
+                      extensions::Manifest::COMPONENT);
   extensions::ExtensionPrefs::Get(profile_.get())
       ->AddGrantedPermissions(webstore->id(), extensions::PermissionSet());
   extensions->AddExtension(webstore.get());
   EXPECT_FALSE(GetCallbackResult(
       base::BindOnce(&ui::CheckShouldPromptForNewProfile, profile_.get())));
 
-  scoped_refptr<extensions::Extension> extension = CreateExtension(
-      "foo", std::string(), extensions::mojom::ManifestLocation::kInternal);
+  scoped_refptr<extensions::Extension> extension =
+      CreateExtension("foo", std::string(), extensions::Manifest::INTERNAL);
   extensions::ExtensionPrefs::Get(profile_.get())
       ->AddGrantedPermissions(extension->id(), extensions::PermissionSet());
   extensions->AddExtension(extension.get());
@@ -238,9 +245,9 @@ TEST_F(ProfileSigninConfirmationHelperTest,
   profile_->SetIsNewProfile(true);
   char buf[18];
   for (int i = 0; i < 10; i++) {
-    base::snprintf(buf, std::size(buf), "http://foo.com/%d", i);
-    history->AddPage(GURL(std::string(buf)), base::Time::Now(), nullptr, 1,
-                     GURL(), history::RedirectList(), ui::PAGE_TRANSITION_LINK,
+    base::snprintf(buf, base::size(buf), "http://foo.com/%d", i);
+    history->AddPage(GURL(std::string(buf)), base::Time::Now(), NULL, 1, GURL(),
+                     history::RedirectList(), ui::PAGE_TRANSITION_LINK,
                      history::SOURCE_BROWSED, false, false);
   }
   EXPECT_TRUE(GetCallbackResult(
@@ -256,7 +263,7 @@ TEST_F(ProfileSigninConfirmationHelperTest,
 
   // Profile is new but has a typed URL.
   profile_->SetIsNewProfile(true);
-  history->AddPage(GURL("http://example.com"), base::Time::Now(), nullptr, 1,
+  history->AddPage(GURL("http://example.com"), base::Time::Now(), NULL, 1,
                    GURL(), history::RedirectList(), ui::PAGE_TRANSITION_TYPED,
                    history::SOURCE_BROWSED, false, false);
   EXPECT_TRUE(GetCallbackResult(

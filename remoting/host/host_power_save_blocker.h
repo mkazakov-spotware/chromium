@@ -1,14 +1,14 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef REMOTING_HOST_HOST_POWER_SAVE_BLOCKER_H_
-#define REMOTING_HOST_HOST_POWER_SAVE_BLOCKER_H_
+#ifndef REMOTING_HOST_HOST_POWER_SAVER_BLOCKER_H_
+#define REMOTING_HOST_HOST_POWER_SAVER_BLOCKER_H_
 
 #include <memory>
 #include <string>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "remoting/host/host_status_observer.h"
 #include "services/device/wake_lock/power_save_blocker/power_save_blocker.h"
@@ -52,4 +52,4 @@ class HostPowerSaveBlocker : public HostStatusObserver {
 
 }  // namespace remoting
 
-#endif  // REMOTING_HOST_HOST_POWER_SAVE_BLOCKER_H_
+#endif  // REMOTING_HOST_HOST_POWER_SAVER_BLOCKER_H_

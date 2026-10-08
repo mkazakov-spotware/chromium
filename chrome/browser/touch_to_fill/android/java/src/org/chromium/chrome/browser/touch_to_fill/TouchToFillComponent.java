@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,7 @@ import android.content.Context;
 import androidx.annotation.IntDef;
 
 import org.chromium.chrome.browser.touch_to_fill.data.Credential;
-import org.chromium.chrome.browser.touch_to_fill.data.WebAuthnCredential;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
-import org.chromium.url.GURL;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -31,14 +29,13 @@ public interface TouchToFillComponent {
      * TODO(crbug.com/1013134): Deduplicate the Java and C++ enum.
      */
     @IntDef({UserAction.SELECT_CREDENTIAL, UserAction.DISMISS, UserAction.SELECT_MANAGE_PASSWORDS,
-            UserAction.SELECT_WEBAUTHN_CREDENTIAL, UserAction.MAX_VALUE})
+            UserAction.MAX_VALUE})
     @Retention(RetentionPolicy.SOURCE)
     @interface UserAction {
         int SELECT_CREDENTIAL = 0;
         int DISMISS = 1;
         int SELECT_MANAGE_PASSWORDS = 2;
-        int SELECT_WEBAUTHN_CREDENTIAL = 3;
-        int MAX_VALUE = SELECT_WEBAUTHN_CREDENTIAL;
+        int MAX_VALUE = SELECT_MANAGE_PASSWORDS;
     }
 
     /**
@@ -48,16 +45,8 @@ public interface TouchToFillComponent {
     interface Delegate {
         /**
          * Called when the user select one of the credentials shown in the TouchToFillComponent.
-         * @param credential The selected {@link Credential}.
          */
         void onCredentialSelected(Credential credential);
-
-        /**
-         * Called when the user select one of the Web Authentication credentials shown in the
-         * TouchToFillComponent.
-         * @param credential The selected {@link WebAuthnCredential}.
-         */
-        void onWebAuthnCredentialSelected(WebAuthnCredential credential);
 
         /**
          * Called when the user dismisses the TouchToFillComponent. Not called if a suggestion was
@@ -83,12 +72,7 @@ public interface TouchToFillComponent {
      * Displays the given credentials in a new bottom sheet.
      * @param url A {@link String} that contains the URL to display credentials for.
      * @param isOriginSecure A {@link boolean} that indicates whether the current origin is secure.
-     * @param webauthnCredentials A list of {@link WebAuthnCredential}s that will be displayed.
      * @param credentials A list of {@link Credential}s that will be displayed.
-     * @param triggerSubmission A {@link boolean} that indicates whether a form should be submitted
-     *         after filling.
      */
-    void showCredentials(GURL url, boolean isOriginSecure,
-            List<WebAuthnCredential> webauthnCredentials, List<Credential> credentials,
-            boolean triggerSubmission);
+    void showCredentials(String url, boolean isOriginSecure, List<Credential> credentials);
 }

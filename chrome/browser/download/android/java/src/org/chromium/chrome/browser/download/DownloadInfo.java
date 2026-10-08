@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,7 @@ package org.chromium.chrome.browser.download;
 
 import android.graphics.Bitmap;
 
-import androidx.annotation.NonNull;
-
 import org.chromium.base.annotations.CalledByNative;
-import org.chromium.chrome.browser.profiles.OTRProfileID;
 import org.chromium.components.download.DownloadState;
 import org.chromium.components.offline_items_collection.ContentId;
 import org.chromium.components.offline_items_collection.FailState;
@@ -17,24 +14,24 @@ import org.chromium.components.offline_items_collection.LegacyHelpers;
 import org.chromium.components.offline_items_collection.OfflineItem;
 import org.chromium.components.offline_items_collection.OfflineItem.Progress;
 import org.chromium.components.offline_items_collection.OfflineItemProgressUnit;
+import org.chromium.components.offline_items_collection.OfflineItemSchedule;
 import org.chromium.components.offline_items_collection.OfflineItemState;
 import org.chromium.components.offline_items_collection.OfflineItemVisuals;
 import org.chromium.components.offline_items_collection.PendingState;
-import org.chromium.url.GURL;
 
 /**
  * Class representing the state of a single download.
  */
 public final class DownloadInfo {
-    private final @NonNull GURL mUrl;
+    private final String mUrl;
     private final String mUserAgent;
     private final String mMimeType;
     private final String mCookie;
     private final String mFileName;
     private final String mDescription;
     private final String mFilePath;
-    private final @NonNull GURL mReferrer;
-    private final @NonNull GURL mOriginalUrl;
+    private final String mReferrer;
+    private final String mOriginalUrl;
     private final long mBytesReceived;
     private final long mBytesTotalSize;
     private final String mDownloadGuid;
@@ -46,7 +43,6 @@ public final class DownloadInfo {
     private final boolean mIsResumable;
     private final boolean mIsPaused;
     private final boolean mIsOffTheRecord;
-    private final OTRProfileID mOTRProfileId;
     private final boolean mIsOfflinePage;
     private final int mState;
     private final long mLastAccessTime;
@@ -63,17 +59,18 @@ public final class DownloadInfo {
     @FailState
     private final int mFailState;
     private final boolean mShouldPromoteOrigin;
+    private final OfflineItemSchedule mSchedule;
 
     private DownloadInfo(Builder builder) {
-        mUrl = builder.mUrl == null ? GURL.emptyGURL() : builder.mUrl;
+        mUrl = builder.mUrl;
         mUserAgent = builder.mUserAgent;
         mMimeType = builder.mMimeType;
         mCookie = builder.mCookie;
         mFileName = builder.mFileName;
         mDescription = builder.mDescription;
         mFilePath = builder.mFilePath;
-        mReferrer = builder.mReferrer == null ? GURL.emptyGURL() : builder.mReferrer;
-        mOriginalUrl = builder.mOriginalUrl == null ? GURL.emptyGURL() : builder.mOriginalUrl;
+        mReferrer = builder.mReferrer;
+        mOriginalUrl = builder.mOriginalUrl;
         mBytesReceived = builder.mBytesReceived;
         mBytesTotalSize = builder.mBytesTotalSize;
         mDownloadGuid = builder.mDownloadGuid;
@@ -85,7 +82,6 @@ public final class DownloadInfo {
         mIsResumable = builder.mIsResumable;
         mIsPaused = builder.mIsPaused;
         mIsOffTheRecord = builder.mIsOffTheRecord;
-        mOTRProfileId = builder.mOTRProfileId;
         mIsOfflinePage = builder.mIsOfflinePage;
         mState = builder.mState;
         mLastAccessTime = builder.mLastAccessTime;
@@ -103,10 +99,10 @@ public final class DownloadInfo {
         mPendingState = builder.mPendingState;
         mFailState = builder.mFailState;
         mShouldPromoteOrigin = builder.mShouldPromoteOrigin;
+        mSchedule = builder.mSchedule;
     }
 
-    @NonNull
-    public GURL getUrl() {
+    public String getUrl() {
         return mUrl;
     }
 
@@ -134,13 +130,11 @@ public final class DownloadInfo {
         return mFilePath;
     }
 
-    @NonNull
-    public GURL getReferrer() {
+    public String getReferrer() {
         return mReferrer;
     }
 
-    @NonNull
-    public GURL getOriginalUrl() {
+    public String getOriginalUrl() {
         return mOriginalUrl;
     }
 
@@ -191,10 +185,6 @@ public final class DownloadInfo {
         return mIsOffTheRecord;
     }
 
-    public OTRProfileID getOTRProfileId() {
-        return mOTRProfileId;
-    }
-
     public boolean isOfflinePage() {
         return mIsOfflinePage;
     }
@@ -241,6 +231,10 @@ public final class DownloadInfo {
 
     public boolean getShouldPromoteOrigin() {
         return mShouldPromoteOrigin;
+    }
+
+    public OfflineItemSchedule getOfflineItemSchedule() {
+        return mSchedule;
     }
 
     /**
@@ -294,9 +288,9 @@ public final class DownloadInfo {
                 .setLastAccessTime(item.lastAccessedTimeMs)
                 .setIsOpenable(item.isOpenable)
                 .setMimeType(item.mimeType)
-                .setUrl(item.url)
+                .setUrl(item.pageUrl)
                 .setOriginalUrl(item.originalUrl)
-                .setOTRProfileId(OTRProfileID.deserialize(item.otrProfileId))
+                .setIsOffTheRecord(item.isOffTheRecord)
                 .setState(state)
                 .setIsPaused(item.state == OfflineItemState.PAUSED)
                 .setIsResumable(item.isResumable)
@@ -309,22 +303,23 @@ public final class DownloadInfo {
                 .setIcon(visuals == null ? null : visuals.icon)
                 .setPendingState(item.pendingState)
                 .setFailState(item.failState)
-                .setShouldPromoteOrigin(item.promoteOrigin);
+                .setShouldPromoteOrigin(item.promoteOrigin)
+                .setOfflineItemSchedule(item.schedule);
     }
 
     /**
      * Helper class for building the DownloadInfo object.
      */
     public static class Builder {
-        private GURL mUrl;
+        private String mUrl;
         private String mUserAgent;
         private String mMimeType;
         private String mCookie;
         private String mFileName;
         private String mDescription;
         private String mFilePath;
-        private GURL mReferrer;
-        private GURL mOriginalUrl;
+        private String mReferrer;
+        private String mOriginalUrl;
         private long mBytesReceived;
         private long mBytesTotalSize;
         private boolean mIsGETRequest;
@@ -336,7 +331,6 @@ public final class DownloadInfo {
         private boolean mIsResumable = true;
         private boolean mIsPaused;
         private boolean mIsOffTheRecord;
-        private OTRProfileID mOTRProfileId;
         private boolean mIsOfflinePage;
         private int mState = DownloadState.IN_PROGRESS;
         private long mLastAccessTime;
@@ -351,8 +345,9 @@ public final class DownloadInfo {
         @FailState
         private int mFailState;
         private boolean mShouldPromoteOrigin;
+        private OfflineItemSchedule mSchedule;
 
-        public Builder setUrl(GURL url) {
+        public Builder setUrl(String url) {
             mUrl = url;
             return this;
         }
@@ -387,12 +382,12 @@ public final class DownloadInfo {
             return this;
         }
 
-        public Builder setReferrer(GURL referer) {
+        public Builder setReferrer(String referer) {
             mReferrer = referer;
             return this;
         }
 
-        public Builder setOriginalUrl(GURL originalUrl) {
+        public Builder setOriginalUrl(String originalUrl) {
             mOriginalUrl = originalUrl;
             return this;
         }
@@ -447,9 +442,8 @@ public final class DownloadInfo {
             return this;
         }
 
-        public Builder setOTRProfileId(OTRProfileID otrProfileId) {
-            mOTRProfileId = otrProfileId;
-            mIsOffTheRecord = OTRProfileID.isOffTheRecord(otrProfileId);
+        public Builder setIsOffTheRecord(boolean isOffTheRecord) {
+            mIsOffTheRecord = isOffTheRecord;
             return this;
         }
 
@@ -513,6 +507,11 @@ public final class DownloadInfo {
             return this;
         }
 
+        public Builder setOfflineItemSchedule(OfflineItemSchedule schedule) {
+            mSchedule = schedule;
+            return this;
+        }
+
         public DownloadInfo build() {
             return new DownloadInfo(this);
         }
@@ -544,7 +543,7 @@ public final class DownloadInfo {
                     .setIsDangerous(downloadInfo.getIsDangerous())
                     .setIsResumable(downloadInfo.isResumable())
                     .setIsPaused(downloadInfo.isPaused())
-                    .setOTRProfileId(downloadInfo.getOTRProfileId())
+                    .setIsOffTheRecord(downloadInfo.isOffTheRecord())
                     .setIsOfflinePage(downloadInfo.isOfflinePage())
                     .setState(downloadInfo.state())
                     .setLastAccessTime(downloadInfo.getLastAccessTime())
@@ -553,22 +552,24 @@ public final class DownloadInfo {
                     .setIcon(downloadInfo.getIcon())
                     .setPendingState(downloadInfo.getPendingState())
                     .setFailState(downloadInfo.getFailState())
-                    .setShouldPromoteOrigin(downloadInfo.getShouldPromoteOrigin());
+                    .setShouldPromoteOrigin(downloadInfo.getShouldPromoteOrigin())
+                    .setOfflineItemSchedule(downloadInfo.getOfflineItemSchedule());
             return builder;
         }
     }
 
     @CalledByNative
     private static DownloadInfo createDownloadInfo(String downloadGuid, String fileName,
-            String filePath, GURL url, String mimeType, long bytesReceived, long bytesTotalSize,
-            OTRProfileID otrProfileId, int state, int percentCompleted, boolean isPaused,
+            String filePath, String url, String mimeType, long bytesReceived, long bytesTotalSize,
+            boolean isIncognito, int state, int percentCompleted, boolean isPaused,
             boolean hasUserGesture, boolean isResumable, boolean isParallelDownload,
-            GURL originalUrl, GURL referrerUrl, long timeRemainingInMs, long lastAccessTime,
-            boolean isDangerous, @FailState int failState) {
-        String remappedMimeType = MimeUtils.remapGenericMimeType(mimeType, url.getSpec(), fileName);
+            String originalUrl, String referrerUrl, long timeRemainingInMs, long lastAccessTime,
+            boolean isDangerous, @FailState int failState, OfflineItemSchedule schedule) {
+        String remappedMimeType = MimeUtils.remapGenericMimeType(mimeType, url, fileName);
 
         Progress progress = new Progress(bytesReceived,
                 percentCompleted == -1 ? null : bytesTotalSize, OfflineItemProgressUnit.BYTES);
+
         return new DownloadInfo.Builder()
                 .setBytesReceived(bytesReceived)
                 .setBytesTotalSize(bytesTotalSize)
@@ -577,7 +578,7 @@ public final class DownloadInfo {
                 .setFileName(fileName)
                 .setFilePath(filePath)
                 .setHasUserGesture(hasUserGesture)
-                .setOTRProfileId(otrProfileId)
+                .setIsOffTheRecord(isIncognito)
                 .setIsPaused(isPaused)
                 .setIsResumable(isResumable)
                 .setIsParallelDownload(isParallelDownload)
@@ -591,6 +592,7 @@ public final class DownloadInfo {
                 .setIsDangerous(isDangerous)
                 .setUrl(url)
                 .setFailState(failState)
+                .setOfflineItemSchedule(schedule)
                 .build();
     }
 }

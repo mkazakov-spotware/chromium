@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 #define BASE_CONTAINERS_UNIQUE_PTR_ADAPTERS_H_
 
 #include <memory>
-
-#include "base/memory/raw_ptr.h"
 
 namespace base {
 
@@ -52,7 +50,8 @@ struct UniquePtrComparator {
 // Example usage:
 //   std::vector<std::unique_ptr<Foo>> vector;
 //   Foo* element = ...
-//   auto iter = base::ranges::find_if(vector, MatchesUniquePtr(element));
+//   auto iter = std::find_if(vector.begin(), vector.end(),
+//                            MatchesUniquePtr(element));
 //
 // Example of erasing from container:
 //   EraseIf(v, MatchesUniquePtr(element));
@@ -66,7 +65,7 @@ struct UniquePtrMatcher {
   }
 
  private:
-  const raw_ptr<T, DanglingUntriaged> t_;
+  T* const t_;
 };
 
 template <class T, class Deleter = std::default_delete<T>>

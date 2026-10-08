@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/notreached.h"
 #include "ui/ozone/platform/wayland/common/wayland_object.h"
 
@@ -72,7 +72,7 @@ class DataSource {
 
   void Initialize();
   void Offer(const std::vector<std::string>& mime_types);
-  void SetDndActions(uint32_t dnd_actions);
+  void SetAction(int operation);
 
   uint32_t dnd_action() const { return dnd_action_; }
   T* data_source() const { return data_source_.get(); }
@@ -90,12 +90,12 @@ class DataSource {
 
   wl::Object<T> data_source_;
 
-  const raw_ptr<ui::WaylandConnection> connection_;
+  ui::WaylandConnection* const connection_;
 
-  const raw_ptr<Delegate> delegate_;
+  Delegate* const delegate_;
 
   // Action selected by the compositor
-  uint32_t dnd_action_ = 0;
+  uint32_t dnd_action_;
 };
 
 }  // namespace wl

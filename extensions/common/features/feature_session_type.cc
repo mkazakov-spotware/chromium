@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,17 +10,16 @@ namespace extensions {
 
 namespace {
 
-const mojom::FeatureSessionType kDefaultSessionType =
-    mojom::FeatureSessionType::kInitial;
-mojom::FeatureSessionType g_current_session_type = kDefaultSessionType;
+const FeatureSessionType kDefaultSessionType = FeatureSessionType::INITIAL;
+FeatureSessionType g_current_session_type = kDefaultSessionType;
 
 }  // namespace
 
-mojom::FeatureSessionType GetCurrentFeatureSessionType() {
+FeatureSessionType GetCurrentFeatureSessionType() {
   return g_current_session_type;
 }
 
-void SetCurrentFeatureSessionType(mojom::FeatureSessionType session_type) {
+void SetCurrentFeatureSessionType(FeatureSessionType session_type) {
   // Make sure that session type stays constant after it's been initialized.
   // Note that this requirement can be bypassed in tests by using
   // |ScopedCurrentFeatureSessionType|.
@@ -33,10 +32,10 @@ void SetCurrentFeatureSessionType(mojom::FeatureSessionType session_type) {
     g_current_session_type = session_type;
 }
 
-std::unique_ptr<base::AutoReset<mojom::FeatureSessionType>>
-ScopedCurrentFeatureSessionType(mojom::FeatureSessionType type) {
+std::unique_ptr<base::AutoReset<FeatureSessionType>>
+ScopedCurrentFeatureSessionType(FeatureSessionType type) {
   CHECK_EQ(g_current_session_type, kDefaultSessionType);
-  return std::make_unique<base::AutoReset<mojom::FeatureSessionType>>(
+  return std::make_unique<base::AutoReset<FeatureSessionType>>(
       &g_current_session_type, type);
 }
 

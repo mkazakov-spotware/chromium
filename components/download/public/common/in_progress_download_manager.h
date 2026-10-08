@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,9 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
-#include "build/build_config.h"
+#include "base/optional.h"
 #include "components/download/public/common/download_export.h"
 #include "components/download/public/common/download_file_factory.h"
 #include "components/download/public/common/download_item_impl_delegate.h"
@@ -92,11 +91,6 @@ class COMPONENTS_DOWNLOAD_EXPORT InProgressDownloadManager
                             const IsOriginSecureCallback& is_origin_secure_cb,
                             const URLSecurityPolicy& url_security_policy,
                             WakeLockProviderBinder wake_lock_provider_binder);
-
-  InProgressDownloadManager(const InProgressDownloadManager&) = delete;
-  InProgressDownloadManager& operator=(const InProgressDownloadManager&) =
-      delete;
-
   ~InProgressDownloadManager() override;
 
   // SimpleDownloadManager implementation.
@@ -111,7 +105,7 @@ class COMPONENTS_DOWNLOAD_EXPORT InProgressDownloadManager
                      std::unique_ptr<network::PendingSharedURLLoaderFactory>
                          pending_url_loader_factory,
                      bool is_new_download,
-                     const std::string& serialized_embedder_download_data,
+                     const GURL& site_url,
                      const GURL& tab_url,
                      const GURL& tab_referrer_url);
 
@@ -120,7 +114,7 @@ class COMPONENTS_DOWNLOAD_EXPORT InProgressDownloadManager
       std::unique_ptr<network::ResourceRequest> resource_request,
       int render_process_id,
       int render_frame_id,
-      const std::string& serialized_embedder_download_data,
+      const GURL& site_url,
       const GURL& tab_url,
       const GURL& tab_referrer_url,
       std::vector<GURL> url_chain,
@@ -144,9 +138,8 @@ class COMPONENTS_DOWNLOAD_EXPORT InProgressDownloadManager
   // DownloadItemImplDelegate implementations.
   void DetermineDownloadTarget(DownloadItemImpl* download,
                                DownloadTargetCallback callback) override;
-  void ResumeInterruptedDownload(
-      std::unique_ptr<DownloadUrlParameters> params,
-      const std::string& serialized_embedder_download_data) override;
+  void ResumeInterruptedDownload(std::unique_ptr<DownloadUrlParameters> params,
+                                 const GURL& site_url) override;
   bool ShouldOpenDownload(DownloadItemImpl* item,
                           ShouldOpenDownloadCallback callback) override;
   void ReportBytesWasted(DownloadItemImpl* download) override;
@@ -158,7 +151,7 @@ class COMPONENTS_DOWNLOAD_EXPORT InProgressDownloadManager
     download_start_observer_ = observer;
   }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // Callback to generate an intermediate file path from the given target file
   // path;
   using IntermediatePathCallback =
@@ -221,7 +214,7 @@ class COMPONENTS_DOWNLOAD_EXPORT InProgressDownloadManager
           url_loader_factory_provider,
       UrlDownloadHandler* downloader,
       DownloadUrlParameters::OnStartedCallback callback) override;
-  void OnUrlDownloadStopped(UrlDownloadHandlerID downloader) override;
+  void OnUrlDownloadStopped(UrlDownloadHandler* downloader) override;
   void OnUrlDownloadHandlerCreated(
       UrlDownloadHandler::UniqueUrlDownloadHandlerPtr downloader) override;
 
@@ -258,7 +251,7 @@ class COMPONENTS_DOWNLOAD_EXPORT InProgressDownloadManager
       url_download_handlers_;
 
   // Delegate to provide information to create a new download. Can be null.
-  raw_ptr<Delegate> delegate_;
+  Delegate* delegate_;
 
   // Factory for the creation of download files.
   std::unique_ptr<DownloadFileFactory> file_factory_;
@@ -271,12 +264,12 @@ class COMPONENTS_DOWNLOAD_EXPORT InProgressDownloadManager
   std::unique_ptr<DownloadItem::Observer> in_progress_download_observer_;
 
   // Observer to notify when a download starts.
-  raw_ptr<DownloadStartObserver> download_start_observer_;
+  DownloadStartObserver* download_start_observer_;
 
   // callback to check if an origin is secure.
   IsOriginSecureCallback is_origin_secure_cb_;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // Callback to generate the intermediate file path.
   IntermediatePathCallback intermediate_path_cb_;
 
@@ -306,6 +299,8 @@ class COMPONENTS_DOWNLOAD_EXPORT InProgressDownloadManager
   const WakeLockProviderBinder wake_lock_provider_binder_;
 
   base::WeakPtrFactory<InProgressDownloadManager> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(InProgressDownloadManager);
 };
 
 }  // namespace download

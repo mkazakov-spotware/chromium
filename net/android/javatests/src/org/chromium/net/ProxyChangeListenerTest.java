@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.Proxy;
 import android.os.Build;
-import android.os.Handler;
 import android.os.Looper;
 import android.support.test.InstrumentationRegistry;
 
@@ -21,7 +20,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import org.chromium.base.ContextUtils;
@@ -69,15 +67,7 @@ public class ProxyChangeListenerTest {
         }
 
         @Override
-        public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter,
-                String broadcastPermission, Handler scheduler) {
-            mReceivers.add(new RegisteredReceiver(receiver, filter));
-            return null;
-        }
-
-        @Override
-        public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter,
-                String broadcastPermission, Handler scheduler, int flags) {
+        public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter) {
             mReceivers.add(new RegisteredReceiver(receiver, filter));
             return null;
         }
@@ -122,42 +112,16 @@ public class ProxyChangeListenerTest {
                 mDelegate = Mockito.mock(ProxyChangeListener.Delegate.class));
         mListener.start(0);
 
-        // These are looking for a call to register*NonExported*BroadcastReceiver to register a
-        // dummy ProxyReceiver, which matches no intents. (If registered, it is registered first.)
+        Mockito.verify(mAppContext)
+                .registerReceiver(Mockito.anyObject(),
+                        Mockito.argThat((IntentFilter filter)
+                                                -> filter.matchAction(Proxy.PROXY_CHANGE_ACTION)));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                Mockito.verify(mAppContext)
-                        .registerReceiver(Mockito.anyObject(),
-                                Mockito.argThat(
-                                        (IntentFilter filter)
-                                                -> !filter.matchAction(Proxy.PROXY_CHANGE_ACTION)),
-                                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(),
-                                ArgumentMatchers.eq(ContextUtils.RECEIVER_NOT_EXPORTED));
-            } else {
-                Mockito.verify(mAppContext)
-                        .registerReceiver(Mockito.anyObject(),
-                                Mockito.argThat(
-                                        (IntentFilter filter)
-                                                -> !filter.matchAction(Proxy.PROXY_CHANGE_ACTION)),
-                                ArgumentMatchers.isNull(), ArgumentMatchers.isNull());
-            }
-        }
-        // These are looking for the main call to register*Protected*BroadcastReceiver.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Mockito.verify(mAppContext)
                     .registerReceiver(Mockito.anyObject(),
                             Mockito.argThat(
                                     (IntentFilter filter)
-                                            -> filter.matchAction(Proxy.PROXY_CHANGE_ACTION)),
-                            ArgumentMatchers.isNull(), ArgumentMatchers.isNull(),
-                            ArgumentMatchers.eq(0));
-        } else {
-            Mockito.verify(mAppContext)
-                    .registerReceiver(Mockito.anyObject(),
-                            Mockito.argThat(
-                                    (IntentFilter filter)
-                                            -> filter.matchAction(Proxy.PROXY_CHANGE_ACTION)),
-                            ArgumentMatchers.isNull(), ArgumentMatchers.isNull());
+                                            -> !filter.matchAction(Proxy.PROXY_CHANGE_ACTION)));
         }
     }
 

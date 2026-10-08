@@ -1,11 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_DOWNLOAD_ANDROID_DUPLICATE_DOWNLOAD_INFOBAR_DELEGATE_H_
 #define CHROME_BROWSER_DOWNLOAD_ANDROID_DUPLICATE_DOWNLOAD_INFOBAR_DELEGATE_H_
 
-#include "chrome/browser/profiles/profile.h"
 #include "components/infobars/core/confirm_infobar_delegate.h"
 
 namespace android {
@@ -25,14 +24,13 @@ class DuplicateDownloadInfoBarDelegate : public ConfirmInfoBarDelegate {
 
   virtual std::string GetPageURL() const;
 
-  // The OTRProfileID of the download. Null if for regular mode.
-  virtual absl::optional<Profile::OTRProfileID> GetOTRProfileID() const;
+  virtual bool IsOffTheRecord() const;
 
   // Whether the duplicate is an in-progress request or completed download.
   virtual bool DuplicateRequestExists() const;
 
   // ConfirmInfoBarDelegate implementation.
-  std::u16string GetMessageText() const override;
+  base::string16 GetMessageText() const override;
   bool ShouldExpire(const NavigationDetails& details) const override;
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,11 +15,10 @@ namespace {
 class GpuTestSuite : public base::TestSuite {
  public:
   GpuTestSuite(int argc, char** argv);
-
-  GpuTestSuite(const GpuTestSuite&) = delete;
-  GpuTestSuite& operator=(const GpuTestSuite&) = delete;
-
   ~GpuTestSuite() override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(GpuTestSuite);
 };
 
 GpuTestSuite::GpuTestSuite(int argc, char** argv)

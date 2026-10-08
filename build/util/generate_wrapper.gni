@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -58,22 +58,18 @@ template("generate_wrapper") {
 
   action(target_name) {
     forward_variables_from(invoker,
-                           TESTONLY_AND_VISIBILITY + [
-                                 "assert_no_deps",
-                                 "data",
-                                 "data_deps",
-                                 "deps",
-                                 "public_deps",
-                                 "sources",
-                               ])
+                           [
+                             "data",
+                             "data_deps",
+                             "deps",
+                             "sources",
+                             "testonly",
+                           ])
     script = _generator_script
     if (!defined(data)) {
       data = []
     }
-    data += [
-      _wrapper_script,
-      "//.vpython3",
-    ]
+    data += [ _wrapper_script ]
     outputs = [ _wrapper_script ]
 
     _rebased_executable_to_wrap =
@@ -93,9 +89,8 @@ template("generate_wrapper") {
       rebase_path(root_build_dir, root_build_dir),
       "--script-language",
       _script_language,
+      "--",
     ]
-
-    args += [ "--" ]
     args += _wrapped_arguments
 
     if (defined(invoker.write_runtime_deps)) {

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -65,10 +65,6 @@ class ExitWarningWidgetDelegateView : public views::WidgetDelegateView {
     SetLayoutManager(std::make_unique<views::FillLayout>());
   }
 
-  ExitWarningWidgetDelegateView(const ExitWarningWidgetDelegateView&) = delete;
-  ExitWarningWidgetDelegateView& operator=(
-      const ExitWarningWidgetDelegateView&) = delete;
-
   void OnPaint(gfx::Canvas* canvas) override {
     cc::PaintFlags flags;
     flags.setStyle(cc::PaintFlags::kFill_Style);
@@ -78,14 +74,16 @@ class ExitWarningWidgetDelegateView : public views::WidgetDelegateView {
   }
 
   void GetAccessibleNodeData(ui::AXNodeData* node_data) override {
-    node_data->role = ax::mojom::Role::kAlert;
     node_data->SetName(accessible_name_);
+    node_data->role = ax::mojom::Role::kAlert;
   }
 
  private:
-  std::u16string text_;
-  std::u16string accessible_name_;
+  base::string16 text_;
+  base::string16 accessible_name_;
   int text_width_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExitWarningWidgetDelegateView);
 };
 
 }  // namespace
@@ -127,7 +125,8 @@ void ExitWarningHandler::TimerAction() {
 void ExitWarningHandler::StartTimer() {
   if (stub_timer_for_test_)
     return;
-  timer_.Start(FROM_HERE, base::Milliseconds(kTimeOutMilliseconds), this,
+  timer_.Start(FROM_HERE,
+               base::TimeDelta::FromMilliseconds(kTimeOutMilliseconds), this,
                &ExitWarningHandler::TimerAction);
 }
 

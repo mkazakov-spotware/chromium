@@ -1,31 +1,16 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "ash/ambient/model/ambient_backend_model.h"
-
-#include <algorithm>
-#include <random>
-#include <utility>
 #include <vector>
 
+#include "ash/ambient/model/ambient_backend_model.h"
+
 #include "ash/ambient/model/ambient_backend_model_observer.h"
-#include "ash/ambient/model/ambient_photo_config.h"
 #include "ash/public/cpp/ambient/ambient_ui_model.h"
-#include "base/check.h"
-#include "base/containers/flat_map.h"
 #include "base/logging.h"
-#include "base/time/time.h"
 
 namespace ash {
-
-namespace {
-
-// Note this does not start until the minimum number of topics required in the
-// AmbientPhotoConfig is reached.
-constexpr base::TimeDelta kImagesReadyTimeout = base::Seconds(10);
-
-}  // namespace
 
 // PhotoWithDetails------------------------------------------------------------
 PhotoWithDetails::PhotoWithDetails() = default;
@@ -44,9 +29,6 @@ PhotoWithDetails::~PhotoWithDetails() = default;
 void PhotoWithDetails::Clear() {
   photo = gfx::ImageSkia();
   details = std::string();
-  related_photo = gfx::ImageSkia();
-  related_details = std::string();
-  is_portrait = false;
 }
 
 bool PhotoWithDetails::IsNull() const {
@@ -54,10 +36,7 @@ bool PhotoWithDetails::IsNull() const {
 }
 
 // AmbientBackendModel---------------------------------------------------------
-AmbientBackendModel::AmbientBackendModel(AmbientPhotoConfig photo_config) {
-  SetPhotoConfig(std::move(photo_config));
-}
-
+AmbientBackendModel::AmbientBackendModel() = default;
 AmbientBackendModel::~AmbientBackendModel() = default;
 
 void AmbientBackendModel::AddObserver(AmbientBackendModelObserver* observer) {
@@ -69,63 +48,34 @@ void AmbientBackendModel::RemoveObserver(
   observers_.RemoveObserver(observer);
 }
 
-bool AmbientBackendModel::ImagesReady() const {
-  DCHECK_LE(all_decoded_topics_.size(),
-            photo_config_.GetNumDecodedTopicsToBuffer());
-  return all_decoded_topics_.size() ==
-             photo_config_.GetNumDecodedTopicsToBuffer() ||
-         images_ready_timed_out_;
+void AmbientBackendModel::AppendTopics(
+    const std::vector<AmbientModeTopic>& topics) {
+  topics_.insert(topics_.end(), topics.begin(), topics.end());
+  NotifyTopicsChanged();
 }
 
-void AmbientBackendModel::OnImagesReadyTimeoutFired() {
-  if (ImagesReady())
-    return;
-
-  DCHECK_GE(all_decoded_topics_.size(),
-            photo_config_.min_total_topics_required);
-  // TODO(esum): Add metrics for how often this case happens.
-  LOG(WARNING) << "Timed out trying to prepare "
-               << photo_config_.GetNumDecodedTopicsToBuffer()
-               << " topics. Starting UI with " << all_decoded_topics_.size();
-  images_ready_timed_out_ = true;
-  NotifyImagesReady();
+bool AmbientBackendModel::ImagesReady() const {
+  return !current_image_.IsNull() && !next_image_.IsNull();
 }
 
 void AmbientBackendModel::AddNextImage(
     const PhotoWithDetails& photo_with_details) {
-  DCHECK(!photo_with_details.IsNull());
-
   ResetImageFailures();
-
-  bool old_images_ready = ImagesReady();
-
-  all_decoded_topics_.push_back(photo_with_details);
-  while (all_decoded_topics_.size() >
-         photo_config_.GetNumDecodedTopicsToBuffer()) {
-    DCHECK(!all_decoded_topics_.empty());
-    all_decoded_topics_.pop_front();
-  }
-
-  NotifyImageAdded();
-
-  // Observers expect |OnImagesReady| after |OnImageAdded|.
-  bool new_images_ready = ImagesReady();
-  if (!old_images_ready && new_images_ready) {
+  if (current_image_.IsNull()) {
+    current_image_ = photo_with_details;
+  } else if (next_image_.IsNull()) {
+    next_image_ = photo_with_details;
     NotifyImagesReady();
-  } else if (!new_images_ready &&
-             all_decoded_topics_.size() >=
-                 photo_config_.min_total_topics_required &&
-             !images_ready_timeout_timer_.IsRunning()) {
-    images_ready_timeout_timer_.Start(
-        FROM_HERE, kImagesReadyTimeout, this,
-        &AmbientBackendModel::OnImagesReadyTimeoutFired);
+  } else {
+    current_image_ = next_image_;
+    next_image_ = photo_with_details;
   }
+
+  NotifyImagesChanged();
 }
 
-bool AmbientBackendModel::IsHashDuplicate(const std::string& hash) const {
-  // Make sure that a photo does not appear twice in a row.
-  return all_decoded_topics_.empty() ? false
-                                     : all_decoded_topics_.back().hash == hash;
+bool AmbientBackendModel::HashMatchesNextImage(const std::string& hash) const {
+  return GetNextImage().hash == hash;
 }
 
 void AmbientBackendModel::AddImageFailure() {
@@ -152,46 +102,53 @@ base::TimeDelta AmbientBackendModel::GetPhotoRefreshInterval() const {
   return AmbientUiModel::Get()->photo_refresh_interval();
 }
 
-void AmbientBackendModel::SetPhotoConfig(AmbientPhotoConfig photo_config) {
-  photo_config_ = std::move(photo_config);
-  DCHECK_GT(photo_config_.GetNumDecodedTopicsToBuffer(), 0u);
-  DCHECK_GT(photo_config_.min_total_topics_required, 0u);
-  DCHECK_LE(photo_config_.min_total_topics_required,
-            photo_config_.GetNumDecodedTopicsToBuffer());
-  DCHECK(!photo_config_.refresh_topic_markers.empty());
-  Clear();
-}
-
 void AmbientBackendModel::Clear() {
-  all_decoded_topics_.clear();
-  images_ready_timeout_timer_.Stop();
-  images_ready_timed_out_ = false;
+  topics_.clear();
+  current_image_.Clear();
+  next_image_.Clear();
 }
 
-void AmbientBackendModel::GetCurrentAndNextImages(
-    PhotoWithDetails* current_image_out,
-    PhotoWithDetails* next_image_out) const {
-  auto fill_image_out = [&](size_t idx, PhotoWithDetails* image_out) {
-    if (!image_out)
-      return;
+const PhotoWithDetails& AmbientBackendModel::GetNextImage() const {
+  if (!next_image_.IsNull())
+    return next_image_;
 
-    image_out->Clear();
-    if (idx < all_decoded_topics_.size()) {
-      *image_out = all_decoded_topics_[idx];
-    }
-  };
-  fill_image_out(/*idx=*/0, current_image_out);
-  fill_image_out(/*idx=*/1, next_image_out);
+  return current_image_;
 }
 
-void AmbientBackendModel::NotifyImageAdded() {
+float AmbientBackendModel::GetTemperatureInCelsius() const {
+  return (temperature_fahrenheit_ - 32) * 5 / 9;
+}
+
+void AmbientBackendModel::UpdateWeatherInfo(
+    const gfx::ImageSkia& weather_condition_icon,
+    float temperature_fahrenheit,
+    bool show_celsius) {
+  weather_condition_icon_ = weather_condition_icon;
+  temperature_fahrenheit_ = temperature_fahrenheit;
+  show_celsius_ = show_celsius;
+
+  if (!weather_condition_icon.isNull())
+    NotifyWeatherInfoUpdated();
+}
+
+void AmbientBackendModel::NotifyTopicsChanged() {
   for (auto& observer : observers_)
-    observer.OnImageAdded();
+    observer.OnTopicsChanged();
+}
+
+void AmbientBackendModel::NotifyImagesChanged() {
+  for (auto& observer : observers_)
+    observer.OnImagesChanged();
 }
 
 void AmbientBackendModel::NotifyImagesReady() {
   for (auto& observer : observers_)
     observer.OnImagesReady();
+}
+
+void AmbientBackendModel::NotifyWeatherInfoUpdated() {
+  for (auto& observer : observers_)
+    observer.OnWeatherInfoUpdated();
 }
 
 }  // namespace ash

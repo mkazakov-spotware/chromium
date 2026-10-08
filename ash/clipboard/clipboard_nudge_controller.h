@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,10 @@
 #include "ash/ash_export.h"
 #include "ash/clipboard/clipboard_history.h"
 #include "ash/clipboard/clipboard_history_controller_impl.h"
-#include "ash/clipboard/clipboard_nudge.h"
-#include "ash/clipboard/clipboard_nudge_constants.h"
-#include "ash/public/cpp/clipboard_history_controller.h"
 #include "ash/public/cpp/session/session_observer.h"
-#include "ash/system/tray/system_nudge_controller.h"
+#include "base/memory/weak_ptr.h"
 #include "base/time/clock.h"
-#include "base/time/time.h"
-#include "chromeos/crosapi/mojom/clipboard_history.mojom.h"
+#include "base/timer/timer.h"
 #include "ui/base/clipboard/clipboard_observer.h"
 
 class PrefService;
@@ -23,6 +19,7 @@ class PrefRegistrySimple;
 class ClipboardHistoryItem;
 
 namespace ash {
+class ClipboardNudge;
 
 // The clipboard contextual nudge will be shown after 4 user actions that must
 // happen in sequence. The user must perform copy, paste, copy and paste in
@@ -36,31 +33,11 @@ enum class ClipboardState {
 };
 
 class ASH_EXPORT ClipboardNudgeController
-    : public SystemNudgeController,
-      public ClipboardHistory::Observer,
+    : public ClipboardHistory::Observer,
       public ui::ClipboardObserver,
       public SessionObserver,
-      public ClipboardHistoryController::Observer {
+      public ClipboardHistoryControllerImpl::Observer {
  public:
-  class TimeMetricHelper {
-   public:
-    TimeMetricHelper() = default;
-    TimeMetricHelper(const TimeMetricHelper&) = delete;
-    TimeMetricHelper& operator=(const TimeMetricHelper&) = delete;
-    ~TimeMetricHelper() = default;
-
-    bool ShouldLogFeatureUsedTime() const;
-    bool ShouldLogFeatureOpenTime() const;
-    base::TimeDelta GetTimeSinceShown(base::Time current_time) const;
-    void ResetTime();
-    void set_was_logged_as_used() { was_logged_as_used_ = true; }
-    void set_was_logged_as_opened() { was_logged_as_opened_ = true; }
-
-   private:
-    base::Time last_shown_time_;
-    bool was_logged_as_used_ = false;
-    bool was_logged_as_opened_ = false;
-  };
   ClipboardNudgeController(
       ClipboardHistory* clipboard_history,
       ClipboardHistoryControllerImpl* clipboard_history_controller);
@@ -72,8 +49,7 @@ class ASH_EXPORT ClipboardNudgeController
   static void RegisterProfilePrefs(PrefRegistrySimple* registry);
 
   // ui::ClipboardHistory::Observer:
-  void OnClipboardHistoryItemAdded(const ClipboardHistoryItem& item,
-                                   bool is_duplicate = false) override;
+  void OnClipboardHistoryItemAdded(const ClipboardHistoryItem& item) override;
 
   // ui::ClipboardObserver:
   void OnClipboardDataRead() override;
@@ -84,25 +60,16 @@ class ASH_EXPORT ClipboardNudgeController
   // Resets nudge state and show nudge timer.
   void HandleNudgeShown();
 
-  // Increment the screenshot notification shown count.
-  void MarkScreenshotNotificationShown();
-
   // ClipboardHistoryControllerImpl:
   void OnClipboardHistoryMenuShown() override;
   void OnClipboardHistoryPasted() override;
-
-  // Shows the nudge widget.
-  void ShowNudge(ClipboardNudgeType nudge_type);
 
   // Test methods for overriding and resetting the clock used by GetTime.
   void OverrideClockForTesting(base::Clock* test_clock);
   void ClearClockOverrideForTesting();
 
   const ClipboardState& GetClipboardStateForTesting();
-
- protected:
-  // SystemNudgeController:
-  std::unique_ptr<SystemNudge> CreateSystemNudge() override;
+  ClipboardNudge* GetClipboardNudgeForTesting() { return nudge_.get(); }
 
  private:
   // Gets the number of times the nudge has been shown.
@@ -114,29 +81,38 @@ class ASH_EXPORT ClipboardNudgeController
   // Gets the current time. Can be overridden for testing.
   base::Time GetTime();
 
+  // Shows the nudge widget.
+  void ShowNudge();
+
+  // Hides the nudge widget.
+  void HideNudge();
+
+  // Begins the animation for fading in or fading out the clipboard nudge.
+  void StartFadeAnimation(bool show);
+
   // Time the nudge was last shown.
-  TimeMetricHelper last_shown_time_;
-
-  // Time the zero state nudge was last shown.
-  TimeMetricHelper zero_state_last_shown_time_;
-
-  // Time the screenshot notification nudge was last shown.
-  TimeMetricHelper screenshot_notification_last_shown_time_;
+  base::Time last_shown_time_;
 
   // Owned by ClipboardHistoryController.
   const ClipboardHistory* clipboard_history_;
 
   // Owned by ash/Shell.
-  ClipboardHistoryControllerImpl* const clipboard_history_controller_;
+  const ClipboardHistoryControllerImpl* const clipboard_history_controller_;
 
   // Current clipboard state.
   ClipboardState clipboard_state_ = ClipboardState::kInit;
-
   // The timestamp of the most recent paste.
   base::Time last_paste_timestamp_;
+  // Clock that can be overridden for testing.
+  base::Clock* g_clock_override = nullptr;
 
-  // The current nudge type being shown from ShowNudge().
-  ClipboardNudgeType current_nudge_type_;
+  // Contextual nudge which shows a view to inform the user on multipaste usage.
+  std::unique_ptr<ClipboardNudge> nudge_;
+
+  // Timer to hide the clipboard nudge.
+  base::OneShotTimer hide_nudge_timer_;
+
+  base::WeakPtrFactory<ClipboardNudgeController> weak_ptr_factory_{this};
 };
 
 }  // namespace ash

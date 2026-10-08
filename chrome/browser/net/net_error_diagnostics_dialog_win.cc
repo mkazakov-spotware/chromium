@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,18 +10,19 @@
 #include <windows.h>   // NOLINT
 
 #include <memory>
-#include <string>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/check.h"
 #include "base/files/file_path.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/native_library.h"
 #include "base/scoped_native_library.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/task_runner.h"
+#include "base/task_runner.h"
 #include "base/threading/thread.h"
 #include "chrome/browser/profiles/profile.h"
 #include "content/public/browser/web_contents.h"
@@ -34,11 +35,6 @@ namespace {
 class NetErrorDiagnosticsDialog : public ui::BaseShellDialogImpl {
  public:
   NetErrorDiagnosticsDialog() {}
-
-  NetErrorDiagnosticsDialog(const NetErrorDiagnosticsDialog&) = delete;
-  NetErrorDiagnosticsDialog& operator=(const NetErrorDiagnosticsDialog&) =
-      delete;
-
   ~NetErrorDiagnosticsDialog() override {}
 
   // NetErrorDiagnosticsDialog implementation.
@@ -68,7 +64,7 @@ class NetErrorDiagnosticsDialog : public ui::BaseShellDialogImpl {
  private:
   void ShowDialogOnPrivateThread(HWND parent, const std::string& failed_url) {
     NDFHANDLE incident_handle;
-    std::wstring failed_url_wide = base::UTF8ToWide(failed_url);
+    base::string16 failed_url_wide = base::UTF8ToUTF16(failed_url);
     if (!SUCCEEDED(NdfCreateWebIncident(failed_url_wide.c_str(),
                                         &incident_handle))) {
       return;
@@ -82,6 +78,8 @@ class NetErrorDiagnosticsDialog : public ui::BaseShellDialogImpl {
     EndRun(std::move(run_state));
     std::move(callback).Run();
   }
+
+  DISALLOW_COPY_AND_ASSIGN(NetErrorDiagnosticsDialog);
 };
 
 }  // namespace
@@ -91,7 +89,8 @@ bool CanShowNetworkDiagnosticsDialog(content::WebContents* web_contents) {
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
   // The Windows diagnostic tool logs URLs it's run with, so it shouldn't be
   // used with incognito or guest profiles.  See https://crbug.com/929141
-  return !profile->IsIncognitoProfile() && !profile->IsGuestSession();
+  return !profile->IsIncognitoProfile() && !profile->IsGuestSession() &&
+         !profile->IsEphemeralGuestProfile();
 }
 
 void ShowNetworkDiagnosticsDialog(content::WebContents* web_contents,

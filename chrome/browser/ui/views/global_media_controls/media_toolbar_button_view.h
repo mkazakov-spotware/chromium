@@ -1,22 +1,20 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_GLOBAL_MEDIA_CONTROLS_MEDIA_TOOLBAR_BUTTON_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_GLOBAL_MEDIA_CONTROLS_MEDIA_TOOLBAR_BUTTON_VIEW_H_
 
-#include "base/memory/raw_ptr.h"
-#include "base/observer_list.h"
+#include "base/macros.h"
 #include "chrome/browser/ui/global_media_controls/media_toolbar_button_controller_delegate.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 
 class Browser;
 class BrowserView;
+class FeaturePromoControllerViews;
 class MediaNotificationService;
 class MediaToolbarButtonController;
 class MediaToolbarButtonObserver;
-class MediaToolbarButtonContextualMenu;
 
 // Media icon shown in the trusted area of toolbar. Its lifetime is tied to that
 // of its parent ToolbarView. The icon is made visible when there is an active
@@ -24,12 +22,7 @@ class MediaToolbarButtonContextualMenu;
 class MediaToolbarButtonView : public ToolbarButton,
                                public MediaToolbarButtonControllerDelegate {
  public:
-  METADATA_HEADER(MediaToolbarButtonView);
-  MediaToolbarButtonView(
-      BrowserView* browser_view,
-      std::unique_ptr<MediaToolbarButtonContextualMenu> context_menu);
-  MediaToolbarButtonView(const MediaToolbarButtonView&) = delete;
-  MediaToolbarButtonView& operator=(const MediaToolbarButtonView&) = delete;
+  explicit MediaToolbarButtonView(BrowserView* browser_view);
   ~MediaToolbarButtonView() override;
 
   void AddObserver(MediaToolbarButtonObserver* observer);
@@ -40,25 +33,25 @@ class MediaToolbarButtonView : public ToolbarButton,
   void Hide() override;
   void Enable() override;
   void Disable() override;
-  void MaybeShowStopCastingPromo() override;
 
-  MediaToolbarButtonController* media_toolbar_button_controller() {
-    return controller_.get();
-  }
+  // ToolbarButton implementation.
+  void UpdateIcon() override;
 
  private:
   void ButtonPressed();
-  void ClosePromoBubble();
 
-  const raw_ptr<const Browser> browser_;
+  const Browser* const browser_;
 
-  const raw_ptr<MediaNotificationService> service_;
+  MediaNotificationService* const service_;
+
+  // The window's IPH promo controller.
+  FeaturePromoControllerViews* const feature_promo_controller_;
 
   std::unique_ptr<MediaToolbarButtonController> controller_;
 
   base::ObserverList<MediaToolbarButtonObserver> observers_;
 
-  std::unique_ptr<MediaToolbarButtonContextualMenu> context_menu_;
+  DISALLOW_COPY_AND_ASSIGN(MediaToolbarButtonView);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_GLOBAL_MEDIA_CONTROLS_MEDIA_TOOLBAR_BUTTON_VIEW_H_

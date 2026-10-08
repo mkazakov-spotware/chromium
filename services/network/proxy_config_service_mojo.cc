@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,12 @@
 
 #include <utility>
 
-#include "base/observer_list.h"
-
 namespace network {
 
 ProxyConfigServiceMojo::ProxyConfigServiceMojo(
     mojo::PendingReceiver<mojom::ProxyConfigClient>
         proxy_config_client_receiver,
-    absl::optional<net::ProxyConfigWithAnnotation> initial_proxy_config,
+    base::Optional<net::ProxyConfigWithAnnotation> initial_proxy_config,
     mojo::PendingRemote<mojom::ProxyConfigPollerClient> proxy_poller_client) {
   DCHECK(initial_proxy_config || proxy_config_client_receiver.is_valid());
 

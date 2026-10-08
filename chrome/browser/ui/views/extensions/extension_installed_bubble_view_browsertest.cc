@@ -1,17 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <algorithm>
 
-#include "base/memory/raw_ptr.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/ui/extensions/extension_install_ui_default.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "content/public/test/browser_test.h"
-#include "extensions/common/api/extension_action/action_info.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/manifest_constants.h"
@@ -35,21 +32,21 @@ class ExtensionInstalledBubbleViewsBrowserTest
     extensions::ExtensionBuilder builder(type);
 
     if (type == "BrowserAction") {
-      builder.SetAction(extensions::ActionInfo::TYPE_BROWSER);
+      builder.SetAction(
+          extensions::ExtensionBuilder::ActionType::BROWSER_ACTION);
     } else if (type == "PageAction") {
-      builder.SetAction(extensions::ActionInfo::TYPE_PAGE);
+      builder.SetAction(extensions::ExtensionBuilder::ActionType::PAGE_ACTION);
     }
 
     if (type == "SignInPromo" || type == "NoAction") {
-      builder.SetLocation(extensions::mojom::ManifestLocation::kInternal);
+      builder.SetLocation(extensions::Manifest::INTERNAL);
     } else {
-      builder.SetLocation(extensions::mojom::ManifestLocation::kComponent);
+      builder.SetLocation(extensions::Manifest::COMPONENT);
     }
 
     if (type == "Omnibox") {
       auto extra_keys = std::make_unique<base::DictionaryValue>();
-      extra_keys->SetStringPath(extensions::manifest_keys::kOmniboxKeyword,
-                                "foo");
+      extra_keys->SetString(extensions::manifest_keys::kOmniboxKeyword, "foo");
       builder.MergeManifest(std::move(extra_keys));
     }
 
@@ -58,7 +55,7 @@ class ExtensionInstalledBubbleViewsBrowserTest
     return extension;
   }
 
-  raw_ptr<views::Widget, DanglingUntriaged> bubble_widget_;
+  views::Widget* bubble_widget_;
 };
 
 void ExtensionInstalledBubbleViewsBrowserTest::ShowUi(const std::string& name) {
@@ -86,11 +83,11 @@ bool ExtensionInstalledBubbleViewsBrowserTest::VerifyUi() {
 }
 
 void ExtensionInstalledBubbleViewsBrowserTest::WaitForUserDismissal() {
-  views::test::WidgetDestroyedWaiter observer(bubble_widget_);
+  views::test::WidgetClosingObserver observer(bubble_widget_);
   observer.Wait();
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 // None of these tests work when run under Ash, because they need an
 // AuraTestHelper constructed at an inconvenient time in test setup, which
 // InProcessBrowserTest is not equipped to handle.

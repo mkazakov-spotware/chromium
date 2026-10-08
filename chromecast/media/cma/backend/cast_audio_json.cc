@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include "base/json/json_reader.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
@@ -40,7 +41,7 @@ void ReadFileRunCallback(CastAudioJsonProvider::TuningChangedCallback callback,
 
 }  // namespace
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 const char kCastAudioJsonFilePath[] = "/system/data/cast_audio.json";
 #else
 const char kCastAudioJsonFilePath[] = "/etc/cast_audio.json";
@@ -86,8 +87,8 @@ std::unique_ptr<base::Value> CastAudioJsonProviderImpl::GetCastAudioConfig() {
 void CastAudioJsonProviderImpl::SetTuningChangedCallback(
     TuningChangedCallback callback) {
   if (cast_audio_watcher_) {
-    cast_audio_watcher_.AsyncCall(&FileWatcher::SetTuningChangedCallback)
-        .WithArgs(std::move(callback));
+    cast_audio_watcher_.Post(FROM_HERE, &FileWatcher::SetTuningChangedCallback,
+                             std::move(callback));
   }
 }
 
@@ -97,8 +98,7 @@ CastAudioJsonProviderImpl::FileWatcher::~FileWatcher() = default;
 void CastAudioJsonProviderImpl::FileWatcher::SetTuningChangedCallback(
     TuningChangedCallback callback) {
   watcher_.Watch(
-      CastAudioJson::GetFilePathForTuning(),
-      base::FilePathWatcher::Type::kNonRecursive,
+      CastAudioJson::GetFilePathForTuning(), false /* recursive */,
       base::BindRepeating(&ReadFileRunCallback, std::move(callback)));
 }
 

@@ -1,14 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "base/memory/ptr_util.h"
-#import "base/notreached.h"
+#include "base/memory/ptr_util.h"
+#include "base/notreached.h"
 #import "base/test/ios/wait_util.h"
-#import "ios/web/public/favicon/favicon_url.h"
+#include "ios/web/public/favicon/favicon_url.h"
 #import "ios/web/public/test/web_test_with_web_state.h"
 #import "ios/web/public/web_state.h"
-#import "ios/web/public/web_state_observer.h"
+#include "ios/web/public/web_state_observer.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -25,9 +25,6 @@ namespace {
 class FaviconUrlObserver : public WebStateObserver {
  public:
   FaviconUrlObserver() = default;
-
-  FaviconUrlObserver(const FaviconUrlObserver&) = delete;
-  FaviconUrlObserver& operator=(const FaviconUrlObserver&) = delete;
 
   // Returns vavicon url candidates received in FaviconUrlUpdated.
   const std::vector<FaviconURL>& favicon_url_candidates() const {
@@ -46,6 +43,8 @@ class FaviconUrlObserver : public WebStateObserver {
  private:
   bool favicon_url_updated_ = false;
   std::vector<FaviconURL> favicon_url_candidates_;
+
+  DISALLOW_COPY_AND_ASSIGN(FaviconUrlObserver);
 };
 
 }  // namespace
@@ -54,9 +53,6 @@ class FaviconUrlObserver : public WebStateObserver {
 class FaviconCallbackTest : public web::WebTestWithWebState {
  public:
   FaviconCallbackTest() = default;
-
-  FaviconCallbackTest(const FaviconCallbackTest&) = delete;
-  FaviconCallbackTest& operator=(const FaviconCallbackTest&) = delete;
 
  protected:
   void SetUp() override {
@@ -72,6 +68,8 @@ class FaviconCallbackTest : public web::WebTestWithWebState {
 
  private:
   FaviconUrlObserver observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(FaviconCallbackTest);
 };
 
 // Tests page with shortcut icon link.

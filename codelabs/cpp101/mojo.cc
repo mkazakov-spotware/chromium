@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,11 @@
 #include "base/at_exit.h"
 #include "base/bind.h"
 #include "base/command_line.h"
+#include "base/location.h"
 #include "base/logging.h"
+#include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/task_environment.h"
-#include "base/test/test_future.h"
 #include "base/test/test_timeouts.h"
 #include "codelabs/cpp101/services/math/math_service.h"
 #include "mojo/core/embedder/embedder.h"
@@ -29,38 +30,33 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
-  int dividend = 0;
-  if (!base::StringToInt(argv[1], &dividend)) {
-    LOG(INFO) << argv[0] << ": invalid dividend '" << argv[1] << "'";
+  int divisor = 0;
+  if (!base::StringToInt(argv[1], &divisor)) {
+    LOG(INFO) << argv[0] << ": invalid divisor '" << argv[1] << "'";
     return -1;
   }
 
-  int divisor = 0;
-  if (!base::StringToInt(argv[2], &divisor) || divisor == 0) {
+  int dividend = 0;
+  if (!base::StringToInt(argv[2], &dividend) || dividend == 0) {
     LOG(INFO) << argv[0] << ": invalid divisor '" << argv[2] << "'";
     return -1;
   }
 
-  // Create a mojo remote and pass a corresponding receiver to `MathService`. In
-  // a "real-world" situation the receiver and remote would typically be owned
-  // by objects in different processes.
+  base::RunLoop run_loop;
 
-  // This process (remote)                                MathService (receiver)
-  // |  -> create pipe and pass receiver ->                       bind to pipe |
-  // |  -> send Divide() call through pipe ->       received message from pipe |
-  // | awaiting response from pipe...                             run Divide() |
-  // | result received                 <- pass result across pipe to remote <- |
   mojo::Remote<math::mojom::MathService> math_service;
   math::MathService math_service_impl(
       math_service.BindNewPipeAndPassReceiver());
 
-  // `TestFuture` can be used to test code that return results asynchronously
-  // through a callback. Prefer this to `RunLoop` in tests where possible!
-  base::test::TestFuture<int32_t> future;
-  math_service->Divide(dividend, divisor, future.GetCallback());
+  math_service->Divide(divisor, dividend,
+                       base::BindOnce(
+                           [](base::OnceClosure quit, int32_t quotient) {
+                             LOG(INFO) << "Quotient: " << quotient;
+                             std::move(quit).Run();
+                           },
+                           run_loop.QuitClosure()));
 
-  int32_t quotient = future.Get();
-  LOG(INFO) << "Quotient: " << quotient;
+  run_loop.Run();
 
   return 0;
 }

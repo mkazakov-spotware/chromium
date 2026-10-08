@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/bind.h"
 #include "base/strings/stringprintf.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "media/gpu/macros.h"
 
@@ -93,14 +94,6 @@ void ImageProcessorBackend::Reset() {
   DVLOGF(3);
   DCHECK_CALLED_ON_VALID_SEQUENCE(backend_sequence_checker_);
   // Do nothing as the default action.
-}
-
-bool ImageProcessorBackend::needs_linear_output_buffers() const {
-  return false;
-}
-
-bool ImageProcessorBackend::supports_incoherent_buffers() const {
-  return false;
 }
 
 }  // namespace media

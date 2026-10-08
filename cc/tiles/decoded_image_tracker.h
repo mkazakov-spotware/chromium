@@ -1,20 +1,17 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_TILES_DECODED_IMAGE_TRACKER_H_
 #define CC_TILES_DECODED_IMAGE_TRACKER_H_
 
-#include <memory>
 #include <utility>
 #include <vector>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "base/time/tick_clock.h"
 #include "base/time/time.h"
 #include "cc/cc_export.h"
-#include "cc/paint/target_color_params.h"
 #include "cc/tiles/image_controller.h"
 
 namespace cc {
@@ -41,7 +38,7 @@ class CC_EXPORT DecodedImageTracker {
   // completion. The callback takes a bool indicating whether the decode was
   // successful or not.
   void QueueImageDecode(const PaintImage& image,
-                        const TargetColorParams& target_color_params,
+                        const gfx::ColorSpace& target_color_space,
                         base::OnceCallback<void(bool)> callback);
 
   // Unlock all locked images - used to respond to memory pressure or
@@ -69,7 +66,7 @@ class CC_EXPORT DecodedImageTracker {
   void OnTimeoutImages();
   void EnqueueTimeout();
 
-  raw_ptr<ImageController> image_controller_;
+  ImageController* image_controller_;
 
   // Helper class tracking a locked image decode. Automatically releases the
   // lock using the provided DecodedImageTracker* on destruction.
@@ -85,7 +82,7 @@ class CC_EXPORT DecodedImageTracker {
     base::TimeTicks lock_time() const { return lock_time_; }
 
    private:
-    raw_ptr<DecodedImageTracker> tracker_;
+    DecodedImageTracker* tracker_;
     ImageController::ImageDecodeRequestId request_id_;
     base::TimeTicks lock_time_;
   };
@@ -94,7 +91,7 @@ class CC_EXPORT DecodedImageTracker {
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
 
   // Defaults to base::TimeTicks::Now(), but overrideable for testing.
-  raw_ptr<const base::TickClock> tick_clock_;
+  const base::TickClock* tick_clock_;
 
   base::WeakPtrFactory<DecodedImageTracker> weak_ptr_factory_{this};
 };

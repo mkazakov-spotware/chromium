@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -69,31 +69,23 @@ class MetricsTestHelper {
     }
 
     @CalledByNative
-    private static void createProfile(String name, boolean incognito) {
+    private static void createProfile(String name) {
         Context appContext = ContextUtils.getApplicationContext();
         WebLayer weblayer = WebLayer.loadSync(appContext);
 
-        if (incognito) {
-            String nameOrNull = null;
-            if (!TextUtils.isEmpty(name)) nameOrNull = name;
-            weblayer.getIncognitoProfile(nameOrNull);
-        } else {
-            weblayer.getProfile(name);
-        }
+        String nameOrNull = null;
+        if (!TextUtils.isEmpty(name)) nameOrNull = name;
+        weblayer.getProfile(nameOrNull);
     }
 
     @CalledByNative
-    private static void destroyProfile(String name, boolean incognito) {
+    private static void destroyProfile(String name) {
         Context appContext = ContextUtils.getApplicationContext();
         WebLayer weblayer = WebLayer.loadSync(appContext);
 
-        if (incognito) {
-            String nameOrNull = null;
-            if (!TextUtils.isEmpty(name)) nameOrNull = name;
-            weblayer.getIncognitoProfile(nameOrNull).destroy();
-        } else {
-            weblayer.getProfile(name).destroy();
-        }
+        String nameOrNull = null;
+        if (!TextUtils.isEmpty(name)) nameOrNull = name;
+        weblayer.getProfile(nameOrNull).destroy();
     }
 
     @CalledByNative

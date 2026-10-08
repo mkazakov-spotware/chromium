@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,13 @@
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/location.h"
-#include "base/logging.h"
+#include "base/metrics/histogram_functions.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/sequenced_task_runner_handle.h"
+#include "build/build_config.h"
 #include "chrome/browser/upgrade_detector/build_state.h"
 #include "chrome/browser/upgrade_detector/get_installed_version.h"
 #include "chrome/browser/upgrade_detector/installed_version_monitor.h"
@@ -50,8 +52,8 @@ uint32_t GetTestingOptions() {
 // A GetInstalledVersionCallback implementation used when a regular or a
 // critical update is simulated via --simulate-upgrade or
 // --simulate-critical-update.
-void SimulateGetInstalledVersion(uint32_t testing_options,
-                                 InstalledVersionCallback callback) {
+InstalledAndCriticalVersion SimulateGetInstalledVersion(
+    uint32_t testing_options) {
   DCHECK_NE(0U, testing_options);
 
   std::vector<uint32_t> components = version_info::GetVersion().components();
@@ -64,7 +66,7 @@ void SimulateGetInstalledVersion(uint32_t testing_options,
     result.critical_version.emplace(std::move(components));
   }
 
-  std::move(callback).Run(std::move(result));
+  return result;
 }
 
 // Returns the callback to get the installed version. Use of any testing option
@@ -85,8 +87,17 @@ base::TimeDelta GetPollingInterval() {
       cmd_line.GetSwitchValueASCII(switches::kCheckForUpdateIntervalSec);
   int seconds;
   if (!seconds_str.empty() && base::StringToInt(seconds_str, &seconds))
-    return base::Seconds(seconds);
+    return base::TimeDelta::FromSeconds(seconds);
   return InstalledVersionPoller::kDefaultPollingInterval;
+}
+
+std::unique_ptr<InstalledVersionMonitor> MakeInstalledVersionMonitor() {
+// Temporarily disabled for macOS due to https://crbug.com/1156603.
+#if defined(OS_MAC)
+  return nullptr;
+#else
+  return InstalledVersionMonitor::Create();
+#endif
 }
 
 }  // namespace
@@ -114,12 +125,12 @@ enum class InstalledVersionPoller::PollType {
 
 // static
 const base::TimeDelta InstalledVersionPoller::kDefaultPollingInterval =
-    base::Hours(2);
+    base::TimeDelta::FromHours(2);
 
 InstalledVersionPoller::InstalledVersionPoller(BuildState* build_state)
     : InstalledVersionPoller(build_state,
                              GetGetInstalledVersionCallback(),
-                             InstalledVersionMonitor::Create(),
+                             MakeInstalledVersionMonitor(),
                              nullptr) {}
 
 InstalledVersionPoller::InstalledVersionPoller(
@@ -148,8 +159,11 @@ void InstalledVersionPoller::StartMonitor(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(!monitor_);
   monitor_ = std::move(monitor);
-  monitor_->Start(base::BindRepeating(&InstalledVersionPoller::OnMonitorResult,
-                                      weak_ptr_factory_.GetWeakPtr()));
+  if (monitor_) {
+    monitor_->Start(
+        base::BindRepeating(&InstalledVersionPoller::OnMonitorResult,
+                            weak_ptr_factory_.GetWeakPtr()));
+  }
 }
 
 void InstalledVersionPoller::OnMonitorResult(bool error) {
@@ -159,7 +173,7 @@ void InstalledVersionPoller::OnMonitorResult(bool error) {
     // Wait ten seconds before polling for the new version in case the monitor
     // provides multiple notifications during a normal update. Repeat
     // notifications will push back the poll.
-    timer_.Start(FROM_HERE, base::Seconds(10),
+    timer_.Start(FROM_HERE, base::TimeDelta::FromSeconds(10),
                  base::BindOnce(&InstalledVersionPoller::Poll,
                                 base::Unretained(this), PollType::kMonitor));
   } else {
@@ -170,10 +184,14 @@ void InstalledVersionPoller::OnMonitorResult(bool error) {
 
 void InstalledVersionPoller::Poll(PollType poll_type) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  // Get the result back via a weak pointer so that the result is dropped on the
-  // floor should this instance be destroyed while polling.
-  get_installed_version_.Run(
+  // Run the version getter in the background. Get the result back via a weak
+  // pointer so that the result is dropped on the floor should this instance be
+  // destroyed while polling.
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE,
+      {base::TaskPriority::BEST_EFFORT,
+       base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN, base::MayBlock()},
+      base::BindOnce(get_installed_version_),
       base::BindOnce(&InstalledVersionPoller::OnInstalledVersion,
                      weak_ptr_factory_.GetWeakPtr(), poll_type));
 }
@@ -199,15 +217,26 @@ void InstalledVersionPoller::OnInstalledVersion(
   if (update_type == BuildState::UpdateType::kNone) {
     // The discovered version matches the current version, so report that no
     // update is available.
-    build_state_->SetUpdate(update_type, base::Version(), absl::nullopt);
+    build_state_->SetUpdate(update_type, base::Version(), base::nullopt);
   } else {
     // Either the installed version could not be discovered (invalid installed
     // version) or differs from the running version. Report it accordingly.
     build_state_->SetUpdate(update_type, versions.installed_version,
                             versions.critical_version);
+    // Report the first type of poll that discovers an update.
+    RecordPollTypeOnce(poll_type);
   }
   // Poll again after the polling interval passes.
   timer_.Start(FROM_HERE, GetPollingInterval(),
                base::BindOnce(&InstalledVersionPoller::Poll,
                               base::Unretained(this), PollType::kPeriodic));
+}
+
+void InstalledVersionPoller::RecordPollTypeOnce(PollType poll_type) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  if (recorded_poll_type_)
+    return;
+
+  base::UmaHistogramEnumeration("UpgradeDetector.PollType", poll_type);
+  recorded_poll_type_ = true;
 }

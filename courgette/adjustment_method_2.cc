@@ -1,9 +1,7 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ref.h"
 #include "courgette/adjustment_method.h"
 
 #include <stddef.h>
@@ -19,6 +17,7 @@
 
 #include "base/format_macros.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/strings/stringprintf.h"
 #include "base/time/time.h"
 #include "courgette/assembly_program.h"
@@ -181,7 +180,7 @@ class LabelInfo {
 
   AssignmentCandidates* candidates();
 
-  raw_ptr<Label> label_;  // The label that this info a surrogate for.
+  Label* label_;             // The label that this info a surrogate for.
 
   uint32_t is_model_ : 1;      // Is the label in the model?
   uint32_t debug_index_ : 31;  // A small number for naming the label in debug
@@ -190,13 +189,12 @@ class LabelInfo {
 
   int refs_;                 // Number of times this Label is referenced.
 
-  raw_ptr<LabelInfo>
-      assignment_;  // Label from other program corresponding to this.
+  LabelInfo* assignment_;    // Label from other program corresponding to this.
 
   std::vector<uint32_t> positions_;  // Offsets into the trace of references.
 
  private:
-  raw_ptr<AssignmentCandidates> candidates_;
+  AssignmentCandidates* candidates_;
 
   void operator=(const LabelInfo*);  // Disallow assignment only.
   // Public compiler generated copy constructor is needed to constuct
@@ -221,9 +219,6 @@ class LabelInfoMaker {
  public:
   LabelInfoMaker() : debug_label_index_gen_(0) {}
 
-  LabelInfoMaker(const LabelInfoMaker&) = delete;
-  LabelInfoMaker& operator=(const LabelInfoMaker&) = delete;
-
   LabelInfo* MakeLabelInfo(Label* label, bool is_model, uint32_t position) {
     LabelInfo& slot = label_infos_[label];
     if (slot.label_ == nullptr) {
@@ -244,6 +239,8 @@ class LabelInfoMaker {
   // Note LabelInfo is allocated 'flat' inside map::value_type, so the LabelInfo
   // lifetimes are managed by the map.
   std::map<Label*, LabelInfo> label_infos_;
+
+  DISALLOW_COPY_AND_ASSIGN(LabelInfoMaker);
 };
 
 struct OrderLabelInfo {
@@ -315,11 +312,14 @@ class AssignmentCandidates {
   void ApplyPendingUpdates() {
     // TODO(sra): try to walk |pending_updates_| and |label_to_score_| in
     // lockstep.  Try to batch updates to |queue_|.
+    size_t zeroes = 0;
     for (LabelToScore::iterator p = pending_updates_.begin();
          p != pending_updates_.end();
          ++p) {
       if (p->second != 0)
         Update(p->first, p->second);
+      else
+        ++zeroes;
     }
     pending_updates_.clear();
   }
@@ -349,7 +349,7 @@ class AssignmentCandidates {
   };
   typedef std::set<ScoreAndLabel, OrderScoreAndLabelByScoreDecreasing> Queue;
 
-  raw_ptr<LabelInfo> program_info_;
+  LabelInfo* program_info_;
   LabelToScore label_to_score_;
   LabelToScore pending_updates_;
   Queue queue_;
@@ -378,12 +378,6 @@ class Shingle {
 
   typedef std::set<Shingle, InterningLess> OwningSet;
 
-  // We can't disallow the copy constructor because we use std::set<Shingle> and
-  // VS2005's implementation of std::set<T>::set() requires T to have a copy
-  // constructor.
-  Shingle(const Shingle&) = default;
-  Shingle& operator=(const Shingle&) = delete;  // Disallow assignment only.
-
   static Shingle* Find(const Trace& trace, size_t position,
                        OwningSet* owning_set) {
     std::pair<OwningSet::iterator, bool> pair =
@@ -398,7 +392,7 @@ class Shingle {
     return shingle;
   }
 
-  LabelInfo* at(size_t i) const { return (*trace_)[exemplar_position_ + i]; }
+  LabelInfo* at(size_t i) const { return trace_[exemplar_position_ + i]; }
   void add_position(size_t position) {
     positions_.push_back(static_cast<uint32_t>(position));
   }
@@ -423,14 +417,19 @@ class Shingle {
         exemplar_position_(exemplar_position),
         pattern_(nullptr) {}
 
-  const raw_ref<const Trace> trace_;  // The shingle lives inside trace_.
+  const Trace& trace_;             // The shingle lives inside trace_.
   size_t exemplar_position_;       // At this position (and other positions).
   std::vector<uint32_t> positions_;  // Includes exemplar_position_.
 
-  raw_ptr<ShinglePattern>
-      pattern_;  // Pattern changes as LabelInfos are assigned.
+  ShinglePattern* pattern_;       // Pattern changes as LabelInfos are assigned.
 
   friend std::string ToString(const Shingle* instance);
+
+  // We can't disallow the copy constructor because we use std::set<Shingle> and
+  // VS2005's implementation of std::set<T>::set() requires T to have a copy
+  // constructor.
+  //   DISALLOW_COPY_AND_ASSIGN(Shingle);
+  void operator=(const Shingle&) = delete;  // Disallow assignment only.
 };
 
 std::string ToString(const Shingle* instance) {
@@ -511,7 +510,7 @@ class ShinglePattern {
       Shingle::PointerLess resolve_ties;
     };
    private:
-    raw_ptr<const Shingle> instance_;
+    const Shingle* instance_;
   };
 
   typedef std::set<FreqView, FreqView::Greater> Histogram;
@@ -519,8 +518,7 @@ class ShinglePattern {
   ShinglePattern()
       : index_(nullptr), model_coverage_(0), program_coverage_(0) {}
 
-  raw_ptr<const Index>
-      index_;  // Points to the key in the owning map value_type.
+  const Index* index_;  // Points to the key in the owning map value_type.
   Histogram model_histogram_;
   Histogram program_histogram_;
   int model_coverage_;
@@ -753,9 +751,6 @@ class VariableQueue {
 
   VariableQueue() = default;
 
-  VariableQueue(const VariableQueue&) = delete;
-  VariableQueue& operator=(const VariableQueue&) = delete;
-
   bool empty() const { return queue_.empty(); }
 
   const ScoreAndLabel& first() const { return *queue_.begin(); }
@@ -803,6 +798,8 @@ class VariableQueue {
 
   Queue queue_;
   std::vector<AssignmentCandidates*> pending_update_candidates_;
+
+  DISALLOW_COPY_AND_ASSIGN(VariableQueue);
 };
 
 
@@ -815,18 +812,15 @@ class AssignmentProblem {
             << trace.size();
   }
 
-  AssignmentProblem(const AssignmentProblem&) = delete;
-  AssignmentProblem& operator=(const AssignmentProblem&) = delete;
-
   bool Solve() {
     if (model_end_ < Shingle::kWidth ||
-        trace_->size() - model_end_ < Shingle::kWidth) {
+        trace_.size() - model_end_ < Shingle::kWidth) {
       // Nothing much we can do with such a short problem.
       return true;
     }
-    instances_.resize(trace_->size() - Shingle::kWidth + 1, nullptr);
+    instances_.resize(trace_.size() - Shingle::kWidth + 1, nullptr);
     AddShingles(0, model_end_);
-    AddShingles(model_end_, trace_->size());
+    AddShingles(model_end_, trace_.size());
     InitialClassify();
     AddPatternsNeedingUpdatesToQueues();
 
@@ -858,8 +852,9 @@ class AssignmentProblem {
       SingleUsePatternQueue;
 
   void PrintPatternsHeader() const {
-    VLOG(2) << shingle_instances_.size() << " instances  " << trace_->size()
-            << " trace length  " << patterns_.size() << " shingle indexes  "
+    VLOG(2) << shingle_instances_.size() << " instances  "
+            << trace_.size() << " trace length  "
+            << patterns_.size() << " shingle indexes  "
             << single_use_pattern_queue_.size() << " single use patterns  "
             << active_non_single_use_patterns_.size() << " active patterns";
   }
@@ -901,7 +896,7 @@ class AssignmentProblem {
 
   void AddShingles(size_t begin, size_t end) {
     for (size_t i = begin; i + Shingle::kWidth - 1 < end; ++i) {
-      instances_[i] = Shingle::Find(*trace_, i, &shingle_instances_);
+      instances_[i] = Shingle::Find(trace_, i, &shingle_instances_);
     }
   }
 
@@ -958,7 +953,7 @@ class AssignmentProblem {
       size_t position = info->positions_[i];
       // Find bounds to the subrange of |trace_| we are in.
       size_t start = position < model_end_ ? 0 : model_end_;
-      size_t end = position < model_end_ ? model_end_ : trace_->size();
+      size_t end = position < model_end_ ? model_end_ : trace_.size();
 
       // Clip [position-kWidth+1, position+1)
       size_t low =
@@ -1206,7 +1201,7 @@ class AssignmentProblem {
  private:
   // The trace vector contains the model sequence [0, model_end_) followed by
   // the program sequence [model_end_, trace.end())
-  const raw_ref<const Trace> trace_;
+  const Trace& trace_;
   size_t model_end_;
 
   // |shingle_instances_| is the set of 'interned' shingles.
@@ -1226,15 +1221,13 @@ class AssignmentProblem {
   typedef std::map<ShinglePattern::Index,
                    ShinglePattern, ShinglePatternIndexLess> IndexToPattern;
   IndexToPattern patterns_;
+
+  DISALLOW_COPY_AND_ASSIGN(AssignmentProblem);
 };
 
 class Adjuster : public AdjustmentMethod {
  public:
   Adjuster() : prog_(nullptr), model_(nullptr) {}
-
-  Adjuster(const Adjuster&) = delete;
-  Adjuster& operator=(const Adjuster&) = delete;
-
   ~Adjuster() = default;
 
   bool Adjust(const AssemblyProgram& model, AssemblyProgram* program) {
@@ -1288,11 +1281,13 @@ class Adjuster : public AdjustmentMethod {
         label, is_model, static_cast<uint32_t>(trace->size())));
   }
 
-  raw_ptr<AssemblyProgram> prog_;  // Program to be adjusted, owned by caller.
-  raw_ptr<const AssemblyProgram>
-      model_;  // Program to be mimicked, owned by caller.
+  AssemblyProgram* prog_;         // Program to be adjusted, owned by caller.
+  const AssemblyProgram* model_;  // Program to be mimicked, owned by caller.
 
   LabelInfoMaker label_info_maker_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(Adjuster);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

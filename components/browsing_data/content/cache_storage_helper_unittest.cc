@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,12 +18,10 @@ namespace {
 
 class CannedCacheStorageHelperTest : public testing::Test {
  public:
-  content::StoragePartition* storage_partition() {
-    return browser_context_.GetDefaultStoragePartition();
-  }
-
-  scoped_refptr<CannedCacheStorageHelper> MakeHelper() {
-    return base::MakeRefCounted<CannedCacheStorageHelper>(storage_partition());
+  content::CacheStorageContext* CacheStorageContext() {
+    return content::BrowserContext::GetDefaultStoragePartition(
+               &browser_context_)
+        ->GetCacheStorageContext();
   }
 
  private:
@@ -34,7 +32,9 @@ class CannedCacheStorageHelperTest : public testing::Test {
 TEST_F(CannedCacheStorageHelperTest, Empty) {
   const GURL origin("http://host1:1/");
 
-  auto helper = MakeHelper();
+  scoped_refptr<CannedCacheStorageHelper> helper(
+      new CannedCacheStorageHelper(CacheStorageContext()));
+
   ASSERT_TRUE(helper->empty());
   helper->Add(url::Origin::Create(origin));
   ASSERT_FALSE(helper->empty());
@@ -46,7 +46,9 @@ TEST_F(CannedCacheStorageHelperTest, Delete) {
   const url::Origin origin1 = url::Origin::Create(GURL("http://host1:9000"));
   const url::Origin origin2 = url::Origin::Create(GURL("http://example.com"));
 
-  auto helper = MakeHelper();
+  scoped_refptr<CannedCacheStorageHelper> helper(
+      new CannedCacheStorageHelper(CacheStorageContext()));
+
   EXPECT_TRUE(helper->empty());
   helper->Add(origin1);
   helper->Add(origin2);
@@ -60,7 +62,9 @@ TEST_F(CannedCacheStorageHelperTest, IgnoreExtensionsAndDevTools) {
   const GURL origin1("chrome-extension://abcdefghijklmnopqrstuvwxyz/");
   const GURL origin2("devtools://abcdefghijklmnopqrstuvwxyz/");
 
-  auto helper = MakeHelper();
+  scoped_refptr<CannedCacheStorageHelper> helper(
+      new CannedCacheStorageHelper(CacheStorageContext()));
+
   ASSERT_TRUE(helper->empty());
   helper->Add(url::Origin::Create(origin1));
   ASSERT_TRUE(helper->empty());

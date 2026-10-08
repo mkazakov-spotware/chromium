@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,8 @@
 #include <type_traits>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
-#include "base/scoped_observation_traits.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/event_router_factory.h"
 #include "extensions/common/extension_id.h"
@@ -36,10 +36,6 @@ class TestEventRouter : public EventRouter {
   };
 
   explicit TestEventRouter(content::BrowserContext* context);
-
-  TestEventRouter(const TestEventRouter&) = delete;
-  TestEventRouter& operator=(const TestEventRouter&) = delete;
-
   ~TestEventRouter() override;
 
   // Returns the number of times an event has been broadcast or dispatched.
@@ -68,6 +64,8 @@ class TestEventRouter : public EventRouter {
   std::map<std::string, int> seen_events_;
 
   base::ObserverList<EventObserver, false>::Unchecked observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestEventRouter);
 };
 
 // Creates and enables a TestEventRouter for testing. Callers can override T to
@@ -87,24 +85,5 @@ T* CreateAndUseTestEventRouter(content::BrowserContext* context) {
 }
 
 }  // namespace extensions
-
-namespace base {
-
-template <>
-struct ScopedObservationTraits<extensions::TestEventRouter,
-                               extensions::TestEventRouter::EventObserver> {
-  static void AddObserver(
-      extensions::TestEventRouter* source,
-      extensions::TestEventRouter::EventObserver* observer) {
-    source->AddEventObserver(observer);
-  }
-  static void RemoveObserver(
-      extensions::TestEventRouter* source,
-      extensions::TestEventRouter::EventObserver* observer) {
-    source->RemoveEventObserver(observer);
-  }
-};
-
-}  // namespace base
 
 #endif  // EXTENSIONS_BROWSER_TEST_EVENT_ROUTER_H_

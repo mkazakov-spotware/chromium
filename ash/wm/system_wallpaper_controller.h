@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "ash/ash_export.h"
+#include "base/macros.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/aura/window_observer.h"
 
@@ -27,11 +28,6 @@ namespace ash {
 class SystemWallpaperController : public aura::WindowObserver {
  public:
   SystemWallpaperController(aura::Window* root_window, SkColor color);
-
-  SystemWallpaperController(const SystemWallpaperController&) = delete;
-  SystemWallpaperController& operator=(const SystemWallpaperController&) =
-      delete;
-
   ~SystemWallpaperController() override;
 
   void SetColor(SkColor color);
@@ -48,6 +44,8 @@ class SystemWallpaperController : public aura::WindowObserver {
   aura::Window* root_window_;  // not owned
 
   std::unique_ptr<ui::Layer> layer_;
+
+  DISALLOW_COPY_AND_ASSIGN(SystemWallpaperController);
 };
 
 }  // namespace ash

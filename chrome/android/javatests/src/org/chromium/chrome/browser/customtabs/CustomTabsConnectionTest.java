@@ -1,8 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.customtabs;
+
+import static org.junit.Assert.assertEquals;
 
 import static org.chromium.base.test.util.Restriction.RESTRICTION_TYPE_LOW_END_DEVICE;
 import static org.chromium.base.test.util.Restriction.RESTRICTION_TYPE_NON_LOW_END_DEVICE;
@@ -33,12 +35,13 @@ import org.junit.runner.RunWith;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisabledTest;
+import org.chromium.base.test.util.MetricsUtils;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.browser.WarmupManager;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
-import org.chromium.chrome.browser.prefetch.settings.PreloadPagesSettingsBridge;
-import org.chromium.chrome.browser.prefetch.settings.PreloadPagesState;
+import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManager;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
@@ -122,7 +125,8 @@ public class CustomTabsConnectionTest {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             WarmupManager warmupManager = WarmupManager.getInstance();
             Assert.assertTrue(warmupManager.hasSpareWebContents());
-            WebContents webContents = warmupManager.takeSpareWebContents(false, false);
+            WebContents webContents =
+                    warmupManager.takeSpareWebContents(false, false, WarmupManager.FOR_CCT);
             Assert.assertNotNull(webContents);
             Assert.assertFalse(warmupManager.hasSpareWebContents());
             webContents.destroy();
@@ -286,7 +290,7 @@ public class CustomTabsConnectionTest {
                     tabDestroyedHelper.notifyCalled();
                 }
             });
-            WebContentsUtils.simulateRendererKilled(speculationTab.getWebContents());
+            WebContentsUtils.simulateRendererKilled(speculationTab.getWebContents(), false);
         });
         tabDestroyedHelper.waitForCallback("The speculated tab was not destroyed", 0);
     }
@@ -364,12 +368,13 @@ public class CustomTabsConnectionTest {
         mCustomTabsConnection.mayLaunchUrl(token, Uri.parse(URL), null, urls);
         TestThreadUtils.runOnUiThreadBlocking(
                 ()
-                        -> Assert.assertNull(
-                                WarmupManager.getInstance().takeSpareWebContents(false, false)));
+                        -> Assert.assertNull(WarmupManager.getInstance().takeSpareWebContents(
+                                false, false, WarmupManager.FOR_CCT)));
     }
 
     private void assertSpareWebContentsNotNullAndDestroy() {
-        WebContents webContents = WarmupManager.getInstance().takeSpareWebContents(false, false);
+        WebContents webContents = WarmupManager.getInstance().takeSpareWebContents(
+                false, false, WarmupManager.FOR_CCT);
         Assert.assertNotNull(webContents);
         webContents.destroy();
     }
@@ -425,6 +430,23 @@ public class CustomTabsConnectionTest {
     @SmallTest
     public void testMayLaunchUrl() throws Exception {
         assertWarmupAndMayLaunchUrl(null, URL, true);
+    }
+
+    /**
+     * Tests that
+     * {@link
+     * CustomTabsConnection#mayLaunchUrlReportsNavigationPredictorService(CustomTabsSessionToken,
+     * Uri, Bundle, List)} succeeds.
+     */
+    @Test
+    @SmallTest
+    public void testMayLaunchUrlReportsNavigationPredictorService() throws Exception {
+        MetricsUtils.HistogramDelta delta = new MetricsUtils.HistogramDelta(
+                "NavigationPredictor.ExternalAndroidApp.CountPredictedURLs", 1);
+        assertWarmupAndMayLaunchUrl(null, URL, true);
+
+        CriteriaHelper.pollUiThread(() -> delta.getDelta() > 0);
+        assertEquals(1, delta.getDelta());
     }
 
     /**
@@ -585,8 +607,8 @@ public class CustomTabsConnectionTest {
         Assert.assertTrue(mCustomTabsConnection.mayLaunchUrl(token, Uri.parse(URL), null, null));
         TestThreadUtils.runOnUiThreadBlocking(
                 ()
-                        -> Assert.assertNull(
-                                WarmupManager.getInstance().takeSpareWebContents(false, false)));
+                        -> Assert.assertNull(WarmupManager.getInstance().takeSpareWebContents(
+                                false, false, WarmupManager.FOR_CCT)));
     }
 
     @Test
@@ -599,12 +621,11 @@ public class CustomTabsConnectionTest {
         CustomTabsTestUtils.warmUpAndWait();
 
         // Needs the browser process to be initialized.
-        @PreloadPagesState
-        int state = TestThreadUtils.runOnUiThreadBlocking(() -> {
-            @PreloadPagesState
-            int oldState = PreloadPagesSettingsBridge.getState();
-            PreloadPagesSettingsBridge.setState(PreloadPagesState.NO_PRELOADING);
-            return oldState;
+        boolean enabled = TestThreadUtils.runOnUiThreadBlocking(() -> {
+            boolean oldEnabled =
+                    PrivacyPreferencesManager.getInstance().getNetworkPredictionEnabled();
+            PrivacyPreferencesManager.getInstance().setNetworkPredictionEnabled(false);
+            return oldEnabled;
         });
 
         try {
@@ -612,7 +633,10 @@ public class CustomTabsConnectionTest {
                     mCustomTabsConnection.mayLaunchUrl(token, Uri.parse(URL), null, null));
             TestThreadUtils.runOnUiThreadBlocking(this::assertSpareWebContentsNotNullAndDestroy);
         } finally {
-            TestThreadUtils.runOnUiThreadBlocking(() -> PreloadPagesSettingsBridge.setState(state));
+            TestThreadUtils.runOnUiThreadBlocking(
+                    ()
+                            -> PrivacyPreferencesManager.getInstance().setNetworkPredictionEnabled(
+                                    enabled));
         }
     }
 

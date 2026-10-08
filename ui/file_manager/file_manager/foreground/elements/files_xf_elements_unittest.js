@@ -1,14 +1,6 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {assert} from 'chrome://resources/js/assert.js';
-import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chromeos/chai_assert.js';
-
-import {waitUntil} from '../../common/js/test_error_reporting.js';
-import {str, util} from '../../common/js/util.js';
-
-import {DisplayPanel} from './xf_display_panel.js';
 
 /** @type {!DisplayPanel|!Element} */
 let displayPanel;
@@ -16,13 +8,29 @@ let displayPanel;
 /**
  * Adds a xf-display-panel element to the test page.
  */
-export function setUp() {
+function setUp() {
   document.body.innerHTML +=
       '<xf-display-panel id="test-xf-display-panel"></xf-display-panel>';
   displayPanel = assert(document.querySelector('#test-xf-display-panel'));
+
+  const enableFilesTransferDetails = true;
+
+  // Mock LoadTimeData strings for transfer details feature.
+  window.loadTimeData.data = {
+    FILES_TRANSFER_DETAILS_ENABLED: enableFilesTransferDetails
+  };
+
+  window.loadTimeData.getString = id => {
+    return window.loadTimeData.data_[id] || id;
+  };
+
+  /** @return {boolean} */
+  window.isTransferDetailsEnabled = () => {
+    return enableFilesTransferDetails;
+  };
 }
 
-export function tearDown() {
+function tearDown() {
   displayPanel.removeAllPanelItems();
 }
 
@@ -30,7 +38,7 @@ export function tearDown() {
  * Tests that adding and removing panels to <xf-display-panel> updates the
  * aria-hidden attribute.
  */
-export function testDisplayPanelAriaHidden() {
+function testDisplayPanelAriaHidden() {
   // Starts without any panel so should be hidden;
   assertEquals(displayPanel.getAttribute('aria-hidden'), 'true');
 
@@ -57,7 +65,7 @@ export function testDisplayPanelAriaHidden() {
   assertEquals(displayPanel.getAttribute('aria-hidden'), 'true');
 }
 
-export async function testDisplayPanelAttachPanel(done) {
+async function testDisplayPanelAttachPanel(done) {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -95,7 +103,7 @@ export async function testDisplayPanelAttachPanel(done) {
   done();
 }
 
-export async function testDisplayPanelChangingPanelTypes(done) {
+async function testDisplayPanelChangingPanelTypes(done) {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -143,7 +151,7 @@ export async function testDisplayPanelChangingPanelTypes(done) {
 
   // Check dismiss signal from the panel from a click.
   /** @type {!HTMLElement} */
-  let dismiss = assert(panelItem.primaryButton);
+  let dismiss = assert(panelItem.secondaryButton);
   dismiss.click();
   assertEquals(
       signal, 'dismiss', 'Expected signal name "dismiss". Got ' + signal);
@@ -190,7 +198,7 @@ export async function testDisplayPanelChangingPanelTypes(done) {
   done();
 }
 
-export function testFilesDisplayPanelErrorText() {
+function testFilesDisplayPanelErrorText() {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -218,7 +226,7 @@ export function testFilesDisplayPanelErrorText() {
 
   // Check the default primary text displays a generic error message.
   // Note, the i18n message gets smooshed into 'An error occurred.' in the app.
-  assertEquals(str('FILE_ERROR_GENERIC'), panelItem.primaryText);
+  assertEquals('$i18n{FILE_ERROR_GENERIC}', panelItem.primaryText);
 
   // Check the secondary text is empty.
   assertEquals('', panelItem.secondaryText);
@@ -229,7 +237,7 @@ util.strf = (end, option) => {
   return option + end;
 };
 
-export function testFilesDisplayPanelErrorMarker() {
+function testFilesDisplayPanelErrorMarker() {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -266,7 +274,7 @@ export function testFilesDisplayPanelErrorMarker() {
       'Summary panel error marker property is wrong, should be "hidden"');
 }
 
-export function testFilesDisplayPanelMixedSummary() {
+function testFilesDisplayPanelMixedSummary() {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -326,7 +334,7 @@ export function testFilesDisplayPanelMixedSummary() {
   assertEquals('success', summaryPanelItem.status);
 }
 
-export function testFilesDisplayPanelMixedProgress() {
+function testFilesDisplayPanelMixedProgress() {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -361,7 +369,7 @@ export function testFilesDisplayPanelMixedProgress() {
   assertEquals('3', summaryPanelItem.progress);
 }
 
-export function testFilesDisplayPanelCircularProgress() {
+function testFilesDisplayPanelCircularProgress() {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -381,7 +389,7 @@ export function testFilesDisplayPanelCircularProgress() {
   assertEquals('4', strokeWidthContainerGroup.getAttribute('stroke-width'));
 }
 
-export async function testFilesDisplayPanelSummaryPanel(done) {
+async function testFilesDisplayPanelSummaryPanel(done) {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -442,7 +450,7 @@ export async function testFilesDisplayPanelSummaryPanel(done) {
   done();
 }
 
-export function testFilesDisplayPanelTransferDetails() {
+function testFilesDisplayPanelTransferDetails() {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -455,7 +463,7 @@ export function testFilesDisplayPanelTransferDetails() {
   assertEquals('detailed-panel', progressPanel.getAttribute('detailed-panel'));
 }
 
-export async function testFilesDisplayPanelTransferDetailsSummary(done) {
+async function testFilesDisplayPanelTransferDetailsSummary(done) {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -486,46 +494,6 @@ export async function testFilesDisplayPanelTransferDetailsSummary(done) {
   // Confirm the panel container is no longer hidden.
   assertFalse(panelContainer.hasAttribute('hidden'));
   assertEquals('expanded', summaryPanelItem.getAttribute('data-category'));
-
-  done();
-}
-
-/**
- * Tests that the extra-button appears when the value is in the dataset and
- * sends the appropriate signal on click.
- */
-export async function testExtraButtonCanBeAddedAndRespondsToAction(done) {
-  // Get the host display panel container element.
-  /** @type {!DisplayPanel|!Element} */
-  const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
-  const panelItem = displayPanel.addPanelItem('testpanel');
-  panelItem.dataset.extraButtonText = 'Extra button';
-  panelItem.panelType = panelItem.panelTypeDone;
-
-  // Setup the panel item signal (click) callback.
-  /** @type {?string} */
-  let signal = null;
-  panelItem.signalCallback = (name) => {
-    assert(typeof name === 'string');
-    signal = name;
-  };
-
-  /** @type {!HTMLElement} */
-  const extraButton = assert(panelItem.primaryButton);
-  extraButton.click();
-  await waitUntil(() => !!signal);
-  assertEquals(
-      signal, 'extra-button',
-      'Expected signal name "extra-button". Got ' + signal);
-  signal = null;
-
-  // Check dismiss signal from the panel from a click.
-  /** @type {!HTMLElement} */
-  const dismiss = assert(panelItem.secondaryButton);
-  dismiss.click();
-  await waitUntil(() => !!signal);
-  assertEquals(
-      signal, 'dismiss', 'Expected signal name "dismiss". Got ' + signal);
 
   done();
 }

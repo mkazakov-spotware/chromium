@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,13 +28,13 @@ static gfx::ColorSpace test;
 static gfx::ColorSpace srgb;
 
 static void ColorTransform(size_t hash) {
-  const gfx::ColorTransform::Options options;
+  const auto kIntent = static_cast<gfx::ColorTransform::Intent>(hash & 1);
 
   std::unique_ptr<gfx::ColorTransform> transform;
   if (hash & 2) {
-    transform = gfx::ColorTransform::NewColorTransform(test, srgb, options);
+    transform = gfx::ColorTransform::NewColorTransform(test, srgb, kIntent);
   } else {
-    transform = gfx::ColorTransform::NewColorTransform(srgb, test, options);
+    transform = gfx::ColorTransform::NewColorTransform(srgb, test, kIntent);
   }
 
   transform->Transform(pixels, kPixels);

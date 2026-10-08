@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,8 @@
 #include <memory>
 #include <vector>
 
-#include "base/metrics/histogram_functions.h"
+#include "base/macros.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
@@ -19,7 +20,7 @@
 #include "chrome/common/safe_browsing/mach_o_image_reader_mac.h"
 #include "chrome/utility/safe_browsing/mac/dmg_iterator.h"
 #include "chrome/utility/safe_browsing/mac/read_stream.h"
-#include "components/safe_browsing/core/common/proto/csd.pb.h"
+#include "components/safe_browsing/core/proto/csd.pb.h"
 #include "crypto/secure_hash.h"
 #include "crypto/sha2.h"
 
@@ -37,10 +38,6 @@ const double kDmgAnalysisTimeoutMs = 10000;
 class MachOFeatureExtractor {
  public:
   MachOFeatureExtractor();
-
-  MachOFeatureExtractor(const MachOFeatureExtractor&) = delete;
-  MachOFeatureExtractor& operator=(const MachOFeatureExtractor&) = delete;
-
   ~MachOFeatureExtractor();
 
   // Tests if the stream references a Mach-O image by examinig its magic
@@ -60,6 +57,8 @@ class MachOFeatureExtractor {
 
   scoped_refptr<BinaryFeatureExtractor> bfe_;
   std::vector<uint8_t> buffer_;  // Buffer that contains read stream data.
+
+  DISALLOW_COPY_AND_ASSIGN(MachOFeatureExtractor);
 };
 
 MachOFeatureExtractor::MachOFeatureExtractor()
@@ -141,15 +140,8 @@ void AnalyzeDMGFile(DMGIterator* iterator, ArchiveAnalyzerResults* results) {
   base::Time start_time = base::Time::Now();
   results->success = false;
 
-  bool opened_iterator = iterator->Open();
-  if (!opened_iterator) {
-    results->analysis_result = safe_browsing::ArchiveAnalysisResult::kUnknown;
+  if (!iterator->Open())
     return;
-  } else if (iterator->IsEmpty()) {
-    results->analysis_result =
-        safe_browsing::ArchiveAnalysisResult::kDmgNoPartitions;
-    return;
-  }
 
   MachOFeatureExtractor feature_extractor;
 
@@ -161,7 +153,7 @@ void AnalyzeDMGFile(DMGIterator* iterator, ArchiveAnalyzerResults* results) {
     if (!stream)
       continue;
     if (base::Time::Now() - start_time >=
-        base::Milliseconds(kDmgAnalysisTimeoutMs)) {
+        base::TimeDelta::FromMilliseconds(kDmgAnalysisTimeoutMs)) {
       timeout = true;
       break;
     }
@@ -178,11 +170,11 @@ void AnalyzeDMGFile(DMGIterator* iterator, ArchiveAnalyzerResults* results) {
       if (!ReadEntireStream(stream.get(), &signature_contents))
         continue;
 
-      if (signature_contents.size() < std::size(kDERPKCS7SignedData))
+      if (signature_contents.size() < base::size(kDERPKCS7SignedData))
         continue;
 
       if (memcmp(kDERPKCS7SignedData, signature_contents.data(),
-                 std::size(kDERPKCS7SignedData)) != 0) {
+                 base::size(kDERPKCS7SignedData)) != 0) {
         continue;
       }
 
@@ -207,12 +199,8 @@ void AnalyzeDMGFile(DMGIterator* iterator, ArchiveAnalyzerResults* results) {
     }
   }
 
-  if (timeout) {
-    results->analysis_result = safe_browsing::ArchiveAnalysisResult::kTimeout;
-  } else {
-    results->analysis_result = safe_browsing::ArchiveAnalysisResult::kValid;
+  if (!timeout)
     results->success = true;
-  }
 }
 
 }  // namespace dmg

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,14 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "device/vr/gl_bindings.h"
 #include "ui/gfx/geometry/size.h"
 
 namespace gl {
-class GLContext;
 class GLSurface;
+class GLContext;
 }  // namespace gl
 
 namespace gpu {

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.Log;
-import org.chromium.base.metrics.UmaRecorderHolder;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.MetricsUtils.HistogramDelta;
@@ -194,8 +193,6 @@ public class NQETest {
         cronetEngine.addRttListener(rttListener);
         cronetEngine.addThroughputListener(throughputListener);
 
-        // Hackish workaround to crbug.com/1338919
-        UmaRecorderHolder.onLibraryLoaded();
         HistogramDelta writeCountHistogram = new HistogramDelta("NQE.Prefs.WriteCount", 1);
         assertEquals(0, writeCountHistogram.getDelta()); // Sanity check.
 
@@ -304,8 +301,6 @@ public class NQETest {
             cronetEngine.configureNetworkQualityEstimatorForTesting(true, true, true);
             cronetEngine.addRttListener(rttListener);
 
-            // Hackish workaround to crbug.com/1338919
-            if (i == 0) UmaRecorderHolder.onLibraryLoaded();
             HistogramDelta writeCountHistogram = new HistogramDelta("NQE.Prefs.WriteCount", 1);
             assertEquals(0, writeCountHistogram.getDelta()); // Sanity check.
 

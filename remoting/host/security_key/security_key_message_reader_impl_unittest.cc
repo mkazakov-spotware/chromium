@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,12 +27,6 @@ namespace remoting {
 class SecurityKeyMessageReaderImplTest : public testing::Test {
  public:
   SecurityKeyMessageReaderImplTest();
-
-  SecurityKeyMessageReaderImplTest(const SecurityKeyMessageReaderImplTest&) =
-      delete;
-  SecurityKeyMessageReaderImplTest& operator=(
-      const SecurityKeyMessageReaderImplTest&) = delete;
-
   ~SecurityKeyMessageReaderImplTest() override;
 
   // SecurityKeyMessageCallback passed to the Reader. Stores |message| so it can
@@ -70,6 +64,8 @@ class SecurityKeyMessageReaderImplTest : public testing::Test {
   base::test::SingleThreadTaskEnvironment task_environment_{
       base::test::SingleThreadTaskEnvironment::MainThreadType::IO};
   std::unique_ptr<base::RunLoop> run_loop_;
+
+  DISALLOW_COPY_AND_ASSIGN(SecurityKeyMessageReaderImplTest);
 };
 
 SecurityKeyMessageReaderImplTest::SecurityKeyMessageReaderImplTest()
@@ -79,8 +75,7 @@ SecurityKeyMessageReaderImplTest::~SecurityKeyMessageReaderImplTest() = default;
 
 void SecurityKeyMessageReaderImplTest::SetUp() {
   ASSERT_TRUE(MakePipe(&read_file_, &write_file_));
-  reader_ =
-      std::make_unique<SecurityKeyMessageReaderImpl>(std::move(read_file_));
+  reader_.reset(new SecurityKeyMessageReaderImpl(std::move(read_file_)));
 
   // base::Unretained is safe since no further tasks can run after
   // RunLoop::Run() returns.
@@ -93,13 +88,13 @@ void SecurityKeyMessageReaderImplTest::SetUp() {
 
 void SecurityKeyMessageReaderImplTest::RunLoop() {
   run_loop_->Run();
-  run_loop_ = std::make_unique<base::RunLoop>();
+  run_loop_.reset(new base::RunLoop());
 }
 
 void SecurityKeyMessageReaderImplTest::CloseWriteFileAndRunLoop() {
   write_file_.Close();
   run_loop_->Run();
-  run_loop_ = std::make_unique<base::RunLoop>();
+  run_loop_.reset(new base::RunLoop());
 }
 
 void SecurityKeyMessageReaderImplTest::OnMessage(

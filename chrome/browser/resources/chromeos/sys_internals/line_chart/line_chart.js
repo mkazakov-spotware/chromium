@@ -1,15 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {createElementWithClassName} from 'chrome://resources/ash/common/util.js';
-
-import {BACKGROUND_COLOR, CHART_MARGIN, DEFAULT_SCALE, DRAG_RATE, GRID_COLOR, MAX_SCALE, MIN_LABEL_VERTICAL_SPACING, MIN_SCALE, MIN_TIME_LABEL_HORIZONTAL_SPACING, MOUSE_WHEEL_SCROLL_RATE, MOUSE_WHEEL_UNITS, SAMPLE_RATE, TEXT_COLOR, TIME_STEP_UNITS, TOUCH_ZOOM_UNITS, ZOOM_RATE} from './constants.js';
-import {DataSeries} from './data_series.js';
-import {Menu} from './menu.js';
-import {Scrollbar} from './scrollbar.js';
-import {SubChart} from './sub_chart.js';
-import {UnitLabel} from './unit_label.js';
+(function() {
+'use strict';
 
 /**
  * Create a canvas line chart. The object will enroll the events of the line
@@ -17,7 +11,7 @@ import {UnitLabel} from './unit_label.js';
  * and control other object. See README for usage.
  * @const
  */
-export class LineChart {
+LineChart.LineChart = class {
   constructor() {
     /** @type {Element} */
     this.rootDiv_ = null;
@@ -37,13 +31,13 @@ export class LineChart {
      * The scale of the line chart. Milliseconds per pixel.
      * @type {number}
      */
-    this.scale_ = DEFAULT_SCALE;
+    this.scale_ = LineChart.DEFAULT_SCALE;
 
     /**
      * |subChart| is the chart that all data series in it shares the same unit
      * label. There are two |SubChart| in |LineChart|, one's label align left,
-     * another's align right. See |SubChart|.
-     * @type {Array<SubChart>}
+     * another's align right. See |LineChart.SubChart|.
+     * @type {Array<LineChart.SubChart>}
      */
     this.subCharts_ = [null, null];
 
@@ -71,10 +65,10 @@ export class LineChart {
     this.touchZoomBase_ = 0;
 
     /**
-     * The menu to control the visibility of data series. See |Menu|.
-     * @const {Menu}
+     * The menu to control the visibility of data series. See |LineChart.Menu|.
+     * @const {LineChart.Menu}
      */
-    this.menu_ = new Menu(this.onMenuUpdate_.bind(this));
+    this.menu_ = new LineChart.Menu(this.onMenuUpdate_.bind(this));
 
     /** @const {Element} */
     this.canvas_ = createElementWithClassName('canvas', 'line-chart-canvas');
@@ -85,19 +79,18 @@ export class LineChart {
     /**
      * A dummy scrollbar to scroll the line chart and to show the current
      * visible position of the line chair.
-     * @const {Scrollbar}
+     * @const {LineChart.Scrollbar}
      */
-    this.scrollbar_ = new Scrollbar(this.update.bind(this));
+    this.scrollbar_ = new LineChart.Scrollbar(this.update.bind(this));
   }
 
   /**
-   * Attach the root div of
+   * Attach the root div of LineChart.
    * @param {Element} rootDiv
    */
   attachRootDiv(rootDiv) {
-    if (this.rootDiv_ != null) {
+    if (this.rootDiv_ != null)
       return;
-    }
 
     this.rootDiv_ = rootDiv;
 
@@ -147,7 +140,7 @@ export class LineChart {
     enrollNonPassiveEvent(
         this.canvas_, 'touchcancel', this.onTouchCancel_.bind(this));
 
-    const /** string */ pxString = `${CHART_MARGIN}px`;
+    const /** string */ pxString = `${LineChart.CHART_MARGIN}px`;
     const /** string */ marginString = `${pxString} ${pxString} 0 ${pxString}`;
     this.canvas_.style.margin = marginString;
   }
@@ -165,10 +158,10 @@ export class LineChart {
       console.warn(
           'WheelEvent.deltaMode is not set to WheelEvent.DOM_DELTA_PIXEL.');
     }
-    const wheelX = event.deltaX / MOUSE_WHEEL_UNITS;
-    const wheelY = -event.deltaY / MOUSE_WHEEL_UNITS;
-    this.scroll(MOUSE_WHEEL_SCROLL_RATE * wheelX);
-    this.zoom(Math.pow(ZOOM_RATE, -wheelY));
+    const wheelX = event.deltaX / LineChart.MOUSE_WHEEL_UNITS;
+    const wheelY = -event.deltaY / LineChart.MOUSE_WHEEL_UNITS;
+    this.scroll(LineChart.MOUSE_WHEEL_SCROLL_RATE * wheelX);
+    this.zoom(Math.pow(LineChart.ZOOM_RATE, -wheelY));
   }
 
   /**
@@ -186,11 +179,10 @@ export class LineChart {
    */
   onMouseMove_(event) {
     event.preventDefault();
-    if (!this.isDragging_) {
+    if (!this.isDragging_)
       return;
-    }
     const /** number */ dragDeltaX = event.clientX - this.dragX_;
-    this.scroll(DRAG_RATE * dragDeltaX);
+    this.scroll(LineChart.DRAG_RATE * dragDeltaX);
     this.dragX_ = event.clientX;
   }
 
@@ -235,20 +227,19 @@ export class LineChart {
    */
   onTouchMove_(event) {
     event.preventDefault();
-    if (!this.isTouching_) {
+    if (!this.isTouching_)
       return;
-    }
     const /** TouchList */ touches = event.targetTouches;
     if (touches.length == 1) {
       const /** number */ dragDeltaX = this.touchX_ - touches[0].clientX;
-      this.scroll(DRAG_RATE * dragDeltaX);
+      this.scroll(LineChart.DRAG_RATE * dragDeltaX);
       this.touchX_ = touches[0].clientX;
     } else if (touches.length == 2) {
       const /** number */ newDistance =
           this.constructor.touchDistance_(touches[0], touches[1]);
       const /** number */ zoomDelta =
-          (this.touchZoomBase_ - newDistance) / TOUCH_ZOOM_UNITS;
-      this.zoom(Math.pow(ZOOM_RATE, zoomDelta));
+          (this.touchZoomBase_ - newDistance) / LineChart.TOUCH_ZOOM_UNITS;
+      this.zoom(Math.pow(LineChart.ZOOM_RATE, zoomDelta));
       this.touchZoomBase_ = newDistance;
     }
   }
@@ -276,11 +267,11 @@ export class LineChart {
   zoom(rate) {
     const /** number */ oldScale = this.scale_;
     const /** number */ newScale = this.scale_ * rate;
-    this.scale_ = Math.max(MIN_SCALE, Math.min(newScale, MAX_SCALE));
+    this.scale_ =
+        Math.max(LineChart.MIN_SCALE, Math.min(newScale, LineChart.MAX_SCALE));
 
-    if (this.scale_ == oldScale) {
+    if (this.scale_ == oldScale)
       return;
-    }
 
     if (this.scrollbar_.isScrolledToRightEdge()) {
       this.updateScrollBar_();
@@ -309,12 +300,11 @@ export class LineChart {
    */
   scroll(delta) {
     const /** number */ oldPosition = this.scrollbar_.getPosition();
-    const /** number */ newPosition = oldPosition + Math.round(delta);
+    let /** number */ newPosition = oldPosition + Math.round(delta);
 
     this.scrollbar_.setPosition(newPosition);
-    if (this.scrollbar_.getPosition() == oldPosition) {
+    if (this.scrollbar_.getPosition() == oldPosition)
       return;
-    }
 
     this.update();
   }
@@ -328,7 +318,7 @@ export class LineChart {
   }
 
   /**
-   * Handle |Menu| update event.
+   * Handle |LineChart.Menu| update event.
    */
   onMenuUpdate_() {
     this.resize_();
@@ -338,13 +328,12 @@ export class LineChart {
   resize_() {
     const width = this.getChartVisibleWidth();
     const height = this.getChartVisibleHeight();
-    if (this.canvas_.width == width && this.canvas_.height == height) {
+    if (this.canvas_.width == width && this.canvas_.height == height)
       return;
-    }
 
     this.canvas_.width = width;
     this.canvas_.height = height;
-    const /** number */ scrollBarWidth = width + 2 * CHART_MARGIN;
+    const /** number */ scrollBarWidth = width + 2 * LineChart.CHART_MARGIN;
     this.scrollbar_.resize(scrollBarWidth);
     this.updateScrollBar_();
   }
@@ -384,7 +373,7 @@ export class LineChart {
     const /** number */ timeRange = this.endTime_ - this.startTime_;
 
     const /** number */ numOfPixels = Math.floor(timeRange / this.scale_);
-    const /** number */ sampleRate = SAMPLE_RATE;
+    const /** number */ sampleRate = LineChart.SAMPLE_RATE;
     /* To reduce CPU usage, the chart do not draw points at every pixels.
      * Remove the last few pixels to avoid the graph showing some blank at
      * the end of the graph. */
@@ -398,7 +387,8 @@ export class LineChart {
    * @return {number}
    */
   getChartVisibleWidth() {
-    return this.rootDiv_.offsetWidth - CHART_MARGIN * 2 - this.menu_.getWidth();
+    return this.rootDiv_.offsetWidth - LineChart.CHART_MARGIN * 2 -
+        this.menu_.getWidth();
   }
 
   /**
@@ -406,20 +396,21 @@ export class LineChart {
    * @return {number}
    */
   getChartVisibleHeight() {
-    return this.rootDiv_.offsetHeight - CHART_MARGIN -
+    return this.rootDiv_.offsetHeight - LineChart.CHART_MARGIN -
         this.scrollbar_.getHeight();
   }
 
   /**
    * Set or reset the |units| and the |unitBase| of the |SubChart|.
    * @param {number} align - The align side of the subchart.
-   * @param {Array<string>} units - See |UnitLabel|.
-   * @param {number} unitBase - See |UnitLabel|.
+   * @param {Array<string>} units - See |LineChart.UnitLabel|.
+   * @param {number} unitBase - See |LineChart.UnitLabel|.
    */
   setSubChart(align, units, unitBase) {
     this.clearSubChart(align);
-    const /** UnitLabel */ label = new UnitLabel(units, unitBase);
-    this.subCharts_[align] = new SubChart(label, align);
+    const /** LineChart.UnitLabel */ label =
+        new LineChart.UnitLabel(units, unitBase);
+    this.subCharts_[align] = new LineChart.SubChart(label, align);
     this.update();
   }
 
@@ -449,9 +440,9 @@ export class LineChart {
    * @param {number} align - The align side of the subchart.
    */
   clearSubChart(align) {
-    const /** SubChart */ oldSubChart = this.subCharts_[align];
+    const /** LineChart.SubChart */ oldSubChart = this.subCharts_[align];
     if (oldSubChart) {
-      const /** Array<DataSeries> */ dataSeriesList =
+      const /** Array<LineChart.DataSeries> */ dataSeriesList =
           oldSubChart.getDataSeriesList();
       for (let /** number */ i = 0; i < dataSeriesList.length; ++i) {
         this.menu_.removeDataSeries(dataSeriesList[i]);
@@ -465,10 +456,10 @@ export class LineChart {
    * Add a data series to a subchart of the line chart. Call |setSubChart|
    * before calling this function.
    * @param {number} align - The align side of the subchart.
-   * @param {DataSeries} dataSeries
+   * @param {LineChart.DataSeries} dataSeries
    */
   addDataSeries(align, dataSeries) {
-    const /** Array<SubChart> */ subCharts = this.subCharts_;
+    const /** Array<LineChart.SubChart> */ subCharts = this.subCharts_;
     if (subCharts[align] == null) {
       console.warn(
           'This sub chart has not been setup yet. ' +
@@ -487,9 +478,8 @@ export class LineChart {
    */
   update() {
     clearTimeout(this.chartUpdateTimer_);
-    if (!this.shouldRender()) {
+    if (!this.shouldRender())
       return;
-    }
     this.chartUpdateTimer_ = setTimeout(this.render_.bind(this));
   }
 
@@ -500,9 +490,8 @@ export class LineChart {
   shouldRender() {
     const subCharts = this.subCharts_;
     for (let /** number */ i = 0; i < subCharts.length; ++i) {
-      if (subCharts[i] != null && subCharts[i].shouldRender()) {
+      if (subCharts[i] != null && subCharts[i].shouldRender())
         return true;
-      }
     }
     return false;
   }
@@ -535,7 +524,7 @@ export class LineChart {
     const /** number */ visibleStartTime =
         this.startTime_ + position * this.scale_;
     const /** number */ graphHeight =
-        height - fontHeight - MIN_LABEL_VERTICAL_SPACING;
+        height - fontHeight - LineChart.MIN_LABEL_VERTICAL_SPACING;
     this.renderTimeLabels_(
         context, width, graphHeight, fontHeight, visibleStartTime);
     this.renderSubCharts_(
@@ -553,7 +542,7 @@ export class LineChart {
     context.lineWidth = 2;
     context.lineCap = 'round';
     context.lineJoin = 'round';
-    context.fillStyle = BACKGROUND_COLOR;
+    context.fillStyle = LineChart.BACKGROUND_COLOR;
     context.fillRect(0, 0, width, height);
   }
 
@@ -568,7 +557,7 @@ export class LineChart {
   renderTimeLabels_(context, width, height, fontHeight, startTime) {
     const /** string */ sampleText = (new Date(startTime)).toLocaleTimeString();
     const /** number */ minSpacing = context.measureText(sampleText).width +
-        MIN_TIME_LABEL_HORIZONTAL_SPACING;
+        LineChart.MIN_TIME_LABEL_HORIZONTAL_SPACING;
     const /** number */ timeStep =
         this.constructor.getSuitableTimeStep_(minSpacing, this.scale_);
     if (timeStep == 0) {
@@ -578,19 +567,18 @@ export class LineChart {
 
     context.textBaseline = 'bottom';
     context.textAlign = 'center';
-    context.fillStyle = TEXT_COLOR;
-    context.strokeStyle = GRID_COLOR;
+    context.fillStyle = LineChart.TEXT_COLOR;
+    context.strokeStyle = LineChart.GRID_COLOR;
     context.beginPath();
     const /** number */ yCoord =
-        height + fontHeight + MIN_LABEL_VERTICAL_SPACING;
+        height + fontHeight + LineChart.MIN_LABEL_VERTICAL_SPACING;
     const /** number */ firstTimeTick =
         Math.ceil(startTime / timeStep) * timeStep;
     let /** number */ time = firstTimeTick;
     while (true) {
       const /** number */ xCoord = Math.round((time - startTime) / this.scale_);
-      if (xCoord >= width) {
+      if (xCoord >= width)
         break;
-      }
       const /** string */ text = (new Date(time)).toLocaleTimeString();
       context.fillText(text, xCoord, yCoord);
       context.moveTo(xCoord, 0);
@@ -607,7 +595,7 @@ export class LineChart {
    * @return {number}
    */
   static getSuitableTimeStep_(minSpacing, scale) {
-    const /** Array<number> */ timeStepUnits = TIME_STEP_UNITS;
+    const /** Array<number> */ timeStepUnits = LineChart.TIME_STEP_UNITS;
     let /** number */ timeStep = 0;
     for (let /** number */ i = 0; i < timeStepUnits.length; ++i) {
       if (timeStepUnits[i] / scale >= minSpacing) {
@@ -624,7 +612,7 @@ export class LineChart {
    * @param {number} graphHeight
    */
   renderChartGrid_(context, graphWidth, graphHeight) {
-    context.strokeStyle = GRID_COLOR;
+    context.strokeStyle = LineChart.GRID_COLOR;
     context.strokeRect(0, 0, graphWidth - 1, graphHeight);
   }
 
@@ -640,15 +628,14 @@ export class LineChart {
   renderSubCharts_(
       context, graphWidth, graphHeight, fontHeight, visibleStartTime,
       position) {
-    const /** Array<SubChart> */ subCharts = this.subCharts_;
+    const /** Array<LineChart.SubChart> */ subCharts = this.subCharts_;
     /* To reduce CPU usage, the chart do not draw points at every pixels. Use
      * |offset| to make sure the graph won't shaking during scrolling, the line
      * chart will render the data points at the same absolute position. */
-    const /** number */ offset = position % SAMPLE_RATE;
+    const /** number */ offset = position % LineChart.SAMPLE_RATE;
     for (let /** number */ i = 0; i < subCharts.length; ++i) {
-      if (subCharts[i] == undefined) {
+      if (subCharts[i] == undefined)
         continue;
-      }
       subCharts[i].setLayout(
           graphWidth, graphHeight, fontHeight, visibleStartTime, this.scale_,
           offset);
@@ -656,4 +643,6 @@ export class LineChart {
       subCharts[i].renderUnitLabels(context);
     }
   }
-}
+};
+
+})();

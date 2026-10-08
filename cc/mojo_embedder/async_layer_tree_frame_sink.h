@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,11 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/read_only_shared_memory_region.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/threading/platform_thread.h"
-#include "build/build_config.h"
+#include "base/single_thread_task_runner.h"
 #include "cc/mojo_embedder/mojo_embedder_export.h"
 #include "cc/trees/layer_tree_frame_sink.h"
-#include "components/power_scheduler/power_mode_voter.h"
 #include "components/viz/common/frame_sinks/begin_frame_source.h"
 #include "components/viz/common/frame_timing_details_map.h"
 #include "components/viz/common/gpu/context_provider.h"
@@ -32,9 +28,6 @@
 #include "services/viz/public/mojom/compositing/compositor_frame_sink.mojom.h"
 
 namespace cc {
-
-class RasterContextProviderWrapper;
-
 namespace mojo_embedder {
 
 // A mojo-based implementation of LayerTreeFrameSink. The typically-used
@@ -67,19 +60,18 @@ class CC_MOJO_EMBEDDER_EXPORT AsyncLayerTreeFrameSink
     ~InitParams();
 
     scoped_refptr<base::SingleThreadTaskRunner> compositor_task_runner;
-    raw_ptr<gpu::GpuMemoryBufferManager> gpu_memory_buffer_manager = nullptr;
+    gpu::GpuMemoryBufferManager* gpu_memory_buffer_manager = nullptr;
     std::unique_ptr<viz::SyntheticBeginFrameSource>
         synthetic_begin_frame_source;
     UnboundMessagePipes pipes;
     bool wants_animate_only_begin_frames = false;
     const char* client_name = nullptr;
-    base::PlatformThreadId io_thread_id = base::kInvalidThreadId;
   };
 
-  AsyncLayerTreeFrameSink(scoped_refptr<viz::ContextProvider> context_provider,
-                          scoped_refptr<RasterContextProviderWrapper>
-                              worker_context_provider_wrapper,
-                          InitParams* params);
+  AsyncLayerTreeFrameSink(
+      scoped_refptr<viz::ContextProvider> context_provider,
+      scoped_refptr<viz::RasterContextProvider> worker_context_provider,
+      InitParams* params);
   AsyncLayerTreeFrameSink(const AsyncLayerTreeFrameSink&) = delete;
   ~AsyncLayerTreeFrameSink() override;
 
@@ -94,9 +86,9 @@ class CC_MOJO_EMBEDDER_EXPORT AsyncLayerTreeFrameSink
   void DetachFromClient() override;
   void SetLocalSurfaceId(const viz::LocalSurfaceId& local_surface_id) override;
   void SubmitCompositorFrame(viz::CompositorFrame frame,
-                             bool hit_test_data_changed) override;
-  void DidNotProduceFrame(const viz::BeginFrameAck& ack,
-                          FrameSkippedReason reason) override;
+                             bool hit_test_data_changed,
+                             bool show_hit_test_borders) override;
+  void DidNotProduceFrame(const viz::BeginFrameAck& ack) override;
   void DidAllocateSharedBitmap(base::ReadOnlySharedMemoryRegion region,
                                const viz::SharedBitmapId& id) override;
   void DidDeleteSharedBitmap(const viz::SharedBitmapId& id) override;
@@ -108,13 +100,12 @@ class CC_MOJO_EMBEDDER_EXPORT AsyncLayerTreeFrameSink
  private:
   // mojom::CompositorFrameSinkClient implementation:
   void DidReceiveCompositorFrameAck(
-      std::vector<viz::ReturnedResource> resources) override;
+      const std::vector<viz::ReturnedResource>& resources) override;
   void OnBeginFrame(const viz::BeginFrameArgs& begin_frame_args,
                     const viz::FrameTimingDetailsMap& timing_details) override;
   void OnBeginFramePausedChanged(bool paused) override;
-  void ReclaimResources(std::vector<viz::ReturnedResource> resources) override;
-  void OnCompositorFrameTransitionDirectiveProcessed(
-      uint32_t sequence_id) override;
+  void ReclaimResources(
+      const std::vector<viz::ReturnedResource>& resources) override;
 
   // ExternalBeginFrameSourceClient implementation.
   void OnNeedsBeginFrames(bool needs_begin_frames) override;
@@ -127,21 +118,17 @@ class CC_MOJO_EMBEDDER_EXPORT AsyncLayerTreeFrameSink
   viz::LocalSurfaceId local_surface_id_;
   std::unique_ptr<viz::ExternalBeginFrameSource> begin_frame_source_;
   std::unique_ptr<viz::SyntheticBeginFrameSource> synthetic_begin_frame_source_;
-#if BUILDFLAG(IS_ANDROID)
-  base::PlatformThreadId io_thread_id_;
-#endif
 
   // Message pipes that will be bound when BindToClient() is called.
   UnboundMessagePipes pipes_;
 
+  // One of |compositor_frame_sink_| or |compositor_frame_sink_associated_| will
+  // be bound after calling BindToClient(). |compositor_frame_sink_ptr_| will
+  // point to message pipe we want to use.
+  viz::mojom::CompositorFrameSink* compositor_frame_sink_ptr_ = nullptr;
   mojo::Remote<viz::mojom::CompositorFrameSink> compositor_frame_sink_;
   mojo::AssociatedRemote<viz::mojom::CompositorFrameSink>
       compositor_frame_sink_associated_;
-  // One of |compositor_frame_sink_| or |compositor_frame_sink_associated_| will
-  // be bound after calling BindToClient(). |compositor_frame_sink_ptr_| will
-  // point to message pipe we want to use. It must be declared last and cleared
-  // first.
-  raw_ptr<viz::mojom::CompositorFrameSink> compositor_frame_sink_ptr_ = nullptr;
   mojo::Receiver<viz::mojom::CompositorFrameSinkClient> client_receiver_{this};
 
   THREAD_CHECKER(thread_checker_);
@@ -152,8 +139,6 @@ class CC_MOJO_EMBEDDER_EXPORT AsyncLayerTreeFrameSink
   viz::LocalSurfaceId last_submitted_local_surface_id_;
   float last_submitted_device_scale_factor_ = 1.f;
   gfx::Size last_submitted_size_in_pixels_;
-
-  power_scheduler::FrameProductionPowerModeVoter power_mode_voter_;
 
   base::WeakPtrFactory<AsyncLayerTreeFrameSink> weak_factory_{this};
 };

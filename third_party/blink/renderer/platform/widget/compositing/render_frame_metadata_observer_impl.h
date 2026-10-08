@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,7 @@ namespace blink {
 // cc::mojom::RenderFrameMetadataObserverClient, which is expected to be in the
 // browser process, of the metadata associated with the frame.
 //
-// BindToCurrentSequence should be called from the Compositor thread so that the
+// BindToCurrentThread should be called from the Compositor thread so that the
 // Mojo pipe is properly bound.
 //
 // Subsequent usage should only be from the Compositor thread.
@@ -38,14 +38,14 @@ class PLATFORM_EXPORT RenderFrameMetadataObserverImpl
   ~RenderFrameMetadataObserverImpl() override;
 
   // cc::RenderFrameMetadataObserver:
-  void BindToCurrentSequence() override;
+  void BindToCurrentThread() override;
   void OnRenderFrameSubmission(
       const cc::RenderFrameMetadata& render_frame_metadata,
       viz::CompositorFrameMetadata* compositor_frame_metadata,
       bool force_send) override;
 
   // mojom::RenderFrameMetadataObserver:
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   void ReportAllRootScrolls(bool enabled) override;
 #endif
   void ReportAllFrameSubmissionsForTesting(bool enabled) override;
@@ -65,7 +65,7 @@ class PLATFORM_EXPORT RenderFrameMetadataObserverImpl
 
   void SendLastRenderFrameMetadata();
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // When true this will notify |render_frame_metadata_observer_client_| of all
   // frame submissions that involve a root scroll offset change.
   bool report_all_root_scrolls_enabled_ = false;
@@ -76,9 +76,9 @@ class PLATFORM_EXPORT RenderFrameMetadataObserverImpl
   bool report_all_frame_submissions_for_testing_enabled_ = false;
 
   uint32_t last_frame_token_ = 0;
-  absl::optional<cc::RenderFrameMetadata> last_render_frame_metadata_;
+  base::Optional<cc::RenderFrameMetadata> last_render_frame_metadata_;
 
-  // These are destroyed when BindToCurrentSequence() is called.
+  // These are destroyed when BindToCurrentThread() is called.
   mojo::PendingReceiver<cc::mojom::blink::RenderFrameMetadataObserver>
       receiver_;
   mojo::PendingRemote<cc::mojom::blink::RenderFrameMetadataObserverClient>

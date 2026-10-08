@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,11 @@
 #include "android_webview/browser/aw_browser_process.h"
 #include "android_webview/browser/aw_feature_list_creator.h"
 #include "android_webview/browser/network_service/aw_network_change_notifier_factory.h"
-#include "android_webview/common/aw_features.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
-#include "base/test/scoped_feature_list.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_content_client_initializer.h"
 #include "mojo/core/embedder/embedder.h"
-#include "services/cert_verifier/public/mojom/cert_verifier_service_factory.mojom.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -50,9 +46,8 @@ class AwBrowserContextTest : public testing::Test {
 
   // Create the TestBrowserThreads.
   content::BrowserTaskEnvironment task_environment_;
-  raw_ptr<content::TestContentClientInitializer>
-      test_content_client_initializer_;
-  raw_ptr<AwBrowserProcess> browser_process_;
+  content::TestContentClientInitializer* test_content_client_initializer_;
+  AwBrowserProcess* browser_process_;
 };
 
 // Tests that constraints on trust for Symantec-issued certificates are not
@@ -60,7 +55,7 @@ class AwBrowserContextTest : public testing::Test {
 TEST_F(AwBrowserContextTest, SymantecPoliciesExempted) {
   AwBrowserContext context;
   network::mojom::NetworkContextParams network_context_params;
-  cert_verifier::mojom::CertVerifierCreationParams cert_verifier_params;
+  network::mojom::CertVerifierCreationParams cert_verifier_params;
   context.ConfigureNetworkContextParams(
       false, base::FilePath(), &network_context_params, &cert_verifier_params);
 
@@ -75,7 +70,7 @@ TEST_F(AwBrowserContextTest, SymantecPoliciesExempted) {
 TEST_F(AwBrowserContextTest, SHA1LocalAnchorsAllowed) {
   AwBrowserContext context;
   network::mojom::NetworkContextParams network_context_params;
-  cert_verifier::mojom::CertVerifierCreationParams cert_verifier_params;
+  network::mojom::CertVerifierCreationParams cert_verifier_params;
   context.ConfigureNetworkContextParams(
       false, base::FilePath(), &network_context_params, &cert_verifier_params);
 

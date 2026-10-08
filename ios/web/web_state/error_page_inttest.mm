@@ -1,39 +1,39 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import <functional>
+#include <functional>
 
-#import "base/bind.h"
-#import "base/strings/sys_string_conversions.h"
+#include "base/bind.h"
+#include "base/strings/stringprintf.h"
+#include "base/strings/sys_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "base/test/scoped_feature_list.h"
+#include "base/test/scoped_feature_list.h"
 #import "ios/net/protocol_handler_util.h"
-#import "ios/testing/embedded_test_server_handlers.h"
-#import "ios/web/common/features.h"
-#import "ios/web/navigation/web_kit_constants.h"
+#include "ios/testing/embedded_test_server_handlers.h"
+#include "ios/web/common/features.h"
+#import "ios/web/navigation/error_page_helper.h"
+#include "ios/web/navigation/web_kit_constants.h"
 #import "ios/web/public/navigation/navigation_item.h"
 #import "ios/web/public/navigation/navigation_manager.h"
-#import "ios/web/public/navigation/reload_type.h"
-#import "ios/web/public/navigation/web_state_policy_decider.h"
-#import "ios/web/public/security/security_style.h"
-#import "ios/web/public/security/ssl_status.h"
-#import "ios/web/public/test/element_selector.h"
+#include "ios/web/public/navigation/reload_type.h"
+#include "ios/web/public/navigation/web_state_policy_decider.h"
+#include "ios/web/public/security/security_style.h"
+#include "ios/web/public/security/ssl_status.h"
+#include "ios/web/public/test/element_selector.h"
 #import "ios/web/public/test/error_test_util.h"
-#import "ios/web/public/test/fakes/fake_browser_state.h"
-#import "ios/web/public/test/fakes/fake_web_client.h"
-#import "ios/web/public/test/fakes/fake_web_state_observer.h"
+#include "ios/web/public/test/fakes/test_browser_state.h"
+#import "ios/web/public/test/fakes/test_web_client.h"
+#include "ios/web/public/test/fakes/test_web_state_observer.h"
 #import "ios/web/public/test/navigation_test_util.h"
 #import "ios/web/public/test/web_test_with_web_state.h"
 #import "ios/web/public/test/web_view_content_test_util.h"
 #import "ios/web/public/web_client.h"
 #import "ios/web/public/web_state.h"
-#import "ios/web/test/test_url_constants.h"
 #import "net/base/mac/url_conversions.h"
-#import "net/base/net_errors.h"
-#import "net/test/embedded_test_server/default_handlers.h"
-#import "net/test/embedded_test_server/request_handler_util.h"
-#import "url/gurl.h"
+#include "net/test/embedded_test_server/default_handlers.h"
+#include "net/test/embedded_test_server/request_handler_util.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -48,7 +48,8 @@ namespace {
 
 // Waits for text for and error in NSURLErrorDomain and
 // kCFURLErrorNetworkConnectionLost error code.
-[[nodiscard]] bool WaitForErrorText(WebState* web_state, const GURL& url) {
+bool WaitForErrorText(WebState* web_state, const GURL& url) WARN_UNUSED_RESULT;
+bool WaitForErrorText(WebState* web_state, const GURL& url) {
   return test::WaitForWebViewContainingText(
       web_state, testing::GetErrorText(
                      web_state, url, web::testing::CreateConnectionLostError(),
@@ -56,7 +57,7 @@ namespace {
                      /*cert_status=*/0));
 }
 
-// The error domain and code presented by `TestWebStatePolicyDecider` for
+// The error domain and code presented by |TestWebStatePolicyDecider| for
 // cancelled navigations.
 NSString* const kCancelledNavigationErrorDomain = @"Error domain";
 const int kCancelledNavigationErrorCode = 123;
@@ -91,17 +92,16 @@ class TestWebStatePolicyDecider : public WebStatePolicyDecider {
   const std::string& allowed_page_text() const { return allowed_query_; }
 
   // WebStatePolicyDecider overrides
-  void ShouldAllowRequest(NSURLRequest* request,
-                          RequestInfo request_info,
-                          PolicyDecisionCallback callback) override {
+  PolicyDecision ShouldAllowRequest(NSURLRequest* request,
+                                    const RequestInfo& request_info) override {
     PolicyDecision decision = PolicyDecision::Allow();
     GURL URL = net::GURLWithNSURL(request.URL);
     if (URL.path() != path_ || URL.query() == blocked_request_query_)
       decision = PolicyDecision::CancelAndDisplayError(CreateEmbedderError());
-    std::move(callback).Run(decision);
+    return decision;
   }
   void ShouldAllowResponse(NSURLResponse* response,
-                           ResponseInfo response_info,
+                           bool for_main_frame,
                            PolicyDecisionCallback callback) override {
     PolicyDecision decision = PolicyDecision::Allow();
     GURL URL = net::GURLWithNSURL(response.URL);
@@ -122,12 +122,8 @@ class TestWebStatePolicyDecider : public WebStatePolicyDecider {
 // passed to WebClient::PrepareErrorPage, so the test also acts as integration
 // test for PrepareErrorPage WebClient method.
 class ErrorPageTest : public WebTestWithWebState {
- public:
-  ErrorPageTest(const ErrorPageTest&) = delete;
-  ErrorPageTest& operator=(const ErrorPageTest&) = delete;
-
  protected:
-  ErrorPageTest() : WebTestWithWebState(std::make_unique<FakeWebClient>()) {
+  ErrorPageTest() : WebTestWithWebState(std::make_unique<TestWebClient>()) {
     RegisterDefaultHandlers(&server_);
     server_.RegisterRequestHandler(base::BindRepeating(
         &net::test_server::HandlePrefixedRequest, "/echo-query",
@@ -144,7 +140,7 @@ class ErrorPageTest : public WebTestWithWebState {
   void SetUp() override {
     WebTestWithWebState::SetUp();
 
-    web_state_observer_ = std::make_unique<FakeWebStateObserver>(web_state());
+    web_state_observer_ = std::make_unique<TestWebStateObserver>(web_state());
     ASSERT_TRUE(server_.Start());
   }
 
@@ -156,18 +152,19 @@ class ErrorPageTest : public WebTestWithWebState {
   bool server_responds_with_content_ = false;
 
  private:
-  std::unique_ptr<FakeWebStateObserver> web_state_observer_;
+  std::unique_ptr<TestWebStateObserver> web_state_observer_;
+  DISALLOW_COPY_AND_ASSIGN(ErrorPageTest);
 };
 
 // Tests that the error page is correctly displayed after navigating back to it
 // multiple times. See http://crbug.com/944037 .
-TEST_F(ErrorPageTest, BackForwardErrorPage) {
-  // TODO(crbug.com/1153261): this test should be fixed in newer versions of
-  // WebKit.
-  if (@available(iOS 15, *)) {
-  } else {
-    return;
-  }
+// TODO(crbug.com/954231): this test is flaky on device.
+#if TARGET_IPHONE_SIMULATOR
+#define MAYBE_BackForwardErrorPage BackForwardErrorPage
+#else
+#define MAYBE_BackForwardErrorPage FLAKY_BackForwardErrorPage
+#endif
+TEST_F(ErrorPageTest, MAYBE_BackForwardErrorPage) {
   test::LoadUrl(web_state(), server_.GetURL("/close-socket"));
   ASSERT_TRUE(WaitForErrorText(web_state(), server_.GetURL("/close-socket")));
 
@@ -221,10 +218,7 @@ TEST_F(ErrorPageTest, ReloadErrorPage) {
   server_responds_with_content_ = false;
   test::LoadUrl(web_state(), server_.GetURL("/echo-query?foo"));
   ASSERT_TRUE(WaitForErrorText(web_state(), server_.GetURL("/echo-query?foo")));
-  ASSERT_TRUE(security_state_info());
-  ASSERT_TRUE(security_state_info()->visible_ssl_status);
-  EXPECT_EQ(SECURITY_STYLE_UNAUTHENTICATED,
-            security_state_info()->visible_ssl_status->security_style);
+  ASSERT_FALSE(security_state_info());
 
   // Reload the page, which should load without errors.
   server_responds_with_content_ = true;
@@ -248,7 +242,7 @@ TEST_F(ErrorPageTest, ReloadPageAfterServerIsDown) {
   ASSERT_TRUE(WaitForErrorText(web_state(), server_.GetURL("/echo-query?foo")));
   ASSERT_TRUE(security_state_info());
   ASSERT_TRUE(security_state_info()->visible_ssl_status);
-  EXPECT_EQ(SECURITY_STYLE_UNAUTHENTICATED,
+  EXPECT_EQ(SECURITY_STYLE_UNKNOWN,
             security_state_info()->visible_ssl_status->security_style);
 }
 
@@ -282,7 +276,7 @@ TEST_F(ErrorPageTest, GoForwardAfterServerIsDownAndReload) {
   ASSERT_TRUE(WaitForErrorText(web_state(), server_.GetURL("/echo-query?foo")));
   ASSERT_TRUE(security_state_info());
   ASSERT_TRUE(security_state_info()->visible_ssl_status);
-  EXPECT_EQ(SECURITY_STYLE_UNAUTHENTICATED,
+  EXPECT_EQ(SECURITY_STYLE_UNKNOWN,
             security_state_info()->visible_ssl_status->security_style);
 #endif  // TARGET_IPHONE_SIMULATOR
 }
@@ -308,7 +302,7 @@ TEST_F(ErrorPageTest, GoBackFromErrorPageAndForwardToErrorPage) {
   ASSERT_TRUE(WaitForErrorText(web_state(), server_.GetURL("/close-socket")));
   ASSERT_TRUE(security_state_info());
   ASSERT_TRUE(security_state_info()->visible_ssl_status);
-  EXPECT_EQ(SECURITY_STYLE_UNAUTHENTICATED,
+  EXPECT_EQ(SECURITY_STYLE_UNKNOWN,
             security_state_info()->visible_ssl_status->security_style);
 }
 
@@ -361,7 +355,7 @@ TEST_F(ErrorPageTest, ErrorPageInIFrame) {
 
 // Loads the URL with off the record browser state.
 TEST_F(ErrorPageTest, OtrError) {
-  FakeBrowserState browser_state;
+  TestBrowserState browser_state;
   browser_state.SetOffTheRecord(true);
   WebState::CreateParams params(&browser_state);
   auto web_state = WebState::Create(params);
@@ -418,6 +412,8 @@ TEST_F(ErrorPageTest, URLAndVirtualURLAfterError) {
 // WebStatePolicyDecider::ShouldAllowRequest() and that the error page loads
 // correctly when navigating forward to the error page.
 TEST_F(ErrorPageTest, ShouldAllowRequestCancelAndDisplayErrorForwardNav) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(web::features::kUseJSForErrorPage);
   server_responds_with_content_ = true;
 
   TestWebStatePolicyDecider policy_decider(web_state());
@@ -452,6 +448,8 @@ TEST_F(ErrorPageTest, ShouldAllowRequestCancelAndDisplayErrorForwardNav) {
 // WebStatePolicyDecider::ShouldAllowRequest() and that the error page loads
 // correctly when navigating back to the error page.
 TEST_F(ErrorPageTest, ShouldAllowRequestCancelAndDisplayErrorBackNav) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(web::features::kUseJSForErrorPage);
   server_responds_with_content_ = true;
 
   TestWebStatePolicyDecider policy_decider(web_state());
@@ -545,58 +543,6 @@ TEST_F(ErrorPageTest, ShouldAllowResponseCancelAndDisplayErrorBackNav) {
   // Go back to validate going back to error page.
   web_state()->GetNavigationManager()->GoBack();
   ASSERT_TRUE(test::WaitForWebViewContainingText(web_state(), error_text));
-}
-
-// Tests that restoring an invalid WebUI URL doesn't create a new navigation.
-TEST_F(ErrorPageTest, RestorationFromInvalidURL) {
-  server_responds_with_content_ = true;
-
-  std::string scheme = kTestWebUIScheme;
-  GURL invalid_webui = GURL(scheme + "://invalid");
-
-  NSError* error = testing::CreateErrorWithUnderlyingErrorChain(
-      {{@"NSURLErrorDomain", NSURLErrorUnsupportedURL},
-       {net::kNSErrorDomain, net::ERR_INVALID_URL}});
-
-  test::LoadUrl(web_state(), server_.GetURL("/echo-query?foo"));
-  ASSERT_TRUE(test::WaitForWebViewContainingText(web_state(), "foo"));
-  test::LoadUrl(web_state(), invalid_webui);
-  ASSERT_TRUE(test::WaitForWebViewContainingText(
-      web_state(), testing::GetErrorText(web_state(), invalid_webui, error,
-                                         /*is_post=*/false, /*is_otr=*/false,
-                                         /*cert_status=*/0)));
-
-  // Restore the session.
-  WebState::CreateParams params(GetBrowserState());
-  auto restored_web_state = WebState::CreateWithStorageSession(
-      params, web_state()->BuildSessionStorage());
-
-  restored_web_state->GetNavigationManager()->LoadIfNecessary();
-  ASSERT_TRUE(test::WaitForWebViewContainingText(
-      restored_web_state.get(),
-      testing::GetErrorText(restored_web_state.get(), invalid_webui, error,
-                            /*is_post=*/false, /*is_otr=*/false,
-                            /*cert_status=*/0)));
-
-  // Check that there is one item in the back list and no forward item.
-  EXPECT_EQ(
-      1UL,
-      restored_web_state->GetNavigationManager()->GetBackwardItems().size());
-  EXPECT_EQ(
-      0UL,
-      restored_web_state->GetNavigationManager()->GetForwardItems().size());
-
-  restored_web_state->GetNavigationManager()->GoBack();
-  ASSERT_TRUE(
-      test::WaitForWebViewContainingText(restored_web_state.get(), "foo"));
-
-  // Check that there is one item in the forward list and no back item.
-  EXPECT_EQ(
-      0UL,
-      restored_web_state->GetNavigationManager()->GetBackwardItems().size());
-  EXPECT_EQ(
-      1UL,
-      restored_web_state->GetNavigationManager()->GetForwardItems().size());
 }
 
 }  // namespace web

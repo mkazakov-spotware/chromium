@@ -16,7 +16,7 @@ rootWebArea
 ++++++definition
 ++++++contentDeletion
 ++++++dialog
-++++++directory
+++++++list
 ++++++document
 ++++++emphasis
 ++++++feed
@@ -49,13 +49,15 @@ rootWebArea
 ++++++menuItemRadio expanded
 ++++++meter
 ++++++navigation
+++++++none
 ++++++note
 ++++++listBoxOption
 ++++++paragraph
+++++++presentational
 ++++++progressIndicator
 ++++++radioButton
 ++++++radioGroup
-++++++region name='Name required for region'
+++++++region
 ++++++scrollBar
 ++++++search
 ++++++searchBox
@@ -65,8 +67,8 @@ rootWebArea
 ++++++spinButton
 ++++++status
 ++++++strong
-++++++subscript
-++++++superscript
+++++++genericContainer
+++++++genericContainer
 ++++++switch expanded
 ++++++tab expanded
 ++++++table

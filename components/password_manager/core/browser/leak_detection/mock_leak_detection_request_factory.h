@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,8 +20,7 @@ class MockLeakDetectionRequest : public LeakDetectionRequestInterface {
   MOCK_METHOD(void,
               LookupSingleLeak,
               (network::mojom::URLLoaderFactory*,
-               const absl::optional<std::string>&,
-               const absl::optional<std::string>&,
+               const std::string&,
                LookupSingleLeakPayload,
                LookupSingleLeakCallback),
               (override));

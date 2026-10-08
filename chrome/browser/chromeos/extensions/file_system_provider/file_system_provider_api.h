@@ -1,47 +1,16 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_CHROMEOS_EXTENSIONS_FILE_SYSTEM_PROVIDER_FILE_SYSTEM_PROVIDER_API_H_
 #define CHROME_BROWSER_CHROMEOS_EXTENSIONS_FILE_SYSTEM_PROVIDER_FILE_SYSTEM_PROVIDER_API_H_
 
-#include "base/values.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/chromeos/extensions/file_system_provider/provider_function.h"
-#include "chrome/browser/profiles/profile.h"
-#include "chromeos/crosapi/mojom/file_system_provider.mojom.h"
 #include "extensions/browser/extension_function.h"
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/crosapi/crosapi_ash.h"
-#include "chrome/browser/ash/crosapi/crosapi_manager.h"
-#include "chrome/browser/ash/crosapi/file_system_provider_service_ash.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/lacros/lacros_service.h"
-#include "mojo/public/cpp/bindings/remote.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
 namespace extensions {
 
-class FileSystemProviderBase : public ExtensionFunction {
- protected:
-  ~FileSystemProviderBase() override {}
-  std::string GetProviderId() const;
-  void RespondWithError(const std::string& error);
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  // Whether ash supports the FileSystemProviderService interface.
-  bool InterfaceAvailable();
-
-  // A helper function that returns a reference to a functional remote. Should
-  // only be called if InterfaceAvailable is true.
-  mojo::Remote<crosapi::mojom::FileSystemProviderService>& GetRemote();
-#endif
-};
-
-class FileSystemProviderMountFunction : public FileSystemProviderBase {
+class FileSystemProviderMountFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("fileSystemProvider.mount",
                              FILESYSTEMPROVIDER_MOUNT)
@@ -51,7 +20,7 @@ class FileSystemProviderMountFunction : public FileSystemProviderBase {
   ResponseAction Run() override;
 };
 
-class FileSystemProviderUnmountFunction : public FileSystemProviderBase {
+class FileSystemProviderUnmountFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("fileSystemProvider.unmount",
                              FILESYSTEMPROVIDER_UNMOUNT)
@@ -61,28 +30,26 @@ class FileSystemProviderUnmountFunction : public FileSystemProviderBase {
   ResponseAction Run() override;
 };
 
-class FileSystemProviderGetAllFunction : public FileSystemProviderBase {
+class FileSystemProviderGetAllFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("fileSystemProvider.getAll",
                              FILESYSTEMPROVIDER_GETALL)
 
  protected:
-  void RespondWithInfos(std::vector<crosapi::mojom::FileSystemInfoPtr>);
   ~FileSystemProviderGetAllFunction() override {}
   ResponseAction Run() override;
 };
 
-class FileSystemProviderGetFunction : public FileSystemProviderBase {
+class FileSystemProviderGetFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("fileSystemProvider.get", FILESYSTEMPROVIDER_GET)
 
  protected:
-  void RespondWithInfo(crosapi::mojom::FileSystemInfoPtr info);
   ~FileSystemProviderGetFunction() override {}
   ResponseAction Run() override;
 };
 
-class FileSystemProviderNotifyFunction : public FileSystemProviderBase {
+class FileSystemProviderNotifyFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("fileSystemProvider.notify",
                              FILESYSTEMPROVIDER_NOTIFY)
@@ -96,55 +63,8 @@ class FileSystemProviderNotifyFunction : public FileSystemProviderBase {
   void OnNotifyCompleted(base::File::Error result);
 };
 
-class FileSystemProviderInternal : public FileSystemProviderBase {
- protected:
-  ~FileSystemProviderInternal() override {}
-
-  // Returns the operation metadata from FileSystemProviderInternal methods via
-  // output parameters.
-  template <typename Params>
-  void GetOperationMetadata(const Params& params,
-                            crosapi::mojom::FileSystemIdPtr* file_system_id,
-                            int64_t* request_id) {
-    *file_system_id = crosapi::mojom::FileSystemId::New();
-    (*file_system_id)->provider = GetProviderId();
-    (*file_system_id)->id = params->file_system_id;
-    *request_id = params->request_id;
-  }
-
-  // Forwards the result of the operation to the file system provider service.
-  // Returns false if the forwarding failed.
-  template <typename Params>
-  bool ForwardOperationResult(const Params& params,
-                              base::Value::List& args,
-                              crosapi::mojom::FSPOperationResponse response) {
-    crosapi::mojom::FileSystemIdPtr file_system_id;
-    int64_t request_id;
-    GetOperationMetadata(params, &file_system_id, &request_id);
-    auto callback =
-        base::BindOnce(&FileSystemProviderInternal::RespondWithError, this);
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-    crosapi::CrosapiManager::Get()
-        ->crosapi_ash()
-        ->file_system_provider_service_ash()
-        ->OperationFinishedWithProfile(
-            response, std::move(file_system_id), request_id, std::move(args),
-            std::move(callback),
-            Profile::FromBrowserContext(browser_context()));
-    return true;
-#else
-    if (!InterfaceAvailable())
-      return false;
-    GetRemote()->OperationFinished(response, std::move(file_system_id),
-                                   request_id, std::move(args),
-                                   std::move(callback));
-    return true;
-#endif
-  }
-};
-
 class FileSystemProviderInternalUnmountRequestedSuccessFunction
-    : public FileSystemProviderInternal {
+    : public FileSystemProviderInternalFunction {
  public:
   DECLARE_EXTENSION_FUNCTION(
       "fileSystemProviderInternal.unmountRequestedSuccess",
@@ -156,7 +76,7 @@ class FileSystemProviderInternalUnmountRequestedSuccessFunction
 };
 
 class FileSystemProviderInternalGetMetadataRequestedSuccessFunction
-    : public FileSystemProviderInternal {
+    : public FileSystemProviderInternalFunction {
  public:
   DECLARE_EXTENSION_FUNCTION(
       "fileSystemProviderInternal.getMetadataRequestedSuccess",
@@ -168,7 +88,7 @@ class FileSystemProviderInternalGetMetadataRequestedSuccessFunction
 };
 
 class FileSystemProviderInternalGetActionsRequestedSuccessFunction
-    : public FileSystemProviderInternal {
+    : public FileSystemProviderInternalFunction {
  public:
   DECLARE_EXTENSION_FUNCTION(
       "fileSystemProviderInternal.getActionsRequestedSuccess",
@@ -180,7 +100,7 @@ class FileSystemProviderInternalGetActionsRequestedSuccessFunction
 };
 
 class FileSystemProviderInternalReadDirectoryRequestedSuccessFunction
-    : public FileSystemProviderInternal {
+    : public FileSystemProviderInternalFunction {
  public:
   DECLARE_EXTENSION_FUNCTION(
       "fileSystemProviderInternal.readDirectoryRequestedSuccess",
@@ -192,7 +112,7 @@ class FileSystemProviderInternalReadDirectoryRequestedSuccessFunction
 };
 
 class FileSystemProviderInternalReadFileRequestedSuccessFunction
-    : public FileSystemProviderInternal {
+    : public FileSystemProviderInternalFunction {
  public:
   DECLARE_EXTENSION_FUNCTION(
       "fileSystemProviderInternal.readFileRequestedSuccess",
@@ -204,7 +124,7 @@ class FileSystemProviderInternalReadFileRequestedSuccessFunction
 };
 
 class FileSystemProviderInternalOperationRequestedSuccessFunction
-    : public FileSystemProviderInternal {
+    : public FileSystemProviderInternalFunction {
  public:
   DECLARE_EXTENSION_FUNCTION(
       "fileSystemProviderInternal.operationRequestedSuccess",
@@ -216,7 +136,7 @@ class FileSystemProviderInternalOperationRequestedSuccessFunction
 };
 
 class FileSystemProviderInternalOperationRequestedErrorFunction
-    : public FileSystemProviderInternal {
+    : public FileSystemProviderInternalFunction {
  public:
   DECLARE_EXTENSION_FUNCTION(
       "fileSystemProviderInternal.operationRequestedError",

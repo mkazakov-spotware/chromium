@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 
 #include <memory>
 
-#include "base/values.h"
 #include "components/autofill_assistant/browser/devtools/error_reporter.h"
 
 namespace autofill_assistant {
@@ -20,7 +19,7 @@ namespace internal {
 // Generic conversion from a type to a base::Value. Implemented in
 // types_DOMAIN.cc after all type-specific ToValueImpls have been defined.
 template <typename T>
-base::Value ToValue(const T& value);
+std::unique_ptr<base::Value> ToValue(const T& value);
 
 // Generic conversion from a base::Value to a type. Note that this generic
 // variant is never defined. Instead, we declare a specific template
@@ -35,45 +34,42 @@ struct FromValue {
 // type-specific serializers. It uses a dummy |T*| argument as a way to
 // partially specialize vector types.
 template <typename T>
-base::Value ToValueImpl(int value, T*) {
-  return base::Value(value);
+std::unique_ptr<base::Value> ToValueImpl(int value, T*) {
+  return std::make_unique<base::Value>(value);
 }
 
 template <typename T>
-base::Value ToValueImpl(double value, T*) {
-  return base::Value(value);
+std::unique_ptr<base::Value> ToValueImpl(double value, T*) {
+  return std::make_unique<base::Value>(value);
 }
 
 template <typename T>
-base::Value ToValueImpl(bool value, T*) {
-  return base::Value(value);
+std::unique_ptr<base::Value> ToValueImpl(bool value, T*) {
+  return std::make_unique<base::Value>(value);
 }
 
 template <typename T>
-base::Value ToValueImpl(const std::string& value, T*) {
-  return base::Value(value);
+std::unique_ptr<base::Value> ToValueImpl(const std::string& value, T*) {
+  return std::make_unique<base::Value>(value);
 }
 
 template <typename T>
-base::Value ToValueImpl(const base::Value& value, T*) {
-  return base::Value(value.Clone());
+std::unique_ptr<base::Value> ToValueImpl(const base::Value& value, T*) {
+  return value.CreateDeepCopy();
 }
 
 template <typename T>
-base::Value ToValueImpl(const base::Value::Dict& value, T*) {
-  return base::Value(value.Clone());
-}
-
-template <typename T>
-base::Value ToValueImpl(const std::vector<T>& vector, const std::vector<T>*) {
-  base::Value::List result;
+std::unique_ptr<base::Value> ToValueImpl(const std::vector<T>& vector,
+                                         const std::vector<T>*) {
+  std::unique_ptr<base::ListValue> result(new base::ListValue());
   for (const auto& it : vector)
-    result.Append(ToValue(it));
-  return base::Value(std::move(result));
+    result->Append(ToValue(it));
+  return std::move(result);
 }
 
 template <typename T>
-base::Value ToValueImpl(const std::unique_ptr<T>& value, std::unique_ptr<T>*) {
+std::unique_ptr<base::Value> ToValueImpl(const std::unique_ptr<T>& value,
+                                         std::unique_ptr<T>*) {
   return ToValue(*value);
 }
 
@@ -123,14 +119,15 @@ struct FromValue<std::string> {
 };
 
 template <>
-struct FromValue<base::Value::Dict> {
-  static absl::optional<base::Value::Dict> Parse(const base::Value& value,
-                                                 ErrorReporter* errors) {
-    if (!value.is_dict()) {
+struct FromValue<base::DictionaryValue> {
+  static std::unique_ptr<base::DictionaryValue> Parse(const base::Value& value,
+                                                      ErrorReporter* errors) {
+    const base::DictionaryValue* result;
+    if (!value.GetAsDictionary(&result)) {
       errors->AddError("dictionary value expected");
-      return absl::nullopt;
+      return nullptr;
     }
-    return value.GetDict().Clone();
+    return result->CreateDeepCopy();
   }
 };
 
@@ -138,7 +135,7 @@ template <>
 struct FromValue<base::Value> {
   static std::unique_ptr<base::Value> Parse(const base::Value& value,
                                             ErrorReporter* errors) {
-    return base::Value::ToUniquePtrValue(value.Clone());
+    return value.CreateDeepCopy();
   }
 };
 

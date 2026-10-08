@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "ash/public/cpp/session/session_observer.h"
 #include "ash/public/cpp/tablet_mode_observer.h"
 #include "base/containers/flat_map.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "base/time/time.h"
 #include "components/account_id/account_id.h"
@@ -59,14 +60,12 @@ class ASH_EXPORT MultiUserWindowManagerImpl
 
   MultiUserWindowManagerImpl(MultiUserWindowManagerDelegate* delegate,
                              const AccountId& account_id);
-
-  MultiUserWindowManagerImpl(const MultiUserWindowManagerImpl&) = delete;
-  MultiUserWindowManagerImpl& operator=(const MultiUserWindowManagerImpl&) =
-      delete;
-
   ~MultiUserWindowManagerImpl() override;
 
   static MultiUserWindowManagerImpl* Get();
+
+  // Called when the active account change is complete.
+  void OnDidSwitchActiveAccount();
 
   // MultiUserWindowManager:
   void SetWindowOwner(aura::Window* window,
@@ -79,6 +78,8 @@ class ASH_EXPORT MultiUserWindowManagerImpl
   const AccountId& GetUserPresentingWindow(
       const aura::Window* window) const override;
   const AccountId& CurrentAccountId() const override;
+  void AddObserver(MultiUserWindowManagerObserver* observer) override;
+  void RemoveObserver(MultiUserWindowManagerObserver* observer) override;
 
   // SessionObserver:
   void OnActiveUserSessionChanged(const AccountId& account_id) override;
@@ -113,10 +114,6 @@ class ASH_EXPORT MultiUserWindowManagerImpl
   class WindowEntry {
    public:
     explicit WindowEntry(const AccountId& account_id);
-
-    WindowEntry(const WindowEntry&) = delete;
-    WindowEntry& operator=(const WindowEntry&) = delete;
-
     ~WindowEntry();
 
     // Returns the owner of this window. This cannot be changed.
@@ -146,6 +143,8 @@ class ASH_EXPORT MultiUserWindowManagerImpl
 
     // True if the window should be visible for the user which shows the window.
     bool show_ = true;
+
+    DISALLOW_COPY_AND_ASSIGN(WindowEntry);
   };
 
   using TransientWindowToVisibility = base::flat_map<aura::Window*, bool>;
@@ -228,6 +227,10 @@ class ASH_EXPORT MultiUserWindowManagerImpl
 
   // The animation between users.
   std::unique_ptr<UserSwitchAnimator> animation_;
+
+  base::ObserverList<MultiUserWindowManagerObserver>::Unchecked observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(MultiUserWindowManagerImpl);
 };
 
 }  // namespace ash

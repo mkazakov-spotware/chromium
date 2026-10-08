@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,14 @@
 #include <stddef.h>
 #include <utility>
 
+#include "base/strings/utf_string_conversions.h"
 #include "content/browser/indexed_db/indexed_db_backing_store.h"
+#include "content/browser/indexed_db/indexed_db_tracing.h"
 #include "content/browser/indexed_db/indexed_db_transaction.h"
 #include "third_party/blink/public/common/indexeddb/indexeddb_metadata.h"
 #include "third_party/blink/public/mojom/indexeddb/indexeddb.mojom.h"
 
+using base::ASCIIToUTF16;
 using blink::IndexedDBIndexKeys;
 using blink::IndexedDBIndexMetadata;
 using blink::IndexedDBKey;
@@ -37,7 +40,7 @@ bool IndexWriter::VerifyIndexKeys(
     int64_t index_id,
     bool* can_add_keys,
     const IndexedDBKey& primary_key,
-    std::u16string* error_message) const {
+    base::string16* error_message) const {
   *can_add_keys = false;
   for (const auto& key : keys_) {
     bool ok = AddingKeyAllowed(backing_store, transaction, database_id,
@@ -47,10 +50,10 @@ bool IndexWriter::VerifyIndexKeys(
       return false;
     if (!*can_add_keys) {
       if (error_message) {
-        *error_message = u"Unable to add key to index '" +
+        *error_message = ASCIIToUTF16("Unable to add key to index '") +
                          index_metadata_.name +
-                         u"': at least one key does not satisfy the uniqueness "
-                         u"requirements.";
+                         ASCIIToUTF16("': at least one key does not satisfy "
+                                      "the uniqueness requirements.");
       }
       return true;
     }
@@ -116,12 +119,12 @@ bool MakeIndexWriters(IndexedDBTransaction* transaction,
                       bool key_was_generated,
                       const std::vector<IndexedDBIndexKeys>& index_keys,
                       std::vector<std::unique_ptr<IndexWriter>>* index_writers,
-                      std::u16string* error_message,
+                      base::string16* error_message,
                       bool* completed) {
   *completed = false;
 
   for (const auto& it : index_keys) {
-    auto found = object_store.indexes.find(it.id);
+    const auto& found = object_store.indexes.find(it.id);
     if (found == object_store.indexes.end())
       continue;
     const IndexedDBIndexMetadata& index = found->second;

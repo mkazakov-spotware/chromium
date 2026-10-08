@@ -1,2 +1,1 @@
-=== Start Continuation ===
-AXExpandedChanged on AXLink AXDescription='Toggle'
+AXExpandedChanged on AXLink AXDescription="Toggle"

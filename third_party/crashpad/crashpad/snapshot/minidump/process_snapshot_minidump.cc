@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 #include "minidump/minidump_extensions.h"
 #include "snapshot/memory_map_region_snapshot.h"
 #include "snapshot/minidump/minidump_simple_string_dictionary_reader.h"
-#include "snapshot/minidump/minidump_string_reader.h"
 #include "util/file/file_io.h"
 
 namespace crashpad {
@@ -118,9 +117,8 @@ bool ProcessSnapshotMinidump::Initialize(FileReaderInterface* file_reader) {
 
   if (!InitializeCrashpadInfo() || !InitializeMiscInfo() ||
       !InitializeModules() || !InitializeSystemSnapshot() ||
-      !InitializeMemoryInfo() || !InitializeExtraMemory() ||
-      !InitializeThreads() || !InitializeCustomMinidumpStreams() ||
-      !InitializeExceptionSnapshot()) {
+      !InitializeMemoryInfo() || !InitializeThreads() ||
+      !InitializeCustomMinidumpStreams() || !InitializeExceptionSnapshot()) {
     return false;
   }
 
@@ -236,11 +234,8 @@ std::vector<HandleSnapshot> ProcessSnapshotMinidump::Handles() const {
 std::vector<const MemorySnapshot*> ProcessSnapshotMinidump::ExtraMemory()
     const {
   INITIALIZATION_STATE_DCHECK_VALID(initialized_);
-  std::vector<const MemorySnapshot*> chunks;
-  for (const auto& chunk : extra_memory_) {
-    chunks.push_back(chunk.get());
-  }
-  return chunks;
+  NOTREACHED();  // https://crashpad.chromium.org/bug/10
+  return std::vector<const MemorySnapshot*>();
 }
 
 const ProcessMemory* ProcessSnapshotMinidump::Memory() const {
@@ -323,8 +318,8 @@ bool ProcessSnapshotMinidump::InitializeMiscInfo() {
 #else
       full_version_ = base::UTF16ToUTF8(info.BuildString);
 #endif
-      full_version_ = full_version_.substr(0, full_version_.find(';'));
-      [[fallthrough]];
+      full_version_ = full_version_.substr(0, full_version_.find(";"));
+      FALLTHROUGH;
     case sizeof(MINIDUMP_MISC_INFO_3):
     case sizeof(MINIDUMP_MISC_INFO_2):
     case sizeof(MINIDUMP_MISC_INFO):
@@ -507,50 +502,6 @@ bool ProcessSnapshotMinidump::InitializeMemoryInfo() {
   return true;
 }
 
-bool ProcessSnapshotMinidump::InitializeExtraMemory() {
-  const auto& stream_it = stream_map_.find(kMinidumpStreamTypeMemoryList);
-  if (stream_it == stream_map_.end()) {
-    return true;
-  }
-
-  if (stream_it->second->DataSize < sizeof(MINIDUMP_MEMORY_LIST)) {
-    LOG(ERROR) << "memory_list size mismatch";
-    return false;
-  }
-
-  if (!file_reader_->SeekSet(stream_it->second->Rva)) {
-    return false;
-  }
-
-  // MSVC won't let us stack-allocate a MINIDUMP_MEMORY_LIST because of its
-  // trailing zero-element array. Luckily we're only interested in its other
-  // field anyway: a uint32_t indicating the number of memory descriptors that
-  // follow.
-  static_assert(
-      sizeof(MINIDUMP_MEMORY_LIST) == 4,
-      "MINIDUMP_MEMORY_LIST's only actual field should be an uint32_t");
-  uint32_t num_ranges;
-  if (!file_reader_->ReadExactly(&num_ranges, sizeof(num_ranges))) {
-    return false;
-  }
-
-  // We have to manually keep track of the locations of the entries in the
-  // contiguous list of MINIDUMP_MEMORY_DESCRIPTORs, because the Initialize()
-  // function jumps around the file to find the contents of each snapshot.
-  FileOffset location = file_reader_->SeekGet();
-  for (uint32_t i = 0; i < num_ranges; i++) {
-    extra_memory_.emplace_back(
-        std::make_unique<internal::MemorySnapshotMinidump>());
-    if (!extra_memory_.back()->Initialize(file_reader_,
-                                          static_cast<RVA>(location))) {
-      return false;
-    }
-    location += sizeof(MINIDUMP_MEMORY_DESCRIPTOR);
-  }
-
-  return true;
-}
-
 bool ProcessSnapshotMinidump::InitializeThreads() {
   const auto& stream_it = stream_map_.find(kMinidumpStreamTypeThreadList);
   if (stream_it == stream_map_.end()) {
@@ -577,75 +528,16 @@ bool ProcessSnapshotMinidump::InitializeThreads() {
     return false;
   }
 
-  if (!InitializeThreadNames()) {
-    return false;
-  }
-
   for (uint32_t thread_index = 0; thread_index < thread_count; ++thread_index) {
     const RVA thread_rva = stream_it->second->Rva + sizeof(thread_count) +
                            thread_index * sizeof(MINIDUMP_THREAD);
 
     auto thread = std::make_unique<internal::ThreadSnapshotMinidump>();
-    if (!thread->Initialize(file_reader_, thread_rva, arch_, thread_names_)) {
+    if (!thread->Initialize(file_reader_, thread_rva, arch_)) {
       return false;
     }
 
     threads_.push_back(std::move(thread));
-  }
-
-  return true;
-}
-
-bool ProcessSnapshotMinidump::InitializeThreadNames() {
-  const auto& stream_it = stream_map_.find(kMinidumpStreamTypeThreadNameList);
-  if (stream_it == stream_map_.end()) {
-    return true;
-  }
-
-  if (stream_it->second->DataSize < sizeof(MINIDUMP_THREAD_NAME_LIST)) {
-    LOG(ERROR) << "thread_name_list size mismatch";
-    return false;
-  }
-
-  if (!file_reader_->SeekSet(stream_it->second->Rva)) {
-    return false;
-  }
-
-  uint32_t thread_name_count;
-  if (!file_reader_->ReadExactly(&thread_name_count,
-                                 sizeof(thread_name_count))) {
-    return false;
-  }
-
-  if (sizeof(MINIDUMP_THREAD_NAME_LIST) +
-          thread_name_count * sizeof(MINIDUMP_THREAD_NAME) !=
-      stream_it->second->DataSize) {
-    LOG(ERROR) << "thread_name_list size mismatch";
-    return false;
-  }
-
-  for (uint32_t thread_name_index = 0; thread_name_index < thread_name_count;
-       ++thread_name_index) {
-    const RVA thread_name_rva =
-        stream_it->second->Rva + sizeof(thread_name_count) +
-        thread_name_index * sizeof(MINIDUMP_THREAD_NAME);
-    if (!file_reader_->SeekSet(thread_name_rva)) {
-      return false;
-    }
-    MINIDUMP_THREAD_NAME minidump_thread_name;
-    if (!file_reader_->ReadExactly(&minidump_thread_name,
-                                   sizeof(minidump_thread_name))) {
-      return false;
-    }
-    std::string name;
-    if (!internal::ReadMinidumpUTF16String(
-            file_reader_, minidump_thread_name.RvaOfThreadName, &name)) {
-      return false;
-    }
-
-    // See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=36566
-    const uint32_t thread_id = minidump_thread_name.ThreadId;
-    thread_names_.emplace(thread_id, std::move(name));
   }
 
   return true;

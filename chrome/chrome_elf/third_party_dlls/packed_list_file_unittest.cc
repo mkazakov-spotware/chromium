@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/path_service.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/test_reg_util_win.h"
 #include "base/win/pe_image.h"
@@ -32,7 +33,7 @@ void RegRedirect(nt::ROOT_KEY key,
                  registry_util::RegistryOverrideManager* rom) {
   ASSERT_NE(key, nt::AUTO);
   HKEY root = (key == nt::HKCU ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE);
-  std::wstring temp;
+  base::string16 temp;
 
   ASSERT_NO_FATAL_FAILURE(rom->OverrideRegistry(root, &temp));
   ASSERT_TRUE(nt::SetTestingOverride(key, temp));
@@ -40,10 +41,10 @@ void RegRedirect(nt::ROOT_KEY key,
 
 void CancelRegRedirect(nt::ROOT_KEY key) {
   ASSERT_NE(key, nt::AUTO);
-  ASSERT_TRUE(nt::SetTestingOverride(key, std::wstring()));
+  ASSERT_TRUE(nt::SetTestingOverride(key, base::string16()));
 }
 
-bool CreateRegistryKeyValue(const std::wstring& full_file_path) {
+bool CreateRegistryKeyValue(const base::string16& full_file_path) {
   base::win::RegKey key;
   if (key.Create(HKEY_CURRENT_USER,
                  install_static::GetRegistryPath()
@@ -97,7 +98,7 @@ bool GetTestModules(std::vector<TestModule>* test_modules,
 
     // Save the module info for tests.
     TestModule test_module;
-    test_module.basename = base::WideToASCII(test_bin);
+    test_module.basename = base::UTF16ToASCII(test_bin);
     test_module.timedatestamp = nt_headers->FileHeader.TimeDateStamp;
     test_module.imagesize = nt_headers->OptionalHeader.SizeOfImage;
     test_modules->push_back(test_module);
@@ -119,10 +120,6 @@ bool GetTestModules(std::vector<TestModule>* test_modules,
 //------------------------------------------------------------------------------
 
 class ThirdPartyFileTest : public testing::Test {
- public:
-  ThirdPartyFileTest(const ThirdPartyFileTest&) = delete;
-  ThirdPartyFileTest& operator=(const ThirdPartyFileTest&) = delete;
-
  protected:
   ThirdPartyFileTest() = default;
 
@@ -146,7 +143,7 @@ class ThirdPartyFileTest : public testing::Test {
   void CreateTestFile() {
     base::File file(base::FilePath(bl_test_file_path_),
                     base::File::FLAG_CREATE_ALWAYS | base::File::FLAG_WRITE |
-                        base::File::FLAG_WIN_SHARE_DELETE |
+                        base::File::FLAG_SHARE_DELETE |
                         base::File::FLAG_DELETE_ON_CLOSE);
     ASSERT_TRUE(file.IsValid());
 
@@ -167,7 +164,7 @@ class ThirdPartyFileTest : public testing::Test {
     bl_file_ = std::move(file);
   }
 
-  const std::wstring& GetBlTestFilePath() { return bl_test_file_path_; }
+  const base::string16& GetBlTestFilePath() { return bl_test_file_path_; }
 
   base::File* GetBlFile() { return &bl_file_; }
 
@@ -176,9 +173,11 @@ class ThirdPartyFileTest : public testing::Test {
  private:
   base::ScopedTempDir scoped_temp_dir_;
   base::File bl_file_;
-  std::wstring bl_test_file_path_;
+  base::string16 bl_test_file_path_;
   std::vector<TestModule> test_array_;
   std::vector<PackedListModule> test_packed_array_;
+
+  DISALLOW_COPY_AND_ASSIGN(ThirdPartyFileTest);
 };
 
 //------------------------------------------------------------------------------
@@ -187,7 +186,7 @@ class ThirdPartyFileTest : public testing::Test {
 
 // Test successful initialization and module lookup.
 TEST_F(ThirdPartyFileTest, Success) {
-  // Create blocklist data file.
+  // Create blacklist data file.
   ASSERT_NO_FATAL_FAILURE(CreateTestFile());
 
   // Init.
@@ -256,7 +255,7 @@ TEST_F(ThirdPartyFileTest, SuccessFromRegistry) {
   //    chrome.dll.
   ASSERT_TRUE(CreateRegistryKeyValue(GetBlTestFilePath()));
 
-  // 3. Drop a blocklist to the expected path.
+  // 3. Drop a blacklist to the expected path.
   ASSERT_NO_FATAL_FAILURE(CreateTestFile());
 
   // Clear override file path so that initialization goes to registry.

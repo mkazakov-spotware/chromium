@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <utility>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -20,7 +20,6 @@
 #include "services/service_manager/public/mojom/connector.mojom.h"
 #include "services/service_manager/public/mojom/service.mojom-forward.h"
 #include "services/service_manager/public/mojom/service_manager.mojom-forward.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace service_manager {
 
@@ -63,15 +62,11 @@ class SERVICE_MANAGER_PUBLIC_CPP_EXPORT Connector {
     }
 
    private:
-    raw_ptr<Connector> connector_;
+    Connector* connector_;
   };
 
   explicit Connector(mojo::PendingRemote<mojom::Connector> unbound_state);
   explicit Connector(mojo::Remote<mojom::Connector> connector);
-
-  Connector(const Connector&) = delete;
-  Connector& operator=(const Connector&) = delete;
-
   ~Connector();
 
   // Creates a new Connector instance and fills in |*receiver| with a request
@@ -98,7 +93,7 @@ class SERVICE_MANAGER_PUBLIC_CPP_EXPORT Connector {
   // or was started as a result of this request.
   using WarmServiceCallback =
       base::OnceCallback<void(mojom::ConnectResult result,
-                              const absl::optional<Identity>& identity)>;
+                              const base::Optional<Identity>& identity)>;
   void WarmService(const ServiceFilter& filter,
                    WarmServiceCallback callback = {});
 
@@ -157,7 +152,7 @@ class SERVICE_MANAGER_PUBLIC_CPP_EXPORT Connector {
   // request.
   using BindInterfaceCallback =
       base::OnceCallback<void(mojom::ConnectResult result,
-                              const absl::optional<Identity>& identity)>;
+                              const base::Optional<Identity>& identity)>;
   template <typename Interface>
   void Connect(const ServiceFilter& filter,
                mojo::PendingReceiver<Interface> receiver,
@@ -269,6 +264,8 @@ class SERVICE_MANAGER_PUBLIC_CPP_EXPORT Connector {
       local_binder_overrides_;
 
   base::WeakPtrFactory<Connector> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(Connector);
 };
 
 }  // namespace service_manager

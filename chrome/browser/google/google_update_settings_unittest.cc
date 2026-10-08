@@ -1,53 +1,28 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/installer/util/google_update_settings.h"
 #include "base/compiler_specific.h"
 #include "base/files/file_util.h"
+#include "base/macros.h"
 #include "base/path_service.h"
 #include "base/test/scoped_path_override.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/google/google_brand.h"
 #include "chrome/common/chrome_paths.h"
+#include "chrome/installer/util/google_update_settings.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/platform_test.h"
 
-#if BUILDFLAG(IS_WIN)
-#include "base/test/test_reg_util_win.h"
-#endif  // BUILDFLAG(IS_WIN)
-
 class GoogleUpdateTest : public PlatformTest {
- public:
-  GoogleUpdateTest(const GoogleUpdateTest&) = delete;
-  GoogleUpdateTest& operator=(const GoogleUpdateTest&) = delete;
-
-#if BUILDFLAG(IS_WIN)
-  void SetUp() override {
-    // Override HKCU to prevent writing to real keys. On Windows, the metrics
-    // reporting consent is stored in the registry, and it is used to determine
-    // the metrics reporting state when it is unset (e.g. during tests, which
-    // start with fresh user data dirs). Otherwise, this may cause flakiness
-    // since tests will sometimes start with metrics reporting enabled and
-    // sometimes disabled.
-    ASSERT_NO_FATAL_FAILURE(
-        override_manager_.OverrideRegistry(HKEY_CURRENT_USER));
-
-    PlatformTest::SetUp();
-  }
-#endif  // BUILDFLAG(IS_WIN)
-
  protected:
   GoogleUpdateTest() : user_data_dir_override_(chrome::DIR_USER_DATA) {}
-  ~GoogleUpdateTest() override = default;
+  ~GoogleUpdateTest() override {}
 
  private:
-#if BUILDFLAG(IS_WIN)
-  registry_util::RegistryOverrideManager override_manager_;
-#endif  // BUILDFLAG(IS_WIN)
-
   base::ScopedPathOverride user_data_dir_override_;
+
+  DISALLOW_COPY_AND_ASSIGN(GoogleUpdateTest);
 };
 
 TEST_F(GoogleUpdateTest, StatsConsent) {
@@ -61,7 +36,7 @@ TEST_F(GoogleUpdateTest, StatsConsent) {
   EXPECT_FALSE(GoogleUpdateSettings::GetCollectStatsConsent());
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 TEST_F(GoogleUpdateTest, LastRunTime) {
   // Querying the value that does not exists should fail.
@@ -73,7 +48,7 @@ TEST_F(GoogleUpdateTest, LastRunTime) {
   EXPECT_EQ(0, GoogleUpdateSettings::GetLastRunTime());
 }
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 TEST_F(GoogleUpdateTest, IsOrganic) {
   // Test some brand codes to ensure that future changes to this method won't
@@ -97,30 +72,14 @@ TEST_F(GoogleUpdateTest, IsOrganicFirstRunBrandCodes) {
   EXPECT_TRUE(google_brand::IsOrganicFirstRun("EUBA"));
   EXPECT_TRUE(google_brand::IsOrganicFirstRun("GGRA"));
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // An empty brand string on Mac is used for channels other than stable,
   // which are always organic.
   EXPECT_TRUE(google_brand::IsOrganicFirstRun(""));
 #endif
 }
 
-TEST_F(GoogleUpdateTest, IsEnterpriseBrandCodes) {
-  EXPECT_TRUE(google_brand::IsEnterprise("GGRV"));
-  std::string gce_prefix = "GCE";
-  for (char ch = 'A'; ch <= 'Z'; ++ch)
-    EXPECT_TRUE(google_brand::IsEnterprise(gce_prefix + ch));
-  EXPECT_FALSE(google_brand::IsEnterprise("ggrv"));
-  EXPECT_FALSE(google_brand::IsEnterprise("gcea"));
-  EXPECT_FALSE(google_brand::IsEnterprise("GGRA"));
-  EXPECT_FALSE(google_brand::IsEnterprise("AGCE"));
-  EXPECT_FALSE(google_brand::IsEnterprise("GCCE"));
-  EXPECT_FALSE(google_brand::IsEnterprise("CHFO"));
-  EXPECT_FALSE(google_brand::IsEnterprise("CHMA"));
-  EXPECT_FALSE(google_brand::IsEnterprise("EUBA"));
-  EXPECT_FALSE(google_brand::IsEnterprise(""));
-}
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 // Test for http://crbug.com/383003
 TEST_F(GoogleUpdateTest, ConsentFileIsWorldReadable) {
   // Turn on stats reporting.

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,8 @@
 #include "build/build_config.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/frame/window_frame_util.h"
 #include "chrome/browser/ui/sad_tab.h"
 #include "chrome/browser/ui/sad_tab_helper.h"
-#include "chrome/browser/ui/views/frame/browser_non_client_frame_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -29,15 +27,15 @@ namespace test {
 // A friend of SadTabView that's able to call RecordFirstPaint.
 class SadTabViewTestApi {
  public:
-  SadTabViewTestApi(const SadTabViewTestApi&) = delete;
-  SadTabViewTestApi& operator=(const SadTabViewTestApi&) = delete;
-
   static void RecordFirstPaintForTesting(SadTabView* sad_tab_view) {
     if (!sad_tab_view->painted_) {
       sad_tab_view->RecordFirstPaint();
       sad_tab_view->painted_ = true;
     }
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SadTabViewTestApi);
 };
 
 }  // namespace test
@@ -46,16 +44,12 @@ class SadTabViewInteractiveUITest : public InProcessBrowserTest {
  public:
   SadTabViewInteractiveUITest() {}
 
-  SadTabViewInteractiveUITest(const SadTabViewInteractiveUITest&) = delete;
-  SadTabViewInteractiveUITest& operator=(const SadTabViewInteractiveUITest&) =
-      delete;
-
  protected:
   void KillRendererForActiveWebContentsSync() {
     content::WebContents* web_contents =
         browser()->tab_strip_model()->GetActiveWebContents();
     content::RenderProcessHost* process =
-        web_contents->GetPrimaryMainFrame()->GetProcess();
+        web_contents->GetMainFrame()->GetProcess();
     content::RenderProcessHostWatcher crash_observer(
         process, content::RenderProcessHostWatcher::WATCH_FOR_PROCESS_EXIT);
     process->Shutdown(content::RESULT_CODE_KILLED);
@@ -104,10 +98,7 @@ class SadTabViewInteractiveUITest : public InProcessBrowserTest {
   }
 
   bool IsFocusedViewInsideBrowserToolbar() {
-    return IsFocusedViewInsideViewClass(
-        BrowserView::GetBrowserViewForBrowser(browser())
-            ->toolbar()
-            ->GetClassName());
+    return IsFocusedViewInsideViewClass(ToolbarView::kViewClassName);
   }
 
   bool IsFocusedViewOnActionButtonInSadTab() {
@@ -130,9 +121,12 @@ class SadTabViewInteractiveUITest : public InProcessBrowserTest {
     test::SadTabViewTestApi::RecordFirstPaintForTesting(sad_tab_view);
     PressSpacebar();
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SadTabViewInteractiveUITest);
 };
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 // Focusing or input is not completely working on Mac: http://crbug.com/824418
 #define MAYBE_SadTabKeyboardAccessibility DISABLED_SadTabKeyboardAccessibility
 #else
@@ -142,7 +136,7 @@ IN_PROC_BROWSER_TEST_F(SadTabViewInteractiveUITest,
                        MAYBE_SadTabKeyboardAccessibility) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL url(embedded_test_server()->GetURL("/links.html"));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
 
   // Start with focus in the location bar.
   chrome::FocusLocationBar(browser());
@@ -157,19 +151,10 @@ IN_PROC_BROWSER_TEST_F(SadTabViewInteractiveUITest,
   ASSERT_TRUE(IsFocusedViewInsideSadTab());
   ASSERT_FALSE(IsFocusedViewInsideBrowserToolbar());
 
-  // Pressing the Tab key should cycle focus back to the toolbar or the browser
-  // frame if the tab search caption button is enabled.
+  // Pressing the Tab key should cycle focus back to the toolbar.
   PressTab();
-  if (WindowFrameUtil::IsWin10TabSearchCaptionButtonEnabled(browser())) {
-    const auto* frame_view = BrowserView::GetBrowserViewForBrowser(browser())
-                                 ->frame()
-                                 ->GetFrameView();
-    ASSERT_FALSE(IsFocusedViewInsideSadTab());
-    ASSERT_TRUE(frame_view->Contains(GetFocusedView()));
-  } else {
-    ASSERT_FALSE(IsFocusedViewInsideSadTab());
-    ASSERT_TRUE(IsFocusedViewInsideBrowserToolbar());
-  }
+  ASSERT_FALSE(IsFocusedViewInsideSadTab());
+  ASSERT_TRUE(IsFocusedViewInsideBrowserToolbar());
 
   // Keep pressing the Tab key and make sure we make it back to the sad tab.
   while (!IsFocusedViewInsideSadTab())
@@ -182,12 +167,17 @@ IN_PROC_BROWSER_TEST_F(SadTabViewInteractiveUITest,
   ASSERT_TRUE(IsFocusedViewInsideBrowserToolbar());
 }
 
-// TODO(crbug.com/1184132): flaky test.
+#if defined(OS_WIN) && defined(OFFICIAL_BUILD)
+// Test seems to fail only in official Windows builds: http://crbug.com/848049
+#define MAYBE_ReloadMultipleSadTabs DISABLED_ReloadMultipleSadTabs
+#else
+#define MAYBE_ReloadMultipleSadTabs ReloadMultipleSadTabs
+#endif
 IN_PROC_BROWSER_TEST_F(SadTabViewInteractiveUITest,
-                       DISABLED_ReloadMultipleSadTabs) {
+                       MAYBE_ReloadMultipleSadTabs) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL url(embedded_test_server()->GetURL("/links.html"));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
 
   // Kill the renderer process, resulting in a sad tab.
   KillRendererForActiveWebContentsSync();
@@ -195,7 +185,7 @@ IN_PROC_BROWSER_TEST_F(SadTabViewInteractiveUITest,
   // Create a second tab, navigate to a second url.
   chrome::NewTab(browser());
   GURL url2(embedded_test_server()->GetURL("/simple.html"));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url2));
+  ui_test_utils::NavigateToURL(browser(), url2);
 
   // Kill that one too.
   KillRendererForActiveWebContentsSync();
@@ -203,9 +193,7 @@ IN_PROC_BROWSER_TEST_F(SadTabViewInteractiveUITest,
   // Switch back to the first tab.
   TabStripModel* tab_strip_model = browser()->tab_strip_model();
   EXPECT_EQ(1, tab_strip_model->active_index());
-  tab_strip_model->ActivateTabAt(
-      0, TabStripUserGestureDetails(
-             TabStripUserGestureDetails::GestureType::kOther));
+  tab_strip_model->ActivateTabAt(0, {TabStripModel::GestureType::kOther});
   EXPECT_EQ(0, tab_strip_model->active_index());
   content::WebContents* web_contents = tab_strip_model->GetActiveWebContents();
   EXPECT_TRUE(web_contents->IsCrashed());
@@ -217,9 +205,7 @@ IN_PROC_BROWSER_TEST_F(SadTabViewInteractiveUITest,
   EXPECT_FALSE(web_contents->IsCrashed());
 
   // Switch to the second tab, reload it too.
-  tab_strip_model->ActivateTabAt(
-      1, TabStripUserGestureDetails(
-             TabStripUserGestureDetails::GestureType::kOther));
+  tab_strip_model->ActivateTabAt(1, {TabStripModel::GestureType::kOther});
   web_contents = tab_strip_model->GetActiveWebContents();
   EXPECT_TRUE(web_contents->IsCrashed());
   ClickOnActionButtonInSadTab();

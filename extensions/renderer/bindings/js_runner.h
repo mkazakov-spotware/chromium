@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,7 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "v8/include/v8.h"
-
-namespace base {
-class Value;
-}
 
 namespace extensions {
 
@@ -37,7 +32,7 @@ class JSRunner {
   // ran).
   // NOTE(devlin): We could easily change that if desired.
   using ResultCallback = base::OnceCallback<void(v8::Local<v8::Context>,
-                                                 absl::optional<base::Value>)>;
+                                                 v8::MaybeLocal<v8::Value>)>;
 
   // Calls the given |function| in the specified |context| and with the provided
   // arguments. JS may be executed asynchronously if it has been suspended in

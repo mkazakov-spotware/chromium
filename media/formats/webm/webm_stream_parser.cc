@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,9 @@
 #include "base/callback.h"
 #include "base/callback_helpers.h"
 #include "base/logging.h"
-#include "base/numerics/checked_math.h"
 #include "base/strings/string_number_conversions.h"
 #include "media/base/media_track.h"
 #include "media/base/media_tracks.h"
-#include "media/base/stream_parser.h"
 #include "media/base/timestamp_constants.h"
 #include "media/formats/webm/webm_cluster_parser.h"
 #include "media/formats/webm/webm_constants.h"
@@ -33,12 +31,12 @@ WebMStreamParser::~WebMStreamParser() = default;
 
 void WebMStreamParser::Init(
     InitCB init_cb,
-    NewConfigCB config_cb,
-    NewBuffersCB new_buffers_cb,
+    const NewConfigCB& config_cb,
+    const NewBuffersCB& new_buffers_cb,
     bool ignore_text_tracks,
-    EncryptedMediaInitDataCB encrypted_media_init_data_cb,
-    NewMediaSegmentCB new_segment_cb,
-    EndMediaSegmentCB end_of_segment_cb,
+    const EncryptedMediaInitDataCB& encrypted_media_init_data_cb,
+    const NewMediaSegmentCB& new_segment_cb,
+    const EndMediaSegmentCB& end_of_segment_cb,
     MediaLog* media_log) {
   DCHECK_EQ(state_, kWaitingForInit);
   DCHECK(!init_cb_);
@@ -51,12 +49,12 @@ void WebMStreamParser::Init(
 
   ChangeState(kParsingHeaders);
   init_cb_ = std::move(init_cb);
-  config_cb_ = std::move(config_cb);
-  new_buffers_cb_ = std::move(new_buffers_cb);
+  config_cb_ = config_cb;
+  new_buffers_cb_ = new_buffers_cb;
   ignore_text_tracks_ = ignore_text_tracks;
-  encrypted_media_init_data_cb_ = std::move(encrypted_media_init_data_cb);
-  new_segment_cb_ = std::move(new_segment_cb);
-  end_of_segment_cb_ = std::move(end_of_segment_cb);
+  encrypted_media_init_data_cb_ = encrypted_media_init_data_cb;
+  new_segment_cb_ = new_segment_cb;
+  end_of_segment_cb_ = end_of_segment_cb;
   media_log_ = media_log;
 }
 
@@ -64,81 +62,30 @@ void WebMStreamParser::Flush() {
   DCHECK_NE(state_, kWaitingForInit);
 
   byte_queue_.Reset();
-  uninspected_pending_bytes_ = 0;
-  if (cluster_parser_) {
+  if (cluster_parser_)
     cluster_parser_->Reset();
-  }
-
-  if (state_ == kParsingClusters) {
+  if (state_ == kParsingClusters)
     ChangeState(kParsingHeaders);
-  }
 }
 
 bool WebMStreamParser::GetGenerateTimestampsFlag() const {
   return false;
 }
 
-bool WebMStreamParser::AppendToParseBuffer(const uint8_t* buf, size_t size) {
+bool WebMStreamParser::Parse(const uint8_t* buf, int size) {
   DCHECK_NE(state_, kWaitingForInit);
 
-  if (state_ == kError) {
-    // To preserve previous app-visible behavior in this hopefully
-    // never-encountered path, report no failure to caller due to being in
-    // invalid underlying state. If caller then proceeds with async parse (via
-    // Parse, below), they will get the expected parse failure.  If, instead, we
-    // returned false here, then caller would instead tell app QuotaExceededErr
-    // synchronous with the app's appendBuffer() call, instead of async decode
-    // error during async parse. Since Parse() cannot succeed in kError state,
-    // don't even copy `buf` into `byte_queue_` in this case.
-    // TODO(crbug.com/1379160): Instrument this path to see if it can be changed
-    // to just DCHECK_NE(state_, kError).
-    return true;
-  }
+  if (state_ == kError)
+    return false;
 
-  // Ensure that we are not still in the middle of iterating Parse calls for
-  // previously appended data. May consider changing this to a DCHECK once
-  // stabilized, though since impact of proceeding when this condition fails
-  // could lead to memory corruption, preferring CHECK.
-  CHECK_EQ(uninspected_pending_bytes_, 0);
-
-  uninspected_pending_bytes_ = base::checked_cast<int>(size);
-  byte_queue_.Push(buf, uninspected_pending_bytes_);
-
-  return true;
-}
-
-StreamParser::ParseStatus WebMStreamParser::Parse(
-    int max_pending_bytes_to_inspect) {
-  DCHECK_NE(state_, kWaitingForInit);
-  DCHECK_GE(max_pending_bytes_to_inspect, 0);
-
-  if (state_ == kError) {
-    return ParseStatus::kFailed;
-  }
+  byte_queue_.Push(buf, size);
 
   int result = 0;
   int bytes_parsed = 0;
-  const uint8_t* cur = nullptr;
-  int queue_size = 0;
-  byte_queue_.Peek(&cur, &queue_size);
+  const uint8_t* cur = NULL;
+  int cur_size = 0;
 
-  // First, determine the amount of bytes not yet popped, though already
-  // inspected by previous call(s) to Parse().
-  int cur_size = queue_size - uninspected_pending_bytes_;
-  DCHECK_GE(cur_size, 0);
-
-  // Next, allow up to `max_pending_bytes_to_inspect` more of `byte_queue_`
-  // contents beyond those previously inspected to be involved in this Parse()
-  // call.
-  int inspection_increment =
-      std::min(max_pending_bytes_to_inspect, uninspected_pending_bytes_);
-  cur_size += inspection_increment;
-
-  // If successfully parsed, remember that we will have inspected this
-  // incremental part of `byte_queue_` contents.
-  uninspected_pending_bytes_ -= inspection_increment;
-  DCHECK_GE(uninspected_pending_bytes_, 0);
-
+  byte_queue_.Peek(&cur, &cur_size);
   while (cur_size > 0) {
     State oldState = state_;
     switch (state_) {
@@ -152,12 +99,12 @@ StreamParser::ParseStatus WebMStreamParser::Parse(
 
       case kWaitingForInit:
       case kError:
-        return ParseStatus::kFailed;
+        return false;
     }
 
     if (result < 0) {
       ChangeState(kError);
-      return ParseStatus::kFailed;
+      return false;
     }
 
     if (state_ == oldState && result == 0)
@@ -170,10 +117,7 @@ StreamParser::ParseStatus WebMStreamParser::Parse(
   }
 
   byte_queue_.Pop(bytes_parsed);
-  if (uninspected_pending_bytes_ > 0) {
-    return ParseStatus::kSuccessHasMoreData;
-  }
-  return ParseStatus::kSuccess;
+  return true;
 }
 
 void WebMStreamParser::ChangeState(State new_state) {
@@ -261,18 +205,18 @@ int WebMStreamParser::ParseInfoAndTracks(const uint8_t* data, int size) {
 
   if (info_parser.duration() > 0) {
     int64_t duration_in_us = info_parser.duration() * timecode_scale_in_us;
-    params.duration = base::Microseconds(duration_in_us);
+    params.duration = base::TimeDelta::FromMicroseconds(duration_in_us);
   }
 
   params.timeline_offset = info_parser.date_utc();
 
   if (unknown_segment_size_ && (info_parser.duration() <= 0) &&
       !info_parser.date_utc().is_null()) {
-    params.liveness = StreamLiveness::kLive;
+    params.liveness = DemuxerStream::LIVENESS_LIVE;
   } else if (info_parser.duration() >= 0) {
-    params.liveness = StreamLiveness::kRecorded;
+    params.liveness = DemuxerStream::LIVENESS_RECORDED;
   } else {
-    params.liveness = StreamLiveness::kUnknown;
+    params.liveness = DemuxerStream::LIVENESS_UNKNOWN;
   }
 
   const AudioDecoderConfig& audio_config = tracks_parser.audio_decoder_config();
@@ -290,7 +234,7 @@ int WebMStreamParser::ParseInfoAndTracks(const uint8_t* data, int size) {
     return -1;
   }
 
-  cluster_parser_ = std::make_unique<WebMClusterParser>(
+  cluster_parser_.reset(new WebMClusterParser(
       timecode_scale_in_ns, tracks_parser.audio_track_num(),
       tracks_parser.GetAudioDefaultDuration(timecode_scale_in_ns),
       tracks_parser.video_track_num(),
@@ -298,7 +242,7 @@ int WebMStreamParser::ParseInfoAndTracks(const uint8_t* data, int size) {
       tracks_parser.text_tracks(), tracks_parser.ignored_tracks(),
       tracks_parser.audio_encryption_key_id(),
       tracks_parser.video_encryption_key_id(), audio_config.codec(),
-      media_log_);
+      media_log_));
 
   if (init_cb_) {
     params.detected_audio_track_count =

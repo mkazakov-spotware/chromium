@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,9 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/trace_event/trace_event.h"
-#include "third_party/abseil-cpp/absl/utility/utility.h"
 
 namespace audio {
 
@@ -34,8 +32,6 @@ std::string GetCtorLogString(media::AudioManager* audio_manager,
 OutputStream::OutputStream(
     CreatedCallback created_callback,
     DeleteCallback delete_callback,
-    ManagedDeviceOutputStreamCreateCallback
-        managed_device_output_stream_create_callback,
     mojo::PendingReceiver<media::mojom::AudioOutputStream> stream_receiver,
     mojo::PendingAssociatedRemote<media::mojom::AudioOutputStreamObserver>
         observer,
@@ -57,12 +53,7 @@ OutputStream::OutputStream(
                    : base::DoNothing(),
               params,
               &foreign_socket_),
-      controller_(audio_manager,
-                  this,
-                  params,
-                  output_device_id,
-                  &reader_,
-                  std::move(managed_device_output_stream_create_callback)),
+      controller_(audio_manager, this, params, output_device_id, &reader_),
       loopback_group_id_(loopback_group_id) {
   DCHECK(receiver_.is_bound());
   DCHECK(created_callback);
@@ -156,7 +147,7 @@ void OutputStream::SetVolume(double volume) {
                                       volume);
 
   if (volume < 0 || volume > 1) {
-    receiver_.ReportBadMessage("Invalid volume");
+    mojo::ReportBadMessage("Invalid volume");
     OnControllerError();
     return;
   }
@@ -182,7 +173,7 @@ void OutputStream::CreateAudioPipe(CreatedCallback created_callback) {
   }
 
   std::move(created_callback)
-      .Run({absl::in_place, std::move(shared_memory_region),
+      .Run({base::in_place, std::move(shared_memory_region),
             std::move(socket_handle)});
 }
 
@@ -199,9 +190,11 @@ void OutputStream::OnControllerPlaying() {
   if (OutputController::will_monitor_audio_levels()) {
     DCHECK(!poll_timer_.IsRunning());
     // base::Unretained is safe because |this| owns |poll_timer_|.
-    poll_timer_.Start(FROM_HERE, base::Seconds(1) / kPowerMeasurementsPerSecond,
-                      base::BindRepeating(&OutputStream::PollAudioLevel,
-                                          base::Unretained(this)));
+    poll_timer_.Start(
+        FROM_HERE,
+        base::TimeDelta::FromSeconds(1) / kPowerMeasurementsPerSecond,
+        base::BindRepeating(&OutputStream::PollAudioLevel,
+                            base::Unretained(this)));
     return;
   }
 
@@ -252,7 +245,7 @@ void OutputStream::OnControllerError() {
 void OutputStream::OnLog(base::StringPiece message) {
   // No sequence check: |log_| is thread-safe.
   if (log_) {
-    log_->OnLogMessage(base::StringPrintf("%s", std::string(message).c_str()));
+    log_->OnLogMessage(base::StringPrintf("%s", message.as_string().c_str()));
   }
 }
 
@@ -261,7 +254,7 @@ void OutputStream::OnError() {
   TRACE_EVENT_NESTABLE_ASYNC_INSTANT0("audio", "OnError", this);
 
   // Defer callback so we're not destructed while in the constructor.
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&OutputStream::CallDeleter, weak_factory_.GetWeakPtr()));
 
@@ -306,10 +299,7 @@ void OutputStream::SendLogMessage(const char* format, ...) {
     return;
   va_list args;
   va_start(args, format);
-  log_->OnLogMessage(
-      "audio::OS::" + base::StringPrintV(format, args) +
-      base::StringPrintf(" [controller=0x%" PRIXPTR "]",
-                         reinterpret_cast<uintptr_t>(&controller_)));
+  log_->OnLogMessage("audio::OS::" + base::StringPrintV(format, args));
   va_end(args);
 }
 

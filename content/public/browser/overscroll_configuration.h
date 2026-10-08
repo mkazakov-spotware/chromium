@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_PUBLIC_BROWSER_OVERSCROLL_CONFIGURATION_H_
 #define CONTENT_PUBLIC_BROWSER_OVERSCROLL_CONFIGURATION_H_
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "content/common/content_export.h"
 
@@ -31,10 +32,6 @@ class CONTENT_EXPORT OverscrollConfig {
   static const float kStartTouchpadThresholdDips;
   static const float kStartTouchscreenThresholdDips;
 
-  OverscrollConfig() = delete;
-  OverscrollConfig(const OverscrollConfig&) = delete;
-  OverscrollConfig& operator=(const OverscrollConfig&) = delete;
-
   static PullToRefreshMode GetPullToRefreshMode();
 
   static bool TouchpadOverscrollHistoryNavigationEnabled();
@@ -53,6 +50,8 @@ class CONTENT_EXPORT OverscrollConfig {
   // Helper functions to reset TouchpadOverscrollHistoryNavigationEnabled in
   // tests.
   static void ResetTouchpadOverscrollHistoryNavigationEnabled();
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(OverscrollConfig);
 };
 
 }  // namespace content

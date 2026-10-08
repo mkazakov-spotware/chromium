@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,6 @@ import android.view.Surface;
 import android.view.View;
 import android.widget.FrameLayout;
 
-import org.chromium.base.ContextUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.TraceEvent;
 import org.chromium.base.annotations.CalledByNative;
@@ -28,7 +27,6 @@ import org.chromium.chrome.browser.compositor.layouts.LayoutProvider;
 import org.chromium.chrome.browser.compositor.layouts.LayoutRenderHost;
 import org.chromium.chrome.browser.compositor.layouts.content.TabContentManager;
 import org.chromium.chrome.browser.compositor.resources.StaticResourcePreloads;
-import org.chromium.chrome.browser.compositor.resources.SystemResourcePreloads;
 import org.chromium.chrome.browser.externalnav.IntentWithRequestMetadataHandler;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
@@ -39,6 +37,9 @@ import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.resources.AndroidResourceType;
 import org.chromium.ui.resources.ResourceManager;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * The is the {@link View} displaying the ui compositor results; including webpages and tabswitcher.
  */
@@ -46,8 +47,11 @@ import org.chromium.ui.resources.ResourceManager;
 public class CompositorView
         extends FrameLayout implements CompositorSurfaceManager.SurfaceManagerCallbackTarget,
                                        WindowAndroid.SelectionHandlesObserver {
+    private static final String TAG = "CompositorView";
+
     // Cache objects that should not be created every frame
     private final Rect mCacheAppRect = new Rect();
+    private final int[] mCacheViewPosition = new int[2];
 
     private CompositorSurfaceManager mCompositorSurfaceManager;
     private boolean mOverlayVideoEnabled;
@@ -65,35 +69,26 @@ public class CompositorView
     private ResourceManager mResourceManager;
 
     // Lazily populated as it is needed.
+    private View mRootActivityView;
     private WindowAndroid mWindowAndroid;
     private TabContentManager mTabContentManager;
 
     private View mRootView;
     private boolean mPreloadedResources;
-    private Runnable mDrawingFinishedCallback;
+    private List<Runnable> mDrawingFinishedCallbacks;
 
-    // True while the compositor view is in VR Browser mode (obsolescent), or in a WebXR
-    // "immersive-ar" session with DOM Overlay enabled. This disables SurfaceControl while active.
-    private boolean mIsInXr;
+    private boolean mIsInVr;
 
     private boolean mIsSurfaceControlEnabled;
     private boolean mSelectionHandlesActive;
-
-    private boolean mRenderHostNeedsDidSwapBuffersCallback;
-
-    private boolean mHaveSwappedFramesSinceSurfaceCreated;
 
     // On P and above, toggling the screen off gets us in a state where the Surface is destroyed but
     // it is never recreated when it is turned on again. This is the only workaround that seems to
     // be working, see crbug.com/931195.
     class ScreenStateReceiverWorkaround extends BroadcastReceiver {
-        // True indicates we should destroy and recreate the surface manager.
-        private boolean mNeedsReset;
-
         ScreenStateReceiverWorkaround() {
             IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_OFF);
-            ContextUtils.registerProtectedBroadcastReceiver(
-                    getContext().getApplicationContext(), this, filter);
+            getContext().getApplicationContext().registerReceiver(this, filter);
         }
 
         void shutDown() {
@@ -103,24 +98,11 @@ public class CompositorView
         @Override
         public void onReceive(Context context, Intent intent) {
             if (intent.getAction().equals(Intent.ACTION_SCREEN_OFF)
-                    && mCompositorSurfaceManager != null && !mIsInXr
+                    && mCompositorSurfaceManager != null && !mIsInVr
                     && mNativeCompositorView != 0) {
-                mNeedsReset = true;
-            }
-        }
-
-        public void maybeResetCompositorSurfaceManager() {
-            if (!mNeedsReset) return;
-            mNeedsReset = false;
-
-            if (mCompositorSurfaceManager != null) {
                 mCompositorSurfaceManager.shutDown();
                 createCompositorSurfaceManager();
             }
-        }
-
-        public void clearNeedsReset() {
-            mNeedsReset = false;
         }
     }
 
@@ -159,7 +141,7 @@ public class CompositorView
         // Cover the black surface before it has valid content.  Set this placeholder view to
         // visible, but don't yet make SurfaceView visible, in order to delay
         // surfaceCreate/surfaceChanged calls until the native library is loaded.
-        setBackgroundColor(ChromeColors.getPrimaryBackgroundColor(getContext(), false));
+        setBackgroundColor(ChromeColors.getPrimaryBackgroundColor(getResources(), false));
         super.setVisibility(View.VISIBLE);
 
         // Request the opaque surface.  We might need the translucent one, but
@@ -226,7 +208,7 @@ public class CompositorView
     public void onSelectionHandlesStateChanged(boolean active) {
         // If the feature is disabled or we're in Vr mode, we are already rendering directly to the
         // SurfaceView.
-        if (!mIsSurfaceControlEnabled || mIsInXr) return;
+        if (!mIsSurfaceControlEnabled || mIsInVr) return;
 
         if (mSelectionHandlesActive == active) return;
         mSelectionHandlesActive = active;
@@ -324,7 +306,7 @@ public class CompositorView
         mResourceManager = CompositorViewJni.get().getResourceManager(
                 mNativeCompositorView, CompositorView.this);
 
-        // Redraw in case there are callbacks pending |mDrawingFinishedCallback|.
+        // Redraw in case there are callbacks pending |mDrawingFinishedCallbacks|.
         CompositorViewJni.get().setNeedsComposite(mNativeCompositorView, CompositorView.this);
     }
 
@@ -357,23 +339,21 @@ public class CompositorView
      * Enables/disables immersive AR overlay mode, a variant of overlay video mode.
      * @param enabled Whether to enter or leave overlay immersive ar mode.
      */
-    public void setOverlayImmersiveArMode(boolean enabled, boolean domSurfaceNeedsConfiguring) {
-        // Disable SurfaceControl for the duration of the session. This works around a black
-        // screen after activating the screen keyboard (IME), see https://crbug.com/1166248.
-        mIsInXr = enabled;
-
-        if (domSurfaceNeedsConfiguring) {
+    public void setOverlayImmersiveArMode(boolean enabled) {
+        // In SurfaceControl mode, we don't need to switch surfaces for the compositor, we can
+        // continue using its already-translucent surface. (The ArImmersiveOverlay has its own
+        // separate opaque surface which is used for displaying the camera image and WebGL drawn
+        // content. The compositor surface appears on top of that as an overlay.)
+        // TODO(https://crbug.com/1122103): revisit once the stale-ChromeChildSurface issue is
+        // fixed.
+        if (!canUseSurfaceControl()
+                || mCompositorSurfaceManager.getFormatOfOwnedSurface() != PixelFormat.TRANSLUCENT) {
+            // If SurfaceControl is off, or if we haven't started using it yet, switch the
+            // compositor to a translucent surface, same as overlay video mode.
             setOverlayVideoMode(enabled);
         }
-
         CompositorViewJni.get().setOverlayImmersiveArMode(
                 mNativeCompositorView, CompositorView.this, enabled);
-        // Entering or exiting AR mode can leave SurfaceControl in a confused state, especially if
-        // the screen keyboard (IME) was activated, see https://crbug.com/1166248 and
-        // https://crbug.com/1169822. Reset the surface manager at session start and exit to work
-        // around this.
-        mCompositorSurfaceManager.shutDown();
-        createCompositorSurfaceManager();
     }
 
     private int getSurfacePixelFormat() {
@@ -396,37 +376,15 @@ public class CompositorView
     }
 
     private boolean canUseSurfaceControl() {
-        return !mIsInXr && !mSelectionHandlesActive;
+        return !mIsInVr && !mSelectionHandlesActive;
     }
 
     @Override
     public void surfaceRedrawNeededAsync(Runnable drawingFinished) {
-        // Do not hold onto more than one draw callback, to prevent deadlock.
-        // See https://crbug.com/1174273 and https://crbug.com/1223299 for more details.
-        //
-        // `drawingFinished` can, and often will, be run before this returns, since we cannot hold
-        // onto more than one (android) callback without risking a deadlock in the framework.
-        //
-        // DO NOT ADD any more callbacks from inside chrome!  This is intended to implement
-        // (indirectly) the android SurfaceHolder callback.  It is not intended as a general-purpose
-        // mechanism for chromium to wait for a swap to occur.  In particular, we have workarounds
-        // for android framework behavior here, that would be unexpected to other callers.  Also,
-        // these behaviors can change without notice as new android versions show up.
-        //
-        // If you want to find out about a swap, please add a separate mechanism to this class to do
-        // so, with more predictable semantics.
-        runDrawFinishedCallback();
-        mDrawingFinishedCallback = drawingFinished;
-        if (mHaveSwappedFramesSinceSurfaceCreated) {
-            // Don't hold onto the draw callback, since it can deadlock with ViewRootImpl performing
-            // traversals in some cases.  Only wait if the surface is newly created.  Android allows
-            // us to run the callback before returning; the default implementation of this method
-            // does exactly that.  While there are a few calls into this method that are not from
-            // the android framework, these are currently okay with this behavior.  Please do not
-            // add any more, as described above.
-            runDrawFinishedCallback();
+        if (mDrawingFinishedCallbacks == null) {
+            mDrawingFinishedCallbacks = new ArrayList<>();
         }
-        updateNeedsDidSwapBuffersCallback();
+        mDrawingFinishedCallbacks.add(drawingFinished);
         if (mNativeCompositorView != 0) {
             CompositorViewJni.get().setNeedsComposite(mNativeCompositorView, CompositorView.this);
         }
@@ -445,33 +403,16 @@ public class CompositorView
     public void surfaceCreated(Surface surface) {
         if (mNativeCompositorView == 0) return;
 
-        // if a requested surface is created successfully, CompositorSurfaceManager doesn't need to
-        // be reset.
-        if (mScreenStateReceiver != null) mScreenStateReceiver.clearNeedsReset();
-        mFramesUntilHideBackground = 2;
-        mHaveSwappedFramesSinceSurfaceCreated = false;
-        updateNeedsDidSwapBuffersCallback();
         CompositorViewJni.get().surfaceCreated(mNativeCompositorView, CompositorView.this);
+        mFramesUntilHideBackground = 2;
         mRenderHost.onSurfaceCreated();
     }
 
     @Override
-    public void surfaceDestroyed(Surface surface, boolean androidSurfaceDestroyed) {
+    public void surfaceDestroyed(Surface surface) {
         if (mNativeCompositorView == 0) return;
 
-        // When we switch from Chrome to other app we can't detach child surface controls because it
-        // leads to a visible hole: b/157439199. To avoid this we don't detach surfaces if the
-        // surface is going to be destroyed, they will be detached and freed by OS.
-        if (androidSurfaceDestroyed) {
-            CompositorViewJni.get().preserveChildSurfaceControls(
-                    mNativeCompositorView, CompositorView.this);
-        }
-
         CompositorViewJni.get().surfaceDestroyed(mNativeCompositorView, CompositorView.this);
-
-        if (mScreenStateReceiver != null) {
-            mScreenStateReceiver.maybeResetCompositorSurfaceManager();
-        }
     }
 
     @Override
@@ -538,26 +479,6 @@ public class CompositorView
         }
     }
 
-    /**
-     * Called by LayoutRenderHost to inform whether it needs `didSwapBuffers` calls.
-     * Note the implementation is asynchronous so it may miss already pending calls when enabled
-     * and can have a few trailing calls when disabled.
-     */
-    public void setRenderHostNeedsDidSwapBuffersCallback(boolean enable) {
-        if (mRenderHostNeedsDidSwapBuffersCallback == enable) return;
-        mRenderHostNeedsDidSwapBuffersCallback = enable;
-        updateNeedsDidSwapBuffersCallback();
-    }
-
-    // Should be called any time the inputs used to compute `needsSwapCallback` change.
-    private void updateNeedsDidSwapBuffersCallback() {
-        if (mNativeCompositorView == 0) return;
-        boolean needsSwapCallback = mRenderHostNeedsDidSwapBuffersCallback
-                || mFramesUntilHideBackground > 0 || mDrawingFinishedCallback != null;
-        CompositorViewJni.get().setDidSwapBuffersCallbackEnabled(
-                mNativeCompositorView, needsSwapCallback);
-    }
-
     @CalledByNative
     private void didSwapFrame(int pendingFrameCount) {
         mRenderHost.didSwapFrame(pendingFrameCount);
@@ -584,36 +505,12 @@ public class CompositorView
             mCompositorSurfaceManager.doneWithUnownedSurface();
         }
 
-        // We must be careful about deferring draw callbacks, else Android can get into a bad state.
-        // However, we can still reduce some types of visible jank by deferring these carefully.
-        //
-        // In particular, a callback that is sent to us as part of WindowManager's "first draw" will
-        // defer putting buffers on the screen.  So, if we wait until we swap a correctly-sized
-        // buffer, the user won't see the previous ones.  That's generally an improvement over the
-        // clipping / guttering / stretching that would happen with the incorrectly-sized buffers.
-        //
-        // At other times, holding onto this draw callback doesn't change what's on the screen;
-        // SurfaceFlinger will still show each buffer.  What happens instead is that only WM
-        // transactions are deferred, like in the previous case, but it doesn't do us any good.
-        //
-        // Further, holding onto callbacks can prevent us from getting a surfaceCreated if the WM's
-        // transaction is blocked.  This can lead to problems when chrome is re-launched.
-        //
-        // Our strategy is as follows:
-        //
-        //  - Defer at most one draw callback.  If we get a second, immediately call back the first.
-        //  - If we are holding a draw callback when our surface is destroyed, then call it back.
-        //  - Otherwise, defer the callback until we swap the right size buffer.
-        //
-        // See https://crbug.com/1174273 and https://crbug.com/1223299 for more details.
+        // Only run our draw finished callbacks if the frame we swapped was the correct size.
         if (swappedCurrentSize) {
-            runDrawFinishedCallback();
+            runDrawFinishedCallbacks();
         }
-        mHaveSwappedFramesSinceSurfaceCreated = true;
 
         mRenderHost.didSwapBuffers(swappedCurrentSize);
-
-        updateNeedsDidSwapBuffersCallback();
     }
 
     @CalledByNative
@@ -625,8 +522,9 @@ public class CompositorView
      * Converts the layout into compositor layers. This is to be called on every frame the layout
      * is changing.
      * @param provider               Provides the layout to be rendered.
+     * @param forRotation            Whether or not this is a special draw during a rotation.
      */
-    public void finalizeLayers(final LayoutProvider provider) {
+    public void finalizeLayers(final LayoutProvider provider, boolean forRotation) {
         TraceEvent.begin("CompositorView:finalizeLayers");
         Layout layout = provider.getActiveLayout();
         if (layout == null || mNativeCompositorView == 0) {
@@ -639,9 +537,6 @@ public class CompositorView
             mResourceManager.preloadResources(AndroidResourceType.STATIC,
                     StaticResourcePreloads.getSynchronousResources(getContext()),
                     StaticResourcePreloads.getAsynchronousResources(getContext()));
-            mResourceManager.preloadResources(AndroidResourceType.SYSTEM,
-                    SystemResourcePreloads.getSynchronousResources(),
-                    SystemResourcePreloads.getAsynchronousResources());
             mPreloadedResources = true;
         }
 
@@ -684,17 +579,17 @@ public class CompositorView
         mCompositorSurfaceManager.setVisibility(visibility);
         // Clear out any outstanding callbacks that won't run if set to invisible.
         if (visibility == View.INVISIBLE) {
-            runDrawFinishedCallback();
+            runDrawFinishedCallbacks();
         }
     }
 
-    private void runDrawFinishedCallback() {
-        Runnable runnable = mDrawingFinishedCallback;
-        mDrawingFinishedCallback = null;
-        if (runnable != null) {
-            runnable.run();
+    private void runDrawFinishedCallbacks() {
+        List<Runnable> runnables = mDrawingFinishedCallbacks;
+        mDrawingFinishedCallbacks = null;
+        if (runnables == null) return;
+        for (Runnable r : runnables) {
+            r.run();
         }
-        updateNeedsDidSwapBuffersCallback();
     }
 
     /**
@@ -706,7 +601,7 @@ public class CompositorView
      */
     public void replaceSurfaceManagerForVr(
             CompositorSurfaceManager vrCompositorSurfaceManager, WindowAndroid window) {
-        mIsInXr = true;
+        mIsInVr = true;
 
         mCompositorSurfaceManager.shutDown();
         CompositorViewJni.get().setCompositorWindow(
@@ -724,7 +619,7 @@ public class CompositorView
      * @param windowToRestore The non-VR WindowAndroid to restore.
      */
     public void onExitVr(WindowAndroid windowToRestore) {
-        mIsInXr = false;
+        mIsInVr = false;
 
         if (mNativeCompositorView == 0) return;
         setWindowAndroid(windowToRestore);
@@ -777,7 +672,5 @@ public class CompositorView
         void cacheBackBufferForCurrentSurface(long nativeCompositorView, CompositorView caller);
         void evictCachedBackBuffer(long nativeCompositorView, CompositorView caller);
         void onTabChanged(long nativeCompositorView, CompositorView caller);
-        void preserveChildSurfaceControls(long nativeCompositorView, CompositorView caller);
-        void setDidSwapBuffersCallbackEnabled(long nativeCompositorView, boolean enabled);
     }
 }

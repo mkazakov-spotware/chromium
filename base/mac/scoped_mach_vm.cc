@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 
 #include "base/mac/mach_logging.h"
 
-namespace base::mac {
+namespace base {
+namespace mac {
 
 void ScopedMachVM::reset(vm_address_t address, vm_size_t size) {
   DCHECK_EQ(address % PAGE_SIZE, 0u);
@@ -33,4 +34,5 @@ void ScopedMachVM::reset_unaligned(vm_address_t address, vm_size_t size) {
   size_ = size;
 }
 
-}  // namespace base::mac
+}  // namespace mac
+}  // namespace base

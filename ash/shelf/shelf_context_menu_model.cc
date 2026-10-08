@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,13 +10,8 @@
 
 #include "ash/app_list/app_list_controller_impl.h"
 #include "ash/app_list/app_list_metrics.h"
-#include "ash/app_list/app_list_model_provider.h"
-#include "ash/app_list/model/app_list_model.h"
-#include "ash/constants/ash_features.h"
-#include "ash/constants/ash_pref_names.h"
-#include "ash/constants/personalization_entry_point.h"
 #include "ash/public/cpp/app_menu_constants.h"
-#include "ash/public/cpp/new_window_delegate.h"
+#include "ash/public/cpp/ash_pref_names.h"
 #include "ash/public/cpp/shelf_item_delegate.h"
 #include "ash/public/cpp/shelf_model.h"
 #include "ash/public/cpp/shelf_prefs.h"
@@ -26,8 +21,8 @@
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "ash/strings/grit/ash_strings.h"
+#include "ash/wallpaper/wallpaper_controller_impl.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
-#include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
 #include "base/numerics/safe_conversions.h"
 #include "components/prefs/pref_service.h"
@@ -90,6 +85,7 @@ void ShelfContextMenuModel::ExecuteCommand(int command_id, int event_flags) {
   if (!prefs)  // Null during startup.
     return;
 
+  UserMetricsRecorder* metrics = shell->metrics();
   // Clamshell mode only options should not activate in tablet mode.
   const bool is_tablet_mode = shell->tablet_mode_controller()->InTabletMode();
   switch (command_id) {
@@ -103,41 +99,21 @@ void ShelfContextMenuModel::ExecuteCommand(int command_id, int event_flags) {
       break;
     case MENU_ALIGNMENT_LEFT:
       DCHECK(!is_tablet_mode);
-      base::RecordAction(base::UserMetricsAction("Shelf_AlignmentSetLeft"));
+      metrics->RecordUserMetricsAction(UMA_SHELF_ALIGNMENT_SET_LEFT);
       SetShelfAlignmentPref(prefs, display_id_, ShelfAlignment::kLeft);
       break;
     case MENU_ALIGNMENT_RIGHT:
       DCHECK(!is_tablet_mode);
-      base::RecordAction(base::UserMetricsAction("Shelf_AlignmentSetRight"));
+      metrics->RecordUserMetricsAction(UMA_SHELF_ALIGNMENT_SET_RIGHT);
       SetShelfAlignmentPref(prefs, display_id_, ShelfAlignment::kRight);
       break;
     case MENU_ALIGNMENT_BOTTOM:
       DCHECK(!is_tablet_mode);
-      base::RecordAction(base::UserMetricsAction("Shelf_AlignmentSetBottom"));
+      metrics->RecordUserMetricsAction(UMA_SHELF_ALIGNMENT_SET_BOTTOM);
       SetShelfAlignmentPref(prefs, display_id_, ShelfAlignment::kBottom);
       break;
-    case MENU_PERSONALIZATION_HUB:
-      // Record entry point metric to Personalization Hub through Home Screen.
-      base::UmaHistogramEnumeration(kPersonalizationEntryPointHistogramName,
-                                    PersonalizationEntryPoint::kHomeScreen);
-      NewWindowDelegate::GetPrimary()->OpenPersonalizationHub();
-      break;
-    case MENU_HIDE_CONTINUE_SECTION:
-      DCHECK(is_tablet_mode);
-      shell->app_list_controller()->SetHideContinueSection(true);
-      break;
-    case MENU_SHOW_CONTINUE_SECTION:
-      DCHECK(is_tablet_mode);
-      shell->app_list_controller()->SetHideContinueSection(false);
-      break;
-    // Using reorder CommandId in ash/public/cpp/app_menu_constants.h
-    case REORDER_BY_NAME_ALPHABETICAL:
-      AppListModelProvider::Get()->model()->delegate()->RequestAppListSort(
-          AppListSortOrder::kNameAlphabetical);
-      break;
-    case REORDER_BY_COLOR:
-      AppListModelProvider::Get()->model()->delegate()->RequestAppListSort(
-          AppListSortOrder::kColor);
+    case MENU_CHANGE_WALLPAPER:
+      shell->wallpaper_controller()->OpenWallpaperPickerIfAllowed();
       break;
     default:
       if (delegate_) {
@@ -169,16 +145,14 @@ void ShelfContextMenuModel::AddShelfAndWallpaperItems() {
                          : IDS_ASH_SHELF_CONTEXT_MENU_AUTO_HIDE;
     AddItemWithStringIdAndIcon(
         MENU_AUTO_HIDE, string_id,
-        ui::ImageModel::FromVectorIcon(
-            is_autohide_set ? kAlwaysShowShelfIcon : kAutoHideIcon,
-            ui::kColorAshSystemUIMenuIcon));
+        ui::ImageModel::FromVectorIcon(is_autohide_set ? kAlwaysShowShelfIcon
+                                                       : kAutoHideIcon));
   }
 
-  // Only allow shelf alignment modifications by the logged in Gaia users
-  // (regular or Family Link user). In tablet mode, the shelf alignment option
-  // is not shown.
+  // Only allow shelf alignment modifications by the owner or user. In tablet
+  // mode, the shelf alignment option is not shown.
   LoginStatus status = Shell::Get()->session_controller()->login_status();
-  if ((status == LoginStatus::USER || status == LoginStatus::CHILD) &&
+  if (status == LoginStatus::USER &&
       !Shell::Get()->tablet_mode_controller()->InTabletMode() &&
       prefs->FindPreference(prefs::kShelfAlignmentLocal)->IsUserModifiable()) {
     alignment_submenu_ = std::make_unique<ui::SimpleMenuModel>(this);
@@ -194,14 +168,14 @@ void ShelfContextMenuModel::AddShelfAndWallpaperItems() {
     AddSubMenuWithStringIdAndIcon(
         MENU_ALIGNMENT_MENU, IDS_ASH_SHELF_CONTEXT_MENU_POSITION,
         alignment_submenu_.get(),
-        ui::ImageModel::FromVectorIcon(kShelfPositionIcon,
-                                       ui::kColorAshSystemUIMenuIcon));
+        ui::ImageModel::FromVectorIcon(kShelfPositionIcon));
   }
 
-  AddItemWithStringIdAndIcon(
-      MENU_PERSONALIZATION_HUB, IDS_AURA_OPEN_PERSONALIZATION_HUB,
-      ui::ImageModel::FromVectorIcon(kPaintBrushIcon,
-                                     ui::kColorAshSystemUIMenuIcon));
+  if (Shell::Get()->wallpaper_controller()->CanOpenWallpaperPicker()) {
+    AddItemWithStringIdAndIcon(MENU_CHANGE_WALLPAPER,
+                               IDS_AURA_SET_DESKTOP_WALLPAPER,
+                               ui::ImageModel::FromVectorIcon(kWallpaperIcon));
+  }
 }
 
 }  // namespace ash

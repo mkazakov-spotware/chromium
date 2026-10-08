@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,8 @@ PreloadCheck::PreloadCheck(scoped_refptr<const Extension> extension)
 
 PreloadCheck::~PreloadCheck() {}
 
-std::u16string PreloadCheck::GetErrorMessage() const {
-  return std::u16string();
+base::string16 PreloadCheck::GetErrorMessage() const {
+  return base::string16();
 }
 
 }  // namespace extensions

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,13 +25,12 @@ class GLImageD3DTestDelegate : public GLImageTestDelegateBase {
 
   void WillTearDown() override { d3d11_device_ = nullptr; }
 
-  absl::optional<GLImplementationParts> GetPreferedGLImplementation()
+  base::Optional<GLImplementation> GetPreferedGLImplementation()
       const override {
-    return absl::optional<GLImplementationParts>(
-        GLImplementationParts(ANGLEImplementation::kD3D11));
+    return base::Optional<GLImplementation>(kGLImplementationEGLANGLE);
   }
 
-  bool SkipTest(GLDisplay*) const override { return !d3d11_device_; }
+  bool SkipTest() const override { return !d3d11_device_; }
 
   scoped_refptr<GLImageD3D> CreateImage(const gfx::Size& size) const {
     D3D11_TEXTURE2D_DESC desc;
@@ -52,8 +51,7 @@ class GLImageD3DTestDelegate : public GLImageTestDelegateBase {
     EXPECT_TRUE(SUCCEEDED(hr));
 
     auto image = base::MakeRefCounted<GLImageD3D>(
-        size, internal_format, data_type, gfx::ColorSpace::CreateSRGB(),
-        std::move(d3d11_texture));
+        size, internal_format, data_type, std::move(d3d11_texture), nullptr);
     EXPECT_TRUE(image->Initialize());
     return image;
   }

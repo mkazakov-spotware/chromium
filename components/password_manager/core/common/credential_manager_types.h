@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,8 @@
 #include <string>
 
 #include "base/compiler_specific.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -44,10 +45,10 @@ std::ostream& operator<<(std::ostream& os, CredentialType value);
 struct CredentialInfo {
   CredentialInfo();
   CredentialInfo(CredentialType type,
-                 absl::optional<std::u16string> id,
-                 absl::optional<std::u16string> name,
+                 base::Optional<base::string16> id,
+                 base::Optional<base::string16> name,
                  GURL icon,
-                 absl::optional<std::u16string> password,
+                 base::Optional<base::string16> password,
                  url::Origin federation);
 
   CredentialInfo(const CredentialInfo& other);
@@ -55,22 +56,22 @@ struct CredentialInfo {
 
   bool operator==(const CredentialInfo& rhs) const;
 
-  CredentialType type = CredentialType::CREDENTIAL_TYPE_EMPTY;
+  CredentialType type;
 
   // An identifier (username, email address, etc). Corresponds to
   // WebCredential's id property.
-  absl::optional<std::u16string> id;
+  base::Optional<base::string16> id;
 
   // An user-friendly name ("Jane Doe"). Corresponds to WebCredential's name
   // property.
-  absl::optional<std::u16string> name;
+  base::Optional<base::string16> name;
 
   // The address of this credential's icon (e.g. the user's avatar).
   // Corresponds to WebCredential's icon property.
   GURL icon;
 
   // Corresponds to WebPasswordCredential's password property.
-  absl::optional<std::u16string> password;
+  base::Optional<base::string16> password;
 
   // Corresponds to WebFederatedCredential's provider property.
   url::Origin federation;

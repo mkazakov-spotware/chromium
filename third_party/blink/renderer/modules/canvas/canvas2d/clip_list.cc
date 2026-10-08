@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 
 namespace blink {
 
-ClipList::ClipList(const ClipList& other) = default;
+ClipList::ClipList(const ClipList& other) : clip_list_(other.clip_list_) {}
 
 void ClipList::ClipPath(const SkPath& path,
                         AntiAliasingMode anti_aliasing_mode,
@@ -19,6 +19,12 @@ void ClipList::ClipPath(const SkPath& path,
   new_clip.anti_aliasing_mode_ = anti_aliasing_mode;
   new_clip.path_ = path;
   new_clip.path_.transform(ctm);
+  if (clip_list_.IsEmpty()) {
+    current_clip_path_ = path;
+  } else {
+    Op(current_clip_path_, path, SkPathOp::kIntersect_SkPathOp,
+       &current_clip_path_);
+  }
   clip_list_.push_back(new_clip);
 }
 
@@ -29,18 +35,12 @@ void ClipList::Playback(cc::PaintCanvas* canvas) const {
   }
 }
 
-SkPath ClipList::IntersectPathWithClip(const SkPath& path) const {
-  SkPath total = path;
-  for (const ClipOp* it = clip_list_.begin(); it < clip_list_.end(); it++) {
-    Op(total, it->path_, SkPathOp::kIntersect_SkPathOp, &total);
-  }
-  return total;
+const SkPath& ClipList::GetCurrentClipPath() const {
+  return current_clip_path_;
 }
 
 ClipList::ClipOp::ClipOp() : anti_aliasing_mode_(kAntiAliased) {}
 
-ClipList::ClipOp::ClipOp(const ClipOp&) = default;
-
-ClipList::ClipOp& ClipList::ClipOp::operator=(const ClipOp&) = default;
+ClipList::ClipOp::ClipOp(const ClipOp& other) = default;
 
 }  // namespace blink

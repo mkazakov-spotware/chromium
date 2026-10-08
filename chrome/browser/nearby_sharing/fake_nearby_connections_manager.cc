@@ -1,11 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/nearby_sharing/fake_nearby_connections_manager.h"
-
-#include "base/containers/contains.h"
-#include "base/threading/thread_restrictions.h"
 
 FakeNearbyConnectionsManager::FakeNearbyConnectionsManager() = default;
 
@@ -23,36 +20,22 @@ void FakeNearbyConnectionsManager::StartAdvertising(
     PowerLevel power_level,
     DataUsage data_usage,
     ConnectionsCallback callback) {
-  DCHECK(!IsAdvertising());
   is_shutdown_ = false;
   advertising_listener_ = listener;
   advertising_data_usage_ = data_usage;
   advertising_power_level_ = power_level;
   advertising_endpoint_info_ = std::move(endpoint_info);
-  if (capture_next_start_advertising_callback_) {
-    pending_start_advertising_callback_ = std::move(callback);
-    capture_next_start_advertising_callback_ = false;
-  } else {
-    std::move(callback).Run(
-        NearbyConnectionsManager::ConnectionsStatus::kSuccess);
-  }
+  std::move(callback).Run(
+      NearbyConnectionsManager::ConnectionsStatus::kSuccess);
 }
 
-void FakeNearbyConnectionsManager::StopAdvertising(
-    ConnectionsCallback callback) {
+void FakeNearbyConnectionsManager::StopAdvertising() {
   DCHECK(IsAdvertising());
   DCHECK(!is_shutdown());
   advertising_listener_ = nullptr;
   advertising_data_usage_ = DataUsage::kUnknown;
   advertising_power_level_ = PowerLevel::kUnknown;
   advertising_endpoint_info_.reset();
-  if (capture_next_stop_advertising_callback_) {
-    pending_stop_advertising_callback_ = std::move(callback);
-    capture_next_stop_advertising_callback_ = false;
-  } else {
-    std::move(callback).Run(
-        NearbyConnectionsManager::ConnectionsStatus::kSuccess);
-  }
 }
 
 void FakeNearbyConnectionsManager::StartDiscovery(
@@ -61,8 +44,7 @@ void FakeNearbyConnectionsManager::StartDiscovery(
     ConnectionsCallback callback) {
   is_shutdown_ = false;
   discovery_listener_ = listener;
-  std::move(callback).Run(
-      NearbyConnectionsManager::ConnectionsStatus::kSuccess);
+  // TODO(alexchau): Implement.
 }
 
 void FakeNearbyConnectionsManager::StopDiscovery() {
@@ -75,7 +57,7 @@ void FakeNearbyConnectionsManager::StopDiscovery() {
 void FakeNearbyConnectionsManager::Connect(
     std::vector<uint8_t> endpoint_info,
     const std::string& endpoint_id,
-    absl::optional<std::vector<uint8_t>> bluetooth_mac_address,
+    base::Optional<std::vector<uint8_t>> bluetooth_mac_address,
     DataUsage data_usage,
     NearbyConnectionCallback callback) {
   DCHECK(!is_shutdown());
@@ -89,10 +71,9 @@ void FakeNearbyConnectionsManager::Disconnect(const std::string& endpoint_id) {
   connection_endpoint_infos_.erase(endpoint_id);
 }
 
-void FakeNearbyConnectionsManager::Send(
-    const std::string& endpoint_id,
-    PayloadPtr payload,
-    base::WeakPtr<PayloadStatusListener> listener) {
+void FakeNearbyConnectionsManager::Send(const std::string& endpoint_id,
+                                        PayloadPtr payload,
+                                        PayloadStatusListener* listener) {
   DCHECK(!is_shutdown());
   if (send_payload_callback_)
     send_payload_callback_.Run(std::move(payload), listener);
@@ -100,7 +81,7 @@ void FakeNearbyConnectionsManager::Send(
 
 void FakeNearbyConnectionsManager::RegisterPayloadStatusListener(
     int64_t payload_id,
-    base::WeakPtr<PayloadStatusListener> listener) {
+    PayloadStatusListener* listener) {
   DCHECK(!is_shutdown());
 
   payload_status_listeners_[payload_id] = listener;
@@ -142,20 +123,7 @@ FakeNearbyConnectionsManager::GetIncomingPayload(int64_t payload_id) {
 
 void FakeNearbyConnectionsManager::Cancel(int64_t payload_id) {
   DCHECK(!is_shutdown());
-  base::WeakPtr<PayloadStatusListener> listener =
-      GetRegisteredPayloadStatusListener(payload_id);
-  if (listener) {
-    listener->OnStatusUpdate(
-        location::nearby::connections::mojom::PayloadTransferUpdate::New(
-            payload_id,
-            location::nearby::connections::mojom::PayloadStatus::kCanceled,
-            /*total_bytes=*/0,
-            /*bytes_transferred=*/0),
-        /*upgraded_medium=*/absl::nullopt);
-    payload_status_listeners_.erase(payload_id);
-  }
-
-  canceled_payload_ids_.insert(payload_id);
+  // TODO(alexchau): Implement.
 }
 
 void FakeNearbyConnectionsManager::ClearIncomingPayloads() {
@@ -165,7 +133,7 @@ void FakeNearbyConnectionsManager::ClearIncomingPayloads() {
   payload_status_listeners_.clear();
 }
 
-absl::optional<std::vector<uint8_t>>
+base::Optional<std::vector<uint8_t>>
 FakeNearbyConnectionsManager::GetRawAuthenticationToken(
     const std::string& endpoint_id) {
   DCHECK(!is_shutdown());
@@ -174,7 +142,7 @@ FakeNearbyConnectionsManager::GetRawAuthenticationToken(
   if (iter != endpoint_auth_tokens_.end())
     return iter->second;
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 void FakeNearbyConnectionsManager::SetRawAuthenticationToken(
@@ -225,7 +193,7 @@ void FakeNearbyConnectionsManager::SetPayloadPathStatus(
   payload_path_status_[payload_id] = status;
 }
 
-base::WeakPtr<FakeNearbyConnectionsManager::PayloadStatusListener>
+FakeNearbyConnectionsManager::PayloadStatusListener*
 FakeNearbyConnectionsManager::GetRegisteredPayloadStatusListener(
     int64_t payload_id) {
   auto it = payload_status_listeners_.find(payload_id);
@@ -240,59 +208,11 @@ void FakeNearbyConnectionsManager::SetIncomingPayload(int64_t payload_id,
   incoming_payloads_[payload_id] = std::move(payload);
 }
 
-bool FakeNearbyConnectionsManager::WasPayloadCanceled(
-    const int64_t& payload_id) const {
-  return base::Contains(canceled_payload_ids_, payload_id);
-}
-
-absl::optional<base::FilePath>
+base::Optional<base::FilePath>
 FakeNearbyConnectionsManager::GetRegisteredPayloadPath(int64_t payload_id) {
   auto it = registered_payload_paths_.find(payload_id);
   if (it == registered_payload_paths_.end())
-    return absl::nullopt;
+    return base::nullopt;
 
   return it->second;
-}
-
-void FakeNearbyConnectionsManager::CleanupForProcessStopped() {
-  advertising_listener_ = nullptr;
-  advertising_data_usage_ = DataUsage::kUnknown;
-  advertising_power_level_ = PowerLevel::kUnknown;
-  advertising_endpoint_info_.reset();
-
-  discovery_listener_ = nullptr;
-
-  is_shutdown_ = true;
-}
-
-FakeNearbyConnectionsManager::ConnectionsCallback
-FakeNearbyConnectionsManager::GetStartAdvertisingCallback() {
-  capture_next_start_advertising_callback_ = true;
-  return base::BindOnce(
-      &FakeNearbyConnectionsManager::HandleStartAdvertisingCallback,
-      base::Unretained(this));
-}
-
-FakeNearbyConnectionsManager::ConnectionsCallback
-FakeNearbyConnectionsManager::GetStopAdvertisingCallback() {
-  capture_next_stop_advertising_callback_ = true;
-  return base::BindOnce(
-      &FakeNearbyConnectionsManager::HandleStopAdvertisingCallback,
-      base::Unretained(this));
-}
-
-void FakeNearbyConnectionsManager::HandleStartAdvertisingCallback(
-    ConnectionsStatus status) {
-  if (pending_start_advertising_callback_) {
-    std::move(pending_start_advertising_callback_).Run(status);
-  }
-  capture_next_start_advertising_callback_ = false;
-}
-
-void FakeNearbyConnectionsManager::HandleStopAdvertisingCallback(
-    ConnectionsStatus status) {
-  if (pending_stop_advertising_callback_) {
-    std::move(pending_stop_advertising_callback_).Run(status);
-  }
-  capture_next_stop_advertising_callback_ = false;
 }

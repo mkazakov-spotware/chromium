@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -117,8 +117,7 @@ MULTIPROCESS_TEST_MAIN(ChrootMe) {
 }
 
 // Temporarily disabled on ASAN due to crbug.com/451603.
-// Disabled on MSAN due to crbug.com/1180105
-TEST_F(NamespaceSandboxTest, DISABLE_ON_SANITIZERS(ChrootAndDropCapabilities)) {
+TEST_F(NamespaceSandboxTest, DISABLE_ON_ASAN(ChrootAndDropCapabilities)) {
   TestProc("ChrootMe");
 }
 

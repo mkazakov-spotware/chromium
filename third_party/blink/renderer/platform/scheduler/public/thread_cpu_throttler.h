@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
@@ -28,9 +29,6 @@ class PLATFORM_EXPORT ThreadCPUThrottler final {
  public:
   static ThreadCPUThrottler* GetInstance();
 
-  ThreadCPUThrottler(const ThreadCPUThrottler&) = delete;
-  ThreadCPUThrottler& operator=(const ThreadCPUThrottler&) = delete;
-
   // |rate| is a slow-down factor - passing 2.0 will make
   // everything two times slower.
   // Any rate less or equal to 1.0 disables throttling and
@@ -44,6 +42,8 @@ class PLATFORM_EXPORT ThreadCPUThrottler final {
 
   class ThrottlingThread;
   std::unique_ptr<ThrottlingThread> throttling_thread_;
+
+  DISALLOW_COPY_AND_ASSIGN(ThreadCPUThrottler);
 };
 
 }  // namespace scheduler

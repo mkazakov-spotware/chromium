@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,8 +32,7 @@ class BrowserStatePolicyConnector {
 
   // Initializes this connector.
   void Init(policy::SchemaRegistry* schema_registry,
-            BrowserPolicyConnectorIOS* browser_policy_connector,
-            policy::ConfigurationPolicyProvider* user_policy_provider);
+            BrowserPolicyConnectorIOS* browser_policy_connector);
 
   // Shuts this connector down in preparation for destruction.
   void Shutdown();
@@ -50,7 +49,7 @@ class BrowserStatePolicyConnector {
  private:
   friend class BrowserStatePolicyConnectorMock;
 
-  // `policy_providers_` contains a list of the policy providers available for
+  // |policy_providers_| contains a list of the policy providers available for
   // the PolicyService of this connector, in decreasing order of priority.
   //
   // Note: All the providers appended to this vector must eventually become

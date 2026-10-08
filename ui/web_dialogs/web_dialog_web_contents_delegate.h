@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,20 +7,12 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "content/public/browser/web_contents_delegate.h"
 #include "ui/web_dialogs/web_dialogs_export.h"
 
-namespace blink {
-namespace mojom {
-class FileChooserParams;
-}
-}  // namespace blink
-
 namespace content {
 class BrowserContext;
-class FileSelectListener;
-class RenderFrameHost;
 }
 
 namespace ui {
@@ -47,25 +39,13 @@ class WEB_DIALOGS_EXPORT WebDialogWebContentsDelegate
         std::unique_ptr<content::WebContents> new_contents,
         const GURL& target_url,
         WindowOpenDisposition disposition,
-        const blink::mojom::WindowFeatures& window_features,
+        const gfx::Rect& initial_rect,
         bool user_gesture) = 0;
-    // This is added to allow the injection of a file chooser handler.
-    // The WebDialogWebContentsDelegate's original implementation does not
-    // do anything for file chooser request
-    virtual void RunFileChooser(
-        content::RenderFrameHost* render_frame_host,
-        scoped_refptr<content::FileSelectListener> listener,
-        const blink::mojom::FileChooserParams& params) = 0;
   };
 
   // |context| and |handler| must be non-NULL.
   WebDialogWebContentsDelegate(content::BrowserContext* context,
                                std::unique_ptr<WebContentsHandler> handler);
-
-  WebDialogWebContentsDelegate(const WebDialogWebContentsDelegate&) = delete;
-  WebDialogWebContentsDelegate& operator=(const WebDialogWebContentsDelegate&) =
-      delete;
-
   ~WebDialogWebContentsDelegate() override;
 
   // The returned browser context is guaranteed to be original if non-NULL.
@@ -86,20 +66,19 @@ class WEB_DIALOGS_EXPORT WebDialogWebContentsDelegate
                       std::unique_ptr<content::WebContents> new_contents,
                       const GURL& target_url,
                       WindowOpenDisposition disposition,
-                      const blink::mojom::WindowFeatures& window_features,
+                      const gfx::Rect& initial_rect,
                       bool user_gesture,
                       bool* was_blocked) override;
   bool PreHandleGestureEvent(content::WebContents* source,
                              const blink::WebGestureEvent& event) override;
-  void RunFileChooser(content::RenderFrameHost* render_frame_host,
-                      scoped_refptr<content::FileSelectListener> listener,
-                      const blink::mojom::FileChooserParams& params) override;
 
  private:
   // Weak pointer.  Always an original profile.
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
 
   std::unique_ptr<WebContentsHandler> const handler_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebDialogWebContentsDelegate);
 };
 
 }  // namespace ui

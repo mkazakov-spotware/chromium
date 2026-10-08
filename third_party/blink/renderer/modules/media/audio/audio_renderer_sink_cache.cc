@@ -1,22 +1,22 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/media/audio/audio_renderer_sink_cache.h"
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 
-#include "base/containers/cxx20_erase.h"
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "base/synchronization/lock.h"
 #include "base/trace_event/trace_event.h"
 #include "media/audio/audio_device_description.h"
 #include "media/base/audio_renderer_sink.h"
-#include "third_party/blink/public/web/modules/media/audio/audio_device_factory.h"
+#include "third_party/blink/public/web/modules/media/audio/web_audio_device_factory.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
@@ -39,11 +39,7 @@ class AudioRendererSinkCache::WindowObserver final
   explicit WindowObserver(LocalDOMWindow& window)
       : Supplement<LocalDOMWindow>(window),
         ExecutionContextLifecycleObserver(&window) {}
-
-  WindowObserver(const WindowObserver&) = delete;
-  WindowObserver& operator=(const WindowObserver&) = delete;
-
-  ~WindowObserver() override = default;
+  ~WindowObserver() = default;
 
   void Trace(Visitor* visitor) const final {
     Supplement<LocalDOMWindow>::Trace(visitor);
@@ -55,6 +51,8 @@ class AudioRendererSinkCache::WindowObserver final
     if (auto* cache_instance = AudioRendererSinkCache::instance_)
       cache_instance->DropSinksForFrame(DomWindow()->GetLocalFrameToken());
   }
+
+  DISALLOW_COPY_AND_ASSIGN(WindowObserver);
 };
 
 const char AudioRendererSinkCache::WindowObserver::kSupplementName[] =
@@ -198,6 +196,8 @@ scoped_refptr<media::AudioRendererSink> AudioRendererSinkCache::GetSink(
   if (cache_iter != cache_.end()) {
     // Found unused sink; mark it as used and return.
     cache_iter->used = true;
+    UMA_HISTOGRAM_BOOLEAN(
+        "Media.Audio.Render.SinkCache.InfoSinkReusedForOutput", true);
     TRACE_EVENT_END1("audio", "AudioRendererSinkCache::GetSink", "result",
                      "Cache hit");
     return cache_iter->sink;
@@ -253,8 +253,10 @@ void AudioRendererSinkCache::DeleteSink(
     base::AutoLock auto_lock(cache_lock_);
 
     // Looking up the sink by its pointer.
-    auto cache_iter = base::ranges::find(
-        cache_, sink_ptr, [](const CacheEntry& val) { return val.sink.get(); });
+    auto cache_iter = std::find_if(cache_.begin(), cache_.end(),
+                                   [sink_ptr](const CacheEntry& val) {
+                                     return val.sink.get() == sink_ptr;
+                                   });
 
     if (cache_iter == cache_.end())
       return;
@@ -269,8 +271,11 @@ void AudioRendererSinkCache::DeleteSink(
 
     // To stop the sink before deletion if it's not used, we need to hold
     // a ref to it.
-    if (!cache_iter->used)
+    if (!cache_iter->used) {
       sink_to_stop = cache_iter->sink;
+      UMA_HISTOGRAM_BOOLEAN(
+          "Media.Audio.Render.SinkCache.InfoSinkReusedForOutput", false);
+    }
 
     cache_.erase(cache_iter);
   }  // Lock scope;
@@ -287,8 +292,8 @@ AudioRendererSinkCache::FindCacheEntry_Locked(
     const LocalFrameToken& source_frame_token,
     const std::string& device_id,
     bool unused_only) {
-  return base::ranges::find_if(
-      cache_,
+  return std::find_if(
+      cache_.begin(), cache_.end(),
       [source_frame_token, &device_id, unused_only](const CacheEntry& val) {
         if (val.used && unused_only)
           return false;

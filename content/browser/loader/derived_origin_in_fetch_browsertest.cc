@@ -1,7 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/optional.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/content_browser_test.h"
@@ -10,7 +11,6 @@
 #include "content/shell/browser/shell.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -31,13 +31,13 @@ IN_PROC_BROWSER_TEST_F(DerivedOriginInFetchBrowserTest,
   ASSERT_TRUE(starting_file_url.SchemeIsFile());
   ASSERT_TRUE(NavigateToURL(shell(), starting_file_url));
 
-  ExecuteScriptAsync(shell(), JsReplace("fetch($1);", destination));
+  EXPECT_TRUE(ExecJs(shell(), JsReplace("fetch($1);", destination)));
   monitor.WaitForUrls();
-  absl::optional<network::ResourceRequest> request =
+  base::Optional<network::ResourceRequest> request =
       monitor.GetRequestInfo(destination);
 
   ASSERT_TRUE(request);
-  const absl::optional<url::Origin>& initiator = request->request_initiator;
+  const base::Optional<url::Origin>& initiator = request->request_initiator;
   ASSERT_TRUE(initiator);
   EXPECT_TRUE(initiator->CanBeDerivedFrom(starting_file_url));
 }

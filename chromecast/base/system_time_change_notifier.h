@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define CHROMECAST_BASE_SYSTEM_TIME_CHANGE_NOTIFIER_H_
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list_threadsafe.h"
@@ -29,9 +30,6 @@ class SystemTimeChangeNotifier {
     virtual ~Observer() {}
   };
 
-  SystemTimeChangeNotifier(const SystemTimeChangeNotifier&) = delete;
-  SystemTimeChangeNotifier& operator=(const SystemTimeChangeNotifier&) = delete;
-
   virtual ~SystemTimeChangeNotifier();
 
   void AddObserver(Observer* observer);
@@ -45,6 +43,8 @@ class SystemTimeChangeNotifier {
 
  private:
   scoped_refptr<base::ObserverListThreadSafe<Observer>> observer_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(SystemTimeChangeNotifier);
 };
 
 // Default implementation of SystemTimeChangeNotifier for most platform.
@@ -58,12 +58,6 @@ class SystemTimeChangeNotifierPeriodicMonitor
  public:
   explicit SystemTimeChangeNotifierPeriodicMonitor(
       const scoped_refptr<base::SequencedTaskRunner>& task_runner);
-
-  SystemTimeChangeNotifierPeriodicMonitor(
-      const SystemTimeChangeNotifierPeriodicMonitor&) = delete;
-  SystemTimeChangeNotifierPeriodicMonitor& operator=(
-      const SystemTimeChangeNotifierPeriodicMonitor&) = delete;
-
   ~SystemTimeChangeNotifierPeriodicMonitor() override;
 
   // For unittests.
@@ -87,6 +81,8 @@ class SystemTimeChangeNotifierPeriodicMonitor
   base::Time fake_now_;
 
   base::WeakPtrFactory<SystemTimeChangeNotifierPeriodicMonitor> weak_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(SystemTimeChangeNotifierPeriodicMonitor);
 };
 
 }  // namespace chromecast

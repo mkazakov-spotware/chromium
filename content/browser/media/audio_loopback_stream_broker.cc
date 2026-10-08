@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,11 @@
 #include "base/bind.h"
 #include "base/check_op.h"
 #include "base/location.h"
+#include "base/task/post_task.h"
 #include "base/unguessable_token.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
-#include "media/mojo/mojom/audio_stream_factory.mojom.h"
+#include "services/audio/public/mojom/stream_factory.mojom.h"
 
 namespace content {
 
@@ -61,7 +62,7 @@ AudioLoopbackStreamBroker::~AudioLoopbackStreamBroker() {
 }
 
 void AudioLoopbackStreamBroker::CreateStream(
-    media::mojom::AudioStreamFactory* factory) {
+    audio::mojom::StreamFactory* factory) {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
   DCHECK(!observer_receiver_.is_bound());
   DCHECK(!client_receiver_);
@@ -114,7 +115,7 @@ void AudioLoopbackStreamBroker::StreamCreated(
   renderer_factory_client_->StreamCreated(
       std::move(stream), std::move(client_receiver_), std::move(data_pipe),
       false /* |initially_muted|: Loopback streams are never muted. */,
-      absl::nullopt /* |stream_id|: Loopback streams don't have ids */);
+      base::nullopt /* |stream_id|: Loopback streams don't have ids */);
 }
 
 void AudioLoopbackStreamBroker::Cleanup() {

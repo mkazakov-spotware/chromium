@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,14 @@
 
 #include <stddef.h>
 #include <stdint.h>
-
 #include <algorithm>
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
+#include "base/stl_util.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/presentation_request.h"
@@ -69,14 +68,13 @@ PresentationServiceImpl::PresentationServiceImpl(
       // TODO(imcheng): Consider using RenderFrameHost* directly instead of IDs.
       render_process_id_(render_frame_host->GetProcess()->GetID()),
       render_frame_id_(render_frame_host->GetRoutingID()),
-      is_outermost_document_(!render_frame_host->GetParentOrOuterDocument()) {
+      is_main_frame_(!render_frame_host->GetParent()) {
   DCHECK(render_frame_host_);
   DCHECK(web_contents);
   CHECK(render_frame_host_->IsRenderFrameLive());
 
   DVLOG(2) << "PresentationServiceImpl: " << render_process_id_ << ", "
-           << render_frame_id_
-           << " is outermost document: " << is_outermost_document_;
+           << render_frame_id_ << " is main frame: " << is_main_frame_;
 
   if (auto* delegate = GetPresentationServiceDelegate())
     delegate->AddObserver(render_process_id_, render_frame_id_, this);
@@ -128,7 +126,7 @@ void PresentationServiceImpl::SetController(
     mojo::PendingRemote<blink::mojom::PresentationController>
         presentation_controller_remote) {
   if (presentation_controller_remote_) {
-    presentation_service_receivers_.ReportBadMessage(
+    mojo::ReportBadMessage(
         "There can only be one PresentationController at any given time.");
     return;
   }
@@ -142,10 +140,6 @@ void PresentationServiceImpl::SetController(
 void PresentationServiceImpl::SetReceiver(
     mojo::PendingRemote<blink::mojom::PresentationReceiver>
         presentation_receiver_remote) {
-  // Mojo interfaces for Presentation API are disabled during pre-rendering.
-  DCHECK_NE(render_frame_host_->GetLifecycleState(),
-            content::RenderFrameHost::LifecycleState::kPrerendering);
-
   // Presentation receiver virtual web tests (which have the flag set) has no
   // ReceiverPresentationServiceDelegate implementation.
   // TODO(imcheng): Refactor content_browser_client to return a no-op
@@ -155,16 +149,15 @@ void PresentationServiceImpl::SetReceiver(
     return;
   }
 
-  if (!receiver_delegate_ || !is_outermost_document_) {
-    presentation_service_receivers_.ReportBadMessage(
+  if (!receiver_delegate_ || !is_main_frame_) {
+    mojo::ReportBadMessage(
         "SetReceiver can only be called from a "
-        "presentation receiver outermost document.");
+        "presentation receiver main frame.");
     return;
   }
 
   if (presentation_receiver_remote_) {
-    presentation_service_receivers_.ReportBadMessage(
-        "SetReceiver can only be called once.");
+    mojo::ReportBadMessage("SetReceiver can only be called once.");
     return;
   }
 
@@ -236,8 +229,8 @@ void PresentationServiceImpl::StartPresentation(
   }
 
   start_presentation_request_id_ = GetNextRequestId();
-  pending_start_presentation_cb_ =
-      std::make_unique<NewPresentationCallbackWrapper>(std::move(callback));
+  pending_start_presentation_cb_.reset(
+      new NewPresentationCallbackWrapper(std::move(callback)));
   PresentationRequest request({render_process_id_, render_frame_id_},
                               presentation_urls,
                               render_frame_host_->GetLastCommittedOrigin());
@@ -370,7 +363,7 @@ bool PresentationServiceImpl::RunAndEraseReconnectPresentationMojoCallback(
 void PresentationServiceImpl::SetDefaultPresentationUrls(
     const std::vector<GURL>& presentation_urls) {
   DVLOG(2) << "SetDefaultPresentationUrls";
-  if (!controller_delegate_ || !is_outermost_document_)
+  if (!controller_delegate_ || !is_main_frame_)
     return;
 
   if (default_presentation_urls_ == presentation_urls)
@@ -466,13 +459,12 @@ void PresentationServiceImpl::DidFinishNavigation(
   // RenderFrameHost, we should reset the connections when a navigation
   // finished but we're still using the same RenderFrameHost.
   // We don't need to do anything when the navigation didn't actually commit,
-  // won't use the same RenderFrameHost, is restoring a RenderFrameHost from
-  // the back-forward cache, or is activating a prerendered page.
+  // won't use the same RenderFrameHost, or is restoring a RenderFrameHost from
+  // the back-forward cache.
   DVLOG(2) << "PresentationServiceImpl::DidNavigateAnyFrame";
   if (!navigation_handle->HasCommitted() ||
       !FrameMatches(navigation_handle->GetRenderFrameHost()) ||
-      navigation_handle->IsServedFromBackForwardCache() ||
-      navigation_handle->IsPrerenderedPageActivation()) {
+      navigation_handle->IsServedFromBackForwardCache()) {
     return;
   }
 
@@ -492,7 +484,7 @@ void PresentationServiceImpl::Reset() {
   if (controller_delegate_)
     controller_delegate_->Reset(render_process_id_, render_frame_id_);
 
-  if (receiver_delegate_ && is_outermost_document_)
+  if (receiver_delegate_ && is_main_frame_)
     receiver_delegate_->Reset(render_process_id_, render_frame_id_);
 
   default_presentation_urls_.clear();

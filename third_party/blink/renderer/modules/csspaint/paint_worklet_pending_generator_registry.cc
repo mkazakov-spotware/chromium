@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,8 @@ namespace blink {
 
 void PaintWorkletPendingGeneratorRegistry::NotifyGeneratorReady(
     const String& name) {
-  auto it = pending_generators_.find(name);
-  if (it != pending_generators_.end()) {
-    GeneratorHashSet* set = it->value;
+  GeneratorHashSet* set = pending_generators_.at(name);
+  if (set) {
     for (const auto& generator : *set) {
       if (generator)
         generator->NotifyGeneratorReady();

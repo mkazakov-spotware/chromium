@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.compositor.overlays.strip;
 
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.ui.base.LocalizationUtils;
 
 /**
@@ -16,20 +15,10 @@ public class ScrollingStripStacker extends StripStacker {
     @Override
     public void setTabOffsets(int selectedIndex, StripLayoutTab[] indexOrderedTabs,
             float tabStackWidth, int maxTabsToStack, float tabOverlapWidth, float stripLeftMargin,
-            float stripRightMargin, float stripWidth, boolean inReorderMode, boolean tabClosing,
-            float cachedTabWidth) {
-        boolean tabStripImpEnabled = ChromeFeatureList.sTabStripImprovements.isEnabled();
+            float stripRightMargin, float stripWidth, boolean inReorderMode) {
         for (int i = 0; i < indexOrderedTabs.length; i++) {
             StripLayoutTab tab = indexOrderedTabs[i];
-            if (tabStripImpEnabled) {
-                // When a tab is closed, drawX and width update will be animated so skip this.
-                if (!tabClosing) {
-                    tab.setDrawX(tab.getIdealX() + tab.getOffsetX());
-                    tab.setWidth(cachedTabWidth);
-                }
-            } else {
-                tab.setDrawX(tab.getIdealX());
-            }
+            tab.setDrawX(tab.getIdealX());
             tab.setDrawY(tab.getOffsetY());
             tab.setVisiblePercentage(1.f);
             tab.setContentOffsetX(0.f);
@@ -37,18 +26,14 @@ public class ScrollingStripStacker extends StripStacker {
     }
 
     @Override
-    public float computeNewTabButtonOffset(StripLayoutTab[] indexOrderedTabs, float tabOverlapWidth,
-            float stripLeftMargin, float stripRightMargin, float stripWidth, float buttonWidth,
-            float touchTargetOffset, float cachedTabWidth, boolean animate) {
-        if (ChromeFeatureList.sTabStripImprovements.isEnabled()) {
-            return super.computeNewTabButtonOffset(indexOrderedTabs, tabOverlapWidth,
-                    stripLeftMargin, stripRightMargin, stripWidth, buttonWidth, touchTargetOffset,
-                    cachedTabWidth, animate);
-        }
+    public float computeNewTabButtonOffset(StripLayoutTab[] indexOrderedTabs,
+            float tabOverlapWidth, float stripLeftMargin, float stripRightMargin, float stripWidth,
+            float newTabButtonWidth) {
         return LocalizationUtils.isLayoutRtl()
                 ? computeNewTabButtonOffsetRtl(indexOrderedTabs, tabOverlapWidth, stripRightMargin,
-                        stripWidth, buttonWidth)
-                : computeNewTabButtonOffsetLtr(indexOrderedTabs, tabOverlapWidth, stripLeftMargin);
+                        stripWidth, newTabButtonWidth)
+                                : computeNewTabButtonOffsetLtr(indexOrderedTabs, tabOverlapWidth,
+                                        stripLeftMargin, stripWidth);
     }
 
     @Override
@@ -60,8 +45,8 @@ public class ScrollingStripStacker extends StripStacker {
         }
     }
 
-    private float computeNewTabButtonOffsetLtr(
-            StripLayoutTab[] indexOrderedTabs, float tabOverlapWidth, float stripLeftMargin) {
+    private float computeNewTabButtonOffsetLtr(StripLayoutTab[] indexOrderedTabs,
+            float tabOverlapWidth, float stripLeftMargin, float stripWidth) {
         float rightEdge = stripLeftMargin;
 
         int numTabs = indexOrderedTabs.length;

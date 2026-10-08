@@ -31,23 +31,21 @@
 #include "third_party/blink/renderer/modules/quota/navigator_storage_quota.h"
 
 #include "third_party/blink/public/common/browser_interface_broker_proxy.h"
-#include "third_party/blink/renderer/core/frame/deprecation/deprecation.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/navigator.h"
-#include "third_party/blink/renderer/core/frame/web_feature.h"
 #include "third_party/blink/renderer/modules/quota/deprecated_storage_quota.h"
 #include "third_party/blink/renderer/modules/quota/storage_manager.h"
 
 namespace blink {
 
-NavigatorStorageQuota::NavigatorStorageQuota(NavigatorBase& navigator)
-    : Supplement<NavigatorBase>(navigator) {}
+NavigatorStorageQuota::NavigatorStorageQuota(Navigator& navigator)
+    : Supplement<Navigator>(navigator) {}
 
 const char NavigatorStorageQuota::kSupplementName[] = "NavigatorStorageQuota";
 
-NavigatorStorageQuota& NavigatorStorageQuota::From(NavigatorBase& navigator) {
+NavigatorStorageQuota& NavigatorStorageQuota::From(Navigator& navigator) {
   NavigatorStorageQuota* supplement =
-      Supplement<NavigatorBase>::From<NavigatorStorageQuota>(navigator);
+      Supplement<Navigator>::From<NavigatorStorageQuota>(navigator);
   if (!supplement) {
     supplement = MakeGarbageCollected<NavigatorStorageQuota>(navigator);
     ProvideTo(navigator, supplement);
@@ -57,45 +55,59 @@ NavigatorStorageQuota& NavigatorStorageQuota::From(NavigatorBase& navigator) {
 
 DeprecatedStorageQuota* NavigatorStorageQuota::webkitTemporaryStorage(
     Navigator& navigator) {
-  NavigatorStorageQuota& navigator_storage = From(navigator);
-  if (!navigator_storage.temporary_storage_) {
-    navigator_storage.temporary_storage_ =
-        MakeGarbageCollected<DeprecatedStorageQuota>(navigator.DomWindow());
-  }
-
-  // Record metrics for usage in third-party contexts.
-  if (navigator.DomWindow()) {
-    navigator.DomWindow()->CountUseOnlyInCrossSiteIframe(
-        WebFeature::kPrefixedStorageQuotaThirdPartyContext);
-  }
-
-  return navigator_storage.temporary_storage_.Get();
+  return NavigatorStorageQuota::From(navigator).webkitTemporaryStorage();
 }
 
 DeprecatedStorageQuota* NavigatorStorageQuota::webkitPersistentStorage(
     Navigator& navigator) {
-  // Show deprecation message and record usage for persistent storage type.
-  if (navigator.DomWindow()) {
-    Deprecation::CountDeprecation(navigator.DomWindow(),
-                                  WebFeature::kPersistentQuotaType);
-  }
-  // Persistent quota type is deprecated as of crbug.com/1233525.
-  return webkitTemporaryStorage(navigator);
+  return NavigatorStorageQuota::From(navigator).webkitPersistentStorage();
 }
 
-StorageManager* NavigatorStorageQuota::storage(NavigatorBase& navigator) {
-  NavigatorStorageQuota& navigator_storage = From(navigator);
-  if (!navigator_storage.storage_manager_) {
-    navigator_storage.storage_manager_ =
-        MakeGarbageCollected<StorageManager>(navigator.GetExecutionContext());
+StorageManager* NavigatorStorageQuota::storage(Navigator& navigator) {
+  return NavigatorStorageQuota::From(navigator).storage();
+}
+
+DeprecatedStorageQuota* NavigatorStorageQuota::webkitTemporaryStorage() const {
+  if (!temporary_storage_) {
+    temporary_storage_ = MakeGarbageCollected<DeprecatedStorageQuota>(
+        DeprecatedStorageQuota::kTemporary, GetSupplementable()->DomWindow());
   }
-  return navigator_storage.storage_manager_.Get();
+  return temporary_storage_.Get();
+}
+
+DeprecatedStorageQuota* NavigatorStorageQuota::webkitPersistentStorage() const {
+  if (!persistent_storage_) {
+    persistent_storage_ = MakeGarbageCollected<DeprecatedStorageQuota>(
+        DeprecatedStorageQuota::kPersistent, GetSupplementable()->DomWindow());
+  }
+  return persistent_storage_.Get();
+}
+
+StorageManager* NavigatorStorageQuota::storage() const {
+  if (!storage_manager_) {
+    mojo::Remote<mojom::blink::QuotaManagerHost> backend;
+
+    auto* supplementable = GetSupplementable();
+    auto* execution_context =
+        supplementable ? supplementable->GetExecutionContext() : nullptr;
+    if (execution_context) {
+      if (&execution_context->GetBrowserInterfaceBroker() !=
+          &GetEmptyBrowserInterfaceBroker()) {
+        execution_context->GetBrowserInterfaceBroker().GetInterface(
+            backend.BindNewPipeAndPassReceiver());
+      }
+    }
+    storage_manager_ = MakeGarbageCollected<StorageManager>(execution_context,
+                                                            std::move(backend));
+  }
+  return storage_manager_.Get();
 }
 
 void NavigatorStorageQuota::Trace(Visitor* visitor) const {
   visitor->Trace(temporary_storage_);
+  visitor->Trace(persistent_storage_);
   visitor->Trace(storage_manager_);
-  Supplement<NavigatorBase>::Trace(visitor);
+  Supplement<Navigator>::Trace(visitor);
 }
 
 }  // namespace blink

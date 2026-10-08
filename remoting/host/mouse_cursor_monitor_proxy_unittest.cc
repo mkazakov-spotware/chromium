@@ -1,16 +1,15 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/host/mouse_cursor_monitor_proxy.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread.h"
 #include "remoting/host/mouse_cursor_monitor_proxy.h"
@@ -42,11 +41,6 @@ class ThreadCheckMouseCursorMonitor : public webrtc::MouseCursorMonitor  {
       scoped_refptr<base::SingleThreadTaskRunner> task_runner)
       : task_runner_(task_runner), callback_(nullptr) {
   }
-
-  ThreadCheckMouseCursorMonitor(const ThreadCheckMouseCursorMonitor&) = delete;
-  ThreadCheckMouseCursorMonitor& operator=(
-      const ThreadCheckMouseCursorMonitor&) = delete;
-
   ~ThreadCheckMouseCursorMonitor() override {
     EXPECT_TRUE(task_runner_->BelongsToCurrentThread());
   }
@@ -74,7 +68,9 @@ class ThreadCheckMouseCursorMonitor : public webrtc::MouseCursorMonitor  {
  private:
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 
-  raw_ptr<Callback> callback_;
+  Callback* callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(ThreadCheckMouseCursorMonitor);
 };
 
 class MouseCursorMonitorProxyTest
@@ -117,9 +113,9 @@ void MouseCursorMonitorProxyTest::OnMouseCursor(
 
 TEST_F(MouseCursorMonitorProxyTest, CursorShape) {
   // Initialize the proxy.
-  proxy_ = std::make_unique<MouseCursorMonitorProxy>(
+  proxy_.reset(new MouseCursorMonitorProxy(
       capture_thread_.task_runner(),
-      webrtc::DesktopCaptureOptions::CreateDefault());
+      webrtc::DesktopCaptureOptions::CreateDefault()));
   proxy_->SetMouseCursorMonitorForTests(
       std::make_unique<ThreadCheckMouseCursorMonitor>(
           capture_thread_.task_runner()));

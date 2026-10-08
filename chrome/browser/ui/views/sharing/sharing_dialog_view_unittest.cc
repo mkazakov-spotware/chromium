@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,14 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
 #include "chrome/browser/sharing/fake_device_info.h"
 #include "chrome/browser/sharing/sharing_app.h"
 #include "chrome/browser/sharing/sharing_metrics.h"
-#include "chrome/browser/ui/views/controls/hover_button.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/test_with_browser_view.h"
+#include "chrome/browser/ui/views/hover_button.h"
 #include "chrome/grit/chromium_strings.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "components/sync_device_info/device_info.h"
@@ -122,8 +121,8 @@ class SharingDialogViewTest : public TestWithBrowserView {
   testing::MockFunction<void(const SharingApp&)> app_callback_;
 
  private:
-  raw_ptr<content::WebContents> web_contents_ = nullptr;
-  raw_ptr<SharingDialogView> dialog_ = nullptr;
+  content::WebContents* web_contents_ = nullptr;
+  SharingDialogView* dialog_ = nullptr;
 };
 
 TEST_F(SharingDialogViewTest, PopulateDialogView) {
@@ -149,8 +148,8 @@ TEST_F(SharingDialogViewTest, DevicePressed) {
 }
 
 TEST_F(SharingDialogViewTest, AppPressed) {
-  SharingApp app(&vector_icons::kOpenInNewIcon, gfx::Image(), u"app0",
-                 std::string());
+  SharingApp app(&vector_icons::kOpenInNewIcon, gfx::Image(),
+                 base::UTF8ToUTF16("app0"), std::string());
   EXPECT_CALL(app_callback_, Call(AppEquals(&app)));
 
   auto dialog_data = CreateDialogData(/*devices=*/3, /*apps=*/2);
@@ -203,7 +202,7 @@ TEST_F(SharingDialogViewTest, FootnoteOtherOrigin) {
 }
 
 TEST_F(SharingDialogViewTest, HelpTextNoOrigin) {
-  std::u16string expected_default = l10n_util::GetStringUTF16(
+  base::string16 expected_default = l10n_util::GetStringUTF16(
       IDS_BROWSER_SHARING_CLICK_TO_CALL_DIALOG_HELP_TEXT_NO_DEVICES);
 
   // Expect default help text if no initiating origin is set.
@@ -215,7 +214,7 @@ TEST_F(SharingDialogViewTest, HelpTextNoOrigin) {
 }
 
 TEST_F(SharingDialogViewTest, HelpTextCurrentOrigin) {
-  std::u16string expected_default = l10n_util::GetStringUTF16(
+  base::string16 expected_default = l10n_util::GetStringUTF16(
       IDS_BROWSER_SHARING_CLICK_TO_CALL_DIALOG_HELP_TEXT_NO_DEVICES);
 
   // Expect default help text if the initiating origin matches the main frame
@@ -231,9 +230,9 @@ TEST_F(SharingDialogViewTest, HelpTextCurrentOrigin) {
 
 TEST_F(SharingDialogViewTest, HelpTextOtherOrigin) {
   url::Origin other_origin = url::Origin::Create(GURL("https://example.com"));
-  std::u16string origin_text = url_formatter::FormatOriginForSecurityDisplay(
+  base::string16 origin_text = url_formatter::FormatOriginForSecurityDisplay(
       other_origin, url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS);
-  std::u16string expected_origin = l10n_util::GetStringFUTF16(
+  base::string16 expected_origin = l10n_util::GetStringFUTF16(
       IDS_BROWSER_SHARING_CLICK_TO_CALL_DIALOG_HELP_TEXT_NO_DEVICES_ORIGIN,
       origin_text);
 

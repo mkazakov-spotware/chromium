@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,7 @@ std::string VideoDecodeAccelerator::Config::AsHumanReadableString() const {
 }
 
 void VideoDecodeAccelerator::Client::NotifyInitializationComplete(
-    DecoderStatus status) {
+    Status status) {
   NOTREACHED() << "By default deferred initialization is not supported.";
 }
 
@@ -71,11 +71,6 @@ gpu::SharedImageStub* VideoDecodeAccelerator::Client::GetSharedImageStub()
   return nullptr;
 }
 
-CommandBufferHelper* VideoDecodeAccelerator::Client::GetCommandBufferHelper()
-    const {
-  return nullptr;
-}
-
 VideoDecodeAccelerator::~VideoDecodeAccelerator() = default;
 
 void VideoDecodeAccelerator::Decode(scoped_refptr<DecoderBuffer> buffer,
@@ -108,11 +103,6 @@ GLenum VideoDecodeAccelerator::GetSurfaceInternalFormat() const {
 
 bool VideoDecodeAccelerator::SupportsSharedImagePictureBuffers() const {
   return false;
-}
-
-VideoDecodeAccelerator::TextureAllocationMode
-VideoDecodeAccelerator::GetSharedImageTextureAllocationMode() const {
-  return VideoDecodeAccelerator::TextureAllocationMode::kAllocateGLTextures;
 }
 
 VideoDecodeAccelerator::SupportedProfile::SupportedProfile()

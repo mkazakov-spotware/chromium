@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "device/bluetooth/bluetooth_export.h"
 #include "device/bluetooth/bluetooth_init_win.h"
 #include "device/bluetooth/public/cpp/bluetooth_uuid.h"
@@ -22,10 +23,6 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothServiceRecordWin {
                             const std::string& name,
                             const std::vector<uint8_t>& sdp_bytes,
                             const BluetoothUUID& gatt_uuid);
-
-  BluetoothServiceRecordWin(const BluetoothServiceRecordWin&) = delete;
-  BluetoothServiceRecordWin& operator=(const BluetoothServiceRecordWin&) =
-      delete;
 
   bool IsEqual(const BluetoothServiceRecordWin& other);
 
@@ -57,6 +54,8 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothServiceRecordWin {
 
   bool supports_rfcomm_;
   uint8_t rfcomm_channel_;
+
+  DISALLOW_COPY_AND_ASSIGN(BluetoothServiceRecordWin);
 };
 
 }  // namespace device

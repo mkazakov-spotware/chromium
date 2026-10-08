@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "base/mac/scoped_mach_port.h"
-#include "base/memory/raw_ptr.h"
 #include "testing/libfuzzer/fuzzers/mach/mach_message.pb.h"
 
 namespace mach_fuzzer {
@@ -37,7 +36,7 @@ struct SendableMessage {
   std::vector<SendablePort> ports;
 
   // Pointer to the header of the message stored in |buffer|.
-  raw_ptr<mach_msg_header_t> header = nullptr;
+  mach_msg_header_t* header = nullptr;
 };
 
 // Converts the given protobuf message into a live Mach message, including port

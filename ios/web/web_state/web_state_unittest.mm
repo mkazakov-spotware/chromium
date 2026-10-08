@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,39 +6,36 @@
 
 #import <UIKit/UIKit.h>
 
-#import "base/bind.h"
-#import "base/path_service.h"
-#import "base/run_loop.h"
-#import "base/strings/stringprintf.h"
-#import "base/strings/utf_string_conversions.h"
+#include "base/bind.h"
+#include "base/path_service.h"
+#include "base/run_loop.h"
+#include "base/strings/utf_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "base/test/metrics/histogram_tester.h"
-#import "base/values.h"
+#include "base/test/metrics/histogram_tester.h"
+#include "base/values.h"
 #import "ios/net/protocol_handler_util.h"
-#import "ios/web/common/features.h"
-#import "ios/web/common/uikit_ui_util.h"
+#include "ios/web/common/features.h"
 #import "ios/web/navigation/navigation_manager_impl.h"
+#import "ios/web/navigation/wk_based_navigation_manager_impl.h"
 #import "ios/web/navigation/wk_navigation_util.h"
-#import "ios/web/public/js_messaging/web_frame.h"
+#include "ios/web/public/js_messaging/web_frame.h"
 #import "ios/web/public/navigation/navigation_item.h"
 #import "ios/web/public/navigation/navigation_manager.h"
 #import "ios/web/public/session/crw_navigation_item_storage.h"
 #import "ios/web/public/session/crw_session_storage.h"
 #import "ios/web/public/test/error_test_util.h"
-#import "ios/web/public/test/fakes/fake_web_client.h"
-#import "ios/web/public/test/fakes/fake_web_state_delegate.h"
+#import "ios/web/public/test/fakes/test_web_client.h"
+#import "ios/web/public/test/fakes/test_web_state_delegate.h"
 #import "ios/web/public/test/web_test_with_web_state.h"
 #import "ios/web/public/test/web_view_content_test_util.h"
 #import "ios/web/public/web_client.h"
-#import "ios/web/public/web_state_observer.h"
-#import "ios/web/test/test_url_constants.h"
-#import "ios/web/web_state/ui/crw_web_controller.h"
-#import "ios/web/web_state/web_state_impl.h"
-#import "net/test/embedded_test_server/default_handlers.h"
-#import "net/test/embedded_test_server/embedded_test_server.h"
-#import "ui/gfx/geometry/rect_f.h"
-#import "ui/gfx/image/image.h"
-#import "ui/gfx/image/image_unittest_util.h"
+#include "ios/web/public/web_state_observer.h"
+#include "ios/web/test/test_url_constants.h"
+#include "net/test/embedded_test_server/default_handlers.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
+#include "ui/gfx/geometry/rect_f.h"
+#include "ui/gfx/image/image.h"
+#include "ui/gfx/image/image_unittest_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -51,10 +48,10 @@ using base::test::ios::kWaitForPageLoadTimeout;
 namespace web {
 namespace {
 
-// A text string that is included in `kTestPageHTML`.
+// A text string that is included in |kTestPageHTML|.
 const char kTextInTestPageHTML[] = "this_is_a_test_string";
 
-// A test page HTML containing `kTextInTestPageHTML`.
+// A test page HTML containing |kTextInTestPageHTML|.
 const char kTestPageHTML[] = "<html><body>this_is_a_test_string</body><html>";
 
 // Returns the NSURLErrorUnsupportedURL error expected for tests.
@@ -68,26 +65,46 @@ NSError* CreateUnsupportedURLError() {
 using wk_navigation_util::IsWKInternalUrl;
 
 // Test fixture for web::WebTest class.
-class WebStateTest : public FakeWebClient, public WebTestWithWebState {
-  void SetUp() override {
-    WebTestWithWebState::SetUp();
-    web::IgnoreOverRealizationCheck();
-  }
-
+class WebStateTest : public TestWebClient, public WebTestWithWebState {
  protected:
   base::HistogramTester histogram_tester_;
 };
 
+// Tests script execution with and without callback.
+TEST_F(WebStateTest, ScriptExecution) {
+  ASSERT_TRUE(LoadHtml("<html></html>"));
+
+  // Execute script without callback.
+  web_state()->ExecuteJavaScript(base::UTF8ToUTF16("window.foo = 'bar'"));
+
+  // Execute script with callback.
+  __block std::unique_ptr<base::Value> execution_result;
+  __block bool execution_complete = false;
+  web_state()->ExecuteJavaScript(base::UTF8ToUTF16("window.foo"),
+                                 base::BindOnce(^(const base::Value* value) {
+                                   execution_result = value->CreateDeepCopy();
+                                   execution_complete = true;
+                                 }));
+  WaitForCondition(^{
+    return execution_complete;
+  });
+
+  ASSERT_TRUE(execution_result);
+  std::string string_result;
+  execution_result->GetAsString(&string_result);
+  EXPECT_EQ("bar", string_result);
+}
+
 // Tests that executing user JavaScript registers user interaction.
 TEST_F(WebStateTest, UserScriptExecution) {
-  web::FakeWebStateDelegate delegate;
+  web::TestWebStateDelegate delegate;
   web_state()->SetDelegate(&delegate);
   ASSERT_TRUE(delegate.child_windows().empty());
 
   ASSERT_TRUE(LoadHtml("<html></html>"));
   web_state()->ExecuteUserJavaScript(@"window.open('', target='_blank');");
 
-  web::FakeWebStateDelegate* delegate_ptr = &delegate;
+  web::TestWebStateDelegate* delegate_ptr = &delegate;
   bool suceess = WaitUntilConditionOrTimeout(kWaitForJSCompletionTimeout, ^{
     // Child window can only be open if the user interaction was registered.
     return delegate_ptr->child_windows().size() == 1;
@@ -112,7 +129,7 @@ TEST_F(WebStateTest, OverridingWebKitObject) {
   // Add a script command handler.
   __block bool message_received = false;
   const web::WebState::ScriptCommandCallback callback = base::BindRepeating(
-      ^(const base::Value&, const GURL&,
+      ^(const base::DictionaryValue&, const GURL&,
         /*interacted*/ bool, /*is_main_frame*/ web::WebFrame*) {
         message_received = true;
       });
@@ -135,12 +152,14 @@ TEST_F(WebStateTest, OverridingWebKitObject) {
 // manager is empty.
 TEST_F(WebStateTest, ReloadWithNormalTypeWithEmptyNavigationManager) {
   NavigationManager* navigation_manager = web_state()->GetNavigationManager();
+  ASSERT_FALSE(navigation_manager->GetTransientItem());
   ASSERT_FALSE(navigation_manager->GetPendingItem());
   ASSERT_FALSE(navigation_manager->GetLastCommittedItem());
 
   navigation_manager->Reload(web::ReloadType::NORMAL,
                              false /* check_for_repost */);
 
+  ASSERT_FALSE(navigation_manager->GetTransientItem());
   ASSERT_FALSE(navigation_manager->GetPendingItem());
   ASSERT_FALSE(navigation_manager->GetLastCommittedItem());
 }
@@ -149,12 +168,14 @@ TEST_F(WebStateTest, ReloadWithNormalTypeWithEmptyNavigationManager) {
 // navigation manager is empty.
 TEST_F(WebStateTest, ReloadWithOriginalTypeWithEmptyNavigationManager) {
   NavigationManager* navigation_manager = web_state()->GetNavigationManager();
+  ASSERT_FALSE(navigation_manager->GetTransientItem());
   ASSERT_FALSE(navigation_manager->GetPendingItem());
   ASSERT_FALSE(navigation_manager->GetLastCommittedItem());
 
   navigation_manager->Reload(web::ReloadType::ORIGINAL_REQUEST_URL,
                              false /* check_for_repost */);
 
+  ASSERT_FALSE(navigation_manager->GetTransientItem());
   ASSERT_FALSE(navigation_manager->GetPendingItem());
   ASSERT_FALSE(navigation_manager->GetLastCommittedItem());
 }
@@ -165,11 +186,12 @@ TEST_F(WebStateTest, Snapshot) {
       LoadHtml("<html><div style='background-color:#FF0000; width:50%; "
                "height:100%;'></div></html>"));
   __block bool snapshot_complete = false;
-  [GetAnyKeyWindow() addSubview:web_state()->GetView()];
+  [[[UIApplication sharedApplication] keyWindow]
+      addSubview:web_state()->GetView()];
   // The subview is added but not immediately painted, so a small delay is
   // necessary.
   CGRect rect = [web_state()->GetView() bounds];
-  base::test::ios::SpinRunLoopWithMinDelay(base::Seconds(0.2));
+  base::test::ios::SpinRunLoopWithMinDelay(base::TimeDelta::FromSecondsD(0.2));
   web_state()->TakeSnapshot(
       gfx::RectF(rect), base::BindRepeating(^(const gfx::Image& snapshot) {
         ASSERT_FALSE(snapshot.IsEmpty());
@@ -194,67 +216,10 @@ TEST_F(WebStateTest, Snapshot) {
   });
 }
 
-// Tests that the create PDF method returns a PDF of a rendered html page when
-// running a supported iOS version.
-TEST_F(WebStateTest, CreateFullPagePdf_ValidURL_iOS14) {
-  // PDF generation is supported on iOS 14+.
-  if (@available(iOS 14, *)) {
-    [GetAnyKeyWindow() addSubview:web_state()->GetView()];
-
-    // Load a URL and some HTML in the WebState.
-    GURL url("https://www.chromium.org");
-    NavigationManager::WebLoadParams load_params(url);
-    web_state()->GetNavigationManager()->LoadURLWithParams(load_params);
-    ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, ^bool {
-      return web_state()->GetLastCommittedURL() == url &&
-             !web_state()->IsLoading();
-    }));
-
-    NSString* data_html =
-        @"<html><div style='background-color:#FF0000; width:50%; "
-         "height:100%;'></div></html>";
-    web_state()->LoadData([data_html dataUsingEncoding:NSUTF8StringEncoding],
-                          @"text/html", url);
-
-    ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, ^bool {
-      return !web_state()->IsLoading();
-    }));
-
-    // Create a PDF for this page and validate the data.
-    __block NSData* callback_data = nil;
-    web_state()->CreateFullPagePdf(base::BindOnce(^(NSData* pdf_document_data) {
-      callback_data = [pdf_document_data copy];
-    }));
-
-    ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, ^bool {
-      return callback_data;
-    }));
-
-    CGPDFDocumentRef pdf = CGPDFDocumentCreateWithProvider(
-        CGDataProviderCreateWithCFData((CFDataRef)callback_data));
-    CGSize pdf_size =
-        CGPDFPageGetBoxRect(CGPDFDocumentGetPage(pdf, 1), kCGPDFMediaBox).size;
-
-    CGFloat kSaveAreaTopInset = GetAnyKeyWindow().safeAreaInsets.top;
-    EXPECT_GE(pdf_size.height,
-              UIScreen.mainScreen.bounds.size.height - kSaveAreaTopInset);
-    EXPECT_GE(pdf_size.width, [[UIScreen mainScreen] bounds].size.width);
-
-    CGPDFDocumentRelease(pdf);
-  }
-
-  // If not an earlier version, then no PDF should be created.
-}
-
-// Tests that the create PDF method returns nil when running an unsupported iOS
-// version.
-TEST_F(WebStateTest, CreateFullPagePdf_ValidURL_NotSupported) {
-  if (@available(iOS 14, *)) {
-    // Return early when running on a support iOS version.
-    return;
-  }
-
-  [GetAnyKeyWindow() addSubview:web_state()->GetView()];
+// Tests that the create PDF method retuns an PDF of a rendered html page.
+TEST_F(WebStateTest, CreateFullPagePdf_ValidURL) {
+  [[[UIApplication sharedApplication] keyWindow]
+      addSubview:web_state()->GetView()];
 
   // Load a URL and some HTML in the WebState.
   GURL url("https://www.chromium.org");
@@ -275,14 +240,28 @@ TEST_F(WebStateTest, CreateFullPagePdf_ValidURL_NotSupported) {
     return !web_state()->IsLoading();
   }));
 
-  // Attempt to create a PDF for this page and validate that it return nil.
-  __block BOOL callback_called = NO;
+  // Create a PDF for this page and validate the data.
+  __block NSData* callback_data = nil;
   web_state()->CreateFullPagePdf(base::BindOnce(^(NSData* pdf_document_data) {
-    EXPECT_EQ(nil, pdf_document_data);
-    callback_called = YES;
+    callback_data = [pdf_document_data copy];
   }));
 
-  EXPECT_TRUE(callback_called);
+  ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, ^bool {
+    return callback_data;
+  }));
+
+  CGPDFDocumentRef pdf = CGPDFDocumentCreateWithProvider(
+      CGDataProviderCreateWithCFData((CFDataRef)callback_data));
+  CGSize pdf_size =
+      CGPDFPageGetBoxRect(CGPDFDocumentGetPage(pdf, 1), kCGPDFMediaBox).size;
+
+  CGFloat kSaveAreaTopInset =
+      UIApplication.sharedApplication.keyWindow.safeAreaInsets.top;
+  EXPECT_GE(pdf_size.height,
+            UIScreen.mainScreen.bounds.size.height - kSaveAreaTopInset);
+  EXPECT_GE(pdf_size.width, [[UIScreen mainScreen] bounds].size.width);
+
+  CGPDFDocumentRelease(pdf);
 }
 
 // Tests that CreateFullPagePdf invokes completion callback nil when an invalid
@@ -367,14 +346,14 @@ TEST_F(WebStateTest, CreateFullPagePdfWebStatePdfContent) {
 }
 
 // Tests that message sent from main frame triggers the ScriptCommandCallback
-// with `is_main_frame` = true.
+// with |is_main_frame| = true.
 TEST_F(WebStateTest, MessageFromMainFrame) {
   // Add a script command handler.
   __block bool message_received = false;
   __block bool message_from_main_frame = false;
   __block base::Value message_value;
   const web::WebState::ScriptCommandCallback callback =
-      base::BindRepeating(^(const base::Value& value, const GURL&,
+      base::BindRepeating(^(const base::DictionaryValue& value, const GURL&,
                             bool user_interacted, WebFrame* sender_frame) {
         message_received = true;
         message_from_main_frame = sender_frame->IsMainFrame();
@@ -400,14 +379,14 @@ TEST_F(WebStateTest, MessageFromMainFrame) {
 }
 
 // Tests that message sent from main frame triggers the ScriptCommandCallback
-// with `is_main_frame` = false.
+// with |is_main_frame| = false.
 TEST_F(WebStateTest, MessageFromIFrame) {
   // Add a script command handler.
   __block bool message_received = false;
   __block bool message_from_main_frame = false;
   __block base::Value message_value;
   const web::WebState::ScriptCommandCallback callback =
-      base::BindRepeating(^(const base::Value& value, const GURL&,
+      base::BindRepeating(^(const base::DictionaryValue& value, const GURL&,
                             bool user_interacted, WebFrame* sender_frame) {
         message_received = true;
         message_from_main_frame = sender_frame->IsMainFrame();
@@ -442,7 +421,7 @@ TEST_F(WebStateTest, SetHasOpener) {
 }
 
 // Verifies that large session can be restored with max session size limit
-// equals to `wk_navigation_util::kMaxSessionSize`.
+// equals to |wk_navigation_util::kMaxSessionSize|.
 TEST_F(WebStateTest, RestoreLargeSession) {
   // Create session storage with large number of items.
   const int kItemCount = 150;
@@ -458,7 +437,6 @@ TEST_F(WebStateTest, RestoreLargeSession) {
   // Restore the session.
   WebState::CreateParams params(GetBrowserState());
   CRWSessionStorage* session_storage = [[CRWSessionStorage alloc] init];
-  session_storage.stableIdentifier = [[NSUUID UUID] UUIDString];
   session_storage.itemStorages = item_storages;
   session_storage.userAgentType = UserAgentType::MOBILE;
   auto web_state = WebState::CreateWithStorageSession(params, session_storage);
@@ -469,18 +447,10 @@ TEST_F(WebStateTest, RestoreLargeSession) {
   // LoadIfNecessary call. Fix the bug and remove extra call.
   navigation_manager->LoadIfNecessary();
 
-  int maxSessionSize = wk_navigation_util::kMaxSessionSize;
-  ui::PageTransition transition_type = ui::PAGE_TRANSITION_RELOAD;
-  if (@available(iOS 15, *)) {
-    // kMaxSessionSize is no longer used on iOS15.
-    maxSessionSize = kItemCount;
-    // Synthesized restore defaults to transition first.
-    transition_type = ui::PAGE_TRANSITION_FIRST;
-  }
-
   // Verify that session was fully restored.
-  auto block = ^{
-    bool restored = navigation_manager->GetItemCount() == maxSessionSize &&
+  EXPECT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, ^{
+    bool restored = navigation_manager->GetItemCount() ==
+                        wk_navigation_util::kMaxSessionSize &&
                     navigation_manager->CanGoForward();
     EXPECT_EQ(restored, !navigation_manager->IsRestoreSessionInProgress());
     if (!restored) {
@@ -506,7 +476,7 @@ TEST_F(WebStateTest, RestoreLargeSession) {
         EXPECT_EQ(0, navigation_manager->GetLastCommittedItemIndex());
         EXPECT_TRUE(ui::PageTransitionCoreTypeIs(
             navigation_manager->GetLastCommittedItem()->GetTransitionType(),
-            transition_type));
+            ui::PAGE_TRANSITION_RELOAD));
       } else {
         EXPECT_EQ("", web_state_ptr->GetLastCommittedURL());
         EXPECT_EQ(-1, navigation_manager->GetLastCommittedItemIndex());
@@ -527,50 +497,31 @@ TEST_F(WebStateTest, RestoreLargeSession) {
     EXPECT_TRUE(visible_item);
     EXPECT_TRUE(visible_item && visible_item->GetURL() == "http://www.0.com/");
     EXPECT_FALSE(navigation_manager->CanGoBack());
+    EXPECT_FALSE(navigation_manager->GetTransientItem());
     EXPECT_FALSE(IsWKInternalUrl(web_state_ptr->GetVisibleURL()));
 
     return restored;
-  };
-  EXPECT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, block));
-  EXPECT_EQ(maxSessionSize, navigation_manager->GetItemCount());
+  }));
+  EXPECT_EQ(wk_navigation_util::kMaxSessionSize,
+            navigation_manager->GetItemCount());
   EXPECT_TRUE(navigation_manager->CanGoForward());
 
   histogram_tester_.ExpectTotalCount(kRestoreNavigationItemCount, 1);
   histogram_tester_.ExpectBucketCount(kRestoreNavigationItemCount, 100, 1);
-  if (@available(iOS 15, *)) {
-  } else {
-    // kRestoreNavigationTime only applies to legacy session restore.
-    histogram_tester_.ExpectTotalCount(kRestoreNavigationTime, 1);
-  }
+  histogram_tester_.ExpectTotalCount(kRestoreNavigationTime, 1);
 
   // Now wait until the last committed item is fully loaded.
-  auto block2 = ^{
+  EXPECT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, ^{
     EXPECT_FALSE(IsWKInternalUrl(web_state_ptr->GetVisibleURL()));
 
     return !navigation_manager->GetPendingItem() &&
            !web_state_ptr->IsLoading() &&
            web_state_ptr->GetLoadingProgress() == 1.0;
-  };
-  EXPECT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, block2));
+  }));
 
   EXPECT_TRUE(ui::PageTransitionCoreTypeIs(
       navigation_manager->GetLastCommittedItem()->GetTransitionType(),
-      transition_type));
-
-  // The restoration of www.0.com ends with displaying an error page which may
-  // not be complete at this point.
-  // Queue some javascript to wait for every handler to complete.
-  // TODO(crbug.com/1244067): Remove this workaround.
-  __block BOOL called = false;
-  CRWWebController* web_controller =
-      static_cast<WebStateImpl*>(web_state.get())->GetWebController();
-  [web_controller executeJavaScript:@"0;"
-                  completionHandler:^(id, NSError*) {
-                    called = true;
-                  }];
-  EXPECT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, ^{
-    return called;
-  }));
+      ui::PAGE_TRANSITION_RELOAD));
 }
 
 // Verifies that calling WebState::Stop() does not stop the session restoration.
@@ -590,7 +541,6 @@ TEST_F(WebStateTest, CallStopDuringSessionRestore) {
   // Restore the session.
   WebState::CreateParams params(GetBrowserState());
   CRWSessionStorage* session_storage = [[CRWSessionStorage alloc] init];
-  session_storage.stableIdentifier = [[NSUUID UUID] UUIDString];
   session_storage.itemStorages = item_storages;
   session_storage.userAgentType = UserAgentType::MOBILE;
   auto web_state = WebState::CreateWithStorageSession(params, session_storage);
@@ -617,10 +567,6 @@ TEST_F(WebStateTest, CallStopDuringSessionRestore) {
   EXPECT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, ^{
     return !navigation_manager->GetPendingItem() && !web_state_ptr->IsLoading();
   }));
-
-  // Wait for the error to be displayed.
-  EXPECT_TRUE(web::test::WaitForWebViewContainingText(
-      web_state_ptr, "error", base::test::ios::kWaitForJSCompletionTimeout));
 }
 
 // Verifies that calling NavigationManager::LoadURLWithParams() does not stop
@@ -640,7 +586,6 @@ TEST_F(WebStateTest, CallLoadURLWithParamsDuringSessionRestore) {
   // Restore the session.
   WebState::CreateParams params(GetBrowserState());
   CRWSessionStorage* session_storage = [[CRWSessionStorage alloc] init];
-  session_storage.stableIdentifier = [[NSUUID UUID] UUIDString];
   session_storage.itemStorages = item_storages;
   session_storage.userAgentType = UserAgentType::MOBILE;
   auto web_state = WebState::CreateWithStorageSession(params, session_storage);
@@ -673,8 +618,8 @@ TEST_F(WebStateTest, CallLoadURLWithParamsDuringSessionRestore) {
   // Now wait until the last committed item is fully loaded.
   // TODO(crbug.com/996544) On Xcode 11 beta 6 this became very slow.  This
   // appears to only affect simulator, and will hopefully be fixed in a future
-  // Xcode release.  Revert this to `kWaitForPageLoadTimeout` alone when fixed.
-  EXPECT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout * 7, ^{
+  // Xcode release.  Revert this to |kWaitForPageLoadTimeout| alone when fixed.
+  EXPECT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout * 5, ^{
     return web_state_ptr->GetLastCommittedURL() == url;
   }));
 }
@@ -696,7 +641,6 @@ TEST_F(WebStateTest, CallReloadDuringSessionRestore) {
   // Restore the session.
   WebState::CreateParams params(GetBrowserState());
   CRWSessionStorage* session_storage = [[CRWSessionStorage alloc] init];
-  session_storage.stableIdentifier = [[NSUUID UUID] UUIDString];
   session_storage.itemStorages = item_storages;
   session_storage.userAgentType = UserAgentType::MOBILE;
   auto web_state = WebState::CreateWithStorageSession(params, session_storage);
@@ -725,10 +669,6 @@ TEST_F(WebStateTest, CallReloadDuringSessionRestore) {
   EXPECT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, ^{
     return !navigation_manager->GetPendingItem() && !web_state_ptr->IsLoading();
   }));
-
-  // Wait for the error to be displayed.
-  EXPECT_TRUE(web::test::WaitForWebViewContainingText(
-      web_state_ptr, "error", base::test::ios::kWaitForJSCompletionTimeout));
 }
 
 // Verifies that each page title is restored.
@@ -747,7 +687,6 @@ TEST_F(WebStateTest, RestorePageTitles) {
   // Restore the session.
   WebState::CreateParams params(GetBrowserState());
   CRWSessionStorage* session_storage = [[CRWSessionStorage alloc] init];
-  session_storage.stableIdentifier = [[NSUUID UUID] UUIDString];
   session_storage.itemStorages = item_storages;
   session_storage.userAgentType = UserAgentType::MOBILE;
   auto web_state = WebState::CreateWithStorageSession(params, session_storage);

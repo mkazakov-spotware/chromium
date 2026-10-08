@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview A button control. This implementation extends {@link
@@ -23,9 +31,6 @@ goog.require('goog.ui.Component');
 goog.require('goog.ui.Control');
 goog.require('goog.ui.NativeButtonRenderer');
 goog.require('goog.ui.registry');
-goog.requireType('goog.dom.DomHelper');
-goog.requireType('goog.events.KeyEvent');
-goog.requireType('goog.ui.ControlContent');
 
 
 
@@ -42,13 +47,13 @@ goog.requireType('goog.ui.ControlContent');
  * @extends {goog.ui.Control}
  */
 goog.ui.Button = function(opt_content, opt_renderer, opt_domHelper) {
-  'use strict';
   goog.ui.Control.call(
       this, opt_content,
       opt_renderer || goog.ui.NativeButtonRenderer.getInstance(),
       opt_domHelper);
 };
 goog.inherits(goog.ui.Button, goog.ui.Control);
+goog.tagUnsealableClass(goog.ui.Button);
 
 
 /**
@@ -85,7 +90,6 @@ goog.ui.Button.prototype.tooltip_;
  * @return {*} Button value (undefined if none).
  */
 goog.ui.Button.prototype.getValue = function() {
-  'use strict';
   return this.value_;
 };
 
@@ -95,7 +99,6 @@ goog.ui.Button.prototype.getValue = function() {
  * @param {*} value New button value.
  */
 goog.ui.Button.prototype.setValue = function(value) {
-  'use strict';
   this.value_ = value;
   var renderer = /** @type {!goog.ui.ButtonRenderer} */ (this.getRenderer());
   renderer.setValue(this.getElement(), /** @type {string} */ (value));
@@ -110,7 +113,6 @@ goog.ui.Button.prototype.setValue = function(value) {
  * @protected
  */
 goog.ui.Button.prototype.setValueInternal = function(value) {
-  'use strict';
   this.value_ = value;
 };
 
@@ -120,7 +122,6 @@ goog.ui.Button.prototype.setValueInternal = function(value) {
  * @return {string|undefined} Tooltip text (undefined if none).
  */
 goog.ui.Button.prototype.getTooltip = function() {
-  'use strict';
   return this.tooltip_;
 };
 
@@ -130,7 +131,6 @@ goog.ui.Button.prototype.getTooltip = function() {
  * @param {string} tooltip New tooltip text.
  */
 goog.ui.Button.prototype.setTooltip = function(tooltip) {
-  'use strict';
   this.tooltip_ = tooltip;
   this.getRenderer().setTooltip(this.getElement(), tooltip);
 };
@@ -144,7 +144,6 @@ goog.ui.Button.prototype.setTooltip = function(tooltip) {
  * @protected
  */
 goog.ui.Button.prototype.setTooltipInternal = function(tooltip) {
-  'use strict';
   this.tooltip_ = tooltip;
 };
 
@@ -157,7 +156,6 @@ goog.ui.Button.prototype.setTooltipInternal = function(tooltip) {
  *     which borders should be collapsed.
  */
 goog.ui.Button.prototype.setCollapsed = function(sides) {
-  'use strict';
   this.getRenderer().setCollapsed(this, sides);
 };
 
@@ -167,7 +165,6 @@ goog.ui.Button.prototype.setCollapsed = function(sides) {
 
 /** @override */
 goog.ui.Button.prototype.disposeInternal = function() {
-  'use strict';
   goog.ui.Button.superClass_.disposeInternal.call(this);
   delete this.value_;
   delete this.tooltip_;
@@ -176,7 +173,6 @@ goog.ui.Button.prototype.disposeInternal = function() {
 
 /** @override */
 goog.ui.Button.prototype.enterDocument = function() {
-  'use strict';
   goog.ui.Button.superClass_.enterDocument.call(this);
   if (this.isSupportedState(goog.ui.Component.State.FOCUSED)) {
     var keyTarget = this.getKeyEventTarget();
@@ -199,7 +195,6 @@ goog.ui.Button.prototype.enterDocument = function() {
  * @override
  */
 goog.ui.Button.prototype.handleKeyEventInternal = function(e) {
-  'use strict';
   if (e.keyCode == goog.events.KeyCodes.ENTER &&
           e.type == goog.events.KeyHandler.EventType.KEY ||
       e.keyCode == goog.events.KeyCodes.SPACE &&
@@ -215,7 +210,5 @@ goog.ui.Button.prototype.handleKeyEventInternal = function(e) {
 
 // Register a decorator factory function for goog.ui.Buttons.
 goog.ui.registry.setDecoratorByClassName(
-    goog.ui.ButtonRenderer.CSS_CLASS, function() {
-      'use strict';
-      return new goog.ui.Button(null);
-    });
+    goog.ui.ButtonRenderer.CSS_CLASS,
+    function() { return new goog.ui.Button(null); });

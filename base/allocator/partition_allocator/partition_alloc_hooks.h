@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,14 @@
 #include <atomic>
 #include <cstddef>
 
-#include "base/allocator/partition_allocator/partition_alloc_base/component_export.h"
+#include "base/allocator/partition_allocator/partition_alloc_check.h"
+#include "base/base_export.h"
 
-namespace partition_alloc {
+namespace base {
 
 // PartitionAlloc supports setting hooks to observe allocations/frees as they
 // occur as well as 'override' hooks that allow overriding those operations.
-class PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionAllocHooks {
+class BASE_EXPORT PartitionAllocHooks {
  public:
   // Log allocation and free events.
   typedef void AllocationObserverHook(void* address,
@@ -25,7 +26,7 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionAllocHooks {
   // If it returns true, the allocation has been overridden with the pointer in
   // *out.
   typedef bool AllocationOverrideHook(void** out,
-                                      unsigned int flags,
+                                      int flags,
                                       size_t size,
                                       const char* type_name);
   // If it returns true, then the allocation was overridden and has been freed.
@@ -52,7 +53,7 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionAllocHooks {
                                               size_t size,
                                               const char* type_name);
   static bool AllocationOverrideHookIfEnabled(void** out,
-                                              unsigned int flags,
+                                              int flags,
                                               size_t size,
                                               const char* type_name);
 
@@ -80,6 +81,6 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionAllocHooks {
   static std::atomic<ReallocOverrideHook*> realloc_override_hook_;
 };
 
-}  // namespace partition_alloc
+}  // namespace base
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_ALLOC_HOOKS_H_

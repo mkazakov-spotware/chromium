@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,10 +17,6 @@ class OverlayAgentMac : public OverlayAgentViews,
                         public views::WidgetObserver {
  public:
   OverlayAgentMac(DOMAgent* dom_agent);
-
-  OverlayAgentMac(const OverlayAgentMac&) = delete;
-  OverlayAgentMac& operator=(const OverlayAgentMac&) = delete;
-
   ~OverlayAgentMac() override;
   int FindElementIdTargetedByPoint(ui::LocatedEvent* event) const override;
 
@@ -43,6 +39,8 @@ class OverlayAgentMac : public OverlayAgentViews,
   void RemovePreTargetHandlerOnWidget(views::Widget* widget);
 
   bool is_pretarget_handler_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(OverlayAgentMac);
 };
 
 }  // namespace ui_devtools

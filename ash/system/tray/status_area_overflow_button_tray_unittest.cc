@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,30 +17,38 @@
 
 namespace ash {
 
-using StatusAreaOverflowButtonTrayTest = AshTestBase;
+class StatusAreaOverflowButtonTrayTest : public AshTestBase {
+ public:
+  StatusAreaOverflowButtonTrayTest() = default;
+  ~StatusAreaOverflowButtonTrayTest() override = default;
 
-// Tests that the button reacts to press as expected. Artificially sets the
-// button to be visible.
+  void SetUp() override { AshTestBase::SetUp(); }
+
+  void TapButton() {
+    ui::GestureEvent tap_event =
+        ui::GestureEvent(0, 0, 0, base::TimeTicks(),
+                         ui::GestureEventDetails(ui::ET_GESTURE_TAP));
+    GetTray()->PerformAction(tap_event);
+  }
+
+  StatusAreaOverflowButtonTray* GetTray() {
+    return StatusAreaWidgetTestHelper::GetStatusAreaWidget()
+        ->overflow_button_tray();
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(StatusAreaOverflowButtonTrayTest);
+};
+
 TEST_F(StatusAreaOverflowButtonTrayTest, ToggleExpanded) {
-  auto* overflow_button_tray =
-      StatusAreaWidgetTestHelper::GetStatusAreaWidget()->overflow_button_tray();
-  overflow_button_tray->SetVisiblePreferred(true);
-
-  EXPECT_EQ(StatusAreaOverflowButtonTray::CLICK_TO_EXPAND,
-            overflow_button_tray->state());
-
-  GestureTapOn(overflow_button_tray);
+  EXPECT_EQ(StatusAreaOverflowButtonTray::CLICK_TO_EXPAND, GetTray()->state());
+  TapButton();
+  base::RunLoop().RunUntilIdle();
 
   EXPECT_EQ(StatusAreaOverflowButtonTray::CLICK_TO_COLLAPSE,
-            overflow_button_tray->state());
-
-  // Force the tray button to be visible. It is currently not visible because
-  // tablet mode is not enabled.
-  overflow_button_tray->SetVisiblePreferred(true);
-  GestureTapOn(overflow_button_tray);
-
-  EXPECT_EQ(StatusAreaOverflowButtonTray::CLICK_TO_EXPAND,
-            overflow_button_tray->state());
+            GetTray()->state());
+  TapButton();
+  EXPECT_EQ(StatusAreaOverflowButtonTray::CLICK_TO_EXPAND, GetTray()->state());
 }
 
 }  // namespace ash

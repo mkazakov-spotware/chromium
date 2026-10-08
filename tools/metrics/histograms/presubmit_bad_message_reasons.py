@@ -1,4 +1,4 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -9,12 +9,7 @@ bad_message.h also include the generated changes to histograms.xml
 
 import update_histogram_enum
 
-
-def PrecheckBadMessage(input_api,
-                       output_api,
-                       histogram_name,
-                       end_marker='^BAD_MESSAGE_MAX',
-                       strip_k_prefix=False):
+def PrecheckBadMessage(input_api, output_api, histogram_name):
   source_path = ''
 
   # This function is called once per bad_message.h-containing directory. Check
@@ -30,13 +25,13 @@ def PrecheckBadMessage(input_api,
     return []
 
   START_MARKER='^enum (class )?BadMessageReason {'
+  END_MARKER='^BAD_MESSAGE_MAX'
   presubmit_error = update_histogram_enum.CheckPresubmitErrors(
       histogram_enum_name=histogram_name,
       update_script_name='update_bad_message_reasons.py',
       source_enum_path=source_path,
       start_marker=START_MARKER,
-      end_marker=end_marker,
-      strip_k_prefix=strip_k_prefix)
+      end_marker=END_MARKER)
   if presubmit_error:
     return [output_api.PresubmitPromptWarning(presubmit_error,
                                               items=[source_path])]

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,9 +21,9 @@ TEST(JniString, BasicConversionsUTF8) {
 }
 
 TEST(JniString, BasicConversionsUTF16) {
-  const std::u16string kSimpleString = u"SimpleTest16";
+  const string16 kSimpleString = UTF8ToUTF16("SimpleTest16");
   JNIEnv* env = AttachCurrentThread();
-  std::u16string result =
+  string16 result =
       ConvertJavaStringToUTF16(ConvertUTF16ToJavaString(env, kSimpleString));
   EXPECT_EQ(kSimpleString, result);
 }
@@ -37,9 +37,9 @@ TEST(JniString, EmptyConversionUTF8) {
 }
 
 TEST(JniString, EmptyConversionUTF16) {
-  const std::u16string kEmptyString;
+  const string16 kEmptyString;
   JNIEnv* env = AttachCurrentThread();
-  std::u16string result =
+  string16 result =
       ConvertJavaStringToUTF16(ConvertUTF16ToJavaString(env, kEmptyString));
   EXPECT_EQ(kEmptyString, result);
 }

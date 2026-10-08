@@ -1,15 +1,15 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web/shell/app_delegate.h"
 
-#import <memory>
+#include <memory>
 
-#import "ios/web/public/init/web_main.h"
+#include "ios/web/public/init/web_main.h"
 #import "ios/web/public/web_client.h"
-#import "ios/web/shell/shell_browser_state.h"
-#import "ios/web/shell/shell_main_delegate.h"
+#include "ios/web/shell/shell_browser_state.h"
+#include "ios/web/shell/shell_main_delegate.h"
 #import "ios/web/shell/shell_web_client.h"
 #import "ios/web/shell/view_controller.h"
 

@@ -1,10 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/policy/cloud/cloud_policy_invalidator.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -12,12 +11,13 @@
 #include "base/location.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/rand_util.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/strcat.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/time/clock.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/browser/policy/cloud/policy_invalidation_util.h"
+#include "chrome/common/chrome_features.h"
 #include "components/invalidation/public/invalidation_service.h"
 #include "components/invalidation/public/invalidation_util.h"
 #include "components/invalidation/public/topic_invalidation_map.h"
@@ -86,6 +86,10 @@ void RecordPolicyInvalidationMetric(PolicyInvalidationScope scope,
 
 std::string ComposeOwnerName(PolicyInvalidationScope scope,
                              const std::string& device_local_account_id) {
+  if (!base::FeatureList::IsEnabled(features::kInvalidatorUniqueOwnerName)) {
+    return "Cloud";
+  }
+
   switch (scope) {
     case PolicyInvalidationScope::kUser:
       return "CloudPolicy.User";
@@ -250,18 +254,18 @@ void CloudPolicyInvalidator::Shutdown() {
 }
 
 void CloudPolicyInvalidator::OnInvalidatorStateChange(
-    invalidation::InvalidatorState state) {
+    syncer::InvalidatorState state) {
   DCHECK(state_ == STARTED);
   DCHECK(thread_checker_.CalledOnValidThread());
-  invalidation_service_enabled_ = state == invalidation::INVALIDATIONS_ENABLED;
+  invalidation_service_enabled_ = state == syncer::INVALIDATIONS_ENABLED;
   UpdateInvalidationsEnabled();
 }
 
 void CloudPolicyInvalidator::OnIncomingInvalidation(
-    const invalidation::TopicInvalidationMap& invalidation_map) {
+    const syncer::TopicInvalidationMap& invalidation_map) {
   DCHECK(state_ == STARTED);
   DCHECK(thread_checker_.CalledOnValidThread());
-  const invalidation::SingleTopicInvalidationSet& list =
+  const syncer::SingleObjectInvalidationSet& list =
       invalidation_map.ForTopic(topic_);
   if (list.IsEmpty()) {
     NOTREACHED();
@@ -283,8 +287,7 @@ std::string CloudPolicyInvalidator::GetOwnerName() const {
   return owner_name_;
 }
 
-bool CloudPolicyInvalidator::IsPublicTopic(
-    const invalidation::Topic& topic) const {
+bool CloudPolicyInvalidator::IsPublicTopic(const syncer::Topic& topic) const {
   return IsPublicInvalidationTopic(topic);
 }
 
@@ -340,7 +343,7 @@ void CloudPolicyInvalidator::OnStoreLoaded(CloudPolicyStore* store) {
 void CloudPolicyInvalidator::OnStoreError(CloudPolicyStore* store) {}
 
 void CloudPolicyInvalidator::HandleInvalidation(
-    const invalidation::Invalidation& invalidation) {
+    const syncer::Invalidation& invalidation) {
   // Ignore old invalidations.
   if (invalid_ && !invalidation.is_unknown_version() &&
       invalidation.version() <= invalidation_version_) {
@@ -391,7 +394,7 @@ void CloudPolicyInvalidator::HandleInvalidation(
 
   // Update invalidation state.
   invalid_ = true;
-  invalidation_ = std::make_unique<invalidation::Invalidation>(invalidation);
+  invalidation_.reset(new syncer::Invalidation(invalidation));
   invalidation_version_ = version;
 
   // In order to prevent the cloud policy server from becoming overwhelmed when
@@ -400,7 +403,7 @@ void CloudPolicyInvalidator::HandleInvalidation(
   // invalidations are received in quick succession, only one fetch will be
   // performed.
   base::TimeDelta delay =
-      base::Milliseconds(base::RandInt(20, max_fetch_delay_));
+      base::TimeDelta::FromMilliseconds(base::RandInt(20, max_fetch_delay_));
 
   // If there is a payload, the policy can be refreshed at any time, so set
   // the version and payload on the client immediately. Otherwise, the refresh
@@ -408,7 +411,7 @@ void CloudPolicyInvalidator::HandleInvalidation(
   if (!payload.empty())
     core_->client()->SetInvalidationInfo(version, payload);
   else
-    delay += base::Minutes(kMissingPayloadDelay);
+    delay += base::TimeDelta::FromMinutes(kMissingPayloadDelay);
 
   // Schedule the policy to be refreshed.
   task_runner_->PostDelayedTask(
@@ -423,7 +426,7 @@ void CloudPolicyInvalidator::UpdateSubscription(
     const enterprise_management::PolicyData* policy) {
   // Create the Topic based on the policy data.
   // If the policy does not specify a Topic, then unregister.
-  invalidation::Topic topic;
+  syncer::Topic topic;
   if (!policy || !GetCloudPolicyTopicFromPolicy(*policy, &topic)) {
     Unregister();
     return;
@@ -435,7 +438,7 @@ void CloudPolicyInvalidator::UpdateSubscription(
     Register(topic);
 }
 
-void CloudPolicyInvalidator::Register(const invalidation::Topic& topic) {
+void CloudPolicyInvalidator::Register(const syncer::Topic& topic) {
   // Register this handler with the invalidation service if needed.
   if (!is_registered_) {
     OnInvalidatorStateChange(invalidation_service_->GetInvalidatorState());
@@ -466,8 +469,8 @@ void CloudPolicyInvalidator::Unregister() {
   if (is_registered_) {
     if (invalid_)
       AcknowledgeInvalidation();
-    CHECK(invalidation_service_->UpdateInterestedTopics(
-        this, invalidation::TopicSet()));
+    CHECK(invalidation_service_->UpdateInterestedTopics(this,
+                                                        syncer::TopicSet()));
     invalidation_service_->UnregisterInvalidationHandler(this);
     is_registered_ = false;
     UpdateInvalidationsEnabled();
@@ -475,15 +478,15 @@ void CloudPolicyInvalidator::Unregister() {
 }
 
 void CloudPolicyInvalidator::UpdateMaxFetchDelay(const PolicyMap& policy_map) {
-#if !BUILDFLAG(IS_ANDROID)
+  int delay;
+
   // Try reading the delay from the policy.
-  const base::Value* delay_policy_value = policy_map.GetValue(
-      key::kMaxInvalidationFetchDelay, base::Value::Type::INTEGER);
-  if (delay_policy_value) {
-    set_max_fetch_delay(delay_policy_value->GetInt());
+  const base::Value* delay_policy_value =
+      policy_map.GetValue(key::kMaxInvalidationFetchDelay);
+  if (delay_policy_value && delay_policy_value->GetAsInteger(&delay)) {
+    set_max_fetch_delay(delay);
     return;
   }
-#endif
 
   set_max_fetch_delay(kMaxFetchDelayDefault);
 }

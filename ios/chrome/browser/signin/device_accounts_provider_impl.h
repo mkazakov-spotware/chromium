@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,20 +9,13 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "components/signin/public/identity_manager/ios/device_accounts_provider.h"
-
-class ChromeAccountManagerService;
 
 // Implementation of DeviceAccountsProvider.
 class DeviceAccountsProviderImpl : public DeviceAccountsProvider {
  public:
-  explicit DeviceAccountsProviderImpl(
-      ChromeAccountManagerService* account_manager_service);
-
-  DeviceAccountsProviderImpl(const DeviceAccountsProviderImpl&) = delete;
-  DeviceAccountsProviderImpl& operator=(const DeviceAccountsProviderImpl&) =
-      delete;
-
+  DeviceAccountsProviderImpl();
   ~DeviceAccountsProviderImpl() override;
 
   // ios::DeviceAccountsProvider
@@ -36,7 +29,7 @@ class DeviceAccountsProviderImpl : public DeviceAccountsProvider {
       NSError* error) const override;
 
  private:
-  ChromeAccountManagerService* account_manager_service_ = nullptr;
+  DISALLOW_COPY_AND_ASSIGN(DeviceAccountsProviderImpl);
 };
 
 #endif  // IOS_CHROME_BROWSER_SIGNIN_DEVICE_ACCOUNTS_PROVIDER_IMPL_H_

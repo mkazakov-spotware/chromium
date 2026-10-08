@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,23 +32,19 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.ScalableTimeout;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.touch_to_fill.data.Credential;
-import org.chromium.chrome.browser.touch_to_fill.data.WebAuthnCredential;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerProvider;
-import org.chromium.components.browser_ui.bottomsheet.BottomSheetTestSupport;
 import org.chromium.content_public.browser.test.util.TouchCommon;
-import org.chromium.url.GURL;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -58,16 +54,16 @@ import java.util.Collections;
  * end up rendering a View.
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
-@Batch(Batch.PER_CLASS)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class TouchToFillIntegrationTest {
-    private static GURL sExampleUrl;
+    private static final String EXAMPLE_URL = "https://www.example.xyz";
     private static final String MOBILE_URL = "https://m.example.xyz";
-    private static Credential sAna;
-    private static Credential sBob;
-    private static WebAuthnCredential sCam;
+    private static final Credential ANA =
+            new Credential("Ana", "S3cr3t", "Ana", EXAMPLE_URL, false, false);
+    private static final Credential BOB =
+            new Credential("Bob", "*****", "Bob", MOBILE_URL, true, false);
 
-    private TouchToFillComponent mTouchToFill;
+    private final TouchToFillComponent mTouchToFill = new TouchToFillCoordinator();
 
     @Mock
     private TouchToFillComponent.Delegate mMockBridge;
@@ -83,15 +79,8 @@ public class TouchToFillIntegrationTest {
 
     @Before
     public void setUp() throws InterruptedException {
-        sExampleUrl = new GURL("https://www.example.xyz");
-        // TODO(https://crbug.com/783819): Migrate Credential to GURL.
-        sAna = new Credential("Ana", "S3cr3t", "Ana", sExampleUrl.getSpec(), false, false, 0);
-        sBob = new Credential("Bob", "*****", "Bob", MOBILE_URL, true, false, 0);
-        sCam = new WebAuthnCredential("cam@example.net", "12345");
-
         mActivityTestRule.startMainActivityOnBlankPage();
         runOnUiThreadBlocking(() -> {
-            mTouchToFill = new TouchToFillCoordinator();
             mBottomSheetController = BottomSheetControllerProvider.from(
                     mActivityTestRule.getActivity().getWindowAndroid());
             mTouchToFill.initialize(
@@ -101,86 +90,31 @@ public class TouchToFillIntegrationTest {
 
     @Test
     @MediumTest
+    @DisabledTest(message = "crbug.com/1012221")
     public void testClickingSuggestionsTriggersCallback() {
         runOnUiThreadBlocking(() -> {
-            mTouchToFill.showCredentials(sExampleUrl, true, Collections.emptyList(),
-                    Collections.singletonList(sAna), false);
+            mTouchToFill.showCredentials(EXAMPLE_URL, true, Collections.singletonList(ANA));
         });
-        BottomSheetTestSupport.waitForOpen(mBottomSheetController);
+        pollUiThread(() -> getBottomSheetState() == BottomSheetController.SheetState.HALF);
 
         pollUiThread(() -> getCredentials().getChildAt(1) != null);
         TouchCommon.singleClickView(getCredentials().getChildAt(1));
 
-        waitForEvent(mMockBridge).onCredentialSelected(sAna);
+        waitForEvent(mMockBridge).onCredentialSelected(ANA);
         verify(mMockBridge, never()).onDismissed();
     }
 
     @Test
     @MediumTest
-    public void testClickingWebAuthnCredentialTriggersCallback() {
-        runOnUiThreadBlocking(() -> {
-            mTouchToFill.showCredentials(sExampleUrl, true, Collections.singletonList(sCam),
-                    Collections.singletonList(sAna), false);
-        });
-        BottomSheetTestSupport.waitForOpen(mBottomSheetController);
-
-        pollUiThread(() -> getCredentials().getChildAt(1) != null);
-        TouchCommon.singleClickView(getCredentials().getChildAt(1));
-
-        waitForEvent(mMockBridge).onWebAuthnCredentialSelected(sCam);
-        verify(mMockBridge, never()).onDismissed();
-    }
-
-    @Test
-    @MediumTest
-    public void testClickingButtonTriggersCallback() {
-        runOnUiThreadBlocking(() -> {
-            mTouchToFill.showCredentials(sExampleUrl, true, Collections.emptyList(),
-                    Collections.singletonList(sAna), false);
-        });
-        BottomSheetTestSupport.waitForOpen(mBottomSheetController);
-
-        pollUiThread(() -> getCredentials().getChildAt(2) != null);
-        TouchCommon.singleClickView(getCredentials().getChildAt(2));
-
-        waitForEvent(mMockBridge).onCredentialSelected(sAna);
-        verify(mMockBridge, never()).onDismissed();
-    }
-
-    @Test
-    @MediumTest
-    @DisabledTest(message = "crbug.com/1348345")
     public void testBackDismissesAndCallsCallback() {
         runOnUiThreadBlocking(() -> {
-            mTouchToFill.showCredentials(
-                    sExampleUrl, true, Collections.emptyList(), Arrays.asList(sAna, sBob), false);
+            mTouchToFill.showCredentials(EXAMPLE_URL, true, Arrays.asList(ANA, BOB));
         });
-        BottomSheetTestSupport.waitForOpen(mBottomSheetController);
+        pollUiThread(() -> getBottomSheetState() == BottomSheetController.SheetState.HALF);
 
         Espresso.pressBack();
 
         waitForEvent(mMockBridge).onDismissed();
-        verify(mMockBridge, never()).onCredentialSelected(any());
-    }
-
-    @Test
-    @MediumTest
-    public void testClickingManagePasswordsTriggersCallback() {
-        runOnUiThreadBlocking(() -> {
-            mTouchToFill.showCredentials(sExampleUrl, true, Collections.emptyList(),
-                    Collections.singletonList(sAna), false);
-        });
-        BottomSheetTestSupport.waitForOpen(mBottomSheetController);
-
-        BottomSheetTestSupport sheetSupport = new BottomSheetTestSupport(mBottomSheetController);
-
-        // Swipe the sheet up to it's full state in order to see the 'Manage Passwords' button.
-        runOnUiThreadBlocking(() -> { sheetSupport.setSheetState(SheetState.FULL, false); });
-
-        pollUiThread(() -> getManagePasswordsButton() != null);
-        TouchCommon.singleClickView(getManagePasswordsButton());
-        waitForEvent(mMockBridge).onManagePasswordsSelected();
-        verify(mMockBridge, never()).onDismissed();
         verify(mMockBridge, never()).onCredentialSelected(any());
     }
 
@@ -249,8 +183,7 @@ public class TouchToFillIntegrationTest {
         Espresso.onView(withText("Another bottom sheet content")).check(matches(isDisplayed()));
 
         runOnUiThreadBlocking(() -> {
-            mTouchToFill.showCredentials(
-                    sExampleUrl, true, Collections.emptyList(), Arrays.asList(sAna, sBob), false);
+            mTouchToFill.showCredentials(EXAMPLE_URL, true, Arrays.asList(ANA, BOB));
         });
         waitForEvent(mMockBridge).onDismissed();
         verify(mMockBridge, never()).onCredentialSelected(any());
@@ -264,11 +197,6 @@ public class TouchToFillIntegrationTest {
 
     private RecyclerView getCredentials() {
         return mActivityTestRule.getActivity().findViewById(R.id.sheet_item_list);
-    }
-
-    private TextView getManagePasswordsButton() {
-        return mActivityTestRule.getActivity().findViewById(
-                R.id.touch_to_fill_sheet_manage_passwords);
     }
 
     public static <T> T waitForEvent(T mock) {

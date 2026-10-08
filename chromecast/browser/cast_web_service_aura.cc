@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,8 @@
 namespace chromecast {
 
 std::unique_ptr<CastContentWindow> CastWebService::CreateWindow(
-    mojom::CastWebViewParamsPtr params) {
-  return std::make_unique<CastContentWindowAura>(std::move(params),
-                                                 window_manager_);
+    const CastContentWindow::CreateParams& params) {
+  return std::make_unique<CastContentWindowAura>(params, window_manager_);
 }
 
 }  // namespace chromecast

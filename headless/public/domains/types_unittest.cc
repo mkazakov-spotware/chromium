@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -215,8 +215,9 @@ TEST(TypesTest, AnyProperty) {
   ASSERT_TRUE(clone);
   EXPECT_EQ(base::Value::Type::INTEGER, clone->GetValue()->type());
 
-  ASSERT_TRUE(clone->GetValue()->is_int());
-  EXPECT_EQ(123, clone->GetValue()->GetInt());
+  int clone_value;
+  ASSERT_TRUE(clone->GetValue()->GetAsInteger(&clone_value));
+  EXPECT_EQ(123, clone_value);
 }
 
 TEST(TypesTest, ComplexObjectClone) {
@@ -238,10 +239,9 @@ TEST(TypesTest, ComplexObjectClone) {
   ASSERT_TRUE(clone);
 
   std::string orig;
-  JSONStringValueSerializer(&orig).Serialize(base::Value(params->Serialize()));
+  JSONStringValueSerializer(&orig).Serialize(*params->Serialize());
   std::string clone_value;
-  JSONStringValueSerializer(&clone_value)
-      .Serialize(base::Value(clone->Serialize()));
+  JSONStringValueSerializer(&clone_value).Serialize(*clone->Serialize());
   EXPECT_EQ(orig, clone_value);
 }
 

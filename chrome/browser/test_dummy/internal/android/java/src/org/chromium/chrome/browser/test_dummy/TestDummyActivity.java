@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.test_dummy;
 import androidx.appcompat.app.AppCompatActivity;
 
 import org.chromium.base.CommandLine;
-import org.chromium.base.StrictModeContext;
 import org.chromium.chrome.modules.test_dummy.TestDummyModuleProvider;
 
 /** Helper activity to launch test dummy module.  */
@@ -21,13 +20,11 @@ public class TestDummyActivity extends AppCompatActivity {
             finish();
             return;
         }
-        if (TestDummyModuleProvider.isModuleInstalled()) {
-            onModuleInstalled(true);
-        } else {
-            try (StrictModeContext ignored = StrictModeContext.allowAllThreadPolicies()) {
-                TestDummyModuleProvider.installModule(this::onModuleInstalled);
-            }
+        if (!TestDummyModuleProvider.isModuleInstalled()) {
+            TestDummyModuleProvider.installModule(this::onModuleInstalled);
+            return;
         }
+        onModuleInstalled(true);
     }
 
     private void onModuleInstalled(boolean success) {

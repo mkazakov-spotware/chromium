@@ -1,6 +1,0 @@
-include_rules = [
-  "+components/optimization_guide",
-  "+components/prefs",
-  "+content/public",
-]
-

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.provider.Browser;
 import android.text.TextUtils;
@@ -16,6 +17,7 @@ import android.widget.ImageView;
 
 import androidx.core.graphics.drawable.DrawableCompat;
 
+import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.PackageManagerUtils;
 import org.chromium.chrome.R;
@@ -25,7 +27,7 @@ import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.contextualsearch.ContextualSearchUma;
 import org.chromium.chrome.browser.contextualsearch.QuickActionCategory;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.theme.ThemeUtils;
+import org.chromium.chrome.browser.toolbar.ToolbarColors;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
 import org.chromium.ui.resources.dynamics.ViewResourceInflater;
@@ -246,13 +248,11 @@ public class ContextualSearchQuickActionControl extends ViewResourceInflater {
         for (ResolveInfo resolveInfo : resolveInfoList) {
             if (resolveInfo.activityInfo != null && resolveInfo.activityInfo.exported) {
                 numMatchingActivities++;
-                if (possibleDefaultActivity == null
-                        || possibleDefaultActivity.activityInfo == null) {
-                    continue;
-                }
 
                 // Return early if this resolveInfo matches the possibleDefaultActivity.
                 ActivityInfo possibleDefaultActivityInfo = possibleDefaultActivity.activityInfo;
+                if (possibleDefaultActivityInfo == null) continue;
+
                 ActivityInfo resolveActivityInfo = resolveInfo.activityInfo;
                 boolean matchesPossibleDefaultActivity =
                         TextUtils.equals(resolveActivityInfo.name, possibleDefaultActivityInfo.name)
@@ -302,13 +302,14 @@ public class ContextualSearchQuickActionControl extends ViewResourceInflater {
                 // Otherwise use the link icon.
                 iconResId = getIconResId(mQuickActionCategory);
 
+                Resources res = mContext.getResources();
                 if (mToolbarBackgroundColor != 0
-                        && !ThemeUtils.isUsingDefaultToolbarColor(
-                                mContext, false, mToolbarBackgroundColor)
+                        && !ToolbarColors.isUsingDefaultToolbarColor(
+                                res, false, mToolbarBackgroundColor)
                         && ColorUtils.shouldUseLightForegroundOnBackground(
                                 mToolbarBackgroundColor)) {
                     // Tint the link icon to match the custom tab toolbar.
-                    iconDrawable = mContext.getDrawable(iconResId);
+                    iconDrawable = ApiCompatibilityUtils.getDrawable(res, iconResId);
                     iconDrawable.mutate();
                     DrawableCompat.setTint(iconDrawable, mToolbarBackgroundColor);
                 }

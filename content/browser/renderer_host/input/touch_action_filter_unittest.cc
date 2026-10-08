@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,7 @@ class TouchActionFilterTest : public testing::Test {
   ~TouchActionFilterTest() override = default;
 
  protected:
-  absl::optional<cc::TouchAction> ActiveTouchAction() const {
+  base::Optional<cc::TouchAction> ActiveTouchAction() const {
     return filter_.active_touch_action_;
   }
   void ResetTouchAction() { filter_.ResetTouchAction(); }
@@ -541,14 +541,12 @@ TEST_F(TouchActionFilterTest, BitMath) {
             cc::TouchAction::kAuto & cc::TouchAction::kPan);
   EXPECT_EQ(cc::TouchAction::kManipulation,
             cc::TouchAction::kAuto & ~(cc::TouchAction::kDoubleTapZoom |
-                                       cc::TouchAction::kInternalPanXScrolls |
-                                       cc::TouchAction::kInternalNotWritable));
+                                       cc::TouchAction::kInternalPanXScrolls));
   EXPECT_EQ(cc::TouchAction::kPanX,
             cc::TouchAction::kPanLeft | cc::TouchAction::kPanRight);
   EXPECT_EQ(cc::TouchAction::kAuto, cc::TouchAction::kManipulation |
                                         cc::TouchAction::kDoubleTapZoom |
-                                        cc::TouchAction::kInternalPanXScrolls |
-                                        cc::TouchAction::kInternalNotWritable);
+                                        cc::TouchAction::kInternalPanXScrolls);
 }
 
 TEST_F(TouchActionFilterTest, MultiTouch) {

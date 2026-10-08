@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "ash/public/cpp/ash_public_export.h"
 #include "base/callback_forward.h"
+#include "base/macros.h"
 
 namespace ash {
 
@@ -24,9 +25,6 @@ class ASH_PUBLIC_EXPORT AssistantSetup {
  public:
   static AssistantSetup* GetInstance();
 
-  AssistantSetup(const AssistantSetup&) = delete;
-  AssistantSetup& operator=(const AssistantSetup&) = delete;
-
   using StartAssistantOptInFlowCallback = base::OnceCallback<void(bool)>;
 
   // Start the assistant setup flow.
@@ -42,6 +40,9 @@ class ASH_PUBLIC_EXPORT AssistantSetup {
  protected:
   AssistantSetup();
   virtual ~AssistantSetup();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AssistantSetup);
 };
 
 }  // namespace ash

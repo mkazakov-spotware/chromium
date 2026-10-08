@@ -388,7 +388,7 @@ requested to be presented through the Presentation API.
 
 ## Offscreen Rendering
 
-*TODO: Add notes about off-screen rendering.*
+TODO(miu)
 
 # Security
 

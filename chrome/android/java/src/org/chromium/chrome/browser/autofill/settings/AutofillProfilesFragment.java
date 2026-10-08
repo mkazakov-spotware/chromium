@@ -1,20 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.autofill.settings;
 
 import android.content.Context;
-import android.content.res.Configuration;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
@@ -23,18 +17,16 @@ import androidx.preference.PreferenceScreen;
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.StrictModeContext;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.autofill.AutofillEditorBase;
 import org.chromium.chrome.browser.autofill.PersonalDataManager;
 import org.chromium.chrome.browser.autofill.PersonalDataManager.AutofillProfile;
 import org.chromium.chrome.browser.autofill.prefeditor.EditorDialog;
-import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherImpl;
+import org.chromium.chrome.browser.autofill.prefeditor.EditorObserverForTest;
+import org.chromium.chrome.browser.payments.AddressEditor;
 import org.chromium.chrome.browser.payments.AutofillAddress;
 import org.chromium.chrome.browser.payments.SettingsAutofillAndPaymentsObserver;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.settings.ChromeManagedPreferenceDelegate;
-import org.chromium.components.autofill.prefeditor.EditorObserverForTest;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
-import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 
 /**
  * Autofill profiles fragment, which allows the user to edit autofill profiles.
@@ -43,45 +35,19 @@ public class AutofillProfilesFragment extends PreferenceFragmentCompat
         implements PersonalDataManager.PersonalDataManagerObserver {
     private static EditorObserverForTest sObserverForTest;
     static final String PREF_NEW_PROFILE = "new_profile";
-    private @Nullable EditorDialog mEditorDialog;
+
+    EditorDialog mLastEditorDialogForTest;
 
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
         getActivity().setTitle(R.string.autofill_addresses_settings_title);
-        setHasOptionsMenu(true);
+
         PreferenceScreen screen = getPreferenceManager().createPreferenceScreen(getStyledContext());
         // Suppresses unwanted animations while Preferences are removed from and re-added to the
         // screen.
         screen.setShouldUseGeneratedIds(false);
 
         setPreferenceScreen(screen);
-    }
-
-    @Override
-    public void onConfigurationChanged(@NonNull Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        if (mEditorDialog != null) {
-            mEditorDialog.onConfigurationChanged();
-        }
-    }
-
-    @Override
-    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
-        menu.clear();
-        MenuItem help =
-                menu.add(Menu.NONE, R.id.menu_id_targeted_help, Menu.NONE, R.string.menu_help);
-        help.setIcon(R.drawable.ic_help_and_feedback);
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == R.id.menu_id_targeted_help) {
-            HelpAndFeedbackLauncherImpl.getInstance().show(getActivity(),
-                    getActivity().getString(R.string.help_context_autofill),
-                    Profile.getLastUsedRegularProfile(), null);
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
     }
 
     @Override
@@ -122,12 +88,18 @@ public class AutofillProfilesFragment extends PreferenceFragmentCompat
         getPreferenceScreen().addPreference(autofillSwitch);
 
         for (AutofillProfile profile : PersonalDataManager.getInstance().getProfilesForSettings()) {
-            assert profile.getIsLocal();
             // Add a preference for the profile.
-            Preference pref = new AutofillProfileEditorPreference(getStyledContext());
-            pref.setTitle(profile.getFullName());
-            pref.setSummary(profile.getLabel());
-            pref.setKey(pref.getTitle().toString()); // For testing.
+            Preference pref;
+            if (profile.getIsLocal()) {
+                pref = new AutofillProfileEditorPreference(getStyledContext());
+                pref.setTitle(profile.getFullName());
+                pref.setSummary(profile.getLabel());
+                pref.setKey(pref.getTitle().toString()); // For testing.
+            } else {
+                pref = new Preference(getStyledContext());
+                pref.setWidgetLayoutResource(R.layout.autofill_server_data_label);
+                pref.setFragment(AutofillServerProfileFragment.class.getName());
+            }
             Bundle args = pref.getExtras();
             args.putString(AutofillEditorBase.AUTOFILL_GUID, profile.getGUID());
             try (StrictModeContext ignored = StrictModeContext.allowDiskWrites()) {
@@ -142,7 +114,8 @@ public class AutofillProfilesFragment extends PreferenceFragmentCompat
                     new AutofillProfileEditorPreference(getStyledContext());
             Drawable plusIcon = ApiCompatibilityUtils.getDrawable(getResources(), R.drawable.plus);
             plusIcon.mutate();
-            plusIcon.setColorFilter(SemanticColorUtils.getDefaultControlColorActive(getContext()),
+            plusIcon.setColorFilter(ApiCompatibilityUtils.getColor(
+                                            getResources(), R.color.default_control_color_active),
                     PorterDuff.Mode.SRC_IN);
             pref.setIcon(plusIcon);
             pref.setTitle(R.string.autofill_create_profile);
@@ -182,15 +155,13 @@ public class AutofillProfilesFragment extends PreferenceFragmentCompat
     public void onDisplayPreferenceDialog(Preference preference) {
         if (preference instanceof AutofillProfileEditorPreference) {
             String guid = ((AutofillProfileEditorPreference) preference).getGUID();
-            mEditorDialog = prepareEditorDialog(guid);
-            AutofillAddress autofillAddress = null;
-            if (guid != null) {
-                AutofillProfile profile = PersonalDataManager.getInstance().getProfile(guid);
-                if (profile != null) {
-                    autofillAddress = new AutofillAddress(getActivity(), profile);
-                }
-            }
-            editAddress(mEditorDialog, autofillAddress);
+            EditorDialog editorDialog = prepareEditorDialog(guid);
+            mLastEditorDialogForTest = editorDialog;
+            AutofillAddress autofillAddress = guid == null
+                    ? null
+                    : new AutofillAddress(
+                            getActivity(), PersonalDataManager.getInstance().getProfile(guid));
+            editAddress(editorDialog, autofillAddress);
             return;
         }
 
@@ -239,8 +210,7 @@ public class AutofillProfilesFragment extends PreferenceFragmentCompat
         return getPreferenceManager().getContext();
     }
 
-    @VisibleForTesting
     EditorDialog getEditorDialogForTest() {
-        return mEditorDialog;
+        return mLastEditorDialogForTest;
     }
 }

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,11 @@
 #include "cc/paint/paint_op_buffer.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
-#include "ui/gfx/geometry/skia_conversions.h"
+#include "ui/gfx/skia_util.h"
 
 namespace cc {
 
-gfx::Rect SolidColorContentLayerClient::PaintableRegion() const {
+gfx::Rect SolidColorContentLayerClient::PaintableRegion() {
   return gfx::Rect(size_);
 }
 
@@ -26,7 +26,7 @@ SolidColorContentLayerClient::PaintContentsToDisplayList() {
 
   SkRect clip = gfx::RectToSkRect(PaintableRegion());
   display_list->push<ClipRectOp>(clip, SkClipOp::kIntersect, false);
-  SkColor4f color = SkColors::kTransparent;
+  SkColor color = SK_ColorTRANSPARENT;
   display_list->push<DrawColorOp>(color, SkBlendMode::kSrc);
 
   if (border_size_ != 0) {

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,15 +26,10 @@ using TestCompletionCallback =
 
 class CacheStorageHelperTest : public content::ContentBrowserTest {
  public:
-  content::StoragePartition* storage_partition() const {
-    return shell()
-        ->web_contents()
-        ->GetBrowserContext()
-        ->GetDefaultStoragePartition();
-  }
-
-  scoped_refptr<CannedCacheStorageHelper> MakeHelper() {
-    return base::MakeRefCounted<CannedCacheStorageHelper>(storage_partition());
+  content::CacheStorageContext* CacheStorageContext() {
+    return content::BrowserContext::GetDefaultStoragePartition(
+               shell()->web_contents()->GetBrowserContext())
+        ->GetCacheStorageContext();
   }
 };
 
@@ -42,38 +37,40 @@ IN_PROC_BROWSER_TEST_F(CacheStorageHelperTest, CannedAddCacheStorage) {
   const GURL origin1("http://host1:1/");
   const GURL origin2("http://host2:1/");
 
-  auto helper = MakeHelper();
+  scoped_refptr<CannedCacheStorageHelper> helper(
+      new CannedCacheStorageHelper(CacheStorageContext()));
   helper->Add(url::Origin::Create(origin1));
   helper->Add(url::Origin::Create(origin2));
 
   TestCompletionCallback callback;
-  helper->StartFetching(base::BindOnce(&TestCompletionCallback::callback,
-                                       base::Unretained(&callback)));
+  helper->StartFetching(base::Bind(&TestCompletionCallback::callback,
+                                   base::Unretained(&callback)));
 
   std::list<content::StorageUsageInfo> result = callback.result();
 
   ASSERT_EQ(2U, result.size());
   auto info = result.begin();
-  EXPECT_EQ(origin1, info->storage_key.origin().GetURL());
+  EXPECT_EQ(origin1, info->origin.GetURL());
   info++;
-  EXPECT_EQ(origin2, info->storage_key.origin().GetURL());
+  EXPECT_EQ(origin2, info->origin.GetURL());
 }
 
 IN_PROC_BROWSER_TEST_F(CacheStorageHelperTest, CannedUnique) {
   const GURL origin("http://host1:1/");
 
-  auto helper = MakeHelper();
+  scoped_refptr<CannedCacheStorageHelper> helper(
+      new CannedCacheStorageHelper(CacheStorageContext()));
   helper->Add(url::Origin::Create(origin));
   helper->Add(url::Origin::Create(origin));
 
   TestCompletionCallback callback;
-  helper->StartFetching(base::BindOnce(&TestCompletionCallback::callback,
-                                       base::Unretained(&callback)));
+  helper->StartFetching(base::Bind(&TestCompletionCallback::callback,
+                                   base::Unretained(&callback)));
 
   std::list<content::StorageUsageInfo> result = callback.result();
 
   ASSERT_EQ(1U, result.size());
-  EXPECT_EQ(origin, result.begin()->storage_key.origin().GetURL());
+  EXPECT_EQ(origin, result.begin()->origin.GetURL());
 }
 }  // namespace
 }  // namespace browsing_data

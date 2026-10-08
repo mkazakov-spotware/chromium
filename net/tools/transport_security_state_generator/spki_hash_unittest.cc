@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace net::transport_security_state {
+namespace net {
+
+namespace transport_security_state {
 
 namespace {
 
@@ -57,4 +59,6 @@ TEST(SPKIHashTest, FromString) {
 
 }  // namespace
 
-}  // namespace net::transport_security_state
+}  // namespace transport_security_state
+
+}  // namespace net

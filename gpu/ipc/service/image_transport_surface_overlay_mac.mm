@@ -1,18 +1,16 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "gpu/ipc/service/image_transport_surface_overlay_mac.h"
 
-#include <memory>
 #include <sstream>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/command_line.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/time/time.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/trace_event.h"
 #include "gpu/command_buffer/common/swap_buffers_complete_params.h"
 #include "gpu/ipc/service/gpu_channel_manager.h"
@@ -22,35 +20,19 @@
 #include "ui/accelerated_widget_mac/io_surface_context.h"
 #include "ui/base/cocoa/remote_layer_api.h"
 #include "ui/base/ui_base_switches.h"
-#include "ui/gfx/geometry/rect_conversions.h"
-#include "ui/gfx/video_types.h"
 #include "ui/gl/ca_renderer_layer_params.h"
 #include "ui/gl/gl_context.h"
+#include "ui/gl/gl_image_io_surface.h"
 #include "ui/gl/gpu_switching_manager.h"
 #include "ui/gl/scoped_cgl.h"
 
-// From ANGLE's EGL/eglext_angle.h. This should be included instead of being
-// redefined here.
-#ifndef EGL_ANGLE_device_metal
-#define EGL_ANGLE_device_metal 1
-#define EGL_METAL_DEVICE_ANGLE 0x34A6
-#endif /* EGL_ANGLE_device_metal */
-
 namespace gpu {
 
-namespace {
-
-// Control use of AVFoundation to draw video content.
-BASE_FEATURE(kAVFoundationOverlays,
-             "avfoundation-overlays",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-}  // namespace
-
-ImageTransportSurfaceOverlayMacEGL::ImageTransportSurfaceOverlayMacEGL(
-    gl::GLDisplayEGL* display,
-    base::WeakPtr<ImageTransportSurfaceDelegate> delegate)
-    : gl::GLSurfaceEGL(display),
-      delegate_(delegate),
+template <typename BaseClass>
+ImageTransportSurfaceOverlayMacBase<BaseClass>::
+    ImageTransportSurfaceOverlayMacBase(
+        base::WeakPtr<ImageTransportSurfaceDelegate> delegate)
+    : delegate_(delegate),
       use_remote_layer_api_(ui::RemoteLayerAPISupported()),
       scale_factor_(1),
       gl_renderer_id_(0),
@@ -58,7 +40,8 @@ ImageTransportSurfaceOverlayMacEGL::ImageTransportSurfaceOverlayMacEGL(
   ui::GpuSwitchingManager::GetInstance()->AddObserver(this);
 
   static bool av_disabled_at_command_line =
-      !base::FeatureList::IsEnabled(kAVFoundationOverlays);
+      base::CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kDisableAVFoundationOverlays);
 
   bool allow_av_sample_buffer_display_layer =
       !av_disabled_at_command_line &&
@@ -66,8 +49,8 @@ ImageTransportSurfaceOverlayMacEGL::ImageTransportSurfaceOverlayMacEGL(
            ->workarounds()
            .disable_av_sample_buffer_display_layer;
 
-  ca_layer_tree_coordinator_ = std::make_unique<ui::CALayerTreeCoordinator>(
-      use_remote_layer_api_, allow_av_sample_buffer_display_layer);
+  ca_layer_tree_coordinator_.reset(new ui::CALayerTreeCoordinator(
+      use_remote_layer_api_, allow_av_sample_buffer_display_layer));
 
   // Create the CAContext to send this to the GPU process, and the layer for
   // the context.
@@ -79,27 +62,35 @@ ImageTransportSurfaceOverlayMacEGL::ImageTransportSurfaceOverlayMacEGL(
   }
 }
 
-ImageTransportSurfaceOverlayMacEGL::~ImageTransportSurfaceOverlayMacEGL() {
+template <typename BaseClass>
+ImageTransportSurfaceOverlayMacBase<
+    BaseClass>::~ImageTransportSurfaceOverlayMacBase() {
   ui::GpuSwitchingManager::GetInstance()->RemoveObserver(this);
   Destroy();
 }
 
-bool ImageTransportSurfaceOverlayMacEGL::Initialize(
+template <typename BaseClass>
+bool ImageTransportSurfaceOverlayMacBase<BaseClass>::Initialize(
     gl::GLSurfaceFormat format) {
   return true;
 }
 
-void ImageTransportSurfaceOverlayMacEGL::PrepareToDestroy(bool have_context) {}
+template <typename BaseClass>
+void ImageTransportSurfaceOverlayMacBase<BaseClass>::PrepareToDestroy(
+    bool have_context) {}
 
-void ImageTransportSurfaceOverlayMacEGL::Destroy() {
+template <typename BaseClass>
+void ImageTransportSurfaceOverlayMacBase<BaseClass>::Destroy() {
   ca_layer_tree_coordinator_.reset();
 }
 
-bool ImageTransportSurfaceOverlayMacEGL::IsOffscreen() {
+template <typename BaseClass>
+bool ImageTransportSurfaceOverlayMacBase<BaseClass>::IsOffscreen() {
   return false;
 }
 
-void ImageTransportSurfaceOverlayMacEGL::ApplyBackpressure() {
+template <typename BaseClass>
+void ImageTransportSurfaceOverlayMacBase<BaseClass>::ApplyBackpressure() {
   TRACE_EVENT0("gpu", "ImageTransportSurfaceOverlayMac::ApplyBackpressure");
   // Create the fence for the current frame before waiting on the previous
   // frame's fence (to maximize CPU and GPU execution overlap).
@@ -109,49 +100,27 @@ void ImageTransportSurfaceOverlayMacEGL::ApplyBackpressure() {
   previous_frame_fence_ = this_frame_fence;
 }
 
-void ImageTransportSurfaceOverlayMacEGL::BufferPresented(
+template <typename BaseClass>
+void ImageTransportSurfaceOverlayMacBase<BaseClass>::BufferPresented(
     gl::GLSurface::PresentationCallback callback,
     const gfx::PresentationFeedback& feedback) {
   DCHECK(!callback.is_null());
   std::move(callback).Run(feedback);
+  if (delegate_)
+    delegate_->BufferPresented(feedback);
 }
 
-gfx::SwapResult ImageTransportSurfaceOverlayMacEGL::SwapBuffersInternal(
+template <typename BaseClass>
+gfx::SwapResult
+ImageTransportSurfaceOverlayMacBase<BaseClass>::SwapBuffersInternal(
     gl::GLSurface::SwapCompletionCallback completion_callback,
     gl::GLSurface::PresentationCallback presentation_callback) {
   TRACE_EVENT0("gpu", "ImageTransportSurfaceOverlayMac::SwapBuffersInternal");
 
-  constexpr base::TimeDelta kHistogramMinTime = base::Microseconds(5);
-  constexpr base::TimeDelta kHistogramMaxTime = base::Milliseconds(16);
-  constexpr int kHistogramTimeBuckets = 50;
-
-  // Query the underlying Metal device, if one exists. This is needed to ensure
-  // synchronization between the display compositor and the HDRCopierLayer.
-  // https://crbug.com/1372898
-  if (gl::GLDisplayEGL* display =
-          gl::GLDisplayEGL::GetDisplayForCurrentContext()) {
-    EGLAttrib angle_device_attrib = 0;
-    if (eglQueryDisplayAttribEXT(display->GetDisplay(), EGL_DEVICE_EXT,
-                                 &angle_device_attrib)) {
-      EGLDeviceEXT angle_device =
-          reinterpret_cast<EGLDeviceEXT>(angle_device_attrib);
-      EGLAttrib metal_device = 0;
-      if (eglQueryDeviceAttribEXT(angle_device, EGL_METAL_DEVICE_ANGLE,
-                                  &metal_device)) {
-        ca_layer_tree_coordinator_->GetPendingCARendererLayerTree()
-            ->SetMetalDevice(metal_device);
-      }
-    }
-  }
-
   // Do a GL fence for flush to apply back-pressure before drawing.
   {
-    base::TimeTicks start_time = base::TimeTicks::Now();
+    SCOPED_UMA_HISTOGRAM_TIMER("Gpu.Mac.Backpressure");
     ApplyBackpressure();
-
-    UMA_HISTOGRAM_CUSTOM_MICROSECONDS_TIMES(
-        "Gpu.Mac.BackpressureUs", base::TimeTicks::Now() - start_time,
-        kHistogramMinTime, kHistogramMaxTime, kHistogramTimeBuckets);
   }
 
   // Update the CALayer tree in the GPU process.
@@ -159,130 +128,162 @@ gfx::SwapResult ImageTransportSurfaceOverlayMacEGL::SwapBuffersInternal(
   {
     TRACE_EVENT0("gpu", "CommitPendingTreesToCA");
     ca_layer_tree_coordinator_->CommitPendingTreesToCA();
-
-    base::TimeDelta transaction_time =
-        base::TimeTicks::Now() - before_transaction_time;
-    UMA_HISTOGRAM_CUSTOM_MICROSECONDS_TIMES(
-        "GPU.IOSurface.CATransactionTimeUs", transaction_time,
-        kHistogramMinTime, kHistogramMaxTime, kHistogramTimeBuckets);
+    base::TimeTicks after_transaction_time = base::TimeTicks::Now();
+    UMA_HISTOGRAM_TIMES("GPU.IOSurface.CATransactionTime",
+                        after_transaction_time - before_transaction_time);
   }
 
-  // Populate the CA layer parameters to send to the browser.
-  gfx::CALayerParams params;
+  // Populate the swap-complete parameters to send to the browser.
+  SwapBuffersCompleteParams params;
   {
     TRACE_EVENT_INSTANT2("test_gpu", "SwapBuffers", TRACE_EVENT_SCOPE_THREAD,
                          "GLImpl", static_cast<int>(gl::GetGLImplementation()),
                          "width", pixel_size_.width());
     if (use_remote_layer_api_) {
-      params.ca_context_id = [ca_context_ contextId];
+      params.ca_layer_params.ca_context_id = [ca_context_ contextId];
     } else {
       IOSurfaceRef io_surface =
           ca_layer_tree_coordinator_->GetIOSurfaceForDisplay();
       if (io_surface) {
-        params.io_surface_mach_port.reset(IOSurfaceCreateMachPort(io_surface));
+        params.ca_layer_params.io_surface_mach_port.reset(
+            IOSurfaceCreateMachPort(io_surface));
       }
     }
-    params.pixel_size = pixel_size_;
-    params.scale_factor = scale_factor_;
-    params.is_empty = false;
+    params.ca_layer_params.pixel_size = pixel_size_;
+    params.ca_layer_params.scale_factor = scale_factor_;
+    params.ca_layer_params.is_empty = false;
+    params.swap_response.swap_id = 0;  // Set later, in DecoderClient.
+    params.swap_response.result = gfx::SwapResult::SWAP_ACK;
+    // TODO(brianderson): Tie swap_start to before_flush_time.
+    params.swap_response.timings.swap_start = before_transaction_time;
+    params.swap_response.timings.swap_end = before_transaction_time;
+    for (auto& query : ca_layer_in_use_queries_) {
+      gpu::TextureInUseResponse response;
+      response.texture = query.texture;
+      bool in_use = false;
+      gl::GLImageIOSurface* io_surface_image =
+          gl::GLImageIOSurface::FromGLImage(query.image.get());
+      if (io_surface_image)
+        in_use = io_surface_image->IsInUseByWindowServer();
+      response.in_use = in_use;
+      params.texture_in_use_responses.push_back(std::move(response));
+    }
+    ca_layer_in_use_queries_.clear();
   }
 
   // Send the swap parameters to the browser.
   if (completion_callback) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
-        base::BindOnce(std::move(completion_callback),
-                       gfx::SwapCompletionResult(
-                           gfx::SwapResult::SWAP_ACK,
-                           std::make_unique<gfx::CALayerParams>(params))));
+        base::BindOnce(
+            std::move(completion_callback),
+            gfx::SwapCompletionResult(
+                gfx::SwapResult::SWAP_ACK,
+                std::make_unique<gfx::CALayerParams>(params.ca_layer_params))));
   }
-  gfx::PresentationFeedback feedback(base::TimeTicks::Now(), base::Hertz(60),
-                                     /*flags=*/0);
-  feedback.ca_layer_error_code = ca_layer_error_code_;
-
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  delegate_->DidSwapBuffersComplete(std::move(params));
+  constexpr int64_t kRefreshIntervalInMicroseconds =
+      base::Time::kMicrosecondsPerSecond / 60;
+  gfx::PresentationFeedback feedback(
+      base::TimeTicks::Now(),
+      base::TimeDelta::FromMicroseconds(kRefreshIntervalInMicroseconds),
+      0 /* flags */);
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
-      base::BindOnce(&ImageTransportSurfaceOverlayMacEGL::BufferPresented,
-                     weak_ptr_factory_.GetWeakPtr(),
-                     std::move(presentation_callback), feedback));
+      base::BindOnce(
+          &ImageTransportSurfaceOverlayMacBase<BaseClass>::BufferPresented,
+          weak_ptr_factory_.GetWeakPtr(), std::move(presentation_callback),
+          feedback));
   return gfx::SwapResult::SWAP_ACK;
 }
 
-gfx::SwapResult ImageTransportSurfaceOverlayMacEGL::SwapBuffers(
-    gl::GLSurface::PresentationCallback callback,
-    gl::FrameData data) {
-  return SwapBuffersInternal(base::DoNothing(), std::move(callback));
+template <typename BaseClass>
+gfx::SwapResult ImageTransportSurfaceOverlayMacBase<BaseClass>::SwapBuffers(
+    gl::GLSurface::PresentationCallback callback) {
+  return SwapBuffersInternal(
+      base::DoNothing(), std::move(callback));
 }
 
-void ImageTransportSurfaceOverlayMacEGL::SwapBuffersAsync(
+template <typename BaseClass>
+void ImageTransportSurfaceOverlayMacBase<BaseClass>::SwapBuffersAsync(
     gl::GLSurface::SwapCompletionCallback completion_callback,
-    gl::GLSurface::PresentationCallback presentation_callback,
-    gl::FrameData data) {
-  SwapBuffersInternal(std::move(completion_callback),
-                      std::move(presentation_callback));
+    gl::GLSurface::PresentationCallback presentation_callback) {
+  SwapBuffersInternal(
+      std::move(completion_callback), std::move(presentation_callback));
 }
 
-gfx::SwapResult ImageTransportSurfaceOverlayMacEGL::PostSubBuffer(
+template <typename BaseClass>
+gfx::SwapResult ImageTransportSurfaceOverlayMacBase<BaseClass>::PostSubBuffer(
     int x,
     int y,
     int width,
     int height,
-    gl::GLSurface::PresentationCallback callback,
-    gl::FrameData data) {
+    gl::GLSurface::PresentationCallback callback) {
   return SwapBuffersInternal(base::DoNothing(), std::move(callback));
 }
 
-void ImageTransportSurfaceOverlayMacEGL::PostSubBufferAsync(
+template <typename BaseClass>
+void ImageTransportSurfaceOverlayMacBase<BaseClass>::PostSubBufferAsync(
     int x,
     int y,
     int width,
     int height,
     gl::GLSurface::SwapCompletionCallback completion_callback,
-    gl::GLSurface::PresentationCallback presentation_callback,
-    gl::FrameData data) {
+    gl::GLSurface::PresentationCallback presentation_callback) {
   SwapBuffersInternal(std::move(completion_callback),
                       std::move(presentation_callback));
 }
 
-gfx::SwapResult ImageTransportSurfaceOverlayMacEGL::CommitOverlayPlanes(
-    gl::GLSurface::PresentationCallback callback,
-    gl::FrameData data) {
+template <typename BaseClass>
+gfx::SwapResult
+ImageTransportSurfaceOverlayMacBase<BaseClass>::CommitOverlayPlanes(
+    gl::GLSurface::PresentationCallback callback) {
   return SwapBuffersInternal(base::DoNothing(), std::move(callback));
 }
 
-void ImageTransportSurfaceOverlayMacEGL::CommitOverlayPlanesAsync(
+template <typename BaseClass>
+void ImageTransportSurfaceOverlayMacBase<BaseClass>::CommitOverlayPlanesAsync(
     gl::GLSurface::SwapCompletionCallback completion_callback,
-    gl::GLSurface::PresentationCallback presentation_callback,
-    gl::FrameData data) {
+    gl::GLSurface::PresentationCallback presentation_callback) {
   SwapBuffersInternal(std::move(completion_callback),
                       std::move(presentation_callback));
 }
 
-bool ImageTransportSurfaceOverlayMacEGL::SupportsPostSubBuffer() {
+template <typename BaseClass>
+bool ImageTransportSurfaceOverlayMacBase<BaseClass>::SupportsPostSubBuffer() {
   return true;
 }
 
-bool ImageTransportSurfaceOverlayMacEGL::SupportsCommitOverlayPlanes() {
+template <typename BaseClass>
+bool ImageTransportSurfaceOverlayMacBase<
+    BaseClass>::SupportsCommitOverlayPlanes() {
   return true;
 }
 
-bool ImageTransportSurfaceOverlayMacEGL::SupportsAsyncSwap() {
+template <typename BaseClass>
+bool ImageTransportSurfaceOverlayMacBase<BaseClass>::SupportsAsyncSwap() {
   return true;
 }
 
-gfx::Size ImageTransportSurfaceOverlayMacEGL::GetSize() {
+template <typename BaseClass>
+gfx::Size ImageTransportSurfaceOverlayMacBase<BaseClass>::GetSize() {
   return gfx::Size();
 }
 
-void* ImageTransportSurfaceOverlayMacEGL::GetHandle() {
+template <typename BaseClass>
+void* ImageTransportSurfaceOverlayMacBase<BaseClass>::GetHandle() {
   return nullptr;
 }
 
-gl::GLSurfaceFormat ImageTransportSurfaceOverlayMacEGL::GetFormat() {
+template <typename BaseClass>
+gl::GLSurfaceFormat
+ImageTransportSurfaceOverlayMacBase<BaseClass>::GetFormat() {
   return gl::GLSurfaceFormat();
 }
 
-bool ImageTransportSurfaceOverlayMacEGL::OnMakeCurrent(gl::GLContext* context) {
+template <typename BaseClass>
+bool ImageTransportSurfaceOverlayMacBase<BaseClass>::OnMakeCurrent(
+    gl::GLContext* context) {
   // Ensure that the context is on the appropriate GL renderer. The GL renderer
   // will generally only change when the GPU changes.
   if (gl_renderer_id_ && context)
@@ -290,55 +291,79 @@ bool ImageTransportSurfaceOverlayMacEGL::OnMakeCurrent(gl::GLContext* context) {
   return true;
 }
 
-bool ImageTransportSurfaceOverlayMacEGL::ScheduleOverlayPlane(
-    gl::OverlayImage image,
-    std::unique_ptr<gfx::GpuFence> gpu_fence,
-    const gfx::OverlayPlaneData& overlay_plane_data) {
-  if (overlay_plane_data.plane_transform != gfx::OVERLAY_TRANSFORM_NONE) {
+template <typename BaseClass>
+bool ImageTransportSurfaceOverlayMacBase<BaseClass>::ScheduleOverlayPlane(
+    int z_order,
+    gfx::OverlayTransform transform,
+    gl::GLImage* image,
+    const gfx::Rect& pixel_frame_rect,
+    const gfx::RectF& crop_rect,
+    bool enable_blend,
+    std::unique_ptr<gfx::GpuFence> gpu_fence) {
+  if (transform != gfx::OVERLAY_TRANSFORM_NONE) {
     DLOG(ERROR) << "Invalid overlay plane transform.";
     return false;
   }
-  if (overlay_plane_data.z_order) {
+  if (z_order) {
     DLOG(ERROR) << "Invalid non-zero Z order.";
     return false;
   }
-  // TODO(1290313): the display_bounds might not need to be rounded to the
-  // nearest rect as this eventually gets made into a CALayer. CALayers work in
-  // floats.
+  gl::GLImageIOSurface* io_surface_image =
+      gl::GLImageIOSurface::FromGLImage(image);
+  if (!io_surface_image) {
+    DLOG(ERROR) << "Not an IOSurface image.";
+    return false;
+  }
   const ui::CARendererLayerParams overlay_as_calayer_params(
       false,          // is_clipped
       gfx::Rect(),    // clip_rect
       gfx::RRectF(),  // rounded_corner_bounds
       0,              // sorting_context_id
-      gfx::Transform(), image, overlay_plane_data.color_space,
-      overlay_plane_data.crop_rect,                           // contents_rect
-      gfx::ToNearestRect(overlay_plane_data.display_bounds),  // rect
-      SkColors::kTransparent,  // background_color
-      0,                       // edge_aa_mask
-      1.f,                     // opacity
-      GL_LINEAR,               // filter
-      gfx::HDRMode::kDefault,
-      absl::nullopt,                     // hdr_metadata
-      gfx::ProtectedVideoType::kClear);  // protected_video_type
+      gfx::Transform(), image,
+      crop_rect,            // contents_rect
+      pixel_frame_rect,     // rect
+      SK_ColorTRANSPARENT,  // background_color
+      0,                    // edge_aa_mask
+      1.f,                  // opacity
+      GL_LINEAR);           // filter;
   return ca_layer_tree_coordinator_->GetPendingCARendererLayerTree()
       ->ScheduleCALayer(overlay_as_calayer_params);
 }
 
-bool ImageTransportSurfaceOverlayMacEGL::ScheduleCALayer(
+template <typename BaseClass>
+bool ImageTransportSurfaceOverlayMacBase<BaseClass>::ScheduleCALayer(
     const ui::CARendererLayerParams& params) {
+  if (params.image) {
+    gl::GLImageIOSurface* io_surface_image =
+        gl::GLImageIOSurface::FromGLImage(params.image);
+    if (!io_surface_image) {
+      DLOG(ERROR) << "Cannot schedule CALayer with non-IOSurface GLImage";
+      return false;
+    }
+  }
   return ca_layer_tree_coordinator_->GetPendingCARendererLayerTree()
       ->ScheduleCALayer(params);
 }
 
-bool ImageTransportSurfaceOverlayMacEGL::IsSurfaceless() const {
+template <typename BaseClass>
+void ImageTransportSurfaceOverlayMacBase<BaseClass>::ScheduleCALayerInUseQuery(
+    std::vector<gl::GLSurface::CALayerInUseQuery> queries) {
+  ca_layer_in_use_queries_.swap(queries);
+}
+
+template <typename BaseClass>
+bool ImageTransportSurfaceOverlayMacBase<BaseClass>::IsSurfaceless() const {
   return true;
 }
 
-gfx::SurfaceOrigin ImageTransportSurfaceOverlayMacEGL::GetOrigin() const {
+template <typename BaseClass>
+gfx::SurfaceOrigin ImageTransportSurfaceOverlayMacBase<BaseClass>::GetOrigin()
+    const {
   return gfx::SurfaceOrigin::kTopLeft;
 }
 
-bool ImageTransportSurfaceOverlayMacEGL::Resize(
+template <typename BaseClass>
+bool ImageTransportSurfaceOverlayMacBase<BaseClass>::Resize(
     const gfx::Size& pixel_size,
     float scale_factor,
     const gfx::ColorSpace& color_space,
@@ -349,7 +374,8 @@ bool ImageTransportSurfaceOverlayMacEGL::Resize(
   return true;
 }
 
-void ImageTransportSurfaceOverlayMacEGL::OnGpuSwitched(
+template <typename BaseClass>
+void ImageTransportSurfaceOverlayMacBase<BaseClass>::OnGpuSwitched(
     gl::GpuPreference active_gpu_heuristic) {
   // Create a new context, and use the GL renderer ID that the new context gets.
   scoped_refptr<ui::IOSurfaceContext> context_on_new_gpu =
@@ -365,16 +391,20 @@ void ImageTransportSurfaceOverlayMacEGL::OnGpuSwitched(
   }
   gl_renderer_id_ = context_renderer_id & kCGLRendererIDMatchingMask;
 
-  // Delay releasing the reference to the new GL context. The reason for this
-  // is to avoid creating-then-destroying the context for every image transport
-  // surface that is observing the GPU switch.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->ReleaseSoon(
-      FROM_HERE, std::move(context_on_new_gpu));
+  // Post a task holding a reference to the new GL context. The reason for
+  // this is to avoid creating-then-destroying the context for every image
+  // transport surface that is observing the GPU switch.
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
+      FROM_HERE,
+      base::BindOnce(
+          base::DoNothing::Once<scoped_refptr<ui::IOSurfaceContext>>(),
+          context_on_new_gpu));
 }
 
-void ImageTransportSurfaceOverlayMacEGL::SetCALayerErrorCode(
-    gfx::CALayerResult ca_layer_error_code) {
-  ca_layer_error_code_ = ca_layer_error_code;
-}
+// Template instantiation
+template class ImageTransportSurfaceOverlayMacBase<gl::GLSurface>;
+#if defined(USE_EGL)
+template class ImageTransportSurfaceOverlayMacBase<gl::GLSurfaceEGL>;
+#endif
 
 }  // namespace gpu

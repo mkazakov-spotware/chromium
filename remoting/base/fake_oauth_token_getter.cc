@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 
 namespace remoting {
 
@@ -18,7 +19,7 @@ FakeOAuthTokenGetter::FakeOAuthTokenGetter(Status status,
 FakeOAuthTokenGetter::~FakeOAuthTokenGetter() = default;
 
 void FakeOAuthTokenGetter::CallWithToken(TokenCallback on_access_token) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(on_access_token), status_,
                                 user_email_, access_token_));
 }

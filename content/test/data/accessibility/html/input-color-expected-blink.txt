@@ -2,5 +2,3 @@ rootWebArea
 ++genericContainer ignored
 ++++genericContainer
 ++++++colorWell inputType='color' value='#ff9900'
-++++++++genericContainer ignored
-++++++++++genericContainer ignored

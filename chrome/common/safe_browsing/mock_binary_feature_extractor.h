@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,11 +13,6 @@ namespace safe_browsing {
 class MockBinaryFeatureExtractor : public BinaryFeatureExtractor {
  public:
   MockBinaryFeatureExtractor();
-
-  MockBinaryFeatureExtractor(const MockBinaryFeatureExtractor&) = delete;
-  MockBinaryFeatureExtractor& operator=(const MockBinaryFeatureExtractor&) =
-      delete;
-
   MOCK_METHOD2(CheckSignature,
                void(const base::FilePath&,
                     ClientDownloadRequest_SignatureInfo*));
@@ -29,6 +24,9 @@ class MockBinaryFeatureExtractor : public BinaryFeatureExtractor {
 
  protected:
   ~MockBinaryFeatureExtractor() override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockBinaryFeatureExtractor);
 };
 
 }  // namespace safe_browsing

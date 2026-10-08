@@ -1,12 +1,13 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_DRIVE_FILE_ERRORS_H_
 #define COMPONENTS_DRIVE_FILE_ERRORS_H_
 
+#include "base/callback_forward.h"
 #include "base/files/file.h"
-#include "google_apis/common/api_error_codes.h"
+#include "google_apis/drive/drive_api_error_codes.h"
 
 namespace drive {
 
@@ -39,7 +40,7 @@ std::string FileErrorToString(FileError error);
 base::File::Error FileErrorToBaseFileError(FileError error);
 
 // Converts GData error code into Drive file error code.
-FileError GDataToFileError(google_apis::ApiErrorCode status);
+FileError GDataToFileError(google_apis::DriveApiErrorCode status);
 
 }  // namespace drive
 

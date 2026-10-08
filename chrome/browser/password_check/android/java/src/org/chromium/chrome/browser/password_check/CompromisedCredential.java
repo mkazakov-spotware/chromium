@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,15 +31,17 @@ public class CompromisedCredential implements Parcelable {
                     final String passwordChangeUrl = in.readString();
                     final String associatedApp = in.readString();
                     final long creationTime = in.readLong();
-                    final long lastUsedTime = in.readLong();
                     boolean[] boolArguments = new boolean[4];
                     in.readBooleanArray(boolArguments);
                     final boolean leaked = boolArguments[0];
                     final boolean phished = boolArguments[1];
+                    final boolean hasStartableScript = boolArguments[2];
+                    final boolean hasAutoChangeButton = boolArguments[3];
 
                     return new CompromisedCredential(signonRealm, associatedUrl, username,
                             displayOrigin, displayUsername, password, passwordChangeUrl,
-                            associatedApp, creationTime, lastUsedTime, leaked, phished);
+                            associatedApp, creationTime, leaked, phished, hasStartableScript,
+                            hasAutoChangeButton);
                 }
 
                 @Override
@@ -57,9 +59,10 @@ public class CompromisedCredential implements Parcelable {
     private final String mPasswordChangeUrl;
     private final String mAssociatedApp;
     private final long mCreationTime;
-    private final long mLastUsedTime;
-    private final boolean mOnlyLeaked;
-    private final boolean mOnlyPhished;
+    private final boolean mLeaked;
+    private final boolean mPhished;
+    private final boolean mHasStartableScript;
+    private final boolean mHasAutoChangeButton;
 
     /**
      * @param signonRealm The URL leading to the sign-on page.
@@ -75,14 +78,16 @@ public class CompromisedCredential implements Parcelable {
      * @param creationTime The time at which the compromised credential was created, which is the
      *        time at which the compromised credential was first found to be compromised during
      *        a check.
-     * @param lastUsedTime The time when compromised credential was last time used.
-     * @param isOnlyLeaked True if the credential was (only) discovered to be in a leak.
-     * @param isOnlyPhished True if the credential was (only) entered on an unsafe site.
+     * @param phished True iff the credential was entered on an unsafe site.
+     * @param hasStartableScript True iff there is a script to automatically fix the credential and
+     *         it can be started (username is not empty, password sync is on, etc.)
+     * @param hasAutoChangeButton True iff the button to automatically change the credential should
+     *         be shown.
      */
     public CompromisedCredential(String signonRealm, GURL associatedUrl, String username,
             String displayOrigin, String displayUsername, String password, String passwordChangeUrl,
-            String associatedApp, long creationTime, long lastUsedTime, boolean isOnlyLeaked,
-            boolean isOnlyPhished) {
+            String associatedApp, long creationTime, boolean leaked, boolean phished,
+            boolean hasStartableScript, boolean hasAutoChangeButton) {
         assert associatedUrl
                 != null : "Credential associated URL is null! Pass an empty one instead.";
         assert signonRealm != null;
@@ -91,6 +96,10 @@ public class CompromisedCredential implements Parcelable {
         assert !passwordChangeUrl.isEmpty()
                 || !associatedApp.isEmpty()
             : "Change URL and app name may not be empty at the same time!";
+        assert leaked || phished : "A compromised credential must be leaked or phished!";
+        assert hasStartableScript
+                || !hasAutoChangeButton
+            : "Auto change button cannot be shown without a script that can start!";
         mSignonRealm = signonRealm;
         mAssociatedUrl = associatedUrl;
         mUsername = username;
@@ -100,9 +109,10 @@ public class CompromisedCredential implements Parcelable {
         mPasswordChangeUrl = passwordChangeUrl;
         mAssociatedApp = associatedApp;
         mCreationTime = creationTime;
-        mLastUsedTime = lastUsedTime;
-        mOnlyLeaked = isOnlyLeaked;
-        mOnlyPhished = isOnlyPhished;
+        mLeaked = leaked;
+        mPhished = phished;
+        mHasStartableScript = hasStartableScript;
+        mHasAutoChangeButton = hasAutoChangeButton;
     }
 
     @CalledByNative
@@ -133,18 +143,20 @@ public class CompromisedCredential implements Parcelable {
     public long getCreationTime() {
         return mCreationTime;
     }
-    @CalledByNative
-    public long getLastUsedTime() {
-        return mLastUsedTime;
-    }
     public String getPasswordChangeUrl() {
         return mPasswordChangeUrl;
     }
-    public boolean isOnlyLeaked() {
-        return mOnlyLeaked;
+    public boolean isLeaked() {
+        return mLeaked;
     }
-    public boolean isOnlyPhished() {
-        return mOnlyPhished;
+    public boolean isPhished() {
+        return mPhished;
+    }
+    public boolean hasStartableScript() {
+        return mHasStartableScript;
+    }
+    public boolean hasAutoChangeButton() {
+        return mHasAutoChangeButton;
     }
 
     @Override
@@ -158,8 +170,9 @@ public class CompromisedCredential implements Parcelable {
                 && mPassword.equals(that.mPassword)
                 && mPasswordChangeUrl.equals(that.mPasswordChangeUrl)
                 && mAssociatedApp.equals(that.mAssociatedApp) && mCreationTime == that.mCreationTime
-                && mLastUsedTime == that.mLastUsedTime && mOnlyLeaked == that.mOnlyLeaked
-                && mOnlyPhished == that.mOnlyPhished;
+                && mLeaked == that.mLeaked && mPhished == that.mPhished
+                && mHasStartableScript == that.mHasStartableScript
+                && mHasAutoChangeButton == that.mHasAutoChangeButton;
     }
 
     @Override
@@ -170,15 +183,15 @@ public class CompromisedCredential implements Parcelable {
                 + '\'' + ", displayUsername='" + mDisplayUsername + '\'' + ", password='"
                 + mPassword + '\'' + ", passwordChangeUrl='" + mPasswordChangeUrl + '\''
                 + ", associatedApp='" + mAssociatedApp + '\'' + ", creationTime=" + mCreationTime
-                + ". lastUsedTime=" + mLastUsedTime + ", leaked=" + mOnlyLeaked
-                + ", phished=" + mOnlyPhished + '}';
+                + ", leaked=" + mLeaked + ", phished=" + mPhished + ", hasStartableScript="
+                + mHasStartableScript + ", hasAutoChangeButton=" + mHasAutoChangeButton + '}';
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(mSignonRealm, mAssociatedUrl.getPossiblyInvalidSpec(), mUsername,
                 mDisplayOrigin, mDisplayUsername, mPassword, mPasswordChangeUrl, mAssociatedApp,
-                mCreationTime, mLastUsedTime, mOnlyLeaked, mOnlyPhished);
+                mCreationTime, mLeaked, mPhished, mHasStartableScript, mHasAutoChangeButton);
     }
 
     @Override
@@ -192,8 +205,8 @@ public class CompromisedCredential implements Parcelable {
         parcel.writeString(mPasswordChangeUrl);
         parcel.writeString(mAssociatedApp);
         parcel.writeLong(mCreationTime);
-        parcel.writeLong(mLastUsedTime);
-        parcel.writeBooleanArray(new boolean[] {mOnlyLeaked, mOnlyPhished});
+        parcel.writeBooleanArray(
+                new boolean[] {mLeaked, mPhished, mHasStartableScript, mHasAutoChangeButton});
     }
 
     @Override

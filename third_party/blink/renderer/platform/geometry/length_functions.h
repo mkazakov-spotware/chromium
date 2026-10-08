@@ -28,13 +28,10 @@
 #include "third_party/blink/renderer/platform/geometry/length.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 
-namespace gfx {
-class PointF;
-class SizeF;
-}
-
 namespace blink {
 
+class FloatPoint;
+class FloatSize;
 class LayoutUnit;
 class Length;
 class LengthSize;
@@ -42,31 +39,24 @@ class LengthSize;
 struct LengthPoint;
 
 PLATFORM_EXPORT int IntValueForLength(const Length&, int maximum_value);
-PLATFORM_EXPORT float FloatValueForLength(
-    const Length&,
-    float maximum_value,
-    const Length::AnchorEvaluator* anchor_evaluator = nullptr);
+PLATFORM_EXPORT float FloatValueForLength(const Length&, float maximum_value);
 PLATFORM_EXPORT LayoutUnit
-MinimumValueForLengthInternal(const Length&,
-                              LayoutUnit maximum_value,
-                              const Length::AnchorEvaluator*);
+MinimumValueForLengthInternal(const Length&, LayoutUnit maximum_value);
 
-inline LayoutUnit MinimumValueForLength(
-    const Length& length,
-    LayoutUnit maximum_value,
-    const Length::AnchorEvaluator* anchor_evaluator = nullptr) {
+inline LayoutUnit MinimumValueForLength(const Length& length,
+                                        LayoutUnit maximum_value) {
   if (LIKELY(length.IsFixed()))
     return LayoutUnit(length.Value());
 
-  return MinimumValueForLengthInternal(length, maximum_value, anchor_evaluator);
+  return MinimumValueForLengthInternal(length, maximum_value);
 }
 
 PLATFORM_EXPORT LayoutUnit ValueForLength(const Length&,
                                           LayoutUnit maximum_value);
-PLATFORM_EXPORT gfx::SizeF SizeForLengthSize(const LengthSize&,
-                                             const gfx::SizeF& box_size);
-PLATFORM_EXPORT gfx::PointF PointForLengthPoint(const LengthPoint&,
-                                                const gfx::SizeF& box_size);
+PLATFORM_EXPORT FloatSize FloatSizeForLengthSize(const LengthSize&,
+                                                 const FloatSize& box_size);
+PLATFORM_EXPORT FloatPoint FloatPointForLengthPoint(const LengthPoint&,
+                                                    const FloatSize& box_size);
 
 }  // namespace blink
 

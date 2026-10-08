@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_WEB_PACKAGE_PREFETCHED_SIGNED_EXCHANGE_CACHE_ADAPTER_H_
 #define CONTENT_BROWSER_WEB_PACKAGE_PREFETCHED_SIGNED_EXCHANGE_CACHE_ADAPTER_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "content/browser/web_package/prefetched_signed_exchange_cache.h"
 #include "content/public/browser/browser_context.h"
 #include "mojo/public/cpp/system/data_pipe.h"
@@ -30,12 +30,6 @@ class PrefetchedSignedExchangeCacheAdapter {
       BrowserContext::BlobContextGetter blob_context_getter,
       const GURL& request_url,
       PrefetchURLLoader* prefetch_url_loader);
-
-  PrefetchedSignedExchangeCacheAdapter(
-      const PrefetchedSignedExchangeCacheAdapter&) = delete;
-  PrefetchedSignedExchangeCacheAdapter& operator=(
-      const PrefetchedSignedExchangeCacheAdapter&) = delete;
-
   ~PrefetchedSignedExchangeCacheAdapter();
 
   void OnReceiveSignedExchange(
@@ -88,10 +82,12 @@ class PrefetchedSignedExchangeCacheAdapter {
   bool blob_is_streaming_ = false;
 
   // |prefetch_url_loader_| owns |this|.
-  raw_ptr<PrefetchURLLoader> prefetch_url_loader_;
+  PrefetchURLLoader* prefetch_url_loader_;
 
   base::WeakPtrFactory<PrefetchedSignedExchangeCacheAdapter> weak_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(PrefetchedSignedExchangeCacheAdapter);
 };
 
 }  // namespace content

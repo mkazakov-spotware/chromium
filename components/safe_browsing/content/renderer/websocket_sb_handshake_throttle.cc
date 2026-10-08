@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@
 #include "content/public/renderer/render_frame.h"
 #include "ipc/ipc_message.h"
 #include "net/http/http_request_headers.h"
-#include "services/network/public/mojom/fetch_api.mojom.h"
+#include "third_party/blink/public/mojom/loader/resource_load_info.mojom-shared.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_url.h"
 
@@ -40,7 +40,7 @@ void WebSocketSBHandshakeThrottle::ThrottleHandshake(
   safe_browsing_->CreateCheckerAndCheck(
       render_frame_id_, url_checker_.BindNewPipeAndPassReceiver(), url, "GET",
       net::HttpRequestHeaders(), load_flags,
-      network::mojom::RequestDestination::kEmpty, false /* has_user_gesture */,
+      blink::mojom::ResourceType::kSubResource, false /* has_user_gesture */,
       false /* originated_from_service_worker */,
       base::BindOnce(&WebSocketSBHandshakeThrottle::OnCheckResult,
                      weak_factory_.GetWeakPtr()));
@@ -51,15 +51,12 @@ void WebSocketSBHandshakeThrottle::ThrottleHandshake(
       &WebSocketSBHandshakeThrottle::OnMojoDisconnect, base::Unretained(this)));
 }
 
-void WebSocketSBHandshakeThrottle::OnCompleteCheck(
-    bool proceed,
-    bool showed_interstitial,
-    bool did_perform_real_time_check,
-    bool did_check_allowlist) {
+void WebSocketSBHandshakeThrottle::OnCompleteCheck(bool proceed,
+                                                   bool showed_interstitial) {
   DCHECK_EQ(state_, State::kStarted);
   if (proceed) {
     state_ = State::kSafe;
-    std::move(completion_callback_).Run(absl::nullopt);
+    std::move(completion_callback_).Run(base::nullopt);
   } else {
     // When the insterstitial is dismissed the page is navigated and this object
     // is destroyed before reaching here.
@@ -75,12 +72,9 @@ void WebSocketSBHandshakeThrottle::OnCompleteCheck(
 void WebSocketSBHandshakeThrottle::OnCheckResult(
     mojo::PendingReceiver<mojom::UrlCheckNotifier> slow_check_notifier,
     bool proceed,
-    bool showed_interstitial,
-    bool did_perform_real_time_check,
-    bool did_check_allowlist) {
+    bool showed_interstitial) {
   if (!slow_check_notifier.is_valid()) {
-    OnCompleteCheck(proceed, showed_interstitial, did_perform_real_time_check,
-                    did_check_allowlist);
+    OnCompleteCheck(proceed, showed_interstitial);
     return;
   }
 
@@ -100,7 +94,7 @@ void WebSocketSBHandshakeThrottle::OnMojoDisconnect() {
   notifier_receiver_.reset();
 
   state_ = State::kNotSupported;
-  std::move(completion_callback_).Run(absl::nullopt);
+  std::move(completion_callback_).Run(base::nullopt);
   // |this| is destroyed here.
 }
 

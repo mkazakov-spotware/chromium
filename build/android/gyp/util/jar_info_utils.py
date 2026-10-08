@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -50,10 +50,9 @@ def WriteJarInfoFile(output_obj, info_data, source_file_map=None):
       path of Java source files that where extracted from an .srcjar into a
       temporary location.
   """
-  for fully_qualified_name, path in sorted(info_data.items()):
+  for fully_qualified_name, path in sorted(info_data.iteritems()):
     if source_file_map and path in source_file_map:
       path = source_file_map[path]
       assert not path.startswith('/tmp'), (
           'Java file path should not be in temp dir: {}'.format(path))
-    output_obj.write(('{},{}\n'.format(fully_qualified_name,
-                                       path)).encode('utf8'))
+    output_obj.write('{},{}\n'.format(fully_qualified_name, path))

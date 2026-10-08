@@ -1,119 +1,77 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import './dom_switch.js';
-import './pwa_detail_view.js';
-import './arc_detail_view.js';
-import './chrome_app_detail_view.js';
-import './plugin_vm_page/plugin_vm_detail_view.js';
-import './borealis_page/borealis_detail_view.js';
-import '../../../settings_shared.css.js';
+Polymer({
+  is: 'app-management-app-detail-view',
 
-import {App} from 'chrome://resources/cr_components/app_management/app_management.mojom-webui.js';
-import {AppManagementUserAction, AppType} from 'chrome://resources/cr_components/app_management/constants.js';
-import {getSelectedApp, recordAppManagementUserAction} from 'chrome://resources/cr_components/app_management/util.js';
-import {assertNotReached} from 'chrome://resources/js/assert.js';
-import {html, microTask, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+  behaviors: [
+    app_management.StoreClient,
+    settings.RouteObserverBehavior,
+  ],
 
-import {Route, Router} from '../../../router.js';
-import {routes} from '../../os_route.js';
-import {RouteObserverBehavior, RouteObserverBehaviorInterface} from '../../route_observer_behavior.js';
+  properties: {
+    /**
+     * @type {App}
+     * @private
+     */
+    app_: {
+      type: Object,
+    },
 
-import {updateSelectedAppId} from './actions.js';
-import {AppManagementStoreClient, AppManagementStoreClientInterface} from './store_client.js';
-import {AppMap} from './types.js';
-import {openMainPage} from './util.js';
+    /**
+     * @type {AppMap}
+     * @private
+     */
+    apps_: {
+      type: Object,
+      observer: 'appsChanged_',
+    },
 
-/**
- * @constructor
- * @extends {PolymerElement}
- * @implements {AppManagementStoreClientInterface}
- * @implements {RouteObserverBehaviorInterface}
- */
-const AppManagementAppDetailViewElementBase = mixinBehaviors(
-    [AppManagementStoreClient, RouteObserverBehavior], PolymerElement);
+    /**
+     * @type {string}
+     * @private
+     */
+    selectedAppId_: {
+      type: String,
+      observer: 'selectedAppIdChanged_',
+    },
+  },
 
-/** @polymer */
-class AppManagementAppDetailViewElement extends
-    AppManagementAppDetailViewElementBase {
-  static get is() {
-    return 'app-management-app-detail-view';
-  }
-
-  static get template() {
-    return html`{__html_template__}`;
-  }
-
-  static get properties() {
-    return {
-      /**
-       * @type {App}
-       * @private
-       */
-      app_: {
-        type: Object,
-      },
-
-      /**
-       * @type {AppMap}
-       * @private
-       */
-      apps_: {
-        type: Object,
-        observer: 'appsChanged_',
-      },
-
-      /**
-       * @type {string}
-       * @private
-       */
-      selectedAppId_: {
-        type: String,
-        observer: 'selectedAppIdChanged_',
-      },
-    };
-  }
-
-  connectedCallback() {
-    super.connectedCallback();
-
-    this.watch('app_', state => getSelectedApp(state));
+  attached() {
+    this.watch('app_', state => app_management.util.getSelectedApp(state));
     this.watch('apps_', state => state.apps);
     this.watch('selectedAppId_', state => state.selectedAppId);
     this.updateFromStore();
-  }
+  },
 
-  disconnectedCallback() {
-    super.disconnectedCallback();
-
-    this.dispatch(updateSelectedAppId(null));
-  }
+  detached() {
+    this.dispatch(app_management.actions.updateSelectedAppId(null));
+  },
 
   /**
    * Updates selected app ID based on the URL query params.
    *
-   * RouteObserverBehavior
-   * @param {!Route} currentRoute
-   * @param {!Route=} prevRoute
+   * settings.RouteObserverBehavior
+   * @param {!settings.Route} currentRoute
    * @protected
    */
-  currentRouteChanged(currentRoute, prevRoute) {
-    if (currentRoute !== routes.APP_MANAGEMENT_DETAIL) {
+  currentRouteChanged(currentRoute) {
+    if (currentRoute !== settings.routes.APP_MANAGEMENT_DETAIL) {
       return;
     }
 
     if (this.selectedAppNotFound_()) {
-      microTask.run(() => {
-        openMainPage();
+      this.async(() => {
+        app_management.util.openMainPage();
       });
       return;
     }
 
-    const appId = Router.getInstance().getQueryParameters().get('id');
+    const appId = settings.Router.getInstance().getQueryParameters().get('id');
 
-    this.dispatch(updateSelectedAppId(appId));
-  }
+    this.dispatch(app_management.actions.updateSelectedAppId(appId));
+  },
 
   /**
    * @param {?App} app
@@ -129,41 +87,36 @@ class AppManagementAppDetailViewElement extends
     switch (selectedAppType) {
       case (AppType.kWeb):
         return 'pwa-detail-view';
-      case (AppType.kChromeApp):
-      case (AppType.kStandaloneBrowser):
-      case (AppType.kStandaloneBrowserChromeApp):
-        // TODO(https://crbug.com/1225848): Figure out appropriate behavior for
-        // Lacros-hosted chrome-apps.
+      case (AppType.kExtension):
         return 'chrome-app-detail-view';
       case (AppType.kArc):
         return 'arc-detail-view';
       case (AppType.kPluginVm):
         return 'plugin-vm-detail-view';
-      case (AppType.kBorealis):
-        return 'borealis-detail-view';
       default:
         assertNotReached();
     }
-  }
+  },
 
-  /** @private */
   selectedAppIdChanged_(appId) {
     if (appId && this.app_) {
-      recordAppManagementUserAction(
-          this.app_.type, AppManagementUserAction.VIEW_OPENED);
+      app_management.util.recordAppManagementUserAction(
+          this.app_.type, AppManagementUserAction.ViewOpened);
     }
-  }
+  },
 
-  /** @private */
+  /**
+   * @private
+   */
   appsChanged_() {
-    if (Router.getInstance().getCurrentRoute() ===
-            routes.APP_MANAGEMENT_DETAIL &&
+    if (settings.Router.getInstance().getCurrentRoute() ===
+            settings.routes.APP_MANAGEMENT_DETAIL &&
         this.selectedAppNotFound_()) {
-      microTask.run(() => {
-        openMainPage();
+      this.async(() => {
+        app_management.util.openMainPage();
       });
     }
-  }
+  },
 
   /**
    * @return {boolean}
@@ -171,10 +124,7 @@ class AppManagementAppDetailViewElement extends
    */
   selectedAppNotFound_() {
     const appId = /** @type {string} */ (
-        Router.getInstance().getQueryParameters().get('id'));
-    return Boolean(this.apps_) && !this.apps_[appId];
-  }
-}
-
-customElements.define(
-    AppManagementAppDetailViewElement.is, AppManagementAppDetailViewElement);
+        settings.Router.getInstance().getQueryParameters().get('id'));
+    return this.apps_ && !this.apps_[appId];
+  },
+});

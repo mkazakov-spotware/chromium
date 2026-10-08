@@ -1,79 +1,67 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/component_updater/registration.h"
 
-#include "base/callback.h"
-#include "base/feature_list.h"
-#include "base/files/file_path.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/path_service.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/buildflags.h"
-#include "chrome/browser/component_updater/app_provisioning_component_installer.h"
-#include "chrome/browser/component_updater/chrome_client_side_phishing_component_installer.h"
-#include "chrome/browser/component_updater/chrome_origin_trials_component_installer.h"
-#include "chrome/browser/component_updater/commerce_heuristics_component_installer.h"
+#include "chrome/browser/component_updater/autofill_regex_component_installer.h"
+#include "chrome/browser/component_updater/autofill_states_component_installer.h"
 #include "chrome/browser/component_updater/crl_set_component_installer.h"
 #include "chrome/browser/component_updater/crowd_deny_component_installer.h"
 #include "chrome/browser/component_updater/file_type_policies_component_installer.h"
 #include "chrome/browser/component_updater/first_party_sets_component_installer.h"
+#include "chrome/browser/component_updater/floc_component_installer.h"
+#include "chrome/browser/component_updater/games_component_installer.h"
 #include "chrome/browser/component_updater/hyphenation_component_installer.h"
 #include "chrome/browser/component_updater/mei_preload_component_installer.h"
-#include "chrome/browser/component_updater/pki_metadata_component_installer.h"
+#include "chrome/browser/component_updater/optimization_hints_component_installer.h"
+#include "chrome/browser/component_updater/origin_trials_component_installer.h"
+#include "chrome/browser/component_updater/pepper_flash_component_installer.h"
 #include "chrome/browser/component_updater/ssl_error_assistant_component_installer.h"
+#include "chrome/browser/component_updater/sth_set_component_remover.h"
 #include "chrome/browser/component_updater/subresource_filter_component_installer.h"
+#include "chrome/browser/component_updater/tls_deprecation_config_component_installer.h"
 #include "chrome/browser/component_updater/trust_token_key_commitments_component_installer.h"
+#include "chrome/browser/component_updater/zxcvbn_data_component_installer.h"
 #include "chrome/common/buildflags.h"
 #include "chrome/common/chrome_paths.h"
+#include "chrome/common/pref_names.h"
 #include "components/component_updater/component_updater_service.h"
 #include "components/component_updater/crl_set_remover.h"
-#include "components/component_updater/installer_policies/autofill_states_component_installer.h"
 #include "components/component_updater/installer_policies/on_device_head_suggest_component_installer.h"
-#include "components/component_updater/installer_policies/optimization_hints_component_installer.h"
 #include "components/component_updater/installer_policies/safety_tips_component_installer.h"
-#include "components/component_updater/url_param_filter_remover.h"
 #include "components/nacl/common/buildflags.h"
-#include "components/services/screen_ai/buildflags/buildflags.h"
 #include "device/vr/buildflags/buildflags.h"
-#include "ppapi/buildflags/buildflags.h"
 #include "third_party/widevine/cdm/buildflags.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "chrome/browser/component_updater/sw_reporter_installer_win.h"
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
 #include "chrome/browser/component_updater/third_party_module_list_component_installer_win.h"
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
-#if BUILDFLAG(IS_MAC)
-#include "chrome/browser/component_updater/recovery_component_installer.h"
-#endif  // BUILDFLAG(IS_MAC)
-
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+#if defined(OS_WIN)
 #include "chrome/browser/component_updater/recovery_improved_component_installer.h"
-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+#else
+#include "chrome/browser/component_updater/recovery_component_installer.h"
+#endif  // defined(OS_WIN)
 
-#if BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/component_updater/crow_domain_list_component_installer.h"
-#include "chrome/browser/component_updater/desktop_sharing_hub_component_remover.h"
-#include "chrome/browser/component_updater/real_time_url_checks_allowlist_component_installer.h"
-#endif  // BUILDFLAG(IS_ANDROID)
-
-#if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/component_updater/desktop_sharing_hub_component_installer.h"
-#include "chrome/browser/component_updater/zxcvbn_data_component_installer.h"
+#if !defined(OS_ANDROID)
+#include "chrome/browser/component_updater/soda_component_installer.h"
 #include "chrome/browser/resource_coordinator/tab_manager.h"
 #include "media/base/media_switches.h"
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "chrome/browser/component_updater/smart_dim_component_installer.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
 #if BUILDFLAG(ENABLE_NACL)
 #include "chrome/browser/component_updater/pnacl_component_installer.h"
@@ -83,61 +71,60 @@
 #include "chrome/browser/component_updater/vr_assets_component_installer.h"
 #endif
 
-#if BUILDFLAG(ENABLE_MEDIA_FOUNDATION_WIDEVINE_CDM)
-#include "chrome/browser/component_updater/media_foundation_widevine_cdm_component_installer.h"
-#endif
-
 #if BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
 #include "chrome/browser/component_updater/widevine_cdm_component_installer.h"
 #endif  // BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
-
-#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-#include "chrome/browser/component_updater/screen_ai_component_installer.h"
-#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
 
 #if defined(USE_AURA)
 #include "ui/aura/env.h"
 #endif
 
+#if BUILDFLAG(ENABLE_SUPERVISED_USERS)
+#include "chrome/browser/component_updater/supervised_user_whitelist_installer.h"
+#endif
+
 namespace component_updater {
 
-void RegisterComponentsForUpdate() {
+void RegisterComponentsForUpdate(bool is_off_the_record_profile,
+                                 PrefService* profile_prefs) {
   auto* const cus = g_browser_process->component_updater();
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   RegisterRecoveryImprovedComponent(cus, g_browser_process->local_state());
-#endif  // BUILDFLAG(IS_WIN)
-
-#if BUILDFLAG(IS_MAC)
-  RegisterRecoveryImprovedComponent(cus, g_browser_process->local_state());
+#else
+  // TODO(crbug.com/687231): Implement the Improved component on Mac, etc.
   RegisterRecoveryComponent(cus, g_browser_process->local_state());
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_WIN)
 
-#if BUILDFLAG(ENABLE_MEDIA_FOUNDATION_WIDEVINE_CDM)
-  RegisterMediaFoundationWidevineCdmComponent(cus);
-#endif
+  // TODO(crbug.com/1069814): Remove after 2021-10-01.
+  CleanUpPepperFlashComponent();
 
 #if BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
   RegisterWidevineCdmComponent(cus);
 #endif  // BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
 
-#if BUILDFLAG(ENABLE_NACL) && !BUILDFLAG(IS_ANDROID)
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(ENABLE_NACL) && !defined(OS_ANDROID)
+#if defined(OS_CHROMEOS)
   // PNaCl on Chrome OS is on rootfs and there is no need to download it. But
   // Chrome4ChromeOS on Linux doesn't contain PNaCl so enable component
   // installer when running on Linux. See crbug.com/422121 for more details.
-  if (!base::SysInfo::IsRunningOnChromeOS()) {
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+  if (!base::SysInfo::IsRunningOnChromeOS())
+#endif  // defined(OS_CHROMEOS)
     RegisterPnaclComponent(cus);
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-#endif  // BUILDFLAG(ENABLE_NACL) && !BUILDFLAG(IS_ANDROID)
+#endif  // BUILDFLAG(ENABLE_NACL) && !defined(OS_ANDROID)
+
+#if BUILDFLAG(ENABLE_SUPERVISED_USERS)
+  component_updater::SupervisedUserWhitelistInstaller* whitelist_installer =
+      g_browser_process->supervised_user_whitelist_installer();
+  whitelist_installer->RegisterComponents();
+#endif
 
   RegisterSubresourceFilterComponent(cus);
+  RegisterFlocComponent(cus,
+                        g_browser_process->floc_sorting_lsh_clusters_service());
   RegisterOnDeviceHeadSuggestComponent(
       cus, g_browser_process->GetApplicationLocale());
-  RegisterOptimizationHintsComponent(cus);
+  RegisterOptimizationHintsComponent(cus, is_off_the_record_profile);
   RegisterTrustTokenKeyCommitmentsComponentIfTrustTokensEnabled(cus);
   RegisterFirstPartySetsComponent(cus);
 
@@ -147,42 +134,36 @@ void RegisterComponentsForUpdate() {
     // the old file.
     component_updater::DeleteLegacyCRLSet(path);
 
-    component_updater::DeleteUrlParamFilter(path);
-
-#if BUILDFLAG(IS_ANDROID)
-    // Clean up any desktop sharing hubs that were installed on Android.
-    component_updater::DeleteDesktopSharingHub(path);
-#endif  // BUILDFLAG(IS_ANDROID)
+#if !defined(OS_CHROMEOS) && !defined(OS_ANDROID)
+    // Clean up previous STH sets that may have been installed. This is not
+    // done for:
+    // Android: Because STH sets were never used
+    // Chrome OS: On Chrome OS, this cleanup is delayed until user login.
+    component_updater::DeleteLegacySTHSet(path);
+#endif
   }
   RegisterSSLErrorAssistantComponent(cus);
-
-  // Since file type policies are per-platform, and we don't support
-  // Fuchsia-specific component versions, we don't dynamically update file type
-  // policies on Fuchsia.
-#if !BUILDFLAG(IS_FUCHSIA)
   RegisterFileTypePoliciesComponent(cus);
-#endif
-
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
   // CRLSetFetcher attempts to load a CRL set from either the local disk or
   // network.
   // For Chrome OS this registration is delayed until user login.
   component_updater::RegisterCRLSetComponent(cus);
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !defined(OS_CHROMEOS)
 
   RegisterOriginTrialsComponent(cus);
   RegisterMediaEngagementPreloadComponent(cus, base::OnceClosure());
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // SwReporter is only needed for official builds.  However, to enable testing
   // on chromium build bots, it is always registered here and
   // RegisterSwReporterComponent() has support for running only in official
   // builds or tests.
-  RegisterSwReporterComponent(cus, g_browser_process->local_state());
+  RegisterSwReporterComponent(cus);
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
   RegisterThirdPartyModuleListComponent(cus);
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 #if BUILDFLAG(ENABLE_VR)
   if (component_updater::ShouldRegisterVrAssetsComponentOnStartup()) {
@@ -190,39 +171,35 @@ void RegisterComponentsForUpdate() {
   }
 #endif
 
-  MaybeRegisterPKIMetadataComponent(cus);
-
   RegisterSafetyTipsComponent(cus);
   RegisterCrowdDenyComponent(cus);
+  RegisterTLSDeprecationConfigComponent(cus);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && defined(OS_ANDROID)
+  component_updater::RegisterGamesComponent(cus, profile_prefs);
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) && defined(OS_ANDROID)
+
+#if !defined(OS_ANDROID)
+  base::UmaHistogramBoolean("Accessibility.LiveCaption.FeatureEnabled",
+                            base::FeatureList::IsEnabled(media::kLiveCaption));
+  component_updater::RegisterSodaComponent(cus, profile_prefs,
+                                           g_browser_process->local_state(),
+                                           base::OnceClosure());
+  component_updater::RegisterSodaLanguageComponent(
+      cus, profile_prefs, g_browser_process->local_state());
+#endif
+
+#if defined(OS_CHROMEOS)
   RegisterSmartDimComponent(cus);
-  RegisterAppProvisioningComponent(cus);
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !defined(OS_CHROMEOS)
 
-#if BUILDFLAG(USE_MINIKIN_HYPHENATION) && !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(USE_MINIKIN_HYPHENATION) && !defined(OS_ANDROID)
   RegisterHyphenationComponent(cus);
 #endif
 
-#if !BUILDFLAG(IS_ANDROID)
-  RegisterDesktopSharingHubComponent(cus);
   RegisterZxcvbnDataComponent(cus);
-#endif  // !BUILDFLAG(IS_ANDROID)
-
-#if BUILDFLAG(IS_ANDROID)
-  RegisterCrowDomainListComponent(cus);
-  RegisterRealTimeUrlChecksAllowlistComponent(cus);
-#endif  // BUIDLFLAG(IS_ANDROID)
 
   RegisterAutofillStatesComponent(cus, g_browser_process->local_state());
-
-  RegisterClientSidePhishingComponent(cus);
-
-#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-  RegisterScreenAIComponent(cus, g_browser_process->local_state());
-#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-
-  RegisterCommerceHeuristicsComponent(cus);
 }
 
 }  // namespace component_updater

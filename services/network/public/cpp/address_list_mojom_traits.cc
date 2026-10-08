@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,10 +16,10 @@ bool StructTraits<network::mojom::AddressListDataView, net::AddressList>::Read(
   if (!data.ReadAddresses(&out->endpoints()))
     return false;
 
-  std::vector<std::string> dns_aliases;
-  if (!data.ReadDnsAliases(&dns_aliases))
+  std::string canonical_name;
+  if (!data.ReadCanonicalName(&canonical_name))
     return false;
-  out->SetDnsAliases(std::move(dns_aliases));
+  out->set_canonical_name(canonical_name);
 
   return true;
 }

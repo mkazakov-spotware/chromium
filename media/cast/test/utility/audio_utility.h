@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "media/audio/simple_sources.h"
 
 namespace base {
@@ -31,10 +32,6 @@ class TestAudioBusFactory {
                       int sample_rate,
                       float sine_wave_frequency,
                       float volume);
-
-  TestAudioBusFactory(const TestAudioBusFactory&) = delete;
-  TestAudioBusFactory& operator=(const TestAudioBusFactory&) = delete;
-
   ~TestAudioBusFactory();
 
   // Creates a new AudioBus of the given |duration|, filled with the next batch
@@ -49,6 +46,8 @@ class TestAudioBusFactory {
   const int sample_rate_;
   const float volume_;
   SineWaveAudioSource source_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestAudioBusFactory);
 };
 
 // Assuming |samples| contains a single-frequency sine wave (and maybe some

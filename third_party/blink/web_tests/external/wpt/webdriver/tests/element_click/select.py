@@ -1,4 +1,7 @@
-def test_click_option(session, inline):
+from tests.support.inline import inline
+
+
+def test_click_option(session):
     session.url = inline("""
       <select>
         <option>first
@@ -14,7 +17,7 @@ def test_click_option(session, inline):
     assert not options[0].selected
 
 
-def test_click_multiple_option(session, inline):
+def test_click_multiple_option(session):
     session.url = inline("""
       <select multiple>
         <option>first
@@ -30,7 +33,7 @@ def test_click_multiple_option(session, inline):
     assert not options[1].selected
 
 
-def test_click_preselected_option(session, inline):
+def test_click_preselected_option(session):
     session.url = inline("""
       <select>
         <option>first
@@ -50,7 +53,7 @@ def test_click_preselected_option(session, inline):
     assert not options[1].selected
 
 
-def test_click_preselected_multiple_option(session, inline):
+def test_click_preselected_multiple_option(session):
     session.url = inline("""
       <select multiple>
         <option>first
@@ -70,7 +73,7 @@ def test_click_preselected_multiple_option(session, inline):
     assert not options[1].selected
 
 
-def test_click_deselects_others(session, inline):
+def test_click_deselects_others(session):
     session.url = inline("""
       <select>
         <option>first
@@ -89,7 +92,7 @@ def test_click_deselects_others(session, inline):
     assert options[0].selected
 
 
-def test_click_multiple_does_not_deselect_others(session, inline):
+def test_click_multiple_does_not_deselect_others(session):
     session.url = inline("""
       <select multiple>
         <option>first
@@ -109,7 +112,7 @@ def test_click_multiple_does_not_deselect_others(session, inline):
     assert options[2].selected
 
 
-def test_click_selected_option(session, inline):
+def test_click_selected_option(session):
     session.url = inline("""
       <select>
         <option>first
@@ -127,7 +130,7 @@ def test_click_selected_option(session, inline):
     assert options[1].selected
 
 
-def test_click_selected_multiple_option(session, inline):
+def test_click_selected_multiple_option(session):
     session.url = inline("""
       <select multiple>
         <option>first
@@ -149,7 +152,7 @@ def test_click_selected_multiple_option(session, inline):
     assert not options[1].selected
 
 
-def test_out_of_view_dropdown(session, inline):
+def test_out_of_view_dropdown(session):
     session.url = inline("""
       <select>
         <option>1
@@ -179,7 +182,7 @@ def test_out_of_view_dropdown(session, inline):
     assert options[14].selected
 
 
-def test_out_of_view_multiple(session, inline):
+def test_out_of_view_multiple(session):
     session.url = inline("""
       <select multiple>
         <option>1
@@ -210,7 +213,7 @@ def test_out_of_view_multiple(session, inline):
     assert last_option.selected
 
 
-def test_option_disabled(session, inline):
+def test_option_disabled(session):
     session.url = inline("""
         <select>
           <option disabled>foo

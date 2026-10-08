@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,9 @@ namespace media_router {
 
 constexpr char kComponent[] = "MyComponent";
 constexpr char kMessage[] = "My message";
-constexpr char kSinkId[] = "cast:xyzzy";
+constexpr char kSinkId[] = "sink-12345";
 constexpr char kMediaSource[] = "cast:ABCDEFGH";
-constexpr char kSessionId[] = "6789012345";
+constexpr char kSessionId[] = "session-67890";
 
 class LoggerImplTest : public testing::Test {
  protected:
@@ -59,7 +59,7 @@ class LoggerImplTest : public testing::Test {
 
 TEST_F(LoggerImplTest, RecordAndGetLogs) {
   const base::Time time1 = base::Time::Now();
-  const base::Time time2 = time1 + base::Seconds(20);
+  const base::Time time2 = time1 + base::TimeDelta::FromSeconds(20);
   const std::string expected_logs =
       R"([
     {
@@ -70,9 +70,9 @@ TEST_F(LoggerImplTest, RecordAndGetLogs) {
       R"(",
       "component": "MyComponent",
       "message": "My message",
-      "sinkId": "cast:xyzz",
+      "sinkId": "2345",
       "mediaSource": "cast:ABCDEFGH",
-      "sessionId": "678901234"
+      "sessionId": "7890"
     },
     {
       "severity": "Info",
@@ -82,17 +82,17 @@ TEST_F(LoggerImplTest, RecordAndGetLogs) {
       R"(",
       "component": "Component 2",
       "message": "Message 2",
-      "sinkId": "cast:abcd",
+      "sinkId": "efgh",
       "mediaSource": "cast:IJKLMNOP",
-      "sessionId": "stuvwxyz0"
+      "sessionId": "wxyz"
     }
   ])";
 
   logger_.Log(LoggerImpl::Severity::kError, mojom::LogCategory::kRoute, time1,
               kComponent, kMessage, kSinkId, kMediaSource, kSessionId);
   logger_.Log(LoggerImpl::Severity::kInfo, mojom::LogCategory::kUi, time2,
-              "Component 2", "Message 2", "cast:abcdefgh", "cast:IJKLMNOP",
-              "stuvwxyz0123");
+              "Component 2", "Message 2", "sink-abcdefgh", "cast:IJKLMNOP",
+              "session-stuvwxyz");
   const std::string logs = logger_.GetLogsAsJson();
   EXPECT_EQ(base::JSONReader::Read(logs),
             base::JSONReader::Read(expected_logs));
@@ -101,13 +101,13 @@ TEST_F(LoggerImplTest, RecordAndGetLogs) {
 TEST_F(LoggerImplTest, TruncateSinkId) {
   LogInfoWithSinkId(kSinkId);
   const std::string logs = logger_.GetLogsAsJson();
-  EXPECT_EQ(GetSinkId(logs), "cast:xyzz");
+  EXPECT_EQ(GetSinkId(logs), "2345");
 }
 
 TEST_F(LoggerImplTest, TruncateSessionId) {
   LogWarningWithSessionId(kSessionId);
   const std::string logs = logger_.GetLogsAsJson();
-  EXPECT_EQ(GetSessionId(logs), "678901234");
+  EXPECT_EQ(GetSessionId(logs), "7890");
 }
 
 TEST_F(LoggerImplTest, HandleMirroringMediaSource) {

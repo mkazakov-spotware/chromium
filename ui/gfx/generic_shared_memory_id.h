@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,9 +24,8 @@ class GFX_EXPORT GenericSharedMemoryId {
   int id;
 
   // Invalid ID is -1 to match semantics of base::AtomicSequenceNumber.
-  constexpr GenericSharedMemoryId() : id(-1) {}
-  constexpr explicit GenericSharedMemoryId(int id) : id(id) {}
-
+  GenericSharedMemoryId() : id(-1) {}
+  explicit GenericSharedMemoryId(int id) : id(id) {}
   GenericSharedMemoryId(const GenericSharedMemoryId& other) = default;
   GenericSharedMemoryId& operator=(const GenericSharedMemoryId& other) =
       default;

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,9 +19,11 @@ void HttpsEngagementMetricsProvider::ProvideCurrentSessionData(
   if (!profile_manager)
     return;
 
-  // Do not try to create profile here if it does not exist, because this method
-  // can be called during browser shutdown.
-  Profile* profile = profile_manager->GetLastUsedProfileIfLoaded();
+  // Do not try to create profile here if it does not exist,
+  // because this method can be called during browser shutdown.
+  Profile* profile = profile_manager->GetProfileByPath(
+      profile_manager->GetLastUsedProfileDir(
+          profile_manager->user_data_dir()));
   if (!profile)
     return;
 

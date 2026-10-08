@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,11 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/ref_counted_delete_on_sequence.h"
 #include "base/observer_list.h"
 #include "base/supports_user_data.h"
-#include "components/autofill/core/browser/data_model/autofill_profile.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_backend.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "components/webdata/common/web_data_results.h"
@@ -29,9 +29,9 @@ class WebDatabaseBackend;
 
 namespace autofill {
 
+class AutofillProfile;
 class AutofillWebDataServiceObserverOnDBSequence;
 class CreditCard;
-class IBAN;
 
 // Backend implementation for the AutofillWebDataService. This class runs on the
 // DB sequence, as it handles reads and writes to the WebDatabase, and functions
@@ -57,10 +57,6 @@ class AutofillWebDataBackendImpl
       const base::RepeatingClosure& on_address_conversion_completed_callback,
       const base::RepeatingCallback<void(syncer::ModelType)>&
           on_sync_started_callback);
-
-  AutofillWebDataBackendImpl(const AutofillWebDataBackendImpl&) = delete;
-  AutofillWebDataBackendImpl& operator=(const AutofillWebDataBackendImpl&) =
-      delete;
 
   void SetAutofillProfileChangedCallback(
       base::RepeatingCallback<void(const AutofillProfileDeepChange&)>
@@ -95,8 +91,8 @@ class AutofillWebDataBackendImpl
   // Returns a vector of values which have been entered in form input fields
   // named |name|.
   std::unique_ptr<WDTypedResult> GetFormValuesForElementName(
-      const std::u16string& name,
-      const std::u16string& prefix,
+      const base::string16& name,
+      const base::string16& prefix,
       int limit,
       WebDatabase* db);
 
@@ -114,8 +110,8 @@ class AutofillWebDataBackendImpl
 
   // Removes the Form-value |value| which has been entered in form input fields
   // named |name| from the database.
-  WebDatabase::State RemoveFormValueForElementName(const std::u16string& name,
-                                                   const std::u16string& value,
+  WebDatabase::State RemoveFormValueForElementName(const base::string16& name,
+                                                   const base::string16& value,
                                                    WebDatabase* db);
 
   // Adds an Autofill profile to the web database. Valid only for local
@@ -130,15 +126,11 @@ class AutofillWebDataBackendImpl
 
   // Removes an Autofill profile from the web database. Valid only for local
   // profiles.
-  WebDatabase::State RemoveAutofillProfile(
-      const std::string& guid,
-      AutofillProfile::Source profile_source,
-      WebDatabase* db);
+  WebDatabase::State RemoveAutofillProfile(const std::string& guid,
+                                           WebDatabase* db);
 
   // Returns the local/server Autofill profiles from the web database.
-  std::unique_ptr<WDTypedResult> GetAutofillProfiles(
-      AutofillProfile::Source profile_source,
-      WebDatabase* db);
+  std::unique_ptr<WDTypedResult> GetAutofillProfiles(WebDatabase* db);
   std::unique_ptr<WDTypedResult> GetServerProfiles(WebDatabase* db);
 
   // Converts server profiles to local profiles, comparing profiles using
@@ -160,7 +152,7 @@ class AutofillWebDataBackendImpl
 
   // Updates Autofill entries in the web database.
   WebDatabase::State UpdateAutofillEntries(
-      const std::vector<AutofillEntry>& autofill_entries,
+      const std::vector<autofill::AutofillEntry>& autofill_entries,
       WebDatabase* db);
 
   // Adds a credit card to the web database. Valid only for local cards.
@@ -182,22 +174,10 @@ class AutofillWebDataBackendImpl
   std::unique_ptr<WDTypedResult> GetCreditCards(WebDatabase* db);
   std::unique_ptr<WDTypedResult> GetServerCreditCards(WebDatabase* db);
 
-  // Returns a vector of local IBANs from the web database.
-  std::unique_ptr<WDTypedResult> GetIBANs(WebDatabase* db);
-
-  // Adds an IBAN to the web database. Valid only for local IBANs.
-  WebDatabase::State AddIBAN(const IBAN& iban, WebDatabase* db);
-
-  // Updates an IBAN in the web database. Valid only for local IBANs.
-  WebDatabase::State UpdateIBAN(const IBAN& iban, WebDatabase* db);
-
-  // Removes an IBAN from the web database. Valid only for local IBANs.
-  WebDatabase::State RemoveIBAN(const std::string& guid, WebDatabase* db);
-
   // Server credit cards can be masked (only last 4 digits stored) or unmasked
   // (all data stored). These toggle between the two states.
   WebDatabase::State UnmaskServerCreditCard(const CreditCard& card,
-                                            const std::u16string& full_number,
+                                            const base::string16& full_number,
                                             WebDatabase* db);
   WebDatabase::State MaskServerCreditCard(const std::string& id,
                                           WebDatabase* db);
@@ -219,7 +199,7 @@ class AutofillWebDataBackendImpl
   std::unique_ptr<WDTypedResult> GetCreditCardCloudTokenData(WebDatabase* db);
 
   // Returns Credit Card Offers Data from the database.
-  std::unique_ptr<WDTypedResult> GetAutofillOffers(WebDatabase* db);
+  std::unique_ptr<WDTypedResult> GetCreditCardOffers(WebDatabase* db);
 
   WebDatabase::State ClearAllServerData(WebDatabase* db);
   WebDatabase::State ClearAllLocalData(WebDatabase* db);
@@ -256,12 +236,10 @@ class AutofillWebDataBackendImpl
   class SupportsUserDataAggregatable : public base::SupportsUserData {
    public:
     SupportsUserDataAggregatable() {}
-
-    SupportsUserDataAggregatable(const SupportsUserDataAggregatable&) = delete;
-    SupportsUserDataAggregatable& operator=(
-        const SupportsUserDataAggregatable&) = delete;
-
     ~SupportsUserDataAggregatable() override {}
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(SupportsUserDataAggregatable);
   };
 
   // The task runner that this class uses for its UI tasks.
@@ -282,8 +260,11 @@ class AutofillWebDataBackendImpl
   base::RepeatingClosure on_changed_callback_;
   base::RepeatingClosure on_address_conversion_completed_callback_;
   base::RepeatingCallback<void(syncer::ModelType)> on_sync_started_callback_;
+
   base::RepeatingCallback<void(const AutofillProfileDeepChange&)>
       on_autofill_profile_changed_cb_;
+
+  DISALLOW_COPY_AND_ASSIGN(AutofillWebDataBackendImpl);
 };
 
 }  // namespace autofill

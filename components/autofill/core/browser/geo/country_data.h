@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,8 @@
 #include <map>
 #include <string>
 #include <vector>
+
+#include "base/macros.h"
 
 namespace base {
 template <typename T>
@@ -24,7 +26,6 @@ enum RequiredFieldsForAddressImport {
   ADDRESS_REQUIRES_ZIP = 1 << 2,
   ADDRESS_REQUIRES_LINE1 = 1 << 3,
   ADDRESS_REQUIRES_ZIP_OR_STATE = 1 << 4,
-  ADDRESS_REQUIRES_LINE1_OR_HOUSE_NUMBER = 1 << 5,
 
   // Composite versions (for data).
   ADDRESS_REQUIRES_LINE1_CITY =
@@ -46,9 +47,6 @@ enum RequiredFieldsForAddressImport {
   ADDRESS_REQUIRES_LINE1_CITY_AND_ZIP_OR_STATE =
       ADDRESS_REQUIRES_LINE1_CITY | ADDRESS_REQUIRES_ZIP_OR_STATE,
 
-  ADDRESS_REQUIRES_ZIP_AND_LINE1_OR_HOUSE_NUMBER =
-      ADDRESS_REQUIRES_ZIP | ADDRESS_REQUIRES_LINE1_OR_HOUSE_NUMBER,
-
   // Policy for countries for which we do not have information about valid
   // address format.
   ADDRESS_REQUIREMENTS_UNKNOWN = ADDRESS_REQUIRES_LINE1_CITY_STATE_ZIP,
@@ -58,9 +56,6 @@ enum RequiredFieldsForAddressImport {
 class CountryDataMap {
  public:
   static CountryDataMap* GetInstance();
-
-  CountryDataMap(const CountryDataMap&) = delete;
-  CountryDataMap& operator=(const CountryDataMap&) = delete;
 
   // Returns true if a |CountryData| entry for the supplied |country_code|
   // exists.
@@ -91,6 +86,8 @@ class CountryDataMap {
       required_fields_for_address_import_map_;
   const std::map<std::string, std::string> country_code_aliases_;
   const std::vector<std::string> country_codes_;
+
+  DISALLOW_COPY_AND_ASSIGN(CountryDataMap);
 };
 
 }  // namespace autofill

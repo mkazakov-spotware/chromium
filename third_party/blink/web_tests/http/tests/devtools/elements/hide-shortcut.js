@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(
       `Tests the hide shortcut, which toggles visibility:hidden on the node and it's ancestors. Bug 110641\n`);
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
   await TestRunner.showPanel('elements');
   await TestRunner.loadHTML(`
       <style>
@@ -80,13 +80,13 @@
 
       function callback() {
         TestRunner.addResult('=== Added hide shortcut ===');
-        TestRunner.cssModel.getComputedStyle(parentNode.id).then(callback2);
+        TestRunner.cssModel.computedStylePromise(parentNode.id).then(callback2);
       }
 
       function callback2(style) {
         TestRunner.addResult('=== Parent node is hidden ===');
         TestRunner.addResult(getPropertyText(style, 'visibility'));
-        TestRunner.cssModel.getComputedStyle(childNode.id).then(callback3);
+        TestRunner.cssModel.computedStylePromise(childNode.id).then(callback3);
       }
 
       function callback3(style) {
@@ -101,13 +101,13 @@
 
       function callback() {
         TestRunner.addResult('=== Removed hide shortcut ===');
-        TestRunner.cssModel.getComputedStyle(parentNode.id).then(callback2);
+        TestRunner.cssModel.computedStylePromise(parentNode.id).then(callback2);
       }
 
       function callback2(style) {
         TestRunner.addResult('=== Parent node is visible ===');
         TestRunner.addResult(getPropertyText(style, 'visibility'));
-        TestRunner.cssModel.getComputedStyle(childNode.id).then(callback3);
+        TestRunner.cssModel.computedStylePromise(childNode.id).then(callback3);
       }
 
       function callback3(style) {

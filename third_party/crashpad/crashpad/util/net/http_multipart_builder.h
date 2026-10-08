@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "util/file/file_reader.h"
 #include "util/net/http_headers.h"
 
@@ -31,10 +32,6 @@ class HTTPBodyStream;
 class HTTPMultipartBuilder {
  public:
   HTTPMultipartBuilder();
-
-  HTTPMultipartBuilder(const HTTPMultipartBuilder&) = delete;
-  HTTPMultipartBuilder& operator=(const HTTPMultipartBuilder&) = delete;
-
   ~HTTPMultipartBuilder();
 
   //! \brief Enables or disables `gzip` compression.
@@ -98,6 +95,8 @@ class HTTPMultipartBuilder {
   std::map<std::string, std::string> form_data_;
   std::map<std::string, FileAttachment> file_attachments_;
   bool gzip_enabled_;
+
+  DISALLOW_COPY_AND_ASSIGN(HTTPMultipartBuilder);
 };
 
 }  // namespace crashpad

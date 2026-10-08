@@ -1,4 +1,4 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -76,12 +76,12 @@ class Group(object):
 class Enum(object):
     """Represents a generated enum in ComputedStyleBaseConstants."""
 
-    def __init__(self, type_name, keywords, set_type):
+    def __init__(self, type_name, keywords, is_set):
         self.type_name = type_name
         self.values = [
             NameStyleConverter(keyword).to_enum_value() for keyword in keywords
         ]
-        self.set_type = set_type
+        self.is_set = is_set
 
 
 class DiffGroup(object):
@@ -136,15 +136,13 @@ class Field(object):
         default_value: Default value for this field when it is first initialized
     """
 
-    def __init__(self, field_role, name_for_methods, writable, property_name,
-                 type_name, wrapper_pointer_name, field_template, size,
-                 default_value, custom_copy, custom_compare, mutable,
-                 getter_method_name, setter_method_name, initial_method_name,
-                 computed_style_custom_functions,
-                 computed_style_protected_functions, **kwargs):
+    def __init__(self, field_role, name_for_methods, property_name, type_name,
+                 wrapper_pointer_name, field_template, size, default_value,
+                 custom_copy, custom_compare, mutable, getter_method_name,
+                 setter_method_name, initial_method_name,
+                 computed_style_custom_functions, **kwargs):
         name_source = NameStyleConverter(name_for_methods)
         self.name = name_source.to_class_data_member()
-        self.writable = writable
         self.property_name = property_name
         self.type_name = type_name
         self.wrapper_pointer_name = wrapper_pointer_name
@@ -169,14 +167,7 @@ class Field(object):
         self.initial_method_name = initial_method_name
         self.resetter_method_name = name_source.to_function_name(
             prefix='reset')
-        self.internal_resetter_method_name = NameStyleConverter(
-            self.resetter_method_name).to_function_name(suffix='internal')
         self.computed_style_custom_functions = computed_style_custom_functions
-        self.computed_style_protected_functions = computed_style_protected_functions
-        self.getter_visibility = self.get_visibility('getter')
-        self.setter_visibility = self.get_visibility('setter')
-        self.resetter_visibility = self.get_visibility('resetter')
-
         # Only bitfields have sizes.
         self.is_bit_field = self.size is not None
 
@@ -194,17 +185,7 @@ class Field(object):
             assert self.is_inherited or not self.is_independent, \
                 'Only inherited fields can be independent'
 
-            suffix = ['is', 'inherited']
-            if 'getter' in self.computed_style_custom_functions:
-                suffix.append('internal')
             self.is_inherited_method_name = name_source.to_function_name(
-                suffix=suffix)
+                suffix=['is', 'inherited'])
         assert len(kwargs) == 0, \
             'Unexpected arguments provided to Field: ' + str(kwargs)
-
-    def get_visibility(self, function):
-        if function in self.computed_style_protected_functions:
-            return 'protected'
-        if function in self.computed_style_custom_functions:
-            return 'protected'
-        return 'public'

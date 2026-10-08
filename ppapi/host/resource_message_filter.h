@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef PPAPI_HOST_RESOURCE_MESSAGE_FILTER_H_
 #define PPAPI_HOST_RESOURCE_MESSAGE_FILTER_H_
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "ppapi/c/pp_stdint.h"
 #include "ppapi/host/host_message_context.h"
@@ -14,9 +15,6 @@
 namespace base {
 class SequencedTaskRunner;
 class SingleThreadTaskRunner;
-
-template <typename T>
-class DeleteHelper;
 }
 
 namespace IPC {
@@ -54,7 +52,8 @@ struct PPAPI_HOST_EXPORT ResourceMessageFilterDeleteTraits {
 //   scoped_refptr<base::TaskRunner> OverrideTaskRunnerForMessage(
 //       const IPC::Message& message) override {
 //     if (message.type() == MyMessage::ID) {
-//       return content::GetUIThreadTaskRunner({});
+//       return base::CreateSingleThreadTaskRunner(
+//           {BrowserThread::UI});
 //     }
 //     return NULL;
 //   }
@@ -91,9 +90,6 @@ class PPAPI_HOST_EXPORT ResourceMessageFilter
   // to dispatch replies on.
   ResourceMessageFilter(
       scoped_refptr<base::SingleThreadTaskRunner> reply_thread_task_runner);
-
-  ResourceMessageFilter(const ResourceMessageFilter&) = delete;
-  ResourceMessageFilter& operator=(const ResourceMessageFilter&) = delete;
 
   // Called when a filter is added to a ResourceHost.
   void OnFilterAdded(ResourceHost* resource_host);
@@ -145,6 +141,8 @@ class PPAPI_HOST_EXPORT ResourceMessageFilter
   // ResourceHost when |OnFilterAdded| is called. When the owning ResourceHost
   // is destroyed, |OnFilterDestroyed| is called and this will be set to NULL.
   ResourceHost* resource_host_;
+
+  DISALLOW_COPY_AND_ASSIGN(ResourceMessageFilter);
 };
 
 }  // namespace host

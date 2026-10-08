@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -177,7 +177,7 @@ def generate_callback_interface(callback_interface_identifier):
          prop_install_mode=PropInstallMode.UNCONDITIONAL,
          trampoline_var_name=None,
          attribute_entries=[],
-         constant_entries=list(filter(is_unconditional, constant_entries)),
+         constant_entries=filter(is_unconditional, constant_entries),
          exposed_construct_entries=[],
          operation_entries=[])
     (install_interface_template_decl, install_interface_template_def,
@@ -283,19 +283,15 @@ def generate_callback_interface(callback_interface_identifier):
         "third_party/blink/renderer/platform/bindings/callback_interface_base.h",
         "third_party/blink/renderer/platform/bindings/v8_value_or_script_wrappable_adapter.h",
     ])
-    source_node.accumulator.add_stdcpp_include_headers([
-        "tuple",
-    ])
     source_node.accumulator.add_include_headers([
         "third_party/blink/renderer/bindings/core/v8/callback_invoke_helper.h",
         "third_party/blink/renderer/bindings/core/v8/generated_code_helper.h",
-        "third_party/blink/renderer/bindings/core/v8/to_v8_traits.h",
     ])
     (header_forward_decls, header_include_headers, source_forward_decls,
      source_include_headers) = collect_forward_decls_and_include_headers(
-         [callback_interface.operation_groups[0][0].return_type] + list(
-             map(lambda argument: argument.idl_type,
-                 callback_interface.operation_groups[0][0].arguments)))
+         [callback_interface.operation_groups[0][0].return_type] +
+         map(lambda argument: argument.idl_type,
+             callback_interface.operation_groups[0][0].arguments))
     header_node.accumulator.add_class_decls(header_forward_decls)
     header_node.accumulator.add_include_headers(header_include_headers)
     source_node.accumulator.add_class_decls(source_forward_decls)

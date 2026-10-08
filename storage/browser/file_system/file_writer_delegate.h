@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,8 @@
 
 #include "base/component_export.h"
 #include "base/files/file.h"
+#include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "mojo/public/cpp/system/data_pipe.h"
@@ -40,10 +42,6 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) FileWriterDelegate {
 
   FileWriterDelegate(std::unique_ptr<FileStreamWriter> file_writer,
                      FlushPolicy flush_policy);
-
-  FileWriterDelegate(const FileWriterDelegate&) = delete;
-  FileWriterDelegate& operator=(const FileWriterDelegate&) = delete;
-
   virtual ~FileWriterDelegate();
 
   void Start(std::unique_ptr<BlobReader> blob_reader,
@@ -105,6 +103,8 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) FileWriterDelegate {
   mojo::SimpleWatcher data_pipe_watcher_;
 
   base::WeakPtrFactory<FileWriterDelegate> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FileWriterDelegate);
 };
 
 }  // namespace storage

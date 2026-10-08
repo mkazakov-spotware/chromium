@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 
 namespace {
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 // Params for the parameterized test IsGuestModeRequestedTest.
 struct IsGuestModeRequestedTestParams {
   bool has_switch;
@@ -35,11 +35,11 @@ const IsGuestModeRequestedTestParams kIsGuestModeRequestedParams[] {
   {  false,       false,          false,         false},
 };
 // clang-format on
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
 }  // namespace
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 class IsGuestModeRequestedTest
     : public testing::TestWithParam<IsGuestModeRequestedTestParams> {};
 
@@ -66,4 +66,4 @@ TEST_P(IsGuestModeRequestedTest, Requested) {
 INSTANTIATE_TEST_SUITE_P(ProfilesState,
                          IsGuestModeRequestedTest,
                          testing::ValuesIn(kIsGuestModeRequestedParams));
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)

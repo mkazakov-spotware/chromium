@@ -18,11 +18,10 @@
       background: green;
 
       width: 4ch;
-      white-space: pre-wrap;
   }
-  span {
-      background: blue;
-  }
+  .blue { color: blue; }
+  .bgblue { background-color: blue; }
+  .space { color: transparent; }
 </style>
 <p>Test passes if a blue box (the white space) is visible at the left start in first line.</p>
-<div>ب <span>OP</span><span> </span>D</div>
+<div>ب<span class="bgblue"><span class="blue">X</span>OP</span><span class="space">X<br>XXX</span>D</div>

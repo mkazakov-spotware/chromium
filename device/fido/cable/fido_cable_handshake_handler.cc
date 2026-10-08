@@ -1,17 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/fido/cable/fido_cable_handshake_handler.h"
 
+#include <algorithm>
 #include <tuple>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/containers/span.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "components/cbor/reader.h"
 #include "components/cbor/values.h"
 #include "components/cbor/writer.h"
@@ -47,7 +47,7 @@ constexpr size_t kClientHelloMessageSize = 58;
 
 constexpr size_t kCableHandshakeMacMessageSize = 16;
 
-absl::optional<std::array<uint8_t, kClientHelloMessageSize>>
+base::Optional<std::array<uint8_t, kClientHelloMessageSize>>
 ConstructHandshakeMessage(base::StringPiece handshake_key,
                           base::span<const uint8_t, 16> client_random_nonce) {
   cbor::Value::MapValue map;
@@ -58,20 +58,22 @@ ConstructHandshakeMessage(base::StringPiece handshake_key,
 
   crypto::HMAC hmac(crypto::HMAC::SHA256);
   if (!hmac.Init(handshake_key))
-    return absl::nullopt;
+    return base::nullopt;
 
-  std::array<uint8_t, kCableHandshakeMacMessageSize> client_hello_mac;
+  std::array<uint8_t, 32> client_hello_mac;
   if (!hmac.Sign(fido_parsing_utils::ConvertToStringPiece(*client_hello),
                  client_hello_mac.data(), client_hello_mac.size())) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   DCHECK_EQ(kClientHelloMessageSize,
-            client_hello->size() + client_hello_mac.size());
+            client_hello->size() + kCableHandshakeMacMessageSize);
   std::array<uint8_t, kClientHelloMessageSize> handshake_message;
-  base::ranges::copy(*client_hello, handshake_message.begin());
-  base::ranges::copy(client_hello_mac,
-                     handshake_message.begin() + client_hello->size());
+  std::copy(client_hello->begin(), client_hello->end(),
+            handshake_message.begin());
+  std::copy(client_hello_mac.begin(),
+            client_hello_mac.begin() + kCableHandshakeMacMessageSize,
+            handshake_message.begin() + client_hello->size());
 
   return handshake_message;
 }
@@ -103,8 +105,8 @@ void FidoCableV1HandshakeHandler::InitiateCableHandshake(
   auto handshake_message =
       ConstructHandshakeMessage(handshake_key_, client_session_random_);
   if (!handshake_message) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(std::move(callback), absl::nullopt));
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
+        FROM_HERE, base::BindOnce(std::move(callback), base::nullopt));
     return;
   }
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,10 @@
 
 #include "base/callback.h"
 #include "base/files/file_path.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "base/time/time.h"
 #include "components/offline_pages/core/client_id.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 namespace offline_pages {
@@ -86,8 +87,7 @@ enum class RenderStatus {
 // Information about the page rendered in the server.
 struct RenderPageInfo {
   RenderPageInfo();
-  RenderPageInfo(const RenderPageInfo&);
-  RenderPageInfo& operator=(const RenderPageInfo&);
+  RenderPageInfo(const RenderPageInfo& other);
 
   // The URL of the page that was rendered.
   std::string url;
@@ -151,7 +151,7 @@ enum class PrefetchItemState : int {
   kMaxValue = ZOMBIE
 };
 
-absl::optional<PrefetchItemState> ToPrefetchItemState(int value);
+base::Optional<PrefetchItemState> ToPrefetchItemState(int value);
 
 // Error codes used to identify the reason why a prefetch entry has finished
 // processing in the pipeline. This values are only meaningful for entries in
@@ -218,7 +218,7 @@ enum class PrefetchItemErrorCode : int {
   kMaxValue = SUGGESTION_INVALIDATED
 };
 
-absl::optional<PrefetchItemErrorCode> ToPrefetchItemErrorCode(int value);
+base::Optional<PrefetchItemErrorCode> ToPrefetchItemErrorCode(int value);
 
 // Callback invoked upon completion of a prefetch request.
 using PrefetchRequestFinishedCallback =
@@ -230,10 +230,10 @@ using PrefetchRequestFinishedCallback =
 struct PrefetchURL {
   PrefetchURL(const std::string& id,
               const GURL& url,
-              const std::u16string& title);
+              const base::string16& title);
   PrefetchURL(const std::string& id,
               const GURL& url,
-              const std::u16string& title,
+              const base::string16& title,
               const GURL& thumbnail_url,
               const GURL& favicon_url,
               const std::string& snippet,
@@ -251,7 +251,7 @@ struct PrefetchURL {
   GURL url;
 
   // The title of the page.
-  std::u16string title;
+  base::string16 title;
 
   // URL for a thumbnail that represents the page. May be empty if no thumbnail
   // is available.
@@ -293,7 +293,7 @@ struct PrefetchArchiveInfo {
   ClientId client_id;
   GURL url;
   GURL final_archived_url;
-  std::u16string title;
+  base::string16 title;
   base::FilePath file_path;
   int64_t file_size = 0;
   GURL favicon_url;

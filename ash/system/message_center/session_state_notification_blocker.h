@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include "ash/ash_export.h"
 #include "ash/public/cpp/session/session_observer.h"
-#include "base/timer/timer.h"
+#include "base/macros.h"
 #include "ui/message_center/notification_blocker.h"
 
 namespace ash {
@@ -24,19 +24,9 @@ class ASH_EXPORT SessionStateNotificationBlocker
  public:
   explicit SessionStateNotificationBlocker(
       message_center::MessageCenter* message_center);
-
-  SessionStateNotificationBlocker(const SessionStateNotificationBlocker&) =
-      delete;
-  SessionStateNotificationBlocker& operator=(
-      const SessionStateNotificationBlocker&) = delete;
-
   ~SessionStateNotificationBlocker() override;
 
-  static void SetUseLoginNotificationDelayForTest(bool use_delay);
-
  private:
-  void OnLoginTimerEnded();
-
   // message_center::NotificationBlocker overrides:
   bool ShouldShowNotification(
       const message_center::Notification& notification) const override;
@@ -44,15 +34,15 @@ class ASH_EXPORT SessionStateNotificationBlocker
       const message_center::Notification& notification) const override;
 
   // SessionObserver overrides:
-  void OnFirstSessionStarted() override;
   void OnSessionStateChanged(session_manager::SessionState state) override;
   void OnActiveUserPrefServiceChanged(PrefService* pref_service) override;
 
   void CheckStateAndNotifyIfChanged();
 
-  base::OneShotTimer login_delay_timer_;
   bool should_show_notification_ = false;
   bool should_show_popup_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(SessionStateNotificationBlocker);
 };
 
 }  // namespace ash

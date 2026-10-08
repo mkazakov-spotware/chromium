@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -82,7 +82,7 @@ void ShellNativeAppWindow::SetZOrderLevel(ui::ZOrderLevel level) {
 
 gfx::NativeView ShellNativeAppWindow::GetHostView() const {
   NOTIMPLEMENTED();
-  return nullptr;
+  return NULL;
 }
 
 gfx::Point ShellNativeAppWindow::GetDialogPosition(const gfx::Size& size) {
@@ -129,7 +129,7 @@ void ShellNativeAppWindow::UpdateDraggableRegions(
 
 SkRegion* ShellNativeAppWindow::GetDraggableRegion() {
   NOTIMPLEMENTED();
-  return nullptr;
+  return NULL;
 }
 
 void ShellNativeAppWindow::UpdateShape(std::unique_ptr<ShapeRects> rects) {

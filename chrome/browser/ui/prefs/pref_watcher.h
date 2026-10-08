@@ -1,13 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_PREFS_PREF_WATCHER_H_
 #define CHROME_BROWSER_UI_PREFS_PREF_WATCHER_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/singleton.h"
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "mojo/public/cpp/bindings/remote_set.h"
@@ -38,7 +37,7 @@ class PrefWatcher : public KeyedService {
   void OnWebPrefChanged(const std::string& pref_name);
   void OnLiveCaptionEnabledPrefChanged(const std::string& pref_name);
 
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
   PrefChangeRegistrar profile_pref_change_registrar_;
   PrefChangeRegistrar local_state_pref_change_registrar_;
 
@@ -53,7 +52,7 @@ class PrefWatcher : public KeyedService {
       renderer_preference_watchers_;
 };
 
-class PrefWatcherFactory : public ProfileKeyedServiceFactory {
+class PrefWatcherFactory : public BrowserContextKeyedServiceFactory {
  public:
   static PrefWatcher* GetForProfile(Profile* profile);
   static PrefWatcherFactory* GetInstance();
@@ -67,6 +66,9 @@ class PrefWatcherFactory : public ProfileKeyedServiceFactory {
   // BrowserContextKeyedServiceFactory:
   KeyedService* BuildServiceInstanceFor(
       content::BrowserContext* browser_context) const override;
+
+  content::BrowserContext* GetBrowserContextToUse(
+      content::BrowserContext* context) const override;
 };
 
 #endif  // CHROME_BROWSER_UI_PREFS_PREF_WATCHER_H_

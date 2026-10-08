@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,13 @@
 #define CHROME_UPDATER_SETUP_H_
 
 #include "base/callback_forward.h"
-#include "chrome/updater/updater_scope.h"
+#include "base/memory/ref_counted.h"
 
 namespace updater {
 
 // Installs the candidate, then posts |callback| to the main sequence. Must
 // be called on the main sequence.
-void InstallCandidate(UpdaterScope scope,
+void InstallCandidate(bool is_machine,
                       base::OnceCallback<void(int)> callback);
 
 }  // namespace updater

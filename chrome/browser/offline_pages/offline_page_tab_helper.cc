@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,6 @@
 #include "chrome/browser/offline_pages/request_coordinator_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_key.h"
-#include "components/back_forward_cache/back_forward_cache_disable.h"
 #include "components/offline_pages/core/background/request_coordinator.h"
 #include "components/offline_pages/core/model/offline_page_model_utils.h"
 #include "components/offline_pages/core/offline_page_client_policy.h"
@@ -47,7 +46,7 @@ using blink::mojom::MHTMLLoadResult;
 
 namespace {
 bool SchemeIsForUntrustedOfflinePages(const GURL& url) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   if (url.SchemeIs(url::kContentScheme))
     return true;
 #endif
@@ -79,20 +78,6 @@ OfflinePageTabHelper::LoadedOfflinePageInfo::operator=(
     OfflinePageTabHelper::LoadedOfflinePageInfo&& other) = default;
 
 // static
-void OfflinePageTabHelper::BindHtmlPageNotifier(
-    mojo::PendingAssociatedReceiver<offline_pages::mojom::MhtmlPageNotifier>
-        receiver,
-    content::RenderFrameHost* rfh) {
-  auto* web_contents = content::WebContents::FromRenderFrameHost(rfh);
-  if (!web_contents)
-    return;
-  auto* tab_helper = OfflinePageTabHelper::FromWebContents(web_contents);
-  if (!tab_helper)
-    return;
-  tab_helper->mhtml_page_notifier_receivers_.Bind(rfh, std::move(receiver));
-}
-
-// static
 OfflinePageTabHelper::LoadedOfflinePageInfo
 OfflinePageTabHelper::LoadedOfflinePageInfo::MakeUntrusted() {
   LoadedOfflinePageInfo untrusted_info;
@@ -115,7 +100,6 @@ bool OfflinePageTabHelper::LoadedOfflinePageInfo::IsValid() const {
 
 OfflinePageTabHelper::OfflinePageTabHelper(content::WebContents* web_contents)
     : content::WebContentsObserver(web_contents),
-      content::WebContentsUserData<OfflinePageTabHelper>(*web_contents),
       mhtml_page_notifier_receivers_(web_contents, this) {
   DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
   Profile* profile =
@@ -130,8 +114,8 @@ void OfflinePageTabHelper::NotifyMhtmlPageLoadAttempted(
     MHTMLLoadResult load_result,
     const GURL& main_frame_url,
     base::Time date) {
-  if (!mhtml_page_notifier_receivers_.GetCurrentTargetFrame()
-           ->IsInPrimaryMainFrame()) {
+  if (mhtml_page_notifier_receivers_.GetCurrentTargetFrame() !=
+      web_contents()->GetMainFrame()) {
     return;
   }
 
@@ -176,7 +160,7 @@ void OfflinePageTabHelper::NotifyMhtmlPageLoadAttempted(
 void OfflinePageTabHelper::DidStartNavigation(
     content::NavigationHandle* navigation_handle) {
   // Skips non-main frame.
-  if (!navigation_handle->IsInPrimaryMainFrame())
+  if (!navigation_handle->IsInMainFrame())
     return;
 
   // The provisional offline info can be cleared no matter how.
@@ -192,7 +176,7 @@ void OfflinePageTabHelper::DidStartNavigation(
 void OfflinePageTabHelper::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
   // Skips non-main frame.
-  if (!navigation_handle->IsInPrimaryMainFrame())
+  if (!navigation_handle->IsInMainFrame())
     return;
 
   if (!navigation_handle->HasCommitted())
@@ -207,9 +191,7 @@ void OfflinePageTabHelper::DidFinishNavigation(
     // full page on back navigation. If not, offline page is fast to load,
     // so back-forward cache is not going to be useful here.
     content::BackForwardCache::DisableForRenderFrameHost(
-        navigation_handle->GetPreviousRenderFrameHostId(),
-        back_forward_cache::DisabledReason(
-            back_forward_cache::DisabledReasonId::kOfflinePage));
+        navigation_handle->GetPreviousRenderFrameHostId(), "OfflinePage");
   }
 
   // This is a new navigation so we can invalidate any previously scheduled
@@ -493,6 +475,6 @@ void OfflinePageTabHelper::DoDownloadPageLater(
   }
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(OfflinePageTabHelper);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(OfflinePageTabHelper)
 
 }  // namespace offline_pages

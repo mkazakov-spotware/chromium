@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,24 +10,26 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/thread_checker.h"
 #include "remoting/protocol/channel_dispatcher_base.h"
 #include "remoting/protocol/connection_to_client.h"
 #include "remoting/protocol/ice_transport.h"
 #include "remoting/protocol/session.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 class AudioWriter;
 class HostControlDispatcher;
 class HostEventDispatcher;
 class HostVideoDispatcher;
 
-// This class represents a remote viewer connection to the chromoting host. It
-// sets up all protocol channels and connects them to the stubs.
+// This class represents a remote viewer connection to the chromoting
+// host. It sets up all protocol channels and connects them to the
+// stubs.
 class IceConnectionToClient : public ConnectionToClient,
                               public Session::EventHandler,
                               public IceTransport::EventHandler,
@@ -38,10 +40,6 @@ class IceConnectionToClient : public ConnectionToClient,
       scoped_refptr<TransportContext> transport_context,
       scoped_refptr<base::SingleThreadTaskRunner> video_encode_task_runner,
       scoped_refptr<base::SingleThreadTaskRunner> audio_task_runner);
-
-  IceConnectionToClient(const IceConnectionToClient&) = delete;
-  IceConnectionToClient& operator=(const IceConnectionToClient&) = delete;
-
   ~IceConnectionToClient() override;
 
   // ConnectionToClient interface.
@@ -50,8 +48,7 @@ class IceConnectionToClient : public ConnectionToClient,
   Session* session() override;
   void Disconnect(ErrorCode error) override;
   std::unique_ptr<VideoStream> StartVideoStream(
-      const std::string& stream_name,
-      std::unique_ptr<DesktopCapturer> desktop_capturer) override;
+      std::unique_ptr<webrtc::DesktopCapturer> desktop_capturer) override;
   std::unique_ptr<AudioStream> StartAudioStream(
       std::unique_ptr<AudioSource> audio_source) override;
   ClientStub* client_stub() override;
@@ -81,8 +78,10 @@ class IceConnectionToClient : public ConnectionToClient,
 
   void CloseChannels();
 
+  base::ThreadChecker thread_checker_;
+
   // Event handler for handling events sent from this object.
-  raw_ptr<ConnectionToClient::EventHandler> event_handler_;
+  ConnectionToClient::EventHandler* event_handler_;
 
   std::unique_ptr<Session> session_;
 
@@ -96,9 +95,10 @@ class IceConnectionToClient : public ConnectionToClient,
   std::unique_ptr<HostVideoDispatcher> video_dispatcher_;
   std::unique_ptr<AudioWriter> audio_writer_;
 
-  THREAD_CHECKER(thread_checker_);
+  DISALLOW_COPY_AND_ASSIGN(IceConnectionToClient);
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_ICE_CONNECTION_TO_CLIENT_H_

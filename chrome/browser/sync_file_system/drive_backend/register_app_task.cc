@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,14 +47,14 @@ bool RegisterAppTask::CanFinishImmediately() {
          metadata_database()->FindAppRootTracker(app_id_, nullptr);
 }
 
-void RegisterAppTask::RunExclusive(SyncStatusCallback callback) {
+void RegisterAppTask::RunExclusive(const SyncStatusCallback& callback) {
   if (create_folder_retry_count_++ >= kMaxRetry) {
-    std::move(callback).Run(SYNC_STATUS_FAILED);
+    callback.Run(SYNC_STATUS_FAILED);
     return;
   }
 
   if (!metadata_database() || !drive_service()) {
-    std::move(callback).Run(SYNC_STATUS_FAILED);
+    callback.Run(SYNC_STATUS_FAILED);
     return;
   }
 
@@ -62,27 +62,27 @@ void RegisterAppTask::RunExclusive(SyncStatusCallback callback) {
   TrackerIDSet trackers;
   if (!metadata_database()->FindTrackersByParentAndTitle(
           sync_root, app_id_, &trackers)) {
-    CreateAppRootFolder(std::move(callback));
+    CreateAppRootFolder(callback);
     return;
   }
 
   FileTracker candidate;
   if (!FilterCandidates(trackers, &candidate)) {
-    CreateAppRootFolder(std::move(callback));
+    CreateAppRootFolder(callback);
     return;
   }
 
   if (candidate.active()) {
     DCHECK(candidate.tracker_kind() == TRACKER_KIND_APP_ROOT ||
            candidate.tracker_kind() == TRACKER_KIND_DISABLED_APP_ROOT);
-    std::move(callback).Run(SYNC_STATUS_OK);
+    callback.Run(SYNC_STATUS_OK);
     return;
   }
 
-  RegisterAppIntoDatabase(candidate, std::move(callback));
+  RegisterAppIntoDatabase(candidate, callback);
 }
 
-void RegisterAppTask::CreateAppRootFolder(SyncStatusCallback callback) {
+void RegisterAppTask::CreateAppRootFolder(const SyncStatusCallback& callback) {
   int64_t sync_root_tracker_id = metadata_database()->GetSyncRootTrackerID();
   FileTracker sync_root_tracker;
   bool should_success = metadata_database()->FindTrackerByTrackerID(
@@ -91,24 +91,25 @@ void RegisterAppTask::CreateAppRootFolder(SyncStatusCallback callback) {
   DCHECK(should_success);
 
   DCHECK(!folder_creator_);
-  folder_creator_ =
-      std::make_unique<FolderCreator>(drive_service(), metadata_database(),
-                                      sync_root_tracker.file_id(), app_id_);
-  folder_creator_->Run(base::BindOnce(&RegisterAppTask::DidCreateAppRootFolder,
-                                      weak_ptr_factory_.GetWeakPtr(),
-                                      std::move(callback)));
+  folder_creator_.reset(new FolderCreator(
+      drive_service(), metadata_database(),
+      sync_root_tracker.file_id(), app_id_));
+  folder_creator_->Run(base::Bind(
+      &RegisterAppTask::DidCreateAppRootFolder,
+      weak_ptr_factory_.GetWeakPtr(), callback));
 }
 
-void RegisterAppTask::DidCreateAppRootFolder(SyncStatusCallback callback,
-                                             const std::string& folder_id,
-                                             SyncStatusCode status) {
+void RegisterAppTask::DidCreateAppRootFolder(
+    const SyncStatusCallback& callback,
+    const std::string& folder_id,
+    SyncStatusCode status) {
   std::unique_ptr<FolderCreator> deleter = std::move(folder_creator_);
   if (status != SYNC_STATUS_OK) {
-    std::move(callback).Run(status);
+    callback.Run(status);
     return;
   }
 
-  RunExclusive(std::move(callback));
+  RunExclusive(callback);
 }
 
 bool RegisterAppTask::FilterCandidates(const TrackerIDSet& trackers,
@@ -163,11 +164,12 @@ bool RegisterAppTask::FilterCandidates(const TrackerIDSet& trackers,
   return true;
 }
 
-void RegisterAppTask::RegisterAppIntoDatabase(const FileTracker& tracker,
-                                              SyncStatusCallback callback) {
+void RegisterAppTask::RegisterAppIntoDatabase(
+    const FileTracker& tracker,
+    const SyncStatusCallback& callback) {
   SyncStatusCode status =
       metadata_database()->RegisterApp(app_id_, tracker.file_id());
-  std::move(callback).Run(status);
+  callback.Run(status);
 }
 
 MetadataDatabase* RegisterAppTask::metadata_database() {

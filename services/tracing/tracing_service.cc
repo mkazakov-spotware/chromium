@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "build/build_config.h"
 #include "services/tracing/perfetto/consumer_host.h"
 #include "services/tracing/perfetto/perfetto_service.h"
 #include "services/tracing/public/mojom/traced_process.mojom.h"
@@ -73,7 +72,7 @@ void TracingService::AddClient(mojom::ClientInfoPtr client) {
                      std::move(service_receiver)));
 }
 
-#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_IOS)
+#if !defined(OS_NACL) && !defined(OS_IOS)
 void TracingService::BindConsumerHost(
     mojo::PendingReceiver<mojom::ConsumerHost> receiver) {
   ConsumerHost::BindConsumerReceiver(perfetto_service_, std::move(receiver));

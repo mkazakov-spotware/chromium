@@ -15,11 +15,10 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <sys/mman.h>
 #include <unistd.h>
+#include <sys/mman.h>
 
 #include <algorithm>
-#include <limits>
 
 #include "third_party/ijar/mapped_file.h"
 

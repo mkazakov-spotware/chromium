@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@
 #include "components/paint_preview/common/glyph_usage.h"
 #include "components/paint_preview/common/mojom/paint_preview_recorder.mojom.h"
 #include "components/paint_preview/common/serial_utils.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/skia/include/core/SkPicture.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
 #include "third_party/skia/include/core/SkTextBlob.h"
@@ -30,14 +29,14 @@ class PaintPreviewTracker {
  public:
   PaintPreviewTracker(
       const base::UnguessableToken& guid,
-      const absl::optional<base::UnguessableToken>& embedding_token,
+      const base::Optional<base::UnguessableToken>& embedding_token,
       bool is_main_frame);
   ~PaintPreviewTracker();
 
   // Getters ------------------------------------------------------------------
 
   const base::UnguessableToken& Guid() const { return guid_; }
-  const absl::optional<base::UnguessableToken>& EmbeddingToken() const {
+  const base::Optional<base::UnguessableToken>& EmbeddingToken() const {
     return embedding_token_;
   }
   bool IsMainFrame() const { return is_main_frame_; }
@@ -110,10 +109,9 @@ class PaintPreviewTracker {
 
  private:
   const base::UnguessableToken guid_;
-  const absl::optional<base::UnguessableToken> embedding_token_;
+  const base::Optional<base::UnguessableToken> embedding_token_;
   const bool is_main_frame_;
 
-  // TODO(crbug.com/1155544): Change this to an SkM44.
   SkMatrix matrix_;
   std::vector<SkMatrix> states_;
 

@@ -72,15 +72,14 @@ void SVGMPathElement::RemovedFrom(ContainerNode& root_parent) {
     ClearResourceReferences();
 }
 
-void SVGMPathElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  if (SVGURIReference::IsKnownAttribute(params.name)) {
+void SVGMPathElement::SvgAttributeChanged(const QualifiedName& attr_name) {
+  if (SVGURIReference::IsKnownAttribute(attr_name)) {
     SVGElement::InvalidationGuard invalidation_guard(this);
     BuildPendingResource();
     return;
   }
 
-  SVGElement::SvgAttributeChanged(params);
+  SVGElement::SvgAttributeChanged(attr_name);
 }
 
 SVGPathElement* SVGMPathElement::PathElement() {

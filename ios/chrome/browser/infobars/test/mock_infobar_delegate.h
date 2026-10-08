@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@ class MockInfobarDelegate : public ConfirmInfoBarDelegate {
   MockInfobarDelegate();
   ~MockInfobarDelegate() override;
 
-  std::u16string GetMessageText() const override { return std::u16string(); }
+  base::string16 GetMessageText() const override { return base::string16(); }
   InfoBarIdentifier GetIdentifier() const override { return TEST_INFOBAR; }
 
   MOCK_METHOD0(Accept, bool());

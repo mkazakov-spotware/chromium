@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 #define REMOTING_CLIENT_AUDIO_ASYNC_AUDIO_DATA_SUPPLIER_H_
 
 #include <memory>
-
-#include "base/memory/raw_ptr.h"
 
 namespace remoting {
 
@@ -27,7 +25,7 @@ class AsyncAudioDataSupplier {
     // undefined behavior. Consider posting a task when necessary.
     virtual void OnDataFilled() = 0;
 
-    const raw_ptr<void> data;
+    void* const data;
     const size_t bytes_needed;
 
     size_t bytes_extracted = 0;

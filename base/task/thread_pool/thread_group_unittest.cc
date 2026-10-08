@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "base/callback_helpers.h"
 #include "base/location.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool/can_run_policy_test.h"
 #include "base/task/thread_pool/delayed_task_manager.h"
@@ -22,6 +21,7 @@
 #include "base/task/thread_pool/test_task_factory.h"
 #include "base/task/thread_pool/test_utils.h"
 #include "base/task/thread_pool/thread_group_impl.h"
+#include "base/task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/test_timeouts.h"
 #include "base/test/test_waitable_event.h"
@@ -34,15 +34,27 @@
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
+#include "base/task/thread_pool/thread_group_native_win.h"
 #include "base/win/com_init_check_hook.h"
 #include "base/win/com_init_util.h"
+#elif defined(OS_APPLE)
+#include "base/task/thread_pool/thread_group_native_mac.h"
 #endif
 
 namespace base {
 namespace internal {
 
 namespace {
+
+#if HAS_NATIVE_THREAD_POOL()
+using ThreadGroupNativeType =
+#if defined(OS_WIN)
+    ThreadGroupNativeWin;
+#elif defined(OS_APPLE)
+    ThreadGroupNativeMac;
+#endif
+#endif
 
 constexpr size_t kMaxTasks = 4;
 constexpr size_t kTooManyTasks = 1000;
@@ -109,9 +121,22 @@ class ThreadGroupTestBase : public testing::Test, public ThreadGroup::Delegate {
 
   void CreateThreadGroup() {
     ASSERT_FALSE(thread_group_);
-    thread_group_ = std::make_unique<ThreadGroupImpl>(
-        "TestThreadGroup", "A", ThreadType::kDefault,
-        task_tracker_.GetTrackedRef(), tracked_ref_factory_.GetTrackedRef());
+    switch (GetPoolType()) {
+      case test::PoolType::GENERIC:
+        thread_group_ = std::make_unique<ThreadGroupImpl>(
+            "TestThreadGroup", "A", ThreadPriority::NORMAL,
+            task_tracker_.GetTrackedRef(),
+            tracked_ref_factory_.GetTrackedRef());
+        break;
+#if HAS_NATIVE_THREAD_POOL()
+      case test::PoolType::NATIVE:
+        thread_group_ = std::make_unique<ThreadGroupNativeType>(
+            task_tracker_.GetTrackedRef(),
+            tracked_ref_factory_.GetTrackedRef());
+        break;
+#endif
+    }
+    ASSERT_TRUE(thread_group_);
 
     mock_pooled_task_runner_delegate_.SetThreadGroup(thread_group_.get());
   }
@@ -119,15 +144,30 @@ class ThreadGroupTestBase : public testing::Test, public ThreadGroup::Delegate {
   void StartThreadGroup(ThreadGroup::WorkerEnvironment worker_environment =
                             ThreadGroup::WorkerEnvironment::NONE) {
     ASSERT_TRUE(thread_group_);
-    ThreadGroupImpl* thread_group_impl =
-        static_cast<ThreadGroupImpl*>(thread_group_.get());
-    thread_group_impl->Start(kMaxTasks, kMaxBestEffortTasks, TimeDelta::Max(),
-                             service_thread_.task_runner(), nullptr,
-                             worker_environment);
+    switch (GetPoolType()) {
+      case test::PoolType::GENERIC: {
+        ThreadGroupImpl* thread_group_impl =
+            static_cast<ThreadGroupImpl*>(thread_group_.get());
+        thread_group_impl->Start(
+            kMaxTasks, kMaxBestEffortTasks, TimeDelta::Max(),
+            service_thread_.task_runner(), nullptr, worker_environment);
+        break;
+      }
+#if HAS_NATIVE_THREAD_POOL()
+      case test::PoolType::NATIVE: {
+        ThreadGroupNativeType* thread_group_native_impl =
+            static_cast<ThreadGroupNativeType*>(thread_group_.get());
+        thread_group_native_impl->Start(worker_environment);
+        break;
+      }
+#endif
+    }
   }
 
+  virtual test::PoolType GetPoolType() const = 0;
+
   Thread service_thread_{"ThreadPoolServiceThread"};
-  TaskTracker task_tracker_;
+  TaskTracker task_tracker_{"Test"};
   DelayedTaskManager delayed_task_manager_;
   test::MockPooledTaskRunnerDelegate mock_pooled_task_runner_delegate_ = {
       task_tracker_.GetTrackedRef(), &delayed_task_manager_};
@@ -143,13 +183,22 @@ class ThreadGroupTestBase : public testing::Test, public ThreadGroup::Delegate {
   TrackedRefFactory<ThreadGroup::Delegate> tracked_ref_factory_{this};
 };
 
-using ThreadGroupTest = ThreadGroupTestBase;
+class ThreadGroupTest : public ThreadGroupTestBase,
+                        public testing::WithParamInterface<test::PoolType> {
+ public:
+  ThreadGroupTest() = default;
+  ThreadGroupTest(const ThreadGroupTest&) = delete;
+  ThreadGroupTest& operator=(const ThreadGroupTest&) = delete;
+
+  test::PoolType GetPoolType() const override { return GetParam(); }
+};
 
 // TODO(etiennep): Audit tests that don't need TaskSourceExecutionMode
 // parameter.
 class ThreadGroupTestAllExecutionModes
     : public ThreadGroupTestBase,
-      public testing::WithParamInterface<TaskSourceExecutionMode> {
+      public testing::WithParamInterface<
+          std::tuple<test::PoolType, TaskSourceExecutionMode>> {
  public:
   ThreadGroupTestAllExecutionModes() = default;
   ThreadGroupTestAllExecutionModes(const ThreadGroupTestAllExecutionModes&) =
@@ -157,7 +206,13 @@ class ThreadGroupTestAllExecutionModes
   ThreadGroupTestAllExecutionModes& operator=(
       const ThreadGroupTestAllExecutionModes&) = delete;
 
-  TaskSourceExecutionMode execution_mode() const { return GetParam(); }
+  test::PoolType GetPoolType() const override {
+    return std::get<0>(GetParam());
+  }
+
+  TaskSourceExecutionMode execution_mode() const {
+    return std::get<1>(GetParam());
+  }
 
   scoped_refptr<TaskRunner> CreatePooledTaskRunner(
       const TaskTraits& traits = {}) {
@@ -321,7 +376,7 @@ TEST_P(ThreadGroupTestAllExecutionModes, CanRunPolicyBasic) {
       &task_tracker_);
 }
 
-TEST_F(ThreadGroupTest, CanRunPolicyUpdatedBeforeRun) {
+TEST_P(ThreadGroupTest, CanRunPolicyUpdatedBeforeRun) {
   StartThreadGroup();
   // This test only works with SequencedTaskRunner become it assumes
   // ordered execution of 2 posted tasks.
@@ -346,7 +401,7 @@ TEST_P(ThreadGroupTestAllExecutionModes, CanRunPolicyLoad) {
 
 // Verifies that ShouldYield() returns true for a priority that is not allowed
 // to run by the CanRunPolicy.
-TEST_F(ThreadGroupTest, CanRunPolicyShouldYield) {
+TEST_P(ThreadGroupTest, CanRunPolicyShouldYield) {
   StartThreadGroup();
 
   task_tracker_.SetCanRunPolicy(CanRunPolicy::kNone);
@@ -374,7 +429,7 @@ TEST_F(ThreadGroupTest, CanRunPolicyShouldYield) {
 // Verify that the maximum number of BEST_EFFORT tasks that can run concurrently
 // in a thread group does not affect Sequences with a priority that was
 // increased from BEST_EFFORT to USER_BLOCKING.
-TEST_F(ThreadGroupTest, UpdatePriorityBestEffortToUserBlocking) {
+TEST_P(ThreadGroupTest, UpdatePriorityBestEffortToUserBlocking) {
   StartThreadGroup();
 
   CheckedLock num_tasks_running_lock;
@@ -456,7 +511,7 @@ TEST_P(ThreadGroupTestAllExecutionModes, ScopedBlockingCallTwice) {
   task_ran.Wait();
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TEST_P(ThreadGroupTestAllExecutionModes, COMMTAWorkerEnvironment) {
   StartThreadGroup(ThreadGroup::WorkerEnvironment::COM_MTA);
   auto task_runner = test::CreatePooledTaskRunnerWithExecutionMode(
@@ -467,6 +522,28 @@ TEST_P(ThreadGroupTestAllExecutionModes, COMMTAWorkerEnvironment) {
       FROM_HERE, BindOnce(
                      [](TestWaitableEvent* task_ran) {
                        win::AssertComApartmentType(win::ComApartmentType::MTA);
+                       task_ran->Signal();
+                     },
+                     Unretained(&task_ran)));
+  task_ran.Wait();
+}
+
+TEST_P(ThreadGroupTestAllExecutionModes, COMSTAWorkerEnvironment) {
+  StartThreadGroup(ThreadGroup::WorkerEnvironment::COM_STA);
+  auto task_runner = test::CreatePooledTaskRunnerWithExecutionMode(
+      execution_mode(), &mock_pooled_task_runner_delegate_);
+
+  TestWaitableEvent task_ran;
+  task_runner->PostTask(
+      FROM_HERE, BindOnce(
+                     [](TestWaitableEvent* task_ran) {
+  // COM STA is ignored when defined(COM_INIT_CHECK_HOOK_ENABLED). See comment
+  // in ThreadGroup::GetScopedWindowsThreadEnvironment().
+#if defined(COM_INIT_CHECK_HOOK_ENABLED)
+                       win::AssertComApartmentType(win::ComApartmentType::NONE);
+#else
+                       win::AssertComApartmentType(win::ComApartmentType::STA);
+#endif
                        task_ran->Signal();
                      },
                      Unretained(&task_ran)));
@@ -491,7 +568,7 @@ TEST_P(ThreadGroupTestAllExecutionModes, NoWorkerEnvironment) {
 #endif
 
 // Verifies that ShouldYield() returns false when there is no pending task.
-TEST_F(ThreadGroupTest, ShouldYieldSingleTask) {
+TEST_P(ThreadGroupTest, ShouldYieldSingleTask) {
   StartThreadGroup();
 
   test::CreatePooledTaskRunner({TaskPriority::USER_BLOCKING},
@@ -509,7 +586,7 @@ TEST_F(ThreadGroupTest, ShouldYieldSingleTask) {
 }
 
 // Verify that tasks from a JobTaskSource run at the intended concurrency.
-TEST_F(ThreadGroupTest, ScheduleJobTaskSource) {
+TEST_P(ThreadGroupTest, ScheduleJobTaskSource) {
   StartThreadGroup();
 
   TestWaitableEvent threads_running;
@@ -545,7 +622,7 @@ TEST_F(ThreadGroupTest, ScheduleJobTaskSource) {
 }
 
 // Verify that tasks from a JobTaskSource run at the intended concurrency.
-TEST_F(ThreadGroupTest, ScheduleJobTaskSourceMultipleTime) {
+TEST_P(ThreadGroupTest, ScheduleJobTaskSourceMultipleTime) {
   StartThreadGroup();
 
   TestWaitableEvent thread_running;
@@ -585,7 +662,7 @@ TEST_F(ThreadGroupTest, ScheduleJobTaskSourceMultipleTime) {
 
 // Verify that Cancel() on a job stops running the worker task and causes
 // current workers to yield.
-TEST_F(ThreadGroupTest, CancelJobTaskSource) {
+TEST_P(ThreadGroupTest, CancelJobTaskSource) {
   StartThreadGroup();
 
   CheckedLock tasks_running_lock;
@@ -628,7 +705,7 @@ TEST_F(ThreadGroupTest, CancelJobTaskSource) {
 
 // Verify that calling JobTaskSource::NotifyConcurrencyIncrease() (re-)schedule
 // tasks with the intended concurrency.
-TEST_F(ThreadGroupTest, JobTaskSourceConcurrencyIncrease) {
+TEST_P(ThreadGroupTest, JobTaskSourceConcurrencyIncrease) {
   StartThreadGroup();
 
   TestWaitableEvent threads_running_a;
@@ -677,7 +754,7 @@ TEST_F(ThreadGroupTest, JobTaskSourceConcurrencyIncrease) {
 
 // Verify that a JobTaskSource that becomes empty while in the queue eventually
 // gets discarded.
-TEST_F(ThreadGroupTest, ScheduleEmptyJobTaskSource) {
+TEST_P(ThreadGroupTest, ScheduleEmptyJobTaskSource) {
   StartThreadGroup();
 
   task_tracker_.SetCanRunPolicy(CanRunPolicy::kNone);
@@ -707,7 +784,7 @@ TEST_F(ThreadGroupTest, ScheduleEmptyJobTaskSource) {
 
 // Verify that Join() on a job contributes to max concurrency and waits for all
 // workers to return.
-TEST_F(ThreadGroupTest, JoinJobTaskSource) {
+TEST_P(ThreadGroupTest, JoinJobTaskSource) {
   StartThreadGroup();
 
   TestWaitableEvent threads_continue;
@@ -737,7 +814,7 @@ TEST_F(ThreadGroupTest, JoinJobTaskSource) {
 
 // Verify that finishing work outside of a job unblocks workers with a stale
 // max concurrency.
-TEST_F(ThreadGroupTest, JoinJobTaskSourceStaleConcurrency) {
+TEST_P(ThreadGroupTest, JoinJobTaskSourceStaleConcurrency) {
   StartThreadGroup();
 
   TestWaitableEvent thread_running;
@@ -763,7 +840,7 @@ TEST_F(ThreadGroupTest, JoinJobTaskSourceStaleConcurrency) {
 }
 
 // Verify that cancelling a job unblocks workers with a stale max concurrency.
-TEST_F(ThreadGroupTest, CancelJobTaskSourceWithStaleConcurrency) {
+TEST_P(ThreadGroupTest, CancelJobTaskSourceWithStaleConcurrency) {
   StartThreadGroup();
 
   TestWaitableEvent thread_running;
@@ -785,7 +862,7 @@ TEST_F(ThreadGroupTest, CancelJobTaskSourceWithStaleConcurrency) {
 // Verify that the maximum number of BEST_EFFORT tasks that can run concurrently
 // in a thread group does not affect JobTaskSource with a priority that was
 // increased from BEST_EFFORT to USER_BLOCKING.
-TEST_F(ThreadGroupTest, JobTaskSourceUpdatePriority) {
+TEST_P(ThreadGroupTest, JobTaskSourceUpdatePriority) {
   StartThreadGroup();
 
   CheckedLock num_tasks_running_lock;
@@ -848,16 +925,45 @@ TEST_F(ThreadGroupTest, JobTaskSourceUpdatePriority) {
   task_tracker_.FlushForTesting();
 }
 
-INSTANTIATE_TEST_SUITE_P(GenericParallel,
-                         ThreadGroupTestAllExecutionModes,
-                         ::testing::Values(TaskSourceExecutionMode::kParallel));
+INSTANTIATE_TEST_SUITE_P(Generic,
+                         ThreadGroupTest,
+                         ::testing::Values(test::PoolType::GENERIC));
+INSTANTIATE_TEST_SUITE_P(
+    GenericParallel,
+    ThreadGroupTestAllExecutionModes,
+    ::testing::Combine(::testing::Values(test::PoolType::GENERIC),
+                       ::testing::Values(TaskSourceExecutionMode::kParallel)));
 INSTANTIATE_TEST_SUITE_P(
     GenericSequenced,
     ThreadGroupTestAllExecutionModes,
-    ::testing::Values(TaskSourceExecutionMode::kSequenced));
-INSTANTIATE_TEST_SUITE_P(GenericJob,
-                         ThreadGroupTestAllExecutionModes,
-                         ::testing::Values(TaskSourceExecutionMode::kJob));
+    ::testing::Combine(::testing::Values(test::PoolType::GENERIC),
+                       ::testing::Values(TaskSourceExecutionMode::kSequenced)));
+INSTANTIATE_TEST_SUITE_P(
+    GenericJob,
+    ThreadGroupTestAllExecutionModes,
+    ::testing::Combine(::testing::Values(test::PoolType::GENERIC),
+                       ::testing::Values(TaskSourceExecutionMode::kJob)));
+
+#if HAS_NATIVE_THREAD_POOL()
+INSTANTIATE_TEST_SUITE_P(Native,
+                         ThreadGroupTest,
+                         ::testing::Values(test::PoolType::NATIVE));
+INSTANTIATE_TEST_SUITE_P(
+    NativeParallel,
+    ThreadGroupTestAllExecutionModes,
+    ::testing::Combine(::testing::Values(test::PoolType::NATIVE),
+                       ::testing::Values(TaskSourceExecutionMode::kParallel)));
+INSTANTIATE_TEST_SUITE_P(
+    NativeSequenced,
+    ThreadGroupTestAllExecutionModes,
+    ::testing::Combine(::testing::Values(test::PoolType::NATIVE),
+                       ::testing::Values(TaskSourceExecutionMode::kSequenced)));
+INSTANTIATE_TEST_SUITE_P(
+    NativeJob,
+    ThreadGroupTestAllExecutionModes,
+    ::testing::Combine(::testing::Values(test::PoolType::NATIVE),
+                       ::testing::Values(TaskSourceExecutionMode::kJob)));
+#endif
 
 }  // namespace internal
 }  // namespace base

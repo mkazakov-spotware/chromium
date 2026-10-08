@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <unistd.h>
-#include <string>
-#include <vector>
 
 #include "base/files/dir_reader_posix.h"
 #include "base/files/file_path.h"
@@ -103,7 +101,7 @@ Time GetBootTime();
 TimeDelta GetUserCpuTimeSinceBoot();
 
 // Converts Linux clock ticks to a wall time delta.
-TimeDelta ClockTicksToTimeDelta(int64_t clock_ticks);
+TimeDelta ClockTicksToTimeDelta(int clock_ticks);
 
 // Executes the lambda for every task in the process's /proc/<pid>/task
 // directory. The thread id and file path of the task directory are provided as

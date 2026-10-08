@@ -25,8 +25,6 @@
 
 #include "third_party/blink/renderer/modules/webgl/webgl_extension.h"
 
-#include "third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h"
-
 namespace blink {
 
 WebGLExtensionScopedContext::WebGLExtensionScopedContext(

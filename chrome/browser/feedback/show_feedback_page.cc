@@ -1,44 +1,33 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <string>
 
-#include "ash/constants/ash_features.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/strings/escape.h"
 #include "base/strings/string_util.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/feedback/feedback_dialog_utils.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/ui/ui_features.h"
-#include "chrome/browser/ui/webui/feedback/feedback_dialog.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
-#include "components/signin/public/base/consent_level.h"
+#include "components/signin/public/identity_manager/consent_level.h"
 #include "extensions/browser/api/feedback_private/feedback_private_api.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "ash/webui/os_feedback_ui/url_constants.h"
+#if defined(OS_CHROMEOS)
 #include "base/bind.h"
-#include "base/strings/strcat.h"
-#include "chrome/browser/ash/crosapi/browser_manager.h"
-#include "chrome/browser/ash/system_web_apps/types/system_web_app_type.h"
+#include "chrome/browser/chromeos/crosapi/browser_manager.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
-#include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "google_apis/gaia/gaia_auth_util.h"
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/crosapi/mojom/feedback.mojom.h"
-#include "chromeos/lacros/lacros_service.h"
+#if BUILDFLAG(IS_LACROS)
+#include "chromeos/lacros/lacros_chrome_service_impl.h"
 #endif
 
 namespace feedback_private = extensions::api::feedback_private;
@@ -47,81 +36,15 @@ namespace chrome {
 
 namespace {
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-constexpr char kExtraDiagnosticsQueryParam[] = "extra_diagnostics";
-constexpr char kDescriptionTemplateQueryParam[] = "description_template";
-constexpr char kDescriptionPlaceholderQueryParam[] =
-    "description_placeholder_text";
-constexpr char kFromAssistantQueryParam[] = "from_assistant";
-constexpr char kCategoryTagParam[] = "category_tag";
-constexpr char kPageURLParam[] = "page_url";
-constexpr char kQueryParamSeparator[] = "&";
-constexpr char kQueryParamKeyValueSeparator[] = "=";
-constexpr char kFromAssistantQueryParamValue[] = "true";
-
-// Concat query parameter with escaped value.
-std::string StrCatQueryParam(const std::string query_param,
-                             const std::string value) {
-  return base::StrCat({query_param, kQueryParamKeyValueSeparator,
-                       base::EscapeQueryParamValue(value, /*use_plus=*/false)});
-}
-
-// Returns URL for OS Feedback with additional data passed as query parameters.
-GURL BuildFeedbackUrl(const std::string extra_diagnostics,
-                      const std::string description_template,
-                      const std::string description_placeholder_text,
-                      const std::string category_tag,
-                      const GURL page_url,
-                      bool from_assistant) {
-  std::vector<std::string> query_params;
-
-  if (!extra_diagnostics.empty()) {
-    query_params.emplace_back(
-        StrCatQueryParam(kExtraDiagnosticsQueryParam, extra_diagnostics));
-  }
-
-  if (!description_template.empty()) {
-    query_params.emplace_back(
-        StrCatQueryParam(kDescriptionTemplateQueryParam, description_template));
-  }
-
-  if (!description_placeholder_text.empty()) {
-    query_params.emplace_back(StrCatQueryParam(
-        kDescriptionPlaceholderQueryParam, description_placeholder_text));
-  }
-
-  if (!category_tag.empty()) {
-    query_params.emplace_back(
-        StrCatQueryParam(kCategoryTagParam, category_tag));
-  }
-
-  if (!page_url.is_empty()) {
-    query_params.emplace_back(StrCatQueryParam(kPageURLParam, page_url.spec()));
-  }
-
-  if (from_assistant) {
-    query_params.emplace_back(StrCatQueryParam(kFromAssistantQueryParam,
-                                               kFromAssistantQueryParamValue));
-  }
-
-  // Use default URL if no extra parameters to be added.
-  if (query_params.empty()) {
-    return GURL(ash::kChromeUIOSFeedbackUrl);
-  }
-
-  return GURL(
-      base::StrCat({ash::kChromeUIOSFeedbackUrl, "/?",
-                    base::JoinString(query_params, kQueryParamSeparator)}));
-}
-
+#if defined(OS_CHROMEOS)
 // Returns whether the user has an internal Google account (e.g. @google.com).
 bool IsGoogleInternalAccount(Profile* profile) {
   auto* identity_manager = IdentityManagerFactory::GetForProfile(profile);
   if (!identity_manager)  // Non-GAIA account, e.g. guest mode.
     return false;
   // Browser sync consent is not required to use feedback.
-  CoreAccountInfo account_info =
-      identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin);
+  CoreAccountInfo account_info = identity_manager->GetPrimaryAccountInfo(
+      signin::ConsentLevel::kNotRequired);
   return gaia::IsGoogleInternalAccountEmail(account_info.email);
 }
 
@@ -133,14 +56,10 @@ bool IsFromUserInteraction(FeedbackSource source) {
     case kFeedbackSourceAsh:
     case kFeedbackSourceAssistant:
     case kFeedbackSourceBrowserCommand:
-    case kFeedbackSourceConnectivityDiagnostics:
     case kFeedbackSourceDesktopTabGroups:
-    case kFeedbackSourceNetworkHealthPage:
     case kFeedbackSourceMdSettingsAboutPage:
     case kFeedbackSourceOldSettingsAboutPage:
-    case kFeedbackSourceQuickAnswers:
-    case kFeedbackSourceQuickOffice:
-    case kFeedbackSourceSettingsPerformancePage:
+    case kFeedbackSourceTabSearch:
       return true;
     default:
       return false;
@@ -154,7 +73,7 @@ void OnLacrosActiveTabUrlFeteched(
     const std::string& description_placeholder_text,
     const std::string& category_tag,
     const std::string& extra_diagnostics,
-    const absl::optional<GURL>& active_tab_url) {
+    const base::Optional<GURL>& active_tab_url) {
   GURL page_url;
   if (active_tab_url)
     page_url = *active_tab_url;
@@ -162,9 +81,11 @@ void OnLacrosActiveTabUrlFeteched(
                            description_placeholder_text, category_tag,
                            extra_diagnostics);
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
+// TODO(http://crbug.com/1132106): Include the following code only in
+// non-lacros builds after M87 beta when Feedback crosapi is available in all
+// ash versions.
 // Calls feedback private api to show Feedback ui.
 void RequestFeedbackFlow(const GURL& page_url,
                          Profile* profile,
@@ -173,47 +94,31 @@ void RequestFeedbackFlow(const GURL& page_url,
                          const std::string& description_placeholder_text,
                          const std::string& category_tag,
                          const std::string& extra_diagnostics) {
+  extensions::FeedbackPrivateAPI* api =
+      extensions::FeedbackPrivateAPI::GetFactoryInstance()->Get(profile);
+
   feedback_private::FeedbackFlow flow =
       source == kFeedbackSourceSadTabPage
           ? feedback_private::FeedbackFlow::FEEDBACK_FLOW_SADTABCRASH
           : feedback_private::FeedbackFlow::FEEDBACK_FLOW_REGULAR;
 
   bool include_bluetooth_logs = false;
-  bool show_questionnaire = false;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   if (IsGoogleInternalAccount(profile)) {
     flow = feedback_private::FeedbackFlow::FEEDBACK_FLOW_GOOGLEINTERNAL;
     include_bluetooth_logs = IsFromUserInteraction(source);
-    show_questionnaire = IsFromUserInteraction(source);
   }
-  if (base::FeatureList::IsEnabled(ash::features::kOsFeedback)) {
-    ash::SystemAppLaunchParams params{};
-    params.url = BuildFeedbackUrl(extra_diagnostics, description_template,
-                                  description_placeholder_text, category_tag,
-                                  page_url, source == kFeedbackSourceAssistant);
+#endif
 
-    ash::LaunchSystemWebAppAsync(profile, ash::SystemWebAppType::OS_FEEDBACK,
-                                 std::move(params));
-    return;
-  }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-  extensions::FeedbackPrivateAPI* api =
-      extensions::FeedbackPrivateAPI::GetFactoryInstance()->Get(profile);
-  auto info = api->CreateFeedbackInfo(
+  api->RequestFeedbackForFlow(
       description_template, description_placeholder_text, category_tag,
       extra_diagnostics, page_url, flow, source == kFeedbackSourceAssistant,
-      include_bluetooth_logs, show_questionnaire,
-      source == kFeedbackSourceChromeLabs ||
-          source == kFeedbackSourceKaleidoscope);
-
-  FeedbackDialog::CreateOrShow(profile, *info);
+      include_bluetooth_logs, source == kFeedbackSourceKaleidoscope);
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
 
 }  // namespace
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_LACROS)
 namespace internal {
 // Requests to show Feedback ui remotely in ash via crosapi mojo call.
 void ShowFeedbackPageLacros(const GURL& page_url,
@@ -239,7 +144,7 @@ void ShowFeedbackPage(const Browser* browser,
 
   Profile* profile = GetFeedbackProfile(browser);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // When users invoke the feedback dialog by pressing alt-shift-i without
   // an active ash window, we need to check if there is an active lacros window
   // and show its Url in the feedback dialog if there is any.
@@ -257,7 +162,7 @@ void ShowFeedbackPage(const Browser* browser,
   ShowFeedbackPage(page_url, profile, source, description_template,
                    description_placeholder_text, category_tag,
                    extra_diagnostics);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 }
 
 void ShowFeedbackPage(const GURL& page_url,
@@ -278,21 +183,28 @@ void ShowFeedbackPage(const GURL& page_url,
   UMA_HISTOGRAM_ENUMERATION("Feedback.RequestSource", source,
                             kFeedbackSourceCount);
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  // After M87 beta, Feedback API should be supported in crosapi with all ash
-  // versions on chromeOS platform where lacros is deployed.
-  DCHECK(
-      chromeos::LacrosService::Get()->IsAvailable<crosapi::mojom::Feedback>());
-  // Send request to ash via crosapi mojo to show Feedback ui from ash.
-  internal::ShowFeedbackPageLacros(page_url, source, description_template,
-                                   description_placeholder_text, category_tag,
-                                   extra_diagnostics);
+#if BUILDFLAG(IS_LACROS)
+  if (chromeos::LacrosChromeServiceImpl::Get()->IsFeedbackAvailable()) {
+    // Send request to ash via crosapi mojo to show Feedback ui from ash.
+    internal::ShowFeedbackPageLacros(page_url, source, description_template,
+                                     description_placeholder_text, category_tag,
+                                     extra_diagnostics);
+  } else {
+    // If ash version is too old, which does not support Feedback crosapi,
+    // invoke the Feedback ui from feedback extension in lacros and send
+    // a simple lacros feedback report for backward compatibility support.
+    // TODO(http://crbug.com/1132106): Remove this code after M87 beta
+    // when Feedback should be available in crosapi for all ash versions.
+    RequestFeedbackFlow(page_url, profile, source, description_template,
+                        description_placeholder_text, category_tag,
+                        extra_diagnostics);
+  }
 #else
   // Show feedback dialog using feedback extension API.
   RequestFeedbackFlow(page_url, profile, source, description_template,
                       description_placeholder_text, category_tag,
                       extra_diagnostics);
-#endif  //  BUILDFLAG(IS_CHROMEOS_LACROS)
+#endif  //  BUILDFLAG(IS_LACROS)
 }
 
 }  // namespace chrome

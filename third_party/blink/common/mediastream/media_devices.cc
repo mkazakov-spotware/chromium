@@ -1,9 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/public/common/mediastream/media_devices.h"
-#include "third_party/blink/public/mojom/mediastream/media_devices.mojom-shared.h"
 
 namespace blink {
 
@@ -19,7 +18,7 @@ WebMediaDeviceInfo::WebMediaDeviceInfo(
     const std::string& label,
     const std::string& group_id,
     const media::VideoCaptureControlSupport& video_control_support,
-    blink::mojom::FacingMode video_facing)
+    media::VideoFacingMode video_facing)
     : device_id(device_id),
       label(label),
       group_id(group_id),
@@ -31,7 +30,7 @@ WebMediaDeviceInfo::WebMediaDeviceInfo(
     : device_id(descriptor.device_id),
       label(descriptor.GetNameAndModel()),
       video_control_support(descriptor.control_support()),
-      video_facing(static_cast<blink::mojom::FacingMode>(descriptor.facing)) {}
+      video_facing(descriptor.facing) {}
 
 WebMediaDeviceInfo::~WebMediaDeviceInfo() = default;
 

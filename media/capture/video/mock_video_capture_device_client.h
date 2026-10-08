@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,11 +36,11 @@ class MockVideoCaptureDeviceClient : public VideoCaptureDevice::Client {
                     base::TimeDelta timestamp,
                     int frame_feedback_id));
   MOCK_METHOD5(OnIncomingCapturedExternalBuffer,
-               void(CapturedExternalVideoBuffer buffer,
-                    std::vector<CapturedExternalVideoBuffer> scaled_buffers,
+               void(gfx::GpuMemoryBufferHandle handle,
+                    const VideoCaptureFormat& format,
+                    const gfx::ColorSpace& color_space,
                     base::TimeTicks reference_time,
-                    base::TimeDelta timestamp,
-                    gfx::Rect visible_size));
+                    base::TimeDelta timestamp));
   MOCK_METHOD4(ReserveOutputBuffer,
                ReserveResult(const gfx::Size&, VideoPixelFormat, int, Buffer*));
   MOCK_METHOD3(OnError,

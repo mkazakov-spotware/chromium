@@ -10,20 +10,8 @@
   </head>
   <body>
     <script>
-      // https://fetch.spec.whatwg.org/#concept-method-normalize
-      var methods = {
-        "givenValues" : [
-          "GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS",
-          "get", "head", "post", "put", "delete", "options",
-          "Get", "hEad", "poSt", "Put", "deleTe", "optionS",
-          "PATCH", "patch", "patCh"
-        ],
-        "expectedValues" : [
-          "GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS",
-          "GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS",
-          "GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS",
-          "PATCH", "patch", "patCh"
-        ]
+      var methods = {"givenValues" : ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "head"],
+                     "expectedValues" : ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"]
       };
       var referrers = {"givenValues" : ["/relative/ressource",
                                         "http://{{host}}:{{ports[http][0]}}/relative/ressource?query=true#fragment",

@@ -1,51 +1,27 @@
 #!/usr/bin/env python3
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-"""Creates several files used by the size trybot to monitor size regressions.
-
-To test locally:
-1. Run diagnose_bloat.py to create some entries in out/binary-size-results
-2. Run this script with:
-HASH1=some hash within out/binary-size-results
-HASH2=some hash within out/binary-size-results
-mkdir tmp
-tools/binary_size/trybot_commit_size_checker.py \
-    --author Batman \
-    --review-subject "Testing 123" \
-    --review-url "https://google.com" \
-    --size-config-json-name \
-        out/binary-size-build/config/Trichrome_size_config.json \
-    --before-dir out/binary-size-results/$HASH1 \
-    --after-dir out/binary-size-results/$HASH2 \
-    --results-path output.json \
-    --staging-dir tmp \
-    --local-test \
-    -v
-"""
+"""Creates several files used by the size trybot to monitor size regressions."""
 
 import argparse
 import collections
 import json
 import logging
 import os
-import pathlib
 import re
 import sys
 
-sys.path.append(str(pathlib.Path(__file__).parent / 'libsupersize'))
+sys.path.append(os.path.join(os.path.dirname(__file__), 'libsupersize'))
 import archive
 import diagnose_bloat
 import diff
 import describe
-import dex_disassembly
 import file_format
 import models
-import native_disassembly
 
 _RESOURCE_SIZES_LOG = 'resource_sizes_log'
-_BASE_RESOURCE_SIZES_LOG = 'base_resource_sizes_log'
 _MUTABLE_CONSTANTS_LOG = 'mutable_contstants_log'
 _FOR_TESTING_LOG = 'for_test_log'
 _DEX_SYMBOLS_LOG = 'dex_symbols_log'
@@ -53,11 +29,9 @@ _SIZEDIFF_FILENAME = 'supersize_diff.sizediff'
 _HTML_REPORT_URL = (
     'https://chrome-supersize.firebaseapp.com/viewer.html?load_url={{' +
     _SIZEDIFF_FILENAME + '}}')
-_MAX_DEX_METHOD_COUNT_INCREASE = 200
+_MAX_DEX_METHOD_COUNT_INCREASE = 50
 _MAX_NORMALIZED_INCREASE = 16 * 1024
 _MAX_PAK_INCREASE = 1024
-_TRYBOT_MD_URL = ('https://chromium.googlesource.com/chromium/src/+/main/docs/'
-                  'speed/binary_size/android_binary_size_trybot.md')
 
 
 _PROGUARD_CLASS_MAPPING_RE = re.compile(r'(?P<original_name>[^ ]+)'
@@ -99,48 +73,41 @@ class _SizeDelta(collections.namedtuple(
     return self.name < other.name
 
 
-def _SymbolDiffHelper(title_fragment, symbols):
+def _SymbolDiffHelper(symbols):
   added = symbols.WhereDiffStatusIs(models.DIFF_STATUS_ADDED)
   removed = symbols.WhereDiffStatusIs(models.DIFF_STATUS_REMOVED)
   both = (added + removed).SortedByName()
-  lines = []
+  lines = None
   if len(both) > 0:
-    for group in both.GroupedByContainer():
-      counts = group.CountsByDiffStatus()
-      lines += [
-          '===== {} Added & Removed ({}) ====='.format(
-              title_fragment, group.full_name),
-          'Added: {}'.format(counts[models.DIFF_STATUS_ADDED]),
-          'Removed: {}'.format(counts[models.DIFF_STATUS_REMOVED]),
-          ''
-      ]
-      lines.extend(describe.GenerateLines(group, summarize=False))
-      lines += ['']
+    lines = [
+        'Added: {}'.format(len(added)),
+        'Removed: {}'.format(len(removed)),
+    ]
+    lines.extend(describe.GenerateLines(both, summarize=False))
 
   return lines, len(added) - len(removed)
 
 
 def _CreateMutableConstantsDelta(symbols):
-  symbols = (
-      symbols.WhereInSection('d').WhereNameMatches(r'\bk[A-Z]|\b[A-Z_]+$').
-      WhereFullNameMatches('abi:logically_const').Inverted())
-  lines, net_added = _SymbolDiffHelper('Mutable Constants', symbols)
+  symbols = symbols.WhereInSection('d').WhereNameMatches(r'\bk[A-Z]|\b[A-Z_]+$')
+  lines, net_added = _SymbolDiffHelper(symbols)
 
   return lines, _SizeDelta('Mutable Constants', 'symbols', 0, net_added)
 
 
 def _CreateMethodCountDelta(symbols):
-  symbols = symbols.WhereIsOnDemand(False)
   method_symbols = symbols.WhereInSection(models.SECTION_DEX_METHOD)
-  method_lines, net_method_added = _SymbolDiffHelper('Methods', method_symbols)
+  method_lines, net_method_added = _SymbolDiffHelper(method_symbols)
   class_symbols = symbols.WhereInSection(
       models.SECTION_DEX).WhereNameMatches('#').Inverted()
-  class_lines, _ = _SymbolDiffHelper('Classes', class_symbols)
+  class_lines, _ = _SymbolDiffHelper(class_symbols)
   lines = []
   if class_lines:
+    lines.append('===== Classes Added & Removed =====')
     lines.extend(class_lines)
     lines.extend(['', ''])  # empty lines added for clarity
   if method_lines:
+    lines.append('===== Methods Added & Removed =====')
     lines.extend(method_lines)
 
   return lines, _SizeDelta('Dex Methods Count', 'methods',
@@ -156,27 +123,15 @@ def _CreateResourceSizesDelta(before_dir, after_dir):
       sizes_diff.summary_stat.value)
 
 
-def _CreateBaseModuleResourceSizesDelta(before_dir, after_dir):
-  sizes_diff = diagnose_bloat.ResourceSizesDiff(include_sections=['base'])
-  sizes_diff.ProduceDiff(before_dir, after_dir)
-
-  return sizes_diff.DetailedResults(), _SizeDelta(
-      'Base Module Size', 'bytes', _MAX_NORMALIZED_INCREASE,
-      sizes_diff.CombinedSizeChangeForSection('base'))
-
-
-def _CreateSupersizeDiff(before_size_path, after_size_path, review_subject,
-                         review_url):
+def _CreateSupersizeDiff(main_file_name, before_dir, after_dir):
+  before_size_path = os.path.join(before_dir, main_file_name + '.size')
+  after_size_path = os.path.join(after_dir, main_file_name + '.size')
   before = archive.LoadAndPostProcessSizeInfo(before_size_path)
   after = archive.LoadAndPostProcessSizeInfo(after_size_path)
-  if review_subject:
-    after.build_config[models.BUILD_CONFIG_TITLE] = review_subject
-  if review_url:
-    after.build_config[models.BUILD_CONFIG_URL] = review_url
-  delta_size_info = diff.Diff(before, after, sort=True)
+  size_info_delta = diff.Diff(before, after, sort=True)
 
-  lines = list(describe.GenerateLines(delta_size_info))
-  return lines, delta_size_info
+  lines = list(describe.GenerateLines(size_info_delta))
+  return lines, size_info_delta
 
 
 def _CreateUncompressedPakSizeDeltas(symbols):
@@ -196,7 +151,7 @@ def _ExtractForTestingSymbolsFromSingleMapping(mapping_path):
     proguard_mapping_lines = f.readlines()
     current_class_orig = None
     for line in proguard_mapping_lines:
-      if line.isspace() or '#' in line:
+      if line.isspace():
         continue
       if not line.startswith(' '):
         match = _PROGUARD_CLASS_MAPPING_RE.search(line)
@@ -247,13 +202,21 @@ def _CreateTestingSymbolsDeltas(before_mapping_paths, after_mapping_paths):
                            len(added_symbols) - len(removed_symbols))
 
 
+def _GuessMappingFilename(to_result_path, container_filename):
+  guess = to_result_path(container_filename + '.mapping')
+  if os.path.exists(guess):
+    return guess
+  guess = to_result_path(
+      container_filename.replace('.minimal.apks', '.aab').replace(
+          '.apks', '.aab') + '.mapping')
+  if os.path.exists(guess):
+    return guess
+  return None
+
+
 def _GenerateBinarySizePluginDetails(metrics):
   binary_size_listings = []
   for delta, log_name in metrics:
-    # Only show the base module delta if it is significant.
-    if (log_name == _BASE_RESOURCE_SIZES_LOG and delta.IsAllowable()
-        and not delta.IsLargeImprovement()):
-      continue
     listing = {
         'name': delta.name,
         'delta': '{} {}'.format(_FormatNumber(delta.actual), delta.units),
@@ -267,7 +230,7 @@ def _GenerateBinarySizePluginDetails(metrics):
       binary_size_listings.insert(0, listing)
       continue
     # The main 'binary size' delta is always shown even if unchanged.
-    if delta.actual == 0:
+    elif delta.actual == 0:
       continue
     binary_size_listings.append(listing)
 
@@ -292,12 +255,16 @@ def _FormatNumber(number):
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--author', required=True, help='CL author')
-  parser.add_argument('--review-subject', help='Review subject')
-  parser.add_argument('--review-url', help='Review URL')
-  parser.add_argument('--size-config-json-name',
-                      required=True,
-                      help='Filename of JSON with configs for '
-                      'binary size measurement.')
+
+  name_parser = parser.add_mutually_exclusive_group(required=True)
+
+  # --size-config-json-name will replace --apk-name.
+  name_parser.add_argument('--size-config-json-name',
+                           help='Filename of JSON with configs for '
+                           'binary size measurement.')
+  # Deprecated.
+  name_parser.add_argument('--apk-name', help='Name of the apk (ex. Name.apk).')
+
   parser.add_argument(
       '--before-dir',
       required=True,
@@ -314,46 +281,37 @@ def main():
       '--staging-dir',
       required=True,
       help='Directory to write summary files to.')
-  parser.add_argument(
-      '--local-test',
-      action='store_true',
-      help='Allow input directories to be diagnose_bloat.py ones.')
   parser.add_argument('-v', '--verbose', action='store_true')
   args = parser.parse_args()
 
   if args.verbose:
     logging.basicConfig(level=logging.INFO)
 
-  before_path = pathlib.Path(args.before_dir)
-  after_path = pathlib.Path(args.after_dir)
-
-  before_path_resolver = lambda p: str(before_path / os.path.basename(p))
-  after_path_resolver = lambda p: str(after_path / os.path.basename(p))
-
-  if args.local_test:
-    config_path = args.size_config_json_name
+  to_before_path = lambda p: os.path.join(args.before_dir, os.path.basename(p))
+  to_after_path = lambda p: os.path.join(args.after_dir, os.path.basename(p))
+  if args.size_config_json_name:
+    with open(to_after_path(args.size_config_json_name), 'rt') as fh:
+      config = json.load(fh)
+    supersize_input_name = os.path.basename(config['supersize_input_file'])
+    before_mapping_paths = [to_before_path(f) for f in config['mapping_files']]
+    after_mapping_paths = [to_after_path(f) for f in config['mapping_files']]
   else:
-    config_path = after_path_resolver(args.size_config_json_name)
+    supersize_input_name = args.apk_name
+    # Guess separately for "before" and "after" to be robust against naming
+    # glitches as generate_commit_size_analysis.py's renaming scheme change.
+    before_mapping_path = _GuessMappingFilename(to_before_path, args.apk_name)
+    if not before_mapping_path:
+      raise Exception('Cannot find "before" proguard mapping file.')
+    before_mapping_paths = [before_mapping_path]
 
-  with open(config_path, 'rt') as fh:
-    config = json.load(fh)
-
-  if args.local_test:
-    size_filename = 'Trichrome.minimal.apks.size'
-  else:
-    size_filename = config['supersize_input_file'] + '.size'
-
-  before_mapping_paths = [
-      before_path_resolver(f) for f in config['mapping_files']
-  ]
-  after_mapping_paths = [
-      after_path_resolver(f) for f in config['mapping_files']
-  ]
+    after_mapping_path = _GuessMappingFilename(to_after_path, args.apk_name)
+    if not after_mapping_path:
+      raise Exception('Cannot find "after" proguard mapping file.')
+    after_mapping_paths = [after_mapping_path]
 
   logging.info('Creating Supersize diff')
   supersize_diff_lines, delta_size_info = _CreateSupersizeDiff(
-      before_path_resolver(size_filename), after_path_resolver(size_filename),
-      args.review_subject, args.review_url)
+      supersize_input_name, args.before_dir, args.after_dir)
 
   changed_symbols = delta_size_info.raw_symbols.WhereDiffStatusIs(
       models.DIFF_STATUS_UNCHANGED).Inverted()
@@ -375,8 +333,8 @@ def main():
 
   # Look for symbols with 'ForTest' in their name.
   logging.info('Checking for DEX symbols named "ForTest"')
-  testing_symbols_lines, test_symbols_delta = _CreateTestingSymbolsDeltas(
-      before_mapping_paths, after_mapping_paths)
+  testing_symbols_lines, test_symbols_delta = (_CreateTestingSymbolsDeltas(
+      before_mapping_paths, after_mapping_paths))
   size_deltas.add(test_symbols_delta)
   metrics.add((test_symbols_delta, _FOR_TESTING_LOG))
 
@@ -391,19 +349,6 @@ def main():
       args.before_dir, args.after_dir))
   size_deltas.add(resource_sizes_delta)
   metrics.add((resource_sizes_delta, _RESOURCE_SIZES_LOG))
-
-  logging.info('Creating base module sizes diff')
-  base_resource_sizes_lines, base_resource_sizes_delta = (
-      _CreateBaseModuleResourceSizesDelta(args.before_dir, args.after_dir))
-  size_deltas.add(base_resource_sizes_delta)
-  metrics.add((base_resource_sizes_delta, _BASE_RESOURCE_SIZES_LOG))
-
-  logging.info('Adding disassembly to dex symbols')
-  dex_disassembly.AddDisassembly(delta_size_info, before_path_resolver,
-                                 after_path_resolver)
-  logging.info('Adding disassembly to native symbols')
-  native_disassembly.AddDisassembly(delta_size_info, before_path_resolver,
-                                    after_path_resolver)
 
   # .sizediff can be consumed by the html viewer.
   logging.info('Creating HTML Report')
@@ -424,9 +369,9 @@ PASSING Checks:
 {}
 
 To understand what those checks are and how to pass them, see:
-{}
+https://chromium.googlesource.com/chromium/src/+/master/docs/speed/binary_size/android_binary_size_trybot.md
 
-""".format(failing_checks_text, passing_checks_text, _TRYBOT_MD_URL)
+""".format(failing_checks_text, passing_checks_text)
 
   status_code = int(bool(failing_deltas))
 
@@ -436,33 +381,26 @@ To understand what those checks are and how to pass them, see:
   if is_roller and mutable_constants_delta not in failing_deltas:
     status_code = 0
 
-  see_docs_lines = ['\n', f'For more details: {_TRYBOT_MD_URL}\n']
-
   summary = '<br>' + checks_text.replace('\n', '<br>')
   links_json = [
       {
           'name': 'Binary Size Details',
-          'lines': resource_sizes_lines + see_docs_lines,
+          'lines': resource_sizes_lines,
           'log_name': _RESOURCE_SIZES_LOG,
       },
       {
-          'name': 'Base Module Binary Size Details',
-          'lines': base_resource_sizes_lines + see_docs_lines,
-          'log_name': _BASE_RESOURCE_SIZES_LOG,
-      },
-      {
           'name': 'Mutable Constants Diff',
-          'lines': mutable_constants_lines + see_docs_lines,
+          'lines': mutable_constants_lines,
           'log_name': _MUTABLE_CONSTANTS_LOG,
       },
       {
           'name': 'ForTest Symbols Diff',
-          'lines': testing_symbols_lines + see_docs_lines,
+          'lines': testing_symbols_lines,
           'log_name': _FOR_TESTING_LOG,
       },
       {
           'name': 'Dex Class and Method Diff',
-          'lines': dex_delta_lines + see_docs_lines,
+          'lines': dex_delta_lines,
           'log_name': _DEX_SYMBOLS_LOG,
       },
       {

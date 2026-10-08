@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/controls/menu/menu_runner_handler.h"
 
-namespace views::test {
+namespace views {
+namespace test {
 
 MenuRunnerTestAPI::MenuRunnerTestAPI(MenuRunner* menu_runner)
     : menu_runner_(menu_runner) {}
@@ -21,4 +22,5 @@ void MenuRunnerTestAPI::SetMenuRunnerHandler(
   menu_runner_->SetRunnerHandler(std::move(menu_runner_handler));
 }
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views

@@ -1,17 +1,33 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+/**
+ * Event of the ProgressCenter class.
+ * @const @enum {string}
+ */
+const ProgressCenterEvent = {
+  /**
+   * Background page notifies item update to application windows.
+   */
+  ITEM_UPDATED: 'itemUpdated',
+
+  /**
+   * Background page notifies all the items are cleared.
+   */
+  RESET: 'reset'
+};
+Object.freeze(ProgressCenterEvent);
 
 /**
  * State of progress items.
  * @const @enum {string}
  */
-export const ProgressItemState = {
-  SCANNING: 'scanning',
+const ProgressItemState = {
   PROGRESSING: 'progressing',
   COMPLETED: 'completed',
   ERROR: 'error',
-  CANCELED: 'canceled',
+  CANCELED: 'canceled'
 };
 Object.freeze(ProgressItemState);
 
@@ -19,53 +35,33 @@ Object.freeze(ProgressItemState);
  * Type of progress items.
  * @const @enum {string}
  */
-export const ProgressItemType = {
+const ProgressItemType = {
   // The item is file copy operation.
   COPY: 'copy',
-  // The item is file delete operation.
-  DELETE: 'delete',
-  // The item is emptying the trash operation.
-  EMPTY_TRASH: 'empty-trash',
-  // The item is file extract operation.
-  EXTRACT: 'extract',
   // The item is file move operation.
   MOVE: 'move',
+  // The item is file delete operation.
+  DELETE: 'delete',
   // The item is file zip operation.
   ZIP: 'zip',
   // The item is drive sync operation.
   SYNC: 'sync',
-  // The item is restoring the trash.
-  RESTORE: 'restore',
-  RESTORE_TO_DESTINATION: 'restore_to_destination',
   // The item is general file transfer operation.
   // This is used for the mixed operation of summarized item.
   TRANSFER: 'transfer',
-  // The item is being trashed.
-  TRASH: 'trash',
   // The item is external drive format operation.
   FORMAT: 'format',
   // The item is archive operation.
   MOUNT_ARCHIVE: 'mount_archive',
   // The item is external drive partitioning operation.
-  PARTITION: 'partition',
+  PARTITION: 'partition'
 };
 Object.freeze(ProgressItemType);
 
 /**
- * Visual signals can have an additional button that, when clicked, performs
- * some arbitrary action. The `text` defines the button text to show and the
- * `callback` defines the arbitrary action.
- * @typedef {{
- *   text: string,
- *   callback: !function(),
- * }}
- */
-export let ProgressItemExtraButton;
-
-/**
  * Item of the progress center.
  */
-export class ProgressCenterItem {
+class ProgressCenterItem {
   constructor() {
     /**
      * Item ID.
@@ -141,40 +137,24 @@ export class ProgressCenterItem {
     this.cancelCallback = null;
 
     /**
+     * The current speed of the progress item in bytes per second.
+     * It's calculated using moving average formula.
+     * @type {number}
+     */
+    this.currentSpeed;
+
+    /**
+     * The average speed of the progress item in bytes per second.
+     * It is calculated using cumulative moving average.
+     * @type {number}
+     */
+    this.averageSpeed;
+
+    /**
      * The predicted remaining time to complete the progress item in seconds.
      * @type {number}
      */
     this.remainingTime;
-
-    /**
-     * Contains the text and callback on an extra button when the progress
-     * center item is either in COMPLETED or ERROR state.
-     * @type {!Map<!ProgressItemState, !ProgressItemExtraButton>}
-     */
-    this.extraButton = new Map();
-  }
-
-  /**
-   * Sets the extra button text and callback. Use this to add an additional
-   * button with configurable functionality.
-   * @param {string} text Text to use for the button.
-   * @param {!ProgressItemState} state Which state to show the button,
-   *     currently only `ProgressItemState.COMPLETED` and
-   *     `ProgressItemState.ERROR` are supported.
-   * @param {!function()} callback The callback to invoke when the button is
-   *     pressed.
-   */
-  setExtraButton(state, text, callback) {
-    if (!text || !callback) {
-      console.warn('Text and callback must be supplied');
-      return;
-    }
-    if (this.extraButton.has(state)) {
-      console.warn('Extra button already defined for state:', state);
-      return;
-    }
-    const extraButton = {text, callback};
-    this.extraButton.set(state, extraButton);
   }
 
   /**
@@ -228,6 +208,8 @@ export class ProgressCenterItem {
 
   /**
    * Clones the item.
+   * TODO(adanilo) This is used by ProgressCenterItemGroup only, remove when
+   * VS feedback panels are turned on permanently.
    * @return {!ProgressCenterItem} New item having the same properties as this.
    */
   clone() {

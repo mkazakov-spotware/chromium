@@ -45,7 +45,7 @@ class LayoutSVGResourceFilter final : public LayoutSVGResourceContainer {
 
   void RemoveAllClientsFromCache() override;
 
-  gfx::RectF ResourceBoundingBox(const gfx::RectF& reference_box) const;
+  FloatRect ResourceBoundingBox(const FloatRect& reference_box) const;
 
   SVGUnitTypes::SVGUnitType FilterUnits() const;
   SVGUnitTypes::SVGUnitType PrimitiveUnits() const;
@@ -57,16 +57,16 @@ class LayoutSVGResourceFilter final : public LayoutSVGResourceContainer {
   }
 
  private:
-  bool FindCycleFromSelf() const override;
+  bool FindCycleFromSelf(SVGResourcesCycleSolver&) const override;
 };
 
-template <>
-struct DowncastTraits<LayoutSVGResourceFilter> {
-  static bool AllowFrom(const LayoutSVGResourceContainer& container) {
-    return container.ResourceType() == kFilterResourceType;
-  }
-};
+// Get the LayoutSVGResourceFilter from the 'filter' property iff the 'filter'
+// is a single url(...) reference.
+LayoutSVGResourceFilter* GetFilterResourceForSVG(const ComputedStyle&);
+
+DEFINE_LAYOUT_SVG_RESOURCE_TYPE_CASTS(LayoutSVGResourceFilter,
+                                      kFilterResourceType);
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_SVG_LAYOUT_SVG_RESOURCE_FILTER_H_
+#endif

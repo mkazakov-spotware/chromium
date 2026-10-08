@@ -1,14 +1,11 @@
-// Copyright 2010 The Chromium Authors
+// Copyright 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_LAYERS_VIDEO_LAYER_H_
 #define CC_LAYERS_VIDEO_LAYER_H_
 
-#include <memory>
-
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
 #include "cc/cc_export.h"
 #include "cc/layers/layer.h"
 #include "media/base/video_transformation.h"
@@ -24,13 +21,12 @@ class VideoLayerImpl;
 class CC_EXPORT VideoLayer : public Layer {
  public:
   static scoped_refptr<VideoLayer> Create(VideoFrameProvider* provider,
-                                          media::VideoTransformation transform);
+                                          media::VideoRotation video_rotation);
 
   VideoLayer(const VideoLayer&) = delete;
   VideoLayer& operator=(const VideoLayer&) = delete;
 
-  std::unique_ptr<LayerImpl> CreateLayerImpl(
-      LayerTreeImpl* tree_impl) const override;
+  std::unique_ptr<LayerImpl> CreateLayerImpl(LayerTreeImpl* tree_impl) override;
 
   bool Update() override;
 
@@ -38,15 +34,14 @@ class CC_EXPORT VideoLayer : public Layer {
   void StopUsingProvider();
 
  private:
-  VideoLayer(VideoFrameProvider* provider,
-             media::VideoTransformation transform);
+  VideoLayer(VideoFrameProvider* provider, media::VideoRotation video_rotation);
   ~VideoLayer() override;
 
   // This pointer is only for passing to VideoLayerImpl's constructor. It should
   // never be dereferenced by this class.
-  ProtectedSequenceReadable<raw_ptr<VideoFrameProvider>> provider_;
+  VideoFrameProvider* provider_;
 
-  const media::VideoTransformation transform_;
+  media::VideoRotation video_rotation_;
 };
 
 }  // namespace cc

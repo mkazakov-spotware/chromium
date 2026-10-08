@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,21 +10,17 @@
 #include <vector>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "media/base/video_frame.h"
 #include "media/base/video_types.h"
 #include "media/gpu/command_buffer_helper.h"
 #include "media/video/picture.h"
-#include "media/video/video_decode_accelerator.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
-
-namespace gfx {
-struct GpuMemoryBufferHandle;
-}  // namespace gfx
 
 namespace media {
 
@@ -37,14 +33,9 @@ class PictureBufferManager
 
   // Creates a PictureBufferManager.
   //
-  // |allocate_gpu_memory_buffers|: If true, the PictureBufferManager will
-  //     allocate a GpuMemoryBuffer for each PictureBuffer in
-  //     CreatePictureBuffers(), and CreateVideoFrame() will return VideoFrames
-  //     backed by the allocated GpuMemoryBuffers.
   // |reuse_picture_buffer_cb|: Called when a picture is returned to the pool
   //     after its VideoFrame has been destructed.
   static scoped_refptr<PictureBufferManager> Create(
-      bool allocate_gpu_memory_buffers,
       ReusePictureBufferCB reuse_picture_buffer_cb);
 
   // Provides access to a CommandBufferHelper. This must be done before calling
@@ -62,8 +53,7 @@ class PictureBufferManager
   // preroll than to hang waiting for an output that can never come.
   virtual bool CanReadWithoutStalling() = 0;
 
-  // Creates and returns a vector of picture buffers and the corresponding
-  // GpuMemoryBuffer (if applicable, see constructor), or an empty vector on
+  // Creates and returns a vector of picture buffers, or an empty vector on
   // failure.
   //
   // |count|: Number of picture buffers to create.
@@ -72,6 +62,7 @@ class PictureBufferManager
   // |planes|: Number of image planes (textures) in the picture.
   // |texture_size|: Size of textures to create.
   // |texture_target|: Type of textures to create.
+  // |use_shared_image|: True if the created buffers should use shared images.
   //
   // Must be called on the GPU thread.
   //
@@ -82,13 +73,13 @@ class PictureBufferManager
   // are not automatically allocated.)
   // TODO(sandersd): The current implementation makes the context current.
   // Consider requiring that the context is already current.
-  virtual std::vector<std::pair<PictureBuffer, gfx::GpuMemoryBufferHandle>>
-  CreatePictureBuffers(uint32_t count,
-                       VideoPixelFormat pixel_format,
-                       uint32_t planes,
-                       gfx::Size texture_size,
-                       uint32_t texture_target,
-                       VideoDecodeAccelerator::TextureAllocationMode mode) = 0;
+  virtual std::vector<PictureBuffer> CreatePictureBuffers(
+      uint32_t count,
+      VideoPixelFormat pixel_format,
+      uint32_t planes,
+      gfx::Size texture_size,
+      uint32_t texture_target,
+      bool use_shared_image) = 0;
 
   // Dismisses a picture buffer from the pool.
   //
@@ -115,9 +106,6 @@ class PictureBufferManager
       gfx::Rect visible_rect,
       gfx::Size natural_size) = 0;
 
-  PictureBufferManager(const PictureBufferManager&) = delete;
-  PictureBufferManager& operator=(const PictureBufferManager&) = delete;
-
  protected:
   PictureBufferManager() = default;
 
@@ -126,6 +114,8 @@ class PictureBufferManager
 
  private:
   friend class base::RefCountedThreadSafe<PictureBufferManager>;
+
+  DISALLOW_COPY_AND_ASSIGN(PictureBufferManager);
 };
 
 }  // namespace media

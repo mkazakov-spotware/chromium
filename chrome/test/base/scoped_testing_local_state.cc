@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,5 +18,5 @@ ScopedTestingLocalState::ScopedTestingLocalState(
 
 ScopedTestingLocalState::~ScopedTestingLocalState() {
   EXPECT_EQ(&local_state_, browser_process_->local_state());
-  browser_process_->SetLocalState(nullptr);
+  browser_process_->SetLocalState(NULL);
 }

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,15 +22,14 @@ typedef extensions::api::downloads_internal::DetermineFilename::Params
 ExtensionFunction::ResponseAction
 DownloadsInternalDetermineFilenameFunction::Run() {
   std::unique_ptr<DetermineFilenameParams> params(
-      DetermineFilenameParams::Create(args()));
+      DetermineFilenameParams::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params.get());
-  EXTENSION_FUNCTION_VALIDATE(args().size() >= 2);
-  EXTENSION_FUNCTION_VALIDATE(args()[1].is_string());
-  const std::string& filename = args()[1].GetString();
+  base::FilePath::StringType filename;
+  EXTENSION_FUNCTION_VALIDATE(args_->GetString(1, &filename));
   std::string error;
   bool result = ExtensionDownloadsEventRouter::DetermineFilename(
       browser_context(), include_incognito_information(), extension()->id(),
-      params->download_id, base::FilePath::FromUTF8Unsafe(filename),
+      params->download_id, base::FilePath(filename),
       extensions::api::downloads::ParseFilenameConflictAction(
           params->conflict_action),
       &error);

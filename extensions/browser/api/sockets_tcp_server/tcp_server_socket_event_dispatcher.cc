@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 
 #include "base/bind.h"
 #include "base/lazy_instance.h"
+#include "base/task/post_task.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "extensions/browser/api/socket/tcp_socket.h"
 #include "extensions/browser/event_router.h"
@@ -127,7 +128,7 @@ void TCPServerSocketEventDispatcher::AcceptCallback(
     const AcceptParams& params,
     int result_code,
     mojo::PendingRemote<network::mojom::TCPConnectedSocket> socket,
-    const absl::optional<net::IPEndPoint>& remote_addr,
+    const base::Optional<net::IPEndPoint>& remote_addr,
     mojo::ScopedDataPipeConsumerHandle receive_pipe_handle,
     mojo::ScopedDataPipeProducerHandle send_pipe_handle) {
   DCHECK_CURRENTLY_ON(params.thread_id);
@@ -144,7 +145,8 @@ void TCPServerSocketEventDispatcher::AcceptCallback(
     sockets_tcp_server::AcceptInfo accept_info;
     accept_info.socket_id = params.socket_id;
     accept_info.client_socket_id = client_socket_id;
-    auto args = sockets_tcp_server::OnAccept::Create(accept_info);
+    std::unique_ptr<base::ListValue> args =
+        sockets_tcp_server::OnAccept::Create(accept_info);
     std::unique_ptr<Event> event(
         new Event(events::SOCKETS_TCP_SERVER_ON_ACCEPT,
                   sockets_tcp_server::OnAccept::kEventName, std::move(args)));
@@ -152,17 +154,17 @@ void TCPServerSocketEventDispatcher::AcceptCallback(
 
     // Post a task to delay the "accept" until the socket is available, as
     // calling StartAccept at this point would error with ERR_IO_PENDING.
-    content::BrowserThread::GetTaskRunnerForThread(params.thread_id)
-        ->PostTask(FROM_HERE,
-                   base::BindOnce(&TCPServerSocketEventDispatcher::StartAccept,
-                                  params));
+    base::PostTask(
+        FROM_HERE, {params.thread_id},
+        base::BindOnce(&TCPServerSocketEventDispatcher::StartAccept, params));
   } else {
     // Dispatch "onAcceptError" event but don't start another accept to avoid
     // potential infinite "accepts" if we have a persistent network error.
     sockets_tcp_server::AcceptErrorInfo accept_error_info;
     accept_error_info.socket_id = params.socket_id;
     accept_error_info.result_code = result_code;
-    auto args = sockets_tcp_server::OnAcceptError::Create(accept_error_info);
+    std::unique_ptr<base::ListValue> args =
+        sockets_tcp_server::OnAcceptError::Create(accept_error_info);
     std::unique_ptr<Event> event(new Event(
         events::SOCKETS_TCP_SERVER_ON_ACCEPT_ERROR,
         sockets_tcp_server::OnAcceptError::kEventName, std::move(args)));
@@ -170,10 +172,10 @@ void TCPServerSocketEventDispatcher::AcceptCallback(
 
     // Since we got an error, the socket is now "paused" until the application
     // "resumes" it.
-    ResumableTCPServerSocket* server_socket =
+    ResumableTCPServerSocket* socket =
         params.server_sockets->Get(params.extension_id, params.socket_id);
-    if (server_socket) {
-      server_socket->set_paused(true);
+    if (socket) {
+      socket->set_paused(true);
     }
   }
 }
@@ -200,17 +202,8 @@ void TCPServerSocketEventDispatcher::DispatchEvent(
   if (!extensions::ExtensionsBrowserClient::Get()->IsValidContext(context))
     return;
   EventRouter* router = EventRouter::Get(context);
-  if (router) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-    // Terminal app is the only non-extension to use sockets
-    // (crbug.com/1350479).
-    if (extension_id == kCrOSTerminal) {
-      router->DispatchEventToURL(GURL(extension_id), std::move(event));
-      return;
-    }
-#endif
+  if (router)
     router->DispatchEventToExtension(extension_id, std::move(event));
-  }
 }
 
 }  // namespace api

@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,12 @@
 // NOTE: The format of types has changed. 'FooType' is now
 //   'chrome.windows.FooType'.
 // Please run the closure compiler before committing changes.
-// See https://chromium.googlesource.com/chromium/src/+/main/docs/closure_compilation.md
+// See https://chromium.googlesource.com/chromium/src/+/master/docs/closure_compilation.md
 
 // IMPORTANT NOTE: Work-around for crbug.com/543822
 // s/chrome.windows.tabs.Tab/chrome.tabs.Tab/
 
-/**
- * @fileoverview Externs generated from namespace: windows
- * @externs
- */
+/** @fileoverview Externs generated from namespace: windows */
 
 /** @const */
 chrome.windows = {};
@@ -78,12 +75,12 @@ chrome.windows.CreateType = {
  *   populate: (boolean|undefined),
  *   windowTypes: (!Array<!chrome.windows.WindowType>|undefined)
  * }}
- * @see https://developer.chrome.com/extensions/windows#type-QueryOptions
+ * @see https://developer.chrome.com/extensions/windows#type-GetInfo
  */
-chrome.windows.QueryOptions;
+chrome.windows.GetInfo;
 
 /**
- * The windowId value that represents the absence of a Chrome browser window.
+ * The windowId value that represents the absence of a chrome browser window.
  * @type {number}
  * @see https://developer.chrome.com/extensions/windows#type-WINDOW_ID_NONE
  */
@@ -99,36 +96,36 @@ chrome.windows.WINDOW_ID_CURRENT;
 /**
  * Gets details about a window.
  * @param {number} windowId
- * @param {?chrome.windows.QueryOptions|undefined} queryOptions
+ * @param {?chrome.windows.GetInfo|undefined} getInfo
  * @param {function(!chrome.windows.Window): void} callback
  * @see https://developer.chrome.com/extensions/windows#method-get
  */
-chrome.windows.get = function(windowId, queryOptions, callback) {};
+chrome.windows.get = function(windowId, getInfo, callback) {};
 
 /**
  * Gets the <a href='#current-window'>current window</a>.
- * @param {?chrome.windows.QueryOptions|undefined} queryOptions
+ * @param {?chrome.windows.GetInfo|undefined} getInfo
  * @param {function(!chrome.windows.Window): void} callback
  * @see https://developer.chrome.com/extensions/windows#method-getCurrent
  */
-chrome.windows.getCurrent = function(queryOptions, callback) {};
+chrome.windows.getCurrent = function(getInfo, callback) {};
 
 /**
  * Gets the window that was most recently focused &mdash; typically the window
  * 'on top'.
- * @param {?chrome.windows.QueryOptions|undefined} queryOptions
+ * @param {?chrome.windows.GetInfo|undefined} getInfo
  * @param {function(!chrome.windows.Window): void} callback
  * @see https://developer.chrome.com/extensions/windows#method-getLastFocused
  */
-chrome.windows.getLastFocused = function(queryOptions, callback) {};
+chrome.windows.getLastFocused = function(getInfo, callback) {};
 
 /**
  * Gets all windows.
- * @param {?chrome.windows.QueryOptions|undefined} queryOptions
+ * @param {?chrome.windows.GetInfo|undefined} getInfo
  * @param {function(!Array<!chrome.windows.Window>): void} callback
  * @see https://developer.chrome.com/extensions/windows#method-getAll
  */
-chrome.windows.getAll = function(queryOptions, callback) {};
+chrome.windows.getAll = function(getInfo, callback) {};
 
 /**
  * Creates (opens) a new browser window with any optional sizing, position, or

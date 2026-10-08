@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,20 @@
 #include <utility>
 
 #include "base/bind.h"
+#include "base/optional.h"
+#include "base/task/post_task.h"
 #include "chrome/services/media_gallery_util/ipc_data_source.h"
 #include "chrome/services/media_gallery_util/video_thumbnail_parser.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace {
 
 void OnVideoFrameExtracted(
     std::unique_ptr<VideoThumbnailParser>,
     MediaParser::ExtractVideoFrameCallback video_frame_callback,
-    chrome::mojom::ExtractVideoFrameResultPtr result) {
-  std::move(video_frame_callback).Run(std::move(result));
+    bool success,
+    chrome::mojom::VideoFrameDataPtr frame_data,
+    const base::Optional<media::VideoDecoderConfig>& config) {
+  std::move(video_frame_callback).Run(success, std::move(frame_data), config);
 }
 
 }  // namespace
@@ -39,7 +42,6 @@ void MediaParserAndroid::ExtractVideoFrame(
   // be deleted when utility process dies or |OnVideoFrameExtracted| callback
   // is called.
   auto parser = std::make_unique<VideoThumbnailParser>(std::move(data_source));
-  auto* const parser_ptr = parser.get();
-  parser_ptr->Start(base::BindOnce(&OnVideoFrameExtracted, std::move(parser),
-                                   std::move(video_frame_callback)));
+  parser->Start(base::BindOnce(&OnVideoFrameExtracted, std::move(parser),
+                               std::move(video_frame_callback)));
 }

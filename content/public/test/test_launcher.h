@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "base/compiler_specific.h"
 #include "build/build_config.h"
 
 namespace base {
@@ -28,7 +29,7 @@ class TestLauncherDelegate {
   // data directory.
   virtual std::string GetUserDataDirectoryCommandLineSwitch();
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   // Android browser tests set the ContentMainDelegate itself for the test
   // harness to use, and do not go through ContentMain() in TestLauncher.
   virtual ContentMainDelegate* CreateContentMainDelegate() = 0;
@@ -64,15 +65,18 @@ class TestLauncherDelegate {
 
 // Launches tests using |launcher_delegate|. |parallel_jobs| is the number
 // of test jobs to be run in parallel.
-[[nodiscard]] int LaunchTests(TestLauncherDelegate* launcher_delegate,
-                              size_t parallel_jobs,
-                              int argc,
-                              char** argv);
+int LaunchTests(TestLauncherDelegate* launcher_delegate,
+                size_t parallel_jobs,
+                int argc,
+                char** argv) WARN_UNUSED_RESULT;
 
 TestLauncherDelegate* GetCurrentTestLauncherDelegate();
 
-// Returns a copy of the ContentMainParams initialized before launching tests.
-ContentMainParams CopyContentMainParams();
+#if !defined(OS_ANDROID)
+// ContentMain is not run on Android in the test process, and is run via
+// java for child processes. So ContentMainParams does not exist there.
+ContentMainParams* GetContentMainParams();
+#endif
 
 // Returns true if the currently running test has a prefix that indicates it
 // should run before a test of the same name without the prefix.

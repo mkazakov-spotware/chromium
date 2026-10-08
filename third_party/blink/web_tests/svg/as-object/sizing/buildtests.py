@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 test_template = """<!DOCTYPE html>
 <title>SVG sizing: &lt;object></title>

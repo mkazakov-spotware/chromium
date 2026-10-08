@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <map>
 #include <string>
 
+#include "base/macros.h"
 #include "remoting/base/chromoting_event.h"
 
 namespace remoting {
@@ -29,10 +30,6 @@ class FeedbackData {
   };
 
   FeedbackData();
-
-  FeedbackData(const FeedbackData&) = delete;
-  FeedbackData& operator=(const FeedbackData&) = delete;
-
   ~FeedbackData();
 
   void SetData(Key key, const std::string& data);
@@ -45,6 +42,8 @@ class FeedbackData {
 
  private:
   std::map<Key, std::string> data_;
+
+  DISALLOW_COPY_AND_ASSIGN(FeedbackData);
 };
 
 }  // namespace remoting

@@ -1,13 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_BOOKMARKS_BROWSER_TITLED_URL_NODE_H_
 #define COMPONENTS_BOOKMARKS_BROWSER_TITLED_URL_NODE_H_
 
-#include <string>
-#include <vector>
-
+#include "base/containers/span.h"
 #include "base/strings/string_piece.h"
 #include "url/gurl.h"
 
@@ -19,7 +17,7 @@ namespace bookmarks {
 class TitledUrlNode {
  public:
   // Returns the title for the node.
-  virtual const std::u16string& GetTitledUrlNodeTitle() const = 0;
+  virtual const base::string16& GetTitledUrlNodeTitle() const = 0;
 
   // Returns the URL for the node.
   virtual const GURL& GetTitledUrlNodeUrl() const = 0;
@@ -30,7 +28,7 @@ class TitledUrlNode {
       const = 0;
 
  protected:
-  virtual ~TitledUrlNode() = default;
+  virtual ~TitledUrlNode() {}
 };
 
 }  // namespace bookmarks

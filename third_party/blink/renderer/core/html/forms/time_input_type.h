@@ -62,16 +62,9 @@ class TimeInputType final : public BaseTemporalInputType {
                      bool has_hour,
                      bool has_minute,
                      bool has_second) const override;
-  String AriaLabelForPickerIndicator() const override;
+  String AriaRoleForPickerIndicator() const override;
   String ReversedRangeOutOfRangeText(const Decimal& minimum,
                                      const Decimal& maximum) const override;
-};
-
-template <>
-struct DowncastTraits<TimeInputType> {
-  static bool AllowFrom(const InputType& type) {
-    return type.IsTimeInputType();
-  }
 };
 
 }  // namespace blink

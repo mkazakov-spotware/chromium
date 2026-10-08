@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
 
@@ -23,10 +24,6 @@ class BrowsingDataRemoverFactory : public BrowserStateKeyedServiceFactory {
       ChromeBrowserState* browser_state);
   static BrowsingDataRemoverFactory* GetInstance();
 
-  BrowsingDataRemoverFactory(const BrowsingDataRemoverFactory&) = delete;
-  BrowsingDataRemoverFactory& operator=(const BrowsingDataRemoverFactory&) =
-      delete;
-
  private:
   friend class base::NoDestructor<BrowsingDataRemoverFactory>;
 
@@ -38,6 +35,8 @@ class BrowsingDataRemoverFactory : public BrowserStateKeyedServiceFactory {
       web::BrowserState* context) const override;
   web::BrowserState* GetBrowserStateToUse(
       web::BrowserState* context) const override;
+
+  DISALLOW_COPY_AND_ASSIGN(BrowsingDataRemoverFactory);
 };
 
 #endif  // IOS_CHROME_BROWSER_BROWSING_DATA_BROWSING_DATA_REMOVER_FACTORY_H_

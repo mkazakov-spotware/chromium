@@ -30,7 +30,7 @@ section > div > div > div {
 }
 
 .reference {
-    background: Mark;
+    background: infobackground;
 }
 
 .size-fail > .results {

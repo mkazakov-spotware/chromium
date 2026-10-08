@@ -1,31 +1,15 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that pseudo elements and their styles are handled properly.\n`);
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
   await TestRunner.showPanel('elements');
   await TestRunner.loadHTML(`
       <style>
       #inspected::target-text {
         color: green;
-      }
-
-      #inspected::spelling-error {
-        color: orange;
-      }
-
-      #inspected::grammar-error {
-        color: teal;
-      }
-
-      #inspected::highlight(foo) {
-        color: fuchsia;
-      }
-
-      #inspected::highlight(bar) {
-        color: cyan;
       }
 
       #inspected {

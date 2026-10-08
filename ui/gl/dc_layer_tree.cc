@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,10 @@
 
 #include "ui/gl/dc_layer_tree.h"
 
-#include <utility>
-
-#include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/trace_event/trace_event.h"
 #include "ui/gl/direct_composition_child_surface_win.h"
-#include "ui/gl/direct_composition_support.h"
-#include "ui/gl/gl_angle_util_win.h"
+#include "ui/gl/direct_composition_surface_win.h"
 #include "ui/gl/swap_chain_presenter.h"
 
 namespace gl {
@@ -21,37 +17,27 @@ namespace {
 bool SizeContains(const gfx::Size& a, const gfx::Size& b) {
   return gfx::Rect(a).Contains(gfx::Rect(b));
 }
-
 }  // namespace
-
-VideoProcessorWrapper::VideoProcessorWrapper() = default;
-VideoProcessorWrapper::~VideoProcessorWrapper() = default;
-VideoProcessorWrapper::VideoProcessorWrapper(VideoProcessorWrapper&& other) =
-    default;
-VideoProcessorWrapper& VideoProcessorWrapper::operator=(
-    VideoProcessorWrapper&& other) = default;
 
 DCLayerTree::DCLayerTree(bool disable_nv12_dynamic_textures,
                          bool disable_vp_scaling,
-                         bool disable_vp_super_resolution,
-                         bool no_downscaled_overlay_promotion)
+                         bool reset_vp_when_colorspace_changes)
     : disable_nv12_dynamic_textures_(disable_nv12_dynamic_textures),
       disable_vp_scaling_(disable_vp_scaling),
-      disable_vp_super_resolution_(disable_vp_super_resolution),
-      no_downscaled_overlay_promotion_(no_downscaled_overlay_promotion),
-      ink_renderer_(std::make_unique<DelegatedInkRenderer>()) {}
+      reset_vp_when_colorspace_changes_(reset_vp_when_colorspace_changes) {}
 
 DCLayerTree::~DCLayerTree() = default;
 
-bool DCLayerTree::Initialize(HWND window) {
+bool DCLayerTree::Initialize(
+    HWND window,
+    Microsoft::WRL::ComPtr<ID3D11Device> d3d11_device,
+    Microsoft::WRL::ComPtr<IDCompositionDevice2> dcomp_device) {
+  DCHECK(window);
   window_ = window;
-  DCHECK(window_);
-
-  d3d11_device_ = QueryD3D11DeviceObjectFromANGLE();
-  DCHECK(d3d11_device_);
-
-  dcomp_device_ = GetDirectCompositionDevice();
-  DCHECK(dcomp_device_);
+  DCHECK(d3d11_device);
+  d3d11_device_ = std::move(d3d11_device);
+  DCHECK(dcomp_device);
+  dcomp_device_ = std::move(dcomp_device);
 
   Microsoft::WRL::ComPtr<IDCompositionDesktopDevice> desktop_device;
   dcomp_device_.As(&desktop_device);
@@ -79,42 +65,49 @@ bool DCLayerTree::Initialize(HWND window) {
   return true;
 }
 
-VideoProcessorWrapper* DCLayerTree::InitializeVideoProcessor(
+bool DCLayerTree::InitializeVideoProcessor(
     const gfx::Size& input_size,
     const gfx::Size& output_size,
-    bool is_hdr_output) {
-  VideoProcessorWrapper& video_processor_wrapper =
-      GetOrCreateVideoProcessor(is_hdr_output);
-
-  if (!video_processor_wrapper.video_device) {
+    const gfx::ColorSpace& input_color_space,
+    const gfx::ColorSpace& output_color_space,
+    Microsoft::WRL::ComPtr<IDXGISwapChain1> swap_chain,
+    bool is_yuv_swapchain) {
+  if (!video_device_) {
     // This can fail if the D3D device is "Microsoft Basic Display Adapter".
-    if (FAILED(d3d11_device_.As(&video_processor_wrapper.video_device))) {
+    if (FAILED(d3d11_device_.As(&video_device_))) {
       DLOG(ERROR) << "Failed to retrieve video device from D3D11 device";
       DCHECK(false);
-      DisableDirectCompositionOverlays();
-      return nullptr;
+      DirectCompositionSurfaceWin::DisableOverlays();
+      return false;
     }
-    DCHECK(video_processor_wrapper.video_device);
+    DCHECK(video_device_);
 
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> context;
     d3d11_device_->GetImmediateContext(&context);
     DCHECK(context);
-    context.As(&video_processor_wrapper.video_context);
-    DCHECK(video_processor_wrapper.video_context);
+    context.As(&video_context_);
+    DCHECK(video_context_);
   }
 
-  if (video_processor_wrapper.video_processor &&
-      SizeContains(video_processor_wrapper.video_input_size, input_size) &&
-      SizeContains(video_processor_wrapper.video_output_size, output_size))
-    return &video_processor_wrapper;
-
+  bool colorspace_changed = !(input_color_space == video_input_color_space_ &&
+                              output_color_space == video_output_color_space_ &&
+                              is_yuv_video_output_ == is_yuv_swapchain);
+  if (video_processor_ && SizeContains(video_input_size_, input_size) &&
+      SizeContains(video_output_size_, output_size) &&
+      !(colorspace_changed && reset_vp_when_colorspace_changes_)) {
+    if (colorspace_changed) {
+      SetColorSpaceForVideoProcessor(input_color_space, output_color_space,
+                                     std::move(swap_chain), is_yuv_swapchain);
+    }
+    return true;
+  }
   TRACE_EVENT2("gpu", "DCLayerTree::InitializeVideoProcessor", "input_size",
                input_size.ToString(), "output_size", output_size.ToString());
-  video_processor_wrapper.video_input_size = input_size;
-  video_processor_wrapper.video_output_size = output_size;
+  video_input_size_ = input_size;
+  video_output_size_ = output_size;
 
-  video_processor_wrapper.video_processor.Reset();
-  video_processor_wrapper.video_processor_enumerator.Reset();
+  video_processor_.Reset();
+  video_processor_enumerator_.Reset();
   D3D11_VIDEO_PROCESSOR_CONTENT_DESC desc = {};
   desc.InputFrameFormat = D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;
   desc.InputFrameRate.Numerator = 60;
@@ -126,41 +119,78 @@ VideoProcessorWrapper* DCLayerTree::InitializeVideoProcessor(
   desc.OutputWidth = output_size.width();
   desc.OutputHeight = output_size.height();
   desc.Usage = D3D11_VIDEO_USAGE_PLAYBACK_NORMAL;
-  HRESULT hr =
-      video_processor_wrapper.video_device->CreateVideoProcessorEnumerator(
-          &desc, &video_processor_wrapper.video_processor_enumerator);
+  HRESULT hr = video_device_->CreateVideoProcessorEnumerator(
+      &desc, &video_processor_enumerator_);
+  base::UmaHistogramSparse(
+      "GPU.DirectComposition.CreateVideoProcessorEnumerator", hr);
   if (FAILED(hr)) {
     DLOG(ERROR) << "CreateVideoProcessorEnumerator failed with error 0x"
                 << std::hex << hr;
     // It might fail again next time. Disable overlay support so
     // overlay processor will stop sending down overlay frames.
-    DisableDirectCompositionOverlays();
-    return nullptr;
+    DirectCompositionSurfaceWin::DisableOverlays();
+    return false;
   }
-  hr = video_processor_wrapper.video_device->CreateVideoProcessor(
-      video_processor_wrapper.video_processor_enumerator.Get(), 0,
-      &video_processor_wrapper.video_processor);
+
+  hr = video_device_->CreateVideoProcessor(video_processor_enumerator_.Get(), 0,
+                                           &video_processor_);
+  base::UmaHistogramSparse(
+      "GPU.DirectComposition.VideoDeviceCreateVideoProcessor", hr);
   if (FAILED(hr)) {
     DLOG(ERROR) << "CreateVideoProcessor failed with error 0x" << std::hex
                 << hr;
     // It might fail again next time. Disable overlay support so
     // overlay processor will stop sending down overlay frames.
-    DisableDirectCompositionOverlays();
-    return nullptr;
+    DirectCompositionSurfaceWin::DisableOverlays();
+    return false;
   }
   // Auto stream processing (the default) can hurt power consumption.
-  video_processor_wrapper.video_context
-      ->VideoProcessorSetStreamAutoProcessingMode(
-          video_processor_wrapper.video_processor.Get(), 0, FALSE);
-  return &video_processor_wrapper;
+  video_context_->VideoProcessorSetStreamAutoProcessingMode(
+      video_processor_.Get(), 0, FALSE);
+  SetColorSpaceForVideoProcessor(input_color_space, output_color_space,
+                                 std::move(swap_chain), is_yuv_swapchain);
+  return true;
 }
 
-VideoProcessorWrapper& DCLayerTree::GetOrCreateVideoProcessor(bool is_hdr) {
-  VideoProcessorType video_processor_type =
-      is_hdr ? VideoProcessorType::kHDR : VideoProcessorType::kSDR;
-  return video_processor_map_
-      .try_emplace(video_processor_type, VideoProcessorWrapper())
-      .first->second;
+void DCLayerTree::SetColorSpaceForVideoProcessor(
+    const gfx::ColorSpace& input_color_space,
+    const gfx::ColorSpace& output_color_space,
+    Microsoft::WRL::ComPtr<IDXGISwapChain1> swap_chain,
+    bool is_yuv_swapchain) {
+  Microsoft::WRL::ComPtr<IDXGISwapChain3> swap_chain3;
+  Microsoft::WRL::ComPtr<ID3D11VideoContext1> context1;
+  if (SUCCEEDED(swap_chain.As(&swap_chain3)) &&
+      SUCCEEDED(video_context_.As(&context1))) {
+    DCHECK(swap_chain3);
+    DCHECK(context1);
+    // Set input color space.
+    context1->VideoProcessorSetStreamColorSpace1(
+        video_processor_.Get(), 0,
+        gfx::ColorSpaceWin::GetDXGIColorSpace(input_color_space));
+    // Set output color space.
+    DXGI_COLOR_SPACE_TYPE output_dxgi_color_space =
+        gfx::ColorSpaceWin::GetDXGIColorSpace(output_color_space,
+                                              /*force_yuv=*/is_yuv_swapchain);
+
+    if (SUCCEEDED(swap_chain3->SetColorSpace1(output_dxgi_color_space))) {
+      context1->VideoProcessorSetOutputColorSpace1(video_processor_.Get(),
+                                                   output_dxgi_color_space);
+    }
+  } else {
+    // This can't handle as many different types of color spaces, so use it
+    // only if ID3D11VideoContext1 isn't available.
+    D3D11_VIDEO_PROCESSOR_COLOR_SPACE src_d3d11_color_space =
+        gfx::ColorSpaceWin::GetD3D11ColorSpace(input_color_space);
+    video_context_->VideoProcessorSetStreamColorSpace(video_processor_.Get(), 0,
+                                                      &src_d3d11_color_space);
+    D3D11_VIDEO_PROCESSOR_COLOR_SPACE output_d3d11_color_space =
+        gfx::ColorSpaceWin::GetD3D11ColorSpace(output_color_space);
+    video_context_->VideoProcessorSetOutputColorSpace(
+        video_processor_.Get(), &output_d3d11_color_space);
+  }
+  video_input_color_space_ = input_color_space;
+  video_output_color_space_ = output_color_space;
+  is_yuv_video_output_ = is_yuv_swapchain;
 }
 
 Microsoft::WRL::ComPtr<IDXGISwapChain1>
@@ -170,160 +200,47 @@ DCLayerTree::GetLayerSwapChainForTesting(size_t index) const {
   return nullptr;
 }
 
-// Return properties of non root swap chain at given index.
 void DCLayerTree::GetSwapChainVisualInfoForTesting(size_t index,
                                                    gfx::Transform* transform,
                                                    gfx::Point* offset,
                                                    gfx::Rect* clip_rect) const {
-  for (size_t i = 0, swapchain_i = 0; i < visual_subtrees_.size(); ++i) {
-    // Skip root layer.
-    if (visual_subtrees_[i]->z_order() == 0)
-      continue;
-
-    if (swapchain_i == index) {
-      visual_subtrees_[i]->GetSwapChainVisualInfoForTesting(  // IN-TEST
-          transform, offset, clip_rect);
-      return;
-    }
-    swapchain_i++;
+  if (index < video_swap_chains_.size()) {
+    video_swap_chains_[index]->GetSwapChainVisualInfoForTesting(  // IN-TEST
+        transform, offset, clip_rect);
   }
-}
-
-DCLayerTree::VisualSubtree::VisualSubtree() = default;
-DCLayerTree::VisualSubtree::~VisualSubtree() = default;
-
-bool DCLayerTree::VisualSubtree::Update(
-    IDCompositionDevice2* dcomp_device,
-    Microsoft::WRL::ComPtr<IUnknown> dcomp_visual_content,
-    uint64_t dcomp_surface_serial,
-    const gfx::Vector2d& quad_rect_offset,
-    const gfx::Transform& quad_to_root_transform,
-    const absl::optional<gfx::Rect>& clip_rect_in_root) {
-  bool needs_commit = false;
-
-  // Methods that update the visual tree can only fail with OOM. We'll assert
-  // success in this function to aid in debugging.
-  HRESULT hr = S_OK;
-
-  if (!clip_visual_) {
-    needs_commit = true;
-
-    // All the visual are created together on the first |Update|.
-    DCHECK(!content_visual_);
-    hr = dcomp_device->CreateVisual(&clip_visual_);
-    CHECK_EQ(hr, S_OK);
-    hr = dcomp_device->CreateVisual(&content_visual_);
-    CHECK_EQ(hr, S_OK);
-    hr = clip_visual_->AddVisual(content_visual_.Get(), FALSE, nullptr);
-    CHECK_EQ(hr, S_OK);
-  }
-
-  if (clip_rect_ != clip_rect_in_root) {
-    clip_rect_ = clip_rect_in_root;
-    needs_commit = true;
-
-    if (clip_rect_.has_value()) {
-      // DirectComposition clips happen in the pre-transform visual space, while
-      // cc/ clips happen post-transform. So the clip needs to go on a separate
-      // parent visual that's untransformed.
-      gfx::Rect clip_rect = clip_rect_.value();
-      hr = clip_visual_->SetClip(D2D1::RectF(
-          clip_rect.x(), clip_rect.y(), clip_rect.right(), clip_rect.bottom()));
-      CHECK_EQ(hr, S_OK);
-    } else {
-      hr = clip_visual_->SetClip(nullptr);
-      CHECK_EQ(hr, S_OK);
-    }
-  }
-
-  if (offset_ != quad_rect_offset) {
-    offset_ = quad_rect_offset;
-    needs_commit = true;
-
-    // Visual offset is applied before transform so it behaves similar to how
-    // the compositor uses transform to map quad rect in layer space to target
-    // space.
-    hr = content_visual_->SetOffsetX(offset_.x());
-    CHECK_EQ(hr, S_OK);
-    hr = content_visual_->SetOffsetY(offset_.y());
-    CHECK_EQ(hr, S_OK);
-  }
-
-  if (transform_ != quad_to_root_transform) {
-    transform_ = quad_to_root_transform;
-    needs_commit = true;
-
-    DCHECK(transform_.IsFlat());
-    D2D_MATRIX_3X2_F matrix =
-        // D2D_MATRIX_3x2_F is row-major.
-        D2D1::Matrix3x2F(transform_.rc(0, 0), transform_.rc(1, 0),  //
-                         transform_.rc(0, 1), transform_.rc(1, 1),  //
-                         transform_.rc(0, 3), transform_.rc(1, 3));
-    hr = content_visual_->SetTransform(matrix);
-    CHECK_EQ(hr, S_OK);
-  }
-
-  if (dcomp_visual_content_ != dcomp_visual_content) {
-    dcomp_visual_content_ = std::move(dcomp_visual_content);
-    needs_commit = true;
-    hr = content_visual_->SetContent(dcomp_visual_content_.Get());
-  }
-
-  if (dcomp_surface_serial_ != dcomp_surface_serial) {
-    // If dcomp_surface data is updated needs a commit.
-    needs_commit = true;
-    dcomp_surface_serial_ = dcomp_surface_serial;
-  }
-#if DCHECK_IS_ON()
-  // dcomp_surface_serial_ is used for root surface only. For other surfaces
-  // it's always zero.
-  if (dcomp_surface_serial_ > 0)
-    DCHECK_EQ(z_order_, 0);
-#endif
-  return needs_commit;
-}
-
-void DCLayerTree::VisualSubtree::GetSwapChainVisualInfoForTesting(
-    gfx::Transform* transform,
-    gfx::Point* offset,
-    gfx::Rect* clip_rect) const {
-  *transform = transform_;
-  *offset = gfx::Point() + offset_;
-  *clip_rect = clip_rect_.value_or(gfx::Rect());
 }
 
 bool DCLayerTree::CommitAndClearPendingOverlays(
     DirectCompositionChildSurfaceWin* root_surface) {
   TRACE_EVENT1("gpu", "DCLayerTree::CommitAndClearPendingOverlays",
                "num_pending_overlays", pending_overlays_.size());
-  DCHECK(!needs_rebuild_visual_tree_ || ink_renderer_->HasBeenInitialized());
+  DCHECK(!needs_rebuild_visual_tree_);
+  bool needs_commit = false;
+  // Check if root surface visual needs a commit first.
+  if (!root_surface_visual_) {
+    dcomp_device_->CreateVisual(&root_surface_visual_);
+    needs_rebuild_visual_tree_ = true;
+  }
 
   if (root_surface->swap_chain() != root_swap_chain_ ||
       root_surface->dcomp_surface() != root_dcomp_surface_) {
     root_swap_chain_ = root_surface->swap_chain();
     root_dcomp_surface_ = root_surface->dcomp_surface();
+    root_surface_visual_->SetContent(
+        root_swap_chain_ ? static_cast<IUnknown*>(root_swap_chain_.Get())
+                         : static_cast<IUnknown*>(root_dcomp_surface_.Get()));
     needs_rebuild_visual_tree_ = true;
+  }
+
+  // dcomp_surface data is updated. But visual tree is not affected.
+  // Just needs a commit.
+  if (root_surface->dcomp_surface_serial() != root_dcomp_surface_serial_) {
+    root_dcomp_surface_serial_ = root_surface->dcomp_surface_serial();
+    needs_commit = true;
   }
 
   std::vector<std::unique_ptr<ui::DCRendererLayerParams>> overlays;
   std::swap(pending_overlays_, overlays);
-
-  // Grow or shrink list of swap chain presenters to match pending overlays.
-  if (video_swap_chains_.size() != overlays.size()) {
-    video_swap_chains_.resize(overlays.size());
-    // If we need to grow or shrink swap chain presenters, we'll need to add or
-    // remove visuals.
-    needs_rebuild_visual_tree_ = true;
-  }
-
-  // Add a placeholder overlay for the root surface, at a z-order of 0.
-  auto root_params = std::make_unique<ui::DCRendererLayerParams>();
-  root_params->z_order = 0;
-  root_params->dcomp_visual_content =
-      root_swap_chain_ ? static_cast<IUnknown*>(root_swap_chain_.Get())
-                       : static_cast<IUnknown*>(root_dcomp_surface_.Get());
-  root_params->dcomp_surface_serial = root_surface->dcomp_surface_serial();
-  overlays.emplace_back(std::move(root_params));
 
   // Sort layers by z-order.
   std::sort(overlays.begin(), overlays.end(),
@@ -331,125 +248,65 @@ bool DCLayerTree::CommitAndClearPendingOverlays(
               return a->z_order < b->z_order;
             });
 
-  // |overlays| and |video_swap_chains_| do not have a 1:1 mapping because the
-  // root surface placeholder overlay does not have SwapChainPresenter, so there
-  // is one less element in |video_swap_chains_| than |overlays|.
-  auto video_swap_iter = video_swap_chains_.begin();
-
-  // Populate |overlays| with information required to build dcomp visual tree.
-  for (size_t i = 0; i < overlays.size(); ++i) {
-    // Skip root surface overlay.
-    if (overlays[i]->z_order == 0)
-      continue;
-    // Present to swap chain and update the overlay with transform, clip
-    // and content.
-    auto& video_swap_chain = *(video_swap_iter++);
-    if (!video_swap_chain) {
+  // If we need to grow or shrink swap chain presenters, we'll need to add or
+  // remove visuals.
+  if (video_swap_chains_.size() != overlays.size()) {
+    // Grow or shrink list of swap chain presenters to match pending overlays.
+    std::vector<std::unique_ptr<SwapChainPresenter>> new_video_swap_chains;
+    for (size_t i = 0; i < overlays.size(); ++i) {
       // TODO(sunnyps): Try to find a matching swap chain based on size, type of
       // swap chain, gl image, etc.
-      video_swap_chain = std::make_unique<SwapChainPresenter>(
-          this, window_, d3d11_device_, dcomp_device_);
-      if (frame_rate_ > 0)
-        video_swap_chain->SetFrameRate(frame_rate_);
+      if (i < video_swap_chains_.size()) {
+        new_video_swap_chains.emplace_back(std::move(video_swap_chains_[i]));
+      } else {
+        new_video_swap_chains.emplace_back(std::make_unique<SwapChainPresenter>(
+            this, window_, d3d11_device_, dcomp_device_));
+        if (frame_rate_ > 0)
+          new_video_swap_chains.back()->SetFrameRate(frame_rate_);
+      }
     }
-    gfx::Transform transform;
-    gfx::Rect clip_rect;
-    if (!video_swap_chain->PresentToSwapChain(*overlays[i], &transform,
-                                              &clip_rect)) {
+    video_swap_chains_.swap(new_video_swap_chains);
+    needs_rebuild_visual_tree_ = true;
+  }
+
+  // Present to each swap chain.
+  for (size_t i = 0; i < overlays.size(); ++i) {
+    auto& video_swap_chain = video_swap_chains_[i];
+    if (!video_swap_chain->PresentToSwapChain(*overlays[i])) {
       DLOG(ERROR) << "PresentToSwapChain failed";
       return false;
     }
-    overlays[i]->transform = transform;
-    if (overlays[i]->clip_rect.has_value())
-      overlays[i]->clip_rect = clip_rect;
-    overlays[i]->dcomp_visual_content = video_swap_chain->content();
   }
 
-  bool status = BuildVisualTreeHelper(overlays, needs_rebuild_visual_tree_);
-  needs_rebuild_visual_tree_ = false;
-
-  return status;
-}
-
-bool DCLayerTree::BuildVisualTreeHelper(
-    const std::vector<std::unique_ptr<ui::DCRendererLayerParams>>& overlays,
-    bool needs_rebuild_visual_tree) {
-  // Grow or shrink list of visual subtrees to match pending overlays.
-  size_t old_visual_subtrees_size = visual_subtrees_.size();
-  if (old_visual_subtrees_size != overlays.size()) {
-    visual_subtrees_.resize(overlays.size());
-    needs_rebuild_visual_tree = true;
-  }
-
-#if DCHECK_IS_ON()
-  bool root_surface_visual_updated = false;
-#endif
-  bool needs_commit = false;
-  // Build or update visual subtree for each overlay.
-  for (size_t i = 0; i < overlays.size(); ++i) {
-    DCHECK(visual_subtrees_[i] || i >= old_visual_subtrees_size);
-    if (!visual_subtrees_[i])
-      visual_subtrees_[i] = std::make_unique<VisualSubtree>();
-
-    if (visual_subtrees_[i]->z_order() != overlays[i]->z_order) {
-      visual_subtrees_[i]->set_z_order(overlays[i]->z_order);
-
-      // Z-order is a property of the root visual's child list, not any property
-      // on the subtree's nodes. If it changes, we need to rebuild the tree.
-      needs_rebuild_visual_tree = true;
-    }
-
-    // We don't need to set |needs_rebuild_visual_tree_| here since that is only
-    // needed when the root visual's children need to be reordered. |Update|
-    // only affects the subtree for each child, so only a commit is needed in
-    // this case.
-    needs_commit |= visual_subtrees_[i]->Update(
-        dcomp_device_.Get(), overlays[i]->dcomp_visual_content,
-        overlays[i]->dcomp_surface_serial,
-        overlays[i]->quad_rect.OffsetFromOrigin(), overlays[i]->transform,
-        overlays[i]->clip_rect);
-
-    // Zero z_order represents root layer.
-    if (overlays[i]->z_order == 0) {
-      DCHECK(root_surface_visual_.Get() ==
-                 visual_subtrees_[i]->content_visual() ||
-             needs_rebuild_visual_tree);
-#if DCHECK_IS_ON()
-      // Verify we have single root visual layer.
-      DCHECK(!root_surface_visual_updated);
-      root_surface_visual_updated = true;
-#endif
-      root_surface_visual_ = visual_subtrees_[i]->content_visual();
-    }
-  }
-
-  // Rebuild root visual's child list.
-  // Note: needs_rebuild_visual_tree might be set in the caller, this function
-  // and can also be set in DCLayerTree::SetDelegatedInkTrailStartPoint to add a
-  // delegated ink visual into the root surface's visual.
-  if (needs_rebuild_visual_tree) {
+  // Rebuild visual tree and commit if any visual changed.
+  // Note: needs_rebuild_visual_tree_ might be set in this function and in
+  // SetNeedsRebuildVisualTree() during video_swap_chain->PresentToSwapChain()
+  if (needs_rebuild_visual_tree_) {
     TRACE_EVENT0(
         "gpu", "DCLayerTree::CommitAndClearPendingOverlays::ReBuildVisualTree");
+    needs_rebuild_visual_tree_ = false;
     dcomp_root_visual_->RemoveAllVisuals();
 
-    for (size_t i = 0; i < visual_subtrees_.size(); ++i) {
+    // Add layers with negative z-order first.
+    size_t i = 0;
+    for (; i < overlays.size() && overlays[i]->z_order < 0; ++i) {
+      IDCompositionVisual2* visual = video_swap_chains_[i]->visual().Get();
       // We call AddVisual with insertAbove FALSE and referenceVisual nullptr
-      // which is equivalent to saying that the visual should be below no
-      // other visual, or in other words it should be above all other visuals.
-      dcomp_root_visual_->AddVisual(visual_subtrees_[i]->container_visual(),
-                                    FALSE, nullptr);
+      // which is equivalent to saying that the visual should be below no other
+      // visual, or in other words it should be above all other visuals.
+      dcomp_root_visual_->AddVisual(visual, FALSE, nullptr);
     }
-    // Only add the ink visual to the tree if it has already been initialized.
-    // It will only have been initialized if delegated ink has been used, so
-    // this ensures the visual is only added when it is needed. The ink renderer
-    // must be updated so that if the root swap chain or dcomp device have
-    // changed the ink visual and delegated ink object can be updated
-    // accordingly.
-    if (ink_renderer_->HasBeenInitialized()) {
-      // Reinitialize the ink renderer in case the root swap chain or dcomp
-      // device changed since initialization.
-      if (InitializeInkRenderer())
-        AddDelegatedInkVisualToTree();
+
+    // Add root surface visual at z-order 0.
+    dcomp_root_visual_->AddVisual(root_surface_visual_.Get(), FALSE, nullptr);
+
+    // Add visuals with positive z-order.
+    for (; i < overlays.size(); ++i) {
+      // There shouldn't be a layer with z-order 0.  Otherwise, we can't tell
+      // its order with respect to root surface.
+      DCHECK_GT(overlays[i]->z_order, 0);
+      IDCompositionVisual2* visual = video_swap_chains_[i]->visual().Get();
+      dcomp_root_visual_->AddVisual(visual, FALSE, nullptr);
     }
     needs_commit = true;
   }
@@ -466,9 +323,9 @@ bool DCLayerTree::BuildVisualTreeHelper(
   return true;
 }
 
-bool DCLayerTree::ScheduleDCLayer(
-    std::unique_ptr<ui::DCRendererLayerParams> params) {
-  pending_overlays_.push_back(std::move(params));
+bool DCLayerTree::ScheduleDCLayer(const ui::DCRendererLayerParams& params) {
+  pending_overlays_.push_back(
+      std::make_unique<ui::DCRendererLayerParams>(params));
   return true;
 }
 
@@ -476,50 +333,6 @@ void DCLayerTree::SetFrameRate(float frame_rate) {
   frame_rate_ = frame_rate;
   for (size_t ii = 0; ii < video_swap_chains_.size(); ++ii)
     video_swap_chains_[ii]->SetFrameRate(frame_rate);
-}
-
-bool DCLayerTree::SupportsDelegatedInk() {
-  return ink_renderer_->DelegatedInkIsSupported(dcomp_device_);
-}
-
-bool DCLayerTree::InitializeInkRenderer() {
-  return ink_renderer_->Initialize(dcomp_device_, root_swap_chain_);
-}
-
-void DCLayerTree::AddDelegatedInkVisualToTree() {
-  DCHECK(SupportsDelegatedInk());
-  DCHECK(ink_renderer_->HasBeenInitialized());
-
-  root_surface_visual_->AddVisual(ink_renderer_->GetInkVisual(), FALSE,
-                                  nullptr);
-
-  // Adding the ink visual to a new visual tree invalidates all previously set
-  // properties. Therefore, force update.
-  ink_renderer_->SetNeedsDcompPropertiesUpdate();
-}
-
-void DCLayerTree::SetDelegatedInkTrailStartPoint(
-    std::unique_ptr<gfx::DelegatedInkMetadata> metadata) {
-  DCHECK(SupportsDelegatedInk());
-
-  if (!ink_renderer_->HasBeenInitialized()) {
-    if (!InitializeInkRenderer())
-      return;
-    // This ensures that the delegated ink visual is added to the tree after
-    // the root visual is created, during
-    // DCLayerTree::CommitAndClearPendingOverlays
-    needs_rebuild_visual_tree_ = true;
-  }
-
-  ink_renderer_->SetDelegatedInkTrailStartPoint(std::move(metadata));
-}
-
-void DCLayerTree::InitDelegatedInkPointRendererReceiver(
-    mojo::PendingReceiver<gfx::mojom::DelegatedInkPointRenderer>
-        pending_receiver) {
-  DCHECK(SupportsDelegatedInk());
-
-  ink_renderer_->InitMessagePipeline(std::move(pending_receiver));
 }
 
 }  // namespace gl

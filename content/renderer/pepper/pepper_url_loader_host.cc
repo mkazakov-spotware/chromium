@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <stddef.h>
 
 #include "base/feature_list.h"
-#include "base/numerics/safe_conversions.h"
 #include "base/strings/string_util.h"
 #include "content/public/common/content_features.h"
 #include "content/renderer/pepper/pepper_plugin_instance_impl.h"
@@ -184,7 +183,7 @@ void PepperURLLoaderHost::DidReceiveData(const char* data, int data_length) {
   UpdateProgress();
 
   auto message = std::make_unique<PpapiPluginMsg_URLLoader_SendData>();
-  message->WriteData(data, base::checked_cast<size_t>(data_length));
+  message->WriteData(data, data_length);
   SendUpdateToPlugin(std::move(message));
 }
 
@@ -330,7 +329,8 @@ int32_t PepperURLLoaderHost::OnHostMsgClose(
 int32_t PepperURLLoaderHost::OnHostMsgGrantUniversalAccess(
     ppapi::host::HostMessageContext* context) {
   // Only plugins with permission can bypass same origin.
-  if (host()->permissions().HasPermission(ppapi::PERMISSION_PDF)) {
+  if (host()->permissions().HasPermission(ppapi::PERMISSION_PDF) ||
+      host()->permissions().HasPermission(ppapi::PERMISSION_FLASH)) {
     has_universal_access_ = true;
     return PP_OK;
   }

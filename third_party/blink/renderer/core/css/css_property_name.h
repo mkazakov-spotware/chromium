@@ -1,13 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSS_PROPERTY_NAME_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSS_PROPERTY_NAME_H_
 
-#include "base/check_op.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/renderer/core/core_export.h"
+#include "base/optional.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
 #include "third_party/blink/renderer/platform/wtf/vector_traits.h"
@@ -33,15 +31,15 @@ class CORE_EXPORT CSSPropertyName {
     DCHECK(!custom_property_name.IsNull());
   }
 
-  static absl::optional<CSSPropertyName> From(
+  static base::Optional<CSSPropertyName> From(
       const ExecutionContext* execution_context,
       const String& value) {
-    const CSSPropertyID property_id = CssPropertyID(execution_context, value);
+    const CSSPropertyID property_id = cssPropertyID(execution_context, value);
     if (property_id == CSSPropertyID::kInvalid)
-      return absl::nullopt;
+      return base::nullopt;
     if (property_id == CSSPropertyID::kVariable)
-      return absl::make_optional(CSSPropertyName(AtomicString(value)));
-    return absl::make_optional(CSSPropertyName(property_id));
+      return base::make_optional(CSSPropertyName(AtomicString(value)));
+    return base::make_optional(CSSPropertyName(property_id));
   }
 
   bool operator==(const CSSPropertyName&) const;
@@ -88,17 +86,19 @@ namespace WTF {
 
 template <>
 struct DefaultHash<blink::CSSPropertyName> {
-  STATIC_ONLY(DefaultHash);
-  static unsigned GetHash(const blink::CSSPropertyName& name) {
-    return name.GetHash();
-  }
+  struct Hash {
+    STATIC_ONLY(Hash);
+    static unsigned GetHash(const blink::CSSPropertyName& name) {
+      return name.GetHash();
+    }
 
-  static bool Equal(const blink::CSSPropertyName& a,
-                    const blink::CSSPropertyName& b) {
-    return a == b;
-  }
+    static bool Equal(const blink::CSSPropertyName& a,
+                      const blink::CSSPropertyName& b) {
+      return a == b;
+    }
 
-  static const bool safe_to_compare_to_empty_or_deleted = true;
+    static const bool safe_to_compare_to_empty_or_deleted = true;
+  };
 };
 
 template <>
@@ -108,8 +108,7 @@ struct HashTraits<blink::CSSPropertyName>
   static const bool kEmptyValueIsZero = false;
   static const bool kNeedsDestruction = true;
   static void ConstructDeletedValue(CSSPropertyName& slot, bool) {
-    new (NotNullTag::kNotNull, &slot)
-        CSSPropertyName(CSSPropertyName::kDeletedValue);
+    new (NotNull, &slot) CSSPropertyName(CSSPropertyName::kDeletedValue);
   }
   static bool IsDeletedValue(CSSPropertyName value) {
     return value.IsDeletedValue();

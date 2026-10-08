@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,9 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
+#include "base/strings/string16.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "net/base/completion_once_callback.h"
@@ -43,7 +44,7 @@ class PacFileFetcher;
 // both for auto-detect and not.
 struct NET_EXPORT_PRIVATE PacFileDataWithSource {
   PacFileDataWithSource();
-  PacFileDataWithSource(const PacFileDataWithSource&);
+  explicit PacFileDataWithSource(const PacFileDataWithSource&);
   ~PacFileDataWithSource();
 
   PacFileDataWithSource& operator=(const PacFileDataWithSource&);
@@ -78,9 +79,6 @@ class NET_EXPORT_PRIVATE PacFileDecider {
   PacFileDecider(PacFileFetcher* pac_file_fetcher,
                  DhcpPacFileFetcher* dhcp_pac_file_fetcher,
                  NetLog* net_log);
-
-  PacFileDecider(const PacFileDecider&) = delete;
-  PacFileDecider& operator=(const PacFileDecider&) = delete;
 
   // Aborts any in-progress request.
   ~PacFileDecider();
@@ -181,29 +179,29 @@ class NET_EXPORT_PRIVATE PacFileDecider {
   void DidComplete();
   void Cancel();
 
-  raw_ptr<PacFileFetcher> pac_file_fetcher_;
-  raw_ptr<DhcpPacFileFetcher> dhcp_pac_file_fetcher_;
+  PacFileFetcher* pac_file_fetcher_;
+  DhcpPacFileFetcher* dhcp_pac_file_fetcher_;
 
   CompletionOnceCallback callback_;
 
-  size_t current_pac_source_index_ = 0u;
+  size_t current_pac_source_index_;
 
   // Filled when the PAC script fetch completes.
-  std::u16string pac_script_;
+  base::string16 pac_script_;
 
   // Flag indicating whether the caller requested a mandatory PAC script
   // (i.e. fallback to direct connections are prohibited).
-  bool pac_mandatory_ = false;
+  bool pac_mandatory_;
 
   // Whether we have an existing custom PAC URL.
   bool have_custom_pac_url_;
 
   PacSourceList pac_sources_;
-  State next_state_ = STATE_NONE;
+  State next_state_;
 
   NetLogWithSource net_log_;
 
-  bool fetch_pac_bytes_ = false;
+  bool fetch_pac_bytes_;
 
   base::TimeDelta wait_delay_;
   base::OneShotTimer wait_timer_;
@@ -211,7 +209,7 @@ class NET_EXPORT_PRIVATE PacFileDecider {
   net::MutableNetworkTrafficAnnotationTag traffic_annotation_;
 
   // Whether to do DNS quick check
-  bool quick_check_enabled_ = true;
+  bool quick_check_enabled_;
 
   // Results.
   ProxyConfigWithAnnotation effective_config_;
@@ -220,6 +218,8 @@ class NET_EXPORT_PRIVATE PacFileDecider {
   std::unique_ptr<HostResolver::ResolveHostRequest> resolve_request_;
 
   base::OneShotTimer quick_check_timer_;
+
+  DISALLOW_COPY_AND_ASSIGN(PacFileDecider);
 };
 
 }  // namespace net

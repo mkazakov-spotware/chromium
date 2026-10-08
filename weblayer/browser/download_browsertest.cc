@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,9 @@
 #include "base/files/scoped_temp_dir.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/test/bind.h"
 #include "base/threading/thread_restrictions.h"
-#include "build/build_config.h"
 #include "content/public/browser/download_manager.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/slow_download_http_response.h"
@@ -55,7 +54,8 @@ class DownloadBrowserTest : public WebLayerBrowserTest,
 
     auto* browser_context = tab_impl->web_contents()->GetBrowserContext();
     auto* download_manager_delegate =
-        browser_context->GetDownloadManager()->GetDelegate();
+        content::BrowserContext::GetDownloadManager(browser_context)
+            ->GetDelegate();
     static_cast<DownloadManagerDelegateImpl*>(download_manager_delegate)
         ->set_download_dropped_closure_for_testing(base::BindRepeating(
             &DownloadBrowserTest::DownloadDropped, base::Unretained(this)));
@@ -91,7 +91,7 @@ class DownloadBrowserTest : public WebLayerBrowserTest,
   void AllowDownload(Tab* tab,
                      const GURL& url,
                      const std::string& request_method,
-                     absl::optional<url::Origin> request_initiator,
+                     base::Optional<url::Origin> request_initiator,
                      AllowDownloadCallback callback) override {
     std::move(callback).Run(allow_);
     allow_run_loop_->Quit();
@@ -231,13 +231,7 @@ IN_PROC_BROWSER_TEST_F(DownloadBrowserTest, Basic) {
             download_location().DirName());
 }
 
-// Test consistently failing on android: crbug.com/1273105
-#if BUILDFLAG(IS_ANDROID)
-#define MAYBE_OverrideDownloadDirectory DISABLED_OverrideDownloadDirectory
-#else
-#define MAYBE_OverrideDownloadDirectory OverrideDownloadDirectory
-#endif
-IN_PROC_BROWSER_TEST_F(DownloadBrowserTest, MAYBE_OverrideDownloadDirectory) {
+IN_PROC_BROWSER_TEST_F(DownloadBrowserTest, OverrideDownloadDirectory) {
   base::ScopedAllowBlockingForTesting allow_blocking;
   base::ScopedTempDir download_dir;
   ASSERT_TRUE(download_dir.CreateUniqueTempDir());
@@ -287,13 +281,7 @@ IN_PROC_BROWSER_TEST_F(DownloadBrowserTest, Cancel) {
   EXPECT_EQ(download_state(), DownloadError::kCancelled);
 }
 
-// TODO(crbug.com/1314060): Flaky on Windows and Linux.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
-#define MAYBE_PauseResume DISABLED_PauseResume
-#else
-#define MAYBE_PauseResume PauseResume
-#endif
-IN_PROC_BROWSER_TEST_F(DownloadBrowserTest, MAYBE_PauseResume) {
+IN_PROC_BROWSER_TEST_F(DownloadBrowserTest, PauseResume) {
   // Add an initial navigation to avoid the tab being deleted if the first
   // navigation is a download, since we use the tab for convenience in the
   // lambda.
@@ -305,7 +293,7 @@ IN_PROC_BROWSER_TEST_F(DownloadBrowserTest, MAYBE_PauseResume) {
     download->Pause();
     GURL url = embedded_test_server()->GetURL(
         content::SlowDownloadHttpResponse::kFinishSlowResponseUrl);
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+    base::SequencedTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(
                        [](Download* download, Shell* shell, const GURL& url) {
                          CHECK_EQ(download->GetState(), DownloadState::kPaused);

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,7 @@ namespace content {
 namespace {
 
 bool SupportsSharedWorker() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // SharedWorkers are not enabled on Android. https://crbug.com/154571
   return false;
 #else
@@ -40,14 +40,8 @@ enum class WorkerType {
 
 class WorkerNetworkIsolationKeyBrowserTest : public ContentBrowserTest {
  public:
-  WorkerNetworkIsolationKeyBrowserTest() {
-    feature_list_.InitAndEnableFeature(
-        net::features::kSplitCacheByNetworkIsolationKey);
-  }
-
   void SetUpOnMainThread() override {
     host_resolver()->AddRule("*", "127.0.0.1");
-
     https_server_ = std::make_unique<net::EmbeddedTestServer>(
         net::EmbeddedTestServer::TYPE_HTTPS);
     https_server_->SetSSLConfig(net::EmbeddedTestServer::CERT_TEST_NAMES);
@@ -83,7 +77,7 @@ class WorkerNetworkIsolationKeyBrowserTest : public ContentBrowserTest {
   }
 
   RenderFrameHost* CreateSubframe(const GURL& subframe_url) {
-    DCHECK_EQ(shell()->web_contents()->GetLastCommittedURL().path(),
+    DCHECK_EQ(shell()->web_contents()->GetURL().path(),
               "/workers/frame_factory.html");
 
     content::TestNavigationObserver navigation_observer(
@@ -92,17 +86,31 @@ class WorkerNetworkIsolationKeyBrowserTest : public ContentBrowserTest {
 
     std::string subframe_name = GetUniqueSubframeName();
     EvalJsResult result = EvalJs(
-        shell()->web_contents()->GetPrimaryMainFrame(),
+        shell()->web_contents()->GetMainFrame(),
         JsReplace("createFrame($1, $2)", subframe_url.spec(), subframe_name));
     DCHECK(result.error.empty());
     navigation_observer.Wait();
 
     RenderFrameHost* subframe_rfh = FrameMatchingPredicate(
-        shell()->web_contents()->GetPrimaryPage(),
+        shell()->web_contents(),
         base::BindRepeating(&FrameMatchesName, subframe_name));
     DCHECK(subframe_rfh);
 
     return subframe_rfh;
+  }
+
+ protected:
+  void InitFeatures(bool append_frame_origin_to_network_isolation_key) {
+    if (append_frame_origin_to_network_isolation_key) {
+      feature_list_.InitWithFeatures(
+          {net::features::kSplitCacheByNetworkIsolationKey,
+           net::features::kAppendFrameOriginToNetworkIsolationKey},
+          {});
+    } else {
+      feature_list_.InitWithFeatures(
+          {net::features::kSplitCacheByNetworkIsolationKey},
+          {net::features::kAppendFrameOriginToNetworkIsolationKey});
+    }
   }
 
  private:
@@ -147,7 +155,17 @@ class WorkerNetworkIsolationKeyBrowserTest : public ContentBrowserTest {
 class WorkerImportScriptsAndFetchRequestNetworkIsolationKeyBrowserTest
     : public WorkerNetworkIsolationKeyBrowserTest,
       public ::testing::WithParamInterface<
-          std::tuple<bool /* test_same_network_isolation_key */, WorkerType>> {
+          std::tuple<bool /* append_frame_origin_to_network_isolation_key */,
+                     bool /* test_same_network_isolation_key */,
+                     WorkerType>> {
+ public:
+  void SetUp() override {
+    bool append_frame_origin_to_network_isolation_key;
+    std::tie(append_frame_origin_to_network_isolation_key, std::ignore,
+             std::ignore) = GetParam();
+    InitFeatures(append_frame_origin_to_network_isolation_key);
+    ContentBrowserTest::SetUp();
+  }
 };
 
 // Test that network isolation key is filled in correctly for service/shared
@@ -164,7 +182,8 @@ IN_PROC_BROWSER_TEST_P(
     ImportScriptsAndFetchRequest) {
   bool test_same_network_isolation_key;
   WorkerType worker_type;
-  std::tie(test_same_network_isolation_key, worker_type) = GetParam();
+  std::tie(std::ignore, test_same_network_isolation_key, worker_type) =
+      GetParam();
 
   if (worker_type == WorkerType::kSharedWorker && !SupportsSharedWorker())
     return;
@@ -224,11 +243,21 @@ INSTANTIATE_TEST_SUITE_P(
     All,
     WorkerImportScriptsAndFetchRequestNetworkIsolationKeyBrowserTest,
     ::testing::Combine(testing::Bool(),
+                       testing::Bool(),
                        ::testing::Values(WorkerType::kServiceWorker,
                                          WorkerType::kSharedWorker)));
 
-using ServiceWorkerMainScriptRequestNetworkIsolationKeyBrowserTest =
-    WorkerNetworkIsolationKeyBrowserTest;
+class ServiceWorkerMainScriptRequestNetworkIsolationKeyBrowserTest
+    : public WorkerNetworkIsolationKeyBrowserTest,
+      public ::testing::WithParamInterface<
+          bool /* append_frame_origin_to_network_isolation_key */> {
+ public:
+  void SetUp() override {
+    bool append_frame_origin_to_network_isolation_key = GetParam();
+    InitFeatures(append_frame_origin_to_network_isolation_key);
+    ContentBrowserTest::SetUp();
+  }
+};
 
 // Test that network isolation key is filled in correctly for service worker's
 // main script request. The test navigates to "a.test" and creates an iframe
@@ -245,7 +274,7 @@ using ServiceWorkerMainScriptRequestNetworkIsolationKeyBrowserTest =
 // Note that it's sufficient not to test the cache miss when subframe origins
 // are different as in that case the two script urls must be different and it
 // also won't trigger an update.
-IN_PROC_BROWSER_TEST_F(
+IN_PROC_BROWSER_TEST_P(
     ServiceWorkerMainScriptRequestNetworkIsolationKeyBrowserTest,
     ServiceWorkerMainScriptRequest) {
   size_t num_completed = 0;
@@ -298,6 +327,11 @@ IN_PROC_BROWSER_TEST_F(
   cache_status_waiter.Run();
 }
 
+INSTANTIATE_TEST_SUITE_P(
+    All,
+    ServiceWorkerMainScriptRequestNetworkIsolationKeyBrowserTest,
+    testing::Bool());
+
 using SharedWorkerMainScriptRequestNetworkIsolationKeyBrowserTest =
     ServiceWorkerMainScriptRequestNetworkIsolationKeyBrowserTest;
 
@@ -311,7 +345,7 @@ using SharedWorkerMainScriptRequestNetworkIsolationKeyBrowserTest =
 //
 // Note that it's sufficient not to test the cache miss when subframe origins
 // are different as in that case the two script urls must be different.
-IN_PROC_BROWSER_TEST_F(
+IN_PROC_BROWSER_TEST_P(
     SharedWorkerMainScriptRequestNetworkIsolationKeyBrowserTest,
     SharedWorkerMainScriptRequest) {
   if (!SupportsSharedWorker())
@@ -363,5 +397,10 @@ IN_PROC_BROWSER_TEST_F(
 
   cache_status_waiter.Run();
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    All,
+    SharedWorkerMainScriptRequestNetworkIsolationKeyBrowserTest,
+    testing::Bool());
 
 }  // namespace content

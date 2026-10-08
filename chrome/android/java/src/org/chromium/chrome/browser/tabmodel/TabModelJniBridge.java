@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,21 +6,15 @@ package org.chromium.chrome.browser.tabmodel;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.chrome.browser.flags.ActivityType;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
-import org.chromium.chrome.browser.tasks.tab_groups.TabGroupModelFilter;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.common.ResourceRequestBody;
-import org.chromium.ui.base.WindowAndroid;
-import org.chromium.url.GURL;
 import org.chromium.url.Origin;
 
 /**
@@ -29,22 +23,25 @@ import org.chromium.url.Origin;
 public abstract class TabModelJniBridge implements TabModel {
     private final boolean mIsIncognito;
 
-    /** The type of the Activity for which this tab model works. */
-    private final @ActivityType int mActivityType;
-
     /** Native TabModelJniBridge pointer, which will be set by {@link #initializeNative()}. */
     private long mNativeTabModelJniBridge;
 
-    public TabModelJniBridge(@NonNull Profile profile, @ActivityType int activityType) {
+    /**
+     * Whether this tab model is part of a tabbed activity.
+     * This is consumed by Sync as part of restoring sync data from a previous session.
+     */
+    private boolean mIsTabbedActivityForSync;
+
+    public TabModelJniBridge(@NonNull Profile profile, boolean isTabbedActivity) {
         mIsIncognito = profile.isOffTheRecord();
-        mActivityType = activityType;
+        mIsTabbedActivityForSync = isTabbedActivity;
     }
 
     /** Initializes the native-side counterpart to this class. */
     protected void initializeNative(Profile profile) {
         assert mNativeTabModelJniBridge == 0;
-        mNativeTabModelJniBridge =
-                TabModelJniBridgeJni.get().init(TabModelJniBridge.this, profile, mActivityType);
+        mNativeTabModelJniBridge = TabModelJniBridgeJni.get().init(
+                TabModelJniBridge.this, profile, mIsTabbedActivityForSync);
     }
 
     /** @return Whether the native-side pointer has been initialized. */
@@ -97,7 +94,7 @@ public abstract class TabModelJniBridge implements TabModel {
      */
     @CalledByNative
     private void setIndex(int index) {
-        TabModelUtils.setIndex(this, index, false);
+        TabModelUtils.setIndex(this, index);
     }
 
     @Override
@@ -136,7 +133,7 @@ public abstract class TabModelJniBridge implements TabModel {
             Tab parent, Profile profile, WebContents webContents);
 
     @CalledByNative
-    protected abstract void openNewTab(Tab parent, GURL url, @Nullable Origin initiatorOrigin,
+    protected abstract void openNewTab(Tab parent, String url, @Nullable Origin initiatorOrigin,
             String extraHeaders, ResourceRequestBody postData, int disposition,
             boolean persistParentage, boolean isRendererInitiated);
 
@@ -145,32 +142,9 @@ public abstract class TabModelJniBridge implements TabModel {
      * @param url URL to show.
      */
     @CalledByNative
-    protected Tab createNewTabForDevTools(GURL url) {
+    protected Tab createNewTabForDevTools(String url) {
         return getTabCreator(/*incognito=*/false)
                 .createNewTab(new LoadUrlParams(url), TabLaunchType.FROM_CHROME_UI, null);
-    }
-
-    /** Returns whether supplied Tab instance has been grouped together with other Tabs. */
-    @CalledByNative
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    static boolean hasOtherRelatedTabs(@NonNull Tab tab) {
-        assert tab != null;
-        final WindowAndroid windowAndroid = tab.getWindowAndroid();
-        if (windowAndroid == null) return false;
-
-        final ObservableSupplier<TabModelSelector> supplier =
-                TabModelSelectorSupplier.from(windowAndroid);
-        if (supplier == null) return false;
-
-        final TabModelSelector selector = supplier.get();
-        if (selector == null) return false;
-
-        final TabModelFilter filter =
-                selector.getTabModelFilterProvider().getTabModelFilter(tab.isIncognito());
-        if (!(filter instanceof TabGroupModelFilter)) return false;
-
-        final TabGroupModelFilter groupingFilter = (TabGroupModelFilter) filter;
-        return groupingFilter.hasOtherRelatedTabs(tab);
     }
 
     @Override
@@ -193,9 +167,8 @@ public abstract class TabModelJniBridge implements TabModel {
     public abstract void setActive(boolean active);
 
     @NativeMethods
-    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-    public interface Natives {
-        long init(TabModelJniBridge caller, Profile profile, @ActivityType int activityType);
+    interface Natives {
+        long init(TabModelJniBridge caller, Profile profile, boolean isTabbedActivity);
         Profile getProfileAndroid(long nativeTabModelJniBridge, TabModelJniBridge caller);
         void broadcastSessionRestoreComplete(
                 long nativeTabModelJniBridge, TabModelJniBridge caller);

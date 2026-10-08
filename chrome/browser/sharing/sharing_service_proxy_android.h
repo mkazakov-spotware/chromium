@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define CHROME_BROWSER_SHARING_SHARING_SERVICE_PROXY_ANDROID_H_
 
 #include "base/android/jni_android.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 
 class SharingService;
 
@@ -14,17 +14,13 @@ class SharingService;
 class SharingServiceProxyAndroid {
  public:
   explicit SharingServiceProxyAndroid(SharingService* sharing_service);
-
-  SharingServiceProxyAndroid(const SharingServiceProxyAndroid&) = delete;
-  SharingServiceProxyAndroid& operator=(const SharingServiceProxyAndroid&) =
-      delete;
-
   ~SharingServiceProxyAndroid();
 
   void SendSharedClipboardMessage(
       JNIEnv* env,
       const base::android::JavaParamRef<jstring>& j_guid,
       const base::android::JavaParamRef<jstring>& j_text,
+      const jint j_retries,
       const base::android::JavaParamRef<jobject>& j_runnable);
 
   void GetDeviceCandidates(
@@ -37,7 +33,9 @@ class SharingServiceProxyAndroid {
       const base::android::JavaParamRef<jobject>& j_runnable);
 
  private:
-  raw_ptr<SharingService> sharing_service_ = nullptr;
+  SharingService* sharing_service_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(SharingServiceProxyAndroid);
 };
 
 #endif  // CHROME_BROWSER_SHARING_SHARING_SERVICE_PROXY_ANDROID_H_

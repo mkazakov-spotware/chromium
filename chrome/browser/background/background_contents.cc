@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "chrome/browser/background/background_contents_service.h"
+#include "chrome/browser/extensions/chrome_extension_web_contents_observer.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/renderer_preferences_util.h"
 #include "chrome/browser/task_manager/web_contents_tags.h"
@@ -22,7 +23,6 @@
 #include "extensions/browser/extension_host_queue.h"
 #include "extensions/browser/extensions_browser_client.h"
 #include "extensions/browser/view_type_utils.h"
-#include "extensions/common/mojom/view_type.mojom.h"
 #include "ui/gfx/geometry/rect.h"
 
 using content::SiteInstance;
@@ -33,7 +33,7 @@ BackgroundContents::BackgroundContents(
     content::RenderFrameHost* opener,
     bool is_new_browsing_instance,
     Delegate* delegate,
-    const content::StoragePartitionConfig& partition_config,
+    const std::string& partition_id,
     content::SessionStorageNamespace* session_storage_namespace)
     : delegate_(delegate),
       extension_host_delegate_(extensions::ExtensionsBrowserClient::Get()
@@ -48,19 +48,25 @@ BackgroundContents::BackgroundContents(
       opener ? opener->GetRoutingID() : MSG_ROUTING_NONE;
   create_params.is_never_visible = true;
 
+  // This isn't semantically sensible, but it is what the old code implicitly
+  // did.
+  create_params.renderer_initiated_creation = !is_new_browsing_instance;
+
   if (session_storage_namespace) {
     content::SessionStorageNamespaceMap session_storage_namespace_map;
     session_storage_namespace_map.insert(
-        std::make_pair(partition_config, session_storage_namespace));
+        std::make_pair(partition_id, session_storage_namespace));
     web_contents_ = WebContents::CreateWithSessionStorage(
         create_params, session_storage_namespace_map);
   } else {
     web_contents_ = WebContents::Create(create_params);
   }
-  extensions::SetViewType(web_contents_.get(),
-                          extensions::mojom::ViewType::kBackgroundContents);
+  extensions::SetViewType(
+      web_contents_.get(), extensions::VIEW_TYPE_BACKGROUND_CONTENTS);
   web_contents_->SetDelegate(this);
   content::WebContentsObserver::Observe(web_contents_.get());
+  extensions::ChromeExtensionWebContentsObserver::CreateForWebContents(
+      web_contents_.get());
 
   // Add the TaskManager-specific tag for the BackgroundContents.
   task_manager::WebContentsTags::CreateForBackgroundContents(
@@ -81,7 +87,7 @@ const GURL& BackgroundContents::GetURL() const {
   return web_contents_.get() ? web_contents_->GetURL() : GURL::EmptyGURL();
 }
 
-void BackgroundContents::CreateRendererSoon(const GURL& url) {
+void BackgroundContents::CreateRenderViewSoon(const GURL& url) {
   initial_url_ = url;
   extensions::ExtensionHostQueue::GetInstance().Add(this);
 }
@@ -95,8 +101,7 @@ bool BackgroundContents::ShouldSuppressDialogs(WebContents* source) {
   return true;
 }
 
-void BackgroundContents::DidNavigatePrimaryMainFramePostCommit(
-    WebContents* tab) {
+void BackgroundContents::DidNavigateMainFramePostCommit(WebContents* tab) {
   // Note: because BackgroundContents are only available to extension apps,
   // navigation is limited to urls within the app's extent. This is enforced in
   // RenderView::decidePolicyForNavigation. If BackgroundContents become
@@ -113,26 +118,25 @@ void BackgroundContents::AddNewContents(
     std::unique_ptr<WebContents> new_contents,
     const GURL& target_url,
     WindowOpenDisposition disposition,
-    const blink::mojom::WindowFeatures& window_features,
+    const gfx::Rect& initial_rect,
     bool user_gesture,
     bool* was_blocked) {
   delegate_->AddWebContents(std::move(new_contents), target_url, disposition,
-                            window_features, was_blocked);
+                            initial_rect, was_blocked);
 }
 
 bool BackgroundContents::IsNeverComposited(content::WebContents* web_contents) {
-  DCHECK_EQ(extensions::mojom::ViewType::kBackgroundContents,
+  DCHECK_EQ(extensions::VIEW_TYPE_BACKGROUND_CONTENTS,
             extensions::GetViewType(web_contents));
   return true;
 }
 
-void BackgroundContents::PrimaryMainFrameRenderProcessGone(
-    base::TerminationStatus status) {
+void BackgroundContents::RenderProcessGone(base::TerminationStatus status) {
   delegate_->OnBackgroundContentsTerminated(this);
   // |this| is deleted.
 }
 
-void BackgroundContents::CreateRendererNow() {
+void BackgroundContents::CreateRenderViewNow() {
   web_contents()->GetController().LoadURL(initial_url_, content::Referrer(),
                                           ui::PAGE_TRANSITION_LINK,
                                           std::string());

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,16 +33,13 @@ class MockCompositorFrameSink : public viz::mojom::blink::CompositorFrameSink {
       EXPECT_CALL(*this, SetNeedsBeginFrame(false)).Times(testing::AtLeast(0));
   }
 
-  MockCompositorFrameSink(const MockCompositorFrameSink&) = delete;
-  MockCompositorFrameSink& operator=(const MockCompositorFrameSink&) = delete;
-
   // viz::mojom::blink::CompositorFrameSink implementation
   MOCK_METHOD1(SetNeedsBeginFrame, void(bool));
   MOCK_METHOD0(SetWantsAnimateOnlyBeginFrames, void(void));
   void SubmitCompositorFrame(
       const viz::LocalSurfaceId&,
       viz::CompositorFrame frame,
-      absl::optional<viz::HitTestRegionList> hit_test_region_list,
+      base::Optional<viz::HitTestRegionList> hit_test_region_list,
       uint64_t) override {
     SubmitCompositorFrame_(&frame);
   }
@@ -50,7 +47,7 @@ class MockCompositorFrameSink : public viz::mojom::blink::CompositorFrameSink {
   void SubmitCompositorFrameSync(
       const viz::LocalSurfaceId&,
       viz::CompositorFrame frame,
-      absl::optional<viz::HitTestRegionList> hit_test_region_list,
+      base::Optional<viz::HitTestRegionList> hit_test_region_list,
       uint64_t,
       SubmitCompositorFrameSyncCallback cb) override {
     SubmitCompositorFrameSync_(&frame);
@@ -64,10 +61,11 @@ class MockCompositorFrameSink : public viz::mojom::blink::CompositorFrameSink {
   MOCK_METHOD1(SetPreferredFrameInterval, void(base::TimeDelta));
   MOCK_METHOD1(InitializeCompositorFrameSinkType,
                void(viz::mojom::CompositorFrameSinkType));
-  MOCK_METHOD1(SetThreadIds, void(const WTF::Vector<int32_t>&));
 
  private:
   mojo::Receiver<viz::mojom::blink::CompositorFrameSink> receiver_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MockCompositorFrameSink);
 };
 
 }  // namespace blink

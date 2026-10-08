@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -95,6 +95,11 @@ public class InstanceIDWithSubtype {
 
     public String getToken(String authorizedEntity, String scope) throws IOException {
         return mInstanceID.getToken(authorizedEntity, scope);
+    }
+
+    public String getToken(String authorizedEntity, String scope, Bundle extras)
+            throws IOException {
+        return mInstanceID.getToken(authorizedEntity, scope, extras);
     }
 
     /** Fake subclasses can set {@link #sFakeFactoryForTesting} to an implementation of this. */

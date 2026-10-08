@@ -23,16 +23,13 @@
 
 #include "third_party/blink/renderer/core/svg/svg_element.h"
 #include "third_party/blink/renderer/core/svg/svg_unit_types.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-
-namespace gfx {
-class RectF;
-}
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
 class Filter;
 class FilterEffect;
+class FloatRect;
 class SVGAnimatedLength;
 class SVGAnimatedString;
 class SVGFilterBuilder;
@@ -44,7 +41,7 @@ class SVGFilterPrimitiveStandardAttributes : public SVGElement {
  public:
   void SetStandardAttributes(FilterEffect*,
                              SVGUnitTypes::SVGUnitType,
-                             const gfx::RectF& reference_box) const;
+                             const FloatRect& reference_box) const;
 
   virtual FilterEffect* Build(SVGFilterBuilder*, Filter*) = 0;
   // Returns true, if the new value is different from the old one.
@@ -67,7 +64,7 @@ class SVGFilterPrimitiveStandardAttributes : public SVGElement {
  protected:
   SVGFilterPrimitiveStandardAttributes(const QualifiedName&, Document&);
 
-  void SvgAttributeChanged(const SvgAttributeChangedParams&) override;
+  void SvgAttributeChanged(const QualifiedName&) override;
   void ChildrenChanged(const ChildrenChange&) override;
 
  private:

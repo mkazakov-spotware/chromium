@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,4 +38,4 @@ class IgnoreOpensDuringUnloadCountIncrementer {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_DOM_IGNORE_OPENS_DURING_UNLOAD_COUNT_INCREMENTER_H_
+#endif

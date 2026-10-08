@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,13 @@
 #include <set>
 #include <string>
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "components/sessions/core/serialized_navigation_entry.h"
 #include "components/sessions/core/session_id.h"
 #include "components/sessions/core/session_types.h"
 #include "components/sync/protocol/session_specifics.pb.h"
 #include "components/sync/protocol/sync_enums.pb.h"
-#include "components/sync_device_info/device_info.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace sync_sessions {
 
@@ -47,48 +46,40 @@ void SetSessionTabFromSyncData(const sync_pb::SessionTab& sync_data,
 // SerializedNavigationEntry::ToSyncData to convert |navigations|. Note that the
 // protocol buffer doesn't contain all SerializedNavigationEntry fields, and
 // that the returned protocol buffer doesn't have any favicon data.
-// |browser_type| needs to be provided separately because its (in local terms) a
-// property of the window.
-sync_pb::SessionTab SessionTabToSyncData(
-    const sessions::SessionTab& tab,
-    absl::optional<sync_pb::SyncEnums::BrowserType> browser_type);
+sync_pb::SessionTab SessionTabToSyncData(const sessions::SessionTab& tab);
 
 // A Sync wrapper for a SessionWindow.
 struct SyncedSessionWindow {
   SyncedSessionWindow();
-
-  SyncedSessionWindow(const SyncedSessionWindow&) = delete;
-  SyncedSessionWindow& operator=(const SyncedSessionWindow&) = delete;
-
   ~SyncedSessionWindow();
 
   // Convert this object into its sync protocol buffer equivalent.
   sync_pb::SessionWindow ToSessionWindowProto() const;
 
   // Type of the window. See session_specifics.proto.
-  sync_pb::SyncEnums::BrowserType window_type;
+  sync_pb::SessionWindow::BrowserType window_type;
 
   // The SessionWindow this object wraps.
   sessions::SessionWindow wrapped_window;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SyncedSessionWindow);
 };
 
 // Defines a synced session for use by session sync. A synced session is a
 // list of windows along with a unique session identifer (tag) and meta-data
 // about the device being synced.
-// TODO(1386119): Change struct to class to follow style guides.
 struct SyncedSession {
- public:
   SyncedSession();
-
-  SyncedSession(const SyncedSession&) = delete;
-  SyncedSession& operator=(const SyncedSession&) = delete;
-
   ~SyncedSession();
 
   // Unique tag for each session.
   std::string session_tag;
   // User-visible name
   std::string session_name;
+
+  // Type of device this session is from.
+  sync_pb::SyncEnums::DeviceType device_type;
 
   // Last time this session was modified remotely. This is the max of the header
   // and all children tab mtimes.
@@ -101,21 +92,8 @@ struct SyncedSession {
   // does not create SessionTab protobufs.
   sync_pb::SessionHeader ToSessionHeaderProto() const;
 
-  void SetDeviceTypeAndFormFactor(
-      const sync_pb::SyncEnums::DeviceType& local_device_type,
-      const syncer::DeviceInfo::FormFactor& local_device_form_factor);
-
-  syncer::DeviceInfo::FormFactor GetDeviceFormFactor() const;
-
  private:
-  // Type of device this session is from.
-  // It's used only to populate deprecated device_type by
-  // ToSessionHeaderProto().
-  sync_pb::SyncEnums::DeviceType device_type;
-
-  // Form Factor of device this session is from.
-  syncer::DeviceInfo::FormFactor device_form_factor =
-      syncer::DeviceInfo::FormFactor::kUnknown;
+  DISALLOW_COPY_AND_ASSIGN(SyncedSession);
 };
 
 }  // namespace sync_sessions

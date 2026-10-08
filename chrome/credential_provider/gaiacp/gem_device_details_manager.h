@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/strings/string16.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "base/win/windows_types.h"
@@ -30,9 +31,9 @@ class GemDeviceDetailsManager {
 
   // Upload device details to GEM database using access token.
   HRESULT UploadDeviceDetails(const std::string& access_token,
-                              const std::wstring& sid,
-                              const std::wstring& username,
-                              const std::wstring& domain);
+                              const base::string16& sid,
+                              const base::string16& username,
+                              const base::string16& domain);
 
   // Upload device details to GEM database using dmToken.
   HRESULT UploadDeviceDetails(const extension::UserDeviceContext& context);
@@ -78,12 +79,12 @@ class GemDeviceDetailsManager {
   HRESULT upload_status_;
   std::unique_ptr<base::Value> request_dict_;
   HRESULT UploadDeviceDetailsInternal(const std::string access_token,
-                                      const std::wstring obfuscated_user_id,
-                                      const std::wstring dm_token,
-                                      const std::wstring sid,
-                                      const std::wstring device_resource_id,
-                                      const std::wstring username,
-                                      const std::wstring domain);
+                                      const base::string16 obfuscated_user_id,
+                                      const base::string16 dm_token,
+                                      const base::string16 sid,
+                                      const base::string16 device_resource_id,
+                                      const base::string16 username,
+                                      const base::string16 domain);
 };
 
 }  // namespace credential_provider

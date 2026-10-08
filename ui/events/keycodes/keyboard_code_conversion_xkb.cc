@@ -1,11 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/events/keycodes/keyboard_code_conversion_xkb.h"
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "ui/events/keycodes/dom/dom_key.h"
 #include "ui/events/keycodes/keyboard_code_conversion_xkb.h"
 #include "ui/gfx/x/keysyms/keysyms.h"
@@ -109,15 +108,8 @@ DomKey NonPrintableXKeySymToDomKey(xkb_keysym_t keysym) {
       return DomKey::END;
     case XKB_KEY_Select:
       return DomKey::SELECT;
+    // Treat Print/PrintScreen as PrintScreen https://crbug.com/683097.
     case XKB_KEY_Print:
-#if BUILDFLAG(IS_CHROMEOS)
-      // On ChromeOS KEY_PRINT really means print not print screen.
-      return DomKey::PRINT;
-#else   // !BUILDFLAG(IS_CHROMEOS)
-      // For legacy reasons XKB and Linux treat Print and PrintScreen as
-      // PrintScreen. See https://crbug.com/683097.
-      return DomKey::PRINT_SCREEN;
-#endif  // !BUILDFLAG(IS_CHROMEOS)
     case XKB_KEY_3270_PrintScreen:
       return DomKey::PRINT_SCREEN;
     case XKB_KEY_Execute:
@@ -210,7 +202,7 @@ DomKey NonPrintableXKeySymToDomKey(xkb_keysym_t keysym) {
       return DomKey::CONTROL;
     case XKB_KEY_Caps_Lock:
       return DomKey::CAPS_LOCK;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
     case XKB_KEY_Meta_L:
     case XKB_KEY_Meta_R:
     case XKB_KEY_Alt_L:
@@ -225,7 +217,7 @@ DomKey NonPrintableXKeySymToDomKey(xkb_keysym_t keysym) {
     case XKB_KEY_Alt_L:
     case XKB_KEY_Alt_R:
       return DomKey::ALT;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
     case XKB_KEY_Super_L:
     case XKB_KEY_Super_R:
       return DomKey::META;
@@ -488,7 +480,7 @@ DomKey NonPrintableXKeySymToDomKey(xkb_keysym_t keysym) {
       return DomKey::NONE;
   }
 }
-DomKey XKeySymToDomKey(xkb_keysym_t keysym, char16_t character) {
+DomKey XKeySymToDomKey(xkb_keysym_t keysym, base::char16 character) {
   DomKey dom_key = NonPrintableXKeySymToDomKey(keysym);
   if (dom_key != DomKey::NONE)
     return dom_key;

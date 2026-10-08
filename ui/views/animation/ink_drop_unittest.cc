@@ -1,9 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/test/test_mock_time_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/timer/timer.h"
@@ -16,7 +17,8 @@
 #include "ui/views/animation/ink_drop_stub.h"
 #include "ui/views/animation/test/test_ink_drop_host.h"
 
-namespace views::test {
+namespace views {
+namespace test {
 
 // Enumeration of all the different InkDrop types.
 enum InkDropType { INK_DROP_STUB, INK_DROP_IMPL };
@@ -24,10 +26,6 @@ enum InkDropType { INK_DROP_STUB, INK_DROP_IMPL };
 class InkDropTest : public testing::TestWithParam<testing::tuple<InkDropType>> {
  public:
   InkDropTest();
-
-  InkDropTest(const InkDropTest&) = delete;
-  InkDropTest& operator=(const InkDropTest&) = delete;
-
   ~InkDropTest() override;
 
  protected:
@@ -44,8 +42,9 @@ class InkDropTest : public testing::TestWithParam<testing::tuple<InkDropType>> {
   std::unique_ptr<ui::ScopedAnimationDurationScaleMode> zero_duration_mode_;
 
   // Required by base::Timer's.
-  std::unique_ptr<base::SingleThreadTaskRunner::CurrentDefaultHandle>
-      thread_task_runner_handle_;
+  std::unique_ptr<base::ThreadTaskRunnerHandle> thread_task_runner_handle_;
+
+  DISALLOW_COPY_AND_ASSIGN(InkDropTest);
 };
 
 InkDropTest::InkDropTest() : ink_drop_(nullptr) {
@@ -57,16 +56,14 @@ InkDropTest::InkDropTest() : ink_drop_(nullptr) {
       ink_drop_ = std::make_unique<InkDropStub>();
       break;
     case INK_DROP_IMPL:
-      ink_drop_ = std::make_unique<InkDropImpl>(
-          InkDrop::Get(&test_ink_drop_host_), gfx::Size(),
-          InkDropImpl::AutoHighlightMode::NONE);
+      ink_drop_ =
+          std::make_unique<InkDropImpl>(&test_ink_drop_host_, gfx::Size());
       // The Timer's used by the InkDropImpl class require a
       // base::ThreadTaskRunnerHandle instance.
       scoped_refptr<base::TestMockTimeTaskRunner> task_runner(
           new base::TestMockTimeTaskRunner);
       thread_task_runner_handle_ =
-          std::make_unique<base::SingleThreadTaskRunner::CurrentDefaultHandle>(
-              task_runner);
+          std::make_unique<base::ThreadTaskRunnerHandle>(task_runner);
       break;
   }
 }
@@ -135,4 +132,5 @@ TEST_P(InkDropTest, TypicalSlowActivated) {
   EXPECT_EQ(InkDropState::HIDDEN, ink_drop_->GetTargetInkDropState());
 }
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,10 +17,13 @@
   httpInterceptor.addResponse('http://bar.com/',
       `<p>Pass</p>`);
 
-  await virtualTimeController.initialize(1000);
-  await frameNavigationHelper.navigate('http://foo.com/');
-  await virtualTimeController.grantTime(1000);
+  await virtualTimeController.grantInitialTime(1000, 1000,
+    null,
+    async () => {
+      testRunner.log(await session.evaluate('document.body.innerHTML'));
+      testRunner.completeTest();
+    }
+  );
 
-  testRunner.log(await session.evaluate('document.body.innerHTML'));
-  testRunner.completeTest();
+  await frameNavigationHelper.navigate('http://foo.com/');
 })

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,22 +17,18 @@
 #include "base/callback.h"
 #include "base/callback_helpers.h"
 #include "base/cfi_buildflags.h"
-#include "base/containers/span.h"
 #include "base/debug/stack_trace.h"
-#include "base/memory/raw_ptr.h"
-#include "base/message_loop/message_pump_type.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/field_trial_params.h"
-#include "base/system/sys_info.h"
 #include "base/task/task_features.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool/environment_config.h"
 #include "base/task/thread_pool/test_task_factory.h"
 #include "base/task/thread_pool/test_utils.h"
 #include "base/task/thread_pool/worker_thread_observer.h"
-#include "base/task/updateable_sequenced_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/gtest_util.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/test/test_timeouts.h"
 #include "base/test/test_waitable_event.h"
 #include "base/threading/platform_thread.h"
@@ -41,28 +37,29 @@
 #include "base/threading/thread.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/time/time.h"
+#include "base/updateable_sequenced_task_runner.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <unistd.h>
 
 #include "base/debug/leak_annotations.h"
 #include "base/files/file_descriptor_watcher_posix.h"
 #include "base/files/file_util.h"
 #include "base/posix/eintr_wrapper.h"
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // defined(OS_POSIX)
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/com_init_util.h"
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 namespace base {
 namespace internal {
 
 namespace {
 
-constexpr size_t kMaxNumForegroundThreads = 4;
+constexpr int kMaxNumForegroundThreads = 4;
 
 struct TraitsExecutionModePair {
   TraitsExecutionModePair(const TaskTraits& traits,
@@ -73,41 +70,54 @@ struct TraitsExecutionModePair {
   TaskSourceExecutionMode execution_mode;
 };
 
-// Returns true if a task with |traits| could run at background thread priority
-// on this platform. Even if this returns true, it is possible that the task
-// won't run at background thread priority if a native thread group is used.
-bool TraitsSupportBackgroundThreadType(const TaskTraits& traits) {
-  return traits.priority() == TaskPriority::BEST_EFFORT &&
-         traits.thread_policy() == ThreadPolicy::PREFER_BACKGROUND &&
-         CanUseBackgroundThreadTypeForWorkerThread();
+#if DCHECK_IS_ON()
+// Returns whether I/O calls are allowed on the current thread.
+bool GetIOAllowed() {
+  const bool previous_value = ThreadRestrictions::SetIOAllowed(true);
+  ThreadRestrictions::SetIOAllowed(previous_value);
+  return previous_value;
 }
+#endif
 
-// Verify that the current thread type and I/O restrictions are appropriate to
-// run a Task with |traits|.
+// Verify that the current thread priority and I/O restrictions are appropriate
+// to run a Task with |traits|.
 // Note: ExecutionMode is verified inside TestTaskFactory.
-void VerifyTaskEnvironment(const TaskTraits& traits) {
+void VerifyTaskEnvironment(const TaskTraits& traits, test::PoolType pool_type) {
+  const bool should_run_at_background_thread_priority =
+      CanUseBackgroundPriorityForWorkerThread() &&
+      traits.priority() == TaskPriority::BEST_EFFORT &&
+      traits.thread_policy() == ThreadPolicy::PREFER_BACKGROUND;
+
+  EXPECT_EQ(should_run_at_background_thread_priority
+                ? ThreadPriority::BACKGROUND
+                : ThreadPriority::NORMAL,
+            PlatformThread::GetCurrentThreadPriority());
+
+#if DCHECK_IS_ON()
+  // The #if above is required because GetIOAllowed() always returns true when
+  // !DCHECK_IS_ON(), even when |traits| don't allow file I/O.
+  EXPECT_EQ(traits.may_block(), GetIOAllowed());
+#endif
+
   const std::string thread_name(PlatformThread::GetName());
   const bool is_single_threaded =
       (thread_name.find("SingleThread") != std::string::npos);
 
-  const bool expect_background_thread_type =
-      TraitsSupportBackgroundThreadType(traits);
-
-  EXPECT_EQ(expect_background_thread_type ? ThreadType::kBackground
-                                          : ThreadType::kDefault,
-            PlatformThread::GetCurrentThreadType());
-
-  if (traits.may_block())
-    internal::AssertBlockingAllowed();
-  else
-    internal::AssertBlockingDisallowedForTesting();
+#if HAS_NATIVE_THREAD_POOL()
+  // Native thread groups do not provide the ability to name threads.
+  if (pool_type == test::PoolType::NATIVE && !is_single_threaded &&
+      !should_run_at_background_thread_priority) {
+    return;
+  }
+#endif
 
   // Verify that the thread the task is running on is named as expected.
   EXPECT_THAT(thread_name, ::testing::HasSubstr("ThreadPool"));
 
-  EXPECT_THAT(thread_name, ::testing::HasSubstr(expect_background_thread_type
-                                                    ? "Background"
-                                                    : "Foreground"));
+  EXPECT_THAT(thread_name,
+              ::testing::HasSubstr(should_run_at_background_thread_priority
+                                       ? "Background"
+                                       : "Foreground"));
 
   if (is_single_threaded) {
     // SingleThread workers discriminate blocking/non-blocking tasks.
@@ -123,29 +133,32 @@ void VerifyTaskEnvironment(const TaskTraits& traits) {
 }
 
 void VerifyTaskEnvironmentAndSignalEvent(const TaskTraits& traits,
+                                         test::PoolType pool_type,
                                          TestWaitableEvent* event) {
   DCHECK(event);
-  VerifyTaskEnvironment(traits);
+  VerifyTaskEnvironment(traits, pool_type);
   event->Signal();
 }
 
 void VerifyTimeAndTaskEnvironmentAndSignalEvent(const TaskTraits& traits,
+                                                test::PoolType pool_type,
                                                 TimeTicks expected_time,
                                                 TestWaitableEvent* event) {
   DCHECK(event);
   EXPECT_LE(expected_time, TimeTicks::Now());
-  VerifyTaskEnvironment(traits);
+  VerifyTaskEnvironment(traits, pool_type);
   event->Signal();
 }
 
 void VerifyOrderAndTaskEnvironmentAndSignalEvent(
     const TaskTraits& traits,
+    test::PoolType pool_type,
     TestWaitableEvent* expected_previous_event,
     TestWaitableEvent* event) {
   DCHECK(event);
   if (expected_previous_event)
     EXPECT_TRUE(expected_previous_event->IsSignaled());
-  VerifyTaskEnvironment(traits);
+  VerifyTaskEnvironment(traits, pool_type);
   event->Signal();
 }
 
@@ -177,9 +190,11 @@ class ThreadPostingTasks : public SimpleThread {
   // |execution_mode|.
   ThreadPostingTasks(ThreadPoolImpl* thread_pool,
                      const TaskTraits& traits,
+                     test::PoolType pool_type,
                      TaskSourceExecutionMode execution_mode)
       : SimpleThread("ThreadPostingTasks"),
         traits_(traits),
+        pool_type_(pool_type),
         factory_(CreateTaskRunnerAndExecutionMode(thread_pool,
                                                   traits,
                                                   execution_mode),
@@ -195,11 +210,12 @@ class ThreadPostingTasks : public SimpleThread {
     const size_t kNumTasksPerThread = 150;
     for (size_t i = 0; i < kNumTasksPerThread; ++i) {
       factory_.PostTask(test::TestTaskFactory::PostNestedTask::NO,
-                        BindOnce(&VerifyTaskEnvironment, traits_));
+                        BindOnce(&VerifyTaskEnvironment, traits_, pool_type_));
     }
   }
 
   const TaskTraits traits_;
+  test::PoolType pool_type_;
   test::TestTaskFactory factory_;
 };
 
@@ -249,15 +265,14 @@ GetTraitsExecutionModePairsToCoverAllSchedulingOptions() {
 class ThreadPoolImplTestBase : public testing::Test {
  public:
   ThreadPoolImplTestBase()
-      : thread_pool_(std::make_unique<ThreadPoolImpl>("Test")),
-        service_thread_("ServiceThread") {
-    Thread::Options service_thread_options;
-    service_thread_options.message_pump_type = MessagePumpType::IO;
-    service_thread_.StartWithOptions(std::move(service_thread_options));
-  }
+      : thread_pool_(std::make_unique<ThreadPoolImpl>("Test")) {}
 
   ThreadPoolImplTestBase(const ThreadPoolImplTestBase&) = delete;
   ThreadPoolImplTestBase& operator=(const ThreadPoolImplTestBase&) = delete;
+
+  void EnableAllTasksUserBlocking() {
+    should_enable_all_tasks_user_blocking_ = true;
+  }
 
   void set_worker_thread_observer(
       WorkerThreadObserver* worker_thread_observer) {
@@ -265,8 +280,10 @@ class ThreadPoolImplTestBase : public testing::Test {
   }
 
   void StartThreadPool(
-      size_t max_num_foreground_threads = kMaxNumForegroundThreads,
-      TimeDelta reclaim_time = Seconds(30)) {
+      int max_num_foreground_threads = kMaxNumForegroundThreads,
+      TimeDelta reclaim_time = TimeDelta::FromSeconds(30)) {
+    SetupFeatures();
+
     ThreadPoolInstance::InitParams init_params(max_num_foreground_threads);
     init_params.suggested_reclaim_time = reclaim_time;
 
@@ -284,22 +301,49 @@ class ThreadPoolImplTestBase : public testing::Test {
     did_tear_down_ = true;
   }
 
+  virtual test::PoolType GetPoolType() const = 0;
+
   std::unique_ptr<ThreadPoolImpl> thread_pool_;
-  Thread service_thread_;
 
  private:
-  raw_ptr<WorkerThreadObserver> worker_thread_observer_ = nullptr;
+  void SetupFeatures() {
+    std::vector<base::Feature> features;
+
+    if (should_enable_all_tasks_user_blocking_)
+      features.push_back(kAllTasksUserBlocking);
+
+#if HAS_NATIVE_THREAD_POOL()
+    if (GetPoolType() == test::PoolType::NATIVE)
+      features.push_back(kUseNativeThreadPool);
+#endif
+
+    if (!features.empty())
+      feature_list_.InitWithFeatures(features, {});
+  }
+
+  base::test::ScopedFeatureList feature_list_;
+  WorkerThreadObserver* worker_thread_observer_ = nullptr;
   bool did_tear_down_ = false;
+  bool should_enable_all_tasks_user_blocking_ = false;
 };
 
-using ThreadPoolImplTest = ThreadPoolImplTestBase;
+class ThreadPoolImplTest : public ThreadPoolImplTestBase,
+                           public testing::WithParamInterface<test::PoolType> {
+ public:
+  ThreadPoolImplTest() = default;
+  ThreadPoolImplTest(const ThreadPoolImplTest&) = delete;
+  ThreadPoolImplTest& operator=(const ThreadPoolImplTest&) = delete;
+
+  test::PoolType GetPoolType() const override { return GetParam(); }
+};
 
 // Tests run for enough traits and execution mode combinations to cover all
 // valid combinations of task destination (background/foreground ThreadGroup,
 // single-thread) and whether the task is affected by a BEST_EFFORT fence.
 class ThreadPoolImplTest_CoverAllSchedulingOptions
     : public ThreadPoolImplTestBase,
-      public testing::WithParamInterface<TraitsExecutionModePair> {
+      public testing::WithParamInterface<
+          std::tuple<test::PoolType, TraitsExecutionModePair>> {
  public:
   ThreadPoolImplTest_CoverAllSchedulingOptions() = default;
   ThreadPoolImplTest_CoverAllSchedulingOptions(
@@ -307,9 +351,12 @@ class ThreadPoolImplTest_CoverAllSchedulingOptions
   ThreadPoolImplTest_CoverAllSchedulingOptions& operator=(
       const ThreadPoolImplTest_CoverAllSchedulingOptions&) = delete;
 
-  TaskTraits GetTraits() const { return GetParam().traits; }
+  test::PoolType GetPoolType() const override {
+    return std::get<0>(GetParam());
+  }
+  TaskTraits GetTraits() const { return std::get<1>(GetParam()).traits; }
   TaskSourceExecutionMode GetExecutionMode() const {
-    return GetParam().execution_mode;
+    return std::get<1>(GetParam()).execution_mode;
   }
 };
 
@@ -321,10 +368,11 @@ class ThreadPoolImplTest_CoverAllSchedulingOptions
 TEST_P(ThreadPoolImplTest_CoverAllSchedulingOptions, PostDelayedTaskNoDelay) {
   StartThreadPool();
   TestWaitableEvent task_ran;
-  thread_pool_->PostDelayedTask(FROM_HERE, GetTraits(),
-                                BindOnce(&VerifyTaskEnvironmentAndSignalEvent,
-                                         GetTraits(), Unretained(&task_ran)),
-                                TimeDelta());
+  thread_pool_->PostDelayedTask(
+      FROM_HERE, GetTraits(),
+      BindOnce(&VerifyTaskEnvironmentAndSignalEvent, GetTraits(), GetPoolType(),
+               Unretained(&task_ran)),
+      TimeDelta());
   task_ran.Wait();
 }
 
@@ -338,53 +386,9 @@ TEST_P(ThreadPoolImplTest_CoverAllSchedulingOptions, PostDelayedTaskWithDelay) {
   thread_pool_->PostDelayedTask(
       FROM_HERE, GetTraits(),
       BindOnce(&VerifyTimeAndTaskEnvironmentAndSignalEvent, GetTraits(),
-               TimeTicks::Now() + TestTimeouts::tiny_timeout(),
+               GetPoolType(), TimeTicks::Now() + TestTimeouts::tiny_timeout(),
                Unretained(&task_ran)),
       TestTimeouts::tiny_timeout());
-  task_ran.Wait();
-}
-
-namespace {
-
-scoped_refptr<SequencedTaskRunner> CreateSequencedTaskRunnerAndExecutionMode(
-    ThreadPoolImpl* thread_pool,
-    const TaskTraits& traits,
-    TaskSourceExecutionMode execution_mode,
-    SingleThreadTaskRunnerThreadMode default_single_thread_task_runner_mode =
-        SingleThreadTaskRunnerThreadMode::SHARED) {
-  switch (execution_mode) {
-    case TaskSourceExecutionMode::kSequenced:
-      return thread_pool->CreateSequencedTaskRunner(traits);
-    case TaskSourceExecutionMode::kSingleThread: {
-      return thread_pool->CreateSingleThreadTaskRunner(
-          traits, default_single_thread_task_runner_mode);
-    }
-    case TaskSourceExecutionMode::kParallel:
-    case TaskSourceExecutionMode::kJob:
-      ADD_FAILURE() << "Tests below don't cover these modes";
-      return nullptr;
-  }
-  ADD_FAILURE() << "Unknown ExecutionMode";
-  return nullptr;
-}
-
-}  // namespace
-
-TEST_P(ThreadPoolImplTest_CoverAllSchedulingOptions,
-       PostDelayedTaskAtViaTaskRunner) {
-  StartThreadPool();
-  TestWaitableEvent task_ran;
-  // Only runs for kSequenced and kSingleThread.
-  auto handle =
-      CreateSequencedTaskRunnerAndExecutionMode(thread_pool_.get(), GetTraits(),
-                                                GetExecutionMode())
-          ->PostCancelableDelayedTaskAt(
-              subtle::PostDelayedTaskPassKeyForTesting(), FROM_HERE,
-              BindOnce(&VerifyTimeAndTaskEnvironmentAndSignalEvent, GetTraits(),
-                       TimeTicks::Now() + TestTimeouts::tiny_timeout(),
-                       Unretained(&task_ran)),
-              TimeTicks::Now() + TestTimeouts::tiny_timeout(),
-              subtle::DelayPolicy::kFlexibleNoSooner);
   task_ran.Wait();
 }
 
@@ -400,8 +404,9 @@ TEST_P(ThreadPoolImplTest_CoverAllSchedulingOptions, PostTasksViaTaskRunner) {
 
   const size_t kNumTasksPerTest = 150;
   for (size_t i = 0; i < kNumTasksPerTest; ++i) {
-    factory.PostTask(test::TestTaskFactory::PostNestedTask::NO,
-                     BindOnce(&VerifyTaskEnvironment, GetTraits()));
+    factory.PostTask(
+        test::TestTaskFactory::PostNestedTask::NO,
+        BindOnce(&VerifyTaskEnvironment, GetTraits(), GetPoolType()));
   }
 
   factory.WaitForAllTasksToRun();
@@ -414,7 +419,7 @@ TEST_P(ThreadPoolImplTest_CoverAllSchedulingOptions,
   TestWaitableEvent task_running;
   thread_pool_->PostDelayedTask(
       FROM_HERE, GetTraits(),
-      BindOnce(&VerifyTaskEnvironmentAndSignalEvent, GetTraits(),
+      BindOnce(&VerifyTaskEnvironmentAndSignalEvent, GetTraits(), GetPoolType(),
                Unretained(&task_running)),
       TimeDelta());
 
@@ -437,7 +442,7 @@ TEST_P(ThreadPoolImplTest_CoverAllSchedulingOptions,
   thread_pool_->PostDelayedTask(
       FROM_HERE, GetTraits(),
       BindOnce(&VerifyTimeAndTaskEnvironmentAndSignalEvent, GetTraits(),
-               TimeTicks::Now() + TestTimeouts::tiny_timeout(),
+               GetPoolType(), TimeTicks::Now() + TestTimeouts::tiny_timeout(),
                Unretained(&task_running)),
       TestTimeouts::tiny_timeout());
 
@@ -459,8 +464,9 @@ TEST_P(ThreadPoolImplTest_CoverAllSchedulingOptions,
   TestWaitableEvent task_running;
   CreateTaskRunnerAndExecutionMode(thread_pool_.get(), GetTraits(),
                                    GetExecutionMode())
-      ->PostTask(FROM_HERE, BindOnce(&VerifyTaskEnvironmentAndSignalEvent,
-                                     GetTraits(), Unretained(&task_running)));
+      ->PostTask(FROM_HERE,
+                 BindOnce(&VerifyTaskEnvironmentAndSignalEvent, GetTraits(),
+                          GetPoolType(), Unretained(&task_running)));
 
   // Wait a little bit to make sure that the task doesn't run before Start().
   // Note: This test won't catch a case where the task runs just after the check
@@ -488,6 +494,46 @@ TEST_P(ThreadPoolImplTest_CoverAllSchedulingOptions, PostTaskAfterDestroy) {
 
   EXPECT_FALSE(
       task_runner->PostTask(FROM_HERE, MakeExpectedNotRunClosure(FROM_HERE)));
+}
+
+// Verify that all tasks posted to a TaskRunner after Start() run in a
+// USER_BLOCKING environment when the AllTasksUserBlocking variation param of
+// the BrowserScheduler experiment is true.
+TEST_P(ThreadPoolImplTest_CoverAllSchedulingOptions,
+       AllTasksAreUserBlockingTaskRunner) {
+  TaskTraits user_blocking_traits = GetTraits();
+  user_blocking_traits.UpdatePriority(TaskPriority::USER_BLOCKING);
+
+  EnableAllTasksUserBlocking();
+  StartThreadPool();
+
+  TestWaitableEvent task_running;
+  CreateTaskRunnerAndExecutionMode(thread_pool_.get(), GetTraits(),
+                                   GetExecutionMode())
+      ->PostTask(FROM_HERE, BindOnce(&VerifyTaskEnvironmentAndSignalEvent,
+                                     user_blocking_traits, GetPoolType(),
+                                     Unretained(&task_running)));
+  task_running.Wait();
+}
+
+// Verify that all tasks posted via PostDelayedTask() after Start() run in a
+// USER_BLOCKING environment when the AllTasksUserBlocking variation param of
+// the BrowserScheduler experiment is true.
+TEST_P(ThreadPoolImplTest_CoverAllSchedulingOptions, AllTasksAreUserBlocking) {
+  TaskTraits user_blocking_traits = GetTraits();
+  user_blocking_traits.UpdatePriority(TaskPriority::USER_BLOCKING);
+
+  EnableAllTasksUserBlocking();
+  StartThreadPool();
+
+  TestWaitableEvent task_running;
+  // Ignore |params.execution_mode| in this test.
+  thread_pool_->PostDelayedTask(
+      FROM_HERE, GetTraits(),
+      BindOnce(&VerifyTaskEnvironmentAndSignalEvent, user_blocking_traits,
+               GetPoolType(), Unretained(&task_running)),
+      TimeDelta());
+  task_running.Wait();
 }
 
 // Verifies that FlushAsyncForTesting() calls back correctly for all trait and
@@ -714,12 +760,13 @@ TEST_P(ThreadPoolImplTest_CoverAllSchedulingOptions,
 // TaskTraits and ExecutionModes. Verifies that each Task runs on a thread with
 // the expected priority and I/O restrictions and respects the characteristics
 // of its ExecutionMode.
-TEST_F(ThreadPoolImplTest, MultipleTraitsExecutionModePair) {
+TEST_P(ThreadPoolImplTest, MultipleTraitsExecutionModePair) {
   StartThreadPool();
   std::vector<std::unique_ptr<ThreadPostingTasks>> threads_posting_tasks;
   for (const auto& test_params : GetTraitsExecutionModePairs()) {
     threads_posting_tasks.push_back(std::make_unique<ThreadPostingTasks>(
-        thread_pool_.get(), test_params.traits, test_params.execution_mode));
+        thread_pool_.get(), test_params.traits, GetPoolType(),
+        test_params.execution_mode));
     threads_posting_tasks.back()->Start();
   }
 
@@ -729,9 +776,14 @@ TEST_F(ThreadPoolImplTest, MultipleTraitsExecutionModePair) {
   }
 }
 
-TEST_F(ThreadPoolImplTest,
+TEST_P(ThreadPoolImplTest,
        GetMaxConcurrentNonBlockedTasksWithTraitsDeprecated) {
   StartThreadPool();
+
+#if HAS_NATIVE_THREAD_POOL()
+  if (GetPoolType() == test::PoolType::NATIVE)
+    return;
+#endif
 
   // GetMaxConcurrentNonBlockedTasksWithTraitsDeprecated() does not support
   // TaskPriority::BEST_EFFORT.
@@ -745,23 +797,23 @@ TEST_F(ThreadPoolImplTest,
         {MayBlock(), TaskPriority::BEST_EFFORT});
   });
 
-  EXPECT_EQ(kMaxNumForegroundThreads,
+  EXPECT_EQ(4,
             thread_pool_->GetMaxConcurrentNonBlockedTasksWithTraitsDeprecated(
                 {TaskPriority::USER_VISIBLE}));
-  EXPECT_EQ(kMaxNumForegroundThreads,
+  EXPECT_EQ(4,
             thread_pool_->GetMaxConcurrentNonBlockedTasksWithTraitsDeprecated(
                 {MayBlock(), TaskPriority::USER_VISIBLE}));
-  EXPECT_EQ(kMaxNumForegroundThreads,
+  EXPECT_EQ(4,
             thread_pool_->GetMaxConcurrentNonBlockedTasksWithTraitsDeprecated(
                 {TaskPriority::USER_BLOCKING}));
-  EXPECT_EQ(kMaxNumForegroundThreads,
+  EXPECT_EQ(4,
             thread_pool_->GetMaxConcurrentNonBlockedTasksWithTraitsDeprecated(
                 {MayBlock(), TaskPriority::USER_BLOCKING}));
 }
 
 // Verify that the RunsTasksInCurrentSequence() method of a SequencedTaskRunner
 // returns false when called from a task that isn't part of the sequence.
-TEST_F(ThreadPoolImplTest, SequencedRunsTasksInCurrentSequence) {
+TEST_P(ThreadPoolImplTest, SequencedRunsTasksInCurrentSequence) {
   StartThreadPool();
   auto single_thread_task_runner = thread_pool_->CreateSingleThreadTaskRunner(
       {}, SingleThreadTaskRunnerThreadMode::SHARED);
@@ -783,7 +835,7 @@ TEST_F(ThreadPoolImplTest, SequencedRunsTasksInCurrentSequence) {
 // Verify that the RunsTasksInCurrentSequence() method of a
 // SingleThreadTaskRunner returns false when called from a task that isn't part
 // of the sequence.
-TEST_F(ThreadPoolImplTest, SingleThreadRunsTasksInCurrentSequence) {
+TEST_P(ThreadPoolImplTest, SingleThreadRunsTasksInCurrentSequence) {
   StartThreadPool();
   auto sequenced_task_runner = thread_pool_->CreateSequencedTaskRunner({});
   auto single_thread_task_runner = thread_pool_->CreateSingleThreadTaskRunner(
@@ -803,8 +855,8 @@ TEST_F(ThreadPoolImplTest, SingleThreadRunsTasksInCurrentSequence) {
   task_ran.Wait();
 }
 
-#if BUILDFLAG(IS_WIN)
-TEST_F(ThreadPoolImplTest, COMSTATaskRunnersRunWithCOMSTA) {
+#if defined(OS_WIN)
+TEST_P(ThreadPoolImplTest, COMSTATaskRunnersRunWithCOMSTA) {
   StartThreadPool();
   auto com_sta_task_runner = thread_pool_->CreateCOMSTATaskRunner(
       {}, SingleThreadTaskRunnerThreadMode::SHARED);
@@ -819,9 +871,9 @@ TEST_F(ThreadPoolImplTest, COMSTATaskRunnersRunWithCOMSTA) {
                      Unretained(&task_ran)));
   task_ran.Wait();
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
-TEST_F(ThreadPoolImplTest, DelayedTasksNotRunAfterShutdown) {
+TEST_P(ThreadPoolImplTest, DelayedTasksNotRunAfterShutdown) {
   StartThreadPool();
   // As with delayed tasks in general, this is racy. If the task does happen to
   // run after Shutdown within the timeout, it will fail this test.
@@ -842,9 +894,9 @@ TEST_F(ThreadPoolImplTest, DelayedTasksNotRunAfterShutdown) {
   PlatformThread::Sleep(TestTimeouts::tiny_timeout() * 2);
 }
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 
-TEST_F(ThreadPoolImplTest, FileDescriptorWatcherNoOpsAfterShutdown) {
+TEST_P(ThreadPoolImplTest, FileDescriptorWatcherNoOpsAfterShutdown) {
   StartThreadPool();
 
   int pipes[2];
@@ -879,7 +931,7 @@ TEST_F(ThreadPoolImplTest, FileDescriptorWatcherNoOpsAfterShutdown) {
   thread_pool_->Shutdown();
 
   constexpr char kByte = '!';
-  ASSERT_TRUE(WriteFileDescriptor(pipes[1], as_bytes(make_span(&kByte, 1))));
+  ASSERT_TRUE(WriteFileDescriptor(pipes[1], &kByte, sizeof(kByte)));
 
   // Give a chance for the file watcher to fire before closing the handles.
   PlatformThread::Sleep(TestTimeouts::tiny_timeout());
@@ -887,36 +939,11 @@ TEST_F(ThreadPoolImplTest, FileDescriptorWatcherNoOpsAfterShutdown) {
   EXPECT_EQ(0, IGNORE_EINTR(close(pipes[0])));
   EXPECT_EQ(0, IGNORE_EINTR(close(pipes[1])));
 }
-#endif  // BUILDFLAG(IS_POSIX)
-
-#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_NACL)
-
-// Verify that FileDescriptorWatcher::WatchReadable() can be called from task
-// running on a task_runner with GetExecutionMode() without a crash.
-TEST_P(ThreadPoolImplTest_CoverAllSchedulingOptions, FileDescriptorWatcher) {
-  StartThreadPool();
-
-  int fds[2];
-  ASSERT_EQ(0, pipe(fds));
-
-  auto task_runner = CreateTaskRunnerAndExecutionMode(
-      thread_pool_.get(), GetTraits(), GetExecutionMode());
-
-  EXPECT_TRUE(task_runner->PostTask(
-      FROM_HERE, BindOnce(IgnoreResult(&FileDescriptorWatcher::WatchReadable),
-                          fds[0], DoNothing())));
-
-  thread_pool_->FlushForTesting();
-
-  EXPECT_EQ(0, IGNORE_EINTR(close(fds[0])));
-  EXPECT_EQ(0, IGNORE_EINTR(close(fds[1])));
-}
-
-#endif
+#endif  // defined(OS_POSIX)
 
 // Verify that tasks posted on the same sequence access the same values on
 // SequenceLocalStorage, and tasks on different sequences see different values.
-TEST_F(ThreadPoolImplTest, SequenceLocalStorage) {
+TEST_P(ThreadPoolImplTest, SequenceLocalStorage) {
   StartThreadPool();
 
   SequenceLocalStorageSlot<int> slot;
@@ -945,7 +972,7 @@ TEST_F(ThreadPoolImplTest, SequenceLocalStorage) {
   thread_pool_->FlushForTesting();
 }
 
-TEST_F(ThreadPoolImplTest, FlushAsyncNoTasks) {
+TEST_P(ThreadPoolImplTest, FlushAsyncNoTasks) {
   StartThreadPool();
   bool called_back = false;
   thread_pool_->FlushAsyncForTesting(
@@ -973,11 +1000,11 @@ void VerifyHasStringsOnStack(const std::string& pool_str,
 
 }  // namespace
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 // Many POSIX bots flakily crash on |debug::StackTrace().ToString()|,
 // https://crbug.com/840429.
 #define MAYBE_IdentifiableStacks DISABLED_IdentifiableStacks
-#elif BUILDFLAG(IS_WIN) && \
+#elif defined(OS_WIN) && \
     (defined(ADDRESS_SANITIZER) || BUILDFLAG(CFI_CAST_CHECK))
 // Hangs on WinASan and WinCFI (grabbing StackTrace() too slow?),
 // https://crbug.com/845010#c7.
@@ -989,7 +1016,7 @@ void VerifyHasStringsOnStack(const std::string& pool_str,
 // Integration test that verifies that workers have a frame on their stacks
 // which easily identifies the type of worker and shutdown behavior (useful to
 // diagnose issues from logs without memory dumps).
-TEST_F(ThreadPoolImplTest, MAYBE_IdentifiableStacks) {
+TEST_P(ThreadPoolImplTest, MAYBE_IdentifiableStacks) {
   StartThreadPool();
 
   // Shutdown behaviors and expected stack frames.
@@ -1037,7 +1064,7 @@ TEST_F(ThreadPoolImplTest, MAYBE_IdentifiableStacks) {
                                        "RunBackgroundDedicatedWorker",
                                        shutdown_behavior.second));
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     thread_pool_
         ->CreateCOMSTATaskRunner(traits,
                                  SingleThreadTaskRunnerThreadMode::SHARED)
@@ -1063,35 +1090,43 @@ TEST_F(ThreadPoolImplTest, MAYBE_IdentifiableStacks) {
         ->PostTask(FROM_HERE, BindOnce(&VerifyHasStringsOnStack,
                                        "RunBackgroundDedicatedCOMWorker",
                                        shutdown_behavior.second));
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
   }
 
   thread_pool_->FlushForTesting();
 }
 
-TEST_F(ThreadPoolImplTest, WorkerThreadObserver) {
+TEST_P(ThreadPoolImplTest, WorkerThreadObserver) {
+#if HAS_NATIVE_THREAD_POOL()
+  // WorkerThreads are not created (and hence not observed) when using the
+  // native thread pools. We still start the ThreadPool in this case since
+  // JoinForTesting is always called on TearDown, and DCHECKs that all thread
+  // groups are started.
+  if (GetPoolType() == test::PoolType::NATIVE) {
+    StartThreadPool();
+    return;
+  }
+#endif
+
   testing::StrictMock<test::MockWorkerThreadObserver> observer;
   set_worker_thread_observer(&observer);
 
   // A worker should be created for each thread group. After that, 4 threads
   // should be created for each SingleThreadTaskRunnerThreadMode (8 on Windows).
-  const int kExpectedNumForegroundPoolWorkers = 1;
-  const int kExpectedNumBackgroundPoolWorkers =
-      CanUseBackgroundThreadTypeForWorkerThread() ? 1 : 0;
   const int kExpectedNumPoolWorkers =
-      kExpectedNumForegroundPoolWorkers + kExpectedNumBackgroundPoolWorkers;
+      CanUseBackgroundPriorityForWorkerThread() ? 2 : 1;
   const int kExpectedNumSharedSingleThreadedWorkers =
-      CanUseBackgroundThreadTypeForWorkerThread() ? 4 : 2;
+      CanUseBackgroundPriorityForWorkerThread() ? 4 : 2;
   const int kExpectedNumDedicatedSingleThreadedWorkers = 4;
 
   const int kExpectedNumCOMSharedSingleThreadedWorkers =
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
       kExpectedNumSharedSingleThreadedWorkers;
 #else
       0;
 #endif
   const int kExpectedNumCOMDedicatedSingleThreadedWorkers =
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
       kExpectedNumDedicatedSingleThreadedWorkers;
 #else
       0;
@@ -1133,7 +1168,7 @@ TEST_F(ThreadPoolImplTest, WorkerThreadObserver) {
       {TaskPriority::USER_BLOCKING, MayBlock()},
       SingleThreadTaskRunnerThreadMode::DEDICATED));
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   task_runners.push_back(thread_pool_->CreateCOMSTATaskRunner(
       {TaskPriority::BEST_EFFORT}, SingleThreadTaskRunnerThreadMode::SHARED));
   task_runners.push_back(thread_pool_->CreateCOMSTATaskRunner(
@@ -1179,7 +1214,7 @@ TEST_F(ThreadPoolImplTest, WorkerThreadObserver) {
 }
 
 // Verify a basic EnqueueJobTaskSource() runs the worker task.
-TEST_F(ThreadPoolImplTest, ScheduleJobTaskSource) {
+TEST_P(ThreadPoolImplTest, ScheduleJobTaskSource) {
   StartThreadPool();
 
   TestWaitableEvent threads_running;
@@ -1197,7 +1232,7 @@ TEST_F(ThreadPoolImplTest, ScheduleJobTaskSource) {
 
 // Verify that calling ShouldYield() returns true for a job task source that
 // needs to change thread group because of a priority update.
-TEST_F(ThreadPoolImplTest, ThreadGroupChangeShouldYield) {
+TEST_P(ThreadPoolImplTest, ThreadGroupChangeShouldYield) {
   StartThreadPool();
 
   TestWaitableEvent threads_running;
@@ -1213,7 +1248,7 @@ TEST_F(ThreadPoolImplTest, ThreadGroupChangeShouldYield) {
 
         // The task source needs to yield if background thread groups exist.
         EXPECT_EQ(delegate->ShouldYield(),
-                  CanUseBackgroundThreadTypeForWorkerThread());
+                  CanUseBackgroundPriorityForWorkerThread());
       }),
       /* num_tasks_to_run */ 1);
   scoped_refptr<JobTaskSource> task_source = job_task->GetJobTaskSource(
@@ -1240,7 +1275,7 @@ class MustBeDestroyed {
   ~MustBeDestroyed() { *was_destroyed_ = true; }
 
  private:
-  const raw_ptr<bool> was_destroyed_;
+  bool* const was_destroyed_;
 };
 
 }  // namespace
@@ -1299,7 +1334,7 @@ struct TaskRunnerAndEvents {
 
   // An event that should be signaled before the task following the priority
   // update runs.
-  raw_ptr<TestWaitableEvent> expected_previous_event;
+  TestWaitableEvent* expected_previous_event;
 };
 
 // Create a series of sample task runners that will post tasks at various
@@ -1335,7 +1370,7 @@ std::vector<std::unique_ptr<TaskRunnerAndEvents>> CreateTaskRunnersAndEvents(
   // foreground group, it should be after the task posted to the TaskRunner
   // whose priority is updated to USER_VISIBLE.
   TestWaitableEvent* expected_previous_event =
-      CanUseBackgroundThreadTypeForWorkerThread()
+      CanUseBackgroundPriorityForWorkerThread()
           ? nullptr
           : &task_runners_and_events.back()->task_ran;
 
@@ -1354,7 +1389,7 @@ void TestUpdatePrioritySequenceNotScheduled(ThreadPoolImplTest* test,
   // thread per pool, it is possible that tasks don't run in order even if
   // threads got tasks from the PriorityQueue in order. Therefore, enforce a
   // maximum of 1 thread per pool.
-  constexpr size_t kLocalMaxNumForegroundThreads = 1;
+  constexpr int kLocalMaxNumForegroundThreads = 1;
 
   test->StartThreadPool(kLocalMaxNumForegroundThreads);
   auto task_runners_and_events =
@@ -1371,7 +1406,17 @@ void TestUpdatePrioritySequenceNotScheduled(ThreadPoolImplTest* test,
         BindOnce(
             &VerifyOrderAndTaskEnvironmentAndSignalEvent,
             TaskTraits{task_runner_and_events->updated_priority, thread_policy},
-            Unretained(task_runner_and_events->expected_previous_event.get()),
+            test->GetPoolType(),
+            // Native pools ignore the maximum number of threads per pool
+            // and therefore don't guarantee that tasks run in priority
+            // order (see comment at beginning of test).
+            Unretained(
+#if HAS_NATIVE_THREAD_POOL()
+                test->GetPoolType() == test::PoolType::NATIVE
+                    ? nullptr
+                    :
+#endif
+                    task_runner_and_events->expected_previous_event),
             Unretained(&task_runner_and_events->task_ran)));
   }
 
@@ -1422,6 +1467,7 @@ void TestUpdatePrioritySequenceScheduled(ThreadPoolImplTest* test,
         BindOnce(
             &VerifyOrderAndTaskEnvironmentAndSignalEvent,
             TaskTraits{task_runner_and_events->updated_priority, thread_policy},
+            test->GetPoolType(),
             Unretained(task_runner_and_events->expected_previous_event),
             Unretained(&task_runner_and_events->task_ran)));
   }
@@ -1437,29 +1483,28 @@ void TestUpdatePrioritySequenceScheduled(ThreadPoolImplTest* test,
 
 }  // namespace
 
-TEST_F(ThreadPoolImplTest,
+TEST_P(ThreadPoolImplTest,
        UpdatePrioritySequenceNotScheduled_PreferBackground) {
   TestUpdatePrioritySequenceNotScheduled(this, ThreadPolicy::PREFER_BACKGROUND);
 }
 
-TEST_F(ThreadPoolImplTest,
+TEST_P(ThreadPoolImplTest,
        UpdatePrioritySequenceNotScheduled_MustUseForeground) {
   TestUpdatePrioritySequenceNotScheduled(this,
                                          ThreadPolicy::MUST_USE_FOREGROUND);
 }
 
-TEST_F(ThreadPoolImplTest, UpdatePrioritySequenceScheduled_PreferBackground) {
+TEST_P(ThreadPoolImplTest, UpdatePrioritySequenceScheduled_PreferBackground) {
   TestUpdatePrioritySequenceScheduled(this, ThreadPolicy::PREFER_BACKGROUND);
 }
 
-TEST_F(ThreadPoolImplTest, UpdatePrioritySequenceScheduled_MustUseForeground) {
+TEST_P(ThreadPoolImplTest, UpdatePrioritySequenceScheduled_MustUseForeground) {
   TestUpdatePrioritySequenceScheduled(this, ThreadPolicy::MUST_USE_FOREGROUND);
 }
 
 // Verify that a ThreadPolicy has to be specified in TaskTraits to increase
 // TaskPriority from BEST_EFFORT.
-TEST_F(ThreadPoolImplTest, UpdatePriorityFromBestEffortNoThreadPolicy) {
-  testing::GTEST_FLAG(death_test_style) = "threadsafe";
+TEST_P(ThreadPoolImplTest, UpdatePriorityFromBestEffortNoThreadPolicy) {
   StartThreadPool();
   {
     auto task_runner = thread_pool_->CreateUpdateableSequencedTaskRunner(
@@ -1475,11 +1520,24 @@ TEST_F(ThreadPoolImplTest, UpdatePriorityFromBestEffortNoThreadPolicy) {
   }
 }
 
+auto GetPoolValues() {
+  return ::testing::Values(test::PoolType::GENERIC
+#if HAS_NATIVE_THREAD_POOL()
+                           ,
+                           test::PoolType::NATIVE
+#endif
+  );
+}
+
+INSTANTIATE_TEST_SUITE_P(All, ThreadPoolImplTest, GetPoolValues());
+
 INSTANTIATE_TEST_SUITE_P(
     All,
     ThreadPoolImplTest_CoverAllSchedulingOptions,
-    ::testing::ValuesIn(
-        GetTraitsExecutionModePairsToCoverAllSchedulingOptions()));
+    ::testing::Combine(
+        GetPoolValues(),
+        ::testing::ValuesIn(
+            GetTraitsExecutionModePairsToCoverAllSchedulingOptions())));
 
 }  // namespace internal
 }  // namespace base

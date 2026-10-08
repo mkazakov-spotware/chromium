@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include "base/test/test_mock_time_task_runner.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -45,12 +44,9 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerTest, FullscreenOnFileURL) {
   GURL file_url(ui_test_utils::GetTestUrl(
       base::FilePath(base::FilePath::kCurrentDirectory),
       base::FilePath(kEmptyFile)));
-  ASSERT_TRUE(AddTabAtIndex(0, file_url, PAGE_TRANSITION_TYPED));
+  AddTabAtIndex(0, file_url, PAGE_TRANSITION_TYPED);
   GetFullscreenController()->EnterFullscreenModeForTab(
-      browser()
-          ->tab_strip_model()
-          ->GetActiveWebContents()
-          ->GetPrimaryMainFrame());
+      browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame());
   ASSERT_TRUE(IsExclusiveAccessBubbleDisplayed());
 }
 
@@ -84,7 +80,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerTest,
   GURL file_url(ui_test_utils::GetTestUrl(
       base::FilePath(base::FilePath::kCurrentDirectory),
       base::FilePath(kEmptyFile)));
-  ASSERT_TRUE(AddTabAtIndex(0, file_url, PAGE_TRANSITION_TYPED));
+  AddTabAtIndex(0, file_url, PAGE_TRANSITION_TYPED);
   EnterActiveTabFullscreen();
   ASSERT_TRUE(RequestKeyboardLock(/*esc_key_locked=*/true));
   ASSERT_TRUE(GetExclusiveAccessManager()
@@ -101,7 +97,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerTest,
   GURL file_url(ui_test_utils::GetTestUrl(
       base::FilePath(base::FilePath::kCurrentDirectory),
       base::FilePath(kEmptyFile)));
-  ASSERT_TRUE(AddTabAtIndex(0, file_url, PAGE_TRANSITION_TYPED));
+  AddTabAtIndex(0, file_url, PAGE_TRANSITION_TYPED);
   EnterActiveTabFullscreen();
   ASSERT_TRUE(RequestKeyboardLock(/*esc_key_locked=*/false));
   ASSERT_TRUE(GetExclusiveAccessManager()
@@ -147,16 +143,8 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerTest,
                   ->IsKeyboardLockActive());
 }
 
-// Disabled for flaky SEGFAULTs on Lacros: crbug.com/1340114
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#define MAYBE_KeyboardLockNotLockedInExtensionFullscreenMode \
-  DISABLED_KeyboardLockNotLockedInExtensionFullscreenMode
-#else
-#define MAYBE_KeyboardLockNotLockedInExtensionFullscreenMode \
-  KeyboardLockNotLockedInExtensionFullscreenMode
-#endif  // IS_CHROMEOS_LACROS
 IN_PROC_BROWSER_TEST_F(FullscreenControllerTest,
-                       MAYBE_KeyboardLockNotLockedInExtensionFullscreenMode) {
+                       KeyboardLockNotLockedInExtensionFullscreenMode) {
   EnterExtensionInitiatedFullscreen();
   ASSERT_TRUE(RequestKeyboardLock(/*esc_key_locked=*/true));
   ASSERT_FALSE(GetExclusiveAccessManager()
@@ -200,7 +188,8 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerTest, FastKeyboardLockUnlockRelock) {
 
   ASSERT_TRUE(RequestKeyboardLock(/*esc_key_locked=*/true));
   // Shorter than |ExclusiveAccessBubble::kInitialDelayMs|.
-  task_runner->FastForwardBy(base::Milliseconds(InitialBubbleDelayMs() / 2));
+  task_runner->FastForwardBy(
+      base::TimeDelta::FromMilliseconds(InitialBubbleDelayMs() / 2));
   CancelKeyboardLock();
   ASSERT_TRUE(RequestKeyboardLock(/*esc_key_locked=*/true));
   ASSERT_TRUE(GetExclusiveAccessManager()
@@ -218,7 +207,8 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerTest, SlowKeyboardLockUnlockRelock) {
 
   ASSERT_TRUE(RequestKeyboardLock(/*esc_key_locked=*/true));
   // Longer than |ExclusiveAccessBubble::kInitialDelayMs|.
-  task_runner->FastForwardBy(base::Milliseconds(InitialBubbleDelayMs() + 20));
+  task_runner->FastForwardBy(
+      base::TimeDelta::FromMilliseconds(InitialBubbleDelayMs() + 20));
   CancelKeyboardLock();
   ASSERT_TRUE(RequestKeyboardLock(/*esc_key_locked=*/true));
   ASSERT_TRUE(GetExclusiveAccessManager()
@@ -240,7 +230,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerTest,
       [](bool* triggered) { *triggered = true; }, &esc_threshold_reached));
 
   // Set the window to a known value for testing.
-  SetEscRepeatWindowLength(base::Seconds(1));
+  SetEscRepeatWindowLength(base::TimeDelta::FromSeconds(1));
 
   ASSERT_TRUE(RequestKeyboardLock(/*esc_key_locked=*/true));
   ASSERT_TRUE(GetExclusiveAccessManager()
@@ -264,15 +254,15 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerTest,
   GetExclusiveAccessManager()->HandleUserKeyEvent(key_up_event);
   ASSERT_FALSE(esc_threshold_reached);
 
-  clock.Advance(base::Milliseconds(100));
+  clock.Advance(base::TimeDelta::FromMilliseconds(100));
   GetExclusiveAccessManager()->HandleUserKeyEvent(key_down_event);
-  clock.Advance(base::Milliseconds(100));
+  clock.Advance(base::TimeDelta::FromMilliseconds(100));
   GetExclusiveAccessManager()->HandleUserKeyEvent(key_up_event);
   ASSERT_FALSE(esc_threshold_reached);
 
-  clock.Advance(base::Milliseconds(100));
+  clock.Advance(base::TimeDelta::FromMilliseconds(100));
   GetExclusiveAccessManager()->HandleUserKeyEvent(key_down_event);
-  clock.Advance(base::Milliseconds(100));
+  clock.Advance(base::TimeDelta::FromMilliseconds(100));
   GetExclusiveAccessManager()->HandleUserKeyEvent(key_up_event);
   ASSERT_TRUE(esc_threshold_reached);
 }
@@ -289,7 +279,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerTest,
       [](bool* triggered) { *triggered = true; }, &esc_threshold_reached));
 
   // Set the window to a known value for testing.
-  SetEscRepeatWindowLength(base::Seconds(1));
+  SetEscRepeatWindowLength(base::TimeDelta::FromSeconds(1));
 
   ASSERT_TRUE(RequestKeyboardLock(/*esc_key_locked=*/true));
   ASSERT_TRUE(GetExclusiveAccessManager()
@@ -313,15 +303,15 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerTest,
   GetExclusiveAccessManager()->HandleUserKeyEvent(key_up_event);
   ASSERT_FALSE(esc_threshold_reached);
 
-  clock.Advance(base::Milliseconds(400));
+  clock.Advance(base::TimeDelta::FromMilliseconds(400));
   GetExclusiveAccessManager()->HandleUserKeyEvent(key_down_event);
-  clock.Advance(base::Milliseconds(200));
+  clock.Advance(base::TimeDelta::FromMilliseconds(200));
   GetExclusiveAccessManager()->HandleUserKeyEvent(key_up_event);
   ASSERT_FALSE(esc_threshold_reached);
 
-  clock.Advance(base::Milliseconds(400));
+  clock.Advance(base::TimeDelta::FromMilliseconds(400));
   GetExclusiveAccessManager()->HandleUserKeyEvent(key_down_event);
-  clock.Advance(base::Milliseconds(200));
+  clock.Advance(base::TimeDelta::FromMilliseconds(200));
   GetExclusiveAccessManager()->HandleUserKeyEvent(key_up_event);
   ASSERT_FALSE(esc_threshold_reached);
 }
@@ -416,7 +406,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerTest,
 // Sheriff: http://crbug.com/925928
 IN_PROC_BROWSER_TEST_F(FullscreenControllerTest, DISABLED_TopViewStatusChange) {
   ExclusiveAccessContext* context = GetExclusiveAccessManager()->context();
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // First, set the preference to true so we expect to see the top view in
   // fullscreen mode.
   PrefService* prefs = browser()->profile()->GetPrefs();
@@ -438,7 +428,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerTest, DISABLED_TopViewStatusChange) {
   // Test Normal state <--> Browser fullscreen mode <--> Tab fullscreen mode.
   ToggleBrowserFullscreen();
   EXPECT_TRUE(context->IsFullscreen());
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_MAC) || defined(OS_CHROMEOS)
   bool should_show_top_ui = true;
 #else
   bool should_show_top_ui = false;
@@ -447,7 +437,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerTest, DISABLED_TopViewStatusChange) {
 
   EnterActiveTabFullscreen();
   EXPECT_TRUE(context->IsFullscreen());
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   EXPECT_TRUE(browser()->window()->IsToolbarVisible());
 #else
   EXPECT_FALSE(browser()->window()->IsToolbarVisible());
@@ -477,20 +467,4 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerTest, DISABLED_TopViewStatusChange) {
   ToggleBrowserFullscreen();
   EXPECT_TRUE(context->IsFullscreen());
   EXPECT_EQ(should_show_top_ui, browser()->window()->IsToolbarVisible());
-}
-
-// The controller must |CanEnterFullscreenModeForTab| while in fullscreen.
-// While an element is in fullscreen, requesting fullscreen for a different
-// element in the tab is handled in the renderer process if both elements are in
-// the same process. But the request will come to the browser when the element
-// is in a different process, such as OOPIF, because the renderer doesn't know
-// if an element in other renderer process is in fullscreen. crbug.com/1298081
-IN_PROC_BROWSER_TEST_F(FullscreenControllerTest,
-                       EnterFullscreenWhenInFullscreen) {
-  EnterActiveTabFullscreen();
-  EXPECT_TRUE(GetFullscreenController()->CanEnterFullscreenModeForTab(
-      browser()
-          ->tab_strip_model()
-          ->GetActiveWebContents()
-          ->GetPrimaryMainFrame()));
 }

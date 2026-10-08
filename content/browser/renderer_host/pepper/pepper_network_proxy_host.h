@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,15 @@
 #include <set>
 #include <string>
 
+#include "base/compiler_specific.h"
 #include "base/containers/queue.h"
 #include "base/containers/unique_ptr_adapters.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
+#include "content/common/content_export.h"
 #include "ppapi/host/host_message_context.h"
 #include "ppapi/host/resource_host.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 namespace net {
@@ -35,14 +38,11 @@ class BrowserPpapiHostImpl;
 class PepperProxyLookupHelper;
 
 // The host for PPB_NetworkProxy. This class lives on the IO thread.
-class PepperNetworkProxyHost : public ppapi::host::ResourceHost {
+class CONTENT_EXPORT PepperNetworkProxyHost : public ppapi::host::ResourceHost {
  public:
   PepperNetworkProxyHost(BrowserPpapiHostImpl* host,
                          PP_Instance instance,
                          PP_Resource resource);
-
-  PepperNetworkProxyHost(const PepperNetworkProxyHost&) = delete;
-  PepperNetworkProxyHost& operator=(const PepperNetworkProxyHost&) = delete;
 
   ~PepperNetworkProxyHost() override;
 
@@ -74,7 +74,7 @@ class PepperNetworkProxyHost : public ppapi::host::ResourceHost {
 
   void OnResolveProxyCompleted(ppapi::host::ReplyMessageContext context,
                                PepperProxyLookupHelper* pending_request,
-                               absl::optional<net::ProxyInfo> proxy_info);
+                               base::Optional<net::ProxyInfo> proxy_info);
   void SendFailureReply(int32_t error,
                         ppapi::host::ReplyMessageContext context);
 
@@ -104,6 +104,8 @@ class PepperNetworkProxyHost : public ppapi::host::ResourceHost {
       pending_requests_;
 
   base::WeakPtrFactory<PepperNetworkProxyHost> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PepperNetworkProxyHost);
 };
 
 }  // namespace content

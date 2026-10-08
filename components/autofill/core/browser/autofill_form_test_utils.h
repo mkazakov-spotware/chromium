@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,19 +7,23 @@
 
 #include <vector>
 
-#include "base/strings/string_piece.h"
+#include "base/optional.h"
 #include "components/autofill/core/browser/autofill_field.h"
 #include "components/autofill/core/browser/field_types.h"
-#include "components/autofill/core/common/autocomplete_parsing_util.h"
 #include "components/autofill/core/common/form_data.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace autofill {
 namespace test {
 
 namespace {
+
+// Default label assigned to fields.
+constexpr char kLabelText[] = "label";
+
+// Default name attribute assigned to fields.
+constexpr char kNameText[] = "name";
 
 // Default form url.
 constexpr char kFormUrl[] = "http://example.com/form.html";
@@ -31,46 +35,31 @@ constexpr char kFormActionUrl[] = "http://example.com/submit.html";
 
 namespace internal {
 
-// Expected FormFieldData and type predictions are constructed based on these
-// descriptions.
+// Expected FormFieldData are constructed based on these descriptions.
 template <typename = void>
-struct FieldDescription {
+struct FieldDataDescription {
   ServerFieldType role = ServerFieldType::EMPTY_TYPE;
-  // If the server type is not set explcitly, it is assumed to be given by the
-  // role.
-  absl::optional<ServerFieldType> server_type;
-  // If the heuristic type is not set explcitly, it is assumed to be given by
-  // the role.
-  absl::optional<ServerFieldType> heuristic_type;
-  absl::optional<LocalFrameToken> host_frame;
-  absl::optional<FieldRendererId> unique_renderer_id;
   bool is_focusable = true;
-  bool is_visible = true;
-  absl::optional<std::u16string> label;
-  absl::optional<std::u16string> name;
-  absl::optional<std::u16string> value;
-  absl::optional<std::u16string> placeholder;
-  const std::string autocomplete_attribute;
-  absl::optional<AutocompleteParsingResult> parsed_autocomplete;
-  const std::string form_control_type = "text";
+  const char* label = kLabelText;
+  const char* name = kNameText;
+  base::Optional<const char*> value = base::nullopt;
+  const char* autocomplete_attribute = nullptr;
+  const char* form_control_type = "text";
   bool should_autocomplete = true;
-  absl::optional<bool> is_autofilled;
-  absl::optional<url::Origin> origin;
-  std::vector<SelectOption> select_options = {};
-  FieldPropertiesMask properties_mask = 0;
+  base::Optional<bool> is_autofilled = base::nullopt;
 };
 
 // Attributes provided to the test form.
 template <typename = void>
-struct FormDescription {
-  const std::string description_for_logging;
-  std::vector<FieldDescription<>> fields;
-  absl::optional<LocalFrameToken> host_frame;
-  absl::optional<FormRendererId> unique_renderer_id;
-  const std::u16string name = u"TestForm";
-  const std::string url = kFormUrl;
-  const std::string action = kFormActionUrl;
-  absl::optional<url::Origin> main_frame_origin;
+struct TestFormAttributes {
+  const char* description_for_logging;
+  std::vector<FieldDataDescription<>> fields;
+  base::Optional<FormRendererId> unique_renderer_id = base::nullopt;
+  const char* name = "TestForm";
+  const char* url = kFormUrl;
+  const char* action = kFormActionUrl;
+  base::Optional<url::Origin> main_frame_origin = base::nullopt;
+  bool is_formless_checkout = false;
   bool is_form_tag = true;
 };
 
@@ -88,18 +77,21 @@ struct TestFormFlags {
   bool should_be_uploaded = false;
   bool has_author_specified_types = false;
   bool has_author_specified_upi_vpa_hint = false;
-  // The implicit default value `absl::nullopt` means no checking.
-  absl::optional<bool> is_complete_credit_card_form;
-  absl::optional<int> field_count;
-  absl::optional<int> autofill_count;
-  absl::optional<int> section_count;
-  absl::optional<int> response_field_count;
+  // first value denotes whether the comparison is to be done while second
+  // denotes EXPECT_TRUE for true and EXPECT_FALSE for false.
+  std::pair<bool, bool> is_complete_credit_card_form = {false, false};
+  // base::nullopt means no checking.
+  base::Optional<int> field_count = base::nullopt;
+  base::Optional<int> autofill_count = base::nullopt;
+  base::Optional<int> section_count = base::nullopt;
+  base::Optional<int> response_field_count = base::nullopt;
 };
 
 // Expected field type values to be verified with the test form.
 template <typename = void>
 struct ExpectedFieldTypeValues {
   std::vector<HtmlFieldType> expected_html_type = {};
+  std::vector<AutofillField::PhonePart> expected_phone_part = {};
   std::vector<ServerFieldType> expected_heuristic_type = {};
   std::vector<ServerFieldType> expected_overall_type = {};
 };
@@ -107,15 +99,15 @@ struct ExpectedFieldTypeValues {
 // Describes a test case for the parser.
 template <typename = void>
 struct FormStructureTestCase {
-  FormDescription<> form_attributes;
+  TestFormAttributes<> form_attributes;
   TestFormFlags<> form_flags;
   ExpectedFieldTypeValues<> expected_field_types;
 };
 
 }  // namespace internal
 
-using FieldDescription = internal::FieldDescription<>;
-using FormDescription = internal::FormDescription<>;
+using FieldDataDescription = internal::FieldDataDescription<>;
+using TestFormAttributes = internal::TestFormAttributes<>;
 using FormStructureTestCase = internal::FormStructureTestCase<>;
 
 // Describes the |form_data|. Use this in SCOPED_TRACE if other logging
@@ -126,18 +118,7 @@ testing::Message DescribeFormData(const FormData& form_data);
 FormFieldData CreateFieldByRole(ServerFieldType role);
 
 // Creates a FormData to be fed to the parser.
-FormData GetFormData(const FormDescription& test_form_attributes);
-
-// Extracts the heuristic types from the form description. If the heuristic type
-// is not explicitly set for a given field it is extracted from the field's
-// role.
-std::vector<ServerFieldType> GetHeuristicTypes(
-    const FormDescription& form_description);
-
-// Extracts the server types from the form description. If the server type
-// is not explicitly set for field it is extracted from the fiel's role.
-std::vector<ServerFieldType> GetServerTypes(
-    const FormDescription& form_description);
+FormData GetFormData(const TestFormAttributes& test_form_attributes);
 
 class FormStructureTest : public testing::Test {
  protected:

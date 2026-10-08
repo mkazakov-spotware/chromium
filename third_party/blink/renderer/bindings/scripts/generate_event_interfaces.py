@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 #
 # Copyright (C) 2013 Google Inc. All rights reserved.
 #
@@ -52,7 +52,7 @@ EXPORTED_EXTENDED_ATTRIBUTES = (
     'ImplementedAs',
     'RuntimeEnabled',
 )
-module_path = os.path.dirname(os.path.abspath(__file__))
+module_path = os.path.dirname(os.path.realpath(__file__))
 REPO_ROOT_DIR = os.path.normpath(
     os.path.join(module_path, os.pardir, os.pardir, os.pardir, os.pardir,
                  os.pardir))
@@ -67,11 +67,6 @@ def parse_options():
         '--suffix',
         help=
         'specify a suffix to the namespace, i.e., "Modules". Default is None.')
-    parser.add_option(
-        '--export-macro',
-        help='specify an export to use for the symbols, i.e.,'
-        '"MODULES_EXPORT". Default is suffix_EXPORT if --suffix is present or '
-        'CORE_EXPORT if not.')
 
     options, args = parser.parse_args()
     if options.event_idl_files_list is None:
@@ -86,8 +81,7 @@ def parse_options():
     return options
 
 
-def write_event_interfaces_file(event_idl_files, destination_filename, suffix,
-                                export_macro):
+def write_event_interfaces_file(event_idl_files, destination_filename, suffix):
     def interface_line(full_path):
         relative_dir_local = os.path.dirname(
             os.path.relpath(full_path, REPO_ROOT_DIR))
@@ -104,13 +98,8 @@ def write_event_interfaces_file(event_idl_files, destination_filename, suffix,
         return (relative_dir_posix, interface_name, extended_attributes_list)
 
     lines = ['{', 'metadata: {', '  namespace: "event_interface_names",']
-
     if suffix:
         lines.append('  suffix: "' + suffix + '",')
-
-    if export_macro:
-        lines.append('  export: "%s",' % export_macro)
-    elif suffix:
         lines.append('  export: "%s_EXPORT",' % suffix.upper())
     else:
         lines.append('  export: "CORE_EXPORT",')
@@ -141,7 +130,7 @@ def main():
     options = parse_options()
     event_idl_files = read_file_to_list(options.event_idl_files_list)
     write_event_interfaces_file(event_idl_files, options.event_interfaces_file,
-                                options.suffix, options.export_macro)
+                                options.suffix)
 
 
 if __name__ == '__main__':

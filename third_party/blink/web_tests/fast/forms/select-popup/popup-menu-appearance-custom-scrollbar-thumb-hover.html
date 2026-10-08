@@ -1,8 +1,11 @@
 <!DOCTYPE html>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
+<html>
+<head>
+<script>
+  window.enablePixelTesting = true;
+</script>
 <script src="../resources/picker-common.js"></script>
-
+<script src="../resources/common.js"></script>
 <style>
   select:focus {
     outline-width: 0;
@@ -33,8 +36,9 @@
     background-color: green;
   }
 </style>
-
-<select>
+</head>
+<body>
+<select id='menu'>
   <option>This is an option</option>
   <option>This is an option</option>
   <option>This is an option</option>
@@ -63,27 +67,32 @@
   <option>This is an option</option>
   <option>This is an option</option>
 </select>
-
 <script>
-  function mouseMoveToScrollbar() {
-    return new Promise(function(resolve, reject) {
-      if (window.chrome && chrome.gpuBenchmarking) {
-        let selectElement = internals.pagePopupWindow.global.picker.selectElement_;
-        let innerSelectRect = selectElement.getBoundingClientRect();
-        let scrollbarX = innerSelectRect.x + innerSelectRect.width - 10;
-        let scrollbarY = innerSelectRect.y + 50;
-        chrome.gpuBenchmarking.pointerActionSequence(
-            [{
-              source: 'mouse',
-              actions: [{name: 'pointerMove', x: scrollbarX, y: scrollbarY}]
-            }],
-            resolve);
-      } else {
-        reject();
-      }
-    });
-  }
-  window.onload = openPickerAppearanceOnly(document.querySelector('select'),() => {
-    return mouseMoveToScrollbar();
+let menu = document.getElementById('menu');
+function mouseMoveToScrollbar() {
+  return new Promise(function(resolve, reject) {
+    if (window.chrome && chrome.gpuBenchmarking) {
+      let selectElement = internals.pagePopupWindow.global.picker._selectElement;
+      let innerSelectRect = selectElement.getBoundingClientRect();
+      let scrollbarX = innerSelectRect.x + innerSelectRect.width - 10;
+      let scrollbarY = innerSelectRect.y + 50;
+      chrome.gpuBenchmarking.pointerActionSequence(
+          [{
+            source: 'mouse',
+            actions: [{name: 'pointerMove', x: scrollbarX, y: scrollbarY}]
+          }],
+          resolve);
+    } else {
+      reject();
+    }
   });
+}
+openPicker(menu, ()=>{
+  mouseMoveToScrollbar().then(()=>{
+    testRunner.notifyDone()
+  })
+})
+testRunner.waitUntilDone()
 </script>
+</body>
+</html>

@@ -14,12 +14,6 @@ x
 a
 /
 b
- 
-𝑥
-+
-𝑎
-/
-𝑏
 Most important heading here
 Google Chrome
 
@@ -45,7 +39,6 @@ Visit us at:www.chromium.org
 
 
 January
-
 This is an open dialog window
 
 Caption
@@ -72,14 +65,11 @@ AXRole: AXGenericContainer
         AXRole: AXStaticText "Paragraph"
             AXRole: AXInlineTextBox "Paragraph"
     AXRole: AXRuby
+        AXRole: AXRubyAnnotation
+            AXRole: AXStaticText "한국"
+                AXRole: AXInlineTextBox "한국"
         AXRole: AXStaticText "韓國"
             AXRole: AXInlineTextBox "韓國"
-        AXRole: AXRubyAnnotation
-            AXRole: AXStaticText "("
-        AXRole: AXRubyAnnotation "한국"
-            AXRole: AXStaticText "한국"
-        AXRole: AXRubyAnnotation
-            AXRole: AXStaticText ")"
     AXRole: AXDescriptionList
         AXRole: AXDescriptionListTerm
             AXRole: AXStaticText "Coffee"
@@ -94,41 +84,23 @@ AXRole: AXGenericContainer
             AXRole: AXStaticText "- white cold drink"
                 AXRole: AXInlineTextBox "- white cold drink"
     AXRole: AXMath
-        AXRole: AXMathMLRow
-            AXRole: AXMathMLIdentifier
+        AXRole: AXGenericContainer
+            AXRole: AXGenericContainer
                 AXRole: AXStaticText "x"
                     AXRole: AXInlineTextBox "x"
-            AXRole: AXMathMLOperator
+            AXRole: AXGenericContainer
                 AXRole: AXStaticText "+"
                     AXRole: AXInlineTextBox "+"
-            AXRole: AXMathMLRow
-                AXRole: AXMathMLIdentifier
+            AXRole: AXGenericContainer
+                AXRole: AXGenericContainer
                     AXRole: AXStaticText "a"
                         AXRole: AXInlineTextBox "a"
-                AXRole: AXMathMLOperator
+                AXRole: AXGenericContainer
                     AXRole: AXStaticText "/"
                         AXRole: AXInlineTextBox "/"
-                AXRole: AXMathMLIdentifier
+                AXRole: AXGenericContainer
                     AXRole: AXStaticText "b"
                         AXRole: AXInlineTextBox "b"
-    AXRole: AXMathMLMath
-        AXRole: AXMathMLRow
-            AXRole: AXMathMLIdentifier
-                AXRole: AXStaticText "𝑥"
-                    AXRole: AXInlineTextBox "𝑥"
-            AXRole: AXMathMLOperator
-                AXRole: AXStaticText "+"
-                    AXRole: AXInlineTextBox "+"
-            AXRole: AXMathMLRow
-                AXRole: AXMathMLIdentifier
-                    AXRole: AXStaticText "𝑎"
-                        AXRole: AXInlineTextBox "𝑎"
-                AXRole: AXMathMLOperator
-                    AXRole: AXStaticText "/"
-                        AXRole: AXInlineTextBox "/"
-                AXRole: AXMathMLIdentifier
-                    AXRole: AXStaticText "𝑏"
-                        AXRole: AXInlineTextBox "𝑏"
     AXRole: AXMain
         AXRole: AXArticle
             AXRole: AXHeaderAsNonLandmark
@@ -187,7 +159,7 @@ element
             AXRole: AXParagraph
                 AXRole: AXStaticText "Footer in section"
                     AXRole: AXInlineTextBox "Footer in section"
-    AXRole: AXGroup
+    AXRole: AXGenericContainer
         AXRole: AXStaticText "Written by Julie"
             AXRole: AXInlineTextBox "Written by Julie"
         AXRole: AXLineBreak "
@@ -203,23 +175,21 @@ element
     AXRole: AXParagraph
         AXRole: AXStaticText "January"
             AXRole: AXInlineTextBox "January"
-    AXRole: AXDialog
-        AXRole: AXStaticText "This is an open dialog window"
-            AXRole: AXInlineTextBox "This is an open dialog window"
-    AXRole: AXParagraph
+        AXRole: AXDialog
+            AXRole: AXStaticText "This is an open dialog window"
+                AXRole: AXInlineTextBox "This is an open dialog window"
     AXRole: AXTable "Caption"
         AXRole: AXCaption
             AXRole: AXStaticText "Caption"
                 AXRole: AXInlineTextBox "Caption"
-        AXRole: AXRowGroup
-            AXRole: AXRow
-                AXRole: AXCell "Cell1"
-                    AXRole: AXStaticText "Cell1"
-                        AXRole: AXInlineTextBox "Cell1"
-                AXRole: AXCell "Cell2"
-                    AXRole: AXStaticText "Cell2"
-                        AXRole: AXInlineTextBox "Cell2"
-    AXRole: AXFigure
+        AXRole: AXRow
+            AXRole: AXCell "Cell1"
+                AXRole: AXStaticText "Cell1"
+                    AXRole: AXInlineTextBox "Cell1"
+            AXRole: AXCell "Cell2"
+                AXRole: AXStaticText "Cell2"
+                    AXRole: AXInlineTextBox "Cell2"
+    AXRole: AXFigure "Fig1. - Blue Box"
         AXRole: AXImage "blue"
         AXRole: AXFigcaption
             AXRole: AXStaticText "Fig1. - Blue Box"

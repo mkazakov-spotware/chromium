@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/reputation/safety_tip_ui.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -58,10 +57,6 @@ using ReputationCheckCallback =
 class ReputationService : public KeyedService {
  public:
   explicit ReputationService(Profile* profile);
-
-  ReputationService(const ReputationService&) = delete;
-  ReputationService& operator=(const ReputationService&) = delete;
-
   ~ReputationService() override;
 
   static ReputationService* Get(Profile* profile);
@@ -89,9 +84,11 @@ class ReputationService : public KeyedService {
   // seen as flagged in metrics. This only impacts metrics for control groups.
   void OnUIDisabledFirstVisit(const GURL& url);
 
-  // Reset set of eTLD+1s to forget the user action that ignores warning. Only
-  // for testing.
-  void ResetWarningDismissedETLDPlusOnesForTesting();
+  // Used to help mock the generated keywords for the sensitive keywords
+  // heuristic for testing. The keywords passed to this function MUST be in
+  // sorted order, and must have a lifetime at least as long as this service.
+  void SetSensitiveKeywordsForTesting(const char* const* new_keywords,
+                                      size_t num_new_keywords);
 
  private:
   // Callback once we have up-to-date |engaged_sites|. Performs checks on the
@@ -104,13 +101,17 @@ class ReputationService : public KeyedService {
       ReputationCheckCallback callback,
       const std::vector<DomainInfo>& engaged_sites);
 
-  // Set of eTLD+1s that we've warned about, and the user has explicitly
+  // Set of origins that we've warned about, and the user has explicitly
   // ignored.  Used to avoid re-warning the user.
-  std::set<std::string> warning_dismissed_etld1s_;
+  std::set<url::Origin> warning_dismissed_origins_;
 
-  raw_ptr<Profile, DanglingUntriaged> profile_;
+  Profile* profile_;
+
+  const char* const* sensitive_keywords_;
+  size_t num_sensitive_keywords_;
 
   base::WeakPtrFactory<ReputationService> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(ReputationService);
 };
 
 #endif  // CHROME_BROWSER_REPUTATION_REPUTATION_SERVICE_H_

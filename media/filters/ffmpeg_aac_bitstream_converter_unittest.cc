@@ -1,13 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "media/ffmpeg/ffmpeg_common.h"
-#include "media/ffmpeg/scoped_av_packet.h"
 #include "media/filters/ffmpeg_aac_bitstream_converter.h"
+#include "media/filters/ffmpeg_demuxer.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace media {
@@ -19,12 +20,6 @@ const int kAacLowComplexityProfile = 1;
 
 // Class for testing the FFmpegAACBitstreamConverter.
 class FFmpegAACBitstreamConverterTest : public testing::Test {
- public:
-  FFmpegAACBitstreamConverterTest(const FFmpegAACBitstreamConverterTest&) =
-      delete;
-  FFmpegAACBitstreamConverterTest& operator=(
-      const FFmpegAACBitstreamConverterTest&) = delete;
-
  protected:
   FFmpegAACBitstreamConverterTest() {
     // Minimal extra data header
@@ -34,7 +29,7 @@ class FFmpegAACBitstreamConverterTest : public testing::Test {
     memset(&test_parameters_, 0, sizeof(AVCodecParameters));
     test_parameters_.codec_id = AV_CODEC_ID_AAC;
     test_parameters_.profile = FF_PROFILE_AAC_MAIN;
-    test_parameters_.ch_layout.nb_channels = 2;
+    test_parameters_.channels = 2;
     test_parameters_.extradata = extradata_header_;
     test_parameters_.extradata_size = sizeof(extradata_header_);
   }
@@ -50,6 +45,8 @@ class FFmpegAACBitstreamConverterTest : public testing::Test {
 
  private:
   uint8_t extradata_header_[2];
+
+  DISALLOW_COPY_AND_ASSIGN(FFmpegAACBitstreamConverterTest);
 };
 
 TEST_F(FFmpegAACBitstreamConverterTest, Conversion_Success) {
@@ -62,7 +59,7 @@ TEST_F(FFmpegAACBitstreamConverterTest, Conversion_Success) {
     dummy_packet[i] = i & 0xFF; // Repeated sequences of 0-255
   }
 
-  auto test_packet = ScopedAVPacket::Allocate();
+  ScopedAVPacket test_packet(new AVPacket());
   CreatePacket(test_packet.get(), dummy_packet,
                sizeof(dummy_packet));
 
@@ -94,7 +91,7 @@ TEST_F(FFmpegAACBitstreamConverterTest, Conversion_FailureNullParams) {
   EXPECT_FALSE(converter.ConvertPacket(NULL));
 
   // Create new packet to test actual conversion.
-  auto test_packet = ScopedAVPacket::Allocate();
+  ScopedAVPacket test_packet(new AVPacket());
   CreatePacket(test_packet.get(), dummy_packet, sizeof(dummy_packet));
 
   // Try out the actual conversion. This should fail due to missing extradata.
@@ -106,7 +103,7 @@ TEST_F(FFmpegAACBitstreamConverterTest, Conversion_AudioProfileType) {
 
   uint8_t dummy_packet[1000] = {0};
 
-  auto test_packet = ScopedAVPacket::Allocate();
+  ScopedAVPacket test_packet(new AVPacket());
   CreatePacket(test_packet.get(), dummy_packet,
                sizeof(dummy_packet));
 
@@ -120,7 +117,7 @@ TEST_F(FFmpegAACBitstreamConverterTest, Conversion_AudioProfileType) {
   test_parameters_.profile = FF_PROFILE_AAC_HE;
   FFmpegAACBitstreamConverter converter_he(&test_parameters_);
 
-  test_packet = ScopedAVPacket::Allocate();
+  test_packet.reset(new AVPacket());
   CreatePacket(test_packet.get(), dummy_packet,
                sizeof(dummy_packet));
 
@@ -133,7 +130,7 @@ TEST_F(FFmpegAACBitstreamConverterTest, Conversion_AudioProfileType) {
   test_parameters_.profile = FF_PROFILE_AAC_ELD;
   FFmpegAACBitstreamConverter converter_eld(&test_parameters_);
 
-  test_packet = ScopedAVPacket::Allocate();
+  test_packet.reset(new AVPacket());
   CreatePacket(test_packet.get(), dummy_packet,
                sizeof(dummy_packet));
 
@@ -145,7 +142,7 @@ TEST_F(FFmpegAACBitstreamConverterTest, Conversion_MultipleLength) {
 
   uint8_t dummy_packet[1000];
 
-  auto test_packet = ScopedAVPacket::Allocate();
+  ScopedAVPacket test_packet(new AVPacket());
   CreatePacket(test_packet.get(), dummy_packet,
                sizeof(dummy_packet));
 
@@ -161,7 +158,7 @@ TEST_F(FFmpegAACBitstreamConverterTest, Conversion_MultipleLength) {
   EXPECT_EQ(frame_length, test_packet->size);
 
   // Create a second packet that is 1 byte smaller than the first one
-  auto second_test_packet = ScopedAVPacket::Allocate();
+  ScopedAVPacket second_test_packet(new AVPacket());
   CreatePacket(second_test_packet.get(), dummy_packet,
                sizeof(dummy_packet) - 1);
 

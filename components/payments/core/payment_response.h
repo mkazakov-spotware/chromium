@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "base/strings/string16.h"
 #include "components/payments/mojom/payment_request_data.mojom.h"
 
 // C++ bindings for the PaymentRequest API PaymentResponse. Conforms to the
@@ -50,17 +51,17 @@ class PaymentResponse {
   // If the request_payer_name flag was set to true in the PaymentOptions passed
   // to the PaymentRequest constructor, this will be the name provided by the
   // user.
-  std::u16string payer_name;
+  base::string16 payer_name;
 
   // If the request_payer_email flag was set to true in the PaymentOptions
   // passed to the PaymentRequest constructor, this will be the email address
   // chosen by the user.
-  std::u16string payer_email;
+  base::string16 payer_email;
 
   // If the request_payer_phone flag was set to true in the PaymentOptions
   // passed to the PaymentRequest constructor, this will be the phone number
   // chosen by the user.
-  std::u16string payer_phone;
+  base::string16 payer_phone;
 };
 
 }  // namespace payments

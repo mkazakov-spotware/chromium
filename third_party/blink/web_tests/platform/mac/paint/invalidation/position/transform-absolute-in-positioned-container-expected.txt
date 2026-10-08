@@ -1,7 +1,7 @@
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [802, 585],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF",
@@ -10,7 +10,7 @@
       ]
     },
     {
-      "name": "HorizontalScrollbar",
+      "name": "ContentsLayer for Horizontal Scrollbar Layer",
       "position": [0, 585],
       "bounds": [800, 15],
       "contentsOpaque": true

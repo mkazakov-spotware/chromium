@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,12 @@
 #include <string>
 #include <utility>
 
-#include "base/base_export.h"
-#include "base/dcheck_is_on.h"
-#include "base/memory/raw_ptr.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/message_loop/timer_slack.h"
+#include "base/sequenced_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/task/sequence_manager/task_queue_impl.h"
 #include "base/task/sequence_manager/task_time_observer.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/time/default_tick_clock.h"
 
 namespace base {
@@ -28,6 +25,18 @@ class TaskObserver;
 namespace sequence_manager {
 
 class TimeDomain;
+
+// Represent outstanding work the sequence underlying a SequenceManager (e.g.,
+// a native system task for drawing the UI). As long as this handle is alive,
+// the work is considered to be pending.
+class NativeWorkHandle {
+ public:
+  virtual ~NativeWorkHandle();
+  NativeWorkHandle(const NativeWorkHandle&) = delete;
+
+ protected:
+  NativeWorkHandle() = default;
+};
 
 // SequenceManager manages TaskQueues which have different properties
 // (e.g. priority, common task type) multiplexing all posted tasks into
@@ -79,12 +88,9 @@ class BASE_EXPORT SequenceManager {
     // so we are making Settings move-only in preparation.
     Settings(Settings&& move_from) noexcept;
 
-    ~Settings();
-
     MessagePumpType message_loop_type = MessagePumpType::DEFAULT;
     bool randomised_sampling_enabled = false;
-    raw_ptr<const TickClock, DanglingUntriaged> clock =
-        DefaultTickClock::GetInstance();
+    const TickClock* clock = DefaultTickClock::GetInstance();
 
     // If true, add the timestamp the task got queued to the task.
     bool add_queue_time_to_tasks = false;
@@ -110,6 +116,9 @@ class BASE_EXPORT SequenceManager {
     // to run.
     bool log_task_delay_expiry = false;
 
+    // If true usages of the RunLoop API will be logged.
+    bool log_runloop_quit_and_quit_when_idle = false;
+
     // Scheduler policy induced raciness is an area of concern. This lets us
     // apply an extra delay per priority for cross thread posting.
     std::array<TimeDelta, TaskQueue::kQueuePriorityCount>
@@ -122,7 +131,8 @@ class BASE_EXPORT SequenceManager {
     // If not zero this seeds a PRNG used by the task selection logic to choose
     // a random TaskQueue for a given priority rather than the TaskQueue with
     // the oldest EnqueueOrder.
-    uint64_t random_task_selection_seed = 0;
+    int random_task_selection_seed = 0;
+
 #endif  // DCHECK_IS_ON()
   };
 
@@ -151,26 +161,16 @@ class BASE_EXPORT SequenceManager {
   virtual void AddTaskTimeObserver(TaskTimeObserver* task_time_observer) = 0;
   virtual void RemoveTaskTimeObserver(TaskTimeObserver* task_time_observer) = 0;
 
-  // Sets `time_domain` to be used by this scheduler and associated task queues.
-  // Only one time domain can be set at a time. `time_domain` must outlive this
-  // SequenceManager, even if ResetTimeDomain() is called. This has no effect on
-  // previously scheduled tasks and it is recommended that `time_domain` be set
-  // before posting any task to avoid inconsistencies in time. Otherwise,
-  // replacing `time_domain` is very subtle and should be reserved for developer
-  // only use cases (e.g. virtual time in devtools) where any flakiness caused
-  // by a racy time update isn't surprising.
-  virtual void SetTimeDomain(TimeDomain* time_domain) = 0;
-  // Disassociates the current `time_domain` and reverts to using
-  // RealTimeDomain.
-  virtual void ResetTimeDomain() = 0;
+  // Registers a TimeDomain with SequenceManager.
+  // TaskQueues must only be created with a registered TimeDomain.
+  // Conversely, any TimeDomain must remain registered until no
+  // TaskQueues (using that TimeDomain) remain.
+  virtual void RegisterTimeDomain(TimeDomain* time_domain) = 0;
+  virtual void UnregisterTimeDomain(TimeDomain* time_domain) = 0;
 
+  virtual TimeDomain* GetRealTimeDomain() const = 0;
   virtual const TickClock* GetTickClock() const = 0;
   virtual TimeTicks NowTicks() const = 0;
-
-  // Returns a wake-up for the next delayed task which is not ripe for
-  // execution. If there are no such tasks (immediate tasks don't count),
-  // returns nullopt.
-  virtual absl::optional<WakeUp> GetNextDelayedWakeUp() const = 0;
 
   // Sets the SingleThreadTaskRunner that will be returned by
   // ThreadTaskRunnerHandle::Get on the main thread.
@@ -202,7 +202,7 @@ class BASE_EXPORT SequenceManager {
   // Returns the metric recording configuration for the current SequenceManager.
   virtual const MetricRecordingSettings& GetMetricRecordingSettings() const = 0;
 
-  // Creates a task queue with the given type, `spec` and args.
+  // Creates a task queue with the given type, |spec| and args.
   // Must be called on the main thread.
   // TODO(scheduler-dev): SequenceManager should not create TaskQueues.
   template <typename TaskQueueType, typename... Args>
@@ -233,23 +233,23 @@ class BASE_EXPORT SequenceManager {
   // Returns a JSON string which describes all pending tasks.
   virtual std::string DescribeAllPendingTasks() const = 0;
 
-  // While Now() is less than `prioritize_until` we will alternate between a
-  // SequenceManager task and a yielding to the underlying sequence (e.g., the
-  // message pump).
-  virtual void PrioritizeYieldingToNative(base::TimeTicks prioritize_until) = 0;
-
-  // Enable periodically yielding to the system message loop every |interval|.
-  // If |interval.is_inf()|, then SequenceManager won't yield to the system
-  // message pump unless it is out of immediate work.
-  // Currently only takes effect on Android.
-  virtual void EnablePeriodicYieldingToNative(base::TimeDelta interval) = 0;
+  // Indicates that the underlying sequence (e.g., the message pump) has pending
+  // work at priority |priority|. If the priority of the work in this
+  // SequenceManager is lower, it will yield to let the native work run. The
+  // native work is assumed to remain pending while the returned handle is
+  // valid.
+  //
+  // Must be called on the main thread, and the returned handle must also be
+  // deleted on the main thread.
+  virtual std::unique_ptr<NativeWorkHandle> OnNativeWorkPending(
+      TaskQueue::QueuePriority priority) = 0;
 
   // Adds an observer which reports task execution. Can only be called on the
-  // same thread that `this` is running on.
+  // same thread that |this| is running on.
   virtual void AddTaskObserver(TaskObserver* task_observer) = 0;
 
   // Removes an observer which reports task execution. Can only be called on the
-  // same thread that `this` is running on.
+  // same thread that |this| is running on.
   virtual void RemoveTaskObserver(TaskObserver* task_observer) = 0;
 
  protected:
@@ -284,6 +284,10 @@ class BASE_EXPORT SequenceManager::Settings::Builder {
   // eligible to run.
   Builder& SetLogTaskDelayExpiry(bool log_task_delay_expiry);
 
+  // Whether or not usages of the RunLoop API will be logged.
+  Builder& SetLogRunloopQuitAndQuitWhenIdle(
+      bool log_runloop_quit_and_quit_when_idle);
+
   // Scheduler policy induced raciness is an area of concern. This lets us
   // apply an extra delay per priority for cross thread posting.
   Builder& SetPerPriorityCrossThreadTaskDelay(
@@ -299,7 +303,8 @@ class BASE_EXPORT SequenceManager::Settings::Builder {
   // If not zero this seeds a PRNG used by the task selection logic to choose a
   // random TaskQueue for a given priority rather than the TaskQueue with the
   // oldest EnqueueOrder.
-  Builder& SetRandomTaskSelectionSeed(uint64_t random_task_selection_seed);
+  Builder& SetRandomTaskSelectionSeed(int random_task_selection_seed);
+
 #endif  // DCHECK_IS_ON()
 
   Settings Build();

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/test/gtest_util.h"
 #include "base/test/task_environment.h"
 #include "media/capabilities/in_memory_video_decode_stats_db_impl.h"
+#include "media/capabilities/video_decode_stats_db_impl.h"
 #include "media/capabilities/video_decode_stats_db_provider.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -388,6 +389,16 @@ TEST_F(SeededInMemoryDBTest, SeedReadFailureOnAppendingingStats) {
                                  base::Unretained(this)));
 
   task_environment_.RunUntilIdle();
+}
+
+TEST_F(SeededInMemoryDBTest, SeedDBTearDownRace) {
+  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+
+  // Establish depends-on connection from InMemoryDB to SeedDB.
+  InitializeEmptyDB();
+
+  // Clearing the seed-db dependency should trigger a crash.
+  EXPECT_CHECK_DEATH(seed_db_.reset());
 }
 
 }  // namespace media

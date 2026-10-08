@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,111 +11,102 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "components/password_manager/core/browser/android_affiliation/affiliation_utils.h"
-#include "components/password_manager/core/browser/form_parsing/form_parser.h"
 #include "components/password_manager/core/browser/import/csv_field_parser.h"
-
 #include "url/gurl.h"
 
 namespace password_manager {
 
 namespace {
 
-// ConvertUTF8() unescapes a CSV field |str| and converts the result to a 8-bit
+// Convert() unescapes a CSV field |str| and converts the result to a 16-bit
 // string. |str| is assumed to exclude the outer pair of quotation marks, if
 // originally present.
-std::string ConvertUTF8(base::StringPiece str) {
+base::string16 Convert(base::StringPiece str) {
   std::string str_copy(str);
   base::ReplaceSubstringsAfterOffset(&str_copy, 0, "\"\"", "\"");
-  return str_copy;
+  return base::UTF8ToUTF16(str_copy);
 }
 
 }  // namespace
 
-CSVPassword::CSVPassword() : status_(Status::kSemanticError) {}
+CSVPassword::CSVPassword(const ColumnMap& map, base::StringPiece csv_row)
+    : map_(map), row_(csv_row) {}
 
-CSVPassword::CSVPassword(GURL url,
-                         std::string username,
-                         std::string password,
-                         Status status)
-    : url_(std::move(url)),
-      username_(std::move(username)),
-      password_(std::move(password)),
-      status_(status) {}
-
-CSVPassword::CSVPassword(std::string invalid_url,
-                         std::string username,
-                         std::string password,
-                         Status status)
-    : url_(base::unexpected(std::move(invalid_url))),
-      username_(std::move(username)),
-      password_(std::move(password)),
-      status_(status) {}
-
-CSVPassword::CSVPassword(const ColumnMap& map, base::StringPiece row) {
-  if (row.empty() || map.size() != kLabelCount) {
-    status_ = Status::kSemanticError;
-    return;
-  }
-
-  size_t field_idx = 0;
-  CSVFieldParser parser(row);
-  status_ = Status::kOK;
-
-  while (parser.HasMoreFields()) {
-    base::StringPiece field;
-    if (!parser.NextField(&field)) {
-      status_ = Status::kSyntaxError;
-      return;
-    }
-    auto meaning_it = map.find(field_idx++);
-    if (meaning_it == map.end())
-      continue;
-    switch (meaning_it->second) {
-      case Label::kOrigin: {
-        GURL gurl = GURL(field);
-        if (!gurl.is_valid() || !base::IsStringASCII(field)) {
-          url_ = base::unexpected(ConvertUTF8(field));
-        } else {
-          url_ = gurl;
-        }
-        break;
-      }
-      case Label::kUsername:
-        username_ = ConvertUTF8(field);
-        break;
-      case Label::kPassword:
-        password_ = ConvertUTF8(field);
-        break;
-    }
-  }
-}
-
-CSVPassword::CSVPassword(const CSVPassword&) = default;
-CSVPassword::CSVPassword(CSVPassword&&) = default;
-CSVPassword& CSVPassword::operator=(const CSVPassword&) = default;
-CSVPassword& CSVPassword::operator=(CSVPassword&&) = default;
 CSVPassword::~CSVPassword() = default;
 
-bool operator==(const CSVPassword& lhs, const CSVPassword& rhs) {
-  return lhs.GetParseStatus() == rhs.GetParseStatus() &&
-         lhs.GetPassword() == rhs.GetPassword() &&
-         lhs.GetUsername() == rhs.GetUsername() && lhs.GetURL() == rhs.GetURL();
+CSVPassword::Status CSVPassword::Parse(PasswordForm* form) const {
+  DCHECK(form) << "Null target PasswordForm. Use TryParse() if the resulting "
+                  "PasswordForm is not needed.";
+  return ParseImpl(form);
 }
 
-CSVPassword::Status CSVPassword::GetParseStatus() const {
-  return status_;
+CSVPassword::Status CSVPassword::TryParse() const {
+  return ParseImpl(nullptr);
 }
 
-const std::string& CSVPassword::GetPassword() const {
-  return password_;
+PasswordForm CSVPassword::ParseValid() const {
+  PasswordForm result;
+  Status status = ParseImpl(&result);
+  DCHECK_EQ(Status::kOK, status);
+  return result;
 }
 
-const std::string& CSVPassword::GetUsername() const {
-  return username_;
-}
+CSVPassword::Status CSVPassword::ParseImpl(PasswordForm* form) const {
+  // |map_| must be an (1) injective and (2) surjective (3) partial map. (3) is
+  // enforced by its type, (2) is checked later in the code and (1) follows from
+  // (2) and the following size() check.
+  if (map_.size() != kLabelCount)
+    return Status::kSemanticError;
 
-const base::expected<GURL, std::string>& CSVPassword::GetURL() const {
-  return url_;
+  size_t field_idx = 0;
+  CSVFieldParser parser(row_);
+  GURL origin;
+  base::StringPiece username;
+  base::StringPiece password;
+  bool username_set = false;
+  while (parser.HasMoreFields()) {
+    base::StringPiece field;
+    if (!parser.NextField(&field))
+      return Status::kSyntaxError;
+    auto meaning_it = map_.find(field_idx++);
+    if (meaning_it == map_.end())
+      continue;
+    switch (meaning_it->second) {
+      case Label::kOrigin:
+        if (!base::IsStringASCII(field))
+          return Status::kSyntaxError;
+        origin = GURL(field);
+        break;
+      case Label::kUsername:
+        username = field;
+        username_set = true;
+        break;
+      case Label::kPassword:
+        password = field;
+        break;
+    }
+  }
+  // While all of origin, username and password must be set in the CSV data row,
+  // username is permitted to be an empty string, while password and origin are
+  // not.
+  if (!origin.is_valid() || !username_set || password.empty())
+    return Status::kSemanticError;
+  if (!form)
+    return Status::kOK;
+  // There is currently no way to import non-HTML credentials.
+  form->scheme = PasswordForm::Scheme::kHtml;
+  // GURL::GetOrigin() returns an empty GURL for Android credentials due
+  // to the non-standard scheme ("android://"). Hence the following
+  // explicit check is necessary to set |signon_realm| correctly for both
+  // regular and Android credentials.
+  form->signon_realm = IsValidAndroidFacetURI(origin.spec())
+                           ? origin.spec()
+                           : origin.GetOrigin().spec();
+  form->url = std::move(origin);
+  form->username_value = Convert(username);
+  form->password_value = Convert(password);
+  form->date_created = base::Time::Now();
+  return Status::kOK;
 }
 
 }  // namespace password_manager

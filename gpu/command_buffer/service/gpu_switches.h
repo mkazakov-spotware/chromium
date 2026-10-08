@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,6 +29,7 @@ GPU_EXPORT extern const char kGpuProgramCacheSizeKb[];
 GPU_EXPORT extern const char kDisableGpuShaderDiskCache[];
 GPU_EXPORT extern const char kEnableThreadedTextureMailboxes[];
 GPU_EXPORT extern const char kGLShaderIntermOutput[];
+GPU_EXPORT extern const char kEmulateShaderPrecision[];
 GPU_EXPORT extern const char kUseVulkan[];
 GPU_EXPORT extern const char kVulkanImplementationNameNative[];
 GPU_EXPORT extern const char kVulkanImplementationNameSwiftshader[];

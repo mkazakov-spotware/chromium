@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,10 @@
 #include <utility>
 
 #include "base/check_op.h"
-#include "base/containers/contains.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/json/json_file_value_serializer.h"
-#include "extensions/browser/api/declarative_net_request/file_backed_ruleset_source.h"
 #include "extensions/browser/api/declarative_net_request/indexed_rule.h"
-#include "extensions/browser/api/declarative_net_request/rules_count_pair.h"
 #include "extensions/browser/api/declarative_net_request/ruleset_matcher.h"
 #include "extensions/browser/api/declarative_net_request/ruleset_source.h"
 #include "extensions/browser/api/web_request/web_request_info.h"
@@ -154,7 +151,7 @@ std::ostream& operator<<(std::ostream& output, const RequestAction& action) {
 }
 
 std::ostream& operator<<(std::ostream& output,
-                         const absl::optional<RequestAction>& action) {
+                         const base::Optional<RequestAction>& action) {
   if (!action)
     return output << "empty Optional<RequestAction>";
   return output << *action;
@@ -168,11 +165,11 @@ std::ostream& operator<<(std::ostream& output, const ParseResult& result) {
     case ParseResult::SUCCESS:
       output << "SUCCESS";
       break;
-    case ParseResult::ERROR_REQUEST_METHOD_DUPLICATED:
-      output << "ERROR_REQUEST_METHOD_DUPLICATED";
-      break;
     case ParseResult::ERROR_RESOURCE_TYPE_DUPLICATED:
       output << "ERROR_RESOURCE_TYPE_DUPLICATED";
+      break;
+    case ParseResult::ERROR_EMPTY_RULE_PRIORITY:
+      output << "ERROR_EMPTY_RULE_PRIORITY";
       break;
     case ParseResult::ERROR_INVALID_RULE_ID:
       output << "ERROR_INVALID_RULE_ID";
@@ -186,25 +183,8 @@ std::ostream& operator<<(std::ostream& output, const ParseResult& result) {
     case ParseResult::ERROR_EMPTY_DOMAINS_LIST:
       output << "ERROR_EMPTY_DOMAINS_LIST";
       break;
-    case ParseResult::ERROR_EMPTY_INITIATOR_DOMAINS_LIST:
-      output << "ERROR_EMPTY_INITIATOR_DOMAINS_LIST";
-      break;
-    case ParseResult::ERROR_EMPTY_REQUEST_DOMAINS_LIST:
-      output << "ERROR_EMPTY_REQUEST_DOMAINS_LIST";
-      break;
-    case ParseResult::ERROR_DOMAINS_AND_INITIATOR_DOMAINS_BOTH_SPECIFIED:
-      output << "ERROR_DOMAINS_AND_INITIATOR_DOMAINS_BOTH_SPECIFIED";
-      break;
-    case ParseResult::
-        ERROR_EXCLUDED_DOMAINS_AND_EXCLUDED_INITIATOR_DOMAINS_BOTH_SPECIFIED:
-      output << "ERROR_EXCLUDED_DOMAINS_AND_EXCLUDED_INITIATOR_DOMAINS_BOTH_"
-                "SPECIFIED";
-      break;
     case ParseResult::ERROR_EMPTY_RESOURCE_TYPES_LIST:
       output << "ERROR_EMPTY_RESOURCE_TYPES_LIST";
-      break;
-    case ParseResult::ERROR_EMPTY_REQUEST_METHODS_LIST:
-      output << "ERROR_EMPTY_REQUEST_METHODS_LIST";
       break;
     case ParseResult::ERROR_EMPTY_URL_FILTER:
       output << "ERROR_EMPTY_URL_FILTER";
@@ -215,6 +195,9 @@ std::ostream& operator<<(std::ostream& output, const ParseResult& result) {
     case ParseResult::ERROR_DUPLICATE_IDS:
       output << "ERROR_DUPLICATE_IDS";
       break;
+    case ParseResult::ERROR_PERSISTING_RULESET:
+      output << "ERROR_PERSISTING_RULESET";
+      break;
     case ParseResult::ERROR_NON_ASCII_URL_FILTER:
       output << "ERROR_NON_ASCII_URL_FILTER";
       break;
@@ -223,18 +206,6 @@ std::ostream& operator<<(std::ostream& output, const ParseResult& result) {
       break;
     case ParseResult::ERROR_NON_ASCII_EXCLUDED_DOMAIN:
       output << "ERROR_NON_ASCII_EXCLUDED_DOMAIN";
-      break;
-    case ParseResult::ERROR_NON_ASCII_INITIATOR_DOMAIN:
-      output << "ERROR_NON_ASCII_INITIATOR_DOMAIN";
-      break;
-    case ParseResult::ERROR_NON_ASCII_EXCLUDED_INITIATOR_DOMAIN:
-      output << "ERROR_NON_ASCII_EXCLUDED_INITIATOR_DOMAIN";
-      break;
-    case ParseResult::ERROR_NON_ASCII_REQUEST_DOMAIN:
-      output << "ERROR_NON_ASCII_REQUEST_DOMAIN";
-      break;
-    case ParseResult::ERROR_NON_ASCII_EXCLUDED_REQUEST_DOMAIN:
-      output << "ERROR_NON_ASCII_EXCLUDED_REQUEST_DOMAIN";
       break;
     case ParseResult::ERROR_INVALID_URL_FILTER:
       output << "ERROR_INVALID_URL_FILTER";
@@ -308,17 +279,8 @@ std::ostream& operator<<(std::ostream& output, const ParseResult& result) {
     case ParseResult::ERROR_HEADER_VALUE_PRESENT:
       output << "ERROR_HEADER_VALUE_PRESENT";
       break;
-    case ParseResult::ERROR_APPEND_INVALID_REQUEST_HEADER:
-      output << "ERROR_APPEND_INVALID_REQUEST_HEADER";
-      break;
-    case ParseResult::ERROR_EMPTY_TAB_IDS_LIST:
-      output << "ERROR_EMPTY_TAB_IDS_LIST";
-      break;
-    case ParseResult::ERROR_TAB_IDS_ON_NON_SESSION_RULE:
-      output << "ERROR_TAB_IDS_ON_NON_SESSION_RULE";
-      break;
-    case ParseResult::ERROR_TAB_ID_DUPLICATED:
-      output << "ERROR_TAB_ID_DUPLICATED";
+    case ParseResult::ERROR_APPEND_REQUEST_HEADER_UNSUPPORTED:
+      output << "ERROR_APPEND_REQUEST_HEADER_UNSUPPORTED";
       break;
   }
   return output;
@@ -348,22 +310,13 @@ std::ostream& operator<<(std::ostream& output, LoadRulesetResult result) {
   return output;
 }
 
-std::ostream& operator<<(std::ostream& output, const RulesCountPair& count) {
-  output << "\nRulesCountPair\n";
-  output << "|rule_count| " << count.rule_count << "\n";
-  output << "|regex_rule_count| " << count.regex_rule_count << "\n";
-  return output;
-}
-
 bool AreAllIndexedStaticRulesetsValid(
     const Extension& extension,
-    content::BrowserContext* browser_context,
-    FileBackedRulesetSource::RulesetFilter ruleset_filter) {
-  std::vector<FileBackedRulesetSource> sources =
-      FileBackedRulesetSource::CreateStatic(extension, ruleset_filter);
+    content::BrowserContext* browser_context) {
+  std::vector<RulesetSource> sources = RulesetSource::CreateStatic(extension);
 
   const ExtensionPrefs* prefs = ExtensionPrefs::Get(browser_context);
-  for (const auto& source : sources) {
+  for (RulesetSource& source : sources) {
     if (prefs->ShouldIgnoreDNRRuleset(extension.id(), source.id()))
       continue;
 
@@ -374,7 +327,8 @@ bool AreAllIndexedStaticRulesetsValid(
     }
 
     std::unique_ptr<RulesetMatcher> matcher;
-    if (source.CreateVerifiedMatcher(expected_checksum, &matcher) !=
+    if (RulesetMatcher::CreateVerifiedMatcher(std::move(source),
+                                              expected_checksum, &matcher) !=
         LoadRulesetResult::kSuccess) {
       return false;
     }
@@ -384,7 +338,7 @@ bool AreAllIndexedStaticRulesetsValid(
 }
 
 bool CreateVerifiedMatcher(const std::vector<TestRule>& rules,
-                           const FileBackedRulesetSource& source,
+                           const RulesetSource& source,
                            std::unique_ptr<RulesetMatcher>* matcher,
                            int* expected_checksum) {
   using IndexStatus = IndexAndPersistJSONRulesetResult::Status;
@@ -396,10 +350,8 @@ bool CreateVerifiedMatcher(const std::vector<TestRule>& rules,
   JSONFileValueSerializer(source.json_path()).Serialize(*builder.Build());
 
   // Index ruleset.
-  auto parse_flags = FileBackedRulesetSource::kRaiseErrorOnInvalidRules |
-                     FileBackedRulesetSource::kRaiseWarningOnLargeRegexRules;
   IndexAndPersistJSONRulesetResult result =
-      source.IndexAndPersistJSONRulesetUnsafe(parse_flags);
+      source.IndexAndPersistJSONRulesetUnsafe();
   if (result.status == IndexStatus::kError) {
     DCHECK(result.error.empty()) << result.error;
     return false;
@@ -412,17 +364,17 @@ bool CreateVerifiedMatcher(const std::vector<TestRule>& rules,
   if (expected_checksum)
     *expected_checksum = result.ruleset_checksum;
 
-  LoadRulesetResult load_result =
-      source.CreateVerifiedMatcher(result.ruleset_checksum, matcher);
+  // Create verified matcher.
+  LoadRulesetResult load_result = RulesetMatcher::CreateVerifiedMatcher(
+      source, result.ruleset_checksum, matcher);
   return load_result == LoadRulesetResult::kSuccess;
 }
 
-FileBackedRulesetSource CreateTemporarySource(RulesetID id,
-                                              size_t rule_count_limit,
-                                              ExtensionId extension_id) {
-  std::unique_ptr<FileBackedRulesetSource> source =
-      FileBackedRulesetSource::CreateTemporarySource(id, rule_count_limit,
-                                                     std::move(extension_id));
+RulesetSource CreateTemporarySource(RulesetID id,
+                                    size_t rule_count_limit,
+                                    ExtensionId extension_id) {
+  std::unique_ptr<RulesetSource> source = RulesetSource::CreateTemporarySource(
+      id, rule_count_limit, std::move(extension_id));
   CHECK(source);
   return source->Clone();
 }
@@ -430,12 +382,14 @@ FileBackedRulesetSource CreateTemporarySource(RulesetID id,
 dnr_api::ModifyHeaderInfo CreateModifyHeaderInfo(
     dnr_api::HeaderOperation operation,
     std::string header,
-    absl::optional<std::string> value) {
+    base::Optional<std::string> value) {
   dnr_api::ModifyHeaderInfo header_info;
 
   header_info.operation = operation;
   header_info.header = header;
-  header_info.value = value;
+
+  if (value)
+    header_info.value = std::make_unique<std::string>(*value);
 
   return header_info;
 }
@@ -495,8 +449,8 @@ void RulesetManagerObserver::OnEvaluateRequest(const WebRequestInfo& request,
 
 WarningServiceObserver::WarningServiceObserver(WarningService* warning_service,
                                                const ExtensionId& extension_id)
-    : extension_id_(extension_id) {
-  observation_.Observe(warning_service);
+    : observer_(this), extension_id_(extension_id) {
+  observer_.Add(warning_service);
 }
 
 WarningServiceObserver::~WarningServiceObserver() = default;

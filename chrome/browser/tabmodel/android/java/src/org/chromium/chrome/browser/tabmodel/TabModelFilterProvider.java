@@ -1,10 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.tabmodel;
-
-import androidx.annotation.VisibleForTesting;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,13 +13,11 @@ import java.util.List;
  * {@link TabModel}s. It always owns two {@link TabModelFilter}s, one for normal {@link TabModel}
  * and one for incognito {@link TabModel}.
  */
-public class TabModelFilterProvider implements TabModelSelectorObserver {
-    @VisibleForTesting
-    public List<TabModelFilter> mTabModelFilterList = Collections.emptyList();
+public class TabModelFilterProvider extends EmptyTabModelSelectorObserver {
+    private List<TabModelFilter> mTabModelFilterList = Collections.emptyList();
     private final List<TabModelObserver> mPendingTabModelObserver = new ArrayList<>();
 
-    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-    public TabModelFilterProvider() {}
+    TabModelFilterProvider() {}
 
     public void init(TabModelFilterFactory tabModelFilterFactory, List<TabModel> tabModels) {
         assert mTabModelFilterList.isEmpty();
@@ -118,16 +114,9 @@ public class TabModelFilterProvider implements TabModelSelectorObserver {
         }
     }
 
-    // Override TabModelSelectorObserver.
+    // Override EmptyTabModelSelectorObserver.
     @Override
     public void onTabStateInitialized() {
         markTabStateInitialized();
-    }
-
-    /**
-     * Reset the internal filter list to allow initialization again.
-     */
-    public void resetTabModelFilterListForTesting() {
-        mTabModelFilterList = Collections.emptyList();
     }
 }

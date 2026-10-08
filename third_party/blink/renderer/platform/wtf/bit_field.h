@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_WTF_BIT_FIELD_H_
 
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
-#include "third_party/blink/renderer/platform/wtf/atomic_operations.h"
 
 namespace WTF {
 
@@ -121,8 +120,6 @@ class WTF_EXPORT SingleThreadedBitField {
   void set(typename Value::Type value) {
     bits_ = Value::update(bits_, value);
   }
-
-  BitFieldType bits() const { return bits_; }
 
  protected:
   BitFieldType bits_;

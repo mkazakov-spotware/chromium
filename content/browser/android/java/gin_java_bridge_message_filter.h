@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,16 +10,17 @@
 #include <map>
 #include <set>
 
-#include "base/memory/raw_ref.h"
 #include "base/memory/ref_counted.h"
 #include "base/synchronization/lock.h"
 #include "base/thread_annotations.h"
-#include "base/types/pass_key.h"
-#include "base/values.h"
 #include "content/browser/android/java/gin_java_bound_object.h"
 #include "content/common/android/gin_java_bridge_errors.h"
 #include "content/public/browser/browser_message_filter.h"
 #include "content/public/browser/render_process_host_observer.h"
+
+namespace base {
+class ListValue;
+}
 
 namespace IPC {
 class Message;
@@ -27,7 +28,6 @@ class Message;
 
 namespace content {
 
-class AgentSchedulingGroupHost;
 class GinJavaBridgeDispatcherHost;
 class RenderFrameHost;
 
@@ -50,11 +50,7 @@ class GinJavaBridgeMessageFilter : public BrowserMessageFilter,
   void RemoveHost(GinJavaBridgeDispatcherHost* host);
 
   static scoped_refptr<GinJavaBridgeMessageFilter> FromHost(
-      AgentSchedulingGroupHost& agent_scheduling_group,
-      bool create_if_not_exists);
-
-  GinJavaBridgeMessageFilter(base::PassKey<GinJavaBridgeMessageFilter> pass_key,
-                             AgentSchedulingGroupHost& agent_scheduling_group);
+      GinJavaBridgeDispatcherHost* host, bool create_if_not_exists);
 
  private:
   friend class BrowserThread;
@@ -69,6 +65,7 @@ class GinJavaBridgeMessageFilter : public BrowserMessageFilter,
   //     removed from the WebContents' routing table.
   typedef std::map<int32_t, scoped_refptr<GinJavaBridgeDispatcherHost>> HostMap;
 
+  GinJavaBridgeMessageFilter();
   ~GinJavaBridgeMessageFilter() override;
 
   // Called on the background thread.
@@ -80,18 +77,14 @@ class GinJavaBridgeMessageFilter : public BrowserMessageFilter,
                    bool* result);
   void OnInvokeMethod(GinJavaBoundObject::ObjectID object_id,
                       const std::string& method_name,
-                      const base::Value::List& arguments,
-                      base::Value::List* result,
+                      const base::ListValue& arguments,
+                      base::ListValue* result,
                       content::GinJavaBridgeError* error_code);
   void OnObjectWrapperDeleted(GinJavaBoundObject::ObjectID object_id);
 
   // Accessed both from UI and background threads.
   HostMap hosts_ GUARDED_BY(hosts_lock_);
   base::Lock hosts_lock_;
-
-  // The `AgentSchedulingGroupHost` that this object is associated with. This
-  // filter is installed on the host's channel.
-  const raw_ref<AgentSchedulingGroupHost> agent_scheduling_group_;
 
   // The routing id of the RenderFrameHost whose request we are processing.
   // Used on the background thread.

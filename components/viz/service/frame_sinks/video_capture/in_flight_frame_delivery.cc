@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ namespace viz {
 
 InFlightFrameDelivery::InFlightFrameDelivery(
     base::OnceClosure post_delivery_callback,
-    base::OnceCallback<void(const media::VideoCaptureFeedback&)>
+    base::OnceCallback<void(const media::VideoFrameFeedback&)>
         feedback_callback)
     : post_delivery_callback_(std::move(post_delivery_callback)),
       feedback_callback_(std::move(feedback_callback)) {}
@@ -26,7 +26,7 @@ void InFlightFrameDelivery::Done() {
 }
 
 void InFlightFrameDelivery::ProvideFeedback(
-    const media::VideoCaptureFeedback& feedback) {
+    const media::VideoFrameFeedback& feedback) {
   if (!feedback_callback_.is_null()) {
     std::move(feedback_callback_).Run(feedback);
   }

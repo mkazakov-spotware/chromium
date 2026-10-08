@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,10 +25,10 @@ import org.chromium.chrome.browser.compositor.layouts.eventfilter.BlackHoleEvent
 import org.chromium.chrome.browser.layouts.EventFilter;
 import org.chromium.chrome.browser.layouts.LayoutType;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
-import org.chromium.chrome.browser.tab.TabObscuringHandler;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelUtils;
+import org.chromium.chrome.browser.ui.TabObscuringHandler;
 import org.chromium.ui.base.DeviceFormFactor;
 
 /**
@@ -122,6 +122,11 @@ public class OverviewListLayout extends Layout
     }
 
     @Override
+    public boolean handlesCloseAll() {
+        return true;
+    }
+
+    @Override
     public void onTabCreating(int sourceTabId) {
         super.onTabCreating(sourceTabId);
         startHiding(sourceTabId, false);
@@ -160,9 +165,6 @@ public class OverviewListLayout extends Layout
         doneShowing();
         mBrowserControlsStateProvider.addObserver(mBrowserControlsObserver);
         adjustForFullscreen();
-
-        final int currentTabId = TabModelUtils.getCurrentTabId(mTabModelSelector.getCurrentModel());
-        mTabModelWrapper.scrollToTabAndFocus(currentTabId);
     }
 
     @Override
@@ -213,8 +215,11 @@ public class OverviewListLayout extends Layout
     }
 
     @Override
-    public void onTabsAllClosing(boolean incognito) {
-        super.onTabsAllClosing(incognito);
+    public void onTabsAllClosing(long time, boolean incognito) {
+        super.onTabsAllClosing(time, incognito);
+
+        TabModel model = mTabModelSelector.getModel(incognito);
+        while (model.getCount() > 0) TabModelUtils.closeTabByIndex(model, 0);
 
         if (incognito) {
             mTabModelSelector.selectModel(!incognito);
@@ -244,10 +249,10 @@ public class OverviewListLayout extends Layout
     }
 
     @Override
-    public void updateObscured(boolean obscureTabContent, boolean obscureToolbar) {
+    public void updateObscured(boolean isObscured) {
         if (mTabModelWrapper == null) return;
 
-        int importantForAccessibility = !obscureTabContent
+        int importantForAccessibility = !isObscured
                 ? View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
                 : View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS;
         if (mTabModelWrapper.getImportantForAccessibility() != importantForAccessibility) {

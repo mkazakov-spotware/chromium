@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,8 @@
 #include "base/notreached.h"
 #include "base/values.h"
 #include "build/chromeos_buildflags.h"
-#include "components/feedback/content/feedback_uploader_factory.h"
 #include "components/feedback/feedback_uploader.h"
+#include "components/feedback/feedback_uploader_factory.h"
 #include "components/feedback/system_logs/system_logs_fetcher.h"
 #include "components/feedback/system_logs/system_logs_source.h"
 #include "content/public/browser/browser_context.h"
@@ -21,19 +21,17 @@ namespace extensions {
 ShellFeedbackPrivateDelegate::ShellFeedbackPrivateDelegate() = default;
 ShellFeedbackPrivateDelegate::~ShellFeedbackPrivateDelegate() = default;
 
-base::Value::Dict ShellFeedbackPrivateDelegate::GetStrings(
+std::unique_ptr<base::DictionaryValue> ShellFeedbackPrivateDelegate::GetStrings(
     content::BrowserContext* browser_context,
     bool from_crash) const {
   NOTIMPLEMENTED();
-  return {};
+  return nullptr;
 }
 
-void ShellFeedbackPrivateDelegate::FetchSystemInformation(
-    content::BrowserContext* context,
-    system_logs::SysLogsFetcherCallback callback) const {
-  // self-deleting object
-  auto* fetcher = system_logs::BuildShellSystemLogsFetcher(context);
-  fetcher->Fetch(std::move(callback));
+system_logs::SystemLogsFetcher*
+ShellFeedbackPrivateDelegate::CreateSystemLogsFetcher(
+    content::BrowserContext* context) const {
+  return system_logs::BuildShellSystemLogsFetcher(context);
 }
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -49,6 +47,11 @@ void ShellFeedbackPrivateDelegate::FetchExtraLogs(
     FetchExtraLogsCallback callback) const {
   NOTIMPLEMENTED();
   std::move(callback).Run(feedback_data);
+}
+
+void ShellFeedbackPrivateDelegate::UnloadFeedbackExtension(
+    content::BrowserContext* context) const {
+  NOTIMPLEMENTED();
 }
 
 api::feedback_private::LandingPageType
@@ -75,12 +78,6 @@ feedback::FeedbackUploader*
 ShellFeedbackPrivateDelegate::GetFeedbackUploaderForContext(
     content::BrowserContext* context) const {
   return feedback::FeedbackUploaderFactory::GetForBrowserContext(context);
-}
-
-void ShellFeedbackPrivateDelegate::OpenFeedback(
-    content::BrowserContext* context,
-    api::feedback_private::FeedbackSource source) const {
-  NOTIMPLEMENTED();
 }
 
 }  // namespace extensions

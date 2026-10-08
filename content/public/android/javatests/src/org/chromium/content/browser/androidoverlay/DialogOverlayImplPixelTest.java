@@ -1,7 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 package org.chromium.content.browser.androidoverlay;
+import android.annotation.TargetApi;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -33,6 +34,7 @@ import java.util.concurrent.Callable;
  */
 @RunWith(BaseJUnit4ClassRunner.class)
 @MinAndroidSdkLevel(Build.VERSION_CODES.JELLY_BEAN_MR2)
+@TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
 public class DialogOverlayImplPixelTest {
     // Color that we'll fill the overlay with.
 

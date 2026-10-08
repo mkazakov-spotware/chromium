@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 
 #include "base/memory/scoped_refptr.h"
 #include "base/threading/thread.h"
-#include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -18,9 +17,10 @@
 #include "services/video_capture/public/mojom/device_factory.mojom.h"
 #include "services/video_capture/public/mojom/video_capture_service.mojom.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_ASH)
+#include "media/capture/video/chromeos/camera_app_device_bridge_impl.h"
 #include "media/capture/video/chromeos/mojom/camera_app.mojom.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_ASH)
 
 namespace video_capture {
 
@@ -29,23 +29,19 @@ class VideoSourceProviderImpl;
 
 class VideoCaptureServiceImpl : public mojom::VideoCaptureService {
  public:
-  VideoCaptureServiceImpl(
+  explicit VideoCaptureServiceImpl(
       mojo::PendingReceiver<mojom::VideoCaptureService> receiver,
       scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner);
-
-  VideoCaptureServiceImpl(const VideoCaptureServiceImpl&) = delete;
-  VideoCaptureServiceImpl& operator=(const VideoCaptureServiceImpl&) = delete;
-
   ~VideoCaptureServiceImpl() override;
 
   // mojom::VideoCaptureService implementation.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_ASH)
   void InjectGpuDependencies(mojo::PendingRemote<mojom::AcceleratorFactory>
                                  accelerator_factory) override;
   void ConnectToCameraAppDeviceBridge(
       mojo::PendingReceiver<cros::mojom::CameraAppDeviceBridge> receiver)
       override;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_ASH)
   void ConnectToDeviceFactory(
       mojo::PendingReceiver<mojom::DeviceFactory> receiver) override;
   void ConnectToVideoSourceProvider(
@@ -53,9 +49,7 @@ class VideoCaptureServiceImpl : public mojom::VideoCaptureService {
   void SetRetryCount(int32_t count) override;
   void BindControlsForTesting(
       mojo::PendingReceiver<mojom::TestingControls> receiver) override;
-#if BUILDFLAG(IS_WIN)
-  void OnGpuInfoUpdate(const CHROME_LUID& luid) override;
-#endif
+
  private:
   class GpuDependenciesContext;
 
@@ -70,7 +64,14 @@ class VideoCaptureServiceImpl : public mojom::VideoCaptureService {
   std::unique_ptr<VideoSourceProviderImpl> video_source_provider_;
   std::unique_ptr<GpuDependenciesContext> gpu_dependencies_context_;
 
+#if BUILDFLAG(IS_ASH)
+  // Bridge for Chrome OS camera app and camera devices.
+  std::unique_ptr<media::CameraAppDeviceBridgeImpl> camera_app_device_bridge_;
+#endif  // BUILDFLAG(IS_ASH)
+
   scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(VideoCaptureServiceImpl);
 };
 
 }  // namespace video_capture

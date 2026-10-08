@@ -51,7 +51,13 @@
                          'down',
                          SPEED_INSTANT,
                          precise_deltas);
+
+      await waitFor(() => { return scroller.scrollTop >= expected_scroll; },
+                    "Didn't scroll to expected value.");
+      await waitForCompositorCommit();
       assert_approx_equals(scroller.scrollTop, expected_scroll, floatPrecision);
+
+      await waitForCompositorCommit();
 
       // Scroll Horizontally
       await smoothScroll(distance,
@@ -60,6 +66,12 @@
                          'right',
                          SPEED_INSTANT,
                          precise_deltas);
+
+      await waitFor(() => { return scroller.scrollLeft >= expected_scroll; },
+                    "Didn't scroll to expected value.");
+
+      await waitForCompositorCommit();
+
       assert_approx_equals(scroller.scrollLeft, expected_scroll, floatPrecision);
     }, 'Scrolling while zoomed scroller preserves fractional offsets.');
   });

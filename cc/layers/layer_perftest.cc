@@ -1,10 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/layers/layer.h"
 
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/timer/lap_timer.h"
 #include "cc/animation/animation_host.h"
 #include "cc/test/fake_impl_task_runner_provider.h"
@@ -28,7 +28,7 @@ class LayerPerfTest : public testing::Test {
   LayerPerfTest()
       : host_impl_(&task_runner_provider_, &task_graph_runner_),
         timer_(kWarmupRuns,
-               base::Milliseconds(kTimeLimitMillis),
+               base::TimeDelta::FromMilliseconds(kTimeLimitMillis),
                kTimeCheckInterval) {}
 
  protected:
@@ -37,8 +37,7 @@ class LayerPerfTest : public testing::Test {
     layer_tree_host_ = FakeLayerTreeHost::Create(
         &fake_client_, &task_graph_runner_, animation_host_.get());
     layer_tree_host_->InitializeSingleThreaded(
-        &single_thread_client_,
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+        &single_thread_client_, base::ThreadTaskRunnerHandle::Get());
   }
 
   void TearDown() override {
@@ -86,13 +85,7 @@ TEST_F(LayerPerfTest, PushPropertiesTo) {
     test_layer->SetContentsOpaque(contents_opaque);
     test_layer->SetHideLayerAndSubtree(hide_layer_and_subtree);
     test_layer->SetMasksToBounds(masks_to_bounds);
-    // Here and elsewhere: when doing a full commit, we would call
-    // layer_tree_host_->ActivateCommitState() and the second argument would
-    // come from layer_tree_host_->active_commit_state(); we use
-    // pending_commit_state() just to keep the test code simple.
-    test_layer->PushPropertiesTo(
-        impl_layer.get(), *layer_tree_host_->GetPendingCommitState(),
-        layer_tree_host_->GetThreadUnsafeCommitState());
+    test_layer->PushPropertiesTo(impl_layer.get());
 
     transform_origin_z += 0.01f;
     scrollable = !scrollable;
@@ -110,9 +103,7 @@ TEST_F(LayerPerfTest, PushPropertiesTo) {
   // Properties didn't change.
   timer_.Reset();
   do {
-    test_layer->PushPropertiesTo(
-        impl_layer.get(), *layer_tree_host_->GetPendingCommitState(),
-        layer_tree_host_->GetThreadUnsafeCommitState());
+    test_layer->PushPropertiesTo(impl_layer.get());
     timer_.NextLap();
   } while (!timer_.HasTimeLimitExpired());
 
@@ -126,7 +117,7 @@ TEST_F(LayerPerfTest, ImplPushPropertiesTo) {
   std::unique_ptr<LayerImpl> impl_layer =
       LayerImpl::Create(host_impl_.active_tree(), 2);
 
-  SkColor4f background_color = SkColors::kRed;
+  SkColor background_color = SK_ColorRED;
   gfx::Size bounds(1000, 1000);
   bool draws_content = true;
   bool contents_opaque = true;
@@ -143,7 +134,7 @@ TEST_F(LayerPerfTest, ImplPushPropertiesTo) {
     test_layer->PushPropertiesTo(impl_layer.get());
 
     background_color =
-        background_color == SkColors::kRed ? SkColors::kGreen : SkColors::kRed;
+        background_color == SK_ColorRED ? SK_ColorGREEN : SK_ColorRED;
     bounds = bounds == gfx::Size(1000, 1000) ? gfx::Size(500, 500)
                                              : gfx::Size(1000, 1000);
     draws_content = !draws_content;

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <windows.media.control.h>
 #include <wrl/client.h>
 
+#include "base/memory/singleton.h"
 #include "base/observer_list.h"
 #include "components/system_media_controls/system_media_controls.h"
 
@@ -23,10 +24,6 @@ namespace internal {
 class SystemMediaControlsWin : public SystemMediaControls {
  public:
   SystemMediaControlsWin();
-
-  SystemMediaControlsWin(const SystemMediaControlsWin&) = delete;
-  SystemMediaControlsWin& operator=(const SystemMediaControlsWin&) = delete;
-
   ~SystemMediaControlsWin() override;
 
   static SystemMediaControlsWin* GetInstance();
@@ -44,28 +41,22 @@ class SystemMediaControlsWin : public SystemMediaControls {
   void SetIsPreviousEnabled(bool value) override;
   void SetIsPlayPauseEnabled(bool value) override;
   void SetIsStopEnabled(bool value) override;
-  void SetIsSeekToEnabled(bool value) override;
   void SetPlaybackStatus(PlaybackStatus status) override;
-  void SetTitle(const std::u16string& title) override;
-  void SetArtist(const std::u16string& artist) override;
-  void SetAlbum(const std::u16string& album) override {}
+  void SetTitle(const base::string16& title) override;
+  void SetArtist(const base::string16& artist) override;
+  void SetAlbum(const base::string16& album) override {}
   void SetThumbnail(const SkBitmap& bitmap) override;
-  void SetPosition(const media_session::MediaPosition& position) override;
   void ClearThumbnail() override;
   void ClearMetadata() override;
   void UpdateDisplay() override;
 
  private:
+  friend struct base::DefaultSingletonTraits<SystemMediaControlsWin>;
+
   static HRESULT ButtonPressed(
       ABI::Windows::Media::ISystemMediaTransportControls* sender,
       ABI::Windows::Media::ISystemMediaTransportControlsButtonPressedEventArgs*
           args);
-
-  static HRESULT PlaybackPositionChangeRequested(
-      ABI::Windows::Media::ISystemMediaTransportControls* sender,
-      ABI::Windows::Media::IPlaybackPositionChangeRequestedEventArgs* args);
-
-  static SystemMediaControlsWin* instance_;
 
   // Called by ButtonPressed when the particular key is pressed.
   void OnPlay();
@@ -73,9 +64,6 @@ class SystemMediaControlsWin : public SystemMediaControls {
   void OnNext();
   void OnPrevious();
   void OnStop();
-
-  // Called by PlaybackPositionChangeRequested.
-  void OnSeekTo(const base::TimeDelta& time);
 
   // Converts PlaybackStatus values to SMTC-friendly values.
   ABI::Windows::Media::MediaPlaybackStatus GetSmtcPlaybackStatus(
@@ -97,24 +85,21 @@ class SystemMediaControlsWin : public SystemMediaControls {
       ABI::Windows::Storage::Streams::IRandomAccessStreamReference>
       icon_stream_reference_;
 
-  EventRegistrationToken button_pressed_registration_token_;
-  EventRegistrationToken playback_position_change_requested_registration_token_;
+  EventRegistrationToken registration_token_;
 
   // True if we've already tried to connect to the SystemMediaTransportControls.
   bool attempted_to_initialize_ = false;
 
   // True if we've successfully registered a button handler on the
   // SystemMediaTransportControls.
-  bool has_valid_button_pressed_registration_token_ = false;
-
-  // True if we've successfully registered a playback position change requested
-  // handler on the SystemMediaTransportControls.
-  bool has_valid_playback_position_change_requested_registration_token_ = false;
+  bool has_valid_registration_token_ = false;
 
   // True if we've successfully connected to the SystemMediaTransportControls.
   bool initialized_ = false;
 
   base::ObserverList<SystemMediaControlsObserver> observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(SystemMediaControlsWin);
 };
 
 }  // namespace internal

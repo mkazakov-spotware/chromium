@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,17 +17,17 @@ using base::SysUTF8ToNSString;
 
 namespace remoting {
 
-RemotingClientSessionDelegate::RemotingClientSessionDelegate(
+RemotingClientSessonDelegate::RemotingClientSessonDelegate(
     RemotingClient* client)
     : client_(client), weak_factory_(this) {
   runtime_ = ChromotingClientRuntime::GetInstance();
 }
 
-RemotingClientSessionDelegate::~RemotingClientSessionDelegate() {
+RemotingClientSessonDelegate::~RemotingClientSessonDelegate() {
   client_ = nil;
 }
 
-void RemotingClientSessionDelegate::OnConnectionState(
+void RemotingClientSessonDelegate::OnConnectionState(
     protocol::ConnectionToHost::State state,
     protocol::ErrorCode error) {
   DCHECK(runtime_->ui_task_runner()->BelongsToCurrentThread());
@@ -35,7 +35,7 @@ void RemotingClientSessionDelegate::OnConnectionState(
   [client_ onConnectionState:state error:error];
 }
 
-void RemotingClientSessionDelegate::CommitPairingCredentials(
+void RemotingClientSessonDelegate::CommitPairingCredentials(
     const std::string& host,
     const std::string& id,
     const std::string& secret) {
@@ -46,7 +46,7 @@ void RemotingClientSessionDelegate::CommitPairingCredentials(
                                     secret:SysUTF8ToNSString(secret)];
 }
 
-void RemotingClientSessionDelegate::FetchSecret(
+void RemotingClientSessonDelegate::FetchSecret(
     bool pairing_supported,
     const protocol::SecretFetchedCallback& secret_fetched_callback) {
   DCHECK(runtime_->ui_task_runner()->BelongsToCurrentThread());
@@ -55,7 +55,7 @@ void RemotingClientSessionDelegate::FetchSecret(
                                   callback:secret_fetched_callback];
 }
 
-void RemotingClientSessionDelegate::FetchThirdPartyToken(
+void RemotingClientSessonDelegate::FetchThirdPartyToken(
     const std::string& token_url,
     const std::string& client_id,
     const std::string& scopes,
@@ -68,14 +68,14 @@ void RemotingClientSessionDelegate::FetchThirdPartyToken(
                              callback:callback];
 }
 
-void RemotingClientSessionDelegate::SetCapabilities(
+void RemotingClientSessonDelegate::SetCapabilities(
     const std::string& capabilities) {
   DCHECK(runtime_->ui_task_runner()->BelongsToCurrentThread());
 
   [client_ setCapabilities:SysUTF8ToNSString(capabilities)];
 }
 
-void RemotingClientSessionDelegate::HandleExtensionMessage(
+void RemotingClientSessonDelegate::HandleExtensionMessage(
     const std::string& type,
     const std::string& message) {
   DCHECK(runtime_->ui_task_runner()->BelongsToCurrentThread());
@@ -84,8 +84,8 @@ void RemotingClientSessionDelegate::HandleExtensionMessage(
                                 message:SysUTF8ToNSString(message)];
 }
 
-base::WeakPtr<RemotingClientSessionDelegate>
-RemotingClientSessionDelegate::GetWeakPtr() {
+base::WeakPtr<RemotingClientSessonDelegate>
+RemotingClientSessonDelegate::GetWeakPtr() {
   return weak_factory_.GetWeakPtr();
 }
 

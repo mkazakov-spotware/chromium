@@ -1,52 +1,74 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/sharing/sharing_dialog_view.h"
 
 #include "base/bind.h"
+#include "base/optional.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/sharing/sharing_app.h"
 #include "chrome/browser/sharing/sharing_metrics.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/views/accessibility/theme_tracking_non_accessible_image_view.h"
+#include "chrome/browser/ui/views/accessibility/non_accessible_image_view.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/chrome_typography.h"
-#include "chrome/browser/ui/views/controls/hover_button.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
-#include "components/sync/protocol/sync_enums.pb.h"
+#include "chrome/browser/ui/views/hover_button.h"
 #include "components/sync_device_info/device_info.h"
 #include "components/url_formatter/elide_url.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/models/image_model.h"
 #include "ui/base/resource/resource_bundle.h"
-#include "ui/color/color_id.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/strings/grit/ui_strings.h"
 #include "ui/views/border.h"
 #include "ui/views/bubble/bubble_frame_view.h"
+#include "ui/views/controls/color_tracking_icon_view.h"
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/controls/styled_label.h"
 #include "ui/views/layout/box_layout.h"
 #include "url/origin.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/ui/page_action/page_action_icon_type.h"
 #include "chrome/browser/ui/views/intent_picker_bubble_view.h"
 #endif
 
 namespace {
 
+class HeaderImageView : public NonAccessibleImageView {
+ public:
+  explicit HeaderImageView(const views::BubbleFrameView* frame_view,
+                           const SharingDialogData::HeaderIcons& icons)
+      : frame_view_(frame_view), icons_(icons) {
+    constexpr gfx::Size kHeaderImageSize(320, 100);
+    SetPreferredSize(kHeaderImageSize);
+    SetVerticalAlignment(views::ImageView::Alignment::kLeading);
+  }
+
+  // NonAccessibleImageView
+  void OnThemeChanged() override {
+    NonAccessibleImageView::OnThemeChanged();
+    const auto* icon = color_utils::IsDark(frame_view_->GetBackgroundColor())
+                           ? icons_.dark
+                           : icons_.light;
+    SetImage(gfx::CreateVectorIcon(*icon, gfx::kPlaceholderColor));
+  }
+
+ private:
+  const views::BubbleFrameView* frame_view_;
+  const SharingDialogData::HeaderIcons icons_;
+};
+
 constexpr int kSharingDialogSpacing = 8;
 
 // TODO(himanshujaju): This is almost same as self share, we could unify these
 // methods once we unify our architecture and dialog views.
-std::u16string GetLastUpdatedTimeInDays(base::Time last_updated_timestamp) {
+base::string16 GetLastUpdatedTimeInDays(base::Time last_updated_timestamp) {
   int time_in_days = (base::Time::Now() - last_updated_timestamp).InDays();
   return l10n_util::GetPluralStringFUTF16(
       IDS_BROWSER_SHARING_DIALOG_DEVICE_SUBTITLE_LAST_ACTIVE_DAYS,
@@ -57,17 +79,17 @@ bool ShouldShowOrigin(const SharingDialogData& data,
                       content::WebContents* web_contents) {
   return data.initiating_origin &&
          !data.initiating_origin->IsSameOriginWith(
-             web_contents->GetPrimaryMainFrame()->GetLastCommittedOrigin());
+             web_contents->GetMainFrame()->GetLastCommittedOrigin());
 }
 
-std::u16string PrepareHelpTextWithoutOrigin(const SharingDialogData& data) {
+base::string16 PrepareHelpTextWithoutOrigin(const SharingDialogData& data) {
   DCHECK_NE(0, data.help_text_id);
   return l10n_util::GetStringUTF16(data.help_text_id);
 }
 
-std::u16string PrepareHelpTextWithOrigin(const SharingDialogData& data) {
+base::string16 PrepareHelpTextWithOrigin(const SharingDialogData& data) {
   DCHECK_NE(0, data.help_text_origin_id);
-  std::u16string origin = url_formatter::FormatOriginForSecurityDisplay(
+  base::string16 origin = url_formatter::FormatOriginForSecurityDisplay(
       *data.initiating_origin,
       url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS);
 
@@ -110,7 +132,7 @@ SharingDialogView::SharingDialogView(views::View* anchor_view,
     SetFootnoteView(CreateOriginView(data_));
   }
 
-  SetCloseOnMainFrameOriginNavigation(true);
+  set_close_on_main_frame_origin_navigation(true);
 }
 
 SharingDialogView::~SharingDialogView() = default;
@@ -123,7 +145,7 @@ bool SharingDialogView::ShouldShowCloseButton() const {
   return true;
 }
 
-std::u16string SharingDialogView::GetWindowTitle() const {
+base::string16 SharingDialogView::GetWindowTitle() const {
   return data_.title;
 }
 
@@ -142,18 +164,8 @@ void SharingDialogView::WebContentsDestroyed() {
 void SharingDialogView::AddedToWidget() {
   views::BubbleFrameView* frame_view = GetBubbleFrameView();
   if (frame_view && data_.header_icons) {
-    auto image_view = std::make_unique<ThemeTrackingNonAccessibleImageView>(
-        gfx::CreateVectorIcon(*data_.header_icons->light,
-                              gfx::kPlaceholderColor),
-        gfx::CreateVectorIcon(*data_.header_icons->dark,
-                              gfx::kPlaceholderColor),
-        base::BindRepeating(&views::BubbleDialogDelegate::GetBackgroundColor,
-                            base::Unretained(this)));
-    constexpr gfx::Size kHeaderImageSize(320, 100);
-    image_view->SetPreferredSize(kHeaderImageSize);
-    image_view->SetVerticalAlignment(views::ImageView::Alignment::kLeading);
-
-    frame_view->SetHeaderView(std::move(image_view));
+    frame_view->SetHeaderView(
+        std::make_unique<HeaderImageView>(frame_view, *data_.header_icons));
   }
 }
 
@@ -185,11 +197,10 @@ views::BubbleDialogDelegateView* SharingDialogView::GetAsBubble(
 // static
 views::BubbleDialogDelegateView* SharingDialogView::GetAsBubbleForClickToCall(
     SharingDialog* dialog) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   if (!dialog) {
     auto* bubble = IntentPickerBubbleView::intent_picker_bubble();
-    if (bubble && bubble->bubble_type() ==
-                      IntentPickerBubbleView::BubbleType::kClickToCall)
+    if (bubble && bubble->icon_type() == PageActionIconType::kClickToCall)
       return bubble;
   }
 #endif
@@ -201,8 +212,8 @@ void SharingDialogView::Init() {
       views::BoxLayout::Orientation::kVertical));
 
   auto* provider = ChromeLayoutProvider::Get();
-  gfx::Insets insets = provider->GetDialogInsetsForContentType(
-      views::DialogContentType::kText, views::DialogContentType::kText);
+  gfx::Insets insets =
+      provider->GetDialogInsetsForContentType(views::TEXT, views::TEXT);
 
   SharingDialogType type = GetDialogType();
   LogSharingDialogShown(data_.prefix, type);
@@ -217,14 +228,13 @@ void SharingDialogView::Init() {
     case SharingDialogType::kDialogWithoutDevicesWithApp:
     case SharingDialogType::kDialogWithDevicesMaybeApps:
       // Spread buttons across the whole dialog width.
-      insets = gfx::Insets::VH(kSharingDialogSpacing, 0);
+      insets = gfx::Insets(kSharingDialogSpacing, 0, kSharingDialogSpacing, 0);
       InitListView();
       break;
   }
 
-  set_margins(gfx::Insets::TLBR(insets.top(), 0, insets.bottom(), 0));
-  SetBorder(views::CreateEmptyBorder(
-      gfx::Insets::TLBR(0, insets.left(), 0, insets.right())));
+  set_margins(gfx::Insets(insets.top(), 0, insets.bottom(), 0));
+  SetBorder(views::CreateEmptyBorder(0, insets.left(), 0, insets.right()));
 
   if (GetWidget())
     SizeToContents();
@@ -233,10 +243,10 @@ void SharingDialogView::Init() {
 void SharingDialogView::InitListView() {
   constexpr int kPrimaryIconSize = 20;
   const gfx::Insets device_border =
-      gfx::Insets::TLBR(kSharingDialogSpacing, kSharingDialogSpacing * 2,
-                        kSharingDialogSpacing, 0);
+      gfx::Insets(kSharingDialogSpacing, kSharingDialogSpacing * 2,
+                  kSharingDialogSpacing, 0);
   // Apps need more padding at the top and bottom as they only have one line.
-  const gfx::Insets app_border = device_border + gfx::Insets::VH(2, 0);
+  const gfx::Insets app_border = device_border + gfx::Insets(2, 0, 2, 0);
 
   auto button_list = std::make_unique<views::View>();
   button_list->SetLayoutManager(std::make_unique<views::BoxLayout>(
@@ -246,14 +256,11 @@ void SharingDialogView::InitListView() {
   LogSharingDevicesToShow(data_.prefix, kSharingUiDialog, data_.devices.size());
   size_t index = 0;
   for (const auto& device : data_.devices) {
-    // TODO(crbug.com/1368080): Investigate the need to add a desktop device
-    // icon.
-    auto icon =
-        std::make_unique<views::ImageView>(ui::ImageModel::FromVectorIcon(
-            device->form_factor() == syncer::DeviceInfo::FormFactor::kTablet
-                ? kTabletIcon
-                : kHardwareSmartphoneIcon,
-            ui::kColorIcon, kPrimaryIconSize));
+    auto icon = std::make_unique<views::ColorTrackingIconView>(
+        device->device_type() == sync_pb::SyncEnums::TYPE_TABLET
+            ? kTabletIcon
+            : kHardwareSmartphoneIcon,
+        kPrimaryIconSize);
 
     auto* dialog_button =
         button_list->AddChildView(std::make_unique<HoverButton>(
@@ -271,8 +278,8 @@ void SharingDialogView::InitListView() {
   for (const auto& app : data_.apps) {
     std::unique_ptr<views::ImageView> icon;
     if (app.vector_icon) {
-      icon = std::make_unique<views::ImageView>(ui::ImageModel::FromVectorIcon(
-          *app.vector_icon, ui::kColorIcon, kPrimaryIconSize));
+      icon = std::make_unique<views::ColorTrackingIconView>(*app.vector_icon,
+                                                            kPrimaryIconSize);
     } else {
       icon = std::make_unique<views::ImageView>();
       icon->SetImage(app.image.AsImageSkia());
@@ -283,7 +290,7 @@ void SharingDialogView::InitListView() {
             base::BindRepeating(&SharingDialogView::AppButtonPressed,
                                 base::Unretained(this), index++),
             std::move(icon), app.name,
-            /* subtitle= */ std::u16string()));
+            /* subtitle= */ base::string16()));
     dialog_button->SetEnabled(true);
     dialog_button->SetBorder(views::CreateEmptyBorder(app_border));
   }

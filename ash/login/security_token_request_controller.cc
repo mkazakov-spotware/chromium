@@ -1,18 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/login/security_token_request_controller.h"
 
-#include <string>
 #include <utility>
 
 #include "ash/login/ui/pin_request_widget.h"
 #include "ash/public/cpp/login_types.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/i18n/number_formatting.h"
+#include "base/strings/string16.h"
 #include "chromeos/components/security_token_pin/error_generator.h"
 #include "ui/base/l10n/l10n_util.h"
 
@@ -20,17 +19,17 @@ namespace ash {
 
 namespace {
 
-std::u16string GetTitle() {
+base::string16 GetTitle() {
   return l10n_util::GetStringUTF16(
       IDS_ASH_LOGIN_SECURITY_TOKEN_REQUEST_DIALOG_TITLE);
 }
 
-std::u16string GetDescription() {
+base::string16 GetDescription() {
   return l10n_util::GetStringUTF16(
       IDS_ASH_LOGIN_SECURITY_TOKEN_REQUEST_DIALOG_DESCRIPTION);
 }
 
-std::u16string GetAccessibleTitle() {
+base::string16 GetAccessibleTitle() {
   return l10n_util::GetStringUTF16(
       IDS_ASH_LOGIN_SECURITY_TOKEN_REQUEST_DIALOG_TITLE);
 }
@@ -63,7 +62,7 @@ void SecurityTokenRequestController::OnBack() {
   ClosePinUi();
 }
 
-void SecurityTokenRequestController::OnHelp() {
+void SecurityTokenRequestController::OnHelp(gfx::NativeWindow parent_window) {
   NOTREACHED();
 }
 
@@ -89,7 +88,7 @@ bool SecurityTokenRequestController::SetPinUiState(
   if (!security_token_request_in_progress_) {
     security_token_request_in_progress_ = true;
     PinRequest pin_request;
-    pin_request.on_pin_request_done = base::DoNothing();
+    pin_request.on_pin_request_done = base::DoNothing::Once<bool>();
     pin_request.pin_keyboard_always_enabled = true;
     pin_request.extra_dimmer = true;
     pin_request.title = GetTitle();
@@ -111,7 +110,7 @@ bool SecurityTokenRequestController::SetPinUiState(
         chromeos::security_token_pin::GenerateErrorMessage(
             request.error_label, request.attempts_left,
             request.enable_user_input),
-        /*description=*/std::u16string());
+        /*description=*/base::string16());
   }
   return true;
 }

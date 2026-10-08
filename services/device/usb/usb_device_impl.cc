@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,11 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/posix/eintr_wrapper.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/threading/scoped_blocking_call.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "components/device_event_log/device_event_log.h"
 #include "services/device/usb/usb_context.h"
@@ -35,9 +37,9 @@ UsbDeviceImpl::UsbDeviceImpl(ScopedLibusbDeviceRef platform_device,
                 descriptor.idVendor,
                 descriptor.idProduct,
                 descriptor.bcdDevice,
-                std::u16string(),
-                std::u16string(),
-                std::u16string(),
+                base::string16(),
+                base::string16(),
+                base::string16(),
                 libusb_get_bus_number(platform_device.get()),
                 libusb_get_port_number(platform_device.get())),
       platform_device_(std::move(platform_device)) {
@@ -58,8 +60,7 @@ void UsbDeviceImpl::Open(OpenCallback callback) {
   blocking_task_runner->PostTask(
       FROM_HERE,
       base::BindOnce(&UsbDeviceImpl::OpenOnBlockingThread, this,
-                     std::move(callback),
-                     base::SingleThreadTaskRunner::GetCurrentDefault(),
+                     std::move(callback), base::ThreadTaskRunnerHandle::Get(),
                      blocking_task_runner));
 }
 

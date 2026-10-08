@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,18 +9,14 @@
 #include "build/build_config.h"
 #include "content/public/browser/browser_context.h"
 #include "ui/base/resource/resource_bundle.h"
-#include "ui/views/examples/examples_color_mixer.h"
-#include "ui/views/examples/examples_window.h"
 #include "ui/views/examples/examples_window_with_content.h"
 #include "ui/views_content_client/views_content_client.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_APPLE)
 #include "sandbox/mac/seatbelt_exec.h"
-#include "ui/display/screen.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
-#include "base/win/windows_types.h"
+#if defined(OS_WIN)
 #include "content/public/app/sandbox_helper_win.h"
 #include "sandbox/win/src/sandbox_types.h"
 #endif
@@ -29,12 +25,12 @@ namespace {
 
 void OnResourcesLoaded() {
   base::FilePath views_examples_resources_pak_path;
-  CHECK(base::PathService::Get(base::DIR_ASSETS,
+  CHECK(base::PathService::Get(base::DIR_MODULE,
                                &views_examples_resources_pak_path));
   ui::ResourceBundle::GetSharedInstance().AddDataPackFromPath(
       views_examples_resources_pak_path.AppendASCII(
           "views_examples_resources.pak"),
-      ui::k100Percent);
+      ui::SCALE_FACTOR_100P);
 }
 
 void ShowContentExampleWindow(ui::ViewsContentClient* views_content_client,
@@ -51,36 +47,25 @@ void ShowContentExampleWindow(ui::ViewsContentClient* views_content_client,
   // dlsym search path, which breaks (usually valid) assumptions made in
   // sandbox::InitLibcUrandomOverrides(). See http://crbug.com/374712.
   if (!browser_context) {
-    browser_context->SaveSessionState();
+    content::BrowserContext::SaveSessionState(nullptr);
     NOTREACHED();
   }
 }
 
 }  // namespace
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int) {
-  base::CommandLine::Init(0, nullptr);
   sandbox::SandboxInterfaceInfo sandbox_info = {nullptr};
   content::InitializeSandboxInfo(&sandbox_info);
   ui::ViewsContentClient views_content_client(instance, &sandbox_info);
 #else
 int main(int argc, const char** argv) {
   base::CommandLine::Init(argc, argv);
-
-#if BUILDFLAG(IS_MAC)
-  display::ScopedNativeScreen desktop_screen;
-#endif
-  ui::ColorProviderManager::Get().AppendColorProviderInitializer(
-      base::BindRepeating(&views::examples::AddExamplesColorMixers));
-
   ui::ViewsContentClient views_content_client(argc, argv);
 #endif
 
-  if (views::examples::CheckCommandLineUsage())
-    return 0;
-
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_APPLE)
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   // ViewsContentClient expects a const char** argv and
   // CreateFromArgumentsResult expects a regular char** argv. Given this is a

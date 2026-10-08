@@ -1,31 +1,27 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/search_engines/search_engine_tab_helper.h"
 
-#import "base/bind.h"
-#import "base/containers/contains.h"
-#import "base/strings/utf_string_conversions.h"
+#include "base/bind.h"
+#include "base/strings/utf_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "components/favicon/core/favicon_service.h"
-#import "components/favicon/ios/web_favicon_driver.h"
-#import "components/keyed_service/core/service_access_type.h"
-#import "components/search_engines/template_url_service.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
-#import "ios/chrome/browser/favicon/favicon_service_factory.h"
-#import "ios/chrome/browser/search_engines/template_url_service_factory.h"
-#import "ios/chrome/browser/web/chrome_web_client.h"
-#import "ios/web/public/test/scoped_testing_web_client.h"
-#import "ios/web/public/test/web_state_test_util.h"
-#import "ios/web/public/test/web_task_environment.h"
+#include "components/favicon/core/favicon_service.h"
+#include "components/favicon/ios/web_favicon_driver.h"
+#include "components/keyed_service/core/service_access_type.h"
+#include "components/search_engines/template_url_service.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#include "ios/chrome/browser/favicon/favicon_service_factory.h"
+#include "ios/chrome/browser/search_engines/template_url_service_factory.h"
+#include "ios/chrome/browser/web/chrome_web_test.h"
+#import "ios/web/public/test/web_test_with_web_state.h"
 #import "ios/web/public/test/web_view_interaction_test_util.h"
-#import "net/test/embedded_test_server/embedded_test_server.h"
-#import "net/test/embedded_test_server/http_request.h"
-#import "net/test/embedded_test_server/http_response.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "testing/platform_test.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
+#include "net/test/embedded_test_server/http_request.h"
+#include "net/test/embedded_test_server/http_response.h"
+#include "testing/gtest/include/gtest/gtest.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -52,67 +48,61 @@ std::unique_ptr<KeyedService> CreateTestingTemplateURLService(
 }
 
 // Test fixture for SearchEngineTabHelper class.
-class SearchEngineTabHelperTest : public PlatformTest {
- public:
-  SearchEngineTabHelperTest(const SearchEngineTabHelperTest&) = delete;
-  SearchEngineTabHelperTest& operator=(const SearchEngineTabHelperTest&) =
-      delete;
-
+class SearchEngineTabHelperTest : public ChromeWebTest {
  protected:
   SearchEngineTabHelperTest()
-      : web_client_(std::make_unique<ChromeWebClient>()),
-        task_environment_(web::WebTaskEnvironment::Options::IO_MAINLOOP) {}
+      : ChromeWebTest(web::WebTaskEnvironment::Options::IO_MAINLOOP) {}
 
   void SetUp() override {
-    PlatformTest::SetUp();
-
-    TestChromeBrowserState::Builder builder;
-    builder.AddTestingFactory(
-        ios::TemplateURLServiceFactory::GetInstance(),
-        base::BindRepeating(
-            [](web::BrowserState*) -> std::unique_ptr<KeyedService> {
-              auto model = std::make_unique<TemplateURLService>(
-                  /*initializers=*/nullptr, /*count=*/0);
-
-              return model;
-            }));
-
-    browser_state_ = builder.Build();
-    web::WebState::CreateParams params(browser_state_.get());
-    web_state_ = web::WebState::Create(params);
-    web_state_->GetView();
-    web_state_->SetKeepRenderProcessAlive(true);
-
+    WebTestWithWebState::SetUp();
     favicon::WebFaviconDriver::CreateForWebState(
-        web_state(),
-        ios::FaviconServiceFactory::GetForBrowserState(
-            browser_state_.get(), ServiceAccessType::IMPLICIT_ACCESS));
+        web_state(), ios::FaviconServiceFactory::GetForBrowserState(
+                         chrome_browser_state_->GetOriginalChromeBrowserState(),
+                         ServiceAccessType::IMPLICIT_ACCESS));
     SearchEngineTabHelper::CreateForWebState(web_state());
     server_.ServeFilesFromSourceDirectory(".");
     ASSERT_TRUE(server_.Start());
+    // Set the TestingFactory of BrowserState of ios::TemplateURLServiceFactory
+    // to provide a testing TemplateURLService. Notice that we should not use
+    // GetBrowserState() because it may be overriden to return incognito
+    // BrowserState but TemplateURLService is always created on regular
+    // BrowserState.
+    ios::TemplateURLServiceFactory::GetInstance()->SetTestingFactory(
+        chrome_browser_state_->GetOriginalChromeBrowserState(),
+        base::BindRepeating(&CreateTestingTemplateURLService));
     template_url_service()->Load();
-  }
-
-  TestChromeBrowserState::TestingFactories GetTestingFactories() {
-    return {{ios::TemplateURLServiceFactory::GetInstance(),
-             base::BindRepeating(&CreateTestingTemplateURLService)}};
   }
 
   // Returns the testing TemplateURLService.
   TemplateURLService* template_url_service() {
     ChromeBrowserState* browser_state =
-        ChromeBrowserState::FromBrowserState(browser_state_.get());
+        ChromeBrowserState::FromBrowserState(GetBrowserState());
     return ios::TemplateURLServiceFactory::GetForBrowserState(browser_state);
   }
 
-  web::WebState* web_state() { return web_state_.get(); }
+  // Sends a message that a OSDD <link> is found in page, with |page_url| and
+  // |osdd_url| as message content.
+  bool SendMessageOfOpenSearch(const GURL& page_url, const GURL& osdd_url) {
+    id result = ExecuteJavaScript([NSString
+        stringWithFormat:@"__gCrWeb.message.invokeOnHost({'command': "
+                         @"'searchEngine.openSearch', 'pageUrl' : '%s', "
+                         @"'osddUrl': '%s'}); true;",
+                         page_url.spec().c_str(), osdd_url.spec().c_str()]);
+    return [result isEqual:@YES];
+  }
 
-  web::ScopedTestingWebClient web_client_;
-  web::WebTaskEnvironment task_environment_;
-  std::unique_ptr<TestChromeBrowserState> browser_state_;
-  std::unique_ptr<web::WebState> web_state_;
+  // Sends a message that |searchable_url| is generated from <form> submission.
+  bool SendMessageOfSearchableUrl(const GURL& searchable_url) {
+    id result = ExecuteJavaScript([NSString
+        stringWithFormat:@"__gCrWeb.message.invokeOnHost({'command': "
+                         @"'searchEngine.searchableUrl', 'url' : '%s'}); true;",
+                         searchable_url.spec().c_str()]);
+    return [result isEqual:@YES];
+  }
 
   net::EmbeddedTestServer server_;
+
+  DISALLOW_COPY_AND_ASSIGN(SearchEngineTabHelperTest);
 };
 
 // Tests that SearchEngineTabHelper can add TemplateURL to TemplateURLService
@@ -126,9 +116,8 @@ TEST_F(SearchEngineTabHelperTest, AddTemplateURLByOpenSearch) {
       template_url_service()->GetTemplateURLs();
 
   // Load an empty page, and send a message of openSearchUrl from Js.
-  web::test::LoadHtml(@"<html></html>", page_url, web_state());
-  SearchEngineTabHelper::FromWebState(web_state())
-      ->AddTemplateURLByOSDD(page_url, osdd_url);
+  LoadHtml(@"<html></html>", page_url);
+  ASSERT_TRUE(SendMessageOfOpenSearch(page_url, osdd_url));
 
   // Wait for TemplateURL added to TemplateURLService.
   ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForJSCompletionTimeout, ^{
@@ -142,14 +131,14 @@ TEST_F(SearchEngineTabHelperTest, AddTemplateURLByOpenSearch) {
   // added and others remain untouched.
   TemplateURL* new_url = nullptr;
   for (TemplateURL* url : template_url_service()->GetTemplateURLs()) {
-    if (!base::Contains(old_urls, url)) {
+    if (std::find(old_urls.begin(), old_urls.end(), url) == old_urls.end()) {
       ASSERT_FALSE(new_url);
       new_url = url;
     }
   }
   ASSERT_TRUE(new_url);
-  EXPECT_EQ(u"chromium.test", new_url->data().keyword());
-  EXPECT_EQ(u"Chrooome", new_url->data().short_name());
+  EXPECT_EQ(base::UTF8ToUTF16("chromium.test"), new_url->data().keyword());
+  EXPECT_EQ(base::UTF8ToUTF16("Chrooome"), new_url->data().short_name());
   EXPECT_EQ(
       "https://chromium.test/index.php?title=chrooome&search={searchTerms}",
       new_url->data().url());
@@ -175,9 +164,8 @@ TEST_F(SearchEngineTabHelperTest, AddTemplateURLBySearchableURL) {
       template_url_service()->GetTemplateURLs();
 
   // Load an empty page, and send a message of openSearchUrl from Js.
-  web::test::LoadHtml(html, page_url, web_state());
-  SearchEngineTabHelper::FromWebState(web_state())
-      ->SetSearchableUrl(searchable_url);
+  LoadHtml(html, page_url);
+  SendMessageOfSearchableUrl(searchable_url);
   SubmitWebViewFormWithId(web_state(), "f");
 
   // Wait for TemplateURL added to TemplateURLService.
@@ -192,14 +180,14 @@ TEST_F(SearchEngineTabHelperTest, AddTemplateURLBySearchableURL) {
   // added and others remain untouched.
   TemplateURL* new_url = nullptr;
   for (TemplateURL* url : template_url_service()->GetTemplateURLs()) {
-    if (!base::Contains(old_urls, url)) {
+    if (std::find(old_urls.begin(), old_urls.end(), url) == old_urls.end()) {
       ASSERT_FALSE(new_url);
       new_url = url;
     }
   }
   ASSERT_TRUE(new_url);
-  EXPECT_EQ(u"chromium.test", new_url->data().keyword());
-  EXPECT_EQ(u"chromium.test", new_url->data().short_name());
+  EXPECT_EQ(base::UTF8ToUTF16("chromium.test"), new_url->data().keyword());
+  EXPECT_EQ(base::UTF8ToUTF16("chromium.test"), new_url->data().short_name());
   EXPECT_EQ(searchable_url.spec(), new_url->data().url());
   const GURL expected_favicon_url = GURL(page_url.spec() + "favicon.ico");
   EXPECT_EQ(expected_favicon_url, new_url->data().favicon_url);
@@ -207,46 +195,15 @@ TEST_F(SearchEngineTabHelperTest, AddTemplateURLBySearchableURL) {
 
 // Test fixture for SearchEngineTabHelper class in incognito mode.
 class SearchEngineTabHelperIncognitoTest : public SearchEngineTabHelperTest {
- public:
-  SearchEngineTabHelperIncognitoTest(
-      const SearchEngineTabHelperIncognitoTest&) = delete;
-  SearchEngineTabHelperIncognitoTest& operator=(
-      const SearchEngineTabHelperIncognitoTest&) = delete;
-
  protected:
   SearchEngineTabHelperIncognitoTest() {}
 
-  void SetUp() override {
-    SearchEngineTabHelperTest::SetUp();
-
-    ChromeBrowserState* incognito_browser_state =
-        browser_state_->GetOffTheRecordChromeBrowserState();
-
-    // TemplateURLServiceFactory redirects to the original profile, so it
-    // doesn't really matter which browser state is used in tests to interact
-    // with TemplateURLService.
-    ASSERT_EQ(template_url_service(),
-              ios::TemplateURLServiceFactory::GetForBrowserState(
-                  incognito_browser_state));
-
-    web::WebState::CreateParams params(incognito_browser_state);
-    incognito_web_state_ = web::WebState::Create(params);
-    incognito_web_state_->SetKeepRenderProcessAlive(true);
-
-    // SearchEngineTabHelper depends on WebFaviconDriver, which must be created
-    // before and using the original (non-incognito) browser state, in
-    // consistency with the logic in AttachTabHelpers().
-    favicon::WebFaviconDriver::CreateForWebState(
-        incognito_web_state(),
-        ios::FaviconServiceFactory::GetForBrowserState(
-            browser_state_.get(), ServiceAccessType::IMPLICIT_ACCESS));
-    SearchEngineTabHelper::CreateForWebState(incognito_web_state());
+  // Overrides WebTest::GetBrowserState.
+  web::BrowserState* GetBrowserState() override {
+    return chrome_browser_state_->GetOffTheRecordChromeBrowserState();
   }
 
-  web::WebState* incognito_web_state() { return incognito_web_state_.get(); }
-
- private:
-  std::unique_ptr<web::WebState> incognito_web_state_;
+  DISALLOW_COPY_AND_ASSIGN(SearchEngineTabHelperIncognitoTest);
 };
 
 // Tests that SearchEngineTabHelper doesn't add TemplateURL to
@@ -262,9 +219,8 @@ TEST_F(SearchEngineTabHelperIncognitoTest,
       template_url_service()->GetTemplateURLs();
 
   // Load an empty page, and send a message of openSearchUrl from Js.
-  web::test::LoadHtml(@"<html></html>", page_url, incognito_web_state());
-  SearchEngineTabHelper::FromWebState(incognito_web_state())
-      ->AddTemplateURLByOSDD(page_url, osdd_url);
+  LoadHtml(@"<html></html>", page_url);
+  ASSERT_TRUE(SendMessageOfOpenSearch(page_url, osdd_url));
 
   // No new TemplateURL should be added to TemplateURLService, wait for timeout.
   ASSERT_FALSE(WaitUntilConditionOrTimeout(kWaitForJSCompletionTimeout, ^{
@@ -294,10 +250,9 @@ TEST_F(SearchEngineTabHelperIncognitoTest,
       template_url_service()->GetTemplateURLs();
 
   // Load an empty page, and send a message of openSearchUrl from Js.
-  web::test::LoadHtml(html, page_url, incognito_web_state());
-  SearchEngineTabHelper::FromWebState(incognito_web_state())
-      ->SetSearchableUrl(searchable_url);
-  SubmitWebViewFormWithId(incognito_web_state(), "f");
+  LoadHtml(html, page_url);
+  SendMessageOfSearchableUrl(searchable_url);
+  SubmitWebViewFormWithId(web_state(), "f");
 
   // Wait for TemplateURL added to TemplateURLService.
   ASSERT_FALSE(WaitUntilConditionOrTimeout(kWaitForJSCompletionTimeout, ^{

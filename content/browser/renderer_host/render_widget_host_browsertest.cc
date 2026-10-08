@@ -1,16 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <memory>
 #include <vector>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/test_timeouts.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
@@ -22,7 +18,7 @@
 #include "content/browser/renderer_host/render_widget_host_input_event_router.h"
 #include "content/browser/renderer_host/render_widget_host_view_base.h"
 #include "content/browser/web_contents/web_contents_impl.h"
-#include "content/public/browser/render_widget_host_observer.h"
+#include "content/public/browser/notification_types.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/common/content_switches.h"
@@ -37,46 +33,14 @@
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/input/synthetic_web_input_event_builders.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 #include "third_party/blink/public/common/input/web_mouse_event.h"
-#include "third_party/blink/public/common/switches.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/latency/latency_info.h"
 
 namespace content {
-
-namespace {
-
-// Test observer which waits for a visual properties update from a
-// `RenderWidgetHost`.
-class TestRenderWidgetHostObserver : public RenderWidgetHostObserver {
- public:
-  explicit TestRenderWidgetHostObserver(RenderWidgetHost* widget_host)
-      : widget_host_(widget_host) {
-    widget_host_->AddObserver(this);
-  }
-
-  ~TestRenderWidgetHostObserver() override {
-    widget_host_->RemoveObserver(this);
-  }
-
-  // RenderWidgetHostObserver:
-  void RenderWidgetHostDidUpdateVisualProperties(
-      RenderWidgetHost* widget_host) override {
-    run_loop_.Quit();
-  }
-
-  void Wait() { run_loop_.Run(); }
-
- private:
-  raw_ptr<RenderWidgetHost> widget_host_;
-  base::RunLoop run_loop_;
-};
-
-}  // namespace
 
 // For tests that just need a browser opened/navigated to a simple web page.
 class RenderWidgetHostBrowserTest : public ContentBrowserTest {
@@ -99,20 +63,20 @@ class RenderWidgetHostBrowserTest : public ContentBrowserTest {
 
   void WaitForVisualPropertiesAck() {
     while (host()->visual_properties_ack_pending_for_testing()) {
-      TestRenderWidgetHostObserver(host()).Wait();
+      WindowedNotificationObserver(
+          NOTIFICATION_RENDER_WIDGET_HOST_DID_UPDATE_VISUAL_PROPERTIES,
+          Source<RenderWidgetHost>(host()))
+          .Wait();
     }
   }
 };
 
-// This test enables --site-per-process flag.
+// This test enables --site-per-porcess flag.
 class RenderWidgetHostSitePerProcessTest : public ContentBrowserTest {
  public:
   void SetUpCommandLine(base::CommandLine* command_line) override {
     ContentBrowserTest::SetUpCommandLine(command_line);
     IsolateAllSitesForTesting(command_line);
-    // Slow bots are flaky due to slower loading interacting with
-    // deferred commits.
-    command_line->AppendSwitch(blink::switches::kAllowPreCommitInput);
   }
 
   void SetUpOnMainThread() override {
@@ -172,7 +136,7 @@ class RenderWidgetHostTouchEmulatorBrowserTest : public ContentBrowserTest {
         host_(nullptr),
         router_(nullptr),
         last_simulated_event_time_(ui::EventTimeForNow()),
-        simulated_event_time_delta_(base::Milliseconds(100)) {}
+        simulated_event_time_delta_(base::TimeDelta::FromMilliseconds(100)) {}
 
   void SetUpOnMainThread() override {
     ContentBrowserTest::SetUpOnMainThread();
@@ -216,16 +180,16 @@ class RenderWidgetHostTouchEmulatorBrowserTest : public ContentBrowserTest {
   RenderWidgetHostViewBase* view() { return view_; }
 
  private:
-  raw_ptr<RenderWidgetHostViewBase, DanglingUntriaged> view_;
-  raw_ptr<RenderWidgetHostImpl, DanglingUntriaged> host_;
-  raw_ptr<RenderWidgetHostInputEventRouter, DanglingUntriaged> router_;
+  RenderWidgetHostViewBase* view_;
+  RenderWidgetHostImpl* host_;
+  RenderWidgetHostInputEventRouter* router_;
 
   base::TimeTicks last_simulated_event_time_;
   const base::TimeDelta simulated_event_time_delta_;
 };
 
 // Synthetic mouse events not allowed on Android.
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 // This test makes sure that TouchEmulator doesn't emit a GestureScrollEnd
 // without a valid unique_touch_event_id when it sees a GestureFlingStart
 // terminating the underlying mouse scroll sequence. If the GestureScrollEnd is
@@ -242,7 +206,7 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostTouchEmulatorBrowserTest,
 
   SyntheticSmoothDragGestureParams params;
   params.start_point = gfx::PointF(10.f, 110.f);
-  params.gesture_source_type = content::mojom::GestureSourceType::kMouseInput;
+  params.gesture_source_type = SyntheticGestureParams::MOUSE_INPUT;
   params.distances.push_back(gfx::Vector2d(0, -10));
   params.distances.push_back(gfx::Vector2d(0, -10));
   params.distances.push_back(gfx::Vector2d(0, -10));
@@ -278,11 +242,12 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostTouchEmulatorBrowserTest,
     // that we generated a GestureScrollEnd and routed it without crashing.
     TestInputEventObserver::EventTypeVector dispatched_events =
         observer.GetAndResetDispatchedEventTypes();
-    EXPECT_TRUE(base::Contains(dispatched_events,
-                               blink::WebInputEvent::Type::kGestureScrollEnd));
+    auto it_gse = std::find(dispatched_events.begin(), dispatched_events.end(),
+                            blink::WebInputEvent::Type::kGestureScrollEnd);
+    EXPECT_NE(dispatched_events.end(), it_gse);
   } while (!touch_emulator->suppress_next_fling_cancel_for_testing());
 }
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
 // Todo(crbug.com/994353): The test is flaky(crash/timeout) on MSAN, TSAN, and
 // DEBUG builds.
@@ -514,13 +479,10 @@ class DocumentLoadObserver : WebContentsObserver {
   DocumentLoadObserver(WebContents* contents, const GURL& url)
       : WebContentsObserver(contents), document_origin_(url) {}
 
-  DocumentLoadObserver(const DocumentLoadObserver&) = delete;
-  DocumentLoadObserver& operator=(const DocumentLoadObserver&) = delete;
-
   void Wait() {
     if (loaded_)
       return;
-    run_loop_ = std::make_unique<base::RunLoop>();
+    run_loop_.reset(new base::RunLoop());
     run_loop_->Run();
   }
 
@@ -534,6 +496,8 @@ class DocumentLoadObserver : WebContentsObserver {
   bool loaded_ = false;
   const GURL document_origin_;
   std::unique_ptr<base::RunLoop> run_loop_;
+
+  DISALLOW_COPY_AND_ASSIGN(DocumentLoadObserver);
 };
 
 // This test verifies that when a cross-process child frame loads, the initial
@@ -551,8 +515,8 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostSitePerProcessTest,
   EXPECT_TRUE(NavigateToURL(shell(), main_url));
   child_frame_observer.Wait();
   auto* filter = GetTouchActionFilterForWidget(web_contents()
-                                                   ->GetPrimaryFrameTree()
-                                                   .root()
+                                                   ->GetFrameTree()
+                                                   ->root()
                                                    ->child_at(0)
                                                    ->current_frame_host()
                                                    ->GetRenderWidgetHost());
@@ -563,7 +527,7 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostSitePerProcessTest,
 // where popup menus don't create a popup RenderWidget, but rather they trigger
 // a FrameHostMsg_ShowPopup to ask the browser to build and display the actual
 // popup using native controls.
-#if !BUILDFLAG(IS_MAC) && !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_MAC) && !defined(OS_ANDROID)
 
 namespace {
 
@@ -572,7 +536,7 @@ namespace {
 // only when there is no better way to synchronize.
 void GiveItSomeTime(base::TimeDelta delta) {
   base::RunLoop run_loop;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE, run_loop.QuitClosure(), delta);
   run_loop.Run();
 }
@@ -587,7 +551,7 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostSitePerProcessTest,
   EXPECT_TRUE(NavigateToURL(shell(), main_url));
 
   auto* contents = static_cast<WebContentsImpl*>(shell()->web_contents());
-  FrameTreeNode* root = contents->GetPrimaryFrameTree().root();
+  FrameTreeNode* root = contents->GetFrameTree()->root();
   RenderFrameHostImpl* root_frame_host = root->current_frame_host();
   RenderProcessHost* process = root_frame_host->GetProcess();
 
@@ -605,7 +569,7 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostSitePerProcessTest,
     // wait for the RenderWidgetHost to be shown.
     auto filter =
         std::make_unique<ShowPopupWidgetWaiter>(contents, root_frame_host);
-    EXPECT_TRUE(ExecJs(root_frame_host, "focusSelectMenu();"));
+    EXPECT_TRUE(ExecuteScript(root_frame_host, "focusSelectMenu();"));
     root_frame_host->GetRenderWidgetHost()->ForwardKeyboardEvent(event);
     filter->Wait();
 
@@ -628,7 +592,8 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostSitePerProcessTest,
           popup_widget_host_impl->GetWeakPtr();
 
       // Close the popup RenderWidget from the renderer side by removing focus.
-      EXPECT_TRUE(ExecJs(root_frame_host, "document.activeElement.blur()"));
+      EXPECT_TRUE(
+          ExecuteScript(root_frame_host, "document.activeElement.blur()"));
 
       // Ensure that the RenderWidgetHostImpl gets destroyed, which implies the
       // close step has also been sent to the renderer process.
@@ -638,78 +603,69 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostSitePerProcessTest,
     }
     // Ensure the renderer didn't explode :).
     {
-      std::u16string title_when_done[] = {u"done 0", u"done 1"};
+      base::string16 title_when_done[] = {base::UTF8ToUTF16("done 0"),
+                                          base::UTF8ToUTF16("done 1")};
       TitleWatcher title_watcher(shell()->web_contents(), title_when_done[i]);
-      EXPECT_TRUE(
-          ExecJs(root_frame_host, JsReplace("document.title='done $1'", i)));
+      EXPECT_TRUE(ExecuteScript(root_frame_host,
+                                JsReplace("document.title='done $1'", i)));
       EXPECT_EQ(title_watcher.WaitAndGetTitle(), title_when_done[i]);
     }
   }
 }
 #endif
 
-class RenderWidgetHostFullscreenScreenSizeBrowserTest
-    : public RenderWidgetHostBrowserTest,
-      public testing::WithParamInterface<bool> {
- public:
-  RenderWidgetHostFullscreenScreenSizeBrowserTest() {
-    scoped_feature_list_.InitWithFeatureState(
-        blink::features::kFullscreenScreenSizeMatchesDisplay,
-        FullscreenScreenSizeMatchesDisplayEnabled());
-  }
-  bool FullscreenScreenSizeMatchesDisplayEnabled() { return GetParam(); }
+// Tests that the renderer receives the blink::ScreenInfo size overrides
+// while the page is in fullscreen mode. This is a regression test for
+// https://crbug.com/1060795.
+IN_PROC_BROWSER_TEST_F(RenderWidgetHostBrowserTest,
+                       PropagatesFullscreenSizeOverrides) {
+  class FullscreenWaiter : public WebContentsObserver {
+   public:
+    explicit FullscreenWaiter(WebContents* wc) : WebContentsObserver(wc) {}
 
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
+    void Wait(bool enter) {
+      if (web_contents()->IsFullscreen() != enter) {
+        run_loop_.Run();
+      }
+      EXPECT_EQ(enter, web_contents()->IsFullscreen());
+    }
 
-INSTANTIATE_TEST_SUITE_P(All,
-                         RenderWidgetHostFullscreenScreenSizeBrowserTest,
-                         testing::Bool());
+   private:
+    void DidToggleFullscreenModeForTab(bool entered,
+                                       bool will_resize) override {
+      run_loop_.Quit();
+    }
 
-// Tests `window.screen` dimensions in fullscreen. Note that Content Shell does
-// not resize the viewport to fill the screen in fullscreen on some platforms.
-// `window.screen` may provide viewport dimensions while the frame is fullscreen
-// as a speculative site compatibility measure, because web authors may assume
-// that screen dimensions match window.innerWidth/innerHeight while a page is
-// fullscreen, but that is not always true. crbug.com/1367416
-IN_PROC_BROWSER_TEST_P(RenderWidgetHostFullscreenScreenSizeBrowserTest,
-                       FullscreenSize) {
-  // Check initial dimensions before entering fullscreen.
+    base::RunLoop run_loop_;
+  };
+
+  // Sanity-check: Ensure the Shell and WebContents both agree the browser is
+  // not currently in fullscreen.
   ASSERT_FALSE(shell()->IsFullscreenForTabOrPending(web_contents()));
   ASSERT_FALSE(web_contents()->IsFullscreen());
+
+  // While not fullscreened, expect the screen size to not be overridden.
+  blink::ScreenInfo screen_info;
+  host()->GetScreenInfo(&screen_info);
   WaitForVisualPropertiesAck();
-  EXPECT_EQ(host()->GetScreenInfo().rect.size().ToString(),
+  EXPECT_EQ(screen_info.rect.size().ToString(),
             EvalJs(web_contents(), "`${screen.width}x${screen.height}`"));
 
-  // Enter fullscreen; Content Shell does not resize the viewport to fill the
-  // screen in fullscreen on some platforms.
-  constexpr char kEnterFullscreenScript[] = R"JS(
-    document.documentElement.requestFullscreen().then(() => {
-        return !!document.fullscreenElement;
-    });
-  )JS";
-  ASSERT_TRUE(EvalJs(web_contents(), kEnterFullscreenScript).ExtractBool());
+  // Enter fullscreen mode. The Content Shell does not resize the view to fill
+  // the entire screen, and so the page will see the view's size as the screen
+  // size. This confirms the ScreenInfo override logic is working.
+  ASSERT_TRUE(ExecJs(web_contents(), "document.body.requestFullscreen();"));
+  FullscreenWaiter(web_contents()).Wait(true);
+  WaitForVisualPropertiesAck();
+  EXPECT_EQ(view()->GetRequestedRendererSize().ToString(),
+            EvalJs(web_contents(), "`${screen.width}x${screen.height}`"));
 
-  if (FullscreenScreenSizeMatchesDisplayEnabled()) {
-    // `window.screen` dimensions match the display size.
-    EXPECT_EQ(host()->GetScreenInfo().rect.size().ToString(),
-              EvalJs(web_contents(), "`${screen.width}x${screen.height}`"));
-  } else {
-    // `window.screen` dimensions match the potentially smaller viewport size.
-    EXPECT_EQ(view()->GetRequestedRendererSize().ToString(),
-              EvalJs(web_contents(), "`${screen.width}x${screen.height}`"));
-  }
-
-  // Check dimensions again after exiting fullscreen.
-  constexpr char kExitFullscreenScript[] = R"JS(
-    document.exitFullscreen().then(() => {
-        return !document.fullscreenElement;
-    });
-  )JS";
-  ASSERT_TRUE(EvalJs(web_contents(), kExitFullscreenScript).ExtractBool());
-  ASSERT_FALSE(web_contents()->IsFullscreen());
-  EXPECT_EQ(host()->GetScreenInfo().rect.size().ToString(),
+  // Exit fullscreen mode, and then the page should see the screen size again.
+  ASSERT_TRUE(ExecJs(web_contents(), "document.exitFullscreen();"));
+  FullscreenWaiter(web_contents()).Wait(false);
+  host()->GetScreenInfo(&screen_info);
+  WaitForVisualPropertiesAck();
+  EXPECT_EQ(screen_info.rect.size().ToString(),
             EvalJs(web_contents(), "`${screen.width}x${screen.height}`"));
 }
 
@@ -730,42 +686,19 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostFoldableCSSTest,
   const char kTestPageURL[] =
       R"HTML(data:text/html,<!DOCTYPE html>
       <style>
-      /* The following styles set the margin top/left/bottom/right to the
-         values where the display feature between segments is, and the width and
-         height of the div to the width and height of the display feature */
-        @media (horizontal-viewport-segments: 2) {
-          div {
-            margin: env(viewport-segment-top 0 0, 10px)
-                    env(viewport-segment-left 1 0, 10px)
-                    env(viewport-segment-bottom 0 0, 10px)
-                    env(viewport-segment-right 0 0, 10px);
-            width: calc(env(viewport-segment-left 1 0, 10px) -
-                        env(viewport-segment-right 0 0, 0px));
-            height: env(viewport-segment-height 0 0, 10px);
-          }
+        div {
+          margin: env(fold-top, 1px) env(fold-right, 1px)
+                  env(fold-bottom, 1px) env(fold-left, 1px);
+          width: env(fold-width, 1px);
+          height: env(fold-height, 1px);
         }
-
-        @media (vertical-viewport-segments: 2) {
-          div {
-            margin: env(viewport-segment-bottom 0 0, 11px)
-                    env(viewport-segment-right 0 1, 11px)
-                    env(viewport-segment-top 0 1, 11px)
-                    env(viewport-segment-left 0 0, 11px);
-            width: env(viewport-segment-width 0 0, 11px);
-            height: calc(env(viewport-segment-top 0 1, 11px) -
-                         env(viewport-segment-bottom 0 0, 0px));
-          }
+        @media (screen-spanning: none) {
+          div { opacity: 0.1; }
         }
-        @media (horizontal-viewport-segments: 1) and
-               (vertical-viewport-segments: 1) {
-          div { opacity: 0.1; margin: 1px; width: 1px; height: 1px; }
-        }
-        @media (horizontal-viewport-segments: 2) and
-               (vertical-viewport-segments: 1) {
+        @media (screen-spanning: single-fold-vertical) {
           div { opacity: 0.2; }
         }
-        @media (horizontal-viewport-segments: 1) and
-               (vertical-viewport-segments: 2) {
+        @media (screen-spanning: single-fold-horizontal) {
           div { opacity: 0.3; }
         }
       </style>
@@ -888,9 +821,8 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostFoldableCSSTest,
   const char kTestPageURL[] =
       R"HTML(data:text/html,<!DOCTYPE html>
       <style>
-        @media (horizontal-viewport-segments: 2) and
-               (vertical-viewport-segments: 1) {
-          div { margin-left: env(viewport-segment-right 0 0, 10px); }
+        @media (screen-spanning: single-fold-vertical) {
+          div { margin-left: env(fold-left, 10px); }
         }
       </style>
       <div id='target'></div>)HTML";
@@ -913,7 +845,8 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostFoldableCSSTest,
 
   // Ensure that the environment variables have the correct values in the new
   // document that is created on reloading the page.
-  LoadStopObserver load_stop_observer(shell()->web_contents());
+  WindowedNotificationObserver load_stop_observer(
+      NOTIFICATION_LOAD_STOP, NotificationService::AllSources());
   shell()->Reload();
   load_stop_observer.Wait();
 
@@ -936,19 +869,13 @@ class RenderWidgetHostDelegatedInkMetadataTest
 
 // Confirm that using the |updateInkTrailStartPoint| JS API results in the
 // |request_points_for_delegated_ink_| flag being set on the RWHVB.
-// TODO(crbug.com/1344023). Flaky on Linux.
-#if BUILDFLAG(IS_LINUX)
-#define MAYBE_FlagGetsSetFromRenderFrameMetadata \
-  DISABLED_FlagGetsSetFromRenderFrameMetadata
-#else
-#define MAYBE_FlagGetsSetFromRenderFrameMetadata \
-  FlagGetsSetFromRenderFrameMetadata
-#endif
 IN_PROC_BROWSER_TEST_F(RenderWidgetHostDelegatedInkMetadataTest,
-                       MAYBE_FlagGetsSetFromRenderFrameMetadata) {
+                       FlagGetsSetFromRenderFrameMetadata) {
   ASSERT_TRUE(ExecJs(shell()->web_contents(), R"(
       let presenter = null;
-      navigator.ink.requestPresenter().then(e => { presenter = e; });
+      navigator.ink.requestPresenter('delegated-ink-trail').then(e => {
+        presenter = e;
+      });
       let style = { color: 'green', diameter: 21 };
 
       window.addEventListener('pointermove' , evt => {
@@ -962,83 +889,15 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostDelegatedInkMetadataTest,
   {
     const cc::RenderFrameMetadata& last_metadata =
         host()->render_frame_metadata_provider()->LastRenderFrameMetadata();
-    EXPECT_TRUE(last_metadata.delegated_ink_metadata.has_value());
-    EXPECT_TRUE(
-        last_metadata.delegated_ink_metadata.value().delegated_ink_is_hovering);
-  }
-
-  // Confirm that the state of hover changing on the next produced delegated ink
-  // metadata results in a new RenderFrameMetadata being sent, with
-  // |delegated_ink_hovering| false.
-  SimulateRoutedMouseEvent(blink::WebInputEvent::Type::kMouseMove, 20, 20,
-                           blink::WebInputEvent::kLeftButtonDown, false);
-  RunUntilInputProcessed(host());
-
-  {
-    const cc::RenderFrameMetadata& last_metadata =
-        host()->render_frame_metadata_provider()->LastRenderFrameMetadata();
-    EXPECT_TRUE(last_metadata.delegated_ink_metadata.has_value());
-    EXPECT_FALSE(
-        last_metadata.delegated_ink_metadata.value().delegated_ink_is_hovering);
+    EXPECT_TRUE(last_metadata.has_delegated_ink_metadata);
   }
 
   // Confirm that the flag is set back to false when the JS API isn't called.
   RunUntilInputProcessed(host());
-  const cc::RenderFrameMetadata& last_metadata =
-      host()->render_frame_metadata_provider()->LastRenderFrameMetadata();
-  EXPECT_FALSE(last_metadata.delegated_ink_metadata.has_value());
-
-  // Finally, confirm that a change in hovering state (pointerdown to pointerup
-  // here) without a call to updateInkTrailStartPoint doesn't cause a new
-  // RenderFrameMetadata to be sent.
-  SimulateRoutedMouseEvent(blink::WebInputEvent::Type::kMouseMove, 20, 20, 0,
-                           false);
-  RunUntilInputProcessed(host());
-  EXPECT_EQ(
-      last_metadata,
-      host()->render_frame_metadata_provider()->LastRenderFrameMetadata());
-}
-
-// If the DelegatedInkTrailPresenter creates a metadata that has the same
-// timestamp as the previous one, it does not set the metadata.
-// TODO(crbug.com/1344023). Flaky.
-IN_PROC_BROWSER_TEST_F(RenderWidgetHostDelegatedInkMetadataTest,
-                       DISABLED_DuplicateMetadata) {
-  ASSERT_TRUE(ExecJs(shell()->web_contents(), R"(
-      let presenter = null;
-      navigator.ink.requestPresenter().then(e => { presenter = e; });
-      let style = { color: 'green', diameter: 21 };
-      let first_move_event = null;
-
-      window.addEventListener('pointermove' , evt => {
-        if (first_move_event == null) {
-          first_move_event = evt;
-        }
-        presenter.updateInkTrailStartPoint(first_move_event, style);
-      });
-      )"));
-  SimulateRoutedMouseEvent(blink::WebInputEvent::Type::kMouseMove, 10, 10, 0,
-                           false);
-  RunUntilInputProcessed(host());
-
   {
     const cc::RenderFrameMetadata& last_metadata =
         host()->render_frame_metadata_provider()->LastRenderFrameMetadata();
-    EXPECT_TRUE(last_metadata.delegated_ink_metadata.has_value());
-    EXPECT_TRUE(
-        last_metadata.delegated_ink_metadata.value().delegated_ink_is_hovering);
-  }
-
-  // Confirm metadata has no value when updateInkTrailStartPoint is called
-  // with the same event.
-  SimulateRoutedMouseEvent(blink::WebInputEvent::Type::kMouseMove, 20, 20,
-                           blink::WebInputEvent::kLeftButtonDown, false);
-  RunUntilInputProcessed(host());
-
-  {
-    const cc::RenderFrameMetadata& last_metadata =
-        host()->render_frame_metadata_provider()->LastRenderFrameMetadata();
-    EXPECT_FALSE(last_metadata.delegated_ink_metadata.has_value());
+    EXPECT_FALSE(last_metadata.has_delegated_ink_metadata);
   }
 }
 

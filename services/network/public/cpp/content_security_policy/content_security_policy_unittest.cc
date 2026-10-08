@@ -1,18 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/network/public/cpp/content_security_policy/content_security_policy.h"
 
-#include "base/containers/contains.h"
-#include "base/memory/raw_ref.h"
-#include "base/strings/string_piece.h"
-#include "base/strings/stringprintf.h"
+#include "base/stl_util.h"
 #include "net/http/http_response_headers.h"
 #include "services/network/public/cpp/content_security_policy/csp_context.h"
 #include "services/network/public/cpp/web_sandbox_flags.h"
 #include "services/network/public/mojom/content_security_policy.mojom.h"
-#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 #include "url/origin.h"
@@ -66,9 +62,6 @@ static void TestFrameAncestorsCSPParser(const std::string& header,
       policies[0]->directives[mojom::CSPDirectiveName::FrameAncestors];
   EXPECT_EQ(frame_ancestors->sources.size(),
             expected_result->parsed_sources.size());
-  EXPECT_EQ(
-      policies[0]->raw_directives[mojom::CSPDirectiveName::FrameAncestors],
-      header);
   for (size_t i = 0; i < expected_result->parsed_sources.size(); i++) {
     EXPECT_EQ(frame_ancestors->sources[i]->scheme,
               expected_result->parsed_sources[i].scheme);
@@ -91,9 +84,6 @@ class CSPContextTest : public CSPContext {
  public:
   CSPContextTest() = default;
 
-  CSPContextTest(const CSPContextTest&) = delete;
-  CSPContextTest& operator=(const CSPContextTest&) = delete;
-
   const std::vector<network::mojom::CSPViolationPtr>& violations() {
     return violations_;
   }
@@ -113,13 +103,13 @@ class CSPContextTest : public CSPContext {
   }
   std::vector<network::mojom::CSPViolationPtr> violations_;
   std::vector<std::string> scheme_to_bypass_;
+
+  DISALLOW_COPY_AND_ASSIGN(CSPContextTest);
 };
 
 mojom::ContentSecurityPolicyPtr EmptyCSP() {
   auto policy = mojom::ContentSecurityPolicy::New();
   policy->header = mojom::ContentSecurityPolicyHeader::New();
-  policy->self_origin = network::mojom::CSPSource::New(
-      "", "", url::PORT_UNSPECIFIED, "", false, false);
   return policy;
 }
 
@@ -266,36 +256,6 @@ TEST(ContentSecurityPolicy, ParseFrameAncestors) {
 }
 
 TEST(ContentSecurityPolicy, ParseDirectives) {
-  // Directive names are case-insensitive.
-  {
-    scoped_refptr<net::HttpResponseHeaders> headers(
-        new net::HttpResponseHeaders("HTTP/1.1 200 OK"));
-    headers->SetHeader("Content-Security-Policy",
-                       "ScrIPT-sRc 'none'; img-src 'none'");
-    std::vector<mojom::ContentSecurityPolicyPtr> policies;
-    AddContentSecurityPolicyFromHeaders(*headers, GURL("https://example.com/"),
-                                        &policies);
-    EXPECT_EQ(2U, policies[0]->directives.size());
-    EXPECT_EQ(2U, policies[0]->raw_directives.size());
-
-    EXPECT_EQ(policies[0]->raw_directives[mojom::CSPDirectiveName::ScriptSrc],
-              "'none'");
-    auto& script_src =
-        policies[0]->directives[mojom::CSPDirectiveName::ScriptSrc];
-    EXPECT_EQ(script_src->sources.size(), 0U);
-    EXPECT_EQ(script_src->allow_self, false);
-    EXPECT_EQ(script_src->allow_star, false);
-
-    EXPECT_EQ(policies[0]->raw_directives[mojom::CSPDirectiveName::ImgSrc],
-              "'none'");
-    auto& img_src = policies[0]->directives[mojom::CSPDirectiveName::ScriptSrc];
-    EXPECT_EQ(img_src->sources.size(), 0U);
-    EXPECT_EQ(img_src->allow_self, false);
-    EXPECT_EQ(img_src->allow_star, false);
-
-    EXPECT_THAT(policies[0]->parsing_errors, testing::IsEmpty());
-  }
-
   // One duplicate directive.
   {
     scoped_refptr<net::HttpResponseHeaders> headers(
@@ -307,11 +267,7 @@ TEST(ContentSecurityPolicy, ParseDirectives) {
     AddContentSecurityPolicyFromHeaders(*headers, GURL("https://example.com/"),
                                         &policies);
     EXPECT_EQ(2U, policies[0]->directives.size());
-    EXPECT_EQ(2U, policies[0]->raw_directives.size());
 
-    EXPECT_EQ(
-        policies[0]->raw_directives[mojom::CSPDirectiveName::FrameAncestors],
-        "example.com");
     auto& frame_ancestors =
         policies[0]->directives[mojom::CSPDirectiveName::FrameAncestors];
     EXPECT_EQ(frame_ancestors->sources.size(), 1U);
@@ -323,8 +279,6 @@ TEST(ContentSecurityPolicy, ParseDirectives) {
     EXPECT_EQ(frame_ancestors->sources[0]->is_port_wildcard, false);
     EXPECT_EQ(frame_ancestors->allow_self, false);
 
-    EXPECT_EQ(policies[0]->raw_directives[mojom::CSPDirectiveName::ScriptSrc],
-              "example2.com");
     auto& script_src =
         policies[0]->directives[mojom::CSPDirectiveName::ScriptSrc];
     EXPECT_EQ(script_src->sources.size(), 1U);
@@ -354,11 +308,7 @@ TEST(ContentSecurityPolicy, ParseDirectives) {
     AddContentSecurityPolicyFromHeaders(*headers, GURL("https://example.com/"),
                                         &policies);
     EXPECT_EQ(1U, policies[0]->directives.size());
-    EXPECT_EQ(1U, policies[0]->raw_directives.size());
 
-    EXPECT_EQ(
-        policies[0]->raw_directives[mojom::CSPDirectiveName::FrameAncestors],
-        "example.org");
     auto& frame_ancestors =
         policies[0]->directives[mojom::CSPDirectiveName::FrameAncestors];
     EXPECT_EQ(frame_ancestors->sources.size(), 1U);
@@ -387,7 +337,6 @@ TEST(ContentSecurityPolicy, ParseDirectives) {
     AddContentSecurityPolicyFromHeaders(*headers, GURL("https://example.com/"),
                                         &policies);
     EXPECT_TRUE(policies[0]->directives.empty());
-    EXPECT_TRUE(policies[0]->raw_directives.empty());
 
     EXPECT_EQ(1U, policies[0]->parsing_errors.size());
     EXPECT_EQ(
@@ -410,13 +359,9 @@ TEST(ContentSecurityPolicy, ParseDirectives) {
     EXPECT_EQ(1U, policies[0]->parsing_errors.size());
     EXPECT_EQ(
         "The value for the Content-Security-Policy directive 'frame-ancestors' "
-        "contains one or more invalid characters. In a source expression, "
-        "non-whitespace characters outside ASCII 0x21-0x7E must be "
-        "Punycode-encoded, as described in RFC 3492 "
-        "(https://tools.ietf.org/html/rfc3492), if part of the hostname and "
-        "percent-encoded, as described in RFC 3986, section 2.1 "
-        "(http://tools.ietf.org/html/rfc3986#section-2.1), if part of the "
-        "path.",
+        "contains one or more invalid characters. Non-whitespace characters "
+        "outside ASCII 0x21-0x7E must be percent-encoded, as described in RFC "
+        "3986, section 2.1: http://tools.ietf.org/html/rfc3986#section-2.1.",
         policies[0]->parsing_errors[0]);
   }
 
@@ -429,11 +374,7 @@ TEST(ContentSecurityPolicy, ParseDirectives) {
     AddContentSecurityPolicyFromHeaders(*headers, GURL("https://example.com/"),
                                         &policies);
     EXPECT_EQ(1U, policies[0]->directives.size());
-    EXPECT_EQ(1U, policies[0]->raw_directives.size());
 
-    EXPECT_EQ(
-        policies[0]->raw_directives[mojom::CSPDirectiveName::FrameAncestors],
-        "object-src");
     auto& frame_ancestors =
         policies[0]->directives[mojom::CSPDirectiveName::FrameAncestors];
     EXPECT_EQ(frame_ancestors->sources.size(), 1U);
@@ -464,11 +405,7 @@ TEST(ContentSecurityPolicy, ParseDirectives) {
     AddContentSecurityPolicyFromHeaders(*headers, GURL("https://example.com/"),
                                         &policies);
     EXPECT_EQ(1U, policies[0]->directives.size());
-    EXPECT_EQ(1U, policies[0]->raw_directives.size());
 
-    EXPECT_EQ(
-        policies[0]->raw_directives[mojom::CSPDirectiveName::FrameAncestors],
-        "http://example.org/index.html?a=b");
     auto& frame_ancestors =
         policies[0]->directives[mojom::CSPDirectiveName::FrameAncestors];
     EXPECT_EQ(frame_ancestors->sources.size(), 1U);
@@ -483,7 +420,7 @@ TEST(ContentSecurityPolicy, ParseDirectives) {
 
     EXPECT_EQ(1U, policies[0]->parsing_errors.size());
     EXPECT_EQ(
-        "The source list for Content Security Policy directive "
+        "The source list for Content-Security-Policy directive "
         "'frame-ancestors' contains a source with an invalid path: "
         "'/index.html?a=b'. The query component, including the '?', will be "
         "ignored.",
@@ -500,11 +437,7 @@ TEST(ContentSecurityPolicy, ParseDirectives) {
     AddContentSecurityPolicyFromHeaders(*headers, GURL("https://example.com/"),
                                         &policies);
     EXPECT_EQ(1U, policies[0]->directives.size());
-    EXPECT_EQ(1U, policies[0]->raw_directives.size());
 
-    EXPECT_EQ(
-        policies[0]->raw_directives[mojom::CSPDirectiveName::FrameAncestors],
-        "http://example.org/index.html#a");
     auto& frame_ancestors =
         policies[0]->directives[mojom::CSPDirectiveName::FrameAncestors];
     EXPECT_EQ(frame_ancestors->sources.size(), 1U);
@@ -519,7 +452,7 @@ TEST(ContentSecurityPolicy, ParseDirectives) {
 
     EXPECT_EQ(1U, policies[0]->parsing_errors.size());
     EXPECT_EQ(
-        "The source list for Content Security Policy directive "
+        "The source list for Content-Security-Policy directive "
         "'frame-ancestors' contains a source with an invalid path: "
         "'/index.html#a'. The fragment identifier, including the '#', will be "
         "ignored.",
@@ -540,14 +473,6 @@ TEST(ContentSecurityPolicy, ParseDirectives) {
                                         &policies);
 
     EXPECT_EQ(2U, policies.size());
-
-    EXPECT_EQ(
-        policies[0]->raw_directives[mojom::CSPDirectiveName::FrameAncestors],
-        "example.com");
-    EXPECT_EQ(
-        policies[1]->raw_directives[mojom::CSPDirectiveName::FrameAncestors],
-        "example.org");
-
     auto& frame_ancestors0 =
         policies[0]->directives[mojom::CSPDirectiveName::FrameAncestors];
     auto& frame_ancestors1 =
@@ -584,10 +509,6 @@ TEST(ContentSecurityPolicy, ParseDirectives) {
                                         &policies);
 
     EXPECT_EQ(2U, policies.size());
-    EXPECT_EQ(
-        policies[1]->raw_directives[mojom::CSPDirectiveName::FrameAncestors],
-        "example.org");
-
     auto& frame_ancestors1 =
         policies[1]->directives[mojom::CSPDirectiveName::FrameAncestors];
     EXPECT_EQ(frame_ancestors1->sources.size(), 1U);
@@ -614,14 +535,6 @@ TEST(ContentSecurityPolicy, ParseDirectives) {
                                         &policies);
 
     EXPECT_EQ(2U, policies.size());
-
-    EXPECT_EQ(
-        policies[0]->raw_directives[mojom::CSPDirectiveName::FrameAncestors],
-        "example.com");
-    EXPECT_EQ(
-        policies[1]->raw_directives[mojom::CSPDirectiveName::FrameAncestors],
-        "example.org");
-
     auto& frame_ancestors0 =
         policies[0]->directives[mojom::CSPDirectiveName::FrameAncestors];
     auto& frame_ancestors1 =
@@ -658,10 +571,6 @@ TEST(ContentSecurityPolicy, ParseDirectives) {
     AddContentSecurityPolicyFromHeaders(*headers, GURL("https://example.com/"),
                                         &policies);
 
-    EXPECT_EQ(
-        policies[0]->raw_directives[mojom::CSPDirectiveName::FrameAncestors],
-        "example.com");
-
     auto& report_endpoints = policies[0]->report_endpoints;
     EXPECT_EQ(report_endpoints.size(), 1U);
     EXPECT_EQ(report_endpoints[0], "http://example.com/report");
@@ -681,191 +590,53 @@ TEST(ContentSecurityPolicy, ParseDirectives) {
   }
 }
 
-TEST(ContentSecurityPolicy, ParseAllow) {
-  std::vector<mojom::ContentSecurityPolicyPtr> policies =
-      ParseCSP("allow    'none'");
-  EXPECT_EQ(policies[0]->directives.size(), 0u);
-  EXPECT_EQ(
-      policies[0]->parsing_errors[0],
-      "The 'allow' directive has been replaced with 'default-src'. Please "
-      "use that directive instead, as 'allow' has no effect.");
-}
-
-TEST(ContentSecurityPolicy, ParseOptions) {
-  std::vector<mojom::ContentSecurityPolicyPtr> policies =
-      ParseCSP("options 'unsafe-inline'");
-  EXPECT_EQ(policies[0]->directives.size(), 0u);
-  EXPECT_EQ(policies[0]->parsing_errors[0],
-            "The 'options' directive has been replaced with the "
-            "'unsafe-inline' and 'unsafe-eval' source expressions for the "
-            "'script-src' and 'style-src' directives. Please use those "
-            "directives instead, as 'options' has no effect.");
-}
-
-TEST(ContentSecurityPolicy, ParsePolicyUri) {
-  std::vector<mojom::ContentSecurityPolicyPtr> policies =
-      ParseCSP("policy-uri   https://example.com/my-csp");
-  EXPECT_EQ(policies[0]->directives.size(), 0u);
-  EXPECT_EQ(policies[0]->parsing_errors[0],
-            "The 'policy-uri' directive has been removed from the "
-            "specification. Please specify a complete policy via the "
-            "Content-Security-Policy header.");
-}
-
 TEST(ContentSecurityPolicy, ParsePluginTypes) {
-  std::vector<mojom::ContentSecurityPolicyPtr> policies =
-      ParseCSP("plugin-types    application/pdf text/plain");
-  EXPECT_EQ(policies[0]->directives.size(), 0u);
-  EXPECT_EQ(policies[0]->parsing_errors[0],
-            "The Content-Security-Policy directive 'plugin-types' has been "
-            "removed from the "
-            "specification. If you want to block plugins, consider specifying "
-            "\"object-src 'none'\" instead.");
-}
-
-TEST(ContentSecurityPolicy, ParseRequireTrustedTypesFor) {
-  struct {
-    const char* input;
-    const unsigned long errors;
-    network::mojom::CSPRequireTrustedTypesFor expected;
-  } cases[]{
-      {
-          "",
-          1u,
-          network::mojom::CSPRequireTrustedTypesFor::None,
-      },
-      {
-          "'script'",
-          0u,
-          network::mojom::CSPRequireTrustedTypesFor::Script,
-      },
-      {
-          "'wasm' 'script'",
-          1u,
-          network::mojom::CSPRequireTrustedTypesFor::Script,
-      },
-      {
-          "'script' 'wasm' 'script'",
-          1u,
-          network::mojom::CSPRequireTrustedTypesFor::Script,
-      },
-      {
-          "'wasm'",
-          2u,
-          network::mojom::CSPRequireTrustedTypesFor::None,
-      },
-  };
-
-  for (const auto& testCase : cases) {
-    std::vector<mojom::ContentSecurityPolicyPtr> policies = ParseCSP(
-        base::StringPrintf("require-trusted-types-for %s", testCase.input));
-    EXPECT_EQ(
-        policies[0]
-            ->raw_directives[mojom::CSPDirectiveName::RequireTrustedTypesFor],
-        testCase.input);
-    EXPECT_EQ(policies[0]->directives.size(), 0u);
-    EXPECT_EQ(policies[0]->parsing_errors.size(), testCase.errors);
-    EXPECT_EQ(policies[0]->require_trusted_types_for, testCase.expected);
-  }
-}
-
-TEST(ContentSecurityPolicy, ParseTrustedTypes) {
   {
     std::vector<mojom::ContentSecurityPolicyPtr> policies =
-        ParseCSP("script-src 'none'");
-    EXPECT_EQ(policies[0]->directives.size(), 1u);
-    EXPECT_FALSE(policies[0]->trusted_types);
-  }
-
-  {
-    std::vector<mojom::ContentSecurityPolicyPtr> policies =
-        ParseCSP("trusted-types 'none'");
-    EXPECT_EQ(
-        policies[0]->raw_directives[mojom::CSPDirectiveName::TrustedTypes],
-        "'none'");
+        ParseCSP("plugin-types    application/pdf text/plain  invalid a/a/a");
     EXPECT_EQ(policies[0]->directives.size(), 0u);
-    EXPECT_TRUE(policies[0]->trusted_types);
-    EXPECT_EQ(policies[0]->trusted_types->list.size(), 0u);
-    EXPECT_FALSE(policies[0]->trusted_types->allow_any);
-    EXPECT_FALSE(policies[0]->trusted_types->allow_duplicates);
-    EXPECT_EQ(policies[0]->trusted_types->list.size(), 0u);
-    EXPECT_EQ(policies[0]->parsing_errors.size(), 0u);
-  }
-
-  {
-    std::vector<mojom::ContentSecurityPolicyPtr> policies =
-        ParseCSP("trusted-types policy   'none'  other_policy@ invalid~policy");
-    EXPECT_EQ(
-        policies[0]->raw_directives[mojom::CSPDirectiveName::TrustedTypes],
-        "policy   'none'  other_policy@ invalid~policy");
-    EXPECT_EQ(policies[0]->directives.size(), 0u);
-    EXPECT_TRUE(policies[0]->trusted_types);
-    EXPECT_EQ(policies[0]->trusted_types->list.size(), 2u);
-    EXPECT_EQ(policies[0]->trusted_types->list[0], "policy");
-    EXPECT_EQ(policies[0]->trusted_types->list[1], "other_policy@");
-    EXPECT_FALSE(policies[0]->trusted_types->allow_any);
-    EXPECT_FALSE(policies[0]->trusted_types->allow_duplicates);
+    EXPECT_TRUE(policies[0]->plugin_types.has_value());
+    EXPECT_EQ(policies[0]->plugin_types.value().size(), 2u);
+    EXPECT_EQ(policies[0]->plugin_types.value()[0], "application/pdf");
+    EXPECT_EQ(policies[0]->plugin_types.value()[1], "text/plain");
     EXPECT_EQ(policies[0]->parsing_errors.size(), 2u);
-    EXPECT_EQ(
-        policies[0]->parsing_errors[0],
-        "The value of the Content Security Policy directive 'trusted_types' "
-        "contains an invalid policy: 'none'. It will be ignored. "
-        "Note that 'none' has no effect unless it is the only "
-        "expression in the directive value.");
-    EXPECT_EQ(
-        policies[0]->parsing_errors[1],
-        "The value of the Content Security Policy directive 'trusted_types' "
-        "contains an invalid policy: 'invalid~policy'. It will be ignored.");
-  }
-}
-
-TEST(ContentSecurityPolicy, ParseBlockAllMixedContent) {
-  {
-    std::vector<mojom::ContentSecurityPolicyPtr> policies =
-        ParseCSP("script-src 'none'");
-    EXPECT_EQ(policies[0]->directives.size(), 1u);
-    EXPECT_FALSE(policies[0]->block_all_mixed_content);
+    EXPECT_EQ(policies[0]->parsing_errors[0],
+              "Invalid plugin type in 'plugin-types' Content Security Policy "
+              "directive: 'invalid'.");
+    EXPECT_EQ(policies[0]->parsing_errors[1],
+              "Invalid plugin type in 'plugin-types' Content Security Policy "
+              "directive: 'a/a/a'.");
   }
 
   {
     std::vector<mojom::ContentSecurityPolicyPtr> policies =
-        ParseCSP("block-all-mixed-content");
-    EXPECT_EQ(policies[0]->directives.size(), 0u);
-    EXPECT_TRUE(policies[0]->block_all_mixed_content);
+        ParseCSP("plugin-types ; default-src 'self'");
+    EXPECT_TRUE(policies[0]->plugin_types.has_value());
+    EXPECT_EQ(policies[0]->plugin_types.value().size(), 0u);
     EXPECT_EQ(policies[0]->parsing_errors.size(), 0u);
   }
 
   {
     std::vector<mojom::ContentSecurityPolicyPtr> policies =
-        ParseCSP("block-all-mixed-content true");
-    EXPECT_EQ(policies[0]->directives.size(), 0u);
-    EXPECT_TRUE(policies[0]->block_all_mixed_content);
+        ParseCSP("plugin-types 'self' ; default-src 'self'");
+    EXPECT_TRUE(policies[0]->plugin_types.has_value());
+    EXPECT_EQ(policies[0]->plugin_types.value().size(), 0u);
     EXPECT_EQ(policies[0]->parsing_errors.size(), 1u);
     EXPECT_EQ(policies[0]->parsing_errors[0],
-              "The Content Security Policy directive "
-              "'block-all-mixed-content' should be empty, but was delivered "
-              "with a value of 'true'. The directive has been applied, and the "
-              "value ignored.");
+              "Invalid plugin type in 'plugin-types' Content Security Policy "
+              "directive: ''self''.");
+  }
+
+  {
+    std::vector<mojom::ContentSecurityPolicyPtr> policies =
+        ParseCSP("default-src 'self'");
+    EXPECT_FALSE(policies[0]->plugin_types.has_value());
+    EXPECT_EQ(policies[0]->parsing_errors.size(), 0u);
   }
 }
 
 TEST(ContentSecurityPolicy, ParseReportEndpoint) {
   // report-uri directive.
-  {
-    scoped_refptr<net::HttpResponseHeaders> headers(
-        new net::HttpResponseHeaders("HTTP/1.1 200 OK"));
-    headers->SetHeader("Content-Security-Policy", "report-uri report");
-    std::vector<mojom::ContentSecurityPolicyPtr> policies;
-    AddContentSecurityPolicyFromHeaders(*headers, GURL("http://example.com/"),
-                                        &policies);
-
-    auto& report_endpoints = policies[0]->report_endpoints;
-    EXPECT_EQ(report_endpoints.size(), 1U);
-    EXPECT_EQ(report_endpoints[0], "http://example.com/report");
-    EXPECT_FALSE(policies[0]->use_reporting_api);
-  }
-
-  // report-uri directive, url ignored because of mixed content.
   {
     scoped_refptr<net::HttpResponseHeaders> headers(
         new net::HttpResponseHeaders("HTTP/1.1 200 OK"));
@@ -876,48 +647,25 @@ TEST(ContentSecurityPolicy, ParseReportEndpoint) {
                                         &policies);
 
     auto& report_endpoints = policies[0]->report_endpoints;
-    EXPECT_TRUE(report_endpoints.empty());
-    EXPECT_EQ(policies[0]->parsing_errors.size(), 1U);
-    EXPECT_EQ(policies[0]->parsing_errors[0],
-              "The Content Security Policy directive 'report-uri' specifies as "
-              "endpoint 'http://example.com/report'. This endpoint will be "
-              "ignored since it violates the policy for Mixed Content.");
+    EXPECT_EQ(report_endpoints.size(), 1U);
+    EXPECT_EQ(report_endpoints[0], "http://example.com/report");
+    EXPECT_FALSE(policies[0]->use_reporting_api);
   }
 
   // report-to directive.
   {
     scoped_refptr<net::HttpResponseHeaders> headers(
         new net::HttpResponseHeaders("HTTP/1.1 200 OK"));
-    headers->SetHeader("Content-Security-Policy", "report-to group");
-    std::vector<mojom::ContentSecurityPolicyPtr> policies;
-    AddContentSecurityPolicyFromHeaders(*headers, GURL("https://example.com/"),
-                                        &policies);
-
-    auto& report_endpoints = policies[0]->report_endpoints;
-    EXPECT_EQ(report_endpoints.size(), 1U);
-    EXPECT_EQ(report_endpoints[0], "group");
-    EXPECT_TRUE(policies[0]->use_reporting_api);
-  }
-
-  // Multiple report-to directive.
-  {
-    scoped_refptr<net::HttpResponseHeaders> headers(
-        new net::HttpResponseHeaders("HTTP/1.1 200 OK"));
     headers->SetHeader("Content-Security-Policy",
-                       "report-to group1 group2 group3");
+                       "report-to http://example.com/report");
     std::vector<mojom::ContentSecurityPolicyPtr> policies;
     AddContentSecurityPolicyFromHeaders(*headers, GURL("https://example.com/"),
                                         &policies);
 
     auto& report_endpoints = policies[0]->report_endpoints;
     EXPECT_EQ(report_endpoints.size(), 1U);
-    EXPECT_EQ(report_endpoints[0], "group1");
+    EXPECT_EQ(report_endpoints[0], "http://example.com/report");
     EXPECT_TRUE(policies[0]->use_reporting_api);
-    EXPECT_EQ(policies[0]->parsing_errors.size(), 1U);
-    EXPECT_EQ(policies[0]->parsing_errors[0],
-              "The Content Security Policy directive 'report-to' contains more "
-              "than one endpoint. Only the first one will be used, the other "
-              "ones will be ignored.");
   }
 
   // Multiple directives. The report-to directive always takes priority.
@@ -937,7 +685,6 @@ TEST(ContentSecurityPolicy, ParseReportEndpoint) {
     EXPECT_EQ(report_endpoints[0], "http://example.com/report3");
     EXPECT_TRUE(policies[0]->use_reporting_api);
   }
-
   {
     scoped_refptr<net::HttpResponseHeaders> headers(
         new net::HttpResponseHeaders("HTTP/1.1 200 OK"));
@@ -946,47 +693,13 @@ TEST(ContentSecurityPolicy, ParseReportEndpoint) {
     headers->AddHeader("Content-Security-Policy",
                        "report-uri http://example.com/report2");
     std::vector<mojom::ContentSecurityPolicyPtr> policies;
-    AddContentSecurityPolicyFromHeaders(*headers, GURL("http://example.com/"),
+    AddContentSecurityPolicyFromHeaders(*headers, GURL("https://example.com/"),
                                         &policies);
 
     auto& report_endpoints = policies[0]->report_endpoints;
     EXPECT_EQ(report_endpoints.size(), 1U);
     EXPECT_EQ(report_endpoints[0], "http://example.com/report1");
     EXPECT_TRUE(policies[0]->use_reporting_api);
-  }
-}
-
-TEST(ContentSecurityPolicy, ParseStoresSelfOrigin) {
-  struct {
-    const char* url;
-    network::mojom::CSPSourcePtr self_origin;
-  } testCases[]{
-      {
-          "https://example.com",
-          network::mojom::CSPSource::New("https", "example.com", 443, "", false,
-                                         false),
-      },
-      {
-          "http://example.com/main/index.html",
-          network::mojom::CSPSource::New("http", "example.com", 80, "", false,
-                                         false),
-      },
-      {
-          "file://localhost/var/www/index.html",
-          network::mojom::CSPSource::New("file", "", url::PORT_UNSPECIFIED, "",
-                                         false, false),
-      },
-  };
-
-  for (const auto& testCase : testCases) {
-    scoped_refptr<net::HttpResponseHeaders> headers(
-        new net::HttpResponseHeaders("HTTP/1.1 200 OK"));
-    headers->SetHeader("Content-Security-Policy", "default-src 'none'");
-    std::vector<mojom::ContentSecurityPolicyPtr> policies;
-    AddContentSecurityPolicyFromHeaders(*headers, GURL(testCase.url),
-                                        &policies);
-
-    EXPECT_TRUE(testCase.self_origin.Equals(policies[0]->self_origin));
   }
 }
 
@@ -1043,7 +756,7 @@ TEST(ContentSecurityPolicy, NoDirective) {
 
   EXPECT_TRUE(CheckContentSecurityPolicy(
       EmptyCSP(), CSPDirectiveName::FormAction, GURL("http://www.example.com"),
-      GURL(), false, false, &context, SourceLocation(), true));
+      false, false, &context, SourceLocation(), true));
   ASSERT_EQ(0u, context.violations().size());
 }
 
@@ -1054,12 +767,11 @@ TEST(ContentSecurityPolicy, ReportViolation) {
 
   EXPECT_FALSE(CheckContentSecurityPolicy(
       policy, CSPDirectiveName::FormAction, GURL("http://www.not-example.com"),
-      GURL("http://www.example.com"), false, false, &context, SourceLocation(),
-      true));
+      false, false, &context, SourceLocation(), true));
 
   ASSERT_EQ(1u, context.violations().size());
   const char console_message[] =
-      "Refused to send form data to 'http://www.example.com/' because it "
+      "Refused to send form data to 'http://www.not-example.com/' because it "
       "violates the following Content Security Policy directive: \"form-action "
       "www.example.com\".\n";
   EXPECT_EQ(console_message, context.violations()[0]->console_message);
@@ -1078,9 +790,9 @@ TEST(ContentSecurityPolicy, DirectiveFallback) {
     CSPContextTest context;
     auto policy = EmptyCSP();
     policy->directives[CSPDirectiveName::DefaultSrc] = allow_host("a.com");
-    EXPECT_FALSE(CheckContentSecurityPolicy(
-        policy, CSPDirectiveName::FrameSrc, GURL("http://b.com"), GURL(), false,
-        false, &context, SourceLocation(), false));
+    EXPECT_FALSE(CheckContentSecurityPolicy(policy, CSPDirectiveName::FrameSrc,
+                                            GURL("http://b.com"), false, false,
+                                            &context, SourceLocation(), false));
     ASSERT_EQ(1u, context.violations().size());
     const char console_message[] =
         "Refused to frame 'http://b.com/' because it violates "
@@ -1088,17 +800,17 @@ TEST(ContentSecurityPolicy, DirectiveFallback) {
         "http://a.com\". Note that 'frame-src' was not explicitly "
         "set, so 'default-src' is used as a fallback.\n";
     EXPECT_EQ(console_message, context.violations()[0]->console_message);
-    EXPECT_TRUE(CheckContentSecurityPolicy(
-        policy, CSPDirectiveName::FrameSrc, GURL("http://a.com"), GURL(), false,
-        false, &context, SourceLocation(), false));
+    EXPECT_TRUE(CheckContentSecurityPolicy(policy, CSPDirectiveName::FrameSrc,
+                                           GURL("http://a.com"), false, false,
+                                           &context, SourceLocation(), false));
   }
   {
     CSPContextTest context;
     auto policy = EmptyCSP();
     policy->directives[CSPDirectiveName::ChildSrc] = allow_host("a.com");
-    EXPECT_FALSE(CheckContentSecurityPolicy(
-        policy, CSPDirectiveName::FrameSrc, GURL("http://b.com"), GURL(), false,
-        false, &context, SourceLocation(), false));
+    EXPECT_FALSE(CheckContentSecurityPolicy(policy, CSPDirectiveName::FrameSrc,
+                                            GURL("http://b.com"), false, false,
+                                            &context, SourceLocation(), false));
     ASSERT_EQ(1u, context.violations().size());
     const char console_message[] =
         "Refused to frame 'http://b.com/' because it violates "
@@ -1106,21 +818,21 @@ TEST(ContentSecurityPolicy, DirectiveFallback) {
         "http://a.com\". Note that 'frame-src' was not explicitly "
         "set, so 'child-src' is used as a fallback.\n";
     EXPECT_EQ(console_message, context.violations()[0]->console_message);
-    EXPECT_TRUE(CheckContentSecurityPolicy(
-        policy, CSPDirectiveName::FrameSrc, GURL("http://a.com"), GURL(), false,
-        false, &context, SourceLocation(), false));
+    EXPECT_TRUE(CheckContentSecurityPolicy(policy, CSPDirectiveName::FrameSrc,
+                                           GURL("http://a.com"), false, false,
+                                           &context, SourceLocation(), false));
   }
   {
     CSPContextTest context;
     auto policy = EmptyCSP();
     policy->directives[CSPDirectiveName::FrameSrc] = allow_host("a.com");
     policy->directives[CSPDirectiveName::ChildSrc] = allow_host("b.com");
-    EXPECT_TRUE(CheckContentSecurityPolicy(
-        policy, CSPDirectiveName::FrameSrc, GURL("http://a.com"), GURL(), false,
-        false, &context, SourceLocation(), false));
-    EXPECT_FALSE(CheckContentSecurityPolicy(
-        policy, CSPDirectiveName::FrameSrc, GURL("http://b.com"), GURL(), false,
-        false, &context, SourceLocation(), false));
+    EXPECT_TRUE(CheckContentSecurityPolicy(policy, CSPDirectiveName::FrameSrc,
+                                           GURL("http://a.com"), false, false,
+                                           &context, SourceLocation(), false));
+    EXPECT_FALSE(CheckContentSecurityPolicy(policy, CSPDirectiveName::FrameSrc,
+                                            GURL("http://b.com"), false, false,
+                                            &context, SourceLocation(), false));
     ASSERT_EQ(1u, context.violations().size());
     const char console_message[] =
         "Refused to frame 'http://b.com/' because it violates "
@@ -1135,21 +847,21 @@ TEST(ContentSecurityPolicy, RequestsAllowedWhenBypassingCSP) {
   auto policy = DefaultSrc("https", "example.com");
 
   EXPECT_TRUE(CheckContentSecurityPolicy(
-      policy, CSPDirectiveName::FrameSrc, GURL("https://example.com/"), GURL(),
-      false, false, &context, SourceLocation(), false));
+      policy, CSPDirectiveName::FrameSrc, GURL("https://example.com/"), false,
+      false, &context, SourceLocation(), false));
   EXPECT_FALSE(CheckContentSecurityPolicy(
       policy, CSPDirectiveName::FrameSrc, GURL("https://not-example.com/"),
-      GURL(), false, false, &context, SourceLocation(), false));
+      false, false, &context, SourceLocation(), false));
 
   // Register 'https' as bypassing CSP, which should now bypass it entirely.
   context.AddSchemeToBypassCSP("https");
 
   EXPECT_TRUE(CheckContentSecurityPolicy(
-      policy, CSPDirectiveName::FrameSrc, GURL("https://example.com/"), GURL(),
-      false, false, &context, SourceLocation(), false));
+      policy, CSPDirectiveName::FrameSrc, GURL("https://example.com/"), false,
+      false, &context, SourceLocation(), false));
   EXPECT_TRUE(CheckContentSecurityPolicy(
       policy, CSPDirectiveName::FrameSrc, GURL("https://not-example.com/"),
-      GURL(), false, false, &context, SourceLocation(), false));
+      false, false, &context, SourceLocation(), false));
 }
 
 TEST(ContentSecurityPolicy, RequestsAllowedWhenHostMixedCase) {
@@ -1157,11 +869,11 @@ TEST(ContentSecurityPolicy, RequestsAllowedWhenHostMixedCase) {
   auto policy = DefaultSrc("https", "ExAmPle.com");
 
   EXPECT_TRUE(CheckContentSecurityPolicy(
-      policy, CSPDirectiveName::FrameSrc, GURL("https://example.com/"), GURL(),
-      false, false, &context, SourceLocation(), false));
+      policy, CSPDirectiveName::FrameSrc, GURL("https://example.com/"), false,
+      false, &context, SourceLocation(), false));
   EXPECT_FALSE(CheckContentSecurityPolicy(
       policy, CSPDirectiveName::FrameSrc, GURL("https://not-example.com/"),
-      GURL(), false, false, &context, SourceLocation(), false));
+      false, false, &context, SourceLocation(), false));
 }
 
 TEST(ContentSecurityPolicy, FilesystemAllowedWhenBypassingCSP) {
@@ -1170,11 +882,11 @@ TEST(ContentSecurityPolicy, FilesystemAllowedWhenBypassingCSP) {
 
   EXPECT_FALSE(CheckContentSecurityPolicy(
       policy, CSPDirectiveName::FrameSrc,
-      GURL("filesystem:https://example.com/file.txt"), GURL(), false, false,
-      &context, SourceLocation(), false));
+      GURL("filesystem:https://example.com/file.txt"), false, false, &context,
+      SourceLocation(), false));
   EXPECT_FALSE(CheckContentSecurityPolicy(
       policy, CSPDirectiveName::FrameSrc,
-      GURL("filesystem:https://not-example.com/file.txt"), GURL(), false, false,
+      GURL("filesystem:https://not-example.com/file.txt"), false, false,
       &context, SourceLocation(), false));
 
   // Register 'https' as bypassing CSP, which should now bypass it entirely.
@@ -1182,11 +894,11 @@ TEST(ContentSecurityPolicy, FilesystemAllowedWhenBypassingCSP) {
 
   EXPECT_TRUE(CheckContentSecurityPolicy(
       policy, CSPDirectiveName::FrameSrc,
-      GURL("filesystem:https://example.com/file.txt"), GURL(), false, false,
-      &context, SourceLocation(), false));
+      GURL("filesystem:https://example.com/file.txt"), false, false, &context,
+      SourceLocation(), false));
   EXPECT_TRUE(CheckContentSecurityPolicy(
       policy, CSPDirectiveName::FrameSrc,
-      GURL("filesystem:https://not-example.com/file.txt"), GURL(), false, false,
+      GURL("filesystem:https://not-example.com/file.txt"), false, false,
       &context, SourceLocation(), false));
 }
 
@@ -1196,20 +908,20 @@ TEST(ContentSecurityPolicy, BlobAllowedWhenBypassingCSP) {
 
   EXPECT_FALSE(CheckContentSecurityPolicy(
       policy, CSPDirectiveName::FrameSrc, GURL("blob:https://example.com/"),
-      GURL(), false, false, &context, SourceLocation(), false));
+      false, false, &context, SourceLocation(), false));
   EXPECT_FALSE(CheckContentSecurityPolicy(
       policy, CSPDirectiveName::FrameSrc, GURL("blob:https://not-example.com/"),
-      GURL(), false, false, &context, SourceLocation(), false));
+      false, false, &context, SourceLocation(), false));
 
   // Register 'https' as bypassing CSP, which should now bypass it entirely.
   context.AddSchemeToBypassCSP("https");
 
   EXPECT_TRUE(CheckContentSecurityPolicy(
       policy, CSPDirectiveName::FrameSrc, GURL("blob:https://example.com/"),
-      GURL(), false, false, &context, SourceLocation(), false));
+      false, false, &context, SourceLocation(), false));
   EXPECT_TRUE(CheckContentSecurityPolicy(
       policy, CSPDirectiveName::FrameSrc, GURL("blob:https://not-example.com/"),
-      GURL(), false, false, &context, SourceLocation(), false));
+      false, false, &context, SourceLocation(), false));
 }
 
 TEST(ContentSecurityPolicy, NavigateToChecks) {
@@ -1246,45 +958,45 @@ TEST(ContentSecurityPolicy, NavigateToChecks) {
     csp->allow_response_redirects = true;
     return csp;
   };
+  context.SetSelf(source_a());
 
   struct TestCase {
     mojom::CSPSourceListPtr navigate_to_list;
-    const raw_ref<const GURL> url;
+    const GURL& url;
     bool is_response_check;
     bool is_form_submission;
     mojom::CSPSourceListPtr form_action_list;
     bool expected;
   } cases[] = {
       // Basic source matching.
-      {allow_none(), raw_ref(url_a), false, false, {}, false},
-      {allow_a(), raw_ref(url_a), false, false, {}, true},
-      {allow_a(), raw_ref(url_b), false, false, {}, false},
-      {allow_self(), raw_ref(url_a), false, false, {}, true},
+      {allow_none(), url_a, false, false, {}, false},
+      {allow_a(), url_a, false, false, {}, true},
+      {allow_a(), url_b, false, false, {}, false},
+      {allow_self(), url_a, false, false, {}, true},
 
       // Checking allow_redirect flag interactions.
-      {allow_redirect(), raw_ref(url_a), false, false, {}, true},
-      {allow_redirect(), raw_ref(url_a), true, false, {}, false},
-      {allow_redirect_a(), raw_ref(url_a), false, false, {}, true},
-      {allow_redirect_a(), raw_ref(url_a), true, false, {}, true},
+      {allow_redirect(), url_a, false, false, {}, true},
+      {allow_redirect(), url_a, true, false, {}, false},
+      {allow_redirect_a(), url_a, false, false, {}, true},
+      {allow_redirect_a(), url_a, true, false, {}, true},
 
       // Interaction with form-action:
 
       // Form submission without form-action present.
-      {allow_none(), raw_ref(url_a), false, true, {}, false},
-      {allow_a(), raw_ref(url_a), false, true, {}, true},
-      {allow_a(), raw_ref(url_b), false, true, {}, false},
-      {allow_self(), raw_ref(url_a), false, true, {}, true},
+      {allow_none(), url_a, false, true, {}, false},
+      {allow_a(), url_a, false, true, {}, true},
+      {allow_a(), url_b, false, true, {}, false},
+      {allow_self(), url_a, false, true, {}, true},
 
       // Form submission with form-action present.
-      {allow_none(), raw_ref(url_a), false, true, allow_a(), true},
-      {allow_a(), raw_ref(url_a), false, true, allow_a(), true},
-      {allow_a(), raw_ref(url_b), false, true, allow_a(), true},
-      {allow_self(), raw_ref(url_a), false, true, allow_a(), true},
+      {allow_none(), url_a, false, true, allow_a(), true},
+      {allow_a(), url_a, false, true, allow_a(), true},
+      {allow_a(), url_b, false, true, allow_a(), true},
+      {allow_self(), url_a, false, true, allow_a(), true},
   };
 
   for (auto& test : cases) {
     auto policy = EmptyCSP();
-    policy->self_origin = source_a().Clone();
     policy->directives[CSPDirectiveName::NavigateTo] =
         std::move(test.navigate_to_list);
 
@@ -1293,16 +1005,14 @@ TEST(ContentSecurityPolicy, NavigateToChecks) {
           std::move(test.form_action_list);
     }
 
-    EXPECT_EQ(test.expected,
-              CheckContentSecurityPolicy(
-                  policy, CSPDirectiveName::NavigateTo, *test.url, GURL(), true,
-                  test.is_response_check, &context, SourceLocation(),
-                  test.is_form_submission));
-    EXPECT_EQ(test.expected,
-              CheckContentSecurityPolicy(
-                  policy, CSPDirectiveName::NavigateTo, *test.url, GURL(),
-                  false, test.is_response_check, &context, SourceLocation(),
-                  test.is_form_submission));
+    EXPECT_EQ(test.expected, CheckContentSecurityPolicy(
+                                 policy, CSPDirectiveName::NavigateTo, test.url,
+                                 true, test.is_response_check, &context,
+                                 SourceLocation(), test.is_form_submission));
+    EXPECT_EQ(test.expected, CheckContentSecurityPolicy(
+                                 policy, CSPDirectiveName::NavigateTo, test.url,
+                                 false, test.is_response_check, &context,
+                                 SourceLocation(), test.is_form_submission));
   }
 }
 
@@ -1314,8 +1024,6 @@ TEST(ContentSecurityPolicy, ParseSandbox) {
   std::vector<mojom::ContentSecurityPolicyPtr> policies;
   AddContentSecurityPolicyFromHeaders(*headers, GURL("https://example.com/"),
                                       &policies);
-  EXPECT_EQ(policies[0]->raw_directives[mojom::CSPDirectiveName::Sandbox],
-            "allow-downloads allow-scripts");
   EXPECT_EQ(policies[0]->sandbox,
             ~mojom::WebSandboxFlags::kDownloads &
                 ~mojom::WebSandboxFlags::kScripts &
@@ -1325,13 +1033,13 @@ TEST(ContentSecurityPolicy, ParseSandbox) {
 TEST(ContentSecurityPolicy, ParseSerializedSourceList) {
   struct TestCase {
     std::string directive_value;
-    base::OnceCallback<mojom::CSPSourceListPtr()> expected;
+    base::Callback<mojom::CSPSourceListPtr()> expected;
     std::string expected_error;
   } cases[] = {
       {
           "'nonce-a' 'nonce-a=' 'nonce-a==' 'nonce-a===' 'nonce-==' 'nonce-' "
           "'nonce 'nonce-cde' 'nonce-cde=' 'nonce-cde==' 'nonce-cde==='",
-          base::BindOnce([] {
+          base::Bind([] {
             auto csp = mojom::CSPSourceList::New();
             csp->nonces.push_back("a");
             csp->nonces.push_back("a=");
@@ -1344,28 +1052,37 @@ TEST(ContentSecurityPolicy, ParseSerializedSourceList) {
           "",
       },
       {
-          "'sha256-YWJj' 'nonce-cde' 'sha256-QUJD'",
-          base::BindOnce([] {
+          "'sha256-abc' 'sha256-ABC' 'sha256 'sha256-' 'sha384-abc' "
+          "'sha512-abc' 'sha-abc' 'sha256-*' 'sha-256-cde' 'sha-384-cde' "
+          "'sha-512-cde'",
+          base::Bind([] {
             auto csp = mojom::CSPSourceList::New();
-            csp->hashes.push_back(
-                mojom::CSPHashSource::New(mojom::CSPHashAlgorithm::SHA256,
-                                          std::vector<uint8_t>{'a', 'b', 'c'}));
-            csp->hashes.push_back(
-                mojom::CSPHashSource::New(mojom::CSPHashAlgorithm::SHA256,
-                                          std::vector<uint8_t>{'A', 'B', 'C'}));
-            csp->nonces.push_back("cde");
+            csp->hashes.push_back(mojom::CSPHashSource::New(
+                mojom::CSPHashAlgorithm::SHA256, "abc"));
+            csp->hashes.push_back(mojom::CSPHashSource::New(
+                mojom::CSPHashAlgorithm::SHA256, "ABC"));
+            csp->hashes.push_back(mojom::CSPHashSource::New(
+                mojom::CSPHashAlgorithm::SHA384, "abc"));
+            csp->hashes.push_back(mojom::CSPHashSource::New(
+                mojom::CSPHashAlgorithm::SHA512, "abc"));
+            csp->hashes.push_back(mojom::CSPHashSource::New(
+                mojom::CSPHashAlgorithm::SHA256, "cde"));
+            csp->hashes.push_back(mojom::CSPHashSource::New(
+                mojom::CSPHashAlgorithm::SHA384, "cde"));
+            csp->hashes.push_back(mojom::CSPHashSource::New(
+                mojom::CSPHashAlgorithm::SHA512, "cde"));
             return csp;
           }),
           "",
       },
       {
           "'none' ",
-          base::BindOnce([] { return mojom::CSPSourceList::New(); }),
+          base::Bind([] { return mojom::CSPSourceList::New(); }),
           "",
       },
       {
           "'none' 'self'",
-          base::BindOnce([] {
+          base::Bind([] {
             auto csp = mojom::CSPSourceList::New();
             csp->allow_self = true;
             return csp;
@@ -1377,31 +1094,9 @@ TEST(ContentSecurityPolicy, ParseSerializedSourceList) {
       },
       {
           "'self' 'none'",
-          base::BindOnce([] {
+          base::Bind([] {
             auto csp = mojom::CSPSourceList::New();
             csp->allow_self = true;
-            return csp;
-          }),
-          "The Content-Security-Policy directive 'script-src' contains the "
-          "keyword 'none' alongside with other source expressions. The keyword "
-          "'none' must be the only source expression in the directive value, "
-          "otherwise it is ignored.",
-      },
-      {
-          "'none' 'report-sample'",
-          base::BindOnce([] {
-            auto csp = mojom::CSPSourceList::New();
-            csp->report_sample = true;
-            return csp;
-          }),
-          "",
-      },
-      {
-          "'none' 'self' 'report-sample'",
-          base::BindOnce([] {
-            auto csp = mojom::CSPSourceList::New();
-            csp->allow_self = true;
-            csp->report_sample = true;
             return csp;
           }),
           "The Content-Security-Policy directive 'script-src' contains the "
@@ -1411,7 +1106,7 @@ TEST(ContentSecurityPolicy, ParseSerializedSourceList) {
       },
       {
           "'self'",
-          base::BindOnce([] {
+          base::Bind([] {
             auto csp = mojom::CSPSourceList::New();
             csp->allow_self = true;
             return csp;
@@ -1419,91 +1114,73 @@ TEST(ContentSecurityPolicy, ParseSerializedSourceList) {
       },
       {
           "'wrong' *",
-          base::BindOnce([] {
+          base::Bind([] {
             auto csp = mojom::CSPSourceList::New();
             csp->allow_star = true;
             return csp;
           }),
-          "The source list for the Content Security Policy directive "
-          "'script-src' contains an invalid source: ''wrong''. It will be "
-          "ignored.",
+          "The source list for the Content-Security-Policy directive "
+          "'script-src' contains an invalid source: ''wrong''.",
       },
       {
           "'wrong' 'unsafe-inline'",
-          base::BindOnce([] {
+          base::Bind([] {
             auto csp = mojom::CSPSourceList::New();
             csp->allow_inline = true;
             return csp;
           }),
-          "The source list for the Content Security Policy directive "
-          "'script-src' contains an invalid source: ''wrong''. It will be "
-          "ignored.",
+          "The source list for the Content-Security-Policy directive "
+          "'script-src' contains an invalid source: ''wrong''.",
       },
       {
           "'wrong' 'unsafe-eval'",
-          base::BindOnce([] {
+          base::Bind([] {
             auto csp = mojom::CSPSourceList::New();
             csp->allow_eval = true;
             return csp;
           }),
-          "The source list for the Content Security Policy directive "
-          "'script-src' contains an invalid source: ''wrong''. It will be "
-          "ignored.",
+          "The source list for the Content-Security-Policy directive "
+          "'script-src' contains an invalid source: ''wrong''.",
       },
       {
           "'wrong' 'wasm-eval'",
-          base::BindOnce([] {
+          base::Bind([] {
             auto csp = mojom::CSPSourceList::New();
             csp->allow_wasm_eval = true;
             return csp;
           }),
-          "The source list for the Content Security Policy directive "
-          "'script-src' contains an invalid source: ''wrong''. It will be "
-          "ignored.",
-      },
-      {
-          "'wrong' 'wasm-unsafe-eval'",
-          base::BindOnce([] {
-            auto csp = mojom::CSPSourceList::New();
-            csp->allow_wasm_unsafe_eval = true;
-            return csp;
-          }),
-          "The source list for the Content Security Policy directive "
-          "'script-src' contains an invalid source: ''wrong''. It will be "
-          "ignored.",
+          "The source list for the Content-Security-Policy directive "
+          "'script-src' contains an invalid source: ''wrong''.",
       },
       {
           "'wrong' 'strict-dynamic'",
-          base::BindOnce([] {
+          base::Bind([] {
             auto csp = mojom::CSPSourceList::New();
             csp->allow_dynamic = true;
             return csp;
           }),
-          "The source list for the Content Security Policy directive "
-          "'script-src' contains an invalid source: ''wrong''. It will be "
-          "ignored.",
+          "The source list for the Content-Security-Policy directive "
+          "'script-src' contains an invalid source: ''wrong''.",
       },
       {
           "'wrong' 'unsafe-hashes'",
-          base::BindOnce([] {
+          base::Bind([] {
             auto csp = mojom::CSPSourceList::New();
             csp->allow_unsafe_hashes = true;
             return csp;
           }),
-          "The source list for the Content Security Policy directive "
-          "'script-src' contains an invalid source: ''wrong''. It will be "
-          "ignored.",
+          "The source list for the Content-Security-Policy directive "
+          "'script-src' contains an invalid source: ''wrong''.",
       },
       {
           "'wrong' 'report-sample'",
-          base::BindOnce([] {
+          base::Bind([] {
             auto csp = mojom::CSPSourceList::New();
             csp->report_sample = true;
             return csp;
           }),
-          "The source list for the Content Security Policy directive "
-          "'script-src' contains an invalid source: ''wrong''. It will be "
-          "ignored.",
+          "The source list for the Content-Security-Policy directive "
+          "'script-src' contains an invalid source: ''wrong''.",
       },
   };
 
@@ -1516,70 +1193,11 @@ TEST(ContentSecurityPolicy, ParseSerializedSourceList) {
     std::vector<mojom::ContentSecurityPolicyPtr> policies;
     AddContentSecurityPolicyFromHeaders(*headers, GURL("https://example.com/"),
                                         &policies);
-    EXPECT_TRUE(
-        std::move(test.expected)
-            .Run()
-            .Equals(
-                policies[0]->directives[mojom::CSPDirectiveName::ScriptSrc]));
-
-    EXPECT_EQ(policies[0]->raw_directives[mojom::CSPDirectiveName::ScriptSrc],
-              std::string(
-                  base::TrimString(test.directive_value, " ", base::TRIM_ALL)));
+    EXPECT_TRUE(test.expected.Run().Equals(
+        policies[0]->directives[mojom::CSPDirectiveName::ScriptSrc]));
 
     if (!test.expected_error.empty())
       EXPECT_EQ(test.expected_error, policies[0]->parsing_errors[0]);
-  }
-}
-
-TEST(ContentSecurityPolicy, ParseHash) {
-  using Algo = mojom::CSPHashAlgorithm;
-  struct TestCase {
-    std::string hash;
-    Algo expected_algorithm;
-    std::vector<uint8_t> expected_hash;
-  } cases[] = {
-      // For this test, we have the following base64 encoding:
-      // abc => YWJj    ABC => QUJD    cd => Y2Q=    abcd => YWJjZA==
-      // We also test base64 without padding.
-      {"'sha256-YWJj'", Algo::SHA256, {'a', 'b', 'c'}},
-      {"'sha256-QUJD'", Algo::SHA256, {'A', 'B', 'C'}},
-      {"'sha256", Algo::None, {}},
-      {"'sha256-'", Algo::None, {}},
-      {"'sha384-YWJj'", Algo::SHA384, {'a', 'b', 'c'}},
-      {"'sha512-YWJjZA'", Algo::SHA512, {'a', 'b', 'c', 'd'}},
-      {"'sha-YWJj'", Algo::None, {}},
-      {"'sha256-*'", Algo::None, {}},
-      {"'sha-256-Y2Q'", Algo::SHA256, {'c', 'd'}},
-      {"'sha-384-Y2Q='", Algo::SHA384, {'c', 'd'}},
-      {"'sha-512-Y2Q='", Algo::SHA512, {'c', 'd'}},
-      // "ABCDE" is not valid base64 and should be ignored.
-      {"'sha256-ABCDE'", Algo::None, {}},
-      {"'sha256--__'", Algo::SHA256, {0xfb, 0xff}},
-      {"'sha256-++/'", Algo::SHA256, {0xfb, 0xef}},
-      // Other invalid hashes should be ignored.
-      {"'sha256-YWJj", Algo::None, {}},
-      {"'sha111-YWJj'", Algo::None, {}},
-      {"'sha256-ABC('", Algo::None, {}},
-  };
-
-  for (auto& test : cases) {
-    scoped_refptr<net::HttpResponseHeaders> headers(
-        new net::HttpResponseHeaders("HTTP/1.1 200 OK"));
-    headers->SetHeader("Content-Security-Policy", "script-src " + test.hash);
-    std::vector<mojom::ContentSecurityPolicyPtr> policies;
-    AddContentSecurityPolicyFromHeaders(*headers, GURL("https://example.com/"),
-                                        &policies);
-    const std::vector<mojom::CSPHashSourcePtr>& hashes =
-        policies[0]->directives[mojom::CSPDirectiveName::ScriptSrc]->hashes;
-    if (test.expected_algorithm != Algo::None) {
-      EXPECT_EQ(1u, hashes.size()) << test.hash << " should parse to one hash";
-      EXPECT_EQ(test.expected_algorithm, hashes[0]->algorithm)
-          << test.hash << " should have algorithm " << test.expected_algorithm;
-      EXPECT_EQ(test.expected_hash, hashes[0]->value)
-          << test.hash << " has not been base64decoded correctly";
-    } else {
-      EXPECT_TRUE(hashes.empty()) << test.hash << " should be an invalid hash";
-    }
   }
 }
 
@@ -1588,14 +1206,14 @@ TEST(ContentSecurityPolicy, IsValidRequiredCSPAttr) {
     const char* csp;
     bool expected;
     std::string expected_error;
-  } cases[] = {
-      {"  script-src 'none'  https://www.google.com ;;  ; invalid-directive "
-       "invalid-value ;",
-       true, ""},
-      {"script-src 'none'; report-uri https://www.example.com", false,
-       "The csp attribute cannot contain the directives 'report-to' "
-       "or 'report-uri'."},
-  };
+  } cases[] = {{"script-src 'none'", true, ""},
+               {"script-src 'none'; invalid-directive", false,
+                "Parsing the csp attribute into a Content-Security-Policy "
+                "returned one or more parsing errors: Unrecognized "
+                "Content-Security-Policy directive 'invalid-directive'."},
+               {"script-src 'none'; report-uri https://www.example.com", false,
+                "The csp attribute cannot contain the directives 'report-to' "
+                "or 'report-uri'."}};
 
   for (auto& test : cases) {
     SCOPED_TRACE(test.csp);
@@ -1605,14 +1223,11 @@ TEST(ContentSecurityPolicy, IsValidRequiredCSPAttr) {
     required_csp_headers->SetHeader("Content-Security-Policy", test.csp);
     AddContentSecurityPolicyFromHeaders(*required_csp_headers,
                                         GURL("https://example.com/"), &csp);
-
-    // Overwrite the header_value artificially. At the moment, our header parser
-    // takes already care of some parts (like removing commas). But we want to
-    // be sure that header values with commas or other invalid header values are
-    // blocked by our validation mechanism anyway.
-    csp[0]->header->header_value = test.csp;
     std::string out;
-    EXPECT_EQ(test.expected, IsValidRequiredCSPAttr(csp, nullptr, out));
+    EXPECT_EQ(
+        test.expected,
+        IsValidRequiredCSPAttr(
+            csp, nullptr, url::Origin::Create(GURL("https://a.com")), out));
     EXPECT_EQ(test.expected_error, out);
   }
 }
@@ -1662,7 +1277,9 @@ TEST(ContentSecurityPolicy, Subsumes) {
     std::vector<mojom::ContentSecurityPolicyPtr> returned_csp;
     AddContentSecurityPolicyFromHeaders(
         *returned_csp_headers, GURL("https://example.com/"), &returned_csp);
-    EXPECT_EQ(test.expected, Subsumes(*required_csp[0], returned_csp))
+    EXPECT_EQ(test.expected,
+              Subsumes(*required_csp[0], returned_csp,
+                       url::Origin::Create(GURL("https://a.com"))))
         << test.name;
   }
 }
@@ -1726,13 +1343,16 @@ TEST(ContentSecurityPolicy, SubsumesBasedOnCSPSourcesOnly) {
   for (const auto& test : cases) {
     std::vector<mojom::ContentSecurityPolicyPtr> policies_b =
         ParseCSP(test.policies);
-    EXPECT_EQ(Subsumes(*policy_a[0], policies_b), test.expected)
+    EXPECT_EQ(Subsumes(*policy_a[0], policies_b,
+                       url::Origin::Create(GURL("https://a.com"))),
+              test.expected)
         << csp_a << " should " << (test.expected ? "" : "not ") << "subsume "
         << test.policies;
 
     if (!policies_b.empty()) {
       // Check if first policy of `listB` subsumes `A`.
-      EXPECT_EQ(Subsumes(*policies_b[0], policy_a),
+      EXPECT_EQ(Subsumes(*policies_b[0], policy_a,
+                         url::Origin::Create(GURL("https://a.com"))),
                 test.expected_first_policy_opposite)
           << csp_a << " should "
           << (test.expected_first_policy_opposite ? "" : "not ") << "subsume "
@@ -1821,7 +1441,81 @@ TEST(ContentSecurityPolicy, SubsumesIfNoneIsPresent) {
         ParseCSP(test.policy_a);
     std::vector<mojom::ContentSecurityPolicyPtr> policies_b =
         ParseCSP(test.policies_b);
-    EXPECT_EQ(Subsumes(*policy_a[0], policies_b), test.expected)
+    EXPECT_EQ(Subsumes(*policy_a[0], policies_b,
+                       url::Origin::Create(GURL("https://a.com"))),
+              test.expected)
+        << test.policy_a << " should " << (test.expected ? "" : "not ")
+        << "subsume " << test.policies_b;
+  }
+}
+
+TEST(ContentSecurityPolicy, SubsumesPluginTypes) {
+  struct TestCase {
+    const char* policy_a;
+    const char* policies_b;
+    bool expected;
+  } cases[] = {
+      // `policyA` subsumes `policiesB`.
+      {"script-src 'unsafe-inline'",
+       "script-src  , script-src http://example.com, plugin-types text/plain",
+       true},
+      {"script-src http://example.com",
+       "script-src http://example.com; plugin-types ", true},
+      {"script-src http://example.com",
+       "script-src http://example.com; plugin-types text/plain", true},
+      {"script-src http://example.com; plugin-types text/plain",
+       "script-src http://example.com; plugin-types text/plain", true},
+      {"script-src http://example.com; plugin-types text/plain",
+       "script-src http://example.com; plugin-types ", true},
+      {"script-src http://example.com; plugin-types text/plain",
+       "script-src http://example.com; plugin-types , plugin-types ", true},
+      {"plugin-types application/pdf text/plain",
+       "plugin-types application/pdf text/plain, plugin-types "
+       "application/x-blink-test-plugin",
+       true},
+      {"plugin-types application/pdf text/plain",
+       "plugin-types application/pdf text/plain,"
+       "plugin-types application/pdf text/plain "
+       "application/x-blink-test-plugin",
+       true},
+      {"plugin-types application/x-shockwave-flash application/pdf text/plain",
+       "plugin-types application/x-shockwave-flash application/pdf text/plain, "
+       "plugin-types application/x-shockwave-flash",
+       true},
+      {"plugin-types application/x-shockwave-flash",
+       "plugin-types application/x-shockwave-flash application/pdf text/plain, "
+       "plugin-types application/x-shockwave-flash",
+       true},
+      // `policyA` does not subsume `policiesB`.
+      {"script-src http://example.com; plugin-types text/plain", "", false},
+      {"script-src http://example.com; plugin-types text/plain",
+       "script-src http://example.com", false},
+      {"plugin-types random-value",
+       "script-src 'unsafe-inline', plugin-types text/plain", false},
+      {"plugin-types random-value",
+       "script-src http://example.com, script-src http://example.com", false},
+      {"plugin-types random-value",
+       "plugin-types  text/plain, plugin-types text/plain", false},
+      {"script-src http://example.com; plugin-types text/plain",
+       "plugin-types , plugin-types ", false},
+      {"plugin-types application/pdf text/plain",
+       "plugin-types application/x-blink-test-plugin,"
+       "plugin-types application/x-blink-test-plugin",
+       false},
+      {"plugin-types application/pdf text/plain",
+       "plugin-types application/pdf application/x-blink-test-plugin, "
+       "plugin-types application/x-blink-test-plugin",
+       false},
+  };
+
+  for (const auto& test : cases) {
+    std::vector<mojom::ContentSecurityPolicyPtr> policy_a =
+        ParseCSP(test.policy_a);
+    std::vector<mojom::ContentSecurityPolicyPtr> policies_b =
+        ParseCSP(test.policies_b);
+    EXPECT_EQ(Subsumes(*policy_a[0], policies_b,
+                       url::Origin::Create(GURL("https://a.com"))),
+              test.expected)
         << test.policy_a << " should " << (test.expected ? "" : "not ")
         << "subsume " << test.policies_b;
   }
@@ -1860,332 +1554,6 @@ TEST(ContentSecurityPolicy, InvalidPolicyInReportTreatAsPublicAddress) {
       "The Content Security Policy directive 'treat-as-public-address' is "
       "ignored when delivered in a report-only policy.",
       policy->parsing_errors[0]);
-}
-
-TEST(ContentSecurityPolicy, InvalidPolicyInMetaFrameAncestors) {
-  std::vector<mojom::ContentSecurityPolicyPtr> policies =
-      ParseContentSecurityPolicies(
-          "frame-ancestors https://www.example.org; script-src 'none'",
-          mojom::ContentSecurityPolicyType::kEnforce,
-          mojom::ContentSecurityPolicySource::kMeta,
-          GURL("https://www.example.org"));
-
-  ASSERT_EQ(1u, policies.size());
-  mojom::ContentSecurityPolicyPtr& policy = policies[0];
-  EXPECT_EQ(1u, policy->directives.size());
-
-  auto& script_src = policy->directives[mojom::CSPDirectiveName::ScriptSrc];
-  EXPECT_EQ(script_src->sources.size(), 0U);
-
-  ASSERT_EQ(1u, policy->parsing_errors.size());
-  EXPECT_EQ(
-      "The Content Security Policy directive 'frame-ancestors' is ignored when "
-      "delivered via a <meta> element.",
-      policy->parsing_errors[0]);
-}
-
-TEST(ContentSecurityPolicy, InvalidPolicyInMetaReportUri) {
-  std::vector<mojom::ContentSecurityPolicyPtr> policies =
-      ParseContentSecurityPolicies(
-          "report-uri https://www.example.org; script-src 'none'",
-          mojom::ContentSecurityPolicyType::kEnforce,
-          mojom::ContentSecurityPolicySource::kMeta,
-          GURL("https://www.example.org"));
-
-  ASSERT_EQ(1u, policies.size());
-  mojom::ContentSecurityPolicyPtr& policy = policies[0];
-  EXPECT_EQ(1u, policy->directives.size());
-
-  auto& script_src = policy->directives[mojom::CSPDirectiveName::ScriptSrc];
-  EXPECT_EQ(script_src->sources.size(), 0U);
-
-  ASSERT_EQ(1u, policy->parsing_errors.size());
-  EXPECT_EQ(
-      "The Content Security Policy directive 'report-uri' is ignored when "
-      "delivered via a <meta> element.",
-      policy->parsing_errors[0]);
-}
-
-TEST(ContentSecurityPolicy, InvalidPolicyInMetaSandbox) {
-  std::vector<mojom::ContentSecurityPolicyPtr> policies =
-      ParseContentSecurityPolicies("sandbox; script-src 'none'",
-                                   mojom::ContentSecurityPolicyType::kEnforce,
-                                   mojom::ContentSecurityPolicySource::kMeta,
-                                   GURL("https://www.example.org"));
-
-  ASSERT_EQ(1u, policies.size());
-  mojom::ContentSecurityPolicyPtr& policy = policies[0];
-  EXPECT_EQ(mojom::WebSandboxFlags::kNone, policy->sandbox);
-  EXPECT_EQ(1u, policy->directives.size());
-
-  auto& script_src = policy->directives[mojom::CSPDirectiveName::ScriptSrc];
-  EXPECT_EQ(script_src->sources.size(), 0U);
-
-  ASSERT_EQ(1u, policy->parsing_errors.size());
-  EXPECT_EQ(
-      "The Content Security Policy directive 'sandbox' is ignored when "
-      "delivered via a <meta> element.",
-      policy->parsing_errors[0]);
-}
-
-TEST(ContentSecurityPolicy, InvalidPolicyInMetaTreatAsPublicAddress) {
-  std::vector<mojom::ContentSecurityPolicyPtr> policies =
-      ParseContentSecurityPolicies("treat-as-public-address; script-src 'none'",
-                                   mojom::ContentSecurityPolicyType::kEnforce,
-                                   mojom::ContentSecurityPolicySource::kMeta,
-                                   GURL("https://www.example.org"));
-
-  ASSERT_EQ(1u, policies.size());
-  mojom::ContentSecurityPolicyPtr& policy = policies[0];
-  EXPECT_FALSE(policy->treat_as_public_address);
-  EXPECT_EQ(1u, policy->directives.size());
-
-  auto& script_src = policy->directives[mojom::CSPDirectiveName::ScriptSrc];
-  EXPECT_EQ(script_src->sources.size(), 0U);
-
-  ASSERT_EQ(1u, policy->parsing_errors.size());
-  EXPECT_EQ(
-      "The Content Security Policy directive 'treat-as-public-address' is "
-      "ignored when delivered via a <meta> element.",
-      policy->parsing_errors[0]);
-}
-
-TEST(ContentSecurityPolicy, AllowsBlanketEnforcementOfRequiredCSP) {
-  struct TestCase {
-    const char* name;
-    const char* request_origin;
-    const char* response_origin;
-    const char* allow_csp_from;
-    bool expected_result;
-    const char* expected_self_origin;
-  } cases[] = {
-      {
-          "About scheme allows",
-          "http://example.com",
-          "about://me",
-          nullptr,
-          true,
-          "http://example.com",
-      },
-      {
-          "File scheme allows",
-          "http://example.com",
-          "file://me",
-          nullptr,
-          true,
-          "http://example.com",
-      },
-      {
-          "Data scheme allows",
-          "http://example.com",
-          "data://me",
-          nullptr,
-          true,
-          "http://example.com",
-      },
-      {
-          "Filesystem scheme allows",
-          "http://example.com",
-          "filesystem://me",
-          nullptr,
-          true,
-          "http://example.com",
-      },
-      {
-          "Blob scheme allows",
-          "http://example.com",
-          "blob://me",
-          nullptr,
-          true,
-          "http://example.com",
-      },
-      {
-          "Same origin allows",
-          "http://example.com",
-          "http://example.com",
-          nullptr,
-          true,
-          "http://example.com",
-      },
-      {
-          "Same origin allows independently of header",
-          "http://example.com",
-          "http://example.com",
-          "http://not-example.com",
-          true,
-          "http://example.com",
-      },
-      {
-          "Different origin does not allow",
-          "http://example.com",
-          "http://not.example.com",
-          nullptr,
-          false,
-      },
-      {
-          "Different origin with right header allows",
-          "http://example.com",
-          "http://not-example.com",
-          "http://example.com",
-          true,
-          "http://not-example.com",
-      },
-      {
-          "Different origin with right header 2 allows",
-          "http://example.com",
-          "http://not-example.com",
-          "http://example.com/",
-          true,
-          "http://not-example.com",
-      },
-      {
-          "Different origin with wrong header does not allow",
-          "http://example.com",
-          "http://not-example.com",
-          "http://not-example.com",
-          false,
-      },
-      {
-          "Wildcard header allows",
-          "http://example.com",
-          "http://not-example.com",
-          "*",
-          true,
-          "http://not-example.com",
-      },
-      {
-          "Malformed header does not allow",
-          "http://example.com",
-          "http://not-example.com",
-          "*; http://example.com",
-          false,
-      },
-  };
-
-  for (const auto& test : cases) {
-    SCOPED_TRACE(test.name);
-    auto headers =
-        base::MakeRefCounted<net::HttpResponseHeaders>("HTTP/1.1 200 OK");
-    if (test.allow_csp_from)
-      headers->AddHeader("allow-csp-from", test.allow_csp_from);
-    auto allow_csp_from = network::ParseAllowCSPFromHeader(*headers);
-
-    auto required_csp = mojom::ContentSecurityPolicy::New();
-    bool actual = AllowsBlanketEnforcementOfRequiredCSP(
-        url::Origin::Create(GURL(test.request_origin)),
-        GURL(test.response_origin), allow_csp_from.get(), required_csp);
-    EXPECT_EQ(test.expected_result, actual);
-    if (test.expected_self_origin) {
-      GURL expected_self_origin(test.expected_self_origin);
-      EXPECT_EQ(expected_self_origin.scheme(),
-                required_csp->self_origin->scheme);
-      EXPECT_EQ(expected_self_origin.host(), required_csp->self_origin->host);
-      EXPECT_EQ(expected_self_origin.EffectiveIntPort(),
-                required_csp->self_origin->port);
-    }
-  }
-}
-
-TEST(ContentSecurityPolicy, FencedFrameSrcFallback) {
-  auto allow_host = [](const char* host) {
-    std::vector<mojom::CSPSourcePtr> sources;
-    sources.push_back(BuildCSPSource("http", host));
-    auto csp_source_list = mojom::CSPSourceList::New();
-    csp_source_list->sources = std::move(sources);
-    return csp_source_list;
-  };
-
-  {
-    CSPContextTest context;
-    auto policy = EmptyCSP();
-    policy->directives[CSPDirectiveName::DefaultSrc] = allow_host("a.com");
-    EXPECT_FALSE(CheckContentSecurityPolicy(
-        policy, CSPDirectiveName::FencedFrameSrc, GURL("http://b.com"), GURL(),
-        false, false, &context, SourceLocation(), false));
-    ASSERT_EQ(1u, context.violations().size());
-    const char kConsoleMessage[] =
-        "Refused to frame 'http://b.com/' as a fenced frame because it "
-        "violates the following Content Security Policy directive: "
-        "\"default-src http://a.com\". Note that 'fenced-frame-src' was not "
-        "explicitly set, so 'default-src' is used as a fallback.\n";
-    EXPECT_EQ(kConsoleMessage, context.violations()[0]->console_message);
-    EXPECT_TRUE(CheckContentSecurityPolicy(
-        policy, CSPDirectiveName::FencedFrameSrc, GURL("http://a.com"), GURL(),
-        false, false, &context, SourceLocation(), false));
-  }
-  {
-    CSPContextTest context;
-    auto policy = EmptyCSP();
-    policy->directives[CSPDirectiveName::ChildSrc] = allow_host("a.com");
-    EXPECT_FALSE(CheckContentSecurityPolicy(
-        policy, CSPDirectiveName::FencedFrameSrc, GURL("http://b.com"), GURL(),
-        false, false, &context, SourceLocation(), false));
-    ASSERT_EQ(1u, context.violations().size());
-    const char kConsoleMessage[] =
-        "Refused to frame 'http://b.com/' as a fenced frame because it "
-        "violates the following Content Security Policy directive: "
-        "\"child-src http://a.com\". Note that 'fenced-frame-src' was not "
-        "explicitly set, so 'child-src' is used as a fallback.\n";
-    EXPECT_EQ(kConsoleMessage, context.violations()[0]->console_message);
-    EXPECT_TRUE(CheckContentSecurityPolicy(
-        policy, CSPDirectiveName::FencedFrameSrc, GURL("http://a.com"), GURL(),
-        false, false, &context, SourceLocation(), false));
-  }
-  {
-    CSPContextTest context;
-    auto policy = EmptyCSP();
-    policy->directives[CSPDirectiveName::FrameSrc] = allow_host("a.com");
-
-    EXPECT_FALSE(CheckContentSecurityPolicy(
-        policy, CSPDirectiveName::FencedFrameSrc, GURL("http://b.com"), GURL(),
-        false, false, &context, SourceLocation(), false));
-    ASSERT_EQ(1u, context.violations().size());
-    const char kConsoleMessage[] =
-        "Refused to frame 'http://b.com/' as a fenced frame because it "
-        "violates the following Content Security Policy directive: "
-        "\"frame-src http://a.com\". Note that 'fenced-frame-src' was not "
-        "explicitly set, so 'frame-src' is used as a fallback.\n";
-    EXPECT_EQ(kConsoleMessage, context.violations()[0]->console_message);
-    EXPECT_TRUE(CheckContentSecurityPolicy(
-        policy, CSPDirectiveName::FencedFrameSrc, GURL("http://a.com"), GURL(),
-        false, false, &context, SourceLocation(), false));
-  }
-  {
-    CSPContextTest context;
-    auto policy = EmptyCSP();
-    policy->directives[CSPDirectiveName::FencedFrameSrc] = allow_host("a.com");
-    policy->directives[CSPDirectiveName::FrameSrc] = allow_host("b.com");
-    EXPECT_TRUE(CheckContentSecurityPolicy(
-        policy, CSPDirectiveName::FencedFrameSrc, GURL("http://a.com"), GURL(),
-        false, false, &context, SourceLocation(), false));
-    EXPECT_FALSE(CheckContentSecurityPolicy(
-        policy, CSPDirectiveName::FencedFrameSrc, GURL("http://b.com"), GURL(),
-        false, false, &context, SourceLocation(), false));
-    ASSERT_EQ(1u, context.violations().size());
-    const char kConsoleMessage[] =
-        "Refused to frame 'http://b.com/' as a fenced frame because it "
-        "violates the following Content Security Policy directive: "
-        "\"fenced-frame-src http://a.com\".\n";
-    EXPECT_EQ(kConsoleMessage, context.violations()[0]->console_message);
-  }
-}
-
-TEST(ContentSecurityPolicy, FencedFrameSrcOpaqueURL) {
-  CSPContextTest context;
-  auto policy = EmptyCSP();
-  policy->directives[CSPDirectiveName::FencedFrameSrc] =
-      mojom::CSPSourceList::New();
-  EXPECT_FALSE(CheckContentSecurityPolicy(
-      policy, CSPDirectiveName::FencedFrameSrc, GURL("https://a.com"), GURL(),
-      /*has_followed_redirect=*/false,
-      /*is_response_check=*/false, &context, SourceLocation(),
-      /*is_form_submission=*/false, /*is_opaque_fenced_frame=*/true));
-  ASSERT_EQ(1u, context.violations().size());
-  const char kConsoleMessage[] =
-      "Refused to frame 'urn:uuid' as a fenced frame because it violates the "
-      "following Content Security Policy directive: \"fenced-frame-src "
-      "'none'\".\n";
-  EXPECT_EQ(kConsoleMessage, context.violations()[0]->console_message);
 }
 
 }  // namespace network

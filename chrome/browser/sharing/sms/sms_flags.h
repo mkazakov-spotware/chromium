@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,6 @@
 
 // Feature to allow devices to send/receive the sms fetch request from/to a
 // remote device through the SharingService.
-BASE_DECLARE_FEATURE(kWebOTPCrossDevice);
+extern const base::Feature kWebOTPCrossDevice;
 
 #endif  // CHROME_BROWSER_SHARING_SMS_SMS_FLAGS_H_

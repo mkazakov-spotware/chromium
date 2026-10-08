@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/trace_event/memory_dump_provider.h"
 #include "gpu/command_buffer/client/client_transfer_cache.h"
@@ -62,10 +62,6 @@ class GLES2_IMPL_EXPORT ImplementationBase
   ImplementationBase(CommandBufferHelper* helper,
                      TransferBufferInterface* transfer_buffer,
                      GpuControl* gpu_control);
-
-  ImplementationBase(const ImplementationBase&) = delete;
-  ImplementationBase& operator=(const ImplementationBase&) = delete;
-
   ~ImplementationBase() override;
 
   void FreeUnusedSharedMemory();
@@ -90,6 +86,8 @@ class GLES2_IMPL_EXPORT ImplementationBase
   bool HasGrContextSupport() const override;
   void WillCallGLFromSkia() override;
   void DidCallGLFromSkia() override;
+  void SetDisplayTransform(gfx::OverlayTransform transform) override;
+  void SetFrameRate(float frame_rate) override;
 
   // base::trace_event::MemoryDumpProvider implementation.
   bool OnMemoryDump(const base::trace_event::MemoryDumpArgs& args,
@@ -140,7 +138,7 @@ class GLES2_IMPL_EXPORT ImplementationBase
 
   void RunIfContextNotLost(base::OnceClosure callback);
 
-  raw_ptr<TransferBufferInterface> transfer_buffer_;
+  TransferBufferInterface* transfer_buffer_;
 
   std::unique_ptr<MappedMemoryManager> mapped_memory_;
 
@@ -149,7 +147,7 @@ class GLES2_IMPL_EXPORT ImplementationBase
   base::OnceClosure lost_context_callback_;
   bool lost_context_callback_run_ = false;
 
-  const raw_ptr<GpuControl> gpu_control_;
+  GpuControl* const gpu_control_;
 
   Capabilities capabilities_;
 
@@ -159,9 +157,11 @@ class GLES2_IMPL_EXPORT ImplementationBase
                           const char* function_name,
                           const char* msg) = 0;
 
-  raw_ptr<CommandBufferHelper> helper_;
+  CommandBufferHelper* helper_;
 
   base::WeakPtrFactory<ImplementationBase> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ImplementationBase);
 };
 
 }  // namespace gpu

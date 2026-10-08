@@ -1,96 +1,89 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-const AutomationEvent = require('automationEvent').AutomationEvent;
-const automationInternal = getInternalApi('automationInternal');
-const AutomationTreeCache = require('automationTreeCache').AutomationTreeCache;
-const exceptionHandler = require('uncaught_exception_handler');
+var AutomationEvent = require('automationEvent').AutomationEvent;
+var automationInternal = getInternalApi('automationInternal');
+var AutomationTreeCache = require('automationTreeCache').AutomationTreeCache;
+var exceptionHandler = require('uncaught_exception_handler');
 
-const natives = requireNative('automationInternal');
+var natives = requireNative('automationInternal');
 
-const IsInteractPermitted = natives.IsInteractPermitted;
+var IsInteractPermitted = natives.IsInteractPermitted;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?number} The id of the root node.
  */
-const GetRootID = natives.GetRootID;
-
-/**
- * Similar to above, but may move to ancestor roots if the current tree
- * has multiple roots.
- * @param {string} axTreeID The id of the accessibility tree.
- * @return {{treeID: string, nodeID: number}}
- */
-const GetPublicRoot = natives.GetPublicRoot;
+var GetRootID = natives.GetRootID;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?string} The title of the document.
  */
-const GetDocTitle = natives.GetDocTitle;
+var GetDocTitle = natives.GetDocTitle;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?string} The url of the document.
  */
-const GetDocURL = natives.GetDocURL;
+var GetDocURL = natives.GetDocURL;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?boolean} True if the document has finished loading.
  */
-const GetDocLoaded = natives.GetDocLoaded;
+var GetDocLoaded = natives.GetDocLoaded;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?number} The loading progress, from 0.0 to 1.0 (fully loaded).
  */
-const GetDocLoadingProgress = natives.GetDocLoadingProgress;
+var GetDocLoadingProgress =
+    natives.GetDocLoadingProgress;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {boolean} Whether the selection's anchor comes after its focus in the
  *     accessibility tree.
  */
-const GetIsSelectionBackward = natives.GetIsSelectionBackward;
+var GetIsSelectionBackward = natives.GetIsSelectionBackward;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?number} The ID of the selection anchor object.
  */
-const GetAnchorObjectID = natives.GetAnchorObjectID;
+var GetAnchorObjectID = natives.GetAnchorObjectID;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?number} The selection anchor offset.
  */
-const GetAnchorOffset = natives.GetAnchorOffset;
+var GetAnchorOffset = natives.GetAnchorOffset;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?string} The selection anchor affinity.
  */
-const GetAnchorAffinity = natives.GetAnchorAffinity;
+var GetAnchorAffinity = natives.GetAnchorAffinity;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?number} The ID of the selection focus object.
  */
-const GetFocusObjectID = natives.GetFocusObjectID;
+var GetFocusObjectID = natives.GetFocusObjectID;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?number} The selection focus offset.
  */
-const GetFocusOffset = natives.GetFocusOffset;
+var GetFocusOffset = natives.GetFocusOffset;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?string} The selection focus affinity.
  */
-const GetFocusAffinity = natives.GetFocusAffinity;
+var GetFocusAffinity = natives.GetFocusAffinity;
 
 /**
  * The start of the selection always comes before its end in the accessibility
@@ -99,7 +92,7 @@ const GetFocusAffinity = natives.GetFocusAffinity;
  * @return {?number} The ID of the object at the start of the
  *     selection.
  */
-const GetSelectionStartObjectID = natives.GetSelectionStartObjectID;
+var GetSelectionStartObjectID = natives.GetSelectionStartObjectID;
 
 /**
  * The start of the selection always comes before its end in the accessibility
@@ -107,7 +100,7 @@ const GetSelectionStartObjectID = natives.GetSelectionStartObjectID;
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?number} The offset at the start of the selection.
  */
-const GetSelectionStartOffset = natives.GetSelectionStartOffset;
+var GetSelectionStartOffset = natives.GetSelectionStartOffset;
 
 /**
  * The start of the selection always comes before its end in the accessibility
@@ -115,7 +108,7 @@ const GetSelectionStartOffset = natives.GetSelectionStartOffset;
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?string} The affinity at the start of the selection.
  */
-const GetSelectionStartAffinity = natives.GetSelectionStartAffinity;
+var GetSelectionStartAffinity = natives.GetSelectionStartAffinity;
 
 /**
  * The end of the selection always comes after its start in the accessibility
@@ -123,7 +116,7 @@ const GetSelectionStartAffinity = natives.GetSelectionStartAffinity;
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?number} The ID of the object at the end of the selection.
  */
-const GetSelectionEndObjectID = natives.GetSelectionEndObjectID;
+var GetSelectionEndObjectID = natives.GetSelectionEndObjectID;
 
 /**
  * The end of the selection always comes after its start in the accessibility
@@ -131,7 +124,7 @@ const GetSelectionEndObjectID = natives.GetSelectionEndObjectID;
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?number} The offset at the end of the selection.
  */
-const GetSelectionEndOffset = natives.GetSelectionEndOffset;
+var GetSelectionEndOffset = natives.GetSelectionEndOffset;
 
 /**
  * The end of the selection always comes after its start in the accessibility
@@ -139,7 +132,7 @@ const GetSelectionEndOffset = natives.GetSelectionEndOffset;
  * @param {string} axTreeID The id of the accessibility tree.
  * @return {?string} The affinity at the end of the selection.
  */
-const GetSelectionEndAffinity = natives.GetSelectionEndAffinity;
+var GetSelectionEndAffinity = natives.GetSelectionEndAffinity;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -147,7 +140,7 @@ const GetSelectionEndAffinity = natives.GetSelectionEndAffinity;
  * @return {?number} The id of the node's parent, or undefined if it's the
  *    root of its tree or if the tree or node wasn't found.
  */
-const GetParentID = natives.GetParentID;
+var GetParentID = natives.GetParentID;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -155,7 +148,7 @@ const GetParentID = natives.GetParentID;
  * @return {?number} The number of children of the node, or undefined if
  *     the tree or node wasn't found.
  */
-const GetChildCount = natives.GetChildCount;
+var GetChildCount = natives.GetChildCount;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -164,7 +157,7 @@ const GetChildCount = natives.GetChildCount;
  * @return {?number} The id of the child at the given index, or undefined
  *     if the tree or node or child at that index wasn't found.
  */
-const GetChildIDAtIndex = natives.GetChildIDAtIndex;
+var GetChildIDAtIndex = natives.GetChildIDAtIndex;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -172,14 +165,14 @@ const GetChildIDAtIndex = natives.GetChildIDAtIndex;
  * @return {?number} The ids of the children of the node, or undefined
  *     if the tree or node wasn't found.
  */
-const GetChildIds = natives.GetChildIDs;
+var GetChildIds = natives.GetChildIDs;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {?Object} An object mapping html attributes to values.
  */
-const GetHtmlAttributes = natives.GetHtmlAttributes;
+var GetHtmlAttributes = natives.GetHtmlAttributes;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -187,7 +180,7 @@ const GetHtmlAttributes = natives.GetHtmlAttributes;
  * @return {?number} The index of this node in its parent, or undefined if
  *     the tree or node or node parent wasn't found.
  */
-const GetIndexInParent = natives.GetIndexInParent;
+var GetIndexInParent = natives.GetIndexInParent;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -195,7 +188,7 @@ const GetIndexInParent = natives.GetIndexInParent;
  * @return {?Object} An object with a string key for every state flag set,
  *     or undefined if the tree or node or node parent wasn't found.
  */
-const GetState = natives.GetState;
+var GetState = natives.GetState;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -203,14 +196,14 @@ const GetState = natives.GetState;
  * @return {string} The restriction, one of
  * "disabled", "readOnly" or undefined if enabled or other object not disabled
  */
-const GetRestriction = natives.GetRestriction;
+var GetRestriction = natives.GetRestriction;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {string} The checked state, as undefined, "true", "false" or "mixed".
  */
-const GetChecked = natives.GetChecked;
+var GetChecked = natives.GetChecked;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -218,7 +211,7 @@ const GetChecked = natives.GetChecked;
  * @return {string} The role of the node, or undefined if the tree or
  *     node wasn't found.
  */
-const GetRole = natives.GetRole;
+var GetRole = natives.GetRole;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -226,7 +219,7 @@ const GetRole = natives.GetRole;
  * @return {?automation.Rect} The location of the node, or undefined if
  *     the tree or node wasn't found.
  */
-const GetLocation = natives.GetLocation;
+var GetLocation = natives.GetLocation;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -238,7 +231,7 @@ const GetLocation = natives.GetLocation;
  *     or the location if there are no subranges, or undefined if
  *     the tree or node wasn't found.
  */
-const GetBoundsForRange = natives.GetBoundsForRange;
+var GetBoundsForRange = natives.GetBoundsForRange;
 
 /**
  * @param {number} left The left location of the text range.
@@ -250,7 +243,7 @@ const GetBoundsForRange = natives.GetBoundsForRange;
  * @return {?automation.Rect} The bounding box of the subrange of this node,
  *     specified by arguments provided to the function.
  */
-const ComputeGlobalBounds = natives.ComputeGlobalBounds;
+var ComputeGlobalBounds = natives.ComputeGlobalBounds;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -258,7 +251,7 @@ const ComputeGlobalBounds = natives.ComputeGlobalBounds;
  * @return {?automation.Rect} The unclipped location of the node, or
  * undefined if the tree or node wasn't found.
  */
-const GetUnclippedLocation = natives.GetUnclippedLocation;
+var GetUnclippedLocation = natives.GetUnclippedLocation;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -267,15 +260,15 @@ const GetUnclippedLocation = natives.GetUnclippedLocation;
  *     array if this node has no text content, or undefined if the tree or node
  *     was not found.
  */
-const GetLineStartOffsets =
-    requireNative('automationInternal').GetLineStartOffsets;
+var GetLineStartOffsets = requireNative(
+    'automationInternal').GetLineStartOffsets;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of the node.
  * @return {?string} The computed name of this node.
  */
-const GetName = natives.GetName;
+var GetName = natives.GetName;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -284,7 +277,7 @@ const GetName = natives.GetName;
  * @return {?string} The value of this attribute, or undefined if the tree,
  *     node, or attribute wasn't found.
  */
-const GetStringAttribute = natives.GetStringAttribute;
+var GetStringAttribute = natives.GetStringAttribute;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -293,7 +286,7 @@ const GetStringAttribute = natives.GetStringAttribute;
  * @return {?boolean} The value of this attribute, or undefined if the tree,
  *     node, or attribute wasn't found.
  */
-const GetBoolAttribute = natives.GetBoolAttribute;
+var GetBoolAttribute = natives.GetBoolAttribute;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -302,7 +295,7 @@ const GetBoolAttribute = natives.GetBoolAttribute;
  * @return {?number} The value of this attribute, or undefined if the tree,
  *     node, or attribute wasn't found.
  */
-const GetIntAttribute = natives.GetIntAttribute;
+var GetIntAttribute = natives.GetIntAttribute;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -311,7 +304,8 @@ const GetIntAttribute = natives.GetIntAttribute;
  * @return {?Array<number>} The ids of nodes who have a relationship pointing
  *     to |nodeID| (a reverse relationship).
  */
-const GetIntAttributeReverseRelations = natives.GetIntAttributeReverseRelations;
+var GetIntAttributeReverseRelations =
+    natives.GetIntAttributeReverseRelations;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -320,7 +314,7 @@ const GetIntAttributeReverseRelations = natives.GetIntAttributeReverseRelations;
  * @return {?number} The value of this attribute, or undefined if the tree,
  *     node, or attribute wasn't found.
  */
-const GetFloatAttribute = natives.GetFloatAttribute;
+var GetFloatAttribute = natives.GetFloatAttribute;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -329,7 +323,8 @@ const GetFloatAttribute = natives.GetFloatAttribute;
  * @return {?Array<number>} The value of this attribute, or undefined
  *     if the tree, node, or attribute wasn't found.
  */
-const GetIntListAttribute = natives.GetIntListAttribute;
+var GetIntListAttribute =
+    natives.GetIntListAttribute;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -338,7 +333,7 @@ const GetIntListAttribute = natives.GetIntListAttribute;
  * @return {?Array<number>} The ids of nodes who have a relationship pointing
  *     to |nodeID| (a reverse relationship).
  */
-const GetIntListAttributeReverseRelations =
+var GetIntListAttributeReverseRelations =
     natives.GetIntListAttributeReverseRelations;
 
 /**
@@ -348,21 +343,21 @@ const GetIntListAttributeReverseRelations =
  * @return {?string} The value of this attribute, or undefined if the tree,
  *     node, or attribute wasn't found.
  */
-const GetHtmlAttribute = natives.GetHtmlAttribute;
+var GetHtmlAttribute = natives.GetHtmlAttribute;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {automation.NameFromType} The source of the node's name.
  */
-const GetNameFrom = natives.GetNameFrom;
+var GetNameFrom = natives.GetNameFrom;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {automation.DescriptionFromType} The node description source.
  */
-const GetDescriptionFrom = natives.GetDescriptionFrom;
+var GetDescriptionFrom = natives.GetDescriptionFrom;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -370,63 +365,35 @@ const GetDescriptionFrom = natives.GetDescriptionFrom;
  * @return {?string} The image annotation status, which may
  *     include the annotation itself if completed successfully.
  */
-const GetImageAnnotation = natives.GetImageAnnotation;
+var GetImageAnnotation = natives.GetImageAnnotation;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {boolean}
  */
-const GetBold = natives.GetBold;
+var GetBold = natives.GetBold;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {boolean}
  */
-const GetItalic = natives.GetItalic;
+var GetItalic = natives.GetItalic;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {boolean}
  */
-const GetUnderline = natives.GetUnderline;
+var GetUnderline = natives.GetUnderline;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {boolean}
  */
-const GetLineThrough = natives.GetLineThrough;
-
-/**
- * @param {string} axTreeID The id of the accessibility tree.
- * @param {number} nodeID The id of a node.
- * @return {boolean}
- */
-const GetIsButton = natives.GetIsButton;
-
-/**
- * @param {string} axTreeID The id of the accessibility tree.
- * @param {number} nodeID The id of a node.
- * @return {boolean}
- */
-const GetIsCheckBox = natives.GetIsCheckBox;
-
-/**
- * @param {string} axTreeID The id of the accessibility tree.
- * @param {number} nodeID The id of a node.
- * @return {boolean}
- */
-const GetIsComboBox = natives.GetIsComboBox;
-
-/**
- * @param {string} axTreeID The id of the accessibility tree.
- * @param {number} nodeID The id of a node.
- * @return {boolean}
- */
-const GetIsImage = natives.GetIsImage;
+var GetLineThrough = natives.GetLineThrough;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -434,42 +401,29 @@ const GetIsImage = natives.GetIsImage;
  * @return {?Array<automation.CustomAction>} List of custom actions of the
  *     node.
  */
-const GetCustomActions = natives.GetCustomActions;
+var GetCustomActions = natives.GetCustomActions;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {?Array<string>} List of standard actions of the node.
  */
-const GetStandardActions = natives.GetStandardActions;
+var GetStandardActions = natives.GetStandardActions;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {automation.NameFromType} The source of the node's name.
  */
-const GetDefaultActionVerb = natives.GetDefaultActionVerb;
+var GetDefaultActionVerb = natives.GetDefaultActionVerb;
+
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {automation.HasPopup}
  */
-const GetHasPopup = natives.GetHasPopup;
-
-/**
- * @param {string} axTreeID The id of the accessibility tree.
- * @param {number} nodeID The id of a node.
- * @return {automation.AriaCurrentState}
- */
-const GetAriaCurrentState = natives.GetAriaCurrentState;
-
-/**
- * @param {string} axTreeID The id of the accessibility tree.
- * @param {number} nodeID The id of a node.
- * @return {automation.InvalidState}
- */
-const GetInvalidState = natives.GetInvalidState;
+var GetHasPopup = natives.GetHasPopup;
 
 
 /**
@@ -479,70 +433,72 @@ const GetInvalidState = natives.GetInvalidState;
  * @param {boolean} backward
  * @return {{treeId: string, nodeId: number}}
  */
-const GetNextTextMatch = natives.GetNextTextMatch;
+var GetNextTextMatch = natives.GetNextTextMatch;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {?Array<number>} A list of column header ids.
+
+ * @return {?number} The id of the column header, if it exists.
  */
-const GetTableCellColumnHeaders = natives.GetTableCellColumnHeaders;
+var GetTableCellColumnHeaders = natives.GetTableCellColumnHeaders;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {?Array<number>} A list of row header ids.
  */
-const GetTableCellRowHeaders = natives.GetTableCellRowHeaders;
+var GetTableCellRowHeaders = natives.GetTableCellRowHeaders;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {number} Column index for this cell.
  */
-const GetTableCellColumnIndex = natives.GetTableCellColumnIndex;
+var GetTableCellColumnIndex = natives.GetTableCellColumnIndex;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {number} Row index for this cell.
  */
-const GetTableCellRowIndex = natives.GetTableCellRowIndex;
+var GetTableCellRowIndex = natives.GetTableCellRowIndex;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {number} Column index for this cell.
  */
-const GetTableCellAriaColumnIndex = natives.GetTableCellAriaColumnIndex;
+var GetTableCellAriaColumnIndex = natives.GetTableCellAriaColumnIndex;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {number} Row index for this cell.
  */
-const GetTableCellAriaRowIndex = natives.GetTableCellAriaRowIndex;
+var GetTableCellAriaRowIndex = natives.GetTableCellAriaRowIndex;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {number} column count for this cell's table. 0 if not in a table.
  */
-const GetTableColumnCount = natives.GetTableColumnCount;
+var GetTableColumnCount = natives.GetTableColumnCount;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {number} Row count for this cell's table. 0 if not in a table.
  */
-const GetTableRowCount = natives.GetTableRowCount;
+var GetTableRowCount = natives.GetTableRowCount;
 
 /**
  * @param {string} axTreeId The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {string} Detected language for this node.
  */
-const GetDetectedLanguage = natives.GetDetectedLanguage;
+var GetDetectedLanguage = natives.GetDetectedLanguage;
 
 /**
  * @param {string} axTreeId The id of the accessibility tree.
@@ -551,7 +507,7 @@ const GetDetectedLanguage = natives.GetDetectedLanguage;
  * @return {!Array<{startIndex: number, endIndex: number, language: string,
  * probability: number}>}
  */
-const GetLanguageAnnotationForStringAttribute =
+var GetLanguageAnnotationForStringAttribute =
     natives.GetLanguageAnnotationForStringAttribute;
 
 /**
@@ -559,55 +515,41 @@ const GetLanguageAnnotationForStringAttribute =
  * @param {number} nodeID The id of a node.
  * @return {!Array<number>}
  */
-const GetWordStartOffsets = natives.GetWordStartOffsets;
+var GetWordStartOffsets = natives.GetWordStartOffsets;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {!Array<number>}
  */
-const GetWordEndOffsets = natives.GetWordEndOffsets;
-
-/**
- * @param {string} axTreeID The id of the accessibility tree.
- * @param {number} nodeID The id of a node.
- * @return {!Array<number>}
- */
-const GetSentenceStartOffsets = natives.GetSentenceStartOffsets;
-
-/**
- * @param {string} axTreeID The id of the accessibility tree.
- * @param {number} nodeID The id of a node.
- * @return {!Array<number>}
- */
-const GetSentenceEndOffsets = natives.GetSentenceEndOffsets;
+var GetWordEndOffsets = natives.GetWordEndOffsets;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  */
-const SetAccessibilityFocus = natives.SetAccessibilityFocus;
+var SetAccessibilityFocus = natives.SetAccessibilityFocus;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @param {string} eventType
  */
-const EventListenerAdded = natives.EventListenerAdded;
+var EventListenerAdded = natives.EventListenerAdded;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @param {string} eventType
  */
-const EventListenerRemoved = natives.EventListenerRemoved;
+var EventListenerRemoved = natives.EventListenerRemoved;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {Array}
  */
-const GetMarkers = natives.GetMarkers;
+var GetMarkers = natives.GetMarkers;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
@@ -616,24 +558,17 @@ const GetMarkers = natives.GetMarkers;
  * @param {boolean} isUpstream
  * @return {!Object}
  */
-const CreateAutomationPosition = natives.CreateAutomationPosition;
+var CreateAutomationPosition = natives.CreateAutomationPosition;
 
 /**
  * @param {string} axTreeID The id of the accessibility tree.
  * @param {number} nodeID The id of a node.
  * @return {string} The sort direction.
  */
-const GetSortDirection = natives.GetSortDirection;
+var GetSortDirection = natives.GetSortDirection;
 
-/**
- * @param {string} axTreeId The id of the accessibility tree.
- * @param {number} nodeID The id of a node.
- * @return {string} .
- */
-const GetValue = natives.GetValue;
-
-const logging = requireNative('logging');
-const utils = require('utils');
+var logging = requireNative('logging');
+var utils = require('utils');
 
 /**
  * A single node in the Automation tree.
@@ -657,19 +592,14 @@ AutomationNodeImpl.prototype = {
   },
 
   get root() {
-    const info = GetPublicRoot(this.treeID);
-    if (!info) {
-      return null;
-    }
-    return AutomationRootNodeImpl.getNodeFromTree(info.treeId, info.nodeId) ||
-        null;
+    return this.rootImpl && this.rootImpl.wrapper;
   },
 
   get parent() {
-    const info = GetParentID(this.treeID, this.id);
-    if (info) {
-      return AutomationRootNodeImpl.getNodeFromTree(info.treeId, info.nodeId);
-    }
+    var info = GetParentID(this.treeID, this.id);
+    if (!info)
+      return;
+    return AutomationRootNodeImpl.getNodeFromTree(info.treeId, info.nodeId);
   },
 
   get htmlAttributes() {
@@ -692,19 +622,6 @@ AutomationNodeImpl.prototype = {
     return GetChecked(this.treeID, this.id);
   },
 
-  get caretBounds() {
-    const data = GetIntListAttribute(this.treeID, this.id, 'caretBounds');
-    if (!data) {
-      return;
-    }
-
-    if (data.length !== 4) {
-      throw Error('Internal encoding error for caret bounds.');
-    }
-
-    return {left: data[0], top: data[1], width: data[2], height: data[3]};
-  },
-
   get location() {
     return GetLocation(this.treeID, this.id);
   },
@@ -724,18 +641,16 @@ AutomationNodeImpl.prototype = {
         'Error with bounds for range callback' :
         'Error with unclipped bounds for range callback';
 
-    if (!this.rootImpl) {
+    if (!this.rootImpl)
       return;
-    }
 
     // Not yet initialized.
     if (this.rootImpl.treeID === undefined || this.id === undefined) {
       return;
     }
 
-    if (!callback) {
+    if (!callback)
       return;
-    }
 
     if (!GetBoolAttribute(this.treeID, this.id, 'supportsTextLocation')) {
       try {
@@ -758,15 +673,10 @@ AutomationNodeImpl.prototype = {
     return GetSortDirection(this.treeID, this.id);
   },
 
-  get value() {
-    return GetValue(this.treeID, this.id);
-  },
-
   get unclippedLocation() {
-    let result = GetUnclippedLocation(this.treeID, this.id);
-    if (result === undefined) {
+    var result = GetUnclippedLocation(this.treeID, this.id);
+    if (result === undefined)
       result = GetLocation(this.treeID, this.id);
-    }
     return result;
   },
 
@@ -779,98 +689,64 @@ AutomationNodeImpl.prototype = {
   },
 
   get childTree() {
-    const childTreeID = GetStringAttribute(this.treeID, this.id, 'childTreeId');
-    if (childTreeID) {
+    var childTreeID = GetStringAttribute(this.treeID, this.id, 'childTreeId');
+    if (childTreeID)
       return AutomationRootNodeImpl.get(childTreeID);
-    }
   },
 
   get firstChild() {
-    if (GetChildCount(this.treeID, this.id) == 0) {
+    if (GetChildCount(this.treeID, this.id) == 0)
       return undefined;
-    }
-    const info = GetChildIDAtIndex(this.treeID, this.id, 0);
-    if (info) {
-      const child =
-          AutomationRootNodeImpl.getNodeFromTree(info.treeId, info.nodeId);
-
-      // A child with an app id should always be in a different tree.
-      if (child.appId && this.treeID === info.treeId) {
-        return;
-      }
-
-      return child;
-    }
+    var info = GetChildIDAtIndex(this.treeID, this.id, 0);
+    if (info)
+      return AutomationRootNodeImpl.getNodeFromTree(info.treeId, info.nodeId);
   },
 
   get lastChild() {
-    const count = GetChildCount(this.treeID, this.id);
-    if (count == 0) {
+    var count = GetChildCount(this.treeID, this.id);
+    if (count == 0)
       return;
-    }
 
-    const info = GetChildIDAtIndex(this.treeID, this.id, count - 1);
-    if (info) {
-      const child =
-          AutomationRootNodeImpl.getNodeFromTree(info.treeId, info.nodeId);
-
-      // A child with an app id should always be in a different tree.
-      if (child.appId && this.treeID === info.treeId) {
-        return;
-      }
-
-      return child;
-    }
+    var info = GetChildIDAtIndex(this.treeID, this.id, count - 1);
+    if (info)
+      return AutomationRootNodeImpl.getNodeFromTree(info.treeId, info.nodeId);
   },
 
   get children() {
-    const info = GetChildIds(this.treeID, this.id);
-    if (!info) {
+    var info = GetChildIds(this.treeID, this.id);
+    if (!info)
       return [];
-    }
 
-    const children = [];
-    for (let i = 0; i < info.nodeIds.length; ++i) {
-      const childID = info.nodeIds[i];
-      const child =
-          AutomationRootNodeImpl.getNodeFromTree(info.treeId, childID);
-
-      // A child with an app id should always be in a different tree.
-      if (child.appId && this.treeID === info.treeId) {
-        continue;
-      }
-
-      if (child) {
+    var children = [];
+    for (var i = 0; i < info.nodeIds.length; ++i) {
+      var childID = info.nodeIds[i];
+      var child = AutomationRootNodeImpl.getNodeFromTree(info.treeId, childID);
+      if (child)
         $Array.push(children, child);
-      }
     }
     return children;
   },
 
   get previousSibling() {
-    let parent = this.parent;
-    if (!parent) {
+    var parent = this.parent;
+    if (!parent)
       return undefined;
-    }
     parent = privates(parent).impl;
-    const indexInParent = GetIndexInParent(this.treeID, this.id);
-    const info = GetChildIDAtIndex(parent.treeID, parent.id, indexInParent - 1);
-    if (info) {
+    var indexInParent = GetIndexInParent(this.treeID, this.id);
+    var info = GetChildIDAtIndex(parent.treeID, parent.id, indexInParent - 1);
+    if (info)
       return AutomationRootNodeImpl.getNodeFromTree(info.treeId, info.nodeId);
-    }
   },
 
   get nextSibling() {
-    let parent = this.parent;
-    if (!parent) {
+    var parent = this.parent;
+    if (!parent)
       return undefined;
-    }
     parent = privates(parent).impl;
-    const indexInParent = GetIndexInParent(this.treeID, this.id);
-    const info = GetChildIDAtIndex(parent.treeID, parent.id, indexInParent + 1);
-    if (info) {
+    var indexInParent = GetIndexInParent(this.treeID, this.id);
+    var info = GetChildIDAtIndex(parent.treeID, parent.id, indexInParent + 1);
+    if (info)
       return AutomationRootNodeImpl.getNodeFromTree(info.treeId, info.nodeId);
-    }
   },
 
   get nameFrom() {
@@ -905,24 +781,8 @@ AutomationNodeImpl.prototype = {
     return GetLineThrough(this.treeID, this.id);
   },
 
-  get isButton() {
-    return GetIsButton(this.treeID, this.id);
-  },
-
-  get isCheckBox() {
-    return GetIsCheckBox(this.treeID, this.id);
-  },
-
-  get isComboBox() {
-    return GetIsComboBox(this.treeID, this.id);
-  },
-
-  get isImage() {
-    return GetIsImage(this.treeID, this.id);
-  },
-
   get detectedLanguage() {
-    return GetDetectedLanguage(this.treeID, this.id);
+    return GetDetectedLanguage(this.treeID, this.id)
   },
 
   languageAnnotationForStringAttribute: function(attributeName) {
@@ -946,32 +806,22 @@ AutomationNodeImpl.prototype = {
     return GetHasPopup(this.treeID, this.id);
   },
 
-  get ariaCurrentState() {
-    return GetAriaCurrentState(this.treeID, this.id);
-  },
-
-  get invalidState() {
-    return GetInvalidState(this.treeID, this.id);
-  },
-
   get tableCellColumnHeaders() {
-    const ids = GetTableCellColumnHeaders(this.treeID, this.id);
+    var ids = GetTableCellColumnHeaders(this.treeID, this.id);
     if (ids && this.rootImpl) {
-      const result = [];
-      for (let i = 0; i < ids.length; i++) {
+      var result = [];
+      for (var i = 0; i < ids.length; i++)
         result.push(this.rootImpl.get(ids[i]));
-      }
       return result;
     }
   },
 
   get tableCellRowHeaders() {
-    const ids = GetTableCellRowHeaders(this.treeID, this.id);
+    var id = GetTableCellRowHeaders(this.treeID, this.id);
     if (ids && this.rootImpl) {
-      const result = [];
-      for (let i = 0; i < ids.length; i++) {
+      var result = [];
+      for (var i = 0; i < ids.length; i++)
         result.push(this.rootImpl.get(ids[i]));
-      }
       return result;
     }
   },
@@ -1009,33 +859,24 @@ AutomationNodeImpl.prototype = {
     return GetWordEndOffsets(this.treeID, this.id);
   },
 
-  get sentenceStarts() {
-    return GetSentenceStartOffsets(this.treeID, this.id);
-  },
-
-  get sentenceEnds() {
-    return GetSentenceEndOffsets(this.treeID, this.id);
-  },
-
   get markers() {
     return GetMarkers(this.treeID, this.id);
   },
 
   createPosition: function(offset, opt_isUpstream) {
-    const nativePosition = CreateAutomationPosition(
+    var nativePosition = CreateAutomationPosition(
         this.treeID, this.id, offset, !!opt_isUpstream);
 
     // Attach a getter for the node, which is only available in js.
     Object.defineProperty(nativePosition, 'node', {
       get: function() {
-        const tree =
+        var tree =
             AutomationTreeCache.idToAutomationRootNode[nativePosition.treeID];
-        if (!tree) {
+        if (!tree)
           return null;
-        }
 
         return privates(tree).impl.get(nativePosition.anchorID);
-      },
+      }
     });
 
     return nativePosition;
@@ -1056,9 +897,7 @@ AutomationNodeImpl.prototype = {
   },
 
   hitTest: function(x, y, eventToFire) {
-    // Set an empty callback to trigger onActionResult.
-    const callback = () => {};
-    this.hitTestInternal(x, y, eventToFire, callback);
+    this.hitTestInternal(x, y, eventToFire);
   },
 
   hitTestWithReply: function(x, y, opt_callback) {
@@ -1067,7 +906,7 @@ AutomationNodeImpl.prototype = {
 
   hitTestInternal: function(x, y, eventToFire, opt_callback) {
     // Convert from global to tree-relative coordinates.
-    const location = GetLocation(this.treeID, GetRootID(this.treeID));
+    var location = GetLocation(this.treeID, GetRootID(this.treeID));
     this.performAction_('hitTest',
                         { x: Math.floor(x - location.left),
                           y: Math.floor(y - location.top),
@@ -1084,10 +923,10 @@ AutomationNodeImpl.prototype = {
   },
 
   performStandardAction: function(action) {
-    const standardActions = GetStandardActions(this.treeID, this.id);
+    var standardActions = GetStandardActions(this.treeID, this.id);
     if (!standardActions ||
         !standardActions.find(item => action == item)) {
-      throw Error('Inapplicable action for node: ' + action);
+      throw 'Inapplicable action for node: ' + action;
     }
     this.performAction_(action);
   },
@@ -1128,10 +967,6 @@ AutomationNodeImpl.prototype = {
 
   scrollToPoint: function(x, y) {
     this.performAction_('scrollToPoint', {x, y});
-  },
-
-  scrollToPositionAtRowColumn: function(row, column) {
-    this.performAction_('scrollToPositionAtRowColumn', {row, column});
   },
 
   setScrollOffset: function(x, y) {
@@ -1176,14 +1011,10 @@ AutomationNodeImpl.prototype = {
   suspendMedia: function() {
     this.performAction_('suspendMedia');
   },
-  longClick: function() {
-    this.performAction_('longClick');
-  },
 
   domQuerySelector: function(selector, callback) {
-    if (!this.rootImpl) {
+    if (!this.rootImpl)
       callback();
-    }
     automationInternal.querySelector(
       { treeID: this.rootImpl.treeID,
         automationNodeID: this.id,
@@ -1204,23 +1035,20 @@ AutomationNodeImpl.prototype = {
   },
 
   getNextTextMatch: function(searchStr, backward) {
-    const info = GetNextTextMatch(this.treeID, this.id, searchStr, backward);
+    var info = GetNextTextMatch(this.treeID, this.id, searchStr, backward);
 
-    if (!info) {
+    if (!info)
       return;
-    }
 
-    const impl = privates(AutomationRootNodeImpl.get(info.treeId)).impl;
-    if (impl) {
+    var impl = privates(AutomationRootNodeImpl.get(info.treeId)).impl;
+    if (impl)
       return impl.get(info.nodeId);
-    }
   },
 
   addEventListener: function(eventType, callback, capture) {
     this.removeEventListener(eventType, callback);
-    if (!this.listeners[eventType]) {
+    if (!this.listeners[eventType])
       this.listeners[eventType] = [];
-    }
 
     // Calling EventListenerAdded will also validate the args
     // and throw an exception it's not a valid event type, so no invalid event
@@ -1237,11 +1065,10 @@ AutomationNodeImpl.prototype = {
   // TODO(dtseng/aboxhall): Check this impl against spec.
   removeEventListener: function(eventType, callback) {
     if (this.listeners[eventType]) {
-      const listeners = this.listeners[eventType];
-      for (let i = 0; i < listeners.length; i++) {
-        if (callback === listeners[i].callback) {
+      var listeners = this.listeners[eventType];
+      for (var i = 0; i < listeners.length; i++) {
+        if (callback === listeners[i].callback)
           $Array.splice(listeners, i, 1);
-        }
       }
 
       if (listeners.length == 0) {
@@ -1258,17 +1085,16 @@ AutomationNodeImpl.prototype = {
   },
 
   dispatchEvent: function(
-      eventType, eventFrom, eventFromAction, mouseX, mouseY, intents) {
-    const path = [];
-    let parent = this.parent;
+      eventType, eventFrom, mouseX, mouseY, intents) {
+    var path = [];
+    var parent = this.parent;
     while (parent) {
       $Array.push(path, parent);
       parent = parent.parent;
     }
 
-    const event = new AutomationEvent(
-        eventType, this.wrapper, eventFrom, eventFromAction, mouseX, mouseY,
-        intents);
+    var event = new AutomationEvent(eventType, this.wrapper, eventFrom, mouseX,
+                                    mouseY, intents);
 
     // Dispatch the event through the propagation path in three phases:
     // - capturing: starting from the root and going down to the target's parent
@@ -1277,46 +1103,43 @@ AutomationNodeImpl.prototype = {
     // At any stage, a listener may call stopPropagation() on the event, which
     // will immediately stop event propagation through this path.
     if (this.dispatchEventAtCapturing_(event, path)) {
-      if (this.dispatchEventAtTargeting_(event, path)) {
+      if (this.dispatchEventAtTargeting_(event, path))
         this.dispatchEventAtBubbling_(event, path);
-      }
     }
   },
 
   toString: function() {
-    let parentID = GetParentID(this.treeID, this.id);
+    var parentID = GetParentID(this.treeID, this.id);
     parentID = parentID ? parentID.nodeId : null;
-    const childTreeID = GetStringAttribute(this.treeID, this.id, 'childTreeId');
-    const count = GetChildCount(this.treeID, this.id);
-    const childIDs = [];
-    for (let i = 0; i < count; ++i) {
-      const childID = GetChildIDAtIndex(this.treeID, this.id, i).nodeId;
+    var childTreeID = GetStringAttribute(this.treeID, this.id, 'childTreeId');
+    var count = GetChildCount(this.treeID, this.id);
+    var childIDs = [];
+    for (var i = 0; i < count; ++i) {
+      var childID = GetChildIDAtIndex(this.treeID, this.id, i).nodeId;
       $Array.push(childIDs, childID);
     }
-    const name = GetName(this.treeID, this.id);
+    var name = GetName(this.treeID, this.id);
 
-    let result = 'node id=' + this.id + ' role=' + this.role +
-        ' state=' + $JSON.stringify(this.state) + ' parentID=' + parentID +
+    var result = 'node id=' + this.id +
+        ' role=' + this.role +
+        ' state=' + $JSON.stringify(this.state) +
+        ' parentID=' + parentID +
         ' childIds=' + $JSON.stringify(childIDs);
-    if (childTreeID) {
+    if (childTreeID)
       result += ' childTreeID=' + childTreeID;
-    }
-    if (name) {
+    if (name)
       result += ' name=' + name;
-    }
-    if (this.className) {
+    if (this.className)
       result += ' className=' + this.className;
-    }
     return result;
   },
 
   dispatchEventAtCapturing_: function(event, path) {
     privates(event).impl.eventPhase = Event.CAPTURING_PHASE;
-    for (let i = path.length - 1; i >= 0; i--) {
+    for (var i = path.length - 1; i >= 0; i--) {
       this.fireEventListeners_(path[i], event);
-      if (privates(event).impl.propagationStopped) {
+      if (privates(event).impl.propagationStopped)
         return false;
-      }
     }
     return true;
   },
@@ -1329,41 +1152,28 @@ AutomationNodeImpl.prototype = {
 
   dispatchEventAtBubbling_: function(event, path) {
     privates(event).impl.eventPhase = Event.BUBBLING_PHASE;
-    for (let i = 0; i < path.length; i++) {
+    for (var i = 0; i < path.length; i++) {
       this.fireEventListeners_(path[i], event);
-      if (privates(event).impl.propagationStopped) {
+      if (privates(event).impl.propagationStopped)
         return false;
-      }
     }
     return true;
   },
 
   fireEventListeners_: function(node, event) {
-    const nodeImpl = privates(node).impl;
-    if (!nodeImpl.rootImpl) {
+    var nodeImpl = privates(node).impl;
+    if (!nodeImpl.rootImpl)
       return;
-    }
 
-    const originalListeners = nodeImpl.listeners[event.type];
-    if (!originalListeners) {
+    var listeners = nodeImpl.listeners[event.type];
+    if (!listeners)
       return;
-    }
-
-    // Make a copy of the original listeners since calling any of them can cause
-    // the list to be modified.
-    const listeners = [];
-    for (let i = 0; i < originalListeners.length; i++) {
-      listeners.push(originalListeners[i]);
-    }
-
-    const eventPhase = event.eventPhase;
-    for (let i = 0; i < listeners.length; i++) {
-      if (eventPhase == Event.CAPTURING_PHASE && !listeners[i].capture) {
+    var eventPhase = event.eventPhase;
+    for (var i = 0; i < listeners.length; i++) {
+      if (eventPhase == Event.CAPTURING_PHASE && !listeners[i].capture)
         continue;
-      }
-      if (eventPhase == Event.BUBBLING_PHASE && listeners[i].capture) {
+      if (eventPhase == Event.BUBBLING_PHASE && listeners[i].capture)
         continue;
-      }
 
       try {
         listeners[i].callback(event);
@@ -1375,9 +1185,8 @@ AutomationNodeImpl.prototype = {
   },
 
   performAction_: function(actionType, opt_args, opt_callback) {
-    if (!this.rootImpl) {
+    if (!this.rootImpl)
       return;
-    }
 
     // Not yet initialized.
     if (this.rootImpl.treeID === undefined ||
@@ -1390,21 +1199,16 @@ AutomationNodeImpl.prototype = {
       throw new Error(actionType + ' requires {"desktop": true} or' +
           ' {"interact": true} in the "automation" manifest key.');
     }
-
-    let requestID = -1;
+    var requestID = -1;
     if (opt_callback) {
-      requestID = this.rootImpl.addActionResultCallback(
-          actionType, opt_args, opt_callback);
+      requestID = this.rootImpl.addActionResultCallback(opt_callback);
     }
 
-    automationInternal.performAction(
-        {
-          treeID: this.rootImpl.treeID,
-          automationNodeID: this.id,
-          actionType: actionType,
-          requestID: requestID,
-        },
-        opt_args || {});
+    automationInternal.performAction({ treeID: this.rootImpl.treeID,
+                                       automationNodeID: this.id,
+                                       actionType: actionType,
+                                       requestID: requestID},
+                                     opt_args || {});
   },
 
   domQuerySelectorCallback_: function(userCallback, resultAutomationNodeID) {
@@ -1415,7 +1219,7 @@ AutomationNodeImpl.prototype = {
       userCallback(null);
       return;
     }
-    const resultNode = this.rootImpl.get(resultAutomationNodeID);
+    var resultNode = this.rootImpl.get(resultAutomationNodeID);
     if (!resultNode) {
       logging.WARNING('Query selector result not in tree: ' +
                       resultAutomationNodeID);
@@ -1425,20 +1229,18 @@ AutomationNodeImpl.prototype = {
   },
 
   findInternal_: function(params, opt_results) {
-    let result = null;
+    var result = null;
     this.forAllDescendants_(function(node) {
       if (privates(node).impl.matchInternal_(params)) {
-        if (opt_results) {
+        if (opt_results)
           $Array.push(opt_results, node);
-        } else {
+        else
           result = node;
-        }
         return !opt_results;
       }
     });
-    if (opt_results) {
+    if (opt_results)
       return opt_results;
-    }
     return result;
   },
 
@@ -1449,50 +1251,42 @@ AutomationNodeImpl.prototype = {
    *     for each node. Return true to early-out the traversal.
    */
   forAllDescendants_: function(closure) {
-    const stack = $Array.reverse(this.wrapper.children);
+    var stack = $Array.reverse(this.wrapper.children);
     while (stack.length > 0) {
-      const node = $Array.pop(stack);
-      if (closure(node)) {
+      var node = $Array.pop(stack);
+      if (closure(node))
         return;
-      }
 
-      const children = node.children;
-      for (let i = children.length - 1; i >= 0; i--) {
+      var children = node.children;
+      for (var i = children.length - 1; i >= 0; i--)
         $Array.push(stack, children[i]);
-      }
     }
   },
 
   matchInternal_: function(params) {
-    if ($Object.keys(params).length === 0) {
+    if ($Object.keys(params).length === 0)
       return false;
-    }
 
-    if ('role' in params && this.role != params.role) {
+    if ('role' in params && this.role != params.role)
       return false;
-    }
 
     if ('state' in params) {
-      for (const state in params.state) {
-        if (params.state[state] != (state in this.state)) {
+      for (var state in params.state) {
+        if (params.state[state] != (state in this.state))
           return false;
-        }
       }
     }
     if ('attributes' in params) {
-      for (const attribute in params.attributes) {
-        const attrValue = params.attributes[attribute];
+      for (var attribute in params.attributes) {
+        var attrValue = params.attributes[attribute];
         if (typeof attrValue != 'object') {
-          if (this[attribute] !== attrValue) {
+          if (this[attribute] !== attrValue)
             return false;
-          }
         } else if (attrValue instanceof $RegExp.self) {
-          if (typeof this[attribute] != 'string') {
+          if (typeof this[attribute] != 'string')
             return false;
-          }
-          if (!attrValue.test(this[attribute])) {
+          if (!attrValue.test(this[attribute]))
             return false;
-          }
         } else {
           // TODO(aboxhall): handle intlist case.
           return false;
@@ -1500,100 +1294,94 @@ AutomationNodeImpl.prototype = {
       }
     }
     return true;
-  },
+  }
 };
 
-const stringAttributes = [
-  'accessKey',
-  'appId',
-  'autoComplete',
-  'checkedStateDescription',
-  'className',
-  'containerLiveRelevant',
-  'containerLiveStatus',
-  'description',
-  'display',
-  'doDefaultLabel',
-  'fontFamily',
-  'htmlTag',
-  'imageDataUrl',
-  'innerHtml',
-  'language',
-  'liveRelevant',
-  'liveStatus',
-  'longClickLabel',
-  'placeholder',
-  'roleDescription',
-  'tooltip',
-  'url',
+var stringAttributes = [
+    'accessKey',
+    'ariaInvalidValue',
+    'autoComplete',
+    'className',
+    'containerLiveRelevant',
+    'containerLiveStatus',
+    'description',
+    'display',
+    'fontFamily',
+    'htmlTag',
+    'imageDataUrl',
+    'innerHtml',
+    'language',
+    'liveRelevant',
+    'liveStatus',
+    'placeholder',
+    'roleDescription',
+    'textInputType',
+    'tooltip',
+    'url',
+    'value'];
+
+var boolAttributes = [
+  'busy', 'clickable', 'containerLiveAtomic', 'containerLiveBusy',
+  'editableRoot', 'liveAtomic', 'modal', 'notUserSelectableStyle', 'scrollable',
+  'selected', 'supportsTextLocation'
 ];
 
-const boolAttributes = [
-  'busy',
-  'clickable',
-  'containerLiveAtomic',
-  'containerLiveBusy',
-  'nonAtomicTextFieldRoot',
-  'liveAtomic',
-  'modal',
-  'notUserSelectableStyle',
-  'scrollable',
-  'selected',
-  'supportsTextLocation',
-];
-
-const intAttributes = [
-  'backgroundColor',
-  'color',
-  'colorValue',
-  'hierarchicalLevel',
-  'posInSet',
-  'scrollX',
-  'scrollXMax',
-  'scrollXMin',
-  'scrollY',
-  'scrollYMax',
-  'scrollYMin',
-  'setSize',
-  'tableCellColumnSpan',
-  'tableCellRowSpan',
-  'ariaColumnCount',
-  'ariaRowCount',
-  'textSelEnd',
-  'textSelStart',
-];
+var intAttributes = [
+    'backgroundColor',
+    'color',
+    'colorValue',
+    'hierarchicalLevel',
+    'posInSet',
+    'scrollX',
+    'scrollXMax',
+    'scrollXMin',
+    'scrollY',
+    'scrollYMax',
+    'scrollYMin',
+    'setSize',
+    'tableCellColumnSpan',
+    'tableCellRowSpan',
+    'ariaColumnCount',
+    'ariaRowCount',
+    'textSelEnd',
+    'textSelStart'];
 
 // Int attribute, relation property to expose, reverse relation to expose.
-const nodeRefAttributes = [
-  ['activedescendantId', 'activeDescendant', 'activeDescendantFor'],
-  ['errormessageId', 'errorMessage', 'errorMessageFor'],
-  ['inPageLinkTargetId', 'inPageLinkTarget', null],
-  ['nextFocusId', 'nextFocus', null],
-  ['nextOnLineId', 'nextOnLine', null],
-  ['previousFocusId', 'previousFocus', null],
-  ['previousOnLineId', 'previousOnLine', null],
-  ['tableColumnHeaderId', 'tableColumnHeader', null],
-  ['tableHeaderId', 'tableHeader', null],
-  ['tableRowHeaderId', 'tableRowHeader', null],
-];
+var nodeRefAttributes = [
+    ['activedescendantId', 'activeDescendant', 'activeDescendantFor'],
+    ['errormessageId', 'errorMessage', 'errorMessageFor'],
+    ['inPageLinkTargetId', 'inPageLinkTarget', null],
+    ['nextFocusId', 'nextFocus', null],
+    ['nextOnLineId', 'nextOnLine', null],
+    ['previousFocusId', 'previousFocus', null],
+    ['previousOnLineId', 'previousOnLine', null],
+    ['tableColumnHeaderId', 'tableColumnHeader', null],
+    ['tableHeaderId', 'tableHeader', null],
+    ['tableRowHeaderId', 'tableRowHeader', null]];
 
-const intListAttributes = ['wordEnds', 'wordStarts'];
+var intListAttributes = [
+    'lineBreaks',
+    'wordEnds',
+    'wordStarts'];
 
 // Intlist attribute, relation property to expose, reverse relation to expose.
-const nodeRefListAttributes = [
-  ['controlsIds', 'controls', 'controlledBy'],
-  ['describedbyIds', 'describedBy', 'descriptionFor'],
-  ['detailsIds', 'details', 'detailsFor'],
-  ['flowtoIds', 'flowTo', 'flowFrom'],
-  ['labelledbyIds', 'labelledBy', 'labelFor'],
-];
+var nodeRefListAttributes = [
+    ['controlsIds', 'controls', 'controlledBy'],
+    ['describedbyIds', 'describedBy', 'descriptionFor'],
+    ['detailsIds', 'details', 'detailsFor'],
+    ['flowtoIds', 'flowTo', 'flowFrom'],
+    ['labelledbyIds', 'labelledBy', 'labelFor']];
 
-const floatAttributes =
-    ['fontSize', 'maxValueForRange', 'minValueForRange', 'valueForRange'];
+var floatAttributes = [
+    'fontSize',
+    'maxValueForRange',
+    'minValueForRange',
+    'valueForRange'];
 
-const htmlAttributes = [['type', 'inputType']];
+var htmlAttributes = [
+    ['type', 'inputType']];
 
-const publicAttributes = [];
+var publicAttributes = [];
 
 $Array.forEach(stringAttributes, function(attributeName) {
   $Array.push(publicAttributes, attributeName);
@@ -1601,7 +1389,7 @@ $Array.forEach(stringAttributes, function(attributeName) {
     __proto__: null,
     get: function() {
       return GetStringAttribute(this.treeID, this.id, attributeName);
-    },
+    }
   });
 });
 
@@ -1611,7 +1399,7 @@ $Array.forEach(boolAttributes, function(attributeName) {
     __proto__: null,
     get: function() {
       return GetBoolAttribute(this.treeID, this.id, attributeName);
-    },
+    }
   });
 });
 
@@ -1621,47 +1409,44 @@ $Array.forEach(intAttributes, function(attributeName) {
     __proto__: null,
     get: function() {
       return GetIntAttribute(this.treeID, this.id, attributeName);
-    },
+    }
   });
 });
 
 $Array.forEach(nodeRefAttributes, function(params) {
-  const srcAttributeName = params[0];
-  const dstAttributeName = params[1];
-  const dstReverseAttributeName = params[2];
+  var srcAttributeName = params[0];
+  var dstAttributeName = params[1];
+  var dstReverseAttributeName = params[2];
   $Array.push(publicAttributes, dstAttributeName);
   $Object.defineProperty(AutomationNodeImpl.prototype, dstAttributeName, {
     __proto__: null,
     get: function() {
-      const id = GetIntAttribute(this.treeID, this.id, srcAttributeName);
-      if (id && this.rootImpl) {
+      var id = GetIntAttribute(this.treeID, this.id, srcAttributeName);
+      if (id && this.rootImpl)
         return this.rootImpl.get(id);
-      } else {
+      else
         return undefined;
-      }
-    },
+    }
   });
   if (dstReverseAttributeName) {
     $Array.push(publicAttributes, dstReverseAttributeName);
-    $Object.defineProperty(
-        AutomationNodeImpl.prototype, dstReverseAttributeName, {
-          __proto__: null,
-          get: function() {
-            const ids = GetIntAttributeReverseRelations(
-                this.treeID, this.id, srcAttributeName);
-            if (!ids || !this.rootImpl) {
-              return undefined;
-            }
-            const result = [];
-            for (let i = 0; i < ids.length; ++i) {
-              const node = this.rootImpl.get(ids[i]);
-              if (node) {
-                $Array.push(result, node);
-              }
-            }
-            return result;
-          },
-        });
+    $Object.defineProperty(AutomationNodeImpl.prototype,
+                           dstReverseAttributeName, {
+      __proto__: null,
+      get: function() {
+        var ids = GetIntAttributeReverseRelations(
+            this.treeID, this.id, srcAttributeName);
+        if (!ids || !this.rootImpl)
+          return undefined;
+        var result = [];
+        for (var i = 0; i < ids.length; ++i) {
+          var node = this.rootImpl.get(ids[i]);
+          if (node)
+          $Array.push(result, node);
+        }
+        return result;
+      }
+    });
   }
 });
 
@@ -1671,53 +1456,49 @@ $Array.forEach(intListAttributes, function(attributeName) {
     __proto__: null,
     get: function() {
       return GetIntListAttribute(this.treeID, this.id, attributeName);
-    },
+    }
   });
 });
 
 $Array.forEach(nodeRefListAttributes, function(params) {
-  const srcAttributeName = params[0];
-  const dstAttributeName = params[1];
-  const dstReverseAttributeName = params[2];
+  var srcAttributeName = params[0];
+  var dstAttributeName = params[1];
+  var dstReverseAttributeName = params[2];
   $Array.push(publicAttributes, dstAttributeName);
   $Object.defineProperty(AutomationNodeImpl.prototype, dstAttributeName, {
     __proto__: null,
     get: function() {
-      const ids = GetIntListAttribute(this.treeID, this.id, srcAttributeName);
-      if (!ids || !this.rootImpl) {
+      var ids = GetIntListAttribute(this.treeID, this.id, srcAttributeName);
+      if (!ids || !this.rootImpl)
         return undefined;
-      }
-      const result = [];
-      for (let i = 0; i < ids.length; ++i) {
-        const node = this.rootImpl.get(ids[i]);
-        if (node) {
+      var result = [];
+      for (var i = 0; i < ids.length; ++i) {
+        var node = this.rootImpl.get(ids[i]);
+        if (node)
           $Array.push(result, node);
-        }
       }
       return result;
-    },
+    }
   });
   if (dstReverseAttributeName) {
     $Array.push(publicAttributes, dstReverseAttributeName);
-    $Object.defineProperty(
-        AutomationNodeImpl.prototype, dstReverseAttributeName, {
-          __proto__: null,
-          get: function() {
-            const ids = GetIntListAttributeReverseRelations(
-                this.treeID, this.id, srcAttributeName);
-            if (!ids || !this.rootImpl) {
-              return undefined;
-            }
-            const result = [];
-            for (let i = 0; i < ids.length; ++i) {
-              const node = this.rootImpl.get(ids[i]);
-              if (node) {
-                $Array.push(result, node);
-              }
-            }
-            return result;
-          },
-        });
+    $Object.defineProperty(AutomationNodeImpl.prototype,
+                           dstReverseAttributeName, {
+      __proto__: null,
+      get: function() {
+        var ids = GetIntListAttributeReverseRelations(
+            this.treeID, this.id, srcAttributeName);
+        if (!ids || !this.rootImpl)
+          return undefined;
+        var result = [];
+        for (var i = 0; i < ids.length; ++i) {
+          var node = this.rootImpl.get(ids[i]);
+          if (node)
+          $Array.push(result, node);
+        }
+        return result;
+      }
+    });
   }
 });
 
@@ -1727,19 +1508,19 @@ $Array.forEach(floatAttributes, function(attributeName) {
     __proto__: null,
     get: function() {
       return GetFloatAttribute(this.treeID, this.id, attributeName);
-    },
+    }
   });
 });
 
 $Array.forEach(htmlAttributes, function(params) {
-  const srcAttributeName = params[0];
-  const dstAttributeName = params[1];
+  var srcAttributeName = params[0];
+  var dstAttributeName = params[1];
   $Array.push(publicAttributes, dstAttributeName);
   $Object.defineProperty(AutomationNodeImpl.prototype, dstAttributeName, {
     __proto__: null,
     get: function() {
       return GetHtmlAttribute(this.treeID, this.id, srcAttributeName);
-    },
+    }
   });
 });
 
@@ -1767,37 +1548,30 @@ function AutomationRootNodeImpl(treeID) {
 }
 
 utils.defineProperty(AutomationRootNodeImpl, 'get', function(treeID) {
-  const result = AutomationTreeCache.idToAutomationRootNode[treeID];
+  var result = AutomationTreeCache.idToAutomationRootNode[treeID];
   return result || undefined;
 });
 
 utils.defineProperty(AutomationRootNodeImpl, 'getOrCreate', function(treeID) {
-  if (AutomationTreeCache.idToAutomationRootNode[treeID]) {
+  if (AutomationTreeCache.idToAutomationRootNode[treeID])
     return AutomationTreeCache.idToAutomationRootNode[treeID];
-  }
-  const result = new AutomationRootNode(treeID);
+  var result = new AutomationRootNode(treeID);
   AutomationTreeCache.idToAutomationRootNode[treeID] = result;
   return result;
 });
 
 utils.defineProperty(
     AutomationRootNodeImpl, 'getNodeFromTree', function(treeId, nodeId) {
-      const tree = AutomationRootNodeImpl.get(treeId);
-      if (!tree) {
-        return;
-      }
-      const impl = privates(tree).impl;
-      if (impl) {
-        return impl.get(nodeId);
-      }
-    });
+  var tree = AutomationRootNodeImpl.get(treeId);
+  if (!tree)
+    return;
+  var impl = privates(tree).impl;
+  if (impl)
+    return impl.get(nodeId);
+});
 
 utils.defineProperty(AutomationRootNodeImpl, 'destroy', function(treeID) {
   delete AutomationTreeCache.idToAutomationRootNode[treeID];
-});
-
-utils.defineProperty(AutomationRootNodeImpl, 'destroyAll', function() {
-  AutomationTreeCache.idToAutomationRootNode = {};
 });
 
 /**
@@ -1827,19 +1601,18 @@ AutomationRootNodeImpl.prototype = {
 
   /**
    * A map from id to AutomationNode.
-   * @type {Object<number, AutomationNode>}
+   * @type {Object.<number, AutomationNode>}
    * @private
    */
   axNodeDataCache_: null,
 
   get id() {
-    const result = GetRootID(this.treeID);
+    var result = GetRootID(this.treeID);
 
     // Don't return undefined, because the id is often passed directly
     // as an argument to a native binding that expects only a valid number.
-    if (result === undefined) {
+    if (result === undefined)
       return -1;
-    }
 
     return result;
   },
@@ -1866,118 +1639,102 @@ AutomationRootNodeImpl.prototype = {
 
   get anchorObject() {
     const id = GetAnchorObjectID(this.treeID);
-    if (id && id != -1) {
+    if (id && id != -1)
       return this.get(id);
-    }
     return undefined;
   },
 
   get anchorOffset() {
     const id = GetAnchorObjectID(this.treeID);
-    if (id && id != -1) {
+    if (id && id != -1)
       return GetAnchorOffset(this.treeID);
-    }
     return undefined;
   },
 
   get anchorAffinity() {
     const id = GetAnchorObjectID(this.treeID);
-    if (id && id != -1) {
+    if (id && id != -1)
       return GetAnchorAffinity(this.treeID);
-    }
     return undefined;
   },
 
   get focusObject() {
     const id = GetFocusObjectID(this.treeID);
-    if (id && id != -1) {
+    if (id && id != -1)
       return this.get(id);
-    }
     return undefined;
   },
 
   get focusOffset() {
     const id = GetFocusObjectID(this.treeID);
-    if (id && id != -1) {
+    if (id && id != -1)
       return GetFocusOffset(this.treeID);
-    }
     return undefined;
   },
 
   get focusAffinity() {
     const id = GetFocusObjectID(this.treeID);
-    if (id && id != -1) {
+    if (id && id != -1)
       return GetFocusAffinity(this.treeID);
-    }
     return undefined;
   },
 
   get selectionStartObject() {
     const id = GetSelectionStartObjectID(this.treeID);
-    if (id && id != -1) {
+    if (id && id != -1)
       return this.get(id);
-    }
     return undefined;
   },
 
   get selectionStartOffset() {
     const id = GetSelectionStartObjectID(this.treeID);
-    if (id && id != -1) {
+    if (id && id != -1)
       return GetSelectionStartOffset(this.treeID);
-    }
     return undefined;
   },
 
   get selectionStartAffinity() {
     const id = GetSelectionStartObjectID(this.treeID);
-    if (id && id != -1) {
+    if (id && id != -1)
       return GetSelectionStartAffinity(this.treeID);
-    }
     return undefined;
   },
 
   get selectionEndObject() {
     const id = GetSelectionEndObjectID(this.treeID);
-    if (id && id != -1) {
+    if (id && id != -1)
       return this.get(id);
-    }
     return undefined;
   },
 
   get selectionEndOffset() {
     const id = GetSelectionEndObjectID(this.treeID);
-    if (id && id != -1) {
+    if (id && id != -1)
       return GetSelectionEndOffset(this.treeID);
-    }
     return undefined;
   },
 
   get selectionEndAffinity() {
     const id = GetSelectionEndObjectID(this.treeID);
-    if (id && id != -1) {
+    if (id && id != -1)
       return GetSelectionEndAffinity(this.treeID);
-    }
     return undefined;
   },
 
   get: function(id) {
-    if (id == undefined) {
+    if (id == undefined)
       return undefined;
-    }
 
-    if (id == this.id) {
+    if (id == this.id)
       return this.wrapper;
-    }
 
-    let obj = this.axNodeDataCache_[id];
-    if (obj) {
+    var obj = this.axNodeDataCache_[id];
+    if (obj)
       return obj;
-    }
 
     // Validate the backing AXTree has the specified node.
-    if (!GetRole(this.treeID, id)) {
+    if (!GetRole(this.treeID, id))
       return;
-    }
 
     obj = new AutomationNode(this);
     privates(obj).impl.treeID = this.treeID;
@@ -1988,55 +1745,49 @@ AutomationRootNodeImpl.prototype = {
   },
 
   remove: function(id) {
-    if (this.axNodeDataCache_[id]) {
+    if (this.axNodeDataCache_[id])
       privates(this.axNodeDataCache_[id]).impl.detach();
-    }
     delete this.axNodeDataCache_[id];
   },
 
   destroy: function() {
-    for (const id in this.axNodeDataCache_) {
+    this.dispatchEvent('destroyed', 'none');
+    for (var id in this.axNodeDataCache_)
       this.remove(id);
-    }
     this.detach();
   },
 
   onAccessibilityEvent: function(eventParams) {
-    const targetNode = this.get(eventParams.targetID);
+    var targetNode = this.get(eventParams.targetID);
     if (targetNode) {
-      if (eventParams.actionRequestID != -1 &&
-          this.onActionResult(eventParams.actionRequestID, targetNode)) {
-        return;
-      }
-
-      const targetNodeImpl = privates(targetNode).impl;
+      var targetNodeImpl = privates(targetNode).impl;
       targetNodeImpl.dispatchEvent(
-          eventParams.eventType, eventParams.eventFrom,
-          eventParams.eventFromAction, eventParams.mouseX, eventParams.mouseY,
+          eventParams.eventType,
+          eventParams.eventFrom, eventParams.mouseX, eventParams.mouseY,
           eventParams.intents);
+
+      if (eventParams.actionRequestID != -1) {
+        this.onActionResult(eventParams.actionRequestID, targetNode);
+      }
     } else {
       logging.WARNING('Got ' + eventParams.eventType +
                       ' event on unknown node: ' + eventParams.targetID +
                       '; this: ' + this.id);
     }
+    return true;
   },
 
-  addActionResultCallback: function(actionType, opt_args, callback) {
-    AutomationRootNodeImpl
-        .actionRequestIDToCallback[++AutomationRootNodeImpl
-                                         .actionRequestCounter] = {
-      actionType,
-      opt_args,
-      callback,
-    };
+  addActionResultCallback: function(callback) {
+    AutomationRootNodeImpl.actionRequestIDToCallback[
+        ++AutomationRootNodeImpl.actionRequestCounter] = callback;
     return AutomationRootNodeImpl.actionRequestCounter;
   },
 
   onGetTextLocationResult: function(textLocationParams) {
-    const requestID = textLocationParams.requestID;
+    let requestID = textLocationParams.requestID;
     if (requestID in AutomationRootNodeImpl.actionRequestIDToCallback) {
-      const callback =
-          AutomationRootNodeImpl.actionRequestIDToCallback[requestID].callback;
+      let callback =
+          AutomationRootNodeImpl.actionRequestIDToCallback[requestID];
       try {
         if (textLocationParams.result) {
           callback(ComputeGlobalBounds(
@@ -2049,80 +1800,31 @@ AutomationRootNodeImpl.prototype = {
       } catch (e) {
         logging.WARNING('Error with onGetTextLocationResult callback:' + e);
       }
-      delete AutomationRootNodeImpl.actionRequestIDToCallback[requestID];
+      delete AutomationNodeImpl.actionRequestIDToCallback[requestID];
     }
   },
 
+
   onActionResult: function(requestID, result) {
     if (requestID in AutomationRootNodeImpl.actionRequestIDToCallback) {
-      const data = AutomationRootNodeImpl.actionRequestIDToCallback[requestID];
-      if (data.actionType.indexOf('hitTest') === 0 && result &&
-          result.role === 'window' && result.className &&
-          result.className.indexOf('ExoSurface') === 0) {
-        // Search for a node containing app id, which indicates Lacros.
-        function findApp(node) {
-          // Exit early if we've crossed roots from |result|.
-          if (result.root !== node.root) {
-            return null;
-          }
-
-          // This node is actually in a different backing C++ tree though at
-          // this internal js layer, we merge the trees so that it is rooted to
-          // the desktop tree (same as |result|).
-          if (node.appId) {
-            return node;
-          }
-
-          for (const child of node.children) {
-            const found = findApp(child);
-            if (found) {
-              return found;
-            }
-          }
-
-          return null;
-        }
-
-        // The hit test |result| node is not quite what we need to start
-        // searching in. Find the topmost ExoShell surface.
-        while (result.parent && result.parent.className &&
-               result.parent.className.indexOf('ExoShellSurface') === 0) {
-          result = result.parent;
-        }
-
-        const appNode = findApp(result);
-        if (appNode) {
-          delete AutomationRootNodeImpl.actionRequestIDToCallback[requestID];
-
-          // Repost the hit test on |appNode|.
-          privates(appNode).impl.performAction_(
-              data.actionType, data.opt_args, data.callback);
-          return true;
-        }
-      }
-
-      data.callback(result);
+      AutomationRootNodeImpl.actionRequestIDToCallback[requestID](result);
       delete AutomationRootNodeImpl.actionRequestIDToCallback[requestID];
-      return false;
     }
   },
 
   toString: function() {
     function toStringInternal(nodeImpl, indent) {
-      if (!nodeImpl) {
+      if (!nodeImpl)
         return '';
-      }
-      let output = '';
-      if (nodeImpl.isRootNode) {
+      var output = '';
+      if (nodeImpl.isRootNode)
         output += indent + 'tree id=' + nodeImpl.treeID + '\n';
-      }
       output += indent +
         $Function.call(AutomationNodeImpl.prototype.toString, nodeImpl) + '\n';
       indent += '  ';
-      const children = nodeImpl.children;
-      for (let i = 0; i < children.length; ++i) {
+      var children = nodeImpl.children;
+      for (var i = 0; i < children.length; ++i)
         output += toStringInternal(privates(children[i]).impl, indent);
-      }
       return output;
     }
     return toStringInternal(this, '');
@@ -2160,7 +1862,6 @@ utils.expose(AutomationNode, AutomationNodeImpl, {
     'scrollLeft',
     'scrollRight',
     'scrollToPoint',
-    'scrollToPositionAtRowColumn',
     'scrollUp',
     'setAccessibilityFocus',
     'setScrollOffset',
@@ -2171,16 +1872,13 @@ utils.expose(AutomationNode, AutomationNodeImpl, {
     'startDuckingMedia',
     'stopDuckingMedia',
     'suspendMedia',
-    'longClick',
     'toString',
-    'unclippedBoundsForRange',
+    'unclippedBoundsForRange'
   ],
   readonly: $Array.concat(
       publicAttributes,
       [
-        'ariaCurrentState',
         'bold',
-        'caretBounds',
         'checked',
         'children',
         'customActions',
@@ -2192,11 +1890,6 @@ utils.expose(AutomationNode, AutomationNodeImpl, {
         'htmlAttributes',
         'imageAnnotation',
         'indexInParent',
-        'invalidState',
-        'isButton',
-        'isCheckBox',
-        'isComboBox',
-        'isImage',
         'isRootNode',
         'italic',
         'lastChild',
@@ -2217,8 +1910,6 @@ utils.expose(AutomationNode, AutomationNodeImpl, {
         'sortDirection',
         'standardActions',
         'state',
-        'sentenceStarts',
-        'sentenceEnds',
         'tableCellAriaColumnIndex',
         'tableCellAriaRowIndex',
         'tableCellColumnHeaders',
@@ -2229,7 +1920,6 @@ utils.expose(AutomationNode, AutomationNodeImpl, {
         'tableRowCount',
         'unclippedLocation',
         'underline',
-        'value',
       ]),
 });
 
@@ -2269,10 +1959,6 @@ utils.defineProperty(AutomationRootNode, 'getOrCreate', function(treeID) {
 
 utils.defineProperty(AutomationRootNode, 'destroy', function(treeID) {
   AutomationRootNodeImpl.destroy(treeID);
-});
-
-utils.defineProperty(AutomationRootNode, 'destroyAll', function() {
-  AutomationRootNodeImpl.destroyAll();
 });
 
 exports.$set('AutomationNode', AutomationNode);

@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/loader/fetch/resource_load_timing.h"
 
 #include "services/network/public/mojom/load_timing_info.mojom-blink.h"
+#include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
 
 namespace blink {
 
@@ -14,8 +15,8 @@ ResourceLoadTiming::ResourceLoadTiming(
     base::TimeTicks request_time,
     base::TimeTicks proxy_start,
     base::TimeTicks proxy_end,
-    base::TimeTicks domain_lookup_start,
-    base::TimeTicks domain_lookup_end,
+    base::TimeTicks dns_start,
+    base::TimeTicks dns_end,
     base::TimeTicks connect_start,
     base::TimeTicks connect_end,
     base::TimeTicks worker_start,
@@ -33,8 +34,8 @@ ResourceLoadTiming::ResourceLoadTiming(
     : request_time_(request_time),
       proxy_start_(proxy_start),
       proxy_end_(proxy_end),
-      domain_lookup_start_(domain_lookup_start),
-      domain_lookup_end_(domain_lookup_end),
+      dns_start_(dns_start),
+      dns_end_(dns_end),
       connect_start_(connect_start),
       connect_end_(connect_end),
       worker_start_(worker_start),
@@ -60,9 +61,8 @@ scoped_refptr<ResourceLoadTiming> ResourceLoadTiming::FromMojo(
     return ResourceLoadTiming::Create();
   return base::AdoptRef(new ResourceLoadTiming(
       mojo_timing->request_start, mojo_timing->proxy_resolve_start,
-      mojo_timing->proxy_resolve_end,
-      mojo_timing->connect_timing->domain_lookup_start,
-      mojo_timing->connect_timing->domain_lookup_end,
+      mojo_timing->proxy_resolve_end, mojo_timing->connect_timing->dns_start,
+      mojo_timing->connect_timing->dns_end,
       mojo_timing->connect_timing->connect_start,
       mojo_timing->connect_timing->connect_end,
       mojo_timing->service_worker_start_time,
@@ -80,19 +80,38 @@ network::mojom::blink::LoadTimingInfoPtr ResourceLoadTiming::ToMojo() const {
       network::mojom::blink::LoadTimingInfo::New(
           false, 0, base::Time(), request_time_, proxy_start_, proxy_end_,
           network::mojom::blink::LoadTimingInfoConnectTiming::New(
-              domain_lookup_start_, domain_lookup_end_, connect_start_,
-              connect_end_, ssl_start_, ssl_end_),
+              dns_start_, dns_end_, connect_start_, connect_end_, ssl_start_,
+              ssl_end_),
           send_start_, send_end_, receive_headers_start_, receive_headers_end_,
-          /*receive_non_informational_headers_start=*/base::TimeTicks::Now(),
           /*first_early_hints_time=*/base::TimeTicks::Now(), push_start_,
           push_end_, worker_start_, worker_ready_, worker_fetch_start_,
           worker_respond_with_settled_);
   return timing;
 }
 
-void ResourceLoadTiming::SetDomainLookupStart(
-    base::TimeTicks domain_lookup_start) {
-  domain_lookup_start_ = domain_lookup_start;
+bool ResourceLoadTiming::operator==(const ResourceLoadTiming& other) const {
+  return request_time_ == other.request_time_ &&
+         proxy_start_ == other.proxy_start_ && proxy_end_ == other.proxy_end_ &&
+         dns_start_ == other.dns_start_ && dns_end_ == other.dns_end_ &&
+         connect_start_ == other.connect_start_ &&
+         connect_end_ == other.connect_end_ &&
+         worker_start_ == other.worker_start_ &&
+         worker_ready_ == other.worker_ready_ &&
+         worker_fetch_start_ == other.worker_fetch_start_ &&
+         worker_respond_with_settled_ == other.worker_respond_with_settled_ &&
+         send_start_ == other.send_start_ && send_end_ == other.send_end_ &&
+         receive_headers_start_ == other.receive_headers_start_ &&
+         receive_headers_end_ == other.receive_headers_end_ &&
+         ssl_start_ == other.ssl_start_ && ssl_end_ == other.ssl_end_ &&
+         push_start_ == other.push_start_ && push_end_ == other.push_end_;
+}
+
+bool ResourceLoadTiming::operator!=(const ResourceLoadTiming& other) const {
+  return !(*this == other);
+}
+
+void ResourceLoadTiming::SetDnsStart(base::TimeTicks dns_start) {
+  dns_start_ = dns_start;
 }
 
 void ResourceLoadTiming::SetRequestTime(base::TimeTicks request_time) {
@@ -107,8 +126,8 @@ void ResourceLoadTiming::SetProxyEnd(base::TimeTicks proxy_end) {
   proxy_end_ = proxy_end;
 }
 
-void ResourceLoadTiming::SetDomainLookupEnd(base::TimeTicks domain_lookup_end) {
-  domain_lookup_end_ = domain_lookup_end;
+void ResourceLoadTiming::SetDnsEnd(base::TimeTicks dns_end) {
+  dns_end_ = dns_end;
 }
 
 void ResourceLoadTiming::SetConnectStart(base::TimeTicks connect_start) {
@@ -138,6 +157,8 @@ void ResourceLoadTiming::SetWorkerRespondWithSettled(
 }
 
 void ResourceLoadTiming::SetSendStart(base::TimeTicks send_start) {
+  TRACE_EVENT_MARK_WITH_TIMESTAMP0("blink.user_timing", "requestStart",
+                                   send_start);
   send_start_ = send_start;
 }
 

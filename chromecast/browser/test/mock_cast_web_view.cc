@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #include "chromecast/browser/test/mock_cast_web_view.h"
@@ -9,13 +9,13 @@ MockCastWebContents::MockCastWebContents() {}
 
 MockCastWebContents::~MockCastWebContents() = default;
 
-bool MockCastWebContents::TryBindReceiver(mojo::GenericPendingReceiver&) {
-  return false;
+service_manager::BinderRegistry* MockCastWebContents::binder_registry() {
+  return &registry_;
 }
 
-MockCastWebView::MockCastWebView()
-    : mock_cast_web_contents_(std::make_unique<MockCastWebContents>()),
-      cast_web_contents_receiver_(mock_cast_web_contents_.get()) {}
+MockCastWebView::MockCastWebView() {
+  mock_cast_web_contents_ = std::make_unique<MockCastWebContents>();
+}
 
 MockCastWebView::~MockCastWebView() = default;
 
@@ -34,12 +34,17 @@ CastWebContents* MockCastWebView::cast_web_contents() {
 base::TimeDelta MockCastWebView::shutdown_delay() const {
   return base::TimeDelta();
 }
+void MockCastWebView::ForceClose() {}
 
-void MockCastWebView::OwnerDestroyed() {}
+void MockCastWebView::InitializeWindow(mojom::ZOrder z_order,
+                                       VisibilityPriority initial_priority) {}
 
-void MockCastWebView::Bind(
-    mojo::PendingReceiver<mojom::CastWebContents> receiver) {
-  cast_web_contents_receiver_.Bind(std::move(receiver));
-}
+void MockCastWebView::GrantScreenAccess() {}
+
+void MockCastWebView::RevokeScreenAccess() {}
+
+void MockCastWebView::AddObserver(Observer* observer) {}
+
+void MockCastWebView::RemoveObserver(Observer* observer) {}
 
 }  // namespace chromecast

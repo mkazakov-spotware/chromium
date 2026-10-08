@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,12 @@
 #include <memory>
 #include <string>
 
-#include "base/values.h"
-
 class GURL;
+
+namespace base {
+class DictionaryValue;
+class ListValue;
+}
 
 namespace content {
 class BrowserContext;
@@ -22,13 +25,14 @@ namespace activity_monitor {
 using Monitor = void (*)(content::BrowserContext* browser_context,
                          const std::string& extension_id,
                          const std::string& activity_name,
-                         const base::Value::List& event_args);
-using WebRequestMonitor = void (*)(content::BrowserContext* browser_context,
-                                   const std::string& extension_id,
-                                   const GURL& url,
-                                   bool is_incognito,
-                                   const std::string& api_call,
-                                   base::Value::Dict details);
+                         const base::ListValue& event_args);
+using WebRequestMonitor =
+    void (*)(content::BrowserContext* browser_context,
+             const std::string& extension_id,
+             const GURL& url,
+             bool is_incognito,
+             const std::string& api_call,
+             std::unique_ptr<base::DictionaryValue> details);
 
 // Get or set the current global monitor for API events and functions. Note that
 // these handlers *must* be allowed to be called on any thread!
@@ -46,14 +50,14 @@ void SetWebRequestMonitor(WebRequestMonitor web_request_monitor);
 void OnApiEventDispatched(content::BrowserContext* browser_context,
                           const std::string& extension_id,
                           const std::string& event_name,
-                          const base::Value::List& event_args);
+                          const base::ListValue& event_args);
 
 // Called when an extension calls an API function. May be called on any thread.
 // |browser_context| is unsafe to use.
 void OnApiFunctionCalled(content::BrowserContext* browser_context,
                          const std::string& extension_id,
                          const std::string& api_name,
-                         const base::Value::List& args);
+                         const base::ListValue& args);
 
 // Called when an extension uses the web request API. May be called on any
 // thread. |browser_context| is unsafe to use.
@@ -62,7 +66,7 @@ void OnWebRequestApiUsed(content::BrowserContext* browser_context,
                          const GURL& url,
                          bool is_incognito,
                          const std::string& api_call,
-                         base::Value::Dict details);
+                         std::unique_ptr<base::DictionaryValue> details);
 
 }  // namespace activity_monitor
 }  // namespace extensions

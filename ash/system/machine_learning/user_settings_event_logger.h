@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,13 @@
 
 #include "ash/public/cpp/app_list/app_list_controller.h"
 #include "ash/shell_observer.h"
+#include "ash/system/bluetooth/tray_bluetooth_helper.h"
 #include "ash/system/machine_learning/user_settings_event.pb.h"
 #include "ash/wm/video_detector.h"
 #include "base/sequence_checker.h"
 #include "base/time/clock.h"
 #include "base/timer/timer.h"
-#include "chromeos/ash/components/audio/cras_audio_handler.h"
+#include "chromeos/audio/cras_audio_handler.h"
 #include "chromeos/dbus/power/power_manager_client.h"
 #include "chromeos/services/network_config/public/mojom/cros_network_config.mojom-forward.h"
 
@@ -23,12 +24,12 @@ class BacklightBrightnessChange;
 namespace ash {
 namespace ml {
 
-static constexpr base::TimeDelta kSliderDelay = base::Seconds(1);
+static constexpr base::TimeDelta kSliderDelay = base::TimeDelta::FromSeconds(1);
 
 // This class handles logging for settings changes that are initiated by the
 // user from the quick settings tray. Exported for tests.
 class ASH_EXPORT UserSettingsEventLogger
-    : public CrasAudioHandler::AudioObserver,
+    : public chromeos::CrasAudioHandler::AudioObserver,
       public chromeos::PowerManagerClient::Observer,
       public ShellObserver,
       public VideoDetector::Observer {
@@ -47,6 +48,10 @@ class ASH_EXPORT UserSettingsEventLogger
   void LogNetworkUkmEvent(
       const chromeos::network_config::mojom::NetworkStateProperties& network);
 
+  // Logs an event to UKM that the user has connected to the given bluetooth
+  // device.
+  void LogBluetoothUkmEvent(const BluetoothAddress& device_address);
+
   // Logs an event to UKM that the user has toggled night light to the given
   // state.
   void LogNightLightUkmEvent(bool enabled);
@@ -60,7 +65,7 @@ class ASH_EXPORT UserSettingsEventLogger
   void LogAccessibilityUkmEvent(UserSettingsEvent::Event::AccessibilityId id,
                                 bool enabled);
 
-  // CrasAudioHandler::AudioObserver overrides:
+  // chromeos::CrasAudioHandler::AudioObserver overrides:
   void OnOutputNodeVolumeChanged(uint64_t node, int volume) override;
   void OnOutputMuteChanged(bool mute_on) override;
   void OnOutputStarted() override;
@@ -107,8 +112,8 @@ class ASH_EXPORT UserSettingsEventLogger
   base::OneShotTimer brightness_timer_;
   // Most up-to-date brightness value. Can be null briefly, before an initial
   // brightness is set upon login.
-  absl::optional<int> brightness_;
-  absl::optional<int> brightness_before_user_change_;
+  base::Optional<int> brightness_;
+  base::Optional<int> brightness_before_user_change_;
   int brightness_after_user_change_;
 
   base::OneShotTimer presenting_timer_;

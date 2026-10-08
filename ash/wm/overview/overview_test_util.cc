@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,6 +35,8 @@ void WaitForOverviewAnimationState(OverviewAnimationState state) {
 
 }  // namespace
 
+// TODO(sammiequon): Consider adding an overload for this function to trigger
+// the key event |count| times.
 void SendKey(ui::KeyboardCode key, int flags) {
   ui::test::EventGenerator generator(Shell::GetPrimaryRootWindow());
   generator.PressKey(key, flags);
@@ -42,10 +44,8 @@ void SendKey(ui::KeyboardCode key, int flags) {
 }
 
 bool HighlightOverviewWindow(const aura::Window* window) {
-  if (GetOverviewHighlightedWindow() == nullptr) {
+  if (GetOverviewHighlightedWindow() == nullptr)
     SendKey(ui::VKEY_TAB);
-    SendKey(ui::VKEY_TAB);
-  }
   const aura::Window* start_window = GetOverviewHighlightedWindow();
   if (start_window == window)
     return true;
@@ -68,9 +68,9 @@ const aura::Window* GetOverviewHighlightedWindow() {
 void ToggleOverview(OverviewEnterExitType type) {
   auto* overview_controller = Shell::Get()->overview_controller();
   if (overview_controller->InOverviewSession())
-    overview_controller->EndOverview(OverviewEndAction::kTests, type);
+    overview_controller->EndOverview(type);
   else
-    overview_controller->StartOverview(OverviewStartAction::kTests, type);
+    overview_controller->StartOverview(type);
 }
 
 void WaitForOverviewEnterAnimation() {
@@ -88,15 +88,6 @@ OverviewSession* GetOverviewSession() {
   return session;
 }
 
-OverviewGrid* GetOverviewGridForRoot(aura::Window* root) {
-  DCHECK(root->IsRootWindow());
-
-  auto* overview_controller = Shell::Get()->overview_controller();
-  DCHECK(overview_controller->InOverviewSession());
-
-  return overview_controller->overview_session()->GetGridWithRootWindow(root);
-}
-
 const std::vector<std::unique_ptr<OverviewItem>>& GetOverviewItemsForRoot(
     int index) {
   return GetOverviewSession()->grid_list()[index]->window_list();
@@ -111,36 +102,8 @@ gfx::Rect ShrinkBoundsByHotseatInset(const gfx::Rect& rect) {
   const int hotseat_bottom_inset = ShelfConfig::Get()->GetHotseatSize(
                                        /*density=*/HotseatDensity::kNormal) +
                                    ShelfConfig::Get()->hotseat_bottom_padding();
-  new_rect.Inset(gfx::Insets::TLBR(0, 0, hotseat_bottom_inset, 0));
+  new_rect.Inset(0, 0, 0, hotseat_bottom_inset);
   return new_rect;
-}
-
-void DragItemToPoint(OverviewItem* item,
-                     const gfx::Point& screen_location,
-                     ui::test::EventGenerator* event_generator,
-                     bool by_touch_gestures,
-                     bool drop) {
-  DCHECK(item);
-
-  const gfx::Point item_center =
-      gfx::ToRoundedPoint(item->target_bounds().CenterPoint());
-  event_generator->set_current_screen_location(item_center);
-  if (by_touch_gestures) {
-    event_generator->PressTouch();
-    // Move the touch by an enough amount in X to engage in the normal drag mode
-    // rather than the drag to close mode.
-    event_generator->MoveTouchBy(50, 0);
-    event_generator->MoveTouch(screen_location);
-    if (drop)
-      event_generator->ReleaseTouch();
-  } else {
-    event_generator->PressLeftButton();
-    Shell::Get()->cursor_manager()->SetDisplay(
-        display::Screen::GetScreen()->GetDisplayNearestPoint(screen_location));
-    event_generator->MoveMouseTo(screen_location);
-    if (drop)
-      event_generator->ReleaseLeftButton();
-  }
 }
 
 }  // namespace ash

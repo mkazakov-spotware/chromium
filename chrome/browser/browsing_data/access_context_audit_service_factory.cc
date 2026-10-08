@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,14 @@
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/chrome_features.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/storage_partition.h"
 
 AccessContextAuditServiceFactory::AccessContextAuditServiceFactory()
-    : ProfileKeyedServiceFactory("AccessContextAuditService") {
+    : BrowserContextKeyedServiceFactory(
+          "AccessContextAuditService",
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(HostContentSettingsMapFactory::GetInstance());
   DependsOn(HistoryServiceFactory::GetInstance());
 }
@@ -44,15 +47,15 @@ KeyedService* AccessContextAuditServiceFactory::BuildServiceInstanceFor(
   // cookies.
   DCHECK(profile->ShouldPersistSessionCookies());
 
-  auto context_audit_service =
-      std::make_unique<AccessContextAuditService>(profile);
+  std::unique_ptr<AccessContextAuditService> context_audit_service(
+      new AccessContextAuditService(profile));
   if (!context_audit_service->Init(
           context->GetPath(),
-          context->GetDefaultStoragePartition()
+          content::BrowserContext::GetDefaultStoragePartition(context)
               ->GetCookieManagerForBrowserProcess(),
           HistoryServiceFactory::GetForProfile(
               profile, ServiceAccessType::EXPLICIT_ACCESS),
-          context->GetDefaultStoragePartition())) {
+          content::BrowserContext::GetDefaultStoragePartition(context))) {
     return nullptr;
   }
 

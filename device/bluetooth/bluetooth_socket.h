@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,16 +30,7 @@ class BluetoothDevice;
 class DEVICE_BLUETOOTH_EXPORT BluetoothSocket
     : public base::RefCountedThreadSafe<BluetoothSocket> {
  public:
-  // These values are persisted to logs. Entries should not be renumbered and
-  // numeric values should never be reused. This enum should be kept in sync
-  // with the BluetoothSocketErrorReason enum in
-  // src/tools/metrics/histograms/enums.xml.
-  enum ErrorReason {
-    kSystemError = 0,
-    kIOPending = 1,
-    kDisconnected = 2,
-    kMaxValue = kDisconnected,
-  };
+  enum ErrorReason { kSystemError, kIOPending, kDisconnected };
 
   using SendCompletionCallback = base::OnceCallback<void(int)>;
   using ReceiveCompletionCallback =
@@ -52,9 +43,12 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothSocket
   using ReceiveErrorCompletionCallback =
       base::OnceCallback<void(ErrorReason, const std::string& error_message)>;
 
+  // Destroys resources associated with the socket. After calling this method,
+  // it is illegal to call any method on this socket instance (except for the
+  // destructor via Release).
+  virtual void Close() = 0;
+
   // Gracefully disconnects the socket and calls |callback| upon completion.
-  // After calling this method, it is illegal to call any method on this socket
-  // instance (except for the destructor via Release).
   // There is no failure case, as this is a best effort operation.
   virtual void Disconnect(base::OnceClosure success_callback) = 0;
 

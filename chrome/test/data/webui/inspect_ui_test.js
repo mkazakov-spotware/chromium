@@ -1,19 +1,19 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 function waitForElements(selector, populateFunctionName, callback) {
-  const elements = document.querySelectorAll(selector);
+  var elements = document.querySelectorAll(selector);
   if (elements.length) {
     callback(elements);
     return;
   }
-  const originalFunction = window[populateFunctionName];
-  assertNotEquals(undefined, originalFunction);
-  assertEquals(undefined, originalFunction.__isSniffer);
-  const interceptFunction = function() {
+  var originalFunction = window[populateFunctionName];
+  expectNotEquals(undefined, originalFunction);
+  expectEquals(undefined, originalFunction.__isSniffer);
+  var interceptFunction = function() {
     originalFunction.apply(window, arguments);
-    const elements = document.querySelectorAll(selector);
+    var elements = document.querySelectorAll(selector);
     if (elements.length) {
       window[populateFunctionName] = originalFunction;
       callback(elements);
@@ -35,55 +35,49 @@ function findByContentSubstring(elements, content, childSelector) {
 function testTargetListed(sectionSelector, populateFunctionName, url) {
   waitForElements(
       sectionSelector + ' .row', populateFunctionName, function(elements) {
-        const urlElement = findByContentSubstring(elements, url, '.url');
-        assertNotEquals(undefined, urlElement);
+        var urlElement = findByContentSubstring(elements, url, '.url');
+        expectNotEquals(undefined, urlElement);
         testDone();
       });
 }
 
 function testAdbTargetsListed() {
   waitForElements('.device', 'populateRemoteTargets', function(devices) {
-    assertEquals(2, devices.length);
+    expectEquals(2, devices.length);
 
-    const offlineDevice =
+    var offlineDevice =
         findByContentSubstring(devices, 'Offline', '.device-name');
-    assertNotEquals(undefined, offlineDevice);
+    expectNotEquals(undefined, offlineDevice);
 
-    const onlineDevice =
+    var onlineDevice =
         findByContentSubstring(devices, 'Nexus 6', '.device-name');
-    assertNotEquals(undefined, onlineDevice);
+    expectNotEquals(undefined, onlineDevice);
 
-    const browsers = onlineDevice.querySelectorAll('.browser');
-    assertEquals(4, browsers.length);
+    var browsers = onlineDevice.querySelectorAll('.browser');
+    expectEquals(4, browsers.length);
 
-    const chromeBrowser = findByContentSubstring(
+    var chromeBrowser = findByContentSubstring(
         browsers, 'Chrome (32.0.1679.0)', '.browser-name');
-    assertNotEquals(undefined, chromeBrowser);
+    expectNotEquals(undefined, chromeBrowser);
 
-    const chromePages = chromeBrowser.querySelectorAll('.pages');
-    const chromiumPage =
+    var chromePages = chromeBrowser.querySelectorAll('.pages');
+    var chromiumPage =
         findByContentSubstring(chromePages, 'http://www.chromium.org/', '.url');
-    assertNotEquals(undefined, chromiumPage);
+    expectNotEquals(undefined, chromiumPage);
 
-    const pageById = {};
+    var pageById = {};
     Array.prototype.forEach.call(devices, function(device) {
-      const pages = device.querySelectorAll('.row');
+      var pages = device.querySelectorAll('.row');
       Array.prototype.forEach.call(pages, function(page) {
-        assertEquals(undefined, pageById[page.targetId]);
+        expectEquals(undefined, pageById[page.targetId]);
         pageById[page.targetId] = page;
       });
     });
 
-    const webView = findByContentSubstring(
+    var webView = findByContentSubstring(
         browsers, 'WebView in com.sample.feed (4.0)', '.browser-name');
-    assertNotEquals(undefined, webView);
+    expectNotEquals(undefined, webView);
 
     testDone();
   });
-}
-
-function testElementDisabled(selector, disabled) {
-  const element = document.querySelector(selector);
-  assertEquals(disabled, element.disabled);
-  testDone();
 }

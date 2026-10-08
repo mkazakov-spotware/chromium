@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,13 +24,12 @@
 #include <algorithm>
 
 #include "base/logging.h"
-#include "base/strings/stringprintf.h"
 #include "build/build_config.h"
 #include "snapshot/linux/debug_rendezvous.h"
 #include "util/linux/auxiliary_vector.h"
 #include "util/linux/proc_stat_reader.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include <android/api-level.h>
 #endif
 
@@ -53,7 +52,6 @@ ProcessReaderLinux::Thread::Thread()
     : thread_info(),
       stack_region_address(0),
       stack_region_size(0),
-      name(),
       tid(-1),
       static_priority(-1),
       nice_value(-1) {}
@@ -64,23 +62,6 @@ bool ProcessReaderLinux::Thread::InitializePtrace(
     PtraceConnection* connection) {
   if (!connection->GetThreadInfo(tid, &thread_info)) {
     return false;
-  }
-
-  // From man proc(5):
-  //
-  // /proc/[pid]/comm (since Linux 2.6.33)
-  //
-  // Different threads in the same process may have different comm values,
-  // accessible via /proc/[pid]/task/[tid]/comm.
-  const std::string path = base::StringPrintf(
-      "/proc/%d/task/%d/comm", connection->GetProcessID(), tid);
-  if (connection->ReadFileContents(base::FilePath(path), &name)) {
-    if (!name.empty() && name.back() == '\n') {
-      // Remove the final newline character.
-      name.pop_back();
-    }
-  } else {
-    // Continue on without the thread name.
   }
 
   // TODO(jperaza): Collect scheduling priorities via the broker when they can't
@@ -144,8 +125,7 @@ void ProcessReaderLinux::Thread::InitializeStackFromSP(
     LOG(WARNING) << "no stack mapping";
     return;
   }
-  LinuxVMAddress stack_region_start =
-      reader->Memory()->PointerToAddress(stack_pointer);
+  LinuxVMAddress stack_region_start = stack_pointer;
 
   // We've hit what looks like a guard page; skip to the end and check for a
   // mapped stack region.
@@ -197,11 +177,11 @@ void ProcessReaderLinux::Thread::InitializeStackFromSP(
   // at the high-address end of the stack so we can try using that to shrink
   // the stack region.
   stack_region_size = stack_end - stack_region_address;
-  VMAddress tls_address = reader->Memory()->PointerToAddress(
-      thread_info.thread_specific_data_address);
-  if (tid != reader->ProcessID() && tls_address > stack_region_address &&
-      tls_address < stack_end) {
-    stack_region_size = tls_address - stack_region_address;
+  if (tid != reader->ProcessID() &&
+      thread_info.thread_specific_data_address > stack_region_address &&
+      thread_info.thread_specific_data_address < stack_end) {
+    stack_region_size =
+        thread_info.thread_specific_data_address - stack_region_address;
   }
 }
 
@@ -301,7 +281,7 @@ const std::vector<ProcessReaderLinux::Module>& ProcessReaderLinux::Modules() {
 }
 
 void ProcessReaderLinux::InitializeAbortMessage() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   const MemoryMap::Mapping* mapping =
       memory_map_.FindMappingWithName("[anon:abort message]");
   if (!mapping) {
@@ -316,7 +296,7 @@ void ProcessReaderLinux::InitializeAbortMessage() {
 #endif
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 
 // These structure definitions and the magic numbers below were copied from
 // bionic/libc/bionic/android_set_abort_message.cpp
@@ -365,7 +345,7 @@ void ProcessReaderLinux::ReadAbortMessage(const MemoryMap::Mapping* mapping) {
   }
 }
 
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // OS_ANDROID
 
 const std::string& ProcessReaderLinux::AbortMessage() {
   INITIALIZATION_STATE_DCHECK_VALID(initialized_);
@@ -505,7 +485,7 @@ void ProcessReaderLinux::InitializeModules() {
         continue;
       }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
       // Beginning at API 21, Bionic provides android_dlopen_ext() which allows
       // passing a file descriptor with an existing relro segment to the loader.
       // This means that the mapping attributes of dyn_mapping may be unrelated

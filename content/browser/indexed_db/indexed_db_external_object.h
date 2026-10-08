@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,13 +13,14 @@
 
 #include "base/callback.h"
 #include "base/files/file_path.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "base/time/time.h"
 #include "content/browser/indexed_db/indexed_db_leveldb_coding.h"
 #include "content/common/content_export.h"
 #include "mojo/public/cpp/bindings/shared_remote.h"
 #include "storage/browser/blob/blob_data_handle.h"
 #include "third_party/blink/public/mojom/blob/blob.mojom.h"
-#include "third_party/blink/public/mojom/file_system_access/file_system_access_transfer_token.mojom.h"
 #include "third_party/blink/public/mojom/indexeddb/indexeddb.mojom.h"
 
 namespace content {
@@ -41,9 +42,9 @@ class CONTENT_EXPORT IndexedDBExternalObject {
   // These two are used for Blobs.
   IndexedDBExternalObject(mojo::PendingRemote<blink::mojom::Blob> blob_remote,
                           const std::string& uuid,
-                          const std::u16string& type,
+                          const base::string16& type,
                           int64_t size);
-  IndexedDBExternalObject(const std::u16string& type,
+  IndexedDBExternalObject(const base::string16& type,
                           int64_t size,
                           int64_t blob_number);
   // These two are used for Files.
@@ -53,21 +54,20 @@ class CONTENT_EXPORT IndexedDBExternalObject {
   // it should be considered corrupt.
   IndexedDBExternalObject(mojo::PendingRemote<blink::mojom::Blob> blob_remote,
                           const std::string& uuid,
-                          const std::u16string& file_name,
-                          const std::u16string& type,
+                          const base::string16& file_name,
+                          const base::string16& type,
                           const base::Time& last_modified,
                           const int64_t size);
   IndexedDBExternalObject(int64_t blob_number,
-                          const std::u16string& type,
-                          const std::u16string& file_name,
+                          const base::string16& type,
+                          const base::string16& file_name,
                           const base::Time& last_modified,
                           const int64_t size);
-  // These are for File System Access handles.
-  explicit IndexedDBExternalObject(
-      mojo::PendingRemote<blink::mojom::FileSystemAccessTransferToken>
+  // These are for Native File System handles.
+  IndexedDBExternalObject(
+      mojo::PendingRemote<blink::mojom::NativeFileSystemTransferToken>
           token_remote);
-  explicit IndexedDBExternalObject(
-      std::vector<uint8_t> file_system_access_token);
+  IndexedDBExternalObject(std::vector<uint8_t> native_file_system_token);
 
   IndexedDBExternalObject(const IndexedDBExternalObject& other);
   ~IndexedDBExternalObject();
@@ -77,8 +77,8 @@ class CONTENT_EXPORT IndexedDBExternalObject {
   enum class ObjectType : uint8_t {
     kBlob = 0,
     kFile = 1,
-    kFileSystemAccessHandle = 2,
-    kMaxValue = kFileSystemAccessHandle
+    kNativeFileSystemHandle = 2,
+    kMaxValue = kNativeFileSystemHandle
   };
   ObjectType object_type() const { return object_type_; }
   bool is_remote_valid() const { return blob_remote_.is_bound(); }
@@ -88,21 +88,21 @@ class CONTENT_EXPORT IndexedDBExternalObject {
   }
   void Clone(mojo::PendingReceiver<blink::mojom::Blob> receiver) const;
   mojo::SharedRemote<blink::mojom::Blob> remote() const { return blob_remote_; }
-  const std::u16string& type() const { return type_; }
+  const base::string16& type() const { return type_; }
   int64_t size() const { return size_; }
-  const std::u16string& file_name() const { return file_name_; }
+  const base::string16& file_name() const { return file_name_; }
   const base::FilePath indexed_db_file_path() const {
     return indexed_db_file_path_;
   }
   int64_t blob_number() const { return blob_number_; }
   const base::Time& last_modified() const { return last_modified_; }
-  const std::vector<uint8_t> file_system_access_token() const {
-    return file_system_access_token_;
+  const std::vector<uint8_t> native_file_system_token() const {
+    return native_file_system_token_;
   }
-  bool is_file_system_access_remote_valid() const {
+  bool is_native_file_system_remote_valid() const {
     return token_remote_.is_bound();
   }
-  blink::mojom::FileSystemAccessTransferToken* file_system_access_token_remote()
+  blink::mojom::NativeFileSystemTransferToken* native_file_system_token_remote()
       const {
     return token_remote_.get();
   }
@@ -116,7 +116,7 @@ class CONTENT_EXPORT IndexedDBExternalObject {
   void set_size(int64_t size);
   void set_indexed_db_file_path(const base::FilePath& file_path);
   void set_last_modified(const base::Time& time);
-  void set_file_system_access_token(std::vector<uint8_t> token);
+  void set_native_file_system_token(std::vector<uint8_t> token);
   void set_blob_number(int64_t blob_number);
   void set_mark_used_callback(base::RepeatingClosure mark_used_callback);
   void set_release_callback(base::RepeatingClosure release_callback);
@@ -129,20 +129,20 @@ class CONTENT_EXPORT IndexedDBExternalObject {
   // If blob_remote_ is true, this is the blob's uuid.
   std::string uuid_;
   // Mime type.
-  std::u16string type_;
+  base::string16 type_;
   // This is the path of the file that was copied into the IndexedDB system.
   // Only populated when reading from the database.
   base::FilePath indexed_db_file_path_;
   // -1 if unknown for File.
   int64_t size_ = kUnknownSize;
   // Only for File.
-  std::u16string file_name_;
+  base::string16 file_name_;
   // Only for File; valid only if size is.
   base::Time last_modified_;
 
-  // Only for File System Access handle.
-  mojo::SharedRemote<blink::mojom::FileSystemAccessTransferToken> token_remote_;
-  std::vector<uint8_t> file_system_access_token_;
+  // Only for Native File System handle.
+  mojo::SharedRemote<blink::mojom::NativeFileSystemTransferToken> token_remote_;
+  std::vector<uint8_t> native_file_system_token_;
 
   // Valid only when this comes out of the database. Only for Blob and File.
   int64_t blob_number_ = DatabaseMetaDataKey::kInvalidBlobNumber;

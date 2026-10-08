@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "ash/login/ui/access_code_input.h"
 #include "ash/login/ui/login_palette.h"
 #include "ash/login/ui/non_accessible_view.h"
-#include "base/memory/weak_ptr.h"
 #include "ui/views/view.h"
 
 namespace ash {
@@ -31,11 +30,9 @@ class LoginPinInput;
 // When the length changes (e.g.: selecting a user with a different pin length)
 // the internal view `code_input_` is destroyed and a new one is inserted.
 //
-class ASH_EXPORT LoginPinInputView
-    : public views::View,
-      public base::SupportsWeakPtr<LoginPinInputView> {
+class ASH_EXPORT LoginPinInputView : public views::View {
  public:
-  using OnPinSubmit = base::RepeatingCallback<void(const std::u16string& pin)>;
+  using OnPinSubmit = base::RepeatingCallback<void(const base::string16& pin)>;
   using OnPinChanged = base::RepeatingCallback<void(bool is_empty)>;
 
   static const int kDefaultLength;
@@ -46,8 +43,7 @@ class ASH_EXPORT LoginPinInputView
     ~TestApi();
 
     views::View* code_input();
-    absl::optional<std::string> GetCode();
-    bool IsEmpty();
+    base::Optional<std::string> GetCode();
 
    private:
     LoginPinInputView* const view_;
@@ -69,9 +65,6 @@ class ASH_EXPORT LoginPinInputView
   // Updates the length of the field. Used when switching users.
   void UpdateLength(const size_t pin_length);
 
-  // Updates the palette use by the view.
-  void UpdatePalette(const LoginPalette& palette);
-
   // When set, hitting return will attempt an unlock with an empty PIN.
   // LoginAuthUserView interprets such attempts as a SmartLock unlock.
   void SetAuthenticateWithEmptyPinOnReturnKey(bool enabled);
@@ -83,7 +76,7 @@ class ASH_EXPORT LoginPinInputView
   // Sets the field as read only. The field is made read only during an
   // authentication request.
   void SetReadOnly(bool read_only);
-  bool IsReadOnly() const;
+
   // views::View
   gfx::Size CalculatePreferredSize() const override;
   void RequestFocus() override;
@@ -91,7 +84,7 @@ class ASH_EXPORT LoginPinInputView
 
  private:
   // The code input will call this when all digits are in.
-  void SubmitPin(const std::u16string& pin);
+  void SubmitPin(const base::string16& pin);
 
   // Called by the inner view whenever the fields change.
   void OnChanged(bool is_empty);

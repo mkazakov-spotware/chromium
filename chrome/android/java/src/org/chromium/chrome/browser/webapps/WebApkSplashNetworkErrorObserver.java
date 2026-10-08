@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,7 @@ import android.content.Context;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.browserservices.metrics.WebApkUmaRecorder;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.metrics.WebApkUma;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.content_public.browser.NavigationHandle;
@@ -41,8 +40,9 @@ public class WebApkSplashNetworkErrorObserver extends EmptyTabObserver {
     }
 
     @Override
-    public void onDidFinishNavigationInPrimaryMainFrame(
-            final Tab tab, NavigationHandle navigation) {
+    public void onDidFinishNavigation(final Tab tab, NavigationHandle navigation) {
+        if (!navigation.isInMainFrame()) return;
+
         switch (navigation.errorCode()) {
             case NetError.OK:
                 if (mOfflineDialog != null) {
@@ -61,12 +61,7 @@ public class WebApkSplashNetworkErrorObserver extends EmptyTabObserver {
                 }
                 break;
         }
-        WebApkUmaRecorder.recordNetworkErrorWhenLaunch(-navigation.errorCode());
-    }
-
-    @Override
-    public void onDidFinishNavigationNoop(final Tab tab, NavigationHandle navigation) {
-        if (!navigation.isInPrimaryMainFrame()) return;
+        WebApkUma.recordNetworkErrorWhenLaunch(-navigation.errorCode());
     }
 
     private void onNetworkChanged(Tab tab) {
@@ -113,9 +108,7 @@ public class WebApkSplashNetworkErrorObserver extends EmptyTabObserver {
         Context context = ContextUtils.getApplicationContext();
         switch (errorCode) {
             case NetError.ERR_INTERNET_DISCONNECTED:
-                return ChromeFeatureList.isEnabled(ChromeFeatureList.PWA_DEFAULT_OFFLINE_PAGE)
-                        ? null
-                        : context.getString(R.string.webapk_offline_dialog, mWebApkName);
+                return context.getString(R.string.webapk_offline_dialog, mWebApkName);
             case NetError.ERR_TUNNEL_CONNECTION_FAILED:
                 return context.getString(
                         R.string.webapk_network_error_message_tunnel_connection_failed);

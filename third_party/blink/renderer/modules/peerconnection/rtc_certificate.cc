@@ -47,7 +47,7 @@ DOMTimeStamp RTCCertificate::expires() const {
 
 HeapVector<Member<RTCDtlsFingerprint>> RTCCertificate::getFingerprints() {
   std::unique_ptr<rtc::SSLCertificateStats> first_certificate_stats =
-      certificate_->GetSSLCertificate().GetStats();
+      certificate_->ssl_certificate().GetStats();
 
   HeapVector<Member<RTCDtlsFingerprint>> fingerprints;
   for (rtc::SSLCertificateStats* certificate_stats =

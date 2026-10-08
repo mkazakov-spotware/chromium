@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,11 @@
 #include "base/callback_helpers.h"
 #include "base/location.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "ipc/ipc_message.h"
 #include "ppapi/c/pp_errors.h"
 #include "ppapi/host/host_message_context.h"
@@ -77,7 +78,7 @@ class MyResourceHost : public ResourceHost {
   void SendReply(const ReplyMessageContext& context,
                  const IPC::Message& msg) override {
     last_reply_msg_ = msg;
-    last_reply_task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+    last_reply_task_runner_ = base::ThreadTaskRunnerHandle::Get();
     g_handler_completion.Signal();
   }
 
@@ -124,7 +125,7 @@ class MyResourceFilter : public ResourceMessageFilter {
       const IPC::Message& msg,
       HostMessageContext* context) override {
     last_handled_msg_ = msg;
-    last_task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+    last_task_runner_ = base::ThreadTaskRunnerHandle::Get();
     if (msg.type() == msg_type_) {
       context->reply_msg = IPC::Message(0, reply_msg_type_,
                                         IPC::Message::PRIORITY_NORMAL);

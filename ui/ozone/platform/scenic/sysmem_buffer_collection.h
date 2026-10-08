@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,15 @@
 
 #include <fuchsia/sysmem/cpp/fidl.h>
 #include <lib/ui/scenic/cpp/session.h>
-#include <lib/zx/eventpair.h>
-#include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan.h>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/message_loop/message_pump_for_io.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/optional.h"
 #include "base/threading/thread_checker.h"
 #include "gpu/ipc/common/vulkan_ycbcr_info.h"
+#include "gpu/vulkan/fuchsia/vulkan_fuchsia_ext.h"
 #include "ui/gfx/buffer_types.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/native_pixmap_handle.h"
@@ -36,16 +36,13 @@ class ScenicSurfaceFactory;
 // be called on the same thread (because it may be be safe to use
 // VkBufferCollectionFUCHSIA concurrently on different threads).
 class SysmemBufferCollection
-    : public base::RefCountedThreadSafe<SysmemBufferCollection>,
-      public base::MessagePumpForIO::ZxHandleWatcher {
+    : public base::RefCountedThreadSafe<SysmemBufferCollection> {
  public:
   static bool IsNativePixmapConfigSupported(gfx::BufferFormat format,
                                             gfx::BufferUsage usage);
 
   SysmemBufferCollection();
-
-  SysmemBufferCollection(const SysmemBufferCollection&) = delete;
-  SysmemBufferCollection& operator=(const SysmemBufferCollection&) = delete;
+  explicit SysmemBufferCollection(gfx::SysmemBufferCollectionId id);
 
   // Initializes the buffer collection and registers it with Vulkan using the
   // specified |vk_device|. If |token_handle| is null then a new collection
@@ -56,23 +53,22 @@ class SysmemBufferCollection
   // created and |token_handle| gets duplicated to be added to its ImagePipe.
   bool Initialize(fuchsia::sysmem::Allocator_Sync* allocator,
                   ScenicSurfaceFactory* scenic_surface_factory,
-                  zx::eventpair handle,
-                  zx::channel sysmem_token,
+                  zx::channel token_handle,
                   gfx::Size size,
                   gfx::BufferFormat format,
                   gfx::BufferUsage usage,
                   VkDevice vk_device,
                   size_t min_buffer_count,
+                  bool force_protected,
                   bool register_with_image_pipe);
 
-  void AddOnReleasedCallback(base::OnceClosure on_released);
+  // Must not be called more than once.
+  void SetOnDeletedCallback(base::OnceClosure on_deleted);
 
   // Creates a NativePixmap the buffer with the specified index. Returned
   // NativePixmap holds a reference to the collection, so the collection is not
   // deleted until all NativePixmap are destroyed.
-  scoped_refptr<gfx::NativePixmap> CreateNativePixmap(
-      gfx::NativePixmapHandle handle,
-      gfx::Size size);
+  scoped_refptr<gfx::NativePixmap> CreateNativePixmap(size_t buffer_index);
 
   // Creates a new Vulkan image for the buffer with the specified index.
   bool CreateVkImage(size_t buffer_index,
@@ -81,22 +77,26 @@ class SysmemBufferCollection
                      VkImage* vk_image,
                      VkImageCreateInfo* vk_image_info,
                      VkDeviceMemory* vk_device_memory,
-                     VkDeviceSize* mem_allocation_size);
+                     VkDeviceSize* mem_allocation_size,
+                     base::Optional<gpu::VulkanYCbCrInfo>* ycbcr_info);
 
-  zx_koid_t id() const { return id_; }
+  gfx::SysmemBufferCollectionId id() const { return id_; }
   size_t num_buffers() const { return buffers_info_.buffer_count; }
+  gfx::Size size() const { return image_size_; }
   gfx::BufferFormat format() const { return format_; }
   size_t buffer_size() const {
     return buffers_info_.settings.buffer_settings.size_bytes;
   }
   ScenicOverlayView* scenic_overlay_view() {
-    return scenic_overlay_view_ ? scenic_overlay_view_.get() : nullptr;
+    return scenic_overlay_view_.has_value() ? &scenic_overlay_view_.value()
+                                            : nullptr;
   }
+  ScenicSurfaceFactory* surface_factory() { return surface_factory_; }
 
  private:
   friend class base::RefCountedThreadSafe<SysmemBufferCollection>;
 
-  ~SysmemBufferCollection() override;
+  ~SysmemBufferCollection();
 
   bool InitializeInternal(
       fuchsia::sysmem::Allocator_Sync* allocator,
@@ -111,14 +111,7 @@ class SysmemBufferCollection
            usage_ == gfx::BufferUsage::GPU_READ_CPU_READ_WRITE;
   }
 
-  // base::MessagePumpForIO::ZxHandleWatcher implementation.
-  void OnZxHandleSignalled(zx_handle_t handle, zx_signals_t signals) override;
-
-  zx::eventpair handle_;
-  zx_koid_t id_ = 0;
-
-  std::unique_ptr<base::MessagePumpForIO::ZxHandleWatchController>
-      handle_watch_;
+  const gfx::SysmemBufferCollectionId id_;
 
   // Image size passed to vkSetBufferCollectionConstraintsFUCHSIA(). The actual
   // buffers size may be larger depending on constraints set by other
@@ -138,23 +131,24 @@ class SysmemBufferCollection
   // that is referenced by |collection_|.
   VkBufferCollectionFUCHSIA vk_buffer_collection_ = VK_NULL_HANDLE;
 
-  // |scenic_overlay_view_| view should be used and deleted on the same thread
-  // as creation.
-  scoped_refptr<base::SingleThreadTaskRunner> overlay_view_task_runner_;
   // If ScenicOverlayView is created and its ImagePipe is added as a participant
   // in buffer allocation negotiations, the associated images can be displayed
   // as overlays.
-  std::unique_ptr<ScenicOverlayView> scenic_overlay_view_;
+  base::Optional<ScenicOverlayView> scenic_overlay_view_;
+  ScenicSurfaceFactory* surface_factory_ = nullptr;
 
   // Thread checker used to verify that CreateVkImage() is always called from
   // the same thread. It may be unsafe to use vk_buffer_collection_ on different
   // threads.
   THREAD_CHECKER(vulkan_thread_checker_);
 
+  gfx::Size image_size_;
   size_t buffer_size_ = 0;
   bool is_protected_ = false;
 
-  std::vector<base::OnceClosure> on_released_;
+  base::OnceClosure on_deleted_;
+
+  DISALLOW_COPY_AND_ASSIGN(SysmemBufferCollection);
 };
 
 }  // namespace ui

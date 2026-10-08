@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "chrome/grit/generated_resources.h"
 #include "components/omnibox/browser/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/animation/ink_drop.h"
 
 FindBarIcon::FindBarIcon(
@@ -20,8 +19,7 @@ FindBarIcon::FindBarIcon(
     : PageActionIconView(nullptr,
                          0,
                          icon_label_bubble_delegate,
-                         page_action_icon_delegate,
-                         "Find"),
+                         page_action_icon_delegate),
       browser_(browser) {
   DCHECK(browser_);
 }
@@ -30,24 +28,25 @@ FindBarIcon::~FindBarIcon() {}
 
 void FindBarIcon::SetActive(bool activate, bool should_animate) {
   if (activate ==
-      (views::InkDrop::Get(this)->GetInkDrop()->GetTargetInkDropState() ==
-       views::InkDropState::ACTIVATED))
+      (GetInkDrop()->GetTargetInkDropState() == views::InkDropState::ACTIVATED))
     return;
   if (activate) {
     if (should_animate) {
-      views::InkDrop::Get(this)->AnimateToState(views::InkDropState::ACTIVATED,
-                                                nullptr);
+      AnimateInkDrop(views::InkDropState::ACTIVATED, nullptr);
     } else {
-      views::InkDrop::Get(this)->GetInkDrop()->SnapToActivated();
+      GetInkDrop()->SnapToActivated();
     }
   } else {
-    views::InkDrop::Get(this)->AnimateToState(views::InkDropState::HIDDEN,
-                                              nullptr);
+    AnimateInkDrop(views::InkDropState::HIDDEN, nullptr);
   }
 }
 
-std::u16string FindBarIcon::GetTextForTooltipAndAccessibleName() const {
+base::string16 FindBarIcon::GetTextForTooltipAndAccessibleName() const {
   return l10n_util::GetStringUTF16(IDS_TOOLTIP_FIND);
+}
+
+const char* FindBarIcon::GetClassName() const {
+  return "FindBarIcon";
 }
 
 void FindBarIcon::OnExecuting(ExecuteSource execute_source) {}
@@ -70,6 +69,3 @@ void FindBarIcon::UpdateImpl() {
   SetVisible(browser_->GetFindBarController()->find_bar()->IsFindBarVisible());
   SetActive(GetVisible(), was_visible != GetVisible());
 }
-
-BEGIN_METADATA(FindBarIcon, PageActionIconView)
-END_METADATA

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "base/task/thread_pool/thread_pool_impl.h"
 #include "base/threading/platform_thread.h"
 #include "base/time/time.h"
-#include "build/build_config.h"
 
 namespace base {
 
@@ -23,7 +22,7 @@ ThreadPoolInstance* g_thread_pool = nullptr;
 
 }  // namespace
 
-ThreadPoolInstance::InitParams::InitParams(size_t max_num_foreground_threads_in)
+ThreadPoolInstance::InitParams::InitParams(int max_num_foreground_threads_in)
     : max_num_foreground_threads(max_num_foreground_threads_in) {}
 
 ThreadPoolInstance::InitParams::~InitParams() = default;
@@ -50,7 +49,7 @@ ThreadPoolInstance::ScopedBestEffortExecutionFence::
   g_thread_pool->EndBestEffortFence();
 }
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
 // static
 void ThreadPoolInstance::CreateAndStartWithDefaultParams(StringPiece name) {
   Create(name);
@@ -64,11 +63,11 @@ void ThreadPoolInstance::StartWithDefaultParams() {
   // * The system is utilized maximally by foreground threads.
   // * The main thread is assumed to be busy, cap foreground workers at
   //   |num_cores - 1|.
-  const size_t max_num_foreground_threads =
-      static_cast<size_t>(std::max(3, SysInfo::NumberOfProcessors() - 1));
+  const int num_cores = SysInfo::NumberOfProcessors();
+  const int max_num_foreground_threads = std::max(3, num_cores - 1);
   Start({max_num_foreground_threads});
 }
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
 void ThreadPoolInstance::Create(StringPiece name) {
   Set(std::make_unique<internal::ThreadPoolImpl>(name));

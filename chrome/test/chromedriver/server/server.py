@@ -1,4 +1,4 @@
-# Copyright 2013 The Chromium Authors
+# Copyright 2013 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,7 +8,7 @@ import socket
 import subprocess
 import threading
 import time
-import urllib
+import urllib2
 
 def terminate_process(proc):
   """Terminates the process.
@@ -21,7 +21,7 @@ def terminate_process(proc):
   try:
     proc.terminate()
   except OSError as ex:
-    print('Error while killing a process: %s' % ex)
+    print 'Error while killing a process: %s' % ex
 
 
 class Server(object):
@@ -67,7 +67,6 @@ class Server(object):
         chromedriver_args.extend([arg])
 
     self._process = subprocess.Popen(chromedriver_args)
-    self._pid = self._process.pid
     self._host = '127.0.0.1'
     self._port = port
     self._url = 'http://%s:%d' % (self._host, port)
@@ -79,10 +78,10 @@ class Server(object):
       if time.time() > max_time:
         self._process.poll()
         if self._process.returncode is None:
-          print('ChromeDriver process still running, but not responding')
+          print 'ChromeDriver process still running, but not responding'
         else:
-          print('ChromeDriver process exited with return code %d'
-                % self._process.returncode)
+          print ('ChromeDriver process exited with return code %d'
+                 % self._process.returncode)
         self._process.terminate()
         raise RuntimeError('ChromeDriver server did not start')
       time.sleep(0.1)
@@ -100,9 +99,6 @@ class Server(object):
   def GetUrl(self):
     return self._url
 
-  def GetPid(self):
-    return self._pid
-
   def GetHost(self):
     return self._host
 
@@ -112,9 +108,9 @@ class Server(object):
   def IsRunning(self):
     """Returns whether the server is up and running."""
     try:
-      urllib.request.urlopen(self.GetUrl() + '/status')
+      urllib2.urlopen(self.GetUrl() + '/status')
       return True
-    except urllib.error.URLError:
+    except urllib2.URLError:
       return False
 
   def Kill(self):
@@ -123,7 +119,7 @@ class Server(object):
       return
 
     try:
-      urllib.request.urlopen(self.GetUrl() + '/shutdown', timeout=10).close()
+      urllib2.urlopen(self.GetUrl() + '/shutdown', timeout=10).close()
     except:
       self._process.terminate()
     timer = threading.Timer(5, terminate_process, [self._process])

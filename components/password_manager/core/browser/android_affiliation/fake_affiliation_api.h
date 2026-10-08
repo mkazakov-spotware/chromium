@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/password_manager/core/browser/android_affiliation/affiliation_utils.h"
 #include "components/password_manager/core/browser/android_affiliation/fake_affiliation_fetcher.h"
 
@@ -23,10 +23,6 @@ class FakeAffiliationAPI {
   // Adds |affiliated_facets| to the set of equivalence classes that will form
   // the basis for calculating the fake API responses.
   void AddTestEquivalenceClass(const AffiliatedFacets& affiliated_facets);
-
-  // Adds |group| to the array of |groups_| that will form
-  // the basis for calculating the fake API responses.
-  void AddTestGrouping(const GroupedFacets& group);
 
   // Returns whether or not there is at least one pending fetch.
   bool HasPendingRequest();
@@ -52,9 +48,8 @@ class FakeAffiliationAPI {
   }
 
  private:
-  raw_ptr<FakeAffiliationFetcherFactory> fake_fetcher_factory_ = nullptr;
+  FakeAffiliationFetcherFactory* fake_fetcher_factory_ = nullptr;
   std::vector<AffiliatedFacets> preset_equivalence_relation_;
-  std::vector<GroupedFacets> groups_;
 };
 
 }  // namespace password_manager

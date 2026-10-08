@@ -17,10 +17,6 @@ WebXR page with the ability to request permissions.
       function requestPermission(permissionObject, storeValue) {
         navigator.getUserMedia(permissionObject,
         (val) => {
-          console.log(
-              'Permission request succeeded with val ' + val +
-              '. Previous permission request successful: ' +
-              lastPermissionRequestSucceeded);
           lastPermissionRequestSucceeded = true;
           if (storeValue) {
             storedValue = val;
@@ -28,9 +24,6 @@ WebXR page with the ability to request permissions.
           finishJavaScriptStep();
         },
         () => {
-          console.log(
-              'Permission request failed. Previous permission request ' +
-              'successful: ' + lastPermissionRequestSucceeded);
           lastPermissionRequestSucceeded = false;
           finishJavaScriptStep();
         });

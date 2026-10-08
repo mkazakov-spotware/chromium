@@ -1,12 +1,14 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/gl/gl_image.h"
 
-#include "base/notreached.h"
-#include "build/build_config.h"
 #include "ui/gl/gl_bindings.h"
+
+#if defined(OS_ANDROID)
+#include "base/android/scoped_hardware_buffer_fence_sync.h"
+#endif
 
 namespace gl {
 
@@ -27,9 +29,7 @@ unsigned GLImage::GetDataFormat() {
   unsigned internalformat = GetInternalFormat();
   switch (internalformat) {
     case GL_R16_EXT:
-      return GL_RED_EXT;
-    case GL_RG16_EXT:
-      return GL_RG_EXT;
+      return GL_RED;
     case GL_RGB10_A2_EXT:
       return GL_RGBA;
     case GL_RGB_YCRCB_420_CHROMIUM:
@@ -63,6 +63,12 @@ bool GLImage::BindTexImage(unsigned target) {
   return false;
 }
 
+bool GLImage::BindTexImageWithInternalformat(unsigned target,
+                                             unsigned internalformat) {
+  NOTREACHED();
+  return false;
+}
+
 void GLImage::ReleaseTexImage(unsigned target) {
   NOTREACHED();
 }
@@ -79,8 +85,23 @@ bool GLImage::CopyTexSubImage(unsigned target,
   return false;
 }
 
+bool GLImage::ScheduleOverlayPlane(gfx::AcceleratedWidget widget,
+                                   int z_order,
+                                   gfx::OverlayTransform transform,
+                                   const gfx::Rect& bounds_rect,
+                                   const gfx::RectF& crop_rect,
+                                   bool enable_blend,
+                                   std::unique_ptr<gfx::GpuFence> gpu_fence) {
+  NOTREACHED();
+  return false;
+}
+
 void GLImage::SetColorSpace(const gfx::ColorSpace& color_space) {
   color_space_ = color_space;
+}
+
+void GLImage::Flush() {
+  NOTREACHED();
 }
 
 void GLImage::OnMemoryDump(base::trace_event::ProcessMemoryDump* pmd,
@@ -93,15 +114,30 @@ bool GLImage::EmulatingRGB() const {
   return false;
 }
 
+bool GLImage::IsInUseByWindowServer() const {
+  return false;
+}
+
+void GLImage::DisableInUseByWindowServer() {
+  NOTIMPLEMENTED();
+}
+
 GLImage::Type GLImage::GetType() const {
   return Type::NONE;
 }
 
-scoped_refptr<gfx::NativePixmap> GLImage::GetNativePixmap() {
+#if defined(OS_ANDROID)
+std::unique_ptr<base::android::ScopedHardwareBufferFenceSync>
+GLImage::GetAHardwareBuffer() {
   return nullptr;
 }
+#endif
 
-void* GLImage::GetEGLImage() const {
+bool GLImage::HasMutableState() const {
+  return true;
+}
+
+scoped_refptr<gfx::NativePixmap> GLImage::GetNativePixmap() {
   return nullptr;
 }
 

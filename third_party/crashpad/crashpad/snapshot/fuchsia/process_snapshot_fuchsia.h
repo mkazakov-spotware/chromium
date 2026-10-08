@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "snapshot/crashpad_info_client_options.h"
 #include "snapshot/elf/elf_image_reader.h"
 #include "snapshot/elf/module_snapshot_elf.h"
@@ -44,10 +45,6 @@ namespace crashpad {
 class ProcessSnapshotFuchsia : public ProcessSnapshot {
  public:
   ProcessSnapshotFuchsia();
-
-  ProcessSnapshotFuchsia(const ProcessSnapshotFuchsia&) = delete;
-  ProcessSnapshotFuchsia& operator=(const ProcessSnapshotFuchsia&) = delete;
-
   ~ProcessSnapshotFuchsia() override;
 
   //! \brief Initializes the object.
@@ -148,6 +145,8 @@ class ProcessSnapshotFuchsia : public ProcessSnapshot {
   UUID client_id_;
   timeval snapshot_time_;
   InitializationStateDcheck initialized_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProcessSnapshotFuchsia);
 };
 
 }  // namespace crashpad

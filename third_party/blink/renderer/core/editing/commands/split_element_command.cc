@@ -29,6 +29,7 @@
 #include "third_party/blink/renderer/core/editing/editing_utilities.h"
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 
 namespace blink {
 
@@ -53,7 +54,7 @@ void SplitElementCommand::ExecuteApply() {
   DummyExceptionStateForTesting exception_state;
 
   ContainerNode* parent = element2_->parentNode();
-  if (!parent || !IsEditable(*parent))
+  if (!parent || !HasEditableStyle(*parent))
     return;
   parent->InsertBefore(element1_.Get(), element2_.Get(), exception_state);
   if (exception_state.HadException())
@@ -74,7 +75,8 @@ void SplitElementCommand::DoApply(EditingState*) {
 }
 
 void SplitElementCommand::DoUnapply() {
-  if (!element1_ || !IsEditable(*element1_) || !IsEditable(*element2_))
+  if (!element1_ || !HasEditableStyle(*element1_) ||
+      !HasEditableStyle(*element2_))
     return;
 
   NodeVector children;

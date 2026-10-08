@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,18 +6,11 @@
 
 #import <MaterialComponents/MaterialProgressView.h>
 
-#import "base/check.h"
-#import "base/feature_list.h"
-#import "base/metrics/field_trial_params.h"
-#import "base/metrics/user_metrics.h"
-#import "base/metrics/user_metrics_action.h"
+#include "base/check.h"
 #import "ios/chrome/browser/ui/commands/browser_commands.h"
 #import "ios/chrome/browser/ui/commands/omnibox_commands.h"
 #import "ios/chrome/browser/ui/fullscreen/fullscreen_animator.h"
 #import "ios/chrome/browser/ui/gestures/view_revealing_vertical_pan_handler.h"
-#import "ios/chrome/browser/ui/keyboard/UIKeyCommand+Chrome.h"
-#import "ios/chrome/browser/ui/omnibox/omnibox_ui_features.h"
-#import "ios/chrome/browser/ui/thumb_strip/thumb_strip_feature.h"
 #import "ios/chrome/browser/ui/toolbar/adaptive_toolbar_view_controller+subclassing.h"
 #import "ios/chrome/browser/ui/toolbar/buttons/toolbar_button.h"
 #import "ios/chrome/browser/ui/toolbar/buttons/toolbar_button_factory.h"
@@ -27,11 +20,10 @@
 #import "ios/chrome/browser/ui/toolbar/primary_toolbar_view_controller_delegate.h"
 #import "ios/chrome/browser/ui/toolbar/public/toolbar_constants.h"
 #import "ios/chrome/browser/ui/toolbar/public/toolbar_utils.h"
-#import "ios/chrome/browser/ui/ui_feature_flags.h"
 #import "ios/chrome/browser/ui/util/dynamic_type_util.h"
 #import "ios/chrome/browser/ui/util/named_guide.h"
+#import "ios/chrome/browser/ui/util/ui_util.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
-#import "ios/chrome/common/ui/util/ui_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -60,7 +52,7 @@
   __weak PrimaryToolbarViewController* weakSelf = self;
   [self.view.progressBar setProgress:0];
   [self.view.progressBar setHidden:NO
-                          animated:YES
+                          animated:[self areAnimationsEnabled]
                         completion:^(BOOL finished) {
                           [weakSelf stopProgressBar];
                         }];
@@ -71,12 +63,9 @@
   _panGestureHandler = panGestureHandler;
   [self.view removeGestureRecognizer:self.panGestureRecognizer];
 
-  UIPanGestureRecognizer* panGestureRecognizer =
-      [[ViewRevealingPanGestureRecognizer alloc]
-          initWithTarget:panGestureHandler
-                  action:@selector(handlePanGesture:)
-                 trigger:ViewRevealTrigger::PrimaryToolbar];
-  panGestureRecognizer.delegate = panGestureHandler;
+  UIPanGestureRecognizer* panGestureRecognizer = [[UIPanGestureRecognizer alloc]
+      initWithTarget:panGestureHandler
+              action:@selector(handlePanGesture:)];
   panGestureRecognizer.maximumNumberOfTouches = 1;
   [self.view addGestureRecognizer:panGestureRecognizer];
 
@@ -85,21 +74,15 @@
 
 #pragma mark - viewRevealingAnimatee
 
-- (void)willAnimateViewRevealFromState:(ViewRevealState)currentViewRevealState
-                               toState:(ViewRevealState)nextViewRevealState {
-  if (currentViewRevealState != ViewRevealState::Hidden ||
-      nextViewRevealState != ViewRevealState::Hidden) {
-    // Dismiss the edit menu if visible.
-    UIMenuController* menu = [UIMenuController sharedMenuController];
-    if ([menu isMenuVisible]) {
-      [menu hideMenu];
-    }
-  }
+- (void)willAnimateViewReveal:(ViewRevealState)currentViewRevealState {
 }
 
 - (void)animateViewReveal:(ViewRevealState)nextViewRevealState {
   self.view.topCornersRounded =
       (nextViewRevealState != ViewRevealState::Hidden);
+}
+
+- (void)didAnimateViewReveal:(ViewRevealState)viewRevealState {
 }
 
 #pragma mark - AdaptiveToolbarViewController
@@ -140,12 +123,12 @@
   self.view.locationBarContainer.alpha = progress;
   self.view.separator.alpha = progress;
 
-  // When the locationBarContainer is hidden, show the `fakeOmniboxTarget`.
+  // When the locationBarContainer is hidden, show the |fakeOmniboxTarget|.
   if (progress == 0 && !self.view.fakeOmniboxTarget) {
     [self.view addFakeOmniboxTarget];
-    UITapGestureRecognizer* tapRecognizer = [[UITapGestureRecognizer alloc]
-        initWithTarget:self.omniboxCommandsHandler
-                action:@selector(focusOmnibox)];
+    UITapGestureRecognizer* tapRecognizer =
+        [[UITapGestureRecognizer alloc] initWithTarget:self.dispatcher
+                                                action:@selector(focusOmnibox)];
     [self.view.fakeOmniboxTarget addGestureRecognizer:tapRecognizer];
   } else if (progress > 0 && self.view.fakeOmniboxTarget) {
     [self.view removeFakeOmniboxTarget];
@@ -177,17 +160,13 @@
   [self.view.collapsedToolbarButton addTarget:self
                                        action:@selector(exitFullscreen)
                              forControlEvents:UIControlEventTouchUpInside];
-  UIHoverGestureRecognizer* hoverGestureRecognizer =
-      [[UIHoverGestureRecognizer alloc]
-          initWithTarget:self
-                  action:@selector(exitFullscreen)];
-  [self.view.collapsedToolbarButton
-      addGestureRecognizer:hoverGestureRecognizer];
 }
 
 - (void)viewDidLoad {
   [super viewDidLoad];
-  [self updateLayoutForPreviousTraitCollection:nil];
+  if (@available(iOS 13, *)) {
+    [self updateLayoutForPreviousTraitCollection:nil];
+  }
 }
 
 - (void)didMoveToParentViewController:(UIViewController*)parent {
@@ -200,23 +179,6 @@
 - (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection {
   [super traitCollectionDidChange:previousTraitCollection];
   [self updateLayoutForPreviousTraitCollection:previousTraitCollection];
-}
-
-#pragma mark - UIResponder
-
-// To always be able to register key commands via -keyCommands, the VC must be
-// able to become first responder.
-- (BOOL)canBecomeFirstResponder {
-  return YES;
-}
-
-- (NSArray<UIKeyCommand*>*)keyCommands {
-  return @[ UIKeyCommand.cr_close ];
-}
-
-- (void)keyCommand_close {
-  base::RecordAction(base::UserMetricsAction("MobileKeyCommandClose"));
-  [self.delegate close];
 }
 
 #pragma mark - Property accessors
@@ -269,22 +231,12 @@
       self.view.locationBarHeight.constant / 2;
   self.view.locationBarBottomConstraint.constant =
       [self verticalMarginForLocationBarForFullscreenProgress:progress];
+  self.view.locationBarContainer.backgroundColor =
+      [self.buttonFactory.toolbarConfiguration
+          locationBarBackgroundColorWithVisibility:alphaValue];
   self.previousFullscreenProgress = progress;
 
   self.view.collapsedToolbarButton.hidden = progress > 0.05;
-
-  // When this method is called when the toolbar is expanded, prevent the
-  // color from changing, if necessary.
-  BOOL isToolbarExpanded = self.view.expandedConstraints.firstObject.active;
-  if (IsOmniboxActionsVisualTreatment2() && isToolbarExpanded) {
-    self.view.locationBarContainer.backgroundColor =
-        self.buttonFactory.toolbarConfiguration
-            .focusedLocationBarBackgroundColor;
-  } else {
-    self.view.locationBarContainer.backgroundColor =
-        [self.buttonFactory.toolbarConfiguration
-            locationBarBackgroundColorWithVisibility:alphaValue];
-  }
 }
 
 - (void)updateForFullscreenEnabled:(BOOL)enabled {
@@ -309,14 +261,6 @@
   [self deactivateViewLocationBarConstraints];
   [NSLayoutConstraint activateConstraints:self.view.expandedConstraints];
   [self.view layoutIfNeeded];
-
-  if (IsOmniboxActionsVisualTreatment2()) {
-    self.view.backgroundColor =
-        self.buttonFactory.toolbarConfiguration.focusedBackgroundColor;
-    self.view.locationBarContainer.backgroundColor =
-        self.buttonFactory.toolbarConfiguration
-            .focusedLocationBarBackgroundColor;
-  }
 }
 
 - (void)contractLocationBar {
@@ -328,14 +272,6 @@
     [NSLayoutConstraint activateConstraints:self.view.contractedConstraints];
   }
   [self.view layoutIfNeeded];
-
-  if (IsOmniboxActionsVisualTreatment2()) {
-    self.view.backgroundColor =
-        self.buttonFactory.toolbarConfiguration.backgroundColor;
-    self.view.locationBarContainer.backgroundColor =
-        [self.buttonFactory.toolbarConfiguration
-            locationBarBackgroundColorWithVisibility:1.0];
-  }
 }
 
 - (void)showCancelButton {
@@ -374,9 +310,6 @@
     self.view.locationBarContainer.layer.cornerRadius =
         self.view.locationBarHeight.constant / 2;
   }
-  if (!ShowThumbStripInTraitCollection(self.traitCollection)) {
-    self.view.topCornersRounded = NO;
-  }
 }
 
 - (CGFloat)clampedFontSizeMultiplier {
@@ -385,7 +318,7 @@
 }
 
 // Returns the desired height of the location bar, based on the fullscreen
-// `progress`.
+// |progress|.
 - (CGFloat)locationBarHeightForFullscreenProgress:(CGFloat)progress {
   CGFloat expandedHeight =
       LocationBarHeight(self.traitCollection.preferredContentSizeCategory);
@@ -397,7 +330,7 @@
 }
 
 // Returns the vertical margin to the location bar based on fullscreen
-// `progress`, aligned to the nearest pixel.
+// |progress|, aligned to the nearest pixel.
 - (CGFloat)verticalMarginForLocationBarForFullscreenProgress:(CGFloat)progress {
   // The vertical bottom margin for the location bar is such that the location
   // bar looks visually centered. However, the constraints are not geometrically

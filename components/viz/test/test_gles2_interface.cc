@@ -1,11 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/viz/test/test_gles2_interface.h"
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/lazy_instance.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
@@ -275,6 +274,27 @@ void TestGLES2Interface::PixelStorei(GLenum pname, GLint param) {
   }
 }
 
+GLuint TestGLES2Interface::CreateImageCHROMIUM(ClientBuffer buffer,
+                                               GLsizei width,
+                                               GLsizei height,
+                                               GLenum internalformat) {
+  DCHECK(internalformat == GL_RGB || internalformat == GL_RGBA ||
+         (test_capabilities_.texture_format_bgra8888 &&
+          internalformat == GL_BGRA_EXT));
+  GLuint image_id = NextImageId();
+  images_.insert(image_id);
+  return image_id;
+}
+
+void TestGLES2Interface::DestroyImageCHROMIUM(GLuint image_id) {
+  RetireImageId(image_id);
+  if (!images_.count(image_id)) {
+    ADD_FAILURE() << "destroyImageCHROMIUM called on unknown image "
+                  << image_id;
+  }
+  images_.erase(image_id);
+}
+
 void* TestGLES2Interface::MapBufferCHROMIUM(GLuint target, GLenum access) {
   DCHECK_GT(bound_buffer_.count(target), 0u);
   DCHECK_GT(buffers_.count(bound_buffer_[target]), 0u);
@@ -435,16 +455,53 @@ void TestGLES2Interface::set_times_bind_texture_succeeds(int times) {
   times_bind_texture_succeeds_ = times;
 }
 
+void TestGLES2Interface::set_have_extension_io_surface(bool have) {
+  test_capabilities_.iosurface = have;
+  test_capabilities_.texture_rectangle = have;
+}
+
 void TestGLES2Interface::set_have_extension_egl_image(bool have) {
   test_capabilities_.egl_image_external = have;
+}
+
+void TestGLES2Interface::set_have_post_sub_buffer(bool have) {
+  test_capabilities_.post_sub_buffer = have;
+}
+
+void TestGLES2Interface::set_have_swap_buffers_with_bounds(bool have) {
+  test_capabilities_.swap_buffers_with_bounds = have;
+}
+
+void TestGLES2Interface::set_have_commit_overlay_planes(bool have) {
+  test_capabilities_.commit_overlay_planes = have;
+}
+
+void TestGLES2Interface::set_have_discard_framebuffer(bool have) {
+  test_capabilities_.discard_framebuffer = have;
+}
+
+void TestGLES2Interface::set_support_compressed_texture_etc1(bool support) {
+  test_capabilities_.texture_format_etc1 = support;
 }
 
 void TestGLES2Interface::set_support_texture_format_bgra8888(bool support) {
   test_capabilities_.texture_format_bgra8888 = support;
 }
 
+void TestGLES2Interface::set_support_texture_storage(bool support) {
+  test_capabilities_.texture_storage = support;
+}
+
+void TestGLES2Interface::set_support_texture_usage(bool support) {
+  test_capabilities_.texture_usage = support;
+}
+
 void TestGLES2Interface::set_support_sync_query(bool support) {
   test_capabilities_.sync_query = support;
+}
+
+void TestGLES2Interface::set_support_texture_rectangle(bool support) {
+  test_capabilities_.texture_rectangle = support;
 }
 
 void TestGLES2Interface::set_support_texture_half_float_linear(bool support) {
@@ -499,10 +556,6 @@ void TestGLES2Interface::set_supports_gpu_memory_buffer_format(
   } else {
     test_capabilities_.gpu_memory_buffer_formats.Remove(format);
   }
-}
-
-void TestGLES2Interface::set_supports_texture_rg(bool support) {
-  test_capabilities_.texture_rg = support;
 }
 
 size_t TestGLES2Interface::NumTextures() const {
@@ -578,6 +631,10 @@ GLuint TestGLES2Interface::NextRenderbufferId() {
 void TestGLES2Interface::RetireRenderbufferId(GLuint id) {
   DCHECK(base::Contains(renderbuffer_set_, id));
   renderbuffer_set_.erase(id);
+}
+
+void TestGLES2Interface::SetMaxSamples(int max_samples) {
+  test_capabilities_.max_samples = max_samples;
 }
 
 size_t TestGLES2Interface::NumFramebuffers() const {

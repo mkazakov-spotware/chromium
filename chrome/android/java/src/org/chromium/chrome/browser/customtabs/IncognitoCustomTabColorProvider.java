@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,21 +9,21 @@ import android.graphics.Color;
 
 import androidx.annotation.Nullable;
 
-import org.chromium.chrome.browser.browserservices.intents.ColorProvider;
 import org.chromium.components.browser_ui.styles.ChromeColors;
 
 /**
- * ColorProvider implementation used for incognito profiles.
+ * CustomTabColorProvider implementation used for normal provides, and some times incognito
+ * profiles.
  */
-public final class IncognitoCustomTabColorProvider implements ColorProvider {
+public final class IncognitoCustomTabColorProvider implements CustomTabColorProvider {
     private final int mToolbarColor;
     private final int mBottomBarColor;
     private final int mNavigationBarColor;
 
     public IncognitoCustomTabColorProvider(Context context) {
         assert context != null;
-        mToolbarColor = mBottomBarColor = mNavigationBarColor =
-                ChromeColors.getDefaultThemeColor(context, /*forceDarkBgColor*/ true);
+        mToolbarColor = mBottomBarColor = mNavigationBarColor = ChromeColors.getDefaultThemeColor(
+                context.getResources(), /*forceDarkBgColor*/ true);
     }
 
     @Override

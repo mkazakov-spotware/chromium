@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,12 @@
 #include <memory>
 
 #include "base/json/json_value_converter.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
-#include "google_apis/common/parser_util.h"
-#include "google_apis/common/time_util.h"
+#include "google_apis/drive/time_util.h"
 
 namespace google_apis {
 
@@ -49,15 +49,16 @@ bool GetParentsFromValue(const base::Value* value,
   DCHECK(value);
   DCHECK(result);
 
-  if (!value->is_list())
+  const base::ListValue* list_value = nullptr;
+  if (!value->GetAsList(&list_value))
     return false;
 
-  const base::Value::List& list = value->GetList();
   base::JSONValueConverter<ParentReference> converter;
-  result->resize(list.size());
-  for (size_t i = 0; i < list.size(); ++i) {
-    const base::Value& parent_value = list[i];
-    if (!converter.Convert(parent_value, &(*result)[i]))
+  result->resize(list_value->GetSize());
+  for (size_t i = 0; i < list_value->GetSize(); ++i) {
+    const base::Value* parent_value = nullptr;
+    if (!list_value->Get(i, &parent_value) ||
+        !converter.Convert(*parent_value, &(*result)[i]))
       return false;
   }
 
@@ -72,20 +73,20 @@ bool GetOpenWithLinksFromDictionaryValue(
   DCHECK(value);
   DCHECK(result);
 
-  const auto* dict = value->GetIfDict();
-  if (!dict) {
+  const base::DictionaryValue* dictionary_value;
+  if (!value->GetAsDictionary(&dictionary_value))
     return false;
-  }
 
-  result->reserve(dict->size());
-  for (const auto item : *dict) {
-    const std::string* string_value = item.second.GetIfString();
-    if (!string_value)
+  result->reserve(dictionary_value->size());
+  for (base::DictionaryValue::Iterator iter(*dictionary_value);
+       !iter.IsAtEnd(); iter.Advance()) {
+    std::string string_value;
+    if (!iter.value().GetAsString(&string_value))
       return false;
 
     FileResource::OpenWithLink open_with_link;
-    open_with_link.app_id = item.first;
-    open_with_link.open_url = GURL(*string_value);
+    open_with_link.app_id = iter.key();
+    open_with_link.open_url = GURL(string_value);
     result->push_back(open_with_link);
   }
 
@@ -98,7 +99,12 @@ bool GetOpenWithLinksFromDictionaryValue(
 // https://developers.google.com/drive/v2/reference/
 
 // Common
+const char kKind[] = "kind";
+const char kId[] = "id";
+const char kETag[] = "etag";
+const char kItems[] = "items";
 const char kLargestChangeId[] = "largestChangeId";
+const char kName[] = "name";
 const char kNextPageToken[] = "nextPageToken";
 
 // About Resource
@@ -204,9 +210,21 @@ struct ChangeTypeMap {
 };
 
 constexpr ChangeTypeMap kChangeTypeMap[] = {
-    {ChangeResource::FILE, "file"},
-    {ChangeResource::TEAM_DRIVE, "teamDrive"},
+  { ChangeResource::FILE, "file" },
+  { ChangeResource::TEAM_DRIVE, "teamDrive" },
 };
+
+// Checks if the JSON is expected kind.  In Drive API, JSON data structure has
+// |kind| property which denotes the type of the structure (e.g. "drive#file").
+bool IsResourceKindExpected(const base::Value& value,
+                            const std::string& expected_kind) {
+  const base::DictionaryValue* as_dict = nullptr;
+  std::string kind;
+  return value.GetAsDictionary(&as_dict) &&
+      as_dict->HasKey(kKind) &&
+      as_dict->GetString(kKind, &kind) &&
+      kind == expected_kind;
+}
 
 }  // namespace
 
@@ -226,7 +244,7 @@ std::unique_ptr<AboutResource> AboutResource::CreateFrom(
   std::unique_ptr<AboutResource> resource(new AboutResource());
   if (!IsResourceKindExpected(value, kAboutKind) || !resource->Parse(value)) {
     LOG(ERROR) << "Unable to create: Invalid About resource JSON!";
-    return nullptr;
+    return std::unique_ptr<AboutResource>();
   }
   return resource;
 }
@@ -272,7 +290,8 @@ TeamDriveCapabilities::TeamDriveCapabilities()
       can_remove_children_(false),
       can_rename_(false),
       can_rename_team_drive_(false),
-      can_share_(false) {}
+      can_share_(false) {
+}
 
 TeamDriveCapabilities::TeamDriveCapabilities(const TeamDriveCapabilities& src) =
     default;
@@ -320,7 +339,7 @@ std::unique_ptr<TeamDriveResource> TeamDriveResource::CreateFrom(
   if (!IsResourceKindExpected(value, kTeamDriveKind) ||
       !resource->Parse(value)) {
     LOG(ERROR) << "Unable to create: Invalid Team Drive resource JSON!";
-    return nullptr;
+    return std::unique_ptr<TeamDriveResource>();
   }
   return resource;
 }
@@ -328,9 +347,8 @@ std::unique_ptr<TeamDriveResource> TeamDriveResource::CreateFrom(
 // static
 void TeamDriveResource::RegisterJSONConverter(
     base::JSONValueConverter<TeamDriveResource>* converter) {
-  converter->RegisterStringField(kApiResponseIdKey, &TeamDriveResource::id_);
-  converter->RegisterStringField(kApiResponseNameKey,
-                                 &TeamDriveResource::name_);
+  converter->RegisterStringField(kId, &TeamDriveResource::id_);
+  converter->RegisterStringField(kName, &TeamDriveResource::name_);
   converter->RegisterNestedField(kCapabilities,
                                  &TeamDriveResource::capabilities_);
 }
@@ -356,7 +374,7 @@ void TeamDriveList::RegisterJSONConverter(
     base::JSONValueConverter<TeamDriveList>* converter) {
   converter->RegisterStringField(kNextPageToken,
                                  &TeamDriveList::next_page_token_);
-  converter->RegisterRepeatedMessage<TeamDriveResource>(kApiResponseItemsKey,
+  converter->RegisterRepeatedMessage<TeamDriveResource>(kItems,
                                                         &TeamDriveList::items_);
 }
 
@@ -371,7 +389,7 @@ std::unique_ptr<TeamDriveList> TeamDriveList::CreateFrom(
   std::unique_ptr<TeamDriveList> resource(new TeamDriveList());
   if (!HasTeamDriveListKind(value) || !resource->Parse(value)) {
     LOG(ERROR) << "Unable to create: Invalid TeamDriveList JSON!";
-    return nullptr;
+    return std::unique_ptr<TeamDriveList>();
   }
   return resource;
 }
@@ -395,7 +413,7 @@ ParentReference::~ParentReference() {}
 // static
 void ParentReference::RegisterJSONConverter(
     base::JSONValueConverter<ParentReference>* converter) {
-  converter->RegisterStringField(kApiResponseIdKey, &ParentReference::file_id_);
+  converter->RegisterStringField(kId, &ParentReference::file_id_);
 }
 
 // static
@@ -405,7 +423,7 @@ std::unique_ptr<ParentReference> ParentReference::CreateFrom(
   if (!IsResourceKindExpected(value, kParentReferenceKind) ||
       !reference->Parse(value)) {
     LOG(ERROR) << "Unable to create: Invalid ParentRefernce JSON!";
-    return nullptr;
+    return std::unique_ptr<ParentReference>();
   }
   return reference;
 }
@@ -498,8 +516,8 @@ FileResource::~FileResource() {}
 // static
 void FileResource::RegisterJSONConverter(
     base::JSONValueConverter<FileResource>* converter) {
-  converter->RegisterStringField(kApiResponseIdKey, &FileResource::file_id_);
-  converter->RegisterStringField(kApiResponseETagKey, &FileResource::etag_);
+  converter->RegisterStringField(kId, &FileResource::file_id_);
+  converter->RegisterStringField(kETag, &FileResource::etag_);
   converter->RegisterStringField(kTitle, &FileResource::title_);
   converter->RegisterStringField(kMimeType, &FileResource::mime_type_);
   converter->RegisterNestedField(kLabels, &FileResource::labels_);
@@ -507,30 +525,41 @@ void FileResource::RegisterJSONConverter(
                                  &FileResource::image_media_metadata_);
   converter->RegisterNestedField(kCapabilities, &FileResource::capabilities_);
   converter->RegisterCustomField<base::Time>(
-      kCreatedDate, &FileResource::created_date_, &util::GetTimeFromString);
+      kCreatedDate,
+      &FileResource::created_date_,
+      &util::GetTimeFromString);
   converter->RegisterCustomField<base::Time>(
-      kModifiedDate, &FileResource::modified_date_, &util::GetTimeFromString);
+      kModifiedDate,
+      &FileResource::modified_date_,
+      &util::GetTimeFromString);
   converter->RegisterCustomField<base::Time>(
       kModifiedByMeDate, &FileResource::modified_by_me_date_,
       &util::GetTimeFromString);
   converter->RegisterCustomField<base::Time>(
-      kLastViewedByMeDate, &FileResource::last_viewed_by_me_date_,
+      kLastViewedByMeDate,
+      &FileResource::last_viewed_by_me_date_,
       &util::GetTimeFromString);
   converter->RegisterCustomField<base::Time>(
-      kSharedWithMeDate, &FileResource::shared_with_me_date_,
+      kSharedWithMeDate,
+      &FileResource::shared_with_me_date_,
       &util::GetTimeFromString);
   converter->RegisterBoolField(kShared, &FileResource::shared_);
   converter->RegisterStringField(kMd5Checksum, &FileResource::md5_checksum_);
   converter->RegisterCustomField<int64_t>(kFileSize, &FileResource::file_size_,
                                           &base::StringToInt64);
-  converter->RegisterCustomField<GURL>(
-      kAlternateLink, &FileResource::alternate_link_, GetGURLFromString);
-  converter->RegisterCustomField<GURL>(kShareLink, &FileResource::share_link_,
+  converter->RegisterCustomField<GURL>(kAlternateLink,
+                                       &FileResource::alternate_link_,
                                        GetGURLFromString);
-  converter->RegisterCustomValueField<std::vector<ParentReference>>(
-      kParents, &FileResource::parents_, GetParentsFromValue);
-  converter->RegisterCustomValueField<std::vector<OpenWithLink>>(
-      kOpenWithLinks, &FileResource::open_with_links_,
+  converter->RegisterCustomField<GURL>(kShareLink,
+                                       &FileResource::share_link_,
+                                       GetGURLFromString);
+  converter->RegisterCustomValueField<std::vector<ParentReference> >(
+      kParents,
+      &FileResource::parents_,
+      GetParentsFromValue);
+  converter->RegisterCustomValueField<std::vector<OpenWithLink> >(
+      kOpenWithLinks,
+      &FileResource::open_with_links_,
       GetOpenWithLinksFromDictionaryValue);
   converter->RegisterStringField(kTeamDriveId, &FileResource::team_drive_id_);
 }
@@ -541,7 +570,7 @@ std::unique_ptr<FileResource> FileResource::CreateFrom(
   std::unique_ptr<FileResource> resource(new FileResource());
   if (!IsResourceKindExpected(value, kFileKind) || !resource->Parse(value)) {
     LOG(ERROR) << "Unable to create: Invalid FileResource JSON!";
-    return nullptr;
+    return std::unique_ptr<FileResource>();
   }
   return resource;
 }
@@ -575,9 +604,10 @@ FileList::~FileList() {}
 // static
 void FileList::RegisterJSONConverter(
     base::JSONValueConverter<FileList>* converter) {
-  converter->RegisterCustomField<GURL>(kNextLink, &FileList::next_link_,
+  converter->RegisterCustomField<GURL>(kNextLink,
+                                       &FileList::next_link_,
                                        GetGURLFromString);
-  converter->RegisterRepeatedMessage<FileResource>(kApiResponseItemsKey,
+  converter->RegisterRepeatedMessage<FileResource>(kItems,
                                                    &FileList::items_);
 }
 
@@ -591,7 +621,7 @@ std::unique_ptr<FileList> FileList::CreateFrom(const base::Value& value) {
   std::unique_ptr<FileList> resource(new FileList());
   if (!HasFileListKind(value) || !resource->Parse(value)) {
     LOG(ERROR) << "Unable to create: Invalid FileList JSON!";
-    return nullptr;
+    return std::unique_ptr<FileList>();
   }
   return resource;
 }
@@ -616,8 +646,8 @@ ChangeResource::~ChangeResource() {}
 // static
 void ChangeResource::RegisterJSONConverter(
     base::JSONValueConverter<ChangeResource>* converter) {
-  converter->RegisterCustomField<int64_t>(
-      kApiResponseIdKey, &ChangeResource::change_id_, &base::StringToInt64);
+  converter->RegisterCustomField<int64_t>(kId, &ChangeResource::change_id_,
+                                          &base::StringToInt64);
   converter->RegisterCustomField<ChangeType>(kType, &ChangeResource::type_,
                                              &ChangeResource::GetType);
   converter->RegisterStringField(kFileId, &ChangeResource::file_id_);
@@ -638,7 +668,7 @@ std::unique_ptr<ChangeResource> ChangeResource::CreateFrom(
   std::unique_ptr<ChangeResource> resource(new ChangeResource());
   if (!IsResourceKindExpected(value, kChangeKind) || !resource->Parse(value)) {
     LOG(ERROR) << "Unable to create: Invalid ChangeResource JSON!";
-    return nullptr;
+    return std::unique_ptr<ChangeResource>();
   }
   return resource;
 }
@@ -655,7 +685,7 @@ bool ChangeResource::Parse(const base::Value& value) {
 // static
 bool ChangeResource::GetType(base::StringPiece type_name,
                              ChangeResource::ChangeType* result) {
-  for (size_t i = 0; i < std::size(kChangeTypeMap); i++) {
+  for (size_t i = 0; i < base::size(kChangeTypeMap); i++) {
     if (type_name == kChangeTypeMap[i].type_name) {
       *result = kChangeTypeMap[i].type;
       return true;
@@ -675,13 +705,14 @@ ChangeList::~ChangeList() = default;
 // static
 void ChangeList::RegisterJSONConverter(
     base::JSONValueConverter<ChangeList>* converter) {
-  converter->RegisterCustomField<GURL>(kNextLink, &ChangeList::next_link_,
+  converter->RegisterCustomField<GURL>(kNextLink,
+                                       &ChangeList::next_link_,
                                        GetGURLFromString);
   converter->RegisterCustomField<int64_t>(
       kLargestChangeId, &ChangeList::largest_change_id_, &base::StringToInt64);
   converter->RegisterStringField(kNewStartPageToken,
                                  &ChangeList::new_start_page_token_);
-  converter->RegisterRepeatedMessage<ChangeResource>(kApiResponseItemsKey,
+  converter->RegisterRepeatedMessage<ChangeResource>(kItems,
                                                      &ChangeList::items_);
 }
 
@@ -695,7 +726,7 @@ std::unique_ptr<ChangeList> ChangeList::CreateFrom(const base::Value& value) {
   std::unique_ptr<ChangeList> resource(new ChangeList());
   if (!HasChangeListKind(value) || !resource->Parse(value)) {
     LOG(ERROR) << "Unable to create: Invalid ChangeList JSON!";
-    return nullptr;
+    return std::unique_ptr<ChangeList>();
   }
   return resource;
 }
@@ -709,10 +740,13 @@ bool ChangeList::Parse(const base::Value& value) {
   return true;
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // FileLabels implementation
 
-FileLabels::FileLabels() : trashed_(false), starred_(false) {}
+FileLabels::FileLabels()
+    : trashed_(false),
+      starred_(false) {}
 
 FileLabels::~FileLabels() {}
 
@@ -728,7 +762,7 @@ std::unique_ptr<FileLabels> FileLabels::CreateFrom(const base::Value& value) {
   std::unique_ptr<FileLabels> resource(new FileLabels());
   if (!resource->Parse(value)) {
     LOG(ERROR) << "Unable to create: Invalid FileLabels JSON!";
-    return nullptr;
+    return std::unique_ptr<FileLabels>();
   }
   return resource;
 }
@@ -746,7 +780,9 @@ bool FileLabels::Parse(const base::Value& value) {
 // ImageMediaMetadata implementation
 
 ImageMediaMetadata::ImageMediaMetadata()
-    : width_(-1), height_(-1), rotation_(-1) {}
+    : width_(-1),
+      height_(-1),
+      rotation_(-1) {}
 
 ImageMediaMetadata::~ImageMediaMetadata() {}
 
@@ -767,7 +803,7 @@ std::unique_ptr<ImageMediaMetadata> ImageMediaMetadata::CreateFrom(
   std::unique_ptr<ImageMediaMetadata> resource(new ImageMediaMetadata());
   if (!resource->Parse(value)) {
     LOG(ERROR) << "Unable to create: Invalid ImageMediaMetadata JSON!";
-    return nullptr;
+    return std::unique_ptr<ImageMediaMetadata>();
   }
   return resource;
 }

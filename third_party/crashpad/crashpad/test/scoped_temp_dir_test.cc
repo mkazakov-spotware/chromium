@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,26 +23,26 @@
 #include "test/errors.h"
 #include "test/file.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <unistd.h>
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include <direct.h>
 #include <io.h>
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX
 
 namespace crashpad {
 namespace test {
 namespace {
 
 void CreateFile(const base::FilePath& path) {
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   int fd = HANDLE_EINTR(creat(path.value().c_str(), 0644));
   ASSERT_GE(fd, 0) << ErrnoMessage("creat") << " " << path.value();
 
   // gcc refuses to compile ASSERT_EQ(IGNORE_EINTR(close(fd)), 0).
   int close_rv = IGNORE_EINTR(close(fd));
   ASSERT_EQ(close_rv, 0) << ErrnoMessage("close") << " " << path.value();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   int fd = _wcreat(path.value().c_str(), _S_IREAD | _S_IWRITE);
   ASSERT_GE(fd, 0) << ErrnoMessage("_wcreat") << " " << path.value();
   ASSERT_EQ(_close(fd), 0) << ErrnoMessage("_close") << " " << path.value();
@@ -53,10 +53,10 @@ void CreateFile(const base::FilePath& path) {
 }
 
 void CreateDirectory(const base::FilePath& path) {
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   ASSERT_EQ(mkdir(path.value().c_str(), 0755), 0) << ErrnoMessage("mkdir")
                                                   << " " << path.value();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   ASSERT_EQ(_wmkdir(path.value().c_str()), 0) << ErrnoMessage("_wmkdir") << " "
                                               << path.value();
 #else

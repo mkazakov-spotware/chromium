@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/callback_forward.h"
+#include "base/compiler_specific.h"
 #include "chrome/browser/ui/tabs/hover_tab_selector.h"
 #include "chrome/browser/ui/tabs/tab_menu_model_factory.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -28,6 +29,10 @@ class TabGroupVisualData;
 
 namespace content {
 class WebContents;
+}
+
+namespace feature_engagement {
+class Tracker;
 }
 
 namespace ui {
@@ -63,7 +68,7 @@ class BrowserTabStripController : public TabStripController,
   int GetCount() const override;
   bool IsValidIndex(int model_index) const override;
   bool IsActiveTab(int model_index) const override;
-  absl::optional<int> GetActiveIndex() const override;
+  int GetActiveIndex() const override;
   bool IsTabSelected(int model_index) const override;
   bool IsTabPinned(int model_index) const override;
   void SelectTab(int model_index, const ui::Event& event) override;
@@ -72,13 +77,12 @@ class BrowserTabStripController : public TabStripController,
   void AddSelectionFromAnchorTo(int model_index) override;
   bool BeforeCloseTab(int model_index, CloseTabSource source) override;
   void CloseTab(int model_index) override;
-  void ToggleTabAudioMute(int model_index) override;
   void AddTabToGroup(int model_index,
                      const tab_groups::TabGroupId& group) override;
   void RemoveTabFromGroup(int model_index) override;
   void MoveTab(int start_index, int final_index) override;
   void MoveGroup(const tab_groups::TabGroupId& group, int final_index) override;
-  void ToggleTabGroupCollapsedState(
+  bool ToggleTabGroupCollapsedState(
       const tab_groups::TabGroupId group,
       ToggleTabGroupCollapsedStateOrigin origin) override;
   void ShowContextMenuForTab(Tab* tab,
@@ -87,13 +91,14 @@ class BrowserTabStripController : public TabStripController,
   int HasAvailableDragActions() const override;
   void OnDropIndexUpdate(int index, bool drop_before) override;
   void CreateNewTab() override;
-  void CreateNewTabWithLocation(const std::u16string& loc) override;
+  void CreateNewTabWithLocation(const base::string16& loc) override;
+  void StackedLayoutMaybeChanged() override;
   void OnStartedDragging(bool dragging_window) override;
   void OnStoppedDragging() override;
-  void OnKeyboardFocusedTabChanged(absl::optional<int> index) override;
-  std::u16string GetGroupTitle(
+  void OnKeyboardFocusedTabChanged(base::Optional<int> index) override;
+  base::string16 GetGroupTitle(
       const tab_groups::TabGroupId& group_id) const override;
-  std::u16string GetGroupContentString(
+  base::string16 GetGroupContentString(
       const tab_groups::TabGroupId& group_id) const override;
   tab_groups::TabGroupColorId GetGroupColorId(
       const tab_groups::TabGroupId& group_id) const override;
@@ -102,9 +107,7 @@ class BrowserTabStripController : public TabStripController,
   void SetVisualDataForGroup(
       const tab_groups::TabGroupId& group,
       const tab_groups::TabGroupVisualData& visual_data) override;
-  absl::optional<int> GetFirstTabInGroup(
-      const tab_groups::TabGroupId& group) const override;
-  gfx::Range ListTabsInGroup(
+  std::vector<int> ListTabsInGroup(
       const tab_groups::TabGroupId& group_id) const override;
   bool IsFrameCondensed() const override;
   bool HasVisibleBackgroundTabShapes() const override;
@@ -112,9 +115,10 @@ class BrowserTabStripController : public TabStripController,
   bool ShouldPaintAsActiveFrame() const override;
   bool CanDrawStrokes() const override;
   SkColor GetFrameColor(BrowserFrameActiveState active_state) const override;
-  absl::optional<int> GetCustomBackgroundId(
+  SkColor GetToolbarTopSeparatorColor() const override;
+  base::Optional<int> GetCustomBackgroundId(
       BrowserFrameActiveState active_state) const override;
-  std::u16string GetAccessibleTabName(const Tab* tab) const override;
+  base::string16 GetAccessibleTabName(const Tab* tab) const override;
   Profile* GetProfile() const override;
   const Browser* GetBrowser() const override;
 
@@ -123,8 +127,6 @@ class BrowserTabStripController : public TabStripController,
       TabStripModel* tab_strip_model,
       const TabStripModelChange& change,
       const TabStripSelectionChange& selection) override;
-  void OnTabWillBeAdded() override;
-  void OnTabWillBeRemoved(content::WebContents* contents, int index) override;
   void OnTabGroupChanged(const TabGroupChange& change) override;
   void TabChangedAt(content::WebContents* contents,
                     int model_index,
@@ -134,15 +136,12 @@ class BrowserTabStripController : public TabStripController,
                              int model_index) override;
   void TabBlockedStateChanged(content::WebContents* contents,
                               int model_index) override;
-  void TabGroupedStateChanged(absl::optional<tab_groups::TabGroupId> group,
+  void TabGroupedStateChanged(base::Optional<tab_groups::TabGroupId> group,
                               content::WebContents* contents,
                               int index) override;
   void SetTabNeedsAttentionAt(int index, bool attention) override;
 
   const Browser* browser() const { return browser_view_->browser(); }
-
-  // Test-specific methods.
-  void CloseContextMenuForTesting();
 
  private:
   class TabContextMenuContents;
@@ -154,13 +153,18 @@ class BrowserTabStripController : public TabStripController,
   void SetTabDataAt(content::WebContents* web_contents, int model_index);
 
   // Adds a tab.
-  void AddTab(content::WebContents* contents, int index);
+  void AddTab(content::WebContents* contents, int index, bool is_active);
 
-  raw_ptr<TabStripModel> model_;
+  // Resets the tabstrips stacked layout (true or false) from prefs.
+  void UpdateStackedLayout();
 
-  raw_ptr<TabStrip> tabstrip_;
+  TabStripModel* model_;
 
-  raw_ptr<BrowserView> browser_view_;
+  TabStrip* tabstrip_;
+
+  BrowserView* browser_view_;
+
+  feature_engagement::Tracker* const feature_engagement_tracker_;
 
   // If non-NULL it means we're showing a menu for the tab.
   std::unique_ptr<TabContextMenuContents> context_menu_contents_;

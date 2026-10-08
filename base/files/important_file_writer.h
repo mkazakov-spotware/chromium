@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,12 @@
 #include "base/base_export.h"
 #include "base/callback.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
 #include "base/strings/string_piece.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 
 namespace base {
 
@@ -38,11 +38,6 @@ class SequencedTaskRunner;
 // for details) and thus please don't block shutdown on ImportantFileWriter.
 class BASE_EXPORT ImportantFileWriter {
  public:
-  // Promise-like callback that returns (via output parameter) the serialized
-  // data to be written. This callback is invoked on the sequence where I/O
-  // operations are executed. Returning false indicates an error.
-  using BackgroundDataProducerCallback = base::OnceCallback<bool(std::string*)>;
-
   // Used by ScheduleSave to lazily provide the data to be saved. Allows us
   // to also batch data serializations.
   class BASE_EXPORT DataSerializer {
@@ -54,21 +49,6 @@ class BASE_EXPORT ImportantFileWriter {
 
    protected:
     virtual ~DataSerializer() = default;
-  };
-
-  // Same as DataSerializer but allows the caller to move some of the
-  // serialization logic to the sequence where I/O operations are executed.
-  class BASE_EXPORT BackgroundDataSerializer {
-   public:
-    // Returns a promise-like callback that, when invoked, will produce the
-    // serialized string. This getter itself will be called on the same thread
-    // on which ImportantFileWriter has been created, but the callback will be
-    // invoked from the sequence where I/O operations are executed.
-    virtual BackgroundDataProducerCallback
-    GetSerializedDataProducerForBackgroundSequence() = 0;
-
-   protected:
-    virtual ~BackgroundDataSerializer() = default;
   };
 
   // Save |data| to |path| in an atomic manner. Blocks and writes data on the
@@ -85,16 +65,13 @@ class BASE_EXPORT ImportantFileWriter {
   // All non-const methods, ctor and dtor must be called on the same thread.
   ImportantFileWriter(const FilePath& path,
                       scoped_refptr<SequencedTaskRunner> task_runner,
-                      StringPiece histogram_suffix = StringPiece());
+                      const char* histogram_suffix = nullptr);
 
   // Same as above, but with a custom commit interval.
   ImportantFileWriter(const FilePath& path,
                       scoped_refptr<SequencedTaskRunner> task_runner,
                       TimeDelta interval,
-                      StringPiece histogram_suffix = StringPiece());
-
-  ImportantFileWriter(const ImportantFileWriter&) = delete;
-  ImportantFileWriter& operator=(const ImportantFileWriter&) = delete;
+                      const char* histogram_suffix = nullptr);
 
   // You have to ensure that there are no pending writes at the moment
   // of destruction.
@@ -118,11 +95,7 @@ class BASE_EXPORT ImportantFileWriter {
   // ImportantFileWriter.
   void ScheduleWrite(DataSerializer* serializer);
 
-  // Same as above but uses the BackgroundDataSerializer API.
-  void ScheduleWriteWithBackgroundDataSerializer(
-      BackgroundDataSerializer* serializer);
-
-  // Serialize data pending to be saved and execute write on background thread.
+  // Serialize data pending to be saved and execute write on backend thread.
   void DoScheduledWrite();
 
   // Registers |before_next_write_callback| and |after_next_write_callback| to
@@ -144,29 +117,17 @@ class BASE_EXPORT ImportantFileWriter {
   // Overrides the timer to use for scheduling writes with |timer_override|.
   void SetTimerForTesting(OneShotTimer* timer_override);
 
-#if defined(UNIT_TEST)
-  size_t previous_data_size() const { return previous_data_size_; }
-#endif
-  void set_previous_data_size(size_t previous_data_size) {
-    previous_data_size_ = previous_data_size;
-  }
-
  private:
   const OneShotTimer& timer() const {
     return timer_override_ ? *timer_override_ : timer_;
   }
   OneShotTimer& timer() { return timer_override_ ? *timer_override_ : timer_; }
 
-  // Same as WriteNow() but it uses a promise-like signature that allows running
-  // custom logic in the background sequence.
-  void WriteNowWithBackgroundDataProducer(
-      BackgroundDataProducerCallback background_producer);
-
-  // Helper function to call WriteFileAtomically() with a promise-like callback
-  // producing a std::string.
-  static void ProduceAndWriteStringToFileAtomically(
+  // Helper function to call WriteFileAtomically() with a
+  // std::unique_ptr<std::string>.
+  static void WriteScopedStringToFileAtomically(
       const FilePath& path,
-      BackgroundDataProducerCallback data_producer_for_background_sequence,
+      std::unique_ptr<std::string> data,
       OnceClosure before_write_callback,
       OnceCallback<void(bool success)> after_write_callback,
       const std::string& histogram_suffix);
@@ -197,11 +158,10 @@ class BASE_EXPORT ImportantFileWriter {
   OneShotTimer timer_;
 
   // An override for |timer_| used for testing.
-  raw_ptr<OneShotTimer> timer_override_ = nullptr;
+  OneShotTimer* timer_override_ = nullptr;
 
   // Serializer which will provide the data to be saved.
-  absl::variant<absl::monostate, DataSerializer*, BackgroundDataSerializer*>
-      serializer_;
+  DataSerializer* serializer_;
 
   // Time delta after which scheduled data will be written to disk.
   const TimeDelta commit_interval_;
@@ -209,14 +169,11 @@ class BASE_EXPORT ImportantFileWriter {
   // Custom histogram suffix.
   const std::string histogram_suffix_;
 
-  // Memorizes the amount of data written on the previous write. This helps
-  // preallocating memory for the data serialization. It is only used for
-  // scheduled writes.
-  size_t previous_data_size_ = 0;
-
   SEQUENCE_CHECKER(sequence_checker_);
 
   WeakPtrFactory<ImportantFileWriter> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ImportantFileWriter);
 };
 
 }  // namespace base

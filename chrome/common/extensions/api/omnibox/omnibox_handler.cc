@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
-#include "chrome/common/extensions/api/omnibox.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/manifest_constants.h"
@@ -18,14 +17,15 @@ namespace extensions {
 
 namespace {
 
-using ManifestKeys = api::omnibox::ManifestKeys;
+// Manifest keys.
+const char kKeyword[] = "keyword";
 
 }  // namespace
 
 // static
 const std::string& OmniboxInfo::GetKeyword(const Extension* extension) {
   OmniboxInfo* info = static_cast<OmniboxInfo*>(
-      extension->GetManifestData(ManifestKeys::kOmnibox));
+      extension->GetManifestData(manifest_keys::kOmnibox));
   return info ? info->keyword : base::EmptyString();
 }
 
@@ -35,27 +35,22 @@ OmniboxHandler::OmniboxHandler() {
 OmniboxHandler::~OmniboxHandler() {
 }
 
-bool OmniboxHandler::Parse(Extension* extension, std::u16string* error) {
-  ManifestKeys manifest_keys;
-  if (!ManifestKeys::ParseFromDictionary(
-          extension->manifest()->available_values().GetDict(), &manifest_keys,
-          error)) {
+bool OmniboxHandler::Parse(Extension* extension, base::string16* error) {
+  std::unique_ptr<OmniboxInfo> info(new OmniboxInfo);
+  const base::DictionaryValue* dict = NULL;
+  if (!extension->manifest()->GetDictionary(manifest_keys::kOmnibox,
+                                            &dict) ||
+      !dict->GetString(kKeyword, &info->keyword) ||
+      info->keyword.empty()) {
+    *error = base::ASCIIToUTF16(manifest_errors::kInvalidOmniboxKeyword);
     return false;
   }
-
-  auto info = std::make_unique<OmniboxInfo>();
-  info->keyword = manifest_keys.omnibox.keyword;
-  if (info->keyword.empty()) {
-    *error = manifest_errors::kEmptyOmniboxKeyword;
-    return false;
-  }
-
-  extension->SetManifestData(ManifestKeys::kOmnibox, std::move(info));
+  extension->SetManifestData(manifest_keys::kOmnibox, std::move(info));
   return true;
 }
 
 base::span<const char* const> OmniboxHandler::Keys() const {
-  static constexpr const char* kKeys[] = {ManifestKeys::kOmnibox};
+  static constexpr const char* kKeys[] = {manifest_keys::kOmnibox};
   return kKeys;
 }
 

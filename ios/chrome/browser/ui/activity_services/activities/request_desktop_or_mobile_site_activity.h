@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,17 +9,15 @@
 
 #include "ios/web/common/user_agent.h"
 
-@protocol BrowserCoordinatorCommands;
-class WebNavigationBrowserAgent;
+@protocol BrowserCommands;
 
 // Activity to request the Desktop or Mobile version of the page.
 @interface RequestDesktopOrMobileSiteActivity : UIActivity
 
 // Initializes an activity to change between Mobile versus Desktop user agent,
-// with the current `userAgent` and `handler` to execute the action.
+// with the current |userAgent| and |handler| to execute the action.
 - (instancetype)initWithUserAgent:(web::UserAgentType)userAgent
-                          handler:(id<BrowserCoordinatorCommands>)handler
-                  navigationAgent:(WebNavigationBrowserAgent*)agent
+                          handler:(id<BrowserCommands>)handler
     NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 

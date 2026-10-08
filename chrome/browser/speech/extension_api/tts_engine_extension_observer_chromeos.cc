@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,15 @@
 
 #include "base/check.h"
 #include "base/memory/singleton.h"
+#include "chrome/browser/chromeos/service_sandbox_type.h"
 #include "chrome/browser/extensions/extension_service.h"
+#include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
 #include "chrome/browser/speech/extension_api/tts_engine_extension_api.h"
 #include "chrome/common/extensions/api/speech/tts_engine_manifest_handler.h"
 #include "chrome/common/extensions/extension_constants.h"
-#include "chromeos/services/tts/public/mojom/tts_service.mojom.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "content/public/browser/service_process_host.h"
 #include "content/public/browser/tts_controller.h"
@@ -21,9 +23,6 @@
 #include "extensions/common/permissions/permissions_data.h"
 
 namespace {
-
-using ::ash::AccessibilityManager;
-using ::ash::AccessibilityNotificationType;
 
 void UpdateGoogleSpeechSynthesisKeepAliveCountHelper(
     content::BrowserContext* context,
@@ -57,20 +56,19 @@ void UpdateGoogleSpeechSynthesisKeepAliveCount(content::BrowserContext* context,
     return;
 
   UpdateGoogleSpeechSynthesisKeepAliveCountHelper(
-      profile->HasPrimaryOTRProfile()
-          ? profile->GetPrimaryOTRProfile(/*create_if_needed=*/true)
-          : profile,
+      profile->HasPrimaryOTRProfile() ? profile->GetPrimaryOTRProfile()
+                                      : profile,
       increment);
 }
 
 void UpdateGoogleSpeechSynthesisKeepAliveCountOnReload(
     content::BrowserContext* browser_context) {
-  if (AccessibilityManager::Get()->IsSpokenFeedbackEnabled()) {
+  if (chromeos::AccessibilityManager::Get()->IsSpokenFeedbackEnabled()) {
     UpdateGoogleSpeechSynthesisKeepAliveCount(browser_context,
                                               true /* increment */);
   }
 
-  if (AccessibilityManager::Get()->IsSelectToSpeakEnabled()) {
+  if (chromeos::AccessibilityManager::Get()->IsSelectToSpeakEnabled()) {
     UpdateGoogleSpeechSynthesisKeepAliveCount(browser_context,
                                               true /* increment */);
   }
@@ -80,7 +78,7 @@ void UpdateGoogleSpeechSynthesisKeepAliveCountOnReload(
 
 // Factory to load one instance of TtsExtensionLoaderChromeOs per profile.
 class TtsEngineExtensionObserverChromeOSFactory
-    : public ProfileKeyedServiceFactory {
+    : public BrowserContextKeyedServiceFactory {
  public:
   static TtsEngineExtensionObserverChromeOS* GetForProfile(Profile* profile) {
     return static_cast<TtsEngineExtensionObserverChromeOS*>(
@@ -96,15 +94,20 @@ class TtsEngineExtensionObserverChromeOSFactory
       TtsEngineExtensionObserverChromeOSFactory>;
 
   TtsEngineExtensionObserverChromeOSFactory()
-      : ProfileKeyedServiceFactory(
+      : BrowserContextKeyedServiceFactory(
             "TtsEngineExtensionObserverChromeOS",
-            // If given an incognito profile (including the Chrome OS login
-            // profile), share the service with the original profile.
-            ProfileSelections::BuildRedirectedInIncognito()) {
+            BrowserContextDependencyManager::GetInstance()) {
     DependsOn(extensions::EventRouterFactory::GetInstance());
   }
 
   ~TtsEngineExtensionObserverChromeOSFactory() override {}
+
+  content::BrowserContext* GetBrowserContextToUse(
+      content::BrowserContext* context) const override {
+    // If given an incognito profile (including the Chrome OS login
+    // profile), share the service with the original profile.
+    return chrome::GetBrowserContextRedirectedInIncognito(context);
+  }
 
   KeyedService* BuildServiceInstanceFor(
       content::BrowserContext* profile) const override {
@@ -121,8 +124,8 @@ TtsEngineExtensionObserverChromeOS::GetInstance(Profile* profile) {
 
 TtsEngineExtensionObserverChromeOS::TtsEngineExtensionObserverChromeOS(
     Profile* profile)
-    : profile_(profile) {
-  extension_registry_observation_.Observe(
+    : extension_registry_observer_(this), profile_(profile) {
+  extension_registry_observer_.Add(
       extensions::ExtensionRegistry::Get(profile_));
 
   extensions::EventRouter* event_router =
@@ -132,49 +135,36 @@ TtsEngineExtensionObserverChromeOS::TtsEngineExtensionObserverChromeOS(
   event_router->RegisterObserver(this, tts_engine_events::kOnStop);
 
   accessibility_status_subscription_ =
-      AccessibilityManager::Get()->RegisterCallback(base::BindRepeating(
-          &TtsEngineExtensionObserverChromeOS::OnAccessibilityStatusChanged,
-          base::Unretained(this)));
+      chromeos::AccessibilityManager::Get()->RegisterCallback(
+          base::BindRepeating(
+              &TtsEngineExtensionObserverChromeOS::OnAccessibilityStatusChanged,
+              base::Unretained(this)));
 }
 
 TtsEngineExtensionObserverChromeOS::~TtsEngineExtensionObserverChromeOS() =
     default;
 
-void TtsEngineExtensionObserverChromeOS::BindGoogleTtsStream(
-    mojo::PendingReceiver<chromeos::tts::mojom::GoogleTtsStream> receiver) {
+void TtsEngineExtensionObserverChromeOS::BindTtsStream(
+    mojo::PendingReceiver<chromeos::tts::mojom::TtsStream> receiver) {
   // At this point, the component extension has loaded, and the js has requested
-  // a TtsStreamFactory be bound. It's safe now to update the keep alive count
-  // for important accessibility features. This path is also encountered if the
+  // a TtsStream be bound. It's safe now to update the keep alive count for
+  // important accessibility features. This path is also encountered if the
   // component extension background page forceably window.close(s) on error.
   UpdateGoogleSpeechSynthesisKeepAliveCountOnReload(profile_);
 
-  CreateTtsServiceIfNeeded();
+  // Always launch a new TtsService. By assigning below, if |tts_service_| held
+  // a remote, it will be killed and a new one created, ensuring we only ever
+  // have one TtsService running.
+  tts_service_ =
+      content::ServiceProcessHost::Launch<chromeos::tts::mojom::TtsService>(
+          content::ServiceProcessHost::Options()
+              .WithDisplayName("TtsService")
+              .Pass());
 
-  // Always create a new audio stream for the tts stream. It is assumed once the
-  // tts stream is reset by the service, the audio stream is appropriately
-  // cleaned up by the audio service.
-  mojo::PendingRemote<media::mojom::AudioStreamFactory> factory_remote;
+  mojo::PendingRemote<audio::mojom::StreamFactory> factory_remote;
   auto factory_receiver = factory_remote.InitWithNewPipeAndPassReceiver();
   content::GetAudioService().BindStreamFactory(std::move(factory_receiver));
-  tts_service_->BindGoogleTtsStream(std::move(receiver),
-                                    std::move(factory_remote));
-}
-
-void TtsEngineExtensionObserverChromeOS::BindPlaybackTtsStream(
-    mojo::PendingReceiver<chromeos::tts::mojom::PlaybackTtsStream> receiver,
-    chromeos::tts::mojom::AudioParametersPtr audio_parameters,
-    chromeos::tts::mojom::TtsService::BindPlaybackTtsStreamCallback callback) {
-  CreateTtsServiceIfNeeded();
-
-  // Always create a new audio stream for the tts stream. It is assumed once the
-  // tts stream is reset by the service, the audio stream is appropriately
-  // cleaned up by the audio service.
-  mojo::PendingRemote<media::mojom::AudioStreamFactory> factory_remote;
-  auto factory_receiver = factory_remote.InitWithNewPipeAndPassReceiver();
-  content::GetAudioService().BindStreamFactory(std::move(factory_receiver));
-  tts_service_->BindPlaybackTtsStream(
-      std::move(receiver), std::move(factory_remote),
-      std::move(audio_parameters), std::move(callback));
+  tts_service_->BindTtsStream(std::move(receiver), std::move(factory_remote));
 }
 
 void TtsEngineExtensionObserverChromeOS::Shutdown() {
@@ -207,10 +197,8 @@ void TtsEngineExtensionObserverChromeOS::OnListenerAdded(
 void TtsEngineExtensionObserverChromeOS::OnExtensionLoaded(
     content::BrowserContext* browser_context,
     const extensions::Extension* extension) {
-  // TODO(jennyz): Do we need to monitor this in Lacros for loading 3rd party
-  // tts engine extensions?
   if (extension->permissions_data()->HasAPIPermission(
-          extensions::mojom::APIPermissionID::kTtsEngine)) {
+          extensions::APIPermission::kTtsEngine)) {
     engine_extension_ids_.insert(extension->id());
 
     if (extension->id() == extension_misc::kGoogleSpeechSynthesisExtensionId)
@@ -233,36 +221,15 @@ void TtsEngineExtensionObserverChromeOS::OnExtensionUnloaded(
 }
 
 void TtsEngineExtensionObserverChromeOS::OnAccessibilityStatusChanged(
-    const ash::AccessibilityStatusEventDetails& details) {
-  if (details.notification_type !=
-          AccessibilityNotificationType::kToggleSpokenFeedback &&
-      details.notification_type !=
-          AccessibilityNotificationType::kToggleSelectToSpeak) {
+    const chromeos::AccessibilityStatusEventDetails& details) {
+  if (details.notification_type != chromeos::AccessibilityNotificationType::
+                                       ACCESSIBILITY_TOGGLE_SPOKEN_FEEDBACK &&
+      details.notification_type != chromeos::AccessibilityNotificationType::
+                                       ACCESSIBILITY_TOGGLE_SELECT_TO_SPEAK)
     return;
-  }
 
   // Google speech synthesis might not be loaded yet. If it isn't, the call in
   // |OnExtensionLoaded| will do the increment. If it is, the call below will
   // increment. Decrements only occur when toggling off here.
   UpdateGoogleSpeechSynthesisKeepAliveCount(profile(), details.enabled);
-}
-
-void TtsEngineExtensionObserverChromeOS::CreateTtsServiceIfNeeded() {
-  // Only launch a new TtsService if necessary. By assigning below, if
-  // |tts_service_| held a remote, it will be killed and a new one created,
-  // ensuring we only ever have one TtsService running.
-  if (tts_service_)
-    return;
-
-  tts_service_ =
-      content::ServiceProcessHost::Launch<chromeos::tts::mojom::TtsService>(
-          content::ServiceProcessHost::Options()
-              .WithDisplayName("TtsService")
-              .Pass());
-
-  tts_service_.set_disconnect_handler(base::BindOnce(
-      [](mojo::Remote<chromeos::tts::mojom::TtsService>* tts_service) {
-        tts_service->reset();
-      },
-      &tts_service_));
 }

@@ -1,15 +1,18 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_TEST_BASE_UI_TEST_UTILS_H_
 #define CHROME_TEST_BASE_UI_TEST_UTILS_H_
 
+#include <map>
+#include <queue>
 #include <set>
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/scoped_observer.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/ui/browser_list_observer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
@@ -40,7 +43,7 @@ class FilePath;
 struct NavigateParams;
 
 namespace content {
-class RenderFrameHost;
+class RenderProcessHost;
 class WebContents;
 }
 
@@ -76,62 +79,79 @@ enum BrowserTestWaitFlags {
 };
 
 // Puts the current tab title in |title|. Returns true on success.
-bool GetCurrentTabTitle(const Browser* browser, std::u16string* title);
+bool GetCurrentTabTitle(const Browser* browser, base::string16* title);
 
-// NavigateToURL* functions navigate the given |browser| to |url| according the
-// provided parameters and block until ready (by default - until loading stops,
-// see BROWSER_TEST_WAIT_FOR_LOAD_STOP for more details. Note that this is
-// different from content::NavigateToURL, which block only until navigation
-// succeeds or fails, which generally happens earlier).
+// Performs the provided navigation process, blocking until loading stops.
+// See BROWSER_TEST_WAIT_FOR_LOAD_STOP.
+// May change the params in some cases (i.e. if the navigation
+// opens a new browser window). Uses chrome::Navigate.
 //
-// Some of these functions return RenderFrameHost* where the navigation was
-// committed or nullptr if the navigation failed. The caller should inspect the
-// return value - typically with: ASSERT_TRUE(NavigateToURL(...)).
-//
-// Note: if the navigation has committed, this doesn't mean that the old
-// RenderFrameHost was destroyed:
-// - it either can wait for the renderer process to finish running unload
-//   handlers and acknowledge that.
-// - it can be stored in BackForwardCache to be reused for subsequent
-//   back/forward navigation.
-//
-// If the test needs to test RenderFrameHost cleanup, use
-// BackForwardCache::DisableForTesting to ensure that RenderFrameHost isn't
-// preserved in BackForwardCache and
-// RenderFrameDeletedObserver::WaitUntilDeleted to wait for deletion.
-
-// Navigate according to |params|.
+// Note this does not return a RenderProcessHost for where the navigation
+// occurs, so tests using this will be unable to verify the destruction of
+// the RenderProcessHost when navigating again.
 void NavigateToURL(NavigateParams* params);
 
-// Navigate current tab of the |browser| to |url| using POST request, simulating
-// form submission.
+// Navigates the selected tab of |browser| to |url|, blocking until
+// loading stops. See BROWSER_TEST_WAIT_FOR_LOAD_STOP. Simulates a
+// POST and uses chrome::Navigate.
+//
+// Note this does not return a RenderProcessHost for where the navigation
+// occurs, so tests using this will be unable to verify the destruction of
+// the RenderProcessHost when navigating again.
 void NavigateToURLWithPost(Browser* browser, const GURL& url);
 
-// Navigate current tab of the |browser| to |url|, simulating a user typing
-// |url| into the omnibox.
-[[nodiscard]] content::RenderFrameHost* NavigateToURL(Browser* browser,
-                                                      const GURL& url);
+// Navigates the selected tab of |browser| to |url|, blocking until the
+// loading stops. See BROWSER_TEST_WAIT_FOR_LOAD_STOP. Uses
+// Browser::OpenURL --> chrome::Navigate.
+//
+// Returns a RenderProcessHost* for the renderer where the navigation
+// occured. Use this when navigating again, when the test wants to wait not
+// just for the navigation to complete but also for the previous
+// RenderProcessHost to be torn down. Navigation does NOT imply the old
+// RenderProcessHost is gone, and assuming so creates a race condition that
+// can be exagerated by artifically slowing the FrameHostMsg_SwapOut_ACK reply
+// from the renderer being navigated from.
+content::RenderProcessHost* NavigateToURL(Browser* browser, const GURL& url);
 
-// Same as |NavigateToURL|, but:
-// - |disposition| allows to specify in which tab navigation should happen
-// - |browser_test_flags| allows to specify a different condition this function
-//   would wait until, see BrowserTestWaitFlags for details.
-content::RenderFrameHost* NavigateToURLWithDisposition(
+// Navigates the specified tab of |browser| to |url|, blocking until the
+// loading stops.
+// |disposition| indicates what tab the navigation occurs in, and
+// |browser_test_flags| controls what to wait for before continuing.
+//
+// If the |browser_test_flags| includes a request to wait for navigation, this
+// returns a RenderProcessHost* for the renderer where the navigation
+// occured. Use this when navigating again, when the test wants to wait not
+// just for the navigation to complete but also for the previous
+// RenderProcessHost to be torn down. Navigation does NOT imply the old
+// RenderProcessHost is gone, and assuming so creates a race condition that
+// can be exagerated by artifically slowing the FrameHostMsg_SwapOut_ACK reply
+// from the renderer being navigated from.
+content::RenderProcessHost* NavigateToURLWithDisposition(
     Browser* browser,
     const GURL& url,
     WindowOpenDisposition disposition,
     int browser_test_flags);
 
-// Same as |NavigateToURL|, but wait for a given number of navigations to
-// complete instead of the tab to finish loading.
-content::RenderFrameHost* NavigateToURLBlockUntilNavigationsComplete(
+// Navigates the selected tab of |browser| to |url|, blocking until the
+// number of navigations specified complete.
+//
+// Returns a RenderProcessHost* for the renderer where the navigation
+// occured. Use this when navigating again, when the test wants to wait not
+// just for the navigation to complete but also for the previous
+// RenderProcessHost to be torn down. Navigation does NOT imply the old
+// RenderProcessHost is gone, and assuming so creates a race condition that
+// can be exagerated by artifically slowing the FrameHostMsg_SwapOut_ACK reply
+// from the renderer being navigated from.
+content::RenderProcessHost* NavigateToURLBlockUntilNavigationsComplete(
     Browser* browser,
     const GURL& url,
     int number_of_navigations);
 
-// See |NavigateToURLWithDisposition| and
-// |NavigateToURLBlockUntilNavigationsComplete|.
-content::RenderFrameHost*
+// Navigates the specified tab (via |disposition|) of |browser| to |url|,
+// blocking until the |number_of_navigations| specified complete.
+// |disposition| indicates what tab the download occurs in, and
+// |browser_test_flags| controls what to wait for before continuing.
+content::RenderProcessHost*
 NavigateToURLWithDispositionBlockUntilNavigationsComplete(
     Browser* browser,
     const GURL& url,
@@ -168,7 +188,7 @@ void WaitForViewVisibility(Browser* browser, ViewID vid, bool visible);
 // of the current match. |selection_rect| is an optional parameter which is set
 // to the location of the current match.
 int FindInPage(content::WebContents* tab,
-               const std::u16string& search_string,
+               const base::string16& search_string,
                bool forward,
                bool case_sensitive,
                int* ordinal,
@@ -206,6 +226,46 @@ void GetCookies(const GURL& url,
                 content::WebContents* contents,
                 int* value_size,
                 std::string* value);
+
+// Similar to WindowedNotificationObserver but also provides a way of retrieving
+// the details associated with the notification.
+// Note that in order to use that class the details class should be copiable,
+// which is the case with most notifications.
+template <class U>
+class WindowedNotificationObserverWithDetails
+    : public content::WindowedNotificationObserver {
+ public:
+  WindowedNotificationObserverWithDetails(
+      int notification_type,
+      const content::NotificationSource& source)
+      : content::WindowedNotificationObserver(notification_type, source) {}
+  WindowedNotificationObserverWithDetails(
+      const WindowedNotificationObserverWithDetails&) = delete;
+  WindowedNotificationObserverWithDetails& operator=(
+      const WindowedNotificationObserverWithDetails&) = delete;
+
+  // Fills |details| with the details of the notification received for |source|.
+  bool GetDetailsFor(uintptr_t source, U* details) {
+    typename std::map<uintptr_t, U>::const_iterator iter =
+        details_.find(source);
+    if (iter == details_.end())
+      return false;
+    *details = iter->second;
+    return true;
+  }
+
+  void Observe(int type,
+               const content::NotificationSource& source,
+               const content::NotificationDetails& details) override {
+    const U* details_ptr = content::Details<U>(details).ptr();
+    if (details_ptr)
+      details_[source.map_key()] = *details_ptr;
+    content::WindowedNotificationObserver::Observe(type, source, details);
+  }
+
+ private:
+  std::map<uintptr_t, U> details_;
+};
 
 // Notification observer which waits for navigation events and blocks until
 // a specific URL is loaded. The URL must be an exact match.
@@ -273,7 +333,7 @@ class AllBrowserTabAddedWaiter : public TabStripModelObserver,
   base::RunLoop run_loop_;
 
   // The last tab that was added.
-  raw_ptr<content::WebContents, DanglingUntriaged> web_contents_ = nullptr;
+  content::WebContents* web_contents_ = nullptr;
 };
 
 // Enumerates all history contents on the backend thread. Returns them in
@@ -313,9 +373,7 @@ class BrowserChangeObserver : public BrowserListObserver {
   void OnBrowserRemoved(Browser* browser) override;
 
  private:
-  // TODO(crbug.com/1298696): browser_tests (pixel_browser_tests)
-  // breaks with MTECheckedPtr enabled. Triage.
-  raw_ptr<Browser, DanglingUntriagedDegradeToNoOpWhenMTE> browser_;
+  Browser* browser_;
   ChangeType type_;
   base::RunLoop run_loop_;
 };

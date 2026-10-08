@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,25 +33,25 @@ AssistantQueryHistory::Iterator::Iterator(
 
 AssistantQueryHistory::Iterator::~Iterator() = default;
 
-absl::optional<std::string> AssistantQueryHistory::Iterator::Next() {
+base::Optional<std::string> AssistantQueryHistory::Iterator::Next() {
   // queries_.size() is of type unsigned int and queries_.size() -1 will
   // overflow if it is 0.
   if (cur_pos_ + 1 >= queries_.size()) {
     cur_pos_ = queries_.size();
-    return absl::nullopt;
+    return base::nullopt;
   }
   cur_pos_++;
-  return absl::make_optional<std::string>(queries_[cur_pos_]);
+  return base::make_optional<std::string>(queries_[cur_pos_]);
 }
 
-absl::optional<std::string> AssistantQueryHistory::Iterator::Prev() {
+base::Optional<std::string> AssistantQueryHistory::Iterator::Prev() {
   if (queries_.size() == 0)
-    return absl::nullopt;
+    return base::nullopt;
 
   if (cur_pos_ != 0)
     cur_pos_--;
 
-  return absl::make_optional<std::string>(queries_[cur_pos_]);
+  return base::make_optional<std::string>(queries_[cur_pos_]);
 }
 
 void AssistantQueryHistory::Iterator::ResetToLast() {

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "base/test/simple_test_clock.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/subresource_filter/chrome_subresource_filter_client.h"
 #include "chrome/browser/subresource_filter/subresource_filter_browser_test_harness.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -36,13 +37,14 @@
 
 namespace subresource_filter {
 
+const char kSubresourceFilterActionsHistogram[] = "SubresourceFilter.Actions2";
+
 class SubresourceFilterSettingsBrowserTest
     : public SubresourceFilterBrowserTest {
  public:
   void SetUp() override {
-    provider_.SetDefaultReturns(
-        /*is_initialization_complete_return=*/true,
-        /*is_first_policy_load_complete_return=*/true);
+    EXPECT_CALL(provider_, IsInitializationComplete(::testing::_))
+        .WillRepeatedly(::testing::Return(true));
     policy::BrowserPolicyConnector::SetPolicyProviderForTesting(&provider_);
     SubresourceFilterBrowserTest::SetUp();
   }
@@ -53,7 +55,7 @@ class SubresourceFilterSettingsBrowserTest
   }
 
  private:
-  ::testing::NiceMock<policy::MockConfigurationPolicyProvider> provider_;
+  policy::MockConfigurationPolicyProvider provider_;
 };
 
 IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
@@ -63,9 +65,8 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
   GURL url(GetTestUrl("subresource_filter/frame_with_included_script.html"));
   ConfigureAsPhishingURL(url);
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-  EXPECT_FALSE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  ui_test_utils::NavigateToURL(browser(), url);
+  EXPECT_FALSE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 
   content::WebContentsConsoleObserver console_observer(web_contents());
   console_observer.SetPattern(kActivationConsoleMessage);
@@ -76,9 +77,8 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
   settings_map->SetContentSettingDefaultScope(
       url, url, ContentSettingsType::ADS, CONTENT_SETTING_ALLOW);
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-  EXPECT_TRUE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  ui_test_utils::NavigateToURL(browser(), url);
+  EXPECT_TRUE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 
   // No message for allowlisted url.
   EXPECT_TRUE(console_observer.messages().empty());
@@ -91,9 +91,8 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
   GURL url(GetTestUrl("subresource_filter/frame_with_included_script.html"));
   ConfigureAsPhishingURL(url);
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-  EXPECT_FALSE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  ui_test_utils::NavigateToURL(browser(), url);
+  EXPECT_FALSE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 
   content::WebContentsConsoleObserver console_observer(web_contents());
   console_observer.SetPattern(kActivationConsoleMessage);
@@ -104,9 +103,8 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
   settings_map->SetDefaultContentSetting(ContentSettingsType::ADS,
                                          CONTENT_SETTING_ALLOW);
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-  EXPECT_TRUE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  ui_test_utils::NavigateToURL(browser(), url);
+  EXPECT_TRUE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 
   // No message for loads that are not activated.
   EXPECT_TRUE(console_observer.messages().empty());
@@ -119,9 +117,8 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
   GURL url(GetTestUrl("subresource_filter/frame_with_included_script.html"));
   ConfigureAsPhishingURL(url);
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-  EXPECT_FALSE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  ui_test_utils::NavigateToURL(browser(), url);
+  EXPECT_FALSE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 
   content::WebContentsConsoleObserver console_observer(web_contents());
   console_observer.SetPattern(kActivationConsoleMessage);
@@ -134,9 +131,8 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
              base::Value(CONTENT_SETTING_ALLOW), nullptr);
   UpdatePolicy(policy);
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-  EXPECT_TRUE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  ui_test_utils::NavigateToURL(browser(), url);
+  EXPECT_TRUE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 
   // No message for allowlisted url.
   EXPECT_TRUE(console_observer.messages().empty());
@@ -149,9 +145,8 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
              base::Value(CONTENT_SETTING_BLOCK), nullptr);
   UpdatePolicy(policy);
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-  EXPECT_FALSE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  ui_test_utils::NavigateToURL(browser(), url);
+  EXPECT_FALSE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 }
 
 IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
@@ -162,9 +157,8 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
 
   // Do not configure as phishing URL.
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-  EXPECT_TRUE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  ui_test_utils::NavigateToURL(browser(), url);
+  EXPECT_TRUE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 
   // Simulate allowing the subresource filter via content settings.
   HostContentSettingsMap* settings_map =
@@ -173,9 +167,8 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
       url, url, ContentSettingsType::ADS, CONTENT_SETTING_BLOCK);
 
   // Setting the site to "allow" should not activate filtering.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-  EXPECT_TRUE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  ui_test_utils::NavigateToURL(browser(), url);
+  EXPECT_TRUE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 }
 
 IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
@@ -185,19 +178,16 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
   GURL url(GetTestUrl("subresource_filter/frame_with_included_script.html"));
   ConfigureAsPhishingURL(url);
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-  EXPECT_FALSE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  ui_test_utils::NavigateToURL(browser(), url);
+  EXPECT_FALSE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 
   // Allowlist via a reload.
   content::TestNavigationObserver navigation_observer(web_contents(), 1);
-  subresource_filter::ContentSubresourceFilterThrottleManager::FromPage(
-      web_contents()->GetPrimaryPage())
+  ChromeSubresourceFilterClient::FromWebContents(web_contents())
       ->OnReloadRequested();
   navigation_observer.Wait();
 
-  EXPECT_TRUE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  EXPECT_TRUE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 }
 
 IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
@@ -207,34 +197,29 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
   GURL url(GetTestUrl("subresource_filter/frame_with_included_script.html"));
   ConfigureAsPhishingURL(url);
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-  EXPECT_FALSE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  ui_test_utils::NavigateToURL(browser(), url);
+  EXPECT_FALSE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 
   // Allowlist via a reload.
   content::TestNavigationObserver navigation_observer(web_contents(), 1);
-  subresource_filter::ContentSubresourceFilterThrottleManager::FromPage(
-      web_contents()->GetPrimaryPage())
+  ChromeSubresourceFilterClient::FromWebContents(web_contents())
       ->OnReloadRequested();
   navigation_observer.Wait();
 
-  EXPECT_TRUE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  EXPECT_TRUE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 
   // Another navigation to the same domain should be allowlisted too.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+  ui_test_utils::NavigateToURL(
       browser(),
-      GetTestUrl("subresource_filter/frame_with_included_script.html?query")));
-  EXPECT_TRUE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+      GetTestUrl("subresource_filter/frame_with_included_script.html?query"));
+  EXPECT_TRUE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 
   // A cross site blocklisted navigation should stay activated, however.
   GURL a_url(embedded_test_server()->GetURL(
       "a.com", "/subresource_filter/frame_with_included_script.html"));
   ConfigureAsPhishingURL(a_url);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), a_url));
-  EXPECT_FALSE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  ui_test_utils::NavigateToURL(browser(), a_url);
+  EXPECT_FALSE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 }
 
 // Test the "smart" UI, aka the logic to hide the UI on subsequent same-domain
@@ -253,6 +238,8 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
   // TODO(csharrison): Add support for more than one URL.
   ConfigureAsPhishingURL(a_url);
 
+  ChromeSubresourceFilterClient* client =
+      ChromeSubresourceFilterClient::FromWebContents(web_contents());
   auto test_clock = std::make_unique<base::SimpleTestClock>();
   base::SimpleTestClock* raw_clock = test_clock.get();
   settings_manager()->set_clock_for_testing(std::move(test_clock));
@@ -260,25 +247,20 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
   base::HistogramTester histogram_tester;
 
   // First load should trigger the UI.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), a_url));
-  EXPECT_FALSE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  ui_test_utils::NavigateToURL(browser(), a_url);
+  EXPECT_FALSE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
+  EXPECT_TRUE(client->did_show_ui_for_navigation());
 
-  histogram_tester.ExpectBucketCount(
-      kSubresourceFilterActionsHistogram,
-      subresource_filter::SubresourceFilterAction::kUIShown, 1);
   histogram_tester.ExpectBucketCount(
       kSubresourceFilterActionsHistogram,
       subresource_filter::SubresourceFilterAction::kUISuppressed, 0);
 
   // Second load should not trigger the UI, but should still filter content.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), a_url));
-  EXPECT_FALSE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  ui_test_utils::NavigateToURL(browser(), a_url);
+  EXPECT_FALSE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
 
-  histogram_tester.ExpectBucketCount(
-      kSubresourceFilterActionsHistogram,
-      subresource_filter::SubresourceFilterAction::kUIShown, 1);
+  EXPECT_EQ(client->did_show_ui_for_navigation(), false);
+
   histogram_tester.ExpectBucketCount(
       kSubresourceFilterActionsHistogram,
       subresource_filter::SubresourceFilterAction::kUISuppressed, 1);
@@ -286,13 +268,9 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
   ConfigureAsPhishingURL(b_url);
 
   // Load to another domain should trigger the UI.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), b_url));
-  EXPECT_FALSE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
-
-  histogram_tester.ExpectBucketCount(
-      kSubresourceFilterActionsHistogram,
-      subresource_filter::SubresourceFilterAction::kUIShown, 2);
+  ui_test_utils::NavigateToURL(browser(), b_url);
+  EXPECT_FALSE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
+  EXPECT_TRUE(client->did_show_ui_for_navigation());
 
   ConfigureAsPhishingURL(a_url);
 
@@ -300,13 +278,10 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
   raw_clock->Advance(
       subresource_filter::SubresourceFilterContentSettingsManager::
           kDelayBeforeShowingInfobarAgain);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), a_url));
-  EXPECT_FALSE(
-      WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
+  ui_test_utils::NavigateToURL(browser(), a_url);
+  EXPECT_FALSE(WasParsedScriptElementLoaded(web_contents()->GetMainFrame()));
+  EXPECT_TRUE(client->did_show_ui_for_navigation());
 
-  histogram_tester.ExpectBucketCount(
-      kSubresourceFilterActionsHistogram,
-      subresource_filter::SubresourceFilterAction::kUIShown, 3);
   histogram_tester.ExpectBucketCount(
       kSubresourceFilterActionsHistogram,
       subresource_filter::SubresourceFilterAction::kUISuppressed, 1);

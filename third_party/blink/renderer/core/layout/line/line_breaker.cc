@@ -70,8 +70,10 @@ InlineIterator LineBreaker::NextLineBreak(InlineBidiResolver& resolver,
 
   bool is_first_formatted_line =
       line_info.IsFirstLine() && block_.CanContainFirstFormattedLine();
-  LineWidth width(block_, line_info.IsFirstLine(),
-                  RequiresIndent(is_first_formatted_line));
+  LineWidth width(
+      block_, line_info.IsFirstLine(),
+      RequiresIndent(is_first_formatted_line,
+                     line_info.PreviousLineBrokeCleanly(), block_.StyleRef()));
 
   SkipLeadingWhitespace(resolver, line_info, width);
 

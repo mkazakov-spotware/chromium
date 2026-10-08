@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,9 @@
 #include <vector>
 
 #include "base/check.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/features/behavior_feature.h"
@@ -148,10 +150,10 @@ PermissionIDSet UsbDevicePermission::GetPermissions() const {
       const char* product =
           device::UsbIds::GetProductName(data.vendor_id(), data.product_id());
       if (product) {
-        std::u16string product_name_and_vendor = l10n_util::GetStringFUTF16(
+        base::string16 product_name_and_vendor = l10n_util::GetStringFUTF16(
             IDS_EXTENSION_USB_DEVICE_PRODUCT_NAME_AND_VENDOR,
             base::UTF8ToUTF16(product), base::UTF8ToUTF16(vendor));
-        ids.insert(mojom::APIPermissionID::kUsbDevice, product_name_and_vendor);
+        ids.insert(APIPermission::kUsbDevice, product_name_and_vendor);
       } else {
         unknown_product_vendors.insert(data.vendor_id());
       }
@@ -163,12 +165,12 @@ PermissionIDSet UsbDevicePermission::GetPermissions() const {
   for (uint16_t vendor_id : unknown_product_vendors) {
     const char* vendor = device::UsbIds::GetVendorName(vendor_id);
     DCHECK(vendor);
-    ids.insert(mojom::APIPermissionID::kUsbDeviceUnknownProduct,
+    ids.insert(APIPermission::kUsbDeviceUnknownProduct,
                base::UTF8ToUTF16(vendor));
   }
 
   if (found_unknown_vendor)
-    ids.insert(mojom::APIPermissionID::kUsbDeviceUnknownVendor);
+    ids.insert(APIPermission::kUsbDeviceUnknownVendor);
 
   return ids;
 }

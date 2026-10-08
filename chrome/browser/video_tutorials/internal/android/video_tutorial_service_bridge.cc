@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,7 +31,7 @@ void RunGetMultipleTutorialsCallback(const JavaRef<jobject>& j_callback,
 }
 
 void RunGetSingleTutorialCallback(const JavaRef<jobject>& j_callback,
-                                  absl::optional<Tutorial> tutorial) {
+                                  base::Optional<Tutorial> tutorial) {
   JNIEnv* env = AttachCurrentThread();
   RunObjectCallbackAndroid(
       j_callback, TutorialConversionBridge::CreateJavaTutorial(env, tutorial));
@@ -98,20 +98,10 @@ VideoTutorialServiceBridge::GetSupportedLanguages(
       env, video_tutorial_service_->GetSupportedLanguages());
 }
 
-ScopedJavaLocalRef<jobjectArray>
-VideoTutorialServiceBridge::GetAvailableLanguagesForTutorial(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& jcaller,
-    jint j_feature) {
-  return base::android::ToJavaArrayOfStrings(
-      env, video_tutorial_service_->GetAvailableLanguagesForTutorial(
-               static_cast<FeatureType>(j_feature)));
-}
-
 ScopedJavaLocalRef<jstring> VideoTutorialServiceBridge::GetPreferredLocale(
     JNIEnv* env,
     const JavaParamRef<jobject>& jcaller) {
-  absl::optional<std::string> locale =
+  base::Optional<std::string> locale =
       video_tutorial_service_->GetPreferredLocale();
   return locale.has_value()
              ? base::android::ConvertUTF8ToJavaString(env, locale.value())

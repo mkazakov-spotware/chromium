@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ namespace {
 class AbortPaymentHandlerTest : public PaymentRequestPlatformBrowserTestBase {};
 
 // TODO(crbug.com/1129578): fix flakiness and reenable
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #define MAYBE_CanAbortInvokedInstalledPaymentHandler \
   DISABLED_CanAbortInvokedInstalledPaymentHandler
 #else
@@ -26,8 +26,15 @@ class AbortPaymentHandlerTest : public PaymentRequestPlatformBrowserTestBase {};
 
 IN_PROC_BROWSER_TEST_F(AbortPaymentHandlerTest,
                        MAYBE_CanAbortInvokedInstalledPaymentHandler) {
-  std::string method_name;
-  InstallPaymentApp("a.com", "/abort_responder_app.js", &method_name);
+  std::string method_name = https_server()->GetURL("a.com", "/").spec();
+  method_name = method_name.substr(0, method_name.length() - 1);
+  ASSERT_NE('/', method_name[method_name.length() - 1]);
+  NavigateTo("a.com", "/payment_handler_installer.html");
+  ASSERT_EQ("success", content::EvalJs(
+                           GetActiveWebContents(),
+                           content::JsReplace(
+                               "install('abort_responder_app.js', [$1], false)",
+                               method_name)));
 
   NavigateTo("b.com", "/payment_handler_aborter.html");
   EXPECT_EQ(
@@ -53,8 +60,15 @@ IN_PROC_BROWSER_TEST_F(AbortPaymentHandlerTest,
 
 IN_PROC_BROWSER_TEST_F(AbortPaymentHandlerTest,
                        InstalledPaymentHandlerCanRefuseAbort) {
-  std::string method_name;
-  InstallPaymentApp("a.com", "/abort_responder_app.js", &method_name);
+  std::string method_name = https_server()->GetURL("a.com", "/").spec();
+  method_name = method_name.substr(0, method_name.length() - 1);
+  ASSERT_NE('/', method_name[method_name.length() - 1]);
+  NavigateTo("a.com", "/payment_handler_installer.html");
+  ASSERT_EQ("success", content::EvalJs(
+                           GetActiveWebContents(),
+                           content::JsReplace(
+                               "install('abort_responder_app.js', [$1], false)",
+                               method_name)));
 
   NavigateTo("b.com", "/payment_handler_aborter.html");
   EXPECT_EQ(

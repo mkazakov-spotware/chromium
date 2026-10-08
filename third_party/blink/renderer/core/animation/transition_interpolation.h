@@ -1,12 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_ANIMATION_TRANSITION_INTERPOLATION_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_ANIMATION_TRANSITION_INTERPOLATION_H_
 
-#include "base/check_op.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/renderer/core/animation/compositor_animations.h"
 #include "third_party/blink/renderer/core/animation/interpolation.h"
 #include "third_party/blink/renderer/core/animation/interpolation_type.h"
@@ -14,7 +12,8 @@
 
 namespace blink {
 
-class InterpolationEnvironment;
+class StyleResolverState;
+class InterpolationType;
 
 // See the documentation of Interpolation for general information about this
 // class hierarchy.
@@ -66,7 +65,7 @@ class CORE_EXPORT TransitionInterpolation : public Interpolation {
               property_.GetCSSProperty().IsCompositableProperty());
   }
 
-  void Apply(InterpolationEnvironment&) const;
+  void Apply(StyleResolverState&) const;
 
   bool IsTransitionInterpolation() const final { return true; }
 
@@ -94,7 +93,7 @@ class CORE_EXPORT TransitionInterpolation : public Interpolation {
   const Member<CompositorKeyframeValue> compositor_start_;
   const Member<CompositorKeyframeValue> compositor_end_;
 
-  mutable absl::optional<double> cached_fraction_;
+  mutable double cached_fraction_ = 0;
   mutable int cached_iteration_ = 0;
   mutable std::unique_ptr<InterpolableValue> cached_interpolable_value_;
 };
@@ -108,4 +107,4 @@ struct DowncastTraits<TransitionInterpolation> {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_ANIMATION_TRANSITION_INTERPOLATION_H_
+#endif

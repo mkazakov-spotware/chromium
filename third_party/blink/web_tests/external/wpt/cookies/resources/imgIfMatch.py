@@ -1,4 +1,4 @@
-from cookies.resources import helpers
+import helpers
 
 def main(request, response):
     """Respond to `/cookie/imgIfMatch?name={name}&value={value}` with a 404 if

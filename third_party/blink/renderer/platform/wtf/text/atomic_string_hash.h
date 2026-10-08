@@ -49,9 +49,6 @@ struct AtomicStringHash {
 
 // AtomicStringHash is the default hash for AtomicString
 template <>
-struct DefaultHash<AtomicString> : AtomicStringHash {};
-
-template <>
 struct HashTraits<AtomicString> : SimpleClassHashTraits<AtomicString> {
   // Unlike other types, we can return a const reference for AtomicString's
   // empty value (g_null_atom).
@@ -76,4 +73,4 @@ struct HashTraits<AtomicString> : SimpleClassHashTraits<AtomicString> {
 
 using WTF::AtomicStringHash;
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_WTF_TEXT_ATOMIC_STRING_HASH_H_
+#endif

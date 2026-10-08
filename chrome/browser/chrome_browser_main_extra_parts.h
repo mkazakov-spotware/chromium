@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,8 +17,6 @@
 // Chrome toolkits (e.g., GTK, VIEWS, ASH, AURA, etc.; see
 // ChromeContentBrowserClient::CreateBrowserMainParts()).
 
-class Profile;
-
 class ChromeBrowserMainExtraParts {
  public:
   virtual ~ChromeBrowserMainExtraParts() {}
@@ -30,15 +28,15 @@ class ChromeBrowserMainExtraParts {
   // ToolkitInitialized methods.
   virtual void ToolkitInitialized() {}
 
-  // CreateMainMessageLoop methods.
-  virtual void PreCreateMainMessageLoop() {}
-  virtual void PostCreateMainMessageLoop() {}
+  // MainMessageLoopStart methods.
+  virtual void PreMainMessageLoopStart() {}
+  virtual void PostMainMessageLoopStart() {}
 
   // MainMessageLoopRun methods.
   virtual void PreCreateThreads() {}
   virtual void PostCreateThreads() {}
   virtual void PreProfileInit() {}
-  virtual void PostProfileInit(Profile* profile, bool is_initial_profile) {}
+  virtual void PostProfileInit() {}
   virtual void PreBrowserStart() {}
   virtual void PostBrowserStart() {}
   virtual void PreMainMessageLoopRun() {}

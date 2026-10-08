@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <CoreFoundation/CoreFoundation.h>
 
+#include "base/macros.h"
 #include "base/memory/singleton.h"
 #include "chrome/common/mac/service_management.h"
 
@@ -30,9 +31,6 @@ class Launchd {
   // appropriately wherever it is used.
   // http://crbug.com/76925
   static Launchd* GetInstance();
-
-  Launchd(const Launchd&) = delete;
-  Launchd& operator=(const Launchd&) = delete;
 
   virtual ~Launchd();
 
@@ -95,6 +93,8 @@ class Launchd {
   // Scaffolding for doing unittests with our singleton.
   friend struct base::DefaultSingletonTraits<Launchd>;
   static Launchd* g_instance_;
+
+  DISALLOW_COPY_AND_ASSIGN(Launchd);
 };
 
 #endif  // CHROME_COMMON_MAC_LAUNCHD_H_

@@ -1,9 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.ui.native_page;
 
+import android.graphics.Color;
 import android.view.View;
 
 import androidx.annotation.ColorInt;
@@ -16,6 +17,8 @@ import androidx.annotation.ColorInt;
  * return null.
  */
 public class FrozenNativePage implements NativePage {
+    @ColorInt
+    private static final int INVALID_COLOR = Color.TRANSPARENT;
     private final String mUrl;
     private final String mHost;
     private final String mTitle;
@@ -65,12 +68,12 @@ public class FrozenNativePage implements NativePage {
 
     @Override
     public @ColorInt int getToolbarTextBoxBackgroundColor(@ColorInt int defaultColor) {
-        return defaultColor;
+        return INVALID_COLOR;
     }
 
     @Override
     public @ColorInt int getToolbarSceneLayerBackground(@ColorInt int defaultColor) {
-        return defaultColor;
+        return INVALID_COLOR;
     }
 
     @Override

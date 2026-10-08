@@ -1,15 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_FRAME_BROWSER_FRAME_MAC_H_
 #define CHROME_BROWSER_UI_VIEWS_FRAME_BROWSER_FRAME_MAC_H_
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/views/frame/native_browser_frame.h"
 
 #import "base/mac/scoped_nsobject.h"
-#include "chrome/browser/command_observer.h"
+#include "base/macros.h"
 #include "ui/views/widget/native_widget_mac.h"
 
 class BrowserFrame;
@@ -22,14 +21,11 @@ class BrowserView;
 //  the window frame for the Chrome browser window.
 //
 class BrowserFrameMac : public views::NativeWidgetMac,
-                        public NativeBrowserFrame,
-                        public CommandObserver {
+                        public NativeBrowserFrame {
  public:
   BrowserFrameMac(BrowserFrame* browser_frame, BrowserView* browser_view);
 
-  BrowserFrameMac(const BrowserFrameMac&) = delete;
-  BrowserFrameMac& operator=(const BrowserFrameMac&) = delete;
-
+  API_AVAILABLE(macos(10.12.2))
   BrowserWindowTouchBarController* GetTouchBarController() const;
 
   // Overridden from views::NativeWidgetMac:
@@ -51,9 +47,6 @@ class BrowserFrameMac : public views::NativeWidgetMac,
       const content::NativeWebKeyboardEvent& event) override;
   bool HandleKeyboardEvent(
       const content::NativeWebKeyboardEvent& event) override;
-  bool ShouldRestorePreviousBrowserWidgetState() const override;
-  bool ShouldUseInitialVisibleOnAllWorkspaces() const override;
-  void AnnounceTextInInProcessWindow(const std::u16string& text) override;
 
  protected:
   ~BrowserFrameMac() override;
@@ -62,9 +55,6 @@ class BrowserFrameMac : public views::NativeWidgetMac,
   void ValidateUserInterfaceItem(
       int32_t command,
       remote_cocoa::mojom::ValidateUserInterfaceItemResult* result) override;
-  bool WillExecuteCommand(int32_t command,
-                          WindowOpenDisposition window_open_disposition,
-                          bool is_before_first_responder) override;
   bool ExecuteCommand(int32_t command,
                       WindowOpenDisposition window_open_disposition,
                       bool is_before_first_responder) override;
@@ -80,12 +70,11 @@ class BrowserFrameMac : public views::NativeWidgetMac,
   // Overridden from NativeBrowserFrame:
   int GetMinimizeButtonOffset() const override;
 
-  // Overridden from CommandObserver:
-  void EnabledStateChangedForCommand(int id, bool enabled) override;
-
  private:
-  raw_ptr<BrowserView> browser_view_;  // Weak. Our ClientView.
+  BrowserView* browser_view_;  // Weak. Our ClientView.
   base::scoped_nsobject<BrowserWindowTouchBarViewsDelegate> touch_bar_delegate_;
+
+  DISALLOW_COPY_AND_ASSIGN(BrowserFrameMac);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_BROWSER_FRAME_MAC_H_

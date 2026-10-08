@@ -1,11 +1,6 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {createEmptyState} from 'chrome://resources/cr_components/app_management/util.js';
-import {Store} from 'chrome://resources/ash/common/store/store.js';
-
-import {reduceAction} from './reducers.js';
 
 /**
  * @fileoverview A singleton datastore for the App Management page. Page state
@@ -13,21 +8,18 @@ import {reduceAction} from './reducers.js';
  * the store.
  */
 
-/** @type {?AppManagementStore} */
-let instance = null;
-
-export class AppManagementStore extends Store {
-  /** @return {!AppManagementStore} */
-  static getInstance() {
-    return instance || (instance = new AppManagementStore());
+cr.define('app_management', function() {
+  class Store extends cr.ui.Store {
+    constructor() {
+      super(
+          app_management.util.createEmptyState(), app_management.reduceAction);
+    }
   }
 
-  /** @param {!AppManagementStore} obj */
-  static setInstanceForTesting(obj) {
-    instance = obj;
-  }
+  cr.addSingletonGetter(Store);
 
-  constructor() {
-    super(createEmptyState(), reduceAction);
-  }
-}
+  // #cr_define_end
+  return {
+    Store: Store,
+  };
+});

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,8 +35,8 @@ BackgroundSnapshotController::BackgroundSnapshotController(
       state_(State::READY),
       delay_after_document_on_load_completed_ms_(
           kDelayAfterDocumentOnLoadCompletedMsBackground),
-      delay_after_renovations_completed_ms_(kDelayAfterRenovationsCompletedMs) {
-  DCHECK(!renovations_enabled);
+      delay_after_renovations_completed_ms_(kDelayAfterRenovationsCompletedMs),
+      renovations_enabled_(renovations_enabled) {
   if (offline_pages::ShouldUseTestingSnapshotDelay()) {
     delay_after_document_on_load_completed_ms_ = kDelayForTests;
     delay_after_renovations_completed_ms_ = kDelayForTests;
@@ -56,15 +56,32 @@ void BackgroundSnapshotController::Stop() {
 }
 
 void BackgroundSnapshotController::RenovationsCompleted() {
+  if (renovations_enabled_) {
+    task_runner_->PostDelayedTask(
+        FROM_HERE,
+        base::BindOnce(
+            &BackgroundSnapshotController::MaybeStartSnapshotThenStop,
+            weak_ptr_factory_.GetWeakPtr()),
+        base::TimeDelta::FromMilliseconds(
+            delay_after_renovations_completed_ms_));
+  }
 }
 
-void BackgroundSnapshotController::DocumentOnLoadCompletedInPrimaryMainFrame() {
-  // Post a delayed task to snapshot and then stop this controller.
-  task_runner_->PostDelayedTask(
-      FROM_HERE,
-      base::BindOnce(&BackgroundSnapshotController::MaybeStartSnapshotThenStop,
-                     weak_ptr_factory_.GetWeakPtr()),
-      base::Milliseconds(delay_after_document_on_load_completed_ms_));
+void BackgroundSnapshotController::DocumentOnLoadCompletedInMainFrame() {
+  if (renovations_enabled_) {
+    // Run renovations. After renovations complete, a snapshot will be
+    // triggered after a delay.
+    client_->RunRenovations();
+  } else {
+    // Post a delayed task to snapshot and then stop this controller.
+    task_runner_->PostDelayedTask(
+        FROM_HERE,
+        base::BindOnce(
+            &BackgroundSnapshotController::MaybeStartSnapshotThenStop,
+            weak_ptr_factory_.GetWeakPtr()),
+        base::TimeDelta::FromMilliseconds(
+            delay_after_document_on_load_completed_ms_));
+  }
 }
 
 void BackgroundSnapshotController::MaybeStartSnapshot() {

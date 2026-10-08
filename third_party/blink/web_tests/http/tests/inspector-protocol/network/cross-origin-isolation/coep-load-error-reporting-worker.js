@@ -36,7 +36,7 @@
     }
   }
 
-  async function initializeTarget(dp) {
+  async function initalizeTarget(dp) {
     dp.Network.onLoadingFailed(event => record(event.params.requestId, {loadingFailed: event.params})),
     dp.Network.onLoadingFinished(event => record(event.params.requestId, {loadingFinished: event.params})),
     dp.Network.onRequestWillBeSent(event => record(event.params.requestId, {requestWillBeSent: event.params})),
@@ -46,11 +46,11 @@
     ]);
   }
 
-  await initializeTarget(dp);
+  await initalizeTarget(dp);
 
   dp.Target.onAttachedToTarget(async e => {
     const dp = session.createChild(e.params.sessionId).protocol;
-    await initializeTarget(dp);
+    await initalizeTarget(dp);
   });
 
   page.navigate('https://devtools.test:8443/inspector-protocol/network/cross-origin-isolation/resources/coep-page-with-worker.php');

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,8 @@
 #include <vector>
 
 #include "base/compiler_specific.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "ppapi/c/private/ppb_host_resolver_private.h"
 #include "ppapi/proxy/plugin_resource.h"
 #include "ppapi/proxy/ppapi_proxy_export.h"
@@ -34,10 +35,6 @@ class PPAPI_PROXY_EXPORT HostResolverResourceBase: public PluginResource {
   HostResolverResourceBase(Connection connection,
                            PP_Instance instance,
                            bool private_api);
-
-  HostResolverResourceBase(const HostResolverResourceBase&) = delete;
-  HostResolverResourceBase& operator=(const HostResolverResourceBase&) = delete;
-
   virtual ~HostResolverResourceBase();
 
   int32_t ResolveImpl(const char* host,
@@ -69,6 +66,8 @@ class PPAPI_PROXY_EXPORT HostResolverResourceBase: public PluginResource {
   bool allow_get_results_;
   std::string canonical_name_;
   std::vector<scoped_refptr<NetAddressResource> > net_address_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(HostResolverResourceBase);
 };
 
 }  // namespace proxy

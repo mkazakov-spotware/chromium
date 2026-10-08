@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include <jni.h>
 
+#include "base/macros.h"
+
 namespace instance_id {
 
 // Tests depending on InstanceID must use this, to avoid hitting the
@@ -14,16 +16,12 @@ namespace instance_id {
 class ScopedUseFakeInstanceIDAndroid {
  public:
   ScopedUseFakeInstanceIDAndroid();
-
-  ScopedUseFakeInstanceIDAndroid(const ScopedUseFakeInstanceIDAndroid&) =
-      delete;
-  ScopedUseFakeInstanceIDAndroid& operator=(
-      const ScopedUseFakeInstanceIDAndroid&) = delete;
-
   ~ScopedUseFakeInstanceIDAndroid();
 
  private:
   bool previous_value_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedUseFakeInstanceIDAndroid);
 };
 
 }  // namespace instance_id

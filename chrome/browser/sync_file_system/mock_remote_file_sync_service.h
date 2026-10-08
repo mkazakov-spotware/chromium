@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,9 @@
 #include <memory>
 #include <string>
 
-#include "base/callback.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
+#include "base/values.h"
 #include "chrome/browser/sync_file_system/file_status_observer.h"
 #include "chrome/browser/sync_file_system/mock_local_change_processor.h"
 #include "chrome/browser/sync_file_system/remote_change_processor.h"
@@ -27,11 +28,6 @@ namespace sync_file_system {
 class MockRemoteFileSyncService : public RemoteFileSyncService {
  public:
   MockRemoteFileSyncService();
-
-  MockRemoteFileSyncService(const MockRemoteFileSyncService&) = delete;
-  MockRemoteFileSyncService& operator=(const MockRemoteFileSyncService&) =
-      delete;
-
   ~MockRemoteFileSyncService() override;
 
   // RemoteFileSyncService overrides.
@@ -40,27 +36,29 @@ class MockRemoteFileSyncService : public RemoteFileSyncService {
   MOCK_METHOD1(AddFileStatusObserver,
                void(FileStatusObserver* observer));
   MOCK_METHOD2(RegisterOrigin,
-               void(const GURL& origin, SyncStatusCallback callback));
+               void(const GURL& origin, const SyncStatusCallback& callback));
   MOCK_METHOD2(EnableOrigin,
-               void(const GURL& origin, SyncStatusCallback callback));
+               void(const GURL& origin, const SyncStatusCallback& callback));
   MOCK_METHOD2(DisableOrigin,
-               void(const GURL& origin, SyncStatusCallback callback));
+               void(const GURL& origin, const SyncStatusCallback& callback));
   MOCK_METHOD3(UninstallOrigin,
                void(const GURL& origin,
                     UninstallFlag flag,
-                    SyncStatusCallback callback));
-  MOCK_METHOD1(ProcessRemoteChange, void(SyncFileCallback callback));
+                    const SyncStatusCallback& callback));
+  MOCK_METHOD1(ProcessRemoteChange,
+               void(const SyncFileCallback& callback));
   MOCK_METHOD1(SetRemoteChangeProcessor,
                void(RemoteChangeProcessor* processor));
   MOCK_METHOD0(GetLocalChangeProcessor, LocalChangeProcessor*());
   MOCK_CONST_METHOD0(GetCurrentState,
                      RemoteServiceState());
-  MOCK_METHOD1(GetOriginStatusMap, void(StatusMapCallback callback));
+  MOCK_METHOD1(GetOriginStatusMap,
+               void(const StatusMapCallback& callback));
   MOCK_METHOD1(SetSyncEnabled, void(bool enabled));
-  MOCK_METHOD1(PromoteDemotedChanges, void(base::OnceClosure callback));
+  MOCK_METHOD1(PromoteDemotedChanges, void(const base::Closure& callback));
 
-  void DumpFiles(const GURL& origin, ListCallback callback) override;
-  void DumpDatabase(ListCallback callback) override;
+  void DumpFiles(const GURL& origin, const ListCallback& callback) override;
+  void DumpDatabase(const ListCallback& callback) override;
 
   void SetServiceState(RemoteServiceState state);
 
@@ -79,11 +77,12 @@ class MockRemoteFileSyncService : public RemoteFileSyncService {
  private:
   void AddServiceObserverStub(Observer* observer);
   void AddFileStatusObserverStub(FileStatusObserver* observer);
-  void RegisterOriginStub(const GURL& origin, SyncStatusCallback callback);
-  void DeleteOriginDirectoryStub(const GURL& origin,
-                                 UninstallFlag flag,
-                                 SyncStatusCallback callback);
-  void ProcessRemoteChangeStub(SyncFileCallback callback);
+  void RegisterOriginStub(
+      const GURL& origin, const SyncStatusCallback& callback);
+  void DeleteOriginDirectoryStub(
+      const GURL& origin, UninstallFlag flag,
+      const SyncStatusCallback& callback);
+  void ProcessRemoteChangeStub(const SyncFileCallback& callback);
   RemoteServiceState GetCurrentStateStub() const;
 
   // For default implementation.
@@ -93,6 +92,8 @@ class MockRemoteFileSyncService : public RemoteFileSyncService {
   base::ObserverList<FileStatusObserver>::Unchecked file_status_observers_;
 
   RemoteServiceState state_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockRemoteFileSyncService);
 };
 
 }  // namespace sync_file_system

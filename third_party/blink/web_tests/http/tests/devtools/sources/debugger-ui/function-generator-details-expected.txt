@@ -14,6 +14,7 @@ script is valid: yes
           yield 3;
       }
 [[GeneratorReceiver]] = Window
+[[Scopes]] = Scopes[2]
 
 Running: testiterSuspended
 iterSuspended: type = object, subtype = generator
@@ -28,6 +29,7 @@ script is valid: yes
           yield 3;
       }
 [[GeneratorReceiver]] = Window
+[[Scopes]] = Scopes[2]
 
 Running: testiterClosed
 iterClosed: type = object, subtype = generator
@@ -56,6 +58,7 @@ script is valid: yes
               yield 13;
           }
 [[GeneratorReceiver]] = Object
+[[Scopes]] = Scopes[2]
 
 Running: testanonymousGenIter
 anonymousGenIter: type = object, subtype = generator
@@ -69,4 +72,5 @@ script is valid: yes
           yield 23;
       }
 [[GeneratorReceiver]] = Window
+[[Scopes]] = Scopes[2]
 

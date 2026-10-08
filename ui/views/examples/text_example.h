@@ -1,27 +1,26 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_VIEWS_EXAMPLES_TEXT_EXAMPLE_H_
 #define UI_VIEWS_EXAMPLES_TEXT_EXAMPLE_H_
 
-#include "base/memory/raw_ptr.h"
+#include <memory>
+#include <vector>
+
+#include "base/macros.h"
 #include "ui/views/examples/example_base.h"
 
 namespace views {
 class Checkbox;
 class Combobox;
-class View;
+class GridLayout;
 
 namespace examples {
 
 class VIEWS_EXAMPLES_EXPORT TextExample : public ExampleBase {
  public:
   TextExample();
-
-  TextExample(const TextExample&) = delete;
-  TextExample& operator=(const TextExample&) = delete;
-
   ~TextExample() override;
 
   // ExampleBase:
@@ -31,12 +30,12 @@ class VIEWS_EXAMPLES_EXPORT TextExample : public ExampleBase {
   class TextExampleView;
 
   // Creates and adds a check box to the layout.
-  Checkbox* AddCheckbox(View* parent, const char* name);
+  Checkbox* AddCheckbox(GridLayout* layout, const char* name);
 
   // Creates and adds a combobox to the layout. Sets |this|' instance of
   // |combobox_callback| as the callback for the created combobox.
-  Combobox* AddCombobox(View* parent,
-                        std::u16string name,
+  Combobox* AddCombobox(GridLayout* layout,
+                        const char* name,
                         const char* const* strings,
                         int count,
                         void (TextExample::*combobox_callback)());
@@ -50,34 +49,36 @@ class VIEWS_EXAMPLES_EXPORT TextExample : public ExampleBase {
   void UpdateStyle();
 
   // The content of the scroll view.
-  raw_ptr<TextExampleView> text_view_;
+  TextExampleView* text_view_;
 
   // Combo box for horizontal text alignment.
-  raw_ptr<Combobox> h_align_cb_;
+  Combobox* h_align_cb_;
 
   // Combo box for text eliding style.
-  raw_ptr<Combobox> eliding_cb_;
+  Combobox* eliding_cb_;
 
   // Combo box for ampersand prefix show / hide behavior.
-  raw_ptr<Combobox> prefix_cb_;
+  Combobox* prefix_cb_;
 
   // Combo box to choose one of the sample texts.
-  raw_ptr<Combobox> text_cb_;
+  Combobox* text_cb_;
 
   // Combo box to choose a font weight.
-  raw_ptr<Combobox> weight_cb_;
+  Combobox* weight_cb_;
 
   // Check box to enable/disable multiline text drawing.
-  raw_ptr<Checkbox> multiline_checkbox_;
+  Checkbox* multiline_checkbox_;
 
   // Check box to enable/disable character break behavior.
-  raw_ptr<Checkbox> break_checkbox_;
+  Checkbox* break_checkbox_;
 
   // Check box to enable/disable italic style.
-  raw_ptr<Checkbox> italic_checkbox_;
+  Checkbox* italic_checkbox_;
 
   // Check box to enable/disable underline style.
-  raw_ptr<Checkbox> underline_checkbox_;
+  Checkbox* underline_checkbox_;
+
+  DISALLOW_COPY_AND_ASSIGN(TextExample);
 };
 
 }  // namespace examples

@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.ui.MenuButtonTest');
 goog.setTestOnly();
@@ -61,19 +69,11 @@ positioning.positionAtCoordinate = function(
  *     to `KeyHandler.EventType.KEY`, but can be set to a different EventType.
  */
 function MyFakeEvent(keyCode, eventType = KeyHandler.EventType.KEY) {
-  /** @suppress {globalThis} suppression added to enable type checking */
   this.type = eventType;
-  /** @suppress {globalThis} suppression added to enable type checking */
   this.keyCode = keyCode;
-  /** @suppress {globalThis} suppression added to enable type checking */
   this.propagationStopped = false;
-  /** @suppress {globalThis} suppression added to enable type checking */
   this.preventDefault = goog.nullFunction;
-  /** @suppress {globalThis} suppression added to enable type checking */
-  this.stopPropagation = function() {
-    /** @suppress {globalThis} suppression added to enable type checking */
-    this.propagationStopped = true;
-  };
+  this.stopPropagation = function() { this.propagationStopped = true; };
 }
 
 /** Check if the aria-haspopup property is set correctly. */
@@ -89,7 +89,7 @@ function checkHasPopUp() {
       'Menu button must have aria-haspopup attribute set to true',
       aria.getState(menuButton.getElement(), State.HASPOPUP));
   menuButton.setMenu(null);
-  assertFalse(
+  assertFale(
       'Menu button must have aria-haspopup attribute set to false',
       aria.getState(menuButton.getElement(), State.HASPOPUP));
 }
@@ -162,7 +162,6 @@ testSuite({
   /**
    * Open the menu, highlight first menuitem and then the second.
    * Check if the aria-activedescendant property is set correctly.
-   * @suppress {checkTypes} suppression added to enable type checking
    */
   testHighlightItemBehavior() {
     const node = dom.getElement('demoMenuButton');
@@ -186,7 +185,6 @@ testSuite({
   /**
    * Check that the appropriate items are selected when menus are opened with
    * the keyboard and setSelectFirstOnEnterOrSpace is not set.
-   * @suppress {checkTypes} suppression added to enable type checking
    */
   testHighlightFirstOnOpen() {
     const node = dom.getElement('demoMenuButton');
@@ -208,7 +206,6 @@ testSuite({
    * Check that the appropriate items are selected when menus are opened with
    * the keyboard, setSelectFirstOnEnterOrSpace is not set, and the first menu
    * item is disabled.
-   * @suppress {checkTypes} suppression added to enable type checking
    */
   testHighlightFirstOnOpen_withFirstDisabled() {
     const node = dom.getElement('demoMenuButton');
@@ -232,7 +229,6 @@ testSuite({
   /**
    * Check that the appropriate items are selected when menus are opened with
    * the keyboard and setSelectFirstOnEnterOrSpace is set.
-   * @suppress {checkTypes} suppression added to enable type checking
    */
   testHighlightFirstOnOpen_withEnterOrSpaceSet() {
     const node = dom.getElement('demoMenuButton');
@@ -249,7 +245,6 @@ testSuite({
    * Check that the appropriate item is selected when a menu is opened with the
    * keyboard, setSelectFirstOnEnterOrSpace is true, and the first menu item is
    * disabled.
-   * @suppress {checkTypes} suppression added to enable type checking
    */
   testHighlightFirstOnOpen_withEnterOrSpaceSetAndFirstDisabled() {
     const node = dom.getElement('demoMenuButton');
@@ -268,7 +263,6 @@ testSuite({
   /**
    * Open the menu, enter a submenu and then back out of it.
    * Check if the aria-activedescendant property is set correctly.
-   * @suppress {checkTypes} suppression added to enable type checking
    */
   testCloseSubMenuBehavior() {
     const node = dom.getElement('demoMenuButton');
@@ -302,10 +296,7 @@ testSuite({
         aria.getState(menuButton.getElement(), State.ACTIVEDESCENDANT));
   },
 
-  /**
-   * Make sure the menu opens when enter is pressed.
-   * @suppress {checkTypes} suppression added to enable type checking
-   */
+  /** Make sure the menu opens when enter is pressed. */
   testEnterOpensMenu() {
     const node = dom.getElement('demoMenuButton');
     menuButton.decorate(node);
@@ -313,10 +304,7 @@ testSuite({
     assertTrue('Menu must open after enter', menuButton.isOpen());
   },
 
-  /**
-     Tests the behavior of the enter and space keys when the menu is open.
-     @suppress {checkTypes} suppression added to enable type checking
-   */
+  /** Tests the behavior of the enter and space keys when the menu is open. */
   testSpaceOrEnterClosesMenu() {
     const node = dom.getElement('demoMenuButton');
     menuButton.decorate(node);
@@ -330,27 +318,7 @@ testSuite({
     assertFalse('Menu should close after pressing Space', menuButton.isOpen());
   },
 
-  /**
-   * Tests the behavior of the enter and space keys when the menu is open and
-   * setCloseOnEnterOrSpace was called with false as its argument.
-   * @suppress {checkTypes} suppression added to enable type checking
-   */
-  testSpaceOrEnterLeavesMenuOpen_withCloseOnEnterOrSpaceDisabled() {
-    const node = dom.getElement('demoMenuButton');
-    menuButton.decorate(node);
-    menuButton.setCloseOnEnterOrSpace(false);
-
-    menuButton.setOpen(true);
-    menuButton.handleKeyEvent(new MyFakeEvent(KeyCodes.ENTER));
-    assertTrue(
-        'Menu should remain open after pressing Enter', menuButton.isOpen());
-    menuButton.handleKeyEvent(new MyFakeEvent(KeyCodes.SPACE, EventType.KEYUP));
-    assertTrue(
-        'Menu should remain open after pressing Space', menuButton.isOpen());
-  },
-
   // Tests the behavior of the enter key on a submenu.
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testEnterClosesSubMenu() {
     const node = dom.getElement('demoMenuButton');
     menuButton.decorate(node);
@@ -368,7 +336,6 @@ testSuite({
   },
 
   // Tests the behavior of the esc key on a submenu.
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testEscClosesSubMenu() {
     const node = dom.getElement('demoMenuButton');
     menuButton.decorate(node);
@@ -387,11 +354,9 @@ testSuite({
   /**
    * Tests that a keydown event of the escape key propagates normally when the
    * menu is closed.
-   * @suppress {visibility} suppression added to enable type checking
    */
   testStopEscapePropagationMenuClosed() {
     const node = dom.getElement('demoMenuButton');
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const fakeEvent = new MyFakeEvent(KeyCodes.ESCAPE, EventType.KEYDOWN);
     menuButton.decorate(node);
     menuButton.setOpen(false);
@@ -405,11 +370,9 @@ testSuite({
   /**
    * Tests that a keydown event of the escape key is prevented from propagating
    * when the menu is open.
-   * @suppress {visibility} suppression added to enable type checking
    */
   testStopEscapePropagationMenuOpen() {
     const node = dom.getElement('demoMenuButton');
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const fakeEvent = new MyFakeEvent(KeyCodes.ESCAPE, EventType.KEYDOWN);
     menuButton.decorate(node);
     menuButton.setOpen(true);
@@ -441,8 +404,6 @@ testSuite({
   /**
    * Renders the menu button, moves its menu and then repositions to make sure
    * the position is more or less ok.
-   * @suppress {strictMissingProperties} suppression added to enable type
-   * checking
    */
   testPositionMenu() {
     const node = dom.getElement('demoMenuButton');
@@ -473,10 +434,8 @@ testSuite({
   },
 
   /**
-   * Shows the menu and moves the menu button, a timer correct the menu
-   *      position.
-   * @suppress {strictMissingProperties} suppression added to enable type
-   * checking
+     Shows the menu and moves the menu button, a timer correct the menu
+     position.
    */
   testOpenedMenuPositionCorrection() {
     const iframe = dom.getElement('iframe1');
@@ -491,7 +450,6 @@ testSuite({
     const mockTimer = new Timer();
     // Don't start the timer.  We manually dispatch the Tick event.
     mockTimer.start = goog.nullFunction;
-    /** @suppress {visibility} suppression added to enable type checking */
     button.timer_ = mockTimer;
 
     const replacer = new PropertyReplacer();
@@ -587,8 +545,6 @@ testSuite({
    * decreasing, and insert an additional repositioning of the menu to
    * coordinates (0,0), giving enough room to lay out the menu properly, so the
    * correct size is available to determine the proper menu position.
-   * @suppress {strictMissingProperties} suppression added to enable type
-   * checking
    */
   testOpenedMenuPositionCorrection_viewportChange() {
     const iframe = dom.getElement('iframe1');
@@ -604,7 +560,6 @@ testSuite({
     const mockTimer = new Timer();
     // Don't start the timer.  We manually dispatch the Tick event.
     mockTimer.start = goog.nullFunction;
-    /** @suppress {visibility} suppression added to enable type checking */
     button.timer_ = mockTimer;
 
     const replacer = new PropertyReplacer();
@@ -656,8 +611,6 @@ testSuite({
   /**
    * Use a different button to position the menu and make sure it does so
    * correctly.
-   * @suppress {strictMissingProperties} suppression added to enable type
-   * checking
    */
   testAlternatePositioningElement() {
     const node = dom.getElement('demoMenuButton');
@@ -676,11 +629,7 @@ testSuite({
     assertRoughlyEquals(menuNode.offsetLeft, posElement.offsetLeft, 20);
   },
 
-  /**
-     Test forced positioning above the button.
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
+  /** Test forced positioning above the button. */
   testPositioningAboveAnchor() {
     const node = dom.getElement('demoMenuButton');
     menuButton.decorate(node);
@@ -707,11 +656,7 @@ testSuite({
     assertRoughlyEquals(node.offsetHeight, 19, 3);
   },
 
-  /**
-     Test forced positioning below the button.
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
+  /** Test forced positioning below the button. */
   testPositioningBelowAnchor() {
     const node = dom.getElement('demoMenuButton');
     menuButton.decorate(node);
@@ -743,20 +688,13 @@ testSuite({
     assertRoughlyEquals(node.offsetHeight, 19, 3);
   },
 
-  /**
-     Tests that space, and only space, fire on key up.
-     @suppress {missingProperties} suppression added to enable type checking
-   */
+  /** Tests that space, and only space, fire on key up. */
   testSpaceFireOnKeyUp() {
     const node = dom.getElement('demoMenuButton');
     menuButton.decorate(node);
 
     let e = new GoogEvent(KeyHandler.EventType.KEY, menuButton);
     e.preventDefault = recordFunction();
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     e.keyCode = KeyCodes.SPACE;
     menuButton.handleKeyEvent(e);
     assertFalse(
@@ -766,20 +704,12 @@ testSuite({
         'Page scrolling is prevented', e.preventDefault.getLastCall());
 
     e = new GoogEvent(EventType.KEYUP, menuButton);
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     e.keyCode = KeyCodes.SPACE;
     menuButton.handleKeyEvent(e);
     assertTrue(
         'Menu must have been triggered by Space keyup', menuButton.isOpen());
     menuButton.getMenu().setHighlightedIndex(0);
     e = new GoogEvent(KeyHandler.EventType.KEY, menuButton);
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     e.keyCode = KeyCodes.DOWN;
     menuButton.handleKeyEvent(e);
     assertEquals(
@@ -788,10 +718,6 @@ testSuite({
 
     menuButton.getMenu().setHighlightedIndex(0);
     e = new GoogEvent(EventType.KEYUP, menuButton);
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     e.keyCode = KeyCodes.DOWN;
     menuButton.handleKeyEvent(e);
     assertEquals(

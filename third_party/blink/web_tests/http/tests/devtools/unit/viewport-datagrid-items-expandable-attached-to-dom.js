@@ -1,5 +1,5 @@
 (async function() {
-  await TestRunner.loadLegacyModule('data_grid');
+  await TestRunner.loadModule('data_grid');
 
   TestRunner.addResult("This tests viewport datagrid.");
 
@@ -8,12 +8,8 @@
 
   var columns = [{id: "id", title: "ID column", width: "250px"}];
   var dataGrid = new DataGrid.ViewportDataGrid({displayName: 'Test', columns});
-  var widget = dataGrid.asWidget();
-  widget.show(div);
-  dataGrid.element.style.width = '100%';
+  div.appendChild(dataGrid.element);
   dataGrid.element.style.height = '150px';
-  widget.element.style.width = '100%';
-  widget.element.style.height = '100%';
 
   var rootNode = dataGrid.rootNode();
   var nodes = [];
@@ -43,51 +39,51 @@
   nodes.push(node);
   nodes[24].appendChild(node);
 
-  dataGrid.update();
+  dataGrid._update();
   dumpVisibleNodes();
 
   TestRunner.addResult("Expanding Node 3 and Node 24");
   nodes[3].expand();
   nodes[24].expand();
-  dataGrid.update();
+  dataGrid._update();
   dumpVisibleNodes();
 
   TestRunner.addResult("Collapsing Node 3");
   nodes[3].collapse();
-  dataGrid.update();
+  dataGrid._update();
   dumpVisibleNodes();
 
   TestRunner.addResult("Scrolled down to 220px");
   setScrollPosition(220);
-  dataGrid.update();
+  dataGrid._update();
   TestRunner.addResult("Expanding Node 3 while not in dom");
   nodes[3].expand();
-  dataGrid.update();
+  dataGrid._update();
   TestRunner.addResult("Scrolled back up to 0px");
   setScrollPosition(0);
-  dataGrid.update();
+  dataGrid._update();
   dumpVisibleNodes();
 
   TestRunner.addResult("Moving node 0 to be a child of node 3 to make sure attributes adjust (name does not change)");
   nodes[3].insertChild(nodes[0], 0);
-  dataGrid.update();
+  dataGrid._update();
   dumpVisibleNodes();
 
   TestRunner.addResult("Moving node that is attached to dom (node 0) to child of offscreen parent (node 24)");
   nodes[24].insertChild(nodes[0], 0);
-  dataGrid.update();
+  dataGrid._update();
   dumpVisibleNodes();
 
   TestRunner.addResult("Scrolling down to 1000px - should be at bottom to make sure node 0 is attached properly to node 24");
   setScrollPosition(1000);
-  dataGrid.update();
+  dataGrid._update();
   dumpVisibleNodes();
 
   TestRunner.completeTest();
 
   function setScrollPosition(yPosition) {
-    dataGrid.scrollContainer.scrollTop = yPosition;
-    dataGrid.onScroll();
+    dataGrid._scrollContainer.scrollTop = yPosition;
+    dataGrid._onScroll();
   }
 
   function dumpVisibleNodes() {

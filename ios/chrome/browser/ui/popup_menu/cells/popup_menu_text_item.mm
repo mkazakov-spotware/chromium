@@ -1,19 +1,19 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/popup_menu/cells/popup_menu_text_item.h"
 
-#import <stdlib.h>
+#include <stdlib.h>
 
-#import "base/mac/foundation_util.h"
+#include "base/mac/foundation_util.h"
 #import "ios/chrome/browser/ui/popup_menu/public/popup_menu_ui_constants.h"
 #import "ios/chrome/browser/ui/reading_list/number_badge_view.h"
 #import "ios/chrome/browser/ui/reading_list/text_badge_view.h"
 #import "ios/chrome/browser/ui/table_view/chrome_table_view_styler.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/material_timing.h"
-#import "ios/chrome/common/string_util.h"
+#include "ios/chrome/common/string_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 
@@ -30,21 +30,28 @@ const CGFloat kMaxHeight = 100;
 
 NSMutableAttributedString* GetAttributedString(NSString* imageName,
                                                NSString* message) {
-  NSDictionary* textAttributes = @{
+  // Add a space to have a distance with the leading icon.
+  NSString* fullText = [@" " stringByAppendingString:message];
+
+  NSRange range;
+  fullText = ParseStringWithLink(fullText, &range);
+
+  NSDictionary* generalAttributes = @{
     NSForegroundColorAttributeName : [UIColor colorNamed:kTextSecondaryColor],
     NSFontAttributeName :
         [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote]
   };
+
+  NSMutableAttributedString* attributedString =
+      [[NSMutableAttributedString alloc] initWithString:fullText
+                                             attributes:generalAttributes];
 
   NSDictionary* linkAttributes = @{
     NSForegroundColorAttributeName : [UIColor colorNamed:kBlueColor],
     NSFontAttributeName :
         [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote]
   };
-
-  // Add a space to have a distance with the leading icon.
-  NSAttributedString* attributedString = AttributedStringFromStringWithLink(
-      [@" " stringByAppendingString:message], textAttributes, linkAttributes);
+  [attributedString setAttributes:linkAttributes range:range];
 
   // Create the leading enterprise icon.
   NSTextAttachment* attachment = [[NSTextAttachment alloc] init];
@@ -58,11 +65,12 @@ NSMutableAttributedString* GetAttributedString(NSString* imageName,
   CGFloat verticalOffset = roundf(capHeight - height) / 2.f;
   attachment.bounds = CGRectMake(0, verticalOffset, height, height);
 
-  NSMutableAttributedString* outputString = [[NSAttributedString
-      attributedStringWithAttachment:attachment] mutableCopy];
-  [outputString appendAttributedString:attributedString];
+  NSAttributedString* attachmentString =
+      [NSAttributedString attributedStringWithAttachment:attachment];
 
-  return outputString;
+  [attributedString insertAttributedString:attachmentString atIndex:0];
+
+  return attributedString;
 }
 
 }  // namespace

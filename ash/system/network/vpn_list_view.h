@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,11 @@
 #include <map>
 #include <string>
 
-#include "ash/ash_export.h"
 #include "ash/system/network/network_state_list_detailed_view.h"
 #include "ash/system/network/vpn_list.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chromeos/services/network_config/public/mojom/cros_network_config.mojom-forward.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 
 class PrefRegistrySimple;
 
@@ -22,6 +21,7 @@ class View;
 }
 
 namespace ash {
+namespace tray {
 
 // A list of VPN providers and networks that shows VPN providers and networks in
 // a hierarchical layout, allowing the user to see at a glance which provider a
@@ -36,19 +36,17 @@ namespace ash {
 // attempt. Clicking on the currently connected or connecting network shows its
 // configuration dialog. Clicking on a provider shows the provider's "add
 // network" dialog.
-class ASH_EXPORT VPNListView : public NetworkStateListDetailedView,
-                               public VpnList::Observer {
+class VPNListView : public NetworkStateListDetailedView,
+                    public VpnList::Observer {
  public:
-  METADATA_HEADER(VPNListView);
-
   using VpnProviderPtr = chromeos::network_config::mojom::VpnProviderPtr;
 
   VPNListView(DetailedViewDelegate* delegate, LoginStatus login);
-
-  VPNListView(const VPNListView&) = delete;
-  VPNListView& operator=(const VPNListView&) = delete;
-
   ~VPNListView() override;
+
+  // Make following functions publicly accessible for VPNListNetworkEntry.
+  using NetworkStateListDetailedView::SetupConnectedScrollListItem;
+  using NetworkStateListDetailedView::SetupConnectingScrollListItem;
 
   // NetworkStateListDetailedView:
   void UpdateNetworkList() override;
@@ -60,21 +58,16 @@ class ASH_EXPORT VPNListView : public NetworkStateListDetailedView,
   // See Shell::RegisterProfilePrefs().
   static void RegisterProfilePrefs(PrefRegistrySimple* registry);
 
- private:
-  friend class VPNListViewTest;
+  // views::View:
+  const char* GetClassName() const override;
 
+ private:
   using NetworkStateList =
       std::vector<chromeos::network_config::mojom::NetworkStatePropertiesPtr>;
   void OnGetNetworkStateList(NetworkStateList networks);
 
-  // Adds a `network` to the list in `container`.
+  // Adds a network to the list.
   void AddNetwork(
-      const chromeos::network_config::mojom::NetworkStateProperties* network,
-      views::View* container);
-
-  // Adds a `network` to the list in its own unnested container. Some ARC VPNs
-  // do not have an associated VPN provider entry and are listed this way.
-  void AddUnnestedNetwork(
       const chromeos::network_config::mojom::NetworkStateProperties* network);
 
   // Adds the VPN provider identified by |vpn_provider| to the list, along with
@@ -107,8 +100,11 @@ class ASH_EXPORT VPNListView : public NetworkStateListDetailedView,
   bool list_empty_ = true;
 
   base::WeakPtrFactory<VPNListView> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(VPNListView);
 };
 
+}  // namespace tray
 }  // namespace ash
 
 #endif  // ASH_SYSTEM_NETWORK_VPN_LIST_VIEW_H_

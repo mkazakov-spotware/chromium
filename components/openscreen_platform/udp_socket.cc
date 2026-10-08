@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -94,9 +94,7 @@ UdpSocket::UdpSocket(
     : client_(client),
       local_endpoint_(local_endpoint),
       udp_socket_(std::move(udp_socket)),
-      pending_listener_(std::move(pending_listener)) {
-  DCHECK(client_);
-}
+      pending_listener_(std::move(pending_listener)) {}
 
 UdpSocket::~UdpSocket() = default;
 
@@ -152,8 +150,12 @@ void UdpSocket::SetDscp(openscreen::UdpSocket::DscpMode state) {}
 
 void UdpSocket::OnReceived(
     int32_t net_result,
-    const absl::optional<net::IPEndPoint>& source_endpoint,
-    absl::optional<base::span<const uint8_t>> data) {
+    const base::Optional<net::IPEndPoint>& source_endpoint,
+    base::Optional<base::span<const uint8_t>> data) {
+  if (!client_) {
+    return;  // Ignore if there's no Client to receive the result.
+  }
+
   if (net_result != net::OK) {
     client_->OnRead(this, Error::Code::kSocketReadFailure);
   } else if (data) {
@@ -170,17 +172,22 @@ void UdpSocket::OnReceived(
 }
 
 void UdpSocket::BindCallback(int32_t result,
-                             const absl::optional<net::IPEndPoint>& address) {
+                             const base::Optional<net::IPEndPoint>& address) {
   if (result != net::OK) {
-    client_->OnError(this, Error(Error::Code::kSocketBindFailure,
-                                 net::ErrorToString(result)));
+    if (client_) {
+      client_->OnError(this, Error(Error::Code::kSocketBindFailure,
+                                   net::ErrorToString(result)));
+    }
     return;
   }
 
-  // This is an approximate value for number of packets, and may need to be
-  // adjusted when we have real world data.
-  constexpr int kNumPacketsReadyFor = 30;
-  udp_socket_->ReceiveMore(kNumPacketsReadyFor);
+  // Enable packet receives only if there is a Client to dispatch them to.
+  if (client_) {
+    // This is an approximate value for number of packets, and may need to be
+    // adjusted when we have real world data.
+    constexpr int kNumPacketsReadyFor = 30;
+    udp_socket_->ReceiveMore(kNumPacketsReadyFor);
+  }
 
   if (address) {
     local_endpoint_ =
@@ -189,18 +196,17 @@ void UdpSocket::BindCallback(int32_t result,
       listener_.Bind(std::move(pending_listener_));
     }
   }
-  client_->OnBound(this);
 }
 
 void UdpSocket::JoinGroupCallback(int32_t result) {
-  if (result != net::OK) {
+  if (result != net::OK && client_) {
     client_->OnError(this, Error(Error::Code::kSocketOptionSettingFailure,
                                  net::ErrorToString(result)));
   }
 }
 
 void UdpSocket::SendCallback(int32_t result) {
-  if (result != net::OK) {
+  if (result != net::OK && client_) {
     client_->OnSendError(this, Error(Error::Code::kSocketSendFailure,
                                      net::ErrorToString(result)));
   }

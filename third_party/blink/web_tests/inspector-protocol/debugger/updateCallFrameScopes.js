@@ -18,7 +18,7 @@
   var topFrame = messageObject.params.callFrames[0];
   var topFrameId = topFrame.callFrameId;
 
-  await dp.Debugger.evaluateOnCallFrame({callFrameId: topFrameId, expression: 'a = ' + newVariableValue });
+  dp.Debugger.evaluateOnCallFrame({callFrameId: topFrameId, expression: 'a = ' + newVariableValue });
   testRunner.log('Variable value changed');
   dp.Debugger.resume();
 

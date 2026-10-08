@@ -51,7 +51,7 @@ static const int kTimeDefaultStepBase = 0;
 static const int kTimeStepScaleFactor = 1000;
 
 TimeInputType::TimeInputType(HTMLInputElement& element)
-    : BaseTemporalInputType(Type::kTime, element) {}
+    : BaseTemporalInputType(element) {}
 
 void TimeInputType::CountUsage() {
   CountUsageIfVisible(WebFeature::kInputTypeTime);
@@ -116,7 +116,7 @@ String TimeInputType::LocalizeValue(const String& proposed_value) const {
                                        : Locale::kFormatTypeShort;
 
   String localized = GetElement().GetLocale().FormatDateTime(date, format_type);
-  return localized.empty() ? proposed_value : localized;
+  return localized.IsEmpty() ? proposed_value : localized;
 }
 
 String TimeInputType::FormatDateTimeFieldsState(
@@ -124,20 +124,21 @@ String TimeInputType::FormatDateTimeFieldsState(
   if (!date_time_fields_state.HasHour() ||
       !date_time_fields_state.HasMinute() || !date_time_fields_state.HasAMPM())
     return g_empty_string;
-  if (date_time_fields_state.HasMillisecond()) {
+  if (date_time_fields_state.HasMillisecond() &&
+      date_time_fields_state.Millisecond()) {
     return String::Format(
-        "%02u:%02u:%02u.%03u", date_time_fields_state.Hour24(),
+        "%02u:%02u:%02u.%03u", date_time_fields_state.Hour23(),
         date_time_fields_state.Minute(),
         date_time_fields_state.HasSecond() ? date_time_fields_state.Second()
                                            : 0,
         date_time_fields_state.Millisecond());
   }
-  if (date_time_fields_state.HasSecond()) {
-    return String::Format("%02u:%02u:%02u", date_time_fields_state.Hour24(),
+  if (date_time_fields_state.HasSecond() && date_time_fields_state.Second()) {
+    return String::Format("%02u:%02u:%02u", date_time_fields_state.Hour23(),
                           date_time_fields_state.Minute(),
                           date_time_fields_state.Second());
   }
-  return String::Format("%02u:%02u", date_time_fields_state.Hour24(),
+  return String::Format("%02u:%02u", date_time_fields_state.Hour23(),
                         date_time_fields_state.Minute());
 }
 
@@ -173,7 +174,7 @@ bool TimeInputType::IsValidFormat(bool has_year,
   return has_hour && has_minute && has_ampm;
 }
 
-String TimeInputType::AriaLabelForPickerIndicator() const {
+String TimeInputType::AriaRoleForPickerIndicator() const {
   return GetLocale().QueryString(IDS_AX_CALENDAR_SHOW_TIME_PICKER);
 }
 

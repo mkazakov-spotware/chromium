@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,9 @@
 
 #include <utility>
 
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/common/thread_safe_browser_interface_broker_proxy.h"
 #include "third_party/blink/public/mojom/push_messaging/push_messaging_status.mojom-blink.h"
 #include "third_party/blink/public/platform/platform.h"
-#include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/modules/push_messaging/push_error.h"
 #include "third_party/blink/renderer/modules/push_messaging/push_messaging_utils.h"
 #include "third_party/blink/renderer/modules/push_messaging/push_subscription.h"
@@ -47,10 +45,8 @@ PushProvider* PushProvider::From(ServiceWorkerRegistration* registration) {
 // static
 mojom::blink::PushMessaging* PushProvider::GetPushMessagingRemote() {
   if (!push_messaging_manager_.is_bound()) {
-    GetSupplementable()
-        ->GetExecutionContext()
-        ->GetBrowserInterfaceBroker()
-        .GetInterface(push_messaging_manager_.BindNewPipeAndPassReceiver(
+    Platform::Current()->GetBrowserInterfaceBroker()->GetInterface(
+        push_messaging_manager_.BindNewPipeAndPassReceiver(
             GetSupplementable()->GetExecutionContext()->GetTaskRunner(
                 TaskType::kMiscPlatformAPI)));
   }
@@ -70,8 +66,8 @@ void PushProvider::Subscribe(
   GetPushMessagingRemote()->Subscribe(
       GetSupplementable()->RegistrationId(), std::move(content_options_ptr),
       user_gesture,
-      WTF::BindOnce(&PushProvider::DidSubscribe, WrapPersistent(this),
-                    std::move(callbacks)));
+      WTF::Bind(&PushProvider::DidSubscribe, WrapPersistent(this),
+                WTF::Passed(std::move(callbacks))));
 }
 
 void PushProvider::DidSubscribe(
@@ -102,8 +98,8 @@ void PushProvider::Unsubscribe(
 
   GetPushMessagingRemote()->Unsubscribe(
       GetSupplementable()->RegistrationId(),
-      WTF::BindOnce(&PushProvider::DidUnsubscribe, WrapPersistent(this),
-                    std::move(callbacks)));
+      WTF::Bind(&PushProvider::DidUnsubscribe, WrapPersistent(this),
+                WTF::Passed(std::move(callbacks))));
 }
 
 void PushProvider::DidUnsubscribe(
@@ -127,8 +123,8 @@ void PushProvider::GetSubscription(
 
   GetPushMessagingRemote()->GetSubscription(
       GetSupplementable()->RegistrationId(),
-      WTF::BindOnce(&PushProvider::DidGetSubscription, WrapPersistent(this),
-                    std::move(callbacks)));
+      WTF::Bind(&PushProvider::DidGetSubscription, WrapPersistent(this),
+                WTF::Passed(std::move(callbacks))));
 }
 
 void PushProvider::Trace(Visitor* visitor) const {

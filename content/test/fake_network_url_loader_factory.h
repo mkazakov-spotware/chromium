@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,16 +26,12 @@ class FakeNetworkURLLoaderFactory final
                               const std::string& body,
                               bool network_accessed,
                               net::Error error_code);
-
-  FakeNetworkURLLoaderFactory(const FakeNetworkURLLoaderFactory&) = delete;
-  FakeNetworkURLLoaderFactory& operator=(const FakeNetworkURLLoaderFactory&) =
-      delete;
-
   ~FakeNetworkURLLoaderFactory() override;
 
   // network::mojom::URLLoaderFactory implementation.
   void CreateLoaderAndStart(
       mojo::PendingReceiver<network::mojom::URLLoader> receiver,
+      int32_t routing_id,
       int32_t request_id,
       uint32_t options,
       const network::ResourceRequest& url_request,
@@ -49,6 +45,8 @@ class FakeNetworkURLLoaderFactory final
  private:
   FakeNetwork fake_network_;
   mojo::ReceiverSet<network::mojom::URLLoaderFactory> receivers_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeNetworkURLLoaderFactory);
 };
 
 }  // namespace content

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,11 +36,14 @@ setTitle('Test PASS');
           'application/javascript')
   );
 
+  dp.Emulation.onVirtualTimeBudgetExpired(async data => {
+    testRunner.log(await session.evaluate('document.title'));
+    testRunner.completeTest();
+  });
+
   await dp.Emulation.setVirtualTimePolicy({policy: 'pause'});
-  await dp.Page.navigate({url: 'http://test.com/index.html'});
-  dp.Emulation.setVirtualTimePolicy({
-    policy: 'pauseIfNetworkFetchesPending', budget: 5000});
-  await dp.Emulation.onceVirtualTimeBudgetExpired();
-  testRunner.log(await session.evaluate('document.title'));
-  testRunner.completeTest();
+  await dp.Emulation.setVirtualTimePolicy({
+      policy: 'pauseIfNetworkFetchesPending', budget: 5000,
+      waitForNavigation: true});
+  dp.Page.navigate({url: 'http://test.com/index.html'});
 })

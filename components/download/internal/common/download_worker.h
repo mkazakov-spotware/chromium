@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "components/download/public/common/download_export.h"
@@ -37,10 +37,6 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadWorker
   };
 
   DownloadWorker(DownloadWorker::Delegate* delegate, int64_t offset);
-
-  DownloadWorker(const DownloadWorker&) = delete;
-  DownloadWorker& operator=(const DownloadWorker&) = delete;
-
   virtual ~DownloadWorker();
 
   int64_t offset() const { return offset_; }
@@ -65,11 +61,11 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadWorker
           url_loader_factory_provider,
       UrlDownloadHandler* downloader,
       DownloadUrlParameters::OnStartedCallback callback) override;
-  void OnUrlDownloadStopped(UrlDownloadHandlerID downloader) override;
+  void OnUrlDownloadStopped(UrlDownloadHandler* downloader) override;
   void OnUrlDownloadHandlerCreated(
       UrlDownloadHandler::UniqueUrlDownloadHandlerPtr downloader) override;
 
-  const raw_ptr<DownloadWorker::Delegate> delegate_;
+  DownloadWorker::Delegate* const delegate_;
 
   // The starting position of the content for this worker to download.
   int64_t offset_;
@@ -82,8 +78,10 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadWorker
   UrlDownloadHandler::UniqueUrlDownloadHandlerPtr url_download_handler_;
 
   base::WeakPtrFactory<DownloadWorker> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DownloadWorker);
 };
 
 }  // namespace download
 
-#endif  // COMPONENTS_DOWNLOAD_INTERNAL_COMMON_DOWNLOAD_WORKER_H_
+#endif  // COMPONENTS_DOWNLOAD_PUBLIC_COMMON_DOWNLOAD_WORKER_H_

@@ -1,15 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "chrome/browser/ui/cocoa/bookmarks/bookmark_menu_cocoa_controller.h"
-#include "components/bookmarks/browser/bookmark_node.h"
 
-#include <string>
-
-#include "base/containers/span.h"
 #import "base/mac/scoped_nsobject.h"
-#include "base/ranges/algorithm.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/cocoa/test/cocoa_test_helper.h"
@@ -28,14 +24,14 @@ using bookmarks::BookmarkNode;
   const BookmarkNode* _nodes[2];
   BOOL _opened[2];
 }
-- (instancetype)initWithProfile:(Profile*)profile;
+- (id)initWithProfile:(Profile*)profile;
 @end
 
 @implementation FakeBookmarkMenuController
 
-- (instancetype)initWithProfile:(Profile*)profile {
+- (id)initWithProfile:(Profile*)profile {
   if ((self = [super init])) {
-    std::u16string empty;
+    base::string16 empty;
     BookmarkModel* model = BookmarkModelFactory::GetForBrowserContext(profile);
     const BookmarkNode* bookmark_bar = model->bookmark_bar_node();
     _nodes[0] = model->AddURL(bookmark_bar, 0, empty, GURL("http://0.com"));
@@ -44,21 +40,14 @@ using bookmarks::BookmarkNode;
   return self;
 }
 
-- (base::GUID)guidForIdentifier:(int)identifier {
+- (const BookmarkNode*)nodeForIdentifier:(int)identifier {
   if ((identifier < 0) || (identifier >= 2))
-    return base::GUID();
-  DCHECK(_nodes[identifier]);
-  return _nodes[identifier]->guid();
+    return NULL;
+  return _nodes[identifier];
 }
 
-- (void)openURLForGUID:(base::GUID)guid {
-  base::span<const BookmarkNode*> nodes = base::make_span(_nodes);
-  auto it = base::ranges::find_if(nodes, [&guid](const BookmarkNode* node) {
-    return node->guid() == guid;
-  });
-  ASSERT_NE(it, nodes.end());
-
-  std::string url = (*it)->url().possibly_invalid_spec();
+- (void)openURLForNode:(const BookmarkNode*)node {
+  std::string url = node->url().possibly_invalid_spec();
   if (url.find("http://0.com") != std::string::npos)
     _opened[0] = YES;
   if (url.find("http://1.com") != std::string::npos)

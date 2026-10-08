@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/tabs/tab_switch_event_latency_recorder.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 class TabSwitchEventLatencyRecorderTest : public testing::Test {
@@ -33,21 +32,21 @@ class TabSwitchEventLatencyRecorderTest : public testing::Test {
 
  protected:
   size_t GetHistogramSampleSize(
-      TabStripUserGestureDetails::GestureType gesture_type) {
-    switch (gesture_type) {
-      case TabStripUserGestureDetails::GestureType::kMouse:
+      TabSwitchEventLatencyRecorder::EventType event) {
+    switch (event) {
+      case TabSwitchEventLatencyRecorder::EventType::kMouse:
         return histogram_tester
             .GetAllSamples("Browser.Tabs.InputEventToSelectionTime.Mouse")
             .size();
-      case TabStripUserGestureDetails::GestureType::kKeyboard:
+      case TabSwitchEventLatencyRecorder::EventType::kKeyboard:
         return histogram_tester
             .GetAllSamples("Browser.Tabs.InputEventToSelectionTime.Keyboard")
             .size();
-      case TabStripUserGestureDetails::GestureType::kTouch:
+      case TabSwitchEventLatencyRecorder::EventType::kTouch:
         return histogram_tester
             .GetAllSamples("Browser.Tabs.InputEventToSelectionTime.Touch")
             .size();
-      case TabStripUserGestureDetails::GestureType::kWheel:
+      case TabSwitchEventLatencyRecorder::EventType::kWheel:
         return histogram_tester
             .GetAllSamples("Browser.Tabs.InputEventToSelectionTime.Wheel")
             .size();
@@ -65,21 +64,20 @@ TEST_F(TabSwitchEventLatencyRecorderTest, MouseInputLatency) {
   const auto now = base::TimeTicks::Now();
 
   tab_switch_event_latency_recorder_.BeginLatencyTiming(
-      TabStripUserGestureDetails(
-          TabStripUserGestureDetails::GestureType::kMouse, now));
+      now, TabSwitchEventLatencyRecorder::EventType::kMouse);
   tab_switch_event_latency_recorder_.OnWillChangeActiveTab(
       base::TimeTicks::Now());
   EXPECT_EQ(
-      GetHistogramSampleSize(TabStripUserGestureDetails::GestureType::kMouse),
+      GetHistogramSampleSize(TabSwitchEventLatencyRecorder::EventType::kMouse),
       1ULL);
   EXPECT_EQ(GetHistogramSampleSize(
-                TabStripUserGestureDetails::GestureType::kKeyboard),
+                TabSwitchEventLatencyRecorder::EventType::kKeyboard),
             0ULL);
   EXPECT_EQ(
-      GetHistogramSampleSize(TabStripUserGestureDetails::GestureType::kTouch),
+      GetHistogramSampleSize(TabSwitchEventLatencyRecorder::EventType::kTouch),
       0ULL);
   EXPECT_EQ(
-      GetHistogramSampleSize(TabStripUserGestureDetails::GestureType::kWheel),
+      GetHistogramSampleSize(TabSwitchEventLatencyRecorder::EventType::kWheel),
       0ULL);
 }
 
@@ -88,21 +86,20 @@ TEST_F(TabSwitchEventLatencyRecorderTest, KeyboardInputLatency) {
   const auto now = base::TimeTicks::Now();
 
   tab_switch_event_latency_recorder_.BeginLatencyTiming(
-      TabStripUserGestureDetails(
-          TabStripUserGestureDetails::GestureType::kKeyboard, now));
+      now, TabSwitchEventLatencyRecorder::EventType::kKeyboard);
   tab_switch_event_latency_recorder_.OnWillChangeActiveTab(
       base::TimeTicks::Now());
   EXPECT_EQ(
-      GetHistogramSampleSize(TabStripUserGestureDetails::GestureType::kMouse),
+      GetHistogramSampleSize(TabSwitchEventLatencyRecorder::EventType::kMouse),
       0ULL);
   EXPECT_EQ(GetHistogramSampleSize(
-                TabStripUserGestureDetails::GestureType::kKeyboard),
+                TabSwitchEventLatencyRecorder::EventType::kKeyboard),
             1ULL);
   EXPECT_EQ(
-      GetHistogramSampleSize(TabStripUserGestureDetails::GestureType::kTouch),
+      GetHistogramSampleSize(TabSwitchEventLatencyRecorder::EventType::kTouch),
       0ULL);
   EXPECT_EQ(
-      GetHistogramSampleSize(TabStripUserGestureDetails::GestureType::kWheel),
+      GetHistogramSampleSize(TabSwitchEventLatencyRecorder::EventType::kWheel),
       0ULL);
 }
 
@@ -111,21 +108,20 @@ TEST_F(TabSwitchEventLatencyRecorderTest, TouchInputLatency) {
   const auto now = base::TimeTicks::Now();
 
   tab_switch_event_latency_recorder_.BeginLatencyTiming(
-      TabStripUserGestureDetails(
-          TabStripUserGestureDetails::GestureType::kTouch, now));
+      now, TabSwitchEventLatencyRecorder::EventType::kTouch);
   tab_switch_event_latency_recorder_.OnWillChangeActiveTab(
       base::TimeTicks::Now());
   EXPECT_EQ(
-      GetHistogramSampleSize(TabStripUserGestureDetails::GestureType::kMouse),
+      GetHistogramSampleSize(TabSwitchEventLatencyRecorder::EventType::kMouse),
       0ULL);
   EXPECT_EQ(GetHistogramSampleSize(
-                TabStripUserGestureDetails::GestureType::kKeyboard),
+                TabSwitchEventLatencyRecorder::EventType::kKeyboard),
             0ULL);
   EXPECT_EQ(
-      GetHistogramSampleSize(TabStripUserGestureDetails::GestureType::kTouch),
+      GetHistogramSampleSize(TabSwitchEventLatencyRecorder::EventType::kTouch),
       1ULL);
   EXPECT_EQ(
-      GetHistogramSampleSize(TabStripUserGestureDetails::GestureType::kWheel),
+      GetHistogramSampleSize(TabSwitchEventLatencyRecorder::EventType::kWheel),
       0ULL);
 }
 
@@ -134,21 +130,20 @@ TEST_F(TabSwitchEventLatencyRecorderTest, WheelInputLatency) {
   const auto now = base::TimeTicks::Now();
 
   tab_switch_event_latency_recorder_.BeginLatencyTiming(
-      TabStripUserGestureDetails(
-          TabStripUserGestureDetails::GestureType::kWheel, now));
+      now, TabSwitchEventLatencyRecorder::EventType::kWheel);
   tab_switch_event_latency_recorder_.OnWillChangeActiveTab(
       base::TimeTicks::Now());
   EXPECT_EQ(
-      GetHistogramSampleSize(TabStripUserGestureDetails::GestureType::kMouse),
+      GetHistogramSampleSize(TabSwitchEventLatencyRecorder::EventType::kMouse),
       0ULL);
   EXPECT_EQ(GetHistogramSampleSize(
-                TabStripUserGestureDetails::GestureType::kKeyboard),
+                TabSwitchEventLatencyRecorder::EventType::kKeyboard),
             0ULL);
   EXPECT_EQ(
-      GetHistogramSampleSize(TabStripUserGestureDetails::GestureType::kTouch),
+      GetHistogramSampleSize(TabSwitchEventLatencyRecorder::EventType::kTouch),
       0ULL);
   EXPECT_EQ(
-      GetHistogramSampleSize(TabStripUserGestureDetails::GestureType::kWheel),
+      GetHistogramSampleSize(TabSwitchEventLatencyRecorder::EventType::kWheel),
       1ULL);
 }
 
@@ -157,20 +152,19 @@ TEST_F(TabSwitchEventLatencyRecorderTest, OtherInputLatency) {
   const auto now = base::TimeTicks::Now();
 
   tab_switch_event_latency_recorder_.BeginLatencyTiming(
-      TabStripUserGestureDetails(
-          TabStripUserGestureDetails::GestureType::kOther, now));
+      now, TabSwitchEventLatencyRecorder::EventType::kOther);
   tab_switch_event_latency_recorder_.OnWillChangeActiveTab(
       base::TimeTicks::Now());
   EXPECT_EQ(
-      GetHistogramSampleSize(TabStripUserGestureDetails::GestureType::kMouse),
+      GetHistogramSampleSize(TabSwitchEventLatencyRecorder::EventType::kMouse),
       0ULL);
   EXPECT_EQ(GetHistogramSampleSize(
-                TabStripUserGestureDetails::GestureType::kKeyboard),
+                TabSwitchEventLatencyRecorder::EventType::kKeyboard),
             0ULL);
   EXPECT_EQ(
-      GetHistogramSampleSize(TabStripUserGestureDetails::GestureType::kTouch),
+      GetHistogramSampleSize(TabSwitchEventLatencyRecorder::EventType::kTouch),
       0ULL);
   EXPECT_EQ(
-      GetHistogramSampleSize(TabStripUserGestureDetails::GestureType::kWheel),
+      GetHistogramSampleSize(TabSwitchEventLatencyRecorder::EventType::kWheel),
       0ULL);
 }

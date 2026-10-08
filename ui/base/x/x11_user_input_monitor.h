@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 #include "base/component_export.h"
 #include "base/files/file_descriptor_watcher_posix.h"
 #include "base/memory/shared_memory_mapping.h"
+#include "base/single_thread_task_runner.h"
 #include "base/task/current_thread.h"
-#include "base/task/single_thread_task_runner.h"
 #include "ui/events/keyboard_event_counter.h"
 #include "ui/gfx/x/connection.h"
 #include "ui/gfx/x/xinput.h"
@@ -23,7 +23,7 @@ namespace ui {
 class COMPONENT_EXPORT(UI_BASE_X) XUserInputMonitor
     : public base::SupportsWeakPtr<XUserInputMonitor>,
       public base::CurrentThread::DestructionObserver,
-      public x11::EventObserver {
+      public x11::Connection::Delegate {
  public:
   using WriteKeyPressCallback = base::RepeatingCallback<
       void(const base::WritableSharedMemoryMapping& shmem, uint32_t count)>;
@@ -44,8 +44,9 @@ class COMPONENT_EXPORT(UI_BASE_X) XUserInputMonitor
   // base::CurrentThread::DestructionObserver:
   void WillDestroyCurrentMessageLoop() override;
 
-  // x11::EventObserver:
-  void OnEvent(const x11::Event& event) override;
+  // x11::Connection::Delegate:
+  bool ShouldContinueStream() const override;
+  void DispatchXEvent(x11::Event* event) override;
 
   void OnConnectionData();
 

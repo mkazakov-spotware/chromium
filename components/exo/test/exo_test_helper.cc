@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,51 +29,45 @@
 namespace exo {
 namespace test {
 
-ClientControlledShellSurfaceDelegate::ClientControlledShellSurfaceDelegate(
-    ClientControlledShellSurface* shell_surface,
-    bool delay_commit)
-    : shell_surface_(shell_surface), delay_commit_(delay_commit) {}
-ClientControlledShellSurfaceDelegate::~ClientControlledShellSurfaceDelegate() =
-    default;
+namespace {
 
-void ClientControlledShellSurfaceDelegate::OnGeometryChanged(
-    const gfx::Rect& geometry) {}
-void ClientControlledShellSurfaceDelegate::OnStateChanged(
-    chromeos::WindowStateType old_state,
-    chromeos::WindowStateType new_state) {
+void HandleWindowStateRequest(ClientControlledShellSurface* shell_surface,
+                              chromeos::WindowStateType old_state,
+                              chromeos::WindowStateType new_state) {
   switch (new_state) {
     case chromeos::WindowStateType::kNormal:
     case chromeos::WindowStateType::kDefault:
-      shell_surface_->SetRestored();
+      shell_surface->SetRestored();
       break;
     case chromeos::WindowStateType::kMinimized:
-      shell_surface_->SetMinimized();
+      shell_surface->SetMinimized();
       break;
     case chromeos::WindowStateType::kMaximized:
-      shell_surface_->SetMaximized();
+      shell_surface->SetMaximized();
       break;
     case chromeos::WindowStateType::kFullscreen:
-      shell_surface_->SetFullscreen(true);
+      shell_surface->SetFullscreen(true);
       break;
     default:
       NOTIMPLEMENTED();
       break;
   }
-  Commit();
+  shell_surface->OnSurfaceCommit();
 }
-void ClientControlledShellSurfaceDelegate::OnBoundsChanged(
-    chromeos::WindowStateType current_state,
-    chromeos::WindowStateType requested_state,
-    int64_t display_id,
-    const gfx::Rect& bounds_in_screen,
-    bool is_resize,
-    int bounds_change) {
+
+void HandleBoundsChangedRequest(ClientControlledShellSurface* shell_surface,
+                                chromeos::WindowStateType current_state,
+                                chromeos::WindowStateType requested_state,
+                                int64_t display_id,
+                                const gfx::Rect& bounds_in_screen,
+                                bool is_resize,
+                                int bounds_change) {
   ASSERT_TRUE(display_id != display::kInvalidDisplayId);
 
   auto* window_state =
-      ash::WindowState::Get(shell_surface_->GetWidget()->GetNativeWindow());
+      ash::WindowState::Get(shell_surface->GetWidget()->GetNativeWindow());
 
-  if (!shell_surface_->host_window()->GetRootWindow())
+  if (!shell_surface->host_window()->GetRootWindow())
     return;
 
   display::Display target_display;
@@ -91,30 +85,51 @@ void ClientControlledShellSurfaceDelegate::OnBoundsChanged(
 
   gfx::Rect bounds_in_display(bounds_in_screen);
   bounds_in_display.Offset(-target_display.bounds().OffsetFromOrigin());
-  shell_surface_->SetBounds(display_id, bounds_in_display);
+  shell_surface->SetBounds(display_id, bounds_in_display);
 
   if (requested_state != window_state->GetStateType()) {
-    DCHECK(requested_state == chromeos::WindowStateType::kPrimarySnapped ||
-           requested_state == chromeos::WindowStateType::kSecondarySnapped);
+    DCHECK(requested_state == chromeos::WindowStateType::kLeftSnapped ||
+           requested_state == chromeos::WindowStateType::kRightSnapped);
 
-    if (requested_state == chromeos::WindowStateType::kPrimarySnapped)
-      shell_surface_->SetSnappedToPrimary();
+    if (requested_state == chromeos::WindowStateType::kLeftSnapped)
+      shell_surface->SetSnappedToLeft();
     else
-      shell_surface_->SetSnappedToSecondary();
+      shell_surface->SetSnappedToRight();
   }
 
-  Commit();
+  shell_surface->OnSurfaceCommit();
 }
-void ClientControlledShellSurfaceDelegate::OnDragStarted(int component) {}
-void ClientControlledShellSurfaceDelegate::OnDragFinished(int x,
-                                                          int y,
-                                                          bool canceled) {}
-void ClientControlledShellSurfaceDelegate::OnZoomLevelChanged(
-    ZoomChange zoom_change) {}
 
-void ClientControlledShellSurfaceDelegate::Commit() {
-  if (!delay_commit_)
-    shell_surface_->OnSurfaceCommit();
+}  // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+// ExoTestHelper, public:
+
+ExoTestWindow::ExoTestWindow(std::unique_ptr<gfx::GpuMemoryBuffer> gpu_buffer,
+                             bool is_modal) {
+  surface_.reset(new Surface());
+  int container = is_modal ? ash::kShellWindowId_SystemModalContainer
+                           : ash::desks_util::GetActiveDeskContainerId();
+  shell_surface_ = std::make_unique<ShellSurface>(surface_.get(), gfx::Point(),
+                                                  true, false, container);
+
+  buffer_.reset(new Buffer(std::move(gpu_buffer)));
+  surface_->Attach(buffer_.get());
+  surface_->Commit();
+
+  ash::CenterWindow(shell_surface_->GetWidget()->GetNativeWindow());
+}
+
+ExoTestWindow::ExoTestWindow(ExoTestWindow&& other) {
+  surface_ = std::move(other.surface_);
+  buffer_ = std::move(other.buffer_);
+  shell_surface_ = std::move(other.shell_surface_);
+}
+
+ExoTestWindow::~ExoTestWindow() {}
+
+gfx::Point ExoTestWindow::origin() {
+  return surface_->window()->GetBoundsInScreen().origin();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,7 +148,35 @@ std::unique_ptr<gfx::GpuMemoryBuffer> ExoTestHelper::CreateGpuMemoryBuffer(
       ->context_factory()
       ->GetGpuMemoryBufferManager()
       ->CreateGpuMemoryBuffer(size, format, gfx::BufferUsage::GPU_READ,
-                              gpu::kNullSurfaceHandle, nullptr);
+                              gpu::kNullSurfaceHandle);
+}
+
+ExoTestWindow ExoTestHelper::CreateWindow(int width,
+                                          int height,
+                                          bool is_modal) {
+  return ExoTestWindow(CreateGpuMemoryBuffer(gfx::Size(width, height)),
+                       is_modal);
+}
+
+std::unique_ptr<ClientControlledShellSurface>
+ExoTestHelper::CreateClientControlledShellSurface(
+    Surface* surface,
+    bool is_modal,
+    bool default_scale_cancellation) {
+  int container = is_modal ? ash::kShellWindowId_SystemModalContainer
+                           : ash::desks_util::GetActiveDeskContainerId();
+  auto shell_surface = Display().CreateClientControlledShellSurface(
+      surface, container,
+      WMHelper::GetInstance()->GetDefaultDeviceScaleFactor(),
+      default_scale_cancellation);
+
+  shell_surface->set_state_changed_callback(base::BindRepeating(
+      &HandleWindowStateRequest, base::Unretained(shell_surface.get())));
+
+  shell_surface->set_bounds_changed_callback(
+      base::BindRepeating(&HandleBoundsChangedRequest, shell_surface.get()));
+
+  return shell_surface;
 }
 
 std::unique_ptr<InputMethodSurface> ExoTestHelper::CreateInputMethodSurface(
@@ -143,9 +186,11 @@ std::unique_ptr<InputMethodSurface> ExoTestHelper::CreateInputMethodSurface(
   auto shell_surface = std::make_unique<InputMethodSurface>(
       surface_manager, surface, default_scale_cancellation);
 
-  shell_surface->set_delegate(
-      std::make_unique<ClientControlledShellSurfaceDelegate>(
-          shell_surface.get()));
+  shell_surface->set_state_changed_callback(base::BindRepeating(
+      &HandleWindowStateRequest, base::Unretained(shell_surface.get())));
+
+  shell_surface->set_bounds_changed_callback(
+      base::BindRepeating(&HandleBoundsChangedRequest, shell_surface.get()));
 
   return shell_surface;
 }
@@ -157,9 +202,11 @@ std::unique_ptr<ToastSurface> ExoTestHelper::CreateToastSurface(
   auto shell_surface = std::make_unique<ToastSurface>(
       surface_manager, surface, default_scale_cancellation);
 
-  shell_surface->set_delegate(
-      std::make_unique<ClientControlledShellSurfaceDelegate>(
-          shell_surface.get()));
+  shell_surface->set_state_changed_callback(base::BindRepeating(
+      &HandleWindowStateRequest, base::Unretained(shell_surface.get())));
+
+  shell_surface->set_bounds_changed_callback(
+      base::BindRepeating(&HandleBoundsChangedRequest, shell_surface.get()));
 
   return shell_surface;
 }

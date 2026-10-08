@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/memory/ptr_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/common/extensions/api/context_menus.h"
 #include "content/public/browser/browser_context.h"
@@ -48,18 +47,16 @@ ContextMenuMatcher::ContextMenuMatcher(
     content::BrowserContext* browser_context,
     ui::SimpleMenuModel::Delegate* delegate,
     ui::SimpleMenuModel* menu_model,
-    base::RepeatingCallback<bool(const MenuItem*)> filter)
+    const base::Callback<bool(const MenuItem*)>& filter)
     : browser_context_(browser_context),
       menu_model_(menu_model),
       delegate_(delegate),
       filter_(filter),
       is_smart_text_selection_enabled_(false) {}
 
-ContextMenuMatcher::~ContextMenuMatcher() = default;
-
 void ContextMenuMatcher::AppendExtensionItems(
     const MenuItem::ExtensionKey& extension_key,
-    const std::u16string& selection_text,
+    const base::string16& selection_text,
     int* index,
     bool is_action_menu) {
   DCHECK_GE(*index, 0);
@@ -68,7 +65,7 @@ void ContextMenuMatcher::AppendExtensionItems(
   if (*index >= max_index)
     return;
 
-  const Extension* extension = nullptr;
+  const Extension* extension = NULL;
   MenuItem::List items;
   bool can_cross_incognito;
   if (!GetRelevantExtensionTopLevelItems(
@@ -80,7 +77,7 @@ void ContextMenuMatcher::AppendExtensionItems(
 
   bool prepend_separator = false;
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
   // If this is the first extension-provided menu item, and there are other
   // items in the menu, and the last item is not a separator add a separator.
   // Also, don't add separators when Smart Text Selection is enabled. Smart
@@ -109,7 +106,7 @@ void ContextMenuMatcher::AppendExtensionItems(
   } else {
     int menu_id = ConvertToExtensionsCustomCommandId(*index);
     (*index)++;
-    std::u16string title;
+    base::string16 title;
     MenuItem::List submenu_items;
 
     if (items.size() > 1 || items[0]->type() != MenuItem::NORMAL) {
@@ -151,7 +148,7 @@ void ContextMenuMatcher::AppendExtensionItems(
 }
 
 bool ContextMenuMatcher::HasVisibleItems(ui::MenuModel* menu_model) const {
-  for (size_t index = 0; index < menu_model->GetItemCount(); ++index) {
+  for (int index = 0; index < menu_model->GetItemCount(); index++) {
     if (!menu_model->IsVisibleAt(index))
       continue;
 
@@ -172,16 +169,16 @@ void ContextMenuMatcher::Clear() {
   extension_menu_models_.clear();
 }
 
-std::u16string ContextMenuMatcher::GetTopLevelContextMenuTitle(
+base::string16 ContextMenuMatcher::GetTopLevelContextMenuTitle(
     const MenuItem::ExtensionKey& extension_key,
-    const std::u16string& selection_text) {
-  const Extension* extension = nullptr;
+    const base::string16& selection_text) {
+  const Extension* extension = NULL;
   MenuItem::List items;
   bool can_cross_incognito;
   GetRelevantExtensionTopLevelItems(
       extension_key, &extension, &can_cross_incognito, &items);
 
-  std::u16string title;
+  base::string16 title;
 
   if (items.empty() ||
       items.size() > 1 ||
@@ -211,13 +208,13 @@ bool ContextMenuMatcher::IsCommandIdVisible(int command_id) const {
   // be displayed only if it has an invisible submenu item.
   if (!item && ContextMenuMatcher::IsExtensionsCustomCommandId(command_id)) {
     ui::MenuModel* model = menu_model_;
-    size_t index = 0;
+    int index = 0;
     if (ui::MenuModel::GetModelAndIndexForCommandId(command_id, &model,
                                                     &index)) {
       ui::MenuModel* submenu_model = model->GetSubmenuModelAt(index);
       // TODO(ghazale): Find out why submenu_model might be null. In other
       // words, in which circumstance it can be an extensions custom command ID
-      // which does not have an associated item, but its submenu_model is null.
+      // which does not have an associated item, but it's submenu_model is null.
       if (submenu_model)
         return HasVisibleItems(submenu_model);
     }
@@ -293,7 +290,7 @@ MenuItem::List ContextMenuMatcher::GetRelevantExtensionItems(
 void ContextMenuMatcher::RecursivelyAppendExtensionItems(
     const MenuItem::List& items,
     bool can_cross_incognito,
-    const std::u16string& selection_text,
+    const base::string16& selection_text,
     ui::SimpleMenuModel* menu_model,
     int* index,
     bool is_action_menu_top_level) {
@@ -303,7 +300,7 @@ void ContextMenuMatcher::RecursivelyAppendExtensionItems(
 
   bool enable_separators = false;
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
   enable_separators = true;
 #endif
 
@@ -332,8 +329,8 @@ void ContextMenuMatcher::RecursivelyAppendExtensionItems(
       ++num_visible_items;
 
     extension_item_map_[menu_id] = item->id();
-    std::u16string title = item->TitleWithReplacement(
-        selection_text, kMaxExtensionItemTitleLength);
+    base::string16 title = item->TitleWithReplacement(selection_text,
+                                                kMaxExtensionItemTitleLength);
     if (item->type() == MenuItem::NORMAL) {
       MenuItem::List children =
           GetRelevantExtensionItems(item->children(), can_cross_incognito);
@@ -375,19 +372,19 @@ MenuItem* ContextMenuMatcher::GetExtensionMenuItem(int id) const {
     if (item)
       return item;
   }
-  return nullptr;
+  return NULL;
 }
 
 void ContextMenuMatcher::SetExtensionIcon(const std::string& extension_id) {
   MenuManager* menu_manager = MenuManager::Get(browser_context_);
 
-  size_t count = menu_model_->GetItemCount();
-  DCHECK_GT(count, 0u);
+  int index = menu_model_->GetItemCount() - 1;
+  DCHECK_GE(index, 0);
 
   gfx::Image icon = menu_manager->GetIconForExtension(extension_id);
   DCHECK_EQ(gfx::kFaviconSize, icon.Width());
   DCHECK_EQ(gfx::kFaviconSize, icon.Height());
-  menu_model_->SetIcon(count - 1, ui::ImageModel::FromImage(icon));
+  menu_model_->SetIcon(index, ui::ImageModel::FromImage(icon));
 }
 
 }  // namespace extensions

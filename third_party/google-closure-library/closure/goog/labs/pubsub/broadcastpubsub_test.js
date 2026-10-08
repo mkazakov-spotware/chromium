@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2014 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.labs.pubsub.BroadcastPubSubTest');
 goog.setTestOnly();
@@ -10,16 +18,14 @@ goog.setTestOnly();
 const ArgumentMatcher = goog.require('goog.testing.mockmatchers.ArgumentMatcher');
 const BroadcastPubSub = goog.require('goog.labs.pubsub.BroadcastPubSub');
 const GoogTestingEvent = goog.require('goog.testing.events.Event');
-const Level = goog.require('goog.log.Level');
+const Logger = goog.require('goog.debug.Logger');
 const MockClock = goog.require('goog.testing.MockClock');
 const MockControl = goog.require('goog.testing.MockControl');
-const MockInterface = goog.requireType('goog.testing.MockInterface');
 const StorageStorage = goog.require('goog.storage.Storage');
 const StructsMap = goog.require('goog.structs.Map');
 const events = goog.require('goog.testing.events');
 const googArray = goog.require('goog.array');
 const googJson = goog.require('goog.json');
-const log = goog.require('goog.log');
 const mockmatchers = goog.require('goog.testing.mockmatchers');
 const recordFunction = goog.require('goog.testing.recordFunction');
 const testSuite = goog.require('goog.testing.testSuite');
@@ -34,16 +40,16 @@ let mockControl;
 /** @type {MockClock} */
 let mockClock;
 
-/** @type {MockInterface} */
+/** @type {goog.testing.MockInterface} */
 let mockStorage;
 
-/** @type {MockInterface} */
+/** @type {goog.testing.MockInterface} */
 let mockStorageCtor;
 
 /** @type {StructsMap} */
 let mockHtml5LocalStorage;
 
-/** @type {MockInterface} */
+/** @type {goog.testing.MockInterface} */
 let mockHTML5LocalStorageCtor;
 
 /** @const {boolean} */
@@ -57,24 +63,14 @@ const isIe8 = userAgent.IE && userAgent.DOCUMENT_MODE == 8;
  * this simply creates a new browser event.
  * @param {{'args': !Array<string>, 'timestamp': number}} data Value stored in
  *     localStorage which generated the remote event.
- * @suppress {strictMissingProperties} suppression added to enable type checking
  */
 function remoteStorageEvent(data) {
   if (!isIe8) {
     const event = new GoogTestingEvent('storage', window);
-    /**
-     * @suppress {strictMissingProperties,visibility} suppression added to
-     * enable type checking
-     */
     event.key = BroadcastPubSub.STORAGE_KEY_;
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     event.newValue = googJson.serialize(data);
     events.fireBrowserEvent(event);
   } else {
-    /** @suppress {visibility} suppression added to enable type checking */
     const uniqueKey = BroadcastPubSub.IE8_EVENTS_KEY_PREFIX_ + '1234567890';
     let ie8Events = mockHtml5LocalStorage.get(uniqueKey);
     if (ie8Events != null) {
@@ -82,10 +78,6 @@ function remoteStorageEvent(data) {
       // Events should never overlap in IE8 mode.
       if (ie8Events.length > 0 &&
           ie8Events[ie8Events.length - 1]['timestamp'] >= data['timestamp']) {
-        /**
-         * @suppress {strictMissingProperties,visibility} suppression added to
-         * enable type checking
-         */
         data['timestamp'] = ie8Events[ie8Events.length - 1]['timestamp'] +
             BroadcastPubSub.IE8_TIMESTAMP_UNIQUE_OFFSET_MS_;
       }
@@ -121,15 +113,7 @@ testSuite({
       }
       return value;
     };
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     mockHtml5LocalStorage.key = (idx) => mockHtml5LocalStorage.getKeys()[idx];
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     mockHtml5LocalStorage.isAvailable = () => true;
 
     // IE has problems. IE9+ still dispatches storage events locally. IE8 also
@@ -143,15 +127,7 @@ testSuite({
         originalSetFn(key, value);
         const event = new GoogTestingEvent('storage', target);
         if (!isIe8) {
-          /**
-           * @suppress {strictMissingProperties} suppression added to enable
-           * type checking
-           */
           event.key = key;
-          /**
-           * @suppress {strictMissingProperties} suppression added to enable
-           * type checking
-           */
           event.newValue = value;
         }
         events.fireBrowserEvent(event);
@@ -162,19 +138,14 @@ testSuite({
   tearDown() {
     mockControl.$tearDown();
     mockClock.dispose();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     broadcastPubSub = undefined;
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testConstructor() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
     assertNotNullNorUndefined(
         'BroadcastChannel instance must not be null', broadcastPubSub);
     assertTrue(
@@ -189,10 +160,6 @@ testSuite({
     assertArrayEquals(BroadcastPubSub.instances_, []);
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testConstructor_noLocalStorage() {
     mockHTML5LocalStorageCtor().$returns({
       isAvailable: function() {
@@ -201,7 +168,7 @@ testSuite({
     });
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
     assertNotNullNorUndefined(
         'BroadcastChannel instance must not be null', broadcastPubSub);
     assertTrue(
@@ -215,11 +182,7 @@ testSuite({
     assertArrayEquals(BroadcastPubSub.instances_, []);
   },
 
-  /**
-     Verify we cleanup after ourselves.
-     @suppress {checkTypes,missingProperties,visibility} suppression added to
-     enable type checking
-   */
+  /** Verify we cleanup after ourselves. */
   testDispose() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
@@ -237,7 +200,7 @@ testSuite({
 
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
 
     const broadcastPubSubExtra = new BroadcastPubSub();
     assertArrayEquals(
@@ -269,7 +232,6 @@ testSuite({
   /**
    * Tests related to remote events that an instance of BroadcastChannel
    * should handle.
-   * @suppress {checkTypes,visibility} suppression added to enable type checking
    */
   testHandleRemoteEvent() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
@@ -281,10 +243,10 @@ testSuite({
 
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
     const eventData = {
       'args': ['someTopic', 'x', 'y'],
-      'timestamp': Date.now()
+      'timestamp': goog.now()
     };
 
     broadcastPubSub.subscribe('someTopic', foo);
@@ -298,7 +260,7 @@ testSuite({
     assertArrayEquals(['x', 'y'], bar.getLastCall().getArguments());
 
     broadcastPubSub.unsubscribe('someTopic', foo);
-    eventData['timestamp'] = Date.now();
+    eventData['timestamp'] = goog.now();
     remoteStorageEvent(eventData);
     mockClock.tick();
 
@@ -308,7 +270,7 @@ testSuite({
 
     broadcastPubSub.subscribe('someTopic', foo);
     broadcastPubSub.unsubscribe('someTopic', bar, context);
-    eventData['timestamp'] = Date.now();
+    eventData['timestamp'] = goog.now();
     remoteStorageEvent(eventData);
     mockClock.tick();
 
@@ -317,10 +279,6 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testHandleRemoteEventSubscribeOnce() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     const foo = mockControl.createFunctionMock();
@@ -328,7 +286,7 @@ testSuite({
 
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
 
     broadcastPubSub.subscribeOnce('someTopic', foo);
     assertEquals(
@@ -336,7 +294,7 @@ testSuite({
         broadcastPubSub.getCount());
 
     remoteStorageEvent(
-        {'args': ['someTopic', 'x', 'y'], 'timestamp': Date.now()});
+        {'args': ['someTopic', 'x', 'y'], 'timestamp': goog.now()});
     mockClock.tick();
 
     assertEquals(
@@ -346,10 +304,6 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testHandleQueuedRemoteEvents() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     const foo = mockControl.createFunctionMock();
@@ -361,14 +315,14 @@ testSuite({
     mockControl.$replayAll();
 
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
     broadcastPubSub.subscribe('fooTopic', foo);
     broadcastPubSub.subscribe('barTopic', bar);
 
-    let eventData = {'args': ['fooTopic', 'x', 'y'], 'timestamp': Date.now()};
+    let eventData = {'args': ['fooTopic', 'x', 'y'], 'timestamp': goog.now()};
     remoteStorageEvent(eventData);
 
-    eventData = {'args': ['barTopic', 'd', 'c'], 'timestamp': Date.now()};
+    eventData = {'args': ['barTopic', 'd', 'c'], 'timestamp': goog.now()};
     remoteStorageEvent(eventData);
     mockClock.tick();
 
@@ -376,35 +330,27 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testHandleRemoteEventsUnsubscribe() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     const foo = mockControl.createFunctionMock();
     const bar = mockControl.createFunctionMock();
 
-    foo('x', 'y').$does(/**
-                           @suppress {checkTypes} suppression added to enable
-                           type checking
-                         */
-                        () => {
-                          broadcastPubSub.unsubscribe('barTopic', bar);
-                        });
+    foo('x', 'y').$does(() => {
+      broadcastPubSub.unsubscribe('barTopic', bar);
+    });
 
     mockControl.$replayAll();
 
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
     broadcastPubSub.subscribe('fooTopic', foo);
     broadcastPubSub.subscribe('barTopic', bar);
 
-    let eventData = {'args': ['fooTopic', 'x', 'y'], 'timestamp': Date.now()};
+    let eventData = {'args': ['fooTopic', 'x', 'y'], 'timestamp': goog.now()};
     remoteStorageEvent(eventData);
     mockClock.tick();
 
-    eventData = {'args': ['barTopic', 'd', 'c'], 'timestamp': Date.now()};
+    eventData = {'args': ['barTopic', 'd', 'c'], 'timestamp': goog.now()};
     remoteStorageEvent(eventData);
     mockClock.tick();
 
@@ -412,10 +358,6 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testHandleRemoteEventsCalledOnce() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     const foo = mockControl.createFunctionMock();
@@ -424,14 +366,14 @@ testSuite({
     mockControl.$replayAll();
 
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
     broadcastPubSub.subscribeOnce('someTopic', foo);
 
-    let eventData = {'args': ['someTopic', 'x', 'y'], 'timestamp': Date.now()};
+    let eventData = {'args': ['someTopic', 'x', 'y'], 'timestamp': goog.now()};
     remoteStorageEvent(eventData);
     mockClock.tick();
 
-    eventData = {'args': ['someTopic', 'x', 'y'], 'timestamp': Date.now()};
+    eventData = {'args': ['someTopic', 'x', 'y'], 'timestamp': goog.now()};
     remoteStorageEvent(eventData);
     mockClock.tick();
 
@@ -439,15 +381,11 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testHandleRemoteEventNestedPublish() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     const foo1 = mockControl.createFunctionMock();
     foo1().$does(() => {
-      remoteStorageEvent({'args': ['bar'], 'timestamp': Date.now()});
+      remoteStorageEvent({'args': ['bar'], 'timestamp': goog.now()});
     });
     const foo2 = mockControl.createFunctionMock();
     foo2();
@@ -464,7 +402,7 @@ testSuite({
 
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
 
     broadcastPubSub.subscribe('foo', foo1);
     broadcastPubSub.subscribe('foo', foo2);
@@ -473,7 +411,7 @@ testSuite({
     broadcastPubSub.subscribe('baz', baz1);
     broadcastPubSub.subscribe('baz', baz2);
 
-    remoteStorageEvent({'args': ['foo'], 'timestamp': Date.now()});
+    remoteStorageEvent({'args': ['foo'], 'timestamp': goog.now()});
     mockClock.tick();
     broadcastPubSub.dispose();
     mockControl.$verifyAll();
@@ -482,7 +420,6 @@ testSuite({
   /**
    * Local publish that originated from another instance of BroadcastChannel
    * in the same JavaScript context.
-   * @suppress {checkTypes,visibility} suppression added to enable type checking
    */
   testSecondInstancePublish() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage).$times(2);
@@ -494,7 +431,7 @@ testSuite({
     mockControl.$replayAll();
 
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
     broadcastPubSub.subscribe('someTopic', foo);
     broadcastPubSub.subscribe('someTopic', bar, context);
 
@@ -510,10 +447,6 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testSecondInstanceNestedPublish() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage).$times(2);
     const foo = mockControl.createFunctionMock();
@@ -526,7 +459,7 @@ testSuite({
     mockControl.$replayAll();
 
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
     broadcastPubSub.subscribe('fooTopic', foo);
 
     const broadcastPubSub2 = new BroadcastPubSub();
@@ -539,15 +472,11 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     Validate the localStorage data is being set as we expect.
-     @suppress {checkTypes,missingProperties,visibility} suppression added to
-     enable type checking
-   */
+  /** Validate the localStorage data is being set as we expect. */
   testLocalStorageData() {
     const topic = 'someTopic';
     const anotherTopic = 'anotherTopic';
-    const now = Date.now();
+    const now = goog.now();
 
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     const mockStorage = mockControl.createLooseMock(StorageStorage);
@@ -567,7 +496,6 @@ testSuite({
       mockStorage.remove(BroadcastPubSub.STORAGE_KEY_);
     } else {
       const firstEventArray = [{'args': [topic, '10'], 'timestamp': now}];
-      /** @suppress {visibility} suppression added to enable type checking */
       const secondEventArray = [
         {'args': [topic, '10'], 'timestamp': now},
         {
@@ -601,7 +529,7 @@ testSuite({
     mockControl.$replayAll();
 
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
     broadcastPubSub.subscribe(topic, fn);
 
     broadcastPubSub.publish(topic, '10');
@@ -613,17 +541,13 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testBrokenTimestamp() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     const fn = mockControl.createFunctionMock();
     mockControl.$replayAll();
 
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
 
     broadcastPubSub.subscribe('someTopic', fn);
 
@@ -634,34 +558,22 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-   * Test response to bad localStorage data.
-   * @suppress {checkTypes,visibility} suppression added to enable type checking
-   */
+  /** Test response to bad localStorage data. */
   testBrokenEvent() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     const fn = mockControl.createFunctionMock();
     mockControl.$replayAll();
 
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
     broadcastPubSub.subscribe('someTopic', fn);
 
     if (!isIe8) {
       const event = new GoogTestingEvent('storage', window);
-      /**
-       * @suppress {strictMissingProperties} suppression added to enable type
-       * checking
-       */
       event.key = 'FooBarBaz';
-      /**
-       * @suppress {strictMissingProperties} suppression added to enable type
-       * checking
-       */
       event.newValue = googJson.serialize({'keyby': 'word'});
       events.fireBrowserEvent(event);
     } else {
-      /** @suppress {visibility} suppression added to enable type checking */
       const uniqueKey = BroadcastPubSub.IE8_EVENTS_KEY_PREFIX_ + '1234567890';
       // This will cause an event.
       mockHtml5LocalStorage.set(uniqueKey, 'Toothpaste!');
@@ -675,7 +587,6 @@ testSuite({
   /**
    * The following tests are duplicated from pubsub because they depend
    * on functionality (mostly "publish") that has changed in BroadcastChannel.
-   * @suppress {checkTypes,visibility} suppression added to enable type checking
    */
   testPublish() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
@@ -690,7 +601,7 @@ testSuite({
 
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
 
     broadcastPubSub.subscribe('someTopic', foo);
     broadcastPubSub.subscribe('someTopic', bar, context);
@@ -711,7 +622,7 @@ testSuite({
     mockClock.tick();
 
     assertEquals(3, bar.getCallCount());
-    bar.getCalls().forEach(call => {
+    googArray.forEach(bar.getCalls(), (call) => {
       assertArrayEquals(['x', 'y'], call.getArguments());
       assertEquals(context, call.getThis());
     });
@@ -719,10 +630,6 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testPublishEmptyTopic() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     const foo = mockControl.createFunctionMock();
@@ -730,7 +637,7 @@ testSuite({
 
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
 
     broadcastPubSub.publish('someTopic');
     mockClock.tick();
@@ -747,10 +654,6 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testSubscribeWhilePublishing() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     // It's OK for a subscriber to add a new subscriber to its own topic,
@@ -760,19 +663,15 @@ testSuite({
     const fn1 = mockControl.createFunctionMock();
     const fn2 = mockControl.createFunctionMock();
     fn1()
-        .$does(/**
-                  @suppress {checkTypes} suppression added to enable type
-                  checking
-                */
-               () => {
-                 broadcastPubSub.subscribe('someTopic', fn2);
-               })
+        .$does(() => {
+          broadcastPubSub.subscribe('someTopic', fn2);
+        })
         .$times(2);
     fn2();
 
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
 
     broadcastPubSub.subscribe('someTopic', fn1);
     assertEquals(
@@ -796,10 +695,6 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility,strictMissingProperties} suppression
-     added to enable type checking
-   */
   testUnsubscribeWhilePublishing() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     // It's OK for a subscriber to unsubscribe another subscriber from its
@@ -810,35 +705,27 @@ testSuite({
     const fn2 = mockControl.createFunctionMock();
     const fn3 = mockControl.createFunctionMock();
 
-    fn1().$does(/**
-                   @suppress {checkTypes} suppression added to enable type
-                   checking
-                 */
-                () => {
-                  assertTrue(
-                      'unsubscribe() must return true when removing a topic',
-                      broadcastPubSub.unsubscribe('X', fn2));
-                  assertEquals(
-                      'Topic "X" must still have 3 subscribers', 3,
-                      broadcastPubSub.getCount('X'));
-                });
+    fn1().$does(() => {
+      assertTrue(
+          'unsubscribe() must return true when removing a topic',
+          broadcastPubSub.unsubscribe('X', fn2));
+      assertEquals(
+          'Topic "X" must still have 3 subscribers', 3,
+          broadcastPubSub.getCount('X'));
+    });
     fn2().$times(0);
-    fn3().$does(/**
-                   @suppress {checkTypes} suppression added to enable type
-                   checking
-                 */
-                () => {
-                  assertTrue(
-                      'unsubscribe() must return true when removing a topic',
-                      broadcastPubSub.unsubscribe('X', fn1));
-                  assertEquals(
-                      'Topic "X" must still have 3 subscribers', 3,
-                      broadcastPubSub.getCount('X'));
-                });
+    fn3().$does(() => {
+      assertTrue(
+          'unsubscribe() must return true when removing a topic',
+          broadcastPubSub.unsubscribe('X', fn1));
+      assertEquals(
+          'Topic "X" must still have 3 subscribers', 3,
+          broadcastPubSub.getCount('X'));
+    });
 
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
 
     broadcastPubSub.subscribe('X', fn1);
     broadcastPubSub.subscribe('X', fn2);
@@ -860,32 +747,24 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility,strictMissingProperties} suppression
-     added to enable type checking
-   */
   testUnsubscribeSelfWhilePublishing() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     // It's OK for a subscriber to unsubscribe itself, but it won't actually
     // be removed until after publishing is complete.
 
     const fn = mockControl.createFunctionMock();
-    fn().$does(/**
-                  @suppress {checkTypes} suppression added to enable type
-                  checking
-                */
-               () => {
-                 assertTrue(
-                     'unsubscribe() must return true when removing a topic',
-                     broadcastPubSub.unsubscribe('someTopic', fn));
-                 assertEquals(
-                     'Topic must still have 1 subscriber', 1,
-                     broadcastPubSub.getCount('someTopic'));
-               });
+    fn().$does(() => {
+      assertTrue(
+          'unsubscribe() must return true when removing a topic',
+          broadcastPubSub.unsubscribe('someTopic', fn));
+      assertEquals(
+          'Topic must still have 1 subscriber', 1,
+          broadcastPubSub.getCount('someTopic'));
+    });
 
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
 
     broadcastPubSub.subscribe('someTopic', fn);
     assertEquals(
@@ -905,10 +784,6 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testNestedPublish() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     const xFn1 = mockControl.createFunctionMock();
@@ -931,7 +806,7 @@ testSuite({
     mockControl.$replayAll();
 
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
     broadcastPubSub.subscribe('X', xFn1);
     broadcastPubSub.subscribe('X', xFn2);
     broadcastPubSub.subscribe('Y', yFn1);
@@ -944,17 +819,13 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testSubscribeOnce() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     const fn = recordFunction();
 
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
     broadcastPubSub.subscribeOnce('someTopic', fn);
 
     assertEquals(
@@ -1006,10 +877,6 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testSubscribeOnce_boundFn() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     const fn = recordFunction();
@@ -1017,7 +884,7 @@ testSuite({
 
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
 
     broadcastPubSub.subscribeOnce('someTopic', goog.bind(fn, context));
     assertEquals(
@@ -1041,10 +908,6 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testSubscribeOnce_partialFn() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     const fullFn = mockControl.createFunctionMock();
@@ -1052,7 +915,7 @@ testSuite({
 
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
 
     broadcastPubSub.subscribeOnce('someTopic', goog.partial(fullFn, true));
     assertEquals(
@@ -1069,14 +932,9 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility,strictMissingProperties} suppression
-     added to enable type checking
-   */
   testSelfResubscribe() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     const resubscribeFn = mockControl.createFunctionMock();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const resubscribe = () => {
       broadcastPubSub.subscribeOnce('someTopic', resubscribeFn);
     };
@@ -1086,7 +944,7 @@ testSuite({
 
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
 
     broadcastPubSub.subscribeOnce('someTopic', resubscribeFn);
     assertEquals(
@@ -1123,24 +981,16 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testClear() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
     const fn = mockControl.createFunctionMock();
     mockControl.$replayAll();
     broadcastPubSub = new BroadcastPubSub();
-    log.setLevel(broadcastPubSub.logger_, Level.OFF);
+    broadcastPubSub.logger_.setLevel(Logger.Level.OFF);
 
-    ['V', 'W', 'X', 'Y', 'Z'].forEach(
-        /**
-           @suppress {checkTypes} suppression added to enable type checking
-         */
-        topic => {
-          broadcastPubSub.subscribe(topic, fn);
-        });
+    googArray.forEach(['V', 'W', 'X', 'Y', 'Z'], (topic) => {
+      broadcastPubSub.subscribe(topic, fn);
+    });
     assertEquals(
         'BroadcastChannel must have 5 subscribers', 5,
         broadcastPubSub.getCount());
@@ -1150,7 +1000,7 @@ testSuite({
         'BroadcastChannel must have 4 subscribers', 4,
         broadcastPubSub.getCount());
 
-    ['X', 'Y'].forEach(topic => {
+    googArray.forEach(['X', 'Y'], (topic) => {
       broadcastPubSub.clear(topic);
     });
     assertEquals(
@@ -1165,7 +1015,6 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testNestedSubscribeOnce() {
     mockHTML5LocalStorageCtor().$returns(mockHtml5LocalStorage);
 

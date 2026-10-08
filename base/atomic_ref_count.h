@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,6 @@
 #include <atomic>
 
 namespace base {
-
-namespace subtle {
-class RefCountedOverflowTest;
-}  // namespace subtle
 
 class AtomicRefCount {
  public:
@@ -65,8 +61,6 @@ class AtomicRefCount {
   }
 
  private:
-  friend subtle::RefCountedOverflowTest;
-
   std::atomic_int ref_count_;
 };
 

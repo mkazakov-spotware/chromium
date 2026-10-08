@@ -1,11 +1,9 @@
-// Copyright 2010 The Chromium Authors
+// Copyright (c) 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_COCOA_HISTORY_MENU_COCOA_CONTROLLER_H_
 #define CHROME_BROWSER_UI_COCOA_HISTORY_MENU_COCOA_CONTROLLER_H_
-
-#include "base/memory/raw_ptr.h"
 
 #import <Cocoa/Cocoa.h>
 #import "chrome/browser/ui/cocoa/history_menu_bridge.h"
@@ -15,10 +13,10 @@
 // creation and maintenance of the menu happens in the Bridge.
 @interface HistoryMenuCocoaController : NSObject<NSMenuDelegate> {
  @private
-  raw_ptr<HistoryMenuBridge, DanglingUntriaged> _bridge;  // weak; owns us
+  HistoryMenuBridge* _bridge;  // weak; owns us
 }
 
-- (instancetype)initWithBridge:(HistoryMenuBridge*)bridge;
+- (id)initWithBridge:(HistoryMenuBridge*)bridge;
 
 // Called by any history menu item.
 - (IBAction)openHistoryMenuItem:(id)sender;

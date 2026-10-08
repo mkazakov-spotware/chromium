@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -71,18 +71,18 @@ CFNumberRef GetCFNumberProperty(io_service_t service, const CFStringRef key) {
 }
 
 // Searches the specified service for a string property with the specified key.
-absl::optional<std::string> GetStringProperty(io_service_t service,
+base::Optional<std::string> GetStringProperty(io_service_t service,
                                               const CFStringRef key) {
   CFStringRef propValue = GetCFStringProperty(service, key);
   if (propValue)
     return base::SysCFStringRefToUTF8(propValue);
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 // Searches the specified service for a uint16_t property with the specified
 // key.
-absl::optional<uint16_t> GetUInt16Property(io_service_t service,
+base::Optional<uint16_t> GetUInt16Property(io_service_t service,
                                            const CFStringRef key) {
   CFNumberRef propValue = GetCFNumberProperty(service, key);
   if (propValue) {
@@ -91,14 +91,14 @@ absl::optional<uint16_t> GetUInt16Property(io_service_t service,
       return static_cast<uint16_t>(intValue);
   }
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 // Finds the name of the USB driver for |device| by walking up the
 // IORegistry tree to find the first entry provided by the IOUSBInterface
 // class. For drivers compiled for macOS 10.11 and later this was renamed
 // to IOUSBHostInterface.
-absl::optional<std::string> GetUsbDriverName(
+base::Optional<std::string> GetUsbDriverName(
     base::mac::ScopedIOObject<io_object_t> device) {
   base::mac::ScopedIOObject<io_iterator_t> iterator;
   kern_return_t kr = IORegistryEntryCreateIterator(
@@ -106,11 +106,11 @@ absl::optional<std::string> GetUsbDriverName(
       kIORegistryIterateRecursively | kIORegistryIterateParents,
       iterator.InitializeInto());
   if (kr != KERN_SUCCESS)
-    return absl::nullopt;
+    return base::nullopt;
 
   base::mac::ScopedIOObject<io_service_t> ancestor;
   while (ancestor.reset(IOIteratorNext(iterator)), ancestor) {
-    absl::optional<std::string> provider_class =
+    base::Optional<std::string> provider_class =
         GetStringProperty(ancestor.get(), CFSTR(kIOProviderClassKey));
     if (provider_class && (*provider_class == "IOUSBInterface" ||
                            *provider_class == "IOUSBHostInterface")) {
@@ -118,7 +118,7 @@ absl::optional<std::string> GetUsbDriverName(
     }
   }
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 }  // namespace
@@ -185,18 +185,18 @@ void SerialDeviceEnumeratorMac::AddDevices() {
       continue;
 
     auto info = mojom::SerialPortInfo::New();
-    absl::optional<uint16_t> vendor_id =
+    base::Optional<uint16_t> vendor_id =
         GetUInt16Property(device.get(), CFSTR(kUSBVendorID));
-    absl::optional<std::string> vendor_id_str;
+    base::Optional<std::string> vendor_id_str;
     if (vendor_id) {
       info->has_vendor_id = true;
       info->vendor_id = *vendor_id;
       vendor_id_str = base::StringPrintf("%04X", *vendor_id);
     }
 
-    absl::optional<uint16_t> product_id =
+    base::Optional<uint16_t> product_id =
         GetUInt16Property(device.get(), CFSTR(kUSBProductID));
-    absl::optional<std::string> product_id_str;
+    base::Optional<std::string> product_id_str;
     if (product_id) {
       info->has_product_id = true;
       info->product_id = *product_id;
@@ -213,9 +213,9 @@ void SerialDeviceEnumeratorMac::AddDevices() {
     // starting with "tty" and a "callout" path starting with "cu". The
     // call-out device is typically preferred but requesting the dial-in device
     // is supported for the legacy Chrome Apps API.
-    absl::optional<std::string> dialin_device =
+    base::Optional<std::string> dialin_device =
         GetStringProperty(device.get(), CFSTR(kIODialinDeviceKey));
-    absl::optional<std::string> callout_device =
+    base::Optional<std::string> callout_device =
         GetStringProperty(device.get(), CFSTR(kIOCalloutDeviceKey));
 
     if (callout_device) {

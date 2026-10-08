@@ -26,6 +26,8 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_TEXT_DATE_TIME_FORMAT_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_TEXT_DATE_TIME_FORMAT_H_
 
+#include "base/macros.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
@@ -34,7 +36,7 @@ namespace blink {
 
 // DateTimeFormat parses date time format defined in Unicode Technical
 // standard 35, Locale Data Markup Language (LDML)[1].
-// [1] https://unicode.org/reports/tr35/tr35-dates.html#Date_Format_Patterns
+// [1] LDML http://unicode.org/reports/tr35/tr35-6.html#Date_Format_Patterns
 class PLATFORM_EXPORT DateTimeFormat {
   STATIC_ONLY(DateTimeFormat);
 
@@ -50,8 +52,6 @@ class PLATFORM_EXPORT DateTimeFormat {
     kFieldTypeYear = 'y',
     kFieldTypeYearOfWeekOfYear = 'Y',
     kFieldTypeExtendedYear = 'u',
-    kFieldTypeYearCyclicName = 'U',
-    kFieldTypeYearRelatedGregorian = 'r',
 
     // Quater: Q2
     kFieldTypeQuater = 'Q',
@@ -78,8 +78,6 @@ class PLATFORM_EXPORT DateTimeFormat {
 
     // Period: AM or PM
     kFieldTypePeriod = 'a',
-    kFieldTypePeriodAmPmNoonMidnight = 'b',
-    kFieldTypePeriodFlexible = 'B',
 
     // Hour: 7
     kFieldTypeHour12 = 'h',
@@ -97,12 +95,8 @@ class PLATFORM_EXPORT DateTimeFormat {
 
     // Zone: PDT
     kFieldTypeZone = 'z',
-    kFieldTypeZoneLocalized = 'O',
-    kFieldTypeNonLocationZone = 'v',
-    kFieldTypeZoneId = 'V',
     kFieldTypeRFC822Zone = 'Z',
-    kFieldTypeZoneIso8601Z = 'X',
-    kFieldTypeZoneIso8601 = 'x',
+    kFieldTypeNonLocationZone = 'v',
   };
 
   class TokenHandler {
@@ -110,11 +104,11 @@ class PLATFORM_EXPORT DateTimeFormat {
 
    public:
     TokenHandler() = default;
-    TokenHandler(const TokenHandler&) = delete;
-    TokenHandler& operator=(const TokenHandler&) = delete;
     virtual ~TokenHandler() = default;
     virtual void VisitField(FieldType, int number_of_pattern_characters) = 0;
     virtual void VisitLiteral(const String&) = 0;
+
+    DISALLOW_COPY_AND_ASSIGN(TokenHandler);
   };
 
   // Returns true if succeeded, false if failed.

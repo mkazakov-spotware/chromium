@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,7 +56,8 @@ void WebBundleInterceptorForHistoryNavigationFromFileOrFromTrustableFile::
   if (metadata_error_) {
     web_bundle_utils::CompleteWithInvalidWebBundleError(
         mojo::Remote<network::mojom::URLLoaderClient>(std::move(client)),
-        frame_tree_node_id_, *metadata_error_);
+        frame_tree_node_id_,
+        web_bundle_utils::GetMetadataParseErrorMessage(metadata_error_));
     return;
   }
 
@@ -76,20 +77,9 @@ void WebBundleInterceptorForHistoryNavigationFromFileOrFromTrustableFile::
   DCHECK(!url_loader_factory_);
 
   if (error) {
-    metadata_error_ =
-        web_bundle_utils::GetMetadataParseErrorMessage(std::move(error));
+    metadata_error_ = std::move(error);
   } else {
-    const absl::optional<GURL>& primary_url = reader_->GetPrimaryURL();
-    if (!primary_url.has_value()) {
-      metadata_error_ = web_bundle_utils::kNoPrimaryUrlErrorMessage;
-    } else if (!web_bundle_utils::IsAllowedExchangeUrl(*primary_url)) {
-      metadata_error_ = web_bundle_utils::kInvalidPrimaryUrlErrorMessage;
-    } else if (!base::ranges::all_of(reader_->GetEntries(),
-                                     &web_bundle_utils::IsAllowedExchangeUrl)) {
-      metadata_error_ = web_bundle_utils::kInvalidExchangeUrlErrorMessage;
-    } else {
-      CreateWebBundleURLLoaderFactory(std::move(reader_));
-    }
+    CreateWebBundleURLLoaderFactory(std::move(reader_));
   }
 
   if (pending_receiver_) {

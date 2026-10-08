@@ -1,18 +1,16 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/web/webui/web_ui_ios_controller_factory_registry.h"
+#include "ios/web/webui/web_ui_ios_controller_factory_registry.h"
 
-#import <stddef.h>
+#include <stddef.h>
+#include <memory>
 
-#import <memory>
-
-#import "base/no_destructor.h"
-#import "base/ranges/algorithm.h"
-#import "ios/web/public/webui/web_ui_ios_controller.h"
-#import "url/gurl.h"
-#import "url/url_constants.h"
+#include "base/no_destructor.h"
+#include "ios/web/public/webui/web_ui_ios_controller.h"
+#include "url/gurl.h"
+#include "url/url_constants.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -35,7 +33,7 @@ void WebUIIOSControllerFactory::RegisterFactory(
 void WebUIIOSControllerFactory::DeregisterFactory(
     WebUIIOSControllerFactory* factory) {
   std::vector<WebUIIOSControllerFactory*>& factories = GetGlobalFactories();
-  auto position = base::ranges::find(factories, factory);
+  auto position = std::find(factories.begin(), factories.end(), factory);
   if (position != factories.end())
     factories.erase(position);
 }

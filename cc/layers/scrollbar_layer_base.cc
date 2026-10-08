@@ -1,13 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/layers/scrollbar_layer_base.h"
 
-#include <memory>
-#include <utility>
-
-#include "base/notreached.h"
 #include "cc/layers/painted_overlay_scrollbar_layer.h"
 #include "cc/layers/painted_scrollbar_layer.h"
 #include "cc/layers/scrollbar_layer_impl_base.h"
@@ -63,24 +59,21 @@ scoped_refptr<ScrollbarLayerBase> ScrollbarLayerBase::CreateOrReuse(
 }
 
 void ScrollbarLayerBase::SetScrollElementId(ElementId element_id) {
-  if (element_id == scroll_element_id_.Read(*this))
+  if (element_id == scroll_element_id_)
     return;
 
-  scroll_element_id_.Write(*this) = element_id;
+  scroll_element_id_ = element_id;
   SetNeedsCommit();
 }
 
-void ScrollbarLayerBase::PushPropertiesTo(
-    LayerImpl* layer,
-    const CommitState& commit_state,
-    const ThreadUnsafeCommitState& unsafe_state) {
-  Layer::PushPropertiesTo(layer, commit_state, unsafe_state);
+void ScrollbarLayerBase::PushPropertiesTo(LayerImpl* layer) {
+  Layer::PushPropertiesTo(layer);
 
   auto* scrollbar_layer_impl = static_cast<ScrollbarLayerImplBase*>(layer);
   DCHECK_EQ(scrollbar_layer_impl->orientation(), orientation_);
   DCHECK_EQ(scrollbar_layer_impl->is_left_side_vertical_scrollbar(),
             is_left_side_vertical_scrollbar_);
-  scrollbar_layer_impl->SetScrollElementId(scroll_element_id_.Read(*this));
+  scrollbar_layer_impl->SetScrollElementId(scroll_element_id_);
 }
 
 bool ScrollbarLayerBase::IsScrollbarLayerForTesting() const {

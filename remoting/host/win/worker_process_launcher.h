@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,12 @@
 
 #include "base/callback.h"
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
 #include "base/timer/timer.h"
 #include "base/win/object_watcher.h"
 #include "base/win/scoped_handle.h"
-#include "mojo/public/cpp/bindings/generic_pending_associated_receiver.h"
 #include "net/base/backoff_entry.h"
 
 namespace base {
@@ -24,9 +24,9 @@ class Location;
 class TimeDelta;
 } // namespace base
 
-namespace mojo {
-class ScopedInterfaceEndpointHandle;
-}
+namespace IPC {
+class Message;
+} // namespace IPC
 
 namespace remoting {
 
@@ -47,17 +47,12 @@ class WorkerProcessLauncher : public base::win::ObjectWatcher::Delegate {
     // been called.
     virtual void LaunchProcess(WorkerProcessLauncher* event_handler) = 0;
 
-    // Provides a way to request an associated interface from the worker process
-    // IPC channel.
-    virtual void GetRemoteAssociatedInterface(
-        mojo::GenericPendingAssociatedReceiver receiver) = 0;
+    // Sends an IPC message to the worker process. The message will be silently
+    // dropped if the channel is closed.
+    virtual void Send(IPC::Message* message) = 0;
 
     // Closes the IPC channel.
     virtual void CloseChannel() = 0;
-
-    // Ask the worker process to voluntarily crash and generate a dump.
-    // |location| represents the caller who made the original request.
-    virtual void CrashProcess(const base::Location& location) = 0;
 
     // Terminates the worker process and closes the IPC channel.
     virtual void KillProcess() = 0;
@@ -65,25 +60,21 @@ class WorkerProcessLauncher : public base::win::ObjectWatcher::Delegate {
 
   // Creates the launcher that will use |launcher_delegate| to manage the worker
   // process and |ipc_handler| to handle IPCs. The caller must ensure that
-  // |ipc_handler| outlives this object.
+  // |ipc_handler| must outlive this object.
   WorkerProcessLauncher(std::unique_ptr<Delegate> launcher_delegate,
                         WorkerProcessIpcDelegate* ipc_handler);
-
-  WorkerProcessLauncher(const WorkerProcessLauncher&) = delete;
-  WorkerProcessLauncher& operator=(const WorkerProcessLauncher&) = delete;
-
   ~WorkerProcessLauncher() override;
 
   // Asks the worker process to crash and generate a dump, and closes the IPC
   // channel. |location| is passed to the worker so that it is on the stack in
-  // the dump. Restarts the worker process forcefully, if it does not exit on
-  // its own.
+  // the dump. Restarts the worker process forcefully, if it does
+  // not exit on its own.
   void Crash(const base::Location& location);
 
-  // Provides a way to request an associated interface from the worker process
-  // IPC channel.
-  void GetRemoteAssociatedInterface(
-      mojo::GenericPendingAssociatedReceiver receiver);
+  // Sends an IPC message to the worker process. The message will be silently
+  // dropped if Send() is called before Start() or after stutdown has been
+  // initiated.
+  void Send(IPC::Message* message);
 
   // Notification methods invoked by |Delegate|.
 
@@ -99,10 +90,9 @@ class WorkerProcessLauncher : public base::win::ObjectWatcher::Delegate {
 
   // Mirrors methods of IPC::Listener to be invoked by |Delegate|. |Delegate|
   // has to validate |peer_pid| if necessary.
+  bool OnMessageReceived(const IPC::Message& message);
   void OnChannelConnected(int32_t peer_pid);
   void OnChannelError();
-  void OnAssociatedInterfaceRequest(const std::string& interface_name,
-                                    mojo::ScopedInterfaceEndpointHandle handle);
 
  private:
   friend class WorkerProcessLauncherTest;
@@ -132,7 +122,7 @@ class WorkerProcessLauncher : public base::win::ObjectWatcher::Delegate {
   void StopWorker();
 
   // Handles IPC messages sent by the worker process.
-  raw_ptr<WorkerProcessIpcDelegate> ipc_handler_;
+  WorkerProcessIpcDelegate* ipc_handler_;
 
   // Implements specifics of launching a worker process.
   std::unique_ptr<WorkerProcessLauncher::Delegate> launcher_delegate_;
@@ -140,6 +130,9 @@ class WorkerProcessLauncher : public base::win::ObjectWatcher::Delegate {
   // Keeps the exit code of the worker process after it was closed. The exit
   // code is used to determine whether the process has to be restarted.
   DWORD exit_code_;
+
+  // True if IPC messages should be passed to |ipc_handler_|.
+  bool ipc_enabled_;
 
   // The timer used to delay termination of the worker process when an IPC error
   // occured or when Crash() request is pending
@@ -166,6 +159,8 @@ class WorkerProcessLauncher : public base::win::ObjectWatcher::Delegate {
   base::win::ScopedHandle worker_process_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(WorkerProcessLauncher);
 };
 
 }  // namespace remoting

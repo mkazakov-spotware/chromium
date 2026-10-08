@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,10 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
-#include "components/no_state_prefetch/common/no_state_prefetch_final_status.h"
+#include "components/no_state_prefetch/common/prerender_final_status.h"
 #include "components/no_state_prefetch/common/prerender_origin.h"
 #include "url/gurl.h"
 
@@ -26,7 +27,7 @@ enum NavigationType {
   NAVIGATION_TYPE_PRERENDERED,
 };
 
-// Records histograms for NoStatePrefetchManager.
+// Records histograms for PrerenderManager.
 //
 // A few histograms are dynamically constructed to avoid binary size bloat from
 // histogram_macros.h. Such histograms require careful handling:
@@ -39,12 +40,9 @@ enum NavigationType {
 // const.
 class PrerenderHistograms {
  public:
-  // Owned by a NoStatePrefetchManager object for the lifetime of the
-  // NoStatePrefetchManager.
+  // Owned by a PrerenderManager object for the lifetime of the
+  // PrerenderManager.
   PrerenderHistograms();
-
-  PrerenderHistograms(const PrerenderHistograms&) = delete;
-  PrerenderHistograms& operator=(const PrerenderHistograms&) = delete;
 
   // Return the string to use as a prefix for histograms depending on the origin
   // of the prerender.
@@ -81,6 +79,8 @@ class PrerenderHistograms {
 
  private:
   THREAD_CHECKER(thread_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(PrerenderHistograms);
 };
 
 }  // namespace prerender

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <stdint.h>
 
-#include <map>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -16,7 +15,7 @@
 #include "base/atomicops.h"
 #include "base/callback_forward.h"
 #include "base/containers/circular_deque.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "gpu/command_buffer/common/buffer.h"
 #include "gpu/command_buffer/common/common_cmd_format.h"
@@ -145,7 +144,7 @@ class GPU_GLES2_EXPORT QueryManager {
     void RunCallbacks();
 
     // The manager that owns this Query.
-    raw_ptr<QueryManager> manager_;
+    QueryManager* manager_;
 
     // The type of query.
     GLenum target_;
@@ -154,7 +153,7 @@ class GPU_GLES2_EXPORT QueryManager {
     // to ensure it doesn't get released until we wrote results. sync_ points to
     // memory inside buffer_.
     scoped_refptr<gpu::Buffer> buffer_;
-    raw_ptr<QuerySync> sync_;
+    QuerySync* sync_;
 
     // Count to set process count do when completed.
     base::subtle::Atomic32 submit_count_;
@@ -176,10 +175,6 @@ class GPU_GLES2_EXPORT QueryManager {
   };
 
   QueryManager();
-
-  QueryManager(const QueryManager&) = delete;
-  QueryManager& operator=(const QueryManager&) = delete;
-
   virtual ~QueryManager();
 
   // Must call before destruction.
@@ -265,6 +260,8 @@ class GPU_GLES2_EXPORT QueryManager {
   // Queries waiting for completion.
   using QueryQueue = base::circular_deque<scoped_refptr<Query>>;
   QueryQueue pending_queries_;
+
+  DISALLOW_COPY_AND_ASSIGN(QueryManager);
 };
 
 }  // namespace gpu

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,7 @@ std::unique_ptr<RendererTask> BackgroundContentsTag::CreateTask(
       extensions::ExtensionRegistry::Get(profile)->enabled_extensions();
   const extensions::Extension* extension =
       extensions_set.GetByID(application_id);
-  std::u16string application_name;
+  base::string16 application_name;
   if (extension)
     application_name = base::UTF8ToUTF16(extension->name());
 

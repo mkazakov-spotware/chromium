@@ -1,15 +1,13 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "device/bluetooth/bluetooth_local_gatt_service.h"
 
 #include <algorithm>
 #include <iterator>
 
 #include "base/memory/ref_counted.h"
-#include "build/build_config.h"
 #include "device/bluetooth/bluetooth_local_gatt_characteristic.h"
+#include "device/bluetooth/bluetooth_local_gatt_service.h"
 #include "device/bluetooth/test/bluetooth_gatt_server_test.h"
 #include "device/bluetooth/test/bluetooth_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -42,7 +40,7 @@ class BluetoothLocalGattServiceTest : public BluetoothGattServerTest {
   base::WeakPtr<BluetoothLocalGattCharacteristic> write_characteristic_;
 };
 
-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
+#if defined(OS_CHROMEOS) || defined(OS_LINUX)
 #define MAYBE_RegisterMultipleServices RegisterMultipleServices
 #else
 #define MAYBE_RegisterMultipleServices DISABLED_RegisterMultipleServices
@@ -92,7 +90,7 @@ TEST_F(BluetoothLocalGattServiceTest, MAYBE_RegisterMultipleServices) {
   EXPECT_TRUE(ServiceSetsEqual(RegisteredGattServices(), {}));
 }
 
-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
+#if defined(OS_CHROMEOS) || defined(OS_LINUX)
 #define MAYBE_DeleteServices DeleteServices
 #else
 #define MAYBE_DeleteServices DISABLED_DeleteServices

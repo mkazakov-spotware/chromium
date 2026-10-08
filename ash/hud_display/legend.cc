@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,12 @@
 #include "third_party/skia/include/core/SkBlendMode.h"
 #include "third_party/skia/include/core/SkPaint.h"
 #include "third_party/skia/include/core/SkPath.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/text_constants.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/box_layout.h"
+#include "ui/views/metadata/metadata_impl_macros.h"
 
 namespace ash {
 namespace hud_display {
@@ -68,8 +68,7 @@ LegendEntry::LegendEntry(const Legend::Entry& data)
   // edge size matching default views::Label height.  This is not known until
   // layout runs, so just hard code it.
   constexpr int kColorpickerAreaWidth = 20;
-  SetBorder(views::CreateEmptyBorder(
-      gfx::Insets::TLBR(0, kColorpickerAreaWidth, 0, 0)));
+  SetBorder(views::CreateEmptyBorder(0, kColorpickerAreaWidth, 0, 0));
 
   views::Label* label = AddChildView(
       std::make_unique<views::Label>(data.label, views::style::CONTEXT_LABEL));
@@ -79,12 +78,13 @@ LegendEntry::LegendEntry(const Legend::Entry& data)
 
   constexpr int kLabelToValueSpece = 5;
   value_ = AddChildView(std::make_unique<views::Label>(
-      std::u16string(), views::style::CONTEXT_LABEL));
+      base::string16(), views::style::CONTEXT_LABEL));
   layout_manager->SetFlexForView(value_, /*flex=*/1);
   value_->SetHorizontalAlignment(gfx::HorizontalAlignment::ALIGN_RIGHT);
-  value_->SetBorder(
-      views::CreateEmptyBorder(gfx::Insets::TLBR(0, kLabelToValueSpece, 0, 0)));
+  value_->SetBorder(views::CreateEmptyBorder(0, kLabelToValueSpece, 0, 0));
   value_->SetEnabledColor(kHUDDefaultColor);
+
+  ALLOW_UNUSED_LOCAL(formatter_);
 }
 
 LegendEntry::~LegendEntry() = default;
@@ -93,7 +93,7 @@ void LegendEntry::OnPaint(gfx::Canvas* canvas) {
   // Draw 10x10 sold color rectangle in the middle of the left border.
   // (We used border to allocate space for the colorpicker above.)
   constexpr int kBoxSize = 10;
-  const gfx::Rect bounds(GetInsets().left(), height());
+  const gfx::Rect bounds(border()->GetInsets().left(), height());
 
   constexpr int kBoxBorderWidth = 1;
 
@@ -136,15 +136,15 @@ void LegendEntry::RefreshValue() {
   if (graph_.IsFilledIndex(value_index_)) {
     value_->SetText(formatter_.Run(graph_.GetUnscaledValueAt(value_index_)));
   } else {
-    value_->SetText(std::u16string());
+    value_->SetText(base::string16());
   }
 }
 
 }  // namespace
 
 Legend::Entry::Entry(const Graph& graph,
-                     std::u16string label,
-                     std::u16string tooltip,
+                     base::string16 label,
+                     base::string16 tooltip,
                      Formatter formatter)
     : graph(graph), label(label), tooltip(tooltip), formatter(formatter) {}
 
@@ -165,7 +165,7 @@ Legend::Legend(const std::vector<Legend::Entry>& contents) {
   SetBackground(std::make_unique<SolidSourceBackground>(kHUDLegendBackground,
                                                         /*radius=*/0));
 
-  SetBorder(views::CreateEmptyBorder(kHUDInset));
+  SetBorder(views::CreateEmptyBorder(gfx::Insets(kHUDInset)));
 
   for (const auto& entry : contents)
     AddChildView(std::make_unique<LegendEntry>(entry));

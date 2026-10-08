@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,8 +34,6 @@ class FontFallback
   // objects.
   FontFallback();
 
-  FontFallback& operator=(const FontFallback&) = delete;
-
   HRESULT STDMETHODCALLTYPE
   MapCharacters(IDWriteTextAnalysisSource* source,
                 UINT32 text_position,
@@ -55,35 +53,32 @@ class FontFallback
  protected:
   ~FontFallback() override;
 
-  // Note: `mapped_font` is used in `SkFontMgr_DirectWrite::fallback()` to
-  // construct `SkTypeface` which can be shared between threads[1].
-  // [1] https://api.skia.org/classSkTypeface.html#details
-  bool GetCachedFont(const std::u16string& text,
+  bool GetCachedFont(const base::string16& text,
                      const wchar_t* base_family_name,
                      const wchar_t* locale,
                      DWRITE_FONT_WEIGHT base_weight,
                      DWRITE_FONT_STYLE base_style,
                      DWRITE_FONT_STRETCH base_stretch,
                      IDWriteFont** mapped_font,
-                     size_t* mapped_length) LOCKS_EXCLUDED(lock_);
+                     uint32_t* mapped_length);
 
   void AddCachedFamily(Microsoft::WRL::ComPtr<IDWriteFontFamily> family,
                        const wchar_t* base_family_name,
-                       const wchar_t* locale) LOCKS_EXCLUDED(lock_);
+                       const wchar_t* locale);
 
  private:
   blink::mojom::DWriteFontProxy& GetFontProxy();
 
   Microsoft::WRL::ComPtr<DWriteFontCollectionProxy> collection_;
 
-  base::Lock lock_;
-
   // |fallback_family_cache_| keeps a mapping from base family name to a list
   // of font families that matched a character on a previous call. The list is
   // capped in size and maintained in MRU order. This gives us a good chance of
   // returning a suitable fallback font without having to do an IPC.
-  std::map<std::wstring, std::list<Microsoft::WRL::ComPtr<IDWriteFontFamily>>>
-      fallback_family_cache_ GUARDED_BY(lock_);
+  std::map<base::string16, std::list<Microsoft::WRL::ComPtr<IDWriteFontFamily>>>
+      fallback_family_cache_;
+
+  DISALLOW_ASSIGN(FontFallback);
 };
 
 }  // namespace content

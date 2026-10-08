@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,10 @@
 #define ASH_ASSISTANT_UI_MAIN_STAGE_SUGGESTION_CHIP_VIEW_H_
 
 #include "base/component_export.h"
-#include "chromeos/ash/services/libassistant/public/cpp/assistant_suggestion.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "base/macros.h"
+#include "chromeos/services/assistant/public/cpp/assistant_service.h"
 #include "ui/views/controls/button/button.h"
+#include "ui/views/metadata/metadata_header_macros.h"
 
 namespace views {
 class BoxLayout;
@@ -23,7 +24,7 @@ class AssistantViewDelegate;
 // View representing a suggestion chip.
 class COMPONENT_EXPORT(ASSISTANT_UI) SuggestionChipView : public views::Button {
  public:
-  using AssistantSuggestion = assistant::AssistantSuggestion;
+  using AssistantSuggestion = chromeos::assistant::AssistantSuggestion;
 
   METADATA_HEADER(SuggestionChipView);
 
@@ -37,15 +38,16 @@ class COMPONENT_EXPORT(ASSISTANT_UI) SuggestionChipView : public views::Button {
   gfx::Size CalculatePreferredSize() const override;
   int GetHeightForWidth(int width) const override;
   void ChildVisibilityChanged(views::View* child) override;
+  void OnPaintBackground(gfx::Canvas* canvas) override;
+  void OnFocus() override;
+  void OnBlur() override;
   bool OnKeyPressed(const ui::KeyEvent& event) override;
-  void OnThemeChanged() override;
-  void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
 
   void SetIcon(const gfx::ImageSkia& icon);
-  gfx::ImageSkia GetIcon() const;
+  const gfx::ImageSkia& GetIcon() const;
 
-  void SetText(const std::u16string& text);
-  const std::u16string& GetText() const;
+  void SetText(const base::string16& text);
+  const base::string16& GetText() const;
 
   const base::UnguessableToken& suggestion_id() const { return suggestion_id_; }
 

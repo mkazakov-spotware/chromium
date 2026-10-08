@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,11 @@
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "device/bluetooth/bluetooth_adapter_android.h"
 #include "device/bluetooth/bluetooth_remote_gatt_descriptor_android.h"
 #include "device/bluetooth/bluetooth_remote_gatt_service_android.h"
@@ -54,16 +55,16 @@ BluetoothRemoteGattCharacteristicAndroid::
     ~BluetoothRemoteGattCharacteristicAndroid() {
   Java_ChromeBluetoothRemoteGattCharacteristic_onBluetoothRemoteGattCharacteristicAndroidDestruction(
       AttachCurrentThread(), j_characteristic_);
-  if (read_callback_) {
-    std::move(read_callback_)
-        .Run(BluetoothGattService::GattErrorCode::kFailed,
-             /*value=*/std::vector<uint8_t>());
+  if (!read_callback_.is_null()) {
+    DCHECK(!read_error_callback_.is_null());
+    std::move(read_error_callback_)
+        .Run(BluetoothGattService::GATT_ERROR_FAILED);
   }
 
   if (!write_callback_.is_null()) {
     DCHECK(!write_error_callback_.is_null());
     std::move(write_error_callback_)
-        .Run(BluetoothGattService::GattErrorCode::kFailed);
+        .Run(BluetoothGattService::GATT_ERROR_FAILED);
   }
 }
 
@@ -125,27 +126,28 @@ BluetoothRemoteGattCharacteristicAndroid::GetDescriptorsByUUID(
 }
 
 void BluetoothRemoteGattCharacteristicAndroid::ReadRemoteCharacteristic(
-    ValueCallback callback) {
+    ValueCallback callback,
+    ErrorCallback error_callback) {
   if (read_pending_ || write_pending_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
-        base::BindOnce(std::move(callback),
-                       BluetoothGattService::GattErrorCode::kInProgress,
-                       /*value=*/std::vector<uint8_t>()));
+        base::BindOnce(std::move(error_callback),
+                       BluetoothRemoteGattService::GATT_ERROR_IN_PROGRESS));
     return;
   }
 
   if (!Java_ChromeBluetoothRemoteGattCharacteristic_readRemoteCharacteristic(
           AttachCurrentThread(), j_characteristic_)) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(std::move(callback),
-                                  BluetoothGattService::GattErrorCode::kFailed,
-                                  /*value=*/std::vector<uint8_t>()));
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
+        FROM_HERE,
+        base::BindOnce(std::move(error_callback),
+                       BluetoothRemoteGattService::GATT_ERROR_FAILED));
     return;
   }
 
   read_pending_ = true;
   read_callback_ = std::move(callback);
+  read_error_callback_ = std::move(error_callback);
 }
 
 void BluetoothRemoteGattCharacteristicAndroid::WriteRemoteCharacteristic(
@@ -154,10 +156,10 @@ void BluetoothRemoteGattCharacteristicAndroid::WriteRemoteCharacteristic(
     base::OnceClosure callback,
     ErrorCallback error_callback) {
   if (read_pending_ || write_pending_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(error_callback),
-                       BluetoothGattService::GattErrorCode::kInProgress));
+                       BluetoothRemoteGattService::GATT_ERROR_IN_PROGRESS));
     return;
   }
 
@@ -175,10 +177,10 @@ void BluetoothRemoteGattCharacteristicAndroid::WriteRemoteCharacteristic(
   if (!Java_ChromeBluetoothRemoteGattCharacteristic_writeRemoteCharacteristic(
           env, j_characteristic_, base::android::ToJavaByteArray(env, value),
           static_cast<int>(android_write_type))) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(error_callback),
-                       BluetoothGattService::GattErrorCode::kFailed));
+                       BluetoothRemoteGattService::GATT_ERROR_FAILED));
     return;
   }
 
@@ -192,10 +194,10 @@ void BluetoothRemoteGattCharacteristicAndroid::
                                         base::OnceClosure callback,
                                         ErrorCallback error_callback) {
   if (read_pending_ || write_pending_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(error_callback),
-                       BluetoothGattService::GattErrorCode::kInProgress));
+                       BluetoothRemoteGattService::GATT_ERROR_IN_PROGRESS));
     return;
   }
 
@@ -203,10 +205,10 @@ void BluetoothRemoteGattCharacteristicAndroid::
   if (!Java_ChromeBluetoothRemoteGattCharacteristic_writeRemoteCharacteristic(
           env, j_characteristic_, base::android::ToJavaByteArray(env, value),
           static_cast<int>(AndroidWriteType::kNone))) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(error_callback),
-                       BluetoothGattService::GattErrorCode::kFailed));
+                       BluetoothRemoteGattService::GATT_ERROR_FAILED));
     return;
   }
 
@@ -232,16 +234,15 @@ void BluetoothRemoteGattCharacteristicAndroid::OnRead(
 
   // Clear callbacks before calling to avoid reentrancy issues.
   ValueCallback read_callback = std::move(read_callback_);
-  if (!read_callback)
-    return;
+  ErrorCallback read_error_callback = std::move(read_error_callback_);
 
-  if (status == 0) {  // android.bluetooth.BluetoothGatt.GATT_SUCCESS
+  if (status == 0  // android.bluetooth.BluetoothGatt.GATT_SUCCESS
+      && !read_callback.is_null()) {
     base::android::JavaByteArrayToByteVector(env, value, &value_);
-    std::move(read_callback).Run(/*error_code=*/absl::nullopt, value_);
-  } else {
-    std::move(read_callback)
-        .Run(BluetoothRemoteGattServiceAndroid::GetGattErrorCode(status),
-             /*value=*/std::vector<uint8_t>());
+    std::move(read_callback).Run(value_);
+  } else if (!read_error_callback.is_null()) {
+    std::move(read_error_callback)
+        .Run(BluetoothRemoteGattServiceAndroid::GetGattErrorCode(status));
   }
 }
 
@@ -288,10 +289,10 @@ void BluetoothRemoteGattCharacteristicAndroid::SubscribeToNotifications(
   if (!Java_ChromeBluetoothRemoteGattCharacteristic_setCharacteristicNotification(
           AttachCurrentThread(), j_characteristic_, true)) {
     LOG(ERROR) << "Error enabling characteristic notification";
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(error_callback),
-                       BluetoothGattService::GattErrorCode::kFailed));
+                       BluetoothRemoteGattService::GATT_ERROR_FAILED));
     return;
   }
 
@@ -310,10 +311,10 @@ void BluetoothRemoteGattCharacteristicAndroid::UnsubscribeFromNotifications(
   if (!Java_ChromeBluetoothRemoteGattCharacteristic_setCharacteristicNotification(
           AttachCurrentThread(), j_characteristic_, false)) {
     LOG(ERROR) << "Error disabling characteristic notification";
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(error_callback),
-                       device::BluetoothGattService::GattErrorCode::kFailed));
+                       device::BluetoothRemoteGattService::GATT_ERROR_FAILED));
     return;
   }
 

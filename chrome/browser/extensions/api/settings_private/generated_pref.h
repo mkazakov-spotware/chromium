@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "chrome/browser/extensions/api/settings_private/prefs_util_enums.h"
 #include "components/content_settings/core/common/content_settings.h"
@@ -34,19 +35,15 @@ class GeneratedPref {
   class Observer {
    public:
     Observer();
-
-    Observer(const Observer&) = delete;
-    Observer& operator=(const Observer&) = delete;
-
     virtual ~Observer();
 
     // This method is called to notify observer that visible value
     // of the preference has changed.
     virtual void OnGeneratedPrefChanged(const std::string& pref_name) = 0;
-  };
 
-  GeneratedPref(const GeneratedPref&) = delete;
-  GeneratedPref& operator=(const GeneratedPref&) = delete;
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Observer);
+  };
 
   virtual ~GeneratedPref();
 
@@ -88,6 +85,8 @@ class GeneratedPref {
 
  private:
   base::ObserverList<Observer>::Unchecked observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(GeneratedPref);
 };
 
 }  // namespace settings_private

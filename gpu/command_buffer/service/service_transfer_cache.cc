@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,12 @@
 #include "base/bind.h"
 #include "base/strings/stringprintf.h"
 #include "base/system/sys_info.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/memory_dump_manager.h"
 #include "cc/paint/image_transfer_cache_entry.h"
 #include "gpu/command_buffer/service/service_discardable_manager.h"
 #include "third_party/skia/include/core/SkImage.h"
+#include "third_party/skia/include/core/SkYUVAIndex.h"
 #include "third_party/skia/include/gpu/GrBackendSurface.h"
 #include "ui/gl/trace_util.h"
 
@@ -116,7 +117,7 @@ void DumpMemoryForYUVImageTransferCacheEntry(
 }  // namespace
 
 ServiceTransferCache::CacheEntryInternal::CacheEntryInternal(
-    absl::optional<ServiceDiscardableHandle> handle,
+    base::Optional<ServiceDiscardableHandle> handle,
     std::unique_ptr<cc::ServiceTransferCacheEntry> entry)
     : handle(handle), entry(std::move(entry)) {}
 
@@ -137,10 +138,9 @@ ServiceTransferCache::ServiceTransferCache(const GpuPreferences& preferences)
       max_cache_entries_(kMaxCacheEntries) {
   // In certain cases, ThreadTaskRunnerHandle isn't set (Android Webview).
   // Don't register a dump provider in these cases.
-  if (base::SingleThreadTaskRunner::HasCurrentDefault()) {
+  if (base::ThreadTaskRunnerHandle::IsSet()) {
     base::trace_event::MemoryDumpManager::GetInstance()->RegisterDumpProvider(
-        this, "gpu::ServiceTransferCache",
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+        this, "gpu::ServiceTransferCache", base::ThreadTaskRunnerHandle::Get());
   }
 }
 
@@ -190,7 +190,7 @@ void ServiceTransferCache::CreateLocalEntry(
     total_image_size_ += entry->CachedSize();
   }
 
-  entries_.Put(key, CacheEntryInternal(absl::nullopt, std::move(entry)));
+  entries_.Put(key, CacheEntryInternal(base::nullopt, std::move(entry)));
   EnforceLimits();
 }
 
@@ -280,8 +280,7 @@ bool ServiceTransferCache::CreateLockedHardwareDecodedImageEntry(
     ServiceDiscardableHandle handle,
     GrDirectContext* context,
     std::vector<sk_sp<SkImage>> plane_images,
-    SkYUVAInfo::PlaneConfig plane_config,
-    SkYUVAInfo::Subsampling subsampling,
+    cc::YUVDecodeFormat plane_images_format,
     SkYUVColorSpace yuv_color_space,
     size_t buffer_byte_size,
     bool needs_mips) {
@@ -293,7 +292,7 @@ bool ServiceTransferCache::CreateLockedHardwareDecodedImageEntry(
   // Create the service-side image transfer cache entry.
   auto entry = std::make_unique<cc::ServiceImageTransferCacheEntry>();
   if (!entry->BuildFromHardwareDecodedImage(
-          context, std::move(plane_images), plane_config, subsampling,
+          context, std::move(plane_images), plane_images_format,
           yuv_color_space, buffer_byte_size, needs_mips)) {
     return false;
   }

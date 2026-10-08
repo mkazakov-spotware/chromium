@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,9 @@ import org.chromium.base.annotations.JNINamespace;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
+import org.chromium.chrome.browser.signin.IdentityServicesProvider;
+import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.identitymanager.IdentityManager;
-import org.chromium.components.signin.identitymanager.PrimaryAccountChangeEvent;
 
 /**
  * Class for watching for changes to the Android preferences that are backed up using Android
@@ -60,12 +60,18 @@ public class ChromeBackupWatcher {
         // Update the backup if the sign-in status changes.
         IdentityManager identityManager = IdentityServicesProvider.get().getIdentityManager(
                 Profile.getLastUsedRegularProfile());
-        identityManager.addObserver(new IdentityManager.Observer() {
-            @Override
-            public void onPrimaryAccountChanged(PrimaryAccountChangeEvent eventDetails) {
-                onBackupPrefsChanged();
-            }
-        });
+        identityManager.addObserver(
+                new IdentityManager.Observer() {
+                    @Override
+                    public void onPrimaryAccountSet(CoreAccountInfo account) {
+                        onBackupPrefsChanged();
+                    }
+
+                    @Override
+                    public void onPrimaryAccountCleared(CoreAccountInfo account) {
+                        onBackupPrefsChanged();
+                    }
+                });
     }
 
     @CalledByNative

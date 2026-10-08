@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <tuple>
 
-#include "base/containers/cxx20_erase.h"
+#include "base/stl_util.h"
 #include "base/time/time.h"
 
 namespace network {

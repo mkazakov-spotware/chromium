@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,17 +41,14 @@ enum class VerifierResult {
 // If and only if this function returns OK_FULL or OK_DELTA, and only if
 // |public_key| / |crx_id| are non-null, they will be updated to contain the
 // public key (PEM format, without the header/footer) and crx id (encoded in
-// base16 using the characters [a-p]). |compressed_verified_contents| will be
-// updated if it is non-null and if the verified contents are present in the
-// unsigned section of the header.
+// base16 using the characters [a-p]).
 VerifierResult Verify(
     const base::FilePath& crx_path,
     const VerifierFormat& format,
     const std::vector<std::vector<uint8_t>>& required_key_hashes,
     const std::vector<uint8_t>& required_file_hash,
     std::string* public_key,
-    std::string* crx_id,
-    std::vector<uint8_t>* compressed_verified_contents);
+    std::string* crx_id);
 
 }  // namespace crx_file
 

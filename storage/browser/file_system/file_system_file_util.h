@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include "base/component_export.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "storage/browser/blob/scoped_file.h"
 #include "storage/browser/file_system/file_system_operation.h"
 
@@ -31,7 +32,7 @@ class FileSystemURL;
 // See http://crbug.com/128136 if you need it.
 class COMPONENT_EXPORT(STORAGE_BROWSER) FileSystemFileUtil {
  public:
-  using CopyOrMoveOptionSet = FileSystemOperation::CopyOrMoveOptionSet;
+  using CopyOrMoveOption = FileSystemOperation::CopyOrMoveOption;
 
   // It will be implemented by each subclass such as FileSystemFileEnumerator.
   class COMPONENT_EXPORT(STORAGE_BROWSER) AbstractFileEnumerator {
@@ -58,8 +59,6 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) FileSystemFileUtil {
     bool IsDirectory() override;
   };
 
-  FileSystemFileUtil(const FileSystemFileUtil&) = delete;
-  FileSystemFileUtil& operator=(const FileSystemFileUtil&) = delete;
   virtual ~FileSystemFileUtil() = default;
 
   // Creates or opens a file with the given flags.
@@ -144,7 +143,7 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) FileSystemFileUtil {
   virtual base::File::Error CopyOrMoveFile(FileSystemOperationContext* context,
                                            const FileSystemURL& src_url,
                                            const FileSystemURL& dest_url,
-                                           CopyOrMoveOptionSet options,
+                                           CopyOrMoveOption option,
                                            bool copy) = 0;
 
   // Copies in a single file from a different filesystem.
@@ -177,7 +176,10 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) FileSystemFileUtil {
                                         base::FilePath* platform_path) = 0;
 
  protected:
-  FileSystemFileUtil() = default;
+  FileSystemFileUtil() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FileSystemFileUtil);
 };
 
 }  // namespace storage

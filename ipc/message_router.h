@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/component_export.h"
 #include "base/containers/id_map.h"
+#include "base/macros.h"
 #include "ipc/ipc_listener.h"
 #include "ipc/ipc_sender.h"
 
@@ -35,10 +36,6 @@ namespace IPC {
 class COMPONENT_EXPORT(IPC) MessageRouter : public Listener, public Sender {
  public:
   MessageRouter();
-
-  MessageRouter(const MessageRouter&) = delete;
-  MessageRouter& operator=(const MessageRouter&) = delete;
-
   ~MessageRouter() override;
 
   // Implemented by subclasses to handle control messages
@@ -68,6 +65,8 @@ class COMPONENT_EXPORT(IPC) MessageRouter : public Listener, public Sender {
  private:
   // A list of all listeners with assigned routing IDs.
   base::IDMap<Listener*> routes_;
+
+  DISALLOW_COPY_AND_ASSIGN(MessageRouter);
 };
 
 }  // namespace IPC

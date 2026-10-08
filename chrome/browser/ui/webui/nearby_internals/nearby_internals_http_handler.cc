@@ -1,10 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/webui/nearby_internals/nearby_internals_http_handler.h"
-
-#include <utility>
 
 #include "base/bind.h"
 #include "base/json/json_writer.h"
@@ -56,14 +54,14 @@ const char kHttpMessageDirectionKey[] = "direction";
 
 // Converts a RPC request/response to a raw dictionary value used as a
 // JSON argument to JavaScript functions.
-base::Value::Dict HttpMessageToDictionary(const base::Value& message,
-                                          Direction dir,
-                                          Rpc rpc) {
-  base::Value::Dict dictionary;
-  dictionary.Set(kHttpMessageBodyKey, FormatAsJSON(message));
-  dictionary.Set(kHttpMessageTimeKey, GetJavascriptTimestamp());
-  dictionary.Set(kHttpMessageRpcKey, static_cast<int>(rpc));
-  dictionary.Set(kHttpMessageDirectionKey, static_cast<int>(dir));
+base::Value HttpMessageToDictionary(const base::Value& message,
+                                    Direction dir,
+                                    Rpc rpc) {
+  base::Value dictionary(base::Value::Type::DICTIONARY);
+  dictionary.SetStringKey(kHttpMessageBodyKey, FormatAsJSON(message));
+  dictionary.SetKey(kHttpMessageTimeKey, GetJavascriptTimestamp());
+  dictionary.SetIntKey(kHttpMessageRpcKey, static_cast<int>(rpc));
+  dictionary.SetIntKey(kHttpMessageDirectionKey, static_cast<int>(dir));
   return dictionary;
 }
 
@@ -98,22 +96,22 @@ void NearbyInternalsHttpHandler::OnJavascriptAllowed() {
   NearbySharingService* service_ =
       NearbySharingServiceFactory::GetForBrowserContext(context_);
   if (service_) {
-    observation_.Observe(service_->GetHttpNotifier());
+    observer_.Add(service_->GetHttpNotifier());
   } else {
     NS_LOG(ERROR) << "No NearbyShareService instance to call.";
   }
 }
 
 void NearbyInternalsHttpHandler::OnJavascriptDisallowed() {
-  observation_.Reset();
+  observer_.RemoveAll();
 }
 
 void NearbyInternalsHttpHandler::InitializeContents(
-    const base::Value::List& args) {
+    const base::ListValue* args) {
   AllowJavascript();
 }
 
-void NearbyInternalsHttpHandler::UpdateDevice(const base::Value::List& args) {
+void NearbyInternalsHttpHandler::UpdateDevice(const base::ListValue* args) {
   NearbySharingService* service_ =
       NearbySharingServiceFactory::GetForBrowserContext(context_);
   if (service_) {
@@ -124,7 +122,7 @@ void NearbyInternalsHttpHandler::UpdateDevice(const base::Value::List& args) {
 }
 
 void NearbyInternalsHttpHandler::ListPublicCertificates(
-    const base::Value::List& args) {
+    const base::ListValue* args) {
   NearbySharingService* service_ =
       NearbySharingServiceFactory::GetForBrowserContext(context_);
   if (service_) {
@@ -135,7 +133,7 @@ void NearbyInternalsHttpHandler::ListPublicCertificates(
 }
 
 void NearbyInternalsHttpHandler::ListContactPeople(
-    const base::Value::List& args) {
+    const base::ListValue* args) {
   NearbySharingService* service_ =
       NearbySharingServiceFactory::GetForBrowserContext(context_);
   if (service_) {

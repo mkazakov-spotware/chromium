@@ -1,15 +1,16 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/performance_manager/persistence/site_data/site_data_cache_facade_factory.h"
 
 #include "base/memory/ptr_util.h"
-#include "base/no_destructor.h"
 #include "base/run_loop.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/performance_manager/persistence/site_data/site_data_cache_facade.h"
+#include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/performance_manager/performance_manager_impl.h"
 #include "components/performance_manager/persistence/site_data/site_data_cache_factory.h"
 #include "components/performance_manager/public/performance_manager.h"
@@ -43,10 +44,9 @@ void SiteDataCacheFacadeFactory::DisassociateForTesting(Profile* profile) {
 }
 
 SiteDataCacheFacadeFactory::SiteDataCacheFacadeFactory()
-    : ProfileKeyedServiceFactory("SiteDataCacheFacadeFactory",
-                                 ProfileSelections::BuildForRegularAndIncognito(
-                                     /*force_guest=*/true,
-                                     /*force_system=*/true)) {
+    : BrowserContextKeyedServiceFactory(
+          "SiteDataCacheFacadeFactory",
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(HistoryServiceFactory::GetInstance());
 }
 
@@ -55,6 +55,11 @@ SiteDataCacheFacadeFactory::~SiteDataCacheFacadeFactory() = default;
 KeyedService* SiteDataCacheFacadeFactory::BuildServiceInstanceFor(
     content::BrowserContext* context) const {
   return new SiteDataCacheFacade(context);
+}
+
+content::BrowserContext* SiteDataCacheFacadeFactory::GetBrowserContextToUse(
+    content::BrowserContext* context) const {
+  return chrome::GetBrowserContextOwnInstanceInIncognito(context);
 }
 
 bool SiteDataCacheFacadeFactory::ServiceIsCreatedWithBrowserContext() const {
@@ -68,7 +73,7 @@ bool SiteDataCacheFacadeFactory::ServiceIsNULLWhileTesting() const {
 }
 
 void SiteDataCacheFacadeFactory::OnBeforeFacadeCreated(
-    base::PassKey<SiteDataCacheFacade>) {
+    util::PassKey<SiteDataCacheFacade>) {
   if (service_instance_count_ == 0U) {
     DCHECK(cache_factory_.is_null());
     cache_factory_ = base::SequenceBound<SiteDataCacheFactory>(
@@ -78,7 +83,7 @@ void SiteDataCacheFacadeFactory::OnBeforeFacadeCreated(
 }
 
 void SiteDataCacheFacadeFactory::OnFacadeDestroyed(
-    base::PassKey<SiteDataCacheFacade>) {
+    util::PassKey<SiteDataCacheFacade>) {
   DCHECK_GT(service_instance_count_, 0U);
   // Destroy the cache factory if there's no more SiteDataCacheFacade needing
   // it.

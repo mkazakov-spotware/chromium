@@ -1,31 +1,6 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {dispatchSimpleEvent, getPropertyDescriptor, PropertyKind} from 'chrome://resources/ash/common/cr_deprecated.js';
-import {assert, assertNotReached} from 'chrome://resources/js/assert.js';
-
-import {maybeShowTooltip} from '../../../common/js/dom_utils.js';
-import {FileType} from '../../../common/js/file_type.js';
-import {VolumeEntry} from '../../../common/js/files_app_entry_types.js';
-import {vmTypeToIconName} from '../../../common/js/icon_util.js';
-import {metrics} from '../../../common/js/metrics.js';
-import {str, util} from '../../../common/js/util.js';
-import {VolumeManagerCommon} from '../../../common/js/volume_manager_types.js';
-import {FileOperationManager} from '../../../externs/background/file_operation_manager.js';
-import {FilesAppDirEntry} from '../../../externs/files_app_entry_interfaces.js';
-import {VolumeInfo} from '../../../externs/volume_info.js';
-import {VolumeManager} from '../../../externs/volume_manager.js';
-import {constants} from '../constants.js';
-import {FileFilter} from '../directory_contents.js';
-import {DirectoryModel} from '../directory_model.js';
-import {MetadataModel} from '../metadata/metadata_model.js';
-import {NavigationListModel, NavigationModelAndroidAppItem, NavigationModelFakeItem, NavigationModelItem, NavigationModelItemType, NavigationModelShortcutItem, NavigationModelVolumeItem, NavigationSection} from '../navigation_list_model.js';
-
-import {Command} from './command.js';
-import {contextMenuHandler} from './context_menu_handler.js';
-import {Menu} from './menu.js';
-import {Tree, TreeItem} from './tree.js';
 
 // Namespace
 const directorytree = {};
@@ -35,7 +10,7 @@ const directorytree = {};
 
 /**
  * Implementation of methods for DirectoryTree and DirectoryItem. These classes
- * inherits Tree/TreeItem so we can't make them inherit this class.
+ * inherits cr.ui.Tree/cr.ui.TreeItem so we can't make them inherit this class.
  * Instead, we separate their implementations to this separate object and call
  * it with setting 'this' from DirectoryTree/Item.
  */
@@ -159,7 +134,7 @@ Object.freeze(DirectoryItemTreeBaseMethods);
  * is always followed by 0 or more children in a 'group' indented by one more
  * level of depth relative their .tree-item parent:
  *
- *   <div class='tree-item'> {class TreeItem extends TreeItem}
+ *   <div class='tree-item'> {class TreeItem extends cr.ui.TreeItem}
  *     <div class='tree-row'>
  *       .tree-row content ...
  *     <div>
@@ -171,24 +146,47 @@ Object.freeze(DirectoryItemTreeBaseMethods);
  * Create tree rowElement content: returns a string of HTML used to innerHTML
  * a tree item rowElement.
  * @param {string} id The tree rowElement label Id.
+ * @param {string} label The tree rowElement label.
  * @return {string}
  */
-directorytree.createRowElementContent = (id) => {
+directorytree.createRowElementContent = (id, label) => {
+  return `
+    <paper-ripple fit class='recenteringTouch'></paper-ripple>
+    <span class='expand-icon'></span>
+    <span class='icon'></span>
+    <span class='label entry-name' id='${id}'>${label}</span>`;
+};
+
+/**
+ * Create tree rowElement content: returns a string of HTML used to innerHTML
+ * a tree item rowElement for FILES_NG_ENABLED case.
+ * @param {string} id The tree rowElement label Id.
+ * @param {string} label The tree rowElement label.
+ * @return {string}
+ */
+directorytree.createRowElementContentFilesNG = (id, label) => {
   return `
     <div class='file-row'>
      <span class='expand-icon'></span>
      <span class='icon'></span>
-     <span class='label entry-name' id='${id}'></span>
+     <span class='label entry-name' id='${id}'>${label}</span>
     </div>`;
 };
 
 /**
+ * An optional rowElement depth (indent) style handler where undefined uses the
+ * default cr.ui.TreeItem indent styling.
+ * @type {function(!cr.ui.TreeItem,number)|undefined}
+ */
+directorytree.styleRowElementDepth = undefined;
+
+/**
  * Custom tree row style handler: called when the item's |rowElement| should be
  * styled to indent |depth| in the tree for FILES_NG_ENABLED case.
- * @param {!TreeItem} item TreeItem.
+ * @param {!cr.ui.TreeItem} item cr.ui.TreeItem.
  * @param {number} depth Indent depth (>=0).
  */
-directorytree.styleRowElementDepth = (item, depth) => {
+directorytree.styleRowElementDepthFilesNG = (item, depth) => {
   const fileRowElement = item.rowElement.firstElementChild;
 
   const indent = depth * 22;
@@ -200,9 +198,16 @@ directorytree.styleRowElementDepth = (item, depth) => {
 };
 
 /**
+ * The iron-icon-set prefix for tree rows that have an .align-right-icon class
+ * element added to the row (eject icon, AndroidAppItem launch icon).
+ * @type {string}
+ */
+directorytree.rightIconSetPrefix = 'files16';
+
+/**
  * A tree item has a tree row with a text label.
  */
-class FilesTreeItem extends TreeItem {
+class TreeItem extends cr.ui.TreeItem {
   /**
    * @param {string} label Label for this item.
    * @param {DirectoryTree} tree Tree that contains this item.
@@ -210,9 +215,9 @@ class FilesTreeItem extends TreeItem {
   constructor(label, tree) {
     super();
 
-    // Save the TreeItem label id before overwriting the prototype.
+    // Save the cr.ui.TreeItem label id before overwriting the prototype.
     const id = this.labelElement.id;
-    this.__proto__ = FilesTreeItem.prototype;
+    this.__proto__ = TreeItem.prototype;
 
     if (window.IN_TEST) {
       this.setAttribute('entry-label', label);
@@ -220,9 +225,8 @@ class FilesTreeItem extends TreeItem {
 
     this.parentTree_ = tree;
 
-    const innerHTML = directorytree.createRowElementContent(id);
+    const innerHTML = directorytree.createRowElementContent(id, label);
     this.rowElement.innerHTML = innerHTML;
-    this.label = label;
   }
 
   /**
@@ -270,7 +274,7 @@ class FilesTreeItem extends TreeItem {
  * An expandable directory in the tree. Each element represents one folder (sub
  * directory) or one volume (root directory).
  */
-export class DirectoryItem extends FilesTreeItem {
+class DirectoryItem extends TreeItem {
   /**
    * @param {string} label Label for this item.
    * @param {DirectoryTree} tree Current tree, which contains this item.
@@ -294,7 +298,7 @@ export class DirectoryItem extends FilesTreeItem {
     this.addEventListener('collapse', this.onCollapse_.bind(this), false);
 
     // Default delayExpansion to false. Volumes will set it to true for
-    // provided and SMB file systems. SubDirectories will inherit from their
+    // provided file systems. SubDirectories will inherit from their
     // parent.
     this.delayExpansion = false;
 
@@ -442,8 +446,7 @@ export class DirectoryItem extends FilesTreeItem {
           item = DirectoryTree.createDirectoryItem(
               currentEntry.navigationModel, tree);
         } else {
-          item = new SubDirectoryItem(
-              label, currentEntry, this, tree, !!currentEntry.disabled);
+          item = new SubDirectoryItem(label, currentEntry, this, tree);
         }
         this.add(item);
         index++;
@@ -469,8 +472,7 @@ export class DirectoryItem extends FilesTreeItem {
           item = DirectoryTree.createDirectoryItem(
               currentEntry.navigationModel, tree);
         } else {
-          item = new SubDirectoryItem(
-              label, currentEntry, this, tree, !!currentEntry.disabled);
+          item = new SubDirectoryItem(label, currentEntry, this, tree);
         }
         this.addAt(item, index);
         index++;
@@ -527,11 +529,11 @@ export class DirectoryItem extends FilesTreeItem {
    * unintended changing of directories. Removing is done externally, and other
    * code will navigate to another directory.
    *
-   * @param {!TreeItem=} child The tree item child to remove.
+   * @param {!cr.ui.TreeItem=} child The tree item child to remove.
    * @override
    */
   remove(child) {
-    this.lastElementChild.removeChild(/** @type {!TreeItem} */ (child));
+    this.lastElementChild.removeChild(/** @type {!cr.ui.TreeItem} */ (child));
     if (this.items.length == 0) {
       this.hasChildren = false;
     }
@@ -566,8 +568,7 @@ export class DirectoryItem extends FilesTreeItem {
           }
           this.parentTree_.metadataModel_.get(
               this.entries_,
-              constants.LIST_CONTAINER_METADATA_PREFETCH_PROPERTY_NAMES.concat(
-                  constants.DLP_METADATA_PREFETCH_PROPERTY_NAMES));
+              constants.LIST_CONTAINER_METADATA_PREFETCH_PROPERTY_NAMES);
         },
         () => {
           this.expanded = false;
@@ -644,7 +645,7 @@ export class DirectoryItem extends FilesTreeItem {
    * @param {function()=} opt_errorCallback Callback called on error.
    */
   updateSubDirectories(recursive, opt_successCallback, opt_errorCallback) {
-    if (!this.entry || this.disabled || this.entry.createReader === undefined) {
+    if (!this.entry || this.entry.createReader === undefined) {
       opt_errorCallback && opt_errorCallback();
       return;
     }
@@ -678,7 +679,7 @@ export class DirectoryItem extends FilesTreeItem {
    * @override
    */
   updateExpandIcon() {
-    if (!this.entry || this.disabled || this.entry.createReader === undefined) {
+    if (!this.entry || this.entry.createReader === undefined) {
       this.hasChildren = false;
       return;
     }
@@ -810,8 +811,8 @@ export class DirectoryItem extends FilesTreeItem {
     });
     ejectButton.addEventListener('click', (event) => {
       event.stopPropagation();
-      const command =
-          /** @type {!Command} */ (document.querySelector('command#unmount'));
+      const command = /** @type {!cr.ui.Command} */ (
+          document.querySelector('command#unmount'));
       // Ensure 'canExecute' state of the command is properly setup for the
       // root before executing it.
       command.canExecuteChange(this);
@@ -820,7 +821,8 @@ export class DirectoryItem extends FilesTreeItem {
 
     // Append eject iron-icon.
     const ironIcon = document.createElement('iron-icon');
-    ironIcon.setAttribute('icon', `files20:eject`);
+    const iconSet = directorytree.rightIconSetPrefix;
+    ironIcon.setAttribute('icon', `${iconSet}:eject`);
     ejectButton.appendChild(ironIcon);
 
     // Add the eject button as the last element of the tree row content.
@@ -828,16 +830,18 @@ export class DirectoryItem extends FilesTreeItem {
     label.parentElement.appendChild(ejectButton);
 
     // Ensure the eject icon shows when the directory tree is too narrow.
-    label.setAttribute('style', 'margin-inline-end: 2px; min-width: 0;');
+    if (directorytree.FILES_NG_ENABLED) {
+      label.setAttribute('style', 'margin-inline-end: 2px; min-width: 0;');
+    }
   }
 
   /**
    * Set up the context menu for directory items.
-   * @param {!Menu} menu Menu to be set.
+   * @param {!cr.ui.Menu} menu Menu to be set.
    * @private
    */
   setContextMenu_(menu) {
-    contextMenuHandler.setContextMenu(this, menu);
+    cr.ui.contextMenuHandler.setContextMenu(this, menu);
   }
 }
 
@@ -848,17 +852,15 @@ export class DirectoryItem extends FilesTreeItem {
  * A subdirectory in the tree. Each element represents a directory that is not
  * a volume's root.
  */
-export class SubDirectoryItem extends DirectoryItem {
+class SubDirectoryItem extends DirectoryItem {
   /**
    * @param {string} label Label for this item.
    * @param {DirectoryEntry} dirEntry DirectoryEntry of this item.
    * @param {DirectoryItem|ShortcutItem|DirectoryTree} parentDirItem
    *     Parent of this item.
    * @param {DirectoryTree} tree Current tree, which contains this item.
-   * @param {boolean} disabled Whether this item is disabled. Even if the parent
-   *     is not, the subdirectory can be.
    */
-  constructor(label, dirEntry, parentDirItem, tree, disabled = false) {
+  constructor(label, dirEntry, parentDirItem, tree) {
     super(label, tree);
     this.__proto__ = SubDirectoryItem.prototype;
 
@@ -868,7 +870,6 @@ export class SubDirectoryItem extends DirectoryItem {
 
     this.dirEntry_ = dirEntry;
     this.entry = dirEntry;
-    this.disabled = disabled;
     this.delayExpansion = parentDirItem.delayExpansion;
 
     if (this.delayExpansion) {
@@ -883,12 +884,7 @@ export class SubDirectoryItem extends DirectoryItem {
     // Add volume-dependent attributes / icon.
     const location = tree.volumeManager.getLocationInfo(this.entry);
     if (location && location.rootType && location.isRootEntry) {
-      const iconOverride = this.entry.iconName;
-      if (iconOverride) {
-        icon.setAttribute('volume-type-icon', iconOverride);
-      } else {
-        icon.setAttribute('volume-type-icon', location.rootType);
-      }
+      icon.setAttribute('volume-type-icon', location.rootType);
       if (window.IN_TEST && location.volumeInfo) {
         this.setAttribute(
             'volume-type-for-testing', location.volumeInfo.volumeType);
@@ -962,7 +958,7 @@ export class SubDirectoryItem extends DirectoryItem {
 /**
  * A directory of entries. Each element represents an entry.
  */
-export class EntryListItem extends DirectoryItem {
+class EntryListItem extends DirectoryItem {
   /**
    * @param {VolumeManagerCommon.RootType} rootType The root type to record.
    * @param {!NavigationModelFakeItem} modelItem NavigationModelItem of this
@@ -980,7 +976,6 @@ export class EntryListItem extends DirectoryItem {
     this.dirEntry_ = modelItem.entry;
     this.modelItem_ = modelItem;
     this.rootType_ = rootType;
-    this.disabled = modelItem.disabled;
 
     if (rootType === VolumeManagerCommon.RootType.REMOVABLE) {
       this.setupEjectButton_(this.rowElement);
@@ -998,11 +993,7 @@ export class EntryListItem extends DirectoryItem {
 
     const icon = this.querySelector('.icon');
     icon.classList.add('item-icon');
-    if (this.entry && this.entry.iconName) {
-      icon.setAttribute('root-type-icon', this.entry.iconName);
-    } else {
-      icon.setAttribute('root-type-icon', rootType);
-    }
+    icon.setAttribute('root-type-icon', rootType);
 
     if (window.IN_TEST && this.entry && this.entry.volumeInfo) {
       this.setAttribute(
@@ -1119,12 +1110,10 @@ class VolumeItem extends DirectoryItem {
 
     this.modelItem_ = modelItem;
     this.volumeInfo_ = modelItem.volumeInfo;
-    this.disabled = modelItem.disabled;
 
-    // Network file systems should delay the expansion of child nodes for
-    // performance reasons.
-    this.delayExpansion =
-        this.volumeInfo.source === VolumeManagerCommon.Source.NETWORK;
+    // Provided volumes should delay the expansion of child nodes
+    // for performance reasons.
+    this.delayExpansion = (this.volumeInfo.volumeType === 'provided');
 
     // Set helper attribute for testing.
     if (window.IN_TEST) {
@@ -1225,27 +1214,20 @@ class VolumeItem extends DirectoryItem {
         util.iconSetToCSSBackgroundImageValue(volumeInfo.iconSet);
     if (backgroundImage !== 'none') {
       icon.setAttribute('style', 'background-image: ' + backgroundImage);
-    } else if (VolumeManagerCommon.shouldProvideIcons(
-                   assert(volumeInfo.volumeType))) {
-      icon.setAttribute('use-generic-provided-icon', '');
+    } else if (directorytree.FILES_NG_ENABLED) {
+      if (VolumeManagerCommon.shouldProvideIcons(volumeInfo.volumeType)) {
+        icon.setAttribute('use-generic-provided-icon', '');
+      }
     }
 
-    if (volumeInfo.volumeType == VolumeManagerCommon.VolumeType.GUEST_OS) {
-      icon.setAttribute(
-          'volume-type-icon', vmTypeToIconName(volumeInfo.vmType));
-    } else {
-      icon.setAttribute(
-          'volume-type-icon', /** @type {string} */ (volumeInfo.volumeType));
-    }
+    icon.setAttribute('volume-type-icon', volumeInfo.volumeType);
 
     if (volumeInfo.volumeType === VolumeManagerCommon.VolumeType.MEDIA_VIEW) {
       const subtype = VolumeManagerCommon.getMediaViewRootTypeFromVolumeId(
           volumeInfo.volumeId);
       icon.setAttribute('volume-subtype', subtype);
     } else {
-      icon.setAttribute(
-          'volume-subtype',
-          /** @type {string} */ (volumeInfo.deviceType) || '');
+      icon.setAttribute('volume-subtype', volumeInfo.deviceType || '');
     }
   }
 
@@ -1293,7 +1275,7 @@ class VolumeItem extends DirectoryItem {
  * A TreeItem which represents a Drive volume. Drive volume has fake entries
  * such as Shared Drives, Shared with me, and Offline in it.
  */
-export class DriveVolumeItem extends VolumeItem {
+class DriveVolumeItem extends VolumeItem {
   /**
    * @param {!NavigationModelVolumeItem} modelItem NavigationModelItem of this
    *     volume.
@@ -1491,7 +1473,7 @@ export class DriveVolumeItem extends VolumeItem {
    * @override
    */
   updateSubDirectories(recursive) {
-    if (!this.entry || this.hasChildren || this.disabled) {
+    if (!this.entry || this.hasChildren) {
       return;
     }
 
@@ -1576,13 +1558,8 @@ export class DriveVolumeItem extends VolumeItem {
       });
       return;
     }
-
-    // NOTE: It's possible that the DriveVolumeItem hasn't populated its
-    // children yet.
-    if (this.items[0]) {
-      // Must be under "My Drive", which is always the first item.
-      this.items[0].updateItemByEntry(changedDirectoryEntry);
-    }
+    // Must be under "My Drive", which is always the first item.
+    this.items[0].updateItemByEntry(changedDirectoryEntry);
   }
 
   /**
@@ -1622,11 +1599,11 @@ export class DriveVolumeItem extends VolumeItem {
 
   // Overrides the property 'expanded' to prevent Drive volume from shrinking.
   get expanded() {
-    return Object.getOwnPropertyDescriptor(TreeItem.prototype, 'expanded')
+    return Object.getOwnPropertyDescriptor(cr.ui.TreeItem.prototype, 'expanded')
         .get.call(this);
   }
   set expanded(b) {
-    Object.getOwnPropertyDescriptor(TreeItem.prototype, 'expanded')
+    Object.getOwnPropertyDescriptor(cr.ui.TreeItem.prototype, 'expanded')
         .set.call(this, b);
     // When Google Drive is expanded while it is selected, select the My Drive.
     if (b) {
@@ -1644,7 +1621,7 @@ export class DriveVolumeItem extends VolumeItem {
  * A TreeItem which represents a shortcut for Drive folder.
  * Shortcut items are displayed as top-level children of DirectoryTree.
  */
-export class ShortcutItem extends FilesTreeItem {
+class ShortcutItem extends TreeItem {
   /**
    * @param {!NavigationModelShortcutItem} modelItem NavigationModelItem of this
    *     volume.
@@ -1660,7 +1637,6 @@ export class ShortcutItem extends FilesTreeItem {
 
     this.dirEntry_ = modelItem.entry;
     this.modelItem_ = modelItem;
-    this.disabled = modelItem.disabled;
 
     const icon = this.querySelector('.icon');
     icon.classList.add('item-icon');
@@ -1718,11 +1694,11 @@ export class ShortcutItem extends FilesTreeItem {
 
   /**
    * Sets the context menu for shortcut items.
-   * @param {!Menu} menu Menu to be set.
+   * @param {!cr.ui.Menu} menu Menu to be set.
    * @private
    */
   setContextMenu_(menu) {
-    contextMenuHandler.setContextMenu(this, menu);
+    cr.ui.contextMenuHandler.setContextMenu(this, menu);
   }
 
   /**
@@ -1772,7 +1748,7 @@ export class ShortcutItem extends FilesTreeItem {
  * A TreeItem representing an Android picker app. These Android app items are
  * shown as top-level volume entries of the DirectoryTree.
  */
-class AndroidAppItem extends FilesTreeItem {
+class AndroidAppItem extends TreeItem {
   /**
    * @param {!NavigationModelAndroidAppItem} modelItem NavigationModelItem
    *     associated with this volume.
@@ -1787,7 +1763,6 @@ class AndroidAppItem extends FilesTreeItem {
     }
 
     this.modelItem_ = modelItem;
-    this.disabled = modelItem.disabled;
 
     const icon = this.querySelector('.icon');
     icon.classList.add('item-icon');
@@ -1800,7 +1775,9 @@ class AndroidAppItem extends FilesTreeItem {
       }
     }
 
-    icon.setAttribute('use-generic-provided-icon', '');
+    if (directorytree.FILES_NG_ENABLED && !icon.hasAttribute('style')) {
+      icon.setAttribute('use-generic-provided-icon', '');
+    }
 
     // Use aria-describedby attribute to let ChromeVox users know that the link
     // launches an external app window.
@@ -1812,7 +1789,8 @@ class AndroidAppItem extends FilesTreeItem {
 
     // Append external-link iron-icon.
     const ironIcon = document.createElement('iron-icon');
-    ironIcon.setAttribute('icon', `files20:external-link`);
+    const iconSet = directorytree.rightIconSetPrefix;
+    ironIcon.setAttribute('icon', `${iconSet}:external-link`);
     externalLinkIcon.appendChild(ironIcon);
 
     // Add the external-link as the last element of the tree row content.
@@ -1820,7 +1798,9 @@ class AndroidAppItem extends FilesTreeItem {
     label.parentElement.appendChild(externalLinkIcon);
 
     // Ensure the link icon shows when the directory tree is too narrow.
-    label.setAttribute('style', 'margin-inline-end: 2px; min-width: 0;');
+    if (directorytree.FILES_NG_ENABLED) {
+      label.setAttribute('style', 'margin-inline-end: 2px; min-width: 0;');
+    }
   }
 
   /**
@@ -1847,9 +1827,9 @@ class AndroidAppItem extends FilesTreeItem {
 // FakeItem
 
 /**
- * FakeItem is used by Recent files, Drive, Crostini and other Guest OSs.
+ * FakeItem is used by Recent and Linux files.
  */
-export class FakeItem extends FilesTreeItem {
+class FakeItem extends TreeItem {
   /**
    * @param {!VolumeManagerCommon.RootType} rootType root type.
    * @param {!NavigationModelFakeItem} modelItem
@@ -1867,15 +1847,10 @@ export class FakeItem extends FilesTreeItem {
     this.dirEntry_ = modelItem.entry;
     this.modelItem_ = modelItem;
     this.rootType_ = rootType;
-    this.disabled = modelItem.disabled;
 
     const icon = this.querySelector('.icon');
     icon.classList.add('item-icon');
-    if (this.entry && this.entry.iconName) {
-      icon.setAttribute('root-type-icon', this.entry.iconName);
-    } else {
-      icon.setAttribute('root-type-icon', rootType);
-    }
+    icon.setAttribute('root-type-icon', rootType);
 
     if (util.isRecentRootType(rootType)) {
       if (this.dirEntry_.recentFileType) {
@@ -1888,7 +1863,7 @@ export class FakeItem extends FilesTreeItem {
     }
 
     if (tree.disabledContextMenu) {
-      contextMenuHandler.setContextMenu(this, tree.disabledContextMenu);
+      cr.ui.contextMenuHandler.setContextMenu(this, tree.disabledContextMenu);
     }
   }
 
@@ -1962,7 +1937,7 @@ export class FakeItem extends FilesTreeItem {
  * Tree of directories on the middle bar. This element is also the root of
  * items, in other words, this is the parent of the top-level items.
  */
-export class DirectoryTree extends Tree {
+class DirectoryTree extends cr.ui.Tree {
   constructor() {
     super();
 
@@ -2005,7 +1980,7 @@ export class DirectoryTree extends Tree {
   decorateDirectoryTree(
       directoryModel, volumeManager, metadataModel, fileOperationManager,
       fakeEntriesVisible) {
-    Tree.prototype.decorate.call(this);
+    cr.ui.Tree.prototype.decorate.call(this);
 
     this.sequence_ = 0;
     this.directoryModel_ = directoryModel;
@@ -2019,6 +1994,10 @@ export class DirectoryTree extends Tree {
     this.directoryModel_.addEventListener(
         'directory-changed', this.onCurrentDirectoryChanged_.bind(this));
 
+    util.addEventListenerToBackgroundComponent(
+        fileOperationManager, 'entries-changed',
+        this.onEntriesChanged_.bind(this));
+
     this.addEventListener(
         'scroll', this.onTreeScrollEvent_.bind(this), {passive: true});
 
@@ -2031,9 +2010,6 @@ export class DirectoryTree extends Tree {
       }
     });
 
-    this.addEventListener(
-        'mouseover', this.onMouseOver_.bind(this), {passive: true});
-
     this.privateOnDirectoryChangedBound_ =
         this.onDirectoryContentChanged_.bind(this);
     chrome.fileManagerPrivate.onDirectoryChanged.addListener(
@@ -2045,27 +2021,6 @@ export class DirectoryTree extends Tree {
      * @private
      */
     this.fakeEntriesVisible_ = fakeEntriesVisible;
-  }
-
-  onMouseOver_(event) {
-    this.maybeShowToolTip(event);
-  }
-
-  maybeShowToolTip(event) {
-    const target = event.composedPath()[0];
-    if (!target) {
-      return;
-    }
-    if (!(target.classList.contains('tree-row') &&
-          target.parentElement?.label)) {
-      return;
-    }
-    const labelElement = target.querySelector('.label');
-    if (!labelElement) {
-      return;
-    }
-
-    maybeShowTooltip(labelElement, target.parentElement.label);
   }
 
   /**
@@ -2201,6 +2156,39 @@ export class DirectoryTree extends Tree {
         await DirectoryItemTreeBaseMethods.searchAndSelectByEntry.call(
             this, entry);
     return found;
+  }
+
+  /**
+   * Handles entries changed event.
+   * @param {!Event} event
+   * @private
+   */
+  onEntriesChanged_(event) {
+    const directories = event.entries.filter((entry) => entry.isDirectory);
+
+    if (directories.length === 0) {
+      return;
+    }
+
+    switch (event.kind) {
+      case util.EntryChangedKind.CREATED:
+        // Handle as change event of parent entry.
+        Promise
+            .all(directories.map(
+                (directory) =>
+                    new Promise(directory.getParent.bind(directory))))
+            .then((parentDirectories) => {
+              parentDirectories.forEach(
+                  (parentDirectory) =>
+                      this.updateTreeByEntry_(parentDirectory));
+            });
+        break;
+      case util.EntryChangedKind.DELETED:
+        directories.forEach((directory) => this.updateTreeByEntry_(directory));
+        break;
+      default:
+        assertNotReached();
+    }
   }
 
   /**
@@ -2425,7 +2413,7 @@ export class DirectoryTree extends Tree {
    * the splitter or from the DOM window.
    */
   relayout() {
-    dispatchSimpleEvent(this, 'relayout', true);
+    cr.dispatchSimpleEvent(this, 'relayout', true);
   }
 
   // DirectoryTree is always expanded.
@@ -2496,40 +2484,40 @@ DirectoryTree.decorate =
     (el, directoryModel, volumeManager, metadataModel, fileOperationManager,
      fakeEntriesVisible) => {
       el.__proto__ = DirectoryTree.prototype;
-      el.setAttribute('files-ng', '');
+
+      if (util.isFilesNg()) {
+        directorytree.FILES_NG_ENABLED = true;
+        directorytree.rightIconSetPrefix = 'files20';
+        directorytree.createRowElementContent =
+            directorytree.createRowElementContentFilesNG;
+        directorytree.styleRowElementDepth =
+            directorytree.styleRowElementDepthFilesNG;
+        el.setAttribute('files-ng', '');
+      } else {
+        el.removeAttribute('files-ng');
+      }
+
       Object.freeze(directorytree);
 
       /** @type {DirectoryTree} */ (el).decorateDirectoryTree(
           directoryModel, volumeManager, metadataModel, fileOperationManager,
           fakeEntriesVisible);
 
-      el.rowElementDepthStyleHandler = directorytree.styleRowElementDepth;
+      if (directorytree.FILES_NG_ENABLED) {
+        el.rowElementDepthStyleHandler = directorytree.styleRowElementDepth;
+      }
     };
 
-/** @type {?Menu} */
-DirectoryTree.prototype.contextMenuForSubitems;
-Object.defineProperty(
-    DirectoryTree.prototype, 'contextMenuForSubitems',
-    getPropertyDescriptor('contextMenuForSubitems', PropertyKind.JS));
-
-/** @type {?Menu} */
-DirectoryTree.prototype.contextMenuForRootItems;
-Object.defineProperty(
-    DirectoryTree.prototype, 'contextMenuForRootItems',
-    getPropertyDescriptor('contextMenuForRootItems', PropertyKind.JS));
-
-/** @type {?Menu} */
-DirectoryTree.prototype.disabledContextMenu;
-Object.defineProperty(
-    DirectoryTree.prototype, 'disabledContextMenu',
-    getPropertyDescriptor('disabledContextMenu', PropertyKind.JS));
+cr.defineProperty(DirectoryTree, 'contextMenuForSubitems', cr.PropertyKind.JS);
+cr.defineProperty(DirectoryTree, 'contextMenuForRootItems', cr.PropertyKind.JS);
+cr.defineProperty(DirectoryTree, 'disabledContextMenu', cr.PropertyKind.JS);
 
 /**
  * Creates a new DirectoryItem based on |modelItem|.
  * @param {NavigationModelItem} modelItem, model that will determine the type of
  *     DirectoryItem to be created.
  * @param {!DirectoryTree} tree The tree to add the new DirectoryItem to.
- * @return {!TreeItem} a newly created instance of a
+ * @return {!cr.ui.TreeItem} a newly created instance of a
  *     DirectoryItem type.
  */
 DirectoryTree.createDirectoryItem = (modelItem, tree) => {
@@ -2558,11 +2546,6 @@ DirectoryTree.createDirectoryItem = (modelItem, tree) => {
           VolumeManagerCommon.RootType.CROSTINI,
           /** @type {!NavigationModelFakeItem} */ (modelItem), tree);
       break;
-    case NavigationModelItemType.GUEST_OS:
-      return new FakeItem(
-          VolumeManagerCommon.RootType.GUEST_OS,
-          /** @type {!NavigationModelFakeItem} */ (modelItem), tree);
-      break;
     case NavigationModelItemType.DRIVE:
       return new FakeItem(
           VolumeManagerCommon.RootType.DRIVE,
@@ -2579,11 +2562,6 @@ DirectoryTree.createDirectoryItem = (modelItem, tree) => {
     case NavigationModelItemType.ANDROID_APP:
       return new AndroidAppItem(
           /** @type {!NavigationModelAndroidAppItem} */ (modelItem), tree);
-      break;
-    case NavigationModelItemType.TRASH:
-      return new EntryListItem(
-          VolumeManagerCommon.RootType.TRASH,
-          /** @type {!NavigationModelFakeItem} */ (modelItem), tree);
       break;
   }
   assertNotReached(`No DirectoryItem model: "${modelItem.type}"`);

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -58,7 +58,7 @@ JNI_EXPORT void JNI_PrefetchTestBridge_InsertIntoCachedImageFetcher(
   base::android::JavaByteArrayToString(env, j_image_data, &image_data);
 
   cache->SaveImage(url, image_data, false /* needs_transcoding */,
-                   absl::nullopt /* expiration_interval */);
+                   base::nullopt /* expiration_interval */);
 }
 
 JNI_EXPORT void JNI_PrefetchTestBridge_AddCandidatePrefetchURL(
@@ -70,7 +70,7 @@ JNI_EXPORT void JNI_PrefetchTestBridge_AddCandidatePrefetchURL(
     const JavaParamRef<jstring>& j_snippet,
     const JavaParamRef<jstring>& j_attribution) {
   GURL url = GURL(base::android::ConvertJavaStringToUTF8(env, j_url));
-  std::u16string title = base::android::ConvertJavaStringToUTF16(env, j_title);
+  base::string16 title = base::android::ConvertJavaStringToUTF16(env, j_title);
   std::string thumbnail_url =
       base::android::ConvertJavaStringToUTF8(env, j_thumbnail_url);
   std::string favicon_url =

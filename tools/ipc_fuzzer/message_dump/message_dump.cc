@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 #include "ipc/ipc_channel_proxy.h"
 #include "tools/ipc_fuzzer/message_lib/message_file.h"
 
-#if BUILDFLAG(IS_WIN)
-#define PidToStringType base::NumberToWString
+#if defined(OS_WIN)
+#define PidToStringType base::NumberToString16
 #define MESSAGE_DUMP_EXPORT __declspec(dllexport)
 #else
 #define PidToStringType base::NumberToString

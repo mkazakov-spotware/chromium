@@ -1,9 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/device/serial/serial_io_handler_posix.h"
 
+#include "base/macros.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace device {
@@ -11,9 +12,6 @@ namespace device {
 class SerialIoHandlerPosixTest : public testing::Test {
  public:
   SerialIoHandlerPosixTest() = default;
-
-  SerialIoHandlerPosixTest(const SerialIoHandlerPosixTest&) = delete;
-  SerialIoHandlerPosixTest& operator=(const SerialIoHandlerPosixTest&) = delete;
 
   void SetUp() override {
     serial_io_handler_posix_ =
@@ -44,8 +42,7 @@ class SerialIoHandlerPosixTest : public testing::Test {
     bool break_detected = false;
     bool parity_error_detected = false;
     int new_bytes_read = serial_io_handler_posix_->CheckReceiveError(
-        base::make_span(reinterpret_cast<uint8_t*>(buffer), buffer_len),
-        bytes_read, break_detected, parity_error_detected);
+        buffer, buffer_len, bytes_read, break_detected, parity_error_detected);
 
     EXPECT_EQ(error_detect_state_expected,
               serial_io_handler_posix_->error_detect_state_);
@@ -53,7 +50,7 @@ class SerialIoHandlerPosixTest : public testing::Test {
               serial_io_handler_posix_->num_chars_stashed_);
     for (int i = 0; i < num_chars_stashed_expected; ++i) {
       EXPECT_EQ(chars_stashed_expected[i],
-                static_cast<char>(serial_io_handler_posix_->chars_stashed_[i]));
+                serial_io_handler_posix_->chars_stashed_[i]);
     }
     EXPECT_EQ(new_bytes_read_expected, new_bytes_read);
     for (int i = 0; i < new_bytes_read_expected; ++i) {
@@ -65,6 +62,9 @@ class SerialIoHandlerPosixTest : public testing::Test {
 
  protected:
   scoped_refptr<SerialIoHandlerPosix> serial_io_handler_posix_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SerialIoHandlerPosixTest);
 };
 
 // 'a' 'b' 'c'

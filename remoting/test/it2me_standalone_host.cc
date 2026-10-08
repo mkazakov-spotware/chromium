@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,16 +6,14 @@
 
 #include <functional>
 #include <iostream>
-#include <memory>
 #include <vector>
 
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
-#include "build/build_config.h"
 #include "remoting/base/auto_thread_task_runner.h"
 #include "remoting/host/chromoting_host_context.h"
 #include "remoting/host/host_extension.h"
@@ -41,9 +39,9 @@ using ::remoting::protocol::MockSession;
 It2MeStandaloneHost::It2MeStandaloneHost()
     : task_environment_(
           base::test::SingleThreadTaskEnvironment::MainThreadType::UI),
-      context_(ChromotingHostContext::Create(new AutoThreadTaskRunner(
-          base::SingleThreadTaskRunner::GetCurrentDefault(),
-          run_loop_.QuitClosure()))),
+      context_(ChromotingHostContext::Create(
+          new AutoThreadTaskRunner(base::ThreadTaskRunnerHandle::Get(),
+                                   run_loop_.QuitClosure()))),
       main_task_runner_(context_->file_task_runner()),
       factory_(main_task_runner_,
                context_->video_capture_task_runner(),
@@ -51,7 +49,7 @@ It2MeStandaloneHost::It2MeStandaloneHost()
                context_->ui_task_runner()),
       connection_(base::WrapUnique(new testing::NiceMock<MockSession>())),
       session_jid_(kSessionJid),
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
       // We cannot support audio capturing for linux, since a pipe name is
       // needed to initialize AudioCapturerLinux.
       config_(protocol::SessionConfig::ForTest()),
@@ -80,7 +78,7 @@ void It2MeStandaloneHost::Run() {
 }
 
 void It2MeStandaloneHost::StartOutputTimer() {
-  timer_.Start(FROM_HERE, base::Seconds(1),
+  timer_.Start(FROM_HERE, base::TimeDelta::FromSeconds(1),
                base::BindRepeating(&OutputFakeConnectionEventLogger,
                                    std::cref(event_logger_)));
 }
@@ -89,11 +87,11 @@ void It2MeStandaloneHost::Connect() {
   DesktopEnvironmentOptions options =
       DesktopEnvironmentOptions::CreateDefault();
   options.set_enable_user_interface(false);
-  session_ = std::make_unique<ClientSession>(
+  session_.reset(new ClientSession(
       &handler_, std::unique_ptr<protocol::ConnectionToClient>(&connection_),
       &factory_, options, base::TimeDelta(),
       scoped_refptr<protocol::PairingRegistry>(),
-      std::vector<HostExtension*>());
+      std::vector<HostExtension*>()));
   session_->OnConnectionAuthenticated();
   session_->OnConnectionChannelsConnected();
   session_->CreateMediaStreams();

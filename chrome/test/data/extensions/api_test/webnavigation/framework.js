@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,7 @@ var expectedEventOrder;
 var capturedEventData;
 var nextFrameId;
 var frameIds;
-var documentIds;
 var nextTabId;
-var nextDocumentId;
 var tabIds;
 var nextProcessId;
 var processIds;
@@ -61,8 +59,6 @@ function expect(data, order) {
   capturedEventData = [];
   expectedEventOrder = order;
   nextFrameId = 1;
-  nextDocumentId = 1;
-  documentIds = {};
   frameIds = {};
   nextTabId = 0;
   tabIds = {};
@@ -119,21 +115,6 @@ function captureEvent(name, details) {
   // normalize details.
   if ('timeStamp' in details) {
     details.timeStamp = 0;
-  }
-  // Since the parentDocumentId & documentId is a unique random identifier it
-  // is not useful to tests. Normalize it so that test cases can assert
-  // against a fixed number.
-  if ('parentDocumentId' in details) {
-    if (documentIds[details.parentDocumentId] === undefined) {
-      documentIds[details.parentDocumentId] = nextDocumentId++;
-    }
-    details.parentDocumentId = documentIds[details.parentDocumentId];
-  }
-  if ('documentId' in details) {
-    if (documentIds[details.documentId] === undefined) {
-      documentIds[details.documentId] = nextDocumentId++;
-    }
-    details.documentId = documentIds[details.documentId];
   }
   if (('frameId' in details) && (details.frameId != 0)) {
     if (frameIds[details.frameId] === undefined) {

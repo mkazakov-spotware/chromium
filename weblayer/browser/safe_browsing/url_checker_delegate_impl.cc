@@ -1,41 +1,38 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/browser/safe_browsing/url_checker_delegate_impl.h"
 
 #include "base/bind.h"
-#include "components/no_state_prefetch/browser/no_state_prefetch_manager.h"
-#include "components/safe_browsing/content/browser/ui_manager.h"
-#include "components/safe_browsing/core/browser/db/database_manager.h"
-#include "components/security_interstitials/content/unsafe_resource_util.h"
+#include "components/no_state_prefetch/browser/prerender_manager.h"
+#include "components/safe_browsing/core/db/database_manager.h"
 #include "components/security_interstitials/core/unsafe_resource.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
-#include "weblayer/browser/no_state_prefetch/no_state_prefetch_manager_factory.h"
-#include "weblayer/browser/no_state_prefetch/no_state_prefetch_utils.h"
+#include "weblayer/browser/no_state_prefetch/prerender_manager_factory.h"
+#include "weblayer/browser/no_state_prefetch/prerender_utils.h"
+#include "weblayer/browser/safe_browsing/safe_browsing_ui_manager.h"
 
 namespace weblayer {
 
 namespace {
 
-// Destroys the NoStatePrefetch contents associated with the web_contents, if
-// any.
-void DestroyNoStatePrefetchContents(
+// Destroys the prerender contents associated with the web_contents, if any.
+void DestroyPrerenderContents(
     content::WebContents::OnceGetter web_contents_getter) {
   content::WebContents* web_contents = std::move(web_contents_getter).Run();
 
-  auto* no_state_prefetch_contents =
-      NoStatePrefetchContentsFromWebContents(web_contents);
-  if (no_state_prefetch_contents)
-    no_state_prefetch_contents->Destroy(prerender::FINAL_STATUS_SAFE_BROWSING);
+  auto* prerender_contents = PrerenderContentsFromWebContents(web_contents);
+  if (prerender_contents)
+    prerender_contents->Destroy(prerender::FINAL_STATUS_SAFE_BROWSING);
 }
 
 }  // namespace
 
 UrlCheckerDelegateImpl::UrlCheckerDelegateImpl(
     scoped_refptr<safe_browsing::SafeBrowsingDatabaseManager> database_manager,
-    scoped_refptr<safe_browsing::SafeBrowsingUIManager> ui_manager)
+    scoped_refptr<SafeBrowsingUIManager> ui_manager)
     : database_manager_(std::move(database_manager)),
       ui_manager_(std::move(ui_manager)),
       threat_types_(safe_browsing::CreateSBThreatTypeSet(
@@ -46,11 +43,11 @@ UrlCheckerDelegateImpl::UrlCheckerDelegateImpl(
 
 UrlCheckerDelegateImpl::~UrlCheckerDelegateImpl() = default;
 
-void UrlCheckerDelegateImpl::MaybeDestroyNoStatePrefetchContents(
+void UrlCheckerDelegateImpl::MaybeDestroyPrerenderContents(
     content::WebContents::OnceGetter web_contents_getter) {
-  // Destroy the prefetch with FINAL_STATUS_SAFE_BROWSING.
+  // Destroy the prefetch with FINAL_STATUS_SAFEBROSWING.
   content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE, base::BindOnce(&DestroyNoStatePrefetchContents,
+      FROM_HERE, base::BindOnce(&DestroyPrerenderContents,
                                 std::move(web_contents_getter)));
 }
 
@@ -76,8 +73,7 @@ void UrlCheckerDelegateImpl::
 
 void UrlCheckerDelegateImpl::StartDisplayingDefaultBlockingPage(
     const security_interstitials::UnsafeResource& resource) {
-  content::WebContents* web_contents =
-      security_interstitials::GetWebContentsForResource(resource);
+  content::WebContents* web_contents = resource.web_contents_getter.Run();
   if (web_contents) {
     GetUIManager()->DisplayBlockingPage(resource);
     return;
@@ -92,12 +88,6 @@ void UrlCheckerDelegateImpl::StartDisplayingDefaultBlockingPage(
 bool UrlCheckerDelegateImpl::IsUrlAllowlisted(const GURL& url) {
   // TODO(timvolodine): false for now, we may want allowlisting support later.
   return false;
-}
-
-void UrlCheckerDelegateImpl::SetPolicyAllowlistDomains(
-    const std::vector<std::string>& allowlist_domains) {
-  // The SafeBrowsingAllowlistDomains policy is not supported on WebLayer.
-  return;
 }
 
 bool UrlCheckerDelegateImpl::ShouldSkipRequestCheck(

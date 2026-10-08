@@ -1,16 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_XR_XR_BOUNDED_REFERENCE_SPACE_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_XR_XR_BOUNDED_REFERENCE_SPACE_H_
 
-#include <memory>
-
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "third_party/blink/renderer/core/geometry/dom_point_read_only.h"
 #include "third_party/blink/renderer/modules/xr/xr_reference_space.h"
-#include "ui/gfx/geometry/transform.h"
+#include "third_party/blink/renderer/platform/transforms/transformation_matrix.h"
 
 namespace blink {
 
@@ -22,7 +20,7 @@ class XRBoundedReferenceSpace final : public XRReferenceSpace {
   XRBoundedReferenceSpace(XRSession*, XRRigidTransform*);
   ~XRBoundedReferenceSpace() override;
 
-  absl::optional<gfx::Transform> MojoFromNative() const override;
+  base::Optional<TransformationMatrix> MojoFromNative() override;
 
   HeapVector<Member<DOMPointReadOnly>> boundsGeometry();
 
@@ -32,13 +30,13 @@ class XRBoundedReferenceSpace final : public XRReferenceSpace {
 
  private:
   XRBoundedReferenceSpace* cloneWithOriginOffset(
-      XRRigidTransform* origin_offset) const override;
+      XRRigidTransform* origin_offset) override;
 
-  void EnsureUpdated() const;
+  void EnsureUpdated();
 
-  mutable HeapVector<Member<DOMPointReadOnly>> offset_bounds_geometry_;
-  mutable std::unique_ptr<gfx::Transform> mojo_from_bounded_native_;
-  mutable uint32_t stage_parameters_id_ = 0;
+  HeapVector<Member<DOMPointReadOnly>> offset_bounds_geometry_;
+  std::unique_ptr<TransformationMatrix> mojo_from_bounded_native_;
+  uint32_t stage_parameters_id_ = 0;
 };
 
 }  // namespace blink

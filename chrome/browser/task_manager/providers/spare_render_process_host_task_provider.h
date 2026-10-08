@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,8 +41,10 @@ class SpareRenderProcessHostTaskProvider : public TaskProvider {
   // no current spare render process host.
   std::unique_ptr<ChildProcessTask> task_;
 
-  // The subscription for the notifications of the spare host changing.
-  base::CallbackListSubscription subscription_;
+  // The subscription to the notifications of the spare host changing.
+  std::unique_ptr<
+      base::CallbackList<void(content::RenderProcessHost*)>::Subscription>
+      subscription_;
 };
 
 }  // namespace task_manager

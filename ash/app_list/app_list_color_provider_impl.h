@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,61 +9,47 @@
 
 namespace ash {
 
+class AshColorProvider;
+
 class AppListColorProviderImpl : public AppListColorProvider {
  public:
   AppListColorProviderImpl();
   ~AppListColorProviderImpl() override;
   // AppListColorProvider:
-  SkColor GetSearchBoxBackgroundColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetSearchBoxSecondaryTextColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetSearchBoxSuggestionTextColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetSearchBoxTextColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetAppListItemTextColor(
-      const views::Widget* app_list_widget) const override;
+  SkColor GetExpandArrowInkDropBaseColor() const override;
+  SkColor GetExpandArrowIconBaseColor() const override;
+  SkColor GetExpandArrowIconBackgroundColor() const override;
+  SkColor GetAppListBackgroundColor() const override;
+  SkColor GetSearchBoxBackgroundColor() const override;
+  SkColor GetSearchBoxSecondaryTextColor(SkColor default_color) const override;
+  SkColor GetSearchBoxPlaceholderTextColor() const override;
+  SkColor GetSearchBoxTextColor(SkColor default_color) const override;
+  SkColor GetSuggestionChipBackgroundColor() const override;
+  SkColor GetSuggestionChipTextColor() const override;
+  SkColor GetAppListItemTextColor() const override;
   SkColor GetPageSwitcherButtonColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetSearchBoxIconColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetSearchBoxCardBackgroundColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetFolderBackgroundColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetFolderTitleTextColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetFolderHintTextColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetFolderNameBorderColor(
-      bool active,
-      const views::Widget* app_list_widget) const override;
-  SkColor GetFolderNameSelectionColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetFolderNotificationBadgeColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetContentsBackgroundColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetGridBackgroundCardActiveColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetGridBackgroundCardInactiveColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetFocusRingColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetInkDropBaseColor(
-      const views::Widget* app_list_widget,
-      SkColor bg_color = gfx::kPlaceholderColor) const override;
-  float GetInkDropOpacity(
-      const views::Widget* app_list_widget,
-      SkColor bg_color = gfx::kPlaceholderColor) const override;
-  SkColor GetSearchResultViewHighlightColor(
-      const views::Widget* app_list_widget) const override;
-  SkColor GetTextColorURL(const views::Widget* app_list_widget) const override;
+      bool is_root_app_grid_page_switcher) const override;
+  SkColor GetPageSwitcherInkDropBaseColor(
+      bool is_root_app_grid_page_switcher) const override;
+  SkColor GetPageSwitcherInkDropHighlightColor(
+      bool is_root_app_grid_page_switcher) const override;
+  SkColor GetSearchBoxIconColor(SkColor default_color) const override;
+  SkColor GetSearchBoxCardBackgroundColor() const override;
+  SkColor GetFolderBackgroundColor(SkColor default_color) const override;
+  SkColor GetFolderTitleTextColor(SkColor default_color) const override;
+  SkColor GetFolderHintTextColor() const override;
+  SkColor GetFolderNameBackgroundColor(bool active) const override;
+  SkColor GetFolderNameBorderColor(bool active) const override;
+  SkColor GetFolderNameSelectionColor() const override;
+  SkColor GetContentsBackgroundColor() const override;
+  SkColor GetSeparatorColor() const override;
+  SkColor GetSearchResultViewHighlightColor() const override;
+  SkColor GetSearchResultViewInkDropColor() const override;
+  float GetFolderBackgrounBlurSigma() const override;
 
  private:
-  // Whether feature BackgroundBlur is enabled. Cached for efficiency.
-  const bool is_background_blur_enabled_;
+  // Unowned.
+  AshColorProvider* const ash_color_provider_;
 };
 
 }  // namespace ash

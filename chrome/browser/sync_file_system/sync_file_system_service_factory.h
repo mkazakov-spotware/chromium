@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 
 #include "base/memory/singleton.h"
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 class Profile;
 
@@ -18,7 +18,7 @@ class LocalFileSyncService;
 class RemoteFileSyncService;
 class SyncFileSystemService;
 
-class SyncFileSystemServiceFactory : public ProfileKeyedServiceFactory {
+class SyncFileSystemServiceFactory : public BrowserContextKeyedServiceFactory {
  public:
   static SyncFileSystemService* GetForProfile(Profile* profile);
   static SyncFileSystemServiceFactory* GetInstance();

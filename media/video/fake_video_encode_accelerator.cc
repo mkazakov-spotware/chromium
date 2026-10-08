@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,25 +7,16 @@
 #include "base/bind.h"
 #include "base/check.h"
 #include "base/location.h"
-#include "base/logging.h"
-#include "base/task/sequenced_task_runner.h"
-#include "media/base/media_log.h"
-#include "media/base/video_frame.h"
+#include "base/single_thread_task_runner.h"
 
 namespace media {
 
 static const unsigned int kMinimumInputCount = 1;
 
-FakeVideoEncodeAccelerator::FrameToEncode::FrameToEncode() = default;
-FakeVideoEncodeAccelerator::FrameToEncode::FrameToEncode(
-    const FakeVideoEncodeAccelerator::FrameToEncode&) = default;
-FakeVideoEncodeAccelerator::FrameToEncode::~FrameToEncode() = default;
-
 FakeVideoEncodeAccelerator::FakeVideoEncodeAccelerator(
-    const scoped_refptr<base::SequencedTaskRunner>& task_runner)
+    const scoped_refptr<base::SingleThreadTaskRunner>& task_runner)
     : task_runner_(task_runner),
       will_initialization_succeed_(true),
-      will_encoding_succeed_(true),
       client_(nullptr),
       next_frame_is_first_frame_(true) {}
 
@@ -40,7 +31,6 @@ FakeVideoEncodeAccelerator::GetSupportedProfiles() {
   profile.max_resolution.SetSize(1920, 1088);
   profile.max_framerate_numerator = 30;
   profile.max_framerate_denominator = 1;
-  profile.rate_control_modes = media::VideoEncodeAccelerator::kConstantMode;
 
   profile.profile = media::H264PROFILE_MAIN;
   profiles.push_back(profile);
@@ -49,10 +39,8 @@ FakeVideoEncodeAccelerator::GetSupportedProfiles() {
   return profiles;
 }
 
-bool FakeVideoEncodeAccelerator::Initialize(
-    const Config& config,
-    Client* client,
-    std::unique_ptr<MediaLog> media_log) {
+bool FakeVideoEncodeAccelerator::Initialize(const Config& config,
+                                            Client* client) {
   if (!will_initialization_succeed_) {
     return false;
   }
@@ -72,10 +60,7 @@ bool FakeVideoEncodeAccelerator::Initialize(
 void FakeVideoEncodeAccelerator::Encode(scoped_refptr<VideoFrame> frame,
                                         bool force_keyframe) {
   DCHECK(client_);
-  FrameToEncode encode;
-  encode.frame = frame;
-  encode.force_keyframe = force_keyframe;
-  queued_frames_.push(encode);
+  queued_frames_.push(force_keyframe);
   EncodeTask();
 }
 
@@ -86,13 +71,9 @@ void FakeVideoEncodeAccelerator::UseOutputBitstreamBuffer(
 }
 
 void FakeVideoEncodeAccelerator::RequestEncodingParametersChange(
-    const Bitrate& bitrate,
+    uint32_t bitrate,
     uint32_t framerate) {
-  // Reject bitrate mode changes.
-  if (stored_bitrates_.empty() ||
-      stored_bitrates_.back().mode() == bitrate.mode()) {
-    stored_bitrates_.push_back(bitrate);
-  }
+  stored_bitrates_.push_back(bitrate);
 }
 
 void FakeVideoEncodeAccelerator::RequestEncodingParametersChange(
@@ -101,8 +82,13 @@ void FakeVideoEncodeAccelerator::RequestEncodingParametersChange(
   stored_bitrate_allocations_.push_back(bitrate);
 }
 
-void FakeVideoEncodeAccelerator::Destroy() {
-  delete this;
+void FakeVideoEncodeAccelerator::Destroy() { delete this; }
+
+void FakeVideoEncodeAccelerator::SendDummyFrameForTesting(bool key_frame) {
+  task_runner_->PostTask(
+      FROM_HERE,
+      base::BindOnce(&FakeVideoEncodeAccelerator::DoBitstreamBufferReady,
+                     weak_this_factory_.GetWeakPtr(), 0, 23, key_frame));
 }
 
 void FakeVideoEncodeAccelerator::SetWillInitializationSucceed(
@@ -110,60 +96,38 @@ void FakeVideoEncodeAccelerator::SetWillInitializationSucceed(
   will_initialization_succeed_ = will_initialization_succeed;
 }
 
-void FakeVideoEncodeAccelerator::SetWillEncodingSucceed(
-    bool will_encoding_succeed) {
-  will_encoding_succeed_ = will_encoding_succeed;
-}
-
 void FakeVideoEncodeAccelerator::DoRequireBitstreamBuffers(
     unsigned int input_count,
     const gfx::Size& input_coded_size,
     size_t output_buffer_size) const {
-  client_->RequireBitstreamBuffers(input_count, input_coded_size,
-                                   output_buffer_size);
+  client_->RequireBitstreamBuffers(
+      input_count, input_coded_size, output_buffer_size);
 }
 
 void FakeVideoEncodeAccelerator::EncodeTask() {
   while (!queued_frames_.empty() && !available_buffers_.empty()) {
-    FrameToEncode frame_to_encode = queued_frames_.front();
-    BitstreamBuffer buffer = std::move(available_buffers_.front());
-    available_buffers_.pop_front();
+    bool force_key_frame = queued_frames_.front();
     queued_frames_.pop();
-
-    if (next_frame_is_first_frame_) {
-      frame_to_encode.force_keyframe = true;
-      next_frame_is_first_frame_ = false;
-    }
-
+    int32_t bitstream_buffer_id = available_buffers_.front().id();
+    available_buffers_.pop_front();
+    bool key_frame = next_frame_is_first_frame_ || force_key_frame;
+    next_frame_is_first_frame_ = false;
     task_runner_->PostTask(
         FROM_HERE,
         base::BindOnce(&FakeVideoEncodeAccelerator::DoBitstreamBufferReady,
-                       weak_this_factory_.GetWeakPtr(), std::move(buffer),
-                       frame_to_encode));
+                       weak_this_factory_.GetWeakPtr(), bitstream_buffer_id,
+                       kMinimumOutputBufferSize, key_frame));
   }
 }
 
 void FakeVideoEncodeAccelerator::DoBitstreamBufferReady(
-    BitstreamBuffer buffer,
-    FrameToEncode frame_to_encode) const {
-  if (!will_encoding_succeed_) {
-    client_->NotifyError(VideoEncodeAccelerator::kPlatformFailureError);
-    return;
-  }
-
-  BitstreamBufferMetadata metadata(kMinimumOutputBufferSize,
-                                   frame_to_encode.force_keyframe,
-                                   frame_to_encode.frame->timestamp());
-
-  if (!encoding_callback_.is_null())
-    metadata = encoding_callback_.Run(buffer, frame_to_encode.force_keyframe,
-                                      frame_to_encode.frame);
-
-  client_->BitstreamBufferReady(buffer.id(), metadata);
-}
-
-bool FakeVideoEncodeAccelerator::IsGpuFrameResizeSupported() {
-  return resize_supported_;
+    int32_t bitstream_buffer_id,
+    size_t payload_size,
+    bool key_frame) const {
+  client_->BitstreamBufferReady(
+      bitstream_buffer_id,
+      BitstreamBufferMetadata(payload_size, key_frame,
+                              base::Time::Now().since_origin()));
 }
 
 }  // namespace media

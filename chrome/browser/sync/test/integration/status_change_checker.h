@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,13 +10,6 @@
 #include "base/run_loop.h"
 #include "base/time/time.h"
 
-namespace switches {
-
-inline constexpr char kStatusChangeCheckerTimeoutInSeconds[] =
-    "sync-status-change-checker-timeout";
-
-}  // namespace switches
-
 // Interface for a helper class that can pump the message loop while waiting
 // for a certain state transition to take place.
 //
@@ -25,9 +18,6 @@ inline constexpr char kStatusChangeCheckerTimeoutInSeconds[] =
 //
 // The instances of this class are intended to be single-use.  It doesn't make
 // sense to call StartBlockingWait() more than once.
-//
-// |switches::kStatusChangeCheckerTimeoutInSeconds| can be passed to the command
-// line to override the timeout used by instances of this class.
 class StatusChangeChecker {
  public:
   StatusChangeChecker();

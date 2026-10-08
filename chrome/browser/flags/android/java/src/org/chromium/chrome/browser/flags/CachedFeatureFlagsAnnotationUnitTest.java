@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,12 +27,12 @@ public class CachedFeatureFlagsAnnotationUnitTest {
 
     @Test
     public void testDefaultFeatureValue() {
-        Assert.assertTrue(ChromeFeatureList.sTestDefaultEnabled.isEnabled());
+        Assert.assertTrue(CachedFeatureFlags.isEnabled(ChromeFeatureList.TEST_DEFAULT_ENABLED));
     }
 
     @Test
     public void testFeatureAnnotationOnTestSuiteClass() {
-        Assert.assertTrue(ChromeFeatureList.sTestDefaultDisabled.isEnabled());
+        Assert.assertTrue(CachedFeatureFlags.isEnabled(ChromeFeatureList.TEST_DEFAULT_DISABLED));
     }
 
     @Test
@@ -41,7 +41,7 @@ public class CachedFeatureFlagsAnnotationUnitTest {
             ChromeFeatureList.TEST_DEFAULT_ENABLED})
     public void testFeatureAnnotationOnMethod() {
         // clang-format on
-        Assert.assertFalse(ChromeFeatureList.sTestDefaultDisabled.isEnabled());
-        Assert.assertFalse(ChromeFeatureList.sTestDefaultEnabled.isEnabled());
+        Assert.assertFalse(CachedFeatureFlags.isEnabled(ChromeFeatureList.TEST_DEFAULT_DISABLED));
+        Assert.assertFalse(CachedFeatureFlags.isEnabled(ChromeFeatureList.TEST_DEFAULT_ENABLED));
     }
 }

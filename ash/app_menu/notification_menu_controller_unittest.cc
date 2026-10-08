@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "ash/app_menu/app_menu_model_adapter.h"
 #include "ash/test/ash_test_base.h"
-#include "base/callback.h"
 #include "base/strings/utf_string_conversions.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/models/simple_menu_model.h"
@@ -25,8 +24,9 @@ void BuildAndSendNotification(const std::string& app_id,
   std::unique_ptr<message_center::Notification> notification =
       std::make_unique<message_center::Notification>(
           message_center::NOTIFICATION_TYPE_SIMPLE, notification_id,
-          u"Test Web Notification", u"Notification message body.",
-          ui::ImageModel(), u"www.test.org", GURL(), notifier_id,
+          base::ASCIIToUTF16("Test Web Notification"),
+          base::ASCIIToUTF16("Notification message body."), gfx::Image(),
+          base::ASCIIToUTF16("www.test.org"), GURL(), notifier_id,
           message_center::RichNotificationData(), nullptr /* delegate */);
   message_center::MessageCenter::Get()->AddNotification(
       std::move(notification));
@@ -43,12 +43,11 @@ class TestAppMenuModelAdapter : public AppMenuModelAdapter {
                             base::OnceClosure(),
                             false /* is_tablet_mode */) {}
 
-  TestAppMenuModelAdapter(const TestAppMenuModelAdapter&) = delete;
-  TestAppMenuModelAdapter& operator=(const TestAppMenuModelAdapter&) = delete;
-
  private:
   // AppMenuModelAdapter overrides:
   void RecordHistogramOnMenuClosed() override {}
+
+  DISALLOW_COPY_AND_ASSIGN(TestAppMenuModelAdapter);
 };
 
 }  // namespace
@@ -56,12 +55,6 @@ class TestAppMenuModelAdapter : public AppMenuModelAdapter {
 class NotificationMenuControllerTest : public AshTestBase {
  public:
   NotificationMenuControllerTest() = default;
-
-  NotificationMenuControllerTest(const NotificationMenuControllerTest&) =
-      delete;
-  NotificationMenuControllerTest& operator=(
-      const NotificationMenuControllerTest&) = delete;
-
   ~NotificationMenuControllerTest() override {}
 
   // Overridden from AshTestBase:
@@ -78,8 +71,10 @@ class NotificationMenuControllerTest : public AshTestBase {
         kTestAppId,
         std::make_unique<ui::SimpleMenuModel>(
             nullptr /*ui::SimpleMenuModel::Delegate not required*/));
-    test_app_menu_model_adapter_->model()->AddItem(0, u"item 0");
-    test_app_menu_model_adapter_->model()->AddItem(1, u"item 1");
+    test_app_menu_model_adapter_->model()->AddItem(
+        0, base::ASCIIToUTF16("item 0"));
+    test_app_menu_model_adapter_->model()->AddItem(
+        1, base::ASCIIToUTF16("item 1"));
 
     root_menu_item_view_ =
         new views::MenuItemView(test_app_menu_model_adapter_.get());
@@ -102,6 +97,8 @@ class NotificationMenuControllerTest : public AshTestBase {
   std::unique_ptr<views::View> host_view_;
   std::unique_ptr<NotificationMenuController> notification_menu_controller_;
   std::unique_ptr<TestAppMenuModelAdapter> test_app_menu_model_adapter_;
+
+  DISALLOW_COPY_AND_ASSIGN(NotificationMenuControllerTest);
 };
 
 // Tests that NotificationMenuController does not add the

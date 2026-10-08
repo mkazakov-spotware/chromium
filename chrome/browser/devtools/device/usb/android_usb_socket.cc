@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,20 +23,20 @@ const int kMaxPayload = 4096;
 AndroidUsbSocket::AndroidUsbSocket(scoped_refptr<AndroidUsbDevice> device,
                                    uint32_t socket_id,
                                    const std::string& command,
-                                   base::OnceClosure delete_callback)
+                                   base::Closure delete_callback)
     : device_(device),
       command_(command),
       local_id_(socket_id),
       remote_id_(0),
       is_connected_(false),
-      delete_callback_(std::move(delete_callback)) {}
+      delete_callback_(delete_callback) {}
 
 AndroidUsbSocket::~AndroidUsbSocket() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (is_connected_)
     Disconnect();
   if (!delete_callback_.is_null())
-    std::move(delete_callback_).Run();
+    delete_callback_.Run();
 }
 
 void AndroidUsbSocket::HandleIncoming(std::unique_ptr<AdbMessage> message) {
@@ -224,6 +224,11 @@ net::NextProto AndroidUsbSocket::GetNegotiatedProtocol() const {
 
 bool AndroidUsbSocket::GetSSLInfo(net::SSLInfo* ssl_info) {
   return false;
+}
+
+void AndroidUsbSocket::GetConnectionAttempts(
+    net::ConnectionAttempts* out) const {
+  out->clear();
 }
 
 int64_t AndroidUsbSocket::GetTotalReceivedBytes() const {

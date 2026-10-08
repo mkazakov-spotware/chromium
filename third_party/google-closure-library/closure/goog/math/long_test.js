@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2009 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.math.LongTest');
 goog.setTestOnly();
@@ -1317,7 +1325,7 @@ function createTestComparisons(i) {
 // is necessary because, in some testing configurations, the full combined test
 // can take so long that it times out. These smaller tests run much faster.
 for (let i = 0; i < TEST_BITS.length; i += 2) {
-  globalThis[`testComparisons${i}`] = createTestComparisons(i);
+  goog.global[`testComparisons${i}`] = createTestComparisons(i);
 }
 
 function createTestBitOperations(i) {
@@ -1393,7 +1401,7 @@ function createTestBitOperations(i) {
 }
 
 for (let i = 0; i < TEST_BITS.length; i += 2) {
-  globalThis[`testBitOperations${i}`] = createTestBitOperations(i);
+  goog.global[`testBitOperations${i}`] = createTestBitOperations(i);
 }
 
 function createTestDivMod(i, count) {
@@ -1424,7 +1432,7 @@ for (let j = 0; j < TEST_BITS.length; j += 2) {
 
 let countDivMod = 0;
 for (let i = 0; i < TEST_BITS.length; i += 2) {
-  globalThis[`testDivMod${i}`] = createTestDivMod(i, countDivMod);
+  goog.global[`testDivMod${i}`] = createTestDivMod(i, countDivMod);
   countDivMod += countPerDivModCall;
 }
 
@@ -1446,7 +1454,7 @@ function createTestToFromString(i) {
 }
 
 for (let i = 0; i < TEST_BITS.length; i += 2) {
-  globalThis[`testToFromString${i}`] = createTestToFromString(i);
+  goog.global[`testToFromString${i}`] = createTestToFromString(i);
 }
 
 // Regression test for
@@ -1616,15 +1624,6 @@ testSuite({
     assertEquals(
         '100000000000000000000000000000000000000000000000000000000000001',
         Long.fromBits(1, 0x40000000).toString(2));
-  },
-
-  testHashCode() {
-    assertEquals(0, Long.fromString('0').hashCode());
-    assertEquals(1, Long.fromString('1').hashCode());
-    assertEquals(0, Long.fromString('-1').hashCode());
-    assertEquals(2147483647, Long.fromString('2147483647').hashCode());
-    assertEquals(-2147483648, Long.getMinValue().hashCode());
-    assertEquals(-2147483648, Long.getMaxValue().hashCode());
   },
 
   testSafeInteger() {

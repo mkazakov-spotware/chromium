@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -64,10 +64,10 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadFile {
   // Upon completion, |initialize_callback| will be called on the UI
   // thread as per the comment above, passing DOWNLOAD_INTERRUPT_REASON_NONE
   // on success, or a network download interrupt reason on failure.
-  virtual void Initialize(
-      InitializeCallback initialize_callback,
-      CancelRequestCallback cancel_request_callback,
-      const DownloadItem::ReceivedSlices& received_slices) = 0;
+  virtual void Initialize(InitializeCallback initialize_callback,
+                          CancelRequestCallback cancel_request_callback,
+                          const DownloadItem::ReceivedSlices& received_slices,
+                          bool is_parallelizable) = 0;
 
   // Add an input stream to write into a slice of the file, used for
   // parallel download.
@@ -114,11 +114,25 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadFile {
   virtual void Pause() = 0;
   virtual void Resume() = 0;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
+  // Renames the download file to an intermediate URI. If current_path is a
+  // content URI, it will be used for the renaming. Otherwise, A new
+  // intermediate URI will be created to write the download file. Once
+  // completes, |callback| is called with a content URI to be written into.
+  virtual void RenameToIntermediateUri(const GURL& original_url,
+                                       const GURL& referrer_url,
+                                       const base::FilePath& file_name,
+                                       const std::string& mime_type,
+                                       const base::FilePath& current_path,
+                                       RenameCompletionCallback callback) = 0;
+
   // Publishes the download to public. Once completes, |callback| is called with
   // the final content URI.
   virtual void PublishDownload(RenameCompletionCallback callback) = 0;
-#endif  // BUILDFLAG(IS_ANDROID)
+
+  // Returns the suggested file path from the system.
+  virtual base::FilePath GetDisplayName() = 0;
+#endif  // defined(OS_ANDROID)
 };
 
 }  // namespace download

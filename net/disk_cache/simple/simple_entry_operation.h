@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "net/base/completion_once_callback.h"
 #include "net/disk_cache/disk_cache.h"
 #include "net/disk_cache/simple/simple_histogram_enums.h"
@@ -92,7 +92,8 @@ class SimpleEntryOperation {
       SimpleEntryImpl* entry,
       int64_t sparse_offset,
       int length,
-      RangeResultCallback callback);
+      int64_t* out_start,
+      CompletionOnceCallback callback);
   static SimpleEntryOperation DoomOperation(SimpleEntryImpl* entry,
                                             CompletionOnceCallback callback);
 
@@ -103,9 +104,6 @@ class SimpleEntryOperation {
   EntryResultCallback ReleaseEntryResultCallback() {
     return std::move(entry_callback_);
   }
-  RangeResultCallback ReleaseRangeResultCalback() {
-    return std::move(range_callback_);
-  }
 
   EntryResultState entry_result_state() { return entry_result_state_; }
 
@@ -114,6 +112,7 @@ class SimpleEntryOperation {
   int offset() const { return offset_; }
   int64_t sparse_offset() const { return sparse_offset_; }
   int length() const { return length_; }
+  int64_t* out_start() { return out_start_; }
   net::IOBuffer* buf() { return buf_.get(); }
   bool truncate() const { return truncate_; }
   bool optimistic() const { return optimistic_; }
@@ -125,6 +124,7 @@ class SimpleEntryOperation {
                        int offset,
                        int64_t sparse_offset,
                        int length,
+                       int64_t* out_start,
                        EntryOperationType type,
                        OpenEntryIndexEnum index_state,
                        int index,
@@ -146,7 +146,7 @@ class SimpleEntryOperation {
   const int length_;
 
   // Used in get available range operations.
-  RangeResultCallback range_callback_;
+  int64_t* const out_start_;
 
   const EntryOperationType type_;
   // Used in the "open or create" operation.

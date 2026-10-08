@@ -1,9 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/read_later/read_later_test_utils.h"
 
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "components/reading_list/core/reading_list_model.h"
 

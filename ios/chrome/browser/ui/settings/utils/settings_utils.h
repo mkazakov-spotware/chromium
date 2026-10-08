@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,9 @@
 
 #import <UIKit/UIKit.h>
 
-@protocol ApplicationCommands;
-class GURL;
+#import "ios/chrome/browser/procedural_block_types.h"
 
-typedef void (^ProceduralBlockWithURL)(const GURL&);
+@protocol ApplicationCommands;
 
 // Returns a ProceduralBlockWithURL that uses the dispatcher and opens url
 // (parameter to the block) in a new tab.

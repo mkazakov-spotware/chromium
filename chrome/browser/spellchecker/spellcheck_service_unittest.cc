@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include <ostream>
 
 #include "base/command_line.h"
-#include "base/containers/contains.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/stl_util.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/supports_user_data.h"
@@ -86,11 +86,6 @@ static std::unique_ptr<KeyedService> BuildSpellcheckService(
 class SpellcheckServiceUnitTestBase : public testing::Test {
  public:
   SpellcheckServiceUnitTestBase() = default;
-
-  SpellcheckServiceUnitTestBase(const SpellcheckServiceUnitTestBase&) = delete;
-  SpellcheckServiceUnitTestBase& operator=(
-      const SpellcheckServiceUnitTestBase&) = delete;
-
   ~SpellcheckServiceUnitTestBase() override = default;
 
   content::BrowserContext* browser_context() { return &profile_; }
@@ -98,11 +93,11 @@ class SpellcheckServiceUnitTestBase : public testing::Test {
 
  protected:
   void SetUp() override {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     // Tests were designed assuming Hunspell dictionary used and may fail when
     // Windows spellcheck is enabled by default.
     feature_list_.InitAndDisableFeature(spellcheck::kWinUseBrowserSpellChecker);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
     // Use SetTestingFactoryAndUse to force creation and initialization.
     SpellcheckServiceFactory::GetInstance()->SetTestingFactoryAndUse(
@@ -111,11 +106,14 @@ class SpellcheckServiceUnitTestBase : public testing::Test {
 
   content::BrowserTaskEnvironment task_environment_;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // feature_list_ needs to be destroyed after profile_.
   base::test::ScopedFeatureList feature_list_;
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
   TestingProfile profile_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SpellcheckServiceUnitTestBase);
 };
 
 class SpellcheckServiceUnitTest : public SpellcheckServiceUnitTestBase,
@@ -126,46 +124,34 @@ INSTANTIATE_TEST_SUITE_P(
     TestCases,
     SpellcheckServiceUnitTest,
     testing::Values(
-        TestCase("en-JP,aa", {"aa"}, {}, {}),
-        TestCase("en,aa", {"aa"}, {"en"}, {}),
-        TestCase("en,en-JP,fr,aa", {"fr"}, {"en", "fr"}, {"fr"}),
-        TestCase("en,en-JP,fr,zz,en-US", {"fr"}, {"en", "fr", "en-US"}, {"fr"}),
-        TestCase("en,en-US,en-GB",
-                 {"en-GB"},
-                 {"en", "en-US", "en-GB"},
-                 {"en-GB"}),
-        TestCase("en,en-US,en-AU",
-                 {"en-AU"},
-                 {"en", "en-US", "en-AU"},
-                 {"en-AU"}),
-        TestCase("en,en-US,en-AU",
-                 {"en-US"},
-                 {"en", "en-US", "en-AU"},
-                 {"en-US"}),
-        TestCase("en,en-US", {"en-US"}, {"en", "en-US"}, {"en-US"}),
-        TestCase("en,en-US,fr", {"en-US"}, {"en", "en-US", "fr"}, {"en-US"}),
+        TestCase("en,aa", {"aa"}, {}, {}),
+        TestCase("en,en-JP,fr,aa", {"fr"}, {"fr"}, {"fr"}),
+        TestCase("en,en-JP,fr,zz,en-US", {"fr"}, {"fr", "en-US"}, {"fr"}),
+        TestCase("en,en-US,en-GB", {"en-GB"}, {"en-US", "en-GB"}, {"en-GB"}),
+        TestCase("en,en-US,en-AU", {"en-AU"}, {"en-US", "en-AU"}, {"en-AU"}),
+        TestCase("en,en-US,en-AU", {"en-US"}, {"en-US", "en-AU"}, {"en-US"}),
+        TestCase("en,en-US", {"en-US"}, {"en-US"}, {"en-US"}),
+        TestCase("en,en-US,fr", {"en-US"}, {"en-US", "fr"}, {"en-US"}),
         TestCase("en,fr,en-US,en-AU",
                  {"en-US", "fr"},
-                 {"en", "fr", "en-US", "en-AU"},
+                 {"fr", "en-US", "en-AU"},
                  {"fr", "en-US"}),
-        TestCase("en-US,en", {"en-US"}, {"en-US", "en"}, {"en-US"}),
-#if BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+        TestCase("en-US,en", {"en-US"}, {"en-US"}, {"en-US"}),
+#if defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
         // Scenario where user disabled the Windows spellcheck feature with some
         // non-Hunspell languages set in preferences.
         TestCase("fr,eu,en-US,ar",
                  {"fr", "eu", "en-US", "ar"},
                  {"fr", "en-US"},
                  {"fr", "en-US"}),
-#endif  // BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#endif  // defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
         TestCase("hu-HU,hr-HR", {"hr"}, {"hu", "hr"}, {"hr"})));
 
 TEST_P(SpellcheckServiceUnitTest, GetDictionaries) {
   prefs()->SetString(language::prefs::kAcceptLanguages,
                      GetParam().accept_languages);
   base::ListValue spellcheck_dictionaries;
-  for (const std::string& dictionary : GetParam().spellcheck_dictionaries) {
-    spellcheck_dictionaries.Append(dictionary);
-  }
+  spellcheck_dictionaries.AppendStrings(GetParam().spellcheck_dictionaries);
   prefs()->Set(spellcheck::prefs::kSpellCheckDictionaries,
                spellcheck_dictionaries);
 
@@ -175,7 +161,7 @@ TEST_P(SpellcheckServiceUnitTest, GetDictionaries) {
   EXPECT_EQ(GetParam().expected_dictionaries, dictionaries);
 }
 
-#if BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#if defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 class SpellcheckServiceHybridUnitTestBase
     : public SpellcheckServiceUnitTestBase {
  public:
@@ -223,7 +209,7 @@ class SpellcheckServiceHybridUnitTestBase
   static const std::vector<std::string>
       windows_spellcheck_languages_for_testing_;
 
-  raw_ptr<SpellcheckService> spellcheck_service_;
+  SpellcheckService* spellcheck_service_;
 };
 
 void SpellcheckServiceHybridUnitTestBase::RunGetDictionariesTest(
@@ -235,9 +221,7 @@ void SpellcheckServiceHybridUnitTestBase::RunGetDictionariesTest(
 
   prefs()->SetString(language::prefs::kAcceptLanguages, accept_languages);
   base::ListValue spellcheck_dictionaries_list;
-  for (std::string dict : spellcheck_dictionaries) {
-    spellcheck_dictionaries_list.Append(dict);
-  }
+  spellcheck_dictionaries_list.AppendStrings(spellcheck_dictionaries);
   prefs()->Set(spellcheck::prefs::kSpellCheckDictionaries,
                spellcheck_dictionaries_list);
 
@@ -341,18 +325,9 @@ const std::vector<std::string> SpellcheckServiceHybridUnitTestBase::
                              // dictionaries.
 };
 
-class GetDictionariesHybridUnitTestNoDelayInit
+class SpellcheckServiceHybridUnitTest
     : public SpellcheckServiceHybridUnitTestBase,
-      public testing::WithParamInterface<TestCase> {
- protected:
-  void InitFeatures() override {
-    // Disable kWinDelaySpellcheckServiceInit, as the case where it's enabled
-    // is tested in SpellcheckServiceWindowsDictionaryMappingUnitTestDelayInit.
-    feature_list_.InitWithFeatures(
-        /*enabled_features=*/{spellcheck::kWinUseBrowserSpellChecker},
-        /*disabled_features=*/{spellcheck::kWinDelaySpellcheckServiceInit});
-  }
-};
+      public testing::WithParamInterface<TestCase> {};
 
 static const TestCase kHybridGetDictionariesParams[] = {
     // Galician (gl) has only Windows support, no Hunspell dictionary. Croatian
@@ -372,10 +347,7 @@ static const TestCase kHybridGetDictionariesParams[] = {
     TestCase("ceb", {}, {}, {}),
     TestCase("ceb,gl,hr", {"gl", "hr"}, {"gl", "hr"}, {"gl", "hr"}),
     // Finnish has only "fi" in hard-coded list of accept languages.
-    TestCase("fi-FI,fi,en-US,en",
-             {"en-US"},
-             {"fi", "en-US", "en"},
-             {"fi", "en-US"}),
+    TestCase("fi-FI,fi,en-US,en", {"en-US"}, {"fi", "en-US"}, {"fi", "en-US"}),
     // First language is supported by Windows but private use dictionaries
     // are ignored.
     TestCase("ja,gl", {"gl"}, {"gl"}, {"gl"}),
@@ -407,10 +379,10 @@ static const TestCase kHybridGetDictionariesParams[] = {
 };
 
 INSTANTIATE_TEST_SUITE_P(TestCases,
-                         GetDictionariesHybridUnitTestNoDelayInit,
+                         SpellcheckServiceHybridUnitTest,
                          testing::ValuesIn(kHybridGetDictionariesParams));
 
-TEST_P(GetDictionariesHybridUnitTestNoDelayInit, GetDictionaries) {
+TEST_P(SpellcheckServiceHybridUnitTest, GetDictionaries) {
   RunGetDictionariesTest(GetParam().accept_languages,
                          GetParam().spellcheck_dictionaries,
                          GetParam().expected_dictionaries);
@@ -440,23 +412,15 @@ std::ostream& operator<<(std::ostream& out,
 
 class SpellcheckServiceWindowsDictionaryMappingUnitTest
     : public SpellcheckServiceHybridUnitTestBase,
-      public testing::WithParamInterface<DictionaryMappingTestCase> {
- protected:
-  void InitFeatures() override {
-    // Disable kWinDelaySpellcheckServiceInit, as the case where it's enabled
-    // is tested in SpellcheckServiceWindowsDictionaryMappingUnitTestDelayInit.
-    feature_list_.InitWithFeatures(
-        /*enabled_features=*/{spellcheck::kWinUseBrowserSpellChecker},
-        /*disabled_features=*/{spellcheck::kWinDelaySpellcheckServiceInit});
-  }
-};
+      public testing::WithParamInterface<DictionaryMappingTestCase> {};
 
 static const DictionaryMappingTestCase kHybridDictionaryMappingsParams[] = {
     DictionaryMappingTestCase({"en-CA", "en-CA", "en-CA", "en", "en"}),
     DictionaryMappingTestCase({"en-PH", "en", "en", "", ""}),
     DictionaryMappingTestCase({"es-MX", "es-MX", "es-MX", "es", "es"}),
     DictionaryMappingTestCase({"ar-SA", "ar", "ar", "", ""}),
-    DictionaryMappingTestCase({"kok-Deva-IN", "kok", "kok-Deva", "", ""}),
+    // Konkani not supported in Chromium.
+    DictionaryMappingTestCase({"kok-Deva-IN", "", "kok-Deva", "", ""}),
     DictionaryMappingTestCase({"sr-Cyrl-RS", "sr", "sr-Cyrl", "", ""}),
     DictionaryMappingTestCase({"sr-Cyrl-ME", "sr", "sr-Cyrl", "", ""}),
     // Only sr with Cyrillic implied supported in Chromium.
@@ -576,4 +540,4 @@ TEST_P(SpellcheckServiceWindowsDictionaryMappingUnitTestDelayInit,
       GetParam().expected_accept_language_generic,
       GetParam().expected_tag_passed_to_spellcheck_generic);
 }
-#endif  // BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#endif  // defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)

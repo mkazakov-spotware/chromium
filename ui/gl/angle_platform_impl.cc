@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include "base/lazy_instance.h"
 #include "base/metrics/histogram.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/task/thread_pool.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/trace_event/trace_event.h"
 #include "third_party/angle/include/platform/PlatformMethods.h"
@@ -60,7 +60,8 @@ TraceEventHandle ANGLEPlatformImpl_addTraceEvent(
     const unsigned char* arg_types,
     const unsigned long long* arg_values,
     unsigned char flags) {
-  base::TimeTicks timestamp_tt = base::TimeTicks() + base::Seconds(timestamp);
+  base::TimeTicks timestamp_tt =
+      base::TimeTicks() + base::TimeDelta::FromSecondsD(timestamp);
   base::trace_event::TraceArguments args(num_args, arg_names, arg_types,
                                          arg_values);
   base::trace_event::TraceEventHandle handle =
@@ -154,9 +155,9 @@ bool InitializePlatform(EGLDisplay display) {
   if (!angle_get_platform(static_cast<EGLDisplayType>(display),
                           g_PlatformMethodNames, g_NumPlatformMethods, nullptr,
                           &platformMethods))
-    return false;
-  platformMethods->currentTime = ANGLEPlatformImpl_currentTime;
+    platformMethods->currentTime = ANGLEPlatformImpl_currentTime;
   platformMethods->addTraceEvent = ANGLEPlatformImpl_addTraceEvent;
+  platformMethods->currentTime = ANGLEPlatformImpl_currentTime;
   platformMethods->getTraceCategoryEnabledFlag =
       ANGLEPlatformImpl_getTraceCategoryEnabledFlag;
   platformMethods->histogramBoolean = ANGLEPlatformImpl_histogramBoolean;

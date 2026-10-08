@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,12 @@
 #include <string>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/time/time.h"
 #include "net/base/host_port_pair.h"
 #include "net/base/net_export.h"
-#include "net/base/network_anonymization_key.h"
+#include "net/base/network_isolation_key.h"
 #include "net/base/request_priority.h"
 #include "net/dns/public/resolve_error_info.h"
 #include "net/http/http_auth.h"
@@ -43,17 +44,14 @@ class QuicStreamRequest;
 class NET_EXPORT_PRIVATE HttpProxySocketParams
     : public base::RefCounted<HttpProxySocketParams> {
  public:
-  HttpProxySocketParams(
-      scoped_refptr<TransportSocketParams> transport_params,
-      scoped_refptr<SSLSocketParams> ssl_params,
-      bool is_quic,
-      const HostPortPair& endpoint,
-      bool tunnel,
-      const NetworkTrafficAnnotationTag traffic_annotation,
-      const NetworkAnonymizationKey& network_anonymization_key);
-
-  HttpProxySocketParams(const HttpProxySocketParams&) = delete;
-  HttpProxySocketParams& operator=(const HttpProxySocketParams&) = delete;
+  HttpProxySocketParams(scoped_refptr<TransportSocketParams> transport_params,
+                        scoped_refptr<SSLSocketParams> ssl_params,
+                        bool is_quic,
+                        const HostPortPair& endpoint,
+                        bool is_trusted_proxy,
+                        bool tunnel,
+                        const NetworkTrafficAnnotationTag traffic_annotation,
+                        const NetworkIsolationKey& network_isolation_key);
 
   const scoped_refptr<TransportSocketParams>& transport_params() const {
     return transport_params_;
@@ -63,9 +61,10 @@ class NET_EXPORT_PRIVATE HttpProxySocketParams
   }
   bool is_quic() const { return is_quic_; }
   const HostPortPair& endpoint() const { return endpoint_; }
+  bool is_trusted_proxy() const { return is_trusted_proxy_; }
   bool tunnel() const { return tunnel_; }
-  const NetworkAnonymizationKey& network_anonymization_key() const {
-    return network_anonymization_key_;
+  const NetworkIsolationKey& network_isolation_key() const {
+    return network_isolation_key_;
   }
   const NetworkTrafficAnnotationTag traffic_annotation() const {
     return traffic_annotation_;
@@ -79,9 +78,12 @@ class NET_EXPORT_PRIVATE HttpProxySocketParams
   const scoped_refptr<SSLSocketParams> ssl_params_;
   bool is_quic_;
   const HostPortPair endpoint_;
+  const bool is_trusted_proxy_;
   const bool tunnel_;
-  const NetworkAnonymizationKey network_anonymization_key_;
+  const NetworkIsolationKey network_isolation_key_;
   const NetworkTrafficAnnotationTag traffic_annotation_;
+
+  DISALLOW_COPY_AND_ASSIGN(HttpProxySocketParams);
 };
 
 // HttpProxyConnectJob optionally establishes a tunnel through the proxy
@@ -89,30 +91,12 @@ class NET_EXPORT_PRIVATE HttpProxySocketParams
 class NET_EXPORT_PRIVATE HttpProxyConnectJob : public ConnectJob,
                                                public ConnectJob::Delegate {
  public:
-  class NET_EXPORT_PRIVATE Factory {
-   public:
-    Factory() = default;
-    virtual ~Factory() = default;
-
-    virtual std::unique_ptr<HttpProxyConnectJob> Create(
-        RequestPriority priority,
-        const SocketTag& socket_tag,
-        const CommonConnectJobParams* common_connect_job_params,
-        scoped_refptr<HttpProxySocketParams> params,
-        ConnectJob::Delegate* delegate,
-        const NetLogWithSource* net_log);
-  };
-
   HttpProxyConnectJob(RequestPriority priority,
                       const SocketTag& socket_tag,
                       const CommonConnectJobParams* common_connect_job_params,
                       scoped_refptr<HttpProxySocketParams> params,
                       ConnectJob::Delegate* delegate,
                       const NetLogWithSource* net_log);
-
-  HttpProxyConnectJob(const HttpProxyConnectJob&) = delete;
-  HttpProxyConnectJob& operator=(const HttpProxyConnectJob&) = delete;
-
   ~HttpProxyConnectJob() override;
 
   // A single priority is used for tunnels over H2 and QUIC, which can be shared
@@ -156,8 +140,10 @@ class NET_EXPORT_PRIVATE HttpProxyConnectJob : public ConnectJob,
  private:
   enum State {
     STATE_BEGIN_CONNECT,
-    STATE_TRANSPORT_CONNECT,
-    STATE_TRANSPORT_CONNECT_COMPLETE,
+    STATE_TCP_CONNECT,
+    STATE_TCP_CONNECT_COMPLETE,
+    STATE_SSL_CONNECT,
+    STATE_SSL_CONNECT_COMPLETE,
     STATE_HTTP_PROXY_CONNECT,
     STATE_HTTP_PROXY_CONNECT_COMPLETE,
     STATE_SPDY_PROXY_CREATE_STREAM,
@@ -190,9 +176,12 @@ class NET_EXPORT_PRIVATE HttpProxyConnectJob : public ConnectJob,
 
   // Determine if need to go through TCP or SSL path.
   int DoBeginConnect();
-  // Connecting to HTTP or HTTPS Proxy
+  // Connecting to HTTP Proxy
   int DoTransportConnect();
   int DoTransportConnectComplete(int result);
+  // Connecting to HTTPS Proxy
+  int DoSSLConnect();
+  int DoSSLConnectComplete(int result);
 
   int DoHttpProxyConnect();
   int DoHttpProxyConnectComplete(int result);
@@ -211,9 +200,11 @@ class NET_EXPORT_PRIVATE HttpProxyConnectJob : public ConnectJob,
   void ChangePriorityInternal(RequestPriority priority) override;
   void OnTimedOutInternal() override;
 
+  int HandleConnectResult(int result);
+
   void OnAuthChallenge();
 
-  const HostPortPair& GetDestination() const;
+  const HostPortPair& GetDestination();
 
   std::string GetUserAgent() const;
 
@@ -223,13 +214,16 @@ class NET_EXPORT_PRIVATE HttpProxyConnectJob : public ConnectJob,
 
   scoped_refptr<SSLCertRequestInfo> ssl_cert_request_info_;
 
-  State next_state_ = STATE_NONE;
+  State next_state_;
 
-  bool has_restarted_ = false;
+  bool has_restarted_;
+
+  bool using_spdy_;
+  NextProto negotiated_protocol_;
 
   // Set to true once a connection has been successfully established. Remains
   // true even if a new socket is being connected to retry with auth.
-  bool has_established_connection_ = false;
+  bool has_established_connection_;
 
   ResolveErrorInfo resolve_error_info_;
 
@@ -249,6 +243,8 @@ class NET_EXPORT_PRIVATE HttpProxyConnectJob : public ConnectJob,
   base::TimeTicks connect_start_time_;
 
   base::WeakPtrFactory<HttpProxyConnectJob> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(HttpProxyConnectJob);
 };
 
 }  // namespace net

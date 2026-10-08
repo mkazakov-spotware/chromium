@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include "base/callback_forward.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 struct IceConfig;
 
@@ -25,6 +26,7 @@ class IceConfigRequest {
   virtual void Send(OnIceConfigCallback callback) = 0;
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_ICE_CONFIG_REQUEST_H_

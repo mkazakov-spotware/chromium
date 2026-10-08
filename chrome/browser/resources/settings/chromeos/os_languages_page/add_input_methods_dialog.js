@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,106 +6,174 @@
  * @fileoverview 'os-settings-add-input-methods-dialog' is a dialog for
  * adding input methods.
  */
+Polymer({
+  is: 'os-settings-add-input-methods-dialog',
 
-import './add_items_dialog.js';
+  behaviors: [
+    CrScrollableBehavior,
+  ],
 
-import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+  properties: {
+    /** @type {!LanguagesModel|undefined} */
+    languages: Object,
 
-import {recordSettingChange} from '../metrics_recorder.js';
+    /** @type {!LanguageHelper} */
+    languageHelper: Object,
 
-import {getTemplate} from './add_input_methods_dialog.html.js';
-import {Item} from './add_items_dialog.js';
-import {LanguageHelper, LanguagesModel} from './languages_types.js';
+    /** @private {!Set<string>} */
+    inputMethodsToAdd_: {
+      type: Object,
+      value() {
+        return new Set();
+      },
+    },
 
-// The IME ID for the Accessibility Common extension used by Dictation.
-/** @type {string} */
-const ACCESSIBILITY_COMMON_IME_ID =
-    '_ext_ime_egfdjlfmgnehecnclamagfafdccgfndpdictation';
+    /** @private {!Array<!chrome.languageSettingsPrivate.InputMethod>} */
+    suggestedInputMethods_: {
+      type: Array,
+      value: [],
+      computed:
+          'getSuggestedInputMethods_(languages, languages.enabled.*, languages.inputMethods.*)',
+    },
 
-/** @polymer */
-class OsSettingsAddInputMethodsDialogElement extends PolymerElement {
-  static get is() {
-    return 'os-settings-add-input-methods-dialog';
-  }
+    /** @private */
+    showSuggestedList_: {
+      type: Boolean,
+      value: false,
+      computed:
+          'shouldShowSuggestedList_(suggestedInputMethods_, lowercaseQueryString_)'
+    },
 
-  static get template() {
-    return getTemplate();
-  }
+    /** @private */
+    disableActionButton_: {
+      type: Boolean,
+      value: true,
+      computed: 'shouldDisableActionButton_(inputMethodsToAdd_.size)',
+    },
 
-  static get properties() {
-    return {
-      /** @type {!LanguagesModel|undefined} */
-      languages: Object,
+    /** @private */
+    lowercaseQueryString_: {
+      type: String,
+      value: '',
+    },
+  },
 
-      /** @type {!LanguageHelper} */
-      languageHelper: Object,
-    };
-  }
+  /**
+   * @param {!CustomEvent<string>} e
+   * @private
+   */
+  onSearchChanged_(e) {
+    this.lowercaseQueryString_ = e.detail.toLocaleLowerCase();
+  },
 
   /**
    * Get suggested input methods based on user's enabled languages and ARC IMEs
    * @return {!Array<!chrome.languageSettingsPrivate.InputMethod>}
    * @private
    */
-  getSuggestedInputMethodIds_() {
+  getSuggestedInputMethods_() {
     const languageCodes = [
       ...this.languageHelper.getEnabledLanguageCodes(),
-      this.languageHelper.getArcImeLanguageCode(),
+      this.languageHelper.getArcImeLanguageCode()
     ];
-    let inputMethods =
-        this.languageHelper.getInputMethodsForLanguages(languageCodes);
-    // Temporary solution for b/237492047: move Vietnamese extension input
-    // methods to the top of the suggested list.
-    // TODO(b/237492047): Remove this once 1P Vietnamese input methods are
-    // suitable for widespread use.
-    const isVietnameseExtension = inputMethod =>
-        (inputMethod.id.startsWith('_ext_ime_') &&
-         inputMethod.languageCodes.includes('vi'));
-    inputMethods = inputMethods.filter(isVietnameseExtension)
-                       .concat(inputMethods.filter(
-                           inputMethod => !isVietnameseExtension(inputMethod)));
-    return inputMethods.map(inputMethod => inputMethod.id);
-  }
-
-  /**
-   * @return {!Array<!Item>} A list of possible input methods.
-   * @private
-   */
-  getInputMethods_() {
-    return this.languages.inputMethods.supported
+    return this.languageHelper.getInputMethodsForLanguages(languageCodes)
         .filter(inputMethod => {
-          // Don't show input methods which are already enabled.
           if (this.languageHelper.isInputMethodEnabled(inputMethod.id)) {
             return false;
           }
-          // Don't show the Dictation (Accessibility Common) extension in this
-          // list.
-          if (inputMethod.id === ACCESSIBILITY_COMMON_IME_ID) {
-            return false;
-          }
-          return true;
-        })
-        .map(inputMethod => ({
-               id: inputMethod.id,
-               name: inputMethod.displayName,
-               searchTerms: inputMethod.tags,
-               disabledByPolicy: !!inputMethod.isProhibitedByPolicy,
-             }));
-  }
+          return !inputMethod.isProhibitedByPolicy;
+        });
+  },
+
+  /**
+   * @return {!Array<!chrome.languageSettingsPrivate.InputMethod>} A list of
+   *     possible input methods.
+   * @private
+   */
+  getAllInputMethods_() {
+    return this.languages.inputMethods.supported.filter(inputMethod => {
+      // Don't show input methods which are already enabled.
+      if (this.languageHelper.isInputMethodEnabled(inputMethod.id)) {
+        return false;
+      }
+      // Show input methods whose tags match the query.
+      return inputMethod.tags.some(
+          tag => tag.toLocaleLowerCase().includes(this.lowercaseQueryString_));
+    });
+  },
+
+  /**
+   * @return {boolean}
+   * @private
+   */
+  shouldShowSuggestedList_() {
+    return this.suggestedInputMethods_.length > 0 &&
+        !this.lowercaseQueryString_;
+  },
+
+  /**
+   * True if the user has chosen to add this input method (checked its
+   * checkbox).
+   * @param {string} id
+   * @return {boolean}
+   * @private
+   */
+  willAdd_(id) {
+    return this.inputMethodsToAdd_.has(id);
+  },
+
+  /**
+   * Handler for an input method checkbox.
+   * @param {!{model: !{item: chrome.languageSettingsPrivate.InputMethod},
+   *           target: !Element}} e
+   * @private
+   */
+  onCheckboxChange_(e) {
+    const inputMethodId = e.model.item.id;
+    if (e.target.checked) {
+      this.inputMethodsToAdd_.add(inputMethodId);
+    } else {
+      this.inputMethodsToAdd_.delete(inputMethodId);
+    }
+    // Polymer doesn't notify changes to set size.
+    this.notifyPath('inputMethodsToAdd_.size');
+  },
+
+  /**
+   * @return {boolean}
+   * @private
+   */
+  shouldDisableActionButton_() {
+    return !this.inputMethodsToAdd_.size;
+  },
+
+  /** @private */
+  onCancelButtonTap_() {
+    this.$.dialog.close();
+  },
 
   /**
    * Add input methods.
-   * @param {!CustomEvent<!Set<string>>} e
    * @private
    */
-  onItemsAdded_(e) {
-    e.detail.forEach(id => {
+  onActionButtonTap_() {
+    this.inputMethodsToAdd_.forEach(id => {
       this.languageHelper.addInputMethod(id);
     });
-    recordSettingChange();
-  }
-}
+    settings.recordSettingChange();
+    this.$.dialog.close();
+  },
 
-customElements.define(
-    OsSettingsAddInputMethodsDialogElement.is,
-    OsSettingsAddInputMethodsDialogElement);
+  /**
+   * @param {!KeyboardEvent} e
+   * @private
+   */
+  onKeydown_(e) {
+    // Close dialog if 'esc' is pressed and the search box is already empty.
+    if (e.key === 'Escape' && !this.$.search.getValue().trim()) {
+      this.$.dialog.close();
+    } else if (e.key !== 'PageDown' && e.key !== 'PageUp') {
+      this.$.search.scrollIntoViewIfNeeded();
+    }
+  },
+});

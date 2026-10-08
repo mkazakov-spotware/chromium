@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/offline_pages/prefetch/gcm_token.h"
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
@@ -18,10 +17,10 @@
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "components/gcm_driver/instance_id/instance_id_android.h"
 #include "components/gcm_driver/instance_id/scoped_use_fake_instance_id_android.h"
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // OS_ANDROID
 
 using instance_id::InstanceID;
 
@@ -33,11 +32,6 @@ const char kAppIdForTest[] = "com.google.test.PrefetchInstanceIDProxyTest";
 class PrefetchInstanceIDProxyTest : public testing::Test {
  public:
   PrefetchInstanceIDProxyTest() = default;
-
-  PrefetchInstanceIDProxyTest(const PrefetchInstanceIDProxyTest&) = delete;
-  PrefetchInstanceIDProxyTest& operator=(const PrefetchInstanceIDProxyTest&) =
-      delete;
-
   ~PrefetchInstanceIDProxyTest() override = default;
 
   // testing::Test:
@@ -55,12 +49,12 @@ class PrefetchInstanceIDProxyTest : public testing::Test {
   content::BrowserTaskEnvironment task_environment_;
   TestingProfile profile_;
 
-  raw_ptr<gcm::FakeGCMProfileService> gcm_profile_service_;
+  gcm::FakeGCMProfileService* gcm_profile_service_;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   instance_id::InstanceIDAndroid::ScopedBlockOnAsyncTasksForTesting
       block_async_;
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // OS_ANDROID
 
   std::string token_;
   InstanceID::Result result_ = InstanceID::UNKNOWN_ERROR;
@@ -68,6 +62,8 @@ class PrefetchInstanceIDProxyTest : public testing::Test {
   bool async_operation_completed_ = false;
   base::OnceClosure async_operation_completed_callback_;
   base::test::ScopedFeatureList scoped_feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(PrefetchInstanceIDProxyTest);
 };
 
 void PrefetchInstanceIDProxyTest::SetUp() {

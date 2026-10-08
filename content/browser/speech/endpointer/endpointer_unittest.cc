@@ -1,11 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stdint.h>
 
-#include "base/memory/raw_ptr.h"
-#include "components/speech/audio_buffer.h"
+#include "content/browser/speech/audio_buffer.h"
 #include "content/browser/speech/endpointer/endpointer.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -87,7 +86,7 @@ class EnergyEndpointerFrameProcessor : public FrameProcessor {
   }
 
  private:
-  raw_ptr<EnergyEndpointer> endpointer_;
+  EnergyEndpointer* endpointer_;
 };
 
 TEST(EndpointerTest, TestEnergyEndpointerEvents) {
@@ -134,7 +133,7 @@ class EndpointerFrameProcessor : public FrameProcessor {
   }
 
  private:
-  raw_ptr<Endpointer> endpointer_;
+  Endpointer* endpointer_;
 };
 
 TEST(EndpointerTest, TestEmbeddedEndpointerEvents) {

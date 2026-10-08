@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/credential_provider/extension/extension_utils.h"
 
-#include "base/strings/string_util.h"
 #include "chrome/credential_provider/extension/extension_strings.h"
 #include "chrome/credential_provider/extension/os_service_manager.h"
 #include "chrome/credential_provider/extension/scoped_handle.h"
@@ -146,10 +145,6 @@ DWORD UninstallGCPWExtension() {
 
 bool IsGCPWExtensionEnabled() {
   return GetGlobalFlagOrDefault(extension::kEnableGCPWExtension, 1);
-}
-
-std::wstring GetLastSyncRegNameForTask(const std::wstring& task_name) {
-  return base::ToLowerASCII(task_name) + L"_last_sync_time";
 }
 
 }  // namespace extension

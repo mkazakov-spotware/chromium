@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/containers/circular_deque.h"
+#include "base/macros.h"
 #include "base/test/mock_callback.h"
 #include "base/test/task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -25,17 +26,12 @@ constexpr uint32_t kDefaultDataPipeCapacityBytes = 10;
 class UdpPacketPipeTest : public ::testing::Test {
  public:
   UdpPacketPipeTest() {
-    mojo::ScopedDataPipeProducerHandle producer_handle;
-    mojo::ScopedDataPipeConsumerHandle consumer_handle;
-    CHECK_EQ(mojo::CreateDataPipe(kDefaultDataPipeCapacityBytes,
-                                  producer_handle, consumer_handle),
-             MOJO_RESULT_OK);
-    writer_ = std::make_unique<UdpPacketPipeWriter>(std::move(producer_handle));
-    reader_ = std::make_unique<UdpPacketPipeReader>(std::move(consumer_handle));
+    mojo::DataPipe data_pipe(kDefaultDataPipeCapacityBytes);
+    writer_ = std::make_unique<UdpPacketPipeWriter>(
+        std::move(data_pipe.producer_handle));
+    reader_ = std::make_unique<UdpPacketPipeReader>(
+        std::move(data_pipe.consumer_handle));
   }
-
-  UdpPacketPipeTest(const UdpPacketPipeTest&) = delete;
-  UdpPacketPipeTest& operator=(const UdpPacketPipeTest&) = delete;
 
   ~UdpPacketPipeTest() override = default;
 
@@ -48,6 +44,9 @@ class UdpPacketPipeTest : public ::testing::Test {
   std::unique_ptr<UdpPacketPipeWriter> writer_;
   std::unique_ptr<UdpPacketPipeReader> reader_;
   base::circular_deque<std::unique_ptr<Packet>> packets_read_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(UdpPacketPipeTest);
 };
 
 TEST_F(UdpPacketPipeTest, Normal) {

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
   TestRunner.addResult(`Tests that the content of resources with JSON MIME types can be accessed.`);
   TestRunner.addResult('When loaded by asynchronous XHR requests (Bug 80684) or within iframes/documents.\n');
 
-  await TestRunner.loadTestModule('network_test_runner');
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('network_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.showPanel('network');
 
   NetworkTestRunner.recordNetwork();
@@ -33,7 +33,8 @@
 
     function step3({ content, error, isEncoded }) {
       TestRunner.addResult('request.content: ' + content);
-      TestRunner.addIframe('resources/json.php?type=' + encodedContentType).then(step4);
+      ConsoleTestRunner.addConsoleSniffer(step4);
+      TestRunner.addIframe('resources/json.php?type=' + encodedContentType);
     }
 
     function step4() {

@@ -1,17 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/svg/animation/smil_time_container.h"
 
-#include "base/time/time.h"
-#include "third_party/blink/renderer/core/animation/animation_clock.h"
 #include "third_party/blink/renderer/core/animation/document_timeline.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element_traversal.h"
 #include "third_party/blink/renderer/core/dom/events/native_event_listener.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
-#include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/settings.h"
 #include "third_party/blink/renderer/core/svg/svg_animated_length.h"
 #include "third_party/blink/renderer/core/svg/svg_document_extensions.h"
@@ -36,7 +33,7 @@ class SMILTimeContainerTest : public PageTestBase {
   }
 
   void Load(base::span<const char> data) {
-    auto params = WebNavigationParams::CreateWithHTMLStringForTesting(
+    auto params = WebNavigationParams::CreateWithHTMLString(
         data, KURL("http://example.com"));
     GetFrame().Loader().CommitNavigation(std::move(params),
                                          nullptr /* extra_data */);
@@ -82,13 +79,12 @@ TEST_F(SMILTimeContainerTest, ServiceAnimationsFlushesPendingSynchronizations) {
   rect->appendChild(animation);
 
   // Frame callback before the synchronization timer fires.
-  SVGDocumentExtensions::ServiceSmilOnAnimationFrame(GetDocument());
-  SVGDocumentExtensions::ServiceWebAnimationsOnAnimationFrame(GetDocument());
+  SVGDocumentExtensions::ServiceOnAnimationFrame(GetDocument());
 
   // The frame callback should have flushed any pending updates.
   EXPECT_EQ(100, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(500));
+  StepTime(base::TimeDelta::FromMilliseconds(500));
   EXPECT_EQ(100, rect->height()->CurrentValue()->Value(length_context));
   EXPECT_EQ(SMILTime::FromSecondsD(0.5), time_container->Elapsed());
 }
@@ -117,7 +113,7 @@ class SMILTimeContainerAnimationPolicyOnceTest : public PageTestBase {
   }
 
   void Load(base::span<const char> data) {
-    auto params = WebNavigationParams::CreateWithHTMLStringForTesting(
+    auto params = WebNavigationParams::CreateWithHTMLString(
         data, KURL("http://example.com"));
     GetFrame().Loader().CommitNavigation(std::move(params),
                                          nullptr /* extra_data */);
@@ -130,8 +126,7 @@ class SMILTimeContainerAnimationPolicyOnceTest : public PageTestBase {
     platform()->RunForPeriod(delta);
     current_time_ += delta;
     GetAnimationClock().UpdateTime(current_time_);
-    SVGDocumentExtensions::ServiceSmilOnAnimationFrame(GetDocument());
-    SVGDocumentExtensions::ServiceWebAnimationsOnAnimationFrame(GetDocument());
+    SVGDocumentExtensions::ServiceOnAnimationFrame(GetDocument());
   }
 
   void OnContentLoaded(base::OnceCallback<void(Document&)> callback) {
@@ -171,10 +166,10 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, NoAction) {
   EXPECT_FALSE(time_container->IsPaused());
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(2500));
+  StepTime(base::TimeDelta::FromMilliseconds(2500));
   EXPECT_EQ(100, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(500));
+  StepTime(base::TimeDelta::FromMilliseconds(500));
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
   EXPECT_EQ(SMILTime::FromSecondsD(3), time_container->Elapsed());
 }
@@ -203,13 +198,13 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, SetElapsedAfterStart) {
   EXPECT_EQ(SMILTime::FromSecondsD(5.5), time_container->Elapsed());
   EXPECT_EQ(100, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(2000));
+  StepTime(base::TimeDelta::FromMilliseconds(2000));
   EXPECT_EQ(50, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1000));
+  StepTime(base::TimeDelta::FromMilliseconds(1000));
   EXPECT_EQ(100, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1000));
+  StepTime(base::TimeDelta::FromMilliseconds(1000));
   EXPECT_EQ(100, rect->height()->CurrentValue()->Value(length_context));
   EXPECT_EQ(SMILTime::FromSecondsD(8.5), time_container->Elapsed());
 }
@@ -223,7 +218,7 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, SetElapsedBeforeStart) {
       </rect>
     </svg>
   )HTML");
-  OnContentLoaded(WTF::BindOnce([](Document& document) {
+  OnContentLoaded(WTF::Bind([](Document& document) {
     auto* svg_root = To<SVGSVGElement>(document.getElementById("container"));
     ASSERT_TRUE(svg_root);
     auto* rect = Traversal<SVGRectElement>::FirstChild(*svg_root);
@@ -250,13 +245,13 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, SetElapsedBeforeStart) {
   EXPECT_EQ(SMILTime::FromSecondsD(5.5), time_container->Elapsed());
   EXPECT_EQ(100, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(2000));
+  StepTime(base::TimeDelta::FromMilliseconds(2000));
   EXPECT_EQ(50, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1000));
+  StepTime(base::TimeDelta::FromMilliseconds(1000));
   EXPECT_EQ(100, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1000));
+  StepTime(base::TimeDelta::FromMilliseconds(1000));
   EXPECT_EQ(100, rect->height()->CurrentValue()->Value(length_context));
   EXPECT_EQ(SMILTime::FromSecondsD(8.5), time_container->Elapsed());
 }
@@ -283,7 +278,7 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, PauseAfterStart) {
   EXPECT_FALSE(time_container->IsPaused());
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1500));
+  StepTime(base::TimeDelta::FromMilliseconds(1500));
   EXPECT_EQ(50, rect->height()->CurrentValue()->Value(length_context));
 
   time_container->Pause();
@@ -294,7 +289,7 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, PauseAfterStart) {
   EXPECT_FALSE(time_container->IsPaused());
   EXPECT_EQ(SMILTime::FromSecondsD(1.5), time_container->Elapsed());
 
-  StepTime(base::Milliseconds(4000));
+  StepTime(base::TimeDelta::FromMilliseconds(4000));
   EXPECT_EQ(50, rect->height()->CurrentValue()->Value(length_context));
   EXPECT_EQ(SMILTime::FromSecondsD(4.5), time_container->Elapsed());
 }
@@ -308,7 +303,7 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, PauseBeforeStart) {
       </rect>
     </svg>
   )HTML");
-  OnContentLoaded(WTF::BindOnce([](Document& document) {
+  OnContentLoaded(WTF::Bind([](Document& document) {
     auto* svg_root = To<SVGSVGElement>(document.getElementById("container"));
     ASSERT_TRUE(svg_root);
     auto* rect = Traversal<SVGRectElement>::FirstChild(*svg_root);
@@ -335,7 +330,7 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, PauseBeforeStart) {
   EXPECT_TRUE(time_container->IsPaused());
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1500));
+  StepTime(base::TimeDelta::FromMilliseconds(1500));
   EXPECT_EQ(SMILTime::FromSecondsD(0), time_container->Elapsed());
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
 
@@ -343,10 +338,10 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, PauseBeforeStart) {
   EXPECT_FALSE(time_container->IsPaused());
   EXPECT_EQ(SMILTime::FromSecondsD(0), time_container->Elapsed());
 
-  StepTime(base::Milliseconds(1500));
+  StepTime(base::TimeDelta::FromMilliseconds(1500));
   EXPECT_EQ(50, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(2500));
+  StepTime(base::TimeDelta::FromMilliseconds(2500));
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
   EXPECT_EQ(SMILTime::FromSecondsD(3), time_container->Elapsed());
 }
@@ -373,7 +368,7 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, PauseAndSetElapsedAfterStart) {
   EXPECT_FALSE(time_container->IsPaused());
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1500));
+  StepTime(base::TimeDelta::FromMilliseconds(1500));
   EXPECT_EQ(50, rect->height()->CurrentValue()->Value(length_context));
 
   time_container->Pause();
@@ -387,7 +382,7 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, PauseAndSetElapsedAfterStart) {
   EXPECT_FALSE(time_container->IsPaused());
   EXPECT_EQ(SMILTime::FromSecondsD(0.5), time_container->Elapsed());
 
-  StepTime(base::Milliseconds(4000));
+  StepTime(base::TimeDelta::FromMilliseconds(4000));
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
   EXPECT_EQ(SMILTime::FromSecondsD(3.5), time_container->Elapsed());
 }
@@ -402,7 +397,7 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest,
       </rect>
     </svg>
   )HTML");
-  OnContentLoaded(WTF::BindOnce([](Document& document) {
+  OnContentLoaded(WTF::Bind([](Document& document) {
     auto* svg_root = To<SVGSVGElement>(document.getElementById("container"));
     ASSERT_TRUE(svg_root);
     auto* rect = Traversal<SVGRectElement>::FirstChild(*svg_root);
@@ -432,7 +427,7 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest,
   EXPECT_EQ(SMILTime::FromSecondsD(1.5), time_container->Elapsed());
   EXPECT_EQ(50, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1500));
+  StepTime(base::TimeDelta::FromMilliseconds(1500));
   EXPECT_EQ(SMILTime::FromSecondsD(1.5), time_container->Elapsed());
   EXPECT_EQ(50, rect->height()->CurrentValue()->Value(length_context));
 
@@ -440,10 +435,10 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest,
   EXPECT_FALSE(time_container->IsPaused());
   EXPECT_EQ(SMILTime::FromSecondsD(1.5), time_container->Elapsed());
 
-  StepTime(base::Milliseconds(2000));
+  StepTime(base::TimeDelta::FromMilliseconds(2000));
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(2000));
+  StepTime(base::TimeDelta::FromMilliseconds(2000));
   EXPECT_EQ(50, rect->height()->CurrentValue()->Value(length_context));
   EXPECT_EQ(SMILTime::FromSecondsD(4.5), time_container->Elapsed());
 }
@@ -457,7 +452,7 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, PauseAndResumeBeforeStart) {
       </rect>
     </svg>
   )HTML");
-  OnContentLoaded(WTF::BindOnce([](Document& document) {
+  OnContentLoaded(WTF::Bind([](Document& document) {
     auto* svg_root = To<SVGSVGElement>(document.getElementById("container"));
     ASSERT_TRUE(svg_root);
     auto* rect = Traversal<SVGRectElement>::FirstChild(*svg_root);
@@ -486,10 +481,10 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, PauseAndResumeBeforeStart) {
   EXPECT_FALSE(time_container->IsPaused());
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(2500));
+  StepTime(base::TimeDelta::FromMilliseconds(2500));
   EXPECT_EQ(100, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(500));
+  StepTime(base::TimeDelta::FromMilliseconds(500));
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
   EXPECT_EQ(SMILTime::FromSecondsD(3), time_container->Elapsed());
 }
@@ -517,15 +512,15 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, PauseAndResumeAfterSuspended) {
   EXPECT_EQ(SMILTime::FromSecondsD(0), time_container->Elapsed());
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1000));
+  StepTime(base::TimeDelta::FromMilliseconds(1000));
   EXPECT_EQ(SMILTime::FromSecondsD(1.0), time_container->Elapsed());
   EXPECT_EQ(50, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1000));
+  StepTime(base::TimeDelta::FromMilliseconds(1000));
   EXPECT_EQ(SMILTime::FromSecondsD(2.0), time_container->Elapsed());
   EXPECT_EQ(100, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1500));
+  StepTime(base::TimeDelta::FromMilliseconds(1500));
   EXPECT_EQ(SMILTime::FromSecondsD(3.0), time_container->Elapsed());
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
 
@@ -537,15 +532,15 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, PauseAndResumeAfterSuspended) {
   EXPECT_FALSE(time_container->IsPaused());
   EXPECT_EQ(SMILTime::FromSecondsD(3.0), time_container->Elapsed());
 
-  StepTime(base::Milliseconds(1000));
+  StepTime(base::TimeDelta::FromMilliseconds(1000));
   EXPECT_EQ(SMILTime::FromSecondsD(4.0), time_container->Elapsed());
   EXPECT_EQ(50, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1000));
+  StepTime(base::TimeDelta::FromMilliseconds(1000));
   EXPECT_EQ(SMILTime::FromSecondsD(5.0), time_container->Elapsed());
   EXPECT_EQ(100, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1500));
+  StepTime(base::TimeDelta::FromMilliseconds(1500));
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
   EXPECT_EQ(SMILTime::FromSecondsD(6.0), time_container->Elapsed());
 }
@@ -573,15 +568,15 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, SetElapsedAfterSuspended) {
   EXPECT_EQ(SMILTime::FromSecondsD(0), time_container->Elapsed());
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1000));
+  StepTime(base::TimeDelta::FromMilliseconds(1000));
   EXPECT_EQ(SMILTime::FromSecondsD(1.0), time_container->Elapsed());
   EXPECT_EQ(50, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1000));
+  StepTime(base::TimeDelta::FromMilliseconds(1000));
   EXPECT_EQ(SMILTime::FromSecondsD(2.0), time_container->Elapsed());
   EXPECT_EQ(100, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1500));
+  StepTime(base::TimeDelta::FromMilliseconds(1500));
   EXPECT_EQ(SMILTime::FromSecondsD(3.0), time_container->Elapsed());
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
 
@@ -590,15 +585,15 @@ TEST_F(SMILTimeContainerAnimationPolicyOnceTest, SetElapsedAfterSuspended) {
   EXPECT_EQ(SMILTime::FromSecondsD(5.5), time_container->Elapsed());
   EXPECT_EQ(100, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1000));
+  StepTime(base::TimeDelta::FromMilliseconds(1000));
   EXPECT_EQ(SMILTime::FromSecondsD(6.5), time_container->Elapsed());
   EXPECT_EQ(30, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1000));
+  StepTime(base::TimeDelta::FromMilliseconds(1000));
   EXPECT_EQ(SMILTime::FromSecondsD(7.5), time_container->Elapsed());
   EXPECT_EQ(50, rect->height()->CurrentValue()->Value(length_context));
 
-  StepTime(base::Milliseconds(1500));
+  StepTime(base::TimeDelta::FromMilliseconds(1500));
   EXPECT_EQ(100, rect->height()->CurrentValue()->Value(length_context));
   EXPECT_EQ(SMILTime::FromSecondsD(8.5), time_container->Elapsed());
 }

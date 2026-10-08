@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ios/chrome/browser/bookmarks/bookmark_sync_service_factory.h"
 
-#include "base/no_destructor.h"
 #include "components/keyed_service/ios/browser_state_dependency_manager.h"
 #include "components/sync_bookmarks/bookmark_sync_service.h"
 #include "ios/chrome/browser/browser_state/browser_state_otr_helper.h"
@@ -31,7 +30,7 @@ BookmarkSyncServiceFactory::BookmarkSyncServiceFactory()
     : BrowserStateKeyedServiceFactory(
           "BookmarkSyncServiceFactory",
           BrowserStateDependencyManager::GetInstance()) {
-  DependsOn(BookmarkUndoServiceFactory::GetInstance());
+  DependsOn(ios::BookmarkUndoServiceFactory::GetInstance());
 }
 
 BookmarkSyncServiceFactory::~BookmarkSyncServiceFactory() {}

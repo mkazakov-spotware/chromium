@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "ui/events/devices/x11/device_data_manager_x11.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/events/types/event_type.h"
@@ -26,10 +27,6 @@ struct Valuator {
 class ScopedXI2Event {
  public:
   ScopedXI2Event();
-
-  ScopedXI2Event(const ScopedXI2Event&) = delete;
-  ScopedXI2Event& operator=(const ScopedXI2Event&) = delete;
-
   ~ScopedXI2Event();
 
   operator x11::Event*() { return &event_; }
@@ -84,6 +81,8 @@ class ScopedXI2Event {
   void SetUpValuators(const std::vector<Valuator>& valuators);
 
   x11::Event event_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedXI2Event);
 };
 
 // Initializes a test touchpad device for scroll events.

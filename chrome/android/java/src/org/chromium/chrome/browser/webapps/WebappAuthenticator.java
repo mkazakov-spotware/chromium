@@ -1,14 +1,16 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.webapps;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.util.Log;
 
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.ContextUtils;
+import org.chromium.base.SecureRandomInitializer;
 import org.chromium.base.StrictModeContext;
 
 import java.io.File;
@@ -176,7 +178,10 @@ public class WebappAuthenticator {
 
     /**
      * Generates the authentication encryption key in a background thread (if necessary).
+     * SecureRandomInitializer addresses the bug in SecureRandom that "TrulyRandom" warns about, so
+     * this lint warning can safely be suppressed.
      */
+    @SuppressLint("TrulyRandom")
     private static SecretKey generateMacKey() {
         if (sKey != null) {
             return sKey;
@@ -184,9 +189,10 @@ public class WebappAuthenticator {
         try {
             KeyGenerator generator = KeyGenerator.getInstance(MAC_ALGORITHM_NAME);
             SecureRandom random = new SecureRandom();
+            SecureRandomInitializer.initialize(random);
             generator.init(MAC_KEY_BYTE_COUNT * 8, random);
             return generator.generateKey();
-        } catch (NoSuchAlgorithmException e) {
+        } catch (NoSuchAlgorithmException | IOException e) {
             throw new RuntimeException(e);
         }
     }

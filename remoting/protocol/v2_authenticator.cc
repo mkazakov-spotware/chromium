@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,8 @@
 
 using crypto::P224EncryptedKeyExchange;
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 
@@ -61,7 +62,7 @@ V2Authenticator::V2Authenticator(
       key_exchange_impl_(type, shared_secret),
       state_(initial_state),
       started_(false),
-      rejection_reason_(RejectionReason::INVALID_CREDENTIALS) {
+      rejection_reason_(INVALID_CREDENTIALS) {
   pending_messages_.push(key_exchange_impl_.GetNextMessage());
 }
 
@@ -104,7 +105,7 @@ void V2Authenticator::ProcessMessageInternal(const jingle_xmpp::XmlElement* mess
   if (!is_host_side() && remote_cert_.empty()) {
     LOG(WARNING) << "No valid host certificate.";
     state_ = REJECTED;
-    rejection_reason_ = RejectionReason::PROTOCOL_ERROR;
+    rejection_reason_ = PROTOCOL_ERROR;
     return;
   }
 
@@ -112,7 +113,7 @@ void V2Authenticator::ProcessMessageInternal(const jingle_xmpp::XmlElement* mess
   if (!eke_element) {
     LOG(WARNING) << "No eke-message found.";
     state_ = REJECTED;
-    rejection_reason_ = RejectionReason::PROTOCOL_ERROR;
+    rejection_reason_ = PROTOCOL_ERROR;
     return;
   }
 
@@ -123,7 +124,7 @@ void V2Authenticator::ProcessMessageInternal(const jingle_xmpp::XmlElement* mess
         !base::Base64Decode(base64_message, &spake_message)) {
       LOG(WARNING) << "Failed to decode auth message received from the peer.";
       state_ = REJECTED;
-      rejection_reason_ = RejectionReason::PROTOCOL_ERROR;
+      rejection_reason_ = PROTOCOL_ERROR;
       return;
     }
 
@@ -137,7 +138,7 @@ void V2Authenticator::ProcessMessageInternal(const jingle_xmpp::XmlElement* mess
 
       case P224EncryptedKeyExchange::kResultFailed:
         state_ = REJECTED;
-        rejection_reason_ = RejectionReason::INVALID_CREDENTIALS;
+        rejection_reason_ = INVALID_CREDENTIALS;
         return;
 
       case P224EncryptedKeyExchange::kResultSuccess:
@@ -204,4 +205,5 @@ bool V2Authenticator::is_host_side() const {
   return local_key_pair_.get() != nullptr;
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

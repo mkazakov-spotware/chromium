@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,13 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/task_runner.h"
-#include "base/time/time.h"
 #include "components/paint_preview/player/player_compositor_delegate.h"
+
+class SkBitmap;
 
 namespace paint_preview {
 class PaintPreviewBaseService;
-struct JavaBitmapResult;
 
 class PlayerCompositorDelegateAndroid : public PlayerCompositorDelegate {
  public:
@@ -23,23 +21,17 @@ class PlayerCompositorDelegateAndroid : public PlayerCompositorDelegate {
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& j_object,
       PaintPreviewBaseService* paint_preview_service,
-      jlong j_capture_result_ptr,
       const base::android::JavaParamRef<jstring>& j_url_spec,
       const base::android::JavaParamRef<jstring>& j_directory_key,
-      jboolean j_main_frame_mode,
       const base::android::JavaParamRef<jobject>& j_compositor_error_callback,
       jboolean j_is_low_mem);
 
   void OnCompositorReady(
       CompositorStatus compositor_status,
-      mojom::PaintPreviewBeginCompositeResponsePtr composite_response,
-      float page_scale_factor,
-      std::unique_ptr<ui::AXTreeUpdate> ax_tree) override;
+      mojom::PaintPreviewBeginCompositeResponsePtr composite_response) override;
 
   void OnMemoryPressure(base::MemoryPressureListener::MemoryPressureLevel
                             memory_pressure_level) override;
-
-  base::android::ScopedJavaLocalRef<jintArray> GetRootFrameOffsets(JNIEnv* env);
 
   // Called from Java when there is a request for a new bitmap. When the bitmap
   // is ready, it will be passed to j_bitmap_callback. In case of any failure,
@@ -83,18 +75,17 @@ class PlayerCompositorDelegateAndroid : public PlayerCompositorDelegate {
  private:
   ~PlayerCompositorDelegateAndroid() override;
 
-  void OnJavaBitmapCallback(
+  void OnBitmapCallback(
       const base::android::ScopedJavaGlobalRef<jobject>& j_bitmap_callback,
       const base::android::ScopedJavaGlobalRef<jobject>& j_error_callback,
       int request_id,
-      JavaBitmapResult result);
+      mojom::PaintPreviewCompositor::BitmapStatus status,
+      const SkBitmap& sk_bitmap);
 
   // Points to corresponding the Java object.
   base::android::ScopedJavaGlobalRef<jobject> java_ref_;
 
   int request_id_;
-  // Task runner for converting bitmaps allows parallel and not in order.
-  scoped_refptr<base::TaskRunner> task_runner_;
   base::TimeTicks startup_timestamp_;
 
   base::WeakPtrFactory<PlayerCompositorDelegateAndroid> weak_factory_{this};

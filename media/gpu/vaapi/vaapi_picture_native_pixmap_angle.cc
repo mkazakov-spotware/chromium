@@ -1,14 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/gpu/vaapi/vaapi_picture_native_pixmap_angle.h"
 
 #include "media/gpu/vaapi/va_surface.h"
-#include "media/gpu/vaapi/vaapi_status.h"
 #include "media/gpu/vaapi/vaapi_wrapper.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/gfx/x/connection.h"
-#include "ui/gfx/x/future.h"
 #include "ui/gfx/x/xproto.h"
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/gl_image_egl_pixmap.h"
@@ -26,7 +25,7 @@ x11::Pixmap CreatePixmap(const gfx::Size& size) {
   auto root = connection->default_root();
 
   uint8_t depth = 0;
-  if (auto reply = connection->GetGeometry(root).Sync())
+  if (auto reply = connection->GetGeometry({root}).Sync())
     depth = reply->depth;
   else
     return x11::Pixmap::None;
@@ -82,48 +81,42 @@ VaapiPictureNativePixmapAngle::~VaapiPictureNativePixmapAngle() {
 
   if (x_pixmap_ != x11::Pixmap::None)
     x11::Connection::Get()->FreePixmap({x_pixmap_});
-
-  // Reset |va_surface_| before |gl_image_| to preserve the order of destruction
-  // before the refactoring done in
-  // https://chromium-review.googlesource.com/c/chromium/src/+/4025005.
-  // TODO(crbug.com/1366367): Determine whether preserving this order matters
-  // and remove these calls if not.
-  va_surface_.reset();
-  gl_image_.reset();
 }
 
-VaapiStatus VaapiPictureNativePixmapAngle::Allocate(gfx::BufferFormat format) {
+Status VaapiPictureNativePixmapAngle::Allocate(gfx::BufferFormat format) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!(texture_id_ || client_texture_id_))
-    return VaapiStatus::Codes::kNoTexture;
+    return StatusCode::kVaapiNoTexture;
 
   if (!make_context_current_cb_ || !make_context_current_cb_.Run())
-    return VaapiStatus::Codes::kBadContext;
+    return StatusCode::kVaapiBadContext;
 
+  DCHECK(!features::IsUsingOzonePlatform());
   auto image =
       base::MakeRefCounted<gl::GLImageEGLPixmap>(visible_size_, format);
   if (!image)
-    return VaapiStatus::Codes::kNoImage;
+    return StatusCode::kVaapiNoImage;
 
   x_pixmap_ = CreatePixmap(visible_size_);
   if (x_pixmap_ == x11::Pixmap::None)
-    return VaapiStatus::Codes::kNoPixmap;
+    return StatusCode::kVaapiNoPixmap;
 
   if (!image->Initialize(x_pixmap_))
-    return VaapiStatus::Codes::kFailedToInitializeImage;
+    return StatusCode::kVaapiFailedToInitializeImage;
 
   gl::ScopedTextureBinder texture_binder(texture_target_, texture_id_);
   if (!image->BindTexImage(texture_target_))
-    return VaapiStatus::Codes::kFailedToBindTexture;
+    return StatusCode::kVaapiFailedToBindTexture;
 
   gl_image_ = image;
 
   DCHECK(bind_image_cb_);
-  if (!bind_image_cb_.Run(client_texture_id_, texture_target_, gl_image_)) {
-    return VaapiStatus::Codes::kFailedToBindImage;
+  if (!bind_image_cb_.Run(client_texture_id_, texture_target_, gl_image_,
+                          /*can_bind_to_sampler=*/true)) {
+    return StatusCode::kVaapiFailedToBindImage;
   }
 
-  return VaapiStatus::Codes::kOk;
+  return OkStatus();
 }
 
 bool VaapiPictureNativePixmapAngle::ImportGpuMemoryBufferHandle(

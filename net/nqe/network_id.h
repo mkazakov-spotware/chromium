@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,9 @@
 #include "net/base/net_export.h"
 #include "net/base/network_change_notifier.h"
 
-namespace net::nqe::internal {
+namespace net {
+namespace nqe {
+namespace internal {
 
 // NetworkID is used to uniquely identify a network.
 // For the purpose of network quality estimation and caching, a network is
@@ -60,6 +62,8 @@ struct NET_EXPORT_PRIVATE NetworkID {
   int32_t signal_strength;
 };
 
-}  // namespace net::nqe::internal
+}  // namespace internal
+}  // namespace nqe
+}  // namespace net
 
 #endif  // NET_NQE_NETWORK_ID_H_

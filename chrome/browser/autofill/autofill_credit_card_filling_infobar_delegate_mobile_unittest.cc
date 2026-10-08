@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "components/autofill/core/browser/autofill_test_utils.h"
@@ -20,12 +21,6 @@ class AutofillCreditCardFillingInfoBarDelegateMobileTest
  public:
   AutofillCreditCardFillingInfoBarDelegateMobileTest()
       : infobar_callback_has_run_(false) {}
-
-  AutofillCreditCardFillingInfoBarDelegateMobileTest(
-      const AutofillCreditCardFillingInfoBarDelegateMobileTest&) = delete;
-  AutofillCreditCardFillingInfoBarDelegateMobileTest& operator=(
-      const AutofillCreditCardFillingInfoBarDelegateMobileTest&) = delete;
-
   ~AutofillCreditCardFillingInfoBarDelegateMobileTest() override {}
 
  protected:
@@ -35,6 +30,9 @@ class AutofillCreditCardFillingInfoBarDelegateMobileTest
   void AcceptInfoBarCallback() { infobar_callback_has_run_ = true; }
 
   bool infobar_callback_has_run_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AutofillCreditCardFillingInfoBarDelegateMobileTest);
 };
 
 std::unique_ptr<AutofillCreditCardFillingInfoBarDelegateMobile>

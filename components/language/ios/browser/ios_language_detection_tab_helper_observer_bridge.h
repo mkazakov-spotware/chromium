@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #import <Foundation/Foundation.h>
 
+#include "base/macros.h"
 #include "components/language/ios/browser/ios_language_detection_tab_helper.h"
 
 // Objective-C equivalent of language::IOSLanguageDetectionTabHelper::Observer.
@@ -29,12 +30,6 @@ class IOSLanguageDetectionTabHelperObserverBridge
   IOSLanguageDetectionTabHelperObserverBridge(
       IOSLanguageDetectionTabHelper* tab_helper,
       id<IOSLanguageDetectionTabHelperObserving> owner);
-
-  IOSLanguageDetectionTabHelperObserverBridge(
-      const IOSLanguageDetectionTabHelperObserverBridge&) = delete;
-  IOSLanguageDetectionTabHelperObserverBridge& operator=(
-      const IOSLanguageDetectionTabHelperObserverBridge&) = delete;
-
   ~IOSLanguageDetectionTabHelperObserverBridge() override;
 
   // IOSLanguageDetectionTabHelper::Observer.
@@ -46,6 +41,8 @@ class IOSLanguageDetectionTabHelperObserverBridge
  private:
   IOSLanguageDetectionTabHelper* tab_helper_ = nullptr;
   __weak id<IOSLanguageDetectionTabHelperObserving> owner_;
+
+  DISALLOW_COPY_AND_ASSIGN(IOSLanguageDetectionTabHelperObserverBridge);
 };
 
 }  // namespace language

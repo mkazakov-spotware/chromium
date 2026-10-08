@@ -1,4 +1,4 @@
-// Copyright 2019 The Crashpad Authors
+// Copyright 2019 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ namespace crashpad {
 namespace {
 
 void Usage(const base::FilePath& me) {
-  // clang-format off
   fprintf(stderr,
 "Usage: %" PRFilePath " [options] <input-file> <output-file>\n"
 "Encode/Decode the given file\n"
@@ -35,7 +34,6 @@ void Usage(const base::FilePath& me) {
 "      --help     display this help and exit\n"
 "      --version  output version information and exit\n",
           me.value().c_str());
-  // clang-format on
   ToolSupport::UsageTail(me);
 }
 
@@ -119,12 +117,12 @@ int Base94EncoderMain(int argc, char* argv[]) {
 }  // namespace
 }  // namespace crashpad
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 int main(int argc, char* argv[]) {
   return crashpad::Base94EncoderMain(argc, argv);
 }
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 int wmain(int argc, wchar_t* argv[]) {
   return crashpad::ToolSupport::Wmain(argc, argv, crashpad::Base94EncoderMain);
 }
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX

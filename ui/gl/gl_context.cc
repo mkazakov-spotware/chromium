@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,7 @@
 #include "ui/gl/gl_version_info.h"
 #include "ui/gl/gpu_timing.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include "base/mac/mac_util.h"
 #endif
 
@@ -43,6 +43,8 @@ base::LazyInstance<base::ThreadLocalPointer<GLContext>>::Leaky
 base::subtle::Atomic32 GLContext::total_gl_contexts_ = 0;
 // static
 bool GLContext::switchable_gpus_supported_ = false;
+// static
+GpuPreference GLContext::forced_gpu_preference_ = GpuPreference::kDefault;
 
 GLContext::ScopedReleaseCurrent::ScopedReleaseCurrent() : canceled_(false) {}
 
@@ -74,7 +76,7 @@ GLContext::GLContext(GLShareGroup* share_group) : share_group_(share_group) {
 }
 
 GLContext::~GLContext() {
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   DCHECK(!HasBackpressureFences());
 #endif
   share_group_->RemoveContext(this);
@@ -104,11 +106,29 @@ void GLContext::SetSwitchableGPUsSupported() {
   switchable_gpus_supported_ = true;
 }
 
-bool GLContext::MakeCurrent(GLSurface* surface) {
-  if (context_lost_) {
-    LOG(ERROR) << "Failed to make current since context is marked as lost";
-    return false;
+// static
+void GLContext::SetForcedGpuPreference(GpuPreference gpu_preference) {
+  DCHECK_EQ(GpuPreference::kDefault, forced_gpu_preference_);
+  forced_gpu_preference_ = gpu_preference;
+}
+
+// static
+GpuPreference GLContext::AdjustGpuPreference(GpuPreference gpu_preference) {
+  switch (forced_gpu_preference_) {
+    case GpuPreference::kDefault:
+      return gpu_preference;
+    case GpuPreference::kLowPower:
+    case GpuPreference::kHighPerformance:
+      return forced_gpu_preference_;
+    default:
+      NOTREACHED();
+      return GpuPreference::kDefault;
   }
+}
+
+bool GLContext::MakeCurrent(GLSurface* surface) {
+  if (context_lost_)
+    return false;
   return MakeCurrentImpl(surface);
 }
 
@@ -147,6 +167,11 @@ std::string GLContext::GetGLRenderer() {
   return std::string(renderer ? renderer : "");
 }
 
+YUVToRGBConverter* GLContext::GetYUVToRGBConverter(
+    const gfx::ColorSpace& color_space) {
+  return nullptr;
+}
+
 CurrentGL* GLContext::GetCurrentGL() {
   if (!static_bindings_initialized_) {
     driver_gl_ = std::make_unique<DriverGL>();
@@ -182,13 +207,7 @@ void GLContext::DirtyVirtualContextState() {
   current_virtual_context_ = nullptr;
 }
 
-#if defined(USE_EGL)
-GLDisplayEGL* GLContext::GetGLDisplayEGL() {
-  return nullptr;
-}
-#endif  // USE_EGL
-
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 constexpr uint64_t kInvalidFenceId = 0;
 
 uint64_t GLContext::BackpressureFenceCreate() {
@@ -232,7 +251,7 @@ void GLContext::BackpressureFenceWait(uint64_t fence_id) {
   bool fence_completed = false;
   for (int poll_iter = 0; !fence_completed && poll_iter < 32; ++poll_iter) {
     if (poll_iter > 0) {
-      base::PlatformThread::Sleep(base::Milliseconds(1));
+      base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(1));
     }
     {
       TRACE_EVENT0("gpu", "GLFence::HasCompleted");
@@ -262,10 +281,17 @@ void GLContext::DestroyBackpressureFences() {
 
 void GLContext::FlushForDriverCrashWorkaround() {
   // If running on Apple silicon, regardless of the architecture, disable this
-  // workaround.  See https://crbug.com/1131312.
-  static const bool needs_flush =
-      base::mac::GetCPUType() == base::mac::CPUType::kIntel;
-  if (!needs_flush || !IsCurrent(nullptr))
+  // workaround.
+  // https://crbug.com/1131312
+  switch (base::mac::GetCPUType()) {
+    case base::mac::CPUType::kArm:
+    case base::mac::CPUType::kTranslatedIntel:
+      return;
+    default:
+      break;
+  }
+
+  if (!IsCurrent(nullptr))
     return;
   TRACE_EVENT0("gpu", "GLContext::FlushForDriverCrashWorkaround");
   glFlush();
@@ -298,7 +324,10 @@ bool GLContext::LosesAllContextsOnContextLost() {
       return false;
     case kGLImplementationEGLGLES2:
     case kGLImplementationEGLANGLE:
+    case kGLImplementationSwiftShaderGL:
       return true;
+    case kGLImplementationAppleGL:
+      return false;
     case kGLImplementationMockGL:
     case kGLImplementationStubGL:
       return false;

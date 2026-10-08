@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,13 +12,14 @@
 #include <vector>
 
 #include "base/feature_list.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 
 class GURL;
 
 namespace safe_browsing {
 
-BASE_DECLARE_FEATURE(kSettingsResetPrompt);
+extern const base::Feature kSettingsResetPrompt;
 
 // Encapsulates the state of the reset prompt experiment as well as
 // associated data.
@@ -28,10 +29,6 @@ class SettingsResetPromptConfig {
   // Returns nullptr if |IsPromptEnabled()| is false or if something is wrong
   // with the config parameters.
   static std::unique_ptr<SettingsResetPromptConfig> Create();
-
-  SettingsResetPromptConfig(const SettingsResetPromptConfig&) = delete;
-  SettingsResetPromptConfig& operator=(const SettingsResetPromptConfig&) =
-      delete;
 
   virtual ~SettingsResetPromptConfig();
 
@@ -75,6 +72,8 @@ class SettingsResetPromptConfig {
   base::TimeDelta delay_before_prompt_;
   int prompt_wave_ = 0;
   base::TimeDelta time_between_prompts_;
+
+  DISALLOW_COPY_AND_ASSIGN(SettingsResetPromptConfig);
 };
 
 }  // namespace safe_browsing

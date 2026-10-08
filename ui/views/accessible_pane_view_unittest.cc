@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,8 @@
 
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/layout/fill_layout.h"
@@ -25,10 +24,6 @@ using AccessiblePaneViewTest = ViewsTestBase;
 class TestBarView : public AccessiblePaneView {
  public:
   TestBarView();
-
-  TestBarView(const TestBarView&) = delete;
-  TestBarView& operator=(const TestBarView&) = delete;
-
   ~TestBarView() override;
 
   LabelButton* child_button() const { return child_button_; }
@@ -41,11 +36,12 @@ class TestBarView : public AccessiblePaneView {
  private:
   void Init();
 
-  raw_ptr<LabelButton> child_button_;
-  // TODO(crbug.com/1298696): Breaks views_unittests.
-  raw_ptr<LabelButton, DegradeToNoOpWhenMTE> second_child_button_;
-  raw_ptr<LabelButton> third_child_button_;
+  LabelButton* child_button_;
+  LabelButton* second_child_button_;
+  LabelButton* third_child_button_;
   std::unique_ptr<LabelButton> not_child_button_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestBarView);
 };
 
 TestBarView::TestBarView() {
@@ -57,7 +53,7 @@ TestBarView::~TestBarView() = default;
 
 void TestBarView::Init() {
   SetLayoutManager(std::make_unique<FillLayout>());
-  std::u16string label;
+  base::string16 label;
   child_button_ = AddChildView(std::make_unique<LabelButton>());
   second_child_button_ = AddChildView(std::make_unique<LabelButton>());
   third_child_button_ = AddChildView(std::make_unique<LabelButton>());
@@ -138,7 +134,7 @@ TEST_F(AccessiblePaneViewTest, SetPaneFocusAndRestore) {
   // predictable. On Mac, Deactivate() is not implemented. Note that
   // TestBarView calls set_allow_deactivate_on_esc(true), which is only
   // otherwise used in Ash.
-#if !BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_APPLE) || defined(OS_CHROMEOS)
   // Esc should deactivate the widget.
   test_view_bar->AcceleratorPressed(test_view_bar->escape_key());
   EXPECT_TRUE(widget_main->IsActive());
@@ -231,15 +227,7 @@ TEST_F(AccessiblePaneViewTest, PaneFocusTraversal) {
   widget.reset();
 }
 
-// TODO(crbug.com/1314275): Re-enable this test
-#if defined(ADDRESS_SANITIZER) && defined(LEAK_SANITIZER)
-#define MAYBE_DoesntCrashOnEscapeWithRemovedView \
-  DISABLED_DoesntCrashOnEscapeWithRemovedView
-#else
-#define MAYBE_DoesntCrashOnEscapeWithRemovedView \
-  DoesntCrashOnEscapeWithRemovedView
-#endif
-TEST_F(AccessiblePaneViewTest, MAYBE_DoesntCrashOnEscapeWithRemovedView) {
+TEST_F(AccessiblePaneViewTest, DoesntCrashOnEscapeWithRemovedView) {
   TestBarView* test_view1 = new TestBarView();
   TestBarView* test_view2 = new TestBarView();
   Widget widget;

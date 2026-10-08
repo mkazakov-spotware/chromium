@@ -37,7 +37,7 @@
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/modules/speech/speech_grammar_list.h"
 #include "third_party/blink/renderer/modules/speech/speech_recognition_result.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_receiver.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_remote.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
@@ -125,7 +125,6 @@ class MODULES_EXPORT SpeechRecognition final
 
  private:
   void OnConnectionError();
-  void StartInternal(ExceptionState* exception_state);
 
   Member<SpeechGrammarList> grammars_;
   String lang_;

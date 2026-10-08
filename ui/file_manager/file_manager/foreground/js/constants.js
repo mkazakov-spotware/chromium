@@ -1,21 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
- * Namespace for common constants used in Files app.
+ * Namespace for common constnats used in Files app.
  * @namespace
  */
-export const constants = {};
+const constants = {};
 
 /**
  * @const {!Array<string>}
  */
-constants.ACTIONS_MODEL_METADATA_PREFETCH_PROPERTY_NAMES = [
-  'canPin',
-  'hosted',
-  'pinned',
-];
+constants.ACTIONS_MODEL_METADATA_PREFETCH_PROPERTY_NAMES = ['hosted', 'pinned'];
 
 /**
  * The list of executable file extensions.
@@ -41,7 +37,6 @@ constants.FILE_SELECTION_METADATA_PREFETCH_PROPERTY_NAMES = [
   'availableOffline',
   'contentMimeType',
   'hosted',
-  'canPin',
 ];
 
 /**
@@ -67,44 +62,31 @@ constants.LIST_CONTAINER_METADATA_PREFETCH_PROPERTY_NAMES = [
   'canRename',
   'canAddChildren',
   'canShare',
-  'canPin',
   'isMachineRoot',
   'isExternalMedia',
   'isArbitrarySyncFolder',
 ];
 
 /**
- * Metadata properties used to inform the user about DLP (Data Leak Prevention)
- * Files restrictions. These metadata is expected to be cached.
- *
- * @const {!Array<string>}
+ * Path for files_quick_view.html file.  Allow override for testing.
+ * @type {string}
  */
-constants.DLP_METADATA_PREFETCH_PROPERTY_NAMES = [
-  'isDlpRestricted',
-  'sourceUrl',
-  'isRestrictedForDestination',
-];
+constants.FILES_QUICK_VIEW_HTML = 'foreground/elements/files_quick_view.html';
 
 /**
- * Name of the default crostini VM: crostini::kCrostiniDefaultVmName
+ * Path for drive_welcome.css file.  Allow override for testing.
+ * @type {string}
+ */
+constants.DRIVE_WELCOME_CSS = 'foreground/css/drive_welcome.css';
+
+/**
+ * Name of the default crostini VM.
  * @const
  */
 constants.DEFAULT_CROSTINI_VM = 'termina';
 
 /**
- * Name of the Plugin VM: plugin_vm::kPluginVmName.
+ * Name of the Plugin VM.
  * @const
  */
 constants.PLUGIN_VM = 'PvmDefault';
-
-/**
- * Name of the default bruschetta VM: bruschetta::kBruschettaVmName
- * @const
- */
-constants.DEFAULT_BRUSCHETTA_VM = 'bru';
-
-/**
- * DOMError type for crostini connection failure.
- * @const {string}
- */
-constants.CROSTINI_CONNECT_ERR = 'CrostiniConnectErr';

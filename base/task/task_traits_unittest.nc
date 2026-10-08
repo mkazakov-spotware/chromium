@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,7 @@ constexpr TaskTraits traits = {TaskShutdownBehavior::BLOCK_SHUTDOWN,
 constexpr TaskTraits traits = {TaskShutdownBehavior::BLOCK_SHUTDOWN,
                                MayBlock(),
                                TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN};
-#elif defined(NCTEST_TASK_TRAITS_INVALID_TYPE)  // [r"no matching constructor for initialization of 'const TaskTraits'"]
+#elif defined(NCTEST_TASK_TRAITS_INVALID_TYPE)  // [r"no matching constructor for initialization of 'const base::TaskTraits'"]
 constexpr TaskTraits traits = {TaskShutdownBehavior::BLOCK_SHUTDOWN, true};
 #endif
 

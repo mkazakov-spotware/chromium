@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,14 @@
 #define GPU_IPC_COMMON_MEMORY_STATS_MOJOM_TRAITS_H_
 
 #include "build/build_config.h"
-#include "gpu/gpu_export.h"
 #include "gpu/ipc/common/memory_stats.h"
 #include "gpu/ipc/common/memory_stats.mojom-shared.h"
 
 namespace mojo {
 
 template <>
-struct GPU_EXPORT StructTraits<gpu::mojom::VideoMemoryProcessStatsDataView,
-                               gpu::VideoMemoryUsageStats::ProcessStats> {
+struct StructTraits<gpu::mojom::VideoMemoryProcessStatsDataView,
+                    gpu::VideoMemoryUsageStats::ProcessStats> {
   static uint64_t video_memory_bytes(
       const gpu::VideoMemoryUsageStats::ProcessStats& state) {
     return state.video_memory;
@@ -34,11 +33,11 @@ struct GPU_EXPORT StructTraits<gpu::mojom::VideoMemoryProcessStatsDataView,
 };
 
 template <>
-struct GPU_EXPORT StructTraits<gpu::mojom::VideoMemoryUsageStatsDataView,
-                               gpu::VideoMemoryUsageStats> {
+struct StructTraits<gpu::mojom::VideoMemoryUsageStatsDataView,
+                    gpu::VideoMemoryUsageStats> {
   static std::map<int32_t, gpu::VideoMemoryUsageStats::ProcessStats>
   process_map(const gpu::VideoMemoryUsageStats& stats) {
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_WIN) || defined(OS_FUCHSIA)
     std::map<int32_t, gpu::VideoMemoryUsageStats::ProcessStats> map;
     for (const auto& pair : stats.process_map)
       map[static_cast<int32_t>(pair.first)] = pair.second;
@@ -54,7 +53,7 @@ struct GPU_EXPORT StructTraits<gpu::mojom::VideoMemoryUsageStatsDataView,
 
   static bool Read(gpu::mojom::VideoMemoryUsageStatsDataView data,
                    gpu::VideoMemoryUsageStats* out) {
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_WIN) || defined(OS_FUCHSIA)
     std::map<int32_t, gpu::VideoMemoryUsageStats::ProcessStats> process_map;
     if (!data.ReadProcessMap(&process_map))
       return false;

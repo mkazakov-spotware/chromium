@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 
 #include "base/compiler_specific.h"
 #include "base/containers/circular_deque.h"
+#include "base/macros.h"
 #include "base/memory/shared_memory_mapping.h"
 #include "base/memory/unsafe_shared_memory_region.h"
 #include "ppapi/shared_impl/ppapi_shared_export.h"
@@ -49,9 +50,6 @@ class PPAPI_SHARED_EXPORT MediaStreamBufferManager {
   // MediaStreamBufferManager doesn't own |delegate|, the caller should keep
   // it alive during the MediaStreamBufferManager's lifecycle.
   explicit MediaStreamBufferManager(Delegate* delegate);
-
-  MediaStreamBufferManager(const MediaStreamBufferManager&) = delete;
-  MediaStreamBufferManager& operator=(const MediaStreamBufferManager&) = delete;
 
   ~MediaStreamBufferManager();
 
@@ -102,8 +100,10 @@ class PPAPI_SHARED_EXPORT MediaStreamBufferManager {
   // mapping.
   base::UnsafeSharedMemoryRegion region_;
   base::WritableSharedMemoryMapping mapping_;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaStreamBufferManager);
 };
 
 }  // namespace ppapi
 
-#endif  // PPAPI_SHARED_IMPL_MEDIA_STREAM_BUFFER_MANAGER_H_
+#endif  // PPAPI_SHAERD_IMPL_MEDIA_STREAM_BUFFER_MANAGER_H_

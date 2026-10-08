@@ -1,10 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Verify that dirty network uiSourceCodes are bound to filesystem.\n`);
-  await TestRunner.loadTestModule('bindings_test_runner');
+  await TestRunner.loadModule('bindings_test_runner');
   BindingsTestRunner.overrideNetworkModificationTime(
       {'http://127.0.0.1:8000/devtools/persistence/resources/foo.js': null});
   TestRunner.addScriptTag('resources/foo.js');
@@ -13,7 +13,7 @@
   content = content.replace(/foo/g, 'bar');
   networkUISourceCode.setWorkingCopy(content);
 
-  var fs = new BindingsTestRunner.TestFileSystem('/var/www');
+  var fs = new BindingsTestRunner.TestFileSystem('file:///var/www');
   BindingsTestRunner.addFooJSFile(fs);
   fs.reportCreated(function() {});
 

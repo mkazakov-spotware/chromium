@@ -1,23 +1,18 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "content/common/cursors/webcursor.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/cursor/cursor.h"
 #include "ui/base/cursor/mojom/cursor_type.mojom-shared.h"
-#include "ui/gfx/geometry/size.h"
-#include "ui/gfx/geometry/skia_conversions.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
-
-#include "ui/base/win/win_cursor.h"
 #endif
 
 namespace content {
@@ -64,28 +59,37 @@ TEST(WebCursorTest, WebCursorCursorConstructorCustom) {
   webcursor.GetNativeCursor();
   EXPECT_TRUE(webcursor.has_custom_cursor_for_test());
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
   // Test if the rotating custom cursor works correctly.
   display::Display display;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
   display.set_panel_rotation(display::Display::ROTATE_90);
-#endif
   webcursor.SetDisplayInfo(display);
   EXPECT_FALSE(webcursor.has_custom_cursor_for_test());
   native_cursor = webcursor.GetNativeCursor();
   EXPECT_TRUE(webcursor.has_custom_cursor_for_test());
-#if BUILDFLAG(IS_CHROMEOS_ASH)
   // Hotspot should be scaled & rotated.  We're using the icon created for 2.0,
   // on the display with dsf=1.0, so the host spot should be
   // ((32 - 20) / 2, 10 / 2) = (6, 5).
   EXPECT_EQ(gfx::Point(6, 5), native_cursor.custom_hotspot());
-#else
-  // For non-CrOS platforms, the cursor mustn't be rotated as logical and
-  // physical location is the same.
-  EXPECT_EQ(gfx::Point(5, 10), native_cursor.custom_hotspot());
 #endif
 #endif
-#endif
+}
+
+TEST(WebCursorTest, CopyConstructorType) {
+  ui::Cursor cursor(ui::mojom::CursorType::kHand);
+  WebCursor webcursor(cursor);
+  WebCursor copy(webcursor);
+  EXPECT_EQ(webcursor, copy);
+}
+
+TEST(WebCursorTest, CopyConstructorCustom) {
+  ui::Cursor cursor(ui::mojom::CursorType::kCustom);
+  cursor.set_custom_bitmap(CreateTestBitmap(32, 32));
+  cursor.set_custom_hotspot(gfx::Point(10, 20));
+  cursor.set_image_scale_factor(1.5f);
+  WebCursor webcursor(cursor);
+  WebCursor copy(webcursor);
+  EXPECT_EQ(webcursor, copy);
 }
 
 TEST(WebCursorTest, ClampHotspot) {
@@ -120,22 +124,13 @@ TEST(WebCursorTest, SetCursor) {
   cursor.set_image_scale_factor(1000.f);
   EXPECT_FALSE(webcursor.SetCursor(cursor));
 
-  // SetCursor should return false when the unscaled bitmap width is too large.
-  cursor.set_image_scale_factor(10.f);
-  cursor.set_custom_bitmap(CreateTestBitmap(1025, 5));
-  EXPECT_FALSE(webcursor.SetCursor(cursor));
-
-  // SetCursor should return false when the unscaled bitmap height is too large.
-  cursor.set_custom_bitmap(CreateTestBitmap(5, 1025));
-  EXPECT_FALSE(webcursor.SetCursor(cursor));
-
-  // SetCursor should return false when the 1x scaled image width is too large.
+  // SetCursor should return false when the image width is too large.
   cursor.set_image_scale_factor(1.f);
-  cursor.set_custom_bitmap(CreateTestBitmap(151, 3));
+  cursor.set_custom_bitmap(CreateTestBitmap(1025, 3));
   EXPECT_FALSE(webcursor.SetCursor(cursor));
 
-  // SetCursor should return false when the 1x scaled image height is too large.
-  cursor.set_custom_bitmap(CreateTestBitmap(3, 151));
+  // SetCursor should return false when the image height is too large.
+  cursor.set_custom_bitmap(CreateTestBitmap(3, 1025));
   EXPECT_FALSE(webcursor.SetCursor(cursor));
 
   // SetCursor should return false when the scaled image width is too large.
@@ -145,42 +140,34 @@ TEST(WebCursorTest, SetCursor) {
 
   // SetCursor should return false when the scaled image height is too large.
   cursor.set_image_scale_factor(0.1f);
-  cursor.set_custom_bitmap(CreateTestBitmap(5, 20));
+  cursor.set_custom_bitmap(CreateTestBitmap(5, 200));
   EXPECT_FALSE(webcursor.SetCursor(cursor));
 }
 
 #if defined(USE_AURA)
 TEST(WebCursorTest, CursorScaleFactor) {
-  constexpr float kImageScale = 2.0f;
-  constexpr float kDeviceScale = 4.2f;
-
   ui::Cursor cursor(ui::mojom::CursorType::kCustom);
   cursor.set_custom_hotspot(gfx::Point(0, 1));
-  cursor.set_image_scale_factor(kImageScale);
+  cursor.set_image_scale_factor(2.0f);
   cursor.set_custom_bitmap(CreateTestBitmap(128, 128));
   WebCursor webcursor(cursor);
 
   display::Display display;
-  display.set_device_scale_factor(kDeviceScale);
+  display.set_device_scale_factor(4.2f);
   webcursor.SetDisplayInfo(display);
 
-#if BUILDFLAG(IS_OZONE)
-  // In Ozone, the size of the cursor is capped at 64px unless the hardware
-  // advertises support for bigger cursors.
-  const gfx::Size kDefaultMaxSize = gfx::Size(64, 64);
-  EXPECT_EQ(gfx::SkISizeToSize(
-                webcursor.GetNativeCursor().custom_bitmap().dimensions()),
-            kDefaultMaxSize);
+#if defined(USE_OZONE)
+  // For Ozone cursors, the size of the cursor is capped at 64px, and this is
+  // enforce through the calculated scale factor.
+  EXPECT_EQ(0.5f, webcursor.GetNativeCursor().image_scale_factor());
 #else
-  EXPECT_EQ(
-      gfx::SkISizeToSize(
-          webcursor.GetNativeCursor().custom_bitmap().dimensions()),
-      gfx::ScaleToFlooredSize(gfx::Size(128, 128), kDeviceScale / kImageScale));
+  EXPECT_EQ(2.1f, webcursor.GetNativeCursor().image_scale_factor());
 #endif
 
-  // The scale factor of the cursor image should match the device scale factor,
-  // regardless of the cursor size.
-  EXPECT_EQ(webcursor.GetNativeCursor().image_scale_factor(), kDeviceScale);
+  // Test that the Display dsf is copied.
+  WebCursor copy(webcursor);
+  EXPECT_EQ(webcursor.GetNativeCursor().image_scale_factor(),
+            copy.GetNativeCursor().image_scale_factor());
 }
 
 TEST(WebCursorTest, UnscaledImageCopy) {
@@ -201,7 +188,7 @@ TEST(WebCursorTest, UnscaledImageCopy) {
 }
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void ScaleCursor(float scale, int hotspot_x, int hotspot_y) {
   ui::Cursor cursor(ui::mojom::CursorType::kCustom);
   cursor.set_custom_hotspot(gfx::Point(hotspot_x, hotspot_y));
@@ -212,9 +199,7 @@ void ScaleCursor(float scale, int hotspot_x, int hotspot_y) {
   display.set_device_scale_factor(scale);
   webcursor.SetDisplayInfo(display);
 
-  HCURSOR windows_cursor_handle =
-      ui::WinCursor::FromPlatformCursor(webcursor.GetNativeCursor().platform())
-          ->hcursor();
+  HCURSOR windows_cursor_handle = webcursor.GetNativeCursor().platform();
   EXPECT_NE(nullptr, windows_cursor_handle);
   ICONINFO windows_icon_info;
   EXPECT_TRUE(GetIconInfo(windows_cursor_handle, &windows_icon_info));

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -12,6 +12,7 @@
 #include <stddef.h>
 
 #include "base/logging.h"
+#include "base/macros.h"
 
 namespace {
 
@@ -50,9 +51,6 @@ class EnergyEndpointer::HistoryRing {
  public:
   HistoryRing() : insertion_index_(0) {}
 
-  HistoryRing(const HistoryRing&) = delete;
-  HistoryRing& operator=(const HistoryRing&) = delete;
-
   // Resets the ring to |size| elements each with state |initial_state|
   void SetRing(int size, bool initial_state);
 
@@ -75,6 +73,8 @@ class EnergyEndpointer::HistoryRing {
 
   std::vector<DecisionPoint> decision_points_;
   int insertion_index_;  // Index at which the next item gets added/inserted.
+
+  DISALLOW_COPY_AND_ASSIGN(HistoryRing);
 };
 
 void EnergyEndpointer::HistoryRing::SetRing(int size, bool initial_state) {

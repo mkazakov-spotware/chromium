@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,18 +6,16 @@
 
 #import <Foundation/Foundation.h>
 
-#import "base/metrics/histogram_macros.h"
-#import "components/prefs/pref_service.h"
+#include "base/metrics/histogram_macros.h"
 #import "ios/chrome/app/application_delegate/app_state.h"
 #import "ios/chrome/app/application_delegate/startup_information.h"
 #import "ios/chrome/app/application_delegate/tab_opening.h"
 #import "ios/chrome/app/application_delegate/url_opener_params.h"
-#import "ios/chrome/app/startup/chrome_app_startup_parameters.h"
-#import "ios/chrome/browser/policy/policy_util.h"
+#include "ios/chrome/app/startup/chrome_app_startup_parameters.h"
+#import "ios/chrome/browser/chrome_url_util.h"
 #import "ios/chrome/browser/ui/main/connection_information.h"
-#import "ios/chrome/browser/url/url_util.h"
 #import "ios/chrome/browser/url_loading/url_loading_params.h"
-#import "url/gurl.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -27,9 +25,6 @@ namespace {
 // Key of the UMA Startup.MobileSessionStartFromApps histogram.
 const char* const kUMAMobileSessionStartFromAppsHistogram =
     "Startup.MobileSessionStartFromApps";
-// Key of the UMA Startup.ShowDefaultPromoFromApps histogram.
-const char* const kUMAShowDefaultPromoFromAppsHistogram =
-    "Startup.ShowDefaultPromoFromApps";
 }  // namespace
 
 @implementation URLOpener
@@ -40,9 +35,7 @@ const char* const kUMAShowDefaultPromoFromAppsHistogram =
         applicationActive:(BOOL)applicationActive
                 tabOpener:(id<TabOpening>)tabOpener
     connectionInformation:(id<ConnectionInformation>)connectionInformation
-       startupInformation:(id<StartupInformation>)startupInformation
-              prefService:(PrefService*)prefService
-                initStage:(InitStage)initStage {
+       startupInformation:(id<StartupInformation>)startupInformation {
   NSURL* URL = options.URL;
   NSString* sourceApplication = options.sourceApplication;
 
@@ -50,23 +43,12 @@ const char* const kUMAShowDefaultPromoFromAppsHistogram =
       newChromeAppStartupParametersWithURL:URL
                      fromSourceApplication:sourceApplication];
 
-  if (IsIncognitoModeDisabled(prefService)) {
-    params.applicationMode = ApplicationModeForTabOpening::NORMAL;
-  } else if (IsIncognitoModeForced(prefService)) {
-    params.applicationMode = ApplicationModeForTabOpening::INCOGNITO;
-  }
-
   MobileSessionCallerApp callerApp = [params callerApp];
 
   UMA_HISTOGRAM_ENUMERATION(kUMAMobileSessionStartFromAppsHistogram, callerApp,
                             MOBILE_SESSION_CALLER_APP_COUNT);
 
-  if (params.postOpeningAction == SHOW_DEFAULT_BROWSER_SETTINGS) {
-    UMA_HISTOGRAM_ENUMERATION(kUMAShowDefaultPromoFromAppsHistogram, callerApp,
-                              MOBILE_SESSION_CALLER_APP_COUNT);
-  }
-
-  if (initStage == InitStageFirstRun) {
+  if (startupInformation.isPresentingFirstRunUI) {
     UMA_HISTOGRAM_ENUMERATION("FirstRun.LaunchSource", [params launchSource],
                               first_run::LAUNCH_SIZE);
   } else if (applicationActive) {
@@ -87,18 +69,18 @@ const char* const kUMAShowDefaultPromoFromAppsHistogram =
       // +[UserAcrtivityHandler
       // handleStartupParametersWithTabOpener:startupInformation:browserState:]
 
-      GURL gurl;
+      GURL URL;
       GURL virtualURL;
       if ([params completeURL].SchemeIsFile()) {
-        // External URL will be loaded by WebState, which expects `completeURL`.
-        // Omnibox however suppose to display `externalURL`, which is used as
+        // External URL will be loaded by WebState, which expects |completeURL|.
+        // Omnibox however suppose to display |externalURL|, which is used as
         // virtual URL.
-        gurl = [params completeURL];
+        URL = [params completeURL];
         virtualURL = [params externalURL];
       } else {
-        gurl = [params externalURL];
+        URL = [params externalURL];
       }
-      UrlLoadParams urlLoadParams = UrlLoadParams::InNewTab(gurl, virtualURL);
+      UrlLoadParams urlLoadParams = UrlLoadParams::InNewTab(URL, virtualURL);
 
       ApplicationModeForTabOpening targetMode = params.applicationMode;
       // If the call is coming from the app, it should be opened in the current
@@ -106,19 +88,17 @@ const char* const kUMAShowDefaultPromoFromAppsHistogram =
       if (callerApp == CALLER_APP_GOOGLE_CHROME)
         targetMode = ApplicationModeForTabOpening::CURRENT;
 
-      if (params.applicationMode != ApplicationModeForTabOpening::INCOGNITO &&
+      if (![params launchInIncognito] &&
           [tabOpener URLIsOpenedInRegularMode:urlLoadParams.web_params.url]) {
         // Record metric.
       }
 
       [tabOpener
-          dismissModalsAndMaybeOpenSelectedTabInMode:targetMode
-                                   withUrlLoadParams:urlLoadParams
-                                      dismissOmnibox:[params
-                                                         postOpeningAction] !=
-                                                     FOCUS_OMNIBOX
-                                          completion:tabOpenedCompletion];
-
+          dismissModalsAndOpenSelectedTabInMode:targetMode
+                              withUrlLoadParams:urlLoadParams
+                                 dismissOmnibox:[params postOpeningAction] !=
+                                                FOCUS_OMNIBOX
+                                     completion:tabOpenedCompletion];
       return YES;
     }
     return NO;
@@ -135,20 +115,18 @@ const char* const kUMAShowDefaultPromoFromAppsHistogram =
                   tabOpener:(id<TabOpening>)tabOpener
       connectionInformation:(id<ConnectionInformation>)connectionInformation
          startupInformation:(id<StartupInformation>)startupInformation
-                   appState:(AppState*)appState
-                prefService:(PrefService*)prefService {
+                   appState:(AppState*)appState {
   if (options.URL) {
     // This method is always called when the SceneState transitions to
     // SceneActivationLevelForegroundActive, and before the handling of
     // startupInformation is done.
-    // Pass `NO` as active to avoid double processing.
-    [URLOpener openURL:options
-            applicationActive:NO
-                    tabOpener:tabOpener
-        connectionInformation:connectionInformation
-           startupInformation:startupInformation
-                  prefService:prefService
-                    initStage:appState.initStage];
+    // Pass |NO| as active to avoid double processing.
+    BOOL openURLResult = [URLOpener openURL:options
+                          applicationActive:NO
+                                  tabOpener:tabOpener
+                      connectionInformation:connectionInformation
+                         startupInformation:startupInformation];
+    [appState launchFromURLHandled:openURLResult];
   }
 }
 

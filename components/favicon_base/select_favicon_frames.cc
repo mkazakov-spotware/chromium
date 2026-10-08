@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,15 +12,13 @@
 #include <set>
 #include <utility>
 
-#include "base/containers/contains.h"
+#include "base/macros.h"
 #include "components/favicon_base/favicon_util.h"
 #include "skia/ext/image_operations.h"
 #include "third_party/skia/include/core/SkCanvas.h"
-#include "third_party/skia/include/core/SkImage.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/image/image_skia.h"
-#include "ui/gfx/image/image_skia_rep.h"
 #include "ui/gfx/image/image_skia_source.h"
 
 namespace {
@@ -46,9 +44,8 @@ SkBitmap SampleNearestNeighbor(const SkBitmap& contents, int desired_size) {
 
   {
     SkCanvas canvas(bitmap, SkSurfaceProps{});
-    canvas.drawImageRect(contents.asImage(),
-                         SkRect::MakeIWH(desired_size, desired_size),
-                         SkSamplingOptions());
+    canvas.drawBitmapRect(contents, SkRect::MakeIWH(desired_size, desired_size),
+                          nullptr);
   }
 
   return bitmap;
@@ -57,14 +54,14 @@ SkBitmap SampleNearestNeighbor(const SkBitmap& contents, int desired_size) {
 size_t GetCandidateIndexWithBestScore(
     const std::vector<gfx::Size>& candidate_sizes,
     int desired_size,
-    float* output_score) {
+    float* score) {
   DCHECK_NE(desired_size, 0);
 
   // Try to find an exact match.
   for (size_t i = 0; i < candidate_sizes.size(); ++i) {
     if (candidate_sizes[i].width() == desired_size &&
         candidate_sizes[i].height() == desired_size) {
-      *output_score = 1;
+      *score = 1;
       return i;
     }
   }
@@ -100,7 +97,7 @@ size_t GetCandidateIndexWithBestScore(
       candidate_score = score;
     }
   }
-  *output_score = candidate_score;
+  *score = candidate_score;
 
   return candidate_index;
 }
@@ -174,10 +171,6 @@ SkBitmap GetResizedBitmap(const SkBitmap& source_bitmap,
 class FaviconImageSource : public gfx::ImageSkiaSource {
  public:
   FaviconImageSource() {}
-
-  FaviconImageSource(const FaviconImageSource&) = delete;
-  FaviconImageSource& operator=(const FaviconImageSource&) = delete;
-
   ~FaviconImageSource() override {}
 
   // gfx::ImageSkiaSource:
@@ -211,6 +204,7 @@ class FaviconImageSource : public gfx::ImageSkiaSource {
 
  private:
   std::vector<gfx::ImageSkiaRep> image_skia_reps_;
+  DISALLOW_COPY_AND_ASSIGN(FaviconImageSource);
 };
 
 }  // namespace
@@ -222,7 +216,6 @@ gfx::ImageSkia CreateFaviconImageSkia(
     const std::vector<gfx::Size>& original_sizes,
     int desired_size_in_dip,
     float* score) {
-  DCHECK_EQ(bitmaps.size(), original_sizes.size());
 
   const std::vector<float>& favicon_scales = favicon_base::GetFaviconScales();
   std::vector<int> desired_sizes;
@@ -247,7 +240,7 @@ gfx::ImageSkia CreateFaviconImageSkia(
 
   if (desired_size_in_dip == 0) {
     size_t index = results[0].index;
-    return gfx::ImageSkia::CreateFromBitmap(bitmaps[index], 1.0f);
+    return gfx::ImageSkia(gfx::ImageSkiaRep(bitmaps[index], 1.0f));
   }
 
   auto image_source = std::make_unique<FaviconImageSource>();

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include "base/path_service.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/path_utils.h"
 #endif
 
@@ -24,19 +24,17 @@ bool PathProvider(int key, base::FilePath* result) {
   base::FilePath cur;
   switch (key) {
     case DIR_LOCALES:
-#if BUILDFLAG(IS_ANDROID)
-      if (!base::PathService::Get(DIR_RESOURCE_PAKS_ANDROID, &cur))
-        return false;
-#elif BUILDFLAG(IS_APPLE)
       if (!base::PathService::Get(base::DIR_MODULE, &cur))
         return false;
+#if defined(OS_APPLE)
       // On Mac, locale files are in Contents/Resources, a sibling of the
       // App dir.
       cur = cur.DirName();
       cur = cur.Append(FILE_PATH_LITERAL("Resources"));
-#else
-      if (!base::PathService::Get(base::DIR_ASSETS, &cur))
+#elif defined(OS_ANDROID)
+      if (!base::PathService::Get(DIR_RESOURCE_PAKS_ANDROID, &cur))
         return false;
+#else
       cur = cur.Append(FILE_PATH_LITERAL("locales"));
 #endif
       create_dir = true;
@@ -54,7 +52,7 @@ bool PathProvider(int key, base::FilePath* result) {
       if (!base::PathExists(cur))  // we don't want to create this
         return false;
       break;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
     case DIR_RESOURCE_PAKS_ANDROID:
       if (!base::PathService::Get(base::DIR_ANDROID_APP_DATA, &cur))
         return false;
@@ -62,7 +60,7 @@ bool PathProvider(int key, base::FilePath* result) {
       break;
 #endif
     case UI_TEST_PAK:
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
       if (!base::PathService::Get(ui::DIR_RESOURCE_PAKS_ANDROID, &cur))
         return false;
 #else

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,6 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
-#include "extensions/renderer/script_context.h"
-#include "v8/include/v8-function-callback.h"
 
 namespace extensions {
 
@@ -20,23 +18,17 @@ void IdGeneratorCustomBindings::AddRoutes() {
   RouteHandlerFunction(
       "GetNextId", base::BindRepeating(&IdGeneratorCustomBindings::GetNextId,
                                        base::Unretained(this)));
-  RouteHandlerFunction(
-      "GetNextScopedId",
-      base::BindRepeating(&IdGeneratorCustomBindings::GetNextScopedId,
-                          base::Unretained(this)));
 }
 
 void IdGeneratorCustomBindings::GetNextId(
     const v8::FunctionCallbackInfo<v8::Value>& args) {
+  static int32_t next_id = 0;
+  ++next_id;
   // Make sure 0 is never returned because some APIs (particularly WebRequest)
   // have special meaning for 0 IDs.
-  static int32_t next_id = 1;
-  args.GetReturnValue().Set(next_id++);
-}
-
-void IdGeneratorCustomBindings::GetNextScopedId(
-    const v8::FunctionCallbackInfo<v8::Value>& args) {
-  args.GetReturnValue().Set(context()->GetNextIdFromCounter());
+  if (next_id == 0)
+    next_id = 1;
+  args.GetReturnValue().Set(next_id);
 }
 
 }  // namespace extensions

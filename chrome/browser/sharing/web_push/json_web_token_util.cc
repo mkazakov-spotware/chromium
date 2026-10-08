@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,12 +21,12 @@ const char kKeyTyp[] = "typ";
 const char kTypJwt[] = "JWT";
 }  // namespace
 
-absl::optional<std::string> CreateJSONWebToken(
+base::Optional<std::string> CreateJSONWebToken(
     const base::Value& claims,
     crypto::ECPrivateKey* private_key) {
   if (!claims.is_dict()) {
     LOG(ERROR) << "claims is not a dictionary";
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   // Generate header.
@@ -38,7 +38,7 @@ absl::optional<std::string> CreateJSONWebToken(
   std::string header_serialized;
   if (!base::JSONWriter::Write(header, &header_serialized)) {
     LOG(ERROR) << "Failed to write header as JSON";
-    return absl::nullopt;
+    return base::nullopt;
   }
   std::string header_base64;
   base::Base64UrlEncode(header_serialized,
@@ -49,7 +49,7 @@ absl::optional<std::string> CreateJSONWebToken(
   std::string payload_serialized;
   if (!base::JSONWriter::Write(claims, &payload_serialized)) {
     LOG(ERROR) << "Failed to write claims as JSON";
-    return absl::nullopt;
+    return base::nullopt;
   }
   std::string payload_base64;
   base::Base64UrlEncode(payload_serialized,
@@ -60,13 +60,13 @@ absl::optional<std::string> CreateJSONWebToken(
   // Create signature.
   auto signer = crypto::ECSignatureCreator::Create(private_key);
   std::vector<uint8_t> der_signature, raw_signature;
-  if (!signer->Sign(base::as_bytes(base::make_span(data)), &der_signature)) {
+  if (!signer->Sign((const uint8_t*)data.data(), data.size(), &der_signature)) {
     LOG(ERROR) << "Failed to create DER signature";
-    return absl::nullopt;
+    return base::nullopt;
   }
   if (!signer->DecodeSignature(der_signature, &raw_signature)) {
     LOG(ERROR) << "Failed to decode DER signature";
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   // Serialize signature.

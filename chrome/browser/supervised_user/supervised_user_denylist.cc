@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include "base/files/file_path.h"
 #include "base/files/memory_mapped_file.h"
 #include "base/logging.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "url/gurl.h"
 
@@ -68,9 +69,8 @@ size_t SupervisedUserDenylist::GetEntryCount() const {
   return host_hashes_.size();
 }
 
-void SupervisedUserDenylist::ReadFromFile(
-    const base::FilePath& path,
-    const base::RepeatingClosure& done_callback) {
+void SupervisedUserDenylist::ReadFromFile(const base::FilePath& path,
+                                          const base::Closure& done_callback) {
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE,
       {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
@@ -81,7 +81,7 @@ void SupervisedUserDenylist::ReadFromFile(
 }
 
 void SupervisedUserDenylist::OnReadFromFileCompleted(
-    const base::RepeatingClosure& done_callback,
+    const base::Closure& done_callback,
     std::unique_ptr<std::vector<Hash>> host_hashes) {
   host_hashes_.swap(*host_hashes);
   LOG_IF(WARNING, host_hashes_.empty()) << "Got empty denylist";

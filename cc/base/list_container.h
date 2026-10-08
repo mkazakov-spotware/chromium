@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,10 @@
 #include <stddef.h>
 
 #include <memory>
-#include <utility>
 
 #include "base/check.h"
+#include "base/optional.h"
 #include "cc/base/list_container_helper.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace cc {
 
@@ -27,8 +26,6 @@ namespace cc {
 template <class BaseElementType>
 class ListContainer {
  public:
-  using value_type = const BaseElementType*;
-
   // This constructor reserves the requested memory up front so only single
   // allocation is needed. When num_of_elements_to_reserve_for is zero, use the
   // default size.
@@ -137,7 +134,7 @@ class ListContainer {
   Iterator InsertBeforeAndInvalidateAllPointers(
       Iterator at,
       size_t count,
-      const absl::optional<DerivedElementType> source = absl::nullopt) {
+      const base::Optional<DerivedElementType> source = base::nullopt) {
     helper_.InsertBeforeAndInvalidateAllPointers(&at, count);
     Iterator result = at;
     for (size_t i = 0; i < count; ++i) {

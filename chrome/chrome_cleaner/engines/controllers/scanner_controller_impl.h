@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "base/memory/scoped_refptr.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "chrome/chrome_cleaner/engines/broker/engine_client.h"
 #include "chrome/chrome_cleaner/engines/controllers/scanner_impl.h"
 #include "chrome/chrome_cleaner/pup_data/pup_data.h"
@@ -25,10 +25,6 @@ class ScannerControllerImpl : public ScannerController {
       RegistryLogger* registry_logger,
       scoped_refptr<base::SequencedTaskRunner> task_runner,
       ShortcutParserAPI* shortcut_parser);
-
-  ScannerControllerImpl(const ScannerControllerImpl&) = delete;
-  ScannerControllerImpl& operator=(const ScannerControllerImpl&) = delete;
-
   // If |StartScan| has been called, pumps the message loop until
   // |HandleScanDone| is called.
   ~ScannerControllerImpl() override;
@@ -63,6 +59,8 @@ class ScannerControllerImpl : public ScannerController {
   // We should have only one source of truth for the list of UwS found, and
   // this list is also kept by the scanner.
   std::set<UwSId> pup_ids_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScannerControllerImpl);
 };
 
 }  // namespace chrome_cleaner

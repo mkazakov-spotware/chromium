@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/values.h"
 
 class PrefRegistrySimple;
@@ -22,10 +23,6 @@ namespace component_updater {
 class MetadataTable {
  public:
   explicit MetadataTable(PrefService* pref_service);
-
-  MetadataTable(const MetadataTable&) = delete;
-  MetadataTable& operator=(const MetadataTable&) = delete;
-
   ~MetadataTable();
 
   // Create and return a MetadataTable instance for testing purpose.
@@ -69,16 +66,18 @@ class MetadataTable {
                            const std::string& component_name) const;
 
   // Returns the index of an installed item with the given |hashed_user_id| and
-  // |component_name|. Returns `installed_items_.size()` if
-  // no such item exists.
+  // |component_name|. Returns `installed_items_.GetList().size()` if no such
+  // item exists.
   size_t GetInstalledItemIndex(const std::string& hashed_user_id,
                                const std::string& component_name) const;
 
   // Information about installed items.
-  base::Value::List installed_items_;
+  base::Value installed_items_;
 
   // Local state PrefService.
   PrefService* const pref_service_;
+
+  DISALLOW_COPY_AND_ASSIGN(MetadataTable);
 };
 
 }  // namespace component_updater

@@ -1,43 +1,17 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/speech/tts_chromeos.h"
 
-#include <algorithm>
-#include <utility>
-
-#include "ash/components/arc/mojom/tts.mojom.h"
-#include "ash/components/arc/session/arc_bridge_service.h"
-#include "ash/components/arc/session/arc_service_manager.h"
-#include "base/no_destructor.h"
-#include "base/strings/string_number_conversions.h"
-#include "chrome/common/extensions/extension_constants.h"
+#include "base/macros.h"
+#include "components/arc/arc_service_manager.h"
+#include "components/arc/mojom/tts.mojom.h"
+#include "components/arc/session/arc_bridge_service.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/tts_platform.h"
 
-void TtsPlatformImplChromeOs::SetVoices(
-    std::vector<content::VoiceData> voices) {
-  std::sort(voices.begin(), voices.end(), [](const auto& v1, const auto& v2) {
-    return !v1.remote && v2.remote;
-  });
-  voices_ = std::move(voices);
-  received_word_event_ = false;
-}
-
-void TtsPlatformImplChromeOs::ReceivedWordEvent() {
-  if (received_word_event_)
-    return;
-
-  received_word_event_ = true;
-  for (auto& voice : voices_)
-    voice.events.insert(content::TTS_EVENT_WORD);
-
-  content::TtsController::GetInstance()->VoicesChanged();
-}
-
 TtsPlatformImplChromeOs::TtsPlatformImplChromeOs() = default;
-TtsPlatformImplChromeOs::~TtsPlatformImplChromeOs() = default;
 
 bool TtsPlatformImplChromeOs::PlatformImplSupported() {
   // TODO(1133813): Chrome OS Platform should support background initialisation.
@@ -48,18 +22,16 @@ bool TtsPlatformImplChromeOs::PlatformImplSupported() {
 }
 
 bool TtsPlatformImplChromeOs::PlatformImplInitialized() {
-  // On Chrome OS, the extension-based voices are really the platform level
-  // voices. ARC++ takes a while to load, so do not block TtsController from
-  // processing and speaking utterances here.
   return true;
 }
 
-void TtsPlatformImplChromeOs::LoadBuiltInTtsEngine(
+bool TtsPlatformImplChromeOs::LoadBuiltInTtsEngine(
     content::BrowserContext* browser_context) {
   content::TtsEngineDelegate* tts_engine_delegate =
       content::TtsController::GetInstance()->GetTtsEngineDelegate();
   if (tts_engine_delegate)
-    tts_engine_delegate->LoadBuiltInTtsEngine(browser_context);
+    return tts_engine_delegate->LoadBuiltInTtsEngine(browser_context);
+  return false;
 }
 
 void TtsPlatformImplChromeOs::Speak(
@@ -102,12 +74,6 @@ void TtsPlatformImplChromeOs::ProcessSpeech(
   arc_utterance->text = parsed_utterance;
   arc_utterance->rate = params.rate;
   arc_utterance->pitch = params.pitch;
-  int voice_id = 0;
-  if (!voice.native_voice_identifier.empty() &&
-      base::StringToInt(voice.native_voice_identifier, &voice_id)) {
-    arc_utterance->voice_id = voice_id;
-  }
-
   tts->Speak(std::move(arc_utterance));
   std::move(on_speak_finished).Run(true);
 }
@@ -128,8 +94,12 @@ bool TtsPlatformImplChromeOs::StopSpeaking() {
 
 void TtsPlatformImplChromeOs::GetVoices(
     std::vector<content::VoiceData>* out_voices) {
-  for (const auto& voice : voices_)
-    out_voices->push_back(voice);
+  out_voices->push_back(content::VoiceData());
+  content::VoiceData& voice = out_voices->back();
+  voice.native = true;
+  voice.name = "Android";
+  voice.events.insert(content::TTS_EVENT_START);
+  voice.events.insert(content::TTS_EVENT_END);
 }
 
 std::string TtsPlatformImplChromeOs::GetError() {
@@ -148,44 +118,9 @@ bool TtsPlatformImplChromeOs::IsSpeaking() {
   return false;
 }
 
-void TtsPlatformImplChromeOs::FinalizeVoiceOrdering(
-    std::vector<content::VoiceData>& voices) {
-  // Move all Espeak voices to the end.
-  auto partition_point = std::stable_partition(
-      voices.begin(), voices.end(), [](const content::VoiceData& voice) {
-        return voice.engine_id !=
-               extension_misc::kEspeakSpeechSynthesisExtensionId;
-      });
-
-  // Move all native voices to the end, before Espeak voices.
-  std::stable_partition(
-      voices.begin(), partition_point,
-      [](const content::VoiceData& voice) { return !voice.native; });
-}
-
-void TtsPlatformImplChromeOs::RefreshVoices() {
-  // Android voices can be updated silently.
-  // If it happens, we can't return the latest voices here, but below
-  // eventually calls TtsController::VoicesChanged.
-  auto* const arc_service_manager = arc::ArcServiceManager::Get();
-  if (!arc_service_manager)
-    return;
-
-  arc::mojom::TtsInstance* tts = ARC_GET_INSTANCE_FOR_METHOD(
-      arc_service_manager->arc_bridge_service()->tts(), RefreshVoices);
-  if (!tts)
-    return;
-
-  tts->RefreshVoices();
-}
-
-content::ExternalPlatformDelegate*
-TtsPlatformImplChromeOs::GetExternalPlatformDelegate() {
-  return nullptr;
-}
-
 // static
-TtsPlatformImplChromeOs* TtsPlatformImplChromeOs::GetInstance() {
+TtsPlatformImplChromeOs*
+TtsPlatformImplChromeOs::GetInstance() {
   static base::NoDestructor<TtsPlatformImplChromeOs> tts_platform;
   return tts_platform.get();
 }

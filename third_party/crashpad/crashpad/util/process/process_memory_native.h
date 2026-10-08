@@ -1,4 +1,4 @@
-// Copyright 2018 The Crashpad Authors
+// Copyright 2018 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,26 +14,26 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 #include "util/process/process_memory_fuchsia.h"
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 #include "util/process/process_memory_linux.h"
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include "util/process/process_memory_win.h"
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
 #include "util/process/process_memory_mac.h"
 #endif
 
 namespace crashpad {
 
-#if BUILDFLAG(IS_FUCHSIA) || DOXYGEN
+#if defined(OS_FUCHSIA) || DOXYGEN
 //! \brief Alias for platform-specific native implementation of ProcessMemory.
 using ProcessMemoryNative = ProcessMemoryFuchsia;
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 using ProcessMemoryNative = ProcessMemoryLinux;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 using ProcessMemoryNative = ProcessMemoryWin;
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
 using ProcessMemoryNative = ProcessMemoryMac;
 #else
 #error Port.

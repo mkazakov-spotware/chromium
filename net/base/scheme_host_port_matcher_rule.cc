@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/base/scheme_host_port_matcher_rule.h"
 
 #include "base/strings/pattern.h"
-#include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "net/base/host_port_pair.h"
@@ -29,15 +28,15 @@ std::string AddBracketsIfIPv6(const IPAddress& ip_address) {
 // static
 std::unique_ptr<SchemeHostPortMatcherRule>
 SchemeHostPortMatcherRule::FromUntrimmedRawString(
-    base::StringPiece raw_untrimmed) {
-  base::StringPiece raw =
-      base::TrimWhitespaceASCII(raw_untrimmed, base::TRIM_ALL);
+    const std::string& raw_untrimmed) {
+  std::string raw;
+  base::TrimWhitespaceASCII(raw_untrimmed, base::TRIM_ALL, &raw);
 
   // Extract any scheme-restriction.
   std::string::size_type scheme_pos = raw.find("://");
   std::string scheme;
   if (scheme_pos != std::string::npos) {
-    scheme = std::string(raw.substr(0, scheme_pos));
+    scheme = raw.substr(0, scheme_pos);
     raw = raw.substr(scheme_pos + 3);
     if (scheme.empty())
       return nullptr;
@@ -56,7 +55,7 @@ SchemeHostPortMatcherRule::FromUntrimmedRawString(
       return nullptr;
 
     return std::make_unique<SchemeHostPortMatcherIPBlockRule>(
-        std::string(raw), scheme, ip_prefix, prefix_length_in_bits);
+        raw, scheme, ip_prefix, prefix_length_in_bits);
   }
 
   // Check if we have an <ip-address>[:port] input. We need to treat this
@@ -77,9 +76,8 @@ SchemeHostPortMatcherRule::FromUntrimmedRawString(
   std::string::size_type pos_colon = raw.rfind(':');
   port = -1;
   if (pos_colon != std::string::npos) {
-    if (!ParseInt32(
-            base::MakeStringPiece(raw.begin() + pos_colon + 1, raw.end()),
-            ParseIntFormat::NON_NEGATIVE, &port) ||
+    if (!ParseInt32(base::StringPiece(raw.begin() + pos_colon + 1, raw.end()),
+                    ParseIntFormat::NON_NEGATIVE, &port) ||
         port > 0xFFFF) {
       return nullptr;  // Port was invalid.
     }
@@ -88,15 +86,11 @@ SchemeHostPortMatcherRule::FromUntrimmedRawString(
 
   // Special-case hostnames that begin with a period.
   // For example, we remap ".google.com" --> "*.google.com".
-  std::string hostname_pattern;
-  if (base::StartsWith(raw, ".", base::CompareCase::SENSITIVE)) {
-    hostname_pattern = base::StrCat({"*", raw});
-  } else {
-    hostname_pattern = std::string(raw);
-  }
+  if (base::StartsWith(raw, ".", base::CompareCase::SENSITIVE))
+    raw = "*" + raw;
 
-  return std::make_unique<SchemeHostPortMatcherHostnamePatternRule>(
-      scheme, hostname_pattern, port);
+  return std::make_unique<SchemeHostPortMatcherHostnamePatternRule>(scheme, raw,
+                                                                    port);
 }
 
 bool SchemeHostPortMatcherRule::IsHostnamePatternRule() const {

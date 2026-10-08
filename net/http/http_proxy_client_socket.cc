@@ -1,10 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/http/http_proxy_client_socket.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -36,14 +35,22 @@ HttpProxyClientSocket::HttpProxyClientSocket(
     const std::string& user_agent,
     const HostPortPair& endpoint,
     const ProxyServer& proxy_server,
-    scoped_refptr<HttpAuthController> http_auth_controller,
+    HttpAuthController* http_auth_controller,
+    bool tunnel,
+    bool using_spdy,
+    NextProto negotiated_protocol,
     ProxyDelegate* proxy_delegate,
     const NetworkTrafficAnnotationTag& traffic_annotation)
     : io_callback_(base::BindRepeating(&HttpProxyClientSocket::OnIOComplete,
                                        base::Unretained(this))),
+      next_state_(STATE_NONE),
       socket_(std::move(socket)),
+      is_reused_(false),
       endpoint_(endpoint),
-      auth_(std::move(http_auth_controller)),
+      auth_(http_auth_controller),
+      tunnel_(tunnel),
+      using_spdy_(using_spdy),
+      negotiated_protocol_(negotiated_protocol),
       proxy_server_(proxy_server),
       proxy_delegate_(proxy_delegate),
       traffic_annotation_(traffic_annotation),
@@ -82,6 +89,14 @@ HttpProxyClientSocket::GetAuthController() const {
   return auth_;
 }
 
+bool HttpProxyClientSocket::IsUsingSpdy() const {
+  return using_spdy_;
+}
+
+NextProto HttpProxyClientSocket::GetProxyNegotiatedProtocol() const {
+  return negotiated_protocol_;
+}
+
 const HttpResponseInfo* HttpProxyClientSocket::GetConnectResponseInfo() const {
   return response_.headers.get() ? &response_ : nullptr;
 }
@@ -90,6 +105,13 @@ int HttpProxyClientSocket::Connect(CompletionOnceCallback callback) {
   DCHECK(socket_);
   DCHECK(user_callback_.is_null());
 
+  // TODO(rch): figure out the right way to set up a tunnel with SPDY.
+  // This approach sends the complete HTTPS request to the proxy
+  // which allows the proxy to see "private" data.  Instead, we should
+  // create an SSL tunnel to the origin server using the CONNECT method
+  // inside a single SPDY stream.
+  if (using_spdy_ || !tunnel_)
+    next_state_ = STATE_DONE;
   if (next_state_ == STATE_DONE)
     return OK;
 
@@ -132,21 +154,29 @@ bool HttpProxyClientSocket::WasEverUsed() const {
 }
 
 bool HttpProxyClientSocket::WasAlpnNegotiated() const {
-  // Do not delegate to `socket_`. While `socket_` may negotiate ALPN with the
-  // proxy, this object represents the tunneled TCP connection to the origin.
+  if (socket_)
+    return socket_->WasAlpnNegotiated();
+  NOTREACHED();
   return false;
 }
 
 NextProto HttpProxyClientSocket::GetNegotiatedProtocol() const {
-  // Do not delegate to `socket_`. While `socket_` may negotiate ALPN with the
-  // proxy, this object represents the tunneled TCP connection to the origin.
+  if (socket_)
+    return socket_->GetNegotiatedProtocol();
+  NOTREACHED();
   return kProtoUnknown;
 }
 
 bool HttpProxyClientSocket::GetSSLInfo(SSLInfo* ssl_info) {
-  // Do not delegate to `socket_`. While `socket_` may connect to the proxy with
-  // TLS, this object represents the tunneled TCP connection to the origin.
+  if (socket_)
+    return socket_->GetSSLInfo(ssl_info);
+  NOTREACHED();
   return false;
+}
+
+void HttpProxyClientSocket::GetConnectionAttempts(
+    ConnectionAttempts* out) const {
+  out->clear();
 }
 
 int64_t HttpProxyClientSocket::GetTotalReceivedBytes() const {
@@ -371,8 +401,8 @@ int HttpProxyClientSocket::DoSendRequest() {
   }
 
   parser_buf_ = base::MakeRefCounted<GrowableIOBuffer>();
-  http_stream_parser_ = std::make_unique<HttpStreamParser>(
-      socket_.get(), is_reused_, &request_, parser_buf_.get(), net_log_);
+  http_stream_parser_.reset(new HttpStreamParser(
+      socket_.get(), is_reused_, &request_, parser_buf_.get(), net_log_));
   return http_stream_parser_->SendRequest(request_line_, request_headers_,
                                           traffic_annotation_, &response_,
                                           io_callback_);
@@ -433,7 +463,8 @@ int HttpProxyClientSocket::DoReadHeadersComplete(int result) {
       // authentication code is smart enough to avoid being tricked by an
       // active network attacker.
       // The next state is intentionally not set as it should be STATE_NONE;
-      SanitizeProxyAuth(response_);
+      if (!SanitizeProxyAuth(&response_))
+        return ERR_TUNNEL_CONNECTION_FAILED;
       return HandleProxyAuthChallenge(auth_.get(), &response_, net_log_);
 
     default:

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,8 +20,6 @@ MODULES_EXPORT extern const int kDefaultScreenCastHeight;
 
 MODULES_EXPORT extern const double kMaxScreenCastFrameRate;
 MODULES_EXPORT extern const double kDefaultScreenCastFrameRate;
-
-MODULES_EXPORT double MinScreenCastFrameRate();
 
 // This function performs source, source-settings and track-settings selection
 // for content video capture based on the given |constraints|.

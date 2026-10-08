@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,26 +14,59 @@
 #include "ui/gl/gl_share_group.h"
 #include "ui/gl/gl_surface.h"
 #include "ui/gl/gl_surface_stub.h"
+
+#if defined(USE_OZONE)
 #include "ui/gl/init/ozone_util.h"
+#endif
+
+#if defined(USE_X11)
+#include "ui/base/ui_base_features.h"
+#include "ui/gl/init/gl_factory_linux_x11.h"
+#endif
 
 namespace gl {
 namespace init {
 
-std::vector<GLImplementationParts> GetAllowedGLImplementations() {
+std::vector<GLImplementation> GetAllowedGLImplementations() {
+#if defined(USE_X11)
+  if (!features::IsUsingOzonePlatform())
+    return gl::init::GetAllowedGLImplementationsX11();
+#endif
+
+#if defined(USE_OZONE)
   DCHECK(GetSurfaceFactoryOzone());
   return GetSurfaceFactoryOzone()->GetAllowedGLImplementations();
+#else
+  NOTREACHED();
+  return {};
+#endif
 }
 
 bool GetGLWindowSystemBindingInfo(const GLVersionInfo& gl_info,
                                   GLWindowSystemBindingInfo* info) {
-  return HasGLOzone()
-             ? GetGLOzone()->GetGLWindowSystemBindingInfo(gl_info, info)
-             : false;
+#if defined(USE_X11)
+  if (!features::IsUsingOzonePlatform())
+    return gl::init::GetGLWindowSystemBindingInfoX11(gl_info, info);
+#endif
+
+#if defined(USE_OZONE)
+  if (HasGLOzone())
+    return GetGLOzone()->GetGLWindowSystemBindingInfo(gl_info, info);
+#endif
+
+  return false;
 }
 
 scoped_refptr<GLContext> CreateGLContext(GLShareGroup* share_group,
                                          GLSurface* compatible_surface,
                                          const GLContextAttribs& attribs) {
+#if defined(USE_X11)
+  if (!features::IsUsingOzonePlatform())
+    return gl::init::CreateGLContextX11(share_group, compatible_surface,
+                                        attribs);
+#endif
+
+#if defined(USE_OZONE)
   TRACE_EVENT0("gpu", "gl::init::CreateGLContext");
 
   if (HasGLOzone()) {
@@ -55,15 +88,22 @@ scoped_refptr<GLContext> CreateGLContext(GLShareGroup* share_group,
     default:
       NOTREACHED() << "Expected Mock or Stub, actual:" << GetGLImplementation();
   }
+#endif
+
   return nullptr;
 }
 
-scoped_refptr<GLSurface> CreateViewGLSurface(GLDisplay* display,
-                                             gfx::AcceleratedWidget window) {
+scoped_refptr<GLSurface> CreateViewGLSurface(gfx::AcceleratedWidget window) {
+#if defined(USE_X11)
+  if (!features::IsUsingOzonePlatform())
+    return gl::init::CreateViewGLSurfaceX11(window);
+#endif
+
+#if defined(USE_OZONE)
   TRACE_EVENT0("gpu", "gl::init::CreateViewGLSurface");
 
   if (HasGLOzone())
-    return GetGLOzone()->CreateViewGLSurface(display, window);
+    return GetGLOzone()->CreateViewGLSurface(window);
 
   switch (GetGLImplementation()) {
     case kGLImplementationMockGL:
@@ -72,23 +112,37 @@ scoped_refptr<GLSurface> CreateViewGLSurface(GLDisplay* display,
     default:
       NOTREACHED() << "Expected Mock or Stub, actual:" << GetGLImplementation();
   }
+#endif
 
   return nullptr;
 }
 
 scoped_refptr<GLSurface> CreateSurfacelessViewGLSurface(
-    GLDisplay* display,
     gfx::AcceleratedWidget window) {
+#if defined(USE_X11)
+  if (!features::IsUsingOzonePlatform()) {
+    return nullptr;
+  }
+#endif
+
+#if defined(USE_OZONE)
   TRACE_EVENT0("gpu", "gl::init::CreateSurfacelessViewGLSurface");
-  return HasGLOzone()
-             ? GetGLOzone()->CreateSurfacelessViewGLSurface(display, window)
-             : nullptr;
+
+  if (HasGLOzone())
+    return GetGLOzone()->CreateSurfacelessViewGLSurface(window);
+#endif
+
+  return nullptr;
 }
 
 scoped_refptr<GLSurface> CreateOffscreenGLSurfaceWithFormat(
-    GLDisplay* display,
-    const gfx::Size& size,
-    GLSurfaceFormat format) {
+    const gfx::Size& size, GLSurfaceFormat format) {
+#if defined(USE_X11)
+  if (!features::IsUsingOzonePlatform())
+    return gl::init::CreateOffscreenGLSurfaceWithFormatX11(size, format);
+#endif
+
+#if defined(USE_OZONE)
   TRACE_EVENT0("gpu", "gl::init::CreateOffscreenGLSurface");
 
   if (!format.IsCompatible(GLSurfaceFormat())) {
@@ -97,7 +151,7 @@ scoped_refptr<GLSurface> CreateOffscreenGLSurfaceWithFormat(
   }
 
   if (HasGLOzone())
-    return GetGLOzone()->CreateOffscreenGLSurface(display, size);
+    return GetGLOzone()->CreateOffscreenGLSurface(size);
 
   switch (GetGLImplementation()) {
     case kGLImplementationMockGL:
@@ -106,10 +160,20 @@ scoped_refptr<GLSurface> CreateOffscreenGLSurfaceWithFormat(
     default:
       NOTREACHED() << "Expected Mock or Stub, actual:" << GetGLImplementation();
   }
+#endif
+
   return nullptr;
 }
 
 void SetDisabledExtensionsPlatform(const std::string& disabled_extensions) {
+#if defined(USE_X11)
+  if (!features::IsUsingOzonePlatform()) {
+    gl::init::SetDisabledExtensionsPlatformX11(disabled_extensions);
+    return;
+  }
+#endif
+
+#if defined(USE_OZONE)
   if (HasGLOzone()) {
     GetGLOzone()->SetDisabledExtensionsPlatform(disabled_extensions);
     return;
@@ -122,11 +186,18 @@ void SetDisabledExtensionsPlatform(const std::string& disabled_extensions) {
     default:
       NOTREACHED() << "Expected Mock or Stub, actual:" << GetGLImplementation();
   }
+#endif
 }
 
-bool InitializeExtensionSettingsOneOffPlatform(GLDisplay* display) {
+bool InitializeExtensionSettingsOneOffPlatform() {
+#if defined(USE_X11)
+  if (!features::IsUsingOzonePlatform())
+    return gl::init::InitializeExtensionSettingsOneOffPlatformX11();
+#endif
+
+#if defined(USE_OZONE)
   if (HasGLOzone())
-    return GetGLOzone()->InitializeExtensionSettingsOneOffPlatform(display);
+    return GetGLOzone()->InitializeExtensionSettingsOneOffPlatform();
 
   switch (GetGLImplementation()) {
     case kGLImplementationMockGL:
@@ -136,6 +207,8 @@ bool InitializeExtensionSettingsOneOffPlatform(GLDisplay* display) {
       NOTREACHED() << "Expected Mock or Stub, actual:" << GetGLImplementation();
       return false;
   }
+#endif
+  return false;
 }
 
 }  // namespace init

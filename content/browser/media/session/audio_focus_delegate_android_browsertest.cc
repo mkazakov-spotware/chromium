@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 #include "base/command_line.h"
 #include "base/location.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "content/browser/media/session/media_session_impl.h"
 #include "content/browser/media/session/mock_media_session_player_observer.h"
 #include "content/public/test/browser_test.h"
@@ -34,7 +35,7 @@ class AudioFocusDelegateAndroidBrowserTest : public ContentBrowserTest {};
 IN_PROC_BROWSER_TEST_F(AudioFocusDelegateAndroidBrowserTest,
                        MAYBE_OnAudioFocusChangeAfterDtorCrash) {
   std::unique_ptr<MockMediaSessionPlayerObserver> player_observer(
-      new MockMediaSessionPlayerObserver(media::MediaContentType::Persistent));
+      new MockMediaSessionPlayerObserver);
 
   MediaSessionImpl* media_session =
       MediaSessionImpl::Get(shell()->web_contents());
@@ -46,24 +47,25 @@ IN_PROC_BROWSER_TEST_F(AudioFocusDelegateAndroidBrowserTest,
   ASSERT_TRUE(other_media_session);
 
   player_observer->StartNewPlayer();
-  media_session->AddPlayer(player_observer.get(), 0);
+  media_session->AddPlayer(player_observer.get(), 0,
+                           media::MediaContentType::Persistent);
   EXPECT_TRUE(media_session->IsActive());
   EXPECT_FALSE(other_media_session->IsActive());
 
   player_observer->StartNewPlayer();
-  other_media_session->AddPlayer(player_observer.get(), 1);
+  other_media_session->AddPlayer(player_observer.get(), 1,
+                                 media::MediaContentType::Persistent);
   EXPECT_TRUE(media_session->IsActive());
   EXPECT_TRUE(other_media_session->IsActive());
 
-  while (!Shell::windows().empty())
-    Shell::windows().back()->Close();
+  shell()->CloseAllWindows();
 
   // Give some time to the AudioFocusManager to send an audioFocusChange message
   // to the listeners. If the bug is still present, it will crash.
   {
     base::RunLoop run_loop;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-        FROM_HERE, run_loop.QuitClosure(), base::Seconds(1));
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+        FROM_HERE, run_loop.QuitClosure(), base::TimeDelta::FromSeconds(1));
     run_loop.Run();
   }
 }

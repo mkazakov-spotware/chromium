@@ -1,19 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/components/security_interstitials/lookalikes/lookalike_url_tab_helper.h"
 
-#import "base/feature_list.h"
-#import "components/lookalikes/core/features.h"
-#import "components/lookalikes/core/lookalike_url_ui_util.h"
-#import "components/lookalikes/core/lookalike_url_util.h"
-#import "components/reputation/core/safety_tips_config.h"
-#import "components/ukm/ios/ukm_url_recorder.h"
-#import "components/url_formatter/spoof_checks/top_domains/top_domain_util.h"
-#import "ios/components/security_interstitials/lookalikes/lookalike_url_container.h"
-#import "ios/components/security_interstitials/lookalikes/lookalike_url_error.h"
-#import "ios/components/security_interstitials/lookalikes/lookalike_url_tab_allow_list.h"
+#include "base/feature_list.h"
+#include "components/lookalikes/core/features.h"
+#include "components/lookalikes/core/lookalike_url_ui_util.h"
+#include "components/lookalikes/core/lookalike_url_util.h"
+#include "components/ukm/ios/ukm_url_recorder.h"
+#include "components/url_formatter/spoof_checks/top_domains/top_domain_util.h"
+#include "ios/components/security_interstitials/lookalikes/lookalike_url_container.h"
+#include "ios/components/security_interstitials/lookalikes/lookalike_url_error.h"
+#include "ios/components/security_interstitials/lookalikes/lookalike_url_tab_allow_list.h"
 #import "ios/net/protocol_handler_util.h"
 #import "net/base/mac/url_conversions.h"
 
@@ -35,16 +34,14 @@ LookalikeUrlTabHelper::LookalikeUrlTabHelper(web::WebState* web_state)
 
 void LookalikeUrlTabHelper::ShouldAllowResponse(
     NSURLResponse* response,
-    web::WebStatePolicyDecider::ResponseInfo response_info,
-    web::WebStatePolicyDecider::PolicyDecisionCallback callback) {
+    bool for_main_frame,
+    base::OnceCallback<void(web::WebStatePolicyDecider::PolicyDecision)>
+        callback) {
   // Ignore subframe navigations.
-  if (!response_info.for_main_frame) {
+  if (!for_main_frame) {
     std::move(callback).Run(CreateAllowDecision());
     return;
   }
-  // TODO(crbug.com/1188945): Only detect lookalike navigations if they're the
-  // first or last URL in the redirect chain. Other URLs are invisible to the
-  // user. Then, ensure UKM is set correctly to record which URL triggered.
 
   // TODO(crbug.com/1104386): Create container and ReleaseInterstitialParams.
   // Get stored interstitial parameters early. Doing so ensures that a
@@ -74,14 +71,6 @@ void LookalikeUrlTabHelper::ShouldAllowResponse(
     return;
   }
 
-  // Fetch the component allowlist.
-  const auto* proto = reputation::GetSafetyTipsRemoteConfigProto();
-  // When there's no proto (like at browser start), fail-safe and don't block.
-  if (!proto) {
-    std::move(callback).Run(CreateAllowDecision());
-    return;
-  }
-
   // TODO(crbug.com/1104386): If this is a reload and if the current
   // URL is the last URL of the stored redirect chain, the interstitial
   // was probably reloaded. Stop the reload and navigate back to the
@@ -96,7 +85,7 @@ void LookalikeUrlTabHelper::ShouldAllowResponse(
   }
 
   // TODO(crbug.com/1104384): After site engagement has been componentized,
-  // fetch and set `engaged_sites` here so that an interstitial won't be
+  // fetch and set |engaged_sites| here so that an interstitial won't be
   // shown on engaged sites, and so that the interstitial will be shown on
   // lookalikes of engaged sites.
   std::vector<DomainInfo> engaged_sites;
@@ -108,19 +97,12 @@ void LookalikeUrlTabHelper::ShouldAllowResponse(
         return false;
       });
   if (!GetMatchingDomain(navigated_domain, engaged_sites, in_target_allowlist,
-                         proto, &matched_domain, &match_type)) {
-    // If the URL fails a spoof check, and isn't in the component allowlist,
-    // then show a spoof check interstitial.
-    if (ShouldBlockBySpoofCheckResult(navigated_domain) &&
-        !reputation::IsUrlAllowlistedBySafetyTipsComponent(
-            proto, response_url.GetWithEmptyPath(),
-            response_url.GetWithEmptyPath())) {
+                         &matched_domain, &match_type)) {
+    if (base::FeatureList::IsEnabled(
+            lookalikes::features::kLookalikeInterstitialForPunycode) &&
+        ShouldBlockBySpoofCheckResult(navigated_domain)) {
       match_type = LookalikeUrlMatchType::kFailedSpoofChecks;
       RecordUMAFromMatchType(match_type);
-      LookalikeUrlContainer* lookalike_container =
-          LookalikeUrlContainer::FromWebState(web_state());
-      lookalike_container->SetLookalikeUrlInfo(/*suggested_url=*/GURL(),
-                                               response_url, match_type);
       std::move(callback).Run(CreateLookalikeErrorDecision());
       return;
     }
@@ -132,37 +114,28 @@ void LookalikeUrlTabHelper::ShouldAllowResponse(
 
   RecordUMAFromMatchType(match_type);
 
-  const std::string suggested_domain = GetETLDPlusOne(matched_domain);
-  DCHECK(!suggested_domain.empty());
-  GURL::Replacements replace_host;
-  replace_host.SetHostStr(suggested_domain);
-  const GURL suggested_url =
-      response_url.ReplaceComponents(replace_host).GetWithEmptyPath();
+  if (ShouldBlockLookalikeUrlNavigation(match_type)) {
+    const std::string suggested_domain = GetETLDPlusOne(matched_domain);
+    DCHECK(!suggested_domain.empty());
+    GURL::Replacements replace_host;
+    replace_host.SetHostStr(suggested_domain);
+    const GURL suggested_url =
+        response_url.ReplaceComponents(replace_host).GetWithEmptyPath();
+    LookalikeUrlContainer* lookalike_container =
+        LookalikeUrlContainer::FromWebState(web_state());
+    lookalike_container->SetLookalikeUrlInfo(suggested_url, response_url,
+                                             match_type);
 
-  // If the URL is in the component updater allowlist, don't show any warning.
-  if (reputation::IsUrlAllowlistedBySafetyTipsComponent(
-          proto, response_url.GetWithEmptyPath(),
-          suggested_url.GetWithEmptyPath())) {
-    std::move(callback).Run(CreateAllowDecision());
+    std::move(callback).Run(CreateLookalikeErrorDecision());
     return;
   }
 
-  if (!ShouldBlockLookalikeUrlNavigation(match_type)) {
-    // Interstitial normally records UKM, but still record when it's not shown.
-    RecordUkmForLookalikeUrlBlockingPage(
-        ukm::GetSourceIdForWebStateDocument(web_state()), match_type,
-        LookalikeUrlBlockingPageUserAction::kInterstitialNotShown,
-        /*triggered_by_initial_url=*/false);
+  // Interstitial normally records UKM, but still record when it's not shown.
+  RecordUkmForLookalikeUrlBlockingPage(
+      ukm::GetSourceIdForWebStateDocument(web_state()), match_type,
+      LookalikeUrlBlockingPageUserAction::kInterstitialNotShown);
 
-    std::move(callback).Run(CreateAllowDecision());
-    return;
-  }
-
-  LookalikeUrlContainer* lookalike_container =
-      LookalikeUrlContainer::FromWebState(web_state());
-  lookalike_container->SetLookalikeUrlInfo(suggested_url, response_url,
-                                           match_type);
-  std::move(callback).Run(CreateLookalikeErrorDecision());
+  std::move(callback).Run(CreateAllowDecision());
 }
 
 WEB_STATE_USER_DATA_KEY_IMPL(LookalikeUrlTabHelper)

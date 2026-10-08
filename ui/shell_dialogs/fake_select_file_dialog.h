@@ -1,15 +1,14 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_SHELL_DIALOGS_FAKE_SELECT_FILE_DIALOG_H_
 #define UI_SHELL_DIALOGS_FAKE_SELECT_FILE_DIALOG_H_
 
-#include <string>
-
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
 #include "base/memory/weak_ptr.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_piece.h"
 #include "ui/shell_dialogs/select_file_dialog.h"
 #include "ui/shell_dialogs/select_file_dialog_factory.h"
@@ -69,34 +68,28 @@ class FakeSelectFileDialog : public SelectFileDialog {
 
   // SelectFileDialog.
   void SelectFileImpl(Type type,
-                      const std::u16string& title,
+                      const base::string16& title,
                       const base::FilePath& default_path,
                       const FileTypeInfo* file_types,
                       int file_type_index,
                       const base::FilePath::StringType& default_extension,
                       gfx::NativeWindow owning_window,
-                      void* params,
-                      const GURL* caller) override;
+                      void* params) override;
   bool HasMultipleFileTypeChoicesImpl() override;
   bool IsRunning(gfx::NativeWindow owning_window) const override;
   void ListenerDestroyed() override {}
 
   // Returns the file title provided to the dialog.
-  const std::u16string& title() const { return title_; }
+  const base::string16& title() const { return title_; }
   // Returns the file types provided to the dialog.
   const FileTypeInfo& file_types() const { return file_types_; }
   // Returns the default file extension provided to the dialog.
   const std::string& default_extension() const { return default_extension_; }
-  // Returns the caller URL provided to the dialog.
-  const GURL* caller() const { return caller_; }
 
   // Calls the |FileSelected()| method on listener(). |filter_text| selects
   // which file extension filter to report.
-  [[nodiscard]] bool CallFileSelected(const base::FilePath& file_path,
-                                      base::StringPiece filter_text);
-
-  // Calls the |MultiFilesSelected()| method on listener().
-  void CallMultiFilesSelected(const std::vector<base::FilePath>& file_path);
+  bool CallFileSelected(const base::FilePath& file_path,
+                        base::StringPiece filter_text) WARN_UNUSED_RESULT;
 
   base::WeakPtr<FakeSelectFileDialog> GetWeakPtr() {
     return weak_ptr_factory_.GetWeakPtr();
@@ -106,11 +99,10 @@ class FakeSelectFileDialog : public SelectFileDialog {
   ~FakeSelectFileDialog() override;
 
   base::RepeatingClosure opened_;
-  std::u16string title_;
+  base::string16 title_;
   FileTypeInfo file_types_;
   std::string default_extension_;
-  raw_ptr<void> params_;
-  raw_ptr<const GURL> caller_;
+  void* params_;
   base::WeakPtrFactory<FakeSelectFileDialog> weak_ptr_factory_{this};
 };
 

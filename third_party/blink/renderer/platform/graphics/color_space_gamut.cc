@@ -1,27 +1,26 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/graphics/color_space_gamut.h"
 
-#include "third_party/skia/include/core/SkColorSpace.h"
-#include "third_party/skia/modules/skcms/skcms.h"
-#include "ui/display/screen_info.h"
+#include "third_party/blink/public/common/widget/screen_info.h"
+#include "third_party/skia/include/third_party/skcms/skcms.h"
 
 namespace blink {
 
 namespace color_space_utilities {
 
-ColorSpaceGamut GetColorSpaceGamut(const display::ScreenInfo& screen_info) {
+ColorSpaceGamut GetColorSpaceGamut(const ScreenInfo& screen_info) {
   const gfx::ColorSpace& color_space =
       screen_info.display_color_spaces.GetScreenInfoColorSpace();
   if (!color_space.IsValid())
     return ColorSpaceGamut::kUnknown;
 
-  // TODO(crbug.com/1385853): Perform a better computation, using the available
-  // SkColorSpacePrimaries.
+  // TODO(crbug.com/1049334): Change this function to operate on a
+  // gfx::DisplayColorSpaces structure.
   if (color_space.IsHDR())
-    return ColorSpaceGamut::P3;
+    return ColorSpaceGamut::BT2020;
 
   sk_sp<SkColorSpace> sk_color_space = color_space.ToSkColorSpace();
   if (!sk_color_space)

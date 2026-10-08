@@ -1,4 +1,4 @@
- // Copyright 2013 The Chromium Authors
+ // Copyright 2013 The Chromium Authors. All rights reserved.
  // Use of this source code is governed by a BSD-style license that can be
  // found in the LICENSE file.
  // The categories of events.
@@ -91,14 +91,6 @@
 //
 //
 #define MSG_HOST_STARTED                 ((DWORD)0x40000005L)
-
-//
-// MessageId: MSG_HOST_LOG_EVENT
-//
-// MessageText:
-//
-//
-#define MSG_HOST_LOG_EVENT               ((DWORD)0x40000006L)
 
  // This line makes sure that mc.exe does not complain about a single '.' at
  // the end of the file.

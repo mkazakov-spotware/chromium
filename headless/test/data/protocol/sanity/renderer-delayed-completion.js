@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,11 +27,14 @@
       </body>
       </html>`);
 
-  await virtualTimeController.initialize(1000);
-  await frameNavigationHelper.navigate('http://example.com/foobar');
-  await virtualTimeController.grantTime(3000 + 100);
-  testRunner.log(await session.evaluate(
-    `document.getElementById('content').innerHTML.trim()`));
-  testRunner.completeTest();
+  await virtualTimeController.grantInitialTime(3000 + 100, 1000,
+    null,
+    async () => {
+      testRunner.log(await session.evaluate(
+          `document.getElementById('content').innerHTML.trim()`));
+      testRunner.completeTest();
+    }
+  );
 
+  await frameNavigationHelper.navigate('http://example.com/foobar');
 })

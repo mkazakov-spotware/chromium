@@ -1,11 +1,12 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_FIND_BAR_HOST_H_
 #define CHROME_BROWSER_UI_VIEWS_FIND_BAR_HOST_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
 #include "chrome/browser/ui/views/dropdown_bar_host.h"
 #include "chrome/browser/ui/views/find_bar_view.h"
@@ -40,10 +41,6 @@ class FindBarHost : public DropdownBarHost,
                     public FindBarTesting {
  public:
   explicit FindBarHost(BrowserView* browser_view);
-
-  FindBarHost(const FindBarHost&) = delete;
-  FindBarHost& operator=(const FindBarHost&) = delete;
-
   ~FindBarHost() override;
 
   // Forwards selected key events to the renderer. This is useful to make sure
@@ -62,13 +59,13 @@ class FindBarHost : public DropdownBarHost,
       const find_in_page::FindNotificationDetails& results) override;
   void StopAnimation() override;
   void MoveWindowIfNecessary() override;
-  void SetFindTextAndSelectedRange(const std::u16string& find_text,
+  void SetFindTextAndSelectedRange(const base::string16& find_text,
                                    const gfx::Range& selected_range) override;
-  std::u16string GetFindText() const override;
+  base::string16 GetFindText() const override;
   gfx::Range GetSelectedRange() const override;
   void UpdateUIForFindResult(
       const find_in_page::FindNotificationDetails& result,
-      const std::u16string& find_text) override;
+      const base::string16& find_text) override;
   void AudibleAlert() override;
   bool IsFindBarVisible() const override;
   void RestoreSavedFocus() override;
@@ -83,8 +80,8 @@ class FindBarHost : public DropdownBarHost,
   // FindBarTesting implementation:
   bool GetFindBarWindowInfo(gfx::Point* position,
                             bool* fully_visible) const override;
-  std::u16string GetFindSelectedText() const override;
-  std::u16string GetMatchCountText() const override;
+  base::string16 GetFindSelectedText() const override;
+  base::string16 GetMatchCountText() const override;
   int GetContentsWidth() const override;
   size_t GetAudibleAlertCount() const override;
 
@@ -129,7 +126,8 @@ class FindBarHost : public DropdownBarHost,
   void OnVisibilityChanged() override;
 
   // views::WidgetDelegate:
-  std::u16string GetAccessibleWindowTitle() const override;
+  ax::mojom::Role GetAccessibleWindowRole() override;
+  base::string16 GetAccessibleWindowTitle() const override;
 
  private:
   friend class FindInPageTest;
@@ -151,19 +149,13 @@ class FindBarHost : public DropdownBarHost,
     return static_cast<const FindBarView*>(view());
   }
 
-  // Saves the focus tracker for potential restoration later during a
-  // WebContents change.
-  void SaveFocusTracker();
-
-  // Takes the focus tracker from a WebContents and restores it to the
-  // DropdownBarHost.
-  void RestoreFocusTracker();
-
   // A pointer back to the owning controller.
-  raw_ptr<FindBarController> find_bar_controller_ = nullptr;
+  FindBarController* find_bar_controller_ = nullptr;
 
   // The number of audible alerts issued.
   size_t audible_alerts_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(FindBarHost);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_FIND_BAR_HOST_H_

@@ -1,22 +1,19 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_TYPED_ARRAYS_DOM_ARRAY_BUFFER_VIEW_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_TYPED_ARRAYS_DOM_ARRAY_BUFFER_VIEW_H_
 
-#include "base/notreached.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_shared_array_buffer.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
 
 namespace blink {
 
 class CORE_EXPORT DOMArrayBufferView : public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();
-  static const WrapperTypeInfo wrapper_type_info_body_;
 
  public:
   enum ViewType {
@@ -114,20 +111,16 @@ class CORE_EXPORT DOMArrayBufferView : public ScriptWrappable {
     return !IsDetached() ? raw_base_address_ : nullptr;
   }
 
-  // ScriptWrappable overrides:
-  v8::MaybeLocal<v8::Value> Wrap(ScriptState*) override {
+  v8::Local<v8::Value> Wrap(v8::Isolate*,
+                            v8::Local<v8::Object> creation_context) override {
     NOTREACHED();
-    return v8::Local<v8::Value>();
+    return v8::Local<v8::Object>();
   }
 
   void Trace(Visitor* visitor) const override {
     visitor->Trace(dom_array_buffer_);
     ScriptWrappable::Trace(visitor);
   }
-
-  void DetachForTesting() { dom_array_buffer_->Detach(); }
-
-  bool IsDetached() const { return dom_array_buffer_->IsDetached(); }
 
  protected:
   DOMArrayBufferView(DOMArrayBufferBase* dom_array_buffer, size_t byte_offset)
@@ -136,6 +129,8 @@ class CORE_EXPORT DOMArrayBufferView : public ScriptWrappable {
     raw_base_address_ =
         static_cast<char*>(dom_array_buffer_->DataMaybeShared()) + byte_offset;
   }
+
+  bool IsDetached() const { return dom_array_buffer_->IsDetached(); }
 
  private:
   // The raw_* fields may be stale after Detach. Use getters instead.

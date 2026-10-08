@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,43 +8,26 @@
 #include "base/sequence_checker.h"
 #include "third_party/blink/renderer/core/fileapi/blob.h"
 #include "third_party/blink/renderer/core/fileapi/file_reader_loader_client.h"
-#include "third_party/blink/renderer/modules/clipboard/clipboard_promise.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/heap/self_keep_alive.h"
 #include "third_party/skia/include/core/SkImage.h"
 
 namespace blink {
 
+class ClipboardPromise;
 class FileReaderLoader;
 class SystemClipboard;
+class RawSystemClipboard;
 
-// Interface for writing an individual Clipboard API format as a Blob to the
-// System Clipboard, safely and asynchronously.
-//
-// ClipboardWriter takes as input a ClipboardPromise, which manages writing
-// multiple formats and passes in unsanitized clipboard payloads.
-// ClipboardWriter then sanitizes a Blob payload and writes it onto the
-// underlying system clipboard. All System Clipboard operations should be
-// called from the main thread.
+// Interface for writing async-clipboard-compatible types as a Blob to the
+// System Clipboard, asynchronously.
 //
 // Writing a Blob's data to the system clipboard is accomplished by:
-// (1) Reading - the Blob's contents using a FileReaderLoader.
-// (2) Decoding - or sanitizing the Blob's contents to avoid RCE in native
-//     applications that may take advantage of vulnerabilities in their
-//     decoders, whenever possible. Decoding may be time-consuming, so it
-//     is done on a background thread whenever possible. An example where
-//     decoding is done on the main thread is HTML, where Blink's HTML decoder
-//     can only be used on the main thread.
-// (3) Writing - the Blob's decoded contents to the system clipboard.
-//
-// Subclasses of ClipboardWriter should be implemented for each supported
-// format. Subclasses should:
-// (1) Begin execution by implementing ClipboardWriter::StartWrite().
-// (2) Decode the payload on a background thread (if possible) by implementing
-//     a static DecodeOnBackgroundThread() function. This function is called by
-//     StartWrite() via worker_pool::PostTask().
-// (3) Write the decoded content to the system clipboard by implementing
-//     ClipboardWriter::Write();
+// (1) Reading the blob's contents using a FileReaderLoader.
+// (2) Decoding the blob's contents to avoid RCE in native applications that may
+//     take advantage of vulnerabilities in their decoders. In
+//     ClipboardRawDataWriter, this decoding is skipped.
+// (3) Writing the blob's decoded contents to the system clipboard.
 //
 // ClipboardWriter is owned only by itself and ClipboardPromise. It keeps
 // itself alive for the duration of FileReaderLoader's async operations using
@@ -53,25 +36,20 @@ class SystemClipboard;
 class ClipboardWriter : public GarbageCollected<ClipboardWriter>,
                         public FileReaderLoaderClient {
  public:
-  // For writing sanitized and custom MIME types.
-  // IsValidType() must return true on types passed into `mime_type`.
   static ClipboardWriter* Create(SystemClipboard* system_clipboard,
                                  const String& mime_type,
                                  ClipboardPromise* promise);
-
+  static ClipboardWriter* Create(RawSystemClipboard* raw_system_clipboard,
+                                 const String& mime_type,
+                                 ClipboardPromise* promise);
+  static ClipboardWriter* Create(SystemClipboard* system_clipboard,
+                                 const String& mime_type,
+                                 ClipboardPromise* promise,
+                                 LocalFrame* frame);
   ~ClipboardWriter() override;
 
-  // Returns whether ClipboardWriter has implemented support for this type.
-  //
-  // IsValidType() is expected to be called before Create(). If it returns false
-  // for a `mime_type`, Create() must not be called with that `mime_type`.
-  //
-  // IsValidType() is used for both ClipboardWriter and ClipboardReader, as read
-  // and write currently support the same types. If this changes in the future,
-  // please create separate IsValidType functions.
-  static bool IsValidType(const String& mime_type);
-  // Begins the sequence of writing the Blob to the system clipbaord.
-  void WriteToSystem(Blob* blob);
+  static bool IsValidType(const String& type, bool is_raw);
+  void WriteToSystem(Blob*);
 
   // FileReaderLoaderClient.
   void DidStartLoading() override;
@@ -83,29 +61,27 @@ class ClipboardWriter : public GarbageCollected<ClipboardWriter>,
 
  protected:
   ClipboardWriter(SystemClipboard* system_clipboard, ClipboardPromise* promise);
+  ClipboardWriter(RawSystemClipboard* raw_system_clipboard,
+                  ClipboardPromise* promise);
 
   // Decodes and writes `raw_data`. Decoding is done off the main thread
   // whenever possible, by calling DecodeOnBackgroundThread.
   virtual void StartWrite(
       DOMArrayBuffer* raw_data,
       scoped_refptr<base::SingleThreadTaskRunner> task_runner) = 0;
-
-  // SystemClipboard is bound to LocalFrame, so the bound LocalFrame must still
-  // be valid by the time it's used.
-  SystemClipboard* system_clipboard() {
-    DCHECK(promise_->GetLocalFrame());
-    return system_clipboard_;
-  }
-
-  // This ClipboardPromise owns this ClipboardWriter. Subclasses use `promise_`
-  // to report success or failure, or to obtain the execution context.
+  // This ClipboardPromise owns this ClipboardWriter.
   Member<ClipboardPromise> promise_;
 
-  // Every subclass method that runs on the main thread should
-  // DCHECK_CALLED_ON_VALID_SEQUENCE with this checker.
+  // Ensure that System Clipboard operations occur on the main thread.
   SEQUENCE_CHECKER(sequence_checker_);
 
+  SystemClipboard* system_clipboard() { return system_clipboard_; }
+  RawSystemClipboard* raw_system_clipboard() { return raw_system_clipboard_; }
+
  private:
+  ClipboardWriter(SystemClipboard* system_clipboard,
+                  RawSystemClipboard* raw_system_clipboard,
+                  ClipboardPromise* promise);
   // TaskRunner for interacting with the system clipboard.
   const scoped_refptr<base::SingleThreadTaskRunner> clipboard_task_runner_;
   // TaskRunner for reading files.
@@ -114,10 +90,12 @@ class ClipboardWriter : public GarbageCollected<ClipboardWriter>,
   std::unique_ptr<FileReaderLoader> file_reader_;
   // Access to the global sanitized system clipboard.
   Member<SystemClipboard> system_clipboard_;
+  // Access to the global unsanitized system clipboard.
+  Member<RawSystemClipboard> raw_system_clipboard_;
 
   // Oilpan: ClipboardWriter must remain alive until Member<T>::Clear() is
   // called, to keep the FileReaderLoader alive and avoid unexpected UaPs.
-  SelfKeepAlive<ClipboardWriter> self_keep_alive_{this};
+  SelfKeepAlive<ClipboardWriter> self_keep_alive_;
 };
 
 }  // namespace blink

@@ -1,22 +1,18 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_TABS_TAB_GROUP_HEADER_H_
 #define CHROME_BROWSER_UI_VIEWS_TABS_TAB_GROUP_HEADER_H_
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ref.h"
-#include "base/time/time.h"
 #include "chrome/browser/ui/views/tabs/tab_slot_view.h"
 #include "components/tab_groups/tab_group_id.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/context_menu_controller.h"
 #include "ui/views/controls/focus_ring.h"
 #include "ui/views/view_targeter_delegate.h"
 #include "ui/views/widget/widget_observer.h"
 
-class TabSlotController;
+class TabStrip;
 struct TabSizeInfo;
 
 namespace views {
@@ -31,10 +27,7 @@ class TabGroupHeader : public TabSlotView,
                        public views::ContextMenuController,
                        public views::ViewTargeterDelegate {
  public:
-  METADATA_HEADER(TabGroupHeader);
-
-  TabGroupHeader(TabSlotController& tab_slot_controller,
-                 const tab_groups::TabGroupId& group);
+  TabGroupHeader(TabStrip* tab_strip, const tab_groups::TabGroupId& group);
   TabGroupHeader(const TabGroupHeader&) = delete;
   TabGroupHeader& operator=(const TabGroupHeader&) = delete;
   ~TabGroupHeader() override;
@@ -51,8 +44,6 @@ class TabGroupHeader : public TabSlotView,
   void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
   TabSlotView::ViewType GetTabSlotViewType() const override;
   TabSizeInfo GetTabSizeInfo() const override;
-  std::u16string GetTooltipText(const gfx::Point& p) const override;
-  gfx::Rect GetAnchorBoundsInScreen() const override;
 
   // views::ContextMenuController:
   void ShowContextMenuForViewImpl(views::View* source,
@@ -67,8 +58,6 @@ class TabGroupHeader : public TabSlotView,
   // for our group.
   void VisualsChanged();
 
-  int GetCollapsedHeaderWidth() const;
-
   // Removes {editor_bubble_tracker_} from observing the widget.
   void RemoveObserverFromWidget(views::Widget* widget);
 
@@ -76,21 +65,28 @@ class TabGroupHeader : public TabSlotView,
   friend class TabGroupEditorBubbleViewDialogBrowserTest;
 
   // Calculate the width for this View.
-  int GetDesiredWidth() const;
+  int CalculateWidth() const;
 
-  const raw_ref<TabSlotController> tab_slot_controller_;
+  // Helper method used to log the time since the group was last expanded or
+  // collapsed.
+  void LogCollapseTime();
 
-  raw_ptr<views::View> title_chip_;
-  raw_ptr<views::Label> title_;
+  TabStrip* const tab_strip_;
 
-  // Saved collapsed state for usage with activation of element tracker system.
-  bool is_collapsed_;
+  views::View* title_chip_;
+  views::Label* title_;
+
+  // Focus ring for accessibility.
+  views::FocusRing* focus_ring_ = nullptr;
+
+  // Time used for logging the last time the group was collapsed or expanded.
+  base::TimeTicks last_modified_expansion_;
 
   // Tracks whether our editor bubble is open. At most one can be open
   // at once.
   class EditorBubbleTracker : public views::WidgetObserver {
    public:
-    explicit EditorBubbleTracker(TabSlotController& tab_slot_controller);
+    EditorBubbleTracker() = default;
     ~EditorBubbleTracker() override;
 
     void Opened(views::Widget* bubble_widget);
@@ -102,10 +98,7 @@ class TabGroupHeader : public TabSlotView,
 
    private:
     bool is_open_ = false;
-    raw_ptr<views::Widget, DanglingUntriaged> widget_;
-    // Outlives this because it's a dependency inversion interface for the
-    // header's parent View.
-    raw_ref<TabSlotController> tab_slot_controller_;
+    views::Widget* widget_;
   };
 
   EditorBubbleTracker editor_bubble_tracker_;

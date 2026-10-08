@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@ import android.widget.FrameLayout;
 import android.widget.TextView;
 
 import androidx.annotation.Nullable;
-import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.widget.Toolbar.OnMenuItemClickListener;
 import androidx.core.view.ViewCompat;
@@ -25,15 +24,16 @@ import androidx.recyclerview.widget.RecyclerView.AdapterDataObserver;
 import androidx.recyclerview.widget.RecyclerView.ItemAnimator;
 import androidx.recyclerview.widget.RecyclerView.OnScrollListener;
 
+import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.components.browser_ui.widget.FadingShadow;
 import org.chromium.components.browser_ui.widget.FadingShadowView;
+import org.chromium.components.browser_ui.widget.LoadingView;
 import org.chromium.components.browser_ui.widget.R;
 import org.chromium.components.browser_ui.widget.displaystyle.DisplayStyleObserver;
 import org.chromium.components.browser_ui.widget.displaystyle.HorizontalDisplayStyle;
 import org.chromium.components.browser_ui.widget.displaystyle.UiConfig;
 import org.chromium.components.browser_ui.widget.displaystyle.UiConfig.DisplayStyle;
 import org.chromium.components.browser_ui.widget.selectable_list.SelectionDelegate.SelectionObserver;
-import org.chromium.ui.widget.LoadingView;
 
 import java.util.List;
 
@@ -61,8 +61,10 @@ public class SelectableListLayout<E>
     private ItemAnimator mItemAnimator;
     SelectableListToolbar<E> mToolbar;
     private FadingShadowView mToolbarShadow;
+    boolean mShowShadowOnSelection;
 
     private int mEmptyStringResId;
+    private int mSearchEmptyStringResId;
 
     private UiConfig mUiConfig;
 
@@ -144,15 +146,14 @@ public class SelectableListLayout<E>
         mAdapter = adapter;
 
         if (recyclerView == null) {
-            mRecyclerView = findViewById(R.id.selectable_list_recycler_view);
+            mRecyclerView = findViewById(R.id.recycler_view);
             mRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         } else {
             mRecyclerView = recyclerView;
 
             // Replace the inflated recycler view with the one supplied to this method.
             FrameLayout contentView = findViewById(R.id.list_content);
-            RecyclerView existingView =
-                    contentView.findViewById(R.id.selectable_list_recycler_view);
+            RecyclerView existingView = contentView.findViewById(R.id.recycler_view);
             contentView.removeView(existingView);
             contentView.addView(mRecyclerView, 0);
         }
@@ -189,6 +190,7 @@ public class SelectableListLayout<E>
      * @param selectedGroupResId The resource id of the menu item to show when a selection is
      *                           established.
      * @param listener The OnMenuItemClickListener to set on the toolbar.
+     * @param showShadowOnSelection Whether to show the toolbar shadow on selection.
      * @param updateStatusBarColor Whether the status bar color should be updated to match the
      *                             toolbar color. If true, the status bar will only be updated if
      *                             the current device fully supports theming and is on Android M+.
@@ -197,7 +199,7 @@ public class SelectableListLayout<E>
     public SelectableListToolbar<E> initializeToolbar(int toolbarLayoutId,
             SelectionDelegate<E> delegate, int titleResId, int normalGroupResId,
             int selectedGroupResId, @Nullable OnMenuItemClickListener listener,
-            boolean updateStatusBarColor) {
+            boolean showShadowOnSelection, boolean updateStatusBarColor) {
         mToolbarStub.setLayoutResource(toolbarLayoutId);
         @SuppressWarnings("unchecked")
         SelectableListToolbar<E> toolbar = (SelectableListToolbar<E>) mToolbarStub.inflate();
@@ -211,8 +213,10 @@ public class SelectableListLayout<E>
 
         mToolbarShadow = findViewById(R.id.shadow);
         mToolbarShadow.init(
-                getContext().getColor(R.color.toolbar_shadow_color), FadingShadow.POSITION_TOP);
+                ApiCompatibilityUtils.getColor(getResources(), R.color.toolbar_shadow_color),
+                FadingShadow.POSITION_TOP);
 
+        mShowShadowOnSelection = showShadowOnSelection;
         delegate.addObserver(this);
         setToolbarShadowVisibility();
 
@@ -223,10 +227,12 @@ public class SelectableListLayout<E>
      * Initializes the view shown when the selectable list is empty.
      *
      * @param emptyStringResId The string to show when the selectable list is empty.
+     * @param searchEmptyStringResId The string to show when the selectable list is empty during
+     *                               a search.
      * @return The {@link TextView} displayed when the list is empty.
      */
-    public TextView initializeEmptyView(int emptyStringResId) {
-        setEmptyViewText(emptyStringResId);
+    public TextView initializeEmptyView(int emptyStringResId, int searchEmptyStringResId) {
+        setEmptyViewText(emptyStringResId, searchEmptyStringResId);
 
         // Dummy listener to have the touch events dispatched to this view tree for navigation UI.
         mEmptyViewWrapper.setOnTouchListener((v, event) -> true);
@@ -237,9 +243,12 @@ public class SelectableListLayout<E>
     /**
      * Sets the view text when the selectable list is empty.
      * @param emptyStringResId The string to show when the selectable list is empty.
+     * @param searchEmptyStringResId The string to show when the selectable list is empty during
+     *                               a search.
      */
-    public void setEmptyViewText(int emptyStringResId) {
+    public void setEmptyViewText(int emptyStringResId, int searchEmptyStringResId) {
         mEmptyStringResId = emptyStringResId;
+        mSearchEmptyStringResId = searchEmptyStringResId;
 
         mEmptyView.setText(mEmptyStringResId);
     }
@@ -292,22 +301,11 @@ public class SelectableListLayout<E>
 
     /**
      * Called when a search is starting.
-     * @param searchEmptyStringResId The string to show when the selectable list is empty during a
-     *         search.
      */
-    public void onStartSearch(@StringRes int searchEmptyStringResId) {
-        onStartSearch(getContext().getString(searchEmptyStringResId));
-    }
-
-    /**
-     * Called when a search is starting.
-     * @param searchEmptyString The string to show when the selectable list is empty during a
-     *         search.
-     */
-    public void onStartSearch(String searchEmptyString) {
+    public void onStartSearch() {
         mRecyclerView.setItemAnimator(null);
         mToolbarShadow.setVisibility(View.VISIBLE);
-        mEmptyView.setText(searchEmptyString);
+        mEmptyView.setText(mSearchEmptyStringResId);
     }
 
     /**
@@ -339,7 +337,8 @@ public class SelectableListLayout<E>
     private void setToolbarShadowVisibility() {
         if (mToolbar == null || mRecyclerView == null) return;
 
-        boolean showShadow = mRecyclerView.canScrollVertically(-1);
+        boolean showShadow = mRecyclerView.canScrollVertically(-1)
+                || (mToolbar.getSelectionDelegate().isSelectionEnabled() && mShowShadowOnSelection);
         mToolbarShadow.setVisibility(showShadow ? View.VISIBLE : View.GONE);
     }
 

@@ -1,101 +1,52 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/fonts/font_selector.h"
 
 #include "build/build_config.h"
-#include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom-blink.h"
-#include "third_party/blink/renderer/platform/fonts/alternate_font_family.h"
 #include "third_party/blink/renderer/platform/fonts/font_cache.h"
 #include "third_party/blink/renderer/platform/fonts/font_description.h"
 #include "third_party/blink/renderer/platform/fonts/font_fallback_list.h"
 #include "third_party/blink/renderer/platform/fonts/font_fallback_map.h"
-#include "third_party/blink/renderer/platform/fonts/font_family.h"
 #include "third_party/blink/renderer/platform/fonts/generic_font_family_settings.h"
-#include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
 
 AtomicString FontSelector::FamilyNameFromSettings(
     const GenericFontFamilySettings& settings,
     const FontDescription& font_description,
-    const FontFamily& generic_family,
-    UseCounter* use_counter) {
-  // Quoted <font-family> values corresponding to a <generic-family> keyword
-  // should not be converted to a family name via user settings.
-  auto& generic_family_name = generic_family.FamilyName();
-  if (font_description.GenericFamily() != FontDescription::kStandardFamily &&
-      font_description.GenericFamily() != FontDescription::kWebkitBodyFamily &&
-      !generic_family.FamilyIsGeneric() &&
-      generic_family_name != font_family_names::kWebkitStandard)
-    return g_empty_atom;
-
-  if (IsWebkitBodyFamily(font_description)) {
-    // TODO(yosin): We should make |use_counter| available for font threads.
-    if (use_counter) {
-      // TODO(crbug.com/1065468): Remove this counter when it's no longer
-      // necessary.
-      UseCounter::Count(use_counter,
-                        WebFeature::kFontSelectorCSSFontFamilyWebKitPrefixBody);
-    }
-  } else if (generic_family_name == font_family_names::kWebkitStandard &&
-             !generic_family.FamilyIsGeneric()) {
-    // -webkit-standard is set internally only with a kGenericFamily type in
-    // FontFallbackList::GetFontData. So that non-generic -webkit-standard has
-    // been specified on the page. Don't treat it as <generic-family> keyword.
-    return g_empty_atom;
-  }
-#if BUILDFLAG(IS_ANDROID)
-  // Noto Sans Math provides mathematical glyphs on Android but it does not
-  // contain any OpenType MATH table required for math layout.
-  // See https://github.com/googlefonts/noto-fonts/issues/330
-  // TODO(crbug.com/1228189): Should we still try and select a math font based
-  // on the presence of glyphs for math code points or a MATH table?
-  if (font_description.GenericFamily() == FontDescription::kStandardFamily ||
-      font_description.GenericFamily() == FontDescription::kWebkitBodyFamily ||
-      generic_family_name == font_family_names::kWebkitStandard) {
+    const AtomicString& generic_family_name) {
+#if defined(OS_ANDROID)
+  if (font_description.GenericFamily() == FontDescription::kStandardFamily) {
     return FontCache::GetGenericFamilyNameForScript(
-        font_family_names::kWebkitStandard,
-        GetFallbackFontFamily(font_description), font_description);
+        font_family_names::kWebkitStandard, font_description);
   }
 
-  if (generic_family_name == font_family_names::kSerif ||
-      generic_family_name == font_family_names::kSansSerif ||
-      generic_family_name == font_family_names::kCursive ||
-      generic_family_name == font_family_names::kFantasy ||
-      generic_family_name == font_family_names::kMonospace) {
-    return FontCache::GetGenericFamilyNameForScript(
-        generic_family_name, generic_family_name, font_description);
+  if (generic_family_name.StartsWith("-webkit-")) {
+    return FontCache::GetGenericFamilyNameForScript(generic_family_name,
+                                                    font_description);
   }
-#else   // BUILDFLAG(IS_ANDROID)
+#else
   UScriptCode script = font_description.GetScript();
-  if (font_description.GenericFamily() == FontDescription::kStandardFamily ||
-      font_description.GenericFamily() == FontDescription::kWebkitBodyFamily)
+  if (font_description.GenericFamily() == FontDescription::kStandardFamily)
     return settings.Standard(script);
-  if (generic_family_name == font_family_names::kSerif)
+  if (generic_family_name == font_family_names::kWebkitSerif)
     return settings.Serif(script);
-  if (generic_family_name == font_family_names::kSansSerif)
+  if (generic_family_name == font_family_names::kWebkitSansSerif)
     return settings.SansSerif(script);
-  if (generic_family_name == font_family_names::kCursive)
+  if (generic_family_name == font_family_names::kWebkitCursive)
     return settings.Cursive(script);
-  if (generic_family_name == font_family_names::kFantasy)
+  if (generic_family_name == font_family_names::kWebkitFantasy)
     return settings.Fantasy(script);
-  if (generic_family_name == font_family_names::kMonospace)
+  if (generic_family_name == font_family_names::kWebkitMonospace)
     return settings.Fixed(script);
+  if (generic_family_name == font_family_names::kWebkitPictograph)
+    return settings.Pictograph(script);
   if (generic_family_name == font_family_names::kWebkitStandard)
     return settings.Standard(script);
-  if (RuntimeEnabledFeatures::CSSFontFamilyMathEnabled() &&
-      generic_family_name == font_family_names::kMath)
-    return settings.Math(script);
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif
   return g_empty_atom;
-}
-
-// static
-bool FontSelector::IsWebkitBodyFamily(const FontDescription& font_description) {
-  return font_description.GenericFamily() == FontDescription::kWebkitBodyFamily;
 }
 
 void FontSelector::Trace(Visitor* visitor) const {

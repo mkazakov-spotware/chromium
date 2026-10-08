@@ -1,9 +1,7 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/command_line.h"
-#include "base/memory/raw_ptr.h"
 #include "base/strings/string_util.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
@@ -14,7 +12,7 @@
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/web_app_controller_browsertest.h"
-#include "chrome/browser/web_applications/web_app_install_info.h"
+#include "chrome/browser/web_applications/components/web_application_info.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -43,7 +41,7 @@ class TestTitleObserver : public TabStripModelObserver {
  public:
   // Create a new TitleObserver for the browser of |contents|, waiting for
   // |target_title|.
-  TestTitleObserver(content::WebContents* contents, std::u16string target_title)
+  TestTitleObserver(content::WebContents* contents, base::string16 target_title)
       : contents_(contents), target_title_(target_title) {
     browser_ = chrome::FindBrowserWithWebContents(contents_);
     browser_->tab_strip_model()->AddObserver(this);
@@ -63,7 +61,7 @@ class TestTitleObserver : public TabStripModelObserver {
                     TabChangeType change_type) override {
     content::NavigationEntry* entry =
         contents->GetController().GetVisibleEntry();
-    std::u16string title = entry ? entry->GetTitle() : std::u16string();
+    base::string16 title = entry ? entry->GetTitle() : base::string16();
 
     if (title != target_title_)
       return;
@@ -75,18 +73,15 @@ class TestTitleObserver : public TabStripModelObserver {
  private:
   bool seen_target_title_ = false;
 
-  raw_ptr<content::WebContents, DanglingUntriaged> contents_;
-  raw_ptr<Browser, DanglingUntriaged> browser_;
-  std::u16string target_title_;
+  content::WebContents* contents_;
+  Browser* browser_;
+  base::string16 target_title_;
   base::RunLoop awaiter_;
 };
 
 // Opens a new popup window from |web_contents| on |target_url| and returns
 // the Browser it opened in.
 Browser* OpenPopup(content::WebContents* web_contents, const GURL& target_url) {
-  ui_test_utils::BrowserChangeObserver browser_change_observer(
-      /*browser=*/nullptr,
-      ui_test_utils::BrowserChangeObserver::ChangeType::kAdded);
   content::TestNavigationObserver nav_observer(target_url);
   nav_observer.StartWatchingNewWebContents();
 
@@ -95,7 +90,7 @@ Browser* OpenPopup(content::WebContents* web_contents, const GURL& target_url) {
   EXPECT_TRUE(content::ExecuteScript(web_contents, script));
   nav_observer.Wait();
 
-  return browser_change_observer.Wait();
+  return chrome::FindLastActive();
 }
 
 // Navigates to |target_url| and waits for navigation to complete.
@@ -112,7 +107,7 @@ void NavigateAndWait(content::WebContents* web_contents,
 // and then sets document.title to be |title| and waits for the change
 // to propogate.
 void SetTitleAndLocation(content::WebContents* web_contents,
-                         const std::u16string title,
+                         const base::string16 title,
                          const GURL& location) {
   NavigateAndWait(web_contents, location);
 
@@ -145,8 +140,8 @@ class UrlHidingInterstitialPage
   bool ShouldDisplayURL() const override { return false; }
 
  protected:
-  void PopulateInterstitialStrings(base::Value::Dict& load_time_data) override {
-  }
+  void PopulateInterstitialStrings(
+      base::DictionaryValue* load_time_data) override {}
 };
 
 // An observer that associates a URL-hiding interstitial when a page loads when
@@ -161,7 +156,7 @@ class UrlHidingWebContentsObserver : public content::WebContentsObserver {
       return;
 
     security_interstitials::SecurityInterstitialTabHelper::
-        AssociateBlockingPage(handle,
+        AssociateBlockingPage(web_contents(), handle->GetNavigationId(),
                               std::make_unique<UrlHidingInterstitialPage>(
                                   web_contents(), handle->GetURL()));
   }
@@ -178,11 +173,6 @@ class CustomTabBarViewBrowserTest
     : public web_app::WebAppControllerBrowserTest {
  public:
   CustomTabBarViewBrowserTest() = default;
-
-  CustomTabBarViewBrowserTest(const CustomTabBarViewBrowserTest&) = delete;
-  CustomTabBarViewBrowserTest& operator=(const CustomTabBarViewBrowserTest&) =
-      delete;
-
   ~CustomTabBarViewBrowserTest() override = default;
 
  protected:
@@ -209,30 +199,29 @@ class CustomTabBarViewBrowserTest
   }
 
   void InstallPWA(const GURL& start_url) {
-    auto web_app_info = std::make_unique<WebAppInstallInfo>();
+    auto web_app_info = std::make_unique<WebApplicationInfo>();
     web_app_info->start_url = start_url;
     web_app_info->scope = start_url.GetWithoutFilename();
-    web_app_info->user_display_mode = web_app::UserDisplayMode::kStandalone;
+    web_app_info->open_as_window = true;
     Install(std::move(web_app_info));
   }
 
   void InstallBookmark(const GURL& start_url) {
-    auto web_app_info = std::make_unique<WebAppInstallInfo>();
+    auto web_app_info = std::make_unique<WebApplicationInfo>();
     web_app_info->start_url = start_url;
-    web_app_info->scope = start_url.DeprecatedGetOriginAsURL();
-    web_app_info->user_display_mode = web_app::UserDisplayMode::kStandalone;
+    web_app_info->scope = start_url.GetOrigin();
+    web_app_info->open_as_window = true;
     Install(std::move(web_app_info));
   }
 
-  raw_ptr<BrowserView, DanglingUntriaged> browser_view_;
-  raw_ptr<LocationBarView, DanglingUntriaged> location_bar_;
-  raw_ptr<CustomTabBarView, DanglingUntriaged> custom_tab_bar_;
-  raw_ptr<Browser, DanglingUntriaged> app_browser_ = nullptr;
-  raw_ptr<web_app::AppBrowserController, DanglingUntriaged> app_controller_ =
-      nullptr;
+  BrowserView* browser_view_;
+  LocationBarView* location_bar_;
+  CustomTabBarView* custom_tab_bar_;
+  Browser* app_browser_ = nullptr;
+  web_app::AppBrowserController* app_controller_ = nullptr;
 
  private:
-  void Install(std::unique_ptr<WebAppInstallInfo> web_app_info) {
+  void Install(std::unique_ptr<WebApplicationInfo> web_app_info) {
     const GURL start_url = web_app_info->start_url;
     web_app::AppId app_id = InstallWebApp(std::move(web_app_info));
 
@@ -249,16 +238,19 @@ class CustomTabBarViewBrowserTest
   }
 
   base::test::ScopedFeatureList feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(CustomTabBarViewBrowserTest);
 };
 
 // Check the custom tab bar is not instantiated for a tabbed browser window.
 IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
                        IsNotCreatedInTabbedBrowser) {
   EXPECT_TRUE(browser()->is_type_normal());
-  EXPECT_TRUE(browser_view_->GetIsNormalType());
+  EXPECT_TRUE(browser_view_->IsBrowserTypeNormal());
   EXPECT_FALSE(custom_tab_bar_);
 }
 
+// Check the custom tab bar is not instantiated for a popup window.
 IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest, IsNotCreatedInPopup) {
   Browser* popup = OpenPopup(browser_view_->GetActiveWebContents(),
                              GURL("http://example.com"));
@@ -270,7 +262,7 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest, IsNotCreatedInPopup) {
   EXPECT_NE(browser_view_, popup_view);
 
   // Popups are not the normal browser view.
-  EXPECT_FALSE(popup_view->GetIsNormalType());
+  EXPECT_FALSE(popup_view->IsBrowserTypeNormal());
   EXPECT_TRUE(popup->is_type_popup());
   // Popups should not have a custom tab bar view.
   EXPECT_FALSE(popup_view->toolbar()->custom_tab_bar());
@@ -313,7 +305,7 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest, IsUsedForDesktopPWA) {
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
   EXPECT_NE(app_view, browser_view_);
 
-  EXPECT_FALSE(app_view->GetIsNormalType());
+  EXPECT_FALSE(app_view->IsBrowserTypeNormal());
   EXPECT_TRUE(app_browser_->is_type_app());
 
   // Custom tab bar should be created.
@@ -342,12 +334,10 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest, ShowsWithMixedContent) {
       document.body.appendChild(img);
     )"));
   EXPECT_TRUE(bar->GetVisible());
-  EXPECT_EQ(bar->title_for_testing(), u"Google");
-  EXPECT_EQ(bar->location_for_testing() + u"/",
-            base::ASCIIToUTF16(https_server()
-                                   ->GetURL("app.com", "/ssl")
-                                   .DeprecatedGetOriginAsURL()
-                                   .spec()));
+  EXPECT_EQ(bar->title_for_testing(), base::ASCIIToUTF16("Google"));
+  EXPECT_EQ(bar->location_for_testing() + base::ASCIIToUTF16("/"),
+            base::ASCIIToUTF16(
+                https_server()->GetURL("app.com", "/ssl").GetOrigin().spec()));
   EXPECT_FALSE(bar->close_button_for_testing()->GetVisible());
 }
 
@@ -368,13 +358,14 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest, TitleAndLocationUpdate) {
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
   EXPECT_NE(app_view, browser_view_);
 
-  SetTitleAndLocation(app_view->GetActiveWebContents(), u"FooBar", navigate_to);
+  SetTitleAndLocation(app_view->GetActiveWebContents(),
+                      base::ASCIIToUTF16("FooBar"), navigate_to);
 
-  std::string expected_origin = navigate_to.DeprecatedGetOriginAsURL().spec();
-  EXPECT_EQ(
-      base::ASCIIToUTF16(expected_origin),
-      app_view->toolbar()->custom_tab_bar()->location_for_testing() + u"/");
-  EXPECT_EQ(u"FooBar",
+  std::string expected_origin = navigate_to.GetOrigin().spec();
+  EXPECT_EQ(base::ASCIIToUTF16(expected_origin),
+            app_view->toolbar()->custom_tab_bar()->location_for_testing() +
+                base::ASCIIToUTF16("/"));
+  EXPECT_EQ(base::ASCIIToUTF16("FooBar"),
             app_view->toolbar()->custom_tab_bar()->title_for_testing());
 }
 
@@ -391,11 +382,11 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
   EXPECT_NE(app_view, browser_view_);
 
   // Empty title should use location.
-  SetTitleAndLocation(app_view->GetActiveWebContents(), std::u16string(),
+  SetTitleAndLocation(app_view->GetActiveWebContents(), base::string16(),
                       GURL("http://example.test/"));
-  EXPECT_EQ(u"example.test",
+  EXPECT_EQ(base::ASCIIToUTF16("example.test"),
             app_view->toolbar()->custom_tab_bar()->location_for_testing());
-  EXPECT_EQ(u"example.test",
+  EXPECT_EQ(base::ASCIIToUTF16("example.test"),
             app_view->toolbar()->custom_tab_bar()->title_for_testing());
 }
 
@@ -432,10 +423,14 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
 }
 
 // Right-click menu on CustomTabBar should have Copy URL option.
-// Disabled on Mac because Mac's native menu is synchronous.
-#if !BUILDFLAG(IS_MAC)
+// TODO(crbug.com/988323): Times out on Mac.
+#if defined(OS_MAC)
+#define MAYBE_RightClickMenuShowsCopyUrl DISABLED_RightClickMenuShowsCopyUrl
+#else
+#define MAYBE_RightClickMenuShowsCopyUrl RightClickMenuShowsCopyUrl
+#endif
 IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
-                       RightClickMenuShowsCopyUrl) {
+                       MAYBE_RightClickMenuShowsCopyUrl) {
   const GURL app_url = https_server()->GetURL("app.com", "/ssl/google.html");
   InstallPWA(app_url);
   EXPECT_TRUE(app_browser_->is_type_app());
@@ -459,12 +454,11 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
       ->ActivatedAt(0);
 
   ui::Clipboard* clipboard = ui::Clipboard::GetForCurrentThread();
-  std::u16string result;
+  base::string16 result;
   clipboard->ReadText(ui::ClipboardBuffer::kCopyPaste, /* data_dst = */ nullptr,
                       &result);
-  EXPECT_EQ(result, u"http://example.test/");
+  EXPECT_EQ(result, base::UTF8ToUTF16("http://example.test/"));
 }
-#endif  // !BUILDFLAG(IS_MAC)
 
 // Paths above the launch url should be out of scope and should be closable from
 // the CustomTabBar.
@@ -548,11 +542,12 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
   EXPECT_NE(app_view, browser_view_);
 
-  SetTitleAndLocation(app_view->GetActiveWebContents(), u"FooBar", navigate_to);
+  SetTitleAndLocation(app_view->GetActiveWebContents(),
+                      base::ASCIIToUTF16("FooBar"), navigate_to);
 
-  EXPECT_EQ(u"https://xn--lv8h.example",
+  EXPECT_EQ(base::UTF8ToUTF16("https://xn--lv8h.example"),
             app_view->toolbar()->custom_tab_bar()->location_for_testing());
-  EXPECT_EQ(u"FooBar",
+  EXPECT_EQ(base::ASCIIToUTF16("FooBar"),
             app_view->toolbar()->custom_tab_bar()->title_for_testing());
 }
 
@@ -569,11 +564,12 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
   EXPECT_NE(app_view, browser_view_);
 
-  SetTitleAndLocation(app_view->GetActiveWebContents(), u"FooBar", navigate_to);
+  SetTitleAndLocation(app_view->GetActiveWebContents(),
+                      base::ASCIIToUTF16("FooBar"), navigate_to);
 
-  EXPECT_EQ(u"https://ΐ.example",
+  EXPECT_EQ(base::UTF8ToUTF16("https://ΐ.example"),
             app_view->toolbar()->custom_tab_bar()->location_for_testing());
-  EXPECT_EQ(u"FooBar",
+  EXPECT_EQ(base::ASCIIToUTF16("FooBar"),
             app_view->toolbar()->custom_tab_bar()->title_for_testing());
 }
 
@@ -677,20 +673,20 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest, InterstitialCanHideOrigin) {
 
   // Verify origin is blanked on interstitial.
   UrlHidingWebContentsObserver blocker(contents);
-  SetTitleAndLocation(contents, u"FooBar",
+  SetTitleAndLocation(contents, base::ASCIIToUTF16("FooBar"),
                       https_server()->GetURL("/simple.html"));
 
-  EXPECT_EQ(std::u16string(),
+  EXPECT_EQ(base::string16(),
             app_view->toolbar()->custom_tab_bar()->location_for_testing());
   EXPECT_FALSE(
       app_view->toolbar()->custom_tab_bar()->IsShowingOriginForTesting());
 
   // Verify origin returns when interstitial is gone.
   blocker.StopBlocking();
-  SetTitleAndLocation(contents, u"FooBar2",
+  SetTitleAndLocation(contents, base::ASCIIToUTF16("FooBar2"),
                       https_server()->GetURL("/title1.html"));
 
-  EXPECT_NE(std::u16string(),
+  EXPECT_NE(base::string16(),
             app_view->toolbar()->custom_tab_bar()->location_for_testing());
   EXPECT_TRUE(
       app_view->toolbar()->custom_tab_bar()->IsShowingOriginForTesting());
@@ -720,6 +716,6 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest, BlobUrlLocation) {
 
   EXPECT_EQ(
       app_browser_view->toolbar()->custom_tab_bar()->location_for_testing() +
-          u"/",
+          base::ASCIIToUTF16("/"),
       base::ASCIIToUTF16(https_server()->GetURL("/").spec()));
 }

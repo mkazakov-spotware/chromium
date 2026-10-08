@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "base/strings/string16.h"
 #include "base/values.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 
@@ -19,13 +20,13 @@ class Status;
 // an error message. If |release_modifiers| is true, all modifiers would be
 // depressed. |modifiers| acts both an input and an output, however, only when
 // the conversion process is successful will |modifiers| be changed.
-Status ConvertKeysToKeyEvents(const std::u16string& keys,
+Status ConvertKeysToKeyEvents(const base::string16& keys,
                               bool release_modifiers,
                               int* modifiers,
                               std::vector<KeyEvent>* key_events);
 
-Status ConvertKeyActionToKeyEvent(const base::Value::Dict& action_object,
-                                  base::Value::Dict& input_state,
+Status ConvertKeyActionToKeyEvent(const base::DictionaryValue* action_object,
+                                  base::DictionaryValue* input_state,
                                   bool is_key_down,
                                   std::vector<KeyEvent>* client_key_events);
 

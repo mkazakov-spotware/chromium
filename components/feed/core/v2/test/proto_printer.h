@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,8 @@
 
 #include "components/feed/core/proto/v2/store.pb.h"
 #include "components/feed/core/proto/v2/ui.pb.h"
-#include "components/feed/core/proto/v2/wire/info_card.pb.h"
-#include "components/feed/core/proto/v2/wire/upload_actions_request.pb.h"
-#include "components/feed/core/proto/v2/wire/upload_actions_response.pb.h"
-#include "components/feed/core/proto/v2/wire/web_feed_matcher.pb.h"
-#include "components/feed/core/proto/v2/wire/web_feeds.pb.h"
-#include "components/feed/core/proto/v2/xsurface.pb.h"
 
 namespace feedwire {
-class ActionPayload;
 class ClientInfo;
 class ContentId;
 class DisplayInfo;
@@ -26,55 +19,78 @@ class Version;
 }  // namespace feedwire
 namespace feed {
 struct StreamModelUpdateRequest;
+
+std::string ToTextProto(const feedwire::ContentId& v);
+std::string ToTextProto(const feedwire::Version& v);
+std::string ToTextProto(const feedwire::DisplayInfo& v);
+std::string ToTextProto(const feedwire::ClientInfo& v);
+std::string ToTextProto(const feedstore::StreamData& v);
+std::string ToTextProto(const feedstore::Metadata& v);
+std::string ToTextProto(const feedstore::StreamStructureSet& v);
+std::string ToTextProto(const feedstore::StreamStructure& v);
+std::string ToTextProto(const feedstore::Content& v);
+std::string ToTextProto(const feedstore::StreamSharedState& v);
+std::string ToTextProto(const feedstore::StoredAction& v);
+std::string ToTextProto(const feedstore::Record& v);
+std::string ToTextProto(const feedstore::DataOperation& v);
+std::string ToTextProto(const feedui::StreamUpdate& v);
+
+inline std::ostream& operator<<(std::ostream& os,
+                                const feedwire::ContentId& v) {
+  return os << ToTextProto(v);
+}
+inline std::ostream& operator<<(std::ostream& os,
+                                const feedwire::DisplayInfo& v) {
+  return os << ToTextProto(v);
+}
+inline std::ostream& operator<<(std::ostream& os, const feedwire::Version& v) {
+  return os << ToTextProto(v);
+}
+inline std::ostream& operator<<(std::ostream& os,
+                                const feedwire::ClientInfo& v) {
+  return os << ToTextProto(v);
+}
+inline std::ostream& operator<<(std::ostream& os,
+                                const feedstore::StreamData& v) {
+  return os << ToTextProto(v);
+}
+inline std::ostream& operator<<(std::ostream& os,
+                                const feedstore::Metadata& v) {
+  return os << ToTextProto(v);
+}
+inline std::ostream& operator<<(std::ostream& os,
+                                const feedstore::StreamStructureSet& v) {
+  return os << ToTextProto(v);
+}
+inline std::ostream& operator<<(std::ostream& os,
+                                const feedstore::StreamStructure& v) {
+  return os << ToTextProto(v);
+}
+inline std::ostream& operator<<(std::ostream& os, const feedstore::Content& v) {
+  return os << ToTextProto(v);
+}
+inline std::ostream& operator<<(std::ostream& os,
+                                const feedstore::StreamSharedState& v) {
+  return os << ToTextProto(v);
+}
+inline std::ostream& operator<<(std::ostream& os,
+                                const feedstore::StoredAction& v) {
+  return os << ToTextProto(v);
+}
+inline std::ostream& operator<<(std::ostream& os, const feedstore::Record& v) {
+  return os << ToTextProto(v);
+}
+inline std::ostream& operator<<(std::ostream& os,
+                                const feedstore::DataOperation& v) {
+  return os << ToTextProto(v);
+}
+inline std::ostream& operator<<(std::ostream& os,
+                                const feedui::StreamUpdate& v) {
+  return os << ToTextProto(v);
 }
 
-#define DECLARE_PRINTER(NS, PROTO_TYPE)                                        \
-  namespace feed {                                                             \
-  std::string ToTextProto(const NS::PROTO_TYPE& v);                            \
-  }                                                                            \
-  namespace NS {                                                               \
-  inline std::ostream& operator<<(std::ostream& os, const NS::PROTO_TYPE& v) { \
-    return os << feed::ToTextProto(v);                                         \
-  }                                                                            \
-  }
-
-DECLARE_PRINTER(feedstore, Content)
-DECLARE_PRINTER(feedstore, DataOperation)
-DECLARE_PRINTER(feedstore, Image)
-DECLARE_PRINTER(feedstore, Metadata)
-DECLARE_PRINTER(feedstore, RecommendedWebFeedIndex)
-DECLARE_PRINTER(feedstore, Record)
-DECLARE_PRINTER(feedstore, StoredAction)
-DECLARE_PRINTER(feedstore, StreamData)
-DECLARE_PRINTER(feedstore, StreamSharedState)
-DECLARE_PRINTER(feedstore, StreamStructure)
-DECLARE_PRINTER(feedstore, StreamStructureSet)
-DECLARE_PRINTER(feedstore, SubscribedWebFeeds)
-DECLARE_PRINTER(feedstore, WebFeedInfo)
-DECLARE_PRINTER(feedstore, PendingWebFeedOperation)
-DECLARE_PRINTER(feedui, StreamUpdate)
-DECLARE_PRINTER(feedwire, ActionPayload)
-DECLARE_PRINTER(feedwire, ClientInfo)
-DECLARE_PRINTER(feedwire, ContentId)
-DECLARE_PRINTER(feedwire, DisplayInfo)
-DECLARE_PRINTER(feedwire, Version)
-DECLARE_PRINTER(feedwire, FeedAction)
-DECLARE_PRINTER(feedwire, InfoCardTrackingState)
-DECLARE_PRINTER(feedwire, UploadActionsRequest)
-DECLARE_PRINTER(feedwire, UploadActionsResponse)
-DECLARE_PRINTER(feedwire::webfeed, ListRecommendedWebFeedsRequest)
-DECLARE_PRINTER(feedwire::webfeed, ListRecommendedWebFeedsResponse)
-DECLARE_PRINTER(feedwire::webfeed, ListWebFeedsRequest)
-DECLARE_PRINTER(feedwire::webfeed, ListWebFeedsResponse)
-DECLARE_PRINTER(feedwire::webfeed, Image)
-DECLARE_PRINTER(feedwire::webfeed, WebFeed)
-DECLARE_PRINTER(feedwire::webfeed, WebFeedMatcher)
-DECLARE_PRINTER(feedxsurface, WebFeedFollowState)
-
-#undef DECLARE_PRINTER
-
-namespace feed {
 std::ostream& operator<<(std::ostream& os, const StreamModelUpdateRequest& v);
+
 }  // namespace feed
 
 #endif  // COMPONENTS_FEED_CORE_V2_TEST_PROTO_PRINTER_H_

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "build/build_config.h"
 #include "components/version_info/version_info.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/build_info.h"
 #endif
 
@@ -49,11 +49,10 @@ SystemProfileProto::Channel AsProtobufChannel(version_info::Channel channel) {
 }
 
 std::string GetAppPackageName() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return base::android::BuildInfo::GetInstance()->package_name();
-#else
-  return std::string();
 #endif
+  return std::string();
 }
 
 }  // namespace metrics

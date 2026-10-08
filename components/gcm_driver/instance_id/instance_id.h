@@ -1,16 +1,17 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_GCM_DRIVER_INSTANCE_ID_INSTANCE_ID_H_
 #define COMPONENTS_GCM_DRIVER_INSTANCE_ID_INSTANCE_ID_H_
 
+#include <map>
 #include <memory>
 #include <set>
 #include <string>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 
@@ -30,7 +31,7 @@ extern const char kGCMScope[];
 class InstanceID {
  public:
   // Used in UMA. Can add enum values, but never renumber or delete and reuse.
-  enum Result : uint8_t {
+  enum Result {
     // Successful operation.
     SUCCESS = 0,
     // Invalid parameter.
@@ -85,9 +86,6 @@ class InstanceID {
   static std::unique_ptr<InstanceID> CreateInternal(const std::string& app_id,
                                                     gcm::GCMDriver* gcm_driver);
 
-  InstanceID(const InstanceID&) = delete;
-  InstanceID& operator=(const InstanceID&) = delete;
-
   virtual ~InstanceID();
 
   // Returns the Instance ID.
@@ -110,11 +108,15 @@ class InstanceID {
   // |scope|: identifies authorized actions that the authorized entity can take.
   //          E.g. for sending GCM messages, "GCM" scope should be used.
   // |time_to_live|: TTL of retrieved token, unlimited if zero value passed.
+  // |options|: allows including a small number of string key/value pairs that
+  //            will be associated with the token and may be used in processing
+  //            the request.
   // |flags|: Flags used to create this token.
   // |callback|: to be called once the asynchronous operation is done.
   virtual void GetToken(const std::string& authorized_entity,
                         const std::string& scope,
                         base::TimeDelta time_to_live,
+                        const std::map<std::string, std::string>& options,
                         std::set<Flags> flags,
                         GetTokenCallback callback) = 0;
 
@@ -170,11 +172,13 @@ class InstanceID {
 
   // Owned by GCMProfileServiceFactory, which is a dependency of
   // InstanceIDProfileServiceFactory, which owns this.
-  raw_ptr<gcm::GCMDriver, DanglingUntriaged> gcm_driver_;
+  gcm::GCMDriver* gcm_driver_;
 
   std::string app_id_;
 
   base::WeakPtrFactory<InstanceID> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(InstanceID);
 };
 
 }  // namespace instance_id

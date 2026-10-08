@@ -1,10 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/main/browser_list_impl.h"
 
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/main/browser.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -27,7 +27,6 @@ void BrowserListImpl::Shutdown() {
   for (Browser* browser : incognito_browsers_) {
     browser->RemoveObserver(this);
   }
-  is_shutdown_ = true;
 }
 
 // BrowserList:
@@ -79,10 +78,6 @@ void BrowserListImpl::AddObserver(BrowserListObserver* observer) {
 // Removes an observer from the model.
 void BrowserListImpl::RemoveObserver(BrowserListObserver* observer) {
   observers_.RemoveObserver(observer);
-}
-
-bool BrowserListImpl::IsShutdown() {
-  return is_shutdown_;
 }
 
 // BrowserObserver

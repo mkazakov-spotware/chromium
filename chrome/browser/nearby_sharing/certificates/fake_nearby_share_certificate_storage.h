@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -96,23 +96,29 @@ class FakeNearbyShareCertificateStorage : public NearbyShareCertificateStorage {
   ~FakeNearbyShareCertificateStorage() override;
 
   // NearbyShareCertificateStorage:
+  std::vector<std::string> GetPublicCertificateIds() const override;
   void GetPublicCertificates(PublicCertificateCallback callback) override;
-  absl::optional<std::vector<NearbySharePrivateCertificate>>
+  base::Optional<std::vector<NearbySharePrivateCertificate>>
   GetPrivateCertificates() const override;
-  absl::optional<base::Time> NextPublicCertificateExpirationTime()
+  base::Optional<base::Time> NextPublicCertificateExpirationTime()
       const override;
   void ReplacePrivateCertificates(
       const std::vector<NearbySharePrivateCertificate>& private_certificates)
       override;
+  void ReplacePublicCertificates(
+      const std::vector<nearbyshare::proto::PublicCertificate>&
+          public_certificates,
+      ResultCallback callback) override;
   void AddPublicCertificates(
       const std::vector<nearbyshare::proto::PublicCertificate>&
           public_certificates,
       ResultCallback callback) override;
   void RemoveExpiredPublicCertificates(base::Time now,
                                        ResultCallback callback) override;
+  void ClearPublicCertificates(ResultCallback callback) override;
 
   void SetPublicCertificateIds(const std::vector<std::string>& ids);
-  void SetNextPublicCertificateExpirationTime(absl::optional<base::Time> time);
+  void SetNextPublicCertificateExpirationTime(base::Optional<base::Time> time);
 
   std::vector<PublicCertificateCallback>& get_public_certificates_callbacks() {
     return get_public_certificates_callbacks_;
@@ -137,9 +143,9 @@ class FakeNearbyShareCertificateStorage : public NearbyShareCertificateStorage {
   }
 
  private:
-  absl::optional<base::Time> next_public_certificate_expiration_time_;
+  base::Optional<base::Time> next_public_certificate_expiration_time_;
   std::vector<std::string> public_certificate_ids_;
-  absl::optional<std::vector<NearbySharePrivateCertificate>>
+  base::Optional<std::vector<NearbySharePrivateCertificate>>
       private_certificates_;
   std::vector<PublicCertificateCallback> get_public_certificates_callbacks_;
   std::vector<ReplacePublicCertificatesCall> replace_public_certificates_calls_;

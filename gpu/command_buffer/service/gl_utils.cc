@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <unordered_set>
 
-#include "build/build_config.h"
 #include "gpu/command_buffer/common/capabilities.h"
 #include "gpu/command_buffer/service/error_state.h"
 #include "gpu/command_buffer/service/feature_info.h"
@@ -15,10 +14,6 @@
 #include "gpu/command_buffer/service/logger.h"
 #include "gpu/command_buffer/service/texture_manager.h"
 #include "ui/gl/gl_version_info.h"
-
-#if BUILDFLAG(IS_CHROMEOS)
-#include "ui/gl/gl_surface_egl.h"
-#endif
 
 namespace gpu {
 namespace gles2 {
@@ -261,7 +256,7 @@ void PopulateNumericCapabilities(Capabilities* caps,
     glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT,
                   &caps->uniform_buffer_offset_alignment);
     caps->major_version = 3;
-    if (feature_info->IsES31ForTestingContext()) {
+    if (feature_info->IsWebGL2ComputeContext()) {
       glGetIntegerv(GL_MAX_ATOMIC_COUNTER_BUFFER_BINDINGS,
                     &caps->max_atomic_counter_buffer_bindings);
       glGetIntegerv(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS,
@@ -280,83 +275,6 @@ void PopulateNumericCapabilities(Capabilities* caps,
   }
 }
 
-#if BUILDFLAG(IS_CHROMEOS)
-void PopulateDRMCapabilities(Capabilities* caps,
-                             const FeatureInfo* feature_info) {
-  DCHECK(caps != nullptr);
-
-  if (!gl::GLSurfaceEGL::GetGLDisplayEGL() ||
-      !gl::GLSurfaceEGL::GetGLDisplayEGL()->IsInitialized() ||
-      !gl::GLSurfaceEGL::GetGLDisplayEGL()
-           ->ext->b_EGL_EXT_image_dma_buf_import_modifiers ||
-      feature_info->workarounds()
-          .disable_egl_ext_image_dma_buf_import_modifiers ||
-      !gl::g_driver_egl.client_ext.b_EGL_EXT_device_query) {
-    return;
-  }
-
-  EGLDisplay egl_display = gl::GLSurfaceEGL::GetGLDisplayEGL()->GetDisplay();
-  DCHECK(egl_display != nullptr);
-
-  EGLDeviceEXT egl_device;
-  if (!eglQueryDisplayAttribEXT(egl_display, EGL_DEVICE_EXT,
-                                (EGLAttrib*)&egl_device)) {
-    return;
-  }
-
-  gfx::ExtensionSet device_extension_set;
-  const char* device_extensions =
-      eglQueryDeviceStringEXT(egl_device, EGL_EXTENSIONS);
-  if (device_extensions) {
-    device_extension_set = gfx::MakeExtensionSet(device_extensions);
-  } else {
-    device_extension_set = gfx::ExtensionSet();
-  }
-
-  if (gfx::HasExtension(device_extension_set,
-                        "EGL_EXT_device_drm_render_node")) {
-    const char* path =
-        eglQueryDeviceStringEXT(egl_device, EGL_DRM_RENDER_NODE_FILE_EXT);
-    caps->drm_render_node = std::string(path);
-  }
-  if (caps->drm_render_node.empty() &&
-      gfx::HasExtension(device_extension_set, "EGL_EXT_device_drm")) {
-    const char* path =
-        eglQueryDeviceStringEXT(egl_device, EGL_DRM_DEVICE_FILE_EXT);
-    caps->drm_render_node = std::string(path);
-  }
-
-  EGLint num_formats = 0;
-  if (eglQueryDmaBufFormatsEXT(egl_display, 0, nullptr, &num_formats) &&
-      num_formats > 0) {
-    std::vector<EGLint> formats_array(num_formats);
-    bool res = eglQueryDmaBufFormatsEXT(egl_display, num_formats,
-                                        formats_array.data(), &num_formats);
-    DCHECK(res);
-
-    for (EGLint format : formats_array) {
-      std::vector<uint64_t> modifiers;
-      EGLint num_modifiers = 0;
-      if (eglQueryDmaBufModifiersEXT(egl_display, format, 0, nullptr, nullptr,
-                                     &num_modifiers) &&
-          num_modifiers > 0) {
-        std::vector<EGLuint64KHR> modifiers_array(num_modifiers);
-        res = eglQueryDmaBufModifiersEXT(egl_display, format, num_modifiers,
-                                         modifiers_array.data(), nullptr,
-                                         &num_modifiers);
-        DCHECK(res);
-
-        for (uint64_t modifier : modifiers_array) {
-          modifiers.push_back(modifier);
-        }
-      }
-
-      caps->drm_formats_and_modifiers.emplace(format, modifiers);
-    }
-  }
-}
-#endif
-
 bool CheckUniqueAndNonNullIds(GLsizei n, const GLuint* client_ids) {
   if (n <= 0)
     return true;
@@ -368,7 +286,7 @@ bool CheckUniqueAndNonNullIds(GLsizei n, const GLuint* client_ids) {
 const char* GetServiceVersionString(const FeatureInfo* feature_info) {
   if (feature_info->IsWebGL2OrES3Context())
     return "OpenGL ES 3.0 Chromium";
-  else if (feature_info->IsES31ForTestingContext()) {
+  else if (feature_info->IsWebGL2ComputeContext()) {
     return "OpenGL ES 3.1 Chromium";
   } else
     return "OpenGL ES 2.0 Chromium";
@@ -378,7 +296,7 @@ const char* GetServiceShadingLanguageVersionString(
     const FeatureInfo* feature_info) {
   if (feature_info->IsWebGL2OrES3Context())
     return "OpenGL ES GLSL ES 3.0 Chromium";
-  else if (feature_info->IsES31ForTestingContext()) {
+  else if (feature_info->IsWebGL2ComputeContext()) {
     return "OpenGL ES GLSL ES 3.1 Chromium";
   } else
     return "OpenGL ES GLSL ES 1.0 Chromium";
@@ -817,7 +735,7 @@ bool ValidateCompressedTexSubDimensions(GLenum target,
         *error_message = "target == GL_TEXTURE_3D is not allowed";
         return false;
       }
-      [[fallthrough]];
+      FALLTHROUGH;
     }
     case GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_EXT:
     case GL_COMPRESSED_RGBA_BPTC_UNORM_EXT:
@@ -1048,7 +966,8 @@ CopyTextureMethod GetCopyTextureCHROMIUMMethod(const FeatureInfo* feature_info,
                                                GLenum dest_internal_format,
                                                bool flip_y,
                                                bool premultiply_alpha,
-                                               bool unpremultiply_alpha) {
+                                               bool unpremultiply_alpha,
+                                               bool dither) {
   bool premultiply_alpha_change = premultiply_alpha ^ unpremultiply_alpha;
   bool source_format_color_renderable =
       Texture::ColorRenderable(feature_info, source_internal_format, false);
@@ -1057,7 +976,7 @@ CopyTextureMethod GetCopyTextureCHROMIUMMethod(const FeatureInfo* feature_info,
   std::string output_error_msg;
 
   switch (dest_internal_format) {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     // RGB5_A1 is not color-renderable on NVIDIA Mac, see
     // https://crbug.com/676209.
     case GL_RGB5_A1:
@@ -1119,7 +1038,7 @@ CopyTextureMethod GetCopyTextureCHROMIUMMethod(const FeatureInfo* feature_info,
   if (source_target == GL_TEXTURE_2D &&
       (dest_target == GL_TEXTURE_2D || dest_target == GL_TEXTURE_CUBE_MAP) &&
       source_format_color_renderable && copy_tex_image_format_valid &&
-      source_level == 0 && !flip_y && !premultiply_alpha_change) {
+      source_level == 0 && !flip_y && !premultiply_alpha_change && !dither) {
     auto source_texture_type = GLES2Util::GetGLReadPixelsImplementationType(
         source_internal_format, source_target);
     auto dest_texture_type = GLES2Util::GetGLReadPixelsImplementationType(
@@ -1222,7 +1141,6 @@ bool ValidateCopyTextureCHROMIUMInternalFormats(const FeatureInfo* feature_info,
       source_internal_format == GL_LUMINANCE_ALPHA ||
       source_internal_format == GL_BGRA_EXT ||
       source_internal_format == GL_BGRA8_EXT ||
-      source_internal_format == GL_RGB_YCRCB_420_CHROMIUM ||
       source_internal_format == GL_RGB_YCBCR_420V_CHROMIUM ||
       source_internal_format == GL_RGB_YCBCR_422_CHROMIUM ||
       source_internal_format == GL_RGB_YCBCR_P010_CHROMIUM ||
@@ -1268,6 +1186,25 @@ GLenum GetTextureBindingQuery(GLenum texture_type) {
   }
 }
 
+gfx::OverlayTransform GetGFXOverlayTransform(GLenum plane_transform) {
+  switch (plane_transform) {
+    case GL_OVERLAY_TRANSFORM_NONE_CHROMIUM:
+      return gfx::OVERLAY_TRANSFORM_NONE;
+    case GL_OVERLAY_TRANSFORM_FLIP_HORIZONTAL_CHROMIUM:
+      return gfx::OVERLAY_TRANSFORM_FLIP_HORIZONTAL;
+    case GL_OVERLAY_TRANSFORM_FLIP_VERTICAL_CHROMIUM:
+      return gfx::OVERLAY_TRANSFORM_FLIP_VERTICAL;
+    case GL_OVERLAY_TRANSFORM_ROTATE_90_CHROMIUM:
+      return gfx::OVERLAY_TRANSFORM_ROTATE_90;
+    case GL_OVERLAY_TRANSFORM_ROTATE_180_CHROMIUM:
+      return gfx::OVERLAY_TRANSFORM_ROTATE_180;
+    case GL_OVERLAY_TRANSFORM_ROTATE_270_CHROMIUM:
+      return gfx::OVERLAY_TRANSFORM_ROTATE_270;
+    default:
+      return gfx::OVERLAY_TRANSFORM_INVALID;
+  }
+}
+
 bool GetGFXBufferFormat(GLenum internal_format, gfx::BufferFormat* out_format) {
   switch (internal_format) {
     case GL_RGBA8_OES:
@@ -1281,6 +1218,16 @@ bool GetGFXBufferFormat(GLenum internal_format, gfx::BufferFormat* out_format) {
       return true;
     case GL_R8_EXT:
       *out_format = gfx::BufferFormat::R_8;
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool GetGFXBufferUsage(GLenum buffer_usage, gfx::BufferUsage* out_usage) {
+  switch (buffer_usage) {
+    case GL_SCANOUT_CHROMIUM:
+      *out_usage = gfx::BufferUsage::SCANOUT;
       return true;
     default:
       return false;
@@ -1404,17 +1351,6 @@ bool IsCompressedTextureFormat(GLenum internal_format) {
       break;
   }
   return false;
-}
-
-Texture* CreateGLES2TextureWithLightRef(GLuint service_id, GLenum target) {
-  Texture* texture = new Texture(service_id);
-  texture->SetLightweightRef();
-  texture->SetTarget(target, 1 /*max_levels=*/);
-  texture->set_min_filter(GL_LINEAR);
-  texture->set_mag_filter(GL_LINEAR);
-  texture->set_wrap_t(GL_CLAMP_TO_EDGE);
-  texture->set_wrap_s(GL_CLAMP_TO_EDGE);
-  return texture;
 }
 
 }  // namespace gles2

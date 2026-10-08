@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/nearby_sharing/nearby_receive_manager.h"
 
-#include "base/callback_helpers.h"
 #include "chrome/browser/nearby_sharing/logging/logging.h"
 
 NearbyReceiveManager::NearbyReceiveManager(
@@ -50,31 +49,11 @@ void NearbyReceiveManager::IsInHighVisibility(
 
 void NearbyReceiveManager::RegisterForegroundReceiveSurface(
     RegisterForegroundReceiveSurfaceCallback callback) {
-  const NearbySharingService::StatusCodes result =
+  bool success =
+      NearbySharingService::StatusCodes::kOk ==
       nearby_sharing_service_->RegisterReceiveSurface(
           this, NearbySharingService::ReceiveSurfaceState::kForeground);
-  switch (result) {
-    case NearbySharingService::StatusCodes::kOk:
-      std::move(callback).Run(
-          nearby_share::mojom::RegisterReceiveSurfaceResult::kSuccess);
-      return;
-    case NearbySharingService::StatusCodes::kError:
-    case NearbySharingService::StatusCodes::kOutOfOrderApiCall:
-    case NearbySharingService::StatusCodes::kStatusAlreadyStopped:
-      std::move(callback).Run(
-          nearby_share::mojom::RegisterReceiveSurfaceResult::kFailure);
-      return;
-    case NearbySharingService::StatusCodes::kTransferAlreadyInProgress:
-      std::move(callback).Run(
-          nearby_share::mojom::RegisterReceiveSurfaceResult::
-              kTransferInProgress);
-      return;
-    case NearbySharingService::StatusCodes::kNoAvailableConnectionMedium:
-      std::move(callback).Run(
-          nearby_share::mojom::RegisterReceiveSurfaceResult::
-              kNoConnectionMedium);
-      return;
-  }
+  std::move(callback).Run(success);
 }
 
 void NearbyReceiveManager::UnregisterForegroundReceiveSurface(
@@ -124,25 +103,9 @@ void NearbyReceiveManager::Reject(const base::UnguessableToken& share_target_id,
                         std::move(callback)));
 }
 
-void NearbyReceiveManager::RecordFastInitiationNotificationUsage(bool success) {
-  nearby_sharing_service_->RecordFastInitiationNotificationUsage(success);
-}
-
 void NearbyReceiveManager::OnHighVisibilityChanged(bool in_high_visibility) {
   for (auto& remote : observers_set_) {
     remote->OnHighVisibilityChanged(in_high_visibility);
-  }
-}
-
-void NearbyReceiveManager::OnNearbyProcessStopped() {
-  for (auto& remote : observers_set_) {
-    remote->OnNearbyProcessStopped();
-  }
-}
-
-void NearbyReceiveManager::OnStartAdvertisingFailure() {
-  for (auto& remote : observers_set_) {
-    remote->OnStartAdvertisingFailure();
   }
 }
 

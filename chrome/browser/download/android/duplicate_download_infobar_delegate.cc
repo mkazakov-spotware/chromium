@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,17 +14,16 @@ std::string DuplicateDownloadInfoBarDelegate::GetPageURL() const {
   return std::string();
 }
 
-absl::optional<Profile::OTRProfileID>
-DuplicateDownloadInfoBarDelegate::GetOTRProfileID() const {
-  return absl::nullopt;
+bool DuplicateDownloadInfoBarDelegate::IsOffTheRecord() const {
+  return false;
 }
 
 bool DuplicateDownloadInfoBarDelegate::DuplicateRequestExists() const {
   return false;
 }
 
-std::u16string DuplicateDownloadInfoBarDelegate::GetMessageText() const {
-  return std::u16string();
+base::string16 DuplicateDownloadInfoBarDelegate::GetMessageText() const {
+  return base::string16();
 }
 
 bool DuplicateDownloadInfoBarDelegate::ShouldExpire(

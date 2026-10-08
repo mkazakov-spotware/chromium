@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@
 
 namespace cups_proxy {
 
-absl::optional<IppResponse> BuildGetDestsResponse(
+base::Optional<IppResponse> BuildGetDestsResponse(
     const IppRequest& request,
     const std::vector<chromeos::Printer>& printers) {
   IppResponse ret;
@@ -71,19 +71,19 @@ absl::optional<IppResponse> BuildGetDestsResponse(
       ret.status_line.http_version, ret.status_line.status_code,
       ret.status_line.reason_phrase, ret.headers, ret.ipp.get(), ret.ipp_data);
   if (!response_buffer) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   ret.buffer = std::move(*response_buffer);
   return ret;
 }
 
-absl::optional<std::string> GetPrinterId(ipp_t* ipp) {
+base::Optional<std::string> GetPrinterId(ipp_t* ipp) {
   // We expect the printer id to be embedded in the printer-uri.
   ipp_attribute_t* printer_uri_attr =
       ippFindAttribute(ipp, "printer-uri", IPP_TAG_URI);
   if (!printer_uri_attr) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   // Only care about the resource, throw everything else away
@@ -104,21 +104,21 @@ absl::optional<std::string> GetPrinterId(ipp_t* ipp) {
   base::StringPiece uuid(resource);
   auto uuid_start = uuid.find_last_of('/');
   if (uuid_start == base::StringPiece::npos || uuid_start + 1 >= uuid.size()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
-  return std::string(uuid.substr(uuid_start + 1));
+  return uuid.substr(uuid_start + 1).as_string();
 }
 
-absl::optional<std::string> ParseEndpointForPrinterId(
+base::Optional<std::string> ParseEndpointForPrinterId(
     base::StringPiece endpoint) {
   size_t last_path = endpoint.find_last_of('/');
   if (last_path == base::StringPiece::npos ||
       last_path + 1 >= endpoint.size()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
-  return std::string(endpoint.substr(last_path + 1));
+  return endpoint.substr(last_path + 1).as_string();
 }
 
 std::vector<chromeos::Printer> FilterPrintersForPluginVm(

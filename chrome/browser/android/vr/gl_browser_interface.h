@@ -1,15 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_ANDROID_VR_GL_BROWSER_INTERFACE_H_
 #define CHROME_BROWSER_ANDROID_VR_GL_BROWSER_INTERFACE_H_
 
+#include <memory>
+
 #include "base/android/jni_weak_ref.h"
 #include "chrome/browser/vr/assets_load_status.h"
 #include "chrome/browser/vr/ui_test_input.h"
 #include "device/vr/public/mojom/vr_service.mojom.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
 namespace gl {
 class SurfaceTexture;

@@ -1,20 +1,20 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import <memory>
+#include <memory>
 
-#import "base/ios/device_util.h"
-#import "base/run_loop.h"
-#import "base/strings/sys_string_conversions.h"
-#import "components/prefs/pref_service.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
-#import "ios/chrome/browser/prefs/pref_names.h"
+#include "base/ios/device_util.h"
+#include "base/run_loop.h"
+#include "base/strings/sys_string_conversions.h"
+#include "components/prefs/pref_service.h"
+#include "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#include "ios/chrome/browser/pref_names.h"
 #import "ios/chrome/browser/prerender/preload_controller.h"
 #import "ios/chrome/browser/prerender/prerender_pref.h"
-#import "ios/web/public/test/web_task_environment.h"
-#import "testing/gmock/include/gmock/gmock.h"
-#import "testing/platform_test.h"
+#include "ios/web/public/test/web_task_environment.h"
+#include "testing/gmock/include/gmock/gmock.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -30,11 +30,7 @@ class TestNetworkChangeNotifier : public net::NetworkChangeNotifier {
         connection_type_to_return_(
             net::NetworkChangeNotifier::CONNECTION_UNKNOWN) {}
 
-  TestNetworkChangeNotifier(const TestNetworkChangeNotifier&) = delete;
-  TestNetworkChangeNotifier& operator=(const TestNetworkChangeNotifier&) =
-      delete;
-
-  // Simulates a change of the connection type to `type`. This will notify any
+  // Simulates a change of the connection type to |type|. This will notify any
   // objects that are NetworkChangeNotifiers.
   void SimulateNetworkConnectionChange(
       net::NetworkChangeNotifier::ConnectionType type) {
@@ -51,6 +47,8 @@ class TestNetworkChangeNotifier : public net::NetworkChangeNotifier {
   // The currently simulated network connection type. If this is set to
   // CONNECTION_NONE, then NetworkChangeNotifier::IsOffline will return true.
   net::NetworkChangeNotifier::ConnectionType connection_type_to_return_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestNetworkChangeNotifier);
 };
 
 class PreloadControllerTest : public PlatformTest {

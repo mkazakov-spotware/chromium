@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,10 +13,9 @@
 #include "base/notreached.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/timer/elapsed_timer.h"
-#include "base/trace_event/base_tracing.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
 #include <errno.h>
 #endif
 
@@ -28,7 +27,7 @@ File::Info::~Info() = default;
 
 File::File() = default;
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
 File::File(const FilePath& path, uint32_t flags) : error_details_(FILE_OK) {
   Initialize(path, flags);
 }
@@ -41,7 +40,7 @@ File::File(PlatformFile platform_file) : File(platform_file, false) {}
 
 File::File(ScopedPlatformFile platform_file, bool async)
     : file_(std::move(platform_file)), error_details_(FILE_OK), async_(async) {
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
   DCHECK_GE(file_.get(), -1);
 #endif
 }
@@ -50,7 +49,7 @@ File::File(PlatformFile platform_file, bool async)
     : file_(platform_file),
       error_details_(FILE_OK),
       async_(async) {
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
   DCHECK_GE(platform_file, -1);
 #endif
 }
@@ -79,12 +78,12 @@ File& File::operator=(File&& other) {
   return *this;
 }
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
 void File::Initialize(const FilePath& path, uint32_t flags) {
   if (path.ReferencesParent()) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     ::SetLastError(ERROR_ACCESS_DENIED);
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
     errno = EACCES;
 #else
 #error Unsupported platform
@@ -164,14 +163,6 @@ std::string File::ErrorToString(Error error) {
 
   NOTREACHED();
   return "";
-}
-
-void File::WriteIntoTrace(perfetto::TracedValue context) const {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("is_valid", IsValid());
-  dict.Add("created", created_);
-  dict.Add("async", async_);
-  dict.Add("error_details", ErrorToString(error_details_));
 }
 
 }  // namespace base

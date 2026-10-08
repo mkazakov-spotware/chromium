@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/scoped_refptr.h"
-#include "remoting/host/input_injector_metadata.h"
+#include "base/memory/ref_counted.h"
 #include "remoting/protocol/clipboard_stub.h"
 #include "remoting/protocol/input_stub.h"
 
@@ -34,14 +33,9 @@ class InputInjector : public protocol::ClipboardStub,
   // InjectTouchEvent() on this platform.
   static bool SupportsTouchEvents();
 
-  // Initializes any objects needed to execute events.
+  // Initialises any objects needed to execute events.
   virtual void Start(
       std::unique_ptr<protocol::ClipboardStub> client_clipboard) = 0;
-
-  // Sets metadata that may be required by the injector to work properly.
-  // Currently used by wayland input injector to get the portal session related
-  // details from capturer.
-  virtual void SetMetadata(InputInjectorMetadata metadata) {}
 };
 
 }  // namespace remoting

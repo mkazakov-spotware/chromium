@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,11 @@
 
 #include <map>
 
+#include "base/containers/flat_map.h"
+#include "base/no_destructor.h"
+#include "base/optional.h"
 #include "cc/cc_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
 namespace viz {
 class SharedQuadState;
@@ -42,7 +44,7 @@ class CC_EXPORT DeJellyState {
   float scroll_offset_ = 0;
   float fallback_delta_y_ = 0;
 
-  absl::optional<gfx::Transform> new_scroll_node_transform_;
+  base::Optional<gfx::Transform> new_scroll_node_transform_;
   std::map<int, gfx::Transform> previous_transforms_;
   std::map<int, gfx::Transform> new_transforms_;
 };

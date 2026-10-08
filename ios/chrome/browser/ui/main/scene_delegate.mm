@@ -1,13 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/main/scene_delegate.h"
 
-#import "base/mac/foundation_util.h"
+#include "base/mac/foundation_util.h"
 #import "ios/chrome/app/chrome_overlay_window.h"
 #import "ios/chrome/app/main_application_delegate.h"
-#import "ios/chrome/browser/crash_report/main_thread_freeze_detector.h"
 #import "ios/chrome/browser/ui/appearance/appearance_customization.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -37,21 +36,19 @@ NSString* const kOriginDetectedKey = @"OriginDetectedKey";
 // scene.
 - (UIWindow*)window {
   if (!_window) {
-    // With iOS15 pre-warming, this appears to be the first callback after the
-    // app is restored.  This is a no-op in non-prewarming.
-    [[MainThreadFreezeDetector sharedInstance] start];
-
     // Sizing of the window is handled by UIKit.
     _window = [[ChromeOverlayWindow alloc] init];
     CustomizeUIWindowAppearance(_window);
 
-    // Assign an a11y identifier for using in EGTest.
-    // See comment for [ChromeMatchersAppInterface windowWithNumber:] matcher
-    // for context.
-    _window.accessibilityIdentifier = [NSString
-        stringWithFormat:@"%ld",
-                         UIApplication.sharedApplication.connectedScenes.count -
-                             1];
+    if (@available(iOS 13, *)) {
+      // Assign an a11y identifier for using in EGTest.
+      // See comment for [ChromeMatchersAppInterface windowWithNumber:] matcher
+      // for context.
+      self.sceneState.window.accessibilityIdentifier =
+          [NSString stringWithFormat:@"%ld", UIApplication.sharedApplication
+                                                     .connectedScenes.count -
+                                                 1];
+    }
   }
   return _window;
 }
@@ -60,7 +57,8 @@ NSString* const kOriginDetectedKey = @"OriginDetectedKey";
 
 - (void)scene:(UIScene*)scene
     willConnectToSession:(UISceneSession*)session
-                 options:(UISceneConnectionOptions*)connectionOptions {
+                 options:(UISceneConnectionOptions*)connectionOptions
+    API_AVAILABLE(ios(13)) {
   self.sceneState.scene = base::mac::ObjCCastStrict<UIWindowScene>(scene);
   self.sceneState.currentOrigin = [self originFromSession:session
                                                   options:connectionOptions];
@@ -72,7 +70,8 @@ NSString* const kOriginDetectedKey = @"OriginDetectedKey";
 }
 
 - (WindowActivityOrigin)originFromSession:(UISceneSession*)session
-                                  options:(UISceneConnectionOptions*)options {
+                                  options:(UISceneConnectionOptions*)options
+    API_AVAILABLE(ios(13)) {
   WindowActivityOrigin origin = WindowActivityUnknownOrigin;
 
   // When restoring the session, the origin is set to restore to avoid
@@ -100,34 +99,35 @@ NSString* const kOriginDetectedKey = @"OriginDetectedKey";
   return origin;
 }
 
-- (void)sceneDidDisconnect:(UIScene*)scene {
+- (void)sceneDidDisconnect:(UIScene*)scene API_AVAILABLE(ios(13)) {
   self.sceneState.activationLevel = SceneActivationLevelUnattached;
 }
 
 #pragma mark Transitioning to the Foreground
 
-- (void)sceneWillEnterForeground:(UIScene*)scene {
+- (void)sceneWillEnterForeground:(UIScene*)scene API_AVAILABLE(ios(13)) {
   self.sceneState.currentOrigin = WindowActivityRestoredOrigin;
   self.sceneState.activationLevel = SceneActivationLevelForegroundInactive;
 }
 
-- (void)sceneDidBecomeActive:(UIScene*)scene {
+- (void)sceneDidBecomeActive:(UIScene*)scene API_AVAILABLE(ios(13)) {
   self.sceneState.currentOrigin = WindowActivityRestoredOrigin;
   self.sceneState.activationLevel = SceneActivationLevelForegroundActive;
 }
 
 #pragma mark Transitioning to the Background
 
-- (void)sceneWillResignActive:(UIScene*)scene {
+- (void)sceneWillResignActive:(UIScene*)scene API_AVAILABLE(ios(13)) {
   self.sceneState.activationLevel = SceneActivationLevelForegroundInactive;
 }
 
-- (void)sceneDidEnterBackground:(UIScene*)scene {
+- (void)sceneDidEnterBackground:(UIScene*)scene API_AVAILABLE(ios(13)) {
   self.sceneState.activationLevel = SceneActivationLevelBackground;
 }
 
 - (void)scene:(UIScene*)scene
-    openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts {
+    openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts
+    API_AVAILABLE(ios(13)) {
   DCHECK(!self.sceneState.URLContextsToOpen);
   self.sceneState.startupHadExternalIntent = YES;
   self.sceneState.URLContextsToOpen = URLContexts;
@@ -135,13 +135,14 @@ NSString* const kOriginDetectedKey = @"OriginDetectedKey";
 
 - (void)windowScene:(UIWindowScene*)windowScene
     performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
-               completionHandler:(void (^)(BOOL succeeded))completionHandler {
+               completionHandler:(void (^)(BOOL succeeded))completionHandler
+    API_AVAILABLE(ios(13)) {
   [_sceneController performActionForShortcutItem:shortcutItem
                                completionHandler:completionHandler];
 }
 
 - (void)scene:(UIScene*)scene
-    continueUserActivity:(NSUserActivity*)userActivity {
+    continueUserActivity:(NSUserActivity*)userActivity API_AVAILABLE(ios(13)) {
   self.sceneState.pendingUserActivity = userActivity;
 }
 

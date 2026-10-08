@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,11 +24,7 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) SandboxOriginDatabaseInterface {
     ~OriginRecord();
   };
 
-  SandboxOriginDatabaseInterface(const SandboxOriginDatabaseInterface&) =
-      delete;
-  SandboxOriginDatabaseInterface& operator=(
-      const SandboxOriginDatabaseInterface&) = delete;
-  virtual ~SandboxOriginDatabaseInterface() = default;
+  virtual ~SandboxOriginDatabaseInterface() {}
 
   // Returns true if the origin's path is included in this database.
   virtual bool HasOriginPath(const std::string& origin) = 0;
@@ -54,7 +50,7 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) SandboxOriginDatabaseInterface {
   virtual void RewriteDatabase() = 0;
 
  protected:
-  SandboxOriginDatabaseInterface() = default;
+  SandboxOriginDatabaseInterface() {}
 };
 
 }  // namespace storage

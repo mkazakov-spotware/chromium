@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,8 @@
 
 #include <string>
 
-#include "base/time/time.h"
 #include "device/bluetooth/public/mojom/adapter.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/nearby/src/internal/platform/implementation/bluetooth_classic.h"
+#include "third_party/nearby/src/cpp/platform/api/bluetooth_classic.h"
 
 namespace location {
 namespace nearby {
@@ -19,9 +17,7 @@ namespace chrome {
 // Concrete BluetoothDevice implementation.
 class BluetoothDevice : public api::BluetoothDevice {
  public:
-  BluetoothDevice(
-      bluetooth::mojom::DeviceInfoPtr device_info,
-      absl::optional<base::TimeTicks> last_discovered_time = absl::nullopt);
+  explicit BluetoothDevice(bluetooth::mojom::DeviceInfoPtr device_info);
   ~BluetoothDevice() override;
 
   BluetoothDevice(const BluetoothDevice&) = delete;
@@ -31,19 +27,10 @@ class BluetoothDevice : public api::BluetoothDevice {
   std::string GetName() const override;
   std::string GetMacAddress() const override;
 
-  absl::optional<base::TimeTicks> GetLastDiscoveredTime() {
-    return last_discovered_time_;
-  }
-
-  void UpdateDevice(bluetooth::mojom::DeviceInfoPtr device_info,
-                    absl::optional<base::TimeTicks> last_discovered_time);
+  void UpdateDeviceInfo(bluetooth::mojom::DeviceInfoPtr device_info);
 
  private:
   bluetooth::mojom::DeviceInfoPtr device_info_;
-
-  // Time when last the Bluetooth device was added/changed by the adapter.
-  // Used by BluetoothClassicMedium to remove stale devices during discovery.
-  absl::optional<base::TimeTicks> last_discovered_time_ = absl::nullopt;
 };
 
 }  // namespace chrome

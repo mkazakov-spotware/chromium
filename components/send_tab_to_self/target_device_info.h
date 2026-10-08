@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <string>
 
 #include "base/time/time.h"
-#include "components/sync_device_info/device_info.h"
+#include "components/sync/protocol/sync.pb.h"
 
 namespace syncer {
 class DeviceInfo;
@@ -27,7 +27,7 @@ struct TargetDeviceInfo {
   TargetDeviceInfo(const std::string& full_name,
                    const std::string& short_name,
                    const std::string& cache_guid,
-                   const syncer::DeviceInfo::FormFactor form_factor,
+                   const sync_pb::SyncEnums::DeviceType device_type,
                    base::Time last_updated_timestamp);
   TargetDeviceInfo(const TargetDeviceInfo& other);
   ~TargetDeviceInfo();
@@ -42,8 +42,8 @@ struct TargetDeviceInfo {
   std::string device_name;
   // Device guid.
   std::string cache_guid;
-  // Device Form Factor.
-  syncer::DeviceInfo::FormFactor form_factor;
+  // Device type.
+  sync_pb::SyncEnums::DeviceType device_type;
   // Last updated timestamp.
   base::Time last_updated_timestamp;
 };

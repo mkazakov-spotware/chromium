@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,8 @@
 #include "content/browser/service_worker/service_worker_cache_writer.h"
 #include "content/browser/service_worker/service_worker_context_core.h"
 #include "content/browser/service_worker/service_worker_version.h"
+#include "content/browser/url_loader_factory_getter.h"
+#include "content/common/service_worker/service_worker_utils.h"
 #include "net/base/ip_endpoint.h"
 #include "net/cert/cert_status_flags.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
@@ -51,13 +53,14 @@ ServiceWorkerInstalledScriptLoader::~ServiceWorkerInstalledScriptLoader() =
 
 void ServiceWorkerInstalledScriptLoader::OnStarted(
     network::mojom::URLResponseHeadPtr response_head,
-    absl::optional<mojo_base::BigBuffer> metadata,
+    base::Optional<mojo_base::BigBuffer> metadata,
     mojo::ScopedDataPipeConsumerHandle body_handle,
     mojo::ScopedDataPipeConsumerHandle metadata_handle) {
   DCHECK(response_head);
   DCHECK(response_head->headers);
   DCHECK(encoding_.empty());
   response_head->headers->GetCharset(&encoding_);
+  body_handle_ = std::move(body_handle);
   body_size_ = response_head->content_length;
 
   // Just drain the metadata (V8 code cache): this entire class is just to
@@ -72,8 +75,11 @@ void ServiceWorkerInstalledScriptLoader::OnStarted(
             *response_head));
   }
 
-  client_->OnReceiveResponse(std::move(response_head), std::move(body_handle),
-                             std::move(metadata));
+  client_->OnReceiveResponse(std::move(response_head));
+  if (metadata) {
+    client_->OnReceiveCachedMetadata(std::move(*metadata));
+  }
+  client_->OnStartLoadingResponseBody(std::move(body_handle_));
   // We continue in OnFinished().
 }
 
@@ -106,7 +112,7 @@ void ServiceWorkerInstalledScriptLoader::FollowRedirect(
     const std::vector<std::string>& removed_headers,
     const net::HttpRequestHeaders& modified_headers,
     const net::HttpRequestHeaders& modified_cors_exempt_headers,
-    const absl::optional<GURL>& new_url) {
+    const base::Optional<GURL>& new_url) {
   // This class never returns a redirect response to its client, so should never
   // be asked to follow one.
   NOTREACHED();

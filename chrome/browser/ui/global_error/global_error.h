@@ -1,15 +1,15 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_GLOBAL_ERROR_GLOBAL_ERROR_H_
 #define CHROME_BROWSER_UI_GLOBAL_ERROR_GLOBAL_ERROR_H_
 
-#include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/strings/string16.h"
 #include "ui/base/models/image_model.h"
 
 class Browser;
@@ -37,7 +37,7 @@ class GlobalError {
   // Returns the command ID for the menu item.
   virtual int MenuItemCommandID() = 0;
   // Returns the label for the menu item.
-  virtual std::u16string MenuItemLabel() = 0;
+  virtual base::string16 MenuItemLabel() = 0;
   // Returns the menu item icon.
   virtual ui::ImageModel MenuItemIcon();
   // Called when the user clicks on the menu item.
@@ -61,23 +61,18 @@ class GlobalErrorWithStandardBubble
       public base::SupportsWeakPtr<GlobalErrorWithStandardBubble> {
  public:
   GlobalErrorWithStandardBubble();
-
-  GlobalErrorWithStandardBubble(const GlobalErrorWithStandardBubble&) = delete;
-  GlobalErrorWithStandardBubble& operator=(
-      const GlobalErrorWithStandardBubble&) = delete;
-
   ~GlobalErrorWithStandardBubble() override;
 
   // Override these methods to customize the contents of the error bubble:
-  virtual std::u16string GetBubbleViewTitle() = 0;
-  virtual std::vector<std::u16string> GetBubbleViewMessages() = 0;
-  virtual std::u16string GetBubbleViewAcceptButtonLabel() = 0;
+  virtual base::string16 GetBubbleViewTitle() = 0;
+  virtual std::vector<base::string16> GetBubbleViewMessages() = 0;
+  virtual base::string16 GetBubbleViewAcceptButtonLabel() = 0;
   virtual bool ShouldShowCloseButton() const;
   virtual bool ShouldAddElevationIconToAcceptButton();
-  virtual std::u16string GetBubbleViewCancelButtonLabel() = 0;
+  virtual base::string16 GetBubbleViewCancelButtonLabel() = 0;
   virtual int GetDefaultDialogButton() const;
   virtual bool ShouldCloseOnDeactivate() const;
-  virtual std::u16string GetBubbleViewDetailsButtonLabel();
+  virtual base::string16 GetBubbleViewDetailsButtonLabel();
 
   // Override these methods to be notified when events happen on the bubble:
   virtual void OnBubbleViewDidClose(Browser* browser) = 0;
@@ -98,7 +93,9 @@ class GlobalErrorWithStandardBubble
 
  private:
   bool has_shown_bubble_view_ = false;
-  raw_ptr<GlobalErrorBubbleViewBase> bubble_view_ = nullptr;
+  GlobalErrorBubbleViewBase* bubble_view_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(GlobalErrorWithStandardBubble);
 };
 
 #endif  // CHROME_BROWSER_UI_GLOBAL_ERROR_GLOBAL_ERROR_H_

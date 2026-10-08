@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -157,9 +157,6 @@ class FileWriterTest : public testing::Test {
  public:
   FileWriterTest() = default;
 
-  FileWriterTest(const FileWriterTest&) = delete;
-  FileWriterTest& operator=(const FileWriterTest&) = delete;
-
   FileWriterBase* writer() { return testable_writer_.Get(); }
 
  protected:
@@ -169,6 +166,8 @@ class FileWriterTest : public testing::Test {
   }
 
   Persistent<TestableFileWriter> testable_writer_;
+
+  DISALLOW_COPY_AND_ASSIGN(FileWriterTest);
 };
 
 TEST_F(FileWriterTest, BasicFileWrite) {

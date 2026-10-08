@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,12 +35,11 @@ class ExtensionsRenderFrameObserver : public content::RenderFrameObserver,
   void SetVisuallyDeemphasized(bool deemphasized) override;
 
   // RenderFrameObserver implementation.
-  void DetailedConsoleMessageAdded(
-      const std::u16string& message,
-      const std::u16string& source,
-      const std::u16string& stack_trace,
-      uint32_t line_number,
-      blink::mojom::ConsoleMessageLevel level) override;
+  void DetailedConsoleMessageAdded(const base::string16& message,
+                                   const base::string16& source,
+                                   const base::string16& stack_trace,
+                                   uint32_t line_number,
+                                   int32_t severity_level) override;
   void OnDestruct() override;
 
   // true if webview is overlayed with grey color.

@@ -1,8 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "third_party/nearby/src/internal/platform/implementation/crypto.h"
+#include "third_party/nearby/src/cpp/platform/api/crypto.h"
 
 #include "base/hash/md5.h"
 #include "base/memory/ptr_util.h"

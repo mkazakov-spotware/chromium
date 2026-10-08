@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,8 @@ SaveUnsyncedCredentialsLocallyBubbleController::
 
 SaveUnsyncedCredentialsLocallyBubbleController::
     ~SaveUnsyncedCredentialsLocallyBubbleController() {
-  OnBubbleClosing();
+  if (!interaction_reported_)
+    OnBubbleClosing();
 }
 
 void SaveUnsyncedCredentialsLocallyBubbleController::OnSaveClicked(
@@ -51,8 +52,8 @@ void SaveUnsyncedCredentialsLocallyBubbleController::ReportInteractions() {
     metrics_recorder_->RecordUIDismissalReason(dismissal_reason_);
 }
 
-std::u16string SaveUnsyncedCredentialsLocallyBubbleController::GetTitle()
+base::string16 SaveUnsyncedCredentialsLocallyBubbleController::GetTitle()
     const {
   return l10n_util::GetStringUTF16(
-      IDS_PASSWORD_MANAGER_UNSYNCED_CREDENTIALS_BUBBLE_TITLE_GPM);
+      IDS_PASSWORD_MANAGER_UNSYNCED_CREDENTIALS_BUBBLE_TITLE);
 }

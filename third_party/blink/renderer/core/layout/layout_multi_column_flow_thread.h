@@ -26,7 +26,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LAYOUT_MULTI_COLUMN_FLOW_THREAD_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LAYOUT_MULTI_COLUMN_FLOW_THREAD_H_
 
-#include "base/dcheck_is_on.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/fragmentation_context.h"
 #include "third_party/blink/renderer/core/layout/layout_flow_thread.h"
@@ -146,7 +145,6 @@ class CORE_EXPORT LayoutMultiColumnFlowThread final
       public FragmentationContext {
  public:
   ~LayoutMultiColumnFlowThread() override;
-  void Trace(Visitor*) const override;
 
   static LayoutMultiColumnFlowThread* CreateAnonymous(
       Document&,
@@ -161,11 +159,6 @@ class CORE_EXPORT LayoutMultiColumnFlowThread final
   LayoutBlockFlow* MultiColumnBlockFlow() const {
     NOT_DESTROYED();
     return To<LayoutBlockFlow>(Parent());
-  }
-
-  bool IsNGMulticol() const {
-    NOT_DESTROYED();
-    return MultiColumnBlockFlow()->IsLayoutNGObject();
   }
 
   LayoutMultiColumnSet* FirstMultiColumnSet() const;
@@ -311,8 +304,7 @@ class CORE_EXPORT LayoutMultiColumnFlowThread final
   void AppendNewFragmentainerGroupIfNeeded(LayoutUnit offset_in_flow_thread,
                                            PageBoundaryRule);
 
-  void SetColumnCountFromNG(unsigned column_count);
-  void StartLayoutFromNG();
+  void StartLayoutFromNG(unsigned column_count);
   LayoutMultiColumnSet* PendingColumnSetForNG() const;
   void AppendNewFragmentainerGroupFromNG();
   void SetCurrentColumnBlockSizeFromNG(LayoutUnit);
@@ -332,11 +324,8 @@ class CORE_EXPORT LayoutMultiColumnFlowThread final
     return "LayoutMultiColumnFlowThread";
   }
 
-  // Note: We call this constructor only in |CreateAnonymous()|, but mark this
-  // "public" for |MakeGarbageCollected<T>|.
-  explicit LayoutMultiColumnFlowThread(bool needs_paint_layer);
-
  private:
+  explicit LayoutMultiColumnFlowThread(bool needs_paint_layer);
   void UpdateLayout() override;
 
   void CalculateColumnHeightAvailable();
@@ -379,7 +368,7 @@ class CORE_EXPORT LayoutMultiColumnFlowThread final
   // concept of a "current set" is difficult, since layout may jump back and
   // forth in the tree, due to wrong top location estimates (due to e.g. margin
   // collapsing), and possibly for other reasons.
-  Member<LayoutMultiColumnSet> last_set_worked_on_;
+  LayoutMultiColumnSet* last_set_worked_on_;
 
 #if DCHECK_IS_ON()
   // Used to check consistency between calls to

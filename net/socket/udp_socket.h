@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "net/socket/udp_socket_win.h"
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
 #include "net/socket/udp_socket_posix.h"
 #endif
 
@@ -35,9 +35,9 @@ namespace net {
 //       RecvFrom/SendTo       // Each read can come from a different client
 //                             // Writes need to be directed to a specific
 //                             // address.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 typedef UDPSocketWin UDPSocket;
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
 typedef UDPSocketPosix UDPSocket;
 #endif
 

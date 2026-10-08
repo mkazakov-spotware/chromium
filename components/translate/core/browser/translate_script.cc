@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,11 @@
 #include "base/command_line.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/strings/escape.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "components/grit/components_resources.h"
 #include "components/translate/core/browser/translate_url_fetcher.h"
@@ -21,6 +21,7 @@
 #include "components/translate/core/common/translate_util.h"
 #include "components/variations/variations_associated_data.h"
 #include "google_apis/google_api_keys.h"
+#include "net/base/escape.h"
 #include "net/base/url_util.h"
 #include "ui/base/resource/resource_bundle.h"
 
@@ -49,7 +50,7 @@ const char TranslateScript::kJavascriptLoaderCallbackQueryValue[] =
     "cr.googleTranslate.onLoadJavascript";
 
 TranslateScript::TranslateScript()
-    : expiration_delay_(base::Days(kExpirationDelayDays)) {}
+    : expiration_delay_(base::TimeDelta::FromDays(kExpirationDelayDays)) {}
 
 TranslateScript::~TranslateScript() {}
 
@@ -143,14 +144,14 @@ void TranslateScript::OnScriptFetchComplete(bool success,
     data_.append(ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
         IDR_TRANSLATE_JS));
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
     // Append snippet to install callbacks on translate.js if available.
     const char* install_callbacks =
         "try {"
         "  __gCrWeb.translate.installCallbacks();"
         "} catch (error) {};";
     data_.append(install_callbacks);
-#endif  // BUILDFLAG(IS_IOS)
+#endif  // defined(OS_IOS)
 
     // Wrap |data| in try/catch block to handle unexpected script errors.
     const char* format =
@@ -164,14 +165,14 @@ void TranslateScript::OnScriptFetchComplete(bool success,
     // We'll expire the cached script after some time, to make sure long
     // running browsers still get fixes that might get pushed with newer
     // scripts.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&TranslateScript::Clear,
                        weak_method_factory_.GetWeakPtr()),
         expiration_delay_);
   }
 
-  callback_list_.Notify(success);
+  callback_list_.Notify(success, data);
 }
 
 }  // namespace translate

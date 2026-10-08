@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,16 +9,15 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
-#include "chrome/browser/browser_process.h"
+#include "base/test/scoped_feature_list.h"
 #include "chrome/browser/profiles/profile_attributes_entry.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/signin/chrome_signin_client_factory.h"
 #include "chrome/browser/signin/chrome_signin_client_test_util.h"
 #include "chrome/browser/signin/dice_web_signin_interceptor.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
+#include "chrome/browser/signin/signin_features.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/common/pref_names.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/testing_profile_manager.h"
@@ -36,18 +35,11 @@ namespace {
 class TestDiceWebSigninInterceptorDelegate
     : public DiceWebSigninInterceptor::Delegate {
  public:
-  std::unique_ptr<ScopedDiceWebSigninInterceptionBubbleHandle>
-  ShowSigninInterceptionBubble(
+  void ShowSigninInterceptionBubble(
       content::WebContents* web_contents,
       const BubbleParameters& bubble_parameters,
-      base::OnceCallback<void(SigninInterceptionResult)> callback) override {
-    return nullptr;
-  }
-  void ShowFirstRunExperienceInNewProfile(
-      Browser* browser,
-      const CoreAccountId& account_id,
-      DiceWebSigninInterceptor::SigninInterceptionType interception_type)
-      override {}
+      base::OnceCallback<void(SigninInterceptionResult)> callback) override {}
+  void ShowProfileCustomizationBubble(Browser* browser) override {}
 };
 
 class TestPasswordManagerClient
@@ -63,7 +55,7 @@ class TestPasswordManagerClient
   }
 
  private:
-  raw_ptr<signin::IdentityManager> identity_manager_ = nullptr;
+  signin::IdentityManager* identity_manager_ = nullptr;
 };
 
 }  // namespace
@@ -72,6 +64,7 @@ class MultiProfileCredentialsFilterTest : public BrowserWithTestWindowTest {
  public:
   MultiProfileCredentialsFilterTest()
       : sync_filter_(&test_password_manager_client_, GetSyncServiceCallback()) {
+    feature_list_.InitAndEnableFeature(kDiceWebSigninInterceptionFeature);
   }
 
   password_manager::SyncCredentialsFilter::SyncServiceFactoryFunction
@@ -97,18 +90,11 @@ class MultiProfileCredentialsFilterTest : public BrowserWithTestWindowTest {
   AccountInfo SetupInterception() {
     std::string email = "bob@example.com";
     AccountInfo account_info = identity_test_env()->MakeAccountAvailable(email);
-    account_info.full_name = "fullname";
-    account_info.given_name = "givenname";
-    account_info.hosted_domain = kNoHostedDomainFound;
-    account_info.locale = "en";
-    account_info.picture_url = "https://example.com";
-    DCHECK(account_info.IsValid());
-    identity_test_env()->UpdateAccountInfoForAccount(account_info);
     Profile* profile_2 = profile_manager()->CreateTestingProfile("Profile 2");
-    ProfileAttributesEntry* entry =
-        profile_manager()
-            ->profile_attributes_storage()
-            ->GetProfileAttributesWithPath(profile_2->GetPath());
+    ProfileAttributesEntry* entry = nullptr;
+    profile_manager()
+        ->profile_attributes_storage()
+        ->GetProfileAttributesWithPath(profile_2->GetPath(), &entry);
     entry->SetAuthInfo(account_info.gaia, base::UTF8ToUTF16(email),
                        /*is_consented_primary_account=*/false);
     AddTab(browser(), GURL("http://foo/1"));
@@ -120,20 +106,12 @@ class MultiProfileCredentialsFilterTest : public BrowserWithTestWindowTest {
     BrowserWithTestWindowTest::SetUp();
     identity_test_env_profile_adaptor_ =
         std::make_unique<IdentityTestEnvironmentProfileAdaptor>(profile());
-    identity_test_env()->SetTestURLLoaderFactory(&test_url_loader_factory_);
+    identity_test_env_profile_adaptor_->identity_test_env()
+        ->SetTestURLLoaderFactory(&test_url_loader_factory_);
     dice_web_signin_interceptor_ = std::make_unique<DiceWebSigninInterceptor>(
         profile(), std::make_unique<TestDiceWebSigninInterceptorDelegate>());
-
     test_password_manager_client_.set_identity_manager(
         identity_test_env()->identity_manager());
-
-    // If features::kEnablePasswordsAccountStorage is enabled, then the browser
-    // never asks to save the primary account's password. So fake-signin an
-    // arbitrary primary account here, so that any follow-up signs to the Gaia
-    // page aren't considered primary account sign-ins and hence trigger the
-    // password save prompt.
-    identity_test_env()->MakePrimaryAccountAvailable(
-        "primary@example.org", signin::ConsentLevel::kSync);
   }
 
   void TearDown() override {
@@ -156,6 +134,7 @@ class MultiProfileCredentialsFilterTest : public BrowserWithTestWindowTest {
  protected:
   const syncer::SyncService* sync_service() { return &sync_service_; }
 
+  base::test::ScopedFeatureList feature_list_;
   network::TestURLLoaderFactory test_url_loader_factory_;
   TestPasswordManagerClient test_password_manager_client_;
   std::unique_ptr<IdentityTestEnvironmentProfileAdaptor>
@@ -173,7 +152,7 @@ TEST_F(MultiProfileCredentialsFilterTest, SyncCredentialsFilter) {
           "user@example.org");
   form.form_data.is_gaia_with_skip_save_password_form = true;
 
-  ASSERT_FALSE(sync_filter_.ShouldSave(form));
+  EXPECT_FALSE(sync_filter_.ShouldSave(form));
   MultiProfileCredentialsFilter multi_profile_filter(
       password_manager_client(), GetSyncServiceCallback(),
       /*dice_web_signin_interceptor=*/nullptr);
@@ -185,7 +164,7 @@ TEST_F(MultiProfileCredentialsFilterTest, NullInterceptor) {
   password_manager::PasswordForm form =
       password_manager::SyncUsernameTestBase::SimpleGaiaForm(
           "user@example.org");
-  ASSERT_TRUE(sync_filter_.ShouldSave(form));
+  EXPECT_TRUE(sync_filter_.ShouldSave(form));
   MultiProfileCredentialsFilter multi_profile_filter(
       password_manager_client(), GetSyncServiceCallback(),
       /*dice_web_signin_interceptor=*/nullptr);
@@ -197,7 +176,7 @@ TEST_F(MultiProfileCredentialsFilterTest, NonGaia) {
   password_manager::PasswordForm form =
       password_manager::SyncUsernameTestBase::SimpleNonGaiaForm(
           "user@example.org");
-  ASSERT_TRUE(sync_filter_.ShouldSave(form));
+  EXPECT_TRUE(sync_filter_.ShouldSave(form));
 
   MultiProfileCredentialsFilter multi_profile_filter(
       password_manager_client(), GetSyncServiceCallback(),
@@ -210,7 +189,7 @@ TEST_F(MultiProfileCredentialsFilterTest, InterceptInProgress) {
   password_manager::PasswordForm form =
       password_manager::SyncUsernameTestBase::SimpleGaiaForm(
           "user@example.org");
-  ASSERT_TRUE(sync_filter_.ShouldSave(form));
+  EXPECT_TRUE(sync_filter_.ShouldSave(form));
 
   // Start an interception for the sign-in.
   AccountInfo account_info = SetupInterception();
@@ -232,7 +211,7 @@ TEST_F(MultiProfileCredentialsFilterTest, SigninIntercepted) {
   const char kFormEmail[] = "user@example.org";
   password_manager::PasswordForm form =
       password_manager::SyncUsernameTestBase::SimpleGaiaForm(kFormEmail);
-  ASSERT_TRUE(sync_filter_.ShouldSave(form));
+  EXPECT_TRUE(sync_filter_.ShouldSave(form));
   // Setup the account for interception, but do not intercept.
   AccountInfo account_info = SetupInterception();
   ASSERT_FALSE(dice_web_signin_interceptor_->is_interception_in_progress());
@@ -252,7 +231,7 @@ TEST_F(MultiProfileCredentialsFilterTest, SigninInterceptionUnknown) {
   const char kFormEmail[] = "user@example.org";
   password_manager::PasswordForm form =
       password_manager::SyncUsernameTestBase::SimpleGaiaForm(kFormEmail);
-  ASSERT_TRUE(sync_filter_.ShouldSave(form));
+  EXPECT_TRUE(sync_filter_.ShouldSave(form));
   // Add extra Gaia account with incomplete info, so that interception outcome
   // is unknown.
   std::string dummy_email = "bob@example.com";
@@ -270,23 +249,10 @@ TEST_F(MultiProfileCredentialsFilterTest, SigninInterceptionUnknown) {
 
 // Returns true when the signin is not intercepted.
 TEST_F(MultiProfileCredentialsFilterTest, SigninNotIntercepted) {
-  // Disallow profile creation to prevent the intercept.
-  g_browser_process->local_state()->SetBoolean(prefs::kBrowserAddPersonEnabled,
-                                               false);
-
-  std::string email = "user@example.org";
-  AccountInfo account_info = identity_test_env()->MakeAccountAvailable(email);
-  account_info.full_name = "fullname";
-  account_info.given_name = "givenname";
-  account_info.hosted_domain = kNoHostedDomainFound;
-  account_info.locale = "en";
-  account_info.picture_url = "https://example.com";
-  DCHECK(account_info.IsValid());
-  identity_test_env()->UpdateAccountInfoForAccount(account_info);
-
   password_manager::PasswordForm form =
-      password_manager::SyncUsernameTestBase::SimpleGaiaForm(email.c_str());
-  ASSERT_TRUE(sync_filter_.ShouldSave(form));
+      password_manager::SyncUsernameTestBase::SimpleGaiaForm(
+          "user@example.org");
+  EXPECT_TRUE(sync_filter_.ShouldSave(form));
   // Not interception, credentials should be saved.
   ASSERT_FALSE(dice_web_signin_interceptor_->is_interception_in_progress());
   MultiProfileCredentialsFilter multi_profile_filter(

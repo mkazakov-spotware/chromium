@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,15 @@
 #include <vector>
 
 #include "base/containers/flat_map.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
+#include "base/optional.h"
 #include "base/process/process_metrics.h"
 #include "base/sequence_checker.h"
+#include "base/task/post_task.h"
+#include "base/time/time.h"
 #include "base/timer/timer.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace performance_monitor {
 
@@ -43,9 +46,6 @@ class SystemMonitor {
     kNoSampling,
     kDefaultFrequency,
   };
-
-  SystemMonitor(const SystemMonitor&) = delete;
-  SystemMonitor& operator=(const SystemMonitor&) = delete;
 
   virtual ~SystemMonitor();
 
@@ -129,10 +129,6 @@ class SystemMonitor {
     };
 
     explicit MetricEvaluator(Type type);
-
-    MetricEvaluator(const MetricEvaluator&) = delete;
-    MetricEvaluator& operator=(const MetricEvaluator&) = delete;
-
     virtual ~MetricEvaluator();
 
     // Called when the metric needs to be evaluated.
@@ -150,6 +146,8 @@ class SystemMonitor {
 
    private:
     const Type type_;
+
+    DISALLOW_COPY_AND_ASSIGN(MetricEvaluator);
   };
 
   // Templated implementation of the MetricEvaluator interface.
@@ -159,14 +157,10 @@ class SystemMonitor {
     using ObserverArgType =
         typename std::conditional<std::is_scalar<T>::value, T, const T&>::type;
 
-    MetricEvaluatorImpl(
+    MetricEvaluatorImpl<T>(
         Type type,
-        base::OnceCallback<absl::optional<T>()> evaluate_function,
+        base::OnceCallback<base::Optional<T>()> evaluate_function,
         void (SystemObserver::*notify_function)(ObserverArgType));
-
-    MetricEvaluatorImpl(const MetricEvaluatorImpl&) = delete;
-    MetricEvaluatorImpl& operator=(const MetricEvaluatorImpl&) = delete;
-
     virtual ~MetricEvaluatorImpl();
 
     // Called when the metrics needs to be refreshed.
@@ -174,7 +168,7 @@ class SystemMonitor {
 
     bool has_value() const override { return value_.has_value(); }
 
-    absl::optional<T> value() { return value_; }
+    base::Optional<T> value() { return value_; }
 
     void set_value_for_testing(T value) { value_ = value; }
 
@@ -182,14 +176,16 @@ class SystemMonitor {
     void NotifyObserver(SystemObserver* observer) override;
 
     // The callback that should be run to evaluate the metric value.
-    base::OnceCallback<absl::optional<T>()> evaluate_function_;
+    base::OnceCallback<base::Optional<T>()> evaluate_function_;
 
     // A function pointer to the SystemObserver function that should be called
     // to notify of a value refresh.
     void (SystemObserver::*notify_function_)(ObserverArgType);
 
     // The value, initialized in |Evaluate|.
-    absl::optional<T> value_;
+    base::Optional<T> value_;
+
+    DISALLOW_COPY_AND_ASSIGN(MetricEvaluatorImpl);
   };
 
   // Structure storing all the functions specific to a metric.
@@ -281,16 +277,14 @@ class SystemMonitor {
   SEQUENCE_CHECKER(sequence_checker_);
 
   base::WeakPtrFactory<SystemMonitor> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SystemMonitor);
 };
 
 // A builder class used to easily create a MetricRefreshFrequencies object.
 class SystemMonitor::SystemObserver::MetricRefreshFrequencies::Builder {
  public:
   Builder() = default;
-
-  Builder(const Builder&) = delete;
-  Builder& operator=(const Builder&) = delete;
-
   ~Builder() = default;
 
   Builder& SetFreePhysMemoryMbFrequency(SamplingFrequency freq);
@@ -301,6 +295,8 @@ class SystemMonitor::SystemObserver::MetricRefreshFrequencies::Builder {
 
  private:
   MetricRefreshFrequencies metrics_and_frequencies_ = {};
+
+  DISALLOW_COPY_AND_ASSIGN(Builder);
 };
 
 // An helper class used by the MetricEvaluator object to retrieve the info
@@ -308,20 +304,19 @@ class SystemMonitor::SystemObserver::MetricRefreshFrequencies::Builder {
 class MetricEvaluatorsHelper {
  public:
   MetricEvaluatorsHelper() = default;
-
-  MetricEvaluatorsHelper(const MetricEvaluatorsHelper&) = delete;
-  MetricEvaluatorsHelper& operator=(const MetricEvaluatorsHelper&) = delete;
-
   virtual ~MetricEvaluatorsHelper() = default;
 
   // Returns the free physical memory, in megabytes.
-  virtual absl::optional<int> GetFreePhysicalMemoryMb() = 0;
+  virtual base::Optional<int> GetFreePhysicalMemoryMb() = 0;
 
   // Return a |base::SystemMetrics| snapshot.
   //
   // NOTE: This function doesn't have to be virtual, the base::SystemMetrics
   // struct is an abstraction that already has a per-platform definition.
-  absl::optional<base::SystemMetrics> GetSystemMetricsStruct();
+  base::Optional<base::SystemMetrics> GetSystemMetricsStruct();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MetricEvaluatorsHelper);
 };
 
 }  // namespace performance_monitor

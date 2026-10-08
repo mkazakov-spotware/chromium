@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,9 +14,8 @@
 
 #include "base/containers/circular_deque.h"
 #include "base/containers/stack.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/threading/thread.h"
-#include "base/time/time.h"
 #include "gpu/gpu_gles2_export.h"
 
 namespace gl {
@@ -59,10 +58,6 @@ struct TraceMarker {
 class GPU_GLES2_EXPORT GPUTracer {
  public:
   explicit GPUTracer(DecoderContext* decoder, bool context_is_gl = true);
-
-  GPUTracer(const GPUTracer&) = delete;
-  GPUTracer& operator=(const GPUTracer&) = delete;
-
   virtual ~GPUTracer();
 
   void Destroy(bool have_context);
@@ -108,13 +103,15 @@ class GPU_GLES2_EXPORT GPUTracer {
   bool CheckDisjointStatus();
   void ClearOngoingTraces(bool have_context);
 
-  raw_ptr<Outputter> outputter_ = nullptr;
+  Outputter* outputter_ = nullptr;
   std::vector<TraceMarker> markers_[NUM_TRACER_SOURCES];
   base::circular_deque<scoped_refptr<GPUTrace>> finished_traces_;
-  raw_ptr<DecoderContext> decoder_;
+  DecoderContext* decoder_;
   int64_t disjoint_time_ = 0;
   bool gpu_executing_ = false;
   bool began_device_traces_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(GPUTracer);
 };
 
 class GPU_GLES2_EXPORT Outputter {
@@ -140,10 +137,6 @@ class GPU_GLES2_EXPORT TraceOutputter : public Outputter {
  public:
   TraceOutputter();
   explicit TraceOutputter(const std::string& name);
-
-  TraceOutputter(const TraceOutputter&) = delete;
-  TraceOutputter& operator=(const TraceOutputter&) = delete;
-
   ~TraceOutputter() override;
 
   void TraceDevice(GpuTracerSource source,
@@ -167,6 +160,8 @@ class GPU_GLES2_EXPORT TraceOutputter : public Outputter {
   uint64_t local_trace_service_id_ = 0;
 
   base::stack<uint64_t> trace_service_id_stack_[NUM_TRACER_SOURCES];
+
+  DISALLOW_COPY_AND_ASSIGN(TraceOutputter);
 };
 
 class GPU_GLES2_EXPORT GPUTrace : public base::RefCounted<GPUTrace> {
@@ -178,9 +173,6 @@ class GPU_GLES2_EXPORT GPUTrace : public base::RefCounted<GPUTrace> {
            const std::string& name,
            const bool tracing_service,
            const bool tracing_device);
-
-  GPUTrace(const GPUTrace&) = delete;
-  GPUTrace& operator=(const GPUTrace&) = delete;
 
   void Destroy(bool have_context);
 
@@ -201,10 +193,12 @@ class GPU_GLES2_EXPORT GPUTrace : public base::RefCounted<GPUTrace> {
   const GpuTracerSource source_ = kTraceGroupInvalid;
   const std::string category_;
   const std::string name_;
-  raw_ptr<Outputter> outputter_ = nullptr;
+  Outputter* outputter_ = nullptr;
   std::unique_ptr<gl::GPUTimer> gpu_timer_;
   const bool service_enabled_ = false;
   const bool device_enabled_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(GPUTrace);
 };
 
 class ScopedGPUTrace {
@@ -220,7 +214,7 @@ class ScopedGPUTrace {
   ~ScopedGPUTrace() { gpu_tracer_->End(source_); }
 
  private:
-  raw_ptr<GPUTracer> gpu_tracer_;
+  GPUTracer* gpu_tracer_;
   GpuTracerSource source_;
 };
 

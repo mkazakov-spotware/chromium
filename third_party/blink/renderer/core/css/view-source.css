@@ -27,37 +27,14 @@ body {
 }
 
 table {
-    width: max-content;
-    min-width: 100vw;
+    width: 100%;
     border-spacing: 0;
-    white-space: pre;
+    white-space: pre-wrap !important;
+    word-break: break-word;
     margin: 0;
     font-size: initial;
     font-family: monospace;
     tab-size: 4;
-}
-
-.line-wrap {
-    width: 100%;
-    white-space: pre-wrap !important;
-    word-break: normal;
-    overflow-wrap: anywhere;
-}
-
-.line-wrap-control {
-    width: 100%;
-    font-size: initial;
-    font-family: monospace;
-    user-select: none;
-    background-color: -internal-light-dark(rgb(240, 240, 240), rgb(60, 60, 60));
-    border-bottom: 1px solid rgb(187, 187, 187);
-    display: flex;
-    justify-content: flex-start;
-    align-items: center;
-}
-
-.line-wrap-cell {
-  white-space: normal;
 }
 
 td {
@@ -70,9 +47,9 @@ td {
     box-sizing: border-box;
     padding: 0 4px !important;
     width: 31px;
-    background-color: -internal-light-dark(rgb(240, 240, 240), rgb(60, 60, 60));
+    background-color: rgb(240, 240, 240);
     border-right: 1px solid rgb(187, 187, 187) !important;
-    user-select: none;
+    -webkit-user-select: none;
 }
 
 .line-gutter-backdrop {
@@ -86,12 +63,12 @@ td {
 
 .line-number {
     text-align: right;
-    color: -internal-light-dark(rgb(148, 132, 132), rgb(128, 128, 128));
+    color: rgb(128, 128, 128);
     word-break: normal;
     white-space: nowrap;
     font-size: 9px;
     font-family: Helvetica;
-    user-select: none;
+    -webkit-user-select: none;
 }
 
 .line-number::before {
@@ -107,23 +84,23 @@ tbody:last-child .line-content:empty:before {
 }
 
 .html-tag {
-    /* Keep this in sync with inspectorSyntaxHighlight.css (.webkit-html-tag) */
-    color: -internal-light-dark(rgb(136, 18, 128), rgb(93, 176, 215));
+    /* Keep this in sync with inspector.css (.webkit-html-tag) */
+    color: rgb(136, 18, 128);
 }
 
 .html-attribute-name {
-    /* Keep this in sync with inspectorSyntaxHighlight.css (.webkit-html-attribute-name) */
-    color: -internal-light-dark(rgb(153, 69, 0), rgb(155 187 220));
+    /* Keep this in sync with inspector.css (.webkit-html-attribute-name) */
+    color: rgb(153, 69, 0);
 }
 
 .html-attribute-value {
-    /* Keep this in sync with inspectorSyntaxHighlight.css (.webkit-html-attribute-value) */
-    color: -internal-light-dark(rgb(26, 26, 166), rgb(242, 151, 102));
+    /* Keep this in sync with inspector.css (.webkit-html-attribute-value) */
+    color: rgb(26, 26, 166);
 }
 
 .html-external-link, .html-resource-link {
     /* Keep this in sync with inspectorSyntaxHighlight.css (.webkit-html-external-link, .webkit-html-resource-link) */
-    color: -internal-light-dark(#00e, rgb(159, 180, 214));
+    color: #00e;
 }
 
 .html-external-link {

@@ -1,16 +1,17 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.browser_ui.site_settings;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 
 import org.chromium.components.content_settings.ContentSettingsType;
+import org.chromium.components.embedder_support.browser_context.BrowserContextHandle;
 import org.chromium.components.location.LocationUtils;
-import org.chromium.content_public.browser.BrowserContextHandle;
 
 /**
  * A class for dealing with the Geolocation category.
@@ -48,9 +49,9 @@ public class LocationCategory extends SiteSettingsCategory {
     }
 
     @Override
-    protected String getMessageForEnablingOsGlobalPermission(Context context) {
-        Resources resources = context.getResources();
-        if (enabledForChrome(context)) {
+    protected String getMessageForEnablingOsGlobalPermission(Activity activity) {
+        Resources resources = activity.getResources();
+        if (enabledForChrome(activity)) {
             return resources.getString(R.string.android_location_off_globally);
         }
         return resources.getString(R.string.android_location_also_off_globally);

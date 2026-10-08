@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,18 +17,15 @@ class WebUIDataSourceImplWithPublicData : public WebUIDataSourceImpl {
     return new WebUIDataSourceImplWithPublicData(source_name);
   }
 
-  WebUIDataSourceImplWithPublicData(const WebUIDataSourceImplWithPublicData&) =
-      delete;
-  WebUIDataSourceImplWithPublicData& operator=(
-      const WebUIDataSourceImplWithPublicData&) = delete;
-
   using WebUIDataSourceImpl::GetLocalizedStrings;
-  using WebUIDataSourceImpl::URLToIdrOrDefault;
 
  protected:
   explicit WebUIDataSourceImplWithPublicData(const std::string& source_name)
       : WebUIDataSourceImpl(source_name) {}
   ~WebUIDataSourceImplWithPublicData() override {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WebUIDataSourceImplWithPublicData);
 };
 
 class TestWebUIDataSourceImpl : public TestWebUIDataSource {
@@ -36,12 +33,9 @@ class TestWebUIDataSourceImpl : public TestWebUIDataSource {
   explicit TestWebUIDataSourceImpl(const std::string& source_name)
       : source_(WebUIDataSourceImplWithPublicData::Create(source_name)) {}
 
-  TestWebUIDataSourceImpl(const TestWebUIDataSourceImpl&) = delete;
-  TestWebUIDataSourceImpl& operator=(const TestWebUIDataSourceImpl&) = delete;
-
   ~TestWebUIDataSourceImpl() override {}
 
-  const base::Value::Dict* GetLocalizedStrings() override {
+  const base::DictionaryValue* GetLocalizedStrings() override {
     return source_->GetLocalizedStrings();
   }
 
@@ -49,14 +43,12 @@ class TestWebUIDataSourceImpl : public TestWebUIDataSource {
     return source_->source()->GetReplacements();
   }
 
-  int URLToIdrOrDefault(const GURL& url) override {
-    return source_->URLToIdrOrDefault(url);
-  }
-
   WebUIDataSource* GetWebUIDataSource() override { return source_.get(); }
 
  private:
   scoped_refptr<WebUIDataSourceImplWithPublicData> source_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestWebUIDataSourceImpl);
 };
 
 // static

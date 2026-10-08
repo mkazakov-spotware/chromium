@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,15 @@
 
 #import "base/mac/foundation_util.h"
 #import "base/test/ios/wait_util.h"
-#import "base/test/task_environment.h"
-#import "components/strings/grit/components_strings.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
-#import "ios/chrome/browser/main/test_browser.h"
+#include "base/test/task_environment.h"
+#include "components/strings/grit/components_strings.h"
+#include "ios/chrome/browser/main/test_browser.h"
+#include "ios/chrome/browser/ui/util/ui_util.h"
 #import "ios/chrome/test/scoped_key_window.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
 #import "testing/gtest_mac.h"
-#import "testing/platform_test.h"
-#import "ui/base/device_form_factor.h"
-#import "ui/base/l10n/l10n_util.h"
+#include "testing/platform_test.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -32,10 +31,9 @@ const CGFloat kDialogVerticalLocation = 20;
 // Test fixture to test RepostFormCoordinator class.
 class RepostFormCoordinatorTest : public PlatformTest {
  protected:
-  RepostFormCoordinatorTest() {
-    browser_state_ = TestChromeBrowserState::Builder().Build();
-    browser_ = std::make_unique<TestBrowser>(browser_state_.get());
-    view_controller_ = [[UIViewController alloc] init];
+  RepostFormCoordinatorTest()
+      : view_controller_([[UIViewController alloc] init]),
+        browser_(std::make_unique<TestBrowser>()) {
     CGPoint dialogLocation =
         CGPointMake(kDialogHorizontalLocation, kDialogVerticalLocation);
     coordinator_ = [[RepostFormCoordinator alloc]
@@ -61,11 +59,10 @@ class RepostFormCoordinatorTest : public PlatformTest {
 
  private:
   base::test::TaskEnvironment task_environment_;
-  std::unique_ptr<TestChromeBrowserState> browser_state_;
-  std::unique_ptr<TestBrowser> browser_;
   ScopedKeyWindow scoped_key_window_;
-  web::FakeWebState web_state_;
+  web::TestWebState web_state_;
   UIViewController* view_controller_;
+  std::unique_ptr<Browser> browser_;
 };
 
 // Tests that if there is a popover, it uses location passed in init.
@@ -74,7 +71,7 @@ TEST_F(RepostFormCoordinatorTest, CGRectUsage) {
   [coordinator_ start];
   UIPopoverPresentationController* popover_presentation_controller =
       GetAlertController().popoverPresentationController;
-  if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
+  if (IsIPadIdiom()) {
     CGRect source_rect = popover_presentation_controller.sourceRect;
     EXPECT_EQ(kDialogHorizontalLocation, CGRectGetMinX(source_rect));
     EXPECT_EQ(kDialogVerticalLocation, CGRectGetMinY(source_rect));

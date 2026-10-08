@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,9 @@
 
 #include <memory>
 #include <unordered_map>
-#include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "cc/animation/animation_export.h"
-
-namespace base {
-class TimeTicks;
-}
 
 namespace cc {
 
@@ -87,8 +81,8 @@ class CC_ANIMATION_EXPORT AnimationTimeline
 
   void EraseAnimation(scoped_refptr<Animation> animation);
 
-  const int id_;
-  raw_ptr<AnimationHost> animation_host_;
+  int id_;
+  AnimationHost* animation_host_;
   bool needs_push_properties_;
 
   // Impl-only AnimationTimeline has no main thread instance and lives on

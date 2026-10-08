@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,20 +19,19 @@ namespace {
 static const V8PrivateProperty::SymbolKey
     kByteLengthQueuingStrategySizeFunction;
 
-class ByteLengthQueuingStrategySizeFunction final
-    : public ScriptFunction::Callable {
+class ByteLengthQueuingStrategySizeFunction final : public ScriptFunction {
  public:
   static v8::Local<v8::Function> CreateFunction(ScriptState* script_state) {
-    auto* self = MakeGarbageCollected<ScriptFunction>(
-        script_state,
-        MakeGarbageCollected<ByteLengthQueuingStrategySizeFunction>());
+    ByteLengthQueuingStrategySizeFunction* self =
+        MakeGarbageCollected<ByteLengthQueuingStrategySizeFunction>(
+            script_state);
 
     // https://streams.spec.whatwg.org/#byte-length-queuing-strategy-size-function
 
     // 2. Let F be ! CreateBuiltinFunction(steps, « », globalObject’s relevant
     //    Realm).
     // 4. Perform ! SetFunctionLength(F, 1).
-    v8::Local<v8::Function> function = self->V8Function();
+    v8::Local<v8::Function> function = self->BindToV8Function(/*length=*/1);
 
     // 3. Perform ! SetFunctionName(F, "size").
     function->SetName(V8String(script_state->GetIsolate(), "size"));
@@ -40,13 +39,14 @@ class ByteLengthQueuingStrategySizeFunction final
     return function;
   }
 
-  ByteLengthQueuingStrategySizeFunction() = default;
+  explicit ByteLengthQueuingStrategySizeFunction(ScriptState* script_state)
+      : ScriptFunction(script_state) {}
 
-  void CallRaw(ScriptState* script_state,
-               const v8::FunctionCallbackInfo<v8::Value>& args) override {
+ private:
+  void CallRaw(const v8::FunctionCallbackInfo<v8::Value>& args) override {
     auto* isolate = args.GetIsolate();
-    DCHECK_EQ(isolate, script_state->GetIsolate());
-    auto context = script_state->GetContext();
+    DCHECK_EQ(isolate, GetScriptState()->GetIsolate());
+    auto context = GetScriptState()->GetContext();
     v8::Local<v8::Value> chunk;
     if (args.Length() < 1) {
       chunk = v8::Undefined(isolate);
@@ -77,8 +77,6 @@ class ByteLengthQueuingStrategySizeFunction final
     }
     args.GetReturnValue().Set(byte_length);
   }
-
-  int Length() const override { return 1; }
 };
 
 }  // namespace

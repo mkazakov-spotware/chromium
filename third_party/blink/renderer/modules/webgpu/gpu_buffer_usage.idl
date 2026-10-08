@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,8 @@
 
 typedef [EnforceRange] unsigned long GPUBufferUsageFlags;
 [
-    Exposed(Window WebGPU, DedicatedWorker WebGPU),
-    SecureContext
-] namespace GPUBufferUsage {
+    Exposed(Window WebGPU, Worker WebGPU)
+] interface GPUBufferUsage {
     const unsigned long MAP_READ = 1;
     const unsigned long MAP_WRITE = 2;
     const unsigned long COPY_SRC = 4;

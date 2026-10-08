@@ -1,78 +1,35 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_VIEWS_COLOR_CHOOSER_COLOR_CHOOSER_VIEW_H_
 #define UI_VIEWS_COLOR_CHOOSER_COLOR_CHOOSER_VIEW_H_
 
-#include <memory>
-
-#include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkScalar.h"
 #include "ui/views/controls/textfield/textfield_controller.h"
-#include "ui/views/view.h"
-#include "ui/views/view_tracker.h"
 #include "ui/views/views_export.h"
+#include "ui/views/widget/widget_delegate.h"
 
 namespace views {
 
 class ColorChooserListener;
 class Textfield;
-class WidgetDelegate;
 
-class HueView;
-class SaturationValueView;
-class SelectedColorPatchView;
-
-// ColorChooser provides the UI to choose a color by mouse and/or keyboard.
+// ColorChooserView provides the UI to choose a color by mouse and/or keyboard.
 // It is typically used for <input type="color">.  Currently the user can
 // choose a color by dragging over the bar for hue and the area for saturation
 // and value.
-//
-// All public methods on ColorChooser are safe to call before, during, or after
-// the existence of the corresponding Widget/Views/etc.
-class VIEWS_EXPORT ColorChooser : public TextfieldController,
-                                  public base::SupportsWeakPtr<ColorChooser> {
+class VIEWS_EXPORT ColorChooserView : public WidgetDelegateView,
+                                      public TextfieldController {
  public:
-  ColorChooser(ColorChooserListener* listener, SkColor initial_color);
-  ~ColorChooser() override;
-
-  // Construct the WidgetDelegate that should be used to show the actual dialog
-  // for this ColorChooser. It is only safe to call this once per ColorChooser
-  // instance.
-  std::unique_ptr<WidgetDelegate> MakeWidgetDelegate();
-
-  SkColor GetColor() const;
-  SkScalar hue() const { return hsv_[0]; }
-  SkScalar saturation() const { return hsv_[1]; }
-  SkScalar value() const { return hsv_[2]; }
-
-  bool IsViewAttached() const;
+  ColorChooserView(ColorChooserListener* listener, SkColor initial_color);
+  ~ColorChooserView() override;
 
   // Called when its color value is changed in the web contents.
   void OnColorChanged(SkColor color);
-
-  // TextfieldController overrides, public for testing:
-  void ContentsChanged(Textfield* sender,
-                       const std::u16string& new_contents) override;
-  bool HandleKeyEvent(Textfield* sender,
-                      const ui::KeyEvent& key_event) override;
-
-  View* hue_view_for_testing();
-  View* saturation_value_view_for_testing();
-  Textfield* textfield_for_testing();
-  View* selected_color_patch_for_testing();
-
- private:
-  std::unique_ptr<View> BuildView();
-
-  void SetColor(SkColor color);
-  void SetHue(SkScalar hue);
-  void SetSaturationValue(SkScalar saturation, SkScalar value);
-
-  void OnViewClosing();
 
   // Called when the user chooses a hue from the UI.
   void OnHueChosen(SkScalar hue);
@@ -80,26 +37,54 @@ class VIEWS_EXPORT ColorChooser : public TextfieldController,
   // Called when the user chooses saturation/value from the UI.
   void OnSaturationValueChosen(SkScalar saturation, SkScalar value);
 
+  float hue() const { return hsv_[0]; }
+  float saturation() const { return hsv_[1]; }
+  float value() const { return hsv_[2]; }
+  void set_listener(ColorChooserListener* listener) { listener_ = listener; }
+
+  View* hue_view_for_testing();
+  View* saturation_value_view_for_testing();
+  Textfield* textfield_for_testing();
+  View* selected_color_patch_for_testing();
+
+  // TextfieldController overrides:
+  void ContentsChanged(Textfield* sender,
+                       const base::string16& new_contents) override;
+  bool HandleKeyEvent(Textfield* sender,
+                      const ui::KeyEvent& key_event) override;
+
+ private:
+  class HueView;
+  class SaturationValueView;
+  class SelectedColorPatchView;
+
+  // WidgetDelegate overrides:
+  bool CanMinimize() const override;
+  View* GetInitiallyFocusedView() override;
+  void WindowClosing() override;
+
   // The current color in HSV coordinate.
   SkScalar hsv_[3];
 
-  raw_ptr<ColorChooserListener> listener_;
-  ViewTracker tracker_;
+  // The pointer to the current color chooser for callbacks.  It doesn't take
+  // ownership on |listener_| so the user of this class should take care of
+  // its lifetime.  See chrome/browser/ui/browser.cc for example.
+  ColorChooserListener* listener_;
 
   // Child views. These are owned as part of the normal views hierarchy.
   // The view of hue chooser.
-  raw_ptr<HueView> hue_ = nullptr;
+  HueView* hue_;
 
   // The view of saturation/value choosing area.
-  raw_ptr<SaturationValueView> saturation_value_ = nullptr;
-
-  // The rectangle to denote the selected color.
-  raw_ptr<SelectedColorPatchView> selected_color_patch_ = nullptr;
+  SaturationValueView* saturation_value_;
 
   // The textfield to write the color explicitly.
-  raw_ptr<Textfield> textfield_ = nullptr;
+  Textfield* textfield_;
 
-  SkColor initial_color_;
+  // The rectangle to denote the selected color.
+  SelectedColorPatchView* selected_color_patch_;
+
+  DISALLOW_COPY_AND_ASSIGN(ColorChooserView);
 };
 
 }  // namespace views

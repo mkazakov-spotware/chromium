@@ -1,12 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/webui/certificates_handler.h"
 
-#include "base/memory/raw_ptr.h"
-#include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "chrome/test/base/testing_profile.h"
@@ -24,28 +21,29 @@ class CertificateHandlerTest : public ChromeRenderViewHostTestHarness {
     pref_service_ = profile()->GetTestingPrefService();
   }
 
-#if BUILDFLAG(IS_CHROMEOS)
-  bool IsCACertificateManagementAllowedPolicy(CertificateSource source) {
+#if defined(OS_CHROMEOS)
+  bool IsCACertificateManagementAllowedPolicy(CertificateSource source) const {
     return cert_handler_.IsCACertificateManagementAllowedPolicy(source);
   }
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)
 
   bool CanDeleteCertificate(
-      const CertificateManagerModel::CertInfo* cert_info) {
+      const CertificateManagerModel::CertInfo* cert_info) const {
     return cert_handler_.CanDeleteCertificate(cert_info);
   }
 
-  bool CanEditCertificate(const CertificateManagerModel::CertInfo* cert_info) {
+  bool CanEditCertificate(
+      const CertificateManagerModel::CertInfo* cert_info) const {
     return cert_handler_.CanEditCertificate(cert_info);
   }
 
  protected:
   content::TestWebUI web_ui_;
   certificate_manager::CertificatesHandler cert_handler_;
-  raw_ptr<sync_preferences::TestingPrefServiceSyncable> pref_service_ = nullptr;
+  sync_preferences::TestingPrefServiceSyncable* pref_service_ = nullptr;
 };
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
 TEST_F(CertificateHandlerTest, IsCACertificateManagementAllowedPolicyTest) {
   {
     pref_service_->SetInteger(
@@ -80,7 +78,7 @@ TEST_F(CertificateHandlerTest, IsCACertificateManagementAllowedPolicyTest) {
         IsCACertificateManagementAllowedPolicy(CertificateSource::kBuiltIn));
   }
 }
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)
 
 TEST_F(CertificateHandlerTest, CanDeleteCertificateCommonTest) {
   CertificateManagerModel::CertInfo default_cert_info(
@@ -128,7 +126,7 @@ TEST_F(CertificateHandlerTest, CanDeleteUserCertificateTest) {
     EXPECT_TRUE(CanDeleteCertificate(&cert_info));
   }
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
   {
     pref_service_->SetInteger(
         prefs::kClientCertificateManagementAllowed,
@@ -164,7 +162,7 @@ TEST_F(CertificateHandlerTest, CanDeleteUserCertificateTest) {
     cert_info.device_wide_ = true;
     EXPECT_FALSE(CanDeleteCertificate(&cert_info));
   }
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)
 }
 
 TEST_F(CertificateHandlerTest, CanDeleteCACertificateTest) {
@@ -182,7 +180,7 @@ TEST_F(CertificateHandlerTest, CanDeleteCACertificateTest) {
     EXPECT_TRUE(CanDeleteCertificate(&cert_info));
   }
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
   {
     pref_service_->SetInteger(
         prefs::kCACertificateManagementAllowed,
@@ -217,7 +215,7 @@ TEST_F(CertificateHandlerTest, CanDeleteCACertificateTest) {
     cert_info.can_be_deleted_ = true;
     EXPECT_FALSE(CanDeleteCertificate(&cert_info));
   }
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)
 }
 
 TEST_F(CertificateHandlerTest, CanEditCertificateCommonTest) {
@@ -261,7 +259,7 @@ TEST_F(CertificateHandlerTest, CanEditUserCertificateTest) {
     EXPECT_FALSE(CanEditCertificate(&cert_info));
   }
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
   {
     pref_service_->SetInteger(
         prefs::kClientCertificateManagementAllowed,
@@ -297,7 +295,7 @@ TEST_F(CertificateHandlerTest, CanEditUserCertificateTest) {
     cert_info.device_wide_ = true;
     EXPECT_FALSE(CanEditCertificate(&cert_info));
   }
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)
 }
 
 TEST_F(CertificateHandlerTest, CanEditCACertificateTest) {
@@ -315,7 +313,7 @@ TEST_F(CertificateHandlerTest, CanEditCACertificateTest) {
     EXPECT_TRUE(CanEditCertificate(&cert_info));
   }
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
   {
     pref_service_->SetInteger(
         prefs::kCACertificateManagementAllowed,
@@ -351,48 +349,5 @@ TEST_F(CertificateHandlerTest, CanEditCACertificateTest) {
     cert_info.can_be_deleted_ = true;
     EXPECT_FALSE(CanEditCertificate(&cert_info));
   }
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)
 }
-
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-TEST_F(CertificateHandlerTest, CannotManageFromSecondaryLacrosProfileTest) {
-  profile()->SetIsMainProfile(false);
-
-  pref_service_->SetInteger(
-      prefs::kCACertificateManagementAllowed,
-      static_cast<int>(CACertificateManagementPermission::kAll));
-  pref_service_->SetInteger(
-      prefs::kClientCertificateManagementAllowed,
-      static_cast<int>(ClientCertificateManagementPermission::kAll));
-
-  EXPECT_FALSE(
-      IsCACertificateManagementAllowedPolicy(CertificateSource::kImported));
-  EXPECT_FALSE(
-      IsCACertificateManagementAllowedPolicy(CertificateSource::kBuiltIn));
-
-  {
-    CertificateManagerModel::CertInfo cert_info(
-        {} /* cert */, net::CertType::USER_CERT, {} /* cert_name */,
-        true /* can_be_deleted */, false /* untrusted */,
-        CertificateManagerModel::CertInfo::Source::kPolicy,
-        true /* web_trust_anchor */, false /* hardware_backed */,
-        false /* device_wide */);
-
-    EXPECT_FALSE(CanDeleteCertificate(&cert_info));
-    EXPECT_FALSE(CanEditCertificate(&cert_info));
-  }
-
-  {
-    CertificateManagerModel::CertInfo cert_info(
-        {} /* cert */, net::CertType::CA_CERT, {} /* cert_name */,
-        true /* can_be_deleted */, false /* untrusted */,
-        CertificateManagerModel::CertInfo::Source::kPolicy,
-        true /* web_trust_anchor */, false /* hardware_backed */,
-        false /* device_wide */);
-
-    EXPECT_FALSE(CanDeleteCertificate(&cert_info));
-    EXPECT_FALSE(CanEditCertificate(&cert_info));
-  }
-}
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)

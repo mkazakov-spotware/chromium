@@ -1,12 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.keyboard_accessory.all_passwords_bottom_sheet;
 
-import static org.chromium.chrome.browser.password_manager.PasswordManagerHelper.usesUnifiedPasswordManagerBranding;
-
 import android.content.Context;
+import android.text.Spannable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -47,8 +46,8 @@ class AllPasswordsBottomSheetView implements BottomSheetContent {
         }
 
         @Override
-        public void onSheetStateChanged(int newState, int reason) {
-            super.onSheetStateChanged(newState, reason);
+        public void onSheetStateChanged(int newState) {
+            super.onSheetStateChanged(newState);
             if (newState != BottomSheetController.SheetState.HIDDEN) return;
             // This is a fail-safe for cases where onSheetClosed isn't triggered.
             mDismissHandler.onResult(BottomSheetController.StateChangeReason.NONE);
@@ -71,11 +70,6 @@ class AllPasswordsBottomSheetView implements BottomSheetContent {
         mSheetItemListView.setLayoutManager(new LinearLayoutManager(
                 mSheetItemListView.getContext(), LinearLayoutManager.VERTICAL, false));
         mSheetItemListView.setItemAnimator(null);
-        if (usesUnifiedPasswordManagerBranding()) {
-            // TODO(crbug.com/1217070): update the layout xml once feature is rolled out
-            final TextView titleTextView = mContentView.findViewById(R.id.sheet_title);
-            titleTextView.setText(R.string.all_passwords_bottom_sheet_title_gpm);
-        }
     }
 
     /**
@@ -103,15 +97,9 @@ class AllPasswordsBottomSheetView implements BottomSheetContent {
         }
     }
 
-    void setWarning(CharSequence warningMessage) {
+    void setWarning(Spannable spannableWarningMessage) {
         final TextView warningTextView = mContentView.findViewById(R.id.sheet_warning);
-        warningTextView.setText(warningMessage);
-        if (usesUnifiedPasswordManagerBranding()) {
-            // TODO(crbug.com/1217070): remove from the layout xml once feature roll out
-            final TextView warningSecondTextView =
-                    mContentView.findViewById(R.id.sheet_warning_second);
-            warningSecondTextView.setVisibility(View.GONE);
-        }
+        warningTextView.setText(spannableWarningMessage);
     }
 
     void setSheetItemListAdapter(RecyclerView.Adapter adapter) {

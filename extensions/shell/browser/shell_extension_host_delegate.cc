@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,23 +11,27 @@
 
 namespace extensions {
 
-ShellExtensionHostDelegate::ShellExtensionHostDelegate() = default;
-ShellExtensionHostDelegate::~ShellExtensionHostDelegate() = default;
+ShellExtensionHostDelegate::ShellExtensionHostDelegate() {
+}
+
+ShellExtensionHostDelegate::~ShellExtensionHostDelegate() {
+}
 
 void ShellExtensionHostDelegate::OnExtensionHostCreated(
     content::WebContents* web_contents) {
   ShellExtensionWebContentsObserver::CreateForWebContents(web_contents);
 }
 
-void ShellExtensionHostDelegate::OnMainFrameCreatedForBackgroundPage(
-    ExtensionHost* host) {}
+void ShellExtensionHostDelegate::OnRenderViewCreatedForBackgroundPage(
+    ExtensionHost* host) {
+}
 
 content::JavaScriptDialogManager*
 ShellExtensionHostDelegate::GetJavaScriptDialogManager() {
   // TODO(jamescook): Create a JavaScriptDialogManager or reuse the one from
   // content_shell.
   NOTREACHED();
-  return nullptr;
+  return NULL;
 }
 
 void ShellExtensionHostDelegate::CreateTab(
@@ -61,7 +65,9 @@ bool ShellExtensionHostDelegate::CheckMediaAccessPermission(
 
 content::PictureInPictureResult
 ShellExtensionHostDelegate::EnterPictureInPicture(
-    content::WebContents* web_contents) {
+    content::WebContents* web_contents,
+    const viz::SurfaceId& surface_id,
+    const gfx::Size& natural_size) {
   NOTREACHED();
   return content::PictureInPictureResult::kNotSupported;
 }

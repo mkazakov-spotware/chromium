@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,16 +21,13 @@ PushPropertiesCountingLayer::PushPropertiesCountingLayer() {
 
 PushPropertiesCountingLayer::~PushPropertiesCountingLayer() = default;
 
-void PushPropertiesCountingLayer::PushPropertiesTo(
-    LayerImpl* layer,
-    const CommitState& commit_state,
-    const ThreadUnsafeCommitState& unsafe_state) {
-  Layer::PushPropertiesTo(layer, commit_state, unsafe_state);
+void PushPropertiesCountingLayer::PushPropertiesTo(LayerImpl* layer) {
+  Layer::PushPropertiesTo(layer);
   AddPushPropertiesCount();
 }
 
 std::unique_ptr<LayerImpl> PushPropertiesCountingLayer::CreateLayerImpl(
-    LayerTreeImpl* tree_impl) const {
+    LayerTreeImpl* tree_impl) {
   return PushPropertiesCountingLayerImpl::Create(tree_impl, Layer::id());
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,10 @@
 #include "base/callback.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
-#include "base/strings/string_util.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/values.h"
 #include "components/update_client/update_client_errors.h"
 #include "components/update_client/utils.h"
@@ -25,7 +25,7 @@ namespace update_client {
 TestInstaller::TestInstaller()
     : error_(0),
       install_count_(0),
-      task_runner_(base::SequencedTaskRunner::GetCurrentDefault()) {}
+      task_runner_(base::SequencedTaskRunnerHandle::Get()) {}
 
 TestInstaller::~TestInstaller() {
   // The unpack path is deleted unconditionally by the component state code,
@@ -96,12 +96,11 @@ void VersionedTestInstaller::Install(
     std::unique_ptr<InstallParams> /*install_params*/,
     ProgressCallback progress_callback,
     Callback callback) {
-  const base::Value manifest = update_client::ReadManifest(unpack_path);
-  const std::string* version_string = manifest.FindStringKey("version");
-  if (!version_string || !base::IsStringASCII(*version_string))
-    return;
+  const auto manifest = update_client::ReadManifest(unpack_path);
+  std::string version_string;
+  manifest->GetStringASCII("version", &version_string);
+  const base::Version version(version_string);
 
-  const base::Version version(*version_string);
   const base::FilePath path =
       install_directory_.AppendASCII(version.GetString());
   base::CreateDirectory(path.DirName());

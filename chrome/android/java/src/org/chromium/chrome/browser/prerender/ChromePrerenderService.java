@@ -1,19 +1,16 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.prerender;
 
-import org.chromium.build.annotations.IdentifierNameString;
 import org.chromium.chrome.browser.base.SplitCompatService;
+import org.chromium.chrome.browser.base.SplitCompatUtils;
 
 /** See {@link ChromePrerenderServiceImpl}. */
 public class ChromePrerenderService extends SplitCompatService {
-    @IdentifierNameString
-    private static String sImplClassName =
-            "org.chromium.chrome.browser.prerender.ChromePrerenderServiceImpl";
-
     public ChromePrerenderService() {
-        super(sImplClassName);
+        super(SplitCompatUtils.getIdentifierName(
+                "org.chromium.chrome.browser.prerender.ChromePrerenderServiceImpl"));
     }
 }

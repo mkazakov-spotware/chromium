@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "base/containers/flat_map.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/synchronization/lock.h"
@@ -23,16 +24,12 @@ class CertVerifier;
 }
 
 namespace cronet {
-class CronetContext;
+class CronetURLRequestContext;
 
-// Implementation of Cronet_Engine that uses CronetContext.
+// Implementation of Cronet_Engine that uses CronetURLRequestContext.
 class Cronet_EngineImpl : public Cronet_Engine {
  public:
   Cronet_EngineImpl();
-
-  Cronet_EngineImpl(const Cronet_EngineImpl&) = delete;
-  Cronet_EngineImpl& operator=(const Cronet_EngineImpl&) = delete;
-
   ~Cronet_EngineImpl() override;
 
   // Cronet_Engine implementation:
@@ -62,7 +59,9 @@ class Cronet_EngineImpl : public Cronet_Engine {
   // stream_engine is owned by |this| and is only valid until |this| shutdown.
   stream_engine* GetBidirectionalStreamEngine();
 
-  CronetContext* cronet_url_request_context() const { return context_.get(); }
+  CronetURLRequestContext* cronet_url_request_context() const {
+    return context_.get();
+  }
 
   // Returns true if there is a listener currently registered (using
   // AddRequestFinishedListener()), and false otherwise.
@@ -86,7 +85,7 @@ class Cronet_EngineImpl : public Cronet_Engine {
   // Synchronize access to member variables from different threads.
   base::Lock lock_;
   // Cronet URLRequest context used for all network operations.
-  std::unique_ptr<CronetContext> context_;
+  std::unique_ptr<CronetURLRequestContext> context_;
   // Signaled when |context_| initialization is done.
   base::WaitableEvent init_completed_;
 
@@ -108,6 +107,8 @@ class Cronet_EngineImpl : public Cronet_Engine {
   // Executors.
   base::flat_map<Cronet_RequestFinishedInfoListenerPtr, Cronet_ExecutorPtr>
       request_finished_registrations_ GUARDED_BY(lock_);
+
+  DISALLOW_COPY_AND_ASSIGN(Cronet_EngineImpl);
 };
 
 }  // namespace cronet

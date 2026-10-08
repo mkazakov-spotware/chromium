@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #import "ios/chrome/browser/ui/download/download_manager_consumer.h"
 
-@class LegacyDownloadManagerStateView;
+@class DownloadManagerStateView;
 @class DownloadManagerViewController;
 @class RadialProgressView;
 
@@ -53,7 +53,7 @@
 @property(nonatomic, readonly) UIButton* closeButton;
 
 // Icon that represents the current download status.
-@property(nonatomic, readonly) LegacyDownloadManagerStateView* legacyStateIcon;
+@property(nonatomic, readonly) DownloadManagerStateView* stateIcon;
 
 // Label that describes the current download status.
 @property(nonatomic, readonly) UILabel* statusLabel;

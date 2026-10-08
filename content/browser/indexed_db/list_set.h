@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,13 @@
 
 #include <stddef.h>
 
+#include <algorithm>
 #include <iterator>
 #include <list>
 #include <memory>
 #include <set>
 
 #include "base/check_op.h"
-#include "base/ranges/algorithm.h"
 
 //
 // A container class that provides fast containment test (like a set)
@@ -51,7 +51,8 @@ class list_set {
     if (set_.find(elem) == set_.end())
       return;
     set_.erase(elem);
-    typename std::list<T>::iterator it = base::ranges::find(list_, elem);
+    typename std::list<T>::iterator it =
+        std::find(list_.begin(), list_.end(), elem);
     DCHECK(it != list_.end());
     list_.erase(it);
   }

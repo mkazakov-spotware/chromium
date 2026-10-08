@@ -1,4 +1,4 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -24,11 +24,9 @@ class FieldAliasExpander(object):
         """
         Does expansion based on the value of field_template of a given property.
         """
-        if property_.field_template in self._field_aliases:
-            alias_template = property_.field_template
+        if property_['field_template'] in self._field_aliases:
+            alias_template = property_['field_template']
             for field in self._field_aliases[alias_template]:
                 if field == 'name':
                     continue
-                assert hasattr(property_, field)
-                setattr(property_, field,
-                        self._field_aliases[alias_template][field])
+                property_[field] = self._field_aliases[alias_template][field]

@@ -1,11 +1,12 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_CONTENT_SETTINGS_CORE_BROWSER_CONTENT_SETTINGS_OBSERVER_H_
 #define COMPONENTS_CONTENT_SETTINGS_CORE_BROWSER_CONTENT_SETTINGS_OBSERVER_H_
 
-#include "components/content_settings/core/browser/content_settings_type_set.h"
+#include <string>
+
 #include "components/content_settings/core/common/content_settings_pattern.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 
@@ -16,17 +17,10 @@ class Observer {
   virtual void OnContentSettingChanged(
       const ContentSettingsPattern& primary_pattern,
       const ContentSettingsPattern& secondary_pattern,
-      ContentSettingsTypeSet content_type_set) {}
-
-  // Deprecated. Use the method above instead.
-  // TODO(crbug.com/1245927): Migrate remaining clients and remove this method.
-  virtual void OnContentSettingChanged(
-      const ContentSettingsPattern& primary_pattern,
-      const ContentSettingsPattern& secondary_pattern,
-      ContentSettingsType content_type) {}
+      ContentSettingsType content_type) = 0;
 
  protected:
-  virtual ~Observer() = default;
+  virtual ~Observer() {}
 };
 
 }  // namespace content_settings

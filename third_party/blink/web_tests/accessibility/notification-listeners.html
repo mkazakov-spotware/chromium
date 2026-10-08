@@ -32,14 +32,14 @@ async_test((t) => {
 
     let expected_global_notifications = new Map([
       ["Focus", new Map([
-        ["AXRole: AXComboBoxSelect", 1],
+        ["AXRole: AXPopUpButton", 1],
         ["AXRole: AXSlider", 1],
       ])],
       ["Blur", new Map([
-        ["AXRole: AXComboBoxSelect", 1],
+        ["AXRole: AXPopUpButton", 1],
       ])],
       ["MarkDirty", new Map([
-        ["AXRole: AXComboBoxSelect", 1],
+        ["AXRole: AXPopUpButton", 1],
       ])],
       ["ValueChanged", new Map([
         ["AXRole: AXSlider", 1],
@@ -122,7 +122,7 @@ async_test((t) => {
 
       // This should trigger a "value changed" notification on the slider.
       document.getElementById("slider").setAttribute("aria-valuenow", "6");
-    }, 1);
+    }, 0);
 
     window.setTimeout(t.step_func_done(() => {
       assert_unreached();

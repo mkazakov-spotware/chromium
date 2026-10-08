@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,13 +31,10 @@ const wchar_t kRegCFOptInCmdField[] = L"CFOptInCmd";
 const wchar_t kRegCFOptOutCmdField[] = L"CFOptOutCmd";
 const wchar_t kRegCFTempOptOutCmdField[] = L"CFTempOptOutCmd";
 const wchar_t kRegChannelField[] = L"channel";
-const wchar_t kRegCleanInstallRequiredForVersionBelowField[] =
-    L"CleanInstallRequiredForVersionBelow";
 const wchar_t kRegClientField[] = L"client";
 const wchar_t kRegCommandLineField[] = L"CommandLine";
 const wchar_t kRegCriticalVersionField[] = L"cpv";
 const wchar_t kRegDidRunField[] = L"dr";
-const wchar_t kRegDowngradeCleanupCommandField[] = L"DowngradeCleanupCommand";
 const wchar_t kRegEulaAceptedField[] = L"eulaaccepted";
 const wchar_t kRegGoogleUpdateVersion[] = L"version";
 const wchar_t kRegInstallerProgress[] = L"InstallerProgress";
@@ -60,6 +57,7 @@ const wchar_t kRegPathField[] = L"path";
 const wchar_t kRegRLZBrandField[] = L"brand";
 const wchar_t kRegRLZReactivationBrandField[] = L"reactivationbrand";
 const wchar_t kRegReferralField[] = L"referral";
+const wchar_t kRegRenameCmdField[] = L"cmd";
 const wchar_t kRegRunAsUserField[] = L"RunAsUser";
 const wchar_t kRegSendsPingsField[] = L"SendsPings";
 const wchar_t kRegUninstallCmdLine[] = L"UninstallCmdLine";

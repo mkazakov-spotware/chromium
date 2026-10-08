@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,10 +20,6 @@ class DiscoverFeedServiceFactory : public BrowserStateKeyedServiceFactory {
 
   static DiscoverFeedServiceFactory* GetInstance();
 
-  DiscoverFeedServiceFactory(const DiscoverFeedServiceFactory&) = delete;
-  DiscoverFeedServiceFactory& operator=(const DiscoverFeedServiceFactory&) =
-      delete;
-
  private:
   friend class base::NoDestructor<DiscoverFeedServiceFactory>;
 
@@ -33,6 +29,8 @@ class DiscoverFeedServiceFactory : public BrowserStateKeyedServiceFactory {
   // BrowserStateKeyedServiceFactory implementation.
   std::unique_ptr<KeyedService> BuildServiceInstanceFor(
       web::BrowserState* context) const override;
+
+  DISALLOW_COPY_AND_ASSIGN(DiscoverFeedServiceFactory);
 };
 
 #endif  // IOS_CHROME_BROWSER_DISCOVER_FEED_DISCOVER_FEED_SERVICE_FACTORY_H_

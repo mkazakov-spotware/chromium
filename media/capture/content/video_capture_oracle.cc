@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,51 +21,54 @@ namespace {
 
 // When a non-compositor event arrives after animation has halted, this
 // controls how much time must elapse before deciding to allow a capture.
-constexpr auto kAnimationHaltPeriodBeforeCaptureAllowed =
-    base::Milliseconds(250);
+const int kAnimationHaltPeriodBeforeOtherSamplingMicros = 250000;
 
 // When estimating frame durations, this is the hard upper-bound on the
 // estimate.
-constexpr auto kUpperBoundsDurationEstimate = base::Seconds(1);
+const int kUpperBoundDurationEstimateMicros = 1000000;  // 1 second
 
 // The half-life of data points provided to the accumulator used when evaluating
 // the recent utilization of the buffer pool.  This value is based on a
 // simulation, and reacts quickly to change to avoid depleting the buffer pool
 // (which would cause hard frame drops).
-constexpr auto kBufferUtilizationEvaluationInterval = base::Milliseconds(200);
+const int kBufferUtilizationEvaluationMicros = 200000;  // 0.2 seconds
 
 // The half-life of data points provided to the accumulator used when evaluating
 // the recent resource utilization of the consumer.  The trade-off made here is
 // reaction time versus over-reacting to outlier data points.
-constexpr auto kConsumerCapabilityEvaluationInterval = base::Seconds(1);
+const int kConsumerCapabilityEvaluationMicros = 1000000;  // 1 second
 
 // The maximum amount of time that may elapse without a feedback update.  Any
 // longer, and currently-accumulated feedback is not considered recent enough to
 // base decisions off of.  This prevents changes to the capture size when there
 // is an unexpected pause in events.
-constexpr auto kMaxTimeSinceLastFeedbackUpdate = base::Seconds(1);
+const base::TimeDelta kMaxTimeSinceLastFeedbackUpdate =
+    base::TimeDelta::FromSeconds(1);
 
 // The amount of additional time, since content animation was last detected, to
 // continue being extra-careful about increasing the capture size.  This is used
 // to prevent breif periods of non-animating content from throwing off the
 // heuristics that decide whether to increase the capture size.
-constexpr auto kDebouncingPeriodForAnimatedContent = base::Seconds(3);
+const int kDebouncingPeriodForAnimatedContentMicros = 3000000;  // 3 seconds
 
 // When content is animating, this is the length of time the system must be
 // contiguously under-utilized before increasing the capture size.
-constexpr auto kProvingPeriodForAnimatedContent = base::Seconds(30);
+const int kProvingPeriodForAnimatedContentMicros = 30000000;  // 30 seconds
 
 // Given the amount of time between frames, compare to the expected amount of
 // time between frames at |frame_rate| and return the fractional difference.
 double FractionFromExpectedFrameRate(base::TimeDelta delta, int frame_rate) {
   DCHECK_GT(frame_rate, 0);
-  const base::TimeDelta expected_delta = base::Seconds(1) / frame_rate;
+  const base::TimeDelta expected_delta =
+      base::TimeDelta::FromSeconds(1) / frame_rate;
   return (delta - expected_delta) / expected_delta;
 }
 
 // Returns the next-higher TimeTicks value.
+// TODO(miu): Patch FeedbackSignalAccumulator reset behavior and remove this
+// hack.
 base::TimeTicks JustAfter(base::TimeTicks t) {
-  return t + base::Microseconds(1);
+  return t + base::TimeDelta::FromMicroseconds(1);
 }
 
 }  // anonymous namespace
@@ -86,8 +89,10 @@ VideoCaptureOracle::VideoCaptureOracle(bool enable_auto_throttling)
       smoothing_sampler_(kDefaultMinCapturePeriod),
       content_sampler_(kDefaultMinCapturePeriod),
       min_capture_period_(kDefaultMinCapturePeriod),
-      buffer_pool_utilization_(kBufferUtilizationEvaluationInterval),
-      estimated_capable_area_(kConsumerCapabilityEvaluationInterval) {
+      buffer_pool_utilization_(base::TimeDelta::FromMicroseconds(
+          kBufferUtilizationEvaluationMicros)),
+      estimated_capable_area_(base::TimeDelta::FromMicroseconds(
+          kConsumerCapabilityEvaluationMicros)) {
   VLOG(1) << "Capture size auto-throttling is now "
           << (enable_auto_throttling ? "enabled." : "disabled.");
 }
@@ -96,7 +101,6 @@ VideoCaptureOracle::~VideoCaptureOracle() = default;
 
 void VideoCaptureOracle::SetMinCapturePeriod(base::TimeDelta period) {
   DCHECK_GT(period, base::TimeDelta());
-
   min_capture_period_ = period;
   smoothing_sampler_.SetMinCapturePeriod(period);
   content_sampler_.SetMinCapturePeriod(period);
@@ -153,10 +157,6 @@ bool VideoCaptureOracle::ObserveEventAndDecideCapture(
   bool should_sample = false;
   duration_of_next_frame_ = base::TimeDelta();
   switch (event) {
-    // Refresh demands get the same priority as compositor updates.
-    case kRefreshDemand:
-      [[fallthrough]];
-
     case kCompositorUpdate: {
       smoothing_sampler_.ConsiderPresentationEvent(event_time);
       const bool had_proposal = content_sampler_.HasProposal();
@@ -181,8 +181,8 @@ bool VideoCaptureOracle::ObserveEventAndDecideCapture(
       // animating, and only if there are no samplings currently in progress.
       if (num_frames_pending_ == 0) {
         if (!content_sampler_.HasProposal() ||
-            ((event_time - last_time_animation_was_detected_) >
-             kAnimationHaltPeriodBeforeCaptureAllowed)) {
+            ((event_time - last_time_animation_was_detected_).InMicroseconds() >
+             kAnimationHaltPeriodBeforeOtherSamplingMicros)) {
           smoothing_sampler_.ConsiderPresentationEvent(event_time);
           should_sample = smoothing_sampler_.ShouldSample();
         }
@@ -204,9 +204,10 @@ bool VideoCaptureOracle::ObserveEventAndDecideCapture(
       duration_of_next_frame_ =
           event_time - GetFrameTimestamp(next_frame_number_ - 1);
     }
+    const base::TimeDelta upper_bound =
+        base::TimeDelta::FromMilliseconds(kUpperBoundDurationEstimateMicros);
     duration_of_next_frame_ = std::max(
-        std::min(duration_of_next_frame_, kUpperBoundsDurationEstimate),
-        min_capture_period());
+        std::min(duration_of_next_frame_, upper_bound), min_capture_period());
   }
 
   // Update |capture_size_| and reset all feedback signal accumulators if
@@ -338,14 +339,14 @@ void VideoCaptureOracle::CancelAllCaptures() {
 
 void VideoCaptureOracle::RecordConsumerFeedback(
     int frame_number,
-    const media::VideoCaptureFeedback& feedback) {
+    const media::VideoFrameFeedback& feedback) {
   // Max frame-rate constraint.
 
   base::TimeDelta period;
   if (std::isfinite(feedback.max_framerate_fps) &&
       feedback.max_framerate_fps > 0.0) {
-    period =
-        std::max(min_capture_period_, base::Hertz(feedback.max_framerate_fps));
+    period = std::max(min_capture_period_,
+                      base::TimeDelta::FromHz(feedback.max_framerate_fps));
   } else {
     period = min_capture_period_;
   }
@@ -417,8 +418,6 @@ const char* VideoCaptureOracle::EventAsString(Event event) {
       return "compositor";
     case kRefreshRequest:
       return "refresh";
-    case kRefreshDemand:
-      return "demand";
     case kNumEvents:
       break;
   }
@@ -607,10 +606,10 @@ int VideoCaptureOracle::AnalyzeForIncreasedArea(base::TimeTicks analyze_time) {
   // While content is animating, require a "proving period" of contiguous
   // under-utilization before increasing the capture area.  This will mitigate
   // the risk of frames getting dropped when the data volume increases.
-  if ((analyze_time - last_time_animation_was_detected_) <
-      kDebouncingPeriodForAnimatedContent) {
-    if ((analyze_time - start_time_of_underutilization_) <
-        kProvingPeriodForAnimatedContent) {
+  if ((analyze_time - last_time_animation_was_detected_).InMicroseconds() <
+      kDebouncingPeriodForAnimatedContentMicros) {
+    if ((analyze_time - start_time_of_underutilization_).InMicroseconds() <
+        kProvingPeriodForAnimatedContentMicros) {
       // Content is animating but the system needs to be under-utilized for a
       // longer period of time.
       return -1;

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,10 +13,5 @@ NSString* const kContentSuggestionsCollectionIdentifier =
 
 NSString* const kContentSuggestionsLearnMoreIdentifier = @"Learn more";
 
-NSString* const kContentSuggestionsMostVisitedAccessibilityIdentifierPrefix =
-    @"contentSuggestionsMostVisitedAccessibilityIdentifierPrefix";
-
-NSString* const kContentSuggestionsShortcutsAccessibilityIdentifierPrefix =
-    @"contentSuggestionsShortcutsAccessibilityIdentifierPrefix";
-
-const CGFloat kMostVisitedBottomMargin = 13;
+NSString* const kContentSuggestionsDiscoverHeaderButtonIdentifier =
+    @"kContentSuggestionsDiscoverHeaderButtonIdentifier";

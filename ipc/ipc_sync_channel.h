@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 
 #include "base/component_export.h"
 #include "base/containers/circular_deque.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/synchronization/lock.h"
 #include "base/synchronization/waitable_event_watcher.h"
@@ -101,9 +101,6 @@ class COMPONENT_EXPORT(IPC) SyncChannel : public ChannelProxy {
       scoped_refptr<base::SingleThreadTaskRunner> task_runner);
 
   void RemoveListenerTaskRunner(int32_t routing_id);
-
-  SyncChannel(const SyncChannel&) = delete;
-  SyncChannel& operator=(const SyncChannel&) = delete;
 
   ~SyncChannel() override;
 
@@ -211,7 +208,7 @@ class COMPONENT_EXPORT(IPC) SyncChannel : public ChannelProxy {
 
     scoped_refptr<ReceivedSyncMsgQueue> received_sync_msgs_;
 
-    raw_ptr<base::WaitableEvent, DanglingUntriaged> shutdown_event_;
+    base::WaitableEvent* shutdown_event_;
     base::WaitableEventWatcher shutdown_watcher_;
     base::WaitableEventWatcher::EventCallback shutdown_watcher_callback_;
     int restrict_dispatch_group_;
@@ -230,9 +227,15 @@ class COMPONENT_EXPORT(IPC) SyncChannel : public ChannelProxy {
     return reinterpret_cast<SyncContext*>(context());
   }
 
-  // Waits for a reply, timeout or process shutdown.
+  // Both these functions wait for a reply, timeout or process shutdown.  The
+  // latter one also runs a nested run loop in the meantime.
   static void WaitForReply(mojo::SyncHandleRegistry* registry,
-                           SyncContext* context);
+                           SyncContext* context,
+                           bool pump_messages);
+
+  // Runs a nested run loop until a reply arrives, times out, or the process
+  // shuts down.
+  static void WaitForReplyWithNestedMessageLoop(SyncContext* context);
 
   // Starts the dispatch watcher.
   void StartWatching();
@@ -248,6 +251,8 @@ class COMPONENT_EXPORT(IPC) SyncChannel : public ChannelProxy {
 
   // Tracks SyncMessageFilters created before complete channel initialization.
   std::vector<scoped_refptr<SyncMessageFilter>> pre_init_sync_message_filters_;
+
+  DISALLOW_COPY_AND_ASSIGN(SyncChannel);
 };
 
 }  // namespace IPC

@@ -1,13 +1,12 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <string>
 
-#include "base/logging.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/test/chromedriver/chrome/ui_events.h"
 #include "chrome/test/chromedriver/keycode_text_conversion.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -16,18 +15,15 @@
 
 namespace {
 
-void CheckCharToKeyCode16(char16_t character,
-                          ui::KeyboardCode key_code,
+void CheckCharToKeyCode16(base::char16 character, ui::KeyboardCode key_code,
                           int modifiers) {
   ui::KeyboardCode actual_key_code = ui::VKEY_UNKNOWN;
   int actual_modifiers = 0;
   std::string error_msg;
   EXPECT_TRUE(ConvertCharToKeyCode(
       character, &actual_key_code, &actual_modifiers, &error_msg));
-  EXPECT_EQ(key_code, actual_key_code)
-      << "Char: " << std::u16string(1, character);
-  EXPECT_EQ(modifiers, actual_modifiers)
-      << "Char: " << std::u16string(1, character);
+  EXPECT_EQ(key_code, actual_key_code) << "Char: " << character;
+  EXPECT_EQ(modifiers, actual_modifiers) << "Char: " << character;
 }
 
 void CheckCharToKeyCode(char character, ui::KeyboardCode key_code,
@@ -36,7 +32,7 @@ void CheckCharToKeyCode(char character, ui::KeyboardCode key_code,
                        key_code, modifiers);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void CheckCharToKeyCode(wchar_t character, ui::KeyboardCode key_code,
                         int modifiers) {
   CheckCharToKeyCode16(base::WideToUTF16(std::wstring(1, character))[0],
@@ -47,7 +43,7 @@ void CheckCharToKeyCode(wchar_t character, ui::KeyboardCode key_code,
 void CheckCantConvertChar(wchar_t character) {
   std::wstring character_string;
   character_string.push_back(character);
-  char16_t character_utf16 = base::WideToUTF16(character_string)[0];
+  base::char16 character_utf16 = base::WideToUTF16(character_string)[0];
   ui::KeyboardCode actual_key_code = ui::VKEY_UNKNOWN;
   int actual_modifiers = 0;
   std::string error_msg;
@@ -65,9 +61,7 @@ std::string ConvertKeyCodeToTextNoError(ui::KeyboardCode key_code,
 
 }  // namespace
 
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
 // Fails on bots: crbug.com/174962
 #define MAYBE_KeyCodeToText DISABLED_KeyCodeToText
 #else
@@ -102,9 +96,7 @@ TEST(KeycodeTextConversionTest, MAYBE_KeyCodeToText) {
       ConvertKeyCodeToTextNoError(ui::VKEY_SHIFT, kShiftKeyModifierMask));
 }
 
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
 // Fails on bots: crbug.com/174962
 #define MAYBE_CharToKeyCode DISABLED_CharToKeyCode
 #else
@@ -130,7 +122,7 @@ TEST(KeycodeTextConversionTest, MAYBE_CharToKeyCode) {
   CheckCantConvertChar(L'\u2159');
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TEST(KeycodeTextConversionTest, NonShiftModifiers) {
   ui::ScopedKeyboardLayout keyboard_layout(ui::KEYBOARD_LAYOUT_GERMAN);
   int ctrl_and_alt = kControlKeyModifierMask | kAltKeyModifierMask;

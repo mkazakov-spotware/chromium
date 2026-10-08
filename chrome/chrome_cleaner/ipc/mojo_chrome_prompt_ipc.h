@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #ifndef CHROME_CHROME_CLEANER_IPC_MOJO_CHROME_PROMPT_IPC_H_
@@ -14,13 +14,12 @@
 #include "chrome/chrome_cleaner/ipc/chrome_prompt_ipc.h"
 #include "chrome/chrome_cleaner/ipc/mojo_task_runner.h"
 #include "chrome/chrome_cleaner/mojom/chrome_prompt.mojom.h"
-#include "mojo/public/cpp/bindings/remote.h"
 
 namespace chrome_cleaner {
 
-// Simple wrapper to control lifetime of the mojo::Remote<ChromePrompt> object
-// and post tasks in the IPC thread kept by the MojoTaskRunner. Once created,
-// this object lives until the cleaner process ends.
+// Simple wrapper to control lifetime of the ChromePromptPtr object and post
+// tasks in the IPC thread kept by the MojoTaskRunner. Once created, this
+// object lives until the cleaner process ends.
 //
 // Sample usage:
 //   scoped_refptr<MojoTaskRunner> task_runner = MojoTaskRunner::Create();
@@ -60,6 +59,18 @@ class MojoChromePromptIPC : public ChromePromptIPC {
                           const std::vector<std::wstring>& extension_ids,
                           PromptUserCallback callback) override;
 
+  // Posts a PromptDisableExtensions() task to the IPC controller's thread.
+  // Internal state must be State::kDoneInteraction when the posted task runs.
+  void PostDisableExtensionsTask(const std::vector<std::wstring>& extension_ids,
+                                 DisableExtensionsCallback callback) override;
+
+  // Queries Chrome for its version of the ChromePrompt interface. If version
+  // >= 3 calls |delete_allowed_callback|. Calls |delete_not_allowed_callback|
+  // otherwise.
+  void TryDeleteExtensions(
+      base::OnceClosure delete_allowed_callback,
+      base::OnceClosure delete_not_allowed_callback) override;
+
  protected:
   // The destructor is only called by tests for doubles of this class. In the
   // cleaner, this object leaks, so we don't bother closing the connection
@@ -77,11 +88,19 @@ class MojoChromePromptIPC : public ChromePromptIPC {
                          const std::vector<std::wstring>& extension_ids,
                          PromptUserCallback callback);
 
+  void RunDisableExtensionsTask(const std::vector<std::wstring>& extension_ids,
+                                DisableExtensionsCallback callback);
+
   // Callback for mojom::ChromePrompt::PromptUser, internal state must be
   // State::kWaitingForResponseFromChrome. Invokes callback(prompt_acceptance)
   // and transitions to state State::kDoneInteraction.
   void OnChromeResponseReceived(PromptUserCallback callback,
                                 mojom::PromptAcceptance prompt_acceptance);
+
+  // Callback for mojom::ChromePrompt::DisableExtensions, internal state must
+  // be State::kDoneInteraction. Invokes callback(extensions_deleted).
+  void OnChromeResponseReceivedExtensions(DisableExtensionsCallback callback,
+                                          bool extensions_deleted);
 
   // Connection error handler. Invokes either
   // error_handler_->OnConnectionClosed() or
@@ -99,7 +118,7 @@ class MojoChromePromptIPC : public ChromePromptIPC {
  private:
   scoped_refptr<MojoTaskRunner> task_runner_;
   std::string chrome_mojo_pipe_token_;
-  std::unique_ptr<mojo::Remote<mojom::ChromePrompt>> chrome_prompt_service_;
+  std::unique_ptr<mojom::ChromePromptPtr> chrome_prompt_service_;
 };
 
 }  // namespace chrome_cleaner

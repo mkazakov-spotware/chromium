@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/aura/client/screen_position_client.h"
 #include "ui/aura/window_event_dispatcher.h"
-#include "ui/compositor/layer.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/gfx/animation/animation_container.h"
@@ -61,10 +60,9 @@ void SharedDisplayEdgeIndicator::Show(const gfx::Rect& src_bounds,
   animation_ = std::make_unique<gfx::ThrobAnimation>(this);
   gfx::AnimationContainer* container = new gfx::AnimationContainer();
   container->SetAnimationRunner(
-      std::make_unique<views::CompositorAnimationRunner>(src_widget_.get(),
-                                                         FROM_HERE));
+      std::make_unique<views::CompositorAnimationRunner>(src_widget_.get()));
   animation_->SetContainer(container);
-  animation_->SetThrobDuration(base::Milliseconds(1000));
+  animation_->SetThrobDuration(base::TimeDelta::FromMilliseconds(1000));
   animation_->StartThrobbing(/*infinite=*/-1);
 }
 

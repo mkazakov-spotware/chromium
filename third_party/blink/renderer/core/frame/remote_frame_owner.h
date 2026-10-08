@@ -1,19 +1,17 @@
-// Copyright 2015 The Chromium Authors
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
+// Copyright 2015 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be found
+// in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_REMOTE_FRAME_OWNER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_REMOTE_FRAME_OWNER_H_
 
 #include "third_party/blink/public/common/frame/frame_policy.h"
-#include "third_party/blink/public/mojom/frame/color_scheme.mojom-blink-forward.h"
+#include "third_party/blink/public/mojom/frame/frame_owner_element_type.mojom-blink.h"
 #include "third_party/blink/public/mojom/scroll/scrollbar_mode.mojom-blink.h"
 #include "third_party/blink/public/web/web_frame_owner_properties.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/frame/frame_owner.h"
 #include "third_party/blink/renderer/core/scroll/scroll_types.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
 
 namespace blink {
@@ -27,7 +25,10 @@ class CORE_EXPORT RemoteFrameOwner final
     : public GarbageCollected<RemoteFrameOwner>,
       public FrameOwner {
  public:
-  RemoteFrameOwner(const FramePolicy&, const WebFrameOwnerProperties&);
+  RemoteFrameOwner(
+      const FramePolicy&,
+      const WebFrameOwnerProperties&,
+      mojom::blink::FrameOwnerElementType frame_owner_element_type);
 
   // FrameOwner overrides:
   Frame* ContentFrame() const override { return frame_.Get(); }
@@ -36,6 +37,11 @@ class CORE_EXPORT RemoteFrameOwner final
   const FramePolicy& GetFramePolicy() const override { return frame_policy_; }
   void AddResourceTiming(const ResourceTimingInfo&) override;
   void DispatchLoad() override;
+  bool CanRenderFallbackContent() const override {
+    return frame_owner_element_type_ ==
+           mojom::blink::FrameOwnerElementType::kObject;
+  }
+  void RenderFallbackContent(Frame*) override;
   void IntrinsicSizingInfoChanged() override;
   void SetNeedsOcclusionTracking(bool) override;
 
@@ -50,9 +56,8 @@ class CORE_EXPORT RemoteFrameOwner final
   bool AllowFullscreen() const override { return allow_fullscreen_; }
   bool AllowPaymentRequest() const override { return allow_payment_request_; }
   bool IsDisplayNone() const override { return is_display_none_; }
-  mojom::blink::ColorScheme GetColorScheme() const override {
-    return color_scheme_;
-  }
+  mojom::ColorScheme GetColorScheme() const override { return color_scheme_; }
+  AtomicString RequiredCsp() const override { return required_csp_; }
   bool ShouldLazyLoadChildren() const final;
 
   void SetFramePolicy(const FramePolicy& frame_policy) {
@@ -73,8 +78,11 @@ class CORE_EXPORT RemoteFrameOwner final
   void SetIsDisplayNone(bool is_display_none) {
     is_display_none_ = is_display_none;
   }
-  void SetColorScheme(mojom::blink::ColorScheme color_scheme) {
+  void SetColorScheme(mojom::ColorScheme color_scheme) {
     color_scheme_ = color_scheme;
+  }
+  void SetRequiredCsp(const WebString& required_csp) {
+    required_csp_ = required_csp;
   }
 
   void Trace(Visitor*) const override;
@@ -94,8 +102,10 @@ class CORE_EXPORT RemoteFrameOwner final
   bool allow_fullscreen_;
   bool allow_payment_request_;
   bool is_display_none_;
-  mojom::blink::ColorScheme color_scheme_;
+  mojom::ColorScheme color_scheme_;
   bool needs_occlusion_tracking_;
+  WebString required_csp_;
+  const mojom::blink::FrameOwnerElementType frame_owner_element_type_;
 };
 
 template <>

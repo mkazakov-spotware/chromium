@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <stdint.h>
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -22,8 +21,8 @@
 #include "remoting/signaling/signal_strategy.h"
 #include "remoting/signaling/signaling_address.h"
 #include "remoting/signaling/signaling_id_util.h"
-#include "remoting/signaling/xmpp_constants.h"
 #include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
+#include "third_party/libjingle_xmpp/xmpp/constants.h"
 
 using jingle_xmpp::QName;
 using jingle_xmpp::XmlElement;
@@ -71,7 +70,7 @@ void XmppRegisterSupportHostRequest::StartRequest(
   key_pair_ = key_pair;
   callback_ = std::move(callback);
   signal_strategy_->AddListener(this);
-  iq_sender_ = std::make_unique<IqSender>(signal_strategy_);
+  iq_sender_.reset(new IqSender(signal_strategy_));
 }
 
 void XmppRegisterSupportHostRequest::OnSignalStrategyStateChange(
@@ -83,7 +82,8 @@ void XmppRegisterSupportHostRequest::OnSignalStrategyStateChange(
     // remoting bot JID.
     std::string host_jid = signal_strategy_->GetLocalAddress().id();
     request_ = iq_sender_->SendIq(
-        kIqTypeSet, directory_bot_jid_, CreateRegistrationRequest(host_jid),
+        jingle_xmpp::STR_SET, directory_bot_jid_,
+        CreateRegistrationRequest(host_jid),
         base::BindOnce(&XmppRegisterSupportHostRequest::ProcessResponse,
                        base::Unretained(this)));
     if (!request_) {
@@ -93,7 +93,8 @@ void XmppRegisterSupportHostRequest::OnSignalStrategyStateChange(
       return;
     }
 
-    request_->SetTimeout(base::Seconds(kRegisterRequestTimeoutInSeconds));
+    request_->SetTimeout(
+        base::TimeDelta::FromSeconds(kRegisterRequestTimeoutInSeconds));
 
   } else if (state == SignalStrategy::DISCONNECTED) {
     // We will reach here if signaling fails to connect.
@@ -168,8 +169,8 @@ void XmppRegisterSupportHostRequest::ParseResponse(const XmlElement* response,
     return;
   }
 
-  std::string type = response->Attr(kQNameType);
-  if (type == kIqTypeError) {
+  std::string type = response->Attr(jingle_xmpp::QN_TYPE);
+  if (type == jingle_xmpp::STR_ERROR) {
     LOG(ERROR) << "Received error in response to heartbeat: "
                << response->Str();
     *error_code = ErrorCode::HOST_REGISTRATION_ERROR;
@@ -177,7 +178,7 @@ void XmppRegisterSupportHostRequest::ParseResponse(const XmlElement* response,
   }
 
   // This method must only be called for error or result stanzas.
-  if (type != kIqTypeResult) {
+  if (type != jingle_xmpp::STR_RESULT) {
     LOG(ERROR) << "Received unexpect stanza of type \"" << type << "\"";
     *error_code = ErrorCode::HOST_REGISTRATION_ERROR;
     return;
@@ -224,7 +225,7 @@ void XmppRegisterSupportHostRequest::ParseResponse(const XmlElement* response,
   }
 
   *support_id = support_id_element->BodyText();
-  *lifetime = base::Seconds(lifetime_int);
+  *lifetime = base::TimeDelta::FromSeconds(lifetime_int);
   return;
 }
 

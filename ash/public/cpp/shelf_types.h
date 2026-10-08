@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define ASH_PUBLIC_CPP_SHELF_TYPES_H_
 
 #include <cstdint>
-#include <ostream>
 #include <string>
 
 #include "ash/public/cpp/ash_public_export.h"
@@ -60,9 +59,6 @@ enum ShelfAutoHideState {
   SHELF_AUTO_HIDE_HIDDEN,
 };
 
-ASH_PUBLIC_EXPORT std::ostream& operator<<(std::ostream& out,
-                                           ShelfAutoHideState state);
-
 enum ShelfVisibilityState {
   // Always visible.
   SHELF_VISIBLE,
@@ -82,8 +78,16 @@ enum class ShelfBackgroundType {
   // for a split view.
   kMaximized,
 
+  // The background when the app list is visible in clamshell mode.
+  kAppList,
+
   // The background when the app list is visible in tablet mode.
   kHomeLauncher,
+
+  // The background when a maximized window exists or two windows are maximized
+  // for a split view, and the app list is visible. If the app list were not
+  // visible, the shelf would be in ShelfBackgroundType::kMaximized state.
+  kMaximizedWithAppList,
 
   // The background when OOBE is active.
   kOobe,
@@ -102,9 +106,6 @@ enum class ShelfBackgroundType {
   kInApp,
 };
 
-ASH_PUBLIC_EXPORT std::ostream& operator<<(std::ostream& out,
-                                           ShelfBackgroundType type);
-
 // Source of the launch or activation request, for tracking.
 enum ShelfLaunchSource {
   // The item was launched from an unknown source.
@@ -116,14 +117,8 @@ enum ShelfLaunchSource {
   // The item was launched from an app list search view.
   LAUNCH_FROM_APP_LIST_SEARCH,
 
-  // The item was launched from an app list search Recommendation.
-  LAUNCH_FROM_APP_LIST_RECOMMENDATION,
-
   // The item was launched from the shelf itself.
   LAUNCH_FROM_SHELF,
-
-  // The item was launched internally, for example from test.
-  LAUNCH_FROM_INTERNAL,
 };
 
 // The actions that may be performed when a shelf item is selected.
@@ -162,14 +157,7 @@ enum ShelfItemType {
   // - Extension "V1" (legacy packaged and hosted) apps,
   // - Extension "V2" (platform) apps,
   // - ARC (App Runtime for Chrome - Android Play Store) apps.
-  // - Lacros.
   TYPE_APP,
-
-  // Similar to TYPE_BROWSER_SHORTCUT, but not pinned.
-  // This is for the Lacros migration.
-  // After Lacros is completely made, TYPE_BROWSER_SHORTCUT and
-  // TYPE_UNPINNED_BROWSER_SHORTCUT will be removed, eventually.
-  TYPE_UNPINNED_BROWSER_SHORTCUT,
 
   // Represents an open dialog.
   TYPE_DIALOG,
@@ -197,16 +185,6 @@ enum ShelfItemStatus {
   STATUS_RUNNING,
   // A shelf item that needs user's attention.
   STATUS_ATTENTION,
-};
-
-// Represents the app status in the shelf or app_list.
-enum AppStatus {
-  // The app is ready.
-  kReady,
-  // The app is blocked.
-  kBlocked,
-  // The app is paused.
-  kPaused,
 };
 
 // A unique shelf item id composed of an |app_id| and a |launch_id|.

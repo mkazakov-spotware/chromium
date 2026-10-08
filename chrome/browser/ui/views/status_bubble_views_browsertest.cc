@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/test_simple_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -46,23 +46,23 @@ IN_PROC_BROWSER_TEST_F(StatusBubbleViewsTest, WidgetLifetime) {
   EXPECT_FALSE(GetWidget());
 
   // Setting status text shows the widget.
-  bubble->SetStatus(u"test");
+  bubble->SetStatus(base::ASCIIToUTF16("test"));
   views::Widget* widget = GetWidget();
   ASSERT_TRUE(widget);
   EXPECT_TRUE(widget->IsVisible());
 
   // Changing status text keeps the widget visible.
-  bubble->SetStatus(u"foo");
+  bubble->SetStatus(base::ASCIIToUTF16("foo"));
   EXPECT_TRUE(widget->IsVisible());
 
   // Setting the URL keeps the widget visible.
   bubble->SetURL(GURL("http://www.foo.com"));
   EXPECT_TRUE(widget->IsVisible());
 
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
   // Clearing the URL and status closes the widget on platforms other than Mac.
   EXPECT_FALSE(IsDestroyPopupTimerRunning());
-  bubble->SetStatus(std::u16string());
+  bubble->SetStatus(base::string16());
   bubble->SetURL(GURL());
   // The widget is not hidden immediately, instead a task is scheduled. Run that
   // now.
@@ -71,7 +71,7 @@ IN_PROC_BROWSER_TEST_F(StatusBubbleViewsTest, WidgetLifetime) {
   ASSERT_TRUE(GetShowHideAnimationForTesting());
   // Advance well past the time for the animation to ensure it completes.
   static_cast<gfx::AnimationContainerElement*>(GetShowHideAnimationForTesting())
-      ->Step(base::TimeTicks::Now() + base::Minutes(1));
+      ->Step(base::TimeTicks::Now() + base::TimeDelta::FromMinutes(1));
   // Widget should still exist.
   ASSERT_TRUE(GetWidget());
   EXPECT_FALSE(widget->IsVisible());
@@ -82,12 +82,12 @@ IN_PROC_BROWSER_TEST_F(StatusBubbleViewsTest, WidgetLifetime) {
   EXPECT_FALSE(IsDestroyPopupTimerRunning());
   EXPECT_FALSE(GetWidget());
 #endif
-  SetTaskRunner(base::SingleThreadTaskRunner::GetCurrentDefault().get());
+  SetTaskRunner(base::ThreadTaskRunnerHandle::Get().get());
 }
 
 // Mac does not delete the widget after a delay, so this test only runs on
 // non-mac platforms.
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
 IN_PROC_BROWSER_TEST_F(StatusBubbleViewsTest, ShowHideDestroyShow) {
   scoped_refptr<base::TestSimpleTaskRunner> task_runner =
       base::MakeRefCounted<base::TestSimpleTaskRunner>();
@@ -98,12 +98,12 @@ IN_PROC_BROWSER_TEST_F(StatusBubbleViewsTest, ShowHideDestroyShow) {
   ASSERT_TRUE(bubble);
 
   // Setting status text shows the widget.
-  bubble->SetStatus(u"test");
+  bubble->SetStatus(base::ASCIIToUTF16("test"));
   views::Widget* widget = GetWidget();
   ASSERT_TRUE(widget);
   EXPECT_TRUE(widget->IsVisible());
 
-  bubble->SetStatus(std::u16string());
+  bubble->SetStatus(base::string16());
   // The widget is not hidden immediately, instead a task is scheduled. Run that
   // now.
   task_runner->RunPendingTasks();
@@ -111,7 +111,7 @@ IN_PROC_BROWSER_TEST_F(StatusBubbleViewsTest, ShowHideDestroyShow) {
   ASSERT_TRUE(GetShowHideAnimationForTesting());
   // Advance well past the time for the animation to ensure it completes.
   static_cast<gfx::AnimationContainerElement*>(GetShowHideAnimationForTesting())
-      ->Step(base::TimeTicks::Now() + base::Minutes(1));
+      ->Step(base::TimeTicks::Now() + base::TimeDelta::FromMinutes(1));
   // Widget should still exist.
   ASSERT_TRUE(GetWidget());
   EXPECT_FALSE(widget->IsVisible());
@@ -123,11 +123,11 @@ IN_PROC_BROWSER_TEST_F(StatusBubbleViewsTest, ShowHideDestroyShow) {
   EXPECT_FALSE(GetWidget());
 
   // Setting status text shows the widget.
-  bubble->SetStatus(u"test");
+  bubble->SetStatus(base::ASCIIToUTF16("test"));
   widget = GetWidget();
   ASSERT_TRUE(widget);
   EXPECT_TRUE(widget->IsVisible());
 
-  SetTaskRunner(base::SingleThreadTaskRunner::GetCurrentDefault().get());
+  SetTaskRunner(base::ThreadTaskRunnerHandle::Get().get());
 }
 #endif

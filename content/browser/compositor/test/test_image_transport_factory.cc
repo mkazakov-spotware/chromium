@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -48,9 +48,8 @@ TestImageTransportFactory::~TestImageTransportFactory() = default;
 
 void TestImageTransportFactory::CreateLayerTreeFrameSink(
     base::WeakPtr<ui::Compositor> compositor) {
-  compositor->SetLayerTreeFrameSink(
-      cc::FakeLayerTreeFrameSink::Create3d(),
-      mojo::AssociatedRemote<viz::mojom::DisplayPrivate>());
+  compositor->SetLayerTreeFrameSink(cc::FakeLayerTreeFrameSink::Create3d(),
+                                    nullptr);
 }
 
 scoped_refptr<viz::ContextProvider>
@@ -63,7 +62,7 @@ TestImageTransportFactory::SharedMainThreadContextProvider() {
   constexpr bool kSupportsLocking = false;
   shared_main_context_provider_ = ui::InProcessContextProvider::CreateOffscreen(
       &gpu_memory_buffer_manager_, &image_factory_, kSupportsLocking);
-  auto result = shared_main_context_provider_->BindToCurrentSequence();
+  auto result = shared_main_context_provider_->BindToCurrentThread();
   if (result != gpu::ContextResult::kSuccess)
     shared_main_context_provider_ = nullptr;
 
@@ -87,10 +86,6 @@ cc::TaskGraphRunner* TestImageTransportFactory::GetTaskGraphRunner() {
 
 viz::FrameSinkId TestImageTransportFactory::AllocateFrameSinkId() {
   return frame_sink_id_allocator_.NextFrameSinkId();
-}
-
-viz::SubtreeCaptureId TestImageTransportFactory::AllocateSubtreeCaptureId() {
-  return subtree_capture_id_allocator_.NextSubtreeCaptureId();
 }
 
 viz::HostFrameSinkManager*

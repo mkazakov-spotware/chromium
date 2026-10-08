@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 #include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/multiprocess_test.h"
 #include "base/test/test_timeouts.h"
@@ -32,7 +33,7 @@ namespace {
 constexpr char kInstallDirSwitch[] = "install-dir";
 constexpr base::FilePath::CharType kSentinelFileName[] =
     FILE_PATH_LITERAL("sentinel.txt");
-constexpr wchar_t kTestProcessReadyEventName[] =
+constexpr base::char16 kTestProcessReadyEventName[] =
     L"Local\\ChromeSetupSingletonTestProcessReady";
 
 enum ErrorCode {
@@ -46,8 +47,8 @@ base::CommandLine GetDummyCommandLine() {
   return base::CommandLine(base::FilePath(FILE_PATH_LITERAL("dummy.exe")));
 }
 
-std::wstring HashFilePath(const base::FilePath& path) {
-  return base::NumberToWString(
+base::string16 HashFilePath(const base::FilePath& path) {
+  return base::NumberToString16(
       std::hash<base::FilePath::StringType>()(path.value()));
 }
 
@@ -127,9 +128,6 @@ class SetupSingletonTest : public base::MultiProcessTest {
  public:
   SetupSingletonTest() = default;
 
-  SetupSingletonTest(const SetupSingletonTest&) = delete;
-  SetupSingletonTest& operator=(const SetupSingletonTest&) = delete;
-
   void SetUp() override { ASSERT_TRUE(install_dir_.CreateUniqueTempDir()); }
 
   base::CommandLine MakeCmdLine(const std::string& procname) override {
@@ -151,6 +149,8 @@ class SetupSingletonTest : public base::MultiProcessTest {
 
  private:
   base::ScopedTempDir install_dir_;
+
+  DISALLOW_COPY_AND_ASSIGN(SetupSingletonTest);
 };
 
 }  // namespace

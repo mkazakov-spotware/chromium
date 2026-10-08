@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,6 @@ enum ActionType : ubyte {
 table QueryKeyValue {
   key : string (required);
   value : string (required);
-  replace_only: bool = false;
 }
 table UrlTransform {
    scheme : string;
@@ -57,10 +56,6 @@ table UrlRuleMetadata {
   transform : UrlTransform;
   request_headers: [ModifyHeaderInfo];
   response_headers: [ModifyHeaderInfo];
-}
-table EmbedderConditions {
-  tab_ids_included : [int];
-  tab_ids_excluded : [int];
 }
 enum IndexType : ubyte {
   before_request_except_allow_all_requests = 0,
@@ -154,7 +149,7 @@ TEST_F(IndexedRulesetFormatVersionTest, CheckVersionUpdated) {
   EXPECT_EQ(StripCommentsAndWhitespace(kFlatbufferSchemaExpected),
             StripCommentsAndWhitespace(flatbuffer_schema))
       << "Schema change detected; update this test and the schema version.";
-  EXPECT_EQ(27, GetIndexedRulesetFormatVersionForTesting())
+  EXPECT_EQ(18, GetIndexedRulesetFormatVersionForTesting())
       << "Update this test if you update the schema version.";
 }
 

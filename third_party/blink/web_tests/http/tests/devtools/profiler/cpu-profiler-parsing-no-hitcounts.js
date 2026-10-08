@@ -1,10 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests profile without hitCounts is parsed correctly.\n`);
-  await TestRunner.loadTestModule('cpu_profiler_test_runner');
+  await TestRunner.loadModule('cpu_profiler_test_runner');
 
   var profile = {
     startTime: 1000,

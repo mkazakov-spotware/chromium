@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/bind.h"
 #include "base/check.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "net/base/io_buffer.h"
 #include "net/base/load_flags.h"
@@ -94,7 +95,7 @@ void ChromeMetadataSource::Download(const std::string& key,
       network::SimpleURLLoader::Create(std::move(resource_request),
                                        traffic_annotation);
   // Limit the request duration to 5 seconds.
-  loader->SetTimeoutDuration(base::Seconds(5));
+  loader->SetTimeoutDuration(base::TimeDelta::FromSeconds(5));
 
   auto it = requests_.insert(
       requests_.begin(),

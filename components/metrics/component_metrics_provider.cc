@@ -1,25 +1,22 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/metrics/component_metrics_provider.h"
 
-#include "base/containers/fixed_flat_map.h"
+#include <map>
+#include <string>
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_piece.h"
 #include "components/component_updater/component_updater_service.h"
 #include "third_party/metrics_proto/system_profile.pb.h"
-
-#include <string>
 
 namespace metrics {
 
 namespace {
 
 SystemProfileProto_ComponentId CrxIdToComponentId(const std::string& app_id) {
-  static constexpr auto kComponentMap =
-      base::MakeFixedFlatMap<base::StringPiece,
-                             SystemProfileProto_ComponentId>({
+  const static std::map<std::string, SystemProfileProto_ComponentId>
+      component_map = {
           {"khaoiebndkojlmppeemjhbpbandiljpe",
            SystemProfileProto_ComponentId_FILE_TYPE_POLICIES},
           {"kfoklmclfodeliojeaekpoflbkkhojea",
@@ -68,14 +65,10 @@ SystemProfileProto_ComponentId CrxIdToComponentId(const std::string& app_id) {
            SystemProfileProto_ComponentId_CELLULAR},
           {"ojhpjlocmbogdgmfpkhlaaeamibhnphh",
            SystemProfileProto_ComponentId_ZXCVBN_DATA},
-          {"aemllinfpjdgcldgaelcgakpjmaekbai",
-           SystemProfileProto_ComponentId_WEBVIEW_APPS_PACKAGE_NAMES_ALLOWLIST},
-          {"ggkkehgbnfjpeggfpleeakpidbkibbmn",
-           SystemProfileProto_ComponentId_CROWD_DENY},
-      });
+      };
 
-  const auto* result = kComponentMap.find(app_id);
-  if (result == kComponentMap.end())
+  const auto result = component_map.find(app_id);
+  if (result == component_map.end())
     return SystemProfileProto_ComponentId_UNKNOWN;
   return result->second;
 }
@@ -96,14 +89,14 @@ uint32_t Trim(const std::string& fp) {
 }  // namespace
 
 ComponentMetricsProvider::ComponentMetricsProvider(
-    std::unique_ptr<ComponentMetricsProviderDelegate> components_info_delegate)
-    : components_info_delegate_(std::move(components_info_delegate)) {}
+    component_updater::ComponentUpdateService* component_update_service)
+    : component_update_service_(component_update_service) {}
 
 ComponentMetricsProvider::~ComponentMetricsProvider() = default;
 
 void ComponentMetricsProvider::ProvideSystemProfileMetrics(
     SystemProfileProto* system_profile) {
-  for (const auto& component : components_info_delegate_->GetComponents()) {
+  for (const auto& component : component_update_service_->GetComponents()) {
     const auto id = CrxIdToComponentId(component.id);
     // Ignore any unknown components - in practice these are the
     // SupervisedUserWhitelists, which we do not want to transmit to UMA or

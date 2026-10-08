@@ -1,13 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/accessibility/testing/accessibility_selection_test.h"
 
+#include <algorithm>
 #include <iterator>
 
 #include "base/memory/scoped_refptr.h"
-#include "base/ranges/algorithm.h"
 #include "third_party/blink/public/platform/file_path_conversion.h"
 #include "third_party/blink/renderer/core/dom/character_data.h"
 #include "third_party/blink/renderer/core/dom/container_node.h"
@@ -21,8 +21,7 @@
 #include "third_party/blink/renderer/modules/accessibility/ax_object_cache_impl.h"
 #include "third_party/blink/renderer/modules/accessibility/ax_position.h"
 #include "third_party/blink/renderer/modules/accessibility/ax_selection.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
 #include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
@@ -219,11 +218,11 @@ class AXSelectionDeserializer final {
         << "There should be an equal number of '^'s and '|'s in the HTML that "
            "is being deserialized, or if caret placement is required, only a "
            "single '|'.";
-    if (foci_->empty())
+    if (foci_->IsEmpty())
       return {};
 
     Vector<AXSelection> ax_selections;
-    if (anchors_->empty()) {
+    if (anchors_->IsEmpty()) {
       // Handle the case when there is just a single '|' marker representing the
       // position of the caret.
       DCHECK(foci_->at(0).first);
@@ -235,7 +234,7 @@ class AXSelectionDeserializer final {
       return ax_selections;
     }
 
-    for (wtf_size_t i = 0; i < foci_->size(); ++i) {
+    for (size_t i = 0; i < foci_->size(); ++i) {
       DCHECK(anchors_->at(i).first);
       const Position base(*anchors_->at(i).first, anchors_->at(i).second);
       const auto ax_base = AXPosition::FromPosition(base);
@@ -275,7 +274,7 @@ class AXSelectionDeserializer final {
       builder.Append(character);
     }
 
-    if (base_offsets.empty() && extent_offsets.empty())
+    if (base_offsets.IsEmpty() && extent_offsets.IsEmpty())
       return;
 
     // Remove the markers, otherwise they would be duplicated if the AXSelection
@@ -313,11 +312,7 @@ class AXSelectionDeserializer final {
   }
 
   void HandleObject(const AXObject& object) {
-    // Make a copy of the children, because they may be cleared when a sibling
-    // is invalidated and calls SetNeedsToUpdateChildren() on the parent.
-    const auto children = object.ChildrenIncludingIgnored();
-
-    for (const AXObject* child : children) {
+    for (const AXObject* child : object.ChildrenIncludingIgnored()) {
       DCHECK(child);
       FindSelectionMarkers(*child);
     }
@@ -340,8 +335,6 @@ class AXSelectionDeserializer final {
 
   // Pairs of focus nodes + focus offsets.
   Persistent<VectorOfPairs<Node, int>> foci_;
-
-  ScopedAccessibilityExposeHTMLElementForTest expose_html_element_{true};
 };
 
 }  // namespace
@@ -349,6 +342,11 @@ class AXSelectionDeserializer final {
 AccessibilitySelectionTest::AccessibilitySelectionTest(
     LocalFrameClient* local_frame_client)
     : AccessibilityTest(local_frame_client) {}
+
+void AccessibilitySelectionTest::SetUp() {
+  AccessibilityTest::SetUp();
+  RuntimeEnabledFeatures::SetAccessibilityExposeHTMLElementEnabled(true);
+}
 
 std::string AccessibilitySelectionTest::GetCurrentSelectionText() const {
   const SelectionInDOMTree selection =
@@ -379,7 +377,7 @@ AXSelection AccessibilitySelectionTest::SetSelectionText(
   const Vector<AXSelection> ax_selections =
       AXSelectionDeserializer(GetAXObjectCache())
           .Deserialize(selection_text, *body);
-  if (ax_selections.empty())
+  if (ax_selections.IsEmpty())
     return AXSelection::Builder().Build();
   return ax_selections.front();
 }
@@ -390,7 +388,7 @@ AXSelection AccessibilitySelectionTest::SetSelectionText(
   const Vector<AXSelection> ax_selections =
       AXSelectionDeserializer(GetAXObjectCache())
           .Deserialize(selection_text, element);
-  if (ax_selections.empty())
+  if (ax_selections.IsEmpty())
     return AXSelection::Builder().Build();
   return ax_selections.front();
 }
@@ -405,9 +403,10 @@ void AccessibilitySelectionTest::RunSelectionTest(
 
   const String test_file = test_path + String::FromUTF8(kTestFileSuffix);
   scoped_refptr<SharedBuffer> test_file_buffer = test::ReadFromFile(test_file);
+  auto test_file_chars = test_file_buffer->CopyAs<Vector<char>>();
   std::string test_file_contents;
-  base::ranges::copy(test_file_buffer->CopyAs<Vector<char>>(),
-                     std::back_inserter(test_file_contents));
+  std::copy(test_file_chars.begin(), test_file_chars.end(),
+            std::back_inserter(test_file_contents));
   ASSERT_FALSE(test_file_contents.empty())
       << "Test file cannot be empty.\n"
       << test_file.Utf8()
@@ -417,9 +416,10 @@ void AccessibilitySelectionTest::RunSelectionTest(
       test_path +
       String::FromUTF8(suffix.empty() ? kAXTestExpectationSuffix : suffix);
   scoped_refptr<SharedBuffer> ax_file_buffer = test::ReadFromFile(ax_file);
+  auto ax_file_chars = ax_file_buffer->CopyAs<Vector<char>>();
   std::string ax_file_contents;
-  base::ranges::copy(ax_file_buffer->CopyAs<Vector<char>>(),
-                     std::back_inserter(ax_file_contents));
+  std::copy(ax_file_chars.begin(), ax_file_chars.end(),
+            std::back_inserter(ax_file_contents));
   ASSERT_FALSE(ax_file_contents.empty())
       << "Expectations file cannot be empty.\n"
       << ax_file.Utf8()

@@ -1,11 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_FOLDER_UPLOAD_CONFIRMATION_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_FOLDER_UPLOAD_CONFIRMATION_VIEW_H_
 
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "ui/shell_dialogs/selected_file_info.h"
 #include "ui/views/window/dialog_delegate.h"
 
@@ -29,15 +30,11 @@ class Widget;
 // picker and share the default folder selection without explicit user approval.
 class FolderUploadConfirmationView : public views::DialogDelegateView {
  public:
-  METADATA_HEADER(FolderUploadConfirmationView);
   FolderUploadConfirmationView(
       const base::FilePath& path,
       base::OnceCallback<void(const std::vector<ui::SelectedFileInfo>&)>
           callback,
       std::vector<ui::SelectedFileInfo> selected_files);
-  FolderUploadConfirmationView(const FolderUploadConfirmationView&) = delete;
-  FolderUploadConfirmationView& operator=(const FolderUploadConfirmationView&) =
-      delete;
   ~FolderUploadConfirmationView() override;
 
   static views::Widget* ShowDialog(
@@ -55,6 +52,8 @@ class FolderUploadConfirmationView : public views::DialogDelegateView {
  private:
   base::OnceCallback<void(const std::vector<ui::SelectedFileInfo>&)> callback_;
   std::vector<ui::SelectedFileInfo> selected_files_;
+
+  DISALLOW_COPY_AND_ASSIGN(FolderUploadConfirmationView);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_FOLDER_UPLOAD_CONFIRMATION_VIEW_H_

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,30 +10,38 @@
 #include "gpu/command_buffer/common/shared_image_usage.h"
 #include "gpu/command_buffer/service/mailbox_manager.h"
 #include "gpu/command_buffer/service/shared_context_state.h"
-#include "gpu/command_buffer/service/shared_image/shared_image_factory.h"
+#include "gpu/command_buffer/service/shared_image_factory.h"
 #include "gpu/command_buffer/service/skia_utils.h"
 #include "gpu/command_buffer/service/texture_manager.h"
-#include "third_party/skia/include/core/SkColorSpace.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
 #include "third_party/skia/include/core/SkPromiseImageTexture.h"
-#include "third_party/skia/include/gpu/GrContextThreadSafeProxy.h"
-#include "ui/gl/gl_image.h"
 
 namespace viz {
 
 ImageContextImpl::ImageContextImpl(
     const gpu::MailboxHolder& mailbox_holder,
     const gfx::Size& size,
-    SharedImageFormat format,
-    bool maybe_concurrent_reads,
-    const absl::optional<gpu::VulkanYCbCrInfo>& ycbcr_info,
-    sk_sp<SkColorSpace> color_space,
-    bool allow_keeping_read_access,
-    bool raw_draw_if_possible)
-    : ImageContext(mailbox_holder, size, format, ycbcr_info, color_space),
-      maybe_concurrent_reads_(maybe_concurrent_reads),
-      allow_keeping_read_access_(allow_keeping_read_access),
-      raw_draw_if_possible_(raw_draw_if_possible) {}
+    ResourceFormat resource_format,
+    const base::Optional<gpu::VulkanYCbCrInfo>& ycbcr_info,
+    sk_sp<SkColorSpace> color_space)
+    : ImageContext(mailbox_holder,
+                   size,
+                   resource_format,
+                   ycbcr_info,
+                   color_space) {}
+
+ImageContextImpl::ImageContextImpl(AggregatedRenderPassId render_pass_id,
+                                   const gfx::Size& size,
+                                   ResourceFormat resource_format,
+                                   bool mipmap,
+                                   sk_sp<SkColorSpace> color_space)
+    : ImageContext(gpu::MailboxHolder(),
+                   size,
+                   resource_format,
+                   /*ycbcr_info=*/base::nullopt,
+                   std::move(color_space)),
+      render_pass_id_(render_pass_id),
+      mipmap_(mipmap ? GrMipMapped::kYes : GrMipMapped::kNo) {}
 
 ImageContextImpl::~ImageContextImpl() {
   if (fallback_context_state_)
@@ -93,16 +101,11 @@ void ImageContextImpl::BeginAccessIfNecessary(
     gpu::MailboxManager* mailbox_manager,
     std::vector<GrBackendSemaphore>* begin_semaphores,
     std::vector<GrBackendSemaphore>* end_semaphores) {
-  if (representation_raster_scoped_access_)
-    return;
-
   // Prepare for accessing shared image.
-  if (mailbox_holder().mailbox.IsSharedImage()) {
-    if (!BeginAccessIfNecessaryForSharedImage(
-            context_state, representation_factory, begin_semaphores,
-            end_semaphores)) {
-      CreateFallbackImage(context_state);
-    }
+  if (mailbox_holder().mailbox.IsSharedImage() &&
+      BeginAccessIfNecessaryForSharedImage(context_state,
+                                           representation_factory,
+                                           begin_semaphores, end_semaphores)) {
     return;
   }
 
@@ -132,8 +135,7 @@ void ImageContextImpl::BeginAccessIfNecessary(
   if (BindOrCopyTextureIfNecessary(texture_base, &texture_size) &&
       texture_size != size()) {
     DLOG(ERROR) << "Failed to fulfill the promise texture - texture "
-                   "size does not match TransferableResource size: "
-                << texture_size.ToString() << " vs " << size().ToString();
+                   "size does not match TransferableResource size.";
     CreateFallbackImage(context_state);
     return;
   }
@@ -141,8 +143,7 @@ void ImageContextImpl::BeginAccessIfNecessary(
   GrBackendTexture backend_texture;
   gpu::GetGrBackendTexture(
       context_state->feature_info(), texture_base->target(), size(),
-      texture_base->service_id(), format().resource_format(),
-      context_state->gr_context()->threadSafeProxy(), &backend_texture);
+      texture_base->service_id(), resource_format(), &backend_texture);
   if (!backend_texture.isValid()) {
     DLOG(ERROR) << "Failed to fulfill the promise texture.";
     CreateFallbackImage(context_state);
@@ -159,34 +160,6 @@ void ImageContextImpl::BeginAccessIfNecessary(
   // TODO(crbug.com/1118166): The case above handles textures with the
   // passthrough command decoder, verify if something is required for the
   // validating command decoder as well.
-}
-
-bool ImageContextImpl::BeginRasterAccess(
-    gpu::SharedImageRepresentationFactory* representation_factory) {
-  if (paint_op_buffer()) {
-    DCHECK(raster_representation_);
-    DCHECK(representation_raster_scoped_access_);
-    return true;
-  }
-
-  auto raster =
-      raw_draw_if_possible_
-          ? representation_factory->ProduceRaster(mailbox_holder().mailbox)
-          : nullptr;
-  if (!raster)
-    return false;
-
-  auto scoped_access = raster->BeginScopedReadAccess();
-  if (!scoped_access)
-    return false;
-
-  set_paint_op_buffer(scoped_access->paint_op_buffer());
-  set_clear_color(scoped_access->clear_color());
-
-  raster_representation_ = std::move(raster);
-  representation_raster_scoped_access_ = std::move(scoped_access);
-
-  return true;
 }
 
 bool ImageContextImpl::BeginAccessIfNecessaryForSharedImage(
@@ -217,17 +190,15 @@ bool ImageContextImpl::BeginAccessIfNecessaryForSharedImage(
       return false;
     }
 
-    if (!(representation->usage() & gpu::SHARED_IMAGE_USAGE_DISPLAY_READ)) {
+    if (!(representation->usage() & gpu::SHARED_IMAGE_USAGE_DISPLAY)) {
       DLOG(ERROR) << "Failed to fulfill the promise texture - SharedImage "
-                     "was not created with DISPLAY_READ usage.";
+                     "was not created with display usage.";
       return false;
     }
 
     if (representation->size() != size()) {
       DLOG(ERROR) << "Failed to fulfill the promise texture - SharedImage "
-                     "size does not match TransferableResource size: "
-                  << representation->size().ToString() << " vs "
-                  << size().ToString();
+                     "size does not match TransferableResource size.";
       return false;
     }
 
@@ -284,18 +255,12 @@ bool ImageContextImpl::BindOrCopyTextureIfNecessary(
 }
 
 void ImageContextImpl::EndAccessIfNecessary() {
-  if (paint_op_buffer()) {
-    DCHECK(!representation_scoped_read_access_);
-    return;
-  }
-
   if (!representation_scoped_read_access_)
     return;
 
   // Avoid unnecessary read access churn for representations that
   // support multiple readers.
-  if (representation_->SupportsMultipleConcurrentReadAccess() &&
-      allow_keeping_read_access_)
+  if (representation_->SupportsMultipleConcurrentReadAccess())
     return;
 
   representation_scoped_read_access_.reset();

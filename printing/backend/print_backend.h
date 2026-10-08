@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,36 +11,32 @@
 #include <string>
 #include <vector>
 
-#include "base/component_export.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/values.h"
 #include "build/build_config.h"
+#include "build/chromeos_buildflags.h"
 #include "printing/mojom/print.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "printing/print_job_constants.h"
+#include "printing/printing_export.h"
 #include "ui/gfx/geometry/size.h"
 
-#if BUILDFLAG(IS_WIN)
-#include "base/types/expected.h"
-#endif  // BUILDFLAG(IS_WIN)
+#if defined(OS_CHROMEOS)
+#include <stdint.h>
+#endif
+
+namespace base {
+class DictionaryValue;
+}
 
 // This is the interface for platform-specific code for a print backend
 namespace printing {
 
 using PrinterBasicInfoOptions = std::map<std::string, std::string>;
 
-struct COMPONENT_EXPORT(PRINT_BACKEND) PrinterBasicInfo {
+struct PRINTING_EXPORT PrinterBasicInfo {
   PrinterBasicInfo();
-  PrinterBasicInfo(const std::string& printer_name,
-                   const std::string& display_name,
-                   const std::string& printer_description,
-                   int printer_status,
-                   bool is_default,
-                   const PrinterBasicInfoOptions& options);
   PrinterBasicInfo(const PrinterBasicInfo& other);
   ~PrinterBasicInfo();
-
-  bool operator==(const PrinterBasicInfo& other) const;
 
   // The name of the printer as understood by OS.
   std::string printer_name;
@@ -57,9 +53,9 @@ struct COMPONENT_EXPORT(PRINT_BACKEND) PrinterBasicInfo {
 
 using PrinterList = std::vector<PrinterBasicInfo>;
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_ASH)
 
-struct COMPONENT_EXPORT(PRINT_BACKEND) AdvancedCapabilityValue {
+struct PRINTING_EXPORT AdvancedCapabilityValue {
   AdvancedCapabilityValue();
   AdvancedCapabilityValue(const std::string& name,
                           const std::string& display_name);
@@ -75,11 +71,10 @@ struct COMPONENT_EXPORT(PRINT_BACKEND) AdvancedCapabilityValue {
   std::string display_name;
 };
 
-struct COMPONENT_EXPORT(PRINT_BACKEND) AdvancedCapability {
+struct PRINTING_EXPORT AdvancedCapability {
   enum class Type : uint8_t { kBoolean, kFloat, kInteger, kString };
 
   AdvancedCapability();
-  AdvancedCapability(const std::string& name, AdvancedCapability::Type type);
   AdvancedCapability(const std::string& name,
                      const std::string& display_name,
                      AdvancedCapability::Type type,
@@ -108,65 +103,9 @@ struct COMPONENT_EXPORT(PRINT_BACKEND) AdvancedCapability {
 
 using AdvancedCapabilities = std::vector<AdvancedCapability>;
 
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // BUILDFLAG(IS_ASH)
 
-#if BUILDFLAG(IS_WIN)
-
-struct COMPONENT_EXPORT(PRINT_BACKEND) PageOutputQualityAttribute {
-  PageOutputQualityAttribute();
-  PageOutputQualityAttribute(const std::string& display_name,
-                             const std::string& name);
-  ~PageOutputQualityAttribute();
-
-  bool operator==(const PageOutputQualityAttribute& other) const;
-
-  bool operator<(const PageOutputQualityAttribute& other) const;
-
-  // Localized name of the page output quality attribute.
-  std::string display_name;
-
-  // Internal ID of the page output quality attribute.
-  std::string name;
-};
-using PageOutputQualityAttributes = std::vector<PageOutputQualityAttribute>;
-
-struct COMPONENT_EXPORT(PRINT_BACKEND) PageOutputQuality {
-  PageOutputQuality();
-  PageOutputQuality(PageOutputQualityAttributes qualities,
-                    absl::optional<std::string> default_quality);
-  PageOutputQuality(const PageOutputQuality& other);
-  ~PageOutputQuality();
-
-  // All options of page output quality.
-  PageOutputQualityAttributes qualities;
-
-  // Default option of page output quality.
-  // TODO(crbug.com/1291257): Need populate this option in the next CLs.
-  absl::optional<std::string> default_quality;
-};
-
-#if defined(UNIT_TEST)
-
-COMPONENT_EXPORT(PRINT_BACKEND)
-bool operator==(const PageOutputQuality& quality1,
-                const PageOutputQuality& quality2);
-
-#endif  // defined(UNIT_TEST)
-
-struct COMPONENT_EXPORT(PRINT_BACKEND) XpsCapabilities {
-  XpsCapabilities();
-  XpsCapabilities(const XpsCapabilities&) = delete;
-  XpsCapabilities& operator=(const XpsCapabilities&) = delete;
-  XpsCapabilities(XpsCapabilities&& other) noexcept;
-  XpsCapabilities& operator=(XpsCapabilities&& other) noexcept;
-  ~XpsCapabilities();
-
-  absl::optional<PageOutputQuality> page_output_quality;
-};
-
-#endif  // BUILDFLAG(IS_WIN)
-
-struct COMPONENT_EXPORT(PRINT_BACKEND) PrinterSemanticCapsAndDefaults {
+struct PRINTING_EXPORT PrinterSemanticCapsAndDefaults {
   PrinterSemanticCapsAndDefaults();
   PrinterSemanticCapsAndDefaults(const PrinterSemanticCapsAndDefaults& other);
   ~PrinterSemanticCapsAndDefaults();
@@ -174,9 +113,9 @@ struct COMPONENT_EXPORT(PRINT_BACKEND) PrinterSemanticCapsAndDefaults {
   bool collate_capable = false;
   bool collate_default = false;
 
-  // If `copies_max` > 1, copies are supported.
-  // If `copies_max` = 1, copies are not supported.
-  // `copies_max` should never be < 1.
+  // If |copies_max| > 1, copies are supported.
+  // If |copies_max| = 1, copies are not supported.
+  // |copies_max| should never be < 1.
   int32_t copies_max = 1;
 
   std::vector<mojom::DuplexMode> duplex_modes;
@@ -187,7 +126,7 @@ struct COMPONENT_EXPORT(PRINT_BACKEND) PrinterSemanticCapsAndDefaults {
   mojom::ColorModel color_model = mojom::ColorModel::kUnknownColorModel;
   mojom::ColorModel bw_model = mojom::ColorModel::kUnknownColorModel;
 
-  struct COMPONENT_EXPORT(PRINT_BACKEND) Paper {
+  struct PRINTING_EXPORT Paper {
     std::string display_name;
     std::string vendor_id;
     gfx::Size size_um;
@@ -202,25 +141,13 @@ struct COMPONENT_EXPORT(PRINT_BACKEND) PrinterSemanticCapsAndDefaults {
   std::vector<gfx::Size> dpis;
   gfx::Size default_dpi;
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_ASH)
   bool pin_supported = false;
   AdvancedCapabilities advanced_capabilities;
-#endif  // BUILDFLAG(IS_CHROMEOS)
-
-#if BUILDFLAG(IS_WIN)
-  absl::optional<PageOutputQuality> page_output_quality;
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // BUILDFLAG(IS_ASH)
 };
 
-#if defined(UNIT_TEST)
-
-COMPONENT_EXPORT(PRINT_BACKEND)
-bool operator==(const PrinterSemanticCapsAndDefaults& caps1,
-                const PrinterSemanticCapsAndDefaults& caps2);
-
-#endif  // defined(UNIT_TEST)
-
-struct COMPONENT_EXPORT(PRINT_BACKEND) PrinterCapsAndDefaults {
+struct PRINTING_EXPORT PrinterCapsAndDefaults {
   PrinterCapsAndDefaults();
   PrinterCapsAndDefaults(const PrinterCapsAndDefaults& other);
   ~PrinterCapsAndDefaults();
@@ -238,43 +165,32 @@ struct COMPONENT_EXPORT(PRINT_BACKEND) PrinterCapsAndDefaults {
 // print system specific. For example, CUPS is available on both Linux and Mac,
 // but not available on ChromeOS, etc. This design allows us to add more
 // functionality on some platforms, while reusing core (CUPS) functions.
-class COMPONENT_EXPORT(PRINT_BACKEND) PrintBackend
+class PRINTING_EXPORT PrintBackend
     : public base::RefCountedThreadSafe<PrintBackend> {
  public:
-  // Enumerates the list of installed local and network printers.  It will
-  // return success when the available installed printers have been enumerated
-  // into `printer_list`.  Note that `printer_list` should be empty prior to
-  // this call.  If there are no printers installed then it will still return
-  // success, and `printer_list` remains empty.  The result code will return
-  // one of the error result codes when there is a failure in generating the
-  // list.
-  virtual mojom::ResultCode EnumeratePrinters(PrinterList& printer_list) = 0;
+  // Enumerates the list of installed local and network printers.
+  virtual bool EnumeratePrinters(PrinterList* printer_list) = 0;
 
-  // Gets the default printer name.  If there is no default printer then it
-  // will still return success and `default_printer` will be empty.  The result
-  // code will return one of the error result codes when there is a failure in
-  // trying to get the default printer.
-  virtual mojom::ResultCode GetDefaultPrinterName(
-      std::string& default_printer) = 0;
+  // Gets the default printer name. Empty string if no default printer.
+  virtual std::string GetDefaultPrinterName() = 0;
 
   // Gets the basic printer info for a specific printer. Implementations must
-  // check `printer_name` validity in the same way as IsValidPrinter().
-  virtual mojom::ResultCode GetPrinterBasicInfo(
-      const std::string& printer_name,
-      PrinterBasicInfo* printer_info) = 0;
+  // check |printer_name| validity in the same way as IsValidPrinter().
+  virtual bool GetPrinterBasicInfo(const std::string& printer_name,
+                                   PrinterBasicInfo* printer_info) = 0;
 
   // Gets the semantic capabilities and defaults for a specific printer.
   // This is usually a lighter implementation than GetPrinterCapsAndDefaults().
-  // Implementations must check `printer_name` validity in the same way as
+  // Implementations must check |printer_name| validity in the same way as
   // IsValidPrinter().
   // NOTE: on some old platforms (WinXP without XPS pack)
   // GetPrinterCapsAndDefaults() will fail, while this function will succeed.
-  virtual mojom::ResultCode GetPrinterSemanticCapsAndDefaults(
+  virtual bool GetPrinterSemanticCapsAndDefaults(
       const std::string& printer_name,
       PrinterSemanticCapsAndDefaults* printer_info) = 0;
 
   // Gets the capabilities and defaults for a specific printer.
-  virtual mojom::ResultCode GetPrinterCapsAndDefaults(
+  virtual bool GetPrinterCapsAndDefaults(
       const std::string& printer_name,
       PrinterCapsAndDefaults* printer_info) = 0;
 
@@ -284,18 +200,17 @@ class COMPONENT_EXPORT(PRINT_BACKEND) PrintBackend
   // Returns true if printer_name points to a valid printer.
   virtual bool IsValidPrinter(const std::string& printer_name) = 0;
 
-#if BUILDFLAG(IS_WIN)
-
-  // This method uses the XPS API to get the printer capabilities.
-  // Returns raw XML string on success, or mojom::ResultCode on failure.
-  // This method is virtual to support testing.
-  virtual base::expected<std::string, mojom::ResultCode>
-  GetXmlPrinterCapabilitiesForXpsDriver(const std::string& printer_name);
-
-#endif  // BUILDFLAG(IS_WIN)
-
   // Allocates a print backend.
   static scoped_refptr<PrintBackend> CreateInstance(const std::string& locale);
+
+#if defined(USE_CUPS)
+  // TODO(crbug.com/1062136): Remove this static function when Cloud Print is
+  // supposed to stop working. Follow up after Jan 1, 2021.
+  // Similar to CreateInstance(), but ensures that the CUPS PPD backend is used
+  // instead of the CUPS IPP backend.
+  static scoped_refptr<PrintBackend> CreateInstanceForCloudPrint(
+      const base::DictionaryValue* print_backend_settings);
+#endif  // defined(USE_CUPS)
 
   // Test method to override the print backend for testing.  Caller should
   // retain ownership.
@@ -303,14 +218,19 @@ class COMPONENT_EXPORT(PRINT_BACKEND) PrintBackend
 
  protected:
   friend class base::RefCountedThreadSafe<PrintBackend>;
-
-  PrintBackend();
+  explicit PrintBackend(const std::string& locale);
   virtual ~PrintBackend();
 
   // Provide the actual backend for CreateInstance().
   static scoped_refptr<PrintBackend> CreateInstanceImpl(
-      const base::Value::Dict* print_backend_settings,
-      const std::string& locale);
+      const base::DictionaryValue* print_backend_settings,
+      const std::string& locale,
+      bool for_cloud_print);
+
+  const std::string& locale() const { return locale_; }
+
+ private:
+  const std::string locale_;
 };
 
 }  // namespace printing

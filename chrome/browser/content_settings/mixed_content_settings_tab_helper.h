@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,21 +18,15 @@ class MixedContentSettingsTabHelper
     : public content::WebContentsObserver,
       public content::WebContentsUserData<MixedContentSettingsTabHelper> {
  public:
-  MixedContentSettingsTabHelper(const MixedContentSettingsTabHelper&) = delete;
-  MixedContentSettingsTabHelper& operator=(
-      const MixedContentSettingsTabHelper&) = delete;
-
   ~MixedContentSettingsTabHelper() override;
 
   // Enables running active mixed content resources in the associated
   // WebContents/tab. This will stick around as long as the main frame's
   // RenderFrameHost stays the same. When the RenderFrameHost changes, we're
   // back to the default (mixed content resources are not allowed to run).
-  void AllowRunningOfInsecureContent(
-      content::RenderFrameHost& render_frame_host);
+  void AllowRunningOfInsecureContent();
 
-  bool IsRunningInsecureContentAllowed(
-      content::RenderFrameHost& render_frame_host);
+  bool IsRunningInsecureContentAllowed();
 
  private:
   friend class content::WebContentsUserData<MixedContentSettingsTabHelper>;
@@ -44,7 +38,7 @@ class MixedContentSettingsTabHelper
   void RenderFrameDeleted(content::RenderFrameHost* render_frame_host) override;
 
   // TODO(crbug.com/1071232): When RenderDocument is implemented, make this a
-  // DocumentUserData.
+  // RenderDocumentHostUserData.
   class PageSettings {
    public:
     explicit PageSettings(content::RenderFrameHost* render_frame_host);
@@ -64,6 +58,8 @@ class MixedContentSettingsTabHelper
   std::map<content::RenderFrameHost*, std::unique_ptr<PageSettings>> settings_;
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
+
+  DISALLOW_COPY_AND_ASSIGN(MixedContentSettingsTabHelper);
 };
 
 #endif  // CHROME_BROWSER_CONTENT_SETTINGS_MIXED_CONTENT_SETTINGS_TAB_HELPER_H_

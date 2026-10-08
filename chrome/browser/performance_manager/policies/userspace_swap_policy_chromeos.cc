@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include "base/system/sys_info.h"
 #include "base/time/time.h"
 #include "chrome/browser/performance_manager/mechanisms/userspace_swap_chromeos.h"
-#include "chromeos/ash/components/memory/userspace_swap/swap_storage.h"
-#include "chromeos/ash/components/memory/userspace_swap/userspace_swap.h"
+#include "chromeos/memory/userspace_swap/swap_storage.h"
+#include "chromeos/memory/userspace_swap/userspace_swap.h"
 #include "components/performance_manager/public/graph/frame_node.h"
 #include "components/performance_manager/public/graph/node_attached_data.h"
 #include "components/performance_manager/public/graph/page_node.h"
@@ -21,8 +21,8 @@ namespace performance_manager {
 namespace policies {
 
 namespace {
-using ::ash::memory::userspace_swap::SwapFile;
-using ::ash::memory::userspace_swap::UserspaceSwapConfig;
+using chromeos::memory::userspace_swap::SwapFile;
+using chromeos::memory::userspace_swap::UserspaceSwapConfig;
 
 class UserspaceSwapPolicyData
     : public ExternalNodeAttachedDataImpl<UserspaceSwapPolicyData> {
@@ -40,7 +40,7 @@ class UserspaceSwapPolicyData
   base::TimeTicks last_swap_;
 };
 
-constexpr base::TimeDelta kMetricsInterval = base::Seconds(30);
+constexpr base::TimeDelta kMetricsInterval = base::TimeDelta::FromSeconds(30);
 
 }  // namespace
 
@@ -70,19 +70,19 @@ void UserspaceSwapPolicy::OnPassedToGraph(Graph* graph) {
   graph_ = graph;
   graph->AddProcessNodeObserver(this);
 
-  // Only handle the memory pressure notifications if the feature to swap on
-  // moderate pressure is enabled.
+  // Only create a memory pressure listener if the feature to swap on moderate
+  // pressure is enabled.
   if (config_.swap_on_moderate_pressure) {
-    graph_->AddSystemNodeObserver(this);
+    memory_pressure_listener_.emplace(
+        FROM_HERE, base::BindRepeating(&UserspaceSwapPolicy::OnMemoryPressure,
+                                       weak_factory_.GetWeakPtr()));
   }
 }
 
 void UserspaceSwapPolicy::OnTakenFromGraph(Graph* graph) {
   DCHECK_EQ(graph_, graph);
 
-  if (config_.swap_on_moderate_pressure) {
-    graph_->RemoveSystemNodeObserver(this);
-  }
+  memory_pressure_listener_.reset();
 
   graph->RemoveProcessNodeObserver(this);
   graph_ = nullptr;
@@ -144,10 +144,9 @@ base::TimeTicks UserspaceSwapPolicy::GetLastSwapTime(
 }
 
 void UserspaceSwapPolicy::OnMemoryPressure(
-    base::MemoryPressureListener::MemoryPressureLevel new_level) {
-  if (new_level == base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_NONE) {
+    base::MemoryPressureListener::MemoryPressureLevel level) {
+  if (level == base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_NONE)
     return;
-  }
 
   auto now_ticks = base::TimeTicks::Now();
   // Try not to walk the graph too frequently because we can receive moderate
@@ -244,10 +243,8 @@ uint64_t UserspaceSwapPolicy::GetSwapDeviceFreeSpaceBytes() {
       GetSwapDeviceFreeSpaceBytes();
 }
 
-bool UserspaceSwapPolicy::IsPageNodeLoadingOrBusy(const PageNode* page_node) {
-  const PageNode::LoadingState loading_state = page_node->GetLoadingState();
-  return loading_state == PageNode::LoadingState::kLoading ||
-         loading_state == PageNode::LoadingState::kLoadedBusy;
+bool UserspaceSwapPolicy::IsPageNodeLoading(const PageNode* page_node) {
+  return page_node->IsLoading();
 }
 
 bool UserspaceSwapPolicy::IsPageNodeAudible(const PageNode* page_node) {
@@ -293,7 +290,7 @@ bool UserspaceSwapPolicy::IsEligibleToSwap(const ProcessNode* process_node,
   // it.
   if (page_node) {
     // If we're loading, audible, or visible we will not swap.
-    if (IsPageNodeLoadingOrBusy(page_node) || IsPageNodeVisible(page_node) ||
+    if (IsPageNodeLoading(page_node) || IsPageNodeVisible(page_node) ||
         IsPageNodeAudible(page_node)) {
       return false;
     }
@@ -338,7 +335,7 @@ bool UserspaceSwapPolicy::IsEligibleToSwap(const ProcessNode* process_node,
 
 // Static
 bool UserspaceSwapPolicy::UserspaceSwapSupportedAndEnabled() {
-  return ash::memory::userspace_swap::UserspaceSwapSupportedAndEnabled();
+  return chromeos::memory::userspace_swap::UserspaceSwapSupportedAndEnabled();
 }
 
 }  // namespace policies

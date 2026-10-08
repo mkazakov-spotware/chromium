@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_android.h"
 #include "chrome/browser/sharing/features.h"
-#include "chrome/browser/sharing/sharing_constants.h"
 #include "chrome/browser/sharing/sharing_device_source.h"
 #include "chrome/browser/sharing/sharing_metrics.h"
 #include "chrome/browser/sharing/sharing_send_message_result.h"
@@ -45,6 +44,7 @@ void SharingServiceProxyAndroid::SendSharedClipboardMessage(
     JNIEnv* env,
     const base::android::JavaParamRef<jstring>& j_guid,
     const base::android::JavaParamRef<jstring>& j_text,
+    const jint j_retries,
     const base::android::JavaParamRef<jobject>& j_runnable) {
   auto callback =
       base::BindOnce(base::android::RunIntCallbackAndroid,
@@ -55,10 +55,11 @@ void SharingServiceProxyAndroid::SendSharedClipboardMessage(
 
   std::unique_ptr<syncer::DeviceInfo> device =
       sharing_service_->GetDeviceByGuid(guid);
+  LogSharingDeviceInfoAvailable(device != nullptr);
 
   if (!device) {
     std::move(callback).Run(
-        static_cast<int32_t>(SharingSendMessageResult::kDeviceNotFound));
+        static_cast<int>(SharingSendMessageResult::kDeviceNotFound));
     return;
   }
 
@@ -67,15 +68,17 @@ void SharingServiceProxyAndroid::SendSharedClipboardMessage(
   sharing_message.mutable_shared_clipboard_message()->set_text(std::move(text));
 
   sharing_service_->SendMessageToDevice(
-      *device, kSharingMessageTTL, std::move(sharing_message),
+      *device, base::TimeDelta::FromSeconds(kSharingMessageTTLSeconds.Get()),
+      std::move(sharing_message),
       base::BindOnce(
-          [](base::OnceCallback<void(int)> callback,
+          [](int retries, base::OnceCallback<void(int)> callback,
              SharingSendMessageResult result,
              std::unique_ptr<chrome_browser_sharing::ResponseMessage>
                  response) {
+            LogSharedClipboardRetries(retries, result);
             std::move(callback).Run(static_cast<int>(result));
           },
-          std::move(callback)));
+          j_retries, std::move(callback)));
 }
 
 void SharingServiceProxyAndroid::GetDeviceCandidates(
@@ -90,7 +93,7 @@ void SharingServiceProxyAndroid::GetDeviceCandidates(
         env, j_device_info,
         base::android::ConvertUTF8ToJavaString(env, device_info->guid()),
         base::android::ConvertUTF8ToJavaString(env, device_info->client_name()),
-        static_cast<int>(device_info->form_factor()),
+        device_info->device_type(),
         device_info->last_updated_timestamp().ToJavaTime());
   }
 }

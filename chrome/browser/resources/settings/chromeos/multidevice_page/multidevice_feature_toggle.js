@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,61 +10,34 @@
  * for the user. It also receives real time updates on feature states and
  * reflects them in the toggle status.
  */
+Polymer({
+  is: 'settings-multidevice-feature-toggle',
 
-import 'chrome://resources/cr_elements/cr_toggle/cr_toggle.js';
+  behaviors: [MultiDeviceFeatureBehavior],
 
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+  properties: {
+    /** @type {!settings.MultiDeviceFeature} */
+    feature: Number,
 
-import {MultiDeviceFeature, MultiDeviceFeatureState} from './multidevice_constants.js';
-import {MultiDeviceFeatureBehavior, MultiDeviceFeatureBehaviorInterface} from './multidevice_feature_behavior.js';
+    toggleAriaLabel: String,
 
+    /** @private {boolean} */
+    checked_: Boolean,
+  },
 
-/**
- * @constructor
- * @extends {PolymerElement}
- * @implements {MultiDeviceFeatureBehaviorInterface}
- */
-const SettingsMultideviceFeatureToggleElementBase =
-    mixinBehaviors([MultiDeviceFeatureBehavior], PolymerElement);
+  listeners: {
+    'click': 'onDisabledInnerToggleClick_',
+  },
 
-/** @polymer */
-export class SettingsMultideviceFeatureToggleElement extends
-    SettingsMultideviceFeatureToggleElementBase {
-  static get is() {
-    return 'settings-multidevice-feature-toggle';
-  }
-
-  static get template() {
-    return html`{__html_template__}`;
-  }
-
-  static get properties() {
-    return {
-      /** @type {!MultiDeviceFeature} */
-      feature: Number,
-
-      toggleAriaLabel: String,
-
-      /** @private {boolean} */
-      checked_: Boolean,
-    };
-  }
-
-  static get observers() {
-    return ['resetChecked_(feature, pageContentData)'];
-  }
-
-  /** @override */
-  ready() {
-    super.ready();
-
-    this.addEventListener('click', this.onDisabledInnerToggleClick_);
-  }
+  // Note that, although this.feature does not change throughout the element's
+  // lifecycle, it must be listed as an observer dependency to ensure that
+  // this.feature is defined by the time of the observer's first call.
+  observers: ['resetChecked_(feature, pageContentData)'],
 
   /** @override */
   focus() {
     this.$.toggle.focus();
-  }
+  },
 
   /**
    * Callback for clicking on the toggle itself, or a row containing a toggle
@@ -76,14 +49,10 @@ export class SettingsMultideviceFeatureToggleElement extends
 
     // Pass the negation of |this.checked_|: this indicates that if the toggle
     // is checked, the intent is for it to be unchecked, and vice versa.
-    const featureToggleClickedEvent =
-        new CustomEvent('feature-toggle-clicked', {
-          bubbles: true,
-          composed: true,
-          detail: {feature: this.feature, enabled: !this.checked_},
-        });
-    this.dispatchEvent(featureToggleClickedEvent);
-  }
+    this.fire(
+        'feature-toggle-clicked',
+        {feature: this.feature, enabled: !this.checked_});
+  },
 
   /**
    * Because MultiDevice prefs are only meant to be controlled via the
@@ -94,22 +63,15 @@ export class SettingsMultideviceFeatureToggleElement extends
    */
   resetChecked_() {
     // If Phone Hub notification access is prohibited, the toggle is always off.
-    if (this.feature === MultiDeviceFeature.PHONE_HUB_NOTIFICATIONS &&
+    if (this.feature === settings.MultiDeviceFeature.PHONE_HUB_NOTIFICATIONS &&
         this.isPhoneHubNotificationAccessProhibited()) {
       this.checked_ = false;
       return;
     }
 
-    // If Phone Hub apps access is prohibited, the toggle is always off.
-    if (this.feature === MultiDeviceFeature.ECHE &&
-        this.isPhoneHubAppsAccessProhibited()) {
-      this.checked_ = false;
-      return;
-    }
-
     this.checked_ = this.getFeatureState(this.feature) ===
-        MultiDeviceFeatureState.ENABLED_BY_USER;
-  }
+        settings.MultiDeviceFeatureState.ENABLED_BY_USER;
+  },
 
   /**
    * This handles the edge case in which the inner toggle (i.e., the cr-toggle)
@@ -124,7 +86,7 @@ export class SettingsMultideviceFeatureToggleElement extends
    */
   onDisabledInnerToggleClick_(event) {
     event.stopPropagation();
-  }
+  },
 
   /**
    * Returns the A11y label for the toggle.
@@ -133,8 +95,4 @@ export class SettingsMultideviceFeatureToggleElement extends
   getToggleA11yLabel_() {
     return this.toggleAriaLabel || this.getFeatureName(this.feature);
   }
-}
-
-customElements.define(
-    SettingsMultideviceFeatureToggleElement.is,
-    SettingsMultideviceFeatureToggleElement);
+});

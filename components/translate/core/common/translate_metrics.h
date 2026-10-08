@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,9 @@ namespace translate {
 namespace metrics_internal {
 
 // Constant string values to indicate UMA names.
-extern const char kTranslateLanguageDetectionLanguageVerification[];
+extern const char kTranslateContentLanguage[];
+extern const char kTranslateHtmlLang[];
+extern const char kTranslateLanguageVerification[];
 extern const char kTranslateTimeToBeReady[];
 extern const char kTranslateTimeToLoad[];
 extern const char kTranslateTimeToTranslate[];
@@ -25,22 +27,28 @@ extern const char kTranslatePageScheme[];
 extern const char kTranslateSimilarLanguageMatch[];
 extern const char kTranslateLanguageDetectionConflict[];
 extern const char kTranslateLanguageDeterminedDuration[];
-extern const char kTranslatedLanguageDetectionContentLength[];
 
 }  // namespace metrics_internal
 
+// A page may provide a Content-Language HTTP header or a META tag.
+// TranslateAgent checks if a server provides a valid Content-Language.
+enum LanguageCheckType {
+  LANGUAGE_NOT_PROVIDED,
+  LANGUAGE_VALID,
+  LANGUAGE_INVALID,
+  LANGUAGE_MAX,
+};
+
 // When a valid Content-Language is provided, TranslateAgent checks if a
-// server provided Content-Language matches to a language the model determined.
-// This enum is used for recording metrics. This enum should remain synchronized
-// with the enum "TranslateLanguageVerification" in enums.xml.
+// server provided Content-Language matches to a language CLD determined.
 enum LanguageVerificationType {
-  DEPRECATED_LANGUAGE_VERIFICATION_MODEL_DISABLED,  // obsolete
-  LANGUAGE_VERIFICATION_MODEL_ONLY,
+  LANGUAGE_VERIFICATION_CLD_DISABLED,  // obsolete
+  LANGUAGE_VERIFICATION_CLD_ONLY,
   LANGUAGE_VERIFICATION_UNKNOWN,
-  LANGUAGE_VERIFICATION_MODEL_AGREE,
-  LANGUAGE_VERIFICATION_MODEL_DISAGREE,
-  LANGUAGE_VERIFICATION_TRUST_MODEL,
-  LANGUAGE_VERIFICATION_MODEL_COMPLEMENT_SUB_CODE,
+  LANGUAGE_VERIFICATION_CLD_AGREE,
+  LANGUAGE_VERIFICATION_CLD_DISAGREE,
+  LANGUAGE_VERIFICATION_TRUST_CLD,
+  LANGUAGE_VERIFICATION_CLD_COMPLEMENT_SUB_CODE,
   LANGUAGE_VERIFICATION_MAX,
 };
 
@@ -51,6 +59,20 @@ enum SchemeType {
   SCHEME_OTHERS,
   SCHEME_MAX,
 };
+
+// Called after TranslateAgent verifies a server providing Content-Language
+// header. |provided_code| contains a Content-Language header value which a
+// server provides. It can be empty string when a server doesn't provide it.
+// |revised_code| is a value modified by format error corrector.
+void ReportContentLanguage(const std::string& provided_code,
+                           const std::string& revised_code);
+
+// Called after TranslateAgent verifies a page providing html lang attribute.
+// |provided_code| contains a html lang attribute which a page provides. It can
+// be empty string when a page doesn't provide it. |revised_code| is a value
+// modified by format error corrector.
+void ReportHtmlLang(const std::string& provided_code,
+                    const std::string& revised_code);
 
 // Called when CLD verifies Content-Language header.
 void ReportLanguageVerification(LanguageVerificationType type);
@@ -77,9 +99,6 @@ void ReportSimilarLanguageMatch(bool match);
 // Called when the page language is determined.
 void ReportLanguageDeterminedDuration(base::TimeTicks begin,
                                       base::TimeTicks end);
-
-// Called after when a translation starts.
-void ReportTranslatedLanguageDetectionContentLength(size_t content_length);
 
 }  // namespace translate
 

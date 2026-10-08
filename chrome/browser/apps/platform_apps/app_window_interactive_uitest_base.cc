@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,8 +24,7 @@ void FullscreenChangeWaiter::Wait() {
 
 bool AppWindowInteractiveTest::RunAppWindowInteractiveTest(
     const char* testName) {
-  ExtensionTestMessageListener launched_listener("Launched",
-                                                 ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener launched_listener("Launched", true);
   LoadAndLaunchPlatformApp("window_api_interactive", &launched_listener);
 
   extensions::ResultCatcher catcher;
@@ -45,7 +44,7 @@ bool AppWindowInteractiveTest::SimulateKeyPress(ui::KeyboardCode key) {
 }
 
 void AppWindowInteractiveTest::WaitUntilKeyFocus() {
-  ExtensionTestMessageListener key_listener("KeyReceived");
+  ExtensionTestMessageListener key_listener("KeyReceived", false);
 
   while (!key_listener.was_satisfied()) {
     ASSERT_TRUE(SimulateKeyPress(ui::VKEY_Z));

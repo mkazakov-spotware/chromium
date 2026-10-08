@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,7 @@ Task::Type GuestTask::GetType() const {
   return Task::GUEST;
 }
 
-std::u16string GuestTask::GetCurrentTitle(
+base::string16 GuestTask::GetCurrentTitle(
     content::WebContents* web_contents) const {
   DCHECK(web_contents);
 
@@ -45,9 +45,10 @@ std::u16string GuestTask::GetCurrentTitle(
     return title();
   }
 
-  std::u16string title = l10n_util::GetStringFUTF16(
-      guest->GetTaskPrefix(),
-      RendererTask::GetTitleFromWebContents(web_contents));
+  base::string16 title =
+      l10n_util::GetStringFUTF16(guest->GetTaskPrefix(),
+                                 RendererTask::GetTitleFromWebContents(
+                                     web_contents));
 
   return title;
 }

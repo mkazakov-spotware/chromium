@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -69,11 +69,12 @@ class CORE_EXPORT LayoutNGTableCell
   void StyleDidChange(StyleDifference diff,
                       const ComputedStyle* old_style) final;
 
-  void WillBeRemovedFromTree() override;
-
+  // TODO(atotic) Remove "New" from name.
+  // Currently,  LayoutNGTableCellLegacy is named LayoutNGTableCell for test
+  // compat.
   const char* GetName() const final {
     NOT_DESTROYED();
-    return "LayoutNGTableCell";
+    return "LayoutNGTableCellNew";
   }
 
   bool CreatesNewFormattingContext() const final {
@@ -86,13 +87,14 @@ class CORE_EXPORT LayoutNGTableCell
   LayoutBox* CreateAnonymousBoxWithSameTypeAs(
       const LayoutObject* parent) const override;
 
-  LayoutBlock* StickyContainer() const override;
-
-  void InvalidatePaint(const PaintInvalidatorContext&) const override;
-
   // LayoutBlockFlow methods end.
 
   // LayoutNGTableCellInterface methods start.
+
+  const LayoutTableCell* ToLayoutTableCell() const final {
+    NOTREACHED();
+    return nullptr;
+  }
 
   const LayoutNGTableCellInterface* ToLayoutNGTableCellInterface() const final {
     NOT_DESTROYED();
@@ -111,6 +113,19 @@ class CORE_EXPORT LayoutNGTableCell
   LayoutNGTableInterface* TableInterface() const final;
 
   void ColSpanOrRowSpanChanged() final;
+
+  Length StyleOrColLogicalWidth() const final;
+
+  // Not used in LayoutNG.
+  int IntrinsicPaddingBefore() const final {
+    NOT_DESTROYED();
+    return 0;
+  }
+  // Not used in LayoutNG.
+  int IntrinsicPaddingAfter() const final {
+    NOT_DESTROYED();
+    return 0;
+  }
 
   unsigned RowIndex() const final;
 

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,20 +9,13 @@
 
 #include "base/callback.h"
 #include "base/callback_list.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/signin/public/base/account_consistency_method.h"
-#include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/base/signin_metrics.h"
-#include "google_apis/gaia/core_account_id.h"
 #include "google_apis/gaia/gaia_auth_fetcher.h"
 #include "url/gurl.h"
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "components/account_manager_core/account.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#endif
 
 class PrefService;
 
@@ -43,13 +36,7 @@ class CookieManager;
 class SigninClient : public KeyedService {
  public:
   // Argument to PreSignOut() callback, indicating client decision.
-  enum class SignoutDecision {
-    ALLOW,
-    CLEAR_PRIMARY_ACCOUNT_DISALLOWED,
-    // Revoke sync disallowed implies that removing the primary account is also
-    // disallowed since sync is attached to the primary account.
-    REVOKE_SYNC_DISALLOWED,
-  };
+  enum class SignoutDecision { ALLOW_SIGNOUT, DISALLOW_SIGNOUT };
 
   ~SigninClient() override = default;
 
@@ -68,10 +55,6 @@ class SigninClient : public KeyedService {
 
   // Returns the CookieManager for the client.
   virtual network::mojom::CookieManager* GetCookieManager() = 0;
-
-  // Returns true if clearing the primary account is allowed regardless of the
-  // consent level.
-  virtual bool IsClearPrimaryAccountAllowed() const;
 
   // Called before Google sign-out started. Implementers must run the
   // |on_signout_decision_reached|, passing a SignoutDecision to allow/disallow
@@ -102,22 +85,13 @@ class SigninClient : public KeyedService {
       GaiaAuthConsumer* consumer,
       gaia::GaiaSource source) = 0;
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  // Returns an account used to sign into Chrome OS session if available.
-  virtual absl::optional<account_manager::Account>
-  GetInitialPrimaryAccount() = 0;
+  // Marks the DICE migration completed.
+  virtual void SetDiceMigrationCompleted() {}
 
-  // Returns whether account used to sign into Chrome OS is a child account.
-  // Returns nullopt for secondary / non-main profiles in LaCrOS.
-  virtual absl::optional<bool> IsInitialPrimaryAccountChild() const = 0;
-
-  // Remove account.
-  virtual void RemoveAccount(
-      const account_manager::AccountKey& account_key) = 0;
-
-  // Removes all accounts.
-  virtual void RemoveAllAccounts() = 0;
-#endif
+  // Checks whether a user is known to be non-enterprise. Domains such as
+  // gmail.com and googlemail.com are known to not be managed. Also returns
+  // false if the username is empty.
+  virtual bool IsNonEnterpriseUser(const std::string& username);
 };
 
 #endif  // COMPONENTS_SIGNIN_PUBLIC_BASE_SIGNIN_CLIENT_H_

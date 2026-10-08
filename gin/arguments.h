@@ -1,11 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef GIN_ARGUMENTS_H_
 #define GIN_ARGUMENTS_H_
 
-#include "base/memory/raw_ptr.h"
 #include "gin/converter.h"
 #include "gin/gin_export.h"
 
@@ -100,12 +99,6 @@ class GIN_EXPORT Arguments {
   // array used by Get/PeekNext().
   std::vector<v8::Local<v8::Value>> GetAll() const;
 
-  // Returns the original v8::FunctionCallbackInfo used to construct this
-  // Arguments if it exists, or nullptr otherwise.
-  const v8::FunctionCallbackInfo<v8::Value>* GetFunctionCallbackInfo() const {
-    return info_for_function_;
-  }
-
   void ThrowError() const;
   void ThrowTypeError(const std::string& message) const;
 
@@ -116,7 +109,7 @@ class GIN_EXPORT Arguments {
   bool IsConstructCall() const;
 
  private:
-  raw_ptr<v8::Isolate> isolate_;
+  v8::Isolate* isolate_;
   union {
     const v8::FunctionCallbackInfo<v8::Value>* info_for_function_;
     const v8::PropertyCallbackInfo<v8::Value>* info_for_property_;

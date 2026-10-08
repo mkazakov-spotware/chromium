@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,10 +33,6 @@ using testing::Return;
 class MockFileReader : public FileReaderInterface {
  public:
   MockFileReader() : FileReaderInterface() {}
-
-  MockFileReader(const MockFileReader&) = delete;
-  MockFileReader& operator=(const MockFileReader&) = delete;
-
   ~MockFileReader() override {}
 
   // Since it’s more convenient for the test to use uintptr_t than void*,
@@ -46,7 +42,7 @@ class MockFileReader : public FileReaderInterface {
     return ReadExactly(reinterpret_cast<void*>(data), size);
   }
 
-  MOCK_METHOD(FileOperationResult, ReadInt, (uintptr_t, size_t));
+  MOCK_METHOD2(ReadInt, FileOperationResult(uintptr_t, size_t));
 
   // FileReaderInterface:
   FileOperationResult Read(void* data, size_t size) override {
@@ -54,7 +50,10 @@ class MockFileReader : public FileReaderInterface {
   }
 
   // FileSeekerInterface:
-  MOCK_METHOD(FileOffset, Seek, (FileOffset, int), (override));
+  MOCK_METHOD2(Seek, FileOffset(FileOffset, int));
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockFileReader);
 };
 
 TEST(FileReader, ReadExactly_Zero) {

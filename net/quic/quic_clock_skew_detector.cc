@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@ bool QuicClockSkewDetector::ClockSkewDetected(base::TimeTicks ticks_now,
   last_wall_time_ = wall_now;
   last_ticks_time_ = ticks_now;
 
-  if (offset < base::Seconds(1))
+  if (offset < base::TimeDelta::FromSeconds(1))
     return false;
 
   return true;

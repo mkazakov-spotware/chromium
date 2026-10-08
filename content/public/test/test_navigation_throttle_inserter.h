@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "content/public/browser/web_contents_observer.h"
 
 namespace content {
@@ -27,12 +28,6 @@ class TestNavigationThrottleInserter : public WebContentsObserver {
  public:
   TestNavigationThrottleInserter(WebContents* web_contents,
                                  ThrottleInsertionCallback callback);
-
-  TestNavigationThrottleInserter(const TestNavigationThrottleInserter&) =
-      delete;
-  TestNavigationThrottleInserter& operator=(
-      const TestNavigationThrottleInserter&) = delete;
-
   ~TestNavigationThrottleInserter() override;
 
   // WebContentsObserver:
@@ -40,6 +35,8 @@ class TestNavigationThrottleInserter : public WebContentsObserver {
 
  private:
   ThrottleInsertionCallback callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestNavigationThrottleInserter);
 };
 
 }  // namespace content

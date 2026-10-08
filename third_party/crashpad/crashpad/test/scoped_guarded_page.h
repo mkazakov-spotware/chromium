@@ -1,4 +1,4 @@
-// Copyright 2018 The Crashpad Authors
+// Copyright 2018 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #ifndef CRASHPAD_TEST_SCOPED_GUARDED_PAGE_
 #define CRASHPAD_TEST_SCOPED_GUARDED_PAGE_
 
+#include "base/macros.h"
 
 namespace crashpad {
 namespace test {
@@ -30,10 +31,6 @@ namespace test {
 class ScopedGuardedPage {
  public:
   ScopedGuardedPage();
-
-  ScopedGuardedPage(const ScopedGuardedPage&) = delete;
-  ScopedGuardedPage& operator=(const ScopedGuardedPage&) = delete;
-
   ~ScopedGuardedPage();
 
   //! \brief Returns the address of the read-write page.
@@ -43,6 +40,7 @@ class ScopedGuardedPage {
 
  private:
   void* ptr_;
+  DISALLOW_COPY_AND_ASSIGN(ScopedGuardedPage);
 };
 
 }  // namespace test

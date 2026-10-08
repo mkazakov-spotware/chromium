@@ -29,6 +29,7 @@
 #include "third_party/blink/renderer/core/frame/settings.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/supplementable.h"
 #include "third_party/blink/renderer/platform/text/locale_to_script_mapping.h"
 
@@ -56,25 +57,30 @@
 
 namespace blink {
 
-using mojom::blink::HoverType;
-using mojom::blink::PointerType;
-
 InternalSettings::Backup::Backup(Settings* settings)
-    : original_editing_behavior_(settings->GetEditingBehaviorType()),
-      original_text_autosizing_enabled_(settings->GetTextAutosizingEnabled()),
+    : original_csp_(RuntimeEnabledFeatures::
+                        ExperimentalContentSecurityPolicyFeaturesEnabled()),
+      original_editing_behavior_(settings->GetEditingBehaviorType()),
+      original_text_autosizing_enabled_(settings->TextAutosizingEnabled()),
       original_text_autosizing_window_size_override_(
-          settings->GetTextAutosizingWindowSizeOverride()),
+          settings->TextAutosizingWindowSizeOverride()),
       original_accessibility_font_scale_factor_(
           settings->GetAccessibilityFontScaleFactor()),
       original_media_type_override_(settings->GetMediaTypeOverride()),
       original_display_mode_override_(settings->GetDisplayModeOverride()),
       original_mock_gesture_tap_highlights_enabled_(
           settings->GetMockGestureTapHighlightsEnabled()),
+      lang_attribute_aware_form_control_ui_enabled_(
+          RuntimeEnabledFeatures::LangAttributeAwareFormControlUIEnabled()),
       images_enabled_(settings->GetImagesEnabled()),
       default_video_poster_url_(settings->GetDefaultVideoPosterURL()),
-      original_image_animation_policy_(settings->GetImageAnimationPolicy()) {}
+      original_image_animation_policy_(settings->GetImageAnimationPolicy()),
+      original_scroll_top_left_interop_enabled_(
+          RuntimeEnabledFeatures::ScrollTopLeftInteropEnabled()) {}
 
 void InternalSettings::Backup::RestoreTo(Settings* settings) {
+  RuntimeEnabledFeatures::SetExperimentalContentSecurityPolicyFeaturesEnabled(
+      original_csp_);
   settings->SetEditingBehaviorType(original_editing_behavior_);
   settings->SetTextAutosizingEnabled(original_text_autosizing_enabled_);
   settings->SetTextAutosizingWindowSizeOverride(
@@ -85,10 +91,14 @@ void InternalSettings::Backup::RestoreTo(Settings* settings) {
   settings->SetDisplayModeOverride(original_display_mode_override_);
   settings->SetMockGestureTapHighlightsEnabled(
       original_mock_gesture_tap_highlights_enabled_);
+  RuntimeEnabledFeatures::SetLangAttributeAwareFormControlUIEnabled(
+      lang_attribute_aware_form_control_ui_enabled_);
   settings->SetImagesEnabled(images_enabled_);
   settings->SetDefaultVideoPosterURL(default_video_poster_url_);
   settings->GetGenericFontFamilySettings().Reset();
   settings->SetImageAnimationPolicy(original_image_animation_policy_);
+  RuntimeEnabledFeatures::SetScrollTopLeftInteropEnabled(
+      original_scroll_top_left_interop_enabled_);
 }
 
 InternalSettings* InternalSettings::From(Page& page) {
@@ -111,7 +121,7 @@ void InternalSettings::ResetToConsistentState() {
   backup_.RestoreTo(GetSettings());
   backup_ = Backup(GetSettings());
   backup_.original_text_autosizing_enabled_ =
-      GetSettings()->GetTextAutosizingEnabled();
+      GetSettings()->TextAutosizingEnabled();
 
   InternalSettingsGenerated::resetToConsistentState();
 }
@@ -133,6 +143,12 @@ void InternalSettings::setMockGestureTapHighlightsEnabled(
     ExceptionState& exception_state) {
   InternalSettingsGuardForSettings();
   GetSettings()->SetMockGestureTapHighlightsEnabled(enabled);
+}
+
+void InternalSettings::setExperimentalContentSecurityPolicyFeaturesEnabled(
+    bool enabled) {
+  RuntimeEnabledFeatures::SetExperimentalContentSecurityPolicyFeaturesEnabled(
+      enabled);
 }
 
 void InternalSettings::setViewportEnabled(bool enabled,
@@ -230,18 +246,16 @@ void InternalSettings::setFantasyFontFamily(const AtomicString& family,
     GetSettings()->NotifyGenericFontFamilyChange();
 }
 
-void InternalSettings::setMathFontFamily(const AtomicString& family,
-                                         const String& script,
-                                         ExceptionState& exception_state) {
+void InternalSettings::setPictographFontFamily(
+    const AtomicString& family,
+    const String& script,
+    ExceptionState& exception_state) {
   InternalSettingsGuardForSettings();
-  // It is not clear whether math fonts really require one setting per script.
-  // However, given that other generic font families behave that way and that
-  // this per-script configuration is exposed by various public APIs, it seems
-  // best to do that for math font family too.
   UScriptCode code = ScriptNameToCode(script);
   if (code == USCRIPT_INVALID_CODE)
     return;
-  if (GetSettings()->GetGenericFontFamilySettings().UpdateMath(family, code))
+  if (GetSettings()->GetGenericFontFamilySettings().UpdatePictograph(family,
+                                                                     code))
     GetSettings()->NotifyGenericFontFamilyChange();
 }
 
@@ -257,7 +271,7 @@ void InternalSettings::setTextAutosizingWindowSizeOverride(
     int height,
     ExceptionState& exception_state) {
   InternalSettingsGuardForSettings();
-  GetSettings()->SetTextAutosizingWindowSizeOverride(gfx::Size(width, height));
+  GetSettings()->SetTextAutosizingWindowSizeOverride(IntSize(width, height));
 }
 
 void InternalSettings::setTextTrackKindUserPreference(
@@ -322,6 +336,10 @@ void InternalSettings::setEditingBehavior(const String& editing_behavior,
   }
 }
 
+void InternalSettings::setLangAttributeAwareFormControlUIEnabled(bool enabled) {
+  RuntimeEnabledFeatures::SetLangAttributeAwareFormControlUIEnabled(enabled);
+}
+
 void InternalSettings::setImagesEnabled(bool enabled,
                                         ExceptionState& exception_state) {
   InternalSettingsGuardForSettings();
@@ -355,11 +373,11 @@ void InternalSettings::setAvailablePointerTypes(
     String token = split_token.StripWhiteSpace();
 
     if (token == "coarse") {
-      pointer_types |= static_cast<int>(PointerType::kPointerCoarseType);
+      pointer_types |= ui::POINTER_TYPE_COARSE;
     } else if (token == "fine") {
-      pointer_types |= static_cast<int>(PointerType::kPointerFineType);
+      pointer_types |= ui::POINTER_TYPE_FINE;
     } else if (token == "none") {
-      pointer_types |= static_cast<int>(PointerType::kPointerNone);
+      pointer_types |= ui::POINTER_TYPE_NONE;
     } else {
       exception_state.ThrowDOMException(
           DOMExceptionCode::kSyntaxError,
@@ -400,13 +418,13 @@ void InternalSettings::setPrimaryPointerType(const String& pointer,
   InternalSettingsGuardForSettings();
   String token = pointer.StripWhiteSpace();
 
-  PointerType type = PointerType::kPointerNone;
+  ui::PointerType type = ui::POINTER_TYPE_NONE;
   if (token == "coarse") {
-    type = PointerType::kPointerCoarseType;
+    type = ui::POINTER_TYPE_COARSE;
   } else if (token == "fine") {
-    type = PointerType::kPointerFineType;
+    type = ui::POINTER_TYPE_FINE;
   } else if (token == "none") {
-    type = PointerType::kPointerNone;
+    type = ui::POINTER_TYPE_NONE;
   } else {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kSyntaxError,
@@ -430,9 +448,9 @@ void InternalSettings::setAvailableHoverTypes(const String& types,
   for (const String& split_token : tokens) {
     String token = split_token.StripWhiteSpace();
     if (token == "none") {
-      hover_types |= static_cast<int>(HoverType::kHoverNone);
+      hover_types |= ui::HOVER_TYPE_NONE;
     } else if (token == "hover") {
-      hover_types |= static_cast<int>(HoverType::kHoverHoverType);
+      hover_types |= ui::HOVER_TYPE_HOVER;
     } else {
       exception_state.ThrowDOMException(
           DOMExceptionCode::kSyntaxError,
@@ -449,11 +467,11 @@ void InternalSettings::setPrimaryHoverType(const String& type,
   InternalSettingsGuardForSettings();
   String token = type.StripWhiteSpace();
 
-  HoverType hover_type = HoverType::kHoverNone;
+  ui::HoverType hover_type = ui::HOVER_TYPE_NONE;
   if (token == "none") {
-    hover_type = HoverType::kHoverNone;
+    hover_type = ui::HOVER_TYPE_NONE;
   } else if (token == "hover") {
-    hover_type = HoverType::kHoverHoverType;
+    hover_type = ui::HOVER_TYPE_HOVER;
   } else {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kSyntaxError,
@@ -483,6 +501,10 @@ void InternalSettings::setImageAnimationPolicy(
         "The image animation policy provided ('" + policy + "') is invalid.");
     return;
   }
+}
+
+void InternalSettings::setScrollTopLeftInteropEnabled(bool enabled) {
+  RuntimeEnabledFeatures::SetScrollTopLeftInteropEnabled(enabled);
 }
 
 void InternalSettings::SetDnsPrefetchLogging(bool enabled,

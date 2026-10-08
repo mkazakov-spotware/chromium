@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,18 +7,17 @@
 #include <algorithm>
 #include <string>
 
-#include "base/containers/contains.h"
 #include "base/no_destructor.h"
+#include "base/optional.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/installer/util/google_update_settings.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "chrome/browser/mac/keystone_glue.h"
-#elif BUILDFLAG(IS_CHROMEOS_ASH)
+#elif defined(OS_CHROMEOS)
 #include "chrome/browser/google/google_brand_chromeos.h"
 #endif
 
@@ -27,7 +26,7 @@
 
 namespace {
 
-const char* g_brand_for_testing = nullptr;
+const char* g_brand_for_testing = NULL;
 
 }  // namespace
 
@@ -36,7 +35,7 @@ namespace google_brand {
 
 // Global functions -----------------------------------------------------------
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 bool GetBrand(std::string* brand) {
   if (g_brand_for_testing) {
@@ -47,12 +46,12 @@ bool GetBrand(std::string* brand) {
   // Cache brand code value, since it is queried a lot and registry queries are
   // slow enough to actually affect top-level metrics like
   // Omnibox.CharTypedToRepaintLatency.
-  static const base::NoDestructor<absl::optional<std::string>> brand_code(
-      []() -> absl::optional<std::string> {
-        std::wstring brandw;
-        if (!GoogleUpdateSettings::GetBrand(&brandw))
-          return absl::nullopt;
-        return base::WideToASCII(brandw);
+  static const base::NoDestructor<base::Optional<std::string>> brand_code(
+      []() -> base::Optional<std::string> {
+        base::string16 brand16;
+        if (!GoogleUpdateSettings::GetBrand(&brand16))
+          return base::nullopt;
+        return base::UTF16ToASCII(brand16);
       }());
   if (!brand_code->has_value())
     return false;
@@ -61,10 +60,10 @@ bool GetBrand(std::string* brand) {
 }
 
 bool GetReactivationBrand(std::string* brand) {
-  std::wstring brandw;
-  bool ret = GoogleUpdateSettings::GetReactivationBrand(&brandw);
+  base::string16 brand16;
+  bool ret = GoogleUpdateSettings::GetReactivationBrand(&brand16);
   if (ret)
-    brand->assign(base::WideToASCII(brandw));
+    brand->assign(base::UTF16ToASCII(brand16));
   return ret;
 }
 
@@ -76,9 +75,9 @@ bool GetBrand(std::string* brand) {
     return true;
   }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   brand->assign(keystone_glue::BrandCode());
-#elif BUILDFLAG(IS_CHROMEOS_ASH)
+#elif defined(OS_CHROMEOS)
   brand->assign(google_brand::chromeos::GetBrand());
 #else
   brand->clear();
@@ -94,7 +93,7 @@ bool GetReactivationBrand(std::string* brand) {
 #endif
 
 bool GetRlzBrand(std::string* brand) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   brand->assign(google_brand::chromeos::GetRlzBrand());
   return true;
 #else
@@ -119,7 +118,7 @@ bool IsOrganic(const std::string& brand) {
       "CHOU", "CHOX", "CHOY", "CHOZ", "CHPD", "CHPE", "CHPF", "CHPG", "ECBA",
       "ECBB", "ECDA", "ECDB", "ECSA", "ECSB", "ECVA", "ECVB", "ECWA", "ECWB",
       "ECWC", "ECWD", "ECWE", "ECWF", "EUBB", "EUBC", "GGLA", "GGLS"};
-  const char* const* end = &kOrganicBrands[std::size(kOrganicBrands)];
+  const char* const* end = &kOrganicBrands[base::size(kOrganicBrands)];
   if (std::binary_search(&kOrganicBrands[0], end, brand))
     return true;
 
@@ -150,20 +149,15 @@ bool IsInternetCafeBrandCode(const std::string& brand) {
   return base::Contains(kBrands, brand);
 }
 
-bool IsEnterprise(const std::string& brand) {
-  return brand == "GGRV" ||
-         base::StartsWith(brand, "GCE", base::CompareCase::SENSITIVE);
-}
-
 // BrandForTesting ------------------------------------------------------------
 
 BrandForTesting::BrandForTesting(const std::string& brand) : brand_(brand) {
-  DCHECK(g_brand_for_testing == nullptr);
+  DCHECK(g_brand_for_testing == NULL);
   g_brand_for_testing = brand_.c_str();
 }
 
 BrandForTesting::~BrandForTesting() {
-  g_brand_for_testing = nullptr;
+  g_brand_for_testing = NULL;
 }
 
 

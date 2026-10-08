@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@
 #include <gtest/gtest.h>
 #include <limits>
 #include <string>
-
-#include "base/memory/raw_ptr.h"
 
 namespace base {
 namespace trace_event {
@@ -30,7 +28,7 @@ class MyConvertable : public ConvertableToTraceFormat {
 
  private:
   const char* text_;
-  raw_ptr<bool> destroy_flag_;
+  bool* destroy_flag_;
 };
 
 }  // namespace
@@ -142,7 +140,7 @@ TEST(TraceArguments, TraceValueAppend) {
   CheckStringFor(v, TRACE_VALUE_TYPE_COPY_STRING, "Some \"nice\" String");
 
   int* p = nullptr;
-  v.Init(static_cast<void*>(p));
+  v.Init(p);
   CheckJSONFor(v, TRACE_VALUE_TYPE_POINTER, "\"0x0\"");
   CheckStringFor(v, TRACE_VALUE_TYPE_POINTER, "0x0");
 
@@ -217,7 +215,7 @@ TEST(TraceArguments, ConstructorSinglePointer) {
       }
 
      private:
-      raw_ptr<bool> destroy_flag_;
+      bool* destroy_flag_;
     };
     auto foo = std::make_unique<Foo>(&destroy_flag);
     EXPECT_FALSE(destroy_flag);
@@ -225,7 +223,7 @@ TEST(TraceArguments, ConstructorSinglePointer) {
     // TraceArguments destructor. This should only be possible for
     // TRACE_VALUE_TYPE_CONVERTABLE instances.
     {
-      TraceArguments args("foo_pointer", static_cast<void*>(foo.get()));
+      TraceArguments args("foo_pointer", foo.get());
       EXPECT_EQ(1U, args.size());
       EXPECT_EQ(TRACE_VALUE_TYPE_POINTER, args.types()[0]);
       EXPECT_STREQ("foo_pointer", args.names()[0]);

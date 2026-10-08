@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "chrome/browser/upgrade_detector/build_state.h"
-#include "chromeos/ash/components/dbus/update_engine/update_engine_client.h"
+#include "chromeos/dbus/dbus_thread_manager.h"
 
 namespace {
 
@@ -24,24 +24,19 @@ enum class RollbackReason {
 
 InstalledVersionUpdater::InstalledVersionUpdater(BuildState* build_state)
     : build_state_(build_state) {
-  ash::UpdateEngineClient::Get()->AddObserver(this);
+  chromeos::DBusThreadManager::Get()->GetUpdateEngineClient()->AddObserver(
+      this);
 }
 
 InstalledVersionUpdater::~InstalledVersionUpdater() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  ash::UpdateEngineClient::Get()->RemoveObserver(this);
+  chromeos::DBusThreadManager::Get()->GetUpdateEngineClient()->RemoveObserver(
+      this);
 }
 
 void InstalledVersionUpdater::UpdateStatusChanged(
     const update_engine::StatusResult& status) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  // If status changes to `IDLE`, there is no currently available update.
-  if (status.current_operation() == update_engine::Operation::IDLE) {
-    build_state_->SetUpdate(BuildState::UpdateType::kNone, base::Version(),
-                            absl::nullopt);
-    return;
-  }
 
   if (status.current_operation() !=
       update_engine::Operation::UPDATED_NEED_REBOOT) {
@@ -76,5 +71,5 @@ void InstalledVersionUpdater::UpdateStatusChanged(
     }
   }
   build_state_->SetUpdate(update_type, base::Version(status.new_version()),
-                          absl::nullopt);
+                          base::nullopt);
 }

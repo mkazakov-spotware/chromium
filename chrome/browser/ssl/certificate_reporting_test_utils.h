@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,13 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "chrome/browser/ssl/certificate_error_reporter.h"
 #include "components/security_interstitials/content/cert_logger.pb.h"
 #include "components/security_interstitials/content/ssl_cert_reporter.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 class Browser;
 #endif
 
@@ -38,10 +38,6 @@ enum ExpectReport { CERT_REPORT_NOT_EXPECTED, CERT_REPORT_EXPECTED };
 class SSLCertReporterCallback {
  public:
   explicit SSLCertReporterCallback(base::RunLoop* run_loop);
-
-  SSLCertReporterCallback(const SSLCertReporterCallback&) = delete;
-  SSLCertReporterCallback& operator=(const SSLCertReporterCallback&) = delete;
-
   ~SSLCertReporterCallback();
 
   void ReportSent(const std::string& hostname,
@@ -53,12 +49,14 @@ class SSLCertReporterCallback {
   GetLatestChromeChannelReported() const;
 
  private:
-  raw_ptr<base::RunLoop> run_loop_;
+  base::RunLoop* run_loop_;
   std::string latest_hostname_reported_;
   chrome_browser_ssl::CertLoggerRequest::ChromeChannel chrome_channel_;
+
+  DISALLOW_COPY_AND_ASSIGN(SSLCertReporterCallback);
 };
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 // Sets the browser preference to enable or disable extended reporting.
 void SetCertReportingOptIn(Browser* browser, OptIn opt_in);
 #endif
@@ -68,9 +66,9 @@ void SetCertReportingOptIn(Browser* browser, OptIn opt_in);
 // |report_sent_callback| when a report is sent. It also checks that a
 // report is sent or not sent according to |expect_report|.
 std::unique_ptr<SSLCertReporter> CreateMockSSLCertReporter(
-    base::RepeatingCallback<
+    const base::Callback<
         void(const std::string&,
-             const chrome_browser_ssl::CertLoggerRequest_ChromeChannel)>
+             const chrome_browser_ssl::CertLoggerRequest_ChromeChannel)>&
         report_sent_callback,
     ExpectReport expect_report);
 

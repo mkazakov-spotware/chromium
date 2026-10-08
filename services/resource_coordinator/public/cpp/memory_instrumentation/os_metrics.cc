@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ bool OSMetrics::FillProcessMemoryMaps(base::ProcessId pid,
 
   std::vector<mojom::VmRegionPtr> results;
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // On macOS, fetching all memory maps is very slow. See
   // https://crbug.com/826913 and https://crbug.com/1035401.
   results = GetProcessModules(pid);

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,15 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/timer/timer.h"
 #include "net/http/bidirectional_stream_request_info.h"
 #include "net/http/http_util.h"
 #include "net/socket/next_proto.h"
 #include "net/spdy/spdy_http_utils.h"
-#include "net/third_party/quiche/src/quiche/quic/core/quic_connection.h"
-#include "net/third_party/quiche/src/quiche/spdy/core/http2_header_block.h"
+#include "net/third_party/quiche/src/common/platform/api/quiche_string_piece.h"
+#include "net/third_party/quiche/src/quic/core/quic_connection.h"
+#include "net/third_party/quiche/src/spdy/core/spdy_header_block.h"
 #include "quic_http_stream.h"
 
 namespace net {
@@ -33,14 +33,28 @@ class ScopedBoolSaver {
   ~ScopedBoolSaver() { *var_ = old_val_; }
 
  private:
-  raw_ptr<bool> var_;
+  bool* var_;
   bool old_val_;
 };
 }  // namespace
 
 BidirectionalStreamQuicImpl::BidirectionalStreamQuicImpl(
     std::unique_ptr<QuicChromiumClientSession::Handle> session)
-    : session_(std::move(session)) {}
+    : session_(std::move(session)),
+      stream_(nullptr),
+      request_info_(nullptr),
+      delegate_(nullptr),
+      response_status_(OK),
+      negotiated_protocol_(kProtoUnknown),
+      read_buffer_len_(0),
+      headers_bytes_received_(0),
+      headers_bytes_sent_(0),
+      closed_stream_received_bytes_(0),
+      closed_stream_sent_bytes_(0),
+      closed_is_first_stream_(false),
+      has_sent_headers_(false),
+      send_request_headers_automatically_(true),
+      may_invoke_callbacks_(true) {}
 
 BidirectionalStreamQuicImpl::~BidirectionalStreamQuicImpl() {
   if (stream_) {
@@ -83,7 +97,7 @@ void BidirectionalStreamQuicImpl::Start(
     return;
 
   if (rv != OK) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(
             &BidirectionalStreamQuicImpl::NotifyError,
@@ -92,7 +106,7 @@ void BidirectionalStreamQuicImpl::Start(
     return;
   }
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&BidirectionalStreamQuicImpl::OnStreamReady,
                                 weak_factory_.GetWeakPtr(), rv));
 }
@@ -101,7 +115,7 @@ void BidirectionalStreamQuicImpl::SendRequestHeaders() {
   ScopedBoolSaver saver(&may_invoke_callbacks_, false);
   int rv = WriteHeaders();
   if (rv < 0) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&BidirectionalStreamQuicImpl::NotifyError,
                                   weak_factory_.GetWeakPtr(), rv));
   }
@@ -162,7 +176,7 @@ void BidirectionalStreamQuicImpl::SendvData(
 
   if (!stream_->IsOpen()) {
     LOG(ERROR) << "Trying to send data after stream has been closed.";
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&BidirectionalStreamQuicImpl::NotifyError,
                                   weak_factory_.GetWeakPtr(), ERR_UNEXPECTED));
     return;
@@ -174,7 +188,7 @@ void BidirectionalStreamQuicImpl::SendvData(
     DCHECK(!send_request_headers_automatically_);
     int rv = WriteHeaders();
     if (rv < 0) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(&BidirectionalStreamQuicImpl::NotifyError,
                                     weak_factory_.GetWeakPtr(), rv));
       return;
@@ -187,7 +201,7 @@ void BidirectionalStreamQuicImpl::SendvData(
                      weak_factory_.GetWeakPtr()));
 
   if (rv != ERR_IO_PENDING) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&BidirectionalStreamQuicImpl::OnSendDataComplete,
                        weak_factory_.GetWeakPtr(), rv));
@@ -270,7 +284,7 @@ void BidirectionalStreamQuicImpl::OnStreamReady(int rv) {
     return;
   }
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&BidirectionalStreamQuicImpl::ReadInitialHeaders,
                      weak_factory_.GetWeakPtr()));
@@ -301,7 +315,7 @@ void BidirectionalStreamQuicImpl::OnReadInitialHeadersComplete(int rv) {
   headers_bytes_received_ += rv;
   negotiated_protocol_ = kProtoQUIC;
   connect_timing_ = session_->GetConnectTiming();
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&BidirectionalStreamQuicImpl::ReadTrailingHeaders,
                      weak_factory_.GetWeakPtr()));
@@ -381,7 +395,7 @@ void BidirectionalStreamQuicImpl::NotifyErrorImpl(int error,
     // Cancel any pending callback.
     weak_factory_.InvalidateWeakPtrs();
     if (notify_delegate_later) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE,
           base::BindOnce(&BidirectionalStreamQuicImpl::NotifyFailure,
                          weak_factory_.GetWeakPtr(), delegate, error));
@@ -405,7 +419,7 @@ void BidirectionalStreamQuicImpl::NotifyStreamReady() {
   if (send_request_headers_automatically_) {
     int rv = WriteHeaders();
     if (rv < 0) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(&BidirectionalStreamQuicImpl::NotifyError,
                                     weak_factory_.GetWeakPtr(), rv));
       return;

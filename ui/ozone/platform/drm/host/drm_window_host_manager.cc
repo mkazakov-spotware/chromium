@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,7 +54,7 @@ DrmWindowHost* DrmWindowHostManager::GetWindow(gfx::AcceleratedWidget widget) {
 
 DrmWindowHost* DrmWindowHostManager::GetWindowAt(const gfx::Point& location) {
   for (auto it = window_map_.begin(); it != window_map_.end(); ++it)
-    if (it->second->GetBoundsInPixels().Contains(location))
+    if (it->second->GetBounds().Contains(location))
       return it->second;
 
   return NULL;

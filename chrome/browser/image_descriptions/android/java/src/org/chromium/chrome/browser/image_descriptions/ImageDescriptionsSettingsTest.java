@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@ import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -69,8 +68,6 @@ public class ImageDescriptionsSettingsTest {
     @Mock
     private ImageDescriptionsControllerDelegate mDelegate;
 
-    private Profile mProfile;
-
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
@@ -94,8 +91,7 @@ public class ImageDescriptionsSettingsTest {
     // Helper method for fetching PrefService
 
     private PrefService getPrefService() {
-        mProfile = Profile.getLastUsedRegularProfile();
-        return UserPrefs.get(mProfile);
+        return UserPrefs.get(Profile.getLastUsedRegularProfile());
     }
 
     // Helper methods for assertions
@@ -226,10 +222,10 @@ public class ImageDescriptionsSettingsTest {
 
         // Toggle the image descriptions setting On, verify controller is updated
         switchToggle();
-        verify(mDelegate, times(1)).enableImageDescriptions(mProfile);
-        verify(mDelegate, never()).disableImageDescriptions(any());
-        verify(mDelegate, times(1)).setOnlyOnWifiRequirement(true, mProfile);
-        verify(mDelegate, never()).getImageDescriptionsJustOnce(anyBoolean(), any());
+        verify(mDelegate, times(1)).enableImageDescriptions();
+        verify(mDelegate, times(1)).setOnlyOnWifiRequirement(true);
+        verify(mDelegate, never()).disableImageDescriptions();
+        verify(mDelegate, never()).getImageDescriptionsJustOnce(anyBoolean());
 
         Assert.assertTrue(TOGGLE + ENABLED_ERROR, mDescriptionsSwitch.isChecked());
 
@@ -254,10 +250,10 @@ public class ImageDescriptionsSettingsTest {
 
         // Toggle the image descriptions setting Off, verify controller is updated
         switchToggle();
-        verify(mDelegate, never()).enableImageDescriptions(any());
-        verify(mDelegate, times(1)).disableImageDescriptions(mProfile);
-        verify(mDelegate, never()).setOnlyOnWifiRequirement(anyBoolean(), any());
-        verify(mDelegate, never()).getImageDescriptionsJustOnce(anyBoolean(), any());
+        verify(mDelegate, times(1)).disableImageDescriptions();
+        verify(mDelegate, never()).setOnlyOnWifiRequirement(anyBoolean());
+        verify(mDelegate, never()).enableImageDescriptions();
+        verify(mDelegate, never()).getImageDescriptionsJustOnce(anyBoolean());
 
         Assert.assertFalse(TOGGLE + DISABLED_ERROR, mDescriptionsSwitch.isChecked());
 
@@ -294,10 +290,10 @@ public class ImageDescriptionsSettingsTest {
                 (view, e) -> assertVisibleEnabledAndUnchecked(view, USE_MOBILE_DATA));
 
         // Verify controller was updated
-        verify(mDelegate, never()).enableImageDescriptions(any());
-        verify(mDelegate, never()).disableImageDescriptions(any());
-        verify(mDelegate, times(1)).setOnlyOnWifiRequirement(true, mProfile);
-        verify(mDelegate, never()).getImageDescriptionsJustOnce(anyBoolean(), any());
+        verify(mDelegate, never()).disableImageDescriptions();
+        verify(mDelegate, never()).enableImageDescriptions();
+        verify(mDelegate, times(1)).setOnlyOnWifiRequirement(true);
+        verify(mDelegate, never()).getImageDescriptionsJustOnce(anyBoolean());
     }
 
     @Test
@@ -326,9 +322,9 @@ public class ImageDescriptionsSettingsTest {
                 (view, e) -> assertVisibleEnabledAndChecked(view, USE_MOBILE_DATA));
 
         // Verify controller was updated
-        verify(mDelegate, never()).enableImageDescriptions(any());
-        verify(mDelegate, never()).disableImageDescriptions(any());
-        verify(mDelegate, times(1)).setOnlyOnWifiRequirement(false, mProfile);
-        verify(mDelegate, never()).getImageDescriptionsJustOnce(anyBoolean(), any());
+        verify(mDelegate, never()).disableImageDescriptions();
+        verify(mDelegate, never()).enableImageDescriptions();
+        verify(mDelegate, times(1)).setOnlyOnWifiRequirement(false);
+        verify(mDelegate, never()).getImageDescriptionsJustOnce(anyBoolean());
     }
 }

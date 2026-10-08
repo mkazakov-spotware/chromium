@@ -1,22 +1,18 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/controls/menu/menu_model_adapter.h"
 
-#include <list>
-#include <memory>
 #include <utility>
 
 #include "base/check.h"
 #include "base/notreached.h"
-#include "ui/base/interaction/element_identifier.h"
 #include "ui/base/models/menu_model.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/controls/menu/menu_item_view.h"
 #include "ui/views/controls/menu/submenu_view.h"
-#include "ui/views/view_class_properties.h"
 
 namespace views {
 
@@ -68,11 +64,11 @@ MenuItemView* MenuModelAdapter::CreateMenu() {
 
 // Static.
 MenuItemView* MenuModelAdapter::AddMenuItemFromModelAt(ui::MenuModel* model,
-                                                       size_t model_index,
+                                                       int model_index,
                                                        MenuItemView* menu,
-                                                       size_t menu_index,
+                                                       int menu_index,
                                                        int item_id) {
-  absl::optional<MenuItemView::Type> type;
+  base::Optional<MenuItemView::Type> type;
   ui::MenuModel::ItemType menu_type = model->GetTypeAt(model_index);
   switch (menu_type) {
     case ui::MenuModel::TYPE_TITLE:
@@ -103,47 +99,46 @@ MenuItemView* MenuModelAdapter::AddMenuItemFromModelAt(ui::MenuModel* model,
   }
 
   if (*type == MenuItemView::Type::kSeparator) {
-    return menu->AddMenuItemAt(menu_index, item_id, std::u16string(),
-                               std::u16string(), std::u16string(),
-                               ui::ImageModel(), ui::ImageModel(), *type,
-                               model->GetSeparatorTypeAt(model_index));
+    return menu->AddMenuItemAt(
+        menu_index, item_id, base::string16(), base::string16(),
+        base::string16(), ui::ThemedVectorIcon(), gfx::ImageSkia(),
+        ui::ThemedVectorIcon(), *type, model->GetSeparatorTypeAt(model_index));
   }
 
   ui::ImageModel icon = model->GetIconAt(model_index);
   ui::ImageModel minor_icon = model->GetMinorIconAt(model_index);
-  auto* menu_item_view =
-      menu->AddMenuItemAt(menu_index, item_id, model->GetLabelAt(model_index),
-                          model->GetSecondaryLabelAt(model_index),
-                          model->GetMinorTextAt(model_index), minor_icon, icon,
-                          *type, ui::NORMAL_SEPARATOR);
+  auto* menu_item_view = menu->AddMenuItemAt(
+      menu_index, item_id, model->GetLabelAt(model_index),
+      model->GetSecondaryLabelAt(model_index),
+      model->GetMinorTextAt(model_index),
+      minor_icon.IsVectorIcon()
+          ? ui::ThemedVectorIcon(minor_icon.GetVectorIcon())
+          : ui::ThemedVectorIcon(),
+      icon.IsImage() ? *icon.GetImage().ToImageSkia() : gfx::ImageSkia(),
+      icon.IsVectorIcon() ? ui::ThemedVectorIcon(icon.GetVectorIcon())
+                          : ui::ThemedVectorIcon(),
+      *type, ui::NORMAL_SEPARATOR);
 
   if (model->IsAlertedAt(model_index))
     menu_item_view->SetAlerted();
   menu_item_view->set_is_new(model->IsNewFeatureAt(model_index));
-  menu_item_view->set_may_have_mnemonics(
-      model->MayHaveMnemonicsAt(model_index));
-  menu_item_view->set_accessible_name(model->GetAccessibleNameAt(model_index));
-  const ui::ElementIdentifier element_id =
-      model->GetElementIdentifierAt(model_index);
-  if (element_id)
-    menu_item_view->SetProperty(kElementIdentifierKey, element_id);
 
   return menu_item_view;
 }
 
 // Static.
 MenuItemView* MenuModelAdapter::AppendMenuItemFromModel(ui::MenuModel* model,
-                                                        size_t model_index,
+                                                        int model_index,
                                                         MenuItemView* menu,
                                                         int item_id) {
-  const size_t menu_index =
-      menu->HasSubmenu() ? menu->GetSubmenu()->children().size() : size_t{0};
+  const int menu_index =
+      menu->HasSubmenu() ? int{menu->GetSubmenu()->children().size()} : 0;
   return AddMenuItemFromModelAt(model, model_index, menu, menu_index, item_id);
 }
 
 MenuItemView* MenuModelAdapter::AppendMenuItem(MenuItemView* menu,
                                                ui::MenuModel* model,
-                                               size_t index) {
+                                               int index) {
   return AppendMenuItemFromModel(model, index, menu,
                                  model->GetCommandIdAt(index));
 }
@@ -152,7 +147,7 @@ MenuItemView* MenuModelAdapter::AppendMenuItem(MenuItemView* menu,
 
 void MenuModelAdapter::ExecuteCommand(int id) {
   ui::MenuModel* model = menu_model_;
-  size_t index = 0;
+  int index = 0;
   if (ui::MenuModel::GetModelAndIndexForCommandId(id, &model, &index)) {
     model->ActivatedAt(index);
     return;
@@ -163,7 +158,7 @@ void MenuModelAdapter::ExecuteCommand(int id) {
 
 void MenuModelAdapter::ExecuteCommand(int id, int mouse_event_flags) {
   ui::MenuModel* model = menu_model_;
-  size_t index = 0;
+  int index = 0;
   if (ui::MenuModel::GetModelAndIndexForCommandId(id, &model, &index)) {
     model->ActivatedAt(index, mouse_event_flags);
     return;
@@ -182,7 +177,7 @@ bool MenuModelAdapter::IsTriggerableEvent(MenuItemView* source,
 bool MenuModelAdapter::GetAccelerator(int id,
                                       ui::Accelerator* accelerator) const {
   ui::MenuModel* model = menu_model_;
-  size_t index = 0;
+  int index = 0;
   if (ui::MenuModel::GetModelAndIndexForCommandId(id, &model, &index))
     return model->GetAcceleratorAt(index, accelerator);
 
@@ -190,32 +185,34 @@ bool MenuModelAdapter::GetAccelerator(int id,
   return false;
 }
 
-std::u16string MenuModelAdapter::GetLabel(int id) const {
+base::string16 MenuModelAdapter::GetLabel(int id) const {
   ui::MenuModel* model = menu_model_;
-  size_t index = 0;
+  int index = 0;
   if (ui::MenuModel::GetModelAndIndexForCommandId(id, &model, &index))
     return model->GetLabelAt(index);
 
   NOTREACHED();
-  return std::u16string();
+  return base::string16();
 }
 
-const gfx::FontList* MenuModelAdapter::GetLabelFontList(int id) const {
+void MenuModelAdapter::GetLabelStyle(int id, LabelStyle* style) const {
   ui::MenuModel* model = menu_model_;
-  size_t index = 0;
+  int index = 0;
   if (ui::MenuModel::GetModelAndIndexForCommandId(id, &model, &index)) {
     const gfx::FontList* font_list = model->GetLabelFontListAt(index);
-    if (font_list)
-      return font_list;
+    if (font_list) {
+      style->font_list = *font_list;
+      return;
+    }
   }
 
   // This line may be reached for the empty menu item.
-  return MenuDelegate::GetLabelFontList(id);
+  return MenuDelegate::GetLabelStyle(id, style);
 }
 
 bool MenuModelAdapter::IsCommandEnabled(int id) const {
   ui::MenuModel* model = menu_model_;
-  size_t index = 0;
+  int index = 0;
   if (ui::MenuModel::GetModelAndIndexForCommandId(id, &model, &index))
     return model->IsEnabledAt(index);
 
@@ -225,7 +222,7 @@ bool MenuModelAdapter::IsCommandEnabled(int id) const {
 
 bool MenuModelAdapter::IsCommandVisible(int id) const {
   ui::MenuModel* model = menu_model_;
-  size_t index = 0;
+  int index = 0;
   if (ui::MenuModel::GetModelAndIndexForCommandId(id, &model, &index))
     return model->IsVisibleAt(index);
 
@@ -235,7 +232,7 @@ bool MenuModelAdapter::IsCommandVisible(int id) const {
 
 bool MenuModelAdapter::IsItemChecked(int id) const {
   ui::MenuModel* model = menu_model_;
-  size_t index = 0;
+  int index = 0;
   if (ui::MenuModel::GetModelAndIndexForCommandId(id, &model, &index))
     return model->IsItemCheckedAt(index);
 
@@ -288,8 +285,8 @@ void MenuModelAdapter::BuildMenuImpl(MenuItemView* menu, ui::MenuModel* model) {
   DCHECK(menu);
   DCHECK(model);
   bool has_icons = model->HasIcons();
-  const size_t item_count = model->GetItemCount();
-  for (size_t i = 0; i < item_count; ++i) {
+  const int item_count = model->GetItemCount();
+  for (int i = 0; i < item_count; ++i) {
     MenuItemView* item = AppendMenuItem(menu, model, i);
     if (item) {
       // Enabled state should be ignored for titles as they are non-interactive.

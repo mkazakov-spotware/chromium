@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ constexpr const char ReportType::kCSPViolation[];
 constexpr const char ReportType::kCoopAccessViolation[];
 constexpr const char ReportType::kDeprecation[];
 constexpr const char ReportType::kDocumentPolicyViolation[];
-constexpr const char ReportType::kPermissionsPolicyViolation[];
+constexpr const char ReportType::kFeaturePolicyViolation[];
 constexpr const char ReportType::kIntervention[];
 
 ScriptValue Report::toJSON(ScriptState* script_state) const {

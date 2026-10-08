@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "base/guid.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/trace_event.h"
 #include "components/offline_items_collection/core/fail_state.h"
 #include "components/offline_pages/core/background/request_coordinator.h"
@@ -96,6 +96,22 @@ DownloadUIAdapter::~DownloadUIAdapter() {
     aggregator_->UnregisterProvider(kOfflinePageNamespace);
 }
 
+void DownloadUIAdapter::AddObserver(
+    OfflineContentProvider::Observer* observer) {
+  DCHECK(observer);
+  if (observers_.HasObserver(observer))
+    return;
+  observers_.AddObserver(observer);
+}
+
+void DownloadUIAdapter::RemoveObserver(
+    OfflineContentProvider::Observer* observer) {
+  DCHECK(observer);
+  if (!observers_.HasObserver(observer))
+    return;
+  observers_.RemoveObserver(observer);
+}
+
 void DownloadUIAdapter::OfflinePageModelLoaded(OfflinePageModel* model) {
   // This signal is not used here.
 }
@@ -120,10 +136,12 @@ void DownloadUIAdapter::OfflinePageAdded(OfflinePageModel* model,
   // Otherwise, for pages of suggested articles, they'll be added to the UI
   // since they're added to Offline Page database directly, so OnItemsAdded is
   // used.
-  if (!is_suggested)
-    NotifyItemUpdated(offline_item, absl::nullopt);
-  else
-    NotifyItemsAdded({offline_item});
+  for (auto& observer : observers_) {
+    if (!is_suggested)
+      observer.OnItemUpdated(offline_item, base::nullopt);
+    else
+      observer.OnItemsAdded({offline_item});
+  }
 }
 
 // OfflinePageModel::Observer
@@ -131,7 +149,9 @@ void DownloadUIAdapter::OfflinePageDeleted(const OfflinePageItem& item) {
   if (!delegate_->IsVisibleInUI(item.client_id))
     return;
 
-  NotifyItemRemoved(ContentId(kOfflinePageNamespace, item.client_id.id));
+  for (auto& observer : observers_) {
+    observer.OnItemRemoved(ContentId(kOfflinePageNamespace, item.client_id.id));
+  }
 }
 
 // OfflinePageModel::Observer
@@ -151,7 +171,8 @@ void DownloadUIAdapter::OnAdded(const SavePageRequest& added_request) {
   OfflineItem offline_item(
       OfflineItemConversions::CreateOfflineItem(added_request));
 
-  NotifyItemsAdded({offline_item});
+  for (auto& observer : observers_)
+    observer.OnItemsAdded({offline_item});
 }
 
 // RequestCoordinator::Observer
@@ -161,6 +182,11 @@ void DownloadUIAdapter::OnCompleted(
   if (!delegate_->IsVisibleInUI(request.client_id()))
     return;
 
+  if (delegate_->MaybeSuppressNotification(request.request_origin(),
+                                           request.client_id())) {
+    return;
+  }
+
   OfflineItem item = OfflineItemConversions::CreateOfflineItem(request);
   if (status == RequestNotifier::BackgroundSavePageResult::SUCCESS) {
     // If the request is completed successfully, it means there should already
@@ -169,13 +195,15 @@ void DownloadUIAdapter::OnCompleted(
                  RequestNotifier::BackgroundSavePageResult::USER_CANCELED ||
              status == RequestNotifier::BackgroundSavePageResult::
                            DOWNLOAD_THROTTLED) {
-    NotifyItemRemoved(item.id);
+    for (auto& observer : observers_)
+      observer.OnItemRemoved(item.id);
   } else {
     item.state = offline_items_collection::OfflineItemState::FAILED;
     // Actual cause could be server or network related, but we need to pick
     // a fail_state.
     item.fail_state = offline_items_collection::FailState::SERVER_FAILED;
-    NotifyItemUpdated(item, absl::nullopt);
+    for (auto& observer : observers_)
+      observer.OnItemUpdated(item, base::nullopt);
   }
 }
 
@@ -185,7 +213,8 @@ void DownloadUIAdapter::OnChanged(const SavePageRequest& request) {
     return;
 
   OfflineItem offline_item(OfflineItemConversions::CreateOfflineItem(request));
-  NotifyItemUpdated(offline_item, absl::nullopt);
+  for (OfflineContentProvider::Observer& observer : observers_)
+    observer.OnItemUpdated(offline_item, base::nullopt);
 }
 
 // RequestCoordinator::Observer
@@ -196,7 +225,8 @@ void DownloadUIAdapter::OnNetworkProgress(const SavePageRequest& request,
 
   OfflineItem offline_item(OfflineItemConversions::CreateOfflineItem(request));
   offline_item.received_bytes = received_bytes;
-  NotifyItemUpdated(offline_item, absl::nullopt);
+  for (auto& observer : observers_)
+    observer.OnItemUpdated(offline_item, base::nullopt);
 }
 
 void DownloadUIAdapter::GetAllItems(
@@ -231,13 +261,19 @@ void DownloadUIAdapter::RenameItem(const ContentId& id,
   NOTREACHED();
 }
 
+void DownloadUIAdapter::ChangeSchedule(
+    const ContentId& id,
+    base::Optional<OfflineItemSchedule> schedule) {
+  NOTREACHED();
+}
+
 void DownloadUIAdapter::OnPageGetForVisuals(
     const ContentId& id,
     GetVisualsOptions options,
     VisualsCallback visuals_callback,
     const std::vector<OfflinePageItem>& pages) {
   if (pages.empty()) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(visuals_callback), id, nullptr));
     return;
   }
@@ -330,7 +366,8 @@ void DownloadUIAdapter::OnPageGetForThumbnailAdded(
 
   offline_items_collection::UpdateDelta update_delta;
   update_delta.visuals_changed = true;
-  NotifyItemUpdated(offline_item, update_delta);
+  for (auto& observer : observers_)
+    observer.OnItemUpdated(offline_item, update_delta);
 }
 
 // TODO(dimich): Remove this method since it is not used currently. If needed,
@@ -356,7 +393,7 @@ void DownloadUIAdapter::OnPageGetForGetItem(
     const OfflinePageItem* page = &pages[0];
     const bool is_suggested =
         GetPolicy(page->client_id.name_space).is_suggested;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback),
                                   OfflineItemConversions::CreateOfflineItem(
                                       *page, is_suggested)));
@@ -371,12 +408,12 @@ void DownloadUIAdapter::OnAllRequestsGetForGetItem(
     const ContentId& id,
     OfflineContentProvider::SingleItemCallback callback,
     std::vector<std::unique_ptr<SavePageRequest>> requests) {
-  absl::optional<OfflineItem> offline_item;
+  base::Optional<OfflineItem> offline_item;
   for (const auto& request : requests) {
     if (request->client_id().id == id.id)
       offline_item = OfflineItemConversions::CreateOfflineItem(*request);
   }
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), offline_item));
 }
 
@@ -480,7 +517,7 @@ void DownloadUIAdapter::OnRequestsLoaded(
   }
 
   OfflineContentProvider::OfflineItemList list = *offline_items;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), list));
 }
 

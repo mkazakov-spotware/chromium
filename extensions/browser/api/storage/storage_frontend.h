@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,8 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/memory/weak_ptr.h"
-#include "base/values.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "extensions/browser/api/storage/settings_namespace.h"
 #include "extensions/browser/api/storage/settings_observer.h"
 #include "extensions/browser/api/storage/value_store_cache.h"
@@ -22,11 +20,9 @@ namespace content {
 class BrowserContext;
 }
 
-namespace value_store {
-class ValueStoreFactory;
-}
-
 namespace extensions {
+
+class ValueStoreFactory;
 
 // The component of the Storage API which runs on the UI thread.
 class StorageFrontend : public BrowserContextKeyedAPI {
@@ -36,11 +32,8 @@ class StorageFrontend : public BrowserContextKeyedAPI {
 
   // Creates with a specific |storage_factory|.
   static std::unique_ptr<StorageFrontend> CreateForTesting(
-      scoped_refptr<value_store::ValueStoreFactory> storage_factory,
+      scoped_refptr<ValueStoreFactory> storage_factory,
       content::BrowserContext* context);
-
-  StorageFrontend(const StorageFrontend&) = delete;
-  StorageFrontend& operator=(const StorageFrontend&) = delete;
 
   // Public so tests can create and delete their own instances.
   ~StorageFrontend() override;
@@ -56,15 +49,13 @@ class StorageFrontend : public BrowserContextKeyedAPI {
   // for the |extension|.
   void RunWithStorage(scoped_refptr<const Extension> extension,
                       settings_namespace::Namespace settings_namespace,
-                      ValueStoreCache::StorageCallback callback);
+                      const ValueStoreCache::StorageCallback& callback);
 
-  // Deletes the settings for the given |extension_id| and synchronously invokes
-  // |done_callback| once the settings are deleted.
-  void DeleteStorageSoon(const std::string& extension_id,
-                         base::OnceClosure done_callback);
+  // Deletes the settings for the given |extension_id|.
+  void DeleteStorageSoon(const std::string& extension_id);
 
-  // Gets the Settings change callback.
-  SettingsChangedCallback GetObserver();
+  // Gets the thread-safe observer list.
+  scoped_refptr<SettingsObserverList> GetObservers();
 
   void DisableStorageForTesting(
       settings_namespace::Namespace settings_namespace);
@@ -84,23 +75,25 @@ class StorageFrontend : public BrowserContextKeyedAPI {
   explicit StorageFrontend(content::BrowserContext* context);
 
   // Constructor for tests.
-  StorageFrontend(scoped_refptr<value_store::ValueStoreFactory> storage_factory,
+  StorageFrontend(scoped_refptr<ValueStoreFactory> storage_factory,
                   content::BrowserContext* context);
 
-  void Init(scoped_refptr<value_store::ValueStoreFactory> storage_factory);
-
-  void OnSettingsChanged(const std::string& extension_id,
-                         StorageAreaNamespace storage_area,
-                         base::Value changes);
+  void Init(scoped_refptr<ValueStoreFactory> storage_factory);
 
   // The (non-incognito) browser context this Frontend belongs to.
-  const raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* const browser_context_;
+
+  // List of observers to settings changes.
+  scoped_refptr<SettingsObserverList> observers_;
+
+  // Observer for |browser_context_|.
+  std::unique_ptr<SettingsObserver> browser_context_observer_;
 
   // Maps a known namespace to its corresponding ValueStoreCache. The caches
   // are owned by this object.
   CacheMap caches_;
 
-  base::WeakPtrFactory<StorageFrontend> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(StorageFrontend);
 };
 
 }  // namespace extensions

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 #include "content/public/browser/notification_registrar.h"
 #include "content/public/browser/notification_types.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/render_view_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/test/test_utils.h"
@@ -21,40 +22,44 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 
-WebUITestHandler::WebUITestHandler() = default;
-WebUITestHandler::~WebUITestHandler() = default;
+using content::RenderViewHost;
 
-void WebUITestHandler::PreloadJavaScript(
-    const std::u16string& js_text,
-    content::RenderFrameHost* preload_frame) {
-  DCHECK(preload_frame);
+WebUITestHandler::WebUITestHandler()
+    : test_done_(false),
+      test_succeeded_(false),
+      run_test_done_(false),
+      run_test_succeeded_(false) {}
+
+WebUITestHandler::~WebUITestHandler() {}
+
+void WebUITestHandler::PreloadJavaScript(const base::string16& js_text,
+                                         RenderViewHost* preload_host) {
+  DCHECK(preload_host);
   mojo::AssociatedRemote<chrome::mojom::ChromeRenderFrame> chrome_render_frame;
-  preload_frame->GetRemoteAssociatedInterfaces()->GetInterface(
+  preload_host->GetMainFrame()->GetRemoteAssociatedInterfaces()->GetInterface(
       &chrome_render_frame);
   chrome_render_frame->ExecuteWebUIJavaScript(js_text);
 }
 
-void WebUITestHandler::RunJavaScript(const std::u16string& js_text) {
-  GetRenderFrameHostForTest()->ExecuteJavaScriptForTests(js_text,
-                                                         base::NullCallback());
+void WebUITestHandler::RunJavaScript(const base::string16& js_text) {
+  GetWebUI()->GetWebContents()->GetMainFrame()->ExecuteJavaScriptForTests(
+      js_text, base::NullCallback());
 }
 
 bool WebUITestHandler::RunJavaScriptTestWithResult(
-    const std::u16string& js_text) {
+    const base::string16& js_text) {
   test_succeeded_ = false;
   run_test_succeeded_ = false;
-  GetRenderFrameHostForTest()->ExecuteJavaScriptForTests(
+  content::RenderFrameHost* frame =
+      GetWebUI()->GetWebContents()->GetMainFrame();
+  frame->ExecuteJavaScriptForTests(
       js_text, base::BindOnce(&WebUITestHandler::JavaScriptComplete,
                               base::Unretained(this)));
   return WaitForResult();
 }
 
-content::RenderFrameHost* WebUITestHandler::GetRenderFrameHostForTest() {
-  return GetWebUI()->GetWebContents()->GetPrimaryMainFrame();
-}
-
 void WebUITestHandler::TestComplete(
-    const absl::optional<std::string>& error_message) {
+    const base::Optional<std::string>& error_message) {
   // To ensure this gets done, do this before ASSERT* calls.
   RunQuitClosure();
   SCOPED_TRACE("WebUITestHandler::TestComplete");
@@ -81,8 +86,7 @@ void WebUITestHandler::JavaScriptComplete(base::Value result) {
   run_test_done_ = true;
   run_test_succeeded_ = false;
 
-  ASSERT_TRUE(result.is_bool());
-  run_test_succeeded_ = result.GetBool();
+  ASSERT_TRUE(result.GetAsBoolean(&run_test_succeeded_));
 }
 
 bool WebUITestHandler::WaitForResult() {
@@ -95,7 +99,7 @@ bool WebUITestHandler::WaitForResult() {
   {
     base::RunLoop run_loop;
     quit_closure_ = run_loop.QuitWhenIdleClosure();
-    run_loop.Run();
+    content::RunThisRunLoop(&run_loop);
   }
 
   // Run a second message loop when not |run_test_done_| so that the sync test
@@ -104,7 +108,7 @@ bool WebUITestHandler::WaitForResult() {
   if (!run_test_done_ || (run_test_succeeded_ && !test_done_)) {
     base::RunLoop run_loop;
     quit_closure_ = run_loop.QuitWhenIdleClosure();
-    run_loop.Run();
+    content::RunThisRunLoop(&run_loop);
   }
 
   // To succeed the test must execute as well as pass the test.

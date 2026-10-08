@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -61,8 +61,8 @@ class MessageCenterChangeObserver::Impl
 
   void OnNotificationClicked(
       const std::string& notification_id,
-      const absl::optional<int>& button_index,
-      const absl::optional<std::u16string>& reply) override {
+      const base::Optional<int>& button_index,
+      const base::Optional<base::string16>& reply) override {
     OnMessageCenterChanged();
   }
 
@@ -96,11 +96,10 @@ const std::string& TestMessageCenterObserver::last_displayed_id() const {
 
 NotificationsTest::NotificationsTest() {
 // Temporary change while the whole support class is changed to deal
-// with system notifications. crbug.com/714679
-#if BUILDFLAG(ENABLE_SYSTEM_NOTIFICATIONS)
-  feature_list_.InitWithFeatures(
-      {}, {features::kNativeNotifications, features::kSystemNotifications});
-#endif  // BUILDFLAG(ENABLE_SYSTEM_NOTIFICATIONS)
+// with native notifications. crbug.com/714679
+#if BUILDFLAG(ENABLE_NATIVE_NOTIFICATIONS)
+  feature_list_.InitAndDisableFeature(features::kNativeNotifications);
+#endif  // BUILDFLAG(ENABLE_NATIVE_NOTIFICATIONS)
 }
 
 int NotificationsTest::GetNotificationCount() {
@@ -198,7 +197,7 @@ bool NotificationsTest::RequestAndDismissPermission(Browser* browser) {
 
 bool NotificationsTest::RequestPermissionAndWait(Browser* browser) {
   content::WebContents* web_contents = GetActiveWebContents(browser);
-  EXPECT_TRUE(ui_test_utils::NavigateToURL(browser, GetTestPageURL()));
+  ui_test_utils::NavigateToURL(browser, GetTestPageURL());
   permissions::PermissionRequestObserver observer(web_contents);
   std::string result;
   EXPECT_TRUE(content::ExecuteScriptAndExtractString(
@@ -272,15 +271,15 @@ content::WebContents* NotificationsTest::GetActiveWebContents(
 
 NotificationsTestWithPermissionsEmbargo ::
     NotificationsTestWithPermissionsEmbargo() {
-#if BUILDFLAG(ENABLE_SYSTEM_NOTIFICATIONS)
+#if BUILDFLAG(ENABLE_NATIVE_NOTIFICATIONS)
   feature_list_.InitWithFeatures(
       {permissions::features::kBlockPromptsIfDismissedOften,
        permissions::features::kBlockPromptsIfIgnoredOften},
-      {features::kSystemNotifications});
+      {features::kNativeNotifications});
 #else
   feature_list_.InitWithFeatures(
       {permissions::features::kBlockPromptsIfDismissedOften,
        permissions::features::kBlockPromptsIfIgnoredOften},
       {});
-#endif  //  BUILDFLAG(ENABLE_SYSTEM_NOTIFICATIONS)
+#endif  //  BUILDFLAG(ENABLE_NATIVE_NOTIFICATIONS)
 }

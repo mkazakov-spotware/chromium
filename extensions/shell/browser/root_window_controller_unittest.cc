@@ -1,18 +1,18 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/shell/browser/root_window_controller.h"
-#include "base/memory/raw_ptr.h"
 
+#include <algorithm>
 #include <list>
 #include <memory>
 
-#include "base/ranges/algorithm.h"
 #include "content/public/browser/browser_context.h"
 #include "extensions/browser/app_window/app_window.h"
 #include "extensions/browser/app_window/native_app_window.h"
 #include "extensions/common/extension_builder.h"
+#include "extensions/shell/browser/root_window_controller.h"
 #include "extensions/shell/browser/shell_app_window_client.h"
 #include "extensions/shell/browser/shell_native_app_window_aura.h"
 #include "extensions/shell/test/shell_test_base_aura.h"
@@ -33,10 +33,6 @@ class FakeDesktopDelegate : public RootWindowController::DesktopDelegate {
  public:
   explicit FakeDesktopDelegate(content::BrowserContext* browser_context)
       : browser_context_(browser_context) {}
-
-  FakeDesktopDelegate(const FakeDesktopDelegate&) = delete;
-  FakeDesktopDelegate& operator=(const FakeDesktopDelegate&) = delete;
-
   ~FakeDesktopDelegate() override = default;
 
   RootWindowController* CreateRootWindowController() {
@@ -49,9 +45,11 @@ class FakeDesktopDelegate : public RootWindowController::DesktopDelegate {
   // RootWindowController::DesktopDelegate:
   void CloseRootWindowController(
       RootWindowController* root_window_controller) override {
-    auto it =
-        base::ranges::find(root_window_controllers_, root_window_controller,
-                           &std::unique_ptr<RootWindowController>::get);
+    auto it = std::find_if(root_window_controllers_.begin(),
+                           root_window_controllers_.end(),
+                           [&](const auto& candidate) {
+                             return candidate.get() == root_window_controller;
+                           });
     DCHECK(it != root_window_controllers_.end());
     root_window_controllers_.erase(it);
   }
@@ -61,8 +59,10 @@ class FakeDesktopDelegate : public RootWindowController::DesktopDelegate {
   }
 
  private:
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
   std::list<std::unique_ptr<RootWindowController>> root_window_controllers_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeDesktopDelegate);
 };
 
 // An AppWindowClient for use without a DesktopController.
@@ -71,10 +71,10 @@ class TestAppWindowClient : public ShellAppWindowClient {
   TestAppWindowClient() = default;
   ~TestAppWindowClient() override = default;
 
-  std::unique_ptr<NativeAppWindow> CreateNativeAppWindow(
+  NativeAppWindow* CreateNativeAppWindow(
       AppWindow* window,
       AppWindow::CreateParams* params) override {
-    return std::make_unique<ShellNativeAppWindowAura>(window, *params);
+    return new ShellNativeAppWindowAura(window, *params);
   }
 };
 
@@ -83,10 +83,6 @@ class TestAppWindowClient : public ShellAppWindowClient {
 class RootWindowControllerTest : public ShellTestBaseAura {
  public:
   RootWindowControllerTest() = default;
-
-  RootWindowControllerTest(const RootWindowControllerTest&) = delete;
-  RootWindowControllerTest& operator=(const RootWindowControllerTest&) = delete;
-
   ~RootWindowControllerTest() override = default;
 
   void SetUp() override {
@@ -134,6 +130,8 @@ class RootWindowControllerTest : public ShellTestBaseAura {
 
   scoped_refptr<const Extension> extension_;
   std::unique_ptr<FakeDesktopDelegate> desktop_delegate_;
+
+  DISALLOW_COPY_AND_ASSIGN(RootWindowControllerTest);
 };
 
 // Tests RootWindowController's basic setup and teardown.

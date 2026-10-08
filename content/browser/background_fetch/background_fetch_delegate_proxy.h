@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,39 +12,33 @@
 #include <utility>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/sequence_checker.h"
+#include "base/optional.h"
 #include "content/browser/background_fetch/background_fetch_request_info.h"
-#include "content/common/content_export.h"
 #include "content/public/browser/background_fetch_delegate.h"
 #include "content/public/browser/background_fetch_description.h"
 #include "content/public/browser/background_fetch_response.h"
 #include "content/public/browser/browser_thread.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/mojom/background_fetch/background_fetch.mojom.h"
 
 class SkBitmap;
 
 namespace content {
 
-class PermissionController;
-class RenderFrameHostImpl;
-class StoragePartitionImpl;
+class BrowserContext;
 
-// This class was previously responsible for passing messages between
-// BackgroundFetchJobControllers on ServiceWorkerContext's thread and
-// BackgroundFetchDelegate on the UI thread. It may no longer be needed now that
-// these are the same thread.
+// Proxy class for passing messages between BackgroundFetchJobControllers on the
+// service worker core thread and BackgroundFetchDelegate on the UI thread.
 //
-// Lives on the UI thread.
-class CONTENT_EXPORT BackgroundFetchDelegateProxy
-    : public BackgroundFetchDelegate::Client {
+// TODO(crbug.com/824858): This proxying should no longer be needed after
+// the service worker core thread becomes the UI thread.
+class CONTENT_EXPORT BackgroundFetchDelegateProxy {
  public:
+  // Subclasses must only be destroyed on the service worker core thread, since
+  // these methods will be called on the service worker core thread.
   using DispatchClickEventCallback =
       base::RepeatingCallback<void(const std::string& unique_id)>;
-  using GetPermissionForOriginCallback =
-      base::OnceCallback<void(BackgroundFetchPermission)>;
-
   class Controller {
    public:
     // Called when the given |request| has started fetching.
@@ -77,14 +71,9 @@ class CONTENT_EXPORT BackgroundFetchDelegateProxy
     virtual ~Controller() = default;
   };
 
-  explicit BackgroundFetchDelegateProxy(
-      base::WeakPtr<StoragePartitionImpl> storage_partition);
+  explicit BackgroundFetchDelegateProxy(BrowserContext* browser_context);
 
-  BackgroundFetchDelegateProxy(const BackgroundFetchDelegateProxy&) = delete;
-  BackgroundFetchDelegateProxy& operator=(const BackgroundFetchDelegateProxy&) =
-      delete;
-
-  ~BackgroundFetchDelegateProxy() override;
+  ~BackgroundFetchDelegateProxy();
 
   // Set BackgroundFetchClick event dispatcher callback, which is a method on
   // the background fetch context.
@@ -95,10 +84,10 @@ class CONTENT_EXPORT BackgroundFetchDelegateProxy
       BackgroundFetchDelegate::GetIconDisplaySizeCallback callback);
 
   // Checks if the provided origin has permission to start a Background Fetch.
-  void GetPermissionForOrigin(const url::Origin& origin,
-                              RenderProcessHost* rph,
-                              RenderFrameHostImpl* rfh,
-                              GetPermissionForOriginCallback callback);
+  void GetPermissionForOrigin(
+      const url::Origin& origin,
+      const WebContents::Getter& wc_getter,
+      BackgroundFetchDelegate::GetPermissionForOriginCallback callback);
 
   // Creates a new download grouping described by |fetch_description|. Further
   // downloads started by StartRequest will also use
@@ -107,72 +96,82 @@ class CONTENT_EXPORT BackgroundFetchDelegateProxy
   // browser session, then |fetch_description->current_guids| should contain the
   // GUIDs of in progress downloads, while completed downloads are recorded in
   // |fetch_description->completed_requests|.
-  // Should only be called from the Controller.
+  // Should only be called from the Controller (on the service worker core
+  // thread).
   void CreateDownloadJob(
       base::WeakPtr<Controller> controller,
       std::unique_ptr<BackgroundFetchDescription> fetch_description);
 
   // Requests that the download manager start fetching |request|.
-  // Should only be called from the Controller.
+  // Should only be called from the Controller (on the service worker core
+  // thread).
   void StartRequest(const std::string& job_unique_id,
                     const url::Origin& origin,
                     const scoped_refptr<BackgroundFetchRequestInfo>& request);
 
   // Updates the representation of this registration in the user interface to
   // match the given |title| or |icon|.
-  // Called from the Controller.
+  // Called from the Controller (on the service worker core thread).
   void UpdateUI(
       const std::string& job_unique_id,
-      const absl::optional<std::string>& title,
-      const absl::optional<SkBitmap>& icon,
+      const base::Optional<std::string>& title,
+      const base::Optional<SkBitmap>& icon,
       blink::mojom::BackgroundFetchRegistrationService::UpdateUICallback
           update_ui_callback);
 
   // Aborts in progress downloads for the given registration. Called from the
-  // Controller after it is aborted. May occur even if all requests already
-  // called OnDownloadComplete.
+  // Controller (on the service worker core thread) after it is aborted. May
+  // occur even if all requests already called OnDownloadComplete.
   void Abort(const std::string& job_unique_id);
 
   // Called when the fetch associated |job_unique_id| is completed.
   void MarkJobComplete(const std::string& job_unique_id);
 
-  // Called when the shutdown flow has been initiated.
-  void Shutdown();
-
  private:
-  // BackgroundFetchDelegate::Client implementation:
+  class Core;
+
+  // Called when the job identified by |job_unique|id| was cancelled by the
+  // delegate. Should only be called on the service worker core thread.
   void OnJobCancelled(
       const std::string& job_unique_id,
-      const std::string& download_guid,
-      blink::mojom::BackgroundFetchFailureReason reason_to_abort) override;
-  void OnDownloadComplete(
-      const std::string& job_unique_id,
-      const std::string& guid,
-      std::unique_ptr<BackgroundFetchResult> result) override;
+      blink::mojom::BackgroundFetchFailureReason reason_to_abort);
+
+  // Called when the download identified by |guid| has succeeded/failed/aborted.
+  // Should only be called on the service worker core thread.
+  void OnDownloadComplete(const std::string& job_unique_id,
+                          const std::string& guid,
+                          std::unique_ptr<BackgroundFetchResult> result);
+
+  // Called when progress has been made for the download identified by |guid|.
+  // Progress is either the request body being uploaded or response body being
+  // downloaded. Should only be called on the service worker core thread.
   void OnDownloadUpdated(const std::string& job_unique_id,
                          const std::string& guid,
                          uint64_t bytes_uploaded,
-                         uint64_t bytes_downloaded) override;
-  void OnDownloadStarted(
-      const std::string& job_unique_id,
-      const std::string& guid,
-      std::unique_ptr<BackgroundFetchResponse> response) override;
-  void OnUIActivated(const std::string& job_unique_id) override;
-  void OnUIUpdated(const std::string& job_unique_id) override;
-  void GetUploadData(
-      const std::string& job_unique_id,
-      const std::string& download_guid,
-      BackgroundFetchDelegate::GetUploadDataCallback callback) override;
+                         uint64_t bytes_downloaded);
 
-  void DidGetPermissionFromDownloadRequestLimiter(
-      GetPermissionForOriginCallback callback,
-      bool has_permission);
+  // Should only be called from the BackgroundFetchDelegate (on the service
+  // worker core thread).
+  void DidStartRequest(const std::string& job_unique_id,
+                       const std::string& guid,
+                       std::unique_ptr<BackgroundFetchResponse> response);
 
-  BrowserContext* GetBrowserContext();
+  // Should only be called from the BackgroundFetchDelegate (on the service
+  // worker core thread).
+  void DidActivateUI(const std::string& job_unique_id);
 
-  BackgroundFetchDelegate* GetDelegate();
+  // Should only be called from the BackgroundFetchDelegate (on the service
+  // worker core thread).
+  void DidUpdateUI(const std::string& job_unique_id);
 
-  PermissionController* GetPermissionController();
+  // Should only be called from the BackgroundFetchDelegate (on the service
+  // worker core thread).
+  void GetUploadData(const std::string& job_unique_id,
+                     const std::string& download_guid,
+                     BackgroundFetchDelegate::GetUploadDataCallback callback);
+
+  std::unique_ptr<Core, BrowserThread::DeleteOnUIThread> ui_core_;
+  base::WeakPtr<Core> ui_core_ptr_;
 
   // Map from unique job ids to the controller.
   std::map<std::string, base::WeakPtr<Controller>> controller_map_;
@@ -183,12 +182,9 @@ class CONTENT_EXPORT BackgroundFetchDelegateProxy
       update_ui_callback_map_;
 
   DispatchClickEventCallback click_event_dispatcher_callback_;
-
-  base::WeakPtr<StoragePartitionImpl> storage_partition_;
-
-  SEQUENCE_CHECKER(sequence_checker_);
-
   base::WeakPtrFactory<BackgroundFetchDelegateProxy> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(BackgroundFetchDelegateProxy);
 };
 
 }  // namespace content

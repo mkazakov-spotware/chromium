@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_PAINT_PAINT_CHUNK_SUBSET_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_PAINT_PAINT_CHUNK_SUBSET_H_
 
-#include "base/check_op.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_artifact.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
@@ -14,8 +13,6 @@ namespace blink {
 
 // Provides access to a subset of paint chunks in a PaintArtifact.
 class PaintChunkSubset {
-  DISALLOW_NEW();
-
  public:
   // An empty subset.
   PaintChunkSubset() = default;
@@ -55,7 +52,7 @@ class PaintChunkSubset {
     const PaintChunk& operator*() const { return GetChunk(); }
     const PaintChunk* operator->() const { return &GetChunk(); }
     bool operator==(const Iterator& other) const {
-      DCHECK_EQ(subset_, other.subset_);
+      DCHECK_EQ(&subset_, &other.subset_);
       return subset_or_chunk_index_ == other.subset_or_chunk_index_;
     }
     bool operator!=(const Iterator& other) const { return !(*this == other); }
@@ -69,26 +66,20 @@ class PaintChunkSubset {
     }
     Iterator operator+(wtf_size_t offset) const {
       DCHECK_LE(subset_or_chunk_index_ + offset,
-                subset_->end().subset_or_chunk_index_);
-      return Iterator(*subset_, subset_or_chunk_index_ + offset);
-    }
-    Iterator& operator+=(wtf_size_t offset) {
-      DCHECK_LE(subset_or_chunk_index_ + offset,
-                subset_->end().subset_or_chunk_index_);
-      subset_or_chunk_index_ += offset;
-      return *this;
+                subset_.end().subset_or_chunk_index_);
+      return Iterator(subset_, subset_or_chunk_index_ + offset);
     }
 
     // Returns the index of the current PaintChunk in the PaintArtifact.
     wtf_size_t IndexInPaintArtifact() const {
-      if (subset_->UsesSubsetIndices())
-        return subset_->subset_indices_[subset_or_chunk_index_];
+      if (subset_.UsesSubsetIndices())
+        return subset_.subset_indices_[subset_or_chunk_index_];
       return subset_or_chunk_index_;
     }
 
     DisplayItemRange DisplayItems() const {
       auto& chunk = GetChunk();
-      return subset_->paint_artifact_->GetDisplayItemList().ItemsInRange(
+      return subset_.paint_artifact_->GetDisplayItemList().ItemsInRange(
           chunk.begin_index, chunk.end_index);
     }
 
@@ -96,14 +87,14 @@ class PaintChunkSubset {
     friend class PaintChunkSubset;
 
     Iterator(const PaintChunkSubset& subset, wtf_size_t subset_or_chunk_index)
-        : subset_(&subset), subset_or_chunk_index_(subset_or_chunk_index) {}
+        : subset_(subset), subset_or_chunk_index_(subset_or_chunk_index) {}
 
     const PaintChunk& GetChunk() const {
-      DCHECK_LT(subset_or_chunk_index_, subset_->end().subset_or_chunk_index_);
-      return subset_->paint_artifact_->PaintChunks()[IndexInPaintArtifact()];
+      DCHECK_LT(subset_or_chunk_index_, subset_.end().subset_or_chunk_index_);
+      return subset_.paint_artifact_->PaintChunks()[IndexInPaintArtifact()];
     }
 
-    const PaintChunkSubset* subset_;
+    const PaintChunkSubset& subset_;
     wtf_size_t subset_or_chunk_index_;
   };
 
@@ -120,7 +111,7 @@ class PaintChunkSubset {
   }
 
   bool IsEmpty() const {
-    return UsesSubsetIndices() ? subset_indices_.empty()
+    return UsesSubsetIndices() ? subset_indices_.IsEmpty()
                                : begin_index_ == end_index_;
   }
 
@@ -130,15 +121,6 @@ class PaintChunkSubset {
   }
 
   const PaintArtifact& GetPaintArtifact() const { return *paint_artifact_; }
-
-  // This can be used to swap in an updated artifact but care should be taken
-  // because the PaintChunk indices into the new artifact must still be valid.
-  void SetPaintArtifact(scoped_refptr<const PaintArtifact> paint_artifact) {
-    // Existing paint chunk indices would be invalid if the sizes change.
-    DCHECK_EQ(paint_artifact->PaintChunks().size(),
-              paint_artifact_->PaintChunks().size());
-    paint_artifact_ = std::move(paint_artifact);
-  }
 
   void Merge(const PaintChunkSubset& other) {
     DCHECK_EQ(paint_artifact_.get(), other.paint_artifact_.get());
@@ -150,8 +132,6 @@ class PaintChunkSubset {
   size_t ApproximateUnsharedMemoryUsage() const {
     return sizeof(*this) + subset_indices_.CapacityInBytes();
   }
-
-  std::unique_ptr<JSONArray> ToJSON() const;
 
  private:
   bool UsesSubsetIndices() const { return begin_index_ == kNotFound; }
@@ -165,9 +145,6 @@ class PaintChunkSubset {
 };
 
 using PaintChunkIterator = PaintChunkSubset::Iterator;
-
-PLATFORM_EXPORT std::ostream& operator<<(std::ostream&,
-                                         const PaintChunkSubset&);
 
 }  // namespace blink
 

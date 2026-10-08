@@ -1,18 +1,15 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <set>
 #include <string>
 
-#include "base/containers/contains.h"
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/test/scoped_feature_list.h"
 #include "components/autofill/core/browser/geo/autofill_country.h"
 #include "components/autofill/core/browser/geo/country_data.h"
-#include "components/autofill/core/common/autofill_features.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/libaddressinput/src/cpp/include/libaddressinput/address_metadata.h"
 #if defined(ANDROID)
 #include "base/android/build_info.h"
 #endif
@@ -26,33 +23,24 @@ namespace autofill {
 TEST(AutofillCountryTest, AutofillCountry) {
   AutofillCountry united_states_en("US", "en_US");
   EXPECT_EQ("US", united_states_en.country_code());
-  EXPECT_EQ(u"United States", united_states_en.name());
+  EXPECT_EQ(ASCIIToUTF16("United States"), united_states_en.name());
 
   AutofillCountry united_states_es("US", "es");
   EXPECT_EQ("US", united_states_es.country_code());
-  EXPECT_EQ(u"Estados Unidos", united_states_es.name());
+  EXPECT_EQ(ASCIIToUTF16("Estados Unidos"), united_states_es.name());
 
   AutofillCountry great_britain_uk_alias("UK", "en_GB");
   EXPECT_EQ("GB", great_britain_uk_alias.country_code());
   EXPECT_EQ("GB", great_britain_uk_alias.country_code());
-  EXPECT_EQ(u"United Kingdom", great_britain_uk_alias.name());
+  EXPECT_EQ(ASCIIToUTF16("United Kingdom"), great_britain_uk_alias.name());
 
   AutofillCountry canada_en("CA", "en_US");
   EXPECT_EQ("CA", canada_en.country_code());
-  EXPECT_EQ(u"Canada", canada_en.name());
+  EXPECT_EQ(ASCIIToUTF16("Canada"), canada_en.name());
 
   AutofillCountry canada_hu("CA", "hu");
   EXPECT_EQ("CA", canada_hu.country_code());
-  EXPECT_EQ(u"Kanada", canada_hu.name());
-
-  // Unrecognizable country codes remain that way.
-  AutofillCountry unknown("Unknown", "en_US");
-  EXPECT_EQ("Unknown", unknown.country_code());
-
-  // If no locale is provided, no `name()` is returned.
-  AutofillCountry empty_locale("AT");
-  EXPECT_EQ("AT", empty_locale.country_code());
-  EXPECT_TRUE(empty_locale.name().empty());
+  EXPECT_EQ(ASCIIToUTF16("Kanada"), canada_hu.name());
 }
 
 // Test locale to country code mapping.
@@ -76,23 +64,6 @@ TEST(AutofillCountryTest, UsaAddressRequirements) {
   EXPECT_TRUE(us_autofill_country.requires_state());
   EXPECT_TRUE(us_autofill_country.requires_city());
   EXPECT_TRUE(us_autofill_country.requires_line1());
-}
-
-// Test that unknown country codes have US requirements.
-TEST(AutofillCountryTest, UnknownAddressRequirements) {
-  AutofillCountry us_autofill_country("US", "en_US");
-  AutofillCountry unknown_autofill_country("Unknown", "en_US");
-
-  EXPECT_EQ(us_autofill_country.requires_zip_or_state(),
-            unknown_autofill_country.requires_zip_or_state());
-  EXPECT_EQ(us_autofill_country.requires_zip(),
-            unknown_autofill_country.requires_zip());
-  EXPECT_EQ(us_autofill_country.requires_state(),
-            unknown_autofill_country.requires_state());
-  EXPECT_EQ(us_autofill_country.requires_city(),
-            unknown_autofill_country.requires_city());
-  EXPECT_EQ(us_autofill_country.requires_line1(),
-            unknown_autofill_country.requires_line1());
 }
 
 // Test the address requirement method for Brazil.
@@ -161,33 +132,10 @@ TEST(AutofillCountryTest, AliasMappingsForCountryData) {
       country_data_map->GetCountryCodeForAlias("does_not_exist");
   EXPECT_EQ(expected_country_code, actual_country_code);
 
-  // UK should map the GB.
+  // GB should map the UK.
   expected_country_code = "GB";
   actual_country_code = country_data_map->GetCountryCodeForAlias("UK");
   EXPECT_EQ(expected_country_code, actual_country_code);
-}
-
-// Verifies that all address format extensions correspond to types that are
-// not part of libaddressinputs expected types, but that they are placed
-// after a field that is present in libaddressinput.
-TEST(AutofillCountryTest, VerifyAddressFormatExtensions) {
-  CountryDataMap* country_data_map = CountryDataMap::GetInstance();
-  for (const std::string& country_code : country_data_map->country_codes()) {
-    AutofillCountry country(country_code);
-    for (const AutofillCountry::AddressFormatExtension& rule :
-         country.address_format_extensions()) {
-      // The separator should not be empty.
-      EXPECT_FALSE(rule.separator_before_label.empty());
-      // `rule.type` is not part of `country_code`'s address format, but
-      // `rule.placed_after` is.
-      EXPECT_FALSE(::i18n::addressinput::IsFieldUsed(rule.type, country_code));
-      EXPECT_TRUE(
-          ::i18n::addressinput::IsFieldUsed(rule.placed_after, country_code));
-      // `IsAddressFieldSettingAccessible` considers `rule.type`
-      // setting-accessible.
-      EXPECT_TRUE(country.IsAddressFieldSettingAccessible(rule.type));
-    }
-  }
 }
 
 }  // namespace autofill

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,6 @@ api::LogMessage::Severity g_min_log_severity = api::LogMessage::Severity::kInfo;
 
 logging::LogSeverity ConvertSeverity(api::LogMessage::Severity severity) {
   switch (severity) {
-    case api::LogMessage::Severity::kVerbose:
-      return logging::LOG_VERBOSE;
     case api::LogMessage::Severity::kInfo:
       return logging::LOG_INFO;
     case api::LogMessage::Severity::kWarning:
@@ -49,14 +47,13 @@ std::ostream& LogMessage::Stream() {
 
 namespace api {
 
-// static
 void LogMessage::SetMinLogSeverity(Severity severity) {
   chrome::g_min_log_severity = severity;
 }
 
-// static
 bool LogMessage::ShouldCreateLogMessage(Severity severity) {
-  return severity >= chrome::g_min_log_severity;
+  return severity >= chrome::g_min_log_severity &&
+         logging::ShouldCreateLogMessage(chrome::ConvertSeverity(severity));
 }
 
 }  // namespace api

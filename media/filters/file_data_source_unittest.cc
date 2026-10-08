@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "base/base_paths.h"
 #include "base/bind.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/path_service.h"
 #include "base/strings/utf_string_conversions.h"
 #include "media/base/test_helpers.h"
@@ -23,10 +24,10 @@ class ReadCBHandler {
  public:
   ReadCBHandler() = default;
 
-  ReadCBHandler(const ReadCBHandler&) = delete;
-  ReadCBHandler& operator=(const ReadCBHandler&) = delete;
-
   MOCK_METHOD1(ReadCB, void(int size));
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ReadCBHandler);
 };
 
 // Returns a path to the test file which contains the string "0123456789"

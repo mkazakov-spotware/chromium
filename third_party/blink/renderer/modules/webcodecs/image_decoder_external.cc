@@ -1,86 +1,40 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/webcodecs/image_decoder_external.h"
 
+#include <limits>
+
 #include "base/logging.h"
-#include "base/metrics/histogram_functions.h"
-#include "base/task/thread_pool.h"
+#include "base/time/time.h"
 #include "third_party/blink/public/common/mime_util/mime_util.h"
-#include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom-blink.h"
-#include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_union_arraybufferallowshared_arraybufferviewallowshared_readablestream.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_image_decode_options.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_image_decode_result.h"
+#include "third_party/blink/public/mojom/web_feature/web_feature.mojom-blink.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_image_bitmap_options.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_image_decoder_init.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_image_frame.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_image_track.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
 #include "third_party/blink/renderer/core/fetch/readable_stream_bytes_consumer.h"
+#include "third_party/blink/renderer/core/imagebitmap/image_bitmap.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_array_piece.h"
-#include "third_party/blink/renderer/modules/webcodecs/image_track.h"
-#include "third_party/blink/renderer/modules/webcodecs/image_track_list.h"
-#include "third_party/blink/renderer/modules/webcodecs/video_frame.h"
 #include "third_party/blink/renderer/platform/bindings/exception_code.h"
-#include "third_party/blink/renderer/platform/bindings/exception_messages.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
-#include "third_party/blink/renderer/platform/graphics/bitmap_image_metrics.h"
+#include "third_party/blink/renderer/platform/graphics/unaccelerated_static_bitmap_image.h"
+#include "third_party/blink/renderer/platform/image-decoders/image_decoder.h"
 #include "third_party/blink/renderer/platform/image-decoders/segment_reader.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
-#include "third_party/blink/renderer/platform/wtf/cross_thread_copier_base.h"
-#include "third_party/blink/renderer/platform/wtf/cross_thread_copier_skia.h"
-#include "third_party/blink/renderer/platform/wtf/cross_thread_copier_std.h"
 
 namespace blink {
-
-namespace {
-
-bool IsTypeSupportedInternal(String type) {
-  if (!type.ContainsOnlyASCIIOrEmpty())
-    return false;
-
-  // Disable ICO/CUR decoding since the underlying decoder does not operate like
-  // the rest of our blink::ImageDecoders. Each frame is a different sized
-  // version of a single image in a BMP or PNG format. CUR files additionally
-  // use the mouse position to determine which image to use.
-  //
-  // While we could expose each frame as a different track or use the desired
-  // size provided at construction to choose a frame, the mouse position signal
-  // would need further JS exposed API considerations. As such, given the
-  // ancient nature of the format, it is not worth implementing at this time.
-  //
-  // Additionally, since the ICO/CUR formats are simple, it seems fine to allow
-  // the parsing to happen in JS while decoding for the individual BMP or PNG
-  // files can be done using this API.
-  const auto type_lower = type.LowerASCII();
-  if (type_lower == "image/x-icon" || type_lower == "image/vnd.microsoft.icon")
-    return false;
-
-  return IsSupportedImageMimeType(type.Ascii());
-}
-
-ImageDecoder::AnimationOption AnimationOptionFromIsAnimated(bool is_animated) {
-  return is_animated ? ImageDecoder::AnimationOption::kPreferAnimation
-                     : ImageDecoder::AnimationOption::kPreferStillImage;
-}
-
-DOMException* CreateUnsupportedImageTypeException(String type) {
-  return MakeGarbageCollected<DOMException>(
-      DOMExceptionCode::kNotSupportedError,
-      String::Format("The provided image type (%s) is not supported",
-                     type.Ascii().c_str()));
-}
-
-}  // namespace
 
 // static
 ImageDecoderExternal* ImageDecoderExternal::Create(
     ScriptState* script_state,
     const ImageDecoderInit* init,
     ExceptionState& exception_state) {
-  auto* result = MakeGarbageCollected<ImageDecoderExternal>(script_state, init,
-                                                            exception_state);
-  return exception_state.HadException() ? nullptr : result;
+  return MakeGarbageCollected<ImageDecoderExternal>(script_state, init,
+                                                    exception_state);
 }
 
 ImageDecoderExternal::DecodeRequest::DecodeRequest(
@@ -89,13 +43,7 @@ ImageDecoderExternal::DecodeRequest::DecodeRequest(
     bool complete_frames_only)
     : resolver(resolver),
       frame_index(frame_index),
-      complete_frames_only(complete_frames_only),
-      abort_flag(std::make_unique<base::AtomicFlag>()) {}
-
-ImageDecoderExternal::DecodeRequest::~DecodeRequest() {
-  // This must have already been released to the decoder thread manually.
-  DCHECK(!abort_flag);
-}
+      complete_frames_only(complete_frames_only) {}
 
 void ImageDecoderExternal::DecodeRequest::Trace(Visitor* visitor) const {
   visitor->Trace(resolver);
@@ -103,83 +51,49 @@ void ImageDecoderExternal::DecodeRequest::Trace(Visitor* visitor) const {
   visitor->Trace(exception);
 }
 
-bool ImageDecoderExternal::DecodeRequest::IsFinal() const {
-  return result || exception || range_error_message;
-}
-
 // static
-ScriptPromise ImageDecoderExternal::isTypeSupported(ScriptState* script_state,
-                                                    String type) {
-  auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(script_state);
-  auto promise = resolver->Promise();
-  resolver->Resolve(IsTypeSupportedInternal(type));
-  return promise;
+bool ImageDecoderExternal::canDecodeType(String type) {
+  return type.ContainsOnlyASCIIOrEmpty() &&
+         IsSupportedImageMimeType(type.Ascii());
 }
 
 ImageDecoderExternal::ImageDecoderExternal(ScriptState* script_state,
                                            const ImageDecoderInit* init,
                                            ExceptionState& exception_state)
     : ExecutionContextLifecycleObserver(ExecutionContext::From(script_state)),
-      script_state_(script_state),
-      tracks_(MakeGarbageCollected<ImageTrackList>(this)),
-      completed_property_(
-          MakeGarbageCollected<CompletedProperty>(GetExecutionContext())) {
-  // If the context is already destroyed we will never get an OnContextDestroyed
-  // callback, which is critical to invalidating any pending WeakPtr operations.
-  if (GetExecutionContext()->IsContextDestroyed()) {
-    exception_state.ThrowDOMException(DOMExceptionCode::kOperationError,
-                                      "Invalid context.");
-    return;
-  }
-
-  UseCounter::Count(GetExecutionContext(), WebFeature::kWebCodecs);
+      script_state_(script_state) {
+  UseCounter::Count(ExecutionContext::From(script_state),
+                    WebFeature::kWebCodecs);
 
   // |data| is a required field.
   DCHECK(init->hasData());
-  DCHECK(init->data());
+  DCHECK(!init->data().IsNull());
 
-  constexpr char kNoneOption[] = "none";
-  auto color_behavior = ColorBehavior::Tag();
-  if (init->colorSpaceConversion() == kNoneOption)
-    color_behavior = ColorBehavior::Ignore();
+  options_ =
+      init->hasOptions() ? init->options() : ImageBitmapOptions::Create();
 
-  auto desired_size = SkISize::MakeEmpty();
-  if (init->hasDesiredWidth() && init->hasDesiredHeight())
-    desired_size = SkISize::Make(init->desiredWidth(), init->desiredHeight());
-
-  mime_type_ = init->type().LowerASCII();
-  if (!IsTypeSupportedInternal(mime_type_)) {
-    tracks_->OnTracksReady(CreateUnsupportedImageTypeException(mime_type_));
+  mime_type_ = init->type();
+  if (!canDecodeType(mime_type_)) {
+    exception_state.ThrowDOMException(DOMExceptionCode::kNotSupportedError,
+                                      "Unsupported image format");
     return;
   }
 
-  if (init->hasPreferAnimation()) {
+  if (init->hasPreferAnimation())
     prefer_animation_ = init->preferAnimation();
-    animation_option_ = AnimationOptionFromIsAnimated(*prefer_animation_);
-  }
 
-  decode_task_runner_ = base::ThreadPool::CreateSequencedTaskRunner(
-      {base::TaskPriority::USER_VISIBLE,
-       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN});
-
-  if (init->data()->IsReadableStream()) {
-    if (init->data()->GetAsReadableStream()->IsLocked() ||
-        init->data()->GetAsReadableStream()->IsDisturbed()) {
+  if (init->data().IsReadableStream()) {
+    if (init->data().GetAsReadableStream()->IsLocked()) {
       exception_state.ThrowTypeError(
           "ImageDecoder can only accept readable streams that are not yet "
           "locked to a reader");
       return;
     }
-
-    decoder_ = std::make_unique<WTF::SequenceBound<ImageDecoderCore>>(
-        decode_task_runner_, mime_type_, /*data=*/nullptr,
-        /*data_complete=*/false, color_behavior, desired_size,
-        animation_option_);
-
     consumer_ = MakeGarbageCollected<ReadableStreamBytesConsumer>(
-        script_state, init->data()->GetAsReadableStream());
+        script_state, init->data().GetAsReadableStream());
 
-    construction_succeeded_ = true;
+    stream_buffer_ = WTF::SharedBuffer::Create();
+    CreateImageDecoder();
 
     // We need one initial call to OnStateChange() to start reading, but
     // thereafter calls will be driven by the ReadableStreamBytesConsumer.
@@ -188,239 +102,150 @@ ImageDecoderExternal::ImageDecoderExternal(ScriptState* script_state,
     return;
   }
 
-  base::span<const uint8_t> buffer;
-  switch (init->data()->GetContentType()) {
-    case V8ImageBufferSource::ContentType::kArrayBufferAllowShared:
-      if (auto* data_ptr = init->data()->GetAsArrayBufferAllowShared()) {
-        if (!data_ptr->IsDetached()) {
-          buffer = base::span<const uint8_t>(
-              reinterpret_cast<const uint8_t*>(data_ptr->DataMaybeShared()),
-              data_ptr->ByteLength());
-        }
-      }
-      break;
-    case V8ImageBufferSource::ContentType::kArrayBufferViewAllowShared:
-      if (auto* data_ptr =
-              init->data()->GetAsArrayBufferViewAllowShared().Get()) {
-        if (!data_ptr->IsDetached()) {
-          buffer =
-              base::span<const uint8_t>(reinterpret_cast<const uint8_t*>(
-                                            data_ptr->BaseAddressMaybeShared()),
-                                        data_ptr->byteLength());
-        }
-      }
-      break;
-    case V8ImageBufferSource::ContentType::kReadableStream:
-      NOTREACHED();
-      break;
-  }
+  // Since we don't make a copy of buffer passed in, we must retain a reference.
+  init_data_ = init;
 
-  if (!buffer.data()) {
-    exception_state.ThrowTypeError("Provided image data was detached");
+  DOMArrayPiece buffer;
+  if (init->data().IsArrayBuffer()) {
+    buffer = DOMArrayPiece(init->data().GetAsArrayBuffer());
+  } else if (init->data().IsArrayBufferView()) {
+    buffer = DOMArrayPiece(init->data().GetAsArrayBufferView().View());
+  } else {
+    NOTREACHED();
     return;
   }
 
-  if (!buffer.size()) {
-    exception_state.ThrowTypeError("No image data provided");
+  if (!buffer.ByteLength()) {
+    exception_state.ThrowDOMException(DOMExceptionCode::kConstraintError,
+                                      "No image data provided");
     return;
   }
 
-  auto segment_reader = SegmentReader::CreateFromSkData(
-      SkData::MakeWithCopy(buffer.data(), buffer.size()));
-  if (!segment_reader) {
-    exception_state.ThrowDOMException(DOMExceptionCode::kOperationError,
+  // Since data is owned by the caller who may be free to manipulate it, we must
+  // check HasValidEncodedData() before attempting to access |decoder_|.
+  segment_reader_ = SegmentReader::CreateFromSkData(
+      SkData::MakeWithoutCopy(buffer.Data(), buffer.ByteLength()));
+  if (!segment_reader_) {
+    exception_state.ThrowDOMException(DOMExceptionCode::kConstraintError,
                                       "Failed to read image data");
     return;
   }
 
-  construction_succeeded_ = true;
   data_complete_ = true;
-  completed_property_->ResolveWithUndefined();
-  decoder_ = std::make_unique<WTF::SequenceBound<ImageDecoderCore>>(
-      decode_task_runner_, mime_type_, std::move(segment_reader),
-      data_complete_, color_behavior, desired_size, animation_option_);
 
-  DecodeMetadata();
+  CreateImageDecoder();
+  MaybeUpdateMetadata();
+  if (decoder_->Failed()) {
+    exception_state.ThrowDOMException(DOMExceptionCode::kOperationError,
+                                      "Image decoding failed");
+    return;
+  }
 }
 
 ImageDecoderExternal::~ImageDecoderExternal() {
   DVLOG(1) << __func__;
-
-  if (construction_succeeded_)
-    base::UmaHistogramBoolean("Blink.WebCodecs.ImageDecoder.Success", !failed_);
-
-  // See OnContextDestroyed(); WeakPtrs must be invalidated ahead of GC.
-  DCHECK_EQ(pending_metadata_requests_, 0);
-  DCHECK(!weak_factory_.HasWeakPtrs());
-  DCHECK(!decode_weak_factory_.HasWeakPtrs());
 }
 
-ScriptPromise ImageDecoderExternal::decode(const ImageDecodeOptions* options) {
+ScriptPromise ImageDecoderExternal::decode(uint32_t frame_index,
+                                           bool complete_frames_only) {
   DVLOG(1) << __func__;
+
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(script_state_);
   auto promise = resolver->Promise();
-
-  if (closed_) {
-    resolver->Reject(MakeGarbageCollected<DOMException>(
-        DOMExceptionCode::kInvalidStateError, "The decoder has been closed."));
-    return promise;
-  }
-
-  if (!decoder_) {
-    resolver->Reject(CreateUnsupportedImageTypeException(mime_type_));
-    return promise;
-  }
-
-  if (!tracks_->IsEmpty() && !tracks_->selectedTrack()) {
-    resolver->Reject(MakeGarbageCollected<DOMException>(
-        DOMExceptionCode::kInvalidStateError, "No selected track."));
-    return promise;
-  }
-
   pending_decodes_.push_back(MakeGarbageCollected<DecodeRequest>(
-      resolver, options ? options->frameIndex() : 0,
-      options ? options->completeFramesOnly() : true));
-
+      resolver, frame_index, complete_frames_only));
   MaybeSatisfyPendingDecodes();
   return promise;
 }
 
-void ImageDecoderExternal::UpdateSelectedTrack() {
-  DCHECK(!closed_);
+ScriptPromise ImageDecoderExternal::decodeMetadata() {
+  DVLOG(1) << __func__;
 
-  reset(MakeGarbageCollected<DOMException>(DOMExceptionCode::kAbortError,
-                                           "Aborted by track change"));
+  auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(script_state_);
+  auto promise = resolver->Promise();
+  pending_metadata_decodes_.push_back(resolver);
+  MaybeSatisfyPendingMetadataDecodes();
+  return promise;
+}
 
-  // Track changes recreate a new decoder under the hood, so don't let stale
-  // metadata updates come in for the newly selected (or no selected) track.
-  weak_factory_.InvalidateWeakPtrs();
+void ImageDecoderExternal::selectTrack(uint32_t track_id,
+                                       ExceptionState& exception_state) {
+  if (track_id >= tracks_.size()) {
+    exception_state.ThrowDOMException(DOMExceptionCode::kConstraintError,
+                                      "Track index out of range");
+    return;
+  }
+
+  // Returning early allows us to avoid churn from unnecessarily destructing the
+  // underlying ImageDecoder interface.
+  if (tracks_.size() == 1 || selected_track_id_ == track_id)
+    return;
+
+  for (auto& request : pending_decodes_) {
+    request->resolver->Reject(MakeGarbageCollected<DOMException>(
+        DOMExceptionCode::kAbortError, "Aborted by track change"));
+  }
+
+  pending_decodes_.clear();
+  incomplete_frames_.clear();
 
   // TODO(crbug.com/1073995): We eventually need a formal track selection
   // mechanism. For now we can only select between the still and animated images
   // and must destruct the decoder for changes.
-  if (!tracks_->selectedTrack()) {
-    decoder_->AsyncCall(&ImageDecoderCore::Clear);
-    return;
-  }
+  decoder_.reset();
+  selected_track_id_ = track_id;
+  prefer_animation_ = tracks_[track_id]->animated();
 
-  animation_option_ = AnimationOptionFromIsAnimated(
-      tracks_->selectedTrack().value()->animated());
-
-  decoder_->AsyncCall(&ImageDecoderCore::Reinitialize)
-      .WithArgs(animation_option_);
-
-  DecodeMetadata();
+  CreateImageDecoder();
+  MaybeUpdateMetadata();
   MaybeSatisfyPendingDecodes();
+}
+
+uint32_t ImageDecoderExternal::frameCount() const {
+  return frame_count_;
 }
 
 String ImageDecoderExternal::type() const {
   return mime_type_;
 }
 
+uint32_t ImageDecoderExternal::repetitionCount() const {
+  return repetition_count_;
+}
+
 bool ImageDecoderExternal::complete() const {
   return data_complete_;
 }
 
-ScriptPromise ImageDecoderExternal::completed(ScriptState* script_state) {
-  return completed_property_->Promise(script_state->World());
-}
-
-ImageTrackList& ImageDecoderExternal::tracks() const {
-  return *tracks_;
-}
-
-void ImageDecoderExternal::reset(DOMException* exception) {
-  if (!exception) {
-    exception = MakeGarbageCollected<DOMException>(
-        DOMExceptionCode::kAbortError, "Aborted by reset.");
-  }
-
-  num_submitted_decodes_ = 0u;
-  decode_weak_factory_.InvalidateWeakPtrs();
-
-  // Move all state to local variables since promise resolution is re-entrant.
-  HeapVector<Member<DecodeRequest>> local_pending_decodes;
-  local_pending_decodes.swap(pending_decodes_);
-
-  for (auto& request : local_pending_decodes) {
-    request->resolver->Reject(exception);
-    request->abort_flag->Set();
-
-    // Since the AtomicFlag may still be referenced by the decoder sequence, we
-    // need to delete it on that sequence.
-    decode_task_runner_->DeleteSoon(FROM_HERE, std::move(request->abort_flag));
-  }
-}
-
-void ImageDecoderExternal::close() {
-  if (closed_)
-    return;
-
-  auto* exception = MakeGarbageCollected<DOMException>(
-      DOMExceptionCode::kAbortError,
-      failed_ ? "Aborted by close." : "Aborted by failure.");
-
-  // Failure cases should have already rejected the tracks ready promise.
-  if (!failed_ && decoder_ && tracks_->IsEmpty())
-    tracks_->OnTracksReady(exception);
-
-  if (!data_complete_)
-    completed_property_->Reject(exception);
-
-  CloseInternal(exception);
-}
-
-void ImageDecoderExternal::CloseInternal(DOMException* exception) {
-  reset(exception);
-  if (consumer_)
-    consumer_->Cancel();
-
-  weak_factory_.InvalidateWeakPtrs();
-  pending_metadata_requests_ = 0;
-  consumer_ = nullptr;
-  decoder_.reset();
-  tracks_->Disconnect();
-  mime_type_ = "";
-  closed_ = true;
+const ImageDecoderExternal::ImageTrackList ImageDecoderExternal::tracks()
+    const {
+  return tracks_;
 }
 
 void ImageDecoderExternal::OnStateChange() {
-  DCHECK(!closed_);
-  DCHECK(consumer_);
-
   const char* buffer;
   size_t available;
-  while (!internal_data_complete_) {
+  while (!data_complete_) {
     auto result = consumer_->BeginRead(&buffer, &available);
     if (result == BytesConsumer::Result::kShouldWait)
       return;
 
-    std::unique_ptr<uint8_t[]> data;
     if (result == BytesConsumer::Result::kOk) {
-      if (available > 0) {
-        data.reset(new uint8_t[available]);
-        memcpy(data.get(), buffer, available);
-        bytes_read_ += available;
-      }
+      if (available > 0)
+        stream_buffer_->Append(buffer, SafeCast<wtf_size_t>(available));
       result = consumer_->EndRead(available);
     }
 
-    const bool data_complete = result == BytesConsumer::Result::kDone ||
-                               result == BytesConsumer::Result::kError;
-    if (available > 0 || data_complete != internal_data_complete_) {
-      decoder_->AsyncCall(&ImageDecoderCore::AppendData)
-          .WithArgs(available, std::move(data), data_complete);
-      // Note: Requiring a selected track to DecodeMetadata() means we won't
-      // resolve completed if all data comes in while there's no selected
-      // track. This is intentional since if we resolve completed while there's
-      // no underlying decoder, we may signal completed while the tracks have
-      // out of date metadata in them.
-      if (tracks_->IsEmpty() || tracks_->selectedTrack()) {
-        DecodeMetadata();
-        MaybeSatisfyPendingDecodes();
-      }
+    if (result == BytesConsumer::Result::kError) {
+      data_complete_ = true;
+      return;
     }
-    internal_data_complete_ = data_complete;
+
+    data_complete_ = result == BytesConsumer::Result::kDone;
+    decoder_->SetData(stream_buffer_, data_complete_);
+
+    MaybeUpdateMetadata();
+    MaybeSatisfyPendingDecodes();
   }
 }
 
@@ -433,86 +258,143 @@ void ImageDecoderExternal::Trace(Visitor* visitor) const {
   visitor->Trace(consumer_);
   visitor->Trace(tracks_);
   visitor->Trace(pending_decodes_);
-  visitor->Trace(completed_property_);
+  visitor->Trace(pending_metadata_decodes_);
+  visitor->Trace(init_data_);
+  visitor->Trace(options_);
   ScriptWrappable::Trace(visitor);
   ExecutionContextLifecycleObserver::Trace(visitor);
 }
 
-void ImageDecoderExternal::ContextDestroyed() {
-  // WeakPtrs need special consideration when used with a garbage collected
-  // type; they must be invalidated ahead of finalization.
-  //
-  // We also need to ensure that no further WeakPtrs are created, so close the
-  // decoder at this point to prevent further operation.
-  auto* exception = MakeGarbageCollected<DOMException>(
-      DOMExceptionCode::kAbortError, "Aborted by close.");
-  CloseInternal(exception);
-
-  DCHECK(!weak_factory_.HasWeakPtrs());
-  DCHECK(!decode_weak_factory_.HasWeakPtrs());
-}
+void ImageDecoderExternal::ContextDestroyed() {}
 
 bool ImageDecoderExternal::HasPendingActivity() const {
-  // WARNING: All pending WeakPtr bindings must be tracked here. I.e., all
-  // WTF::SequenceBound.Then() usage must be accounted for. Failure to do so
-  // will cause issues where WeakPtrs are valid between GC finalization and
-  // destruction.
-  const bool has_pending_activity =
-      !pending_decodes_.empty() || pending_metadata_requests_ > 0;
+  return !pending_metadata_decodes_.IsEmpty() || !pending_decodes_.IsEmpty();
+}
 
-  if (!has_pending_activity) {
-    DCHECK(!weak_factory_.HasWeakPtrs());
-    DCHECK(!decode_weak_factory_.HasWeakPtrs());
+void ImageDecoderExternal::CreateImageDecoder() {
+  DCHECK(!decoder_);
+  DCHECK(HasValidEncodedData());
+
+  // TODO(crbug.com/1073995): We should probably call
+  // ImageDecoder::SetMemoryAllocator() so that we can recycle frame buffers for
+  // decoded images.
+
+  constexpr char kNoneOption[] = "none";
+
+  auto color_behavior = ColorBehavior::Tag();
+  if (options_->colorSpaceConversion() == kNoneOption)
+    color_behavior = ColorBehavior::Ignore();
+
+  auto premultiply_alpha = ImageDecoder::kAlphaPremultiplied;
+  if (options_->premultiplyAlpha() == kNoneOption)
+    premultiply_alpha = ImageDecoder::kAlphaNotPremultiplied;
+
+  // TODO(crbug.com/1073995): Is it okay to use resize size like this?
+  auto desired_size = SkISize::MakeEmpty();
+  if (options_->hasResizeWidth() && options_->hasResizeHeight()) {
+    desired_size =
+        SkISize::Make(options_->resizeWidth(), options_->resizeHeight());
   }
 
-  return has_pending_activity;
+  if (stream_buffer_) {
+    if (!segment_reader_)
+      segment_reader_ = SegmentReader::CreateFromSharedBuffer(stream_buffer_);
+  } else {
+    DCHECK(data_complete_);
+  }
+
+  DCHECK(canDecodeType(mime_type_));
+  decoder_ = ImageDecoder::CreateByMimeType(
+      mime_type_, segment_reader_, data_complete_, premultiply_alpha,
+      ImageDecoder::kHighBitDepthToHalfFloat, color_behavior, desired_size);
+
+  // CreateByImageType() can't fail if we use a supported image type. Which we
+  // DCHECK above via canDecodeType().
+  DCHECK(decoder_);
 }
 
 void ImageDecoderExternal::MaybeSatisfyPendingDecodes() {
-  DCHECK(!closed_);
   DCHECK(decoder_);
-  DCHECK(failed_ || tracks_->IsEmpty() || tracks_->selectedTrack());
-
   for (auto& request : pending_decodes_) {
-    if (failed_) {
-      request->exception = MakeGarbageCollected<DOMException>(
-          DOMExceptionCode::kEncodingError,
-          String::Format("Failed to decode frame at index %d",
-                         request->frame_index));
-      continue;
-    }
-
-    // Ignore already submitted requests and those already satisfied.
-    if (request->pending || request->IsFinal())
-      continue;
-
     if (!data_complete_) {
-      // When data is incomplete, we must process requests one at a time since
-      // we don't know if a given request can be satisfied yet and don't want to
-      // fulfill requests out of order.
-      if (num_submitted_decodes_ > 0u)
-        break;
-
-      // If no data has arrived since we last tried submitting this decode
-      // request, do nothing until more data arrives.
-      if (request->bytes_read_index && request->bytes_read_index == bytes_read_)
-        break;
+      // We can't fulfill this promise at this time.
+      if (request->frame_index >= frame_count_)
+        continue;
+    } else if (request->frame_index >= frame_count_) {
+      // TODO(crbug.com/1073995): Include frameIndex in rejection?
+      request->exception = MakeGarbageCollected<DOMException>(
+          DOMExceptionCode::kConstraintError, "Frame index out of range");
+      continue;
     }
 
-    request->pending = true;
-    request->bytes_read_index = bytes_read_;
+    if (!HasValidEncodedData()) {
+      request->exception = MakeGarbageCollected<DOMException>(
+          DOMExceptionCode::kInvalidStateError,
+          "Source data has been neutered");
+      continue;
+    }
 
-    ++num_submitted_decodes_;
-    decoder_->AsyncCall(&ImageDecoderCore::Decode)
-        .WithArgs(request->frame_index, request->complete_frames_only,
-                  WTF::CrossThreadUnretained(request->abort_flag.get()))
-        .Then(CrossThreadBindOnce(&ImageDecoderExternal::OnDecodeReady,
-                                  decode_weak_factory_.GetWeakPtr()));
+    auto* image = decoder_->DecodeFrameBufferAtIndex(request->frame_index);
+    if (decoder_->Failed() || !image) {
+      // TODO(crbug.com/1073995): Include frameIndex in rejection?
+      request->exception = MakeGarbageCollected<DOMException>(
+          DOMExceptionCode::kConstraintError, "Failed to decode frame");
+      continue;
+    }
+
+    // Only satisfy fully complete decode requests.
+    const bool is_complete = image->GetStatus() == ImageFrame::kFrameComplete;
+    if (!is_complete && request->complete_frames_only)
+      continue;
+
+    if (!is_complete && image->GetStatus() != ImageFrame::kFramePartial)
+      continue;
+
+    // Prefer FinalizePixelsAndGetImage() since that will mark the underlying
+    // bitmap as immutable, which allows copies to be avoided.
+    auto sk_image = is_complete ? image->FinalizePixelsAndGetImage()
+                                : SkImage::MakeFromBitmap(image->Bitmap());
+    if (!sk_image) {
+      // TODO(crbug.com/1073995): Include frameIndex in rejection?
+      request->exception = MakeGarbageCollected<DOMException>(
+          DOMExceptionCode::kOperationError, "Failed to decode frame");
+      continue;
+    }
+
+    if (!is_complete) {
+      auto generation_id = image->Bitmap().getGenerationID();
+      auto it = incomplete_frames_.find(request->frame_index);
+      if (it == incomplete_frames_.end()) {
+        incomplete_frames_.Set(request->frame_index, generation_id);
+      } else {
+        // Don't fulfill the promise until a new bitmap is seen.
+        if (it->value == generation_id)
+          continue;
+
+        it->value = generation_id;
+      }
+    } else {
+      incomplete_frames_.erase(request->frame_index);
+    }
+
+    auto* result = ImageFrameExternal::Create();
+    result->setImage(MakeGarbageCollected<ImageBitmap>(
+        UnacceleratedStaticBitmapImage::Create(std::move(sk_image),
+                                               decoder_->Orientation()),
+        base::nullopt, options_));
+    result->setDuration(
+        decoder_->FrameDurationAtIndex(request->frame_index).InMicroseconds());
+    result->setOrientation(
+        static_cast<uint32_t>(decoder_->Orientation().Orientation()));
+    result->setComplete(is_complete);
+    request->result = result;
   }
 
-  auto* new_end = std::stable_partition(
-      pending_decodes_.begin(), pending_decodes_.end(),
-      [](const auto& request) { return !request->IsFinal(); });
+  auto* new_end =
+      std::stable_partition(pending_decodes_.begin(), pending_decodes_.end(),
+                            [](const auto& request) {
+                              return !request->result && !request->exception;
+                            });
 
   // Copy completed requests to a new local vector to avoid reentrancy issues
   // when resolving and rejecting the promises.
@@ -523,176 +405,97 @@ void ImageDecoderExternal::MaybeSatisfyPendingDecodes() {
 
   // Note: Promise resolution may invoke calls into this class.
   for (auto& request : completed_decodes) {
-    DCHECK(!request->abort_flag->IsSet());
-    if (request->exception) {
+    if (request->exception)
       request->resolver->Reject(request->exception);
-    } else if (request->range_error_message) {
-      ScriptState::Scope scope(script_state_);
-      request->resolver->Reject(V8ThrowException::CreateRangeError(
-          script_state_->GetIsolate(), *request->range_error_message));
-    } else {
+    else
       request->resolver->Resolve(request->result);
-    }
-
-    // Since the AtomicFlag may still be referenced by the decoder sequence, we
-    // need to delete it on that sequence.
-    decode_task_runner_->DeleteSoon(FROM_HERE, std::move(request->abort_flag));
   }
 }
 
-void ImageDecoderExternal::OnDecodeReady(
-    std::unique_ptr<ImageDecoderCore::ImageDecodeResult> result) {
+void ImageDecoderExternal::MaybeSatisfyPendingMetadataDecodes() {
+  DCHECK(HasValidEncodedData());
   DCHECK(decoder_);
-  DCHECK(!closed_);
-  DCHECK(result);
-  DCHECK(!pending_decodes_.empty());
-
-  auto& request = pending_decodes_.front();
-  DCHECK_EQ(request->frame_index, result->frame_index);
-  --num_submitted_decodes_;
-
-  if (result->status == ImageDecoderCore::Status::kDecodeError || failed_) {
-    SetFailed();
+  if (!decoder_->IsSizeAvailable() && !decoder_->Failed())
     return;
-  }
 
-  request->pending = false;
-
-  // Abort always invalidates WeakPtrs, so OnDecodeReady() should never receive
-  // the kAborted status.
-  DCHECK_NE(result->status, ImageDecoderCore::Status::kAborted);
-
-  if (result->status == ImageDecoderCore::Status::kIndexError) {
-    request->range_error_message =
-        ExceptionMessages::IndexOutsideRange<uint32_t>(
-            "frame index", request->frame_index, 0,
-            ExceptionMessages::kInclusiveBound,
-            tracks_->selectedTrack().value()->frameCount(),
-            ExceptionMessages::kExclusiveBound);
-    MaybeSatisfyPendingDecodes();
-    return;
-  }
-
-  // If there was nothing to decode yet or no new image, try again; this will do
-  // nothing if no new data has been received since the last submitted request.
-  if (result->status == ImageDecoderCore::Status::kNoImage) {
-    // Once we're data complete, if no further image can be decoded, we should
-    // reject the decode() since it can't be satisfied.
-    if (data_complete_) {
-      request->range_error_message = String::Format(
-          "Unexpected end of image. Request for frame index %d "
-          "can't be satisfied.",
-          request->frame_index);
-    }
-
-    MaybeSatisfyPendingDecodes();
-    return;
-  }
-
-  request->result = ImageDecodeResult::Create();
-  request->result->setImage(
-      MakeGarbageCollected<VideoFrame>(base::MakeRefCounted<VideoFrameHandle>(
-          std::move(result->frame), std::move(result->sk_image))));
-  request->result->setComplete(result->complete);
-  MaybeSatisfyPendingDecodes();
+  DCHECK(decoder_->Failed() || decoder_->IsDecodedSizeAvailable());
+  for (auto& resolver : pending_metadata_decodes_)
+    resolver->Resolve();
+  pending_metadata_decodes_.clear();
 }
 
-void ImageDecoderExternal::DecodeMetadata() {
-  DCHECK(decoder_);
-  DCHECK(tracks_->IsEmpty() || tracks_->selectedTrack());
+void ImageDecoderExternal::MaybeUpdateMetadata() {
+  if (!HasValidEncodedData())
+    return;
 
-  ++pending_metadata_requests_;
-  DCHECK_GE(pending_metadata_requests_, 1);
-
-  decoder_->AsyncCall(&ImageDecoderCore::DecodeMetadata)
-      .Then(CrossThreadBindOnce(&ImageDecoderExternal::OnMetadata,
-                                weak_factory_.GetWeakPtr()));
-}
-
-void ImageDecoderExternal::OnMetadata(
-    ImageDecoderCore::ImageMetadata metadata) {
-  DCHECK(decoder_);
-  DCHECK(!closed_);
-
-  --pending_metadata_requests_;
-  DCHECK_GE(pending_metadata_requests_, 0);
-
-  const bool did_complete = !data_complete_ && metadata.data_complete;
-
-  // Set public value before resolving.
-  data_complete_ = metadata.data_complete;
-  if (did_complete)
-    completed_property_->ResolveWithUndefined();
-
-  if (metadata.failed || failed_) {
-    SetFailed();
+  // Since we always create the decoder at construction, we need to wait until
+  // at least the size is available before signaling that metadata has been
+  // retrieved.
+  if (!decoder_->IsSizeAvailable() || decoder_->Failed()) {
+    MaybeSatisfyPendingMetadataDecodes();
     return;
   }
 
-  // If we don't have size metadata yet, don't attempt to setup the tracks since
-  // we also won't have a reliable frame count. A later call to DecodeMetadata()
-  // will be made as bytes come in.
-  if (!metadata.has_size) {
-    DCHECK(!data_complete_);
+  const size_t decoded_frame_count = decoder_->FrameCount();
+  if (decoder_->Failed()) {
+    MaybeSatisfyPendingMetadataDecodes();
     return;
   }
 
-  if (!tracks_->IsEmpty()) {
-    tracks_->selectedTrack().value()->UpdateTrack(metadata.frame_count,
-                                                  metadata.repetition_count);
-    if (did_complete)
-      MaybeSatisfyPendingDecodes();
-    return;
-  }
+  frame_count_ = static_cast<uint32_t>(decoded_frame_count);
+
+  // The internal value has some magic negative numbers; for external purposes
+  // we want to only surface positive repetition counts. The rest is up to the
+  // client.
+  const int decoded_repetition_count = decoder_->RepetitionCount();
+  if (decoded_repetition_count > 0)
+    repetition_count_ = decoded_repetition_count;
 
   // TODO(crbug.com/1073995): None of the underlying ImageDecoders actually
   // expose tracks yet. So for now just assume a still and animated track for
   // images which declare to be multi-image and have animations.
+  if (tracks_.IsEmpty()) {
+    auto* track = ImageTrackExternal::Create();
+    track->setId(0);
+    tracks_.push_back(track);
 
-  if (metadata.image_has_both_still_and_animated_sub_images) {
-    int selected_track_id = 1;  // Currently animation is always default.
-    if (prefer_animation_.has_value()) {
-      selected_track_id = prefer_animation_.value() ? 1 : 0;
+    if (decoder_->ImageHasBothStillAndAnimatedSubImages()) {
+      track->setAnimated(false);
 
-      // Sadly there's currently no way to get the frame count information for
-      // unselected tracks, so for now just leave frame count as unknown but
-      // force repetition count to be animated.
-      if (!prefer_animation_.value()) {
-        metadata.frame_count = 0;
-        metadata.repetition_count = kAnimationLoopOnce;
-      }
+      // All multi-track images have a still image track. Even if it's just the
+      // first frame of the animation.
+      track = ImageTrackExternal::Create();
+      track->setId(1);
+      track->setAnimated(true);
+      tracks_.push_back(track);
+
+      if (prefer_animation_.has_value())
+        selected_track_id_ = prefer_animation_.value() ? 1 : 0;
+    } else {
+      track->setAnimated(frame_count_ > 1);
+      selected_track_id_ = 0;
     }
-
-    // All multi-track images have a still image track. Even if it's just the
-    // first frame of the animation.
-    tracks_->AddTrack(1, kAnimationNone, selected_track_id == 0);
-    tracks_->AddTrack(metadata.frame_count, metadata.repetition_count,
-                      selected_track_id == 1);
-  } else {
-    tracks_->AddTrack(metadata.frame_count, metadata.repetition_count, true);
   }
 
-  tracks_->OnTracksReady();
-  if (did_complete)
-    MaybeSatisfyPendingDecodes();
+  MaybeSatisfyPendingMetadataDecodes();
 }
 
-void ImageDecoderExternal::SetFailed() {
-  DVLOG(1) << __func__;
-  if (failed_) {
-    DCHECK(pending_decodes_.empty());
-    return;
+bool ImageDecoderExternal::HasValidEncodedData() const {
+  // If we keep an internal copy of the data, it's always valid.
+  if (stream_buffer_)
+    return true;
+
+  if (init_data_->data().IsArrayBuffer() &&
+      init_data_->data().GetAsArrayBuffer()->IsDetached()) {
+    return false;
   }
 
-  failed_ = true;
-  decode_weak_factory_.InvalidateWeakPtrs();
-  if (tracks_->IsEmpty()) {
-    tracks_->OnTracksReady(MakeGarbageCollected<DOMException>(
-        DOMExceptionCode::kInvalidStateError,
-        "Failed to retrieve track metadata."));
+  if (init_data_->data().IsArrayBufferView() &&
+      !init_data_->data().GetAsArrayBufferView()->BaseAddress()) {
+    return false;
   }
-  MaybeSatisfyPendingDecodes();
-  close();
+
+  return true;
 }
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,19 +31,11 @@ public class SupportLibProxyControllerAdapter implements ProxyControllerBoundary
     @Override
     public void setProxyOverride(
             String[][] proxyRules, String[] bypassRules, Runnable listener, Executor executor) {
-        setProxyOverride(proxyRules, bypassRules, listener, executor, false);
-    }
-
-    @Override
-    public void setProxyOverride(String[][] proxyRules, String[] bypassRules, Runnable listener,
-            Executor executor, boolean reverseBypass) {
-        recordApiCall(reverseBypass ? ApiCall.SET_PROXY_OVERRIDE
-                                    : ApiCall.SET_PROXY_OVERRIDE_REVERSE_BYPASS);
+        recordApiCall(ApiCall.SET_PROXY_OVERRIDE);
         if (checkNeedsPost()) {
             RuntimeException exception = mRunQueue.runOnUiThreadBlocking(() -> {
                 try {
-                    mProxyController.setProxyOverride(
-                            proxyRules, bypassRules, listener, executor, reverseBypass);
+                    mProxyController.setProxyOverride(proxyRules, bypassRules, listener, executor);
                 } catch (RuntimeException e) {
                     return e;
                 }
@@ -51,8 +43,7 @@ public class SupportLibProxyControllerAdapter implements ProxyControllerBoundary
             });
             maybeThrowUnwrappedException(exception);
         } else {
-            mProxyController.setProxyOverride(
-                    proxyRules, bypassRules, listener, executor, reverseBypass);
+            mProxyController.setProxyOverride(proxyRules, bypassRules, listener, executor);
         }
     }
 

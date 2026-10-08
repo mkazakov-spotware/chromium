@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "base/check_op.h"
-#include "base/containers/adapters.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/values.h"
 
@@ -33,23 +32,25 @@ void PrerenderHistory::Clear() {
   entries_.clear();
 }
 
-base::Value::List PrerenderHistory::CopyEntriesAsValue() const {
-  base::Value::List return_list;
+std::unique_ptr<base::Value> PrerenderHistory::CopyEntriesAsValue() const {
+  auto return_list = std::make_unique<base::ListValue>();
   // Javascript needs times in terms of milliseconds since Jan 1, 1970.
   base::Time epoch_start = base::Time::UnixEpoch();
-  for (const Entry& entry : base::Reversed(entries_)) {
-    base::Value::Dict entry_dict;
-    entry_dict.Set("url", entry.url.spec());
-    entry_dict.Set("final_status", NameFromFinalStatus(entry.final_status));
-    entry_dict.Set("origin", NameFromOrigin(entry.origin));
+  for (auto it = entries_.rbegin(); it != entries_.rend(); ++it) {
+    const Entry& entry = *it;
+    auto entry_dict = std::make_unique<base::DictionaryValue>();
+    entry_dict->SetString("url", entry.url.spec());
+    entry_dict->SetString("final_status",
+                          NameFromFinalStatus(entry.final_status));
+    entry_dict->SetString("origin", NameFromOrigin(entry.origin));
     // Use a string to prevent overflow, as Values don't support 64-bit
     // integers.
-    entry_dict.Set(
+    entry_dict->SetString(
         "end_time",
         base::NumberToString((entry.end_time - epoch_start).InMilliseconds()));
-    return_list.Append(std::move(entry_dict));
+    return_list->Append(std::move(entry_dict));
   }
-  return return_list;
+  return std::move(return_list);
 }
 
 }  // namespace prerender

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,15 +11,15 @@
 #include "base/files/file_util.h"
 #include "base/i18n/character_encoding.h"
 #include "base/i18n/icu_string_conversions.h"
+#include "base/optional.h"
 #include "base/posix/eintr_wrapper.h"
-#include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "components/exo/data_source_delegate.h"
 #include "components/exo/data_source_observer.h"
 #include "components/exo/mime_utils.h"
 #include "net/base/mime_util.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/mime_util/mime_util.h"
 #include "third_party/icu/source/common/unicode/ucnv.h"
 #include "ui/base/clipboard/clipboard_constants.h"
@@ -32,9 +32,6 @@ constexpr char kTextPlain[] = "text/plain";
 constexpr char kTextRTF[] = "text/rtf";
 constexpr char kTextHTML[] = "text/html";
 constexpr char kTextUriList[] = "text/uri-list";
-constexpr char kApplicationOctetStream[] = "application/octet-stream";
-constexpr char kWebCustomData[] = "chromium/x-web-custom-data";
-constexpr char kDataTransferEndpoint[] = "chromium/x-data-transfer-endpoint";
 
 constexpr char kUtfPrefix[] = "UTF";
 constexpr char kEncoding16[] = "16";
@@ -50,7 +47,7 @@ constexpr char kImageBitmap[] = "image/bmp";
 constexpr char kImagePNG[] = "image/png";
 constexpr char kImageAPNG[] = "image/apng";
 
-absl::optional<std::vector<uint8_t>> ReadDataOnWorkerThread(base::ScopedFD fd) {
+base::Optional<std::vector<uint8_t>> ReadDataOnWorkerThread(base::ScopedFD fd) {
   constexpr size_t kChunkSize = 1024;
   std::vector<uint8_t> bytes;
   while (true) {
@@ -64,7 +61,7 @@ absl::optional<std::vector<uint8_t>> ReadDataOnWorkerThread(base::ScopedFD fd) {
       return bytes;
     if (bytes_read < 0) {
       PLOG(ERROR) << "Failed to read selection data from clipboard";
-      return absl::nullopt;
+      return base::nullopt;
     }
   }
 }
@@ -95,20 +92,19 @@ int GetCharsetRank(const std::string& charset_input) {
 // considered to have any greater meaning. In particular, these are not expected
 // to remain stable over time.
 int GetImageTypeRank(const std::string& mime_type) {
-  // Prefer PNG most of all because this format preserves the alpha channel and
-  // is lossless, followed by BMP for being lossless and fast to decode (but
-  // doesn't preserve alpha), followed by everything else.
+  // Prefer bitmaps most of all to avoid needing to decode the image, followed
+  // by other lossless formats, followed by any other format we support.
+  if (net::MatchesMimeType(std::string(kImageBitmap), mime_type))
+    return 0;
   if (net::MatchesMimeType(std::string(kImagePNG), mime_type) ||
       net::MatchesMimeType(std::string(kImageAPNG), mime_type))
-    return 0;
-  if (net::MatchesMimeType(std::string(kImageBitmap), mime_type))
     return 1;
   return 2;
 }
 
-std::u16string CodepageToUTF16(const std::vector<uint8_t>& data,
+base::string16 CodepageToUTF16(const std::vector<uint8_t>& data,
                                const std::string& charset_input) {
-  std::u16string output;
+  base::string16 output;
   base::StringPiece piece(reinterpret_cast<const char*>(data.data()),
                           data.size());
   const char* charset = charset_input.c_str();
@@ -136,20 +132,6 @@ std::u16string CodepageToUTF16(const std::vector<uint8_t>& data,
   base::CodepageToUTF16(
       piece, charset, base::OnStringConversionError::Type::SUBSTITUTE, &output);
   return output;
-}
-
-// Returns name parameter in application/octet-stream;name=<...>, or empty
-// string if parsing fails.
-std::string GetApplicationOctetStreamName(const std::string& mime_type) {
-  base::StringPairs params;
-  if (net::MatchesMimeType(std::string(kApplicationOctetStream), mime_type) &&
-      net::ParseMimeType(mime_type, nullptr, &params)) {
-    for (const auto& kv : params) {
-      if (kv.first == "name")
-        return kv.second;
-    }
-  }
-  return std::string();
 }
 
 }  // namespace
@@ -190,7 +172,7 @@ void DataSource::SetActions(const base::flat_set<DndAction>& dnd_actions) {
   dnd_actions_ = dnd_actions;
 }
 
-void DataSource::Target(const absl::optional<std::string>& mime_type) {
+void DataSource::Target(const base::Optional<std::string>& mime_type) {
   delegate_->OnTarget(mime_type);
 }
 
@@ -246,22 +228,12 @@ void DataSource::ReadData(const std::string& mime_type,
 void DataSource::OnDataRead(ReadDataCallback callback,
                             const std::string& mime_type,
                             base::OnceClosure failure_callback,
-                            const absl::optional<std::vector<uint8_t>>& data) {
+                            const base::Optional<std::vector<uint8_t>>& data) {
   if (!data) {
     std::move(failure_callback).Run();
     return;
   }
   std::move(callback).Run(mime_type, *data);
-}
-
-void DataSource::ReadDataTransferEndpoint(
-    ReadTextDataCallback dte_reader,
-    base::RepeatingClosure failure_callback) {
-  ReadData(kDataTransferEndpoint,
-           base::BindOnce(&DataSource::OnTextRead,
-                          read_data_weak_ptr_factory_.GetWeakPtr(),
-                          std::move(dte_reader)),
-           failure_callback);
 }
 
 void DataSource::GetDataForPreferredMimeTypes(
@@ -270,16 +242,8 @@ void DataSource::GetDataForPreferredMimeTypes(
     ReadTextDataCallback html_reader,
     ReadDataCallback image_reader,
     ReadDataCallback filenames_reader,
-    ReadFileContentsDataCallback file_contents_reader,
-    ReadDataCallback web_custom_data_reader,
     base::RepeatingClosure failure_callback) {
-  std::string text_mime;
-  std::string rtf_mime;
-  std::string html_mime;
-  std::string image_mime;
-  std::string filenames_mime;
-  std::string file_contents_mime;
-  std::string web_custom_data_mime;
+  std::string text_mime, rtf_mime, html_mime, image_mime, filenames_mime;
 
   int text_rank = std::numeric_limits<int>::max();
   int html_rank = std::numeric_limits<int>::max();
@@ -329,10 +293,6 @@ void DataSource::GetDataForPreferredMimeTypes(
         continue;
 
       filenames_mime = mime_type;
-    } else if (!GetApplicationOctetStreamName(mime_type).empty()) {
-      file_contents_mime = mime_type;
-    } else if (net::MatchesMimeType(std::string(kWebCustomData), mime_type)) {
-      web_custom_data_mime = mime_type;
     }
   }
 
@@ -349,27 +309,13 @@ void DataSource::GetDataForPreferredMimeTypes(
            failure_callback);
   ReadData(image_mime, std::move(image_reader), failure_callback);
   ReadData(filenames_mime, std::move(filenames_reader), failure_callback);
-  ReadData(file_contents_mime,
-           base::BindOnce(&DataSource::OnFileContentsRead,
-                          read_data_weak_ptr_factory_.GetWeakPtr(),
-                          std::move(file_contents_reader)),
-           failure_callback);
-  ReadData(web_custom_data_mime, std::move(web_custom_data_reader),
-           failure_callback);
 }
 
 void DataSource::OnTextRead(ReadTextDataCallback callback,
                             const std::string& mime_type,
                             const std::vector<uint8_t>& data) {
-  std::u16string output = CodepageToUTF16(data, GetCharset(mime_type));
+  base::string16 output = CodepageToUTF16(data, GetCharset(mime_type));
   std::move(callback).Run(mime_type, std::move(output));
-}
-
-void DataSource::OnFileContentsRead(ReadFileContentsDataCallback callback,
-                                    const std::string& mime_type,
-                                    const std::vector<uint8_t>& data) {
-  const base::FilePath filename(GetApplicationOctetStreamName(mime_type));
-  std::move(callback).Run(mime_type, filename, data);
 }
 
 bool DataSource::CanBeDataSourceForCopy(Surface* surface) const {

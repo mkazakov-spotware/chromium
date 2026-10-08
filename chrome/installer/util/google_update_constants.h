@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,12 +47,10 @@ extern const wchar_t kRegCFOptInCmdField[];
 extern const wchar_t kRegCFOptOutCmdField[];
 extern const wchar_t kRegCFTempOptOutCmdField[];
 extern const wchar_t kRegChannelField[];
-extern const wchar_t kRegCleanInstallRequiredForVersionBelowField[];
 extern const wchar_t kRegClientField[];
 extern const wchar_t kRegCommandLineField[];
 extern const wchar_t kRegCriticalVersionField[];
 extern const wchar_t kRegDidRunField[];
-extern const wchar_t kRegDowngradeCleanupCommandField[];
 extern const wchar_t kRegEulaAceptedField[];
 extern const wchar_t kRegGoogleUpdateVersion[];
 extern const wchar_t kRegInstallerProgress[];
@@ -76,6 +74,7 @@ extern const wchar_t kRegProfilesSignedIn[];
 extern const wchar_t kRegRLZBrandField[];
 extern const wchar_t kRegRLZReactivationBrandField[];
 extern const wchar_t kRegReferralField[];
+extern const wchar_t kRegRenameCmdField[];
 extern const wchar_t kRegRunAsUserField[];
 extern const wchar_t kRegSendsPingsField[];
 extern const wchar_t kRegUninstallCmdLine[];

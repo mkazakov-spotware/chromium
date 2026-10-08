@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,7 @@ TEST_F(ActivityLogPolicyUtilTest, StripPrivacySensitive) {
                  base::Time::Now(),
                  Action::ACTION_API_CALL,
                  "tabs.executeScript");
-  action->mutable_args().Append("woof");
+  action->mutable_args()->AppendString("woof");
   action->set_page_url(GURL("http://www.google.com/"));
   action->set_page_incognito(true);
   action->set_page_title("private");
@@ -43,13 +43,14 @@ TEST_F(ActivityLogPolicyUtilTest, StripPrivacySensitive) {
 TEST_F(ActivityLogPolicyUtilTest, StripPrivacySensitiveWebRequest) {
   scoped_refptr<Action> action = new Action(
       "punky", base::Time::Now(), Action::ACTION_WEB_REQUEST, "webRequest");
-  base::Value::Dict root;
-  root.Set(activity_log_web_request_constants::kNewUrlKey,
-           "http://www.youtube.com/");
-  root.Set(activity_log_web_request_constants::kAddedRequestHeadersKey,
-           base::Value::List());
-  action->mutable_other().Set(activity_log_constants::kActionWebRequest,
-                              std::move(root));
+  action->mutable_other()->Set(
+      activity_log_constants::kActionWebRequest,
+      DictionaryBuilder()
+          .Set(activity_log_web_request_constants::kNewUrlKey,
+               "http://www.youtube.com/")
+          .Set(activity_log_web_request_constants::kAddedRequestHeadersKey,
+               ListBuilder().Append("arg").Build())
+          .Build());
 
   ActivityLogPolicy::Util::StripPrivacySensitiveFields(action);
 
@@ -70,14 +71,14 @@ TEST_F(ActivityLogPolicyUtilTest, StripArguments) {
                  base::Time::Now(),
                  Action::ACTION_API_CALL,
                  "tabs.executeScript");
-  action->mutable_args().Append("woof");
+  action->mutable_args()->AppendString("woof");
   ActivityLogPolicy::Util::StripArguments(allowlist, action);
   ASSERT_EQ("[\"woof\"]", ActivityLogPolicy::Util::Serialize(action->args()));
 
   // Not in allowlist: stripped.
   action = new Action(
       "punky", base::Time::Now(), Action::ACTION_API_CALL, "tabs.create");
-  action->mutable_args().Append("woof");
+  action->mutable_args()->AppendString("woof");
   ActivityLogPolicy::Util::StripArguments(allowlist, action);
   ASSERT_EQ("", ActivityLogPolicy::Util::Serialize(action->args()));
 }

@@ -173,7 +173,7 @@ function _getPixel(canvas, x,y)
     return undefined;
 }
 
-function _assertPixel(canvas, x,y, r,g,b,a)
+function _assertPixel(canvas, x,y, r,g,b,a, pos, colour)
 {
     _asserted = true;
     var c = _getPixel(canvas, x,y);
@@ -181,7 +181,7 @@ function _assertPixel(canvas, x,y, r,g,b,a)
         _fail('Failed assertion: got pixel [' + c + '] at ('+x+','+y+'), expected ['+r+','+g+','+b+','+a+']');
 }
 
-function _assertPixelApprox(canvas, x,y, r,g,b,a, tolerance)
+function _assertPixelApprox(canvas, x,y, r,g,b,a, pos, colour, tolerance)
 {
     _asserted = true;
     var c = _getPixel(canvas, x,y);
@@ -258,3 +258,4 @@ function _addTest(test)
             endTest();
     };
 }
+

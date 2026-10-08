@@ -47,7 +47,7 @@ static const int kDateDefaultStepBase = 0;
 static const int kDateStepScaleFactor = 86400000;
 
 DateInputType::DateInputType(HTMLInputElement& element)
-    : BaseTemporalInputType(Type::kDate, element) {}
+    : BaseTemporalInputType(element) {}
 
 void DateInputType::CountUsage() {
   CountUsageIfVisible(WebFeature::kInputTypeDate);
@@ -134,7 +134,7 @@ bool DateInputType::IsValidFormat(bool has_year,
   return has_year && has_month && has_day;
 }
 
-String DateInputType::AriaLabelForPickerIndicator() const {
+String DateInputType::AriaRoleForPickerIndicator() const {
   return GetLocale().QueryString(IDS_AX_CALENDAR_SHOW_DATE_PICKER);
 }
 

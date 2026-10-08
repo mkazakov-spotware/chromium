@@ -1,7 +1,7 @@
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [800, 600],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF"
@@ -21,24 +21,34 @@
       "transform": 4
     },
     {
-      "name": "LayoutBlockFlow (relative positioned) DIV id='child3' class='child'",
+      "name": "LayoutBlockFlow (relative positioned) DIV id='container3' class='container scale composited'",
       "bounds": [1, 1],
       "contentsOpaque": true,
       "backgroundColor": "#0000FF",
       "transform": 6
     },
     {
-      "name": "LayoutBlockFlow (relative positioned) DIV id='child4' class='child scale'",
-      "bounds": [1, 1],
+      "name": "LayoutBlockFlow (relative positioned) DIV id='container4' class='container composited'",
+      "bounds": [40, 40],
+      "transform": 7
+    },
+    {
+      "name": "LayoutBlockFlow (relative positioned) DIV id='container5' class='container scale composited'",
       "contentsOpaque": true,
-      "backgroundColor": "#0000FF",
-      "transform": 8
+      "drawsContent": false,
+      "transform": 9
     },
     {
       "name": "LayoutBlockFlow (relative positioned) DIV id='child5' class='child composited'",
       "bounds": [1, 1],
       "contentsOpaque": true,
       "backgroundColor": "#0000FF",
+      "transform": 9
+    },
+    {
+      "name": "LayoutBlockFlow (relative positioned) DIV id='container6' class='container composited'",
+      "contentsOpaque": true,
+      "drawsContent": false,
       "transform": 10
     },
     {
@@ -46,7 +56,7 @@
       "bounds": [1, 1],
       "contentsOpaque": true,
       "backgroundColor": "#0000FF",
-      "transform": 12
+      "transform": 11
     }
   ],
   "transforms": [
@@ -121,17 +131,6 @@
     },
     {
       "id": 8,
-      "parent": 7,
-      "transform": [
-        [40, 0, 0, 0],
-        [0, 40, 0, 0],
-        [0, 0, 1, 0],
-        [0, 0, 0, 1]
-      ],
-      "origin": [0, 0]
-    },
-    {
-      "id": 9,
       "transform": [
         [1, 0, 0, 0],
         [0, 1, 0, 0],
@@ -140,8 +139,8 @@
       ]
     },
     {
-      "id": 10,
-      "parent": 9,
+      "id": 9,
+      "parent": 8,
       "transform": [
         [40, 0, 0, 0],
         [0, 40, 0, 0],
@@ -151,7 +150,7 @@
       "origin": [0, 0]
     },
     {
-      "id": 11,
+      "id": 10,
       "transform": [
         [1, 0, 0, 0],
         [0, 1, 0, 0],
@@ -160,8 +159,8 @@
       ]
     },
     {
-      "id": 12,
-      "parent": 11,
+      "id": 11,
+      "parent": 10,
       "transform": [
         [40, 0, 0, 0],
         [0, 40, 0, 0],

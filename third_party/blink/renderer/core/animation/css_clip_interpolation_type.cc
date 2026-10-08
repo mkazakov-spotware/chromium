@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -88,7 +88,7 @@ class InheritedClipChecker : public CSSInterpolationType::CSSConversionChecker {
   const Vector<Length> inherited_length_list_;
 };
 
-class CSSClipNonInterpolableValue final : public NonInterpolableValue {
+class CSSClipNonInterpolableValue : public NonInterpolableValue {
  public:
   ~CSSClipNonInterpolableValue() final = default;
 
@@ -121,7 +121,7 @@ struct DowncastTraits<CSSClipNonInterpolableValue> {
   }
 };
 
-class UnderlyingAutosChecker final
+class UnderlyingAutosChecker
     : public CSSInterpolationType::CSSConversionChecker {
  public:
   explicit UnderlyingAutosChecker(const ClipAutos& underlying_autos)
@@ -289,10 +289,9 @@ void CSSClipInterpolationType::ApplyStandardPropertyValue(
     if (is_auto)
       return Length::Auto();
     return To<InterpolableLength>(*list.Get(index))
-        .CreateLength(state.CssToLengthConversionData(),
-                      Length::ValueRange::kAll);
+        .CreateLength(state.CssToLengthConversionData(), kValueRangeAll);
   };
-  state.StyleBuilder().SetClip(
+  state.Style()->SetClip(
       LengthBox(convert_index(autos.is_top_auto, kClipTop),
                 convert_index(autos.is_right_auto, kClipRight),
                 convert_index(autos.is_bottom_auto, kClipBottom),

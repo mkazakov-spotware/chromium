@@ -1,16 +1,15 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef UI_GFX_CODEC_VECTOR_WSTREAM_H_
-#define UI_GFX_CODEC_VECTOR_WSTREAM_H_
+#ifndef UI_GFX_VECTOR_WSTREAM_CODEC_H_
+#define UI_GFX_VECTOR_WSTREAM_CODEC_H_
 
 #include <stddef.h>
 
 #include <vector>
 
 #include "base/check_op.h"
-#include "base/memory/raw_ptr.h"
 #include "third_party/skia/include/core/SkStream.h"
 
 namespace gfx {
@@ -29,9 +28,9 @@ class VectorWStream : public SkWStream {
 
  private:
   // Does not have ownership.
-  raw_ptr<std::vector<unsigned char>> dst_;
+  std::vector<unsigned char>* dst_;
 };
 
 }  // namespace gfx
 
-#endif  // UI_GFX_CODEC_VECTOR_WSTREAM_H_
+#endif  // UI_GFX_VECTOR_WSTREAM_H_

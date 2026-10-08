@@ -81,7 +81,6 @@ Running test: expectGetAttributesOnNonElementReturnsError
             parentId : <number>
         }
     ]
-    compatibilityMode : QuirksMode
     documentURL : <string>
     localName : 
     nodeId : <number>

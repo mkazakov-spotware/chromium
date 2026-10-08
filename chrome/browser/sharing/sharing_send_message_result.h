@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,8 +20,7 @@ enum class SharingSendMessageResult {
   kInternalError = 5,
   kEncryptionError = 6,
   kCommitTimeout = 7,
-  kCancelled = 8,
-  kMaxValue = kCancelled,
+  kMaxValue = kCommitTimeout,
 };
 
 #endif  // CHROME_BROWSER_SHARING_SHARING_SEND_MESSAGE_RESULT_H_

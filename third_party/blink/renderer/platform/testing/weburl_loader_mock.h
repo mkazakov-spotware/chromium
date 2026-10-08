@@ -1,13 +1,14 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_TESTING_WEBURL_LOADER_MOCK_H_
-#define THIRD_PARTY_BLINK_RENDERER_PLATFORM_TESTING_WEBURL_LOADER_MOCK_H_
+#ifndef WebURLLoaderMock_h
+#define WebURLLoaderMock_h
 
 #include <memory>
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "third_party/blink/public/platform/web_url_error.h"
 #include "third_party/blink/public/platform/web_url_loader.h"
 
@@ -30,15 +31,13 @@ const uint32_t kRedirectResponseOverheadBytes = 300;
 class WebURLLoaderMock : public WebURLLoader {
  public:
   explicit WebURLLoaderMock(WebURLLoaderMockFactoryImpl* factory);
-  WebURLLoaderMock(const WebURLLoaderMock&) = delete;
-  WebURLLoaderMock& operator=(const WebURLLoaderMock&) = delete;
   ~WebURLLoaderMock() override;
 
   // Simulates the asynchronous request being served.
   void ServeAsynchronousRequest(WebURLLoaderTestDelegate* delegate,
                                 const WebURLResponse& response,
                                 const WebData& data,
-                                const absl::optional<WebURLError>& error);
+                                const base::Optional<WebURLError>& error);
 
   // Simulates the redirect being served.
   WebURL ServeRedirect(const WebString& method,
@@ -48,12 +47,13 @@ class WebURLLoaderMock : public WebURLLoader {
   void LoadSynchronously(
       std::unique_ptr<network::ResourceRequest> request,
       scoped_refptr<WebURLRequestExtraData> url_request_extra_data,
+      int requestor_id,
       bool pass_response_pipe_to_client,
       bool no_mime_sniffing,
       base::TimeDelta timeout_interval,
       WebURLLoaderClient* client,
       WebURLResponse&,
-      absl::optional<WebURLError>&,
+      base::Optional<WebURLError>&,
       WebData&,
       int64_t& encoded_data_length,
       int64_t& encoded_body_length,
@@ -63,11 +63,12 @@ class WebURLLoaderMock : public WebURLLoader {
   void LoadAsynchronously(
       std::unique_ptr<network::ResourceRequest> request,
       scoped_refptr<WebURLRequestExtraData> url_request_extra_data,
+      int requestor_id,
       bool no_mime_sniffing,
       std::unique_ptr<blink::ResourceLoadInfoNotifierWrapper>
           resource_load_info_notifier_wrapper,
       WebURLLoaderClient* client) override;
-  void Freeze(WebLoaderFreezeMode mode) override;
+  void SetDefersLoading(DeferType defer) override;
   void DidChangePriority(WebURLRequest::Priority new_priority,
                          int intra_priority_value) override;
   scoped_refptr<base::SingleThreadTaskRunner> GetTaskRunnerForBodyLoader()
@@ -86,8 +87,10 @@ class WebURLLoaderMock : public WebURLLoader {
   bool is_deferred_ = false;
 
   base::WeakPtrFactory<WebURLLoaderMock> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(WebURLLoaderMock);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_TESTING_WEBURL_LOADER_MOCK_H_
+#endif  // WebURLLoaderMock_h

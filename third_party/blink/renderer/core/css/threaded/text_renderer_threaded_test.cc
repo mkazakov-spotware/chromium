@@ -1,8 +1,7 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "cc/paint/skottie_wrapper.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/core/css/resolver/font_style_resolver.h"
@@ -47,21 +46,21 @@ TSAN_TEST(TextRendererThreadedTest, MeasureText) {
         TextRun::kAllowTrailingExpansion | TextRun::kForbidLeadingExpansion,
         TextDirection::kLtr, false);
     text_run.SetNormalizeSpace(true);
-    gfx::RectF text_bounds = font.SelectionRectForText(
-        text_run, gfx::PointF(), font.GetFontDescription().ComputedSize(), 0,
+    FloatRect text_bounds = font.SelectionRectForText(
+        text_run, FloatPoint(), font.GetFontDescription().ComputedSize(), 0,
         -1);
 
     // X direction.
     EXPECT_EQ(78, font.Width(text_run));
-    EXPECT_EQ(0, text_bounds.x());
-    EXPECT_EQ(78, text_bounds.right());
+    EXPECT_EQ(0, text_bounds.X());
+    EXPECT_EQ(78, text_bounds.MaxX());
 
     // Y direction.
     const FontMetrics& font_metrics = font_data->GetFontMetrics();
     EXPECT_EQ(11, font_metrics.FloatAscent());
     EXPECT_EQ(3, font_metrics.FloatDescent());
-    EXPECT_EQ(0, text_bounds.y());
-    EXPECT_EQ(12, text_bounds.bottom());
+    EXPECT_EQ(0, text_bounds.Y());
+    EXPECT_EQ(12, text_bounds.MaxY());
   });
 }
 
@@ -78,7 +77,7 @@ TSAN_TEST(TextRendererThreadedTest, DrawText) {
 
     Font font = Font(font_description);
 
-    gfx::PointF location(0, 0);
+    FloatPoint location(0, 0);
     TextRun text_run(text, 0, 0, TextRun::kAllowTrailingExpansion,
                      TextDirection::kLtr, false);
     text_run.SetNormalizeSpace(true);
@@ -86,15 +85,14 @@ TSAN_TEST(TextRendererThreadedTest, DrawText) {
     TextRunPaintInfo text_run_paint_info(text_run);
 
     MockPaintCanvas mpc;
-    cc::PaintFlags flags;
+    PaintFlags flags;
 
     EXPECT_CALL(mpc, getSaveCount()).WillOnce(Return(17));
     EXPECT_CALL(mpc, drawTextBlob(_, 0, 0, _)).Times(1);
     EXPECT_CALL(mpc, restoreToCount(17)).WillOnce(Return());
 
     font.DrawBidiText(&mpc, text_run_paint_info, location,
-                      Font::kUseFallbackIfFontNotReady, 1.0, flags,
-                      Font::DrawType::kGlyphsAndClusters);
+                      Font::kUseFallbackIfFontNotReady, 1.0, flags);
   });
 }
 

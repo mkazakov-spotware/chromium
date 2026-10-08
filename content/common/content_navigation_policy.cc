@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,44 +9,25 @@
 #include "base/command_line.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/system/sys_info.h"
-#include "build/build_config.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
-
-namespace features {
-BASE_FEATURE(kBackForwardCache_NoMemoryLimit_Trial,
-             "BackForwardCache_NoMemoryLimit_Trial",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-}
 
 namespace content {
 
 bool DeviceHasEnoughMemoryForBackForwardCache() {
   // This method make sure that the physical memory of device is greater than
   // the allowed threshold and enables back-forward cache if the feature
-  // kBackForwardCacheMemoryControls is enabled.
+  // kBackForwardCacheMemoryControl is enabled.
   // It is important to check the base::FeatureList to avoid activating any
   // field trial groups if BFCache is disabled due to memory threshold.
-  if (base::FeatureList::IsEnabled(features::kBackForwardCacheMemoryControls)) {
-    // On Android, BackForwardCache is only enabled for 2GB+ high memory
-    // devices. The default threshold value is set to 1700 MB to account for all
-    // 2GB devices which report lower RAM due to carveouts.
-    int default_memory_threshold_mb =
-#if BUILDFLAG(IS_ANDROID)
-        1700;
-#else
-        // Desktop has lower memory limitations compared to Android allowing us
-        // to enable BackForwardCache for all devices.
-        0;
-#endif
+  if (base::FeatureList::IsEnabled(features::kBackForwardCacheMemoryControl)) {
     int memory_threshold_mb = base::GetFieldTrialParamByFeatureAsInt(
-        features::kBackForwardCacheMemoryControls,
-        "memory_threshold_for_back_forward_cache_in_mb",
-        default_memory_threshold_mb);
+        features::kBackForwardCacheMemoryControl,
+        "memory_threshold_for_back_forward_cache_in_mb", 0);
     return base::SysInfo::AmountOfPhysicalMemoryMB() > memory_threshold_mb;
   }
 
-  // If the feature kBackForwardCacheMemoryControls is not enabled, all the
+  // If the feature kBackForwardCacheMemoryControl is not enabled, all the
   // devices are included by default.
   return true;
 }
@@ -61,42 +42,32 @@ bool IsBackForwardCacheDisabledByCommandLine() {
 }
 
 bool IsBackForwardCacheEnabled() {
-  bool has_enough_memory = DeviceHasEnoughMemoryForBackForwardCache();
-  if (!has_enough_memory) {
-    // When the device does not have enough memory for BackForwardCache, return
-    // false so we won't try to put things in the back/forward cache.
-    // Also, trigger the activation of the BackForwardCache_NoMemoryLimit_Trial
-    // field trial by querying the feature flag. With this, we guarantee that
-    // all devices that do not have enough memory for BackForwardCache will be
-    // included in that field trial. See case #1 in the comment for the
-    // BackForwardCache_NoMemoryLimit_Trial in the header file for more details.
-    base::FeatureList::IsEnabled(
-        features::kBackForwardCache_NoMemoryLimit_Trial);
+  if (!DeviceHasEnoughMemoryForBackForwardCache())
     return false;
-  }
 
   if (IsBackForwardCacheDisabledByCommandLine())
     return false;
 
   // The feature needs to be checked last, because checking the feature
   // activates the field trial and assigns the client either to a control or an
-  // experiment group - such assignment should be final. This allows us to keep
-  // the BackForwardCache field trial to include only devices that have enough
-  // memory for BackForwardCache, and those devices only.
-  if (base::FeatureList::IsEnabled(features::kBackForwardCache)) {
-    // When the device does have enough memory for BackForwardCache, return
-    // true so we won't try to put things in the back/forward cache. Also,
-    // trigger the activation of the BackForwardCache_NoMemoryLimit_Trial field
-    // trial by querying the feature flag. With this, we guarantee that all
-    // devices that do have enough memory for BackForwardCache and have the
-    // BackForwardCache feature flag enabled will be included in that field
-    // trial. See case #2 in the comment for the
-    // BackForwardCache_NoMemoryLimit_Trial in the header file for more details.
-    base::FeatureList::IsEnabled(
-        features::kBackForwardCache_NoMemoryLimit_Trial);
+  // experiment group - such assignment should be final.
+  return base::FeatureList::IsEnabled(features::kBackForwardCache);
+}
+
+bool IsSameSiteBackForwardCacheEnabled() {
+  if (!IsBackForwardCacheEnabled())
+    return false;
+  static constexpr base::FeatureParam<bool> enable_same_site_back_forward_cache(
+      &features::kBackForwardCache, "enable_same_site", false);
+  return enable_same_site_back_forward_cache.Get();
+}
+
+bool ShouldSkipSameSiteBackForwardCacheForPageWithUnload() {
+  if (!IsSameSiteBackForwardCacheEnabled())
     return true;
-  }
-  return false;
+  static constexpr base::FeatureParam<bool> skip_same_site_if_unload_exists(
+      &features::kBackForwardCache, "skip_same_site_if_unload_exists", false);
+  return skip_same_site_if_unload_exists.Get();
 }
 
 bool CanCrossSiteNavigationsProactivelySwapBrowsingInstances() {
@@ -165,8 +136,7 @@ const char kRenderDocumentLevelParameterName[] = "level";
 constexpr base::FeatureParam<RenderDocumentLevel>::Option
     render_document_levels[] = {
         {RenderDocumentLevel::kCrashedFrame, "crashed-frame"},
-        {RenderDocumentLevel::kSubframe, "subframe"},
-        {RenderDocumentLevel::kAllFrames, "all-frames"}};
+        {RenderDocumentLevel::kSubframe, "subframe"}};
 const base::FeatureParam<RenderDocumentLevel> render_document_level{
     &features::kRenderDocument, kRenderDocumentLevelParameterName,
     RenderDocumentLevel::kCrashedFrame, &render_document_levels};
@@ -183,17 +153,6 @@ std::string GetRenderDocumentLevelName(RenderDocumentLevel level) {
 
 bool ShouldCreateNewHostForSameSiteSubframe() {
   return GetRenderDocumentLevel() >= RenderDocumentLevel::kSubframe;
-}
-
-bool ShouldCreateNewHostForAllFrames() {
-  return GetRenderDocumentLevel() >= RenderDocumentLevel::kAllFrames;
-}
-
-bool ShouldSkipEarlyCommitPendingForCrashedFrame() {
-  static bool skip_early_commit_pending_for_crashed_frame =
-      base::FeatureList::IsEnabled(
-          features::kSkipEarlyCommitPendingForCrashedFrame);
-  return skip_early_commit_pending_for_crashed_frame;
 }
 
 }  // namespace content

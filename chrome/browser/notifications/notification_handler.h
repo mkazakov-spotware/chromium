@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include <string>
 
 #include "base/callback_forward.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
 
 class GURL;
 class Profile;
@@ -38,8 +39,7 @@ class NotificationHandler {
     ANNOUNCEMENT = 7,
     NEARBY_SHARE = 8,
     NOTIFICATIONS_MUTED = 9,
-    TAILORED_SECURITY = 10,
-    MAX = TAILORED_SECURITY,
+    MAX = NOTIFICATIONS_MUTED,
   };
 
   virtual ~NotificationHandler();
@@ -61,8 +61,8 @@ class NotificationHandler {
   virtual void OnClick(Profile* profile,
                        const GURL& origin,
                        const std::string& notification_id,
-                       const absl::optional<int>& action_index,
-                       const absl::optional<std::u16string>& reply,
+                       const base::Optional<int>& action_index,
+                       const base::Optional<base::string16>& reply,
                        base::OnceClosure completed_closure);
 
   // Called when notifications of the given origin have to be disabled.

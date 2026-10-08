@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
+#include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/safe_browsing/chrome_cleaner/chrome_cleaner_navigation_util_win.h"
 #include "chrome/browser/safe_browsing/chrome_cleaner/srt_field_trial_win.h"
@@ -15,6 +16,7 @@
 #include "chrome/browser/ui/browser_list.h"
 #include "components/component_updater/pref_names.h"
 #include "components/prefs/pref_service.h"
+#include "extensions/browser/extension_system.h"
 #include "ui/base/window_open_disposition.h"
 
 namespace safe_browsing {
@@ -79,13 +81,17 @@ void ChromeCleanerDialogControllerImpl::Accept(bool logs_enabled) {
   DCHECK(browser_);
 
   RecordPromptDialogResponseHistogram(PROMPT_DIALOG_RESPONSE_ACCEPTED);
+  RecordCleanupStartedHistogram(CLEANUP_STARTED_FROM_PROMPT_DIALOG);
   base::RecordAction(
       base::UserMetricsAction("SoftwareReporter.PromptDialog_Accepted"));
 
   Profile* profile = browser_->profile();
 
+  extensions::ExtensionService* extension_service =
+      extensions::ExtensionSystem::Get(profile)->extension_service();
+
   cleaner_controller_->ReplyWithUserResponse(
-      profile,
+      profile, extension_service,
       logs_enabled
           ? ChromeCleanerController::UserResponse::kAcceptedWithLogs
           : ChromeCleanerController::UserResponse::kAcceptedWithoutLogs);
@@ -103,8 +109,12 @@ void ChromeCleanerDialogControllerImpl::Cancel() {
 
   Profile* profile = browser_->profile();
 
+  extensions::ExtensionService* extension_service =
+      extensions::ExtensionSystem::Get(profile)->extension_service();
+
   cleaner_controller_->ReplyWithUserResponse(
-      profile, ChromeCleanerController::UserResponse::kDenied);
+      profile, extension_service,
+      ChromeCleanerController::UserResponse::kDenied);
   OnInteractionDone();
 }
 
@@ -117,8 +127,12 @@ void ChromeCleanerDialogControllerImpl::Close() {
 
   Profile* profile = browser_->profile();
 
+  extensions::ExtensionService* extension_service =
+      extensions::ExtensionSystem::Get(profile)->extension_service();
+
   cleaner_controller_->ReplyWithUserResponse(
-      profile, ChromeCleanerController::UserResponse::kDismissed);
+      profile, extension_service,
+      ChromeCleanerController::UserResponse::kDismissed);
   OnInteractionDone();
 }
 
@@ -190,6 +204,8 @@ void ChromeCleanerDialogControllerImpl::OnInfected(
     return;
   }
   ShowChromeCleanerPrompt();
+  RecordPromptShownWithTypeHistogram(
+      PromptTypeHistogramValue::PROMPT_TYPE_ON_TRANSITION_TO_INFECTED_STATE);
 }
 
 void ChromeCleanerDialogControllerImpl::OnCleaning(
@@ -212,6 +228,8 @@ void ChromeCleanerDialogControllerImpl::OnBrowserSetLastActive(
 
   browser_ = browser;
   ShowChromeCleanerPrompt();
+  RecordPromptShownWithTypeHistogram(
+      PromptTypeHistogramValue::PROMPT_TYPE_ON_BROWSER_WINDOW_AVAILABLE);
   prompt_pending_ = false;
   BrowserList::RemoveObserver(this);
 }
@@ -230,8 +248,7 @@ void ChromeCleanerDialogControllerImpl::ShowChromeCleanerPrompt() {
 
   // Don't show the prompt again if it's been shown before for this profile and
   // for the current variations seed.
-  const std::string incoming_seed =
-      cleaner_controller_->GetIncomingPromptSeed();
+  const std::string incoming_seed = GetIncomingSRTSeed();
   const std::string old_seed = prefs->GetString(prefs::kSwReporterPromptSeed);
   if (!incoming_seed.empty() && incoming_seed != old_seed)
     prefs->SetString(prefs::kSwReporterPromptSeed, incoming_seed);

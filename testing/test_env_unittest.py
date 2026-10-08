@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# Copyright 2019 The Chromium Authors
+#!/usr/bin/env python
+# Copyright (c) 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -42,16 +42,14 @@ def launch_process_nonwindows(args):
       universal_newlines=True)
 
 
-# pylint: disable=inconsistent-return-statements
 def read_subprocess_message(proc, starts_with):
   """Finds the value after first line prefix condition."""
   for line in proc.stdout:
     if line.startswith(starts_with):
       return line.rstrip().replace(starts_with, '')
-# pylint: enable=inconsistent-return-statements
 
 
-def send_and_wait(proc, sig, sleep_time=0.6):
+def send_and_wait(proc, sig, sleep_time=0.3):
   """Sends a signal to subprocess."""
   time.sleep(sleep_time)  # gives process time to launch.
   os.kill(proc.pid, sig)
@@ -61,25 +59,21 @@ def send_and_wait(proc, sig, sleep_time=0.6):
 class SignalingWindowsTest(unittest.TestCase):
 
   def setUp(self):
-    super().setUp()
+    super(SignalingWindowsTest, self).setUp()
     if sys.platform != 'win32':
       self.skipTest('test only runs on Windows')
 
   def test_send_ctrl_break_event(self):
     proc = launch_process_windows([])
-    send_and_wait(proc, signal.CTRL_BREAK_EVENT) # pylint: disable=no-member
+    send_and_wait(proc, signal.CTRL_BREAK_EVENT)
     sig = read_subprocess_message(proc, 'Signal :')
-    # This test is flaky because it relies on the child process starting quickly
-    # "enough", which it fails to do sometimes. This is tracked by
-    # https://crbug.com/1335123 and it is hoped that increasing the timeout will
-    # reduce the flakiness.
-    self.assertEqual(sig, str(int(signal.SIGBREAK))) # pylint: disable=no-member
+    self.assertEqual(sig, str(int(signal.SIGBREAK)))
 
 
 class SignalingNonWindowsTest(unittest.TestCase):
 
   def setUp(self):
-    super().setUp()
+    super(SignalingNonWindowsTest, self).setUp()
     if sys.platform == 'win32':
       self.skipTest('test does not run on Windows')
 

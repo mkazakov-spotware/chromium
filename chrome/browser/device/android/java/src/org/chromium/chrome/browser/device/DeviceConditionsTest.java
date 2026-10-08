@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -88,12 +88,7 @@ public class DeviceConditionsTest {
         mBatteryStatus.putExtra(BatteryManager.EXTRA_SCALE, 100);
         mBatteryStatus.putExtra(BatteryManager.EXTRA_LEVEL, 50);
         setBatteryStatus(BatteryManager.BATTERY_STATUS_UNKNOWN);
-        doReturn(mBatteryStatus)
-                .when(mContext)
-                .registerReceiver(isNull(), any(), isNull(), isNull());
-        doReturn(mBatteryStatus)
-                .when(mContext)
-                .registerReceiver(isNull(), any(), isNull(), isNull(), eq(0));
+        doReturn(mBatteryStatus).when(mContext).registerReceiver(isNull(), any());
 
         // Set up connectivity manager.
         doReturn(null).when(mConnectivityManager).getActiveNetworkInfo();
@@ -188,8 +183,7 @@ public class DeviceConditionsTest {
 
     @Test
     public void testNoNpeOnNullBatteryStatus() {
-        doReturn(null).when(mContext).registerReceiver(isNull(), any(), isNull(), isNull());
-        doReturn(null).when(mContext).registerReceiver(isNull(), any(), isNull(), isNull(), eq(0));
+        doReturn(null).when(mContext).registerReceiver(isNull(), any());
 
         DeviceConditions deviceConditions = DeviceConditions.getCurrent(mContext);
 
@@ -216,9 +210,7 @@ public class DeviceConditionsTest {
         Intent intent = new Intent();
         intent.putExtra(BatteryManager.EXTRA_SCALE, 0);
         intent.putExtra(BatteryManager.EXTRA_LEVEL, 50);
-        doReturn(intent).when(mContext).registerReceiver(isNull(), any(), isNull(), isNull());
-        doReturn(intent).when(mContext).registerReceiver(
-                isNull(), any(), isNull(), isNull(), eq(0));
+        doReturn(intent).when(mContext).registerReceiver(isNull(), any());
 
         deviceConditions = DeviceConditions.getCurrent(mContext);
         assertNotNull(deviceConditions);
@@ -291,12 +283,12 @@ public class DeviceConditionsTest {
 
     @Test
     public void testForceConnectionTypeNoneForTesting() {
-        DeviceConditions.sForceConnectionTypeForTesting = true;
+        DeviceConditions.sForceNoConnectionForTesting = true;
         assertEquals(ConnectionType.CONNECTION_NONE,
                 DeviceConditions.getCurrentNetConnectionType(mContext));
         assertEquals(ConnectionType.CONNECTION_NONE,
                 DeviceConditions.getCurrent(mContext).getNetConnectionType());
-        DeviceConditions.sForceConnectionTypeForTesting = false;
+        DeviceConditions.sForceNoConnectionForTesting = false;
     }
 
     @Test

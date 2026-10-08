@@ -1,15 +1,17 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/device/generic_sensor/platform_sensor_win.h"
 
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/time/time.h"
-#include "services/device/public/cpp/generic_sensor/sensor_traits.h"
+#include "base/single_thread_task_runner.h"
 
 namespace device {
+
+namespace {
+constexpr double kDefaultSensorReportingFrequency = 5.0;
+}  // namespace
 
 PlatformSensorWin::PlatformSensorWin(
     mojom::SensorType type,
@@ -25,7 +27,7 @@ PlatformSensorWin::PlatformSensorWin(
 }
 
 PlatformSensorConfiguration PlatformSensorWin::GetDefaultConfiguration() {
-  return PlatformSensorConfiguration(GetSensorDefaultFrequency(GetType()));
+  return PlatformSensorConfiguration(kDefaultSensorReportingFrequency);
 }
 
 mojom::ReportingMode PlatformSensorWin::GetReportingMode() {
@@ -38,7 +40,7 @@ double PlatformSensorWin::GetMaximumSupportedFrequency() {
   base::TimeDelta minimal_reporting_interval_ms =
       sensor_reader_->GetMinimalReportingInterval();
   if (minimal_reporting_interval_ms.is_zero())
-    return GetSensorDefaultFrequency(GetType());
+    return kDefaultSensorReportingFrequency;
   return 1.0 / minimal_reporting_interval_ms.InSecondsF();
 }
 
@@ -47,25 +49,25 @@ void PlatformSensorWin::OnReadingUpdated(const SensorReading& reading) {
 }
 
 void PlatformSensorWin::OnSensorError() {
-  PostTaskToMainSequence(FROM_HERE,
+  task_runner_->PostTask(FROM_HERE,
                          base::BindOnce(&PlatformSensorWin::NotifySensorError,
                                         weak_factory_.GetWeakPtr()));
 }
 
 bool PlatformSensorWin::StartSensor(
     const PlatformSensorConfiguration& configuration) {
-  DCHECK(main_task_runner()->RunsTasksInCurrentSequence());
+  DCHECK(task_runner_->BelongsToCurrentThread());
   return sensor_reader_->StartSensor(configuration);
 }
 
 void PlatformSensorWin::StopSensor() {
-  DCHECK(main_task_runner()->RunsTasksInCurrentSequence());
+  DCHECK(task_runner_->BelongsToCurrentThread());
   sensor_reader_->StopSensor();
 }
 
 bool PlatformSensorWin::CheckSensorConfiguration(
     const PlatformSensorConfiguration& configuration) {
-  DCHECK(main_task_runner()->RunsTasksInCurrentSequence());
+  DCHECK(task_runner_->BelongsToCurrentThread());
   base::TimeDelta minimal_reporting_interval_ms =
       sensor_reader_->GetMinimalReportingInterval();
   if (minimal_reporting_interval_ms.is_zero())
@@ -76,7 +78,7 @@ bool PlatformSensorWin::CheckSensorConfiguration(
 
 PlatformSensorWin::~PlatformSensorWin() {
   sensor_reader_->SetClient(nullptr);
-  sensor_thread_runner_->DeleteSoon(FROM_HERE, sensor_reader_.get());
+  sensor_thread_runner_->DeleteSoon(FROM_HERE, sensor_reader_);
 }
 
 }  // namespace device

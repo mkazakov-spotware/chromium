@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@ import org.chromium.base.task.TaskPriority;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.task.TaskTraitsExtensionDescriptor;
 import org.chromium.content_public.browser.BrowserTaskExecutor;
+import org.chromium.content_public.browser.BrowserTaskType;
 
 /**
  * Provides the implementation needed in UiThreadTaskTraits.
@@ -19,6 +20,7 @@ public class UiThreadTaskTraitsImpl {
         private static final byte EXTENSION_ID = 1;
 
         // Keep in sync with content::BrowserTaskTraitsExtension::Serialize.
+        private static final byte TASK_TYPE = 1;
         private static final byte NESTING_INDEX = 2;
 
         @Override
@@ -28,7 +30,8 @@ public class UiThreadTaskTraitsImpl {
 
         @Override
         public UiThreadTaskTraitsImpl fromSerializedData(byte[] data) {
-            return new UiThreadTaskTraitsImpl();
+            int taskType = data[TASK_TYPE];
+            return new UiThreadTaskTraitsImpl().setTaskType(taskType);
         }
 
         @Override
@@ -42,6 +45,7 @@ public class UiThreadTaskTraitsImpl {
 
             // TODO(crbug.com/876272) Remove this if possible.
             extensionData[NESTING_INDEX] = 1; // Allow the task to run in a nested RunLoop.
+            extensionData[TASK_TYPE] = (byte) extension.mTaskType;
             return extensionData;
         }
     }
@@ -51,11 +55,29 @@ public class UiThreadTaskTraitsImpl {
 
     public static final TaskTraits DEFAULT =
             TaskTraits.USER_VISIBLE.withExtension(DESCRIPTOR, new UiThreadTaskTraitsImpl());
+    public static final TaskTraits BOOTSTRAP = TaskTraits.USER_VISIBLE.withExtension(
+            DESCRIPTOR, new UiThreadTaskTraitsImpl().setTaskType(BrowserTaskType.BOOTSTRAP));
     public static final TaskTraits BEST_EFFORT = DEFAULT.taskPriority(TaskPriority.BEST_EFFORT);
     public static final TaskTraits USER_VISIBLE = DEFAULT.taskPriority(TaskPriority.USER_VISIBLE);
     public static final TaskTraits USER_BLOCKING = DEFAULT.taskPriority(TaskPriority.USER_BLOCKING);
 
     static {
         BrowserTaskExecutor.register();
+    }
+
+    private @BrowserTaskType int mTaskType;
+
+    private UiThreadTaskTraitsImpl() {
+        mTaskType = BrowserTaskType.DEFAULT;
+    }
+
+    @BrowserTaskType
+    public int getTaskType() {
+        return mTaskType;
+    }
+
+    private UiThreadTaskTraitsImpl setTaskType(@BrowserTaskType int taskType) {
+        mTaskType = taskType;
+        return this;
     }
 }

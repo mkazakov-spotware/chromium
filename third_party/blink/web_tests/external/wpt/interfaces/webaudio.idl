@@ -64,23 +64,15 @@ enum AudioContextLatencyCategory {
     "playback"
 };
 
-enum AudioSinkType {
-  "none"
-};
-
 [Exposed=Window]
 interface AudioContext : BaseAudioContext {
   constructor (optional AudioContextOptions contextOptions = {});
   readonly attribute double baseLatency;
   readonly attribute double outputLatency;
-  [SecureContext] readonly attribute (DOMString or AudioSinkInfo) sinkId;
-  [SecureContext] readonly attribute AudioRenderCapacity renderCapacity;
-  attribute EventHandler onsinkchange;
   AudioTimestamp getOutputTimestamp ();
   Promise<undefined> resume ();
   Promise<undefined> suspend ();
   Promise<undefined> close ();
-  [SecureContext] Promise<undefined> setSinkId ((DOMString or AudioSinkOptions) sinkId);
   MediaElementAudioSourceNode createMediaElementSource (HTMLMediaElement mediaElement);
   MediaStreamAudioSourceNode createMediaStreamSource (MediaStream mediaStream);
   MediaStreamTrackAudioSourceNode createMediaStreamTrackSource (
@@ -91,48 +83,11 @@ interface AudioContext : BaseAudioContext {
 dictionary AudioContextOptions {
   (AudioContextLatencyCategory or double) latencyHint = "interactive";
   float sampleRate;
-  (DOMString or AudioSinkOptions) sinkId;
-};
-
-dictionary AudioSinkOptions {
-  required AudioSinkType type;
-};
-
-[Exposed=Window]
-interface AudioSinkInfo {
-  readonly attribute AudioSinkType type;
 };
 
 dictionary AudioTimestamp {
   double contextTime;
   DOMHighResTimeStamp performanceTime;
-};
-
-[Exposed=Window]
-interface AudioRenderCapacity : EventTarget {
-  undefined start(optional AudioRenderCapacityOptions options = {});
-    undefined stop();
-    attribute EventHandler onupdate;
-};
-
-dictionary AudioRenderCapacityOptions {
-    double updateInterval = 1;
-};
-
-[Exposed=Window]
-interface AudioRenderCapacityEvent : Event {
-  constructor (DOMString type, optional AudioRenderCapacityEventInit eventInitDict = {});
-    readonly attribute double timestamp;
-    readonly attribute double averageLoad;
-    readonly attribute double peakLoad;
-    readonly attribute double underrunRatio;
-};
-
-dictionary AudioRenderCapacityEventInit : EventInit {
-  double timestamp = 0;
-  double averageLoad = 0;
-  double peakLoad = 0;
-  double underrunRatio = 0;
 };
 
 [Exposed=Window]
@@ -617,7 +572,6 @@ dictionary WaveShaperOptions : AudioNodeOptions {
 
 [Exposed=Window, SecureContext]
 interface AudioWorklet : Worklet {
-  readonly attribute MessagePort port;
 };
 
 callback AudioWorkletProcessorConstructor = AudioWorkletProcessor (object options);
@@ -629,7 +583,6 @@ interface AudioWorkletGlobalScope : WorkletGlobalScope {
   readonly attribute unsigned long long currentFrame;
   readonly attribute double currentTime;
   readonly attribute float sampleRate;
-  readonly attribute MessagePort port;
 };
 
 [Exposed=Window]
@@ -659,11 +612,6 @@ interface AudioWorkletProcessor {
   constructor ();
   readonly attribute MessagePort port;
 };
-
-callback AudioWorkletProcessCallback =
-  boolean (FrozenArray<FrozenArray<Float32Array>> inputs,
-           FrozenArray<FrozenArray<Float32Array>> outputs,
-           object parameters);
 
 dictionary AudioParamDescriptor {
   required DOMString name;

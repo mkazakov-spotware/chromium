@@ -1,17 +1,18 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.base;
 
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
+import org.chromium.base.annotations.MainDex;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.build.annotations.MainDex;
 
 import java.lang.Thread.UncaughtExceptionHandler;
 
@@ -69,8 +70,10 @@ public class JavaHandlerThread {
                 JavaHandlerThreadJni.get().onLooperStopped(nativeThread);
             }
         });
-        // Signal that new tasks queued up won't be run.
-        mThread.getLooper().quitSafely();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+            // When we can, signal that new tasks queued up won't be run.
+            mThread.getLooper().quitSafely();
+        }
     }
 
     @CalledByNative

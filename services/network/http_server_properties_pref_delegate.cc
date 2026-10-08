@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/network/http_server_properties_pref_delegate.h"
 
 #include "base/bind.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/values.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
@@ -27,15 +27,15 @@ void HttpServerPropertiesPrefDelegate::RegisterPrefs(
   pref_registry->RegisterDictionaryPref(kPrefPath);
 }
 
-const base::Value::Dict& HttpServerPropertiesPrefDelegate::GetServerProperties()
+const base::Value* HttpServerPropertiesPrefDelegate::GetServerProperties()
     const {
-  return pref_service_->GetDict(kPrefPath);
+  return pref_service_->Get(kPrefPath);
 }
 
 void HttpServerPropertiesPrefDelegate::SetServerProperties(
-    base::Value::Dict dict,
+    const base::Value& value,
     base::OnceClosure callback) {
-  pref_service_->SetDict(kPrefPath, std::move(dict));
+  pref_service_->Set(kPrefPath, value);
   if (callback)
     pref_service_->CommitPendingWrite(std::move(callback));
 }
@@ -53,8 +53,8 @@ void HttpServerPropertiesPrefDelegate::WaitForPrefLoad(
 
   // If prefs have already loaded (currently doesn't happen), invoke the pref
   // observer asynchronously.
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
-                                                           std::move(callback));
+  base::SequencedTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                   std::move(callback));
 }
 
 }  // namespace network

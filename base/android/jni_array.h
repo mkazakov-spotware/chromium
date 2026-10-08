@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,28 +8,15 @@
 #include <jni.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <ostream>
 #include <string>
 #include <vector>
 
 #include "base/android/scoped_java_ref.h"
-#include "base/check_op.h"
 #include "base/containers/span.h"
+#include "base/strings/string16.h"
 
-namespace base::android {
-
-// As |GetArrayLength| makes no guarantees about the returned value (e.g., it
-// may be -1 if |array| is not a valid Java array), provide a safe wrapper
-// that always returns a valid, non-negative size.
-// Returns the length of Java array.
-template <typename JavaArrayType>
-BASE_EXPORT size_t SafeGetArrayLength(JNIEnv* env,
-                                      const JavaRef<JavaArrayType>& jarray) {
-  DCHECK(jarray);
-  jsize length = env->GetArrayLength(jarray.obj());
-  DCHECK_GE(length, 0) << "Invalid array length: " << length;
-  return static_cast<size_t>(std::max(0, length));
-}
+namespace base {
+namespace android {
 
 // Returns a new Java byte array converted from the given bytes array.
 BASE_EXPORT ScopedJavaLocalRef<jbyteArray> ToJavaByteArray(JNIEnv* env,
@@ -83,30 +70,6 @@ BASE_EXPORT ScopedJavaLocalRef<jdoubleArray> ToJavaDoubleArray(
     JNIEnv* env,
     base::span<const double> doubles);
 
-// Returns a new clazz[] with the content of |v|.
-BASE_EXPORT ScopedJavaLocalRef<jobjectArray> ToJavaArrayOfObjects(
-    JNIEnv* env,
-    ScopedJavaLocalRef<jclass> clazz,
-    base::span<const ScopedJavaLocalRef<jobject>> v);
-
-// Returns a new Object[] with the content of |v|.
-BASE_EXPORT ScopedJavaLocalRef<jobjectArray> ToJavaArrayOfObjects(
-    JNIEnv* env,
-    base::span<const ScopedJavaLocalRef<jobject>> v);
-BASE_EXPORT ScopedJavaLocalRef<jobjectArray> ToJavaArrayOfObjects(
-    JNIEnv* env,
-    base::span<const ScopedJavaGlobalRef<jobject>> v);
-
-// Returns a new Type[] with the content of |v|.
-BASE_EXPORT ScopedJavaLocalRef<jobjectArray> ToTypedJavaArrayOfObjects(
-    JNIEnv* env,
-    base::span<const ScopedJavaLocalRef<jobject>> v,
-    ScopedJavaLocalRef<jclass> type);
-BASE_EXPORT ScopedJavaLocalRef<jobjectArray> ToTypedJavaArrayOfObjects(
-    JNIEnv* env,
-    base::span<const ScopedJavaGlobalRef<jobject>> v,
-    ScopedJavaLocalRef<jclass> type);
-
 // Returns a array of Java byte array converted from |v|.
 BASE_EXPORT ScopedJavaLocalRef<jobjectArray> ToJavaArrayOfByteArray(
     JNIEnv* env,
@@ -122,21 +85,17 @@ BASE_EXPORT ScopedJavaLocalRef<jobjectArray> ToJavaArrayOfStrings(
 
 BASE_EXPORT ScopedJavaLocalRef<jobjectArray> ToJavaArrayOfStrings(
     JNIEnv* env,
-    base::span<const std::u16string> v);
+    base::span<const string16> v);
 
 BASE_EXPORT ScopedJavaLocalRef<jobjectArray> ToJavaArrayOfStringArray(
     JNIEnv* env,
-    base::span<const std::vector<std::string>> v);
-
-BASE_EXPORT ScopedJavaLocalRef<jobjectArray> ToJavaArrayOfStringArray(
-    JNIEnv* env,
-    base::span<const std::vector<std::u16string>> v);
+    base::span<const std::vector<string16>> v);
 
 // Converts a Java string array to a native array.
 BASE_EXPORT void AppendJavaStringArrayToStringVector(
     JNIEnv* env,
     const JavaRef<jobjectArray>& array,
-    std::vector<std::u16string>* out);
+    std::vector<string16>* out);
 
 BASE_EXPORT void AppendJavaStringArrayToStringVector(
     JNIEnv* env,
@@ -154,14 +113,6 @@ BASE_EXPORT void JavaByteArrayToByteVector(
     JNIEnv* env,
     const JavaRef<jbyteArray>& byte_array,
     std::vector<uint8_t>* out);
-
-// Copy the contents of java |byte_array| into |dest|. The span must be larger
-// than or equal to the array.
-// Returns the number of bytes copied.
-BASE_EXPORT size_t
-JavaByteArrayToByteSpan(JNIEnv* env,
-                        const JavaRef<jbyteArray>& byte_array,
-                        base::span<uint8_t> dest);
 
 // Replaces the content of |out| with the Java bytes in |byte_array|. No UTF-8
 // conversion is performed.
@@ -221,19 +172,12 @@ BASE_EXPORT void JavaArrayOfByteArrayToBytesVector(
     std::vector<std::vector<uint8_t>>* out);
 
 // Assuming |array| is an String[][] (array of String arrays), replaces the
-// content of |out| with the corresponding vector of string vectors.
-BASE_EXPORT void Java2dStringArrayTo2dStringVector(
-    JNIEnv* env,
-    const JavaRef<jobjectArray>& array,
-    std::vector<std::vector<std::string>>* out);
-
-// Assuming |array| is an String[][] (array of String arrays), replaces the
 // content of |out| with the corresponding vector of string vectors. No UTF-8
 // conversion is performed.
 BASE_EXPORT void Java2dStringArrayTo2dStringVector(
     JNIEnv* env,
     const JavaRef<jobjectArray>& array,
-    std::vector<std::vector<std::u16string>>* out);
+    std::vector<std::vector<string16>>* out);
 
 // Assuming |array| is an int[][] (array of int arrays), replaces the
 // contents of |out| with the corresponding vectors of ints.
@@ -242,6 +186,7 @@ BASE_EXPORT void JavaArrayOfIntArrayToIntVector(
     const JavaRef<jobjectArray>& array,
     std::vector<std::vector<int>>* out);
 
-}  // namespace base::android
+}  // namespace android
+}  // namespace base
 
 #endif  // BASE_ANDROID_JNI_ARRAY_H_

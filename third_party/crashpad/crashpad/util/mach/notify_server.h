@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #include <set>
 
+#include "base/macros.h"
 #include "util/mach/mach_message_server.h"
 
 namespace crashpad {
@@ -179,9 +180,6 @@ class NotifyServer : public MachMessageServer::Interface {
   //! was unexpected and not processed.
   class DefaultInterface : public Interface {
    public:
-    DefaultInterface(const DefaultInterface&) = delete;
-    DefaultInterface& operator=(const DefaultInterface&) = delete;
-
     // Interface:
 
     kern_return_t DoMachNotifyPortDeleted(
@@ -212,15 +210,15 @@ class NotifyServer : public MachMessageServer::Interface {
    protected:
     DefaultInterface() : Interface() {}
     ~DefaultInterface() {}
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(DefaultInterface);
   };
 
   //! \brief Constructs an object of this class.
   //!
   //! \param[in] interface The interface to dispatch requests to. Weak.
   explicit NotifyServer(Interface* interface);
-
-  NotifyServer(const NotifyServer&) = delete;
-  NotifyServer& operator=(const NotifyServer&) = delete;
 
   // MachMessageServer::Interface:
 
@@ -235,6 +233,8 @@ class NotifyServer : public MachMessageServer::Interface {
 
  private:
   Interface* interface_;  // weak
+
+  DISALLOW_COPY_AND_ASSIGN(NotifyServer);
 };
 
 }  // namespace crashpad

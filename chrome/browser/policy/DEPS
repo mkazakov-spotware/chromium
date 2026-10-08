@@ -3,9 +3,6 @@ specific_include_rules = {
     "+components/webrtc",
   ],
   "policy_browsertest\.cc": [
-    "+content/common/content_navigation_policy.h",
-  ],
-  "screenshot_policy_browsertest\.cc": [
-    "+ui/message_center",
+    "+ash/shell.h",
   ]
 }

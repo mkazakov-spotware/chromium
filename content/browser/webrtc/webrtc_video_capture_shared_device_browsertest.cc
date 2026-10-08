@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/command_line.h"
 #include "base/run_loop.h"
-#include "base/strings/stringprintf.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "content/public/browser/video_capture_service.h"
@@ -17,11 +16,9 @@
 #include "media/base/media_switches.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
-#include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "services/video_capture/public/cpp/mock_video_frame_handler.h"
 #include "services/video_capture/public/mojom/device.mojom.h"
 #include "services/video_capture/public/mojom/device_factory.mojom.h"
-#include "services/video_capture/public/mojom/video_capture_service.mojom.h"
 #include "services/video_capture/public/mojom/video_frame_handler.mojom.h"
 #include "services/video_capture/public/mojom/video_source.mojom.h"
 #include "services/video_capture/public/mojom/video_source_provider.mojom.h"
@@ -46,12 +43,15 @@ struct TestParams {
   media::mojom::VideoBufferHandle::Tag GetExpectedBufferHandleTag() const {
     switch (buffer_type_to_request) {
       case media::VideoCaptureBufferType::kSharedMemory:
-        return media::mojom::VideoBufferHandle::Tag::kUnsafeShmemRegion;
+        return media::mojom::VideoBufferHandle::Tag::SHARED_BUFFER_HANDLE;
+      case media::VideoCaptureBufferType::kSharedMemoryViaRawFileDescriptor:
+        return media::mojom::VideoBufferHandle::Tag::
+            SHARED_MEMORY_VIA_RAW_FILE_DESCRIPTOR;
       case media::VideoCaptureBufferType::kMailboxHolder:
         NOTREACHED();
-        return media::mojom::VideoBufferHandle::Tag::kUnsafeShmemRegion;
+        return media::mojom::VideoBufferHandle::Tag::SHARED_BUFFER_HANDLE;
       case media::VideoCaptureBufferType::kGpuMemoryBuffer:
-        return media::mojom::VideoBufferHandle::Tag::kGpuMemoryBufferHandle;
+        return media::mojom::VideoBufferHandle::Tag::GPU_MEMORY_BUFFER_HANDLE;
     }
   }
 };
@@ -75,11 +75,6 @@ class WebRtcVideoCaptureSharedDeviceBrowserTest
   WebRtcVideoCaptureSharedDeviceBrowserTest() {
     scoped_feature_list_.InitAndEnableFeature(features::kMojoVideoCapture);
   }
-
-  WebRtcVideoCaptureSharedDeviceBrowserTest(
-      const WebRtcVideoCaptureSharedDeviceBrowserTest&) = delete;
-  WebRtcVideoCaptureSharedDeviceBrowserTest& operator=(
-      const WebRtcVideoCaptureSharedDeviceBrowserTest&) = delete;
 
   ~WebRtcVideoCaptureSharedDeviceBrowserTest() override {}
 
@@ -110,9 +105,11 @@ class WebRtcVideoCaptureSharedDeviceBrowserTest
 
     const std::string javascript_to_execute = base::StringPrintf(
         kStartVideoCaptureAndVerify, kVideoSize.width(), kVideoSize.height());
+    std::string result;
     // Start video capture and wait until it started rendering
-    ASSERT_EQ("OK", EvalJs(shell(), javascript_to_execute,
-                           EXECUTE_SCRIPT_USE_MANUAL_REPLY));
+    ASSERT_TRUE(
+        ExecuteScriptAndExtractString(shell(), javascript_to_execute, &result));
+    ASSERT_EQ("OK", result);
   }
 
  protected:
@@ -128,7 +125,7 @@ class WebRtcVideoCaptureSharedDeviceBrowserTest
 
   void Initialize() {
     DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
-    main_task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+    main_task_runner_ = base::ThreadTaskRunnerHandle::Get();
     mock_video_frame_handler_ =
         std::make_unique<video_capture::MockVideoFrameHandler>(
             subscriber_.InitWithNewPipeAndPassReceiver());
@@ -153,8 +150,9 @@ class WebRtcVideoCaptureSharedDeviceBrowserTest
   void OnCreateDeviceCallback(
       const std::vector<media::VideoCaptureDeviceInfo>& infos,
       media::VideoCaptureBufferType buffer_type_to_request,
-      media::VideoCaptureError result_code) {
-    ASSERT_EQ(media::VideoCaptureError::kNone, result_code);
+      video_capture::mojom::DeviceAccessResultCode result_code) {
+    ASSERT_EQ(video_capture::mojom::DeviceAccessResultCode::SUCCESS,
+              result_code);
 
     media::VideoCaptureParams requestable_settings;
     ASSERT_FALSE(infos[0].supported_formats.empty());
@@ -189,9 +187,10 @@ class WebRtcVideoCaptureSharedDeviceBrowserTest
   }
 
   void OnCreatePushSubscriptionCallback(
-      video_capture::mojom::CreatePushSubscriptionResultCodePtr result_code,
+      video_capture::mojom::CreatePushSubscriptionResultCode result_code,
       const media::VideoCaptureParams& params) {
-    ASSERT_TRUE(result_code->is_success_code());
+    ASSERT_NE(video_capture::mojom::CreatePushSubscriptionResultCode::kFailed,
+              result_code);
     subscription_->Activate();
   }
 
@@ -210,6 +209,8 @@ class WebRtcVideoCaptureSharedDeviceBrowserTest
   mojo::PendingRemote<video_capture::mojom::VideoFrameHandler> subscriber_;
   base::WeakPtrFactory<WebRtcVideoCaptureSharedDeviceBrowserTest> weak_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(WebRtcVideoCaptureSharedDeviceBrowserTest);
 };
 
 // Tests that a single fake video capture device can be opened via JavaScript
@@ -228,7 +229,7 @@ IN_PROC_BROWSER_TEST_P(
               int32_t, media::mojom::VideoBufferHandlePtr* buffer_handle) {
             ASSERT_EQ(expected_buffer_handle_tag, (*buffer_handle)->which());
           }));
-  EXPECT_CALL(*mock_video_frame_handler_, DoOnFrameReadyInBuffer(_, _, _))
+  EXPECT_CALL(*mock_video_frame_handler_, DoOnFrameReadyInBuffer(_, _, _, _))
       .WillOnce(InvokeWithoutArgs([&receive_frame_from_service_wait_loop]() {
         receive_frame_from_service_wait_loop.Quit();
       }))
@@ -260,7 +261,7 @@ IN_PROC_BROWSER_TEST_P(
               int32_t, media::mojom::VideoBufferHandlePtr* buffer_handle) {
             ASSERT_EQ(expected_buffer_handle_tag, (*buffer_handle)->which());
           }));
-  EXPECT_CALL(*mock_video_frame_handler_, DoOnFrameReadyInBuffer(_, _, _))
+  EXPECT_CALL(*mock_video_frame_handler_, DoOnFrameReadyInBuffer(_, _, _, _))
       .WillOnce(InvokeWithoutArgs([&receive_frame_from_service_wait_loop]() {
         receive_frame_from_service_wait_loop.Quit();
       }))
@@ -275,10 +276,22 @@ IN_PROC_BROWSER_TEST_P(
 INSTANTIATE_TEST_SUITE_P(
     All,
     WebRtcVideoCaptureSharedDeviceBrowserTest,
-    ::testing::Values(TestParams{ServiceApi::kSingleClient,
-                                 media::VideoCaptureBufferType::kSharedMemory},
-                      TestParams{
-                          ServiceApi::kMultiClient,
-                          media::VideoCaptureBufferType::kSharedMemory}));
+    ::testing::Values(
+        TestParams{ServiceApi::kSingleClient,
+                   media::VideoCaptureBufferType::kSharedMemory},
+        TestParams {
+          ServiceApi::kMultiClient, media::VideoCaptureBufferType::kSharedMemory
+        }
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+        ,
+        TestParams{
+            ServiceApi::kSingleClient,
+            media::VideoCaptureBufferType::kSharedMemoryViaRawFileDescriptor},
+        TestParams {
+          ServiceApi::kMultiClient,
+              media::VideoCaptureBufferType::kSharedMemoryViaRawFileDescriptor
+        }
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+        ));
 
 }  // namespace content

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/bind.h"
 #include "base/command_line.h"
+#include "base/macros.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
@@ -13,7 +14,6 @@
 #include "build/build_config.h"
 #include "components/translate/core/browser/translate_download_manager.h"
 #include "components/translate/core/common/translate_switches.h"
-#include "components/variations/scoped_variations_ids_provider.h"
 #include "components/variations/variations_ids_provider.h"
 #include "net/base/load_flags.h"
 #include "net/base/url_util.h"
@@ -32,11 +32,9 @@ class TranslateScriptTest : public testing::Test {
             base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(
                 &test_url_loader_factory_)) {}
 
-  TranslateScriptTest(const TranslateScriptTest&) = delete;
-  TranslateScriptTest& operator=(const TranslateScriptTest&) = delete;
-
  protected:
   void SetUp() override {
+    variations::VariationsIdsProvider::GetInstance()->ResetForTesting();
     script_ = std::make_unique<TranslateScript>();
     auto* translate_download_manager = TranslateDownloadManager::GetInstance();
     translate_download_manager->set_application_locale("en");
@@ -64,15 +62,12 @@ class TranslateScriptTest : public testing::Test {
   }
 
  private:
-  void OnComplete(bool success) {
+  void OnComplete(bool success, const std::string& script) {
     // No op.
   }
 
   // Sets up the task scheduling/task-runner environment for each test.
   base::test::TaskEnvironment task_environment_;
-
-  variations::ScopedVariationsIdsProvider scoped_variations_ids_provider_{
-      variations::VariationsIdsProvider::Mode::kUseSignedInState};
 
   // The translate script.
   std::unique_ptr<TranslateScript> script_;
@@ -80,6 +75,8 @@ class TranslateScriptTest : public testing::Test {
   // Factory to create programmatic URL loaders.
   network::TestURLLoaderFactory test_url_loader_factory_;
   scoped_refptr<network::SharedURLLoaderFactory> test_shared_loader_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(TranslateScriptTest);
 };
 
 TEST_F(TranslateScriptTest, CheckScriptParameters) {
@@ -94,8 +91,7 @@ TEST_F(TranslateScriptTest, CheckScriptParameters) {
   GURL expected_url(TranslateScript::kScriptURL);
   GURL url = last_resource_request.url;
   EXPECT_TRUE(url.is_valid());
-  EXPECT_EQ(expected_url.DeprecatedGetOriginAsURL().spec(),
-            url.DeprecatedGetOriginAsURL().spec());
+  EXPECT_EQ(expected_url.GetOrigin().spec(), url.GetOrigin().spec());
   EXPECT_EQ(expected_url.path(), url.path());
 
   EXPECT_EQ(network::mojom::CredentialsMode::kOmit,
@@ -117,7 +113,7 @@ TEST_F(TranslateScriptTest, CheckScriptParameters) {
       url, TranslateScript::kCallbackQueryName, &callback);
   EXPECT_EQ(std::string(TranslateScript::kCallbackQueryValue), callback);
 
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
   // iOS does not have specific loaders for the isolated world.
   std::string css_loader_callback;
   net::GetValueForKeyInQuery(
@@ -132,7 +128,7 @@ TEST_F(TranslateScriptTest, CheckScriptParameters) {
       &javascript_loader_callback);
   EXPECT_EQ(std::string(TranslateScript::kJavascriptLoaderCallbackQueryValue),
             javascript_loader_callback);
-#endif  // !BUILDFLAG(IS_IOS)
+#endif  // !defined(OS_IOS)
 }
 
 TEST_F(TranslateScriptTest, CheckScriptURL) {
@@ -152,8 +148,7 @@ TEST_F(TranslateScriptTest, CheckScriptURL) {
   GURL expected_url(script_url);
   GURL url = last_resource_request.url;
   EXPECT_TRUE(url.is_valid());
-  EXPECT_EQ(expected_url.DeprecatedGetOriginAsURL().spec(),
-            url.DeprecatedGetOriginAsURL().spec());
+  EXPECT_EQ(expected_url.GetOrigin().spec(), url.GetOrigin().spec());
   EXPECT_EQ(expected_url.path(), url.path());
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/callback.h"
+#include "base/macros.h"
 
 namespace base {
 class Thread;
@@ -26,10 +27,6 @@ typedef base::OnceCallback<void(std::unique_ptr<InputDeviceFactoryEvdevProxy>)>
 class EventThreadEvdev {
  public:
   EventThreadEvdev();
-
-  EventThreadEvdev(const EventThreadEvdev&) = delete;
-  EventThreadEvdev& operator=(const EventThreadEvdev&) = delete;
-
   ~EventThreadEvdev();
 
   // Start a new events thread. All device events will get sent to the
@@ -41,6 +38,8 @@ class EventThreadEvdev {
 
  private:
   std::unique_ptr<base::Thread> thread_;
+
+  DISALLOW_COPY_AND_ASSIGN(EventThreadEvdev);
 };
 
 }  // namespace ui

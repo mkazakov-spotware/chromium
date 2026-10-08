@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/ui/extensions/settings_overridden_dialog_controller.h"
 #include "extensions/common/extension_id.h"
 
@@ -30,8 +30,8 @@ class ExtensionSettingsOverriddenDialog
     Params(extensions::ExtensionId controlling_extension_id,
            const char* extension_acknowledged_preference_name,
            const char* dialog_result_histogram_name,
-           std::u16string dialog_title,
-           std::u16string dialog_message,
+           base::string16 dialog_title,
+           base::string16 dialog_message,
            const gfx::VectorIcon* icon);
     Params(Params&& params);
     Params(const Params& params) = delete;
@@ -46,8 +46,8 @@ class ExtensionSettingsOverriddenDialog
     // dialog.
     std::string dialog_result_histogram_name;
 
-    std::u16string dialog_title;
-    std::u16string dialog_message;
+    base::string16 dialog_title;
+    base::string16 dialog_message;
 
     // The icon to display in the dialog, if any.
     const gfx::VectorIcon* icon = nullptr;
@@ -81,7 +81,7 @@ class ExtensionSettingsOverriddenDialog
   const Params params_;
 
   // The profile associated with the controller.
-  const raw_ptr<Profile> profile_;
+  Profile* const profile_;
 };
 
 #endif  // CHROME_BROWSER_UI_EXTENSIONS_EXTENSION_SETTINGS_OVERRIDDEN_DIALOG_H_

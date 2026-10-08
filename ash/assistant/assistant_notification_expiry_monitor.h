@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 #include <vector>
 
 #include "ash/assistant/model/assistant_notification_model_observer.h"
+#include "base/optional.h"
 #include "base/timer/timer.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace ash {
 
@@ -24,16 +24,10 @@ class AssistantNotificationControllerImpl;
 // expiry_time| field).
 class AssistantNotificationExpiryMonitor {
  public:
-  using AssistantNotification = assistant::AssistantNotification;
+  using AssistantNotification = chromeos::assistant::AssistantNotification;
 
   explicit AssistantNotificationExpiryMonitor(
       AssistantNotificationControllerImpl* controller);
-
-  AssistantNotificationExpiryMonitor(
-      const AssistantNotificationExpiryMonitor&) = delete;
-  AssistantNotificationExpiryMonitor& operator=(
-      const AssistantNotificationExpiryMonitor&) = delete;
-
   ~AssistantNotificationExpiryMonitor();
 
  private:
@@ -45,8 +39,8 @@ class AssistantNotificationExpiryMonitor {
   // (new) expiry time that will expire first.
   void UpdateTimer();
 
-  absl::optional<base::TimeDelta> GetTimerTimeout() const;
-  absl::optional<base::Time> GetTimerEndTime() const;
+  base::Optional<base::TimeDelta> GetTimerTimeout() const;
+  base::Optional<base::Time> GetTimerEndTime() const;
   void RemoveExpiredNotifications();
   std::vector<NotificationId> GetExpiredNotifications() const;
   std::vector<const AssistantNotification*> GetNotifications() const;
@@ -54,6 +48,8 @@ class AssistantNotificationExpiryMonitor {
   base::OneShotTimer timer_;
   AssistantNotificationControllerImpl* const controller_;
   std::unique_ptr<Observer> observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(AssistantNotificationExpiryMonitor);
 };
 
 }  // namespace ash

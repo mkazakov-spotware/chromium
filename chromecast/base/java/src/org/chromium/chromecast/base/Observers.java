@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chromecast.base;
 
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
+import org.chromium.base.Consumer;
 
 /**
  * Helper functions for creating Observers, used by Observable.subscribe() to handle state changes.

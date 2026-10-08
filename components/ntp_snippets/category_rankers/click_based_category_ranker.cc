@@ -1,16 +1,15 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/ntp_snippets/category_rankers/click_based_category_ranker.h"
 
+#include <algorithm>
 #include <string>
 #include <utility>
 
-#include "base/containers/contains.h"
 #include "base/logging.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
@@ -54,7 +53,7 @@ const int kExtraPassingMargin = 2;
 const int kMinNumClicksToDecay = 30;
 
 // Time between two consecutive decays (assuming enough clicks).
-constexpr auto kTimeBetweenDecays = base::Days(1);
+constexpr auto kTimeBetweenDecays = base::TimeDelta::FromDays(1);
 
 // Decay factor as a fraction. The current value approximates the seventh root
 // of 0.5. This yields a 50% decay per seven decays. Seven weak decays are used
@@ -133,8 +132,12 @@ void ClickBasedCategoryRanker::ClearHistory(base::Time begin, base::Time end) {
 
   std::vector<Category> added_categories;
   for (const RankedCategory& old_category : old_categories) {
-    if (!base::Contains(ordered_categories_, old_category.category,
-                        &RankedCategory::category)) {
+    auto it =
+        std::find_if(ordered_categories_.begin(), ordered_categories_.end(),
+                     [old_category](const RankedCategory& other) {
+                       return other.category == old_category.category;
+                     });
+    if (it == ordered_categories_.end()) {
       added_categories.push_back(old_category.category);
     }
   }
@@ -327,13 +330,13 @@ void ClickBasedCategoryRanker::AppendKnownCategory(
 
 namespace {
 
-base::Time ParseLastDismissedDate(const base::Value::Dict& value) {
+base::Time ParseLastDismissedDate(const base::DictionaryValue& value) {
   // We don't expect the last-dismissed value to be present in all cases (we
   // added this after the fact).
-  const std::string* serialized_value = value.FindString(kLastDismissedKey);
+  std::string serialized_value;
   int64_t parsed_value;
-  if (serialized_value &&
-      base::StringToInt64(*serialized_value, &parsed_value)) {
+  if (value.GetString(kLastDismissedKey, &serialized_value) &&
+      base::StringToInt64(serialized_value, &parsed_value)) {
     return DeserializeTime(parsed_value);
   }
   return base::Time();
@@ -344,58 +347,58 @@ base::Time ParseLastDismissedDate(const base::Value::Dict& value) {
 bool ClickBasedCategoryRanker::ReadOrderFromPrefs(
     std::vector<RankedCategory>* result_categories) const {
   result_categories->clear();
-  const base::Value::List& list =
+  const base::ListValue* list =
       pref_service_->GetList(prefs::kClickBasedCategoryRankerOrderWithClicks);
-  if (list.size() == 0) {
+  if (!list || list->GetSize() == 0) {
     return false;
   }
 
-  for (const base::Value& value : list) {
-    const base::Value::Dict* dictionary = value.GetIfDict();
-    if (!dictionary) {
+  for (const base::Value& value : *list) {
+    const base::DictionaryValue* dictionary;
+    if (!value.GetAsDictionary(&dictionary)) {
       LOG(DFATAL) << "Failed to parse category data from prefs param "
                   << prefs::kClickBasedCategoryRankerOrderWithClicks
                   << " into dictionary.";
       return false;
     }
-    absl::optional<int> category_id = dictionary->FindInt(kCategoryIdKey);
-    if (!category_id) {
+    int category_id, clicks;
+    if (!dictionary->GetInteger(kCategoryIdKey, &category_id)) {
       LOG(DFATAL) << "Dictionary does not have '" << kCategoryIdKey << "' key.";
       return false;
     }
-    absl::optional<int> clicks = dictionary->FindInt(kClicksKey);
-    if (!clicks) {
+    if (!dictionary->GetInteger(kClicksKey, &clicks)) {
       LOG(DFATAL) << "Dictionary does not have '" << kClicksKey << "' key.";
       return false;
     }
     base::Time last_dismissed = ParseLastDismissedDate(*dictionary);
-    Category category = Category::FromIDValue(*category_id);
+    Category category = Category::FromIDValue(category_id);
     result_categories->push_back(
-        RankedCategory(category, *clicks, last_dismissed));
+        RankedCategory(category, clicks, last_dismissed));
   }
   return true;
 }
 
 void ClickBasedCategoryRanker::StoreOrderToPrefs(
     const std::vector<RankedCategory>& ordered_categories) {
-  base::Value::List list;
+  base::ListValue list;
   for (const RankedCategory& category : ordered_categories) {
-    base::Value::Dict dictionary;
-    dictionary.Set(kCategoryIdKey, category.category.id());
-    dictionary.Set(kClicksKey, category.clicks);
-    dictionary.Set(
+    auto dictionary = std::make_unique<base::DictionaryValue>();
+    dictionary->SetInteger(kCategoryIdKey, category.category.id());
+    dictionary->SetInteger(kClicksKey, category.clicks);
+    dictionary->SetString(
         kLastDismissedKey,
         base::NumberToString(SerializeTime(category.last_dismissed)));
     list.Append(std::move(dictionary));
   }
-  pref_service_->Set(prefs::kClickBasedCategoryRankerOrderWithClicks,
-                     base::Value(std::move(list)));
+  pref_service_->Set(prefs::kClickBasedCategoryRankerOrderWithClicks, list);
 }
 
 std::vector<ClickBasedCategoryRanker::RankedCategory>::iterator
 ClickBasedCategoryRanker::FindCategory(Category category) {
-  return base::ranges::find(ordered_categories_, category,
-                            &RankedCategory::category);
+  return std::find_if(ordered_categories_.begin(), ordered_categories_.end(),
+                      [category](const RankedCategory& ranked_category) {
+                        return category == ranked_category.category;
+                      });
 }
 
 bool ClickBasedCategoryRanker::ContainsCategory(Category category) const {

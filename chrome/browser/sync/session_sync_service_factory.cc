@@ -1,16 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/sync/session_sync_service_factory.h"
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/singleton.h"
 #include "build/build_config.h"
 #include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/sync/device_info_sync_service_factory.h"
 #include "chrome/browser/sync/glue/sync_start_util.h"
 #include "chrome/browser/sync/model_type_store_service_factory.h"
 #include "chrome/browser/sync/sessions/sync_sessions_web_contents_router.h"
@@ -20,17 +18,16 @@
 #include "chrome/common/url_constants.h"
 #include "components/dom_distiller/core/url_constants.h"
 #include "components/history/core/browser/history_service.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/sync/model/model_type_store_service.h"
-#include "components/sync_device_info/device_info_sync_service.h"
-#include "components/sync_device_info/device_info_tracker.h"
 #include "components/sync_sessions/session_sync_prefs.h"
 #include "components/sync_sessions/session_sync_service_impl.h"
 #include "components/sync_sessions/sync_sessions_client.h"
 #include "content/public/common/url_utils.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "chrome/browser/sync/glue/synced_window_delegates_getter_android.h"
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 namespace {
 
@@ -51,20 +48,17 @@ class SyncSessionsClientImpl : public sync_sessions::SyncSessionsClient {
   explicit SyncSessionsClientImpl(Profile* profile)
       : profile_(profile), session_sync_prefs_(profile->GetPrefs()) {
     window_delegates_getter_ =
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
         // Android doesn't have multi-profile support, so no need to pass the
         // profile in.
         std::make_unique<browser_sync::SyncedWindowDelegatesGetterAndroid>();
-#else   // BUILDFLAG(IS_ANDROID)
+#else   // defined(OS_ANDROID)
         std::make_unique<browser_sync::BrowserSyncedWindowDelegatesGetter>(
             profile);
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
   }
 
-  SyncSessionsClientImpl(const SyncSessionsClientImpl&) = delete;
-  SyncSessionsClientImpl& operator=(const SyncSessionsClientImpl&) = delete;
-
-  ~SyncSessionsClientImpl() override = default;
+  ~SyncSessionsClientImpl() override {}
 
   // SyncSessionsClient implementation.
   sync_sessions::SessionSyncPrefs* GetSessionSyncPrefs() override {
@@ -90,12 +84,6 @@ class SyncSessionsClientImpl : public sync_sessions::SyncSessionsClient {
     return ShouldSyncURLImpl(url);
   }
 
-  bool IsRecentLocalCacheGuid(const std::string& cache_guid) const override {
-    return DeviceInfoSyncServiceFactory::GetForProfile(profile_)
-        ->GetDeviceInfoTracker()
-        ->IsRecentLocalCacheGuid(cache_guid);
-  }
-
   sync_sessions::SyncedWindowDelegatesGetter* GetSyncedWindowDelegatesGetter()
       override {
     return window_delegates_getter_.get();
@@ -116,10 +104,12 @@ class SyncSessionsClientImpl : public sync_sessions::SyncSessionsClient {
   }
 
  private:
-  const raw_ptr<Profile> profile_;
+  Profile* const profile_;
   std::unique_ptr<sync_sessions::SyncedWindowDelegatesGetter>
       window_delegates_getter_;
   sync_sessions::SessionSyncPrefs session_sync_prefs_;
+
+  DISALLOW_COPY_AND_ASSIGN(SyncSessionsClientImpl);
 };
 
 }  // namespace
@@ -142,15 +132,16 @@ bool SessionSyncServiceFactory::ShouldSyncURLForTesting(const GURL& url) {
 }
 
 SessionSyncServiceFactory::SessionSyncServiceFactory()
-    : ProfileKeyedServiceFactory("SessionSyncService") {
-  DependsOn(DeviceInfoSyncServiceFactory::GetInstance());
+    : BrowserContextKeyedServiceFactory(
+          "SessionSyncService",
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(FaviconServiceFactory::GetInstance());
   DependsOn(HistoryServiceFactory::GetInstance());
   DependsOn(ModelTypeStoreServiceFactory::GetInstance());
   DependsOn(sync_sessions::SyncSessionsWebContentsRouterFactory::GetInstance());
 }
 
-SessionSyncServiceFactory::~SessionSyncServiceFactory() = default;
+SessionSyncServiceFactory::~SessionSyncServiceFactory() {}
 
 KeyedService* SessionSyncServiceFactory::BuildServiceInstanceFor(
     content::BrowserContext* context) const {

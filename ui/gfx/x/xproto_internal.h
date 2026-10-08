@@ -1,11 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_GFX_X_XPROTO_INTERNAL_H_
 #define UI_GFX_X_XPROTO_INTERNAL_H_
-
-#include "base/memory/raw_ptr.h"
 
 #ifndef IS_X11_IMPL
 #error "This file should only be included by //ui/gfx/x:xprotos"
@@ -17,13 +15,14 @@
 #include "base/component_export.h"
 #include "base/logging.h"
 #include "base/memory/ref_counted_memory.h"
-#include "ui/gfx/x/future.h"
-#include "ui/gfx/x/xproto.h"
+#include "base/optional.h"
+#include "ui/gfx/x/connection.h"
 #include "ui/gfx/x/xproto_types.h"
 
 namespace x11 {
 
-class Connection;
+template <class Reply>
+class Future;
 
 template <typename T, typename Enable = void>
 struct EnumBase {
@@ -55,16 +54,9 @@ class COMPONENT_EXPORT(X11) MallocedRefCountedMemory
   size_t size() const override;
 
  private:
-  struct deleter {
-    void operator()(uint8_t* data) {
-      if (data) {
-        free(data);
-      }
-    }
-  };
   ~MallocedRefCountedMemory() override;
 
-  std::unique_ptr<uint8_t, deleter> data_;
+  uint8_t* const data_;
 };
 
 // Wraps another RefCountedMemory, giving a view into it.  Similar to
@@ -138,6 +130,22 @@ inline void Align(WriteBuffer* buf, size_t align) {
 
 inline void Align(ReadBuffer* buf, size_t align) {
   Pad(buf, (align - (buf->offset % align)) % align);
+}
+
+base::Optional<unsigned int> SendRequestImpl(x11::Connection* connection,
+                                             WriteBuffer* buf,
+                                             bool is_void,
+                                             bool reply_has_fds);
+
+template <typename Reply>
+Future<Reply> SendRequest(x11::Connection* connection,
+                          WriteBuffer* buf,
+                          bool reply_has_fds,
+                          const char* request_name) {
+  auto sequence = SendRequestImpl(connection, buf, std::is_void<Reply>::value,
+                                  reply_has_fds);
+  return {sequence ? connection : nullptr, sequence,
+          sequence ? request_name : nullptr};
 }
 
 // Helper function for xcbproto popcount.  Given an integral type, returns the

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/strings/stringprintf.h"
 #include "chrome/browser/media/router/discovery/dial/dial_app_discovery_service.h"
 #include "components/media_router/common/media_source.h"
-#include "components/media_router/common/test/test_helper.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "services/network/public/cpp/simple_url_loader.h"
@@ -27,7 +26,7 @@ MockCastMediaSinkService::~MockCastMediaSinkService() = default;
 MockCastAppDiscoveryService::MockCastAppDiscoveryService() {}
 MockCastAppDiscoveryService::~MockCastAppDiscoveryService() = default;
 
-base::CallbackListSubscription
+CastAppDiscoveryService::Subscription
 MockCastAppDiscoveryService::StartObservingMediaSinks(
     const CastMediaSource& source,
     const CastAppDiscoveryService::SinkQueryCallback& callback) {
@@ -36,7 +35,7 @@ MockCastAppDiscoveryService::StartObservingMediaSinks(
 }
 scoped_refptr<base::SequencedTaskRunner>
 MockCastAppDiscoveryService::task_runner() {
-  return content::GetIOThreadTaskRunner({});
+  return base::CreateSingleThreadTaskRunner({content::BrowserThread::IO});
 }
 
 MockDialAppDiscoveryService::MockDialAppDiscoveryService() = default;
@@ -66,7 +65,7 @@ TestDialURLFetcher::~TestDialURLFetcher() = default;
 
 void TestDialURLFetcher::Start(const GURL& url,
                                const std::string& method,
-                               const absl::optional<std::string>& post_data,
+                               const base::Optional<std::string>& post_data,
                                int max_retries,
                                bool set_origin_header) {
   DoStart(url, method, post_data, max_retries);
@@ -100,7 +99,7 @@ std::unique_ptr<DialURLFetcher> TestDialActivityManager::CreateFetcher(
 void TestDialActivityManager::SetExpectedRequest(
     const GURL& url,
     const std::string& method,
-    const absl::optional<std::string>& post_data) {
+    const base::Optional<std::string>& post_data) {
   EXPECT_CALL(*this, OnFetcherCreated());
   expected_url_ = url;
   expected_method_ = method;
@@ -121,7 +120,7 @@ MediaSinkInternal CreateDialSink(int num) {
 
   media_router::MediaSink sink(unique_id, friendly_name,
                                media_router::SinkIconType::GENERIC,
-                               mojom::MediaRouteProviderId::DIAL);
+                               MediaRouteProviderId::EXTENSION);
   media_router::DialSinkExtraData extra_data;
   extra_data.ip_address = ip_endpoint.address();
   extra_data.model_name = base::StringPrintf("model name %d", num);
@@ -135,7 +134,7 @@ MediaSinkInternal CreateCastSink(int num) {
   std::string unique_id = base::StringPrintf("cast:<id%d>", num);
   net::IPEndPoint ip_endpoint = CreateIPEndPoint(num);
 
-  MediaSink sink{CreateCastSink(unique_id, friendly_name)};
+  MediaSink sink(unique_id, friendly_name, SinkIconType::CAST);
   CastSinkExtraData extra_data;
   extra_data.ip_endpoint = ip_endpoint;
   extra_data.port = ip_endpoint.port();
@@ -163,12 +162,11 @@ std::unique_ptr<ParsedDialAppInfo> CreateParsedDialAppInfoPtr(
 
 std::unique_ptr<DialInternalMessage> ParseDialInternalMessage(
     const std::string& message) {
-  auto message_value = base::JSONReader::Read(message);
+  auto message_value = base::JSONReader::ReadDeprecated(message);
   std::string error_unused;
-  return message_value && message_value->is_dict()
-             ? DialInternalMessage::From(std::move(message_value->GetDict()),
-                                         &error_unused)
-             : nullptr;
+  return message_value ? DialInternalMessage::From(std::move(*message_value),
+                                                   &error_unused)
+                       : nullptr;
 }
 
 }  // namespace media_router

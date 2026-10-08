@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,7 @@
 #include <memory>
 
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/trace_event/trace_event.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "cc/paint/display_item_list.h"
 #include "cc/trees/layer_tree_frame_sink.h"
 #include "cc/trees/layer_tree_frame_sink_client.h"
@@ -26,7 +25,6 @@
 #include "ui/aura/window.h"
 #include "ui/aura/window_observer.h"
 #include "ui/aura/window_tree_host.h"
-#include "ui/compositor/compositor.h"
 #include "ui/compositor/paint_context.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
@@ -34,7 +32,6 @@
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/gfx/geometry/size_conversions.h"
-#include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/gfx/gpu_memory_buffer.h"
 #include "ui/views/widget/widget.h"
 
@@ -68,12 +65,6 @@ class ViewTreeHostRootView::LayerTreeViewTreeFrameSinkHolder
       : view_(view), frame_sink_(std::move(frame_sink)) {
     frame_sink_->BindToClient(this);
   }
-
-  LayerTreeViewTreeFrameSinkHolder(const LayerTreeViewTreeFrameSinkHolder&) =
-      delete;
-  LayerTreeViewTreeFrameSinkHolder& operator=(
-      const LayerTreeViewTreeFrameSinkHolder&) = delete;
-
   ~LayerTreeViewTreeFrameSinkHolder() override {
     if (frame_sink_)
       frame_sink_->DetachFromClient();
@@ -109,7 +100,8 @@ class ViewTreeHostRootView::LayerTreeViewTreeFrameSinkHolder
                  gfx::Transform());
     frame.render_pass_list.push_back(std::move(pass));
     holder->frame_sink_->SubmitCompositorFrame(std::move(frame),
-                                               /*hit_test_data_changed=*/true);
+                                               /*hit_test_data_changed=*/true,
+                                               /*show_hit_test_borders=*/false);
 
     // Delete sink holder immediately if not waiting for exported resources to
     // be reclaimed.
@@ -140,7 +132,8 @@ class ViewTreeHostRootView::LayerTreeViewTreeFrameSinkHolder
     last_frame_device_scale_factor_ = frame.metadata.device_scale_factor;
     frame.metadata.frame_token = ++next_frame_token_;
     frame_sink_->SubmitCompositorFrame(std::move(frame),
-                                       /*hit_test_data_changed=*/true);
+                                       /*hit_test_data_changed=*/true,
+                                       /*show_hit_test_borders=*/false);
   }
 
   void DamageExportedResources() {
@@ -150,10 +143,11 @@ class ViewTreeHostRootView::LayerTreeViewTreeFrameSinkHolder
 
   // Overridden from cc::LayerTreeFrameSinkClient:
   void SetBeginFrameSource(viz::BeginFrameSource* source) override {}
-  absl::optional<viz::HitTestRegionList> BuildHitTestData() override {
+  base::Optional<viz::HitTestRegionList> BuildHitTestData() override {
     return {};
   }
-  void ReclaimResources(std::vector<viz::ReturnedResource> resources) override {
+  void ReclaimResources(
+      const std::vector<viz::ReturnedResource>& resources) override {
     if (delete_pending_)
       return;
     for (auto& entry : resources) {
@@ -209,8 +203,7 @@ class ViewTreeHostRootView::LayerTreeViewTreeFrameSinkHolder
     if (delete_pending_)
       return;
     delete_pending_ = true;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE,
-                                                                  this);
+    base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE, this);
   }
 
   ViewTreeHostRootView* view_;
@@ -222,6 +215,8 @@ class ViewTreeHostRootView::LayerTreeViewTreeFrameSinkHolder
   float last_frame_device_scale_factor_ = 1.0f;
   aura::Window* root_window_ = nullptr;
   bool delete_pending_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(LayerTreeViewTreeFrameSinkHolder);
 };
 
 ViewTreeHostRootView::ViewTreeHostRootView(views::Widget* widget)
@@ -285,8 +280,7 @@ ViewTreeHostRootView::ObtainResource() {
       buffer_size_,
       SK_B32_SHIFT ? gfx::BufferFormat::RGBA_8888
                    : gfx::BufferFormat::BGRA_8888,
-      gfx::BufferUsage::SCANOUT_CPU_READ_WRITE, gpu::kNullSurfaceHandle,
-      nullptr);
+      gfx::BufferUsage::SCANOUT_CPU_READ_WRITE, gpu::kNullSurfaceHandle);
   if (!resource->gpu_memory_buffer) {
     LOG(ERROR) << "Failed to create GPU memory buffer";
     return nullptr;
@@ -304,10 +298,8 @@ ViewTreeHostRootView::ObtainResource() {
 }
 
 ViewTreeHostRootView::~ViewTreeHostRootView() {
-  if (frame_sink_holder_) {
-    LayerTreeViewTreeFrameSinkHolder::DeleteWhenLastResourceHasBeenReclaimed(
-        std::move(frame_sink_holder_));
-  }
+  LayerTreeViewTreeFrameSinkHolder::DeleteWhenLastResourceHasBeenReclaimed(
+      std::move(frame_sink_holder_));
 }
 
 void ViewTreeHostRootView::Paint() {
@@ -346,7 +338,7 @@ void ViewTreeHostRootView::Paint() {
   int stride = resource->gpu_memory_buffer->stride(0);
   std::unique_ptr<SkCanvas> canvas =
       SkCanvas::MakeRasterDirect(info, data, stride);
-  canvas->setMatrix(gfx::TransformToFlattenedSkMatrix(rotate_transform_));
+  canvas->setMatrix(static_cast<SkMatrix>(rotate_transform_.matrix()));
   display_item_list->Raster(canvas.get());
 
   {
@@ -368,18 +360,10 @@ void ViewTreeHostRootView::SchedulePaintInRect(const gfx::Rect& rect) {
   pending_paint_ = true;
 
   if (!pending_compositor_frame_ack_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&ViewTreeHostRootView::Paint,
                                   weak_ptr_factory_.GetWeakPtr()));
   }
-}
-
-bool ViewTreeHostRootView::GetIsOverlayCandidate() {
-  return is_overlay_candidate_;
-}
-
-void ViewTreeHostRootView::SetIsOverlayCandidate(bool is_overlay_candidate) {
-  is_overlay_candidate_ = is_overlay_candidate;
 }
 
 void ViewTreeHostRootView::UpdateSurface(const gfx::Rect& damage_rect,
@@ -389,8 +373,8 @@ void ViewTreeHostRootView::UpdateSurface(const gfx::Rect& damage_rect,
 
   if (!damage_rect.IsEmpty()) {
     frame_sink_holder_->DamageExportedResources();
-    for (auto& returned_resource : returned_resources_)
-      returned_resource->damaged = true;
+    for (auto& resource : returned_resources_)
+      resource->damaged = true;
   }
 
   if (!pending_compositor_frame_ack_)
@@ -428,8 +412,8 @@ void ViewTreeHostRootView::SubmitCompositorFrame() {
         resource->context_provider->SharedImageInterface();
     if (resource->mailbox.IsZero()) {
       DCHECK(!resource->sync_token.HasData());
-      const uint32_t usage = gpu::SHARED_IMAGE_USAGE_DISPLAY_READ |
-                             gpu::SHARED_IMAGE_USAGE_SCANOUT;
+      const uint32_t usage =
+          gpu::SHARED_IMAGE_USAGE_DISPLAY | gpu::SHARED_IMAGE_USAGE_SCANOUT;
       gpu::GpuMemoryBufferManager* gmb_manager =
           aura::Env::GetInstance()
               ->context_factory()
@@ -444,14 +428,18 @@ void ViewTreeHostRootView::SubmitCompositorFrame() {
     resource->damaged = false;
   }
 
-  viz::TransferableResource transferable_resource =
-      viz::TransferableResource::MakeGpu(
-          resource->mailbox, GL_LINEAR, GL_TEXTURE_2D, resource->sync_token,
-          buffer_size_, viz::RGBA_8888, is_overlay_candidate_);
-  transferable_resource.id = id_generator_.GenerateNextId();
+  viz::TransferableResource transferable_resource;
+  transferable_resource.id = next_resource_id_++;
+  transferable_resource.format = viz::RGBA_8888;
+  transferable_resource.filter = GL_LINEAR;
+  transferable_resource.size = buffer_size_;
+  transferable_resource.mailbox_holder = gpu::MailboxHolder(
+      resource->mailbox, resource->sync_token, GL_TEXTURE_2D);
+  transferable_resource.is_overlay_candidate = true;
 
-  gfx::Transform buffer_to_target_transform =
-      rotate_transform_.GetCheckedInverse();
+  gfx::Transform buffer_to_target_transform;
+  bool rv = rotate_transform_.GetInverse(&buffer_to_target_transform);
+  DCHECK(rv);
 
   const viz::CompositorRenderPassId kRenderPassId{1};
   auto render_pass = viz::CompositorRenderPass::Create();
@@ -460,14 +448,14 @@ void ViewTreeHostRootView::SubmitCompositorFrame() {
 
   viz::SharedQuadState* quad_state =
       render_pass->CreateAndAppendSharedQuadState();
-  quad_state->SetAll(buffer_to_target_transform,
-                     /*quad_layer_rect=*/output_rect,
-                     /*visible_layer_rect=*/output_rect,
-                     /*mask_filter_info=*/gfx::MaskFilterInfo(),
-                     /*clip_rect=*/absl::nullopt, /*are_contents_opaque=*/false,
-                     /*opacity=*/1.f,
-                     /*blend_mode=*/SkBlendMode::kSrcOver,
-                     /*sorting_context_id=*/0);
+  quad_state->SetAll(
+      buffer_to_target_transform,
+      /*quad_layer_rect=*/output_rect,
+      /*visible_quad_layer_rect=*/output_rect,
+      /*mask_filter_info=*/gfx::MaskFilterInfo(),
+      /*clip_rect=*/gfx::Rect(),
+      /*is_clipped=*/false, /*are_contents_opaque=*/false, /*opacity=*/1.f,
+      /*blend_mode=*/SkBlendMode::kSrcOver, /*sorting_context_id=*/0);
 
   viz::CompositorFrame frame;
   // TODO(eseckler): ViewTreeHostRootView should use BeginFrames and set
@@ -488,7 +476,7 @@ void ViewTreeHostRootView::SubmitCompositorFrame() {
       quad_state, quad_rect, quad_rect,
       /*needs_blending=*/true, transferable_resource.id,
       /*premultiplied_alpha=*/true, uv_crop.origin(), uv_crop.bottom_right(),
-      SkColors::kTransparent, vertex_opacity,
+      SK_ColorTRANSPARENT, vertex_opacity,
       /*y_flipped=*/false,
       /*nearest_neighbor=*/false,
       /*secure_output_only=*/false, gfx::ProtectedVideoType::kClear);
@@ -509,7 +497,7 @@ void ViewTreeHostRootView::DidReceiveCompositorFrameAck() {
   pending_compositor_frame_ack_ = false;
 
   if (pending_resource_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&ViewTreeHostRootView::SubmitPendingCompositorFrame,
                        weak_ptr_factory_.GetWeakPtr()));

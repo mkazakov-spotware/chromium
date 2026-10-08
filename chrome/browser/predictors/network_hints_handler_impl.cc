@@ -1,10 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/predictors/network_hints_handler_impl.h"
 
 #include "base/memory/ptr_util.h"
+#include "base/optional.h"
 #include "chrome/browser/predictors/loading_predictor.h"
 #include "chrome/browser/predictors/loading_predictor_factory.h"
 #include "chrome/browser/predictors/preconnect_manager.h"
@@ -12,25 +13,8 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
-#include "net/base/isolation_info.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace predictors {
-
-namespace {
-
-// Preconnects can be received from the renderer before commit messages, so
-// need to use the key from the pending navigation, and not the committed
-// navigation, unlike other consumers. This does mean on navigating away from a
-// site, preconnect is more likely to incorrectly use the
-// NetworkAnonymizationKey of the previous commit.
-net::NetworkAnonymizationKey GetPendingNetworkAnonymizationKey(
-    content::RenderFrameHost* render_frame_host) {
-  return render_frame_host->GetPendingIsolationInfoForSubresources()
-      .network_anonymization_key();
-}
-
-}  // namespace
 
 NetworkHintsHandlerImpl::~NetworkHintsHandlerImpl() = default;
 
@@ -54,7 +38,7 @@ void NetworkHintsHandlerImpl::PrefetchDNS(
     return;
 
   preconnect_manager_->StartPreresolveHosts(
-      names, GetPendingNetworkAnonymizationKey(render_frame_host));
+      names, render_frame_host->GetNetworkIsolationKey());
 }
 
 void NetworkHintsHandlerImpl::Preconnect(const GURL& url,
@@ -76,8 +60,7 @@ void NetworkHintsHandlerImpl::Preconnect(const GURL& url,
     return;
 
   preconnect_manager_->StartPreconnectUrl(
-      url, allow_credentials,
-      GetPendingNetworkAnonymizationKey(render_frame_host));
+      url, allow_credentials, render_frame_host->GetNetworkIsolationKey());
 }
 
 NetworkHintsHandlerImpl::NetworkHintsHandlerImpl(

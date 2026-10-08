@@ -3,8 +3,9 @@
 <script>
 if (window.testRunner) {
     testRunner.dumpAsText();
+    testRunner.dumpCreateView();
     testRunner.dumpNavigationPolicy();
-    testRunner.setPopupBlockingEnabled(false);
+    testRunner.setCanOpenWindows();
     testRunner.waitUntilDone();
 }
 

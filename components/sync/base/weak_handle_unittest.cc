@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@ using ::testing::StrictMock;
 
 class Base {
  public:
-  Base() = default;
+  Base() {}
 
   WeakHandle<Base> AsWeakHandle() {
     return MakeWeakHandle(weak_ptr_factory_.GetWeakPtr());
@@ -205,7 +205,7 @@ void CallTestWithSelf(const WeakHandle<Base>& b1) {
 TEST_F(WeakHandleTest, WithDestroyedThread) {
   StrictMock<Base> b1;
   WeakHandle<Base> b2;
-  EXPECT_CALL(b1, TestWithSelf).WillOnce(SaveArg<0>(&b2));
+  EXPECT_CALL(b1, TestWithSelf(_)).WillOnce(SaveArg<0>(&b2));
 
   {
     base::Thread t("Test thread");

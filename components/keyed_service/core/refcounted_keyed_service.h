@@ -1,13 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_KEYED_SERVICE_CORE_REFCOUNTED_KEYED_SERVICE_H_
 #define COMPONENTS_KEYED_SERVICE_CORE_REFCOUNTED_KEYED_SERVICE_H_
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/sequenced_task_runner_helpers.h"
+#include "base/sequenced_task_runner.h"
+#include "base/sequenced_task_runner_helpers.h"
 #include "components/keyed_service/core/keyed_service_export.h"
 
 class RefcountedKeyedService;
@@ -36,9 +37,6 @@ class KEYED_SERVICE_EXPORT RefcountedKeyedService
     : public base::RefCountedThreadSafe<RefcountedKeyedService,
                                         impl::RefcountedKeyedServiceTraits> {
  public:
-  RefcountedKeyedService(const RefcountedKeyedService&) = delete;
-  RefcountedKeyedService& operator=(const RefcountedKeyedService&) = delete;
-
   // Unlike KeyedService, ShutdownOnUI is not optional. You must do something
   // to drop references during the first pass Shutdown() because this is the
   // only point where you are guaranteed that something is running on the UI
@@ -54,8 +52,7 @@ class KEYED_SERVICE_EXPORT RefcountedKeyedService
   // If you need your service to be deleted on a specific sequence (for example,
   // you're converting a service that used content::DeleteOnThread<IO>), then
   // use this constructor with a reference to the SequencedTaskRunner (e.g., you
-  // can get it from content::Get(UI|IO)ThreadTaskRunner or
-  // base::ThreadPool::CreateSequencedTaskRunner).
+  // can get it from base::CreateSequencedTaskRunner).
   explicit RefcountedKeyedService(
       scoped_refptr<base::SequencedTaskRunner> task_runner);
 
@@ -71,6 +68,8 @@ class KEYED_SERVICE_EXPORT RefcountedKeyedService
 
   // Do we have to delete this object on a specific sequence?
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(RefcountedKeyedService);
 };
 
 #endif  // COMPONENTS_KEYED_SERVICE_CORE_REFCOUNTED_KEYED_SERVICE_H_

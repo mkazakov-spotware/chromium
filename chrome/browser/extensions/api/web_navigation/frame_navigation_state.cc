@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/check.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/render_frame_host.h"
 #include "extensions/common/constants.h"
@@ -28,19 +29,24 @@ const char* const kValidSchemes[] = {
 
 }  // namespace
 
+FrameNavigationState::FrameState::FrameState() {
+  error_occurred = false;
+  is_loading = false;
+  is_parsing = false;
+}
+
 // static
 bool FrameNavigationState::allow_extension_scheme_ = false;
 
-DOCUMENT_USER_DATA_KEY_IMPL(FrameNavigationState);
+FrameNavigationState::FrameNavigationState() {
+}
 
-FrameNavigationState::FrameNavigationState(content::RenderFrameHost* rfh)
-    : content::DocumentUserData<FrameNavigationState>(rfh) {}
-FrameNavigationState::~FrameNavigationState() = default;
+FrameNavigationState::~FrameNavigationState() {}
 
 // static
 bool FrameNavigationState::IsValidUrl(const GURL& url) {
-  for (const auto* valid_scheme : kValidSchemes) {
-    if (url.scheme() == valid_scheme)
+  for (unsigned i = 0; i < base::size(kValidSchemes); ++i) {
+    if (url.scheme() == kValidSchemes[i])
       return true;
   }
   // Allow about:blank and about:srcdoc.
@@ -49,49 +55,102 @@ bool FrameNavigationState::IsValidUrl(const GURL& url) {
   return allow_extension_scheme_ && url.scheme() == kExtensionScheme;
 }
 
-bool FrameNavigationState::CanSendEvents() const {
-  return !error_occurred_ && IsValidUrl(url_);
+bool FrameNavigationState::CanSendEvents(
+    content::RenderFrameHost* frame_host) const {
+  auto it = frame_host_state_map_.find(frame_host);
+  if (it == frame_host_state_map_.end() || it->second.error_occurred) {
+    return false;
+  }
+  return IsValidUrl(it->second.url);
 }
 
 void FrameNavigationState::StartTrackingDocumentLoad(
+    content::RenderFrameHost* frame_host,
     const GURL& url,
     bool is_same_document,
-    bool is_from_back_forward_cache,
     bool is_error_page) {
-  error_occurred_ = is_error_page;
-  url_ = url;
-  if (!is_same_document && !is_from_back_forward_cache) {
-    is_loading_ = true;
-    is_parsing_ = true;
+  FrameState& frame_state = frame_host_state_map_[frame_host];
+  frame_state.error_occurred = is_error_page;
+  frame_state.url = url;
+  if (!is_same_document) {
+    frame_state.is_loading = true;
+    frame_state.is_parsing = true;
   }
 }
 
-GURL FrameNavigationState::GetUrl() const {
-  return url_;
+void FrameNavigationState::FrameHostCreated(
+    content::RenderFrameHost* frame_host) {
+  frame_hosts_.insert(frame_host);
 }
 
-void FrameNavigationState::SetErrorOccurredInFrame() {
-  error_occurred_ = true;
+void FrameNavigationState::FrameHostDeleted(
+    content::RenderFrameHost* frame_host) {
+  frame_host_state_map_.erase(frame_host);
+  frame_hosts_.erase(frame_host);
 }
 
-bool FrameNavigationState::GetErrorOccurredInFrame() const {
-  return error_occurred_;
+bool FrameNavigationState::IsValidFrame(
+    content::RenderFrameHost* frame_host) const {
+  return frame_host_state_map_.find(frame_host) != frame_host_state_map_.end();
 }
 
-void FrameNavigationState::SetDocumentLoadCompleted() {
-  is_loading_ = false;
+GURL FrameNavigationState::GetUrl(content::RenderFrameHost* frame_host) const {
+  auto it = frame_host_state_map_.find(frame_host);
+  if (it == frame_host_state_map_.end())
+    return GURL();
+
+  return it->second.url;
 }
 
-bool FrameNavigationState::GetDocumentLoadCompleted() const {
-  return !is_loading_;
+void FrameNavigationState::SetErrorOccurredInFrame(
+    content::RenderFrameHost* frame_host) {
+  auto it = frame_host_state_map_.find(frame_host);
+  if (it == frame_host_state_map_.end()) {
+    NOTREACHED();
+    return;
+  }
+  it->second.error_occurred = true;
 }
 
-void FrameNavigationState::SetParsingFinished() {
-  is_parsing_ = false;
+bool FrameNavigationState::GetErrorOccurredInFrame(
+    content::RenderFrameHost* frame_host) const {
+  auto it = frame_host_state_map_.find(frame_host);
+  DCHECK(it != frame_host_state_map_.end());
+  return it == frame_host_state_map_.end() || it->second.error_occurred;
 }
 
-bool FrameNavigationState::GetParsingFinished() const {
-  return !is_parsing_;
+void FrameNavigationState::SetDocumentLoadCompleted(
+    content::RenderFrameHost* frame_host) {
+  auto it = frame_host_state_map_.find(frame_host);
+  if (it == frame_host_state_map_.end()) {
+    NOTREACHED();
+    return;
+  }
+  it->second.is_loading = false;
+}
+
+bool FrameNavigationState::GetDocumentLoadCompleted(
+    content::RenderFrameHost* frame_host) const {
+  auto it = frame_host_state_map_.find(frame_host);
+  DCHECK(it != frame_host_state_map_.end());
+  return it == frame_host_state_map_.end() || !it->second.is_loading;
+}
+
+void FrameNavigationState::SetParsingFinished(
+    content::RenderFrameHost* frame_host) {
+  auto it = frame_host_state_map_.find(frame_host);
+  if (it == frame_host_state_map_.end()) {
+    NOTREACHED();
+    return;
+  }
+  it->second.is_parsing = false;
+}
+
+bool FrameNavigationState::GetParsingFinished(
+    content::RenderFrameHost* frame_host) const {
+  auto it = frame_host_state_map_.find(frame_host);
+  DCHECK(it != frame_host_state_map_.end());
+  return it == frame_host_state_map_.end() || !it->second.is_parsing;
 }
 
 }  // namespace extensions

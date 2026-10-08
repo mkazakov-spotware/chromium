@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,17 +12,19 @@
 
 #include "base/android/jni_weak_ref.h"
 #include "base/android/scoped_java_ref.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/synchronization/lock.h"
 #include "base/thread_annotations.h"
-#include "base/values.h"
 #include "content/browser/android/java/gin_java_bound_object.h"
 #include "content/browser/android/java/gin_java_method_invocation_helper.h"
 #include "content/public/browser/web_contents_observer.h"
 
-namespace content {
+namespace base {
+class ListValue;
+}
 
-class WebContentsImpl;
+namespace content {
 
 // This class handles injecting Java objects into a single WebContents /
 // WebView. The Java object itself lives in the browser process on a background
@@ -38,10 +40,6 @@ class GinJavaBridgeDispatcherHost
       WebContents* web_contents,
       const base::android::JavaRef<jobject>& retained_object_set);
 
-  GinJavaBridgeDispatcherHost(const GinJavaBridgeDispatcherHost&) = delete;
-  GinJavaBridgeDispatcherHost& operator=(const GinJavaBridgeDispatcherHost&) =
-      delete;
-
   void AddNamedObject(
       const std::string& name,
       const base::android::JavaRef<jobject>& object,
@@ -51,7 +49,7 @@ class GinJavaBridgeDispatcherHost
 
   // WebContentsObserver
   void RenderFrameCreated(RenderFrameHost* render_frame_host) override;
-  void PrimaryMainDocumentElementAvailable() override;
+  void DocumentAvailableInMainFrame() override;
   void WebContentsDestroyed() override;
   void RenderViewHostChanged(RenderViewHost* old_host,
                              RenderViewHost* new_host) override;
@@ -69,8 +67,8 @@ class GinJavaBridgeDispatcherHost
   void OnInvokeMethod(int routing_id,
                       GinJavaBoundObject::ObjectID object_id,
                       const std::string& method_name,
-                      const base::Value::List& arguments,
-                      base::Value::List* result,
+                      const base::ListValue& arguments,
+                      base::ListValue* result,
                       content::GinJavaBridgeError* error_code);
   void OnObjectWrapperDeleted(int routing_id,
                               GinJavaBoundObject::ObjectID object_id);
@@ -85,7 +83,6 @@ class GinJavaBridgeDispatcherHost
 
   // Run on the UI thread.
   void InstallFilterAndRegisterAllRoutingIds();
-  WebContentsImpl* web_contents() const;
 
   // Run on any thread.
   GinJavaBoundObject::ObjectID AddObject(
@@ -124,6 +121,8 @@ class GinJavaBridgeDispatcherHost
 
   // The following objects are only used on the background thread.
   bool allow_object_contents_inspection_;
+
+  DISALLOW_COPY_AND_ASSIGN(GinJavaBridgeDispatcherHost);
 };
 
 }  // namespace content

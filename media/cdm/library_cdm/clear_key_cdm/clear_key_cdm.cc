@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,15 @@
 
 #include <algorithm>
 #include <cstring>
-#include <memory>
 #include <sstream>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/files/file.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
@@ -48,42 +48,24 @@ const char kClearKeyCdmVersion[] = "0.1.0.1";
 const char kExternalClearKeyKeySystem[] = "org.chromium.externalclearkey";
 
 // Variants of External Clear Key key system to test different scenarios.
-
-// A sub key system that supports decrypt-only mode.
 const char kExternalClearKeyDecryptOnlyKeySystem[] =
     "org.chromium.externalclearkey.decryptonly";
-
-// A sub key system that triggers various types of messages.
 const char kExternalClearKeyMessageTypeTestKeySystem[] =
     "org.chromium.externalclearkey.messagetypetest";
-
-// A sub key system that triggers the FileIO test.
 const char kExternalClearKeyFileIOTestKeySystem[] =
     "org.chromium.externalclearkey.fileiotest";
-
-// A sub key system that triggers the output protection test.
 const char kExternalClearKeyOutputProtectionTestKeySystem[] =
     "org.chromium.externalclearkey.outputprotectiontest";
-
-// A sub key system that triggers the platform verification test.
 const char kExternalClearKeyPlatformVerificationTestKeySystem[] =
     "org.chromium.externalclearkey.platformverificationtest";
-
-// A sub key system that triggers a crash.
 const char kExternalClearKeyCrashKeySystem[] =
     "org.chromium.externalclearkey.crash";
-
-// A sub key system that triggers the verify host files test.
 const char kExternalClearKeyVerifyCdmHostTestKeySystem[] =
     "org.chromium.externalclearkey.verifycdmhosttest";
-
-// A sub key system that fetches the Storage ID.
 const char kExternalClearKeyStorageIdTestKeySystem[] =
     "org.chromium.externalclearkey.storageidtest";
-
-// A sub key system that is registered with a different CDM type.
-const char kkExternalClearKeyDifferentCdmTypeTestKeySystem[] =
-    "org.chromium.externalclearkey.differentcdmtype";
+const char kExternalClearKeyDifferentGuidTestKeySystem[] =
+    "org.chromium.externalclearkey.differentguid";
 
 const int64_t kMsPerSecond = 1000;
 const int64_t kMaxTimerDelayMs = 5 * kMsPerSecond;
@@ -108,7 +90,8 @@ static scoped_refptr<media::DecoderBuffer> CopyDecoderBufferFrom(
   // TODO(xhwang): Get rid of this copy.
   scoped_refptr<media::DecoderBuffer> output_buffer =
       media::DecoderBuffer::CopyFrom(input_buffer.data, input_buffer.data_size);
-  output_buffer->set_timestamp(base::Microseconds(input_buffer.timestamp));
+  output_buffer->set_timestamp(
+      base::TimeDelta::FromMicroseconds(input_buffer.timestamp));
 
   if (input_buffer.encryption_scheme == cdm::EncryptionScheme::kUnencrypted)
     return output_buffer;
@@ -195,7 +178,7 @@ void* CreateCdmInstance(int cdm_interface_version,
       key_system_string != kExternalClearKeyCrashKeySystem &&
       key_system_string != kExternalClearKeyVerifyCdmHostTestKeySystem &&
       key_system_string != kExternalClearKeyStorageIdTestKeySystem &&
-      key_system_string != kkExternalClearKeyDifferentCdmTypeTestKeySystem) {
+      key_system_string != kExternalClearKeyDifferentGuidTestKeySystem) {
     DVLOG(1) << "Unsupported key system:" << key_system_string;
     return nullptr;
   }
@@ -333,7 +316,7 @@ class CdmVideoFrameAdapter : public cdm::VideoFrame_2 {
   }
 
  private:
-  const raw_ptr<cdm::VideoFrame> video_frame_ = nullptr;
+  cdm::VideoFrame* const video_frame_ = nullptr;
 };
 
 }  // namespace
@@ -344,14 +327,11 @@ ClearKeyCdm::ClearKeyCdm(HostInterface* host, const std::string& key_system)
       cdm_host_proxy_(new CdmHostProxyImpl<HostInterface>(host)),
       cdm_(new ClearKeyPersistentSessionCdm(
           cdm_host_proxy_.get(),
-          base::BindRepeating(&ClearKeyCdm::OnSessionMessage,
-                              base::Unretained(this)),
-          base::BindRepeating(&ClearKeyCdm::OnSessionClosed,
-                              base::Unretained(this)),
-          base::BindRepeating(&ClearKeyCdm::OnSessionKeysChange,
-                              base::Unretained(this)),
-          base::BindRepeating(&ClearKeyCdm::OnSessionExpirationUpdate,
-                              base::Unretained(this)))),
+          base::Bind(&ClearKeyCdm::OnSessionMessage, base::Unretained(this)),
+          base::Bind(&ClearKeyCdm::OnSessionClosed, base::Unretained(this)),
+          base::Bind(&ClearKeyCdm::OnSessionKeysChange, base::Unretained(this)),
+          base::Bind(&ClearKeyCdm::OnSessionExpirationUpdate,
+                     base::Unretained(this)))),
       key_system_(key_system) {
   DCHECK(g_is_cdm_module_initialized);
 }
@@ -473,7 +453,7 @@ void ClearKeyCdm::OnUpdateSuccess(uint32_t promise_id,
 
     if (!has_set_timer_) {
       // Make sure the CDM can get time and sleep if necessary.
-      constexpr auto kSleepDuration = base::Seconds(1);
+      constexpr auto kSleepDuration = base::TimeDelta::FromSeconds(1);
       auto start_time = base::Time::Now();
       base::PlatformThread::Sleep(kSleepDuration);
       auto time_elapsed = base::Time::Now() - start_time;
@@ -609,10 +589,9 @@ cdm::Status ClearKeyCdm::InitializeAudioDecoder(
     return cdm::kInitializationError;
 
 #if defined(CLEAR_KEY_CDM_USE_FFMPEG_DECODER)
-  if (!audio_decoder_) {
-    audio_decoder_ =
-        std::make_unique<media::FFmpegCdmAudioDecoder>(cdm_host_proxy_.get());
-  }
+  if (!audio_decoder_)
+    audio_decoder_.reset(
+        new media::FFmpegCdmAudioDecoder(cdm_host_proxy_.get()));
 
   if (!audio_decoder_->Initialize(audio_decoder_config))
     return cdm::kInitializationError;
@@ -845,7 +824,7 @@ void ClearKeyCdm::OnQueryOutputProtectionStatus(
   }
   const uint8_t kDummyKeyId[] = {'d', 'u', 'm', 'm', 'y'};
   std::vector<cdm::KeyInformation> keys_vector = {
-      {kDummyKeyId, std::size(kDummyKeyId), key_status, 0}};
+      {kDummyKeyId, base::size(kDummyKeyId), key_status, 0}};
   cdm_host_proxy_->OnSessionKeysChange(last_session_id_.data(),
                                        last_session_id_.length(), false,
                                        keys_vector.data(), keys_vector.size());
@@ -904,8 +883,7 @@ void ClearKeyCdm::OnSessionKeysChange(const std::string& session_id,
                                        keys_vector.data(), keys_vector.size());
 }
 
-void ClearKeyCdm::OnSessionClosed(const std::string& session_id,
-                                  CdmSessionClosedReason /*reason*/) {
+void ClearKeyCdm::OnSessionClosed(const std::string& session_id) {
   cdm_host_proxy_->OnSessionClosed(session_id.data(), session_id.length());
 }
 
@@ -947,8 +925,8 @@ void ClearKeyCdm::OnUnitTestComplete(bool success) {
 }
 
 void ClearKeyCdm::StartFileIOTest() {
-  file_io_test_runner_ = std::make_unique<FileIOTestRunner>(base::BindRepeating(
-      &CdmHostProxy::CreateFileIO, base::Unretained(cdm_host_proxy_.get())));
+  file_io_test_runner_.reset(new FileIOTestRunner(base::BindRepeating(
+      &CdmHostProxy::CreateFileIO, base::Unretained(cdm_host_proxy_.get()))));
   file_io_test_runner_->RunAllTests(base::BindOnce(
       &ClearKeyCdm::OnFileIOTestComplete, base::Unretained(this)));
 }

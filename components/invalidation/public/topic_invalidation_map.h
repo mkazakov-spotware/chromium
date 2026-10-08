@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,16 @@
 #include <memory>
 #include <vector>
 
-#include "base/values.h"
 #include "components/invalidation/public/invalidation.h"
 #include "components/invalidation/public/invalidation_export.h"
 #include "components/invalidation/public/invalidation_util.h"
-#include "components/invalidation/public/single_topic_invalidation_set.h"
+#include "components/invalidation/public/single_object_invalidation_set.h"
 
-namespace invalidation {
+namespace base {
+class ListValue;
+}  // namespace base
+
+namespace syncer {
 
 // A set of notifications with some helper methods to organize them by Topic
 // and version number.
@@ -49,25 +52,25 @@ class INVALIDATION_EXPORT TopicInvalidationMap {
   TopicInvalidationMap GetSubsetWithTopics(const TopicSet& topics) const;
 
   // Returns the subset of invalidations with Topic matching |topic|.
-  const SingleTopicInvalidationSet& ForTopic(Topic topic) const;
+  const SingleObjectInvalidationSet& ForTopic(Topic topic) const;
 
   // Returns the contents of this map in a single vector.
-  void GetAllInvalidations(std::vector<Invalidation>* out) const;
+  void GetAllInvalidations(std::vector<syncer::Invalidation>* out) const;
 
   // Call Acknowledge() on all contained Invalidations.
   void AcknowledgeAll() const;
 
   // Serialize this map to a value. Used to expose value on
   // chrome://invalidations page.
-  base::Value::List ToValue() const;
+  std::unique_ptr<base::ListValue> ToValue() const;
 
  private:
   explicit TopicInvalidationMap(
-      const std::map<Topic, SingleTopicInvalidationSet>& map);
+      const std::map<Topic, SingleObjectInvalidationSet>& map);
 
-  std::map<Topic, SingleTopicInvalidationSet> map_;
+  std::map<Topic, SingleObjectInvalidationSet> map_;
 };
 
-}  // namespace invalidation
+}  // namespace syncer
 
 #endif  // COMPONENTS_INVALIDATION_PUBLIC_TOPIC_INVALIDATION_MAP_H_

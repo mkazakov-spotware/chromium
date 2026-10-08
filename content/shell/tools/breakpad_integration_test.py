@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -10,8 +10,6 @@ This test checks that content shell and breakpad are correctly hooked up, as
 well as that the tools can symbolize a stack trace."""
 
 
-from __future__ import print_function
-from __future__ import absolute_import
 import glob
 import json
 import optparse
@@ -21,7 +19,6 @@ import subprocess
 import sys
 import tempfile
 import time
-from six.moves import range
 
 TOP_SRC_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '..')
 
@@ -60,7 +57,7 @@ def GetDevice():
 
 def clear_android_dumps(options, device):
   try:
-    print('# Deleting stale crash dumps')
+    print '# Deleting stale crash dumps'
     pending = os.path.join(ANDROID_CRASH_DIR, 'pending')
     files = device.RunShellCommand(['ls', pending], as_root=True)
     for f in files:
@@ -68,16 +65,16 @@ def clear_android_dumps(options, device):
         dump = os.path.join(pending, f)
         try:
           if options.verbose:
-            print(' deleting %s' % dump)
+            print ' deleting %s' % dump
           device.RunShellCommand(['rm', dump], check_return=True, as_root=True)
         except:
-          print('Failed to delete %s' % dump)
+          print 'Failed to delete %s' % dump
 
   except:
-    print('Failed to list dumps in android crash dir %s' % pending)
+    print 'Failed to list dumps in android crash dir %s' % pending
 
 
-def get_android_dump(options, crash_dir, symbols_dir):
+def get_android_dump(crash_dir):
   global failure
 
   pending = os.path.join(ANDROID_CRASH_DIR, 'pending')
@@ -93,23 +90,8 @@ def get_android_dump(options, crash_dir, symbols_dir):
     time.sleep(5)
 
   if len(dumps) != 1:
-    # TODO(crbug.com/861730): Temporary code to debug unexpected crash dumps.
-    minidump_stackwalk = os.path.join(options.build_dir, 'minidump_stackwalk')
-    failure = 'Failed to run minidump_stackwalk.'
-    for dump in dumps:
-      device.PullFile(os.path.join(pending, dump), crash_dir, as_root=True)
-      minidump = os.path.join(crash_dir, os.path.basename(dump))
-      cmd = [minidump_stackwalk, minidump, symbols_dir]
-      proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE)
-      stack = proc.communicate()[0].decode('utf-8')
-      print(stack)
-
-      device.RunShellCommand(['rm', os.path.join(pending, dump)],
-                             check_return=True, as_root=True)
-
     failure = 'Expected 1 crash dump, found %d.' % len(dumps)
-    print(dumps)
+    print dumps
     raise Exception(failure)
 
   device.PullFile(os.path.join(pending, dumps[0]), crash_dir, as_root=True)
@@ -122,7 +104,7 @@ def run_test(options, crash_dir, symbols_dir, platform,
              additional_arguments = []):
   global failure
 
-  print('# Run content_shell and make it crash.')
+  print '# Run content_shell and make it crash.'
   if platform == 'android':
     device = GetDevice()
 
@@ -154,7 +136,7 @@ def run_test(options, crash_dir, symbols_dir, platform,
     cmd += additional_arguments
 
     if options.verbose:
-      print(' '.join(cmd))
+      print ' '.join(cmd)
     failure = 'Failed to run content_shell.'
     if options.verbose:
       subprocess.check_call(cmd)
@@ -164,14 +146,14 @@ def run_test(options, crash_dir, symbols_dir, platform,
       with tempfile.TemporaryFile() as tmpfile:
         subprocess.check_call(cmd, stdout=tmpfile, stderr=tmpfile)
 
-  print('# Retrieve crash dump.')
+  print '# Retrieve crash dump.'
   if platform == 'android':
-    minidump = get_android_dump(options, crash_dir, symbols_dir)
+    minidump = get_android_dump(crash_dir)
   else:
     dmp_dir = crash_dir
     # TODO(crbug.com/782923): This test should not reach directly into the
     # Crashpad database, but instead should use crashpad_database_util.
-    if platform == 'darwin' or platform.startswith('linux'):
+    if platform == 'darwin' or platform == 'linux2':
       dmp_dir = os.path.join(dmp_dir, 'pending')
     elif platform == 'win32':
       dmp_dir = os.path.join(dmp_dir, 'reports')
@@ -182,26 +164,26 @@ def run_test(options, crash_dir, symbols_dir, platform,
       raise Exception(failure)
     minidump = dmp_files[0]
 
-  print('# Symbolize crash dump.')
+  print '# Symbolize crash dump.'
   if platform == 'win32':
     cdb_exe = os.path.join(options.build_dir, 'cdb', 'cdb.exe')
     cmd = [cdb_exe, '-y', options.build_dir, '-c', '.lines;.excr;k30;q',
            '-z', minidump]
     if options.verbose:
-      print(' '.join(cmd))
+      print ' '.join(cmd)
     failure = 'Failed to run cdb.exe.'
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE)
-    stack = proc.communicate()[0].decode('utf-8')
+    stack = proc.communicate()[0]
   else:
     minidump_stackwalk = os.path.join(options.build_dir, 'minidump_stackwalk')
     cmd = [minidump_stackwalk, minidump, symbols_dir]
     if options.verbose:
-      print(' '.join(cmd))
+      print ' '.join(cmd)
     failure = 'Failed to run minidump_stackwalk.'
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE)
-    stack = proc.communicate()[0].decode('utf-8')
+    stack = proc.communicate()[0]
 
   # Check whether the stack contains a CrashIntentionally symbol.
   found_symbol = 'CrashIntentionally' in stack
@@ -211,13 +193,13 @@ def run_test(options, crash_dir, symbols_dir, platform,
   if options.no_symbols:
     if found_symbol:
       if options.verbose:
-        print(stack)
+        print stack
       failure = 'Found unexpected reference to CrashIntentionally in stack'
       raise Exception(failure)
   else:
     if not found_symbol:
       if options.verbose:
-        print(stack)
+        print stack
       failure = 'Could not find reference to CrashIntentionally in stack.'
       raise Exception(failure)
 
@@ -249,15 +231,15 @@ def main():
   (options, _) = parser.parse_args()
 
   if not options.build_dir:
-    print('Required option --build-dir missing.')
+    print 'Required option --build-dir missing.'
     return 1
 
   if not options.binary:
-    print('Required option --binary missing.')
+    print 'Required option --binary missing.'
     return 1
 
   if not os.access(options.binary, os.X_OK):
-    print('Cannot find %s.' % options.binary)
+    print 'Cannot find %s.' % options.binary
     return 1
 
   failure = ''
@@ -272,12 +254,12 @@ def main():
     if options.platform == 'android':
       device = GetDevice()
 
-      print('# Install ContentShell.apk')
+      print '# Install ContentShell.apk'
       apk_path = os.path.join(options.build_dir, 'apks', 'ContentShell.apk')
       device.Install(apk_path, reinstall=False, allow_downgrade=True)
 
     if options.platform != 'win32':
-      print('# Generate symbols.')
+      print '# Generate symbols.'
       bins = [options.binary]
       if options.additional_binary:
         bins.append(options.additional_binary)
@@ -292,7 +274,7 @@ def main():
                '--platform=%s' % options.platform]
         if options.verbose:
           cmd.append('--verbose')
-          print(' '.join(cmd))
+          print ' '.join(cmd)
         failure = 'Failed to run generate_breakpad_symbols.py.'
         subprocess.check_call(cmd)
 
@@ -301,7 +283,7 @@ def main():
   except:
     if failure == '':
         failure = '%s: %s' % sys.exc_info()[:2]
-    print('FAIL: %s' % failure)
+    print 'FAIL: %s' % failure
     if options.json:
       with open(options.json, 'w') as json_file:
         json.dump([failure], json_file)
@@ -309,7 +291,7 @@ def main():
     return 1
 
   else:
-    print('PASS: Breakpad integration test ran successfully.')
+    print 'PASS: Breakpad integration test ran successfully.'
     if options.json:
       with open(options.json, 'w') as json_file:
         json.dump([], json_file)
@@ -322,7 +304,7 @@ def main():
     try:
       shutil.rmtree(crash_dir)
     except:
-      print('Failed to delete temp directory "%s".' % crash_dir)
+      print 'Failed to delete temp directory "%s".' % crash_dir
     if options.platform == 'android':
       clear_android_dumps(options, GetDevice())
 

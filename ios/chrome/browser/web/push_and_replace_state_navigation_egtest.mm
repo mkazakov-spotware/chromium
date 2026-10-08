@@ -1,17 +1,17 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "base/strings/sys_string_conversions.h"
-#import "components/strings/grit/components_strings.h"
+#include "base/strings/sys_string_conversions.h"
+#include "components/strings/grit/components_strings.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/web_http_server_chrome_test_case.h"
-#import "ios/net/url_test_util.h"
+#include "ios/net/url_test_util.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
 #import "ios/web/public/test/http_server/http_server.h"
-#import "ios/web/public/test/http_server/http_server_util.h"
+#include "ios/web/public/test/http_server/http_server_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -358,12 +358,11 @@ const char* kReplaceStateRootPathSpaceURL = "http://ios/rep lace";
   std::map<GURL, std::string> responses;
   GURL originURL =
       web::test::HttpServer::MakeUrl("http://foo.com/foo/bar.html");
-  GURL pushResultURL =
-      originURL.DeprecatedGetOriginAsURL().Resolve("pushed/relative/url");
+  GURL pushResultURL = originURL.GetOrigin().Resolve("pushed/relative/url");
   const std::string pushResultOmniboxText =
       net::GetContentAndFragmentForUrl(pushResultURL);
   GURL replaceResultURL =
-      originURL.DeprecatedGetOriginAsURL().Resolve("replaced/relative/url");
+      originURL.GetOrigin().Resolve("replaced/relative/url");
   const std::string replaceResultOmniboxText =
       net::GetContentAndFragmentForUrl(replaceResultURL);
 
@@ -398,7 +397,7 @@ const char* kReplaceStateRootPathSpaceURL = "http://ios/rep lace";
 
 #pragma mark - Utility methods
 
-// Assert that status text `status`, if non-nil, is displayed in the webview,
+// Assert that status text |status|, if non-nil, is displayed in the webview,
 // that the omnibox text is as expected, and that "onload" text is not
 // displayed.
 - (void)assertStatusText:(NSString*)status

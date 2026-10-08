@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,37 +54,36 @@ bool IsShowingInterstitial(content::WebContents* tab) {
 
 bool IsShowingCaptivePortalInterstitial(content::WebContents* tab) {
   return IsShowingInterstitial(tab) &&
-         IsInterstitialDisplayingText(tab->GetPrimaryMainFrame(), "Connect to");
+         IsInterstitialDisplayingText(tab->GetMainFrame(), "Connect to");
 }
 
 bool IsShowingSSLInterstitial(content::WebContents* tab) {
   return IsShowingInterstitial(tab) &&
-         IsInterstitialDisplayingText(tab->GetPrimaryMainFrame(),
+         IsInterstitialDisplayingText(tab->GetMainFrame(),
                                       "Your connection is not private");
 }
 
 bool IsShowingMITMInterstitial(content::WebContents* tab) {
   return IsShowingInterstitial(tab) &&
-         IsInterstitialDisplayingText(tab->GetPrimaryMainFrame(),
+         IsInterstitialDisplayingText(tab->GetMainFrame(),
                                       "An application is stopping");
 }
 
 bool IsShowingBadClockInterstitial(content::WebContents* tab) {
   return IsShowingInterstitial(tab) &&
-         IsInterstitialDisplayingText(tab->GetPrimaryMainFrame(),
-                                      "Your clock is");
+         IsInterstitialDisplayingText(tab->GetMainFrame(), "Your clock is");
 }
 
 bool IsShowingBlockedInterceptionInterstitial(content::WebContents* tab) {
   return IsShowingInterstitial(tab) &&
-         IsInterstitialDisplayingText(tab->GetPrimaryMainFrame(),
+         IsInterstitialDisplayingText(tab->GetMainFrame(),
                                       "Anything you type, any pages you view");
 }
 
-bool IsShowingHttpsFirstModeInterstitial(content::WebContents* tab) {
+bool IsShowingLegacyTLSInterstitial(content::WebContents* tab) {
   return IsShowingInterstitial(tab) &&
-         IsInterstitialDisplayingText(tab->GetPrimaryMainFrame(),
-                                      "this site does not support HTTPS.");
+         IsInterstitialDisplayingText(tab->GetMainFrame(),
+                                      "outdated security configuration");
 }
 
 }  // namespace chrome_browser_interstitials

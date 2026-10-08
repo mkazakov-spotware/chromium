@@ -45,10 +45,9 @@ class TextFieldInputType : public InputType,
  public:
   void Trace(Visitor*) const override;
   using InputType::GetElement;
-  bool ValueMissing(const String&) const;
 
  protected:
-  TextFieldInputType(Type, HTMLInputElement&);
+  TextFieldInputType(HTMLInputElement&);
   ~TextFieldInputType() override;
   bool CanSetSuggestedValue() override;
   void HandleKeydownEvent(KeyboardEvent&) override;
@@ -68,11 +67,10 @@ class TextFieldInputType : public InputType,
                 TextFieldEventBehavior,
                 TextControlSetValueSelection) override;
   void UpdateView() override;
-  scoped_refptr<ComputedStyle> CustomStyleForLayoutObject(
-      scoped_refptr<ComputedStyle> original_style) override;
+  void CustomStyleForLayoutObject(ComputedStyle& style) override;
+  bool TypeShouldForceLegacyLayout() const override;
   LayoutObject* CreateLayoutObject(const ComputedStyle&,
                                    LegacyLayout) const override;
-  ControlPart AutoAppearance() const override;
 
   virtual bool NeedsContainer() const { return false; }
   virtual String ConvertFromVisibleValue(const String&) const;
@@ -86,13 +84,13 @@ class TextFieldInputType : public InputType,
   ValueMode GetValueMode() const override;
   bool MayTriggerVirtualKeyboard() const final;
   bool IsTextField() const final;
+  bool ValueMissing(const String&) const override;
   bool ShouldSubmitImplicitly(const Event&) final;
   bool ShouldRespectListAttribute() override;
   void ListAttributeTargetChanged() override;
-  void UpdatePlaceholderText(bool is_suggested_value) final;
+  void UpdatePlaceholderText() final;
   void AppendToFormData(FormData&) const override;
   void SubtreeHasChanged() final;
-  void OpenPopupView() override;
 
   // SpinButtonElement::SpinButtonOwner functions.
   void FocusAndSelectSpinButtonOwner() final;
@@ -104,13 +102,6 @@ class TextFieldInputType : public InputType,
 
   SpinButtonElement* GetSpinButtonElement() const;
   void DisabledOrReadonlyAttributeChanged();
-};
-
-template <>
-struct DowncastTraits<TextFieldInputType> {
-  static bool AllowFrom(const InputType& type) {
-    return type.IsTextFieldInputType();
-  }
 };
 
 }  // namespace blink

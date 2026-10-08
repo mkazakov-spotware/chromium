@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,11 +16,6 @@ namespace content {
 // instance, launching a process to host the service if necessary.
 const CONTENT_EXPORT mojo::Remote<device::mojom::XRDeviceService>&
 GetXRDeviceService();
-
-// Acquires a pending remote handle to the device service host and posts
-// a message to the io thread task runner to bind the host.
-CONTENT_EXPORT mojo::PendingRemote<device::mojom::XRDeviceServiceHost>
-CreateXRDeviceServiceHost();
 
 void CONTENT_EXPORT SetXRDeviceServiceStartupCallbackForTestingInternal(
     base::RepeatingClosure callback);

@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import six
 import time
 
 # The amount of internal buffering a WebSocket connection has is not
@@ -8,12 +9,7 @@ import time
 # this number too large will result in false positives, when it takes more than
 # 2 seconds to transmit the message anyway. This number was arrived at by
 # trial-and-error.
-MESSAGE_SIZE = 1024 * 1024
-
-# With Windows 10 and Python 3, the OS will buffer an entire message in memory
-# and return from send() immediately, even if it is very large. To work around
-# this problem, send multiple messages.
-MESSAGE_COUNT = 16
+MESSAGE_SIZE = 16 * 1024 * 1024
 
 
 def web_socket_do_extra_handshake(request):
@@ -30,10 +26,8 @@ def web_socket_transfer_data(request):
     # 3 is complete. time.time() can go backwards.
     start_time = time.time()
 
-    # The large messages that will be blocked by backpressure.
-    for i in range(MESSAGE_COUNT):
-        request.ws_stream.send_message(b' ' * MESSAGE_SIZE, binary=True)
+    # The large message that will be blocked by backpressure.
+    request.ws_stream.send_message(b' ' * MESSAGE_SIZE, binary=True)
 
     # Report the time taken to send the large message.
-    request.ws_stream.send_message(str(time.time() - start_time),
-                                   binary=False)
+    request.ws_stream.send_message(six.text_type(time.time() - start_time), binary=False)

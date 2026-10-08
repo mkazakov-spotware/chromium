@@ -38,7 +38,6 @@ class WebFormElement;
 class WebInputElement;
 class WebKeyboardEvent;
 class WebNode;
-class WebString;
 
 class WebAutofillClient {
  public:
@@ -63,11 +62,6 @@ class WebAutofillClient {
 
   virtual void DidAssociateFormControlsDynamically() {}
   virtual void AjaxSucceeded() {}
-  // Called when |element| is in autofilled state and the value has been changed
-  // by JavaScript. |old_value| contains the value before being changed.
-  virtual void JavaScriptChangedAutofilledValue(
-      const WebFormControlElement& element,
-      const WebString& old_value) {}
 
   virtual void DidCompleteFocusChangeInFrame() {}
   virtual void DidReceiveLeftMouseDownOrGestureTapInNode(const WebNode&) {}
@@ -91,4 +85,4 @@ class WebAutofillClient {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_AUTOFILL_CLIENT_H_
+#endif

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,21 +46,16 @@ void ThroughputTracker::Start(ThroughputTrackerHost::ReportCallback callback) {
   host_->StartThroughputTracker(id_, std::move(callback));
 }
 
-bool ThroughputTracker::Stop() {
+void ThroughputTracker::Stop() {
   DCHECK(started_);
 
   started_ = false;
   if (host_)
-    return host_->StopThroughtputTracker(id_);
-
-  return false;
+    host_->StopThroughtputTracker(id_);
 }
 
 void ThroughputTracker::Cancel() {
-  // Some code calls Cancel() indirectly after receiving report. Allow this to
-  // happen and make it a no-op. See https://crbug.com/1193382.
-  if (!started_)
-    return;
+  DCHECK(started_);
 
   started_ = false;
   if (host_)

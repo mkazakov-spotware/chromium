@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,10 @@
 #include <set>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/macros.h"
+#include "base/values.h"
 #include "chrome/browser/media/media_engagement_score.h"
 #include "chrome/browser/media/media_engagement_score_details.mojom.h"
-#include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/history_service_observer.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/pref_registry/pref_registry_syncable.h"
@@ -29,6 +28,10 @@ class Clock;
 namespace content {
 class WebContents;
 }  // namespace content
+
+namespace history {
+class HistoryService;
+}
 
 namespace url {
 class Origin;
@@ -51,10 +54,6 @@ class MediaEngagementService : public KeyedService,
   static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 
   explicit MediaEngagementService(Profile* profile);
-
-  MediaEngagementService(const MediaEngagementService&) = delete;
-  MediaEngagementService& operator=(const MediaEngagementService&) = delete;
-
   ~MediaEngagementService() override;
 
   // Returns the engagement score of |origin|.
@@ -91,9 +90,6 @@ class MediaEngagementService : public KeyedService,
   MediaEngagementContentsObserver* GetContentsObserverFor(
       content::WebContents* web_contents) const;
 
-  // Sets the |history| service to observe.
-  void SetHistoryServiceForTesting(history::HistoryService* history);
-
   Profile* profile() const;
 
   const base::Clock* clock() const { return clock_; }
@@ -114,13 +110,13 @@ class MediaEngagementService : public KeyedService,
   base::flat_map<content::WebContents*, MediaEngagementContentsObserver*>
       contents_observers_;
 
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   // Clear any data for a specific origin.
   void Clear(const url::Origin& origin);
 
   // An internal clock for testing.
-  raw_ptr<base::Clock> clock_;
+  base::Clock* clock_;
 
   std::vector<MediaEngagementScore> GetAllStoredScores() const;
 
@@ -134,9 +130,7 @@ class MediaEngagementService : public KeyedService,
       const std::set<url::Origin>& deleted_origins,
       const history::OriginCountAndLastVisitMap& origin_data);
 
-  base::ScopedObservation<history::HistoryService,
-                          history::HistoryServiceObserver>
-      history_service_observation_{this};
+  DISALLOW_COPY_AND_ASSIGN(MediaEngagementService);
 };
 
 #endif  // CHROME_BROWSER_MEDIA_MEDIA_ENGAGEMENT_SERVICE_H_

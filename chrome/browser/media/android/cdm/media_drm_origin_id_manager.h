@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,12 @@
 
 #include "base/callback.h"
 #include "base/containers/queue.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/threading/thread_checker.h"
 #include "base/unguessable_token.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "media/base/media_drm_storage.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class MediaDrmOriginIdManagerFactory;
 class PrefRegistrySimple;
@@ -46,7 +45,7 @@ class MediaDrmOriginIdManager : public KeyedService {
   using ProvisionedOriginIdCB =
       base::OnceCallback<void(GetOriginIdStatus status,
                               const MediaDrmOriginId& origin_id)>;
-  using ProvisioningResultCB = base::RepeatingCallback<MediaDrmOriginId()>;
+  using ProvisioningResultCB = base::RepeatingCallback<bool()>;
 
   static void RegisterProfilePrefs(PrefRegistrySimple* registry);
 
@@ -76,26 +75,20 @@ class MediaDrmOriginIdManager : public KeyedService {
   // MediaDrmOriginIdManagerFactory.
   explicit MediaDrmOriginIdManager(PrefService* pref_service);
 
-  // Complete the pre-provisioning steps.
-  void ResumePreProvisionIfNecessary(
-      bool is_per_application_provisioning_supported);
+  // Asynchronously call StartProvisioning().
+  void StartProvisioningAsync();
 
-  // Asynchronously call StartProvisioning() on a sequence using different
-  // priorities, depending on |run_in_background|.
-  void StartProvisioningAsync(bool run_in_background);
+  // Pre-provision one origin ID, calling OriginIdProvisioned() when done.
+  void StartProvisioning();
 
   // Called when provisioning of |origin_id| is done. The provisioning of
-  // |origin_id| was successful if |origin_id| is not nullopt.
-  void OriginIdProvisioned(const MediaDrmOriginId& origin_id);
-
-  // Check if per application provisioning is supported or not. Uses
-  // `is_per_application_provisioning_supported_`, and if not set, sets it.
-  bool IsPerApplicationProvisioningSupported();
+  // |origin_id| was successful if |success| is true.
+  void OriginIdProvisioned(bool success, const MediaDrmOriginId& origin_id);
 
   // If called, record the current number of pre-provisioned origin IDs to UMA.
   void RecordCountOfPreprovisionedOriginIds();
 
-  const raw_ptr<PrefService> pref_service_;
+  PrefService* const pref_service_;
 
   // Callback to be used when the next origin ID is provisioned.
   base::queue<ProvisionedOriginIdCB> pending_provisioned_origin_id_cbs_;
@@ -103,10 +96,6 @@ class MediaDrmOriginIdManager : public KeyedService {
   // True if this class is currently pre-provisioning origin IDs,
   // false otherwise.
   bool is_provisioning_ = false;
-
-  // True if per-application provisioning is supported. If nullopt, then
-  // support has not yet been determined.
-  absl::optional<bool> is_per_application_provisioning_supported_;
 
   // When testing don't call MediaDrm to provision the origin ID, just call
   // this CB and use the value returned to indicate if provisioning succeeded or

@@ -1,20 +1,6 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import 'chrome://resources/ash/common/network/network_config.js';
-import 'chrome://resources/ash/common/network/network_icon.js';
-import 'chrome://resources/ash/common/network/network_shared.css.js';
-import 'chrome://resources/cr_elements/cr_button/cr_button.js';
-import 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
-import 'chrome://resources/cr_elements/cr_page_host_style.css.js';
-import 'chrome://resources/cr_elements/cr_shared_style.css.js';
-import './strings.m.js';
-
-import {I18nBehavior} from 'chrome://resources/ash/common/i18n_behavior.js';
-import {assert} from 'chrome://resources/js/assert.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {html, Polymer} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 /**
  * @fileoverview
@@ -25,8 +11,6 @@ import {html, Polymer} from 'chrome://resources/polymer/v3_0/polymer/polymer_bun
 Polymer({
   is: 'internet-config-dialog',
 
-  _template: html`{__html_template__}`,
-
   behaviors: [I18nBehavior],
 
   properties: {
@@ -35,7 +19,7 @@ Polymer({
       type: Boolean,
       value() {
         return loadTimeData.getBoolean('shareNetworkAllowEnable');
-      },
+      }
     },
 
     /** @private */
@@ -43,7 +27,7 @@ Polymer({
       type: Boolean,
       value() {
         return loadTimeData.getBoolean('shareNetworkDefault');
-      },
+      }
     },
 
     /**
@@ -111,9 +95,8 @@ Polymer({
    * @private
    */
   getError_() {
-    if (this.i18nExists(this.error_)) {
+    if (this.i18nExists(this.error_))
       return this.i18n(this.error_);
-    }
     return this.i18n('networkErrorUnknown');
   },
 

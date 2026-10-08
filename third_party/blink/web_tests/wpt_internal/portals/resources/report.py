@@ -3,11 +3,11 @@ import json
 
 
 def main(request, response):
-    op = request.GET.first(b"op")
-    id = request.GET.first(b"id")
+    op = request.GET.first("op")
+    id = request.GET.first("id")
     timeout = 1.0
 
-    if op == b"retrieve":
+    if op == "retrieve":
         t0 = time.time()
         while time.time() - t0 < timeout:
             time.sleep(0.1)
@@ -23,4 +23,4 @@ def main(request, response):
         request.server.stash.put(key=id, value=json.dumps({'url': request.url}))
 
     # return acknowledgement report
-    return [("Content-Type", "text/plain")], b"Recorded report " + id
+    return [("Content-Type", "text/plain")], "Recorded report " + id

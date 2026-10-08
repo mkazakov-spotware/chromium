@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #import <Foundation/Foundation.h>
 
 #include "base/mac/scoped_nsobject.h"
-#include "base/strings/escape.h"
+#include "net/base/escape.h"
 #include "url/gurl.h"
 #include "url/url_canon.h"
 
@@ -25,17 +25,20 @@ NSURL* NSURLWithGURL(const GURL& url) {
   // ref. This function manually encodes those components, and then passes the
   // result to NSURL.
   GURL::Replacements replacements;
-  std::string escaped_path = base::EscapeNSURLPrecursor(url.path());
-  std::string escaped_query = base::EscapeNSURLPrecursor(url.query());
-  std::string escaped_ref = base::EscapeNSURLPrecursor(url.ref());
+  std::string escaped_path = EscapeNSURLPrecursor(url.path());
+  std::string escaped_query = EscapeNSURLPrecursor(url.query());
+  std::string escaped_ref = EscapeNSURLPrecursor(url.ref());
   if (!escaped_path.empty()) {
-    replacements.SetPathStr(escaped_path);
+    replacements.SetPath(escaped_path.c_str(),
+                         url::Component(0, escaped_path.size()));
   }
   if (!escaped_query.empty()) {
-    replacements.SetQueryStr(escaped_query);
+    replacements.SetQuery(escaped_query.c_str(),
+                          url::Component(0, escaped_query.size()));
   }
   if (!escaped_ref.empty()) {
-    replacements.SetRefStr(escaped_ref);
+    replacements.SetRef(escaped_ref.c_str(),
+                        url::Component(0, escaped_ref.size()));
   }
   GURL escaped_url = url.ReplaceComponents(replacements);
 

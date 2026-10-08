@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,8 +45,8 @@ TEST_F(OmniboxPrefsTest, SuggestionGroupId) {
     histogram()->ExpectTotalCount(kToggleSuggestionGroupIdOnHistogram, 0);
   }
   {
-    SetUserPreferenceForSuggestionGroupVisibility(
-        GetPrefs(), kOnboardingGroupId, SuggestionGroupVisibility::HIDDEN);
+    SetSuggestionGroupVisibility(GetPrefs(), kOnboardingGroupId,
+                                 SuggestionGroupVisibility::HIDDEN);
 
     // Expect |kOnboardingGroupId| to have been toggled hidden.
     EXPECT_EQ(SuggestionGroupVisibility::HIDDEN,
@@ -63,10 +63,10 @@ TEST_F(OmniboxPrefsTest, SuggestionGroupId) {
     histogram()->ExpectTotalCount(kToggleSuggestionGroupIdOnHistogram, 0);
   }
   {
-    SetUserPreferenceForSuggestionGroupVisibility(
-        GetPrefs(), kOnboardingGroupId, SuggestionGroupVisibility::SHOWN);
-    SetUserPreferenceForSuggestionGroupVisibility(
-        GetPrefs(), kRZPSGroupId, SuggestionGroupVisibility::HIDDEN);
+    SetSuggestionGroupVisibility(GetPrefs(), kOnboardingGroupId,
+                                 SuggestionGroupVisibility::SHOWN);
+    SetSuggestionGroupVisibility(GetPrefs(), kRZPSGroupId,
+                                 SuggestionGroupVisibility::HIDDEN);
 
     // Expect |kOnboardingGroupId| to have been toggled visible again.
     EXPECT_EQ(SuggestionGroupVisibility::SHOWN,

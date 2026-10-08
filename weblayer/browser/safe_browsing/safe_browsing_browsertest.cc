@@ -1,16 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <map>
 
-#include "base/memory/raw_ptr.h"
 #include "components/prefs/pref_service.h"
-#include "components/safe_browsing/android/safe_browsing_api_handler_bridge.h"
-#include "components/safe_browsing/content/browser/base_blocking_page.h"
-#include "components/safe_browsing/content/browser/safe_browsing_blocking_page.h"
-#include "components/safe_browsing/core/browser/db/v4_protocol_manager_util.h"
-#include "components/safe_browsing/core/browser/safe_browsing_token_fetcher.h"
+#include "components/safe_browsing/android/safe_browsing_api_handler.h"
+#include "components/safe_browsing/content/base_blocking_page.h"
+#include "components/safe_browsing/core/db/v4_protocol_manager_util.h"
 #include "components/security_interstitials/content/security_interstitial_page.h"
 #include "components/security_interstitials/content/security_interstitial_tab_helper.h"
 #include "components/user_prefs/user_prefs.h"
@@ -20,15 +17,12 @@
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/test_utils.h"
-#include "google_apis/gaia/gaia_constants.h"
-#include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "weblayer/browser/browser_context_impl.h"
 #include "weblayer/browser/browser_impl.h"
 #include "weblayer/browser/profile_impl.h"
-#include "weblayer/browser/safe_browsing/real_time_url_lookup_service_factory.h"
+#include "weblayer/browser/safe_browsing/safe_browsing_blocking_page.h"
 #include "weblayer/browser/tab_impl.h"
-#include "weblayer/public/google_account_access_token_fetch_delegate.h"
 #include "weblayer/public/navigation.h"
 #include "weblayer/public/navigation_controller.h"
 #include "weblayer/public/navigation_observer.h"
@@ -42,48 +36,6 @@
 namespace weblayer {
 
 namespace {
-
-// Implementation of GoogleAccountAccessTokenFetchDelegate used to exercise safe
-// browsing access token fetches.
-class TestAccessTokenFetchDelegate
-    : public GoogleAccountAccessTokenFetchDelegate {
- public:
-  TestAccessTokenFetchDelegate() = default;
-  ~TestAccessTokenFetchDelegate() override = default;
-
-  // GoogleAccountAccessTokenFetchDelegate:
-  void FetchAccessToken(const std::set<std::string>& scopes,
-                        OnTokenFetchedCallback callback) override {
-    has_received_request_ = true;
-    scopes_from_most_recent_request_ = scopes;
-
-    if (should_respond_to_request_) {
-      std::move(callback).Run("token");
-    } else {
-      outstanding_request_ = std::move(callback);
-    }
-  }
-
-  void OnAccessTokenIdentifiedAsInvalid(const std::set<std::string>& scopes,
-                                        const std::string& token) override {
-    NOTREACHED();
-  }
-
-  void set_should_respond_to_request(bool should_respond) {
-    should_respond_to_request_ = should_respond;
-  }
-
-  bool has_received_request() { return has_received_request_; }
-  const std::set<std::string>& scopes_from_most_recent_request() {
-    return scopes_from_most_recent_request_;
-  }
-
- private:
-  bool should_respond_to_request_ = false;
-  bool has_received_request_ = false;
-  std::set<std::string> scopes_from_most_recent_request_;
-  OnTokenFetchedCallback outstanding_request_;
-};
 
 // Observer customized for safe browsing navigation failures.
 class SafeBrowsingErrorNavigationObserver : public NavigationObserver {
@@ -113,84 +65,71 @@ class SafeBrowsingErrorNavigationObserver : public NavigationObserver {
 
  private:
   const GURL url_;
-  raw_ptr<Tab> tab_;
+  Tab* tab_;
   base::RunLoop run_loop_;
 };
 
-using SbBridge = safe_browsing::SafeBrowsingApiHandlerBridge;
-
-void RunCallbackOnIOThread(std::unique_ptr<SbBridge::ResponseCallback> callback,
-                           safe_browsing::SBThreatType threat_type,
-                           const safe_browsing::ThreatMetadata& metadata) {
+void RunCallbackOnIOThread(
+    std::unique_ptr<safe_browsing::SafeBrowsingApiHandler::URLCheckCallbackMeta>
+        callback,
+    safe_browsing::SBThreatType threat_type,
+    const safe_browsing::ThreatMetadata& metadata) {
   content::GetIOThreadTaskRunner({})->PostTask(
       FROM_HERE, base::BindOnce(std::move(*callback), threat_type, metadata));
 }
 
 }  // namespace
 
-class TestUrlCheckInterceptor : public safe_browsing::UrlCheckInterceptor {
+class FakeSafeBrowsingApiHandler
+    : public safe_browsing::SafeBrowsingApiHandler {
  public:
-  void Add(const GURL& url, safe_browsing::SBThreatType threat_type) {
-    map_[url] = threat_type;
-  }
-
-  void Clear() { map_.clear(); }
-
-  // safe_browsing::UrlCheckInterceptor
-  void Check(std::unique_ptr<SbBridge::ResponseCallback> callback,
-             const GURL& url) const override {
-    RunCallbackOnIOThread(std::move(callback), Find(url),
+  // SafeBrowsingApiHandler
+  void StartURLCheck(
+      std::unique_ptr<URLCheckCallbackMeta> callback,
+      const GURL& url,
+      const safe_browsing::SBThreatTypeSet& threat_types) override {
+    RunCallbackOnIOThread(std::move(callback), GetSafeBrowsingRestriction(url),
                           safe_browsing::ThreatMetadata());
   }
-  ~TestUrlCheckInterceptor() override {}
-
- private:
-  safe_browsing::SBThreatType Find(const GURL& url) const {
-    auto it = map_.find(url);
-    if (it != map_.end())
-      return it->second;
-
-    // If the url is not in the map assume it is safe.
-    return safe_browsing::SB_THREAT_TYPE_SAFE;
+  bool StartCSDAllowlistCheck(const GURL& url) override { return false; }
+  bool StartHighConfidenceAllowlistCheck(const GURL& url) override {
+    return false;
   }
 
-  std::map<GURL, safe_browsing::SBThreatType> map_;
+  void AddRestriction(const GURL& url,
+                      const safe_browsing::SBThreatType& threat_type) {
+    restrictions_[url] = threat_type;
+  }
+
+  void ClearRestrictions() { restrictions_.clear(); }
+
+ private:
+  safe_browsing::SBThreatType GetSafeBrowsingRestriction(const GURL& url) {
+    auto restrictions_iter = restrictions_.find(url);
+    if (restrictions_iter == restrictions_.end()) {
+      // if the url is not in restrictions assume it's safe.
+      return safe_browsing::SB_THREAT_TYPE_SAFE;
+    }
+    return restrictions_iter->second;
+  }
+
+  std::map<GURL, safe_browsing::SBThreatType> restrictions_;
 };
 
 class SafeBrowsingBrowserTest : public WebLayerBrowserTest {
  public:
-  SafeBrowsingBrowserTest()
-      : url_check_interceptor_(std::make_unique<TestUrlCheckInterceptor>()) {}
-
-  SafeBrowsingBrowserTest(const SafeBrowsingBrowserTest&) = delete;
-  SafeBrowsingBrowserTest& operator=(const SafeBrowsingBrowserTest&) = delete;
-
+  SafeBrowsingBrowserTest() : fake_handler_(new FakeSafeBrowsingApiHandler()) {}
   ~SafeBrowsingBrowserTest() override = default;
 
   void SetUpOnMainThread() override {
     InitializeOnMainThread();
     // Safe Browsing is enabled by default
     ASSERT_TRUE(GetSafeBrowsingEnabled());
-
-    profile()->SetGoogleAccountAccessTokenFetchDelegate(
-        &access_token_fetch_delegate_);
-  }
-
-  void TearDown() override {
-    profile()->SetGoogleAccountAccessTokenFetchDelegate(nullptr);
-    SbBridge::GetInstance().SetInterceptorForTesting(nullptr);
   }
 
   void InitializeOnMainThread() {
     NavigateAndWaitForCompletion(GURL("about:blank"), shell());
-    SbBridge::GetInstance().SetInterceptorForTesting(
-        url_check_interceptor_.get());
-
-    // Some tests need to be able to navigate to URLs on domains that are not
-    // explicitly localhost (e.g., so that realtime URL lookups occur on these
-    // navigations).
-    host_resolver()->AddRule("*", "127.0.0.1");
-
+    safe_browsing::SafeBrowsingApiHandler::SetInstance(fake_handler_.get());
     ASSERT_TRUE(embedded_test_server()->Start());
     url_ = embedded_test_server()->GetURL("/simple_page.html");
   }
@@ -200,16 +139,6 @@ class SafeBrowsingBrowserTest : public WebLayerBrowserTest {
                                     value);
   }
 
-  void SetRealTimeURLLookupsEnabled(bool value) {
-    GetProfile()->SetBooleanSetting(
-        SettingType::REAL_TIME_SAFE_BROWSING_ENABLED, value);
-  }
-
-  void EnableSafeBrowsingAccessTokenFetches() {
-    RealTimeUrlLookupServiceFactory::GetInstance()
-        ->set_access_token_fetches_enabled_for_testing();
-  }
-
   bool GetSafeBrowsingEnabled() {
     return GetProfile()->GetBooleanSetting(
         SettingType::BASIC_SAFE_BROWSING_ENABLED);
@@ -217,7 +146,7 @@ class SafeBrowsingBrowserTest : public WebLayerBrowserTest {
 
   void NavigateWithThreatType(const safe_browsing::SBThreatType& threatType,
                               bool expect_interstitial) {
-    url_check_interceptor_->Add(url_, threatType);
+    fake_handler_->AddRestriction(url_, threatType);
     Navigate(url_, expect_interstitial);
   }
 
@@ -227,7 +156,7 @@ class SafeBrowsingBrowserTest : public WebLayerBrowserTest {
     load_observer.Wait();
     EXPECT_EQ(expect_interstitial, HasInterstitial());
     if (expect_interstitial) {
-      ASSERT_EQ(safe_browsing::SafeBrowsingBlockingPage::kTypeForTesting,
+      ASSERT_EQ(SafeBrowsingBlockingPage::kTypeForTesting,
                 GetSecurityInterstitialPage()->GetTypeForTesting());
       EXPECT_TRUE(GetSecurityInterstitialPage()->GetHTMLContents().length() >
                   0);
@@ -240,7 +169,7 @@ class SafeBrowsingBrowserTest : public WebLayerBrowserTest {
     GURL page_with_script_url =
         embedded_test_server()->GetURL("/simple_page_with_script.html");
     GURL script_url = embedded_test_server()->GetURL("/script.js");
-    url_check_interceptor_->Add(script_url, threat_type);
+    fake_handler_->AddRestriction(script_url, threat_type);
     Navigate(page_with_script_url, expect_interstitial);
   }
 
@@ -268,7 +197,7 @@ class SafeBrowsingBrowserTest : public WebLayerBrowserTest {
     content::RenderProcessHost* child_process =
         static_cast<TabImpl*>(shell()->tab())
             ->web_contents()
-            ->GetPrimaryMainFrame()
+            ->GetMainFrame()
             ->GetProcess();
     content::RenderProcessHostWatcher crash_observer(
         child_process,
@@ -277,31 +206,16 @@ class SafeBrowsingBrowserTest : public WebLayerBrowserTest {
     crash_observer.Wait();
   }
 
-  std::unique_ptr<TestUrlCheckInterceptor> url_check_interceptor_;
+  std::unique_ptr<FakeSafeBrowsingApiHandler> fake_handler_;
   GURL url_;
 
-  ProfileImpl* profile() {
-    auto* tab_impl = static_cast<TabImpl*>(shell()->tab());
-    return tab_impl->profile();
-  }
-
-  TestAccessTokenFetchDelegate* access_token_fetch_delegate() {
-    return &access_token_fetch_delegate_;
-  }
-
  private:
-  TestAccessTokenFetchDelegate access_token_fetch_delegate_;
+  DISALLOW_COPY_AND_ASSIGN(SafeBrowsingBrowserTest);
 };
 
 class SafeBrowsingDisabledBrowserTest : public SafeBrowsingBrowserTest {
  public:
   SafeBrowsingDisabledBrowserTest() {}
-
-  SafeBrowsingDisabledBrowserTest(const SafeBrowsingDisabledBrowserTest&) =
-      delete;
-  SafeBrowsingDisabledBrowserTest& operator=(
-      const SafeBrowsingDisabledBrowserTest&) = delete;
-
   ~SafeBrowsingDisabledBrowserTest() override = default;
 
   void SetUpOnMainThread() override {
@@ -309,6 +223,9 @@ class SafeBrowsingDisabledBrowserTest : public SafeBrowsingBrowserTest {
     SafeBrowsingBrowserTest::InitializeOnMainThread();
     ASSERT_FALSE(GetSafeBrowsingEnabled());
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SafeBrowsingDisabledBrowserTest);
 };
 
 IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest,
@@ -320,18 +237,15 @@ IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest, DoesNotShowInterstitial_Safe) {
   NavigateWithThreatType(safe_browsing::SB_THREAT_TYPE_SAFE, false);
 }
 
-IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest,
-                       DISABLED_ShowsInterstitial_Malware) {
+IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest, ShowsInterstitial_Malware) {
   NavigateWithThreatType(safe_browsing::SB_THREAT_TYPE_URL_MALWARE, true);
 }
 
-IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest,
-                       DISABLED_ShowsInterstitial_Phishing) {
+IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest, ShowsInterstitial_Phishing) {
   NavigateWithThreatType(safe_browsing::SB_THREAT_TYPE_URL_PHISHING, true);
 }
 
-IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest,
-                       DISABLED_CheckNavigationErrorType) {
+IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest, CheckNavigationErrorType) {
   auto threat_types = {
       safe_browsing::SB_THREAT_TYPE_URL_PHISHING,
       safe_browsing::SB_THREAT_TYPE_URL_MALWARE,
@@ -342,28 +256,24 @@ IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest,
   for (auto threat_type : threat_types) {
     SafeBrowsingErrorNavigationObserver observer(url_, shell());
 
-    url_check_interceptor_->Clear();
-    url_check_interceptor_->Add(url_, threat_type);
+    fake_handler_->ClearRestrictions();
+    fake_handler_->AddRestriction(url_, threat_type);
     shell()->tab()->GetNavigationController()->Navigate(url_);
 
     observer.WaitForNavigationFailureWithSafeBrowsingError();
   }
 }
 
-// Tests below are disabled due to failures on Android.
-// See crbug.com/1340200.
-IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest,
-                       DISABLED_ShowsInterstitial_Unwanted) {
+IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest, ShowsInterstitial_Unwanted) {
   NavigateWithThreatType(safe_browsing::SB_THREAT_TYPE_URL_UNWANTED, true);
 }
 
-IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest,
-                       DISABLED_ShowsInterstitial_Billing) {
+IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest, ShowsInterstitial_Billing) {
   NavigateWithThreatType(safe_browsing::SB_THREAT_TYPE_BILLING, true);
 }
 
 IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest,
-                       DISABLED_ShowsInterstitial_Malware_Subresource) {
+                       ShowsInterstitial_Malware_Subresource) {
   NavigateWithSubResourceAndThreatType(
       safe_browsing::SB_THREAT_TYPE_URL_MALWARE, true);
 }
@@ -428,66 +338,6 @@ IN_PROC_BROWSER_TEST_F(SafeBrowsingDisabledBrowserTest,
                        DoesNotShowInterstitial_Malware_Subresource) {
   NavigateWithSubResourceAndThreatType(
       safe_browsing::SB_THREAT_TYPE_URL_MALWARE, false);
-}
-
-IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest,
-                       NoAccessTokenFetchWhenSafeBrowsingNotEnabled) {
-  GURL a_url(embedded_test_server()->GetURL("a.com", "/simple_page.html"));
-  NavigateAndWaitForCompletion(a_url, shell()->tab());
-
-  EXPECT_FALSE(access_token_fetch_delegate()->has_received_request());
-}
-
-IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest,
-                       NoAccessTokenFetchInBasicSafeBrowsing) {
-  SetSafeBrowsingEnabled(true);
-
-  GURL a_url(embedded_test_server()->GetURL("a.com", "/simple_page.html"));
-  NavigateAndWaitForCompletion(a_url, shell()->tab());
-
-  EXPECT_FALSE(access_token_fetch_delegate()->has_received_request());
-}
-
-IN_PROC_BROWSER_TEST_F(SafeBrowsingBrowserTest,
-                       NoAccessTokenFetchInRealTimeUrlLookupsUnlessEnabled) {
-  SetRealTimeURLLookupsEnabled(true);
-
-  GURL a_url(embedded_test_server()->GetURL("a.com", "/simple_page.html"));
-  NavigateAndWaitForCompletion(a_url, shell()->tab());
-
-  EXPECT_FALSE(access_token_fetch_delegate()->has_received_request());
-
-  EnableSafeBrowsingAccessTokenFetches();
-  access_token_fetch_delegate()->set_should_respond_to_request(true);
-
-  GURL b_url(embedded_test_server()->GetURL("a.com", "/simple_page.html"));
-  NavigateAndWaitForCompletion(a_url, shell()->tab());
-
-  std::set<std::string> safe_browsing_scopes = {
-      GaiaConstants::kChromeSafeBrowsingOAuth2Scope};
-  EXPECT_TRUE(access_token_fetch_delegate()->has_received_request());
-  EXPECT_EQ(safe_browsing_scopes,
-            access_token_fetch_delegate()->scopes_from_most_recent_request());
-}
-
-// Tests that even if the embedder does not respond to an access token fetch
-// that is made by safe browsing as part of a navigation, the navigation
-// completes due to Safe Browsing's timing out the access token fetch.
-IN_PROC_BROWSER_TEST_F(
-    SafeBrowsingBrowserTest,
-    UnfulfilledAccessTokenFetchTimesOutAndNavigationCompletes) {
-  SetRealTimeURLLookupsEnabled(true);
-  EnableSafeBrowsingAccessTokenFetches();
-  access_token_fetch_delegate()->set_should_respond_to_request(false);
-
-  GURL a_url(embedded_test_server()->GetURL("a.com", "/simple_page.html"));
-  NavigateAndWaitForCompletion(a_url, shell()->tab());
-
-  std::set<std::string> safe_browsing_scopes = {
-      GaiaConstants::kChromeSafeBrowsingOAuth2Scope};
-  EXPECT_TRUE(access_token_fetch_delegate()->has_received_request());
-  EXPECT_EQ(safe_browsing_scopes,
-            access_token_fetch_delegate()->scopes_from_most_recent_request());
 }
 
 }  // namespace weblayer

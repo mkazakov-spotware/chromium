@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,7 +31,7 @@ class BluetoothManifestPermission : public ManifestPermission {
   // the manifest. Sets |error| and returns an empty scoped_ptr on failure.
   static std::unique_ptr<BluetoothManifestPermission> FromValue(
       const base::Value& value,
-      std::u16string* error);
+      base::string16* error);
 
   bool CheckRequest(const Extension* extension,
                     const BluetoothPermissionRequest& request) const;

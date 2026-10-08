@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,14 +13,13 @@
 #include "base/files/file_path.h"
 #include "base/lazy_instance.h"
 #include "base/notreached.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/lazy_thread_pool_task_runner.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/media_galleries/fileapi/media_file_validator_factory.h"
 #include "chrome/browser/media_galleries/fileapi/media_path_filter.h"
@@ -28,7 +27,6 @@
 #include "chrome/browser/media_galleries/media_file_system_registry.h"
 #include "chrome/browser/media_galleries/media_galleries_histograms.h"
 #include "chrome/browser/profiles/profile.h"
-#include "components/download/public/common/quarantine_connection.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -47,7 +45,7 @@
 #include "storage/common/file_system/file_system_types.h"
 #include "storage/common/file_system/file_system_util.h"
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_WIN) || defined(OS_MAC) || defined(OS_CHROMEOS)
 #include "chrome/browser/media_galleries/fileapi/device_media_async_file_util.h"
 #endif
 
@@ -134,15 +132,13 @@ content::WebContents* GetWebContentsFromFrameTreeNodeID(
 }  // namespace
 
 MediaFileSystemBackend::MediaFileSystemBackend(
-    const base::FilePath& profile_path,
-    download::QuarantineConnectionCallback quarantine_connection_callback)
+    const base::FilePath& profile_path)
     : profile_path_(profile_path),
       media_copy_or_move_file_validator_factory_(
-          std::make_unique<MediaFileValidatorFactory>(
-              std::move(quarantine_connection_callback))),
+          std::make_unique<MediaFileValidatorFactory>()),
       native_media_file_util_(
           std::make_unique<NativeMediaFileUtil>(g_media_task_runner.Get()))
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_WIN) || defined(OS_MAC) || defined(OS_CHROMEOS)
       ,
       device_media_async_file_util_(
           DeviceMediaAsyncFileUtil::Create(profile_path_,
@@ -197,8 +193,8 @@ bool MediaFileSystemBackend::AttemptAutoMountForURLRequest(
   const base::FilePath& virtual_path = filesystem_url.path();
   if (virtual_path.ReferencesParent())
     return false;
-  std::vector<base::FilePath::StringType> components =
-      virtual_path.GetComponents();
+  std::vector<base::FilePath::StringType> components;
+  virtual_path.GetComponents(&components);
   if (components.empty())
     return false;
   std::string mount_point = base::FilePath(components[0]).AsUTF8Unsafe();
@@ -219,7 +215,7 @@ bool MediaFileSystemBackend::AttemptAutoMountForURLRequest(
 
 bool MediaFileSystemBackend::CanHandleType(storage::FileSystemType type) const {
   switch (type) {
-    case storage::kFileSystemTypeLocalMedia:
+    case storage::kFileSystemTypeNativeMedia:
     case storage::kFileSystemTypeDeviceMedia:
       return true;
     default:
@@ -232,9 +228,9 @@ void MediaFileSystemBackend::Initialize(storage::FileSystemContext* context) {
 
 void MediaFileSystemBackend::ResolveURL(const FileSystemURL& url,
                                         storage::OpenFileSystemMode mode,
-                                        ResolveURLCallback callback) {
+                                        OpenFileSystemCallback callback) {
   // We never allow opening a new FileSystem via usual ResolveURL.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), GURL(), std::string(),
                                 base::File::FILE_ERROR_SECURITY));
 }
@@ -244,21 +240,21 @@ storage::AsyncFileUtil* MediaFileSystemBackend::GetAsyncFileUtil(
   // We count file system usages here, because we want to count (per session)
   // when the file system is actually used for I/O, rather than merely present.
   switch (type) {
-    case storage::kFileSystemTypeLocalMedia:
+    case storage::kFileSystemTypeNativeMedia:
       return native_media_file_util_.get();
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_WIN) || defined(OS_MAC) || defined(OS_CHROMEOS)
     case storage::kFileSystemTypeDeviceMedia:
       return device_media_async_file_util_.get();
 #endif
     default:
       NOTREACHED();
   }
-  return nullptr;
+  return NULL;
 }
 
 storage::WatcherManager* MediaFileSystemBackend::GetWatcherManager(
     storage::FileSystemType type) {
-  return nullptr;
+  return NULL;
 }
 
 storage::CopyOrMoveFileValidatorFactory*
@@ -268,34 +264,33 @@ MediaFileSystemBackend::GetCopyOrMoveFileValidatorFactory(
   DCHECK(error_code);
   *error_code = base::File::FILE_OK;
   switch (type) {
-    case storage::kFileSystemTypeLocalMedia:
+    case storage::kFileSystemTypeNativeMedia:
     case storage::kFileSystemTypeDeviceMedia:
       if (!media_copy_or_move_file_validator_factory_) {
         *error_code = base::File::FILE_ERROR_SECURITY;
-        return nullptr;
+        return NULL;
       }
       return media_copy_or_move_file_validator_factory_.get();
     default:
       NOTREACHED();
   }
-  return nullptr;
+  return NULL;
 }
 
-std::unique_ptr<storage::FileSystemOperation>
-MediaFileSystemBackend::CreateFileSystemOperation(
+storage::FileSystemOperation* MediaFileSystemBackend::CreateFileSystemOperation(
     const FileSystemURL& url,
     FileSystemContext* context,
     base::File::Error* error_code) const {
   std::unique_ptr<storage::FileSystemOperationContext> operation_context(
-      std::make_unique<storage::FileSystemOperationContext>(
-          context, MediaTaskRunner().get()));
+      new storage::FileSystemOperationContext(context,
+                                              MediaTaskRunner().get()));
   return storage::FileSystemOperation::Create(url, context,
                                               std::move(operation_context));
 }
 
 bool MediaFileSystemBackend::SupportsStreaming(
     const storage::FileSystemURL& url) const {
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_WIN) || defined(OS_MAC) || defined(OS_CHROMEOS)
   if (url.type() == storage::kFileSystemTypeDeviceMedia)
     return device_media_async_file_util_->SupportsStreaming(url);
 #endif
@@ -305,7 +300,7 @@ bool MediaFileSystemBackend::SupportsStreaming(
 
 bool MediaFileSystemBackend::HasInplaceCopyImplementation(
     storage::FileSystemType type) const {
-  DCHECK(type == storage::kFileSystemTypeLocalMedia ||
+  DCHECK(type == storage::kFileSystemTypeNativeMedia ||
          type == storage::kFileSystemTypeDeviceMedia);
   return true;
 }
@@ -317,7 +312,7 @@ MediaFileSystemBackend::CreateFileStreamReader(
     int64_t max_bytes_to_read,
     const base::Time& expected_modification_time,
     FileSystemContext* context) const {
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_WIN) || defined(OS_MAC) || defined(OS_CHROMEOS)
   if (url.type() == storage::kFileSystemTypeDeviceMedia) {
     std::unique_ptr<storage::FileStreamReader> reader =
         device_media_async_file_util_->GetFileStreamReader(
@@ -344,20 +339,20 @@ MediaFileSystemBackend::CreateFileStreamWriter(
 
 storage::FileSystemQuotaUtil* MediaFileSystemBackend::GetQuotaUtil() {
   // No quota support.
-  return nullptr;
+  return NULL;
 }
 
 const storage::UpdateObserverList* MediaFileSystemBackend::GetUpdateObservers(
     storage::FileSystemType type) const {
-  return nullptr;
+  return NULL;
 }
 
 const storage::ChangeObserverList* MediaFileSystemBackend::GetChangeObservers(
     storage::FileSystemType type) const {
-  return nullptr;
+  return NULL;
 }
 
 const storage::AccessObserverList* MediaFileSystemBackend::GetAccessObservers(
     storage::FileSystemType type) const {
-  return nullptr;
+  return NULL;
 }

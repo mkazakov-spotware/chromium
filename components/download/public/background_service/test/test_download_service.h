@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,10 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "components/download/public/background_service/background_download_service.h"
+#include "base/optional.h"
 #include "components/download/public/background_service/client.h"
 #include "components/download/public/background_service/download_params.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "components/download/public/background_service/download_service.h"
 
 namespace download {
 
@@ -21,14 +20,10 @@ struct CompletionInfo;
 
 namespace test {
 
-// Implementation of BackgroundDownloadService used for testing.
-class TestDownloadService : public BackgroundDownloadService {
+// Implementation of DownloadService used for testing.
+class TestDownloadService : public DownloadService {
  public:
   TestDownloadService();
-
-  TestDownloadService(const TestDownloadService&) = delete;
-  TestDownloadService& operator=(const TestDownloadService&) = delete;
-
   ~TestDownloadService() override;
 
   // DownloadService implementation.
@@ -36,8 +31,8 @@ class TestDownloadService : public BackgroundDownloadService {
   void OnStartScheduledTask(DownloadTaskType task_type,
                             TaskFinishedCallback callback) override;
   bool OnStopScheduledTask(DownloadTaskType task_type) override;
-  BackgroundDownloadService::ServiceStatus GetStatus() override;
-  void StartDownload(DownloadParams download_params) override;
+  DownloadService::ServiceStatus GetStatus() override;
+  void StartDownload(const DownloadParams& download_params) override;
   void PauseDownload(const std::string& guid) override;
   void ResumeDownload(const std::string& guid) override;
   void CancelDownload(const std::string& guid) override;
@@ -45,8 +40,7 @@ class TestDownloadService : public BackgroundDownloadService {
                               const SchedulingParams& params) override;
   Logger* GetLogger() override;
 
-  const absl::optional<DownloadParams>& GetDownload(
-      const std::string& guid) const;
+  base::Optional<DownloadParams> GetDownload(const std::string& guid) const;
 
   // Set failed_download_id and fail_at_start.
   void SetFailedDownload(const std::string& failed_download_id,
@@ -80,9 +74,11 @@ class TestDownloadService : public BackgroundDownloadService {
   bool fail_at_start_;
   uint64_t file_size_;
 
-  raw_ptr<Client> client_;
+  Client* client_;
 
-  std::list<absl::optional<DownloadParams>> downloads_;
+  std::list<DownloadParams> downloads_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestDownloadService);
 };
 
 }  // namespace test

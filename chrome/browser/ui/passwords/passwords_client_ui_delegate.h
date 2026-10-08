@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,9 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/strings/string16.h"
 #include "components/password_manager/core/browser/leak_detection_dialog_utils.h"
 #include "components/password_manager/core/browser/password_form.h"
-#include "components/prefs/pref_service.h"
 
 namespace content {
 class WebContents;
@@ -99,19 +99,13 @@ class PasswordsClientUIDelegate {
   // Called when user credentials were leaked. This triggers the UI to prompt
   // the user whether they would like to check their passwords.
   virtual void OnCredentialLeak(password_manager::CredentialLeakType leak_type,
-                                const GURL& url,
-                                const std::u16string& username) = 0;
+                                const GURL& origin) = 0;
 
   // Called after a form was submitted. This triggers a bubble that allows to
   // move the just used profile credential in |form| to the user's account.
   virtual void OnShowMoveToAccountBubble(
       std::unique_ptr<password_manager::PasswordFormManagerForUI>
           form_to_move) = 0;
-
-  // Called when trying to enable biometric authentication for filling from
-  // bubble promp.
-  virtual void OnBiometricAuthenticationForFilling(
-      PrefService* pref_service) = 0;
 
  protected:
   virtual ~PasswordsClientUIDelegate() = default;

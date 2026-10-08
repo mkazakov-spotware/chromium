@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,13 +20,15 @@ import android.widget.Spinner;
 
 import com.google.android.material.textfield.TextInputLayout;
 
+import org.chromium.base.annotations.UsedByReflection;
 import org.chromium.base.metrics.RecordUserAction;
-import org.chromium.build.annotations.UsedByReflection;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.autofill.PersonalDataManager;
 import org.chromium.chrome.browser.autofill.PersonalDataManager.AutofillProfile;
 import org.chromium.chrome.browser.autofill.PersonalDataManager.CreditCard;
-import org.chromium.components.version_info.VersionInfo;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.payments.SettingsAutofillAndPaymentsObserver;
+import org.chromium.chrome.browser.version.ChromeVersionInfo;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -57,7 +59,7 @@ public class AutofillLocalCardEditor extends AutofillCreditCardEditor {
     public View onCreateView(
             LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         // Allow screenshots of the credit card number in Canary, Dev, and developer builds.
-        if (VersionInfo.isBetaBuild() || VersionInfo.isStableBuild()) {
+        if (ChromeVersionInfo.isBetaBuild() || ChromeVersionInfo.isStableBuild()) {
             WindowManager.LayoutParams attributes = getActivity().getWindow().getAttributes();
             attributes.flags |= WindowManager.LayoutParams.FLAG_SECURE;
             getActivity().getWindow().setAttributes(attributes);
@@ -73,6 +75,8 @@ public class AutofillLocalCardEditor extends AutofillCreditCardEditor {
         mNumberLabel = (TextInputLayout) v.findViewById(R.id.credit_card_number_label);
         mNumberText = (EditText) v.findViewById(R.id.credit_card_number_edit);
 
+        // Set the visibility of the nickname field based on the experiment flag.
+        mNicknameLabel.setVisibility(isNicknameManagementEnabled() ? View.VISIBLE : View.GONE);
         mNicknameText.addTextChangedListener(nicknameTextWatcher());
         mNicknameText.setOnFocusChangeListener(
                 (view, hasFocus) -> mNicknameLabel.setCounterEnabled(hasFocus));
@@ -210,6 +214,7 @@ public class AutofillLocalCardEditor extends AutofillCreditCardEditor {
         card.setNickname(mNicknameText.getText().toString().trim());
         // Set GUID for adding a new card.
         card.setGUID(personalDataManager.setCreditCard(card));
+        SettingsAutofillAndPaymentsObserver.getInstance().notifyOnCreditCardUpdated(card);
         if (mIsNewEntry) {
             RecordUserAction.record("AutofillCreditCardsAdded");
             if (!card.getNickname().isEmpty()) {
@@ -223,6 +228,7 @@ public class AutofillLocalCardEditor extends AutofillCreditCardEditor {
     protected void deleteEntry() {
         if (mGUID != null) {
             PersonalDataManager.getInstance().deleteCreditCard(mGUID);
+            SettingsAutofillAndPaymentsObserver.getInstance().notifyOnCreditCardDeleted(mGUID);
         }
     }
 
@@ -247,6 +253,11 @@ public class AutofillLocalCardEditor extends AutofillCreditCardEditor {
         // validate the credit card number when user presses the save button.
         boolean enabled = !TextUtils.isEmpty(mNumberText.getText()) && mIsValidNickname;
         mDoneButton.setEnabled(enabled);
+    }
+
+    private boolean isNicknameManagementEnabled() {
+        return ChromeFeatureList.isEnabled(
+                ChromeFeatureList.AUTOFILL_ENABLE_CARD_NICKNAME_MANAGEMENT);
     }
 
     private TextWatcher nicknameTextWatcher() {

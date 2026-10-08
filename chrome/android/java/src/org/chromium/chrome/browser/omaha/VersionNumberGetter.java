@@ -1,9 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.omaha;
 
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
 
@@ -12,17 +13,12 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.base.BuildInfo;
 import org.chromium.base.ThreadUtils;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
-import org.chromium.chrome.browser.flags.IntCachedFieldTrialParameter;
 
 /**
  * Stubbed class for getting version numbers from the rest of Chrome.  Override the functions for
  * unit tests.
  */
 public class VersionNumberGetter {
-    private static final String MIN_SDK_VERSION_PARAM = "min_sdk_version";
-    public static final IntCachedFieldTrialParameter MIN_SDK_VERSION =
-            new IntCachedFieldTrialParameter(ChromeFeatureList.OMAHA_MIN_SDK_VERSION_ANDROID,
-                    MIN_SDK_VERSION_PARAM, Build.VERSION_CODES.M);
 
     private static final class LazyHolder {
         private static final VersionNumberGetter INSTANCE = new VersionNumberGetter();
@@ -56,7 +52,7 @@ public class VersionNumberGetter {
      * This function incurs I/O, so make sure you don't use it from the main thread.
      * @return The latest version if we retrieved one from the Omaha server, or "" if we haven't.
      */
-    public String getLatestKnownVersion() {
+    public String getLatestKnownVersion(Context context) {
         assert !ThreadUtils.runningOnUiThread();
         SharedPreferences prefs = OmahaBase.getSharedPreferences();
         return prefs.getString(OmahaBase.PREF_LATEST_VERSION, "");
@@ -66,7 +62,7 @@ public class VersionNumberGetter {
      * Retrieve the version of Chrome we're using.
      * @return The latest version if we retrieved one from the Omaha server, or "" if we haven't.
      */
-    public String getCurrentlyUsedVersion() {
+    public String getCurrentlyUsedVersion(Context context) {
         return BuildInfo.getInstance().versionName;
     }
 
@@ -101,7 +97,13 @@ public class VersionNumberGetter {
      * @return Whether the current Android OS version is supported.
      */
     public static boolean isCurrentOsVersionSupported() {
-        return Build.VERSION.SDK_INT >= MIN_SDK_VERSION.getValue();
+        // By default, only Android Lollipop and above is supported.
+        int oldestSupportedVersion = Build.VERSION_CODES.LOLLIPOP;
+
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.KITKAT_SUPPORTED)) {
+            oldestSupportedVersion = Build.VERSION_CODES.KITKAT;
+        }
+        return Build.VERSION.SDK_INT >= oldestSupportedVersion;
     }
 
     /**
@@ -111,7 +113,7 @@ public class VersionNumberGetter {
      *
      * NOTE: This function incurs I/O, so don't use it on the main thread.
      */
-    static boolean isNewerVersionAvailable() {
+    static boolean isNewerVersionAvailable(Context context) {
         assert !ThreadUtils.runningOnUiThread();
 
         // This may be explicitly enabled for some channels and for unit tests.
@@ -127,8 +129,8 @@ public class VersionNumberGetter {
 
         // Compare version numbers.
         VersionNumberGetter getter = getInstance();
-        String currentStr = getter.getCurrentlyUsedVersion();
-        String latestStr = getter.getLatestKnownVersion();
+        String currentStr = getter.getCurrentlyUsedVersion(context);
+        String latestStr = getter.getLatestKnownVersion(context);
 
         VersionNumber currentVersionNumber = VersionNumber.fromString(currentStr);
         VersionNumber latestVersionNumber = VersionNumber.fromString(latestStr);

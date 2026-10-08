@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 
 class GURL;
@@ -26,7 +27,7 @@ class NetworkContext;
 }  // namespace network
 
 namespace prerender {
-class NoStatePrefetchManager;
+class PrerenderManager;
 }
 
 namespace browsing_data {
@@ -52,8 +53,7 @@ HostContentSettingsMap::PatternSourcePredicate CreateWebsiteSettingsFilter(
     content::BrowsingDataFilterBuilder* filter_builder);
 
 // Clears prerendering cache.
-void RemovePrerenderCacheData(
-    prerender::NoStatePrefetchManager* no_state_prefetch_manager);
+void RemovePrerenderCacheData(prerender::PrerenderManager* prerender_manager);
 
 // Removes site isolation prefs. Should be called when the user removes
 // cookies and other site settings or history.
@@ -76,20 +76,6 @@ void RemoveEmbedderCookieData(
 void RemoveSiteSettingsData(const base::Time& delete_begin,
                             const base::Time& delete_end,
                             HostContentSettingsMap* host_content_settings_map);
-
-// Remove site settings data related to federated sign in.
-// This clears:
-// - Consent for identity provider to share identity information with
-//   relying party.
-// - Permission for relying party to silently obtain id token from identity
-//   provider via the FedCM JavaScript API.
-// - The FedCM auto-sign-in permission.
-// - The FedCM front channel logout permission.
-void RemoveFederatedSiteSettingsData(
-    const base::Time& delete_begin,
-    const base::Time& delete_end,
-    HostContentSettingsMap::PatternSourcePredicate pattern_predicate,
-    HostContentSettingsMap* host_content_settings_map);
 
 }  // namespace browsing_data
 

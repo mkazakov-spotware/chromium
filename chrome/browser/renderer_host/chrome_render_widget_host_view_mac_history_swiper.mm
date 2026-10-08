@@ -1,10 +1,14 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "chrome/browser/renderer_host/chrome_render_widget_host_view_mac_history_swiper.h"
 
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser_finder.h"
 #import "chrome/browser/ui/cocoa/history_overlay_controller.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "third_party/blink/public/common/input/web_gesture_event.h"
 #include "third_party/blink/public/common/input/web_mouse_wheel_event.h"
 #include "ui/events/blink/did_overscroll_params.h"
@@ -91,7 +95,7 @@ BOOL forceMagicMouse = NO;
 @implementation HistorySwiper
 @synthesize delegate = _delegate;
 
-- (instancetype)initWithDelegate:(id<HistorySwiperDelegate>)delegate {
+- (id)initWithDelegate:(id<HistorySwiperDelegate>)delegate {
   self = [super init];
   if (self) {
     _delegate = delegate;
@@ -105,7 +109,7 @@ BOOL forceMagicMouse = NO;
 }
 
 - (BOOL)handleEvent:(NSEvent*)event {
-  if ([event type] != NSEventTypeScrollWheel)
+  if ([event type] != NSScrollWheel)
     return NO;
 
   return [self handleScrollWheelEvent:event];
@@ -113,7 +117,7 @@ BOOL forceMagicMouse = NO;
 
 - (void)rendererHandledWheelEvent:(const blink::WebMouseWheelEvent&)event
                          consumed:(BOOL)consumed {
-  if (event.phase != blink::WebMouseWheelEvent::kPhaseBegan)
+  if (event.phase != NSEventPhaseBegan)
     return;
   _firstScrollUnconsumed = !consumed;
 }
@@ -347,6 +351,12 @@ BOOL forceMagicMouse = NO;
   return finished;
 }
 
+- (BOOL)isEventDirectionInverted:(NSEvent*)event {
+  if ([event respondsToSelector:@selector(isDirectionInvertedFromDevice)])
+    return [event isDirectionInvertedFromDevice];
+  return NO;
+}
+
 - (void)showHistoryOverlay:(history_swiper::NavigationDirection)direction {
   // We cannot make any assumptions about the current state of the
   // historyOverlay_, since users may attempt to use multiple gesture input
@@ -361,16 +371,37 @@ BOOL forceMagicMouse = NO;
   _historyOverlay = historyOverlay;
 }
 
+- (BOOL)systemSettingsAllowHistorySwiping:(NSEvent*)event {
+  if ([NSEvent
+          respondsToSelector:@selector(isSwipeTrackingFromScrollEventsEnabled)])
+    return [NSEvent isSwipeTrackingFromScrollEventsEnabled];
+  return NO;
+}
+
 - (void)navigateBrowserInDirection:
             (history_swiper::NavigationDirection)direction {
-  [_delegate navigateInDirection:direction
-                        onWindow:_historyOverlay.view.window];
+  Browser* browser = chrome::FindBrowserWithWindow(
+      _historyOverlay.view.window);
+  if (browser) {
+    if (direction == history_swiper::kForwards)
+      chrome::GoForward(browser, WindowOpenDisposition::CURRENT_TAB);
+    else
+      chrome::GoBack(browser, WindowOpenDisposition::CURRENT_TAB);
+  }
 }
 
 - (BOOL)browserCanNavigateInDirection:
         (history_swiper::NavigationDirection)direction
                                 event:(NSEvent*)event {
-  return [_delegate canNavigateInDirection:direction onWindow:[event window]];
+  Browser* browser = chrome::FindBrowserWithWindow([event window]);
+  if (!browser)
+    return NO;
+
+  if (direction == history_swiper::kForwards) {
+    return chrome::CanGoForward(browser);
+  } else {
+    return chrome::CanGoBack(browser);
+  }
 }
 
 - (BOOL)handleMagicMouseWheelEvent:(NSEvent*)theEvent {
@@ -454,11 +485,13 @@ BOOL forceMagicMouse = NO;
 
           // |gestureAmount| obeys -[NSEvent isDirectionInvertedFromDevice]
           // automatically.
-          if (ended) {
-            [_delegate
-                navigateInDirection:isRightScroll ? history_swiper::kForwards
-                                                  : history_swiper::kBackwards
-                           onWindow:historyOverlay.view.window];
+          Browser* browser =
+              chrome::FindBrowserWithWindow(historyOverlay.view.window);
+          if (ended && browser) {
+            if (isRightScroll)
+              chrome::GoForward(browser, WindowOpenDisposition::CURRENT_TAB);
+            else
+              chrome::GoBack(browser, WindowOpenDisposition::CURRENT_TAB);
           }
 
           if (ended || isComplete) {
@@ -470,6 +503,9 @@ BOOL forceMagicMouse = NO;
 }
 
 - (BOOL)handleScrollWheelEvent:(NSEvent*)theEvent {
+  if (![theEvent respondsToSelector:@selector(phase)])
+    return NO;
+
   // The only events that this class consumes have type NSEventPhaseChanged.
   // This simultaneously weeds our regular mouse wheel scroll events, and
   // gesture events with incorrect phase.
@@ -487,7 +523,8 @@ BOOL forceMagicMouse = NO;
   if ([theEvent momentumPhase] != NSEventPhaseNone)
     return NO;
 
-  if (!NSEvent.swipeTrackingFromScrollEventsEnabled)
+  BOOL systemSettingsValid = [self systemSettingsAllowHistorySwiping:theEvent];
+  if (!systemSettingsValid)
     return NO;
 
   if (![_delegate shouldAllowHistorySwiping])
@@ -523,7 +560,8 @@ BOOL forceMagicMouse = NO;
     return NO;
 
   BOOL isRightScroll = xDelta > 0;
-  if (theEvent.directionInvertedFromDevice)
+  BOOL inverted = [self isEventDirectionInverted:theEvent];
+  if (inverted)
     isRightScroll = !isRightScroll;
 
   history_swiper::NavigationDirection direction =
@@ -534,7 +572,7 @@ BOOL forceMagicMouse = NO;
     return NO;
 
   _historySwipeDirection = direction;
-  _historySwipeDirectionInverted = theEvent.directionInvertedFromDevice;
+  _historySwipeDirectionInverted = [self isEventDirectionInverted:theEvent];
   _recognitionState = history_swiper::kPotential;
   [self showHistoryOverlay:direction];
   return [self shouldConsumeWheelEvent:theEvent];

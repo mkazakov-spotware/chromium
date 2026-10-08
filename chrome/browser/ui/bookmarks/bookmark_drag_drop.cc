@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,36 +17,35 @@
 #include "components/bookmarks/browser/bookmark_utils.h"
 #include "components/bookmarks/browser/scoped_group_bookmark_actions.h"
 #include "components/undo/bookmark_undo_service.h"
-#include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
+#include "ui/base/dragdrop/drag_drop_types.h"
+
+using bookmarks::BookmarkModel;
+using bookmarks::BookmarkNode;
+using bookmarks::BookmarkNodeData;
 
 namespace chrome {
-
-using ::bookmarks::BookmarkModel;
-using ::bookmarks::BookmarkNode;
-using ::bookmarks::BookmarkNodeData;
-using ::ui::mojom::DragOperation;
 
 BookmarkDragParams::BookmarkDragParams(
     std::vector<const bookmarks::BookmarkNode*> nodes,
     int drag_node_index,
-    content::WebContents* web_contents,
+    gfx::NativeView view,
     ui::mojom::DragEventSource source,
     gfx::Point start_point)
     : nodes(std::move(nodes)),
       drag_node_index(drag_node_index),
-      web_contents(web_contents),
+      view(view),
       source(source),
       start_point(start_point) {}
 BookmarkDragParams::~BookmarkDragParams() = default;
 
-DragOperation DropBookmarks(Profile* profile,
-                            const BookmarkNodeData& data,
-                            const BookmarkNode* parent_node,
-                            size_t index,
-                            bool copy) {
+int DropBookmarks(Profile* profile,
+                  const BookmarkNodeData& data,
+                  const BookmarkNode* parent_node,
+                  size_t index,
+                  bool copy) {
   DCHECK(profile);
   BookmarkModel* model = BookmarkModelFactory::GetForBrowserContext(profile);
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   bookmarks::ScopedGroupBookmarkActions group_drops(model);
 #endif
   if (data.IsFromProfilePath(profile->GetPath())) {
@@ -57,28 +56,22 @@ DragOperation DropBookmarks(Profile* profile,
            bookmarks::CanAllBeEditedByUser(model->client(), dragged_nodes));
     if (!dragged_nodes.empty()) {
       // Drag from same profile. Copy or move nodes.
-      bool is_reorder = !copy && dragged_nodes[0]->parent() == parent_node;
       for (size_t i = 0; i < dragged_nodes.size(); ++i) {
         if (copy) {
           model->Copy(dragged_nodes[i], parent_node, index);
-          // Increment `index` so that the next copied node ends up after the
-          // one that was just inserted.
-          ++index;
         } else {
           model->Move(dragged_nodes[i], parent_node, index);
-          index = parent_node->GetIndexOf(dragged_nodes[i]).value() + 1;
         }
+        index = size_t{parent_node->GetIndexOf(dragged_nodes[i]) + 1};
       }
-      RecordBookmarkDropped(data, parent_node, is_reorder);
-      return copy ? DragOperation::kCopy : DragOperation::kMove;
+      return copy ? ui::DragDropTypes::DRAG_COPY : ui::DragDropTypes::DRAG_MOVE;
     }
-    return DragOperation::kNone;
+    return ui::DragDropTypes::DRAG_NONE;
   }
   RecordBookmarksAdded(profile);
-  RecordBookmarkDropped(data, parent_node, false);
   // Dropping a folder from different profile. Always accept.
   bookmarks::CloneBookmarkNode(model, data.elements, parent_node, index, true);
-  return DragOperation::kCopy;
+  return ui::DragDropTypes::DRAG_COPY;
 }
 
 }  // namespace chrome

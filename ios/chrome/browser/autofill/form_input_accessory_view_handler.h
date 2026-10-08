@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,13 @@
 
 #import "ios/chrome/browser/autofill/form_input_navigator.h"
 
-namespace web {
-class WebState;
-}  // namespace web
+@class JsSuggestionManager;
 
 // This handles user actions in the default keyboard accessory view buttons.
 @interface FormInputAccessoryViewHandler : NSObject <FormInputNavigator>
 
-// The WebState for interacting with the underlying form.
-@property(nonatomic) web::WebState* webState;
+// The JS manager for interacting with the underlying form.
+@property(nonatomic, weak) JsSuggestionManager* JSSuggestionManager;
 
 // Resets the metrics logger of the instance.
 - (void)reset;

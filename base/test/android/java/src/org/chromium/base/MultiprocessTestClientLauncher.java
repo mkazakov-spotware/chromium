@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -272,7 +272,6 @@ public final class MultiprocessTestClientLauncher {
         // this gets called.
         if (launcher != null) {
             Integer mainResult = launcher.getMainReturnCode(timeoutMs);
-            launcher.mLauncher.stop();
             return mainResult == null ? MainReturnCodeResult.createTimeoutMainResult()
                                       : MainReturnCodeResult.createMainResult(mainResult);
         }

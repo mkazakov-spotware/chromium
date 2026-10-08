@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,13 +10,12 @@
 #include "base/files/file.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "storage/browser/file_system/file_system_url.h"
 #include "storage/browser/test/mock_quota_manager_proxy.h"
 #include "storage/browser/test/test_file_system_options.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -25,9 +24,10 @@ namespace storage {
 namespace {
 
 FileSystemURL CreateFileSystemURL(const char* path) {
-  return FileSystemURL::CreateForTest(
-      blink::StorageKey::CreateFromStringForTesting("http://foo/"),
-      kFileSystemTypeTemporary, base::FilePath::FromUTF8Unsafe(path));
+  const GURL kOrigin("http://foo/");
+  return FileSystemURL::CreateForTest(url::Origin::Create(kOrigin),
+                                      kFileSystemTypeTemporary,
+                                      base::FilePath::FromUTF8Unsafe(path));
 }
 
 }  // namespace
@@ -37,10 +37,9 @@ class SandboxFileSystemBackendDelegateTest : public testing::Test {
   void SetUp() override {
     ASSERT_TRUE(data_dir_.CreateUniqueTempDir());
     quota_manager_proxy_ = base::MakeRefCounted<MockQuotaManagerProxy>(
-        nullptr, base::SingleThreadTaskRunner::GetCurrentDefault());
+        nullptr, base::ThreadTaskRunnerHandle::Get().get());
     delegate_ = std::make_unique<SandboxFileSystemBackendDelegate>(
-        quota_manager_proxy_.get(),
-        base::SingleThreadTaskRunner::GetCurrentDefault().get(),
+        quota_manager_proxy_.get(), base::ThreadTaskRunnerHandle::Get().get(),
         data_dir_.GetPath(), /*special_storage_policy=*/nullptr,
         CreateAllowFileAccessOptions(), /*env_override=*/nullptr);
   }
@@ -49,12 +48,11 @@ class SandboxFileSystemBackendDelegateTest : public testing::Test {
     return delegate_->IsAccessValid(url);
   }
 
-  void OpenFileSystem(const blink::StorageKey& storage_key,
-                      const absl::optional<BucketLocator>& bucket_locator,
+  void OpenFileSystem(const url::Origin& origin,
                       FileSystemType type,
                       OpenFileSystemMode mode) {
     delegate_->OpenFileSystem(
-        storage_key, bucket_locator, type, mode,
+        origin, type, mode,
         base::BindOnce(
             &SandboxFileSystemBackendDelegateTest::OpenFileSystemCallback,
             base::Unretained(this)),
@@ -96,8 +94,8 @@ TEST_F(SandboxFileSystemBackendDelegateTest, IsAccessValid) {
 
   // Access from non-allowed scheme should be disallowed.
   EXPECT_FALSE(IsAccessValid(FileSystemURL::CreateForTest(
-      blink::StorageKey::CreateFromStringForTesting("unknown://bar"),
-      kFileSystemTypeTemporary, base::FilePath::FromUTF8Unsafe("foo"))));
+      url::Origin::Create(GURL("unknown://bar")), kFileSystemTypeTemporary,
+      base::FilePath::FromUTF8Unsafe("foo"))));
 
   // Access with restricted name should be disallowed.
   EXPECT_FALSE(IsAccessValid(CreateFileSystemURL(".")));
@@ -122,22 +120,19 @@ TEST_F(SandboxFileSystemBackendDelegateTest, IsAccessValid) {
 }
 
 TEST_F(SandboxFileSystemBackendDelegateTest, OpenFileSystemAccessesStorage) {
+  GURL origin("http://example.com");
+
   EXPECT_EQ(quota_manager_proxy()->notify_storage_accessed_count(), 0);
   EXPECT_EQ(callback_count(), 0);
 
-  const blink::StorageKey& storage_key =
-      blink::StorageKey::CreateFromStringForTesting("http://example.com");
-
-  // TODO(https://crbug.com/1330608): ensure that this test suite properly
-  // integrates non-default BucketLocators into OpenFileSystem.
-  OpenFileSystem(storage_key, /*bucket_locator=*/absl::nullopt,
-                 kFileSystemTypeTemporary,
+  OpenFileSystem(url::Origin::Create(origin), kFileSystemTypeTemporary,
                  OPEN_FILE_SYSTEM_CREATE_IF_NONEXISTENT);
 
   EXPECT_EQ(callback_count(), 1);
   EXPECT_EQ(last_error(), base::File::FILE_OK);
   EXPECT_EQ(quota_manager_proxy()->notify_storage_accessed_count(), 1);
-  EXPECT_EQ(quota_manager_proxy()->last_notified_storage_key(), storage_key);
+  EXPECT_EQ(quota_manager_proxy()->last_notified_origin(),
+            url::Origin::Create(origin));
   EXPECT_EQ(quota_manager_proxy()->last_notified_type(),
             blink::mojom::StorageType::kTemporary);
 }

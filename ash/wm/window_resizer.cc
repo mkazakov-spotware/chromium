@@ -1,10 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/wm/window_resizer.h"
 
-#include "ash/public/cpp/presentation_time_recorder.h"
 #include "ash/wm/window_positioning_utils.h"
 #include "ash/wm/window_state.h"
 #include "ash/wm/window_util.h"
@@ -20,13 +19,12 @@
 #include "ui/base/hit_test.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/compositor/compositor.h"
-#include "ui/compositor/layer.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/gfx/geometry/rect.h"
-#include "ui/gfx/geometry/resize_utils.h"
 #include "ui/gfx/presentation_feedback.h"
 #include "ui/views/widget/widget.h"
+#include "ui/views/window/window_resize_utils.h"
 #include "ui/wm/core/coordinate_conversion.h"
 
 namespace ash {
@@ -41,34 +39,28 @@ bool IsRightEdge(int window_component) {
          window_component == HTBOTTOMRIGHT || window_component == HTGROWBOX;
 }
 
-bool IsBottomEdge(int window_component) {
-  return window_component == HTBOTTOMLEFT || window_component == HTBOTTOM ||
-         window_component == HTBOTTOMRIGHT || window_component == HTGROWBOX;
-}
-
-// Convert |window_component| to the ResizeEdge used in
-// gfx::SizeRectToAspectRatio().
-gfx::ResizeEdge GetWindowResizeEdge(int window_component) {
+// Convert |window_component| to the HitTest used in views::WindowResizeUtils.
+views::HitTest GetWindowResizeHitTest(int window_component) {
   switch (window_component) {
     case HTBOTTOM:
-      return gfx::ResizeEdge::kBottom;
+      return views::HitTest::kBottom;
     case HTTOP:
-      return gfx::ResizeEdge::kTop;
+      return views::HitTest::kTop;
     case HTLEFT:
-      return gfx::ResizeEdge::kLeft;
+      return views::HitTest::kLeft;
     case HTRIGHT:
-      return gfx::ResizeEdge::kRight;
+      return views::HitTest::kRight;
     case HTTOPLEFT:
-      return gfx::ResizeEdge::kTopLeft;
+      return views::HitTest::kTopLeft;
     case HTTOPRIGHT:
-      return gfx::ResizeEdge::kTopRight;
+      return views::HitTest::kTopRight;
     case HTBOTTOMLEFT:
-      return gfx::ResizeEdge::kBottomLeft;
+      return views::HitTest::kBottomLeft;
     case HTBOTTOMRIGHT:
-      return gfx::ResizeEdge::kBottomRight;
+      return views::HitTest::kBottomRight;
     default:
       NOTREACHED();
-      return gfx::ResizeEdge::kBottomRight;
+      return views::HitTest::kBottomRight;
   }
 }
 
@@ -90,6 +82,10 @@ const int WindowResizer::kBoundsChangeDirection_Vertical = 2;
 
 WindowResizer::WindowResizer(WindowState* window_state)
     : window_state_(window_state) {
+  recorder_ = CreatePresentationTimeHistogramRecorder(
+      GetTarget()->layer()->GetCompositor(),
+      "Ash.InteractiveWindowResize.TimeToPresent",
+      "Ash.InteractiveWindowResize.TimeToPresent.MaxLatency");
   DCHECK(window_state_->drag_details());
 }
 
@@ -215,8 +211,7 @@ gfx::Rect WindowResizer::CalculateBoundsForDrag(
         // Update bottom edge to stay in the work area when we are resizing
         // by dragging the bottom edge or corners.
         if (new_bounds.bottom() > work_area.bottom())
-          new_bounds.Inset(gfx::Insets::TLBR(
-              0, 0, new_bounds.bottom() - work_area.bottom(), 0));
+          new_bounds.Inset(0, 0, 0, new_bounds.bottom() - work_area.bottom());
       }
     }
     if (details().bounds_change & kBoundsChange_Repositions &&
@@ -241,7 +236,7 @@ gfx::Rect WindowResizer::CalculateBoundsForDrag(
     const display::Display& display =
         display::Screen::GetScreen()->GetDisplayMatching(near_passed_location);
     gfx::Rect screen_work_area = display.work_area();
-    screen_work_area.Inset(gfx::Insets::VH(0, kMinimumOnScreenArea));
+    screen_work_area.Inset(kMinimumOnScreenArea, 0);
     gfx::Rect new_bounds_in_screen(new_bounds);
     ::wm::ConvertRectToScreen(parent, &new_bounds_in_screen);
     if (!screen_work_area.Intersects(new_bounds_in_screen)) {
@@ -257,17 +252,17 @@ gfx::Rect WindowResizer::CalculateBoundsForDrag(
   return new_bounds;
 }
 
+// static
+bool WindowResizer::IsBottomEdge(int window_component) {
+  return window_component == HTBOTTOMLEFT || window_component == HTBOTTOM ||
+         window_component == HTBOTTOMRIGHT || window_component == HTGROWBOX;
+}
+
 void WindowResizer::SetBoundsDuringResize(const gfx::Rect& bounds) {
   aura::Window* window = GetTarget();
   DCHECK(window);
-
   auto ptr = weak_ptr_factory_.GetWeakPtr();
-  const gfx::Size original_size = window->bounds().size();
-
-  // Prepare to record presentation time (e.g. tracking Configure).
-  if (recorder_)
-    recorder_->PrepareToRecord();
-
+  const gfx::Rect original_bounds = window->bounds();
   window->SetBounds(bounds);
 
   // Resizer can be destroyed when a window is attached during tab dragging.
@@ -275,19 +270,9 @@ void WindowResizer::SetBoundsDuringResize(const gfx::Rect& bounds) {
   if (!ptr)
     return;
 
-  // Using `window->bounds()` instead of `bounds` to check size change because
-  // whether "window->SetBounds()" could reject a bounds change. And when that
-  // happens, there might be no new frames presented on screen.
-  if (window->bounds().size() == original_size)
+  if (bounds.size() == original_bounds.size())
     return;
-
-  if (recorder_)
-    recorder_->RequestNext();
-}
-
-void WindowResizer::SetPresentationTimeRecorder(
-    std::unique_ptr<PresentationTimeRecorder> recorder) {
-  recorder_ = std::move(recorder);
+  recorder_->RequestNext();
 }
 
 void WindowResizer::AdjustDeltaForTouchResize(int* delta_x, int* delta_y) {
@@ -329,22 +314,19 @@ gfx::Point WindowResizer::GetOriginForDrag(int delta_x,
   if (pos_change_direction & kBoundsChangeDirection_Vertical)
     origin.Offset(0, delta_y);
 
-  // If the window gets repositioned and changes to it's restored bounds,
+  // If the window gets respoitioned and changes to it's restored bounds,
   // modify the origin so that the cursor remains within the dragged window.
   // The ratio of the new origin to the new location should match the ratio
-  // from the initial origin to the initial location. Floated windows do not
-  // change to their restore bounds while dragging, so we treat them as if they
-  // had no restore bounds.
+  // from the initial origin to the initial location.
   const gfx::Rect restore_bounds = details().restore_bounds_in_parent;
-  if (restore_bounds.IsEmpty() || window_state_->IsFloated())
+  if (restore_bounds.IsEmpty())
     return origin;
 
   // The ratios that should match is the (drag location x - bounds origin x) /
   // bounds width.
-  const float ratio =
-      (details().initial_location_in_parent.x() -
-       static_cast<float>(details().initial_bounds_in_parent.x())) /
-      details().initial_bounds_in_parent.width();
+  const float ratio = (details().initial_location_in_parent.x() -
+                       float{details().initial_bounds_in_parent.x()}) /
+                      details().initial_bounds_in_parent.width();
   int new_origin_x =
       base::ClampRound(event_location.x() - ratio * restore_bounds.width());
   origin.set_x(new_origin_x);
@@ -401,10 +383,7 @@ gfx::Size WindowResizer::GetSizeForDrag(int* delta_x, int* delta_y) {
                              : gfx::Size();
     size.SetSize(GetWidthForDrag(min_size.width(), delta_x),
                  GetHeightForDrag(min_size.height(), delta_y));
-  } else if (!details().restore_bounds_in_parent.IsEmpty() &&
-             !window_state_->IsFloated()) {
-    // Floated windows remain the same size while dragging regardless of
-    // restored bounds.
+  } else if (!details().restore_bounds_in_parent.IsEmpty()) {
     size = details().restore_bounds_in_parent.size();
   }
   return size;
@@ -489,8 +468,11 @@ void WindowResizer::CalculateBoundsWithAspectRatio(float aspect_ratio,
   DCHECK(!min_size.IsEmpty());
   DCHECK(!max_size.IsEmpty());
 
-  gfx::SizeRectToAspectRatio(GetWindowResizeEdge(details().window_component),
-                             aspect_ratio, min_size, max_size, new_bounds);
+  views::WindowResizeUtils::SizeMinMaxToAspectRatio(aspect_ratio, &min_size,
+                                                    &max_size);
+  views::WindowResizeUtils::SizeRectToAspectRatio(
+      GetWindowResizeHitTest(details().window_component), aspect_ratio,
+      min_size, max_size, new_bounds);
 }
 
 }  // namespace ash

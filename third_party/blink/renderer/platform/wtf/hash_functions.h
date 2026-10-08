@@ -120,10 +120,8 @@ struct IntHash {
 template <typename T>
 struct FloatHash {
   typedef typename IntTypes<sizeof(T)>::UnsignedType Bits;
-  static unsigned GetHash(T key) { return HashInt(base::bit_cast<Bits>(key)); }
-  static bool Equal(T a, T b) {
-    return base::bit_cast<Bits>(a) == base::bit_cast<Bits>(b);
-  }
+  static unsigned GetHash(T key) { return HashInt(bit_cast<Bits>(key)); }
+  static bool Equal(T a, T b) { return bit_cast<Bits>(a) == bit_cast<Bits>(b); }
   static const bool safe_to_compare_to_empty_or_deleted = true;
 };
 
@@ -202,7 +200,9 @@ template <typename T, bool isIntegral>
 struct DefaultHashImpl;
 
 template <typename T>
-struct DefaultHashImpl<T, true> : IntHash<T> {};
+struct DefaultHashImpl<T, true> {
+  using Hash = IntHash<T>;
+};
 
 // Canonical implementation of DefaultHash.
 template <typename T>
@@ -212,17 +212,27 @@ struct DefaultHash
 
 // Specializations of DefaultHash follow.
 template <>
-struct DefaultHash<float> : FloatHash<float> {};
+struct DefaultHash<float> {
+  using Hash = FloatHash<float>;
+};
 template <>
-struct DefaultHash<double> : FloatHash<double> {};
+struct DefaultHash<double> {
+  using Hash = FloatHash<double>;
+};
 
 // Specializations for pointer types.
 template <typename T>
-struct DefaultHash<T*> : PtrHash<T> {};
+struct DefaultHash<T*> {
+  using Hash = PtrHash<T>;
+};
 template <typename T>
-struct DefaultHash<scoped_refptr<T>> : RefPtrHash<T> {};
+struct DefaultHash<scoped_refptr<T>> {
+  using Hash = RefPtrHash<T>;
+};
 template <typename T>
-struct DefaultHash<std::unique_ptr<T>> : UniquePtrHash<T> {};
+struct DefaultHash<std::unique_ptr<T>> {
+  using Hash = UniquePtrHash<T>;
+};
 
 // Specializations for pairs.
 
@@ -230,16 +240,16 @@ struct DefaultHash<std::unique_ptr<T>> : UniquePtrHash<T> {};
 template <typename T, typename U, bool areBothIntegral>
 struct PairHashImpl {
   static unsigned GetHash(const std::pair<T, U>& p) {
-    return HashInts(DefaultHash<T>::GetHash(p.first),
-                    DefaultHash<U>::GetHash(p.second));
+    return HashInts(DefaultHash<T>::Hash::GetHash(p.first),
+                    DefaultHash<U>::Hash::GetHash(p.second));
   }
   static bool Equal(const std::pair<T, U>& a, const std::pair<T, U>& b) {
-    return DefaultHash<T>::Equal(a.first, b.first) &&
-           DefaultHash<U>::Equal(a.second, b.second);
+    return DefaultHash<T>::Hash::Equal(a.first, b.first) &&
+           DefaultHash<U>::Hash::Equal(a.second, b.second);
   }
   static const bool safe_to_compare_to_empty_or_deleted =
-      DefaultHash<T>::safe_to_compare_to_empty_or_deleted &&
-      DefaultHash<U>::safe_to_compare_to_empty_or_deleted;
+      DefaultHash<T>::Hash::safe_to_compare_to_empty_or_deleted &&
+      DefaultHash<U>::Hash::safe_to_compare_to_empty_or_deleted;
 };
 
 // Special version for pairs of integrals:
@@ -264,7 +274,9 @@ struct PairHash
                    std::is_integral<T>::value && std::is_integral<U>::value> {};
 
 template <typename T, typename U>
-struct DefaultHash<std::pair<T, U>> : PairHash<T, U> {};
+struct DefaultHash<std::pair<T, U>> {
+  using Hash = PairHash<T, U>;
+};
 
 // Wrapper for integral type to extend to have 0 and max keys.
 template <typename T>
@@ -315,7 +327,9 @@ struct IntegralWithAllKeysHash {
 };
 
 template <typename T>
-struct DefaultHash<IntegralWithAllKeys<T>> : IntegralWithAllKeysHash<T> {};
+struct DefaultHash<IntegralWithAllKeys<T>> {
+  using Hash = IntegralWithAllKeysHash<T>;
+};
 
 }  // namespace WTF
 

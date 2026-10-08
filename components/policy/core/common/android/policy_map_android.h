@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define COMPONENTS_POLICY_CORE_COMMON_ANDROID_POLICY_MAP_ANDROID_H_
 
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ref.h"
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/policy_export.h"
 
@@ -69,7 +68,7 @@ class POLICY_EXPORT PolicyMapAndroid {
       JNIEnv* env,
       const base::android::JavaRef<jstring>& policy) const;
 
-  const raw_ref<const PolicyMap> policy_map_;
+  const PolicyMap& policy_map_;
 
   base::android::ScopedJavaGlobalRef<jobject> java_ref_;
 };

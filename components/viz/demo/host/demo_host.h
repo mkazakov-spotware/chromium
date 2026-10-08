@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "base/threading/thread.h"
-#include "base/time/time.h"
 #include "components/viz/common/surfaces/parent_local_surface_id_allocator.h"
 #include "components/viz/host/host_display_client.h"
 #include "components/viz/host/host_frame_sink_client.h"
@@ -36,10 +35,6 @@ class DemoHost : public viz::HostFrameSinkClient {
       mojo::PendingReceiver<viz::mojom::FrameSinkManagerClient> client_receiver,
       mojo::PendingRemote<viz::mojom::FrameSinkManager>
           frame_sink_manager_remote);
-
-  DemoHost(const DemoHost&) = delete;
-  DemoHost& operator=(const DemoHost&) = delete;
-
   ~DemoHost() override;
 
   void Resize(const gfx::Size& size);
@@ -55,8 +50,7 @@ class DemoHost : public viz::HostFrameSinkClient {
 
   // viz::HostFrameSinkClient:
   void OnFirstSurfaceActivation(const viz::SurfaceInfo& surface_info) override;
-  void OnFrameTokenChanged(uint32_t frame_token,
-                           base::TimeTicks activation_time) override;
+  void OnFrameTokenChanged(uint32_t frame_token) override;
 
   const gfx::AcceleratedWidget widget_;
   gfx::Size size_;
@@ -73,6 +67,8 @@ class DemoHost : public viz::HostFrameSinkClient {
   // and clients over mojo. The host does not need to have its own thread
   // though.
   base::Thread thread_;
+
+  DISALLOW_COPY_AND_ASSIGN(DemoHost);
 };
 
 }  // namespace demo

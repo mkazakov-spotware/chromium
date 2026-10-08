@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "base/i18n/message_formatter.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -26,16 +27,11 @@ namespace remoting {
 namespace {
 
 // Time to wait before closing the dialog and cancelling the connection.
-constexpr base::TimeDelta kDialogTimeout = base::Minutes(1);
+constexpr base::TimeDelta kDialogTimeout = base::TimeDelta::FromMinutes(1);
 
 class It2MeConfirmationDialogLinux : public It2MeConfirmationDialog {
  public:
   It2MeConfirmationDialogLinux();
-
-  It2MeConfirmationDialogLinux(const It2MeConfirmationDialogLinux&) = delete;
-  It2MeConfirmationDialogLinux& operator=(const It2MeConfirmationDialogLinux&) =
-      delete;
-
   ~It2MeConfirmationDialogLinux() override;
 
   // It2MeConfirmationDialog implementation.
@@ -58,6 +54,8 @@ class It2MeConfirmationDialogLinux : public It2MeConfirmationDialog {
   ResultCallback result_callback_;
 
   base::OneShotTimer dialog_timer_;
+
+  DISALLOW_COPY_AND_ASSIGN(It2MeConfirmationDialogLinux);
 };
 
 It2MeConfirmationDialogLinux::It2MeConfirmationDialogLinux() {}
@@ -118,7 +116,7 @@ void It2MeConfirmationDialogLinux::CreateWindow(
   GtkWidget* content_area =
       gtk_dialog_get_content_area(GTK_DIALOG(confirmation_window_));
 
-  std::u16string dialog_text =
+  base::string16 dialog_text =
       base::i18n::MessageFormatter::FormatWithNumberedArgs(
           l10n_util::GetStringUTF16(
               IDS_SHARE_CONFIRM_DIALOG_MESSAGE_WITH_USERNAME),

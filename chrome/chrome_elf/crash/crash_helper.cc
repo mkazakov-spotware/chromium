@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -67,10 +67,10 @@ bool InitializeCrashReporting() {
   if (g_crash_helper_enabled)
     return true;
 
-#if defined(_DEBUG) || defined(DCHECK_ALWAYS_ON)
+#ifdef _DEBUG
   assert(g_crash_reports == nullptr);
   assert(g_set_unhandled_exception_filter == nullptr);
-#endif  // defined(_DEBUG) || defined(DCHECK_ALWAYS_ON)
+#endif  // _DEBUG
 
   // No global objects with destructors, so using global pointers.
   // DllMain on detach will clean these up.
@@ -98,19 +98,16 @@ void ShutdownCrashReporting() {
 // Please refer to the comment on g_set_unhandled_exception_filter for more
 // information about why we intercept the SetUnhandledExceptionFilter API.
 void DisableSetUnhandledExceptionFilter() {
-#if defined(_DEBUG) || defined(DCHECK_ALWAYS_ON)
-  // Should never patch SetUnhandledExceptionFilter before crashpad has called
-  // it.
-  assert(g_crash_helper_enabled);
-#endif  // defined(_DEBUG) || defined(DCHECK_ALWAYS_ON)
+  if (!g_crash_helper_enabled)
+    return;
   if (g_set_unhandled_exception_filter->Hook(
           ::GetModuleHandle(nullptr), "kernel32.dll",
           "SetUnhandledExceptionFilter",
           reinterpret_cast<void*>(SetUnhandledExceptionFilterPatch)) !=
       NO_ERROR) {
-#if defined(_DEBUG) || defined(DCHECK_ALWAYS_ON)
+#ifdef _DEBUG
     assert(false);
-#endif  // defined(_DEBUG) || defined(DCHECK_ALWAYS_ON)
+#endif  // _DEBUG
   }
 }
 

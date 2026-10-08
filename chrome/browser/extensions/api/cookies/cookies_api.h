@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,9 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/values.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "chrome/browser/ui/browser_list_observer.h"
 #include "chrome/common/extensions/api/cookies.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
@@ -35,10 +36,6 @@ namespace extensions {
 class CookiesEventRouter : public BrowserListObserver {
  public:
   explicit CookiesEventRouter(content::BrowserContext* context);
-
-  CookiesEventRouter(const CookiesEventRouter&) = delete;
-  CookiesEventRouter& operator=(const CookiesEventRouter&) = delete;
-
   ~CookiesEventRouter() override;
 
   // BrowserListObserver:
@@ -53,18 +50,16 @@ class CookiesEventRouter : public BrowserListObserver {
   class CookieChangeListener : public network::mojom::CookieChangeListener {
    public:
     CookieChangeListener(CookiesEventRouter* router, bool otr);
-
-    CookieChangeListener(const CookieChangeListener&) = delete;
-    CookieChangeListener& operator=(const CookieChangeListener&) = delete;
-
     ~CookieChangeListener() override;
 
     // network::mojom::CookieChangeListener:
     void OnCookieChange(const net::CookieChangeInfo& change) override;
 
    private:
-    raw_ptr<CookiesEventRouter> router_;
+    CookiesEventRouter* router_;
     bool otr_;
+
+    DISALLOW_COPY_AND_ASSIGN(CookieChangeListener);
   };
 
   void MaybeStartListening();
@@ -79,10 +74,10 @@ class CookiesEventRouter : public BrowserListObserver {
   void DispatchEvent(content::BrowserContext* context,
                      events::HistogramValue histogram_value,
                      const std::string& event_name,
-                     base::Value::List event_args,
+                     std::unique_ptr<base::ListValue> event_args,
                      const GURL& cookie_domain);
 
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   // To listen to cookie changes in both the original and the off the record
   // profiles, we need a pair of bindings, as well as a pair of
@@ -93,6 +88,8 @@ class CookiesEventRouter : public BrowserListObserver {
   CookieChangeListener otr_listener_{this, true};
   mojo::Receiver<network::mojom::CookieChangeListener> otr_receiver_{
       &otr_listener_};
+
+  DISALLOW_COPY_AND_ASSIGN(CookiesEventRouter);
 };
 
 // Implements the cookies.get() extension function.
@@ -112,9 +109,6 @@ class CookiesGetFunction : public ExtensionFunction {
   void GetCookieListCallback(
       const net::CookieAccessResultList& cookie_list,
       const net::CookieAccessResultList& excluded_cookies);
-
-  // Notify the extension telemetry service when API is called.
-  void NotifyExtensionTelemetry();
 
   GURL url_;
   mojo::Remote<network::mojom::CookieManager> store_browser_cookie_manager_;
@@ -141,9 +135,6 @@ class CookiesGetAllFunction : public ExtensionFunction {
   void GetCookieListCallback(
       const net::CookieAccessResultList& cookie_list,
       const net::CookieAccessResultList& excluded_cookies);
-
-  // Notify the extension telemetry service when API is called.
-  void NotifyExtensionTelemetry();
 
   GURL url_;
   mojo::Remote<network::mojom::CookieManager> store_browser_cookie_manager_;
@@ -211,10 +202,6 @@ class CookiesGetAllCookieStoresFunction : public ExtensionFunction {
 class CookiesAPI : public BrowserContextKeyedAPI, public EventRouter::Observer {
  public:
   explicit CookiesAPI(content::BrowserContext* context);
-
-  CookiesAPI(const CookiesAPI&) = delete;
-  CookiesAPI& operator=(const CookiesAPI&) = delete;
-
   ~CookiesAPI() override;
 
   // KeyedService implementation.
@@ -229,7 +216,7 @@ class CookiesAPI : public BrowserContextKeyedAPI, public EventRouter::Observer {
  private:
   friend class BrowserContextKeyedAPIFactory<CookiesAPI>;
 
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
 
   // BrowserContextKeyedAPI implementation.
   static const char* service_name() {
@@ -239,6 +226,8 @@ class CookiesAPI : public BrowserContextKeyedAPI, public EventRouter::Observer {
 
   // Created lazily upon OnListenerAdded.
   std::unique_ptr<CookiesEventRouter> cookies_event_router_;
+
+  DISALLOW_COPY_AND_ASSIGN(CookiesAPI);
 };
 
 }  // namespace extensions

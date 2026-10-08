@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,7 @@
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/api/system_display/display_info_provider.h"
-#include "extensions/browser/api/system_info/system_info_provider.h"
+#include "extensions/browser/api/system_storage/storage_info_provider.h"
 #include "extensions/browser/extensions_browser_client.h"
 #include "extensions/common/api/system_display.h"
 #include "extensions/common/api/system_storage.h"
@@ -50,10 +50,6 @@ class SystemInfoEventRouter : public storage_monitor::RemovableStorageObserver {
   static SystemInfoEventRouter* GetInstance();
 
   SystemInfoEventRouter();
-
-  SystemInfoEventRouter(const SystemInfoEventRouter&) = delete;
-  SystemInfoEventRouter& operator=(const SystemInfoEventRouter&) = delete;
-
   ~SystemInfoEventRouter() override;
 
   // The input |context| is tracked if and only if it has at least one listener
@@ -82,7 +78,7 @@ class SystemInfoEventRouter : public storage_monitor::RemovableStorageObserver {
   // processes cross multiple profiles. Currently only used for storage events.
   void DispatchEvent(events::HistogramValue histogram_value,
                      const std::string& event_name,
-                     base::Value::List args) const;
+                     std::unique_ptr<base::ListValue> args) const;
 
   // When true, the DisplayInfoProvider is observing for changes to the display
   // and, subsequently, dispatching on-display-changed events.
@@ -95,6 +91,8 @@ class SystemInfoEventRouter : public storage_monitor::RemovableStorageObserver {
 
   base::flat_set<content::BrowserContext*> contexts_with_display_listeners_;
   base::flat_set<content::BrowserContext*> contexts_with_storage_listeners_;
+
+  DISALLOW_COPY_AND_ASSIGN(SystemInfoEventRouter);
 };
 
 static base::LazyInstance<SystemInfoEventRouter>::Leaky
@@ -153,15 +151,14 @@ void SystemInfoEventRouter::StartOrStopDisplayEventDispatcherIfNecessary() {
   // Events should be dispatched if and only if at least one browser context has
   // the relevant listeners.
   const bool should_dispatch = !contexts_with_display_listeners_.empty();
-  DisplayInfoProvider* provider = DisplayInfoProvider::Get();
 
-  if (!provider || (should_dispatch == is_dispatching_display_events_))
+  if (should_dispatch == is_dispatching_display_events_)
     return;
 
   if (should_dispatch)
-    provider->StartObserving();
+    DisplayInfoProvider::Get()->StartObserving();
   else
-    provider->StopObserving();
+    DisplayInfoProvider::Get()->StopObserving();
 
   is_dispatching_display_events_ = should_dispatch;
 }
@@ -201,8 +198,8 @@ void SystemInfoEventRouter::OnRemovableStorageAttached(
     const storage_monitor::StorageInfo& info) {
   StorageUnitInfo unit;
   systeminfo::BuildStorageUnitInfo(info, &unit);
-  base::Value::List args;
-  args.Append(unit.ToValue());
+  std::unique_ptr<base::ListValue> args(new base::ListValue);
+  args->Append(unit.ToValue());
 
   DispatchEvent(events::SYSTEM_STORAGE_ON_ATTACHED,
                 system_storage::OnAttached::kEventName, std::move(args));
@@ -210,11 +207,11 @@ void SystemInfoEventRouter::OnRemovableStorageAttached(
 
 void SystemInfoEventRouter::OnRemovableStorageDetached(
     const storage_monitor::StorageInfo& info) {
-  base::Value::List args;
+  std::unique_ptr<base::ListValue> args(new base::ListValue);
   std::string transient_id =
       StorageMonitor::GetInstance()->GetTransientIdForDeviceId(
           info.device_id());
-  args.Append(transient_id);
+  args->AppendString(transient_id);
 
   DispatchEvent(events::SYSTEM_STORAGE_ON_DETACHED,
                 system_storage::OnDetached::kEventName, std::move(args));
@@ -223,7 +220,7 @@ void SystemInfoEventRouter::OnRemovableStorageDetached(
 void SystemInfoEventRouter::DispatchEvent(
     events::HistogramValue histogram_value,
     const std::string& event_name,
-    base::Value::List args) const {
+    std::unique_ptr<base::ListValue> args) const {
   ExtensionsBrowserClient::Get()->BroadcastEventToRenderers(
       histogram_value, event_name, std::move(args), false);
 }

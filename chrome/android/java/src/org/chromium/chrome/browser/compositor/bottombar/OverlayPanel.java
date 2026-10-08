@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,40 +8,34 @@ import android.app.Activity;
 import android.content.Context;
 import android.graphics.RectF;
 import android.os.Handler;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.IntDef;
-import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.ApplicationStatus.ActivityStateListener;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.Supplier;
-import org.chromium.cc.input.BrowserControlsState;
-import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.compositor.bottombar.OverlayPanelManager.PanelPriority;
 import org.chromium.chrome.browser.compositor.layouts.Layout;
 import org.chromium.chrome.browser.compositor.layouts.LayoutManagerImpl;
 import org.chromium.chrome.browser.compositor.layouts.SceneChangeObserver;
+import org.chromium.chrome.browser.compositor.layouts.eventfilter.EdgeSwipeHandler;
 import org.chromium.chrome.browser.compositor.layouts.eventfilter.GestureHandler;
 import org.chromium.chrome.browser.compositor.layouts.eventfilter.OverlayPanelEventFilter;
+import org.chromium.chrome.browser.compositor.layouts.eventfilter.ScrollDirection;
 import org.chromium.chrome.browser.layouts.EventFilter;
 import org.chromium.chrome.browser.layouts.SceneOverlay;
 import org.chromium.chrome.browser.layouts.components.VirtualView;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneOverlayLayer;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
-import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabBrowserControlsConstraintsHelper;
-import org.chromium.components.browser_ui.widget.gesture.SwipeGestureListener.ScrollDirection;
-import org.chromium.components.browser_ui.widget.gesture.SwipeGestureListener.SwipeHandler;
 import org.chromium.content_public.browser.SelectionPopupController;
 import org.chromium.content_public.browser.WebContents;
+import org.chromium.content_public.common.BrowserControlsState;
 import org.chromium.ui.base.LocalizationUtils;
-import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.resources.ResourceManager;
 
 import java.lang.annotation.Retention;
@@ -51,9 +45,9 @@ import java.util.List;
 /**
  * Controls the Overlay Panel.
  */
-public class OverlayPanel extends OverlayPanelAnimation
-        implements ActivityStateListener, SwipeHandler, GestureHandler, OverlayPanelContentFactory,
-                   SceneOverlay {
+public class OverlayPanel extends OverlayPanelAnimation implements ActivityStateListener,
+        EdgeSwipeHandler, GestureHandler, OverlayPanelContentFactory, SceneOverlay {
+
     /** The delay after which the hide progress will be hidden. */
     private static final long HIDE_PROGRESS_BAR_DELAY_MS = 1000 / 60 * 4;
 
@@ -120,25 +114,8 @@ public class OverlayPanel extends OverlayPanelAnimation
     /** The observer that reacts to scene-change events. */
     private final SceneChangeObserver mSceneChangeObserver;
 
-    /** Used to measure the browser controls. */
-    private final BrowserControlsStateProvider mBrowserControlsStateProvider;
-
-    /** The {@link WindowAndroid} for the current activity.  */
-    private final WindowAndroid mWindowAndroid;
-
-    /**
-     * The {@link CompositorViewHolder}, used as an anchor view. Also injected into other classes.
-     */
-    private final ViewGroup mCompositorViewHolder;
-
-    /** Supplies the current activity {@link Tab}. */
-    private final Supplier<Tab> mCurrentTabSupplier;
-
-    /** OverlayPanel manager handle for notifications of opening and closing. */
-    protected final OverlayPanelManager mPanelManager;
-
     /** The activity this panel is in. */
-    protected Activity mActivity;
+    protected ChromeActivity mActivity;
 
     /** The initial height of the Overlay Panel. */
     private float mInitialPanelHeight;
@@ -157,6 +134,9 @@ public class OverlayPanel extends OverlayPanelAnimation
 
     /** Container for content the panel will show. */
     private OverlayPanelContent mContent;
+
+    /** OverlayPanel manager handle for notifications of opening and closing. */
+    protected OverlayPanelManager mPanelManager;
 
     /** If the base page text controls have been cleared. */
     private boolean mDidClearTextControls;
@@ -182,25 +162,12 @@ public class OverlayPanel extends OverlayPanelAnimation
      * @param context The current Android {@link Context}.
      * @param layoutManager A {@link LayoutManagerImpl} for observing changes in the active layout.
      * @param panelManager The {@link OverlayPanelManager} responsible for showing panels.
-     * @param browserControlsStateProvider The {@link BrowserControlsStateProvider} for measuring
-     *         controls.
-     * @param windowAndroid The {@link WindowAndroid} for the current activity.
-     * @param compositorViewHolder The {@link CompositorViewHolder}
-     * @param toolbarHeightDp The height of the toolbar in dp.
-     * @param currentTabSupplier Supplies the current {@link Tab}.
      */
-    public OverlayPanel(@NonNull Context context, @NonNull LayoutManagerImpl layoutManager,
-            @NonNull OverlayPanelManager panelManager,
-            @NonNull BrowserControlsStateProvider browserControlsStateProvider,
-            @NonNull WindowAndroid windowAndroid, @NonNull ViewGroup compositorViewHolder,
-            float toolbarHeightDp, @NonNull Supplier<Tab> currentTabSupplier) {
-        super(context, layoutManager, toolbarHeightDp);
+    public OverlayPanel(
+            Context context, LayoutManagerImpl layoutManager, OverlayPanelManager panelManager) {
+        super(context, layoutManager);
         mLayoutManager = layoutManager;
         mContentFactory = this;
-        mBrowserControlsStateProvider = browserControlsStateProvider;
-        mWindowAndroid = windowAndroid;
-        mCompositorViewHolder = compositorViewHolder;
-        mCurrentTabSupplier = currentTabSupplier;
 
         mPanelManager = panelManager;
         mPanelManager.registerPanel(this);
@@ -215,8 +182,8 @@ public class OverlayPanel extends OverlayPanelAnimation
                 closePanel(StateChangeReason.UNKNOWN, false);
             }
         };
-
-        mLayoutManager.addSceneChangeObserver(mSceneChangeObserver);
+        // mLayoutManager will be null in testing.
+        if (mLayoutManager != null) mLayoutManager.addSceneChangeObserver(mSceneChangeObserver);
     }
 
     /**
@@ -224,7 +191,7 @@ public class OverlayPanel extends OverlayPanelAnimation
      */
     public void destroy() {
         closePanel(StateChangeReason.UNKNOWN, false);
-        mLayoutManager.removeSceneChangeObserver(mSceneChangeObserver);
+        if (mLayoutManager != null) mLayoutManager.removeSceneChangeObserver(mSceneChangeObserver);
         ApplicationStatus.unregisterActivityStateListener(this);
     }
 
@@ -317,15 +284,15 @@ public class OverlayPanel extends OverlayPanelAnimation
     }
 
     /**
-     * @param activity The {@link Activity} associated with the panel.
+     * @param activity The ChromeActivity associated with the panel.
      */
-    public void setActivity(Activity activity) {
+    public void setChromeActivity(ChromeActivity activity) {
         mActivity = activity;
         if (mActivity != null) {
             ApplicationStatus.registerStateListenerForActivity(this, mActivity);
-        } else {
-            throw new RuntimeException("Activity provided to OverlayPanel cannot be null!");
         }
+
+        initializeUiState();
     }
 
     /**
@@ -367,7 +334,7 @@ public class OverlayPanel extends OverlayPanelAnimation
      */
     protected float getBrowserControlsOffsetDp() {
         if (mActivity == null) return 0.0f;
-        return -mBrowserControlsStateProvider.getTopControlOffset() * mPxToDp;
+        return -mActivity.getBrowserControlsManager().getTopControlOffset() * mPxToDp;
     }
 
     /**
@@ -376,10 +343,9 @@ public class OverlayPanel extends OverlayPanelAnimation
      * @param visible If the text controls are visible.
      */
     protected void setBasePageTextControlsVisibility(boolean visible) {
-        if (mActivity == null) return;
-        if (!mCurrentTabSupplier.hasValue()) return;
+        if (mActivity == null || mActivity.getActivityTab() == null) return;
 
-        WebContents baseWebContents = mCurrentTabSupplier.get().getWebContents();
+        WebContents baseWebContents = mActivity.getActivityTab().getWebContents();
         if (baseWebContents == null) return;
 
         // If the panel does not have focus or isn't open, return.
@@ -516,7 +482,7 @@ public class OverlayPanel extends OverlayPanelAnimation
     public OverlayPanelContent createNewOverlayPanelContent() {
         return new OverlayPanelContent(new OverlayContentDelegate(),
                 new OverlayContentProgressObserver(), mActivity, /* isIncognito= */ false,
-                getBarHeight(), mCompositorViewHolder, mWindowAndroid, mCurrentTabSupplier);
+                getBarHeight());
     }
 
     /**
@@ -561,7 +527,7 @@ public class OverlayPanel extends OverlayPanelAnimation
      *                should jump immediately.
      */
     public void updateBrowserControlsState(int current, boolean animate) {
-        TabBrowserControlsConstraintsHelper.update(mCurrentTabSupplier.get(), current, animate);
+        TabBrowserControlsConstraintsHelper.update(mActivity.getActivityTab(), current, animate);
     }
 
     /**
@@ -614,6 +580,13 @@ public class OverlayPanel extends OverlayPanelAnimation
         if (mContent != null) {
             mContent.setPanelTopOffset((int) ((mViewportHeight - getHeight()) / mPxToDp));
         }
+    }
+
+    @Override
+    protected int getControlContainerHeightResource() {
+        // TODO(mdjones): Investigate passing this in to the constructor instead.
+        assert mActivity != null;
+        return mActivity.getControlContainerHeightResource();
     }
 
     // ============================================================================================
@@ -812,7 +785,7 @@ public class OverlayPanel extends OverlayPanelAnimation
     }
 
     // ============================================================================================
-    // GestureHandler and SwipeHandler implementation.
+    // GestureHandler and EdgeSwipeHandler implementation.
     // ============================================================================================
 
     @Override
@@ -847,10 +820,10 @@ public class OverlayPanel extends OverlayPanelAnimation
     @Override
     public void onPinch(float x0, float y0, float x1, float y1, boolean firstEvent) {}
 
-    // SwipeHandler implementation.
+    // EdgeSwipeHandler implementation.
 
     @Override
-    public void onSwipeStarted(@ScrollDirection int direction, MotionEvent ev) {
+    public void swipeStarted(@ScrollDirection int direction, float x, float y) {
         if (onInterceptBarSwipe()) {
             mIgnoreSwipeEvents = true;
             return;
@@ -859,13 +832,13 @@ public class OverlayPanel extends OverlayPanelAnimation
     }
 
     @Override
-    public void onSwipeUpdated(MotionEvent current, float tx, float ty, float dx, float dy) {
+    public void swipeUpdated(float x, float y, float dx, float dy, float tx, float ty) {
         if (mIgnoreSwipeEvents) return;
-        handleSwipeMove(ty * mPxToDp);
+        handleSwipeMove(ty);
     }
 
     @Override
-    public void onSwipeFinished() {
+    public void swipeFinished() {
         if (mIgnoreSwipeEvents) {
             mIgnoreSwipeEvents = false;
             return;
@@ -874,10 +847,9 @@ public class OverlayPanel extends OverlayPanelAnimation
     }
 
     @Override
-    public void onFling(@ScrollDirection int direction, MotionEvent current, float tx, float ty,
-            float vx, float vy) {
+    public void swipeFlingOccurred(float x, float y, float tx, float ty, float vx, float vy) {
         if (mIgnoreSwipeEvents) return;
-        handleFling(vy * mPxToDp);
+        handleFling(vy);
     }
 
     @Override
@@ -966,7 +938,7 @@ public class OverlayPanel extends OverlayPanelAnimation
 
     @Override
     public boolean shouldHideAndroidBrowserControls() {
-        return isPanelOpened() && mCanHideAndroidBrowserControls;
+        return isPanelOpened();
     }
 
     @Override
@@ -980,16 +952,5 @@ public class OverlayPanel extends OverlayPanelAnimation
         if (!isShowing()) return false;
         closePanel(StateChangeReason.BACK_PRESS, true);
         return true;
-    }
-
-    @Override
-    public ObservableSupplier<Boolean> getHandleBackPressChangedSupplier() {
-        return isShowingSupplier();
-    }
-
-    @Override
-    public void handleBackPress() {
-        boolean ret = onBackPressed();
-        assert ret;
     }
 }

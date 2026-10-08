@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "ui/message_center/message_center.h"
 #include "ui/message_center/message_center_observer.h"
 
@@ -33,15 +32,15 @@ class PopupsOnlyUiController : public message_center::MessageCenterObserver {
   void OnNotificationUpdated(const std::string& notification_id) override;
   void OnNotificationClicked(
       const std::string& notification_id,
-      const absl::optional<int>& button_index,
-      const absl::optional<std::u16string>& reply) override;
+      const base::Optional<int>& button_index,
+      const base::Optional<base::string16>& reply) override;
   void OnBlockingStateChanged(
       message_center::NotificationBlocker* blocker) override;
 
   bool popups_visible() const { return popups_visible_; }
 
  private:
-  const raw_ptr<message_center::MessageCenter> message_center_;
+  message_center::MessageCenter* const message_center_;
   std::unique_ptr<message_center::DesktopMessagePopupCollection>
       popup_collection_;
 

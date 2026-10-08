@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@ package org.chromium.content.browser;
 
 import android.os.Handler;
 
+import org.chromium.base.BuildConfig;
 import org.chromium.base.process_launcher.ChildProcessConnection;
-import org.chromium.build.BuildConfig;
 import org.chromium.content_public.browser.ChildProcessImportance;
 
 import java.util.ArrayList;
@@ -19,7 +19,7 @@ import java.util.List;
  * Ranking of ChildProcessConnections for a particular ChildConnectionAllocator.
  */
 public class ChildProcessRanking implements Iterable<ChildProcessConnection> {
-    private static final boolean ENABLE_CHECKS = BuildConfig.ENABLE_ASSERTS;
+    private static final boolean ENABLE_CHECKS = BuildConfig.DCHECK_IS_ON;
     private static final int NO_GROUP = 0;
     private static final int LOW_RANK_GROUP = 1;
 
@@ -300,7 +300,6 @@ public class ChildProcessRanking implements Iterable<ChildProcessConnection> {
             return;
         }
 
-        assert right >= left;
         final int gap = right - left;
 
         // If there is a large enough gap, place connection close to the end. This is a heuristic
@@ -369,8 +368,7 @@ public class ChildProcessRanking implements Iterable<ChildProcessConnection> {
                     throw new RuntimeException("Not in low rank group " + connection);
                 }
                 if (connection.connection.getImportanceInGroup() <= importance) {
-                    throw new RuntimeException("Wrong group importance order " + connection + " "
-                            + connection.connection.getImportanceInGroup() + " " + importance);
+                    throw new RuntimeException("Wrong group importance order " + connection);
                 }
                 importance = connection.connection.getImportanceInGroup();
             } else {

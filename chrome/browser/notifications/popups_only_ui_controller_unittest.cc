@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,9 +56,11 @@ class PopupsOnlyUiControllerTest : public views::test::WidgetTest {
  protected:
   void AddNotification(const std::string& id) {
     auto notification = std::make_unique<Notification>(
-        message_center::NOTIFICATION_TYPE_SIMPLE, id, u"Test Web Notification",
-        u"Notification message body.", ui::ImageModel(),
-        u"Some Chrome extension", GURL("chrome-extension://abbccedd"),
+        message_center::NOTIFICATION_TYPE_SIMPLE, id,
+        base::ASCIIToUTF16("Test Web Notification"),
+        base::ASCIIToUTF16("Notification message body."), gfx::Image(),
+        base::ASCIIToUTF16("Some Chrome extension"),
+        GURL("chrome-extension://abbccedd"),
         NotifierId(message_center::NotifierType::APPLICATION, id),
         message_center::RichNotificationData(), nullptr);
 
@@ -68,8 +70,9 @@ class PopupsOnlyUiControllerTest : public views::test::WidgetTest {
   void UpdateNotification(const std::string& id) {
     auto notification = std::make_unique<Notification>(
         message_center::NOTIFICATION_TYPE_SIMPLE, id,
-        u"Updated Test Web Notification", u"Notification message body.",
-        ui::ImageModel(), u"Some Chrome extension",
+        base::ASCIIToUTF16("Updated Test Web Notification"),
+        base::ASCIIToUTF16("Notification message body."), gfx::Image(),
+        base::ASCIIToUTF16("Some Chrome extension"),
         GURL("chrome-extension://abbccedd"),
         NotifierId(message_center::NotifierType::APPLICATION, id),
         message_center::RichNotificationData(), nullptr);

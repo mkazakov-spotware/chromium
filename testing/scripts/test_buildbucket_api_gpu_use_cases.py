@@ -1,24 +1,18 @@
 #!/usr/bin/env python
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
-from __future__ import print_function
 
 import argparse
 import json
 import os
 import sys
 
-# Add src/testing/ into sys.path for importing common without pylint errors.
-sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
-from scripts import common
+import common
 
 # Add src/content/test/gpu into sys.path for importing common.
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                os.path.pardir, os.path.pardir, 'content',
-                                'test', 'gpu')))
+sys.path.append(os.path.join(os.path.dirname(__file__),
+                             '..', '..', 'content', 'test', 'gpu'))
 
 import gather_power_measurement_results
 import gather_swarming_json_results
@@ -79,7 +73,8 @@ class BuildBucketApiGpuUseCaseTests:
 def main(argv):
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      '--isolated-script-test-output', type=str)
+      '--isolated-script-test-output', type=str,
+      required=True)
   parser.add_argument(
       '--isolated-script-test-chartjson-output', type=str,
       required=False)
@@ -100,19 +95,18 @@ def main(argv):
     error_msg = test()
     if error_msg is not None:
       result = '%s: %s' % (test_name, error_msg)
-      print('FAIL: %s' % result)
+      print 'FAIL: %s' % result
       failures.append(result)
 
   if not failures:
-    print('PASS: test_buildbucket_api_gpu_use_cases ran successfully.')
+    print 'PASS: test_buildbucket_api_gpu_use_cases ran successfully.'
     retval = 0
 
-  if args.isolated_script_test_output:
-    with open(args.isolated_script_test_output, 'w') as json_file:
-      json.dump({
-          'valid': True,
-          'failures': failures,
-      }, json_file)
+  with open(args.isolated_script_test_output, 'w') as json_file:
+    json.dump({
+        'valid': True,
+        'failures': failures,
+    }, json_file)
 
   return retval
 

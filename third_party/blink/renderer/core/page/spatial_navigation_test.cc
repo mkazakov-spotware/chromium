@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -124,7 +124,7 @@ TEST_F(SpatialNavigationTest, RootFramesVisualViewport) {
   // Test RootViewport with a pinched viewport.
   VisualViewport& visual_viewport = GetFrame().GetPage()->GetVisualViewport();
   visual_viewport.SetScale(2);
-  visual_viewport.SetLocation(gfx::PointF(200, 200));
+  visual_viewport.SetLocation(FloatPoint(200, 200));
 
   LocalFrameView* root_frame_view = GetFrame().LocalFrameRoot().View();
   const PhysicalRect roots_visible_doc_rect(
@@ -200,11 +200,12 @@ TEST_F(SpatialNavigationTest,
   Node* enclosing_container = ScrollableAreaOrDocumentOf(content);
 
   // TODO(crbug.com/889840):
-  // VisibleBoundsInLocalRoot does not (yet) take div-clipping into
+  // VisibleBoundsInVisualViewport does not (yet) take div-clipping into
   // account. The node is off screen, but nevertheless VBIVV returns a non-
-  // empty rect. If you fix VisibleBoundsInLocalRoot, change to
+  // empty rect. If you fix VisibleBoundsInVisualViewport, change to
   // EXPECT_TRUE here and stop using LayoutObject in IsOffscreen().
-  EXPECT_FALSE(content->VisibleBoundsInLocalRoot().IsEmpty());  // EXPECT_TRUE.
+  EXPECT_FALSE(
+      content->VisibleBoundsInVisualViewport().IsEmpty());  // EXPECT_TRUE.
 
   EXPECT_TRUE(IsOffscreen(content));
   EXPECT_FALSE(IsOffscreen(container));
@@ -368,11 +369,11 @@ TEST_F(SpatialNavigationTest, StartAtContainersEdge) {
   const PhysicalRect container_box = NodeRectInRootFrame(container);
 
   // TODO(crbug.com/889840):
-  // VisibleBoundsInLocalRoot does not (yet) take div-clipping into
+  // VisibleBoundsInVisualViewport does not (yet) take div-clipping into
   // account. The node is off screen, but nevertheless VBIVV returns a non-
-  // empty rect. If you fix VisibleBoundsInLocalRoot, change to
+  // empty rect. If you fix VisibleBoundsInVisualViewport, change to
   // EXPECT_TRUE here and stop using LayoutObject in IsOffscreen().
-  EXPECT_FALSE(b->VisibleBoundsInLocalRoot().IsEmpty());  // EXPECT_TRUE.
+  EXPECT_FALSE(b->VisibleBoundsInVisualViewport().IsEmpty());  // EXPECT_TRUE.
   EXPECT_TRUE(IsOffscreen(b));
 
   // Go down.
@@ -566,11 +567,12 @@ TEST_F(SpatialNavigationTest, DivsCanClipIframes) {
   EXPECT_FALSE(IsOffscreen(div));
 
   // TODO(crbug.com/889840):
-  // VisibleBoundsInLocalRoot does not (yet) take div-clipping into
+  // VisibleBoundsInVisualViewport does not (yet) take div-clipping into
   // account. The node is off screen, but nevertheless VBIVV returns a non-
-  // empty rect. If you fix VisibleBoundsInLocalRoot, change to
+  // empty rect. If you fix VisibleBoundsInVisualViewport, change to
   // EXPECT_TRUE here and stop using LayoutObject in IsOffscreen().
-  EXPECT_FALSE(iframe->VisibleBoundsInLocalRoot().IsEmpty());  // EXPECT_TRUE.
+  EXPECT_FALSE(
+      iframe->VisibleBoundsInVisualViewport().IsEmpty());  // EXPECT_TRUE.
 
   // The <iframe> is not displayed in the visual viewport because it is clipped
   // by the div. In other words, it is being offscreen. And so is also its
@@ -652,7 +654,7 @@ TEST_F(SpatialNavigationTest, BottomOfPinchedViewport) {
   // Now, test SearchOrigin with a pinched viewport.
   VisualViewport& visual_viewport = GetFrame().GetPage()->GetVisualViewport();
   visual_viewport.SetScale(2);
-  visual_viewport.SetLocation(gfx::PointF(200, 200));
+  visual_viewport.SetLocation(FloatPoint(200, 200));
   origin = SearchOrigin(RootViewport(&GetFrame()), nullptr,
                         SpatialNavigationDirection::kUp);
   EXPECT_EQ(origin.Height(), 0);
@@ -782,9 +784,6 @@ TEST_F(SpatialNavigationTest, InlineImageLinkWithLineHeight) {
 }
 
 TEST_F(SpatialNavigationTest, InlineImageTextLinkWithLineHeight) {
-  // Fails when LayoutNG is disabled. See crbug.com/1160211
-  if (!RuntimeEnabledFeatures::LayoutNGEnabled())
-    return;
   LoadAhem();
   SetBodyInnerHTML(
       "<!DOCTYPE html>"
@@ -810,9 +809,6 @@ TEST_F(SpatialNavigationTest, InlineImageTextLinkWithLineHeight) {
 }
 
 TEST_F(SpatialNavigationTest, InlineLinkWithInnerBlock) {
-  // Fails when LayoutNG is disabled. See crbug.com/1160211
-  if (!RuntimeEnabledFeatures::LayoutNGEnabled())
-    return;
   LoadAhem();
   SetBodyInnerHTML(
       "<!DOCTYPE html>"
@@ -958,9 +954,6 @@ TEST_F(SpatialNavigationTest, NormalizedLineBrokenLink) {
 }
 
 TEST_F(SpatialNavigationTest, NormalizedLineBrokenLinkWithImg) {
-  // Fails when LayoutNG is disabled. See crbug.com/1160211
-  if (!RuntimeEnabledFeatures::LayoutNGEnabled())
-    return;
   LoadAhem();
   SetBodyInnerHTML(
       "<!DOCTYPE html>"
@@ -1110,7 +1103,7 @@ TEST_F(SpatialNavigationTest, TopOfPinchedViewport) {
   // Now, test SearchOrigin with a pinched viewport.
   VisualViewport& visual_viewport = GetFrame().GetPage()->GetVisualViewport();
   visual_viewport.SetScale(2);
-  visual_viewport.SetLocation(gfx::PointF(200, 200));
+  visual_viewport.SetLocation(FloatPoint(200, 200));
   origin = SearchOrigin(RootViewport(&GetFrame()), nullptr,
                         SpatialNavigationDirection::kDown);
   EXPECT_EQ(origin.Height(), 0);
@@ -1139,8 +1132,8 @@ TEST_F(SpatialNavigationTest, HasRemoteFrame) {
           "iframe");
   EXPECT_FALSE(HasRemoteFrame(iframe));
 
-  frame_test_helpers::SwapRemoteFrame(webview->MainFrameImpl()->FirstChild(),
-                                      frame_test_helpers::CreateRemote());
+  webview->MainFrameImpl()->FirstChild()->Swap(
+      frame_test_helpers::CreateRemote());
   EXPECT_TRUE(HasRemoteFrame(iframe));
 }
 

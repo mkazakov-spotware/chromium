@@ -1,20 +1,19 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_MEDIA_ROUTER_PROVIDERS_CAST_CAST_ACTIVITY_TEST_BASE_H_
 #define CHROME_BROWSER_MEDIA_ROUTER_PROVIDERS_CAST_CAST_ACTIVITY_TEST_BASE_H_
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/media/router/providers/cast/cast_activity.h"
 #include "chrome/browser/media/router/providers/cast/cast_activity_manager.h"
 #include "chrome/browser/media/router/providers/cast/cast_internal_message_util.h"
 #include "chrome/browser/media/router/providers/cast/cast_session_client.h"
 #include "chrome/browser/media/router/providers/cast/cast_session_tracker.h"
 #include "chrome/browser/media/router/test/provider_test_helpers.h"
+#include "components/cast_channel/cast_test_util.h"
 #include "components/media_router/common/discovery/media_sink_internal.h"
 #include "components/media_router/common/media_route.h"
-#include "components/media_router/common/providers/cast/channel/cast_test_util.h"
 #include "components/media_router/common/test/test_helper.h"
 #include "content/public/test/browser_task_environment.h"
 #include "services/data_decoder/public/cpp/test_support/in_process_data_decoder.h"
@@ -38,8 +37,8 @@ class MockCastSessionClient : public CastSessionClient {
   MOCK_METHOD1(SendMessageToClient,
                void(blink::mojom::PresentationConnectionMessagePtr message));
   MOCK_METHOD2(SendMediaStatusToClient,
-               void(const base::Value::Dict& media_status,
-                    absl::optional<int> request_id));
+               void(const base::Value& media_status,
+                    base::Optional<int> request_id));
   MOCK_METHOD1(
       CloseConnection,
       void(blink::mojom::PresentationConnectionCloseReason close_reason));
@@ -49,9 +48,8 @@ class MockCastSessionClient : public CastSessionClient {
   MOCK_METHOD3(SendErrorCodeToClient,
                void(int sequence_number,
                     CastInternalMessage::ErrorCode error_code,
-                    absl::optional<std::string> description));
-  MOCK_METHOD2(SendErrorToClient,
-               void(int sequence_number, base::Value::Dict error));
+                    base::Optional<std::string> description));
+  MOCK_METHOD2(SendErrorToClient, void(int sequence_number, base::Value error));
   MOCK_METHOD1(OnMessage,
                void(blink::mojom::PresentationConnectionMessagePtr message));
   MOCK_METHOD1(DidChangeState,
@@ -99,11 +97,6 @@ class CastActivityTestBase : public testing::Test,
       const url::Origin& origin,
       int tab_id) override;
 
-  // Adds a client to |activity| and returns a mock instance.
-  MockCastSessionClient* AddMockClient(CastActivity* activity,
-                                       const std::string& client_id,
-                                       int tab_id);
-
   // TODO(crbug.com/954797): Factor out members also present in
   // CastActivityManagerTest.
   content::BrowserTaskEnvironment task_environment_;
@@ -116,7 +109,7 @@ class CastActivityTestBase : public testing::Test,
                                       socket_service_.task_runner()};
   MediaSinkInternal sink_ = CreateCastSink(kChannelId);
   MockCastActivityManager manager_;
-  raw_ptr<CastSession> session_ = nullptr;
+  CastSession* session_ = nullptr;
 };
 
 }  // namespace media_router

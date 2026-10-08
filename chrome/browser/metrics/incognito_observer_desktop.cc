@@ -1,8 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "chrome/browser/metrics/incognito_observer.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_list_observer.h"
@@ -18,9 +19,6 @@ class IncognitoObserverDesktop : public IncognitoObserver,
     BrowserList::AddObserver(this);
   }
 
-  IncognitoObserverDesktop(const IncognitoObserverDesktop&) = delete;
-  IncognitoObserverDesktop& operator=(const IncognitoObserverDesktop&) = delete;
-
   ~IncognitoObserverDesktop() override { BrowserList::RemoveObserver(this); }
 
  private:
@@ -29,6 +27,8 @@ class IncognitoObserverDesktop : public IncognitoObserver,
   void OnBrowserRemoved(Browser* browser) override { update_closure_.Run(); }
 
   const base::RepeatingClosure update_closure_;
+
+  DISALLOW_COPY_AND_ASSIGN(IncognitoObserverDesktop);
 };
 
 }  // namespace

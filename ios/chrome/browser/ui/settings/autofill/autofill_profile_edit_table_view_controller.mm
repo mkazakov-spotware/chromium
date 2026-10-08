@@ -1,25 +1,29 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/settings/autofill/autofill_profile_edit_table_view_controller.h"
 
-#import "base/mac/foundation_util.h"
-#import "base/strings/sys_string_conversions.h"
-#import "components/autofill/core/browser/data_model/autofill_profile.h"
-#import "components/autofill/core/browser/field_types.h"
-#import "components/autofill/core/browser/personal_data_manager.h"
-#import "components/autofill/core/common/autofill_features.h"
-#import "ios/chrome/browser/application_context/application_context.h"
+#include "base/mac/foundation_util.h"
+#include "base/stl_util.h"
+#include "base/strings/sys_string_conversions.h"
+#include "components/autofill/core/browser/data_model/autofill_profile.h"
+#include "components/autofill/core/browser/field_types.h"
+#include "components/autofill/core/browser/payments/payments_service_url.h"
+#include "components/autofill/core/browser/personal_data_manager.h"
+#include "components/autofill/core/common/autofill_features.h"
+#include "ios/chrome/browser/application_context.h"
 #import "ios/chrome/browser/ui/autofill/autofill_ui_type.h"
 #import "ios/chrome/browser/ui/autofill/autofill_ui_type_util.h"
 #import "ios/chrome/browser/ui/autofill/cells/autofill_edit_item.h"
+#include "ios/chrome/browser/ui/commands/application_commands.h"
+#import "ios/chrome/browser/ui/commands/open_new_tab_command.h"
 #import "ios/chrome/browser/ui/settings/autofill/autofill_constants.h"
 #import "ios/chrome/browser/ui/table_view/table_view_model.h"
-#import "ios/chrome/browser/ui/table_view/table_view_utils.h"
-#import "ios/chrome/browser/ui/ui_feature_flags.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ui/base/l10n/l10n_util.h"
+#include "ios/chrome/browser/ui/ui_feature_flags.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ui/base/l10n/l10n_util.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -38,12 +42,42 @@ typedef NS_ENUM(NSInteger, ItemType) {
   ItemTypeField = kItemTypeEnumZero,
 };
 
+struct AutofillFieldDisplayInfo {
+  autofill::ServerFieldType autofillType;
+  int displayStringID;
+  UIReturnKeyType returnKeyType;
+  UIKeyboardType keyboardType;
+  UITextAutocapitalizationType autoCapitalizationType;
+};
+
+static const AutofillFieldDisplayInfo kFieldsToDisplay[] = {
+    {autofill::NAME_FULL, IDS_IOS_AUTOFILL_FULLNAME, UIReturnKeyNext,
+     UIKeyboardTypeDefault, UITextAutocapitalizationTypeSentences},
+    {autofill::COMPANY_NAME, IDS_IOS_AUTOFILL_COMPANY_NAME, UIReturnKeyNext,
+     UIKeyboardTypeDefault, UITextAutocapitalizationTypeSentences},
+    {autofill::ADDRESS_HOME_LINE1, IDS_IOS_AUTOFILL_ADDRESS1, UIReturnKeyNext,
+     UIKeyboardTypeDefault, UITextAutocapitalizationTypeSentences},
+    {autofill::ADDRESS_HOME_LINE2, IDS_IOS_AUTOFILL_ADDRESS2, UIReturnKeyNext,
+     UIKeyboardTypeDefault, UITextAutocapitalizationTypeSentences},
+    {autofill::ADDRESS_HOME_CITY, IDS_IOS_AUTOFILL_CITY, UIReturnKeyNext,
+     UIKeyboardTypeDefault, UITextAutocapitalizationTypeSentences},
+    {autofill::ADDRESS_HOME_STATE, IDS_IOS_AUTOFILL_STATE, UIReturnKeyNext,
+     UIKeyboardTypeDefault, UITextAutocapitalizationTypeSentences},
+    {autofill::ADDRESS_HOME_ZIP, IDS_IOS_AUTOFILL_ZIP, UIReturnKeyNext,
+     UIKeyboardTypeDefault, UITextAutocapitalizationTypeAllCharacters},
+    {autofill::ADDRESS_HOME_COUNTRY, IDS_IOS_AUTOFILL_COUNTRY, UIReturnKeyNext,
+     UIKeyboardTypeDefault, UITextAutocapitalizationTypeSentences},
+    {autofill::PHONE_HOME_WHOLE_NUMBER, IDS_IOS_AUTOFILL_PHONE, UIReturnKeyNext,
+     UIKeyboardTypePhonePad, UITextAutocapitalizationTypeSentences},
+    {autofill::EMAIL_ADDRESS, IDS_IOS_AUTOFILL_EMAIL, UIReturnKeyDone,
+     UIKeyboardTypeEmailAddress, UITextAutocapitalizationTypeNone}};
+
 }  // namespace
 
 @interface AutofillProfileEditTableViewController ()
 
-// Initializes a AutofillProfileEditTableViewController with `profile` and
-// `dataManager`.
+// Initializes a AutofillProfileEditTableViewController with |profile| and
+// |dataManager|.
 - (instancetype)initWithProfile:(const autofill::AutofillProfile&)profile
             personalDataManager:(autofill::PersonalDataManager*)dataManager
     NS_DESIGNATED_INITIALIZER;
@@ -61,7 +95,10 @@ typedef NS_ENUM(NSInteger, ItemType) {
             personalDataManager:(autofill::PersonalDataManager*)dataManager {
   DCHECK(dataManager);
 
-  self = [super initWithStyle:ChromeTableViewStyle()];
+  UITableViewStyle style = base::FeatureList::IsEnabled(kSettingsRefresh)
+                               ? UITableViewStylePlain
+                               : UITableViewStyleGrouped;
+  self = [super initWithStyle:style];
   if (self) {
     _personalDataManager = dataManager;
     _autofillProfile = profile;
@@ -89,6 +126,19 @@ typedef NS_ENUM(NSInteger, ItemType) {
 #pragma mark - SettingsRootTableViewController
 
 - (void)editButtonPressed {
+  // In the case of server profiles, open the Payments editing page instead.
+  if (_autofillProfile.record_type() ==
+      autofill::AutofillProfile::SERVER_PROFILE) {
+    GURL paymentsURL = autofill::payments::GetManageAddressesUrl();
+    OpenNewTabCommand* command =
+        [OpenNewTabCommand commandWithURLFromChrome:paymentsURL];
+    [self.dispatcher closeSettingsUIAndOpenURL:command];
+
+    // Don't call [super editButtonPressed] because edit mode is not actually
+    // entered in this case.
+    return;
+  }
+
   [super editButtonPressed];
 
   if (!self.tableView.editing) {
@@ -108,22 +158,14 @@ typedef NS_ENUM(NSInteger, ItemType) {
           [model itemAtIndexPath:path]);
       autofill::ServerFieldType serverFieldType =
           AutofillTypeFromAutofillUIType(item.autofillUIType);
-
-      // Since the country field is a text field, we should use SetInfo() to
-      // make sure they get converted to country codes.
-      // Use SetInfo for fullname to propogate the change to the name_first,
-      // name_middle and name_last subcomponents.
-      if (item.autofillUIType == AutofillUITypeProfileHomeAddressCountry ||
-          item.autofillUIType == AutofillUITypeProfileFullName) {
-        _autofillProfile.SetInfoWithVerificationStatus(
+      if (item.autofillUIType == AutofillUITypeProfileHomeAddressCountry) {
+        _autofillProfile.SetInfo(
             autofill::AutofillType(serverFieldType),
             base::SysNSStringToUTF16(item.textFieldValue),
-            GetApplicationContext()->GetApplicationLocale(),
-            autofill::structured_address::VerificationStatus::kUserVerified);
+            GetApplicationContext()->GetApplicationLocale());
       } else {
-        _autofillProfile.SetRawInfoWithVerificationStatus(
-            serverFieldType, base::SysNSStringToUTF16(item.textFieldValue),
-            autofill::structured_address::VerificationStatus::kUserVerified);
+        _autofillProfile.SetRawInfo(
+            serverFieldType, base::SysNSStringToUTF16(item.textFieldValue));
       }
     }
 
@@ -144,14 +186,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
   std::string locale = GetApplicationContext()->GetApplicationLocale();
   [model addSectionWithIdentifier:SectionIdentifierFields];
-  for (size_t i = 0; i < std::size(kProfileFieldsToDisplay); ++i) {
-    const AutofillProfileFieldDisplayInfo& field = kProfileFieldsToDisplay[i];
-
-    if (field.autofillType == autofill::NAME_HONORIFIC_PREFIX &&
-        !base::FeatureList::IsEnabled(
-            autofill::features::kAutofillEnableSupportForHonorificPrefixes)) {
-      continue;
-    }
+  for (size_t i = 0; i < base::size(kFieldsToDisplay); ++i) {
+    const AutofillFieldDisplayInfo& field = kFieldsToDisplay[i];
 
     AutofillEditItem* item =
         [[AutofillEditItem alloc] initWithType:ItemTypeField];

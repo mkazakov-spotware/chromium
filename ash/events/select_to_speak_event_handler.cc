@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/events/select_to_speak_event_handler.h"
 
 #include "ash/accessibility/accessibility_controller_impl.h"
-#include "ash/accessibility/accessibility_event_handler_manager.h"
 #include "ash/public/cpp/select_to_speak_event_handler_delegate.h"
 #include "ash/shell.h"
 
@@ -17,12 +16,12 @@ SelectToSpeakEventHandler::SelectToSpeakEventHandler(
     SelectToSpeakEventHandlerDelegate* delegate)
     : delegate_(delegate) {
   DCHECK(delegate_);
-  Shell::Get()->AddAccessibilityEventHandler(
-      this, AccessibilityEventHandlerManager::HandlerType::kSelectToSpeak);
+  Shell::Get()->AddPreTargetHandler(this,
+                                    ui::EventTarget::Priority::kAccessibility);
 }
 
 SelectToSpeakEventHandler::~SelectToSpeakEventHandler() {
-  Shell::Get()->RemoveAccessibilityEventHandler(this);
+  Shell::Get()->RemovePreTargetHandler(this);
 }
 
 bool SelectToSpeakEventHandler::IsSelectToSpeakEnabled() {
@@ -123,13 +122,6 @@ void SelectToSpeakEventHandler::OnMouseEvent(ui::MouseEvent* event) {
       state_ = CAPTURING_MOUSE_ONLY;
   }
 
-  // We don't want mouse events to affect underlying UI when user is about to
-  // select text to speak. (e.g. we don't want a hoverbox to appear/disappear)
-  if (state_ == SELECTION_REQUESTED || state_ == SEARCH_DOWN) {
-    CancelEvent(event);
-    return;
-  }
-
   if (state_ == WAIT_FOR_MOUSE_RELEASE &&
       event->type() == ui::ET_MOUSE_RELEASED) {
     state_ = INACTIVE;
@@ -151,8 +143,7 @@ void SelectToSpeakEventHandler::OnMouseEvent(ui::MouseEvent* event) {
   delegate_->DispatchMouseEvent(*event);
 
   if (event->type() == ui::ET_MOUSE_PRESSED ||
-      event->type() == ui::ET_MOUSE_RELEASED ||
-      event->type() == ui::ET_MOUSE_DRAGGED)
+      event->type() == ui::ET_MOUSE_RELEASED)
     CancelEvent(event);
 }
 
@@ -209,12 +200,7 @@ void SelectToSpeakEventHandler::OnTouchEvent(ui::TouchEvent* event) {
       return;
   }
   int flags = ui::EF_LEFT_MOUSE_BUTTON;
-
-  // Get screen coordinates if available.
-  gfx::Point root_location = event->target()
-                                 ? event->target()->GetScreenLocation(*event)
-                                 : event->root_location();
-  ui::MouseEvent event_to_send(type, event->location(), root_location,
+  ui::MouseEvent event_to_send(type, event->location(), event->root_location(),
                                event->time_stamp(), flags, flags);
 
   delegate_->DispatchMouseEvent(event_to_send);

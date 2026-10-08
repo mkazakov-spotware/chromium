@@ -1,8 +1,6 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "base/memory/raw_ptr.h"
 
 #import <Cocoa/Cocoa.h>
 #include <stddef.h>
@@ -10,19 +8,14 @@
 #import "base/mac/scoped_nsobject.h"
 #import "base/mac/scoped_objc_class_swizzler.h"
 #include "base/memory/singleton.h"
-#include "base/time/time.h"
+#include "base/stl_util.h"
 #include "ui/base/cocoa/cocoa_base_utils.h"
-#include "ui/display/screen.h"
-#include "ui/events/base_event_utils.h"
-#include "ui/events/event.h"
-#include "ui/events/event_dispatcher.h"
 #include "ui/events/event_processor.h"
 #include "ui/events/event_target.h"
 #include "ui/events/event_target_iterator.h"
 #include "ui/events/event_targeter.h"
 #import "ui/events/test/cocoa_test_event_utils.h"
 #include "ui/events/test/event_generator.h"
-#include "ui/events/types/event_type.h"
 #include "ui/gfx/mac/coordinate_conversion.h"
 
 namespace {
@@ -49,6 +42,12 @@ NSPoint ConvertRootPointToTarget(NSWindow* target,
   DCHECK(GetActiveGenerator());
   gfx::Point point = point_in_root;
 
+  if (GetActiveGenerator()->assume_window_at_origin()) {
+    // When assuming the window is at the origin, ignore the titlebar as well.
+    NSRect content_rect = [target contentRectForFrameRect:[target frame]];
+    return NSMakePoint(point.x(), NSHeight(content_rect) - point.y());
+  }
+
   point -= gfx::ScreenRectFromNSRect([target frame]).OffsetFromOrigin();
   return NSMakePoint(point.x(), NSHeight([target frame]) - point.y());
 }
@@ -56,14 +55,13 @@ NSPoint ConvertRootPointToTarget(NSWindow* target,
 // Inverse of ui::EventFlagsFromModifiers().
 NSUInteger EventFlagsToModifiers(int flags) {
   NSUInteger modifiers = 0;
-  modifiers |= (flags & ui::EF_SHIFT_DOWN) ? NSEventModifierFlagShift : 0;
-  modifiers |= (flags & ui::EF_CONTROL_DOWN) ? NSEventModifierFlagControl : 0;
-  modifiers |= (flags & ui::EF_ALT_DOWN) ? NSEventModifierFlagOption : 0;
-  modifiers |= (flags & ui::EF_COMMAND_DOWN) ? NSEventModifierFlagCommand : 0;
-  modifiers |= (flags & ui::EF_CAPS_LOCK_ON) ? NSEventModifierFlagCapsLock : 0;
+  modifiers |= (flags & ui::EF_SHIFT_DOWN) ? NSShiftKeyMask : 0;
+  modifiers |= (flags & ui::EF_CONTROL_DOWN) ? NSControlKeyMask : 0;
+  modifiers |= (flags & ui::EF_ALT_DOWN) ? NSAlternateKeyMask : 0;
+  modifiers |= (flags & ui::EF_COMMAND_DOWN) ? NSCommandKeyMask : 0;
+  modifiers |= (flags & ui::EF_CAPS_LOCK_ON) ? NSAlphaShiftKeyMask : 0;
   // ui::EF_*_MOUSE_BUTTON not handled here.
-  // NSEventModifierFlagFunction, NSEventModifierFlagNumericPad and
-  // NSHelpKeyMask not mapped.
+  // NSFunctionKeyMask, NSNumericPadKeyMask and NSHelpKeyMask not mapped.
   return modifiers;
 }
 
@@ -88,34 +86,37 @@ NSEventType EventTypeToNative(ui::EventType ui_event_type,
     *modifiers = EventFlagsToModifiers(flags);
   switch (ui_event_type) {
     case ui::ET_KEY_PRESSED:
-      return NSEventTypeKeyDown;
+      return NSKeyDown;
     case ui::ET_KEY_RELEASED:
-      return NSEventTypeKeyUp;
+      return NSKeyUp;
     case ui::ET_MOUSE_PRESSED:
-      return PickMouseEventType(flags, NSEventTypeLeftMouseDown,
-                                NSEventTypeRightMouseDown,
-                                NSEventTypeOtherMouseDown);
+      return PickMouseEventType(flags,
+                                NSLeftMouseDown,
+                                NSRightMouseDown,
+                                NSOtherMouseDown);
     case ui::ET_MOUSE_RELEASED:
-      return PickMouseEventType(flags, NSEventTypeLeftMouseUp,
-                                NSEventTypeRightMouseUp,
-                                NSEventTypeOtherMouseUp);
+      return PickMouseEventType(flags,
+                                NSLeftMouseUp,
+                                NSRightMouseUp,
+                                NSOtherMouseUp);
     case ui::ET_MOUSE_DRAGGED:
-      return PickMouseEventType(flags, NSEventTypeLeftMouseDragged,
-                                NSEventTypeRightMouseDragged,
-                                NSEventTypeOtherMouseDragged);
+      return PickMouseEventType(flags,
+                                NSLeftMouseDragged,
+                                NSRightMouseDragged,
+                                NSOtherMouseDragged);
     case ui::ET_MOUSE_MOVED:
-      return NSEventTypeMouseMoved;
+      return NSMouseMoved;
     case ui::ET_MOUSEWHEEL:
-      return NSEventTypeScrollWheel;
+      return NSScrollWheel;
     case ui::ET_MOUSE_ENTERED:
-      return NSEventTypeMouseEntered;
+      return NSMouseEntered;
     case ui::ET_MOUSE_EXITED:
-      return NSEventTypeMouseExited;
+      return NSMouseExited;
     case ui::ET_SCROLL_FLING_START:
       return NSEventTypeSwipe;
     default:
       NOTREACHED();
-      return NSEventTypeApplicationDefined;
+      return NSApplicationDefined;
   }
 }
 
@@ -126,10 +127,10 @@ void EmulateSendEvent(NSWindow* window, NSEvent* event) {
   base::AutoReset<NSEvent*> reset(&g_current_event, event);
   NSResponder* responder = [window firstResponder];
   switch ([event type]) {
-    case NSEventTypeKeyDown:
+    case NSKeyDown:
       [responder keyDown:event];
       return;
-    case NSEventTypeKeyUp:
+    case NSKeyUp:
       [responder keyUp:event];
       return;
     default:
@@ -142,47 +143,47 @@ void EmulateSendEvent(NSWindow* window, NSEvent* event) {
   // and the NSWindow's contentView is wrapping a views::internal::RootView.
   responder = [window contentView];
   switch ([event type]) {
-    case NSEventTypeLeftMouseDown:
+    case NSLeftMouseDown:
       [responder mouseDown:event];
       break;
-    case NSEventTypeRightMouseDown:
+    case NSRightMouseDown:
       [responder rightMouseDown:event];
       break;
-    case NSEventTypeOtherMouseDown:
+    case NSOtherMouseDown:
       [responder otherMouseDown:event];
       break;
-    case NSEventTypeLeftMouseUp:
+    case NSLeftMouseUp:
       [responder mouseUp:event];
       break;
-    case NSEventTypeRightMouseUp:
+    case NSRightMouseUp:
       [responder rightMouseUp:event];
       break;
-    case NSEventTypeOtherMouseUp:
+    case NSOtherMouseUp:
       [responder otherMouseUp:event];
       break;
-    case NSEventTypeLeftMouseDragged:
+    case NSLeftMouseDragged:
       [responder mouseDragged:event];
       break;
-    case NSEventTypeRightMouseDragged:
+    case NSRightMouseDragged:
       [responder rightMouseDragged:event];
       break;
-    case NSEventTypeOtherMouseDragged:
+    case NSOtherMouseDragged:
       [responder otherMouseDragged:event];
       break;
-    case NSEventTypeMouseMoved:
+    case NSMouseMoved:
       // Assumes [NSWindow acceptsMouseMovedEvents] would return YES, and that
       // NSTrackingAreas have been appropriately installed on |responder|.
       [responder mouseMoved:event];
       break;
-    case NSEventTypeScrollWheel:
+    case NSScrollWheel:
       [responder scrollWheel:event];
       break;
-    case NSEventTypeMouseEntered:
-    case NSEventTypeMouseExited:
-      // With the assumptions in NSEventTypeMouseMoved, it doesn't make sense
-      // for the generator to handle entered/exited separately. It's the
-      // responsibility of views::internal::RootView to convert the moved events
-      // into entered and exited events for the individual views.
+    case NSMouseEntered:
+    case NSMouseExited:
+      // With the assumptions in NSMouseMoved, it doesn't make sense for the
+      // generator to handle entered/exited separately. It's the responsibility
+      // of views::internal::RootView to convert the moved events into entered
+      // and exited events for the individual views.
       NOTREACHED();
       break;
     case NSEventTypeSwipe:
@@ -198,7 +199,6 @@ void EmulateSendEvent(NSWindow* window, NSEvent* event) {
 NSEvent* CreateMouseEventInWindow(NSWindow* window,
                                   ui::EventType event_type,
                                   const gfx::Point& point_in_root,
-                                  const base::TimeTicks time_stamp,
                                   int flags) {
   NSUInteger click_count = 0;
   if (event_type == ui::ET_MOUSE_PRESSED ||
@@ -216,7 +216,7 @@ NSEvent* CreateMouseEventInWindow(NSWindow* window,
   return [NSEvent mouseEventWithType:type
                             location:point
                        modifierFlags:modifiers
-                           timestamp:ui::EventTimeStampToSeconds(time_stamp)
+                           timestamp:0
                         windowNumber:[window windowNumber]
                              context:nil
                          eventNumber:0
@@ -248,9 +248,6 @@ class EventGeneratorDelegateMac : public ui::EventTarget,
   EventGeneratorDelegateMac(ui::test::EventGenerator* owner,
                             gfx::NativeWindow root_window,
                             gfx::NativeWindow target_window);
-  EventGeneratorDelegateMac(const EventGeneratorDelegateMac&) = delete;
-  EventGeneratorDelegateMac& operator=(const EventGeneratorDelegateMac&) =
-      delete;
   ~EventGeneratorDelegateMac() override;
 
   static EventGeneratorDelegateMac* instance() { return instance_; }
@@ -320,17 +317,18 @@ class EventGeneratorDelegateMac : public ui::EventTarget,
                               gfx::Point* point) const override {}
   void ConvertPointFromHost(const ui::EventTarget* hosted_target,
                             gfx::Point* point) const override {}
-
- protected:
-  // Overridden from ui::EventDispatcherDelegate (via ui::EventProcessor)
-  [[nodiscard]] ui::EventDispatchDetails PreDispatchEvent(
-      ui::EventTarget* target,
-      ui::Event* event) override;
+  ui::EventDispatchDetails DispatchKeyEventToIME(EventTarget* target,
+                                                 ui::KeyEvent* event) override {
+    // InputMethodMac does not send native events nor do the necessary
+    // translation. Key events must be handled natively by an NSResponder which
+    // translates keyboard events into editing commands.
+    return ui::EventDispatchDetails();
+  }
 
  private:
   static EventGeneratorDelegateMac* instance_;
 
-  raw_ptr<ui::test::EventGenerator> owner_;
+  ui::test::EventGenerator* owner_;
   base::scoped_nsobject<NSWindow> target_window_;
   std::unique_ptr<base::mac::ScopedObjCClassSwizzler> swizzle_pressed_;
   std::unique_ptr<base::mac::ScopedObjCClassSwizzler> swizzle_location_;
@@ -344,6 +342,8 @@ class EventGeneratorDelegateMac : public ui::EventTarget,
 
   // Timestamp on the last scroll update, used to simulate scroll momentum.
   base::TimeTicks last_scroll_timestamp_;
+
+  DISALLOW_COPY_AND_ASSIGN(EventGeneratorDelegateMac);
 };
 
 // static
@@ -372,7 +372,7 @@ EventGeneratorDelegateMac::EventGeneratorDelegateMac(
       {@"Paste", @selector(paste:), @"v"},
       {@"Select All", @selector(selectAll:), @"a"},
   };
-  for (size_t i = 0; i < std::size(fake_menu_item); ++i) {
+  for (size_t i = 0; i < base::size(fake_menu_item); ++i) {
     [fake_menu_ insertItemWithTitle:fake_menu_item[i].title
                              action:fake_menu_item[i].action
                       keyEquivalent:fake_menu_item[i].key_equivalent
@@ -430,8 +430,7 @@ void EventGeneratorDelegateMac::OnMouseEvent(ui::MouseEvent* event) {
       event->type() == ui::ET_MOUSEWHEEL
           ? CreateMouseWheelEventInWindow(target_window_, event)
           : CreateMouseEventInWindow(target_window_, event->type(),
-                                     event->location(), event->time_stamp(),
-                                     event->flags());
+                                     event->location(), event->flags());
 
   using Target = ui::test::EventGenerator::Target;
   switch (owner_->target()) {
@@ -461,9 +460,8 @@ void EventGeneratorDelegateMac::OnKeyEvent(ui::KeyEvent* event) {
     case Target::WINDOW:
       // -[NSApp sendEvent:] sends -performKeyEquivalent: if Command or Control
       // modifiers are pressed. Emulate that behavior.
-      if ([ns_event type] == NSEventTypeKeyDown &&
-          ([ns_event modifierFlags] &
-           (NSEventModifierFlagControl | NSEventModifierFlagCommand)) &&
+      if ([ns_event type] == NSKeyDown &&
+          ([ns_event modifierFlags] & (NSControlKeyMask | NSCommandKeyMask)) &&
           [target_window_ performKeyEquivalent:ns_event])
         break;  // Handled by performKeyEquivalent:.
 
@@ -581,28 +579,6 @@ gfx::Point EventGeneratorDelegateMac::CenterOfWindow(
   return gfx::Point(NSWidth([window frame]) / 2, NSHeight([window frame]) / 2);
 }
 
-ui::EventDispatchDetails EventGeneratorDelegateMac::PreDispatchEvent(
-    ui::EventTarget* target,
-    ui::Event* event) {
-  // Set the TestScreen's cursor point before mouse event dispatch. The
-  // Screen's value is checked by views controls and other UI components; this
-  // pattern matches aura::WindowEventDispatcher::PreDispatchMouseEvent().
-  if (event->IsMouseEvent()) {
-    ui::MouseEvent* mouse_event = event->AsMouseEvent();
-    // Similar to the logic in Aura's
-    // EnvInputStateController::UpdateStateForMouseEvent(), capture change and
-    // synthesized events don't need to update the cursor location.
-    if (mouse_event->type() != ui::ET_MOUSE_CAPTURE_CHANGED &&
-        !(mouse_event->flags() & ui::EF_IS_SYNTHESIZED)) {
-      // Update the cursor location on screen.
-      owner_->set_current_screen_location(mouse_event->root_location());
-      display::Screen::GetScreen()->SetCursorScreenPointForTesting(
-          mouse_event->root_location());
-    }
-  }
-  return ui::EventDispatchDetails();
-}
-
 ui::test::EventGenerator* GetActiveGenerator() {
   return EventGeneratorDelegateMac::instance()
              ? EventGeneratorDelegateMac::instance()->owner()
@@ -611,7 +587,8 @@ ui::test::EventGenerator* GetActiveGenerator() {
 
 }  // namespace
 
-namespace views::test {
+namespace views {
+namespace test {
 
 std::unique_ptr<ui::test::EventGeneratorDelegate>
 CreateEventGeneratorDelegateMac(ui::test::EventGenerator* owner,
@@ -620,7 +597,8 @@ CreateEventGeneratorDelegateMac(ui::test::EventGenerator* owner,
   return std::make_unique<EventGeneratorDelegateMac>(owner, root_window,
                                                      target_window);
 }
-}  // namespace views::test
+}  // namespace test
+}  // namespace views
 
 @implementation NSEventDonor
 

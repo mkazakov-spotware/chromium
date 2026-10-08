@@ -31,10 +31,12 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LOADER_THREADABLE_LOADER_CLIENT_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LOADER_THREADABLE_LOADER_CLIENT_H_
 
-#include "mojo/public/cpp/base/big_buffer.h"
+#include <memory>
+
+#include "base/macros.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/blob/blob_data.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -49,8 +51,7 @@ class CORE_EXPORT ThreadableLoaderClient : public GarbageCollectedMixin {
                            uint64_t /*totalBytesToBeSent*/) {}
   // Note that redirects for redirect modes kError and kManual are still
   // notified here. A client must return false in such cases.
-  virtual bool WillFollowRedirect(uint64_t /*identifier*/,
-                                  const KURL& new_url,
+  virtual bool WillFollowRedirect(const KURL& new_url,
                                   const ResourceResponse&) {
     return true;
   }
@@ -58,10 +59,10 @@ class CORE_EXPORT ThreadableLoaderClient : public GarbageCollectedMixin {
                                   const ResourceResponse&) {}
   virtual void DidStartLoadingResponseBody(BytesConsumer&) {}
   virtual void DidReceiveData(const char*, unsigned /*dataLength*/) {}
-  virtual void DidReceiveCachedMetadata(mojo_base::BigBuffer) {}
+  virtual void DidReceiveCachedMetadata(const char*, int /*dataLength*/) {}
   virtual void DidFinishLoading(uint64_t /*identifier*/) {}
-  virtual void DidFail(uint64_t /*identifier*/, const ResourceError&) {}
-  virtual void DidFailRedirectCheck(uint64_t /*identifier*/) {}
+  virtual void DidFail(const ResourceError&) {}
+  virtual void DidFailRedirectCheck() {}
 
   virtual void DidDownloadData(uint64_t /*dataLength*/) {}
   // Called for requests that had DownloadToBlob set to true. Can be called with
@@ -70,12 +71,12 @@ class CORE_EXPORT ThreadableLoaderClient : public GarbageCollectedMixin {
   // resource ended up being zero bytes.
   virtual void DidDownloadToBlob(scoped_refptr<BlobDataHandle>) {}
 
-  ThreadableLoaderClient(const ThreadableLoaderClient&) = delete;
-  ThreadableLoaderClient& operator=(const ThreadableLoaderClient&) = delete;
   virtual ~ThreadableLoaderClient() = default;
 
  protected:
   ThreadableLoaderClient() = default;
+
+  DISALLOW_COPY_AND_ASSIGN(ThreadableLoaderClient);
 };
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include <stdint.h>
 
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "ppapi/c/pp_instance.h"
 #include "ppapi/host/instance_message_filter.h"
 
@@ -25,12 +27,6 @@ class PepperSharedMemoryMessageFilter
     : public ppapi::host::InstanceMessageFilter {
  public:
   explicit PepperSharedMemoryMessageFilter(content::RendererPpapiHost* host);
-
-  PepperSharedMemoryMessageFilter(const PepperSharedMemoryMessageFilter&) =
-      delete;
-  PepperSharedMemoryMessageFilter& operator=(
-      const PepperSharedMemoryMessageFilter&) = delete;
-
   ~PepperSharedMemoryMessageFilter() override;
 
   // InstanceMessageFilter:
@@ -47,6 +43,8 @@ class PepperSharedMemoryMessageFilter
       ppapi::proxy::SerializedHandle* plugin_shm_handle);
 
   content::RendererPpapiHost* host_;
+
+  DISALLOW_COPY_AND_ASSIGN(PepperSharedMemoryMessageFilter);
 };
 
 #endif  // CHROME_RENDERER_PEPPER_PEPPER_SHARED_MEMORY_MESSAGE_FILTER_H_

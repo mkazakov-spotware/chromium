@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -14,6 +14,8 @@ source_set("client") {
     "nearby_share_client_impl.h",
     "nearby_share_http_notifier.cc",
     "nearby_share_http_notifier.h",
+    "nearby_share_switches.cc",
+    "nearby_share_switches.h",
   ]
 
   deps = [

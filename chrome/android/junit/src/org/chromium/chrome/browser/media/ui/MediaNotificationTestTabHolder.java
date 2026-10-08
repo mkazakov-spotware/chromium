@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,7 +35,6 @@ import java.util.stream.Stream;
 /**
  * Utility class for holding a Tab and relevant objects for media notification tests.
  */
-@SuppressWarnings("DoNotMock") // Mocks GURL
 public class MediaNotificationTestTabHolder {
     @Mock
     UrlFormatter.Natives mUrlFormatterJniMock;
@@ -96,8 +95,8 @@ public class MediaNotificationTestTabHolder {
         mMediaSessionTabHelper.mMediaSessionHelper.mWebContentsObserver.titleWasSet(title);
     }
 
-    public void simulateFaviconUpdated(Bitmap icon, GURL iconUrl) {
-        mMediaSessionTabHelper.mTabObserver.onFaviconUpdated(mTab, icon, iconUrl);
+    public void simulateFaviconUpdated(Bitmap icon) {
+        mMediaSessionTabHelper.mTabObserver.onFaviconUpdated(mTab, icon);
     }
 
     public void simulateMediaSessionStateChanged(boolean isControllable, boolean isSuspended) {
@@ -125,18 +124,16 @@ public class MediaNotificationTestTabHolder {
         when(gurl.getOrigin()).thenAnswer(invocation -> gurlOrigin);
         when(gurlOrigin.getSpec()).thenAnswer(invocation -> url);
 
-        NavigationHandle navigation = NavigationHandle.createForTesting(gurl,
-                true /* isInPrimaryMainFrame */, isSameDocument, false /* isRendererInitiated */,
-                0 /* pageTransition */, false /* hasUserGesture */, false /* isReload */);
-
-        mMediaSessionTabHelper.mMediaSessionHelper.mWebContentsObserver
-                .didStartNavigationInPrimaryMainFrame(navigation);
+        NavigationHandle navigation = new NavigationHandle(0 /* navigationHandleProxy */, gurl,
+                true /* isInMainFrame */, isSameDocument, false /* isRendererInitiated */);
+        mMediaSessionTabHelper.mMediaSessionHelper.mWebContentsObserver.didStartNavigation(
+                navigation);
 
         navigation.didFinish(gurl, false /* isErrorPage */, true /* hasCommitted */,
                 false /* isFragmentNavigation */, false /* isDownload */,
                 false /* isValidSearchFormUrl */, 0 /* pageTransition */, 0 /* errorCode */,
-                200 /* httpStatusCode */, false /* isExternalProtocol */);
-        mMediaSessionTabHelper.mMediaSessionHelper.mWebContentsObserver
-                .didFinishNavigationInPrimaryMainFrame(navigation);
+                200 /* httpStatusCode */);
+        mMediaSessionTabHelper.mMediaSessionHelper.mWebContentsObserver.didFinishNavigation(
+                navigation);
     }
 }

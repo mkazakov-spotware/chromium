@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,6 @@ namespace {
 // switch away after a large number of frames not needing DC layers have
 // been produced.
 constexpr int kNumberOfFramesBeforeDisablingDCLayers = 60;
-
 }  // anonymous namespace
 
 OverlayProcessorWin::OverlayProcessorWin(
@@ -51,11 +50,11 @@ gfx::Rect OverlayProcessorWin::GetAndResetOverlayDamage() {
 void OverlayProcessorWin::ProcessForOverlays(
     DisplayResourceProvider* resource_provider,
     AggregatedRenderPassList* render_passes,
-    const SkM44& output_color_matrix,
+    const SkMatrix44& output_color_matrix,
     const OverlayProcessorInterface::FilterOperationsMap& render_pass_filters,
     const OverlayProcessorInterface::FilterOperationsMap&
         render_pass_backdrop_filters,
-    SurfaceDamageRectList surface_damage_rect_list,
+    SurfaceDamageRectList* surface_damage_rect_list,
     OutputSurfaceOverlayPlane* output_surface_plane,
     CandidateList* candidates,
     gfx::Rect* damage_rect,
@@ -63,16 +62,34 @@ void OverlayProcessorWin::ProcessForOverlays(
   TRACE_EVENT0("viz", "OverlayProcessorWin::ProcessForOverlays");
 
   auto* root_render_pass = render_passes->back().get();
-  if (render_passes->back()->is_color_conversion_pass) {
-    DCHECK_GT(render_passes->size(), 1u);
-    root_render_pass = (*render_passes)[render_passes->size() - 2].get();
+  // Skip overlay processing if we have copy request.
+  if (!root_render_pass->copy_requests.empty()) {
+    damage_rect->Union(dc_layer_overlay_processor_
+                           ->previous_frame_overlay_damage_contribution());
+    // Update damage rect before calling ClearOverlayState, otherwise
+    // previous_frame_overlay_rect_union will be empty.
+    dc_layer_overlay_processor_->ClearOverlayState();
+    return;
+  }
+
+  // Skip overlay processing if output colorspace is HDR.
+  // Since most of overlay only supports NV12 and YUY2 now, HDR content (usually
+  // P010 format) cannot output through overlay without format degrading. In
+  // some Intel's platforms (Icelake or above), Overlay can play HDR content by
+  // supporting RGB10 format. Let overlay deal with HDR content in this
+  // situation.
+  bool supports_rgb10a2_overlay =
+      (gl::GetOverlaySupportFlags(DXGI_FORMAT_R10G10B10A2_UNORM) != 0 ||
+       output_surface_->capabilities().forces_rgb10a2_overlay_support_flags);
+  if (root_render_pass->content_color_usage == gfx::ContentColorUsage::kHDR &&
+      !supports_rgb10a2_overlay) {
+    return;
   }
 
   dc_layer_overlay_processor_->Process(
       resource_provider, gfx::RectF(root_render_pass->output_rect),
-      render_pass_filters, render_pass_backdrop_filters, root_render_pass,
-      damage_rect, std::move(surface_damage_rect_list), candidates,
-      is_video_capture_enabled_, is_page_fullscreen_mode_);
+      render_pass_filters, render_pass_backdrop_filters, render_passes,
+      damage_rect, surface_damage_rect_list, candidates);
 
   bool was_using_dc_layers = using_dc_layers_;
   if (!candidates->empty()) {
@@ -94,14 +111,6 @@ void OverlayProcessorWin::ProcessForOverlays(
 
 bool OverlayProcessorWin::NeedsSurfaceDamageRectList() const {
   return true;
-}
-
-void OverlayProcessorWin::SetIsVideoCaptureEnabled(bool enabled) {
-  is_video_capture_enabled_ = enabled;
-}
-
-void OverlayProcessorWin::SetIsPageFullscreen(bool enabled) {
-  is_page_fullscreen_mode_ = enabled;
 }
 
 }  // namespace viz

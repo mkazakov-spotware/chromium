@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,16 +6,14 @@
 
 #import "components/favicon/ios/web_favicon_driver.h"
 #import "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/chrome_url_util.h"
 #import "ios/chrome/browser/tabs/tab_title_util.h"
+#import "ios/chrome/browser/ui/tab_switcher/tab_grid/grid/grid_item.h"
 #import "ios/chrome/browser/ui/tab_switcher/tab_strip/tab_strip_consumer.h"
-#import "ios/chrome/browser/ui/tab_switcher/tab_switcher_item.h"
-#import "ios/chrome/browser/url/chrome_url_constants.h"
-#import "ios/chrome/browser/url/url_util.h"
+#import "ios/chrome/browser/web/tab_id_tab_helper.h"
 #import "ios/chrome/browser/web_state_list/all_web_state_observation_forwarder.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/web_state_list/web_state_list_observer_bridge.h"
-#import "ios/chrome/browser/web_state_list/web_state_opener.h"
-#import "ios/web/public/navigation/navigation_manager.h"
 #import "ios/web/public/web_state.h"
 #import "ios/web/public/web_state_observer_bridge.h"
 #import "ui/gfx/image/image.h"
@@ -25,10 +23,10 @@
 #endif
 
 namespace {
-// Constructs a TabSwitcherItem from a `web_state`.
-TabSwitcherItem* CreateItem(web::WebState* web_state) {
-  TabSwitcherItem* item = [[TabSwitcherItem alloc]
-      initWithIdentifier:web_state->GetStableIdentifier()];
+// Constructs a GridItem from a |web_state|.
+GridItem* CreateItem(web::WebState* web_state) {
+  TabIdTabHelper* tab_helper = TabIdTabHelper::FromWebState(web_state);
+  GridItem* item = [[GridItem alloc] initWithIdentifier:tab_helper->tab_id()];
   // chrome://newtab (NTP) tabs have no title.
   if (IsURLNtp(web_state->GetVisibleURL())) {
     item.hidesTitle = YES;
@@ -37,7 +35,7 @@ TabSwitcherItem* CreateItem(web::WebState* web_state) {
   return item;
 }
 
-// Constructs an array of TabSwitcherItems from a `web_state_list`.
+// Constructs an array of GridItems from a |web_state_list|.
 NSArray* CreateItems(WebStateList* web_state_list) {
   NSMutableArray* items = [[NSMutableArray alloc] init];
   for (int i = 0; i < web_state_list->count(); i++) {
@@ -47,7 +45,7 @@ NSArray* CreateItems(WebStateList* web_state_list) {
   return [items copy];
 }
 
-// Returns the ID of the active tab in `web_state_list`.
+// Returns the ID of the active tab in |web_state_list|.
 NSString* GetActiveTabId(WebStateList* web_state_list) {
   if (!web_state_list)
     return nil;
@@ -55,30 +53,21 @@ NSString* GetActiveTabId(WebStateList* web_state_list) {
   web::WebState* web_state = web_state_list->GetActiveWebState();
   if (!web_state)
     return nil;
-  return web_state->GetStableIdentifier();
+  TabIdTabHelper* tab_helper = TabIdTabHelper::FromWebState(web_state);
+  return tab_helper->tab_id();
 }
 
-// Returns the WebState with `identifier` in `web_state_list`. Returns `nullptr`
+// Returns the WebState with |identifier| in |web_state_list|. Returns |nullptr|
 // if not found.
 web::WebState* GetWebStateWithId(WebStateList* web_state_list,
                                  NSString* identifier) {
   for (int i = 0; i < web_state_list->count(); i++) {
     web::WebState* web_state = web_state_list->GetWebStateAt(i);
-    if ([identifier isEqualToString:web_state->GetStableIdentifier()])
+    TabIdTabHelper* tab_helper = TabIdTabHelper::FromWebState(web_state);
+    if ([identifier isEqualToString:tab_helper->tab_id()])
       return web_state;
   }
   return nullptr;
-}
-
-// Returns the index of the tab with `identifier` in `web_state_list`. Returns
-// -1 if not found.
-int GetIndexOfTabWithId(WebStateList* web_state_list, NSString* identifier) {
-  for (int i = 0; i < web_state_list->count(); i++) {
-    web::WebState* web_state = web_state_list->GetWebStateAt(i);
-    if ([identifier isEqualToString:web_state->GetStableIdentifier()])
-      return i;
-  }
-  return -1;
 }
 
 }  // namespace
@@ -133,7 +122,7 @@ int GetIndexOfTabWithId(WebStateList* web_state_list, NSString* identifier) {
     _webStateList->AddObserver(_webStateListObserver.get());
 
     _webStateObserver = std::make_unique<web::WebStateObserverBridge>(self);
-    // Observe all webStates of this `_webStateList`.
+    // Observe all webStates of this |_webStateList|.
     _allWebStateObservationForwarder =
         std::make_unique<AllWebStateObservationForwarder>(
             _webStateList, _webStateObserver.get());
@@ -154,24 +143,6 @@ int GetIndexOfTabWithId(WebStateList* web_state_list, NSString* identifier) {
               atIndex:(int)index
            activating:(BOOL)activating {
   [self populateConsumerItems];
-}
-
-- (void)webStateList:(WebStateList*)webStateList
-    didChangeActiveWebState:(web::WebState*)newWebState
-                oldWebState:(web::WebState*)oldWebState
-                    atIndex:(int)atIndex
-                     reason:(ActiveWebStateChangeReason)reason {
-  DCHECK_EQ(_webStateList, webStateList);
-  if (webStateList->IsBatchInProgress())
-    return;
-  // If the selected index changes as a result of the last webstate being
-  // detached, atIndex will be -1.
-  if (atIndex == -1) {
-    [self.consumer selectItemWithID:nil];
-    return;
-  }
-
-  [self.consumer selectItemWithID:newWebState->GetStableIdentifier()];
 }
 
 #pragma mark - TabFaviconDataSource
@@ -201,61 +172,25 @@ int GetIndexOfTabWithId(WebStateList* web_state_list, NSString* identifier) {
   }
 }
 
-#pragma mark - TabStripConsumerDelegate
-
-- (void)addNewItem {
-  if (!self.webStateList)
-    return;
-
-  web::WebState::CreateParams params(
-      self.webStateList->GetActiveWebState()->GetBrowserState());
-  std::unique_ptr<web::WebState> webState = web::WebState::Create(params);
-
-  GURL url(kChromeUINewTabURL);
-  web::NavigationManager::WebLoadParams loadParams(url);
-  loadParams.transition_type = ui::PAGE_TRANSITION_TYPED;
-  webState->GetNavigationManager()->LoadURLWithParams(loadParams);
-
-  self.webStateList->InsertWebState(
-      base::checked_cast<int>(self.webStateList->count()), std::move(webState),
-      (WebStateList::INSERT_FORCE_INDEX | WebStateList::INSERT_ACTIVATE),
-      WebStateOpener());
-  [self.consumer selectItemWithID:GetActiveTabId(self.webStateList)];
-}
-
-- (void)selectTab:(int)index {
-  if (!self.webStateList)
-    return;
-
-  _webStateList->ActivateWebStateAt(index);
-}
-
-- (void)closeItemWithID:(NSString*)itemID {
-  int index = GetIndexOfTabWithId(self.webStateList, itemID);
-  if (index >= 0)
-    self.webStateList->CloseWebStateAt(index, WebStateList::CLOSE_USER_ACTION);
-}
-
 #pragma mark - Private
 
-// Calls `-populateItems:selectedItemID:` on the consumer.
+// Calls |-populateItems:selectedItemID:| on the consumer.
 - (void)populateConsumerItems {
   if (!self.webStateList)
     return;
   if (self.webStateList->count() > 0) {
     [self.consumer populateItems:CreateItems(self.webStateList)
                   selectedItemID:GetActiveTabId(self.webStateList)];
-    self.consumer.isOffTheRecord = self.webStateList->GetWebStateAt(0)
-                                       ->GetBrowserState()
-                                       ->IsOffTheRecord();
   }
 }
 
 #pragma mark - CRWWebStateObserver
 
 - (void)webStateDidChangeTitle:(web::WebState*)webState {
-  [self.consumer replaceItemID:webState->GetStableIdentifier()
-                      withItem:CreateItem(webState)];
+  // Assumption: the ID of the webState didn't change as a result of this load.
+  TabIdTabHelper* tabHelper = TabIdTabHelper::FromWebState(webState);
+  NSString* itemID = tabHelper->tab_id();
+  [self.consumer replaceItemID:itemID withItem:CreateItem(webState)];
 }
 
 @end

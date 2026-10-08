@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -22,7 +22,6 @@ source_set("public") {
     "//base",
     "//chrome/common:constants",
     "//components/chrome_cleaner/public/constants",
-    "//components/component_updater",
     "//components/prefs:prefs",
     "//components/variations",
     "//url",
@@ -47,8 +46,6 @@ static_library("chrome_cleaner") {
     "chrome_prompt_actions_win.h",
     "chrome_prompt_channel_win.cc",
     "chrome_prompt_channel_win.h",
-    "reporter_histogram_recorder.cc",
-    "reporter_histogram_recorder.h",
     "reporter_runner_win.cc",
     "reporter_runner_win.h",
     "settings_resetter_win.cc",
@@ -58,10 +55,9 @@ static_library("chrome_cleaner") {
   ]
 
   deps = [
-    # TODO(crbug.com/925153): Break dependency cycles with //chrome/browser
+    # TODO(crbug.com/920223): Break dependency cycles with //chrome/browser
     ":public",
-    "//chrome/browser:browser_process",
-    "//chrome/browser/profiles:profile",
+    "//chrome/browser/extensions",
     "//chrome/browser/safe_browsing",
     "//chrome/browser/ui",
     "//chrome/common",
@@ -69,10 +65,12 @@ static_library("chrome_cleaner") {
     "//components/chrome_cleaner/public/constants",
     "//components/chrome_cleaner/public/proto",
     "//components/component_updater",
+    "//components/crx_file",
     "//components/pref_registry",
     "//components/prefs",
     "//components/safe_browsing/core/common:safe_browsing_prefs",
     "//content/public/browser",
+    "//extensions/browser",
     "//third_party/protobuf:protobuf_lite",
   ]
 }

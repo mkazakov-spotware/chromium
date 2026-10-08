@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,7 @@ public:
   size_t CommandCount() const;
 
   // Returns the list of executed draw commands.
-  const base::Value::List& Commands() const;
+  const base::ListValue& Commands() const;
 
   // Return the recorded render time (milliseconds) for a draw command index.
   double GetTime(size_t index);
@@ -33,9 +33,10 @@ protected:
   void willRestore() override;
 
   void didConcat44(const SkM44&) override;
+  void didConcat(const SkMatrix&) override;
   void didScale(SkScalar, SkScalar) override;
   void didTranslate(SkScalar, SkScalar) override;
-  void didSetM44(const SkM44&) override;
+  void didSetMatrix(const SkMatrix&) override;
 
   void onClipRect(const SkRect&, SkClipOp, ClipEdgeStyle) override;
   void onClipRRect(const SkRRect&, SkClipOp, ClipEdgeStyle) override;
@@ -53,17 +54,9 @@ protected:
 
   void onDrawPicture(const SkPicture*, const SkMatrix*, const SkPaint*) override;
 
-  void onDrawImage2(const SkImage*,
-                    SkScalar left,
-                    SkScalar top,
-                    const SkSamplingOptions&,
-                    const SkPaint*) override;
-  void onDrawImageRect2(const SkImage*,
-                        const SkRect& src,
-                        const SkRect& dst,
-                        const SkSamplingOptions&,
-                        const SkPaint*,
-                        SrcRectConstraint) override;
+  void onDrawImage(const SkImage*, SkScalar left, SkScalar top, const SkPaint*) override;
+  void onDrawImageRect(const SkImage*, const SkRect* src, const SkRect& dst,
+                       const SkPaint*, SrcRectConstraint) override;
 
   void onDrawTextBlob(const SkTextBlob* blob, SkScalar x, SkScalar y,
                       const SkPaint& paint) override;
@@ -73,8 +66,8 @@ private:
 
   class AutoOp;
 
-  base::Value::List op_records_;
+  base::ListValue op_records_;
 };
 
 }
-#endif  // SKIA_EXT_BENCHMARKING_CANVAS_H_
+#endif // SKIA_EXT_BENCHMARKING_CANVAS_H

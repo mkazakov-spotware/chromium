@@ -1,3 +1,3 @@
 @echo off
 
-call python3 %~dp0\json_values_converter.py
+call python %~dp0\json_values_converter.py

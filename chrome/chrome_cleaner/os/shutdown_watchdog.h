@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,9 +29,6 @@ class ShutdownWatchdog : public base::Watchdog {
   // is terminated and should return the exit code to be used when exiting.
   ShutdownWatchdog(const base::TimeDelta& duration, AlarmCallback callback);
 
-  ShutdownWatchdog(const ShutdownWatchdog&) = delete;
-  ShutdownWatchdog& operator=(const ShutdownWatchdog&) = delete;
-
   ~ShutdownWatchdog() override;
 
  private:
@@ -40,6 +37,8 @@ class ShutdownWatchdog : public base::Watchdog {
 
   // Callback called when the process execution is aborted.
   AlarmCallback callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(ShutdownWatchdog);
 };
 
 }  // namespace chrome_cleaner

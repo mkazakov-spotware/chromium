@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,45 +19,36 @@
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/url_formatter/url_formatter.h"
 
-namespace bookmarks {
 namespace {
 
 // Concatenates |ancestors| in reverse order and using '/' as the delimiter.
-std::u16string ConcatAncestorsTitles(
+base::string16 ConcatAncestorsTitles(
     std::vector<base::StringPiece16> ancestors) {
   return ancestors.empty()
-             ? std::u16string()
-             : std::accumulate(
-                   std::next(ancestors.rbegin()), ancestors.rend(),
-                   std::u16string(*ancestors.rbegin()),
-                   [](const std::u16string& a, const base::StringPiece16& b) {
-                     return a + u"/" + std::u16string(b);
-                   });
-}
-
-// Computes the total length of matched strings in the bookmark title.
-int GetTotalTitleMatchLength(const TitledUrlMatch& titled_url_match) {
-  int len = 0;
-  for (const auto& title_match : titled_url_match.title_match_positions) {
-    len += title_match.second - title_match.first;
-  }
-  return len;
+             ? base::string16()
+             : std::accumulate(std::next(ancestors.rbegin()), ancestors.rend(),
+                               base::string16(*ancestors.rbegin()),
+                               [](base::string16& a, base::StringPiece16& b) {
+                                 return a + base::UTF8ToUTF16("/") +
+                                        base::string16(b);
+                               });
 }
 
 }  // namespace
+
+namespace bookmarks {
 
 AutocompleteMatch TitledUrlMatchToAutocompleteMatch(
     const TitledUrlMatch& titled_url_match,
     AutocompleteMatchType::Type type,
     int relevance,
-    int bookmark_count,
     AutocompleteProvider* provider,
     const AutocompleteSchemeClassifier& scheme_classifier,
     const AutocompleteInput& input,
-    const std::u16string& fixed_up_input_text) {
-  const std::u16string title = titled_url_match.node->GetTitledUrlNodeTitle();
+    const base::string16& fixed_up_input_text) {
+  const base::string16 title = titled_url_match.node->GetTitledUrlNodeTitle();
   const GURL& url = titled_url_match.node->GetTitledUrlNodeUrl();
-  const std::u16string path = ConcatAncestorsTitles(
+  const base::string16 path = ConcatAncestorsTitles(
       titled_url_match.node->GetTitledUrlNodeAncestorTitles());
 
   // The AutocompleteMatch we construct is non-deletable because the only way to
@@ -76,20 +67,24 @@ AutocompleteMatch TitledUrlMatchToAutocompleteMatch(
                                         titled_url_match.url_match_positions,
                                         &match_in_scheme, &match_in_subdomain);
   auto format_types = AutocompleteMatch::GetFormatTypes(
-      input.parts().scheme.is_nonempty() || match_in_scheme,
-      match_in_subdomain);
-  const std::u16string formatted_url = url_formatter::FormatUrl(
-      url, format_types, base::UnescapeRule::SPACES, nullptr, nullptr, nullptr);
+      input.parts().scheme.len > 0 || match_in_scheme, match_in_subdomain);
+  const base::string16 formatted_url = url_formatter::FormatUrl(
+      url, format_types, net::UnescapeRule::SPACES, nullptr, nullptr, nullptr);
 
-  // Display the URL only if the input matches the URL but not the path.
-  // Otherwise, display the path, even if the input matches both or neither.
-  // Except if kBookmarkPaths is disabled, in which case, always display the
-  // URL.
-  match.contents = !base::FeatureList::IsEnabled(omnibox::kBookmarkPaths) ||
-                           (!titled_url_match.has_ancestor_match &&
-                            !titled_url_match.url_match_positions.empty())
-                       ? formatted_url
-                       : path;
+  if (base::GetFieldTrialParamByFeatureAsBool(
+          omnibox::kBookmarkPaths,
+          OmniboxFieldTrial::kBookmarkPathsUiReplaceUrl, false)) {
+    match.contents = path;
+  } else if (base::GetFieldTrialParamByFeatureAsBool(
+                 omnibox::kBookmarkPaths,
+                 OmniboxFieldTrial::kBookmarkPathsUiDynamicReplaceUrl, false)) {
+    match.contents = !titled_url_match.has_ancestor_match &&
+                             !titled_url_match.url_match_positions.empty()
+                         ? formatted_url
+                         : path;
+  } else {
+    match.contents = formatted_url;
+  }
 
   // Bookmark classification diverges from relevance scoring. Specifically,
   // 1) All occurrences of the input contribute to relevance; e.g. for the input
@@ -108,7 +103,17 @@ AutocompleteMatch TitledUrlMatchToAutocompleteMatch(
       ACMatchClassification::MATCH | ACMatchClassification::URL,
       ACMatchClassification::URL);
 
-  match.description = title;
+  if (base::GetFieldTrialParamByFeatureAsBool(
+          omnibox::kBookmarkPaths,
+          OmniboxFieldTrial::kBookmarkPathsUiReplaceTitle, false)) {
+    match.description = path + base::UTF8ToUTF16("/") + title;
+  } else if (base::GetFieldTrialParamByFeatureAsBool(
+                 omnibox::kBookmarkPaths,
+                 OmniboxFieldTrial::kBookmarkPathsUiAppendAfterTitle, false)) {
+    match.description = title + base::UTF8ToUTF16(" : ") + path;
+  } else {
+    match.description = title;
+  }
 
   base::TrimWhitespace(match.description, base::TRIM_LEADING,
                        &match.description);
@@ -128,33 +133,16 @@ AutocompleteMatch TitledUrlMatchToAutocompleteMatch(
       AutocompleteInput::FormattedStringWithEquivalentMeaning(
           url,
           url_formatter::FormatUrl(url, fill_into_edit_format_types,
-                                   base::UnescapeRule::SPACES, nullptr, nullptr,
+                                   net::UnescapeRule::SPACES, nullptr, nullptr,
                                    &inline_autocomplete_offset),
           scheme_classifier, &inline_autocomplete_offset);
 
   if (match.TryRichAutocompletion(match.contents, match.description, input)) {
     // If rich autocompletion applies, we skip trying the alternatives below.
-  } else if (inline_autocomplete_offset != std::u16string::npos) {
+  } else if (inline_autocomplete_offset != base::string16::npos) {
     match.inline_autocompletion =
         match.fill_into_edit.substr(inline_autocomplete_offset);
     match.SetAllowedToBeDefault(input);
-  }
-
-  if (provider->InKeywordMode(input)) {
-    match.from_keyword = true;
-  }
-
-  if (OmniboxFieldTrial::IsLogUrlScoringSignalsEnabled()) {
-    // Populate ACMatches with signals for ML model scoring and training.
-    if (!titled_url_match.title_match_positions.empty())
-      match.scoring_signals.set_first_bookmark_title_match_position(
-          titled_url_match.title_match_positions[0].first);
-    match.scoring_signals.set_total_bookmark_title_match_length(
-        GetTotalTitleMatchLength(titled_url_match));
-    match.scoring_signals.set_allowed_to_be_default_match(
-        match.allowed_to_be_default_match);
-    match.scoring_signals.set_length_of_url(url.spec().length());
-    match.scoring_signals.set_num_bookmarks_of_url(bookmark_count);
   }
 
   return match;

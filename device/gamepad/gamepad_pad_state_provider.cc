@@ -1,16 +1,14 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/gamepad/gamepad_pad_state_provider.h"
 
 #include <cmath>
-#include <memory>
 
 #include "device/gamepad/gamepad_data_fetcher.h"
 #include "device/gamepad/gamepad_provider.h"
 #include "device/gamepad/public/cpp/gamepads.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace device {
 
@@ -24,7 +22,7 @@ PadState::PadState() = default;
 PadState::~PadState() = default;
 
 GamepadPadStateProvider::GamepadPadStateProvider() {
-  pad_states_ = std::make_unique<PadState[]>(Gamepads::kItemsLengthCap);
+  pad_states_.reset(new PadState[Gamepads::kItemsLengthCap]);
 
   for (size_t i = 0; i < Gamepads::kItemsLengthCap; ++i)
     ClearPadState(pad_states_.get()[i]);
@@ -36,39 +34,35 @@ PadState* GamepadPadStateProvider::GetPadState(GamepadSource source,
                                                int source_id,
                                                bool new_gamepad_recognized) {
   // Check to see if the device already has a reserved slot
-  absl::optional<size_t> empty_slot_index;
-  absl::optional<size_t> unrecognized_slot_index;
+  PadState* empty_slot = nullptr;
+  PadState* unrecognized_slot = nullptr;
   for (size_t i = 0; i < Gamepads::kItemsLengthCap; ++i) {
-    auto& state = pad_states_.get()[i];
+    PadState& state = pad_states_.get()[i];
     if (state.source == source && state.source_id == source_id) {
       // Retrieving the pad state marks this gamepad as active.
       state.is_active = true;
       return &state;
     }
-    if (!empty_slot_index && state.source == GamepadSource::kNone)
-      empty_slot_index = i;
+    if (!empty_slot && state.source == GAMEPAD_SOURCE_NONE)
+      empty_slot = &state;
     if (!state.is_recognized)
-      unrecognized_slot_index = i;
+      unrecognized_slot = &state;
   }
 
-  if (!empty_slot_index && unrecognized_slot_index && new_gamepad_recognized) {
-    auto& state = pad_states_.get()[*unrecognized_slot_index];
-    DisconnectUnrecognizedGamepad(state.source, state.source_id);
-    empty_slot_index = unrecognized_slot_index;
+  if (!empty_slot && unrecognized_slot && new_gamepad_recognized) {
+    DisconnectUnrecognizedGamepad(unrecognized_slot->source,
+                                  unrecognized_slot->source_id);
+    empty_slot = unrecognized_slot;
   }
-  if (!empty_slot_index) {
-    return nullptr;
+  if (empty_slot) {
+    empty_slot->source = source;
+    empty_slot->source_id = source_id;
+    empty_slot->is_active = true;
+    empty_slot->is_newly_active = true;
+    empty_slot->is_initialized = false;
+    empty_slot->is_recognized = new_gamepad_recognized;
   }
-
-  auto& empty_slot = pad_states_.get()[*empty_slot_index];
-  empty_slot.pad_index = *empty_slot_index;
-  empty_slot.source = source;
-  empty_slot.source_id = source_id;
-  empty_slot.is_active = true;
-  empty_slot.is_newly_active = true;
-  empty_slot.is_initialized = false;
-  empty_slot.is_recognized = new_gamepad_recognized;
-  return &empty_slot;
+  return empty_slot;
 }
 
 PadState* GamepadPadStateProvider::GetConnectedPadState(uint32_t pad_index) {
@@ -76,7 +70,7 @@ PadState* GamepadPadStateProvider::GetConnectedPadState(uint32_t pad_index) {
     return nullptr;
 
   PadState& pad_state = pad_states_.get()[pad_index];
-  if (pad_state.source == GamepadSource::kNone)
+  if (pad_state.source == GAMEPAD_SOURCE_NONE)
     return nullptr;
 
   return &pad_state;

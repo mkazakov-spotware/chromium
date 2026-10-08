@@ -1,27 +1,25 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/allocator/partition_allocator/address_space_randomization.h"
 
-#include <cstdint>
 #include <vector>
 
 #include "base/allocator/partition_allocator/page_allocator.h"
-#include "base/allocator/partition_allocator/partition_alloc_base/debug/debugging_buildflags.h"
-#include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/random.h"
+#include "base/check_op.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #include "base/win/windows_version.h"
-// versionhelpers.h must be included after windows.h.
-#include <versionhelpers.h>
+// VersionHelpers.h must be included after windows.h.
+#include <VersionHelpers.h>
 #endif
 
-namespace partition_alloc {
+namespace base {
 
 namespace {
 
@@ -29,20 +27,20 @@ uintptr_t GetMask() {
   uintptr_t mask = internal::ASLRMask();
 #if defined(ARCH_CPU_64_BITS)
 // Sanitizers use their own ASLR mask constant.
-#if BUILDFLAG(IS_WIN) && !defined(MEMORY_TOOL_REPLACES_ALLOCATOR)
+#if defined(OS_WIN) && !defined(MEMORY_TOOL_REPLACES_ALLOCATOR)
   if (!IsWindows8Point1OrGreater()) {
     mask = internal::ASLRMaskBefore8_10();
   }
-#endif  // BUILDFLAG(IS_WIN) && !defined(MEMORY_TOOL_REPLACES_ALLOCATOR))
+#endif  // defined(OS_WIN) && !defined(MEMORY_TOOL_REPLACES_ALLOCATOR))
 #elif defined(ARCH_CPU_32_BITS)
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   BOOL is_wow64 = FALSE;
   if (!IsWow64Process(GetCurrentProcess(), &is_wow64))
     is_wow64 = FALSE;
   if (!is_wow64) {
     mask = 0;
   }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 #endif  // defined(ARCH_CPU_32_BITS)
   return mask;
 }
@@ -50,7 +48,7 @@ uintptr_t GetMask() {
 const size_t kSamples = 100;
 
 uintptr_t GetAddressBits() {
-  return GetRandomPageBase();
+  return reinterpret_cast<uintptr_t>(base::GetRandomPageBase());
 }
 
 uintptr_t GetRandomBits() {
@@ -60,32 +58,31 @@ uintptr_t GetRandomBits() {
 }  // namespace
 
 // Configurations without ASLR are tested here.
-TEST(PartitionAllocAddressSpaceRandomizationTest, DisabledASLR) {
+TEST(AddressSpaceRandomizationTest, DisabledASLR) {
   uintptr_t mask = GetMask();
   if (!mask) {
-#if BUILDFLAG(IS_WIN) && defined(ARCH_CPU_32_BITS)
+#if defined(OS_WIN) && defined(ARCH_CPU_32_BITS)
     // ASLR should be turned off on 32-bit Windows.
-    EXPECT_EQ(0u, GetRandomPageBase());
+    EXPECT_EQ(nullptr, base::GetRandomPageBase());
 #else
-    // Otherwise, 0 is very unexpected.
-    EXPECT_NE(0u, GetRandomPageBase());
+    // Otherwise, nullptr is very unexpected.
+    EXPECT_NE(nullptr, base::GetRandomPageBase());
 #endif
   }
 }
 
-TEST(PartitionAllocAddressSpaceRandomizationTest, Alignment) {
+TEST(AddressSpaceRandomizationTest, Alignment) {
   uintptr_t mask = GetMask();
   if (!mask)
     return;
 
   for (size_t i = 0; i < kSamples; ++i) {
     uintptr_t address = GetAddressBits();
-    EXPECT_EQ(0ULL,
-              (address & internal::PageAllocationGranularityOffsetMask()));
+    EXPECT_EQ(0ULL, (address & PageAllocationGranularityOffsetMask()));
   }
 }
 
-TEST(PartitionAllocAddressSpaceRandomizationTest, Range) {
+TEST(AddressSpaceRandomizationTest, Range) {
   uintptr_t mask = GetMask();
   if (!mask)
     return;
@@ -99,23 +96,25 @@ TEST(PartitionAllocAddressSpaceRandomizationTest, Range) {
   }
 }
 
-TEST(PartitionAllocAddressSpaceRandomizationTest, Predictable) {
+TEST(AddressSpaceRandomizationTest, Predictable) {
   uintptr_t mask = GetMask();
   if (!mask)
     return;
 
   const uint64_t kInitialSeed = 0xfeed5eedULL;
-  SetMmapSeedForTesting(kInitialSeed);
+  base::SetMmapSeedForTesting(kInitialSeed);
 
   std::vector<uintptr_t> sequence;
   for (size_t i = 0; i < kSamples; ++i) {
-    sequence.push_back(GetRandomPageBase());
+    uintptr_t address = reinterpret_cast<uintptr_t>(base::GetRandomPageBase());
+    sequence.push_back(address);
   }
 
-  SetMmapSeedForTesting(kInitialSeed);
+  base::SetMmapSeedForTesting(kInitialSeed);
 
   for (size_t i = 0; i < kSamples; ++i) {
-    EXPECT_EQ(GetRandomPageBase(), sequence[i]);
+    uintptr_t address = reinterpret_cast<uintptr_t>(base::GetRandomPageBase());
+    EXPECT_EQ(address, sequence[i]);
   }
 }
 
@@ -137,12 +136,7 @@ void RandomBitCorrelation(int random_bit) {
   if ((mask & (1ULL << random_bit)) == 0)
     return;  // bit is always 0.
 
-#if BUILDFLAG(PA_DCHECK_IS_ON)
-  // Do fewer checks when BUILDFLAG(PA_DCHECK_IS_ON). Exercized code only
-  // changes when the random number generator does, which should be almost
-  // never. However it's expensive to run all the tests. So keep iterations
-  // faster for local development builds, while having the stricter version run
-  // on official build testers.
+#ifdef DEBUG
   constexpr int kHistory = 2;
   constexpr int kRepeats = 1000;
 #else
@@ -190,7 +184,7 @@ void RandomBitCorrelation(int random_bit) {
       // For k=2 probability of Chi^2 < 35 is p=3.338e-9. This condition is
       // tested ~19000 times, so probability of it failing randomly per one
       // base_unittests run is (1 - (1 - p) ^ 19000) ~= 6e-5.
-      PA_CHECK(chi_squared <= 35.0);
+      CHECK_LE(chi_squared, 35.0);
       // If the predictor bit is a fixed 0 or 1 then it makes no sense to
       // repeat the test with a different age.
       if (predictor_bit < 0)
@@ -200,10 +194,9 @@ void RandomBitCorrelation(int random_bit) {
 }
 
 // Tests are fairly slow, so give each random bit its own test.
-#define TEST_RANDOM_BIT(BIT)                        \
-  TEST(PartitionAllocAddressSpaceRandomizationTest, \
-       RandomBitCorrelations##BIT) {                \
-    RandomBitCorrelation(BIT);                      \
+#define TEST_RANDOM_BIT(BIT)                                        \
+  TEST(AddressSpaceRandomizationTest, RandomBitCorrelations##BIT) { \
+    RandomBitCorrelation(BIT);                                      \
   }
 
 // The first 12 bits on all platforms are always 0.
@@ -250,32 +243,4 @@ TEST_RANDOM_BIT(48)
 
 #undef TEST_RANDOM_BIT
 
-// Checks that we can actually map memory in the requested range.
-// TODO(crbug.com/1318466): Extend to all operating systems once they are fixed.
-#if BUILDFLAG(IS_MAC)
-TEST(PartitionAllocAddressSpaceRandomizationTest, CanMapInAslrRange) {
-  int tries = 0;
-  // This is overly generous, but we really don't want to make the test flaky.
-  constexpr int kMaxTries = 1000;
-
-  for (tries = 0; tries < kMaxTries; tries++) {
-    uintptr_t requested_address = GetRandomPageBase();
-    size_t size = internal::PageAllocationGranularity();
-
-    uintptr_t address = AllocPages(
-        requested_address, size, internal::PageAllocationGranularity(),
-        PageAccessibilityConfiguration(
-            PageAccessibilityConfiguration::kReadWrite),
-        PageTag::kPartitionAlloc);
-    ASSERT_NE(address, 0u);
-    FreePages(address, size);
-
-    if (address == requested_address)
-      break;
-  }
-
-  EXPECT_LT(tries, kMaxTries);
-}
-#endif  // BUILDFLAG(IS_MAC)
-
-}  // namespace partition_alloc
+}  // namespace base

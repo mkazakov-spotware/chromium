@@ -1,10 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/wm/core/base_focus_rules.h"
 
-#include "base/containers/adapters.h"
 #include "ui/aura/client/focus_client.h"
 #include "ui/aura/window.h"
 #include "ui/wm/core/window_modality_controller.h"
@@ -157,7 +156,8 @@ aura::Window* BaseFocusRules::GetNextActivatableWindow(
   const aura::Window::Windows& siblings = ignore->parent()->children();
   DCHECK(!siblings.empty());
 
-  for (aura::Window* cur : base::Reversed(siblings)) {
+  for (auto rit = siblings.rbegin(); rit != siblings.rend(); ++rit) {
+    aura::Window* cur = *rit;
     if (cur == ignore)
       continue;
     if (CanActivateWindow(cur))

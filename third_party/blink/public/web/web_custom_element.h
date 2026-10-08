@@ -31,34 +31,33 @@
 #ifndef THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_CUSTOM_ELEMENT_H_
 #define THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_CUSTOM_ELEMENT_H_
 
+#include "base/macros.h"
 #include "third_party/blink/public/platform/web_common.h"
 
 namespace blink {
 
 class WebString;
 
-class BLINK_EXPORT WebCustomElement {
+class WebCustomElement {
  public:
   // Adds a name to the set of names embedders can use with
   // window.customElements.define to register their own types. Because Custom
   // Element processing requires the set of valid names to be known ahead of
   // time, this method should be called before an element with this name is
   // created.
-  static void AddEmbedderCustomElementName(const WebString& name);
+  BLINK_EXPORT static void AddEmbedderCustomElementName(const WebString& name);
 
   // Allows the use of names added with |AddEmbedderCustomElementName| during
   // window.customElements.define.
   class BLINK_EXPORT EmbedderNamesAllowedScope {
    public:
     EmbedderNamesAllowedScope();
-    EmbedderNamesAllowedScope(const EmbedderNamesAllowedScope&) = delete;
-    EmbedderNamesAllowedScope& operator=(const EmbedderNamesAllowedScope&) =
-        delete;
     ~EmbedderNamesAllowedScope();
 
     static bool IsAllowed();
 
    private:
+    DISALLOW_COPY_AND_ASSIGN(EmbedderNamesAllowedScope);
     void* operator new(size_t) = delete;
   };
 
@@ -68,4 +67,4 @@ class BLINK_EXPORT WebCustomElement {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_CUSTOM_ELEMENT_H_
+#endif

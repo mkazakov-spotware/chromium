@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "third_party/blink/renderer/platform/peerconnection/gpu_codec_support_waiter.h"
-#include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/webrtc/api/video_codecs/video_encoder_factory.h"
 #include "third_party/webrtc/modules/video_coding/include/video_codec_interface.h"
 
@@ -20,26 +20,16 @@ namespace blink {
 
 // This class creates RTCVideoEncoder instances (each wrapping a
 // media::VideoEncodeAccelerator) on behalf of the WebRTC stack.
-class PLATFORM_EXPORT RTCVideoEncoderFactory
-    : public webrtc::VideoEncoderFactory {
+class RTCVideoEncoderFactory : public webrtc::VideoEncoderFactory {
  public:
   explicit RTCVideoEncoderFactory(
       media::GpuVideoAcceleratorFactories* gpu_factories);
-  RTCVideoEncoderFactory(const RTCVideoEncoderFactory&) = delete;
-  RTCVideoEncoderFactory& operator=(const RTCVideoEncoderFactory&) = delete;
   ~RTCVideoEncoderFactory() override;
 
   // webrtc::VideoEncoderFactory implementation.
   std::unique_ptr<webrtc::VideoEncoder> CreateVideoEncoder(
       const webrtc::SdpVideoFormat& format) override;
   std::vector<webrtc::SdpVideoFormat> GetSupportedFormats() const override;
-  webrtc::VideoEncoderFactory::CodecSupport QueryCodecSupport(
-      const webrtc::SdpVideoFormat& format,
-      absl::optional<std::string> scalability_mode) const override;
-
-  // Some platforms don't allow hardware encoding for certain profiles. Tests
-  // exercising VP9 or AV1 likely want to clear this list.
-  void clear_disabled_profiles_for_testing() { disabled_profiles_.clear(); }
 
  private:
   void CheckAndWaitEncoderSupportStatusIfNeeded() const;
@@ -48,9 +38,7 @@ class PLATFORM_EXPORT RTCVideoEncoderFactory
 
   GpuCodecSupportWaiter gpu_codec_support_waiter_;
 
-  // List of profiles that RTCVideoEncoderFactory will refuse to create an
-  // encoder for even if the underlying GPU factories has support.
-  std::vector<media::VideoCodecProfile> disabled_profiles_;
+  DISALLOW_COPY_AND_ASSIGN(RTCVideoEncoderFactory);
 };
 
 }  // namespace blink

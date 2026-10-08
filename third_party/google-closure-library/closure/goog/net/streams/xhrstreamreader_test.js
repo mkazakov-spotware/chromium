@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2015 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.net.streams.XhrStreamReaderTest');
 goog.setTestOnly('goog.net.streams.XhrStreamReaderTest');
@@ -15,16 +23,16 @@ const PbJsonStreamParser = goog.require('goog.net.streams.PbJsonStreamParser');
 const PbStreamParser = goog.require('goog.net.streams.PbStreamParser');
 const TestingNetXhrIo = goog.require('goog.testing.net.XhrIo');
 const XhrIo = goog.require('goog.net.XhrIo');
+const XhrStreamReader = goog.require('goog.net.streams.XhrStreamReader');
 const XmlHttp = goog.require('goog.net.XmlHttp');
 const googObject = goog.require('goog.object');
 const testSuite = goog.require('goog.testing.testSuite');
-const {XhrStreamReader, XhrStreamReaderStatus} = goog.require('goog.net.streams.xhrStreamReader');
-const {getStreamParser} = goog.require('goog.net.streams.streamParsers');
 
 
 let xhrReader;
 let xhrIo;
 
+const Status = XhrStreamReader.Status;
 const ReadyState = XmlHttp.ReadyState;
 
 const CONTENT_TYPE_HEADER = XhrIo.CONTENT_TYPE_HEADER;
@@ -48,46 +56,42 @@ testSuite({
   },
 
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testGetParserByResponseHeader() {
     xhrIo.getStreamingResponseHeader = function() {
       return null;
     };
-    assertNull(getStreamParser(/** @type {!XhrIo} */ (xhrIo)));
+    assertNull(xhrReader.getParserByResponseHeader_());
 
     xhrIo.getStreamingResponseHeader = function() {
       return '';
     };
-    assertNull(getStreamParser(/** @type {!XhrIo} */ (xhrIo)));
+    assertNull(xhrReader.getParserByResponseHeader_());
 
     xhrIo.getStreamingResponseHeader = function() {
       return 'xxxxx';
     };
-    assertNull(getStreamParser(/** @type {!XhrIo} */ (xhrIo)));
+    assertNull(xhrReader.getParserByResponseHeader_());
 
     xhrIo.getStreamingResponseHeader = function(key) {
       if (key == CONTENT_TYPE_HEADER) return 'application/json';
       return null;
     };
     assertTrue(
-        getStreamParser(/** @type {!XhrIo} */ (xhrIo)) instanceof
-        JsonStreamParser);
+        xhrReader.getParserByResponseHeader_() instanceof JsonStreamParser);
 
     xhrIo.getStreamingResponseHeader = function(key) {
       if (key == CONTENT_TYPE_HEADER) return 'application/json; charset=utf-8';
       return null;
     };
     assertTrue(
-        getStreamParser(/** @type {!XhrIo} */ (xhrIo)) instanceof
-        JsonStreamParser);
+        xhrReader.getParserByResponseHeader_() instanceof JsonStreamParser);
 
     xhrIo.getStreamingResponseHeader = function(key) {
       if (key == CONTENT_TYPE_HEADER) return 'application/x-protobuf';
       return null;
     };
     assertTrue(
-        getStreamParser(/** @type {!XhrIo} */ (xhrIo)) instanceof
-        PbStreamParser);
+        xhrReader.getParserByResponseHeader_() instanceof PbStreamParser);
 
     xhrIo.getStreamingResponseHeader = function(key) {
       if (key == CONTENT_TYPE_HEADER) return 'application/x-protobuf';
@@ -95,16 +99,14 @@ testSuite({
       return null;
     };
     assertTrue(
-        getStreamParser(/** @type {!XhrIo} */ (xhrIo)) instanceof
-        Base64PbStreamParser);
+        xhrReader.getParserByResponseHeader_() instanceof Base64PbStreamParser);
 
     xhrIo.getStreamingResponseHeader = function(key) {
       if (key == CONTENT_TYPE_HEADER) return 'application/json+protobuf';
       return null;
     };
     assertTrue(
-        getStreamParser(/** @type {!XhrIo} */ (xhrIo)) instanceof
-        PbJsonStreamParser);
+        xhrReader.getParserByResponseHeader_() instanceof PbJsonStreamParser);
   },
 
 
@@ -124,7 +126,7 @@ testSuite({
     xhrIo.send('/foo/bar');
     xhrIo.simulateResponse(HttpStatus.OK, '', headers);
 
-    assertElementsEquals([XhrStreamReaderStatus.NO_DATA], streamStatus);
+    assertElementsEquals([Status.NO_DATA], streamStatus);
     assertElementsEquals([HttpStatus.OK], httpStatus);
   },
 
@@ -151,9 +153,7 @@ testSuite({
     assertElementsEquals(['1'], googObject.getKeys(received[0][0]));
     assertElementsEquals('b', received[0][0][1]);
 
-    assertElementsEquals(
-        [XhrStreamReaderStatus.ACTIVE, XhrStreamReaderStatus.SUCCESS],
-        streamStatus);
+    assertElementsEquals([Status.ACTIVE, Status.SUCCESS], streamStatus);
     assertElementsEquals([HttpStatus.OK, HttpStatus.OK], httpStatus);
   },
 
@@ -231,42 +231,7 @@ testSuite({
     assertElementsEquals([0x6a, 0x6b, 0x6c], received[0][0][1]);
 
     xhrIo.simulateReadyStateChange(ReadyState.COMPLETE);
-    assertEquals(XhrStreamReaderStatus.SUCCESS, xhrReader.getStatus());
-  },
-
-  testParsingBinaryChunksBase64Encoded() {
-    /**
-     * Pass the following protobuf messages
-     *    0x0a, 0x03, 0x61, 0x62, 0x63,
-     *    0x0a, 0x03, 0x64, 0x65, 0x66,
-     *    0x12, 0x03, 0x67, 0x68, 0x69,
-     *    0x0a, 0x03, 0x6a, 0x6b, 0x6c,
-     */
-    if (typeof TextEncoder === 'undefined') {
-      return;
-    }
-    const responseBase64 = 'CgNhYmMKA2RlZhIDZ2hpCgNqa2w=';
-    const response = (new TextEncoder()).encode(responseBase64);
-    const responseChunks = [response.slice(0, 5), response.slice(5)];
-    // Override the original XhrIo.send();
-    xhrIo.getResponse = () => responseChunks;
-
-    let received = [];
-    xhrReader.setDataHandler(function(messages) {
-      received.push(messages);
-    });
-
-    const headers = {
-      'Content-Type': 'application/x-protobuf',
-      'Content-Transfer-Encoding': 'BASE64',
-    };
-
-    xhrIo.send('/foo/bar');
-    xhrIo.simulateResponse(HttpStatus.OK, 'testing', headers);
-    assertElementsEquals([0x61, 0x62, 0x63], received[0][0][1]);
-    assertElementsEquals([0x64, 0x65, 0x66], received[0][1][1]);
-    assertElementsEquals([0x67, 0x68, 0x69], received[0][2][2]);
-    assertElementsEquals([0x6a, 0x6b, 0x6c], received[0][3][1]);
+    assertEquals(Status.SUCCESS, xhrReader.getStatus());
   },
 
 
@@ -280,7 +245,7 @@ testSuite({
     };
     xhrIo.simulateReadyStateChange(ReadyState.COMPLETE);
 
-    assertEquals(XhrStreamReaderStatus.TIMEOUT, xhrReader.getStatus());
+    assertEquals(Status.TIMEOUT, xhrReader.getStatus());
   },
 
 

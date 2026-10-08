@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,15 +25,8 @@ public interface VideoTutorialService {
 
     /**
      * Called to get the list of supported languages.
-     * Deprecated in favor of getAvailableLanguagesForVideo(@FeatureType).
      */
     List<String> getSupportedLanguages();
-
-    /**
-     * Called to get the list of supported languages in which a tutorial is available.
-     * @param feature The associated tutorial.
-     */
-    List<String> getAvailableLanguagesForTutorial(@FeatureType int feature);
 
     /**
      * @return The user's language of choice for watching the video tutorials, or null user hasn't

@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,16 +16,11 @@
 
 #include <unistd.h>
 
-#include <iterator>
 #include <vector>
 
 #include "base/check_op.h"
 #include "base/logging.h"
-#include "build/build_config.h"
-
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS)
-#include <sys/syscall.h>
-#endif
+#include "base/stl_util.h"
 
 namespace crashpad {
 
@@ -51,10 +46,10 @@ constexpr int kCrashSignals[] = {
 #if defined(SIGEMT)
     SIGEMT,
 #endif  // defined(SIGEMT)
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
     SIGXCPU,
     SIGXFSZ,
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 };
 
 // These are the non-core-generating but terminating signals.
@@ -87,13 +82,13 @@ constexpr int kTerminateSignals[] = {
 #if defined(SIGSTKFLT)
     SIGSTKFLT,
 #endif  // defined(SIGSTKFLT)
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
     SIGXCPU,
     SIGXFSZ,
-#endif  // BUILDFLAG(IS_APPLE)
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_APPLE)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
     SIGIO,
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 };
 
 bool InstallHandlers(const std::vector<int>& signals,
@@ -130,7 +125,7 @@ bool IsSignalInSet(int sig, const int* set, size_t set_size) {
 struct sigaction* Signals::OldActions::ActionForSignal(int sig) {
   DCHECK_GT(sig, 0);
   const size_t slot = sig - 1;
-  DCHECK_LT(slot, std::size(actions_));
+  DCHECK_LT(slot, base::size(actions_));
   return &actions_[slot];
 }
 
@@ -147,25 +142,6 @@ bool Signals::InstallHandler(int sig,
     PLOG(ERROR) << "sigaction " << sig;
     return false;
   }
-
-// Sanitizers can prevent the installation of signal handlers, but sigaction
-// does not report this as failure. Attempt to detect this by checking the
-// currently installed signal handler.
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER) || defined(LEAK_SANITIZER) ||    \
-    defined(UNDEFINED_SANITIZER)
-  struct sigaction installed_handler;
-  CHECK_EQ(sigaction(sig, nullptr, &installed_handler), 0);
-  // If the installed handler does not point to the just installed handler, then
-  // the allow_user_segv_handler sanitizer flag is (probably) disabled.
-  if (installed_handler.sa_sigaction != handler) {
-    LOG(WARNING)
-        << "sanitizers are preventing signal handler installation (sig " << sig
-        << ")";
-    return false;
-  }
-#endif
-
   return true;
 }
 
@@ -184,7 +160,8 @@ bool Signals::InstallCrashHandlers(Handler handler,
                                    OldActions* old_actions,
                                    const std::set<int>* unhandled_signals) {
   return InstallHandlers(
-      std::vector<int>(kCrashSignals, kCrashSignals + std::size(kCrashSignals)),
+      std::vector<int>(kCrashSignals,
+                       kCrashSignals + base::size(kCrashSignals)),
       handler,
       flags,
       old_actions,
@@ -197,7 +174,7 @@ bool Signals::InstallTerminateHandlers(Handler handler,
                                        OldActions* old_actions) {
   return InstallHandlers(
       std::vector<int>(kTerminateSignals,
-                       kTerminateSignals + std::size(kTerminateSignals)),
+                       kTerminateSignals + base::size(kTerminateSignals)),
       handler,
       flags,
       old_actions,
@@ -303,32 +280,6 @@ void Signals::RestoreHandlerAndReraiseSignalOnReturn(
     _exit(kFailureExitCode);
   }
 
-  // If we can raise a signal with siginfo on this platform, do so. This ensures
-  // that we preserve the siginfo information for asynchronous signals (i.e.
-  // signals that do not re-raise autonomously), such as signals delivered via
-  // kill() and asynchronous hardware faults such as SEGV_MTEAERR, which would
-  // otherwise be lost when re-raising the signal via raise().
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS)
-  int retval = syscall(SYS_rt_tgsigqueueinfo,
-                       getpid(),
-                       syscall(SYS_gettid),
-                       siginfo->si_signo,
-                       siginfo);
-  if (retval == 0) {
-    return;
-  }
-
-  // Kernels without commit 66dd34ad31e5 ("signal: allow to send any siginfo to
-  // itself"), which was first released in kernel version 3.9, did not permit a
-  // process to send arbitrary signals to itself, and will reject the
-  // rt_tgsigqueueinfo syscall with EPERM. If that happens, follow the non-Linux
-  // code path. Any other errno is unexpected and will cause us to exit.
-  if (errno != EPERM) {
-    _exit(kFailureExitCode);
-  }
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_ANDROID) ||
-        // BUILDFLAG(IS_CHROMEOS)
-
   // Explicitly re-raise the signal if it will not re-raise itself. Because
   // signal handlers normally execute with their signal blocked, this raise()
   // cannot immediately deliver the signal. Delivery is deferred until the
@@ -342,12 +293,12 @@ void Signals::RestoreHandlerAndReraiseSignalOnReturn(
 
 // static
 bool Signals::IsCrashSignal(int sig) {
-  return IsSignalInSet(sig, kCrashSignals, std::size(kCrashSignals));
+  return IsSignalInSet(sig, kCrashSignals, base::size(kCrashSignals));
 }
 
 // static
 bool Signals::IsTerminateSignal(int sig) {
-  return IsSignalInSet(sig, kTerminateSignals, std::size(kTerminateSignals));
+  return IsSignalInSet(sig, kTerminateSignals, base::size(kTerminateSignals));
 }
 
 }  // namespace crashpad

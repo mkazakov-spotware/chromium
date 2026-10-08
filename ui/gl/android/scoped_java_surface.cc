@@ -1,10 +1,8 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/gl/android/scoped_java_surface.h"
-
-#include <utility>
 
 #include "base/check.h"
 #include "ui/gl/android/surface_texture.h"
@@ -54,7 +52,8 @@ void ScopedJavaSurface::ReleaseSurfaceIfNeeded() {
 
 void ScopedJavaSurface::MoveFrom(ScopedJavaSurface& other) {
   ReleaseSurfaceIfNeeded();
-  j_surface_ = std::move(other.j_surface_);
+  JNIEnv* env = base::android::AttachCurrentThread();
+  j_surface_.Reset(env, other.j_surface_.Release());
   auto_release_ = other.auto_release_;
   is_protected_ = other.is_protected_;
 }

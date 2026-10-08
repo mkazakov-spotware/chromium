@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include "base/component_export.h"
 #include "base/containers/flat_map.h"
-#include "base/memory/raw_ptr.h"
 #include "base/win/windows_types.h"
 #include "ui/base/accelerators/media_keys_listener.h"
 #include "ui/events/keycodes/keyboard_codes.h"
@@ -27,11 +26,6 @@ class COMPONENT_EXPORT(UI_BASE) GlobalMediaKeysListenerWin
     : public MediaKeysListener {
  public:
   explicit GlobalMediaKeysListenerWin(MediaKeysListener::Delegate* delegate);
-
-  GlobalMediaKeysListenerWin(const GlobalMediaKeysListenerWin&) = delete;
-  GlobalMediaKeysListenerWin& operator=(const GlobalMediaKeysListenerWin&) =
-      delete;
-
   ~GlobalMediaKeysListenerWin() override;
 
   static bool has_instance() { return has_instance_; }
@@ -39,6 +33,7 @@ class COMPONENT_EXPORT(UI_BASE) GlobalMediaKeysListenerWin
   // MediaKeysListener implementation.
   bool StartWatchingMediaKey(KeyboardCode key_code) override;
   void StopWatchingMediaKey(KeyboardCode key_code) override;
+  void SetIsMediaPlaying(bool is_playing) override {}
 
  private:
   // Called by SingletonHwndObserver.
@@ -46,10 +41,12 @@ class COMPONENT_EXPORT(UI_BASE) GlobalMediaKeysListenerWin
 
   static bool has_instance_;
 
-  raw_ptr<MediaKeysListener::Delegate> delegate_;
+  MediaKeysListener::Delegate* delegate_;
   base::flat_map<KeyboardCode,
                  std::unique_ptr<gfx::SingletonHwndHotKeyObserver>>
       key_codes_hotkey_observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(GlobalMediaKeysListenerWin);
 };
 
 }  // namespace ui

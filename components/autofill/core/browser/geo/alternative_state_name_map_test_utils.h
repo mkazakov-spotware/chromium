@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_AUTOFILL_CORE_BROWSER_GEO_ALTERNATIVE_STATE_NAME_MAP_TEST_UTILS_H_
 #define COMPONENTS_AUTOFILL_CORE_BROWSER_GEO_ALTERNATIVE_STATE_NAME_MAP_TEST_UTILS_H_
 
-#include "components/autofill/core/browser/geo/alternative_state_name_map.h"
+#include "base/optional.h"
 #include "components/autofill/core/browser/proto/states.pb.h"
 
 namespace autofill {
@@ -29,10 +29,6 @@ void PopulateStateEntry(const TestStateEntry& test_state_entry,
 
 // Clears the map for testing purposes.
 void ClearAlternativeStateNameMapForTesting();
-
-// Normalizes the text using |AlternativeStateNameMap::NormalizeStateName()|.
-AlternativeStateNameMap::StateName NormalizeAndConvertToUTF16(
-    const std::string& text);
 
 // Inserts a StateEntry instance into AlternativeStateNameMap for testing.
 void PopulateAlternativeStateNameMapForTesting(

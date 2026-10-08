@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2015 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview a fuzzing JSON generator.
@@ -36,7 +44,6 @@ goog.require('goog.testing.PseudoRandom');
  * @struct
  */
 goog.labs.testing.JsonFuzzing = function(opt_options, opt_seed) {
-  'use strict';
   /**
    * The config options.
    * @private {!goog.labs.testing.JsonFuzzing.Options}
@@ -84,14 +91,13 @@ goog.labs.testing.JsonFuzzing.Options;
  * @return {!Array} A new JSON compliant array object.
  */
 goog.labs.testing.JsonFuzzing.prototype.newArray = function() {
-  'use strict';
-  const result = [];
-  const depth = 0;
+  var result = [];
+  var depth = 0;
 
-  const maxSize = this.options_.jsonSize;
+  var maxSize = this.options_.jsonSize;
 
-  const size = this.nextInt(1, maxSize);
-  for (let i = 0; i < size; i++) {
+  var size = this.nextInt(1, maxSize);
+  for (var i = 0; i < size; i++) {
     result.push(this.nextElm_(depth));
   }
 
@@ -107,8 +113,7 @@ goog.labs.testing.JsonFuzzing.prototype.newArray = function() {
  * @return {number} A random integer
  */
 goog.labs.testing.JsonFuzzing.prototype.nextInt = function(min, max) {
-  'use strict';
-  const random = this.random_.random();
+  var random = this.random_.random();
 
   return Math.floor(random * (max - min)) + min;
 };
@@ -121,8 +126,7 @@ goog.labs.testing.JsonFuzzing.prototype.nextInt = function(min, max) {
  * @private
  */
 goog.labs.testing.JsonFuzzing.prototype.nextElmType_ = function() {
-  'use strict';
-  const random = this.random_.random();
+  var random = this.random_.random();
 
   if (random < 0.5) {
     return 0;
@@ -177,10 +181,9 @@ goog.labs.testing.JsonFuzzing.FieldType_ = {
  * @private
  */
 goog.labs.testing.JsonFuzzing.prototype.nextFieldType_ = function() {
-  'use strict';
-  const FieldType = goog.labs.testing.JsonFuzzing.FieldType_;
+  var FieldType = goog.labs.testing.JsonFuzzing.FieldType_;
 
-  const random = this.random_.random();
+  var random = this.random_.random();
 
   if (random < 0.5) {
     return FieldType.MESSAGE;
@@ -206,7 +209,6 @@ goog.labs.testing.JsonFuzzing.prototype.nextFieldType_ = function() {
  * @private
  */
 goog.labs.testing.JsonFuzzing.prototype.nextElm_ = function(depth) {
-  'use strict';
   switch (this.nextElmType_()) {
     case 0:
       return this.nextMessage_(depth);
@@ -226,18 +228,17 @@ goog.labs.testing.JsonFuzzing.prototype.nextElm_ = function(depth) {
  * @private
  */
 goog.labs.testing.JsonFuzzing.prototype.nextMessage_ = function(depth) {
-  'use strict';
   if (depth > this.maxDepth_) {
     return {};
   }
 
-  const numFields = this.options_.numFields;
+  var numFields = this.options_.numFields;
 
-  const random_num = this.nextInt(0, numFields);
-  const result = {};
+  var random_num = this.nextInt(0, numFields);
+  var result = {};
 
   // TODO(user): unicode and random keys
-  for (let i = 0; i < random_num; i++) {
+  for (var i = 0; i < random_num; i++) {
     switch (this.nextFieldType_()) {
       case 0:
         result['f' + i] = this.nextMessage_(depth++);
@@ -274,18 +275,17 @@ goog.labs.testing.JsonFuzzing.prototype.nextMessage_ = function(depth) {
  * @private
  */
 goog.labs.testing.JsonFuzzing.prototype.nextArray_ = function(depth) {
-  'use strict';
   if (depth > this.maxDepth_) {
     return [];
   }
 
-  const size = this.options_.arraySize;
+  var size = this.options_.arraySize;
 
-  const random_size = this.nextInt(0, size);
-  const result = [];
+  var random_size = this.nextInt(0, size);
+  var result = [];
 
   // mixed content
-  for (let i = 0; i < random_size; i++) {
+  for (var i = 0; i < random_size; i++) {
     switch (this.nextFieldType_()) {
       case 0:
         result.push(this.nextMessage_(depth++));
@@ -321,8 +321,7 @@ goog.labs.testing.JsonFuzzing.prototype.nextArray_ = function(depth) {
  * @private
  */
 goog.labs.testing.JsonFuzzing.prototype.nextBoolean_ = function() {
-  'use strict';
-  const random = this.random_.random();
+  var random = this.random_.random();
 
   return random < 0.5;
 };
@@ -335,10 +334,9 @@ goog.labs.testing.JsonFuzzing.prototype.nextBoolean_ = function() {
  * @private
  */
 goog.labs.testing.JsonFuzzing.prototype.nextNumber_ = function() {
-  'use strict';
-  let result = this.random_.random();
+  var result = this.random_.random();
 
-  let random = this.random_.random();
+  var random = this.random_.random();
   if (random < 0.5) {
     result *= 1000;
   }

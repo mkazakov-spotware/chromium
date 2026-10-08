@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 
 #include <cstdio>
 #include "base/callback_helpers.h"
+#include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread.h"
 #include "net/base/io_buffer.h"
@@ -39,12 +40,9 @@ class FileStreamWriterTest : public testing::Test {
 
   static void NeverCalled(int unused) { ADD_FAILURE(); }
 
- protected:
-  // Must be listed before base::test::TaskEnvironment.
-  base::ScopedTempDir dir_;
-
-  base::test::TaskEnvironment task_environment_{
-      base::test::TaskEnvironment::MainThreadType::IO};
+ private:
+  base::test::SingleThreadTaskEnvironment task_environment_{
+      base::test::SingleThreadTaskEnvironment::MainThreadType::IO};
 };
 
 template <class SubClass>
@@ -111,11 +109,11 @@ TYPED_TEST_P(FileStreamWriterTypedTest, WriteAfterEnd) {
 
   std::unique_ptr<FileStreamWriter> writer(
       this->CreateWriter(std::string(this->kTestFileName), 7));
-  EXPECT_EQ(net::OK, WriteStringToWriter(writer.get(), "xxx"));
+  EXPECT_EQ(net::ERR_REQUEST_RANGE_NOT_SATISFIABLE,
+            WriteStringToWriter(writer.get(), "xxx"));
 
   EXPECT_TRUE(this->FilePathExists(std::string(this->kTestFileName)));
-  EXPECT_EQ(std::string("foobar\0xxx", 10),
-            this->GetFileContent(std::string(this->kTestFileName)));
+  EXPECT_EQ("foobar", this->GetFileContent(std::string(this->kTestFileName)));
 }
 
 TYPED_TEST_P(FileStreamWriterTypedTest, WriteFailForNonexistingFile) {

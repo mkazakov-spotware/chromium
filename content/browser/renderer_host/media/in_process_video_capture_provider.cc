@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -57,8 +57,8 @@ void InProcessVideoCaptureProvider::GetDeviceInfosAsync(
     emit_log_message_cb_.Run(
         "InProcessVideoCaptureProvider::GetDeviceInfosAsync: No video capture "
         "system, returning empty results.");
-    std::move(result_callback)
-        .Run(media::mojom::DeviceEnumerationResult::kUnknownError, {});
+    std::vector<media::VideoCaptureDeviceInfo> empty_result;
+    std::move(result_callback).Run(empty_result);
     return;
   }
   emit_log_message_cb_.Run(
@@ -67,12 +67,9 @@ void InProcessVideoCaptureProvider::GetDeviceInfosAsync(
   // |video_capture_system_| and |result_callback| has ownership of
   // |this|.
   device_task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(
-          &media::VideoCaptureSystem::GetDeviceInfosAsync,
-          base::Unretained(video_capture_system_.get()),
-          base::BindOnce(std::move(result_callback),
-                         media::mojom::DeviceEnumerationResult::kSuccess)));
+      FROM_HERE, base::BindOnce(&media::VideoCaptureSystem::GetDeviceInfosAsync,
+                                base::Unretained(video_capture_system_.get()),
+                                std::move(result_callback)));
 }
 
 std::unique_ptr<VideoCaptureDeviceLauncher>

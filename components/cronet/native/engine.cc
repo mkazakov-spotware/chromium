@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,10 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/no_destructor.h"
-#include "build/build_config.h"
-#include "components/cronet/cronet_context.h"
 #include "components/cronet/cronet_global_state.h"
+#include "components/cronet/cronet_url_request_context.h"
 #include "components/cronet/native/generated/cronet.idl_impl_struct.h"
 #include "components/cronet/native/include/cronet_c.h"
 #include "components/cronet/native/runnables.h"
@@ -34,9 +33,6 @@ class SharedEngineState {
  public:
   SharedEngineState()
       : default_user_agent_(cronet::CreateDefaultUserAgent(CRONET_VERSION)) {}
-
-  SharedEngineState(const SharedEngineState&) = delete;
-  SharedEngineState& operator=(const SharedEngineState&) = delete;
 
   // Marks |storage_path| in use, so multiple engines would not use it at the
   // same time. Returns |true| if marked successfully, |false| if it is in use
@@ -67,6 +63,8 @@ class SharedEngineState {
   // Protecting shared state.
   base::Lock lock_;
   std::unordered_set<std::string> in_use_storage_paths_ GUARDED_BY(lock_);
+
+  DISALLOW_COPY_AND_ASSIGN(SharedEngineState);
 };
 
 SharedEngineState* SharedEngineState::GetInstance() {
@@ -123,7 +121,7 @@ Cronet_RESULT Cronet_EngineImpl::StartWithParams(
       break;
     case Cronet_EngineParams_HTTP_CACHE_MODE_DISK: {
       context_config_builder.http_cache = URLRequestContextConfig::DISK;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
       const base::FilePath storage_path(
           base::FilePath::FromUTF8Unsafe(params->storage_path));
 #else
@@ -189,19 +187,20 @@ Cronet_RESULT Cronet_EngineImpl::StartWithParams(
             quic_hint.host, quic_hint.port, quic_hint.alternate_port));
   }
 
-  context_ = std::make_unique<CronetContext>(std::move(config),
-                                             std::make_unique<Callback>(this));
+  context_ = std::make_unique<CronetURLRequestContext>(
+      std::move(config), std::make_unique<Callback>(this));
 
   // TODO(mef): It'd be nice to remove the java code and this code, and get
-  // rid of CronetContextAdapter::InitRequestContextOnInitThread.
-  // Could also make CronetContext::InitRequestContextOnInitThread()
+  // rid of CronetURLRequestContextAdapter::InitRequestContextOnInitThread.
+  // Could also make CronetURLRequestContext::InitRequestContextOnInitThread()
   // private and mark CronetLibraryLoader.postToInitThread() as
   // @VisibleForTesting (as the only external use will be in a test).
 
   // Initialize context on the init thread.
   cronet::PostTaskToInitThread(
-      FROM_HERE, base::BindOnce(&CronetContext::InitRequestContextOnInitThread,
-                                base::Unretained(context_.get())));
+      FROM_HERE,
+      base::BindOnce(&CronetURLRequestContext::InitRequestContextOnInitThread,
+                     base::Unretained(context_.get())));
   return CheckResult(Cronet_RESULT_SUCCESS);
 }
 
@@ -366,18 +365,14 @@ class Cronet_EngineImpl::StreamEngineImpl : public stream_engine {
   scoped_refptr<net::URLRequestContextGetter> context_getter_;
 };
 
-// Callback is owned by CronetContext. It is invoked and deleted
+// Callback is owned by CronetURLRequestContext. It is invoked and deleted
 // on the network thread.
-class Cronet_EngineImpl::Callback : public CronetContext::Callback {
+class Cronet_EngineImpl::Callback : public CronetURLRequestContext::Callback {
  public:
   explicit Callback(Cronet_EngineImpl* engine);
-
-  Callback(const Callback&) = delete;
-  Callback& operator=(const Callback&) = delete;
-
   ~Callback() override;
 
-  // CronetContext::Callback implementation:
+  // CronetURLRequestContext::Callback implementation:
   void OnInitNetworkThread() override LOCKS_EXCLUDED(engine_->lock_);
   void OnDestroyNetworkThread() override;
   void OnEffectiveConnectionTypeChanged(
@@ -397,10 +392,11 @@ class Cronet_EngineImpl::Callback : public CronetContext::Callback {
 
  private:
   // The engine which owns context that owns |this| callback.
-  const raw_ptr<Cronet_EngineImpl> engine_;
+  Cronet_EngineImpl* const engine_;
 
   // All methods are invoked on the network thread.
   THREAD_CHECKER(network_thread_checker_);
+  DISALLOW_COPY_AND_ASSIGN(Callback);
 };
 
 Cronet_EngineImpl::Callback::Callback(Cronet_EngineImpl* engine)

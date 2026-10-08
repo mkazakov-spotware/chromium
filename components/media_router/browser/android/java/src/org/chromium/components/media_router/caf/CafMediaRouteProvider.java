@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -60,17 +60,17 @@ public class CafMediaRouteProvider extends CafBaseMediaRouteProvider {
             String sourceId, String presentationId, String origin, int tabId, int nativeRequestId) {
         CastMediaSource source = CastMediaSource.from(sourceId);
         if (source == null || source.getClientId() == null) {
-            mManager.onJoinRouteRequestError("Unsupported presentation URL", nativeRequestId);
+            mManager.onRouteRequestError("Unsupported presentation URL", nativeRequestId);
             return;
         }
 
         if (!hasSession()) {
-            mManager.onJoinRouteRequestError("No presentation", nativeRequestId);
+            mManager.onRouteRequestError("No presentation", nativeRequestId);
             return;
         }
 
         if (!canJoinExistingSession(presentationId, origin, tabId, source)) {
-            mManager.onJoinRouteRequestError("No matching route", nativeRequestId);
+            mManager.onRouteRequestError("No matching route", nativeRequestId);
             return;
         }
 
@@ -129,9 +129,6 @@ public class CafMediaRouteProvider extends CafBaseMediaRouteProvider {
             return;
         }
 
-        // Flush pending messages, if any, before sending the current message to ensure that the
-        // messages are delivered in order.
-        flushPendingMessagesToClient(clientRecord);
         Log.d(TAG, "Sending message to client %s: %s", clientId, message);
         mManager.onMessage(clientRecord.routeId, message);
     }

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include "net/base/io_buffer.h"
 #include "third_party/webrtc/rtc_base/byte_order.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 scoped_refptr<net::IOBufferWithSize> SerializeAndFrameMessage(
     const google::protobuf::MessageLite& msg) {
@@ -25,4 +26,5 @@ scoped_refptr<net::IOBufferWithSize> SerializeAndFrameMessage(
   return buffer;
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

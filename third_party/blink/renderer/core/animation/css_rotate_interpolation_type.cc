@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -102,6 +102,10 @@ class CSSRotateNonInterpolableValue : public NonInterpolableValue {
   OptionalRotation SlerpedRotation(double progress) const {
     DCHECK(!is_start_additive_ && !is_end_additive_);
     DCHECK(!is_single_ || progress == 0);
+    if (progress == 0)
+      return start_;
+    if (progress == 1)
+      return end_;
     return OptionalRotation::Slerp(start_, end_, progress);
   }
 
@@ -269,10 +273,10 @@ void CSSRotateInterpolationType::ApplyStandardPropertyValue(
       To<CSSRotateNonInterpolableValue>(*untyped_non_interpolable_value);
   OptionalRotation rotation = non_interpolable_value.SlerpedRotation(progress);
   if (rotation.IsNone()) {
-    state.StyleBuilder().SetRotate(nullptr);
+    state.Style()->SetRotate(nullptr);
     return;
   }
-  state.StyleBuilder().SetRotate(RotateTransformOperation::Create(
+  state.Style()->SetRotate(RotateTransformOperation::Create(
       rotation.GetRotation(), TransformOperation::kRotate3D));
 }
 

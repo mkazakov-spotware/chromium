@@ -27,14 +27,12 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_WEBDATABASE_SQLITE_SQLITE_DATABASE_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBDATABASE_SQLITE_SQLITE_DATABASE_H_
 
-#include "base/check_op.h"
-#include "base/dcheck_is_on.h"
-#include "base/synchronization/lock.h"
-#include "base/thread_annotations.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "third_party/blink/renderer/platform/wtf/threading.h"
+#include "third_party/blink/renderer/platform/wtf/threading_primitives.h"
 
 struct sqlite3;
 
@@ -56,10 +54,6 @@ class SQLiteDatabase {
 
  public:
   SQLiteDatabase();
-
-  SQLiteDatabase(const SQLiteDatabase&) = delete;
-  SQLiteDatabase& operator=(const SQLiteDatabase&) = delete;
-
   ~SQLiteDatabase();
 
   bool Open(const String& filename);
@@ -76,7 +70,7 @@ class SQLiteDatabase {
   bool TransactionInProgress() const { return transaction_in_progress_; }
 
   int64_t LastInsertRowID();
-  int64_t LastChanges();
+  int LastChanges();
 
   void SetBusyTimeout(int ms);
 
@@ -131,32 +125,34 @@ class SQLiteDatabase {
                                 const char*,
                                 const char*);
 
-  void EnableAuthorizer(bool enable) EXCLUSIVE_LOCKS_REQUIRED(authorizer_lock_);
+  void EnableAuthorizer(bool enable);
 
   int PageSize();
 
-  sqlite3* db_ = nullptr;
-  int page_size_ = -1;
+  sqlite3* db_;
+  int page_size_;
 
-  bool transaction_in_progress_ = false;
+  bool transaction_in_progress_;
 
-  base::Lock authorizer_lock_;
+  Mutex authorizer_lock_;
 
   // The raw pointer usage is safe because the DatabaseAuthorizer is guaranteed
   // to outlive this instance. The DatabaseAuthorizer is owned by the same
   // Database that owns this instance.
-  DatabaseAuthorizer* authorizer_ GUARDED_BY(authorizer_lock_) = nullptr;
+  DatabaseAuthorizer* authorizer_;
 
-  base::PlatformThreadId opening_thread_ = 0;
+  base::PlatformThreadId opening_thread_;
 
-  base::Lock database_closing_mutex_;
+  Mutex database_closing_mutex_;
 
   int open_error_;
   std::string open_error_message_;
 
-  int64_t last_changes_count_ = 0;
+  int last_changes_count_;
+
+  DISALLOW_COPY_AND_ASSIGN(SQLiteDatabase);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_MODULES_WEBDATABASE_SQLITE_SQLITE_DATABASE_H_
+#endif

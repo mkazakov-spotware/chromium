@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,10 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "build/build_config.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 namespace sync_preferences {
 class TestingPrefServiceSyncable;
 }
@@ -42,12 +41,11 @@ class PaymentRequestTestObserver {
   virtual void OnHasEnrolledInstrumentCalled() {}
   virtual void OnHasEnrolledInstrumentReturned() {}
   virtual void OnAppListReady() {}
-  virtual void OnErrorDisplayed() {}
   virtual void OnNotSupportedError() {}
   virtual void OnConnectionTerminated() {}
   virtual void OnAbortCalled() {}
   virtual void OnCompleteCalled() {}
-  virtual void OnUIDisplayed() {}
+  virtual void OnMinimalUIReady() {}
 
  protected:
   virtual ~PaymentRequestTestObserver() = default;
@@ -77,10 +75,11 @@ class PaymentRequestTestController {
 
   // Gets the WebContents of the Payment Handler for testing purpose, or null if
   // nonexistent. To guarantee a non-null return, this function should be called
-  // only if: 1) PaymentRequest UI is opening. 2) PaymentHandler is opening.
+  // only if: 1) PaymentRequest UI is opening. 2) ScrollToExpandPaymentHandler
+  // feature is enabled (on Android). 3) PaymentHandler is opening.
   content::WebContents* GetPaymentHandlerWebContents();
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // Clicks the security icon on the Expandable Payment Handler toolbar for
   // testing purpose. Return whether it's succeeded.
   bool ClickPaymentHandlerSecurityIcon();
@@ -90,17 +89,18 @@ class PaymentRequestTestController {
   // Return whether it's succeeded.
   bool ClickPaymentHandlerCloseButton();
 
-  // Closes the dialog.
-  bool CloseDialog();
-
   // Confirms payment in a browser payment sheet, be it either PAYMENT_REQUEST
   // or SECURE_PAYMENT_CONFIRMATION type. Returns true if the dialog was
   // available.
   bool ConfirmPayment();
 
-  // Clicks opt-out on the dialog, if available. Returns true if the opt-out
-  // link was available, false if not.
-  bool ClickOptOut();
+  // Confirms payment in minimal UI. Returns true on success or if the minimal
+  // UI is not implemented on the current platform.
+  bool ConfirmMinimalUI();
+
+  // Dismisses payment in minimal UI. Returns true on success or if the minimal
+  // UI is not implemented on the current platform.
+  bool DismissMinimalUI();
 
   // Returns true when running on Android M or L.
   bool IsAndroidMarshmallowOrLollipop();
@@ -123,14 +123,13 @@ class PaymentRequestTestController {
   void OnHasEnrolledInstrumentCalled();
   void OnHasEnrolledInstrumentReturned();
   void OnAppListReady();
-  void OnErrorDisplayed();
   void OnNotSupportedError();
   void OnConnectionTerminated();
   void OnAbortCalled();
   void OnCompleteCalled();
-  void OnUIDisplayed();
+  void OnMinimalUIReady();
 
-  raw_ptr<PaymentRequestTestObserver> observer_ = nullptr;
+  PaymentRequestTestObserver* observer_ = nullptr;
 
   bool is_off_the_record_ = false;
   bool valid_ssl_ = true;
@@ -141,7 +140,7 @@ class PaymentRequestTestController {
   std::string twa_payment_app_response_;
   std::vector<AppDescription> app_descriptions_;
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   void UpdateDelegateFactory();
 
   std::unique_ptr<sync_preferences::TestingPrefServiceSyncable> prefs_;

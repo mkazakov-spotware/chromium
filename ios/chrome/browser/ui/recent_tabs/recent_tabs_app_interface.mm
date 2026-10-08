@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/recent_tabs/recent_tabs_app_interface.h"
 
-#import "base/ios/ios_util.h"
 #import "ios/chrome/browser/ui/list_model/list_model.h"
+#import "ios/chrome/browser/ui/util/multi_window_support.h"
 #import "ios/chrome/test/app/chrome_test_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -15,14 +15,21 @@
 @implementation RecentTabsAppInterface
 
 + (void)clearCollapsedListViewSectionStates {
-  NSArray<UIWindow*>* windows = [UIApplication sharedApplication].windows;
-  for (UIWindow* window in windows) {
-    UISceneSession* session = window.windowScene.session;
+  if (IsSceneStartupSupported()) {
+    if (@available(iOS 13, *)) {
+      NSArray<UIWindow*>* windows = [UIApplication sharedApplication].windows;
+      for (UIWindow* window in windows) {
+        UISceneSession* session = window.windowScene.session;
 
-    NSMutableDictionary* newUserInfo =
-        [NSMutableDictionary dictionaryWithDictionary:session.userInfo];
-    [newUserInfo removeObjectForKey:kListModelCollapsedKey];
-    session.userInfo = newUserInfo;
+        NSMutableDictionary* newUserInfo =
+            [NSMutableDictionary dictionaryWithDictionary:session.userInfo];
+        [newUserInfo removeObjectForKey:kListModelCollapsedKey];
+        session.userInfo = newUserInfo;
+      }
+    }
+  } else {
+    [NSUserDefaults.standardUserDefaults setObject:@{}
+                                            forKey:kListModelCollapsedKey];
   }
 }
 

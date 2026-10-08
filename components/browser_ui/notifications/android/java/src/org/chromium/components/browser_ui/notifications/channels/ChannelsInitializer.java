@@ -1,16 +1,15 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.browser_ui.notifications.channels;
 
+import android.annotation.TargetApi;
 import android.app.NotificationChannel;
 import android.app.NotificationChannelGroup;
 import android.app.NotificationManager;
 import android.content.res.Resources;
 import android.os.Build;
-
-import androidx.annotation.RequiresApi;
 
 import org.chromium.base.CollectionUtil;
 import org.chromium.components.browser_ui.notifications.NotificationManagerProxy;
@@ -24,7 +23,7 @@ import java.util.Set;
 /**
  * Initializes our notification channels.
  */
-@RequiresApi(Build.VERSION_CODES.O)
+@TargetApi(Build.VERSION_CODES.O)
 public class ChannelsInitializer {
     private final NotificationManagerProxy mNotificationManager;
     private ChannelDefinitions mChannelDefinitions;

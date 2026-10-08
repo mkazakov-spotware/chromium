@@ -1,10 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/base_switches.h"
+#include "android_webview/browser/gfx/gpu_service_web_view.h"
 #include "base/command_line.h"
-#include "base/test/allow_check_is_test_for_testing.h"
 #include "base/test/test_suite.h"
 #include "content/public/common/content_switches.h"
 #include "mojo/core/embedder/embedder.h"
@@ -12,14 +11,10 @@
 #include "ui/gl/test/gl_surface_test_support.h"
 
 int main(int argc, char** argv) {
-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  command_line->AppendSwitch(switches::kSingleProcess);
-  command_line->AppendSwitchASCII(switches::kDisableFeatures, ",Vulkan");
-  command_line->AppendSwitchASCII(switches::kEnableFeatures,
-                                  ",WebViewNewInvalidateHeuristic");
-
+  base::CommandLine::ForCurrentProcess()->AppendSwitch(
+      switches::kSingleProcess);
   gl::GLSurfaceTestSupport::InitializeNoExtensionsOneOff();
-  base::test::AllowCheckIsTestForTesting();
+  android_webview::GpuServiceWebView::GetInstance();
   base::TestSuite test_suite(argc, argv);
   mojo::core::Init();
   return test_suite.Run();

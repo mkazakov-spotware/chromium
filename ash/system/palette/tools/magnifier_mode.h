@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,10 +14,6 @@ namespace ash {
 class MagnifierMode : public CommonPaletteTool {
  public:
   explicit MagnifierMode(Delegate* delegate);
-
-  MagnifierMode(const MagnifierMode&) = delete;
-  MagnifierMode& operator=(const MagnifierMode&) = delete;
-
   ~MagnifierMode() override;
 
  private:
@@ -31,6 +27,8 @@ class MagnifierMode : public CommonPaletteTool {
 
   // CommonPaletteTool overrides.
   const gfx::VectorIcon& GetPaletteIcon() const override;
+
+  DISALLOW_COPY_AND_ASSIGN(MagnifierMode);
 };
 
 }  // namespace ash

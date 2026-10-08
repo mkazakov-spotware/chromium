@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,11 +45,9 @@ static bool IsVaapiSupportedWebP(const Vp8FrameHeader& webp_header) {
   }
 
   gfx::Size min_webp_resolution;
-  gfx::Size max_webp_resolution;
-  if (!VaapiWrapper::GetSupportedResolutions(
-          kWebPVAProfile, VaapiWrapper::CodecMode::kDecode, min_webp_resolution,
-          max_webp_resolution)) {
-    DLOG(ERROR) << "Could not get the minimum and maximum resolutions";
+  if (!VaapiWrapper::GetDecodeMinResolution(kWebPVAProfile,
+                                            &min_webp_resolution)) {
+    DLOG(ERROR) << "Could not get the minimum resolution";
     return false;
   }
   if (webp_size.width() < min_webp_resolution.width() ||
@@ -57,6 +55,13 @@ static bool IsVaapiSupportedWebP(const Vp8FrameHeader& webp_header) {
     DLOG(ERROR) << "VAAPI doesn't support size " << webp_size.ToString()
                 << ": under minimum resolution "
                 << min_webp_resolution.ToString();
+    return false;
+  }
+
+  gfx::Size max_webp_resolution;
+  if (!VaapiWrapper::GetDecodeMaxResolution(kWebPVAProfile,
+                                            &max_webp_resolution)) {
+    DLOG(ERROR) << "Could not get the maximum resolution";
     return false;
   }
   if (webp_size.width() > max_webp_resolution.width() ||
@@ -105,17 +110,14 @@ VaapiImageDecodeStatus VaapiWebPDecoder::AllocateVASurfaceAndSubmitVABuffers(
   if (!scoped_va_context_and_surface_ ||
       new_visible_size != scoped_va_context_and_surface_->size()) {
     scoped_va_context_and_surface_.reset();
-    auto scoped_va_surfaces = vaapi_wrapper_->CreateContextAndScopedVASurfaces(
-        kWebPVARtFormat, new_visible_size,
-        {VaapiWrapper::SurfaceUsageHint::kGeneric}, 1u,
-        /*visible_size=*/absl::nullopt);
-    if (scoped_va_surfaces.empty()) {
+    scoped_va_context_and_surface_ = ScopedVAContextAndSurface(
+        vaapi_wrapper_
+            ->CreateContextAndScopedVASurface(kWebPVARtFormat, new_visible_size)
+            .release());
+    if (!scoped_va_context_and_surface_) {
       VLOGF(1) << "CreateContextAndScopedVASurface() failed";
       return VaapiImageDecodeStatus::kSurfaceCreationFailed;
     }
-
-    scoped_va_context_and_surface_ =
-        ScopedVAContextAndSurface(scoped_va_surfaces[0].release());
     DCHECK(scoped_va_context_and_surface_->IsValid());
   }
   DCHECK_NE(scoped_va_context_and_surface_->id(), VA_INVALID_SURFACE);

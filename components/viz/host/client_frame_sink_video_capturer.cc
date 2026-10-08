@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,6 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/ranges/algorithm.h"
-#include "base/task/single_thread_task_runner.h"
-#include "media/capture/mojom/video_capture_buffer.mojom.h"
 #include "media/capture/mojom/video_capture_types.mojom.h"
 
 namespace viz {
@@ -17,7 +14,8 @@ namespace viz {
 namespace {
 
 // How long to wait before attempting to re-establish a lost connection.
-constexpr base::TimeDelta kReEstablishConnectionDelay = base::Milliseconds(100);
+constexpr base::TimeDelta kReEstablishConnectionDelay =
+    base::TimeDelta::FromMilliseconds(100);
 
 }  // namespace
 
@@ -31,11 +29,12 @@ ClientFrameSinkVideoCapturer::~ClientFrameSinkVideoCapturer() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 }
 
-void ClientFrameSinkVideoCapturer::SetFormat(media::VideoPixelFormat format) {
+void ClientFrameSinkVideoCapturer::SetFormat(media::VideoPixelFormat format,
+                                             gfx::ColorSpace color_space) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  format_.emplace(format);
-  capturer_remote_->SetFormat(format);
+  format_.emplace(format, color_space);
+  capturer_remote_->SetFormat(format, color_space);
 }
 
 void ClientFrameSinkVideoCapturer::SetMinCapturePeriod(
@@ -73,32 +72,19 @@ void ClientFrameSinkVideoCapturer::SetAutoThrottlingEnabled(bool enabled) {
 }
 
 void ClientFrameSinkVideoCapturer::ChangeTarget(
-    const absl::optional<VideoCaptureTarget>& target) {
+    const base::Optional<FrameSinkId>& frame_sink_id) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  ChangeTarget(target, crop_version_);
-}
-
-void ClientFrameSinkVideoCapturer::ChangeTarget(
-    const absl::optional<VideoCaptureTarget>& target,
-    uint32_t crop_version) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK_GE(crop_version, crop_version_);
-
-  target_ = target;
-  crop_version_ = crop_version;
-
-  capturer_remote_->ChangeTarget(target, crop_version);
+  target_ = frame_sink_id;
+  capturer_remote_->ChangeTarget(frame_sink_id);
 }
 
 void ClientFrameSinkVideoCapturer::Start(
-    mojom::FrameSinkVideoConsumer* consumer,
-    mojom::BufferFormatPreference buffer_format_preference) {
+    mojom::FrameSinkVideoConsumer* consumer) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(consumer);
 
   is_started_ = true;
-  buffer_format_preference_ = buffer_format_preference;
   consumer_ = consumer;
   StartInternal();
 }
@@ -107,7 +93,6 @@ void ClientFrameSinkVideoCapturer::Stop() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   is_started_ = false;
-  buffer_format_preference_ = mojom::BufferFormatPreference::kDefault;
   capturer_remote_->Stop();
 }
 
@@ -130,8 +115,10 @@ ClientFrameSinkVideoCapturer::CreateOverlay(int32_t stacking_index) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   // If there is an existing overlay at the same index, drop it.
-  auto it =
-      base::ranges::find(overlays_, stacking_index, &Overlay::stacking_index);
+  auto it = std::find_if(overlays_.begin(), overlays_.end(),
+                         [&stacking_index](const Overlay* overlay) {
+                           return overlay->stacking_index() == stacking_index;
+                         });
   if (it != overlays_.end()) {
     (*it)->DisconnectPermanently();
     overlays_.erase(it);
@@ -145,6 +132,11 @@ ClientFrameSinkVideoCapturer::CreateOverlay(int32_t stacking_index) {
   return overlay;
 }
 
+ClientFrameSinkVideoCapturer::Format::Format(
+    media::VideoPixelFormat pixel_format,
+    gfx::ColorSpace color_space)
+    : pixel_format(pixel_format), color_space(color_space) {}
+
 ClientFrameSinkVideoCapturer::ResolutionConstraints::ResolutionConstraints(
     const gfx::Size& min_size,
     const gfx::Size& max_size,
@@ -154,7 +146,7 @@ ClientFrameSinkVideoCapturer::ResolutionConstraints::ResolutionConstraints(
       use_fixed_aspect_ratio(use_fixed_aspect_ratio) {}
 
 void ClientFrameSinkVideoCapturer::OnFrameCaptured(
-    media::mojom::VideoBufferHandlePtr data,
+    base::ReadOnlySharedMemoryRegion data,
     media::mojom::VideoFrameInfoPtr info,
     const gfx::Rect& content_rect,
     mojo::PendingRemote<mojom::FrameSinkVideoConsumerFrameCallbacks>
@@ -163,18 +155,6 @@ void ClientFrameSinkVideoCapturer::OnFrameCaptured(
 
   consumer_->OnFrameCaptured(std::move(data), std::move(info), content_rect,
                              std::move(callbacks));
-}
-
-void ClientFrameSinkVideoCapturer::OnFrameWithEmptyRegionCapture() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  consumer_->OnFrameWithEmptyRegionCapture();
-}
-
-void ClientFrameSinkVideoCapturer::OnNewCropVersion(uint32_t crop_version) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  consumer_->OnNewCropVersion(crop_version);
 }
 
 void ClientFrameSinkVideoCapturer::OnLog(const std::string& message) {
@@ -199,7 +179,7 @@ void ClientFrameSinkVideoCapturer::EstablishConnection() {
       base::BindOnce(&ClientFrameSinkVideoCapturer::OnConnectionError,
                      base::Unretained(this)));
   if (format_)
-    capturer_remote_->SetFormat(*format_);
+    capturer_remote_->SetFormat(format_->pixel_format, format_->color_space);
   if (min_capture_period_)
     capturer_remote_->SetMinCapturePeriod(*min_capture_period_);
   if (min_size_change_period_)
@@ -211,9 +191,8 @@ void ClientFrameSinkVideoCapturer::EstablishConnection() {
   }
   if (auto_throttling_enabled_)
     capturer_remote_->SetAutoThrottlingEnabled(*auto_throttling_enabled_);
-  if (target_) {
-    capturer_remote_->ChangeTarget(target_.value(), crop_version_);
-  }
+  if (target_)
+    capturer_remote_->ChangeTarget(target_);
   for (Overlay* overlay : overlays_)
     overlay->EstablishConnection(capturer_remote_.get());
   if (is_started_)
@@ -223,7 +202,7 @@ void ClientFrameSinkVideoCapturer::EstablishConnection() {
 void ClientFrameSinkVideoCapturer::OnConnectionError() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&ClientFrameSinkVideoCapturer::EstablishConnection,
                      weak_factory_.GetWeakPtr()),
@@ -231,18 +210,15 @@ void ClientFrameSinkVideoCapturer::OnConnectionError() {
 }
 
 void ClientFrameSinkVideoCapturer::StartInternal() {
-  DCHECK(is_started_);
-
   if (consumer_receiver_.is_bound())
     consumer_receiver_.reset();
-  capturer_remote_->Start(consumer_receiver_.BindNewPipeAndPassRemote(),
-                          buffer_format_preference_);
+  capturer_remote_->Start(consumer_receiver_.BindNewPipeAndPassRemote());
 }
 
 void ClientFrameSinkVideoCapturer::OnOverlayDestroyed(Overlay* overlay) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  const auto it = base::ranges::find(overlays_, overlay);
+  const auto it = std::find(overlays_.begin(), overlays_.end(), overlay);
   DCHECK(it != overlays_.end());
   overlays_.erase(it);
 }

@@ -1,9 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.offlinepages;
 
+import android.annotation.TargetApi;
 import android.app.DownloadManager;
 import android.content.ContentResolver;
 import android.content.ContentValues;
@@ -14,7 +15,6 @@ import android.os.Environment;
 import android.provider.MediaStore.MediaColumns;
 import android.text.format.DateUtils;
 
-import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.ContentUriUtils;
@@ -93,7 +93,7 @@ public class OfflinePageArchivePublisherBridge {
     }
 
     // Use this pass through for API levels 24 and higher.
-    @RequiresApi(Build.VERSION_CODES.N)
+    @TargetApi(Build.VERSION_CODES.N)
     private static long callAddCompletedDownload(String title, String description, String path,
             long length, String uri, String referer) {
         DownloadManager downloadManager = getDownloadManager();
@@ -139,7 +139,7 @@ public class OfflinePageArchivePublisherBridge {
     @CalledByNative
     @VisibleForTesting
     public static String publishArchiveToDownloadsCollection(OfflinePageItem page) {
-        assert Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q;
+        assert org.chromium.base.BuildInfo.isAtLeastQ();
 
         final String isPending = "is_pending"; // MediaStore.IS_PENDING
 

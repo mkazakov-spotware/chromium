@@ -45,9 +45,8 @@ class CORE_EXPORT InertEffect final : public AnimationEffect {
   InertEffect(KeyframeEffectModelBase*,
               const Timing&,
               bool paused,
-              absl::optional<AnimationTimeDelta> inherited_time,
-              absl::optional<AnimationTimeDelta> timeline_duration,
-              double playback_rate);
+              base::Optional<double> inherited_time,
+              base::Optional<TimelinePhase> inherited_phase);
 
   void Sample(HeapVector<Member<Interpolation>>&) const;
   KeyframeEffectModelBase* Model() const { return model_.Get(); }
@@ -55,25 +54,20 @@ class CORE_EXPORT InertEffect final : public AnimationEffect {
 
   bool IsInertEffect() const final { return true; }
 
-  bool Affects(const PropertyHandle&) const override;
-
   void Trace(Visitor*) const override;
 
  protected:
   void UpdateChildrenAndEffects() const override {}
   AnimationTimeDelta CalculateTimeToEffectChange(
       bool forwards,
-      absl::optional<AnimationTimeDelta> inherited_time,
+      base::Optional<double> inherited_time,
       AnimationTimeDelta time_to_next_iteration) const override;
-  absl::optional<AnimationTimeDelta> TimelineDuration() const override;
 
  private:
   Member<KeyframeEffectModelBase> model_;
   bool paused_;
-  absl::optional<AnimationTimeDelta> inherited_time_;
-  absl::optional<TimelinePhase> inherited_phase_;
-  absl::optional<AnimationTimeDelta> timeline_duration_;
-  double playback_rate_;
+  base::Optional<double> inherited_time_;
+  base::Optional<TimelinePhase> inherited_phase_;
 };
 
 template <>
@@ -85,4 +79,4 @@ struct DowncastTraits<InertEffect> {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_ANIMATION_INERT_EFFECT_H_
+#endif

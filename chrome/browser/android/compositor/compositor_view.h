@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "cc/layers/layer_collections.h"
 #include "cc/resources/ui_resource_client.h"
@@ -46,9 +46,6 @@ class CompositorView : public content::CompositorClient,
                  jboolean low_mem_device,
                  ui::WindowAndroid* window_android,
                  TabContentManager* tab_content_manager);
-
-  CompositorView(const CompositorView&) = delete;
-  CompositorView& operator=(const CompositorView&) = delete;
 
   void Destroy(JNIEnv* env, const base::android::JavaParamRef<jobject>& object);
 
@@ -115,10 +112,6 @@ class CompositorView : public content::CompositorClient,
       const base::android::JavaParamRef<jobject>& object);
   void OnTabChanged(JNIEnv* env,
                     const base::android::JavaParamRef<jobject>& object);
-  void PreserveChildSurfaceControls(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& object);
-  void SetDidSwapBuffersCallbackEnabled(JNIEnv* env, jboolean enable);
 
   // CompositorClient implementation:
   void RecreateSurface() override;
@@ -140,10 +133,10 @@ class CompositorView : public content::CompositorClient,
 
   base::android::ScopedJavaGlobalRef<jobject> obj_;
   std::unique_ptr<content::Compositor> compositor_;
-  raw_ptr<TabContentManager> tab_content_manager_;
+  TabContentManager* tab_content_manager_;
 
   scoped_refptr<cc::SolidColorLayer> root_layer_;
-  raw_ptr<SceneLayer> scene_layer_;
+  SceneLayer* scene_layer_;
   scoped_refptr<cc::Layer> scene_layer_layer_;
 
   int current_surface_format_;
@@ -153,6 +146,8 @@ class CompositorView : public content::CompositorClient,
   bool overlay_immersive_ar_mode_;
 
   base::WeakPtrFactory<CompositorView> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(CompositorView);
 };
 
 }  // namespace android

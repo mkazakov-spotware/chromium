@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "base/component_export.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_piece.h"
 #include "url/third_party/mozilla/url_parse.h"
 #include "url/url_canon.h"
@@ -62,14 +63,6 @@ COMPONENT_EXPORT(URL) bool AllowNonStandardSchemesForAndroidWebView();
 COMPONENT_EXPORT(URL)
 void AddStandardScheme(const char* new_scheme, SchemeType scheme_type);
 
-// Returns the list of schemes registered for "standard" URLs.  Note, this
-// should not be used if you just need to check if your protocol is standard
-// or not.  Instead use the IsStandard() function above as its much more
-// efficient.  This function should only be used where you need to perform
-// other operations against the standard scheme list.
-COMPONENT_EXPORT(URL)
-std::vector<std::string> GetStandardSchemes();
-
 // Adds an application-defined scheme to the internal list of schemes allowed
 // for referrers.
 COMPONENT_EXPORT(URL)
@@ -115,16 +108,6 @@ COMPONENT_EXPORT(URL) const std::vector<std::string>& GetCSPBypassingSchemes();
 COMPONENT_EXPORT(URL) void AddEmptyDocumentScheme(const char* new_scheme);
 COMPONENT_EXPORT(URL) const std::vector<std::string>& GetEmptyDocumentSchemes();
 
-// Adds a scheme with a predefined default handler.
-//
-// This pair of strings must be normalized protocol handler parameters as
-// described in the Custom Handler specification.
-// https://html.spec.whatwg.org/multipage/system-state.html#normalize-protocol-handler-parameters
-COMPONENT_EXPORT(URL)
-void AddPredefinedHandlerScheme(const char* new_scheme, const char* handler);
-COMPONENT_EXPORT(URL)
-std::vector<std::pair<std::string, std::string>> GetPredefinedHandlerSchemes();
-
 // Sets a flag to prevent future calls to Add*Scheme from succeeding.
 //
 // This is designed to help prevent errors for multithreaded applications.
@@ -151,7 +134,7 @@ bool FindAndCompareScheme(const char* str,
                           const char* compare,
                           Component* found_scheme);
 COMPONENT_EXPORT(URL)
-bool FindAndCompareScheme(const char16_t* str,
+bool FindAndCompareScheme(const base::char16* str,
                           int str_len,
                           const char* compare,
                           Component* found_scheme);
@@ -161,7 +144,7 @@ inline bool FindAndCompareScheme(const std::string& str,
   return FindAndCompareScheme(str.data(), static_cast<int>(str.size()),
                               compare, found_scheme);
 }
-inline bool FindAndCompareScheme(const std::u16string& str,
+inline bool FindAndCompareScheme(const base::string16& str,
                                  const char* compare,
                                  Component* found_scheme) {
   return FindAndCompareScheme(str.data(), static_cast<int>(str.size()),
@@ -173,7 +156,7 @@ inline bool FindAndCompareScheme(const std::u16string& str,
 COMPONENT_EXPORT(URL)
 bool IsStandard(const char* spec, const Component& scheme);
 COMPONENT_EXPORT(URL)
-bool IsStandard(const char16_t* spec, const Component& scheme);
+bool IsStandard(const base::char16* spec, const Component& scheme);
 
 // Returns true if the given scheme identified by |scheme| within |spec| is in
 // the list of allowed schemes for referrers (see AddReferrerScheme).
@@ -188,7 +171,7 @@ bool GetStandardSchemeType(const char* spec,
                            const Component& scheme,
                            SchemeType* type);
 COMPONENT_EXPORT(URL)
-bool GetStandardSchemeType(const char16_t* spec,
+bool GetStandardSchemeType(const base::char16* spec,
                            const Component& scheme,
                            SchemeType* type);
 
@@ -230,7 +213,7 @@ bool Canonicalize(const char* spec,
                   CanonOutput* output,
                   Parsed* output_parsed);
 COMPONENT_EXPORT(URL)
-bool Canonicalize(const char16_t* spec,
+bool Canonicalize(const base::char16* spec,
                   int spec_len,
                   bool trim_path_end,
                   CharsetConverter* charset_converter,
@@ -260,7 +243,7 @@ COMPONENT_EXPORT(URL)
 bool ResolveRelative(const char* base_spec,
                      int base_spec_len,
                      const Parsed& base_parsed,
-                     const char16_t* relative,
+                     const base::char16* relative,
                      int relative_length,
                      CharsetConverter* charset_converter,
                      CanonOutput* output,
@@ -282,7 +265,7 @@ COMPONENT_EXPORT(URL)
 bool ReplaceComponents(const char* spec,
                        int spec_len,
                        const Parsed& parsed,
-                       const Replacements<char16_t>& replacements,
+                       const Replacements<base::char16>& replacements,
                        CharsetConverter* charset_converter,
                        CanonOutput* output,
                        Parsed* out_parsed);

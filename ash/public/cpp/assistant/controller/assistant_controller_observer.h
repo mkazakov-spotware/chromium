@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "ash/public/cpp/ash_public_export.h"
+#include "base/macros.h"
 #include "base/observer_list_types.h"
 
 class GURL;
@@ -26,10 +27,6 @@ enum class DeepLinkType;
 class ASH_PUBLIC_EXPORT AssistantControllerObserver
     : public base::CheckedObserver {
  public:
-  AssistantControllerObserver(const AssistantControllerObserver&) = delete;
-  AssistantControllerObserver& operator=(const AssistantControllerObserver&) =
-      delete;
-
   // Invoked when the AssistantController has been fully constructed.
   virtual void OnAssistantControllerConstructed() {}
 
@@ -59,6 +56,8 @@ class ASH_PUBLIC_EXPORT AssistantControllerObserver
  protected:
   AssistantControllerObserver() = default;
   ~AssistantControllerObserver() override = default;
+
+  DISALLOW_COPY_AND_ASSIGN(AssistantControllerObserver);
 };
 
 }  // namespace ash

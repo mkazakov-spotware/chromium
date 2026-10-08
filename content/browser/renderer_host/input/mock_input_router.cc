@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,16 +37,16 @@ bool MockInputRouter::HasPendingEvents() const {
   return false;
 }
 
-absl::optional<cc::TouchAction> MockInputRouter::AllowedTouchAction() {
+base::Optional<cc::TouchAction> MockInputRouter::AllowedTouchAction() {
   return cc::TouchAction::kAuto;
 }
 
-absl::optional<cc::TouchAction> MockInputRouter::ActiveTouchAction() {
+base::Optional<cc::TouchAction> MockInputRouter::ActiveTouchAction() {
   return cc::TouchAction::kAuto;
 }
 
 mojo::PendingRemote<blink::mojom::WidgetInputHandlerHost>
-MockInputRouter::BindNewHost(scoped_refptr<base::SequencedTaskRunner>) {
+MockInputRouter::BindNewHost() {
   return mojo::NullRemote();
 }
 

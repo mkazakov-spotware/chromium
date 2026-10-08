@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,7 @@ SkiaOutputDeviceVulkanSecondaryCB::SkiaOutputDeviceVulkanSecondaryCB(
                        std::move(did_swap_buffer_complete_callback)),
       context_provider_(context_provider) {
   capabilities_.uses_default_gl_framebuffer = false;
-  capabilities_.pending_swap_params.max_pending_swaps = 1;
+  capabilities_.max_frames_pending = 1;
   capabilities_.preserve_buffer_content = false;
   capabilities_.output_surface_origin = gfx::SurfaceOrigin::kTopLeft;
   capabilities_.supports_post_sub_buffer = false;
@@ -48,14 +48,6 @@ SkiaOutputDeviceVulkanSecondaryCB::SkiaOutputDeviceVulkanSecondaryCB(
       sk_color_type;
 }
 
-std::unique_ptr<SkiaOutputDevice::ScopedPaint>
-SkiaOutputDeviceVulkanSecondaryCB::BeginScopedPaint() {
-  std::vector<GrBackendSemaphore> end_semaphores;
-  SkSurface* sk_surface = BeginPaint(&end_semaphores);
-  return std::make_unique<SkiaOutputDevice::ScopedPaint>(
-      std::move(end_semaphores), this, sk_surface);
-}
-
 void SkiaOutputDeviceVulkanSecondaryCB::Submit(bool sync_cpu,
                                                base::OnceClosure callback) {
   // Submit the primary command buffer which may render passes.
@@ -64,27 +56,28 @@ void SkiaOutputDeviceVulkanSecondaryCB::Submit(bool sync_cpu,
 }
 
 bool SkiaOutputDeviceVulkanSecondaryCB::Reshape(
-    const SkSurfaceCharacterization& characterization,
-    const gfx::ColorSpace& color_space,
+    const gfx::Size& size,
     float device_scale_factor,
+    const gfx::ColorSpace& color_space,
+    gfx::BufferFormat format,
     gfx::OverlayTransform transform) {
   // No-op
-  size_ = gfx::SkISizeToSize(characterization.dimensions());
+  size_ = size;
   return true;
 }
 
 void SkiaOutputDeviceVulkanSecondaryCB::SwapBuffers(
     BufferPresentedCallback feedback,
-    OutputSurfaceFrame frame) {
+    std::vector<ui::LatencyInfo> latency_info) {
   StartSwapBuffers(std::move(feedback));
   FinishSwapBuffers(gfx::SwapCompletionResult(gfx::SwapResult::SWAP_ACK), size_,
-                    std::move(frame));
+                    std::move(latency_info));
 }
 
 void SkiaOutputDeviceVulkanSecondaryCB::PostSubBuffer(
     const gfx::Rect& rect,
     BufferPresentedCallback feedback,
-    OutputSurfaceFrame frame) {
+    std::vector<ui::LatencyInfo> latency_info) {
   CHECK(false);
 }
 

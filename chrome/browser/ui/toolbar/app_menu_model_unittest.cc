@@ -1,14 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
 
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/test/scoped_feature_list.h"
-#include "build/branding_buildflags.h"
-#include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/defaults.h"
 #include "chrome/browser/prefs/browser_prefs.h"
@@ -23,21 +20,14 @@
 #include "chrome/test/base/menu_model_test.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
-#include "components/performance_manager/public/features.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gfx/color_palette.h"
 
-#if BUILDFLAG(IS_CHROMEOS)
-#include "chrome/browser/policy/system_features_disable_list_policy_handler.h"
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/policy/system_features_disable_list_policy_handler.h"
 #include "components/policy/core/common/policy_pref_names.h"
-#endif  // BUILDFLAG(IS_CHROMEOS)
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "ash/constants/ash_features.h"
-#include "chrome/browser/ash/crosapi/browser_util.h"
-#include "components/user_manager/fake_user_manager.h"
-#endif
+#endif  // defined(OS_CHROMEOS)
 
 namespace {
 
@@ -49,24 +39,23 @@ class MenuError : public GlobalError {
         execute_count_(0) {
   }
 
-  MenuError(const MenuError&) = delete;
-  MenuError& operator=(const MenuError&) = delete;
-
   int execute_count() { return execute_count_; }
 
   bool HasMenuItem() override { return true; }
   int MenuItemCommandID() override { return command_id_; }
-  std::u16string MenuItemLabel() override { return std::u16string(); }
+  base::string16 MenuItemLabel() override { return base::string16(); }
   void ExecuteMenuItem(Browser* browser) override { execute_count_++; }
 
   bool HasBubbleView() override { return false; }
   bool HasShownBubbleView() override { return false; }
   void ShowBubbleView(Browser* browser) override { ADD_FAILURE(); }
-  GlobalErrorBubbleViewBase* GetBubbleView() override { return nullptr; }
+  GlobalErrorBubbleViewBase* GetBubbleView() override { return NULL; }
 
  private:
   int command_id_;
   int execute_count_;
+
+  DISALLOW_COPY_AND_ASSIGN(MenuError);
 };
 
 class FakeIconDelegate : public AppMenuIconController::Delegate {
@@ -88,31 +77,16 @@ class AppMenuModelTest : public BrowserWithTestWindowTest,
                          public ui::AcceleratorProvider {
  public:
   AppMenuModelTest() = default;
-
-  AppMenuModelTest(const AppMenuModelTest&) = delete;
-  AppMenuModelTest& operator=(const AppMenuModelTest&) = delete;
-
   ~AppMenuModelTest() override = default;
-
-  void SetUp() override {
-    BrowserWithTestWindowTest::SetUp();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-    auto* user_manager = static_cast<user_manager::FakeUserManager*>(
-        user_manager::UserManager::Get());
-    const auto account_id = AccountId::FromUserEmail("test@test");
-    auto* user = user_manager->AddUser(account_id);
-    user_manager->UserLoggedIn(account_id, user->username_hash(),
-                               /*browser_restart=*/false,
-                               /*is_child=*/false);
-    user_manager->set_local_state(g_browser_process->local_state());
-#endif
-  }
 
   // Don't handle accelerators.
   bool GetAcceleratorForCommandId(int command_id,
                                   ui::Accelerator* accelerator) const override {
     return false;
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AppMenuModelTest);
 };
 
 // Copies parts of MenuModelTest::Delegate and combines them with the
@@ -159,42 +133,34 @@ TEST_F(AppMenuModelTest, Basics) {
   detector->NotifyUpgrade();
   EXPECT_TRUE(detector->notify_upgrade());
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  auto set_lacros_enabled =
-      crosapi::browser_util::SetLacrosEnabledForTest(true);
-#endif
-
   FakeIconDelegate fake_delegate;
   AppMenuIconController app_menu_icon_controller(browser()->profile(),
                                                  &fake_delegate);
   TestAppMenuModel model(this, browser(), &app_menu_icon_controller);
   model.Init();
-  size_t item_count = model.GetItemCount();
+  int itemCount = model.GetItemCount();
 
   // Verify it has items. The number varies by platform, so we don't check
   // the exact number.
-  EXPECT_GT(item_count, 10u);
+  EXPECT_GT(itemCount, 10);
 
   // Verify that the upgrade item is visible if supported.
   EXPECT_EQ(browser_defaults::kShowUpgradeMenuItem,
             model.IsCommandIdVisible(IDC_UPGRADE_DIALOG));
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  EXPECT_TRUE(model.IsCommandIdVisible(IDC_LACROS_DATA_MIGRATION));
-#endif
 
   // Execute a couple of the items and make sure it gets back to our delegate.
   // We can't use CountEnabledExecutable() here because the encoding menu's
   // delegate is internal, it doesn't use the one we pass in.
   // Note: the second item in the menu may be a separator if the browser
   // supports showing upgrade status in the app menu.
-  size_t item_index = 1;
+  int item_index = 1;
   if (model.GetTypeAt(item_index) == ui::MenuModel::TYPE_SEPARATOR)
     ++item_index;
   model.ActivatedAt(item_index);
   EXPECT_TRUE(model.IsEnabledAt(item_index));
   // Make sure to use the index that is not separator in all configurations.
-  model.ActivatedAt(item_count - 1);
-  EXPECT_TRUE(model.IsEnabledAt(item_count - 1));
+  model.ActivatedAt(itemCount - 1);
+  EXPECT_TRUE(model.IsEnabledAt(itemCount - 1));
 
   EXPECT_EQ(model.execute_count_, 2);
   EXPECT_EQ(model.enable_count_, 2);
@@ -204,21 +170,21 @@ TEST_F(AppMenuModelTest, Basics) {
 
   // Choose something from the bookmark submenu and make sure it makes it back
   // to the delegate as well.
-  size_t bookmarks_model_index = 0;
-  for (size_t i = 0; i < item_count; ++i) {
+  int bookmarks_model_index = -1;
+  for (int i = 0; i < itemCount; ++i) {
     if (model.GetTypeAt(i) == ui::MenuModel::TYPE_SUBMENU) {
       // The bookmarks submenu comes after the Tabs and Downloads items.
       bookmarks_model_index = i + 2;
       break;
     }
   }
-  EXPECT_GT(bookmarks_model_index, 0u);
+  EXPECT_GT(bookmarks_model_index, -1);
   ui::MenuModel* bookmarks_model =
       model.GetSubmenuModelAt(bookmarks_model_index);
   EXPECT_TRUE(bookmarks_model);
   // The bookmarks model may be empty until we tell it we're going to show it.
   bookmarks_model->MenuWillShow();
-  EXPECT_GT(bookmarks_model->GetItemCount(), 1u);
+  EXPECT_GT(bookmarks_model->GetItemCount(), 1);
 
   // Bookmark manager item.
   bookmarks_model->ActivatedAt(4);
@@ -241,89 +207,45 @@ TEST_F(AppMenuModelTest, GlobalError) {
 
   AppMenuModel model(this, browser());
   model.Init();
-  absl::optional<size_t> index1 = model.GetIndexOfCommandId(command1);
-  ASSERT_TRUE(index1.has_value());
-  absl::optional<size_t> index2 = model.GetIndexOfCommandId(command2);
-  ASSERT_TRUE(index2.has_value());
+  int index1 = model.GetIndexOfCommandId(command1);
+  EXPECT_GT(index1, -1);
+  int index2 = model.GetIndexOfCommandId(command2);
+  EXPECT_GT(index2, -1);
 
-  EXPECT_TRUE(model.IsEnabledAt(index1.value()));
+  EXPECT_TRUE(model.IsEnabledAt(index1));
   EXPECT_EQ(0, error1->execute_count());
-  model.ActivatedAt(index1.value());
+  model.ActivatedAt(index1);
   EXPECT_EQ(1, error1->execute_count());
 
-  EXPECT_TRUE(model.IsEnabledAt(index2.value()));
+  EXPECT_TRUE(model.IsEnabledAt(index2));
   EXPECT_EQ(0, error2->execute_count());
-  model.ActivatedAt(index2.value());
+  model.ActivatedAt(index2);
   EXPECT_EQ(1, error1->execute_count());
 }
 
-TEST_F(AppMenuModelTest, EnabledPerformanceItem) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeature(
-      performance_manager::features::kHighEfficiencyModeAvailable);
-  AppMenuModel model(this, browser());
-  model.Init();
-  ToolsMenuModel toolModel(&model, browser());
-  size_t performance_index =
-      toolModel.GetIndexOfCommandId(IDC_PERFORMANCE).value();
-  EXPECT_TRUE(toolModel.IsEnabledAt(performance_index));
-}
-
-TEST_F(AppMenuModelTest, DisabledPerformanceItem) {
-  AppMenuModel model(this, browser());
-  model.Init();
-  ToolsMenuModel toolModel(&model, browser());
-  EXPECT_FALSE(toolModel.GetIndexOfCommandId(IDC_PERFORMANCE).has_value());
-}
-
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
 // Tests settings menu items is disabled in the app menu when
 // kSystemFeaturesDisableList is set.
 TEST_F(AppMenuModelTest, DisableSettingsItem) {
   AppMenuModel model(this, browser());
   model.Init();
-  const size_t options_index = model.GetIndexOfCommandId(IDC_OPTIONS).value();
-  EXPECT_TRUE(model.IsEnabledAt(options_index));
-
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-  const size_t help_menu_index =
-      model.GetIndexOfCommandId(IDC_HELP_MENU).value();
-  ui::SimpleMenuModel* help_menu = static_cast<ui::SimpleMenuModel*>(
-      model.GetSubmenuModelAt(help_menu_index));
-  const size_t about_index = help_menu->GetIndexOfCommandId(IDC_ABOUT).value();
-  EXPECT_TRUE(help_menu->IsEnabledAt(about_index));
-#else
-  const size_t about_index = model.GetIndexOfCommandId(IDC_ABOUT).value();
-  EXPECT_TRUE(model.IsEnabledAt(about_index));
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+  int index = model.GetIndexOfCommandId(IDC_OPTIONS);
+  EXPECT_TRUE(model.IsEnabledAt(index));
 
   {
-    ScopedListPrefUpdate update(
-        TestingBrowserProcess::GetGlobal()->local_state(),
-        policy::policy_prefs::kSystemFeaturesDisableList);
-    update->Append(static_cast<int>(policy::SystemFeature::kBrowserSettings));
+    ListPrefUpdate update(TestingBrowserProcess::GetGlobal()->local_state(),
+                          policy::policy_prefs::kSystemFeaturesDisableList);
+    base::ListValue* list = update.Get();
+    list->Append(policy::SystemFeature::BROWSER_SETTINGS);
   }
-  EXPECT_FALSE(model.IsEnabledAt(options_index));
-
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-  EXPECT_FALSE(help_menu->IsEnabledAt(about_index));
-#else
-  EXPECT_FALSE(model.IsEnabledAt(about_index));
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+  EXPECT_FALSE(model.IsEnabledAt(index));
 
   {
-    ScopedListPrefUpdate update(
-        TestingBrowserProcess::GetGlobal()->local_state(),
-        policy::policy_prefs::kSystemFeaturesDisableList);
-    update->clear();
+    ListPrefUpdate update(TestingBrowserProcess::GetGlobal()->local_state(),
+                          policy::policy_prefs::kSystemFeaturesDisableList);
+    base::ListValue* list = update.Get();
+    list->Clear();
   }
-  EXPECT_TRUE(model.IsEnabledAt(options_index));
-
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-  EXPECT_TRUE(help_menu->IsEnabledAt(about_index));
-#else
-  EXPECT_TRUE(model.IsEnabledAt(about_index));
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+  EXPECT_TRUE(model.IsEnabledAt(index));
 }
-
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)

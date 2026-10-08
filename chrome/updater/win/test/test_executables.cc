@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@
 #include "base/synchronization/waitable_event.h"
 #include "base/win/win_util.h"
 #include "chrome/updater/constants.h"
-#include "chrome/updater/updater_scope.h"
 #include "chrome/updater/win/test/test_inheritable_event.h"
 #include "chrome/updater/win/test/test_strings.h"
 
@@ -23,7 +22,7 @@ namespace updater {
 
 // If you add another test executable here, also add it to the data_deps in
 // the "test_executables" target of updater/win/test/BUILD.gn.
-const wchar_t kTestProcessExecutableName[] = L"updater_test_process.exe";
+const base::char16 kTestProcessExecutableName[] = L"updater_test_process.exe";
 
 base::Process LongRunningProcess(base::CommandLine* cmd) {
   base::FilePath exe_dir;
@@ -44,7 +43,7 @@ base::Process LongRunningProcess(base::CommandLine* cmd) {
       base::WaitableEvent::InitialState::NOT_SIGNALED);
   command_line.AppendSwitchNative(
       updater::kInitDoneNotifierSwitch,
-      base::NumberToWString(
+      base::NumberToString16(
           base::win::HandleToUint32(init_done_event->handle())));
 
   if (cmd)
@@ -54,28 +53,13 @@ base::Process LongRunningProcess(base::CommandLine* cmd) {
   launch_options.handles_to_inherit.push_back(init_done_event->handle());
   base::Process result = base::LaunchProcess(command_line, launch_options);
 
-  if (!init_done_event->TimedWait(base::Seconds(10))) {
+  if (!init_done_event->TimedWait(base::TimeDelta::FromSeconds(10))) {
     LOG(ERROR) << "Process did not signal";
     result.Terminate(/*exit_code=*/1, /*wait=*/false);
     return base::Process();
   }
 
   return result;
-}
-
-base::CommandLine GetTestProcessCommandLine(UpdaterScope scope) {
-  base::FilePath executable_path;
-  CHECK(base::PathService::Get(base::DIR_EXE, &executable_path));
-
-  base::CommandLine command_line(
-      executable_path.Append(kTestProcessExecutableName));
-  if (IsSystemInstall(scope))
-    command_line.AppendSwitch(kSystemSwitch);
-
-  command_line.AppendSwitch(kEnableLoggingSwitch);
-  command_line.AppendSwitchASCII(kLoggingModuleSwitch,
-                                 kLoggingModuleSwitchValue);
-  return command_line;
 }
 
 }  // namespace updater

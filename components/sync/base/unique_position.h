@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,21 +50,23 @@ class UniquePosition {
   // Avoid using this; it can lead to inconsistent sort orderings if misused.
   static std::string RandomSuffix();
 
+  // Returns an invalid position.
+  static UniquePosition CreateInvalid();
+
   // Converts from a 'sync_pb::UniquePosition' protobuf to a UniquePosition.
   // This may return an invalid position if the parsing fails.
   static UniquePosition FromProto(const sync_pb::UniquePosition& proto);
 
   // Creates a position with the given suffix.  Ordering among positions created
   // from this function is the same as that of the integer parameters that were
-  // passed in. |suffix| must be a valid suffix with length |kSuffixLength|.
+  // passed in.
   static UniquePosition FromInt64(int64_t i, const std::string& suffix);
 
-  // Returns a valid position. Its ordering is not defined. |suffix| must be a
-  // valid suffix with length |kSuffixLength|.
+  // Returns a valid position.  Its ordering is not defined.
   static UniquePosition InitialPosition(const std::string& suffix);
 
   // Returns positions compare smaller than, greater than, or between the input
-  // positions. |suffix| must be a valid suffix with length |kSuffixLength|.
+  // positions.
   static UniquePosition Before(const UniquePosition& x,
                                const std::string& suffix);
   static UniquePosition After(const UniquePosition& x,
@@ -73,14 +75,8 @@ class UniquePosition {
                                 const UniquePosition& after,
                                 const std::string& suffix);
 
-  // Creates an empty, invalid value.
+  // This constructor creates an invalid value.
   UniquePosition();
-
-  // Type is copyable and movable.
-  UniquePosition(const UniquePosition&) = default;
-  UniquePosition(UniquePosition&&) = default;
-  UniquePosition& operator=(const UniquePosition&) = default;
-  UniquePosition& operator=(UniquePosition&&) = default;
 
   bool LessThan(const UniquePosition& other) const;
   bool Equals(const UniquePosition& other) const;
@@ -96,6 +92,12 @@ class UniquePosition {
 
   // Returns the suffix.
   std::string GetSuffixForTest() const;
+
+  // Performs a lossy conversion to an int64_t position.  Positions converted to
+  // and from int64_ts using this and the FromInt64 function should maintain
+  // their
+  // relative orderings unless the int64_t values conflict.
+  int64_t ToInt64() const;
 
   bool IsValid() const;
 
@@ -123,7 +125,7 @@ class UniquePosition {
                                            const std::string& suffix);
 
   // Expects a run-length compressed string as input.  For internal use only.
-  explicit UniquePosition(const std::string& compressed);
+  explicit UniquePosition(const std::string& internal_rep);
 
   // Expects an uncompressed prefix and suffix as input.  The |suffix| parameter
   // must be a suffix of |uncompressed|.  For internal use only.
@@ -138,6 +140,7 @@ class UniquePosition {
   // The position value after it has been run through the custom compression
   // algorithm.  See Compress() and Uncompress() functions above.
   std::string compressed_;
+  bool is_valid_;
 };
 
 }  // namespace syncer

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/check_op.h"
 #include "chrome/browser/content_settings/chrome_content_settings_utils.h"
+#include "content/public/browser/navigation_handle.h"
 
 FramebustBlockTabHelper::~FramebustBlockTabHelper() = default;
 
@@ -36,14 +37,19 @@ void FramebustBlockTabHelper::OnBlockedUrlClicked(size_t index) {
 
 FramebustBlockTabHelper::FramebustBlockTabHelper(
     content::WebContents* web_contents)
-    : content::WebContentsObserver(web_contents),
-      content::WebContentsUserData<FramebustBlockTabHelper>(*web_contents) {}
+    : content::WebContentsObserver(web_contents) {}
 
-void FramebustBlockTabHelper::PrimaryPageChanged(content::Page& page) {
+void FramebustBlockTabHelper::DidFinishNavigation(
+    content::NavigationHandle* navigation_handle) {
+  if (!navigation_handle->IsInMainFrame() ||
+      !navigation_handle->HasCommitted() ||
+      navigation_handle->IsSameDocument()) {
+    return;
+  }
   blocked_urls_.clear();
   callbacks_.clear();
 
   content_settings::UpdateLocationBarUiForWebContents(web_contents());
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(FramebustBlockTabHelper);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(FramebustBlockTabHelper)

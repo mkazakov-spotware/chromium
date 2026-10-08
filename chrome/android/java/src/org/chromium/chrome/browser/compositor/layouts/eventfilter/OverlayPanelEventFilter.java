@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.chrome.browser.compositor.bottombar.OverlayPanel;
 import org.chromium.chrome.browser.compositor.bottombar.OverlayPanel.PanelState;
 import org.chromium.chrome.browser.compositor.bottombar.OverlayPanelManager;
-import org.chromium.components.browser_ui.widget.gesture.SwipeGestureListener;
+import org.chromium.chrome.browser.contextualsearch.SwipeRecognizer;
 import org.chromium.content_public.browser.WebContents;
 
 import java.lang.annotation.Retention;
@@ -63,8 +63,8 @@ public class OverlayPanelEventFilter extends GestureEventFilter {
     /** The {@link GestureDetector} used to distinguish tap and scroll gestures. */
     private final GestureDetector mGestureDetector;
 
-    /** The @{link SwipeGestureListener} that recognizes directional swipe gestures. */
-    private final SwipeGestureListener mSwipeGestureListener;
+    /** The @{link SwipeRecognizer} that recognizes directional swipe gestures. */
+    private final SwipeRecognizer mSwipeRecognizer;
 
     /**
      * The square of ViewConfiguration.getScaledTouchSlop() in pixels used to calculate whether
@@ -121,9 +121,10 @@ public class OverlayPanelEventFilter extends GestureEventFilter {
     /** Whether or not the superclass has seen a down event. */
     private boolean mFilterHadDownEvent;
 
-    private class SwipeGestureListenerImpl extends SwipeGestureListener {
-        public SwipeGestureListenerImpl(Context context) {
-            super(context, mPanel);
+    private class SwipeRecognizerImpl extends SwipeRecognizer {
+        public SwipeRecognizerImpl(Context context) {
+            super(context);
+            setSwipeHandler(mPanel);
         }
 
         @Override
@@ -144,7 +145,7 @@ public class OverlayPanelEventFilter extends GestureEventFilter {
         mGestureDetector = new GestureDetector(context, new InternalGestureDetector());
         mPanel = panel;
 
-        mSwipeGestureListener = new SwipeGestureListenerImpl(context);
+        mSwipeRecognizer = new SwipeRecognizerImpl(context);
 
         // Store the square of the platform touch slop in pixels to use in the scroll detection.
         // See {@link OverlayPanelEventFilter#isDistanceGreaterThanTouchSlop}.
@@ -198,7 +199,7 @@ public class OverlayPanelEventFilter extends GestureEventFilter {
                 // Content View visibility to true when the side-swipe is detected.
                 mPanel.notifyBarTouched(e.getX() * mPxToDp);
             }
-            mSwipeGestureListener.onTouchEvent(e);
+            mSwipeRecognizer.onTouchEvent(e);
             mGestureDetector.onTouchEvent(e);
             return true;
         }

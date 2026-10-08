@@ -1,16 +1,15 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.bookmarks;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.ObserverList;
-import org.chromium.base.ThreadUtils;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.bookmarks.BookmarkId;
-import org.chromium.components.bookmarks.BookmarkItem;
 import org.chromium.components.bookmarks.BookmarkType;
 
 import java.util.ArrayList;
@@ -40,18 +39,15 @@ public class BookmarkModel extends BookmarkBridge {
     private ObserverList<BookmarkDeleteObserver> mDeleteObservers = new ObserverList<>();
 
     /**
-     * Provides an instance of the bookmark model for the provided profile.
-     * @param profile A profile for which the bookmark model is provided.
-     * @return An instance of the bookmark model.
+     * Initialize bookmark model for last used non-incognito profile.
      */
-    public static final BookmarkModel getForProfile(@NonNull Profile profile) {
-        assert profile != null;
-        ThreadUtils.assertOnUiThread();
-        return BookmarkBridge.getForProfile(profile);
+    public BookmarkModel() {
+        this(Profile.getLastUsedRegularProfile());
     }
 
-    BookmarkModel(long nativeBookmarkBridge) {
-        super(nativeBookmarkBridge);
+    @VisibleForTesting
+    public BookmarkModel(Profile profile) {
+        super(profile);
     }
 
     /**
@@ -78,7 +74,7 @@ public class BookmarkModel extends BookmarkBridge {
      *                  children, because deleting folder will also remove all its children, and
      *                  deleting children once more will cause errors.
      */
-    public void deleteBookmarks(BookmarkId... bookmarks) {
+    void deleteBookmarks(BookmarkId... bookmarks) {
         assert bookmarks != null && bookmarks.length > 0;
         // Store all titles of bookmarks.
         List<String> titles = new ArrayList<>();
@@ -103,7 +99,7 @@ public class BookmarkModel extends BookmarkBridge {
      * Calls {@link BookmarkBridge#moveBookmark(BookmarkId, BookmarkId, int)} for the given
      * bookmark list. The bookmarks are appended at the end.
      */
-    public void moveBookmarks(List<BookmarkId> bookmarkIds, BookmarkId newParentId) {
+    void moveBookmarks(List<BookmarkId> bookmarkIds, BookmarkId newParentId) {
         int appendIndex = getChildCount(newParentId);
         for (int i = 0; i < bookmarkIds.size(); ++i) {
             moveBookmark(bookmarkIds.get(i), newParentId, appendIndex + i);
@@ -111,9 +107,9 @@ public class BookmarkModel extends BookmarkBridge {
     }
 
     /**
-     * @see org.chromium.chrome.browser.bookmarks.BookmarkItem#getTitle()
+     * @see org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkItem#getTitle()
      */
-    public String getBookmarkTitle(BookmarkId bookmarkId) {
+    String getBookmarkTitle(BookmarkId bookmarkId) {
         BookmarkItem bookmarkItem = getBookmarkById(bookmarkId);
         if (bookmarkItem == null) return "";
         return bookmarkItem.getTitle();
@@ -136,19 +132,9 @@ public class BookmarkModel extends BookmarkBridge {
     }
 
     /**
-     * @return The id of the default folder to save bookmarks/folders to.
+     * @return The id of the default folder to add bookmarks/folders to.
      */
     public BookmarkId getDefaultFolder() {
-        return getMobileFolderId();
-    }
-
-    /**
-     * @return The id of the default folder to view bookmarks.
-     */
-    public BookmarkId getDefaultFolderViewLocation() {
-        if (ReadingListFeatures.shouldUseRootFolderAsDefaultForReadLater()) {
-            return getRootFolderId();
-        }
         return getMobileFolderId();
     }
 }

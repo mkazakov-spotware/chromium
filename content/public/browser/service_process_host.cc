@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,7 @@ ServiceProcessHost::Options& ServiceProcessHost::Options::WithDisplayName(
 }
 
 ServiceProcessHost::Options& ServiceProcessHost::Options::WithDisplayName(
-    const std::u16string& name) {
+    const base::string16& name) {
   display_name = name;
   return *this;
 }
@@ -43,12 +43,6 @@ ServiceProcessHost::Options&
 ServiceProcessHost::Options::WithExtraCommandLineSwitches(
     std::vector<std::string> switches) {
   extra_switches = std::move(switches);
-  return *this;
-}
-
-ServiceProcessHost::Options& ServiceProcessHost::Options::WithProcessCallback(
-    base::OnceCallback<void(const base::Process&)> callback) {
-  process_callback = std::move(callback);
   return *this;
 }
 

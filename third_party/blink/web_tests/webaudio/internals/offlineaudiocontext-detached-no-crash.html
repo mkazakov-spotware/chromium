@@ -60,7 +60,7 @@
       if (window.testRunner) {
         testRunner.dumpAsText();
         testRunner.waitUntilDone();
-        testRunner.setPopupBlockingEnabled(false);
+        testRunner.setCanOpenWindows();
       }
 
       w = window.open('../../resources/window-postmessage-open-close.html');

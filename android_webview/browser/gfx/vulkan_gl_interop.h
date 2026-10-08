@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,17 +9,18 @@
 
 #include "android_webview/browser/gfx/aw_vulkan_context_provider.h"
 #include "android_webview/public/browser/draw_fn.h"
-#include "base/android/scoped_hardware_buffer_handle.h"
 #include "base/containers/queue.h"
 #include "base/files/scoped_file.h"
 #include "base/memory/scoped_refptr.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
 #include "third_party/skia/include/gpu/vk/GrVkTypes.h"
-#include "ui/gfx/geometry/size.h"
-#include "ui/gl/scoped_egl_image.h"
 
 class GrVkSecondaryCBDrawContext;
 class SkColorSpace;
+
+namespace gl {
+class GLImageAHardwareBuffer;
+}
 
 namespace gpu {
 class VulkanImage;
@@ -29,7 +30,6 @@ namespace android_webview {
 
 class RenderThreadManager;
 struct HardwareRendererDrawParams;
-struct OverlaysParams;
 
 // With interop mode, we will render frames on AHBs with GL api, and then draw
 // AHBs with Vulkan API on the final target.
@@ -41,8 +41,7 @@ class VulkanGLInterop {
 
   void DrawVk(sk_sp<GrVkSecondaryCBDrawContext> draw_context,
               sk_sp<SkColorSpace> color_space,
-              const HardwareRendererDrawParams& params,
-              const OverlaysParams& overlays_params);
+              HardwareRendererDrawParams* params);
   void PostDrawVk();
 
   // For clean up.
@@ -61,9 +60,7 @@ class VulkanGLInterop {
     VkFence post_draw_fence = VK_NULL_HANDLE;
     VkSemaphore post_draw_semaphore = VK_NULL_HANDLE;
     base::ScopedFD sync_fd;
-    ui::ScopedEGLImage egl_image;
-    gfx::Size image_size;
-    base::android::ScopedHardwareBufferHandle scoped_buffer;
+    scoped_refptr<gl::GLImageAHardwareBuffer> ahb_image;
     sk_sp<SkImage> ahb_skimage;
     uint32_t texture_id = 0;
     uint32_t framebuffer_id = 0;
@@ -71,7 +68,7 @@ class VulkanGLInterop {
     GrVkImageInfo image_info;
 
     // Used to clean up Vulkan objects.
-    raw_ptr<AwVulkanContextProvider> vk_context_provider;
+    AwVulkanContextProvider* vk_context_provider;
   };
 
   RenderThreadManager* const render_thread_manager_;

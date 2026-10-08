@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include "base/callback_helpers.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/trace_event/trace_event.h"
 #include "media/base/bind_to_current_loop.h"
 #include "media/base/cdm_context.h"
@@ -28,8 +28,8 @@ DecryptingVideoDecoder::DecryptingVideoDecoder(
   DETACH_FROM_SEQUENCE(sequence_checker_);
 }
 
-VideoDecoderType DecryptingVideoDecoder::GetDecoderType() const {
-  return VideoDecoderType::kDecrypting;
+std::string DecryptingVideoDecoder::GetDisplayName() const {
+  return kDecoderName;
 }
 
 void DecryptingVideoDecoder::Initialize(const VideoDecoderConfig& config,
@@ -53,12 +53,12 @@ void DecryptingVideoDecoder::Initialize(const VideoDecoderConfig& config,
   if (!cdm_context) {
     // Once we have a CDM context, one should always be present.
     DCHECK(!support_clear_content_);
-    std::move(init_cb_).Run(DecoderStatus::Codes::kUnsupportedEncryptionMode);
+    std::move(init_cb_).Run(StatusCode::kDecoderMissingCdmForEncryptedContent);
     return;
   }
 
   if (!config.is_encrypted() && !support_clear_content_) {
-    std::move(init_cb_).Run(DecoderStatus::Codes::kUnsupportedEncryptionMode);
+    std::move(init_cb_).Run(StatusCode::kClearContentUnsupported);
     return;
   }
 
@@ -75,7 +75,7 @@ void DecryptingVideoDecoder::Initialize(const VideoDecoderConfig& config,
   if (state_ == kUninitialized) {
     if (!cdm_context->GetDecryptor()) {
       DVLOG(1) << __func__ << ": no decryptor";
-      std::move(init_cb_).Run(DecoderStatus::Codes::kUnsupportedEncryptionMode);
+      std::move(init_cb_).Run(StatusCode::kDecoderFailedInitialization);
       return;
     }
 
@@ -112,13 +112,13 @@ void DecryptingVideoDecoder::Decode(scoped_refptr<DecoderBuffer> buffer,
   decode_cb_ = BindToCurrentLoop(std::move(decode_cb));
 
   if (state_ == kError) {
-    std::move(decode_cb_).Run(DecoderStatus::Codes::kPlatformDecodeFailure);
+    std::move(decode_cb_).Run(DecodeStatus::DECODE_ERROR);
     return;
   }
 
   // Return empty frames if decoding has finished.
   if (state_ == kDecodeFinished) {
-    std::move(decode_cb_).Run(DecoderStatus::Codes::kOk);
+    std::move(decode_cb_).Run(DecodeStatus::OK);
     return;
   }
 
@@ -154,7 +154,7 @@ void DecryptingVideoDecoder::Reset(base::OnceClosure closure) {
     CompleteWaitingForDecryptionKey();
     DCHECK(decode_cb_);
     pending_buffer_to_decode_.reset();
-    std::move(decode_cb_).Run(DecoderStatus::Codes::kAborted);
+    std::move(decode_cb_).Run(DecodeStatus::ABORTED);
   }
 
   DCHECK(!decode_cb_);
@@ -178,9 +178,9 @@ DecryptingVideoDecoder::~DecryptingVideoDecoder() {
   }
   pending_buffer_to_decode_.reset();
   if (init_cb_)
-    std::move(init_cb_).Run(DecoderStatus::Codes::kInterrupted);
+    std::move(init_cb_).Run(StatusCode::kDecoderInitializeNeverCompleted);
   if (decode_cb_)
-    std::move(decode_cb_).Run(DecoderStatus::Codes::kAborted);
+    std::move(decode_cb_).Run(DecodeStatus::ABORTED);
   if (reset_cb_)
     std::move(reset_cb_).Run();
 }
@@ -195,9 +195,7 @@ void DecryptingVideoDecoder::FinishInitialization(bool success) {
 
   if (!success) {
     DVLOG(1) << __func__ << ": failed to init video decoder on decryptor";
-    // TODO(*) Is there a better reason? Should this method itself take a
-    // status?
-    std::move(init_cb_).Run(DecoderStatus::Codes::kFailed);
+    std::move(init_cb_).Run(StatusCode::kDecoderInitializeNeverCompleted);
     decryptor_ = nullptr;
     event_cb_registration_.reset();
     state_ = kError;
@@ -206,7 +204,7 @@ void DecryptingVideoDecoder::FinishInitialization(bool success) {
 
   // Success!
   state_ = kIdle;
-  std::move(init_cb_).Run(DecoderStatus::Codes::kOk);
+  std::move(init_cb_).Run(OkStatus());
 }
 
 void DecryptingVideoDecoder::DecodePendingBuffer() {
@@ -245,7 +243,7 @@ void DecryptingVideoDecoder::DeliverFrame(Decryptor::Status status,
       std::move(pending_buffer_to_decode_);
 
   if (reset_cb_) {
-    std::move(decode_cb_).Run(DecoderStatus::Codes::kAborted);
+    std::move(decode_cb_).Run(DecodeStatus::ABORTED);
     DoReset();
     return;
   }
@@ -254,9 +252,9 @@ void DecryptingVideoDecoder::DeliverFrame(Decryptor::Status status,
 
   if (status == Decryptor::kError) {
     DVLOG(2) << "DeliverFrame() - kError";
-    MEDIA_LOG(ERROR, media_log_) << GetDecoderType() << ": decode error";
+    MEDIA_LOG(ERROR, media_log_) << GetDisplayName() << ": decode error";
     state_ = kError;
-    std::move(decode_cb_).Run(DecoderStatus::Codes::kPlatformDecodeFailure);
+    std::move(decode_cb_).Run(DecodeStatus::DECODE_ERROR);
     return;
   }
 
@@ -267,7 +265,7 @@ void DecryptingVideoDecoder::DeliverFrame(Decryptor::Status status,
         "no key for key ID " + base::HexEncode(key_id.data(), key_id.size()) +
         "; will resume decoding after new usable key is available";
     DVLOG(1) << __func__ << ": " << log_message;
-    MEDIA_LOG(INFO, media_log_) << GetDecoderType() << ": " << log_message;
+    MEDIA_LOG(INFO, media_log_) << GetDisplayName() << ": " << log_message;
 
     // Set |pending_buffer_to_decode_| back as we need to try decoding the
     // pending buffer again when new key is added to the decryptor.
@@ -276,7 +274,7 @@ void DecryptingVideoDecoder::DeliverFrame(Decryptor::Status status,
     if (need_to_try_again_if_nokey_is_returned) {
       // The |state_| is still kPendingDecode.
       MEDIA_LOG(INFO, media_log_)
-          << GetDecoderType() << ": key was added, resuming decode";
+          << GetDisplayName() << ": key was added, resuming decode";
       DecodePendingBuffer();
       return;
     }
@@ -292,7 +290,7 @@ void DecryptingVideoDecoder::DeliverFrame(Decryptor::Status status,
     DVLOG(2) << "DeliverFrame() - kNeedMoreData";
     state_ = scoped_pending_buffer_to_decode->end_of_stream() ? kDecodeFinished
                                                               : kIdle;
-    std::move(decode_cb_).Run(DecoderStatus::Codes::kOk);
+    std::move(decode_cb_).Run(DecodeStatus::OK);
     return;
   }
 
@@ -300,7 +298,7 @@ void DecryptingVideoDecoder::DeliverFrame(Decryptor::Status status,
   CHECK(frame);
 
   // Frame returned with kSuccess should not be an end-of-stream frame.
-  DCHECK(!frame->metadata().end_of_stream);
+  DCHECK(!frame->metadata()->end_of_stream);
 
   // If color space is not set, use the color space in the |config_|.
   if (!frame->ColorSpace().IsValid()) {
@@ -320,7 +318,7 @@ void DecryptingVideoDecoder::DeliverFrame(Decryptor::Status status,
   }
 
   state_ = kIdle;
-  std::move(decode_cb_).Run(DecoderStatus::Codes::kOk);
+  std::move(decode_cb_).Run(DecodeStatus::OK);
 }
 
 void DecryptingVideoDecoder::OnCdmContextEvent(CdmContext::Event event) {
@@ -338,7 +336,7 @@ void DecryptingVideoDecoder::OnCdmContextEvent(CdmContext::Event event) {
   if (state_ == kWaitingForKey) {
     CompleteWaitingForDecryptionKey();
     MEDIA_LOG(INFO, media_log_)
-        << GetDecoderType() << ": key added, resuming decode";
+        << GetDisplayName() << ": key added, resuming decode";
     state_ = kPendingDecode;
     DecodePendingBuffer();
   }

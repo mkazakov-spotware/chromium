@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,27 +7,25 @@
 
 #include "base/callback.h"
 #include "base/memory/weak_ptr.h"
-#include "base/values.h"
 #include "remoting/host/setup/daemon_controller.h"
 #include "remoting/host/setup/service_client.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace remoting {
 
 // A helper class that stops and unregisters a host.
-class HostStopper final : public ServiceClient::Delegate {
+class HostStopper : public ServiceClient::Delegate {
  public:
   HostStopper(std::unique_ptr<ServiceClient> service_client,
               scoped_refptr<DaemonController> daemon_controller);
   HostStopper(const HostStopper&) = delete;
   HostStopper& operator=(const HostStopper&) = delete;
-  ~HostStopper() override;
+  ~HostStopper() final;
 
   // Stops the host running on the local computer, if any, and unregisters it.
   void StopLocalHost(std::string access_token, base::OnceClosure on_done);
 
  private:
-  void OnConfigLoaded(absl::optional<base::Value::Dict> config);
+  void OnConfigLoaded(std::unique_ptr<base::DictionaryValue> config);
   void StopHost();
   void OnStopped(DaemonController::AsyncResult);
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,19 +11,20 @@
 
 #include "base/callback.h"
 #include "base/command_line.h"
-#include "base/component_export.h"
 #include "base/lazy_instance.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/threading/thread.h"
+#include "chromeos/chromeos_export.h"
 #include "chromeos/process_proxy/process_proxy.h"
 
 namespace chromeos {
 
 // Keeps track of all created ProcessProxies. It is created lazily and should
 // live on a single thread (where all methods must be called).
-class COMPONENT_EXPORT(CHROMEOS_PROCESS_PROXY) ProcessProxyRegistry {
+class CHROMEOS_EXPORT ProcessProxyRegistry {
  public:
   using OutputCallback =
       base::RepeatingCallback<void(const std::string& id,
@@ -43,27 +44,19 @@ class COMPONENT_EXPORT(CHROMEOS_PROCESS_PROXY) ProcessProxyRegistry {
 
   static ProcessProxyRegistry* Get();
 
-  ProcessProxyRegistry(const ProcessProxyRegistry&) = delete;
-  ProcessProxyRegistry& operator=(const ProcessProxyRegistry&) = delete;
-
-  // Converts the id returned by OpenProcess() to the system pid.
-  static int ConvertToSystemPID(const std::string& id);
-
   // Returns a SequencedTaskRunner where the singleton instance of
   // ProcessProxyRegistry lives.
   static scoped_refptr<base::SequencedTaskRunner> GetTaskRunner();
 
   // Starts new ProcessProxy (which starts new process).
-  // Returns true if the process is created successfully, false otherwise.
+  // Returns true if the process is created sucessfully, false otherwise.
   // The unique process id is passed back via |id|.
   bool OpenProcess(const base::CommandLine& cmdline,
                    const std::string& user_id_hash,
                    const OutputCallback& callback,
                    std::string* id);
   // Sends data to the process identified by |id|.
-  void SendInput(const std::string& id,
-                 const std::string& data,
-                 base::OnceCallback<void(bool)> callback);
+  bool SendInput(const std::string& id, const std::string& data);
   // Stops the process identified by |id|.
   bool CloseProcess(const std::string& id);
   // Reports terminal resize to process proxy.
@@ -75,8 +68,8 @@ class COMPONENT_EXPORT(CHROMEOS_PROCESS_PROXY) ProcessProxyRegistry {
   // Shuts down registry, closing all associated processed.
   void ShutDown();
 
-  // Get the process for testing purposes.
-  const base::Process* GetProcessForTesting(const std::string& id);
+  // Get the process handle for testing purposes.
+  base::ProcessHandle GetProcessHandleForTesting(const std::string& id);
 
  private:
   friend struct ::base::LazyInstanceTraitsBase<ProcessProxyRegistry>;
@@ -97,6 +90,8 @@ class COMPONENT_EXPORT(CHROMEOS_PROCESS_PROXY) ProcessProxyRegistry {
   std::unique_ptr<base::Thread> watcher_thread_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(ProcessProxyRegistry);
 };
 
 }  // namespace chromeos

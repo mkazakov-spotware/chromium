@@ -74,7 +74,7 @@ async function checkPopulateMatrix(t, sensorProvider, sensorType) {
   sensor.stop();
 }
 
-function runOrientationSensorTests(sensorName) {
+function runOrienationSensorTests(sensorName) {
   const sensorType = self[sensorName];
 
   sensor_test(async t => {

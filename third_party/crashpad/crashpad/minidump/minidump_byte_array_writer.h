@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "minidump/minidump_extensions.h"
 #include "minidump/minidump_writable.h"
 
@@ -28,10 +29,6 @@ namespace crashpad {
 class MinidumpByteArrayWriter final : public internal::MinidumpWritable {
  public:
   MinidumpByteArrayWriter();
-
-  MinidumpByteArrayWriter(const MinidumpByteArrayWriter&) = delete;
-  MinidumpByteArrayWriter& operator=(const MinidumpByteArrayWriter&) = delete;
-
   ~MinidumpByteArrayWriter() override;
 
   //! \brief Sets the data to be written.
@@ -59,6 +56,8 @@ class MinidumpByteArrayWriter final : public internal::MinidumpWritable {
  private:
   std::unique_ptr<MinidumpByteArray> minidump_array_;
   std::vector<uint8_t> data_;
+
+  DISALLOW_COPY_AND_ASSIGN(MinidumpByteArrayWriter);
 };
 
 }  // namespace crashpad

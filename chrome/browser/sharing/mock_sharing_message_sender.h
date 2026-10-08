@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,11 +23,11 @@ class MockSharingMessageSender : public SharingMessageSender {
   ~MockSharingMessageSender() override;
 
   MOCK_METHOD5(SendMessageToDevice,
-               base::OnceClosure(const syncer::DeviceInfo&,
-                                 base::TimeDelta,
-                                 chrome_browser_sharing::SharingMessage,
-                                 DelegateType,
-                                 ResponseCallback));
+               void(const syncer::DeviceInfo&,
+                    base::TimeDelta,
+                    chrome_browser_sharing::SharingMessage,
+                    DelegateType,
+                    ResponseCallback));
 
   MOCK_METHOD2(
       OnAckReceived,

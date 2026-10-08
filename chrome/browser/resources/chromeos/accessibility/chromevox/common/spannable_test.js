@@ -1,8 +1,6 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-GEN_INCLUDE(['../../common/testing/accessibility_test_base.js']);
 
 UnserializableSpan = function() {};
 
@@ -57,19 +55,9 @@ function assertSpanNotFound(spannable, annotation) {
 /**
  * Test fixture.
  */
-ChromeVoxSpannableUnitTest = class extends AccessibilityTestBase {
+ChromeVoxSpannableUnitTest = class extends testing.Test {
   /** @override */
   setUp() {
-    super.setUp();
-  }
-
-  async setUpDeferred() {
-    await super.setUpDeferred();
-
-    // Alphabetical based on file path.
-    await importModule(
-        ['Spannable', 'MultiSpannable'], '/chromevox/common/spannable.js');
-
     Spannable.registerStatelessSerializableSpan(
         StatelessSerializableSpan, 'StatelessSerializableSpan');
 
@@ -85,6 +73,7 @@ ChromeVoxSpannableUnitTest = class extends AccessibilityTestBase {
 ChromeVoxSpannableUnitTest.prototype.extraLibraries = [
   '../../common/testing/assert_additions.js',
   '../testing/fake_dom.js',
+  'spannable.js',
 ];
 
 

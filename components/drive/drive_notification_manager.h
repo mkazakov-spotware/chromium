@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,10 @@
 #include <set>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/sequence_checker.h"
-#include "base/strings/string_piece_forward.h"
 #include "base/time/default_tick_clock.h"
 #include "base/timer/timer.h"
 #include "components/drive/drive_notification_observer.h"
@@ -35,27 +34,23 @@ namespace drive {
 // 1. XMPP invalidation is received from Google Drive.
 // 2. Polling timer counts down.
 class DriveNotificationManager : public KeyedService,
-                                 public invalidation::InvalidationHandler {
+                                 public syncer::InvalidationHandler {
  public:
   // |clock| can be injected for testing.
   explicit DriveNotificationManager(
       invalidation::InvalidationService* invalidation_service,
       const base::TickClock* clock = base::DefaultTickClock::GetInstance());
-
-  DriveNotificationManager(const DriveNotificationManager&) = delete;
-  DriveNotificationManager& operator=(const DriveNotificationManager&) = delete;
-
   ~DriveNotificationManager() override;
 
   // KeyedService override.
   void Shutdown() override;
 
-  // invalidation::InvalidationHandler implementation.
-  void OnInvalidatorStateChange(invalidation::InvalidatorState state) override;
+  // syncer::InvalidationHandler implementation.
+  void OnInvalidatorStateChange(syncer::InvalidatorState state) override;
   void OnIncomingInvalidation(
-      const invalidation::TopicInvalidationMap& invalidation_map) override;
+      const syncer::TopicInvalidationMap& invalidation_map) override;
   std::string GetOwnerName() const override;
-  bool IsPublicTopic(const invalidation::Topic& topic) const override;
+  bool IsPublicTopic(const syncer::Topic& topic) const override;
 
   void AddObserver(DriveNotificationObserver* observer);
   void RemoveObserver(DriveNotificationObserver* observer);
@@ -117,12 +112,12 @@ class DriveNotificationManager : public KeyedService,
   // Returns a string representation of NotificationSource.
   static std::string NotificationSourceToString(NotificationSource source);
 
-  invalidation::Topic GetDriveInvalidationTopic() const;
-  invalidation::Topic GetTeamDriveInvalidationTopic(
+  syncer::Topic GetDriveInvalidationTopic() const;
+  syncer::Topic GetTeamDriveInvalidationTopic(
       const std::string& team_drive_id) const;
   std::string ExtractTeamDriveId(base::StringPiece topic_name) const;
 
-  raw_ptr<invalidation::InvalidationService> invalidation_service_;
+  invalidation::InvalidationService* invalidation_service_;
   base::ObserverList<DriveNotificationObserver>::Unchecked observers_;
 
   // True when Drive File Sync Service is registered for Drive notifications.
@@ -153,6 +148,8 @@ class DriveNotificationManager : public KeyedService,
   // Note: This should remain the last member so it'll be destroyed and
   // invalidate its weak pointers before any other members are destroyed.
   base::WeakPtrFactory<DriveNotificationManager> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DriveNotificationManager);
 };
 
 }  // namespace drive

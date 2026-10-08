@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/hats/hats_service.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 
 // static
 HatsService* HatsServiceFactory::GetForProfile(Profile* profile,
@@ -22,15 +23,20 @@ HatsServiceFactory* HatsServiceFactory::GetInstance() {
 }
 
 HatsServiceFactory::HatsServiceFactory()
-    : ProfileKeyedServiceFactory("HatsService",
-                                 ProfileSelections::BuildForRegularProfile()) {
+    : BrowserContextKeyedServiceFactory(
+          "HatsService",
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(IdentityManagerFactory::GetInstance());
 }
 
 KeyedService* HatsServiceFactory::BuildServiceInstanceFor(
     content::BrowserContext* context) const {
   Profile* profile = Profile::FromBrowserContext(context);
-  return new HatsService(profile);
+
+  return (profile->IsOffTheRecord() || profile->IsGuestSession() ||
+          profile->IsSystemProfile())
+             ? nullptr
+             : new HatsService(profile);
 }
 
 HatsServiceFactory::~HatsServiceFactory() = default;

@@ -1,22 +1,18 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/trees/swap_promise_manager.h"
 
-#include <utility>
-
-#include "base/logging.h"
-#include "base/time/time.h"
-#include "cc/trees/latency_info_swap_promise_monitor.h"
 #include "cc/trees/swap_promise.h"
+#include "cc/trees/swap_promise_monitor.h"
 
 namespace cc {
 
 SwapPromiseManager::SwapPromiseManager() = default;
 
 SwapPromiseManager::~SwapPromiseManager() {
-  DCHECK(latency_info_swap_promise_monitors_.empty());
+  DCHECK(swap_promise_monitors_.empty());
   BreakSwapPromises(SwapPromise::COMMIT_FAILS);
 }
 
@@ -26,19 +22,18 @@ void SwapPromiseManager::QueueSwapPromise(
   swap_promise_list_.push_back(std::move(swap_promise));
 }
 
-void SwapPromiseManager::InsertLatencyInfoSwapPromiseMonitor(
-    LatencyInfoSwapPromiseMonitor* monitor) {
-  latency_info_swap_promise_monitors_.insert(monitor);
+void SwapPromiseManager::InsertSwapPromiseMonitor(SwapPromiseMonitor* monitor) {
+  swap_promise_monitors_.insert(monitor);
 }
 
-void SwapPromiseManager::RemoveLatencyInfoSwapPromiseMonitor(
-    LatencyInfoSwapPromiseMonitor* monitor) {
-  latency_info_swap_promise_monitors_.erase(monitor);
+void SwapPromiseManager::RemoveSwapPromiseMonitor(SwapPromiseMonitor* monitor) {
+  swap_promise_monitors_.erase(monitor);
 }
 
-void SwapPromiseManager::NotifyLatencyInfoSwapPromiseMonitors() {
-  for (auto* monitor : latency_info_swap_promise_monitors_)
-    monitor->OnSetNeedsCommitOnMain();
+void SwapPromiseManager::NotifySwapPromiseMonitorsOfSetNeedsCommit() {
+  for (auto* swap_promise_monitor : swap_promise_monitors_) {
+    swap_promise_monitor->OnSetNeedsCommitOnMain();
+  }
 }
 
 void SwapPromiseManager::WillCommit() {
@@ -56,11 +51,8 @@ SwapPromiseManager::TakeSwapPromises() {
 void SwapPromiseManager::BreakSwapPromises(
     SwapPromise::DidNotSwapReason reason) {
   std::vector<std::unique_ptr<SwapPromise>> keep_active_swap_promises;
-  keep_active_swap_promises.reserve(swap_promise_list_.size());
-
-  base::TimeTicks timestamp = base::TimeTicks::Now();
   for (auto& swap_promise : swap_promise_list_) {
-    if (swap_promise->DidNotSwap(reason, timestamp) ==
+    if (swap_promise->DidNotSwap(reason) ==
         SwapPromise::DidNotSwapAction::KEEP_ACTIVE) {
       keep_active_swap_promises.push_back(std::move(swap_promise));
     }
